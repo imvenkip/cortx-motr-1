@@ -69,7 +69,7 @@ enum misc_params {
 };
 
 M0_BASSERT(BUFF_SIZE == M0_BITS(BUFF_SHIFT));
-M0_BASSERT(M0_0VEC_ALIGN > BUFF_SIZE);
+M0_BASSERT((int)M0_0VEC_ALIGN > (int)BUFF_SIZE);
 M0_BASSERT(!(M0_0VEC_ALIGN & (M0_0VEC_ALIGN - 1)));
 
 /* sizeof struct po2 is an integer power of two. */

@@ -114,14 +114,14 @@ static const char *nlx_kcore_lnet_event_type_to_string(lnet_event_kind_t et)
 		[M0_LNET_EV_UNKNOWN] = "<Unknown>"
 	};
 
-	M0_CASSERT(LNET_EVENT_GET    == M0_LNET_EV_GET);
-	M0_CASSERT(LNET_EVENT_PUT    == M0_LNET_EV_PUT);
-	M0_CASSERT(LNET_EVENT_REPLY  == M0_LNET_EV_REPLY);
-	M0_CASSERT(LNET_EVENT_ACK    == M0_LNET_EV_ACK);
-	M0_CASSERT(LNET_EVENT_SEND   == M0_LNET_EV_SEND);
-	M0_CASSERT(LNET_EVENT_UNLINK == M0_LNET_EV_UNLINK);
+	M0_CASSERT((int)LNET_EVENT_GET    == (int)M0_LNET_EV_GET);
+	M0_CASSERT((int)LNET_EVENT_PUT    == (int)M0_LNET_EV_PUT);
+	M0_CASSERT((int)LNET_EVENT_REPLY  == (int)M0_LNET_EV_REPLY);
+	M0_CASSERT((int)LNET_EVENT_ACK    == (int)M0_LNET_EV_ACK);
+	M0_CASSERT((int)LNET_EVENT_SEND   == (int)M0_LNET_EV_SEND);
+	M0_CASSERT((int)LNET_EVENT_UNLINK == (int)M0_LNET_EV_UNLINK);
 
-	if (et >= M0_LNET_EV__FIRST && et <= M0_LNET_EV__LAST)
+	if (et >= (int)M0_LNET_EV__FIRST && et <= (int)M0_LNET_EV__LAST)
 		name = lnet_event_s[et];
 	else
 		name = lnet_event_s[M0_LNET_EV_UNKNOWN];

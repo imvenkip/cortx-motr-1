@@ -447,7 +447,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 	 */
 	if (owner == NULL) {
 		/* Owner cannot be NULL for a revoke request */
-		M0_ASSERT(type != FRT_REVOKE);
+		M0_ASSERT(type != (enum m0_rm_incoming_type)FRT_REVOKE);
 		rc = m0_rm_svc_owner_create(fom->fo_service, &owner,
 					    &basefop->rrq_owner.ow_resource);
 		if (rc != 0) {
@@ -542,7 +542,7 @@ static int request_fom_tick(struct m0_fom           *fom,
 
 	switch (m0_fom_phase(fom)) {
 	case FOPH_RM_REQ_START:
-		if (type == FRT_CANCEL)
+		if (type == (enum m0_rm_incoming_type)FRT_CANCEL)
 			rc = cancel_process(fom);
 		else
 			rc = request_pre_process(fom, type);
