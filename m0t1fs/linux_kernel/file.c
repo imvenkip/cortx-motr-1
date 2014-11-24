@@ -37,6 +37,7 @@
 			     * m0_pdclust_instance_map */
 #include "lib/bob.h"        /* m0_bob_type */
 #include "lib/tlist.h"
+#include "rpc/rpc_machine_internal.h"	/* m0_rpc_machine_lock */
 #include "ioservice/io_fops.h"    /* m0_io_fop */
 #include "mdservice/md_fops.h"    /* m0_fop_fsync_fopt */
 #include "ioservice/io_device.h"
@@ -3617,7 +3618,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 		 * chosen read-rest approach or aligned parity groups,
 		 * are copied since read-old approach needs reading of
 		 * all spanned pages,
-		 * (no matter fully modified or paritially modified)
+		 * (no matter fully modified or partially modified)
 		 * in order to calculate parity correctly.
 		 */
 		rc = req->ir_ops->iro_user_data_copy(req, CD_COPY_FROM_USER,
@@ -4839,11 +4840,13 @@ static void io_req_fop_release(struct m0_ref *ref)
 	struct m0_io_fop  *iofop;
 	struct io_req_fop *reqfop;
 	struct m0_fop_cob_rw *rwfop;
+	struct m0_rpc_machine *rmach;
 
 	M0_ENTRY("ref %p", ref);
 	M0_PRE(ref != NULL);
 
 	fop    = container_of(ref, struct m0_fop, f_ref);
+	rmach  = m0_fop_rpc_machine(fop);
 	iofop  = container_of(fop, struct m0_io_fop, if_fop);
 	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
 	/* see io_req_fop_fini(). */
@@ -4862,7 +4865,14 @@ static void io_req_fop_release(struct m0_ref *ref)
 		m0_clink_add_lock(&reqfop->irf_iofop.if_rbulk.rb_chan, &clink);
 		m0_rpc_bulk_store_del(&reqfop->irf_iofop.if_rbulk);
 
+		/*
+		 * rpc_machine_lock may be needed from nlx_tm_ev_worker
+		 * thread, which is going to wake us up. So we should
+		 * release it to avoid deadlock.
+		 */
+		m0_rpc_machine_unlock(rmach);
 		m0_chan_wait(&clink);
+		m0_rpc_machine_lock(rmach);
 
 		m0_clink_del_lock(&clink);
 		m0_clink_fini(&clink);
