@@ -434,10 +434,11 @@ M0_INTERNAL void *m0_tlist_prev(const struct m0_tl_descr *d,
 #define m0_tlist_for(descr, head, obj)					\
 do {									\
 	void *__tl;							\
+	const struct m0_tl *__head = (head);				\
 									\
-	for (obj = m0_tlist_head(descr, head);				\
+	for (obj = m0_tlist_head(descr, __head);			\
 	     obj != NULL &&						\
-             ((void)(__tl = m0_tlist_next(descr, head, obj)), true);	\
+	     ((void)(__tl = m0_tlist_next(descr, __head, obj)), true);	\
 	     obj = __tl)
 
 /**
