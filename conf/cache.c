@@ -37,7 +37,7 @@
  * @{
  */
 
-M0_TL_DESCR_DEFINE(m0_conf_cache, "registered m0_conf_obj-s", M0_INTERNAL,
+M0_TL_DESCR_DEFINE(m0_conf_cache, "registered m0_conf_obj-s", static,
 		   struct m0_conf_obj, co_cache_link, co_gen_magic,
 		   M0_CONF_OBJ_MAGIC, M0_CONF_CACHE_MAGIC);
 M0_TL_DEFINE(m0_conf_cache, M0_INTERNAL, struct m0_conf_obj);

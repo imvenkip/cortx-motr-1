@@ -798,7 +798,6 @@ M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 	M0_LEAVE("retval=%d", rc);
 	return M0_RC(rc);
 }
-
 
 /* ------------------------------------------------------------------
  * Casts

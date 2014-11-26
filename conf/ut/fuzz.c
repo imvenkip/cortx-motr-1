@@ -30,8 +30,6 @@ extern void test_confdb(void);
 
 struct m0_ut_suite confstr_ut = {
 	.ts_name  = "confstr-ut",
-	.ts_init  = NULL,
-	.ts_fini  = NULL,
 	.ts_tests = {
 		{ "db", test_confdb },
 		{ NULL, NULL }

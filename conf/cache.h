@@ -84,7 +84,6 @@ struct m0_conf_cache {
 #endif
 };
 
-M0_TL_DESCR_DECLARE(m0_conf_cache, M0_EXTERN);
 M0_TL_DECLARE(m0_conf_cache, M0_INTERNAL, struct m0_conf_obj);
 
 /** Initialises configuration cache. */
