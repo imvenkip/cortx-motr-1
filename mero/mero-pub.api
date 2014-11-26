@@ -50,6 +50,7 @@ m0_fop_opcode
 m0_fop_put
 m0_fop_put0
 m0_fop_put_lock
+m0_fop_put0_lock
 m0_fop_rpc_machine
 m0_fop_rpc_machine_set
 m0_fop_session_machine
