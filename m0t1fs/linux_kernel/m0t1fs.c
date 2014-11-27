@@ -41,10 +41,11 @@ static char *node_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */
 module_param(node_uuid, charp, S_IRUGO);
 MODULE_PARM_DESC(node_uuid, "UUID of Mero node");
 
-struct m0_addb_ctx m0t1fs_addb_ctx;
-struct m0_bitmap   m0t1fs_client_ep_tmid;
-struct m0_mutex    m0t1fs_mutex;
-uint32_t           m0t1fs_addb_mon_rw_io_size_key;
+struct m0_addb_ctx  m0t1fs_addb_ctx;
+struct m0_bitmap    m0t1fs_client_ep_tmid;
+struct m0_mutex     m0t1fs_mutex;
+struct m0_semaphore m0t1fs_cpus_sem;
+uint32_t            m0t1fs_addb_mon_rw_io_size_key;
 
 static struct file_system_type m0t1fs_fs_type = {
 	.owner        = THIS_MODULE,
@@ -64,6 +65,7 @@ M0_INTERNAL const char *m0t1fs_param_node_uuid_get(void)
 M0_INTERNAL int m0t1fs_init(void)
 {
 	int rc;
+	int cpus;
 
 	M0_ENTRY();
 
@@ -123,8 +125,18 @@ M0_INTERNAL int m0t1fs_init(void)
 	if (rc != 0)
 		goto icache_fini;
 
-	M0_LEAVE("rc: 0");
-	return 0;
+	/*
+	 * Limit the number of concurrent parity calculations
+	 * to avoid starving other threads (especially LNet) out.
+	 *
+	 * Note: the exact threshold number may come from configuration
+	 * database later where it can be specified per-node.
+	 */
+	cpus = (num_online_cpus() / 2) ?: 1;
+	printk(KERN_INFO "mero: max CPUs for parity calcs: %d\n", cpus);
+	m0_semaphore_init(&m0t1fs_cpus_sem, cpus);
+
+	return M0_RC(0);
 
 icache_fini:
 	m0t1fs_inode_cache_fini();

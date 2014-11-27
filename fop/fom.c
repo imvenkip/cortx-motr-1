@@ -894,7 +894,6 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 	struct m0_bitmap        onln_cpu_map;
 	int                     i;
 
-
 	M0_PRE(dom != NULL);
 
 	cpu_max = m0_processor_nr_max();

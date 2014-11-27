@@ -30,6 +30,7 @@
 #include "lib/tlist.h"
 #include "lib/hash.h"
 #include "lib/mutex.h"
+#include "lib/semaphore.h"
 #include "net/net.h"              /* m0_net_domain */
 #include "rpc/rpc.h"
 #include "reqh/reqh.h"
@@ -891,6 +892,9 @@ struct m0t1fs_inode {
 
 	uint64_t                   ci_magic;
 };
+
+/** CPUs semaphore - to control CPUs usage by parity calcs. */
+extern struct m0_semaphore m0t1fs_cpus_sem;
 
 static inline struct m0t1fs_sb *M0T1FS_SB(const struct super_block *sb)
 {

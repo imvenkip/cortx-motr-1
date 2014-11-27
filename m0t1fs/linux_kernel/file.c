@@ -1403,21 +1403,25 @@ last:
 
 static int ioreq_parity_recalc(struct io_request *req)
 {
-	int	 rc;
+	int	 rc = 0;
 	uint64_t map;
 
 	M0_ENTRY("io_request : %p", req);
 	M0_PRE_EX(io_request_invariant(req));
 
+	m0_semaphore_down(&m0t1fs_cpus_sem);
+
 	for (map = 0; map < req->ir_iomap_nr; ++map) {
 		rc = req->ir_iomaps[map]->pi_ops->pi_parity_recalc(req->
 				ir_iomaps[map]);
 		if (rc != 0)
-			return M0_ERR_INFO(rc, "Parity recalc failed for "
-				       "grpid : %llu",
-				       req->ir_iomaps[map]->pi_grpid);
+			break;
 	}
-	return M0_RC(0);
+
+	m0_semaphore_up(&m0t1fs_cpus_sem);
+
+	return rc != 0 ? M0_ERR_INFO(rc, "Parity recalc failed for grpid=%llu",
+				req->ir_iomaps[map]->pi_grpid) : M0_RC(rc);
 }
 
 /* Finds out pargrp_iomap from array of such structures in io_request. */
