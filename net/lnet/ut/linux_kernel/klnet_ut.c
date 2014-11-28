@@ -25,6 +25,8 @@
  * file.
  */
 
+#include <linux/version.h>        /* LINUX_VERSION_CODE */
+
 #include "net/lnet/ut/lnet_drv_ut.h"
 
 enum {
@@ -32,7 +34,11 @@ enum {
 	UT_SYNC_DELAY_SEC = 5,    /**< delay for user program to sync */
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+static struct proc_dir_entry *proc_lnet_ut M0_UNUSED;
+#else
 static struct proc_dir_entry *proc_lnet_ut;
+#endif
 
 static struct m0_mutex ktest_mutex;
 static struct m0_cond ktest_cond;
@@ -41,8 +47,13 @@ static int ktest_id;
 static bool ktest_user_failed;
 static bool ktest_done;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+M0_UNUSED static int read_lnet_ut(char *page, char **start, off_t off,
+			int count, int *eof, void *data)
+#else
 static int read_lnet_ut(char *page, char **start, off_t off,
 			int count, int *eof, void *data)
+#endif
 {
 	m0_semaphore_down(&ktest_sem);
 
@@ -66,8 +77,13 @@ static int read_lnet_ut(char *page, char **start, off_t off,
    Synchronize with user space program, updates ktest_id and signals main UT
    thread about each transition.
  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+M0_UNUSED static int write_lnet_ut(struct file *file, const char __user *buffer,
+			 unsigned long count, void *data)
+#else
 static int write_lnet_ut(struct file *file, const char __user *buffer,
 			 unsigned long count, void *data)
+#endif
 {
 	char buf[UT_PROC_WRITE_SIZE];
 
@@ -114,6 +130,7 @@ static int write_lnet_ut(struct file *file, const char __user *buffer,
 
 static int ktest_lnet_init(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 	proc_lnet_ut = create_proc_entry(UT_PROC_NAME, 0644, NULL);
 	if (proc_lnet_ut == NULL)
 		return -ENOENT;
@@ -125,17 +142,20 @@ static int ktest_lnet_init(void)
 	ktest_user_failed = false;
 	proc_lnet_ut->read_proc  = read_lnet_ut;
 	proc_lnet_ut->write_proc = write_lnet_ut;
+#endif
 	return 0;
 }
 
 static void ktest_lnet_fini(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 	M0_ASSERT(proc_lnet_ut != NULL);
 	remove_proc_entry(UT_PROC_NAME, NULL);
 	m0_semaphore_fini(&ktest_sem);
 	m0_cond_fini(&ktest_cond);
 	m0_mutex_fini(&ktest_mutex);
 	proc_lnet_ut = NULL;
+#endif
 }
 
 static bool ut_bufvec_alloc(struct m0_bufvec *bv, size_t n)
