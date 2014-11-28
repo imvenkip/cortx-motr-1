@@ -152,7 +152,6 @@ mkdir -p %{buildroot}%{_localstatedir}/mero
 %exclude %{_libdir}/*.la
 %exclude %{_libdir}/libmero-ut*
 %exclude %{_includedir}
-%exclude /lib/modules/*/kernel/fs/m0t1fs/*
 %exclude /lib/modules/*/kernel/fs/net/*
 %exclude /lib/modules/*/kernel/fs/rpc/*
 %exclude /lib/modules/*/kernel/fs/ut/*

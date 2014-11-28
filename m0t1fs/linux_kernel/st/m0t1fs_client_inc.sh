@@ -652,7 +652,7 @@ m0t1fs_system_tests()
 		return 1
 	}
 
-	m0loop_st || return 1
+	#m0loop_st || return 1
 
 	return 0
 }

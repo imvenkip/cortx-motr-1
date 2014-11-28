@@ -21,7 +21,7 @@ obj-m := mero/m0mero.o
 else ifdef M0_BUILD_KERNEL_UT_ONLY
 
 obj-m := ut/linux_kernel/m0ut.o
-obj-m += m0t1fs/linux_kernel/m0loop-ut.o
+#obj-m += m0t1fs/linux_kernel/m0loop-ut.o
 
 else
 
@@ -31,13 +31,13 @@ else
 # provided by INSTALL_MOD_DIR Kbuild variable and "mero" is taken from module's
 # build directory
 obj-m := mero/m0mero.o
-obj-m += mero/m0loop.o
+#obj-m += mero/m0loop.o
 obj-m += mero/m0ctl.o
 
 # these modules are built unless '--disable-unit-tests' option of ./configure
 # script is used
 obj-$(enable_test_modules) += ut/linux_kernel/m0ut.o
-obj-$(enable_test_modules) += m0t1fs/linux_kernel/m0loop-ut.o
+#obj-$(enable_test_modules) += m0t1fs/linux_kernel/m0loop-ut.o
 obj-$(enable_test_modules) += net/lnet/st/linux_kernel/m0lnetping.o
 obj-$(enable_test_modules) += rpc/it/linux_kernel/m0rpcping.o
 obj-$(enable_test_modules) += net/test/linux_kernel/m0nettestd.o
@@ -145,14 +145,14 @@ include $(src)/utils/Kbuild.sub
 # m0loop.ko
 #
 
-mero/m0loop-y = m0t1fs/linux_kernel/m0loop_main.o
+#mero/m0loop-y = m0t1fs/linux_kernel/m0loop_main.o
 
 
 #
 # m0loop-ut.ko
 #
 
-m0t1fs/linux_kernel/m0loop-ut-y = m0t1fs/linux_kernel/m0loop_main.o \
+#m0t1fs/linux_kernel/m0loop-ut-y = m0t1fs/linux_kernel/m0loop_main.o \
                                   m0t1fs/linux_kernel/ut/m0loop.o
 
 

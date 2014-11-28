@@ -66,7 +66,7 @@ extern struct m0_ut_suite stob_ut;
 extern struct m0_ut_suite xcode_ut;
 extern struct m0_ut_suite di_ut;
 
-extern struct m0_ut_suite m0_loop_ut; /* m0loop driver */
+//extern struct m0_ut_suite m0_loop_ut; /* m0loop driver */
 
 static struct m0_thread ut_thread;
 
@@ -80,7 +80,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &be_ut);
 	m0_ut_add(m, &buffer_pool_ut);
 	m0_ut_add(m, &bulkio_client_ut);
-	m0_ut_add(m, &m0_loop_ut);
+	/*m0_ut_add(m, &m0_loop_ut);*/
 	m0_ut_add(m, &m0_net_bulk_if_ut);
 	m0_ut_add(m, &m0_net_bulk_mem_ut);
 	m0_ut_add(m, &m0_net_lnet_ut);
