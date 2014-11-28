@@ -191,7 +191,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 		*/
 
 		cpumask_copy(&p->cpus_allowed, cpuset);
-		p->rt.nr_cpus_allowed = nr_allowed;
+		p->nr_cpus_allowed = nr_allowed;
 
 		/* cause current task to migrate immediately by blocking */
 		if (p == current && !cpumask_test_cpu(task_cpu(p), cpuset))

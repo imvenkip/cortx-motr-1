@@ -935,10 +935,9 @@ extern const struct address_space_operations m0t1fs_aops;
 
 /* super.c */
 
-M0_INTERNAL int m0t1fs_get_sb(struct file_system_type *fstype,
-			      int flags,
-			      const char *devname,
-			      void *data, struct vfsmount *mnt);
+M0_INTERNAL struct dentry *m0t1fs_mount(struct file_system_type *fstype,
+					int flags, const char *devname,
+					void *data);
 
 M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb);
 

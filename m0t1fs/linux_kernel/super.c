@@ -1330,7 +1330,7 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 
 static void m0t1fs_dput(struct dentry *dentry)
 {
-        dentry->d_inode->i_nlink = 0;
+        clear_nlink(dentry->d_inode);
         d_delete(dentry);
         dput(dentry);
 }
@@ -1449,7 +1449,7 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 		rc = (int)PTR_ERR(root_inode);
 		goto out;
 	}
-	sb->s_root = d_alloc_root(root_inode);
+	sb->s_root = d_make_root(root_inode);
 	if (sb->s_root == NULL) {
 		iput(root_inode);
 		rc = -ENOMEM;
@@ -1523,14 +1523,13 @@ end:
 }
 
 /** Implementation of file_system_type::get_sb() interface. */
-M0_INTERNAL int m0t1fs_get_sb(struct file_system_type *fstype, int flags,
-			      const char *devname, void *data,
-			      struct vfsmount *mnt)
+M0_INTERNAL struct dentry *m0t1fs_mount(struct file_system_type *fstype,
+					int flags, const char *devname,
+					void *data)
 {
 	M0_ENTRY("flags: 0x%x, devname: %s, data: %s", flags, devname,
 		 (char *)data);
-	return M0_RC(get_sb_nodev(fstype, flags, data, m0t1fs_fill_super,
-				   mnt));
+	return mount_nodev(fstype, flags, data, m0t1fs_fill_super);
 }
 
 /** Implementation of file_system_type::kill_sb() interface. */

@@ -52,7 +52,7 @@ M0_INTERNAL void m0_fi_fini(void)
  */
 M0_INTERNAL uint32_t fi_random(void)
 {
-	u32 rnd     = random32();
+	u32 rnd     = prandom_u32();
 	u32 roundup = rnd % FI_RAND_SCALE_UNIT ? 1 : 0;
 
 	return rnd / FI_RAND_SCALE_UNIT + roundup;

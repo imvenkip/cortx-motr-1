@@ -22,6 +22,8 @@
 #include <linux/mm.h>       /* get_user_pages, get_page, put_page */
 #include <linux/fs.h>       /* struct file_operations */
 #include <linux/mount.h>    /* struct vfsmount (f_path.mnt) */
+#include <linux/uio.h>      /* struct iovec */
+#include <linux/aio.h>      /* struct kiocb */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
 #include "lib/trace.h"
@@ -4781,7 +4783,7 @@ const struct file_operations m0t1fs_reg_file_operations = {
 	.write	   = do_sync_write,
 	.ioctl     = m0t1fs_ioctl,
 	.fsync     = m0t1fs_fsync,
-	.open      = m0t1fs_open
+	.open      = m0t1fs_open,
 };
 
 static void client_passive_recv(const struct m0_net_buffer_event *evt)

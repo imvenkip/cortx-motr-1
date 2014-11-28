@@ -26,7 +26,7 @@
 /**
    Determines the next element in the queue that can be used by the producer.
    This operation causes the page containing the next element to be mapped
-   using @c kmap_atomic().  The KM_USER1 slot is consumed.
+   using @c kmap_atomic().
    @note This operation is to be used only by the producer.
    @param q the queue
    @returns a pointer to the next available element in the producer context
@@ -43,7 +43,7 @@ static struct nlx_core_bev_link *bev_cqueue_pnext(
 	M0_PRE(bev_cqueue_invariant(q));
 	loc = &q->cbcq_producer_loc;
 	M0_PRE(nlx_core_kmem_loc_invariant(loc) && loc->kl_page != NULL);
-	ptr = kmap_atomic(loc->kl_page, KM_USER1);
+	ptr = kmap_atomic(loc->kl_page);
 	p = (struct nlx_core_bev_link *) (ptr + loc->kl_offset);
 	M0_POST(nlx_core_kmem_loc_invariant(&p->cbl_p_self_loc));
 	M0_POST(p->cbl_c_self != q->cbcq_consumer);
@@ -66,7 +66,7 @@ static void bev_cqueue_put(struct nlx_core_bev_cqueue *q,
 	M0_PRE(p->cbl_c_self != q->cbcq_consumer);
 	M0_PRE(nlx_core_kmem_loc_eq(&q->cbcq_producer_loc, &p->cbl_p_self_loc));
 	q->cbcq_producer_loc = p->cbl_p_next_loc;
-	kunmap_atomic(p, KM_USER1);
+	kunmap_atomic(p);
 	m0_atomic64_inc(&q->cbcq_count);
 }
 

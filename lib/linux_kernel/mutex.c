@@ -65,9 +65,8 @@ M0_INTERNAL bool m0_mutex_is_locked(const struct m0_mutex *mutex)
 {
 	/* linux kernel mutex, 1:unlocked, 0:locked, -ve: locked with waiters */
 #if defined(CONFIG_DEBUG_MUTEXES) || defined(CONFIG_SMP)
-	struct thread_info *owner = mutex->m_mutex.owner;
-	return atomic_read(&mutex->m_mutex.count) < 1 &&
-		owner != NULL && owner->task == current;
+	struct mutex *m = (struct mutex*)(&mutex->m_mutex);
+	return mutex_is_locked(m) && m->owner == current;
 #else
 	return true;
 #endif

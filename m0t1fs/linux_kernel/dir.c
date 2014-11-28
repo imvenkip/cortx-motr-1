@@ -19,6 +19,8 @@
  * Original creation date: 10/14/2011
  */
 
+#include <linux/uidgid.h>  /* from_kuid */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
 #include "lib/trace.h"
 
@@ -351,16 +353,16 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 
 static int m0t1fs_fid_create(struct inode     *dir,
 			     struct dentry    *dentry,
-			     int               mode,
-			     struct nameidata *nd)
+			     umode_t           mode,
+			     bool              excl)
 {
         return M0_ERR(-EOPNOTSUPP);
 }
 
 static int m0t1fs_create(struct inode     *dir,
 			 struct dentry    *dentry,
-			 int               mode,
-			 struct nameidata *nd)
+			 umode_t           mode,
+			 bool              excl)
 {
 	struct super_block       *sb  = dir->i_sb;
 	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
@@ -424,8 +426,8 @@ static int m0t1fs_create(struct inode     *dir,
 		goto out;
 
 	M0_SET0(&mo);
-	mo.mo_attr.ca_uid       = inode->i_uid;
-	mo.mo_attr.ca_gid       = inode->i_gid;
+	mo.mo_attr.ca_uid       = from_kuid(current_user_ns(), inode->i_uid);
+	mo.mo_attr.ca_gid       = from_kgid(current_user_ns(), inode->i_gid);
 	mo.mo_attr.ca_atime     = inode->i_atime.tv_sec;
 	mo.mo_attr.ca_ctime     = inode->i_ctime.tv_sec;
 	mo.mo_attr.ca_mtime     = inode->i_mtime.tv_sec;
@@ -504,19 +506,19 @@ out:
 	return M0_RC(rc);
 }
 
-static int m0t1fs_fid_mkdir(struct inode *dir, struct dentry *dentry, int mode)
+static int m0t1fs_fid_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 {
 	return m0t1fs_fid_create(dir, dentry, mode | S_IFDIR, NULL);
 }
 
-static int m0t1fs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
+static int m0t1fs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 {
 	return m0t1fs_create(dir, dentry, mode | S_IFDIR, NULL);
 }
 
 static struct dentry *m0t1fs_lookup(struct inode     *dir,
 				    struct dentry    *dentry,
-				    struct nameidata *nd)
+				    unsigned int      flags)
 {
 	struct m0t1fs_sb         *csb;
 	struct m0t1fs_inode      *ci;
@@ -565,7 +567,7 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 
 static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
 				        struct dentry    *dentry,
-				        struct nameidata *nd)
+				        unsigned int      flags)
 {
 	struct m0_fid             fid;
         int rc;
@@ -575,7 +577,7 @@ static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
 		M0_LEAVE("Cannot parse fid \"%s\"", (char *)dentry->d_name.name);
 		return ERR_PTR(rc);
         }
-        return m0t1fs_lookup(dir, dentry, nd);
+        return m0t1fs_lookup(dir, dentry, flags);
 }
 
 
@@ -1172,12 +1174,12 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	}
 
 	if (attr->ia_valid & ATTR_UID) {
-		mo.mo_attr.ca_uid = attr->ia_uid;
+		mo.mo_attr.ca_uid = from_kuid(current_user_ns(), attr->ia_uid);
 		mo.mo_attr.ca_valid |= M0_COB_UID;
 	}
 
 	if (attr->ia_valid & ATTR_GID) {
-		mo.mo_attr.ca_gid = attr->ia_gid;
+		mo.mo_attr.ca_gid = from_kgid(current_user_ns(), attr->ia_gid);
 		mo.mo_attr.ca_valid |= M0_COB_GID;
 	}
 
@@ -1193,9 +1195,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	if (rc != 0)
 		goto out;
 
-	rc = inode_setattr(inode, attr);
-	if (rc != 0)
-		goto out;
+	setattr_copy(inode, attr);
 out:
 	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
@@ -1928,7 +1928,7 @@ const struct file_operations m0t1fs_dir_file_operations = {
 	.open    = m0t1fs_opendir,
 	.release = m0t1fs_releasedir,
 	.readdir = m0t1fs_readdir,
-	.fsync   = simple_fsync,	/* provided by linux kernel */
+	.fsync   = generic_file_fsync,  /* provided by linux kernel */
 	.llseek  = generic_file_llseek, /* provided by linux kernel */
 };
 
@@ -1937,7 +1937,7 @@ const struct file_operations m0t1fs_fid_dir_file_operations = {
 	.open    = m0t1fs_fid_opendir,
 	.release = m0t1fs_fid_releasedir,
 	.readdir = m0t1fs_fid_readdir,
-	.fsync   = simple_fsync,	/* provided by linux kernel */
+	.fsync   = generic_file_fsync,  /* provided by linux kernel */
 	.llseek  = generic_file_llseek, /* provided by linux kernel */
 };
 

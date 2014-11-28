@@ -50,7 +50,7 @@ uint32_t            m0t1fs_addb_mon_rw_io_size_key;
 static struct file_system_type m0t1fs_fs_type = {
 	.owner        = THIS_MODULE,
 	.name         = "m0t1fs",
-	.get_sb       = m0t1fs_get_sb,
+	.mount        = m0t1fs_mount,
 	.kill_sb      = m0t1fs_kill_sb,
 	.fs_flags     = FS_BINARY_MOUNTDATA
 };
