@@ -137,7 +137,7 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
 	struct m0t1fs_mdop          mo;
 	int                         rc;
-	struct m0_fop              *rep_fop;
+	struct m0_fop              *rep_fop = NULL;
 
 	M0_ENTRY("Setting %.*s's xattr %s=%.*s", dentry->d_name.len,
 		 dentry->d_name.name, name, (int)size, (char *)value);
