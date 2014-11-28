@@ -565,9 +565,9 @@ utils_layout_m0layout_LDADD     = $(top_builddir)/mero/libmero.la
 #
 
 if LHSM_BUILD
-bin_PROGRAMS                       += lustre_hsm/m0lhsmtool
-lustre_hsm_m0lhsmtool_CFLAGS        = -Wno-error -Wno-all
-lustre_hsm_m0lhsmtool_LDFLAGS       = -llustreapi -lpthread
+#bin_PROGRAMS                       += lustre_hsm/m0lhsmtool
+#lustre_hsm_m0lhsmtool_CFLAGS        = -Wno-error -Wno-all
+#lustre_hsm_m0lhsmtool_LDFLAGS       = -llustreapi -lpthread
 endif
 
 #
