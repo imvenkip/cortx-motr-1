@@ -886,7 +886,7 @@ do {							\
 /* LUSTRE_SRV_LNET_PID is not available in user space, so assert that the
  * M0 equivalent is valid.
  */
-M0_BASSERT(M0_NET_LNET_PID == LUSTRE_SRV_LNET_PID);
+M0_BASSERT(M0_NET_LNET_PID == LNET_PID_LUSTRE);
 #else
 #include "net/lnet/ulnet_core.h"
 #include "net/lnet/ulnet_core.c"

@@ -2023,7 +2023,7 @@ static int nlx_core_init(void)
 	const char *nidstr;
 
 	/* Init LNet with same PID as Lustre would use in case we are first. */
-	rc = LNetNIInit(LUSTRE_SRV_LNET_PID);
+	rc = LNetNIInit(LNET_PID_LUSTRE);
 	if (rc < 0)
 		return M0_RC(rc);
 

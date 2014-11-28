@@ -156,7 +156,7 @@ enum {
 };
 #ifdef __KERNEL__
 /* LUSTRE_SRV_LNET_PID macro is not available in user space */
-M0_BASSERT(STARTSTOP_PID == LUSTRE_SRV_LNET_PID);
+M0_BASSERT(STARTSTOP_PID == LNET_PID_LUSTRE);
 #endif
 
 static enum m0_net_queue_type cb_qt1;
