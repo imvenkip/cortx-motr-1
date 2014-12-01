@@ -745,7 +745,7 @@ gccxml2xcode_verbose_0 = @echo " GCCXML2XC " $@;
 # gccxml doesn't like -Werror and --coverage options so we need to remove them
 # from CFLAGS
 
-GCCXML_UNSUPPORTED_CFLAGS := -Werror --coverage -pipe -Wp,-D_FORTIFY_SOURCE=2 --param=ssp-buffer-size=4
+GCCXML_UNSUPPORTED_CFLAGS := -Werror --coverage -pipe -Wp,-D_FORTIFY_SOURCE=2 --param=ssp-buffer-size=4 -grecord-gcc-switches -fstack-protector-strong
 # set maximum supported gcc version by gccxml, currently it's 4.2
 GCCXML_CPPFLAGS := -DGCC_VERSION=4002
 GCCXML_CFLAGS   := $(filter-out $(GCCXML_UNSUPPORTED_CFLAGS), $(CPPFLAGS) $(CFLAGS) $(AM_CPPFLAGS) $(AM_CFLAGS))
