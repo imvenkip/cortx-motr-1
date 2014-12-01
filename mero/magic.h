@@ -831,6 +831,12 @@ enum m0_magic_satchel {
 	M0_SS_SVC_MAGIC = 0x33c0ffee1eafad77,
 	/* ss_fom::ssf_magic (fossilizes lo) */
 	M0_SS_FOM_MAGIC = 0x33f0551112e51077,
+
+/* module/param */
+	/* m0_param_source::ps_magic (boozed billie) */
+	M0_PARAM_SOURCE_MAGIC = 0x33b002edb1111e77,
+	/* m0_param_sources_tl::td_head_magic (ascidiozooid) */
+	M0_PARAM_SOURCES_MAGIC = 0x33a5c1d102001d77,
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */

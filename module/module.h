@@ -181,7 +181,7 @@ struct m0_modlev {
  * changed during its lifetime.
  *
  * @note  *_module_setup() functions (m0_module_setup(),
- *        m0_net_module_setup(), etc.) must not do anything apart from
+ *        m0_net_module_setup(), etc.) MUST NOT do anything apart from
  *        setting the fields of m0_module(s) and establishing
  *        inter-modules dependencies.
  */

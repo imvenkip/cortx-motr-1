@@ -18,6 +18,7 @@
  */
 
 #include "module/instance.h"
+#include "module/param.h"     /* m0_param_sources_tlist_init */
 
 /**
  * @addtogroup module
@@ -29,6 +30,8 @@ M0_INTERNAL int m0_init_once(struct m0 *instance);
 M0_INTERNAL void m0_fini_once(void);
 M0_INTERNAL int m0_subsystems_init(void);
 M0_INTERNAL void m0_subsystems_fini(void);
+
+M0_LOCKERS__DEFINE(M0_INTERNAL, m0_inst, m0, i_lockers);
 
 M0_INTERNAL struct m0 *m0_get(void)
 {
@@ -46,29 +49,49 @@ M0_INTERNAL void m0_set(struct m0 *instance)
 static int level_inst_enter(struct m0_module *module)
 {
 	switch (module->m_cur + 1) {
-	case M0_LEVEL_INST_ONCE: {
+	case M0_LEVEL_INST_PREPARE: {
 		struct m0 *inst = M0_AMB(inst, module, i_self);
-		return m0_init_once(inst);
+
+		m0_param_sources_tlist_init(&inst->i_param_sources);
+		m0_inst_lockers_init(inst);
+		return 0;
 	}
+	case M0_LEVEL_INST_ONCE:
+		return m0_init_once(container_of(module, struct m0, i_self));
 	case M0_LEVEL_INST_SUBSYSTEMS:
 		return m0_subsystems_init();
 	}
-	M0_IMPOSSIBLE("Entering unexpected level: %d", module->m_cur + 1);
+	M0_IMPOSSIBLE("Unexpected level: %d", module->m_cur + 1);
+}
+
+static void level_inst_leave(struct m0_module *module)
+{
+	struct m0 *inst = M0_AMB(inst, module, i_self);
+
+	M0_PRE(module->m_cur == M0_LEVEL_INST_PREPARE);
+
+	m0_inst_lockers_fini(inst);
+	m0_param_sources_tlist_fini(&inst->i_param_sources);
 }
 
 static const struct m0_modlev levels_inst[] = {
+	[M0_LEVEL_INST_PREPARE] = {
+		.ml_name  = "M0_LEVEL_INST_PREPARE",
+		.ml_enter = level_inst_enter,
+		.ml_leave = level_inst_leave
+	},
 	[M0_LEVEL_INST_ONCE] = {
-		.ml_name  = "m0: one-time initialisations have been performed",
+		.ml_name  = "M0_LEVEL_INST_ONCE",
 		.ml_enter = level_inst_enter,
 		.ml_leave = (void *)m0_fini_once
 	},
 	[M0_LEVEL_INST_SUBSYSTEMS] = {
-		.ml_name  = "m0_subsystems_init() has been called",
+		.ml_name  = "M0_LEVEL_INST_SUBSYSTEMS",
 		.ml_enter = level_inst_enter,
 		.ml_leave = (void *)m0_subsystems_fini
 	},
 	[M0_LEVEL_INST_READY] = {
-		.ml_name  = "m0 is fully initialised"
+		.ml_name  = "M0_LEVEL_INST_READY"
 	}
 };
 

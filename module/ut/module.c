@@ -19,6 +19,7 @@
  */
 
 #include "module/instance.h"
+#include "module/param.h"
 #include "lib/string.h"       /* m0_streq */
 #include "ut/ut.h"
 
@@ -419,11 +420,46 @@ static void test_instance(void)
 	M0_UT_ASSERT(inst == g_instance);
 }
 
+static const char *kv_get(const struct m0_param_source *_, const char *key)
+{
+	static struct {
+		const char *key;
+		const char *val;
+	} db[] = {
+		{ "rose",   "red" },
+		{ "violet", "blue" }
+	};
+	unsigned i;
+
+	for (i = 0; i < ARRAY_SIZE(db); ++i) {
+		if (m0_streq(db[i].key, key))
+			return db[i].val;
+	}
+	return NULL;
+}
+
+static void test_param(void)
+{
+	struct m0_param_source param = {
+		.ps_param_get = (void *(*)(const struct m0_param_source *,
+					   const char *))kv_get
+	};
+	const char            *s;
+
+	m0_param_source_add(&param);
+	s = m0_param_get("rose");
+	M0_UT_ASSERT(m0_streq(s, "red"));
+	s = m0_param_get("daisy");
+	M0_UT_ASSERT(s == NULL);
+	m0_param_source_del(&param);
+}
+
 struct m0_ut_suite module_ut = {
 	.ts_name  = "module-ut",
 	.ts_tests = {
 		{ "module",   test_module },
 		{ "instance", test_instance },
+		{ "param",    test_param },
 		{ NULL, NULL }
 	}
 };

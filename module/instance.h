@@ -21,6 +21,7 @@
 #define __MERO_MODULE_INSTANCE_H__
 
 #include "module/module.h"  /* m0_module */
+#include "lib/lockers.h"    /* M0_LOCKERS__DECLARE */
 #include "net/module.h"     /* m0_net */
 #include "stob/module.h"    /* m0_stob_module */
 #include "ut/stob.h"        /* m0_ut_stob_module */
@@ -34,6 +35,8 @@ struct m0_dbenv;
  *
  * @{
  */
+
+M0_LOCKERS__DECLARE(M0_INTERNAL, m0_inst, m0, 16);
 
 /**
  * m0 instance.
@@ -61,14 +64,21 @@ struct m0 {
 	uint64_t                  i_dep_gen;
 	/** Module representing this instance. */
 	struct m0_module          i_self;
+	/**
+	 * List of m0_param_source-s, linked through m0_param_source::ps_link.
+	 *
+	 * @see m0_param_source_add(), m0_param_source_del()
+	 */
+	struct m0_tl              i_param_sources;
+	/**
+	 * The storage of globally-accessible pointers, which are
+	 * intended to be used by modules.
+	 */
+	struct m0_inst_lockers    i_lockers;
 
 	/*
 	 * Global modules.
-	 *
-	 * CAUTION: Do not add members willy-nilly!
-	 *          Without proper care m0 instance will become another
-	 *          Windows Registry.
-	 *          Please negotiate new entries with vvv or Nikita.
+	 * XXX TODO: Stash the following fields away in ->i_lockers.
 	 */
 	struct m0_net             i_net;
 	struct m0_stob_module     i_stob_module;
@@ -85,17 +95,13 @@ struct m0 {
 	struct m0_cob_domain     *i_cob_module;
 	bool                      i_reqh_has_multiple_ad_domains;
 	bool                      i_reqh_uses_ad_stob;
-#if 0 /* XXX ENABLEME */
-	/**
-	 * Contains modules for library (thread, xc, etc.) together
-	 * with their global data.
-	 */
-	struct m0_lib             i_lib;
-	/* ... */
-#endif
 };
 
-/** Configures m0_modules: m0 and its submodules. */
+/**
+ * Configures m0_modules: m0 and its submodules.
+ *
+ * @see m0_module_setup()
+ */
 M0_INTERNAL void m0_instance_setup(struct m0 *instance);
 
 /**
@@ -125,9 +131,11 @@ M0_INTERNAL void m0_set(struct m0 *instance);
 /** Levels of m0 instance. */
 enum {
 	/**
-	 * The entry function of this level performs preparatory
-	 * actions, which are common to all types of m0 instances.
+	 * m0_param_source_add(), m0_param_source_del(),
+	 * m0_param_get() may not be used before m0::i_self enters
+	 * M0_LEVEL_INST_PREPARE or after it leaves it.
 	 */
+	M0_LEVEL_INST_PREPARE,
 	M0_LEVEL_INST_ONCE,
 	/*
 	 * XXX DELETEME after the removal of m0_init() function and
@@ -138,7 +146,7 @@ enum {
 	 * The "fully initialised" level, which the users of m0
 	 * instance should m0_module_init() it to.
 	 *
-	 * M0_LEVEL_INST_READY will depend on a particular set of modules,
+	 * M0_LEVEL_INST_READY depends on a particular set of modules,
 	 * according to the use case (UT, m0t1fs, m0d, etc.).
 	 */
 	M0_LEVEL_INST_READY

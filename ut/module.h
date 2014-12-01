@@ -85,6 +85,8 @@ enum { M0_LEVEL_UT_SUITE_READY };
  * +---------------------+   |  +--------------------------+
  * | M0_LEVEL_UT_PREPARE |<--'  | M0_LEVEL_INST_ONCE       |
  * +---------------------+      +--------------------------+
+ *                              | M0_LEVEL_INST_PREPARE    |
+ *                              +--------------------------+
  */
 M0_INTERNAL void m0_ut_module_setup(struct m0 *instance);
 
