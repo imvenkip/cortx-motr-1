@@ -79,7 +79,6 @@ M0_INTERNAL bool m0_lockers_is_empty(const struct m0_lockers_type *lt,
 M0_INTERNAL void m0_lockers_fini(struct m0_lockers_type *lt,
 				 struct m0_lockers      *lockers)
 {
-
 }
 
 /** @} end of lockers group */
