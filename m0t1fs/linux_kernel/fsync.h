@@ -388,7 +388,7 @@ struct m0t1fs_fsync_fop_wrapper {
  * - this is used in fsync.c and its unit tests.
  */
 struct m0t1fs_fsync_interactions {
-	int (*kernel_fsync)(struct file *file, struct dentry *dentry,
+	int (*kernel_fsync)(struct file *file, loff_t start, loff_t end,
 	                    int datasync);
 	int (*post_rpc)(struct m0_rpc_item *item);
 	int (*wait_for_reply)(struct m0_rpc_item *item, m0_time_t timeout);
@@ -399,7 +399,7 @@ struct m0t1fs_fsync_interactions {
 /**
  * m0t1fs fsync entry point
  */
-int m0t1fs_fsync(struct file *file, struct dentry *dentry, int datasync);
+int m0t1fs_fsync(struct file *file, loff_t start, loff_t end, int datasync);
 
 
 /**

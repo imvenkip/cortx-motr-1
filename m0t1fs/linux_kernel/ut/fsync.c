@@ -90,7 +90,7 @@ static struct m0t1fs_sb                  csb;
 static struct m0t1fs_service_context     service;
 
 /* Stub functions used to test m0t1fs_fsync */
-static int ut_kernel_fsync(struct file *file, struct dentry *dentry,
+static int ut_kernel_fsync(struct file *file, loff_t start, loff_t end,
                            int datasync)
 {
 	ut_kernel_fsync_count++;
@@ -586,7 +586,7 @@ static void test_m0t1fs_fsync_core(void)
 }
 
 
-void call_m0t1fs_fsync(struct file *input_file, struct dentry *input_dentry,
+void call_m0t1fs_fsync(struct file *input_file, loff_t start, loff_t end,
                        int input_datamode, int expect_return,
                        int expect_ut_kernel_fsync_count,
                        int expect_ut_post_rpc_count,
@@ -594,7 +594,7 @@ void call_m0t1fs_fsync(struct file *input_file, struct dentry *input_dentry,
 {
 	int rv;
 
-	rv = m0t1fs_fsync(input_file, input_dentry, input_datamode);
+	rv = m0t1fs_fsync(input_file, start, end, input_datamode);
 	M0_UT_ASSERT(rv == expect_return);
 	M0_UT_ASSERT(ut_kernel_fsync_count == expect_ut_kernel_fsync_count);
 	M0_UT_ASSERT(ut_post_rpc_count == expect_ut_post_rpc_count);
@@ -603,7 +603,14 @@ void call_m0t1fs_fsync(struct file *input_file, struct dentry *input_dentry,
 
 void fsync_test(void)
 {
-	int i;
+	/*
+	 * fsync range in bytes, a whole file can be specified as [0, -1]
+	 * see documentation of filemap_write_and_wait_range() in kernel
+	 */
+	loff_t start = 0;
+	loff_t end   = -1;
+
+	int    i;
 
 	/* test our component pieces work first */
 	test_m0t1fs_fsync_request_create();
@@ -628,7 +635,7 @@ void fsync_test(void)
 	 * returned and that no fops are sent */
 	ut_reset_stub_counters();
 	ut_kernel_fsync_return = -EIO;
-	call_m0t1fs_fsync(&file, &dentry, 0, ut_kernel_fsync_return, 1, 0, 0);
+	call_m0t1fs_fsync(&file, start, end, 0, ut_kernel_fsync_return, 1, 0, 0);
 	/* TODO check some ADDB was generated for this event */
 
 	/* Check normal operation works */
@@ -637,8 +644,8 @@ void fsync_test(void)
 	ut_post_rpc_return = 0;
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = 0;
-	call_m0t1fs_fsync(&file, &dentry, 0, 0, 1, NUM_STRECORDS,
-	                  NUM_STRECORDS);
+	call_m0t1fs_fsync(&file, start, end, 0, 0, 1, NUM_STRECORDS,
+			  NUM_STRECORDS);
 	/* test the records were updated */
 	for (i = 0; i < NUM_STRECORDS; i++)
 		M0_UT_ASSERT(stx[i].stx_tri.tri_txid == 0);

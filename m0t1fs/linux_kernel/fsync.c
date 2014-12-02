@@ -53,7 +53,7 @@ M0_TL_DEFINE(fpf, static, struct m0t1fs_fsync_fop_wrapper);
  * - purely to facilitate unit testing
  */
 struct m0t1fs_fsync_interactions fi = {
-	.kernel_fsync   = &simple_fsync,
+	.kernel_fsync   = generic_file_fsync,
 	.post_rpc       = &m0_rpc_post,
 	.wait_for_reply = &m0_rpc_item_wait_for_reply,
 	/* fini is for requests, allocated in a bigger structure */
@@ -318,7 +318,7 @@ int m0t1fs_fsync_core(struct m0t1fs_inode *inode, enum m0_fsync_mode mode)
  * would require a sync against the super-block, as all metadata currently
  * lives in container-zero.
  */
-int m0t1fs_fsync(struct file *file, struct dentry *dentry, int datasync)
+int m0t1fs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 {
 	int                  rc;
 	struct m0t1fs_inode *inode;
@@ -334,7 +334,7 @@ int m0t1fs_fsync(struct file *file, struct dentry *dentry, int datasync)
 	 * This call will block until all the data is sent to the server, and
 	 * we have uptodate pending transaction-ids.
 	 */
-	rc = fi.kernel_fsync(file, dentry, datasync);
+	rc = fi.kernel_fsync(file, start, end, datasync);
 	if (rc != 0) {
 		/**
 		 * Failure
