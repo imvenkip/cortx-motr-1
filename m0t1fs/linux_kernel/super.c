@@ -229,7 +229,7 @@ enum m0t1fs_mntopts {
 	M0T1FS_MNTOPT_PROFILE,
 	M0T1FS_MNTOPT_LOCAL_CONF,
 	M0T1FS_MNTOPT_FID_START,
-	M0T1FS_MNTOPT_COPYTOOL,
+	M0T1FS_MNTOPT_OOSTORE,
 	M0T1FS_MNTOPT_ERR
 };
 
@@ -238,7 +238,7 @@ static const match_table_t m0t1fs_mntopt_tokens = {
 	{ M0T1FS_MNTOPT_PROFILE,    "profile=%s"    },
 	{ M0T1FS_MNTOPT_LOCAL_CONF, "local_conf=%s" },
 	{ M0T1FS_MNTOPT_FID_START,  "fid_start=%s"  },
-	{ M0T1FS_MNTOPT_COPYTOOL,   "copytool"      },
+	{ M0T1FS_MNTOPT_OOSTORE,    "oostore"       },
 	/* match_token() requires 2nd field of the last element to be NULL */
 	{ M0T1FS_MNTOPT_ERR, NULL }
 };
@@ -416,9 +416,9 @@ static int mount_opts_parse(struct m0t1fs_sb *csb, char *options,
 			       dest->mo_local_conf);
 			break;
 		}
-		case M0T1FS_MNTOPT_COPYTOOL:
-			csb->csb_copytool = true;
-			M0_LOG(M0_DEBUG, "COPYTOOL mode!!");
+		case M0T1FS_MNTOPT_OOSTORE:
+			csb->csb_oostore = true;
+			M0_LOG(M0_DEBUG, "OOSTORE mode!!");
 			break;
 		default:
 			return M0_ERR_INFO(-EINVAL, "Unsupported option: %s", op);
@@ -642,7 +642,7 @@ static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 	}
 #undef CNTR_INIT
 
-	csb->csb_copytool = false;
+	csb->csb_oostore  = false;
 	M0_LEAVE();
 }
 

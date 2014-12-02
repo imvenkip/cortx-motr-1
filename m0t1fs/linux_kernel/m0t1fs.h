@@ -431,7 +431,7 @@
  * The same as current implementation, Mero client will continue to have all
  * its objects created in a single root directory. In Active-Archive product
  * (AA), file names of objects in root directory are uniform: some kind
- * of copytool-generated identifiers is used as its file name.
+ * of oostore-generated identifiers is used as its file name.
  *
  * @section Mero-CMD-def Definitions
  *  - CMD: Clustered Meta-data. With CMD, meta-data of Mero is stored across
@@ -464,8 +464,8 @@
  * - R.CMD.code-reuse: The code to read root directory should be structured
  *                     so that it can be re-used to support striping in
  *                     non-root directory easily.
- * - R.CMD.copytool: A copytool mode for mero client is needed. In this mode,
- *                   some copytool creates files in root directory. File name
+ * - R.CMD.oostore: A oostore mode for mero client is needed. In this mode,
+ *                   some oostore creates files in root directory. File name
  *                   is its FID.
  * - R.CMD.FID: Treat FID as a resource. FID is allocated by RM service, and fid
  *              to mdservice mapping is also managed by RM service.
@@ -491,9 +491,9 @@
  *            An algorithm will be used to map a fid to mdservice. So Mero client
  *            can talk to the right mdservice when creating, reading, writing
  *            files, and other meta-data operations.
- * - Stage COPYTOOL: In this stage, A special m0t1fs mode (specified via a mount
+ * - Stage OOSTORE: In this stage, A special m0t1fs mode (specified via a mount
  *                   option) is added, specifically designed to work with
- *                   copytool. In this mode, file name is a fid. Only names of
+ *                   oostore. In this mode, file name is a fid. Only names of
  *                   the form recognised by m0_fid_sscanf() are allowed in the
  *                   root directory. When a file with the name "C:K" is created,
  *                   its fid is taken to be C:K. This makes "start_fid" option
@@ -518,10 +518,10 @@
  *                     of fids for which there are no existing files. The new
  *                     service gets the union of these ranges.
  *
- * For AA alpha, we will only implement stage 0 and stage COPYTOOL.
+ * For AA alpha, we will only implement stage 0 and stage OOSTORE.
  *
  * @section Mero-CMD-lspec Logical Specification
- * For stage 0 and stage COPYTOOL, a simple data structure and a simple
+ * For stage 0 and stage OOSTORE, a simple data structure and a simple
  * algorithm will be used to map an object and its operations to the right
  * mdservice. Mero client has a "struct m0t1fs_service_context" for every
  * service, including mdservice, ioservice, and other service. These service
@@ -556,7 +556,7 @@
  *
  * In normal mode, FID of new file is allocated by client. The mount option
  * fid_start helps client to generate unique FID. There will be a special and
- * temporary mode, COPYTOOL mode of Mero client, and in this mode the FID of
+ * temporary mode, OOSTORE mode of Mero client, and in this mode the FID of
  * new file is taken from the file name. (After stage RM-CLIENT, fid will be
  * managed by RM service.) File name of a new file is anything that
  * m0_fid_sscanf() can understand. FID of new file is taken from that.
@@ -583,7 +583,7 @@
  * - I.CMD.code-reuse: No particular hacking is used to gather the directory
  *                     entries for root dir. All code will be reusable for
  *                     non-root directory.
- * - I.CMD.copytool: A copytool mode for mero client is added. In this mode,
+ * - I.CMD.oostore: A oostore mode for mero client is added. In this mode,
  *                   File name is a FID, the format of "C:K". FID of new file
  *                   is taken from its name.
  * - I.CMD.FID: @todo This will be implemented in RM-CLIENT and RM-SERVER stage.
@@ -599,9 +599,9 @@
  *              always in valid range.
  * Unit Test 4: readdir() can switch from one mds to another mds, and finally
  *              iterate all mdservice.
- * Unit Test 5: In COPYTOOL mode, FID can be parsed from new file with valid
+ * Unit Test 5: In OOSTORE mode, FID can be parsed from new file with valid
  *              file name.
- * Unit Test 6: In COPYTOOL mode, FID cannot be parsed from new file with
+ * Unit Test 6: In OOSTORE mode, FID cannot be parsed from new file with
  *              invalid file name, and error is reported.
  *
  * @section Mero-CMD-st System Tests
@@ -834,8 +834,8 @@ struct m0t1fs_sb {
 	/** virtual dirs cached attributes */
 	struct m0_fop_cob                       csb_virt_body;
 
-	/** copytool mode */
-	bool                                    csb_copytool;
+	/** oostore mode */
+	bool                                    csb_oostore;
 
 	/**
 	 * list of pending transactions, by service,

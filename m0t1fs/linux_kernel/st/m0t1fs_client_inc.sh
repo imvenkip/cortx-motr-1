@@ -446,13 +446,13 @@ rmw_test()
 }
 
 ###########################################
-# This test is only valid in COPYTOOL mode.
+# This test is only valid in OOSTORE mode.
 # Mero.cmd hash file by filename.
 ###########################################
 obf_test()
 {
 	local rc=0
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "copytool" || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || {
 		return 1
 	}
 	stat $MERO_M0T1FS_MOUNT_DIR/.mero || rc=1
@@ -577,19 +577,29 @@ m0t1fs_large_dir()
 }
 
 
-m0t1fs_copytool_mode()
+m0t1fs_oostore_mode()
 {
 	local rc=0
 	local fsname1="0:100125"
 	local fsname2="0:600456"
 	local fsname3="0:a0089b"
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "copytool" || rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || rc=1
 	df
 	m0t1fs_crud $fsname1 $fsname2 $fsname3 || rc=1
 	touch $MERO_M0T1FS_MOUNT_DIR/123456 2>/dev/null && rc=1
 	stat  $MERO_M0T1FS_MOUNT_DIR/123456 2>/dev/null && rc=1
 	touch $MERO_M0T1FS_MOUNT_DIR/abcdef 2>/dev/null && rc=1
 	stat  $MERO_M0T1FS_MOUNT_DIR/abcdef 2>/dev/null && rc=1
+	unmount_and_clean
+
+	return $rc
+}
+
+m0t1fs_oostore_mode_basic()
+{
+	local rc=0
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || rc=1
+	df
 	unmount_and_clean
 
 	return $rc
@@ -607,8 +617,13 @@ m0t1fs_system_tests()
 		return 1
 	}
 
-	m0t1fs_copytool_mode || {
-		echo "Failed: m0t1fs copytool mode test failed."
+	m0t1fs_oostore_mode_basic || {
+		echo "Failed: m0t1fs oostore mode basic test failed."
+		return 1
+	}
+
+	m0t1fs_oostore_mode || {
+		echo "Failed: m0t1fs oostore mode test failed."
 		return 1
 	}
 
@@ -617,8 +632,8 @@ m0t1fs_system_tests()
 		return 1
 	}
 
-	m0t1fs_large_dir "copytool" "0:10000" || {
-		echo "Failed: m0t1fs large dir test in copytool mode failed."
+	m0t1fs_large_dir "oostore" "0:10000" || {
+		echo "Failed: m0t1fs large dir test in oostore mode failed."
 		return 1
 	}
 

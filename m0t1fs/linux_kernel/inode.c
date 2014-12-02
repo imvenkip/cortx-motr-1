@@ -382,8 +382,9 @@ static int m0t1fs_inode_read(struct inode      *inode,
 		inode->i_mapping->a_ops = &m0t1fs_aops;
 	} else if (S_ISDIR(inode->i_mode)) {
 	        if ((m0t1fs_inode_is_dot_mero(inode) ||
-		    m0t1fs_inode_is_dot_mero_fid(inode)) && csb->csb_copytool) {
-			/* currently open-by-fid is only in COPYTOOL mode */
+		    m0t1fs_inode_is_dot_mero_fid(inode)) &&
+		    csb->csb_oostore) {
+			/* currently open-by-fid is only in OOSTORE mode */
 		        inode->i_op   = &m0t1fs_fid_dir_inode_operations;
 		        inode->i_fop  = &m0t1fs_fid_dir_file_operations;
 	        } else {

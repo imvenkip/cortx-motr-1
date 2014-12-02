@@ -373,15 +373,13 @@ static int m0t1fs_create(struct inode     *dir,
 	if (inode == NULL)
 		return M0_RC(-ENOMEM);
 	m0t1fs_fs_lock(csb);
-	if (csb->csb_copytool) {
+	if (csb->csb_oostore) {
 		rc = m0_fid_sscanf_simple(dentry->d_name.name, &new_fid);
 		if (rc != 0) {
-			M0_LOG(M0_ERROR, "Cannot parse fid \"%s\" in copytool",
+			M0_LOG(M0_ERROR, "Cannot parse fid \"%s\" in oostore",
 					 dentry->d_name.name);
 			goto out;
 		}
-		/* gob has container of 0 */
-		new_fid.f_container = 0;
 	} else {
 		m0t1fs_fid_alloc(csb, &new_fid);
 	}
@@ -434,6 +432,11 @@ static int m0t1fs_create(struct inode     *dir,
 				   M0_COB_NLINK);
 	m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
 		    dentry->d_name.len);
+
+	if (csb->csb_oostore) {
+		/*@ @todo MM5, MM4 FCIDM.4 PICS.3
+		 */
+	}
 
 	rc = m0t1fs_mds_cob_create(csb, &mo, &rep_fop);
 	if (rc != 0)
@@ -1169,7 +1172,6 @@ M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
 	struct m0_layout_enum *le;
 	struct m0_fid          fid;
 
-	M0_PRE(m0t1fs_inode_fid(ci)->f_container == 0);
 	M0_PRE(ci->ci_layout_instance != NULL);
 	M0_PRE(index >= 0);
 

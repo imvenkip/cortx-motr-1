@@ -4739,6 +4739,40 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	return res;
 }
 
+static int m0t1fs_open(struct inode *inode, struct file *file)
+{
+	struct super_block  *sb  = inode->i_sb;
+	struct m0t1fs_sb    *csb = M0T1FS_SB(sb);
+	struct dentry       *dentry = file->f_path.dentry;
+	struct m0_fid        fid;
+	struct m0t1fs_inode *ci;
+	int                  rc;
+
+	M0_ENTRY();
+	if (csb->csb_oostore) {
+		m0t1fs_fs_lock(csb);
+		rc = m0_fid_sscanf_simple(dentry->d_name.name, &fid);
+		if (rc != 0) {
+			m0t1fs_fs_unlock(csb);
+			return M0_RC(rc);
+		}
+		inode->i_ino = fid_hash(&fid);
+		ci = M0T1FS_I(inode);
+		ci->ci_fid = fid;
+		/** @todo Based on hash of the fid, find the ioservices on
+		 * which meta-data cobs are present and get attributes from it.
+		 * Hash of the fid gives us fids of mdservices (as specified in
+		 * the confd), not end-points. This would allow us, in the next
+		 * version, to migrate "original"mdservices to different nodes.
+		 * If needed get attributes like pool_version or layout and
+		 * store them in inode.
+		 */
+		m0t1fs_fs_unlock(csb);
+		mark_inode_dirty(inode);
+	}
+	return M0_RC(0);
+}
+
 const struct file_operations m0t1fs_reg_file_operations = {
 	.llseek	   = generic_file_llseek,
 	.aio_read  = file_aio_read,
@@ -4746,7 +4780,8 @@ const struct file_operations m0t1fs_reg_file_operations = {
 	.read	   = do_sync_read,
 	.write	   = do_sync_write,
 	.ioctl     = m0t1fs_ioctl,
-	.fsync     = m0t1fs_fsync
+	.fsync     = m0t1fs_fsync,
+	.open      = m0t1fs_open
 };
 
 static void client_passive_recv(const struct m0_net_buffer_event *evt)
