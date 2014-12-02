@@ -31,7 +31,6 @@
 #ifdef __KERNEL__
 /**
  * Handles the ioctl targeted to m0t1fs.
- * @param inode Inode associated to the object the ioctl is targeted to.
  * @param filp File associated to the file descriptor used when creating
  * the ioctl.
  * @param cmd Code of the operation requested by the ioctl.
@@ -39,8 +38,8 @@
  * @return -ENOTTY if m0t1fs does not support the requested operation.
  * Otherwise, the value returned by the operation.
  */
-M0_INTERNAL int m0t1fs_ioctl(struct inode *inode, struct file *filp,
-			     unsigned int cmd, unsigned long arg);
+M0_INTERNAL long m0t1fs_ioctl(struct file *filp, unsigned int cmd,
+			      unsigned long arg);
 #endif
 
 #endif /* __MERO_M0T1FS_IOCTL_H__ */

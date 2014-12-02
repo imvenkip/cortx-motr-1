@@ -22,25 +22,29 @@
 
 #include <linux/fs.h>	/* struct file, struct inode */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
+#include "lib/trace.h"
+
+#include "lib/assert.h"
 #include "m0t1fs/linux_kernel/ioctl.h"
 #include "m0t1fs/linux_kernel/fsync.h"
 #include "m0t1fs/linux_kernel/m0t1fs.h"
-#include "lib/trace.h"
 #include "m0t1fs/linux_kernel/file_internal.h"
 
-M0_INTERNAL int m0t1fs_ioctl(struct inode                              *inode,
-			     __attribute__((unused)) struct file       *filp,
-			     unsigned int                               cmd,
-			     __attribute__((unused)) unsigned long      arg)
+M0_INTERNAL long m0t1fs_ioctl(struct file *filp, unsigned int cmd,
+			      unsigned long arg)
 {
-	int                     rc;
-	struct m0t1fs_inode    *m0inode;
+	struct inode        *inode;
+	struct m0t1fs_inode *m0inode;
+	int                  rc;
 
 	M0_ENTRY();
 
-	M0_PRE(inode != NULL);
+	inode = file_inode(filp);
+	M0_ASSERT(inode != NULL);
+
 	m0inode = m0t1fs_inode_to_m0inode(inode);
-	M0_PRE(m0inode != NULL);
+	M0_ASSERT(m0inode != NULL);
 
 	switch(cmd) {
 	case M0_M0T1FS_FWAIT:
@@ -50,6 +54,5 @@ M0_INTERNAL int m0t1fs_ioctl(struct inode                              *inode,
 		return M0_ERR_INFO(-ENOTTY, "Unknown IOCTL.");
 	}
 
-	M0_LEAVE();
 	return M0_RC(rc);
 }

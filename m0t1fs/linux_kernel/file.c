@@ -4776,14 +4776,14 @@ static int m0t1fs_open(struct inode *inode, struct file *file)
 }
 
 const struct file_operations m0t1fs_reg_file_operations = {
-	.llseek	   = generic_file_llseek,
-	.aio_read  = file_aio_read,
-	.aio_write = file_aio_write,
-	.read	   = do_sync_read,
-	.write	   = do_sync_write,
-	.ioctl     = m0t1fs_ioctl,
-	.fsync     = m0t1fs_fsync,
-	.open      = m0t1fs_open,
+	.llseek         = generic_file_llseek,
+	.aio_read       = file_aio_read,
+	.aio_write      = file_aio_write,
+	.read           = do_sync_read,
+	.write          = do_sync_write,
+	.unlocked_ioctl = m0t1fs_ioctl,
+	.fsync          = m0t1fs_fsync,
+	.open           = m0t1fs_open,
 };
 
 static void client_passive_recv(const struct m0_net_buffer_event *evt)
