@@ -214,12 +214,12 @@ M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
 
 M0_INTERNAL void m0_enter_awkward(void)
 {
-	__irq_enter();
+	add_preempt_count(HARDIRQ_OFFSET);
 }
 
 M0_INTERNAL void m0_exit_awkward(void)
 {
-	__irq_exit();
+	sub_preempt_count(HARDIRQ_OFFSET);
 }
 
 M0_INTERNAL bool m0_is_awkward(void)
