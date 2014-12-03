@@ -4806,9 +4806,9 @@ const struct m0_net_buffer_callbacks client_buf_bulk_cb  = {
 	}
 };
 
-static int io_fops_async_submit(struct m0_io_fop      *iofop,
-				struct m0_rpc_session *session,
-				struct m0_addb_ctx    *addb_ctx)
+static int iofop_async_submit(struct m0_io_fop      *iofop,
+			      struct m0_rpc_session *session,
+			      struct m0_addb_ctx    *addb_ctx)
 {
 	int		      rc;
 	struct m0_fop_cob_rw *rwfop;
@@ -5139,9 +5139,9 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 		}
 
 		m0_tl_for (iofops, &ti->ti_iofops, irfop) {
-			rc = io_fops_async_submit(&irfop->irf_iofop,
-						  ti->ti_session,
-						  &req->ir_addb_ctx);
+			rc = iofop_async_submit(&irfop->irf_iofop,
+						ti->ti_session,
+						&req->ir_addb_ctx);
 
 			M0_LOG(M0_DEBUG, "Submitted fops for device "FID_F"@%p nr=%llu",
 		               FID_P(&ti->ti_fid), irfop, ti->ti_nwxfer->nxr_iofop_nr);
