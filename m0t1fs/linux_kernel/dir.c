@@ -35,25 +35,89 @@
 #include "m0t1fs/linux_kernel/m0t1fs.h"
 #include "m0t1fs/linux_kernel/fsync.h"
 
+/**
+ * Cob create/delete fop send deadline (in ns).
+ * Used to utilize rpc formation when too many fops
+ * are sending to one ioservice.
+ */
+enum {COB_REQ_DEADLINE = 2000000};
+
+struct cob_req {
+	struct m0_semaphore cr_sem;
+	uint32_t            cr_fops_cnt;
+	m0_time_t           cr_deadline;
+	struct m0t1fs_sb   *cr_csb;
+	int32_t             cr_rc;
+};
+
+struct cob_fop {
+	struct m0_fop   c_fop;
+	struct cob_req *c_req;
+};
+
+static void cob_rpc_item_cb(struct m0_rpc_item *item)
+{
+	int                         rc;
+	struct m0_fop              *fop;
+	struct cob_fop             *cfop;
+	struct cob_req             *creq;
+	struct m0_fop_cob_op_reply *reply;
+
+	M0_ENTRY("rpc_item %p", item);
+	M0_PRE(item != NULL);
+
+	fop  = m0_rpc_item_to_fop(item);
+	cfop = container_of(fop, struct cob_fop, c_fop);
+	creq = cfop->c_req;
+
+	reply = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+	if (reply->cor_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+		struct m0_fv_event *event;
+		struct m0t1fs_sb   *csb = creq->cr_csb;
+		uint32_t            i;
+
+		/* Retrieve the latest server version and updates and apply
+		 * to the client's copy. When -EAGAIN is return, this system
+		 * call will be restarted.
+		 */
+		rc = -EAGAIN;
+		for (i = 0; i < reply->cor_fv_updates.fvu_count; ++i) {
+			event = &reply->cor_fv_updates.fvu_events[i];
+			m0_poolmach_state_transit(csb->csb_pool.po_mach,
+						  (struct m0_pool_event*)event,
+						  NULL);
+		}
+	} else
+		rc = reply->cor_rc;
+
+	if (creq->cr_rc == 0 || rc == -EAGAIN)
+		creq->cr_rc = rc;
+
+	if (--creq->cr_fops_cnt == 0)
+		m0_semaphore_up(&creq->cr_sem);
+
+	M0_LOG(M0_DEBUG, "cob_req_fop=%p", cfop);
+	M0_LEAVE();
+}
+
+static const struct m0_rpc_item_ops cob_item_ops = {
+	.rio_replied = cob_rpc_item_cb,
+};
+
 M0_INTERNAL void m0t1fs_inode_bob_init(struct m0t1fs_inode *bob);
 M0_INTERNAL bool m0t1fs_inode_bob_check(struct m0t1fs_inode *bob);
 
 
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
-				       int (*func)(struct m0t1fs_sb *csb,
-						   const struct m0_fid *cfid,
-						   const struct m0_fid *gfid,
-						   uint32_t cob_idx));
+				       int (*func)(struct cob_req *,
+						   const struct m0t1fs_inode *,
+						   int idx));
 
-static int m0t1fs_ios_cob_create(struct m0t1fs_sb    *csb,
-				 const struct m0_fid *cob_fid,
-				 const struct m0_fid *gob_fid,
-				 uint32_t cob_idx);
+static int m0t1fs_ios_cob_create(struct cob_req *cr,
+				 const struct m0t1fs_inode *inode, int idx);
 
-static int m0t1fs_ios_cob_delete(struct m0t1fs_sb    *csb,
-				 const struct m0_fid *cob_fid,
-				 const struct m0_fid *gob_fid,
-				 uint32_t cob_idx);
+static int m0t1fs_ios_cob_delete(struct cob_req *cr,
+				 const struct m0t1fs_inode *inode, int idx);
 
 static int name_mem2wire(struct m0_fop_str *tgt,
 			 const struct m0_buf *name)
@@ -1136,13 +1200,13 @@ static uint32_t m0t1fs_ios_cob_idx(const struct m0t1fs_inode *ci,
 }
 
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
-				       int (*func)(struct m0t1fs_sb *csb,
-						   const struct m0_fid *cfid,
-						   const struct m0_fid *gfid,
-						   uint32_t cob_idx))
+				       int (*func)(struct cob_req *,
+						   const struct m0t1fs_inode *,
+						   int idx))
 {
 	struct m0t1fs_sb *csb;
 	struct m0_fid     cob_fid;
+	struct cob_req    cob_req;
 	int               pool_width;
 	int               i;
 	int               rc = 0;
@@ -1161,27 +1225,37 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 	pool_width = csb->csb_pool_width;
 	M0_ASSERT(pool_width >= 1);
 
+	m0_semaphore_init(&cob_req.cr_sem, 0);
+again:
+	cob_req.cr_fops_cnt = 0;
+	cob_req.cr_deadline = m0_time_from_now(0, COB_REQ_DEADLINE);
+	cob_req.cr_csb = csb;
+	cob_req.cr_rc = 0;
+
 	for (i = 0; i < pool_width; ++i) {
 		cob_fid = m0t1fs_ios_cob_fid(ci, i);
 		cob_idx = m0t1fs_ios_cob_idx(ci, m0t1fs_inode_fid(ci),
 					     &cob_fid);
 		M0_ASSERT(cob_idx != ~0);
-again:
-		rc = func(csb, &cob_fid, m0t1fs_inode_fid(ci), cob_idx);
-		if (rc == -EAGAIN) {
-			M0_LOG(M0_NOTICE, "Failure vector updated. Do this"
-					  " operation again");
-			goto again;
-		}
+		rc = func(&cob_req, ci, i);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cob %s "FID_F" failed with %d",
-			       func == m0t1fs_ios_cob_create ? "create" : "delete",
-			       FID_P(&cob_fid), rc);
-			goto out;
+			       func == m0t1fs_ios_cob_create ? "create" :
+			       "delete", FID_P(&cob_fid), rc);
+			break;
 		}
+		++cob_req.cr_fops_cnt;
 	}
-out:
-	return M0_RC(rc);
+
+	if (cob_req.cr_fops_cnt > 0)
+		m0_semaphore_down(&cob_req.cr_sem);
+
+	if (rc == 0 && cob_req.cr_rc == -EAGAIN)
+		goto again;
+
+	m0_semaphore_fini(&cob_req.cr_sem);
+
+	return M0_RC(rc ?: cob_req.cr_rc);
 }
 
 static int m0t1fs_mds_cob_fop_populate(struct m0t1fs_sb         *csb,
@@ -1660,11 +1734,11 @@ int m0t1fs_mds_cob_delxattr(struct m0t1fs_sb            *csb,
 	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_delxattr_fopt, rep_fop);
 }
 
-static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb    *csb,
-				       struct m0_fop       *fop,
-				       const struct m0_fid *cob_fid,
-				       const struct m0_fid *gob_fid,
-				       uint32_t             cob_idx)
+static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb *csb,
+				       struct m0_fop          *fop,
+				       const struct m0_fid    *cob_fid,
+				       const struct m0_fid    *gob_fid,
+				       uint32_t                cob_idx)
 {
 	struct m0_fop_cob_common       *common;
 	struct m0_pool_version_numbers *cli;
@@ -1692,100 +1766,104 @@ static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb    *csb,
 	return M0_RC(0);
 }
 
-static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
-			     const struct m0_fid *cob_fid,
-			     const struct m0_fid *gob_fid,
-			     uint32_t             cob_idx,
+static void cfop_release(struct m0_ref *ref)
+{
+	struct m0_fop  *fop;
+	struct cob_fop *cfop;
+
+	M0_ENTRY();
+	M0_PRE(ref != NULL);
+
+	fop  = container_of(ref, struct m0_fop, f_ref);
+	cfop = container_of(fop, struct cob_fop, c_fop);
+	m0_fop_fini(fop);
+	m0_free(cfop);
+
+	M0_LEAVE();
+}
+
+static int m0t1fs_ios_cob_op(struct cob_req *cr,
+			     const struct m0t1fs_inode *ci, int idx,
 			     struct m0_fop_type  *ftype)
 {
 	int                         rc;
 	bool                        cobcreate;
+	const struct m0t1fs_sb     *csb;
+	struct m0_fid               cob_fid;
+	const struct m0_fid        *gob_fid;
+	uint32_t                    cob_idx;
 	struct m0_fop              *fop;
+	struct cob_fop             *cfop;
 	struct m0_rpc_session      *session;
-	struct m0_fop_cob_op_reply *reply;
 
-	M0_PRE(csb != NULL);
-	M0_PRE(cob_fid != NULL);
-	M0_PRE(gob_fid != NULL);
+	M0_PRE(ci != NULL);
 	M0_PRE(ftype != NULL);
 
 	M0_ENTRY();
 
-	session = m0t1fs_container_id_to_session(csb, cob_fid->f_container);
+	csb = M0T1FS_SB(ci->ci_inode.i_sb);
+	cob_fid = m0t1fs_ios_cob_fid(ci, idx);
+	gob_fid = m0t1fs_inode_fid(ci);
+	cob_idx = m0t1fs_ios_cob_idx(ci, gob_fid, &cob_fid);
+
+	session = m0t1fs_container_id_to_session(csb, cob_fid.f_container);
 	M0_ASSERT(session != NULL);
 
-	fop = m0_fop_alloc_at(session, ftype);
-	if (fop == NULL) {
+	M0_ALLOC_PTR(cfop);
+	if (cfop == NULL) {
 		rc = -ENOMEM;
-		M0_LOG(M0_ERROR, "Memory allocation for struct "
-		       "m0_fop_cob_create failed");
+		M0_LOG(M0_ERROR, "cob_fop malloc failed");
 		goto out;
 	}
+
+	cfop->c_req = cr;
+	fop = &cfop->c_fop;
+
+	m0_fop_init(fop, ftype, NULL, cfop_release);
+	rc = m0_fop_data_alloc(fop);
+	if (rc != 0) {
+		m0_fop_fini(fop);
+		m0_free(cfop);
+		M0_LOG(M0_ERROR, "cob_fop data malloc failed");
+		goto out;
+	}
+	fop->f_item.ri_rmachine = m0_fop_session_machine(session);
 
 	M0_ASSERT(m0_is_cob_create_delete_fop(fop));
 	cobcreate = m0_is_cob_create_fop(fop);
 
-	rc = m0t1fs_ios_cob_fop_populate(csb, fop, cob_fid, gob_fid, cob_idx);
+	rc = m0t1fs_ios_cob_fop_populate(csb, fop, &cob_fid, gob_fid, cob_idx);
 	if (rc != 0)
 		goto fop_put;
 
 	M0_LOG(M0_DEBUG, "Send %s "FID_F" to session %p (sid=%lu)",
 	       cobcreate ? "cob_create" : "cob_delete",
-	       FID_P(cob_fid), session, (unsigned long)session->s_session_id);
+	       FID_P(&cob_fid), session, (unsigned long)session->s_session_id);
 
-	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
+	fop->f_item.ri_session  = session;
+	fop->f_item.ri_ops      = &cob_item_ops;
+	fop->f_item.ri_deadline = cr->cr_deadline; /* pack fops */
+	rc = m0_rpc_post(&fop->f_item);
 	if (rc != 0)
 		goto fop_put;
 
-	/*
-	 * The reply fop received event is a generic event which does not
-	 * distinguish between types of rpc item/fop. Custom m0_rpc_item_ops
-	 * vector can be used if type specific things need to be done for
-	 * given fop type only.
-	 */
-	reply = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
-	if (reply->cor_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-		struct m0_fv_event *event;
-		uint32_t            i;
-
-		/* Retrieve the latest server version and updates and apply
-		 * to the client's copy. When -EAGAIN is return, this system
-		 * call will be restarted.
-		 */
-		rc = -EAGAIN;
-		for (i = 0; i < reply->cor_fv_updates.fvu_count; ++i) {
-			event = &reply->cor_fv_updates.fvu_events[i];
-			m0_poolmach_state_transit(csb->csb_pool.po_mach,
-						  (struct m0_pool_event*)event,
-						  NULL);
-		}
-	} else
-		rc = reply->cor_rc;
-
-	M0_LOG(M0_DEBUG, "Finished ioservice op with %d", rc);
-
+	return M0_RC(rc);
 fop_put:
 	m0_fop_put0_lock(fop);
 out:
 	return M0_RC(rc);
 }
 
-static int m0t1fs_ios_cob_create(struct m0t1fs_sb    *csb,
-				 const struct m0_fid *cob_fid,
-				 const struct m0_fid *gob_fid,
-				 uint32_t             cob_idx)
+static int m0t1fs_ios_cob_create(struct cob_req *cr,
+				 const struct m0t1fs_inode *inode, int idx)
 {
-	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, cob_idx,
-				 &m0_fop_cob_create_fopt);
+	return m0t1fs_ios_cob_op(cr, inode, idx, &m0_fop_cob_create_fopt);
 }
 
-static int m0t1fs_ios_cob_delete(struct m0t1fs_sb    *csb,
-				 const struct m0_fid *cob_fid,
-				 const struct m0_fid *gob_fid,
-				 uint32_t             cob_idx)
+static int m0t1fs_ios_cob_delete(struct cob_req *cr,
+				 const struct m0t1fs_inode *inode, int idx)
 {
-	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, cob_idx,
-				 &m0_fop_cob_delete_fopt);
+	return m0t1fs_ios_cob_op(cr, inode, idx, &m0_fop_cob_delete_fopt);
 }
 
 
