@@ -390,12 +390,13 @@ fop_fini:
 #ifndef __KERNEL__
 static void quit_dialog(void)
 {
+	int  rc __attribute__((unused));
 	char ch;
 
 	printf("\n########################################\n");
 	printf("\n\nPress Enter to terminate\n\n");
 	printf("\n########################################\n");
-	read(0, &ch, sizeof ch);
+	rc = read(0, &ch, sizeof ch);
 }
 
 static int int2str(char *dest, size_t size, int src, int defval)
