@@ -2022,8 +2022,16 @@ static int nlx_core_init(void)
 	lnet_process_id_t id;
 	const char *nidstr;
 
-	/* Init LNet with same PID as Lustre would use in case we are first. */
+	/*
+	 * Init LNet with same PID as Lustre would use in case we are first.
+	 * Depending on the lustre version, the PID symbol may be called
+	 * LUSTRE_SRV_LNET_PID or LNET_PID_LUSTRE.
+	 */
+#ifdef LNET_PID_LUSTRE
 	rc = LNetNIInit(LNET_PID_LUSTRE);
+#else
+	rc = LNetNIInit(LUSTRE_SRV_LNET_PID);
+#endif
 	if (rc < 0)
 		return M0_RC(rc);
 

@@ -155,8 +155,16 @@ enum {
 	STARTSTOP_STAT_BUF_NR = 4,
 };
 #ifdef __KERNEL__
-/* LUSTRE_SRV_LNET_PID macro is not available in user space */
+/*
+ * LUSTRE_SRV_LNET_PID macro is not available in user space.
+ * Depending on the lustre version, this may be known as LNET_PID_LUSTRE
+ * or LUSTRE_SRV_LNET_PID.
+ */
+#ifdef LNET_PID_LUSTRE
 M0_BASSERT(STARTSTOP_PID == LNET_PID_LUSTRE);
+#else
+M0_BASSERT(STARTSTOP_PID == LUSTRE_SRV_LNET_PID);
+#endif
 #endif
 
 static enum m0_net_queue_type cb_qt1;

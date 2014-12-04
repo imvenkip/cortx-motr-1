@@ -883,10 +883,16 @@ do {							\
 #include "net/lnet/linux_kernel/kbev_cqueue.c"
 #include "net/lnet/linux_kernel/klnet_core.c"
 #include "net/lnet/linux_kernel/klnet_drv.c"
-/* LUSTRE_SRV_LNET_PID is not available in user space, so assert that the
- * M0 equivalent is valid.
+/* 
+ * LUSTRE_SRV_LNET_PID is not available in user space, so assert that the
+ * M0 equivalent is valid. Depending on the lustre version, the name may be
+ * LUSTRE_SRV_LNET_PID or LNET_PID_LUSTRE.
  */
+#ifdef LNET_PID_LUSTRE
 M0_BASSERT(M0_NET_LNET_PID == LNET_PID_LUSTRE);
+#else
+M0_BASSERT(M0_NET_LNET_PID == LUSTRE_SRV_LNET_PID);
+#endif
 #else
 #include "net/lnet/ulnet_core.h"
 #include "net/lnet/ulnet_core.c"
