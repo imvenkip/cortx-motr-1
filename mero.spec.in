@@ -1,15 +1,17 @@
 # optional configure options
 %define with_linux %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
 
-%define kernel_ver %(
-                      if test -n "$kernel_src"; then
-                          basename "$kernel_src" | tr - _
-                      else
-                          uname -r | tr - _
-                      fi
-                    )
+# raw kernel version.
+%define raw_kernel_ver %(
+			if test -n "$kernel_src"; then
+				basename "$kernel_src"
+			else
+				uname -r
+			fi
+			)
 
-%define kernel_ver_requires %( echo %{kernel_ver} | sed -e 's/\.x86_64$//' -e 's/_/-/g' )
+%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ )
+%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.x86_64$//' )
 
 %bcond_with ut
 
@@ -119,6 +121,12 @@ find %{buildroot}%{_includedir} | sed -e 's#^%{buildroot}##' >> devel.files
 mkdir -p %{buildroot}%{_localstatedir}/mero
 
 %endif # with ut
+
+# Remove depmod output - it is regenerated during %post
+if [ -e %{buildroot}/lib/modules/%{raw_kernel_ver}/modules.dep ]; then
+	rm %{buildroot}/lib/modules/%{raw_kernel_ver}/modules.*
+fi
+
 
 %files
 %if !%{with ut}
