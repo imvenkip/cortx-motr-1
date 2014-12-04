@@ -53,7 +53,7 @@ static void be_op_reset(struct m0_be_op *op);
  * @verbatim
  *  ,-------- INIT
  *  |   [0]    |              [0] Initialisation failed: at this point only
- *  |          |                  m0_be_group_ondisk_init() can fail.
+ *  |          |                  m0_be_group_format_init() can fail.
  *  |          v [1]          [1] Engine adds tx group to list of opened
  *  | ,------ OPEN <------.       groups.
  *  | |        |          |

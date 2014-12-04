@@ -51,13 +51,13 @@ M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
 	gr->tg_lsn = 0ULL;
 	M0_SET0(&gr->tg_used);
 	grp_tlist_init(&gr->tg_txs);
-	rc = m0_be_group_ondisk_init(&gr->tg_od, log_stob, 20, &cred);
+	rc = m0_be_group_format_init(&gr->tg_od, log_stob, 20, &cred);
 	M0_ASSERT(rc == 0);
 }
 
 M0_INTERNAL void tx_group_fini(struct m0_be_tx_group *gr)
 {
-	m0_be_group_ondisk_fini(&gr->tg_od);
+	m0_be_group_format_fini(&gr->tg_od);
 	grp_tlist_fini(&gr->tg_txs);
 }
 
@@ -163,7 +163,7 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 	M0_SET0(&gr->tg_used);
 	M0_SET0(&gr->tg_log_reserved);
 	gr->tg_payload_prepared = 0;
-	m0_be_group_ondisk_reset(&gr->tg_od);
+	m0_be_group_format_reset(&gr->tg_od);
 	m0_be_tx_group_fom_reset(&gr->tg_fom);
 }
 
@@ -289,9 +289,9 @@ M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr)
 {
 	/*
 	 * XXX make the same paremeters order for
-	 *     m0_be_tx_group_ondisk
+	 *     m0_be_tx_group_format
 	 */
-	return m0_be_group_ondisk_init(&gr->tg_od,
+	return m0_be_group_format_init(&gr->tg_od,
 				       m0_be_log_stob(gr->tg_log),
 				       gr->tg_tx_nr_max,
 				       &gr->tg_size,
@@ -300,7 +300,7 @@ M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr)
 
 M0_INTERNAL void m0_be_tx_group__deallocate(struct m0_be_tx_group *gr)
 {
-	m0_be_group_ondisk_fini(&gr->tg_od);
+	m0_be_group_format_fini(&gr->tg_od);
 }
 
 M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
@@ -309,7 +309,7 @@ M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 	int rc;
 
 	/** XXX FIXME move somewhere else */
-	m0_be_group_ondisk_io_reserved(&gr->tg_od, gr, &gr->tg_log_reserved);
+	m0_be_group_format_io_reserved(&gr->tg_od, gr, &gr->tg_log_reserved);
 
 	if (be_tx_group_empty_handle(gr, op, true)) {
 		m0_be_log_fake_io(gr->tg_log, &gr->tg_log_reserved);

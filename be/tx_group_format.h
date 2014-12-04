@@ -70,7 +70,7 @@ struct tx_group_commit_block {
 	uint64_t gc_magic;
 } M0_XCA_RECORD;
 
-struct m0_be_group_ondisk {
+struct m0_be_group_format {
 	struct m0_be_io		      go_io_log;
 	struct m0_be_io		      go_io_log_cblock;
 	struct m0_be_io		      go_io_seg;
@@ -96,26 +96,26 @@ M0_INTERNAL void be_log_io_credit_group(struct m0_be_tx_credit *io_group,
 					const struct m0_be_tx_credit *prepared,
 					m0_bcount_t payload_size);
 
-M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
+M0_INTERNAL int m0_be_group_format_init(struct m0_be_group_format *go,
 					struct m0_stob *log_stob,
 					size_t tx_nr_max,
 					const struct m0_be_tx_credit *size_max,
 					uint64_t seg_nr_max);
-M0_INTERNAL void m0_be_group_ondisk_fini(struct m0_be_group_ondisk *go);
-M0_INTERNAL bool m0_be_group_ondisk__invariant(struct m0_be_group_ondisk *go);
+M0_INTERNAL void m0_be_group_format_fini(struct m0_be_group_format *go);
+M0_INTERNAL bool m0_be_group_format__invariant(struct m0_be_group_format *go);
 
-M0_INTERNAL void m0_be_group_ondisk_reset(struct m0_be_group_ondisk *go);
+M0_INTERNAL void m0_be_group_format_reset(struct m0_be_group_format *go);
 
-M0_INTERNAL void m0_be_group_ondisk_reserved(struct m0_be_group_ondisk *go,
+M0_INTERNAL void m0_be_group_format_reserved(struct m0_be_group_format *go,
 					     struct m0_be_tx_group *group,
 					     struct m0_be_tx_credit *reserved,
 					     m0_bcount_t *payload_size,
 					     size_t *tx_nr);
 
-M0_INTERNAL void m0_be_group_ondisk_io_reserved(struct m0_be_group_ondisk *go,
+M0_INTERNAL void m0_be_group_format_io_reserved(struct m0_be_group_format *go,
 						struct m0_be_tx_group *group,
 						struct m0_be_tx_credit *reserved);
-M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
+M0_INTERNAL void m0_be_group_format_serialize(struct m0_be_group_format *go,
 					      struct m0_be_tx_group *group,
 					      struct m0_be_log *log);
 /** @} end of be group */

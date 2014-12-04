@@ -101,7 +101,7 @@ M0_INTERNAL void m0_be_log_commit(struct m0_be_log *log,
 
 /*
 M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,
-				   struct m0_be_group_ondisk *group);
+				   struct m0_be_group_format *group);
 */
 /* XXX */
 M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,

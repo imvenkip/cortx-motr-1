@@ -21,7 +21,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
 
-#include "be/tx_group_ondisk.h"
+#include "be/tx_group_format.h"
 #include "be/log.h"
 #include "be/tx_regmap.h"    /* m0_be_reg_area_used */
 #include "be/tx_internal.h"  /* m0_be_tx__reg_area */
@@ -36,13 +36,13 @@
  * @{
  */
 
-static int group_io_init(struct m0_be_group_ondisk *g,
+static int group_io_init(struct m0_be_group_format *g,
 			 struct m0_stob *stob,
 			 const struct m0_be_tx_credit *cr_logrec,
 			 const struct m0_be_tx_credit *cr_commit_block,
 			 const struct m0_be_tx_credit *cr_group_maxsize,
 			 uint64_t seg_nr_max);
-static void group_io_fini(struct m0_be_group_ondisk *g);
+static void group_io_fini(struct m0_be_group_format *g);
 
 M0_INTERNAL void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
 				     const struct m0_be_tx_credit *prepared,
@@ -80,13 +80,13 @@ M0_INTERNAL void be_log_io_credit_group(struct m0_be_tx_credit *io_group,
 	m0_be_tx_credit_mac(io_group, &io_tx, tx_nr_max - 1);
 }
 
-static void be_group_ondisk_free(struct m0_be_group_ondisk *go)
+static void be_group_format_free(struct m0_be_group_format *go)
 {
 	m0_free(go->go_entry);
 	m0_free(go->go_reg);
 }
 
-M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
+M0_INTERNAL int m0_be_group_format_init(struct m0_be_group_format *go,
 					struct m0_stob *log_stob,
 					size_t tx_nr_max,
 					const struct m0_be_tx_credit *size_max,
@@ -120,7 +120,7 @@ M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
 	if (rc != 0)
 		goto err_io;
 
-	M0_POST(m0_be_group_ondisk__invariant(go));
+	M0_POST(m0_be_group_format__invariant(go));
 	return M0_RC(0);
 
 err_io:
@@ -133,22 +133,22 @@ err:
 	return M0_RC(-ENOMEM);
 }
 
-M0_INTERNAL void m0_be_group_ondisk_fini(struct m0_be_group_ondisk *go)
+M0_INTERNAL void m0_be_group_format_fini(struct m0_be_group_format *go)
 {
-	M0_PRE(m0_be_group_ondisk__invariant(go));
+	M0_PRE(m0_be_group_format__invariant(go));
 	m0_be_io_fini(&go->go_io_log);
 	m0_be_io_fini(&go->go_io_log_cblock);
 	m0_be_io_fini(&go->go_io_seg);
 	m0_be_reg_area_fini(&go->go_area);
-	be_group_ondisk_free(go);
+	be_group_format_free(go);
 }
 
-M0_INTERNAL bool m0_be_group_ondisk__invariant(struct m0_be_group_ondisk *go)
+M0_INTERNAL bool m0_be_group_format__invariant(struct m0_be_group_format *go)
 {
 	return true; /* XXX TODO */
 }
 
-M0_INTERNAL void m0_be_group_ondisk_reset(struct m0_be_group_ondisk *go)
+M0_INTERNAL void m0_be_group_format_reset(struct m0_be_group_format *go)
 {
 	m0_be_io_reset(&go->go_io_log);
 	m0_be_io_reset(&go->go_io_log_cblock);
@@ -156,7 +156,7 @@ M0_INTERNAL void m0_be_group_ondisk_reset(struct m0_be_group_ondisk *go)
 	m0_be_reg_area_reset(&go->go_area);
 }
 
-M0_INTERNAL void m0_be_group_ondisk_reserved(struct m0_be_group_ondisk *go,
+M0_INTERNAL void m0_be_group_format_reserved(struct m0_be_group_format *go,
 					     struct m0_be_tx_group *group,
 					     struct m0_be_tx_credit *reserved,
 					     m0_bcount_t *payload_size,
@@ -176,7 +176,7 @@ M0_INTERNAL void m0_be_group_ondisk_reserved(struct m0_be_group_ondisk *go,
 	} M0_BE_TX_GROUP_TX_ENDFOR;
 }
 
-M0_INTERNAL void m0_be_group_ondisk_io_reserved(struct m0_be_group_ondisk *go,
+M0_INTERNAL void m0_be_group_format_io_reserved(struct m0_be_group_format *go,
 						struct m0_be_tx_group *group,
 						struct m0_be_tx_credit
 						*io_reserved)
@@ -185,12 +185,12 @@ M0_INTERNAL void m0_be_group_ondisk_io_reserved(struct m0_be_group_ondisk *go,
 	m0_bcount_t	       payload_size;
 	size_t		       tx_nr;
 
-	m0_be_group_ondisk_reserved(go, group, &reserved,
+	m0_be_group_format_reserved(go, group, &reserved,
 				    &payload_size, &tx_nr);
 	be_log_io_credit_group(io_reserved, tx_nr, &reserved, payload_size);
 }
 
-M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
+M0_INTERNAL void m0_be_group_format_serialize(struct m0_be_group_format *go,
 					      struct m0_be_tx_group *group,
 					      struct m0_be_log *log)
 {
@@ -205,8 +205,8 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 	uint64_t                 reg_nr;
 
 
-	m0_be_group_ondisk_reserved(go, group, &reg_cr, &payload_size, &tx_nr);
-	m0_be_group_ondisk_io_reserved(go, group, &io_cr);
+	m0_be_group_format_reserved(go, group, &reg_cr, &payload_size, &tx_nr);
+	m0_be_group_format_io_reserved(go, group, &io_cr);
 	m0_be_log_store_io_init(&lsi, &log->lg_store, &go->go_io_log,
 			       &go->go_io_log_cblock, io_cr.tc_reg_size);
 
@@ -266,7 +266,7 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 	/* m0_be_io_sync_enable(&go->go_io_seg); */
 }
 
-static int group_io_init(struct m0_be_group_ondisk *g,
+static int group_io_init(struct m0_be_group_format *g,
 			 struct m0_stob *stob,
 			 const struct m0_be_tx_credit *cr_logrec,
 			 const struct m0_be_tx_credit *cr_commit_block,
@@ -297,7 +297,7 @@ err:
 	return M0_RC(rc);
 }
 
-static void group_io_fini(struct m0_be_group_ondisk *g)
+static void group_io_fini(struct m0_be_group_format *g)
 {
 	m0_be_io_fini(&g->go_io_seg);
 	m0_be_io_fini(&g->go_io_log_cblock);

@@ -43,7 +43,7 @@ extern void m0_be_ut_seg_open_close(void);
 extern void m0_be_ut_seg_io(void);
 extern void m0_be_ut_seg_multiple(void);
 
-extern void m0_be_ut_group_ondisk(void);
+extern void m0_be_ut_group_format(void);
 
 extern void m0_be_ut_mkfs(void);
 extern void m0_be_ut_domain(void);
@@ -95,7 +95,7 @@ struct m0_ut_suite be_ut = {
 		{ "seg-open",            m0_be_ut_seg_open_close       },
 		{ "seg-io",              m0_be_ut_seg_io               },
 		{ "seg-multiple",        m0_be_ut_seg_multiple         },
-		{ "group_ondisk",        m0_be_ut_group_ondisk         },
+		{ "group_format",        m0_be_ut_group_format         },
 		{ "mkfs",		 m0_be_ut_mkfs		       },
 		{ "domain",              m0_be_ut_domain               },
 		{ "tx-states",           m0_be_ut_tx_states            },

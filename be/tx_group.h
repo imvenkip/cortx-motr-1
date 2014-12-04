@@ -25,7 +25,7 @@
 #include "lib/tlist.h"		/* m0_tl */
 
 #include "be/tx_credit.h"	/* m0_be_tx_credit */
-#include "be/tx_group_ondisk.h"	/* m0_be_group_ondisk */
+#include "be/tx_group_format.h"	/* m0_be_group_format */
 #include "be/tx_group_fom.h"	/* m0_be_group_fom */
 #include "be/tx.h"		/* m0_be_tx_state */
 
@@ -83,7 +83,7 @@ struct m0_be_tx_group {
 	/* XXX DOCUMENTME */
 	uint64_t		   tg_magic;
 	/** XXX DOCUMENTME */
-	struct m0_be_group_ondisk  tg_od;
+	struct m0_be_group_format  tg_od;
 	struct m0_be_log	  *tg_log;
 	struct m0_be_engine	  *tg_engine;
 	struct m0_be_tx_group_fom  tg_fom;
