@@ -588,7 +588,8 @@ static void xcode_read_test(void)
 	struct foo F;
 	struct un  U;
 	struct v   V;
-	struct top T;
+	struct top _T;
+	struct top _Tmp;
 
 	M0_SET0(&F);
 	result = m0_xcode_read(OBJ(&xut_foo.xt, &F), "(10, 0xff)");
@@ -688,8 +689,8 @@ static void xcode_read_test(void)
 	result = m0_xcode_read(OBJ(&xut_v.xt, &V), "\"");
 	M0_UT_ASSERT(result == -EPROTO);
 
-	M0_SET0(&T);
-	result = m0_xcode_read(OBJ(&xut_top.xt, &T), ""
+	M0_SET0(&_T);
+	result = m0_xcode_read(OBJ(&xut_top.xt, &_T), ""
 "((1, 2),"
 " 8,"
 " [4: 1, 2, 3, 4],"
@@ -697,13 +698,17 @@ static void xcode_read_test(void)
 " {1| 42},"
 " 7)");
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(memcmp(&T, &(struct top){
-		.t_foo  = { 1, 2 },
-		.t_flag = 8,
-		.t_v    = { .v_nr = 4, .v_data = T.t_v.v_data },
-		.t_def  = 4,
-		.t_un   = { .u_tag = 1, .u = { .u_x = 42 }},
-		.t_opaq = { .o_32 = T.t_opaq.o_32 }}, sizeof T) == 0);
+	M0_SET0(&_Tmp);
+	_Tmp.t_foo.f_x = 1;
+	_Tmp.t_foo.f_y = 2;
+	_Tmp.t_flag = 8;
+	_Tmp.t_v.v_nr = 4;
+	_Tmp.t_v.v_data = _T.t_v.v_data;
+	_Tmp.t_def = 4;
+	_Tmp.t_un.u_tag = 1;
+	_Tmp.t_un.u.u_x = 42;
+	_Tmp.t_opaq.o_32 = _T.t_opaq.o_32;
+	M0_UT_ASSERT(memcmp(&_T, &_Tmp, sizeof _T) == 0);
 }
 
 #ifndef __KERNEL__
