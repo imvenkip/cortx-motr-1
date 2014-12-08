@@ -288,7 +288,8 @@ M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom)
 		_0C(M0_IN(fom_state(fom), (M0_FOS_READY, M0_FOS_WAITING,
 					   M0_FOS_RUNNING, M0_FOS_INIT))) &&
 		_0C((fom_state(fom) == M0_FOS_READY) == is_in_runq(fom)) &&
-		_0C((fom_state(fom) == M0_FOS_WAITING) == is_in_wail(fom)) &&
+		M0_CHECK_EX(_0C((fom_state(fom) == M0_FOS_WAITING) ==
+				is_in_wail(fom))) &&
 		_0C(ergo(fom->fo_thread != NULL,
 			 fom_state(fom) == M0_FOS_RUNNING)) &&
 		_0C(ergo(fom->fo_pending != NULL,
