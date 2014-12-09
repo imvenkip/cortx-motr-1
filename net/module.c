@@ -58,9 +58,9 @@ static struct {
 	},
 };
 M0_BASSERT(ARRAY_SIZE(net_xprt_mods) ==
-	   ARRAY_SIZE(((struct m0_net *)0)->n_xprts));
+	   ARRAY_SIZE(M0_FIELD_VALUE(struct m0_net_module, n_xprts)));
 
-M0_INTERNAL void m0_net_module_setup(struct m0_net *net)
+M0_INTERNAL void m0_net_module_setup(struct m0_net_module *net)
 {
 	struct m0        *instance = M0_AMB(instance, net, i_net);
 	struct m0_module *m;
@@ -80,16 +80,16 @@ M0_INTERNAL void m0_net_module_setup(struct m0_net *net)
 static bool
 is_net_of(const struct m0_module *net_module, const struct m0 *instance)
 {
-	const struct m0_net *net = M0_AMB(net, net_module, n_module);
-	const struct m0 *m0 = M0_AMB(m0, net, i_net);
+	const struct m0_net_module *net = M0_AMB(net, net_module, n_module);
+	const struct m0            *m0 = M0_AMB(m0, net, i_net);
 
 	return m0 == instance;
 }
 
 static int level_net_enter(struct m0_module *module)
 {
-	struct m0_net *net = M0_AMB(net, module, n_module);
-	unsigned       i;
+	struct m0_net_module *net = M0_AMB(net, module, n_module);
+	unsigned              i;
 
 	M0_PRE(is_net_of(module, m0_get())); /* XXX DELETEME */
 

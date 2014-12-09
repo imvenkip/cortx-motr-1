@@ -22,7 +22,7 @@
 
 #include "module/module.h"  /* m0_module */
 #include "lib/lockers.h"    /* M0_LOCKERS__DECLARE */
-#include "net/module.h"     /* m0_net */
+#include "net/module.h"     /* m0_net_module */
 #include "stob/module.h"    /* m0_stob_module */
 #include "ut/stob.h"        /* m0_ut_stob_module */
 #include "ut/module.h"      /* m0_ut_module */
@@ -80,7 +80,7 @@ struct m0 {
 	 * Global modules.
 	 * XXX TODO: Stash the following fields away in ->i_lockers.
 	 */
-	struct m0_net             i_net;
+	struct m0_net_module      i_net;
 	struct m0_stob_module     i_stob_module;
 	struct m0_stob_ad_module  i_stob_ad_module;
 	struct m0_ut_module       i_ut;

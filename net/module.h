@@ -23,25 +23,8 @@
 #include "module/module.h"  /* m0_module */
 #include "net/net.h"        /* m0_net_domain */
 
-struct m0_net;
-
 /**
  * @addtogroup net
- *
- * `net' layer defines two modules: m0_net and m0_net_xprt_module.
- *
- * Dependencies:
- * @verbatim
- *
- *   m0_net                m0_net_xprt_module
- * +==============+      +=====================+
- * | M0_LEVEL_NET |<-----| M0_LEVEL_NET_DOMAIN |
- * +--------------+      +---------------------+
- *
- * @endverbatim
- *
- * @see module/module.h to get familiar with the concept of modules,
- * levels, and dependencies.
  *
  * @{
  */
@@ -61,19 +44,12 @@ struct m0_net_xprt_module {
 };
 
 /** Network module. */
-struct m0_net {
+struct m0_net_module {
 	struct m0_module          n_module;
 	struct m0_net_xprt_module n_xprts[M0_NET_XPRT_NR];
 };
 
-/**
- * Configures m0_net module and the m0_net_xprt_modules, embedded into it.
- *
- * @see m0_module_setup()
- */
-M0_INTERNAL void m0_net_module_setup(struct m0_net *net);
-
-/** Levels of m0_net::n_module. */
+/** Levels of m0_net_module::n_module. */
 enum {
 	/** m0_net_init() has been called. */
 	M0_LEVEL_NET
@@ -84,6 +60,14 @@ enum {
 	/** m0_net_xprt_module::nx_domain has been initialised. */
 	M0_LEVEL_NET_DOMAIN
 };
+
+/*
+ *  m0_net_module         m0_net_xprt_module
+ * +--------------+      +---------------------+
+ * | M0_LEVEL_NET |<-----| M0_LEVEL_NET_DOMAIN |
+ * +--------------+      +---------------------+
+ */
+M0_INTERNAL void m0_net_module_setup(struct m0_net_module *net);
 
 /** @} net */
 #endif /* __MERO_NET_MODULE_H__ */
