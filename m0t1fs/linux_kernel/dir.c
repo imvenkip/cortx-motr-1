@@ -370,6 +370,7 @@ static int m0t1fs_create(struct inode     *dir,
 	struct m0_fid             new_fid;
 	int                       rc;
 	struct m0_fop            *rep_fop = NULL;
+	uint32_t                  i;
 
 	M0_ENTRY();
 
@@ -442,8 +443,25 @@ static int m0t1fs_create(struct inode     *dir,
 		    dentry->d_name.len);
 
 	if (csb->csb_oostore) {
-		/*@ @todo MM5, MM4 FCIDM.4 PICS.3
+		/** @todo MM5, MM4 FCIDM.4 PICS.3
+		 * Get service endpoint from service fid returned by
+		 * m0t1fs_hash_ios() based on file fid.
+		 * Create metadata cobs on these redundant services using
+		 * modified m0t1fs_component_objects_op().
 		 */
+		for (i = 0; i < csb->csb_md_redundancy; i++) {
+			struct m0_fid           md_conf_fid;
+			struct m0_conf_obj     *obj;
+			struct m0_conf_service *svc;
+
+			md_conf_fid = m0t1fs_hash_ios(csb, &new_fid, i);
+			obj = m0_conf_cache_lookup(&csb->csb_confc.cc_cache,
+						   &md_conf_fid);
+			svc = M0_CONF_CAST(obj, m0_conf_service);
+			/** @todo Use this confguration service to connect to
+			 * ioservice and create metadata cob on it.
+			 */
+		}
 	}
 
 	/* @todo: According to MM, a hash function will be used to choose

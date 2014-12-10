@@ -521,6 +521,53 @@ static void disconnect_from_services(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
+static int m0t1fs_base_pool_ios_build(struct m0t1fs_sb *csb)
+{
+	struct m0_conf_obj *fs;
+	struct m0_conf_obj *dir;
+	struct m0_conf_obj *entry;
+	int		    rc;
+
+	M0_ENTRY();
+	/** @todo Get rundundancy value from conf MERO-501. */
+	csb->csb_md_redundancy = M0T1FS_MD_REDUNDANCY;
+	csb->csb_ios_nr = 0;
+	rc = m0_confc_open_sync(&fs, csb->csb_confc.cc_root,
+				M0_CONF_PROFILE_FILESYSTEM_FID) ?:
+	     m0_confc_open_sync(&dir, fs, M0_CONF_FILESYSTEM_SERVICES_FID);
+	if (rc != 0)
+		goto out;
+	for (entry = NULL; (rc = m0_confc_readdir_sync(dir, &entry)) > 0; ) {
+		const struct m0_conf_service *svc =
+			M0_CONF_CAST(entry, m0_conf_service);
+		if (svc->cs_type == M0_CST_IOS)
+			csb->csb_ios[csb->csb_ios_nr++] = svc->cs_obj.co_id;
+	/**
+	 * @todo As per configuration schema(MERO-572) conf objects nodes and
+	 * processes are present between filesystem and services objects.
+	 * Once they are added, to get ioservices needs to iterate over them.
+	 */
+	}
+	m0_confc_close(entry);
+out:
+	m0_confc_close(dir);
+	m0_confc_close(fs);
+	return M0_RC(rc);
+}
+
+struct m0_fid m0t1fs_hash_ios(struct m0t1fs_sb *csb,
+			      const struct m0_fid *fid,
+			      uint32_t i)
+
+{
+	uint64_t index;
+
+	M0_PRE(i < csb->csb_md_redundancy);
+
+	index = m0_fid_hash(fid, csb->csb_ios_nr, i);
+	return csb->csb_ios[index];
+}
+
 static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 			       uint32_t *nr_ios)
 {
@@ -1144,7 +1191,6 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	const char                    *ep_addr;
 	uint32_t                       nr_ios = 0;
 	int                            rc;
-	struct m0_confc                confc;
 	struct m0_pdclust_attr         pa = {0};
 
 	M0_ENTRY();
@@ -1184,17 +1230,22 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		goto err_layout_fini;
 
 	rc = m0_conf_fs_get(mops->mo_profile, mops->mo_confd,
-		&csb->csb_rpc_machine, &csb->csb_iogroup, &confc, &fs);
+			    &csb->csb_rpc_machine, &csb->csb_iogroup,
+			    &csb->csb_confc, &fs);
 	if (rc != 0)
 		goto ha_fini;
 
 	rc = m0_pdclust_attr_read(fs, &pa) ?:
 	     connect_to_services(csb, fs, &nr_ios);
 	m0_confc_close(fs);
-	m0_confc_fini(&confc);
 	if (rc != 0)
-		goto ha_fini;
+		goto conf_fini;
 
+	if (csb->csb_oostore) {
+		rc = m0t1fs_base_pool_ios_build(csb);
+		if (rc != 0)
+			goto conf_fini;
+	}
 	ctx = m0_tl_find(m0t1fs_svc_ctx, ctx, &csb->csb_service_contexts,
 			 ctx->sc_type == M0_CST_SS);
 	if (ctx != NULL) {
@@ -1243,6 +1294,8 @@ addb_mc_unconf:
 	m0_addb_mc_init(&m0_addb_gmc);
 err_disconnect:
 	disconnect_from_services(csb);
+conf_fini:
+	m0_confc_fini(&csb->csb_confc);
 ha_fini:
 	m0_ha_state_fini();
 err_layout_fini:
@@ -1267,6 +1320,7 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_addb_mc_fini(&m0_addb_gmc);
 	m0_addb_mc_init(&m0_addb_gmc);
 	disconnect_from_services(csb);
+	m0_confc_fini(&csb->csb_confc);
 	m0_ha_state_fini();
 	m0t1fs_layout_fini(csb);
 	m0t1fs_addb_mon_total_io_size_fini(csb);

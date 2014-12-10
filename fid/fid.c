@@ -22,6 +22,8 @@
 #include "lib/misc.h"          /* memcmp, strcmp */
 #include "lib/string.h"        /* sscanf */
 #include "lib/assert.h"        /* M0_PRE */
+#include "lib/hash.h"          /* m0_hash */
+#include "lib/arith.h"         /* m0_rnd */
 #include "fid/fid_xc.h"
 #include "fid/fid.h"
 
@@ -176,6 +178,19 @@ M0_INTERNAL void m0_fid_fini(void)
 	m0_xc_fid_fini();
 }
 M0_EXPORTED(m0_fid_fini);
+
+M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid, uint64_t max,
+				 uint32_t i)
+
+{
+	uint64_t hash;
+	uint64_t index;
+
+	hash = m0_hash(fid->f_container + fid->f_key + i);
+	index = m0_rnd(max, &hash);
+	M0_ASSERT(index < max);
+	return index;
+}
 
 /** @} end of fid group */
 

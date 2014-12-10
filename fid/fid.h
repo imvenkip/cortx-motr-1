@@ -99,6 +99,13 @@ M0_INTERNAL const struct m0_fid_type *
 m0_fid_type_getfid(const struct m0_fid *fid);
 M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name);
 
+/**
+ * Returns a random value upto 'max', with the 'fid' and 'i' as seeds.
+ * The function should return the same value when same 'fid' and 'i' are passed.
+ */
+M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid, uint64_t max,
+				 uint32_t i);
+
 /** @} end of fid group */
 #endif /* __MERO_FID_FID_H__ */
 

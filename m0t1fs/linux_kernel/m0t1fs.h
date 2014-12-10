@@ -637,8 +637,10 @@ enum {
 	M0T1FS_DEFAULT_NR_DATA_UNITS    = 1,
 	M0T1FS_DEFAULT_NR_PARITY_UNITS  = 1,
 	M0T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
-	M0T1FS_MAX_NR_CONTAINERS        = 1024,
+	M0T1FS_MAX_NR_CONTAINERS        = 4096,
 	M0T1FS_COB_ID_STRLEN            = 34,
+	M0T1FS_MD_REDUNDANCY            = 3,
+	M0T1FS_IOS_NR                   = 1024
 };
 
 struct m0t1fs_addb_mon_sum_data_io_size {
@@ -762,6 +764,21 @@ struct m0t1fs_sb {
 
 	struct
 	m0t1fs_container_location_map           csb_cl_map;
+
+	/** Configuration cache loaded during mount. */
+	struct m0_confc                         csb_confc;
+
+	/** Number of ioservices in the base pool. */
+	uint32_t                                csb_ios_nr;
+
+	/** Metadata redundancy count. */
+	uint32_t                                csb_md_redundancy;
+	/**
+	 * Array of fids of base pool ioservices used for hashing contains
+	 * csb_ios_nr valid elements. Used for finding the ioservice to be
+	 * used as mdservice using fid of the file.
+	 */
+	struct m0_fid                           csb_ios[M0T1FS_IOS_NR];
 
 	/** mutex that serialises all file and directory operations */
 	struct m0_mutex                         csb_mutex;
@@ -1105,6 +1122,15 @@ M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop);
 
 M0_INTERNAL struct m0t1fs_service_context *
 m0t1fs_service_from_session(struct m0_rpc_session *session);
+
+/**
+ * Given a fid of a file, return configuration fid of ioservice on which
+ * metadata cob will be created.
+ * Where 'i' should not be greater than metadata redundancy.
+ */
+struct m0_fid m0t1fs_hash_ios(struct m0t1fs_sb *csb,
+			      const struct m0_fid *fid,
+			      uint32_t i);
 
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 

@@ -433,6 +433,9 @@ scope __AUN uint64_t name ## _htable_size(const struct m0_htable *htable)\
 	var == NULL;							    \
 })
 
+/** Hash based on multiplicative cache. */
+M0_INTERNAL uint64_t m0_hash(uint64_t x);
+
 /** @} end of hash */
 
 #endif /* __MERO_LIB_HASH_H__ */

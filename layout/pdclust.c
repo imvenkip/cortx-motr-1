@@ -34,7 +34,7 @@
  * numbers obtained from a PRNG (m0_rnd()). Few comments are in order:
  *
  * - to seed a PRNG, layout seed and tile number are hashed by a
- *   multiplicative cache (hash());
+ *   multiplicative cache (m0_hash());
  *
  * - system PRNG cannot be used, because reproducible sequences are needed.
  *   m0_rnd() is a very simple linear congruential generator straight from
@@ -87,6 +87,7 @@
 #include "lib/vec.h"    /* m0_bufvec_cursor_step(), m0_bufvec_cursor_addr() */
 #include "lib/arith.h"  /* m0_rnd() */
 #include "lib/misc.h"   /* m0_forall */
+#include "lib/hash.h"   /* m0_hash */
 #include "lib/bob.h"
 #include "lib/finject.h"
 
@@ -613,27 +614,6 @@ static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 	r[s[n - 1]] = n - 1;
 }
 
-/** Simple multiplicative hash. */
-static uint64_t hash(uint64_t x)
-{
-	uint64_t y;
-
-	y = x;
-	y <<= 18;
-	x -= y;
-	y <<= 33;
-	x -= y;
-	y <<= 3;
-	x += y;
-	y <<= 3;
-	x -= y;
-	y <<= 4;
-	x += y;
-	y <<= 2;
-
-	return x + y;
-}
-
 /**
  * Returns column number that a column t has after a permutation for tile omega
  * is applied.
@@ -662,8 +642,8 @@ static uint64_t permute_column(struct m0_pdclust_instance *pi,
 			tc->tc_permute[i] = i;
 
 		/* Initialise PRNG. */
-		rstate = hash(attr.pa_seed.u_hi) ^
-			 hash(attr.pa_seed.u_lo + omega);
+		rstate = m0_hash(attr.pa_seed.u_hi) ^
+			 m0_hash(attr.pa_seed.u_lo + omega);
 
 		/* Generate permutation number in lexicographic ordering. */
 		for (i = 0; i < attr.pa_P - 1; ++i)

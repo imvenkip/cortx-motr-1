@@ -217,6 +217,26 @@ M0_INTERNAL uint64_t m0_htable_size(const struct m0_htable *htable)
 	return len;
 }
 
+M0_INTERNAL uint64_t m0_hash(uint64_t x)
+{
+	uint64_t y;
+
+	y = x;
+	y <<= 18;
+	x -= y;
+	y <<= 33;
+	x -= y;
+	y <<= 3;
+	x += y;
+	y <<= 3;
+	x -= y;
+	y <<= 4;
+	x += y;
+	y <<= 2;
+
+	return x + y;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of hash */
