@@ -19,41 +19,37 @@
 
 #include "net/module.h"
 #include "module/instance.h"  /* m0_get */
+#include "lib/memory.h"       /* m0_free0 */
 #include "ut/ut.h"
 
 static void test_net_modules(void)
 {
-	int                   rc;
-	struct m0_net_module *net = &m0_get()->i_net;
-	struct m0_module     *xprt_m =
-		&net->n_xprts[M0_NET_XPRT_BULKMEM].nx_module;
+	struct m0        *inst = m0_get();
+	struct m0_module *net;
+	struct m0_module *xprt;
+	int               rc;
 
-	M0_UT_ASSERT(xprt_m->m_cur == M0_MODLEV_NONE);
-	M0_UT_ASSERT(net->n_module.m_cur == M0_MODLEV_NONE);
+	M0_UT_ASSERT(inst->i_moddata[M0_MODULE_NET] == NULL);
+	net = m0_net_module_type.mt_create(inst);
+	M0_UT_ASSERT(net != NULL);
+	M0_UT_ASSERT(inst->i_moddata[M0_MODULE_NET] ==
+		     container_of(net, struct m0_net_module, n_module));
 
-#define CURIOUS 0
-	if (CURIOUS) {
-		struct m0 another_instance;
+	xprt = &((struct m0_net_module *)inst->i_moddata[M0_MODULE_NET])
+		->n_xprts[M0_NET_XPRT_BULKMEM].nx_module;
+	M0_UT_ASSERT(xprt->m_cur == M0_MODLEV_NONE);
+	M0_UT_ASSERT(net->m_cur == M0_MODLEV_NONE);
 
-		m0_instance_setup(&another_instance);
-		m0_set(&another_instance);
-		/*
-		 * This statement fails, since `xprt_m' does not belong
-		 * `another_instance'.
-		 */
-		rc = m0_module_init(xprt_m, M0_LEVEL_NET_DOMAIN);
-		M0_IMPOSSIBLE("The program should have failed earlier");
-	}
-#undef CURIOUS
-
-	rc = m0_module_init(xprt_m, M0_LEVEL_NET_DOMAIN);
+	rc = m0_module_init(xprt, M0_LEVEL_NET_DOMAIN);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(xprt_m->m_cur == M0_LEVEL_NET_DOMAIN);
-	M0_UT_ASSERT(net->n_module.m_cur == M0_LEVEL_NET);
+	M0_UT_ASSERT(xprt->m_cur == M0_LEVEL_NET_DOMAIN);
+	M0_UT_ASSERT(net->m_cur == M0_LEVEL_NET);
 
-	m0_module_fini(xprt_m, M0_MODLEV_NONE);
-	M0_UT_ASSERT(xprt_m->m_cur == M0_MODLEV_NONE);
-	M0_UT_ASSERT(net->n_module.m_cur == M0_MODLEV_NONE);
+	m0_module_fini(xprt, M0_MODLEV_NONE);
+	M0_UT_ASSERT(xprt->m_cur == M0_MODLEV_NONE);
+	M0_UT_ASSERT(net->m_cur == M0_MODLEV_NONE);
+
+	m0_free0(&inst->i_moddata[M0_MODULE_NET]);
 }
 
 struct m0_ut_suite m0_net_module_ut = {

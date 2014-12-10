@@ -30,7 +30,12 @@
  * @{
  */
 
-static bool moddeps_are_unique(const struct m0_moddep *arr, unsigned n);
+/** Returns true if the first `n' entries of `arr' are unique. */
+static bool moddeps_are_unique(const struct m0_moddep *arr, unsigned n)
+{
+	M0_PRE(n <= M0_MODDEP_MAX);
+	return m0_elems_are_unique(arr, n, sizeof *arr);
+}
 
 static bool module_invariant(const struct m0_module *mod)
 {
@@ -74,20 +79,6 @@ static bool module_invariant(const struct m0_module *mod)
 						md1->md_src == md->md_src &&
 						md1->md_dst == md->md_dst;
 					}))));
-}
-
-M0_INTERNAL void m0_module_setup(struct m0_module *module, const char *name,
-				 const struct m0_modlev *level, int level_nr,
-				 struct m0 *instance)
-{
-	*module = (struct m0_module){
-		.m_name     = name,
-		.m_m0       = instance,
-		.m_cur      = M0_MODLEV_NONE,
-		.m_level    = level,
-		.m_level_nr = level_nr
-	};
-	M0_POST(module_invariant(module));
 }
 
 static int module_up(struct m0_module *module, int level)
@@ -198,11 +189,18 @@ M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, int l0,
 	M0_POST(module_invariant(m1));
 }
 
-/** Returns true if the first `n' entries of `arr' are unique. */
-static bool moddeps_are_unique(const struct m0_moddep *arr, unsigned n)
+M0_INTERNAL void m0_module_setup(struct m0_module *module, const char *name,
+				 const struct m0_modlev *level, int level_nr,
+				 struct m0 *instance)
 {
-	M0_PRE(n <= M0_MODDEP_MAX);
-	return m0_elems_are_unique(arr, n, sizeof *arr);
+	*module = (struct m0_module){
+		.m_name     = name,
+		.m_m0       = instance,
+		.m_cur      = M0_MODLEV_NONE,
+		.m_level    = level,
+		.m_level_nr = level_nr
+	};
+	M0_POST(module_invariant(module));
 }
 
 /** @} module */

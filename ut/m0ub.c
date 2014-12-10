@@ -24,6 +24,7 @@
 #include "lib/getopts.h"
 #include "lib/ub.h"
 #include "ut/ut.h"              /* m0_ut_init */
+#include "ut/module.h"          /* m0_ut_module */
 #include "module/instance.h"    /* m0 */
 
 extern struct m0_ub_set m0_ad_ub;
@@ -133,9 +134,15 @@ static int ub_run(const struct ub_args *args)
 
 int main(int argc, char *argv[])
 {
-	static struct m0 instance = { .i_ut.ut_sandbox = UB_SANDBOX };
+	static struct m0 instance;
 	struct ub_args args;
 	int            rc;
+
+	m0_instance_setup(&instance);
+	(void)m0_ut_module_type.mt_create(&instance);
+
+	((struct m0_ut_module *)instance.i_moddata[M0_MODULE_UT])->ut_sandbox =
+		UB_SANDBOX;
 
 	rc = m0_ut_init(&instance);
 	if (rc != 0)

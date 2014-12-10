@@ -31,7 +31,7 @@
 
 /** Represents a (module, level) pair, which a UT suite depends on. */
 struct m0_ut_moddep {
-	struct m0_module *ud_module;
+	struct m0_module *ud_module; /* XXX FIXME: Use enum m0_module_id. */
 	int               ud_level;
 };
 
@@ -77,6 +77,18 @@ enum {
 enum { M0_LEVEL_UT_SUITE_READY };
 
 /*
+ *          m0_ut_suite                      m0_ut_module
+ *         +-------------------------+ *  1 +---------------------+
+ * [<-----]| M0_LEVEL_UT_SUITE_READY |<-----| M0_LEVEL_UT_READY   |
+ *         +-------------------------+      +---------------------+
+ *                                          | M0_LEVEL_UT_PREPARE |
+ *                                          +---------------------+
+ */
+/* XXX DELETEME */
+M0_INTERNAL void m0_ut_suite_module_setup(struct m0_ut_suite *ts,
+					  struct m0 *instance);
+
+/*
  *  m0_ut_module                 m0
  * +---------------------+      +--------------------------+
  * | M0_LEVEL_UT_READY   |<-----| M0_LEVEL_INST_READY      |
@@ -88,18 +100,7 @@ enum { M0_LEVEL_UT_SUITE_READY };
  *                              | M0_LEVEL_INST_PREPARE    |
  *                              +--------------------------+
  */
-M0_INTERNAL void m0_ut_module_setup(struct m0 *instance);
-
-/*
- *          m0_ut_suite                      m0_ut_module
- *         +-------------------------+ *  1 +---------------------+
- * [<-----]| M0_LEVEL_UT_SUITE_READY |<-----| M0_LEVEL_UT_READY   |
- *         +-------------------------+      +---------------------+
- *                                          | M0_LEVEL_UT_PREPARE |
- *                                          +---------------------+
- */
-M0_INTERNAL void m0_ut_suite_module_setup(struct m0_ut_suite *ts,
-					  struct m0 *instance);
+extern const struct m0_module_type m0_ut_module_type;
 
 /** @} ut */
 #endif /* __MERO_UT_MODULE_H__ */

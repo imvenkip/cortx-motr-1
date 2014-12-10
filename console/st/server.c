@@ -28,6 +28,7 @@
 #include "mero/init.h"          /* m0_init */
 #include "lib/getopts.h"        /* M0_GETOPTS */
 #include "module/instance.h"    /* m0 */
+#include "ut/module.h"          /* m0_ut_module (XXX DELETEME) */
 #include "rpc/rpclib.h"         /* m0_rpc_server_start */
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 #include "ut/ut.h"              /* m0_ut_init */
@@ -91,6 +92,11 @@ int main(int argc, char **argv)
 	sprintf(tm_len, "%d", tm_recv_queue_len);
 	sprintf(rpc_size, "%d", max_rpc_msg_size);
 
+	m0_instance_setup(&instance);
+	(void)m0_ut_module_type.mt_create(&instance);
+
+	/* We have to use m0_ut_init() here, because it initialises
+	 * m0_cs_default_stypes. XXX FIXME */
 	result = m0_ut_init(&instance);
 	if (result != 0)
 		return M0_RC(-result);

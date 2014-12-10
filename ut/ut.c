@@ -23,6 +23,7 @@
 
 #include "ut/ut.h"
 #include "ut/ut_internal.h"
+#include "ut/module.h"          /* m0_ut_module */
 #include "module/instance.h"    /* m0 */
 #include "lib/errno.h"          /* ENOENT */
 #include "lib/string.h"         /* m0_streq */
@@ -51,9 +52,18 @@ struct ut_entry {
 	const char         *ue_test_name;
 };
 
+static struct m0_ut_module *ut_module(void)
+{
+	return m0_get()->i_moddata[M0_MODULE_UT];
+}
+
 M0_INTERNAL int m0_ut_init(struct m0 *instance)
 {
-	struct m0_ut_module *m = &instance->i_ut;
+	/*
+	 * We cannot use ut_module() here: m0_get() is not available,
+	 * because m0 instance have not reached M0_LEVEL_INST_ONCE yet.
+	 */
+	struct m0_ut_module *m = instance->i_moddata[M0_MODULE_UT];
 	struct m0_ut_suite  *ts;
 	int                  i;
 	int                  rc;
@@ -61,12 +71,9 @@ M0_INTERNAL int m0_ut_init(struct m0 *instance)
 	rc = test_suites_enable(m);
 	if (rc != 0)
 		return rc;
-
-	m0_instance_setup(instance);
-	m0_ut_module_setup(instance);
 	/*
-	 * Make sure the loop below will be able to create that many
-	 * dependencies.
+	 * Ensure that the loop below is able to create the required
+	 * number of dependencies.
 	 */
 	M0_ASSERT(ARRAY_SIZE(m->ut_module.m_dep) >= m->ut_suites_nr);
 	for (i = 0; i < m->ut_suites_nr; ++i) {
@@ -470,7 +477,7 @@ M0_INTERNAL int m0_ut_run(void)
 	m0_time_t   start;
 	m0_time_t   duration;
 	int         rc;
-	const struct m0_ut_module *m = &m0_get()->i_ut;
+	const struct m0_ut_module *m = ut_module();
 
 	alloc_before = m0_allocated();
 	mem_before   = m0_allocated_total();
@@ -501,10 +508,11 @@ M0_INTERNAL int m0_ut_run(void)
 }
 M0_EXPORTED(m0_ut_run);
 
-M0_INTERNAL void m0_ut_list(const struct m0_ut_module *m, bool with_tests)
+M0_INTERNAL void m0_ut_list(bool with_tests)
 {
-	const struct m0_ut *t;
-	int                 i;
+	const struct m0_ut_module *m = ut_module();
+	const struct m0_ut        *t;
+	int                        i;
 
 	for (i = 0; i < m->ut_suites_nr; ++i) {
 		m0_console_printf("%s\n", m->ut_suites[i]->ts_name);
@@ -525,11 +533,12 @@ static void ut_owners_print(const struct m0_ut_suite *suite)
 	}
 }
 
-M0_INTERNAL void m0_ut_list_owners(const struct m0_ut_module *m)
+M0_INTERNAL void m0_ut_list_owners(void)
 {
-	const struct m0_ut_suite *s;
-	const struct m0_ut       *t;
-	int                       i;
+	const struct m0_ut_module *m = ut_module();
+	const struct m0_ut_suite  *s;
+	const struct m0_ut        *t;
+	int                        i;
 
 	for (i = 0; i < m->ut_suites_nr; ++i) {
 		s = m->ut_suites[i];
@@ -553,7 +562,7 @@ M0_INTERNAL bool m0_ut_assertimpl(bool c, const char *str_c, const char *file,
 {
 	static char buf[4096];
 
-	m0_atomic64_inc(&m0_get()->i_ut.ut_asserts);
+	m0_atomic64_inc(&ut_module()->ut_asserts);
 	if (!c) {
 		snprintf(buf, sizeof buf,
 			"Unit-test assertion failed: %s", str_c);
@@ -573,16 +582,16 @@ static int order[M0_UT_SUITES_MAX];
 
 static int cmp(const struct m0_ut_suite **s0, const struct m0_ut_suite **s1)
 {
-	const struct m0_ut_suite **start =
-		(const struct m0_ut_suite **)m0_get()->i_ut.ut_suites;
+	const struct m0_ut_suite **start = (void *)ut_module()->ut_suites;
 
 	M0_PRE(start < s0 && start < s1);
 	return order[s0 - start] - order[s1 - start];
 }
 
-M0_INTERNAL void m0_ut_shuffle(struct m0_ut_module *m, unsigned seed)
+M0_INTERNAL void m0_ut_shuffle(unsigned seed)
 {
-	unsigned i;
+	struct m0_ut_module *m = ut_module();
+	unsigned             i;
 
 	M0_PRE(m->ut_suites_nr > 0);
 

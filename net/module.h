@@ -51,7 +51,6 @@ struct m0_net_module {
 
 /** Levels of m0_net_module::n_module. */
 enum {
-	/** m0_net_init() has been called. */
 	M0_LEVEL_NET
 };
 
@@ -67,7 +66,7 @@ enum {
  * | M0_LEVEL_NET |<-----| M0_LEVEL_NET_DOMAIN |
  * +--------------+      +---------------------+
  */
-M0_INTERNAL void m0_net_module_setup(struct m0_net_module *net);
+extern const struct m0_module_type m0_net_module_type;
 
 /** @} net */
 #endif /* __MERO_NET_MODULE_H__ */

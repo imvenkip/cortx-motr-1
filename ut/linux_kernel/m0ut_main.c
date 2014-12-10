@@ -22,6 +22,7 @@
 #include "lib/thread.h"       /* M0_THREAD_INIT */
 #include "ut/ut.h"            /* m0_ut_add */
 #include "module/instance.h"  /* m0 */
+#include "ut/module.h"        /* m0_ut_module */
 
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Mero Unit Test Module");
@@ -110,8 +111,12 @@ static void run_kernel_ut(int _)
 static int __init m0_ut_module_init(void)
 {
 	static struct m0 instance;
-	struct m0_ut_module *ut = &instance.i_ut;
-	int rc;
+	struct m0_ut_module *ut;
+	int                  rc;
+
+	m0_instance_setup(&instance);
+	(void)m0_ut_module_type.mt_create(&instance);
+	ut = instance.i_moddata[M0_MODULE_UT];
 
 	if (tests != NULL && exclude != NULL)
 		return EINVAL; /* only one of the lists should be provided */

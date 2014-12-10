@@ -29,6 +29,7 @@
 #include <string.h>  /* basename */
 
 #include "ut/ut.h"
+#include "ut/module.h"            /* m0_ut_module */
 #include "module/instance.h"      /* m0 */
 #include "lib/trace.h"
 #include "lib/user_space/trace.h" /* m0_trace_set_print_context */
@@ -36,6 +37,8 @@
 #include "lib/getopts.h"
 #include "lib/finject.h"          /* m0_fi_print_info */
 #include "lib/atomic.h"
+#include "lib/errno.h"            /* ENOMEM */
+#include "lib/memory.h"           /* m0_free0 */
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -182,8 +185,8 @@ static void tests_add(struct m0_ut_module *m)
 
 int main(int argc, char *argv[])
 {
-	static struct m0 instance = { .i_ut.ut_sandbox = UT_SANDBOX };
-	struct m0_ut_module *ut = &instance.i_ut;
+	static struct m0 instance;
+	struct m0_ut_module *ut;
 	int   rc                   = EXIT_SUCCESS;
 	bool  list_ut              = false;
 	bool  with_tests           = false;
@@ -192,7 +195,6 @@ int main(int argc, char *argv[])
 	bool  finject_stats_after  = false;
 	bool  parse_trace          = false;
 	int   seed                 = -1;
-
 	const char *fault_point         = NULL;
 	const char *fp_file_name        = NULL;
 	const char *trace_mask          = NULL;
@@ -200,6 +202,11 @@ int main(int argc, char *argv[])
 	const char *trace_print_context = NULL;
 	const char *tests_select        = NULL;
 	const char *tests_exclude       = NULL;
+
+	m0_instance_setup(&instance);
+	(void)m0_ut_module_type.mt_create(&instance);
+	ut = instance.i_moddata[M0_MODULE_UT];
+	ut->ut_sandbox = UT_SANDBOX;
 
 	/* add options in alphabetic order, M0_HELPARG should be first */
 	rc = M0_GETOPTS(basename(argv[0]), argc, argv,
@@ -274,7 +281,7 @@ int main(int argc, char *argv[])
 				),
 		    );
 	if (rc != 0)
-		return rc;
+		goto end;
 
 	ut->ut_exclude = (tests_exclude != NULL);
 	ut->ut_tests = ut->ut_exclude ? tests_exclude : tests_select;
@@ -293,38 +300,37 @@ int main(int argc, char *argv[])
 
 	rc = m0_ut_init(&instance);
 	if (rc != 0)
-		return rc;
-
+		goto end;
 #if 1 /* XXX
        * TODO Perform these initialisations via module/module.h API.
        */
 	rc = m0_trace_set_immediate_mask(trace_mask) ?:
 		 m0_trace_set_level(trace_level);
 	if (rc != 0)
-		goto out;
+		goto ut_fini;
 
 	rc = m0_trace_set_print_context(trace_print_context);
 	if (rc != 0) {
 		warn("Error: invalid value for -p option");
-		goto out;
+		goto ut_fini;
 	}
 
 	if (parse_trace) {
 		rc = m0_trace_parse(stdin, stdout, false, false, NULL);
-		goto out;
+		goto ut_fini;
 	}
 
 	/* enable fault points as early as possible */
 	if (fault_point != NULL) {
 		rc = m0_ut_enable_fault_point(fault_point);
 		if (rc != 0)
-			goto out;
+			goto ut_fini;
 	}
 
 	if (fp_file_name != NULL) {
 		rc = m0_ut_enable_fault_points_from_file(fp_file_name);
 		if (rc != 0)
-			goto out;
+			goto ut_fini;
 	}
 
 	if (finject_stats_before) {
@@ -332,19 +338,18 @@ int main(int argc, char *argv[])
 		printf("\n");
 	}
 #endif /* XXX */
-
 	if (seed != -1) {
 		if (seed == 0) {
 			seed = time(NULL) ^ (getpid() << 17);
 			printf("Seed: %u.\n", seed);
 		}
-		m0_ut_shuffle(ut, seed);
+		m0_ut_shuffle(seed);
 	}
 
 	if (list_ut)
-		m0_ut_list(ut, with_tests);
+		m0_ut_list(with_tests);
 	else if (list_owners)
-		m0_ut_list_owners(ut);
+		m0_ut_list_owners();
 	else
 		rc = m0_ut_run();
 
@@ -352,9 +357,10 @@ int main(int argc, char *argv[])
 		printf("\n");
 		m0_fi_print_info();
 	}
-out:
+ut_fini:
 	m0_ut_fini();
-	return rc;
+end:
+	return rc < 0 ? -rc : rc;
 }
 
 /*

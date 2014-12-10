@@ -92,14 +92,7 @@ struct m0_ut_suite {
 	struct m0_ut               ts_tests[M0_UT_SUITE_TESTS_MAX];
 };
 
-/**
- * Global constructor for unit tests.
- */
 int m0_ut_init(struct m0 *instance);
-
-/**
- * Global destructor for unit tests.
- */
 void m0_ut_fini(void);
 
 /**
@@ -114,7 +107,7 @@ M0_INTERNAL void m0_ut_add(struct m0_ut_module *m, struct m0_ut_suite *ts);
 /**
  * Shuffles added suites.
  */
-M0_INTERNAL void m0_ut_shuffle(struct m0_ut_module *m, unsigned seed);
+M0_INTERNAL void m0_ut_shuffle(unsigned seed);
 
 /**
    run tests
@@ -126,15 +119,13 @@ M0_INTERNAL int m0_ut_run(void);
 
  @param with_tests - if true, then all tests of each suite are printed in
                      addition
-
- @return NONE
  */
-M0_INTERNAL void m0_ut_list(const struct m0_ut_module *m, bool with_tests);
+M0_INTERNAL void m0_ut_list(bool with_tests);
 
 /**
  * Print owners of all UTs on STDOUT
  */
-M0_INTERNAL void m0_ut_list_owners(const struct m0_ut_module *m);
+M0_INTERNAL void m0_ut_list_owners(void);
 
 /**
  * Implements UT assert logic in the kernel.

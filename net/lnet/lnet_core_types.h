@@ -24,6 +24,8 @@
 #ifndef __MERO_NET_LNET_TYPES_H__
 #define __MERO_NET_LNET_CORE_TYPES_H__
 
+#include "net/net.h"  /* m0_net_queue_type */
+
 /* forward references */
 struct nlx_core_bev_link;
 struct nlx_core_bev_cqueue;

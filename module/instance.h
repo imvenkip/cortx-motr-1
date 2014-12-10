@@ -22,10 +22,8 @@
 
 #include "module/module.h"  /* m0_module */
 #include "lib/lockers.h"    /* M0_LOCKERS__DECLARE */
-#include "net/module.h"     /* m0_net_module */
 #include "stob/module.h"    /* m0_stob_module */
 #include "ut/stob.h"        /* m0_ut_stob_module */
-#include "ut/module.h"      /* m0_ut_module */
 
 struct m0_be_domain;
 struct m0_dbenv;
@@ -36,6 +34,15 @@ struct m0_dbenv;
  * @{
  */
 
+/** Identifiers of standard modules. */
+enum m0_module_id {
+	M0_MODULE_NET,
+	M0_MODULE_UT,
+	/* XXX ... more to come ... */
+	M0_MODULE_NR
+};
+
+/* XXX TODO: s/inst/instance/ */
 M0_LOCKERS__DECLARE(M0_INTERNAL, m0_inst, m0, 16);
 
 /**
@@ -61,29 +68,33 @@ struct m0 {
 	 * dependency is added. Used to detect when initialisation
 	 * should re-start.
 	 */
-	uint64_t                  i_dep_gen;
+	uint64_t               i_dep_gen;
 	/** Module representing this instance. */
-	struct m0_module          i_self;
+	struct m0_module       i_self;
+	/**
+	 * Module-specific data (e.g. addresses) of standard modules.
+	 *
+	 * @see m0_module_id
+	 */
+	void                  *i_moddata[M0_MODULE_NR];
+	/**
+	 * Non-standard modules (i.e. those not mentioned in m0_module_id)
+	 * may store their data here.
+	 */
+	struct m0_inst_lockers i_lockers;
 	/**
 	 * List of m0_param_source-s, linked through m0_param_source::ps_link.
 	 *
 	 * @see m0_param_source_add(), m0_param_source_del()
 	 */
-	struct m0_tl              i_param_sources;
-	/**
-	 * The storage of globally-accessible pointers, which are
-	 * intended to be used by modules.
-	 */
-	struct m0_inst_lockers    i_lockers;
+	struct m0_tl           i_param_sources;
 
 	/*
-	 * Global modules.
-	 * XXX TODO: Stash the following fields away in ->i_lockers.
+	 * XXX TODO: Get rid of the fields below. Use ->i_moddata[] or
+	 * ->i_lockers.
 	 */
-	struct m0_net_module      i_net;
 	struct m0_stob_module     i_stob_module;
 	struct m0_stob_ad_module  i_stob_ad_module;
-	struct m0_ut_module       i_ut;
 	struct m0_ut_stob_module  i_ut_stob_module;
 	struct m0_be_domain      *i_be_dom;
 	struct m0_be_domain      *i_be_dom_save;
@@ -96,13 +107,6 @@ struct m0 {
 	bool                      i_reqh_has_multiple_ad_domains;
 	bool                      i_reqh_uses_ad_stob;
 };
-
-/**
- * Configures m0_modules: m0 and its submodules.
- *
- * @see m0_module_setup()
- */
-M0_INTERNAL void m0_instance_setup(struct m0 *instance);
 
 /**
  * Returns current m0 instance.
@@ -151,6 +155,20 @@ enum {
 	 */
 	M0_LEVEL_INST_READY
 };
+
+/*
+ *  m0
+ * +--------------------------+
+ * | M0_LEVEL_INST_READY      |
+ * +--------------------------+
+ * | M0_LEVEL_INST_SUBSYSTEMS |
+ * +--------------------------+
+ * | M0_LEVEL_INST_ONCE       |
+ * +--------------------------+
+ * | M0_LEVEL_INST_PREPARE    |
+ * +--------------------------+
+ */
+M0_INTERNAL void m0_instance_setup(struct m0 *instance);
 
 /** @} module */
 #endif /* __MERO_MODULE_INSTANCE_H__ */

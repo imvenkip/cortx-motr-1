@@ -19,6 +19,7 @@
 
 #include "module/instance.h"
 #include "module/param.h"     /* m0_param_sources_tlist_init */
+#include "lib/thread.h"       /* m0_thread_tls */
 
 /**
  * @addtogroup module
@@ -91,7 +92,7 @@ static const struct m0_modlev levels_inst[] = {
 		.ml_leave = (void *)m0_subsystems_fini
 	},
 	[M0_LEVEL_INST_READY] = {
-		.ml_name  = "M0_LEVEL_INST_READY"
+		.ml_name = "M0_LEVEL_INST_READY"
 	}
 };
 
@@ -99,7 +100,6 @@ M0_INTERNAL void m0_instance_setup(struct m0 *instance)
 {
 	m0_module_setup(&instance->i_self, "m0 instance",
 			levels_inst, ARRAY_SIZE(levels_inst), instance);
-	m0_net_module_setup(&instance->i_net);
 }
 
 /** @} module */

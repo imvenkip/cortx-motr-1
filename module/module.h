@@ -22,6 +22,8 @@
 #ifndef __MERO_MODULE_MODULE_H__
 #define __MERO_MODULE_MODULE_H__
 
+struct m0_module;
+
 /**
  * @defgroup module
  *
@@ -105,6 +107,18 @@ enum {
 	M0_MODDEP_MAX  = 128
 };
 
+/** Module level. */
+struct m0_modlev {
+	const char *ml_name;
+	/**
+	 * Entry function, executed before entering the level, after
+	 * all dependencies are satisfied.
+	 */
+	int       (*ml_enter)(struct m0_module *module);
+	/** Leave function, executed before leaving the level. */
+	void      (*ml_leave)(struct m0_module *module);
+};
+
 /**
  * Dependency between a (module, level) pair.
  *
@@ -164,30 +178,24 @@ struct m0_module {
 	unsigned                m_inv_nr;
 };
 
-/** Module level. */
-struct m0_modlev {
-	const char *ml_name;
+/** "Module factory". */
+struct m0_module_type {
+	/** Human-readable name (useful for debugging). */
+	const char         *mt_name;
 	/**
-	 * Entry function, executed before entering the level, after
-	 * all dependencies are satisfied.
+	 * Allocates and configures a module.
+	 *
+	 * Usually an ambient structure is allocated, which m0_module is
+	 * embedded into. Then module levels are assigned and dependencies
+	 * added. Module-specific data (e.g., the address of module) may be
+	 * stored in m0::i_moddata[] or m0::i_lockers.
+	 *
+	 * @note  It is caller's responsibility to free any memory allocated
+	 *        by the implementation and clear the corresponding cell in
+	 *        m0::i_moddata[] or m0::i_lockers.
 	 */
-	int       (*ml_enter)(struct m0_module *module);
-	/** Leave function, executed before leaving the level. */
-	void      (*ml_leave)(struct m0_module *module);
+	struct m0_module *(*mt_create)(struct m0 *instance);
 };
-
-/**
- * Configures the module: sets the fields of m0_module that will not be
- * changed during its lifetime.
- *
- * @note  *_module_setup() functions (m0_module_setup(),
- *        m0_net_module_setup(), etc.) MUST NOT do anything apart from
- *        setting the fields of m0_module(s) and establishing
- *        inter-modules dependencies.
- */
-M0_INTERNAL void m0_module_setup(struct m0_module *module, const char *name,
-				 const struct m0_modlev *level, int level_nr,
-				 struct m0 *instance);
 
 /**
  * Bring module at least to the given level.
@@ -203,6 +211,11 @@ M0_INTERNAL void m0_module_fini(struct m0_module *module, int level);
 /** Creates (m0, l0) -> (m1, l1) dependency. */
 M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, int l0,
 				   struct m0_module *m1, int l1);
+
+/** Performs initial configuration of m0_module fields. */
+M0_INTERNAL void m0_module_setup(struct m0_module *module, const char *name,
+				 const struct m0_modlev *level, int level_nr,
+				 struct m0 *instance);
 
 /** @} module */
 #endif /* __MERO_MODULE_MODULE_H__ */

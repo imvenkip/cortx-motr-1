@@ -21,6 +21,7 @@
 #include "module/instance.h"
 #include "module/param.h"
 #include "lib/string.h"       /* m0_streq */
+#include "lib/thread.h"       /* m0_thread */
 #include "ut/ut.h"
 
 static char       g_log[32] = "";
@@ -399,7 +400,12 @@ static void inherit(int _)
 
 	m0_set(&local);
 	inst = m0_get();
-	M0_UT_ASSERT(inst == &local);
+	/*
+	 * We cannot use M0_UT_ASSERT() here, because m0_ut_assertimpl()
+	 * obtains the address of m0_ut_module from m0 instance, and since
+	 * `local' is zeroed, no valid pointers can be obtained from it.
+	 */
+	M0_ASSERT(inst == &local);
 }
 
 static void test_instance(void)
