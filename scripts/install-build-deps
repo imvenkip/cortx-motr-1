@@ -28,6 +28,7 @@ declare -rA RPM_PACKAGE=(
     [libc-dev]='glibc-headers'
     [kernel-dev]='kernel-devel'
     [aio]='libaio'
+    [binutils-dev]='binutils-devel'
     [aio-dev]='libaio-devel'
     [yaml]='libyaml'
     [yaml-dev]='libyaml-devel'
