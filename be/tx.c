@@ -517,6 +517,9 @@ M0_INTERNAL bool m0_be_tx__is_fast(struct m0_be_tx *tx)
 
 M0_INTERNAL int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec)
 {
+	M0_PRE(be_tx_is_locked(tx));
+	M0_PRE(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
+
 	return m0_fol_rec_encode(rec, &tx->t_payload);
 }
 
