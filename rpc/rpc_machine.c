@@ -324,8 +324,7 @@ M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine)
 		m0_sm_asts_run(&machine->rm_sm_grp);
 		m0_rpc_machine_drain_item_sources(machine);
 		m0_rpc_machine_unlock(machine);
-		m0_chan_timedwait(&machine->rm_sm_grp.s_clink,
-				  m0_time_from_now(60, 0));
+		m0_chan_wait(&machine->rm_sm_grp.s_clink);
 	}
 }
 

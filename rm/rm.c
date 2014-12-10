@@ -625,8 +625,7 @@ static void credit_processor(struct m0_rm_resource_type *rt)
 			return;
 		}
 		m0_sm_group_unlock(&rt->rt_sm_grp);
-		m0_chan_timedwait(&rt->rt_sm_grp.s_clink,
-				  m0_time_from_now(RM_CREDIT_TIMEOUT, 0));
+		m0_chan_wait(&rt->rt_sm_grp.s_clink);
 	}
 }
 

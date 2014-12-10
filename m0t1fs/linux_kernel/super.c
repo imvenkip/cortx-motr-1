@@ -1602,11 +1602,8 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 
 static void ast_thread(struct m0t1fs_sb *csb)
 {
-	enum { AST_THREAD_TIMEOUT = 10 };
-
 	while (1) {
-		m0_chan_timedwait(&csb->csb_iogroup.s_clink,
-				  m0_time_from_now(AST_THREAD_TIMEOUT, 0));
+		m0_chan_wait(&csb->csb_iogroup.s_clink);
 		m0_sm_group_lock(&csb->csb_iogroup);
 		m0_sm_asts_run(&csb->csb_iogroup);
 		m0_sm_group_unlock(&csb->csb_iogroup);

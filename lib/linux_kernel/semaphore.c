@@ -46,7 +46,7 @@ M0_INTERNAL void m0_semaphore_fini(struct m0_semaphore *semaphore)
 
 M0_INTERNAL void m0_semaphore_down(struct m0_semaphore *semaphore)
 {
-	down(&semaphore->s_sem);
+	while (down_interruptible(&semaphore->s_sem) != 0);
 }
 
 M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore)

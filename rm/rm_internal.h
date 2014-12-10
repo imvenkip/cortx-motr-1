@@ -25,10 +25,6 @@
 #include "lib/bob.h"
 #include "lib/cookie.h"
 
-enum {
-	RM_CREDIT_TIMEOUT = 60
-};
-
 enum m0_file_credit {
 	RM_FILE_LOCK = 1
 };

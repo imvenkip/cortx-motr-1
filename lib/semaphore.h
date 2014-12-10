@@ -29,9 +29,6 @@
 /**
    @defgroup semaphore Dijkstra semaphore
 
-   Wait on a m0_semaphore is non-interruptable: signals won't preempt it. Use
-   semaphores to wait for events that are expected to arrive in a "short time".
-
    @see http://en.wikipedia.org/wiki/Semaphore_(programming)
 
    @{
@@ -75,6 +72,11 @@ M0_INTERNAL unsigned m0_semaphore_value(struct m0_semaphore *semaphore);
 /**
    Downs the semaphore, blocking for not longer than the (absolute) timeout
    given.
+
+   @note this call with cause the thread to wait on semaphore in
+         non-interruptable state: signals won't preempt it.
+         Use it to wait for events that are expected to arrive in a
+         "short time".
 
    @param abs_timeout absolute time since Epoch (00:00:00, 1 January 1970)
    @return true if P-operation succeed immediately or before timeout;
