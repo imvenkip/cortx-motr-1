@@ -68,7 +68,8 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    local TEMP=$( getopt -o hv -n "$PROG_NAME" -- "$@" )
+    local TEMP=$( getopt -o ht:x:v -l help,tests:,exclude-tests:,verbose \
+                         -n "$PROG_NAME" -- "$@" )
 
     [[ $? != 0 ]] && help
 
@@ -150,7 +151,7 @@ load_modules()
                       "trace_print_context=$trace_print_context" \
                       "trace_level=$trace_level" \
                       "${tests:+tests=$tests}" \
-                      "${exclude:+exclude=$exclude}" \
+                      "${exclude:+exclude=$exclude}"
 
         run_lut_helper
 
