@@ -930,7 +930,7 @@ quick: generate-files galois
 	@$(MAKE) $(AM_MAKEFLAGS) __quick
 
 .PHONY: __quick
-__quick: __libmero __libmero-ut utils/ut
+__quick: __libmero __libmero-ut ut/m0ut
 	@$(MAKE) $(AM_MAKEFLAGS) build-kernel-modules M0_BUILD_KERNEL_M0MERO_ONLY=yes
 
 # kuick
