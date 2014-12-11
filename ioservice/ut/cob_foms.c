@@ -34,8 +34,6 @@
 #include "rpc/rpc_machine_internal.h"
 #include "mdservice/fsync_fops.h"
 
-#include <stdio.h>
-
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
 
@@ -166,6 +164,13 @@ static void cobfoms_utfini(void)
 static void cobfops_populate_internal(struct m0_fop *fop, uint64_t gob_fid_key)
 {
 	struct m0_fop_cob_common *common;
+	struct m0_cob_attr    attr = { { 0, } };
+
+	cob_attr_default_fill(&attr);
+	if (fop->f_type == &m0_fop_cob_create_fopt)
+		attr.ca_nlink = 1;
+	else
+		attr.ca_nlink = 0;
 
 	M0_UT_ASSERT(fop != NULL);
 	M0_UT_ASSERT(fop->f_type != NULL);
@@ -175,6 +180,7 @@ static void cobfops_populate_internal(struct m0_fop *fop, uint64_t gob_fid_key)
 		   GOB_FID_KEY_ID + gob_fid_key);
 	m0_fid_set(&common->c_cobfid, 1 + gob_fid_key % POOL_WIDTH,
 		   GOB_FID_KEY_ID + gob_fid_key);
+	m0_md_cob_mem2wire(&common->c_body, &attr);
 }
 
 static void cobfops_populate(uint64_t index)
@@ -595,6 +601,7 @@ static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
 	struct m0_fop_cob_common *c;
 	struct m0_fop            *base_fop;
 	struct m0_rpc_machine    *mach = &cut->cu_cctx.rcx_rpc_machine;
+	struct m0_cob_attr        attr = { { 0, } };
 
 	switch (fomtype) {
 	case COB_CREATE:
@@ -613,6 +620,15 @@ static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
 	c = m0_cobfop_common_get(base_fop);
 	m0_fid_set(&c->c_gobfid, 0, COB_TEST_KEY);
 	m0_fid_set(&c->c_cobfid, COB_TEST_CONTAINER, COB_TEST_KEY);
+
+	cob_attr_default_fill(&attr);
+	if (base_fop->f_type == &m0_fop_cob_create_fopt)
+		attr.ca_nlink = 1;
+	else
+		attr.ca_nlink = 0;
+
+	m0_md_cob_mem2wire(&c->c_body, &attr);
+
 	c->c_cob_idx = COB_TEST_CONTAINER;
 	fom->fo_fop = base_fop;
 	fom->fo_type = &base_fop->f_type->ft_fom_type;
@@ -806,6 +822,9 @@ static void cc_cob_create_test()
 	struct m0_fom        *fom;
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_fom_cob_op *cc;
+	struct m0_cob_attr    attr = { { 0, } };
+
+	cob_attr_default_fill(&attr);
 
 	fom = cc_fom_alloc();
 	M0_UT_ASSERT(fom != NULL);
@@ -825,7 +844,7 @@ static void cc_cob_create_test()
 	/* stob may be already created by another test */
 	M0_UT_ASSERT(M0_IN(rc, (0, -EEXIST)));
 
-	rc = cc_cob_create(fom, cc);
+	rc = cc_cob_create(fom, cc, &attr);
 	fom_dtx_done(fom, grp);
 
 	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_COB_OPS_PREPARE);
@@ -843,7 +862,7 @@ static void cc_cob_create_test()
 	fom_dtx_init(fom, grp, M0_COB_OP_CREATE);
 	rc = m0_dtx_open_sync(&fom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = cc_cob_create(fom, cc);
+	rc = cc_cob_create(fom, cc, &attr);
 	M0_UT_ASSERT(rc != 0);
 	fom_dtx_done(fom, grp);
 
@@ -1107,6 +1126,12 @@ static void cd_cob_delete_test()
 	struct m0_be_seg     *beseg;
 	struct m0_fom_cob_op *cd;
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
+	struct m0_cob_attr    attr = { { 0, } };
+
+	attr.ca_ctime = 1416970585;
+	attr.ca_nlink = 0;
+	attr.ca_valid = M0_COB_CTIME | M0_COB_NLINK;
+
 
 	cfom = cob_testdata_create();
 
@@ -1122,7 +1147,7 @@ static void cd_cob_delete_test()
 	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
 	rc = m0_dtx_open_sync(&dfom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = cd_cob_delete(dfom, cd);
+	rc = cd_cob_delete(dfom, cd, &attr);
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_COB_OPS_PREPARE);
 	M0_UT_ASSERT(rc == 0);
 
@@ -1138,7 +1163,7 @@ static void cd_cob_delete_test()
 	 */
 	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
 	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
-	rc = cd_cob_delete(dfom, cd);
+	rc = cd_cob_delete(dfom, cd, &attr);
 
 	/*
 	 * Now do the cleanup.

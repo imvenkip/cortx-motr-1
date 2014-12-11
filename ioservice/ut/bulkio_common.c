@@ -495,3 +495,17 @@ void bulkio_client_stop(struct m0_rpc_client_ctx *cctx)
 
 	m0_free(cctx);
 }
+
+void cob_attr_default_fill(struct m0_cob_attr *attr)
+{
+	attr->ca_atime = attr->ca_mtime = attr->ca_ctime = 1416970585;
+	attr->ca_nlink = 1;
+	attr->ca_lid   = 1;
+	attr->ca_mode  = 0100644;
+	attr->ca_uid   = attr->ca_gid = 0;
+	attr->ca_size  = attr->ca_blocks = 0;
+	attr->ca_valid = M0_COB_ATIME | M0_COB_MTIME  | M0_COB_CTIME |
+			 M0_COB_UID   | M0_COB_GID    | M0_COB_NLINK |
+			 M0_COB_SIZE  | M0_COB_BLOCKS | M0_COB_LID   |
+			 M0_COB_MODE;
+}

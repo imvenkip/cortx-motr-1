@@ -40,6 +40,8 @@
 #include "lib/buf.h"
 #include "lib/buf_xc.h"
 #include "lib/vec_xc.h"
+#include "mdservice/md_fops.h"
+#include "mdservice/md_fops_xc.h"
 
 /**
    @page bulkclient-fspec Functional Specification for fop bulk client.
@@ -479,6 +481,8 @@ struct m0_fop_cob_common {
 	/** Client known failure vector version number */
 	struct m0_fv_version c_version;
 
+	/** attributes of this cob */
+	struct m0_fop_cob    c_body;
 	/**
 	 * Fid of global file.
 	 */

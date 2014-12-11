@@ -155,4 +155,5 @@ void io_fops_destroy(struct bulkio_params *bp);
 void io_fops_create(struct bulkio_params *bp, enum M0_RPC_OPCODES op,
 		    int fids_nr, int fops_nr, int segs_nr);
 
+void cob_attr_default_fill(struct m0_cob_attr *attr);
 #endif /* __MERO_IOSERVICE_ST_COMMON_H__ */

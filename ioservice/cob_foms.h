@@ -63,9 +63,10 @@ M0_INTERNAL int m0_cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
 /**
  * Create the cob for the cob domain.
  */
-M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
-				struct m0_cob_domain *cdom,
-				struct m0_be_tx	     *ctx);
+M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
+				struct m0_cob_domain     *cdom,
+				const struct m0_cob_attr *attr,
+				struct m0_be_tx	         *ctx);
 
 #endif    /* __MERO_IOSERVICE_COB_FOMS_H__ */
 

@@ -109,15 +109,21 @@ M0_INTERNAL bool m0t1fs_inode_bob_check(struct m0t1fs_inode *bob);
 
 
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
+				       const struct m0t1fs_mdop *mop,
 				       int (*func)(struct cob_req *,
 						   const struct m0t1fs_inode *,
+						   const struct m0t1fs_mdop *,
 						   int idx));
 
 static int m0t1fs_ios_cob_create(struct cob_req *cr,
-				 const struct m0t1fs_inode *inode, int idx);
+				 const struct m0t1fs_inode *inode,
+			         const struct m0t1fs_mdop *mop,
+				 int idx);
 
 static int m0t1fs_ios_cob_delete(struct cob_req *cr,
-				 const struct m0t1fs_inode *inode, int idx);
+				 const struct m0t1fs_inode *inode,
+			         const struct m0t1fs_mdop *mop,
+				 int idx);
 
 static int name_mem2wire(struct m0_fop_str *tgt,
 			 const struct m0_buf *name)
@@ -134,6 +140,8 @@ static void body_mem2wire(struct m0_fop_cob *body,
 			  const struct m0_cob_attr *attr,
 			  int valid)
 {
+	body->b_pfid = attr->ca_pfid;
+	body->b_tfid = attr->ca_tfid;
 	if (valid & M0_COB_ATIME)
 		body->b_atime = attr->ca_atime;
 	if (valid & M0_COB_CTIME)
@@ -438,12 +446,20 @@ static int m0t1fs_create(struct inode     *dir,
 		 */
 	}
 
+	/* @todo: According to MM, a hash function will be used to choose
+	 * a list of extra ioservices, on which "meta component objects" will
+	 * be created by:
+	 *     rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_create);
+	 * cob creation will be handled as normal, other than that the cob index
+	 * will be some special value, e.g. -1 as the cob index.
+	 * That will be done in separated MM tasks.
+	 */
 	rc = m0t1fs_mds_cob_create(csb, &mo, &rep_fop);
 	if (rc != 0)
 		goto out;
 
 	if (S_ISREG(mode)) {
-		rc = m0t1fs_component_objects_op(ci, m0t1fs_ios_cob_create);
+		rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_create);
 		if (rc != 0)
 			goto out;
 	}
@@ -848,6 +864,12 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	if (rc != 0)
 		goto out;
 
+	/* @todo: According to MM, a hash function will be used to choose
+	 * a list of extra ioservices, on which "meta component objects" will
+	 * be created. For unlink, it is similar to that:
+	 *     rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_delete);
+	 * That will be done in separated MM tasks.
+	 */
 	rc = m0t1fs_mds_cob_unlink(csb, &mo, &unlink_rep_fop);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "mdservive unlink fop failed: %d", rc);
@@ -855,7 +877,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	}
 
 	if (mo.mo_attr.ca_nlink == 0) {
-		rc = m0t1fs_component_objects_op(ci, m0t1fs_ios_cob_delete);
+		rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_delete);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "ioservice delete fop failed: %d", rc);
 			goto out;
@@ -1202,8 +1224,10 @@ static uint32_t m0t1fs_ios_cob_idx(const struct m0t1fs_inode *ci,
 }
 
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
+				       const struct m0t1fs_mdop *mop,
 				       int (*func)(struct cob_req *,
 						   const struct m0t1fs_inode *,
+						   const struct m0t1fs_mdop *,
 						   int idx))
 {
 	struct m0t1fs_sb *csb;
@@ -1239,7 +1263,7 @@ again:
 		cob_idx = m0t1fs_ios_cob_idx(ci, m0t1fs_inode_fid(ci),
 					     &cob_fid);
 		M0_ASSERT(cob_idx != ~0);
-		rc = func(&cob_req, ci, i);
+		rc = func(&cob_req, ci, mop, i);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cob %s "FID_F" failed with %d",
 			       func == m0t1fs_ios_cob_create ? "create" :
@@ -1736,11 +1760,12 @@ int m0t1fs_mds_cob_delxattr(struct m0t1fs_sb            *csb,
 	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_delxattr_fopt, rep_fop);
 }
 
-static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb *csb,
-				       struct m0_fop          *fop,
-				       const struct m0_fid    *cob_fid,
-				       const struct m0_fid    *gob_fid,
-				       uint32_t                cob_idx)
+static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb   *csb,
+				       const struct m0t1fs_mdop *mop,
+				       struct m0_fop            *fop,
+				       const struct m0_fid      *cob_fid,
+				       const struct m0_fid      *gob_fid,
+				       uint32_t                  cob_idx)
 {
 	struct m0_fop_cob_common       *common;
 	struct m0_pool_version_numbers *cli;
@@ -1760,9 +1785,14 @@ static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb *csb,
 	m0_poolmach_current_version_get(csb->csb_pool.po_mach, &curr);
 	cli = (struct m0_pool_version_numbers*)&common->c_version;
 	*cli = curr;
+	body_mem2wire(&common->c_body, &mop->mo_attr, mop->mo_attr.ca_valid);
 
 	common->c_gobfid = *gob_fid;
 	common->c_cobfid = *cob_fid;
+
+	/* For special "meta cobs", this would be some special value,
+	 * e.g. -1. @todo this will be done in MM hash function task.
+	 */
 	common->c_cob_idx = cob_idx;
 
 	return M0_RC(0);
@@ -1785,7 +1815,9 @@ static void cfop_release(struct m0_ref *ref)
 }
 
 static int m0t1fs_ios_cob_op(struct cob_req *cr,
-			     const struct m0t1fs_inode *ci, int idx,
+			     const struct m0t1fs_inode *ci,
+			     const struct m0t1fs_mdop *mop,
+			     int idx,
 			     struct m0_fop_type  *ftype)
 {
 	int                         rc;
@@ -1834,7 +1866,7 @@ static int m0t1fs_ios_cob_op(struct cob_req *cr,
 	M0_ASSERT(m0_is_cob_create_delete_fop(fop));
 	cobcreate = m0_is_cob_create_fop(fop);
 
-	rc = m0t1fs_ios_cob_fop_populate(csb, fop, &cob_fid, gob_fid, cob_idx);
+	rc = m0t1fs_ios_cob_fop_populate(csb, mop, fop, &cob_fid, gob_fid, cob_idx);
 	if (rc != 0)
 		goto fop_put;
 
@@ -1857,15 +1889,19 @@ out:
 }
 
 static int m0t1fs_ios_cob_create(struct cob_req *cr,
-				 const struct m0t1fs_inode *inode, int idx)
+				 const struct m0t1fs_inode *inode,
+			         const struct m0t1fs_mdop *mop,
+				 int idx)
 {
-	return m0t1fs_ios_cob_op(cr, inode, idx, &m0_fop_cob_create_fopt);
+	return m0t1fs_ios_cob_op(cr, inode, mop, idx, &m0_fop_cob_create_fopt);
 }
 
 static int m0t1fs_ios_cob_delete(struct cob_req *cr,
-				 const struct m0t1fs_inode *inode, int idx)
+				 const struct m0t1fs_inode *inode,
+			         const struct m0t1fs_mdop *mop,
+				 int idx)
 {
-	return m0t1fs_ios_cob_op(cr, inode, idx, &m0_fop_cob_delete_fopt);
+	return m0t1fs_ios_cob_op(cr, inode, mop, idx, &m0_fop_cob_delete_fopt);
 }
 
 

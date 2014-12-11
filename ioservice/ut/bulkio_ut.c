@@ -1072,7 +1072,9 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
         struct m0_io_fom_cob_rw      *fom_obj;
 	struct m0_fom_cob_op	      cc;
 	struct m0_reqh_io_service    *ios;
+	struct m0_cob_attr            attr = { {0, } };
 
+	cob_attr_default_fill(&attr);
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	ios = container_of(fom->fo_service, struct m0_reqh_io_service,
 			   rios_gen);
@@ -1097,7 +1099,7 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 	cc.fco_cfid	= rwfop->crw_gfid;
 	cc.fco_cob_idx	= (uint32_t) rwfop->crw_gfid.f_key;
 
-	rc = m0_cc_cob_setup(&cc, ios->rios_cdom, m0_fom_tx(fom));
+	rc = m0_cc_cob_setup(&cc, ios->rios_cdom, &attr, m0_fom_tx(fom));
         M0_UT_ASSERT(rc == 0);
 
 	rc = m0_stob_find(&stob_fid, &fom_obj->fcrw_stob);
