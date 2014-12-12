@@ -559,7 +559,7 @@ static int nlx_ucore_ioctl(int fd, unsigned long cmd, void *arg)
 		return M0_RC(rc);
 	M0_ASSERT(errno > 0);
 	M0_ASSERT(errno != EFAULT && errno != EBADR);
-	return -errno;
+	return M0_RC(-errno);
 }
 
 /**
@@ -981,7 +981,7 @@ int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
 					   &utm->utm_addb_ctx);
 		return M0_RC(rc);
 	}
-	return 0;
+	return M0_RC(0);
 }
 
 M0_INTERNAL int nlx_core_nidstr_decode(struct nlx_core_domain *cd,

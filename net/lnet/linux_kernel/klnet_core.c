@@ -1113,7 +1113,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	nlx_kcore_core_tm_unmap_atomic(ctm);
 	spin_unlock(&ktm->ktm_bevq_lock);
 
-	m0_semaphore_up(&ktm->ktm_sem);
+	wake_up(&ktm->ktm_wq);
 }
 
 /**
@@ -1673,25 +1673,27 @@ static int nlx_kcore_buf_event_wait(struct nlx_core_transfer_mc *ctm,
 				    struct nlx_kcore_transfer_mc *ktm,
 				    m0_time_t timeout)
 {
-	bool any;
+	int             rc;
+	struct timespec ts;
+	m0_time_t       now;
 
 	M0_PRE(nlx_core_tm_invariant(ctm));
 	M0_PRE(nlx_kcore_tm_invariant(ktm));
 
 	if (!bev_cqueue_is_empty(&ctm->ctm_bevq))
-		return 0;
+		return M0_RC(0);
+	else if (timeout == 0)
+		return M0_RC(-ETIMEDOUT);
 
-	while (m0_semaphore_trydown(&ktm->ktm_sem))
-		; /* exhaust the semaphore */
+	now = m0_time_now();
+	timeout = timeout > now ? m0_time_sub(timeout, now) : 0;
+	ts.tv_sec  = m0_time_seconds(timeout);
+	ts.tv_nsec = m0_time_nanoseconds(timeout);
 
-	any = true;
-	while (bev_cqueue_is_empty(&ctm->ctm_bevq)) {
-		any = m0_semaphore_timeddown(&ktm->ktm_sem, timeout);
-		if (!any)
-			break;
-	}
+	rc = wait_event_interruptible_timeout(ktm->ktm_wq,
+		!bev_cqueue_is_empty(&ctm->ctm_bevq), timespec_to_jiffies(&ts));
 
-	return any ? 0 : -ETIMEDOUT;
+	return M0_RC(rc == 0 ? -ETIMEDOUT : rc < 0 ? rc : 0);
 }
 
 M0_INTERNAL int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
@@ -1820,7 +1822,6 @@ static void nlx_kcore_tm_stop(struct nlx_core_transfer_mc *ctm,
 
 	rc = LNetEQFree(ktm->ktm_eqh);
 	M0_ASSERT(rc == 0);
-	m0_semaphore_fini(&ktm->ktm_sem);
 
 	m0_mutex_lock(&nlx_kcore_mutex);
 	tms_tlist_del(ktm);
@@ -1926,7 +1927,7 @@ static int nlx_kcore_tm_start(struct nlx_kcore_domain      *kd,
 	drv_bevs_tlist_init(&ktm->ktm_drv_bevs);
 	ctm->ctm_mb_counter = M0_NET_LNET_BUFFER_ID_MIN;
 	spin_lock_init(&ktm->ktm_bevq_lock);
-	m0_semaphore_init(&ktm->ktm_sem, 0);
+	init_waitqueue_head(&ktm->ktm_wq);
 	ktm->ktm_addb_mc = addb_mc;
 	M0_ADDB_CTX_INIT(ktm->ktm_addb_mc, &ktm->ktm_addb_ctx,
 			 &m0_addb_ct_net_lnet_tm, ctx);

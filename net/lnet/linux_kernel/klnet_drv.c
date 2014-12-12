@@ -1589,7 +1589,7 @@ M0_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 			spin_lock(&ktm->ktm_bevq_lock);
 			while (kb->kb_ktm == ktm) {
 				spin_unlock(&ktm->ktm_bevq_lock);
-				m0_semaphore_down(&ktm->ktm_sem);
+				wait_event(ktm->ktm_wq, kb->kb_ktm == NULL);
 				spin_lock(&ktm->ktm_bevq_lock);
 			}
 			spin_unlock(&ktm->ktm_bevq_lock);

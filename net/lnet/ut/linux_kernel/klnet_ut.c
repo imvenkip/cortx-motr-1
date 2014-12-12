@@ -2003,7 +2003,7 @@ static int ut_kcore_tm_start(struct nlx_kcore_domain      *kd,
 	drv_bevs_tlist_init(&ktm->ktm_drv_bevs);
 	ctm->ctm_mb_counter = M0_NET_LNET_BUFFER_ID_MIN;
 	spin_lock_init(&ktm->ktm_bevq_lock);
-	m0_semaphore_init(&ktm->ktm_sem, 0);
+	init_waitqueue_head(&ktm->ktm_wq);
 	ktm->ktm_addb_mc = addb_mc;
 	M0_ADDB_CTX_INIT(ktm->ktm_addb_mc, &ktm->ktm_addb_ctx,
 			 &m0_addb_ct_net_lnet_tm, ctx);
@@ -2021,7 +2021,6 @@ static void ut_kcore_tm_stop(struct nlx_core_transfer_mc *ctm,
 	M0_UT_ASSERT(nlx_kcore_tm_invariant(ktm));
 	M0_UT_ASSERT(drv_bevs_tlist_is_empty(&ktm->ktm_drv_bevs));
 
-	m0_semaphore_fini(&ktm->ktm_sem);
 	m0_addb_ctx_fini(&ktm->ktm_addb_ctx);
 	drv_bevs_tlist_fini(&ktm->ktm_drv_bevs);
 	drv_tms_tlink_fini(ktm);

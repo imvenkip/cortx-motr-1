@@ -81,17 +81,16 @@ M0_INTERNAL void m0_timer_start(struct m0_timer *timer,
 				m0_time_t	 expire)
 {
 	struct timespec ts;
-	m0_time_t	now = m0_time_now();
-	m0_time_t	rem;
+	m0_time_t       now = m0_time_now();
 
 	M0_PRE(!timer->t_running);
 
 	M0_ASSERT(timer->t_callback != NULL);
 
 	timer->t_expire = expire;
-	rem = expire > now ? m0_time_sub(expire, now) : 0;
-	ts.tv_sec  = m0_time_seconds(rem);
-	ts.tv_nsec = m0_time_nanoseconds(rem);
+	expire = expire > now ? m0_time_sub(expire, now) : 0;
+	ts.tv_sec  = m0_time_seconds(expire);
+	ts.tv_nsec = m0_time_nanoseconds(expire);
 	timer->t_timer.expires = jiffies + timespec_to_jiffies(&ts);
 
 	timer->t_running = true;

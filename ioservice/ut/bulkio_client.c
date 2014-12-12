@@ -112,7 +112,7 @@ static void bulkio_msg_tm_fini(struct bulkio_msg_tm *bmt)
 	rc = m0_net_tm_stop(&bmt->bmt_mach.rm_tm, false);
 	M0_UT_ASSERT(rc == 0);
 
-	while(bmt->bmt_mach.rm_tm.ntm_state != M0_NET_TM_STOPPED)
+	while (bmt->bmt_mach.rm_tm.ntm_state != M0_NET_TM_STOPPED)
 		m0_chan_wait(&clink);
 
 	m0_clink_del_lock(&clink);

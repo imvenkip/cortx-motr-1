@@ -126,8 +126,8 @@ struct nlx_kcore_transfer_mc {
 	 */
 	spinlock_t                    ktm_bevq_lock;
 
-	/** This semaphore increments with each LNet event added. */
-	struct m0_semaphore           ktm_sem;
+	/** Wait queue for LNet events. */
+	wait_queue_head_t             ktm_wq;
 
 	/** Handle of the LNet EQ associated with this transfer machine. */
 	lnet_handle_eq_t              ktm_eqh;
