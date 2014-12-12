@@ -20,6 +20,8 @@
  * Original creation date: 17-Apr-2014
  */
 
+#include <linux/version.h>                /* LINUX_VERSION_CODE */
+
 /*
  * Production code : m0t1fs/linux_kernel/f{ile,sync}.c
  * UT code         : m0t1fs/linux_kernel/ut/fsync.c
@@ -90,8 +92,13 @@ static struct m0t1fs_sb                  csb;
 static struct m0t1fs_service_context     service;
 
 /* Stub functions used to test m0t1fs_fsync */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 static int ut_kernel_fsync(struct file *file, loff_t start, loff_t end,
                            int datasync)
+#else
+static int ut_kernel_fsync(struct file *file, struct dentry *dentry,
+                           int datasync)
+#endif
 {
 	ut_kernel_fsync_count++;
 
@@ -586,15 +593,27 @@ static void test_m0t1fs_fsync_core(void)
 }
 
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 void call_m0t1fs_fsync(struct file *input_file, loff_t start, loff_t end,
                        int input_datamode, int expect_return,
                        int expect_ut_kernel_fsync_count,
                        int expect_ut_post_rpc_count,
                        int expect_ut_fop_fini_count)
+#else
+void call_m0t1fs_fsync(struct file *input_file, struct dentry *input_dentry,
+                       int input_datamode, int expect_return,
+                       int expect_ut_kernel_fsync_count,
+                       int expect_ut_post_rpc_count,
+                       int expect_ut_fop_fini_count)
+#endif
 {
 	int rv;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	rv = m0t1fs_fsync(input_file, start, end, input_datamode);
+#else
+	rv = m0t1fs_fsync(input_file, input_dentry, input_datamode);
+#endif
 	M0_UT_ASSERT(rv == expect_return);
 	M0_UT_ASSERT(ut_kernel_fsync_count == expect_ut_kernel_fsync_count);
 	M0_UT_ASSERT(ut_post_rpc_count == expect_ut_post_rpc_count);
@@ -603,13 +622,14 @@ void call_m0t1fs_fsync(struct file *input_file, loff_t start, loff_t end,
 
 void fsync_test(void)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	/*
 	 * fsync range in bytes, a whole file can be specified as [0, -1]
 	 * see documentation of filemap_write_and_wait_range() in kernel
 	 */
 	loff_t start = 0;
 	loff_t end   = -1;
-
+#endif
 	int    i;
 
 	/* test our component pieces work first */
@@ -635,7 +655,11 @@ void fsync_test(void)
 	 * returned and that no fops are sent */
 	ut_reset_stub_counters();
 	ut_kernel_fsync_return = -EIO;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	call_m0t1fs_fsync(&file, start, end, 0, ut_kernel_fsync_return, 1, 0, 0);
+#else
+	call_m0t1fs_fsync(&file, &dentry, 0, ut_kernel_fsync_return, 1, 0, 0);
+#endif
 	/* TODO check some ADDB was generated for this event */
 
 	/* Check normal operation works */
@@ -644,8 +668,13 @@ void fsync_test(void)
 	ut_post_rpc_return = 0;
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	call_m0t1fs_fsync(&file, start, end, 0, 0, 1, NUM_STRECORDS,
 			  NUM_STRECORDS);
+#else
+	call_m0t1fs_fsync(&file, &dentry, 0, 0, 1, NUM_STRECORDS,
+	                  NUM_STRECORDS);
+#endif
 	/* test the records were updated */
 	for (i = 0; i < NUM_STRECORDS; i++)
 		M0_UT_ASSERT(stx[i].stx_tri.tri_txid == 0);

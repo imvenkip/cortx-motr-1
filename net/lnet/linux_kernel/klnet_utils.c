@@ -715,7 +715,11 @@ nlx_kcore_core_tm_map_atomic(struct nlx_kcore_transfer_mc *ktm)
 
 	M0_PRE(nlx_kcore_tm_invariant(ktm));
 	loc = &ktm->ktm_ctm_loc;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	ptr = kmap_atomic(loc->kl_page);
+#else
+	ptr = kmap_atomic(loc->kl_page, KM_USER0);
+#endif
 	ret = (struct nlx_core_transfer_mc *) (ptr + loc->kl_offset);
 	M0_POST(ret != NULL);
 	return ret;
@@ -733,7 +737,11 @@ nlx_kcore_core_tm_map_atomic(struct nlx_kcore_transfer_mc *ktm)
 static void nlx_kcore_core_tm_unmap_atomic(struct nlx_core_transfer_mc *ctm)
 {
 	M0_PRE(nlx_core_tm_invariant(ctm));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	kunmap_atomic(ctm);
+#else
+	kunmap_atomic(ctm, KM_USER0);
+#endif
 }
 
 /** @} */ /* KLNetCore */

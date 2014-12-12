@@ -20,6 +20,7 @@
 
 #ifdef ENABLE_FAULT_INJECTION
 
+#include <linux/version.h> /* LINUX_VERSION_CODE */
 #include <linux/kernel.h>  /* UINT_MAX */
 #include <linux/random.h>  /* random32 */
 #include <linux/sched.h>   /* current */
@@ -52,7 +53,11 @@ M0_INTERNAL void m0_fi_fini(void)
  */
 M0_INTERNAL uint32_t fi_random(void)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	u32 rnd     = prandom_u32();
+#else
+	u32 rnd     = random32();
+#endif
 	u32 roundup = rnd % FI_RAND_SCALE_UNIT ? 1 : 0;
 
 	return rnd / FI_RAND_SCALE_UNIT + roundup;
