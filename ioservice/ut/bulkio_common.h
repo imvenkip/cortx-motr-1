@@ -88,7 +88,6 @@ struct bulkio_params {
 	char                      *bp_writebuf;
 
 	/* Structures used by client-side rpc code. */
-	struct m0_dbenv            bp_cdbenv;
 	struct m0_cob_domain       bp_ccbdom;
 	struct m0_net_domain       bp_cnetdom;
 

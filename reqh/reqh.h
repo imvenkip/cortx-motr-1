@@ -93,8 +93,7 @@ struct m0_reqh {
 
 	struct m0_dtm                *rh_dtm;
 
-	/** Database environment for this request handler. */
-	struct m0_dbenv              *rh_dbenv;
+	/** BE segment for this request handler. */
 	struct m0_be_seg             *rh_beseg;
 
 	/** Mdstore for this request handler. */
@@ -210,17 +209,15 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh);
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh);
 
 /**
-   Initialises db-dependant part of request handler.
-
-   @pre dbenv != NULL
+   Initialises be-dependant part (in future) of request handler.
  */
-M0_INTERNAL int m0_reqh_dbenv_init(struct m0_reqh *reqh,
-				   struct m0_be_seg *dbenv);
+M0_INTERNAL int m0_reqh_be_init(struct m0_reqh *reqh,
+				struct m0_be_seg *dbenv);
 
 /**
-   Finalises db-dependant part of request handler.
+   Finalises be-dependant part of request handler.
  */
-M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh);
+M0_INTERNAL void m0_reqh_be_fini(struct m0_reqh *reqh);
 
 M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
 				       struct m0_stob *stob);

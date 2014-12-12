@@ -31,7 +31,6 @@
 
 #include "pool/pool.h"
 #include "layout/layout.h"
-#include "layout/layout_db.h"
 #include "layout/pdclust.h"
 #include "layout/linear_enum.h" /* m0_linear_enum_build() */
 
@@ -47,7 +46,6 @@
  * demo test.
  */
 static int dummy_create(struct m0_layout_domain *domain,
-			struct m0_dbenv *dbenv,
 			uint64_t lid,
 			struct m0_pdclust_attr *attr,
 			struct m0_pdclust_layout **pl)
@@ -56,10 +54,7 @@ static int dummy_create(struct m0_layout_domain *domain,
 	struct m0_layout_linear_attr  lin_attr;
 	struct m0_layout_linear_enum *lin_enum;
 
-	rc = m0_dbenv_init(dbenv, "ldemo-db", 0, true);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_layout_domain_init(domain, dbenv);
+	rc = m0_layout_domain_init(domain);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_layout_standard_types_register(domain);
@@ -231,7 +226,6 @@ int main(int argc, char **argv)
 	uint64_t                    id;
 	struct m0_uint128           seed;
 	struct m0_layout_domain     domain;
-	struct m0_dbenv             dbenv;
 	struct m0_pdclust_instance *pi;
 	struct m0_fid               gfid;
 	struct m0_layout_instance  *li;
@@ -279,8 +273,7 @@ int main(int argc, char **argv)
 		attr.pa_unit_size = unitsize;
 		attr.pa_seed = seed;
 
-		M0_SET0(&dbenv);
-		rc = dummy_create(&domain, &dbenv, id, &attr, &play);
+		rc = dummy_create(&domain, id, &attr, &play);
 		if (rc == 0) {
 			m0_fid_set(&gfid, 0, 999);
 			rc = m0_layout_instance_build(m0_pdl_to_layout(play),
@@ -293,7 +286,6 @@ int main(int argc, char **argv)
 			m0_layout_put(m0_pdl_to_layout(play));
 			m0_layout_standard_types_unregister(&domain);
 			m0_layout_domain_fini(&domain);
-			m0_dbenv_fini(&dbenv);
 		}
 		m0_pool_fini(&pool);
 	}

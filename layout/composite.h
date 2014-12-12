@@ -34,7 +34,7 @@
  */
 
 /* import */
-#include "db/extmap.h"	    /* struct m0_emap */
+#include "be/extmap.h"	    /* struct m0_be_emap */
 #include "layout/layout.h"
 
 /* export */

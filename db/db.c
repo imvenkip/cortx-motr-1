@@ -355,8 +355,6 @@ M0_INTERNAL int m0_table_init(struct m0_table *table, struct m0_dbenv *env,
 	M0_CASSERT(sizeof(int) == 4);
 
 	*ops = table_ops_default;
-	ops->ko_table = table;
-	ops->ko_table_ops = tops;
 	tops->ops = ops;
 	table->t_ops = tops;
 

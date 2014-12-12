@@ -43,7 +43,6 @@
 #include "mdservice/ut/mdstore.h"
 #include "mdservice/ut/lustre.h"
 
-static const char db_name[] = "ut-mdservice";
 static struct m0_cob_domain_id id = { 42 };
 
 static struct m0_sm_group	*grp;
@@ -87,12 +86,6 @@ static int fom_create(struct m0_fop *fop, struct m0_fom **m,
 		(*m)->fo_local = true;
 	}
 	return rc;
-}
-
-static int db_reset(void)
-{
-	m0_dbenv_reset(db_name);
-	return 0;
 }
 
 static void test_mkfs(void)
@@ -294,8 +287,6 @@ static void ut_fsync_create_fom(void)
 
 struct m0_ut_suite mdservice_ut = {
         .ts_name = "mdservice-ut",
-        .ts_init = db_reset,
-        /* .ts_fini = db_reset, */
         .ts_tests = {
                 { "mdservice-mkfs", test_mkfs },
                 { "mdservice-init", test_init },

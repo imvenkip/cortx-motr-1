@@ -38,7 +38,6 @@
 #include "fop/fom_generic.h"
 #include "layout/layout.h"
 #include "layout/pdclust.h"
-#include "layout/layout_db.h"
 #include "mdservice/md_fops.h"
 #include "mdservice/md_fops_xc.h"
 #include "mdservice/md_foms.h"
@@ -1202,12 +1201,20 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 	struct m0_fop                 *fop;
 	struct m0_fop                 *fop_rep;
 	int                            rc;
+	struct m0_layout              *l;
+#if 0
 	struct m0_bufvec               bv;
 	struct m0_bufvec_cursor        cur;
-	struct m0_layout              *l;
 	struct m0_layout_type         *lt;
 	struct m0_db_pair              pair;
+#endif
 	struct m0_reqh                *reqh;
+	struct m0_reqh_md_service     *mds;
+	struct m0_reqh_service        *svc;
+	struct m0_bufvec               bv;
+	void                          *rec_buf;
+	m0_bcount_t		       rec_count;
+	struct m0_bufvec_cursor        rec_cur;
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
@@ -1233,6 +1240,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 	switch (req->l_op) {
 	case M0_LAYOUT_OP_ADD:
 	case M0_LAYOUT_OP_DELETE:
+#if 0
 		bv = (struct m0_bufvec)
 			M0_BUFVEC_INIT_BUF((void**)&req->l_buf.b_addr,
 					   (m0_bcount_t*)&req->l_buf.b_count);
@@ -1245,7 +1253,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 			break;
 
 		rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP, NULL);
-		m0_mutex_unlock(&l->l_lock);/* lock held by ->lto_allocate() */
+		m0_mutex_unlock(&l->l_lock); /* lock held by ->lto_allocate() */
 		if (rc == 0) {
 			M0_LOG(M0_DEBUG, "Start");
 			m0_layout_pair_set(&pair, &req->l_lid,
@@ -1260,6 +1268,8 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 			M0_LOG(M0_DEBUG, "Done");
 		}
 		m0_layout_put(l); /* ref from ->lto_allocate() */
+#endif
+		rc = -EOPNOTSUPP;
 		break;
 
 	case M0_LAYOUT_OP_LOOKUP:
@@ -1273,6 +1283,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 			break;
 		}
 
+#if 0
 		m0_layout_pair_set(&pair, &req->l_lid,
 				rep->lr_buf.b_addr,
 				rep->lr_buf.b_count);
@@ -1282,6 +1293,30 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 				      &fom->fo_tx.tx_dbtx, &pair, &l);
 		if (rc == 0)
 			m0_layout_put(l);
+#endif
+
+		svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
+		mds = container_of(svc, struct m0_reqh_md_service, rmds_gen);
+		l = m0_mds_layout_find(mds, req->l_lid);
+		if (l == NULL) {
+			rc = -ENOENT;
+			break;
+		}
+		m0_mutex_lock(&l->l_lock);
+		rec_buf = rep->lr_buf.b_addr;
+		rec_count = rep->lr_buf.b_count;
+		bv = (struct m0_bufvec)M0_BUFVEC_INIT_BUF(&rec_buf, &rec_count);
+		m0_bufvec_cursor_init(&rec_cur, &bv);
+		rc = m0_layout_encode(l, M0_LXO_BUFFER_OP,
+				      &fom->fo_tx.tx_betx, &rec_cur);
+		m0_mutex_unlock(&l->l_lock);
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "Layout %llu encode failed",
+			       (unsigned long long)req->l_lid);
+			m0_layout_put(l);
+			break;
+		}
+		m0_layout_put(l);
 		M0_LOG(M0_DEBUG, "Lookup Done");
 		break;
 	}

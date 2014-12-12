@@ -727,6 +727,8 @@ struct m0_layout_enum_type m0_list_enum_type = {
 	.let_ops       = &list_type_ops
 };
 
+#undef M0_TRACE_SUBSYSTEM
+
 /** @} end group list_enum */
 
 /*

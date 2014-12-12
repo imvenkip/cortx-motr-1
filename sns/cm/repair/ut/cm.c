@@ -187,18 +187,15 @@ static bool cp_verify(struct m0_sns_cm_cp *scp)
 	       !cp_data_buf_tlist_is_empty(&scp->sc_base.c_buffers);
 }
 
-static void dbenv_cob_domain_get(struct m0_dbenv **dbenv,
-				 struct m0_cob_domain **cdom)
+static void cob_domain_get(struct m0_cob_domain **cdom)
 {
 	int rc;
 
-	*dbenv = cm->cm_service.rs_reqh->rh_dbenv;
-	M0_UT_ASSERT(dbenv != NULL);
 	rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, cdom);
 	M0_UT_ASSERT(rc == 0);
 }
 
-M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
+M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
 			    uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
 {
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
@@ -232,7 +229,7 @@ M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
 	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
 	M0_ASSERT(rc == 0 && fabrec != NULL);
 	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, dbenv->d_i.d_seg->bs_domain, grp);
+	m0_dtx_init(&tx, cob->co_dom->cd_dbenv->bs_domain, grp);
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_CREATE, &tx.tx_betx_cred);
 	rc = m0_dtx_open_sync(&tx);
 	M0_ASSERT(rc == 0);
@@ -244,7 +241,7 @@ M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
 	m0_cob_put(cob);
 }
 
-M0_INTERNAL void cob_delete(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
+M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
 			    uint64_t cont, uint64_t key)
 {
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
@@ -260,7 +257,7 @@ M0_INTERNAL void cob_delete(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
 	M0_UT_ASSERT(rc == 0);
 
 	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, dbenv->d_i.d_seg->bs_domain, grp);
+	m0_dtx_init(&tx, cob->co_dom->cd_dbenv->bs_domain, grp);
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_DELETE_PUT, &tx.tx_betx_cred);
 	rc = m0_dtx_open_sync(&tx);
 	M0_ASSERT(rc == 0);
@@ -307,19 +304,18 @@ static void ag_destroy(void)
 static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
 {
 	struct m0_cob_domain *cdom;
-	struct m0_dbenv      *dbenv;
 	struct m0_fid         gfid;
 	uint32_t              cob_idx;
 	int                   i;
 	int                   j;
 
-	dbenv_cob_domain_get(&dbenv, &cdom);
+	cob_domain_get(&cdom);
 	gfid.f_container = 0;
 	for (i = 0; i < nr_files; ++i) {
 		gfid.f_key = M0_MDSERVICE_START_FID.f_key + i;
 		cob_idx = 0;
 		for (j = 1; j <= nr_cobs; ++j) {
-			cob_create(dbenv, cdom, j, &gfid, cob_idx);
+			cob_create(cdom, j, &gfid, cob_idx);
 			cob_idx++;
 		}
 	}
@@ -327,15 +323,14 @@ static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
 
 static void cobs_delete(uint64_t nr_files, uint64_t nr_cobs)
 {
-	struct m0_dbenv      *dbenv;
 	struct m0_cob_domain *cdom;
 	int                   i;
 	int                   j;
 
-	dbenv_cob_domain_get(&dbenv, &cdom);
+	cob_domain_get(&cdom);
 	for (i = 0; i < nr_files; ++i) {
 		for (j = 1; j <= nr_cobs; ++j)
-			cob_delete(dbenv, cdom, j, M0_MDSERVICE_START_FID.f_key + i);
+			cob_delete(cdom, j, M0_MDSERVICE_START_FID.f_key + i);
 	}
 }
 

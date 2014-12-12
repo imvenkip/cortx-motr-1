@@ -243,10 +243,6 @@ static int fom_tx_init(struct m0_fom *fom)
 	m0_dtx_init(&fom->fo_tx, reqh->rh_beseg->bs_domain,
 		    &fom->fo_loc->fl_group);
 
-	fom->fo_tx.tx_dbtx.dt_env = reqh->rh_dbenv;
-	fom->fo_tx.tx_dbtx.dt_i.dt_txn = m0_fom_tx(fom);
-	fom->fo_tx.tx_dbtx.dt_i.dt_is_locked = true;
-
 	return M0_FSO_AGAIN;
 }
 

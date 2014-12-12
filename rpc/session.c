@@ -31,7 +31,6 @@
 #include "fop/fop.h"
 #include "lib/arith.h"             /* M0_CNT_DEC */
 #include "lib/finject.h"
-#include "db/db.h"
 #include "rpc/rpc_internal.h"
 
 /**

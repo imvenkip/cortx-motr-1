@@ -33,7 +33,6 @@
 
 /* import */
 #include "lib/arith.h"     /* M0_IS_8ALIGNED */
-#include "db/db.h"         /* struct m0_table */
 #include "layout/layout.h"
 
 struct m0_fid;

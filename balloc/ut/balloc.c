@@ -33,7 +33,6 @@
 #include "lib/getopts.h"
 #include "dtm/dtm.h"      /* m0_dtx */
 #include "mero/magic.h"
-#include "db/db.h"
 #include "ut/ut.h"
 #include "ut/be.h"
 #include "ut/ast_thread.h"

@@ -414,7 +414,7 @@ static m0_bcount_t pdclust_max_recsize(struct m0_layout_domain *dom)
 static int pdclust_decode(struct m0_layout *l,
 			  struct m0_bufvec_cursor *cur,
 			  enum m0_layout_xcode_op op,
-			  struct m0_db_tx *tx,
+			  struct m0_be_tx *tx,
 			  uint32_t user_count)
 {
 	struct m0_pdclust_layout     *pl;
@@ -482,7 +482,7 @@ out:
 /** Implementation of lo_encode() for pdclust layout type. */
 static int pdclust_encode(struct m0_layout *l,
 			  enum m0_layout_xcode_op op,
-			  struct m0_db_tx *tx,
+			  struct m0_be_tx *tx,
 		          struct m0_bufvec_cursor *out)
 {
 	struct m0_pdclust_layout     *pl;
@@ -908,6 +908,8 @@ static const struct m0_layout_instance_ops pdclust_instance_ops = {
 	.lio_fini    = pdclust_instance_fini,
 	.lio_to_enum = pdclust_instance_to_enum
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end group pdclust */
 

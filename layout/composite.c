@@ -30,7 +30,7 @@
 
 struct composite_schema_data {
 	/** Table to store extent maps for all the composite layouts. */
-	struct m0_emap csd_comp_layout_ext_map;
+	struct m0_be_emap csd_comp_layout_ext_map;
 };
 
 /** Prefix for comp_layout_ext_map table. */
@@ -148,7 +148,7 @@ static const struct m0_layout_ops composite_ops;
 static int composite_decode(struct m0_layout *l,
 			    struct m0_bufvec_cursor *cur,
 			    enum m0_layout_xcode_op op,
-			    struct m0_db_tx *tx,
+			    struct m0_be_tx *tx,
 			    uint32_t user_count)
 {
 	/*
@@ -192,7 +192,7 @@ static int composite_decode(struct m0_layout *l,
  */
 static int composite_encode(struct m0_layout *l,
 			    enum m0_layout_xcode_op op,
-			    struct m0_db_tx *tx,
+			    struct m0_be_tx *tx,
 			    struct m0_bufvec_cursor *out)
 {
 	/*

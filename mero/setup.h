@@ -27,9 +27,9 @@
 
 #include "lib/tlist.h"
 #include "lib/types.h"        /* m0_uint128 */
+#include "db/db.h"
 #include "reqh/reqh_service.h"
 #include "stob/stob.h"
-#include "db/db.h"
 #include "net/lnet/lnet.h"    /* M0_NET_LNET_XEP_ADDR_LEN */
 #include "net/buffer_pool.h"
 #include "mdstore/mdstore.h"  /* m0_mdstore */
@@ -327,7 +327,6 @@ struct m0_reqh_context {
 
 	/** Preallocate an entire stob for db5 emulation BE segment */
 	bool                         rc_db_seg_preallocate;
-
 };
 
 /**

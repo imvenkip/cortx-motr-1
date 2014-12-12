@@ -35,17 +35,14 @@
 
 #include "lib/finject.h"
 
-#include "db/db.h"                       /* m0_dbenv_reset */
 #include "pool/pool.h"                   /* m0_pool_init(), m0_pool_fini() */
 #include "fid/fid.h"                     /* m0_fid_set() */
 #include "layout/layout.h"
 #include "layout/layout_internal.h"      /* LDB_MAX_INLINE_COB_ENTRIES, *_ERR */
-#include "layout/layout_db.h"
 #include "layout/pdclust.h"
-#include "layout/list_enum.h"
+//#include "layout/list_enum.h"
 #include "layout/linear_enum.h"
 
-static struct m0_dbenv         dbenv;
 static const char              db_name[] = "ut-layout";
 static struct m0_layout_domain domain;
 static struct m0_pool          pool;
@@ -69,7 +66,7 @@ enum {
 };
 
 extern struct m0_layout_type m0_pdclust_layout_type;
-extern struct m0_layout_enum_type m0_list_enum_type;
+//extern struct m0_layout_enum_type m0_list_enum_type;
 extern struct m0_layout_enum_type m0_linear_enum_type;
 
 static int test_init(void)
@@ -79,15 +76,8 @@ static int test_init(void)
 	 * as against M0_UT_ASSERT().
 	 */
 
-#ifndef __KERNEL__
-	m0_dbenv_reset(db_name);
-#endif
-
-	rc = m0_dbenv_init(&dbenv, db_name, DBFLAGS, true);
-	M0_ASSERT(rc == 0);
-
 	/* Initialise the domain. */
-	rc = m0_layout_domain_init(&domain, &dbenv);
+	rc = m0_layout_domain_init(&domain);
 	M0_ASSERT(rc == 0);
 
 	/* Register all the standard layout types and enum types. */
@@ -101,58 +91,43 @@ static int test_fini(void)
 {
 	m0_layout_standard_types_unregister(&domain);
 	m0_layout_domain_fini(&domain);
-	m0_dbenv_fini(&dbenv);
 
 	return 0;
 }
 
 static void test_domain_init_fini(void)
 {
-	const char              t_db_name[] = "t1-layout";
 	struct m0_layout_domain t_domain;
-	struct m0_dbenv         t_dbenv;
 
 	M0_ENTRY();
 
-	M0_SET0(&t_dbenv);
-	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS, true);
-	M0_UT_ASSERT(rc == 0);
-
 	/* Initialise the domain. */
-	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+	rc = m0_layout_domain_init(&t_domain);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Finalise the domain. */
 	m0_layout_domain_fini(&t_domain);
 
 	/* Should be able to initialise the domain again after finalising it. */
-	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+	rc = m0_layout_domain_init(&t_domain);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Finalise the domain. */
 	m0_layout_domain_fini(&t_domain);
-
-	m0_dbenv_fini(&t_dbenv);
 
 	M0_LEAVE();
 }
 
 static void test_domain_init_fini_failure(void)
 {
-	const char              t_db_name[] = "t2-layout";
 	struct m0_layout_domain t_domain;
-	struct m0_dbenv         t_dbenv;
 
 	M0_ENTRY();
-	M0_SET0(&t_dbenv);
-	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS, true);
-	M0_UT_ASSERT(rc == 0);
 
 	m0_fi_enable_once("m0_layout_domain_init", "table_init_err");
-	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+	rc = m0_layout_domain_init(&t_domain);
 	M0_UT_ASSERT(rc == L_TABLE_INIT_ERR);
 
-	m0_dbenv_fini(&t_dbenv);
 	M0_LEAVE();
 }
 
@@ -248,8 +223,6 @@ static void test_etype_reg_unreg(void)
 
 static void test_reg_unreg(void)
 {
-	const char              t_db_name[] = "t3-layout";
-	struct m0_dbenv         t_dbenv;
 	struct m0_layout_domain t_domain;
 
 	M0_ENTRY();
@@ -264,19 +237,15 @@ static void test_reg_unreg(void)
 	 */
 	m0_layout_standard_types_unregister(&domain);
 
-	M0_SET0(&t_dbenv);
-	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS, true);
-	M0_UT_ASSERT(rc == 0);
-
 	/* Initialise the domain. */
-	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+	rc = m0_layout_domain_init(&t_domain);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Register all the available layout types and enum types. */
 	rc = m0_layout_standard_types_register(&t_domain);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] ==
-		     &m0_list_enum_type);
+/*	M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] ==
+		     &m0_list_enum_type);*/
 	M0_UT_ASSERT(t_domain.ld_enum[m0_linear_enum_type.let_id] ==
 		     &m0_linear_enum_type);
 	M0_UT_ASSERT(t_domain.ld_type[m0_pdclust_layout_type.lt_id] ==
@@ -284,7 +253,7 @@ static void test_reg_unreg(void)
 
 	/* Unregister all the registered layout and enum types. */
 	m0_layout_standard_types_unregister(&t_domain);
-	M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] == NULL);
+	//M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] == NULL);
 	M0_UT_ASSERT(t_domain.ld_enum[m0_linear_enum_type.let_id] == NULL);
 	M0_UT_ASSERT(t_domain.ld_type[m0_pdclust_layout_type.lt_id] == NULL);
 
@@ -294,8 +263,8 @@ static void test_reg_unreg(void)
 	 */
 	rc = m0_layout_standard_types_register(&t_domain);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] ==
-		     &m0_list_enum_type);
+	/*M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] ==
+		     &m0_list_enum_type);*/
 	M0_UT_ASSERT(t_domain.ld_enum[m0_linear_enum_type.let_id] ==
 		     &m0_linear_enum_type);
 	M0_UT_ASSERT(t_domain.ld_type[m0_pdclust_layout_type.lt_id] ==
@@ -303,14 +272,12 @@ static void test_reg_unreg(void)
 
 	/* Unregister all the registered layout and enum types. */
 	m0_layout_standard_types_unregister(&t_domain);
-	M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] == NULL);
+	//M0_UT_ASSERT(t_domain.ld_enum[m0_list_enum_type.let_id] == NULL);
 	M0_UT_ASSERT(t_domain.ld_enum[m0_linear_enum_type.let_id] == NULL);
 	M0_UT_ASSERT(t_domain.ld_type[m0_pdclust_layout_type.lt_id] == NULL);
 
 	/* Finalise the domain. */
 	m0_layout_domain_fini(&t_domain);
-
-	m0_dbenv_fini(&t_dbenv);
 
 	/*
 	 * Register back all the available layout types and enum types with
@@ -325,8 +292,6 @@ static void test_reg_unreg(void)
 
 static void test_reg_unreg_failure(void)
 {
-	const char              t_db_name[] = "t4-layout";
-	struct m0_dbenv         t_dbenv;
 	struct m0_layout_domain t_domain;
 
 	M0_ENTRY();
@@ -341,12 +306,8 @@ static void test_reg_unreg_failure(void)
 	 */
 	m0_layout_standard_types_unregister(&domain);
 
-	M0_SET0(&t_dbenv);
-	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS, true);
-	M0_UT_ASSERT(rc == 0);
-
 	/* Initialise the domain. */
-	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+	rc = m0_layout_domain_init(&t_domain);
 	M0_UT_ASSERT(rc == 0);
 
 	/*
@@ -357,21 +318,21 @@ static void test_reg_unreg_failure(void)
 	rc = m0_layout_type_register(&t_domain, &m0_pdclust_layout_type);
 	M0_UT_ASSERT(rc == LTO_REG_ERR);
 
-	m0_fi_enable_once("m0_layout_enum_type_register", "leto_reg_err");
+	/*m0_fi_enable_once("m0_layout_enum_type_register", "leto_reg_err");
 	rc = m0_layout_enum_type_register(&t_domain, &m0_list_enum_type);
-	M0_UT_ASSERT(rc == LETO_REG_ERR);
+	M0_UT_ASSERT(rc == LETO_REG_ERR);*/
 
 	m0_fi_enable_once("m0_layout_enum_type_register", "leto_reg_err");
 	rc = m0_layout_enum_type_register(&t_domain, &m0_linear_enum_type);
 	M0_UT_ASSERT(rc == LETO_REG_ERR);
 
-	m0_fi_enable_once("list_register", "mem_err");
+	/*m0_fi_enable_once("list_register", "mem_err");
 	rc = m0_layout_enum_type_register(&t_domain, &m0_list_enum_type);
-	M0_UT_ASSERT(rc == -ENOMEM);
+	M0_UT_ASSERT(rc == -ENOMEM);*/
 
-	m0_fi_enable_once("list_register", "table_init_err");
+	/*m0_fi_enable_once("list_register", "table_init_err");
 	rc = m0_layout_enum_type_register(&t_domain, &m0_list_enum_type);
-	M0_UT_ASSERT(rc == -EEXIST);
+	M0_UT_ASSERT(rc == -EEXIST);*/
 
 	/*
 	 * Now cover all the error cases from
@@ -385,14 +346,12 @@ static void test_reg_unreg_failure(void)
 	rc = m0_layout_standard_types_register(&t_domain);
 	M0_UT_ASSERT(rc == LETO_REG_ERR);
 
-	m0_fi_enable_off_n_on_m("m0_layout_enum_type_register", "leto_reg_err",
-				1, 1);
+	m0_fi_enable_once("m0_layout_enum_type_register", "leto_reg_err");
 	rc = m0_layout_standard_types_register(&t_domain);
 	M0_UT_ASSERT(rc == LETO_REG_ERR);
 	m0_fi_disable("m0_layout_enum_type_register", "leto_reg_err");
 
 	m0_layout_domain_fini(&t_domain);
-	m0_dbenv_fini(&t_dbenv);
 
 	/*
 	 * Register back all the available layout types and enum types with
@@ -460,12 +419,12 @@ static int pdclust_layout_build(uint32_t enum_id,
 				struct m0_uint128 *seed,
 				uint32_t A, uint32_t B,
 				struct m0_pdclust_layout **pl,
-				struct m0_layout_list_enum **list_enum,
+//				struct m0_layout_list_enum **list_enum,
 				struct m0_layout_linear_enum **lin_enum,
 				bool failure_test)
 {
-	struct m0_fid                *cob_list = NULL; /* to keep gcc happy. */
-	int                           i;
+//	struct m0_fid                *cob_list = NULL; /* to keep gcc happy. */
+//	int                           i;
 	struct m0_layout_enum        *e;
 	struct m0_layout_linear_attr  lin_attr;
 	struct m0_layout             *l_from_pl;
@@ -474,6 +433,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
 	M0_UT_ASSERT(pl != NULL);
 
+#if 0
 	/* Build an enumeration object with the specified enum type. */
 	if (enum_id == LIST_ENUM_ID) {
 		M0_ALLOC_ARR(cob_list, P);
@@ -489,6 +449,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 		e = &(*list_enum)->lle_base;
 
 	} else { /* LINEAR_ENUM_ID */
+#endif
 		lin_attr.lla_nr = P;
 		lin_attr.lla_A  = A;
 		lin_attr.lla_B  = B;
@@ -497,11 +458,15 @@ static int pdclust_layout_build(uint32_t enum_id,
 		M0_UT_ASSERT(rc == 0 || rc == -ENOMEM || rc == -EPROTO);
 
 		e = &(*lin_enum)->lle_base;
+#if 0
 	}
+#endif
 	if (rc != 0) {
 		M0_UT_ASSERT(failure_test);
+#if 0
 		if (enum_id == LIST_ENUM_ID)
 			m0_free(cob_list);
+#endif
 		return rc;
 	}
 
@@ -566,10 +531,10 @@ static void pdclust_layout_verify(uint32_t enum_id,
 				  uint32_t A, uint32_t B)
 {
 	struct m0_pdclust_layout     *pl;
-	struct m0_layout_list_enum   *list_enum;
+//	struct m0_layout_list_enum   *list_enum;
 	struct m0_layout_linear_enum *lin_enum;
-	int                           i;
-	struct m0_fid                 cob_id;
+//	int                           i;
+//	struct m0_fid                 cob_id;
 
 	M0_UT_ASSERT(l != NULL);
 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -586,6 +551,7 @@ static void pdclust_layout_verify(uint32_t enum_id,
 	/* Verify enum type specific part of the layout object. */
 	M0_UT_ASSERT(pl->pl_base.sl_enum != NULL);
 
+#if 0
 	if (enum_id == LIST_ENUM_ID) {
 		list_enum = container_of(pl->pl_base.sl_enum,
 					 struct m0_layout_list_enum, lle_base);
@@ -596,12 +562,15 @@ static void pdclust_layout_verify(uint32_t enum_id,
 		}
 		M0_UT_ASSERT(list_enum->lle_nr == P);
 	} else {
+#endif
 		lin_enum = container_of(pl->pl_base.sl_enum,
 					struct m0_layout_linear_enum, lle_base);
 		M0_UT_ASSERT(lin_enum->lle_attr.lla_nr == P);
 		M0_UT_ASSERT(lin_enum->lle_attr.lla_A == A);
 		M0_UT_ASSERT(lin_enum->lle_attr.lla_B == B);
+#if 0
 	}
+#endif
 }
 
 static void NKP_assign_and_pool_init(uint32_t enum_id,
@@ -623,6 +592,7 @@ static void NKP_assign_and_pool_init(uint32_t enum_id,
 	if (list_nr_more > 50)
 		list_nr_more = 50;
 
+#if 0
 	if (enum_id == LIST_ENUM_ID) {
 		switch (inline_test) {
 		case LESS_THAN_INLINE:
@@ -638,8 +608,11 @@ static void NKP_assign_and_pool_init(uint32_t enum_id,
 			M0_ASSERT(0);
 		}
 	} else {
+#endif
 		*P = linear_nr;
+#if 0
 	}
+#endif
 
 	if (*P <= 20)
 		*K = 1;
@@ -683,7 +656,7 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 	uint32_t                      K;
 	uint32_t                      P;
 	struct m0_pdclust_layout     *pl;
-	struct m0_layout_list_enum   *list_enum;
+//	struct m0_layout_list_enum   *list_enum;
 	struct m0_layout_linear_enum *lin_enum;
 	struct m0_layout             *l;
 
@@ -698,7 +671,7 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = pdclust_layout_build(enum_id, lid,
 				  N, K, P, &seed,
 				  10, 20,
-				  &pl, &list_enum, &lin_enum,
+				  &pl, /*&list_enum, */&lin_enum,
 				  failure_test);
 	if (failure_test)
 		M0_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
@@ -735,6 +708,7 @@ static void test_build(void)
 {
 	uint64_t lid;
 
+#if 0
 	/*
 	 * Build a layout object with PDCLUST layout type, LIST enum type
 	 * with a few inline entries only and then destroy it.
@@ -762,6 +736,7 @@ static void test_build(void)
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				!FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/*
 	 * Build a layout object with PDCLUST layout type and LINEAR enum
@@ -777,6 +752,7 @@ static void test_build_failure(void)
 {
 	uint64_t lid;
 
+#if 0
 	/*
 	 * Simulate memory allocation failure in pdclust_allocate() that is
 	 * in the path of m0_pdclust_build().
@@ -786,6 +762,7 @@ static void test_build_failure(void)
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
 	M0_UT_ASSERT(rc == -ENOMEM);
+#endif
 
 	/*
 	 * Simulate memory allocation failure in pdclust_allocate() that is
@@ -797,6 +774,7 @@ static void test_build_failure(void)
 				FAILURE_TEST);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
+#if 0
 	/*
 	 * Simulate invalid attributes error in pdclust_populate() that is
 	 * in the path of m0_pdclust_build().
@@ -816,6 +794,7 @@ static void test_build_failure(void)
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
 	M0_UT_ASSERT(rc == -ENOMEM);
+#endif
 
 	/*
 	 * Simulate memory allocation failure in linear_allocate() that is
@@ -827,12 +806,14 @@ static void test_build_failure(void)
 				FAILURE_TEST);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
+#if 0
 	/* Simulate attributes invalid error in m0_list_enum_build(). */
 	lid = 2006;
 	m0_fi_enable_once("pdclust_layout_build", "list_attr_err");
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
 	M0_UT_ASSERT(rc == -EPROTO);
+#endif
 
 	/* Simulate attributes invalid error in m0_linear_enum_build(). */
 	lid = 2007;
@@ -841,12 +822,14 @@ static void test_build_failure(void)
 				FAILURE_TEST);
 	M0_UT_ASSERT(rc == -EPROTO);
 
+#if 0
 	/* Simulate fid invalid error in m0_list_enum_build(). */
 	lid = 2008;
 	m0_fi_enable_once("m0_list_enum_build", "fid_invalid_err");
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
 	M0_UT_ASSERT(rc == -EPROTO);
+#endif
 }
 
 
@@ -897,9 +880,9 @@ static int pdclust_layout_buf_build(uint32_t enum_id, uint64_t lid,
 {
 	uint32_t                     let_id;
 	m0_bcount_t                  nbytes_copied;
-	struct cob_entries_header    ce_header;
-	struct m0_fid                cob_id;
-	uint32_t                     i;
+//	struct cob_entries_header    ce_header;
+/*	struct m0_fid                cob_id;
+	uint32_t                     i;*/
 	struct m0_layout_linear_attr lin_rec;
 
 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -909,10 +892,11 @@ static int pdclust_layout_buf_build(uint32_t enum_id, uint64_t lid,
 	 * Build part of the buffer representing generic and the PDCLUST layout
 	 * type specific parts of the layout object.
 	 */
-	let_id = enum_id == LIST_ENUM_ID ? m0_list_enum_type.let_id :
+	let_id = /*enum_id == LIST_ENUM_ID ? m0_list_enum_type.let_id :*/
 					   m0_linear_enum_type.let_id;
 	pdclust_buf_build(let_id, lid, N, K, P, seed, dcur);
 
+#if 0
 	/*
 	 * Build part of the buffer representing enum type specific part of
 	 * the layout object.
@@ -930,6 +914,7 @@ static int pdclust_layout_buf_build(uint32_t enum_id, uint64_t lid,
 			M0_UT_ASSERT(nbytes_copied == sizeof cob_id);
 		}
 	} else {
+#endif
 		lin_rec.lla_nr = P;
 		lin_rec.lla_A  = A;
 		lin_rec.lla_B  = B;
@@ -937,8 +922,9 @@ static int pdclust_layout_buf_build(uint32_t enum_id, uint64_t lid,
 		nbytes_copied = m0_bufvec_cursor_copyto(dcur, &lin_rec,
 							sizeof lin_rec);
 		M0_UT_ASSERT(nbytes_copied == sizeof lin_rec);
+#if 0
 	}
-
+#endif
 	return 0;
 }
 
@@ -1044,6 +1030,7 @@ static void test_decode(void)
 {
 	uint64_t lid;
 
+#if 0
 	/*
 	 * Decode a layout object with PDCLUST layout type, LIST enum type
 	 * with a few inline entries only.
@@ -1071,6 +1058,7 @@ static void test_decode(void)
 	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/*
 	 * Decode a layout object with PDCLUST layout type and LINEAR enum
@@ -1086,6 +1074,7 @@ static void test_decode_failure(void)
 {
 	uint64_t lid;
 
+#if 0
 	/* Simulate invalid attributes error in m0_layout_decode(). */
 	lid = 4001;
 	m0_fi_enable_once("m0_layout_decode", "attr_err");
@@ -1113,6 +1102,7 @@ static void test_decode_failure(void)
 	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	M0_UT_ASSERT(rc == -EPROTO);
+#endif
 
 	/* Simulate invalid attributes error in linear_populate(). */
 	lid = 4005;
@@ -1121,6 +1111,7 @@ static void test_decode_failure(void)
 				 FAILURE_TEST);
 	M0_UT_ASSERT(rc == -EPROTO);
 
+#if 0
 	/* Simulate memory allocation failure in list_decode(). */
 	lid = 4006;
 	m0_fi_enable_once("list_decode", "mem_err");
@@ -1134,6 +1125,7 @@ static void test_decode_failure(void)
 	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	M0_UT_ASSERT(rc == -EPROTO);
+#endif
 
 	/* Simulate leto_allocate() failure in pdclust_decode(). */
 	lid = 4008;
@@ -1204,10 +1196,10 @@ static void pdclust_layout_buf_verify(uint32_t enum_id, uint64_t lid,
 {
 	uint32_t                      lt_id;
 	uint32_t                      let_id;
-	uint32_t                      i;
+/*	uint32_t                      i;
 	struct cob_entries_header    *ce_header;
 	struct m0_fid                *cob_id_from_layout;
-	struct m0_fid                 cob_id_calculated;
+	struct m0_fid                 cob_id_calculated;*/
 	struct m0_layout_linear_attr *lin_attr;
 
 	M0_UT_ASSERT(cur != NULL);
@@ -1221,6 +1213,7 @@ static void pdclust_layout_buf_verify(uint32_t enum_id, uint64_t lid,
 	pdclust_lbuf_verify(N, K, P, seed, cur, &let_id);
 
 	/* Verify enum type specific part of the layout buffer. */
+#if 0
 	if (enum_id == LIST_ENUM_ID) {
 		M0_UT_ASSERT(let_id == m0_list_enum_type.let_id);
 
@@ -1245,6 +1238,7 @@ static void pdclust_layout_buf_verify(uint32_t enum_id, uint64_t lid,
 			m0_bufvec_cursor_move(cur, sizeof *cob_id_from_layout);
 		}
 	} else {
+#endif
 		M0_UT_ASSERT(let_id == m0_linear_enum_type.let_id);
 
 		M0_UT_ASSERT(m0_bufvec_cursor_step(cur) >= sizeof *lin_attr);
@@ -1253,7 +1247,9 @@ static void pdclust_layout_buf_verify(uint32_t enum_id, uint64_t lid,
 		M0_UT_ASSERT(lin_attr->lla_nr == P);
 		M0_UT_ASSERT(lin_attr->lla_A == A);
 		M0_UT_ASSERT(lin_attr->lla_B == B);
+#if 0
 	}
+#endif
 }
 
 /* Tests the API m0_layout_encode() for PDCLUST layout type. */
@@ -1270,7 +1266,7 @@ static int test_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	uint32_t                      N;
 	uint32_t                      K;
 	uint32_t                      P;
-	struct m0_layout_list_enum   *list_enum;
+//	struct m0_layout_list_enum   *list_enum;
 	struct m0_layout_linear_enum *lin_enum;
 
 	M0_ENTRY("lid %llu", (unsigned long long)lid);
@@ -1294,7 +1290,7 @@ static int test_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = pdclust_layout_build(enum_id, lid,
 				  N, K, P, &seed,
 				  11, 21,
-				  &pl, &list_enum, &lin_enum,
+				  &pl, /*&list_enum, */&lin_enum,
 				  !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
 
@@ -1333,6 +1329,7 @@ static void test_encode(void)
 	uint64_t lid;
 	int      rc;
 
+#if 0
 	/*
 	 * Encode for PDCLUST layout type and LIST enumeration type,
 	 * with a few inline entries only.
@@ -1360,6 +1357,7 @@ static void test_encode(void)
 	rc = test_encode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/* Encode for PDCLUST layout type and LINEAR enumeration type. */
 	lid = 5004;
@@ -1373,12 +1371,14 @@ static void test_encode_failure(void)
 	uint64_t lid;
 	int      rc;
 
+#if 0
 	/* Simulate m0_layout_encode() failure. */
 	lid = 6001;
 	m0_fi_enable_once("m0_layout_encode", "lo_encode_err");
 	rc = test_encode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	M0_UT_ASSERT(rc == LO_ENCODE_ERR);
+#endif
 
 	/* Simulate m0_layout_encode() failure. */
 	lid = 6002;
@@ -1439,13 +1439,13 @@ static void pdclust_layout_buf_compare(uint32_t enum_id,
 				       struct m0_bufvec_cursor *cur1,
 				       struct m0_bufvec_cursor *cur2)
 {
-	struct cob_entries_header    *ce_header1;
+/*	struct cob_entries_header    *ce_header1;
 	struct cob_entries_header    *ce_header2;
 	struct m0_fid                *cob_id1;
-	struct m0_fid                *cob_id2;
+	struct m0_fid                *cob_id2;*/
 	struct m0_layout_linear_attr *lin_attr1;
 	struct m0_layout_linear_attr *lin_attr2;
-	uint32_t                      i;
+	//uint32_t                      i;
 
 	M0_UT_ASSERT(cur1 != NULL);
 	M0_UT_ASSERT(cur2 != NULL);
@@ -1457,6 +1457,7 @@ static void pdclust_layout_buf_compare(uint32_t enum_id,
 	/* Compare PDCLUST layout type specific part of the layout buffers. */
 	pdclust_lbuf_compare(cur1, cur2);
 
+#if 0
 	/* Compare enumeration type specific part of the layout buffers. */
 	if (enum_id == LIST_ENUM_ID) {
 		M0_UT_ASSERT(m0_bufvec_cursor_step(cur1) >= sizeof *ce_header1);
@@ -1485,6 +1486,7 @@ static void pdclust_layout_buf_compare(uint32_t enum_id,
 			m0_bufvec_cursor_move(cur2, sizeof *cob_id2);
 		}
 	} else {
+#endif
 		M0_UT_ASSERT(m0_bufvec_cursor_step(cur1) >= sizeof *lin_attr1);
 		M0_UT_ASSERT(m0_bufvec_cursor_step(cur2) >= sizeof *lin_attr2);
 
@@ -1494,7 +1496,9 @@ static void pdclust_layout_buf_compare(uint32_t enum_id,
 		M0_UT_ASSERT(lin_attr1->lla_nr == lin_attr2->lla_nr);
 		M0_UT_ASSERT(lin_attr1->lla_A == lin_attr2->lla_A);
 		M0_UT_ASSERT(lin_attr1->lla_B == lin_attr2->lla_B);
+#if 0
 	}
+#endif
 }
 
 /*
@@ -1601,6 +1605,7 @@ static void test_decode_encode(void)
 	uint64_t lid;
 	int      rc;
 
+#if 0
 	/*
 	 * Build a layout buffer representing a layout with PDCLUST layout type
 	 * and LIST enum type, with a few inline entries only.
@@ -1637,6 +1642,7 @@ static void test_decode_encode(void)
 	lid = 7003;
 	rc = test_decode_encode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/*
 	 * Build a layout buffer representing a layout with PDCLUST layout type
@@ -1663,11 +1669,11 @@ static void pdclust_layout_compare(uint32_t enum_id,
 {
 	struct m0_pdclust_layout     *pl1;
 	struct m0_pdclust_layout     *pl2;
-	struct m0_layout_list_enum   *list_e1;
-	struct m0_layout_list_enum   *list_e2;
+/*	struct m0_layout_list_enum   *list_e1;
+	struct m0_layout_list_enum   *list_e2;*/
 	struct m0_layout_linear_enum *lin_e1;
 	struct m0_layout_linear_enum *lin_e2;
-	uint32_t                      i;
+//	uint32_t                      i;
 
 	M0_UT_ASSERT(l1 != NULL && l2 != NULL);
 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -1704,6 +1710,7 @@ static void pdclust_layout_compare(uint32_t enum_id,
 	M0_UT_ASSERT(pl1->pl_base.sl_enum->le_ops ==
 		     pl2->pl_base.sl_enum->le_ops);
 
+#if 0
 	/* Compare enumeration type specific part of the layout objects. */
 	if (enum_id == LIST_ENUM_ID) {
 		list_e1 = container_of(pl1->pl_base.sl_enum,
@@ -1717,6 +1724,7 @@ static void pdclust_layout_compare(uint32_t enum_id,
 			M0_UT_ASSERT(m0_fid_eq(&list_e1->lle_list_of_cobs[i],
 					       &list_e2->lle_list_of_cobs[i]));
 	} else { /* LINEAR_ENUM_ID */
+#endif
 		lin_e1 = container_of(pl1->pl_base.sl_enum,
 				      struct m0_layout_linear_enum, lle_base);
 		lin_e2 = container_of(pl2->pl_base.sl_enum,
@@ -1726,7 +1734,9 @@ static void pdclust_layout_compare(uint32_t enum_id,
 			     lin_e2->lle_attr.lla_nr);
 		M0_UT_ASSERT(lin_e1->lle_attr.lla_A == lin_e2->lle_attr.lla_A);
 		M0_UT_ASSERT(lin_e1->lle_attr.lla_B == lin_e2->lle_attr.lla_B);
+#if 0
 	}
+#endif
 }
 
 /* Copies contents of one layout object to the other. */
@@ -1736,11 +1746,11 @@ static void pdclust_layout_copy(uint32_t enum_id,
 {
 	struct m0_pdclust_layout     *pl_src;
 	struct m0_pdclust_layout     *pl_dest;
-	struct m0_layout_list_enum   *list_src;
-	struct m0_layout_list_enum   *list_dest;
+//	struct m0_layout_list_enum   *list_src;
+//	struct m0_layout_list_enum   *list_dest;
 	struct m0_layout_linear_enum *lin_src;
 	struct m0_layout_linear_enum *lin_dest;
-	uint32_t                      i;
+//	uint32_t                      i;
 
 	M0_UT_ASSERT(l_src != NULL && l_dest != NULL);
 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -1761,6 +1771,7 @@ static void pdclust_layout_copy(uint32_t enum_id,
 	/* Copy PDCLUST layout type specific part of the layout objects. */
 	pl_dest->pl_attr = pl_src->pl_attr;
 
+#if 0
 	/* Copy enumeration type specific part of the layout objects. */
 	if (enum_id == LIST_ENUM_ID) {
 		list_src = container_of(pl_src->pl_base.sl_enum,
@@ -1777,6 +1788,7 @@ static void pdclust_layout_copy(uint32_t enum_id,
 
 		pl_dest->pl_base.sl_enum = &list_dest->lle_base;
 	} else { /* LINEAR_ENUM_ID */
+#endif
 		lin_src = container_of(pl_src->pl_base.sl_enum,
 				       struct m0_layout_linear_enum, lle_base);
 		lin_dest = m0_alloc(sizeof *lin_src);
@@ -1784,7 +1796,9 @@ static void pdclust_layout_copy(uint32_t enum_id,
 
 		lin_dest->lle_attr = lin_src->lle_attr;
 		pl_dest->pl_base.sl_enum = &lin_dest->lle_base;
+#if 0
 	}
+#endif
 
 	/* Copy enumeration specific part of the layout objects. */
 	pl_dest->pl_base.sl_enum->le_type = pl_src->pl_base.sl_enum->le_type;
@@ -1798,24 +1812,27 @@ static void pdclust_layout_copy(uint32_t enum_id,
 static void pdclust_layout_copy_delete(uint32_t enum_id, struct m0_layout *l)
 {
 	struct m0_pdclust_layout     *pl;
-	struct m0_layout_list_enum   *list_enum;
+//	struct m0_layout_list_enum   *list_enum;
 	struct m0_layout_linear_enum *lin_enum;
 
 	M0_UT_ASSERT(l != NULL);
 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
 
 	pl = container_of(l, struct m0_pdclust_layout, pl_base.sl_base);
+#if 0
 	if (enum_id == LIST_ENUM_ID) {
 		list_enum = container_of(pl->pl_base.sl_enum,
 					struct m0_layout_list_enum, lle_base);
 		m0_free(list_enum->lle_list_of_cobs);
 		m0_free(list_enum);
 	} else { /* LINEAR_ENUM_ID */
+#endif
 		lin_enum = container_of(pl->pl_base.sl_enum,
 				        struct m0_layout_linear_enum, lle_base);
 		m0_free(lin_enum);
+#if 0
 	}
-
+#endif
 	m0_free(pl);
 }
 
@@ -1835,7 +1852,7 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	uint32_t                      N;
 	uint32_t                      K;
 	uint32_t                      P;
-	struct m0_layout_list_enum   *list_enum;
+	//struct m0_layout_list_enum   *list_enum;
 	struct m0_layout_linear_enum *lin_enum;
 	struct m0_layout             *l;
 	struct m0_layout             *l_copy;
@@ -1862,7 +1879,7 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = pdclust_layout_build(enum_id, lid,
 				  N, K, P, &seed,
 				  10, 20,
-				  &pl, &list_enum, &lin_enum,
+				  &pl, /*&list_enum, */&lin_enum,
 				  !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
 
@@ -1920,6 +1937,7 @@ static void test_encode_decode(void)
 	uint64_t lid;
 	int      rc;
 
+#if 0
 	/*
 	 * Build a layout object with PDCLUST layout type and LIST enum type,
 	 * with a few inline entries only.
@@ -1956,6 +1974,7 @@ static void test_encode_decode(void)
 	lid = 8003;
 	rc = test_encode_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/*
 	 * Build a layout object with PDCLUST layout type and LINEAR enum type.
@@ -1981,12 +2000,12 @@ static int test_ref_get_put_pdclust(uint32_t enum_id, uint64_t lid)
 	uint32_t                      N;
 	uint32_t                      K;
 	uint32_t                      P;
-	struct m0_layout_list_enum   *list_enum;
+	//struct m0_layout_list_enum   *list_enum;
 	struct m0_layout_linear_enum *lin_enum;
 	uint32_t                      i;
 
 	M0_ENTRY("lid %llu", (unsigned long long)lid);
-	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+	M0_UT_ASSERT(/*enum_id == LIST_ENUM_ID || */enum_id == LINEAR_ENUM_ID);
 
 	m0_uint128_init(&seed, "refgetputpdclust");
 
@@ -1998,7 +2017,7 @@ static int test_ref_get_put_pdclust(uint32_t enum_id, uint64_t lid)
 	rc = pdclust_layout_build(LIST_ENUM_ID, lid,
 				  N, K, P, &seed,
 				  10, 20,
-				  &pl, &list_enum, &lin_enum,
+				  &pl, /*&list_enum, */&lin_enum,
 				  !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
 
@@ -2029,6 +2048,7 @@ static void test_ref_get_put(void)
 	uint64_t lid;
 	int      rc;
 
+#if 0
 	/*
 	 * Reference get and put operations for PDCLUST layout type and LIST
 	 * enumeration type.
@@ -2036,6 +2056,7 @@ static void test_ref_get_put(void)
 	lid = 9001;
 	rc = test_ref_get_put_pdclust(LIST_ENUM_ID, lid);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/*
 	 * Reference get and put operations for PDCLUST layout type and LINEAR
@@ -2100,7 +2121,7 @@ static int test_enum_ops_pdclust(uint32_t enum_id, uint64_t lid,
 	uint32_t                      K;
 	uint32_t                      P;
 	struct m0_pdclust_layout     *pl;
-	struct m0_layout_list_enum   *list_enum;
+	//struct m0_layout_list_enum   *list_enum;
 	struct m0_layout_linear_enum *lin_enum;
 
 	M0_ENTRY();
@@ -2116,7 +2137,7 @@ static int test_enum_ops_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = pdclust_layout_build(enum_id, lid,
 				  N, K, P, &seed,
 				  777, 888,
-				  &pl, &list_enum, &lin_enum,
+				  &pl, /*&list_enum, */&lin_enum,
 				  !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
 
@@ -2137,6 +2158,7 @@ static void test_enum_operations(void)
 {
 	uint64_t lid;
 
+#if 0
 	/*
 	 * Decode a layout with PDCLUST layout type, LIST enum type and
 	 * with a few inline entries only.
@@ -2164,6 +2186,7 @@ static void test_enum_operations(void)
 	lid = 10003;
 	rc = test_enum_ops_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/*
 	 * Decode a layout with PDCLUST layout type and LINEAR enum type.
@@ -2177,8 +2200,6 @@ static void test_enum_operations(void)
 /* Tests the API m0_layout_max_recsize(). */
 static void test_max_recsize(void)
 {
-	const char              t_db_name[] = "t5-layout";
-	struct m0_dbenv         t_dbenv;
 	struct m0_layout_domain t_domain;
 	m0_bcount_t             max_size_from_api;
 	m0_bcount_t             max_size_calculated;
@@ -2192,12 +2213,8 @@ static void test_max_recsize(void)
 	 */
 	m0_layout_standard_types_unregister(&domain);
 
-	M0_SET0(&t_dbenv);
-	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS, true);
-	M0_UT_ASSERT(rc == 0);
-
 	/* Initialise the domain. */
-	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+	rc = m0_layout_domain_init(&t_domain);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Register pdclust layout type and verify m0_layout_max_recsize(). */
@@ -2223,6 +2240,7 @@ static void test_max_recsize(void)
 
 	M0_UT_ASSERT(max_size_from_api == max_size_calculated);
 
+#if 0
 	/* Register list enum type and verify m0_layout_max_recsize(). */
 	rc = m0_layout_enum_type_register(&t_domain, &m0_list_enum_type);
 	M0_UT_ASSERT(rc == 0);
@@ -2247,6 +2265,7 @@ static void test_max_recsize(void)
 			      sizeof(struct m0_layout_linear_attr);
 
 	M0_UT_ASSERT(max_size_from_api == max_size_calculated);
+#endif
 
 	/* Unregister linear enum type and verify m0_layout_max_recsize(). */
 	m0_layout_enum_type_unregister(&t_domain, &m0_linear_enum_type);
@@ -2270,8 +2289,6 @@ static void test_max_recsize(void)
 	/* Finalise the domain. */
 	m0_layout_domain_fini(&t_domain);
 
-	m0_dbenv_fini(&t_dbenv);
-
 	/*
 	 * Register back all the available layout types and enum types with
 	 * the domain "domain", to undo the change done at the beginning of
@@ -2293,7 +2310,7 @@ static void pdclust_recsize_verify(uint32_t enum_id,
 				   m0_bcount_t recsize_to_verify)
 {
 	struct m0_pdclust_layout    *pl;
-	struct m0_layout_list_enum  *list_enum;
+	//struct m0_layout_list_enum  *list_enum;
 	m0_bcount_t                  recsize;
 
 	M0_UT_ASSERT(l != NULL);
@@ -2302,6 +2319,7 @@ static void pdclust_recsize_verify(uint32_t enum_id,
 
 	pl = container_of(l, struct m0_pdclust_layout, pl_base.sl_base);
 
+#if 0
 	/* Account for the enum type specific recsize. */
 	if (enum_id == LIST_ENUM_ID) {
 		list_enum = container_of(pl->pl_base.sl_enum,
@@ -2314,6 +2332,7 @@ static void pdclust_recsize_verify(uint32_t enum_id,
 				  LDB_MAX_INLINE_COB_ENTRIES *
 				  sizeof(struct m0_fid);
 	} else
+#endif
 		recsize = sizeof(struct m0_layout_linear_attr);
 
 	/*
@@ -2337,7 +2356,7 @@ static int test_recsize_pdclust(uint32_t enum_id, uint64_t lid,
 	uint32_t                      N;
 	uint32_t                      K;
 	uint32_t                      P;
-	struct m0_layout_list_enum   *list_enum;
+	//struct m0_layout_list_enum   *list_enum;
 	struct m0_layout_linear_enum *lin_enum;
 	m0_bcount_t                   recsize;
 
@@ -2354,7 +2373,7 @@ static int test_recsize_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = pdclust_layout_build(enum_id, lid,
 				  N, K, P, &seed,
 				  10, 20,
-				  &pl, &list_enum, &lin_enum,
+				  &pl, /*&list_enum, */&lin_enum,
 				  !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
 
@@ -2380,6 +2399,7 @@ static void test_recsize(void)
 	uint64_t lid;
 	int      rc;
 
+#if 0
 	/*
 	 * lo_recsize() for PDCLUST layout type and LIST enumeration type,
 	 * with a few inline entries only.
@@ -2404,6 +2424,7 @@ static void test_recsize(void)
 	lid = 11003;
 	rc = test_recsize_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/* lo_recsize() for PDCLUST layout type and LINEAR enumeration type. */
 	lid = 11004;
@@ -2441,7 +2462,7 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 	uint32_t                      P;
 	struct m0_layout             *l;
 	struct m0_pdclust_layout     *pl;
-	struct m0_layout_list_enum   *list_enum;
+	//struct m0_layout_list_enum   *list_enum;
 	struct m0_layout_linear_enum *lin_enum;
 	struct m0_pdclust_instance   *pi;
 	struct m0_fid                 gfid;
@@ -2458,7 +2479,7 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 	rc = pdclust_layout_build(enum_id, lid,
 				  N, K, P, &seed,
 				  10, 20,
-				  &pl, &list_enum, &lin_enum,
+				  &pl, /*&list_enum, */&lin_enum,
 				  !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
 
@@ -2490,11 +2511,13 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 		li = &pi->pi_base;
 		M0_UT_ASSERT(m0_layout_instance_to_pdi(li) == pi);
 
+#if 0
 		/* Verify m0_layout_instance_to_enum */
 		if (enum_id == LIST_ENUM_ID)
 			M0_UT_ASSERT(m0_layout_instance_to_enum(li) ==
 				     &list_enum->lle_base);
 		else
+#endif
 			M0_UT_ASSERT(m0_layout_instance_to_enum(li) ==
 				     &lin_enum->lle_base);
 
@@ -2518,6 +2541,7 @@ static void test_pdclust_instance(void)
 {
 	uint64_t lid;
 
+#if 0
 	/*
 	 * Build a layout object with PDCLUST layout type, LIST enum type
 	 * with a few inline entries only and then destroy it.
@@ -2545,6 +2569,7 @@ static void test_pdclust_instance(void)
 	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				       !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/*
 	 * Build a layout object with PDCLUST layout type and LINEAR enum
@@ -2561,12 +2586,14 @@ static void test_pdclust_instance_failure(void)
 {
 	uint64_t lid;
 
+#if 0
 	/* Simulate memory allocation error in m0_pdclust_instance_build(). */
 	lid = 13001;
 	m0_fi_enable_once("pdclust_instance_build", "mem_err1");
 	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, LESS_THAN_INLINE,
 				       FAILURE_TEST);
 	M0_UT_ASSERT(rc == -ENOMEM);
+#endif
 
 	/* Simulate memory allocation error in m0_pdclust_instance_build(). */
 	lid = 13002;
@@ -2588,6 +2615,7 @@ static void test_pdclust_instance_failure(void)
 	M0_UT_ASSERT(rc == -EPROTO);
 }
 
+#if 0
 #ifndef __KERNEL__
 /*
  * Sets (or resets) the pair using the area pointer and the layout id provided
@@ -2832,6 +2860,7 @@ static void test_lookup(void)
 {
 	uint64_t lid;
 
+#if 0
 	/*
 	 * Lookup for a layout object with LIST enum type, that does not
 	 * exist in the DB.
@@ -2888,6 +2917,7 @@ static void test_lookup(void)
 				 MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	M0_UT_ASSERT(rc == -ENOENT);
+#endif
 
 	/*
 	 * Add a layout object with PDCLUST layout type and LINEAR enum type.
@@ -2921,6 +2951,7 @@ static void test_lookup_failure(void)
 
 	M0_ENTRY();
 
+#if 0
 	/*
 	 * Lookup for a layout object with LIST enum type, that does not
 	 * exist in the DB.
@@ -2931,6 +2962,7 @@ static void test_lookup_failure(void)
 				 MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	M0_UT_ASSERT(rc == -ENOENT);
+#endif
 
 	/*
 	 * Lookup for a layout object with LINEAR enum type, that does not
@@ -2972,6 +3004,7 @@ static void test_lookup_failure(void)
 	rc = m0_layout_lookup(&domain, lid, &test_layout_type, &tx, &pair, &l);
 	M0_UT_ASSERT(rc == -EPROTO);
 
+#if 0
 	/*
 	 * Simulate cursor init error in noninline_read() that is in the path
 	 * of list_decode() that is in the path of m0_layout_decode().
@@ -3007,6 +3040,7 @@ static void test_lookup_failure(void)
 				 MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	M0_UT_ASSERT(rc == -EPROTO);
+#endif
 
 	M0_LEAVE();
 }
@@ -3105,6 +3139,7 @@ static void test_add(void)
 {
 	uint64_t lid;
 
+#if 0
 	/*
 	 * Add a layout object with PDCLUST layout type, LIST enum type and
 	 * with a few inline entries only.
@@ -3141,6 +3176,7 @@ static void test_add(void)
 			      !DUPLICATE_TEST,
 			      !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/* Add a layout object with PDCLUST layout type and LINEAR enum type. */
 	lid = 16004;
@@ -3156,6 +3192,7 @@ static void test_add_failure(void)
 {
 	uint64_t lid;
 
+#if 0
 	/* Simulate m0_layout_encode() failure in m0_layout_add(). */
 	lid = 17001;
 	m0_fi_enable_once("m0_layout_encode", "lo_encode_err");
@@ -3165,6 +3202,7 @@ static void test_add_failure(void)
 			      !DUPLICATE_TEST,
 			      FAILURE_TEST);
 	M0_UT_ASSERT(rc == LO_ENCODE_ERR);
+#endif
 
 	/*
 	 * Simulate the error that entry already exists in the layout DB with
@@ -3178,6 +3216,7 @@ static void test_add_failure(void)
 			      !FAILURE_TEST);
 	M0_UT_ASSERT(rc == -EEXIST);
 
+#if 0
 	/*
 	 * Simulate cursor init failure in noninline_write() that is in the
 	 * path of list_encode() which is in the path of m0_layout_encode().
@@ -3203,7 +3242,7 @@ static void test_add_failure(void)
 			      !DUPLICATE_TEST,
 			      FAILURE_TEST);
 	M0_UT_ASSERT(rc == -ENOENT);
-
+#endif
 }
 
 /* Tests the API m0_layout_update(), for the PDCLUST layout type. */
@@ -3342,6 +3381,7 @@ static void test_update(void)
 {
 	uint64_t lid;
 
+#if 0
 	/*
 	 * Try to update a layout object with PDCLUST layout type and LIST enum
 	 * type, that does not exist in the DB to verify that the operation
@@ -3387,6 +3427,7 @@ static void test_update(void)
 				 MORE_THAN_INLINE,
 				 !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/*
 	 * Update a layout object with PDCLUST layout type and LINEAR enum
@@ -3404,6 +3445,7 @@ static void test_update_failure(void)
 {
 	uint64_t lid;
 
+#if 0
 	/* Simulate m0_layout_encode() failure in m0_layout_update(). */
 	lid = 19001;
 	m0_fi_enable_off_n_on_m("m0_layout_encode", "lo_encode_err", 1, 1);
@@ -3413,6 +3455,7 @@ static void test_update_failure(void)
 				 FAILURE_TEST);
 	M0_UT_ASSERT(rc == LO_ENCODE_ERR);
 	m0_fi_disable("m0_layout_encode", "lo_encode_err");
+#endif
 
 	/* Simulate m0_table_update() failure in m0_layout_update(). */
 	lid = 19002;
@@ -3526,6 +3569,7 @@ static void test_delete(void)
 {
 	uint64_t lid;
 
+#if 0
 	/*
 	 * Delete a layout object with PDCLUST layout type, LIST enum type and
 	 * with a few inline entries only.
@@ -3559,6 +3603,7 @@ static void test_delete(void)
 				 MORE_THAN_INLINE,
 				 !FAILURE_TEST);
 	M0_UT_ASSERT(rc == 0);
+#endif
 
 	/*
 	 * Delete a layout object with PDCLUST layout type and LINEAR enum
@@ -3598,6 +3643,7 @@ static void test_delete_failure(void)
 				 FAILURE_TEST);
 	M0_UT_ASSERT(rc == -ENOENT);
 
+#if 0
 	/*
 	 * Simulate cursor get failure in noninline_write() that is in the
 	 * path of list_encode() which is in the path of m0_layout_encode().
@@ -3621,6 +3667,7 @@ static void test_delete_failure(void)
 				 MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	M0_UT_ASSERT(rc == -ENOMEM);
+#endif
 
 	/*
 	 * Try to delete a layout with PDCLUST layout type and LINEAR
@@ -3637,6 +3684,7 @@ static void test_delete_failure(void)
 }
 
 #endif /* __KERNEL__ */
+#endif
 
 struct m0_ut_suite layout_ut = {
 	.ts_name  = "layout-ut",
@@ -3667,7 +3715,7 @@ struct m0_ut_suite layout_ut = {
 		{ "layout-pdclust-instance", test_pdclust_instance },
 		{ "layout-pdclust-instance-failure",
 					test_pdclust_instance_failure },
-#ifndef __KERNEL__
+/*#ifndef __KERNEL__
 		{ "layout-lookup", test_lookup },
 		{ "layout-lookup-failure", test_lookup_failure },
 		{ "layout-add", test_add },
@@ -3676,11 +3724,13 @@ struct m0_ut_suite layout_ut = {
 		{ "layout-update-failure", test_update_failure },
 		{ "layout-delete", test_delete },
 		{ "layout-delete-failure", test_delete_failure },
-#endif
+#endif*/
 		{ NULL, NULL }
 	}
 };
 M0_EXPORTED(layout_ut);
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

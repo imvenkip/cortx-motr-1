@@ -32,8 +32,6 @@
 #include "be/alloc.h"
 #include "be/seg.h"
 
-#include "db/db.h"	/* m0_table */ /* XXX */
-
 /* btree constants */
 enum {
 	BTREE_ALLOC_SHIFT = 0,
@@ -117,32 +115,21 @@ static void btree_mem_free_credit(const struct m0_be_btree *btree,
 static m0_bcount_t be_btree_ksize(const struct m0_be_btree *btree, const void *key)
 {
 	const struct m0_be_btree_kv_ops *ops = btree->bb_ops;
-
-	return ops->ko_table_ops == NULL ?
-		ops->ko_ksize(key) : ops->ko_table_ops->to[TO_KEY].max_size;
+	return ops->ko_ksize(key);
 }
 
 static m0_bcount_t be_btree_vsize(const struct m0_be_btree *btree, const void *data)
 {
 	const struct m0_be_btree_kv_ops *ops = btree->bb_ops;
 
-	return ops->ko_table_ops == NULL ?
-		ops->ko_vsize(data) : ops->ko_table_ops->to[TO_REC].max_size;
+	return ops->ko_vsize(data);
 }
 
 static int be_btree_compare(const struct m0_be_btree *btree,
 			    const void *key0, const void *key1)
 {
 	const struct m0_be_btree_kv_ops *ops = btree->bb_ops;
-
-	M0_PRE(equi(ops->ko_table != NULL, ops->ko_table_ops != NULL));
-
-	return ops->ko_table_ops == NULL ?
-		ops->ko_compare(key0, key1) :
-		ops->ko_table_ops->key_cmp != NULL ?
-		ops->ko_table_ops->key_cmp(ops->ko_table, key0, key1) :
-		memcmp(key0, key1, be_btree_ksize(btree, NULL) - 4);
-		/* XXX magic number here */
+	return ops->ko_compare(key0, key1);
 }
 
 static inline int key_lt(const struct m0_be_btree *btree,

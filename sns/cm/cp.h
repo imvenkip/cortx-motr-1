@@ -25,6 +25,7 @@
 #define __MERO_SNS_CM_CP_H__
 
 #include "cm/cp.h"
+#include "be/engine.h" /* struct m0_stob_io */
 
 /**
    @defgroup SNSCMCP SNS copy machine Copy packet

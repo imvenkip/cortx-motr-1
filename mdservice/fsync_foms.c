@@ -32,6 +32,7 @@
 #include "rpc/rpc_opcodes.h"
 
 #include "fop/fom_generic.h"
+#include "be/engine.h" /* m0_be_engine__tx_find */
 
 static void fsync_fom_fini(struct m0_fom *fom);
 static int fsync_fom_tick(struct m0_fom *fom);

@@ -41,7 +41,6 @@
 
 #include "fid/fid.h"
 #include "addb/addb.h"
-#include "db/db.h"
 #include "fop/fop.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"

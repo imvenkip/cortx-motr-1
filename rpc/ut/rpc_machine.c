@@ -23,7 +23,6 @@
 #include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 #include "net/net.h"
-#include "db/db.h"
 #include "rpc/rpc.h"
 #include "net/buffer_pool.h"
 #include "net/lnet/lnet.h"

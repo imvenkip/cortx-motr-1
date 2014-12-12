@@ -129,8 +129,8 @@
 #include "lib/refs.h"   /* struct m0_ref */
 
 #include "fid/fid.h"    /* struct m0_fid */
-#include "db/db.h"      /* struct m0_table */
 #include "addb/addb.h"
+#include "be/be.h"      /* struct m0_be_tx */
 
 struct m0_addb_ctx;
 struct m0_bufvec_cursor;
@@ -175,12 +175,6 @@ struct m0_layout_domain {
 
 	/** List of pointers for layout objects associated with this domain. */
 	struct m0_tl                ld_layout_list;
-
-	/** Pointer to dbenv; to keep things together. */
-	struct m0_dbenv            *ld_dbenv;
-
-	/** Table for layout record entries. */
-	struct m0_table             ld_layouts;
 
 	/** Layout type specific data. */
 	void                       *ld_type_data[M0_LAYOUT_TYPE_MAX];
@@ -241,6 +235,12 @@ struct m0_layout {
 	 * the m0_layout_domain object.
 	 */
 	struct m0_tlink              l_list_linkage;
+
+	/**
+	 * Linkage used for maintaning list of layout objects stored in md
+	 * service and populated with mds_layout_add()
+	 */
+	struct m0_tlink              l_mds_linkage;
 };
 
 struct m0_layout_ops {
@@ -306,7 +306,7 @@ struct m0_layout_ops {
 	int         (*lo_decode)(struct m0_layout *l,
 				 struct m0_bufvec_cursor *cur,
 				 enum m0_layout_xcode_op op,
-				 struct m0_db_tx *tx,
+				 struct m0_be_tx *tx,
 				 uint32_t user_count);
 
 	/**
@@ -324,7 +324,7 @@ struct m0_layout_ops {
 	 */
 	int         (*lo_encode)(struct m0_layout *l,
 				 enum m0_layout_xcode_op op,
-				 struct m0_db_tx *tx,
+				 struct m0_be_tx *tx,
 				 struct m0_bufvec_cursor *out);
 };
 
@@ -478,7 +478,7 @@ struct m0_layout_enum_ops {
 	int         (*leo_decode)(struct m0_layout_enum *e,
 				  struct m0_bufvec_cursor *cur,
 				  enum m0_layout_xcode_op op,
-				  struct m0_db_tx *tx,
+				  struct m0_be_tx *tx,
 				  struct m0_striped_layout *stl);
 
 	/**
@@ -497,7 +497,7 @@ struct m0_layout_enum_ops {
 	 */
 	int         (*leo_encode)(const struct m0_layout_enum *le,
 				  enum m0_layout_xcode_op op,
-				  struct m0_db_tx *tx,
+				  struct m0_be_tx *tx,
 				  struct m0_bufvec_cursor *out);
 };
 
@@ -669,10 +669,8 @@ M0_INTERNAL void m0_layouts_fini(void);
 /**
  * Initialises layout domain - Initialises arrays to hold the objects for
  * layout types and enum types and creates the layouts table.
- * @pre Caller should have performed m0_dbenv_init() on dbenv.
  */
-M0_INTERNAL int m0_layout_domain_init(struct m0_layout_domain *dom,
-				      struct m0_dbenv *db);
+M0_INTERNAL int m0_layout_domain_init(struct m0_layout_domain *dom);
 
 /**
  * Finalises the layout domain.
@@ -821,7 +819,7 @@ M0_INTERNAL void m0_layout_user_count_dec(struct m0_layout *l);
 M0_INTERNAL int m0_layout_decode(struct m0_layout *l,
 				 struct m0_bufvec_cursor *cur,
 				 enum m0_layout_xcode_op op,
-				 struct m0_db_tx *tx);
+				 struct m0_be_tx *tx);
 
 /**
  * This method uses an in-memory layout object and
@@ -864,7 +862,7 @@ M0_INTERNAL int m0_layout_decode(struct m0_layout *l,
  */
 M0_INTERNAL int m0_layout_encode(struct m0_layout *l,
 				 enum m0_layout_xcode_op op,
-				 struct m0_db_tx *tx,
+				 struct m0_be_tx *tx,
 				 struct m0_bufvec_cursor *out);
 
 /**

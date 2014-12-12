@@ -98,7 +98,7 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 	seg = ctx->rmc_ut_seg.bus_seg;
 	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
 
-	rc = m0_reqh_dbenv_init(&ctx->rmc_reqh, seg);
+	rc = m0_reqh_be_init(&ctx->rmc_reqh, seg);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_mdstore_init(&ctx->rmc_mdstore, &ctx->rmc_cob_id, seg, 0);

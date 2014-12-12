@@ -171,7 +171,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 		   &reqh->rh_sm_grp);
 
 	if (reqh->rh_beseg != NULL) {
-		rc = m0_reqh_dbenv_init(reqh, reqh->rh_beseg);
+		rc = m0_reqh_be_init(reqh, reqh->rh_beseg);
 		if (rc != 0)
 			__reqh_fini(reqh);
 	}
@@ -189,7 +189,7 @@ monitors_init_failed:
 }
 
 M0_INTERNAL int
-m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
+m0_reqh_be_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
 {
 	int rc = 0;
 
@@ -197,13 +197,11 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
 
 	M0_ENTRY();
 
-	if (reqh->rh_dbenv != NULL) {
-		rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
-		if (rc == 0) {
-			rc = m0_layout_standard_types_register(&reqh->rh_ldom);
-			if (rc != 0)
-				m0_layout_domain_fini(&reqh->rh_ldom);
-		}
+	rc = m0_layout_domain_init(&reqh->rh_ldom);
+	if (rc == 0) {
+		rc = m0_layout_standard_types_register(&reqh->rh_ldom);
+		if (rc != 0)
+			m0_layout_domain_fini(&reqh->rh_ldom);
 	}
 
 	reqh->rh_beseg = seg;
@@ -212,14 +210,11 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
 	return M0_RC(rc);
 }
 
-M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh)
+M0_INTERNAL void m0_reqh_be_fini(struct m0_reqh *reqh)
 {
 	if (reqh->rh_beseg != NULL) {
-		if (reqh->rh_dbenv != NULL) {
-			m0_layout_standard_types_unregister(&reqh->rh_ldom);
-			m0_layout_domain_fini(&reqh->rh_ldom);
-			reqh->rh_dbenv = NULL;
-		}
+		m0_layout_standard_types_unregister(&reqh->rh_ldom);
+		m0_layout_domain_fini(&reqh->rh_ldom);
 		reqh->rh_beseg = NULL;
 	}
 	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
@@ -245,7 +240,7 @@ static void __reqh_fini(struct m0_reqh *reqh)
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 {
-	m0_reqh_dbenv_fini(reqh);
+	m0_reqh_be_fini(reqh);
 	__reqh_fini(reqh);
 }
 

@@ -25,7 +25,7 @@
 
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
-#include "db/db.h"
+#include "be/be.h" /* struct m0_be_tx */
 
 /**
    @defgroup pool Storage pools.

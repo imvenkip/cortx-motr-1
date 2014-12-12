@@ -35,7 +35,6 @@
 #include "lib/finject.h"       /* M0_FI_ENABLED */
 #include "addb/addb.h"
 #include "mero/magic.h"
-#include "db/db.h"
 #include "cob/cob.h"
 #include "net/net.h"
 #include "net/buffer_pool.h"   /* m0_net_buffer_pool_[lock|unlock] */

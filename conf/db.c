@@ -27,7 +27,6 @@
 #include "conf/onwire_xc.h"
 #include "conf/obj.h"
 #include "xcode/xcode.h"
-#include "db/db.h"
 #include "be/btree.h"
 #include "be/tx.h"
 #include "be/op.h"

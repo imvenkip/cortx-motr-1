@@ -1172,11 +1172,10 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 		goto reqh_fini;
 	}
 	rctx->rc_beseg = rctx->rc_db.d_i.d_seg;
-	rctx->rc_reqh.rh_dbenv = &rctx->rc_db;
 
-	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_beseg);
+	rc = m0_reqh_be_init(&rctx->rc_reqh, rctx->rc_beseg);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "m0_reqh_dbenv_init: rc=%d", rc);
+		M0_LOG(M0_ERROR, "m0_reqh_be_init: rc=%d", rc);
 		goto dbenv_fini;
 	}
 
@@ -1185,7 +1184,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 		if (rc != 0) {
 			M0_LOG(M0_ERROR,
 			       "Failed to load device configuration file");
-			goto reqh_dbenv_fini;
+			goto reqh_be_fini;
 		}
 	}
 
@@ -1196,7 +1195,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "cs_storage_init: rc=%d", rc);
 		/* XXX who should call yaml_document_delete()? */
-		goto reqh_dbenv_fini;
+		goto reqh_be_fini;
 	}
 
 	rc = cs_addb_storage_init(rctx, mkfs, force);
@@ -1249,8 +1248,8 @@ cleanup_addb_stob:
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
-reqh_dbenv_fini:
-	m0_reqh_dbenv_fini(&rctx->rc_reqh);
+reqh_be_fini:
+	m0_reqh_be_fini(&rctx->rc_reqh);
 dbenv_fini:
 	m0_dbenv_fini(&rctx->rc_db);
 reqh_fini:
@@ -1289,7 +1288,7 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 		m0_reqh_pre_storage_fini_svcs_stop(reqh);
 
 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
-	m0_reqh_dbenv_fini(reqh);
+	m0_reqh_be_fini(reqh);
 	m0_mdstore_fini(&rctx->rc_mdstore);
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
 	cs_storage_fini(&rctx->rc_stob);

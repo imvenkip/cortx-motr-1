@@ -127,10 +127,7 @@ static void layout_build(struct m0t1fs_conf *conf)
 	struct m0_pdclust_attr        pl_attr;
 	uint64_t                      lid;
 
-	result = m0_dbenv_init(&conf->ct_dbenv, "m0t1fs_sim-db", 0, true);
-	M0_ASSERT(result == 0);
-
-	result = m0_layout_domain_init(&conf->ct_l_dom, &conf->ct_dbenv);
+	result = m0_layout_domain_init(&conf->ct_l_dom);
 	M0_ASSERT(result == 0);
 
 	result = m0_layout_standard_types_register(&conf->ct_l_dom);
@@ -164,7 +161,6 @@ static void m0t1fs_layout_fini(struct m0t1fs_conf *conf)
 
 	m0_layout_standard_types_unregister(&conf->ct_l_dom);
 	m0_layout_domain_fini(&conf->ct_l_dom);
-	m0_dbenv_fini(&conf->ct_dbenv);
 }
 
 M0_INTERNAL void m0t1fs_init(struct sim *s, struct m0t1fs_conf *conf)

@@ -837,6 +837,10 @@ enum m0_magic_satchel {
 	M0_PARAM_SOURCE_MAGIC = 0x33b002edb1111e77,
 	/* m0_param_sources_tl::td_head_magic (ascidiozooid) */
 	M0_PARAM_SOURCES_MAGIC = 0x33a5c1d102001d77,
+
+/* MD */
+	/* rdms_layout:l_magic (coffeeless ad)*/
+	M0_LAYOUT_MD_MAGIC     = 0x33c0ffee1e55ad77,
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */

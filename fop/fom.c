@@ -29,7 +29,6 @@
 #include "lib/arith.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
 #include "lib/trace.h"
-#include "db/db_common.h"
 #include "addb/addb.h"
 #include "mero/magic.h"
 #include "fop/fop.h"

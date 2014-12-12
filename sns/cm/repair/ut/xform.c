@@ -82,10 +82,10 @@ static struct m0_sns_cm_cp                    n_cp[MULTI_FAIL_MULTI_CP_NR];
 static struct m0_net_buffer                   n_buf[MULTI_FAIL_MULTI_CP_NR][BUF_NR];
 static struct m0_net_buffer                   n_acc_buf[MULTI_FAILURES][BUF_NR];
 
-M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
+M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
                             uint64_t cont, struct m0_fid *gfid,
 			    uint32_t cob_idx);
-M0_INTERNAL void cob_delete(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
+M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
 			    uint64_t cont, uint64_t key);
 
 static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
@@ -237,16 +237,13 @@ static void cp_buf_free(struct m0_sns_cm_ag *sag)
 
 static void tgt_fid_cob_create(struct m0_reqh *reqh)
 {
-        struct m0_dbenv *dbenv;
 	struct m0_fid	 stob_fid;
         struct m0_fid	 gfid = cob_fid;
         int		 rc;
 
 	rc = m0_ios_cdom_get(reqh, &cdom);
 	M0_ASSERT(rc == 0);
-	dbenv = reqh->rh_dbenv;
-
-        cob_create(dbenv, cdom, 0, &gfid, 0);
+        cob_create(cdom, 0, &gfid, 0);
 
 	io_fom_cob_rw_fid2stob_map(&cob_fid, &stob_fid);
 	rc = m0_ut_stob_create_by_fid(&stob_fid, NULL);
@@ -554,7 +551,6 @@ static int xform_init(void)
 
 static int xform_fini(void)
 {
-	struct m0_dbenv      *dbenv;
 	struct m0_cob_domain *cdom;
 	struct m0_fid         stob_fid;
 	int                   rc;
@@ -562,10 +558,9 @@ static int xform_fini(void)
 	io_fom_cob_rw_fid2stob_map(&cob_fid, &stob_fid);
 	rc = m0_ut_stob_destroy_by_fid(&stob_fid);
 	M0_UT_ASSERT(rc == 0);
-	dbenv = reqh->rh_dbenv;
 	rc = m0_ios_cdom_get(reqh, &cdom);
 	M0_UT_ASSERT(rc == 0);
-	cob_delete(dbenv, cdom, 0, 4);
+	cob_delete(cdom, 0, 4);
         cs_fini(&sctx);
         return 0;
 }

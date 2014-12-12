@@ -981,8 +981,6 @@ void m0t1fs_net_fini(struct m0t1fs_sb *csb)
 
 int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 {
-	struct m0_dbenv           *dbenv       = &csb->csb_dbenv;
-	char                      *db_name     =  csb->csb_db_name;
 	struct m0_rpc_machine     *rpc_machine = &csb->csb_rpc_machine;
 	struct m0_reqh            *reqh        = &csb->csb_reqh;
 	struct m0_net_domain      *ndom        = &csb->csb_ndom;
@@ -1008,16 +1006,12 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 	if (rc != 0)
 		goto be_fini;
 
-	rc = m0_dbenv_init(dbenv, db_name, 0, false);
-	if (rc != 0)
-		goto pool_fini;
-
 	rc = M0_REQH_INIT(reqh,
 			  .rhia_dtm = (void*)1,
 			  .rhia_db = csb->csb_ut_seg.bus_seg,
 			  .rhia_mdstore = (void*)1);
 	if (rc != 0)
-		goto dbenv_fini;
+		goto pool_fini;
 	rc = m0_rpc_machine_init(rpc_machine, ndom, laddr, reqh,
 				 buffer_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
@@ -1030,8 +1024,6 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 
 reqh_fini:
 	m0_reqh_fini(reqh);
-dbenv_fini:
-	m0_dbenv_fini(dbenv);
 pool_fini:
 	m0_rpc_net_buffer_pool_cleanup(buffer_pool);
 be_fini:
@@ -1147,7 +1139,6 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 	if (m0_reqh_state_get(&csb->csb_reqh) != M0_REQH_ST_STOPPED)
 		m0_reqh_services_terminate(&csb->csb_reqh);
 	m0_reqh_fini(&csb->csb_reqh);
-	m0_dbenv_fini(&csb->csb_dbenv);
 	m0_rpc_net_buffer_pool_cleanup(&csb->csb_buffer_pool);
 	m0_be_ut_seg_fini(&csb->csb_ut_seg);
 	m0_be_ut_backend_fini(&csb->csb_ut_be);
@@ -1161,8 +1152,7 @@ int m0t1fs_layout_init(struct m0t1fs_sb *csb)
 
 	M0_ENTRY();
 
-	rc = m0_layout_domain_init(&csb->csb_layout_dom,
-				   &csb->csb_dbenv);
+	rc = m0_layout_domain_init(&csb->csb_layout_dom);
 	if (rc == 0) {
 		rc = m0_layout_standard_types_register(
 						&csb->csb_layout_dom);

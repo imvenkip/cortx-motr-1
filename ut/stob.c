@@ -29,7 +29,6 @@
 #include "be/tx_credit.h"	/* m0_be_tx_credit */
 #include "be/ut/helper.h"	/* m0_be_ut_backend_sm_group_lookup */
 #include "dtm/dtm.h"		/* m0_dtx */
-#include "db/db.h"		/* m0_dbenv */
 
 #include "stob/domain.h"	/* m0_stob_domain */
 #include "stob/stob.h"		/* m0_stob_find */

@@ -29,7 +29,6 @@
 #include "lib/finject.h"
 #include "lib/uuid.h"
 #include "fop/fop.h"
-#include "db/db.h"
 #include "rpc/rpc_internal.h"
 
 /**

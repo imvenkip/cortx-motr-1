@@ -212,7 +212,7 @@ static m0_bcount_t linear_max_recsize(void)
 static int linear_decode(struct m0_layout_enum *e,
 			 struct m0_bufvec_cursor *cur,
 			 enum m0_layout_xcode_op op,
-			 struct m0_db_tx *tx,
+			 struct m0_be_tx *tx,
 			 struct m0_striped_layout *stl)
 {
 	uint64_t                      lid;
@@ -249,7 +249,7 @@ static int linear_decode(struct m0_layout_enum *e,
 /** Implementation of leo_encode() for linear enumeration type. */
 static int linear_encode(const struct m0_layout_enum *e,
 			 enum m0_layout_xcode_op op,
-			 struct m0_db_tx *tx,
+			 struct m0_be_tx *tx,
 			 struct m0_bufvec_cursor *out)
 {
 	struct m0_layout_linear_enum *lin_enum;
@@ -341,6 +341,8 @@ struct m0_layout_enum_type m0_linear_enum_type = {
 	.let_ref_count = 0,
 	.let_ops       = &linear_type_ops
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end group linear_enum */
 

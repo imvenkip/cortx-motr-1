@@ -31,7 +31,6 @@
 #include "lib/memory.h"
 #include "lib/thread.h"
 #include "lib/getopts.h"
-#include "db/db.h"
 #include "ut/ut.h"
 #include "balloc/balloc.h"
 #include "be/ut/helper.h"

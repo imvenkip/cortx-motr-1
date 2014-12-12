@@ -149,7 +149,8 @@ mero_service()
 			 -w $P -e $XPT:${lnet_nid}:${MDSEP[$i]} \
 			 $SNAME |& tee -a m0d.log"
 			echo $cmd
-			(eval "$cmd")
+			eval "$cmd"
+
 			cmd="cd $DIR && exec \
 			$prog_start -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs -w $P \
@@ -157,12 +158,13 @@ mero_service()
 			 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
 			 -P '$PROF_OPT' -C $CONFD_EP $SNAME |& tee -a m0d.log"
 			echo $cmd
-			(eval "$cmd") &
 
 			# wait till the server start completes
 			local m0d_log=$DIR/m0d.log
 			touch $m0d_log
-			sleep 2
+			(eval "$cmd") &
+
+			sleep 5
 			while status $prog_exec > /dev/null && \
 			      ! grep CTRL $m0d_log > /dev/null; do
 				sleep 2
@@ -184,7 +186,7 @@ mero_service()
 			local ios=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 			rm -rf $DIR
-			mkdir $DIR
+			mkdir -p $DIR
 			(mkiosloopdevs $ios $nr_dev_per_ios $DIR) || return 1
 
 			SNAME="-s ioservice -s sns_repair -s sns_rebalance -s addb"
@@ -196,7 +198,8 @@ mero_service()
 			 -w $P -e $XPT:${lnet_nid}:${IOSEP[$i]} \
 			 $SNAME |& tee -a m0d.log"
 			echo $cmd
-			(eval "$cmd")
+			eval "$cmd"
+
 			cmd="cd $DIR && exec \
 			$prog_start -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs \
@@ -204,12 +207,13 @@ mero_service()
 			 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
 			 -P '$PROF_OPT' -C $CONFD_EP $SNAME |& tee -a m0d.log"
 			echo $cmd
-			(eval "$cmd") &
 
 			# wait till the server start completes
 			local m0d_log=$DIR/m0d.log
 			touch $m0d_log
-			sleep 2
+			(eval "$cmd") &
+
+			sleep 5
 			while status $prog_exec > /dev/null && \
 			      ! grep CTRL $m0d_log > /dev/null; do
 				sleep 2

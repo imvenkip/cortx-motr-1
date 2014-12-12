@@ -37,7 +37,6 @@
 #include "layout/layout.h"
 #include "pool/pool.h"
 #include "lib/processor.h"
-#include "db/db.h"
 #include "sm/sm.h"
 #include "dtm/dtm.h"
 #include "fol/fol.h"
@@ -120,7 +119,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_localities_init,  &m0_localities_fini,  "locality" },
 	{ &m0_timers_init,      &m0_timers_fini,      "timer" },
 	{ &m0_addb_init,        &m0_addb_fini,        "addb" },
-	{ &m0_db_init,          &m0_db_fini,          "db" },
+//	{ &m0_db_init,          &m0_db_fini,          "db" },
 	{ &m0_fols_init,        &m0_fols_fini,        "fol" },
 	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
 	/* fops must be initialised before network, because network build fop

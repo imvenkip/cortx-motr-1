@@ -193,7 +193,7 @@ static int server_init(const char             *stob_path,
 	seg = ut_seg.bus_seg;
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 
-	rc = m0_reqh_dbenv_init(&reqh, seg);
+	rc = m0_reqh_be_init(&reqh, seg);
 	M0_UT_ASSERT(rc == 0);
 
 	/*

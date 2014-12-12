@@ -61,7 +61,6 @@ struct m0t1fs_conf {
 	unsigned                  ct_nr_threads;
 	unsigned                  ct_nr_servers;
 	unsigned                  ct_nr_devices;
-	struct m0_dbenv           ct_dbenv;
 	struct m0_layout_domain   ct_l_dom;
 	struct m0_pdclust_layout *ct_pdclust;
 	struct m0_pool            ct_pool;

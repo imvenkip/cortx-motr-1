@@ -46,6 +46,7 @@
 #include "stob/stob_internal.h"	/* m0_stob__fid_set */
 #include "stob/stob_addb.h"	/* M0_STOB_OOM */
 #include "stob/type.h"		/* m0_stob_type */
+#include "be/domain.h"
 
 enum {
 	STOB_TYPE_AD = 0x02,

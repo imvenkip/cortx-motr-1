@@ -130,12 +130,9 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &confc_ut);
 	m0_ut_add(m, &confstr_ut);
 	m0_ut_add(m, &conn_ut);
-	m0_ut_add(m, &db_cursor_ut);
-	m0_ut_add(m, &db_ut);
 	m0_ut_add(m, &dtm_nucleus_ut);
 	m0_ut_add(m, &dtm_transmit_ut);
 	m0_ut_add(m, &dtm_dtx_ut);
-	m0_ut_add(m, &emap_ut);
 	m0_ut_add(m, &fit_ut);
 	m0_ut_add(m, &fol_ut);
 	m0_ut_add(m, &frm_ut);

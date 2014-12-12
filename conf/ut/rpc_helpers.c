@@ -18,7 +18,6 @@
  * Original creation date: 01-Dec-2012
  */
 
-#include "db/db.h"    /* m0_dbenv */
 #include "reqh/reqh.h"
 #include "rpc/rpc.h"
 

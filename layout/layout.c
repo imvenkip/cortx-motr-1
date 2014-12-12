@@ -94,11 +94,10 @@
 
 #include "mero/magic.h"
 #include "layout/layout_internal.h"
-#include "layout/layout_db.h"
 #include "layout/layout.h"
 
 extern struct m0_layout_type m0_pdclust_layout_type;
-extern struct m0_layout_enum_type m0_list_enum_type;
+//extern struct m0_layout_enum_type m0_list_enum_type;
 extern struct m0_layout_enum_type m0_linear_enum_type;
 
 struct m0_addb_ctx m0_layout_mod_ctx;
@@ -134,9 +133,7 @@ M0_TL_DEFINE(layout, static, struct m0_layout);
 
 M0_INTERNAL bool m0_layout__domain_invariant(const struct m0_layout_domain *dom)
 {
-	return
-		dom != NULL &&
-		dom->ld_dbenv != NULL;
+	return dom != NULL;
 }
 
 static bool layout_invariant_internal(const struct m0_layout *l)
@@ -534,32 +531,6 @@ M0_INTERNAL void m0_layout_enum_fini(struct m0_layout_enum *le)
 	le->le_ops->leo_fini(le);
 }
 
-/**
- * Compare layouts table keys.
- * This is a 3WAY comparison.
- */
-static int l_key_cmp(struct m0_table *table,
-		     const void *key0, const void *key1)
-{
-	const uint64_t *lid0 = key0;
-	const uint64_t *lid1 = key1;
-
-	return M0_3WAY(*lid0, *lid1);
-}
-
-/** table_ops for the layouts table. */
-static const struct m0_table_ops layouts_table_ops = {
-	.to = {
-		[TO_KEY] = {
-			.max_size = sizeof(struct m0_uint128)
-		},
-		[TO_REC] = {
-			.max_size = ~0
-		}
-	},
-	.key_cmp = l_key_cmp
-};
-
 M0_INTERNAL m0_bcount_t m0_layout__enum_max_recsize(struct m0_layout_domain
 						    *dom)
 {
@@ -670,20 +641,16 @@ M0_INTERNAL void m0_layouts_fini(void)
         m0_addb_ctx_fini(&m0_layout_mod_ctx);
 }
 
-M0_INTERNAL int m0_layout_domain_init(struct m0_layout_domain *dom,
-				      struct m0_dbenv *dbenv)
+M0_INTERNAL int m0_layout_domain_init(struct m0_layout_domain *dom)
 {
-	int rc;
+	int rc = 0;
 
 	M0_PRE(dom != NULL);
-	M0_PRE(dbenv != NULL);
 
 	M0_SET0(dom);
 
 	if (M0_FI_ENABLED("table_init_err"))
 		{ rc = L_TABLE_INIT_ERR; goto err1_injected; }
-	rc = m0_table_init(&dom->ld_layouts, dbenv, "layouts",
-			   DEFAULT_DB_FLAG, &layouts_table_ops);
 err1_injected:
 	if (rc != 0) {
 		m0_layout__log("m0_layout_domain_init",
@@ -692,7 +659,6 @@ err1_injected:
 			       LID_NONE, rc);
 		return M0_RC(rc);
 	}
-	dom->ld_dbenv = dbenv;
 	layout_tlist_init(&dom->ld_layout_list);
 	m0_mutex_init(&dom->ld_lock);
 	M0_POST(m0_layout__domain_invariant(dom));
@@ -717,8 +683,6 @@ M0_INTERNAL void m0_layout_domain_fini(struct m0_layout_domain *dom)
 
 	m0_mutex_fini(&dom->ld_lock);
 	layout_tlist_fini(&dom->ld_layout_list);
-	m0_table_fini(&dom->ld_layouts);
-	dom->ld_dbenv = NULL;
 }
 
 M0_INTERNAL int m0_layout_standard_types_register(struct m0_layout_domain *dom)
@@ -731,16 +695,16 @@ M0_INTERNAL int m0_layout_standard_types_register(struct m0_layout_domain *dom)
 	if (rc != 0)
 		return M0_RC(rc);
 
-	rc = m0_layout_enum_type_register(dom, &m0_list_enum_type);
+/*	rc = m0_layout_enum_type_register(dom, &m0_list_enum_type);
 	if (rc != 0) {
 		m0_layout_type_unregister(dom, &m0_pdclust_layout_type);
 		return M0_RC(rc);
-	}
+	}*/
 
 	rc = m0_layout_enum_type_register(dom, &m0_linear_enum_type);
 	if (rc != 0) {
 		m0_layout_type_unregister(dom, &m0_pdclust_layout_type);
-		m0_layout_enum_type_unregister(dom, &m0_list_enum_type);
+//		m0_layout_enum_type_unregister(dom, &m0_list_enum_type);
 		return M0_RC(rc);
 	}
 
@@ -752,7 +716,7 @@ M0_INTERNAL void m0_layout_standard_types_unregister(struct m0_layout_domain
 {
 	M0_PRE(m0_layout__domain_invariant(dom));
 
-	m0_layout_enum_type_unregister(dom, &m0_list_enum_type);
+//	m0_layout_enum_type_unregister(dom, &m0_list_enum_type);
 	m0_layout_enum_type_unregister(dom, &m0_linear_enum_type);
 	m0_layout_type_unregister(dom, &m0_pdclust_layout_type);
 }
@@ -951,7 +915,7 @@ M0_INTERNAL void m0_layout_user_count_dec(struct m0_layout *l)
 M0_INTERNAL int m0_layout_decode(struct m0_layout *l,
 				 struct m0_bufvec_cursor *cur,
 				 enum m0_layout_xcode_op op,
-				 struct m0_db_tx *tx)
+				 struct m0_be_tx *tx)
 {
 	struct m0_layout_rec *rec;
 	int                   rc;
@@ -1005,7 +969,7 @@ err1_injected:
 
 M0_INTERNAL int m0_layout_encode(struct m0_layout *l,
 				 enum m0_layout_xcode_op op,
-				 struct m0_db_tx *tx,
+				 struct m0_be_tx *tx,
 				 struct m0_bufvec_cursor *out)
 {
 	struct m0_layout_rec  rec;

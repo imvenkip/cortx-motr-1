@@ -139,6 +139,7 @@
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fom.h"
+#include "stob/io.h"       /* m0_stob_io */
 
 struct m0_fid;
 struct m0_fop_file_fid;

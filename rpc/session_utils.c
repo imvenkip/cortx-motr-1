@@ -34,7 +34,6 @@
 #include "lib/uuid.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
-#include "db/db.h"
 #include "rpc/rpc_internal.h"
 
 /**
