@@ -166,9 +166,8 @@
    - <a href="https://docs.google.com/a/xyratex.com/document/d/
 14uPeE0mNkRu3oF32Ys_EnpvSZtGWbf8hviPHTBTOXso/edit">
    HLD of ADDB Monitoring</a>
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1lBgPht18RYX7s9XL-FcfUBKZ0zvo6JzqAEsXpTWs_4Q/edit">
-   Mero Stats Service</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1292NFNfJvSG8HRVs
+U3UrXRKcttGmvuJ_xlT9UE2pQek/edit">Mero Stats Service</a>
  */
 
 #include "stats/stats_addb.h"

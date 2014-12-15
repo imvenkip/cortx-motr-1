@@ -30,7 +30,8 @@
    updates to file system state carried out on the node. See HLD for the
    description of requirements, usage patterns and constraints on fol,
    as well as important terminology (update, operation, etc.):
-   https://docs.google.com/a/xyratex.com/document/d/1_5UGU0n7CATMiuG6V9eK3cMshiYFotPVnIy478MMnvM/comment .
+   https://docs.google.com/a/seagate.com/document/d/1Rca4BVw3EatIQ-wQ6XsB-xRBSlV
+mN9wIcbuVKeZ8lD4/comment
 
    A fol is represented by an instance of struct m0_fol. A fol record
    is represented by the m0_fol_rec data type.

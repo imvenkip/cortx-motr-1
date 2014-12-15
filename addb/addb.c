@@ -669,8 +669,8 @@ HLD of the ADDB collection mechanism in Mero M0</a>
    @section ADDB-DLD-impl-plan Implementation Plan
 
    The previous implementation of ADDB has to be completely replaced.
-   See <a href="https://docs.google.com/a/xyratex.com/document/d/
-1ECPWbVq4460vZzAGW8EcNlBl8qiluaDNt3THs6jhU7g/view">M0 ADDB Implementation
+   See <a href="https://docs.google.com/a/seagate.com/document/d/1ozqqT2jofZJHZK
+geWFYRtaUcpml-IL4OsufPOjIQOJc/view">M0 ADDB Implementation
 Plan</a> for details.
 
  */

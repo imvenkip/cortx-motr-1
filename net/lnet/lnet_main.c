@@ -68,9 +68,8 @@
 
    <hr>
    @section LNetDLD-def Definitions
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>
+   Refer to <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV
+779386NtFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
 
    <hr>
    @section LNetDLD-req Requirements
@@ -579,9 +578,9 @@ HLD of Mero LNet Transport</a>
    @subsection LNetDLD-lspec-thread Threading and Concurrency Model
    The transport inherits the concurrency model of the Mero Networking
    Module. All transport operations are protected by some lock or object state,
-   as described in the <a href="https://docs.google.com/a/xyratex.com/document/
-d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">
-RPC Bulk Transfer Task Plan</a>.
+   as described in the <a href="https://docs.google.com/a/seagate.com/document/d
+/1pDOQXWDZ9t9XDcyXsx4T_aGjFvsyjjvN1ygOtfoXcFg/view">RPC Bulk Transfer Task Plan
+</a>.
    The Core API is designed to work with this same locking model.
    The locking order figure is repeated here for convenience:
    @dot
@@ -744,12 +743,10 @@ RPC Bulk Transfer Task Plan</a>.
 
    <hr>
    @section LNetDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">
-RPC Bulk Transfer Task Plan</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV779386N
+tFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1pDOQXWDZ9t9XDcyX
+sx4T_aGjFvsyjjvN1ygOtfoXcFg/view">RPC Bulk Transfer Task Plan</a>
    - @subpage LNetcqueueDLD "LNet Buffer Event Circular Queue DLD" <!--
      ./bev_cqueue.c -->
    - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--

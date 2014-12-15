@@ -63,9 +63,8 @@
 
    <hr>
    @section KLNetCoreDLD-def Definitions
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>
+   Refer to <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV
+779386NtFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
 
    <hr>
    @section KLNetCoreDLD-req Requirements
@@ -775,9 +774,8 @@ HLD of Mero LNet Transport</a>
 
    <hr>
    @section KLNetCoreDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV779386N
+tFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
    - The LNet API.
 
  */

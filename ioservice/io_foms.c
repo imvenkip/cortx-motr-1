@@ -547,12 +547,11 @@
    @section DLD-bulk-server-ref References
    References to other documents are essential.
    - @ref io_foms
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1-nGIrcQL9XYvvFcYRKqjN6SnwGcqx1ZwcgkBIhoAdJk/edit?hl=en_US">
-   FOPFOM Programming Guide</a>
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1LjL0Ky6mCxxAgRSX6DIe7UMdt1CrFsSWG_2twBy5kI8/edit?hl=en_US">
-   High Level Design - FOP State Machine</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1s6E7MHelOpWLm8ug
+uoHGU7PKlKHPenQpLLeFyiHXGfE/edit?hl=en_US">FOPFOM Programming Guide</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1_slgbCq5D6vETGd9
+Mm8pb2tQpfGoT-OFgrcF_7wxKoQ/edit?hl=en_US">High Level Design - FOP State Machine
+</a>
    - <a href="https://docs.google.com/a/xyratex.com/Doc?docid=
 0AQaCw6YRYSVSZGZmMzV6NzJfMTljbTZ3anhjbg&hl=en_US">
    High level design of rpc layer core</a>

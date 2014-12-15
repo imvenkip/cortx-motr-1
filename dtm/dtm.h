@@ -66,7 +66,8 @@
  *
  * @section hld High level design
  *
- * <a href="https://docs.google.com/a/xyratex.com/document/d/1RacseZooNnfbKiaD-s5rmTpLlpw_QlPomAX9iH4PlfI">HLD</a>
+ * <a href="https://docs.google.com/a/seagate.com/document/d/1D-99MmScYss3lgXbZv
+ NLk2gMv66JeK4oZMZWtSF3Rsw">HLD</a>
  *
  * @section Abstractions
  *

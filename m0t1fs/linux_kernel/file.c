@@ -299,9 +299,8 @@
    <hr>
    @section iosnsrepair-ref References
 
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1vgs3jeskGKApvE016XxwXAxGyUoNxbKudTTNRSoL-Vg/edit">
-HLD of SNS repair</a>,
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1r8jqkrLweRvEbbmP
+XypoY8mKuEQJU9qS2xFbSbKHAGg/edit">HLD of SNS repair</a>,
    - @ref rmw_io_dld m0t1fs client read-modify-write DLD
    - @ref layout Layout
    - @ref pool Pool and @ref poolmach Pool Machine.

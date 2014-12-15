@@ -61,7 +61,8 @@
    these informations. How to maintain the relations in-between these data
    strucctures is done by its upper layer.
 
-   @see HLD of configuration schema <a>https://docs.google.com/a/xyratex.com/document/d/1JmsVBV8B4R-FrrYyJC_kX2ibzC1F-yTHEdrm3-FLQYk/edit?hl=en_US</a>
+   @see HLD of configuration schema <a>https://docs.google.com/a/seagate.com/doc
+ument/d/1pwDAxlghAlBGZ2zdmDeGPYoxblIDuKGmHystGwFHD-A/edit?hl=en_US</a>
    @{
 */
 

@@ -143,8 +143,8 @@
    only when they require data consistency.
 
    @section ADDB-MON-INFRA-ref
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-14uPeE0mNkRu3oF32Ys_EnpvSZtGWbf8hviPHTBTOXso/edit">
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1mW-NVzGK7gaekp1E
+Fu2CYN4iNTVCNgibetwegkR_VXg/edit">
    HLD of ADDB Monitoring</a>
 
 */

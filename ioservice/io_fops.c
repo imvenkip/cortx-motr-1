@@ -403,9 +403,12 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    <hr>
    @section IOFOLDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1aNYxF5UcGiRnT2Inrf2RP5xBK5frP9ZtIK21LE1sMxI/edit"> HLD of version numbers </a>
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1_5UGU0n7CATMiuG6V9eK3cMshiYFotPVnIy478MMnvM/edit"> HLD of FOL</a>,
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1_N-YJZ4XcUkkhDG843lxS2TNF2YlmOjfZQelbD017jU/edit">HLD of data block allocator</a>.
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1tHxI-UksRRSB-gkM
+nLi2FJhUeLPWCnnPuucqAI9cZzw/edit"> HLD of version numbers </a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1Rca4BVw3EatIQ-wQ
+6XsB-xRBSlVmN9wIcbuVKeZ8lD4/edit"> HLD of FOL</a>,
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1b1HmJJCrn4IzY8QT
+E6IwXtA7gywIl_sjYxd8laakiAw/edit">HLD of data block allocator</a>.
    - @ref fol
    - @ref stobad
 
@@ -671,9 +674,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    <hr>
    @section bulkclient-ref References
 
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en_US">
-RPC Bulk Transfer Task Plan</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1pDOQXWDZ9t9XDcyX
+sx4T_aGjFvsyjjvN1ygOtfoXcFg/edit?hl=en_US">RPC Bulk Transfer Task Plan</a>
    - <a href="https://docs.google.com/a/xyratex.com/
 Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">
 Detailed level design HOWTO</a>,

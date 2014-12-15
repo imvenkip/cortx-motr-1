@@ -297,16 +297,16 @@
  * <hr> <!------------------------------------------------------------>
  * @section conf-ref References
  *
- * - <a href="https://docs.google.com/a/xyratex.com/document/d/
- *1t8osSyFOsdTGYGbnMC3ynB1niVqtm6bCJSzJwh1IUw8/view">
+ * - <a href="https://docs.google.com/a/seagate.com/document/d/12tbG9CeExDcCAs5H
+ 4rRgDeRRqAD0KGCp-W7ZWWXyzek/view">
  *   HLD of configuration caching</a>
  *
- * - <a href="https://docs.google.com/a/xyratex.com/document/d/
- *1JmsVBV8B4R-FrrYyJC_kX2ibzC1F-yTHEdrm3-FLQYk/view">
+ * - <a href="https://docs.google.com/a/seagate.com/document/d/1pwDAxlghAlBGZ2zd
+ mDeGPYoxblIDuKGmHystGwFHD-A/view">
  *   HLD of configuration.schema</a>
  *
- * - <a href="https://docs.google.com/a/xyratex.com/document/d/
- *1hnWm6x3UhWIB_9qiR69ScGF57Vcy0D38BBTdpFhe4Bo/view">
+ * - <a href="https://docs.google.com/a/seagate.com/document/d/1GkQJC82z7DqHBQR4
+ Aeq-EfvEBjS9alZaR9-XU2QujEE/view">
  *   Configuration one-pager</a>
  *
  * (@b Hint: To open a document in read/write mode replace 'view' with

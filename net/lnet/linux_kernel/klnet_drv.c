@@ -65,9 +65,9 @@
    <hr>
    @section LNetDRVDLD-def Definitions
 
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD
-of Mero LNet Transport</a>.
+   Refer to <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV
+779386NtFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
+.
 
    - @b reference A reference to an object is stored in terms of a memory
      page and offset, rather than as a simple address pointer.
@@ -232,9 +232,8 @@ of Mero LNet Transport</a>.
    module.  It uses a subset of the kernel space transport core interface
    to implement this interaction.
 
-   @see <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD
-of Mero LNet Transport</a>,
+   @see <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV7793
+86NtFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>,
    specifically the Design Highlights component diagram.
 
    For reference, the relationship between the various components of the LNet
@@ -820,9 +819,8 @@ Third Edition By Jonathan Corbet, Alessandro Rubini,
 Greg Kroah-Hartman, 2005</a>
    - <a href="http://lwn.net/Articles/119652/">The new way of ioctl(),
 Jonathan Corbet, 2005</a>
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD
-of Mero LNet Transport</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV779386N
+tFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
    - @ref LNetDLD "LNet Transport DLD"
    - @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
    - @ref KLNetCoreDLD "LNet Transport Kernel Space Core DLD"

@@ -63,9 +63,9 @@
    <hr>
    @section ULNetCoreDLD-def Definitions
 
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>.
+   Refer to <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV
+779386NtFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
+.
 
    <hr>
    @section ULNetCoreDLD-req Requirements
@@ -134,9 +134,8 @@ HLD of Mero LNet Transport</a>.
    The Core layer in user space has no sub-components but interfaces with
    the kernel core layer via the device driver layer.
 
-   @see <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>,
+   @see <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV7793
+86NtFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>,
    specifically the Design Highlights component diagram.
    @see @ref KLNetCoreDLD-lspec-userspace
    "Kernel Support for User Space Transports".
@@ -462,8 +461,8 @@ HLD of Mero LNet Transport</a>,
    minimize context switching.  This is accomplished by use of shared memory and
    a circular buffer event queue maintained in shared memory.  For more
    information, refer to the
-   <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD</a>.
+   <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV779386NtF
+SlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD</a>.
 
    In general, the User Core layer simply routes parameters to and from
    the Kernel Core via the LNet driver.  The complexity of this routing
@@ -476,9 +475,8 @@ HLD of Mero LNet Transport</a>,
 
    <hr>
    @section ULNetCoreDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV779386N
+tFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
    - @ref KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--
      ./linux_kernel/klnet_core.c -->
    - @ref LNetDRVDLD "LNet Transport Device DLD" <!--

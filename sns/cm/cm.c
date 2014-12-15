@@ -347,8 +347,8 @@
   @section SNSCMDLD-ref References
    Following are the references to the documents from which the design is
    derived,
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1FX-TTaM5VttwoG4w
-   d0Q4-AbyVUi3XL_Oc6cnC4lxLB0/edit">Copy Machine redesign.</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1IPlMzMZZ7686iCpv
+t1LyMzglfd9KAkKKhSAlu2Q7N_I/edit">Copy Machine redesign.</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1ZlkjayQoXVm-prMx
    Tkzxb1XncB6HU19I19kwrV-8eQc/edit?hl=en_US">HLD of copy machine and agents.</a
    >

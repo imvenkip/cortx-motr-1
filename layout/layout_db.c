@@ -52,8 +52,8 @@
  * <HR>
  * @section Layout-DB-def Definitions
  *   - COB: COB is component object and is defined at
- *   <a href="https://docs.google.com/a/xyratex.com/spreadsheet/ccc?
- *    key=0Ajg1HFjUZcaZdEpJd0tmM3MzVy1lMG41WWxjb0t4QkE&hl=en_US#gid=0">
+ *   <a href="https://docs.google.com/a/seagate.com/spreadsheet/ccc?key=0AiZ-h3k
+ uhu54dEtBOUFCUkxiNmJaWkRTQWwyWUltRnc&hl=en_US#gid=0">
  *    M0 Glossary</a>
  *
  * <HR>
@@ -332,12 +332,12 @@
  *
  * <HR>
  * @section Layout-DB-ref References
- * - <a href="https://docs.google.com/a/xyratex.com/document/d/
- *    15-G-tUZfSuK6lpOuQ_Hpbw1jJ55MypVhzGN2r1yAZ4Y/edit?hl=en_US">
+ * - <a href="https://docs.google.com/a/seagate.com/document/d/1KL6mEA0LH8JSBXR8
+ KErtOe5jvtFcN-WcS7MdEPmHEOM/edit?hl=en_US">
  *    HLD of Layout Schema</a>
- * - <a href="https://docs.google.com/a/xyratex.com/document/d/
- *    12olF9CWN35HCkz-ZcEH_c0qoS8fzTxuoTqCCDN9EQR0/edit?hl=en_US#
- *    heading=h.gz7460ketfn1">Understanding LayoutSchema</a>
+ * - <a href="https://docs.google.com/a/seagate.com/document/d/1YnXNBFyfH7-QXy5O
+ 1o4ddgwhhMbL6B0q15t0yl4N9-w/edit?hl=en_US#heading=h.gz7460ketfn1">Understanding
+  LayoutSchema</a>
  *
  */
 

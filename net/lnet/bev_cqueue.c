@@ -59,9 +59,8 @@
    <hr>
    @section cqueueDLD-def Definitions
 
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>
+   Refer to <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV
+779386NtFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
 
    <hr>
    @section cqueueDLD-req Requirements
@@ -469,9 +468,8 @@ HLD of Mero LNet Transport</a>
    <hr>
    @section cqueueDLD-ref References
 
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV779386N
+tFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
    - <a href="http://drdobbs.com/high-performance-computing/210604448">
 Writing Lock-Free Code: A Corrected Queue, Herb Sutter, in Dr Dobbs Journal,
 2008</a>

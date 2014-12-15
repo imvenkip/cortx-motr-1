@@ -45,17 +45,16 @@
 
    <hr>
    @section NetRQProvDLD-def Definitions
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>,
+   Refer to <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV
+779386NtFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
+,
    @ref and @ref net_buffer_pool.
 
    <hr>
    @section NetRQProvDLD-req Requirements
    - @b r.m0.net.xprt.support-for-auto-provisioned-receive-queue
-     from <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>.
+     from <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV77
+9386NtFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>.
 
    <hr>
    @section NetRQProvDLD-depends Dependencies
@@ -397,12 +396,10 @@ m0_net_domain_buffer_pool_not_empty(pool) {
 
    <hr>
    @section NetRQProvDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/
-1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">
-RPC Bulk Transfer Task Plan</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV779386N
+tFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1pDOQXWDZ9t9XDcyX
+sx4T_aGjFvsyjjvN1ygOtfoXcFg/view">RPC Bulk Transfer Task Plan</a>
    - @ref net_buffer_pool
 
  */

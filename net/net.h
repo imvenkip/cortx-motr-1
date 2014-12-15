@@ -59,16 +59,14 @@
    @li Network transfer machine event (m0_net_tm_event);
    @li Network transport (m0_net_xprt);
 
-   See <a href="https://docs.google.com/a/xyratex.com/document/d/
-1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">
-RPC Bulk Transfer Task Plan</a>
+   See <a href="https://docs.google.com/a/seagate.com/document/d/1pDOQXWDZ9t9XDc
+yXsx4T_aGjFvsyjjvN1ygOtfoXcFg/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
    for details on the design and use of this API.  If you are writing a
    transport, then the document is the reference for the internal threading and
    serialization model.
 
-   See <a href="https://docs.google.com/a/xyratex.com/document/d/
-1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
-HLD of Mero LNet Transport</a>
+   See <a href="https://docs.google.com/a/seagate.com/document/d/1oGQQpJsYV77938
+6NtFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
    for additional details on the design and use of this API.
 
    @{

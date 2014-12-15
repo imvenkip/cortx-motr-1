@@ -50,7 +50,8 @@ struct m0_file;
  * Using do_sum(), checksum values are computed for each block of data and
  * using do_chk() checksum values are verified.
  *
- *  * @see https://docs.google.com/a/xyratex.com/document/d/1DpfbZVjHxC2ZYID6uiJLKT4KAZGHm58gDDo-oKt3IZk/
+ *  * @see https://docs.google.com/a/seagate.com/document/d/1reU_KtCmWRqHdX3nDkP
+ pa9zQw5IvxZB1qT0ZKBnk8Uw/
  * @{
  * */
 struct m0_di_type {

@@ -36,8 +36,7 @@ file.c -->
 Detailed designs should use the <i>@subpage DLD "Mero DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.
 Higher level designs can be found in the
-<a href="https://docs.google.com/a/xyratex.com/#folders/
-0B-6nd3Xo8hzBZGJlNjE2NTctZDA1OC00NTIyLWJhOGItM2U5MTc2MjJjODNm">
-Google Drive Mero Design Folder</a>.
+<a href="https://docs.google.com/a/seagate.com/#folders/0B1NIfXTSfVE0WmphQzJNcWk
+tcUU">Google Drive Mero Design Folder</a>.
 
  */

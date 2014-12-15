@@ -91,7 +91,8 @@ typedef __be16 in_port_t;
 
    See @ref LNetDFS for an example of a derived transport.
 
-   See <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
+   See <a href="https://docs.google.com/a/seagate.com/document/d/1pDOQXWDZ9t9XDc
+yXsx4T_aGjFvsyjjvN1ygOtfoXcFg/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
    for details on the implementation.
 
    @{

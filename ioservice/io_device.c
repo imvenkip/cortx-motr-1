@@ -215,7 +215,8 @@
 
    <hr>
    @section io_calls_params_dld-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1Yz25F3GjgQVXzvM1sdlGQvVDSUu-v7FhdUvFhiY_vwM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1Wvw8CTXOpH9ztFCD
+ysXAXAgJ5lQoMcOkbBNBW9Nz9OM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
    - @ref cm
    - @ref agents
    - @ref poolmach

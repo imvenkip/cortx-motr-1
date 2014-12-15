@@ -688,9 +688,8 @@ finished.up();\l", shape=box];
    @section net-test-ref References
 
    @anchor net-test-hld
-   - <a href="https://docs.google.com/a/xyratex.com/document/
-view?id=1_dAYA4_5rLEr9Z4PSkH1OTDTMlGBmAcIEEJRvwCRDV4">
-Mero Network Benchmark HLD</a>
+   - <a href="https://docs.google.com/a/seagate.com/document/view?id=11Evkryj4CR
+nHfH1kkQ0uVTU6yKfWryF0lOg5wUN0Xuw">Mero Network Benchmark HLD</a>
    - <a href="http://wiki.lustre.org/manual/LustreManual20_HTML/
 LNETSelfTest.html">LNET Self-Test manual</a>
    - <a href="http://reviewboard.clusterstor.com/r/773">DLD review request</a>

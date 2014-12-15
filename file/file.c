@@ -118,8 +118,8 @@
    <hr>
    @section FileLockDLD-ref References
 
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1YTj9aib8DMrFr7OJo_ZjVuLhHAEqSGRxO2oUpe1SSsQ/edit">
-      HLD of resource manager Interfaces</a>,
+   - <a href="https://docs.google.com/a/seagate.com/document/d/1WYw8MmItpp0KuBbY
+fuQQxJaw9UN8OuHKnlICszB8-Zs/edit">HLD of resource manager Interfaces</a>,
 
    <hr>
    @section FileLockDLD-impl-plan Implementation Plan

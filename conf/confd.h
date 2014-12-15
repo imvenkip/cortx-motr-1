@@ -97,7 +97,8 @@
  * The following errors may occur while using the configuration db:
  * - db is empty or is in an unrecognized format;
  * - db schema does not conform to
- *   <a href="https://docs.google.com/a/xyratex.com/document/d/1JmsVBV8B4R-FrrYyJC_kX2ibzC1F-yTHEdrm3-FLQYk/view">
+ *   <a href="https://docs.google.com/a/seagate.com/document/d/1pwDAxlghAlBGZ2zd
+ mDeGPYoxblIDuKGmHystGwFHD-A/view">
  *   HLD of Mero’s configuration database schema</a>;
  * - key is not found.
  *
