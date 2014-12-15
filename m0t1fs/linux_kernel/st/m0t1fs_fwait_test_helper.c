@@ -15,7 +15,7 @@
 #define FAIL "fail"
 
 /**
- * Creates a file in mero, writes some data and tries to fwait on it.
+ * Creates an object in mero, writes some data and tries to fwait on it.
  */
 int test_fwait_write(int fd)
 {
@@ -58,7 +58,7 @@ int main(int argc, char **argv)
 {
 	int     rv;
 	int     fd;
-	char    file_name[PATH_MAX];
+	char    object_name[PATH_MAX];
 
 	/* check we were told the mount point */
 	if (argc != 2){
@@ -66,31 +66,44 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	/* Build a path for our to-create file */
-	rv = snprintf(file_name, sizeof(file_name), "%s/fwait.XXXXXX", argv[1]);
-	if (rv >= sizeof(file_name)) {
+	/* Build a path for our to-create object */
+	rv = snprintf(object_name, sizeof(object_name), "%s/0:11234151",
+		      argv[1]);
+	if (rv >= sizeof(object_name)) {
 		fprintf(stderr, "Path overflow\n");
 		exit(1);
 	}
 
-	/* Make the path a pseudo-random filename and open it */
-	fd = mkstemp(file_name);
+	/* Creat the object*/
+	fd = creat(object_name, 0600);
 	if (fd >= 0) {
+		do {
+			/* Run the tests */
+			rv = test_fwait_write(fd);
+			fprintf(stderr, "test_fwait_write: %s\n",
+				rv ? PASS:FAIL);
+			if (!rv)
+				break;
 
-		/* Run the tests */
-		fprintf(stderr, "test_fwait_write: %s\n",
-			test_fwait_write(fd) ? PASS:FAIL);
+			rv = test_wrong_cmd(fd);
+			fprintf(stderr, "test_wrong_cmd: %s\n",
+				rv ? PASS:FAIL);
+			if (!rv)
+				break;
 
-		fprintf(stderr, "test_wrong_cmd: %s\n",
-			test_wrong_cmd(fd) ? PASS:FAIL);
-
-		fprintf(stderr, "test_wrong_fd: %s\n",
-			test_wrong_fd() ? PASS:FAIL);
+			rv = test_wrong_fd();
+			fprintf(stderr, "test_wrong_fd: %s\n",
+				rv ? PASS:FAIL);
+			/* fall through */
+		} while(0);
 	} else {
 		fprintf(stderr, "Failed to creat %s: %s\n",
-				file_name, strerror(errno));
+				object_name, strerror(errno));
 		exit(1);
 	}
 
-	return rv;
+	if (rv)
+		return 0;
+	else
+		exit(1);
 }

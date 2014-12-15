@@ -582,6 +582,15 @@ bin_SCRIPTS   += ut/m0kut
 # m0t1fs/linux_kernel/st
 #
 
+# m0t1fs/linux_kernel/st/m0t1fs_f{sync,wait}_test_helper
+noinst_PROGRAMS += m0t1fs/linux_kernel/st/m0t1fs_fwait_test_helper
+noinst_PROGRAMS += m0t1fs/linux_kernel/st/m0t1fs_fsync_test_helper
+m0t1fs_linux_kernel_st_m0t1fs_fsync_test_helper_CPPFLAGS  = \
+			-DM0_TARGET='m0t1fs_fsync_test_helper' $(AM_CPPFLAGS)
+
+m0t1fs_linux_kernel_st_m0t1fs_fwait_test_helper_CPPFLAGS  = \
+			-DM0_TARGET='m0t1fs_fwait_test_helper' $(AM_CPPFLAGS)
+
 include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
 
 

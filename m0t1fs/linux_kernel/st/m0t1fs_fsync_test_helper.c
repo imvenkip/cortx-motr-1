@@ -16,7 +16,7 @@ int main(int argc, char **argv)
 	int rv = 0;
 	int fd = 0;
 	char *str = "Hello World\n";
-	char file_name[PATH_MAX];
+	char object_path[PATH_MAX];
 
 	/* Check we were told the mount point. */
 	if (argc != 2) {
@@ -24,15 +24,14 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	/* Build a path for our to-create file. */
-	rv = snprintf(file_name, sizeof(file_name), "%s/fsync.XXXXXX", argv[1]);
-	if (rv >= sizeof(file_name)) {
+	/* Build a path for our to-create object. */
+	rv = snprintf(object_path, sizeof(object_path), "%s/0:91837432", argv[1]);
+	if (rv >= sizeof(object_path)) {
 		fprintf(stderr, "Path overflow\n");
 		exit(1);
 	}
 
-	/* The path a pseudo-random filename, open it. */
-	fd = mkstemp(file_name);
+	fd = creat(object_path, 0600);
 	if (fd >= 0) {
 		/* Write some data. */
 		rv = write(fd, str, strlen(str));
@@ -44,7 +43,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "fsync returned: %d\n", rv);
 	} else {
 		fprintf(stderr, "Failed to creat %s: %s\n",
-				file_name, strerror(errno));
+				object_path, strerror(errno));
 		exit(1);
 	}
 

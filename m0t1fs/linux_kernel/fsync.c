@@ -59,7 +59,7 @@ struct m0t1fs_fsync_interactions fi = {
 	/* fini is for requests, allocated in a bigger structure */
 	.fop_fini       = &m0_fop_fini,
 	/* put is for replies, allocated by a lower layer */
-	.fop_put        = &m0_fop_put,
+	.fop_put        = &m0_fop_put_lock,
 };
 
 

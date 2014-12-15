@@ -13,14 +13,6 @@
 
 fwait_test()
 {
-	local rc=0
-
-	gcc `dirname $0`/m0t1fs_fwait_test_helper.c -o `dirname $0`/m0t1fs_fwait_test_helper
-	if [ $? -ne "0" ]
-	then
-		return $?
-	fi
-
 	`dirname $0`/m0t1fs_fwait_test_helper $MERO_M0T1FS_MOUNT_DIR
 	return $?
 }
@@ -40,7 +32,7 @@ main()
 	echo "mero service started"
 
 	mkdir -p $MERO_M0T1FS_MOUNT_DIR
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 1024 $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || return 1
 
 	fwait_test || {
 		echo "Failed: Fwait test failed.."
