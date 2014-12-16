@@ -18,6 +18,7 @@
  * Original creation date: 08/05/2010
  */
 
+#include <linux/version.h>   /* LINUX_VERSION_CODE */
 #include <linux/module.h>
 #include <asm/current.h>
 
@@ -65,9 +66,14 @@ M0_INTERNAL bool m0_mutex_is_locked(const struct m0_mutex *mutex)
 {
 	/* linux kernel mutex, 1:unlocked, 0:locked, -ve: locked with waiters */
 #if defined(CONFIG_DEBUG_MUTEXES) || defined(CONFIG_SMP)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	struct mutex *m = (struct mutex*)(&mutex->m_mutex);
+	return mutex_is_locked(m) && m->owner == current;
+#else
 	struct thread_info *owner = mutex->m_mutex.owner;
 	return atomic_read(&mutex->m_mutex.count) < 1 &&
 		owner != NULL && owner->task == current;
+#endif
 #else
 	return true;
 #endif

@@ -1765,7 +1765,6 @@ if (0)
 	int			 rc;
 	struct m0_fop		*bfop;
 	struct m0_rpc_item	*item;
-	struct m0_rpc_item	*item_next;
 
 	M0_PRE(head != NULL);
 	M0_PRE(list != NULL);
@@ -1802,7 +1801,6 @@ if (0)
 		 * Item at head is the backup item which is not present
 		 * in sessions unbound list.
 		 */
-		item_next = rpcitem_tlist_head(&head->ri_compound_items);
 		rpcitem_tlist_del(head);
 	}
 }

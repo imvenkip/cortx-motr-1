@@ -58,13 +58,11 @@ m0_sns_cm_ut_file_size_layout(struct m0_sns_cm_file_ctx *fctx)
 	struct m0_pdclust_attr               plattr;
 	struct m0_pdclust_layout            *pl;
 	struct m0_layout_linear_enum        *le;
-	struct m0_dbenv                     *dbenv;
 	struct m0_reqh                      *reqh;
 	uint64_t                             lid;
 	int                                  rc = 0;
 
 	reqh = scm->sc_base.cm_service.rs_reqh;
-	dbenv = reqh->rh_dbenv;
 	fctx->sf_layout = m0_layout_find(&reqh->rh_ldom, SNS_DEFAULT_LAYOUT_ID);
 	if (fctx->sf_layout != NULL)
 		goto out;

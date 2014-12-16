@@ -615,7 +615,6 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 	struct m0_be_op          *op;
 	struct m0_be_emap_seg    *seg = NULL;
 	struct m0_be_engine      *eng;
-	struct m0_be_tx_credit    tx_max_credit;
 	struct m0_be_tx_credit    cred;
 	struct m0_stob_ad        *astob = stob_ad_stob2ad(stob);
 	struct m0_be_tx           dummy_tx;
@@ -636,7 +635,6 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 		return M0_RC(rc);
 	op = m0_be_emap_op(&it);
 	eng = m0_be_domain_engine(m0_be_emap_seg_domain(it.ec_map));
-	tx_max_credit = m0_be_engine_tx_size_max(eng);
 	/*
 	 * XXX: FIX ME post alpha.
 	 * This is temporary solution for alpha release in-order to

@@ -18,6 +18,8 @@
  * Original creation date: 02/24/2011
  */
 
+#include <linux/version.h>    /* LINUX_VERSION_CODE */
+
 #include "lib/thread.h"
 #include "lib/arith.h"        /* min64u */
 #include "lib/bitmap.h"       /* m0_bitmap_get */
@@ -191,7 +193,11 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 		*/
 
 		cpumask_copy(&p->cpus_allowed, cpuset);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		p->nr_cpus_allowed = nr_allowed;
+#else
 		p->rt.nr_cpus_allowed = nr_allowed;
+#endif
 
 		/* cause current task to migrate immediately by blocking */
 		if (p == current && !cpumask_test_cpu(task_cpu(p), cpuset))
@@ -214,12 +220,12 @@ M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
 
 M0_INTERNAL void m0_enter_awkward(void)
 {
-	__irq_enter();
+	add_preempt_count(HARDIRQ_OFFSET);
 }
 
 M0_INTERNAL void m0_exit_awkward(void)
 {
-	__irq_exit();
+	sub_preempt_count(HARDIRQ_OFFSET);
 }
 
 M0_INTERNAL bool m0_is_awkward(void)

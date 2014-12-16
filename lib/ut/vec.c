@@ -142,7 +142,6 @@ static void test_ivec_cursor(void)
 {
 	int		      nr;
 	m0_bindex_t	      segs[3];
-	m0_bindex_t	      index;
 	m0_bcount_t	      counts[3];
 	m0_bcount_t	      c;
 	struct m0_indexvec    ivec;
@@ -181,7 +180,6 @@ static void test_ivec_cursor(void)
 	c = 0;
 	nr = 0;
 	while (!m0_ivec_cursor_move(&cur, c)) {
-		index = m0_ivec_cursor_index(&cur);
 		c = m0_ivec_cursor_step(&cur);
 		++nr;
 	}

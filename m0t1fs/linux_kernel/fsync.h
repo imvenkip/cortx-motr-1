@@ -21,6 +21,8 @@
  */
 
 
+#include <linux/version.h>              /* LINUX_VERSION_CODE */
+
 #include "mdservice/fsync_fops.h"       /* m0_fop_fsync_fopt */
 #include "fop/fop.h"                    /* m0_fop */
 
@@ -388,8 +390,13 @@ struct m0t1fs_fsync_fop_wrapper {
  * - this is used in fsync.c and its unit tests.
  */
 struct m0t1fs_fsync_interactions {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	int (*kernel_fsync)(struct file *file, loff_t start, loff_t end,
+	                    int datasync);
+#else
 	int (*kernel_fsync)(struct file *file, struct dentry *dentry,
 	                    int datasync);
+#endif
 	int (*post_rpc)(struct m0_rpc_item *item);
 	int (*wait_for_reply)(struct m0_rpc_item *item, m0_time_t timeout);
 	void (*fop_fini)(struct m0_fop *fop);
@@ -399,7 +406,11 @@ struct m0t1fs_fsync_interactions {
 /**
  * m0t1fs fsync entry point
  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+int m0t1fs_fsync(struct file *file, loff_t start, loff_t end, int datasync);
+#else
 int m0t1fs_fsync(struct file *file, struct dentry *dentry, int datasync);
+#endif
 
 
 /**

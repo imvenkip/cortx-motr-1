@@ -293,7 +293,6 @@ M0_CAT(M0__ADDB_RT_L, M0_COUNT_PARAMS(id, ## __VA_ARGS__))	\
  (name, CNTR, id, NULL, ## __VA_ARGS__)
 
 #define M0_ADDB_RT_SM_CNTR(name, id, smconf, ...)		\
-M0_BASSERT((smconf) != NULL);					\
 M0_CAT(M0__ADDB_RT_L, M0_COUNT_PARAMS(smconf, ## __VA_ARGS__))	\
  (name, SM_CNTR, id, smconf, ## __VA_ARGS__)
 

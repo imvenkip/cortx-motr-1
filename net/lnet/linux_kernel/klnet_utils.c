@@ -114,14 +114,14 @@ static const char *nlx_kcore_lnet_event_type_to_string(lnet_event_kind_t et)
 		[M0_LNET_EV_UNKNOWN] = "<Unknown>"
 	};
 
-	M0_CASSERT(LNET_EVENT_GET    == M0_LNET_EV_GET);
-	M0_CASSERT(LNET_EVENT_PUT    == M0_LNET_EV_PUT);
-	M0_CASSERT(LNET_EVENT_REPLY  == M0_LNET_EV_REPLY);
-	M0_CASSERT(LNET_EVENT_ACK    == M0_LNET_EV_ACK);
-	M0_CASSERT(LNET_EVENT_SEND   == M0_LNET_EV_SEND);
-	M0_CASSERT(LNET_EVENT_UNLINK == M0_LNET_EV_UNLINK);
+	M0_CASSERT((int)LNET_EVENT_GET    == (int)M0_LNET_EV_GET);
+	M0_CASSERT((int)LNET_EVENT_PUT    == (int)M0_LNET_EV_PUT);
+	M0_CASSERT((int)LNET_EVENT_REPLY  == (int)M0_LNET_EV_REPLY);
+	M0_CASSERT((int)LNET_EVENT_ACK    == (int)M0_LNET_EV_ACK);
+	M0_CASSERT((int)LNET_EVENT_SEND   == (int)M0_LNET_EV_SEND);
+	M0_CASSERT((int)LNET_EVENT_UNLINK == (int)M0_LNET_EV_UNLINK);
 
-	if (et >= M0_LNET_EV__FIRST && et <= M0_LNET_EV__LAST)
+	if (et >= (int)M0_LNET_EV__FIRST && et <= (int)M0_LNET_EV__LAST)
 		name = lnet_event_s[et];
 	else
 		name = lnet_event_s[M0_LNET_EV_UNKNOWN];
@@ -698,11 +698,8 @@ static void nlx_kcore_core_tm_unmap(struct nlx_kcore_transfer_mc *ktm)
 
 /**
    Maps a page that should point to a nlx_core_transfer_mc.
-   Uses kmap_atomic() and consumes the KM_USER0 slot, thus
-   it is user responsibility to serialize this routine CPU-wise
-   (each CPU has its own set of slots).
-
-   @todo redefine this in 3.x kernels where kmap_atomic slots are gone
+   Uses kmap_atomic(), thus it is user responsibility to serialize this routine
+   CPU-wise (each CPU has its own set of slots).
 
    @pre nlx_kcore_tm_invariant(ktm)
    @post ret != NULL
@@ -718,7 +715,11 @@ nlx_kcore_core_tm_map_atomic(struct nlx_kcore_transfer_mc *ktm)
 
 	M0_PRE(nlx_kcore_tm_invariant(ktm));
 	loc = &ktm->ktm_ctm_loc;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	ptr = kmap_atomic(loc->kl_page);
+#else
 	ptr = kmap_atomic(loc->kl_page, KM_USER0);
+#endif
 	ret = (struct nlx_core_transfer_mc *) (ptr + loc->kl_offset);
 	M0_POST(ret != NULL);
 	return ret;
@@ -726,7 +727,7 @@ nlx_kcore_core_tm_map_atomic(struct nlx_kcore_transfer_mc *ktm)
 
 /**
    Unmaps the page that contains a nlx_core_transfer_mc.
-   Uses kunmap_atomic() on the KM_USER0 slot.
+   Uses kunmap_atomic().
    @note this signature differs from nlx_kcore_core_tm_unmap() due to the
    differing requirements of kunmap() vs kunmap_atomic(); the former requires
    a struct page while the latter requires a mapped address.
@@ -736,7 +737,11 @@ nlx_kcore_core_tm_map_atomic(struct nlx_kcore_transfer_mc *ktm)
 static void nlx_kcore_core_tm_unmap_atomic(struct nlx_core_transfer_mc *ctm)
 {
 	M0_PRE(nlx_core_tm_invariant(ctm));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	kunmap_atomic(ctm);
+#else
 	kunmap_atomic(ctm, KM_USER0);
+#endif
 }
 
 /** @} */ /* KLNetCore */

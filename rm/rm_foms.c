@@ -447,7 +447,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 	 */
 	if (owner == NULL) {
 		/* Owner cannot be NULL for a revoke request */
-		M0_ASSERT(type != FRT_REVOKE);
+		M0_ASSERT(type != (enum m0_rm_incoming_type)FRT_REVOKE);
 		rc = m0_rm_svc_owner_create(fom->fo_service, &owner,
 					    &basefop->rrq_owner.ow_resource);
 		if (rc != 0) {
@@ -542,7 +542,7 @@ static int request_fom_tick(struct m0_fom           *fom,
 
 	switch (m0_fom_phase(fom)) {
 	case FOPH_RM_REQ_START:
-		if (type == FRT_CANCEL)
+		if (type == (enum m0_rm_incoming_type)FRT_CANCEL)
 			rc = cancel_process(fom);
 		else
 			rc = request_pre_process(fom, type);
@@ -587,14 +587,12 @@ static int revoke_fom_tick(struct m0_fom *fom)
 static int cancel_process(struct m0_fom *fom)
 {
 	struct m0_rm_fop_cancel  *cfop;
-	struct rm_request_fom	 *rfom;
 	struct m0_rm_loan        *loan;
 	struct m0_rm_owner       *owner;
 	struct m0_clink          *clink;
 	int			  rc = 0;
 
 	cfop = m0_fop_data(fom->fo_fop);
-	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 
 	loan = m0_cookie_of(&cfop->fc_loan.lo_cookie,
 			    struct m0_rm_loan, rl_id);

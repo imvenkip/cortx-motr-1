@@ -890,8 +890,6 @@ static void cc_fom_state_test(void)
 	int                   rc;
 	struct m0_fom        *cfom;
 	struct m0_fom        *dfom;
-	struct m0_fom_cob_op *cc;
-	struct m0_fom_cob_op *cd;
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 
 	/* delete existing stob */
@@ -899,8 +897,6 @@ static void cc_fom_state_test(void)
 
 	cfom = cc_fom_alloc();
 	M0_UT_ASSERT(cfom != NULL);
-
-	cc = cob_fom_get(cfom);
 
 	fom_dtx_init(cfom, grp, M0_COB_OP_CREATE);
 	fom_stob_tx_credit(cfom, M0_COB_OP_CREATE);
@@ -921,7 +917,6 @@ static void cc_fom_state_test(void)
 	dfom = cd_fom_alloc();
 	M0_UT_ASSERT(dfom != NULL);
 
-	cd = cob_fom_get(dfom);
 	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
 	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
 	rc = cob_ops_fom_tick(dfom); /* for M0_FOPH_COB_OPS_PREPARE */
@@ -1038,8 +1033,6 @@ static struct m0_fom *cob_testdata_create()
 {
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_fom        *fom;
-	struct m0_be_seg     *beseg;
-	struct m0_fom_cob_op *cc;
 	int	              rc;
 
 	/*
@@ -1048,9 +1041,6 @@ static struct m0_fom *cob_testdata_create()
 	 */
 	fom = cc_fom_alloc();
 	M0_UT_ASSERT(fom != NULL);
-
-	beseg = m0_fom_reqh(fom)->rh_beseg;
-	cc = cob_fom_get(fom);
 
 	fom_dtx_init(fom, grp, M0_COB_OP_CREATE);
 	fom_stob_tx_credit(fom, M0_COB_OP_CREATE);
@@ -1123,7 +1113,6 @@ static void cd_cob_delete_test()
 	int                   rc;
 	struct m0_fom        *cfom;
 	struct m0_fom        *dfom;
-	struct m0_be_seg     *beseg;
 	struct m0_fom_cob_op *cd;
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_cob_attr    attr = { { 0, } };
@@ -1140,7 +1129,6 @@ static void cd_cob_delete_test()
 	M0_UT_ASSERT(dfom != NULL);
 
 	cd = cob_fom_get(dfom);
-	beseg = m0_fom_reqh(dfom)->rh_beseg;
 	/*
 	 * Test-case 1: Delete cob. The test should succeed.
 	 */

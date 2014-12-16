@@ -45,15 +45,6 @@ enum {
 	MAX_SERVERS        = 1024
 };
 
-static const char *poolmach_state_name[] = {
-	[M0_PNDS_ONLINE]          = "Online",
-	[M0_PNDS_FAILED]          = "Failed",
-	[M0_PNDS_OFFLINE]         = "Offline",
-	[M0_PNDS_SNS_REPAIRING]   = "SNS Repairing",
-	[M0_PNDS_SNS_REPAIRED]    = "SNS Repaired",
-	[M0_PNDS_SNS_REBALANCING] = "SNS Rebalancing"
-};
-
 static const char *cl_ep_addr;
 static const char *srv_ep_addr[MAX_SERVERS];
 static int64_t     device_index_arr[MAX_DEV_NR];
@@ -412,18 +403,11 @@ int main(int argc, char *argv[])
 		if (op[0] == 'Q' || op[0] == 'q') {
 			struct m0_fop_poolmach_query_rep *query_fop_rep;
 			struct m0_fop *rep;
-			const char    *name;
-			uint32_t       state;
 			int            i;
 
 			rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
 			query_fop_rep = m0_fop_data(rep);
 			for (i = 0; i < dev_nr; ++i) {
-				state = query_fop_rep->fqr_dev_info.
-					fpi_dev[i].fpd_state;
-				name = (state >= 0 &&
-				       state < ARRAY_SIZE(poolmach_state_name))?
-				       poolmach_state_name[state]: "N/A";
                                 fprintf(stderr, "Query: index = %d state= %d rc = %d\n",
                                         (int)query_fop_rep->fqr_dev_info.
                                         fpi_dev[i].fpd_index,

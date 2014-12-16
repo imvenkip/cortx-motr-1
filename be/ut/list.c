@@ -59,7 +59,6 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	static struct m0_be_tx_credit icred = {}; /* credits for insertions */
 	static struct m0_be_tx_credit dcred = {}; /* credits for deletions */
 	static struct m0_be_tx_credit cred = {};  /* total credits */
-	static struct m0_be_allocator *a;
 	static struct m0_be_list      *list;
 	static struct m0_be_ut_backend ut_be;
 	static struct m0_be_ut_seg     ut_seg;
@@ -78,7 +77,6 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	m0_be_ut_seg_init(&ut_seg, NULL, 1ULL << 24);
 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 	seg = ut_seg.bus_seg;
-	a = m0_be_seg_allocator(seg);
 
 	{ /* XXX: calculate credits properly */
 		struct m0_be_list l;

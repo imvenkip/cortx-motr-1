@@ -141,13 +141,8 @@ M0_INTERNAL void m0_htable_add(struct m0_htable *htable,
 M0_INTERNAL void m0_htable_del(struct m0_htable *htable,
 			       void             *amb)
 {
-	uint64_t bucket_id;
-
 	M0_PRE_EX(htable_invariant(htable));
 	M0_PRE(amb != NULL);
-
-	bucket_id = htable->h_descr->hd_hash_func(htable,
-			obj_key(htable->h_descr, amb));
 
 	m0_tlist_del(htable->h_descr->hd_tldescr, amb);
 

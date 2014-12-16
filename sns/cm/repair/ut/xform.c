@@ -406,7 +406,6 @@ static void buffers_attach(struct m0_net_buffer *nb, struct m0_cm_cp *cp,
  */
 static void cp_multi_failures_post(char data, int cnt, int index)
 {
-	struct m0_net_buffer *nbuf;
 	struct m0_sns_cm_ag *sag;
 	struct m0_cm_cp *cp;
 
@@ -416,7 +415,6 @@ static void cp_multi_failures_post(char data, int cnt, int index)
 	cp_prepare(cp, &n_buf[cnt][0], SEG_NR, SEG_SIZE,
 		   sag, data, &multiple_cp_fom_ops, reqh, index,
 		   false, NULL);
-	nbuf = cp_data_buf_tlist_head(&cp->c_buffers);
 	buffers_attach(n_buf[cnt], cp, data);
 
 	cp->c_data_seg_nr = SEG_NR * BUF_NR;

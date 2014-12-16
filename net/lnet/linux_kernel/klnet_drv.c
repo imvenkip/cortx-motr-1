@@ -1507,7 +1507,8 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 
         if (!capable(CAP_SYS_ADMIN))
 		return M0_ERR(-EPERM);
-	if ((file->f_flags & (O_RDWR|O_CLOEXEC)) != (O_RDWR|O_CLOEXEC))
+
+	if (!(file->f_flags & O_RDWR))
 		return M0_ERR(-EACCES);
 
 	NLX_ALLOC_PTR(kd, &m0_net_lnet_addb_ctx, KD_OPEN);

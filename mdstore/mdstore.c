@@ -214,7 +214,7 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 				   struct m0_be_tx       *tx)
 {
 	struct m0_cob         *cob;
-	struct m0_cob_nskey   *nskey;
+	struct m0_cob_nskey   *nskey = NULL;
 	struct m0_cob_nsrec    nsrec;
 	struct m0_cob_fabrec  *fabrec;
 	struct m0_cob_omgrec   omgrec;
@@ -300,7 +300,7 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 				struct m0_buf           *name,
 				struct m0_be_tx         *tx)
 {
-	struct m0_cob_nskey   *nskey;
+	struct m0_cob_nskey   *nskey = NULL;
 	struct m0_cob_nsrec    nsrec;
 	time_t                 now;
 	int                    rc;
@@ -402,7 +402,7 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 				  struct m0_be_tx       *tx)
 {
 	struct m0_cob         *ncob;
-	struct m0_cob_nskey   *nskey;
+	struct m0_cob_nskey   *nskey = NULL;
 	struct m0_cob_oikey    oikey;
 	time_t                 now;
 	int                    rc;
@@ -942,7 +942,7 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 				  struct m0_buf         *name,
 				  struct m0_cob        **cob)
 {
-	struct m0_cob_nskey *nskey;
+	struct m0_cob_nskey *nskey = NULL;
         struct m0_fid fid;
 	int flags;
 	int rc;

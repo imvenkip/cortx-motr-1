@@ -1350,7 +1350,6 @@ struct m0_sm_conf fom_states_conf = {
 M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 {
 	struct m0_sm_group             *fom_group;
-	struct m0_addb_ctx             *fom_addb_ctx = NULL;
 	const struct m0_sm_conf        *conf;
 
 	M0_PRE(fom != NULL);
@@ -1360,13 +1359,6 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 	M0_ASSERT(conf->scf_nr_states != 0);
 
 	fom_group    = &fom->fo_loc->fl_group;
-
-	/**
-	 * @todo: replace this with assertion, after reqh service
-	 * is associated with mdservice's ut
-	 */
-	if (fom->fo_service != NULL && fom->fo_service->rs_reqh != NULL)
-		fom_addb_ctx = &fom->fo_service->rs_reqh->rh_addb_ctx;
 
 	m0_sm_init(&fom->fo_sm_phase, conf, M0_FOM_PHASE_INIT, fom_group);
 	m0_sm_init(&fom->fo_sm_state, &fom_states_conf, M0_FOS_INIT, fom_group);

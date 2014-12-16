@@ -451,8 +451,6 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp,
         struct m0_rpc_bulk      *rbulk;
         struct m0_fop           *fop;
         struct m0_sns_cpx_reply *sns_cpx_rep;
-	struct m0_cm_aggr_group *sw_lo_ag;
-	struct m0_cm_aggr_group *sw_hi_ag;
 	struct m0_cm            *cm;
         int                      rc;
 
@@ -477,8 +475,6 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp,
 
 	cm = cm_get(&cp->c_fom);
 	m0_cm_lock(cm);
-	sw_lo_ag = m0_cm_ag_lo(cm);
-	sw_hi_ag = m0_cm_ag_hi(cm);
 	m0_cm_unlock(cm);
         m0_rpc_reply_post(&cp->c_fom.fo_fop->f_item, &fop->f_item);
 out:

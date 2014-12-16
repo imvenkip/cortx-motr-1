@@ -18,6 +18,12 @@
  * Original creation date: 09/25/2012
  */
 
+#ifdef __KERNEL__
+#include <linux/compiler.h>  /* GCC_VERSION */
+#else
+#include <ansidecl.h>        /* GCC_VERSION */
+#endif
+
 /* This file is designed to be included by addb/ut/addb_ut.c */
 
 /*
@@ -487,10 +493,16 @@ static struct m0_sm_conf sm_conf = {
 	.scf_trans     = trans
 };
 
+#if defined(GCC_VERSION) && GCC_VERSION >= 4006
+#pragma GCC diagnostic ignored "-Waddress"
+#endif
 M0_ADDB_RT_SM_CNTR(m0__addb_ut_rt_smcntr0, 400, &sm_conf);
 M0_ADDB_RT_SM_CNTR(m0__addb_ut_rt_smcntr1, 401, &sm_conf, 10);
 M0_ADDB_RT_SM_CNTR(m0__addb_ut_rt_smcntr2, 402, &sm_conf, 10, 20);
 M0_ADDB_RT_SM_CNTR(m0__addb_ut_rt_smcntr3, 403, &sm_conf, 10, 20, 30);
+#if defined(GCC_VERSION) && GCC_VERSION >= 4006
+#pragma GCC diagnostic pop
+#endif
 
 static void addb_ut_rt_smcntr_test(void)
 {

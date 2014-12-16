@@ -509,14 +509,12 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 	struct m0_cob_domain    *cdom;
 	struct m0_cob_domain_id  cdom_id;
 	struct m0_dtx            tx;
-	struct m0_dbenv         *dbenv;
 	struct m0_sm_group      *grp = m0_locality0_get()->lo_grp;
 
 	M0_PRE(reqh != NULL);
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 
-	dbenv = reqh->rh_dbenv;
 	cdom = m0_reqh_lockers_get(reqh, ios_cdom_key);
 	if (cdom == NULL) {
 		cdom_id.id = m0_rnd(1ULL << 47, &cid);
@@ -608,7 +606,7 @@ static int m0_ios_mds_conn_init(struct m0_reqh             *reqh,
 	struct m0_rpc_machine       *rpc_machine;
 	const char                  *srv_ep_addr;
 	struct cs_endpoint_and_xprt *ep;
-	int                          rc;
+	int                          rc = 0;
 	struct m0_ios_mds_conn      *conn;
 	M0_ENTRY();
 

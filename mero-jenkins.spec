@@ -11,20 +11,22 @@
 # optional configure options
 %if %{?KVER:1}%{!?KVER:0}
 %define with_linux "--with-linux=/usr/src/kernels/%{KVER}"
-%define kernel_ver %(basename "%{KVER}" | tr - _)
+%define raw_kernel_ver %(basename "%{KVER}")
 %else
 %define with_linux %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
 
-%define kernel_ver %(
-                      if test -n "$kernel_src"; then
-                          basename "$kernel_src" | tr - _
-                      else
-                          uname -r | tr - _
-                      fi
-                    )
+# raw kernel version.
+%define raw_kernel_ver %(
+			if test -n "$kernel_src"; then
+				basename "$kernel_src"
+			else
+				uname -r
+			fi
+			)
 %endif
 
-%define kernel_ver_requires %( echo %{kernel_ver} | sed -e 's/\.x86_64$//' -e 's/_/-/g' )
+%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ )
+%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.x86_64$//' )
 
 %bcond_with ut
 
@@ -66,6 +68,9 @@ BuildRequires:  perl-IO-All
 BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  lustre-devel
 BuildRequires:  libuuid-devel
+# mero-590 C7 build deps.
+BuildRequires:  binutils-devel
+BuildRequires:  perl-autodie
 
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       lustre-modules
@@ -84,8 +89,8 @@ Mero filesystem runtime environment and servers.
 %package devel
 Summary: Mero include headers
 Group: Development/Kernel
-Provides: %{name}-devel = %{version}
-Requires: %{name} = %{version}
+Provides: %{name}-devel = %{version}-%{release}
+Requires: %{name} = %{version}-%{release}
 
 %description devel
 This package contains the headers required to build external
@@ -136,6 +141,12 @@ mkdir -p %{buildroot}%{_localstatedir}/mero
 
 %endif # with ut
 
+# Remove depmod output - it is regenerated during %post
+if [ -e %{buildroot}/lib/modules/%{raw_kernel_ver}/modules.dep ]; then
+	rm %{buildroot}/lib/modules/%{raw_kernel_ver}/modules.*
+fi
+
+
 %files
 %if !%{with ut}
 %doc AUTHORS README NEWS ChangeLog COPYING
@@ -152,7 +163,6 @@ mkdir -p %{buildroot}%{_localstatedir}/mero
 %exclude %{_libdir}/*.la
 %exclude %{_libdir}/libmero-ut*
 %exclude %{_includedir}
-%exclude /lib/modules/*/kernel/fs/m0t1fs/*
 %exclude /lib/modules/*/kernel/fs/net/*
 %exclude /lib/modules/*/kernel/fs/rpc/*
 %exclude /lib/modules/*/kernel/fs/ut/*
@@ -177,6 +187,13 @@ fi || true
 /bin/sed -i -e "s/<host>/$(hostname -s)/" /etc/mero/genders
 /bin/sed -i -e "s/00000000-0000-0000-0000-000000000000/$(uuidgen)/" /etc/mero/genders
 
+#disk_cnt=$(/usr/sbin/m0gendisks -c) # use all available disks
+disk_cnt=8 # currently m0d not able to initialize more disks in a reasonable time
+if [ $? -eq 0 ] && [ $disk_cnt -ne 0 ] ; then
+    /usr/sbin/m0gendisks -d $disk_cnt -o /etc/mero/disks-singlenode.conf
+    /bin/sed -i -r -e "s/m0_pool_width=[[:digit:]]+/m0_pool_width=$disk_cnt/" /etc/mero/genders
+fi
+
 %preun
 if initctl list | grep -q 'mero' ; then
     status mero-client | grep -q 'start/running' && stop mero-client
@@ -197,3 +214,6 @@ fi || true
 /sbin/depmod -a
 
 %endif # with ut
+
+# always build debuginfo package
+#%%debug_package

@@ -565,9 +565,9 @@ utils_layout_m0layout_LDADD     = $(top_builddir)/mero/libmero.la
 #
 
 if LHSM_BUILD
-bin_PROGRAMS                       += lustre_hsm/m0lhsmtool
-lustre_hsm_m0lhsmtool_CFLAGS        = -Wno-error -Wno-all
-lustre_hsm_m0lhsmtool_LDFLAGS       = -llustreapi -lpthread
+#bin_PROGRAMS                       += lustre_hsm/m0lhsmtool
+#lustre_hsm_m0lhsmtool_CFLAGS        = -Wno-error -Wno-all
+#lustre_hsm_m0lhsmtool_LDFLAGS       = -llustreapi -lpthread
 endif
 
 #
@@ -745,11 +745,13 @@ gccxml2xcode_verbose_0 = @echo " GCCXML2XC " $@;
 # gccxml doesn't like -Werror and --coverage options so we need to remove them
 # from CFLAGS
 
-GCCXML_UNSUPPORTED_CFLAGS := -Werror --coverage -pipe -Wp,-D_FORTIFY_SOURCE=2 --param=ssp-buffer-size=4
-GCCXML_CFLAGS := $(filter-out $(GCCXML_UNSUPPORTED_CFLAGS), $(CPPFLAGS) $(CFLAGS) $(AM_CPPFLAGS) $(AM_CFLAGS))
+GCCXML_UNSUPPORTED_CFLAGS := -Werror --coverage -pipe -Wp,-D_FORTIFY_SOURCE=2 --param=ssp-buffer-size=4 -grecord-gcc-switches -fstack-protector-strong
+# set maximum supported gcc version by gccxml, currently it's 4.2
+GCCXML_CPPFLAGS := -DGCC_VERSION=4002
+GCCXML_CFLAGS   := $(filter-out $(GCCXML_UNSUPPORTED_CFLAGS), $(CPPFLAGS) $(CFLAGS) $(AM_CPPFLAGS) $(AM_CFLAGS))
 
 %_xc.h %_xc.c: %.h
-	$(gccxml_verbose)$(GCCXML) $(GCCXML_CFLAGS) -fxml=$(<:.h=.gccxml) $<
+	$(gccxml_verbose)$(GCCXML) $(GCCXML_CPPFLAGS) $(GCCXML_CFLAGS) -fxml=$(<:.h=.gccxml) $<
 	$(gccxml2xcode_verbose)$(top_srcdir)/xcode/gccxml2xcode -i $(<:.h=.gccxml)
 
 
@@ -930,7 +932,7 @@ quick: generate-files galois
 	@$(MAKE) $(AM_MAKEFLAGS) __quick
 
 .PHONY: __quick
-__quick: __libmero __libmero-ut utils/ut
+__quick: __libmero __libmero-ut ut/m0ut
 	@$(MAKE) $(AM_MAKEFLAGS) build-kernel-modules M0_BUILD_KERNEL_M0MERO_ONLY=yes
 
 # kuick

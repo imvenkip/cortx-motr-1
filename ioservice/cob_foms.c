@@ -653,7 +653,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
 {
 	int		      rc;
 	struct m0_cob	     *cob;
-	struct m0_cob_nskey  *nskey;
+	struct m0_cob_nskey  *nskey = NULL;
 	struct m0_cob_nsrec   nsrec;
 	struct m0_cob_fabrec *fabrec;
 	struct m0_cob_omgrec  omgrec;

@@ -17,6 +17,7 @@
  * Original creation date: 04/12/2011
  */
 
+#include <linux/version.h>    /* LINUX_VERSION_CODE */
 #include <linux/module.h>
 
 #include "lib/thread.h"       /* M0_THREAD_INIT */
@@ -66,7 +67,7 @@ extern struct m0_ut_suite stob_ut;
 extern struct m0_ut_suite xcode_ut;
 extern struct m0_ut_suite di_ut;
 
-extern struct m0_ut_suite m0_loop_ut; /* m0loop driver */
+//extern struct m0_ut_suite m0_loop_ut; /* m0loop driver */
 
 static struct m0_thread ut_thread;
 
@@ -80,10 +81,12 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &be_ut);
 	m0_ut_add(m, &buffer_pool_ut);
 	m0_ut_add(m, &bulkio_client_ut);
-	m0_ut_add(m, &m0_loop_ut);
+	/*m0_ut_add(m, &m0_loop_ut);*/
 	m0_ut_add(m, &m0_net_bulk_if_ut);
 	m0_ut_add(m, &m0_net_bulk_mem_ut);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 	m0_ut_add(m, &m0_net_lnet_ut);
+#endif
 	m0_ut_add(m, &m0_net_test_ut);
 	m0_ut_add(m, &m0_net_tm_prov_ut);
 	m0_ut_add(m, &conn_ut);

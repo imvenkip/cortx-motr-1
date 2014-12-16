@@ -20,6 +20,7 @@
  * Original creation date: 11-Apr-2014
  */
 
+#include <linux/version.h>      /* LINUX_VERSION_CODE */
 #include <linux/fs.h>           /* struct file_operations */
 #include <linux/mount.h>        /* struct vfsmount (f_path.mnt) */
 
@@ -53,7 +54,11 @@ M0_TL_DEFINE(fpf, static, struct m0t1fs_fsync_fop_wrapper);
  * - purely to facilitate unit testing
  */
 struct m0t1fs_fsync_interactions fi = {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	.kernel_fsync   = generic_file_fsync,
+#else
 	.kernel_fsync   = &simple_fsync,
+#endif
 	.post_rpc       = &m0_rpc_post,
 	.wait_for_reply = &m0_rpc_item_wait_for_reply,
 	/* fini is for requests, allocated in a bigger structure */
@@ -318,7 +323,11 @@ int m0t1fs_fsync_core(struct m0t1fs_inode *inode, enum m0_fsync_mode mode)
  * would require a sync against the super-block, as all metadata currently
  * lives in container-zero.
  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+int m0t1fs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
+#else
 int m0t1fs_fsync(struct file *file, struct dentry *dentry, int datasync)
+#endif
 {
 	int                  rc;
 	struct m0t1fs_inode *inode;
@@ -334,7 +343,11 @@ int m0t1fs_fsync(struct file *file, struct dentry *dentry, int datasync)
 	 * This call will block until all the data is sent to the server, and
 	 * we have uptodate pending transaction-ids.
 	 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	rc = fi.kernel_fsync(file, start, end, datasync);
+#else
 	rc = fi.kernel_fsync(file, dentry, datasync);
+#endif
 	if (rc != 0) {
 		/**
 		 * Failure

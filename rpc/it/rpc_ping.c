@@ -390,8 +390,8 @@ fop_fini:
 #ifndef __KERNEL__
 static void quit_dialog(void)
 {
+	int  rc __attribute__((unused));
 	char ch;
-	int  rc;
 
 	printf("\n########################################\n");
 	printf("\n\nPress Enter to terminate\n\n");

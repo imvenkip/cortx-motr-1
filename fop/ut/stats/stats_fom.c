@@ -17,6 +17,12 @@
  * Original creation date: 04/01/2013
  */
 
+#ifdef __KERNEL__
+#include <linux/compiler.h>  /* GCC_VERSION */
+#else
+#include <ansidecl.h>        /* GCC_VERSION */
+#endif
+
 #include "lib/memory.h"
 #include "lib/misc.h"
 
@@ -58,8 +64,14 @@ static struct m0_sm_conf fom_phases_conf = {
 	.scf_trans     = trans
 };
 
+#if defined(GCC_VERSION) && GCC_VERSION >= 4006
+#pragma GCC diagnostic ignored "-Waddress"
+#endif
 M0_ADDB_RT_SM_CNTR(addb_rt_fom_phase_stats, ADDB_RECID_FOM_PHASE_STATS,
 		   &fom_phases_conf, M0_FOM_SM_STATS_HIST_ARGS);
+#if defined(GCC_VERSION) && GCC_VERSION >= 4006
+#pragma GCC diagnostic pop
+#endif
 
 static size_t fom_stats_home_locality(const struct m0_fom *fom);
 static void fop_stats_fom_fini(struct m0_fom *fom);
@@ -94,10 +106,8 @@ static size_t fom_stats_home_locality(const struct m0_fom *fom)
 
 static void fom_stats_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 {
-	struct fom_stats *fom_obj;
 	uint8_t          *cntr_data;
 	int trans_size = m0_addb_sm_counter_data_size(&addb_rt_fom_phase_stats);
-	fom_obj = container_of(fom, struct fom_stats, fs_gen);
 
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &fom->fo_addb_ctx, &m0_addb_ct_fop_mod,
 			 &m0_addb_proc_ctx);
@@ -184,7 +194,6 @@ static int fom_stats_tick(struct m0_fom *fom)
 static void test_stats_req_handle(struct m0_reqh *reqh)
 {
 	struct m0_fom   *fom;
-	struct fom_stats *obj;
 	int rc;
 
 	m0_mutex_init(&mutex);
@@ -195,7 +204,6 @@ static void test_stats_req_handle(struct m0_reqh *reqh)
 	rc = stats_fom_create(&fom, reqh);
 	M0_UT_ASSERT(rc == 0);
 
-	obj = container_of(fom, struct fom_stats, fs_gen);
 	m0_fom_queue(fom, reqh);
 
 	m0_chan_wait(&clink);

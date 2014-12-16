@@ -23,6 +23,12 @@
 #ifndef __MERO_IOSERVICE_IO_SERVICE_ADDB_H__
 #define __MERO_IOSERVICE_IO_SERVICE_ADDB_H__
 
+#ifdef __KERNEL__
+#include <linux/compiler.h>  /* GCC_VERSION */
+#else
+#include <ansidecl.h>        /* GCC_VERSION */
+#endif
+
 #include "addb/addb.h"
 #include "fop/fom.h"   /* FOM_STATE_STATS_HIST_ARGS */
 
@@ -203,9 +209,15 @@ enum {
 extern struct m0_addb_ctx m0_ios_addb_ctx;
 extern struct m0_sm_conf io_conf;
 /** FOM state statistics counter */
+#if defined(GCC_VERSION) && GCC_VERSION >= 4006
+#pragma GCC diagnostic ignored "-Waddress"
+#endif
 M0_ADDB_RT_SM_CNTR(m0_addb_rt_ios_io_fom_phase_stats,
 		   M0_ADDB_RECID_IOS_IO_FOM_PHASE_STATS,
 		   &io_conf, M0_FOM_SM_STATS_HIST_ARGS);
+#if defined(GCC_VERSION) && GCC_VERSION >= 4006
+#pragma GCC diagnostic pop
+#endif
 
 /* Total time required and size for IO */
 M0_ADDB_RT_DP(m0_addb_rt_ios_io_finish, M0_ADDB_RECID_IOS_IO_FINISH,

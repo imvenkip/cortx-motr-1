@@ -22,6 +22,11 @@
 #include <linux/mm.h>       /* get_user_pages, get_page, put_page */
 #include <linux/fs.h>       /* struct file_operations */
 #include <linux/mount.h>    /* struct vfsmount (f_path.mnt) */
+#include <linux/version.h>  /* LINUX_VERSION_CODE */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#include <linux/uio.h>      /* struct iovec */
+#include <linux/aio.h>      /* struct kiocb */
+#endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
 #include "lib/trace.h"
@@ -4774,14 +4779,18 @@ static int m0t1fs_open(struct inode *inode, struct file *file)
 }
 
 const struct file_operations m0t1fs_reg_file_operations = {
-	.llseek	   = generic_file_llseek,
-	.aio_read  = file_aio_read,
-	.aio_write = file_aio_write,
-	.read	   = do_sync_read,
-	.write	   = do_sync_write,
+	.llseek         = generic_file_llseek,
+	.aio_read       = file_aio_read,
+	.aio_write      = file_aio_write,
+	.read           = do_sync_read,
+	.write          = do_sync_write,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	.unlocked_ioctl = m0t1fs_ioctl,
+#else
 	.ioctl     = m0t1fs_ioctl,
-	.fsync     = m0t1fs_fsync,
-	.open      = m0t1fs_open
+#endif
+	.fsync          = m0t1fs_fsync,
+	.open           = m0t1fs_open,
 };
 
 static void client_passive_recv(const struct m0_net_buffer_event *evt)

@@ -348,17 +348,31 @@ M0_INTERNAL void m0t1fs_inode_update(struct inode      *inode,
 	if (body->b_valid & M0_COB_CTIME)
 		inode->i_ctime.tv_sec  = body->b_ctime;
 	if (body->b_valid & M0_COB_UID)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		inode->i_uid    = make_kuid(current_user_ns(), body->b_uid);
+#else
 		inode->i_uid    = body->b_uid;
+#endif
 	if (body->b_valid & M0_COB_GID)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		inode->i_gid    = make_kgid(current_user_ns(), body->b_gid);
+#else
 		inode->i_gid    = body->b_gid;
+#endif
 	if (body->b_valid & M0_COB_BLOCKS)
 		inode->i_blocks = body->b_blocks;
 	if (body->b_valid & M0_COB_SIZE)
 		inode->i_size = body->b_size;
 	if (body->b_valid & M0_COB_NLINK)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+		set_nlink(inode, body->b_nlink);
+#else
 		inode->i_nlink = body->b_nlink;
+#endif
 	if (body->b_valid & M0_COB_MODE)
 		inode->i_mode = body->b_mode;
+
+	M0_LEAVE();
 }
 
 static int m0t1fs_inode_read(struct inode      *inode,
@@ -371,8 +385,13 @@ static int m0t1fs_inode_read(struct inode      *inode,
 	M0_ENTRY();
 
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+	inode->i_uid   = GLOBAL_ROOT_UID;
+	inode->i_gid   = GLOBAL_ROOT_GID;
+#else
 	inode->i_uid   = 0;
 	inode->i_gid   = 0;
+#endif
 	inode->i_rdev  = 0;
 
 	m0t1fs_inode_update(inode, body);

@@ -210,7 +210,7 @@ static size_t cycles(enum scenario test)
 /** Performs raw memory operations. */
 static void cpu_utilize(const struct ub_fom *mach)
 {
-	volatile char x;
+	volatile char x M0_UNUSED;
 	size_t        left;
 	size_t        start;
 	size_t        len;

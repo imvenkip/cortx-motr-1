@@ -155,8 +155,16 @@ enum {
 	STARTSTOP_STAT_BUF_NR = 4,
 };
 #ifdef __KERNEL__
-/* LUSTRE_SRV_LNET_PID macro is not available in user space */
+/*
+ * LUSTRE_SRV_LNET_PID macro is not available in user space.
+ * Depending on the lustre version, this may be known as LNET_PID_LUSTRE
+ * or LUSTRE_SRV_LNET_PID.
+ */
+#ifdef LNET_PID_LUSTRE
+M0_BASSERT(STARTSTOP_PID == LNET_PID_LUSTRE);
+#else
 M0_BASSERT(STARTSTOP_PID == LUSTRE_SRV_LNET_PID);
+#endif
 #endif
 
 static enum m0_net_queue_type cb_qt1;
@@ -2063,7 +2071,6 @@ static void test_timeout_body(struct ut_data *td)
 	int qt;
 	int i;
 	m0_time_t abs_timeout;
-	m0_time_t rel_timeout;
 	m0_time_t buf_add_time;
 	uint64_t timeout_secs = 1;
 
@@ -2076,7 +2083,6 @@ static void test_timeout_body(struct ut_data *td)
 	*/
 	m0_net_lnet_tm_set_debug(TM1, 0);
 	nb1->nb_length = td->buf_size1;
-	rel_timeout = m0_time(timeout_secs, 0);
 	for (i = 0; i < ARRAY_SIZE(qts); ++i) {
 		qt = qts[i];
 		NLXDBGPnl(td, 1, "TEST: buffer single timeout: %d\n", (int) qt);

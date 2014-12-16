@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
 				{
 					rc = 1;
 				})));
-	rc = rc != 0 ? : r2;
+	rc = rc != 0 ? rc : r2;
 	if (rc != 0) {
 		m0stats_help();
 		return 1;

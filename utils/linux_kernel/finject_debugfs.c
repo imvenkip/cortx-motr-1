@@ -28,6 +28,7 @@
 #include <linux/uaccess.h>   /* strncpy_from_user */
 #include <linux/string.h>    /* strncmp */
 #include <linux/ctype.h>     /* isprint */
+#include <linux/slab.h>      /* kfree */
 
 #include "lib/mutex.h"       /* m0_mutex */
 #include "lib/time.h"        /* m0_time_now */
