@@ -220,12 +220,22 @@ M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
 
 M0_INTERNAL void m0_enter_awkward(void)
 {
-	add_preempt_count(HARDIRQ_OFFSET);
+	/*
+	 * To avoid kernel warnings from del_timer_sync() when
+	 * canceling m0_sm_timer at m0_sm_state_set() -> clink_signal()
+	 * we disable the effect of this function in kernel mode.
+	 * Luckily, m0_is_awkward() is used in kernel in its UT only
+	 * at the moment, so we disabled it there also.
+	 *
+	 * add_preempt_count(HARDIRQ_OFFSET);
+	 */
 }
 
 M0_INTERNAL void m0_exit_awkward(void)
 {
-	sub_preempt_count(HARDIRQ_OFFSET);
+	/*
+	 * sub_preempt_count(HARDIRQ_OFFSET);
+	 */
 }
 
 M0_INTERNAL bool m0_is_awkward(void)

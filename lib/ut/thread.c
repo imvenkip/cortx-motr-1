@@ -153,7 +153,9 @@ void test_thread(void)
 	m0_thread_fini(&t[0]);
 
 	/* test m0_is_awkward() */
+#ifndef __KERNEL__
 	test_is_awkward();
+#endif
 }
 M0_EXPORTED(test_thread);
 
