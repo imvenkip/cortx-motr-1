@@ -367,8 +367,12 @@ int main(int argc, char *argv[])
 		if (off != 0)
 			break;
 		rc = read(procf, cmd, 1);
-		if (rc <= 0)
+		if (rc <= 0) {
+			fprintf(stderr, "%s: failed to read from procfs lnet UT"
+					" file '%s', rc = %d\n",
+					__FILE__, strerror(errno), rc);
 			break;
+		}
 		switch (*cmd) {
 		case UT_TEST_DEV:
 			rc = test_dev_exists();

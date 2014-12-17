@@ -26,6 +26,7 @@
  */
 
 #include <linux/version.h>        /* LINUX_VERSION_CODE */
+#include <linux/module.h>         /* THIS_MODULE */
 
 #include "net/lnet/ut/lnet_drv_ut.h"
 
@@ -34,11 +35,7 @@ enum {
 	UT_SYNC_DELAY_SEC = 5,    /**< delay for user program to sync */
 };
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-static struct proc_dir_entry *proc_lnet_ut M0_UNUSED;
-#else
 static struct proc_dir_entry *proc_lnet_ut;
-#endif
 
 static struct m0_mutex ktest_mutex;
 static struct m0_cond ktest_cond;
@@ -47,43 +44,39 @@ static int ktest_id;
 static bool ktest_user_failed;
 static bool ktest_done;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-M0_UNUSED static int read_lnet_ut(char *page, char **start, off_t off,
-			int count, int *eof, void *data)
-#else
-static int read_lnet_ut(char *page, char **start, off_t off,
-			int count, int *eof, void *data)
-#endif
+static ssize_t read_lnet_ut(struct file *file, char __user *buffer, size_t len,
+			    loff_t *offset)
 {
+	char code;
+	int  rc;
+
 	m0_semaphore_down(&ktest_sem);
 
-	/* page[PAGE_SIZE] and simpleminded proc file */
 	m0_mutex_lock(&ktest_mutex);
 	if (ktest_user_failed)
-		*page = UT_TEST_DONE;
+		code = UT_TEST_DONE;
 	else
-		*page = ktest_id;
+		code = ktest_id;
+
 	/* main thread will wait for user to read 1 DONE value */
-	if (*page == UT_TEST_DONE) {
+	if (code == UT_TEST_DONE) {
 		ktest_done = true;
-		*eof = 1;
 		m0_cond_signal(&ktest_cond);
 	}
 	m0_mutex_unlock(&ktest_mutex);
-	return 1;
+
+	rc = copy_to_user(buffer, &code, sizeof code);
+	if (rc != 0)
+		return -EFAULT;
+	return sizeof code;
 }
 
 /**
    Synchronize with user space program, updates ktest_id and signals main UT
    thread about each transition.
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-M0_UNUSED static int write_lnet_ut(struct file *file, const char __user *buffer,
-			 unsigned long count, void *data)
-#else
-static int write_lnet_ut(struct file *file, const char __user *buffer,
-			 unsigned long count, void *data)
-#endif
+static ssize_t write_lnet_ut(struct file *file, const char __user *buffer,
+			     size_t count, loff_t *offset)
 {
 	char buf[UT_PROC_WRITE_SIZE];
 
@@ -128,10 +121,28 @@ static int write_lnet_ut(struct file *file, const char __user *buffer,
 	return count;
 }
 
+static int open_lnet_ut(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static int close_lnet_ut(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static struct file_operations proc_lnet_fops = {
+	.owner    = THIS_MODULE,
+	.open     = open_lnet_ut,
+	.release  = close_lnet_ut,
+	.read     = read_lnet_ut,
+	.write    = write_lnet_ut,
+	.llseek   = default_llseek,
+};
+
 static int ktest_lnet_init(void)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
-	proc_lnet_ut = create_proc_entry(UT_PROC_NAME, 0644, NULL);
+	proc_lnet_ut = proc_create(UT_PROC_NAME, 0644, NULL, &proc_lnet_fops);
 	if (proc_lnet_ut == NULL)
 		return -ENOENT;
 
@@ -140,22 +151,17 @@ static int ktest_lnet_init(void)
 	m0_semaphore_init(&ktest_sem, 0);
 	ktest_id = UT_TEST_NONE;
 	ktest_user_failed = false;
-	proc_lnet_ut->read_proc  = read_lnet_ut;
-	proc_lnet_ut->write_proc = write_lnet_ut;
-#endif
 	return 0;
 }
 
 static void ktest_lnet_fini(void)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 	M0_ASSERT(proc_lnet_ut != NULL);
 	remove_proc_entry(UT_PROC_NAME, NULL);
 	m0_semaphore_fini(&ktest_sem);
 	m0_cond_fini(&ktest_cond);
 	m0_mutex_fini(&ktest_mutex);
 	proc_lnet_ut = NULL;
-#endif
 }
 
 static bool ut_bufvec_alloc(struct m0_bufvec *bv, size_t n)
