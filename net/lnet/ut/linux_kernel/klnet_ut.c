@@ -44,6 +44,7 @@ static int ktest_id;
 static bool ktest_user_failed;
 static bool ktest_done;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 static ssize_t read_lnet_ut(struct file *file, char __user *buffer, size_t len,
 			    loff_t *offset)
 {
@@ -70,13 +71,40 @@ static ssize_t read_lnet_ut(struct file *file, char __user *buffer, size_t len,
 		return -EFAULT;
 	return sizeof code;
 }
+#else
+static int read_lnet_ut(char *page, char **start, off_t off,
+			int count, int *eof, void *data)
+{
+	m0_semaphore_down(&ktest_sem);
+
+	/* page[PAGE_SIZE] and simpleminded proc file */
+	m0_mutex_lock(&ktest_mutex);
+	if (ktest_user_failed)
+		*page = UT_TEST_DONE;
+	else
+		*page = ktest_id;
+	/* main thread will wait for user to read 1 DONE value */
+	if (*page == UT_TEST_DONE) {
+		ktest_done = true;
+		*eof = 1;
+		m0_cond_signal(&ktest_cond);
+	}
+	m0_mutex_unlock(&ktest_mutex);
+	return 1;
+}
+#endif
 
 /**
    Synchronize with user space program, updates ktest_id and signals main UT
    thread about each transition.
  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 static ssize_t write_lnet_ut(struct file *file, const char __user *buffer,
 			     size_t count, loff_t *offset)
+#else
+static int write_lnet_ut(struct file *file, const char __user *buffer,
+			 unsigned long count, void *data)
+#endif
 {
 	char buf[UT_PROC_WRITE_SIZE];
 
@@ -121,6 +149,7 @@ static ssize_t write_lnet_ut(struct file *file, const char __user *buffer,
 	return count;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 static int open_lnet_ut(struct inode *inode, struct file *file)
 {
 	return 0;
@@ -139,10 +168,15 @@ static struct file_operations proc_lnet_fops = {
 	.write    = write_lnet_ut,
 	.llseek   = default_llseek,
 };
+#endif
 
 static int ktest_lnet_init(void)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	proc_lnet_ut = proc_create(UT_PROC_NAME, 0644, NULL, &proc_lnet_fops);
+#else
+	proc_lnet_ut = create_proc_entry(UT_PROC_NAME, 0644, NULL);
+#endif
 	if (proc_lnet_ut == NULL)
 		return -ENOENT;
 
@@ -151,6 +185,10 @@ static int ktest_lnet_init(void)
 	m0_semaphore_init(&ktest_sem, 0);
 	ktest_id = UT_TEST_NONE;
 	ktest_user_failed = false;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+	proc_lnet_ut->read_proc  = read_lnet_ut;
+	proc_lnet_ut->write_proc = write_lnet_ut;
+#endif
 	return 0;
 }
 
