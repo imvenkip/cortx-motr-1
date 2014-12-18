@@ -23,7 +23,8 @@
 #ifndef __MERO_LIB_EXT_H__
 #define __MERO_LIB_EXT_H__
 
-#include "lib/types.h"
+#include "be/obj.h"     /* m0_be_obj_header */
+#include "be/obj_xc.h"
 
 /**
    @defgroup ext Extent
@@ -32,8 +33,10 @@
 
 /** extent [ e_start, e_end ) */
 struct m0_ext {
-	m0_bindex_t e_start;
-	m0_bindex_t e_end;
+	struct m0_be_obj_header e_header;
+	m0_bindex_t             e_start;
+	m0_bindex_t             e_end;
+	struct m0_be_obj_footer e_footer;
 } M0_XCA_RECORD;
 
 M0_INTERNAL m0_bcount_t m0_ext_length(const struct m0_ext *ext);

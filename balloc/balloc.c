@@ -593,13 +593,10 @@ static int balloc_gi_sync(struct m0_balloc *cb,
 static int balloc_load_group_info(struct m0_balloc *cb,
 				  struct m0_balloc_group_info *gi)
 {
-	struct m0_balloc_group_desc	gd = { 0 };
-	struct m0_buf			key = M0_BUF_INIT_PTR(&gi->bgi_groupno);
-	struct m0_buf			val = M0_BUF_INIT_PTR(&gd);
-	int				rc;
-
-	// M0_LOG(M0_DEBUG, "loading group info for = %llu",
-	// (unsigned long long)gi->bgi_groupno);
+	struct m0_balloc_group_desc gd = {};
+	struct m0_buf               key = M0_BUF_INIT_PTR(&gi->bgi_groupno);
+	struct m0_buf               val = M0_BUF_INIT_PTR(&gd);
+	int                         rc;
 
 	rc = btree_lookup_sync(&cb->cb_db_group_desc, &key, &val);
 	if (rc == 0) {
@@ -611,7 +608,6 @@ static int balloc_load_group_info(struct m0_balloc *cb,
 		m0_list_init(&gi->bgi_prealloc_list);
 		m0_mutex_init(&gi->bgi_mutex);
 	}
-
 	return M0_RC(rc);
 }
 

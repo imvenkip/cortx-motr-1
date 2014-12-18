@@ -46,31 +46,40 @@
    Every group description will stay in a separate db.
  */
 struct m0_balloc_group_desc {
-        m0_bindex_t  bgd_groupno;    /*< group number */
-        m0_bcount_t  bgd_freeblocks; /*< total free blocks */
-        m0_bcount_t  bgd_fragments;  /*< nr of freespace fragments */
-        m0_bcount_t  bgd_maxchunk;   /*< max bytes of freespace chunk */
+	struct m0_be_obj_header bgd_header;
+	/** group number */
+	m0_bindex_t             bgd_groupno;
+	/** total free blocks */
+	m0_bcount_t             bgd_freeblocks;
+	/** nr of freespace fragments */
+	m0_bcount_t             bgd_fragments;
+	/** max bytes of freespace chunk */
+	m0_bcount_t             bgd_maxchunk;
+	struct m0_be_obj_footer bgd_footer;
 };
 
 /**
    In-memory data structure for group
  */
 struct m0_balloc_group_info {
-        uint64_t         bgi_state;         /*< enum m0_balloc_group_info_state */
-        m0_bindex_t      bgi_groupno;       /*< group number */
-        m0_bcount_t      bgi_freeblocks;    /*< total free blocks */
-        m0_bcount_t      bgi_fragments;     /*< nr of freespace fragments */
-        m0_bcount_t      bgi_maxchunk;      /*< max bytes of freespace chunk */
-        struct m0_list   bgi_prealloc_list; /*< list of pre-alloc */
-        struct m0_mutex  bgi_mutex;         /*< per-group lock */
-
-	struct m0_ext   *bgi_extents;       /*< (bgi_fragments+1) of extents */
-
-        /**
-	   Nr of free power-of-two-block regions, index is order.
-           bb_counters[3] = 5 means 5 free 8-block regions.
-	   m0_bcount_t     bgi_counters[];
-        */
+	struct m0_be_obj_header bgi_header;
+	/** @see m0_balloc_group_info_state for values */
+	uint64_t                bgi_state;
+	/** group number */
+	m0_bindex_t             bgi_groupno;
+	/** total free blocks */
+	m0_bcount_t             bgi_freeblocks;
+	/** nr of freespace fragments */
+	m0_bcount_t             bgi_fragments;
+	/** max bytes of freespace chunk */
+	m0_bcount_t             bgi_maxchunk;
+	/** list of pre-alloc */
+	struct m0_list          bgi_prealloc_list;
+	/** per-group lock */
+	struct m0_mutex         bgi_mutex;
+	/** (bgi_fragments+1) of extents */
+	struct m0_ext          *bgi_extents;
+	struct m0_be_obj_footer bgi_footer;
 };
 
 enum m0_balloc_group_info_state {
@@ -125,6 +134,7 @@ enum m0_balloc_super_block_version {
    It includes pointers to db, various flags and parameters.
  */
 struct m0_balloc {
+	struct m0_be_obj_header      cb_header;
 	struct m0_be_seg            *cb_be_seg;
 
 	/** container this block allocator belongs to. */
@@ -132,7 +142,7 @@ struct m0_balloc {
 	/** the on-disk and in-memory sb */
 	struct m0_balloc_super_block cb_sb;
 	/** super block lock */
-        struct m0_mutex              cb_sb_mutex;
+	struct m0_mutex              cb_sb_mutex;
 	/** db for free extent */
 	struct m0_be_btree           cb_db_group_extents;
 	/** db for group desc */
@@ -143,6 +153,7 @@ struct m0_balloc {
 	m0_bindex_t                  cb_last;
 
 	struct m0_ad_balloc          cb_ballroom;
+	struct m0_be_obj_footer      cb_footer;
 };
 
 static inline struct m0_balloc *b2m0(const struct m0_ad_balloc *ballroom)

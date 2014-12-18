@@ -96,7 +96,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 	struct m0_be_tx  *tx = &dtx.tx_betx;
 	int		  result;
 	struct m0_ext	  ext[MAX];
-	struct m0_ext	  tmp   = { 0 };
+	struct m0_ext	  tmp   = {};
 	m0_bcount_t	  count = 539;
 	int		  i     = 0;
 	time_t		  now;

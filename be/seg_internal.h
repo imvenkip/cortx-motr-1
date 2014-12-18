@@ -26,17 +26,19 @@
 #include "be/btree.h"		/* m0_be_btree */
 
 /**
- * @defgroup be Meta-data back-end
+ * @addtogroup be
  *
  * @{
  */
 
 /** "On-disk" header for segment, stored in STOB at zero offset */
 struct m0_be_seg_hdr {
+	struct m0_be_obj_header       bh_header;
 	void                         *bh_addr;  /**< Segment address in RAM. */
 	m0_bcount_t                   bh_size;  /**< Segment size. */
 	struct m0_be_allocator_header bh_alloc;
-	struct m0_be_btree            bs_dict; 	/**< Segment dictionary */
+	struct m0_be_btree            bs_dict;  /**< Segment dictionary */
+	struct m0_be_obj_footer       bh_footer;
 };
 
 /** @} end of be group */

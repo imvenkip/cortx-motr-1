@@ -23,6 +23,7 @@
 #ifndef __MERO_POOL_POOL_H__
 #define __MERO_POOL_POOL_H__
 
+#include "be/obj.h"      /* m0_be_obj_header */
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
 #include "be/be.h" /* struct m0_be_tx */
@@ -106,8 +107,8 @@ enum m0_pool_nd_state {
 };
 
 enum {
-        /* Unused spare slot has this device index */
-        POOL_PM_SPARE_SLOT_UNUSED = 0xFFFFFFFF
+	/** Unused spare slot has this device index */
+	POOL_PM_SPARE_SLOT_UNUSED = 0xffffffff
 };
 
 /**
@@ -123,11 +124,10 @@ enum {
  * @see pool server
  */
 struct m0_poolnode {
-	/** pool node state */
-	enum m0_pool_nd_state pn_state;
-
-	/** pool node identity */
-	struct m0_server     *pn_id;
+	struct m0_be_obj_header pn_header;
+	enum m0_pool_nd_state   pn_state;
+	struct m0_server       *pn_id;
+	struct m0_be_obj_footer pn_footer;
 };
 
 /**
@@ -136,15 +136,15 @@ struct m0_poolnode {
  * Data structure representing a storage device in a pool.
  */
 struct m0_pooldev {
+	struct m0_be_obj_header pd_header;
 	/** device state (as part of pool machine state). This field is only
 	    meaningful when m0_pooldev::pd_node.pn_state is PNS_ONLINE */
-	enum m0_pool_nd_state pd_state;
-
+	enum m0_pool_nd_state   pd_state;
 	/** pool device identity */
-	struct m0_device     *pd_id;
-
+	struct m0_device       *pd_id;
 	/* a node this storage devie is attached to */
-	struct m0_poolnode   *pd_node;
+	struct m0_poolnode     *pd_node;
+	struct m0_be_obj_footer pd_footer;
 };
 
 /** event owner type: node or device */
@@ -211,11 +211,13 @@ struct m0_pool_event_link {
  * If spare slot is not used for repair/rebalance, its :psp_device_index is -1.
  */
 struct m0_pool_spare_usage {
+	struct m0_be_obj_header psu_header;
 	/** index of the device to use this spare slot */
-	uint32_t              psu_device_index;
+	uint32_t                psu_device_index;
 
 	/** state of the device to use this spare slot */
-	enum m0_pool_nd_state psu_device_state;
+	enum m0_pool_nd_state   psu_device_state;
+	struct m0_be_obj_footer psu_footer;
 };
 
 /**
@@ -228,6 +230,7 @@ struct m0_pool_spare_usage {
  * a ordered collection of events.
  */
 struct m0_poolmach_state {
+	struct m0_be_obj_header        pst_header;
 	/** pool machine version numbers */
 	struct m0_pool_version_numbers pst_version;
 
@@ -262,6 +265,7 @@ struct m0_poolmach_state {
 	 * All Events ever happened to this pool machine, ordered by time.
 	 */
 	struct m0_tl                   pst_events_list;
+	struct m0_be_obj_footer        pst_footer;
 };
 
 /**

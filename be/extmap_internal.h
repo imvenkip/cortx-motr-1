@@ -41,10 +41,11 @@
    A key used to identify a particular segment in the map collection.
  */
 struct m0_be_emap_key {
+	struct m0_be_obj_header ek_header;
 	/**
 	    Prefix of the map the segment is part of.
 	 */
-	struct m0_uint128 ek_prefix;
+	struct m0_uint128       ek_prefix;
 
 	/**
 	    Last offset of the segment's extent. That is, the key of a segment
@@ -55,7 +56,8 @@ struct m0_be_emap_key {
 	    positions the cursor on the least key not less than the key sought
 	    for.
 	 */
-	m0_bindex_t       ek_offset;
+	m0_bindex_t             ek_offset;
+	struct m0_be_obj_footer ek_footer;
 };
 
 /**
@@ -69,14 +71,16 @@ struct m0_be_emap_key {
    possibility of occasional extra IO.
  */
 struct m0_be_emap_rec {
+	struct m0_be_obj_header er_header;
 	/**
 	   Starting offset of the segment's extent.
 	 */
-	m0_bindex_t   er_start;
+	m0_bindex_t             er_start;
 	/**
 	   Value associated with the segment.
 	 */
-	uint64_t      er_value;
+	uint64_t                er_value;
+	struct m0_be_obj_footer er_footer;
 };
 
 /**
@@ -86,14 +90,16 @@ struct m0_be_emap_rec {
    @see m0_be_emap_obj_insert()
  */
 struct m0_be_emap {
-	struct m0_rwlock      em_lock;
-	struct m0_be_btree    em_mapping;
-	struct m0_buf         em_key_buf;
-	struct m0_buf         em_val_buf;
-	struct m0_be_emap_key em_key;
-	struct m0_be_emap_rec em_rec;
+	struct m0_be_obj_header em_header;
+	struct m0_rwlock        em_lock;
+	struct m0_be_btree      em_mapping;
+	struct m0_buf           em_key_buf;
+	struct m0_buf           em_val_buf;
+	struct m0_be_emap_key   em_key;
+	struct m0_be_emap_rec   em_rec;
 	/** The segment where we are stored. */
-	struct m0_be_seg     *em_seg;
+	struct m0_be_seg       *em_seg;
+	struct m0_be_obj_footer em_footer;
 };
 
 /**

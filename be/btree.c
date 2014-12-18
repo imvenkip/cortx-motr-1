@@ -44,22 +44,26 @@ enum {
 };
 
 struct bt_key_val {
-        void *key;
-        void *val;
+	struct m0_be_obj_header hdr;
+	void                   *key;
+	void                   *val;
+	struct m0_be_obj_footer ftr;
 };
 
 struct m0_be_bnode {
-	struct m0_be_bnode  *b_next; /**< Pointer used for linked list */
-	bool                 b_leaf; /**< Is leaf node? */
-        unsigned int         b_nr_active; /**< Number of active keys */
-	unsigned int         b_level;    /**< Level in the B-Tree */
-	struct bt_key_val  **b_key_vals; /**< Array of key/value pointers */
-	struct m0_be_bnode **b_children; /**< Array of child nodes pointers */
+	struct m0_be_obj_header b_header;
+	struct m0_be_bnode     *b_next;
+	bool                    b_leaf;      /**< Leaf node? */
+	unsigned int            b_nr_active; /**< Number of active keys. */
+	unsigned int            b_level;     /**< Level in the B-Tree. */
+	struct bt_key_val     **b_key_vals;
+	struct m0_be_bnode    **b_children;
+	struct m0_be_obj_footer b_footer;
 };
 
 struct node_pos {
 	struct m0_be_bnode *p_node;
-	unsigned int	    p_index;
+	unsigned int        p_index;
 };
 
 static struct m0_be_allocator *tree_allocator(const struct m0_be_btree *btree)

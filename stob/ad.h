@@ -91,20 +91,23 @@ struct m0_ad_balloc_ops {
 	void (*bo_free_credit)(const struct m0_ad_balloc *ballroom, int nr,
 				     struct m0_be_tx_credit *accum);
 };
+
 struct m0_stob_ad_domain {
-	struct m0_stob_domain  sad_base;
-	struct m0_stob        *sad_bstore;
-	struct m0_fid          sad_bstore_fid;
-	struct m0_be_emap      sad_adata;
-	struct m0_ad_balloc   *sad_ballroom;
-	m0_bcount_t            sad_container_size;
-	uint32_t               sad_bshift;
-	int                    sad_babshift;
-	m0_bcount_t            sad_blocks_per_group;
-	m0_bcount_t            sad_res_groups;
-	struct m0_be_seg      *sad_be_seg;
-	char                   sad_path[MAXPATHLEN];
-	bool                   sad_overwrite;
+	struct m0_be_obj_header sad_header;
+	struct m0_stob_domain   sad_base;
+	struct m0_stob         *sad_bstore;
+	struct m0_fid           sad_bstore_fid;
+	struct m0_be_emap       sad_adata;
+	struct m0_ad_balloc    *sad_ballroom;
+	m0_bcount_t             sad_container_size;
+	uint32_t                sad_bshift;
+	int                     sad_babshift;
+	m0_bcount_t             sad_blocks_per_group;
+	m0_bcount_t             sad_res_groups;
+	struct m0_be_seg       *sad_be_seg;
+	char                    sad_path[MAXPATHLEN];
+	bool                    sad_overwrite;
+	struct m0_be_obj_footer sad_footer;
 };
 
 /**

@@ -74,7 +74,7 @@ extern void m0_be_ut_emap(void);
 extern void m0_be_ut_seg_dict(void);
 extern void m0_be_ut_fake_mkfs(void);
 extern void m0_be_ut_seg0_test(void);
-
+extern void m0_be_ut_obj_test(void);
 
 struct m0_ut_suite be_ut = {
 	.ts_name = "be-ut",
@@ -115,6 +115,7 @@ struct m0_ut_suite be_ut = {
 		{ "alloc-multiple",      m0_be_ut_alloc_multiple       },
 		{ "alloc-concurrent",    m0_be_ut_alloc_concurrent     },
 		{ "alloc-transactional", m0_be_ut_alloc_transactional  },
+		{ "obj",                 m0_be_ut_obj_test             },
 #endif
 		{ "list",                m0_be_ut_list_api             },
 		{ "btree",               m0_be_ut_btree_simple         },

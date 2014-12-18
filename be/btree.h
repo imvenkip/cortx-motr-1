@@ -23,6 +23,7 @@
 
 #include "be/be.h"
 #include "be/seg.h"
+#include "be/obj.h"      /* m0_be_obj_header */
 #include "lib/rwlock.h"
 #include "lib/buf.h"
 
@@ -43,6 +44,7 @@ struct m0_be_tx_credit;
 
 /** In-memory B-tree, that can be stored on disk. */
 struct m0_be_btree {
+	struct m0_be_obj_header          bb_header;
 	/** The lock to acquire when performing operations on the tree. */
 	struct m0_rwlock                 bb_lock;
 	/** The segment where we are stored. */
@@ -51,6 +53,7 @@ struct m0_be_btree {
 	struct m0_be_bnode              *bb_root;
 	/** operation vector, treating keys and values, given by the user */
 	const struct m0_be_btree_kv_ops *bb_ops;
+	struct m0_be_obj_footer          bb_footer;
 };
 
 struct m0_table;

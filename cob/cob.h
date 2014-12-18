@@ -249,6 +249,7 @@ struct m0_cob_domain_id {
    Note: has to be allocated with m0_be_alloc()
 */
 struct m0_cob_domain {
+	struct m0_be_obj_header cd_header;
 	struct m0_cob_domain_id cd_id;
 	struct m0_be_seg       *cd_seg;
 	struct m0_be_btree      cd_object_index;
@@ -256,10 +257,11 @@ struct m0_cob_domain {
 	struct m0_be_btree      cd_fileattr_basic;
 	struct m0_be_btree      cd_fileattr_omg;
 	struct m0_be_btree      cd_fileattr_ea;
+	struct m0_be_obj_footer cd_footer;
 };
 
 int m0_cob_domain_init(struct m0_cob_domain *dom,
-		       struct m0_be_seg	*seg,
+		       struct m0_be_seg *seg,
 		       const struct m0_cob_domain_id *id);
 void m0_cob_domain_fini(struct m0_cob_domain *dom);
 int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
@@ -352,6 +354,7 @@ M0_INTERNAL int m0_cob_nskey_cmp(const struct m0_cob_nskey *k0,
  * file attributes.
  */
 struct m0_cob_nsrec {
+	struct m0_be_obj_header cnr_header;
 	struct m0_fid     cnr_fid;     /**< object fid */
 	uint32_t          cnr_linkno;  /**< number of link for the name */
 
@@ -369,6 +372,7 @@ struct m0_cob_nsrec {
 	uint64_t          cnr_mtime;   /**< time of last modification */
 	uint64_t          cnr_ctime;   /**< time of last status change */
 	uint64_t          cnr_lid;     /**< layout id */
+	struct m0_be_obj_footer cnr_footer;
 };
 
 /** Object index table key. The oi table record is a struct m0_cob_nskey. */
