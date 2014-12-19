@@ -198,9 +198,10 @@ int m0t1fs_fsync_reply_process(struct m0t1fs_sb                *csb,
 	ffr = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 	M0_ASSERT(ffr != NULL);
 
-	if (ffr->ffr_rc != 0) {
+	rc = ffr->ffr_rc;
+	if (rc != 0) {
 		fi.fop_put(fop);
-		return M0_ERR_INFO(ffr->ffr_rc, "Remote fop failed.");
+		return M0_ERR_INFO(rc, "Remote fop failed.");
 	}
 
 	/* Is this a valid reply to our request */
@@ -418,8 +419,10 @@ void m0t1fs_fsync_record_update(struct m0t1fs_service_context *service,
 	m0_mutex_lock(&service->sc_max_pending_tx_lock);
 	stx = &service->sc_max_pending_tx;
 	/* update the value from the reply_fop */
-	if (btr->tri_txid > stx->stx_tri.tri_txid)
+	if (btr->tri_txid > stx->stx_tri.tri_txid) {
+		stx->stx_service_ctx = service;
 		stx->stx_tri = *btr;
+	}
 	m0_mutex_unlock(&service->sc_max_pending_tx_lock);
 
 	M0_LEAVE("Fsync record updated.");
@@ -467,9 +470,10 @@ int m0t1fs_sync_fs(struct super_block *sb, int wait)
 		stx = &iter->sc_max_pending_tx;
 
 		/* Check if this service has any pending transactions. */
-		if (stx->stx_tri.tri_txid == 0)
+		if (stx->stx_tri.tri_txid == 0) {
 			m0_mutex_unlock(&iter->sc_max_pending_tx_lock);
 			continue;
+		}
 
 		M0_ALLOC_PTR_ADDB(ffw, &m0_addb_gmc,
 		                  M0T1FS_ADDB_FFW_ALLOC, &m0t1fs_addb_ctx);
@@ -487,9 +491,10 @@ int m0t1fs_sync_fs(struct super_block *sb, int wait)
 			m0_free0(&ffw);
 			m0_mutex_unlock(&iter->sc_max_pending_tx_lock);
 			break;
-		} else
+		} else {
 			/* Add to list of pending fops */
 			fpf_tlink_init_at(ffw, &pending_fops);
+		}
 
 		m0_mutex_unlock(&iter->sc_max_pending_tx_lock);
 	} m0_tl_endfor;
