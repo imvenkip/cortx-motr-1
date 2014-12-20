@@ -47,8 +47,7 @@ static bool is_pointer(const struct m0_xcode_type *xt,
  * Returns "portable" alignment for a field, which would work on any
  * architecture.
  */
-static unsigned alignment_mask(const struct m0_xcode_type *xt,
-			       const struct m0_xcode_field *field)
+static unsigned alignment_mask(const struct m0_xcode_field *field)
 {
 	unsigned                    x;
 	const struct m0_xcode_type *ft = field->xf_type;
@@ -59,16 +58,16 @@ static unsigned alignment_mask(const struct m0_xcode_type *xt,
 }
 
 static bool field_invariant(const struct m0_xcode_type *xt,
-                            const struct m0_xcode_field *field)
+			    const struct m0_xcode_field *field)
 {
-        return
-                _0C(field->xf_name != NULL) && _0C(field->xf_type != NULL) &&
-                _0C(ergo(xt == &M0_XT_OPAQUE, field->xf_opaque != NULL)) &&
-                _0C(field->xf_offset +
+	return
+		_0C(field->xf_name != NULL) && _0C(field->xf_type != NULL) &&
+		_0C(ergo(xt == &M0_XT_OPAQUE, field->xf_opaque != NULL)) &&
+		_0C(field->xf_offset +
 		    (is_pointer(xt, field) ? sizeof(void *) :
 		     field->xf_type->xct_sizeof) <= xt->xct_sizeof) &&
 		/* check that alignment is portable. */
-		_0C((field->xf_offset & alignment_mask(xt, field)) == 0);
+		_0C((field->xf_offset & alignment_mask(field)) == 0);
 }
 
 bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
