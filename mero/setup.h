@@ -481,6 +481,14 @@ M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero);
 struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx);
 
 /**
+ * Accesses configuration profile.
+ *
+ * Returned pointer is valid between @ref m0_cs_setup_env() and
+ * @ref m0_cs_fini() calls.
+ */
+char *m0_cs_profile_get(struct m0_mero *cctx);
+
+/**
  * Returns instance of struct m0_mero given a
  * request handler instance.
  * @pre reqh != NULL.

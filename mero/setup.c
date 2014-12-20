@@ -1356,7 +1356,11 @@ struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx)
 
 	return &rctx->rc_reqh;
 }
-M0_EXPORTED(m0_cs_reqh_get);
+
+char *m0_cs_profile_get(struct m0_mero *cctx)
+{
+	return cctx->cc_profile;
+}
 
 M0_INTERNAL struct m0_mero *m0_cs_ctx_get(struct m0_reqh *reqh)
 {

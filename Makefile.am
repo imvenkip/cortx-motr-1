@@ -212,6 +212,7 @@ include $(top_srcdir)/sns/Makefile.sub
 include $(top_srcdir)/sns/cm/Makefile.sub
 include $(top_srcdir)/sns/cm/repair/Makefile.sub
 include $(top_srcdir)/sns/cm/rebalance/Makefile.sub
+include $(top_srcdir)/spiel/Makefile.sub
 include $(top_srcdir)/sss/Makefile.sub
 include $(top_srcdir)/stob/Makefile.sub
 include $(top_srcdir)/stats/Makefile.sub
@@ -1247,6 +1248,7 @@ EXTRA_DIST += addb/Kbuild.sub \
               sm/Kbuild.sub \
               sm/ut/Kbuild.sub \
               sns/Kbuild.sub \
+              spiel/Kbuild.sub \
               stats/Kbuild.sub \
               stob/Kbuild.sub \
               stob/ut/Kbuild.sub \

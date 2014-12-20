@@ -242,10 +242,11 @@ M0_INTERNAL int m0_trace_set_level(const char *level);
   M0_TRACE_SUBSYS(SM,        31) \
   M0_TRACE_SUBSYS(SNS,       32) \
   M0_TRACE_SUBSYS(SNSCM,     33) \
-  M0_TRACE_SUBSYS(SSS,       34) \
-  M0_TRACE_SUBSYS(STATS,     35) \
-  M0_TRACE_SUBSYS(STOB,      36) \
-  M0_TRACE_SUBSYS(XCODE,     37)
+  M0_TRACE_SUBSYS(SPIEL,     34) \
+  M0_TRACE_SUBSYS(SSS,       35) \
+  M0_TRACE_SUBSYS(STATS,     36) \
+  M0_TRACE_SUBSYS(STOB,      37) \
+  M0_TRACE_SUBSYS(XCODE,     38)
 
 #define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1UL << value),
 /** The subsystem bitmask definitions */
