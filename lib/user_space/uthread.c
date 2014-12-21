@@ -56,6 +56,7 @@
  * This is per-process, not per-m0-instance.
  */
 static pthread_key_t tls_key;
+static bool threads_once_initialised = false;
 
 /**
  * Default pthread creation attribute.
@@ -66,7 +67,10 @@ static pthread_attr_t pthread_attr_default;
 
 M0_INTERNAL struct m0_thread_tls *m0_thread_tls(void)
 {
-	return pthread_getspecific(tls_key);
+	if (threads_once_initialised)
+		return pthread_getspecific(tls_key);
+	else
+		return NULL;
 }
 
 static void *uthread_trampoline(void *arg)
@@ -162,6 +166,7 @@ M0_INTERNAL int m0_threads_once_init(void)
 	m0_debugger_args[1] = program_invocation_name;
 	m0_debugger_args[2] = pidbuf;
 	result = snprintf(pidbuf, ARRAY_SIZE(pidbuf), "%i", getpid());
+	threads_once_initialised = true;
 
 	result = -pthread_key_create(&tls_key, NULL);
 	if (result != 0)
@@ -195,17 +200,17 @@ M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
 
 M0_INTERNAL void m0_enter_awkward(void)
 {
-	M0_CNT_INC(m0_thread_tls()->tls_awkward);
+	M0_CNT_INC(m0_thread_tls()->tls_arch.tat_awkward);
 }
 
 M0_INTERNAL void m0_exit_awkward(void)
 {
-	M0_CNT_DEC(m0_thread_tls()->tls_awkward);
+	M0_CNT_DEC(m0_thread_tls()->tls_arch.tat_awkward);
 }
 
 M0_INTERNAL bool m0_is_awkward(void)
 {
-	return m0_thread_tls()->tls_awkward != 0;
+	return m0_thread_tls()->tls_arch.tat_awkward != 0;
 }
 
 /** @} end of thread group */

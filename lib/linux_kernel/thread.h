@@ -44,10 +44,22 @@ struct m0_thread_handle {
 	struct task_struct *h_t;
 };
 
-/** Thread-local storage. */
-struct m0_thread_tls {
-	struct m0 *tls_m0_instance; /**< The pointer returned by m0_get(). */
+/** Kernel thread-local storage. */
+struct m0_thread_arch_tls {
+	void *tat_prev;
 };
+
+struct m0_thread_tls;
+
+M0_INTERNAL void m0_thread_enter(struct m0_thread_tls *tls);
+M0_INTERNAL void m0_thread_leave(void);
+M0_INTERNAL void m0_thread__cleanup(struct m0_thread_tls *bye);
+
+#define M0_THREAD_ENTER						\
+	struct m0_thread_tls __tls					\
+		__attribute__((cleanup(m0_thread__cleanup))) = { 0, };	\
+	m0_thread_enter(&__tls)
+
 
 /** @} end of thread group */
 #endif /* __MERO_LIB_LINUX_KERNEL_THREAD_H__ */

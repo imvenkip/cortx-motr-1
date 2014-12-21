@@ -1396,6 +1396,7 @@ static long nlx_dev_ioctl(struct file *file,
 	unsigned sz = _IOC_SIZE(cmd);
         int rc;
 
+	M0_THREAD_ENTER;
 	M0_PRE(nlx_kcore_domain_invariant(kd));
 
         if (_IOC_TYPE(cmd) != M0_LNET_IOC_MAGIC ||

@@ -30,6 +30,10 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
 #include "lib/trace.h"
 #include "addb/addb.h"
+#include "addb2/net.h"
+#include "addb2/addb2.h"
+#include "addb2/storage.h"
+#include "addb2/identifier.h"
 #include "mero/magic.h"
 #include "fop/fop.h"
 #include "fop/fom_long_lock.h"
@@ -322,6 +326,7 @@ static void fom_ready(struct m0_fom *fom)
 	empty = runq_tlist_is_empty(&loc->fl_runq);
 	runq_tlist_add_tail(&loc->fl_runq, fom);
 	M0_CNT_INC(loc->fl_runq_nr);
+	m0_addb2_counter_mod(&loc->fl_runq_counter, loc->fl_runq_nr);
 	if (empty)
 		m0_chan_signal(&loc->fl_runrun);
 	M0_POST(m0_fom_invariant(fom));
@@ -329,10 +334,13 @@ static void fom_ready(struct m0_fom *fom)
 
 M0_INTERNAL void m0_fom_ready(struct m0_fom *fom)
 {
+	struct m0_fom_locality *loc = fom->fo_loc;
+
 	M0_PRE(m0_fom_invariant(fom));
 
 	wail_tlist_del(fom);
-	M0_CNT_DEC(fom->fo_loc->fl_wail_nr);
+	M0_CNT_DEC(loc->fl_wail_nr);
+	m0_addb2_counter_mod(&loc->fl_wail_counter, loc->fl_wail_nr);
 	fom_ready(fom);
 }
 
@@ -352,6 +360,29 @@ static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	m0_fom_locality_inc(fom);
 	fom_ready(fom);
+}
+
+static void fom_addb2_push(struct m0_fom *fom)
+{
+	M0_ADDB2_PUSH(M0_AVI_FOM, (uint64_t)fom, fom->fo_transitions,
+		      fom->fo_sm_phase.sm_state);
+}
+
+static void thr_addb2_enter(struct m0_loc_thread *thr,
+			    struct m0_fom_locality *loc)
+{
+	M0_PRE(m0_thread_tls()->tls_addb2_mach == NULL);
+
+	m0_thread_tls()->tls_addb2_mach = loc->fl_addb2_mach;
+	m0_addb2_push(M0_AVI_THREAD, M0_ADDB2_OBJ(&thr->lt_thread.t_h));
+}
+
+static void thr_addb2_leave(struct m0_loc_thread *thr,
+			    struct m0_fom_locality *loc)
+{
+	M0_PRE(m0_thread_tls()->tls_addb2_mach == loc->fl_addb2_mach);
+	m0_addb2_pop(M0_AVI_THREAD);
+	m0_thread_tls()->tls_addb2_mach = NULL;
 }
 
 M0_INTERNAL void m0_fom_wakeup(struct m0_fom *fom)
@@ -399,6 +430,8 @@ M0_INTERNAL void m0_fom_block_enter(struct m0_fom *fom)
 	thr->lt_state = BLOCKED;
 	loc->fl_handler = NULL;
 	M0_ASSERT(m0_locality_invariant(loc));
+	m0_addb2_pop(M0_AVI_FOM);
+	thr_addb2_leave(thr, loc);
 	group_unlock(loc);
 }
 
@@ -423,6 +456,8 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 	if (m0_atomic64_add_return(&loc->fl_unblocking, 1) == 1)
 		m0_clink_signal(&loc->fl_group.s_clink);
 	group_lock(loc);
+	thr_addb2_enter(thr, loc);
+	fom_addb2_push(fom);
 	M0_ASSERT(m0_locality_invariant(loc));
 	M0_ASSERT(fom_is_blocked(fom));
 	M0_ASSERT(loc->fl_handler == NULL);
@@ -445,7 +480,7 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
 	M0_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = reqh->rh_fom_dom.fd_localities[loc_idx];
 	m0_fom_sm_init(fom);
-	fom->fo_cb.fc_ast.sa_cb = queueit;
+	fom->fo_cb.fc_ast.sa_cb = &queueit;
 	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
 
@@ -470,7 +505,20 @@ static void fom_wait(struct m0_fom *fom)
 	loc = fom->fo_loc;
 	wail_tlist_add_tail(&loc->fl_wail, fom);
 	M0_CNT_INC(loc->fl_wail_nr);
+	m0_addb2_counter_mod(&loc->fl_wail_counter, loc->fl_wail_nr);
 	M0_POST(m0_fom_invariant(fom));
+}
+
+static void addb2_introduce(struct m0_fom *fom)
+{
+	M0_ADDB2_ADD(M0_AVI_FOM_DESCR,
+		     fom->fo_service->rs_service_uuid.u_hi,
+		     fom->fo_service->rs_service_uuid.u_lo,
+		     fom->fo_fop != NULL ?
+			     fom->fo_fop->f_item.ri_type->rit_opcode : 0,
+		     fom->fo_rep_fop != NULL ?
+			     fom->fo_rep_fop->f_item.ri_type->rit_opcode : 0,
+		     fom->fo_local);
 }
 
 /**
@@ -519,6 +567,8 @@ static void fom_exec(struct m0_fom *fom)
 	fom->fo_thread = loc->fl_handler;
 	fom_state_set(fom, M0_FOS_RUNNING);
 	exec_time = fom->fo_sm_state.sm_state_epoch;
+	if (fom->fo_transitions == 0)
+		addb2_introduce(fom);
 	do {
 		M0_ASSERT(m0_fom_invariant(fom));
 		M0_ASSERT(m0_fom_phase(fom) != M0_FOM_PHASE_FINISH);
@@ -587,6 +637,7 @@ static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
 	if (fom != NULL) {
 		M0_ASSERT(fom->fo_loc == loc);
 		M0_CNT_DEC(loc->fl_runq_nr);
+		m0_addb2_counter_mod(&loc->fl_runq_counter, loc->fl_runq_nr);
 		m0_addb_counter_update(&loc->fl_stat_sched_wait_times,
 				       m0_time_sub(m0_time_now(), /* ~usec */
 						   fom->fo_sched_epoch) >> 10);
@@ -594,12 +645,40 @@ static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
 	return fom;
 }
 
+static int loc_addb2_submit(const struct m0_addb2_mach *mach,
+			    struct m0_addb2_trace_obj  *tobj)
+{
+	struct m0_fom_locality *loc  = m0_addb2_mach_cookie(mach);
+	struct m0_reqh         *reqh = loc->fl_dom->fd_reqh;
+
+	if (reqh->rh_addb2_stor != NULL)
+		return m0_addb2_storage_submit(reqh->rh_addb2_stor, tobj);
+	else if (reqh->rh_addb2_net != NULL)
+		return m0_addb2_net_submit(reqh->rh_addb2_net, tobj);
+	else {
+		M0_LOG(M0_NOTICE, "Nowhere to submit.");
+		return 0;
+	}
+}
+
+static void loc_addb2_idle(const struct m0_addb2_mach *mach)
+{
+	struct m0_fom_locality *loc = m0_addb2_mach_cookie(mach);
+
+	m0_semaphore_up(&loc->fl_addb2_idle);
+}
+
+static const struct m0_addb2_mach_ops addb2_ops = {
+	.apo_submit = &loc_addb2_submit,
+	.apo_idle   = &loc_addb2_idle
+};
+
 /**
  * Locality handler thread. See the "Locality internals" section.
  */
 static void loc_handler_thread(struct m0_loc_thread *th)
 {
-	struct m0_clink	       *clink = &th->lt_clink;
+	struct m0_clink        *clink = &th->lt_clink;
 	struct m0_fom_locality *loc   = th->lt_loc;
 
 	while (1) {
@@ -615,6 +694,7 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 		M0_ASSERT(loc->fl_handler == NULL);
 		loc->fl_handler = th;
 		th->lt_state = HANDLER;
+		thr_addb2_enter(th, loc);
 
 		/*
 		 * re-initialise the clink and arrange for it to receive group
@@ -650,9 +730,11 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 				break;
 			m0_sm_asts_run(&loc->fl_group);
 			fom = fom_dequeue(loc);
-			if (fom != NULL)
+			if (fom != NULL) {
+				fom_addb2_push(fom);
 				fom_exec(fom);
-			else if (loc->fl_shutdown)
+				m0_addb2_pop(M0_AVI_FOM);
+			} else if (loc->fl_shutdown)
 				break;
 			else
 				/*
@@ -668,6 +750,7 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 		m0_clink_fini(clink);
 		m0_clink_init(&th->lt_clink, NULL);
 		m0_clink_add(&loc->fl_idle, &th->lt_clink);
+		thr_addb2_leave(th, loc);
 		group_unlock(loc);
 		if (loc->fl_shutdown)
 			break;
@@ -689,7 +772,6 @@ static void loc_thr_fini(struct m0_loc_thread *th)
 	M0_PRE(th->lt_state == IDLE);
 	m0_clink_del(&th->lt_clink);
 	m0_clink_fini(&th->lt_clink);
-
 	m0_thread_fini(&th->lt_thread);
 	thr_tlink_del_fini(th);
 	m0_free(th);
@@ -707,20 +789,32 @@ static int loc_thr_create(struct m0_fom_locality *loc)
 	FOP_ALLOC_PTR(thr, LOC_THR_CREATE, &m0_fop_addb_ctx);
 	if (thr == NULL)
 		return M0_ERR(-ENOMEM);
-	thr->lt_state = IDLE;
-	thr->lt_magix = M0_FOM_THREAD_MAGIC;
-	thr->lt_loc   = loc;
+	thr->lt_state      = IDLE;
+	thr->lt_magix      = M0_FOM_THREAD_MAGIC;
+	thr->lt_loc        = loc;
 	thr_tlink_init_at_tail(thr, &loc->fl_threads);
 
 	m0_clink_init(&thr->lt_clink, NULL);
 	m0_clink_add(&loc->fl_idle, &thr->lt_clink);
 
 	res = M0_THREAD_INIT(&thr->lt_thread, struct m0_loc_thread *,
-				loc_thr_init, &loc_handler_thread, thr,
-				"m0_loc_thread");
+			     loc_thr_init, &loc_handler_thread, thr,
+			     "m0_loc_thread");
 	if (res != 0)
 		loc_thr_fini(thr);
 	return M0_RC(res);
+}
+
+static void loc_addb2_fini(struct m0_fom_locality *loc)
+{
+	m0_thread_tls()->tls_addb2_mach = loc->fl_addb2_mach;
+	m0_addb2_pop(M0_AVI_LOCALITY);
+	m0_addb2_pop(M0_AVI_NODE);
+	m0_thread_tls()->tls_addb2_mach = NULL;
+	m0_addb2_mach_stop(loc->fl_addb2_mach);
+	m0_semaphore_down(&loc->fl_addb2_idle);
+	m0_addb2_mach_fini(loc->fl_addb2_mach);
+	m0_semaphore_fini(&loc->fl_addb2_idle);
 }
 
 /**
@@ -763,6 +857,7 @@ static void loc_fini(struct m0_fom_locality *loc)
 	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
 	m0_addb_counter_fini(&loc->fl_stat_run_times);
 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
+	loc_addb2_fini(loc);
 	m0_fom_locality_lockers_fini(loc);
 }
 
@@ -800,6 +895,26 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	M0_ADDB_CTX_INIT(addb_mc, &loc->fl_addb_ctx, &m0_addb_ct_fom_locality,
 			 &loc->fl_dom->fd_reqh->rh_addb_ctx, cpu);
 
+	m0_semaphore_init(&loc->fl_addb2_idle, 0);
+	loc->fl_addb2_mach = m0_addb2_mach_init(&addb2_ops, loc);
+	if (loc->fl_addb2_mach == NULL)
+		goto err3;
+
+	runq_tlist_init(&loc->fl_runq);
+	loc->fl_runq_nr = 0;
+	wail_tlist_init(&loc->fl_wail);
+	loc->fl_wail_nr = 0;
+	loc->fl_idx = cpu;
+
+	m0_thread_tls()->tls_addb2_mach = loc->fl_addb2_mach;
+	m0_addb2_push(M0_AVI_NODE, M0_ADDB2_OBJ(&m0_node_uuid));
+	M0_ADDB2_PUSH(M0_AVI_LOCALITY, loc->fl_idx);
+	m0_addb2_clock_add(&loc->fl_clock, M0_AVI_CLOCK);
+	m0_addb2_counter_add(&loc->fl_fom_active, M0_AVI_FOM_ACTIVE);
+	m0_addb2_counter_add(&loc->fl_runq_counter, M0_AVI_RUNQ);
+	m0_addb2_counter_add(&loc->fl_wail_counter, M0_AVI_WAIL);
+	m0_thread_tls()->tls_addb2_mach = NULL;
+
 	res = m0_addb_counter_init(&loc->fl_stat_run_times,
 				      &m0_addb_rt_fl_run_times);
 	if (res != 0)
@@ -815,12 +930,6 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	res = m0_fop_rate_monitor_init(loc);
 	if (res < 0)
 		goto err0;
-
-	runq_tlist_init(&loc->fl_runq);
-	loc->fl_runq_nr = 0;
-
-	wail_tlist_init(&loc->fl_wail);
-	loc->fl_wail_nr = 0;
 
 	m0_sm_group_init(&loc->fl_group);
 	m0_chan_init(&loc->fl_runrun, &loc->fl_group.s_lock);
@@ -855,6 +964,8 @@ err0:
 err1:
 	m0_addb_counter_fini(&loc->fl_stat_run_times);
 err2:
+	loc_addb2_fini(loc);
+err3:
 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
 	return M0_RC(res);
 }
@@ -950,21 +1061,19 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 
 M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 {
-	int fd_loc_nr;
 	int i;
 
 	M0_ASSERT(m0_fom_domain_invariant(dom));
 
-	fd_loc_nr = dom->fd_localities_nr;
-	while (fd_loc_nr > 0) {
-		loc_fini(dom->fd_localities[fd_loc_nr - 1]);
-		--fd_loc_nr;
-	}
+	if (dom->fd_localities != NULL) {
+		i = dom->fd_localities_nr;
+		for (i = dom->fd_localities_nr; i > 0; --i)
+			loc_fini(dom->fd_localities[i - 1]);
 
-	for (i = 0; i < m0_processor_nr_max(); i++) {
-		m0_free(dom->fd_localities[i]);
+		for (i = 0; i < m0_processor_nr_max(); i++)
+			m0_free(dom->fd_localities[i]);
+		m0_free0(&dom->fd_localities);
 	}
-	m0_free(dom->fd_localities);
 }
 
 static bool is_loc_locker_empty(struct m0_fom_locality *loc, uint32_t key)
@@ -997,6 +1106,7 @@ M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom)
 	cnt = (uint64_t)m0_fom_locality_lockers_get(loc, key);
 	M0_CNT_INC(cnt);
 	M0_CNT_INC(loc->fl_foms);
+	m0_addb2_counter_mod(&loc->fl_fom_active, loc->fl_foms);
 	m0_fom_locality_lockers_set(loc, key, (void *)cnt);
 }
 
@@ -1011,6 +1121,7 @@ M0_INTERNAL bool m0_fom_locality_dec(struct m0_fom *fom)
 	M0_CNT_DEC(cnt);
 	M0_CNT_DEC(loc->fl_foms);
 	m0_fom_locality_lockers_set(loc, key, (void *)cnt);
+	m0_addb2_counter_mod(&loc->fl_fom_active, loc->fl_foms);
 	return cnt == 0;
 }
 
@@ -1049,7 +1160,7 @@ void m0_fom_fini(struct m0_fom *fom)
 		fom->fo_op_addb_ctx = NULL;
 	}
 	runq_tlink_fini(fom);
-	m0_fom_callback_init(&fom->fo_cb);
+	m0_fom_callback_fini(&fom->fo_cb);
 
 	if (fom->fo_fop != NULL)
 		m0_fop_put_lock(fom->fo_fop);
@@ -1361,7 +1472,9 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 	fom_group    = &fom->fo_loc->fl_group;
 
 	m0_sm_init(&fom->fo_sm_phase, conf, M0_FOM_PHASE_INIT, fom_group);
+	fom->fo_sm_phase.sm_addb2_id = M0_AVI_PHASE;
 	m0_sm_init(&fom->fo_sm_state, &fom_states_conf, M0_FOS_INIT, fom_group);
+	fom->fo_sm_state.sm_addb2_id = M0_AVI_STATE;
 
 	m0_addb_sm_counter_init(&fom->fo_sm_state_stats,
 				&m0_addb_rt_fom_state_stats,

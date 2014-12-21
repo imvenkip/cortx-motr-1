@@ -216,6 +216,12 @@ int main(int argc, char *argv[])
 	int                    i;
 	int                    j;
 
+	rc = m0_init(&instance);
+	if (rc != 0) {
+		fprintf(stderr, "Cannot init Mero: %d\n", rc);
+		return M0_RC(rc);
+	}
+
 	rc = M0_GETOPTS("poolmach", argc, argv,
 			M0_STRINGARG('O',
 				     "Q(uery) or S(et)",
@@ -243,23 +249,23 @@ int main(int argc, char *argv[])
 				    ),
 			M0_FORMATARG('N', "Number of devices", "%u", &dev_nr),
 			M0_NUMBERARG('I', "device index",
-                                     LAMBDA(void, (int64_t device_index)
-                                            {
-					         device_index_arr[di] =
+				     LAMBDA(void, (int64_t device_index)
+					    {
+						device_index_arr[di] =
 								device_index;
-                                                 M0_CNT_INC(di);
-                                                 M0_ASSERT(di <= MAX_DEV_NR);
-                                            }
+						M0_CNT_INC(di);
+						M0_ASSERT(di <= MAX_DEV_NR);
+					    }
 					   )
 				    ),
 			M0_NUMBERARG('s', "device state",
-                                     LAMBDA(void, (int64_t device_state)
-                                            {
-					         device_state_arr[ds] =
+				     LAMBDA(void, (int64_t device_state)
+					    {
+						device_state_arr[ds] =
 								device_state;
-                                                 M0_CNT_INC(ds);
-                                                 M0_ASSERT(di <= MAX_DEV_NR);
-                                            }
+						M0_CNT_INC(ds);
+						M0_ASSERT(di <= MAX_DEV_NR);
+					    }
 					   )
 				    ),
 			M0_STRINGARG('C', "Client endpoint",
@@ -304,12 +310,6 @@ int main(int argc, char *argv[])
 				(long long)device_state_arr[i]);
 			return M0_ERR(-EINVAL);
 		}
-	}
-
-	rc = m0_init(&instance);
-	if (rc != 0) {
-		fprintf(stderr, "Cannot init Mero: %d\n", rc);
-		return M0_RC(rc);
 	}
 
 	rc = poolmach_client_init();
@@ -413,13 +413,14 @@ int main(int argc, char *argv[])
 			rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
 			query_fop_rep = m0_fop_data(rep);
 			for (i = 0; i < dev_nr; ++i) {
-                                fprintf(stderr, "Query: index = %d state= %d rc = %d\n",
-                                        (int)query_fop_rep->fqr_dev_info.
-                                        fpi_dev[i].fpd_index,
-                                        (int)query_fop_rep->fqr_dev_info.
-                                        fpi_dev[i].fpd_state,
-                                        (int)query_fop_rep->fqr_rc);
-                        }
+				fprintf(stderr,
+					"Query: index = %d state= %d rc = %d\n",
+					(int)query_fop_rep->fqr_dev_info.
+					fpi_dev[i].fpd_index,
+					(int)query_fop_rep->fqr_dev_info.
+					fpi_dev[i].fpd_state,
+					(int)query_fop_rep->fqr_rc);
+			}
 		} else {
 			struct m0_fop_poolmach_set_rep *set_fop_rep;
 			struct m0_fop *rep;

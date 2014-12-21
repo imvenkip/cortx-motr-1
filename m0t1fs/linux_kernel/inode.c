@@ -206,6 +206,7 @@ static void m0t1fs_inode_ispti_fini(struct m0t1fs_inode *ci)
 
 static void m0t1fs_inode_fini(struct m0t1fs_inode *ci)
 {
+	M0_THREAD_ENTER;
 	M0_ENTRY("ci: %p, is_root %s, layout_instance %p",
 		 ci, m0_bool_to_str(m0t1fs_inode_is_root(&ci->ci_inode)),
 		 ci->ci_layout_instance);
@@ -247,6 +248,7 @@ M0_INTERNAL void m0t1fs_destroy_inode(struct inode *inode)
 {
 	struct m0t1fs_inode *ci  = M0T1FS_I(inode);
 	const struct m0_fid *fid = m0t1fs_inode_fid(ci);
+	M0_THREAD_ENTER;
 
 	M0_ENTRY("inode: %p, fid: "FID_F, inode, FID_P(fid));
 	if (m0_fid_is_set(fid) && !m0t1fs_inode_is_root(inode)) {

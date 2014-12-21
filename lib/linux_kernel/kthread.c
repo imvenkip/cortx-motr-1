@@ -21,6 +21,7 @@
 #include <linux/version.h>    /* LINUX_VERSION_CODE */
 
 #include "lib/thread.h"
+#include "lib/misc.h"         /* M0_IS0 */
 #include "lib/arith.h"        /* min64u */
 #include "lib/bitmap.h"       /* m0_bitmap_get */
 #include "module/instance.h"  /* m0_set */
@@ -58,17 +59,22 @@
    @{
  */
 
-static struct m0_thread_tls kernel_tls;
+static struct m0 *__instance;
 
 M0_INTERNAL struct m0_thread_tls *m0_thread_tls(void)
 {
-	return &kernel_tls;
+	if (current->journal_info == NULL) {
+		M0_LOG(M0_FATAL, "No tls.");
+		dump_stack();
+	}
+	M0_ASSERT(current->journal_info != NULL);
+	return current->journal_info;
 }
 
 M0_INTERNAL int m0_threads_init(struct m0 *instance)
 {
-	M0_PRE(kernel_tls.tls_m0_instance == NULL);
-
+	M0_PRE(__instance == NULL);
+	__instance = instance;
 	m0_set(instance);
 	return 0;
 }
@@ -86,9 +92,42 @@ M0_INTERNAL void m0_threads_once_fini(void)
 {
 }
 
+M0_INTERNAL void m0_thread_enter(struct m0_thread_tls *tls)
+{
+	M0_PRE(M0_IS0(tls));
+
+	tls->tls_arch.tat_prev = current->journal_info;
+	current->journal_info = tls;
+	if (__instance != NULL)
+		m0_set(__instance);
+}
+M0_EXPORTED(m0_thread_enter);
+
+static void tls_fini(struct m0_thread_tls *tls)
+{
+}
+
+M0_INTERNAL void m0_thread_leave(void)
+{
+	struct m0_thread_tls *tls  = current->journal_info;
+	void                 *prev = tls->tls_arch.tat_prev;
+
+	tls_fini(tls);
+	current->journal_info = prev;
+}
+M0_EXPORTED(m0_thread_leave);
+
+M0_INTERNAL void m0_thread__cleanup(struct m0_thread_tls *bye)
+{
+	m0_thread_leave();
+}
+M0_EXPORTED(m0_thread__cleanup);
+
 static int kthread_trampoline(void *arg)
 {
 	struct m0_thread *t = arg;
+	M0_THREAD_ENTER;
+
 	/* Required for correct m0_thread_join() behavior in kernel:
 	   kthread_stop() will not stop if the thread has been created but has
 	   not yet started executing.  So, m0_thread_join() blocks on the

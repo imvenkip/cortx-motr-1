@@ -180,6 +180,7 @@ static int __init m0_netst_init_k(void)
 {
 	int rc;
 	uint64_t buffer_size;
+	M0_THREAD_ENTER;
 
 	/* parse module options */
 	if (nr_bufs < PING_MIN_BUFS) {
@@ -307,6 +308,7 @@ static int __init m0_netst_init_k(void)
 
 static void __exit m0_netst_fini_k(void)
 {
+	M0_THREAD_ENTER;
 	if (!server_only) {
 		int i;
 		for (i = 0; i < nr_clients; ++i) {

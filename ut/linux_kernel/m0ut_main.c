@@ -42,6 +42,8 @@ MODULE_PARM_DESC(exclude, " list of tests to exclude in format"
 /* sort test suites in alphabetic order */
 extern struct m0_ut_suite m0_klibm0_ut; /* test lib first */
 extern struct m0_ut_suite m0_addb_ut;
+extern struct m0_ut_suite addb2_base_ut;
+extern struct m0_ut_suite addb2_consumer_ut;
 extern struct m0_ut_suite be_ut;
 extern struct m0_ut_suite buffer_pool_ut;
 extern struct m0_ut_suite bulkio_client_ut;
@@ -81,6 +83,8 @@ static void tests_add(struct m0_ut_module *m)
 	/* sort test suites in alphabetic order */
 	m0_ut_add(m, &m0_klibm0_ut, true);  /* test lib first */
 	m0_ut_add(m, &m0_addb_ut, true);
+	m0_ut_add(m, &addb2_base_ut, true);
+	m0_ut_add(m, &addb2_consumer_ut, true);
 	m0_ut_add(m, &di_ut, true);
 	m0_ut_add(m, &file_io_ut, true);
 	m0_ut_add(m, &be_ut, true);
@@ -121,6 +125,7 @@ static int __init m0_ut_module_init(void)
 	struct m0_ut_module *ut;
 	int                  rc;
 
+	M0_THREAD_ENTER;
 	m0_instance_setup(&instance);
 	(void)m0_ut_module_type.mt_create(&instance);
 	ut = instance.i_moddata[M0_MODULE_UT];
@@ -143,6 +148,7 @@ static int __init m0_ut_module_init(void)
 
 static void __exit m0_ut_module_fini(void)
 {
+	M0_THREAD_ENTER;
 	m0_thread_join(&ut_thread);
 	m0_ut_fini();
 }

@@ -143,7 +143,7 @@ struct m0_stob_domain_ops {
 				      struct m0_be_tx_credit *accum);
 };
 
-/** Initialises existent domain. */
+/** Initialises existing domain. */
 M0_INTERNAL int m0_stob_domain_init(const char *location,
 				    const char *str_cfg_init,
 				    struct m0_stob_domain **out);

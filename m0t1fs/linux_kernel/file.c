@@ -4510,6 +4510,7 @@ M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb       *kcb,
 	m0_time_t                start;
 	uint64_t                 time_io;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY("indexvec %p, rw %d", ivec, rw);
 	M0_PRE(kcb  != NULL);
 	M0_PRE(iov  != NULL);
@@ -4633,6 +4634,7 @@ static ssize_t file_dio_write(struct kiocb	 *kcb,
 	ssize_t       written;
 	int           rc;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 	BUG_ON(kcb->ki_pos != pos);
 
@@ -4660,6 +4662,7 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 	ssize_t		    written;
 	struct m0_indexvec *ivec;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY("struct iovec %p position %llu seg_nr %lu", iov, pos, seg_nr);
 	M0_PRE(kcb != NULL);
 	M0_PRE(iov != NULL);
@@ -4723,6 +4726,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	struct file        *filp;
 	struct m0_indexvec *ivec;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY("struct iovec %p position %llu", iov, pos);
 	M0_PRE(kcb != NULL);
 	M0_PRE(iov != NULL);
@@ -4801,6 +4805,7 @@ static int m0t1fs_open(struct inode *inode, struct file *file)
 	int                  rc;
 	unsigned int         flag = file->f_flags;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 	if (csb->csb_oostore) {
 		m0t1fs_fs_lock(csb);
@@ -4836,6 +4841,7 @@ int m0t1fs_flush(struct file *file, fl_owner_t id)
 	struct m0t1fs_mdop   mo;
 	int                  rc;
 
+	M0_THREAD_ENTER;
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid   = *m0t1fs_inode_fid(ci);
 	mo.mo_attr.ca_size   = inode->i_size;
@@ -5687,6 +5693,7 @@ static ssize_t m0t1fs_direct_IO(int rw,
 	loff_t		    size = i_size_read(kcb->ki_filp->f_mapping->host);
 	int		    seg;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 	M0_LOG(M0_DEBUG, "m0t1fs_direct_IO: rw=%s pos=%lld seg_nr=%lu "
 	       "addr=%p len=%lu", rw == READ ? "READ" : "WRITE",

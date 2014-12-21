@@ -48,12 +48,13 @@ static int __init m0_net_test_module_init(void)
 		.ntnc_addr_console = addr_console,
 		.ntnc_send_timeout = M0_MKTIME(timeout, 0),
 	};
-
+	M0_THREAD_ENTER;
 	return m0_net_test_node_module_initfini(&cfg);
 }
 
 static void __exit m0_net_test_module_fini(void)
 {
+	M0_THREAD_ENTER;
 	m0_net_test_node_module_initfini(NULL);
 }
 

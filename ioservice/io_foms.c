@@ -883,14 +883,14 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
-        M0_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
+	M0_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
 	M0_ADDB_POST(fom_to_addb_mc(fom), &m0_addb_rt_ios_desc_io_finish,
 		     M0_FOM_ADDB_CTX_VEC(fom),
 		     stio_desc->siod_stob_io.si_stob.iv_index[0],
 		     fom_obj->fcrw_req_count,
 		     m0_time_sub(m0_time_now(), fom_obj->fcrw_io_launch_time));
-        if (fom_obj->fcrw_num_stobio_launched == 0)
-                m0_fom_ready(fom);
+	if (fom_obj->fcrw_num_stobio_launched == 0)
+		m0_fom_ready(fom);
 }
 
 enum {
@@ -2093,21 +2093,10 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 
 /**
  * Get locality of file operation machine.
- *
- * @param fom instance file operation machine under execution
- *
- * @pre fom != NULL
- * @pre fom->fo_fop != NULL
  */
 static size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom)
 {
-	struct m0_fop_cob_rw *rw;
-
-	M0_PRE(fom != NULL);
-	M0_PRE(fom->fo_fop != NULL);
-
-	rw = io_rw_get(fom->fo_fop);
-	return rw->crw_fid.f_container;
+	return m0_fid_hash(&io_rw_get(fom->fo_fop)->crw_fid, 1 << 30, 42) >> 1;
 }
 
 /**
@@ -2116,7 +2105,7 @@ static size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom)
 static void m0_io_fom_cob_rw_addb_init(struct m0_fom *fom,
 				       struct m0_addb_mc *mc)
 {
-        struct m0_fop_cob_rw *rwfop;
+	struct m0_fop_cob_rw *rwfop;
 	uint8_t              *cntr_data;
 	int                   trans_size = m0_addb_sm_counter_data_size(
 					   &m0_addb_rt_ios_io_fom_phase_stats);

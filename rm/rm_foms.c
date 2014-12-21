@@ -216,11 +216,11 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	M0_PRE(fop->f_type != NULL);
 	M0_PRE(out != NULL);
 
-	RM_ALLOC_PTR(rqfom, REQ_FOM_ALLOC, &m0_rm_addb_ctx);
+	M0_ADDB2_IN(M0_RM_ADDB2_REQ_FOM_ALLOC, M0_ALLOC_PTR(rqfom));
 	if (M0_FI_ENABLED("fom_alloc_failure"))
 		m0_free0(&rqfom);
 	if (rqfom == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	switch (type) {
 	case FRT_BORROW:
@@ -243,7 +243,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	reply_fop = m0_fop_reply_alloc(fop, fopt);
 	if (reply_fop == NULL) {
 		m0_free(rqfom);
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	}
 
 	m0_fom_init(&rqfom->rf_fom, &fop->f_type->ft_fom_type,

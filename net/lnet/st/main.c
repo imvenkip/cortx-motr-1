@@ -72,10 +72,10 @@ int main(int argc, char *argv[])
 	int                      msg_timeout = PING_DEF_MSG_TIMEOUT;
 	int                      active_bulk_delay = 0;
 	const char              *client_network = NULL;
-        int32_t                  client_portal = -1;
+	int32_t                  client_portal = -1;
 	int32_t                  client_tmid = PING_CLIENT_DYNAMIC_TMID;
 	const char              *server_network = NULL;
-        int32_t                  server_portal = -1;
+	int32_t                  server_portal = -1;
 	int32_t                  server_tmid = -1;
 	int                      client_debug = 0;
 	int                      server_debug = 0;

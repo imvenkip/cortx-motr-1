@@ -91,7 +91,7 @@
         ...
         struct m0_tl rm_item_sources;
    };
-   int m0_rpc_item_source_init(struct m0_rpc_item_source *ris,
+   void m0_rpc_item_source_init(struct m0_rpc_item_source *ris,
                                const char *name,
 			       const struct m0_rpc_item_source_ops *ops);
    int m0_rpc_item_source_fini(struct m0_rpc_item_source *ris);
@@ -608,9 +608,9 @@ static int rpcsink_item_source_init(struct rpcsink             *rsink,
 	rsinkis->ris_rsink = rsink;
 	rpcsink_item_sources_tlink_init(rsinkis);
 
-	return m0_rpc_item_source_init(&rsinkis->ris_source,
-				       "RPC sink item source",
-				       &rpcsink_source_ops);
+	m0_rpc_item_source_init(&rsinkis->ris_source,
+				"RPC sink item source", &rpcsink_source_ops);
+	return 0;
 }
 
 static void rpcsink_item_source_fini(struct rpcsink_item_source *rsinkis)

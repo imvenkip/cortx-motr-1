@@ -60,6 +60,7 @@ High level design of M0 request handler</a>
 
 struct m0_fop;
 struct m0_rpc_machine;
+struct m0_addb2_storage;
 
 M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 256);
 
@@ -105,21 +106,21 @@ struct m0_reqh {
 	/** Fom domain for this request handler. */
 	struct m0_fom_domain          rh_fom_dom;
 
-        /**
+	/**
 	    Services registered with this request handler.
 
 	    @see m0_reqh_service::rs_linkage
 	 */
-        struct m0_tl                  rh_services;
+	struct m0_tl                  rh_services;
 
-        /**
+	/**
 	    RPC machines running in this request handler.
 	    There is one rpc machine per request handler
 	    end point.
 
 	    @see m0_rpc_machine::rm_rh_linkage
 	 */
-        struct m0_tl                  rh_rpc_machines;
+	struct m0_tl                  rh_rpc_machines;
 	/**
 	   Service to which rpc-internal fops are directed. This is shared by
 	   all rpc machines.
@@ -137,6 +138,11 @@ struct m0_reqh {
 	struct m0_addb_mc             rh_addb_mc;
 
 	struct m0_addb_ctx            rh_addb_ctx;
+
+	struct m0_addb2_storage      *rh_addb2_stor;
+	struct m0_semaphore           rh_addb2_stor_idle;
+	struct m0_addb2_net          *rh_addb2_net;
+	struct m0_semaphore           rh_addb2_net_idle;
 
 	/**
 	 * ADDB monitoring context maintained per request handler.
@@ -221,6 +227,9 @@ M0_INTERNAL void m0_reqh_be_fini(struct m0_reqh *reqh);
 
 M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
 				       struct m0_stob *stob);
+
+M0_INTERNAL int m0_reqh_addb2_config(struct m0_reqh *reqh,
+				     struct m0_stob *stob, bool mkfs);
 
 /**
    Get the state of the request handler.

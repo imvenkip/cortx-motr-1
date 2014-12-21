@@ -2096,6 +2096,7 @@ static int ut_dev_open(struct inode *inode, struct file *file)
 	struct nlx_kcore_domain *kd;
 	int rc;
 
+	M0_THREAD_ENTER;
 	rc = nlx_dev_open(inode, file);
 	M0_UT_ASSERT(rc == 0 || rc == -EPERM);
 	if (rc == 0) {
@@ -2119,6 +2120,7 @@ int ut_dev_close(struct inode *inode, struct file *file)
 	    (struct nlx_kcore_domain *) file->private_data;
 	int rc;
 
+	M0_THREAD_ENTER;
 	M0_UT_ASSERT(nlx_kcore_domain_invariant(kd));
 	if (nlx_kcore_domain_invariant(kd) &&
 	    (!drv_bufs_tlist_is_empty(&kd->kd_drv_bufs) ||

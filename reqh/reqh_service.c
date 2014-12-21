@@ -429,7 +429,7 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 
 int m0_reqh_service_type_register(struct m0_reqh_service_type *rstype)
 {
-        M0_PRE(rstype != NULL);
+	M0_PRE(rstype != NULL);
 	M0_PRE(!m0_reqh_service_is_registered(rstype->rst_name));
 	M0_PRE(rstype->rst_addb_ct != NULL);
 

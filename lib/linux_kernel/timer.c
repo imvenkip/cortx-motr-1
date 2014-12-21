@@ -20,6 +20,7 @@
  */
 
 #include "lib/timer.h"
+#include "lib/thread.h"         /* M0_THREAD_ENTER */
 
 #include <linux/jiffies.h>	/* timespec_to_jiffies */
 
@@ -34,7 +35,7 @@
 static void timer_kernel_trampoline_callback(unsigned long data)
 {
 	struct m0_timer *timer = (struct m0_timer *)data;
-
+	M0_THREAD_ENTER;
 	m0_timer_callback_execute(timer);
 }
 

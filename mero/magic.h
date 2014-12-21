@@ -123,6 +123,39 @@ enum m0_magic_satchel {
 	/* m0_addb_monitoring_ctx::amc_magic (basils basils) */
 	M0_ADDB_MONITOR_CTX_MAGIC = 0x33ba5115ba511577,
 
+/* ADDB2 */
+	/** addb2/addb2.c, buffer::b_magix (callable loeb) */
+	M0_ADDB2_BUF_MAGIC         = 0x33ca11ab1e10eb77,
+	/** addb2/addb2.c, buf_tlist head magic (libel offload) */
+	M0_ADDB2_BUF_HEAD_MAGIC    = 0x3311be10ff10ad77,
+	/** addb2/addb2.c, m0_addb2_sensor::s_magix (diesel doodle) */
+	M0_ADDB2_SENSOR_MAGIC      = 0x33d1e5e1d0dd1e77,
+	/** addb2/addb2.c, sensor_tlist head magic (filled Balzac) */
+	M0_ADDB2_SENSOR_HEAD_MAGIC = 0x33f111edba15ac77,
+	/** addb2/consumer.c, m0_addb2_philter::ph_magix (Belial biased) */
+	M0_ADDB2_PHILTER_MAGIC      = 0x33be11a1b1a5ed77,
+	/** addb2/consumer.c, philter_tlist head magic (beblooded fee) */
+	M0_ADDB2_PHILTER_HEAD_MAGIC = 0x33beb100dedfee77,
+	/** addb2/consumer.c, m0_addb2_callback::ca_magix (zealless odel) */
+	M0_ADDB2_CALLBACK_MAGIC      = 0x332ea11e550de177,
+	/** addb2/consumer.c, callback_tlist head magic (coccidioides) */
+	M0_ADDB2_CALLBACK_HEAD_MAGIC = 0x33c0cc1d101de577,
+
+	/* befell Daedal */
+	M0_ADDB2_FRAME_HEADER_MAGIX  = 0x33befe11Daeda177,
+	/* feodal feoffee [sic] */
+	M0_ADDB2_TRACE_MAGIC         = 0x33fe0da1fe0ffe77,
+	/* Adolfo decade */
+	M0_ADDB2_TRACE_HEAD_MAGIC    = 0x33ad01f0decade77,
+	/* Lebedeff obol */
+	M0_ADDB2_FRAME_MAGIC         = 0x331ebedeff0b0177,
+	/* fleeced Ebola */
+	M0_ADDB2_FRAME_HEAD_MAGIC    = 0x33f1eecedeb01a77,
+	/* I, coldblooded */
+	M0_ADDB2_SOURCE_MAGIC        = 0x331c01db100ded77,
+	/* Leo falabella */
+	M0_ADDB2_SOURCE_HEAD_MAGIC   = 0x331e0fa1abe11a77,
+
 /* balloc */
 	/* m0_balloc_super_block::bsb_magic (blessed baloc) */
 	M0_BALLOC_SB_MAGIC = 0x33b1e55edba10c77,

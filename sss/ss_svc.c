@@ -93,7 +93,7 @@ ss_svc_rsto_service_allocate(struct m0_reqh_service **service,
 
 	SS_ALLOC_PTR(svc, &m0_ss_svc_addb_ctx, SERVICE_ALLOC);
 	if (svc == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	*service = &svc->sss_reqhs;
 	(*service)->rs_type = stype;
@@ -120,7 +120,7 @@ M0_INTERNAL int m0_ss_svc_init(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_ss_fom);
 	rc = m0_reqh_service_type_register(&m0_ss_svc_type);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	rc = m0_ss_fops_init();
 	if (rc != 0)
@@ -139,7 +139,7 @@ M0_INTERNAL void m0_ss_svc_fini(void)
 /*
  * Start Stop fom.
  */
-struct m0_fom_ops ss_fom_ops = {
+const struct m0_fom_ops ss_fom_ops = {
 	.fo_tick          = ss_fom_tick,
 	.fo_home_locality = ss_fom_home_locality,
 	.fo_addb_init     = ss_fom_addb_init,

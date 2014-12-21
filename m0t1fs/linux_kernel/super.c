@@ -1253,6 +1253,7 @@ M0_INTERNAL int m0t1fs_get_sb(struct file_system_type *fstype, int flags,
 			      struct vfsmount *mnt)
 #endif
 {
+	M0_THREAD_ENTER;
 	M0_ENTRY("flags: 0x%x, devname: %s, data: %s", flags, devname,
 		 (char *)data);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
@@ -1267,6 +1268,7 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 {
 	struct m0t1fs_sb *csb = M0T1FS_SB(sb);
 
+	M0_THREAD_ENTER;
 	M0_ENTRY("csb = %p", csb);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)

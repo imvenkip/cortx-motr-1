@@ -32,6 +32,7 @@
 #include "net/lnet/lnet.h"
 #include "rpc/rpc.h"
 #include "addb/addb.h"
+#include "addb2/addb2.h"
 #include "lib/finject.h"
 #include "lib/locality.h"
 #include "layout/layout.h"
@@ -88,6 +89,9 @@ M0_INTERNAL void m0_memory_fini(void);
 M0_INTERNAL int libm0_init(void);
 M0_INTERNAL void libm0_fini(void);
 
+M0_INTERNAL int  m0_addb2_net_module_init(void);
+M0_INTERNAL void m0_addb2_net_module_fini(void);
+
 /**
    @addtogroup init
    @{
@@ -119,6 +123,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_localities_init,  &m0_localities_fini,  "locality" },
 	{ &m0_timers_init,      &m0_timers_fini,      "timer" },
 	{ &m0_addb_init,        &m0_addb_fini,        "addb" },
+	{ &m0_addb2_module_init, &m0_addb2_module_fini, "addb2" },
 //	{ &m0_db_init,          &m0_db_fini,          "db" },
 	{ &m0_fols_init,        &m0_fols_fini,        "fol" },
 	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
@@ -137,6 +142,8 @@ struct init_fini_call subsystem[] = {
 	/* fom generic must be after rpc, because it initialises rpc item
 	   type for generic error reply. */
 	{ &m0_fom_generic_init, &m0_fom_generic_fini, "fom-generic" },
+	/* addb2-net must be after rpc, because it initialises a fop type. */
+	{ &m0_addb2_net_module_init, &m0_addb2_net_module_fini, "addb2-net" },
 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
 #ifndef __KERNEL__

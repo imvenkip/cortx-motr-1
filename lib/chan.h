@@ -258,8 +258,8 @@ struct m0_chan {
    clink. Synchronization between call-backs, waits and clink destruction is
    also up to user.
 
-   A user owns a clink before call to m0_chan_add() and after return from the
-   m0_chan_del() call. At any other time clink can be concurrently accessed by
+   A user owns a clink before call to m0_clink_add() and after return from the
+   m0_clink_del() call. At any other time clink can be concurrently accessed by
    the implementation.
 
    <b>Liveness</b>

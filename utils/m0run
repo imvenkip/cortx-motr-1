@@ -24,6 +24,7 @@ trace_immediate_mask=${M0_TRACE_MASK:-all}
 trace_print_context=${M0_TRACE_PRINT_CONTEXT:-short}
 cli_args=
 binary=
+gdbparams=${GDBPARAMS:-}
 
 #
 # Usage
@@ -157,7 +158,7 @@ run_gdb()
     local gdbinit=${top_srcdir:+-x ${top_srcdir}/.gdbinit}
 
     log "gdb $gdbinit --args $binary $@"
-    gdb $gdbinit --args $binary "$@"
+    gdb $gdbinit $gdbparams --args $binary "$@"
 }
 
 run_cgdb()

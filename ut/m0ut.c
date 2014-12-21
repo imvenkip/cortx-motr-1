@@ -45,6 +45,10 @@
 /* Sort test suites in alphabetic order, please. */
 extern struct m0_ut_suite libm0_ut; /* test lib first */
 extern struct m0_ut_suite addb_ut;
+extern struct m0_ut_suite addb2_base_ut;
+extern struct m0_ut_suite addb2_consumer_ut;
+extern struct m0_ut_suite addb2_net_ut;
+extern struct m0_ut_suite addb2_storage_ut;
 extern struct m0_ut_suite balloc_ut;
 extern struct m0_ut_suite be_ut;
 extern struct m0_ut_suite buffer_pool_ut;
@@ -121,6 +125,10 @@ static void tests_add(struct m0_ut_module *m)
 
 	/* sort test suites in alphabetic order */
 	m0_ut_add(m, &libm0_ut, true); /* test lib first */
+	m0_ut_add(m, &addb2_base_ut, true);
+	m0_ut_add(m, &addb2_consumer_ut, true);
+	m0_ut_add(m, &addb2_net_ut, true);
+	m0_ut_add(m, &addb2_storage_ut, true);
 	m0_ut_add(m, &di_ut, true);
 	m0_ut_add(m, &balloc_ut, true);
 	m0_ut_add(m, &be_ut, true);
@@ -211,6 +219,10 @@ int main(int argc, char *argv[])
 	(void)m0_ut_module_type.mt_create(&instance);
 	ut = instance.i_moddata[M0_MODULE_UT];
 	ut->ut_sandbox = UT_SANDBOX;
+	/* Initialise the basic stuff. */
+	rc = m0_module_init(&instance.i_self, M0_LEVEL_INST_ONCE);
+	if (rc != 0)
+		goto end;
 
 	/* add options in alphabetic order, M0_HELPARG should be first */
 	rc = M0_GETOPTS(basename(argv[0]), argc, argv,

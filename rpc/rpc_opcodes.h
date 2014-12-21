@@ -219,6 +219,9 @@ enum M0_RPC_OPCODES {
 	/* cob setattr & reply */
 	M0_IOSERVICE_COB_SETATTR_OPCODE     = 132,
 	M0_IOSERVICE_COB_SETATTR_REP_OPCODE = 133,
+
+	/** ADDB2 */
+	M0_ADDB_FOP_OPCODE                  = 150
 };
 
 /** @} endgroup rpc_layer_core */

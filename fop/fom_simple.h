@@ -160,7 +160,7 @@ M0_INTERNAL void m0_fom_simple_hoard(struct m0_fom_simple *cat, size_t nr,
 /**
  * Wrapper around m0_fom_simple_post() supporting flexible typing of "data".
  */
-#define M0_FOM_SIMPLE_POST(s, r, c, t, f, d, l)				\
+#define M0_FOM_SIMPLE_POST(s, r, c, t, f, d, l)			\
 ({									\
 	/* check that "t" and "d" match. */				\
 	(void)(sizeof((t)(NULL, (d), 0)));				\

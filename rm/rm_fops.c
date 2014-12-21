@@ -104,9 +104,9 @@ static int rm_out_create(struct rm_out           **out,
 	M0_PRE (out != NULL);
 	M0_PRE(other != NULL);
 
-	RM_ALLOC_PTR(outreq, RM_OUT_ALLOC, &m0_rm_addb_ctx);
+	M0_ADDB2_IN(M0_RM_ADDB2_RM_OUT_ALLOC, M0_ALLOC_PTR(outreq));
 	if (outreq == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		goto out;
 	}
 

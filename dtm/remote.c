@@ -176,7 +176,7 @@ static void rem_rpc_notify(struct m0_dtm_remote *rem,
 	struct m0_fop            *fop;
 
 	M0_PRE(rem->re_ops == &rem_rpc_ops);
-	M0_AMB(rpr, rem, rpr_rem);
+	rpr = M0_AMB(rpr, rem, rpr_rem);
 	fop = m0_fop_alloc(&rem_rpc_fopt, NULL, rpr->rpr_conn->c_rpc_machine);
 	if (fop != NULL) {
 		struct m0_rpc_item *item;
@@ -313,7 +313,7 @@ static void rem_local_send(struct m0_dtm_remote *rem,
 	struct m0_dtm_local_remote *lre;
 	int                         result;
 
-	M0_AMB(lre, rem, lre_rem);
+	lre = M0_AMB(lre, rem, lre_rem);
 	result = m0_reqh_fop_handle(lre->lre_reqh, update->upd_comm.uc_body);
 	if (result != 0)
 		M0_LOG(M0_ERROR, "redo: %i.", result);

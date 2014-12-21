@@ -27,10 +27,13 @@
 #undef M0_ADDB_CT_CREATE_DEFINITION
 #define M0_ADDB_CT_CREATE_DEFINITION
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
+
 #include "lib/misc.h"                   /* M0_IN, M0_BITS */
 #include "lib/errno.h"                  /* ENOMEM */
 #include "lib/memory.h"
 #include "lib/locality.h"
+#include "lib/trace.h"                  /* M0_ERR */
 #include "lib/finject.h"
 #include "addb/addb.h"
 #include "reqh/reqh.h"
@@ -226,7 +229,7 @@ static int fom_simple_service_allocate(struct m0_reqh_service **out,
 	if (service != NULL)
 		service->rs_ops = &fom_simple_service_ops;
 	*out = service;
-	return service != NULL ? 0 : -ENOMEM;
+	return service != NULL ? 0 : M0_ERR(-ENOMEM);
 }
 
 static const struct m0_reqh_service_type_ops fom_simple_rsops = {
@@ -239,6 +242,8 @@ static struct m0_reqh_service_type fom_simple_rstype = {
 	.rst_addb_ct = &m0_addb_ct_fom_simple,
 	.rst_level   = 2
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of fom group */
 

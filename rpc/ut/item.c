@@ -382,6 +382,7 @@ static void test_failure_before_sending(void)
 		M0_UT_ASSERT(rc == fp[i].rc);
 		M0_UT_ASSERT(item_rc == fp[i].rc);
 		M0_LOG(M0_DEBUG, "TEST:3.%d:END", i + 1);
+		m0_fop_put_lock(fop);
 	}
 	/* TEST4: Network layer reported buffer send failure.
 		  The item should move to FAILED state.
@@ -399,6 +400,7 @@ static void test_failure_before_sending(void)
 	m0_fi_disable("buf_send_cb", "fake_err");
 	m0_fi_disable("item_received", "drop_item");
 	M0_LOG(M0_DEBUG, "TEST:4:END");
+	m0_fop_put_lock(fop);
 }
 
 static int __test(void)
@@ -417,7 +419,6 @@ static int __test(void)
 	m0_rpc_machine_get_stats(machine, &stats, false);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_failed_items));
 	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
-	m0_fop_put_lock(fop);
 	return rc;
 }
 

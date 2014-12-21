@@ -270,7 +270,7 @@ static void op_ready(struct m0_dtm_op *op)
 	struct m0_dtm_oper *oper;
 	unsigned            idx;
 
-	M0_AMB(oper, op, oprt_op);
+	oper = M0_AMB(oper, op, oprt_op);
 	idx = oper - &oper_tgt[0];
 	M0_UT_ASSERT(IS_IN_ARRAY(idx, oper_tgt));
 	m0_fom_wakeup(&redo_fom[idx]);

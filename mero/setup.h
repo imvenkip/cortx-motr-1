@@ -134,6 +134,7 @@ enum {
 	M0_AD_STOB_DOM_KEY_DEFAULT = 0x0,
 	M0_AD_STOB_LINUX_DOM_KEY   = 0xadf11e, /* AD file */
 	M0_ADDB_STOB_KEY           = 1,
+	M0_ADDB2_STOB_KEY          = 2,
 };
 
 enum stob_type {
@@ -278,6 +279,9 @@ struct m0_reqh_context {
 
 	/** ADDB specific stob information */
 	struct cs_addb_stob          rc_addb_stob;
+
+	/** ADDB2 specific stob information */
+	struct cs_addb_stob          rc_addb2_stob;
 
 	/** BE env and segment used by the request handler */
 	struct m0_be_ut_backend      rc_be;

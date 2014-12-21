@@ -48,6 +48,7 @@ M0_INTERNAL int m0t1fs_ioctl(struct inode                              *inode,
 	struct m0t1fs_inode *m0inode;
 	int                  rc;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)

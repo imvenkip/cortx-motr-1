@@ -342,6 +342,7 @@ int m0t1fs_fsync(struct file *file, struct dentry *dentry, int datasync)
 	int                  rc;
 	struct m0t1fs_inode *inode;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 	M0_PRE(file != NULL);
@@ -454,6 +455,7 @@ int m0t1fs_sync_fs(struct super_block *sb, int wait)
 	struct m0t1fs_fsync_fop_wrapper *ffw;
 	struct m0t1fs_sb                *csb;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 	M0_PRE(fi.kernel_fsync != NULL);
@@ -527,4 +529,3 @@ int m0t1fs_sync_fs(struct super_block *sb, int wait)
 
 	return saved_error;
 }
-

@@ -165,6 +165,7 @@ out:
 
 M0_INTERNAL void m0t1fs_fini(void)
 {
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 	(void)unregister_filesystem(&m0t1fs_fs_type);

@@ -227,6 +227,10 @@ int main(int argc, char **argv)
 	yaml_support = false;
 	timeout = 10;
 
+	result = console_init();
+	if (result != 0)
+		return EX_CONFIG;
+
 	/*
 	 * Gets the info to connect to the service and type of fop to be send.
 	 */
@@ -291,19 +295,15 @@ int main(int argc, char **argv)
 		if (server == NULL) {
 			fprintf(stderr, "Server assignment failed\n");
 			result = EX_DATAERR;
-			goto yaml;
+			goto end;
 		}
 		client = m0_cons_yaml_get_value("client");
 		if (client == NULL) {
 			fprintf(stderr, "Client assignment failed\n");
 			result = EX_DATAERR;
-			goto yaml;
+			goto end;
 		}
 	}
-
-	result = -console_init();
-	if (result != 0)
-		goto yaml;
 
 	if (show && opcode <= 0) {
 		m0_cons_fop_list_show();
@@ -352,7 +352,6 @@ cleanup:
 	M0_ASSERT(result == 0);
 end:
 	console_fini();
-yaml:
 	if (input)
 		m0_cons_yaml_fini();
 

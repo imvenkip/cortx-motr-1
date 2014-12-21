@@ -79,6 +79,15 @@ int main(int argc, char **argv)
 
 	M0_ENTRY();
 
+	m0_instance_setup(&instance);
+	(void)m0_ut_module_type.mt_create(&instance);
+
+	/* We have to use m0_ut_init() here, because it initialises
+	 * m0_cs_default_stypes. XXX FIXME */
+	result = m0_ut_init(&instance);
+	if (result != 0)
+		return M0_RC(-result);
+
 	m0_console_verbose = false;
 	result = M0_GETOPTS("server", argc, argv,
 			    M0_FLAGARG('v', "verbose", &m0_console_verbose),
@@ -91,15 +100,6 @@ int main(int argc, char **argv)
 
 	sprintf(tm_len, "%d", tm_recv_queue_len);
 	sprintf(rpc_size, "%d", max_rpc_msg_size);
-
-	m0_instance_setup(&instance);
-	(void)m0_ut_module_type.mt_create(&instance);
-
-	/* We have to use m0_ut_init() here, because it initialises
-	 * m0_cs_default_stypes. XXX FIXME */
-	result = m0_ut_init(&instance);
-	if (result != 0)
-		return M0_RC(-result);
 
 	result = m0_console_fop_init();
 	if (result != 0)

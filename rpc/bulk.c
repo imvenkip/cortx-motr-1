@@ -310,7 +310,7 @@ M0_INTERNAL int m0_rpc_bulk_buf_databuf_add(struct m0_rpc_bulk_buf *rbuf,
 	    m0_net_domain_get_max_buffer_size(netdom) ||
 	    count > m0_net_domain_get_max_buffer_segment_size(netdom)) {
 		M0_LOG(M0_DEBUG, "Cannot exceed net_dom_max_buf_segs");
-		return M0_ERR(-EMSGSIZE);
+		return M0_RC(-EMSGSIZE); /* Not an error, no M0_ERR(). */
 	}
 
 	cbuf.b_addr = buf;

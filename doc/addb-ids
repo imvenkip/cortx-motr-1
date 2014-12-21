@@ -79,6 +79,9 @@ value          enum                    variable  name              file
 1900-1999							   sss/ss_addb.h
    1900 M0_ADDB_CTXID_SS_SVC           m0_addb_ct_ss_svc
    1901 M0_ADDB_CTXID_SS_FOM           m0_addb_ct_ss_fom
+2000-2099                                                          addb2/service.h
+   2000 M0_ADDB_CTXID_SS_SVC           m0_addb_ct_addb2_svc
+   2001 M0_ADDB_CTXID_SS_FOM           m0_addb_ct_addb2_fom
 
 ******************************************************************************
 Record Type Identifiers

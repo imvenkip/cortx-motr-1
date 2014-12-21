@@ -26,8 +26,9 @@
 #include "lib/mutex.h"
 #include "lib/arith.h"              /* m0_is_po2 */
 #include "lib/memory.h"
-#include "sm/sm.h"
 #include "lib/finject.h"
+#include "addb2/addb2.h"
+#include "sm/sm.h"
 
 /**
    @addtogroup sm
@@ -382,6 +383,9 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 			    m0_time_sub(now, mach->sm_state_epoch) >> 10);
 			mach->sm_state_epoch = now;
 		}
+		if (mach->sm_addb2_id != 0)
+			M0_ADDB2_ADD(mach->sm_addb2_id,
+				     sd->sd_trans[state], m0_time_now());
 
 		mach->sm_state = state;
 		M0_ASSERT(m0_sm_invariant(mach));

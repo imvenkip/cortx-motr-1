@@ -322,6 +322,7 @@ struct m0_sm {
 	   we were in a state (counted at m0_sm_state_stats::smss_times).
 	 */
 	m0_time_t                sm_state_epoch;
+	uint64_t                 sm_addb2_id;
 	/**
 	   Channel on which state transitions are announced.
 	 */

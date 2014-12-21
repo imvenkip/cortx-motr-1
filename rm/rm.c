@@ -29,6 +29,7 @@
 #include "lib/arith.h"  /* M0_CNT_{INC,DEC} */
 #include "lib/trace.h"
 #include "lib/bob.h"
+#include "addb2/addb2.h"
 #include "mero/magic.h"
 #include "sm/sm.h"
 
@@ -409,7 +410,8 @@ M0_INTERNAL int m0_rm_resource_encode(struct m0_rm_resource *res,
 	 */
 	buf->b_nob = sizeof res->r_type->rt_id +
 			res->r_type->rt_ops->rto_len(res);
-	RM_ALLOC(buf->b_addr, buf->b_nob, RESOURCE_BUF_ALLOC, &m0_rm_addb_ctx);
+	M0_ADDB2_IN(M0_RM_ADDB2_RESOURCE_BUF_ALLOC,
+		    buf->b_addr = m0_alloc(buf->b_nob));
 	if (buf->b_addr == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -642,17 +644,13 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner  *owner,
 	/* Owner must be "top-most" */
 	M0_PRE(owner->ro_creditor == NULL);
 
-	RM_ALLOC_PTR(nominal_capital, CAPITAL_ALLOC, &m0_rm_addb_ctx);
-	if (nominal_capital != NULL) {
+	M0_ADDB2_IN(M0_RM_ADDB2_CAPITAL_ALLOC, M0_ALLOC_PTR(nominal_capital));
+	M0_ADDB2_IN(M0_RM_ADDB2_CREDIT_ALLOC, M0_ALLOC_PTR(credit_transfer));
+	if (nominal_capital != NULL && credit_transfer != NULL) {
 		/*
 		 * Immediately transfer the credits. Otherwise owner will not
 		 * be balanced.
 		 */
-		RM_ALLOC_PTR(credit_transfer, CREDIT_ALLOC, &m0_rm_addb_ctx);
-		if (credit_transfer == NULL) {
-			m0_free(nominal_capital);
-			return M0_ERR(-ENOMEM);
-		}
 		m0_rm_credit_init(credit_transfer, owner);
 		rc = m0_rm_credit_copy(credit_transfer, r) ?:
 		     m0_rm_loan_init(nominal_capital, r, NULL);
@@ -665,13 +663,13 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner  *owner,
 			/* Add credit transfer to the CACHED list. */
 			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
 					   credit_transfer);
-		} else {
-			m0_free(nominal_capital);
-			m0_free(credit_transfer);
 		}
 	} else
-		rc = -ENOMEM;
-
+		rc = M0_ERR(-ENOMEM);
+	if (rc != 0) {
+		m0_free(nominal_capital);
+		m0_free(credit_transfer);
+	}
 	M0_POST(ergo(rc == 0, owner_invariant(owner)));
 	return M0_RC(rc);
 }
@@ -701,14 +699,14 @@ static void owner_liquidate(struct m0_rm_owner *o)
 	 * the options.
 	 */
 	m0_tl_for (m0_rm_ur, &o->ro_sublet, credit) {
-		RM_ALLOC_PTR(in, INCOMING_ALLOC, &m0_rm_addb_ctx);
+		M0_ADDB2_IN(M0_RM_ADDB2_INCOMING_ALLOC, M0_ALLOC_PTR(in));
 		if (in == NULL)
 			break;
 		m0_rm_incoming_init(in, o, M0_RIT_LOCAL,
 				    RIP_NONE, RIF_MAY_REVOKE);
 		in->rin_priority = 0;
 		in->rin_ops = &windup_incoming_ops;
-		/**
+		/*
 		 * This is convoluted. Now that user incoming requests have
 		 * drained, we add our incoming requests for REVOKE and CANCEL
 		 * processing to the incoming queue.
@@ -983,7 +981,7 @@ M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan         **loan,
 	M0_PRE(loan != NULL);
 	M0_PRE(credit != NULL);
 
-	RM_ALLOC_PTR(new_loan, LOAN_ALLOC, &m0_rm_addb_ctx);
+	M0_ADDB2_IN(M0_RM_ADDB2_LOAN_ALLOC, M0_ALLOC_PTR(new_loan));
 	if (new_loan != NULL) {
 		rc = m0_rm_loan_init(new_loan, credit, creditor);
 		if (rc != 0)
@@ -1071,13 +1069,13 @@ static int remote_find(struct m0_rm_remote          **rem,
 	other = m0_tl_find(m0_remotes, other, &res->r_remote,
 			   m0_cookie_is_eq(&other->rem_cookie, cookie));
 	if (other == NULL) {
-		RM_ALLOC_PTR(other, REMOTE_ALLOC, &m0_rm_addb_ctx);
+		M0_ADDB2_IN(M0_RM_ADDB2_REMOTE_ALLOC, M0_ALLOC_PTR(other));
 		if (other != NULL) {
 			m0_rm_remote_init(other, res);
 			rc = m0_rm_reverse_session_get(rem_in, other);
 			if (rc != 0) {
 				m0_free(other);
-				return M0_RC(-ENOMEM);
+				return M0_ERR(rc);
 			}
 			other->rem_state = REM_SERVICE_LOCATED;
 			other->rem_cookie = *cookie;
@@ -1085,7 +1083,7 @@ static int remote_find(struct m0_rm_remote          **rem,
 			/* other->rem_id = 0; */
 			m0_remotes_tlist_add(&res->r_remote, other);
 		} else
-			rc = -ENOMEM;
+			rc = M0_ERR(-ENOMEM);
 	}
 	*rem = other;
 	return M0_RC(rc);
@@ -1573,10 +1571,10 @@ static int cached_credits_hold(struct m0_rm_incoming *in)
 			if (rc != 0)
 				break;
 		} else {
-			RM_ALLOC_PTR(held_credit, HELD_CREDIT_ALLOC,
-				     &m0_rm_addb_ctx);
+			M0_ADDB2_IN(M0_RM_ADDB2_HELD_CREDIT_ALLOC,
+				    M0_ALLOC_PTR(held_credit));
 			if (held_credit == NULL) {
-				rc = -ENOMEM;
+				rc = M0_ERR(-ENOMEM);
 				break;
 			}
 
@@ -2553,7 +2551,7 @@ int pin_add(struct m0_rm_incoming *in,
 		return M0_RC(0);
 	}
 
-	RM_ALLOC_PTR(pin, PIN_ALLOC, &m0_rm_addb_ctx);
+	M0_ADDB2_IN(M0_RM_ADDB2_PIN_ALLOC, M0_ALLOC_PTR(pin));
 	if (pin != NULL) {
 		pin->rp_flags = flags;
 		pin->rp_credit = credit;
@@ -2565,7 +2563,7 @@ int pin_add(struct m0_rm_incoming *in,
 		m0_rm_pin_bob_init(pin);
 		return M0_RC(0);
 	} else
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 }
 
 /** @} end of pin group */
@@ -2663,7 +2661,7 @@ M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 	M0_ENTRY();
 	M0_PRE(src_credit != NULL);
 
-	RM_ALLOC_PTR(credit, CREDIT_ALLOC, &m0_rm_addb_ctx);
+	M0_ADDB2_IN(M0_RM_ADDB2_CREDIT_ALLOC, M0_ALLOC_PTR(credit));
 	if (credit != NULL) {
 		m0_rm_credit_init(credit, src_credit->cr_owner);
 		credit->cr_ops = src_credit->cr_ops;
@@ -2710,7 +2708,8 @@ M0_INTERNAL int m0_rm_credit_encode(struct m0_rm_credit *credit,
 	M0_PRE(credit->cr_ops->cro_encode != NULL);
 
 	buf->b_nob = credit->cr_ops->cro_len(credit);
-	RM_ALLOC(buf->b_addr, buf->b_nob, CREDIT_BUF_ALLOC, &m0_rm_addb_ctx);
+	M0_ADDB2_IN(M0_RM_ADDB2_CREDIT_BUF_ALLOC,
+		    buf->b_addr = m0_alloc(buf->b_nob));
 	if (buf->b_addr == NULL)
 		return M0_ERR(-ENOMEM);
 

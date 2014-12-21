@@ -114,9 +114,9 @@ struct m0_rpc_item_source_ops {
    @pre ops != NULL && ops->riso_has_item != NULL &&
 	ops->riso_get_item != NULL && ops->riso_conn_terminating != NULL
  */
-int m0_rpc_item_source_init(struct m0_rpc_item_source *ris,
-			    const char *name,
-			    const struct m0_rpc_item_source_ops *ops);
+void m0_rpc_item_source_init(struct m0_rpc_item_source *ris,
+			     const char *name,
+			     const struct m0_rpc_item_source_ops *ops);
 
 /**
    Returns true iff ris is registered.

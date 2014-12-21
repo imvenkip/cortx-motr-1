@@ -58,8 +58,18 @@ M0_INTERNAL int m0_stob_cache_init(struct m0_stob_cache *cache,
 
 M0_INTERNAL void m0_stob_cache_fini(struct m0_stob_cache *cache)
 {
+	struct m0_stob *zombie;
+
 	m0_stob_cache_purge(cache, cache->sc_idle_size);
 	m0_stob_cache__print(cache);
+	m0_tl_for(stob_cache, &cache->sc_busy, zombie) {
+		M0_LOG(M0_FATAL, "Still busy "FID_F,
+		       FID_P(m0_stob_fid_get(zombie)));
+	} m0_tl_endfor;
+	m0_tl_for(stob_cache, &cache->sc_idle, zombie) {
+		M0_LOG(M0_FATAL, "Still idle "FID_F,
+		       FID_P(m0_stob_fid_get(zombie)));
+	} m0_tl_endfor;
 	stob_cache_tlist_fini(&cache->sc_idle);
 	stob_cache_tlist_fini(&cache->sc_busy);
 	m0_mutex_init(&cache->sc_lock);

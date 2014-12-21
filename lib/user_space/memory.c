@@ -33,6 +33,9 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
 #include "lib/trace.h"
 
+#include "addb2/addb2.h"
+#include "addb2/identifier.h"
+
 /**
    @addtogroup memory
 
@@ -136,6 +139,7 @@ void *m0_alloc(size_t size)
 		m0_atomic64_add(&cumulative_alloc, size);
 #endif
 	}
+	M0_ADDB2_ADD(M0_AVI_ALLOC, size, (uint64_t)ret);
 	M0_LEAVE("ptr=%p size=%lu", ret, size);
 	return ret;
 }

@@ -114,9 +114,9 @@ M0_INTERNAL int main(int argc, char **argv)
 		goto cleanup2;
 	}
 
-        rc = m0_cs_setup_env(&mero_ctx, argc, argv);
-        if (rc != 0)
-                goto cleanup1;
+	rc = m0_cs_setup_env(&mero_ctx, argc, argv);
+	if (rc != 0)
+		goto cleanup1;
 
 	rc = m0_cs_start(&mero_ctx);
 

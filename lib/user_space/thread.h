@@ -47,14 +47,12 @@ struct m0_thread_handle {
 	pthread_t h_id;
 };
 
-/** Thread-local storage. */
-struct m0_thread_tls {
-	/** The pointer returned by m0_get(). */
-	struct m0 *tls_m0_instance;
+/** User space thread-local storage. */
+struct m0_thread_arch_tls {
 	/** Non-zero iff the thread is in awkward context. */
-	uint32_t   tls_awkward;
+	uint32_t   tat_awkward;
 	/** Stack context/environment, saved with setjmp(3). */
-	jmp_buf   *tls_jmp;
+	jmp_buf   *tat_jmp;
 };
 
 /**

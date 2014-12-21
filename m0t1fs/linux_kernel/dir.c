@@ -255,6 +255,7 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 	struct m0t1fs_mdop          mo;
 	int                         rc;
 	struct m0_fop              *rep_fop = NULL;
+	M0_THREAD_ENTER;
 
 	M0_ENTRY("Setting %.*s's xattr %s=%.*s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name, (int)size, (char *)value);
@@ -314,6 +315,7 @@ out:
 ssize_t m0t1fs_fid_getxattr(struct dentry *dentry, const char *name,
                             void *buffer, size_t size)
 {
+	M0_THREAD_ENTER;
         return M0_ERR(-EOPNOTSUPP);
 }
 
@@ -326,6 +328,7 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 	struct m0t1fs_mdop          mo;
 	int                         rc;
 	struct m0_fop              *rep_fop;
+	M0_THREAD_ENTER;
 
 	M0_ENTRY("Getting %.*s's xattr %s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name);
@@ -359,16 +362,19 @@ out:
 
 ssize_t m0t1fs_fid_listxattr(struct dentry *dentry, char *buffer, size_t size)
 {
+	M0_THREAD_ENTER;
         return M0_ERR(-EOPNOTSUPP);
 }
 
 ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer, size_t size)
 {
+	M0_THREAD_ENTER;
         return M0_ERR(-EOPNOTSUPP);
 }
 
 int m0t1fs_fid_removexattr(struct dentry *dentry, const char *name)
 {
+	M0_THREAD_ENTER;
         return M0_ERR(-EOPNOTSUPP);
 }
 
@@ -380,6 +386,7 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 	int                         rc;
 	struct m0_fop              *rep_fop;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY("Deleting %.*s's xattr %s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name);
 
@@ -437,6 +444,7 @@ static int m0t1fs_create(struct inode     *dir,
 	struct m0_fop            *rep_fop = NULL;
 	uint32_t                  i;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 	M0_LOG(M0_INFO, "Creating \"%s\" in pdir %lu "FID_F,
@@ -580,6 +588,7 @@ static int m0t1fs_fid_mkdir(struct inode *dir, struct dentry *dentry, umode_t mo
 static int m0t1fs_fid_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 #endif
 {
+	M0_THREAD_ENTER;
 	return m0t1fs_fid_create(dir, dentry, mode | S_IFDIR, NULL);
 }
 
@@ -589,6 +598,7 @@ static int m0t1fs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 static int m0t1fs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 #endif
 {
+	M0_THREAD_ENTER;
 	return m0t1fs_create(dir, dentry, mode | S_IFDIR, NULL);
 }
 
@@ -609,6 +619,7 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	int                       rc;
 	struct m0_fop            *rep_fop;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 	csb = M0T1FS_SB(dir->i_sb);
@@ -655,9 +666,10 @@ static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
 				        struct nameidata *nd)
 #endif
 {
-	struct m0_fid             fid;
+	struct m0_fid fid;
         int rc;
 
+	M0_THREAD_ENTER;
         rc = m0_fid_sscanf_simple(dentry->d_name.name, &fid);
         if (rc != 0) {
 		M0_LEAVE("Cannot parse fid \"%s\"", (char*)dentry->d_name.name);
@@ -706,12 +718,14 @@ static int m0t1fs_opendir(struct inode *inode, struct file *file)
 
 static int m0t1fs_fid_opendir(struct inode *inode, struct file *file)
 {
+	M0_THREAD_ENTER;
         return m0t1fs_opendir(inode, file);
 }
 
 static int m0t1fs_releasedir(struct inode *inode, struct file *file)
 {
 	struct m0t1fs_filedata *fd = file->private_data;
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 	m0_free(fd->fd_dirpos);
@@ -721,6 +735,7 @@ static int m0t1fs_releasedir(struct inode *inode, struct file *file)
 
 static int m0t1fs_fid_releasedir(struct inode *inode, struct file *file)
 {
+	M0_THREAD_ENTER;
         return m0t1fs_releasedir(inode, file);
 }
 
@@ -728,6 +743,7 @@ static int m0t1fs_fid_readdir(struct file *f,
 			      void        *buf,
 			      filldir_t    filldir)
 {
+	M0_THREAD_ENTER;
         return M0_RC(0);
 }
 
@@ -752,6 +768,7 @@ static int m0t1fs_readdir(struct file *f,
 	bool                             dotdot_filled = false;
 	struct m0_fop                   *rep_fop;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 	dentry = f->f_path.dentry;
@@ -878,6 +895,7 @@ out:
 static int m0t1fs_fid_link(struct dentry *old, struct inode *dir,
 		           struct dentry *new)
 {
+	M0_THREAD_ENTER;
         return M0_ERR(-EOPNOTSUPP);
 }
 
@@ -892,6 +910,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 	int                              rc;
 	struct m0_fop                   *rep_fop;
 
+	M0_THREAD_ENTER;
 	/*
 	 * file -> mds is mapped by hash of filename.
 	 * Link will create a new file entry in dir, but object may
@@ -935,6 +954,7 @@ out:
 
 static int m0t1fs_fid_unlink(struct inode *dir, struct dentry *dentry)
 {
+	M0_THREAD_ENTER;
         return M0_ERR(-EOPNOTSUPP);
 }
 
@@ -950,6 +970,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	struct m0_fop                   *unlink_rep_fop = NULL;
 	struct m0_fop                   *setattr_rep_fop = NULL;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
@@ -1022,6 +1043,7 @@ out:
 
 static int m0t1fs_fid_rmdir(struct inode *dir, struct dentry *dentry)
 {
+	M0_THREAD_ENTER;
         return M0_ERR(-EOPNOTSUPP);
 }
 
@@ -1029,6 +1051,7 @@ static int m0t1fs_rmdir(struct inode *dir, struct dentry *dentry)
 {
 	int rc;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 	rc = m0t1fs_unlink(dir, dentry);
 	if (rc == 0) {
@@ -1048,6 +1071,7 @@ M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	struct m0t1fs_inode *ci;
 	int                  rc;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
@@ -1108,6 +1132,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	int                              rc;
 	struct m0_fop                   *rep_fop;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
@@ -1208,6 +1233,7 @@ out:
 
 M0_INTERNAL int m0t1fs_fid_setattr(struct dentry *dentry, struct iattr *attr)
 {
+	M0_THREAD_ENTER;
         return M0_ERR(-EOPNOTSUPP);
 }
 
@@ -1220,6 +1246,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	int                              rc;
 	struct m0_fop                   *rep_fop;
 
+	M0_THREAD_ENTER;
 	M0_ENTRY();
 
 	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);

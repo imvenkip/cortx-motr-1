@@ -45,7 +45,7 @@ static void sigsegv(int sig)
 {
 	jmp_buf *buf;
 
-	buf = m0_thread_tls()->tls_jmp;
+	buf = m0_thread_tls()->tls_arch.tat_jmp;
 	if (buf == NULL)
 		m0_panic(&signal_panic, sig);
 	else
@@ -60,7 +60,7 @@ static void sigsegv(int sig)
 M0_INTERNAL bool m0_arch_addr_is_sane(const void *addr)
 {
 	jmp_buf           buf;
-	jmp_buf         **tls = &m0_thread_tls()->tls_jmp;
+	jmp_buf         **tls = &m0_thread_tls()->tls_arch.tat_jmp;
 	volatile uint64_t dummy M0_UNUSED;
 	int               ret;
 	bool              result = false;

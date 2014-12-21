@@ -25,6 +25,7 @@
 #include <linux/init.h>    /* module_init */
 
 #include "lib/list.h"
+#include "lib/thread.h"
 #include "mero/init.h"
 #include "mero/version.h"
 #include "mero/linux_kernel/module.h"
@@ -32,10 +33,11 @@
 
 M0_INTERNAL int __init mero_init(void)
 {
-	static struct m0 instance;
+	static struct m0     instance;
+	const struct module *m;
+	M0_THREAD_ENTER;
 
-	const struct module *m = m0_mero_ko_get_module();
-
+	m = m0_mero_ko_get_module();
 	pr_info("mero: init\n");
 	m0_build_info_print();
 	pr_info("mero: module address: 0x%p\n", m);
@@ -47,6 +49,7 @@ M0_INTERNAL int __init mero_init(void)
 
 M0_INTERNAL void __exit mero_exit(void)
 {
+	M0_THREAD_ENTER;
 	pr_info("mero: cleanup\n");
 	m0_fini();
 }

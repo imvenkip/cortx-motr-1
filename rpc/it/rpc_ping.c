@@ -332,11 +332,6 @@ static int run_client(void)
 	if (rc != 0)
 		return rc;
 
-#ifndef __KERNEL__
-	rc = m0_init(&instance);
-	if (rc != 0)
-		return rc;
-#endif
 	m0_ping_fop_init();
 
 	rc = m0_net_domain_init(&client_net_dom, xprt);
@@ -381,9 +376,6 @@ net_dom_fini:
 	m0_net_domain_fini(&client_net_dom);
 fop_fini:
 	m0_ping_fop_fini();
-#ifndef __KERNEL__
-	m0_fini();
-#endif
 
 	return rc;
 }
@@ -433,10 +425,6 @@ static int run_server(void)
 	if (rc != 0)
 		return rc;
 
-	rc = m0_init(&instance);
-	if (rc != 0)
-		return rc;
-
 	rc = m0_cs_default_stypes_init();
 	if (rc != 0)
 		goto m0_fini;
@@ -471,21 +459,24 @@ fop_fini:
 	m0_ping_fop_fini();
 	m0_cs_default_stypes_fini();
 m0_fini:
-	m0_fini();
 	return rc;
 }
 #endif
 
 #ifdef __KERNEL__
 int m0_rpc_ping_init()
+{
+	return run_client();
+}
 #else
 /* Main function for rpc ping */
 int main(int argc, char *argv[])
-#endif
 {
 	int rc;
 
-#ifndef __KERNEL__
+	rc = m0_init(&instance);
+	if (rc != 0)
+		return -rc;
 	rc = M0_GETOPTS("m0rpcping", argc, argv,
 		M0_FLAGARG('s', "run server", &server_mode),
 		M0_STRINGARG('C', "client nid",
@@ -512,16 +503,16 @@ int main(int argc, char *argv[])
 		M0_FLAGARG('v', "verbose", &verbose)
 		);
 	if (rc != 0)
-		return rc;
+		return -rc;
 
 	if (server_mode)
 		rc = run_server();
 	else
-#endif
 		rc = run_client();
-
-	return rc;
+	m0_fini();
+	return -rc;
 }
+#endif
 
 M0_INTERNAL void m0_rpc_ping_fini(void)
 {

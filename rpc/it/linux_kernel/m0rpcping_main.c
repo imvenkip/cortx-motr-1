@@ -20,14 +20,17 @@
 #include <linux/module.h>
 
 #include "rpc_ping.h"
+#include "lib/thread.h"
 
 M0_INTERNAL int init_module(void)
 {
+	M0_THREAD_ENTER;
 	return m0_rpc_ping_init();
 }
 
 M0_INTERNAL void cleanup_module(void)
 {
+	M0_THREAD_ENTER;
 	m0_rpc_ping_fini();
 }
 

@@ -32,6 +32,8 @@
 #include "lib/semaphore.h"
 
 struct m0_bitmap;
+struct m0;
+struct m0_addb2_mach;
 
 /**
    @defgroup thread Thread
@@ -50,6 +52,15 @@ struct m0_bitmap;
 
    @{
  */
+
+/** Thread-local storage. */
+struct m0_thread_tls {
+	/** m0 instance this thread belong to. */
+	struct m0                 *tls_m0_instance;
+	/** Platform specific part of tls. Defined in lib/PLATFORM/thread.h. */
+	struct m0_thread_arch_tls  tls_arch;
+	struct m0_addb2_mach      *tls_addb2_mach;
+};
 
 /**
    Thread states used to validate thread interface usage.

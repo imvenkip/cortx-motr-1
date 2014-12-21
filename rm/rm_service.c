@@ -139,16 +139,15 @@ static int rms_allocate(struct m0_reqh_service **service,
 
 	M0_PRE(service != NULL && stype != NULL);
 
-	RM_ALLOC_PTR(rms, SERVICE_ALLOC, &m0_rm_addb_ctx);
-	if (rms == NULL)
-		return M0_RC(-ENOMEM);
-
-	m0_reqh_rm_service_bob_init(rms);
-
-	*service = &rms->rms_svc;
-	(*service)->rs_ops = &rms_ops;
-	rmsvc_owner_tlist_init(&rms->rms_owners);
-	return M0_RC(0);
+	M0_ADDB2_IN(M0_RM_ADDB2_SERVICE_ALLOC, M0_ALLOC_PTR(rms));
+	if (rms != NULL) {
+		m0_reqh_rm_service_bob_init(rms);
+		*service = &rms->rms_svc;
+		(*service)->rs_ops = &rms_ops;
+		rmsvc_owner_tlist_init(&rms->rms_owners);
+		return M0_RC(0);
+	} else
+		return M0_ERR(-ENOMEM);
 }
 
 static void rms_fini(struct m0_reqh_service *service)
@@ -279,15 +278,13 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 			m0_rm_resource_free(resource);
 			resource = resadd;
 		}
-
 		owner = rmsvc_owner_lookup(rms, resource);
 		if (owner == NULL) {
-			RM_ALLOC_PTR(owner, RMSVC_OWNER_ALLOC,
-				     &m0_rm_addb_ctx);
-			if (owner == NULL) {
-				rc = -ENOMEM;
-				goto err_resource;
-			} else {
+			M0_ADDB2_IN(M0_RM_ADDB2_RMSVC_OWNER_ALLOC,
+				    M0_ALLOC_PTR(owner));
+			M0_ADDB2_IN(M0_RM_ADDB2_CREDIT_ALLOC,
+				    M0_ALLOC_PTR(ow_cr));
+			if (owner != NULL && ow_cr != NULL) {
 				/*
 				 * RM service does not belong to any group at
 				 * the moment. If we change this assumption,
@@ -296,38 +293,31 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 				 */
 				m0_rm_owner_init(owner, &m0_rm_no_group,
 						 resource, NULL);
-
-				RM_ALLOC_PTR(ow_cr, OWNER_CREDIT_ALLOC,
-					     &m0_rm_addb_ctx);
-				if (ow_cr == NULL) {
-					rc = -ENOMEM;
-					goto err_owner;
-				}
 				m0_rm_credit_init(ow_cr, owner);
 				ow_cr->cr_ops->cro_initial_capital(ow_cr);
 				rc = m0_rm_owner_selfadd(owner, ow_cr);
+				m0_rm_credit_fini(ow_cr);
 				m0_free(ow_cr);
 				if (rc != 0)
-					goto err_credit;
+					goto err_add;
 				rmsvc_owner_tlink_init_at_tail(owner,
 						&rms->rms_owners);
+			} else {
+				rc = M0_ERR(-ENOMEM);
+				goto err_alloc;
 			}
 		}
 		*out = owner;
 	}
-
 	return M0_RC(rc);
 
-err_credit:
-	m0_rm_credit_fini(ow_cr);
-	m0_free(ow_cr);
-err_owner:
+err_add:
 	m0_rm_owner_fini(owner);
-err_resource:
+err_alloc:
+	m0_free(ow_cr);
+	m0_free(owner);
 	m0_rm_resource_del(resource);
-
-
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 
 static void rms_stats_post_addb(struct m0_reqh_service *service)

@@ -133,14 +133,11 @@ static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
 		default:
 			break;
 		}
-
 		m0_rm_ur_tlist_del(pin->rp_credit);
-		rm_fop_release(&oreq->ou_fop.f_ref);
-
 		pi_tlink_del_fini(pin);
 		pr_tlink_del_fini(pin);
 		m0_free(pin);
-
+		rm_fop_release(&oreq->ou_fop.f_ref);
 		++pins_nr;
 	} m0_tl_endfor;
 	M0_UT_ASSERT(pins_nr == 1);

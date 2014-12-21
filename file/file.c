@@ -299,10 +299,9 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
 	M0_ENTRY();
 	M0_PRE(resource != NULL);
 
-	RM_ALLOC_PTR(fl, FILE_ALLOC, &m0_rm_addb_ctx);
+	M0_ADDB2_IN(M0_RM_ADDB2_FILE_ALLOC, M0_ALLOC_PTR(fl));
 	if (fl == NULL)
-		return M0_RC(-ENOMEM);
-
+		return M0_ERR(-ENOMEM);
 	rc = file_lock_encdec(fl, cur, M0_XCODE_DECODE);
 	if (rc == 0) {
 		fl->fi_res.r_ops = &file_lock_ops;
@@ -313,7 +312,6 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
 		*resource = &fl->fi_res;
 	} else
 		m0_free(fl);
-
 	return M0_RC(rc);
 }
 

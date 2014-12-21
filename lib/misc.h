@@ -251,10 +251,8 @@ void __dummy_function(void);
 M0_INTERNAL bool m0_elems_are_unique(const void *array, unsigned nr_elems,
 				     size_t elem_size);
 
-#define M0_AMB(obj, ptr, field)					\
-({								\
-	(obj) = container_of((ptr), typeof(*(obj)), field);	\
-})
+#define M0_AMB(obj, ptr, field)				\
+	(container_of((ptr), typeof(*(obj)), field))
 
 #define M0_MEMBER_PTR(ptr, member)		\
 ({						\

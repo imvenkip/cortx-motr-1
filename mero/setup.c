@@ -48,6 +48,8 @@
 #include "rpc/rpclib.h"
 #include "rpc/rpc_internal.h"
 #include "addb/addb_monitor.h"
+#include "addb2/storage.h"
+#include "addb2/net.h"
 #include "module/instance.h"	/* m0_get */
 
 #include "be/ut/helper.h"
@@ -91,6 +93,7 @@ M0_INTERNAL const char *m0_cs_stypes[M0_STOB_TYPE_NR] = {
 };
 
 M0_INTERNAL const uint64_t m0_addb_stob_key = M0_ADDB_STOB_KEY;
+M0_INTERNAL const uint64_t m0_addb2_stob_key = M0_ADDB2_STOB_KEY;
 
 static bool reqh_context_check(const void *bob);
 
@@ -381,7 +384,7 @@ static int cs_reqh_ctx_init(struct m0_mero *cctx)
 	if (rctx->rc_services == NULL || rctx->rc_service_uuids == NULL) {
 		m0_free(rctx->rc_services);
 		m0_free(rctx->rc_service_uuids);
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	}
 
 	cs_eps_tlist_init(&rctx->rc_eps);
@@ -832,12 +835,10 @@ static int cs_storage_init(const char *stob_type,
 	rc = m0_stob_domain_init(location, "directio=true", &stob->s_sdom);
 	if (mkfs) {
 		/* Found existing stob domain, kill it. */
-	 	if (rc == 0 && force) {
-			int rc1 = m0_stob_domain_destroy(stob->s_sdom);
-			if (rc1 != 0) {
-				rc = rc1;
+		if (rc == 0 && force) {
+			rc = m0_stob_domain_destroy(stob->s_sdom);
+			if (rc != 0)
 				goto out;
-			}
 		}
 		if (force || rc != 0) {
 			rc = m0_stob_domain_create_or_init(location,
@@ -899,7 +900,7 @@ static int cs_service_init(const char *name, struct m0_reqh_context *rctx,
 
 	stype = m0_reqh_service_type_find(name);
 	if (stype == NULL)
-		return M0_RC(-EINVAL);
+		return M0_ERR(-EINVAL);
 
 	rc = m0_reqh_service_allocate(&service, stype, rctx);
 	if (rc != 0)
@@ -1065,6 +1066,26 @@ end:
 	return M0_RC(rc);
 }
 
+static int cs_addb_stob_init(struct m0_reqh_context *rctx,
+			     struct cs_addb_stob *addb_stob,
+			     struct m0_stob_domain *dom, uint64_t key)
+{
+	struct m0_stob *stob;
+	int             rc;
+
+	rc = m0_stob_find_by_key(dom, key, &stob);
+	if (rc == 0) {
+		rc = m0_stob_locate(stob) ?:
+			m0_stob_state_get(stob) == CSS_EXISTS ? 0 :
+			m0_stob_create(stob, NULL, NULL);
+		if (rc == 0)
+			addb_stob->cas_stob = stob;
+		else
+			m0_stob_put(stob);
+	}
+	return rc;
+}
+
 /**
    Initializes storage for ADDB depending on the type of specified
    while running m0d. It also creates a hard-coded stob on
@@ -1072,51 +1093,38 @@ end:
    @see m0_addb_mc_configure_stob_sink() that is used by ADDB machine
    to store the ADDB recs.
  */
-static int cs_addb_storage_init(struct m0_reqh_context *rctx, bool mkfs, bool force)
+static int cs_addb_storage_init(struct m0_reqh_context *rctx,
+				struct cs_addb_stob *addb_stob,
+				uint64_t key, bool mkfs, bool force)
 {
-	struct cs_addb_stob *addb_stob = &rctx->rc_addb_stob;
-	struct m0_stob	    *stob;
-	int		     rc;
-	int                  rc1;
+	struct m0_stob_domain **dom = &addb_stob->cas_stobs.s_sdom;
+	int                     rc;
 
 	M0_ENTRY();
 
-	rc = m0_stob_domain_init(rctx->rc_addb_stlocation, NULL,
-				 &addb_stob->cas_stobs.s_sdom);
+	rc = m0_stob_domain_init(rctx->rc_addb_stlocation,
+				 "directio=true", dom);
 	if (mkfs) {
 		/* Found existing stob domain, kill it. */
 		if (rc == 0 && force) {
-			rc1 = m0_stob_domain_destroy(addb_stob->cas_stobs.s_sdom);
-			if (rc1 != 0) {
-				rc = rc1;
+			rc = m0_stob_domain_destroy(*dom);
+			if (rc != 0)
 				goto out;
-			}
 		}
 		if (rc != 0 || force) {
 			/** @todo allow different stob type for data
 			    stobs & ADDB stobs? */
-			rc = m0_stob_domain_create_or_init(
-				rctx->rc_addb_stlocation,
-				NULL, 0, NULL,
-				&addb_stob->cas_stobs.s_sdom);
+			rc = m0_stob_domain_create_or_init
+				(rctx->rc_addb_stlocation, NULL, 0, NULL, dom);
 		}
 	}
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
-	rc = m0_stob_find_by_key(rctx->rc_addb_stob.cas_stobs.s_sdom,
-				 m0_addb_stob_key, &stob);
-	if (rc == 0) {
-		rc = m0_stob_locate(stob);
-		rc = rc ?: m0_stob_state_get(stob) == CSS_EXISTS ? 0 :
-			   m0_stob_create(stob, NULL, NULL);
-		if (rc != 0)
-			m0_stob_put(stob);
-		addb_stob->cas_stob = stob;
-	}
+	rc = cs_addb_stob_init(rctx, addb_stob, *dom, key);
 out:
 	if (rc != 0)
-		m0_stob_domain_fini(addb_stob->cas_stobs.s_sdom);
+		m0_stob_domain_fini(*dom);
 	return M0_RC(rc);
 }
 
@@ -1182,6 +1190,38 @@ M0_INTERNAL void cs_be_fini(struct m0_be_ut_backend *be)
 	m0_free(be->but_stob_domain_location);
 }
 
+#ifndef __KERNEL__
+static void reqh_addb2_net_stop(struct m0_addb2_net *net, void *datum)
+{
+	struct m0_reqh *reqh = datum;
+	m0_semaphore_up(&reqh->rh_addb2_net_idle);
+}
+
+static void cs_addb2_stop(struct m0_reqh *reqh)
+{
+	struct m0_addb2_storage *stor = reqh->rh_addb2_stor;
+	struct m0_addb2_net     *net  = reqh->rh_addb2_net;
+
+	if (stor != NULL) {
+		reqh->rh_addb2_stor = NULL;
+		m0_addb2_storage_stop(stor);
+		m0_semaphore_down(&reqh->rh_addb2_stor_idle);
+		m0_semaphore_fini(&reqh->rh_addb2_stor_idle);
+		m0_addb2_storage_fini(stor);
+	}
+	if (net != NULL) {
+		reqh->rh_addb2_net = NULL;
+		m0_addb2_net_stop(net, &reqh_addb2_net_stop, reqh);
+		m0_semaphore_down(&reqh->rh_addb2_net_idle);
+		m0_semaphore_fini(&reqh->rh_addb2_net_idle);
+		m0_addb2_net_fini(net);
+	}
+}
+#else /* !__KERNEL__ */
+static void cs_addb2_stop(struct m0_reqh *reqh)
+{}
+#endif
+
 /**
    Initialises a request handler context.
    A request handler context consists of the storage domain, database,
@@ -1243,27 +1283,39 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 		goto reqh_be_fini;
 	}
 
-	rc = cs_addb_storage_init(rctx, mkfs, force);
+	rc = cs_addb_storage_init(rctx, &rctx->rc_addb_stob,
+				  m0_addb_stob_key, mkfs, force);
 	if (rc != 0)
 		goto cleanup_stob;
+
+	rc = cs_addb_stob_init(rctx, &rctx->rc_addb2_stob,
+			       rctx->rc_addb_stob.cas_stobs.s_sdom,
+			       m0_addb2_stob_key);
+	if (rc != 0)
+		goto cleanup_addb_stob;
 
 	rc = m0_reqh_addb_mc_config(&rctx->rc_reqh,
 				    rctx->rc_addb_stob.cas_stob);
 	if (rc != 0)
-		goto cleanup_addb_stob;
+		goto cleanup_addb2_stob;
+
+	rc = m0_reqh_addb2_config(&rctx->rc_reqh, rctx->rc_addb2_stob.cas_stob,
+				  mkfs);
+	if (rc != 0)
+		goto cleanup_addb_mc;
 
 	rctx->rc_cdom_id.id = ++cdom_id;
 
 	if (mkfs) {
 		/*
 		 * Init mdstore without root cob first. Now we can use it
-        	 * for mkfs.
+		 * for mkfs.
 		 */
 		rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
 				     rctx->rc_beseg, false);
 		if (rc != 0 && rc != -ENOENT) {
 			M0_LOG(M0_ERROR, "m0_mdstore_init: rc=%d", rc);
-			goto cleanup_addb_stob;
+			goto cleanup_addb2;
 		}
 
 		/* Prepare new metadata structure, erase old one if exists. */
@@ -1272,7 +1324,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 		m0_mdstore_fini(&rctx->rc_mdstore);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "cs_storage_prepare: rc=%d", rc);
-			goto cleanup_addb_stob;
+			goto cleanup_addb2;
 		}
 	}
 	/* XXX: remove when all mdservice modules go to m0 structure and removed
@@ -1282,13 +1334,20 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
 			     rctx->rc_beseg, true);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Failed to initialize mdstore. %s", !mkfs ? "Did you run mkfs?" : "Mkfs failed?");
-		goto cleanup_addb_stob;
+		M0_LOG(M0_ERROR, "Failed to initialize mdstore. %s",
+		       !mkfs ? "Did you run mkfs?" : "Mkfs failed?");
+		goto cleanup_addb2;
 	}
 
 	rctx->rc_state = RC_INITIALISED;
 	return M0_RC(rc);
 
+cleanup_addb2:
+	cs_addb2_stop(&rctx->rc_reqh);
+cleanup_addb_mc:
+	m0_addb_mc_unconfigure(&rctx->rc_reqh.rh_addb_mc);
+cleanup_addb2_stob:
+	m0_stob_put(rctx->rc_addb2_stob.cas_stob);
 cleanup_addb_stob:
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
 cleanup_stob:
@@ -1300,8 +1359,7 @@ be_fini:
 reqh_fini:
 	m0_reqh_fini(&rctx->rc_reqh);
 out:
-	M0_ASSERT(rc != 0);
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 
 /**
@@ -1335,6 +1393,9 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
 	m0_reqh_be_fini(reqh);
 	m0_mdstore_fini(&rctx->rc_mdstore);
+	cs_addb2_stop(reqh);
+	m0_stob_put(rctx->rc_addb2_stob.cas_stob);
+	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
 	cs_storage_fini(&rctx->rc_stob);
 	cs_be_fini(&rctx->rc_be);

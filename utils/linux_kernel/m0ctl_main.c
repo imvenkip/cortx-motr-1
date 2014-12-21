@@ -24,6 +24,7 @@
 #include <linux/debugfs.h>     /* debugfs_create_dir */
 #include <linux/kernel.h>      /* pr_err */
 
+#include "lib/thread.h"                           /* M0_THREAD_ENTER */
 #include "utils/linux_kernel/m0ctl_internal.h"
 #include "utils/linux_kernel/finject_debugfs.h"   /* fi_dfs_init */
 #include "utils/linux_kernel/trace_debugfs.h"     /* trc_dfs_init */
@@ -99,11 +100,13 @@ void dfs_cleanup(void)
 
 int __init m0ctl_init(void)
 {
+	M0_THREAD_ENTER;
 	return dfs_init();
 }
 
 void __exit m0ctl_exit(void)
 {
+	M0_THREAD_ENTER;
 	dfs_cleanup();
 }
 

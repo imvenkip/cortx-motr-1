@@ -46,9 +46,9 @@ static bool item_source_invariant(const struct m0_rpc_item_source *ris)
 		_0C(equi(ris->ris_conn != NULL, item_source_tlink_is_in(ris)));
 }
 
-int m0_rpc_item_source_init(struct m0_rpc_item_source *ris,
-			    const char *name,
-			    const struct m0_rpc_item_source_ops *ops)
+void m0_rpc_item_source_init(struct m0_rpc_item_source *ris,
+			     const char *name,
+			     const struct m0_rpc_item_source_ops *ops)
 {
 	M0_PRE(ris != NULL && name != NULL && ops != NULL &&
 	       ops->riso_has_item != NULL && ops->riso_get_item != NULL &&
@@ -62,7 +62,6 @@ int m0_rpc_item_source_init(struct m0_rpc_item_source *ris,
 	item_source_tlink_init(ris);
 
 	M0_ASSERT(item_source_invariant(ris));
-	return 0;
 }
 
 void m0_rpc_item_source_fini(struct m0_rpc_item_source *ris)

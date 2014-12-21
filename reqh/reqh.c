@@ -32,8 +32,11 @@
 #include "lib/misc.h"
 #include "lib/atomic.h"
 #include "lib/locality.h"
+#include "lib/semaphore.h"
 
 #include "mero/magic.h"
+#include "addb2/storage.h"
+#include "addb2/net.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
@@ -221,7 +224,6 @@ M0_INTERNAL void m0_reqh_be_fini(struct m0_reqh *reqh)
 		m0_layout_domain_fini(&reqh->rh_ldom);
 		reqh->rh_beseg = NULL;
 	}
-	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
 }
 
 static void __reqh_fini(struct m0_reqh *reqh)
@@ -232,10 +234,10 @@ static void __reqh_fini(struct m0_reqh *reqh)
 	m0_sm_group_fini(&reqh->rh_sm_grp);
 	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
 	m0_addb_mc_fini(&reqh->rh_addb_mc);
-        m0_fom_domain_fini(&reqh->rh_fom_dom);
+	m0_fom_domain_fini(&reqh->rh_fom_dom);
 	m0_addb_monitors_fini(&reqh->rh_addb_monitoring_ctx);
-        m0_reqh_svc_tlist_fini(&reqh->rh_services);
-        m0_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
+	m0_reqh_svc_tlist_fini(&reqh->rh_services);
+	m0_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
 	m0_reqh_lockers_fini(reqh);
 	m0_rwlock_fini(&reqh->rh_rwlock);
 	m0_ha_domain_fini(&reqh->rh_hadom);
@@ -261,10 +263,10 @@ M0_INTERNAL int m0_reqhs_init(void)
 	return 0;
 }
 
-M0_INTERNAL int
-m0_reqh_addb_mc_config(struct m0_reqh *reqh, struct m0_stob *stob)
-{
 #ifndef __KERNEL__
+M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
+				       struct m0_stob *stob)
+{
 	/**
 	 * @todo Need to replace these 3 with conf parameters and
 	 * correct values, these are temporary
@@ -293,10 +295,70 @@ m0_reqh_addb_mc_config(struct m0_reqh *reqh, struct m0_stob *stob)
 	M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &reqh->rh_addb_ctx,
 			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
 	return M0_RC(rc);
-#else
-	return 0;
-#endif
 }
+
+static void reqh_addb2_idle(struct m0_addb2_storage *stor)
+{
+	struct m0_reqh *reqh = m0_addb2_storage_cookie(stor);
+
+	M0_ASSERT(M0_IN(reqh->rh_addb2_stor, (stor, NULL)));
+	m0_semaphore_up(&reqh->rh_addb2_stor_idle);
+}
+
+static void reqh_addb2_done(struct m0_addb2_storage *stor,
+			    struct m0_addb2_trace_obj *obj)
+{
+}
+
+static void reqh_addb2_commit(struct m0_addb2_storage *stor,
+			      const struct m0_addb2_frame_header *anchor)
+{
+	/** @todo update anchor object in BE. */
+}
+
+static const struct m0_addb2_storage_ops reqh_addb2_ops = {
+	.sto_idle   = &reqh_addb2_idle,
+	.sto_done   = &reqh_addb2_done,
+	.sto_commit = &reqh_addb2_commit
+};
+
+M0_INTERNAL int m0_reqh_addb2_config(struct m0_reqh *reqh, struct m0_stob *stob,
+				     bool mkfs)
+{
+	/**
+	 * @todo replace size constant with a value from confc.
+	 */
+	reqh->rh_addb2_stor = m0_addb2_storage_init
+		(stob, 128ULL << 30, /* 128GB */
+		 mkfs ? &M0_ADDB2_HEADER_INIT : NULL, &reqh_addb2_ops, reqh);
+	reqh->rh_addb2_net = m0_addb2_net_init();
+	if (reqh->rh_addb2_stor != NULL && reqh->rh_addb2_net != NULL) {
+		m0_semaphore_init(&reqh->rh_addb2_stor_idle, 0);
+		m0_semaphore_init(&reqh->rh_addb2_net_idle, 0);
+		return 0;
+	}
+	else if (reqh->rh_addb2_stor != NULL)
+		m0_addb2_storage_fini(reqh->rh_addb2_stor);
+	else
+		m0_addb2_net_fini(reqh->rh_addb2_net);
+	reqh->rh_addb2_stor = NULL;
+	reqh->rh_addb2_net  = NULL;
+	return M0_ERR(-ENOMEM);
+}
+
+#else /* !__KERNEL__ */
+M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
+				       struct m0_stob *stob)
+{
+	return 0;
+}
+
+M0_INTERNAL int m0_reqh_addb2_config(struct m0_reqh *reqh, struct m0_stob *stob,
+				     bool mkfs)
+{
+	return 0;
+}
+#endif
 
 M0_INTERNAL int m0_reqh_state_get(struct m0_reqh *reqh)
 {
@@ -430,7 +492,7 @@ static void fop_disallowed(struct m0_reqh *reqh,
 	if (reply == NULL)
 		return;
 
-        m0_fop_get(req_fop);
+	m0_fop_get(req_fop);
 	reply->ffr_fop = req_fop;
 	reply->ffr_rc = rc;
 	M0_FOM_SIMPLE_POST(&reply->ffr_sfom, reqh, NULL, disallowed_fop_tick,

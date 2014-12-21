@@ -175,6 +175,7 @@ nobase_mero_include_HEADERS =
 mero_libmero_la_SOURCES  =
 
 include $(top_srcdir)/addb/Makefile.sub
+include $(top_srcdir)/addb2/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
@@ -232,6 +233,7 @@ ut_libmero_ut_la_LIBADD    = net/test/libmero-net-test.la xcode/ff2c/libmero-xco
 ut_libmero_ut_la_SOURCES   =
 
 include $(top_srcdir)/addb/ut/Makefile.sub
+include $(top_srcdir)/addb2/ut/Makefile.sub
 include $(top_srcdir)/balloc/ut/Makefile.sub
 include $(top_srcdir)/be/ut/Makefile.sub
 include $(top_srcdir)/capa/ut/Makefile.sub
@@ -660,6 +662,14 @@ addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
 addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
 
 include $(top_srcdir)/addb/dump/Makefile.sub
+
+#
+# addb2/dump
+#
+
+sbin_PROGRAMS                 += addb2/m0addb2dump
+addb2_m0addb2dump_CPPFLAGS  = -DM0_TARGET='m0addb2dump' $(AM_CPPFLAGS)
+addb2_m0addb2dump_LDADD     = $(top_builddir)/mero/libmero.la
 
 #
 # stats/util/m0stats
@@ -1204,6 +1214,8 @@ help:
 
 EXTRA_DIST += addb/Kbuild.sub \
               addb/ut/Kbuild.sub \
+              addb2/Kbuild.sub \
+              addb2/ut/Kbuild.sub \
               be/Kbuild.sub \
               be/ut/Kbuild.sub \
               cob/Kbuild.sub \

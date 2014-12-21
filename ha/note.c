@@ -78,7 +78,7 @@ M0_INTERNAL void ha_state_get_replied(struct m0_rpc_item *item)
 	M0_ENTRY();
 	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(item->ri_reply);
 	fop = m0_rpc_item_to_fop(item->ri_reply);
-	M0_AMB(ctx, m0_rpc_item_to_fop(item), gf_fop);
+	ctx = M0_AMB(ctx, m0_rpc_item_to_fop(item), gf_fop);
 	rep = m0_fop_data(fop);
 
 	if (rc == 0) {
@@ -119,8 +119,8 @@ static void get_fop_release(struct m0_ref *ref)
 	M0_ENTRY();
 	M0_PRE(ref != NULL);
 
-	M0_AMB(fop, ref, f_ref);
-	M0_AMB(ctx, fop, gf_fop);
+	fop = M0_AMB(fop, ref, f_ref);
+	ctx = M0_AMB(ctx, fop, gf_fop);
 	/* Clear the fop data field so the user buffer is not released. */
 	fop->f_data.fd_data = NULL;
 	m0_fop_fini(fop);

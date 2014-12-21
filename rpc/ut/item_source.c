@@ -110,10 +110,8 @@ static const struct m0_rpc_item_source_ops ris_ops = {
 static void item_source_basic_test(void)
 {
 	struct m0_rpc_item_source ris;
-	int rc;
 
-	rc = m0_rpc_item_source_init(&ris, "test-item-source", &ris_ops);
-	M0_UT_ASSERT(rc == 0);
+	m0_rpc_item_source_init(&ris, "test-item-source", &ris_ops);
 	M0_UT_ASSERT(ris.ris_ops == &ris_ops);
 	m0_rpc_item_source_register(conn, &ris);
 	m0_rpc_item_source_deregister(&ris);
@@ -135,7 +133,7 @@ static void item_source_test(void)
 	 */
 	M0_ALLOC_PTR(ris);
 	M0_UT_ASSERT(ris != NULL);
-	rc = m0_rpc_item_source_init(ris, "test-item-source", &ris_ops);
+	m0_rpc_item_source_init(ris, "test-item-source", &ris_ops);
 	m0_rpc_item_source_register(conn, ris);
 
 	for (trigger = 0; trigger < 2; trigger++) {
@@ -199,12 +197,10 @@ static void item_source_test(void)
 static void conn_terminating_cb_test(void)
 {
 	struct m0_rpc_item_source *ris;
-	int                        rc;
 
 	M0_ALLOC_PTR(ris);
 	M0_UT_ASSERT(ris != NULL);
-	rc = m0_rpc_item_source_init(ris, "test-item-source", &ris_ops);
-	M0_UT_ASSERT(rc == 0);
+	m0_rpc_item_source_init(ris, "test-item-source", &ris_ops);
 	m0_rpc_item_source_register(conn, ris);
 
 	M0_UT_ASSERT(!conn_terminating_cb_called);
