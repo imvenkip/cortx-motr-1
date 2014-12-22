@@ -2309,7 +2309,7 @@ static void pdclust_recsize_verify(uint32_t enum_id,
 				   struct m0_layout *l,
 				   m0_bcount_t recsize_to_verify)
 {
-	struct m0_pdclust_layout    *pl;
+	//struct m0_pdclust_layout    *pl;
 	//struct m0_layout_list_enum  *list_enum;
 	m0_bcount_t                  recsize;
 
@@ -2317,9 +2317,9 @@ static void pdclust_recsize_verify(uint32_t enum_id,
 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
 	M0_UT_ASSERT(l->l_type == &m0_pdclust_layout_type);
 
+#if 0
 	pl = container_of(l, struct m0_pdclust_layout, pl_base.sl_base);
 
-#if 0
 	/* Account for the enum type specific recsize. */
 	if (enum_id == LIST_ENUM_ID) {
 		list_enum = container_of(pl->pl_base.sl_enum,

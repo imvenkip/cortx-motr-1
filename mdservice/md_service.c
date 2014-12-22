@@ -151,12 +151,10 @@ static void mds_fini(struct m0_reqh_service *service)
 
 static int mds_ldom_init(struct m0_reqh_md_service *mds)
 {
-	struct m0_reqh *reqh;
 	int rc;
 
 	M0_ENTRY();
 
-	reqh = mds->rmds_gen.rs_reqh;
 	rc = m0_layout_domain_init(&mds->rmds_layout_dom);
 	if (rc == 0) {
 		rc = m0_layout_standard_types_register(&mds->rmds_layout_dom);
