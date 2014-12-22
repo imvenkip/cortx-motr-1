@@ -217,13 +217,13 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 	struct m0_fop              *rep_fop = NULL;
 
 	M0_ENTRY("Setting %.*s's xattr %s=%.*s", dentry->d_name.len,
-		 dentry->d_name.name, name, (int)size, (char *)value);
+		 (char*)dentry->d_name.name, name, (int)size, (char *)value);
 
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
-	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
+	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
 
 	if (m0_streq(name, "lid")) {
@@ -282,15 +282,15 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 	struct m0_fop              *rep_fop;
 
 	M0_ENTRY("Getting %.*s's xattr %s", dentry->d_name.len,
-		 dentry->d_name.name, name);
+		 (char*)dentry->d_name.name, name);
 
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
-	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
+	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
-	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
+	m0_buf_init(&mo.mo_attr.ca_eakey, (char*)name, strlen(name));
 
 	rc = m0t1fs_mds_cob_getxattr(csb, &mo, &rep_fop);
 	if (rc == 0) {
@@ -335,15 +335,15 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 	struct m0_fop              *rep_fop;
 
 	M0_ENTRY("Deleting %.*s's xattr %s", dentry->d_name.len,
-		 dentry->d_name.name, name);
+		 (char*)dentry->d_name.name, name);
 
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
-	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
+	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
-	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
+	m0_buf_init(&mo.mo_attr.ca_eakey, (char*)name, strlen(name));
 
 	rc = m0t1fs_mds_cob_delxattr(csb, &mo, &rep_fop);
 	if (rc == -ENOENT)
@@ -394,7 +394,7 @@ static int m0t1fs_create(struct inode     *dir,
 	M0_ENTRY();
 
 	M0_LOG(M0_INFO, "Creating \"%s\" in pdir %lu "FID_F,
-	       dentry->d_name.name, dir->i_ino,
+	       (char*)dentry->d_name.name, dir->i_ino,
 	       FID_P(m0t1fs_inode_fid(M0T1FS_I(dir))));
 
 	inode = new_inode(sb);
@@ -405,7 +405,7 @@ static int m0t1fs_create(struct inode     *dir,
 		rc = m0_fid_sscanf_simple(dentry->d_name.name, &new_fid);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cannot parse fid \"%s\" in oostore",
-					 dentry->d_name.name);
+					 (char*)dentry->d_name.name);
 			goto out;
 		}
 	} else {
@@ -463,7 +463,7 @@ static int m0t1fs_create(struct inode     *dir,
 				   M0_COB_CTIME  | M0_COB_MTIME | M0_COB_MODE  |
 				   M0_COB_BLOCKS | M0_COB_SIZE  | M0_COB_LID   |
 				   M0_COB_NLINK);
-	m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
+	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
 
 	if (csb->csb_oostore) {
@@ -574,13 +574,13 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		return ERR_PTR(-ENAMETOOLONG);
 	}
 
-	M0_LOG(M0_DEBUG, "Name: \"%s\"", dentry->d_name.name);
+	M0_LOG(M0_DEBUG, "Name: \"%s\"", (char*)dentry->d_name.name);
 
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_pfid = *m0t1fs_inode_fid(M0T1FS_I(dir));
-	m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
+	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
 	rc = m0t1fs_mds_cob_lookup(csb, &mo, &rep_fop);
 	if (rc == 0) {
@@ -614,9 +614,9 @@ static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
 	struct m0_fid             fid;
         int rc;
 
-        rc = m0_fid_sscanf_simple((char *)dentry->d_name.name, &fid);
+        rc = m0_fid_sscanf_simple(dentry->d_name.name, &fid);
         if (rc != 0) {
-		M0_LEAVE("Cannot parse fid \"%s\"", (char *)dentry->d_name.name);
+		M0_LEAVE("Cannot parse fid \"%s\"", (char*)dentry->d_name.name);
 		return ERR_PTR(rc);
         }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
@@ -868,7 +868,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 	mo.mo_attr.ca_nlink = inode->i_nlink + 1;
 	mo.mo_attr.ca_ctime = now.tv_sec;
 	mo.mo_attr.ca_valid = (M0_COB_CTIME | M0_COB_NLINK);
-	m0_buf_init(&mo.mo_attr.ca_name, (char *)new->d_name.name,
+	m0_buf_init(&mo.mo_attr.ca_name, (char*)new->d_name.name,
 		    new->d_name.len);
 
 	rc = m0t1fs_mds_cob_link(csb, &mo, &rep_fop);
@@ -908,7 +908,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
 	M0_ENTRY();
 
-	M0_LOG(M0_INFO, "Name: \"%s\"", dentry->d_name.name);
+	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
 
 	inode = dentry->d_inode;
 	csb   = M0T1FS_SB(inode->i_sb);
@@ -924,7 +924,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	mo.mo_attr.ca_ctime = now.tv_sec;
 	mo.mo_attr.ca_valid = (M0_COB_NLINK | M0_COB_CTIME);
 	m0_buf_init(&mo.mo_attr.ca_name,
-		    (char *)dentry->d_name.name, dentry->d_name.len);
+		    (char*)dentry->d_name.name, dentry->d_name.len);
 
 	rc = m0t1fs_mds_cob_lookup(csb, &mo, &lookup_rep_fop);
 	if (rc != 0)
@@ -957,7 +957,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	mo.mo_attr.ca_mtime = now.tv_sec;
 	mo.mo_attr.ca_valid = (M0_COB_CTIME | M0_COB_MTIME);
 	m0_buf_init(&mo.mo_attr.ca_name,
-		    (char *)dentry->d_name.name, dentry->d_name.len);
+		    (char*)dentry->d_name.name, dentry->d_name.len);
 
 	rc = m0t1fs_mds_cob_setattr(csb, &mo, &setattr_rep_fop);
 	if (rc != 0) {
@@ -1006,7 +1006,7 @@ M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 	M0_ENTRY();
 
-	M0_LOG(M0_INFO, "Name: \"%s\"", dentry->d_name.name);
+	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
 
 	inode = dentry->d_inode;
 	csb   = M0T1FS_SB(inode->i_sb);
@@ -1066,7 +1066,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 	M0_ENTRY();
 
-	M0_LOG(M0_INFO, "Name: \"%s\"", dentry->d_name.name);
+	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
 
 	inode = dentry->d_inode;
 	csb   = M0T1FS_SB(inode->i_sb);
@@ -1077,7 +1077,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
         M0_SET0(&mo);
         mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
 	m0_buf_init(&mo.mo_attr.ca_name,
-		    (char *)dentry->d_name.name, dentry->d_name.len);
+		    (char*)dentry->d_name.name, dentry->d_name.len);
 
 	/**
 	   @todo When we have rm locking working, this will be changed to
@@ -1148,7 +1148,7 @@ M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry, uint64_t newsize)
 	mo.mo_attr.ca_tfid   = *m0t1fs_inode_fid(ci);
 	mo.mo_attr.ca_size   = newsize;
 	mo.mo_attr.ca_valid |= M0_COB_SIZE;
-	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
+	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
 
 	rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
@@ -1177,7 +1177,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 
 	M0_ENTRY();
 
-	M0_LOG(M0_INFO, "Name: \"%s\"", dentry->d_name.name);
+	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
 
 	inode = dentry->d_inode;
 	csb   = M0T1FS_SB(inode->i_sb);
@@ -1191,7 +1191,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
-	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
+	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
 
 	if (attr->ia_valid & ATTR_CTIME) {
