@@ -736,6 +736,13 @@ M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
 }
 
 M0_INTERNAL struct m0_be_seg *
+m0_be_domain_seg_first(const struct m0_be_domain *dom)
+{
+	return m0_tl_find(seg, seg, &dom->bd_seg_list,
+			  dom->bd_seg0.bs_id != seg->bs_id && seg->bs_id != 0);
+}
+
+M0_INTERNAL struct m0_be_seg *
 m0_be_domain_seg_by_id(const struct m0_be_domain *dom, uint64_t id)
 {
 	return dom->bd_seg0.bs_id == id ? (struct m0_be_seg *) &dom->bd_seg0 :

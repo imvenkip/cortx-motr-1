@@ -26,9 +26,6 @@ m0_cs_init
 m0_cs_reqh_get
 m0_cs_setup_env
 m0_cs_start
-m0_dbenv_fini
-m0_dbenv_init
-m0_emap_paste
 *m0_fi_enabled
 *m0_fi_register
 m0_fini
@@ -177,7 +174,6 @@ m0_be_ut_seg_fini
 m0_be_ut_seg_init
 m0_be_ut_seg_reload
 m0_be_ut_tx_init
-m0_dbenv_reset
 m0_xc_opaque_init
 m0_xc_u16_init
 m0_xc_u32_init

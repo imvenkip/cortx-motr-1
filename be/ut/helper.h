@@ -53,9 +53,7 @@ struct m0_be_ut_backend {
 	bool				  but_sm_groups_unlocked;
 	struct m0_be_0type		  but_ad_0type;
 	struct m0_be_0type		  but_pool_0type;
-	struct m0_be_0type		  but_dbemu_0type;
 	struct m0_be_0type		  but_cob_0type;
-	bool				  but_dbemu_0type_register;
 	char				 *but_stob_domain_location;
 };
 

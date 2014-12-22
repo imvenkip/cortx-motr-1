@@ -229,7 +229,7 @@ M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
 	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
 	M0_ASSERT(rc == 0 && fabrec != NULL);
 	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, cob->co_dom->cd_dbenv->bs_domain, grp);
+	m0_dtx_init(&tx, cob->co_dom->cd_seg->bs_domain, grp);
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_CREATE, &tx.tx_betx_cred);
 	rc = m0_dtx_open_sync(&tx);
 	M0_ASSERT(rc == 0);
@@ -257,7 +257,7 @@ M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
 	M0_UT_ASSERT(rc == 0);
 
 	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, cob->co_dom->cd_dbenv->bs_domain, grp);
+	m0_dtx_init(&tx, cob->co_dom->cd_seg->bs_domain, grp);
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_DELETE_PUT, &tx.tx_betx_cred);
 	rc = m0_dtx_open_sync(&tx);
 	M0_ASSERT(rc == 0);

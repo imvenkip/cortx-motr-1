@@ -470,7 +470,7 @@ m0_cob_domain_init(struct m0_cob_domain *dom,
 		return M0_ERR(-ENOENT);
 
 	dom->cd_id    = *id;
-	dom->cd_dbenv = seg;
+	dom->cd_seg = seg;
 
 	m0_be_btree_init(&dom->cd_object_index,   seg, &cob_oi_ops);
 	m0_be_btree_init(&dom->cd_namespace,	  seg, &cob_ns_ops);
@@ -548,7 +548,7 @@ int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
 
 int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 {
-	struct m0_be_domain   *bedom = dom->cd_dbenv->bs_domain; /* XXX */
+	struct m0_be_domain   *bedom = dom->cd_seg->bs_domain; /* XXX */
 	struct m0_be_tx_credit cred  = {};
 	struct m0_be_seg      *seg;
 	char		       id[32];

@@ -346,8 +346,6 @@ static void ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 	}
 	ut_be->but_dom_cfg.bc_mkfs_mode = mkfs;
 
-	if (ut_be->but_dbemu_0type_register)
-		m0_be_0type_register(&ut_be->but_dom, &ut_be->but_dbemu_0type);
 	m0_mutex_init(&ut_be->but_sgt_lock);
 	rc = m0_be_domain_start(&ut_be->but_dom, &ut_be->but_dom_cfg);
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);

@@ -125,7 +125,7 @@ static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
 			      m0_streq(rctx->rc_services[i], "confd")),
 		    rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0') &&
 		rctx->rc_stype != NULL && rctx->rc_stpath != NULL &&
-		rctx->rc_addb_stlocation != NULL && rctx->rc_dbpath != NULL &&
+		rctx->rc_addb_stlocation != NULL && rctx->rc_bepath != NULL &&
 		ergo(rctx->rc_nr_services != 0, rctx->rc_services != NULL &&
 		     !cs_eps_tlist_is_empty(&rctx->rc_eps));
 }
@@ -749,7 +749,7 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 /**
    Initialises AD type stob.
  */
-static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
+static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *seg)
 {
 	int		  rc;
 	int		  result;
@@ -774,14 +774,14 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
 				if (result != 0)
 					continue;
 				f_path = stob_file_path_get(doc, s_node);
-				rc = cs_ad_stob_create(stob, cid, db, f_path);
+				rc = cs_ad_stob_create(stob, cid, seg, f_path);
 				if (rc != 0)
 					break;
 			}
 		}
 		m0_get()->i_reqh_has_multiple_ad_domains = true;
 	} else {
-		rc = cs_ad_stob_create(stob, M0_AD_STOB_KEY_DEFAULT, db, NULL);
+		rc = cs_ad_stob_create(stob, M0_AD_STOB_KEY_DEFAULT, seg, NULL);
 		m0_get()->i_reqh_has_multiple_ad_domains = false;
 	}
 
@@ -803,7 +803,7 @@ static int cs_storage_init(const char *stob_type,
 			   const char *stob_path,
 			   uint64_t dom_key,
 			   struct cs_stobs *stob,
-			   struct m0_be_seg *db,
+			   struct m0_be_seg *seg,
 			   bool mkfs, bool force)
 {
 	int                rc;
@@ -858,7 +858,7 @@ out:
 	m0_free(location);
 
 	if (rc == 0 && strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0) {
-		rc = cs_ad_stob_init(stob, db);
+		rc = cs_ad_stob_init(stob, seg);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "cs_ad_stob_init: rc=%d", rc);
 			m0_stob_domain_fini(stob->s_sdom);
@@ -1134,6 +1134,53 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
 	cs_storage_fini(&addb_stob->cas_stobs);
 }
 
+static void be_seg_init(struct m0_be_ut_backend *be,
+			const char		*name,
+			bool		 	 preallocate,
+			bool		 	 mkfs,
+			struct m0_be_seg       **out)
+{
+	struct m0_be_seg *seg;
+
+	seg = m0_be_domain_seg_first(&be->but_dom);
+	if (seg != NULL && mkfs) {
+		m0_be_ut_backend_seg_del(be, seg);
+		seg = NULL;
+	}
+	if (seg == NULL) {
+		m0_be_ut_backend_seg_add2(be, M0_BE_SEGMENT_SIZE,
+					  preallocate, &seg);
+	}
+	*out = seg;
+}
+
+static int cs_be_init(struct m0_be_ut_backend *be,
+		      const char 	      *name,
+		      bool		       preallocate,
+		      bool 		       mkfs,
+		      struct m0_be_seg	     **out)
+{
+	char		        *location;
+	static const size_t      location_len = 1024;
+
+	location = m0_alloc(location_len);
+	snprintf(location, location_len, "linuxstob:%s%s",
+		 name[0] == '/' ? "" : "./", name);
+	be->but_stob_domain_location = location;
+	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
+	m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, mkfs);
+	be_seg_init(be, name, preallocate, mkfs, out);
+	if (*out == NULL)
+		M0_LOG(M0_ERROR, "cs_be_init: failed to init segment");
+	return *out != NULL ? 0 : -ENOMEM;
+}
+
+M0_INTERNAL void cs_be_fini(struct m0_be_ut_backend *be)
+{
+	m0_be_ut_backend_fini(be);
+	m0_free(be->but_stob_domain_location);
+}
+
 /**
    Initialises a request handler context.
    A request handler context consists of the storage domain, database,
@@ -1146,13 +1193,12 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
  */
 static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 {
-	int dbenv_flags;
 	int rc;
 
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
 
-	/** @todo Pass in a parent ADDB context for the db. Ideally should
+	/** @todo Pass in a parent ADDB context for the be. Ideally should
 	    be same parent as that of the reqh.
 	    But, we'd also want the db to use the same addb m/c as the reqh.
 	    Needs work.
@@ -1162,21 +1208,19 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 	if (rc != 0)
 		goto out;
 
-	rctx->rc_db.d_i.d_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh =
-		&rctx->rc_reqh;
+	rctx->rc_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &rctx->rc_reqh;
 
-	dbenv_flags = rctx->rc_db_seg_preallocate ? M0_DB_SEG_PREALLOCATE : 0;
-	rc = m0_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, dbenv_flags, mkfs);
+	rc = cs_be_init(&rctx->rc_be, rctx->rc_bepath,
+			rctx->rc_be_seg_preallocate, mkfs, &rctx->rc_beseg);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "m0_dbenv_init");
+		M0_LOG(M0_ERROR, "cs_be_init");
 		goto reqh_fini;
 	}
-	rctx->rc_beseg = rctx->rc_db.d_i.d_seg;
 
 	rc = m0_reqh_be_init(&rctx->rc_reqh, rctx->rc_beseg);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "m0_reqh_be_init: rc=%d", rc);
-		goto dbenv_fini;
+		goto be_fini;
 	}
 
 	if (rctx->rc_dfilepath != NULL) {
@@ -1250,8 +1294,8 @@ cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 reqh_be_fini:
 	m0_reqh_be_fini(&rctx->rc_reqh);
-dbenv_fini:
-	m0_dbenv_fini(&rctx->rc_db);
+be_fini:
+	cs_be_fini(&rctx->rc_be);
 reqh_fini:
 	m0_reqh_fini(&rctx->rc_reqh);
 out:
@@ -1292,7 +1336,7 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	m0_mdstore_fini(&rctx->rc_mdstore);
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
 	cs_storage_fini(&rctx->rc_stob);
-	m0_dbenv_fini(&rctx->rc_db);
+	cs_be_fini(&rctx->rc_be);
 	m0_reqh_post_storage_fini_svcs_stop(reqh);
 	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);
@@ -1446,7 +1490,7 @@ static void cs_help(FILE *out, const char *progname)
 "           Defaults to the value set with '-M' option.\n"
 "\n"
 "Example:\n"
-"    %s -Q 4 -M 4096 -T linux -D dbpath -S stobfile \\\n"
+"    %s -Q 4 -M 4096 -T linux -D bepath -S stobfile \\\n"
 "        -e lnet:172.18.50.40@o2ib1:12345:34:1 -s mds -q 8 -m 65536\n",
 CONFD_CONN_TIMEOUT, CONFD_CONN_RETRY, progname);
 }
@@ -1672,7 +1716,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 			M0_STRINGARG('D', "Metadata storage filename",
 				LAMBDA(void, (const char *s)
 				{
-					rctx->rc_dbpath = s;
+					rctx->rc_bepath = s;
 				})),
 			M0_STRINGARG('c', "Path to the configuration database",
 				LAMBDA(void, (const char *s)
@@ -1739,8 +1783,8 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 						M0_CNT_INC(
 							rctx->rc_nr_services);
 				})),
-			M0_FLAGARG('a', "Preallocate db5 emulation BE seg",
-				   &rctx->rc_db_seg_preallocate),
+			M0_FLAGARG('a', "Preallocate BE seg",
+				   &rctx->rc_be_seg_preallocate),
 			M0_VOIDARG('v', "Print version and exit",
 				LAMBDA(void, (void)
 				{

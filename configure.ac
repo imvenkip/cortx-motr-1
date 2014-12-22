@@ -123,7 +123,7 @@ AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in atomic functions])
 AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
-AH_TEMPLATE([M0_BE_DB_SEGMENT_SIZE],  [BE segment size in MiB.])
+AH_TEMPLATE([M0_BE_SEGMENT_SIZE],     [BE segment size in MiB.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ],     [Have fops->aio_read function])
@@ -303,7 +303,7 @@ AC_ARG_WITH([segment-size],
 AS_IF([test -z "$SEG_SIZE" || test "x$SEG_SIZE" = xyes || test "x$SEG_SIZE" = xno],
       [AC_MSG_ERROR([Segment size must be set with --with-segment-size option.])]
 )
-AC_DEFINE_UNQUOTED([M0_BE_DB_SEGMENT_SIZE], [($SEG_SIZE * 1024 * 1024UL)])
+AC_DEFINE_UNQUOTED([M0_BE_SEGMENT_SIZE], [($SEG_SIZE * 1024 * 1024UL)])
 
 #
 # Checking for required programs
@@ -577,8 +577,6 @@ CFLAGS=$OLD_CFLAGS
 AC_SUBST([GALOIS_ABS_SRC])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
-AC_SUBST([DB_LIBS])
-
 
 #
 # Handle configuration options
@@ -632,7 +630,7 @@ AS_IF([test x$enable_mcheck = xyes],
 # Set up build variables
 #
 
-M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $DB_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
+M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
@@ -741,7 +739,6 @@ echo "RT_LIBS      :  \"$RT_LIBS\""
 echo "PROFILER_LIBS:  \"$PROFILER_LIBS\""
 echo "GALOIS_LIBS  :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS    :  \"$YAML_LIBS\""
-echo "DB_LIBS      :  \"$DB_LIBS\""
 echo "UUID_LIBS    :  \"$UUID_LIBS\""
 echo ""
 echo "Linux kernel :  \"$LINUX_OBJ\""

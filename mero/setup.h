@@ -27,7 +27,6 @@
 
 #include "lib/tlist.h"
 #include "lib/types.h"        /* m0_uint128 */
-#include "db/db.h"
 #include "reqh/reqh_service.h"
 #include "stob/stob.h"
 #include "net/lnet/lnet.h"    /* M0_NET_LNET_XEP_ADDR_LEN */
@@ -37,7 +36,7 @@
 #include "reqh/reqh.h"        /* m0_reqh */
 #include "yaml.h"             /* yaml_document_t */
 
-#include "be/ut/helper.h"	/* XXX: prototype solution */
+#include "be/ut/helper.h"     /* m0_be_ut_backend_seg_add2() */
 
 /**
    @defgroup m0d Mero Setup
@@ -249,8 +248,8 @@ struct m0_reqh_context {
 	/** Type of storage to be initialised. */
 	const char                  *rc_stype;
 
-	/** Database environment path for request handler context. */
-	const char                  *rc_dbpath;
+	/** BE environment path for request handler context. */
+	const char                  *rc_bepath;
 
 	/** Services running in request handler context. */
 	char                       **rc_services;
@@ -279,8 +278,8 @@ struct m0_reqh_context {
 	/** ADDB specific stob information */
 	struct cs_addb_stob          rc_addb_stob;
 
-	/** Database used by the request handler */
-	struct m0_dbenv              rc_db;
+	/** BE env and segment used by the request handler */
+	struct m0_be_ut_backend      rc_be;
 	struct m0_be_seg            *rc_beseg;
 
 	/**
@@ -326,7 +325,7 @@ struct m0_reqh_context {
 	uint32_t                     rc_max_rpc_msg_size;
 
 	/** Preallocate an entire stob for db5 emulation BE segment */
-	bool                         rc_db_seg_preallocate;
+	bool                         rc_be_seg_preallocate;
 };
 
 /**

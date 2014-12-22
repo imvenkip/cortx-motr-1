@@ -129,8 +129,6 @@ struct m0_be_domain {
 	struct m0_be_0type	bd_0type_seg;
 	unsigned		bd_mkfs_stage;
 	unsigned		bd_mkfs_stage_nr;
-	/** XXX please remove it when db5 emulation removed */
-	void		       *bd_db_impl;
 };
 
 M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom);
@@ -175,6 +173,12 @@ M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
  */
 M0_INTERNAL struct m0_be_seg *
 m0_be_domain_seg_by_id(const struct m0_be_domain *dom, uint64_t id);
+
+/**
+ * Returns be-segment first after seg0 or NULL if not existing.
+ */
+M0_INTERNAL struct m0_be_seg *
+m0_be_domain_seg_first(const struct m0_be_domain *dom);
 
 M0_INTERNAL void
 m0_be_domain_seg_create_credit(struct m0_be_domain		*dom,

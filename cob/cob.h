@@ -250,7 +250,7 @@ struct m0_cob_domain_id {
 */
 struct m0_cob_domain {
 	struct m0_cob_domain_id cd_id;
-	struct m0_be_seg       *cd_dbenv;
+	struct m0_be_seg       *cd_seg;
 	struct m0_be_btree      cd_object_index;
 	struct m0_be_btree      cd_namespace;
 	struct m0_be_btree      cd_fileattr_basic;

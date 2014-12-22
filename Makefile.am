@@ -158,7 +158,7 @@ lib_LTLIBRARIES          += mero/libmero.la
 mero_libmero_la_CPPFLAGS  = -DM0_TARGET='libmero' $(AM_CPPFLAGS)
 mero_libmero_la_LDFLAGS   = -release @LT_RELEASE@ -pthread $(AM_LDFLAGS)
 mero_libmero_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
-                            @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@ \
+                            @GALOIS_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@ \
 			    @UUID_LIBS@
 
 # install directory for public libmero headers
@@ -178,7 +178,6 @@ include $(top_srcdir)/cob/Makefile.sub
 include $(top_srcdir)/conf/Makefile.sub
 include $(top_srcdir)/conf/objs/Makefile.sub
 include $(top_srcdir)/console/Makefile.sub
-include $(top_srcdir)/db/Makefile.sub
 include $(top_srcdir)/desim/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
@@ -234,7 +233,6 @@ include $(top_srcdir)/cm/ut/Makefile.sub
 include $(top_srcdir)/cob/ut/Makefile.sub
 include $(top_srcdir)/conf/ut/Makefile.sub
 include $(top_srcdir)/console/ut/Makefile.sub
-include $(top_srcdir)/db/ut/Makefile.sub
 include $(top_srcdir)/dtm/ut/Makefile.sub
 include $(top_srcdir)/file/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
@@ -1151,7 +1149,6 @@ EXTRA_DIST += addb/Kbuild.sub \
               be/ut/Kbuild.sub \
               cob/Kbuild.sub \
               conf/Kbuild.sub \
-              db/Kbuild.sub \
               dtm/Kbuild.sub \
               dtm/ut/Kbuild.sub \
               fid/Kbuild.sub \

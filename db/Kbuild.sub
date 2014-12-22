@@ -1,3 +1,0 @@
-m0mero_objects += db/db_common.o db/extmap.o
-
-m0mero_objects += db/linux_kernel/db.o
