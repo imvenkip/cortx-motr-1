@@ -118,7 +118,12 @@ static const struct m0_be_btree_kv_ops be_emap_ops = {
 	.ko_compare = be_emap_cmp
 };
 
-M0_UNUSED static void emap_dump(struct m0_be_emap_cursor *it)
+static struct m0_rwlock *emap_rwlock(struct m0_be_emap *emap)
+{
+	return &emap->em_lock.bl_u.rwlock;
+}
+
+static void emap_dump(struct m0_be_emap_cursor *it)
 {
 	struct m0_be_emap_cursor scan;
 	struct m0_uint128       *prefix = &it->ec_key.ek_prefix;
@@ -126,7 +131,7 @@ M0_UNUSED static void emap_dump(struct m0_be_emap_cursor *it)
 	int                      i;
 	int                      rc;
 
-	m0_rwlock_read_lock(&it->ec_map->em_lock);
+	m0_rwlock_read_lock(emap_rwlock(it->ec_map));
 	rc = be_emap_lookup(it->ec_map, prefix, 0, &scan);
 	M0_ASSERT(rc == 0);
 
@@ -143,13 +148,13 @@ M0_UNUSED static void emap_dump(struct m0_be_emap_cursor *it)
 		M0_ASSERT(rc == 0);
 	}
 	be_emap_close(&scan);
-	m0_rwlock_read_unlock(&it->ec_map->em_lock);
+	m0_rwlock_read_unlock(emap_rwlock(it->ec_map));
 }
 
 M0_INTERNAL void
 m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 {
-	m0_rwlock_init(&map->em_lock);
+	m0_rwlock_init(emap_rwlock(map));
 	m0_buf_init(&map->em_key_buf, &map->em_key, sizeof map->em_key);
 	m0_buf_init(&map->em_val_buf, &map->em_rec, sizeof map->em_rec);
 	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
@@ -159,7 +164,7 @@ m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map)
 {
 	m0_be_btree_fini(&map->em_mapping);
-	m0_rwlock_fini(&map->em_lock);
+	m0_rwlock_fini(emap_rwlock(map));
 }
 
 M0_INTERNAL void m0_be_emap_create(struct m0_be_emap *map,
@@ -305,7 +310,7 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
 
-	m0_rwlock_write_lock(&it->ec_map->em_lock);
+	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
 	rc = M0_BE_OP_SYNC_RET(
 		local_op,
 		m0_be_btree_delete(&it->ec_map->em_mapping, tx, &local_op,
@@ -321,7 +326,7 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 	if (rc == 0)
 		rc = emap_it_get(it) /* re-initialise cursor position */ ?:
 			update_next_segment(it, tx, delta, inserted);
-	m0_rwlock_write_unlock(&it->ec_map->em_lock);
+	m0_rwlock_write_unlock(emap_rwlock(it->ec_map));
 
 	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));
 	it->ec_op.bo_u.u_emap.e_rc = rc;
@@ -337,9 +342,9 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
 	M0_INVARIANT_EX(be_emap_invariant(it));
 
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
-	m0_rwlock_write_lock(&it->ec_map->em_lock);
+	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
 	be_emap_split(it, tx, vec, it->ec_seg.ee_ext.e_start);
-	m0_rwlock_write_unlock(&it->ec_map->em_lock);
+	m0_rwlock_write_unlock(emap_rwlock(it->ec_map));
 	m0_be_op_state_set(&it->ec_op, M0_BOS_SUCCESS);
 
 	M0_ASSERT_EX(be_emap_invariant(it));
@@ -392,7 +397,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	 * time).
 	 */
 
-	m0_rwlock_write_lock(&it->ec_map->em_lock);
+	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
 	while (!m0_ext_is_empty(ext)) {
 		m0_ext_intersection(ext, chunk, &clip);
 		M0_LOG(M0_DEBUG, "ext="EXT_F" chunk="EXT_F" clip="EXT_F,
@@ -446,7 +451,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 				break;
 		}
 	}
-	m0_rwlock_write_unlock(&it->ec_map->em_lock);
+	m0_rwlock_write_unlock(emap_rwlock(it->ec_map));
 
 	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));
 
@@ -545,7 +550,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
-	m0_rwlock_write_lock(&map->em_lock);
+	m0_rwlock_write_lock(emap_rwlock(map));
 	map->em_key.ek_prefix = *prefix;
 	map->em_key.ek_offset = M0_BINDEX_MAX + 1;
 	map->em_rec.er_start = 0;
@@ -556,7 +561,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 		m0_be_btree_insert(&map->em_mapping, tx, &local_op,
 				   &map->em_key_buf, &map->em_val_buf),
 		bo_u.u_btree.t_rc);
-	m0_rwlock_write_unlock(&map->em_lock);
+	m0_rwlock_write_unlock(emap_rwlock(map));
 
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
@@ -573,7 +578,7 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
-	m0_rwlock_write_lock(&map->em_lock);
+	m0_rwlock_write_lock(emap_rwlock(map));
 	rc = be_emap_lookup(map, prefix, 0, &it);
 	if (rc == 0) {
 		M0_ASSERT(m0_be_emap_ext_is_first(&it.ec_seg.ee_ext) &&
@@ -586,7 +591,7 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 		be_emap_close(&it);
 	}
 	op->bo_u.u_emap.e_rc = rc;
-	m0_rwlock_write_unlock(&map->em_lock);
+	m0_rwlock_write_unlock(emap_rwlock(map));
 
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
@@ -624,7 +629,7 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
 	m0_be_op_state_set(&car->ct_it->ec_op, M0_BOS_ACTIVE);
 
 	M0_ASSERT(be_emap_caret_invariant(car));
-	m0_rwlock_read_lock(&car->ct_it->ec_map->em_lock);
+	m0_rwlock_read_lock(emap_rwlock(car->ct_it->ec_map));
 	while (count > 0 && car->ct_index < M0_BINDEX_MAX + 1) {
 		m0_bcount_t step;
 
@@ -638,7 +643,7 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
 		car->ct_index += step;
 		count -= step;
 	}
-	m0_rwlock_read_unlock(&car->ct_it->ec_map->em_lock);
+	m0_rwlock_read_unlock(emap_rwlock(car->ct_it->ec_map));
 
 	m0_be_op_state_set(&car->ct_it->ec_op, rc == 0 ?
 					M0_BOS_SUCCESS : M0_BOS_FAILURE);
@@ -906,13 +911,13 @@ be_emap_invariant(struct m0_be_emap_cursor *it)
 	int                      rc;
 	bool                     is_good = true;
 
-	m0_rwlock_read_lock(&it->ec_map->em_lock);
+	m0_rwlock_read_lock(emap_rwlock(it->ec_map));
 	rc = be_emap_lookup(it->ec_map, &it->ec_key.ek_prefix, 0, &scan);
 	if (rc == 0) {
 		is_good = be_emap_invariant_check(&scan);
 		be_emap_close(&scan);
 	}
-	m0_rwlock_read_unlock(&it->ec_map->em_lock);
+	m0_rwlock_read_unlock(emap_rwlock(it->ec_map));
 
 	if (!is_good)
 		emap_dump(it);

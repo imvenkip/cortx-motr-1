@@ -46,7 +46,7 @@ struct m0_be_tx_credit;
 struct m0_be_btree {
 	struct m0_be_obj_header          bb_header;
 	/** The lock to acquire when performing operations on the tree. */
-	struct m0_rwlock                 bb_lock;
+	struct m0_be_rwlock              bb_lock;
 	/** The segment where we are stored. */
 	struct m0_be_seg                *bb_seg;
 	/** Root node of the tree. */

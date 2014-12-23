@@ -21,6 +21,9 @@
 #define __MERO_BE_OBJ_H__
 
 #include "lib/types.h"  /* uint64_t */
+#include "lib/misc.h"   /* M0_FIELD_VALUE */
+#include "lib/mutex.h"
+#include "lib/rwlock.h"
 
 /**
  * @defgroup be_obj Persistent objects
@@ -58,6 +61,24 @@ M0_INTERNAL void m0_be_obj_header_pack(struct m0_be_obj_header *dest,
 				       const struct m0_be_obj_tag *src);
 M0_INTERNAL void m0_be_obj_header_unpack(struct m0_be_obj_tag *dest,
 					 const struct m0_be_obj_header *src);
+
+struct m0_be_mutex {
+	union {
+		struct m0_mutex mutex;
+		char            pad[56];
+	} bm_u;
+};
+M0_BASSERT(sizeof(struct m0_mutex) <=
+	   sizeof(M0_FIELD_VALUE(struct m0_be_mutex, bm_u.pad)));
+
+struct m0_be_rwlock {
+	union {
+		struct m0_rwlock rwlock;
+		char             pad[56];
+	} bl_u;
+};
+M0_BASSERT(sizeof(struct m0_rwlock) <=
+	   sizeof(M0_FIELD_VALUE(struct m0_be_rwlock, bl_u.pad)));
 
 /** @} be */
 #endif /* __MERO_BE_OBJ_H__ */

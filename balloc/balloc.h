@@ -76,7 +76,7 @@ struct m0_balloc_group_info {
 	/** list of pre-alloc */
 	struct m0_list          bgi_prealloc_list;
 	/** per-group lock */
-	struct m0_mutex         bgi_mutex;
+	struct m0_be_mutex      bgi_mutex;
 	/** (bgi_fragments+1) of extents */
 	struct m0_ext          *bgi_extents;
 	struct m0_be_obj_footer bgi_footer;
@@ -142,7 +142,7 @@ struct m0_balloc {
 	/** the on-disk and in-memory sb */
 	struct m0_balloc_super_block cb_sb;
 	/** super block lock */
-	struct m0_mutex              cb_sb_mutex;
+	struct m0_be_mutex           cb_sb_mutex;
 	/** db for free extent */
 	struct m0_be_btree           cb_db_group_extents;
 	/** db for group desc */

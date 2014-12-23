@@ -101,14 +101,17 @@ struct m0_stob_ad_domain {
 	struct m0_ad_balloc    *sad_ballroom;
 	m0_bcount_t             sad_container_size;
 	uint32_t                sad_bshift;
-	int                     sad_babshift;
+	int32_t                 sad_babshift;
 	m0_bcount_t             sad_blocks_per_group;
 	m0_bcount_t             sad_res_groups;
 	struct m0_be_seg       *sad_be_seg;
 	char                    sad_path[MAXPATHLEN];
 	bool                    sad_overwrite;
+	char                    sad_pad[7];
 	struct m0_be_obj_footer sad_footer;
 };
+M0_BASSERT(sizeof(M0_FIELD_VALUE(struct m0_stob_ad_domain, sad_path)) % 8 == 0);
+M0_BASSERT(sizeof(bool) == 1);
 
 /**
  * Minimilistic ad stob iterator.

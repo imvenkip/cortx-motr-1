@@ -126,9 +126,11 @@ enum {
 struct m0_poolnode {
 	struct m0_be_obj_header pn_header;
 	enum m0_pool_nd_state   pn_state;
+	char                    pn_pad[4];
 	struct m0_server       *pn_id;
 	struct m0_be_obj_footer pn_footer;
 };
+M0_BASSERT(sizeof(enum m0_pool_nd_state) == 4);
 
 /**
  * pool device
@@ -140,6 +142,7 @@ struct m0_pooldev {
 	/** device state (as part of pool machine state). This field is only
 	    meaningful when m0_pooldev::pd_node.pn_state is PNS_ONLINE */
 	enum m0_pool_nd_state   pd_state;
+	char                    pd_pad[4];
 	/** pool device identity */
 	struct m0_device       *pd_id;
 	/* a node this storage devie is attached to */
@@ -234,17 +237,17 @@ struct m0_poolmach_state {
 	/** pool machine version numbers */
 	struct m0_pool_version_numbers pst_version;
 
-	/** number of nodes currently in the pool */
-	uint32_t                       pst_nr_nodes;
-
 	/** identities and states of every node in the pool */
 	struct m0_poolnode            *pst_nodes_array;
 
-	/** number of devices currently in the pool */
-	uint32_t                       pst_nr_devices;
-
 	/** identities and states of every device in the pool */
 	struct m0_pooldev             *pst_devices_array;
+
+	/** number of nodes currently in the pool */
+	uint32_t                       pst_nr_nodes;
+
+	/** number of devices currently in the pool */
+	uint32_t                       pst_nr_devices;
 
 	/** maximal number of node failures the pool is configured to sustain */
 	uint32_t                       pst_max_node_failures;

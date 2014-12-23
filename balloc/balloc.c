@@ -227,26 +227,31 @@ M0_INTERNAL struct m0_balloc_group_info *m0_balloc_gn2info(struct m0_balloc *cb,
 	return cb->cb_group_info == NULL ? NULL : &cb->cb_group_info[groupno];
 }
 
+static struct m0_mutex *bgi_mutex(struct m0_balloc_group_info *grp)
+{
+	return &grp->bgi_mutex.bm_u.mutex;
+}
+
 M0_INTERNAL int m0_balloc_release_extents(struct m0_balloc_group_info *grp)
 {
-	M0_ASSERT(m0_mutex_is_locked(&grp->bgi_mutex));
+	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
 	m0_free0(&grp->bgi_extents);
 	return 0;
 }
 
 M0_INTERNAL void m0_balloc_lock_group(struct m0_balloc_group_info *grp)
 {
-	m0_mutex_lock(&grp->bgi_mutex);
+	m0_mutex_lock(bgi_mutex(grp));
 }
 
 M0_INTERNAL int m0_balloc_trylock_group(struct m0_balloc_group_info *grp)
 {
-	return m0_mutex_trylock(&grp->bgi_mutex);
+	return m0_mutex_trylock(bgi_mutex(grp));
 }
 
 M0_INTERNAL void m0_balloc_unlock_group(struct m0_balloc_group_info *grp)
 {
-	m0_mutex_unlock(&grp->bgi_mutex);
+	m0_mutex_unlock(bgi_mutex(grp));
 }
 
 #define MAX_ALLOCATION_CHUNK 2048ULL
@@ -606,7 +611,7 @@ static int balloc_load_group_info(struct m0_balloc *cb,
 		gi->bgi_state	   = M0_BALLOC_GROUP_INFO_INIT;
 		gi->bgi_extents	   = NULL;
 		m0_list_init(&gi->bgi_prealloc_list);
-		m0_mutex_init(&gi->bgi_mutex);
+		m0_mutex_init(bgi_mutex(gi));
 	}
 	return M0_RC(rc);
 }
@@ -644,7 +649,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 
 	bal->cb_be_seg = seg;
 	bal->cb_group_info = NULL;
-	m0_mutex_init(&bal->cb_sb_mutex);
+	m0_mutex_init(&bal->cb_sb_mutex.bm_u.mutex);
 
 	m0_be_btree_init(&bal->cb_db_group_desc, seg, &gd_btree_ops);
 	m0_be_btree_init(&bal->cb_db_group_extents, seg, &ge_btree_ops);
@@ -869,8 +874,8 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 
 	M0_ENTRY("grp=%d frags=%d", (int)grp->bgi_groupno,
 				    (int)grp->bgi_fragments);
+	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
 
-	M0_ASSERT(m0_mutex_is_locked(&grp->bgi_mutex));
 	if (grp->bgi_extents != NULL) {
 		M0_LOG(M0_DEBUG, "Already loaded");
 		return M0_RC(0);
@@ -933,7 +938,7 @@ static int balloc_find_extent_exact(struct m0_balloc_allocation_context *bac,
 	int	 	 found = 0;
 	struct m0_ext	*fragment;
 
-	M0_ASSERT(m0_mutex_is_locked(&grp->bgi_mutex));
+	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
 
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		fragment = &grp->bgi_extents[i];
@@ -968,7 +973,7 @@ static int balloc_find_extent_buddy(struct m0_balloc_allocation_context *bac,
 						.e_start = 0,
 						.e_end = 0xffffffff };
 
-	M0_ASSERT(m0_mutex_is_locked(&grp->bgi_mutex));
+	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
 
 	start = grp->bgi_groupno << sb->bsb_gsbits;
 	end   = (grp->bgi_groupno + 1) << sb->bsb_gsbits;
@@ -1072,9 +1077,8 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 	int			 rc	= 0;
 	m0_bcount_t              maxchunk = grp->bgi_maxchunk;
 
-	M0_PRE(m0_mutex_is_locked(&grp->bgi_mutex));
-
 	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
 
 	balloc_debug_dump_extent("target=", tgt);
 
@@ -1176,9 +1180,8 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 	int			 rc	= 0;
 	int			 found	= 0;
 
-	M0_PRE(m0_mutex_is_locked(&grp->bgi_mutex));
-
 	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
 
 	balloc_debug_dump_extent("target=", tgt);
 
@@ -1454,9 +1457,9 @@ static int balloc_simple_scan_group(struct m0_balloc_allocation_context *bac,
 	struct m0_ext	ex;
 	m0_bcount_t	len;
 	int		found = 0;
-	M0_ENTRY();
 
-	M0_ASSERT(bac->bac_order2 > 0);
+	M0_ENTRY();
+	M0_PRE(bac->bac_order2 > 0);
 
 	len = 1 << bac->bac_order2;
 /*	for (; len <= sb->bsb_groupsize; len = len << 1) {
@@ -2037,7 +2040,7 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 	M0_ENTRY("goal=0x%lx count=%lu",
 			(unsigned long)out->e_start,
 			(unsigned long)count);
-	M0_ASSERT(count > 0);
+	M0_PRE(count > 0);
 
 	req.bar_goal  = out->e_start; /* this also plays as the goal */
 	req.bar_len   = count;
@@ -2045,7 +2048,7 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 
 	M0_SET0(out);
 
-	m0_mutex_lock(&mero->cb_sb_mutex);
+	m0_mutex_lock(&mero->cb_sb_mutex.bm_u.mutex);
 	rc = balloc_allocate_internal(mero, &tx->tx_betx, &req);
 	if (rc == 0) {
 		if (m0_ext_is_empty(&req.bar_result)) {
@@ -2056,7 +2059,7 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 			mero->cb_last = out->e_end;
 		}
 	}
-	m0_mutex_unlock(&mero->cb_sb_mutex);
+	m0_mutex_unlock(&mero->cb_sb_mutex.bm_u.mutex);
 
 	return M0_RC(rc);
 }

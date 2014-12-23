@@ -355,23 +355,24 @@ M0_INTERNAL int m0_cob_nskey_cmp(const struct m0_cob_nskey *k0,
  */
 struct m0_cob_nsrec {
 	struct m0_be_obj_header cnr_header;
-	struct m0_fid     cnr_fid;     /**< object fid */
-	uint32_t          cnr_linkno;  /**< number of link for the name */
+	struct m0_fid           cnr_fid;     /**< object fid */
+	uint32_t                cnr_linkno;  /**< number of link for the name */
 
 	/**
 	 * The following fields are only important for 0-nsrec, that is,
 	 * stat data. For other records, only two fields above are valid.
 	 */
-	uint32_t          cnr_nlink;   /**< number of hard links */
-	uint32_t          cnr_cntr;    /**< linkno allocation counter */
-	uint64_t          cnr_omgid;   /**< uid/gid/mode slot reference */
-	uint64_t          cnr_size;    /**< total size, in bytes */
-	uint64_t          cnr_blksize; /**< blocksize for filesystem I/O */
-	uint64_t          cnr_blocks;  /**< number of blocks allocated */
-	uint64_t          cnr_atime;   /**< time of last access */
-	uint64_t          cnr_mtime;   /**< time of last modification */
-	uint64_t          cnr_ctime;   /**< time of last status change */
-	uint64_t          cnr_lid;     /**< layout id */
+	uint32_t                cnr_nlink;   /**< number of hard links */
+	uint32_t                cnr_cntr;    /**< linkno allocation counter */
+	char                    cnr_pad[4];
+	uint64_t                cnr_omgid;   /**< uid/gid/mode slot reference */
+	uint64_t                cnr_size;    /**< total size, in bytes */
+	uint64_t                cnr_blksize; /**< blocksize for filesystem I/O */
+	uint64_t                cnr_blocks;  /**< number of blocks allocated */
+	uint64_t                cnr_atime;   /**< time of last access */
+	uint64_t                cnr_mtime;   /**< time of last modification */
+	uint64_t                cnr_ctime;   /**< time of last status change */
+	uint64_t                cnr_lid;     /**< layout id */
 	struct m0_be_obj_footer cnr_footer;
 };
 
