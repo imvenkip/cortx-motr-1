@@ -322,6 +322,7 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	struct m0_poolmach             *poolmach;
 	struct m0_reqh                 *reqh;
 	struct m0_fop_cob_common       *common;
+	struct m0_fop_cob_op_reply     *reply;
 	struct m0_cob_attr              attr = { { 0, } };
 	struct m0_be_tx_credit          cob_op_tx_credit = {};
 	struct m0_be_tx_credit         *tx_cred;
@@ -479,10 +480,8 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 		cliv = (struct m0_pool_version_numbers*)&common->c_version;
 
 		rc = ios__poolmach_check(poolmach, cliv);
-		if (rc != 0) {
-			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-			goto pack;
-		}
+		reply = m0_fop_data(fom->fo_rep_fop);
+		reply->cor_rc = rc;
 
 		m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
 		return M0_FSO_AGAIN;
@@ -513,9 +512,9 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 pack:
         if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
             m0_fom_phase(fom) == M0_FOPH_FAILURE) {
-		struct m0_fop_cob_op_reply     *reply;
 		reply = m0_fop_data(fom->fo_rep_fop);
-		reply->cor_rc = rc;
+		if (rc != 0)
+			reply->cor_rc = rc;
 
 		/* Piggyback some information about the transaction */
 		m0_fom_mod_rep_fill(&reply->cor_mod_rep, fom);

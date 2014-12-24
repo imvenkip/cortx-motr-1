@@ -82,10 +82,9 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 		uint32_t            i;
 
 		/* Retrieve the latest server version and updates and apply
-		 * to the client's copy. When -EAGAIN is return, this system
-		 * call will be restarted.
+		 * to the client's copy.
 		 */
-		rc = -EAGAIN;
+		rc = 0;
 		for (i = 0; i < reply->cor_fv_updates.fvu_count; ++i) {
 			event = &reply->cor_fv_updates.fvu_events[i];
 			m0_poolmach_state_transit(csb->csb_pool.po_mach,
@@ -95,7 +94,7 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 	} else
 		rc = reply->cor_rc;
 
-	if (creq->cr_rc == 0 || rc == -EAGAIN)
+	if (creq->cr_rc == 0)
 		creq->cr_rc = rc;
 
 	if (--creq->cr_fops_cnt == 0)
@@ -1330,7 +1329,7 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 	M0_ASSERT(pool_width >= 1);
 
 	m0_semaphore_init(&cob_req.cr_sem, 0);
-again:
+
 	cob_req.cr_fops_cnt = 0;
 	cob_req.cr_deadline = m0_time_from_now(0, COB_REQ_DEADLINE);
 	cob_req.cr_csb = csb;
@@ -1353,9 +1352,6 @@ again:
 
 	if (cob_req.cr_fops_cnt > 0)
 		m0_semaphore_down(&cob_req.cr_sem);
-
-	if (rc == 0 && cob_req.cr_rc == -EAGAIN)
-		goto again;
 
 	m0_semaphore_fini(&cob_req.cr_sem);
 
