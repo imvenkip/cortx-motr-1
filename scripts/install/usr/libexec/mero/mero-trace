@@ -1,0 +1,58 @@
+#!/bin/bash
+
+
+# constants
+readonly PROG_NAME=$(basename $0)
+
+# global variables, which can be overriden in /etc/sysconfig/mero
+MERO_GENDERS_CONF=/etc/mero/genders
+MERO_LOG_DIR=/var/log/mero
+
+# service local variables
+user_config=/etc/sysconfig/mero
+service_funcs=/usr/libexec/mero/mero-service.functions
+
+
+m0_traced()
+{
+    local target=$1
+
+    [[ -n $target ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
+
+    source $service_funcs
+
+    [ -r $user_config ] && source $user_config
+
+    [ ! -d "$MERO_LOG_DIR" ] && mkdir -p "$MERO_LOG_DIR"
+
+    date=$(date -u '+%F_%T')
+    m0traced=$(m0_path_to m0traced)
+
+    case "$target" in
+        kernel)
+            [[ $MERO_TRACED_KMOD == yes ]] || exit 0
+            opts="-K -O $MERO_LOG_DIR/m0mero.ko~$date.img"
+            output_file=$MERO_LOG_DIR/trace-m0mero~$date.bin
+            if ! mount | grep -q /sys/kernel/debug ; then
+                mount -t debugfs none /sys/kernel/debug
+            fi
+            ;;
+
+        confd|ios*|mds|singlenode)
+            [[ $MERO_TRACED_M0D == yes ]] || exit 0
+            server_pid=$(m0_get_server_pid_for $target)
+            server_trace_file=$(m0_get_m0d_data_dir_for $target)/m0trace.$server_pid
+            opts="-i $server_trace_file"
+            output_file=$MERO_LOG_DIR/trace-m0d-$server_pid~$date.bin
+            ;;
+
+        *) m0_exit "Failed to start m0traced for unknown target '$target'," \
+                   " available targets are 'kernel' and 'server-*'"
+            ;;
+    esac
+
+    exec $m0traced -L $opts -o "$output_file" $MERO_TRACED_EXTRA_OPTS
+}
+
+
+m0_traced $1

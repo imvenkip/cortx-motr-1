@@ -1,0 +1,55 @@
+#!/bin/bash
+
+
+# global variables, which can be overriden in /etc/sysconfig/mero
+MERO_GENDERS_CONF=/etc/mero/genders
+
+# service local variables
+user_config=/etc/sysconfig/mero
+service_funcs=/usr/libexec/mero/mero-service.functions
+
+
+m0_mkfs()
+{
+    local service=$1
+
+    [[ -n $service ]] || m0_exit "usage: mero-mkfs <SERVICE>"
+
+    source $service_funcs
+
+    [ -r $user_config ] && source $user_config
+
+    [ -n "$MERO_M0D_DEBUGGER" ] && export M0_DEBUGGER=$MERO_M0D_DEBUGGER
+
+    service_dir=$(m0_get_m0d_data_dir_for $service)
+    if [ x$MERO_M0D_REMOVE_SERVICE_DIR = xtrue ] && [ -d "$service_dir" ] ; then
+        rm -rf "$service_dir"
+    fi
+    [ ! -d "$service_dir" ] && mkdir -p "$service_dir"
+    cd $service_dir
+
+    stob_type='-T ad'
+    stob_opts='-D db -S stobs -A linuxstob:addb-stobs'
+
+    case "$service" in
+        confd|mds) stob_type='-T linux'
+            ;;
+
+        singlenode|ios*) stob_opts+=" -d /etc/mero/disks-$service.conf"
+            ;;
+
+        *) m0_exit "Failed to start unknown service '$service'," \
+                   " available services are 'mds' and 'ios*'"
+            ;;
+    esac
+
+    m0mkfs=$(m0_path_to m0mkfs)
+
+    # show actual exec commands in log file
+    set -x
+
+    $m0mkfs $stob_type $stob_opts
+}
+
+
+m0_mkfs $1

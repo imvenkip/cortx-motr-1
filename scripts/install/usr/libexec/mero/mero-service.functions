@@ -51,7 +51,10 @@ m0_genders_value_of()
 # Start LNET service
 m0_start_lnet()
 {
-    if chkconfig --list | grep -q lnet ; then
+    if test -x /usr/bin/systemctl && systemctl list-unit-files | grep -q lnet ; then
+        # do nothing, systemd lnet service will handle it
+        true
+    elif chkconfig --list | grep -q lnet ; then
         service lnet start
     else
         if ! lsmod | grep -q lnet ; then
@@ -64,7 +67,10 @@ m0_start_lnet()
 # Stop LNET service
 m0_stop_lnet()
 {
-    if chkconfig --list | grep -q lnet ; then
+    if test -x /usr/bin/systemctl && systemctl list-unit-files | grep -q lnet ; then
+        # do nothing, systemd lnet service will handle it
+        true
+    elif chkconfig --list | grep -q lnet ; then
         service lnet stop
     else
         lctl network down
@@ -296,10 +302,16 @@ m0_get_global_ios_eps()
 # Return space-separated list of running Mero servers on a current node
 m0_get_running_servers()
 {
-    initctl list \
-    | grep mero-server \
-    | sed -n -r -e 's#.*mero-server \((.*)\) start/running.*#\1#p' \
-    | xargs echo
+    if [ -x /usr/bin/systemctl ] ; then
+        systemctl \
+        | sed -n -r -e 's#^mero-server@(.*)\.service.*running.*#\1#p' \
+        | xargs echo
+    elif [ -x /sbin/initctl ] ; then
+        initctl list \
+        | grep mero-server \
+        | sed -n -r -e 's#.*mero-server \((.*)\) start/running.*#\1#p' \
+        | xargs echo
+    fi
 }
 
 # Return PID of running m0d daemon for particular Mero service
@@ -308,10 +320,14 @@ m0_get_server_pid_for()
 {
     local service=$1
 
-    initctl list \
-    | sed -n -r -e \
-        "s/mero-server \\($service\\) start\\/running, process ([[:digit:]]+)/\\1/p"
-
+    if [ -x /usr/bin/systemctl ] ; then
+        systemctl show -pMainPID mero-server@${service}.service \
+        | sed -e 's/MainPID=//'
+    elif [ -x /sbin/initctl ] ; then
+        initctl list \
+        | sed -n -r -e \
+            "s/mero-server \\($service\\) start\\/.* process ([[:digit:]]+)/\\1/p"
+    fi
 }
 
 # Profile fid in the format suitable for 'prof=' mount option. Must match $prof

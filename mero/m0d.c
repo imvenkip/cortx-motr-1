@@ -24,6 +24,10 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+#ifdef HAVE_SYSTEMD
+#include <systemd/sd-daemon.h>
+#endif
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"         /* M0_SET0 */
@@ -116,8 +120,19 @@ M0_INTERNAL int main(int argc, char **argv)
 
 	rc = m0_cs_start(&mero_ctx);
 
-	if (rc == 0)
+	if (rc == 0) {
+#ifdef HAVE_SYSTEMD
+		rc = sd_notify(0, "READY=1");
+		if (rc < 0)
+			fprintf(stderr, "systemd READY notification failed,"
+					" rc=%d\n", rc);
+		else if (rc == 0)
+			fprintf(stderr, "systemd notifications not allowed\n");
+		else
+			fprintf(stderr, "systemd READY notification successfull\n");
+#endif
 		cs_wait_for_termination();
+	}
 
 cleanup1:
 	m0_cs_fini(&mero_ctx);

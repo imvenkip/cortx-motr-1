@@ -1,0 +1,13 @@
+[Unit]
+Description=Mero kernel module
+Requires=lnet.service mero-trace@kernel.service
+After=lnet.service
+Before=mero-trace@kernel.service mero-server@.service mero-client.service
+PartOf=mero-server@.service mero-client.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mero/mero-kernel start
+ExecStop=/usr/libexec/mero/mero-kernel stop
+RemainAfterExit=yes
+KillMode=none

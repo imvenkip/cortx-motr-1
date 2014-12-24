@@ -103,6 +103,9 @@ AS_CASE([$host_os],
         [AC_MSG_ERROR([Unsupported platform detected!])]
 )
 
+OS_DIST=$(lsb_release -si)
+OS_DIST_RELEASE=$(lsb_release -sr | cut -f1 -d.)
+
 #
 # Configuration options
 #
@@ -133,6 +136,7 @@ AH_TEMPLATE([HAVE_SENDFILE],          [Have .sendfile])
 AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
+AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 
 AC_DEFINE_UNQUOTED([CONFIG_LNET_MAX_PAYLOAD], [LNET_MTU])
 
@@ -476,6 +480,31 @@ AC_CHECK_FUNCS([dup2 getcwd getpagesize gettimeofday memmove memset mkdir \
 AC_CHECK_DECL([mallinfo], [AC_DEFINE([HAVE_MALLINFO])], [], [[#include <malloc.h>]])
 AC_CHECK_DECL([malloc_size], [AC_DEFINE([HAVE_MALLOC_SIZE])], [], [[#include <malloc/malloc.h>]])
 AC_CHECK_DECL([backtrace], [AC_DEFINE([HAVE_BACKTRACE])], [], [[#include <execinfo.h>]])
+
+#
+# Checking for systemd availability
+#
+
+AS_IF([ test x$OS_DIST = xCentOS && test $OS_DIST_RELEASE -ge 7 ],
+      [
+         AC_CHECK_HEADERS([systemd/sd-daemon.h], [],
+                          [AC_MSG_ERROR([systemd/sd-daemon.h cannot be found! \
+please, install systemd-devel package])])
+
+         AC_CHECK_DECL([sd_notify], [], [AC_MSG_ERROR([sd_notify() not found])],
+                                    [[#include <systemd/sd-daemon.h>]])
+
+         MERO_SEARCH_LIBS([sd_notify], [systemd-daemon], [SYSTEMD_LIBS],
+                 [sd_notify() cannot be found! Try to install systemd-devel.]
+         )
+         AC_SUBST([SYSTEMD_LIBS])
+
+         AC_DEFINE([HAVE_SYSTEMD])
+         AM_CONDITIONAL([HAVE_SYSTEMD], [true])
+      ],[
+         AM_CONDITIONAL([HAVE_SYSTEMD], [false])
+      ]
+)
 
 #
 # Checking for required linux kernel API

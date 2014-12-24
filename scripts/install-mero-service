@@ -110,16 +110,35 @@ install_files()
     fi
 
     dir='/etc/init'
-    for file in 'scripts/install/etc/init/mero-autostart.conf' \
-                'scripts/install/etc/init/mero.conf' \
-                'scripts/install/etc/init/mero-client.conf' \
-                'scripts/install/etc/init/mero-kernel.conf' \
-                'scripts/install/etc/init/mero-singlenode.conf' \
-                'scripts/install/etc/init/mero-server.conf' \
-                'scripts/install/etc/init/mero-trace.conf' ;
-    do
-        run "$cmd $(pwd)/$file $dir"
-    done
+    if [[ -d $dir ]] ; then
+        for file in 'scripts/install/etc/init/mero-autostart.conf' \
+                    'scripts/install/etc/init/mero.conf' \
+                    'scripts/install/etc/init/mero-client.conf' \
+                    'scripts/install/etc/init/mero-kernel.conf' \
+                    'scripts/install/etc/init/mero-singlenode.conf' \
+                    'scripts/install/etc/init/mero-server.conf' \
+                    'scripts/install/etc/init/mero-trace.conf' \
+                    ;
+        do
+            run "$cmd $(pwd)/$file $dir"
+        done
+    fi
+
+    dir='/usr/lib/systemd/system'
+    if [[ -d $dir ]] ; then
+        for file in 'scripts/install/usr/lib/systemd/system/lnet.service' \
+                    'scripts/install/usr/lib/systemd/system/mero-trace@.service' \
+                    'scripts/install/usr/lib/systemd/system/mero-kernel.service' \
+                    'scripts/install/usr/lib/systemd/system/mero-mkfs@.service' \
+                    'scripts/install/usr/lib/systemd/system/mero-server@.service' \
+                    'scripts/install/usr/lib/systemd/system/mero.service' \
+                    'scripts/install/usr/lib/systemd/system/mero-client.service' \
+                    'scripts/install/usr/lib/systemd/system/mero-singlenode.service' \
+                    ;
+        do
+            run "$cmd $(pwd)/$file $dir"
+        done
+    fi
 
     dir='/etc/mero'
     [[ ! -d $dir ]] && run "mkdir -vp $dir"
@@ -136,27 +155,59 @@ install_files()
 
     dir='/usr/libexec/mero'
     [[ ! -d $dir ]] && run "mkdir -vp $dir"
-    for file in 'scripts/install/usr/libexec/mero/mero-service.functions' ;
+    for file in 'scripts/install/usr/libexec/mero/mero-service.functions' \
+                'scripts/install/usr/libexec/mero/mero-trace' \
+                'scripts/install/usr/libexec/mero/mero-kernel' \
+                'scripts/install/usr/libexec/mero/mero-mkfs' \
+                'scripts/install/usr/libexec/mero/mero-server' \
+                'scripts/install/usr/libexec/mero/mero' \
+                'scripts/install/usr/libexec/mero/mero-client' \
+                ;
     do
         run "$cmd $(pwd)/$file $dir"
     done
 
-    $dry_run || initctl reload-configuration
+    $dry_run || {
+        [[ -x /sbin/initctl ]] && initctl reload-configuration
+        [[ -x /usr/bin/systemctl ]] && systemctl daemon-reload
+    }
 }
 
 uninstall_files()
 {
-    for file in '/etc/sysconfig/mero' \
-                '/etc/init/mero-autostart.conf' \
-                '/etc/init/mero.conf' \
-                '/etc/init/mero-client.conf' \
-                '/etc/init/mero-kernel.conf' \
-                '/etc/init/mero-singlenode.conf' \
-                '/etc/init/mero-server.conf' \
-                '/etc/init/mero-trace.conf' \
-                '/etc/mero/disks-singlenode.conf' \
-                '/etc/mero/genders' \
-                '/usr/libexec/mero/mero-service.functions' ;
+    file_list='/etc/sysconfig/mero
+               /etc/mero/disks-singlenode.conf
+               /etc/mero/genders
+               /usr/libexec/mero/mero-service.functions
+               /usr/libexec/mero/mero-trace
+               /usr/libexec/mero/mero-kernel
+               /usr/libexec/mero/mero-mkfs
+               /usr/libexec/mero/mero-server
+               /usr/libexec/mero/mero
+               /usr/libexec/mero/mero-client '
+
+    if [[ -d /etc/init ]] ; then
+        file_list+='/etc/init/mero-autostart.conf
+                    /etc/init/mero.conf
+                    /etc/init/mero-client.conf
+                    /etc/init/mero-kernel.conf
+                    /etc/init/mero-singlenode.conf
+                    /etc/init/mero-server.conf
+                    /etc/init/mero-trace.conf '
+    fi
+
+    if [[ -d /usr/lib/systemd/system ]] ; then
+        file_list+='/usr/lib/systemd/system/lnet.service
+                    /usr/lib/systemd/system/mero-trace@.service
+                    /usr/lib/systemd/system/mero-kernel.service
+                    /usr/lib/systemd/system/mero-mkfs@.service
+                    /usr/lib/systemd/system/mero-server@.service
+                    /usr/lib/systemd/system/mero.service
+                    /usr/lib/systemd/system/mero-client.service
+                    /usr/lib/systemd/system/mero-singlenode.service '
+    fi
+
+    for file in $file_list
     do
         [[ -s $file ]] && run "rm -v $file"
     done
@@ -167,7 +218,10 @@ uninstall_files()
         [[ -d $dir && -z $(ls $dir) ]] && run "rmdir -v $dir"
     done
 
-    $dry_run || initctl reload-configuration
+    $dry_run || {
+        [[ -x /sbin/initctl ]] && initctl reload-configuration
+        [[ -x /usr/bin/systemctl ]] && systemctl daemon-reload
+    }
 }
 
 #

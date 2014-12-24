@@ -1,0 +1,41 @@
+#!/bin/bash
+
+
+# global variables, which can be overriden in /etc/sysconfig/mero
+MERO_GENDERS_CONF=/etc/mero/genders
+
+# service local variables
+user_config=/etc/sysconfig/mero
+service_funcs=/usr/libexec/mero/mero-service.functions
+
+
+start()
+{
+    source $service_funcs
+
+    [ -r $user_config ] && source $user_config
+
+    m0_load_modules
+
+    #if [ x$MERO_TRACED_KMOD = xyes ] ; then
+    #    start mero-trace TARGET=kernel
+    #fi
+}
+
+stop()
+{
+    source $service_funcs
+
+    [ -r $user_config ] && source $user_config
+
+    #if [ x$MERO_TRACED_KMOD = xyes ] ; then
+    #    stop mero-trace TARGET=kernel
+    #fi
+
+    m0_unload_modules
+}
+
+case $1 in
+    start)  start ;;
+    stop)   stop ;;
+esac

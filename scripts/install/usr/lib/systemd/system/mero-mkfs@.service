@@ -1,0 +1,7 @@
+[Unit]
+Description=Mero mkfs helper for %i service
+Before=mero-server@%i.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mero/mero-mkfs %i

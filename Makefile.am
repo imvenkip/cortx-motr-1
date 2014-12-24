@@ -78,6 +78,11 @@ AM_CPPFLAGS  = @M0_CPPFLAGS@
 AM_CFLAGS    = @M0_CFLAGS@
 AM_LDFLAGS   = @M0_LDFLAGS@
 
+RPMBUILD_FLAGS  =
+if HAVE_SYSTEMD
+RPMBUILD_FLAGS += --with systemd
+endif
+
 GALOIS_DIR   = extra-libs/galois
 
 SUBDIRS = $(GALOIS_DIR)
@@ -600,8 +605,11 @@ include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
 # mero/m0d
 #
 
-bin_PROGRAMS     += mero/m0d
+bin_PROGRAMS      += mero/m0d
 mero_m0d_CPPFLAGS  = -DM0_TARGET='m0d' $(AM_CPPFLAGS)
+if HAVE_SYSTEMD
+mero_m0d_LDFLAGS   = @SYSTEMD_LIBS@
+endif
 mero_m0d_LDADD     = $(top_builddir)/mero/libmero.la
 
 #
@@ -613,6 +621,9 @@ bin_PROGRAMS  += mero/m0d-altogether
 endif
 
 mero_m0d_altogether_CPPFLAGS = -DM0_TARGET='m0d-altogether' $(AM_CPPFLAGS)
+if HAVE_SYSTEMD
+mero_m0d_altogether_LDFLAGS  = @SYSTEMD_LIBS@
+endif
 mero_m0d_altogether_SOURCES  = $(mero_m0d_SOURCES)
 mero_m0d_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la
 
@@ -658,6 +669,18 @@ include $(top_srcdir)/stats/util/Makefile.sub
 #                        Init scripts and config files
 ################################################################################
 
+if HAVE_SYSTEMD
+usr_lib_systemddir    = $(prefix)/lib/systemd/system
+usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/lnet.service \
+                        scripts/install/usr/lib/systemd/system/mero-client.service \
+                        scripts/install/usr/lib/systemd/system/mero-kernel.service \
+                        scripts/install/usr/lib/systemd/system/mero-mkfs@.service \
+                        scripts/install/usr/lib/systemd/system/mero-server@.service \
+                        scripts/install/usr/lib/systemd/system/mero-singlenode.service \
+                        scripts/install/usr/lib/systemd/system/mero-trace@.service \
+                        scripts/install/usr/lib/systemd/system/mero.service
+EXTRA_DIST           += $(usr_lib_systemd_DATA)
+else
 etc_initdir    = $(sysconfdir)/init
 etc_init_DATA  = scripts/install/etc/init/mero.conf \
                  scripts/install/etc/init/mero-autostart.conf \
@@ -667,6 +690,7 @@ etc_init_DATA  = scripts/install/etc/init/mero.conf \
                  scripts/install/etc/init/mero-server.conf \
                  scripts/install/etc/init/mero-trace.conf
 EXTRA_DIST    += $(etc_init_DATA)
+endif
 
 etc_sysconfigdir    = $(sysconfdir)/sysconfig
 etc_sysconfig_DATA  = scripts/install/etc/sysconfig/mero
@@ -683,7 +707,13 @@ EXTRA_DIST    += $(etc_mero_DATA)
 ################################################################################
 
 libexec_merodir    = $(libexecdir)/mero
-libexec_mero_DATA  = scripts/install/usr/libexec/mero/mero-service.functions
+libexec_mero_DATA  = scripts/install/usr/libexec/mero/mero-service.functions \
+                     scripts/install/usr/libexec/mero/mero \
+                     scripts/install/usr/libexec/mero/mero-client \
+                     scripts/install/usr/libexec/mero/mero-kernel \
+                     scripts/install/usr/libexec/mero/mero-mkfs \
+                     scripts/install/usr/libexec/mero/mero-server \
+                     scripts/install/usr/libexec/mero/mero-trace
 EXTRA_DIST        += $(libexec_mero_DATA)
 
 
@@ -1022,7 +1052,7 @@ rpms:
 	mv $(DIST_FILE) $(RPM_SRC_DIR)
 	chown $$(id -u):$$(id -g) $(RPM_SRC_DIR)/$(DIST_FILE)
 	rpmbuild -bb mero.spec --with ut
-	rpmbuild -bb mero.spec
+	rpmbuild -bb mero.spec $(RPMBUILD_FLAGS)
 	rm -f $(RPM_SRC_DIR)/$(DIST_FILE)
 
 #

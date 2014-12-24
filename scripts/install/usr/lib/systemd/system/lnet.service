@@ -1,0 +1,10 @@
+[Unit]
+Description=LNet service
+Before=mero-kernel.service
+
+[Service]
+Type=oneshot
+ExecStart=/etc/init.d/lnet start
+ExecStop=/etc/init.d/lnet stop
+RemainAfterExit=yes
+KillMode=none

@@ -203,4 +203,10 @@ do_m0t1fs_system_test
 info "Stopping Mero"
 stop mero-singlenode
 
-[[ -n $rpm_pkg ]] && remove_mero_rpm $rpm_pkg
+if [[ -n $rpm_pkg ]] ; then
+    # this ugly 'sleep sync' required to workaround situation when mero-kernel
+    # doesn't have enough time to unload modules, due to buggy upstart
+    # behaviour, before rpm will remove them
+    sleep 10
+    remove_mero_rpm $rpm_pkg
+fi

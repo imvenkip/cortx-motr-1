@@ -1,0 +1,40 @@
+#!/bin/bash
+
+
+# global variables, which can be overriden in /etc/sysconfig/mero
+MERO_GENDERS_CONF=/etc/mero/genders
+
+# service local variables
+user_config=/etc/sysconfig/mero
+service_funcs=/usr/libexec/mero/mero-service.functions
+
+
+start()
+{
+    source $service_funcs
+
+    [ -r $user_config ] && source $user_config
+
+    mountpoint=${MERO_M0T1FS_MOUNTPOINT:-$(m0_genders_value_of m0_t1fs_mountpoint)}
+    confd_ep=$(echo ${MERO_CONFD_EP:-$(m0_get_confd_ep)} | sed -e 's/^lnet://')
+
+    [ ! -d "$mountpoint" ] && mkdir -p "$mountpoint"
+
+    mount -t m0t1fs -o profile="$m0_prof_opt",confd=$confd_ep m0t1 $mountpoint
+}
+
+stop()
+{
+    source $service_funcs
+
+    [ -r $user_config ] && source $user_config
+
+    mountpoint=${MERO_M0T1FS_MOUNTPOINT:-$(m0_genders_value_of m0_t1fs_mountpoint)}
+
+    umount $mountpoint
+}
+
+case $1 in
+    start)  start ;;
+    stop)   stop ;;
+esac
