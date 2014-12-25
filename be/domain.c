@@ -434,7 +434,7 @@ static void be_domain_mkfs_progress(struct m0_be_domain *dom,
 	unsigned stage	  = dom->bd_mkfs_stage;
 	va_list	 ap;
 	char	 msg[256];
-	size_t	 len;
+	int	 len;
 
 	va_start(ap, fmt);
 	len = vsnprintf(msg, ARRAY_SIZE(msg), fmt, ap);
