@@ -93,6 +93,7 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 		M0_UT_ASSERT(rc == 0);
 		/* and read to check if it was written */
 		rc = m0_be_seg__read(&reg_check, post);
+		M0_UT_ASSERT(rc == 0);
 		/* reload segment to test I/O operations in open()/close() */
 		m0_be_seg_close(seg);
 		rc = m0_be_seg_open(seg);
