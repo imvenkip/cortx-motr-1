@@ -218,10 +218,8 @@ M0_INTERNAL int m0_bufvec_extend(struct m0_bufvec *bufvec,
 	return 0;
 fail:
 	m0_free(new_seg_count_arr);
-	while (i > 0) {
-		--i;
+	while (--i >= 0)
 		m0_free(new_buf_arr[i]);
-	}
 	m0_free(new_buf_arr);
 
 	return M0_ERR(-ENOMEM);
