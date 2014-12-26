@@ -160,6 +160,14 @@ run_gdb()
     gdb $gdbinit --args $binary "$@"
 }
 
+run_cgdb()
+{
+    local gdbinit=${top_srcdir:+-x ${top_srcdir}/.gdbinit}
+
+    log "cgdb $gdbinit --args $binary $@"
+    cgdb $gdbinit --args $binary "$@"
+}
+
 run_valgrind()
 {
     log "valgrind" \
@@ -308,6 +316,7 @@ if [[ -n $debugger ]] ; then
 
     case $debugger in
         gdb)      run_gdb "$@" ;;
+        cgdb)     run_cgdb "$@" ;;
         valgrind) run_valgrind "$@" ;;
         *)        die "unsupported debugger '$debugger'." ;;
     esac
