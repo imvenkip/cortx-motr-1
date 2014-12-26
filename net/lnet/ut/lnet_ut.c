@@ -382,9 +382,9 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 #ifdef NLX_DEBUG
 static void ut_describe_buf(const struct m0_net_buffer *nb)
 {
+#ifdef __KERNEL__
 	struct nlx_xo_buffer       *bp = nb->nb_xprt_private;
 	struct nlx_core_buffer  *lcbuf = &bp->xb_core;
-#ifdef __KERNEL__
 	struct nlx_kcore_buffer   *kcb = lcbuf->cb_kpvt;
 
 	NLXP("\txo:%p lcbuf:%p kcb:%p\n",
@@ -394,9 +394,9 @@ static void ut_describe_buf(const struct m0_net_buffer *nb)
 
 static void ut_describe_tm(const struct m0_net_transfer_mc *tm)
 {
+#ifdef __KERNEL__
 	struct nlx_xo_transfer_mc      *tp = tm->ntm_xprt_private;
 	struct nlx_core_transfer_mc  *lctm = &tp->xtm_core;
-#ifdef __KERNEL__
 	struct nlx_kcore_transfer_mc *kctm = lctm->ctm_kpvt;
 
 	NLXP("\txo:%p lctm:%p kctm:%p\n",

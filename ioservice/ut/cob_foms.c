@@ -34,6 +34,9 @@
 #include "rpc/rpc_machine_internal.h"
 #include "mdservice/fsync_fops.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
+#include "lib/trace.h"
+
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
 
@@ -76,6 +79,8 @@ enum {
 	COB_TEST_CONTAINER        = 1 + COB_TEST_KEY % POOL_WIDTH,
 };
 
+static char COB_FOP_NR_STR[] = { '0' + COB_FOP_NR, '\0'};
+
 #define SERVER_EP_ADDR              "0@lo:12345:34:123"
 #define CLIENT_EP_ADDR              "0@lo:12345:34:*"
 #define SERVER_ENDP                 "lnet:" SERVER_EP_ADDR
@@ -107,6 +112,7 @@ static char *server_args[] = {
 	"m0d", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-A", "linuxstob:cobfoms_ut_addb_stob",
 	"-e", SERVER_ENDP, "-s", "ioservice", "-w", "10"/* =POOL_WIDTH */,
+	"-q", COB_FOP_NR_STR,
 };
 
 static void cobfoms_utinit(void)
@@ -138,6 +144,7 @@ static void cobfoms_utinit(void)
 	cctx->rcx_local_addr         = CLIENT_EP_ADDR;
 	cctx->rcx_remote_addr        = SERVER_EP_ADDR;
 	cctx->rcx_max_rpcs_in_flight = CLIENT_MAX_RPCS_IN_FLIGHT;
+	cctx->rcx_recv_queue_min_length = COB_FOP_NR;
 
 	m0_fom_type_init(&ft, NULL, &m0_ios_type, &cob_ops_conf);
 
@@ -286,14 +293,20 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 	int rc;
 	struct m0_fop *fop;
 	struct m0_fop_cob_op_reply *rfop;
+	struct m0_fop_cob_common *common;
 
 	M0_UT_ASSERT(cut != NULL);
 	M0_UT_ASSERT(arg != NULL);
 	M0_UT_ASSERT(arg->ca_ftype != NULL);
 
 	i = arg->ca_index;
+	M0_LOG(M0_DEBUG, "i=%d", i);
 	fop = arg->ca_ftype == &m0_fop_cob_create_fopt ? cut->cu_createfops[i] :
 		cut->cu_deletefops[i];
+
+	common = m0_cobfop_common_get(fop);
+	M0_LOG(M0_DEBUG, "gobfid="FID_F" cobfid="FID_F,
+		FID_P(&common->c_gobfid), FID_P(&common->c_cobfid));
 
 	rc = m0_rpc_post_sync(fop, &cut->cu_cctx.rcx_session, NULL,
 			      0 /* deadline */);
@@ -1457,3 +1470,5 @@ struct m0_ut_suite cobfoms_ut = {
 		{ NULL, NULL }
 	}
 };
+
+#undef M0_TRACE_SUBSYSTEM
