@@ -43,6 +43,7 @@
 #include "ioservice/cob_foms.h"
 #include "file/file.h"
 #include "lib/finject.h"
+#include "cob/cob.h"
 #ifdef __KERNEL__
   #undef M0_ADDB_CT_CREATE_DEFINITION
   #include "m0t1fs/linux_kernel/m0t1fs.h"
@@ -82,6 +83,8 @@ struct m0_fop_type m0_fop_cob_create_fopt;
 struct m0_fop_type m0_fop_cob_delete_fopt;
 struct m0_fop_type m0_fop_cob_op_reply_fopt;
 struct m0_fop_type m0_fop_fv_notification_fopt;
+struct m0_fop_type m0_fop_cob_getattr_fopt;
+struct m0_fop_type m0_fop_cob_getattr_reply_fopt;
 
 M0_EXPORTED(m0_fop_cob_writev_fopt);
 M0_EXPORTED(m0_fop_cob_readv_fopt);
@@ -95,6 +98,8 @@ static struct m0_fop_type *ioservice_fops[] = {
 	&m0_fop_cob_delete_fopt,
 	&m0_fop_cob_op_reply_fopt,
 	&m0_fop_fv_notification_fopt,
+	&m0_fop_cob_getattr_fopt,
+	&m0_fop_cob_getattr_reply_fopt,
 };
 
 /* Used for IO REQUEST items only. */
@@ -122,6 +127,45 @@ static int io_fol_frag_undo_redo_op(struct m0_fop_fol_frag *frag,
 		break;
 	}
 	return 0;
+}
+
+M0_INTERNAL void m0_dump_cob_attr(const struct m0_cob_attr *attr)
+{
+	uint32_t valid = attr->ca_valid;
+#define	level M0_DEBUG
+	M0_LOG(level, "pfid = "FID_F, FID_P(&attr->ca_pfid));
+	M0_LOG(level, "tfid = "FID_F, FID_P(&attr->ca_tfid));
+	if (valid & M0_COB_MODE)
+		M0_LOG(level, "mode = %o", attr->ca_mode);
+	if (valid & M0_COB_UID)
+		M0_LOG(level, "uid = %u", attr->ca_uid);
+	if (valid & M0_COB_GID)
+		M0_LOG(level, "gid = %u", attr->ca_gid);
+	if (valid & M0_COB_ATIME)
+		M0_LOG(level, "atime = %llu",
+			      (unsigned long long)attr->ca_atime);
+	if (valid & M0_COB_MTIME)
+		M0_LOG(level, "mtime = %llu",
+			      (unsigned long long)attr->ca_mtime);
+	if (valid & M0_COB_CTIME)
+		M0_LOG(level, "ctime = %llu",
+			      (unsigned long long)attr->ca_ctime);
+	if (valid & M0_COB_NLINK)
+		M0_LOG(level, "nlink = %u", attr->ca_nlink);
+	if (valid & M0_COB_RDEV)
+		M0_LOG(level, "rdev = %llu", (unsigned long long)attr->ca_rdev);
+	if (valid & M0_COB_SIZE)
+		M0_LOG(level, "size = %llu", (unsigned long long)attr->ca_size);
+	if (valid & M0_COB_BLKSIZE)
+		M0_LOG(level, "blksize = %llu",
+			      (unsigned long long)attr->ca_blksize);
+	if (valid & M0_COB_BLOCKS)
+		M0_LOG(level, "blocks = %llu",
+			      (unsigned long long)attr->ca_blocks);
+	if (valid & M0_COB_LID)
+		M0_LOG(level, "lid = %llu", (unsigned long long)attr->ca_lid);
+	M0_LOG(level, "version = %llu", (unsigned long long)attr->ca_version);
+#undef level
 }
 
 #ifndef __KERNEL__
@@ -194,6 +238,8 @@ const struct m0_fop_type_ops io_fop_cd_ops = {
 
 M0_INTERNAL void m0_ioservice_fop_fini(void)
 {
+	m0_fop_type_fini(&m0_fop_cob_getattr_reply_fopt);
+	m0_fop_type_fini(&m0_fop_cob_getattr_fopt);
 	m0_fop_type_fini(&m0_fop_cob_op_reply_fopt);
 	m0_fop_type_fini(&m0_fop_fv_notification_fopt);
 	m0_fop_type_fini(&m0_fop_cob_delete_fopt);
@@ -300,14 +346,33 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .sm        = p_cob_ops_conf);
 	M0_FOP_TYPE_INIT(&m0_fop_cob_op_reply_fopt,
 			 .name      = "Cob create or delete reply",
-			 .opcode    =  M0_IOSERVICE_COB_OP_REPLY_OPCODE,
+			 .opcode    = M0_IOSERVICE_COB_OP_REPLY_OPCODE,
 			 .xt        = m0_fop_cob_op_reply_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 	M0_FOP_TYPE_INIT(&m0_fop_fv_notification_fopt,
-			 .name   = "Failure vector update notification",
-			 .opcode = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
+			 .name      = "Failure vector update notification",
+			 .opcode    = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
 			 .xt        = m0_fop_fv_notification_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY);
+
+	M0_FOP_TYPE_INIT(&m0_fop_cob_getattr_fopt,
+			 .name      = "Cob getattr request",
+			 .opcode    = M0_IOSERVICE_COB_GETATTR_OPCODE,
+			 .xt        = m0_fop_cob_getattr_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = NULL,
+#ifndef __KERNEL__
+			 .fom_ops   = &cob_fom_type_ops,
+			 .svc_type  = &m0_ios_type,
+#endif
+			 .sm        = p_cob_ops_conf);
+
+	M0_FOP_TYPE_INIT(&m0_fop_cob_getattr_reply_fopt,
+			 .name      = "Cob getattr reply",
+			 .opcode    = M0_IOSERVICE_COB_GETATTR_REP_OPCODE,
+			 .xt        = m0_fop_cob_getattr_reply_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+
 	return 0;
 }
 
@@ -837,13 +902,22 @@ M0_INTERNAL bool m0_is_io_fop_rep(const struct m0_fop *fop)
 M0_INTERNAL bool m0_is_cob_create_fop(const struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
-	return fop->f_type == &m0_fop_cob_create_fopt;
+	return fop->f_type->ft_rpc_item_type.rit_opcode ==
+				M0_IOSERVICE_COB_CREATE_OPCODE;
 }
 
 M0_INTERNAL bool m0_is_cob_delete_fop(const struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
-	return fop->f_type == &m0_fop_cob_delete_fopt;
+	return fop->f_type->ft_rpc_item_type.rit_opcode ==
+				M0_IOSERVICE_COB_DELETE_OPCODE;
+}
+
+M0_INTERNAL bool m0_is_cob_getattr_fop(const struct m0_fop *fop)
+{
+	M0_PRE(fop != NULL);
+	return fop->f_type->ft_rpc_item_type.rit_opcode ==
+				M0_IOSERVICE_COB_GETATTR_OPCODE;
 }
 
 M0_INTERNAL bool m0_is_cob_create_delete_fop(const struct m0_fop *fop)
@@ -853,20 +927,24 @@ M0_INTERNAL bool m0_is_cob_create_delete_fop(const struct m0_fop *fop)
 
 M0_INTERNAL struct m0_fop_cob_common *m0_cobfop_common_get(struct m0_fop *fop)
 {
-	struct m0_fop_cob_create *cc;
-	struct m0_fop_cob_delete *cd;
+	struct m0_fop_cob_create  *cc;
+	struct m0_fop_cob_delete  *cd;
+	struct m0_fop_cob_getattr *cg;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(fop->f_type != NULL);
-	M0_PRE(m0_is_cob_create_delete_fop(fop));
 
-	if (fop->f_type == &m0_fop_cob_create_fopt) {
+	if (m0_is_cob_create_fop(fop)) {
 		cc = m0_fop_data(fop);
 		return &cc->cc_common;
-	} else {
+	} else if (m0_is_cob_delete_fop(fop)) {
 		cd = m0_fop_data(fop);
 		return &cd->cd_common;
-	}
+	} else if (m0_is_cob_getattr_fop(fop)) {
+		cg = m0_fop_data(fop);
+		return &cg->cg_common;
+	} else
+		M0_IMPOSSIBLE("Invalid fop type!");
 }
 
 M0_INTERNAL uint32_t m0_io_fop_segs_nr(struct m0_fop *fop, uint32_t index)

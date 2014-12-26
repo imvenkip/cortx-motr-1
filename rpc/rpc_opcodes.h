@@ -209,7 +209,11 @@ enum M0_RPC_OPCODES {
 
 	/* fsync fops */
 	M0_FSYNC_OPCODE                     = 120,
-	M0_FSYNC_REP_OPCODE                 = 121
+	M0_FSYNC_REP_OPCODE                 = 121,
+
+	/* cob getattr & reply */
+	M0_IOSERVICE_COB_GETATTR_OPCODE     = 122,
+	M0_IOSERVICE_COB_GETATTR_REP_OPCODE = 123,
 };
 
 /** @} endgroup rpc_layer_core */

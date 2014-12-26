@@ -48,6 +48,7 @@ enum {
 	M0_ADDB_CTXID_IOS_SERV,
 	M0_ADDB_CTXID_COB_CREATE_FOM,
 	M0_ADDB_CTXID_COB_DELETE_FOM,
+	M0_ADDB_CTXID_COB_GETATTR_FOM,
 	M0_ADDB_CTXID_COB_IO_RW_FOM
 };
 
@@ -134,6 +135,9 @@ M0_ADDB_CT(m0_addb_ct_cob_delete_fom, M0_ADDB_CTXID_COB_DELETE_FOM,
 	   "gob_fid_container", "gob_fid_key", "cob_fid_container",
 	   "cob_fid_key");
 
+M0_ADDB_CT(m0_addb_ct_cob_getattr_fom, M0_ADDB_CTXID_COB_GETATTR_FOM,
+	   "gob_fid_container", "gob_fid_key", "cob_fid_container",
+	   "cob_fid_key");
 M0_ADDB_CT(m0_addb_ct_cob_io_rw_fom, M0_ADDB_CTXID_COB_IO_RW_FOM,
 	   "file_fid_container", "file_fid_key", "nb_descr_nr",
 	   "flags");

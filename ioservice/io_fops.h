@@ -226,8 +226,10 @@ M0_INTERNAL struct m0_fop_cob_rw_reply *io_rw_rep_get(struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_create_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_delete_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_create_delete_fop(const struct m0_fop *fop);
+M0_INTERNAL bool m0_is_cob_getattr_fop(const struct m0_fop *fop);
 M0_INTERNAL struct m0_fop_cob_common *m0_cobfop_common_get(struct m0_fop *fop);
 
+M0_INTERNAL void m0_dump_cob_attr(const struct m0_cob_attr *attr);
 /**
    @} bulkclientDFS end group
 */
@@ -252,6 +254,8 @@ extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
 extern struct m0_fop_type m0_fop_cob_op_reply_fopt;
 extern struct m0_fop_type m0_fop_fv_notification_fopt;
+extern struct m0_fop_type m0_fop_cob_getattr_fopt;
+extern struct m0_fop_type m0_fop_cob_getattr_reply_fopt;
 
 extern struct m0_fom_type m0_io_fom_cob_rw_fomt;
 
@@ -518,12 +522,10 @@ struct m0_fop_cob_delete {
 } M0_XCA_RECORD;
 
 /**
- * On-wire representation of reply for both "cob create" and "cob delete"
+ * Common On-wire body of reply for "cob create", "cob delete", "cob getattr"
  * requests.
  */
-struct m0_fop_cob_op_reply {
-	int32_t                cor_rc;
-
+struct m0_fop_cob_op_rep_common {
 	/** latest version number */
 	struct m0_fv_version    cor_fv_version;
 
@@ -538,6 +540,14 @@ struct m0_fop_cob_op_reply {
 } M0_XCA_RECORD;
 
 /**
+ * reply for "create"/"delete".
+ */
+struct m0_fop_cob_op_reply {
+	int32_t                         cor_rc;
+	struct m0_fop_cob_op_rep_common cor_common;
+} M0_XCA_RECORD;
+
+/**
  * Fop to notify the failure vector version number if changed.
  * This fop itself contains the latest failure vector version number.
  */
@@ -547,6 +557,27 @@ struct m0_fop_fv_notification {
 
 	/** its latest failure vector version */
 	struct m0_fv_version fvn_version;
+} M0_XCA_RECORD;
+
+/**
+ * On-wire representation of "cob getattr" request.
+ * as stob-id.
+ */
+struct m0_fop_cob_getattr {
+	/** m0_cob_attr in common is not used for this request. */
+	struct m0_fop_cob_common cg_common;
+} M0_XCA_RECORD;
+
+/**
+ * On-wire representation of reply for both "cob create" and "cob delete"
+ * requests.
+ */
+struct m0_fop_cob_getattr_reply {
+	int32_t                         cgr_rc;
+	/** common part of a cob reply */
+	struct m0_fop_cob_op_rep_common cgr_common;
+	/** attributes of this cob */
+	struct m0_fop_cob               cgr_body;
 } M0_XCA_RECORD;
 
 /* __MERO_IOSERVICE_IO_FOPS_H__ */

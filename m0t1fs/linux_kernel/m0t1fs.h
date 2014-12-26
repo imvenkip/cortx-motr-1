@@ -1137,6 +1137,7 @@ struct m0_fid m0t1fs_hash_ios(struct m0t1fs_sb *csb,
 			      const struct m0_fid *fid,
 			      uint32_t i);
 
+M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode);
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 
 /*

@@ -62,11 +62,12 @@ struct cob_fop {
 
 static void cob_rpc_item_cb(struct m0_rpc_item *item)
 {
-	int                         rc;
-	struct m0_fop              *fop;
-	struct cob_fop             *cfop;
-	struct cob_req             *creq;
-	struct m0_fop_cob_op_reply *reply;
+	int                              rc;
+	struct m0_fop                   *fop;
+	struct cob_fop                  *cfop;
+	struct cob_req                  *creq;
+	struct m0_fop_cob_op_reply      *reply;
+	struct m0_fop_cob_op_rep_common *r_common;
 
 	M0_ENTRY("rpc_item %p", item);
 	M0_PRE(item != NULL);
@@ -75,7 +76,10 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 	cfop = container_of(fop, struct cob_fop, c_fop);
 	creq = cfop->c_req;
 
+	M0_ASSERT(m0_is_cob_create_fop(fop) || m0_is_cob_delete_fop(fop));
 	reply = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+	r_common = &reply->cor_common;
+
 	if (reply->cor_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		struct m0_fv_event *event;
 		struct m0t1fs_sb   *csb = creq->cr_csb;
@@ -85,8 +89,8 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 		 * to the client's copy.
 		 */
 		rc = 0;
-		for (i = 0; i < reply->cor_fv_updates.fvu_count; ++i) {
-			event = &reply->cor_fv_updates.fvu_events[i];
+		for (i = 0; i < r_common->cor_fv_updates.fvu_count; ++i) {
+			event = &r_common->cor_fv_updates.fvu_events[i];
 			m0_poolmach_state_transit(csb->csb_pool.po_mach,
 						  (struct m0_pool_event*)event,
 						  NULL);
@@ -171,6 +175,39 @@ static void body_mem2wire(struct m0_fop_cob *body,
 	body->b_valid = valid;
 }
 
+static void body_wire2mem(struct m0_cob_attr *attr,
+			  const struct m0_fop_cob *body)
+{
+	M0_SET0(attr);
+	attr->ca_pfid = body->b_pfid;
+	attr->ca_tfid = body->b_tfid;
+	attr->ca_valid = body->b_valid;
+	if (body->b_valid & M0_COB_MODE)
+		attr->ca_mode = body->b_mode;
+	if (body->b_valid & M0_COB_UID)
+		attr->ca_uid = body->b_uid;
+	if (body->b_valid & M0_COB_GID)
+		attr->ca_gid = body->b_gid;
+	if (body->b_valid & M0_COB_ATIME)
+		attr->ca_atime = body->b_atime;
+	if (body->b_valid & M0_COB_MTIME)
+		attr->ca_mtime = body->b_mtime;
+	if (body->b_valid & M0_COB_CTIME)
+		attr->ca_ctime = body->b_ctime;
+	if (body->b_valid & M0_COB_NLINK)
+		attr->ca_nlink = body->b_nlink;
+	if (body->b_valid & M0_COB_RDEV)
+		attr->ca_rdev = body->b_rdev;
+	if (body->b_valid & M0_COB_SIZE)
+		attr->ca_size = body->b_size;
+	if (body->b_valid & M0_COB_BLKSIZE)
+		attr->ca_blksize = body->b_blksize;
+	if (body->b_valid & M0_COB_BLOCKS)
+		attr->ca_blocks = body->b_blocks;
+	if (body->b_valid & M0_COB_LID)
+		attr->ca_lid = body->b_lid;
+	attr->ca_version = body->b_version;
+}
 
 /**
    Allocate fid of global file.
@@ -253,6 +290,8 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		mo.mo_attr.ca_valid |= M0_COB_LID;
 
 		rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
+		/* @todo setattr to ios to update the layout!!
+		 * This will be done in MERO-499 soon. */
 	} else {
 		m0_buf_init(&mo.mo_attr.ca_eakey, (void*)name, strlen(name));
 		m0_buf_init(&mo.mo_attr.ca_eaval, (void*)value, size);
@@ -1937,7 +1976,7 @@ static int m0t1fs_ios_cob_op(struct cob_req *cr,
 	}
 	fop->f_item.ri_rmachine = m0_fop_session_machine(session);
 
-	M0_ASSERT(m0_is_cob_create_delete_fop(fop));
+	M0_ASSERT(m0_is_cob_create_fop(fop) || m0_is_cob_delete_fop(fop));
 	cobcreate = m0_is_cob_create_fop(fop);
 
 	rc = m0t1fs_ios_cob_fop_populate(csb, mop, fop, &cob_fid, gob_fid, cob_idx);
@@ -1978,6 +2017,110 @@ static int m0t1fs_ios_cob_delete(struct cob_req *cr,
 	return m0t1fs_ios_cob_op(cr, inode, mop, idx, &m0_fop_cob_delete_fopt);
 }
 
+M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
+{
+	struct m0t1fs_sb                *csb;
+	struct m0t1fs_inode             *ci;
+	struct m0_fop                   *fop;
+	struct m0_fop_cob_getattr_reply *getattr_rep;
+	struct m0_fop_cob               *body;
+	struct m0_fid                    gob_fid;
+	struct m0_fid                    cob_fid;
+	uint32_t                         cob_idx;
+	uint64_t                         idx = 0;
+	int                              rc;
+	struct m0_cob_attr               attr;
+	struct m0_rpc_session           *session;
+	struct m0t1fs_mdop               mo;
+
+	M0_ENTRY();
+
+	csb = M0T1FS_SB(inode->i_sb);
+	ci  = M0T1FS_I(inode);
+
+	gob_fid = *m0t1fs_inode_fid(ci);
+	/* cob fid is unknown at this moment. */
+	idx = m0_rnd(csb->csb_md_redundancy, &idx);
+	cob_idx = 1 + idx;
+	cob_fid = (struct m0_fid) { cob_idx, gob_fid.f_key };
+	/* md_conf_fid = m0t1fs_hash_ios(csb, &gob_fid, idx); */
+	/* idx = find ios with the above md_conf_fid */
+
+	M0_LOG(M0_DEBUG, "Getattr for "FID_F "~" FID_F,
+			 FID_P(&gob_fid), FID_P(&cob_fid));
+	session = m0t1fs_container_id_to_session(csb, cob_idx);
+	M0_ASSERT(session != NULL);
+
+	fop = m0_fop_alloc_at(session, &m0_fop_cob_getattr_fopt);
+	if (fop == NULL) {
+		rc = -ENOMEM;
+		M0_LOG(M0_ERROR, "m0_fop_alloc() failed with %d", rc);
+		goto out;
+	}
+
+	M0_SET0(&mo);
+	mo.mo_attr.ca_pfid = gob_fid;
+	mo.mo_attr.ca_tfid = gob_fid;
+	m0t1fs_ios_cob_fop_populate(csb, &mo, fop, &cob_fid, &gob_fid, cob_idx);
+
+	M0_LOG(M0_DEBUG, "Send cob operation %u %s to session %p (sid=%lu)",
+		         m0_fop_opcode(fop), m0_fop_name(fop), session,
+		         (unsigned long)session->s_session_id);
+
+	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
+	if (rc != 0)
+		goto err;
+	getattr_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+	rc = getattr_rep->cgr_rc;
+	M0_LOG(M0_DEBUG, "getattr returned: %d", rc);
+
+	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+		struct m0_fop_cob_op_rep_common *r_common;
+		struct m0_fv_event *event;
+		uint32_t            i;
+
+		/* Retrieve the latest server version and updates and apply
+		 * to the client's copy.
+		 */
+		rc = 0;
+		r_common = &getattr_rep->cgr_common;
+		for (i = 0; i < r_common->cor_fv_updates.fvu_count; ++i) {
+			event = &r_common->cor_fv_updates.fvu_events[i];
+			m0_poolmach_state_transit(csb->csb_pool.po_mach,
+						  (struct m0_pool_event*)event,
+						  NULL);
+		}
+	}
+
+	if (rc != 0)
+		goto err;
+	body = &getattr_rep->cgr_body;
+	body_wire2mem(&attr, body);
+	m0_dump_cob_attr(&attr);
+
+	/* Update inode fields with data from @getattr_rep. */
+	m0t1fs_inode_update(inode, body);
+
+	/* { @todo disabled until sending setattr to ios to update layout.
+	 * This will be done in MERO-499 soon. */
+#if 0
+	if (!m0t1fs_inode_is_root(&ci->ci_inode) &&
+	    ci->ci_layout_id != body->b_lid) {
+		/* layout for this file is changed. */
+
+		if (ci->ci_layout_instance != NULL)
+			m0_layout_instance_fini(ci->ci_layout_instance);
+		ci->ci_layout_id = body->b_lid;
+		rc = m0t1fs_inode_layout_init(ci);
+		M0_ASSERT(rc == 0);
+	}
+#endif
+	/* end of todo } */
+err:
+	m0_fop_put0_lock(fop);
+out:
+	return M0_RC(rc);
+}
 
 const struct file_operations m0t1fs_dir_file_operations = {
 	.read    = generic_read_dir,    /* provided by linux kernel */

@@ -4751,6 +4751,7 @@ static int m0t1fs_open(struct inode *inode, struct file *file)
 	struct m0_fid        fid;
 	struct m0t1fs_inode *ci;
 	int                  rc;
+	unsigned int         flag = file->f_flags;
 
 	M0_ENTRY();
 	if (csb->csb_oostore) {
@@ -4771,6 +4772,9 @@ static int m0t1fs_open(struct inode *inode, struct file *file)
 		 * If needed get attributes like pool_version or layout and
 		 * store them in inode.
 		 */
+		M0_LOG(M0_DEBUG, "open flag = %d (%d=RDONLY;%d=WRONLY;%d=RW)",
+				 flag & O_ACCMODE, O_RDONLY, O_WRONLY, O_RDWR);
+		m0t1fs_cob_getattr(inode);
 		m0t1fs_fs_unlock(csb);
 		mark_inode_dirty(inode);
 	}

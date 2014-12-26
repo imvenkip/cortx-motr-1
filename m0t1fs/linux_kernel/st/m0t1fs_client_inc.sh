@@ -598,8 +598,30 @@ m0t1fs_oostore_mode()
 m0t1fs_oostore_mode_basic()
 {
 	local rc=0
+	local fsname1="0:100125"
+	local fsname2="0:100321"
+
+	local SOURCE_TXT=/tmp/source.txt
+
+	for i in {a..z} {A..Z} ; do
+		for c in `seq 1 4095`;
+			do echo -n $i ;
+		done;
+		echo;
+	done > $SOURCE_TXT
+
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || rc=1
 	df
+	cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/$fsname1
+	cat $MERO_M0T1FS_MOUNT_DIR/$fsname1 > /tmp/$fsname1
+	sleep 2
+	cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/$fsname2
+	cat $MERO_M0T1FS_MOUNT_DIR/$fsname2 > /tmp/$fsname2
+	diff $SOURCE_TXT /tmp/$fsname1
+	diff $SOURCE_TXT /tmp/$fsname2
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname2
+
 	unmount_and_clean
 
 	return $rc

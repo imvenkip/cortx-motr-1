@@ -31,8 +31,9 @@ enum m0_fom_cob_operations_phases {
 	/**
 	 * Internally creates/deletes a stob, a cob and adds/removes a record to
 	 * or from auxiliary database.
+	 * Or this is a getattr/setattr.
 	 */
-	M0_FOPH_COB_OPS_CREATE_DELETE
+	M0_FOPH_COB_OPS_EXECUTE
 };
 
 /**

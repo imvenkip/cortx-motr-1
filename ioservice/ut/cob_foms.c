@@ -528,8 +528,10 @@ static void cobfoms_fsync_create_delete(void)
 			m0_fop_data(
 				m0_rpc_item_to_fop(fops[i]->f_item.ri_reply));
 		M0_UT_ASSERT(rfop->cor_rc == 0);
-		remid.tri_txid = rfop->cor_mod_rep.fmr_remid.tri_txid;
-		remid.tri_locality = rfop->cor_mod_rep.fmr_remid.tri_locality;
+		remid.tri_txid =
+			rfop->cor_common.cor_mod_rep.fmr_remid.tri_txid;
+		remid.tri_locality =
+			rfop->cor_common.cor_mod_rep.fmr_remid.tri_locality;
 	}
 
 	/* now try to fsync the last transaction and check the op. succeeds */
@@ -771,7 +773,7 @@ static void cc_stob_create_test()
 
 	M0_UT_ASSERT(rc == 0);
 
-	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
+	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_EXECUTE);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 
 	cc_fom_dealloc(fom);
@@ -877,7 +879,7 @@ static void cc_cob_create_test()
 	fom_dtx_done(fom, grp);
 	test_cob = NULL;
 
-	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
+	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_EXECUTE);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 	cc_fom_dealloc(fom);
 }
@@ -921,7 +923,7 @@ static void cc_fom_state_test(void)
 	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
 	rc = cob_ops_fom_tick(dfom); /* for M0_FOPH_COB_OPS_PREPARE */
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
-	rc = cob_ops_fom_tick(dfom); /* for M0_FOPH_COB_OPS_CREATE_DELETE */
+	rc = cob_ops_fom_tick(dfom); /* for M0_FOPH_COB_OPS_EXECUTE */
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_SUCCESS);
 
@@ -945,7 +947,7 @@ static void cc_fom_populate_test()
 	cc = cob_fom_get(fom);
 	M0_UT_ASSERT(cc->fco_cfid.f_container == COB_TEST_CONTAINER);
 	M0_UT_ASSERT(cc->fco_cfid.f_key == COB_TEST_KEY);
-	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
+	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_EXECUTE);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 	cc_fom_dealloc(fom);
 }
@@ -1021,7 +1023,7 @@ static void cd_fom_populate_test()
 	cd = cob_fom_get(fom);
 	M0_UT_ASSERT(cd->fco_cfid.f_container == COB_TEST_CONTAINER);
 	M0_UT_ASSERT(cd->fco_cfid.f_key == COB_TEST_KEY);
-	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
+	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_EXECUTE);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 	cd_fom_dealloc(fom);
 }
@@ -1097,10 +1099,10 @@ static void cd_stob_delete_test()
 	M0_ASSERT(rc == 0);
 	fom_dtx_done(dfom, grp);
 
-	m0_fom_phase_set(dfom, M0_FOPH_COB_OPS_CREATE_DELETE);
+	m0_fom_phase_set(dfom, M0_FOPH_COB_OPS_EXECUTE);
 	m0_fom_phase_set(dfom, M0_FOPH_SUCCESS);
 	cd_fom_dealloc(dfom);
-	m0_fom_phase_set(cfom, M0_FOPH_COB_OPS_CREATE_DELETE);
+	m0_fom_phase_set(cfom, M0_FOPH_COB_OPS_EXECUTE);
 	m0_fom_phase_set(cfom, M0_FOPH_SUCCESS);
 	cc_fom_dealloc(cfom);
 }
@@ -1160,7 +1162,7 @@ static void cd_cob_delete_test()
 	M0_UT_ASSERT(rc == 0);
 	fom_dtx_done(dfom, grp);
 
-	m0_fom_phase_set(dfom, M0_FOPH_COB_OPS_CREATE_DELETE);
+	m0_fom_phase_set(dfom, M0_FOPH_COB_OPS_EXECUTE);
 	m0_fom_phase_set(dfom, M0_FOPH_SUCCESS);
 	cd_fom_dealloc(dfom);
 	cob_testdata_cleanup(cfom);
