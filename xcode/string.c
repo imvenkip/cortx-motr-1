@@ -98,16 +98,14 @@ static int string_literal(struct m0_xcode_obj *obj, const char *str)
 
 static int char_check(const char **str, char ch)
 {
-	int result = 0;
-
 	if (ch != 0) {
-		if (**str == ch) {
-			(*str)++;
-			*str = space_skip(*str);
-		} else
-			result = -EPROTO;
+		if (**str != ch)
+			return M0_ERR_INFO(-EPROTO, "ch='%c' str=`%.80s...'",
+					   ch, *str);
+		(*str)++;
+		*str = space_skip(*str);
 	}
-	return result;
+	return 0;
 }
 
 static const char structure[M0_XA_NR][M0_XCODE_CURSOR_NR] = {
