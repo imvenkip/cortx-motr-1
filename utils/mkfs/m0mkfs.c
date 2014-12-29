@@ -34,6 +34,7 @@
 #include "module/instance.h"  /* m0 */
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
+#include "addb/user_space/uctx.h"
 
 /**
    @addtogroup m0mkfs
@@ -110,6 +111,11 @@ M0_INTERNAL int main(int argc, char **argv)
 		fprintf(stderr, "\n Failed to setrlimit\n");
 		goto out;
 	}
+
+	/* we don't need a real node uuid, so we force a default one to be useed
+	 * instead */
+	m0_addb_node_uuid_string_set(NULL);
+
 	errno = 0;
 	M0_SET0(&mero_ctx);
 	rc = m0_init(&instance);
