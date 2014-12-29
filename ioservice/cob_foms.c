@@ -408,7 +408,6 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 static int cob_ops_fom_tick(struct m0_fom *fom)
 {
 	struct m0_fom_cob_op            *cob_op;
-	struct m0_poolmach              *poolmach;
 	struct m0_reqh                  *reqh;
 	struct m0_fop_cob_common        *common;
 	struct m0_cob_attr               attr = { { 0, } };
@@ -428,7 +427,6 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	fop = fom->fo_fop;
 	common = m0_cobfop_common_get(fop);
 	reqh = m0_fom_reqh(fom);
-	poolmach = m0_ios_poolmach_get(reqh);
 	fop_is_create = m0_is_cob_create_fop(fop);
 	reply = m0_fop_data(fom->fo_rep_fop);
 	r_common = &reply->cor_common;
