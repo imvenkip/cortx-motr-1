@@ -113,7 +113,7 @@ M0_INTERNAL int m0_cookie_dereference(const struct m0_cookie *cookie,
 		*addr = obj;
 		return 0;
 	} else
-		return M0_ERR(-EPROTO);
+		return -EPROTO;
 }
 
 M0_INTERNAL bool m0_cookie_is_null(const struct m0_cookie cookie)
