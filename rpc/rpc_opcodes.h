@@ -216,6 +216,9 @@ enum M0_RPC_OPCODES {
 	/* cob getattr & reply */
 	M0_IOSERVICE_COB_GETATTR_OPCODE     = 130,
 	M0_IOSERVICE_COB_GETATTR_REP_OPCODE = 131,
+	/* cob setattr & reply */
+	M0_IOSERVICE_COB_SETATTR_OPCODE     = 132,
+	M0_IOSERVICE_COB_SETATTR_REP_OPCODE = 133,
 };
 
 /** @} endgroup rpc_layer_core */

@@ -210,6 +210,7 @@ M0_INTERNAL int m0_ios_register(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_create_fom);
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_delete_fom);
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_getattr_fom);
+	m0_addb_ctx_type_register(&m0_addb_ct_cob_setattr_fom);
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_io_rw_fom);
 	m0_reqh_service_type_register(&m0_ios_type);
 	ios_cdom_key = m0_reqh_lockers_allot();

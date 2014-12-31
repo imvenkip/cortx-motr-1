@@ -4780,6 +4780,23 @@ static int m0t1fs_open(struct inode *inode, struct file *file)
 	return M0_RC(0);
 }
 
+int m0t1fs_flush(struct file *file, fl_owner_t id)
+{
+	struct inode        *inode = m0t1fs_file_to_inode(file);
+	struct m0t1fs_inode *ci = M0T1FS_I(inode);
+	struct m0t1fs_mdop   mo;
+	int                  rc;
+
+	M0_SET0(&mo);
+	mo.mo_attr.ca_tfid   = *m0t1fs_inode_fid(ci);
+	mo.mo_attr.ca_size   = inode->i_size;
+	mo.mo_attr.ca_valid |= M0_COB_SIZE;
+
+	rc = m0t1fs_cob_setattr(inode, &mo);
+
+	return M0_RC(rc);
+}
+
 const struct file_operations m0t1fs_reg_file_operations = {
 	.llseek         = generic_file_llseek,
 	.aio_read       = file_aio_read,
@@ -4793,6 +4810,7 @@ const struct file_operations m0t1fs_reg_file_operations = {
 #endif
 	.fsync          = m0t1fs_fsync,
 	.open           = m0t1fs_open,
+	.flush          = m0t1fs_flush,
 };
 
 static void client_passive_recv(const struct m0_net_buffer_event *evt)
@@ -5280,23 +5298,19 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 	uint32_t                    seg;
 	uint32_t                    seg_nr;
 	uint64_t                    grpid;
-	uint64_t                    unit_size;
 	uint64_t                    pgcur = 0;
 	m0_bindex_t                *index;
 	struct io_request          *req;
 	struct m0_rpc_bulk         *rbulk;
 	struct pargrp_iomap        *map = NULL;
 	struct m0_rpc_bulk_buf     *rbuf;
-	struct m0_pdclust_layout   *play;
 
 	M0_PRE(irfop != NULL);
 	M0_ENTRY("target fid = "FID_F, FID_P(&irfop->irf_tioreq->ti_fid));
 
 	req       = bob_of(irfop->irf_tioreq->ti_nwxfer, struct io_request,
 		           ir_nwxfer, &ioreq_bobtype);
-	play      = pdlayout_get(req);
 	rbulk     = &irfop->irf_iofop.if_rbulk;
-	unit_size = layout_unit_size(play);
 
 	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
 

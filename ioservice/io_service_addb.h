@@ -49,6 +49,7 @@ enum {
 	M0_ADDB_CTXID_COB_CREATE_FOM,
 	M0_ADDB_CTXID_COB_DELETE_FOM,
 	M0_ADDB_CTXID_COB_GETATTR_FOM,
+	M0_ADDB_CTXID_COB_SETATTR_FOM,
 	M0_ADDB_CTXID_COB_IO_RW_FOM
 };
 
@@ -138,6 +139,9 @@ M0_ADDB_CT(m0_addb_ct_cob_delete_fom, M0_ADDB_CTXID_COB_DELETE_FOM,
 M0_ADDB_CT(m0_addb_ct_cob_getattr_fom, M0_ADDB_CTXID_COB_GETATTR_FOM,
 	   "gob_fid_container", "gob_fid_key", "cob_fid_container",
 	   "cob_fid_key");
+M0_ADDB_CT(m0_addb_ct_cob_setattr_fom, M0_ADDB_CTXID_COB_SETATTR_FOM,
+	   "gob_fid_container", "gob_fid_key", "cob_fid_container",
+	   "cob_fid_key");
 M0_ADDB_CT(m0_addb_ct_cob_io_rw_fom, M0_ADDB_CTXID_COB_IO_RW_FOM,
 	   "file_fid_container", "file_fid_key", "nb_descr_nr",
 	   "flags");
@@ -193,6 +197,7 @@ enum {
 	M0_IOS_ADDB_LOC_CC_STOB_DELETE_CRED_1,
 	M0_IOS_ADDB_LOC_CC_STOB_DELETE_CRED_2,
 	M0_IOS_ADDB_LOC_CD_COB_DELETE_1,
+	M0_IOS_ADDB_LOC_COB_ATTR_LOCATE,
 	M0_IOS_ADDB_LOC_CD_COB_DELETE_2,
 	M0_IOS_ADDB_LOC_CD_STOB_DELETE_1,
 	M0_IOS_ADDB_LOC_CD_STOB_DELETE_2,

@@ -76,7 +76,8 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 	cfop = container_of(fop, struct cob_fop, c_fop);
 	creq = cfop->c_req;
 
-	M0_ASSERT(m0_is_cob_create_fop(fop) || m0_is_cob_delete_fop(fop));
+	M0_ASSERT(m0_is_cob_create_fop(fop) || m0_is_cob_delete_fop(fop) ||
+		  m0_is_cob_setattr_fop(fop));
 	reply = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
 	r_common = &reply->cor_common;
 
@@ -132,6 +133,11 @@ static int m0t1fs_ios_cob_delete(struct cob_req *cr,
 				 const struct m0t1fs_inode *inode,
 			         const struct m0t1fs_mdop *mop,
 				 int idx);
+
+static int m0t1fs_ios_cob_setattr(struct cob_req *cr,
+				  const struct m0t1fs_inode *inode,
+			          const struct m0t1fs_mdop *mop,
+				  int idx);
 
 static int name_mem2wire(struct m0_fop_str *tgt,
 			 const struct m0_buf *name)
@@ -290,8 +296,12 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		mo.mo_attr.ca_valid |= M0_COB_LID;
 
 		rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
-		/* @todo setattr to ios to update the layout!!
-		 * This will be done in MERO-499 soon. */
+		if (rc == 0) {
+			M0_LOG(M0_DEBUG, "changing lid to %lld",
+					 mo.mo_attr.ca_lid);
+			rc = m0t1fs_component_objects_op(ci, &mo,
+						m0t1fs_ios_cob_setattr);
+		}
 	} else {
 		m0_buf_init(&mo.mo_attr.ca_eakey, (void*)name, strlen(name));
 		m0_buf_init(&mo.mo_attr.ca_eaval, (void*)value, size);
@@ -595,7 +605,6 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 #endif
 {
 	struct m0t1fs_sb         *csb;
-	struct m0t1fs_inode      *ci;
 	struct inode             *inode = NULL;
 	struct m0_fop_lookup_rep *rep = NULL;
 	struct m0t1fs_mdop        mo;
@@ -604,7 +613,6 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 
 	M0_ENTRY();
 
-	ci = M0T1FS_I(dir);
 	csb = M0T1FS_SB(dir->i_sb);
 
 	if (dentry->d_name.len > csb->csb_namelen) {
@@ -1192,6 +1200,7 @@ M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry, uint64_t newsize)
 	rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
 	if (rc != 0)
 		goto out;
+
 	inode->i_size = newsize;
 out:
 	m0_fop_put0_lock(rep_fop);
@@ -1287,6 +1296,9 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	if (rc != 0)
 		goto out;
 
+	rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_setattr);
+	if (rc != 0)
+		goto out;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	setattr_copy(inode, attr);
 #else
@@ -1353,15 +1365,18 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 	int               i;
 	int               rc = 0;
 	uint32_t          cob_idx;
+	const char       *op_name;
 
 	M0_PRE(ci != NULL);
 	M0_PRE(func != NULL);
 
 	M0_ENTRY();
 
+	op_name = (func == m0t1fs_ios_cob_create) ? "create" :
+		(func == m0t1fs_ios_cob_delete) ? "delete" : "setattr";
+
 	M0_LOG(M0_DEBUG, "Component object %s for "FID_F,
-	       func == m0t1fs_ios_cob_create? "create" : "delete",
-	       FID_P(m0t1fs_inode_fid(ci)));
+			 op_name, FID_P(m0t1fs_inode_fid(ci)));
 
 	csb = M0T1FS_SB(ci->ci_inode.i_sb);
 	pool_width = csb->csb_pool_width;
@@ -1382,8 +1397,7 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 		rc = func(&cob_req, ci, mop, i);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cob %s "FID_F" failed with %d",
-			       func == m0t1fs_ios_cob_create ? "create" :
-			       "delete", FID_P(&cob_fid), rc);
+					 op_name, FID_P(&cob_fid), rc);
 			break;
 		}
 		++cob_req.cr_fops_cnt;
@@ -1927,14 +1941,13 @@ static void cfop_release(struct m0_ref *ref)
 	M0_LEAVE();
 }
 
-static int m0t1fs_ios_cob_op(struct cob_req *cr,
+static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 			     const struct m0t1fs_inode *ci,
-			     const struct m0t1fs_mdop *mop,
-			     int idx,
-			     struct m0_fop_type  *ftype)
+			     const struct m0t1fs_mdop  *mop,
+			     int                       idx,
+			     struct m0_fop_type       *ftype)
 {
 	int                         rc;
-	bool                        cobcreate;
 	const struct m0t1fs_sb     *csb;
 	struct m0_fid               cob_fid;
 	const struct m0_fid        *gob_fid;
@@ -1976,15 +1989,15 @@ static int m0t1fs_ios_cob_op(struct cob_req *cr,
 	}
 	fop->f_item.ri_rmachine = m0_fop_session_machine(session);
 
-	M0_ASSERT(m0_is_cob_create_fop(fop) || m0_is_cob_delete_fop(fop));
-	cobcreate = m0_is_cob_create_fop(fop);
+	M0_ASSERT(m0_is_cob_create_fop(fop) || m0_is_cob_delete_fop(fop) ||
+		  m0_is_cob_setattr_fop(fop));
 
 	rc = m0t1fs_ios_cob_fop_populate(csb, mop, fop, &cob_fid, gob_fid, cob_idx);
 	if (rc != 0)
 		goto fop_put;
 
 	M0_LOG(M0_DEBUG, "Send %s "FID_F" to session %p (sid=%lu)",
-	       cobcreate ? "cob_create" : "cob_delete",
+	       m0_fop_name(fop),
 	       FID_P(&cob_fid), session, (unsigned long)session->s_session_id);
 
 	fop->f_item.ri_session  = session;
@@ -2015,6 +2028,14 @@ static int m0t1fs_ios_cob_delete(struct cob_req *cr,
 				 int idx)
 {
 	return m0t1fs_ios_cob_op(cr, inode, mop, idx, &m0_fop_cob_delete_fopt);
+}
+
+static int m0t1fs_ios_cob_setattr(struct cob_req *cr,
+				  const struct m0t1fs_inode *inode,
+			          const struct m0t1fs_mdop *mop,
+				  int idx)
+{
+	return m0t1fs_ios_cob_op(cr, inode, mop, idx, &m0_fop_cob_setattr_fopt);
 }
 
 M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
@@ -2101,9 +2122,6 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 	/* Update inode fields with data from @getattr_rep. */
 	m0t1fs_inode_update(inode, body);
 
-	/* { @todo disabled until sending setattr to ios to update layout.
-	 * This will be done in MERO-499 soon. */
-#if 0
 	if (!m0t1fs_inode_is_root(&ci->ci_inode) &&
 	    ci->ci_layout_id != body->b_lid) {
 		/* layout for this file is changed. */
@@ -2114,11 +2132,22 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 		rc = m0t1fs_inode_layout_init(ci);
 		M0_ASSERT(rc == 0);
 	}
-#endif
-	/* end of todo } */
 err:
 	m0_fop_put0_lock(fop);
 out:
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo)
+{
+	struct m0t1fs_inode *ci = M0T1FS_I(inode);
+	struct m0t1fs_sb    *csb = M0T1FS_SB(inode->i_sb);
+	int                  rc;
+
+	m0t1fs_fs_lock(csb);
+	/* Updating size to ios. */
+	rc = m0t1fs_component_objects_op(ci, mo, m0t1fs_ios_cob_setattr);
+	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
 

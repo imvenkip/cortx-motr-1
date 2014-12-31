@@ -227,6 +227,7 @@ M0_INTERNAL bool m0_is_cob_create_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_delete_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_create_delete_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_getattr_fop(const struct m0_fop *fop);
+M0_INTERNAL bool m0_is_cob_setattr_fop(const struct m0_fop *fop);
 M0_INTERNAL struct m0_fop_cob_common *m0_cobfop_common_get(struct m0_fop *fop);
 
 M0_INTERNAL void m0_dump_cob_attr(const struct m0_cob_attr *attr);
@@ -257,6 +258,8 @@ extern struct m0_fop_type m0_fop_fv_notification_fopt;
 extern struct m0_fop_type m0_fop_cob_getattr_fopt;
 extern struct m0_fop_type m0_fop_cob_getattr_reply_fopt;
 extern struct m0_fop_type m0_fop_fsync_ios_fopt;
+extern struct m0_fop_type m0_fop_cob_setattr_fopt;
+extern struct m0_fop_type m0_fop_cob_setattr_reply_fopt;
 
 extern struct m0_fom_type m0_io_fom_cob_rw_fomt;
 
@@ -562,16 +565,13 @@ struct m0_fop_fv_notification {
 
 /**
  * On-wire representation of "cob getattr" request.
- * as stob-id.
  */
 struct m0_fop_cob_getattr {
-	/** m0_cob_attr in common is not used for this request. */
 	struct m0_fop_cob_common cg_common;
 } M0_XCA_RECORD;
 
 /**
- * On-wire representation of reply for both "cob create" and "cob delete"
- * requests.
+ * On-wire representation of reply for "cob getattr" requests.
  */
 struct m0_fop_cob_getattr_reply {
 	int32_t                         cgr_rc;
@@ -579,6 +579,22 @@ struct m0_fop_cob_getattr_reply {
 	struct m0_fop_cob_op_rep_common cgr_common;
 	/** attributes of this cob */
 	struct m0_fop_cob               cgr_body;
+} M0_XCA_RECORD;
+
+/**
+ * On-wire representation of "cob setattr" request.
+ */
+struct m0_fop_cob_setattr {
+	struct m0_fop_cob_common cs_common;
+} M0_XCA_RECORD;
+
+/**
+ * On-wire representation of reply for "cob setattr" requests.
+ */
+struct m0_fop_cob_setattr_reply {
+	int32_t                         csr_rc;
+	/** common part of a cob reply */
+	struct m0_fop_cob_op_rep_common csr_common;
 } M0_XCA_RECORD;
 
 /* __MERO_IOSERVICE_IO_FOPS_H__ */
