@@ -62,9 +62,6 @@ struct be_ut_helper_struct {
 	int64_t			 buh_id;
 };
 
-extern struct m0_be_0type m0_stob_ad_0type;
-extern struct m0_be_0type m0_be_cob0;
-
 struct be_ut_helper_struct be_ut_helper = {
 	/* because there is no m0_mutex static initializer */
 	.buh_once_control = PTHREAD_ONCE_INIT,
@@ -320,26 +317,25 @@ static void ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 				struct m0_be_domain_cfg *cfg,
 				bool mkfs)
 {
-	int rc = 0;
+	int rc;
 
 	ut_be->but_sm_groups_unlocked = false;
-	if (cfg == NULL) {
+	if (cfg == NULL)
 		m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
-	} else {
+	else
 		ut_be->but_dom_cfg = *cfg;
-	}
-	if (ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh == NULL) {
-		ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh =
-			m0_be_ut_reqh_get();
-	}
-	if (ut_be->but_stob_domain_location != NULL) {
-		ut_be->but_dom_cfg.bc_stob_domain_location =
-			ut_be->but_stob_domain_location;
-	}
-	ut_be->but_dom_cfg.bc_mkfs_mode = mkfs;
+	cfg = &ut_be->but_dom_cfg;
+
+	if (cfg->bc_engine.bec_group_fom_reqh == NULL)
+		cfg->bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
+
+	if (ut_be->but_stob_domain_location != NULL)
+		cfg->bc_stob_domain_location = ut_be->but_stob_domain_location;
+
+	cfg->bc_mkfs_mode = mkfs;
 
 	m0_mutex_init(&ut_be->but_sgt_lock);
-	rc = m0_be_domain_start(&ut_be->but_dom, &ut_be->but_dom_cfg);
+	rc = m0_be_domain_start(&ut_be->but_dom, cfg);
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
 	if (rc != 0)
 		m0_mutex_fini(&ut_be->but_sgt_lock);
@@ -347,7 +343,20 @@ static void ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 	m0_get()->i_be_ut_backend = ut_be;
 }
 
-extern struct m0_be_0type m0_be_pool0;
+static void be_ut_backend_0types_init(struct m0_be_ut_backend *ut_be)
+{
+	extern struct m0_be_0type m0_stob_ad_0type;
+	extern struct m0_be_0type m0_be_pool0;
+	extern struct m0_be_0type m0_be_cob0;
+
+	ut_be->but_ad_0type   = m0_stob_ad_0type;
+	ut_be->but_pool_0type = m0_be_pool0;
+	ut_be->but_cob_0type  = m0_be_cob0;
+
+	m0_be_0type_register(&ut_be->but_dom, &ut_be->but_ad_0type);
+	m0_be_0type_register(&ut_be->but_dom, &ut_be->but_pool_0type);
+	m0_be_0type_register(&ut_be->but_dom, &ut_be->but_cob_0type);
+}
 
 M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 					   struct m0_be_domain_cfg *cfg,
@@ -355,22 +364,12 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 {
 	static bool mkfs_executed = false;
 
-	/*
-	 * Set mkfs_executed iff default stob domain location is used,
-	 * i.e. ut_be->but_stob_domain_location == NULL.
-	 */
 	if (!mkfs_executed && cfg == NULL &&
-	    ut_be->but_stob_domain_location == NULL) {
-		mkfs = true;
-		mkfs_executed = true;
-	}
+	    ut_be->but_stob_domain_location == NULL)
+		mkfs = mkfs_executed = true;
+
 	m0_be_domain_init(&ut_be->but_dom);
-	ut_be->but_ad_0type   = m0_stob_ad_0type;
-	ut_be->but_pool_0type = m0_be_pool0;
-	ut_be->but_cob_0type  = m0_be_cob0;
-	m0_be_0type_register(&ut_be->but_dom, &ut_be->but_ad_0type);
-	m0_be_0type_register(&ut_be->but_dom, &ut_be->but_pool_0type);
-	m0_be_0type_register(&ut_be->but_dom, &ut_be->but_cob_0type);
+	be_ut_backend_0types_init(ut_be);
 	ut_backend_init_cfg(ut_be, cfg, mkfs);
 }
 

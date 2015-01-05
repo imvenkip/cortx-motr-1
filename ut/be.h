@@ -42,7 +42,7 @@ struct m0_sm_group;
  *
  * The API declared in be/ut/helper.h is supposed to be used by BE unit
  * tests only. The UTs of other subsystems should not #include that file
- * (though they do).
+ * (though they do, hee hee hee).
  *
  * @{
  */

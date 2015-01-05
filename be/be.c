@@ -31,6 +31,7 @@
  */
 
 extern struct m0_sm_group be_op_sm_group;	/* XXX dirty hack */
+
 M0_INTERNAL int m0_backend_init(void)
 {
 	m0_sm_group_init(&be_op_sm_group);
