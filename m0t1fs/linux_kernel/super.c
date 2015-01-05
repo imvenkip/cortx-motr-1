@@ -993,13 +993,11 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 
 	M0_ENTRY();
 
-	/* Init BE. */
-	m0_be_ut_backend_init(&csb->csb_ut_be);
 	m0_be_ut_seg_init(&csb->csb_ut_seg,
 			  &csb->csb_ut_be, 1ULL << 24);
 
-	tms_nr	 = 1;
-	bufs_nr  = m0_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
+	tms_nr = 1;
+	bufs_nr = m0_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
 
 	rc = m0_rpc_net_buffer_pool_setup(ndom, buffer_pool,
 					  bufs_nr, tms_nr);
@@ -1028,7 +1026,6 @@ pool_fini:
 	m0_rpc_net_buffer_pool_cleanup(buffer_pool);
 be_fini:
 	m0_be_ut_seg_fini(&csb->csb_ut_seg);
-	m0_be_ut_backend_fini(&csb->csb_ut_be);
 	M0_LEAVE("rc: %d", rc);
 	M0_ASSERT(rc != 0);
 	return M0_RC(rc);
@@ -1141,7 +1138,6 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 	m0_reqh_fini(&csb->csb_reqh);
 	m0_rpc_net_buffer_pool_cleanup(&csb->csb_buffer_pool);
 	m0_be_ut_seg_fini(&csb->csb_ut_seg);
-	m0_be_ut_backend_fini(&csb->csb_ut_be);
 
 	M0_LEAVE();
 }
