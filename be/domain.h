@@ -131,7 +131,8 @@ struct m0_be_domain {
 	unsigned		bd_mkfs_stage_nr;
 };
 
-M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom);
+M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom);
+
 /**
  * This function in normal (not mkfs) mode:
  * - loads seg0 (domain should be started in mkfs mode before it can be started

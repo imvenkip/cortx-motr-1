@@ -412,7 +412,7 @@ static const struct m0_be_0type m0_be_0type_log = {
 	.b0_fini = be_0type_log_fini,
 };
 
-M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom)
+M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom)
 {
 	zt_tlist_init(&dom->bd_0type_list);
 	seg_tlist_init(&dom->bd_seg_list);
@@ -422,8 +422,6 @@ M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom)
 	dom->bd_0type_seg = m0_be_0type_seg;
 	m0_be_0type_register(dom, &dom->bd_0type_log);
 	m0_be_0type_register(dom, &dom->bd_0type_seg);
-
-	return 0;
 }
 
 static void be_domain_mkfs_progress(struct m0_be_domain *dom,

@@ -377,7 +377,7 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 		mkfs = true;
 		mkfs_executed = true;
 	}
-	(void)m0_be_domain_init(&ut_be->but_dom);
+	m0_be_domain_init(&ut_be->but_dom);
 	ut_be->but_ad_0type   = m0_stob_ad_0type;
 	ut_be->but_pool_0type = m0_be_pool0;
 	ut_be->but_cob_0type  = m0_be_cob0;
