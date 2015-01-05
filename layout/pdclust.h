@@ -67,10 +67,10 @@
 /* import */
 #include "lib/arith.h" /* M0_IS_8ALIGNED */
 #include "sns/parity_math.h"
-#include "conf/obj.h"
 #include "layout/layout.h"
 
 struct m0_pool;
+struct m0_conf_filesystem;
 
 /* export */
 struct m0_pdclust_attr;
@@ -305,7 +305,7 @@ M0_INTERNAL void m0_pdclust_instance_inv(struct m0_pdclust_instance *pi,
 					 struct m0_pdclust_src_addr *src);
 
 /** Convenient helper to get @fs_params from @fs configuration object. */
-M0_INTERNAL int m0_pdclust_attr_read(const struct m0_conf_obj *fs,
+M0_INTERNAL int m0_pdclust_attr_read(const struct m0_conf_filesystem *fs,
 				     struct m0_pdclust_attr *pa);
 
 extern struct m0_layout_type m0_pdclust_layout_type;

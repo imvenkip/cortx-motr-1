@@ -30,25 +30,24 @@ M0_TL_DESCR_DEFINE(m0_conf_dir, "m0_conf_dir::cd_items", M0_INTERNAL,
 M0_TL_DEFINE(m0_conf_dir, M0_INTERNAL, struct m0_conf_obj);
 
 M0_CONF__BOB_DEFINE(m0_conf_dir, M0_CONF_DIR_MAGIC, NULL);
-
 M0_CONF__INVARIANT_DEFINE(dir_invariant, m0_conf_dir);
 
-static int dir_decode(struct m0_conf_obj *dest M0_UNUSED,
+static int dir_decode(struct m0_conf_obj        *dest M0_UNUSED,
 		      const struct m0_confx_obj *src M0_UNUSED,
-		      struct m0_conf_cache *cache M0_UNUSED)
+		      struct m0_conf_cache      *cache M0_UNUSED)
 {
 	M0_IMPOSSIBLE("m0_conf_dir is not supposed to be decoded");
 	return -1;
 }
 
-static int dir_encode(struct m0_confx_obj *dest M0_UNUSED,
+static int dir_encode(struct m0_confx_obj      *dest M0_UNUSED,
 		      const struct m0_conf_obj *src M0_UNUSED)
 {
 	M0_IMPOSSIBLE("m0_conf_dir is not supposed to be encoded");
 	return -1;
 }
 
-static bool dir_match(const struct m0_conf_obj *cached M0_UNUSED,
+static bool dir_match(const struct m0_conf_obj  *cached M0_UNUSED,
 		      const struct m0_confx_obj *flat M0_UNUSED)
 {
 	M0_IMPOSSIBLE("m0_conf_dir should not be compared with m0_confx_obj");
@@ -74,10 +73,11 @@ belongs(const struct m0_conf_obj *entry, const struct m0_conf_dir *dir)
 static bool
 readdir_pre(const struct m0_conf_dir *dir, const struct m0_conf_obj *entry)
 {
-	return  dir->cd_obj.co_status == M0_CS_READY &&
-		dir->cd_obj.co_nrefs > 0 &&
-		ergo(entry != NULL, m0_conf_obj_invariant(entry) &&
-		     belongs(entry, dir) && entry->co_nrefs > 0);
+	return  _0C(dir->cd_obj.co_status == M0_CS_READY) &&
+		_0C(dir->cd_obj.co_nrefs > 0) &&
+		_0C(ergo(entry != NULL, m0_conf_obj_invariant(entry))) &&
+		_0C(ergo(entry != NULL, belongs(entry, dir))) &&
+		_0C(ergo(entry != NULL, entry->co_nrefs > 0));
 }
 
 /**
@@ -93,12 +93,12 @@ readdir_pre(const struct m0_conf_dir *dir, const struct m0_conf_obj *entry)
 static bool readdir_post(int retval, const struct m0_conf_dir *dir,
 			 const struct m0_conf_obj *entry)
 {
-	return  M0_IN(retval,
-		      (M0_CONF_DIREND, M0_CONF_DIRNEXT, M0_CONF_DIRMISS)) &&
-		(retval == M0_CONF_DIREND) == (entry == NULL) &&
-		ergo(entry != NULL,
-		     m0_conf_obj_invariant(entry) && belongs(entry, dir) &&
-		     (retval == M0_CONF_DIRNEXT) == (entry->co_nrefs > 0));
+	return  _0C(M0_IN(retval,
+		      (M0_CONF_DIREND, M0_CONF_DIRNEXT, M0_CONF_DIRMISS))) &&
+		_0C((retval == M0_CONF_DIREND) == (entry == NULL)) &&
+		_0C(ergo(entry != NULL, m0_conf_obj_invariant(entry))) &&
+		_0C(ergo(entry != NULL, belongs(entry, dir))) &&
+		_0C(ergo(entry != NULL, (retval == M0_CONF_DIRNEXT) == (entry->co_nrefs > 0)));
 }
 
 static int dir_readdir(struct m0_conf_obj *dir, struct m0_conf_obj **pptr)
@@ -135,7 +135,7 @@ static int dir_readdir(struct m0_conf_obj *dir, struct m0_conf_obj **pptr)
 	return ret;
 }
 
-static int dir_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
+static int dir_lookup(struct m0_conf_obj  *parent, const struct m0_fid *name,
 		      struct m0_conf_obj **out)
 {
 	struct m0_conf_dir *x = M0_CONF_CAST(parent, m0_conf_dir);

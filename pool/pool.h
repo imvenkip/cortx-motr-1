@@ -23,10 +23,14 @@
 #ifndef __MERO_POOL_POOL_H__
 #define __MERO_POOL_POOL_H__
 
-#include "be/obj.h"      /* m0_be_obj_header */
+#include "be/obj.h"            /* m0_be_obj_header */
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
-#include "be/be.h" /* struct m0_be_tx */
+#include "be/be.h"             /* struct m0_be_seg */
+#include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
+#include "conf/obj.h"
+#include "layout/pdclust.h"    /* m0_pdclust_attr */
+#include "pool/pool_machine.h"
 
 /**
    @defgroup pool Storage pools.
@@ -35,47 +39,197 @@
  */
 
 /* import */
-struct m0_dtm;
 struct m0_io_req;
-struct m0_dtx;
-struct m0_be_tx_credit;
 
 /* export */
 struct m0_pool;
-struct m0_poolmach;
+struct m0_pool_spare_usage;
 
 enum {
 	PM_DEFAULT_NR_NODES = 10,
 	PM_DEFAULT_NR_DEV = 80,
 	PM_DEFAULT_MAX_NODE_FAILURES = 1,
-	PM_DEFAULT_MAX_DEV_FAILURES = 80
+	PM_DEFAULT_MAX_DEV_FAILURES = 80,
+	POOL_MAX_RPC_NR_IN_FLIGHT = 100
+};
+
+enum map_type {
+	IOS = 1,
+	MDS
 };
 
 struct m0_pool {
-	uint32_t            po_width;
-	struct m0_poolmach *po_mach;
+	struct m0_fid   po_id;
+
+	/** List of pool versions in this pool. */
+	struct m0_tl    po_vers;
+
+	/** Linkage into list of pools. */
+	struct m0_tlink po_linkage;
+
+	uint64_t        po_magic;
 };
 
-M0_INTERNAL int m0_pool_init(struct m0_pool *pool, uint32_t width);
+/**
+ * Pool version is the subset of devices from the filesystem.
+ * Pool version is associated with a pool machine and contains
+ * a device to ioservice map.
+ */
+struct m0_pool_version {
+	struct m0_fid                pv_id;
+
+	/** Layout attributes associated with this pool version. */
+	struct m0_pdclust_attr       pv_attr;
+
+	/** Total number of nodes in this pool version. */
+	uint32_t                     pv_nr_nodes;
+
+	/** Base pool of this pool version. */
+	struct m0_pool              *pv_pool;
+
+	struct m0_pools_common      *pv_pc;
+
+	/** Pool machine associated with this pool version. */
+	struct m0_poolmach           pv_mach;
+
+	/**
+	 * An array of size m0_poolversion::pv_width.
+	 * Maps device to io service.
+	 * Each pv_dev_to_ios_map[i] entry points to instance of
+	 * struct m0_reqh_service_ctx which has established rpc connections
+	 * with the given service endpoints.
+	 */
+	struct m0_reqh_service_ctx **pv_dev_to_ios_map;
+
+	/**
+	 * Linkage into list of pool versions.
+	 * @see struct m0_pool::po_vers
+	 */
+	struct m0_tlink              pv_linkage;
+
+	/** M0_POOL_VERSION_MAGIC */
+	uint64_t                     pv_magic;
+};
+
+/**
+ * Contains resources that are shared among the pools in the filesystem.
+ */
+struct m0_pools_common {
+	struct m0_tl                 pc_pools;
+
+	struct m0_confc             *pc_confc;
+
+	struct m0_rpc_machine       *pc_rmach;
+
+	/** service context of MGS.*/
+	struct m0_reqh_service_ctx   pc_mgs;
+
+	/**
+	  List of m0_reqh_service_ctx objects hanging using sc_link.
+	  tlist descriptor: svc_ctx_tl
+	  */
+	struct m0_tl                 pc_svc_ctxs;
+
+	/**
+	  Array of pools_common_svc_ctx_tlist_length() valid elements.
+	  The array size is same as the total number of service contexts,
+	  pc_mds_map[i] points to m0_reqh_service_ctx of mdservice whose
+	  index is i.
+	  */
+	struct m0_reqh_service_ctx **pc_mds_map;
+
+	/** RM service context */
+	struct m0_reqh_service_ctx  *pc_rm_ctx;
+
+	/** ADDB stat service context. */
+	struct m0_reqh_service_ctx  *pc_ss_ctx;
+
+	/**
+	 * Each ith element in the array gives the total number of services
+	 * of its corresponding type, e.g. element at M0_CST_MDS gives number
+	 * of meta-data services in the filesystem.
+	 */
+	uint64_t                     pc_nr_svcs[M0_CST_NR];
+
+	/** Metadata redundancy count. */
+	uint32_t                     pc_md_redundancy;
+};
+
+M0_TL_DESCR_DECLARE(pools_common_svc_ctx, M0_EXTERN);
+M0_TL_DECLARE(pools_common_svc_ctx, M0_EXTERN, struct m0_reqh_service_ctx);
+
+M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
+				     struct m0_rpc_machine *rmach,
+				     struct m0_conf_filesystem *fs);
+
+M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc);
+
+M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id);
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool);
+
+/**
+ * Initialises pool version from configuration data.
+ */
+M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
+					     struct m0_conf_pver *pver,
+					     struct m0_pool *pool,
+					     struct m0_pools_common *pc,
+					     struct m0_be_seg *be_seg,
+					     struct m0_sm_group *sm_grp,
+					     struct m0_dtm *dtm);
+
+M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
+				     const struct m0_fid *id,
+				     struct m0_pool *pool,
+				     uint32_t pool_width,
+				     uint32_t nodes,
+				     uint32_t nr_data,
+				     uint32_t nr_failures,
+				     struct m0_be_seg *be_seg,
+				     struct m0_sm_group  *sm_grp,
+				     struct m0_dtm       *dtm);
+
+M0_INTERNAL struct m0_pool_version *
+m0_pool_version_find(struct m0_pool *pool, const struct m0_fid *id);
+
+M0_INTERNAL void m0_pool_version_fini(struct m0_pool_version *pv);
+
+M0_INTERNAL int m0_pool_versions_init_by_conf(struct m0_pool *pool,
+					      struct m0_pools_common *pc,
+					      const struct m0_conf_pool *cp,
+					      struct m0_be_seg *be_seg,
+					      struct m0_sm_group  *sm_grp,
+					      struct m0_dtm       *dtm);
+
+M0_INTERNAL void m0_pool_versions_fini(struct m0_pool *pool);
 
 M0_INTERNAL int m0_pools_init(void);
 M0_INTERNAL void m0_pools_fini(void);
 
-/** @} end group pool */
+M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
+                               struct m0_conf_filesystem *fs,
+                               struct m0_be_seg *be_seg,
+                               struct m0_sm_group *sm_grp,
+                               struct m0_dtm *dtm);
 
+M0_INTERNAL void m0_pools_destroy(struct m0_pools_common *pc);
+
+M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
+					 const struct m0_fid *id);
 
 /**
-   @defgroup poolmach Pool machine
-   @{
-*/
+ * Creates service contexts from given struct m0_conf_service.
+ * Creates service context for each endpoint in m0_conf_service::cs_endpoints.
+ */
 
-/** pool version numer type */
-enum m0_poolmach_version {
-	PVE_READ,
-	PVE_WRITE,
-	PVE_NR
-};
+M0_INTERNAL struct m0_reqh_service_ctx *
+m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
+				 const struct m0_fid *id,
+				 enum m0_conf_service_type type);
+
+M0_INTERNAL struct m0_reqh_service_ctx *
+m0_pools_common_service_ctx_find_by_type(const struct m0_pools_common *pc,
+					 enum m0_conf_service_type type);
 
 /**
  * A state that a pool node/device can be in.
@@ -106,11 +260,6 @@ enum m0_pool_nd_state {
 	M0_PNDS_NR
 };
 
-enum {
-	/** Unused spare slot has this device index */
-	POOL_PM_SPARE_SLOT_UNUSED = 0xffffffff
-};
-
 /**
  * pool node. Data structure representing a node in a pool.
  *
@@ -127,16 +276,13 @@ struct m0_poolnode {
 	struct m0_be_obj_header pn_header;
 	enum m0_pool_nd_state   pn_state;
 	char                    pn_pad[4];
-	struct m0_server       *pn_id;
+	/** Pool node identity. */
+	struct m0_fid           pn_id;
 	struct m0_be_obj_footer pn_footer;
 };
 M0_BASSERT(sizeof(enum m0_pool_nd_state) == 4);
 
-/**
- * pool device
- *
- * Data structure representing a storage device in a pool.
- */
+/** Storage device in a pool. */
 struct m0_pooldev {
 	struct m0_be_obj_header pd_header;
 	/** device state (as part of pool machine state). This field is only
@@ -144,69 +290,10 @@ struct m0_pooldev {
 	enum m0_pool_nd_state   pd_state;
 	char                    pd_pad[4];
 	/** pool device identity */
-	struct m0_device       *pd_id;
+	struct m0_fid           pd_id;
 	/* a node this storage devie is attached to */
 	struct m0_poolnode     *pd_node;
 	struct m0_be_obj_footer pd_footer;
-};
-
-/** event owner type: node or device */
-enum m0_pool_event_owner_type {
-	M0_POOL_NODE,
-	M0_POOL_DEVICE
-};
-
-/**
- * pool version numbers vector updated on a failure.
- *
- * Matching pool version numbers must be presented by a client to do IO
- * against the pool. Usually pool version numbers vector is delivered to
- * a client together with a layout or a lock. Version numbers change on
- * failures effectively invalidating layouts affected by the failure.
- *
- */
-struct m0_pool_version_numbers {
-	uint64_t pvn_version[PVE_NR];
-};
-
-/**
- * Pool Event, which is used to change the state of a node or device.
- */
-struct m0_pool_event {
-	/** Event owner type */
-	enum m0_pool_event_owner_type  pe_type;
-
-	/** Event owner index */
-	uint32_t                       pe_index;
-
-	/** new state for this node/device */
-	enum m0_pool_nd_state          pe_state;
-
-};
-
-/**
- * This link is used by pool machine to records all state change history.
- * All events hang on the m0_poolmach::pm_events_list, ordered.
- */
-struct m0_pool_event_link {
-	/** the event itself */
-	struct m0_pool_event           pel_event;
-
-	/**
-	 * Pool machine's new version when this event handled
-	 * This is used by pool machine. If event is generated by
-	 * other module and passed to pool machine operations,
-	 * it is not used and undefined at that moment.
-	 */
-	struct m0_pool_version_numbers pel_new_version;
-
-	/**
-	 * link to m0_poolmach::pm_events_list.
-	 * Used internally in pool machine.
-	 */
-	struct m0_tlink                pel_linkage;
-
-	uint64_t                       pel_magic;
 };
 
 /**
@@ -215,7 +302,10 @@ struct m0_pool_event_link {
  */
 struct m0_pool_spare_usage {
 	struct m0_be_obj_header psu_header;
-	/** index of the device to use this spare slot */
+	/**
+	 * Index of the device from m0_poolmach_state::pst_devices_array in the
+	 * pool associated with this spare slot.
+	 */
 	uint32_t                psu_device_index;
 
 	/** state of the device to use this spare slot */
@@ -223,240 +313,7 @@ struct m0_pool_spare_usage {
 	struct m0_be_obj_footer psu_footer;
 };
 
-/**
- * Persistent pool machine state.
- *
- * Copies of this struct are maintained by every node that thinks it is a part
- * of the pool. This state is updated by a quorum protocol.
- *
- * Pool machine state history is recorded in the ::pst_events_list as
- * a ordered collection of events.
- */
-struct m0_poolmach_state {
-	struct m0_be_obj_header        pst_header;
-	/** pool machine version numbers */
-	struct m0_pool_version_numbers pst_version;
-
-	/** identities and states of every node in the pool */
-	struct m0_poolnode            *pst_nodes_array;
-
-	/** identities and states of every device in the pool */
-	struct m0_pooldev             *pst_devices_array;
-
-	/** number of nodes currently in the pool */
-	uint32_t                       pst_nr_nodes;
-
-	/** number of devices currently in the pool */
-	uint32_t                       pst_nr_devices;
-
-	/** maximal number of node failures the pool is configured to sustain */
-	uint32_t                       pst_max_node_failures;
-
-	/**
-	 * maximal number of device failures the pool is configured to
-	 * sustain
-	 */
-	uint32_t                       pst_max_device_failures;
-
-	/**
-	 * Spare slot usage array.
-	 * The size of this array is pst_max_device_failures;
-	 */
-	struct m0_pool_spare_usage    *pst_spare_usage_array;
-
-	/**
-	 * All Events ever happened to this pool machine, ordered by time.
-	 */
-	struct m0_tl                   pst_events_list;
-	struct m0_be_obj_footer        pst_footer;
-};
-
-/**
- * pool machine. Data structure representing replicated pool state machine.
- *
- * Concurrency control: pool machine state is protected by a single read-write
- * blocking lock. "Normal" operations, e.g., client IO, including degraded mode
- * IO, take this lock in a read mode, because they only inspect pool machine
- * state (e.g., version numbers vector) never modifying it. "Configuration"
- * events such as node or device failures, addition or removal of a node or
- * device and administrative actions against the pool, all took the lock in a
- * write mode.
- */
-struct m0_poolmach {
-	/** struct m0_persistent_sm  pm_mach; */
-	struct m0_poolmach_state *pm_state;
-
-	/** the be_seg. if this is NULL, the poolmach is on client. */
-	struct m0_be_seg         *pm_be_seg;
-
-	struct m0_sm_group       *pm_sm_grp;
-
-	/** this pool machine initialized or not */
-	bool                      pm_is_initialised;
-
-	/** read write lock to protect the whole pool machine */
-	struct m0_rwlock          pm_lock;
-};
-
-M0_INTERNAL bool
-m0_poolmach_version_equal(const struct m0_pool_version_numbers *v1,
-			  const struct m0_pool_version_numbers *v2);
-/**
- * Pool Machine version numbers are incremented upon event.
- * v1 before v2 means v2's version number is greater than v1's.
- */
-M0_INTERNAL bool
-m0_poolmach_version_before(const struct m0_pool_version_numbers *v1,
-			   const struct m0_pool_version_numbers *v2);
-/**
- * Initialises the pool machine.
- *
- * Pool machine will load its data from persistent storage. If this is the first
- * call, it will initialise the persistent data.
- */
-M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
-				 struct m0_be_seg   *be_seg,
-				 struct m0_sm_group *sm_grp,
-				 struct m0_dtm      *dtm,
-				 uint32_t            nr_nodes,
-				 uint32_t            nr_devices,
-				 uint32_t            max_node_failures,
-				 uint32_t            max_device_failures);
-
-/**
- * Finalises the pool machine.
- */
-M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm);
-
-/**
- * Calculate poolmach credit.
- */
-M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach        *pm,
-					  struct m0_be_tx_credit *accum);
-
-/**
- * Change the pool machine state according to this event.
- *
- * @param event the event to drive the state change. This event
- *        will be copied into pool machine state, and it can
- *        be used or released by caller after call.
- */
-M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach         *pm,
-					  const struct m0_pool_event *event,
-					  struct m0_be_tx            *tx);
-
-/**
- * Query the state changes between the "from" and "to" version.
- *
- * The caller can apply the returned events to its copy of pool state machine.
- *
- * @param from the least version in the expected region.
- * @param to the most recent version in the expected region.
- * @param event_list_head the state changes in this region will be represented
- *        by events linked in this list.
- */
-M0_INTERNAL int m0_poolmach_state_query(struct m0_poolmach *pm,
-					const struct m0_pool_version_numbers
-					*from,
-					const struct m0_pool_version_numbers
-					*to, struct m0_tl *event_list_head);
-
-/**
- * Query the current version of a pool state.
- *
- * @param curr the returned current version number stored here.
- */
-M0_INTERNAL int m0_poolmach_current_version_get(struct m0_poolmach *pm,
-						struct m0_pool_version_numbers
-						*curr);
-
-/**
- * Query the current state of a specified device.
- * @param pm pool machine.
- * @param device_index the index of the device to query.
- * @param state_out the output state.
- */
-M0_INTERNAL int m0_poolmach_device_state(struct m0_poolmach *pm,
-					 uint32_t device_index,
-					 enum m0_pool_nd_state *state_out);
-
-/**
- * Query the current state of a specified device.
- * @param pm pool machine.
- * @param node_index the index of the node to query.
- * @param state_out the output state.
- */
-M0_INTERNAL int m0_poolmach_node_state(struct m0_poolmach *pm,
-				       uint32_t node_index,
-				       enum m0_pool_nd_state *state_out);
-
-
-/**
- * Returns true if device is in the spare usage array of pool machine.
- * @param pm Pool machine pointer in which spare usage array is populated.
- * @param device_index Index of device which needs to be searched.
- */
-M0_INTERNAL bool
-m0_poolmach_device_is_in_spare_usage_array(struct m0_poolmach *pm,
-					   uint32_t device_index);
-
-/**
- * Query the {sns repair, spare slot} pair of a specified device.
- * @param pm pool machine.
- * @param device_index the index of the device to query.
- * @param spare_slot_out the output spair slot.
- */
-M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
-						   uint32_t device_index,
-						   uint32_t *spare_slot_out);
-
-/**
- * Returns true if the spare slot now contains data. This case would be true
- * when repair has already been invoked atleast once, due to which some failed
- * data unit has been repaired onto the given spare slot.
- * @param pm pool machine.
- * @param spare_slot the slot index which needs to be checked.
- * @param check_state check the device state before making the decision.
- */
-M0_INTERNAL bool
-m0_poolmach_sns_repair_spare_contains_data(struct m0_poolmach *pm,
-					   uint32_t spare_slot,
-					   bool check_state);
-
-
-/**
- * Query the {sns rebalance, spare slot} pair of a specified device.
- * @param pm pool machine.
- * @param device_index the index of the device to query.
- * @param spare_slot_out the output spair slot.
- */
-M0_INTERNAL int m0_poolmach_sns_rebalance_spare_query(struct m0_poolmach *pm,
-						      uint32_t device_index,
-						      uint32_t *spare_slot_out);
-
-/**
- * Return a copy of current pool machine state.
- *
- * The caller may send the current pool machine state to other services or
- * clients. The caller also can store the state in persistent storage.
- * The serialization and un-serialization is determined by caller.
- *
- * Note: The results must be freed by m0_poolmach_state_free().
- *
- * @param state_copy the returned state stored here.
- */
-M0_INTERNAL int m0_poolmach_current_state_get(struct m0_poolmach *pm,
-					      struct m0_poolmach_state
-					      **state_copy);
-/**
- * Frees the state copy returned from m0_poolmach_current_state_get().
- */
-M0_INTERNAL void m0_poolmach_state_free(struct m0_poolmach *pm,
-					struct m0_poolmach_state *state);
-
-M0_TL_DESCR_DECLARE(poolmach_events, M0_EXTERN);
-M0_TL_DECLARE(poolmach_events, M0_INTERNAL, struct m0_pool_event_link);
-/** @} end of poolmach group */
+/** @} end group pool */
 
 /**
    @defgroup servermachine Server machine
@@ -503,11 +360,6 @@ M0_INTERNAL int m0_poolserver_device_join(struct m0_poolserver *srv,
 					  struct m0_pooldev *dev);
 M0_INTERNAL int m0_poolserver_device_leave(struct m0_poolserver *srv,
 					   struct m0_pooldev *dev);
-
-M0_INTERNAL void m0_poolmach_version_dump(struct m0_pool_version_numbers *v);
-M0_INTERNAL void m0_poolmach_event_dump(struct m0_pool_event *e);
-M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_poolmach *pm);
-M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm);
 
 /**
  * State of SNS repair with respect to given global fid.

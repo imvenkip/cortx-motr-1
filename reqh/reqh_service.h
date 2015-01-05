@@ -31,6 +31,9 @@
 #include "lib/types.h"
 #include "sm/sm.h"
 #include "addb/addb.h"
+#include "be/tx.h"       /* m0_be_tx_remid */
+#include "conf/schema.h" /* m0_conf_service_type */
+#include "rpc/rpc.h"     /* m0_rpc_conn, m0_rpc_session */
 
 struct m0_fop;
 struct m0_fom;
@@ -663,6 +666,81 @@ M0_INTERNAL void m0_reqh_service_quit(struct m0_reqh_service *svc);
  */
 int
 m0_reqh_service_async_start_simple(struct m0_reqh_service_start_async_ctx *asc);
+
+/**
+ * Maps sender to its corresponding maximum transaction for a given
+ * service.
+ */
+struct m0_reqh_service_txid {
+	/** m0_reqh_service_ctx is used as sender identifier. */
+	struct m0_reqh_service_ctx *stx_service_ctx;
+
+	/**
+	 * The remote id of the largest be transaction ID seen
+	 * from this sender.
+	 */
+	struct m0_be_tx_remid       stx_tri;
+
+	struct m0_tlink             stx_tlink;
+	uint64_t                    stx_link_magic;
+};
+
+/**
+   For each <service, endpoint> pair, there is one instance of
+   m0_reqh_service_ctx.
+ */
+struct m0_reqh_service_ctx {
+	struct m0_fid               sc_fid;
+
+	struct m0_pools_common      *sc_pc;
+
+	enum m0_conf_service_type   sc_type;
+
+	struct m0_rpc_conn          sc_conn;
+	struct m0_rpc_session       sc_session;
+
+	/** Linkage into external list of service contexts. */
+	struct m0_tlink             sc_link;
+
+	/** pending transaction record for this service. */
+	struct m0_reqh_service_txid sc_max_pending_tx;
+	struct m0_mutex             sc_max_pending_tx_lock;
+
+	bool                        sc_is_active;
+
+	/** Magic = M0_REQH_SVC_CTX_MAGIC */
+	uint64_t                    sc_magic;
+};
+
+M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
+					 struct m0_fid *id,
+					 enum m0_conf_service_type stype);
+
+M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx);
+
+/**
+ * Allocates and initialises m0_reqh_service_ctx for the given service type.
+ * Establishes rpc connection with the given endpoint.
+ */
+M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_fid *id,
+					   struct m0_rpc_machine *rmach,
+					   enum m0_conf_service_type stype,
+					   const char *endpoint,
+					   struct m0_reqh_service_ctx **ctx,
+					   bool connect);
+
+/**
+ * Terminates rpc connection.
+ * Finalises and destroys given service context.
+ */
+M0_INTERNAL void
+m0_reqh_service_ctx_destroy(struct m0_reqh_service_ctx *ctx);
+
+/**
+ * Returns the outer m0_reqh_service_ctx from a m0_rpc_session.
+ */
+M0_INTERNAL struct m0_reqh_service_ctx *
+m0_reqh_service_ctx_from_session(struct m0_rpc_session *session);
 
 /** @} endgroup reqhservice */
 #endif /* __MERO_REQH_REQH_SERVICE_H__ */

@@ -60,8 +60,8 @@ M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx);
  * Creates m0_confx and populates it with data read from a
  * configuration database.
  *
- * If the call succeeds, the user is responsible for freeing allocated
- * memory with m0_confx_free(*out).
+ * @note If the call succeeds, the user is responsible for freeing
+ *       allocated memory with m0_confx_free(*out).
  */
 M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_confx **out);
 

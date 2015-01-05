@@ -39,6 +39,7 @@
 #include "layout/linear_enum.h"
 #include "layout/pdclust.h"
 #include "conf/confc.h"
+#include "conf/helpers.h"
 #include "mdservice/md_fops.h"
 #include "mdservice/md_service.h"
 #include "mdservice/fsync_fops.h"
@@ -378,15 +379,15 @@ static int mds_layouts_init(struct m0_reqh_md_service *mds,
  */
 static int mds_start(struct m0_reqh_service *service)
 {
-	struct m0_mero			*cctx;
-	struct m0_reqh			*reqh;
-	struct m0_reqh_md_service	*mds;
-	struct m0_sm_group		*grp;
-	struct m0_rpc_machine		*rmach;
-	struct m0_confc			 confc;
-	struct m0_conf_obj		*fs;
-	struct m0_pdclust_attr		 pa = {0};
-	int				 rc;
+	struct m0_mero            *cctx;
+	struct m0_reqh            *reqh;
+	struct m0_reqh_md_service *mds;
+	struct m0_sm_group        *grp;
+	struct m0_rpc_machine     *rmach;
+	struct m0_confc            confc;
+	struct m0_conf_filesystem *fs;
+	struct m0_pdclust_attr     pa = {0};
+	int                        rc;
 
 	M0_PRE(service != NULL);
 
@@ -413,11 +414,11 @@ static int mds_start(struct m0_reqh_service *service)
 	grp  = m0_locality0_get()->lo_grp;
 	rmach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
 	rc = m0_conf_fs_get(cctx->cc_profile, cctx->cc_confd_addr,
-		rmach, grp, &confc, &fs);
+			    rmach, grp, &confc, &fs);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "failed to get fs configuration");
 	rc = m0_pdclust_attr_read(fs, &pa);
-	m0_confc_close(fs);
+	m0_confc_close(&fs->cf_obj);
 	m0_confc_fini(&confc);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "failed to get fs params");

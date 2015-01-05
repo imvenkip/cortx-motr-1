@@ -30,9 +30,10 @@
 #include "lib/uuid.h"
 #include "lib/lockers.h"
 #include "fop/fom.h"
+#include "rpc/conn.h"
+#include "rpc/rpclib.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
-#include "rpc/rpc_machine.h"
 #include "mero/magic.h"
 
 /**
@@ -50,7 +51,8 @@
 static struct m0_tl rstypes;
 
 enum {
-	M0_REQH_SVC_RPC_SERVICE_TYPE
+	M0_REQH_SVC_RPC_SERVICE_TYPE,
+	REQH_SVC_MAX_RPCS_IN_FLIGHT = 100
 };
 
 /** Protects access to list rstypes. */
@@ -64,6 +66,15 @@ M0_TL_DEFINE(rstypes, static, struct m0_reqh_service_type);
 
 static struct m0_bob_type rstypes_bob;
 M0_BOB_DEFINE(static, &rstypes_bob, m0_reqh_service_type);
+
+static const struct m0_bob_type reqh_svc_ctx = {
+	.bt_name         = "m0_reqh_service_ctx",
+	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_reqh_service_ctx,
+					   sc_magic),
+	.bt_magix        = M0_REQH_SVC_CTX_MAGIC,
+	.bt_check        = NULL
+};
+M0_BOB_DEFINE(static, &reqh_svc_ctx, m0_reqh_service_ctx);
 
 static struct m0_sm_state_descr service_states[] = {
 	[M0_RST_INITIALISING] = {
@@ -542,6 +553,128 @@ m0_reqh_service_async_start_simple(struct m0_reqh_service_start_async_ctx *asc)
 	return M0_RC(asc->sac_rc);
 }
 M0_EXPORTED(m0_reqh_service_async_start_simple);
+
+static bool reqh_service_context_invariant(const struct m0_reqh_service_ctx *ctx)
+{
+	return _0C(ctx != NULL) && _0C(m0_reqh_service_ctx_bob_check(ctx)) &&
+	       _0C(m0_fid_is_set(&ctx->sc_fid)) &&
+	       _0C(M0_CONF_SVC_TYPE_IS_VALID(ctx->sc_type));
+}
+
+static void reqh_service_disconnect(struct m0_reqh_service_ctx *ctx)
+{
+	m0_time_t   timeout;
+
+	M0_PRE(reqh_service_context_invariant(ctx));
+	M0_PRE(ctx->sc_is_active);
+
+	M0_LOG(M0_INFO, "Disconnecting from service. %s",
+		m0_rpc_conn_addr(&ctx->sc_conn));
+	/* client should not wait infinitely. */
+	timeout = m0_time_from_now(M0_RPC_ITEM_RESEND_INTERVAL * 2 + 1, 0);
+	(void)m0_rpc_session_destroy(&ctx->sc_session, timeout);
+	(void)m0_rpc_conn_destroy(&ctx->sc_conn, timeout);
+	ctx->sc_is_active = false;
+}
+
+static int reqh_service_connect(struct m0_reqh_service_ctx *ctx,
+				struct m0_rpc_machine *rmach,
+				const char *addr,
+				uint32_t max_rpc_nr_in_flight)
+{
+	int rc;
+
+	M0_PRE(reqh_service_context_invariant(ctx));
+
+	rc = m0_rpc_client_connect(&ctx->sc_conn, &ctx->sc_session, rmach,
+				   addr, max_rpc_nr_in_flight);
+	if (rc == 0) {
+		ctx->sc_is_active = true;
+		M0_LOG(M0_INFO, "Connected to service `%s'", addr);
+	}
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx)
+{
+	M0_ENTRY();
+
+	M0_PRE(reqh_service_context_invariant(ctx));
+
+	m0_mutex_fini(&ctx->sc_max_pending_tx_lock);
+	m0_reqh_service_ctx_bob_fini(ctx);
+
+	M0_LEAVE();
+}
+
+M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
+					 struct m0_fid *id,
+					 enum m0_conf_service_type stype)
+{
+	M0_ENTRY();
+
+	M0_SET0(ctx);
+	ctx->sc_fid = *id;
+	ctx->sc_type = stype;
+	m0_reqh_service_ctx_bob_init(ctx);
+	m0_mutex_init(&ctx->sc_max_pending_tx_lock);
+
+	M0_POST(reqh_service_context_invariant(ctx));
+	M0_LEAVE();
+	return 0;
+}
+
+M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_fid *id,
+					   struct m0_rpc_machine *rmach,
+					   enum m0_conf_service_type stype,
+					   const char *endpoint,
+					   struct m0_reqh_service_ctx **ctx,
+					   bool connect)
+{
+	int rc;
+
+	M0_PRE(m0_fid_is_set(id));
+	M0_PRE(M0_CONF_SVC_TYPE_IS_VALID(stype));
+
+	M0_ALLOC_PTR(*ctx);
+	if (ctx == NULL)
+		return -ENOMEM;
+	rc = m0_reqh_service_ctx_init(*ctx, id, stype);
+	if (rc == 0 && connect) {
+		rc = reqh_service_connect(*ctx, rmach, endpoint,
+					  REQH_SVC_MAX_RPCS_IN_FLIGHT);
+		if (rc != 0)
+			m0_reqh_service_ctx_fini(*ctx);
+	}
+	if (rc != 0)
+		m0_free(*ctx);
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL void
+m0_reqh_service_ctx_destroy(struct m0_reqh_service_ctx *ctx)
+{
+	if (ctx->sc_is_active)
+		reqh_service_disconnect(ctx);
+	m0_reqh_service_ctx_fini(ctx);
+	m0_free(ctx);
+}
+
+M0_INTERNAL struct m0_reqh_service_ctx *
+m0_reqh_service_ctx_from_session(struct m0_rpc_session *session)
+{
+	struct m0_reqh_service_ctx *ret = NULL;
+
+	M0_PRE(session != NULL);
+
+	ret = container_of(session, struct m0_reqh_service_ctx, sc_session);
+
+	M0_PRE(reqh_service_context_invariant(ret));
+
+	return ret;
+}
 
 /** @} endgroup reqhservice */
 #undef M0_TRACE_SUBSYSTEM

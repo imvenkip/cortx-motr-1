@@ -1094,8 +1094,6 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 		return M0_CS_READY;
 
 	case M0_CS_MISSING:
-		if (!confc_is_online(ctx->fc_confc))
-			return M0_RC(-ENOENT);
 		obj->co_status = M0_CS_LOADING;
 
 		if (m0_conf_obj_type(obj) == &M0_CONF_DIR_TYPE) {
@@ -1493,47 +1491,6 @@ static void confc_unlock(struct m0_confc *confc)
 static bool confc_is_locked(const struct m0_confc *confc)
 {
 	return m0_mutex_is_locked(&confc->cc_lock);
-}
-
-M0_INTERNAL int m0_conf_fs_get(const char *profile,
-			       const char *confd_addr,
-			       struct m0_rpc_machine *rmach,
-			       struct m0_sm_group *grp,
-			       struct m0_confc *confc,
-			       struct m0_conf_obj **fs)
-{
-	struct m0_fid	 prof_fid;
-	int		 rc;
-
-	M0_PRE(rmach != NULL);
-
-	if (confd_addr == NULL)
-		return M0_ERR_INFO(-EINVAL, "confd address is unknown");
-
-	rc = m0_fid_sscanf(profile, &prof_fid);
-	if (rc != 0)
-		return M0_ERR_INFO(rc, "Cannot parse profile `%s'", profile);
-
-	m0_fid_tset(&prof_fid, M0_CONF_PROFILE_TYPE.cot_ftype.ft_id,
-		    prof_fid.f_container, prof_fid.f_key);
-
-	if (!m0_conf_fid_is_valid(&prof_fid))
-		return M0_ERR_INFO(-EINVAL, "Wrong profile fid "FID_F,
-			FID_P(&prof_fid));
-
-	rc = m0_confc_init(confc, grp, &prof_fid, confd_addr,
-			   rmach, NULL);
-	if (rc != 0)
-		return M0_ERR_INFO(rc, "m0_confc_init() failed");
-
-	rc = m0_confc_open_sync(fs, confc->cc_root,
-				M0_CONF_PROFILE_FILESYSTEM_FID);
-	if (rc != 0) {
-		M0_LOG(M0_FATAL, "m0_confc_open_sync() failed: rc=%d", rc);
-		m0_confc_fini(confc);
-	}
-
-	return M0_RC(rc);
 }
 
 /** @} confc_dlspec */

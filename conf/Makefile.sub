@@ -5,7 +5,9 @@ nobase_mero_include_HEADERS += \
                                conf/confd.h \
                                conf/confd_fom.h \
                                conf/db.h \
+                               conf/dir_iter.h \
                                conf/fop.h \
+                               conf/helpers.h \
                                conf/obj.h \
                                conf/obj_ops.h \
                                conf/onwire.h \
@@ -19,7 +21,9 @@ mero_libmero_la_SOURCES += \
                            conf/confd.c \
                            conf/confd_fom.c \
                            conf/db.c \
+                           conf/dir_iter.c \
                            conf/fop.c \
+                           conf/helpers.c \
                            conf/obj.c \
                            conf/obj_ops.c \
                            conf/onwire_xc.c \

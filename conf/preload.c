@@ -50,7 +50,7 @@ M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_confx **out)
 	rc = m0_xcode_read(&M0_XCODE_OBJ(m0_confx_xc, *out), s);
 	if (rc != 0) {
 		M0_ASSERT(rc < 0);
-		M0_LOG(M0_NOTICE, "Cannot parse configuration string:\n%s", s);
+		M0_LOG(M0_INFO, "Cannot parse configuration string:\n%s", s);
 		m0_confx_free(*out);
 		*out = NULL;
 	}

@@ -265,11 +265,11 @@ int main(int argc, char **argv)
 	if (rc != 0)
 		return rc;
 
-	rc = m0_pool_init(&pool, P);
+	rc = m0_pool_init(&pool, &M0_FID_INIT(0, id));
 	if (rc == 0) {
 		attr.pa_N = N;
 		attr.pa_K = K;
-		attr.pa_P = pool.po_width;
+		attr.pa_P = P;
 		attr.pa_unit_size = unitsize;
 		attr.pa_seed = seed;
 

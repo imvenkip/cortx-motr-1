@@ -188,7 +188,7 @@ M0_INTERNAL int m0_ios_register(void)
 	 * not a sequence (which is more like an array.
 	 * This avoid dynamic memory for every request and reply fop.
 	 */
-	M0_CASSERT(sizeof (struct m0_pool_version_numbers) ==
+	M0_CASSERT(sizeof (struct m0_poolmach_versions) ==
 		   sizeof (struct m0_fv_version));
 
 	m0_addb_ctx_type_register(&m0_addb_ct_ios_serv);

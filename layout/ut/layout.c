@@ -636,8 +636,7 @@ static void NKP_assign_and_pool_init(uint32_t enum_id,
 	else
 		*N = *P - (2 * (*K)) - 100;
 
-	/* Initialise the pool. */
-	rc = m0_pool_init(&pool, *P);
+	rc = m0_pool_init(&pool, &M0_FID_INIT(0, enum_id));
 	M0_ASSERT(rc == 0);
 }
 

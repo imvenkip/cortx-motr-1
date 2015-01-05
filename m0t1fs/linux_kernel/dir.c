@@ -89,10 +89,10 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 		 * to the client's copy.
 		 */
 		rc = 0;
-		for (i = 0; i < r_common->cor_fv_updates.fvu_count; ++i) {
-			event = &r_common->cor_fv_updates.fvu_events[i];
-			m0_poolmach_state_transit(csb->csb_pool.po_mach,
-						  (struct m0_pool_event*)event,
+		for (i = 0; i < reply->cor_common.cor_fv_updates.fvu_count; ++i) {
+			event = &reply->cor_common.cor_fv_updates.fvu_events[i];
+			m0_poolmach_state_transit(&csb->csb_pool_version->pv_mach,
+						  (struct m0_poolmach_event*)event,
 						  NULL);
 		}
 	} else
@@ -519,7 +519,7 @@ static int m0t1fs_create(struct inode     *dir,
 		 * Create metadata cobs on these redundant services using
 		 * modified m0t1fs_component_objects_op().
 		 */
-		for (i = 0; i < csb->csb_md_redundancy; i++) {
+		for (i = 0; i < csb->csb_pools_common.pc_md_redundancy; i++) {
 			struct m0_fid           md_conf_fid;
 			struct m0_conf_obj     *obj;
 			struct m0_conf_service *svc;
@@ -857,7 +857,7 @@ switch_mds:
 	/*
 	 * EOF from one mdservice is detected. Switch to another mds.
 	 */
-	if (++fd->fd_mds_index < csb->csb_nr_mds) {
+	if (++fd->fd_mds_index < csb->csb_pools_common.pc_nr_svcs[M0_CST_MDS]) {
 		m0_bitstring_copy(fd->fd_dirpos, ".", 1);
 		M0_LOG(M0_DEBUG, "switch to mds %d", fd->fd_mds_index);
 		goto switch_mds;
@@ -1359,7 +1359,9 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 	struct m0t1fs_sb *csb;
 	struct m0_fid     cob_fid;
 	struct cob_req    cob_req;
-	int               pool_width;
+	uint32_t          pool_width;
+	uint32_t          N;
+	uint32_t          K;
 	int               i;
 	int               rc = 0;
 	uint32_t          cob_idx;
@@ -1377,8 +1379,10 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 			 op_name, FID_P(m0t1fs_inode_fid(ci)));
 
 	csb = M0T1FS_SB(ci->ci_inode.i_sb);
-	pool_width = csb->csb_pool_width;
-	M0_ASSERT(pool_width >= 1);
+	pool_width = csb->csb_pool_version->pv_attr.pa_P;
+	N = csb->csb_pool_version->pv_attr.pa_N;
+	K = csb->csb_pool_version->pv_attr.pa_K;
+	M0_ASSERT(pool_width >= (N + (2 * K)));
 
 	m0_semaphore_init(&cob_req.cr_sem, 0);
 
@@ -1586,7 +1590,7 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		struct m0_fop_delxattr_rep  *delxattr_rep;
 	} u;
 	void                              *reply_data;
-	struct m0t1fs_service_context     *service;
+	struct m0_reqh_service_ctx        *ctx;
 	struct m0_be_tx_remid             *remid = NULL;
 
 	M0_PRE(csb != NULL);
@@ -1719,9 +1723,9 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 	}
 
 	/* update pending transaction number */
-	service = m0t1fs_service_from_session(session);
+	ctx = m0_reqh_service_ctx_from_session(session);
 	if (remid != NULL)
-		m0t1fs_fsync_record_update(service, csb, NULL, remid);
+		m0t1fs_fsync_record_update(ctx, csb, NULL, remid);
 
 out:
 	m0_fop_put0_lock(fop);
@@ -1890,9 +1894,9 @@ static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb   *csb,
 				       const struct m0_fid      *gob_fid,
 				       uint32_t                  cob_idx)
 {
-	struct m0_fop_cob_common       *common;
-	struct m0_pool_version_numbers *cli;
-	struct m0_pool_version_numbers  curr;
+	struct m0_fop_cob_common    *common;
+	struct m0_poolmach_versions *cli;
+	struct m0_poolmach_versions  curr;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(fop->f_type != NULL);
@@ -1905,8 +1909,8 @@ static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb   *csb,
 	M0_ASSERT(common != NULL);
 
 	/* fill in the current client known version */
-	m0_poolmach_current_version_get(csb->csb_pool.po_mach, &curr);
-	cli = (struct m0_pool_version_numbers*)&common->c_version;
+	m0_poolmach_current_version_get(&csb->csb_pool_version->pv_mach, &curr);
+	cli = (struct m0_poolmach_versions*)&common->c_version;
 	*cli = curr;
 	body_mem2wire(&common->c_body, &mop->mo_attr, mop->mo_attr.ca_valid);
 
@@ -2057,7 +2061,7 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 
 	gob_fid = *m0t1fs_inode_fid(ci);
 	/* cob fid is unknown at this moment. */
-	idx = m0_rnd(csb->csb_md_redundancy, &idx);
+	idx = m0_rnd(csb->csb_pools_common.pc_md_redundancy, &idx);
 	cob_idx = 1 + idx;
 	cob_fid = (struct m0_fid) { cob_idx, gob_fid.f_key };
 	/* md_conf_fid = m0t1fs_hash_ios(csb, &gob_fid, idx); */
@@ -2103,8 +2107,8 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 		r_common = &getattr_rep->cgr_common;
 		for (i = 0; i < r_common->cor_fv_updates.fvu_count; ++i) {
 			event = &r_common->cor_fv_updates.fvu_events[i];
-			m0_poolmach_state_transit(csb->csb_pool.po_mach,
-						  (struct m0_pool_event*)event,
+			m0_poolmach_state_transit(&csb->csb_pool_version->pv_mach,
+						  (struct m0_poolmach_event*)event,
 						  NULL);
 		}
 	}

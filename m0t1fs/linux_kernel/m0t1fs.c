@@ -182,19 +182,4 @@ M0_INTERNAL void m0t1fs_fini(void)
 	M0_LEAVE();
 }
 
-/**
- * Returns the outer m0t1fs_service_context from a m0t1fs m0_rpc_session.
- */
-M0_INTERNAL struct m0t1fs_service_context *
-m0t1fs_service_from_session(struct m0_rpc_session *session)
-{
-	struct m0t1fs_service_context *ret = NULL;
-
-	M0_PRE(session != NULL);
-	ret = container_of(session, struct m0t1fs_service_context, sc_session);
-
-	M0_POST(ret->sc_magic == M0_T1FS_SVC_CTX_MAGIC);
-
-	return ret;
-}
 #undef M0_TRACE_SUBSYSTEM

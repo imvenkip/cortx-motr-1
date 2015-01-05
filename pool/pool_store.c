@@ -53,15 +53,15 @@ struct m0_pool_spare_usage_rec {
 };
 
 struct m0_poolmach_state_rec {
-	struct m0_pool_version_numbers psr_version;
-	uint32_t                       psr_nr_nodes;
-	uint32_t                       psr_nr_devices;
-	uint32_t                       psr_max_node_failures;
-	uint32_t                       psr_max_device_failures;
+	struct m0_poolmach_versions psr_version;
+	uint32_t                    psr_nr_nodes;
+	uint32_t                    psr_nr_devices;
+	uint32_t                    psr_max_node_failures;
+	uint32_t                    psr_max_device_failures;
 };
 
-struct m0_pool_event_rec {
-	struct m0_pool_event per_event;
+struct m0_poolmach_event_rec {
+	struct m0_poolmach_event per_event;
 };
 
 static int pool0_init(struct m0_be_domain *dom, const char *suffix,
@@ -97,8 +97,8 @@ struct m0_be_0type m0_be_pool0 = {
 M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach     *pm,
 					  struct m0_be_tx_credit *accum)
 {
-	struct m0_pool_event_link *event_link;
-	struct m0_poolmach_state  *state = pm->pm_state;
+	struct m0_poolmach_event_link *event_link;
+	struct m0_poolmach_state      *state = pm->pm_state;
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(state));
 	m0_be_tx_credit_add(accum,
@@ -126,11 +126,11 @@ M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach     *pm,
  */
 M0_INTERNAL int m0_poolmach_store(struct m0_poolmach        *pm,
 				  struct m0_be_tx           *tx,
-				  struct m0_pool_event_link *event_link)
+				  struct m0_poolmach_event_link *event_link)
 {
-	struct m0_poolmach_state  *dest = pm->pm_state;
-	struct m0_pool_event_link *new_link;
-	int                        rc = 0;
+	struct m0_poolmach_state      *dest = pm->pm_state;
+	struct m0_poolmach_event_link *new_link;
+
 	M0_ENTRY();
 
 	M0_BE_ALLOC_PTR_SYNC(new_link, pm->pm_be_seg, tx);
@@ -153,7 +153,7 @@ M0_INTERNAL int m0_poolmach_store(struct m0_poolmach        *pm,
 			     new_link->pel_linkage.t_link.ll_prev);
 	M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx,
 			     new_link->pel_linkage.t_link.ll_next);
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 static int m0_poolmach_load(struct m0_poolmach       *pm,
@@ -239,12 +239,12 @@ static int poolmach_store_create(struct m0_be_seg   *be_seg,
 		state->pst_max_device_failures = max_device_failures;
 		for (i = 0; i < state->pst_nr_nodes; i++) {
 			state->pst_nodes_array[i].pn_state = M0_PNDS_ONLINE;
-			state->pst_nodes_array[i].pn_id    = NULL;
+			M0_SET0(&state->pst_nodes_array[i].pn_id);
 		}
 
 		for (i = 0; i < state->pst_nr_devices; i++) {
 			state->pst_devices_array[i].pd_state = M0_PNDS_ONLINE;
-			state->pst_devices_array[i].pd_id    = NULL;
+			M0_SET0(&state->pst_devices_array[i].pd_id);
 			state->pst_devices_array[i].pd_node  = NULL;
 		}
 
@@ -314,17 +314,17 @@ M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
 static int poolmach_store_destroy(struct m0_be_seg   *be_seg,
 				  struct m0_sm_group *sm_grp)
 {
-	struct m0_be_tx_credit      cred = {};
-	struct m0_be_tx            *tx;
-	struct m0_poolmach_state   *state;
-	struct m0_poolnode         *nodes_array;
-	struct m0_pooldev          *devices_array;
-	struct m0_pool_spare_usage *spare_usage_array;
-	struct m0_pool_event_link  *scan;
-	struct m0_list_link        *prev;
-	struct m0_list_link        *next;
-	const char                 *id = "000000001";
-	int                         rc;
+	struct m0_be_tx_credit         cred = {};
+	struct m0_be_tx               *tx;
+	struct m0_poolmach_state      *state;
+	struct m0_poolnode            *nodes_array;
+	struct m0_pooldev             *devices_array;
+	struct m0_pool_spare_usage    *spare_usage_array;
+	struct m0_poolmach_event_link *scan;
+	struct m0_list_link           *prev;
+	struct m0_list_link           *next;
+	const char                    *id = "000000001";
+	int                            rc;
 
 	M0_PRE(be_seg != NULL);
 	M0_ENTRY("sid: %"PRIu64, be_seg->bs_id);
@@ -411,7 +411,7 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
 
 M0_INTERNAL int m0_poolmach_event_store(struct m0_poolmach *pm,
 					struct m0_be_tx *tx,
-					struct m0_pool_event_link *event_link)
+					struct m0_poolmach_event_link *event_link)
 {
 	return 0;
 }

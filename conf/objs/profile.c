@@ -1,4 +1,3 @@
-/* -*- c -*- */
 /*
  * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
@@ -18,16 +17,12 @@
  * Original creation date: 30-Aug-2012
  */
 
-#include "conf/objs/common.h"
-#include "conf/onwire_xc.h" /* m0_confx_profile_xc */
-#include "conf/confc.h"     /* m0_confc */
-#include "mero/magic.h"     /* M0_CONF_PROFILE_MAGIC */
-#include "conf/onwire_xc.h"
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
 
-const struct m0_fid M0_CONF_PROFILE_FILESYSTEM_FID = M0_FID_TINIT('/', 0, 1);
+#include "conf/objs/common.h"
+#include "conf/onwire_xc.h"  /* m0_confx_profile_xc */
+#include "mero/magic.h"      /* M0_CONF_PROFILE_MAGIC */
 
 #define XCAST(xobj) ((struct m0_confx_profile *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_profile, xp_header) == 0);
@@ -44,7 +39,6 @@ static bool profile_check(const void *bob)
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_profile, M0_CONF_PROFILE_MAGIC, profile_check);
-
 M0_CONF__INVARIANT_DEFINE(profile_invariant, m0_conf_profile);
 
 static int profile_decode(struct m0_conf_obj *dest,
@@ -114,31 +108,18 @@ static const struct m0_conf_obj_ops profile_ops = {
 	.coo_delete    = profile_delete
 };
 
-static struct m0_conf_obj *profile_create(void)
-{
-	struct m0_conf_profile *x;
-	struct m0_conf_obj     *ret;
-
-	M0_ALLOC_PTR(x);
-	if (x == NULL)
-		return NULL;
-	m0_conf_profile_bob_init(x);
-
-	ret = &x->cp_obj;
-	ret->co_ops = &profile_ops;
-	return ret;
-}
+M0_CONF__CTOR_DEFINE(profile_create, m0_conf_profile, &profile_ops);
 
 const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'p',
 		.ft_name = "configuration profile"
 	},
-	.cot_create     = &profile_create,
-	.cot_xt         = &m0_confx_profile_xc,
-	.cot_branch     = "u_profile",
-	.cot_xc_init    = &m0_xc_m0_confx_profile_struct_init,
-	.cot_magic      = M0_CONF_PROFILE_MAGIC
+	.cot_create  = &profile_create,
+	.cot_xt      = &m0_confx_profile_xc,
+	.cot_branch  = "u_profile",
+	.cot_xc_init = &m0_xc_m0_confx_profile_struct_init,
+	.cot_magic   = M0_CONF_PROFILE_MAGIC
 };
 
 #undef XCAST

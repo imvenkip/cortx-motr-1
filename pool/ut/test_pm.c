@@ -85,14 +85,14 @@ static void pm_test_transit(void)
 	struct m0_poolmach             pm;
 	int                            rc;
 	bool                           equal;
-	struct m0_pool_event           events[4];
-	struct m0_pool_version_numbers v0;
-	struct m0_pool_version_numbers v1;
-	struct m0_pool_version_numbers v2;
-	struct m0_pool_event           e_invalid;
-	struct m0_pool_version_numbers v_invalid;
+	struct m0_poolmach_event       events[4];
+	struct m0_poolmach_versions    v0;
+	struct m0_poolmach_versions    v1;
+	struct m0_poolmach_versions    v2;
+	struct m0_poolmach_event       e_invalid;
+	struct m0_poolmach_versions    v_invalid;
 	struct m0_tl                   events_list;
-	struct m0_pool_event_link     *scan;
+	struct m0_poolmach_event_link *scan;
 	uint32_t                       count;
 	uint32_t                       index;
 	struct m0_be_tx_credit         cred = {};
@@ -179,7 +179,7 @@ static void pm_test_transit(void)
 	M0_UT_ASSERT(count == 2);
 	index = 0;
 	m0_tl_for(poolmach_events, &events_list, scan) {
-		struct m0_pool_event *e = &scan->pel_event;
+		struct m0_poolmach_event *e = &scan->pel_event;
 		M0_UT_ASSERT(events[index].pe_state == e->pe_state);
 		M0_UT_ASSERT(events[index].pe_type  == e->pe_type);
 		M0_UT_ASSERT(events[index].pe_index == e->pe_index);
@@ -200,7 +200,7 @@ static void pm_test_transit(void)
 	M0_UT_ASSERT(count == 2);
 	index = 2;
 	m0_tl_for(poolmach_events, &events_list, scan) {
-		struct m0_pool_event *e = &scan->pel_event;
+		struct m0_poolmach_event *e = &scan->pel_event;
 		M0_UT_ASSERT(events[index].pe_state == e->pe_state);
 		M0_UT_ASSERT(events[index].pe_type  == e->pe_type);
 		M0_UT_ASSERT(events[index].pe_index == e->pe_index);
@@ -220,7 +220,7 @@ static void pm_test_transit(void)
 	M0_UT_ASSERT(count == 4);
 	index = 0;
 	m0_tl_for(poolmach_events, &events_list, scan) {
-		struct m0_pool_event *e = &scan->pel_event;
+		struct m0_poolmach_event *e = &scan->pel_event;
 		M0_UT_ASSERT(events[index].pe_state == e->pe_state);
 		M0_UT_ASSERT(events[index].pe_type  == e->pe_type);
 		M0_UT_ASSERT(events[index].pe_index == e->pe_index);
@@ -240,7 +240,7 @@ static void pm_test_transit(void)
 	M0_UT_ASSERT(count == 2);
 	index = 0;
 	m0_tl_for(poolmach_events, &events_list, scan) {
-		struct m0_pool_event *e = &scan->pel_event;
+		struct m0_poolmach_event *e = &scan->pel_event;
 		M0_UT_ASSERT(events[index].pe_state == e->pe_state);
 		M0_UT_ASSERT(events[index].pe_type  == e->pe_type);
 		M0_UT_ASSERT(events[index].pe_index == e->pe_index);
@@ -260,7 +260,7 @@ static void pm_test_transit(void)
 	M0_UT_ASSERT(count == 2);
 	index = 2;
 	m0_tl_for(poolmach_events, &events_list, scan) {
-		struct m0_pool_event *e = &scan->pel_event;
+		struct m0_poolmach_event *e = &scan->pel_event;
 		M0_UT_ASSERT(events[index].pe_state == e->pe_state);
 		M0_UT_ASSERT(events[index].pe_type  == e->pe_type);
 		M0_UT_ASSERT(events[index].pe_index == e->pe_index);
@@ -280,7 +280,7 @@ static void pm_test_transit(void)
 	M0_UT_ASSERT(count == 4);
 	index = 0;
 	m0_tl_for(poolmach_events, &events_list, scan) {
-		struct m0_pool_event *e = &scan->pel_event;
+		struct m0_poolmach_event *e = &scan->pel_event;
 		M0_UT_ASSERT(events[index].pe_state == e->pe_state);
 		M0_UT_ASSERT(events[index].pe_type  == e->pe_type);
 		M0_UT_ASSERT(events[index].pe_index == e->pe_index);
@@ -304,7 +304,7 @@ static void pm_test_transit(void)
 	M0_UT_ASSERT(count == 4);
 	index = 0;
 	m0_tl_for(poolmach_events, &events_list, scan) {
-		struct m0_pool_event *e = &scan->pel_event;
+		struct m0_poolmach_event *e = &scan->pel_event;
 		M0_UT_ASSERT(events[index].pe_state == e->pe_state);
 		M0_UT_ASSERT(events[index].pe_type  == e->pe_type);
 		M0_UT_ASSERT(events[index].pe_index == e->pe_index);
@@ -324,7 +324,7 @@ static void pm_test_transit(void)
 	M0_UT_ASSERT(count == 4);
 	index = 0;
 	m0_tl_for(poolmach_events, &events_list, scan) {
-		struct m0_pool_event *e = &scan->pel_event;
+		struct m0_poolmach_event *e = &scan->pel_event;
 		M0_UT_ASSERT(events[index].pe_state == e->pe_state);
 		M0_UT_ASSERT(events[index].pe_type  == e->pe_type);
 		M0_UT_ASSERT(events[index].pe_index == e->pe_index);
@@ -411,7 +411,7 @@ static void pm_test_spare_slot(void)
 {
 	struct m0_poolmach    pm;
 	int                   rc = 0;
-	struct m0_pool_event  event;
+	struct m0_poolmach_event  event;
 	enum m0_pool_nd_state state_out;
 	enum m0_pool_nd_state target_state;
 	enum m0_pool_nd_state state;
@@ -575,14 +575,14 @@ static void pm_test_spare_slot(void)
 
 static void pm_test_multi_fail(void)
 {
-	struct m0_poolmach    pm;
-	int                   rc = 0;
-	struct m0_pool_event  event;
-	enum m0_pool_nd_state state_out;
-	enum m0_pool_nd_state target_state;
-	uint32_t              spare_slot;
-	struct m0_be_tx       tx;
-	struct m0_be_tx_credit cred = {};
+	struct m0_poolmach       pm;
+	struct m0_poolmach_event event;
+	enum m0_pool_nd_state    state_out;
+	enum m0_pool_nd_state    target_state;
+	struct m0_be_tx          tx;
+	struct m0_be_tx_credit   cred = {};
+	uint32_t                 spare_slot;
+	int                      rc;
 
 	M0_SET0(&pm);
 	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,

@@ -95,6 +95,7 @@
 #include "lib/trace.h"
 
 #include "mero/magic.h"
+#include "conf/obj.h"   /* m0_conf_filesystem */
 #include "layout/layout_internal.h"
 #include "layout/pdclust.h"
 
@@ -858,7 +859,7 @@ M0_INTERNAL void pdclust_instance_fini(struct m0_layout_instance *li)
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_pdclust_attr_read(const struct m0_conf_obj *fs,
+M0_INTERNAL int m0_pdclust_attr_read(const struct m0_conf_filesystem *fs,
 				     struct m0_pdclust_attr *pa)
 {
 	int rc;

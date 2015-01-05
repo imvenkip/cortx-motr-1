@@ -1280,13 +1280,13 @@ static void cob_delete_api_test(void)
 
 static void cobfoms_fv_updates(void)
 {
-	struct m0_reqh        *reqh;
-	struct m0_poolmach    *pm;
-	struct m0_pool_event   event;
-	struct m0_be_tx_credit cred = {};
-	struct m0_be_tx        tx;
-	struct m0_sm_group    *grp  = m0_locality0_get()->lo_grp;
-	int                    rc;
+	struct m0_reqh          *reqh;
+	struct m0_poolmach      *pm;
+	struct m0_poolmach_event event;
+	struct m0_be_tx_credit   cred = {};
+	struct m0_be_tx          tx;
+	struct m0_sm_group      *grp  = m0_locality0_get()->lo_grp;
+	int                      rc;
 
 	event.pe_type  = M0_POOL_DEVICE;
 	event.pe_index = 1;

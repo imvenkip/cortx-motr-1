@@ -142,7 +142,7 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 	case M0_POOLMACHINE_SET_OPCODE: {
 		struct m0_fop_poolmach_set     *set_fop;
 		struct m0_fop_poolmach_set_rep *set_fop_rep;
-		struct m0_pool_event            pme;
+		struct m0_poolmach_event        pme;
 		int                             rc = 0;
 		int                             i;
 

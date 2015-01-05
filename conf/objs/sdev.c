@@ -1,4 +1,3 @@
-/* -*- c -*- */
 /*
  * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
@@ -18,12 +17,12 @@
  * Original creation date: 30-Aug-2012
  */
 
-#include "conf/objs/common.h"
-#include "conf/onwire_xc.h" /* m0_confx_sdev_xc */
-#include "mero/magic.h"     /* M0_CONF_SDEV_MAGIC */
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
+
+#include "conf/objs/common.h"
+#include "conf/onwire_xc.h"  /* m0_confx_sdev_xc */
+#include "mero/magic.h"      /* M0_CONF_SDEV_MAGIC */
 
 #define XCAST(xobj) ((struct m0_confx_sdev *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_sdev, xd_header) == 0);
@@ -39,7 +38,6 @@ static bool sdev_check(const void *bob)
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_sdev, M0_CONF_SDEV_MAGIC, sdev_check);
-
 M0_CONF__INVARIANT_DEFINE(sdev_invariant, m0_conf_sdev);
 
 static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
@@ -50,6 +48,7 @@ static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 
 	d->sd_iface      = s->xd_iface;
 	d->sd_media      = s->xd_media;
+	d->sd_bsize      = s->xd_bsize;
 	d->sd_size       = s->xd_size;
 	d->sd_last_state = s->xd_last_state;
 	d->sd_flags      = s->xd_flags;
@@ -62,9 +61,19 @@ static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 
 static int sdev_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
+	const struct m0_conf_sdev  *s = M0_CONF_CAST(src, m0_conf_sdev);
+	struct m0_confx_sdev *d = XCAST(dest);
+
 	confx_encode(dest, src);
-	M0_IMPOSSIBLE("XXX not implemented");
-	return M0_ERR(-ENOSYS);
+	d->xd_iface      = s->sd_iface;
+	d->xd_media      = s->sd_media;
+	d->xd_bsize      = s->sd_bsize;
+	d->xd_size       = s->sd_size;
+	d->xd_last_state = s->sd_last_state;
+	d->xd_flags      = s->sd_flags;
+
+	return m0_buf_copy(&d->xd_filename,
+			   &M0_BUF_INITS((char *)s->sd_filename));
 }
 
 static bool
@@ -73,7 +82,6 @@ sdev_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	const struct m0_confx_sdev *xobj = XCAST(flat);
 	const struct m0_conf_sdev  *obj = M0_CONF_CAST(cached, m0_conf_sdev);
 
-	M0_IMPOSSIBLE("XXX TODO: compare dir elements");
 	return  obj->sd_iface      == xobj->xd_iface      &&
 		obj->sd_media      == xobj->xd_media      &&
 		obj->sd_size       == xobj->xd_size       &&
@@ -85,7 +93,7 @@ sdev_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 static int sdev_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 		       struct m0_conf_obj **out)
 {
-	M0_IMPOSSIBLE("XXX not implemented");
+	M0_IMPOSSIBLE("No directory present");
 	return M0_ERR(-ENOSYS);
 }
 
@@ -108,31 +116,18 @@ static const struct m0_conf_obj_ops sdev_ops = {
 	.coo_delete    = sdev_delete
 };
 
-static struct m0_conf_obj *sdev_create(void)
-{
-	struct m0_conf_sdev *x;
-	struct m0_conf_obj  *ret;
-
-	M0_ALLOC_PTR(x);
-	if (x == NULL)
-		return NULL;
-	m0_conf_sdev_bob_init(x);
-
-	ret = &x->sd_obj;
-	ret->co_ops = &sdev_ops;
-	return ret;
-}
+M0_CONF__CTOR_DEFINE(sdev_create, m0_conf_sdev, &sdev_ops);
 
 const struct m0_conf_obj_type M0_CONF_SDEV_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'd',
 		.ft_name = "storage device"
 	},
-	.cot_create     = &sdev_create,
-	.cot_xt         = &m0_confx_sdev_xc,
-	.cot_branch     = "u_sdev",
-	.cot_xc_init    = &m0_xc_m0_confx_sdev_struct_init,
-	.cot_magic      = M0_CONF_SDEV_MAGIC
+	.cot_create  = &sdev_create,
+	.cot_xt      = &m0_confx_sdev_xc,
+	.cot_branch  = "u_sdev",
+	.cot_xc_init = &m0_xc_m0_confx_sdev_struct_init,
+	.cot_magic   = M0_CONF_SDEV_MAGIC
 };
 
 #undef XCAST

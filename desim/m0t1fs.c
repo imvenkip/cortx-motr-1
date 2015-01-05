@@ -75,7 +75,7 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 			/* @todo for parity unit waste some time calculating
 			   parity. Limit bus bandwidth. */
 			obj = tgt.ta_obj;
-			M0_ASSERT(obj < conf->ct_pool.po_width);
+			M0_ASSERT(obj < conf->ct_pool_version.pv_attr.pa_P);
 			srv  = obj / conf->ct_nr_devices;
 			conn = &cl->cc_srv[srv];
 			le->le_ops->leo_get(le, obj, &pi->pi_base.li_gfid,
@@ -133,7 +133,7 @@ static void layout_build(struct m0t1fs_conf *conf)
 	result = m0_layout_standard_types_register(&conf->ct_l_dom);
 	M0_ASSERT(result == 0);
 
-	lin_attr.lla_nr = conf->ct_pool.po_width;
+	lin_attr.lla_nr = conf->ct_pool_version.pv_attr.pa_P;
 	lin_attr.lla_A = 0;
 	lin_attr.lla_B = 1;
 	result = m0_linear_enum_build(&conf->ct_l_dom, &lin_attr, &lin_enum);
@@ -141,7 +141,7 @@ static void layout_build(struct m0t1fs_conf *conf)
 
 	pl_attr.pa_N = conf->ct_N;
 	pl_attr.pa_K = conf->ct_K;
-	pl_attr.pa_P = conf->ct_pool.po_width;
+	pl_attr.pa_P = conf->ct_pool_version.pv_attr.pa_P;
 	pl_attr.pa_unit_size = conf->ct_unitsize;
 	lid = 0x4332543146535349; /* M0T1FSSI */
 	m0_uint128_init(&pl_attr.pa_seed, "m0t1fs_si_pdclus");
@@ -168,9 +168,15 @@ M0_INTERNAL void m0t1fs_init(struct sim *s, struct m0t1fs_conf *conf)
 	unsigned      i;
 	unsigned      j;
 	struct m0_fid gfid0;
+	struct m0_fid p_id  = {0x123, 0x456};
+	struct m0_fid pv_id = {0x789, 0x101112};
 	int           result;
 
-	m0_pool_init(&conf->ct_pool, conf->ct_nr_servers * conf->ct_nr_devices);
+	m0_pool_init(&conf->ct_pool, &p_id);
+	m0_pool_version_init(&conf->ct_pool_version, &pv_id, &conf->ct_pool,
+			     conf->ct_nr_servers * conf->ct_nr_devices,
+			     conf->ct_nr_servers, conf->ct_N, conf->ct_K, NULL,
+			     NULL, NULL);
 	conf->ct_srv = sim_alloc(conf->ct_nr_servers * sizeof conf->ct_srv[0]);
 	for (i = 0; i < conf->ct_nr_servers; ++i) {
 		struct net_srv *srv = &conf->ct_srv[i];

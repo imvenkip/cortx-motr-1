@@ -25,6 +25,7 @@
 
 struct m0_conf_cache;
 struct m0_confx_obj;
+struct arr_fid;
 
 /**
  * @page conf-fspec-objops Configuration Object Operations
@@ -246,6 +247,27 @@ M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
  */
 M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,
 				   const struct m0_confx_obj *flat);
+/**
+ * Adds object to directory.
+ *
+ * @pre obj->co_status == M0_CS_READY
+ * @pre m0_conf_obj_type(obj) == dir->cd_item_type
+ */
+M0_INTERNAL void m0_conf_dir_add(struct m0_conf_dir *dir,
+				 struct m0_conf_obj *obj);
+
+/**
+ * Deletes object from directory.
+ *
+ * @pre obj->co_status == M0_CS_READY
+ * @pre m0_conf_obj_type(obj) == dir->cd_item_type
+ */
+M0_INTERNAL void m0_conf_dir_del(struct m0_conf_dir *dir,
+				 struct m0_conf_obj *obj);
+
+/** Compares fids with directory entries. */
+M0_INTERNAL bool m0_conf_dir_elems_match(const struct m0_conf_dir *dir,
+					 const struct arr_fid *fids);
 
 /** @} conf_dfspec_objops */
 #endif /* __MERO_CONF_OBJOPS_H__ */

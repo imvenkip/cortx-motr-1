@@ -35,12 +35,12 @@
 #include "lib/tlist.h"          /* M0_TL_DESCR_DECLARE() */
 
 /* ISPTI -> Inode's Service to Pending Transaction Id list */
-M0_TL_DESCR_DEFINE(ispti, "m0t1fs_service_txid pending an inode", ,
-			struct m0t1fs_service_txid,
+M0_TL_DESCR_DEFINE(ispti, "m0_reqh_service_txid pending an inode", ,
+			struct m0_reqh_service_txid,
 			stx_tlink, stx_link_magic,
 			M0_T1FS_INODE_PTI_MAGIC1, M0_T1FS_INODE_PTI_MAGIC2);
 
-M0_TL_DEFINE(ispti, , struct m0t1fs_service_txid);
+M0_TL_DEFINE(ispti, , struct m0_reqh_service_txid);
 
 static struct kmem_cache *m0t1fs_inode_cachep = NULL;
 
@@ -133,9 +133,11 @@ M0_INTERNAL struct m0_rm_domain *m0t1fs_rm_domain_get(struct m0t1fs_sb *sb)
 M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode *ci,
 				       struct m0t1fs_sb *csb)
 {
-	struct m0_rm_domain *rdom;
-	const struct m0_fid *fid = &ci->ci_fid;
-	M0_PRE(csb->csb_cl_map.rm_ctx != NULL);
+	struct m0_rm_domain    *rdom;
+	struct m0_pools_common *pc = &csb->csb_pools_common;
+	const struct m0_fid    *fid = &ci->ci_fid;
+
+	M0_PRE(pc->pc_rm_ctx != NULL);
 
 	M0_ENTRY();
 
@@ -150,7 +152,7 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode *ci,
 	m0_file_owner_init(&ci->ci_fowner, &m0_rm_m0t1fs_group,
 			   &ci->ci_flock, NULL);
 	ci->ci_fowner.ro_creditor = &ci->ci_creditor;
-	ci->ci_creditor.rem_session = &csb->csb_cl_map.rm_ctx->sc_session;
+	ci->ci_creditor.rem_session = &pc->pc_rm_ctx->sc_session;
 
 	M0_LEAVE();
 }
@@ -188,7 +190,7 @@ static void m0t1fs_inode_init(struct m0t1fs_inode *ci)
 
 static void m0t1fs_inode_ispti_fini(struct m0t1fs_inode *ci)
 {
-	struct m0t1fs_service_txid *iter = NULL;
+	struct m0_reqh_service_txid *iter = NULL;
 
 	M0_ENTRY();
 

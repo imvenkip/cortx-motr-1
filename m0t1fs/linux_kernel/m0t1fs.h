@@ -35,18 +35,17 @@
 #include "lib/hash.h"
 #include "lib/mutex.h"
 #include "lib/semaphore.h"
-#include "net/net.h"              /* m0_net_domain */
+#include "net/net.h"             /* m0_net_domain */
 #include "rpc/rpc.h"
 #include "reqh/reqh.h"
-#include "pool/pool.h"            /* m0_pool */
+#include "pool/pool.h"           /* m0_pool, m0_pool_version, m0_pools_common */
 #include "net/buffer_pool.h"
 #include "fid/fid.h"
-#include "cob/cob.h"              /* m0_cob_domain_id */
+#include "cob/cob.h"             /* m0_cob_domain_id */
 #include "layout/layout.h"
-#include "ioservice/io_fops.h"    /* m0_fop_cob_create_fopt */
-#include "mdservice/md_fops.h"    /* m0_fop_create_fopt */
-#include "conf/schema.h"          /* m0_conf_service_type */
-#include "file/file.h"		  /* m0_file */
+#include "ioservice/io_fops.h"   /* m0_fop_cob_create_fopt */
+#include "mdservice/md_fops.h"   /* m0_fop_create_fopt */
+#include "file/file.h"		 /* m0_file */
 #include "be/be.h"
 #include "be/ut/helper.h"
 
@@ -122,6 +121,18 @@
 
    The rpc-connections and rpc-sessions will be terminated at unmount time.
 
+   <B> Pools and Pool versions: </B>
+
+   m0t1fs can work with multiple pools and pool versions.
+   A pool version comprises of a set of services and devices attached to them.
+   Layout and pool machine are associated with the pool version. Pool version
+   creates a device to io service map during initialisation.
+
+   m0t1fs finds a valid pool and pool version to start with which has no devices
+   from the failure set during mount. Once pool version is obtained, if its
+   corresponding pool already exist them the pool version is added to it else
+   new pool is initialised.
+
    <B> Containers and component objects: </B>
 
    An io service provides access to storage objects, md service provides
@@ -155,7 +166,8 @@
    linear enumeration (B * x + A) with both A and B parameters set to 1.
    Container location map, maps container-ids from 1 to P, to io-services.
 
-   Container location map is populated at mount time.
+   Container location map is populated at mount time and is a part of
+   a pool version.
 
    <B> Directory Operations: </B>
 
@@ -527,12 +539,12 @@
  * @section Mero-CMD-lspec Logical Specification
  * For stage 0 and stage OOSTORE, a simple data structure and a simple
  * algorithm will be used to map an object and its operations to the right
- * mdservice. Mero client has a "struct m0t1fs_service_context" for every
+ * mdservice. Mero client has a "struct m0_reqh_service_ctx" for every
  * service, including mdservice, ioservice, and other service. These service
  * contexts are linked in a list. We will also use an array to store all the
  * pointers to these mds contexts.
  * @code
- *	struct m0t1fs_service_context *mds_map[M0T1FS_MAX_MDS_NR];
+ *	struct m0_reqh_service_ctx *mds_map[M0T1FS_MAX_MDS_NR];
  * #endofcode
  * A simple function is used to map a file to mdservice by hashing its file
  * name:
@@ -659,123 +671,30 @@ enum io_req_type {
         IRT_TYPE_NR,
 };
 
-struct m0t1fs_service_txid {
-	/**
-	 * m0t1fs_service_context is used as sender identifier
-	 * This is used as a key for the inode:list, but for super blocks
-	 * this struct is embedded in the m0t1fs_service_context.
-	 */
-	struct m0t1fs_service_context *stx_service_ctx;
-
-	/**
-	 * The remote id of the largest be transaction ID seen
-	 * from this sender.
-	 */
-	struct m0_be_tx_remid          stx_tri;
-
-	struct m0_tlink                stx_tlink;
-	uint64_t                       stx_link_magic;
-};
-
-/**
-   For each <mounted_fs, target_service> pair, there is one instance of
-   m0t1fs_service_context.
-
-   m0t1fs_service_context is an association class, associating mounted
-   file-system and a service.
-
-   Allocated at mount time and freed during unmount.
- */
-struct m0t1fs_service_context {
-	/** Superblock associated with this service context */
-	struct m0t1fs_sb                 *sc_csb;
-
-	/** Service type */
-	enum m0_conf_service_type         sc_type;
-
-	struct m0_rpc_conn                sc_conn;
-	struct m0_rpc_session             sc_session;
-
-	/** Link in m0t1fs_sb::csb_service_contexts list */
-	struct m0_tlink                   sc_link;
-
-	/** pending transaction record for this superblock:service */
-	struct m0t1fs_service_txid        sc_max_pending_tx;
-	struct m0_mutex                   sc_max_pending_tx_lock;
-
-	/** Magic = M0_T1FS_SVC_CTX_MAGIC */
-	uint64_t                          sc_magic;
-};
-
-/**
-   Given a container id of a container, map give service context of a service
-   that is serving the container.
- */
-struct m0t1fs_container_location_map {
-	/**
-	   Array of m0t1fs_sb::csb_nr_containers valid elements.
-	   ios_map[i] points to m0t1fs_service_context of a service
-	   that is serving objects belonging to container i
-	 */
-	struct m0t1fs_service_context *ios_map[M0T1FS_MAX_NR_CONTAINERS];
-
-	/**
-	   Array of m0t1fs_sb::csb_nr_mds valid elements.
-	   The array size is the same as ios_map.
-	   mds_map[i] points to m0t1fs_service_context of mdservice whose
-	   index is i.
-	 */
-	struct m0t1fs_service_context *mds_map[M0T1FS_MAX_NR_CONTAINERS];
-
-	/**
-	 * rm service context
-	 */
-	struct m0t1fs_service_context *rm_ctx;
-};
-
-
-
 /**
    In memory m0t1fs super block. One instance per mounted file-system.
    super_block::s_fs_info points to instance of this type.
  */
 struct m0t1fs_sb {
-	/** service context of MGS. Not a member of csb_service_contexts */
-	struct m0t1fs_service_context           csb_mgs;
 
-	/** number of contexts in csb_service_contexts list, that have
-	    ACTIVE rpc connection and rpc session.
-	    csb_nr_active_contexts <= m0_tlist_length(&csb_service_contexts) */
-	uint32_t                                csb_nr_active_contexts;
+	struct m0_pools_common                  csb_pools_common;
 
-	/** list of m0t1fs_service_context objects hanging using sc_link.
-	    tlist descriptor: svc_ctx_tl */
-	struct m0_tl                            csb_service_contexts;
+	struct m0_conf_filesystem              *csb_fs;
 
 	/** Total number of containers. */
 	uint32_t                                csb_nr_containers;
 
-	/** Total number of mdservices. */
-	uint32_t                                csb_nr_mds;
+	/** Pool being used by m0t1fs currently. */
+	struct m0_pool                         *csb_pool;
 
-	/** pool width */
-	uint32_t                                csb_pool_width;
-
-	struct m0_pool                          csb_pool;
+	/** Pool version being used by m0t1fs currently. */
+	struct m0_pool_version                 *csb_pool_version;
 
 	/** used by temporary implementation of m0t1fs_fid_alloc(). */
 	uint64_t                                csb_next_key;
 
-	struct m0t1fs_container_location_map    csb_cl_map;
-
 	/** Configuration cache loaded during mount. */
 	struct m0_confc                         csb_confc;
-
-	/** Number of ioservices in the base pool. */
-	uint32_t                                csb_ios_nr;
-
-	/** Metadata redundancy count. */
-	uint32_t                                csb_md_redundancy;
 
 	/**
 	 * Array of fids of base pool ioservices used for hashing contains
@@ -860,11 +779,11 @@ struct m0t1fs_sb {
 	 * list of pending transactions, by service,
 	 * protected by csb_service_pending_txid_map_lock
 	 */
-	struct m0_htable                      csb_service_pending_txid_map;
-	struct m0_mutex                       csb_service_pending_txid_map_lock;
+	struct m0_htable                        csb_service_pending_txid_map;
+	struct m0_mutex                         csb_service_pending_txid_map_lock;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
-	struct backing_dev_info               csb_backing_dev_info;
+	struct backing_dev_info                 csb_backing_dev_info;
 #endif
 };
 
@@ -886,7 +805,7 @@ struct m0t1fs_mdop {
 };
 
 M0_TL_DESCR_DECLARE(ispti, extern);
-M0_TL_DECLARE(ispti, extern, struct m0t1fs_service_txid);
+M0_TL_DECLARE(ispti, extern, struct m0_reqh_service_txid);
 
 /**
    Inode representing global file.
@@ -952,6 +871,9 @@ M0_INTERNAL int m0t1fs_get_sb(struct file_system_type *fstype,
 			      void *data, struct vfsmount *mnt);
 #endif
 
+M0_INTERNAL void m0t1fs_sb_init(struct m0t1fs_sb *csb);
+M0_INTERNAL void m0t1fs_sb_fini(struct m0t1fs_sb *csb);
+
 M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb);
 
 M0_INTERNAL void m0t1fs_fs_lock(struct m0t1fs_sb *csb);
@@ -977,12 +899,6 @@ m0t1fs_filename_to_mds_session(const struct m0t1fs_sb *csb,
 			       unsigned int nlen,
 			       bool use_hint,
 			       uint32_t hash_hint);
-/**
- * tlist descriptor for list of m0t1fs_service_context objects placed
- * in m0t1fs_sb::csb_service_contexts list using sc_link.
- */
-M0_TL_DESCR_DECLARE(m0t1fs_svc_ctx, M0_EXTERN);
-M0_TL_DECLARE(m0t1fs_svc_ctx, M0_EXTERN, struct m0t1fs_service_context);
 
 /* inode.c */
 
@@ -1122,6 +1038,7 @@ M0_INTERNAL const struct m0_fid *
 		m0t1fs_inode_fid(const struct m0t1fs_inode *ci);
 
 void m0t1fs_fid_alloc(struct m0t1fs_sb *csb, struct m0_fid *out);
+int m0t1fs_pool_find(struct m0t1fs_sb *csb, struct m0_conf_filesystem *fs);
 
 /**
  * Given a fid of an existing file, update "fid allocator" so that this fid is
@@ -1131,9 +1048,6 @@ void m0t1fs_fid_accept(struct m0t1fs_sb *csb, const struct m0_fid *fid);
 
 unsigned long fid_hash(const struct m0_fid *fid);
 M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop);
-
-M0_INTERNAL struct m0t1fs_service_context *
-m0t1fs_service_from_session(struct m0_rpc_session *session);
 
 /**
  * Given a fid of a file, return configuration fid of ioservice on which

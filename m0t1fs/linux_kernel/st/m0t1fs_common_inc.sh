@@ -36,8 +36,25 @@ export M0_TRACE_PRINT_CONTEXT=short
 # Hence, do not rename it.
 MERO_STOB_DOMAIN="ad -d disks.conf"
 
+MDS_DEVS=""
+NR_MDS_DEVS=0
+MDS_DEV_IDS=
+
+IOS_DEVS=""
+NR_IOS_DEVS=0
+IOS_DEV_IDS=
+
+DISK_FIDS=""
+NR_DISK_FIDS=0
+DISKV_FIDS=""
+NR_DISKV_FIDS=0
+
+DDEV_ID=1          #data devices
+ADEV_ID=100        #addb devices
+MDEV_ID=200        #meta-data devices
 
 CONFD_EP=12345:33:100
+STATSEP=12345:33:800    #stats service runs on any one node.
 
 # list of io server end points: e.g., tmid in [900, 999).
 IOSEP=(
@@ -53,7 +70,6 @@ MDSEP=(
     12345:33:801   # MDS2 EP
     12345:33:802   # MDS3 EP
 )
-
 
 SNS_CLI_EP="12345:33:1000"
 
@@ -172,18 +188,29 @@ function build_conf()
 
 	# prepare configuration data
 	local RMS_ENDPOINT="\"${server_nid}:${MDSEP[0]}\""
+	local STATS_ENDPOINT="\"${server_nid}:${STATSEP[0]}\""
 	local  PROF='(0x7000000000000001, 0)'
 	local    FS='(0x6600000000000001, 1)'
-	local    RM='(0x7300000000000001, 3)'
-	local STATS='(0x7300000000000001, 4)'
-	local  NODE='(0x6e00000000000001, 0)'
+	local  NODE='(0x6e00000000000001, 2)'
+	local  PROC='(0x7200000000000001, 3)'
+	local    RM='(0x7300000000000001, 4)'
+	local STATS='(0x7300000000000001, 5)'
+	local  RACKID='(0x6100000000000001, 6)'
+	local  ENCLID='(0x6500000000000001, 7)'
+	local  CTRLID='(0x6300000000000001, 8)'
+	local  POOLID='(0x6f00000000000001, 9)'
+	local  PVERID='(0x7600000000000001, 10)'
+	#"pool_width" number of objv created for devv conf objects
+	local  RACKVID="(0x6a00000000000001, $(($pool_width + 1)))"
+	local  ENCLVID="(0x6a00000000000001, $(($pool_width + 2)))"
+	local  CTRLVID="(0x6a00000000000001, $(($pool_width + 3)))"
 
 	local i
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)); do
-	    local IOS_NAME="(0x7300000000000003, $i)"
+	    local IOS_NAME="(0x7300000000000002, $i)"
 	    local iosep="\"${server_nid}:${IOSEP[$i]}\""
-	    local IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: $iosep], $NODE)}"
+	    local IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: $iosep], ${IOS_DEV_IDS[$i]})}"
 
 	    if ((i == 0)); then
 	        IOS_NAMES="$IOS_NAME"
@@ -195,9 +222,9 @@ function build_conf()
 	done
 
 	for ((i=0; i < ${#MDSEP[*]}; i++)); do
-	    local MDS_NAME="(0x7300000000000002, $i)"
+	    local MDS_NAME="(0x7300000000000003, $i)"
 	    local mdsep="\"${server_nid}:${MDSEP[$i]}\""
-	    local MDS_OBJ="{0x73| (($MDS_NAME), 1, [1: $mdsep], $NODE)}"
+	    local MDS_OBJ="{0x73| (($MDS_NAME), 1, [1: $mdsep], ${MDS_DEV_IDS[$i]})}"
 
 	    if ((i == 0)); then
 	        MDS_NAMES="$MDS_NAME"
@@ -208,16 +235,42 @@ function build_conf()
 	    fi
 	done
 
+	local RACK="{0x61| (($RACKID), [1: $ENCLID], [1: $PVERID])}"
+	local ENCL="{0x65| (($ENCLID), [1: $CTRLID], [1: $PVERID])}"
+	local CTRL="{0x63| (($CTRLID), $NODE, [$NR_DISK_FIDS: $DISK_FIDS], [1: $PVERID])}"
+
+	local POOL="{0x6f| (($POOLID), 0, [1: $PVERID])}"
+	local PVER="{0x76| (($PVERID), 0, $nr_data_units, $nr_parity_units, $pool_width, [3: 1, 2, 3], [0], [1: $RACKVID])}"
+	local RACKV="{0x6a| (($RACKVID), $RACKID, [1: $ENCLVID])}"
+	local ENCLV="{0x6a| (($ENCLVID), $ENCLID, [1: $CTRLVID])}"
+	local CTRLV="{0x6a| (($CTRLVID), $CTRLID, [$NR_DISKV_FIDS: $DISKV_FIDS])}"
 
 	echo -e "
- [$((${#IOSEP[*]} + ${#MDSEP[*]} + 3)):
+ [$((${#IOSEP[*]} + ${#MDSEP[*]} + $NR_IOS_DEVS+ $NR_MDS_DEVS + 14)):
   {0x70| (($PROF), $FS)},
-  {0x66| (($FS), (11, 22),
+  {0x66| (($FS), (11, 22), 41212,
 	      [1: \"$pool_width $nr_data_units $nr_parity_units\"],
-	      [$((${#IOSEP[*]} + ${#MDSEP[*]} + 1)): $MDS_NAMES, $RM, $IOS_NAMES])},
-  {0x73| (($RM), 4, [1: $RMS_ENDPOINT], $NODE)},
+	      $POOLID,
+	      [1: $NODE],
+	      [1: $POOLID],
+	      [1: $RACKID])},
+  {0x6e| (($NODE), 16000, 2, 3, 2, $POOLID, [1: $PROC])},
+  {0x72| (($PROC), 4000, 2,
+	           [$((${#IOSEP[*]} + ${#MDSEP[*]} + 2)): $MDS_NAMES, $RM, $IOS_NAMES, $STATS])},
+  {0x73| (($RM), 4, [1: $RMS_ENDPOINT], [0])},
+  {0x73| (($STATS), 5, [1: $STATS_ENDPOINT], [0])},
   $MDS_OBJS,
-  $IOS_OBJS]"
+  $IOS_OBJS,
+  $IOS_DEVS,
+  $MDS_DEVS,
+  $RACK,
+  $ENCL,
+  $CTRL,
+  $POOL,
+  $PVER,
+  $RACKV,
+  $ENCLV,
+  $CTRLV]"
 }
 
 function run()

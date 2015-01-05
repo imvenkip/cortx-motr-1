@@ -299,7 +299,7 @@ M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 
 M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 					struct m0_be_tx *tx,
-					enum m0_pool_event_owner_type et,
+					enum m0_poolmach_event_owner_type et,
 					enum m0_pool_nd_state state);
 
 /**

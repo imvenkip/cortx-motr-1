@@ -21,6 +21,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
 
+#include "conf/objs/common.h" /*child_adopt */
 #include "conf/obj_ops.h"
 #include "conf/cache.h"
 #include "conf/onwire.h"   /* m0_confx_obj */
@@ -73,8 +74,8 @@ static bool _concrete_obj_invariant(const struct m0_conf_obj *obj)
 	return ret;
 }
 
-M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
-						   const struct m0_fid *id)
+M0_INTERNAL struct m0_conf_obj *
+m0_conf_obj_create(struct m0_conf_cache *cache, const struct m0_fid *id)
 {
 	struct m0_conf_obj            *obj;
 	const struct m0_conf_obj_type *type = m0_conf_fid_type(id);
@@ -232,6 +233,37 @@ const struct m0_fid *m0_conf_objx_fid(const struct m0_confx_obj *obj)
 const struct m0_conf_obj_type *m0_conf_objx_type(const struct m0_confx_obj *obj)
 {
 	return m0_conf_fid_type(m0_conf_objx_fid(obj));
+}
+
+M0_INTERNAL void
+m0_conf_dir_add(struct m0_conf_dir *dir, struct m0_conf_obj *obj)
+{
+	M0_PRE(m0_conf_obj_invariant(obj));
+	M0_PRE(m0_conf_obj_type(obj) == dir->cd_item_type);
+
+	child_adopt(&dir->cd_obj, obj);
+	m0_conf_dir_tlist_add_tail(&dir->cd_items, obj);
+}
+
+M0_INTERNAL void
+m0_conf_dir_del(struct m0_conf_dir *dir, struct m0_conf_obj *obj)
+{
+	M0_PRE(m0_conf_obj_invariant(obj));
+	M0_PRE(m0_conf_obj_type(obj) == dir->cd_item_type);
+	M0_PRE(_0C(obj->co_cache == dir->cd_obj.co_cache) &&
+	       _0C(obj->co_parent == &dir->cd_obj));
+
+	m0_conf_dir_tlist_del(obj);
+}
+
+M0_INTERNAL bool m0_conf_dir_elems_match(const struct m0_conf_dir *dir,
+					 const struct arr_fid *fids)
+{
+	int i = 0;
+
+	return m0_conf_dir_tlist_length(&dir->cd_items) == fids->af_count &&
+		m0_tl_forall(m0_conf_dir, obj, &dir->cd_items,
+			     m0_fid_eq(&fids->af_elems[i++], &obj->co_id));
 }
 
 /** @} conf_dlspec_objops */

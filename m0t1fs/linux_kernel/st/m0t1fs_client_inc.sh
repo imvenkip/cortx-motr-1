@@ -622,7 +622,7 @@ m0t1fs_oostore_mode_basic()
 	done > $SOURCE_TXT
 
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || rc=1
-	df                                                  || rc=1
+	df -t m0t1fs                                        || rc=1
 	cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/$fsname1   || rc=1
 	cat $MERO_M0T1FS_MOUNT_DIR/$fsname1 > /tmp/$fsname1 || rc=1
 	# sleep two seconds, so the {a,c,m}time are different

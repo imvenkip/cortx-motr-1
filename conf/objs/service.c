@@ -1,4 +1,3 @@
-/* -*- c -*- */
 /*
  * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
@@ -18,12 +17,12 @@
  * Original creation date: 30-Aug-2012
  */
 
-#include "conf/objs/common.h"
-#include "conf/onwire_xc.h" /* m0_confx_service_xc */
-#include "mero/magic.h"     /* M0_CONF_SERVICE_MAGIC */
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
+
+#include "conf/objs/common.h"
+#include "conf/onwire_xc.h"  /* m0_confx_service_xc */
+#include "mero/magic.h"      /* M0_CONF_SERVICE_MAGIC */
 
 static bool service_check(const void *bob)
 {
@@ -39,10 +38,7 @@ static bool service_check(const void *bob)
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_service, M0_CONF_SERVICE_MAGIC, service_check);
-
 M0_CONF__INVARIANT_DEFINE(service_invariant, m0_conf_service);
-
-const struct m0_fid M0_CONF_SERVICE_NODE_FID = M0_FID_TINIT('/', 0, 2);
 
 #define XCAST(xobj) ((struct m0_confx_service *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_service, xs_header) == 0);
@@ -52,20 +48,19 @@ static int service_decode(struct m0_conf_obj *dest,
 			  struct m0_conf_cache *cache)
 {
 	int                            rc;
-	struct m0_conf_obj            *child;
 	struct m0_conf_service        *d = M0_CONF_CAST(dest, m0_conf_service);
 	const struct m0_confx_service *s = XCAST(src);
 
 	d->cs_type = s->xs_type;
-
-	rc = m0_conf_obj_find(cache, &s->xs_node, &child);
+	rc = m0_bufs_to_strings(&d->cs_endpoints, &s->xs_endpoints);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
-	d->cs_node = M0_CONF_CAST(child, m0_conf_node);
-	child_adopt(dest, child);
-
-	return m0_bufs_to_strings(&d->cs_endpoints, &s->xs_endpoints);
+	rc = dir_new(cache, &dest->co_id, &M0_CONF_SERVICE_SDEVS_FID,
+		     &M0_CONF_SDEV_TYPE, &s->xs_sdevs, &d->cs_sdevs);
+	if (rc == 0)
+		child_adopt(dest, &d->cs_sdevs->cd_obj);
+	return M0_RC(rc);
 }
 
 static int
@@ -79,11 +74,8 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	d->xs_type = s->cs_type;
 
 	rc = m0_bufs_from_strings(&d->xs_endpoints, s->cs_endpoints);
-	if (rc != 0)
-		return M0_ERR(-ENOMEM);
-
-	d->xs_node = s->cs_node->cn_obj.co_id;
-	return 0;
+	return M0_RC(rc == 0 ? arrfid_from_dir(&d->xs_sdevs, s->cs_sdevs) :
+		     -ENOMEM);
 }
 
 static bool
@@ -95,8 +87,8 @@ service_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	M0_PRE(xobj->xs_endpoints.ab_count != 0);
 
 	return obj->cs_type == xobj->xs_type &&
-		m0_bufs_streq(&xobj->xs_endpoints, obj->cs_endpoints) &&
-		m0_fid_eq(&obj->cs_node->cn_obj.co_id, &xobj->xs_node);
+	       m0_bufs_streq(&xobj->xs_endpoints, obj->cs_endpoints) &&
+	       m0_conf_dir_elems_match(obj->cs_sdevs, &xobj->xs_sdevs);
 }
 
 static int service_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
@@ -104,10 +96,10 @@ static int service_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 {
 	M0_PRE(parent->co_status == M0_CS_READY);
 
-	if (!m0_fid_eq(name, &M0_CONF_SERVICE_NODE_FID))
+	if (!m0_fid_eq(name, &M0_CONF_SERVICE_SDEVS_FID))
 		return M0_ERR(-ENOENT);
 
-	*out = &M0_CONF_CAST(parent, m0_conf_service)->cs_node->cn_obj;
+	*out = &M0_CONF_CAST(parent, m0_conf_service)->cs_sdevs->cd_obj;
 	M0_POST(m0_conf_obj_invariant(*out));
 	return 0;
 }
@@ -121,7 +113,7 @@ static void service_delete(struct m0_conf_obj *obj)
 	m0_free(x);
 }
 
-static const struct m0_conf_obj_ops conf_service_ops = {
+static const struct m0_conf_obj_ops service_ops = {
 	.coo_invariant = service_invariant,
 	.coo_decode    = service_decode,
 	.coo_encode    = service_encode,
@@ -131,31 +123,18 @@ static const struct m0_conf_obj_ops conf_service_ops = {
 	.coo_delete    = service_delete
 };
 
-static struct m0_conf_obj *service_create(void)
-{
-	struct m0_conf_service *x;
-	struct m0_conf_obj     *ret;
-
-	M0_ALLOC_PTR(x);
-	if (x == NULL)
-		return NULL;
-	m0_conf_service_bob_init(x);
-
-	ret = &x->cs_obj;
-	ret->co_ops = &conf_service_ops;
-	return ret;
-}
+M0_CONF__CTOR_DEFINE(service_create, m0_conf_service, &service_ops);
 
 const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 's',
 		.ft_name = "service"
 	},
-	.cot_create     = &service_create,
-	.cot_xt         = &m0_confx_service_xc,
-	.cot_branch     = "u_service",
-	.cot_xc_init    = &m0_xc_m0_confx_service_struct_init,
-	.cot_magic      = M0_CONF_SERVICE_MAGIC
+	.cot_create  = &service_create,
+	.cot_xt      = &m0_confx_service_xc,
+	.cot_branch  = "u_service",
+	.cot_xc_init = &m0_xc_m0_confx_service_struct_init,
+	.cot_magic   = M0_CONF_SERVICE_MAGIC
 };
 
 #undef XCAST

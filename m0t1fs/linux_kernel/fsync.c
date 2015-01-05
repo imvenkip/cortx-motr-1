@@ -86,9 +86,9 @@ static void m0t1fs_fsync_fop_cleanup(struct m0_ref *ref)
 
 
 /**
- * Creates and sends an fsync fop from the provided m0t1fs_service_txid.
+ * Creates and sends an fsync fop from the provided m0_reqh_service_txid.
  */
-int m0t1fs_fsync_request_create(struct m0t1fs_service_txid        *stx,
+int m0t1fs_fsync_request_create(struct m0_reqh_service_txid        *stx,
                                 struct m0t1fs_fsync_fop_wrapper   *ffw,
                                 enum m0_fsync_mode                 mode)
 {
@@ -141,7 +141,7 @@ int m0t1fs_fsync_request_create(struct m0t1fs_service_txid        *stx,
 	return 0;
 }
 
-static void fsync_stx_update(struct m0t1fs_service_txid *stx, uint64_t txid,
+static void fsync_stx_update(struct m0_reqh_service_txid *stx, uint64_t txid,
 			     struct m0_mutex *lock)
 {
 	M0_PRE(stx != NULL);
@@ -177,13 +177,13 @@ int m0t1fs_fsync_reply_process(struct m0t1fs_sb                *csb,
                                struct m0t1fs_inode             *inode,
                                struct m0t1fs_fsync_fop_wrapper *ffw)
 {
-	int                                rc;
-	uint64_t                           reply_txid;
-	struct m0_fop                     *fop;
-	struct m0_rpc_item                *item;
-	struct m0_fop_fsync               *ffd;
-	struct m0_fop_fsync_rep           *ffr;
-	struct m0t1fs_service_context     *service;
+	int                         rc;
+	uint64_t                    reply_txid;
+	struct m0_fop              *fop;
+	struct m0_rpc_item         *item;
+	struct m0_fop_fsync        *ffd;
+	struct m0_fop_fsync_rep    *ffr;
+	struct m0_reqh_service_ctx *service;
 
 	M0_ENTRY();
 
@@ -229,7 +229,7 @@ int m0t1fs_fsync_reply_process(struct m0t1fs_sb                *csb,
 
 	/*
 	 * check the super block too, super block txid_record
-	 * is embedded in the m0t1fs_service_context struct
+	 * is embedded in the m0_reqh_service_ctx struct
 	 */
 	fsync_stx_update(&service->sc_max_pending_tx, reply_txid,
 			 &service->sc_max_pending_tx_lock);
@@ -253,11 +253,11 @@ int m0t1fs_fsync_reply_process(struct m0t1fs_sb                *csb,
  */
 int m0t1fs_fsync_core(struct m0t1fs_inode *inode, enum m0_fsync_mode mode)
 {
-	int                                rc;
-	int                                saved_error = 0;
-	struct m0_tl                       pending_fops;
-	struct m0t1fs_service_txid        *iter;
-	struct m0t1fs_fsync_fop_wrapper   *ffw;
+	int                              rc;
+	int                              saved_error = 0;
+	struct m0_tl                     pending_fops;
+	struct m0_reqh_service_txid     *iter;
+	struct m0t1fs_fsync_fop_wrapper *ffw;
 
 	M0_ENTRY();
 
@@ -372,17 +372,17 @@ int m0t1fs_fsync(struct file *file, struct dentry *dentry, int datasync)
 
 
 /**
- * Update a m0t1fs_service_txid with the specified be_tx_remid
+ * Update a m0_reqh_service_txid with the specified be_tx_remid
  * if the struct m0_be_tx_remid::tri_txid > the stored value
  * inode may be NULL if the update has no associated inode.
  * csb may be NULL, iff inode is specified.
  */
-void m0t1fs_fsync_record_update(struct m0t1fs_service_context *service,
+void m0t1fs_fsync_record_update(struct m0_reqh_service_ctx *service,
                                 struct m0t1fs_sb              *csb,
                                 struct m0t1fs_inode           *inode,
                                 struct m0_be_tx_remid         *btr)
 {
-	struct m0t1fs_service_txid *stx = NULL;
+	struct m0_reqh_service_txid *stx = NULL;
 
 	M0_ENTRY();
 
@@ -395,7 +395,7 @@ void m0t1fs_fsync_record_update(struct m0t1fs_service_context *service,
 	if (inode != NULL) {
 		/*
 		  * TODO: replace this O(N) search with something better.
-		  * Embbed the struct m0t1fs_service_txid in a list of
+		  * Embbed the struct m0_reqh_service_txid in a list of
 		  * 'services for this inode'? See RB1667
 		  */
 		/* Find the record for this service */
@@ -446,13 +446,13 @@ void m0t1fs_fsync_record_update(struct m0t1fs_service_context *service,
  */
 int m0t1fs_sync_fs(struct super_block *sb, int wait)
 {
-	int                                rc;
-	int                                saved_error = 0;
-	struct m0_tl                       pending_fops;
-	struct m0t1fs_service_txid        *stx;
-	struct m0t1fs_service_context     *iter;
-	struct m0t1fs_fsync_fop_wrapper   *ffw;
-	struct m0t1fs_sb                  *csb;
+	int                              rc;
+	int                              saved_error = 0;
+	struct m0_tl                     pending_fops;
+	struct m0_reqh_service_txid     *stx;
+	struct m0_reqh_service_ctx      *iter;
+	struct m0t1fs_fsync_fop_wrapper *ffw;
+	struct m0t1fs_sb                *csb;
 
 	M0_ENTRY();
 
@@ -471,7 +471,8 @@ int m0t1fs_sync_fs(struct super_block *sb, int wait)
 	 *
 	 *  fop sending loop
 	 */
-	m0_tl_for(m0t1fs_svc_ctx, &csb->csb_service_contexts, iter) {
+	m0_tl_for(pools_common_svc_ctx, &csb->csb_pools_common.pc_svc_ctxs,
+		  iter) {
 		/*
 		 * Send an fsync fop for iter->sc_max_pending_txt to iter.
 		 */

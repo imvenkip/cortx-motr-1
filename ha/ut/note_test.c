@@ -19,6 +19,7 @@
  */
 
 #include "conf/confc.h"
+#include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
 #include "conf/ut/file_helpers.h"
 #include "fid/fid.h"
 #include "fop/fom_generic.h"
@@ -45,7 +46,7 @@
 #define QUOTE(s) _QUOTE(s)
 
 /* See "ha/ut/Makefile.sub" for M0_HA_UT_DIR */
-#define M0_HA_UT_PATH(name)   QUOTE(M0_HA_UT_DIR) "/" name
+#define M0_HA_UT_PATH(name)   QUOTE(M0_CONF_UT_DIR) "/" name
 
 #define CLIENT_DB_NAME        "ha_ut_client.db"
 #define CLIENT_ENDPOINT_ADDR  "0@lo:12345:34:*"
@@ -57,12 +58,13 @@
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
 #define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
 
-/* See "ha/ut/conf-str.txt" */
+/* See "conf/ut/conf-str.txt" */
 static const struct m0_fid conf_obj_id_fs = M0_FID_TINIT('f', 2, 1);
 
 static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain   client_net_dom;
 static struct m0_rpc_session *session;
+static char                   ut_ha_conf_str[M0_CONF_STR_MAXLEN];
 
 enum {
 	CLIENT_COB_DOM_ID  = 16,
@@ -85,18 +87,18 @@ static char *server_argv[] = {
 };
 
 static struct m0_rpc_server_ctx sctx = {
-	.rsx_xprts            = &xprt,
-	.rsx_xprts_nr         = 1,
-	.rsx_argv             = server_argv,
-	.rsx_argc             = ARRAY_SIZE(server_argv),
-	.rsx_log_file_name    = SERVER_LOG_NAME,
+	.rsx_xprts         = &xprt,
+	.rsx_xprts_nr      = 1,
+	.rsx_argv          = server_argv,
+	.rsx_argc          = ARRAY_SIZE(server_argv),
+	.rsx_log_file_name = SERVER_LOG_NAME,
 };
 
 extern struct m0_reqh_service_type m0_rpc_service_type;
 
-static struct m0_mutex        chan_lock;
-static struct m0_chan         chan;
-static struct m0_clink        clink;
+static struct m0_mutex chan_lock;
+static struct m0_chan  chan;
+static struct m0_clink clink;
 
 static struct m0_sm_group g_grp;
 
@@ -345,12 +347,10 @@ static void done_get_chan_fini(void)
 
 static void local_confc_init(struct m0_confc *confc)
 {
-	int             rc;
-	char            local_conf[4096];
-	struct m0_fid   fid0 = M0_FID_TINIT('p', 2, 0);
+	int rc;
 
-	rc = m0_ut_file_read(M0_HA_UT_PATH("conf-str.txt"), local_conf,
-			     sizeof local_conf);
+	rc = m0_ut_file_read(M0_HA_UT_PATH("conf-str.txt"),
+			     ut_ha_conf_str, sizeof ut_ha_conf_str);
 	M0_UT_ASSERT(rc == 0);
 
 	/*
@@ -363,9 +363,9 @@ static void local_confc_init(struct m0_confc *confc)
 	 *  FATAL : [lib/assert.c:43:m0_panic] panic:
 	 *    obj->co_status == M0_CS_READY m0_conf_obj_put()
 	 */
-	rc = m0_confc_init(confc, &g_grp, &fid0,
+	rc = m0_confc_init(confc, &g_grp, &M0_FID_TINIT('p', 1, 0),
 			   SERVER_ENDPOINT_ADDR, &(cctx.rcx_rpc_machine),
-			   local_conf);
+			   ut_ha_conf_str);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -377,25 +377,40 @@ static void local_confc_fini(struct m0_confc *confc)
 static void compare_ha_state(struct m0_confc confc,
 			     enum m0_ha_obj_state state)
 {
-	struct m0_conf_obj *dir;
-	struct m0_conf_obj *svc;
+	struct m0_conf_obj *node_dir;
 	struct m0_conf_obj *node;
+	struct m0_conf_obj *svc_dir;
+	struct m0_conf_obj *svc;
 	int                 rc;
 
-	rc = m0_confc_open_sync(&dir, confc.cc_root,
+	rc = m0_confc_open_sync(&node_dir, confc.cc_root,
 				M0_CONF_PROFILE_FILESYSTEM_FID,
-				M0_CONF_FILESYSTEM_SERVICES_FID);
+				M0_CONF_FILESYSTEM_NODES_FID);
 	M0_UT_ASSERT(rc == 0);
 
-	for (svc = NULL; (rc = m0_confc_readdir_sync(dir, &svc)) > 0; ) {
-		M0_UT_ASSERT(svc->co_ha_state == state);
-		rc = m0_confc_open_sync(&node, svc, M0_CONF_SERVICE_NODE_FID);
-		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(node->co_ha_state == state);
-		m0_confc_close(node);
-	}
+	rc = m0_confc_open_sync(&node, node_dir, M0_FID_TINIT('n', 1, 2));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(node->co_ha_state == state);
+
+	rc = m0_confc_open_sync(&svc_dir, node, M0_CONF_NODE_PROCESSES_FID,
+				M0_FID_TINIT('r', 1, 5),
+				M0_CONF_PROCESS_SERVICES_FID);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_confc_open_sync(&svc, svc_dir, M0_FID_TINIT('s', 1, 9));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(svc->co_ha_state == state);
+
 	m0_confc_close(svc);
-	m0_confc_close(dir);
+
+	rc = m0_confc_open_sync(&svc, svc_dir, M0_FID_TINIT('s', 1, 10));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(svc->co_ha_state == state);
+
+	m0_confc_close(svc);
+	m0_confc_close(svc_dir);
+	m0_confc_close(node);
+	m0_confc_close(node_dir);
 }
 
 /* ----------------------------------------------------------------
@@ -434,11 +449,9 @@ static void test_ha_state_accept(void)
 {
 	struct m0_confc confc;
 	struct m0_fid u[] = {
-		M0_FID_TINIT('s',2,2),
-		M0_FID_TINIT('s',2,3),
-		M0_FID_TINIT('s',2,4),
-		M0_FID_TINIT('n',2,5),
-		M0_FID_TINIT('n',2,9)
+		M0_FID_TINIT('n', 1, 2),
+		M0_FID_TINIT('s', 1, 9),
+		M0_FID_TINIT('s', 1, 10),
 	};
 	struct m0_ha_note *n;
 

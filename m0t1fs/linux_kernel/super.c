@@ -24,17 +24,18 @@
 
 #include <linux/mount.h>
 #include <linux/parser.h>  /* substring_t */
-#include <linux/slab.h>    /* kmalloc(), kfree() */
+#include <linux/slab.h>    /* kmalloc, kfree */
 #include <linux/statfs.h>  /* kstatfs */
 
 #include "m0t1fs/linux_kernel/m0t1fs.h"
 #include "m0t1fs/linux_kernel/fsync.h"
-#include "mero/magic.h"    /* M0_T1FS_SVC_CTX_MAGIC */
-#include "lib/misc.h"      /* M0_SET0() */
-#include "lib/memory.h"    /* M0_ALLOC_PTR(), m0_free() */
+#include "mero/magic.h"    /* M0_T1FS_POOLS_MAGIC */
+#include "lib/misc.h"      /* M0_SET0 */
+#include "lib/memory.h"    /* M0_ALLOC_PTR, m0_free */
 #include "layout/linear_enum.h"
 #include "layout/pdclust.h"
 #include "conf/confc.h"    /* m0_confc */
+#include "conf/helpers.h"  /* m0_conf_fs_get */
 #include "rpc/rpclib.h"    /* m0_rcp_client_connect */
 #include "addb/addb.h"
 #include "lib/uuid.h"   /* m0_uuid_generate */
@@ -44,6 +45,7 @@
 #include "net/lnet/lnet_core_types.h"
 #include "rm/rm_service.h"                 /* m0_rms_type */
 #include "addb/addb_svc.h"                 /* m0_addb_svc_type */
+#include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 
 extern struct io_mem_stats iommstats;
 extern struct m0_bitmap    m0t1fs_client_ep_tmid;
@@ -98,16 +100,6 @@ static struct m0_addb_rec_type *m0t1fs_dgio_cntr_rts[] = {
 	&m0_addb_rt_m0t1fs_dgiow_times
 };
 
-/**
- * tlist descriptor for list of m0t1fs_service_context objects placed
- * in m0t1fs_sb::csb_service_contexts list using sc_link.
- */
-M0_TL_DESCR_DEFINE(m0t1fs_svc_ctx, "Service contexts", M0_INTERNAL,
-		   struct m0t1fs_service_context, sc_link, sc_magic,
-		   M0_T1FS_SVC_CTX_MAGIC, M0_T1FS_SVC_CTX_HEAD_MAGIC);
-
-M0_TL_DEFINE(m0t1fs_svc_ctx, M0_INTERNAL, struct m0t1fs_service_context);
-
 M0_INTERNAL void m0t1fs_fs_lock(struct m0t1fs_sb *csb)
 {
 	M0_ENTRY();
@@ -139,8 +131,10 @@ m0t1fs_filename_to_mds_session(const struct m0t1fs_sb *csb,
 			       bool                    use_hint,
 			       uint32_t                hash_hint)
 {
-	struct m0t1fs_service_context *ctx;
-	unsigned int hash;
+	struct m0_reqh_service_ctx   *ctx;
+	const struct m0_pools_common *pc;
+	unsigned int                  hash;
+
 	M0_ENTRY();
 
 	if (use_hint)
@@ -152,11 +146,13 @@ m0t1fs_filename_to_mds_session(const struct m0t1fs_sb *csb,
 		else
 			hash = 0;
 	}
-	ctx = csb->csb_cl_map.mds_map[hash % csb->csb_nr_mds];
+	pc = &csb->csb_pools_common;
+	ctx = pc->pc_mds_map[hash % pc->pc_nr_svcs[M0_CST_MDS]];
 	M0_ASSERT(ctx != NULL);
 
-	M0_LOG(M0_DEBUG, "%8s->index=%d ctx=%p session=%p", (const char*)filename,
-			 hash % csb->csb_nr_mds, ctx, &ctx->sc_session);
+	M0_LOG(M0_DEBUG, "%8s->index=%llu ctx=%p session=%p",
+	       (const char*)filename,
+	       hash % pc->pc_nr_svcs[M0_CST_MDS], ctx, &ctx->sc_session);
 	M0_LEAVE();
 	return &ctx->sc_session;
 }
@@ -169,15 +165,14 @@ M0_INTERNAL struct m0_rpc_session *
 m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
 			       uint64_t container_id)
 {
-	struct m0t1fs_service_context *ctx;
+	struct m0_reqh_service_ctx *ctx;
 
 	M0_ENTRY();
 	M0_PRE(container_id > 0);
-	M0_PRE(container_id <= csb->csb_nr_containers);
-	M0_LOG(M0_DEBUG, "container_id=%llu csb->csb_nr_containers=%u",
-			 container_id, csb->csb_nr_containers);
 
-	ctx = csb->csb_cl_map.ios_map[container_id];
+	M0_LOG(M0_DEBUG, "container_id=%llu", container_id);
+
+	ctx = csb->csb_pool_version->pv_dev_to_ios_map[container_id - 1];
 	M0_ASSERT(ctx != NULL);
 
 	M0_LOG(M0_DEBUG, "id %llu -> ctx=%p session=%p", container_id, ctx,
@@ -433,128 +428,6 @@ out:
 }
 
 
-/* ----------------------------------------------------------------
- * Services
- * ---------------------------------------------------------------- */
-
-static void m0t1fs_service_context_init(struct m0t1fs_service_context *ctx,
-					struct m0t1fs_sb              *csb,
-					enum m0_conf_service_type      type)
-{
-	M0_ENTRY();
-
-	M0_SET0(ctx);
-	ctx->sc_csb = csb;
-	ctx->sc_type = type;
-	ctx->sc_magic = M0_T1FS_SVC_CTX_MAGIC;
-	m0t1fs_svc_ctx_tlink_init(ctx);
-	m0_mutex_init(&ctx->sc_max_pending_tx_lock);
-
-	M0_LEAVE();
-}
-
-static void m0t1fs_service_context_fini(struct m0t1fs_service_context *ctx)
-{
-	M0_ENTRY();
-
-	m0_mutex_fini(&ctx->sc_max_pending_tx_lock);
-	m0t1fs_svc_ctx_tlink_fini(ctx);
-	ctx->sc_magic = 0;
-
-	M0_LEAVE();
-}
-
-static int connect_to_service(const char *addr, enum m0_conf_service_type type,
-			      struct m0t1fs_sb *csb)
-{
-	struct m0t1fs_service_context *ctx;
-	int                            rc;
-
-	M0_ENTRY("addr=`%s' type=%d", addr, type);
-	M0_PRE(!is_empty(addr));
-
-	M0_ALLOC_PTR(ctx);
-	if (ctx == NULL)
-		return M0_RC(-ENOMEM);
-
-	m0t1fs_service_context_init(ctx, csb, type);
-	rc = m0_rpc_client_connect(&ctx->sc_conn, &ctx->sc_session,
-				   &csb->csb_rpc_machine, addr,
-				   M0T1FS_MAX_NR_RPC_IN_FLIGHT);
-	if (rc == 0) {
-		m0t1fs_svc_ctx_tlist_add_tail(&csb->csb_service_contexts, ctx);
-		M0_CNT_INC(csb->csb_nr_active_contexts);
-		M0_LOG(M0_INFO, "Connected to service `%s'. %d active contexts",
-		       addr, csb->csb_nr_active_contexts);
-	} else {
-		m0t1fs_service_context_fini(ctx);
-		m0_free(ctx);
-	}
-	return M0_RC(rc);
-}
-
-static void disconnect_from_services(struct m0t1fs_sb *csb)
-{
-	struct m0t1fs_service_context *ctx;
-	m0_time_t timeout;
-
-	M0_ENTRY();
-
-	m0_tl_teardown(m0t1fs_svc_ctx, &csb->csb_service_contexts, ctx) {
-		if (csb->csb_nr_active_contexts > 0) {
-			/* client should not wait infinitely. */
-			timeout = m0_time_from_now(M0_RPC_ITEM_RESEND_INTERVAL *
-						   2 + 1, 0);
-			(void)m0_rpc_session_destroy(&ctx->sc_session, timeout);
-			(void)m0_rpc_conn_destroy(&ctx->sc_conn, timeout);
-			M0_CNT_DEC(ctx->sc_csb->csb_nr_active_contexts);
-			M0_LOG(M0_INFO, "Disconnected from service."
-			       " %d active contexts",
-			       csb->csb_nr_active_contexts);
-		}
-		m0t1fs_service_context_fini(ctx);
-		m0_free(ctx);
-	}
-
-	M0_POST(csb->csb_nr_active_contexts == 0);
-	M0_POST(m0t1fs_svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
-	M0_LEAVE();
-}
-
-static int m0t1fs_base_pool_ios_build(struct m0t1fs_sb *csb)
-{
-	struct m0_conf_obj *fs;
-	struct m0_conf_obj *dir;
-	struct m0_conf_obj *entry;
-	int		    rc;
-
-	M0_ENTRY();
-	/** @todo Get rundundancy value from conf MERO-501. */
-	csb->csb_md_redundancy = M0T1FS_MD_REDUNDANCY;
-	csb->csb_ios_nr = 0;
-	rc = m0_confc_open_sync(&fs, csb->csb_confc.cc_root,
-				M0_CONF_PROFILE_FILESYSTEM_FID) ?:
-	     m0_confc_open_sync(&dir, fs, M0_CONF_FILESYSTEM_SERVICES_FID);
-	if (rc != 0)
-		goto out;
-	for (entry = NULL; (rc = m0_confc_readdir_sync(dir, &entry)) > 0; ) {
-		const struct m0_conf_service *svc =
-			M0_CONF_CAST(entry, m0_conf_service);
-		if (svc->cs_type == M0_CST_IOS)
-			csb->csb_ios[csb->csb_ios_nr++] = svc->cs_obj.co_id;
-	/**
-	 * @todo As per configuration schema(MERO-572) conf objects nodes and
-	 * processes are present between filesystem and services objects.
-	 * Once they are added, to get ioservices needs to iterate over them.
-	 */
-	}
-	m0_confc_close(entry);
-out:
-	m0_confc_close(dir);
-	m0_confc_close(fs);
-	return M0_RC(rc);
-}
-
 struct m0_fid m0t1fs_hash_ios(struct m0t1fs_sb *csb,
 			      const struct m0_fid *fid,
 			      uint32_t i)
@@ -562,64 +435,10 @@ struct m0_fid m0t1fs_hash_ios(struct m0t1fs_sb *csb,
 {
 	uint64_t index;
 
-	M0_PRE(i < csb->csb_md_redundancy);
+	M0_PRE(i < csb->csb_pools_common.pc_md_redundancy);
 
-	index = m0_fid_hash(fid, csb->csb_ios_nr, i);
-	return csb->csb_ios[index];
-}
-
-static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
-			       uint32_t *nr_ios)
-{
-	struct m0_conf_obj *dir;
-	struct m0_conf_obj *entry;
-	const char        **pstr;
-	int                 rc;
-	bool                mds_is_provided       = false;
-	bool                rms_is_provided       = false;
-
-	M0_ENTRY();
-	M0_PRE(m0t1fs_svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
-	M0_PRE(csb->csb_nr_active_contexts == 0);
-
-	rc = m0_confc_open_sync(&dir, fs, M0_CONF_FILESYSTEM_SERVICES_FID);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	*nr_ios = 0;
-
-	for (entry = NULL; (rc = m0_confc_readdir_sync(dir, &entry)) > 0; ) {
-		const struct m0_conf_service *svc =
-			M0_CONF_CAST(entry, m0_conf_service);
-
-		if (svc->cs_type == M0_CST_MDS)
-			mds_is_provided = true;
-		else if (svc->cs_type == M0_CST_RMS)
-			rms_is_provided = true;
-		else if (svc->cs_type == M0_CST_IOS)
-			++*nr_ios;
-
-		for (pstr = svc->cs_endpoints; *pstr != NULL; ++pstr) {
-			M0_LOG(M0_DEBUG, "svc type=%d, ep=%s",
-			       svc->cs_type, *pstr);
-			rc = connect_to_service(*pstr, svc->cs_type, csb);
-			if (rc != 0)
-				goto out;
-		}
-	}
-out:
-	m0_confc_close(entry);
-	m0_confc_close(dir);
-
-	if (rc == 0 && mds_is_provided && rms_is_provided && *nr_ios > 0)
-		M0_LOG(M0_DEBUG, "Connected to IOS, MDS and RMS");
-	else {
-		M0_LOG(M0_ERROR, "Error connecting to the services. "
-		       "(Please check whether IOS, MDS and RMS are provided)");
-		rc = rc ?: -EINVAL;
-		disconnect_from_services(csb);
-	}
-	return M0_RC(rc);
+	index = m0_fid_hash(fid, csb->csb_pools_common.pc_nr_svcs[M0_CST_IOS], i);
+	return csb->csb_pool_version->pv_dev_to_ios_map[index]->sc_fid;
 }
 
 static int configure_addb_rpc_sink(struct m0t1fs_sb *csb,
@@ -651,7 +470,7 @@ static void ast_thread(struct m0t1fs_sb *csb);
 static void ast_thread_stop(struct m0t1fs_sb *csb);
 static void m0t1fs_obf_dealloc(struct m0t1fs_sb *csb);
 
-static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
+M0_INTERNAL void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 {
 	int i;
 	int j;
@@ -661,7 +480,6 @@ static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 
 	M0_SET0(csb);
 	m0_mutex_init(&csb->csb_mutex);
-	m0t1fs_svc_ctx_tlist_init(&csb->csb_service_contexts);
 	m0_sm_group_init(&csb->csb_iogroup);
 	csb->csb_active = true;
 	m0_chan_init(&csb->csb_iowait, &csb->csb_iogroup.s_lock);
@@ -693,7 +511,7 @@ static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
-static void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
+M0_INTERNAL void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 {
 	int i;
 	int j;
@@ -721,124 +539,9 @@ static void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 
 	m0_chan_fini_lock(&csb->csb_iowait);
 	m0_sm_group_fini(&csb->csb_iogroup);
-	m0t1fs_svc_ctx_tlist_fini(&csb->csb_service_contexts);
 	m0_mutex_fini(&csb->csb_mutex);
 	csb->csb_next_key = 0;
 	M0_LEAVE();
-}
-
-static int m0t1fs_poolmach_create(struct m0_poolmach **out, uint32_t pool_width,
-				  uint32_t nr_parity_units)
-{
-	struct m0_poolmach *m;
-	int                 rc;
-	enum {
-		/* @todo this should be retrieved from confc */
-		NR_NODES          = 1,
-		MAX_NODE_FAILURES = 1
-	};
-
-	M0_ALLOC_PTR(m);
-	if (m == NULL)
-		return M0_ERR(-ENOMEM);
-
-	rc = m0_poolmach_init(m, NULL, NULL, NULL, NR_NODES, pool_width,
-			      MAX_NODE_FAILURES, nr_parity_units);
-	if (rc == 0)
-		*out = m;
-	else
-		m0_free(m);
-	return M0_RC(rc);
-}
-
-static void m0t1fs_poolmach_destroy(struct m0_poolmach *mach)
-{
-	m0_poolmach_fini(mach);
-	m0_free(mach);
-}
-
-static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
-			const struct m0_pdclust_attr *pa)
-{
-	struct m0t1fs_service_context        *ctx;
-	int                                   nr_cont_per_svc;
-	int                                   cur;
-	int                                   mds_index;
-	int                                   i;
-	struct m0t1fs_container_location_map *map = &csb->csb_cl_map;
-
-	M0_ENTRY();
-	M0_PRE(nr_ios > 0);
-
-	/* See "Containers and component objects" section in m0t1fs.h
-	 * for more information on following line.
-	 */
-	csb->csb_nr_containers = pa->pa_P;
-	csb->csb_pool_width    = pa->pa_P;
-
-	if (pa->pa_P < pa->pa_N + 2 * pa->pa_K ||
-	    csb->csb_nr_containers > M0T1FS_MAX_NR_CONTAINERS)
-		return M0_RC(-EINVAL);
-
-	nr_cont_per_svc = csb->csb_nr_containers / nr_ios;
-	if (csb->csb_nr_containers % nr_ios != 0)
-		++nr_cont_per_svc;
-	M0_LOG(M0_DEBUG, "nr_cont_per_svc = %d", nr_cont_per_svc);
-
-	M0_SET0(map);
-
-	/* ios index starts from 1. ios_map[0] is not used */
-	cur = 1;
-	mds_index = 0;
-	m0_tl_for(m0t1fs_svc_ctx, &csb->csb_service_contexts, ctx) {
-		M0_LOG(M0_DEBUG, "ctx=%p type=%d", ctx, ctx->sc_type);
-		switch (ctx->sc_type) {
-		case M0_CST_MDS:
-			map->mds_map[mds_index++] = ctx;
-			break;
-
-		case M0_CST_IOS:
-			for (i = 0;
-			     i < nr_cont_per_svc &&
-					cur <= csb->csb_nr_containers;
-			     ++i, ++cur) {
-				map->ios_map[cur] = ctx;
-			}
-			break;
-
-		case M0_CST_MGS:
-			break;
-
-		case M0_CST_SS:
-			break;
-
-		case M0_CST_RMS:
-			map->rm_ctx = ctx;
-			break;
-
-		case M0_CST_HA:
-			break;
-
-		default:
-			M0_IMPOSSIBLE("Invalid service type");
-		}
-	} m0_tl_endfor;
-	csb->csb_nr_mds = mds_index;
-
-	for (i = 0; i < csb->csb_nr_mds; i++)
-		M0_LOG(M0_DEBUG, "mds index=%d ctx=%p type=%d",
-			i, map->mds_map[i], map->mds_map[i]->sc_type);
-	for (i = 1; i <= csb->csb_nr_containers; i++)
-		M0_LOG(M0_DEBUG, "ios index=%d ctx=%p type=%d",
-			i, map->ios_map[i], map->ios_map[i]->sc_type);
-	M0_LOG(M0_DEBUG, "rm ctx=%p type=%d",
-			map->rm_ctx, map->rm_ctx->sc_type);
-	M0_LOG(M0_DEBUG, "%d active contexts. csb_nr_containers = %d "
-			 " csb_nr_mds = %d",
-		         csb->csb_nr_active_contexts, csb->csb_nr_containers,
-			 csb->csb_nr_mds);
-
-	return M0_RC(0);
 }
 
 /*
@@ -1148,6 +851,9 @@ int m0t1fs_layout_init(struct m0t1fs_sb *csb)
 
 	M0_ENTRY();
 
+	/*
+	 * XXX TODO: Use csb->csb_pool_version to build layout.
+	 */
 	rc = m0_layout_domain_init(&csb->csb_layout_dom);
 	if (rc == 0) {
 		rc = m0_layout_standard_types_register(
@@ -1169,15 +875,30 @@ void m0t1fs_layout_fini(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
+int m0t1fs_pool_find(struct m0t1fs_sb *csb, struct m0_conf_filesystem *fs)
+{
+	struct m0_conf_pool *cp;
+	struct m0_conf_pver *pver;
+	int                  rc;
+
+	rc = m0_conf_poolversion_get(fs, NULL, &pver);
+	if (rc != 0)
+		return M0_RC(rc);
+	cp = M0_CONF_CAST(pver->pv_obj.co_parent->co_parent, m0_conf_pool);
+	csb->csb_pool = m0_pool_find(&csb->csb_pools_common, &cp->pl_obj.co_id);
+	M0_ASSERT(csb->csb_pool != NULL);
+	csb->csb_pool_version = m0_pool_version_find(csb->csb_pool,
+						     &pver->pv_obj.co_id);
+	M0_ASSERT(csb->csb_pool_version != NULL);
+
+	return M0_RC(rc);
+}
 
 static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 {
-	struct m0t1fs_service_context *ctx;
-	struct m0_conf_obj            *fs;
-	const char                    *ep_addr;
-	uint32_t                       nr_ios = 0;
-	int                            rc;
-	struct m0_pdclust_attr         pa = {0};
+	struct m0_reqh_service_ctx *ctx;
+	const char                 *ep_addr;
+	int                         rc;
 
 	M0_ENTRY();
 	M0_PRE(csb->csb_astthread.t_state == TS_RUNNING);
@@ -1194,15 +915,21 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_rpc_fini;
 
-	rc = m0t1fs_layout_init(csb);
+	csb->csb_next_key = mops->mo_fid_start;
+
+	rc = m0_conf_fs_get(mops->mo_profile, mops->mo_confd,
+			    &csb->csb_rpc_machine, &csb->csb_iogroup,
+			    &csb->csb_confc, &csb->csb_fs);
 	if (rc != 0)
 		goto err_addb_mon_fini;
 
-	csb->csb_next_key = mops->mo_fid_start;
+	rc = m0_pools_common_init(&csb->csb_pools_common,
+				  &csb->csb_rpc_machine, csb->csb_fs);
+	if (rc != 0)
+		goto err_conf_fini;
 
-	rc = connect_to_service(ha_addr, M0_CST_HA, csb);
-	ctx = m0_tl_find(m0t1fs_svc_ctx, ctx, &csb->csb_service_contexts,
-			 ctx->sc_type == M0_CST_HA);
+	ctx = m0_pools_common_service_ctx_find_by_type(&csb->csb_pools_common,
+						       M0_CST_HA);
 	if (rc != 0 || ctx == NULL) {
 		M0_LOG(M0_WARN, "Cannot connect to HA service.");
 	} else {
@@ -1213,27 +940,22 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	rc = m0_ha_state_init();
 	if (rc != 0)
-		goto err_layout_fini;
+		goto err_pools_common_fini;
 
-	rc = m0_conf_fs_get(mops->mo_profile, mops->mo_confd,
-			    &csb->csb_rpc_machine, &csb->csb_iogroup,
-			    &csb->csb_confc, &fs);
+	rc = m0_pools_setup(&csb->csb_pools_common, csb->csb_fs, NULL, NULL, NULL);
 	if (rc != 0)
-		goto ha_fini;
+		goto err_ha_fini;
 
-	rc = m0_pdclust_attr_read(fs, &pa) ?:
-	     connect_to_services(csb, fs, &nr_ios);
-	m0_confc_close(fs);
+	/* Find pool and pool version to use. */
+	rc = m0t1fs_pool_find(csb, csb->csb_fs);
 	if (rc != 0)
-		goto conf_fini;
+		goto err_ha_fini;
 
-	if (csb->csb_oostore) {
-		rc = m0t1fs_base_pool_ios_build(csb);
-		if (rc != 0)
-			goto conf_fini;
-	}
-	ctx = m0_tl_find(m0t1fs_svc_ctx, ctx, &csb->csb_service_contexts,
-			 ctx->sc_type == M0_CST_SS);
+	rc = m0t1fs_layout_init(csb);
+	if (rc != 0)
+		goto err_ha_fini;
+
+	ctx = csb->csb_pools_common.pc_ss_ctx;
 	if (ctx != NULL) {
 		ep_addr = ctx->sc_conn.c_rpcchan->rc_destep->nep_addr;
 		m0_addb_monitor_setup(&csb->csb_reqh, &ctx->sc_conn, ep_addr);
@@ -1243,24 +965,12 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	rc = configure_addb_rpc_sink(csb, &m0_addb_gmc);
 	if (rc != 0)
-		goto err_disconnect;
-
-	rc = m0_pool_init(&csb->csb_pool, pa.pa_P);
-	if (rc != 0)
-		goto addb_mc_unconf;
-
-	rc = m0t1fs_poolmach_create(&csb->csb_pool.po_mach, pa.pa_P, pa.pa_K);
-	if (rc != 0)
-		goto err_pool_fini;
-
-	rc = cl_map_build(csb, nr_ios, &pa);
-	if (rc != 0)
-		goto err_poolmach_destroy;
+		goto err_layout_fini;
 
 	/* Start resource manager service */
 	rc = m0t1fs_reqh_services_start(csb);
 	if (rc != 0)
-		goto err_poolmach_destroy;
+		goto err_addb_mc_unconf;
 
 	rc = m0t1fs_sb_layouts_init(csb);
 	if (rc != 0)
@@ -1270,22 +980,20 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 err_services_terminate:
 	m0_reqh_services_terminate(&csb->csb_reqh);
-err_poolmach_destroy:
-	m0t1fs_poolmach_destroy(csb->csb_pool.po_mach);
-err_pool_fini:
-	m0_pool_fini(&csb->csb_pool);
-addb_mc_unconf:
+err_addb_mc_unconf:
 	/* @todo Make a separate unconfigure api and do this in that */
 	m0_addb_mc_fini(&m0_addb_gmc);
 	m0_addb_mc_init(&m0_addb_gmc);
-err_disconnect:
-	disconnect_from_services(csb);
-conf_fini:
-	m0_confc_fini(&csb->csb_confc);
-ha_fini:
-	m0_ha_state_fini();
 err_layout_fini:
 	m0t1fs_layout_fini(csb);
+err_ha_fini:
+	m0_ha_state_fini();
+err_pools_common_fini:
+	m0_pools_common_fini(&csb->csb_pools_common);
+err_conf_fini:
+	/* Close filesystem. */
+	m0_confc_close(&csb->csb_fs->cf_obj);
+	m0_confc_fini(&csb->csb_confc);
 err_addb_mon_fini:
 	m0t1fs_addb_mon_total_io_size_fini(csb);
 err_rpc_fini:
@@ -1300,15 +1008,15 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 {
 	m0t1fs_sb_layouts_fini(csb);
 	m0_reqh_services_terminate(&csb->csb_reqh);
-	m0t1fs_poolmach_destroy(csb->csb_pool.po_mach);
-	m0_pool_fini(&csb->csb_pool);
 	/* @todo Make a separate unconfigure api and do this in that */
 	m0_addb_mc_fini(&m0_addb_gmc);
 	m0_addb_mc_init(&m0_addb_gmc);
-	disconnect_from_services(csb);
-	m0_confc_fini(&csb->csb_confc);
-	m0_ha_state_fini();
 	m0t1fs_layout_fini(csb);
+	m0_ha_state_fini();
+	m0_pools_common_fini(&csb->csb_pools_common);
+	/* Close filesystem. */
+	m0_confc_close(&csb->csb_fs->cf_obj);
+	m0_confc_fini(&csb->csb_confc);
 	m0t1fs_addb_mon_total_io_size_fini(csb);
 	m0t1fs_rpc_fini(csb);
 	m0t1fs_net_fini(csb);

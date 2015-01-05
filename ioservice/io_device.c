@@ -335,26 +335,26 @@ m0_ios_poolmach_version_updates_pack(struct m0_poolmach         *pm,
 				     struct m0_fv_version       *version,
 				     struct m0_fv_updates       *updates)
 {
-	struct m0_pool_version_numbers  curr;
-	struct m0_pool_version_numbers *verp;
-	struct m0_tl			events_list;
-	struct m0_pool_event_link      *scan;
-	uint32_t			count;
-	uint32_t			index;
-	int				rc;
+	struct m0_poolmach_versions    curr;
+	struct m0_poolmach_versions   *verp;
+	struct m0_tl                   events_list;
+	struct m0_poolmach_event_link *scan;
+	uint32_t                       count;
+	uint32_t                       index;
+	int                            rc;
 
 	updates->fvu_count  = 0;
 	updates->fvu_events = NULL;
 
 	m0_poolmach_current_version_get(pm, &curr);
-	verp = (struct m0_pool_version_numbers*)version;
+	verp = (struct m0_poolmach_versions*)version;
 	*verp = curr;
-	if (!m0_poolmach_version_before((struct m0_pool_version_numbers *)cli,
+	if (!m0_poolmach_version_before((struct m0_poolmach_versions *)cli,
 					&curr))
 		return 0;
 
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(pm, (struct m0_pool_version_numbers *)cli,
+	rc = m0_poolmach_state_query(pm, (struct m0_poolmach_versions *)cli,
 				     &curr, &events_list);
 	if (rc != 0)
 		goto out;

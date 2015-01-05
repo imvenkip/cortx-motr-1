@@ -18,6 +18,9 @@
  * Original creation date: 03-Feb-2012
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 #include "lib/misc.h"               /* M0_IN */
 #include "xcode/xcode.h"            /* m0_xcode_union_add, M0_CONF_TYPE_MAX */
 #include "conf/obj.h"
@@ -388,6 +391,7 @@ const struct m0_conf_obj_type *m0_conf_fid_type(const struct m0_fid *fid)
 
 	M0_PRE(IS_IN_ARRAY(id, obj_types));
 	M0_PRE(obj_types[id] != NULL);
+
 	return obj_types[id];
 }
 
@@ -401,13 +405,11 @@ M0_INTERNAL int m0_conf_obj_init(void)
 {
 	m0_xcode_union_init(m0_confx_obj_xc, "m0_confx_obj",
 			    "xo_type", M0_CONF_OBJ_TYPE_MAX);
-	m0_conf_obj_type_register(&M0_CONF_PROFILE_TYPE);
-	m0_conf_obj_type_register(&M0_CONF_FILESYSTEM_TYPE);
-	m0_conf_obj_type_register(&M0_CONF_SERVICE_TYPE);
-	m0_conf_obj_type_register(&M0_CONF_NODE_TYPE);
-	m0_conf_obj_type_register(&M0_CONF_NIC_TYPE);
-	m0_conf_obj_type_register(&M0_CONF_SDEV_TYPE);
-	m0_conf_obj_type_register(&M0_CONF_DIR_TYPE);
+#define X_CONF(_, name) \
+	m0_conf_obj_type_register(&M0_CONF_ ## name ## _TYPE)
+
+	M0_CONF_OBJ_TYPES;
+#undef X_CONF
 	m0_xcode_union_close(m0_confx_obj_xc);
 	m0_fid_type_register(&M0_CONF_RELFID_TYPE);
 	return 0;
@@ -415,12 +417,11 @@ M0_INTERNAL int m0_conf_obj_init(void)
 
 M0_INTERNAL void m0_conf_obj_fini(void)
 {
-	m0_conf_obj_type_unregister(&M0_CONF_PROFILE_TYPE);
-	m0_conf_obj_type_unregister(&M0_CONF_FILESYSTEM_TYPE);
-	m0_conf_obj_type_unregister(&M0_CONF_SERVICE_TYPE);
-	m0_conf_obj_type_unregister(&M0_CONF_NODE_TYPE);
-	m0_conf_obj_type_unregister(&M0_CONF_NIC_TYPE);
-	m0_conf_obj_type_unregister(&M0_CONF_SDEV_TYPE);
-	m0_conf_obj_type_unregister(&M0_CONF_DIR_TYPE);
+#define X_CONF(_, name) \
+	m0_conf_obj_type_unregister(&M0_CONF_ ## name ## _TYPE)
+
+	M0_CONF_OBJ_TYPES;
+#undef X_CONF
 	m0_fid_type_unregister(&M0_CONF_RELFID_TYPE);
 }
+#undef M0_TRACE_SUBSYSTEM

@@ -509,7 +509,7 @@ static int file_read(const char *path, char *dest, size_t sz)
 
 static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
 {
-	static char      buf[4096];
+	static char      buf[M0_CONF_STR_MAXLEN];
 	struct m0_confx *enc;
 	int              i;
 	int              rc;

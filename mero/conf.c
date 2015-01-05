@@ -24,20 +24,19 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/string.h"           /* m0_strdup */
+#include "lib/locality.h"         /* m0_locality0_get */
 #include "mero/setup.h"           /* cs_args */
 #include "rpc/rpclib.h"           /* m0_rpc_client_ctx */
 #include "conf/obj.h"             /* m0_conf_filesystem */
 #include "conf/confc.h"           /* m0_confc */
 #include "conf/schema.h"          /* m0_conf_service_type */
+#include "conf/obj_ops.h"         /* M0_CONF_DIRNEXT */
+#include "conf/helpers.h"         /* m0_conf_fs_get */
+#include "conf/dir_iter.h"        /* m0_conf_diter_init */
 
 /* ----------------------------------------------------------------
  * Mero options
  * ---------------------------------------------------------------- */
-
-static struct m0_sm_group g_grp;
-
-static void ast_thread_init(void);
-static void ast_thread_fini(void);
 
 /* Note: `s' is believed to be heap-allocated. */
 static void option_add(struct cs_args *args, char *s)
@@ -129,187 +128,92 @@ node_options_add(struct cs_args *args, const struct m0_conf_node *node)
 	option_add(args, m0_strdup(buf));
 }
 
-/** Uses confc API to generate CLI arguments. */
-static int conf_to_args(struct cs_args *dest, const char *confd_addr,
-			const char *profile, struct m0_rpc_machine *rpc_mach)
+static bool service_and_node(const struct m0_conf_obj *obj)
 {
-	struct m0_confc     confc;
-	struct m0_conf_obj *fs;
-	struct m0_conf_obj *svc_dir;
-	struct m0_conf_obj *svc;
-	struct m0_fid       prof_fid;
-	int                 rc;
+	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE ||
+	       m0_conf_obj_type(obj) == &M0_CONF_NODE_TYPE;
+}
+
+/** Uses confc API to generate CLI arguments. */
+static int conf_to_args(struct cs_args *dest, struct m0_conf_filesystem *fs)
+{
+	struct m0_confc      *confc;
+	struct m0_conf_diter  it;
+	int                   rc;
 
 	M0_ENTRY();
 
-	rc = m0_fid_sscanf(profile, &prof_fid);
-	if (rc != 0) {
-		M0_LOG(M0_FATAL, "Cannot parse profile `%s'", profile);
-		goto profile_err;
-	}
-
-	ast_thread_init();
-	rc = m0_confc_init(&confc, &g_grp, &prof_fid,
-			   confd_addr, rpc_mach, NULL);
-	if (rc != 0)
-		goto end;
+	confc = m0_confc_from_obj(&fs->cf_obj);
+	M0_ASSERT(confc != NULL);
 
 	option_add(dest, m0_strdup("lt-m0d")); /* XXX Does the value matter? */
-
-	M0_LOG(M0_DEBUG, "fs_fid: "FID_F,
-	       FID_P(&M0_CONF_PROFILE_FILESYSTEM_FID));
-	rc = m0_confc_open_sync(&fs, confc.cc_root,
-				M0_CONF_PROFILE_FILESYSTEM_FID);
-	if (rc != 0)
-		goto confc_fini;
 	fs_options_add(dest, M0_CONF_CAST(fs, m0_conf_filesystem));
 
-	rc = m0_confc_open_sync(&svc_dir, fs, M0_CONF_FILESYSTEM_SERVICES_FID);
+	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_NODES_FID,
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
-		goto fs_close;
+		goto cleanup;
 
-	for (svc = NULL; (rc = m0_confc_readdir_sync(svc_dir, &svc)) > 0; ) {
-
-		service_options_add(dest, M0_CONF_CAST(svc, m0_conf_service));
-
-#if 0
-		/*
-		 * XXX FIXME: Options of a particular node should be
-		 * added only once.
-		 *
-		 * Several services may be hosted on the same node. We
-		 * should take this fact into consideration when
-		 * adding node options (currently we are ignoring it).
-		 */
-		rc = m0_confc_open_sync(&node, svc, M0_CONF_SERVICE_NODE_FID);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR,
-			       "Unable to obtain configuration of a node");
-			break;
+	while ((rc = m0_conf_diter_next_sync(&it, service_and_node)) == M0_CONF_DIRNEXT) {
+		struct m0_conf_obj *obj = m0_conf_diter_result(&it);
+		if (m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE) {
+			struct m0_conf_service *svc =
+				M0_CONF_CAST(obj, m0_conf_service);
+			service_options_add(dest, svc);
+		} else if(m0_conf_obj_type(obj) == &M0_CONF_NODE_TYPE) {
+			struct m0_conf_node *node =
+				M0_CONF_CAST(obj, m0_conf_node);
+			node_options_add(dest, node);
 		}
-		node_options_add(dest, M0_CONF_CAST(node, m0_conf_node));
-		m0_confc_close(node);
-#endif
 	}
 
-	m0_confc_close(svc);
-	m0_confc_close(svc_dir);
-fs_close:
-	m0_confc_close(fs);
-confc_fini:
-	m0_confc_fini(&confc);
-end:
-	ast_thread_fini();
-profile_err:
+cleanup:
+	m0_conf_diter_fini(&it);
 	return M0_RC(rc);
 }
 
 /*
- * Establishes network connection with confd, fills CLI arguments (`args'),
- * disconnects from confd.
+ * Read configuration from confd, fills CLI arguments (`args').
  */
-M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
-				const char *profile, const char *local_addr,
-				unsigned timeout, unsigned retry)
+M0_INTERNAL int cs_conf_to_args(struct cs_args *args, struct m0_conf_filesystem *fs)
 {
-	enum { MAX_RPCS_IN_FLIGHT = 32 };
-	static struct m0_net_domain      client_net_dom;
-	static struct m0_rpc_client_ctx  cctx;
-	static char                      client_ep[M0_NET_LNET_XEP_ADDR_LEN];
-	static char                      server_ep[M0_NET_LNET_XEP_ADDR_LEN];
-	int                              rc;
-	unsigned                         i;
-
 	M0_ENTRY();
-	M0_PRE(confd_addr != NULL && profile != NULL);
+	M0_PRE(args != NULL && fs != NULL);
 
-	M0_LOG(M0_DEBUG, "confd_addr=%s profile=%s", confd_addr, profile);
+	return conf_to_args(args, fs);
+}
 
-	cctx.rcx_net_dom               = &client_net_dom;
-	cctx.rcx_local_addr            = client_ep;
-	cctx.rcx_remote_addr           = server_ep;
-	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
-	cctx.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
-	cctx.rcx_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
+M0_INTERNAL int m0_mero_conf_setup(struct m0_mero *mero)
+{
+	struct m0_rpc_machine *rmach;
+	struct m0_locality    *loc = m0_locality0_get();
+	int                    rc;
 
-	strcpy(server_ep, confd_addr);
-	strcpy(client_ep, local_addr);
-	{
-		char *se = strrchr(client_ep, ':');
-		if (se == NULL)
-			return M0_ERR_INFO(-EINVAL, "Invalid value of confd_addr:"
-				      " `%s'", confd_addr);
-		*(++se) = '*';
-		*(++se) = 0;
-	}
+	M0_PRE(mero->cc_profile != NULL && mero->cc_confd_addr != NULL);
 
-	rc = m0_net_domain_init(&client_net_dom, &m0_net_lnet_xprt);
+	rmach = m0_mero_to_rmach(mero);
+        rc = m0_conf_fs_get(mero->cc_profile, mero->cc_confd_addr,
+			    rmach, loc->lo_grp, &mero->cc_confc, &mero->cc_fs);
 	if (rc != 0)
-		return M0_RC(rc);
-	/*
-	 * confd service should be started before other services.
-	 * Following loop checks for availability of confd service, retrying
-	 * for 10 minutes. If for 10 minutes, it cannot connect to confd,
-	 * it exits.
-	 *
-	 * XXX FIXME: This solution is a workaround, introduced during AAA, and
-	 * is not the right way to handle the dependency of services on confd.
-	 */
-	for (i = 0; i < retry; ++i) {
-		rc = m0_rpc_client_start(&cctx);
-		if (rc == -EHOSTUNREACH)
-			m0_nanosleep(m0_time_from_now(timeout, 0), NULL);
-		else
-			break;
-	}
-	if (rc != 0)
-		goto net_dom;
+		goto out;
 
-	rc = conf_to_args(args, server_ep, profile, &cctx.rcx_rpc_machine);
-	if (rc == 0)
-		rc = m0_rpc_client_stop(&cctx);
-	else
-		(void)m0_rpc_client_stop(&cctx);
-net_dom:
-	m0_net_domain_fini(&client_net_dom);
+	rc = m0_pools_common_init(&mero->cc_pools_common, NULL, mero->cc_fs);
+	if (rc != 0)
+		goto cleanup;
+        rc = m0_pools_setup(&mero->cc_pools_common, mero->cc_fs, NULL, NULL, NULL);
+        if (rc == 0)
+		goto out;
+
+	m0_pools_common_fini(&mero->cc_pools_common);
+cleanup:
+	m0_confc_close(&mero->cc_fs->cf_obj);
+	m0_confc_fini(&mero->cc_confc);
+	mero->cc_fs = NULL;
+out:
 	return M0_RC(rc);
 }
-
-/* ----------------------------------------------------------------
- * AST thread
- * ---------------------------------------------------------------- */
-
-static struct {
-	bool             run;
-	struct m0_thread thread;
-} g_ast;
-
-static void ast_thread(int _ __attribute__((unused)))
-{
-	while (g_ast.run) {
-		m0_chan_wait(&g_grp.s_clink);
-		m0_sm_group_lock(&g_grp);
-		m0_sm_asts_run(&g_grp);
-		m0_sm_group_unlock(&g_grp);
-	}
-}
-
-static void ast_thread_init(void)
-{
-	m0_sm_group_init(&g_grp);
-	g_ast.run = true;
-	M0_ASSERT(M0_THREAD_INIT(&g_ast.thread, int, NULL, &ast_thread, 0,
-				 "ast_thread") == 0);
-}
-
-static void ast_thread_fini(void)
-{
-	g_ast.run = false;
-	m0_clink_signal(&g_grp.s_clink);
-	m0_thread_join(&g_ast.thread);
-	m0_sm_group_fini(&g_grp);
-}
-
 #undef M0_TRACE_SUBSYSTEM
 
 /*

@@ -1155,9 +1155,9 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
  * Checks target device state for cob fid.
  */
 int ios__poolmach_check(struct m0_poolmach *poolmach,
-			struct m0_pool_version_numbers *cliv)
+			struct m0_poolmach_versions *cliv)
 {
-	struct m0_pool_version_numbers curr;
+	struct m0_poolmach_versions curr;
 
 	M0_ENTRY();
 
@@ -1179,13 +1179,13 @@ int ios__poolmach_check(struct m0_poolmach *poolmach,
 
 static int io_prepare(struct m0_fom *fom)
 {
-	struct m0_fop_cob_rw           *rwfop;
-	struct m0_poolmach             *poolmach;
-	struct m0_reqh                 *reqh;
-	struct m0_fop_cob_rw_reply     *rwrep;
-	struct m0_pool_version_numbers *cliv;
-	enum m0_pool_nd_state           device_state = 0;
-	int                             rc;
+	struct m0_fop_cob_rw        *rwfop;
+	struct m0_poolmach          *poolmach;
+	struct m0_reqh              *reqh;
+	struct m0_fop_cob_rw_reply  *rwrep;
+	struct m0_poolmach_versions *cliv;
+	enum m0_pool_nd_state        device_state = 0;
+	int                          rc;
 
 	M0_ENTRY("fom=%p", fom);
 
@@ -1193,7 +1193,7 @@ static int io_prepare(struct m0_fom *fom)
 	poolmach = m0_ios_poolmach_get(reqh);
 	rwfop = io_rw_get(fom->fo_fop);
 	rwrep = io_rw_rep_get(fom->fo_rep_fop);
-	cliv = (struct m0_pool_version_numbers*)(&rwfop->crw_version);
+	cliv = (struct m0_poolmach_versions*)(&rwfop->crw_version);
 
 	M0_LOG(M0_DEBUG, "Preparing %s IO @"FID_F"",
 	       m0_is_read_fop(fom->fo_fop)? "Read": "Write",

@@ -160,31 +160,16 @@ struct m0_fop_fsync_rep {
    stored as a new member of struct m0t1fs_inode::ci_pending_tx
    for both files and directories.
 
-   @note a sender should be identified by m0t1fs_service_context which
+   @note a sender should be identified by m0_reqh_service_ctx which
    represents a 1:1 relationship between mounted m0t1fs (super block) and a
    service instance (e.g., mdservice, ioservice).
 
    The mapping should be stored as an m0_tlist, while any file could be
    striped accross every server in the cluster, the records are almost always
    processed as a set. A new struct would be required that holds the mapping
-   of senders to the largest-seen transaction m0t1fs_service_txid.
+   of senders to the largest-seen transaction m0_reqh_service_txid.
    These should be allocated when needed (when a reply with a transaction ID
    is received), and free'd when the file (or directory) is closed.
-
-@code
-//
-// struct for mapping sender to its corresponding maximum transaction.
-//
-struct m0t1fs_service_txid {
-        // m0t1fs_service_context is used as sender identifier
-        struct m0t1fs_service_context *stx_service_ctx;
-
-        // the maximum be transaction ID seen from this sender
-        uint64_t                       stx_maximum_txid;
-
-        uint64_t                       stx_link_magic;
-};
-@endcode
 
    When fsync() is called for an open file or directory, m0t1fs should first
    call simple_fsync() to ensure all dirty pages have been pushed through
@@ -302,7 +287,7 @@ struct m0t1fs_service_txid {
         the file cannot be fsync'ed properly. It needs to be assessed how
         likely it is an error is detected at that stage.
 
-        - to mitigate this risk, the 'm0t1fs_service_txid' is cached
+        - to mitigate this risk, the 'm0_reqh_service_txid' is cached
           between sending an fsync-fop and receiving its reply. These records
           are only free'd when an inode is destroyed, so there is no scope
           for the record being not-found. The remaining case where this could
@@ -360,28 +345,28 @@ struct m0t1fs_service_txid {
 /* import */
 struct m0t1fs_inode;
 struct m0t1fs_sb;
-struct m0t1fs_service_context;
+struct m0_reqh_service_ctx;
 
 
 /**
  * Wrapper for fsync messages, used to list/group pending replies
- * and pair fop/reply with the struct m0t1fs_service_txid
+ * and pair fop/reply with the struct m0_reqh_service_txid
  * that needs updating.
  */
 struct m0t1fs_fsync_fop_wrapper {
 	/** The fop for fsync messages */
-	struct m0_fop                      ffw_fop;
+	struct m0_fop                ffw_fop;
 
 	/**
 	 * The service transaction that needs updating
 	 * gain the m0t1fs_inode::ci_pending_txid_lock lock
-	 * for inodes or the m0t1fs_service_context::sc_max_pending_tx_lock
+	 * for inodes or the m0_reqh_service_ctx::sc_max_pending_tx_lock
 	 * for the super block before dereferencing
 	 */
-	struct m0t1fs_service_txid        *ffw_stx;
+	struct m0_reqh_service_txid *ffw_stx;
 
-	struct m0_tlink                    ffw_tlink;
-	uint64_t                           ffw_tlink_magic;
+	struct m0_tlink              ffw_tlink;
+	uint64_t                     ffw_tlink_magic;
 };
 
 /**
@@ -418,19 +403,19 @@ int m0t1fs_fsync(struct file *file, struct dentry *dentry, int datasync);
  * Service must be specified, one or both of csb/inode should be specified.
  * new_txid may be null.
  */
-void m0t1fs_fsync_record_update(struct m0t1fs_service_context *service,
-				struct m0t1fs_sb              *csb,
-				struct m0t1fs_inode           *inode,
-				struct m0_be_tx_remid         *btr);
+void m0t1fs_fsync_record_update(struct m0_reqh_service_ctx *service,
+				struct m0t1fs_sb           *csb,
+				struct m0t1fs_inode        *inode,
+				struct m0_be_tx_remid      *btr);
 
 
 /**
- * Create and send an fsync fop from the provided m0t1fs_service_txid.
+ * Create and send an fsync fop from the provided m0_reqh_service_txid.
  */
 M0_INTERNAL int
-m0t1fs_fsync_request_create(struct m0t1fs_service_txid        *stx,
-			    struct m0t1fs_fsync_fop_wrapper   *ffw,
-			    enum m0_fsync_mode                 mode);
+m0t1fs_fsync_request_create(struct m0_reqh_service_txid     *stx,
+			    struct m0t1fs_fsync_fop_wrapper *ffw,
+			    enum m0_fsync_mode               mode);
 
 
 /**

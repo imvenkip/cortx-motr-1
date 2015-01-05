@@ -5,30 +5,74 @@ mkiosloopdevs()
 	local dir=$3
 	local adisk=addb-disk.img
 	local ddisk=data-disk.img
-	local dev_start=1
 	local dev_end=0
+	local adev_id="(0x6400000000000001, $ADEV_ID)"
+	local ids=""
+	local id_count=0
 
 	cd $dir || return 1
 
-	dd if=/dev/zero of=$adisk bs=1M seek=1M count=1 || return 1
+	dd if=/dev/zero of=$ADEV_ID$adisk bs=1M seek=1M count=1 || return 1
 	cat > disks.conf << EOF
 Device:
-   - id: 0
-     filename: `pwd`/$adisk
+   - id: $ADEV_ID
+     filename: `pwd`/$ADEV_ID$adisk
 EOF
-	if (($ios > 0))
-	then
-		dev_start=$(($nr_devs * $ios))
-		dev_end=$(($dev_start - $nr_devs))
-	fi
-	for ((j=$dev_start; j > $dev_end; j--)) ; do
-		dd if=/dev/zero of=$j$ddisk bs=1M seek=1M count=1 ||
+
+	ADEV_ID=`expr $ADEV_ID + 1`
+	dev_end=$(($DDEV_ID + $nr_devs))
+	for (( ; DDEV_ID < $dev_end; DDEV_ID++)) ; do
+		local ddev_id="(0x6400000000000001, $DDEV_ID)"
+		local ddisk_id="(0x6b00000000000001, $DDEV_ID)"
+		local ddiskv_id="(0x6a00000000000001, $DDEV_ID)"
+
+		if (($id_count == 0))
+		then
+			ids="$ddev_id"
+		else
+			ids="$ids, $ddev_id"
+		fi
+		id_count=`expr $id_count + 1`
+
+		#dev conf obj
+		local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"`pwd`/$DDEV_ID$ddisk\")}"
+		#disk conf obj
+		local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id)}"
+		if (($NR_DISK_FIDS == 0))
+		then
+			DISK_FIDS="$ddisk_id"
+		else
+			DISK_FIDS="$DISK_FIDS, $ddisk_id"
+		fi
+		NR_DISK_FIDS=`expr $NR_DISK_FIDS + 1`
+
+		#diskv conf obj
+		local ddiskv_obj="{0x6a| (($ddiskv_id), $ddisk_id, [0])}"
+		if (($NR_DISKV_FIDS == 0))
+		then
+			DISKV_FIDS="$ddiskv_id"
+		else
+			DISKV_FIDS="$DISKV_FIDS, $ddiskv_id"
+		fi
+		NR_DISKV_FIDS=`expr $NR_DISKV_FIDS + 1`
+
+		if (($NR_IOS_DEVS == 0))
+		then
+			IOS_DEVS="$ddev_obj, \n $ddisk_obj, \n $ddiskv_obj"
+		else
+			IOS_DEVS="$IOS_DEVS, \n $ddev_obj, \n $ddisk_obj, \n $ddiskv_obj"
+		fi
+		NR_IOS_DEVS=`expr $NR_IOS_DEVS + 3`
+
+		dd if=/dev/zero of=$DDEV_ID$ddisk bs=1M seek=1M count=1 ||
 			return 1
 		cat >> disks.conf << EOF
-   - id: $j
-     filename: `pwd`/$j$ddisk
+   - id: $DDEV_ID
+     filename: `pwd`/$DDEV_ID$ddisk
 EOF
 	done
+
+	IOS_DEV_IDS[`expr $ios - 1`]="[$id_count: $ids]"
 
 	cd - >/dev/null
 	return $?
@@ -40,19 +84,35 @@ mkmdsloopdevs()
 	local dir=$2
 	local adisk=addb-disk.img
 	local ddisk=data-disk.img
+	local adev_id="(0x6400000000000001, $ADEV_ID)"
+	local ddev_id="(0x6400000000000001, $MDEV_ID)"
+
+	MDS_DEV_IDS[`expr $mds - 1`]="[2: $adev_id, $ddev_id]"
 
 	cd $dir || return 1
+	local adev_obj="{0x64| (($adev_id), 4, 1, 4096, 596000000000, 3, 4, \"`pwd`/$ADEV_ID$adisk\")}"
+	local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"`pwd`/$MDEV_ID$ddisk\")}"
 
-	dd if=/dev/zero of=$adisk bs=1M seek=1M count=1 || return 1
-	dd if=/dev/zero of=$ddisk bs=1M seek=1M count=1 || return 1
+	if (($NR_MDS_DEVS == 0))
+	then
+		MDS_DEVS="$adev_obj, \n $ddev_obj"
+	else
+		MDS_DEVS="$MDS_DEVS, \n $adev_obj, \n $ddev_obj"
+	fi
+	NR_MDS_DEVS=`expr $NR_MDS_DEVS + 2`
+
+	dd if=/dev/zero of=$ADEV_ID$adisk bs=1M seek=1M count=1 || return 1
+	dd if=/dev/zero of=$MDEV_ID$ddisk bs=1M seek=1M count=1 || return 1
 	cat > disks.conf << EOF
 Device:
-   - id: 0
-     filename: `pwd`/$adisk
-   - id: $mds
-     filename: `pwd`/$ddisk
+   - id: $ADEV_ID
+     filename: `pwd`/$ADEV_ID$adisk
+   - id: $MDEV_ID
+     filename: `pwd`/$MDEV_ID$ddisk
 EOF
 
+	ADEV_ID=`expr $ADEV_ID + 1`
+	MDEV_ID=`expr $MDEV_ID + 1`
 	cd - >/dev/null
 	return $?
 }
@@ -96,6 +156,36 @@ mero_service()
 		mkdir $DIR
 		ulimit -c unlimited
 
+		local nr_ios=${#IOSEP[*]}
+		local nr_dev_per_ios=$(($P / $nr_ios))
+		local remainder=$(($P % $nr_ios))
+
+		#create mds devices
+		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
+			local mds=`expr $i + 1`
+			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
+			rm -rf $DIR
+			mkdir $DIR
+
+			mkmdsloopdevs $mds $DIR || return 1
+		done
+
+		#create ios devices
+		for ((i=0; i < $nr_ios; i++)) ; do
+			local ios=`expr $i + 1`
+			local nr_dev=$nr_dev_per_ios
+			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
+			rm -rf $DIR
+			mkdir $DIR
+
+			if (($i < $remainder))
+			then
+				nr_dev=$(($nr_dev_per_ios + 1))
+			fi
+
+			mkiosloopdevs $ios $nr_dev $DIR || return 1
+		done
+
 		build_conf $N $K $P | tee $DIR/conf.xc
 
 		opts="-T linux -D db -S stobs -A linuxstob:addb-stobs \
@@ -125,21 +215,10 @@ mero_service()
 			return 1
 		fi
 
-		local nr_ios=${#IOSEP[*]}
-		local nr_dev_per_ios=$(($P / $nr_ios))
-		if (($P % $nr_ios > 0))
-		then
-			nr_dev_per_ios=$(($nr_dev_per_ios + 1))
-		fi
-
 		# spawn mds servers
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
 			local mds=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
-			rm -rf $DIR
-			mkdir $DIR
-
-			(mkmdsloopdevs $mds $DIR) || return 1
 
 			SNAME="-s mdservice -s rmservice -s addb -s stats"
 			ulimit -c unlimited
@@ -185,9 +264,6 @@ mero_service()
 		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 			local ios=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
-			rm -rf $DIR
-			mkdir -p $DIR
-			(mkiosloopdevs $ios $nr_dev_per_ios $DIR) || return 1
 
 			SNAME="-s ioservice -s sns_repair -s sns_rebalance -s addb"
 

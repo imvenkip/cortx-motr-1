@@ -63,6 +63,14 @@ struct m0_conf_obj;
  *   This structure embodies data needed by a state machine to process
  *   configuration request.
  *
+ * - m0_conf_diter --- configuration directory iterator.
+ *   This structure maintains multiple levels of a configuration directory path
+ *   and data needed for its traversal. Each directory level is represented by
+ *   m0_conf_diter_lvl. Each m0_conf_diter_lvl contains 2 objects of m0_confc_ctx
+ *   corresponding to m0_confc_open() and m0_confc_readdir() operations, which
+ *   are re-used for subsequent iterations for that directory level.
+ *   m0_conf_diter traverses the configuration directory tree in depth first order.
+ *
  * <hr> <!------------------------------------------------------------>
  * @section confc-fspec-sub Subroutines
  *
@@ -155,6 +163,11 @@ struct m0_conf_obj;
  * @note  Confc library pins (see @ref conf-fspec-obj-pinned) only
  *        those configuration objects that are m0_confc_open*()ed or
  *        m0_confc_readdir*()ed by the application.
+ *
+ * m0_conf_diter_next() is an asynchronous function.
+ * Prior to invoking it, the application must invoke m0_conf_diter_wait_arm()
+ * and register a clink to receive the completion event.
+ * Result of the iteration must be accessed using m0_conf_diter_result().
  *
  * <hr> <!------------------------------------------------------------>
  * @section confc-fspec-recipes Recipes
@@ -797,19 +810,6 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
  */
 M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 				      struct m0_conf_obj **pptr);
-
-/**
- * Convenient helper to get root fs conf_obj.
- *
- * @confc is initialized automatically and should be finalized
- *        when finished dealing with @fs along with the latter.
- */
-M0_INTERNAL int m0_conf_fs_get(const char *profile,
-			       const char *confd_addr,
-			       struct m0_rpc_machine *rmach,
-			       struct m0_sm_group *grp,
-			       struct m0_confc *confc,
-			       struct m0_conf_obj **fs);
 
 /** @} confc_dfspec */
 #endif /* __MERO_CONF_CONFC_H__ */

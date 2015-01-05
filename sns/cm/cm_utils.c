@@ -335,17 +335,17 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 	struct cs_endpoint_and_xprt *ex;
 	uint32_t                     nr_ios =
 					cs_eps_tlist_length(&mero->cc_ios_eps);
-	uint32_t                     pw     = mero->cc_pool_width;
-	uint32_t                     nr_cnt_per_ios;
-	uint64_t                     nr_cnts;
+	uint32_t                     nr_devs_unchecked = mero->cc_pool_width;
+	uint32_t                     nr_devs_in_ios;
+	uint64_t                     nr_devs_checked = 0;
 
-	nr_cnt_per_ios = pw / nr_ios;
-	if (pw % nr_ios != 0)
-		++nr_cnt_per_ios;
-	nr_cnts = nr_cnt_per_ios;
 	m0_tl_for(cs_eps, &mero->cc_ios_eps, ex) {
-		if (cfid->f_container > nr_cnts) {
-			nr_cnts += nr_cnt_per_ios;
+		nr_devs_in_ios = nr_devs_unchecked / nr_ios +
+				 nr_devs_unchecked % nr_ios;
+		nr_devs_checked += nr_devs_in_ios;
+		if (cfid->f_container > nr_devs_checked) {
+			M0_CNT_DEC(nr_ios);
+			nr_devs_unchecked -= nr_devs_in_ios;
 			continue;
 		}
 		M0_LOG(M0_DEBUG, "Target endpoint for: "FID_F" %s",

@@ -1723,7 +1723,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 {
 	struct m0_reqh		   *reqh;
 	struct m0_poolmach	   *pm;
-	struct m0_pool_event	    event;
+	struct m0_poolmach_event    event;
 	struct m0_fop		   *wfop;
 	struct m0_fop		   *rfop;
 	struct m0_fop_cob_rw_reply *rw_reply;

@@ -261,6 +261,7 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 		rc = 0;
 	}
 
+	/* Allocate credits for db finalisation in-case of an error. */
 	m0_confdb_destroy_credit(seg, accum);
 
 	return M0_RC(rc);
@@ -360,12 +361,22 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 M0_INTERNAL void m0_confdb_destroy_credit(struct m0_be_seg *seg,
 					  struct m0_be_tx_credit *accum)
 {
-	struct m0_be_btree btree = { .bb_seg = seg };
+	struct m0_be_btree *btp;
+	struct m0_be_btree  btree = { .bb_seg = seg };
+	int                 rc;
 
 	M0_ENTRY();
-	m0_be_btree_destroy_credit(&btree, 1, accum);
+
+	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&btp);
+	if (rc == 0) {
+		m0_be_btree_destroy_credit(btp, 1, accum);
+	} else {
+		m0_be_btree_destroy_credit(&btree, 1, accum);
+	}
 	m0_be_seg_dict_delete_credit(seg, btree_name, accum);
 	M0_BE_FREE_CREDIT_PTR(&btree, seg, accum);
+
+	M0_LEAVE();
 }
 
 static int __confdb_free(struct m0_be_btree *btree, struct m0_be_seg *seg,

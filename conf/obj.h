@@ -21,13 +21,14 @@
 #ifndef __MERO_CONF_OBJ_H__
 #define __MERO_CONF_OBJ_H__
 
-#include "ha/note.h"      /* m0_ha_obj_state */
-#include "lib/chan.h"     /* m0_chan */
-#include "lib/tlist.h"    /* m0_tl, m0_tlink */
-#include "lib/bob.h"      /* m0_bob_type */
+#include "ha/note.h"        /* m0_ha_obj_state */
+#include "lib/chan.h"       /* m0_chan */
+#include "lib/tlist.h"      /* m0_tl, m0_tlink */
+#include "lib/bob.h"        /* m0_bob_type */
 #include "lib/types.h"
-#include "fid/fid.h"      /* m0_fid */
-#include "conf/schema.h"  /* m0_conf_service_type */
+#include "layout/pdclust.h" /* m0_pdclust_attr */
+#include "fid/fid.h"        /* m0_fid */
+#include "conf/schema.h"    /* m0_conf_service_type */
 
 struct m0_conf_obj_ops;
 struct m0_confx_obj;
@@ -49,17 +50,59 @@ struct m0_xcode_type;
  * filesystems, services, nodes, storage devices, etc.  Configuration data is
  * contained in configuration objects of which there are following predefined
  * types:
+ *
  * - m0_conf_dir (a container for configuration objects),
  * - m0_conf_profile,
  * - m0_conf_filesystem,
- * - m0_conf_service,
+ * - m0_conf_pool,
+ * - m0_conf_pver,
+ * - m0_conf_objv,
  * - m0_conf_node,
- * - m0_conf_nic,
- * - m0_conf_sdev.
+ * - m0_conf_process,
+ * - m0_conf_service,
+ * - m0_conf_rack,
+ * - m0_conf_enclosure,
+ * - m0_conf_controller,
+ * - m0_conf_sdev,
+ * - m0_conf_disk.
  *
  * Some attributes are applicable to any type of configuration object.
  * Such common attributes are put together into m0_conf_obj structure,
  * which is embedded into concrete configuration objects.
+ *
+ * DAG of configuration objects:
+ *
+ * @dot
+ * digraph x {
+ *   edge [arrowhead=open, fontsize=11];
+ *
+ *   root [height=0.15, width=0.15, label=""];
+ *   root -> profile;
+ *   profile -> filesystem;
+ *
+ *   filesystem -> "node" [label=nodes];
+ *   filesystem -> rack [label=racks];
+ *   filesystem -> pool [label=pools];
+ *   "node" -> process [label=processes];
+ *   process -> service [label=services];
+ *   service -> sdev [label=sdevs];
+ *   rack -> enclosure [label=encls];
+ *   enclosure -> controller [label=ctrls];
+ *   controller -> disk [label=disks];
+ *   "node" -> controller [dir=back, weight=0, style=dashed];
+ *
+ *   pool -> "pool version" [label=pvers];
+ *   "pool version" -> "rack-v" [label=rackvs];
+ *   "rack-v" -> "enclosure-v" [label=children];
+ *   "enclosure-v" -> "controller-v" [label=children];
+ *   "controller-v" -> "disk-v" [label=children];
+ *   rack -> "rack-v" [dir=back, weight=0, style=dashed];
+ *   enclosure -> "enclosure-v" [dir=back, weight=0, style=dashed];
+ *   controller -> "controller-v" [dir=back, style=dashed, weight=0];
+ *   disk -> "disk-v" [dir=back, style=dashed, weight=0];
+ *   sdev -> disk [dir=back, style=dashed, weight=0];
+ * }
+ * @enddot
  *
  * <hr> <!------------------------------------------------------------>
  * @section conf-fspec-obj-enum Enumerations
@@ -267,10 +310,15 @@ struct m0_conf_profile {
 };
 
 struct m0_conf_filesystem {
-	struct m0_conf_obj  cf_obj;
-	struct m0_conf_dir *cf_services;
+	struct m0_conf_obj   cf_obj;
+	struct m0_conf_dir  *cf_nodes;
+	struct m0_conf_dir  *cf_pools;
+	struct m0_conf_dir  *cf_racks;
+	/** Pointer to pool configuration object used to locate meta-data. */
+	struct m0_conf_pool *cf_md_pool;
 /* configuration data (for the application) */
-	struct m0_fid       cf_rootfid;
+	struct m0_fid        cf_rootfid;
+	uint32_t             cf_redundancy;
 	/**
 	 * Filesystem parameters.
 	 * NULL terminated array of C strings.
@@ -279,59 +327,130 @@ struct m0_conf_filesystem {
 	const char        **cf_params;
 };
 
-struct m0_conf_service {
-	struct m0_conf_obj        cs_obj;
-	/** The node this service is hosted at. */
-	struct m0_conf_node      *cs_node;
+struct m0_conf_pool {
+	struct m0_conf_obj  pl_obj;
+	struct m0_conf_dir *pl_pvers;
 /* configuration data (for the application) */
-	enum m0_conf_service_type cs_type;
+	/** Rank of this pool in the filesystem. */
+	uint32_t            pl_order;
+};
+
+/** Pool version. */
+struct m0_conf_pver {
+	struct m0_conf_obj     pv_obj;
+	struct m0_conf_dir    *pv_rackvs;
+/* configuration data (for the application) */
+	/** Version number. */
+	uint32_t               pv_ver;
+	/** Layout attributes. */
+	struct m0_pdclust_attr pv_attr;
 	/**
-	 * Service end points.
-	 * NULL terminated array of C strings.
+	 * @todo MERO-457
+	 * Base permutation computed based on the failure domains.
 	 */
-	const char              **cs_endpoints;
+	uint32_t              *pv_permutations;
+	uint32_t               pv_permutations_nr;
+	/** Allowed failures for each failure domain. */
+	uint32_t              *pv_nr_failures;
+	uint32_t               pv_nr_failures_nr;
+};
+
+/**
+ * Represents virtual objects corresponding to real devices e.g. racks,
+ * controllers, etc.
+ */
+struct m0_conf_objv {
+	struct m0_conf_obj  cv_obj;
+	struct m0_conf_dir *cv_children;
+	/**
+	 * Real device (rack, enclosure, controller, etc.) associated with
+	 * this configuration object version.
+	 */
+	struct m0_conf_obj *cv_real;
 };
 
 struct m0_conf_node {
-	/*
-	 * Note that a node can host several services, so there may be no single
-	 * parent. This is indicated by setting ->co_parent to point to the
-	 * object itself.
+	struct m0_conf_obj   cn_obj;
+	struct m0_conf_dir  *cn_processes;
+/* configuration data (for the application) */
+	uint32_t             cn_memsize;
+	uint32_t             cn_nr_cpu;
+	uint64_t             cn_last_state;
+	uint64_t             cn_flags;
+	struct m0_conf_pool *cn_pool;
+};
+
+struct m0_conf_process {
+	struct m0_conf_obj  pc_obj;
+	struct m0_conf_dir *pc_services;
+/* configuration data (for the application) */
+	uint32_t            pc_cores;
+	uint32_t            pc_memlimit;
+};
+
+struct m0_conf_service {
+	struct m0_conf_obj        cs_obj;
+	struct m0_conf_dir       *cs_sdevs;
+/* configuration data (for the application) */
+	enum m0_conf_service_type cs_type;
+	/**
+	 * Service end point.
+	 * NULL terminated array of C strings.
 	 */
-	struct m0_conf_obj  cn_obj;
-	struct m0_conf_dir *cn_nics;
-	struct m0_conf_dir *cn_sdevs;
-/* configuration data (for the application) */
-	uint32_t            cn_memsize;
-	uint32_t            cn_nr_cpu;
-	uint64_t            cn_last_state;
-	uint64_t            cn_flags;
-	uint64_t            cn_pool_id;
+	const char              **cs_endpoints;
+	union {
+		uint32_t      repair_limits;
+		struct m0_fid addb_stobid;
+		const char   *confdb_path;
+	} cs_u;
 };
 
-/** Network interface controller. */
-struct m0_conf_nic {
-	struct m0_conf_obj ni_obj;
-/* configuration data (for the application) */
-	uint32_t           ni_iface;
-	uint32_t           ni_mtu;
-	uint64_t           ni_speed;
-	const char        *ni_filename;
-	uint64_t           ni_last_state;
+/** Hardware resource --- rack. */
+struct m0_conf_rack {
+	struct m0_conf_obj    cr_obj;
+	/** Enclosures on this rack. */
+	struct m0_conf_dir   *cr_encls;
+	/** Pool versions this rack is part of. */
+	struct m0_conf_pver **cr_pvers;
 };
 
-/** Storage device. */
+/** Hardware resource --- enclosure. */
+struct m0_conf_enclosure {
+	struct m0_conf_obj    ce_obj;
+	/** Controllers in this enclosure. */
+	struct m0_conf_dir   *ce_ctrls;
+	/** Pool versions this enclosure is part of. */
+	struct m0_conf_pver **ce_pvers;
+};
+
+/** Hardware resource --- controller. */
+struct m0_conf_controller {
+	struct m0_conf_obj    cc_obj;
+	/** The node this controller is associated with. */
+	struct m0_conf_node  *cc_node;
+	/** Storage devices attached to this controller. */
+	struct m0_conf_dir   *cc_disks;
+	/** Pool versions this controller is part of. */
+	struct m0_conf_pver **cc_pvers;
+};
+
+/** Hardware resource - storage device. */
 struct m0_conf_sdev {
-	struct m0_conf_obj  sd_obj;
-/* configuration data (for the application) */
-	uint32_t            sd_iface;
-	uint32_t            sd_media;
-	uint64_t            sd_size;
-	uint64_t            sd_last_state;
-	uint64_t            sd_flags;
-	const char         *sd_filename;
+	struct m0_conf_obj sd_obj;
+	uint32_t           sd_iface;
+	uint32_t           sd_media;
+	uint32_t           sd_bsize;
+	uint64_t           sd_size;
+	uint64_t           sd_last_state;
+	uint64_t           sd_flags;
+	const char        *sd_filename;
 };
 
+struct m0_conf_disk {
+	struct m0_conf_obj   ck_obj;
+	/** Pointer to the storage device associated with this disk. */
+	struct m0_conf_sdev *ck_dev;
+};
 
 /* ------------------------------------------------------------------
  * Cast
@@ -354,35 +473,67 @@ struct m0_conf_sdev {
 #define m0_conf_dir_cast_field        cd_obj
 #define m0_conf_profile_cast_field    cp_obj
 #define m0_conf_filesystem_cast_field cf_obj
-#define m0_conf_service_cast_field    cs_obj
+#define m0_conf_pool_cast_field       pl_obj
+#define m0_conf_pver_cast_field       pv_obj
+#define m0_conf_objv_cast_field       cv_obj
 #define m0_conf_node_cast_field       cn_obj
-#define m0_conf_nic_cast_field        ni_obj
+#define m0_conf_process_cast_field    pc_obj
+#define m0_conf_service_cast_field    cs_obj
 #define m0_conf_sdev_cast_field       sd_obj
+#define m0_conf_rack_cast_field       cr_obj
+#define m0_conf_enclosure_cast_field  ce_obj
+#define m0_conf_controller_cast_field cc_obj
+#define m0_conf_disk_cast_field       ck_obj
 
-extern const struct m0_bob_type m0_conf_dir_bob;
-extern const struct m0_bob_type m0_conf_profile_bob;
-extern const struct m0_bob_type m0_conf_filesystem_bob;
-extern const struct m0_bob_type m0_conf_service_bob;
-extern const struct m0_bob_type m0_conf_node_bob;
-extern const struct m0_bob_type m0_conf_nic_bob;
-extern const struct m0_bob_type m0_conf_sdev_bob;
+#define M0_CONF_OBJ_TYPES               \
+	X_CONF(dir,        DIR);        \
+	X_CONF(profile,    PROFILE);    \
+	X_CONF(filesystem, FILESYSTEM); \
+	X_CONF(pool,       POOL);       \
+	X_CONF(pver,       PVER);       \
+	X_CONF(objv,       OBJV);       \
+	X_CONF(node,       NODE);       \
+	X_CONF(process,    PROCESS);    \
+	X_CONF(service,    SERVICE);    \
+	X_CONF(sdev,       SDEV);       \
+	X_CONF(rack,       RACK);       \
+	X_CONF(enclosure,  ENCLOSURE);  \
+	X_CONF(controller, CONTROLLER); \
+	X_CONF(disk,       DISK)
 
-/* relation fids */
+#define X_CONF(name, NAME)                                        \
+	extern const struct m0_bob_type m0_conf_ ## name ## _bob; \
+	extern const struct m0_conf_obj_type M0_CONF_ ## NAME ## _TYPE
+M0_CONF_OBJ_TYPES;
+#undef X_CONF
 
-extern const struct m0_fid M0_CONF_FILESYSTEM_SERVICES_FID;
-extern const struct m0_fid M0_CONF_PROFILE_FILESYSTEM_FID;
-extern const struct m0_fid M0_CONF_SERVICE_NODE_FID;
-extern const struct m0_fid M0_CONF_NODE_NICS_FID;
-extern const struct m0_fid M0_CONF_NODE_SDEVS_FID;
+/* Relation fids. */
+#define M0_CONF_REL_FIDS               \
+	X_CONF(PROFILE_FILESYSTEM, 1); \
+	X_CONF(FILESYSTEM_NODES,   2); \
+	X_CONF(FILESYSTEM_POOLS,   3); \
+	X_CONF(FILESYSTEM_RACKS,   4); \
+	X_CONF(POOL_PVERS,         5); \
+	X_CONF(PVER_RACKVS,        6); \
+	X_CONF(RACKV_ENCLVS,       7); \
+	X_CONF(ENCLV_CTRLVS,       8); \
+	X_CONF(CTRLV_DISKVS,       9); \
+	X_CONF(NODE_PROCESSES,    10); \
+	X_CONF(PROCESS_SERVICES,  11); \
+	X_CONF(SERVICE_SDEVS,     12); \
+	X_CONF(RACK_ENCLS,        13); \
+	X_CONF(RACK_PVERS,        14); \
+	X_CONF(ENCLOSURE_CTRLS,   15); \
+	X_CONF(ENCLOSURE_PVERS,   16); \
+	X_CONF(CONTROLLER_DISKS,  17); \
+	X_CONF(CONTROLLER_PVERS,  18); \
+	X_CONF(DISK_SDEV,         19)
+
+#define X_CONF(name, _) \
+	extern const struct m0_fid M0_CONF_ ## name ## _FID
+M0_CONF_REL_FIDS;
+#undef X_CONF
 extern const struct m0_fid_type M0_CONF_RELFID_TYPE;
-
-extern const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE;
-extern const struct m0_conf_obj_type M0_CONF_FILESYSTEM_TYPE;
-extern const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE;
-extern const struct m0_conf_obj_type M0_CONF_NODE_TYPE;
-extern const struct m0_conf_obj_type M0_CONF_NIC_TYPE;
-extern const struct m0_conf_obj_type M0_CONF_SDEV_TYPE;
-extern const struct m0_conf_obj_type M0_CONF_DIR_TYPE;
 
 /**
  * Iterates over registered conf object types.

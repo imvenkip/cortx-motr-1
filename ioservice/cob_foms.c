@@ -311,7 +311,7 @@ static void _getlayout_async_callback(void *arg, int rc)
 
 /* defined in io_foms.c */
 extern int ios__poolmach_check(struct m0_poolmach *poolmach,
-			       struct m0_pool_version_numbers *cliv);
+			       struct m0_poolmach_versions *cliv);
 
 static int cob_ops_stob_find(struct m0_fom_cob_op *co)
 {
@@ -331,11 +331,11 @@ static int cob_ops_stob_find(struct m0_fom_cob_op *co)
 
 static int cob_tick_prepare(struct m0_fom *fom)
 {
-	struct m0_fop                  *fop;
-	struct m0_fop_cob_common       *common;
-	struct m0_reqh                 *reqh;
-	struct m0_poolmach             *poolmach;
-	struct m0_pool_version_numbers *cliv;
+	struct m0_fop               *fop;
+	struct m0_fop_cob_common    *common;
+	struct m0_reqh              *reqh;
+	struct m0_poolmach          *poolmach;
+	struct m0_poolmach_versions *cliv;
 	int rc;
 	M0_PRE(fom != NULL);
 
@@ -344,7 +344,7 @@ static int cob_tick_prepare(struct m0_fom *fom)
 	reqh = m0_fom_reqh(fom);
 	poolmach = m0_ios_poolmach_get(reqh);
 
-	cliv = (struct m0_pool_version_numbers*)&common->c_version;
+	cliv = (struct m0_poolmach_versions*)&common->c_version;
 
 	rc = ios__poolmach_check(poolmach, cliv);
 	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_EXECUTE);

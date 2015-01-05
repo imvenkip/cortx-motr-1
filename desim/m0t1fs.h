@@ -64,6 +64,7 @@ struct m0t1fs_conf {
 	struct m0_layout_domain   ct_l_dom;
 	struct m0_pdclust_layout *ct_pdclust;
 	struct m0_pool            ct_pool;
+	struct m0_pool_version    ct_pool_version;
 	uint32_t                  ct_N;
 	uint32_t                  ct_K;
 	uint64_t                  ct_unitsize;

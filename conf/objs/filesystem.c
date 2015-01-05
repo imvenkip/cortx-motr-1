@@ -1,4 +1,3 @@
-/* -*- c -*- */
 /*
  * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
@@ -18,12 +17,12 @@
  * Original creation date: 30-Aug-2012
  */
 
-#include "conf/objs/common.h"
-#include "conf/onwire_xc.h" /* m0_confx_filesystem_xc */
-#include "mero/magic.h"     /* M0_CONF_FILESYSTEM_MAGIC */
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
+
+#include "conf/objs/common.h"
+#include "conf/onwire_xc.h"  /* m0_confx_filesystem_xc */
+#include "mero/magic.h"      /* M0_CONF_FILESYSTEM_MAGIC */
 
 #define XCAST(xobj) ((struct m0_confx_filesystem *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_filesystem, xf_header) == 0);
@@ -41,29 +40,46 @@ static bool filesystem_check(const void *bob)
 
 M0_CONF__BOB_DEFINE(m0_conf_filesystem, M0_CONF_FILESYSTEM_MAGIC,
 		    filesystem_check);
-
 M0_CONF__INVARIANT_DEFINE(filesystem_invariant, m0_conf_filesystem);
 
-const struct m0_fid M0_CONF_FILESYSTEM_SERVICES_FID = M0_FID_TINIT('/', 0, 3);
-
-static int filesystem_decode(struct m0_conf_obj *dest,
+static int filesystem_decode(struct m0_conf_obj        *dest,
 			     const struct m0_confx_obj *src,
-			     struct m0_conf_cache *cache)
+			     struct m0_conf_cache      *cache)
 {
-	int rc;
-	struct m0_conf_filesystem *d = M0_CONF_CAST(dest, m0_conf_filesystem);
+	struct m0_conf_filesystem        *d =
+		M0_CONF_CAST(dest, m0_conf_filesystem);
 	const struct m0_confx_filesystem *s = XCAST(src);
+	struct m0_conf_obj               *obj;
+	int                               rc;
 
 	d->cf_rootfid = s->xf_rootfid;
+	d->cf_redundancy = s->xf_redundancy;
+
+        rc = m0_conf_obj_find(cache, &s->xf_mdpool, &obj);
+        if (rc != 0)
+                return M0_ERR(rc);
+        d->cf_md_pool = M0_CONF_CAST(obj, m0_conf_pool);
+
 	rc = m0_bufs_to_strings(&d->cf_params, &s->xf_params);
 	if (rc != 0)
-		return M0_RC(rc);
-
-	rc = dir_new(cache, &dest->co_id, &M0_CONF_FILESYSTEM_SERVICES_FID,
-		     &M0_CONF_SERVICE_TYPE, &s->xf_services, &d->cf_services);
-	if (rc == 0) {
-		child_adopt(dest, &d->cf_services->cd_obj);
-	} else {
+		return M0_ERR(rc);
+	rc =
+		dir_create_and_populate(
+			&d->cf_nodes,
+			&CONF_DIR_ENTRIES(&M0_CONF_FILESYSTEM_NODES_FID,
+					  &M0_CONF_NODE_TYPE,
+					  &s->xf_nodes), dest, cache) ?:
+		dir_create_and_populate(
+			&d->cf_pools,
+			&CONF_DIR_ENTRIES(&M0_CONF_FILESYSTEM_POOLS_FID,
+					  &M0_CONF_POOL_TYPE,
+					  &s->xf_pools), dest, cache) ?:
+		dir_create_and_populate(
+			&d->cf_racks,
+			&CONF_DIR_ENTRIES(&M0_CONF_FILESYSTEM_RACKS_FID,
+					  &M0_CONF_RACK_TYPE,
+					  &s->xf_racks), dest, cache);
+	if (rc != 0) {
 		strings_free(d->cf_params);
 		d->cf_params = NULL; /* make invariant happy */
 	}
@@ -73,24 +89,29 @@ static int filesystem_decode(struct m0_conf_obj *dest,
 static int
 filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
-	int                         rc;
 	struct m0_conf_filesystem  *s = M0_CONF_CAST(src, m0_conf_filesystem);
 	struct m0_confx_filesystem *d = XCAST(dest);
+	const struct conf_dir_encoding_pair dirs[] = {
+		{ s->cf_nodes, &d->xf_nodes },
+		{ s->cf_pools, &d->xf_pools },
+		{ s->cf_racks, &d->xf_racks }
+	};
+	int rc;
 
 	confx_encode(dest, src);
-	d->xf_rootfid = s->cf_rootfid;
-
+	d->xf_rootfid    = s->cf_rootfid;
+	d->xf_redundancy = s->cf_redundancy;
+	d->xf_mdpool     = s->cf_md_pool->pl_obj.co_id;
 	rc = m0_bufs_from_strings(&d->xf_params, s->cf_params);
 	if (rc != 0)
-		return M0_RC(rc);
-
-	rc = arrfid_from_dir(&d->xf_services, s->cf_services);
+		return M0_ERR(rc);
+	rc = conf_dirs_encode(dirs, ARRAY_SIZE(dirs));
 	if (rc != 0)
 		m0_bufs_free(&d->xf_params);
 	return M0_RC(rc);
 }
 
-static bool filesystem_match(const struct m0_conf_obj *cached,
+static bool filesystem_match(const struct m0_conf_obj  *cached,
 			     const struct m0_confx_obj *flat)
 {
 	const struct m0_confx_filesystem *xobj = XCAST(flat);
@@ -99,24 +120,27 @@ static bool filesystem_match(const struct m0_conf_obj *cached,
 
 	M0_PRE(xobj->xf_params.ab_count != 0);
 
-	M0_IMPOSSIBLE("XXX TODO: compare dir elements");
 	return m0_bufs_streq(&xobj->xf_params, obj->cf_params) &&
-		obj->cf_rootfid.f_container == xobj->xf_rootfid.f_container &&
-		obj->cf_rootfid.f_key == xobj->xf_rootfid.f_key;
+	       obj->cf_rootfid.f_container == xobj->xf_rootfid.f_container &&
+	       obj->cf_rootfid.f_key == xobj->xf_rootfid.f_key &&
+	       m0_conf_dir_elems_match(obj->cf_nodes, &xobj->xf_nodes) &&
+	       m0_conf_dir_elems_match(obj->cf_pools, &xobj->xf_pools) &&
+	       m0_conf_dir_elems_match(obj->cf_racks, &xobj->xf_racks);
 }
 
-static int filesystem_lookup(struct m0_conf_obj *parent,
+static int filesystem_lookup(struct m0_conf_obj  *parent,
 			     const struct m0_fid *name,
 			     struct m0_conf_obj **out)
 {
+	struct m0_conf_filesystem *f = M0_CONF_CAST(parent, m0_conf_filesystem);
+	const struct conf_dir_relation dirs[] = {
+		{ f->cf_nodes, &M0_CONF_FILESYSTEM_NODES_FID },
+		{ f->cf_pools, &M0_CONF_FILESYSTEM_POOLS_FID },
+		{ f->cf_racks, &M0_CONF_FILESYSTEM_RACKS_FID }
+	};
+
 	M0_PRE(parent->co_status == M0_CS_READY);
-
-	if (!m0_fid_eq(name, &M0_CONF_FILESYSTEM_SERVICES_FID))
-		return M0_ERR(-ENOENT);
-
-	*out = &M0_CONF_CAST(parent, m0_conf_filesystem)->cf_services->cd_obj;
-	M0_POST(m0_conf_obj_invariant(*out));
-	return 0;
+	return M0_RC(conf_dirs_lookup(out, name, dirs, ARRAY_SIZE(dirs)));
 }
 
 static void filesystem_delete(struct m0_conf_obj *obj)
@@ -149,6 +173,7 @@ static struct m0_conf_obj *filesystem_create(void)
 	m0_conf_filesystem_bob_init(x);
 
 	ret = &x->cf_obj;
+	ret->co_parent = ret; /* no parent */
 	ret->co_ops = &filesystem_ops;
 	return ret;
 }
@@ -158,11 +183,11 @@ const struct m0_conf_obj_type M0_CONF_FILESYSTEM_TYPE = {
 		.ft_id   = 'f',
 		.ft_name = "configuration file-system"
 	},
-	.cot_create     = &filesystem_create,
-	.cot_xt         = &m0_confx_filesystem_xc,
-	.cot_branch     = "u_filesystem",
-	.cot_xc_init    = &m0_xc_m0_confx_filesystem_struct_init,
-	.cot_magic      = M0_CONF_FILESYSTEM_MAGIC
+	.cot_create  = &filesystem_create,
+	.cot_xt      = &m0_confx_filesystem_xc,
+	.cot_branch  = "u_filesystem",
+	.cot_xc_init = &m0_xc_m0_confx_filesystem_struct_init,
+	.cot_magic   = M0_CONF_FILESYSTEM_MAGIC
 };
 
 #undef XCAST

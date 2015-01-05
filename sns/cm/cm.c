@@ -567,13 +567,13 @@ M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp
 
 M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 					struct m0_be_tx *tx,
-					enum m0_pool_event_owner_type et,
+					enum m0_poolmach_event_owner_type et,
 					enum m0_pool_nd_state state)
 {
 	struct m0_poolmach         *pm;
 	struct m0_pool_spare_usage *spare_array;
 	struct m0_pooldev          *dev_array;
-	struct m0_pool_event        pme;
+	struct m0_poolmach_event    pme;
 	uint32_t                    dev_id;
 	bool                        transit;
 	int                         i;

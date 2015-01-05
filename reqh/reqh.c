@@ -75,6 +75,8 @@ M0_TL_DEFINE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
 
 M0_LOCKERS_DEFINE(M0_INTERNAL, m0_reqh, rh_lockers);
 
+extern struct m0_reqh_service_type m0_rpc_service_type;
+
 static void __reqh_fini(struct m0_reqh *reqh);
 
 struct disallowed_fop_reply {
@@ -338,15 +340,21 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	M0_PRE(reqh != NULL);
 	M0_PRE(fop != NULL && fop->f_type != NULL);
 
-	rh_st = m0_reqh_state_get(reqh);
-	if (rh_st == M0_REQH_ST_INIT)
-		return M0_ERR(-EAGAIN);
-	if (rh_st == M0_REQH_ST_STOPPED)
-		return M0_ERR(-ESHUTDOWN);
-
 	svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
 	if (svc == NULL)
 		return M0_ERR(-ECONNREFUSED);
+	rh_st = m0_reqh_state_get(reqh);
+	if (rh_st == M0_REQH_ST_INIT) {
+		/*
+		 * Allow rpc connection fops from other services during
+		 * startup.
+		 */
+		if (svc != NULL && svc->rs_type == &m0_rpc_service_type)
+			return 0;
+		return M0_ERR(-EAGAIN);
+	}
+	if (rh_st == M0_REQH_ST_STOPPED)
+		return M0_ERR(-ESHUTDOWN);
 
 	M0_ASSERT(svc->rs_ops != NULL);
 	svc_st = m0_reqh_service_state_get(svc);

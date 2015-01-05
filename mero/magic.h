@@ -165,12 +165,6 @@ enum m0_magic_satchel {
 	/* m0t1fs_sb::s_magic (cozie filesis) */
 	M0_T1FS_SUPER_MAGIC = 0x33c021ef11e51577,
 
-	/* m0t1fs_service_ctx::sc_magic (failed facade) */
-	M0_T1FS_SVC_CTX_MAGIC = 0x33fa11edfacade77,
-
-	/* svc_ctx_tl::td_head_magic (feedable food) */
-	M0_T1FS_SVC_CTX_HEAD_MAGIC = 0x33feedab1ef00d77,
-
 	/* m0t1fs_inode_bob::bt_magix (idolised idol) */
 	M0_T1FS_INODE_MAGIC = 0x331d0115ed1d0177,
 
@@ -210,12 +204,6 @@ enum m0_magic_satchel {
         /* pargrp_iomap::pi_magic (incandescent) */
         M0_T1FS_PGROUP_MAGIC = 0x3319ca9de5ce9177,
 
-	/* m0t1fs_services_tl::mss_magic (baseless bass) */
-	M0_T1FS_SERVICE_MAGIC = 0x33ba5e1e55ba5577,
-
-	/* m0t1fs_services_tl::td_head_magic (seize sicilia) */
-	M0_T1FS_SERVICE_HEAD_MAGIC =0x335e12e51c111a77,
-
 	/* hashbucket::hb_tioreqs::td_head_magic (affable close) */
 	M0_T1FS_TLIST_HEAD_MAGIC = 0x33affab1ec105e77,
 
@@ -247,17 +235,41 @@ enum m0_magic_satchel {
 	/* m0_conf_filesystem::cf_obj.co_con_magic (food of Colaba) */
 	M0_CONF_FILESYSTEM_MAGIC = 0x33f00d0fc01aba77,
 
-	/* m0_conf_service::cs_obj.co_con_magic (biased locale) */
-	M0_CONF_SERVICE_MAGIC = 0x33b1a5ed10ca1e77,
+	/* m0_conf_pool::cp_obj.co_con_magic (cocobolo coco) */
+	M0_CONF_POOL_MAGIC = 0x33c0c0b010c0c077,
+
+	/* m0t1fs_pools_tl::td_head_magic (seize sicilia) */
+	M0_POOLS_HEAD_MAGIC = 0x335e12e51c111a77,
+
+	/* m0_conf_pver::cpv_obj.co_con_magic (besides bezel) */
+	M0_CONF_PVER_MAGIC = 0x33be51de5be2e177,
+
+	/* m0_conf_objv::cv_obj.co_con_magic (soleless solo) */
+	M0_CONF_OBJV_MAGIC = 0x33501e1e55501077,
 
 	/* m0_conf_node::cn_obj.co_con_magic (colossal dosa) */
 	M0_CONF_NODE_MAGIC = 0x33c01055a1d05a77,
 
-	/* m0_conf_nic::ni_obj.co_con_magic (baseball feed) */
-	M0_CONF_NIC_MAGIC = 0x33ba5eba11feed77,
+	/* m0_conf_process::cp_obj.co_con_magic (cococool dood) */
+	M0_CONF_PROCESS_MAGIC = 0x33c0c0c001d00d77,
+
+	/* m0_conf_service::cs_obj.co_con_magic (biased locale) */
+	M0_CONF_SERVICE_MAGIC = 0x33b1a5ed10ca1e77,
+
+	/* m0_conf_rack::cr_obj.co_con_magic (cocozelle cod) */
+	M0_CONF_RACK_MAGIC = 0x33c0c02e11ec0d77,
+
+	/* m0_conf_enclosure::ce_obj.co_con_magic (bedside befoo) */
+	M0_CONF_ENCLOSURE_MAGIC = 0x33bed51debef0077,
+
+	/* m0_conf_controller::cc_obj.co_con_magic (biased bellis) */
+	M0_CONF_CONTROLLER_MAGIC = 0x33b1a5edbe111577,
 
 	/* m0_conf_sdev::sd_obj.co_con_magic (allseed salad) */
 	M0_CONF_SDEV_MAGIC = 0x33a115eed5a1ad77,
+
+	/* m0_conf_disk::ck_obj.co_con_magic (billfold bise) */
+	M0_CONF_DISK_MAGIC = 0x3b111f01db15e77,
 
 	/* m0_conf_partition::pa_obj.co_con_magic (bacca is aloof)
 	 * Let's hope we won't be sued by Symantec for this name. */
@@ -583,13 +595,24 @@ enum m0_magic_satchel {
 	/* m0_net_test_timestamp::ntt_magic (allied cabiai) */
 	M0_NET_TEST_TIMESTAMP_MAGIC = 0x33a111edcab1a177,
 
-/* Pool Machine */
+/* Pool */
+	/* m0_pool::po_magic (baseless bass) */
+	M0_POOL_MAGIC = 0x33ba5e1e55ba5577,
+
 	/* m0_pool_event_link::pel_magic (pool evnt list)*/
 	M0_POOL_EVENTS_LIST_MAGIC = 0x3360013747712777,
 
 	/* poolmach_tl::tl_head_magic (pool evnt head)*/
 	M0_POOL_EVENTS_HEAD_MAGIC = 0x33600137474ead77,
 
+	/* pools_common_svc_ctx_tl::td_head_magic (feedable food) */
+	M0_POOL_SVC_CTX_HEAD_MAGIC = 0x33feedab1ef00d77,
+
+	/* m0_pool_version::pv_magic (scalable code) */
+	M0_POOL_VERSION_MAGIC = 0x335ca1ab1ec0de77,
+
+	/* pool_version_tl::td_head_magic (feasible code) */
+	M0_POOL_VERSION_HEAD_MAGIC = 0x33fea51b1ec0de77,
 
 /* Request handler */
 	/* m0_reqh_service::rs_magix (bacilli babel) */
@@ -600,6 +623,9 @@ enum m0_magic_satchel {
 
 	/* m0_reqh_svc_tl::td_head_magic (calcific boss) */
 	M0_REQH_SVC_HEAD_MAGIC = 0x33ca1c1f1cb05577,
+
+	/* m0_reqh_service_context::sc_magic (failed facade) */
+	M0_REQH_SVC_CTX_MAGIC = 0x33fa11edfacade77,
 
 	/* m0_reqh_rpc_mach_tl::td_head_magic (laissez eifel) */
 	M0_REQH_RPC_MACH_HEAD_MAGIC = 0x331a155e2e1fe177,

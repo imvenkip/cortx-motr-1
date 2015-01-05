@@ -41,6 +41,7 @@
 #include "m0t1fs/linux_kernel/m0t1fs.h"   /* m0t1fs_inode */
 #include "m0t1fs/linux_kernel/fsync.h"    /* m0t1fs_fsync_interactions */
 #include "lib/misc.h"                     /* M0_SET0() */
+#include "reqh/reqh_service.h"            /* m0_reqh_service_txid */
 
 /* declared in fsync.c */
 extern struct m0t1fs_fsync_interactions  fi;
@@ -67,7 +68,7 @@ static struct m0_fop_fsync_rep           reply_data;
 
 /* The fake records that need fsycning */
 #define NUM_STRECORDS 10
-static struct m0t1fs_service_txid        stx[NUM_STRECORDS];
+static struct m0_reqh_service_txid        stx[NUM_STRECORDS];
 
 /* copy of the fsync interactions -
  *	used to restore the original function pointers */
@@ -89,7 +90,7 @@ static struct m0t1fs_inode               m0inode;
 static struct m0t1fs_sb                  csb;
 
 /* A fake serivce context for fsync to send rpc to */
-static struct m0t1fs_service_context     service;
+static struct m0_reqh_service_ctx    service;
 
 /* Stub functions used to test m0t1fs_fsync */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
@@ -222,10 +223,10 @@ static void fake_fs_setup(void)
  */
 static void test_m0t1fs_fsync_request_create(void)
 {
-	int                               rv;
-	struct m0t1fs_fsync_fop_wrapper   ffw;
-	struct m0t1fs_service_txid        stx;
-	struct m0_fop_fsync              *ffd;
+	int                              rv;
+	struct m0t1fs_fsync_fop_wrapper  ffw;
+	struct m0_reqh_service_txid      stx;
+	struct m0_fop_fsync             *ffd;
 
 	fake_fs_setup();
 
@@ -280,7 +281,7 @@ int default_locality = 7;
 
 void
 test_m0t1fs_fsync_reply_process_init(struct m0t1fs_fsync_fop_wrapper   *ffw,
-				     struct m0t1fs_service_txid *stx)
+				     struct m0_reqh_service_txid *stx)
 {
 	struct m0_fop_fsync *ffd;
 
@@ -328,11 +329,11 @@ call_m0t1fs_fsync_reply_process(struct m0t1fs_sb                *input_csb,
  */
 void test_m0t1fs_fsync_reply_process(void)
 {
-	struct m0t1fs_service_txid *iter;
-	struct m0t1fs_fsync_fop_wrapper    ffw;
-	struct m0t1fs_service_txid         stx;
-	struct m0_fop_fsync               *ffd;
-	struct m0t1fs_service_context      another_service;
+	struct m0_reqh_service_txid     *iter;
+	struct m0t1fs_fsync_fop_wrapper  ffw;
+	struct m0_reqh_service_txid      stx;
+	struct m0_fop_fsync             *ffd;
+	struct m0_reqh_service_ctx       another_service;
 
 	fake_fs_setup();
 
@@ -464,9 +465,9 @@ void test_m0t1fs_fsync_reply_process(void)
  */
 void test_m0t1fs_fsync_record_update(void)
 {
-	struct m0t1fs_service_txid *iter;
-	struct m0t1fs_service_context      another_service;
-	struct m0_be_tx_remid              btr;
+	struct m0_reqh_service_txid *iter;
+	struct m0_reqh_service_ctx   another_service;
+	struct m0_be_tx_remid        btr;
 
 	fake_fs_setup();
 	M0_SET0(&another_service);

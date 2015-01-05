@@ -1,17 +1,26 @@
 m0mero_objects += \
-                  conf/db.o \
                   conf/cache.o \
                   conf/confc.o \
+                  conf/db.o \
+                  conf/dir_iter.o \
                   conf/fop.o \
+                  conf/helpers.o \
                   conf/obj.o \
                   conf/obj_ops.o \
-                  conf/onwire_xc.o \
-                  conf/preload.o \
                   conf/objs/common.o \
+                  conf/objs/controller.o \
                   conf/objs/dir.o \
-                  conf/objs/profile.o \
+                  conf/objs/disk.o \
+                  conf/objs/enclosure.o \
                   conf/objs/filesystem.o \
-                  conf/objs/service.o \
                   conf/objs/node.o \
-                  conf/objs/nic.o \
-                  conf/objs/sdev.o
+                  conf/objs/objv.o \
+                  conf/objs/pool.o \
+                  conf/objs/process.o \
+                  conf/objs/profile.o \
+                  conf/objs/pver.o \
+                  conf/objs/rack.o \
+                  conf/objs/sdev.o \
+                  conf/objs/service.o \
+                  conf/onwire_xc.o \
+                  conf/preload.o

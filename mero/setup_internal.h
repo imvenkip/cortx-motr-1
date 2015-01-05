@@ -44,13 +44,14 @@ struct cs_buffer_pool {
  * understood by _args_parse().
  *
  * @param[out] args   Arguments to be filled.
- * @param confd_addr  Endpoint address of confd service.
- * @param profile     The name of configuration profile.
- * @param local_addr  Endpoint address of local node.
  */
-M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
-				const char *profile, const char *local_addr,
-				unsigned timeout, unsigned retry);
+M0_INTERNAL int cs_conf_to_args(struct cs_args *args, struct m0_conf_filesystem *fs);
+
+/**
+ * Initialises confc and fetches m0_conf_filesystem.
+ * Initialises pools and pool versions without establishing rpc connections.
+ */
+M0_INTERNAL int m0_mero_conf_setup(struct m0_mero *mero);
 
 /** @} endgroup m0d */
 #endif /* __MERO_SETUP_INTERNAL_H__ */

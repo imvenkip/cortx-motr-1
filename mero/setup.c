@@ -1611,8 +1611,7 @@ service_string_parse(const char *str, char **svc, struct m0_uint128 *uuid)
 }
 
 /** Parses CLI arguments, filling m0_mero structure. */
-static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
-		       const char **confd_addr, const char **profile)
+static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 {
 	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
 	int                     rc_getops;
@@ -1662,16 +1661,12 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 			M0_STRINGARG('C', "Confd endpoint address",
 				LAMBDA(void, (const char *s)
 				{
-					M0_ASSERT(confd_addr != NULL);
-					*confd_addr = s;
 					cctx->cc_confd_addr = m0_strdup(s);
 					M0_ASSERT(cctx->cc_confd_addr != NULL);
 				})),
 			M0_STRINGARG('P', "Configuration profile",
 				LAMBDA(void, (const char *s)
 				{
-					M0_ASSERT(profile != NULL);
-					*profile = s;
 					cctx->cc_profile = m0_strdup(s);
 					M0_ASSERT(cctx->cc_profile != NULL);
 				})),
@@ -1798,39 +1793,37 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 
 static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 {
-	int         rc;
-	const char *confd_addr  = NULL;
-	const char *local_addr  = NULL;
-	const char *profile     = NULL;
-
 	M0_ENTRY();
 
-	rc = _args_parse(cctx, argc, argv, &confd_addr, &profile);
+	return _args_parse(cctx, argc, argv);
+}
+
+static int cs_conf_setup(struct m0_mero *cctx)
+{
+	struct cs_args *args = &cctx->cc_args;
+	int             rc;
+
+	if (cctx->cc_confd_addr == NULL && cctx->cc_profile == NULL)
+		return 0;
+	rc = m0_mero_conf_setup(cctx);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
-	if (confd_addr != NULL || profile != NULL) {
-		struct cs_args              *args = &cctx->cc_args;
-		struct cs_endpoint_and_xprt *epx;
+	M0_ASSERT(cctx->cc_fs != NULL);
+	rc = cs_conf_to_args(args, cctx->cc_fs) ?:
+		_args_parse(cctx, args->ca_argc, args->ca_argv);
 
-		if (confd_addr == NULL)
-			return M0_ERR_INFO(-EPROTO,
-				      "confd address is not specified");
-		if (profile == NULL)
-			return M0_ERR_INFO(-EPROTO,
-				      "configuration profile is not specified");
-
-		epx = cs_eps_tlist_head(&cctx->cc_reqh_ctx.rc_eps);
-		local_addr = epx->ex_endpoint;
-		rc = cs_conf_to_args(args, confd_addr, profile, local_addr,
-				     cctx->cc_confd_timeout ?:
-					CONFD_CONN_TIMEOUT,
-				     cctx->cc_confd_conn_retry ?:
-					CONFD_CONN_RETRY) ?:
-			_args_parse(cctx, args->ca_argc, args->ca_argv, NULL,
-				    NULL);
-	}
 	return M0_RC(rc);
+}
+
+static void cs_conf_destroy(struct m0_mero *cctx)
+{
+	if (cctx->cc_fs != NULL) {
+		m0_pools_common_fini(&cctx->cc_pools_common);
+		m0_confc_close(&cctx->cc_fs->cf_obj);
+		m0_confc_fini(&cctx->cc_confc);
+		cctx->cc_fs = NULL;
+	}
 }
 
 int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
@@ -1847,7 +1840,8 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	     cs_net_domains_init(cctx) ?:
 	     cs_buffer_pool_setup(cctx) ?:
 	     cs_reqh_start(&cctx->cc_reqh_ctx, cctx->cc_mkfs, cctx->cc_force) ?:
-	     cs_rpc_machines_init(cctx);
+	     cs_rpc_machines_init(cctx) ?:
+	     cs_conf_setup(cctx);
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 
 	if (rc < 0)
@@ -1904,6 +1898,7 @@ void m0_cs_fini(struct m0_mero *cctx)
 
 	M0_ENTRY();
 
+	cs_conf_destroy(cctx);
 	if (rctx->rc_state == RC_INITIALISED)
 		cs_reqh_stop(rctx);
 	cs_reqh_ctx_fini(rctx);

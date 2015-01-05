@@ -30,7 +30,6 @@
  * which subsequently adds production code file to mero kernel module.
  */
 #include "m0t1fs/linux_kernel/file.c"
-
 #include "ut/ut.h"     /* m0_ut_suite */
 #include "lib/chan.h"   /* m0_chan */
 #include "lib/vec.h"    /* m0_indexvec */
@@ -40,6 +39,7 @@
 #include "lib/finject.h"
 #include "layout/layout.h"      /* m0_layout_domain_init */
 #include "layout/linear_enum.h" /* m0_layout_linear_enum */
+#include "conf/obj_ops.h"       /* m0_conf_obj_find */
 #include <linux/dcache.h>       /* struct dentry */
 #include "m0t1fs/linux_kernel/file_internal.h" /* io_request */
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
@@ -83,10 +83,9 @@ static struct m0_layout_linear_attr  llattr;
 static struct m0t1fs_inode           ci;
 static struct m0_layout_linear_attr  llattr;
 static struct file                   lfile;
-static struct m0t1fs_service_context ctx;
-static struct m0_poolmach            poolmach;
+static struct m0_confc                confc;
 static struct m0_rm_remote           creditor;
-static struct m0t1fs_service_context msc;
+static bool                          runast = false;
 
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
@@ -101,21 +100,125 @@ void m0t1fs_addb_mon_total_io_size_fini(struct m0t1fs_sb *csb);
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
 void m0t1fs_net_fini(struct m0t1fs_sb *csb);
 
+char local_conf[] = "[33:\
+   {0x70| (((0x7000000000000001, 0)), (0x6600000000000001, 1))},\
+   {0x66| (((0x6600000000000001, 1)),\
+        (11, 22), 41212, [3: \"param-0\", \"param-1\", \"param-2\"],\
+        (0x6f00000000000001, 23),\
+           [1: (0x6e00000000000001, 2)],\
+           [1: (0x6f00000000000001, 23)],\
+           [1: (0x6100000000000001, 15)])},\
+   {0x6e| (((0x6e00000000000001, 2)), 16000, 2, 3, 2, (0x6f00000000000001, 23),\
+           [1: (0x7200000000000001, 3)])},\
+   {0x72| (((0x7200000000000001, 3)), 4000, 1, [6: (0x7300000000000001, 4),\
+                                                   (0x7300000000000001, 5),\
+                                                   (0x7300000000000001, 6),\
+                                                   (0x7300000000000001, 7),\
+                                                   (0x7300000000000001, 8),\
+                                                   (0x7300000000000001, 9)])},\
+   {0x73| (((0x7300000000000001, 4)), 1, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+           [0])},\
+   {0x73| (((0x7300000000000001, 5)), 2, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+           [5: (0x6400000000000001, 10), (0x6400000000000001, 11),\
+               (0x6400000000000001, 12), (0x6400000000000001, 13),\
+               (0x6400000000000001, 14)])},\
+   {0x73| (((0x7300000000000001, 6)), 3, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+           [0])},\
+   {0x73| (((0x7300000000000001, 7)), 4, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+           [0])},\
+   {0x73| (((0x7300000000000001, 8)), 5, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+           [0])},\
+   {0x73| (((0x7300000000000001, 9)), 6, [1: \"addr-3\"],\
+           [0])},\
+   {0x64| (((0x6400000000000001, 10)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/sdev0\")},\
+   {0x64| (((0x6400000000000001, 11)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/sdev1\")},\
+   {0x64| (((0x6400000000000001, 12)), 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev2\")},\
+   {0x64| (((0x6400000000000001, 13)), 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev3\")},\
+   {0x64| (((0x6400000000000001, 14)), 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev4\")},\
+   {0x61| (((0x6100000000000001, 15)),\
+           [1: (0x6500000000000001, 16)], [1: (0x7600000000000001, 24)])},\
+   {0x65| (((0x6500000000000001, 16)),\
+           [1: (0x6300000000000001, 17)], [1: (0x7600000000000001, 24)])},\
+   {0x63| (((0x6300000000000001, 17)), (0x6e00000000000001, 2),\
+           [5: (0x6b00000000000001, 18), (0x6b00000000000001, 19), (0x6b00000000000001, 20),\
+               (0x6b00000000000001, 21), (0x6b00000000000001, 22)], [1: (0x7600000000000001, 24)])},\
+   {0x6b| (((0x6b00000000000001, 18)), (0x6400000000000001, 10))},\
+   {0x6b| (((0x6b00000000000001, 19)), (0x6400000000000001, 11))},\
+   {0x6b| (((0x6b00000000000001, 20)), (0x6400000000000001, 12))},\
+   {0x6b| (((0x6b00000000000001, 21)), (0x6400000000000001, 13))},\
+   {0x6b| (((0x6b00000000000001, 22)), (0x6400000000000001, 14))},\
+   {0x6f| (((0x6f00000000000001, 23)), 0, [1: (0x7600000000000001, 24)])},\
+   {0x76| (((0x7600000000000001, 24)), 0, 3, 1, 5, [3: 1,2,4], [0],\
+           [1: (0x6a00000000000001, 25)])},\
+   {0x6a| (((0x6a00000000000001, 25)), (0x6100000000000001, 15),\
+           [1: (0x6a00000000000001, 26)])},\
+   {0x6a| (((0x6a00000000000001, 26)), (0x6500000000000001, 16),\
+           [1: (0x6a00000000000001, 27)])},\
+   {0x6a| (((0x6a00000000000001, 27)), (0x6300000000000001, 17),\
+           [5: (0x6a00000000000001, 28), (0x6a00000000000001, 29),\
+               (0x6a00000000000001, 30), (0x6a00000000000001, 31),\
+               (0x6a00000000000001, 32)])},\
+   {0x6a| (((0x6a00000000000001, 28)), (0x6b00000000000001, 18), [0])},\
+   {0x6a| (((0x6a00000000000001, 29)), (0x6b00000000000001, 19), [0])},\
+   {0x6a| (((0x6a00000000000001, 30)), (0x6b00000000000001, 20), [0])},\
+   {0x6a| (((0x6a00000000000001, 31)), (0x6b00000000000001, 21), [0])},\
+   {0x6a| (((0x6a00000000000001, 32)), (0x6b00000000000001, 22), [0])}]";
+
+static void ast_thread(struct m0t1fs_sb *csb)
+{
+	while (runast) {
+		m0_chan_wait(&csb->csb_iogroup.s_clink);
+		m0_sm_group_lock(&csb->csb_iogroup);
+		m0_sm_asts_run(&csb->csb_iogroup);
+		m0_sm_group_unlock(&csb->csb_iogroup);
+	}
+}
+
+static void ast_thread_stop(struct m0t1fs_sb *csb)
+{
+        runast = false;
+	m0_chan_signal_lock(&csb->csb_iogroup.s_chan);
+	m0_thread_join(&csb->csb_astthread);
+}
+
+
 static int file_io_ut_init(void)
 {
-        int		  rc;
-	uint64_t	  random;
-	struct m0_layout *lay;
+	struct m0_conf_obj        *fs_obj;
+	struct m0_conf_filesystem *fs;
+	struct m0_pool_version    *pver;
+	struct m0_layout          *lay;
+        int		           rc;
+	uint64_t	           random;
 
         M0_SET0(&sb);
-        M0_SET0(&csb);
 	M0_SET0(&creditor);
-	m0_sm_group_init(&csb.csb_iogroup);
-	m0_mutex_init(&csb.csb_mutex);
+	M0_SET0(&confc);
+	m0t1fs_sb_init(&csb);
+	runast = true;
+	rc = M0_THREAD_INIT(&csb.csb_astthread, struct m0t1fs_sb *, NULL,
+			    &ast_thread, &csb, "m0_ast_thread");
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_confc_init(&confc, &csb.csb_iogroup, &M0_FID_TINIT('p', 1, 0),
+			   NULL, NULL, local_conf);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,
+				M0_CONF_PROFILE_FILESYSTEM_FID);
+	M0_UT_ASSERT(rc == 0);
+	fs = M0_CONF_CAST(fs_obj, m0_conf_filesystem);
+        rc = m0_pools_common_init(&csb.csb_pools_common, NULL, fs);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_pools_setup(&csb.csb_pools_common, fs, NULL, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0t1fs_pool_find(&csb, fs);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(csb.csb_pool != NULL);
+	M0_UT_ASSERT(csb.csb_pool_version != NULL);
+	pver = csb.csb_pool_version;
+
 	sb.s_fs_info          = &csb;
-        csb.csb_active        = true;
-	csb.csb_nr_containers = LAY_P;
-	csb.csb_pool_width    = LAY_P;
 	csb.csb_next_key     = FID_KEY;
         m0_chan_init(&csb.csb_iowait, &csb.csb_iogroup.s_lock);
         m0_atomic64_set(&csb.csb_pending_io_nr, 0);
@@ -139,7 +242,7 @@ static int file_io_ut_init(void)
 
         /* Tries to build a layout. */
         llattr = (struct m0_layout_linear_attr) {
-                .lla_nr = LAY_N + 2 * LAY_K,
+                .lla_nr = pver->pv_attr.pa_P,
                 .lla_A  = ATTR_A_CONST,
                 .lla_B  = ATTR_B_CONST,
         };
@@ -150,9 +253,9 @@ static int file_io_ut_init(void)
 
 	random = m0_time_nanoseconds(m0_time_now());
         pdattr = (struct m0_pdclust_attr) {
-                .pa_N         = LAY_N,
-                .pa_K         = LAY_K,
-                .pa_P         = LAY_N + 2 * LAY_K,
+                .pa_N         = pver->pv_attr.pa_N,
+                .pa_K         = pver->pv_attr.pa_K,
+                .pa_P         = pver->pv_attr.pa_P,
                 .pa_unit_size = UNIT_SIZE,
 
         };
@@ -165,7 +268,6 @@ static int file_io_ut_init(void)
         /* Initializes the m0t1fs inode and build layout instance. */
         M0_SET0(&ci);
         ci.ci_layout_id = M0_DEFAULT_LAYOUT_ID;
-	csb.csb_cl_map.rm_ctx = &msc;
 	m0t1fs_fid_alloc(&csb, &ci.ci_fid);
 	m0t1fs_file_lock_init(&ci, &csb);
 
@@ -184,38 +286,29 @@ static int file_io_ut_init(void)
 
 	/* Sets the file size in inode. */
 	ci.ci_inode.i_size = DATA_SIZE;
-
-	M0_SET0(&poolmach);
-	csb.csb_pool.po_mach = &poolmach;
-
-	rc = m0_poolmach_init(csb.csb_pool.po_mach, NULL, NULL, NULL,
-			      1, LAY_P, 1, LAY_K);
-	M0_ASSERT(rc == 0);
+	m0_confc_close(fs_obj);
 
 	return 0;
 }
 
 static int file_io_ut_fini(void)
 {
+	ast_thread_stop(&csb);
 	m0t1fs_file_lock_fini(&ci);
 	m0_free(lfile.f_dentry);
 	m0_layout_instance_fini(ci.ci_layout_instance);
-
-	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
-	m0_chan_fini_lock(&csb.csb_iowait);
-	m0_sm_group_fini(&csb.csb_iogroup);
-
 	/* Finalizes the m0_pdclust_layout type. */
 	m0_layout_put(&pdlay->pl_base.sl_base);
-	m0_poolmach_fini(csb.csb_pool.po_mach);
-
 	m0t1fs_layout_fini(&csb);
+	m0_pools_common_fini(&csb.csb_pools_common);
+	m0_confc_fini(&confc);
 	m0t1fs_addb_mon_total_io_size_fini(&csb);
 	m0_reqh_services_terminate(&csb.csb_reqh);
 	m0t1fs_rpc_fini(&csb);
 	m0t1fs_net_fini(&csb);
 
 	m0t1fs_fs_unlock(&csb);
+	m0t1fs_sb_fini(&csb);
 
 	return 0;
 }
@@ -687,9 +780,6 @@ static void nw_xfer_ops_test(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(req.ir_iomap_nr == 1);
 	M0_UT_ASSERT(req.ir_iomaps[0] != NULL);
-
-	for (cnt = 1; cnt <= LAY_P; ++cnt)
-		csb.csb_cl_map.ios_map[cnt] = &ctx;
 
 	src.sa_unit = 0;
 

@@ -37,7 +37,12 @@ struct arr_fid {
 	uint32_t       af_count;
 	struct m0_fid *af_elems;
 } M0_XCA_SEQUENCE;
-
+
+struct arr_u32 {
+	uint32_t  au_count;
+	uint32_t *au_elems;
+} M0_XCA_SEQUENCE;
+
 /* ------------------------------------------------------------------
  * Configuration objects
  * ------------------------------------------------------------------ */
@@ -59,10 +64,72 @@ struct m0_confx_filesystem {
 	struct m0_confx_header xf_header;
 	/* Rood fid. */
 	struct m0_fid          xf_rootfid;
+	/* Redundancy for this filesystem. */
+	uint32_t               xf_redundancy;
 	/* Filesystem parameters. */
 	struct m0_bufs         xf_params;
-	/* Services of this filesystem. */
-	struct arr_fid         xf_services;
+	/* Pool to locate mata-data. */
+	struct m0_fid          xf_mdpool;
+	/* Nodes of this filesystem. */
+	struct arr_fid         xf_nodes;
+	/* Pools this filesystem resides on. */
+	struct arr_fid         xf_pools;
+	/* Racks this filesystem resides on. */
+	struct arr_fid         xf_racks;
+} M0_XCA_RECORD;
+
+struct m0_confx_pool {
+	struct m0_confx_header xp_header;
+	/* Order in set of pool. */
+	uint32_t               xp_order;
+	/* Pool versions for this pool. */
+	struct arr_fid         xp_pvers;
+} M0_XCA_RECORD;
+
+struct m0_confx_pver {
+	struct m0_confx_header xv_header;
+	/* Version number. */
+	uint32_t               xv_ver;
+	/* Data units. */
+	uint32_t               xv_N;
+	/* Parity units. */
+	uint32_t               xv_K;
+	/* Pool width. */
+	uint32_t               xv_P;
+	struct arr_u32         xv_permutations;
+	/* The number of allowed failures for each failure domain. */
+	struct arr_u32         xv_nr_failures;
+	/* Rack versions associated with this pool version. */
+	struct arr_fid         xv_rackvs;
+} M0_XCA_RECORD;
+
+struct m0_confx_objv {
+	struct m0_confx_header xj_header;
+	/* Identifier of real device associated with this version. */
+	struct m0_fid          xj_real;
+	struct arr_fid         xj_children;
+} M0_XCA_RECORD;
+
+struct m0_confx_node {
+	struct m0_confx_header xn_header;
+	/* Memory size in MB. */
+	uint32_t               xn_memsize;
+	/* Number of processors. */
+	uint32_t               xn_nr_cpu;
+	/* Last known state.  See m0_cfg_state_bit. */
+	uint64_t               xn_last_state;
+	/* Property flags.  See m0_cfg_flag_bit. */
+	uint64_t               xn_flags;
+	struct m0_fid          xn_pool_id;
+	struct arr_fid         xn_processes;
+} M0_XCA_RECORD;
+
+struct m0_confx_process {
+	struct m0_confx_header xr_header;
+	uint32_t               xr_mem_limit;
+	uint32_t               xr_cores;
+	/* Services being run by this process. */
+	struct arr_fid         xr_services;
 } M0_XCA_RECORD;
 
 struct m0_confx_service {
@@ -71,40 +138,8 @@ struct m0_confx_service {
 	uint32_t               xs_type;
 	/* End-points from which this service is reachable. */
 	struct m0_bufs         xs_endpoints;
-	/* Hosting node. */
-	struct m0_fid          xs_node;
-} M0_XCA_RECORD;
-
-struct m0_confx_node {
-	struct m0_confx_header xn_header;
-	/* Memory size in MB. */
-	uint32_t               xn_memsize;
-	/* Number of processors. */
-	uint32_t       xn_nr_cpu;
-	/* Last known state.  See m0_cfg_state_bit. */
-	uint64_t       xn_last_state;
-	/* Property flags.  See m0_cfg_flag_bit. */
-	uint64_t       xn_flags;
-	/* Pool id. */
-	uint64_t       xn_pool_id;
-	/* Network interfaces. */
-	struct arr_fid xn_nics;
-	/* Storage devices. */
-	struct arr_fid xn_sdevs;
-} M0_XCA_RECORD;
-
-struct m0_confx_nic {
-	struct m0_confx_header xi_header;
-	/* Type of network interface.  See m0_cfg_nic_type. */
-	uint32_t               xi_iface;
-	/* Maximum transmission unit. */
-	uint32_t               xi_mtu;
-	/* Speed in Mb/sec. */
-	uint64_t               xi_speed;
-	/* Filename in host OS. */
-	struct m0_buf          xi_filename;
-	/* Last known state.  See m0_cfg_state_bit. */
-	uint64_t               xi_last_state;
+	/* Devices associated with service. */
+	struct arr_fid         xs_sdevs;
 } M0_XCA_RECORD;
 
 struct m0_confx_sdev {
@@ -113,6 +148,8 @@ struct m0_confx_sdev {
 	uint32_t               xd_iface;
 	/* Media type.  See m0_cfg_storage_device_media_type. */
 	uint32_t               xd_media;
+	/* Size in bytes. */
+	uint64_t               xd_bsize;
 	/* Size in bytes. */
 	uint64_t               xd_size;
 	/* Last known state.  See m0_cfg_state_bit. */
@@ -123,13 +160,45 @@ struct m0_confx_sdev {
 	struct m0_buf          xd_filename;
 } M0_XCA_RECORD;
 
+struct m0_confx_rack {
+	struct m0_confx_header xr_header;
+	/* Enclosures on this rack. */
+	struct arr_fid         xr_encls;
+	/* Pool versions for this pool. */
+	struct arr_fid         xr_pvers;
+} M0_XCA_RECORD;
+
+struct m0_confx_enclosure {
+	struct m0_confx_header xe_header;
+	/* Controllers in this enclosure. */
+	struct arr_fid         xe_ctrls;
+	/* Pool versions for this pool. */
+	struct arr_fid         xe_pvers;
+} M0_XCA_RECORD;
+
+struct m0_confx_controller {
+	struct m0_confx_header xc_header;
+	/* Associated note for this controller. */
+	struct m0_fid          xc_node;
+	/* Storage disks attached to this controller. */
+	struct arr_fid         xc_disks;
+	/* Pool versions for this controller. */
+	struct arr_fid         xc_pvers;
+} M0_XCA_RECORD;
+
+struct m0_confx_disk {
+	struct m0_confx_header xk_header;
+	/* Storage device associated with this disk. */
+	struct m0_fid          xk_dev;
+} M0_XCA_RECORD;
+
 struct m0_confx_obj {
 	uint64_t xo_type; /* see m0_fid_type::ft_id for values */
 	union {
 		/**
 		 * Allows to access the header of concrete m0_confx_* objects.
 		 */
-		struct m0_confx_header     u_header;
+		struct m0_confx_header u_header;
 	} xo_u;
 };
 

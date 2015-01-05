@@ -425,5 +425,7 @@ M0_INTERNAL int m0_rpc_conn_timedwait(struct m0_rpc_conn *conn,
 M0_INTERNAL int m0_rpc_machine_conn_list_dump(struct m0_rpc_machine *machine,
 					      int dir);
 
+M0_INTERNAL const char *m0_rpc_conn_addr(const struct m0_rpc_conn *conn);
+
 /** @}  End of rpc_session group */
 #endif /* __MERO_RPC_CONN_H__ */

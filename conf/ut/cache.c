@@ -48,41 +48,78 @@ void test_obj_xtors(void)
 	}
 }
 
-void test_cache(void)
+static void
+conf_obj_create(const struct m0_fid *fid, struct m0_conf_obj **result)
 {
-	struct m0_conf_obj  *obj;
-	size_t               i;
-	int                  rc;
-	struct {
-		struct m0_fid id;
-	} samples[] = {
-		{ /* profile */     M0_FID_TINIT('p', ~0, 0) },
-		{ /* file-system */ M0_FID_TINIT('f', 7, 2) },
-		{ /* directory */   M0_FID_TINIT('D', 7, 3) }
-	};
+	int rc;
 
-	for (i = 0; i < ARRAY_SIZE(samples); ++i) {
-		obj = m0_conf_cache_lookup(&g_cache, &samples[i].id);
-		M0_UT_ASSERT(obj == NULL);
+	*result = m0_conf_cache_lookup(&g_cache, fid);
+	M0_UT_ASSERT(*result == NULL);
 
-		obj = m0_conf_obj_create(&g_cache, &samples[i].id);
-		M0_UT_ASSERT(obj != NULL);
-		M0_UT_ASSERT(m0_fid_eq(&obj->co_id, &samples[i].id));
+	*result = m0_conf_obj_create(&g_cache, fid);
+	M0_UT_ASSERT(*result != NULL);
+	M0_UT_ASSERT(m0_fid_eq(&(*result)->co_id, fid));
 
-		m0_mutex_lock(&g_lock);
-		rc = m0_conf_cache_add(&g_cache, obj);
-		m0_mutex_unlock(&g_lock);
-		M0_UT_ASSERT(rc == 0);
+	m0_mutex_lock(&g_lock);
+	rc = m0_conf_cache_add(&g_cache, *result);
+	m0_mutex_unlock(&g_lock);
+	M0_UT_ASSERT(rc == 0);
 
-		M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache,
-						  &samples[i].id) == obj);
-	}
+	M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache, fid) == *result);
+}
 
+static void conf_obj_delete(struct m0_conf_obj *obj)
+{
 	m0_mutex_lock(&g_lock);
 	m0_conf_cache_del(&g_cache, obj);
 	m0_mutex_unlock(&g_lock);
 
 	M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache, &obj->co_id) == NULL);
+}
+
+void test_dir_add()
+{
+	struct m0_conf_obj *fs;
+	struct m0_conf_obj *rack;
+	struct m0_conf_obj *racks_dir;
+	const struct m0_fid rackid = M0_FID_TINIT('a', 8, 1);
+
+	conf_obj_create(&M0_FID_TINIT('f', 8, 1), &fs);
+	conf_obj_create(&rackid, &rack);
+
+	conf_obj_create(&M0_FID_TINIT('D', 8, 1), &racks_dir);
+
+	M0_CONF_CAST(racks_dir, m0_conf_dir)->cd_relfid =
+		M0_FID_TINIT('/', 0, 999);
+	M0_CONF_CAST(racks_dir, m0_conf_dir)->cd_item_type =
+		m0_conf_fid_type(&rackid);
+	m0_conf_dir_add(M0_CONF_CAST(racks_dir, m0_conf_dir), rack);
+	M0_CONF_CAST(fs, m0_conf_filesystem)->cf_racks =
+		M0_CONF_CAST(racks_dir, m0_conf_dir);
+
+	m0_conf_dir_del(M0_CONF_CAST(racks_dir, m0_conf_dir), rack);
+	conf_obj_delete(racks_dir);
+	conf_obj_delete(rack);
+	conf_obj_delete(fs);
+}
+
+void test_cache(void)
+{
+	int                  rc;
+	struct m0_conf_obj  *obj;
+	size_t               i;
+	struct {
+		struct m0_fid id;
+	} samples[] = {
+		{ /* profile */     M0_FID_TINIT('p', ~0, 0)},
+		{ /* file-system */ M0_FID_TINIT('f', 7, 2) },
+		{ /* directory */   M0_FID_TINIT('D', 7, 3) },
+	};
+
+	for (i = 0; i < ARRAY_SIZE(samples); ++i)
+		conf_obj_create(&samples[i].id, &obj);
+
+	conf_obj_delete(obj);
 
 	/* Duplicated identity. */
 	obj = m0_conf_obj_create(&g_cache, &samples[0].id);
@@ -124,20 +161,20 @@ void test_obj_find(void)
 
 void test_obj_fill(void)
 {
+	static char buf[M0_CONF_STR_MAXLEN];
 	struct m0_confx    *enc;
 	struct m0_conf_obj *obj;
 	int                 i;
 	int                 rc;
-	char                buf[4096] = {0};
 
 	m0_confx_free(NULL); /* to make sure this can be done */
 
-	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf_xc.txt"), buf, sizeof buf);
+	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf-str.txt"), buf, sizeof buf);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_confstr_parse(buf, &enc);
 	M0_UT_ASSERT(rc == 0);
-        M0_UT_ASSERT(enc->cx_nr == 7); /* "conf_xc.txt" describes 7 objects */
+        M0_UT_ASSERT(enc->cx_nr == 20); /* conf-str.txt describes 20 objects */
 
 	m0_mutex_lock(&g_lock);
 	for (i = 0; i < enc->cx_nr; ++i) {
@@ -145,6 +182,7 @@ void test_obj_fill(void)
 
 		rc = m0_conf_obj_find(&g_cache, m0_conf_objx_fid(xobj), &obj) ?:
 			m0_conf_obj_fill(obj, xobj, &g_cache);
+M0_ASSERT_INFO(rc == 0, "XXX rc=%d i=%d", rc, i);
 		M0_UT_ASSERT(rc == 0);
 	}
 	m0_mutex_unlock(&g_lock);
@@ -177,6 +215,7 @@ struct m0_ut_suite conf_ut = {
 		{ "cache",     test_cache     },
 		{ "obj-find",  test_obj_find  },
 		{ "obj-fill",  test_obj_fill  },
+		{ "dir-add",   test_dir_add   },
 		{ NULL, NULL }
 	}
 };

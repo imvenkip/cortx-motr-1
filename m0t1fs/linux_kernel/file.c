@@ -598,7 +598,7 @@ static inline m0_bindex_t gfile_offset(m0_bindex_t                 toff,
 static inline struct m0_fid target_fid(const struct io_request	  *req,
 				       struct m0_pdclust_tgt_addr *tgt)
 {
-	return m0t1fs_ios_cob_fid(m0t1fs_file_to_m0inode(req->ir_file), 
+	return m0t1fs_ios_cob_fid(m0t1fs_file_to_m0inode(req->ir_file),
 				  tgt->ta_obj);
 }
 
@@ -2416,7 +2416,7 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	M0_PRE(count >  0);
 
 	msb = file_to_sb(map->pi_ioreq->ir_file);
-	rc = m0_poolmach_device_state(msb->csb_pool.po_mach,
+	rc = m0_poolmach_device_state(&msb->csb_pool_version->pv_mach,
 				      tio->ti_fid.f_container, &dev_state);
 	play = pdlayout_get(map->pi_ioreq);
 	pargrp_src_addr(index[0], map->pi_ioreq, tio, &src);
@@ -2506,7 +2506,7 @@ static int io_spare_map(const struct pargrp_iomap *map,
 	play_instance = pdlayout_instance(layout_instance(map->pi_ioreq));
 	gfid = file_to_fid(map->pi_ioreq->ir_file);
 	msb = file_to_sb(map->pi_ioreq->ir_file);
-	rc = m0_sns_repair_spare_map(msb->csb_pool.po_mach,
+	rc = m0_sns_repair_spare_map(&msb->csb_pool_version->pv_mach,
 				     gfid, play, play_instance,
 				     src->sa_group, src->sa_unit,
 				     spare_slot, spare_slot_prev);
@@ -2539,7 +2539,7 @@ static int unit_state(const struct m0_pdclust_src_addr *src,
 	play_instance = pdlayout_instance(layout_instance(req));
 	m0_pdclust_instance_map(play_instance, src, &tgt);
 	tfid = target_fid(req, &tgt);
-	rc = m0_poolmach_device_state(msb->csb_pool.po_mach, tfid.f_container,
+	rc = m0_poolmach_device_state(&msb->csb_pool_version->pv_mach, tfid.f_container,
 				      state);
 	if (rc != 0) {
 		M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
@@ -3184,7 +3184,7 @@ static int device_check(struct io_request *req)
 	csb = file_to_sb(req->ir_file);
 
 	m0_htable_for (tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
-		rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
+		rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
 				              ti->ti_fid.f_container, &state);
 		if (rc != 0)
 			return M0_ERR_INFO(rc, "Failed to retrieve target device"
@@ -3341,7 +3341,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	csb = file_to_sb(req->ir_file);
 	start = m0_time_now();
 	m0_htable_for(tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
-		rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
+		rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
 				ti->ti_fid.f_container, &state);
 		if (rc != 0)
 			return M0_ERR_INFO(rc, "Failed to retrieve device state");
@@ -3853,7 +3853,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	       FID_P(&tfid));
 
 	csb = file_to_sb(req->ir_file);
-	rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
+	rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
 				      tfid.f_container, &device_state);
 	if (rc != 0) {
 		M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
@@ -3934,7 +3934,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	     M0_IN(device_state,
 		   (M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED)))) {
 		gfid = file_to_fid(req->ir_file);
-		rc = m0_sns_repair_spare_map(csb->csb_pool.po_mach, gfid, play,
+		rc = m0_sns_repair_spare_map(&csb->csb_pool_version->pv_mach, gfid, play,
 					     play_instance, src->sa_group,
 					     src->sa_unit, &spare_slot,
 					     &spare_slot_prev);
@@ -3956,7 +3956,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 			spare.sa_unit = spare_slot_prev;
 			m0_pdclust_instance_map(play_instance, &spare, tgt);
 			tfid = target_fid(req, tgt);
-			rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
+			rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
 						      tfid.f_container,
 						      &device_state_prev);
 			if (rc != 0) {
@@ -4991,17 +4991,17 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 
 static void failure_vector_mismatch(struct io_req_fop *irfop)
 {
-	struct m0_pool_version_numbers *cli;
-	struct m0_pool_version_numbers *srv;
-	struct m0t1fs_sb               *csb;
-	struct m0_fop                  *reply;
-	struct m0_rpc_item             *reply_item;
-	struct m0_fop_cob_rw_reply     *rw_reply;
-	struct m0_fv_version           *reply_version;
-	struct m0_fv_updates           *reply_updates;
-	struct m0_pool_event           *event;
-	struct io_request              *req;
-	uint32_t                        i = 0;
+	struct m0_poolmach_versions *cli;
+	struct m0_poolmach_versions *srv;
+	struct m0t1fs_sb            *csb;
+	struct m0_fop               *reply;
+	struct m0_rpc_item          *reply_item;
+	struct m0_fop_cob_rw_reply  *rw_reply;
+	struct m0_fv_version        *reply_version;
+	struct m0_fv_updates        *reply_updates;
+	struct m0_poolmach_event    *event;
+	struct io_request           *req;
+	uint32_t                     i = 0;
 
 	M0_PRE(irfop != NULL);
 
@@ -5014,8 +5014,8 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	rw_reply   = io_rw_rep_get(reply);
 	reply_version = &rw_reply->rwr_fv_version;
 	reply_updates = &rw_reply->rwr_fv_updates;
-	srv = (struct m0_pool_version_numbers *)reply_version;
-	cli = &csb->csb_pool.po_mach->pm_state->pst_version;
+	srv = (struct m0_poolmach_versions *)reply_version;
+	cli = &csb->csb_pool_version->pv_mach.pm_state->pst_version;
 	M0_LOG(M0_DEBUG, ">>>VERSION MISMATCH!");
 	m0_poolmach_version_dump(cli);
 	m0_poolmach_version_dump(srv);
@@ -5026,9 +5026,9 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	 * call will be restarted.
 	 */
 	while (i < reply_updates->fvu_count) {
-		event = (struct m0_pool_event*)&reply_updates->fvu_events[i];
+		event = (struct m0_poolmach_event*)&reply_updates->fvu_events[i];
 		m0_poolmach_event_dump(event);
-		m0_poolmach_state_transit(csb->csb_pool.po_mach, event, NULL);
+		m0_poolmach_state_transit(&csb->csb_pool_version->pv_mach, event, NULL);
 		i++;
 	}
 	M0_LOG(M0_DEBUG, "<<<VERSION MISMATCH!");
@@ -5049,18 +5049,18 @@ M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop)
 
 static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	int                                rc;
-	struct io_req_fop                 *irfop;
-	struct io_request                 *req;
-	struct target_ioreq               *tioreq;
-	struct m0_fop                     *reply_fop = NULL;
-	struct m0_rpc_item                *req_item;
-	struct m0_rpc_item                *reply_item;
-	struct m0_fop_cob_rw_reply        *rw_reply;
-	struct m0t1fs_service_context     *service;
-	struct m0t1fs_inode               *inode;
-	struct m0_be_tx_remid             *remid;
-	struct m0_fop_generic_reply       *gen_rep;
+	struct io_req_fop           *irfop;
+	struct io_request           *req;
+	struct target_ioreq         *tioreq;
+	struct m0_fop               *reply_fop = NULL;
+	struct m0_rpc_item          *req_item;
+	struct m0_rpc_item          *reply_item;
+	struct m0_fop_cob_rw_reply  *rw_reply;
+	struct m0_reqh_service_ctx  *ctx;
+	struct m0t1fs_inode         *inode;
+	struct m0_be_tx_remid       *remid;
+	struct m0_fop_generic_reply *gen_rep;
+	int                          rc;
 
 	M0_ENTRY("sm_group %p sm_ast %p", grp, ast);
 	M0_PRE(grp != NULL);
@@ -5133,9 +5133,9 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 			rw_reply->rwr_count,
 			irfop->irf_iofop.if_rbulk.rb_bytes);
 	/* update pending transaction number */
-	service = m0t1fs_service_from_session(reply_item->ri_session);
+	ctx = m0_reqh_service_ctx_from_session(reply_item->ri_session);
 	inode = m0t1fs_file_to_m0inode(req->ir_file);
-	m0t1fs_fsync_record_update(service, m0inode_to_sb(inode), inode, remid);
+	m0t1fs_fsync_record_update(ctx, m0inode_to_sb(inode), inode, remid);
 
 ref_dec:
 	/* Drops reference on reply fop. */
@@ -5436,22 +5436,22 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				       enum page_attr       filter)
 {
-	int			        rc = 0;
-	uint32_t		        buf = 0;
+	int			     rc = 0;
+	uint32_t		     buf = 0;
 	/* Number of segments in one m0_rpc_bulk_buf structure. */
-	uint32_t		        bbsegs;
-	uint32_t		        maxsize;
-	uint32_t		        delta;
-	enum page_attr		        rw;
-	enum page_attr                 *pattr;
-	struct m0_bufvec               *bvec;
-	struct io_request              *req;
-	struct m0_indexvec             *ivec;
-	struct io_req_fop              *irfop;
-	struct m0_net_domain           *ndom;
-	struct m0_rpc_bulk_buf         *rbuf;
-	struct m0_pool_version_numbers  curr;
-	struct m0_pool_version_numbers *cli;
+	uint32_t		     bbsegs;
+	uint32_t		     maxsize;
+	uint32_t		     delta;
+	enum page_attr		     rw;
+	enum page_attr              *pattr;
+	struct m0_bufvec            *bvec;
+	struct io_request           *req;
+	struct m0_indexvec          *ivec;
+	struct io_req_fop           *irfop;
+	struct m0_net_domain        *ndom;
+	struct m0_rpc_bulk_buf      *rbuf;
+	struct m0_poolmach_versions  curr;
+	struct m0_poolmach_versions *cli;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter %u, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -5519,9 +5519,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		}
 		++iommstats.a_io_req_fop_nr;
 
-		m0_poolmach_current_version_get(file_to_sb(req->ir_file)->
-				                csb_pool.po_mach, &curr);
-		cli = (struct m0_pool_version_numbers *)
+		m0_poolmach_current_version_get(&file_to_sb(req->ir_file)->
+				                csb_pool_version->pv_mach,
+						&curr);
+		cli = (struct m0_poolmach_versions *)
 		      &(io_rw_get(&irfop->irf_iofop.if_fop)->crw_version);
 		*cli = curr;
 

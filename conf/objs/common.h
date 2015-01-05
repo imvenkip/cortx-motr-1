@@ -38,13 +38,30 @@ const struct m0_bob_type type ## _bob = {                                     \
 };                                                                            \
 M0_BOB_DEFINE(static, &type ## _bob, type)
 
-#define M0_CONF__INVARIANT_DEFINE(name, type)				\
-static bool name(const struct m0_conf_obj *obj)				\
-{									\
-	return type ## _bob_check(container_of(obj, struct type,	\
-				    type ## _cast_field));		\
-}									\
-struct __ ## abbrev ## _semicolon_catcher
+#define M0_CONF__INVARIANT_DEFINE(name, type)                    \
+static bool name(const struct m0_conf_obj *obj)                  \
+{                                                                \
+	return type ## _bob_check(container_of(obj, struct type, \
+				    type ## _cast_field));       \
+}                                                                \
+struct __ ## type ## _semicolon_catcher
+
+#define M0_CONF__CTOR_DEFINE(name, type, ops) \
+static struct m0_conf_obj *name(void)         \
+{                                             \
+	struct type        *x;                \
+	struct m0_conf_obj *ret;              \
+					      \
+	M0_ALLOC_PTR(x);                      \
+	if (x == NULL)                        \
+		return NULL;                  \
+					      \
+	type ## _bob_init(x);                 \
+	ret = &x->type ## _cast_field;        \
+	ret->co_ops = ops;                    \
+	return ret;                           \
+}                                             \
+struct __ ## type ## _semicolon_catcher
 
 M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
 			     struct m0_conf_obj *child);
@@ -70,6 +87,37 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 			const struct arr_fid *src,
 			struct m0_conf_dir **out);
 
+struct conf_dir_entries {
+	const struct m0_fid           *de_relfid;
+	const struct m0_conf_obj_type *de_entry_type;
+	const struct arr_fid          *de_entries;
+};
+#define CONF_DIR_ENTRIES(relfid, entry_type, entries) \
+	((struct conf_dir_entries){ (relfid), (entry_type), (entries) })
+
+M0_INTERNAL int dir_create_and_populate(struct m0_conf_dir **result,
+					const struct conf_dir_entries *de,
+					struct m0_conf_obj *dir_parent,
+					struct m0_conf_cache *cache);
+
+struct conf_dir_encoding_pair {
+	const struct m0_conf_dir *dep_src;
+	struct arr_fid           *dep_dest;
+};
+
+M0_INTERNAL int conf_dirs_encode(const struct conf_dir_encoding_pair *how,
+				 size_t how_nr);
+
+struct conf_dir_relation {
+	struct m0_conf_dir  *dr_dir;
+	const struct m0_fid *dr_relfid;
+};
+
+M0_INTERNAL int conf_dirs_lookup(struct m0_conf_obj            **out,
+				 const struct m0_fid            *name,
+				 const struct conf_dir_relation *rels,
+				 size_t                          nr_rels);
+
 M0_INTERNAL bool arrays_eq(const char **cached, const struct m0_bufs *flat);
 
 M0_INTERNAL void strings_free(const char **arr);
@@ -80,5 +128,12 @@ M0_INTERNAL void arrfid_free(struct arr_fid *arr);
 
 M0_INTERNAL void confx_encode(struct m0_confx_obj *dest,
 			      const struct m0_conf_obj *src);
+
+M0_INTERNAL int u32arr_decode(const struct arr_u32 *src, uint32_t **dest);
+M0_INTERNAL int u32arr_encode(struct arr_u32 *dest, const uint32_t *src,
+			      uint32_t src_nr);
+M0_INTERNAL bool u32arr_cmp(const struct arr_u32 *a1, const uint32_t *a2,
+			    uint32_t a2_nr);
+M0_INTERNAL void u32arr_free(struct arr_u32 *arr);
 
 #endif /* __MERO_CONF_OBJS_COMMON_H__ */

@@ -126,11 +126,11 @@ static void service_start_failure(void)
 static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
 			      enum m0_pool_nd_state state)
 {
-	struct m0_pool_event   pme;
-	int                    rc;
-	struct m0_be_tx_credit cred = {};
-	struct m0_be_tx        tx;
-	struct m0_sm_group    *grp  = m0_locality0_get()->lo_grp;
+	struct m0_poolmach_event pme;
+	int                      rc;
+	struct m0_be_tx_credit   cred = {};
+	struct m0_be_tx          tx;
+	struct m0_sm_group      *grp  = m0_locality0_get()->lo_grp;
 
 	M0_SET0(&pme);
 	pme.pe_type  = M0_POOL_DEVICE;

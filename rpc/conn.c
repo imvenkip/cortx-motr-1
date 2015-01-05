@@ -951,4 +951,8 @@ M0_INTERNAL int m0_rpc_conn_session_list_dump(const struct m0_rpc_conn *conn)
 	return 0;
 }
 
+M0_INTERNAL const char *m0_rpc_conn_addr(const struct m0_rpc_conn *conn)
+{
+	return conn->c_rpcchan->rc_destep->nep_addr;
+}
 /** @} */
