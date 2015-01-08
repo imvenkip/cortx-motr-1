@@ -219,6 +219,10 @@ struct m0_rpc_item {
 	struct m0_rpc_frm               *ri_frm;
 	/** M0_RPC_ITEM_MAGIC */
 	uint64_t			 ri_magic;
+	/** Link for m0_rpc_item_cache::ric_items. */
+	struct m0_tlink			 ri_cache_link;
+	/** After this time item can be safely removed from reply cache */
+	m0_time_t			 ri_cache_deadline;
 };
 
 enum m0_rpc_item_flags {
@@ -462,6 +466,70 @@ M0_INTERNAL struct m0_rpc_item_type *m0_rpc_item_type_lookup(uint32_t opcode);
  */
 M0_INTERNAL const char *
 m0_rpc_item_remote_ep_addr(const struct m0_rpc_item *item);
+
+/**
+ * Simple rpc item cache.
+ *
+ * Highlights
+ * - cache is protected with external lock m0_rpc_item_cache::ric_lock.
+ *   It should be taken before calling any m0_rpc_item_cache function;
+ * - cache assumes that same items have exactly the same xid;
+ * - item xid uniqueness is responsibility of the user;
+ * - cache protects items contained in from preliminary finalisation using
+ *   rpc item reference counting (m0_rpc_item_get() and m0_rpc_item_put());
+ * - m0_rpc_item_cache_lookup() doesn't take any reference. If user wants to
+ *   use rpc item after deadline then reference should be taken by the user;
+ * - rpc items are added to cache using m0_rpc_item_add();
+ * - rpc items are removed from the cache if:
+ *   - user calls m0_rpc_item_cache_del();
+ *   - user calls m0_rpc_item_cache_purge() - in this case all items with
+ *     deadline passed are removed;
+ *   - deadline passed.
+ *     Note: rpc items may remain in cache even after deadline.
+ */
+struct m0_rpc_item_cache {
+	/** Uses m0_rpc_item::ri_cache_link */
+	struct m0_tl	 ric_items;
+	/** External lock for item list protection */
+	struct m0_mutex *ric_lock;
+};
+
+M0_INTERNAL void m0_rpc_item_cache_init(struct m0_rpc_item_cache *ic,
+					struct m0_mutex		 *lock);
+M0_INTERNAL void m0_rpc_item_cache_fini(struct m0_rpc_item_cache *ic);
+M0_INTERNAL bool m0_rpc_item_cache__invariant(struct m0_rpc_item_cache *ic);
+
+/**
+ * Adds item to the cache.
+ *
+ * If an item with the same xid is already there, does nothing.
+ * It takes one reference to the item if item is actually added to the cache.
+ * There is no guarantee that item will remain in cache after deadline passed.
+ */
+M0_INTERNAL void m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
+				       struct m0_rpc_item	*item,
+				       m0_time_t		 deadline);
+/**
+ * Remove item from the cache.
+ *
+ * If item is not in cache, does nothing.
+ * Puts one reference to the item if item is actually removed from the cache.
+ */
+M0_INTERNAL void m0_rpc_item_cache_del(struct m0_rpc_item_cache *ic,
+				       uint64_t			 xid);
+/**
+ * Searches cache for the item with given xid.
+ *
+ * Returns NULL if there is no item with the given xid in the cache.
+ * It doesn't take any reference to the item.
+ */
+M0_INTERNAL struct m0_rpc_item *
+m0_rpc_item_cache_lookup(struct m0_rpc_item_cache *ic, uint64_t xid);
+
+/** Deletes expired items from the cache. */
+M0_INTERNAL void m0_rpc_item_cache_purge(struct m0_rpc_item_cache *ic);
+/** Deletes all items from the cache. */
+M0_INTERNAL void m0_rpc_item_cache_clear(struct m0_rpc_item_cache *ic);
 
 #endif
 

@@ -58,6 +58,13 @@ M0_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct m0_rpc_item_type,
 
 M0_TL_DEFINE(rit, static, struct m0_rpc_item_type);
 
+M0_TL_DESCR_DEFINE(ric, "rpc item cache", M0_INTERNAL,
+		   struct m0_rpc_item, ri_cache_link, ri_magic,
+		   M0_RPC_ITEM_MAGIC, M0_RPC_ITEM_CACHE_HEAD_MAGIC);
+
+M0_TL_DEFINE(ric, M0_INTERNAL, struct m0_rpc_item);
+
+
 /** Global rpc item types list. */
 static struct m0_tl        rpc_item_types_list;
 static struct m0_rwlock    rpc_item_types_lock;
@@ -346,6 +353,7 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
 	itemq_tlink_init(item);
         rpcitem_tlink_init(item);
 	rpcitem_tlist_init(&item->ri_compound_items);
+	ric_tlink_init(item);
 	m0_sm_timeout_init(&item->ri_deadline_timeout);
 	m0_sm_timer_init(&item->ri_timer);
 	/* item->ri_sm will be initialised when the item is posted */
@@ -376,9 +384,11 @@ void m0_rpc_item_fini(struct m0_rpc_item *item)
 	if (itemq_tlink_is_in(item))
 		m0_rpc_frm_remove_item(item->ri_frm, item);
 
+	M0_ASSERT(!ric_tlink_is_in(item));
 	M0_ASSERT(!itemq_tlink_is_in(item));
 	M0_ASSERT(!packet_item_tlink_is_in(item));
 	M0_ASSERT(!rpcitem_tlink_is_in(item));
+	ric_tlink_fini(item);
 	itemq_tlink_fini(item);
 	packet_item_tlink_fini(item);
 	rpcitem_tlink_fini(item);
@@ -970,6 +980,96 @@ M0_INTERNAL void m0_rpc_item_send_reply(struct m0_rpc_item *req,
 		req->ri_reply = NULL;
 
 	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_rpc_item_cache_init(struct m0_rpc_item_cache *ic,
+					struct m0_mutex		 *lock)
+{
+	ric_tlist_init(&ic->ric_items);
+	ic->ric_lock = lock;
+
+	M0_POST(m0_rpc_item_cache__invariant(ic));
+}
+
+M0_INTERNAL void m0_rpc_item_cache_fini(struct m0_rpc_item_cache *ic)
+{
+	M0_PRE(m0_rpc_item_cache__invariant(ic));
+
+	m0_rpc_item_cache_clear(ic);
+	ric_tlist_fini(&ic->ric_items);
+}
+
+M0_INTERNAL bool m0_rpc_item_cache__invariant(struct m0_rpc_item_cache *ic)
+{
+	return m0_mutex_is_locked(ic->ric_lock);
+}
+
+M0_INTERNAL void m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
+				       struct m0_rpc_item	*item,
+				       m0_time_t		 deadline)
+{
+	struct m0_rpc_item *cached;
+
+	M0_PRE(m0_rpc_item_cache__invariant(ic));
+
+	cached = m0_rpc_item_cache_lookup(ic, item->ri_header.osr_xid);
+	if (cached == NULL) {
+		m0_rpc_item_get(item);
+		ric_tlink_init_at(item, &ic->ric_items);
+		item->ri_cache_deadline = deadline;
+	}
+}
+
+static void rpc_item_cache_del(struct m0_rpc_item_cache *ic,
+			       struct m0_rpc_item	*item)
+{
+	ric_tlink_del_fini(item);
+	m0_rpc_item_put(item);
+}
+
+M0_INTERNAL void m0_rpc_item_cache_del(struct m0_rpc_item_cache *ic,
+				       uint64_t			 xid)
+{
+	struct m0_rpc_item *cached;
+
+	M0_PRE(m0_rpc_item_cache__invariant(ic));
+
+	cached = m0_rpc_item_cache_lookup(ic, xid);
+	if (cached != NULL)
+		rpc_item_cache_del(ic, cached);
+}
+
+M0_INTERNAL struct m0_rpc_item *
+m0_rpc_item_cache_lookup(struct m0_rpc_item_cache *ic, uint64_t xid)
+{
+	M0_PRE(m0_rpc_item_cache__invariant(ic));
+
+	return m0_tl_find(ric, item, &ic->ric_items,
+			  item->ri_header.osr_xid == xid);
+}
+
+M0_INTERNAL void m0_rpc_item_cache_purge(struct m0_rpc_item_cache *ic)
+{
+	struct m0_rpc_item *item;
+	m0_time_t	    now = m0_time_now();
+
+	M0_PRE(m0_rpc_item_cache__invariant(ic));
+
+	m0_tl_for(ric, &ic->ric_items, item) {
+		if (now > item->ri_cache_deadline)
+			rpc_item_cache_del(ic, item);
+	} m0_tl_endfor;
+}
+
+M0_INTERNAL void m0_rpc_item_cache_clear(struct m0_rpc_item_cache *ic)
+{
+	struct m0_rpc_item *item;
+
+	M0_PRE(m0_rpc_item_cache__invariant(ic));
+
+	m0_tl_for(ric, &ic->ric_items, item) {
+		rpc_item_cache_del(ic, item);
+	} m0_tl_endfor;
 }
 
 /** @} end of rpc group */

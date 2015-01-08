@@ -588,11 +588,138 @@ static void test_cancel(void)
 	M0_LOG(M0_DEBUG, "TEST:5:3:END");
 }
 
+enum {
+	M0_RPC_ITEM_CACHE_ITEMS_NR_MAX = 0x40,
+};
+
+static uint64_t test_item_cache_item_get_xid = UINT64_MAX - 1;
+static uint64_t test_item_cache_item_put_xid = UINT64_MAX - 1;
+
+static void test_item_cache_item_get(struct m0_rpc_item *item)
+{
+	M0_UT_ASSERT(_0C(test_item_cache_item_get_xid == UINT64_MAX) ||
+		     _0C(item->ri_header.osr_xid ==
+			 test_item_cache_item_get_xid));
+	test_item_cache_item_get_xid = UINT64_MAX - 1;
+}
+
+static void test_item_cache_item_put(struct m0_rpc_item *item)
+{
+	M0_UT_ASSERT(_0C(test_item_cache_item_put_xid == UINT64_MAX) ||
+		     _0C(item->ri_header.osr_xid ==
+			 test_item_cache_item_put_xid));
+	test_item_cache_item_put_xid = UINT64_MAX - 1;
+}
+
+static struct m0_rpc_item_type_ops test_item_cache_type_ops = {
+	.rito_item_get = test_item_cache_item_get,
+	.rito_item_put = test_item_cache_item_put,
+};
+static struct m0_rpc_item_type	   test_item_cache_itype = {
+	.rit_ops = &test_item_cache_type_ops,
+};
+
+/*
+ * Add each nth item to the cache.
+ * Lookup each item in cache.
+ * Then remove each item from the cache.
+ */
+static void test_item_cache_add_nth(struct m0_rpc_item_cache *ic,
+				    struct m0_mutex	     *lock,
+				    struct m0_rpc_item	     *items,
+				    int			      items_nr,
+				    int			      n)
+{
+	struct m0_rpc_item *item;
+	int		    added_nr;
+	int		    test_nr;
+	int		    i;
+
+	M0_SET0(ic);
+	m0_rpc_item_cache_init(ic, lock);
+	added_nr = 0;
+	for (i = 0; i < items_nr; ++i) {
+		if ((i % n) == 0) {
+			test_item_cache_item_get_xid = i;
+			m0_rpc_item_cache_add(ic, &items[i], M0_TIME_NEVER);
+			++added_nr;
+		}
+	}
+	/* no-op */
+	m0_rpc_item_cache_purge(ic);
+	for (i = 0; i < items_nr; ++i) {
+		/* do nothing */
+		if ((i % n) == 0)
+			m0_rpc_item_cache_add(ic, &items[i], M0_TIME_NEVER);
+	}
+	test_nr = 0;
+	for (i = 0; i < items_nr; ++i) {
+		item = m0_rpc_item_cache_lookup(ic, i);
+		/* m0_rpc_item_cache_lookup() returns either NULL or item */
+		M0_UT_ASSERT(item == NULL || item == &items[i]);
+		M0_UT_ASSERT(equi(item != NULL, (i % n) == 0));
+		test_nr += item != NULL;
+	}
+	M0_UT_ASSERT(test_nr == added_nr);
+	for (i = 0; i < items_nr; ++i) {
+		if ((i % n) == 0)
+			test_item_cache_item_put_xid = i;
+		m0_rpc_item_cache_del(ic, i);
+	}
+	/* cache is empty now */
+	/* do nothing */
+	m0_rpc_item_cache_clear(ic);
+	for (i = 0; i < items_nr; ++i) {
+		item = m0_rpc_item_cache_lookup(ic, i);
+		M0_UT_ASSERT(item == NULL);
+	}
+	m0_rpc_item_cache_fini(ic);
+}
+
+static void test_item_cache(void)
+{
+	struct m0_rpc_item_cache  ic;
+	struct m0_rpc_machine	  rmach = {};
+	struct m0_rpc_item	 *items;
+	struct m0_mutex		  lock;
+	int			  items_nr;
+	int			  n;
+	int			  i;
+
+	M0_ALLOC_ARR(items, M0_RPC_ITEM_CACHE_ITEMS_NR_MAX);
+	M0_UT_ASSERT(items != NULL);
+	for (i = 0; i < M0_RPC_ITEM_CACHE_ITEMS_NR_MAX; ++i) {
+		m0_rpc_item_init(&items[i], &test_item_cache_itype);
+		items[i].ri_header.osr_xid = i;
+		items[i].ri_rmachine = &rmach;
+	}
+	m0_mutex_init(&lock);
+	m0_mutex_lock(&lock);
+	/*
+	 * This is needed because m0_rpc_item_put() checks rpc machine lock.
+	 */
+	m0_mutex_init(&rmach.rm_sm_grp.s_lock);
+	m0_mutex_lock(&rmach.rm_sm_grp.s_lock);
+	for (items_nr = 1;
+	     items_nr < M0_RPC_ITEM_CACHE_ITEMS_NR_MAX; ++items_nr) {
+		for (n = 1; n <= items_nr; ++n)
+			test_item_cache_add_nth(&ic, &lock, items, items_nr, n);
+	}
+	m0_mutex_unlock(&rmach.rm_sm_grp.s_lock);
+	m0_mutex_fini(&rmach.rm_sm_grp.s_lock);
+	m0_mutex_unlock(&lock);
+	m0_mutex_fini(&lock);
+	for (i = 0; i < M0_RPC_ITEM_CACHE_ITEMS_NR_MAX; ++i)
+		m0_rpc_item_fini(&items[i]);
+	m0_free(items);
+}
+
 struct m0_ut_suite item_ut = {
 	.ts_name = "rpc-item-ut",
 	.ts_init = ts_item_init,
 	.ts_fini = ts_item_fini,
 	.ts_tests = {
+		{ "cache",		    test_item_cache		},
 		{ "simple-transitions",     test_simple_transitions     },
 		{ "reply-item-error",       test_reply_item_error       },
 		{ "item-timeout",           test_timeout                },
