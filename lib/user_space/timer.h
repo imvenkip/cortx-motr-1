@@ -35,25 +35,6 @@
    @{
  */
 
-/**
-   Timer state.
-   @see timer_state_change()
- */
-enum m0_timer_state {
-	/** Not initialized. */
-	TIMER_UNINIT = 0,
-	/** Initialized. */
-	TIMER_INITED,
-	/** Timer is running. */
-	TIMER_RUNNING,
-	/** Timer is stopped */
-	TIMER_STOPPED,
-	/** Number of timer states */
-	TIMER_STATE_NR,
-	/** Invalid state */
-	TIMER_INVALID = TIMER_STATE_NR
-};
-
 struct m0_timer {
 	/**
 	   Timer type: M0_TIMER_SOFT or M0_TIMER_HARD
@@ -143,13 +124,7 @@ struct m0_timer_locality {
 	struct m0_timer_tid *tlo_rrtid;
 };
 
-/* Timer operations */
-struct m0_timer_ops {
-	int (*tmr_init)(struct m0_timer *timer, struct m0_timer_locality *loc);
-	void (*tmr_fini)(struct m0_timer *timer);
-	void (*tmr_start)(struct m0_timer *timer);
-	void (*tmr_stop)(struct m0_timer *timer);
-};
+M0_EXTERN const struct m0_timer_operations m0_timer_ops[];
 
 M0_INTERNAL int m0_timers_init(void);
 M0_INTERNAL void m0_timers_fini(void);

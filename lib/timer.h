@@ -74,6 +74,32 @@ enum m0_timer_type {
 	M0_TIMER_TYPE_NR,
 };
 
+/**
+   Timer state.
+   @see timer_state_change()
+ */
+enum m0_timer_state {
+	/** Not initialized. */
+	TIMER_UNINIT = 0,
+	/** Initialized. */
+	TIMER_INITED,
+	/** Timer is running. */
+	TIMER_RUNNING,
+	/** Timer is stopped */
+	TIMER_STOPPED,
+	/** Number of timer states */
+	TIMER_STATE_NR,
+	/** Invalid state */
+	TIMER_INVALID = TIMER_STATE_NR
+};
+
+struct m0_timer_operations {
+	int (*tmr_init)(struct m0_timer *timer, struct m0_timer_locality *loc);
+	void (*tmr_fini)(struct m0_timer *timer);
+	void (*tmr_start)(struct m0_timer *timer);
+	void (*tmr_stop)(struct m0_timer *timer);
+};
+
 #ifndef __KERNEL__
 #include "lib/user_space/timer.h"
 #else
