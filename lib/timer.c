@@ -38,74 +38,6 @@
  */
 
 /**
-   Function enum for timer_state_change() checks.
- */
-enum timer_func {
-	TIMER_INIT = 0,
-	TIMER_FINI,
-	TIMER_START,
-	TIMER_STOP,
-	TIMER_FUNC_NR
-};
-
-static bool timer_invariant(const struct m0_timer *timer)
-{
-	return timer != NULL &&
-		M0_IN(timer->t_type, (M0_TIMER_HARD, M0_TIMER_SOFT)) &&
-		M0_IN(timer->t_state, (TIMER_INITED, TIMER_RUNNING,
-				       TIMER_STOPPED, TIMER_UNINIT));
-}
-
-/*
-   This function called on every m0_timer_init/fini/start/stop.
-   It checks the possibility of transition from the current state
-   with a given function and if possible and changes timer state to a new state
-   if it needed.
-   @param dry_run if it is true, then timer state doesn't change.
-   @return true if state can be changed with the given func, false otherwise
- */
-static bool timer_state_change(struct m0_timer *timer, enum timer_func func,
-		bool dry_run)
-{
-	enum m0_timer_state new_state;
-	static enum m0_timer_state
-		transition[TIMER_STATE_NR][TIMER_FUNC_NR] = {
-			[TIMER_UNINIT] = {
-				[TIMER_INIT]   = TIMER_INITED,
-				[TIMER_FINI]   = TIMER_INVALID,
-				[TIMER_START]  = TIMER_INVALID,
-				[TIMER_STOP]   = TIMER_INVALID,
-			},
-			[TIMER_INITED] = {
-				[TIMER_INIT]   = TIMER_INVALID,
-				[TIMER_FINI]   = TIMER_UNINIT,
-				[TIMER_START]  = TIMER_RUNNING,
-				[TIMER_STOP]   = TIMER_INVALID,
-			},
-			[TIMER_RUNNING] = {
-				[TIMER_INIT]   = TIMER_INVALID,
-				[TIMER_FINI]   = TIMER_INVALID,
-				[TIMER_START]  = TIMER_INVALID,
-				[TIMER_STOP]   = TIMER_STOPPED,
-			},
-			[TIMER_STOPPED] = {
-				[TIMER_INIT]   = TIMER_INVALID,
-				[TIMER_FINI]   = TIMER_UNINIT,
-				[TIMER_START]  = TIMER_INVALID,
-				[TIMER_STOP]   = TIMER_INVALID,
-			}
-		};
-
-	M0_PRE(timer_invariant(timer));
-
-	new_state = func == TIMER_INIT ? TIMER_INITED :
-		transition[timer->t_state][func];
-	if (!dry_run && new_state != TIMER_INVALID)
-		timer->t_state = new_state;
-	return func == TIMER_INIT || new_state != TIMER_INVALID;
-}
-
-/**
    Init the timer data structure.
  */
 M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
@@ -118,7 +50,6 @@ M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
 
 	M0_PRE(callback != NULL);
 	M0_PRE(M0_IN(type, (M0_TIMER_SOFT, M0_TIMER_HARD)));
-	M0_PRE(timer != NULL);
 
 	M0_SET0(timer);
 	timer->t_type     = type;
@@ -127,7 +58,9 @@ M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
 	timer->t_data     = data;
 
 	rc = m0_timer_ops[timer->t_type].tmr_init(timer, loc);
-	timer_state_change(timer, TIMER_INIT, rc != 0);
+
+	if (rc == 0)
+		timer->t_state = M0_TIMER_INITED;
 
 	return M0_RC(rc);
 }
@@ -137,11 +70,10 @@ M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
  */
 M0_INTERNAL void m0_timer_fini(struct m0_timer *timer)
 {
-	M0_PRE(timer != NULL);
-	M0_PRE(timer_state_change(timer, TIMER_FINI, true));
+	M0_PRE(M0_IN(timer->t_state, (M0_TIMER_STOPPED, M0_TIMER_INITED)));
 
 	m0_timer_ops[timer->t_type].tmr_fini(timer);
-	timer_state_change(timer, TIMER_FINI, false);
+	timer->t_state = M0_TIMER_UNINIT;
 }
 
 /**
@@ -150,13 +82,12 @@ M0_INTERNAL void m0_timer_fini(struct m0_timer *timer)
 M0_INTERNAL void m0_timer_start(struct m0_timer *timer,
 				m0_time_t	 expire)
 {
-	M0_PRE(timer != NULL);
-	M0_PRE(timer_state_change(timer, TIMER_START, true));
+	M0_PRE(timer->t_state == M0_TIMER_INITED);
 
 	timer->t_expire = expire;
 
 	m0_timer_ops[timer->t_type].tmr_start(timer);
-	timer_state_change(timer, TIMER_START, false);
+	timer->t_state = M0_TIMER_RUNNING;
 }
 
 /**
@@ -164,16 +95,15 @@ M0_INTERNAL void m0_timer_start(struct m0_timer *timer,
  */
 M0_INTERNAL void m0_timer_stop(struct m0_timer *timer)
 {
-	M0_PRE(timer != NULL);
-	M0_PRE(timer_state_change(timer, TIMER_STOP, true));
+	M0_PRE(timer->t_state == M0_TIMER_RUNNING);
 
 	m0_timer_ops[timer->t_type].tmr_stop(timer);
-	timer_state_change(timer, TIMER_STOP, false);
+	timer->t_state = M0_TIMER_STOPPED;
 }
 
 M0_INTERNAL bool m0_timer_is_started(const struct m0_timer *timer)
 {
-	return timer->t_state == TIMER_RUNNING;
+	return timer->t_state == M0_TIMER_RUNNING;
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -75,12 +75,7 @@ struct m0_timer {
 
 	/**
 	   Timer state.
-	   Used in state changes checking in hard timer.
-	   m0_timer_init() will set state to TIMER_INITED.
-	   m0_timer_fini()/start()/stop() will check current
-	   state using state transition matrix.
-	   If there is no transition from current state using given
-	   function, M0_ASSERT() will take `false' parameter.
+	   Used in state changes checking.
 	 */
 	enum m0_timer_state t_state;
 

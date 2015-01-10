@@ -80,17 +80,15 @@ enum m0_timer_type {
  */
 enum m0_timer_state {
 	/** Not initialized. */
-	TIMER_UNINIT = 0,
+	M0_TIMER_UNINIT = 0,
 	/** Initialized. */
-	TIMER_INITED,
+	M0_TIMER_INITED,
 	/** Timer is running. */
-	TIMER_RUNNING,
+	M0_TIMER_RUNNING,
 	/** Timer is stopped */
-	TIMER_STOPPED,
+	M0_TIMER_STOPPED,
 	/** Number of timer states */
-	TIMER_STATE_NR,
-	/** Invalid state */
-	TIMER_INVALID = TIMER_STATE_NR
+	M0_TIMER_STATE_NR,
 };
 
 struct m0_timer_operations {
