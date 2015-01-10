@@ -32,14 +32,8 @@
 
    Implementation of m0_timer.
 
-   In userspace soft timer implementation, there is a timer thread running,
-   which checks the expire time and trigger timer callback if needed.
-   There is one timer thread for each timer.
  */
 
-/**
-   Init the timer data structure.
- */
 M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
 			      enum m0_timer_type	type,
 			      struct m0_timer_locality *loc,
@@ -65,9 +59,6 @@ M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
 	return M0_RC(rc);
 }
 
-/**
-   Destroy the timer.
- */
 M0_INTERNAL void m0_timer_fini(struct m0_timer *timer)
 {
 	M0_PRE(M0_IN(timer->t_state, (M0_TIMER_STOPPED, M0_TIMER_INITED)));
@@ -76,9 +67,6 @@ M0_INTERNAL void m0_timer_fini(struct m0_timer *timer)
 	timer->t_state = M0_TIMER_UNINIT;
 }
 
-/**
-   Start a timer.
- */
 M0_INTERNAL void m0_timer_start(struct m0_timer *timer,
 				m0_time_t	 expire)
 {
@@ -90,9 +78,6 @@ M0_INTERNAL void m0_timer_start(struct m0_timer *timer,
 	timer->t_state = M0_TIMER_RUNNING;
 }
 
-/**
-   Stop a timer.
- */
 M0_INTERNAL void m0_timer_stop(struct m0_timer *timer)
 {
 	M0_PRE(timer->t_state == M0_TIMER_RUNNING);

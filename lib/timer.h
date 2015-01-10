@@ -161,6 +161,7 @@ M0_INTERNAL void m0_timer_fini(struct m0_timer *timer);
 
 /**
    Init timer locality.
+   @post timer locality is empty
  */
 M0_INTERNAL void m0_timer_locality_init(struct m0_timer_locality *loc);
 
@@ -168,7 +169,7 @@ M0_INTERNAL void m0_timer_locality_init(struct m0_timer_locality *loc);
    Fini timer locality.
 
    @pre m0_timer_locality_init() successfully called.
-   @pre locality is empty
+   @pre timer locality is empty
  */
 M0_INTERNAL void m0_timer_locality_fini(struct m0_timer_locality *loc);
 

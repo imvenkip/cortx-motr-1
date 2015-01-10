@@ -47,7 +47,7 @@ struct m0_timer {
 	m0_timer_callback_t t_callback;
 
 	/**
-	   User data.
+	   User data. It is passed to m0_timer::t_callback().
 	 */
 	unsigned long t_data;
 
@@ -62,7 +62,7 @@ struct m0_timer {
 	struct m0_thread t_thread;
 
 	/*
-	   semaphore for sleeping in m0_timer_working_thread().
+	   semaphore for sleeping in timer_working_thread().
 	 */
 	struct m0_semaphore t_sleep_sem;
 
@@ -88,8 +88,8 @@ struct m0_timer {
 	/**
 	   POSIX timer ID, returned by timer_create().
 	   Used in hard timer implementation.
-	   POSIX timer is creating in m0_timer_init().
-	   POSIX timer is deleting in m0_timer_fini().
+	   POSIX timer is created in m0_timer_init().
+	   POSIX timer is deleted in m0_timer_fini().
 	 */
 	timer_t t_ptimer;
 };
