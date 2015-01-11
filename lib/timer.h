@@ -53,6 +53,21 @@
      The user-defined callback execution may take longer time and it will
      not impact other timers.
 
+   State machine
+   @verbatim
+
+	      +------------+     m0_timer_start()     +-------------+
+	      |   INITED   |------------------------->|   RUNNING   |
+	      +------------+                          +-------------+
+		   ^  |                                    |  ^
+   m0_timer_init() |  | m0_timer_fini()    m0_timer_stop() |  | m0_timer_start()
+		   |  v                                    v  |
+	      +============+                          +-------------+
+	      |   UNINIT   |<-------------------------|   STOPPED   |
+	      +============+      m0_timer_fini()     +-------------+
+
+   @endverbatim
+
    Error handling
    - m0_timer_init() can fail;
    - m0_timer_fini() can't fail;

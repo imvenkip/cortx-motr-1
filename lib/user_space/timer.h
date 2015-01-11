@@ -48,12 +48,14 @@ struct m0_timer {
 	enum m0_timer_state t_state;
 
 	/** Semaphore for m0_timer_stop() and user callback synchronisation. */
-	struct m0_semaphore t_stop_sem;
+	struct m0_semaphore t_cb_sync_sem;
 
 	/** Soft timer working thread. */
 	struct m0_thread    t_thread;
 	/** Soft timer working thread sleeping semaphore. */
 	struct m0_semaphore t_sleep_sem;
+	/** Thread is stopped by m0_timer_fini(). */
+	bool		    t_thread_stop;
 
 	/** POSIX timer ID, returned by timer_create(). */
 	timer_t		    t_ptimer;

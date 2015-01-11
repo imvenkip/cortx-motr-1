@@ -73,7 +73,7 @@ M0_INTERNAL void m0_timer_fini(struct m0_timer *timer)
 M0_INTERNAL void m0_timer_start(struct m0_timer *timer,
 				m0_time_t	 expire)
 {
-	M0_PRE(timer->t_state == M0_TIMER_INITED);
+	M0_PRE(M0_IN(timer->t_state, (M0_TIMER_STOPPED, M0_TIMER_INITED)));
 
 	timer->t_expire = expire;
 

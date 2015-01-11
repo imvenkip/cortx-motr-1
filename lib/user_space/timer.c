@@ -281,7 +281,7 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 	timer = si->si_value.sival_ptr;
 	M0_ASSERT_EX(ergo(timer->t_tid != 0, timer->t_tid == gettid()));
 	m0_timer_callback_execute(timer);
-	m0_semaphore_up(&timer->t_stop_sem);
+	m0_semaphore_up(&timer->t_cb_sync_sem);
 }
 
 /**
@@ -295,7 +295,7 @@ static int timer_hard_init(struct m0_timer *timer,
 	timer->t_tid = timer_locality_tid_next(loc);
 	rc = timer_posix_init(timer);
 	if (rc == 0) {
-		rc = m0_semaphore_init(&timer->t_stop_sem, 0);
+		rc = m0_semaphore_init(&timer->t_cb_sync_sem, 0);
 		if (rc != 0)
 			timer_posix_fini(timer->t_ptimer);
 	}
@@ -307,7 +307,7 @@ static int timer_hard_init(struct m0_timer *timer,
  */
 static void timer_hard_fini(struct m0_timer *timer)
 {
-	m0_semaphore_fini(&timer->t_stop_sem);
+	m0_semaphore_fini(&timer->t_cb_sync_sem);
 	timer_posix_fini(timer->t_ptimer);
 }
 
@@ -331,7 +331,7 @@ static void timer_hard_stop(struct m0_timer *timer)
 	timer_posix_set(timer, zero_time, &expire);
 	/* if timer was expired then wait until callback is finished */
 	if (expire == zero_time)
-		m0_semaphore_down(&timer->t_stop_sem);
+		m0_semaphore_down(&timer->t_cb_sync_sem);
 }
 
 /**
@@ -339,10 +339,34 @@ static void timer_hard_stop(struct m0_timer *timer)
  */
 static void timer_working_thread(struct m0_timer *timer)
 {
-	m0_semaphore_down(&timer->t_sleep_sem);
-	if (!m0_semaphore_timeddown(&timer->t_sleep_sem, timer->t_expire))
-		m0_timer_callback_execute(timer);
-	m0_semaphore_up(&timer->t_stop_sem);
+	while (1) {
+		/*
+		 * This semaphore is incremented
+		 * in timer_soft_start() or in timer_soft_fini().
+		 */
+		m0_semaphore_down(&timer->t_sleep_sem);
+		/* Check if it is incremented in timer_soft_fini() */
+		if (timer->t_thread_stop)
+			break;
+
+		/*
+		 * Wait until either:
+		 * - semaphore isn't decremented => timer->t_expire passed
+		 * - semaphore is decremented => timer_soft_stop() cancels
+		 *   the timer.
+		 */
+		if (!m0_semaphore_timeddown(&timer->t_sleep_sem,
+					    timer->t_expire)) {
+			m0_timer_callback_execute(timer);
+			/*
+			 * Wait until timer_soft_stop()
+			 * increments this semaphore.
+			 */
+			m0_semaphore_down(&timer->t_sleep_sem);
+		}
+		/* Synchronise timer callback with m0_timer_stop() */
+		m0_semaphore_up(&timer->t_cb_sync_sem);
+	}
 }
 
 static int timer_soft_initfini(struct m0_timer *timer, bool init)
@@ -354,7 +378,7 @@ static int timer_soft_initfini(struct m0_timer *timer, bool init)
 	rc = m0_semaphore_init(&timer->t_sleep_sem, 0);
 	if (rc != 0)
 		goto err;
-	rc = m0_semaphore_init(&timer->t_stop_sem, 0);
+	rc = m0_semaphore_init(&timer->t_cb_sync_sem, 0);
 	if (rc != 0)
 		goto fini_sleep_sem;
 	rc = M0_THREAD_INIT(&timer->t_thread, struct m0_timer*, NULL,
@@ -372,7 +396,7 @@ fini:
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
 	m0_thread_fini(&timer->t_thread);
 fini_stop_sem:
-	m0_semaphore_fini(&timer->t_stop_sem);
+	m0_semaphore_fini(&timer->t_cb_sync_sem);
 fini_sleep_sem:
 	m0_semaphore_fini(&timer->t_sleep_sem);
 err:
@@ -382,6 +406,7 @@ err:
 static int timer_soft_init(struct m0_timer *timer,
 			   struct m0_timer_locality *loc)
 {
+	timer->t_thread_stop = false;
 	return timer_soft_initfini(timer, true);
 }
 
@@ -389,6 +414,7 @@ static void timer_soft_fini(struct m0_timer *timer)
 {
 	int rc;
 
+	timer->t_thread_stop = true;
 	m0_semaphore_up(&timer->t_sleep_sem);
 	rc = timer_soft_initfini(timer, false);
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
@@ -400,12 +426,12 @@ static void timer_soft_start(struct m0_timer *timer)
 }
 
 /**
-   Stop soft timer thread and wait for its termination.
+   Stops soft timer and waits for callback termination.
  */
 static void timer_soft_stop(struct m0_timer *timer)
 {
 	m0_semaphore_up(&timer->t_sleep_sem);
-	m0_semaphore_down(&timer->t_stop_sem);
+	m0_semaphore_down(&timer->t_cb_sync_sem);
 }
 
 M0_INTERNAL const struct m0_timer_operations m0_timer_ops[] = {
