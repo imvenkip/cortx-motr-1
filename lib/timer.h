@@ -53,6 +53,22 @@
      The user-defined callback execution may take longer time and it will
      not impact other timers.
 
+   Error handling
+   - m0_timer_init() can fail;
+   - m0_timer_fini() can't fail;
+   - m0_timer_start(), m0_timer_stop() is guaranteed to succeed after
+     successful m0_timer_init() call.
+
+   Implementation details
+   - POSIX timer is used in hard timer implementation;
+   - POSIX timer is created in m0_timer_init() and is deleted in
+     m0_timer_fini();
+   - m0_thread is used in soft timer implementation;
+   - m0_thread is started in m0_timer_init() and is finalised in
+     m0_timer_fini();
+   - add_timer() is used in kernel timer implementation.
+
+   Limitations
    - Number of hard timers is limited by maximum number of pending signals,
      see `ulimit -i`.
    - Number of soft timers is limited by maximum number of threads.
@@ -158,6 +174,13 @@ M0_INTERNAL bool m0_timer_is_started(const struct m0_timer *timer);
    @pre timer is not running.
  */
 M0_INTERNAL void m0_timer_fini(struct m0_timer *timer);
+
+/**
+   Execute timer callback.
+
+   It is used in timer implementation.
+ */
+M0_INTERNAL void m0_timer_callback_execute(struct m0_timer *timer);
 
 /**
    Init timer locality.

@@ -266,13 +266,6 @@ static int timer_sigaction(int signo,
 	return sigaction(signo, &sa, NULL) == 0 ? 0 : errno;
 }
 
-static void timer_callback_execute(struct m0_timer *timer)
-{
-	m0_enter_awkward();
-	timer->t_callback(timer->t_data);
-	m0_exit_awkward();
-}
-
 /**
    Signal handler for all POSIX timers.
    si->si_value.sival_ptr contains pointer to corresponding m0_timer structure.
@@ -287,7 +280,7 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 
 	timer = si->si_value.sival_ptr;
 	M0_ASSERT_EX(ergo(timer->t_tid != 0, timer->t_tid == gettid()));
-	timer_callback_execute(timer);
+	m0_timer_callback_execute(timer);
 	m0_semaphore_up(&timer->t_stop_sem);
 }
 
@@ -348,7 +341,7 @@ static void timer_working_thread(struct m0_timer *timer)
 {
 	m0_semaphore_down(&timer->t_sleep_sem);
 	if (!m0_semaphore_timeddown(&timer->t_sleep_sem, timer->t_expire))
-		timer_callback_execute(timer);
+		m0_timer_callback_execute(timer);
 	m0_semaphore_up(&timer->t_stop_sem);
 }
 

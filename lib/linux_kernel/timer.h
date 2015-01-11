@@ -24,7 +24,9 @@
 #ifndef __MERO_LIB_LINUX_KERNEL_TIMER_H__
 #define __MERO_LIB_LINUX_KERNEL_TIMER_H__
 
-#include <linux/timer.h>
+#include <linux/timer.h>	/* timer_list */
+
+#include "lib/time.h"		/* m0_time_t */
 
 /**
    @addtogroup timer
@@ -34,33 +36,22 @@
  */
 
 struct m0_timer {
-	/**
-	   Timer type: M0_TIMER_SOFT or M0_TIMER_HARD
-	 */
-	enum m0_timer_type t_type;
-
-	/**
-	   The expiration time for timer.
-	 */
-	m0_time_t t_expire;
-
-	/**
-	   Timer triggers this callback.
-	 */
+	/** Timer type: M0_TIMER_SOFT or M0_TIMER_HARD. */
+	enum m0_timer_type  t_type;
+	/** Timer triggers this callback. */
 	m0_timer_callback_t t_callback;
+	/** User data. It is passed to m0_timer::t_callback(). */
+	unsigned long	    t_data;
+	/** Expire time in future of this timer. */
+	m0_time_t	    t_expire;
+	/** Timer state.  Used in state changes checking. */
+	enum m0_timer_state t_state;
 
-	/**
-	   Is timer running now?
-	 */
-	bool t_running;
-
-	/**
-	   User data.
-	 */
-	unsigned long t_data;
-
+	/** Kernel timer. */
 	struct timer_list t_timer;
 };
+
+M0_EXTERN const struct m0_timer_operations m0_timer_ops[];
 
 /** @} end of timer group */
 

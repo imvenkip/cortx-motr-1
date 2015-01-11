@@ -36,62 +36,34 @@
  */
 
 struct m0_timer {
-	/**
-	   Timer type: M0_TIMER_SOFT or M0_TIMER_HARD
-	 */
-	enum m0_timer_type t_type;
-
-	/**
-	   Timer triggers this callback.
-	 */
+	/** Timer type: M0_TIMER_SOFT or M0_TIMER_HARD. */
+	enum m0_timer_type  t_type;
+	/** Timer triggers this callback. */
 	m0_timer_callback_t t_callback;
+	/** User data. It is passed to m0_timer::t_callback(). */
+	unsigned long	    t_data;
+	/** Expire time in future of this timer. */
+	m0_time_t	    t_expire;
+	/** Timer state.  Used in state changes checking. */
+	enum m0_timer_state t_state;
 
-	/**
-	   User data. It is passed to m0_timer::t_callback().
-	 */
-	unsigned long t_data;
+	/** Semaphore for m0_timer_stop() and user callback synchronisation. */
+	struct m0_semaphore t_stop_sem;
 
-	/**
-	   expire time in future of this timer.
-	 */
-	m0_time_t t_expire;
-
-	/**
-	   working thread for soft timer
-	 */
-	struct m0_thread t_thread;
-
-	/*
-	   semaphore for sleeping in timer_working_thread().
-	 */
+	/** Soft timer working thread. */
+	struct m0_thread    t_thread;
+	/** Soft timer working thread sleeping semaphore. */
 	struct m0_semaphore t_sleep_sem;
 
+	/** POSIX timer ID, returned by timer_create(). */
+	timer_t		    t_ptimer;
 	/**
 	   Target thread ID for hard timer callback.
 	   If it is 0 then signal will be sent to the process
 	   but not to any specific thread.
 	 */
-	pid_t t_tid;
+	pid_t		    t_tid;
 
-	/**
-	   Timer state.
-	   Used in state changes checking.
-	 */
-	enum m0_timer_state t_state;
-
-	/**
-	   Used in hard timer implementation.
-	   @see timer_hard_stop()
-	 */
-	struct m0_semaphore t_stop_sem;
-
-	/**
-	   POSIX timer ID, returned by timer_create().
-	   Used in hard timer implementation.
-	   POSIX timer is created in m0_timer_init().
-	   POSIX timer is deleted in m0_timer_fini().
-	 */
-	timer_t t_ptimer;
 };
 
 /**

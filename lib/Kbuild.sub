@@ -26,6 +26,7 @@ m0mero_objects += lib/assert.o \
                   lib/string_xc.o \
                   lib/thread.o \
                   lib/time.o \
+                  lib/timer.o \
                   lib/tlist.o \
                   lib/trace.o \
                   lib/types_xc.o \

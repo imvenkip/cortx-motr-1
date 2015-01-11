@@ -23,6 +23,7 @@
 
 #include "lib/misc.h"		/* M0_SET0 */
 #include "lib/assert.h"		/* M0_PRE */
+#include "lib/thread.h"		/* m0_enter_awkward */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
@@ -89,6 +90,13 @@ M0_INTERNAL void m0_timer_stop(struct m0_timer *timer)
 M0_INTERNAL bool m0_timer_is_started(const struct m0_timer *timer)
 {
 	return timer->t_state == M0_TIMER_RUNNING;
+}
+
+M0_INTERNAL void m0_timer_callback_execute(struct m0_timer *timer)
+{
+	m0_enter_awkward();
+	timer->t_callback(timer->t_data);
+	m0_exit_awkward();
 }
 
 #undef M0_TRACE_SUBSYSTEM
