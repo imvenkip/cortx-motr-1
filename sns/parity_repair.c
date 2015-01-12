@@ -147,7 +147,7 @@ out:
         if (frame_found)
                 return frame;
         else
-                return M0_ERR(-ENOENT);
+                return -ENOENT;
 }
 
 M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,

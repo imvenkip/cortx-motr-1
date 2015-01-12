@@ -13,36 +13,46 @@ N=3
 K=3
 P=15
 stride=32
-io_count=0          # Counter for the number of times dd is invoked
-random_dd_count=60  # value of count used during random source file creation
+random_source_dd_count=60  # dd count used during random source file creation
+dd_count=0                 # Counter for the number of times dd is invoked
+st_dir=$MERO_CORE_ROOT/m0t1fs/linux_kernel/st
 
-dgio_source_files_create()
+fmio_source_files_create()
 {
-	if [ "$pattern" == "$ABCD" ] || [ "$pattern" == "$MIXED" ]
+	if [ $pattern == $ABCD ] || [ $pattern == $ALTERNATE ]
 	then
 		$prog_file_pattern $source_abcd 2>&1 >> $MERO_TEST_LOGFILE || {
-			echo "Failed: m0t1fs_io_file_pattern failed"
+			echo "Failed: m0t1fs_io_file_pattern..."
 			return 1
 		}
 	fi
 
-	if [ "$pattern" == "$RANDOM1" ] || [ "$pattern" == "$MIXED" ]
+	if [ $pattern == $RANDOM1 ] || [ $pattern == $ALTERNATE ]
 	then
-		dd if=/dev/urandom bs=$unit_size count=$random_dd_count of=$source_random 2>&1 >> $MERO_TEST_LOGFILE || {
-			echo "Failed: dd failed.."
+		dd if=/dev/urandom bs=$block_size count=$random_source_dd_count of=$source_random 2>&1 >> $MERO_TEST_LOGFILE || {
+			echo "Failed: dd..."
 			return 1
 		}
 	fi
+
 	return 0
 }
 
-dgio_files_write()
+# pre: value of bs shall be necessarily specified in terms of bytes
+fmio_files_write()
 {
-	io_count=`expr $io_count + 1`
+	dd_count=`expr $dd_count + 1`
 
 	# Verify that 'the size of the file to be written' is not larger than
 	# 'the ABCD source file size'
 	bs=$(echo $2 | cut -d= -f2)
+
+	if [ $bs -lt 0 ]
+	then
+		echo "Specify bs in terms of bytes"
+		return 1
+	fi
+
 	count=$(echo $3 | cut -d= -f2)
 	input_file_size=$(($bs * $count))
 	if [ $input_file_size -gt $ABCD_SOURCE_SIZE ]
@@ -61,20 +71,20 @@ dgio_files_write()
 
 	# Select source file from the sandbox, according to the configured
 	# pattern
-	if [ "$pattern" == "$ABCD" ]
+	if [ $pattern == $ABCD ]
 	then
 		source_sandbox=$source_abcd
-	elif [ "$pattern" == "$RANDOM1" ]
+	elif [ $pattern == $RANDOM1 ]
 	then
 		source_sandbox=$source_random
-	elif [ "$pattern" == "MIXED" ]
+	elif [ $pattern == $ALTERNATE ]
 	then
-		if [ `expr $io_count % 2` == 0 ]
+		if [ `expr $dd_count % 2` == 0 ]
 		then
-			echo "io_count $io_count (even), pattern to use $ABCD"
+			echo "dd_count $dd_count (even), pattern to use $ABCD"
 			source_sandbox=$source_abcd
 		else
-			echo "io_count $io_count (odd), pattern to use $RANDOM1"
+			echo "dd_count $dd_count (odd), pattern to use $RANDOM1"
 			source_sandbox=$source_random
 		fi
 	else
@@ -82,19 +92,27 @@ dgio_files_write()
 		return 1
 	fi
 
-	echo "Write to the files from sandbox and m0t1fs"
+	if [ $single_file_test -ne 1 ]
+	then
+		file_to_compare_sandbox="$fmio_sandbox/0:1000$dd_count"
+		file_to_compare_m0t1fs="$MERO_M0T1FS_MOUNT_DIR/0:1000$dd_count"
+	fi
+
+	echo -e "Write to the files from sandbox and m0t1fs (dd_count #$dd_count):"
+	echo -e "\t - $file_to_compare_sandbox \n\t - $file_to_compare_m0t1fs"
+
 	$@ \
 	   if=$source_sandbox of=$file_to_compare_sandbox >> $MERO_TEST_LOGFILE || {
-		echo "Failed: dd failed.."
+		echo "Failed: dd..."
 		return 1
 	}
 	$@ \
 	   if=$source_sandbox of=$file_to_compare_m0t1fs >> $MERO_TEST_LOGFILE || {
-		echo "Failed: dd failed.."
+		echo "Failed: dd..."
 		return 1
 	}
 
-	if [ $debug_level -gt $DEBUG_LEVEL_OFF ]
+	if [ $debug_level != $DEBUG_LEVEL_OFF ]
 	then
 		echo "od -A d -c $file_to_compare_sandbox | tail"
 		od -A d -c $file_to_compare_sandbox | tail
@@ -102,80 +120,153 @@ dgio_files_write()
 		od -A d -c $file_to_compare_m0t1fs | tail
 	fi
 
-	if [ $debug_level -eq $DEBUG_LEVEL_3 ]
+	if [ $debug_level == $DEBUG_LEVEL_3 ]
 	then
-		echo "stob_read after dd execution, io_count #$io_count"
-		dgio_stob_read_full
+		echo "stob_read after dd execution (dd_count #$dd_count)"
+		fmio_stob_read_full
 	fi
 
 	echo "Compare (read) the files from sandbox and m0t1fs"
-	dgio_files_compare
+	fmio_files_compare
 	rc=$?
-
-	if [ $debug_level -eq $DEBUG_LEVEL_USER_INPUT ]
-	then
-		if_to_continue_check
-	fi
 
 	return $rc
 }
 
-dgio_files_compare()
+fmio_files_compare()
 {
 	cmp $file_to_compare_sandbox $file_to_compare_m0t1fs
 	rc=$?
-	echo "cmp output: $rc"
-	if [ $rc -ne "0" ]
+	if [ $rc -ne 0 ]
 	then
 		echo "Files differ..."
+		echo -e "\tparity group number may be calculated as:"
+		echo -e "\t\tpg_no = differing_offset / (unit_size * N)\n"
 		echo "od -A d -c $file_to_compare_sandbox | tail"
 		od -A d -c $file_to_compare_sandbox | tail
 		echo "od -A d -c $file_to_compare_m0t1fs | tail"
 		od -A d -c $file_to_compare_m0t1fs | tail
 
-		if [ $debug_level -eq $DEBUG_LEVEL_2 ] ||
-		   [ $debug_level -eq $DEBUG_LEVEL_3 ]
+		if [ $debug_level == $DEBUG_LEVEL_2 ] ||
+		   [ $debug_level == $DEBUG_LEVEL_3 ]
 		then
-			echo "stob_read after data discrepancy is encountered, io_count #$io_count"
-			dgio_stob_read_full
+			echo "stob_read after data discrepancy is encountered (dd_count #$dd_count)"
+			fmio_stob_read_full
 		fi
 	fi
+
+	echo "cmp output (dd_count #$dd_count): $rc"
+	if [ $debug_level == $DEBUG_LEVEL_INTERACTIVE ]
+	then
+		fmio_if_to_continue_check
+	fi
+
 	return $rc
 }
 
-dgio_pool_mach_set_failure()
+fmio_pool_mach_set_failure()
 {
-	rc=0
-	if [ $debug_level -ne $DEBUG_LEVEL_TEST ]
+	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		pool_mach_set_failure $1
-		rc=$?
-		if [ $rc -ne "0" ]
-		then
-			return $rc
-		fi
-
-		pool_mach_query $1
-		rc=$?
-		if [ $rc -ne "0" ]
-		then
-			return $rc
-		fi
-	else
-		return $rc
+		pool_mach_set_failure $1 || {
+			echo "Failed: pool_mach_set_failure..."
+			return 1
+		}
+		pool_mach_query $fail_devices
 	fi
+	return 0
 }
 
-dgio_stob_read_full()
+fmio_sns_repair()
+{
+	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	then
+		# XXX MERO-703: Use sns_repair unconditionally once
+		# MERO-699 and MERO-701 are fixed
+		if [ $# -eq 0 ]
+		then
+			pool_mach_set_repairing $fail_devices || {
+				echo "Failed: SNS repair..."
+				return 1
+			}
+			pool_mach_query $fail_devices
+
+			pool_mach_set_repaired $fail_devices || {
+				echo "Failed: SNS repair..."
+				return 1
+			}
+		else
+			sns_repair || {
+				echo "Failed: SNS repair..."
+				return 1
+			}
+		fi
+		pool_mach_query $fail_devices
+	fi
+
+	if [ $debug_level == $DEBUG_LEVEL_3 ]
+	then
+		echo "stob_read after repair (dd_count #$dd_count)"
+		fmio_stob_read_full
+	fi
+
+	return 0
+}
+
+fmio_sns_rebalance()
+{
+	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	then
+		# XXX MERO-703: Enable the following once MERO-699 and MERO-701
+		# are fixed
+		# sns_rebalance || {
+		#
+		pool_mach_set_rebalancing $fail_devices || {
+			echo "Failed: SNS rebalance..."
+			return 1
+		}
+		pool_mach_query $fail_devices
+
+		pool_mach_set_rebalanced $fail_devices || {
+			echo "Failed: SNS rebalance..."
+			return 1
+		}
+		pool_mach_query $fail_devices
+	fi
+	return 0
+}
+
+fmio_repair_n_rebalance()
+{
+	echo "Performing repair (and rebalance) to mark the devices back online"
+	fmio_sns_repair || {
+		echo "Failed: sns repair..."
+		return 1
+	}
+
+	echo "Performing rebalance"
+	fmio_sns_rebalance || {
+		echo "Failed: sns rebalance..."
+		return 1
+	}
+}
+
+fmio_stob_read_full()
 {
 	if [ $P -gt 15 ]
 	then
-		echo "stob reading not yet supported with P > 15..."
-		return 0
+		echo "stob reading supported with P <= 15 only..."
+		return 0 # Not returning error intentionally
+	fi
+
+	if [ $file_kind != $SINGLE_FILE ]
+	then
+		echo "stob reading supported with $SINGLE_FILE kind only..."
+		return 0 # Not returning error intentionally
 	fi
 
 	str1="00000000"
-	str3="0010000"
+	fid="0010000"
 	for (( i=1; i <= $P; ++i ))
 	do
 		if [ $i -le 4 ]
@@ -191,209 +282,254 @@ dgio_stob_read_full()
 			ios="ios4"
 		fi
 		str2=$(printf "%x" $i)
-		stobid="$str1$str2$str3"
+		stobid="$str1$str2$fid"
+
+		echo "od -A d -c $MERO_M0T1FS_TEST_DIR/$ios/stobs/o/$stobid"
 		od -A d -c $MERO_M0T1FS_TEST_DIR/$ios/stobs/o/$stobid
+		# Note: During development, the above can be quickly modified
+		# using 'sed' to read specific lines of interest from the stob
+		# output.
+		# e.g. by adding '| sed -n '50, 64p'' to the above line
 	done
 }
 
-if_to_continue_check()
+fmio_if_to_continue_check()
 {
 	while true; do
-		read -p "Do you wish to continue with the ST script? (io_count #$io_count)" yn
+		read -p "Do you wish to continue with the ST script (dd_count #$dd_count) ?" yn
 		case $yn in
 			[Yy]* )
-				echo "User input $yn, will continue";
+				echo -e "\n\tUser input $yn, will continue...\n";
 				break;;
 			[Nn]* )
-				echo "User input $yn, Will unmount, stop service and exit";
-				echo "unmounting and cleaning.."
-				unmount_and_clean &>> $MERO_TEST_LOGFILE
-
-				echo "About to stop Mero service"
-				mero_service stop
-				if [ $? -ne "0" ]
-				then
-					echo "Failed to stop Mero Service."
-				fi
-
+				echo -e "\n\tUser input $yn, Will unmount, stop service and exit...";
+				fmio_m0t1fs_unmount
+				fmio_mero_service_stop
 				exit;;
 			* )
 				echo "Please answer yes or no";;
 		esac
 	done
-
 }
 
-dgio_test()
+fmio_pre()
 {
-	local fail_device1=1
-	local fail_device2=9
-	local fail_device3=2
-	local unit_size=$((stride * 1024))
-	local random_source_size=$(($unit_size * $random_dd_count))
-	local rc=0
+	fail_device1=1
+	fail_device2=9
+	fail_device3=2
+	fail_devices="$fail_device1 $fail_device2 $fail_device3"
+	block_size=$((stride * 1024))
+	random_source_size=$(($block_size * $random_source_dd_count))
 
-	echo "Starting dgmode testing ..."
+	prog_file_pattern="$st_dir/m0t1fs_io_file_pattern"
+	source_abcd="$fmio_sandbox/source_abcd"
+	source_random="$fmio_sandbox/source_random"
+	file_to_create1="$MERO_M0T1FS_MOUNT_DIR/0:11111"
+	file_to_create2="$MERO_M0T1FS_MOUNT_DIR/0:11112"
+	file_to_create3="$MERO_M0T1FS_MOUNT_DIR/0:11113"
 
-	prog_file_pattern="$MERO_CORE_ROOT/m0t1fs/linux_kernel/st/m0t1fs_io_file_pattern"
-	source_abcd="$dgmode_sandbox/source_abcd"
-	source_random="$dgmode_sandbox/source_random"
-	file_to_compare_sandbox="$dgmode_sandbox/file_to_compare_sandbox"
-	file_to_compare_m0t1fs="$MERO_M0T1FS_MOUNT_DIR/file_to_compare_m0t1fs"
-	file_in_dgmode1="$MERO_M0T1FS_MOUNT_DIR/file_in_dgmode1"
-	file_in_dgmode2="$MERO_M0T1FS_MOUNT_DIR/file_in_dgmode2"
-	file_in_dgmode3="$MERO_M0T1FS_MOUNT_DIR/file_in_dgmode3"
-
-	rm -rf $dgmode_sandbox
-	mkdir $dgmode_sandbox
-	if [ $debug_level -eq $DEBUG_LEVEL_TEST ]
+	rm -rf $fmio_sandbox
+	mkdir $fmio_sandbox
+	if [ $debug_level == $DEBUG_LEVEL_STTEST ]
 	then
-		mkdir $dgmode_sandbox/tmp
+		mkdir $fmio_sandbox/tmp
 	fi
 
 	echo "Creating source files"
-	dgio_source_files_create || {
+	fmio_source_files_create || {
 		echo "Failed: source file creation..."
 		return 1
 	}
 
-	echo "Creating files"
-	dgio_files_write dd bs=$unit_size count=50 || {
+	return 0
+}
+
+fmio_io_test()
+{
+	if [ $failed_dev_test -eq 1 ]
+	then
+		test_name="failed_dev"
+		step="failure"
+	else
+		test_name="repaired_dev"
+		step="repair"
+	fi
+
+	echo "All the devices are online at this point"
+	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	then
+		pool_mach_query $fail_devices
+	fi
+
+	echo "Creating files initially"
+	fmio_files_write dd bs=$block_size count=50 || {
 		echo "Failed: file creation..."
 		return 1
 	}
 
 	echo "Sending device1 failure"
-	dgio_pool_mach_set_failure $fail_device1
-	rc=$?
-	if [ $rc -ne "0" ]
-	then
-		return $rc
-	fi
-
-	echo "dgmode test 1: Read after first failure"
-	dgio_files_compare || {
-		echo "Failed: read after first failure..."
+	fmio_pool_mach_set_failure $fail_device1 || {
 		return 1
 	}
 
-	echo "Create a file after first failure"
-	touch $file_in_dgmode1
-	rc=$?
-	if [ $rc -ne "0" ]
+	if [ $failed_dev_test -ne 1 ]
 	then
-		return $rc
+		echo "Repairing after device1 failure"
+		fmio_sns_repair $fail_device1 || {
+			return 1
+		}
 	fi
 
-	echo "dgmode test 2: IO and read after first failure"
-	dgio_files_write dd bs=8821 count=5 seek=23 conv=notrunc || {
-		echo "Failed: IO or read after first failure..."
+	echo -e "\n*** $test_name test 1: Read after first $step ***"
+	fmio_files_compare || {
+		echo "Failed: read after first $step..."
+		return 1
+	}
+
+	# XXX Enable once MERO-705, MERO-706 are fixed
+	#echo "Create a file after first $step: $file_to_create1"
+	#touch $file_to_create1
+	#rc=$?
+	#if [ $rc -ne 0 ]
+	#then
+	#	echo "Failed: create after first $step, rc $rc..."
+	#	return 1
+	#fi
+
+	echo -e "\n*** $test_name test 2: IO and read after first $step ***"
+	fmio_files_write dd bs=8821 count=5 seek=23 conv=notrunc || {
+		echo "Failed: IO or read after first $step..."
 		return 1
 	}
 
 	echo "Sending device2 failure"
-	dgio_pool_mach_set_failure $fail_device2
-	rc=$?
-	if [ $rc -ne "0" ]
-	then
-		return $rc
-	fi
-
-	echo "Create a file after second failure"
-	touch $file_in_dgmode2
-	rc=$?
-	if [ $rc -ne "0" ]
-	then
-		return $rc
-	fi
-
-	echo "dgmode test 3: Read after second failure"
-	dgio_files_compare || {
-		echo "Failed: read after second failure..."
+	fmio_pool_mach_set_failure $fail_device2 || {
 		return 1
 	}
 
-	echo "dgmode test 4: IO and read after second failure"
-	dgio_files_write dd bs=$unit_size count=60 || {
-		echo "Failed: IO or read after second failure..."
+	if [ $failed_dev_test -ne 1 ]
+	then
+		echo "Repairing after device2 failure"
+		fmio_sns_repair $fail_device2 || {
+			return 1
+		}
+	fi
+
+	# XXX Enable once MERO-705, MERO-706 are fixed
+	#echo "Create a file after second $step: $file_to_create2"
+	#touch $file_to_create2
+	#rc=$?
+	#if [ $rc -ne 0 ]
+	#then
+	#	echo "Failed: create after second $step, rc $rc..."
+	#	return 1
+	#fi
+
+	echo -e "\n*** $test_name test 3: Read after second $step ***"
+	fmio_files_compare || {
+		echo "Failed: read after second $step..."
 		return 1
 	}
 
-	echo "dgmode test 5: Another IO after second failure"
-	dgio_files_write dd bs=$unit_size count=40 || {
-		echo "Failed: Another IO or read after second failure..."
+	echo -e "\n*** $test_name test 4: IO and read after second $step ***"
+	fmio_files_write dd bs=$block_size count=60 || {
+		echo "Failed: IO or read after second $step..."
+		return 1
+	}
+
+	echo -e "\n*** $test_name test 5: Another IO after second $step *** (truncate test)"
+	fmio_files_write dd bs=$block_size count=40 || {
+		echo "Failed: Another IO or read after second $step..."
 		return 1
 	}
 
 	echo "Sending device3 failure"
-	dgio_pool_mach_set_failure $fail_device3
-	rc=$?
-	if [ $rc -ne "0" ]
+	fmio_pool_mach_set_failure $fail_device3 || {
+		return 1
+	}
+
+	if [ $failed_dev_test -ne 1 ]
 	then
-		return $rc
+		echo "Repairing after device3 failure"
+		fmio_sns_repair $fail_device3 || {
+			return 1
+		}
 	fi
 
-	echo "dgmode test 6: Read after third failure"
-	dgio_files_compare || {
-		echo "Failed: read after third failure..."
+	echo -e "\n*** $test_name test 6: Read after third $step ***"
+	fmio_files_compare || {
+		echo "Failed: read after third $step..."
 		return 1
 	}
 
-	echo "Create a file after third failure"
-	touch $file_in_dgmode3
-	rc=$?
-	if [ $rc -ne "0" ]
-	then
-		return $rc
-	fi
+	# XXX Enable once MERO-705, MERO-706 are fixed
+	#echo "Create a file after third $step: $file_to_create3"
+	#touch $file_to_create3
+	#rc=$?
+	#if [ $rc -ne 0 ]
+	#then
+	#	echo "Failed: create after third $step, rc $rc..."
+	#	return 1
+	#fi
 
-	echo "dgmode test 7: IO and read after third failure"
-	dgio_files_write dd bs=$unit_size count=50 || {
-		echo "Failed: IO or read after third failure..."
+	echo -e "\n*** $test_name test 7: IO and read after third $step ***"
+	fmio_files_write dd bs=$block_size count=50 || {
+		echo "Failed: IO or read after third $step..."
 		return 1
 	}
 
-	echo "dgmode test 8: Another IO and read after third failure"
-	dgio_files_write dd bs=$unit_size count=10 || {
-		echo "Failed: IO or read after third failure..."
+	echo -e "\n*** $test_name test 8: Another IO and read after third $step ***"
+	fmio_files_write dd bs=$block_size count=10 || {
+		echo "Failed: IO or read after third $step..."
 		return 1
 	}
 
-	return $rc
+	return 0
 }
 
-main()
+fmio_failed_dev_test()
 {
-	NODE_UUID=`uuidgen`
-	dgmode_sandbox="./sandbox"
-	rc=0
-
-	echo "debug_level $debug_level"
-	echo "pattern $pattern"
-
-	# Override this variable so as to use linux stob, for debugging
-	if [ $debug_level -ne $DEBUG_LEVEL_OFF ]
+	if [ $failed_dev_test -eq 0 ]
 	then
-		MERO_STOB_DOMAIN="linux"
-	fi
-	echo "MERO_STOB_DOMAIN $MERO_STOB_DOMAIN"
-
-	# Override these variables so as to test the ST framework without
-	# involving mero service and m0t1fs
-	if [ $debug_level -eq $DEBUG_LEVEL_TEST ]
-	then
-		MERO_TEST_LOGFILE="$dgmode_sandbox/log"
-		MERO_M0T1FS_MOUNT_DIR="$dgmode_sandbox/tmp"
+		return 1
 	fi
 
-	# Start mero service and mount fs
-	if [ $debug_level -ne $DEBUG_LEVEL_TEST ]
+	echo "Starting failed device IO testing"
+	fmio_io_test || {
+		echo "Failed: fmio_io_test for failed device..."
+		return 1
+	}
+
+	echo -e "failed device IO test succeeded"
+	return 0
+}
+
+fmio_repaired_dev_test()
+{
+	if [ $failed_dev_test -eq 1 ]
+	then
+		return 1
+	fi
+
+	echo "Starting repaired device IO testing"
+	fmio_io_test || {
+		echo "Failed: fmio_io_test for repaired device..."
+		return 1
+	}
+
+	echo -e "repaired device IO test succeeded"
+	return 0
+}
+
+fmio_mero_service_start()
+{
+	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
 		echo "About to start Mero service"
 		mero_service start $stride $N $K $P
-		if [ $? -ne "0" ]
+		if [ $? -ne 0 ]
 		then
-			echo "Failed to start Mero Service."
+			echo "Failed to start Mero Service..."
 			return 1
 		fi
 		echo "mero service started"
@@ -402,34 +538,223 @@ main()
 		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 			ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
 		done
+	fi
+	return 0
+}
 
-		mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P &>> $MERO_TEST_LOGFILE || {
+fmio_mero_service_stop()
+{
+	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	then
+		echo "About to stop Mero service"
+		mero_service stop
+		if [ $? -ne 0 ]
+		then
+			echo "Failed to stop Mero Service..."
+			return 1
+		fi
+	fi
+	return 0
+}
+
+fmio_m0t1fs_mount()
+{
+	# XXX MERO-704: Perform testing with non-oostore mode once MERO-678 is
+	# fixed
+	oostore="oostore"
+
+	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	then
+		mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P $oostore &>> $MERO_TEST_LOGFILE || {
 			cat $MERO_TEST_LOGFILE
 			return 1
 		}
 		mount
 	fi
+	return 0
+}
 
-	# Perform dgio test by marking some devices as failed in between
-	dgio_test || {
-		echo "Failed: dgmode failed.."
-		rc=1
-	}
-
-	# Unmount and stop mero service
-	if [ $debug_level -ne $DEBUG_LEVEL_TEST ]
+fmio_m0t1fs_unmount()
+{
+	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
 		echo "unmounting and cleaning.."
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
-
-		echo "About to stop Mero service"
-		mero_service stop
-		if [ $? -ne "0" ]
-		then
-			echo "Failed to stop Mero Service."
-			return 1
-		fi
 	fi
+	return 0
+}
+
+failure_modes_test()
+{
+	if [ $single_file_test -eq 1 ]
+	then
+		file_to_compare_sandbox="$fmio_sandbox/0:10000"
+		file_to_compare_m0t1fs="$MERO_M0T1FS_MOUNT_DIR/0:10000"
+		str="single file"
+	else
+		str="separate file"
+	fi
+
+	if [ $failure_mode == $FAILED_DEVICES ] || [ $failure_mode == $BOTH_DEVICES ]
+	then
+		echo "--------------------------------------------------------"
+		echo "Start with the failed device IO testing ($str)"
+		echo "--------------------------------------------------------"
+		failed_dev_test=1
+
+		echo "ls -l $MERO_M0T1FS_MOUNT_DIR"
+		ls -l $MERO_M0T1FS_MOUNT_DIR
+
+		# Perform failed device IO test by 'marking some devices as
+		# failed' in between
+		fmio_failed_dev_test || {
+			echo "Failed: failed device IO test..."
+			return 1
+		}
+
+		echo "--------------------------------------------------------"
+		echo "Done with the failed device IO testing ($str)"
+		echo "--------------------------------------------------------"
+
+		echo -e "Mark the devices online again before the next test"
+		fmio_repair_n_rebalance || {
+			return 1
+		}
+	fi
+
+	if [ $failure_mode == $REPAIRED_DEVICES ] || [ $failure_mode == $BOTH_DEVICES ]
+	then
+		echo "--------------------------------------------------------"
+		echo "Starting with the repaired device IO testing ($str)"
+		echo "--------------------------------------------------------"
+
+		# XXX MERO-638: Take out the following condition once
+		# MERO-638 is fixed
+		if [ $single_file_test == 1 ]
+		then
+			echo -e "single file kind can not be tested with repaired device until MERO-638 is fixed...\nHence, exiting from repaired device testing..."
+			echo "-------------------------------------------------"
+			echo "Done with the repaired device IO testing ($str)"
+			echo "-------------------------------------------------"
+			return 0
+		fi
+
+		failed_dev_test=0
+
+		echo "ls -l $MERO_M0T1FS_MOUNT_DIR"
+		ls -l $MERO_M0T1FS_MOUNT_DIR
+
+		# Perform repaired device IO test by 'marking some devices as
+		# failed followed by performing repair' in between
+		fmio_repaired_dev_test || {
+			echo "Failed: repaired device IO test..."
+			return 1
+		}
+
+		echo "--------------------------------------------------------"
+		echo "Done with the repaired device IO testing ($str)"
+		echo "--------------------------------------------------------"
+
+		echo -e "Mark the devices online again before the next test"
+		fmio_sns_rebalance || {
+			echo "Failed: sns rebalance..."
+			return 1
+		}
+	fi
+	return 0
+}
+
+main()
+{
+	NODE_UUID=`uuidgen`
+	fmio_sandbox="$st_dir/sandbox"
+	rc=0
+
+	echo "*********************************************************"
+	echo "Starting with the failure modes IO testing"
+	echo "*********************************************************"
+
+	# Override this variable so as to use linux stob, for debugging
+	if [ $debug_level != $DEBUG_LEVEL_OFF ]
+	then
+		MERO_STOB_DOMAIN="linux"
+	fi
+
+	# Override these variables so as to test the ST framework without
+	# involving mero service and m0t1fs
+	if [ $debug_level == $DEBUG_LEVEL_STTEST ]
+	then
+		MERO_TEST_LOGFILE="$fmio_sandbox/log"
+		MERO_M0T1FS_MOUNT_DIR="$fmio_sandbox/tmp"
+	fi
+
+	# Display the configuration information
+	echo -e "fmio_sandbox \t\t $fmio_sandbox"
+	echo -e "MERO_M0T1FS_MOUNT_DIR \t $MERO_M0T1FS_MOUNT_DIR"
+	echo -e "failure_mode \t\t $failure_mode"
+	echo -e "file_kind \t\t $file_kind"
+	echo -e "(data) pattern \t\t $pattern"
+	echo -e "debug_level \t\t $debug_level"
+	echo -e "MERO_STOB_DOMAIN \t $MERO_STOB_DOMAIN"
+
+	echo -e "\nPreprocessing for failure modes IO testing"
+	fmio_pre || {
+		return 1
+	}
+
+	fmio_mero_service_start || {
+		return 1
+	}
+
+	fmio_m0t1fs_mount || {
+		fmio_mero_service_stop
+		return 1
+	}
+	echo -e "Done with preprocessing for failure modes IO testing\n"
+
+	if [ $file_kind == $SINGLE_FILE ] || [ $file_kind == $BOTH_FILE_KINDS ]
+	then
+		echo "========================================================"
+		echo "Start with the single file IO testing"
+		echo "========================================================"
+		single_file_test=1
+		failure_modes_test || {
+			fmio_m0t1fs_unmount
+			fmio_mero_service_stop
+			return 1
+		}
+		echo "========================================================"
+		echo "Done with the single file IO testing"
+		echo "========================================================"
+	fi
+
+	if [ $file_kind == $SEPARATE_FILE ] || [ $file_kind == $BOTH_FILE_KINDS ]
+	then
+		echo "========================================================"
+		echo "Start with the separate file IO testing"
+		echo "========================================================"
+		single_file_test=0
+		failure_modes_test || {
+			fmio_m0t1fs_unmount
+			fmio_mero_service_stop
+			return 1
+		}
+		echo "========================================================"
+		echo "Done with the separate file IO testing"
+		echo "========================================================"
+	fi
+
+	fmio_m0t1fs_unmount || {
+		rc=1
+	}
+
+	fmio_mero_service_stop || {
+		rc=1
+	}
+
+	echo "********************************************************"
+	echo "Done with the failure modes IO testing"
+	echo "********************************************************"
 
 	echo "Test log available at $MERO_TEST_LOGFILE."
 	return $rc

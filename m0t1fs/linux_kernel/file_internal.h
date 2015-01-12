@@ -1107,7 +1107,10 @@ enum page_attr {
 	/** Page needs to be read in degraded mode read IO state. */
 	PA_DGMODE_READ         = (1 << 8),
 
-	PA_NR                  = 9,
+	/** Page needs to be written in degraded mode write IO state. */
+	PA_DGMODE_WRITE        = (1 << 9),
+
+	PA_NR                  = 10,
 };
 
 /** Enum representing direction of data copy in IO. */

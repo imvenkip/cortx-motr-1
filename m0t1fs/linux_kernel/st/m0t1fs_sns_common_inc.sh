@@ -21,6 +21,101 @@ pool_mach_set_failure()
 	return 0
 }
 
+# XXX MERO-703: Start
+# Take out these functions once MERO-699 and MERO-701 are fixed
+pool_mach_set_repairing()
+{
+	DEVICES=""
+	STATE=""
+	for i in "$@"
+	do
+		DEVICES="$DEVICES -I $i"
+		STATE="$STATE -s 3"
+	done
+	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
+		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+	echo $poolmach
+	eval $poolmach
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
+	fi
+
+	return 0
+}
+
+pool_mach_set_repaired()
+{
+	DEVICES=""
+	STATE=""
+	for i in "$@"
+	do
+		DEVICES="$DEVICES -I $i"
+		STATE="$STATE -s 4"
+	done
+	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
+		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+	echo $poolmach
+	eval $poolmach
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
+	fi
+
+	return 0
+}
+
+pool_mach_set_rebalancing()
+{
+	DEVICES=""
+	STATE=""
+	for i in "$@"
+	do
+		DEVICES="$DEVICES -I $i"
+		STATE="$STATE -s 5"
+	done
+	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
+		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+	echo $poolmach
+	eval $poolmach
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
+	fi
+
+	return 0
+}
+
+pool_mach_set_rebalanced()
+{
+	DEVICES=""
+	STATE=""
+	for i in "$@"
+	do
+		DEVICES="$DEVICES -I $i"
+		STATE="$STATE -s 0"
+	done
+	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
+		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+	echo $poolmach
+	eval $poolmach
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
+	fi
+
+	return 0
+}
+# XXX MERO-703: End
+
 pool_mach_query()
 {
 	DEVICES=""

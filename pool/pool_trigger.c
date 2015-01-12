@@ -294,7 +294,12 @@ int main(int argc, char *argv[])
 	}
 
 	for (i = 0; i < dev_nr; ++i) {
-		if (device_state_arr[i] < 0 || device_state_arr[i] > 2) {
+		/*
+		 * XXX MERO-703: Restore the following once MERO-699 and
+		 * MERO-671 are fixed
+		 * if (device_state_arr[i] < 0 || device_state_arr[i] > 2) {
+		 */
+		if (device_state_arr[i] < 0 || device_state_arr[i] > 5) {
 			fprintf(stderr, "invalid device state: %lld\n",
 				(long long)device_state_arr[i]);
 			return M0_ERR(-EINVAL);
