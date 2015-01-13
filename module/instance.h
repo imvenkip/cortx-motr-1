@@ -98,7 +98,6 @@ struct m0 {
 	struct m0_be_domain      *i_be_dom;
 	struct m0_be_domain      *i_be_dom_save;
 	struct m0_be_ut_backend  *i_be_ut_backend;
-	struct m0_be_ut_backend  *i_be_ut_backend_save;
 	struct m0_poolmach_state *i_pool_module;
 	struct m0_cob_domain     *i_cob_module;
 	bool                      i_reqh_has_multiple_ad_domains;

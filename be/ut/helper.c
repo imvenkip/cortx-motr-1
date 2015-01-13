@@ -352,12 +352,7 @@ static void ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 	if (rc != 0)
 		m0_mutex_fini(&ut_be->but_sgt_lock);
 
-	if (m0_get()->i_be_ut_backend != NULL) {
-		m0_get()->i_be_ut_backend_save = m0_get()->i_be_ut_backend;
-		m0_get()->i_be_ut_backend = NULL;
-	} else if (m0_get()->i_be_ut_backend_save == NULL) {
-		   m0_get()->i_be_ut_backend = ut_be;
-	}
+	m0_get()->i_be_ut_backend = ut_be;
 }
 
 extern struct m0_be_0type m0_be_pool0;
@@ -394,11 +389,8 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 {
-	if (m0_get()->i_be_ut_backend == ut_be ||
-	    m0_get()->i_be_ut_backend_save == ut_be) {
+	if (m0_get()->i_be_ut_backend == ut_be)
 		m0_get()->i_be_ut_backend = NULL;
-		m0_get()->i_be_ut_backend_save = NULL;
-	}
 	m0_forall(i, ut_be->but_sgt_size,
 		  m0_be_ut_sm_group_thread_fini(ut_be->but_sgt[i]), true);
 	m0_free(ut_be->but_sgt);
