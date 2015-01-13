@@ -23,7 +23,7 @@
 
 #include <linux/version.h>              /* LINUX_VERSION_CODE */
 
-#include "mdservice/fsync_fops.h"       /* m0_fop_fsync_fopt */
+#include "mdservice/fsync_fops.h"       /* m0_fop_fsync_mds_fopt */
 #include "fop/fop.h"                    /* m0_fop */
 
 #pragma once

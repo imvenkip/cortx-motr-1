@@ -256,6 +256,7 @@ extern struct m0_fop_type m0_fop_cob_op_reply_fopt;
 extern struct m0_fop_type m0_fop_fv_notification_fopt;
 extern struct m0_fop_type m0_fop_cob_getattr_fopt;
 extern struct m0_fop_type m0_fop_cob_getattr_reply_fopt;
+extern struct m0_fop_type m0_fop_fsync_ios_fopt;
 
 extern struct m0_fom_type m0_io_fom_cob_rw_fomt;
 

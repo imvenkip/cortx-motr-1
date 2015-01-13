@@ -246,7 +246,7 @@ static void ut_fsync_create_fom(void)
 	/* make up an rpc machine to use */
 	m0_sm_group_init(&machine.rm_sm_grp);
 
-	fop = m0_fop_alloc(&m0_fop_fsync_fopt, NULL, &machine);
+	fop = m0_fop_alloc(&m0_fop_fsync_mds_fopt, NULL, &machine);
 	M0_UT_ASSERT(fop != NULL);
 
 	ffop = m0_fop_data(fop);
@@ -255,7 +255,7 @@ static void ut_fsync_create_fom(void)
 	ffop->ff_be_remid.tri_locality = 1;
 
 	/* the type for the request is right */
-	M0_UT_ASSERT(fop->f_type == &m0_fop_fsync_fopt);
+	M0_UT_ASSERT(fop->f_type == &m0_fop_fsync_mds_fopt);
 
 	/* check reqh has is associated with the mds service */
 	fop->f_type->ft_fom_type.ft_rstype = &m0_mds_type;
@@ -263,7 +263,7 @@ static void ut_fsync_create_fom(void)
 
 	/* create a fom for the fsync fop request */
 	m0_sm_group_lock(&machine.rm_sm_grp);
-	rc = m0_md_fsync_req_fom_create(fop, &fom, &reqh);
+	rc = m0_fsync_req_fom_create(fop, &fom, &reqh);
 	m0_sm_group_unlock(&machine.rm_sm_grp);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(fom != NULL);
@@ -273,7 +273,7 @@ static void ut_fsync_create_fom(void)
 	M0_UT_ASSERT(rep != NULL);
 	M0_UT_ASSERT(fom->fo_fop == fop);
 	/* check the types of the fop request and reply */
-	M0_UT_ASSERT(fom->fo_fop->f_type == &m0_fop_fsync_fopt);
+	M0_UT_ASSERT(fom->fo_fop->f_type == &m0_fop_fsync_mds_fopt);
 	M0_UT_ASSERT(fom->fo_ops == &fsync_fom_ops);
 	M0_UT_ASSERT(rep->f_type == &m0_fop_fsync_rep_fopt);
 

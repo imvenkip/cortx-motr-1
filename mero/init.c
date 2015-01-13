@@ -159,8 +159,12 @@ struct init_fini_call subsystem[] = {
 	{ &m0_backend_init,     &m0_backend_fini,     "be" },
 	{ &m0_be_txs_register,  &m0_be_txs_unregister, "be-tx-service" },
 	{ &m0_confd_register,   &m0_confd_unregister, "confd" },
-	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
+	/*
+	 * mds should go before ios because the latter uses
+	 * fsync fop registration stuff from the former.
+	 */
 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
+	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
 	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
 	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },

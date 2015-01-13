@@ -29,6 +29,7 @@
 
 #include "mdservice/fsync_foms.h"
 #include "mdservice/fsync_fops.h"
+#include "ioservice/io_fops.h" /* m0_fop_fsync_ios_fopt */
 #include "rpc/rpc_opcodes.h"
 
 #include "fop/fom_generic.h"
@@ -60,7 +61,7 @@ enum fsync_fom_phase {
 /**
  * Phases of an fsync fom
  */
-struct m0_sm_state_descr fsync_phases[] = {
+struct m0_sm_state_descr m0_fsync_fom_phases[] = {
 	[M0_FOPH_FSYNC_FOM_START] = {
 		.sd_name    = "start",
 		.sd_allowed = M0_BITS(M0_FOPH_FSYNC_FOM_WAIT,
@@ -78,7 +79,7 @@ struct m0_sm_state_descr fsync_phases[] = {
 /**
  * Valid phase transitions for an fsync fom.
  */
-static struct m0_sm_trans_descr fsync_phases_trans[] = {
+static struct m0_sm_trans_descr fsync_fom_phases_trans[] = {
 	[ARRAY_SIZE(m0_generic_phases_trans)] =
 	{ "tx wait",      M0_FOPH_FSYNC_FOM_START, M0_FOPH_FSYNC_FOM_WAIT},
 	{ "start failed", M0_FOPH_FSYNC_FOM_START, M0_FOPH_FAILURE},
@@ -103,12 +104,12 @@ static struct m0_sm_trans_descr fsync_phases_trans[] = {
  *	- M0_FOPH_FSYNC_FOM_WAIT: The fom waits on the target transaction until
  *	its state changes to M0_BTS_LOGGED.
  */
-struct m0_sm_conf fsync_conf = {
+struct m0_sm_conf m0_fsync_fom_conf = {
 	.scf_name      = "fsync phases",
-	.scf_nr_states = ARRAY_SIZE(fsync_phases),
-	.scf_state     = fsync_phases,
-	.scf_trans_nr  = ARRAY_SIZE(fsync_phases_trans),
-	.scf_trans     = fsync_phases_trans,
+	.scf_nr_states = ARRAY_SIZE(m0_fsync_fom_phases),
+	.scf_state     = m0_fsync_fom_phases,
+	.scf_trans_nr  = ARRAY_SIZE(fsync_fom_phases_trans),
+	.scf_trans     = fsync_fom_phases_trans,
 };
 
 /**
@@ -293,9 +294,9 @@ static void fsync_fom_fini(struct m0_fom *fom)
 /**
  * Creates a new fsync fom for a given fsync fop request.
  */
-M0_INTERNAL int m0_md_fsync_req_fom_create(struct m0_fop  *fop,
-					   struct m0_fom **out,
-					   struct m0_reqh *reqh)
+M0_INTERNAL int m0_fsync_req_fom_create(struct m0_fop  *fop,
+					struct m0_fom **out,
+					struct m0_reqh *reqh)
 {
 	struct m0_fop   *rep_fop;
 	struct m0_fom   *fom;
@@ -304,8 +305,10 @@ M0_INTERNAL int m0_md_fsync_req_fom_create(struct m0_fop  *fop,
 
 	M0_PRE(fop != NULL);
 	M0_PRE(out != NULL);
-	M0_PRE(fop->f_type == &m0_fop_fsync_fopt);
-	M0_PRE(m0_fop_opcode(fop) == M0_FSYNC_OPCODE);
+	M0_PRE(M0_IN(fop->f_type,
+		     (&m0_fop_fsync_mds_fopt, &m0_fop_fsync_ios_fopt)));
+	M0_PRE(M0_IN(m0_fop_opcode(fop),
+		     (M0_FSYNC_MDS_OPCODE, M0_FSYNC_IOS_OPCODE)));
 
 	/* allocate the fom */
 	M0_ALLOC_PTR(fom);

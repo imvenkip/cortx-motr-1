@@ -26,7 +26,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
 #include "lib/trace.h"
-#include "mdservice/fsync_fops.h"       /* m0_fop_fsync_fopt */
+#include "mdservice/fsync_fops.h"       /* m0_fop_fsync_mds_fopt */
 #include "fop/fom_generic.h"            /* m0_rpc_item_is_generic_reply_fop */
 #include "lib/memory.h"                 /* m0_alloc, m0_free */
 #include "lib/tlist.h"
@@ -96,13 +96,22 @@ int m0t1fs_fsync_request_create(struct m0t1fs_service_txid        *stx,
 	struct m0_fop       *fop;
 	struct m0_rpc_item  *item;
 	struct m0_fop_fsync *ffd;
+	struct m0_fop_type  *fopt;
+
 	M0_ENTRY();
+
+	if (stx->stx_service_ctx->sc_type == M0_CST_MDS)
+		fopt = &m0_fop_fsync_mds_fopt;
+	else if (stx->stx_service_ctx->sc_type == M0_CST_IOS)
+		fopt = &m0_fop_fsync_ios_fopt;
+	else
+		M0_IMPOSSIBLE("invalid service type");
 
 	/* store the pending txid reference with the fop */
 	ffw->ffw_stx = stx;
 
 	fop = &ffw->ffw_fop;
-	m0_fop_init(fop, &m0_fop_fsync_fopt, NULL, &m0t1fs_fsync_fop_cleanup);
+	m0_fop_init(fop, fopt, NULL, &m0t1fs_fsync_fop_cleanup);
 	rc = m0_fop_data_alloc(fop);
 	if (rc != 0) {
 		return M0_ERR_INFO(rc, "Allocating fsync fop data failed.");

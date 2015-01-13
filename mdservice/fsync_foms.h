@@ -28,15 +28,22 @@
 #include "fop/fop.h" /* m0_fom */
 
 /**
+ * Configuration of the fsync state machine. Defines the sm's phases
+ * and additional information.
+ */
+extern struct m0_sm_conf m0_fsync_fom_conf;
+extern struct m0_sm_state_descr m0_fsync_fom_phases[];
+
+/**
  * Creates a FOM that can process fsync fop requests.
  * @param fop fsync fop request to be processed.
  * @param out output parameter pointing to the created fom.
  * @param reqh pointer to the request handler that will run the fom.
  * @return 0 if the fom was correctly created or an error code otherwise.
  */
-M0_INTERNAL int m0_md_fsync_req_fom_create(struct m0_fop  *fop,
-					   struct m0_fom **out,
-					   struct m0_reqh *reqh);
+M0_INTERNAL int m0_fsync_req_fom_create(struct m0_fop  *fop,
+					struct m0_fom **out,
+					struct m0_reqh *reqh);
 
 
 #endif /* __MERO_MDSERVICE_FSYNC_FOMS_H__ */

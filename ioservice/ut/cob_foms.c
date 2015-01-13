@@ -40,7 +40,7 @@
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
 
-extern struct m0_fop_type m0_fop_fsync_fopt;
+extern struct m0_fop_type m0_fop_fsync_ios_fopt;
 extern struct m0_reqh_service_type m0_ios_type;
 
 /* Static instance of struct cobfoms_ut used by all test cases. */
@@ -466,7 +466,7 @@ static void cobfoms_fsync_send_fop(struct m0_be_tx_remid       *remid,
 	machine = session_machine(&cut->cu_cctx.rcx_session);
 
 	/* create a fop from fsync_fopt */
-	fop = m0_fop_alloc(&m0_fop_fsync_fopt, NULL, machine);
+	fop = m0_fop_alloc(&m0_fop_fsync_ios_fopt, NULL, machine);
 
 	/* populate fop */
 	ffop = m0_fop_data(fop);

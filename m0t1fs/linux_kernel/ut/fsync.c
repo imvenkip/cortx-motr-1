@@ -37,7 +37,7 @@
 #include "lib/tlist.h"
 #include "lib/hash.h"
 #include "lib/trace.h"
-#include "mdservice/fsync_fops.h"         /* m0_fop_fsync_fopt */
+#include "mdservice/fsync_fops.h"         /* m0_fop_fsync_mds_fopt */
 #include "m0t1fs/linux_kernel/m0t1fs.h"   /* m0t1fs_inode */
 #include "m0t1fs/linux_kernel/fsync.h"    /* m0t1fs_fsync_interactions */
 #include "lib/misc.h"                     /* M0_SET0() */
@@ -199,6 +199,7 @@ static void fake_fs_setup(void)
 	ispti_tlist_init(&m0inode.ci_pending_tx);
 
 	m0_mutex_init(&service.sc_max_pending_tx_lock);
+	service.sc_type = M0_CST_IOS;
 
 	/* Add some records that need fsyncing
 	 * This creates @10 records, all for the same service that need
@@ -284,7 +285,7 @@ test_m0t1fs_fsync_reply_process_init(struct m0t1fs_fsync_fop_wrapper   *ffw,
 	struct m0_fop_fsync *ffd;
 
 	/* Initialise the fops */
-	m0_fop_init(&ffw->ffw_fop, &m0_fop_fsync_fopt, NULL, &m0_fop_release);
+	m0_fop_init(&ffw->ffw_fop, &m0_fop_fsync_mds_fopt, NULL, &m0_fop_release);
 	m0_fop_data_alloc(&ffw->ffw_fop);
 	ffd = m0_fop_data(&ffw->ffw_fop);
 	M0_UT_ASSERT(ffd != NULL);

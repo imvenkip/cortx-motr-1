@@ -31,6 +31,7 @@
 #include "ut/ut.h"
 
 #include "mdservice/fsync_fops.h"
+#include "ioservice/io_fops.h"     /* m0_fop_fsync_ios_fopt */
 
 #define S_DBFILE        "bulkio_st.db"
 #define S_STOBFILE      "bulkio_st_stob"
@@ -289,7 +290,7 @@ int io_fsync_send_fop(struct m0_be_tx_remid *remid, struct thrd_arg *t)
 	machine = session_machine(&bp->bp_cctx->rcx_session);
 
 	/* create a fop from fsync_fopt */
-	fop = m0_fop_alloc(&m0_fop_fsync_fopt, NULL, machine);
+	fop = m0_fop_alloc(&m0_fop_fsync_ios_fopt, NULL, machine);
 	M0_UT_ASSERT(fop != NULL);
 
 	/* populate fop */

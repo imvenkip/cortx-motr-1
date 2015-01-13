@@ -195,18 +195,9 @@ M0_INTERNAL int m0_ios_register(void)
 	for (i = 0; i < ARRAY_SIZE(ios_rwfom_cntr_rts); ++i)
 		m0_addb_rec_type_register(ios_rwfom_cntr_rts[i]);
 
-	/* initialize the fsync fops */
-	rc = m0_mdservice_fsync_fop_init(&m0_ios_type);
-	if (rc != 0) {
-		return M0_ERR_INFO(rc, "Unable to initialize ioservice fsync fop");
-	}
-
 	rc = m0_ioservice_fop_init();
-	if (rc != 0) {
-		/* revert the fsync initialization */
-		m0_mdservice_fsync_fop_fini();
-		return M0_ERR_INFO(rc, "Unable to initialize ioservice fop");
-	}
+	if (rc != 0)
+		return M0_ERR_INFO(rc, "Unable to initialize fops");
 
 	m0_addb_rec_type_register(&m0_addb_rt_ios_rwfom_finish);
 	m0_addb_rec_type_register(&m0_addb_rt_ios_ccfom_finish);

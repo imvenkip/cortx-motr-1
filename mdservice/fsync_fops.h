@@ -71,8 +71,11 @@ struct m0_fop_fsync_rep {
 } M0_XCA_RECORD;
 
 
-extern struct m0_fop_type m0_fop_fsync_fopt;
+extern struct m0_fop_type m0_fop_fsync_mds_fopt;
 extern struct m0_fop_type m0_fop_fsync_rep_fopt;
+
+extern const struct m0_fom_type_ops m0_fsync_fom_ops;
+extern const struct m0_fop_type_ops m0_fsync_fop_ops;
 
 /**
  * Initializes the fsync fop type so the caller (typically the mdservice

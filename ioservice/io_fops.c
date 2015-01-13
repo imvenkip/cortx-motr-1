@@ -44,6 +44,9 @@
 #include "file/file.h"
 #include "lib/finject.h"
 #include "cob/cob.h"
+#include "mdservice/fsync_foms.h"       /* m0_fsync_fom_conf */
+#include "mdservice/fsync_fops.h"       /* m0_fsync_fom_ops */
+#include "mdservice/fsync_fops_xc.h"    /* m0_fop_fsync_xc */
 #ifdef __KERNEL__
   #undef M0_ADDB_CT_CREATE_DEFINITION
   #include "m0t1fs/linux_kernel/m0t1fs.h"
@@ -85,6 +88,7 @@ struct m0_fop_type m0_fop_cob_op_reply_fopt;
 struct m0_fop_type m0_fop_fv_notification_fopt;
 struct m0_fop_type m0_fop_cob_getattr_fopt;
 struct m0_fop_type m0_fop_cob_getattr_reply_fopt;
+struct m0_fop_type m0_fop_fsync_ios_fopt;
 
 M0_EXPORTED(m0_fop_cob_writev_fopt);
 M0_EXPORTED(m0_fop_cob_readv_fopt);
@@ -100,6 +104,7 @@ static struct m0_fop_type *ioservice_fops[] = {
 	&m0_fop_fv_notification_fopt,
 	&m0_fop_cob_getattr_fopt,
 	&m0_fop_cob_getattr_reply_fopt,
+	&m0_fop_fsync_ios_fopt,
 };
 
 /* Used for IO REQUEST items only. */
@@ -248,6 +253,7 @@ M0_INTERNAL void m0_ioservice_fop_fini(void)
 	m0_fop_type_fini(&m0_fop_cob_readv_rep_fopt);
 	m0_fop_type_fini(&m0_fop_cob_writev_fopt);
 	m0_fop_type_fini(&m0_fop_cob_readv_fopt);
+	m0_fop_type_fini(&m0_fop_fsync_ios_fopt);
 
 	m0_xc_io_fops_fini();
 	m0_addb_ctx_fini(&m0_ios_addb_ctx);
@@ -299,6 +305,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .svc_type  = &m0_ios_type,
 #endif
 			 .rpc_ops   = &io_item_type_ops);
+
 	M0_FOP_TYPE_INIT(&m0_fop_cob_writev_fopt,
 			 .name      = "Write request",
 			 .opcode    = M0_IOSERVICE_WRITEV_OPCODE,
@@ -312,16 +319,19 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .svc_type  = &m0_ios_type,
 #endif
 			 .rpc_ops   = &io_item_type_ops);
+
 	M0_FOP_TYPE_INIT(&m0_fop_cob_readv_rep_fopt,
 			 .name      = "Read reply",
 			 .opcode    = M0_IOSERVICE_READV_REP_OPCODE,
 			 .xt        = m0_fop_cob_readv_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+
 	M0_FOP_TYPE_INIT(&m0_fop_cob_writev_rep_fopt,
 			 .name      = "Write reply",
 			 .opcode    = M0_IOSERVICE_WRITEV_REP_OPCODE,
 			 .xt        = m0_fop_cob_writev_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+
 	M0_FOP_TYPE_INIT(&m0_fop_cob_create_fopt,
 			 .name      = "Cob create request",
 			 .opcode    = M0_IOSERVICE_COB_CREATE_OPCODE,
@@ -333,6 +343,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .svc_type  = &m0_ios_type,
 #endif
 			 .sm        = p_cob_ops_conf);
+
 	M0_FOP_TYPE_INIT(&m0_fop_cob_delete_fopt,
 			 .name      = "Cob delete request",
 			 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
@@ -344,11 +355,13 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .svc_type  = &m0_ios_type,
 #endif
 			 .sm        = p_cob_ops_conf);
+
 	M0_FOP_TYPE_INIT(&m0_fop_cob_op_reply_fopt,
 			 .name      = "Cob create or delete reply",
 			 .opcode    = M0_IOSERVICE_COB_OP_REPLY_OPCODE,
 			 .xt        = m0_fop_cob_op_reply_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+
 	M0_FOP_TYPE_INIT(&m0_fop_fv_notification_fopt,
 			 .name      = "Failure vector update notification",
 			 .opcode    = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
@@ -360,7 +373,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .opcode    = M0_IOSERVICE_COB_GETATTR_OPCODE,
 			 .xt        = m0_fop_cob_getattr_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-			 .fop_ops   = NULL,
 #ifndef __KERNEL__
 			 .fom_ops   = &cob_fom_type_ops,
 			 .svc_type  = &m0_ios_type,
@@ -372,6 +384,17 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .opcode    = M0_IOSERVICE_COB_GETATTR_REP_OPCODE,
 			 .xt        = m0_fop_cob_getattr_reply_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+
+	M0_FOP_TYPE_INIT(&m0_fop_fsync_ios_fopt,
+			 .name      = "fsync-ios request",
+			 .opcode    = M0_FSYNC_IOS_OPCODE,
+			 .xt        = m0_fop_fsync_xc,
+#ifndef __KERNEL__
+			 .svc_type  = &m0_ios_type,
+			 .sm        = &m0_fsync_fom_conf,
+			 .fom_ops   = &m0_fsync_fom_ops,
+#endif
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
 
 	return 0;
 }
