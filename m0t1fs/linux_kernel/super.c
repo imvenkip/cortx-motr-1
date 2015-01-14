@@ -1474,6 +1474,12 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	if (rc != 0)
 		goto sb_fini;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+	rc = bdi_init(&csb->csb_backing_dev_info);
+	if (rc != 0)
+		goto sb_fini;
+#endif
+
 	rc = M0_THREAD_INIT(&csb->csb_astthread, struct m0t1fs_sb *, NULL,
 			    &ast_thread, csb, "m0_ast_thread");
 	if (rc != 0)
@@ -1488,6 +1494,14 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	sb->s_blocksize_bits = PAGE_CACHE_SHIFT;
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &m0t1fs_super_operations;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+	/* for .sync_fs() callback to be called by kernel */
+	sb->s_bdi = NULL;
+	rc = bdi_register_dev(&csb->csb_backing_dev_info, sb->s_dev);
+	if (rc != 0)
+		goto m0t1fs_teardown;
+	sb->s_bdi = &csb->csb_backing_dev_info;
+#endif
 
 	rc = m0t1fs_root_alloc(sb);
 	if (rc != 0)
@@ -1503,6 +1517,10 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	return M0_RC(0);
 
 m0t1fs_teardown:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+	if (sb->s_bdi != NULL)
+		bdi_unregister(sb->s_bdi);
+#endif
 	m0t1fs_teardown(csb);
 thread_stop:
 	ast_thread_stop(csb);
@@ -1543,6 +1561,10 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 
 	M0_ENTRY("csb = %p", csb);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+	bdi_unregister(sb->s_bdi);
+#endif
+
         /*
          * Dealloc virtual .mero/fid dirs. This should be done _before_
          * kill_anon_super()
@@ -1561,6 +1583,9 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 		m0t1fs_teardown(csb);
 		ast_thread_stop(csb);
 		m0t1fs_sb_fini(csb);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+		bdi_destroy(&csb->csb_backing_dev_info);
+#endif
 		m0_free(csb);
 	}
 

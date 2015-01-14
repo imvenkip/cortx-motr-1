@@ -25,8 +25,11 @@
 #define __MERO_M0T1FS_M0T1FS_H__
 
 #include <linux/fs.h>
-#include <linux/pagemap.h>
 #include <linux/version.h>        /* LINUX_VERSION_CODE */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+#include <linux/backing-dev.h>
+#endif
+#include <linux/pagemap.h>
 
 #include "lib/tlist.h"
 #include "lib/hash.h"
@@ -763,8 +766,7 @@ struct m0t1fs_sb {
 	/** used by temporary implementation of m0t1fs_fid_alloc(). */
 	uint64_t                                csb_next_key;
 
-	struct
-	m0t1fs_container_location_map           csb_cl_map;
+	struct m0t1fs_container_location_map    csb_cl_map;
 
 	/** Configuration cache loaded during mount. */
 	struct m0_confc                         csb_confc;
@@ -774,6 +776,7 @@ struct m0t1fs_sb {
 
 	/** Metadata redundancy count. */
 	uint32_t                                csb_md_redundancy;
+
 	/**
 	 * Array of fids of base pool ioservices used for hashing contains
 	 * csb_ios_nr valid elements. Used for finding the ioservice to be
@@ -857,8 +860,12 @@ struct m0t1fs_sb {
 	 * list of pending transactions, by service,
 	 * protected by csb_service_pending_txid_map_lock
 	 */
-	struct m0_htable                        csb_service_pending_txid_map;
-	struct m0_mutex                         csb_service_pending_txid_map_lock;
+	struct m0_htable                      csb_service_pending_txid_map;
+	struct m0_mutex                       csb_service_pending_txid_map_lock;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+	struct backing_dev_info               csb_backing_dev_info;
+#endif
 };
 
 struct m0t1fs_filedata {
