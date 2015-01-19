@@ -568,7 +568,7 @@ static void identity_row_set(struct m0_matrix *mat, int row)
 
 	M0_UT_ASSERT(mat != NULL);
 	M0_UT_ASSERT(mat->m_width != 0);
-	M0_UT_ASSERT(mat->m_width = mat->m_height);
+	M0_UT_ASSERT(mat->m_width == mat->m_height);
 	M0_UT_ASSERT(row < mat->m_height);
 
 	for (i = 0; i < mat->m_width; ++i) {
