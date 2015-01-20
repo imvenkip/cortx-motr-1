@@ -59,7 +59,7 @@ MODULE_PARM_DESC(trace_print_context,
 		 " info, like subsystem, file, func, etc.; values:"
 		 " none, func, short, full");
 
-static unsigned int trace_buf_size = M0_TRACE_BUFSIZE;
+static unsigned int trace_buf_size = M0_TRACE_KBUF_SIZE;
 module_param(trace_buf_size, uint, S_IRUGO);
 MODULE_PARM_DESC(trace_buf_size, "size of trace buffer in bytes");
 
@@ -154,7 +154,7 @@ M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list args)
 	vprintk(fmt, args);
 }
 
-M0_INTERNAL int m0_arch_trace_init(uint32_t default_trace_buf_size)
+M0_INTERNAL int m0_arch_trace_init()
 {
 	int                   rc;
 	struct m0_trace_area *trace_area;

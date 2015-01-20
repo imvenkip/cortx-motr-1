@@ -34,7 +34,7 @@
 %if %{with ut}
 %define  configure_opts  --enable-dev-mode --disable-altogether-mode
 %else
-%define  configure_opts  --enable-release
+%define  configure_opts  --enable-release --with-trace-kbuf-size=256 --with-trace-ubuf-size=64
 %endif
 
 Name:           %{_xyr_package_name}

@@ -128,9 +128,10 @@ M0_INTERNAL int m0_trace_init(void)
 	int rc;
 
 	M0_PRE((m0_logbufsize % m0_pagesize_get()) == 0);
-	M0_PRE(m0_is_po2(M0_TRACE_BUFSIZE));
+	M0_PRE(m0_is_po2(M0_TRACE_KBUF_SIZE));
+	M0_PRE(m0_is_po2(M0_TRACE_UBUF_SIZE));
 
-	rc = m0_arch_trace_init(M0_TRACE_BUFSIZE);
+	rc = m0_arch_trace_init();
 
 	M0_POST((m0_logbufsize % m0_pagesize_get()) == 0);
 	M0_POST(m0_is_po2(bufmask + 1));

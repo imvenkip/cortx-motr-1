@@ -284,8 +284,6 @@ extern unsigned int m0_trace_level;
  */
 
 enum {
-	/** Default buffer size, the real buffer size is at m0_logbufsize */
-	M0_TRACE_BUFSIZE   = 1 << (10 + 12), /* 4MB */
 	/** Size, reserved for trace buffer header */
 	M0_TRACE_BUF_HEADER_SIZE = PAGE_SIZE,
 	/** Alignment for trace records in trace buffer */

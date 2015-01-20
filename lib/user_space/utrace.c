@@ -59,10 +59,10 @@ static const char sys_kern_randvspace_fname[] =
 
 static bool use_mmaped_buffer = true;
 
-static int logbuf_map(uint32_t logbuf_size)
+static int logbuf_map()
 {
 	char     buf[80];
-	uint32_t trace_area_size = M0_TRACE_BUF_HEADER_SIZE + logbuf_size;
+	uint32_t trace_area_size = M0_TRACE_BUF_HEADER_SIZE + M0_TRACE_UBUF_SIZE;
 
 	struct m0_trace_area *trace_area;
 
@@ -82,8 +82,9 @@ static int logbuf_map(uint32_t logbuf_size)
 		m0_logbuf_header = &trace_area->ta_header;
 		m0_logbuf = trace_area->ta_buf;
 		memset(trace_area, 0, trace_area_size);
-		m0_trace_buf_header_init(&trace_area->ta_header, logbuf_size);
-		m0_trace_logbuf_size_set(logbuf_size);
+		m0_trace_buf_header_init(&trace_area->ta_header,
+					 M0_TRACE_UBUF_SIZE);
+		m0_trace_logbuf_size_set(M0_TRACE_UBUF_SIZE);
 	}
 
 	return -errno;
@@ -136,7 +137,7 @@ M0_INTERNAL bool m0_trace_use_mmapped_buffer(void)
 	return use_mmaped_buffer;
 }
 
-M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size)
+M0_INTERNAL int m0_arch_trace_init()
 {
 	int         rc;
 	const char *var;
@@ -159,7 +160,7 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size)
 		return rc;
 
 	setlinebuf(stdout);
-	return m0_trace_use_mmapped_buffer() ? logbuf_map(logbuf_size) : 0;
+	return m0_trace_use_mmapped_buffer() ? logbuf_map() : 0;
 }
 
 M0_INTERNAL void m0_arch_trace_fini(void)

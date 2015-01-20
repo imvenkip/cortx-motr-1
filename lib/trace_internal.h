@@ -31,7 +31,7 @@ struct m0_trace_area {
 	char                       ta_buf[0];
 };
 
-M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size);
+M0_INTERNAL int m0_arch_trace_init(void);
 
 M0_INTERNAL void m0_arch_trace_fini(void);
 

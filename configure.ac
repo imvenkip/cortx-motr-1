@@ -127,6 +127,8 @@ AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([M0_BE_SEGMENT_SIZE],     [BE segment size in MiB.])
+AH_TEMPLATE([M0_TRACE_KBUF_SIZE],     [Kernel space trace buffer size in MiB.])
+AH_TEMPLATE([M0_TRACE_UBUF_SIZE],     [User space trace buffer size in MiB.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ],     [Have fops->aio_read function])
@@ -308,6 +310,30 @@ AS_IF([test -z "$SEG_SIZE" || test "x$SEG_SIZE" = xyes || test "x$SEG_SIZE" = xn
       [AC_MSG_ERROR([Segment size must be set with --with-segment-size option.])]
 )
 AC_DEFINE_UNQUOTED([M0_BE_SEGMENT_SIZE], [($SEG_SIZE * 1024 * 1024UL)])
+
+AC_ARG_WITH([trace-kbuf-size],
+        [AS_HELP_STRING([--with-trace-kbuf-size=number],
+                        [set kernel space trace buffer size in MiB, default is 4MiB])],
+        [TRACE_KBUF_SIZE=$with_trace_kbuf_size],
+        [TRACE_KBUF_SIZE=4]
+)
+AS_IF([test -z "$TRACE_KBUF_SIZE" || test "x$TRACE_KBUF_SIZE" = xyes ||
+       test "x$TRACE_KBUF_SIZE" = xno],
+      [AC_MSG_ERROR([Kernel space trace buffer size must be set with --with-trace-kbuf-size option.])]
+)
+AC_DEFINE_UNQUOTED([M0_TRACE_KBUF_SIZE], [($TRACE_KBUF_SIZE * 1024 * 1024UL)])
+
+AC_ARG_WITH([trace-ubuf-size],
+        [AS_HELP_STRING([--with-trace-ubuf-size=number],
+                        [set user space trace buffer size in MiB, default is 4MiB])],
+        [TRACE_UBUF_SIZE=$with_trace_ubuf_size],
+        [TRACE_UBUF_SIZE=4]
+)
+AS_IF([test -z "$TRACE_UBUF_SIZE" || test "x$TRACE_UBUF_SIZE" = xyes ||
+       test "x$TRACE_UBUF_SIZE" = xno],
+      [AC_MSG_ERROR([User space trace buffer size must be set with --with-trace-ubuf-size option.])]
+)
+AC_DEFINE_UNQUOTED([M0_TRACE_UBUF_SIZE], [($TRACE_UBUF_SIZE * 1024 * 1024UL)])
 
 #
 # Checking for required programs
