@@ -781,7 +781,8 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *seg)
 		}
 		m0_get()->i_reqh_has_multiple_ad_domains = true;
 	} else {
-		rc = cs_ad_stob_create(stob, M0_AD_STOB_KEY_DEFAULT, seg, NULL);
+		rc = cs_ad_stob_create(stob, M0_AD_STOB_DOM_KEY_DEFAULT,
+				       seg, NULL);
 		m0_get()->i_reqh_has_multiple_ad_domains = false;
 	}
 

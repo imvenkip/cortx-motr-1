@@ -911,7 +911,9 @@ enum {
  *   - stob key is cob fid key;
  * - if reqh has only one ad or linux stob domain, then:
  *   - stob domain id name is "adstob" or "linuxstob";
- *   - stob domain key is 0;
+ *   - stob domain key is:
+ *     - M0_AD_STOB_DOM_KEY_DEFAULT if ad stobs are used;
+ *     - M0_AD_STOB_LINUX_DOM_KEY if linux stobs are used;
  *   - stob key is (cob fid container) * 10000 + (cob fid key)
  *
  * Stob domains are created in cs_storage_init().
@@ -938,7 +940,8 @@ M0_INTERNAL void io_fom_cob_rw_fid2stob_map(const struct m0_fid *in,
 			       ", IO_FOM_STOB_KEY_MAX = %lu",
 			       stob_key, dom_key, (long)IO_FOM_STOB_KEY_MAX);
 		stob_key = dom_key * IO_FOM_STOB_KEY_MAX + stob_key;
-		dom_key	 = 0;
+		dom_key  = stob_ad ? M0_AD_STOB_DOM_KEY_DEFAULT :
+				     M0_AD_STOB_LINUX_DOM_KEY;
 	}
 	dom_id = m0_stob_domain__dom_id(type_id, dom_key);
 	m0_stob_fid_make(out, dom_id, stob_key);

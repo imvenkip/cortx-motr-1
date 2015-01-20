@@ -130,9 +130,9 @@ enum {
 };
 
 enum {
-	M0_AD_STOB_KEY_DEFAULT   = 0x0,
-	M0_AD_STOB_LINUX_DOM_KEY = 0xadf11e, /* AD file */
-	M0_ADDB_STOB_KEY         = 1,
+	M0_AD_STOB_DOM_KEY_DEFAULT = 0x0,
+	M0_AD_STOB_LINUX_DOM_KEY   = 0xadf11e, /* AD file */
+	M0_ADDB_STOB_KEY           = 1,
 };
 
 enum stob_type {
