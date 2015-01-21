@@ -190,11 +190,13 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 			breply = m0_fop_data(fop);
 			borrow_reply_populate(breply, err);
 			item->ri_reply = &fop->f_item;
+			item->ri_rmachine = &ut_rm_mach;
 			break;
 		case M0_RIT_REVOKE:
 			rreply = m0_fop_data(fop);
 			revoke_reply_populate(rreply, err);
 			item->ri_reply = &fop->f_item;
+			item->ri_rmachine = &ut_rm_mach;
 			break;
 		default:
 			break;
@@ -245,6 +247,7 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 		rc = m0_rm_request_out(M0_ROT_REVOKE, &rm_test_data.rd_in,
 				       test_loan, &test_loan->rl_credit,
 				       &remote);
+		M0_UT_ASSERT(rc == 0);
 		item = rm_reply_create(M0_RIT_REVOKE, err);
 		m0_rm_owner_lock(rm_test_data.rd_owner);
 		m0_rm_ur_tlist_add(&rm_test_data.rd_owner->ro_sublet,
@@ -347,7 +350,6 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
 	struct m0_rm_credit *credit;
 	struct m0_rm_loan   *loan;
 	struct rm_out       *outreq;
-	struct m0_fop       *rep_fop;
 
 	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
 	loan = &outreq->ou_req.rog_want;
@@ -356,8 +358,6 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
 	 * If borrow succeeds, the owner lists are updated. Hence they
 	 * need to be cleaned-up.
 	 */
-	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
-	m0_fop_put_lock(rep_fop);
 	if (err)
 		return;
 
@@ -489,7 +489,6 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
 	struct m0_rm_credit *credit;
 	struct m0_rm_loan   *loan;
 	struct rm_out       *outreq;
-	struct m0_fop       *rep_fop;
 
 	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
 	loan = &outreq->ou_req.rog_want;
@@ -517,8 +516,6 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
 		} m0_tl_endfor;
 	}
 	m0_rm_owner_unlock(rm_test_data.rd_owner);
-	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
-	m0_fop_put_lock(rep_fop);
 }
 
 static void revoke_reply_populate(struct m0_fop_generic_reply *rreply,

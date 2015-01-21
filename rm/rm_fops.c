@@ -283,7 +283,6 @@ static void outgoing_queue(enum m0_rm_outgoing_type  otype,
 	M0_LOG(M0_DEBUG, "sending request:%p over session: %p",
 			 outreq, other->rem_session);
 	m0_rpc_post(&outreq->ou_fop.f_item);
-
 out:
 	return;
 }
@@ -407,6 +406,7 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 out:
 	outreq->ou_req.rog_rc = rc;
 	m0_rm_outgoing_complete(&outreq->ou_req);
+	m0_fop_put_lock(&outreq->ou_fop);
 	M0_LEAVE();
 }
 static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -442,6 +442,7 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 out:
 	outreq->ou_req.rog_rc = rc;
 	m0_rm_outgoing_complete(&outreq->ou_req);
+	m0_fop_put_lock(&outreq->ou_fop);
 	M0_LEAVE();
 }
 
@@ -482,6 +483,7 @@ static void cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	outreq->ou_req.rog_rc = rc;
 	m0_rm_outgoing_complete(&outreq->ou_req);
+	m0_fop_put_lock(&outreq->ou_fop);
 	M0_LEAVE();
 }
 
