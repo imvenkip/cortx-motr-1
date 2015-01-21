@@ -49,7 +49,7 @@ enum {COB_REQ_DEADLINE = 2000000};
 
 struct cob_req {
 	struct m0_semaphore cr_sem;
-	uint32_t            cr_fops_cnt;
+	struct m0_atomic64  cr_fops_cnt;
 	m0_time_t           cr_deadline;
 	struct m0t1fs_sb   *cr_csb;
 	int32_t             cr_rc;
@@ -102,7 +102,7 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 	if (creq->cr_rc == 0)
 		creq->cr_rc = rc;
 
-	if (--creq->cr_fops_cnt == 0)
+	if (m0_atomic64_dec_and_test(&creq->cr_fops_cnt))
 		m0_semaphore_up(&creq->cr_sem);
 
 	M0_LOG(M0_DEBUG, "cob_req_fop=%p", cfop);
@@ -1384,7 +1384,7 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 
 	m0_semaphore_init(&cob_req.cr_sem, 0);
 
-	cob_req.cr_fops_cnt = 0;
+	m0_atomic64_set(&cob_req.cr_fops_cnt, 0);
 	cob_req.cr_deadline = m0_time_from_now(0, COB_REQ_DEADLINE);
 	cob_req.cr_csb = csb;
 	cob_req.cr_rc = 0;
@@ -1394,16 +1394,22 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 		cob_idx = m0t1fs_ios_cob_idx(ci, m0t1fs_inode_fid(ci),
 					     &cob_fid);
 		M0_ASSERT(cob_idx != ~0);
+		/* Increase the count before sending the fop, whose .rio_replied
+		 * may be called before the next line of code to the @func,
+		 * or even in the @func itself, because that is called in
+		 * other threads.
+		 */
+		m0_atomic64_inc(&cob_req.cr_fops_cnt);
 		rc = func(&cob_req, ci, mop, i);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cob %s "FID_F" failed with %d",
 					 op_name, FID_P(&cob_fid), rc);
+			m0_atomic64_dec(&cob_req.cr_fops_cnt);
 			break;
 		}
-		++cob_req.cr_fops_cnt;
 	}
 
-	if (cob_req.cr_fops_cnt > 0)
+	if (m0_atomic64_get(&cob_req.cr_fops_cnt) > 0)
 		m0_semaphore_down(&cob_req.cr_sem);
 
 	m0_semaphore_fini(&cob_req.cr_sem);
