@@ -186,6 +186,7 @@ static struct m0_rpc_item *new_item(int deadline, int kind)
 {
 	struct m0_rpc_item_type *itype;
 	struct m0_rpc_item      *item;
+	static struct m0_sm_conf sm_conf;
 
 	M0_UT_ASSERT(M0_IN(deadline, (TIMEDOUT, WAITING, NEVER)));
 	M0_UT_ASSERT(M0_IN(kind,     (NORMAL, ONEWAY)));
@@ -196,7 +197,12 @@ static struct m0_rpc_item *new_item(int deadline, int kind)
 	itype = kind == ONEWAY ? &oneway_item_type : &twoway_item_type;
 	m0_rpc_item_init(item, itype);
 	item->ri_rmachine = &rmachine;
+
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
+	sm_conf = *item->ri_sm.sm_conf;
+	sm_conf.scf_state[M0_RPC_ITEM_SENDING].sd_flags = M0_SDF_FINAL;
+	item->ri_sm.sm_conf = &sm_conf;
+
 	switch (deadline) {
 	case TIMEDOUT:
 		item->ri_deadline = 0;
@@ -274,6 +280,7 @@ static void frm_test1(void)
 		}
 		M0_UT_ASSERT(packet_ready_called);
 		check_ready_packet_has_item(item);
+		m0_rpc_item_fini(item);
 		m0_free(item);
 	}
 	M0_ENTRY();
@@ -345,8 +352,10 @@ static void frm_test2(void)
 		check_frm(FRM_IDLE, 0, 0);
 
 		m0_rpc_packet_discard(p);
-		for (i = 0; i < N; ++i)
+		for (i = 0; i < N; ++i) {
+			m0_rpc_item_fini(items[i]);
 			m0_free(items[i]);
+		}
 	}
 
 	M0_ENTRY();
@@ -381,6 +390,7 @@ static void frm_test3(void)
 	M0_UT_ASSERT(packet_ready_called);
 
 	check_ready_packet_has_item(item);
+	m0_rpc_item_fini(item);
 	m0_free(item);
 
 	M0_LEAVE();
@@ -436,8 +446,10 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 		m0_rpc_packet_discard(p);
 	}
 	check_frm(FRM_IDLE, 0, 0);
-	for (i = 0; i < N; ++i)
+	for (i = 0; i < N; ++i) {
+		m0_rpc_item_fini(items[i]);
 		m0_free(items[i]);
+	}
 	frm->f_constraints.fc_max_packet_size = saved_max_packet_size;
 	frm->f_constraints.fc_max_nr_bytes_accumulated = saved_max_nr_bytes_acc;
 	M0_UT_ASSERT(packet_stack_is_empty());
@@ -479,6 +491,7 @@ static void frm_test6(void)
 	check_frm(FRM_BUSY, 0, 1);
 
 	check_ready_packet_has_item(item);
+	m0_rpc_item_fini(item);
 	m0_free(item);
 
 	M0_LEAVE();
@@ -539,6 +552,8 @@ static void frm_test7(void)
 	m0_rpc_packet_discard(packet_stack_pop());
 	M0_UT_ASSERT(packet_stack_is_empty());
 
+	m0_rpc_item_fini(item1);
+	m0_rpc_item_fini(item2);
 	m0_free(item1);
 	m0_free(item2);
 
@@ -603,8 +618,10 @@ static void frm_test8(void)
 		m0_rpc_packet_discard(p);
 	}
 	check_frm(FRM_IDLE, 0, 0);
-	for (i = 0; i < N; i++)
+	for (i = 0; i < N; i++) {
+		m0_rpc_item_fini(items[i]);
 		m0_free(items[i]);
+	}
 
 	frm->f_constraints.fc_max_nr_packets_enqed = saved_max_nr_packets_enqed;
 	frm->f_constraints.fc_max_nr_bytes_accumulated = saved_max_nr_bytes_acc;
