@@ -233,11 +233,13 @@ void io_fops_create(struct bulkio_params *bp, enum M0_RPC_OPCODES op,
 		M0_ALLOC_ARR(bp->bp_wfops, fops_nr);
 		fopt = &m0_fop_cob_writev_fopt;
 		io_fops = bp->bp_wfops;
+		bp->bp_wfops_nr = fops_nr;
 	} else {
 		M0_ASSERT(bp->bp_rfops == NULL);
 		M0_ALLOC_ARR(bp->bp_rfops, fops_nr);
 		fopt = &m0_fop_cob_readv_fopt;
 		io_fops = bp->bp_rfops;
+		bp->bp_rfops_nr = fops_nr;
 	}
 	M0_ASSERT(io_fops != NULL);
 
@@ -263,8 +265,18 @@ void io_fops_create(struct bulkio_params *bp, enum M0_RPC_OPCODES op,
 
 void io_fops_destroy(struct bulkio_params *bp)
 {
+	int i;
+
+	for (i = 0; i < bp->bp_wfops_nr; ++i)
+		if (bp->bp_wfops[i] != NULL)
+			m0_fop_put_lock(&bp->bp_wfops[i]->if_fop);
+	for (i = 0; i < bp->bp_rfops_nr; ++i)
+		if (bp->bp_rfops[i] != NULL)
+			m0_fop_put_lock(&bp->bp_rfops[i]->if_fop);
+
 	m0_free0(&bp->bp_rfops);
 	m0_free0(&bp->bp_wfops);
+	bp->bp_wfops_nr = bp->bp_rfops_nr = 0;
 }
 
 /**

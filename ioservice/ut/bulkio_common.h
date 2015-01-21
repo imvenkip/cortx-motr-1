@@ -74,6 +74,9 @@ struct bulkio_params {
 	/* In-memory fops for write IO. */
 	struct m0_io_fop         **bp_wfops;
 
+	int                        bp_rfops_nr;
+	int                        bp_wfops_nr;
+
 	/* Read buffers to which data will be transferred. */
 	struct m0_net_buffer     **bp_iobuf;
 

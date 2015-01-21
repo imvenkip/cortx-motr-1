@@ -828,8 +828,7 @@ static int cs_storage_init(const char *stob_type,
 		return M0_RC(-ENOMEM);
 
 	sprintf(location, "%s%s", prefix, stob_path);
-	rc = m0_stob_domain_init(location, "directio=true",
-				 &stob->s_sdom);
+	rc = m0_stob_domain_init(location, "directio=true", &stob->s_sdom);
 	if (mkfs) {
 		/* Found existing stob domain, kill it. */
 	 	if (rc == 0 && force) {
@@ -845,7 +844,8 @@ static int cs_storage_init(const char *stob_type,
 							   dom_key, NULL,
 							   &stob->s_sdom);
 			if (rc != 0)
-				M0_LOG(M0_ERROR, "m0_stob_domain_create_or_init: rc=%d",
+				M0_LOG(M0_ERROR,
+				       "m0_stob_domain_create_or_init: rc=%d",
 				       rc);
 		} else {
 			M0_LOG(M0_INFO, "Found alive filesystem, do nothing.");

@@ -1231,6 +1231,7 @@ static void bulkio_stob_create(void)
 
 	op = M0_IOSERVICE_WRITEV_OPCODE;
 	M0_ALLOC_ARR(bp->bp_wfops, IO_FIDS_NR);
+	bp->bp_wfops_nr = IO_FIDS_NR;
 	for (i = 0; i < IO_FIDS_NR; ++i) {
 		M0_ALLOC_PTR(bp->bp_wfops[i]);
                 rc = m0_io_fop_init(bp->bp_wfops[i], &bp->bp_fids[i],
@@ -1248,9 +1249,9 @@ static void bulkio_stob_create(void)
 		rw = io_rw_get(&bp->bp_wfops[i]->if_fop);
 		bp->bp_wfops[i]->if_fop.f_type->ft_ops =
 			&bulkio_stob_create_ops;
-		rw->crw_fid = bp->bp_fids[i];
-		m0_file_init(&bp->bp_file[i], &rw->crw_fid, &bp->bp_rdom,
+		m0_file_init(&bp->bp_file[i], &bp->bp_fids[i], &bp->bp_rdom,
 			     M0_DI_CRC32_4K);
+		rw->crw_fid = bp->bp_fids[i];
 		targ[i].ta_index = i;
 		targ[i].ta_op = op;
 		targ[i].ta_bp = bp;
@@ -1609,10 +1610,13 @@ static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 	int			 j;
 	int			 rc;
 
-	if (op == M0_IOSERVICE_WRITEV_OPCODE)
+	if (op == M0_IOSERVICE_WRITEV_OPCODE) {
 		M0_ALLOC_ARR(bp->bp_wfops, IO_FOPS_NR);
-	else
+		bp->bp_wfops_nr = IO_FOPS_NR;
+	} else {
 		M0_ALLOC_ARR(bp->bp_rfops, IO_FOPS_NR);
+		bp->bp_rfops_nr = IO_FOPS_NR;
+	}
 
 	io_fops = (op == M0_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
 						       bp->bp_rfops;
