@@ -55,16 +55,16 @@ extern const struct m0_tl_descr m0_remotes_tl;
  */
 static void rmfoms_utinit(void)
 {
-	rm_ctx_init(&rm_ctx[SERVER_1]);
-	dummy_loc.fl_dom = &rm_ctx[SERVER_1].rc_rmach_ctx.rmc_reqh.rh_fom_dom;
+	rm_ctx_init(&rm_ctxs[SERVER_1]);
+	dummy_loc.fl_dom = &rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_reqh.rh_fom_dom;
         m0_sm_group_init(&dummy_loc.fl_group);
-	machine = &rm_ctx[SERVER_1].rc_rmach_ctx.rmc_rpc;
+	machine = &rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_rpc;
 }
 
 static void rmfoms_utfini(void)
 {
         m0_sm_group_fini(&dummy_loc.fl_group);
-	rm_ctx_fini(&rm_ctx[SERVER_1]);
+	rm_ctx_fini(&rm_ctxs[SERVER_1]);
 	machine = NULL;
 }
 
@@ -118,11 +118,11 @@ static void fom_create(enum m0_rm_incoming_type fomtype,
 	switch (fomtype) {
 	case M0_RIT_BORROW:
 		rc = borrow_fom_create(fop, fom,
-				       &rm_ctx[SERVER_1].rc_rmach_ctx.rmc_reqh);
+				       &rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_reqh);
 		break;
 	case M0_RIT_REVOKE:
 		rc = revoke_fom_create(fop, fom,
-				       &rm_ctx[SERVER_1].rc_rmach_ctx.rmc_reqh);
+				       &rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_reqh);
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid RM-FOM type");
@@ -136,10 +136,10 @@ static void fom_create(enum m0_rm_incoming_type fomtype,
 
 		base_fom->fo_loc = &dummy_loc;
 		base_fom->fo_loc->fl_dom->fd_reqh =
-			&rm_ctx[SERVER_1].rc_rmach_ctx.rmc_reqh;
+			&rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_reqh;
 		M0_CNT_INC(base_fom->fo_loc->fl_foms);
 		m0_fom_sm_init(base_fom);
-		base_fom->fo_service = rm_ctx[SERVER_1].rc_reqh_svc;
+		base_fom->fo_service = rm_ctxs[SERVER_1].rc_reqh_svc;
 		m0_fom_locality_inc(base_fom);
 	}
 }

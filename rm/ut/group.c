@@ -50,8 +50,8 @@ static void ring_get(enum rm_server            srv_id,
 		     enum m0_rm_incoming_flags in_flag,
 		     int                       which_ring)
 {
-	struct m0_rm_incoming *in    = &rm_ctx[srv_id].rc_test_data.rd_in;
-	struct m0_rm_owner    *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
+	struct m0_rm_incoming *in    = &rm_ctxs[srv_id].rc_test_data.rd_in;
+	struct m0_rm_owner    *owner = rm_ctxs[srv_id].rc_test_data.rd_owner;
 	int                    rc;
 
 	/*
@@ -79,8 +79,8 @@ static void ring_get(enum rm_server            srv_id,
 
 static void standalone_borrow_verify(void)
 {
-	struct m0_rm_owner *so2 = rm_ctx[SERVER_2].rc_test_data.rd_owner;
-	struct m0_rm_owner *so1 = rm_ctx[SERVER_1].rc_test_data.rd_owner;
+	struct m0_rm_owner *so2 = rm_ctxs[SERVER_2].rc_test_data.rd_owner;
+	struct m0_rm_owner *so1 = rm_ctxs[SERVER_1].rc_test_data.rd_owner;
 
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_owned[OWOS_CACHED]));
@@ -95,9 +95,9 @@ static void standalone_borrow_run(void)
 
 static void group_revoke_verify(void)
 {
-	struct m0_rm_owner *so3 = rm_ctx[SERVER_3].rc_test_data.rd_owner;
-	struct m0_rm_owner *so2 = rm_ctx[SERVER_2].rc_test_data.rd_owner;
-	struct m0_rm_owner *so1 = rm_ctx[SERVER_1].rc_test_data.rd_owner;
+	struct m0_rm_owner *so3 = rm_ctxs[SERVER_3].rc_test_data.rd_owner;
+	struct m0_rm_owner *so2 = rm_ctxs[SERVER_2].rc_test_data.rd_owner;
+	struct m0_rm_owner *so1 = rm_ctxs[SERVER_1].rc_test_data.rd_owner;
 
 	M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&so3->ro_sublet));
 	M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
@@ -118,8 +118,8 @@ static void group_revoke_run(void)
 
 static void group_borrow_verify(enum rm_server srv_id)
 {
-	struct m0_rm_owner *cso = rm_ctx[SERVER_3].rc_test_data.rd_owner;
-	struct m0_rm_owner *dso = rm_ctx[srv_id].rc_test_data.rd_owner;
+	struct m0_rm_owner *cso = rm_ctxs[SERVER_3].rc_test_data.rd_owner;
+	struct m0_rm_owner *dso = rm_ctxs[srv_id].rc_test_data.rd_owner;
 
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&cso->ro_sublet));
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&dso->ro_borrowed));
@@ -168,7 +168,7 @@ static void server3_tests(void)
 static void rm_server_start(const int tid)
 {
 	if (tid < test_servers_nr) {
-		rings_utdata_ops_set(&rm_ctx[tid].rc_test_data);
+		rings_utdata_ops_set(&rm_ctxs[tid].rc_test_data);
 		rm_ctx_server_start(tid);
 	}
 
@@ -197,18 +197,18 @@ static void rm_server_start(const int tid)
  */
 static void server_hier_config(void)
 {
-	rm_ctx[SERVER_1].creditor_id = SERVER_3;
-	rm_ctx[SERVER_1].debtor_id[0] = SERVER_INVALID;
-	rm_ctx[SERVER_1].rc_debtors_nr = 1;
+	rm_ctxs[SERVER_1].creditor_id = SERVER_3;
+	rm_ctxs[SERVER_1].debtor_id[0] = SERVER_INVALID;
+	rm_ctxs[SERVER_1].rc_debtors_nr = 1;
 
-	rm_ctx[SERVER_2].creditor_id = SERVER_3;
-	rm_ctx[SERVER_2].debtor_id[0] = SERVER_INVALID;
-	rm_ctx[SERVER_2].rc_debtors_nr = 1;
+	rm_ctxs[SERVER_2].creditor_id = SERVER_3;
+	rm_ctxs[SERVER_2].debtor_id[0] = SERVER_INVALID;
+	rm_ctxs[SERVER_2].rc_debtors_nr = 1;
 
-	rm_ctx[SERVER_3].creditor_id = SERVER_INVALID;
-	rm_ctx[SERVER_3].debtor_id[0] = SERVER_1;
-	rm_ctx[SERVER_3].debtor_id[1] = SERVER_2;
-	rm_ctx[SERVER_3].rc_debtors_nr = 2;
+	rm_ctxs[SERVER_3].creditor_id = SERVER_INVALID;
+	rm_ctxs[SERVER_3].debtor_id[0] = SERVER_1;
+	rm_ctxs[SERVER_3].debtor_id[1] = SERVER_2;
+	rm_ctxs[SERVER_3].rc_debtors_nr = 2;
 }
 
 static void rm_group_utinit(void)
@@ -217,7 +217,7 @@ static void rm_group_utinit(void)
 
 	test_servers_nr = SERVER_NR;
 	for (i = 0; i < test_servers_nr; ++i)
-		rm_ctx_init(&rm_ctx[i]);
+		rm_ctx_init(&rm_ctxs[i]);
 
 	server_hier_config();
 	m0_mutex_init(&rm_ut_tests_chan_mutex);
@@ -248,7 +248,7 @@ static void rm_group_utfini(void)
 	}
 	/* Finalise the servers */
 	for (i = 0; i < test_servers_nr; ++i) {
-		rm_ctx_fini(&rm_ctx[i]);
+		rm_ctx_fini(&rm_ctxs[i]);
 	}
 	for (i = 0; i < GROUP_TESTS_NR; ++i) {
 		m0_clink_del_lock(&group_tests_clink[i]);
@@ -266,7 +266,7 @@ void rm_group_test(void)
 	rm_group_utinit();
 	/* Start RM servers */
 	for (i = 0; i < test_servers_nr; ++i) {
-		rc = M0_THREAD_INIT(&rm_ctx[i].rc_thr, int, NULL,
+		rc = M0_THREAD_INIT(&rm_ctxs[i].rc_thr, int, NULL,
 				    &rm_server_start, i, "rm_server_%d", i);
 		M0_UT_ASSERT(rc == 0);
 	}
@@ -274,8 +274,8 @@ void rm_group_test(void)
 	/* Now start the tests - wait till all the servers are ready */
 	m0_chan_signal_lock(&rm_ut_tests_chan);
 	for (i = 0; i < test_servers_nr; ++i) {
-		m0_thread_join(&rm_ctx[i].rc_thr);
-		m0_thread_fini(&rm_ctx[i].rc_thr);
+		m0_thread_join(&rm_ctxs[i].rc_thr);
+		m0_thread_fini(&rm_ctxs[i].rc_thr);
 	}
 	rm_group_utfini();
 }

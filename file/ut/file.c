@@ -191,8 +191,8 @@ static void file_encdec_test(struct rm_ut_data *utdata)
 
 static void wait_lock(enum rm_server srv_id)
 {
-	struct m0_rm_incoming *in    = &rm_ctx[srv_id].rc_test_data.rd_in;
-	struct m0_rm_owner    *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
+	struct m0_rm_incoming *in    = &rm_ctxs[srv_id].rc_test_data.rd_in;
+	struct m0_rm_owner    *owner = rm_ctxs[srv_id].rc_test_data.rd_owner;
 	int		       rc;
 
 	m0_file_lock(owner, in);
@@ -208,8 +208,8 @@ static void wait_lock(enum rm_server srv_id)
 
 void test_verify(enum flock_tests test_id)
 {
-	struct m0_rm_owner *clnt = rm_ctx[SERVER_1].rc_test_data.rd_owner;
-	struct m0_rm_owner *srv  = rm_ctx[SERVER_2].rc_test_data.rd_owner;
+	struct m0_rm_owner *clnt = rm_ctxs[SERVER_1].rc_test_data.rd_owner;
+	struct m0_rm_owner *srv  = rm_ctxs[SERVER_2].rc_test_data.rd_owner;
 	struct m0_sm_group *smgrp;
 	bool                validation_lock = false;
 
@@ -247,7 +247,7 @@ void test_verify(enum flock_tests test_id)
 
 static void dlock(enum rm_server srv_id, int n)
 {
-	struct m0_rm_owner    *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
+	struct m0_rm_owner    *owner = rm_ctxs[srv_id].rc_test_data.rd_owner;
 	struct m0_rm_incoming  req;
 	int		       rc;
 
@@ -336,8 +336,8 @@ static void server_lock_test(void)
 /* DLD - Test 2 */
 static void testcase2_run(void)
 {
-	struct m0_rm_incoming *in    = &rm_ctx[SERVER_1].rc_test_data.rd_in;
-	struct m0_rm_owner    *owner = rm_ctx[SERVER_1].rc_test_data.rd_owner;
+	struct m0_rm_incoming *in    = &rm_ctxs[SERVER_1].rc_test_data.rd_in;
+	struct m0_rm_owner    *owner = rm_ctxs[SERVER_1].rc_test_data.rd_owner;
 	struct m0_rm_incoming  req;
 
 	/* Take the lock */
@@ -388,7 +388,7 @@ static void client_tests(void)
 	m0_chan_wait(&tests_clink[LOCK_ON_CLIENT_TEST]);
 
 	/* Test encode/decode for code coverage */
-	file_encdec_test(&rm_ctx[SERVER_1].rc_test_data);
+	file_encdec_test(&rm_ctxs[SERVER_1].rc_test_data);
 
 	/* Now start the use-cases */
 	client_lock_test();
@@ -420,12 +420,12 @@ static void rm_server_start(const int tid)
 
 	switch(tid) {
 	case SERVER_1:
-		flock_client_utdata_ops_set(&rm_ctx[tid].rc_test_data);
+		flock_client_utdata_ops_set(&rm_ctxs[tid].rc_test_data);
 		rm_ctx_server_start(tid);
 		client_tests();
 		break;
 	case SERVER_2:
-		flock_srv_utdata_ops_set(&rm_ctx[tid].rc_test_data);
+		flock_srv_utdata_ops_set(&rm_ctxs[tid].rc_test_data);
 		rm_ctx_server_start(tid);
 		server_tests();
 		break;
@@ -439,13 +439,13 @@ static void rm_server_start(const int tid)
  */
 static void server_hier_config(void)
 {
-	rm_ctx[SERVER_1].creditor_id = SERVER_2;
-	rm_ctx[SERVER_1].debtor_id[0] = SERVER_INVALID;
-	rm_ctx[SERVER_1].rc_debtors_nr = 1;
+	rm_ctxs[SERVER_1].creditor_id = SERVER_2;
+	rm_ctxs[SERVER_1].debtor_id[0] = SERVER_INVALID;
+	rm_ctxs[SERVER_1].rc_debtors_nr = 1;
 
-	rm_ctx[SERVER_2].creditor_id = SERVER_INVALID;
-	rm_ctx[SERVER_2].debtor_id[0] = SERVER_1;
-	rm_ctx[SERVER_2].rc_debtors_nr = 1;
+	rm_ctxs[SERVER_2].creditor_id = SERVER_INVALID;
+	rm_ctxs[SERVER_2].debtor_id[0] = SERVER_1;
+	rm_ctxs[SERVER_2].rc_debtors_nr = 1;
 }
 
 static void flock_utinit(void)
@@ -455,7 +455,7 @@ static void flock_utinit(void)
 	/* Maximum 2 servers for this test */
 	test_servers_nr = SERVER_NR - 1;
 	for (i = 0; i < test_servers_nr; ++i)
-		rm_ctx_init(&rm_ctx[i]);
+		rm_ctx_init(&rm_ctxs[i]);
 
 	server_hier_config();
 	m0_mutex_init(&rm_ut_tests_chan_mutex);
@@ -489,7 +489,7 @@ static void flock_utfini(void)
 	}
 	/* Finalise the servers */
 	for (i = 0; i < test_servers_nr; ++i) {
-		rm_ctx_fini(&rm_ctx[i]);
+		rm_ctx_fini(&rm_ctxs[i]);
 	}
 	for (i = 0; i < LOCK_TESTS_NR; ++i) {
 		m0_clink_del_lock(&tests_clink[i]);
@@ -507,14 +507,14 @@ void flock_test(void)
 	flock_utinit();
 	/* Start RM servers */
 	for (i = 0; i < test_servers_nr; ++i) {
-		rc = M0_THREAD_INIT(&rm_ctx[i].rc_thr, int, NULL,
+		rc = M0_THREAD_INIT(&rm_ctxs[i].rc_thr, int, NULL,
 				    &rm_server_start, i, "rm_server_%d", i);
 		M0_UT_ASSERT(rc == 0);
 	}
 
 	for (i = 0; i < test_servers_nr; ++i) {
-		m0_thread_join(&rm_ctx[i].rc_thr);
-		m0_thread_fini(&rm_ctx[i].rc_thr);
+		m0_thread_join(&rm_ctxs[i].rc_thr);
+		m0_thread_fini(&rm_ctxs[i].rc_thr);
 	}
 	flock_utfini();
 }

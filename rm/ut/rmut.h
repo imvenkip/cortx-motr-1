@@ -110,7 +110,7 @@ struct rm_ut_data {
 /*
  * RM server context. It lives inside a thread in this test.
  */
-struct rm_context {
+struct rm_ctx {
 	enum rm_server             rc_id;
 	struct m0_thread           rc_thr;
 	struct m0_chan             rc_chan;
@@ -130,7 +130,7 @@ struct rm_context {
  * Test variable(s)
  */
 extern struct rm_ut_data     rm_test_data;
-M0_EXTERN struct rm_context  rm_ctx[];
+M0_EXTERN struct rm_ctx  rm_ctxs[];
 M0_EXTERN const char        *serv_addr[];
 M0_EXTERN const int          cob_ids[];
 M0_EXTERN const char        *db_name[];
@@ -144,10 +144,10 @@ void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
 				 struct m0_rm_credit *credit);
 
 /* Test server functions */
-void rm_ctx_init(struct rm_context *rmctx);
-void rm_ctx_fini(struct rm_context *rmctx);
-void rm_ctx_connect(struct rm_context *src, const struct rm_context *dest);
-void rm_ctx_disconnect(struct rm_context *src, const struct rm_context *dest);
+void rm_ctx_init(struct rm_ctx *rmctx);
+void rm_ctx_fini(struct rm_ctx *rmctx);
+void rm_ctx_connect(struct rm_ctx *src, const struct rm_ctx *dest);
+void rm_ctx_disconnect(struct rm_ctx *src, const struct rm_ctx *dest);
 void rm_ctx_server_start(enum rm_server srv_id);
 void rm_ctx_server_windup(enum rm_server srv_id);
 void rm_ctx_server_stop(enum rm_server srv_id);

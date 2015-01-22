@@ -42,8 +42,8 @@ static char *server_argv[] = {
 extern struct m0_reqh_service_type      m0_rms_type;
 
 static struct m0_net_xprt *xprt        = &m0_net_lnet_xprt;
-static struct rm_context  *server_ctx  = &rm_ctx[SERVER_1];
-static struct rm_context  *client_ctx  = &rm_ctx[SERVER_2];
+static struct rm_ctx  *server_ctx  = &rm_ctxs[SERVER_1];
+static struct rm_ctx  *client_ctx  = &rm_ctxs[SERVER_2];
 static struct m0_clink     tests_clink[TEST_NR];
 
 extern void flock_client_utdata_ops_set(struct rm_ut_data *data);
@@ -228,11 +228,11 @@ void rmsvc(void)
 	m0_chan_init(&rm_ut_tests_chan, &rm_ut_tests_chan_mutex);
 
 	for (rc = 0; rc < 2; ++rc) {
-		M0_SET0(&rm_ctx[rc]);
-		rm_ctx[rc].rc_id = rc;
-		rm_ctx[rc].rc_rmach_ctx.rmc_cob_id.id = cob_ids[rc];
-		rm_ctx[rc].rc_rmach_ctx.rmc_dbname = db_name[rc];
-		rm_ctx[rc].rc_rmach_ctx.rmc_ep_addr = serv_addr[rc];
+		M0_SET0(&rm_ctxs[rc]);
+		rm_ctxs[rc].rc_id = rc;
+		rm_ctxs[rc].rc_rmach_ctx.rmc_cob_id.id = cob_ids[rc];
+		rm_ctxs[rc].rc_rmach_ctx.rmc_dbname = db_name[rc];
+		rm_ctxs[rc].rc_rmach_ctx.rmc_ep_addr = serv_addr[rc];
 		m0_clink_init(&tests_clink[rc], NULL);
 		m0_clink_add_lock(&rm_ut_tests_chan, &tests_clink[rc]);
 	}

@@ -31,7 +31,7 @@ static struct m0_clink tests_clink[TEST_NR];
 static void server1_in_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	M0_UT_ASSERT(in != NULL);
-	m0_chan_broadcast_lock(&rm_ctx[SERVER_1].rc_chan);
+	m0_chan_broadcast_lock(&rm_ctxs[SERVER_1].rc_chan);
 }
 
 static void server1_in_conflict(struct m0_rm_incoming *in)
@@ -46,7 +46,7 @@ static const struct m0_rm_incoming_ops server1_incoming_ops = {
 static void server2_in_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	M0_UT_ASSERT(in != NULL);
-	m0_chan_broadcast_lock(&rm_ctx[SERVER_2].rc_chan);
+	m0_chan_broadcast_lock(&rm_ctxs[SERVER_2].rc_chan);
 }
 
 static void server2_in_conflict(struct m0_rm_incoming *in)
@@ -61,7 +61,7 @@ static const struct m0_rm_incoming_ops server2_incoming_ops = {
 static void server3_in_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	M0_UT_ASSERT(in != NULL);
-	m0_chan_broadcast_lock(&rm_ctx[SERVER_3].rc_chan);
+	m0_chan_broadcast_lock(&rm_ctxs[SERVER_3].rc_chan);
 }
 
 static void server3_in_conflict(struct m0_rm_incoming *in)
@@ -77,8 +77,8 @@ static void credit_setup(enum rm_server srv_id,
 			enum m0_rm_incoming_flags flag,
 			int value)
 {
-	struct m0_rm_incoming *in = &rm_ctx[srv_id].rc_test_data.rd_in;
-	struct m0_rm_owner    *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
+	struct m0_rm_incoming *in = &rm_ctxs[srv_id].rc_test_data.rd_in;
+	struct m0_rm_owner    *owner = rm_ctxs[srv_id].rc_test_data.rd_owner;
 
 	m0_rm_incoming_init(in, owner, M0_RIT_LOCAL, RIP_NONE, flag);
 	in->rin_want.cr_datum = value;
@@ -99,8 +99,8 @@ static void credit_setup(enum rm_server srv_id,
 
 static void test2_verify(void)
 {
-	struct m0_rm_owner *so2 = rm_ctx[SERVER_2].rc_test_data.rd_owner;
-	struct m0_rm_owner *so1 = rm_ctx[SERVER_1].rc_test_data.rd_owner;
+	struct m0_rm_owner *so2 = rm_ctxs[SERVER_2].rc_test_data.rd_owner;
+	struct m0_rm_owner *so1 = rm_ctxs[SERVER_1].rc_test_data.rd_owner;
 
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_sublet));
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
@@ -111,7 +111,7 @@ static void test2_verify(void)
 
 static void test2_run(void)
 {
-	struct m0_rm_incoming *in = &rm_ctx[SERVER_1].rc_test_data.rd_in;
+	struct m0_rm_incoming *in = &rm_ctxs[SERVER_1].rc_test_data.rd_in;
 
 	/* Server-2 is upward creditor for Server-1 */
 	creditor_cookie_setup(SERVER_1, SERVER_2);
@@ -122,7 +122,7 @@ static void test2_run(void)
 	credit_setup(SERVER_1, RIF_MAY_BORROW, NENYA | DURIN);
 	m0_rm_credit_get(in);
 	if (incoming_state(in) == RI_WAIT)
-		m0_chan_wait(&rm_ctx[SERVER_1].rc_clink);
+		m0_chan_wait(&rm_ctxs[SERVER_1].rc_clink);
 	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
 	M0_UT_ASSERT(in->rin_rc == 0);
 	m0_rm_credit_put(in);
@@ -132,20 +132,20 @@ static void test2_run(void)
 static void server1_tests(void)
 {
 	m0_chan_wait(&tests_clink[TEST2]);
-	m0_clink_add_lock(&rm_ctx[SERVER_1].rc_chan,
-			  &rm_ctx[SERVER_1].rc_clink);
+	m0_clink_add_lock(&rm_ctxs[SERVER_1].rc_chan,
+			  &rm_ctxs[SERVER_1].rc_clink);
 	test2_run();
 	test2_verify();
-	m0_clink_del_lock(&rm_ctx[SERVER_1].rc_clink);
+	m0_clink_del_lock(&rm_ctxs[SERVER_1].rc_clink);
 
 	m0_chan_signal_lock(&rm_ut_tests_chan);
 }
 
 static void test3_verify(void)
 {
-	struct m0_rm_owner *so3 = rm_ctx[SERVER_3].rc_test_data.rd_owner;
-	struct m0_rm_owner *so2 = rm_ctx[SERVER_2].rc_test_data.rd_owner;
-	struct m0_rm_owner *so1 = rm_ctx[SERVER_1].rc_test_data.rd_owner;
+	struct m0_rm_owner *so3 = rm_ctxs[SERVER_3].rc_test_data.rd_owner;
+	struct m0_rm_owner *so2 = rm_ctxs[SERVER_2].rc_test_data.rd_owner;
+	struct m0_rm_owner *so1 = rm_ctxs[SERVER_1].rc_test_data.rd_owner;
 
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so3->ro_sublet));
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
@@ -156,7 +156,7 @@ static void test3_verify(void)
 
 static void test3_run(void)
 {
-	struct m0_rm_incoming *in = &rm_ctx[SERVER_2].rc_test_data.rd_in;
+	struct m0_rm_incoming *in = &rm_ctxs[SERVER_2].rc_test_data.rd_in;
 
 	/*
 	 * 1. Test-case - Set LOCAL_WAIT flags. We should get the error
@@ -167,7 +167,7 @@ static void test3_run(void)
 	M0_UT_ASSERT(incoming_state(in) == RI_FAILURE);
 	M0_UT_ASSERT(in->rin_rc == -EREMOTE);
 	m0_rm_incoming_fini(in);
-	m0_chan_wait(&rm_ctx[SERVER_2].rc_clink);
+	m0_chan_wait(&rm_ctxs[SERVER_2].rc_clink);
 
 	/*
 	 * 2. Test-case - NENYA is on SERVER_1. VILYA is on SERVER_3.
@@ -179,7 +179,7 @@ static void test3_run(void)
 		    NENYA | VILYA);
 	m0_rm_credit_get(in);
 	if (incoming_state(in) == RI_WAIT)
-		m0_chan_wait(&rm_ctx[SERVER_2].rc_clink);
+		m0_chan_wait(&rm_ctxs[SERVER_2].rc_clink);
 	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
 	M0_UT_ASSERT(in->rin_rc == 0);
 	m0_rm_credit_put(in);
@@ -188,8 +188,8 @@ static void test3_run(void)
 
 static void test1_verify(void)
 {
-	struct m0_rm_owner *so3 = rm_ctx[SERVER_3].rc_test_data.rd_owner;
-	struct m0_rm_owner *so2 = rm_ctx[SERVER_2].rc_test_data.rd_owner;
+	struct m0_rm_owner *so3 = rm_ctxs[SERVER_3].rc_test_data.rd_owner;
+	struct m0_rm_owner *so2 = rm_ctxs[SERVER_2].rc_test_data.rd_owner;
 
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so3->ro_sublet));
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
@@ -201,7 +201,7 @@ static void test1_verify(void)
  */
 static void test1_run(void)
 {
-	struct m0_rm_incoming *in = &rm_ctx[SERVER_2].rc_test_data.rd_in;
+	struct m0_rm_incoming *in = &rm_ctxs[SERVER_2].rc_test_data.rd_in;
 
 	/*
 	 * 1. Test-case - Set LOCAL_WAIT flags. We should get the error
@@ -212,7 +212,7 @@ static void test1_run(void)
 	M0_UT_ASSERT(incoming_state(in) == RI_FAILURE);
 	M0_UT_ASSERT(in->rin_rc == -EREMOTE);
 	m0_rm_incoming_fini(in);
-	m0_chan_wait(&rm_ctx[SERVER_2].rc_clink);
+	m0_chan_wait(&rm_ctxs[SERVER_2].rc_clink);
 
 	/*
 	 * 2. Test-case - Setup creditor cookie. Credit request should
@@ -223,7 +223,7 @@ static void test1_run(void)
 	credit_setup(SERVER_2, RIF_MAY_BORROW, NENYA);
 	m0_rm_credit_get(in);
 	if (incoming_state(in) == RI_WAIT)
-		m0_chan_wait(&rm_ctx[SERVER_2].rc_clink);
+		m0_chan_wait(&rm_ctxs[SERVER_2].rc_clink);
 	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
 	M0_UT_ASSERT(in->rin_rc == 0);
 	m0_rm_credit_put(in);
@@ -233,8 +233,8 @@ static void test1_run(void)
 static void server2_tests(void)
 {
 	m0_chan_wait(&tests_clink[TEST1]);
-	m0_clink_add_lock(&rm_ctx[SERVER_2].rc_chan,
-			  &rm_ctx[SERVER_2].rc_clink);
+	m0_clink_add_lock(&rm_ctxs[SERVER_2].rc_chan,
+			  &rm_ctxs[SERVER_2].rc_clink);
 	test1_run();
 	test1_verify();
 
@@ -244,7 +244,7 @@ static void server2_tests(void)
 	m0_chan_wait(&tests_clink[TEST3]);
 	test3_run();
 	test3_verify();
-	m0_clink_del_lock(&rm_ctx[SERVER_2].rc_clink);
+	m0_clink_del_lock(&rm_ctxs[SERVER_2].rc_clink);
 
 	/* Begin next test */
 	m0_chan_signal_lock(&rm_ut_tests_chan);
@@ -252,7 +252,7 @@ static void server2_tests(void)
 
 static void test4_run(void)
 {
-	struct m0_rm_owner *so3 = rm_ctx[SERVER_3].rc_test_data.rd_owner;
+	struct m0_rm_owner *so3 = rm_ctxs[SERVER_3].rc_test_data.rd_owner;
 	int		    rc;
 
 	/*
@@ -264,26 +264,26 @@ static void test4_run(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(owner_state(so3) == ROS_FINAL);
 	m0_rm_owner_fini(so3);
-	M0_SET0(rm_ctx[SERVER_3].rc_test_data.rd_owner);
-	m0_rm_owner_init(rm_ctx[SERVER_3].rc_test_data.rd_owner,
+	M0_SET0(rm_ctxs[SERVER_3].rc_test_data.rd_owner);
+	m0_rm_owner_init(rm_ctxs[SERVER_3].rc_test_data.rd_owner,
 			 &m0_rm_no_group,
-			 rm_ctx[SERVER_3].rc_test_data.rd_res,
+			 rm_ctxs[SERVER_3].rc_test_data.rd_res,
 			 NULL);
 }
 
 static void server3_tests(void)
 {
 	m0_chan_wait(&tests_clink[TEST4]);
-	m0_clink_add_lock(&rm_ctx[SERVER_3].rc_chan,
-			  &rm_ctx[SERVER_3].rc_clink);
+	m0_clink_add_lock(&rm_ctxs[SERVER_3].rc_chan,
+			  &rm_ctxs[SERVER_3].rc_clink);
 	test4_run();
-	m0_clink_del_lock(&rm_ctx[SERVER_3].rc_clink);
+	m0_clink_del_lock(&rm_ctxs[SERVER_3].rc_clink);
 }
 
 static void rm_server_start(const int tid)
 {
 	if (tid < test_servers_nr) {
-		rings_utdata_ops_set(&rm_ctx[tid].rc_test_data);
+		rings_utdata_ops_set(&rm_ctxs[tid].rc_test_data);
 		rm_ctx_server_start(tid);
 	}
 
@@ -310,17 +310,17 @@ static void rm_server_start(const int tid)
  */
 static void server_hier_config(void)
 {
-	rm_ctx[SERVER_1].creditor_id = SERVER_2;
-	rm_ctx[SERVER_1].debtor_id[0] = SERVER_INVALID;
-	rm_ctx[SERVER_1].rc_debtors_nr = 1;
+	rm_ctxs[SERVER_1].creditor_id = SERVER_2;
+	rm_ctxs[SERVER_1].debtor_id[0] = SERVER_INVALID;
+	rm_ctxs[SERVER_1].rc_debtors_nr = 1;
 
-	rm_ctx[SERVER_2].creditor_id = SERVER_3;
-	rm_ctx[SERVER_2].debtor_id[0] = SERVER_1;
-	rm_ctx[SERVER_2].rc_debtors_nr = 1;
+	rm_ctxs[SERVER_2].creditor_id = SERVER_3;
+	rm_ctxs[SERVER_2].debtor_id[0] = SERVER_1;
+	rm_ctxs[SERVER_2].rc_debtors_nr = 1;
 
-	rm_ctx[SERVER_3].creditor_id = SERVER_INVALID;
-	rm_ctx[SERVER_3].debtor_id[0] = SERVER_2;
-	rm_ctx[SERVER_3].rc_debtors_nr = 1;
+	rm_ctxs[SERVER_3].creditor_id = SERVER_INVALID;
+	rm_ctxs[SERVER_3].debtor_id[0] = SERVER_2;
+	rm_ctxs[SERVER_3].rc_debtors_nr = 1;
 }
 
 static void remote_credits_utinit(void)
@@ -329,7 +329,7 @@ static void remote_credits_utinit(void)
 
 	test_servers_nr = SERVER_NR;
 	for (i = 0; i < test_servers_nr; ++i)
-		rm_ctx_init(&rm_ctx[i]);
+		rm_ctx_init(&rm_ctxs[i]);
 
 	server_hier_config();
 	m0_mutex_init(&rm_ut_tests_chan_mutex);
@@ -359,7 +359,7 @@ static void remote_credits_utfini(void)
 	}
 	/* Finalise the servers */
 	for (i = 0; i < test_servers_nr; ++i) {
-		rm_ctx_fini(&rm_ctx[i]);
+		rm_ctx_fini(&rm_ctxs[i]);
 	}
 	for (i = 0; i < TEST_NR; ++i) {
 		m0_clink_del_lock(&tests_clink[i]);
@@ -377,7 +377,7 @@ void remote_credits_test(void)
 	remote_credits_utinit();
 	/* Start RM servers */
 	for (i = 0; i < test_servers_nr; ++i) {
-		rc = M0_THREAD_INIT(&rm_ctx[i].rc_thr, int, NULL,
+		rc = M0_THREAD_INIT(&rm_ctxs[i].rc_thr, int, NULL,
 				    &rm_server_start, i, "rm_server_%d", i);
 		M0_UT_ASSERT(rc == 0);
 	}
@@ -385,8 +385,8 @@ void remote_credits_test(void)
 	/* Now start the tests - wait till all the servers are ready */
 	m0_chan_signal_lock(&rm_ut_tests_chan);
 	for (i = 0; i < test_servers_nr; ++i) {
-		m0_thread_join(&rm_ctx[i].rc_thr);
-		m0_thread_fini(&rm_ctx[i].rc_thr);
+		m0_thread_join(&rm_ctxs[i].rc_thr);
+		m0_thread_fini(&rm_ctxs[i].rc_thr);
 	}
 	remote_credits_utfini();
 }
