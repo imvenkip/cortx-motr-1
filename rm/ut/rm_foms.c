@@ -149,7 +149,6 @@ static void fom_fini(struct m0_fom *fom, enum m0_rm_incoming_type fomtype)
 	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
 
 	m0_fop_put_lock(fom->fo_fop);
-	m0_fop_put_lock(fom->fo_rep_fop);
 
 	switch (fomtype) {
 	case M0_RIT_BORROW:

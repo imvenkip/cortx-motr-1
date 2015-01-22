@@ -1080,8 +1080,10 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 		m0_fop_get(fop);
 	fom->fo_fop = fop;
 
-	if (reply != NULL)
+	if (reply != NULL) {
 		m0_fop_get(reply);
+		fop->f_item.ri_reply = &reply->f_item;
+	}
 	fom->fo_rep_fop = reply;
 
 	/**
