@@ -594,6 +594,10 @@ m0t1fs_linux_kernel_st_m0t1fs_fsync_test_helper_CPPFLAGS  = \
 m0t1fs_linux_kernel_st_m0t1fs_fwait_test_helper_CPPFLAGS  = \
 			-DM0_TARGET='m0t1fs_fwait_test_helper' $(AM_CPPFLAGS)
 
+noinst_PROGRAMS += m0t1fs/linux_kernel/st/m0t1fs_io_file_pattern
+m0t1fs_linux_kernel_st_m0t1fs_io_file_pattern_CPPFLAGS  = \
+			-DM0_TARGET='m0t1fs_io_file_pattern' $(AM_CPPFLAGS)
+
 include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
 
 

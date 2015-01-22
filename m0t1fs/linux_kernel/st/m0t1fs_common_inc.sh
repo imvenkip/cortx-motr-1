@@ -32,6 +32,8 @@ export M0_TRACE_IMMEDIATE_MASK="!all"
 export M0_TRACE_LEVEL=call+
 export M0_TRACE_PRINT_CONTEXT=short
 
+# Note: m0t1fs_dgmode_io.sh refers to value of this variable.
+# Hence, do not rename it.
 MERO_STOB_DOMAIN="ad -d disks.conf"
 
 
