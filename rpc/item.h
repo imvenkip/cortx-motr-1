@@ -115,7 +115,8 @@ enum m0_rpc_item_resend {
 	/**
 	 * @todo Provide proper value for re-send interval
 	 */
-	M0_RPC_ITEM_RESEND_INTERVAL = 5 /* in secs */
+	M0_RPC_ITEM_RESEND_INTERVAL = 1, /* in secs */
+	M0_RPC_ITEM_REPLY_CACHE_TMO = M0_RPC_ITEM_RESEND_INTERVAL * 10,
 };
 
 /**
@@ -505,6 +506,9 @@ M0_INTERNAL bool m0_rpc_item_cache__invariant(struct m0_rpc_item_cache *ic);
  * If an item with the same xid is already there, does nothing.
  * It takes one reference to the item if item is actually added to the cache.
  * There is no guarantee that item will remain in cache after deadline passed.
+ * @param ic - items cache.
+ * @param item to be added.
+ * @param deadline - timeout in absolute time value.
  */
 M0_INTERNAL void m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
 				       struct m0_rpc_item	*item,

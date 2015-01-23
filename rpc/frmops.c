@@ -166,6 +166,7 @@ err_free:
 err:
 	m0_rpc_packet_traverse_items(p, item_done, rc);
 	m0_rpc_packet_discard(p);
+
 	return M0_RC(rc);
 }
 

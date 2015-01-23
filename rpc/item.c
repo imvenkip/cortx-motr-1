@@ -238,7 +238,8 @@ static struct m0_sm_state_descr outgoing_item_states[] = {
 	[M0_RPC_ITEM_FAILED] = {
 		.sd_flags   = M0_SDF_FINAL,
 		.sd_name    = "FAILED",
-		.sd_allowed = M0_BITS(M0_RPC_ITEM_UNINITIALISED),
+		.sd_allowed = M0_BITS(M0_RPC_ITEM_URGENT, /* resend */
+				      M0_RPC_ITEM_UNINITIALISED),
 	},
 };
 
@@ -465,7 +466,6 @@ M0_INTERNAL bool m0_rpc_item_is_oneway(const struct m0_rpc_item *item)
 static bool rpc_item_needs_xid(const struct m0_rpc_item *item)
 {
 	return !m0_rpc_item_is_oneway(item) &&
-	       !m0_rpc_item_is_reply(item) &&
 	       !M0_IN(item->ri_type->rit_opcode,
 		      (M0_RPC_CONN_ESTABLISH_OPCODE,
 		       M0_RPC_CONN_ESTABLISH_REP_OPCODE,
@@ -495,8 +495,9 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 /**
  * Returns either item should be handled or not.
  * Decision is based on the item xid.
- *
- * TODO Resends reply for already handled items.
+ * For duplicate request, the cached reply (if any)
+ * will be resent again.
+ * Purges the slate items from reply cache also.
  */
 M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item)
 {
@@ -515,22 +516,27 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item)
 		++sess->s_xid;
 		return true;
 	}
+
+	/*
+	 * XXX: Note, on a high loads, cache may grow huge.
+	 * This can be optimized by implementing the sending
+	 * of the last consequent received reply xid in every
+	 * request from the client.
+	 */
+	m0_rpc_item_cache_purge(&sess->s_reply_cache);
+
 	/* Resend reply if it is available for the request */
 	cached = m0_rpc_item_cache_lookup(&sess->s_reply_cache, xid);
-	if (cached != NULL) {
-		/** TODO REPLY RESEND CODE BEGINS */
-		/*
-		 * TODO list
-		 * - m0_rpc_item_send_reply() should use
-		 *   m0_rpc_item_cache_add();
-		 * - rpc-item-ut:item-resend and rpc-item-ut:reply-item-error
-		 *   should be enabled;
-		 * - cache eviction algorithm should use
-		 *   m0_rpc_item_cache_del().
-		 */
-		/** TODO REPLY RESEND CODE ENDS */
+	if (cached != NULL && M0_IN(cached->ri_sm.sm_state,
+				    (M0_RPC_ITEM_SENT, M0_RPC_ITEM_FAILED))) {
+		m0_rpc_session_hold_busy(sess);
+		m0_rpc_item_change_state(item, M0_RPC_ITEM_ACCEPTED);
+		if (cached->ri_error == -ENETDOWN)
+			cached->ri_error = 0;
+		m0_rpc_item_send_reply(item, cached);
 		return false;
 	}
+
 	/* Misordered request without reply - just drop it. */
 	M0_LOG(M0_NOTICE, "item: %p [%s/%u] misordered %"PRIu64" != %"PRIu64,
 	       item, item_kind(item), item->ri_type->rit_opcode,
@@ -909,18 +915,15 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	 * In case if there is a reply in the reply cache the reply is sent
 	 * again.
 	 *
-	 * TBD: reply cache description.
-	 *
 	 * Note that there is no duplicate or out-of-order detection for oneway
 	 * or connection establish rpc items.
 	 *
 	 * xid-based duplicate and out-of-order checks are only temporary
 	 * solutions until DTM is implemented.
 	 */
-	if (!m0_rpc_item_xid_check(item))
-		return 0;
-
 	if (m0_rpc_item_is_request(item)) {
+		if (!m0_rpc_item_xid_check(item))
+			return M0_RC(0);
 		m0_rpc_session_hold_busy(sess);
 		rc = m0_rpc_item_dispatch(item);
 		if (rc != 0)
@@ -1055,22 +1058,27 @@ M0_INTERNAL void m0_rpc_item_process_reply(struct m0_rpc_item *req,
 M0_INTERNAL void m0_rpc_item_send_reply(struct m0_rpc_item *req,
 					struct m0_rpc_item *reply)
 {
-	M0_ENTRY("req: %p", req);
+	struct m0_rpc_session *sess;
+
+	M0_ENTRY("req=%p reply=%p", req, reply);
 
 	M0_PRE(req != NULL && reply != NULL);
 	M0_PRE(m0_rpc_item_is_request(req));
 	M0_PRE(M0_IN(req->ri_sm.sm_state, (M0_RPC_ITEM_ACCEPTED)));
+	M0_PRE(M0_IN(req->ri_reply, (NULL, reply)));
 
-	req->ri_reply = reply;
+	if (req->ri_reply == NULL) {
+		m0_rpc_item_get(reply);
+		req->ri_reply = reply;
+	}
 	m0_rpc_item_change_state(req, M0_RPC_ITEM_REPLIED);
 
-	m0_rpc_session_release(req->ri_session);
+	sess = req->ri_session;
+	m0_rpc_session_release(sess);
 	reply->ri_header = req->ri_header;
-	/* see m0_rpc_item_xid_check() */
-	if (0) {
-		m0_rpc_item_cache_add(&reply->ri_session->s_reply_cache,
-				      reply, /* XXX */ M0_TIME_NEVER);
-	}
+	if (rpc_item_needs_xid(req))
+		m0_rpc_item_cache_add(&sess->s_reply_cache, reply,
+			m0_time_from_now(M0_RPC_ITEM_REPLY_CACHE_TMO, 0));
 	m0_rpc_item_send(reply);
 
 	/*
@@ -1124,8 +1132,9 @@ M0_INTERNAL void m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
 	if (cached == NULL) {
 		m0_rpc_item_get(item);
 		ric_tlink_init_at(item, &ic->ric_items);
-		item->ri_cache_deadline = deadline;
 	}
+	M0_ASSERT(M0_IN(cached, (NULL, item)));
+	item->ri_cache_deadline = deadline;
 }
 
 static void rpc_item_cache_del(struct m0_rpc_item_cache *ic,

@@ -156,28 +156,30 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	struct m0_rpc_machine                *machine;
 	struct m0_rpc_session                *session0;
 	struct m0_rpc_conn                   *conn;
+	static struct m0_fom_timeout         *fom_timeout = NULL;
 	int                                   rc;
 
 	M0_ENTRY("fom: %p", fom);
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
-	if (M0_FI_ENABLED("sleep_for_2sec")) {
-		static struct m0_fom_timeout *fom_timeout = NULL;
-
-		if (fom_timeout != NULL) {
-			m0_fom_timeout_fini(fom_timeout);
-			m0_free(fom_timeout);
-		} else {
-			M0_ALLOC_PTR(fom_timeout);
-			M0_ASSERT(fom_timeout != NULL);
-			m0_fom_timeout_init(fom_timeout);
-			rc = m0_fom_timeout_wait_on(fom_timeout, fom,
-						    m0_time_from_now(2, 0));
-			M0_ASSERT(rc == 0);
-			M0_LEAVE();
-			return M0_FSO_WAIT;
-		}
+	if (M0_FI_ENABLED("sleep-for-resend")) {
+		M0_ASSERT(fom_timeout == NULL);
+		M0_ALLOC_PTR(fom_timeout);
+		M0_ASSERT(fom_timeout != NULL);
+		m0_fom_timeout_init(fom_timeout);
+		rc = m0_fom_timeout_wait_on(fom_timeout, fom,
+		  m0_time_from_now(M0_RPC_ITEM_RESEND_INTERVAL * 2, 0));
+		M0_ASSERT(rc == 0);
+		M0_LEAVE();
+		return M0_FSO_WAIT;
+	}
+	if (M0_FI_ENABLED("free-timer") && fom_timeout != NULL &&
+	    fom_timeout->to_cb.fc_fom == fom) {
+		/* don't touch not our timer (from resend) */
+		m0_fom_timeout_fini(fom_timeout);
+		m0_free(fom_timeout);
+		m0_fi_disable(__func__, "free-timer");
 	}
 
 	fop     = fom->fo_fop;
