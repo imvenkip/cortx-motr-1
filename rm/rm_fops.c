@@ -336,6 +336,13 @@ out:
 	return M0_RC(rc);
 }
 
+static void outreq_fini(struct rm_out *outreq, int rc)
+{
+	outreq->ou_req.rog_rc = rc;
+	m0_rm_outgoing_complete(&outreq->ou_req);
+	m0_fop_put_lock(&outreq->ou_fop);
+}
+
 static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_rm_fop_borrow_rep *borrow_reply;
@@ -404,9 +411,7 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		M0_LOG(M0_ERROR, "Borrow request:%p failed: rc [%d]\n",
 				 outreq, rc);
 out:
-	outreq->ou_req.rog_rc = rc;
-	m0_rm_outgoing_complete(&outreq->ou_req);
-	m0_fop_put_lock(&outreq->ou_fop);
+	outreq_fini(outreq, rc);
 	M0_LEAVE();
 }
 static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -440,9 +445,7 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	owner = rvk_loan->rl_credit.cr_owner;
 	rc  = m0_rm_loan_settle(owner, rvk_loan);
 out:
-	outreq->ou_req.rog_rc = rc;
-	m0_rm_outgoing_complete(&outreq->ou_req);
-	m0_fop_put_lock(&outreq->ou_fop);
+	outreq_fini(outreq, rc);
 	M0_LEAVE();
 }
 
@@ -481,9 +484,7 @@ static void cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		rc  = m0_rm_owner_loan_debit(o, cancel_loan, &o->ro_borrowed);
 	}
 
-	outreq->ou_req.rog_rc = rc;
-	m0_rm_outgoing_complete(&outreq->ou_req);
-	m0_fop_put_lock(&outreq->ou_fop);
+	outreq_fini(outreq, rc);
 	M0_LEAVE();
 }
 
