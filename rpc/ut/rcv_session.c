@@ -92,9 +92,10 @@ static void test_conn_establish(void)
 	/* TEST: Duplicate conn-establish requests are accepted but only
 	         one of them gets executed and rest of them are ignored.
 	 */
-	m0_fi_enable_once("m0_rpc_fom_conn_establish_tick", "sleep_for_2sec");
+	m0_fi_enable("m0_rpc_fom_conn_establish_tick", "sleep_for_2sec");
 	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
 				m0_time_from_now(2 * TIMEOUT, 0));
+	m0_fi_disable("m0_rpc_fom_conn_establish_tick", "sleep_for_2sec");
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0);

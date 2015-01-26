@@ -57,7 +57,8 @@ M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
 	if (rc == 0)
 		timer->t_state = M0_TIMER_INITED;
 
-	return M0_RC(rc);
+	M0_LEAVE("%p, rc=%d", timer, rc);
+	return rc;
 }
 
 M0_INTERNAL void m0_timer_fini(struct m0_timer *timer)
@@ -66,6 +67,7 @@ M0_INTERNAL void m0_timer_fini(struct m0_timer *timer)
 
 	m0_timer_ops[timer->t_type].tmr_fini(timer);
 	timer->t_state = M0_TIMER_UNINIT;
+	M0_LEAVE("%p", timer);
 }
 
 M0_INTERNAL void m0_timer_start(struct m0_timer *timer,

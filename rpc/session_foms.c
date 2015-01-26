@@ -150,7 +150,6 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	struct m0_rpc_fop_conn_establish_ctx *ctx;
 	struct m0_rpc_fop_conn_establish     *request;
 	struct m0_rpc_item_header2           *header;
-	struct m0_fom_timeout                *fom_timeout;
 	struct m0_fop                        *fop;
 	struct m0_fop                        *fop_rep;
 	struct m0_rpc_item                   *item;
@@ -164,19 +163,23 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	M0_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
 	if (M0_FI_ENABLED("sleep_for_2sec")) {
-		M0_ALLOC_PTR(fom_timeout);
-		M0_ASSERT(fom_timeout != NULL);
-		m0_fom_timeout_init(fom_timeout);
-		rc = m0_fom_timeout_wait_on(fom_timeout, fom,
-					    m0_time_from_now(2, 0));
-		M0_ASSERT(rc == 0);
-		M0_LEAVE();
-		return M0_FSO_WAIT;
-		/*
-		 * fom_timeout is used only during UT. To keep it simple
-		 * fom_timeout is not freed.
-		 */
+		static struct m0_fom_timeout *fom_timeout = NULL;
+
+		if (fom_timeout != NULL) {
+			m0_fom_timeout_fini(fom_timeout);
+			m0_free(fom_timeout);
+		} else {
+			M0_ALLOC_PTR(fom_timeout);
+			M0_ASSERT(fom_timeout != NULL);
+			m0_fom_timeout_init(fom_timeout);
+			rc = m0_fom_timeout_wait_on(fom_timeout, fom,
+						    m0_time_from_now(2, 0));
+			M0_ASSERT(rc == 0);
+			M0_LEAVE();
+			return M0_FSO_WAIT;
+		}
 	}
+
 	fop     = fom->fo_fop;
 	request = m0_fop_data(fop);
 	M0_ASSERT(request != NULL);
