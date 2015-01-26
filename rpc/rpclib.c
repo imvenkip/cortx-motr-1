@@ -150,8 +150,11 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 				 &cctx->rcx_buffer_pool, M0_BUFFER_ANY_COLOUR,
 				 cctx->rcx_max_rpc_msg_size,
 				 cctx->rcx_recv_queue_min_length);
-	if (rc != 0)
+	if (rc != 0) {
+		m0_reqh_services_terminate(&cctx->rcx_reqh);
+		m0_reqh_fini(&cctx->rcx_reqh);
 		goto err;
+	}
 
 	rc = m0_rpc_client_connect(&cctx->rcx_connection, &cctx->rcx_session,
 				   &cctx->rcx_rpc_machine,
@@ -160,7 +163,9 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 	if (rc == 0)
 		return M0_RC(0);
 
+	m0_reqh_services_terminate(&cctx->rcx_reqh);
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
+	m0_reqh_fini(&cctx->rcx_reqh);
 err:
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 	return M0_RC(rc);

@@ -139,6 +139,8 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 {
 	int rc;
 
+	M0_ENTRY("%p", reqh);
+
 	reqh->rh_dtm     = reqh_args->rhia_dtm;
 	reqh->rh_beseg   = reqh_args->rhia_db;
 	reqh->rh_mdstore = reqh_args->rhia_mdstore;

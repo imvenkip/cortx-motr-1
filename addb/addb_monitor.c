@@ -259,6 +259,8 @@ M0_INTERNAL int m0_addb_monitors_init(struct m0_reqh *reqh)
 
 	M0_PRE(reqh != NULL);
 
+	M0_ENTRY("%p", reqh);
+
 	mon_ctx = &reqh->rh_addb_monitoring_ctx;
 
 	addb_mon_tlist_init(&mon_ctx->amc_list);

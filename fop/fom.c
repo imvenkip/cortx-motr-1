@@ -698,9 +698,11 @@ static void loc_thr_fini(struct m0_loc_thread *th)
 static int loc_thr_create(struct m0_fom_locality *loc)
 {
 	struct m0_loc_thread *thr;
-	int                   result;
+	int                   res;
 
 	M0_PRE(m0_mutex_is_locked(&loc->fl_group.s_lock));
+
+	M0_ENTRY("%p", loc);
 
 	FOP_ALLOC_PTR(thr, LOC_THR_CREATE, &m0_fop_addb_ctx);
 	if (thr == NULL)
@@ -713,12 +715,12 @@ static int loc_thr_create(struct m0_fom_locality *loc)
 	m0_clink_init(&thr->lt_clink, NULL);
 	m0_clink_add(&loc->fl_idle, &thr->lt_clink);
 
-	result = M0_THREAD_INIT(&thr->lt_thread, struct m0_loc_thread *,
+	res = M0_THREAD_INIT(&thr->lt_thread, struct m0_loc_thread *,
 				loc_thr_init, &loc_handler_thread, thr,
 				"m0_loc_thread");
-	if (result != 0)
+	if (res != 0)
 		loc_thr_fini(thr);
-	return result;
+	return M0_RC(res);
 }
 
 /**
@@ -781,10 +783,12 @@ static void loc_fini(struct m0_fom_locality *loc)
  */
 static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 {
-	int                result;
+	int                res;
 	struct m0_addb_mc *addb_mc;
 
 	M0_PRE(loc != NULL);
+
+	M0_ENTRY();
 
 	/**
 	 * @todo Need a locality specific ADDB machine
@@ -796,20 +800,20 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	M0_ADDB_CTX_INIT(addb_mc, &loc->fl_addb_ctx, &m0_addb_ct_fom_locality,
 			 &loc->fl_dom->fd_reqh->rh_addb_ctx, cpu);
 
-	result = m0_addb_counter_init(&loc->fl_stat_run_times,
+	res = m0_addb_counter_init(&loc->fl_stat_run_times,
 				      &m0_addb_rt_fl_run_times);
-	if (result != 0)
+	if (res != 0)
 		goto err2;
 
-	result = m0_addb_counter_init(&loc->fl_stat_sched_wait_times,
+	res = m0_addb_counter_init(&loc->fl_stat_sched_wait_times,
 				      &m0_addb_rt_fl_sched_wait_times);
-	if (result != 0)
+	if (res != 0)
 		goto err1;
 
 	m0_fom_locality_lockers_init(loc);
 
-	result = m0_fop_rate_monitor_init(loc);
-	if (result < 0)
+	res = m0_fop_rate_monitor_init(loc);
+	if (res < 0)
 		goto err0;
 
 	runq_tlist_init(&loc->fl_runq);
@@ -824,26 +828,26 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	m0_atomic64_set(&loc->fl_unblocking, 0);
 	m0_chan_init(&loc->fl_idle, &loc->fl_group.s_lock);
 
-	result = m0_bitmap_init(&loc->fl_processors, cpu_max);
-	if (result == 0) {
+	res = m0_bitmap_init(&loc->fl_processors, cpu_max);
+	if (res == 0) {
 		int i;
 
 		m0_bitmap_set(&loc->fl_processors, cpu, true);
 		/* create a pool of idle threads plus the handler thread. */
 		group_lock(loc);
 		for (i = 0; i < LOC_IDLE_NR + 1; ++i) {
-			result = loc_thr_create(loc);
-			if (result != 0)
+			res = loc_thr_create(loc);
+			if (res != 0)
 				break;
 		}
 		/* wake up one idle thread. It becomes the handler thread. */
 		m0_chan_signal(&loc->fl_idle);
 		group_unlock(loc);
 	}
-	if (result != 0)
+	if (res != 0)
 		loc_fini(loc);
 
-	return result;
+	return M0_RC(res);
 
 err0:
 	m0_fom_locality_lockers_fini(loc);
@@ -852,7 +856,7 @@ err1:
 	m0_addb_counter_fini(&loc->fl_stat_run_times);
 err2:
 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
-	return result;
+	return M0_RC(res);
 }
 
 static void loc_ast_post_stats(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -888,6 +892,8 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 	int                     i;
 
 	M0_PRE(dom != NULL);
+
+	M0_ENTRY("%p", dom);
 
 	cpu_max = m0_processor_nr_max();
 	dom->fd_ops = &m0_fom_dom_ops;
@@ -939,7 +945,7 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 
 	m0_bitmap_fini(&onln_cpu_map);
 
-	return result;
+	return M0_RC(result);
 }
 
 M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
