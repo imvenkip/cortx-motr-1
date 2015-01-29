@@ -73,34 +73,40 @@ static struct m0_thread ut_thread;
 
 static void tests_add(struct m0_ut_module *m)
 {
+	/*
+	 * set last argument to 'false' to disable test,
+	 * it will automatically print a warning to console
+	 */
+
 	/* sort test suites in alphabetic order */
-	m0_ut_add(m, &m0_klibm0_ut);  /* test lib first */
-	m0_ut_add(m, &m0_addb_ut);
-	m0_ut_add(m, &di_ut);
-	m0_ut_add(m, &file_io_ut);
-	m0_ut_add(m, &be_ut);
-	m0_ut_add(m, &buffer_pool_ut);
-	m0_ut_add(m, &bulkio_client_ut);
-	/*m0_ut_add(m, &m0_loop_ut);*/
-	m0_ut_add(m, &m0_net_bulk_if_ut);
-	m0_ut_add(m, &m0_net_bulk_mem_ut);
-	m0_ut_add(m, &m0_net_lnet_ut);
-	m0_ut_add(m, &m0_net_test_ut);
-	m0_ut_add(m, &m0_net_tm_prov_ut);
-	m0_ut_add(m, &conn_ut);
-	m0_ut_add(m, &dtm_nucleus_ut);
-	m0_ut_add(m, &dtm_transmit_ut);
-	m0_ut_add(m, &dtm_dtx_ut);
-	m0_ut_add(m, &frm_ut);
-	m0_ut_add(m, &layout_ut);
-	m0_ut_add(m, &packet_encdec_ut);
-	m0_ut_add(m, &reqh_service_ut);
-	m0_ut_add(m, &rm_ut);
-	m0_ut_add(m, &rpc_mc_ut);
-	m0_ut_add(m, &session_ut);
-	m0_ut_add(m, &sm_ut);
-	m0_ut_add(m, &stob_ut);
-	m0_ut_add(m, &xcode_ut);
+	m0_ut_add(m, &m0_klibm0_ut, true);  /* test lib first */
+	m0_ut_add(m, &m0_addb_ut, true);
+	m0_ut_add(m, &di_ut, true);
+	m0_ut_add(m, &file_io_ut, true);
+	m0_ut_add(m, &be_ut, true);
+	m0_ut_add(m, &buffer_pool_ut, true);
+	m0_ut_add(m, &bulkio_client_ut, true);
+	/*m0_ut_add(m, &m0_loop_ut);*/  /* disabled at compile time because
+					   it's not ported to * Centos7 */
+	m0_ut_add(m, &m0_net_bulk_if_ut, true);
+	m0_ut_add(m, &m0_net_bulk_mem_ut, true);
+	m0_ut_add(m, &m0_net_lnet_ut, true);
+	m0_ut_add(m, &m0_net_test_ut, true);
+	m0_ut_add(m, &m0_net_tm_prov_ut, true);
+	m0_ut_add(m, &conn_ut, true);
+	m0_ut_add(m, &dtm_nucleus_ut, true);
+	m0_ut_add(m, &dtm_transmit_ut, true);
+	m0_ut_add(m, &dtm_dtx_ut, true);
+	m0_ut_add(m, &frm_ut, true);
+	m0_ut_add(m, &layout_ut, true);
+	m0_ut_add(m, &packet_encdec_ut, true);
+	m0_ut_add(m, &reqh_service_ut, true);
+	m0_ut_add(m, &rm_ut, true);
+	m0_ut_add(m, &rpc_mc_ut, true);
+	m0_ut_add(m, &session_ut, true);
+	m0_ut_add(m, &sm_ut, true);
+	m0_ut_add(m, &stob_ut, true);
+	m0_ut_add(m, &xcode_ut, true);
 }
 
 static void run_kernel_ut(int _)

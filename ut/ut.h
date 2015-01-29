@@ -74,6 +74,13 @@ struct m0_ut_suite {
 	struct m0_list_link        ts_linkage;
 	/** indicates whether this suite should be executed */
 	bool                       ts_enabled;
+	/**
+	 * test can be masked at compile time, this overrides ts_enabled;
+	 * this field can be set directly at m0_ut_suite initialization or by
+	 * m0_ut_add(), it can be used to disable broken tests, in this case
+	 * a message will be printed on console
+	 */
+	bool                       ts_masked;
 	/** name of the suite */
 	const char                *ts_name;
 	/** suite owners names */
@@ -102,7 +109,8 @@ void m0_ut_fini(void);
  @param ts pointer to test suite
 
  */
-M0_INTERNAL void m0_ut_add(struct m0_ut_module *m, struct m0_ut_suite *ts);
+M0_INTERNAL void m0_ut_add(struct m0_ut_module *m, struct m0_ut_suite *ts,
+			   bool enable);
 
 /**
  * Shuffles added suites.

@@ -113,71 +113,76 @@ extern struct m0_ut_suite sns_flock_ut;
 
 static void tests_add(struct m0_ut_module *m)
 {
+	/*
+	 * set last argument to 'false' to disable test,
+	 * it will automatically print a warning to console
+	 */
+
 	/* sort test suites in alphabetic order */
-	m0_ut_add(m, &libm0_ut); /* test lib first */
-	m0_ut_add(m, &di_ut);
-	m0_ut_add(m, &balloc_ut);
-	m0_ut_add(m, &be_ut);
-	m0_ut_add(m, &buffer_pool_ut);
-	m0_ut_add(m, &bulkio_client_ut);
-	m0_ut_add(m, &bulkio_server_ut);
-	m0_ut_add(m, &capa_ut);
-	m0_ut_add(m, &cm_cp_ut);
-	m0_ut_add(m, &cm_generic_ut);
-	m0_ut_add(m, &cob_ut);
-	m0_ut_add(m, &cobfoms_ut);
-	m0_ut_add(m, &conf_ut);
-	m0_ut_add(m, &confc_ut);
-	m0_ut_add(m, &confstr_ut);
-	m0_ut_add(m, &conn_ut);
-	m0_ut_add(m, &dtm_nucleus_ut);
-	m0_ut_add(m, &dtm_transmit_ut);
-	m0_ut_add(m, &dtm_dtx_ut);
-	m0_ut_add(m, &fit_ut);
-	m0_ut_add(m, &fol_ut);
-	m0_ut_add(m, &frm_ut);
-	m0_ut_add(m, &ha_state_ut);
-	m0_ut_add(m, &ios_bufferpool_ut);
-	m0_ut_add(m, &item_ut);
-	m0_ut_add(m, &item_source_ut);
-	m0_ut_add(m, &layout_ut);
-	m0_ut_add(m, &m0_addb_ut);
-	m0_ut_add(m, &m0_fop_lock_ut);
-	m0_ut_add(m, &m0_fom_stats_ut);
-	m0_ut_add(m, &m0_net_bulk_if_ut);
-	m0_ut_add(m, &m0_net_bulk_mem_ut);
-	m0_ut_add(m, &m0_net_lnet_ut);
-	m0_ut_add(m, &m0_net_module_ut);
-	m0_ut_add(m, &m0_net_test_ut);
-	m0_ut_add(m, &m0_net_tm_prov_ut);
-	m0_ut_add(m, &m0d_ut);
-	m0_ut_add(m, &mdservice_ut);
-	m0_ut_add(m, &module_ut);
-	m0_ut_add(m, &packet_encdec_ut);
-	m0_ut_add(m, &parity_math_ut);
-	m0_ut_add(m, &poolmach_ut);
-	m0_ut_add(m, &reqh_ut);
-	m0_ut_add(m, &reqh_fop_allow_ut);
-	m0_ut_add(m, &reqh_service_ut);
-	m0_ut_add(m, &rm_ut);
-	m0_ut_add(m, &rpc_mc_ut);
-	m0_ut_add(m, &rpc_rcv_session_ut);
-	m0_ut_add(m, &rpclib_ut);
-	m0_ut_add(m, &session_ut);
-	m0_ut_add(m, &sm_ut);
-	m0_ut_add(m, &snscm_xform_ut);
-	m0_ut_add(m, &snscm_storage_ut);
-	m0_ut_add(m, &sns_cm_repair_ut);
-	m0_ut_add(m, &snscm_net_ut);
-	m0_ut_add(m, &sns_flock_ut);
-	m0_ut_add(m, &stats_ut);
-	m0_ut_add(m, &stob_ut);
-	m0_ut_add(m, &udb_ut);
-	m0_ut_add(m, &xcode_bufvec_fop_ut);
-	m0_ut_add(m, &xcode_ff2c_ut);
-	m0_ut_add(m, &xcode_ut);
+	m0_ut_add(m, &libm0_ut, true); /* test lib first */
+	m0_ut_add(m, &di_ut, true);
+	m0_ut_add(m, &balloc_ut, true);
+	m0_ut_add(m, &be_ut, true);
+	m0_ut_add(m, &buffer_pool_ut, true);
+	m0_ut_add(m, &bulkio_client_ut, true);
+	m0_ut_add(m, &bulkio_server_ut, true);
+	m0_ut_add(m, &capa_ut, true);
+	m0_ut_add(m, &cm_cp_ut, true);
+	m0_ut_add(m, &cm_generic_ut, true);
+	m0_ut_add(m, &cob_ut, true);
+	m0_ut_add(m, &cobfoms_ut, true);
+	m0_ut_add(m, &conf_ut, true);
+	m0_ut_add(m, &confc_ut, true);
+	m0_ut_add(m, &confstr_ut, true);
+	m0_ut_add(m, &conn_ut, true);
+	m0_ut_add(m, &dtm_nucleus_ut, true);
+	m0_ut_add(m, &dtm_transmit_ut, true);
+	m0_ut_add(m, &dtm_dtx_ut, true);
+	m0_ut_add(m, &fit_ut, true);
+	m0_ut_add(m, &fol_ut, true);
+	m0_ut_add(m, &frm_ut, true);
+	m0_ut_add(m, &ha_state_ut, true);
+	m0_ut_add(m, &ios_bufferpool_ut, true);
+	m0_ut_add(m, &item_ut, true);
+	m0_ut_add(m, &item_source_ut, true);
+	m0_ut_add(m, &layout_ut, true);
+	m0_ut_add(m, &m0_addb_ut, true);
+	m0_ut_add(m, &m0_fop_lock_ut, true);
+	m0_ut_add(m, &m0_fom_stats_ut, true);
+	m0_ut_add(m, &m0_net_bulk_if_ut, true);
+	m0_ut_add(m, &m0_net_bulk_mem_ut, true);
+	m0_ut_add(m, &m0_net_lnet_ut, true);
+	m0_ut_add(m, &m0_net_module_ut, true);
+	m0_ut_add(m, &m0_net_test_ut, true);
+	m0_ut_add(m, &m0_net_tm_prov_ut, true);
+	m0_ut_add(m, &m0d_ut, true);
+	m0_ut_add(m, &mdservice_ut, true);
+	m0_ut_add(m, &module_ut, true);
+	m0_ut_add(m, &packet_encdec_ut, true);
+	m0_ut_add(m, &parity_math_ut, true);
+	m0_ut_add(m, &poolmach_ut, true);
+	m0_ut_add(m, &reqh_ut, true);
+	m0_ut_add(m, &reqh_fop_allow_ut, true);
+	m0_ut_add(m, &reqh_service_ut, true);
+	m0_ut_add(m, &rm_ut, true);
+	m0_ut_add(m, &rpc_mc_ut, true);
+	m0_ut_add(m, &rpc_rcv_session_ut, true);
+	m0_ut_add(m, &rpclib_ut, true);
+	m0_ut_add(m, &session_ut, true);
+	m0_ut_add(m, &sm_ut, true);
+	m0_ut_add(m, &snscm_xform_ut, true);
+	m0_ut_add(m, &snscm_storage_ut, true);
+	m0_ut_add(m, &sns_cm_repair_ut, true);
+	m0_ut_add(m, &snscm_net_ut, true);
+	m0_ut_add(m, &sns_flock_ut, true);
+	m0_ut_add(m, &stats_ut, true);
+	m0_ut_add(m, &stob_ut, true);
+	m0_ut_add(m, &udb_ut, true);
+	m0_ut_add(m, &xcode_bufvec_fop_ut, true);
+	m0_ut_add(m, &xcode_ff2c_ut, true);
+	m0_ut_add(m, &xcode_ut, true);
 	/* These tests have redirection of messages. */
-	m0_ut_add(m, &console_ut);
+	m0_ut_add(m, &console_ut, true);
 }
 
 int main(int argc, char *argv[])

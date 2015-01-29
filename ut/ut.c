@@ -94,10 +94,12 @@ M0_INTERNAL void m0_ut_fini(void)
 }
 M0_EXPORTED(m0_ut_fini);
 
-M0_INTERNAL void m0_ut_add(struct m0_ut_module *m, struct m0_ut_suite *ts)
+M0_INTERNAL void m0_ut_add(struct m0_ut_module *m, struct m0_ut_suite *ts,
+			   bool enable)
 {
 	M0_PRE(IS_IN_ARRAY(m->ut_suites_nr, m->ut_suites));
 	m->ut_suites[m->ut_suites_nr++] = ts;
+	ts->ts_masked = !enable;
 }
 
 static struct m0_ut_suite *
@@ -148,6 +150,11 @@ static void set_enabled_flag_for(const struct m0_ut_module *m,
 		for (t = s->ts_tests; t->t_name != NULL; ++t)
 			t->t_enabled = value;
 	} else {
+		/*
+		 * re-enable test suite if value is 'false', because in this
+		 * case we disable particular tests, not a whole suite
+		 */
+		s->ts_enabled = s->ts_enabled || !value;
 		t = get_test_by_name(m, s_name, t_name);
 		M0_ASSERT(t != NULL); /* ensured by test_list_populate() */
 		t->t_enabled = value;
@@ -272,36 +279,36 @@ static int test_list_create(struct m0_list *list, const struct m0_ut_module *m)
 	return rc;
 }
 
-static int test_suites_exclude(const struct m0_ut_module *m)
-{
-	struct m0_list disable_list;
-	int            rc;
-
-	M0_PRE(m->ut_exclude && m->ut_tests != NULL);
-
-	rc = test_list_create(&disable_list, m);
-	if (rc != 0)
-		return rc;
-
-	m0_list_entry_forall(e, &disable_list, struct ut_entry, ue_linkage,
-			     set_enabled_flag_for(m, e->ue_suite_name,
-						  e->ue_test_name, false);
-			     true;);
-	test_list_destroy(&disable_list);
-	return 0;
-}
-
 static int test_suites_enable(const struct m0_ut_module *m)
 {
-	struct m0_ut *t;
-	int           i;
+	struct m0_list  disable_list;
+	struct m0_ut   *t;
+
+	bool flag;
+	int  i;
+	int  rc = 0;
+
+	flag = (m->ut_tests == NULL || m->ut_exclude);
 
 	for (i = 0; i < m->ut_suites_nr; ++i) {
-		m->ut_suites[i]->ts_enabled = true;
+		m->ut_suites[i]->ts_enabled = flag;
 		for (t = m->ut_suites[i]->ts_tests; t->t_name != NULL; ++t)
-			t->t_enabled = true;
+			t->t_enabled = flag;
 	}
-	return m->ut_exclude ? test_suites_exclude(m) : 0;
+
+	if (m->ut_tests != NULL) {
+		rc = test_list_create(&disable_list, m);
+		if (rc != 0)
+			return rc;
+
+		m0_list_entry_forall(e, &disable_list, struct ut_entry, ue_linkage,
+				     set_enabled_flag_for(m, e->ue_suite_name,
+							  e->ue_test_name, !flag);
+				     true;);
+		test_list_destroy(&disable_list);
+	}
+
+	return rc;
 }
 
 static inline const char *skipspaces(const char *str)
@@ -311,8 +318,7 @@ static inline const char *skipspaces(const char *str)
 	return str;
 }
 
-static void run_test(const struct m0_ut *test, bool obey_enabled_flag,
-		     size_t max_name_len)
+static void run_test(const struct m0_ut *test, size_t max_name_len)
 {
 	static const char padding[256] = { [0 ... 254] = ' ', [255] = '\0' };
 
@@ -326,7 +332,7 @@ static void run_test(const struct m0_ut *test, bool obey_enabled_flag,
 	m0_time_t end;
 	m0_time_t duration;
 
-	if (obey_enabled_flag && !test->t_enabled)
+	if (!test->t_enabled)
 		return;
 
 	m0_console_printf(LOG_PREFIX "  %s  ", test->t_name);
@@ -353,8 +359,7 @@ static void run_test(const struct m0_ut *test, bool obey_enabled_flag,
 			  m0_bcount_with_suffix(mem, ARRAY_SIZE(mem), mem_used));
 }
 
-static int run_suite(const struct m0_ut_suite *suite, bool obey_enabled_flag,
-		     int max_name_len)
+static int run_suite(const struct m0_ut_suite *suite, int max_name_len)
 {
 	const struct m0_ut *test;
 
@@ -370,7 +375,14 @@ static int run_suite(const struct m0_ut_suite *suite, bool obey_enabled_flag,
 	m0_time_t duration;
 	int       rc = 0;
 
-	if (obey_enabled_flag && !suite->ts_enabled)
+	if (suite->ts_masked) {
+		if (suite->ts_enabled)
+			m0_console_printf("#\n# %s  <<<<<<<<<<<<   -=!!!  "
+					  "DISABLED  !!!=-\n#\n", suite->ts_name);
+		return 0;
+	}
+
+	if (!suite->ts_enabled)
 		return 0;
 
 	m0_console_printf("%s\n", suite->ts_name);
@@ -386,7 +398,7 @@ static int run_suite(const struct m0_ut_suite *suite, bool obey_enabled_flag,
 	}
 
 	for (test = suite->ts_tests; test->t_name != NULL; ++test)
-		run_test(test, obey_enabled_flag, max_name_len);
+		run_test(test, max_name_len);
 
 	if (suite->ts_fini != NULL) {
 		rc = suite->ts_fini();
@@ -423,41 +435,13 @@ static int max_test_name_len(const struct m0_ut_suite **suites, unsigned nr)
 	return max_len;
 }
 
-static int tests_run_selected(const struct m0_ut_module *m)
-{
-	struct m0_list            run_list;
-	const struct m0_ut_suite *suite;
-	const struct m0_ut       *test;
-	int                       rc;
-
-	rc = test_list_create(&run_list, m);
-	if (rc != 0)
-		return rc;
-
-	m0_list_entry_forall(e, &run_list, struct ut_entry, ue_linkage,
-		if (e->ue_test_name == NULL) {
-			suite = suite_find(m, e->ue_suite_name);
-			rc = run_suite(suite, false,
-				       max_test_name_len(&suite, 1));
-		} else {
-			test = get_test_by_name(m, e->ue_suite_name,
-						e->ue_test_name);
-			run_test(test, false, 0);
-			rc = 0;
-		}
-		rc == 0;
-	);
-	test_list_destroy(&run_list);
-	return rc;
-}
-
 static int tests_run_all(const struct m0_ut_module *m)
 {
 	int i;
 	int rc;
 
 	for (i = rc = 0; i < m->ut_suites_nr && rc == 0; ++i)
-		rc = run_suite(m->ut_suites[i], true,
+		rc = run_suite(m->ut_suites[i],
 			       max_test_name_len((const struct m0_ut_suite **)
 						 m->ut_suites,
 						 m->ut_suites_nr));
@@ -483,8 +467,7 @@ M0_INTERNAL int m0_ut_run(void)
 	mem_before   = m0_allocated_total();
 	start        = m0_time_now();
 
-	rc = (m->ut_tests == NULL || m->ut_exclude) ?
-		tests_run_all(m) : tests_run_selected(m);
+	rc = tests_run_all(m);
 
 	mem_after   = m0_allocated_total();
 	alloc_after = m0_allocated();
