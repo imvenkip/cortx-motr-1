@@ -180,12 +180,14 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 	enum m0_be_tx_state state;
 
 	*tx = (struct m0_be_tx) {
-		.t_id		= tid,
-		.t_engine	= m0_be_domain_engine(dom),
-		.t_persistent	= persistent,
-		.t_discarded	= discarded,
-		.t_filler	= filler,
-		.t_datum	= datum,
+		.t_id           = tid,
+		.t_engine       = m0_be_domain_engine(dom),
+		.t_persistent   = persistent,
+		.t_discarded    = discarded,
+		.t_filler       = filler,
+		.t_datum        = datum,
+		.t_gc_enabled   = false,
+		.t_gc_free      = NULL,
 	};
 
 	m0_sm_init(&tx->t_sm, &be_tx_sm_conf, M0_BTS_PREPARE, sm_group);
@@ -318,6 +320,9 @@ m0_be_tx_timedwait(struct m0_be_tx *tx, uint64_t states, m0_time_t deadline)
 {
 	M0_ENTRY();
 	M0_PRE(be_tx_is_locked(tx));
+	M0_PRE(ergo(tx->t_gc_enabled,
+		    M0_IN(m0_be_tx_state(tx), (M0_BTS_PREPARE, M0_BTS_OPENING,
+					       M0_BTS_ACTIVE, M0_BTS_FAILED))));
 
 	m0_sm_timedwait(&tx->t_sm, states, deadline);
 	return M0_RC(tx->t_sm.sm_rc);
@@ -377,10 +382,24 @@ static int be_tx_memory_allocate(struct m0_be_tx *tx)
 	return M0_RC(rc);
 }
 
+static void be_tx_gc(struct m0_be_tx *tx)
+{
+	void (*gc_free)(struct m0_be_tx *);
+
+	gc_free = tx->t_gc_free;
+	m0_be_tx_fini(tx);
+	if (gc_free != NULL)
+		gc_free(tx);
+	else
+		m0_free(tx);
+}
+
 static void be_tx_state_move(struct m0_be_tx *tx,
 			     enum m0_be_tx_state state,
 			     int rc)
 {
+	bool tx_is_freed = false;
+
 	M0_ENTRY("tx %p: %s --> %s, rc = %d", tx,
 		 m0_be_tx_state_name(m0_be_tx_state(tx)),
 		 m0_be_tx_state_name(state), rc);
@@ -414,7 +433,12 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 	if (M0_IN(state, (M0_BTS_PLACED, M0_BTS_FAILED)))
 		m0_be_tx_put(tx);
 
-	M0_POST(m0_be_tx__invariant(tx));
+	if (state == M0_BTS_DONE && tx->t_gc_enabled) {
+		be_tx_gc(tx);
+		tx_is_freed = true;
+	}
+
+	M0_POST(tx_is_freed || m0_be_tx__invariant(tx));
 	M0_LEAVE();
 }
 
@@ -501,13 +525,23 @@ M0_INTERNAL int m0_be_tx_exclusive_open_sync(struct m0_be_tx *tx)
 
 M0_INTERNAL void m0_be_tx_close_sync(struct m0_be_tx *tx)
 {
-	int rc;
+	bool gc_enabled;
+	int  rc;
 
-	tx->t_fast = true;
+	tx->t_fast	 = true;
+	/*
+	 * m0_be_tx_timedwait() can't be used on transactions with
+	 * GC enabled. So GC is disabled and called manually if it
+	 * is needed.
+	 */
+	gc_enabled	 = tx->t_gc_enabled;
+	tx->t_gc_enabled = false;
 	m0_be_tx_close(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	M0_ASSERT_INFO(rc == 0, "Transaction can't fail after m0_be_tx_open(): "
 		       "rc = %d, tx = %p", rc, tx);
+	if (gc_enabled)
+		be_tx_gc(tx);
 }
 
 M0_INTERNAL bool m0_be_tx__is_fast(struct m0_be_tx *tx)
@@ -546,6 +580,16 @@ M0_INTERNAL bool m0_be_tx_should_break(struct m0_be_tx *tx,
 	m0_be_tx_credit_add(&cred, c);
 	return !m0_be_tx_credit_le(&cred,
 				   &tx->t_engine->eng_cfg->bec_tx_size_max);
+}
+
+M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
+				    void (*gc_free)(struct m0_be_tx *tx))
+{
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE, M0_BTS_OPENING,
+					  M0_BTS_ACTIVE)));
+
+	tx->t_gc_enabled = true;
+	tx->t_gc_free	 = gc_free;
 }
 
 #undef BE_TX_LOCKED_AT_STATE

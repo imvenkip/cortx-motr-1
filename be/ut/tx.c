@@ -717,4 +717,124 @@ void m0_be_ut_tx_capturing(void)
 	m0_be_ut_backend_fini(&ut_be);
 }
 
+enum {
+	BE_UT_TX_GC_SEG_SIZE	     = 0x10000,
+	BE_UT_TX_GC_TX_NR	     = 0x100,
+	BE_UT_TX_GC_RAND_DENOMINATOR = 0x5,
+};
+
+struct be_ut_gc_test {
+	struct m0_be_tx *bugc_tx;
+	bool		 bugc_gc_enabled;
+};
+
+static struct be_ut_gc_test be_ut_gc_tests[BE_UT_TX_GC_TX_NR];
+
+static void be_ut_tx_gc_free(struct m0_be_tx *tx)
+{
+	int i;
+	int index = -1;
+
+	for (i = 0; i < BE_UT_TX_GC_TX_NR; ++i) {
+		if (be_ut_gc_tests[i].bugc_tx == tx) {
+			M0_UT_ASSERT(index == -1);
+			index = i;
+		}
+	}
+	M0_UT_ASSERT(be_ut_gc_tests[index].bugc_gc_enabled);
+	M0_UT_ASSERT(be_ut_gc_tests[index].bugc_tx != NULL);
+	m0_free(tx);
+	be_ut_gc_tests[index].bugc_tx = NULL;
+}
+
+static void be_ut_tx_gc_free_tx_failed(struct m0_be_tx *tx)
+{
+	M0_UT_ASSERT(false);
+}
+
+void m0_be_ut_tx_gc(void)
+{
+	struct m0_be_ut_backend  ut_be;
+	struct be_ut_gc_test    *test;
+	struct m0_be_ut_seg      ut_seg;
+	struct m0_be_seg        *seg;
+	struct m0_be_tx         *tx;
+	uint64_t                 seed = 0;
+	long                    *array;
+	bool                     gc_enabled;
+	int                      gc_enabled_nr = 0;
+	int                      i;
+	int                      rc;
+
+	M0_SET0(&ut_be);
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE);
+	seg = ut_seg.bus_seg;
+	array = seg->bs_addr + m0_be_seg_reserved(seg);
+
+	for (i = 0; i < BE_UT_TX_GC_TX_NR; ++i) {
+		M0_ALLOC_PTR(tx);
+		M0_UT_ASSERT(tx != NULL);
+
+		m0_be_ut_tx_init(tx, &ut_be);
+		m0_be_tx_prep(tx, &M0_BE_TX_CREDIT_PTR(&array[i]));
+		rc = m0_be_tx_open_sync(tx);
+		M0_UT_ASSERT(rc == 0);
+		if (m0_rnd64(&seed) % BE_UT_TX_GC_RAND_DENOMINATOR)
+			m0_be_tx_capture(tx, &M0_BE_REG_PTR(seg, &array[i]));
+
+		be_ut_gc_tests[i] = (struct be_ut_gc_test){
+			.bugc_tx	 = tx,
+			.bugc_gc_enabled = false,
+		};
+	}
+	for (i = 0; i < BE_UT_TX_GC_TX_NR; ++i) {
+		gc_enabled = m0_rnd64(&seed) % BE_UT_TX_GC_RAND_DENOMINATOR;
+		be_ut_gc_tests[i].bugc_gc_enabled = gc_enabled;
+		tx = be_ut_gc_tests[i].bugc_tx;
+		if (gc_enabled)
+			m0_be_tx_gc_enable(tx, &be_ut_tx_gc_free);
+		/*
+		 * Wait for last closed transaction.
+		 * All previous transactions will be done after the waiting.
+		 */
+		if (i == BE_UT_TX_GC_TX_NR - 1)
+			m0_be_tx_close_sync(tx);
+		else
+			m0_be_tx_close(tx);
+		if (gc_enabled)
+			++gc_enabled_nr;
+	}
+	/*
+	 * Check that at least one transaction has gc enabled
+	 * and at least one doesn't.
+	 */
+	M0_UT_ASSERT(gc_enabled_nr > 0);
+	M0_UT_ASSERT(gc_enabled_nr < BE_UT_TX_GC_TX_NR);
+	for (i = 0; i < BE_UT_TX_GC_TX_NR; ++i) {
+		test = &be_ut_gc_tests[i];
+		M0_UT_ASSERT(equi(test->bugc_gc_enabled,
+				  test->bugc_tx == NULL));
+		if (test->bugc_tx != NULL) {
+			m0_be_tx_fini(test->bugc_tx);
+			m0_free(test->bugc_tx);
+		}
+	}
+	/*
+	 * Check "m0_be_tx_open() failed with gc enabled" case.
+	 */
+	M0_ALLOC_PTR(tx);
+	M0_UT_ASSERT(tx != NULL);
+	m0_be_ut_tx_init(tx, &ut_be);
+	m0_be_tx_prep(tx, &m0_be_tx_credit_invalid);
+	m0_be_tx_gc_enable(tx, &be_ut_tx_gc_free_tx_failed);
+	rc = m0_be_tx_open_sync(tx);
+	M0_UT_ASSERT(rc != 0);
+	m0_be_tx_fini(tx);
+	m0_free(tx);
+
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
+}
+
 #undef M0_TRACE_SUBSYSTEM

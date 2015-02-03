@@ -368,6 +368,12 @@ struct m0_be_tx {
 	 * m0_be_tx_exclusive_open().
 	 */
 	bool                   t_exclusive;
+	/**
+	 * @see m0_be_tx_gc_enable().
+	 */
+	bool		       t_gc_enabled;
+	void		     (*t_gc_free)(struct m0_be_tx *tx);
+	struct m0_chan	      *t_gc_chan;
 };
 
 /**
@@ -531,6 +537,43 @@ M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx);
 
 M0_INTERNAL bool m0_be_tx_should_break(struct m0_be_tx *tx,
 				       const struct m0_be_tx_credit *c);
+
+/**
+ * Calls @gc_free function after tx reaches M0_BTS_DONE state.
+ * Signals to @gc_chan just before @gc_free call.
+ * Garbage collector may be enabled at any time before m0_be_tx_close().
+ * @note User should handle M0_BTS_FAILED state explicitly.
+ *
+ * Typical use case:
+ * @code
+ * struct m0_be_tx *tx;
+ *
+ * M0_ALLOC_PTR(tx);
+ * if (tx == NULL)
+ *	...;
+ * m0_be_tx_init(tx, <...>);
+ * m0_be_tx_gc_enable(tx, NULL);
+ * < prepare credits >
+ * m0_be_tx_open(tx);
+ * < wait until tx reaches M0_BTS_ACTIVE or M0_BTS_FAILED state >;
+ * if (m0_be_tx_state(tx) == M0_BTS_FAILED) {
+ *	m0_be_tx_fini(tx);
+ *	m0_free(tx);
+ * } else {
+ *	< capture >;
+ *	m0_be_tx_close(tx);
+ * }
+ * < tx pointer should be considered invalid after this point >
+ * // m0_free() will be automatically called when tx reaches M0_BTS_DONE state.
+ * @endcode
+ *
+ * @note m0_be_tx_timedwait() can't be used on transaction with gc enabled after
+ * transaction reaches M0_BTS_ACTIVE state.
+ * @note @gc_free can be NULL. m0_free() is called in this case to free tx.
+ */
+M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
+				    void (*gc_free)(struct m0_be_tx *));
+
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */
 
