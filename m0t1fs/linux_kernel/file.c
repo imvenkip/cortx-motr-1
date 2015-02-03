@@ -2798,24 +2798,24 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 	uint64_t		  grpstart;
 	uint64_t		  grpend;
 	uint64_t		 *grparray;
+	uint64_t		  grparray_sz;
 	struct m0_pdclust_layout *play;
 	struct m0_ivec_cursor	  cursor;
 
-	M0_ENTRY("io_request %p", req);
+	M0_ENTRY("io_request=%p", req);
 	M0_PRE(req != NULL);
 
 	play = pdlayout_get(req);
 
-	M0_ALLOC_ARR_ADDB(grparray,
-	       max64u(m0_vec_count(&req->ir_ivec.iv_vec) / data_size(play) + 1,
-	              SEG_NR(&req->ir_ivec)),
-	                  &m0_addb_gmc,
-	                  M0T1FS_ADDB_LOC_IOMAPS_PREP_GRPARR,
-	                  &m0t1fs_addb_ctx);
+	/* Array of maximum possible number of groups spanned by req. */
+	grparray_sz = m0_vec_count(&req->ir_ivec.iv_vec) / data_size(play) +
+		      2 * SEG_NR(&req->ir_ivec);
+	M0_LOG(M0_DEBUG, "req=%p arr_sz=%llu", req, grparray_sz);
+	M0_ALLOC_ARR_ADDB(grparray, grparray_sz, &m0_addb_gmc,
+			  M0T1FS_ADDB_LOC_IOMAPS_PREP_GRPARR, &m0t1fs_addb_ctx);
 	if (grparray == NULL)
 		return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory"
 			       " for int array");
-
 	/*
 	 * Finds out total number of parity groups spanned by
 	 * io_request::ir_ivec.
@@ -2842,8 +2842,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 	}
 	m0_free(grparray);
 
-	M0_LOG(M0_DEBUG, "Number of pargrp_iomap structures : %llu",
-	       req->ir_iomap_nr);
+	M0_LOG(M0_DEBUG, "req=%p spanned_groups=%llu", req, req->ir_iomap_nr);
 
 	/* req->ir_iomaps is zeroed out on allocation. */
 	M0_ALLOC_ARR_ADDB(req->ir_iomaps, req->ir_iomap_nr, &m0_addb_gmc,
