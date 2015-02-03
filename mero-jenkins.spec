@@ -76,7 +76,7 @@ BuildRequires:  systemd-devel
 %endif
 
 Requires:       kernel = %{kernel_ver_requires}
-Requires:       lustre-modules
+Requires:       lustre-client-modules
 Requires:       libyaml
 Requires:       genders
 Requires:       sysvinit-tools
