@@ -3715,13 +3715,10 @@ fail:
 
 static void device_state_reset(struct nw_xfer_request *xfer, bool rmw)
 {
-	struct io_request   *req;
 	struct target_ioreq *ti;
 
 	M0_PRE(xfer != NULL);
 	M0_PRE(xfer->nxr_state == NXS_COMPLETE);
-
-	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
 
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		ti->ti_state = M0_PNDS_ONLINE;
