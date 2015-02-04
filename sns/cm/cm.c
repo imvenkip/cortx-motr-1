@@ -764,7 +764,7 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 	while (rem_bufs > 0) {
 		buf = m0_cm_buffer_get(bp, colour);
 		if (buf == NULL)
-			return M0_ERR(-ENOBUFS);
+			return -ENOBUFS;
 		m0_cm_cp_buf_add(cp, buf);
 		if (cp->c_data_seg_nr > (cp->c_buf_nr * bp->nbp_seg_nr))
 			seg_nr = bp->nbp_seg_nr;

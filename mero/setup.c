@@ -620,7 +620,7 @@ static int stob_file_id_get(yaml_document_t *doc, yaml_node_t *node,
 		}
 	}
 
-	return M0_ERR(-ENOENT);
+	return -ENOENT;
 }
 
 static const char *stob_file_path_get(yaml_document_t *doc, yaml_node_t *node)
