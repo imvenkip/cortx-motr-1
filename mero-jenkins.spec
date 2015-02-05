@@ -71,6 +71,7 @@ BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
+BuildRequires:  redhat-lsb-core
 
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       lustre-client-modules
