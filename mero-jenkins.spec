@@ -29,7 +29,6 @@
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.x86_64$//' )
 
 %bcond_with ut
-%bcond_with systemd
 
 %if %{with ut}
 %define  configure_opts  --enable-dev-mode --disable-altogether-mode
@@ -70,10 +69,8 @@ BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  lustre-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
-%if %{with systemd}
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
-%endif
 
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       lustre-client-modules
@@ -157,9 +154,7 @@ fi
 %{_sbindir}/*
 %{_libdir}/*
 %{_libexecdir}/mero/*
-%if %{with systemd}
 %{_exec_prefix}/lib/*
-%endif
 %{_mandir}/*
 %{_localstatedir}/mero
 /lib/modules/*/kernel/fs/mero/*
@@ -181,22 +176,9 @@ fi
 %files devel -f devel.files
 %endif
 
-%pre
-%if !%{with systemd}
-if initctl list | grep -q 'mero' ; then
-    status mero-client | grep -q 'start/running' && stop mero-client
-    status mero        | grep -q 'start/running' && stop mero
-    status mero-kernel | grep -q 'start/running' && stop mero-kernel
-fi || true
-%endif
-
 %post
 /sbin/depmod -a
-%if %{with systemd}
 systemctl daemon-reload
-%else
-/sbin/initctl reload-configuration
-%endif
 /bin/sed -i -e "s/<host>/$(hostname -s)/" /etc/mero/genders
 /bin/sed -i -e "s/00000000-0000-0000-0000-000000000000/$(uuidgen)/" /etc/mero/genders
 
@@ -207,22 +189,9 @@ if [ $? -eq 0 ] && [ $disk_cnt -ne 0 ] ; then
     /bin/sed -i -r -e "s/m0_pool_width=[[:digit:]]+/m0_pool_width=$disk_cnt/" /etc/mero/genders
 fi
 
-%preun
-%if !%{with systemd}
-if initctl list | grep -q 'mero' ; then
-    status mero-client | grep -q 'start/running' && stop mero-client
-    status mero        | grep -q 'start/running' && stop mero
-    status mero-kernel | grep -q 'start/running' && stop mero-kernel
-fi || true
-%endif
-
 %postun
 /sbin/depmod -a
-%if %{with systemd}
 systemctl daemon-reload
-%else
-/sbin/initctl reload-configuration
-%endif
 
 %if %{with ut}
 
