@@ -167,8 +167,8 @@ do_m0t1fs_system_test()
     debug "do_m0t1fs_system_test: stop dd"
     kill $dd_pid
 
-    debug "do_m0t1fs_system_test: sleep 20 sec"
-    sleep 20 # FIXME: w/a for 'umount: /mnt/m0t1fs: device is busy'
+    debug "do_m0t1fs_system_test: sleep 30 sec"
+    sleep 30 # FIXME: w/a for 'umount: /mnt/m0t1fs: device is busy'
 
     debug "do_m0t1fs_system_test: syncing data"
     sync
@@ -207,6 +207,6 @@ if [[ -n $rpm_pkg ]] ; then
     # this ugly 'sleep sync' required to workaround situation when mero-kernel
     # doesn't have enough time to unload modules, due to buggy upstart
     # behaviour, before rpm will remove them
-    sleep 10
+    sleep 20
     remove_mero_rpm $rpm_pkg
 fi
