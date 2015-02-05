@@ -710,15 +710,13 @@ EXTRA_DIST    += $(etc_mero_DATA)
 #                             Auxiliary data files
 ################################################################################
 
-libexec_merodir    = $(libexecdir)/mero
-libexec_mero_DATA  = scripts/install/usr/libexec/mero/mero-service.functions \
-                     scripts/install/usr/libexec/mero/mero \
-                     scripts/install/usr/libexec/mero/mero-client \
-                     scripts/install/usr/libexec/mero/mero-kernel \
-                     scripts/install/usr/libexec/mero/mero-mkfs \
-                     scripts/install/usr/libexec/mero/mero-server \
-                     scripts/install/usr/libexec/mero/mero-trace
-EXTRA_DIST        += $(libexec_mero_DATA)
+dist_pkglibexec_SCRIPTS  = scripts/install/usr/libexec/mero/mero-service.functions \
+                           scripts/install/usr/libexec/mero/mero \
+                           scripts/install/usr/libexec/mero/mero-client \
+                           scripts/install/usr/libexec/mero/mero-kernel \
+                           scripts/install/usr/libexec/mero/mero-mkfs \
+                           scripts/install/usr/libexec/mero/mero-server \
+                           scripts/install/usr/libexec/mero/mero-trace
 
 
 ################################################################################
