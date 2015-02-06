@@ -20,7 +20,9 @@ start()
 
     [ ! -d "$mountpoint" ] && mkdir -p "$mountpoint"
 
+    set -x
     mount -t m0t1fs -o profile="$m0_prof_opt",confd=$confd_ep,oostore m0t1 $mountpoint
+    set +x
 }
 
 stop()
