@@ -46,7 +46,13 @@ M0_INTERNAL void m0_semaphore_fini(struct m0_semaphore *semaphore)
 
 M0_INTERNAL void m0_semaphore_down(struct m0_semaphore *semaphore)
 {
-	while (down_interruptible(&semaphore->s_sem) != 0);
+	int flag_was_set = 0;
+
+	while (down_interruptible(&semaphore->s_sem) != 0)
+		flag_was_set |= test_and_clear_thread_flag(TIF_SIGPENDING);
+
+	if (flag_was_set)
+		set_thread_flag(TIF_SIGPENDING);
 }
 
 M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore)
