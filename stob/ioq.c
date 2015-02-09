@@ -586,7 +586,8 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 		ioq_timeout = ioq_timeout_default;
 		got = raw_io_getevents(ioq->ioq_ctx, 1, ARRAY_SIZE(evout),
 				       evout, &ioq_timeout);
-		M0_LOG(M0_DEBUG, "got=%d", got);
+		/* commented out because it floods trace logs */
+		/*M0_LOG(M0_DEBUG, "got=%d", got);*/
 		if (got > 0) {
 			avail = m0_atomic64_add_return(&ioq->ioq_avail, got);
 			M0_ASSERT(avail <= M0_STOB_IOQ_RING_SIZE);
