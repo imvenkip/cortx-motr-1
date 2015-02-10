@@ -4438,6 +4438,13 @@ static void m0t1fs_addb_stat_post_counters(struct m0t1fs_sb *csb)
 #undef CNTR_POST
 }
 
+static void ioreq_failed_fini(struct io_request *req, int rc)
+{
+	ioreq_sm_failed(req, rc);
+	ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
+	io_request_fini(req);
+}
+
 /*
  * This function can be used by the ioctl which supports fully vectored
  * scatter-gather IO. The caller is supposed to provide an index vector
@@ -4481,7 +4488,7 @@ again:
 
 	rc = req->ir_ops->iro_iomaps_prepare(req);
 	if (rc != 0) {
-		io_request_fini(req);
+		ioreq_failed_fini(req, rc);
 		count = 0;
 		goto last;
 	}
@@ -4490,7 +4497,7 @@ again:
 	if (rc != 0) {
 		req->ir_ops->iro_iomaps_destroy(req);
 		req->ir_nwxfer.nxr_state = NXS_COMPLETE;
-		io_request_fini(req);
+		ioreq_failed_fini(req, rc);
 		count = 0;
 		goto last;
 	}

@@ -182,7 +182,7 @@ io_combinations()
 {
 	# This test runs for various stripe unit size values
 
-	echo "Storage conf: pool_width=$1, data_units=$2, parity_units=$3"
+	echo "Test: io_combinations: (N,P,K) = ($2,$1,$3)..."
 
 	pool_width=$1
 	data_units=$2
@@ -422,6 +422,7 @@ multi_client_test()
 
 rmw_test()
 {
+	echo "Test: RMW..."
 	for unit_size in 4 8 16 32
 	do
 		for io in 1 2 3 4 5 15 16 17 32
@@ -452,6 +453,8 @@ rmw_test()
 obf_test()
 {
 	local rc=0
+
+	echo "Test: obf..."
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || {
 		return 1
 	}
@@ -528,6 +531,7 @@ m0t1fs_basic()
 	local fsname1="123456"
 	local fsname2="890"
 	local fsname3="xyz0"
+	echo "Test: basic..."
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH || rc=1
 	df
 	m0t1fs_crud $fsname1 $fsname2 $fsname3 || rc=1
@@ -549,6 +553,8 @@ m0t1fs_large_dir()
 	local mode=$1
 	local fsname_prex=$2
 	local count=512
+
+	echo "Test: larde_dir: mode=$1 fsname_prefix=$2..."
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$mode" || rc=1
 	df
 	for i in `seq 1 $count`; do
@@ -583,6 +589,8 @@ m0t1fs_oostore_mode()
 	local fsname1="0:100125"
 	local fsname2="0:600456"
 	local fsname3="0:a0089b"
+
+	echo "Test: oostore_mode..."
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || rc=1
 	df
 	m0t1fs_crud $fsname1 $fsname2 $fsname3 || rc=1
@@ -602,6 +610,8 @@ m0t1fs_oostore_mode_basic()
 	local fsname2="0:100321"
 
 	local SOURCE_TXT=/tmp/source.txt
+
+	echo "Test: oostore_mode_basic..."
 
 	for i in {a..z} {A..Z} ; do
 		for c in `seq 1 4095`;
@@ -629,6 +639,7 @@ m0t1fs_oostore_mode_basic()
 
 	stat $MERO_M0T1FS_MOUNT_DIR/$fsname1                || rc=1
 	stat $MERO_M0T1FS_MOUNT_DIR/$fsname2                || rc=1
+
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname1               || rc=1
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname2               || rc=1
 
@@ -651,6 +662,11 @@ m0t1fs_system_tests()
 
 	m0t1fs_oostore_mode_basic || {
 		echo "Failed: m0t1fs oostore mode basic test failed."
+		return 1
+	}
+
+	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
+		echo "Failed: IO failed.."
 		return 1
 	}
 
