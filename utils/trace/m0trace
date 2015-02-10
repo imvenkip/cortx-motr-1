@@ -211,6 +211,7 @@ my %cli_option = (
     format      => 'short',
     level       => 'call+',
     subsys      => 'all',
+    relpath     => 1,
     func        => undef, # all funcs
 );
 #my %default_option = %cli_option;
@@ -448,7 +449,7 @@ sub expand_format_placeholder
             return "$tr->{func}";
         }
         when ('%F') {
-            return "$tr->{file}";
+            return file_of($tr);
         }
         when ('%L') {
             return "$tr->{line}";
@@ -459,6 +460,15 @@ sub expand_format_placeholder
     };
 
     return;
+}
+
+sub file_of
+{
+    my $trace_record = shift;
+
+    my ($relpath) = $trace_record->{file} =~ m#^.*/?mero(?:-\d\.\d\.\d)?/(.*)#xms;
+    $relpath = defined $relpath ? $relpath : $trace_record->{file};
+    return $cli_option{relpath} ? $relpath : $trace_record->{file};
 }
 
 sub print_trace_record
@@ -473,7 +483,7 @@ sub print_trace_record
         when ('short') {
             $buf = color( level_color($tr) )
                    . sprintf('%6s  ', $tr->{level})
-                   . "[$tr->{file}:$tr->{line}:$tr->{func}]  "
+                   . "[" . file_of($tr) . ":$tr->{line}:$tr->{func}]  "
                    . "$tr->{msg}"
                    . color('reset')
                    . "\n";
@@ -500,7 +510,7 @@ sub print_trace_record
                    . sprintf('%-6s  ', $tr->{pid})
                    . "$tr->{stack_addr}  "
                    . "$tr->{func}  "
-                   . "$tr->{file}:$tr->{line}"
+                   . file_of($tr) . ":$tr->{line}"
                    . color('reset')
                    . "\n"
                    . color( level_color($tr) )
@@ -656,6 +666,7 @@ sub process_cli_options
         'D'              =>  \$cli_option{log_dir},
         'H|header'       =>  \$cli_option{dump_header},
         'f|follow'       =>  sub { $cli_option{follow} = $cli_option{stream_mode} = 1 },
+        'r|relpath!'     =>  \$cli_option{relpath},
         'F|format=s'     =>  \$cli_option{format},
         'l|level=s'      =>  \$cli_option{level},
         'S|subsys=s'     =>  \$cli_option{subsys},
@@ -698,8 +709,8 @@ sub main
         my $file_pattern;
 
         given ($ARGV[0]) {
-            when ('kernel')        { $file_pattern = "trace-m0mero~*.bin" }
-            when (/confd|mds|ios/) { $file_pattern = "trace-m0d-$ARGV[0]-*.bin" }
+            when ('kernel')                   { $file_pattern = "trace-m0mero~*.bin" }
+            when (/confd|mds|ios|singlenode/) { $file_pattern = "trace-m0d-$ARGV[0]-*.bin" }
             default {
                 die "Unknown type of requested trace log: '$ARGV[0]',"
                     . " supported values are 'kernel', 'confd', 'mds', 'ios*'";
