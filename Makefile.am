@@ -1046,16 +1046,41 @@ RPM_SRC_DIR=~/rpmbuild/SOURCES
 # will fail with "Bad owner/group" message. Since vmhgfs does not permit
 # changing owner/group of a file, we use a workaround (moving file out of
 # vmhgfs where we can change it's owner to an existing VM OS' user).
-.PHONY: rpms
-rpms:
+.PHONY: __rpm_pre
+__rpm_pre:
 	$(MAKE) generate-files
 	$(MAKE) dist
 	[ -d $(RPM_SRC_DIR) ] || $(MKDIR_P) $(RPM_SRC_DIR)
 	mv $(DIST_FILE) $(RPM_SRC_DIR)
 	chown $$(id -u):$$(id -g) $(RPM_SRC_DIR)/$(DIST_FILE)
-	rpmbuild -bb mero.spec --with ut
-	rpmbuild -bb mero.spec $(RPMBUILD_FLAGS)
+
+.PHONY: __rpm_post
+__rpm_post:
 	rm -f $(RPM_SRC_DIR)/$(DIST_FILE)
+
+.PHONY: __rpm
+__rpm:
+	rpmbuild -bb mero.spec $(RPMBUILD_FLAGS)
+
+.PHONY: __rpm_tests
+__rpm_tests:
+	rpmbuild -bb mero.spec --with ut
+
+# __rpm_tests should be built before __rpm, because __rpm_tests creates a dummy
+# mero.rpm package, which would otherwise overwrite normal mero.rpm, created by
+# __rpm
+.PHONY: rpms
+rpms:
+	$(MAKE) __rpm_pre
+	$(MAKE) __rpm_tests
+	$(MAKE) __rpm
+	$(MAKE) __rpm_post
+
+.PHONY: rpms-notests
+rpms-notests:
+	$(MAKE) __rpm_pre
+	$(MAKE) __rpm
+	$(MAKE) __rpm_post
 
 #
 # Documentation
