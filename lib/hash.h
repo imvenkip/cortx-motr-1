@@ -313,7 +313,7 @@ scope int name ## _htable_init(struct m0_htable *htable,		\
 scope void name ## _htable_add(struct m0_htable *htable, amb_type *amb);\
 scope void name ## _htable_del(struct m0_htable *htable, amb_type *amb);\
 scope amb_type *name ## _htable_lookup(const struct m0_htable *htable,	\
-				       key_type               *key);	\
+				       const key_type         *key);	\
 scope void name ## _htable_fini(struct m0_htable *htable);		\
 scope bool name ## _htable_is_empty(const struct m0_htable *htable);	\
 scope uint64_t name ## _htable_size(const struct m0_htable *htable);
@@ -345,7 +345,7 @@ scope __AUN void name ## _htable_del(struct m0_htable *htable,		\
 }									\
 									\
 scope __AUN amb_type *name ## _htable_lookup(const struct m0_htable *htable,\
-					     key_type               *key)\
+					     const key_type         *key)\
 {									\
 	return m0_htable_lookup(htable, key);				\
 }									\

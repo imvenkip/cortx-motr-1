@@ -116,7 +116,7 @@ M0_INTERNAL size_t m0_bitmap_ffz(const struct m0_bitmap *map)
 		if (!m0_bitmap_get(map, idx))
 			return idx;
 	}
-	return -1;
+	return (size_t)-1;
 }
 M0_EXPORTED(m0_bitmap_ffz);
 

@@ -1284,6 +1284,16 @@ struct io_request_ops {
 	int (*iro_parity_recalc)  (struct io_request  *req);
 
 	/**
+	 * Verifies parity for all pargrp_iomap structures in
+	 * given io_request in 'parity verify' mode and for READ request.
+	 * Basically, invokes parity_verify() routine for every
+	 * pargrp_iomap in io_request::ir_iomaps.
+	 * @pre  io_request_invariant(req) && req->ir_type == IRT_READ.
+	 * @post io_request_invariant(req).
+	 */
+	int (*iro_parity_verify)  (struct io_request  *req);
+
+	/**
 	 * Handles the state transition, status of request and the
 	 * intermediate copy_{from/to}_user.
 	 * @pre io_request_invariant(req).
@@ -1610,6 +1620,14 @@ struct pargrp_iomap_ops {
 	int (*pi_parity_recalc)   (struct pargrp_iomap *map);
 
 	/**
+	 * verify parity for given pargrp_iomap for read operation and
+	 * in 'parity verify' mode, after data and parity units are all
+	 * already read from ioserive.
+	 * @pre map != NULL
+	 */
+	int (*pi_parity_verify)   (struct pargrp_iomap *map);
+
+	/**
 	 * Allocates data_buf structures for pargrp_iomap::pi_paritybufs
 	 * and populate db_flags accordingly.
 	 * @pre   map->pi_paritybufs == NULL.
@@ -1776,16 +1794,6 @@ struct target_ioreq {
 	enum m0_pool_nd_state          ti_state;
 };
 
-/** Operations vector for struct io_req_fop. */
-struct io_req_fop_ops {
-	/**
-	 * Degraded mode read support for IO request fop.
-	 * Invokes degraded mode read support routines for upper
-	 * data structures like pargrp_iomap.
-	 */
-	int (*irfo_dgmode_read) (struct io_req_fop *irfop);
-};
-
 /**
  * Represents a wrapper over generic IO fop and its callback
  * to keep track of such IO fops issued by the same target_ioreq structure.
@@ -1820,9 +1828,6 @@ struct io_req_fop {
 	 * are updated.
 	 */
 	struct target_ioreq         *irf_tioreq;
-
-	/** Operations vector. */
-	const struct io_req_fop_ops *irf_ops;
 };
 
 M0_INTERNAL struct inode *m0t1fs_file_to_inode(const struct file *file);
@@ -1833,6 +1838,6 @@ m0t1fs_file_to_m0inode(const struct file *file);
 M0_INTERNAL struct m0t1fs_inode *
 m0t1fs_inode_to_m0inode(const struct inode *inode);
 
-M0_INTERNAL struct m0t1fs_sb *m0inode_to_sb(struct m0t1fs_inode *m0inode);
+M0_INTERNAL struct m0t1fs_sb *m0inode_to_sb(const struct m0t1fs_inode *m0inode);
 
 #endif /* __MERO_M0T1FS_FILE_INTERNAL_H__ */

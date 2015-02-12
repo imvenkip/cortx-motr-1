@@ -115,8 +115,9 @@ bulkio_test()
 	local m0t1fs_file=$m0t1fs_mount_dir/file.data
 	local unit_size=$1
 	local io_counts=$2
+	local mountopt=$3
 
-	mount_m0t1fs $m0t1fs_mount_dir $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
+	mount_m0t1fs $m0t1fs_mount_dir $NR_DATA $NR_PARITY $POOL_WIDTH $mountopt || return 1
 
 	echo "Creating local input file of I/O size ..."
 	run "dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts"
@@ -209,7 +210,7 @@ io_combinations()
 		io_size=${io_size}K
 		echo -n "Test: I/O for stripe = ${stripe_size}K," \
 		     "bs = $io_size, count = 1... "
-		bulkio_test $unit_size 1 &>> $MERO_TEST_LOGFILE
+		bulkio_test $unit_size 1 "" &>> $MERO_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
@@ -219,7 +220,7 @@ io_combinations()
 		# Multiple I/Os
 		echo -n "Test: I/O for stripe = ${stripe_size}K," \
 		     "bs = $io_size, count = 2... "
-		bulkio_test $unit_size 2 &>> $MERO_TEST_LOGFILE
+		bulkio_test $unit_size 2 "" &>> $MERO_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
@@ -295,7 +296,7 @@ file_creation_test()
 	local nr_files=$1
 	local SOURCE_TXT=/tmp/source.txt
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "verify" || {
 		return 1
 	}
 	for i in {a..z} {A..Z} ; do
@@ -316,6 +317,15 @@ file_creation_test()
 #			read;
 			break;
 		}
+		#arbitrary file size. "1021" is a prime close to 1024.
+		touch $MERO_M0T1FS_MOUNT_DIR/file_b$i || break
+		dd if=$SOURCE_TXT of=/tmp/src bs=1021 count=`expr $i + 1` >/dev/null 2>&1 || break
+		cp -v /tmp/src $MERO_M0T1FS_MOUNT_DIR/file_b$i      || break
+		cp -v $MERO_M0T1FS_MOUNT_DIR/file_b$i /tmp/dest     || break
+		diff -C 0 /tmp/src /tmp/dest || {
+			echo "file content differ at $i file. "
+			break;
+		}
 	done
 	unmount_and_clean
 	echo -n "Test: file creation: "
@@ -332,6 +342,7 @@ file_creation_test()
 	echo "Test: removing $nr_files files on m0t1fs..."
 	for ((i=0; i<$nr_files; ++i)); do
 		rm -vf $MERO_M0T1FS_MOUNT_DIR/file$i || break
+		rm -vf $MERO_M0T1FS_MOUNT_DIR/file_b$i || break
 	done
 
 	unmount_and_clean
@@ -422,7 +433,9 @@ multi_client_test()
 
 rmw_test()
 {
-	echo "Test: RMW..."
+	local mountopt=$1
+
+	echo "Test: RMW (with mountopt=\"${mountopt}\") ..."
 	for unit_size in 4 8 16 32
 	do
 		for io in 1 2 3 4 5 15 16 17 32
@@ -430,13 +443,13 @@ rmw_test()
 			io_size=${io}K
 			echo -n "IORMW Test: I/O for unit ="\
 			     "${unit_size}K, bs = $io_size, count = 1... "
-			bulkio_test $unit_size 1 &>> $MERO_TEST_LOGFILE || return 1
+			bulkio_test $unit_size 1 $mountopt &>> $MERO_TEST_LOGFILE || return 1
 			show_write_speed
 
 			# Multiple I/O
 			echo -n "IORMW Test: I/O for unit ="\
 			   "${unit_size}K, bs = $io_size, count = 2... "
-			bulkio_test $unit_size 2 &>> $MERO_TEST_LOGFILE || return 1
+			bulkio_test $unit_size 2 $mountopt &>> $MERO_TEST_LOGFILE || return 1
 			show_write_speed
 		done
 	done
@@ -682,12 +695,12 @@ m0t1fs_system_tests()
 		return 1
 	}
 
-	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
-		echo "Failed: IO failed.."
+	rmw_test "" || {
+		echo "Failed: IO-RMW failed.."
 		return 1
 	}
 
-	rmw_test || {
+	rmw_test "verify" || {
 		echo "Failed: IO-RMW failed.."
 		return 1
 	}

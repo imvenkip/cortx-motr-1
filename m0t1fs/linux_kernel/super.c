@@ -225,6 +225,7 @@ enum m0t1fs_mntopts {
 	M0T1FS_MNTOPT_LOCAL_CONF,
 	M0T1FS_MNTOPT_FID_START,
 	M0T1FS_MNTOPT_OOSTORE,
+	M0T1FS_MNTOPT_VERIFY,
 	M0T1FS_MNTOPT_ERR
 };
 
@@ -234,6 +235,7 @@ static const match_table_t m0t1fs_mntopt_tokens = {
 	{ M0T1FS_MNTOPT_LOCAL_CONF, "local_conf=%s" },
 	{ M0T1FS_MNTOPT_FID_START,  "fid_start=%s"  },
 	{ M0T1FS_MNTOPT_OOSTORE,    "oostore"       },
+	{ M0T1FS_MNTOPT_VERIFY,     "verify"        },
 	/* match_token() requires 2nd field of the last element to be NULL */
 	{ M0T1FS_MNTOPT_ERR, NULL }
 };
@@ -415,6 +417,10 @@ static int mount_opts_parse(struct m0t1fs_sb *csb, char *options,
 			csb->csb_oostore = true;
 			M0_LOG(M0_DEBUG, "OOSTORE mode!!");
 			break;
+		case M0T1FS_MNTOPT_VERIFY:
+			csb->csb_verify = true;
+			M0_LOG(M0_DEBUG, "Parity verify mode!!");
+			break;
 		default:
 			return M0_ERR_INFO(-EINVAL, "Unsupported option: %s", op);
 		}
@@ -507,7 +513,8 @@ M0_INTERNAL void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 	}
 #undef CNTR_INIT
 
-	csb->csb_oostore  = false;
+	csb->csb_oostore = false;
+	csb->csb_verify  = false;
 	M0_LEAVE();
 }
 
@@ -642,7 +649,7 @@ int m0t1fs_net_init(struct m0t1fs_sb *csb)
 	csb->csb_xprt  = &m0_net_lnet_xprt;;
 	m0_mutex_lock(&m0t1fs_mutex);
 	csb->csb_tmid = m0_bitmap_ffz(&m0t1fs_client_ep_tmid);
-	if (csb->csb_tmid < 0) {
+	if (csb->csb_tmid == ((size_t)-1)) {
 		m0_mutex_unlock(&m0t1fs_mutex);
 		m0_free(laddr);
 		return M0_RC(-EMFILE);

@@ -44,6 +44,8 @@
 #include "m0t1fs/linux_kernel/file_internal.h" /* io_request */
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
+#include "lib/trace.h"
 /* fsync_test declared in m0t1fs/linux_kernel/ut/fsync.c */
 void fsync_test(void);
 
@@ -189,7 +191,6 @@ static int file_io_ut_init(void)
 	struct m0_pool_version    *pver;
 	struct m0_layout          *lay;
         int		           rc;
-	uint64_t	           random;
 
         M0_SET0(&sb);
 	M0_SET0(&creditor);
@@ -251,7 +252,6 @@ static int file_io_ut_init(void)
 			          &llenum);
         M0_ASSERT(rc == 0);
 
-	random = m0_time_nanoseconds(m0_time_now());
         pdattr = (struct m0_pdclust_attr) {
                 .pa_N         = pver->pv_attr.pa_N,
                 .pa_K         = pver->pv_attr.pa_K,
@@ -448,7 +448,7 @@ static void ds_test(void)
 	M0_UT_ASSERT(irfop->irf_magic == M0_T1FS_IOFOP_MAGIC);
 	M0_UT_ASSERT(irfop->irf_tioreq == &ti);
 	M0_UT_ASSERT(irfop->irf_ast.sa_cb == io_bottom_half);
-	M0_UT_ASSERT(irfop->irf_iofop.if_fop.f_item.ri_ops == &m0t1fs_item_ops);
+	M0_UT_ASSERT(irfop->irf_iofop.if_fop.f_item.ri_ops == &io_item_ops);
 	M0_UT_ASSERT(irfop->irf_ast.sa_mach == &req.ir_sm);
 
 	/* data_buf attributes test. */
@@ -664,6 +664,7 @@ static void pargrp_iomap_test(void)
 	m0_ivec_cursor_init(&cur, &req.ir_ivec);
 	map.pi_ops = &piops;
 	rc = pargrp_iomap_populate(&map, &req.ir_ivec, &cur);
+	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(map.pi_databufs != NULL);
 	M0_UT_ASSERT(m0_vec_count(&map.pi_ivec.iv_vec) > 0);
 	M0_UT_ASSERT(map.pi_grpid == 0);
@@ -841,7 +842,6 @@ static void target_ioreq_test(void)
 	uint32_t                    row;
 	uint32_t                    col;
 	struct data_buf            *buf;
-	struct m0_pdclust_layout   *play;
 	struct m0_pdclust_instance *play_instance;
 	struct m0_pdclust_src_addr  src;
 	struct m0_pdclust_tgt_addr  tgt;
@@ -862,7 +862,6 @@ static void target_ioreq_test(void)
 
 	src.sa_group = 0;
 	src.sa_unit  = 0;
-	play = pdlayout_get(&req);
 	play_instance = pdlayout_instance(layout_instance(&req));
 	m0_pdclust_instance_map(play_instance, &src, &tgt);
 	cfid = target_fid(&req, &tgt);
@@ -1179,6 +1178,7 @@ static void dgmode_readio_test(void)
 
 	ti->ti_dgvec = NULL;
 	rc = dgmode_rwvec_alloc_init(ti);
+	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ti->ti_dgvec->dr_tioreq == ti);
 	M0_UT_ASSERT(ti->ti_dgvec->dr_ivec.iv_index != NULL);
 	M0_UT_ASSERT(ti->ti_dgvec->dr_ivec.iv_vec.v_count != NULL);
@@ -1221,3 +1221,4 @@ struct m0_ut_suite file_io_ut = {
         },
 };
 M0_EXPORTED(file_io_ut);
+#undef M0_TRACE_SUBSYSTEM

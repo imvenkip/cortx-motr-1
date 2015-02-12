@@ -654,6 +654,8 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 
 	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
+	M0_LEAVE();
+
 	return d_splice_alias(inode, dentry);
 }
 
@@ -2172,6 +2174,7 @@ M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo)
 	struct m0t1fs_inode *ci = M0T1FS_I(inode);
 	struct m0t1fs_sb    *csb = M0T1FS_SB(inode->i_sb);
 	int                  rc;
+	M0_ENTRY();
 
 	m0t1fs_fs_lock(csb);
 	/* Updating size to ios. */

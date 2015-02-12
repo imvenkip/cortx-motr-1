@@ -774,6 +774,8 @@ struct m0t1fs_sb {
 
 	/** oostore mode */
 	bool                                    csb_oostore;
+	/** verify mode: verify parity on read */
+	bool                                    csb_verify;
 
 	/**
 	 * list of pending transactions, by service,

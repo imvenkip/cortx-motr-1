@@ -2036,10 +2036,14 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	struct m0_net_buffer	  *nb;
 	struct m0_net_transfer_mc *tm;
 	struct m0_addb_io_stats   *stats;
-        struct m0_stob_io_desc    *stio_desc;
+	struct m0_stob_io_desc    *stio_desc;
+	struct m0_fop_cob_rw      *rw;
+
 
 	M0_PRE(fom != NULL);
+	M0_PRE(fom->fo_fop != NULL);
 
+	rw = io_rw_get(fom->fo_fop);
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
         M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 	serv_obj = container_of(fom->fo_service, struct m0_reqh_io_service,
@@ -2047,8 +2051,9 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
 	fop = fom->fo_fop;
-	M0_LOG(M0_DEBUG, "FOM finished : operation=%s, nbytes=%lx.",
-	       m0_is_read_fop(fop) ? "READ" : "WRITE", fom_obj->fcrw_count);
+	M0_LOG(M0_DEBUG, "FOM fini: op=%s@"FID_F", nbytes=%lu",
+	       m0_is_read_fop(fop) ? "READ" : "WRITE", FID_P(&rw->crw_fid),
+	       (unsigned long)(fom_obj->fcrw_count << fom_obj->fcrw_bshift));
 
 	tm     = io_fop_tm_get(fop);
 	colour = m0_net_tm_colour_get(tm);

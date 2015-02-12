@@ -389,6 +389,14 @@ static const struct m0_bob_type tioreq_bobtype = {
 
 #define SEG_NR(vec)    ((vec)->iv_vec.v_nr)
 
+#define indexvec_dump(ivec)                                                    \
+do {                                                                           \
+	int seg;                                                               \
+	for (seg = 0; seg < SEG_NR((ivec)); ++seg) {                           \
+		M0_LOG(M0_DEBUG, "seg# %d: [pos, +len) = [%llu, +%llu)",       \
+				 seg, INDEX((ivec), seg), COUNT((ivec), seg)); \
+	}                                                                      \
+} while (0)
 
 static inline m0_bcount_t seg_endpos(const struct m0_indexvec *ivec, uint32_t i)
 {
@@ -417,22 +425,22 @@ static inline struct inode *iomap_to_inode(const struct pargrp_iomap *map)
 	return map->pi_ioreq->ir_file->f_dentry->d_inode;
 }
 
-M0_INTERNAL struct m0t1fs_sb *m0inode_to_sb(struct m0t1fs_inode *m0inode)
+M0_INTERNAL struct m0t1fs_sb *m0inode_to_sb(const struct m0t1fs_inode *m0inode)
 {
 	return M0T1FS_SB(m0inode->ci_inode.i_sb);
 }
 
-static inline const struct m0_fid *file_to_fid(struct file *file)
+static inline const struct m0_fid *file_to_fid(const struct file *file)
 {
 	return m0t1fs_inode_fid(m0t1fs_file_to_m0inode(file));
 }
 
-static inline struct m0t1fs_sb *file_to_sb(struct file *file)
+static inline struct m0t1fs_sb *file_to_sb(const struct file *file)
 {
 	return M0T1FS_SB(m0t1fs_file_to_inode(file)->i_sb);
 }
 
-static inline struct m0_sm_group *file_to_smgroup(struct file *file)
+static inline struct m0_sm_group *file_to_smgroup(const struct file *file)
 {
 	return &file_to_sb(file)->csb_iogroup;
 }
@@ -449,7 +457,7 @@ layout_instance(const struct io_request *req)
 }
 
 static inline struct m0_pdclust_instance *
-pdlayout_instance(struct m0_layout_instance *li)
+pdlayout_instance(const struct m0_layout_instance *li)
 {
 	return m0_layout_instance_to_pdi(li);
 }
@@ -460,22 +468,22 @@ pdlayout_get(const struct io_request *req)
 	return m0_layout_to_pdl(layout_instance(req)->li_l);
 }
 
-static inline uint32_t layout_n(struct m0_pdclust_layout *play)
+static inline uint32_t layout_n(const struct m0_pdclust_layout *play)
 {
 	return play->pl_attr.pa_N;
 }
 
-static inline uint32_t layout_k(struct m0_pdclust_layout *play)
+static inline uint32_t layout_k(const struct m0_pdclust_layout *play)
 {
 	return play->pl_attr.pa_K;
 }
 
-static inline uint64_t layout_unit_size(struct m0_pdclust_layout *play)
+static inline uint64_t layout_unit_size(const struct m0_pdclust_layout *play)
 {
 	return play->pl_attr.pa_unit_size;
 }
 
-static inline uint64_t parity_units_page_nr(struct m0_pdclust_layout *play)
+static inline uint64_t parity_units_page_nr(const struct m0_pdclust_layout *play)
 {
 	return page_nr(layout_unit_size(play)) * layout_k(play);
 }
@@ -490,7 +498,7 @@ static inline uint64_t iomap_page_nr(const struct pargrp_iomap *map)
 	return indexvec_page_nr(&map->pi_ivec.iv_vec);
 }
 
-static inline uint64_t data_size(struct m0_pdclust_layout *play)
+static inline uint64_t data_size(const struct m0_pdclust_layout *play)
 {
 	return layout_n(play) * layout_unit_size(play);
 }
@@ -575,10 +583,10 @@ static inline uint64_t pargrp_id_find(m0_bindex_t	       index,
 	return src.sa_group;
 }
 
-static inline m0_bindex_t gfile_offset(m0_bindex_t                 toff,
-		                       struct pargrp_iomap        *map,
-				       struct m0_pdclust_layout   *play,
-				       struct m0_pdclust_src_addr *src)
+static inline m0_bindex_t gfile_offset(m0_bindex_t                       toff,
+				       const struct pargrp_iomap        *map,
+				       const struct m0_pdclust_layout   *play,
+				       const struct m0_pdclust_src_addr *src)
 {
 	m0_bindex_t goff;
 
@@ -705,24 +713,26 @@ static void parity_page_pos_get(struct pargrp_iomap *map,
  * Returns the starting offset of page given its position in data matrix.
  * Acts as opposite of page_pos_get() API.
  */
-static void data_page_offset_get(struct pargrp_iomap *map,
-		                uint32_t              row,
-			        uint32_t              col,
-		                m0_bindex_t          *out)
+static m0_bindex_t data_page_offset_get(struct pargrp_iomap *map,
+					uint32_t             row,
+					uint32_t             col)
 {
 	struct m0_pdclust_layout *play;
+	m0_bindex_t               out;
 
 	M0_ENTRY("row = %u, col = %u", row, col);
 	M0_PRE(map != NULL);
-	M0_PRE(out != NULL);
 
 	play = pdlayout_get(map->pi_ioreq);
 
 	M0_ASSERT(row < data_row_nr(play));
 	M0_ASSERT(col < data_col_nr(play));
 
-	*out = data_size(play) * map->pi_grpid +
+	out = data_size(play) * map->pi_grpid +
 	       col * layout_unit_size(play) + row * PAGE_CACHE_SIZE;
+
+	M0_LEAVE("offsef = %llu", out);
+	return out;
 }
 
 /* Invoked during m0t1fs mount. */
@@ -752,7 +762,7 @@ static void io_req_fop_release(struct m0_ref *ref);
  * Hence, a new m0_rpc_item_ops structure is used for fops dispatched
  * by m0t1fs io requests.
  */
-static const struct m0_rpc_item_ops m0t1fs_item_ops = {
+static const struct m0_rpc_item_ops io_item_ops = {
 	.rio_replied = io_rpc_item_cb,
 };
 
@@ -769,10 +779,10 @@ static int  nw_xfer_tioreq_map	 (struct nw_xfer_request	   *xfer,
 				  struct target_ioreq             **out);
 
 static int  nw_xfer_tioreq_get	 (struct nw_xfer_request *xfer,
-				  struct m0_fid		*fid,
-				  uint64_t		 ta_obj,
-				  struct m0_rpc_session	*session,
-				  uint64_t		 size,
+				  const struct m0_fid	 *fid,
+				  uint64_t		  ta_obj,
+				  struct m0_rpc_session  *session,
+				  uint64_t		  size,
 				  struct target_ioreq   **out);
 
 static const struct nw_xfer_ops xfer_ops = {
@@ -798,6 +808,7 @@ static int  pargrp_iomap_seg_process  (struct pargrp_iomap *map,
 				       bool		    rmw);
 
 static int  pargrp_iomap_parity_recalc(struct pargrp_iomap *map);
+static int  pargrp_iomap_parity_verify(struct pargrp_iomap *map);
 
 static uint64_t pargrp_iomap_fullpages_count(struct pargrp_iomap *map);
 
@@ -808,7 +819,7 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map);
 static int pargrp_iomap_dgmode_process (struct pargrp_iomap *map,
 		                         struct target_ioreq *tio,
 		                         m0_bindex_t         *index,
-					 uint32_t             count);
+			                 uint32_t             count);
 
 static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map);
 
@@ -822,6 +833,7 @@ static const struct pargrp_iomap_ops iomap_ops = {
 	.pi_seg_process		 = pargrp_iomap_seg_process,
 	.pi_readold_auxbuf_alloc = pargrp_iomap_readold_auxbuf_alloc,
 	.pi_parity_recalc	 = pargrp_iomap_parity_recalc,
+	.pi_parity_verify	 = pargrp_iomap_parity_verify,
 	.pi_paritybufs_alloc	 = pargrp_iomap_paritybufs_alloc,
 	.pi_dgmode_process       = pargrp_iomap_dgmode_process,
 	.pi_dgmode_postprocess   = pargrp_iomap_dgmode_postprocess,
@@ -850,10 +862,6 @@ static const struct target_ioreq_ops tioreq_ops = {
 
 static int io_req_fop_dgmode_read(struct io_req_fop *irfop);
 
-static const struct io_req_fop_ops irfop_ops = {
-	.irfo_dgmode_read = io_req_fop_dgmode_read,
-};
-
 static struct data_buf *data_buf_alloc_init(enum page_attr pattr);
 
 static void data_buf_dealloc_fini(struct data_buf *buf);
@@ -869,6 +877,7 @@ static int ioreq_user_data_copy (struct io_request   *req,
 				 enum page_attr	      filter);
 
 static int ioreq_parity_recalc	(struct io_request *req);
+static int ioreq_parity_verify	(struct io_request *req);
 
 static int ioreq_iosm_handle	(struct io_request *req);
 
@@ -884,6 +893,7 @@ static const struct io_request_ops ioreq_ops = {
 	.iro_iomaps_destroy = ioreq_iomaps_destroy,
 	.iro_user_data_copy = ioreq_user_data_copy,
 	.iro_parity_recalc  = ioreq_parity_recalc,
+	.iro_parity_verify  = ioreq_parity_verify,
 	.iro_iosm_handle    = ioreq_iosm_handle,
 	.iro_file_lock      = ioreq_file_lock,
 	.iro_file_unlock    = ioreq_file_unlock,
@@ -1161,7 +1171,7 @@ static void nw_xfer_request_fini(struct nw_xfer_request *xfer)
 	M0_LEAVE();
 }
 
-static int user_page_map(struct data_buf *dbuf, unsigned long user_addr)
+M0_INTERNAL int user_page_map(struct data_buf *dbuf, unsigned long user_addr)
 {
 	void *kmapped;
 	int   rc;
@@ -1290,7 +1300,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 	} else {
 		if (dbuf->db_page == NULL)
 			bytes = copy_to_user(it->iov->iov_base + it->iov_offset,
-					     dbuf->db_buf.b_addr +
+					     (char *)dbuf->db_buf.b_addr +
 					     (start & ~PAGE_CACHE_MASK),
 					     end - start);
 		else
@@ -1306,6 +1316,88 @@ static int user_data_copy(struct pargrp_iomap *map,
 	}
 
 	return M0_RC(0);
+}
+
+static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
+{
+	int			  rc;
+	uint32_t		  row;
+	uint32_t		  col;
+	struct m0_buf		 *dbufs;
+	struct m0_buf		 *pbufs;
+	struct m0_buf		 *old_pbuf;
+	struct m0_pdclust_layout *play;
+	struct inode             *inode;
+	struct m0t1fs_sb         *csb;
+	struct page              *page;
+
+	M0_ENTRY("map = %p", map);
+	M0_PRE_EX(pargrp_iomap_invariant(map));
+
+	inode = iomap_to_inode(map);
+	csb = M0T1FS_SB(inode->i_sb);
+	if (!(map->pi_ioreq->ir_type == IRT_READ && csb->csb_verify))
+		return M0_RC(0);
+
+	play = pdlayout_get(map->pi_ioreq);
+	M0_ALLOC_ARR_ADDB(dbufs, layout_n(play), &m0_addb_gmc,
+	                  M0T1FS_ADDB_LOC_PARITY_RECALC_DBUFS,
+	                  &m0t1fs_addb_ctx);
+	M0_ALLOC_ARR_ADDB(pbufs, layout_k(play), &m0_addb_gmc,
+	                  M0T1FS_ADDB_LOC_PARITY_RECALC_PBUFS,
+	                  &m0t1fs_addb_ctx);
+
+	if (dbufs == NULL || pbufs == NULL) {
+		rc = -ENOMEM;
+		goto last;
+	}
+
+	/* temprary buf to hold parity */
+	for (col = 0; col < layout_k(play); ++col) {
+		page = alloc_pages(GFP_KERNEL, 0);
+		if (page == NULL) {
+			rc = -ENOMEM;
+			goto last;
+		}
+
+		pbufs[col].b_addr = (void *)page_address(page);
+		pbufs[col].b_nob  = PAGE_CACHE_SIZE;
+	}
+
+	for (row = 0; row < data_row_nr(play); ++row) {
+		/* data */
+		for (col = 0; col < data_col_nr(play); ++col)
+			dbufs[col] = map->pi_databufs[row][col]->db_buf;
+
+		/* generate parity into new buf */
+		m0_parity_math_calculate(parity_math(map->pi_ioreq),
+					 dbufs, pbufs);
+
+		/* verify the parity */
+		for (col = 0; col < layout_k(play); ++col) {
+			old_pbuf = &map->pi_paritybufs[row][col]->db_buf;
+			if (memcmp(pbufs[col].b_addr, old_pbuf->b_addr,
+				   PAGE_CACHE_SIZE)) {
+				rc = -EIO;
+				goto last;
+			}
+			M0_LOG(M0_DEBUG, "parity verified for %llu [%u:%u]",
+					 map->pi_grpid, row, col);
+		}
+	}
+
+	rc = 0;
+last:
+	if (pbufs != NULL) {
+		for (col = 0; col < layout_k(play); ++col) {
+			/* free_page(NULL) is OK */
+			free_page((unsigned long)pbufs[col].b_addr);
+		}
+	}
+	m0_free(dbufs);
+	m0_free(pbufs);
+	M0_LOG(M0_DEBUG, "parity verified for %llu rc=%d", map->pi_grpid, rc);
+	return M0_RC(rc);
 }
 
 static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
@@ -1421,6 +1513,44 @@ last:
 	return M0_RC(rc);
 }
 
+static int ioreq_parity_verify(struct io_request *req)
+{
+	int	             rc = 0;
+	uint64_t             grp;
+	struct pargrp_iomap *iomap;
+	struct inode        *inode;
+	struct m0t1fs_sb    *csb;
+
+	M0_ENTRY("io_request : %p", req);
+	M0_PRE_EX(io_request_invariant(req));
+
+	inode = req->ir_file->f_dentry->d_inode;
+	csb = M0T1FS_SB(inode->i_sb);
+
+	if (!(req->ir_type == IRT_READ && csb->csb_verify))
+		return M0_RC(0);
+
+	m0_semaphore_down(&m0t1fs_cpus_sem);
+
+	for (grp = 0; grp < req->ir_iomap_nr; ++grp) {
+		iomap = req->ir_iomaps[grp];
+		if (iomap->pi_state == PI_DEGRADED) {
+			/* data is recovered from existing data and parity.
+			 * It's meaningless to do parity verification */
+			continue;
+		}
+		rc = iomap->pi_ops->pi_parity_verify(iomap);
+		if (rc != 0)
+			break;
+	}
+
+	m0_semaphore_up(&m0t1fs_cpus_sem);
+
+	return rc != 0 ? M0_ERR_INFO(rc, "Parity verification failed for "
+					 "grpid=%llu",
+				         iomap->pi_grpid) : M0_RC(rc);
+}
+
 static int ioreq_parity_recalc(struct io_request *req)
 {
 	int	 rc = 0;
@@ -1458,15 +1588,16 @@ static void ioreq_pgiomap_find(struct io_request    *req,
 	M0_PRE(cursor != NULL);
 	M0_PRE(*cursor < req->ir_iomap_nr);
 
-	for (id = *cursor; id < req->ir_iomap_nr; ++id)
+	for (id = *cursor; id < req->ir_iomap_nr; ++id) {
 		if (req->ir_iomaps[id]->pi_grpid == grpid) {
 			*out = req->ir_iomaps[id];
 			*cursor = id;
 			break;
 		}
+	}
 
 	M0_POST(id < req->ir_iomap_nr);
-	M0_LEAVE();
+	M0_LEAVE("result iomap = %llu", id);
 }
 
 static int ioreq_user_data_copy(struct io_request   *req,
@@ -1483,6 +1614,7 @@ static int ioreq_user_data_copy(struct io_request   *req,
 	struct iov_iter		  it;
 	struct m0_ivec_cursor	  srccur;
 	struct m0_pdclust_layout *play;
+	struct pargrp_iomap      *this_map;
 
 	M0_ENTRY("io_request : %p, %s user-space. filter = 0x%x", req,
 		 dir == CD_COPY_FROM_USER ? (char *)"from" : (char *)"to",
@@ -1496,11 +1628,11 @@ static int ioreq_user_data_copy(struct io_request   *req,
 	play = pdlayout_get(req);
 
 	for (map = 0; map < req->ir_iomap_nr; ++map) {
-
-		M0_ASSERT_EX(pargrp_iomap_invariant(req->ir_iomaps[map]));
+		this_map = req->ir_iomaps[map];
+		M0_ASSERT_EX(pargrp_iomap_invariant(this_map));
 
 		count    = 0;
-		grpstart = data_size(play) * req->ir_iomaps[map]->pi_grpid;
+		grpstart = data_size(play) * this_map->pi_grpid;
 		grpend	 = grpstart + data_size(play);
 
 		while (!m0_ivec_cursor_move(&srccur, count) &&
@@ -1517,7 +1649,7 @@ static int ioreq_user_data_copy(struct io_request   *req,
 			 * current pargrp_iomap structure from pgstart
 			 * and pgend.
 			 */
-			rc = user_data_copy(req->ir_iomaps[map], pgstart, pgend,
+			rc = user_data_copy(this_map, pgstart, pgend,
 					    &it, dir, filter);
 			if (rc != 0)
 				return M0_ERR_INFO(rc, "Copy failed");
@@ -1561,22 +1693,27 @@ static int pargrp_iomap_init(struct pargrp_iomap *map,
 			     uint64_t		  grpid)
 {
 	int			  rc;
-	int			  pg;
+	int			  row;
 	struct m0_pdclust_layout *play;
+	struct inode             *inode;
+	struct m0t1fs_sb         *csb;
 
 	M0_ENTRY("map = %p, ioreq = %p, grpid = %llu", map, req, grpid);
 	M0_PRE(map != NULL);
 	M0_PRE(req != NULL);
 
 	pargrp_iomap_bob_init(map);
-	play		   = pdlayout_get(req);
-	map->pi_ops	   = &iomap_ops;
-	map->pi_rtype	   = PIR_NONE;
-	map->pi_grpid	   = grpid;
-	map->pi_ioreq	   = req;
+	map->pi_ops        = &iomap_ops;
+	map->pi_rtype      = PIR_NONE;
+	map->pi_grpid      = grpid;
+	map->pi_ioreq      = req;
 	map->pi_state      = PI_HEALTHY;
 	map->pi_paritybufs = NULL;
 
+	inode = iomap_to_inode(map);
+	csb = M0T1FS_SB(inode->i_sb);
+
+	play = pdlayout_get(req);
 	rc = m0_indexvec_alloc(&map->pi_ivec, page_nr(data_size(play)),
 	                       &m0t1fs_addb_ctx,
 	                       M0T1FS_ADDB_LOC_IOMAP_INIT_IV);
@@ -1595,16 +1732,17 @@ static int pargrp_iomap_init(struct pargrp_iomap *map,
 	if (map->pi_databufs == NULL)
 		goto fail;
 
-	for (pg = 0; pg < data_row_nr(play); ++pg) {
-		M0_ALLOC_ARR_ADDB(map->pi_databufs[pg], layout_n(play),
+	for (row = 0; row < data_row_nr(play); ++row) {
+		M0_ALLOC_ARR_ADDB(map->pi_databufs[row], data_col_nr(play),
 		                  &m0_addb_gmc,
 		                  M0T1FS_ADDB_LOC_IOMAP_INIT_DBUFS_COL,
 		                  &m0t1fs_addb_ctx);
-		if (map->pi_databufs[pg] == NULL)
+		if (map->pi_databufs[row] == NULL)
 			goto fail;
 	}
 
-	if (req->ir_type == IRT_WRITE) {
+	if (req->ir_type == IRT_WRITE ||
+	    (req->ir_type == IRT_READ && csb->csb_verify)) {
 		M0_ALLOC_ARR_ADDB(map->pi_paritybufs, parity_row_nr(play),
                                   &m0_addb_gmc,
 		                  M0T1FS_ADDB_LOC_IOMAP_INIT_PBUFS_ROW,
@@ -1612,15 +1750,22 @@ static int pargrp_iomap_init(struct pargrp_iomap *map,
 		if (map->pi_paritybufs == NULL)
 			goto fail;
 
-		for (pg = 0; pg < parity_row_nr(play); ++pg) {
-			M0_ALLOC_ARR_ADDB(map->pi_paritybufs[pg],
+		for (row = 0; row < parity_row_nr(play); ++row) {
+			M0_ALLOC_ARR_ADDB(map->pi_paritybufs[row],
 			                  parity_col_nr(play), &m0_addb_gmc,
 			                  M0T1FS_ADDB_LOC_IOMAP_INIT_PBUFS_COL,
 			                  &m0t1fs_addb_ctx);
-			if (map->pi_paritybufs[pg] == NULL)
+			if (map->pi_paritybufs[row] == NULL)
 				goto fail;
 		}
 	}
+
+	M0_LOG(M0_DEBUG, "grpid=%llu, ivec has %llu segs, databufs=[%u x %u]"
+			 " paritybufs=[%u x %u]",
+			 grpid, page_nr(data_size(play)),
+			 data_row_nr(play), data_col_nr(play),
+			 parity_row_nr(play), parity_col_nr(play));
+
 	M0_POST_EX(pargrp_iomap_invariant(map));
 	return M0_RC(0);
 
@@ -1628,13 +1773,13 @@ fail:
 	m0_indexvec_free(&map->pi_ivec);
 
 	if (map->pi_databufs != NULL) {
-		for (pg = 0; pg < data_row_nr(play); ++pg)
-			m0_free0(&map->pi_databufs[pg]);
+		for (row = 0; row < data_row_nr(play); ++row)
+			m0_free0(&map->pi_databufs[row]);
 		m0_free(map->pi_databufs);
 	}
 	if (map->pi_paritybufs != NULL) {
-		for (pg = 0; pg < parity_row_nr(play); ++pg)
-			m0_free0(&map->pi_paritybufs[pg]);
+		for (row = 0; row < parity_row_nr(play); ++row)
+			m0_free0(&map->pi_paritybufs[row]);
 		m0_free(map->pi_paritybufs);
 	}
 	return M0_ERR_INFO(-ENOMEM, "Memory allocation failed");
@@ -1687,19 +1832,27 @@ static void pargrp_iomap_fini(struct pargrp_iomap *map)
 	M0_LEAVE();
 }
 
+/**
+ * Check if this [@index, @count] is covered by existing ivec in the @map.
+ */
 static bool pargrp_iomap_spans_seg(struct pargrp_iomap *map,
 				   m0_bindex_t index, m0_bcount_t count)
 {
 	uint32_t seg;
+	bool     spanned = false;
+
+	M0_ENTRY();
 
 	M0_PRE_EX(pargrp_iomap_invariant(map));
 
-	for (seg = 0; seg < map->pi_ivec.iv_vec.v_nr; ++seg) {
-		if (index >= INDEX(&map->pi_ivec, seg) &&
-		    index + count <= seg_endpos(&map->pi_ivec, seg))
-			return true;
+	for (seg = 0; seg < SEG_NR(&map->pi_ivec); ++seg) {
+		if (INDEX(&map->pi_ivec, seg) <= index &&
+		    index + count <= seg_endpos(&map->pi_ivec, seg)) {
+			spanned = true;
+			break;
+		}
 	}
-	return false;
+	return M0_RC(!!spanned);
 }
 
 static int pargrp_iomap_databuf_alloc(struct pargrp_iomap *map,
@@ -1723,33 +1876,27 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	int			  rc;
 	int			  flags;
 	bool			  ret;
-	size_t			  written;
 	uint32_t		  row;
 	uint32_t		  col;
 	uint64_t		  count = 0;
 	m0_bindex_t		  start;
 	m0_bindex_t		  end;
-	unsigned long		  user_addr;
 	struct inode		 *inode;
 	struct m0_ivec_cursor	  cur;
-	struct iov_iter		  it;
 	struct m0_pdclust_layout *play;
 	struct io_request	 *req = map->pi_ioreq;
 
-	M0_ENTRY("map %p, seg %llu, %s", map, seg, rmw ? "rmw" : "aligned");
+	M0_ENTRY();
+	M0_LOG(M0_DEBUG, "pgid %llu seg %llu = [%llu, +%llu), %s",
+			 map->pi_grpid, seg, INDEX(&map->pi_ivec, seg),
+			 COUNT(&map->pi_ivec, seg), rmw ? "rmw" : "aligned");
 	play  = pdlayout_get(req);
 	inode = req->ir_file->f_dentry->d_inode;
 	m0_ivec_cursor_init(&cur, &map->pi_ivec);
-	ret = m0_ivec_cursor_move_to(&cur, map->pi_ivec.iv_index[seg]);
+	ret = m0_ivec_cursor_move_to(&cur, INDEX(&map->pi_ivec, seg));
 	M0_ASSERT(!ret);
-	/* XXX don't need to deal with iterator when dio is off */
-	/* Assume starting position equals to index of the first segment.
-	 * Therefore, `written` is current offset.
-	 */
-	written = m0_ivec_cursor_index(&cur) - INDEX(&req->ir_ivec, 0);
-	iov_iter_init(&it, req->ir_iovec, req->ir_ivec.iv_vec.v_nr,
-		      m0_vec_count(&req->ir_ivec.iv_vec), written);
 
+	/* process a page at each iteration */
 	while (!m0_ivec_cursor_move(&cur, count)) {
 		start = m0_ivec_cursor_index(&cur);
 		end   = min64u(m0_round_up(start + 1, PAGE_CACHE_SIZE),
@@ -1772,41 +1919,23 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 			     (inode->i_size > 0 &&
 			      page_id(end - 1) == page_id(inode->i_size - 1))))
 				flags |= PA_READ;
-		} else
+		} else {
 			/*
 			 * For read IO requests, file_aio_read() has already
 			 * delimited the index vector to EOF boundary.
 			 */
 			flags |= PA_READ;
+		}
 
 		page_pos_get(map, start, &row, &col);
-		user_addr = (unsigned long)it.iov->iov_base + it.iov_offset;
-		/* XXX We can't map for Read-Old RMW approach, but we don't know
-		 * what approach will be chosen. So just don't map during rmw
-		 * at all.
-		 */
-		if (!rmw && req->ir_direct_io && count == PAGE_CACHE_SIZE &&
-		    (user_addr & ~PAGE_CACHE_MASK) == 0 &&
-		    (flags == PA_READ || flags & PA_FULLPAGE_MODIFY)) {
-
-			M0_ALLOC_PTR(map->pi_databufs[row][col]);
-			if (map->pi_databufs[row][col] == NULL) {
-				rc = -ENOMEM;
-				goto err;
-			}
-			user_page_map(map->pi_databufs[row][col], user_addr);
-		} else {
-			rc = pargrp_iomap_databuf_alloc(map, row, col);
-			if (rc != 0)
-				goto err;
-		}
+		rc = pargrp_iomap_databuf_alloc(map, row, col);
+		M0_LOG(M0_DEBUG, "alloc start %8llu count %4llu pgid "
+			 "%3llu row %u col %u f 0x%x addr %p",
+			 start, count, map->pi_grpid, row, col, flags,
+			 map->pi_databufs[row][col]->db_buf.b_addr);
+		if (rc != 0)
+			goto err;
 		map->pi_databufs[row][col]->db_flags = flags;
-
-		iov_iter_advance(&it, count);
-		M0_LOG(M0_DEBUG, "start %8llu count %4llu pgid %3llu row %u "
-				 "col %u f %x addr %p",
-				 start, count, map->pi_grpid, row, col, flags,
-				 map->pi_databufs[row][col]->db_buf.b_addr);
 	}
 
 	return M0_RC(0);
@@ -2050,9 +2179,14 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 	uint32_t		  row;
 	uint32_t		  col;
 	struct m0_pdclust_layout *play;
+	struct inode             *inode;
+	struct m0t1fs_sb         *csb;
 
 	M0_ENTRY("map %p", map);
 	M0_PRE_EX(pargrp_iomap_invariant(map));
+
+	inode = iomap_to_inode(map);
+	csb = M0T1FS_SB(inode->i_sb);
 
 	play = pdlayout_get(map->pi_ioreq);
 	for (row = 0; row < parity_row_nr(play); ++row) {
@@ -2066,7 +2200,9 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 			map->pi_paritybufs[row][col]->db_flags |= PA_WRITE;
 
 			irf = map->pi_ioreq->ir_file;
-			if (map->pi_rtype == PIR_READOLD &&
+			if ((map->pi_rtype == PIR_READOLD ||
+			    (map->pi_ioreq->ir_type == IRT_READ &&
+			     csb->csb_verify)) &&
 			    m0t1fs_file_to_inode(irf)->i_size >
 			    data_size(play) * map->pi_grpid)
 				map->pi_paritybufs[row][col]->db_flags |=
@@ -2139,7 +2275,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 				 struct m0_ivec_cursor	  *cursor)
 {
 	int			  rc;
-	bool			  rmw;
+	bool			  rmw = false;
 	uint64_t		  seg;
 	uint64_t		  size = 0;
 	uint64_t		  grpsize;
@@ -2157,6 +2293,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 	m0_bindex_t		  currindex;
 	struct m0_pdclust_layout *play;
 	struct inode		 *inode;
+	struct m0t1fs_sb         *csb;
 
 	M0_ENTRY("map %p, indexvec %p", map, ivec);
 	M0_PRE(map  != NULL);
@@ -2166,22 +2303,31 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 	grpsize	 = data_size(play);
 	grpstart = grpsize * map->pi_grpid;
 	grpend	 = grpstart + grpsize;
-	for (seg = cursor->ic_cur.vc_seg; seg < SEG_NR(ivec) &&
-	     INDEX(ivec, seg) < grpend; ++seg) {
-		currindex = seg == cursor->ic_cur.vc_seg ?
-			    m0_ivec_cursor_index(cursor) : INDEX(ivec, seg);
-		size += min64u(seg_endpos(ivec, seg), grpend) - currindex;
-	}
 	inode = iomap_to_inode(map);
-	rmw = size < grpsize && map->pi_ioreq->ir_type == IRT_WRITE &&
-	 grpstart < inode->i_size;
+	csb = M0T1FS_SB(inode->i_sb);
+
+	/* For a write in existing region, if size of this map is less
+	 * than parity group size, it is a read-modify-write.
+	 */
+	if (map->pi_ioreq->ir_type == IRT_WRITE && grpstart < inode->i_size) {
+		for (seg = cursor->ic_cur.vc_seg; seg < SEG_NR(ivec) &&
+			INDEX(ivec, seg) < grpend; ++seg) {
+			currindex = seg == cursor->ic_cur.vc_seg ?
+				    m0_ivec_cursor_index(cursor) :
+				    INDEX(ivec, seg);
+			size += min64u(seg_endpos(ivec, seg), grpend) -
+				currindex;
+		}
+		if (size < grpsize)
+			rmw = true;
+	}
 	M0_LOG(M0_INFO, "Group id %llu is %s", map->pi_grpid,
 	       rmw ? "rmw" : "aligned");
 
 	size = inode->i_size;
 
 	for (seg = 0; !m0_ivec_cursor_move(cursor, count) &&
-	     m0_ivec_cursor_index(cursor) < grpend;) {
+		      m0_ivec_cursor_index(cursor) < grpend;) {
 		/*
 		 * Skips the current segment if it is completely spanned by
 		 * rounding up/down of earlier segment.
@@ -2234,9 +2380,17 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 		}
 
 		++map->pi_ivec.iv_vec.v_nr;
-		rc = map->pi_ops->pi_seg_process(map, seg, rmw);
-		if (rc != 0)
-			return M0_ERR_INFO(rc, "seg_process failed");
+		M0_LOG(M0_DEBUG, "pre  grpid = %llu seg %llu = [%llu, +%llu)",
+				 map->pi_grpid, seg,
+				 INDEX(&map->pi_ivec, seg),
+				 COUNT(&map->pi_ivec, seg));
+
+		if (!(map->pi_ioreq->ir_type == IRT_READ && csb->csb_verify)) {
+			/* if not in 'verify mode', ... */
+			rc = map->pi_ops->pi_seg_process(map, seg, rmw);
+			if (rc != 0)
+				return M0_ERR_INFO(rc, "seg_process failed");
+		}
 
 		INDEX(&map->pi_ivec, seg) =
 			round_down(INDEX(&map->pi_ivec, seg),
@@ -2246,14 +2400,26 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 			round_up(endpos, PAGE_CACHE_SIZE) -
 			INDEX(&map->pi_ivec, seg);
 
-		M0_LOG(M0_DEBUG, "seg %llu index %llu count %llu", seg,
-				INDEX(&map->pi_ivec, seg),
-				COUNT(&map->pi_ivec, seg));
+		M0_LOG(M0_DEBUG, "post grpid = %llu seg %llu = [%llu, +%llu)",
+				 map->pi_grpid, seg,
+				 INDEX(&map->pi_ivec, seg),
+				 COUNT(&map->pi_ivec, seg));
 
 		count = endpos - m0_ivec_cursor_index(cursor);
+		M0_LOG(M0_DEBUG, "cursor will advance +%llu from %llu",
+				 count, m0_ivec_cursor_index(cursor));
 		++seg;
 	}
 
+	/* In 'verify mode', read all data units in this parity group */
+	if (map->pi_ioreq->ir_type == IRT_READ && csb->csb_verify) {
+		SEG_NR(&map->pi_ivec)   = 1;
+		INDEX(&map->pi_ivec, 0) = grpstart;
+		COUNT(&map->pi_ivec, 0) = grpsize;
+		rc = map->pi_ops->pi_seg_process(map, 0, rmw);
+		if (rc != 0)
+			return M0_ERR_INFO(rc, "seg_process failed");
+	}
 	/*
 	 * Decides whether to undertake read-old approach or read-rest for
 	 * an rmw IO request.
@@ -2295,7 +2461,9 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 		}
 	}
 
-	if (map->pi_ioreq->ir_type == IRT_WRITE)
+	/* For READ in verify mode or WRITE */
+	if (map->pi_ioreq->ir_type == IRT_WRITE ||
+	    (map->pi_ioreq->ir_type == IRT_READ && csb->csb_verify))
 		rc = pargrp_iomap_paritybufs_alloc(map);
 
 	M0_POST_EX(ergo(rc == 0, pargrp_iomap_invariant(map)));
@@ -2303,8 +2471,11 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 	return M0_RC(rc);
 }
 
-static int pargrp_iomap_pages_mark(struct pargrp_iomap       *map,
-		                   enum m0_pdclust_unit_type  type)
+/**
+ * Mark all pages in @param map, with the specified @param type, as failed.
+ */
+static int pargrp_iomap_pages_mark_as_failed(struct pargrp_iomap       *map,
+					     enum m0_pdclust_unit_type  type)
 {
 	int                         rc = 0;
 	uint32_t                    row;
@@ -2316,7 +2487,7 @@ static int pargrp_iomap_pages_mark(struct pargrp_iomap       *map,
 
 	M0_ENTRY();
 	M0_PRE(map != NULL);
-	M0_PRE(M0_IN(type, (M0_PUT_DATA, M0_PUT_SPARE)));
+	M0_PRE(M0_IN(type, (M0_PUT_DATA, M0_PUT_PARITY)));
 
 	play = pdlayout_get(map->pi_ioreq);
 
@@ -2366,8 +2537,8 @@ static int pargrp_iomap_pages_mark(struct pargrp_iomap       *map,
 	return M0_RC(rc);
 }
 
-static void page_update(struct pargrp_iomap *map, uint32_t row, uint32_t col,
-			enum page_attr page_type)
+static void mark_page_as_read_failed(struct pargrp_iomap *map, uint32_t row,
+				     uint32_t col, enum page_attr page_type)
 {
 	struct m0_pdclust_layout  *play;
 	struct m0_pdclust_src_addr src;
@@ -2391,6 +2562,7 @@ static void page_update(struct pargrp_iomap *map, uint32_t row, uint32_t col,
 	rc = unit_state(&src, map->pi_ioreq, &state);
 	M0_ASSERT(rc == 0);
 	if (state == M0_PNDS_SNS_REPAIRED) {
+		/* gets the state of corresponding spare unit */
 		rc = io_spare_map(map, &src, &spare_slot, &spare_prev,
 				  &state);
 		M0_ASSERT(rc == 0);
@@ -2406,6 +2578,12 @@ static void page_update(struct pargrp_iomap *map, uint32_t row, uint32_t col,
 	}
 }
 
+/**
+ * @param map the failed map.
+ * @param tio the failed target io request.
+ * @param index target offset array.
+ * @param count the array length of the above array.
+ */
 static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 		                       struct target_ioreq *tio,
 		                       m0_bindex_t         *index,
@@ -2440,18 +2618,18 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 			          &dev_state);
 		M0_ASSERT(rc == 0);
 		if (dev_state == M0_PNDS_SNS_REPAIRED)
-			return M0_RC(rc);
+			return M0_RC(0);
 	}
 	map->pi_state = PI_DEGRADED;
 	++map->pi_ioreq->ir_dgmap_nr;
-	/* Segment belongs to a data unit. */
+	/* Failed segment belongs to a data unit. */
 	if (src.sa_unit < layout_n(play)) {
 		goff = gfile_offset(index[0], map, play, &src);
 		page_pos_get(map, goff, &row, &col);
 		M0_ASSERT(map->pi_databufs[row][col] != NULL);
 		map->pi_databufs[row][col]->db_flags |= PA_READ_FAILED;
 	} else {
-		/* Segment belongs to a parity unit. */
+		/* Failed segment belongs to a parity unit. */
 		row = page_nr(index[0]) % page_nr(layout_unit_size(play));
 		col = src.sa_unit - layout_n(play);
 		M0_ASSERT(map->pi_paritybufs[row][col] != NULL);
@@ -2462,7 +2640,7 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	 * _whole_ units, all pages from a failed unit can be marked as
 	 * PA_READ_FAILED. These pages need not be read again.
 	 */
-	rc = pargrp_iomap_pages_mark(map, M0_PUT_DATA);
+	rc = pargrp_iomap_pages_mark_as_failed(map, M0_PUT_DATA);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "Failed to mark pages from parity group");
 
@@ -2490,7 +2668,7 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 			}
 		}
 	}
-	rc = pargrp_iomap_pages_mark(map, M0_PUT_SPARE);
+	rc = pargrp_iomap_pages_mark_as_failed(map, M0_PUT_PARITY);
 	return M0_RC(rc);
 
 par_fail:
@@ -2574,11 +2752,11 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 
 	/*
 	 * read_old: Reads unavailable data subject to condition that
-	 * data lies within file size. Parity is already read.
+	 *           data lies within file size. Parity is already read.
 	 * read_rest: Reads parity units. Data for parity group is already
-	 * read.
+	 *            read.
 	 * simple_read: Reads unavailable data subject to condition that
-	 * data lies within file size. Parity also has to be read.
+	 *              data lies within file size. Parity also has to be read.
 	 */
 	M0_ENTRY("parity group id %llu, state = %d",
 		 map->pi_grpid, map->pi_state);
@@ -2596,7 +2774,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	for (col = 0; col < data_col_nr(play); ++col) {
 		for (row = 0; row < data_row_nr(play); ++row) {
 
-			data_page_offset_get(map, row, col, &start);
+			start = data_page_offset_get(map, row, col);
 			within_eof = start + PAGE_CACHE_SIZE < inode->i_size ||
 			             (inode->i_size > 0 &&
 				      page_id(start + PAGE_CACHE_SIZE - 1) ==
@@ -2624,7 +2802,8 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 						rc = -ENOMEM;
 						break;
 					}
-					page_update(map, row, col, PA_DATA);
+					mark_page_as_read_failed(map, row, col,
+								 PA_DATA);
 				}
 				if (map->pi_state == PI_HEALTHY)
 					continue;
@@ -2641,10 +2820,14 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 			 */
 			if (within_eof) {
 				if (dbuf->db_flags & PA_READ_FAILED ||
-				    is_page_read(dbuf))
+				    is_page_read(dbuf)) {
+					M0_LOG(M0_DEBUG, "[%u][%u], f = 0x%x\n",
+						 row, col, dbuf->db_flags);
 					continue;
+				}
 				dbuf->db_flags |= PA_DGMODE_READ;
-				M0_LOG(M0_DEBUG, "[%u][%u], flag = %d\n", row, col, dbuf->db_flags);
+				M0_LOG(M0_DEBUG, "[%u][%u], flag = 0x%x\n",
+						 row, col, dbuf->db_flags);
 			}
 		}
 	}
@@ -2688,12 +2871,17 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 				}
 			}
 			dbuf = map->pi_paritybufs[row][col];
-			page_update(map, row, col, PA_PARITY);
+			mark_page_as_read_failed(map, row, col, PA_PARITY);
 			/* Skips the page if it is marked as PA_READ_FAILED. */
 			if (dbuf->db_flags & PA_READ_FAILED ||
-			    is_page_read(dbuf))
+			    is_page_read(dbuf)) {
+				M0_LOG(M0_DEBUG, "[%u][%u], flag = 0x%x\n",
+						 row, col, dbuf->db_flags);
 				continue;
+			}
 			dbuf->db_flags |= PA_DGMODE_READ;
+			M0_LOG(M0_DEBUG, "[%u][%u], flag = 0x%x\n",
+					 row, col, dbuf->db_flags);
 		}
 	}
 	if (rc != 0)
@@ -2800,21 +2988,16 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	return M0_RC(rc);
 }
 
-static int ioreq_iomaps_prepare(struct io_request *req)
+static int ioreq_iomaps_parity_groups_cal(struct io_request *req)
 {
-	int			  rc;
-	uint64_t		  seg;
-	uint64_t		  grp;
-	uint64_t		  id;
-	uint64_t		  grpstart;
-	uint64_t		  grpend;
-	uint64_t		 *grparray;
-	uint64_t		  grparray_sz;
+	uint64_t                  seg;
+	uint64_t                  grp;
+	uint64_t                  grpstart;
+	uint64_t                  grpend;
+	uint64_t                 *grparray;
+	uint64_t                  grparray_sz;
 	struct m0_pdclust_layout *play;
-	struct m0_ivec_cursor	  cursor;
-
-	M0_ENTRY("io_request=%p", req);
-	M0_PRE(req != NULL);
+	M0_ENTRY();
 
 	play = pdlayout_get(req);
 
@@ -2826,7 +3009,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 			  M0T1FS_ADDB_LOC_IOMAPS_PREP_GRPARR, &m0t1fs_addb_ctx);
 	if (grparray == NULL)
 		return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory"
-			       " for int array");
+			                    " for int array");
 	/*
 	 * Finds out total number of parity groups spanned by
 	 * io_request::ir_ivec.
@@ -2836,24 +3019,49 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 		grpend	 = group_id(seg_endpos(&req->ir_ivec, seg) - 1,
 				    data_size(play));
 		for (grp = grpstart; grp <= grpend; ++grp) {
+			uint64_t i;
 			/*
 			 * grparray is a temporary array to record found groups.
 			 * Scan this array for [grpstart, grpend].
 			 * If not found, record it in this array and
 			 * increase ir_iomap_nr.
 			 */
-			for (id = 0; id < req->ir_iomap_nr; ++id)
-				if (grparray[id] == grp)
+			for (i = 0; i < req->ir_iomap_nr; ++i) {
+				if (grparray[i] == grp)
 					break;
-			if (id == req->ir_iomap_nr) {
-				grparray[id] = grp;
+			}
+			/* 'grp' is not found. Adding it to @grparray */
+			if (i == req->ir_iomap_nr) {
+				M0_ASSERT_INFO(i < grparray_sz,
+					"nr=%llu size=%llu", i , grparray_sz);
+				grparray[i] = grp;
 				++req->ir_iomap_nr;
 			}
 		}
 	}
 	m0_free(grparray);
+	return M0_RC(0);
+}
 
-	M0_LOG(M0_DEBUG, "req=%p spanned_groups=%llu", req, req->ir_iomap_nr);
+static int ioreq_iomaps_prepare(struct io_request *req)
+{
+	int                       rc;
+	uint64_t                  map;
+	struct m0_ivec_cursor     cursor;
+	struct m0_pdclust_layout *play;
+
+	M0_ENTRY("io_request=%p", req);
+	M0_PRE(req != NULL);
+
+	play = pdlayout_get(req);
+
+	rc = ioreq_iomaps_parity_groups_cal(req);
+	if (rc != 0)
+		return M0_RC(rc);
+
+	M0_LOG(M0_DEBUG, "req=%p spanned_groups=%llu [N,K,us]=[%d,%d,%llu]",
+			 req, req->ir_iomap_nr, layout_n(play),
+			 layout_k(play), layout_unit_size(play));
 
 	/* req->ir_iomaps is zeroed out on allocation. */
 	M0_ALLOC_ARR_ADDB(req->ir_iomaps, req->ir_iomap_nr, &m0_addb_gmc,
@@ -2871,31 +3079,31 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 	 * of this loop.
 	 * This is done by pargrp_iomap::pi_ops::pi_populate().
 	 */
-	for (id = 0; !m0_ivec_cursor_move(&cursor, 0); ++id) {
-
-		M0_ASSERT(id < req->ir_iomap_nr);
-		M0_ASSERT(req->ir_iomaps[id] == NULL);
-		M0_ALLOC_PTR_ADDB(req->ir_iomaps[id], &m0_addb_gmc,
+	for (map = 0; !m0_ivec_cursor_move(&cursor, 0); ++map) {
+		M0_ASSERT(map < req->ir_iomap_nr);
+		M0_ASSERT(req->ir_iomaps[map] == NULL);
+		M0_ALLOC_PTR_ADDB(req->ir_iomaps[map], &m0_addb_gmc,
 		                  M0T1FS_ADDB_LOC_IOMAPS_PREP_MAP,
 		                  &m0t1fs_addb_ctx);
-		if (req->ir_iomaps[id] == NULL) {
+		if (req->ir_iomaps[map] == NULL) {
 			rc = -ENOMEM;
 			goto failed;
 		}
 
 		++iommstats.a_pargrp_iomap_nr;
-		rc = pargrp_iomap_init(req->ir_iomaps[id], req,
+		rc = pargrp_iomap_init(req->ir_iomaps[map], req,
 				       group_id(m0_ivec_cursor_index(&cursor),
 						data_size(play)));
 		if (rc != 0)
 			goto failed;
 
-		rc = req->ir_iomaps[id]->pi_ops->pi_populate(req->
-				ir_iomaps[id], &req->ir_ivec, &cursor);
+		/* @cursor is advanced in the following function */
+		rc = req->ir_iomaps[map]->pi_ops->pi_populate(req->
+				ir_iomaps[map], &req->ir_ivec, &cursor);
 		if (rc != 0)
 			goto failed;
 		M0_LOG(M0_INFO, "pargrp_iomap id : %llu populated",
-		       req->ir_iomaps[id]->pi_grpid);
+				req->ir_iomaps[map]->pi_grpid);
 	}
 
 	return M0_RC(0);
@@ -3050,6 +3258,8 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	uint32_t                    col;
 	struct data_buf            *dbuf;
 	struct pargrp_iomap        *iomap;
+	struct inode               *inode;
+	struct m0t1fs_sb            *csb;
 
 	M0_ENTRY("nw_xfer_request %p", xfer);
 	M0_PRE_EX(nw_xfer_request_invariant(xfer));
@@ -3059,16 +3269,14 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	unit_size = layout_unit_size(play);
 
 	for (map = 0; map < req->ir_iomap_nr; ++map) {
-
 		count        = 0;
 		iomap        = req->ir_iomaps[map];
-		pgstart	     = data_size(play) *
-					iomap->pi_grpid;
+		pgstart	     = data_size(play) * iomap->pi_grpid;
 		pgend	     = pgstart + data_size(play);
 		src.sa_group = iomap->pi_grpid;
 
-		M0_LOG(M0_DEBUG, "grpid %llu",
-		       (unsigned long long)iomap->pi_grpid);
+		M0_LOG(M0_DEBUG, "xfer %p distribute map %p [grpid = %llu]",
+				 xfer, iomap, iomap->pi_grpid);
 		/* Cursor for pargrp_iomap::pi_ivec. */
 		m0_ivec_cursor_init(&cursor, &iomap->pi_ivec);
 
@@ -3085,8 +3293,10 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 					  m0_ivec_cursor_step(&cursor);
 
 			m0_ext_intersection(&u_ext, &v_ext, &r_ext);
-			if (!m0_ext_is_valid(&r_ext))
+			if (!m0_ext_is_valid(&r_ext)) {
+				count = unit_size;
 				continue;
+			}
 
 			count	  = m0_ext_length(&r_ext);
 			unit_type = m0_pdclust_unit_classify(play, unit);
@@ -3118,7 +3328,11 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 						iomap);
 		}
 
+		inode = iomap_to_inode(iomap);
+		csb = M0T1FS_SB(inode->i_sb);
+
 		if (req->ir_type == IRT_WRITE ||
+		    (req->ir_type == IRT_READ && csb->csb_verify) ||
 		    (ioreq_sm_state(req) == IRS_DEGRADED_READING &&
 		     iomap->pi_state == PI_DEGRADED)) {
 
@@ -3212,8 +3426,8 @@ static int ioreq_dgmode_recover(struct io_request *req)
 	return M0_RC(rc);
 }
 
-/*
- * Returns number of failed devices or -EIO if number of failed devices exceed
+/**
+ * Returns number of failed devices or -EIO if number of failed devices exceeds
  * the value of K (number of spare devices in parity group).
  */
 static int device_check(struct io_request *req)
@@ -3249,10 +3463,9 @@ static int device_check(struct io_request *req)
 	 */
 	play = pdlayout_get(req);
 	if (st_cnt > layout_k(play))
-		return M0_ERR_INFO(-EIO, "Failed to recover data since "
-			       "number of failed"
-			  " data units exceed number of parity units in"
-			  " parity group");
+		return M0_ERR_INFO(-EIO, "Failed to recover data since number "
+					 "of failed data units exceeds number "
+					 "of parity units in parity group");
 	return M0_RC(st_cnt);
 }
 
@@ -3369,8 +3582,9 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	M0_ENTRY();
 	M0_PRE_EX(io_request_invariant(req));
 
+	/* All requests return success. This means all devices are ONLINE */
 	if (req->ir_nwxfer.nxr_rc == 0)
-		return M0_RC(req->ir_nwxfer.nxr_rc);
+		return M0_RC(0);
 
 	rc = device_check(req);
 	/*
@@ -3385,6 +3599,9 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	csb = file_to_sb(req->ir_file);
 	start = m0_time_now();
 	m0_htable_for(tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
+		/* state is already queried in device_check() and stored
+		 * in ti->ti_state. Why do we do this again?
+		 */
 		rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
 				ti->ti_fid.f_container, &state);
 		if (rc != 0)
@@ -3402,7 +3619,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		 * (subject to file size) in order to re-generate lost data.
 		 */
 		m0_tl_for (iofops, &ti->ti_iofops, irfop) {
-			rc = irfop->irf_ops->irfo_dgmode_read(irfop);
+			rc = io_req_fop_dgmode_read(irfop);
 			if (rc != 0)
 				break;
 		} m0_tl_endfor;
@@ -3449,9 +3666,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	} m0_htable_endfor;
 
 	/* Resets the status code before starting degraded mode read IO. */
-	if (req->ir_nwxfer.nxr_rc != 0)
-		req->ir_nwxfer.nxr_rc = 0;
-	req->ir_rc = req->ir_nwxfer.nxr_rc;
+	req->ir_rc = req->ir_nwxfer.nxr_rc = 0;
 
 	rc = req->ir_nwxfer.nxr_ops->nxo_distribute(&req->ir_nwxfer);
 	if (rc != 0)
@@ -3600,6 +3815,13 @@ static int ioreq_iosm_handle(struct io_request *req)
 				M0_LOG(M0_ERROR, "iro_dgmode_read() failed: rc=%d", rc);
 				goto fail_locked;
 			}
+
+			rc = req->ir_ops->iro_parity_verify(req);
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "parity vierfication failed: rc=%d", rc);
+				goto fail_locked;
+			}
+
 			rc = req->ir_ops->iro_user_data_copy(req,
 					CD_COPY_TO_USER, 0);
 			if (rc != 0) {
@@ -3769,11 +3991,11 @@ static void device_state_reset(struct nw_xfer_request *xfer, bool rmw)
 	} m0_htable_endfor;
 }
 
-static int io_request_init(struct io_request  *req,
-			   struct file	      *file,
-			   const struct iovec *iov,
-			   struct m0_indexvec *ivec,
-			   enum io_req_type    rw)
+static int io_request_init(struct io_request        *req,
+			   struct file	            *file,
+			   const struct iovec       *iov,
+			   const struct m0_indexvec *ivec,
+			   enum io_req_type          rw)
 {
 	int                  rc;
 	uint32_t             seg;
@@ -3804,20 +4026,21 @@ static int io_request_init(struct io_request  *req,
 	m0_sm_init(&req->ir_sm, &io_sm_conf, IRS_INITIALIZED,
 		   file_to_smgroup(req->ir_file));
 
-	rc = m0_indexvec_alloc(&req->ir_ivec, ivec->iv_vec.v_nr,
+	rc = m0_indexvec_alloc(&req->ir_ivec, SEG_NR(ivec),
 	                       &m0t1fs_addb_ctx,
 	                       M0T1FS_ADDB_LOC_IOREQ_INIT_IV);
 
 	if (rc != 0)
 		return M0_ERR_INFO(-ENOMEM, "Allocation failed for m0_indexvec");
 
-	for (seg = 0; seg < ivec->iv_vec.v_nr; ++seg) {
-		req->ir_ivec.iv_index[seg] = ivec->iv_index[seg];
-		req->ir_ivec.iv_vec.v_count[seg] = ivec->iv_vec.v_count[seg];
+	for (seg = 0; seg < SEG_NR(ivec); ++seg) {
+		INDEX(&req->ir_ivec, seg) = INDEX(ivec, seg);
+		COUNT(&req->ir_ivec, seg) = COUNT(ivec, seg);
 	}
 
 	/* Sorts the index vector in increasing order of file offset. */
 	indexvec_sort(&req->ir_ivec);
+	indexvec_dump(&req->ir_ivec);
 
 	M0_POST_EX(ergo(rc == 0, io_request_invariant(req)));
 	return M0_RC(rc);
@@ -3873,10 +4096,6 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	struct m0_pdclust_instance *play_instance;
 	struct m0t1fs_sb           *csb;
 	enum m0_pool_nd_state       device_state;
-	enum m0_pool_nd_state       device_state_prev;
-	uint32_t                    spare_slot;
-	uint32_t                    spare_slot_prev;
-	struct m0_pdclust_src_addr  spare;
 	int			    rc;
 
 	M0_ENTRY("nw_xfer_request %p", xfer);
@@ -3887,7 +4106,6 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	req  = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
 	play = pdlayout_get(req);
 	play_instance = pdlayout_instance(layout_instance(req));
-	spare = *src;
 
 	m0_pdclust_instance_map(play_instance, src, tgt);
 	tfid = target_fid(req, tgt);
@@ -3979,6 +4197,11 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	     (device_state == M0_PNDS_SNS_REPAIRED ||
 	      (device_state == M0_PNDS_SNS_REPAIRING &&
 	       req->ir_sns_state == SRS_REPAIR_DONE)))) {
+		struct m0_pdclust_src_addr  spare = *src;
+		uint32_t                    spare_slot;
+		uint32_t                    spare_slot_prev;
+		enum m0_pool_nd_state       device_state_prev;
+
 		gfid = file_to_fid(req->ir_file);
 		rc = m0_sns_repair_spare_map(&csb->csb_pool_version->pv_mach, gfid, play,
 					     play_instance, src->sa_group,
@@ -4156,7 +4379,7 @@ static void target_ioreq_fini(struct target_ioreq *ti)
 }
 
 static struct target_ioreq *target_ioreq_locate(struct nw_xfer_request *xfer,
-						struct m0_fid	       *fid)
+						const struct m0_fid    *fid)
 {
 	struct target_ioreq *ti;
 
@@ -4172,7 +4395,7 @@ static struct target_ioreq *target_ioreq_locate(struct nw_xfer_request *xfer,
 }
 
 static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
-			      struct m0_fid	     *fid,
+			      const struct m0_fid    *fid,
 			      uint64_t		      ta_obj,
 			      struct m0_rpc_session  *session,
 			      uint64_t		      size,
@@ -4186,7 +4409,8 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 	M0_PRE(fid     != NULL);
 	M0_PRE(session != NULL);
 	M0_PRE(out     != NULL);
-	M0_ENTRY("nw_xfer_request %p, "FID_F, xfer, FID_P(fid));
+	M0_ENTRY("nw_xfer_request %p for "FID_F" ta_obj=%llu size=%llu",
+		 xfer, FID_P(fid), ta_obj, size);
 
 	ti = target_ioreq_locate(xfer, fid);
 	if (ti == NULL) {
@@ -4202,9 +4426,10 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 			tioreqht_htable_add(&xfer->nxr_tioreqs_hash, ti);
 			M0_LOG(M0_INFO, "New target_ioreq added for "FID_F,
 			       FID_P(fid));
-		}
-		else
+		} else {
 			m0_free(ti);
+			return M0_ERR_INFO(rc, "target_ioreq_init() failed");
+		}
 		++iommstats.a_target_ioreq_nr;
 	}
 	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
@@ -4281,20 +4506,21 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 m0_bcount_t	                   count,
 				 struct pargrp_iomap              *map)
 {
-	uint32_t		   seg;
-	m0_bindex_t		   toff;
-	m0_bindex_t		   goff;
-	m0_bindex_t		   pgstart;
-	m0_bindex_t		   pgend;
-	struct data_buf		  *buf;
-	struct io_request	  *req;
+	uint32_t                   seg;
+	m0_bindex_t                toff;
+	m0_bindex_t                goff;
+	m0_bindex_t                pgstart;
+	m0_bindex_t                pgend;
+	struct data_buf           *buf;
+	struct io_request         *req;
 	struct m0_pdclust_layout  *play;
-	uint64_t	           frame = tgt->ta_frame;
-	uint64_t	           unit  = src->sa_unit;
+	uint64_t                   frame = tgt->ta_frame;
+	uint64_t                   unit  = src->sa_unit;
 	struct m0_indexvec        *ivec;
 	struct m0_bufvec          *bvec;
 	enum m0_pdclust_unit_type  unit_type;
 	enum page_attr            *pattr;
+	uint64_t                   cnt;
 
 	M0_ENTRY("tio req %p, gob_offset %llu, count %llu frame %llu unit %llu",
 		 ti, gob_offset, count, frame, unit);
@@ -4312,8 +4538,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
 
-	M0_LOG(M0_DEBUG, "[gpos %llu, count %llu] [%llu,%llu]->[%llu,%llu] %c",
-	       gob_offset, count, src->sa_group, src->sa_unit,
+	M0_LOG(M0_DEBUG, "%llu: [gpos %6llu, +%llu][%llu,%llu]->[%llu,%llu] %c",
+	       map->pi_grpid, gob_offset, count, src->sa_group, src->sa_unit,
 	       tgt->ta_frame, tgt->ta_obj,
 	       unit_type == M0_PUT_DATA ? 'D' : 'P');
 
@@ -4324,10 +4550,18 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		ivec  = &ti->ti_dgvec->dr_ivec;
 		bvec  = &ti->ti_dgvec->dr_bufvec;
 		pattr = ti->ti_dgvec->dr_pageattrs;
+		cnt = page_nr(req->ir_iomap_nr * layout_unit_size(play) *
+		      (layout_n(play) + layout_k(play)));
+		M0_LOG(M0_DEBUG, "map_nr=%llu req state=%u cnt=%llu",
+				 req->ir_iomap_nr, ioreq_sm_state(req), cnt);
 	} else {
 		ivec  = &ti->ti_ivec;
 		bvec  = &ti->ti_bufvec;
 		pattr = ti->ti_pageattrs;
+		cnt = page_nr(req->ir_iomap_nr * layout_unit_size(play) *
+		      layout_n(play));
+		M0_LOG(M0_DEBUG, "map_nr=%llu req state=%u cnt=%llu",
+				 req->ir_iomap_nr, ioreq_sm_state(req), cnt);
 	}
 
 	while (pgstart < toff + count) {
@@ -4337,8 +4571,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		INDEX(ivec, seg) = pgstart;
 		COUNT(ivec, seg) = pgend - pgstart;
 
-		bvec->ov_vec.v_count[seg] = pgend - pgstart;
-
 		if (unit_type == M0_PUT_DATA) {
 			uint32_t row;
 			uint32_t col;
@@ -4347,28 +4579,28 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			buf = map->pi_databufs[row][col];
 
 			pattr[seg] |= PA_DATA;
-			M0_LOG(M0_DEBUG, "Data seg added");
+			M0_LOG(M0_DEBUG, "Data seg %u added", seg);
 		} else {
 			buf = map->pi_paritybufs[page_id(goff)]
 						[unit % data_col_nr(play)];
 			pattr[seg] |= PA_PARITY;
-			M0_LOG(M0_DEBUG, "Parity seg added");
+			M0_LOG(M0_DEBUG, "Parity seg %u added", seg);
 		}
 		buf->db_tioreq = ti;
-		bvec->ov_buf[seg]  = buf->db_buf.b_addr;
+		bvec->ov_buf[seg]         = buf->db_buf.b_addr;
+		bvec->ov_vec.v_count[seg] = COUNT(ivec, seg);
 		pattr[seg] |= buf->db_flags;
-		M0_LOG(M0_DEBUG, "pageaddr=%p, index=%6llu, size=%4llu "
-				 "grpid=%3llu flags=%4x for "FID_F,
-			bvec->ov_buf[seg], INDEX(ivec, seg), COUNT(ivec, seg),
-			map->pi_grpid, pattr[seg], FID_P(&ti->ti_fid));
-		M0_LOG(M0_DEBUG, "Seg id %d [%llu, %llu] added to target_ioreq "
-		       "with "FID_F" with flags 0x%x: ", seg,
-		       INDEX(ivec, seg), COUNT(ivec, seg),
-		       FID_P(&ti->ti_fid), pattr[seg]);
+		M0_LOG(M0_DEBUG, "Seg id %d pageaddr=%p [%llu, %llu] added to"
+				 " target_ioreq with "FID_F" with flags 0x%x",
+				 seg, bvec->ov_buf[seg],
+				 INDEX(ivec, seg), COUNT(ivec, seg),
+				 FID_P(&ti->ti_fid), pattr[seg]);
 
 		goff += COUNT(ivec, seg);
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
+		M0_ASSERT_INFO(ivec->iv_vec.v_nr <= cnt,
+			       "v_nr=%u, page_nr=%llu", ivec->iv_vec.v_nr, cnt);
 	}
 
 	M0_LEAVE();
@@ -4390,7 +4622,6 @@ static int io_req_fop_init(struct io_req_fop   *fop,
 	iofops_tlink_init(fop);
 	fop->irf_pattr     = pattr;
 	fop->irf_tioreq	   = ti;
-	fop->irf_ops       = &irfop_ops;
 	fop->irf_reply_rc  = 0;
 	fop->irf_ast.sa_cb = io_bottom_half;
 
@@ -4411,7 +4642,7 @@ static int io_req_fop_init(struct io_req_fop   *fop,
 	 * Changes ri_ops of rpc item so as to execute m0t1fs's own
 	 * callback on receiving a reply.
 	 */
-	fop->irf_iofop.if_fop.f_item.ri_ops = &m0t1fs_item_ops;
+	fop->irf_iofop.if_fop.f_item.ri_ops = &io_item_ops;
 
 	M0_POST(ergo(rc == 0, io_req_fop_invariant(fop)));
 	return M0_RC(rc);
@@ -4429,7 +4660,6 @@ static void io_req_fop_fini(struct io_req_fop *fop)
 	 */
 
 	iofops_tlink_fini(fop);
-	fop->irf_ops = NULL;
 
 	/*
 	 * io_req_bob_fini() is not done here so that struct io_req_fop
@@ -4497,10 +4727,10 @@ static void ioreq_failed_fini(struct io_request *req, int rc)
  * aligned with user buffers in struct iovec array.
  * This function is also used by file->f_op->aio_{read/write} path.
  */
-M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb       *kcb,
-			       const struct iovec *iov,
-			       struct m0_indexvec *ivec,
-			       enum io_req_type    rw)
+M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb             *kcb,
+			       const struct iovec       *iov,
+			       const struct m0_indexvec *ivec,
+			       enum io_req_type          rw)
 {
 	int                      rc;
 	ssize_t                  count;
@@ -4700,6 +4930,8 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 	if (ivec == NULL)
 		return M0_RC(-ENOMEM);
 
+	indexvec_dump(ivec);
+
 	M0_LOG(M0_INFO, "Write vec-count = %llu seg_nr %lu",
 			m0_vec_count(&ivec->iv_vec), seg_nr);
 	written = m0t1fs_aio(kcb, iov, ivec, IRT_WRITE);
@@ -4774,7 +5006,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 			break;
 		}
 	}
-
+	indexvec_dump(ivec);
 	if (m0_vec_count(&ivec->iv_vec) == 0) {
 		m0_indexvec_free(ivec);
 		m0_free(ivec);
@@ -4877,6 +5109,7 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	struct m0_io_fop       *iofop;
 	struct io_req_fop      *reqfop;
 	struct io_request      *ioreq;
+	M0_ENTRY();
 
 	M0_PRE(evt != NULL);
 	M0_PRE(evt->nbe_buffer != NULL);
@@ -4915,6 +5148,7 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 				    IRS_READ_COMPLETE : IRS_WRITE_COMPLETE));
 	}
 	m0_mutex_unlock(&ioreq->ir_nwxfer.nxr_lock);
+	M0_LEAVE();
 }
 
 const struct m0_net_buffer_callbacks client_buf_bulk_cb  = {
@@ -5351,6 +5585,11 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	M0_LEAVE();
 }
 
+/**
+ * Degraded mode read support for IO request fop.
+ * Invokes degraded mode read support routines for upper
+ * data structures like pargrp_iomap.
+ */
 static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 {
 	int                         rc;
@@ -5387,7 +5626,7 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 				M0_ASSERT((index[seg] &
 					  ~PAGE_CACHE_MASK) == 0);
 
-				if (seg < seg_nr && grpid ==
+				if (grpid ==
 				    pargrp_id_find(index[seg], req, irfop))
 					++cnt;
 				else
@@ -5489,7 +5728,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				       enum page_attr       filter)
 {
 	int			     rc = 0;
-	uint32_t		     buf = 0;
+	uint32_t		     seg = 0;
 	/* Number of segments in one m0_rpc_bulk_buf structure. */
 	uint32_t		     bbsegs;
 	uint32_t		     maxsize;
@@ -5505,7 +5744,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	struct m0_poolmach_versions  curr;
 	struct m0_poolmach_versions *cli;
 
-	M0_ENTRY("prepare io fops for target ioreq %p filter %u, tfid "FID_F,
+	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
 	M0_PRE_EX(target_ioreq_invariant(ti));
 	M0_PRE(M0_IN(filter, (PA_DATA, PA_PARITY)));
@@ -5536,18 +5775,19 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	     PA_READ;
 	maxsize = m0_rpc_session_get_max_item_payload_size(ti->ti_session);
 
-	while (buf < SEG_NR(ivec)) {
+	while (seg < SEG_NR(ivec)) {
 
 		delta  = 0;
 		bbsegs = 0;
 
-		M0_LOG(M0_DEBUG, "pageattr = %u, filter = %u, rw = %u",
-			pattr[buf], filter, rw);
+		M0_LOG(M0_DEBUG, "seg=%u@%u pageattr=0x%x, filter=0x%x,rw=0x%x",
+				 seg, SEG_NR(ivec), pattr[seg], filter, rw);
 
-		if (!(pattr[buf] & filter) || !(pattr[buf] & rw)) {
-			M0_LOG(M0_DEBUG, "skipping, pageattr = %u, "
-			       "filter = %u, rw = %u", pattr[buf], filter, rw);
-			++buf;
+		if (!(pattr[seg] & filter) || !(pattr[seg] & rw)) {
+			M0_LOG(M0_DEBUG, "skipping, pageattr = 0x%x, "
+			                 "filter = 0x%x, rw = 0x%x",
+				         pattr[seg], filter, rw);
+			++seg;
 			continue;
 		}
 
@@ -5583,22 +5823,26 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		 * Adds io segments and io descriptor only if it fits within
 		 * permitted size.
 		 */
-		while (buf < SEG_NR(ivec) &&
+		while (seg < SEG_NR(ivec) &&
 		       m0_io_fop_size_get(&irfop->irf_iofop.if_fop) + delta <
 		       maxsize) {
+
+			M0_LOG(M0_DEBUG, "adding: seg=%u@%u "
+					 "pa=0x%x, filter=0x%x, rw=0x%x",
+					 seg, SEG_NR(ivec), pattr[seg],
+					 filter, rw);
 
 			/*
 			 * Adds a page to rpc bulk buffer only if it passes
 			 * through the filter.
 			 */
-			if (pattr[buf] & rw && pattr[buf] & filter) {
-
+			if ((pattr[seg] & rw) && (pattr[seg] & filter)) {
 				delta += io_seg_size() + io_di_size(req);
 
 				rc = m0_rpc_bulk_buf_databuf_add(rbuf,
-						bvec->ov_buf[buf],
-						COUNT(ivec, buf),
-						INDEX(ivec, buf), ndom);
+						bvec->ov_buf[seg],
+						COUNT(ivec, seg),
+						INDEX(ivec, seg), ndom);
 
 				if (rc == -EMSGSIZE) {
 
@@ -5630,7 +5874,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				} else if (rc == 0)
 					++bbsegs;
 			}
-			++buf;
+			++seg;
 		}
 
 		if (m0_io_fop_byte_count(&irfop->irf_iofop) == 0) {
@@ -5653,14 +5897,15 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					&irfop->irf_iofop.if_rbulk.rb_buflist);
 
 		M0_CNT_INC(ti->ti_nwxfer->nxr_iofop_nr);
+		iofops_tlist_add(&ti->ti_iofops, irfop);
 		M0_LOG(M0_DEBUG, "irfop=%p bulk=%p (%s) @"FID_F" io fops = %llu"
-				 " read bulks = %llu",
+				 " read bulks = %llu list_len=%d",
 		       irfop, &irfop->irf_iofop.if_rbulk,
 		       m0_is_read_fop(&irfop->irf_iofop.if_fop) ? "r" : "w",
 		       FID_P(&ti->ti_fid),
 		       ti->ti_nwxfer->nxr_iofop_nr,
-		       ti->ti_nwxfer->nxr_rdbulk_nr);
-		iofops_tlist_add(&ti->ti_iofops, irfop);
+		       ti->ti_nwxfer->nxr_rdbulk_nr,
+		       (int)iofops_tlist_length(&ti->ti_iofops));
 	}
 
 	return M0_RC(0);
