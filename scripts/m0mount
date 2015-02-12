@@ -456,9 +456,8 @@ function build_conf ()
 	local i
 
 	# prepare configuration data
-	MDS_ENDPOINT="\"${SERVICES[1]}\""
-	RMS_ENDPOINT="\"${SERVICES[1]}\""
-	STATS_ENDPOINT="\"${SERVICES[1]}\""
+	RMS_ENDPOINT="\"$MDS_EP\""
+	STATS_ENDPOINT="\"$MDS_EP\""
 	     PROF='(0x7000000000000001, 0)'
 	 PROF_OPT='<0x7000000000000001:0>'
 	       FS='(0x6600000000000001, 1)'
@@ -467,7 +466,7 @@ function build_conf ()
 	    STATS='(0x7300000000000001, 4)'
 	     NODE='(0x6e00000000000001, 0)'
 	IOS_NAMES='(0x7300000000000003, 1)'
-	IOS_OBJS="{0x73| (($IOS_NAMES), 2, [1: $MDS_ENDPOINT], $NODE)}"
+	IOS_OBJS="{0x73| (($IOS_NAMES), 2, [1: \"${SERVICES[1]}\"], $NODE)}"
 	for i in `seq 3 2 ${#SERVICES[*]}`; do
 		IOS_NAME="(0x7300000000000003, $(((i+1) / 2)))"
 		IOS_NAMES+=", $IOS_NAME"
@@ -479,10 +478,28 @@ function build_conf ()
   {0x66| (($FS), (11, 22),
               [1: \"$POOL_WIDTH $NR_DATA $NR_PARITY\"],
               [$((SERVICES_NR + 3)): $MDS, $RM, $STATS, $IOS_NAMES])},
-  {0x73| (($MDS),   1, [1: $MDS_ENDPOINT],   $NODE)},
+  {0x73| (($MDS),   1, [1: \"$MDS_EP\"],   $NODE)},
   {0x73| (($RM),    4, [1: $RMS_ENDPOINT],   $NODE)},
   {0x73| (($STATS), 5, [1: $STATS_ENDPOINT], $NODE)},
   $IOS_OBJS]"
+}
+
+function mkfs()
+{
+	local DIR="$1"
+	local STOB="$2"
+
+	echo Running mkfs...
+	$DO "rm -rf $DIR; mkdir $DIR"
+	$RUN "cd $DIR && \
+M0_TRACE_IMMEDIATE_MASK=$M0MKFS_TRACE_MASK \
+M0_TRACE_LEVEL=$M0MKFS_TRACE_LEVEL \
+M0_TRACE_PRINT_CONTEXT=$M0MKFS_TRACE_CONTEXT \
+$M0MKFS $STOB -D $DIR/db -S $DIR/stobs \
+-A linuxstob:$DIR/addb-stobs" || {
+		echo "ERROR: Failed to m0mkfs for $(basename $DIR) on $H"
+		return 1
+	}
 }
 
 function start_server ()
@@ -551,17 +568,7 @@ function start_server ()
 			build_conf # just show the conf
 		fi
 		if [ $run_mkfs -eq 1 ]; then
-			echo Running mkfs...
-			$DO "rm -rf $DIR; mkdir $DIR"
-			$RUN "cd $DIR && \
-M0_TRACE_IMMEDIATE_MASK=$M0MKFS_TRACE_MASK \
-M0_TRACE_LEVEL=$M0MKFS_TRACE_LEVEL \
-M0_TRACE_PRINT_CONTEXT=$M0MKFS_TRACE_CONTEXT \
-$M0MKFS -T linux -D $DIR/db -S $DIR/stobs \
--A linuxstob:$DIR/addb-stobs" || {
-				echo ERROR: Failed to m0mkfs for confd on $H
-				return 1
-			}
+			mkfs $DIR "-T linux" || return 1
 		fi
 		$RUN "cd $DIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
@@ -575,22 +582,30 @@ $M0D -T linux -D $DIR/db -S $DIR/stobs \
 			return 1
 		fi
 		sleep 2
-		SNAME="-s mdservice -s rmservice -s stats"
+
+		DIR=$WORK_ARENA/mds
+		if [ $run_mkfs -eq 1 ]; then
+			mkfs "$DIR" "-T linux" || return 1
+		fi
+		echo Running m0d...
+		$RUN "cd $DIR && \
+M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
+M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
+M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
+$M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
+-w $POOL_WIDTH -e $XPT:$MDS_EP -P '$PROF_OPT' -C $CONFD_EP \
+-s mdservice -s rmservice -s stats -s addb $XPT_SETUP" >> ${SLOG}-mds.log &
+		if [ $? -ne 0 ]; then
+			echo ERROR: Failed to start m0d on $H
+			return 1
+		fi
+		sleep 2
 	fi
 	SNAME+=" -P '$PROF_OPT' -C $CONFD_EP"
 	SNAME+=" -s addb -s ioservice -s sns_repair -s sns_rebalance"
 
 	if [ $run_mkfs -eq 1 ]; then
-		echo Running mkfs...
-		$RUN "cd $DDIR && \
-M0_TRACE_IMMEDIATE_MASK=$M0MKFS_TRACE_MASK \
-M0_TRACE_LEVEL=$M0MKFS_TRACE_LEVEL \
-M0_TRACE_PRINT_CONTEXT=$M0MKFS_TRACE_CONTEXT \
-$M0MKFS $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs \
--A linuxstob:$DDIR/addb-stobs" || {
-			echo ERROR: Failed to m0mkfs on $H
-			return 1
-		}
+		mkfs "$DDIR" "$STOB_PARAMS" || return 1
 	fi
 	echo Running m0d...
 	$RUN "cd $DDIR && \
@@ -600,7 +615,7 @@ M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A linuxstob:$DDIR/addb-stobs \
 -w $POOL_WIDTH -e $XPT:$EP $SNAME $XPT_SETUP" >> ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
-		echo ERROR: Failed to start remote server on $H
+		echo ERROR: Failed to start m0d on $H
 		return 1
 	fi
 
@@ -620,7 +635,7 @@ function start_servers ()
 		done
 	fi
 
-	MDS_EP=${SERVICES[1]}
+	MDS_EP=${SERVICES[1]%:*}:99
 	STATS_EP=${SERVICES[1]}
 	CONFD_EP=${SERVICES[1]%:*}:100
 
@@ -653,12 +668,12 @@ function start_servers ()
 		echo "Started $STARTED_NR (of $SERVICES_NR) services..."
 		[ $STARTED_NR -ge $SERVICES_NR ] && break
 		local START_ERROR=`cat ${SLOG}[0-9]*.log | grep ERROR | wc -l`
-		l_do sleep 5
 		if [ $START_ERROR -gt 0 ]; then
 			echo "Failed to start Mero!"
 			cat ${SLOG}[0-9]*.log | grep ERROR
 			return 1
 		fi
+		l_do sleep 5
 	done
 
 	return 0
