@@ -273,18 +273,6 @@ m0_get_ios_eps()
     echo $ios_eps
 }
 
-# Return space-separated list of all IOS endpoints in the cluster
-m0_get_global_ios_eps()
-{
-    local global_ios_eps
-
-    for node in $(m0_get_nodes); do
-        global_ios_eps="$global_ios_eps $(m0_get_ios_eps $node)"
-    done
-
-    echo $global_ios_eps
-}
-
 # Return space-separated list of all IOS endpoints in the cluster, from genders
 # file
 m0_get_global_ios_eps()
