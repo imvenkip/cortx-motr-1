@@ -680,58 +680,44 @@ tail:
 	return M0_FSO_AGAIN;
 }
 
-static int cob_foms_stob_domain_find(struct m0_fom_cob_op *cc,
-				     struct m0_stob_domain **sdom)
-{
-	*sdom = m0_stob_domain_find_by_stob_fid(&cc->fco_stob_fid);
-	if (*sdom == NULL) {
-		M0_LOG(M0_DEBUG, "can't find domain for stob_fid="FID_F,
-		       FID_P(&cc->fco_stob_fid));
-	}
-	return *sdom == NULL ? -EINVAL : 0;
-}
-
 static int cc_stob_create_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 				 struct m0_be_tx_credit *accum)
 {
 	struct m0_stob_domain *sdom;
-	int		       rc;
 
-	rc = cob_foms_stob_domain_find(cc, &sdom);
-	if (rc != 0) {
+	M0_ENTRY("stob_fid="FID_F, FID_P(&cc->fco_stob_fid));
+
+	sdom = m0_stob_domain_find_by_stob_fid(&cc->fco_stob_fid);
+	if (sdom == NULL) {
 		IOS_ADDB_FUNCFAIL(-EINVAL, CC_STOB_CREATE_CRED,
 				  &m0_ios_addb_ctx);
-	} else {
-		m0_stob_create_credit(sdom, m0_fom_tx_credit(fom));
+		return M0_ERR(-EINVAL);
 	}
-	return M0_RC(rc);
+
+	m0_stob_create_credit(sdom, m0_fom_tx_credit(fom));
+
+	return M0_RC(0);
 }
 
 static int cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 {
-	struct m0_stob_domain *sdom;
 	struct m0_stob        *stob;
 	int                    rc;
 
-	rc = cob_foms_stob_domain_find(cc, &sdom);
+	rc = m0_stob_find(&cc->fco_stob_fid, &stob);
+	rc = rc ?: m0_stob_state_get(stob) == CSS_UNKNOWN ?
+		   m0_stob_locate(stob) : 0;
+	rc = rc ?: m0_stob_state_get(stob) == CSS_NOENT ?
+		   m0_stob_create(stob, &fom->fo_tx, NULL) : 0;
 	if (rc != 0) {
-		IOS_ADDB_FUNCFAIL(-EINVAL, CC_STOB_CREATE_1, &m0_ios_addb_ctx);
+		M0_LOG(M0_DEBUG, "m0_stob_create() failed with %d", rc);
+		IOS_ADDB_FUNCFAIL(rc, CC_STOB_CREATE_1, &m0_ios_addb_ctx);
 	} else {
-		rc = m0_stob_find(&cc->fco_stob_fid, &stob);
-		rc = rc ?: m0_stob_state_get(stob) == CSS_UNKNOWN ?
-			   m0_stob_locate(stob) : 0;
-		rc = rc ?: m0_stob_state_get(stob) == CSS_NOENT ?
-			   m0_stob_create(stob, &fom->fo_tx, NULL) : 0;
-		if (rc != 0) {
-			M0_LOG(M0_DEBUG, "m0_stob_create() failed with %d", rc);
-			IOS_ADDB_FUNCFAIL(rc, CC_STOB_CREATE_2,
-					  &m0_ios_addb_ctx);
-		} else {
-			M0_LOG(M0_DEBUG, "Stob created successfully.");
-		}
-		if (stob != NULL)
-			m0_stob_put(stob);
+		M0_LOG(M0_DEBUG, "Stob created successfully.");
 	}
+	if (stob != NULL)
+		m0_stob_put(stob);
+
 	return M0_RC(rc);
 }
 
@@ -1141,67 +1127,54 @@ static int cd_cob_delete(struct m0_fom            *fom,
 static int cd_stob_delete_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 				 struct m0_be_tx_credit *accum)
 {
-	struct m0_stob_domain *sdom;
 	struct m0_stob	      *stob;
 	int		       rc;
 
-	rc = cob_foms_stob_domain_find(cc, &sdom);
-	if (rc != 0) {
-		IOS_ADDB_FUNCFAIL(-EINVAL, CC_STOB_DELETE_CRED_1,
-				  &m0_ios_addb_ctx);
-	} else {
-		/*
-		 * XXX: We need not lookup the stob again as it was already
-		 * found and saved in M0_FOPH_INIT phase. But due to MERO-244
-		 * (resend) the ref count is increased which is not expected
-		 * and causes side effect on the operation.
-		 */
-		rc = m0_stob_lookup(&cc->fco_stob_fid, &cc->fco_stob);
-		if (rc != 0)
-			return M0_RC(rc);
-		stob = cc->fco_stob;
-		rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
-		M0_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
-		if (rc != 0)
-			return M0_RC(rc);
-		M0_ASSERT(stob != NULL);
-		rc = m0_stob_destroy_credit(stob, accum);
-		m0_stob_put(stob);
-	}
+	/*
+	 * XXX: We need not lookup the stob again as it was already
+	 * found and saved in M0_FOPH_INIT phase. But due to MERO-244
+	 * (resend) the ref count is increased which is not expected
+	 * and causes side effect on the operation.
+	 */
+	rc = m0_stob_lookup(&cc->fco_stob_fid, &cc->fco_stob);
+	if (rc != 0)
+		return M0_RC(rc);
+	stob = cc->fco_stob;
+	rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
+	M0_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
+	if (rc != 0)
+		return M0_RC(rc);
+	M0_ASSERT(stob != NULL);
+	rc = m0_stob_destroy_credit(stob, accum);
+	m0_stob_put(stob);
+
 	return M0_RC(rc);
 }
 
 static int cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 {
-	struct m0_stob_domain *sdom;
 	struct m0_stob        *stob = NULL;
 	int                    rc;
 
-	rc = cob_foms_stob_domain_find(cd, &sdom);
+	/*
+	 * XXX: We need not lookup the stob again as it was already
+	 * found and saved in M0_FOPH_INIT phase. But due to MERO-244
+	 * (resend) the ref count is increased which is not expected
+	 * and causes side effect on the operation.
+	 */
+	rc = m0_stob_lookup(&cd->fco_stob_fid, &cd->fco_stob);
+	if (rc != 0)
+		return M0_RC(rc);
+	stob = cd->fco_stob;
+	M0_ASSERT(stob != NULL);
+	rc = m0_stob_destroy(stob, &fom->fo_tx);
 	if (rc != 0) {
-		IOS_ADDB_FUNCFAIL(-EINVAL, CD_STOB_DELETE_1, &m0_ios_addb_ctx);
+		M0_LOG(M0_DEBUG, "m0_stob_destroy() failed with %d", rc);
+		IOS_ADDB_FUNCFAIL(rc, CD_STOB_DELETE_1, &m0_ios_addb_ctx);
 	} else {
-		/*
-		 * XXX: We need not lookup the stob again as it was already
-		 * found and saved in M0_FOPH_INIT phase. But due to MERO-244
-		 * (resend) the ref count is increased which is not expected
-		 * and causes side effect on the operation.
-		 */
-		rc = m0_stob_lookup(&cd->fco_stob_fid, &cd->fco_stob);
-		if (rc != 0)
-			return M0_RC(rc);
-		stob = cd->fco_stob;
-		M0_ASSERT(stob != NULL);
-		rc = m0_stob_destroy(stob, &fom->fo_tx);
-		if (rc != 0) {
-			M0_LOG(M0_DEBUG, "m0_stob_destroy() failed with %d",
-			       rc);
-			IOS_ADDB_FUNCFAIL(rc, CD_STOB_DELETE_2,
-					  &m0_ios_addb_ctx);
-		} else {
-			M0_LOG(M0_DEBUG, "Stob deleted successfully.");
-		}
+		M0_LOG(M0_DEBUG, "Stob deleted successfully.");
 	}
+
 	return M0_RC(rc);
 }
 

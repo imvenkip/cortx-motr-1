@@ -68,7 +68,7 @@ struct m0_indexvec;
  * <b>Stob cache</b>.
  *
  * Stob domain doesn't contain list of initialised stobs. Instead, it has
- * a stob cache. This cache is maintained implicity and there is no public
+ * a stob cache. This cache is maintained implicitly and there is no public
  * interface for it.
  *
  * A stob may be finalised and removed from stob cache at some time after
