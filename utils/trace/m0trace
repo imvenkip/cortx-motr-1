@@ -657,7 +657,7 @@ sub process_cli_options
     help() if !GetOptions(
         'i|input=s'      =>  \$cli_option{input_file},
         'o|output=s'     =>  \$cli_option{output_file},
-        's|stream-mode'  =>  \$cli_option{stream_mode},
+        'S|stream-mode'  =>  \$cli_option{stream_mode},
         'pager!'         =>  \$cli_option{use_pager},
         'color=s'        =>  \$cli_option{color},
         'c'              =>  sub { $cli_option{color} = 'always' },
@@ -667,12 +667,13 @@ sub process_cli_options
         'H|header'       =>  \$cli_option{dump_header},
         'f|follow'       =>  sub { $cli_option{follow} = $cli_option{stream_mode} = 1 },
         'r|relpath!'     =>  \$cli_option{relpath},
+        'M|match-only'   =>  \$cli_option{match_only},
         'F|format=s'     =>  \$cli_option{format},
         'l|level=s'      =>  \$cli_option{level},
-        'S|subsys=s'     =>  \$cli_option{subsys},
-        'F|file=s'       =>  \$cli_option{file},
-        'U|func=s'       =>  \$cli_option{func},
-        'M|msg=s'        =>  \$cli_option{msg},
+        's|subsys=s'     =>  \$cli_option{subsys},
+        'f|file=s'       =>  \$cli_option{file},
+        'u|func=s'       =>  \$cli_option{func},
+        'm|msg=s'        =>  \$cli_option{msg},
 
         'h|help'    =>  \&help,
         'usage'     =>  \&usage,
@@ -767,7 +768,7 @@ sub main
             validate_trace_record($tr);
             if ((match_level($tr) and match_subsys($tr) and match_file($tr)
                  and match_func($tr) and match_msg($tr))
-            or is_error_level($tr, 'warn+'))
+                or (!defined($cli_option{match_only}) and is_error_level($tr, 'warn+')))
             {
                 print_trace_record($output_file, $tr);
             }
