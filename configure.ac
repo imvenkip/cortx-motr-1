@@ -309,7 +309,7 @@ AC_ARG_WITH([segment-size],
 AS_IF([test -z "$SEG_SIZE" || test "x$SEG_SIZE" = xyes || test "x$SEG_SIZE" = xno],
       [AC_MSG_ERROR([Segment size must be set with --with-segment-size option.])]
 )
-AC_DEFINE_UNQUOTED([M0_BE_SEGMENT_SIZE], [($SEG_SIZE * 1024 * 1024UL)])
+AC_DEFINE_UNQUOTED([M0_BE_SEGMENT_SIZE], [(${SEG_SIZE}UL * 1024 * 1024)])
 
 AC_ARG_WITH([trace-kbuf-size],
         [AS_HELP_STRING([--with-trace-kbuf-size=number],
