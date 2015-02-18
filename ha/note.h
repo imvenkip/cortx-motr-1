@@ -121,13 +121,13 @@ enum m0_ha_obj_state {
 	/** Object can be used normally. */
 	M0_NC_ONLINE,
 	/**
-	 * Object failed and cannot service requests. HA will notify Mero when
-	 * the object is available again.
+	 * Object has experienced a permanent failure and cannot be
+	 * recovered.
 	 */
 	M0_NC_FAILED,
 	/**
-	 * Object experienced a temporary failure. Mero should resume using the
-	 * object after an implementation defined timeout.
+	 * Object is experiencing a temporary failure. Halon will notify Mero
+	 * when the object is available for use again.
 	 */
 	M0_NC_TRANSIENT,
 	/**
@@ -138,7 +138,7 @@ enum m0_ha_obj_state {
 	M0_NC_REPAIR,
 	/**
 	 * This state is only applicable to the pool objects. Rebalance process
-	 * is complementaty to repair: previously reconstructed data are copiued
+	 * is complementary to repair: previously reconstructed data are copied
 	 * from spare space to the replacement storage.
 	 */
 	M0_NC_REBALANCE,
