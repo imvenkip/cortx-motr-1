@@ -25,13 +25,6 @@
 #ifndef __MERO___HA_NOTE_FOMS_INTERNAL_H__
 #define __MERO___HA_NOTE_FOMS_INTERNAL_H__
 
-struct m0_ha_state_set_fom {
-	/** Generic m0_fom object. */
-	struct m0_fom  fp_gen;
-	/** FOP associated with this FOM. */
-	struct m0_fop *fp_fop;
-};
-
 M0_INTERNAL void m0_ha_state_set_fom_fini(struct m0_fom *fom);
 M0_INTERNAL size_t m0_ha_state_set_fom_home_locality(const struct m0_fom *fom);
 M0_INTERNAL void m0_ha_state_set_fom_addb_init(struct m0_fom *fom,

@@ -50,13 +50,13 @@ M0_INTERNAL int m0_ha_state_fop_init(void)
 	M0_FOP_TYPE_INIT(&m0_ha_state_get_fopt,
 			 .name      = "HA State Get",
 			 .opcode    = M0_HA_NOTE_GET_OPCODE,
-			 .xt        = m0_ha_state_fop_get_xc,
+			 .xt        = m0_ha_nvec_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .svc_type  = &m0_rpc_service_type);
 	M0_FOP_TYPE_INIT(&m0_ha_state_get_rep_fopt,
 			 .name      = "HA State Get Reply",
 			 .opcode    = M0_HA_NOTE_GET_REP_OPCODE,
-			 .xt        = m0_ha_state_fop_get_rep_xc,
+			 .xt        = m0_ha_state_fop_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .svc_type  = &m0_rpc_service_type);
 	M0_FOP_TYPE_INIT(&m0_ha_state_set_fopt,

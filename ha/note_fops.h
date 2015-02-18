@@ -36,29 +36,15 @@
  * @{
  */
 
-struct m0_ha_state_no_ids {
-	/** Number of object identifiers. */
-	uint8_t        ni_nr;
-	/** Object identifiers, from m0_ha_note. */
-	struct m0_fid *ni_id_types;
-} M0_XCA_SEQUENCE;
-
 /**
- * FOP to get m0_ha_note, sent from Mero to HA.
+ * FOP sent between Mero and Halon to exchange object state changes. See
+ * ha/note.h.
  */
-struct m0_ha_state_fop_get {
-	/** Object identifiers to get, from Mero to HA. */
-	struct m0_ha_state_no_ids hsg_ids;
-} M0_XCA_RECORD;
-
-/**
- * FOP to reply m0_ha_state_get(), sent from HA to Mero.
- */
-struct m0_ha_state_fop_get_rep {
-	/** Error code, 0 == success, -Ecode otherwise. */
-	int32_t           hsgr_rc;
-	/** Replied m0_ha_note data. */
-	struct m0_ha_nvec hsgr_note;
+struct m0_ha_state_fop {
+	/** Error code for reply, ignored in request. */
+	int32_t           hs_rc;
+	/** Objects and (optionally) their states. */
+	struct m0_ha_nvec hs_note;
 } M0_XCA_RECORD;
 
 /**

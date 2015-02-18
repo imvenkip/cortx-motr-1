@@ -119,7 +119,7 @@ enum m0_ha_obj_state {
 	/** Object state is unknown. */
 	M0_NC_UNKNOWN,
 	/** Object can be used normally. */
-	M0_NC_ACTIVE,
+	M0_NC_ONLINE,
 	/**
 	 * Object failed and cannot service requests. HA will notify Mero when
 	 * the object is available again.
@@ -131,24 +131,17 @@ enum m0_ha_obj_state {
 	 */
 	M0_NC_TRANSIENT,
 	/**
-	 * Object is in degraded mode. The meaning of this state is object type
-	 * dependent.
+	 * This state is only applicable to the pool objects. In this state, the
+	 * pool is undergoing repair, i.e., the process of reconstructing data
+	 * lost due to a failure and storing them in spare space.
 	 */
-	M0_NC_DEGRADED,
+	M0_NC_REPAIR,
 	/**
-	 * Object is recovering from a failure. Object type specific protocol is
-	 * used to tell users when the object has recovered.
+	 * This state is only applicable to the pool objects. Rebalance process
+	 * is complementaty to repair: previously reconstructed data are copiued
+	 * from spare space to the replacement storage.
 	 */
-	M0_NC_RECOVERING,
-	/**
-	 * Object is removed from the active service by an administrator.
-	 */
-	M0_NC_OFFLINE,
-	/**
-	 * Object is ex-communicated from the chur^H^H^Hluster. Don't talk to
-	 * it.
-	 */
-	M0_NC_ANATHEMISED,
+	M0_NC_REBALANCE,
 
 	M0_NC_NR
 };
@@ -191,6 +184,9 @@ struct m0_ha_nvec {
  *     time. The caller of m0_ha_state_get() is likely to call
  *     m0_ha_state_accept() when the reply is received.
  *
+ * The caller must guarantee that on successful return from this function "note"
+ * parameter is valid (i.e., not deallocated) until the channel is signalled.
+ *
  * @pre m0_forall(i, note->nv_nr, note->nv_note[i].no_state == M0_NC_UNKNOWN &&
  *                                m0_conf_fid_is_valid(&note->nv_note[i].no_id))
  */
@@ -218,7 +214,9 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
  * Because failure state change is tentative, no error reporting is needed.
  *
  * @pre m0_forall(i, note->nv_nr, note->nv_note[i].no_state != M0_NC_UNKNOWN &&
- *                                m0_conf_fid_is_valid(&note->nv_note[i].no_id))
+ *                             m0_conf_fid_is_valid(&note->nv_note[i].no_id) &&
+ *    ergo(M0_IN(note->nv_note[i].no_state, (M0_NC_REPAIR, M0_NC_REBALANCE)),
+ *         m0_conf_fid_type(&note->nv_note[i].no_id) == &M0_CONF_POOL_TYPE))
  */
 M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 				 struct m0_ha_nvec *note);
@@ -240,11 +238,13 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
  *     "pulls" updates.
  *
  * @note: m0_conf_obj should be modified to hold HA-related state.
- * Valery Vorotyntsev (valery_vorotyntsev@xyratex.com) is the configuration
+ * Valery Vorotyntsev (valery.vorotyntsev@seagate.com) is the configuration
  * sub-system maintainer.
  *
  * @pre m0_forall(i, note->nv_nr, note->nv_note[i].no_state != M0_NC_UNKNOWN &&
- *                                m0_conf_fid_is_valid(&note->nv_note[i].no_id))
+ *                             m0_conf_fid_is_valid(&note->nv_note[i].no_id) &&
+ *    ergo(M0_IN(note->nv_note[i].no_state, (M0_NC_REPAIR, M0_NC_REBALANCE)),
+ *         m0_conf_fid_type(&note->nv_note[i].no_id) == &M0_CONF_POOL_TYPE))
  */
 M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
 				    const struct m0_ha_nvec *note);

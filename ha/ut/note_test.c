@@ -128,15 +128,10 @@ static int ha_state_ut_fom_create(const struct m0_fom_ops *ops,
 				  struct m0_fop *fop, struct m0_fom **m,
 				  struct m0_reqh *reqh)
 {
-	struct m0_fom              *fom;
-	struct m0_ha_state_set_fom *fom_obj;
+	struct m0_fom *fom;
 
-	M0_ALLOC_PTR(fom_obj);
-	M0_UT_ASSERT(fom_obj != NULL);
-	fom = &fom_obj->fp_gen;
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops,
-		    fop, NULL, reqh);
-	fom_obj->fp_fop = fop;
+	M0_ALLOC_PTR(fom);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, NULL, reqh);
 	*m = fom;
 	return 0;
 }
@@ -147,39 +142,40 @@ static int ha_state_ut_fom_create(const struct m0_fom_ops *ops,
 
 static int ha_state_ut_fom_get_tick(struct m0_fom *fom)
 {
-	struct m0_ha_state_set_fom     *fom_obj;
-	struct m0_fop                  *fop;
-	struct m0_ha_state_fop_get     *fop_get;
-	struct m0_ha_state_fop_get_rep *fop_get_rep;
-	int                             i;
+	struct m0_fop          *reply_fop;
+	struct m0_ha_nvec      *req;
+	struct m0_ha_state_fop *reply;
+	int                     i;
 
-	fom_obj = container_of(fom, struct m0_ha_state_set_fom, fp_gen);
-	fop = m0_fop_reply_alloc(fom->fo_fop, &m0_ha_state_get_rep_fopt);
-	M0_UT_ASSERT(fop != NULL);
+	reply_fop = m0_fop_reply_alloc(fom->fo_fop, &m0_ha_state_get_rep_fopt);
+	M0_UT_ASSERT(reply_fop != NULL);
 
-	fop_get = m0_fop_data(fom_obj->fp_fop);
+	req = m0_fop_data(fom->fo_fop);
 
-	fop_get_rep                  = m0_fop_data(fop);
-	fop_get_rep->hsgr_rc         = 0;
-	fop_get_rep->hsgr_note.nv_nr = fop_get->hsg_ids.ni_nr;
+	reply                = m0_fop_data(reply_fop);
+	reply->hs_rc         = 0;
+	reply->hs_note.nv_nr = req->nv_nr;
 
-	M0_ALLOC_ARR(fop_get_rep->hsgr_note.nv_note, fop_get->hsg_ids.ni_nr);
-	M0_UT_ASSERT(fop_get_rep->hsgr_note.nv_note != NULL);
-	for (i = 0; i < fop_get->hsg_ids.ni_nr; ++i) {
-		fop_get_rep->hsgr_note.nv_note[i].no_state = M0_NC_ACTIVE;
+	M0_ALLOC_ARR(reply->hs_note.nv_note, req->nv_nr);
+	M0_UT_ASSERT(reply->hs_note.nv_note != NULL);
+	for (i = 0; i < req->nv_nr; ++i) {
+		reply->hs_note.nv_note[i] = (struct m0_ha_note) {
+			.no_id    = req->nv_note[i].no_id,
+			.no_state = M0_NC_ONLINE
+		};
 	}
 
-	m0_rpc_reply_post(m0_fop_to_rpc_item(fom_obj->fp_fop),
-			  m0_fop_to_rpc_item(fop));
+	m0_rpc_reply_post(m0_fop_to_rpc_item(fom->fo_fop),
+			  m0_fop_to_rpc_item(reply_fop));
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	return M0_FSO_WAIT;
 }
 
 static const struct m0_fom_ops ha_state_ut_get_fom_ops = {
-	.fo_tick          = ha_state_ut_fom_get_tick,
-	.fo_fini          = m0_ha_state_set_fom_fini,
-	.fo_home_locality = m0_ha_state_set_fom_home_locality,
-	.fo_addb_init     = m0_ha_state_set_fom_addb_init
+	.fo_tick          = &ha_state_ut_fom_get_tick,
+	.fo_fini          = &m0_ha_state_set_fom_fini,
+	.fo_home_locality = &m0_ha_state_set_fom_home_locality,
+	.fo_addb_init     = &m0_ha_state_set_fom_addb_init
 };
 
 static int ha_state_ut_get_fom_create(struct m0_fop *fop, struct m0_fom **m,
@@ -189,7 +185,7 @@ static int ha_state_ut_get_fom_create(struct m0_fop *fop, struct m0_fom **m,
 }
 
 const struct m0_fom_type_ops ha_state_ut_get_fom_type_ops = {
-	.fto_create = ha_state_ut_get_fom_create
+	.fto_create = &ha_state_ut_get_fom_create
 };
 
 /*
@@ -198,23 +194,21 @@ const struct m0_fom_type_ops ha_state_ut_get_fom_type_ops = {
 
 static int ha_state_ut_fom_set_tick(struct m0_fom *fom)
 {
-	struct m0_fop			*fop;
-	struct m0_ha_nvec		*note;
-	struct m0_fid                    u;
-	struct m0_ha_state_set_fom	*fom_obj;
+	struct m0_fop     *fop;
+	struct m0_ha_nvec *note;
+	struct m0_fid      u;
 
-	fom_obj = container_of(fom, struct m0_ha_state_set_fom, fp_gen);
 	fop = m0_fop_reply_alloc(fom->fo_fop, &m0_fop_generic_reply_fopt);
 	M0_UT_ASSERT(fop != NULL);
 
-	note = m0_fop_data(fom_obj->fp_fop);
+	note = m0_fop_data(fom->fo_fop);
 	u = note->nv_note[0].no_id;
 
 	M0_UT_ASSERT(note->nv_nr == 1);
-	M0_UT_ASSERT(note->nv_note[0].no_state == M0_NC_ACTIVE);
-	M0_UT_ASSERT(m0_fid_eq(&u,& conf_obj_id_fs));
+	M0_UT_ASSERT(note->nv_note[0].no_state == M0_NC_ONLINE);
+	M0_UT_ASSERT(m0_fid_eq(&u, &conf_obj_id_fs));
 
-	m0_rpc_reply_post(m0_fop_to_rpc_item(fom_obj->fp_fop),
+	m0_rpc_reply_post(m0_fop_to_rpc_item(fom->fo_fop),
 			  m0_fop_to_rpc_item(fop));
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	return M0_FSO_WAIT;
@@ -249,7 +243,7 @@ static int ha_state_ut_fop_init(void)
 	M0_FOP_TYPE_INIT(&m0_ha_state_get_fopt,
 			 .name      = "HA State Get",
 			 .opcode    = M0_HA_NOTE_GET_OPCODE,
-			 .xt        = m0_ha_state_fop_get_xc,
+			 .xt        = m0_ha_nvec_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .fom_ops   = &ha_state_ut_get_fom_type_ops,
 			 .sm        = &m0_generic_conf,
@@ -257,7 +251,7 @@ static int ha_state_ut_fop_init(void)
 	M0_FOP_TYPE_INIT(&m0_ha_state_get_rep_fopt,
 			 .name      = "HA State Get Reply",
 			 .opcode    = M0_HA_NOTE_GET_REP_OPCODE,
-			 .xt        = m0_ha_state_fop_get_rep_xc,
+			 .xt        = m0_ha_state_fop_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .svc_type  = &m0_rpc_service_type);
 	M0_FOP_TYPE_INIT(&m0_ha_state_set_fopt,
@@ -418,7 +412,7 @@ static void test_ha_state_get(void)
 	M0_UT_ASSERT(rc == 0);
 
 	m0_chan_wait(&clink);
-	M0_UT_ASSERT(n1.no_state == M0_NC_ACTIVE);
+	M0_UT_ASSERT(n1.no_state == M0_NC_ONLINE);
 }
 
 static void test_ha_state_set(void)
@@ -428,7 +422,7 @@ static void test_ha_state_set(void)
 	struct m0_ha_nvec nvec;
 
 	n1.no_id    = u;
-	n1.no_state = M0_NC_ACTIVE;
+	n1.no_state = M0_NC_ONLINE;
 
 	nvec.nv_nr   = 1;
 	nvec.nv_note = &n1;
@@ -460,17 +454,17 @@ static void test_ha_state_accept(void)
 	/* To initialize */
 	for (i = 0; i < ARRAY_SIZE(u); ++i) {
 		n[i].no_id    = u[i];
-		n[i].no_state = M0_NC_ACTIVE;
+		n[i].no_state = M0_NC_ONLINE;
 	}
 	m0_ha_state_accept(&confc, &nvec);
-	compare_ha_state(confc, M0_NC_ACTIVE);
+	compare_ha_state(confc, M0_NC_ONLINE);
 
 	/* To check updates */
 	for (i = 0; i < ARRAY_SIZE(u); ++i) {
-		n[i].no_state = M0_NC_OFFLINE;
+		n[i].no_state = M0_NC_FAILED;
 	}
 	m0_ha_state_accept(&confc, &nvec);
-	compare_ha_state(confc, M0_NC_OFFLINE);
+	compare_ha_state(confc, M0_NC_FAILED);
 
 	local_confc_fini(&confc);
 	m0_free(n);
