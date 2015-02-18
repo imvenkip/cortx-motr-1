@@ -663,15 +663,15 @@ sub process_cli_options
         'c'              =>  sub { $cli_option{color} = 'always' },
         'C'              =>  sub { $cli_option{color} = 'never' },
         'd'              =>  \$cli_option{use_usrbin_tracedump},
-        'D'              =>  \$cli_option{log_dir},
-        'H|header'       =>  \$cli_option{dump_header},
-        'f|follow'       =>  sub { $cli_option{follow} = $cli_option{stream_mode} = 1 },
-        'r|relpath!'     =>  \$cli_option{relpath},
+        'L|log-dir'      =>  \$cli_option{log_dir},
+        'H|dump-header'  =>  sub { $cli_option{dump_header} = 1; $cli_option{use_pager} = 0 },
+        'F|follow'       =>  sub { $cli_option{follow} = $cli_option{stream_mode} = 1 },
         'M|match-only'   =>  \$cli_option{match_only},
-        'F|format=s'     =>  \$cli_option{format},
+        'r|relpath!'     =>  \$cli_option{relpath},
+        'f|format=s'     =>  \$cli_option{format},
         'l|level=s'      =>  \$cli_option{level},
         's|subsys=s'     =>  \$cli_option{subsys},
-        'f|file=s'       =>  \$cli_option{file},
+        'e|file=s'       =>  \$cli_option{file},
         'u|func=s'       =>  \$cli_option{func},
         'm|msg=s'        =>  \$cli_option{msg},
 
@@ -750,8 +750,7 @@ sub main
 
     my $output_file;
 
-    if ($cli_option{output_file} eq '-' and $cli_option{use_pager}
-        and !$cli_option{dump_header})
+    if ($cli_option{output_file} eq '-' and $cli_option{use_pager})
     {
         open $output_file, "| less -RSM";
     }
@@ -792,10 +791,12 @@ m0trace - display Mero trace logs in human friendly form
 
 =head1 SYNOPSIS
 
-m0trace [-i|--input <ifile>] [-o|--output <ofile>] [-s|--stream-mode]
-[--no-pager] [-c|-C|--color=MODE] [-d] [-f|--format=FMT] [-L|--level=LVL]
-[-S|--subsys=SBS] [-F|--file=FL] [-U|--func=FUN] [-M|--msg=MSG] [-h|--help]
-[--usage] [--man]
+m0trace  [kernel|confd|iosX|mds|singlenode]  [-i|--input <ifile>]
+[-o|--output <ofile>] [-S|--stream-mode] [--no-pager] [--no-relpath]
+[-c|-C|--color=MODE] [-d] [-L|--log-dir=DIR] [-H|--dump-header] [-F|--follow]
+[-M|--match-only] [-f|--format=FMT] [-l|--level=LVL] [-s|--subsys=SBS]
+[-e|--file=FL] [-u|--func=FUN] [-m|--msg=MSG]
+[-h|--help] [--usage] [--man]
 
 =head1 DESCRIPTION
 
@@ -805,6 +806,12 @@ func name, etc.
 
 It accepts trace log data on STDIN or from file, in binary or in YAML format,
 see B<-i|--input> option.
+
+=head1 ARGUMENTS
+
+An optional argument can be provided, one of I<kernel>, I<confd>, I<mds>, I<ios>
+or I<singlenode>. If specified, C<m0trace> will automatically pick a latest
+trace file for that service.
 
 =head1 OPTIONS
 
@@ -825,7 +832,7 @@ mode"(see B<-s|--stream-mode> option below).
 
 Output file name, if omitted then STDOUT is used by default.
 
-=item B<-s|--stream-mode>
+=item B<-S|--stream-mode>
 
 By default, B<m0trace> expects that YAML log contains all trace records
 formatted as a single YAML document, which requires to read a whole YAML log,
@@ -841,6 +848,11 @@ B<-s> option.
 =item B<--no-pager>
 
 Don't use pager (less) to display results.
+
+=item B<--no-relpath>
+
+Use full path when displaying name of a source file to which a trace record
+belongs.
 
 =item B<--color=I<MODE>|-c|-C>
 
@@ -865,6 +877,28 @@ I<never> - never use colors.
 
 Use hard-coded '/usr/bin' path for m0tracedump (it can be handy when there are
 two versions of m0tracedump in the PATH - one from rpm and one from workdir).
+
+=item B<-L|--log-dir=I<DIR>>
+
+Path to a directory where to look for trace files, by default is '/var/log/mero'.
+
+=item B<-H|--dump-header>
+
+Only print trace file header and exit. Option --no-pager is ignored.
+
+=item B<-F|--follow>
+
+Monitor trace file and print trace records as soon as they appear in the file.
+This works only with trace files, which are produces by C<m0traced>, trace files
+created directly by C<m0d> are filled in a ring buffer fashion, so monitoring
+doesn't make sense for them.
+
+=item B<-M|--match-only>
+
+By default, trace records with level I<warn+> are always printed disregarding
+whether they match filters (like B<--file>, B<--func>, B<--msg>, etc.) or not.
+With this option, only matched trace records are printed, no matter which level
+they have.
 
 =item B<-f|--format=I<FMT>>
 
@@ -918,7 +952,7 @@ Example:
   m0trace --format=med
   m0trace --format='custom:Num[%N] Stack[%a]: %t%m'
 
-=item B<-L|--level=I<LVL>>
+=item B<-l|--level=I<LVL>>
 
 Display only trace records with specified log level. LVL is a coma separated
 list of log levels, where each level can be one of:
@@ -957,14 +991,14 @@ Example:
 
   m0trace --format=call,error+
 
-=item B<-S|--subsys=I<SBS>>
+=item B<-s|--subsys=I<SBS>>
 
 Display only trace records from specified Mero subsystem. SBS is a coma
 separated list of subsystem names. If SBS starts with I<!> it means reverse -
 display all subsystems except specified. A special subsystem I<all> means
 display all subsystems (this is a default).
 
-=item B<-F|--file=I<FL>>
+=item B<-e|--file=I<FL>>
 
 Display only trace records from specified source file. FL is a perl regex.
 
@@ -973,7 +1007,7 @@ Example:
   m0trace -F 'init\.c'
   m0trace -F '^fop/|^fom/'
 
-=item B<-U|--func=I<FUN>>
+=item B<-u|--func=I<FUN>>
 
 Display only trace records from specified function. FUN is a perl regex.
 
@@ -982,7 +1016,7 @@ Example:
   m0trace -U '^m0_alloc$'
   m0trace -U '(?<!m0_)(?:alloc|free)'
 
-=item B<-M|--msg=I<MSG>>
+=item B<-m|--msg=I<MSG>>
 
 Display only trace records, which have specified message. MSG is a perl regex.
 
