@@ -267,15 +267,26 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 
 	m0_cm_ag_lock(ag);
         M0_LOG(M0_DEBUG, "xform: id ["M0_AG_F"] local_cp_nr: [%lu]\
-	       transformed_cp_nr: [%lu] global_cp_nr: [%lu] has_incoming: %d\n",
-               M0_AG_P(&id), ag->cag_cp_local_nr, ag->cag_transformed_cp_nr,
-	       ag->cag_cp_global_nr, ag->cag_has_incoming);
+	       transformed_cp_nr: [%lu] global_cp_nr: [%lu] has_incoming: %d \
+	       c_ag_cp_idx: [%lu]\n", M0_AG_P(&id), ag->cag_cp_local_nr,
+	       ag->cag_transformed_cp_nr, ag->cag_cp_global_nr,
+	       ag->cag_has_incoming, cp->c_ag_cp_idx);
 	/* Increment number of transformed copy packets in the accumulator. */
 	M0_CNT_INC(ag->cag_transformed_cp_nr);
 	if (!ag->cag_has_incoming)
 		M0_ASSERT(ag->cag_transformed_cp_nr <= ag->cag_cp_local_nr);
 	else
-		M0_ASSERT(ag->cag_transformed_cp_nr <= ag->cag_cp_global_nr);
+		/*
+		 * For every failure in an aggregation group, 1 accumulator copy
+		 * packet is created.
+		 * So Number of transformed copy packets in an aggregation group
+		 * must not exceed the remaining live data/parity copy packets
+		 * multiplied by the total number of failures in an aggregation
+		 * group.
+		 */
+		M0_ASSERT(ag->cag_transformed_cp_nr <=
+			  (ag->cag_cp_global_nr - sns_ag->sag_fnr) *
+			  sns_ag->sag_fnr);
 
 	if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
 		rc = m0_cm_cp_bufvec_merge(cp);
