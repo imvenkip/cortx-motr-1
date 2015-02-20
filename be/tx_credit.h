@@ -61,6 +61,17 @@
 
 struct m0_be_tx;
 
+#ifdef M0_DEBUG_BE_CREDITS
+enum m0_be_credit_users {
+	M0_BE_CU_BTREE_INSERT,
+	M0_BE_CU_BTREE_DELETE,
+	M0_BE_CU_BTREE_UPDATE,
+	M0_BE_CU_EMAP_SPLIT,
+	M0_BE_CU_EMAP_PASTE,
+	M0_BE_CU_NR
+};
+#endif
+
 struct m0_be_tx_credit {
 	/**
 	 * The number of regions needed for operation representation in the
@@ -69,6 +80,10 @@ struct m0_be_tx_credit {
 	m0_bcount_t tc_reg_nr;
 	/** Total size of memory needed for the same. */
 	m0_bcount_t tc_reg_size;
+#ifdef M0_DEBUG_BE_CREDITS
+	/** Used to track who uses the credit and how much. */
+	unsigned    tc_balance[M0_BE_CU_NR];
+#endif
 };
 
 /* invalid m0_be_tx_credit value */
@@ -82,7 +97,7 @@ extern const struct m0_be_tx_credit m0_be_tx_credit_invalid;
 #define M0_BE_TX_CREDIT_BUF(buf)   M0_BE_TX_CREDIT(1, (buf)->b_nob)
 
 /** Format for the printf() family functions. @see BETXCR_P */
-#define BETXCR_F "(%lu, %lu)"
+#define BETXCR_F "(%lu,%lu)"
 
 /**
  * Example:

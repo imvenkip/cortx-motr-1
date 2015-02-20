@@ -126,6 +126,7 @@ AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in atomic functions])
 AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
+AH_TEMPLATE([M0_DEBUG_BE_CREDITS],    [Enable BE tx credits debug code.])
 AH_TEMPLATE([M0_BE_SEGMENT_SIZE],     [BE segment size in MiB.])
 AH_TEMPLATE([M0_TRACE_KBUF_SIZE],     [Kernel space trace buffer size in MiB.])
 AH_TEMPLATE([M0_TRACE_UBUF_SIZE],     [User space trace buffer size in MiB.])
@@ -165,6 +166,14 @@ AC_ARG_ENABLE([debug],
 )
 AM_CONDITIONAL([ENABLE_DEBUG],
                [test "x$enable_debug" = xyes])
+
+AC_ARG_ENABLE([be-credits-debug],
+        [AS_HELP_STRING([--enable-be-credits-debug],
+			[enable BE tx credits debug code])],
+        [], [enable_be_credits_debug=no]
+)
+AS_IF([test x$enable_be_credits_debug = xyes],
+      AC_DEFINE([M0_DEBUG_BE_CREDITS]))
 
 AC_ARG_ENABLE([profiler],
         [AS_HELP_STRING([--enable-profiler],
@@ -264,6 +273,7 @@ AC_ARG_ENABLE([unit-tests],
         [AS_HELP_STRING([--disable-unit-tests], [disable unit tests])],
         [], [enable_unit_tests=yes]
 )
+
 AM_CONDITIONAL([ENABLE_UNIT_TESTS],
                [test "x$enable_unit_tests" = xyes])
 AS_IF([test x$enable_unit_tests = xyes],

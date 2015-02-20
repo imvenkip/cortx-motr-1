@@ -378,6 +378,38 @@ struct m0_be_tx_remid {
 	uint64_t tri_locality;
 } M0_XCA_RECORD;
 
+#ifdef M0_DEBUG_BE_CREDITS
+
+/**
+ * Increase credits counter for the specified @cr_user.
+ * The correspondent number of credit decrements should be called.
+ */
+#define M0_BE_CREDIT_INC(n, cr_user, credit) ({                          \
+	typeof(cr_user) cu = (cr_user);                                  \
+	typeof(credit)  cr = (credit);                                   \
+	cr->tc_balance[cu] += (n);                                       \
+	M0_LOG(M0_DEBUG, "cr=%p balance=%d", cr, cr->tc_balance[cu]);    \
+})
+
+/**
+ * Decrement credits counter for specified @cr_user.
+ * If counter exhausts - assertion will fail. Thus we will know,
+ * who and where uses more credits than it was provisioned.
+ */
+#define M0_BE_CREDIT_DEC(cr_user, tx) ({                                 \
+	struct m0_be_tx_credit *cr = &(tx)->t_prepared;                  \
+	typeof(cr_user)         cu = (cr_user);                          \
+	M0_LOG(M0_DEBUG, "cr=%p balance=%d", cr, cr->tc_balance[cu]);    \
+	M0_CNT_DEC(cr->tc_balance[cu]);                                  \
+})
+
+#else
+
+#define M0_BE_CREDIT_INC(n, cr_user, credit)
+#define M0_BE_CREDIT_DEC(cr_user, tx)
+
+#endif
+
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,

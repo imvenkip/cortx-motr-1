@@ -1173,6 +1173,8 @@ M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree     *tree,
 
 	kv_insert_credit(tree, ksize, vsize, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
+
+	M0_BE_CREDIT_INC(nr, M0_BE_CU_BTREE_INSERT, accum);
 }
 
 M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree     *tree,
@@ -1188,6 +1190,8 @@ M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree     *tree,
 	btree_node_free_credit(tree, &cred);
 	btree_rebalance_credit(tree, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
+
+	M0_BE_CREDIT_INC(nr, M0_BE_CU_BTREE_DELETE, accum);
 }
 
 M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree     *tree,
@@ -1203,6 +1207,8 @@ M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree     *tree,
 	btree_mem_free_credit(tree, vsize, &cred);
 	m0_be_tx_credit_add(&cred, &val_update_cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
+
+	M0_BE_CREDIT_INC(nr, M0_BE_CU_BTREE_UPDATE, accum);
 }
 
 M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree     *tree,
@@ -1306,6 +1312,8 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 	M0_PRE(val->b_nob == be_btree_vsize(tree, val->b_addr));
 
+	M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_INSERT, tx);
+
 	BTREE_OP_FILL(op, tree, tx, M0_BBO_INSERT, NULL);
 
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
@@ -1350,6 +1358,8 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 	M0_PRE(val->b_nob == be_btree_vsize(tree, val->b_addr));
 
+	M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_UPDATE, tx);
+
 	BTREE_OP_FILL(op, tree, tx, M0_BBO_UPDATE, NULL);
 
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
@@ -1383,6 +1393,8 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 	M0_ENTRY("tree=%p", tree);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+
+	M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_DELETE, tx);
 
 	BTREE_OP_FILL(op, tree, tx, M0_BBO_DELETE, NULL);
 

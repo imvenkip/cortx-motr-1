@@ -379,6 +379,8 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	M0_PRE(m0_be_op_state(&it->ec_op) == M0_BOS_INIT);
 	M0_INVARIANT_EX(be_emap_invariant(it));
 
+	M0_BE_CREDIT_DEC(M0_BE_CU_EMAP_PASTE, tx);
+
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
 
 	/*
@@ -453,9 +455,9 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	}
 	m0_rwlock_write_unlock(emap_rwlock(it->ec_map));
 
-	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));
+	emap_dump(it);
 
-	/* emap_dump(it); */
+	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));
 
 	it->ec_op.bo_u.u_emap.e_rc = rc;
 
@@ -707,13 +709,14 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 			sizeof map->em_key, sizeof map->em_rec, accum);
 		m0_be_btree_insert_credit(&map->em_mapping, nr,
 			sizeof map->em_key, sizeof map->em_rec, accum);
+		m0_be_btree_update_credit(&map->em_mapping, 1,
+			sizeof map->em_rec, accum);
+		M0_BE_CREDIT_INC(nr, M0_BE_CU_EMAP_SPLIT, accum);
 		break;
 	case M0_BEO_PASTE:
-		/*
-		 * In worst case there can be one split from left and one
-		 * split from right sides - i.e. on 4 new segments in total.
-		 */
-		m0_be_emap_credit(map, M0_BEO_SPLIT, 4 * nr, accum);
+		m0_forall(i, nr, m0_be_emap_credit(map, M0_BEO_SPLIT, 3, accum),
+			  true);
+		M0_BE_CREDIT_INC(nr, M0_BE_CU_EMAP_PASTE, accum);
 		break;
 	default:
 		M0_IMPOSSIBLE("invalid emap operation");
@@ -971,6 +974,7 @@ be_emap_split(struct m0_be_emap_cursor *it,
 		count = vec->iv_vec.v_count[i];
 		if (count == 0)
 			continue;
+		M0_BE_CREDIT_DEC(M0_BE_CU_EMAP_SPLIT, tx);
 		it->ec_seg.ee_ext.e_start = scan;
 		it->ec_seg.ee_ext.e_end   = scan + count;
 		it->ec_seg.ee_val         = vec->iv_index[i];

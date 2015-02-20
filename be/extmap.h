@@ -401,6 +401,8 @@ enum m0_be_emap_optype {
  *
  * @param optype operation type over the @emap.
  * @param nr     number of @optype operations.
+ *
+ * @note in case of M0_BEO_SPLIT @nr is the number of split parts.
  */
 M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 				   enum m0_be_emap_optype  optype,

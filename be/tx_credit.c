@@ -37,6 +37,9 @@ M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
 {
 	c0->tc_reg_nr   += c1->tc_reg_nr;
 	c0->tc_reg_size += c1->tc_reg_size;
+#ifdef M0_DEBUG_BE_CREDITS
+	m0_forall(i, M0_BE_CU_NR, c0->tc_balance[i] += c1->tc_balance[i], true);
+#endif
 }
 
 M0_INTERNAL void m0_be_tx_credit_sub(struct m0_be_tx_credit *c0,
@@ -47,12 +50,24 @@ M0_INTERNAL void m0_be_tx_credit_sub(struct m0_be_tx_credit *c0,
 
 	c0->tc_reg_nr   -= c1->tc_reg_nr;
 	c0->tc_reg_size -= c1->tc_reg_size;
+#ifdef M0_DEBUG_BE_CREDITS
+	{
+		int i;
+		for (i = 0; i < M0_BE_CU_NR; ++i) {
+			M0_PRE(c0->tc_balance[i] >= c1->tc_balance[i]);
+			c0->tc_balance[i] -= c1->tc_balance[i];
+		}
+	}
+#endif
 }
 
 M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k)
 {
 	c->tc_reg_nr   *= k;
 	c->tc_reg_size *= k;
+#ifdef M0_DEBUG_BE_CREDITS
+	m0_forall(i, M0_BE_CU_NR, c->tc_balance[i] *= k, true);
+#endif
 }
 
 M0_INTERNAL void m0_be_tx_credit_mac(struct m0_be_tx_credit *c,
