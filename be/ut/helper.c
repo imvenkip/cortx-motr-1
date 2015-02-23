@@ -252,16 +252,14 @@ M0_INTERNAL void m0_be_ut_fake_mkfs(void)
 #define M0_BE_SEG0_NAME "M0_BE:SEG0"
 #define M0_BE_SEG_NAME  "M0_BE:SEG%08lu"
 
-enum {
-	BE_UT_FAKE_MKFS_SEG_NR = 10,
-};
-
-M0_INTERNAL void m0_be_ut_fake_mkfs_cfg(struct m0_be_domain_cfg *cfg)
+M0_INTERNAL void m0_be_ut_fake_mkfs(void)
 {
-	struct m0_be_0type_seg_cfg  segs_cfg[BE_UT_FAKE_MKFS_SEG_NR];
-	struct m0_be_ut_backend	    ut_be = {};
-	struct m0_be_domain_cfg	    dom_cfg = {};
-	int			    i;
+	enum { BE_UT_FAKE_MKFS_SEG_NR = 10 };
+
+	struct m0_be_0type_seg_cfg segs_cfg[BE_UT_FAKE_MKFS_SEG_NR];
+	struct m0_be_domain_cfg    dom_cfg = {};
+	struct m0_be_ut_backend    ut_be = {};
+	unsigned                   i;
 
 	for (i = 0; i < ARRAY_SIZE(segs_cfg); ++i) {
 		segs_cfg[i] = (struct m0_be_0type_seg_cfg){
@@ -272,18 +270,12 @@ M0_INTERNAL void m0_be_ut_fake_mkfs_cfg(struct m0_be_domain_cfg *cfg)
 		};
 	}
 	m0_be_ut_backend_cfg_default(&dom_cfg);
-	cfg = cfg == NULL ? &dom_cfg : cfg;
-	cfg->bc_mkfs_mode = true;
-	dom_cfg.bc_seg_cfg = segs_cfg;
-	dom_cfg.bc_seg_nr  = ARRAY_SIZE(segs_cfg);
+	dom_cfg.bc_mkfs_mode = true;
+	dom_cfg.bc_seg_cfg   = segs_cfg;
+	dom_cfg.bc_seg_nr    = ARRAY_SIZE(segs_cfg);
 
-	m0_be_ut_backend_init_cfg(&ut_be, cfg, true);
+	m0_be_ut_backend_init_cfg(&ut_be, &dom_cfg, true);
 	m0_be_ut_backend_fini(&ut_be);
-}
-
-M0_INTERNAL void m0_be_ut_fake_mkfs(void)
-{
-	m0_be_ut_fake_mkfs_cfg(NULL);
 }
 
 void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)

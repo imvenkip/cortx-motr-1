@@ -58,7 +58,6 @@ struct m0_be_ut_backend {
 };
 
 M0_INTERNAL void m0_be_ut_fake_mkfs(void);
-M0_INTERNAL void m0_be_ut_fake_mkfs_cfg(struct m0_be_domain_cfg *cfg);
 
 /*
  * Fill cfg with default configuration.
