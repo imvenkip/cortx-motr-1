@@ -130,8 +130,8 @@ static void test_init(void)
 	m0_be_emap_credit(emap, M0_BEO_DESTROY, 1, &cred);
 	m0_be_emap_credit(emap, M0_BEO_INSERT, 1, &cred);
 	m0_be_emap_credit(emap, M0_BEO_DELETE, 1, &cred);
-	m0_be_emap_credit(emap, M0_BEO_SPLIT, 100 * 4, &cred);
-	m0_be_emap_credit(emap, M0_BEO_MERGE, 100, &cred);
+	m0_forall(i, 5, m0_be_emap_credit(emap, M0_BEO_SPLIT, 3, &cred), true);
+	m0_be_emap_credit(emap, M0_BEO_MERGE, 5 * 3, &cred);
 	m0_be_emap_credit(emap, M0_BEO_PASTE, 3, &cred);
 
 	m0_be_ut_tx_init(&tx2, &be_ut_emap_backend);
@@ -253,7 +253,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 
 static void test_split(void)
 {
-	split(0, 100, true);
+	split(0, 5, true);
 }
 
 static void test_print(void)

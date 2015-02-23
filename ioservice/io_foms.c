@@ -1477,7 +1477,7 @@ static int zero_copy_initiate(struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
 
                 /*
-                 * @todo : Since passing only number of segmnts, supports full
+                 * @todo : Since passing only number of segments, supports full
                  *         stripe I/Os. Should set exact count for last segment
                  *         of network buffer. Also need to reset last segment
                  *         count to original since buffers are reused by other
@@ -1902,7 +1902,7 @@ static int indexvec_wire2mem(struct m0_fom *fom, uint32_t bshift)
 	fom_obj->fcrw_bshift = bshift;
 
 	max_frags_nr = rwfop->crw_ivec.ci_nr;
-	M0_LOG(M0_DEBUG, "max_frags_nr=%d", max_frags_nr);
+	M0_LOG(M0_DEBUG, "max_frags_nr=%d bshift=%u", max_frags_nr, bshift);
 
 	if (max_frags_nr > 0)
 		rc = m0_indexvec_wire2mem(&rwfop->crw_ivec, max_frags_nr,

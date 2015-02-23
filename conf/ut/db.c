@@ -257,6 +257,10 @@ void test_confdb(void)
 
 	rc = m0_confdb_create_credit(seg, enc, &accum);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_confdb_create_credit(seg, enc, &accum);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_confdb_create_credit(seg, enc, &accum);
+	M0_UT_ASSERT(rc == 0);
 	rc = conf_ut_be_tx_create(&tx, &ut_be, &accum);
 	M0_UT_ASSERT(rc == 0);
 
@@ -295,8 +299,7 @@ void test_confdb(void)
 	m0_confx_free(enc);
 	m0_confdb_fini(seg);
 	M0_SET0(&accum);
-	rc = m0_confdb_destroy_credit(seg, &accum);
-	M0_UT_ASSERT(rc == 0);
+	m0_confdb_destroy_credit(seg, &accum);
 	rc = conf_ut_be_tx_create(&tx, &ut_be, &accum);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_confdb_destroy(seg, &tx);

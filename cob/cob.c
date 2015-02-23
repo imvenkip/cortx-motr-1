@@ -466,8 +466,10 @@ int
 m0_cob_domain_init(struct m0_cob_domain *dom,
 		   struct m0_be_seg *seg, const struct m0_cob_domain_id *id)
 {
+	M0_ENTRY("dom=%p seg=%p id=%lx", dom, seg, id->id);
+
 	if (dom == NULL)
-		return M0_ERR(-ENOENT);
+		return M0_RC(-ENOENT);
 
 	dom->cd_id    = *id;
 	dom->cd_seg = seg;
@@ -478,7 +480,7 @@ m0_cob_domain_init(struct m0_cob_domain *dom,
 	m0_be_btree_init(&dom->cd_fileattr_omg,   seg, &cob_omg_ops);
 	m0_be_btree_init(&dom->cd_fileattr_ea,    seg, &cob_ea_ops);
 
-	return 0;
+	return M0_RC(0);
 }
 
 void m0_cob_domain_fini(struct m0_cob_domain *dom)
@@ -1226,7 +1228,8 @@ M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
                          rc = -ENOENT;
 
                 if (rc == 0) {
-                        M0_ASSERT(m0_cob_eakey_size(eakey) <= m0_cob_max_eakey_size());
+                        M0_ASSERT(m0_cob_eakey_size(eakey) <=
+				  m0_cob_max_eakey_size());
 		        memcpy(it->ci_key, eakey, m0_cob_eakey_size(eakey));
                 }
 	}
@@ -1755,6 +1758,7 @@ enum cob_table_optype {
 enum cob_table_kvtype {
 	COB_KVTYPE_OMG,
 	COB_KVTYPE_FAB,
+	COB_KVTYPE_FEA,
 	COB_KVTYPE_NS,
 	COB_KVTYPE_OI,
 };
@@ -1776,6 +1780,10 @@ static void cob_table_tx_credit(struct m0_be_btree *tree,
 			.s_key = sizeof(struct m0_cob_fabkey),
 			.s_rec = m0_cob_max_fabrec_size(),
 		},
+		[COB_KVTYPE_FEA] = {
+			.s_key = m0_cob_max_eakey_size(),
+			.s_rec = m0_cob_max_earec_size(),
+		},
 		[COB_KVTYPE_NS] = {
 			.s_key = m0_cob_max_nskey_size(NULL),
 			.s_rec = sizeof(struct m0_cob_nsrec),
@@ -1789,7 +1797,7 @@ static void cob_table_tx_credit(struct m0_be_btree *tree,
 	m0_bcount_t ksize;
 	m0_bcount_t vsize;
 
-	M0_PRE(M0_IN(t_kvtype, (COB_KVTYPE_OMG, COB_KVTYPE_FAB,
+	M0_PRE(M0_IN(t_kvtype, (COB_KVTYPE_OMG, COB_KVTYPE_FAB, COB_KVTYPE_FEA,
 				COB_KVTYPE_NS, COB_KVTYPE_OI)));
 
 	ksize = kv_size[t_kvtype].s_key;
@@ -1845,6 +1853,13 @@ M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
 		TCREDIT(&dom->cd_namespace, UPDATE, NS, accum);
 		TCREDIT(&dom->cd_fileattr_basic, UPDATE, FAB, accum);
 		TCREDIT(&dom->cd_fileattr_omg, UPDATE, OMG, accum);
+		break;
+	case M0_COB_OP_FEA_SET:
+		TCREDIT(&dom->cd_fileattr_ea, DELETE, FEA, accum);
+		TCREDIT(&dom->cd_fileattr_ea, INSERT, FEA, accum);
+		break;
+	case M0_COB_OP_FEA_DEL:
+		TCREDIT(&dom->cd_fileattr_ea, DELETE, FEA, accum);
 		break;
 	case M0_COB_OP_NAME_ADD:
 		TCREDIT(&dom->cd_object_index, INSERT, OI, accum);

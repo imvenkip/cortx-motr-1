@@ -259,8 +259,7 @@ M0_INTERNAL int m0_rpc_bulk_buf_add(struct m0_rpc_bulk *rbulk,
 	int			rc;
 	struct m0_rpc_bulk_buf *buf;
 
-	M0_ENTRY("rbulk: %p, net_dom: %p, net_buf: %p", rbulk, netdom,
-		 nb);
+	M0_ENTRY("rbulk: %p, net_dom: %p, net_buf: %p", rbulk, netdom, nb);
 	M0_PRE(rbulk != NULL);
 	M0_PRE(netdom != NULL);
 	M0_PRE(out != NULL);
@@ -285,6 +284,7 @@ M0_INTERNAL int m0_rpc_bulk_buf_add(struct m0_rpc_bulk *rbulk,
 	m0_mutex_unlock(&rbulk->rb_mutex);
 	*out = buf;
 	M0_POST(rpc_bulk_buf_invariant(buf));
+
 	return M0_RC(0);
 }
 M0_EXPORTED(m0_rpc_bulk_buf_add);

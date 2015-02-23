@@ -52,8 +52,8 @@ M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg);
  * Calculates BE credits in-order to destroy configuration database from
  * persistent store.
  */
-M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
-					 struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_confdb_destroy_credit(struct m0_be_seg *seg,
+					  struct m0_be_tx_credit *accum);
 M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx);
 
 /**

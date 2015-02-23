@@ -1656,6 +1656,7 @@ static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 			bp->bp_offsets[0] +=
 				bp->bp_iobuf[j]->nb_buffer.ov_vec.v_count[i];
 		}
+		bp->bp_offsets[0] += IO_SEG_SIZE;
 
 		rbuf->bb_nbuf->nb_qtype = (op == M0_IOSERVICE_WRITEV_OPCODE) ?
 			M0_NET_QT_PASSIVE_BULK_SEND :

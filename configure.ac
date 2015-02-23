@@ -168,9 +168,9 @@ AM_CONDITIONAL([ENABLE_DEBUG],
                [test "x$enable_debug" = xyes])
 
 AC_ARG_ENABLE([be-credits-debug],
-        [AS_HELP_STRING([--enable-be-credits-debug],
-			[enable BE tx credits debug code])],
-        [], [enable_be_credits_debug=no]
+        [AS_HELP_STRING([--disable-be-credits-debug],
+			[disable BE tx credits debug code])],
+        [], [enable_be_credits_debug=yes]
 )
 AS_IF([test x$enable_be_credits_debug = xyes],
       AC_DEFINE([M0_DEBUG_BE_CREDITS]))

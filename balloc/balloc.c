@@ -1059,9 +1059,9 @@ static void balloc_db_update_credit(const struct m0_balloc *bal, int nr,
 		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
 	m0_be_btree_update_credit(tree, 2,
 		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
+	balloc_sb_sync_credit(bal, &cred);
+	balloc_gi_sync_credit(bal, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
-	balloc_sb_sync_credit(bal, accum);
-	balloc_gi_sync_credit(bal, accum);
 }
 
 static int balloc_alloc_db_update(struct m0_balloc *mero,

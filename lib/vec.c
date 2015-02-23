@@ -776,6 +776,7 @@ static uint32_t ivec_nr_or_prepare(struct m0_indexvec *in,
 	int                   nr;
 
 	m0_ivec_cursor_init(&cursor, in);
+
 	for (nr = 0; !m0_ivec_cursor_move(&cursor, offset) && req > 0; ++nr) {
 		offset = m0_ivec_cursor_step(&cursor);
 		if (out != NULL) {
@@ -788,6 +789,7 @@ static uint32_t ivec_nr_or_prepare(struct m0_indexvec *in,
 		}
 		req -= offset;
 	}
+
 	return nr;
 }
 

@@ -61,6 +61,10 @@
 
 struct m0_be_tx;
 
+#ifdef __KERNEL__
+#  undef M0_DEBUG_BE_CREDITS
+#endif
+
 #ifdef M0_DEBUG_BE_CREDITS
 enum m0_be_credit_users {
 	M0_BE_CU_BTREE_INSERT,

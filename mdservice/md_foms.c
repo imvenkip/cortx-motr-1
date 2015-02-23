@@ -924,10 +924,9 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
-		/* XXX use m0_cob_ea_set_credit() when implemented */
-		m0_mdstore_setattr_credit(md, m0_fom_tx_credit(fom));
-	}
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+		m0_cob_tx_credit(md->md_dom, M0_COB_OP_FEA_SET,
+				 m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
         if (rc != 0)
                 return M0_RC(rc);
@@ -996,10 +995,9 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
-		/* XXX use m0_cob_ea_del_credit() when implemented */
-		m0_mdstore_setattr_credit(md, m0_fom_tx_credit(fom));
-	}
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+		m0_cob_tx_credit(md->md_dom, M0_COB_OP_FEA_DEL,
+				 m0_fom_tx_credit(fom));
         rc = m0_md_tick_generic(fom);
         if (rc != 0)
                 return M0_RC(rc);

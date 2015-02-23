@@ -169,8 +169,8 @@ static int test_ad_init(void)
 
 	m0_stob_ut_ad_init(&ut_be, &ut_seg);
 
-	rc = m0_stob_domain_create("linuxstob:./__s",
-				   NULL, 0xc0de, NULL, &dom_back);
+	rc = m0_stob_domain_create("linuxstob:./__s", "directio=true",
+				   0xc0de, NULL, &dom_back);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_stob_find_by_key(dom_back, 0xba5e, &obj_back);
@@ -198,8 +198,8 @@ static int test_ad_init(void)
 	block_shift = m0_stob_block_shift(obj_fore);
 	/* buf_size is chosen so it would be at least MIN_BUF_SIZE in bytes
 	 * or it would consist of at least MIN_BUF_SIZE_IN_BLOCKS blocks */
-	buf_size = max_check(MIN_BUF_SIZE
-			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
+	buf_size = max_check(MIN_BUF_SIZE,
+			     (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i) {
 		user_buf[i] = m0_alloc_aligned(buf_size, block_shift);
@@ -244,7 +244,7 @@ static void test_write(int nr, struct m0_dtx *tx)
 	int		    rc;
 
 	/* @Note: This Fol record part object is not freed and shows as leak,
-	 * as it is passed as embbedded object in other places.
+	 * as it is passed as embedded object in other places.
 	 */
 	M0_ALLOC_PTR(fol_frag);
 	M0_UB_ASSERT(fol_frag != NULL);
@@ -391,7 +391,7 @@ static void test_ad_undo(void)
 	M0_ASSERT(rc == 0);
 
 	test_read(1);
-	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) == 0);
+	M0_ASSERT(memcmp(user_buf[0], read_buf[0], buf_size) == 0);
 
 	rfrag = m0_rec_frag_tlist_head(&g_tx.tx_fol_rec.fr_frags);
 	M0_ASSERT(rfrag != NULL);
@@ -413,7 +413,7 @@ static void test_ad_undo(void)
 	m0_dtx_fini(&g_tx);
 
 	test_read(1);
-	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) != 0);
+	M0_ASSERT(memcmp(user_buf[0], read_buf[0], buf_size) != 0);
 
 }
 

@@ -496,6 +496,7 @@ m0t1fs_crud()
 	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname3 -c "%n: %a %s" || rc=1
 	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname1 bs=4K   count=1 || rc=1
 	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname2 bs=128K count=1 || rc=1
+	touch_file $MERO_M0T1FS_MOUNT_DIR/$fsname3 64 &&
 	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname3 bs=1M   count=1 || rc=1
 	sync
 	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname1 -c "%n: %a %s" || rc=1

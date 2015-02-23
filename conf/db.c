@@ -261,6 +261,8 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 		rc = 0;
 	}
 
+	m0_confdb_destroy_credit(seg, accum);
+
 	return M0_RC(rc);
 }
 
@@ -347,26 +349,23 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 							      &op, &key, &val),
 				       bo_u.u_btree.t_rc);
 	}
-	if (rc !=0) {
+	if (rc != 0) {
 		confdb_table_fini(seg);
 		m0_confdb_destroy(seg, tx);
 	}
+
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
-					 struct m0_be_tx_credit *accum)
+M0_INTERNAL void m0_confdb_destroy_credit(struct m0_be_seg *seg,
+					  struct m0_be_tx_credit *accum)
 {
-	struct m0_be_btree *btree;
-	int                 rc;
+	struct m0_be_btree btree = { .bb_seg = seg };
 
 	M0_ENTRY();
-	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&btree);
-	if (rc == 0) {
-		m0_be_btree_destroy_credit(btree, 1, accum);
-		M0_BE_FREE_CREDIT_PTR(btree, seg, accum);
-	}
-	return M0_RC(rc);
+	m0_be_btree_destroy_credit(&btree, 1, accum);
+	m0_be_seg_dict_delete_credit(seg, btree_name, accum);
+	M0_BE_FREE_CREDIT_PTR(&btree, seg, accum);
 }
 
 static int __confdb_free(struct m0_be_btree *btree, struct m0_be_seg *seg,
