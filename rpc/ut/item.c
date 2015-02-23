@@ -44,6 +44,7 @@ static struct m0_rpc_stats    saved;
 static struct m0_rpc_stats    stats;
 static struct m0_rpc_item    *item;
 static struct m0_fop         *fop;
+static int                    item_rc;
 
 #define IS_INCR_BY_1(p) _0C(saved.rs_ ## p + 1 == stats.rs_ ## p)
 
@@ -379,7 +380,7 @@ static void test_failure_before_sending(void)
 		m0_fi_enable_once(fp[i].func, fp[i].tag);
 		rc = __test();
 		M0_UT_ASSERT(rc == fp[i].rc);
-		M0_UT_ASSERT(item->ri_error == fp[i].rc);
+		M0_UT_ASSERT(item_rc == fp[i].rc);
 		M0_LOG(M0_DEBUG, "TEST:3.%d:END", i + 1);
 	}
 	/* TEST4: Network layer reported buffer send failure.
@@ -393,7 +394,7 @@ static void test_failure_before_sending(void)
 	m0_fi_enable("item_received", "drop_item");
 	rc = __test();
 	M0_UT_ASSERT(rc == -EINVAL);
-	M0_UT_ASSERT(item->ri_error == -EINVAL);
+	M0_UT_ASSERT(item_rc == -EINVAL);
 	m0_rpc_machine_get_stats(machine, &stats, false);
 	m0_fi_disable("buf_send_cb", "fake_err");
 	m0_fi_disable("item_received", "drop_item");
@@ -411,6 +412,7 @@ static int __test(void)
 	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
 			      0 /* deadline */);
 	M0_UT_ASSERT(item->ri_reply == NULL);
+	item_rc = item->ri_error;
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
 	m0_rpc_machine_get_stats(machine, &stats, false);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_failed_items));

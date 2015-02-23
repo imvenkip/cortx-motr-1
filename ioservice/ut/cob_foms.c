@@ -595,6 +595,7 @@ static void fom_fini(struct m0_fom *fom, enum cob_fom_type fomtype)
 {
 	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
 
+	m0_fol_rec_fini(&fom->fo_tx.tx_fol_rec);
 	switch (fomtype) {
 	case COB_CREATE:
 		cc_fom_fini(fom);
@@ -605,7 +606,6 @@ static void fom_fini(struct m0_fom *fom, enum cob_fom_type fomtype)
 	default:
 		M0_IMPOSSIBLE("Invalid COB-FOM type");
 	}
-	m0_fol_rec_fini(&fom->fo_tx.tx_fol_rec);
 }
 
 /*
