@@ -68,7 +68,7 @@ static struct m0_sm_state_descr ai_sd[AIS_NR] = {
 	[AIS_FID_ATTR] = {
 		.sd_flags   = 0,
 		.sd_name    = "ag iter fid attr",
-		.sd_allowed = M0_BITS(AIS_GROUP_NEXT)
+		.sd_allowed = M0_BITS(AIS_GROUP_NEXT, AIS_FID_LOCK)
 	},
 	[AIS_GROUP_NEXT] = {
 		.sd_flags   = 0,
@@ -215,7 +215,8 @@ static int ai_fid_next(struct m0_sns_cm_ag_iter *ai)
 
 	do {
 		M0_CNT_INC(fid_curr.f_key);
-		rc = m0_cob_ns_next_of(&ai->ai_cdom->cd_namespace, &fid_curr, &fid);
+		rc = m0_cob_ns_next_of(&ai->ai_cdom->cd_namespace, &fid_curr,
+				       &fid);
 		fid_curr = fid;
 	} while (rc == 0 &&
 		 (m0_fid_eq(&fid, &M0_COB_ROOT_FID) ||
@@ -240,12 +241,14 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 				   const struct m0_cm_ag_id id_curr,
 				   struct m0_cm_ag_id *id_next)
 {
-	struct m0_sns_cm_ag_iter *ai = &scm->sc_ag_it;
-	struct m0_fid             fid;
-	int                       rc;
+	struct m0_sns_cm_ag_iter  *ai = &scm->sc_ag_it;
+	struct m0_sns_cm_file_ctx *fctx;
+	struct m0_fid              fid;
+	int                        rc;
 
 	ai->ai_id_curr = id_curr;
 	agid2fid(&ai->ai_id_curr, &fid);
+	fctx = ai->ai_fctx;
 	/*
 	 * Reset ai->ai_id_curr if ag_next iterator has reached to higher fid
 	 * through AIS_FID_NEXT than @id_curr in-order to start processing from
@@ -253,8 +256,15 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 	if (m0_fid_cmp(&ai->ai_fid, &fid) > 0)
 		M0_SET0(&ai->ai_id_curr);
 	if (m0_fid_cmp(&ai->ai_fid, &fid) < 0) {
+		if (fctx != NULL &&
+		    m0_sns_cm_fctx_state_get(fctx) >= M0_SCFS_LOCK_WAIT) {
+			m0_mutex_lock(&scm->sc_file_ctx_mutex);
+			m0_sns_cm_file_unlock(scm, &ai->ai_fid);
+			m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+		}
 		ai->ai_fid = fid;
-		ai_state_set(ai, AIS_FID_LOCK);
+		if (ai_state(ai) != AIS_FID_LOCK)
+			ai_state_set(ai, AIS_FID_LOCK);
 	}
 	do {
 		rc = ai_action[ai_state(ai)](ai);

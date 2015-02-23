@@ -13,13 +13,39 @@
 # because ios need to hash gfid to mds. In COPYTOOL
 # mode, filename is the string format of gfid.
 ###################################################
-file1=0:10000
-file2=0:10001
-file3=0:10002
+files=(
+	0:10000
+	0:10001
+	0:10002
+	0:10003
+	0:10004
+	0:10005
+	0:10006
+	0:10007
+	0:10008
+	0:10009
+	0:10010
+	0:10011
+)
+
+file_size=(
+	50
+	70
+	30
+	0
+	40
+	0
+	60
+	90
+	10
+	20
+	5
+	80
+)
 
 N=3
 K=3
-P=9
+P=15
 stride=32
 
 sns_repair_test()
@@ -36,17 +62,18 @@ sns_repair_test()
 		return 1
 	}
 
-	for f in $file1 $file2 $file3; do
-		touch_file $MERO_M0T1FS_MOUNT_DIR/$f $stride
+	for ((i=0; i < ${#files[*]}; i++)) ; do
+		touch_file $MERO_M0T1FS_MOUNT_DIR/${files[$i]} $stride
 	done
 
-	_dd $file1 50
-	_dd $file2 70
-	_dd $file3 30
+	for ((i=0; i < ${#files[*]}; i++)) ; do
+		_dd ${files[$i]} ${file_size[$i]}
+	done
 
-	_md5sum $file1
-	_md5sum $file2
-	_md5sum $file3
+
+	for ((i=0; i < ${#files[*]}; i++)) ; do
+		_md5sum ${files[$i]}
+	done
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
@@ -108,6 +135,22 @@ sns_repair_test()
 	then
 		return $?
 	fi
+
+        echo "Starting SNS Re-balance.."
+	sns_rebalance
+	if [ $? -ne "0" ]
+	then
+		return $?
+	else
+		echo "SNS Rebalance done."
+		md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+		if [ $? -ne "0" ]
+		then
+			echo "md5 sum does not match"
+			unmount_and_clean &>> $MERO_TEST_LOGFILE
+		fi
+	fi
+
 	pool_mach_set_failure $fail_device3
 	if [ $? -ne "0" ]
 	then
@@ -140,7 +183,7 @@ sns_repair_test()
 	then
 		return $?
 	else
-		echo "SNS Repair done."
+		echo "SNS Rebalance done."
 		md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
 		if [ $? -ne "0" ]
 		then

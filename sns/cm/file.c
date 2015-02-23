@@ -72,28 +72,29 @@ static struct m0_sm_state_descr fctx_sd[M0_SCFS_NR] = {
 	[M0_SCFS_LOCK_WAIT] = {
 		.sd_flags   = 0,
 		.sd_name    = "file lock wait",
-		.sd_allowed = M0_BITS(M0_SCFS_LOCKED)
+		.sd_allowed = M0_BITS(M0_SCFS_LOCKED, M0_SCFS_FINI)
 	},
 	[M0_SCFS_LOCKED] = {
 		.sd_flags = 0,
 		.sd_name  = "file locked",
-		.sd_allowed = M0_BITS(M0_SCFS_ATTR_FETCH, M0_SCFS_LAYOUT_FETCHED,
+		.sd_allowed = M0_BITS(M0_SCFS_ATTR_FETCH,
+				      M0_SCFS_LAYOUT_FETCHED,
 				      M0_SCFS_FINI)
 	},
 	[M0_SCFS_ATTR_FETCH] = {
 		.sd_flags = 0,
 		.sd_name  = "file attr fetch",
-		.sd_allowed = M0_BITS(M0_SCFS_ATTR_FETCHED)
+		.sd_allowed = M0_BITS(M0_SCFS_ATTR_FETCHED, M0_SCFS_FINI)
 	},
 	[M0_SCFS_ATTR_FETCHED] = {
 		.sd_flags   = 0,
 		.sd_name    = "file attr fetched",
-		.sd_allowed = M0_BITS(M0_SCFS_LAYOUT_FETCH)
+		.sd_allowed = M0_BITS(M0_SCFS_LAYOUT_FETCH, M0_SCFS_FINI)
 	},
 	[M0_SCFS_LAYOUT_FETCH] = {
 		.sd_flags = 0,
 		.sd_name  = "file layout fetch",
-		.sd_allowed = M0_BITS(M0_SCFS_LAYOUT_FETCHED)
+		.sd_allowed = M0_BITS(M0_SCFS_LAYOUT_FETCHED, M0_SCFS_FINI)
 	},
 	[M0_SCFS_LAYOUT_FETCHED] = {
 		.sd_flags   = 0,
@@ -239,7 +240,7 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 	fctx->sf_layout = NULL;
 	fctx->sf_pi = NULL;
 	m0_scmfctx_tlink_init(fctx);
-	m0_ref_init(&fctx->sf_ref, 0, sns_cm_fctx_release);
+	m0_ref_init(&fctx->sf_ref, 1, sns_cm_fctx_release);
 	m0_sm_init(&fctx->sf_sm, &fctx_sm_conf, M0_SCFS_INIT, grp);
 	fctx->sf_group = grp;
 	fctx->sf_scm = scm;
@@ -349,25 +350,18 @@ m0_sns_cm_file_lock_wait(struct m0_sns_cm_file_ctx *fctx, struct m0_fom *fom)
 	state = fctx->sf_rin.rin_sm.sm_state;
 	if (state == RI_SUCCESS ||  state == RI_FAILURE) {
 		m0_rm_owner_unlock(&fctx->sf_owner);
-		if (state == RI_FAILURE)
-			return M0_ERR_INFO(-EFAULT, "Failed to acquire file lock for "FID_F, FID_P(&fctx->sf_fid));
-		else {
-			/*
-			 * There's a possibility that ag_next iterator and
-			 * data_next iterator are both waiting for the same fid
-			 * lock and one of them invoked m0_sns_cm_file_lock_wait()
-			 * before the other, changing the @fctx status to
-			 * M0_SCFS_LOCKED. Now when other one reaches here may
-			 * find the fctx already locked, so we only add a
-			 * reference on fctx in this case.
-			 */
+		if (state == RI_FAILURE) {
+			m0_ref_put(&fctx->sf_ref);
+			return M0_ERR_INFO(-EFAULT,
+					   "Failed to lock file "FID_F,
+					   FID_P(&fctx->sf_fid));
+		} else {
 			if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LOCK_WAIT) {
 				rc = fctx_tx_check(fctx, fom);
 				if (rc == -EAGAIN)
 					return M0_RC(rc);
 				_fctx_status_set(fctx, M0_SCFS_LOCKED);
 			}
-			m0_ref_get(&fctx->sf_ref);
 			return M0_RC(0);
 		}
 	}
@@ -396,9 +390,9 @@ M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm *scm,
 	fctx = m0_scmfctx_htable_lookup(&scm->sc_file_ctx, &f);
 	if ( fctx != NULL) {
 		*out = fctx;
+		m0_ref_get(&fctx->sf_ref);
 		M0_LOG(M0_DEBUG, "fid: "FID_F, FID_P(fid));
 		if (m0_sns_cm_fctx_state_get(fctx) >= M0_SCFS_LOCKED) {
-			m0_ref_get(&fctx->sf_ref);
 			return M0_RC(0);
 		}
 		if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LOCK_WAIT)

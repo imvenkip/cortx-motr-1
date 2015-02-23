@@ -287,7 +287,6 @@ static void sns_file_lock_unlock(void)
 		m0_clink_add(chan, &tc_clink[i]);
 		m0_rm_owner_unlock(&fctx[i]->sf_owner);
 		M0_UT_ASSERT(rc == -EAGAIN);
-		m0_ref_get(&fctx[i]->sf_ref);
 		m0_chan_wait(&tc_clink[i]);
 		m0_fid_set(&fid, cont, key);
 		file_lock_verify(scm, &fid, 1);

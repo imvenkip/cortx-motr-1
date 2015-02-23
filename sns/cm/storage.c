@@ -138,10 +138,8 @@ static int cp_prepare(struct m0_cm_cp *cp,
 	return M0_RC(rc);
 }
 
-static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
+static int cp_stob_io_init(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 {
-	struct m0_fom         *cp_fom;
-	struct m0_reqh        *reqh;
 	struct m0_stob_domain *dom;
 	struct m0_sns_cm_cp   *sns_cp;
 	struct m0_stob        *stob;
@@ -152,50 +150,79 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 
 	M0_ENTRY("cp=%p op=%d", cp, op);
 
-	addb_ctx = &cp->c_ag->cag_cm->cm_service.rs_addb_ctx;
 	sns_cp = cp2snscp(cp);
-	cp_fom = &cp->c_fom;
-	reqh = m0_fom_reqh(cp_fom);
 	stio = &sns_cp->sc_stio;
 	dom = m0_stob_domain_find_by_stob_fid(&sns_cp->sc_stob_fid);
+	addb_ctx = &cp->c_ag->cag_cm->cm_service.rs_addb_ctx;
 	m0_sns_cm_cp_addb_log(cp);
 
-	if (dom == NULL) {
-		rc = -EINVAL;
-		goto out;
-	}
+	if (dom == NULL)
+		return M0_ERR(-EINVAL);
 
 	rc = m0_stob_find(&sns_cp->sc_stob_fid, &sns_cp->sc_stob);
 	if (rc != 0)
-		goto out;
+		return M0_ERR(rc);
 
 	stob = sns_cp->sc_stob;
 	rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
 	if (rc != 0) {
 		m0_stob_put(stob);
-		goto out;
+		return M0_ERR(rc);
 	}
 	m0_stob_io_init(stio);
 	stio->si_flags = 0;
 	stio->si_opcode = op;
 	stio->si_fol_frag = &sns_cp->sc_fol_frag;
 	bshift = m0_stob_block_shift(stob);
-	rc = cp_prepare(cp, &stio->si_stob, &stio->si_user, sns_cp->sc_index,
-			addb_ctx, bshift);
-	if (rc != 0)
-		goto err_stio;
-	m0_dtx_init(&cp_fom->fo_tx, reqh->rh_beseg->bs_domain,
-		    &cp_fom->fo_loc->fl_group);
-	if (op == SIO_WRITE)
-		m0_stob_io_credit(stio, dom, m0_fom_tx_credit(cp_fom));
-	rc = m0_dtx_open_sync(&cp_fom->fo_tx);
-	if (rc != 0)
+	return cp_prepare(cp, &stio->si_stob, &stio->si_user, sns_cp->sc_index,
+			  addb_ctx, bshift);
+}
+
+static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
+{
+	struct m0_fom         *cp_fom;
+	struct m0_sns_cm_cp   *sns_cp;
+	struct m0_reqh        *reqh;
+	struct m0_stob_domain *dom;
+	struct m0_stob        *stob;
+	struct m0_stob_io     *stio;
+	struct m0_dtx         *tx;
+	int                    rc;
+
+	M0_ENTRY("cp=%p op=%d", cp, op);
+
+	cp_fom = &cp->c_fom;
+	tx = &cp_fom->fo_tx;
+	reqh = m0_fom_reqh(cp_fom);
+	sns_cp = cp2snscp(cp);
+	stio = &sns_cp->sc_stio;
+	dom = m0_stob_domain_find_by_stob_fid(&sns_cp->sc_stob_fid);
+	if (tx->tx_state < M0_DTX_INIT) {
+		rc = cp_stob_io_init(cp, op);
+		if (rc != 0)
+			goto out;
+		m0_dtx_init(&cp_fom->fo_tx, reqh->rh_beseg->bs_domain,
+			    &cp_fom->fo_loc->fl_group);
+		if (op == SIO_WRITE)
+			m0_stob_io_credit(stio, dom, m0_fom_tx_credit(cp_fom));
+		m0_dtx_open(&cp_fom->fo_tx);
+	}
+	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_FAILED) {
+		rc = tx->tx_betx.t_sm.sm_rc;
 		goto out;
+	}
+	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_OPENING) {
+		m0_fom_wait_on(cp_fom, &tx->tx_betx.t_sm.sm_chan,
+				&cp_fom->fo_cb);
+		return M0_FSO_WAIT;
+	} else
+		m0_dtx_opened(tx);
 
 	m0_mutex_lock(&stio->si_mutex);
 	m0_fom_wait_on(cp_fom, &stio->si_wait, &cp_fom->fo_cb);
 	m0_mutex_unlock(&stio->si_mutex);
 
+	stob = sns_cp->sc_stob;
 	rc = m0_stob_io_launch(stio, stob, &cp_fom->fo_tx, NULL);
 	if (rc != 0) {
 		m0_mutex_lock(&stio->si_mutex);
@@ -203,13 +230,9 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 		m0_mutex_unlock(&stio->si_mutex);
 		m0_indexvec_free(&stio->si_stob);
 		bufvec_free(&stio->si_user);
-		goto err_stio;
-	} else
-		goto out;
-
-err_stio:
-	m0_stob_io_fini(stio);
-	m0_stob_put(stob);
+		m0_stob_io_fini(stio);
+		m0_stob_put(stob);
+	}
 out:
 	if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_IO);

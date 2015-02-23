@@ -176,8 +176,7 @@ static int swu_update(struct m0_cm_sw_update *swu)
 {
 	struct m0_cm  *cm = cm_swu2cm(swu);
 	struct m0_fom *fom = &swu->swu_fom;
-	int            phase;
-	int            rc = M0_FSO_AGAIN;
+	int            rc;
 
 	M0_PRE(m0_cm_is_locked(cm));
 	rc = m0_cm_sw_local_update(cm);
@@ -186,11 +185,10 @@ static int swu_update(struct m0_cm_sw_update *swu)
 	if (rc == 0 || rc == -ENOSPC || rc == -ENOENT) {
 		if (rc == -ENOENT) {
 			swu->swu_is_complete = true;
-			phase = SWU_COMPLETE;
+			m0_fom_phase_move(fom, 0, SWU_COMPLETE);
 		} else
-			phase = SWU_STORE;
+			m0_fom_phase_move(fom, 0, SWU_STORE);
 		m0_cm_ready_done(cm);
-		m0_fom_phase_move(fom, 0, phase);
 		rc = M0_FSO_AGAIN;
 	}
 

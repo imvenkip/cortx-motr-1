@@ -291,6 +291,13 @@ M0_INTERNAL uint64_t m0_cm_cp_nr(struct m0_cm_cp *cp);
  * This is required in order to use RS code APIs.
  */
 M0_INTERNAL int m0_cm_cp_bufvec_merge(struct m0_cm_cp *cp);
+/**
+ * The meta-data of the @src is copied to @dest and the data buffers are
+ * detached from @src and attached to @dest to avoid data copy. After
+ * this call, @src is no longer usable and should be finalized immediately
+ * to avoid misuse.
+ */
+M0_INTERNAL int m0_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest);
 
 M0_TL_DESCR_DECLARE(cp_data_buf, M0_EXTERN);
 M0_TL_DECLARE(cp_data_buf, M0_INTERNAL, struct m0_net_buffer);

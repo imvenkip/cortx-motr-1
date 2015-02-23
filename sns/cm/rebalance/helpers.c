@@ -32,6 +32,7 @@
 
 M0_INTERNAL int m0_sns_cm_rebalance_ag_setup(struct m0_sns_cm_ag *sag,
 					     struct m0_pdclust_layout *pl);
+
 static uint64_t
 rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id,
@@ -101,11 +102,11 @@ static uint64_t rebalance_ag_unit_end(const struct m0_pdclust_layout *pl)
 M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 					     struct m0_sns_cm_cp *scp)
 {
-	struct m0_pdclust_layout   *pl;
-	struct m0_fid               cobfid;
-	struct m0_sns_cm_file_ctx  *fctx;
-	uint64_t                    offset;
-	int                         rc = 0;
+	struct m0_pdclust_layout  *pl;
+	struct m0_fid              cobfid;
+	struct m0_sns_cm_file_ctx *fctx;
+	uint64_t                   offset;
+	int                        rc = 0;
 
 	fctx = sag->sag_fctx;
 	pl = m0_layout_to_pdl(fctx->sf_layout);

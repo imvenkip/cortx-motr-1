@@ -718,6 +718,33 @@ M0_INTERNAL int m0_cm_cp_bufvec_merge(struct m0_cm_cp *cp)
 	return 0;
 }
 
+M0_INTERNAL int m0_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest)
+{
+	struct m0_cm         *cm;
+	struct m0_cm_cp      *cp;
+	struct m0_net_buffer *nbuf;
+
+	cm = src->c_ag->cag_cm;
+	cp = cm->cm_ops->cmo_cp_alloc(cm);
+	if (cp == NULL)
+		return -ENOMEM;
+	cp->c_ag = src->c_ag;
+	cp->c_ag_cp_idx = src->c_ag_cp_idx;
+	cp->c_data_seg_nr = src->c_data_seg_nr;
+	m0_cm_cp_fom_init(cm, cp);
+	m0_bitmap_init(&cp->c_xform_cp_indices,
+		       src->c_xform_cp_indices.b_nr);
+	m0_tl_for(cp_data_buf, &src->c_buffers, nbuf) {
+		cp_data_buf_tlink_del_fini(nbuf);
+		m0_cm_cp_buf_add(cp, nbuf);
+	} m0_tl_endfor;
+	if (src->c_xform_cp_indices.b_nr > 0)
+		m0_bitmap_copy(&cp->c_xform_cp_indices, &src->c_xform_cp_indices);
+	*dest = cp;
+
+	return M0_RC(0);
+}
+
 /** @} end-of-CPDLD */
 
 /*

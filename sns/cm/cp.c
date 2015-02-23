@@ -184,7 +184,7 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 		scm = cm2sns(cp->c_ag->cag_cm);
 		cdom  = scm->sc_it.si_cob_dom;
 		rc = m0_sns_cm_cob_locate(cdom, &scp->sc_cobfid);
-		M0_LOG(M0_DEBUG, "cob locate rc = %d", rc);
+		M0_LOG(M0_DEBUG, FID_F"cob locate rc = %d", FID_P(&scp->sc_cobfid), rc);
 		if (rc == 0)
 			return M0_CCP_WRITE;
 		else if (rc == -ENOENT)
@@ -257,6 +257,27 @@ M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 	bp = scp->sc_is_local ? &scm->sc_obp.sb_bp : &scm->sc_ibp.sb_bp;
 
 	return m0_sns_cm_buf_attach(bp, &scp->sc_base);
+}
+
+M0_INTERNAL int m0_sns_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest)
+{
+	struct m0_sns_cm_cp *dest_scp;
+	struct m0_sns_cm_cp *src_scp;
+	int                  rc;
+
+	rc = m0_cm_cp_dup(src, dest);
+	if (rc == 0) {
+		dest_scp = cp2snscp(*dest);
+		src_scp = cp2snscp(src);
+		dest_scp->sc_is_acc = true;
+		dest_scp->sc_cobfid = src_scp->sc_cobfid;
+		dest_scp->sc_stob_fid = src_scp->sc_stob_fid;
+		dest_scp->sc_is_local = src_scp->sc_is_local;
+		dest_scp->sc_failed_idx = src_scp->sc_failed_idx;
+		dest_scp->sc_index = src_scp->sc_index;
+	}
+
+	return M0_RC(rc);
 }
 
 const struct m0_cm_cp_ops m0_sns_cm_repair_cp_ops = {

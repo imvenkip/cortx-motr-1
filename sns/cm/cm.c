@@ -660,6 +660,7 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 			     scm->sc_ibp.sb_bp.nbp_free,
 			     scm->sc_obp.sb_bp.nbp_free);
 	}
+	scm->sc_ibp_reserved_nr = 0;
 
 	rc = m0_sns_cm_ag_iter_init(&scm->sc_ag_it);
 
@@ -860,7 +861,8 @@ M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_sns_cm *scm,
 		extra_bufs = nr_res_bufs - (nr_cp_bufs * (ag->cag_freed_cp_nr -
 							  ag->cag_cp_local_nr));
 	if (extra_bufs > 0)
-		scm->sc_ibp_reserved_nr -= extra_bufs;
+		scm->sc_ibp_reserved_nr -= min64u(scm->sc_ibp_reserved_nr,
+						  extra_bufs);
 }
 
 /**

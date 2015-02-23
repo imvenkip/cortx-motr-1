@@ -77,9 +77,9 @@ static bool cm_proxy_invariant(const struct m0_cm_proxy *pxy)
 	/**
 	 * @todo : Add checks for pxy::px_id when uid mechanism is implemented.
 	 */
-	return pxy != NULL &&  m0_cm_proxy_bob_check(pxy) &&
-	       pxy->px_endpoint != NULL &&
-	       (m0_cm_ag_id_cmp(&pxy->px_sw.sw_hi, &pxy->px_sw.sw_lo) >= 0);
+	return _0C(pxy != NULL) &&  _0C(m0_cm_proxy_bob_check(pxy)) &&
+	       _0C(pxy->px_endpoint != NULL) &&
+	       _0C(m0_cm_ag_id_cmp(&pxy->px_sw.sw_hi, &pxy->px_sw.sw_lo) >= 0);
 }
 
 M0_INTERNAL int m0_cm_proxy_alloc(uint64_t px_id,

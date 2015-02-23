@@ -129,6 +129,7 @@ M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 				   uint64_t ag_cp_idx);
 
 M0_INTERNAL void m0_sns_cm_cp_addb_log(const struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest);
 
 /** @} SNSCMCP */
 #endif /* __MERO_SNS_CM_CP_H__ */
