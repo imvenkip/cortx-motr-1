@@ -244,7 +244,7 @@ M0_INTERNAL void m0_fom_mod_rep_fill(struct m0_fop_mod_rep *rep,
    extracts and returns error code contained in the fop; otherwise it
    returns 0.
  */
-uint32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *item);
+int32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *item);
 
 M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom);
 

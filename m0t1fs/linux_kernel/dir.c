@@ -103,7 +103,7 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 
 	m0_semaphore_up(&creq->cr_sem);
 
-	M0_LOG(M0_DEBUG, "cob_req_fop=%p", cfop);
+	M0_LOG(M0_DEBUG, "cob_req_fop=%p rc %d", cfop, creq->cr_rc);
 	M0_LEAVE();
 }
 

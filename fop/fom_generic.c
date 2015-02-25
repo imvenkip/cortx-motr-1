@@ -76,10 +76,10 @@ bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item)
 }
 M0_EXPORTED(m0_rpc_item_is_generic_reply_fop);
 
-uint32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *reply)
+int32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *reply)
 {
 	struct m0_fop_generic_reply *reply_fop;
-	uint32_t                     rc;
+	int32_t                      rc;
 
 	if (m0_rpc_item_is_generic_reply_fop(reply)) {
 		reply_fop = m0_fop_data(m0_rpc_item_to_fop(reply));

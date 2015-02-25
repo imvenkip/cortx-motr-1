@@ -3219,7 +3219,7 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	M0_ENTRY();
 	M0_PRE_EX(io_request_invariant(req));
 
-	if (req->ir_nwxfer.nxr_rc == 0)
+	if (req->ir_nwxfer.nxr_rc == 0 || req->ir_nwxfer.nxr_rc == -E2BIG)
 		return M0_RC(req->ir_nwxfer.nxr_rc);
 
 	rc = device_check(req);
@@ -5060,6 +5060,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0t1fs_service_context     *service;
 	struct m0t1fs_inode               *inode;
 	struct m0_be_tx_remid             *remid;
+	struct m0_fop_generic_reply       *gen_rep;
 
 	M0_ENTRY("sm_group %p sm_ast %p", grp, ast);
 	M0_PRE(grp != NULL);
@@ -5078,6 +5079,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	req_item   = &irfop->irf_iofop.if_fop.f_item;
 	reply_item = req_item->ri_reply;
+	reply_fop = m0_rpc_item_to_fop(reply_item);
 	rc = req_item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "reply error: rc=%d", rc);
@@ -5088,11 +5090,12 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 	M0_ASSERT(reply_item != NULL &&
 		  !m0_rpc_item_is_generic_reply_fop(reply_item));
-	reply_fop = m0_rpc_item_to_fop(reply_item);
 	M0_ASSERT(m0_is_io_fop_rep(reply_fop));
 
+	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
+	rc = gen_rep->gr_rc;
 	rw_reply  = io_rw_rep_get(reply_fop);
-	rc        = rw_reply->rwr_rc;
+	rc        =  rc ?: rw_reply->rwr_rc;
 	remid     = &rw_reply->rwr_mod_rep.fmr_remid;
 	req->ir_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_INFO, "reply received = %d, sns state = %d", rc,
@@ -5123,11 +5126,12 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	if (irfop->irf_pattr == PA_DATA) {
 		tioreq->ti_databytes += irfop->irf_iofop.if_rbulk.rb_bytes;
-		M0_LOG(M0_INFO, "Returned no of bytes = %llu",
-		       irfop->irf_iofop.if_rbulk.rb_bytes);
 	} else
 		tioreq->ti_parbytes  += irfop->irf_iofop.if_rbulk.rb_bytes;
 
+	M0_LOG(M0_INFO, "Returned no of bytes = %llu expected = %llu",
+			rw_reply->rwr_count,
+			irfop->irf_iofop.if_rbulk.rb_bytes);
 	/* update pending transaction number */
 	service = m0t1fs_service_from_session(reply_item->ri_session);
 	inode = m0t1fs_file_to_m0inode(req->ir_file);
