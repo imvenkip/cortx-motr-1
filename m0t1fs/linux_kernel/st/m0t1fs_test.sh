@@ -52,6 +52,7 @@ main()
 	echo "System tests start:"
 	echo "Test log will be stored in $MERO_TEST_LOGFILE."
 
+	set -o pipefail
 	m0t1fs_test 2>&1 | tee -a $MERO_TEST_LOGFILE
 	rc=$?
 
