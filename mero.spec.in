@@ -19,8 +19,8 @@
 %if %{with ut}
 %define  configure_opts  --enable-dev-mode --disable-altogether-mode
 %else
-# segment size 8GB
-%define  configure_opts  --enable-release --with-trace-kbuf-size=256 --with-trace-ubuf-size=64 --with-segment-size=8196
+# segment size 4GiB
+%define  configure_opts  --enable-release --with-trace-kbuf-size=256 --with-trace-ubuf-size=64 --with-segment-size=4096
 %endif
 
 
