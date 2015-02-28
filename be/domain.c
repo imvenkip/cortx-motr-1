@@ -32,12 +32,12 @@
 #include "stob/stob.h"		/* m0_stob_find_by_key */
 #include "stob/domain.h"	/* m0_stob_domain_init */
 
-M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0type_list[]", M0_INTERNAL,
+M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0types", M0_INTERNAL,
 			   struct m0_be_0type, b0_linkage, b0_magic,
 			   M0_BE_0TYPE_MAGIC, M0_BE_0TYPE_MAGIC);
 M0_TL_DEFINE(zt, static, struct m0_be_0type);
 
-M0_TL_DESCR_DEFINE(seg, "m0_be_domain::bd_seg_list[]", M0_INTERNAL,
+M0_TL_DESCR_DEFINE(seg, "m0_be_domain::bd_segs", M0_INTERNAL,
 			   struct m0_be_seg, bs_linkage, bs_magic,
 			   M0_BE_SEG_MAGIC, M0_BE_SEG_MAGIC);
 M0_TL_DEFINE(seg, static, struct m0_be_seg);
@@ -127,7 +127,7 @@ static int _0types_visit(struct m0_be_domain *dom, bool init)
 
 	dict = m0_be_domain_seg0_get(dom);
 
-        m0_tl_for(zt, &dom->bd_0type_list, objtype) {
+        m0_tl_for(zt, &dom->bd_0types, objtype) {
 		for (left = segobj_opt_begin(dict, objtype, &opt, &suffix);
 		     left > 0 && rc == 0;
 		     left = segobj_opt_next(dict, objtype, &opt, &suffix)) {
@@ -238,7 +238,7 @@ static int be_domain_seg_open(struct m0_be_domain *dom,
 			m0_be_seg_dict_init(seg);
 
 			be_domain_lock(dom);
-			seg_tlink_init_at_tail(seg, &dom->bd_seg_list);
+			seg_tlink_init_at_tail(seg, &dom->bd_segs);
 			be_domain_unlock(dom);
 		} else {
 			m0_be_seg_fini(seg);
@@ -414,8 +414,8 @@ static const struct m0_be_0type m0_be_0type_log = {
 
 M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom)
 {
-	zt_tlist_init(&dom->bd_0type_list);
-	seg_tlist_init(&dom->bd_seg_list);
+	zt_tlist_init(&dom->bd_0types);
+	seg_tlist_init(&dom->bd_segs);
 	m0_mutex_init(&dom->bd_lock);
 
 	dom->bd_0type_log = m0_be_0type_log;
@@ -696,11 +696,11 @@ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
 
 	m0_stob_domain_fini(dom->bd_stob_domain);
 
-	m0_tl_teardown(zt, &dom->bd_0type_list, zt);
+	m0_tl_teardown(zt, &dom->bd_0types, zt);
 
 	m0_mutex_fini(&dom->bd_lock);
-	zt_tlist_fini(&dom->bd_0type_list);
-	seg_tlist_fini(&dom->bd_seg_list);
+	zt_tlist_fini(&dom->bd_0types);
+	seg_tlist_fini(&dom->bd_segs);
 }
 
 M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
@@ -729,14 +729,14 @@ M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
 {
 	return m0_be_seg_contains(&dom->bd_seg0, addr) ?
 		(struct m0_be_seg *) &dom->bd_seg0 :
-		m0_tl_find(seg, seg, &dom->bd_seg_list,
+		m0_tl_find(seg, seg, &dom->bd_segs,
 			   m0_be_seg_contains(seg, addr));
 }
 
 M0_INTERNAL struct m0_be_seg *
 m0_be_domain_seg_first(const struct m0_be_domain *dom)
 {
-	return m0_tl_find(seg, seg, &dom->bd_seg_list,
+	return m0_tl_find(seg, seg, &dom->bd_segs,
 			  dom->bd_seg0.bs_id != seg->bs_id && seg->bs_id != 0);
 }
 
@@ -744,7 +744,7 @@ M0_INTERNAL struct m0_be_seg *
 m0_be_domain_seg_by_id(const struct m0_be_domain *dom, uint64_t id)
 {
 	return dom->bd_seg0.bs_id == id ? (struct m0_be_seg *) &dom->bd_seg0 :
-		m0_tl_find(seg, seg, &dom->bd_seg_list, seg->bs_id == id);
+		m0_tl_find(seg, seg, &dom->bd_segs, seg->bs_id == id);
 }
 
 static void be_domain_seg_suffix_make(const struct m0_be_domain *dom,
@@ -815,7 +815,7 @@ m0_be_domain_seg_create(struct m0_be_domain		  *dom,
 	int			rc1;
 
 	M0_PRE(ergo(tx != NULL, m0_be_tx__is_exclusive(tx)));
-	M0_ASSERT_INFO(!seg_tlist_is_empty(&dom->bd_seg_list),
+	M0_ASSERT_INFO(!seg_tlist_is_empty(&dom->bd_segs),
 		       "seg0 should be added first");
 
 	be_domain_seg_suffix_make(dom, seg_cfg->bsc_stob_key,
@@ -896,7 +896,7 @@ M0_INTERNAL void m0_be_domain__0type_register(struct m0_be_domain *dom,
 					      struct m0_be_0type *type)
 {
 	be_domain_lock(dom);
-	zt_tlink_init_at_tail(type, &dom->bd_0type_list);
+	zt_tlink_init_at_tail(type, &dom->bd_0types);
 	be_domain_unlock(dom);
 }
 

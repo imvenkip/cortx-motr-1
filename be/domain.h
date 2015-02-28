@@ -119,9 +119,9 @@ struct m0_be_domain {
 	struct m0_be_domain_cfg	bd_cfg;
 	struct m0_be_engine	bd_engine;
 	struct m0_mutex		bd_lock;
-	struct m0_tl            bd_0type_list;
+	struct m0_tl            bd_0types;
 	/** List of segments in this domain. First segment in which is seg0. */
-	struct m0_tl            bd_seg_list;
+	struct m0_tl            bd_segs;
 	struct m0_be_seg	bd_seg0;
 	struct m0_stob         *bd_seg0_stob;
 	struct m0_stob_domain  *bd_stob_domain;
