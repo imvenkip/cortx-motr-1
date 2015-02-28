@@ -31,17 +31,20 @@ void m0_be_ut_mkfs(void)
 	struct m0_be_seg	*seg;
 	void			*addr;
 	void			*addr2;
+	int                      rc;
 
 	m0_be_ut_backend_cfg_default(&cfg);
 	/* mkfs mode start */
-	m0_be_ut_backend_init_cfg(&ut_be, &cfg, true);
+	rc = m0_be_ut_backend_init_cfg(&ut_be, &cfg, true);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_ut_backend_seg_add2(&ut_be, 0x10000, true, &seg);
 	addr = seg->bs_addr;
 	m0_be_ut_backend_fini(&ut_be);
 
 	M0_SET0(&ut_be);
 	/* normal mode start */
-	m0_be_ut_backend_init_cfg(&ut_be, &cfg, false);
+	rc = m0_be_ut_backend_init_cfg(&ut_be, &cfg, false);
+	M0_UT_ASSERT(rc == 0);
 	seg = m0_be_domain_seg(dom, addr);
 	addr2 = seg->bs_addr;
 	M0_ASSERT_INFO(addr == addr2, "addr = %p, addr2 = %p", addr, addr2);
@@ -50,7 +53,8 @@ void m0_be_ut_mkfs(void)
 
 	M0_SET0(&ut_be);
 	/* normal mode start */
-	m0_be_ut_backend_init_cfg(&ut_be, &cfg, false);
+	rc = m0_be_ut_backend_init_cfg(&ut_be, &cfg, false);
+	M0_UT_ASSERT(rc == 0);
 	seg = m0_be_domain_seg(dom, addr);
 	M0_ASSERT_INFO(seg == NULL, "seg = %p", seg);
 	m0_be_ut_backend_fini(&ut_be);

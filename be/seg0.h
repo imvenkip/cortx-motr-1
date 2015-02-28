@@ -184,21 +184,9 @@ int m0_be_0type_del(struct m0_be_0type	*zt,
  * - In cases when subsystem needs to change one of its configuration parameters
  *   it calls  m0_be_0type_add() to peform changes in seg0 dictionary.
  *
- * <b> BE domain initialization </b>
+ * <b>BE domain initialization</b>
  *
- * mkfs.be would use m0_be_0type_add() to populate the seg0 dictionary. BE
- * domain initialisation has to be split in 2 levels (in lib/module.h sense):
- *
- * @code
- * // level n
- * m0_be_domain_init(&dom);
- * m0_be_0type_register(&dom, foo);
- * m0_be_0type_register(&dom, bar);
- *
- * // level m (m > n)
- * dom.seg0_stob = stob;
- * m0_be_domain_start(&dom);
- * @endcode
+ * mkfs.be uses m0_be_0type_add() to populate the seg0 dictionary.
  *
  * <b>BE-internal objects: segments and log</b>
  *

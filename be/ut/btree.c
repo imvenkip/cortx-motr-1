@@ -67,7 +67,7 @@ static void destroy_tree(struct m0_be_btree *tree);
 
 void m0_be_ut_btree_simple(void)
 {
-	struct m0_be_btree     *tree0;
+	struct m0_be_btree *tree0;
 
 	M0_ENTRY();
 	/* Init BE */

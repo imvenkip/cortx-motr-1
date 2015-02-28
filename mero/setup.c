@@ -1164,24 +1164,33 @@ static void be_seg_init(struct m0_be_ut_backend *be,
 }
 
 static int cs_be_init(struct m0_be_ut_backend *be,
-		      const char 	      *name,
-		      bool		       preallocate,
-		      bool 		       mkfs,
+		      const char              *name,
+		      bool                     preallocate,
+		      bool                     mkfs,
 		      struct m0_be_seg	     **out)
 {
-	char		        *location;
-	static const size_t      location_len = 1024;
+	enum { len = 1024 };
+	char **loc = &be->but_stob_domain_location;
+	int    rc;
 
-	location = m0_alloc(location_len);
-	snprintf(location, location_len, "linuxstob:%s%s",
-		 name[0] == '/' ? "" : "./", name);
-	be->but_stob_domain_location = location;
+	*loc = m0_alloc(len);
+	if (*loc == NULL)
+		return -ENOMEM;
+	snprintf(*loc, len, "linuxstob:%s%s", name[0] == '/' ? "" : "./", name);
+
 	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
-	m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, mkfs);
+	rc = m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, mkfs);
+	if (rc != 0)
+		goto err;
+
 	be_seg_init(be, name, preallocate, mkfs, out);
-	if (*out == NULL)
-		M0_LOG(M0_ERROR, "cs_be_init: failed to init segment");
-	return *out != NULL ? 0 : -ENOMEM;
+	if (*out != NULL)
+		return 0;
+	M0_LOG(M0_ERROR, "cs_be_init: failed to init segment");
+	rc = -ENOMEM;
+err:
+	m0_free0(loc);
+	return rc;
 }
 
 M0_INTERNAL void cs_be_fini(struct m0_be_ut_backend *be)

@@ -46,14 +46,16 @@ struct m0_stob;
 
 struct m0_be_ut_backend {
 	struct m0_be_domain		  but_dom;
+	/* XXX DELETEME
+	 * Make sure that ->but_dom_cfg is not needed for m0_be_domain
+	 * initialisation and delete it.
+	 * See https://seagate.slack.com/archives/mero/p1424896669000401
+	 */
 	struct m0_be_domain_cfg		  but_dom_cfg;
 	struct m0_be_ut_sm_group_thread **but_sgt;
 	size_t				  but_sgt_size;
 	struct m0_mutex			  but_sgt_lock;
 	bool				  but_sm_groups_unlocked;
-	struct m0_be_0type		  but_ad_0type;
-	struct m0_be_0type		  but_pool_0type;
-	struct m0_be_0type		  but_cob_0type;
 	char				 *but_stob_domain_location;
 };
 
@@ -68,9 +70,9 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg);
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
 
-M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
-					   struct m0_be_domain_cfg *cfg,
-					   bool mkfs);
+M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+					  const struct m0_be_domain_cfg *cfg,
+					  bool mkfs);
 
 M0_INTERNAL void
 m0_be_ut_backend_seg_add2(struct m0_be_ut_backend	   *ut_be,
@@ -85,8 +87,8 @@ M0_INTERNAL void
 m0_be_ut_backend_seg_del(struct m0_be_ut_backend	   *ut_be,
 			 struct m0_be_seg		   *seg);
 
-M0_INTERNAL struct m0_reqh *m0_be_ut_reqh_get(void);
-M0_INTERNAL void m0_be_ut_reqh_put(struct m0_reqh *reqh);
+M0_INTERNAL void m0_be_ut_reqh_create(struct m0_reqh **pptr);
+M0_INTERNAL void m0_be_ut_reqh_destroy(void);
 
 struct m0_sm_group *
 m0_be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be);

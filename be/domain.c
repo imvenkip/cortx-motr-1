@@ -42,7 +42,6 @@ M0_TL_DESCR_DEFINE(seg, "m0_be_domain::bd_segs", M0_INTERNAL,
 			   M0_BE_SEG_MAGIC, M0_BE_SEG_MAGIC);
 M0_TL_DEFINE(seg, static, struct m0_be_seg);
 
-
 /**
  * @addtogroup be
  *
@@ -412,18 +411,6 @@ static const struct m0_be_0type m0_be_0type_log = {
 	.b0_fini = be_0type_log_fini,
 };
 
-M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom)
-{
-	zt_tlist_init(&dom->bd_0types);
-	seg_tlist_init(&dom->bd_segs);
-	m0_mutex_init(&dom->bd_lock);
-
-	dom->bd_0type_log = m0_be_0type_log;
-	dom->bd_0type_seg = m0_be_0type_seg;
-	m0_be_0type_register(dom, &dom->bd_0type_log);
-	m0_be_0type_register(dom, &dom->bd_0type_seg);
-}
-
 static void be_domain_mkfs_progress(struct m0_be_domain *dom,
 				    const char		*fmt,
 				    ...)
@@ -614,6 +601,7 @@ static int be_domain_start_mkfs_post(struct m0_be_domain     *dom,
 	return M0_RC(rc);
 }
 
+/* XXX REFACTORME: Split into be_domain_start() and be_domain_stop(). */
 static int be_domain_start_stop(struct m0_be_domain	*dom,
 				struct m0_be_domain_cfg *cfg)
 {
@@ -677,30 +665,6 @@ stop_pre:
 	}
 out:
 	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_be_domain_start(struct m0_be_domain	   *dom,
-				   struct m0_be_domain_cfg *cfg)
-{
-	return M0_RC(be_domain_start_stop(dom, cfg));
-}
-
-M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
-{
-	struct m0_be_0type *zt;
-
-	(void)be_domain_start_stop(dom, NULL);
-
-	m0_be_0type_unregister(dom, &dom->bd_0type_seg);
-	m0_be_0type_unregister(dom, &dom->bd_0type_log);
-
-	m0_stob_domain_fini(dom->bd_stob_domain);
-
-	m0_tl_teardown(zt, &dom->bd_0types, zt);
-
-	m0_mutex_fini(&dom->bd_lock);
-	zt_tlist_fini(&dom->bd_0types);
-	seg_tlist_fini(&dom->bd_segs);
 }
 
 M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
@@ -906,6 +870,101 @@ M0_INTERNAL void m0_be_domain__0type_unregister(struct m0_be_domain *dom,
 	be_domain_lock(dom);
 	zt_tlink_del_fini(type);
 	be_domain_unlock(dom);
+}
+
+static int level_be_domain_enter(struct m0_module *module)
+{
+	struct m0_be_domain     *dom = M0_AMB(dom, module, bd_module);
+	struct m0_be_domain_cfg *cfg = &dom->bd_cfg;
+	unsigned                 i;
+
+	switch (module->m_cur + 1) {
+	case M0_LEVEL_BE_DOMAIN_INIT:
+		zt_tlist_init(&dom->bd_0types);
+		seg_tlist_init(&dom->bd_segs);
+		m0_mutex_init(&dom->bd_lock);
+		return 0;
+
+
+	case M0_LEVEL_BE_DOMAIN_0TYPES:
+		M0_ASSERT(cfg->bc_0types_nr > 0 && cfg->bc_0types != NULL);
+		M0_ALLOC_ARR(dom->bd_0types_allocated, cfg->bc_0types_nr);
+		if (dom->bd_0types_allocated == NULL)
+			return -ENOMEM;
+		for (i = 0; i < cfg->bc_0types_nr; ++i) {
+			dom->bd_0types_allocated[i] = *cfg->bc_0types[i];
+			m0_be_0type_register(dom, &dom->bd_0types_allocated[i]);
+		}
+		dom->bd_0type_log = m0_be_0type_log;
+		dom->bd_0type_seg = m0_be_0type_seg;
+		m0_be_0type_register(dom, &dom->bd_0type_log);
+		m0_be_0type_register(dom, &dom->bd_0type_seg);
+		return 0;
+
+	case M0_LEVEL_BE_DOMAIN_READY:
+		return be_domain_start_stop(dom, cfg);
+	}
+	M0_IMPOSSIBLE("Unexpected level: %d", module->m_cur + 1);
+}
+
+static void level_be_domain_leave(struct m0_module *module)
+{
+	struct m0_be_domain *dom = M0_AMB(dom, module, bd_module);
+	struct m0_be_0type  *zt;
+	unsigned             i;
+
+	switch (module->m_cur) {
+	case M0_LEVEL_BE_DOMAIN_READY:
+		(void)be_domain_start_stop(dom, NULL);
+		return;
+
+	case M0_LEVEL_BE_DOMAIN_0TYPES:
+		m0_be_0type_unregister(dom, &dom->bd_0type_seg);
+		m0_be_0type_unregister(dom, &dom->bd_0type_log);
+		for (i = 0; i < dom->bd_cfg.bc_0types_nr; ++i)
+			m0_be_0type_unregister(dom,
+					       &dom->bd_0types_allocated[i]);
+		m0_free0(&dom->bd_0types_allocated);
+		return;
+
+	case M0_LEVEL_BE_DOMAIN_INIT:
+		/* XXX level_be_domain_enter() did not call
+		 * m0_stob_domain_init(). */
+		m0_stob_domain_fini(dom->bd_stob_domain);
+		m0_tl_teardown(zt, &dom->bd_0types, zt);
+		m0_mutex_fini(&dom->bd_lock);
+		seg_tlist_fini(&dom->bd_segs);
+		zt_tlist_fini(&dom->bd_0types);
+		return;
+	}
+	M0_IMPOSSIBLE("Unexpected level: %d", module->m_cur);
+}
+
+static const struct m0_modlev levels_be_domain[] = {
+	[M0_LEVEL_BE_DOMAIN_INIT] = {
+		.ml_name  = "M0_LEVEL_BE_DOMAIN_INIT",
+		.ml_enter = level_be_domain_enter,
+		.ml_leave = level_be_domain_leave
+	},
+	[M0_LEVEL_BE_DOMAIN_0TYPES] = {
+		.ml_name  = "M0_LEVEL_BE_DOMAIN_0TYPES",
+		.ml_enter = level_be_domain_enter,
+		.ml_leave = level_be_domain_leave
+	},
+	[M0_LEVEL_BE_DOMAIN_READY] = {
+		.ml_name  = "M0_LEVEL_BE_DOMAIN_READY",
+		.ml_enter = level_be_domain_enter,
+		.ml_leave = level_be_domain_leave
+	}
+};
+
+M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
+					   const struct m0_be_domain_cfg *cfg)
+{
+	m0_module_setup(&dom->bd_module, "m0_be_domain module",
+			levels_be_domain, ARRAY_SIZE(levels_be_domain),
+			m0_get());
+	dom->bd_cfg = *cfg;
 }
 
 #undef M0_TRACE_SUBSYSTEM

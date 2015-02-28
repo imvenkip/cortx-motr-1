@@ -233,10 +233,11 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 {
 }
 
-M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
-					   struct m0_be_domain_cfg *cfg,
-					   bool mkfs)
+M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+					  const struct m0_be_domain_cfg *cfg,
+					  bool mkfs)
 {
+	return 0;
 }
 
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)

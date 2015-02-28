@@ -50,7 +50,6 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
 
 static int seg_init()
 {
-	/* Init BE */
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
 	be_seg = ut_seg.bus_seg;

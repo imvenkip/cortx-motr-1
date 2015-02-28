@@ -119,7 +119,8 @@ static void test_init(void)
 	cfg.bc_engine.bec_log_size	 = 1 << 27;
 	cfg.bc_engine.bec_tx_size_max	 = M0_BE_TX_CREDIT(1 << 21, 1 << 26);
 	cfg.bc_engine.bec_group_size_max = M0_BE_TX_CREDIT(1 << 22, 1 << 27);
-	m0_be_ut_backend_init_cfg(&be_ut_emap_backend, &cfg, true);
+	rc = m0_be_ut_backend_init_cfg(&be_ut_emap_backend, &cfg, true);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_ut_seg_init(&be_ut_emap_seg, &be_ut_emap_backend, 1ULL << 26);
 	be_seg = be_ut_emap_seg.bus_seg;
 

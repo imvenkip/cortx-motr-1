@@ -25,10 +25,32 @@
 
 #include "be/engine.h"		/* m0_be_engine */
 #include "be/seg0.h"		/* m0_be_0type */
+#include "module/module.h"
 #include "lib/tlist.h"		/* m0_tl */
 
 /**
  * @defgroup be Meta-data back-end
+ *
+ * @b BE domain initialisation
+ *
+ * Mkfs mode:
+ *
+ * - Create BE seg0 and a log on storage (configuration is taken from dom_cfg).
+ * - Create segs_nr segments (configuration for each segment is taken from
+ *   segs_cfg).
+ * - Execute progress callback (m0_be_domain_cfg::bc_mkfs_progress_cb)
+ *   to notify user about stages executed.
+ *
+ * Normal (non-mkfs) mode:
+ *
+ * - Load seg0 (domain should be started in mkfs mode before it can be started
+ *   in normal mode).
+ * - Process all 0types stored in seg0. Initialise the log and all segments
+ *   in the domain, along with other 0types.
+ *
+ * In either case after successful initialisation BE domain is ready to work.
+ *
+ * @see m0_be_domain_cfg, m0_be_domain_seg_create().
  *
  * @{
  */
@@ -52,6 +74,9 @@ struct m0_be_0type_seg_cfg {
 struct m0_be_domain_cfg {
 	/** BE engine configuration. */
 	struct m0_be_engine_cfg	     bc_engine;
+	/** 0types supported by this domain. */
+	const struct m0_be_0type   **bc_0types;
+	unsigned                     bc_0types_nr;
 	/**
 	 * Stob domain location.
 	 * Stobs for log and segments are in this domain.
@@ -67,11 +92,6 @@ struct m0_be_domain_cfg {
 	 * This field is ignored in mkfs mode.
 	 */
 	uint64_t		     bc_seg0_stob_key;
-	/**
-	 * mkfs mode flag.
-	 * It makes difference in m0_be_domain_start() only. After this function
-	 * called BE domain behaviur is the same for mkfs and normal modes.
-	 */
 	bool			     bc_mkfs_mode;
 
 	/*
@@ -116,10 +136,12 @@ struct m0_be_domain_cfg {
 };
 
 struct m0_be_domain {
+	struct m0_module        bd_module;
 	struct m0_be_domain_cfg	bd_cfg;
 	struct m0_be_engine	bd_engine;
 	struct m0_mutex		bd_lock;
 	struct m0_tl            bd_0types;
+	struct m0_be_0type     *bd_0types_allocated;
 	/** List of segments in this domain. First segment in which is seg0. */
 	struct m0_tl            bd_segs;
 	struct m0_be_seg	bd_seg0;
@@ -131,29 +153,25 @@ struct m0_be_domain {
 	unsigned		bd_mkfs_stage_nr;
 };
 
-M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom);
+/** Levels of m0_be_domain module. */
+enum {
+	M0_LEVEL_BE_DOMAIN_INIT,
+	M0_LEVEL_BE_DOMAIN_0TYPES,
+	M0_LEVEL_BE_DOMAIN_READY
+};
 
-/**
- * This function in normal (not mkfs) mode:
- * - loads seg0 (domain should be started in mkfs mode before it can be started
- *   in normal mode);
- * - processes all 0types stored in seg0. Log and all segments in domain are
- *   initialized, along with other 0types.
- *
- * This function in mkfs mode:
- * - creates BE seg0 and log on storage (configuration is taken from dom_cfg);
- * - creates segs_nr segments (configuration for each segment is taken from
- *   segs_cfg);
- * - executes progress callback to notify user about stages executed.
- *
- * In either case after successful function call BE domain is ready to work.
- *
- * @see m0_be_domain_cfg, m0_be_domain_seg_create().
+/*
+ *  m0_be_domain                       m0_be_engine
+ * +---------------------------+      +--------------------------+
+ * | M0_LEVEL_BE_DOMAIN_READY  |----->| M0_LEVEL_BE_ENGINE_READY |
+ * +---------------------------+      +--------------------------+
+ * | M0_LEVEL_BE_DOMAIN_0TYPES |
+ * +---------------------------+
+ * | M0_LEVEL_BE_DOMAIN_INIT   |
+ * +---------------------------+
  */
-M0_INTERNAL int m0_be_domain_start(struct m0_be_domain	   *dom,
-				   struct m0_be_domain_cfg *cfg);
-
-M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom);
+M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
+					   const struct m0_be_domain_cfg *cfg);
 
 M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
 						  uint64_t id);

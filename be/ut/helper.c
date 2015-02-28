@@ -54,7 +54,7 @@ struct m0_be_ut_sm_group_thread {
 struct be_ut_helper_struct {
 	struct m0_net_xprt      *buh_net_xprt;
 	struct m0_rpc_server_ctx buh_rpc_sctx;
-	struct m0_reqh          *buh_reqh;
+	struct m0_reqh         **buh_reqh;
 	pthread_once_t		 buh_once_control;
 	struct m0_mutex		 buh_seg_lock;
 	void			*buh_addr;
@@ -122,33 +122,42 @@ M0_INTERNAL uint64_t m0_be_ut_seg_allocate_id(void)
 	return id;
 }
 
-M0_INTERNAL struct m0_reqh *m0_be_ut_reqh_get(void)
+/*
+ * XXX m0_be_ut_reqh_create() function shall be removed after m0_reqh is
+ * modularized (i.e., initialised/finalised using m0_module API).
+ */
+M0_INTERNAL void m0_be_ut_reqh_create(struct m0_reqh **pptr)
 {
 	struct be_ut_helper_struct *h = &be_ut_helper;
 	int rc;
 
+	M0_PRE(*pptr == NULL && h->buh_reqh == NULL);
+
 	be_ut_helper_init_once();
 
-	M0_PRE(h->buh_reqh == NULL);
-	M0_ALLOC_PTR(h->buh_reqh);
+	M0_ALLOC_PTR(*pptr);
 	/*
 	 * We don't bother with error handling here, because be_ut_helper
 	 * is a kludge and should be removed.
 	 */
-	M0_ASSERT(h->buh_reqh != NULL);
-	rc = M0_REQH_INIT(h->buh_reqh);
+	M0_ASSERT(*pptr != NULL);
+	rc = M0_REQH_INIT(*pptr);
 	M0_ASSERT(rc == 0);
-	return h->buh_reqh;
+	/*
+	 * Remember the address of allocated pointer, so that it can be
+	 * freed in m0_be_ut_reqh_destroy().
+	 */
+	h->buh_reqh = pptr;
 }
 
-M0_INTERNAL void m0_be_ut_reqh_put(struct m0_reqh *reqh)
+M0_INTERNAL void m0_be_ut_reqh_destroy(void)
 {
 	struct be_ut_helper_struct *h = &be_ut_helper;
 
 	if (h->buh_reqh != NULL) {
-		M0_ASSERT(reqh == h->buh_reqh);
-		m0_reqh_fini(reqh);
-		m0_free0(&h->buh_reqh);
+		m0_reqh_fini(*h->buh_reqh);
+		m0_free0(h->buh_reqh);
+		h->buh_reqh = NULL;
 	}
 }
 
@@ -256,6 +265,7 @@ M0_INTERNAL void m0_be_ut_fake_mkfs(void)
 	struct m0_be_domain_cfg    dom_cfg = {};
 	struct m0_be_ut_backend    ut_be = {};
 	unsigned                   i;
+	int                        rc;
 
 	for (i = 0; i < ARRAY_SIZE(segs_cfg); ++i) {
 		segs_cfg[i] = (struct m0_be_0type_seg_cfg){
@@ -270,14 +280,24 @@ M0_INTERNAL void m0_be_ut_fake_mkfs(void)
 	dom_cfg.bc_seg_cfg   = segs_cfg;
 	dom_cfg.bc_seg_nr    = ARRAY_SIZE(segs_cfg);
 
-	m0_be_ut_backend_init_cfg(&ut_be, &dom_cfg, true);
+	rc = m0_be_ut_backend_init_cfg(&ut_be, &dom_cfg, true);
+	M0_ASSERT(rc == 0);
 	m0_be_ut_backend_fini(&ut_be);
 }
 
 void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 {
-	static struct m0_atomic64  dom_key = {};
-	struct m0_reqh		  *reqh = cfg->bc_engine.bec_group_fom_reqh;
+	extern struct m0_be_0type m0_stob_ad_0type;
+	extern struct m0_be_0type m0_be_pool0;
+	extern struct m0_be_0type m0_be_cob0;
+
+	static struct m0_atomic64        dom_key = {};
+	static const struct m0_be_0type *zts[] = {
+		&m0_stob_ad_0type,
+		&m0_be_pool0,
+		&m0_be_cob0
+	};
+	struct m0_reqh *reqh = cfg->bc_engine.bec_group_fom_reqh;
 
 	*cfg = (struct m0_be_domain_cfg) {
 		.bc_engine = {
@@ -291,6 +311,8 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.bec_group_close_timeout = M0_TIME_ONE_MSEC,
 			.bec_group_fom_reqh = reqh,
 		},
+		.bc_0types                 = zts,
+		.bc_0types_nr              = ARRAY_SIZE(zts),
 		.bc_stob_domain_location   = "linuxstob:./be_segments",
 		.bc_stob_domain_cfg_init   = NULL,
 		.bc_seg0_stob_key	   = BE_UT_SEG_START_ID - 1,
@@ -312,69 +334,54 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 	};
 }
 
-static void ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
-				struct m0_be_domain_cfg *cfg,
-				bool mkfs)
-{
-	int rc;
-
-	ut_be->but_sm_groups_unlocked = false;
-	if (cfg == NULL)
-		m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
-	else
-		ut_be->but_dom_cfg = *cfg;
-	cfg = &ut_be->but_dom_cfg;
-
-	if (cfg->bc_engine.bec_group_fom_reqh == NULL)
-		cfg->bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
-
-	if (ut_be->but_stob_domain_location != NULL)
-		cfg->bc_stob_domain_location = ut_be->but_stob_domain_location;
-
-	cfg->bc_mkfs_mode = mkfs;
-
-	m0_mutex_init(&ut_be->but_sgt_lock);
-	rc = m0_be_domain_start(&ut_be->but_dom, cfg);
-	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
-	if (rc != 0)
-		m0_mutex_fini(&ut_be->but_sgt_lock);
-
-	m0_get()->i_be_ut_backend = ut_be;
-}
-
-static void be_ut_backend_0types_init(struct m0_be_ut_backend *ut_be)
-{
-	extern struct m0_be_0type m0_stob_ad_0type;
-	extern struct m0_be_0type m0_be_pool0;
-	extern struct m0_be_0type m0_be_cob0;
-
-	ut_be->but_ad_0type   = m0_stob_ad_0type;
-	ut_be->but_pool_0type = m0_be_pool0;
-	ut_be->but_cob_0type  = m0_be_cob0;
-
-	m0_be_0type_register(&ut_be->but_dom, &ut_be->but_ad_0type);
-	m0_be_0type_register(&ut_be->but_dom, &ut_be->but_pool_0type);
-	m0_be_0type_register(&ut_be->but_dom, &ut_be->but_cob_0type);
-}
-
-M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
-					   struct m0_be_domain_cfg *cfg,
-					   bool mkfs)
+M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+					  const struct m0_be_domain_cfg *cfg,
+					  bool mkfs)
 {
 	static bool mkfs_executed = false;
+	struct m0_be_domain_cfg *c;
+	int                      rc;
 
 	if (!mkfs_executed && cfg == NULL &&
 	    ut_be->but_stob_domain_location == NULL)
 		mkfs = mkfs_executed = true;
 
-	m0_be_domain_init(&ut_be->but_dom);
-	be_ut_backend_0types_init(ut_be);
-	ut_backend_init_cfg(ut_be, cfg, mkfs);
+	ut_be->but_sm_groups_unlocked = false;
+	m0_mutex_init(&ut_be->but_sgt_lock);
+
+	if (cfg == NULL)
+		m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+	else
+		/*
+		 * Make a copy of `cfg': it can be an automatic variable,
+		 * which scope we should not rely on.
+		 */
+		ut_be->but_dom_cfg = *cfg;
+	c = &ut_be->but_dom_cfg;
+
+	/* Create reqh, if necessary. */
+	if (c->bc_engine.bec_group_fom_reqh == NULL)
+		m0_be_ut_reqh_create(&c->bc_engine.bec_group_fom_reqh);
+
+	/* Use m0_be_ut_backend's stob domain location, if possible. */
+	if (ut_be->but_stob_domain_location != NULL)
+		c->bc_stob_domain_location = ut_be->but_stob_domain_location;
+
+	c->bc_mkfs_mode = mkfs;
+
+	m0_be_domain_module_setup(&ut_be->but_dom, c);
+	rc = m0_module_init(&ut_be->but_dom.bd_module,
+			    M0_LEVEL_BE_DOMAIN_READY);
+	if (rc != 0)
+		m0_mutex_fini(&ut_be->but_sgt_lock);
+	m0_get()->i_be_ut_backend = ut_be;
+	return rc;
 }
 
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
-	m0_be_ut_backend_init_cfg(ut_be, NULL, false);
+	int rc = m0_be_ut_backend_init_cfg(ut_be, NULL, false);
+	M0_ASSERT(rc == 0);
 }
 
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
@@ -384,9 +391,9 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 	m0_forall(i, ut_be->but_sgt_size,
 		  m0_be_ut_sm_group_thread_fini(ut_be->but_sgt[i]), true);
 	m0_free(ut_be->but_sgt);
-	m0_be_domain_fini(&ut_be->but_dom);
+	m0_module_fini(&ut_be->but_dom.bd_module, M0_MODLEV_NONE);
 	m0_mutex_fini(&ut_be->but_sgt_lock);
-	m0_be_ut_reqh_put(ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
+	m0_be_ut_reqh_destroy();
 }
 
 M0_INTERNAL void
