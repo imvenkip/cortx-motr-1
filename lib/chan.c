@@ -120,18 +120,18 @@ M0_EXPORTED(m0_chan_fini_lock);
 
 static void clink_signal(struct m0_clink *clink)
 {
-	struct m0_clink *grp = clink->cl_group;
-	int              rc  = 0;
+	struct m0_clink *grp      = clink->cl_group;
+	bool             consumed = false;
 
 	if (clink->cl_is_oneshot)
 		m0_clink_del(clink);
 
 	if (clink->cl_cb != NULL) {
 		m0_enter_awkward();
-		rc = clink->cl_cb(clink);
+		consumed = clink->cl_cb(clink);
 		m0_exit_awkward();
 	}
-	if (rc == 0)
+	if (!consumed)
 		m0_semaphore_up(&grp->cl_wait);
 }
 
