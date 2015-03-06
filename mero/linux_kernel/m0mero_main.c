@@ -34,8 +34,13 @@ M0_INTERNAL int __init mero_init(void)
 {
 	static struct m0 instance;
 
+	const struct module *m = m0_mero_ko_get_module();
+
 	pr_info("mero: init\n");
 	m0_build_info_print();
+	pr_info("mero: module address: 0x%p\n", m);
+	pr_info("mero: module core address: 0x%p\n", m->module_core);
+	pr_info("mero: module core size: %u\n", m->core_size);
 
 	return m0_init(&instance);
 }

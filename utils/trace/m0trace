@@ -288,7 +288,7 @@ sub validate_subsys
 
     $subsys_token = qr/ \b (?: $subsys_token ) \b /ixms;
 
-    die "Invalid value of -S|--subsys option: '$subsys', it should be in form"
+    die "Invalid value of -s|--subsys option: '$subsys', it should be in form"
         . " of '[!]subsys[,subsys]', where 'subsys' is one of: @allowed_subsys\n"
         if $subsys !~ / ^ !? $subsys_token (?: ,$subsys_token )* $ /xms;
 }

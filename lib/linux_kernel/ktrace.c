@@ -195,6 +195,7 @@ M0_INTERNAL int m0_arch_trace_init()
 	m0_logbuf = trace_area->ta_buf;
 	m0_trace_logbuf_size_set(trace_buf_size);
 
+	pr_info("mero: trace header address: 0x%p\n", m0_logbuf_header);
 	pr_info("mero: trace buffer address: 0x%p\n", m0_logbuf);
 
 	return 0;
