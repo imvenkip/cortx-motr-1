@@ -56,7 +56,6 @@ struct be_ut_helper_struct {
 	struct m0_rpc_server_ctx buh_rpc_sctx;
 	int			 buh_reqh_ref_cnt;
 	pthread_once_t		 buh_once_control;
-	struct m0_mutex		 buh_reqh_lock;
 	struct m0_mutex		 buh_seg_lock;
 	void			*buh_addr;
 	int64_t			 buh_id;
@@ -69,10 +68,7 @@ struct be_ut_helper_struct be_ut_helper = {
 
 static inline void be_ut_helper_fini(void)
 {
-	struct be_ut_helper_struct *h = &be_ut_helper;
-
-	m0_mutex_fini(&h->buh_reqh_lock);
-	m0_mutex_fini(&h->buh_seg_lock);
+	m0_mutex_fini(&be_ut_helper.buh_seg_lock);
 }
 
 /* XXX call this function from m0_init()? */
@@ -84,7 +80,6 @@ static void be_ut_helper_init(void)
 	h->buh_addr	       = (void *) BE_UT_SEG_START_ADDR;
 	h->buh_id	       = BE_UT_SEG_START_ID;
 	m0_mutex_init(&h->buh_seg_lock);
-	m0_mutex_init(&h->buh_reqh_lock);
 	atexit(&be_ut_helper_fini);	/* XXX REFACTORME */
 }
 
