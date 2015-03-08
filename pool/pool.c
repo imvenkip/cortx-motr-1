@@ -506,7 +506,7 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 					     struct m0_sm_group *sm_grp,
 					     struct m0_dtm *dtm)
 {
-	uint32_t nodes;
+	uint32_t nodes = 0;
 	int      rc;
 
 	M0_PRE(pv != NULL && pver != NULL && pool != NULL && pc != NULL);
