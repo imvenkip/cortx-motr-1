@@ -34,7 +34,7 @@
 #include "lib/errno.h"		/* ENOMEM */
 #include "rpc/rpclib.h"		/* m0_rpc_server_start */
 #include "net/net.h"		/* m0_net_xprt */
-#include "module/instance.h"	/* m0 */
+#include "module/instance.h"	/* m0_get */
 #include "stob/domain.h"	/* m0_stob_domain_create */
 
 #include "ut/ast_thread.h"
@@ -54,19 +54,19 @@ struct m0_be_ut_sm_group_thread {
 struct be_ut_helper_struct {
 	struct m0_net_xprt      *buh_net_xprt;
 	struct m0_rpc_server_ctx buh_rpc_sctx;
-	int			 buh_reqh_ref_cnt;
+	struct m0_reqh          *buh_reqh;
 	pthread_once_t		 buh_once_control;
 	struct m0_mutex		 buh_seg_lock;
 	void			*buh_addr;
 	int64_t			 buh_id;
 };
 
-struct be_ut_helper_struct be_ut_helper = {
+static struct be_ut_helper_struct be_ut_helper = {
 	/* because there is no m0_mutex static initializer */
 	.buh_once_control = PTHREAD_ONCE_INIT,
 };
 
-static inline void be_ut_helper_fini(void)
+static void be_ut_helper_fini(void)
 {
 	m0_mutex_fini(&be_ut_helper.buh_seg_lock);
 }
@@ -76,10 +76,10 @@ static void be_ut_helper_init(void)
 {
 	struct be_ut_helper_struct *h = &be_ut_helper;
 
-	h->buh_reqh_ref_cnt    = 0;
-	h->buh_addr	       = (void *) BE_UT_SEG_START_ADDR;
-	h->buh_id	       = BE_UT_SEG_START_ID;
+	h->buh_addr = (void *) BE_UT_SEG_START_ADDR;
+	h->buh_id = BE_UT_SEG_START_ID;
 	m0_mutex_init(&h->buh_seg_lock);
+
 	atexit(&be_ut_helper_fini);	/* XXX REFACTORME */
 }
 
@@ -124,31 +124,35 @@ M0_INTERNAL uint64_t m0_be_ut_seg_allocate_id(void)
 
 M0_INTERNAL struct m0_reqh *m0_be_ut_reqh_get(void)
 {
-	struct m0_reqh *reqh;
-	int             result;
-
 	struct be_ut_helper_struct *h = &be_ut_helper;
+	int rc;
+
 	be_ut_helper_init_once();
-	M0_CNT_INC(h->buh_reqh_ref_cnt);
-	M0_ALLOC_PTR(reqh);
-        result = M0_REQH_INIT(reqh,
-                              .rhia_dtm       = NULL,
-                              .rhia_db        = NULL,
-                              .rhia_mdstore   = NULL);
-        M0_ASSERT(result == 0);
-	return reqh;
+
+	M0_PRE(h->buh_reqh == NULL);
+	M0_ALLOC_PTR(h->buh_reqh);
+	/*
+	 * We don't bother with error handling here, because be_ut_helper
+	 * is a kludge and should be removed.
+	 */
+	M0_ASSERT(h->buh_reqh != NULL);
+	rc = M0_REQH_INIT(h->buh_reqh);
+	M0_ASSERT(rc == 0);
+	return h->buh_reqh;
 }
 
 M0_INTERNAL void m0_be_ut_reqh_put(struct m0_reqh *reqh)
 {
-
 	struct be_ut_helper_struct *h = &be_ut_helper;
-	m0_reqh_fini(reqh);
-	m0_free(reqh);
-	M0_CNT_DEC(h->buh_reqh_ref_cnt);
+
+	if (h->buh_reqh != NULL) {
+		M0_ASSERT(reqh == h->buh_reqh);
+		m0_reqh_fini(reqh);
+		m0_free0(&h->buh_reqh);
+	}
 }
 
-static pid_t gettid_impl()
+static pid_t gettid_impl(void)
 {
 	return syscall(SYS_gettid);
 }
@@ -382,8 +386,7 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 	m0_free(ut_be->but_sgt);
 	m0_be_domain_fini(&ut_be->but_dom);
 	m0_mutex_fini(&ut_be->but_sgt_lock);
-	if (be_ut_helper.buh_reqh_ref_cnt > 0)
-		m0_be_ut_reqh_put(ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
+	m0_be_ut_reqh_put(ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
 }
 
 M0_INTERNAL void
