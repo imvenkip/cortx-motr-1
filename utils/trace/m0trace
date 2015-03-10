@@ -541,50 +541,54 @@ sub print_trace_record
     $output_file->print($buf);
 }
 
-sub locate_m0tracedump
+sub locate_m0_binary
 {
-    my $m0tracedump;
+    my $binary_name = shift;
+
+    my $binary_path;
     my (undef, undef, $basename) = File::Spec->splitpath( $PROGRAM_NAME );
 
+    # check whether we are running from source tree
     if ( $PROGRAM_NAME =~ m#
                              (?: utils/(?:trace/)? | ^./(?:trace/)? )
                              $basename $
                            #xms )
     {
-        ($m0tracedump = $PROGRAM_NAME) =~ s# $basename $ #m0tracedump#xms;
+        ($binary_path = $PROGRAM_NAME) =~ s# $basename $ #$binary_name#xms;
 
-        if ( ! -x $m0tracedump ) {
-            $m0tracedump = which('m0tracedump');
+        if ( ! -x $binary_path ) {
+            $binary_path = which($binary_name);
         }
     }
     else
     {
-        $m0tracedump = which('m0tracedump');
+        $binary_path = which($binary_name);
     }
 
-    if ( $cli_option{use_usrbin_tracedump} ) {
-        $m0tracedump = '/usr/bin/m0tracedump';
+    if ( $cli_option{use_usrbin_binary} ) {
+        $binary_path = "/usr/bin/$binary_name";
     }
 
-    die "Failed to find m0tracedump utility in PATH or in the development"
+    die "Failed to find '$binary_name' utility in PATH or in the development"
         . " tree next to ourselves\n"
-        if !defined $m0tracedump;
+        if !defined $binary_path;
 
-    die "Can't use $m0tracedump: no such file or it's not an executable\n"
-        if ! -x $m0tracedump;
+    die "Can't use $binary_path: no such file or it's not an executable\n"
+        if ! -x $binary_path;
 
-    return $m0tracedump;
+    return $binary_path;
 }
 
 sub create_tempfile_for
 {
     my $file_name = shift;
+    my $suffix    = shift // '.yml';
 
     my (undef, undef, $basename)
         = File::Spec->splitpath( $file_name );
 
     my $temp_file = File::Temp->new(TEMPLATE => 'm0trace-' . $basename . '-XXXXX',
-                                    SUFFIX   => '.yml',
+                                    SUFFIX   => $suffix,
                                     UNLINK   => 1);
 
     return $temp_file;
@@ -612,23 +616,40 @@ sub prepare_input_file
             }
         }
     }
-    else
+    else # input file is in binary format
     {
-        my $m0tracedump = locate_m0tracedump();
+        # if it's a kerner crash dump it requires preprocessing by C<m0kdump2trace>
+        if ($cli_option{kdump}) {
+            my $m0kdump2trace = locate_m0_binary('m0kdump2trace');
+
+            my $module_img = create_tempfile_for( $cli_option{input_file}, '.modcore' );
+            system "$m0kdump2trace -f -m $cli_option{input_file} $module_img";
+
+            my $trace_buf = create_tempfile_for( $cli_option{input_file}, '.tracebuf' );
+            system "$m0kdump2trace -f $cli_option{input_file} $trace_buf";
+
+            $cli_option{input_file}   = $trace_buf;
+            $cli_option{module_image} = $module_img;
+        }
+
+        my $m0tracedump = locate_m0_binary('m0tracedump');
+        my $img_opt     = defined $cli_option{module_image}
+                              ? "-k $cli_option{module_image}" : '';
 
         if ($cli_option{dump_header}) {
             $input_file = "$m0tracedump -H -i $cli_option{input_file} |";
         }
         elsif ($cli_option{follow}) {
-            $input_file = "tail -c +0 -F $cli_option{input_file} | $m0tracedump -s |";
+            $input_file = "tail -c +0 -F $cli_option{input_file} "
+                          . "| $m0tracedump -s $img_opt |";
         }
         elsif ($cli_option{stream_mode}) {
-            $input_file = "$m0tracedump -s -i $cli_option{input_file} |";
+            $input_file = "$m0tracedump -s $img_opt -i $cli_option{input_file} |";
         }
         else {
             my $temp_file = create_tempfile_for( $cli_option{input_file} );
 
-            system "$m0tracedump -i $cli_option{input_file} -o $temp_file";
+            system "$m0tracedump $img_opt -i $cli_option{input_file} -o $temp_file";
             $input_file = $temp_file;
         }
     }
@@ -655,25 +676,27 @@ sub man
 sub process_cli_options
 {
     help() if !GetOptions(
-        'i|input=s'      =>  \$cli_option{input_file},
-        'o|output=s'     =>  \$cli_option{output_file},
-        'S|stream-mode'  =>  \$cli_option{stream_mode},
-        'pager!'         =>  \$cli_option{use_pager},
-        'color=s'        =>  \$cli_option{color},
-        'c'              =>  sub { $cli_option{color} = 'always' },
-        'C'              =>  sub { $cli_option{color} = 'never' },
-        'd'              =>  \$cli_option{use_usrbin_tracedump},
-        'L|log-dir'      =>  \$cli_option{log_dir},
-        'H|dump-header'  =>  sub { $cli_option{dump_header} = 1; $cli_option{use_pager} = 0 },
-        'F|follow'       =>  sub { $cli_option{follow} = $cli_option{stream_mode} = 1 },
-        'M|match-only'   =>  \$cli_option{match_only},
-        'r|relpath!'     =>  \$cli_option{relpath},
-        'f|format=s'     =>  \$cli_option{format},
-        'l|level=s'      =>  \$cli_option{level},
-        's|subsys=s'     =>  \$cli_option{subsys},
-        'e|file=s'       =>  \$cli_option{file},
-        'u|func=s'       =>  \$cli_option{func},
-        'm|msg=s'        =>  \$cli_option{msg},
+        'i|input=s'        =>  \$cli_option{input_file},
+        'o|output=s'       =>  \$cli_option{output_file},
+        'S|stream-mode'    =>  \$cli_option{stream_mode},
+        'pager!'           =>  \$cli_option{use_pager},
+        'color=s'          =>  \$cli_option{color},
+        'c'                =>  sub { $cli_option{color} = 'always' },
+        'C'                =>  sub { $cli_option{color} = 'never' },
+        'd'                =>  \$cli_option{use_usrbin_binary},
+        'k|kdump'          =>  \$cli_option{kdump},
+        'I|module-image=s' =>  \$cli_option{module_image},
+        'L|log-dir'        =>  \$cli_option{log_dir},
+        'H|dump-header'    =>  sub { $cli_option{dump_header} = 1; $cli_option{use_pager} = 0 },
+        'F|follow'         =>  sub { $cli_option{follow} = $cli_option{stream_mode} = 1 },
+        'M|match-only'     =>  \$cli_option{match_only},
+        'r|relpath!'       =>  \$cli_option{relpath},
+        'f|format=s'       =>  \$cli_option{format},
+        'l|level=s'        =>  \$cli_option{level},
+        's|subsys=s'       =>  \$cli_option{subsys},
+        'e|file=s'         =>  \$cli_option{file},
+        'u|func=s'         =>  \$cli_option{func},
+        'm|msg=s'          =>  \$cli_option{msg},
 
         'h|help'    =>  \&help,
         'usage'     =>  \&usage,
@@ -691,21 +714,7 @@ sub process_cli_options
     validate_level( $cli_option{level} );
     validate_subsys( $cli_option{subsys} );
 
-    return;
-}
-
-sub set_global_vars
-{
-    return;
-}
-
-sub main
-{
-    process_cli_options();
-    set_global_vars();
-
-    my $input_file;
-
+    # handle arguments
     if (defined $ARGV[0] and $cli_option{input_file} eq '-') {
         my $file_pattern;
 
@@ -727,7 +736,14 @@ sub main
         chomp $cli_option{input_file};
     }
 
-    $input_file = prepare_input_file();
+    return;
+}
+
+sub main
+{
+    process_cli_options();
+
+    my $input_file = prepare_input_file();
 
     my @trace_records;
 
@@ -793,10 +809,10 @@ m0trace - display Mero trace logs in human friendly form
 
 m0trace  [kernel|confd|iosX|mds|singlenode]  [-i|--input <ifile>]
 [-o|--output <ofile>] [-S|--stream-mode] [--no-pager] [--no-relpath]
-[-c|-C|--color=MODE] [-d] [-L|--log-dir=DIR] [-H|--dump-header] [-F|--follow]
-[-M|--match-only] [-f|--format=FMT] [-l|--level=LVL] [-s|--subsys=SBS]
-[-e|--file=FL] [-u|--func=FUN] [-m|--msg=MSG]
-[-h|--help] [--usage] [--man]
+[-c|-C|--color=MODE] [-d] [-k|--kdump] [-I|--module-image=<FILE>]
+[-L|--log-dir=DIR] [-H|--dump-header] [-F|--follow] [-M|--match-only]
+[-f|--format=FMT] [-l|--level=LVL] [-s|--subsys=SBS] [-e|--file=FL]
+[-u|--func=FUN] [-m|--msg=MSG] [-h|--help] [--usage] [--man]
 
 =head1 DESCRIPTION
 
@@ -882,6 +898,14 @@ two versions of m0tracedump in the PATH - one from rpm and one from workdir).
 
 Path to a directory where to look for trace files, by default is '/var/log/mero'.
 
+=item B<-k|--kdump>
+
+Indicates that input file is a kernel crash dump, produced by C<kdump> service.
+
+=item B<-I|--module-image=I<FILE>>
+
+Core image of m0mero.ko module, required to analize kernel space trace logs.
+
 =item B<-H|--dump-header>
 
 Only print trace file header and exit. Option --no-pager is ignored.
@@ -891,7 +915,7 @@ Only print trace file header and exit. Option --no-pager is ignored.
 Monitor trace file and print trace records as soon as they appear in the file.
 This works only with trace files, which are produces by C<m0traced>, trace files
 created directly by C<m0d> are filled in a ring buffer fashion, so monitoring
-doesn't make sense for them.
+doesn't make sense for them. Implies B<-S|--stream-mode>.
 
 =item B<-M|--match-only>
 
