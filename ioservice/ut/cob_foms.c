@@ -29,6 +29,10 @@
 #include "ioservice/cob_foms.c"          /* To access static APIs. */
 #include "ioservice/io_service.h"
 #include "ioservice/io_fops_xc.h"
+#include "ioservice/fid_convert.h"       /* m0_fid_convert_gob2cob */
+#include "stob/ad.h"                     /* m0_stob_ad_type */
+#include "stob/linux.h"                  /* m0_stob_linux_type */
+#include "stob/type.h"                   /* m0_stob_type */
 #include "ut/cs_service.h"               /* ds1_service_type */
 #include "ut/cs_fop.h"                   /* m0_ut_fom_phase_set */
 #include "rpc/rpc_machine_internal.h"
@@ -1446,12 +1450,95 @@ static void fom_dtx_done(struct m0_fom *fom, struct m0_sm_group *grp)
 	m0_sm_group_unlock(grp);
 }
 
+enum {
+	FID_UT_CONTAINER_BITS_MAX = 32,
+	FID_UT_KEY_BITS_MAX       = 64,
+	FID_UT_DEVICE_ID_BITS_MAX = 24,
+};
+
+static void fid_convert_ut_check(uint32_t container,
+				 uint64_t key,
+				 uint32_t device_id)
+{
+	struct m0_fid     gob_fid;
+	struct m0_fid     gob_fid2;
+	struct m0_fid     cob_fid;
+	struct m0_fid     cob_fid2;
+	struct m0_stob_id stob_id;
+	struct m0_stob_id stob_id2;
+	struct m0_fid     bstore_fid;
+	uint8_t           type_id_gob       = m0_file_fid_type.ft_id;
+	uint8_t           type_id_cob       = m0_cob_fid_type.ft_id;
+	uint8_t           type_id_adstob    = m0_stob_ad_type.st_fidt.ft_id;
+	uint8_t           type_id_linuxstob = m0_stob_linux_type.st_fidt.ft_id;
+
+	m0_fid_gob_make(&gob_fid, container, key);
+	M0_UT_ASSERT(m0_fid_validate_gob(&gob_fid));
+	M0_UT_ASSERT(m0_fid_tget(&gob_fid) == type_id_gob);
+
+	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, device_id);
+	M0_UT_ASSERT(m0_fid_tget(&cob_fid) == type_id_cob);
+	M0_UT_ASSERT(m0_fid_cob_device_id(&cob_fid) == device_id);
+	M0_UT_ASSERT(m0_fid_validate_cob(&cob_fid));
+	m0_fid_convert_cob2gob(&cob_fid, &gob_fid2);
+	M0_UT_ASSERT(m0_fid_validate_gob(&gob_fid2));
+	M0_UT_ASSERT(m0_fid_eq(&gob_fid, &gob_fid2));
+
+	m0_fid_convert_cob2adstob(&cob_fid, &stob_id);
+	M0_UT_ASSERT(m0_fid_tget(&stob_id.si_fid)        == type_id_adstob);
+	M0_UT_ASSERT(m0_fid_tget(&stob_id.si_domain_fid) == type_id_adstob);
+	M0_UT_ASSERT(m0_fid_validate_adstob(&stob_id));
+	m0_fid_convert_adstob2cob(&stob_id, &cob_fid2);
+	M0_UT_ASSERT(m0_fid_validate_cob(&cob_fid2));
+	M0_UT_ASSERT(m0_fid_eq(&cob_fid, &cob_fid2));
+
+	m0_fid_convert_adstob2bstore(&stob_id.si_domain_fid, &bstore_fid);
+	M0_UT_ASSERT(m0_fid_tget(&bstore_fid) == type_id_linuxstob);
+	M0_UT_ASSERT(m0_fid_validate_bstore(&bstore_fid));
+	m0_fid_convert_bstore2adstob(&bstore_fid, &stob_id2.si_domain_fid);
+	stob_id2.si_fid = stob_id.si_fid;
+	M0_UT_ASSERT(m0_fid_validate_adstob(&stob_id2));
+	M0_UT_ASSERT(m0_fid_eq(&stob_id.si_domain_fid,
+			       &stob_id2.si_domain_fid));
+
+	m0_fid_convert_adstob2cob(&stob_id2, &cob_fid2);
+	M0_UT_ASSERT(m0_fid_eq(&cob_fid, &cob_fid2));
+	M0_UT_ASSERT(m0_fid_cob_device_id(&cob_fid2) == device_id);
+	m0_fid_convert_cob2gob(&cob_fid2, &gob_fid2);
+	M0_UT_ASSERT(m0_fid_eq(&gob_fid, &gob_fid2));
+}
+
+static void fid_convert_ut(void)
+{
+	uint32_t container;
+	uint64_t key;
+	uint32_t device_id;
+	int      i;
+	int      j;
+	int      k;
+
+	key = 0;
+	for (i = 0; i <= FID_UT_KEY_BITS_MAX; ++i) {
+		container = 0;
+		for (j = 0; j <= FID_UT_CONTAINER_BITS_MAX; ++j) {
+			device_id = 0;
+			for (k = 0; k <= FID_UT_DEVICE_ID_BITS_MAX; ++k) {
+				fid_convert_ut_check(container, key, device_id);
+				device_id = device_id * 2 + 1;
+			}
+			container = container * 2 + 1;
+		}
+		key = key * 2 + 1;
+	}
+}
+
 struct m0_ut_suite cobfoms_ut = {
 	.ts_name  = "cob-foms-ut",
 	.ts_init  = NULL,
 	.ts_fini  = NULL,
 	.ts_tests = {
 		{ "cobfoms_utinit",                 cobfoms_utinit},
+		{ "fid_convert",                    fid_convert_ut},
 		{ "cobfoms_fsync_nonexistent_tx",   cobfoms_fsync_nonexist_tx},
 		{ "cobfoms_fsync_create_delete",
 		   cobfoms_fsync_create_delete},

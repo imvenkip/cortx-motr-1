@@ -28,6 +28,7 @@
 /**
  * @defgroup fidconvert
  *
+ * @verbatim
  *                     8 bits           24 bits             96 bits
  *                 +-----------------+-----------+---------------------------+
  *    GOB fid      |   GOB type id   |  zeroed   |                           |
@@ -48,11 +49,36 @@
  *     AD stob     | AD stob domain  |          zeroed           | device id |
  *   domain fid    |    type id      |                           |           |
  *                 +-----------------+---------------------------------------+
+ *                                                      ||
+ *                                                      \/
+ *  AD stob domain +-----------------+---------------------------------------+
+ *  backing store  |   linux stob    |                                       |
+ *    stob fid     |     type id     |                                       |
+ *                 +-----------------+---------------------------------------+
+ *                       8 bits                     120 bits
+ * @endverbatim
+ *
+ * Note: ad stob backing store conversion is here because ad stob itself doesn't
+ * have limitation on backing store stob fid, but ioservice has such limitation.
+ *
  * @{
  */
 
 struct m0_fid;
 struct m0_stob_id;
+
+enum {
+	M0_FID_DEVICE_ID_BITS     = 24,
+	M0_FID_DEVICE_ID_OFFSET   = 32,
+	M0_FID_DEVICE_ID_MASK     = ((1ULL << M0_FID_DEVICE_ID_BITS) - 1) <<
+				    M0_FID_DEVICE_ID_OFFSET,
+	M0_FID_DEVICE_ID_MAX      = (1ULL << M0_FID_DEVICE_ID_BITS) - 1,
+	M0_FID_GOB_CONTAINER_MASK = (1ULL << M0_FID_DEVICE_ID_OFFSET) - 1,
+};
+
+M0_INTERNAL void m0_fid_gob_make(struct m0_fid *gob_fid,
+				 uint32_t       container,
+				 uint64_t       key);
 
 M0_INTERNAL void m0_fid_convert_gob2cob(const struct m0_fid *gob_fid,
 					struct m0_fid       *cob_fid,
@@ -64,10 +90,21 @@ M0_INTERNAL void m0_fid_convert_cob2adstob(const struct m0_fid *cob_fid,
 					   struct m0_stob_id   *stob_id);
 M0_INTERNAL void m0_fid_convert_adstob2cob(const struct m0_stob_id *stob_id,
 					   struct m0_fid           *cob_fid);
+M0_INTERNAL void
+m0_fid_convert_bstore2adstob(const struct m0_fid *bstore_fid,
+			     struct m0_fid       *stob_domain_fid);
+M0_INTERNAL void
+m0_fid_convert_adstob2bstore(const struct m0_fid *stob_domain_fid,
+			     struct m0_fid       *bstore_fid);
+
+M0_INTERNAL uint32_t m0_fid_cob_device_id(struct m0_fid *cob_fid);
 
 M0_INTERNAL bool m0_fid_validate_gob(const struct m0_fid *gob_fid);
 M0_INTERNAL bool m0_fid_validate_cob(const struct m0_fid *cob_fid);
 M0_INTERNAL bool m0_fid_validate_adstob(const struct m0_stob_id *stob_id);
+M0_INTERNAL bool m0_fid_validate_bstore(const struct m0_fid *bstore_fid);
+
+M0_INTERNAL uint32_t m0_fid__device_id_extract(const struct m0_fid *fid);
 
 /** @} end of fidconvert group */
 #endif /* __MERO_IOSERVICE_FID_CONVERT_H__ */

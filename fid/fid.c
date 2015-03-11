@@ -123,6 +123,12 @@ M0_INTERNAL void m0_fid_tset(struct m0_fid *fid,
 }
 M0_EXPORTED(m0_fid_tset);
 
+M0_INTERNAL uint8_t m0_fid_tget(const struct m0_fid *fid)
+{
+	return fid->f_container >> 56;
+}
+M0_EXPORTED(m0_fid_tget);
+
 M0_INTERNAL void m0_fid_tchange(struct m0_fid *fid, uint8_t tid)
 {
 	M0_PRE(fid != NULL);

@@ -48,6 +48,9 @@ M0_INTERNAL void m0_fid_set(struct m0_fid *fid,
 			    uint64_t container, uint64_t key);
 M0_INTERNAL void m0_fid_tset(struct m0_fid *fid,
 			     uint8_t tid, uint64_t container, uint64_t key);
+/* Get fid type id. */
+M0_INTERNAL uint8_t m0_fid_tget(const struct m0_fid *fid);
+/* Change fid type id. */
 M0_INTERNAL void m0_fid_tchange(struct m0_fid *fid, uint8_t tid);
 
 M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid);

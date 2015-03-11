@@ -1,2 +1,3 @@
-m0mero_objects += ioservice/io_fops.o \
-                 ioservice/io_fops_xc.o
+m0mero_objects += ioservice/fid_convert.o \
+                  ioservice/io_fops.o \
+                  ioservice/io_fops_xc.o

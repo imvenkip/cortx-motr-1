@@ -1,4 +1,5 @@
-nobase_mero_include_HEADERS += ioservice/io_foms.h \
+nobase_mero_include_HEADERS += ioservice/fid_convert.h \
+                               ioservice/io_foms.h \
                                ioservice/io_fops.h \
                                ioservice/io_fops_xc.h \
                                ioservice/io_service.h \
@@ -6,11 +7,13 @@ nobase_mero_include_HEADERS += ioservice/io_foms.h \
                                ioservice/io_device.h \
                                ioservice/io_service_addb.h
 
-mero_libmero_la_SOURCES  += ioservice/io_foms.c \
+mero_libmero_la_SOURCES  += ioservice/fid_convert.c \
+                            ioservice/io_foms.c \
                             ioservice/io_fops.c \
                             ioservice/io_service.c \
                             ioservice/io_fops_xc.c \
                             ioservice/cob_foms.c \
-                            ioservice/io_device.c
+                            ioservice/io_device.c \
+                            ioservice/user_space/fid_convert.c
 
 XC_FILES   += ioservice/io_fops_xc.h

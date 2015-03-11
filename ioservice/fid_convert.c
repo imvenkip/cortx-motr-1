@@ -18,6 +18,13 @@
  * Original creation date: 11-Mar-2015
  */
 
+#include "ioservice/fid_convert.h"
+
+#include "lib/assert.h"         /* M0_PRE */
+
+#include "fid/fid.h"            /* m0_fid */
+#include "file/file.h"          /* m0_file_fid_type */
+#include "cob/cob.h"            /* m0_cob_fid_type */
 
 /**
  * @addtogroup fidconvert
@@ -25,6 +32,65 @@
  * @{
  */
 
+/* extract bits [32, 56) from fid->f_container */
+M0_INTERNAL uint32_t m0_fid__device_id_extract(const struct m0_fid *fid)
+{
+	return (fid->f_container & M0_FID_DEVICE_ID_MASK) >>
+	       M0_FID_DEVICE_ID_OFFSET;
+}
+
+M0_INTERNAL void m0_fid_gob_make(struct m0_fid *gob_fid,
+				 uint32_t       container,
+				 uint64_t       key)
+{
+	m0_fid_tset(gob_fid, m0_file_fid_type.ft_id, container, key);
+
+	M0_POST(m0_fid_validate_gob(gob_fid));
+}
+
+M0_INTERNAL void m0_fid_convert_gob2cob(const struct m0_fid *gob_fid,
+					struct m0_fid       *cob_fid,
+					uint32_t             device_id)
+{
+	M0_PRE(m0_fid_validate_gob(gob_fid));
+	M0_PRE(device_id <= M0_FID_DEVICE_ID_MAX);
+
+	*cob_fid = *gob_fid;
+	m0_fid_tassume(cob_fid, &m0_cob_fid_type);
+	cob_fid->f_container |= (uint64_t)device_id << M0_FID_DEVICE_ID_OFFSET;
+
+	M0_POST(m0_fid_validate_cob(cob_fid));
+}
+
+M0_INTERNAL void m0_fid_convert_cob2gob(const struct m0_fid *cob_fid,
+					struct m0_fid       *gob_fid)
+{
+	M0_PRE(m0_fid_validate_cob(cob_fid));
+
+	m0_fid_tset(gob_fid, m0_file_fid_type.ft_id,
+		    cob_fid->f_container & M0_FID_GOB_CONTAINER_MASK,
+		    cob_fid->f_key);
+
+	M0_POST(m0_fid_validate_gob(gob_fid));
+}
+
+M0_INTERNAL uint32_t m0_fid_cob_device_id(struct m0_fid *cob_fid)
+{
+	M0_PRE(m0_fid_validate_cob(cob_fid));
+
+	return m0_fid__device_id_extract(cob_fid);
+}
+
+M0_INTERNAL bool m0_fid_validate_gob(const struct m0_fid *gob_fid)
+{
+	return m0_fid_tget(gob_fid) == m0_file_fid_type.ft_id &&
+	       m0_fid__device_id_extract(gob_fid) == 0;
+}
+
+M0_INTERNAL bool m0_fid_validate_cob(const struct m0_fid *cob_fid)
+{
+	return m0_fid_tget(cob_fid) == m0_cob_fid_type.ft_id;
+}
 
 /** @} end of fidconvert group */
 
