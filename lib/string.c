@@ -18,8 +18,11 @@
  * Original creation date: 21-Aug-2014
  */
 
-#include "lib/types.h"   /* m0_bcount_t */
-#include "lib/misc.h"    /* ARRAY_SIZE */
+#include "lib/types.h"        /* m0_bcount_t */
+#include "lib/memory.h"       /* M0_ALLOC_ARR */
+#include "lib/misc.h"         /* ARRAY_SIZE */
+#include "lib/finject.h"      /* M0_FI_ENABLED */
+#include "conf/objs/common.h" /* strings_free */
 #include "lib/string.h"
 
 
@@ -34,6 +37,34 @@ const char *m0_bcount_with_suffix(char *buf, size_t size, m0_bcount_t c)
 		;
 	snprintf(buf, size, "%3" PRId64 " %s", c, suffix[i]);
 	return buf;
+}
+
+M0_INTERNAL const char **m0_strings_dup(const char **src)
+{
+	int     i;
+	int     n;
+	char  **dest;
+
+	for (n = 0; src[n] != NULL; ++n)
+		; /* counting */
+
+	M0_ALLOC_ARR(dest, n + 1);
+	if (dest == NULL)
+		return NULL;
+
+	for (i = 0; i < n; ++i) {
+		if (!M0_FI_ENABLED("strdup_failed")) {
+			dest[i] = m0_strdup(src[i]);
+		}
+
+		if (dest[i] == NULL) {
+			strings_free((const char **)dest);
+			return NULL;
+		}
+	}
+	dest[n] = NULL; /* end of list */
+
+	return (const char **)dest;
 }
 
 /*

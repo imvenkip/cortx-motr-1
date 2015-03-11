@@ -1,0 +1,5 @@
+ut_libmero_ut_la_SOURCES += spiel/ut/spiel_ut.c \
+			    spiel/ut/spiel_ut_common.c \
+			    spiel/ut/spiel_ut_common.h
+
+ut_libmero_ut_la_CPPFLAGS += -DM0_SPIEL_UT_DIR=$(abs_top_builddir)/spiel/ut/

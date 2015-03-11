@@ -21,7 +21,16 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
-#include "reqh/reqh.h"      /* m0_reqh */
+
+#include "lib/memory.h"
+#include "lib/string.h"        /* m0_strdup, m0_strings_dup */
+#include "lib/errno.h"
+#include "lib/finject.h"       /* M0_FI_ENABLED */
+#include "lib/locality.h"      /* m0_locality0_get */
+#include "fid/fid.h"           /* m0_fid */
+#include "conf/schema.h"
+#include "reqh/reqh.h"
+#include "conf/objs/common.h"  /* strings_free */
 #include "spiel/spiel.h"
 
 
@@ -30,15 +39,49 @@ int m0_spiel_start(struct m0_spiel *spiel,
 		   const char     **confd_eps,
 		   const char      *profile)
 {
+	int           rc;
+	struct m0_fid prof_fid;
+
 	M0_ENTRY();
 
-	return M0_RC(0);
+	if (reqh == NULL || confd_eps == NULL || profile == NULL) {
+		return M0_ERR(-EINVAL);
+	}
+
+	M0_SET0(spiel);
+
+	spiel->spl_rmachine = m0_reqh_rpc_mach_tlist_head(
+			&reqh->rh_rpc_machines);
+
+	if (spiel->spl_rmachine == NULL)
+		return M0_ERR(-ENOENT);
+
+	spiel->spl_confd_eps = m0_strings_dup(confd_eps);
+
+	if (spiel->spl_confd_eps == NULL)
+		return M0_ERR(-ENOMEM);
+
+	rc = m0_fid_sscanf(profile, &prof_fid) ?:
+	     m0_confc_init(&spiel->spl_confc,
+			   m0_locality0_get()->lo_grp,
+			   &prof_fid,
+			   spiel->spl_confd_eps[0],
+			   spiel->spl_rmachine,
+			   NULL);
+	if (rc != 0)
+		strings_free(spiel->spl_confd_eps);
+
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_start);
 
 void m0_spiel_stop(struct m0_spiel *spiel)
 {
 	M0_ENTRY();
+
+	strings_free(spiel->spl_confd_eps);
+	m0_confc_fini(&spiel->spl_confc);
+
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_spiel_stop);
@@ -430,7 +473,6 @@ int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_pool_rebalance_quiesce);
-
 
 #undef M0_TRACE_SUBSYSTEM
 

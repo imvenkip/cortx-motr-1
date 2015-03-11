@@ -66,6 +66,8 @@ struct m0_fop_str {
  */
 const char *m0_bcount_with_suffix(char *buf, size_t size, m0_bcount_t c);
 
+M0_INTERNAL const char **m0_strings_dup(const char **src);
+
 #endif /* __MERO_LIB_STRING_H__ */
 
 /*

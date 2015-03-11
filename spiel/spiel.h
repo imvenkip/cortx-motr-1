@@ -23,10 +23,9 @@
 #ifndef __MERO_SPIEL_SPIEL_H__
 #define __MERO_SPIEL_SPIEL_H__
 
-#include "fid/fid.h"        /* m0_fid */
-#include "conf/schema.h"    /* m0_conf_service_type */
-#include "layout/pdclust.h" /* m0_pdclust_attr */
-#include "reqh/reqh.h"      /* m0_reqh */
+#include "fid/fid.h"          /* m0_fid */
+#include "conf/schema.h"      /* m0_conf_service_type */
+#include "conf/confc.h"       /* m0_confc */
 
 /**
  * @defgroup sspl Spiel
@@ -167,11 +166,23 @@
  * @{
  */
 
+struct m0_rpc_machine;
+struct m0_pdclust_attr;
+struct m0_reqh;
+
 /**
  * Spiel instance context
  */
 struct m0_spiel {
+	/** RPC machine for network communication */
 	struct m0_rpc_machine    *spl_rmachine;
+
+	/** Confd endpoints to communicate with.
+	 * Used both in configuration management and command interface */
+	const char              **spl_confd_eps;
+
+	/** Confc instance */
+	struct m0_confc           spl_confc;
 };
 
 /**
