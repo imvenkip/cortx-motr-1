@@ -77,12 +77,7 @@ static void level_ut_stob_leave(struct m0_module *module)
 	m0_ut_stob_fini();
 }
 
-static struct ut_stob_module *ut_stob_module_get(void)
-{
-	return m0_get()->i_ut_stob_module.usm_private;
-}
-
-M0_INTERNAL int m0_ut_stob_init(void)
+static struct ut_stob_module *ut_stob_init_on_demand()
 {
 	struct ut_stob_module *usm;
 	int		       rc;
@@ -103,12 +98,31 @@ M0_INTERNAL int m0_ut_stob_init(void)
 		usm->usm_stob_key = UT_STOB_KEY_BEGIN;
 		m0_get()->i_ut_stob_module.usm_private = usm;
 	}
-	return rc;
+	return usm;
+}
+
+static struct ut_stob_module *ut_stob_module_get(bool create)
+{
+	struct ut_stob_module *usm = m0_get()->i_ut_stob_module.usm_private;
+
+	/*
+	 * This function in not supposed to be called from different threads.
+	 * At least the first time.
+	 */
+	if (usm == NULL && create)
+		usm = ut_stob_init_on_demand();
+	return usm;
+}
+
+M0_INTERNAL int m0_ut_stob_init(void)
+{
+	/* nothing to do here, @see ut_stob_init_on_demand() */
+	return 0;
 }
 
 M0_INTERNAL void m0_ut_stob_fini(void)
 {
-	struct ut_stob_module *usm = ut_stob_module_get();
+	struct ut_stob_module *usm = ut_stob_module_get(false);
 
 	if (usm != NULL) {
 		m0_stob_domain_fini(usm->usm_dom_linux);
@@ -119,7 +133,7 @@ M0_INTERNAL void m0_ut_stob_fini(void)
 
 M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get(void)
 {
-	struct ut_stob_module *usm = ut_stob_module_get();
+	struct ut_stob_module *usm = ut_stob_module_get(true);
 	uint64_t stob_key;
 
 	m0_mutex_lock(&usm->usm_lock);
@@ -130,7 +144,7 @@ M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get(void)
 
 M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get_by_key(uint64_t stob_key)
 {
-	struct ut_stob_module *usm = ut_stob_module_get();
+	struct ut_stob_module *usm = ut_stob_module_get(true);
 	struct m0_stob	      *stob;
 	int		       rc;
 
@@ -151,7 +165,7 @@ M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get_by_key(uint64_t stob_key)
 
 M0_INTERNAL void m0_ut_stob_put(struct m0_stob *stob, bool destroy)
 {
-	struct ut_stob_module *usm = ut_stob_module_get();
+	struct ut_stob_module *usm = ut_stob_module_get(true);
 
 	m0_mutex_lock(&usm->usm_lock);
 	m0_ut_stob_close(stob, destroy);
