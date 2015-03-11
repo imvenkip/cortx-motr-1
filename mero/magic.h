@@ -829,6 +829,10 @@ enum m0_magic_satchel {
 /* format */
 	/* m0_format_footer::ft_magic (footerfooter) */
 	M0_FORMAT_FOOTER_MAGIC = 0x33f007e7f007e777,
+
+/* SPIEL */
+	/*                 (filecf coders)*/
+	M0_SPIEL_FOP_MAGIC     = 0x33f11ecfc0de2577,
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */

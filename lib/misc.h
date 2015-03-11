@@ -36,6 +36,9 @@
 #include "lib/types.h"
 #include "lib/assert.h"           /* M0_CASSERT */
 
+#define _QUOTE(s) #s
+#define M0_QUOTE(s) _QUOTE(s)
+
 /**
  * Returns rounded up value of @val in chunks of @size.
  * @pre m0_is_po2(size)

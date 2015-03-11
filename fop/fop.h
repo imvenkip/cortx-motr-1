@@ -172,6 +172,8 @@ void m0_fop_rpc_machine_set(struct m0_fop *fop, struct m0_rpc_machine *mach);
 struct m0_rpc_machine *m0_fop_rpc_machine(const struct m0_fop *fop);
 uint32_t m0_fop_opcode(const struct m0_fop *fop);
 M0_INTERNAL const char *m0_fop_name(const struct m0_fop *fop);
+struct m0_net_transfer_mc *m0_fop_tm_get(const struct m0_fop *fop);
+struct m0_net_domain *m0_fop_domain_get(const struct m0_fop *fop);
 
 /**  Returns a fop type associated with an rpc item type */
 M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type

@@ -166,5 +166,14 @@ struct m0_confd {
 M0_INTERNAL int m0_confd_register(void);
 M0_INTERNAL void m0_confd_unregister(void);
 
+M0_INTERNAL int m0_confd_cache_preload_string(struct m0_conf_cache *cache,
+					      const char           *buf);
+
+M0_INTERNAL int m0_confd_cache_preload(struct m0_conf_cache *cache,
+				       const char           *dbpath);
+
+M0_INTERNAL int m0_confd_service_to_filename(struct m0_reqh_service *service,
+					     char                  **filename);
+
 /** @} confd_dfspec */
 #endif /* __MERO_CONF_CONFD_H__ */

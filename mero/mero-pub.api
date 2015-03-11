@@ -101,6 +101,7 @@ m0_fop_alloc
 m0_fop_alloc_at
 m0_fop_reply_alloc
 m0_fop_data
+m0_fop_domain_get
 m0_fop_get
 m0_fop_item_get
 m0_fop_item_put
@@ -112,6 +113,7 @@ m0_fop_put0_lock
 m0_fop_rpc_machine
 m0_fop_rpc_machine_set
 m0_fop_session_machine
+m0_fop_tm_get
 m0_fop_to_rpc_item
 m0_fop_type_addb2_instrument
 m0_fop_type_fini
@@ -253,8 +255,8 @@ m0_spiel_service_start
 m0_spiel_service_stop
 m0_spiel_start
 m0_spiel_stop
-m0_spiel_tx_cancel
-m0_spiel_tx_done
+m0_spiel_tx_close
+m0_spiel_tx_commit
 m0_spiel_tx_open
 m0_stats_free
 m0_stats_query

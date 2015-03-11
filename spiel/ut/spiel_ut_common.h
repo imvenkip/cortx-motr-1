@@ -22,11 +22,13 @@
 #ifndef __MERO_SPIEL_UT_SPIEL_UT_COMMON_H__
 #define __MERO_SPIEL_UT_SPIEL_UT_COMMON_H__
 
+#include "lib/misc.h"         /* M0_QUOTE */
 #include "net/net.h"          /* m0_net_domain */
 #include "net/buffer_pool.h"  /* m0_net_buffer_pool */
 #include "reqh/reqh.h"        /* m0_reqh */
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine */
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx */
+
 
 /**
  * Request handler context with all necessary structures.
@@ -38,6 +40,7 @@ struct m0_spiel_ut_reqh {
 	struct m0_net_buffer_pool sur_buf_pool;
 	struct m0_reqh            sur_reqh;
 	struct m0_rpc_machine     sur_rmachine;
+	struct m0_rpc_server_ctx  sur_confd_srv;
 };
 
 M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,

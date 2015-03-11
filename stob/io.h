@@ -455,10 +455,24 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
    Returns true if user is a valid vector of user IO buffers.
  */
 M0_INTERNAL bool m0_stob_io_user_is_valid(const struct m0_bufvec *user);
+
 /**
    Returns true if stob is a valid vector of target IO extents.
  */
 M0_INTERNAL bool m0_stob_io_stob_is_valid(const struct m0_indexvec *stob);
+
+/**
+   Reads or writes bufvector to stob
+
+   @pre stob != NULL
+   @pre bufvec != NULL
+   @pre M0_IN(op_code, (SIO_READ, SIO_WRITE))
+ */
+M0_INTERNAL int m0_stob_io_bufvec_launch(struct m0_stob   *stob,
+					 struct m0_bufvec *bufvec,
+					 int               op_code,
+					 m0_bindex_t       offset);
+
 
 /**
    Scales buffer address into block-sized units.

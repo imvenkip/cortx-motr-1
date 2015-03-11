@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -22,6 +22,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
 
+#include "lib/tlist.h"
 #include "lib/memory.h"
 #include "lib/string.h"        /* m0_strdup, m0_strings_dup */
 #include "lib/errno.h"
@@ -29,23 +30,27 @@
 #include "lib/locality.h"      /* m0_locality0_get */
 #include "fid/fid.h"           /* m0_fid */
 #include "conf/schema.h"
+#include "conf/cache.h"
+#include "conf/obj.h"
+#include "conf/obj_ops.h"
+#include "conf/objs/common.h"
+#include "conf/onwire.h"     /* arr_fid */
+
 #include "reqh/reqh.h"
 #include "conf/objs/common.h"  /* strings_free */
 #include "spiel/spiel.h"
-
 
 int m0_spiel_start(struct m0_spiel *spiel,
 		   struct m0_reqh  *reqh,
 		   const char     **confd_eps,
 		   const char      *profile)
 {
-	int           rc;
+	int rc;
 
 	M0_ENTRY();
 
-	if (reqh == NULL || confd_eps == NULL || profile == NULL) {
+	if (reqh == NULL || confd_eps == NULL || profile == NULL)
 		return M0_ERR(-EINVAL);
-	}
 
 	M0_SET0(spiel);
 
@@ -83,228 +88,6 @@ void m0_spiel_stop(struct m0_spiel *spiel)
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_spiel_stop);
-
-struct m0_spiel_tx *m0_spiel_tx_open(struct m0_spiel    *spiel,
-		                     struct m0_spiel_tx *tx)
-{
-	M0_ENTRY();
-
-	M0_LEAVE();
-
-	return tx;
-}
-M0_EXPORTED(m0_spiel_tx_open);
-
-void m0_spiel_tx_cancel(struct m0_spiel_tx *tx)
-{
-	M0_ENTRY();
-	M0_LEAVE();
-}
-M0_EXPORTED(m0_spiel_tx_cancel);
-
-int m0_spiel_tx_done(struct m0_spiel_tx *tx)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_tx_done);
-
-int m0_spiel_profile_add(struct m0_spiel_tx *tx, const struct m0_fid *fid)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_profile_add);
-
-int m0_spiel_filesystem_add(struct m0_spiel_tx    *tx,
-		            const struct m0_fid   *fid,
-		            const struct m0_fid   *parent,
-		            unsigned               redundancy,
-		            const struct m0_fid   *rootfid,
-		            const char           **fs_params)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_filesystem_add);
-
-int m0_spiel_node_add(struct m0_spiel_tx  *tx,
-		      const struct m0_fid *fid,
-		      const struct m0_fid *parent,
-		      uint32_t             memsize,
-		      uint32_t             nr_cpu,
-		      uint64_t             last_state,
-		      uint64_t             flags,
-		      struct m0_fid       *pool_fid)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_node_add);
-
-int m0_spiel_process_add(struct m0_spiel_tx  *tx,
-			 const struct m0_fid *fid,
-			 const struct m0_fid *parent,
-			 uint32_t             cores,
-			 uint32_t             memlimit)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_process_add);
-
-int m0_spiel_service_add(struct m0_spiel_tx                 *tx,
-			 const struct m0_fid                *fid,
-			 const struct m0_fid                *parent,
-			 const struct m0_spiel_service_info *service_info)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_service_add);
-
-int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
-		        const struct m0_fid                       *fid,
-		        const struct m0_fid                       *parent,
-		        enum m0_cfg_storage_device_interface_type  iface,
-		        enum m0_cfg_storage_device_media_type      media,
-		        uint32_t                                   bsize,
-		        uint64_t                                   size,
-		        uint64_t                                   last_state,
-		        uint64_t                                   flags,
-		        const char                                *filename)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_device_add);
-
-int m0_spiel_pool_add(struct m0_spiel_tx  *tx,
-		      const struct m0_fid *fid,
-		      const struct m0_fid *parent,
-		      uint32_t             order)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_pool_add);
-
-int m0_spiel_rack_add(struct m0_spiel_tx  *tx,
-		      const struct m0_fid *fid,
-		      const struct m0_fid *parent)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_rack_add);
-
-int m0_spiel_enclosure_add(struct m0_spiel_tx  *tx,
-	        	   const struct m0_fid *fid,
-			   const struct m0_fid *parent)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_enclosure_add);
-
-int m0_spiel_controller_add(struct m0_spiel_tx  *tx,
-			    const struct m0_fid *fid,
-			    const struct m0_fid *parent,
-			    const struct m0_fid *node)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_controller_add);
-
-int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
-			      const struct m0_fid    *fid,
-			      const struct m0_fid    *parent,
-			      struct m0_pdclust_attr *attrs)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_pool_version_add);
-
-int m0_spiel_rack_v_add(struct m0_spiel_tx *tx,
-		        const struct m0_fid *fid,
-		        const struct m0_fid *parent,
-		        const struct m0_fid *real)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_rack_v_add);
-
-int m0_spiel_enclosure_v_add(struct m0_spiel_tx  *tx,
-			     const struct m0_fid *fid,
-			     const struct m0_fid *parent,
-			     const struct m0_fid *real)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_enclosure_v_add);
-
-int m0_spiel_controller_v_add(struct m0_spiel_tx  *tx,
-			      const struct m0_fid *fid,
-			      const struct m0_fid *parent,
-			      const struct m0_fid *real)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_controller_v_add);
-
-int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
-			       const struct m0_fid *fid)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_pool_version_done);
-
-int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_element_del);
 
 #undef M0_TRACE_SUBSYSTEM
 

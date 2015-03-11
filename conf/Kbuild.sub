@@ -3,8 +3,12 @@ m0mero_objects += \
                   conf/confc.o \
                   conf/db.o \
                   conf/dir_iter.o \
+                  conf/flip_fop.o \
+                  conf/flip_fop_xc.o \
                   conf/fop.o \
                   conf/helpers.o \
+                  conf/load_fop.o \
+                  conf/load_fop_xc.o \
                   conf/obj.o \
                   conf/obj_ops.o \
                   conf/objs/common.o \

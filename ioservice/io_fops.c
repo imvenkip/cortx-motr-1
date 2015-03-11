@@ -21,8 +21,8 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/vec.h"	/* m0_0vec */
-#include "lib/misc.h"	/* M0_IN */
+#include "lib/vec.h"    /* m0_0vec */
+#include "lib/misc.h"   /* M0_IN */
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
 #include "lib/trace.h"
 #include "lib/tlist.h"
@@ -1010,7 +1010,7 @@ M0_INTERNAL uint32_t m0_io_fop_segs_nr(struct m0_fop *fop, uint32_t index)
 	rwfop = io_rw_get(fop);
 	used_size = rwfop->crw_desc.id_descs[index].bdd_used;
 	max_seg_size = m0_net_domain_get_max_buffer_segment_size(
-				io_fop_tm_get(fop)->ntm_dom);
+				m0_fop_domain_get(fop));
 	segs_nr = used_size / max_seg_size;
 	M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
 
@@ -1168,11 +1168,6 @@ static void io_fop_segments_coalesce(const struct m0_0vec *iovec,
 	}
 }
 
-static inline struct m0_net_domain *io_fop_netdom_get(const struct m0_fop *fop)
-{
-	return io_fop_tm_get(fop)->ntm_dom;
-}
-
 /*
  * Creates and populates net buffers as needed using the list of
  * coalesced io segments.
@@ -1196,7 +1191,7 @@ static int io_netbufs_prepare(struct m0_fop *coalesced_fop,
 	M0_PRE(seg_set != NULL);
 	M0_PRE(!iosegset_tlist_is_empty(&seg_set->iss_list));
 
-	netdom = io_fop_netdom_get(coalesced_fop);
+	netdom = m0_fop_domain_get(coalesced_fop);
 	max_bufsize = m0_net_domain_get_max_buffer_size(netdom);
 	max_segs_nr = m0_net_domain_get_max_buffer_segments(netdom);
 	rbulk = m0_fop_to_rpcbulk(coalesced_fop);
@@ -1634,7 +1629,7 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 		m0_free(cfop);
 		return M0_RC(rc);
 	}
-	tm = io_fop_tm_get(res_fop);
+	tm = m0_fop_tm_get(res_fop);
 	bkp_fop = &cfop->if_fop;
 	aggr_set.iss_magic = M0_IOS_IO_SEGMENT_SET_MAGIC;
 	iosegset_tlist_init(&aggr_set.iss_list);

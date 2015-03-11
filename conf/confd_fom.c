@@ -67,8 +67,9 @@ static const struct m0_fom_ops conf_update_fom_ops = {
 	.fo_fini          = confd_fom_fini
 };
 
-M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,
-				    struct m0_reqh *reqh)
+M0_INTERNAL int m0_confd_fom_create(struct m0_fop   *fop,
+				    struct m0_fom  **out,
+				    struct m0_reqh  *reqh)
 {
 	struct m0_confd_fom     *m;
 	const struct m0_fom_ops *ops;
@@ -136,7 +137,8 @@ static int conf_update_tick(struct m0_fom *fom)
 	return M0_FSO_AGAIN;
 }
 
-static int _count(size_t *n, struct m0_confx *enc M0_UNUSED,
+static int _count(size_t                   *n,
+		  struct m0_confx          *enc M0_UNUSED,
 		  const struct m0_conf_obj *obj M0_UNUSED)
 {
 	++*n;
@@ -227,7 +229,8 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_fid *path,
 	return M0_RC(rc);
 }
 
-static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
+static int confx_populate(struct m0_confx      *dest,
+			  const struct m0_fid  *origin,
 			  const struct arr_fid *path,
 			  struct m0_conf_cache *cache)
 {

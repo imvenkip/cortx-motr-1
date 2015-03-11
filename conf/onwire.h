@@ -158,7 +158,7 @@ struct m0_confx_sdev {
 	/* Media type.  See m0_cfg_storage_device_media_type. */
 	uint32_t               xd_media;
 	/* Block size in bytes. */
-	uint64_t               xd_bsize;
+	uint32_t               xd_bsize;
 	/* Size in bytes. */
 	uint64_t               xd_size;
 	/* Last known state.  See m0_cfg_state_bit. */

@@ -27,4 +27,3 @@ int trc_dfs_init(void);
 void trc_dfs_cleanup(void);
 
 #endif /* __MERO_UTILS_TRACE_DEBUGFS_H__ */
-

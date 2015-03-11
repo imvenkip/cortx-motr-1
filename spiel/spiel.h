@@ -177,17 +177,14 @@ struct m0_reqh;
  */
 struct m0_spiel {
 	/** RPC machine for network communication */
-	struct m0_rpc_machine    *spl_rmachine;
-
+	struct m0_rpc_machine *spl_rmachine;
 	/** Confd endpoints to communicate with.
 	 * Used both in configuration management and command interface */
-	const char              **spl_confd_eps;
-
+	const char           **spl_confd_eps;
 	/** Confc instance */
-	struct m0_confc           spl_confc;
-
+	struct m0_confc        spl_confc;
 	/** Configuration profile for spiel command interface */
-	struct m0_fid             spl_profile;
+	struct m0_fid          spl_profile;
 };
 
 /**
@@ -228,7 +225,6 @@ int m0_spiel_start(struct m0_spiel *spiel,
  */
 void m0_spiel_stop(struct m0_spiel *spiel);
 
-
 /**********************************************************/
 /*              Configuration management                  */
 /**********************************************************/
@@ -237,7 +233,20 @@ void m0_spiel_stop(struct m0_spiel *spiel);
  * Spiel transaction
  */
 struct m0_spiel_tx {
-	struct m0_spiel  *spt_spiel;
+	/** Spiel instance context */
+	struct m0_spiel      *spt_spiel;
+	/** Cache m0_obj objects for Spiel transaction */
+	struct m0_conf_cache  spt_cache;
+	/** Cache's mutex */
+	struct m0_mutex       spt_lock;
+	/**
+	  * String representation of Spiel transaction
+	  * Create only for all Endpoints
+	  * Free afrer end last receive on Spiel load FOP
+	  */
+	char                 *spt_buffer;
+	/** New ConfD version */
+	int                   spt_version;
 };
 
 /**
@@ -248,25 +257,23 @@ struct m0_spiel_tx {
  * @return NULL on error, pointer to the opened transaction on success
  */
 struct m0_spiel_tx *m0_spiel_tx_open(struct m0_spiel    *spiel,
-		                     struct m0_spiel_tx *tx);
+				     struct m0_spiel_tx *tx);
 
 /**
- * Cancel (rollback) spiel transaction
+ * Close spiel transaction
  *
- * Once function is called spiel transaction can't be used anymore.
+ * Close spiel transaction.
  *
  * @param tx spiel transaction
  */
-void m0_spiel_tx_cancel(struct m0_spiel_tx *tx);
+void m0_spiel_tx_close(struct m0_spiel_tx *tx);
 
 /**
  * Commit filled spiel transaction
  *
- * Once function is called spiel transaction can't be used anymore.
- *
  * @param tx spiel transaction
  */
-int m0_spiel_tx_done(struct m0_spiel_tx *tx);
+int m0_spiel_tx_commit(struct m0_spiel_tx *tx);
 
 /**
  * Add profile to the configuration tree of the transaction
@@ -288,11 +295,11 @@ int m0_spiel_profile_add(struct m0_spiel_tx *tx, const struct m0_fid *fid);
  *                   Parameters are copied, so caller can safely free them.
  */
 int m0_spiel_filesystem_add(struct m0_spiel_tx    *tx,
-		            const struct m0_fid   *fid,
-		            const struct m0_fid   *parent,
-		            unsigned               redundancy,
-		            const struct m0_fid   *rootfid,
-		            const char           **fs_params);
+			    const struct m0_fid   *fid,
+			    const struct m0_fid   *parent,
+			    unsigned               redundancy,
+			    const struct m0_fid   *rootfid,
+			    const char           **fs_params);
 
 /**
  * Add node to the configuration tree of the transaction
@@ -334,13 +341,11 @@ int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 struct m0_spiel_service_info {
 	/** Service type */
 	enum m0_conf_service_type svi_type;
-
 	/**
 	 * Service end point.
 	 * NULL terminated array of C strings.
 	 */
 	const char              **svi_endpoints;
-
 	/** Different service-specific parameters */
 	union {
 		uint32_t      repair_limits;
@@ -512,8 +517,6 @@ int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
 int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid);
 
 
-
-
 /**********************************************************/
 /*                 Command interface                      */
 /**********************************************************/
@@ -601,7 +604,7 @@ int m0_spiel_process_stop(struct m0_spiel *spl, const struct m0_fid *proc_fid);
  * @param proc_fid process fid from configuration DB
  */
 int m0_spiel_process_reconfig(struct m0_spiel     *spl,
-		              const struct m0_fid *proc_fid);
+			      const struct m0_fid *proc_fid);
 
 /**
  * Check health status of the mero process
@@ -611,7 +614,7 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
  *         negative value if error occurred
  */
 int m0_spiel_process_health(struct m0_spiel     *spl,
-		            const struct m0_fid *proc_fid);
+			    const struct m0_fid *proc_fid);
 
 /**
  * Prepare mero process for stopping
@@ -620,7 +623,7 @@ int m0_spiel_process_health(struct m0_spiel     *spl,
  * @param proc_fid process fid from configuration DB
  */
 int m0_spiel_process_quiesce(struct m0_spiel     *spl,
-		             const struct m0_fid *proc_fid);
+			     const struct m0_fid *proc_fid);
 
 /**
  * List currently running services inside the mero process.
@@ -633,9 +636,9 @@ int m0_spiel_process_quiesce(struct m0_spiel     *spl,
  * @param services_count number of elements in services array
  */
 int m0_spiel_process_list_services(struct m0_spiel      *spl,
-		                   const struct m0_fid  *proc_fid,
-		                   struct m0_fid        *services,
-		                   int                   services_count);
+				   const struct m0_fid  *proc_fid,
+				   struct m0_fid        *services,
+				   int                   services_count);
 
 /**
  * Start pool repair
@@ -644,7 +647,7 @@ int m0_spiel_process_list_services(struct m0_spiel      *spl,
  * @param pool_fid       pool fid from configuration DB
  */
 int m0_spiel_pool_repair_start(struct m0_spiel     *spl,
-		               const struct m0_fid *pool_fid);
+			       const struct m0_fid *pool_fid);
 
 /**
  * Quiesce pool repair
@@ -653,7 +656,7 @@ int m0_spiel_pool_repair_start(struct m0_spiel     *spl,
  * @param pool_fid       pool fid from configuration DB
  */
 int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
-		                 const struct m0_fid *pool_fid);
+			         const struct m0_fid *pool_fid);
 /**
  * Start pool rebalance
  *
@@ -661,7 +664,7 @@ int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
  * @param pool_fid       pool fid from configuration DB
  */
 int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
-		                  const struct m0_fid *pool_fid);
+			          const struct m0_fid *pool_fid);
 
 /**
  * Quiesce pool rebalance
@@ -670,7 +673,7 @@ int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
  * @param pool_fid       pool fid from configuration DB
  */
 int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
-		                    const struct m0_fid *pool_fid);
+				    const struct m0_fid *pool_fid);
 
 /** @} end of spiel group */
 #endif /* __MERO_SPIEL_SPIEL_H__ */

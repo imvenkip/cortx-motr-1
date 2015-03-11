@@ -1948,16 +1948,15 @@ static int cs_conf_setup(struct m0_mero *cctx)
 		return M0_ERR(rc);
 	}
 
-        rc = m0_conf_fs_get(conf_args->ca_profile,
+	rc = m0_conf_fs_get(conf_args->ca_profile,
 			    &cctx->cc_reqh_ctx.rc_reqh.rh_confc, &fs);
-        if (rc != 0)
-                goto conf_destroy;
+	if (rc != 0)
+		goto conf_destroy;
 
 	rc = m0_conf_full_load(fs);
 	if (rc != 0)
-                goto conf_fs_close;
+		goto conf_fs_close;
 
-	M0_ASSERT(fs != NULL);
 	rc = cs_conf_to_args(args, fs) ?:
 		_args_parse(cctx, args->ca_argc, args->ca_argv);
 	if (rc != 0)

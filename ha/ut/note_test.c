@@ -25,6 +25,7 @@
 #include "fop/fom_generic.h"
 #include "lib/buf.h"
 #include "lib/errno.h"
+#include "lib/misc.h"       /* M0_QUOTE */
 #include "lib/string.h"
 #include "lib/time.h"
 #include "lib/uuid.h"
@@ -41,6 +42,9 @@
 #include "ha/note_fops_xc.h"
 #include "ha/note_xc.h"
 #include "conf/helpers.h"  /* m0_conf_fs_get */
+
+/* See "ha/ut/Makefile.sub" for M0_HA_UT_DIR */
+#define M0_HA_UT_PATH(name)   M0_QUOTE(M0_CONF_UT_DIR) "/" name
 
 #define CLIENT_DB_NAME        "ha_ut_client.db"
 #define CLIENT_ENDPOINT_ADDR  "0@lo:12345:34:*"

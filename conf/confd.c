@@ -21,7 +21,9 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
+#include "lib/string.h"
 
+#include "conf/confc.h"
 #include "conf/confd.h"
 #include "conf/obj_ops.h"  /* m0_conf_obj_find */
 #include "conf/onwire.h"   /* m0_confx, m0_confx_obj */
@@ -29,6 +31,7 @@
 #include "lib/errno.h"     /* ENOMEM */
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
 #include "mero/magic.h"    /* M0_CONFD_MAGIC */
+#include "reqh/reqh_service.h"
 #include "mero/setup.h"
 
 /**
@@ -471,8 +474,8 @@ static const struct m0_reqh_service_ops confd_ops = {
 };
 
 /** Allocates and initialises confd service. */
-static int confd_allocate(struct m0_reqh_service **service,
-			  const struct m0_reqh_service_type *stype)
+static int confd_allocate(struct m0_reqh_service            **service,
+			  const struct m0_reqh_service_type  *stype)
 {
 	struct m0_confd *confd;
 
@@ -507,6 +510,7 @@ static int confd_start(struct m0_reqh_service *service)
 	struct m0_confd *confd = bob_of(service, struct m0_confd, d_reqh,
 					&m0_confd_bob);
 	struct m0_confc *confc = &service->rs_reqh->rh_confc;
+
 	M0_ENTRY();
 
 	M0_PRE(m0_confc_invariant(confc));
@@ -520,6 +524,57 @@ static void confd_stop(struct m0_reqh_service *service)
 {
 	M0_ENTRY();
 	M0_LEAVE();
+}
+
+M0_INTERNAL int m0_confd_cache_preload_string(struct m0_conf_cache *cache,
+					      const char           *buf)
+{
+	struct m0_confx *enc;
+	int              i;
+	int              rc;
+
+	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
+
+	rc = m0_confstr_parse(buf, &enc);
+	if (rc != 0)
+		return M0_RC(rc);
+
+	for (i = 0; i < enc->cx_nr && rc == 0; ++i) {
+		struct m0_conf_obj        *obj;
+		const struct m0_confx_obj *xobj = M0_CONFX_AT(enc, i);
+
+		rc = m0_conf_obj_find(cache, m0_conf_objx_fid(xobj), &obj) ?:
+			m0_conf_obj_fill(obj, xobj, cache);
+	}
+
+	m0_confx_free(enc);
+	return M0_RC(rc);
+}
+
+static bool nil(const char *s)
+{
+	return s == NULL || *s == '\0';
+}
+
+M0_INTERNAL int m0_confd_service_to_filename(struct m0_reqh_service *service,
+					     char                  **dbpath)
+{
+	M0_ENTRY();
+
+	*dbpath = NULL;
+	if (m0_buf_is_set(&service->rs_ss_param))
+		*dbpath = m0_buf_strdup(&service->rs_ss_param);
+	if (nil(*dbpath)) {
+		m0_free(*dbpath);
+		*dbpath = m0_strdup((char*)service->rs_reqh_ctx->rc_confdb);
+	}
+
+	if (*dbpath == NULL)
+		return M0_ERR(-ENOMEM);
+	if (**dbpath == '\0')
+		return M0_ERR(-EPROTO);
+	return M0_RC(0);
 }
 
 /** @} confd_dlspec */

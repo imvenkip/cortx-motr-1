@@ -26,6 +26,7 @@
 #include "lib/buf.h"       /* m0_buf, M0_BUF_INITS */
 #include "lib/errno.h"     /* ENOENT */
 #include "ut/ut.h"
+#include "ut/file_helpers.h"
 
 struct m0_mutex      g_lock;
 struct m0_conf_cache g_cache;

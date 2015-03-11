@@ -459,6 +459,20 @@ int m0_fop_type_addb2_instrument(struct m0_fop_type *type)
 				 mask | (M0_AFC_RPC_IN << 8));
 }
 
+struct m0_net_transfer_mc *m0_fop_tm_get(const struct m0_fop *fop)
+{
+	M0_PRE(fop != NULL);
+
+	return &m0_fop_rpc_machine(fop)->rm_tm;
+}
+
+struct m0_net_domain *m0_fop_domain_get(const struct m0_fop *fop)
+{
+	M0_PRE(fop != NULL);
+
+	return m0_fop_tm_get(fop)->ntm_dom;
+}
+
 /** @} end of fop group */
 #undef M0_TRACE_SUBSYSTEM
 

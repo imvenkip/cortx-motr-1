@@ -266,13 +266,6 @@ extern struct m0_fom_type m0_io_fom_cob_rw_fomt;
 M0_INTERNAL struct m0_fop_cob_rw *io_rw_get(struct m0_fop *fop);
 M0_INTERNAL struct m0_fop_cob_rw_reply *io_rw_rep_get(struct m0_fop *fop);
 
-static inline struct m0_net_transfer_mc *io_fop_tm_get(const struct m0_fop *fop)
-{
-	M0_PRE(fop != NULL);
-
-	return &m0_fop_rpc_machine(fop)->rm_tm;
-}
-
 M0_INTERNAL size_t m0_io_fop_size_get(struct m0_fop *fop);
 
 M0_INTERNAL void m0_io_fop_release(struct m0_ref *ref);

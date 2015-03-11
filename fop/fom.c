@@ -514,7 +514,7 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
 
 	dom = m0_fom_dom();
 	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
-	M0_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
+	M0_ASSERT(loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = dom->fd_localities[loc_idx];
 	m0_fom_sm_init(fom);
 	fom->fo_cb.fc_ast.sa_cb = &queueit;

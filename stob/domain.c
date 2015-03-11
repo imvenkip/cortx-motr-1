@@ -70,7 +70,7 @@ static int stob_domain_type(const char *location,
 		}
 		m0_free(type_str);
 	}
-	M0_POST(equi(rc == 0, *type != NULL));
+	M0_POST(ergo(rc == 0, *type != NULL));
 	return M0_RC(rc);
 }
 

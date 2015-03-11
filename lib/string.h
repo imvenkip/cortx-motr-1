@@ -38,6 +38,14 @@
 # include <string.h>
 
 #define m0_strdup(s) strdup((s))
+#define m0_asprintf(s, fmt, ...)                          \
+	({                                                \
+		int __nr;                                 \
+		char **__s = (s);                         \
+		__nr = asprintf(__s, (fmt), __VA_ARGS__); \
+		if (__nr <= 0)                            \
+			*__s = NULL;                      \
+	})
 
 #else
 # include <linux/ctype.h>
@@ -45,6 +53,8 @@
 # include <linux/string.h>
 
 #define m0_strdup(s) kstrdup((s), GFP_KERNEL)
+#define m0_asprintf(s, fmt, ...) \
+	({ *(s) = kasprintf(GFP_ATOMIC, (fmt), __VA_ARGS__); })
 
 static inline char *strerror(int errnum)
 {

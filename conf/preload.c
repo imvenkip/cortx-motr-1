@@ -57,4 +57,28 @@ M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_confx **out)
 	return M0_RC(rc);
 }
 
+M0_INTERNAL int m0_confx_to_string(struct m0_confx  *confx,
+				   char            **str)
+{
+	int          rc;
+	m0_bcount_t  size;
+
+	M0_ENTRY();
+
+	/* Calculate size */
+	rc = m0_xcode_print(&M0_XCODE_OBJ(m0_confx_xc, confx), NULL, 0);
+	size = rc + 1;
+
+	*str = m0_alloc_aligned(size, PAGE_SHIFT);
+	if (*str == NULL)
+		return M0_ERR_INFO(-ENOMEM,
+		       "failed to allocate internal buffer for "
+		       "encoded Spiel conf data");
+
+	/* Convert */
+	rc = m0_xcode_print(&M0_XCODE_OBJ(m0_confx_xc, confx), *str, size);
+
+	return rc <= size ? M0_RC(0) : M0_ERR(-ENOMEM);
+}
+
 #undef M0_TRACE_SUBSYSTEM

@@ -19,12 +19,15 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
+#include "lib/errno.h"         /* ENOMEM */
+#include "lib/memory.h"
 #include "lib/trace.h"
 #include "addb2/addb2.h"
+#include "fol/fol.h"           /* m0_fol_frag */
 
 #include "stob/io.h"
-#include "stob/stob.h"		/* m0_stob_state_get */
-#include "stob/domain.h"	/* m0_stob_domain_id_get */
+#include "stob/stob.h"         /* m0_stob_state_get */
+#include "stob/domain.h"       /* m0_stob_domain_id_get */
 #include "stob/addb2.h"
 
 /**
@@ -138,6 +141,58 @@ M0_INTERNAL bool m0_stob_io_stob_is_valid(const struct m0_indexvec *stob)
 	return true;
 }
 
+M0_INTERNAL int m0_stob_io_bufvec_launch(struct m0_stob   *stob,
+					 struct m0_bufvec *bufvec,
+					 int               op_code,
+					 m0_bindex_t       offset)
+{
+	int                 rc;
+	struct m0_stob_io   io;
+	struct m0_fol_frag *fol_frag;
+	struct m0_clink     clink;
+	m0_bcount_t         count;
+	m0_bindex_t         offset_idx = offset;
+
+	M0_PRE(stob != NULL);
+	M0_PRE(bufvec != NULL);
+	M0_PRE(M0_IN(op_code, (SIO_READ, SIO_WRITE)));
+
+	count = m0_vec_count(&bufvec->ov_vec);
+
+	M0_ALLOC_PTR(fol_frag);
+	if (fol_frag == NULL)
+		return M0_ERR(-ENOMEM);
+
+	m0_stob_io_init(&io);
+
+	io.si_opcode = op_code;
+	io.si_flags  = 0;
+	io.si_fol_frag = fol_frag;
+	io.si_user.ov_vec.v_nr = bufvec->ov_vec.v_nr;
+	io.si_user.ov_vec.v_count = bufvec->ov_vec.v_count;
+	io.si_user.ov_buf = bufvec->ov_buf;
+	io.si_stob = (struct m0_indexvec) {
+		.iv_vec = { .v_nr = 1, .v_count = &count },
+		.iv_index = &offset_idx
+	};
+
+	m0_clink_init(&clink, NULL);
+	m0_clink_add_lock(&io.si_wait, &clink);
+
+	rc = m0_stob_io_launch(&io, stob, NULL, NULL);
+	if (rc == 0) {
+		m0_chan_wait(&clink);
+		rc = io.si_rc;
+	}
+
+	m0_clink_del_lock(&clink);
+	m0_clink_fini(&clink);
+
+	m0_stob_io_fini(&io);
+
+	return M0_RC(rc);
+}
+
 M0_INTERNAL void *m0_stob_addr_pack(const void *buf, uint32_t shift)
 {
 	uint64_t addr = (uint64_t)buf;
@@ -158,9 +213,9 @@ M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob)
 {
 	struct m0_indexvec *ivec = &stob->si_stob;
 	struct m0_bufvec   *bvec = &stob->si_user;
-	int		    i;
-	bool		    exchanged;
-	bool		    different_count;
+	int                 i;
+	bool                exchanged;
+	bool                different_count;
 
 #define SWAP_NEXT(arr, idx)			\
 ({						\

@@ -33,8 +33,8 @@
 #include "fop/fop.h"
 #include "fop/fom_generic.h"
 #include "stob/stob.h"
-#include "stob/type.h"		/* m0_stob_type_id_by_name */
-#include "stob/domain.h"	/* m0_stob_domain__dom_id */
+#include "stob/type.h"    /* m0_stob_type_id_by_name */
+#include "stob/domain.h"  /* m0_stob_domain__dom_id */
 #include "fid/fid.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_foms.h"
@@ -1204,7 +1204,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
 	fop = fom->fo_fop;
 	fom_obj->fcrw_phase_start_time = m0_time_now();
 
-	tm = io_fop_tm_get(fop);
+	tm = m0_fop_tm_get(fop);
 	/**
 	 * Cache buffer pool pointer with FOM object.
 	 */
@@ -1324,7 +1324,7 @@ static int net_buffer_release(struct m0_fom *fom)
 	M0_ASSERT(fom_obj->fcrw_bp != NULL);
 
 	fop    = fom->fo_fop;
-	tm     = io_fop_tm_get(fop);
+	tm     = m0_fop_tm_get(fop);
 	colour = m0_net_tm_colour_get(tm);
 
 	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
@@ -1397,7 +1397,7 @@ static int zero_copy_initiate(struct m0_fom *fom)
 
 	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
 					   &fom_obj->fcrw_netbuf_list));
-	dom          = io_fop_tm_get(fop)->ntm_dom;
+	dom          = m0_fop_domain_get(fop);
 	max_seg_size = m0_net_domain_get_max_buffer_segment_size(dom);
 	nbd_data     = &rwfop->crw_desc.id_descs[fom_obj->
 						 fcrw_curr_desc_index];
@@ -1969,7 +1969,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", FID_P(&rw->crw_fid),
 	       (unsigned long)(fom_obj->fcrw_count << fom_obj->fcrw_bshift));
 
-	tm     = io_fop_tm_get(fop);
+	tm     = m0_fop_tm_get(fop);
 	colour = m0_net_tm_colour_get(tm);
 
 	if (fom_obj->fcrw_bp != NULL) {
@@ -2034,7 +2034,7 @@ static void io_fom_addb2_descr(struct m0_fom *fom)
 		     iv->ci_iosegs != NULL ? m0_io_count(iv) : 0,
 		     iv->ci_iosegs != NULL ? iv->ci_iosegs[0].ci_index : 0,
 		     rwfop->crw_desc.id_nr,
-		     m0_net_tm_colour_get(io_fop_tm_get(fop)));
+		     m0_net_tm_colour_get(m0_fop_tm_get(fop)));
 }
 
 #undef M0_TRACE_SUBSYSTEM

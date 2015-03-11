@@ -91,11 +91,24 @@ M0_INTERNAL void m0_conf_cache_init(struct m0_conf_cache *cache,
 				    struct m0_mutex *lock);
 
 /**
+ * Clean configuration cache.
+ *
+ * m0_conf_obj_delete()s every registered configuration object
+ * without finalise cache.
+ */
+M0_INTERNAL void m0_conf_cache_clean(struct m0_conf_cache *cache);
+
+/**
  * Finalises configuration cache.
  *
  * m0_conf_obj_delete()s every registered configuration object.
  */
 M0_INTERNAL void m0_conf_cache_fini(struct m0_conf_cache *cache);
+
+/**
+ * Remove all Conf dir objects from cache.
+ */
+M0_INTERNAL void m0_conf_cache_dir_clean(struct m0_conf_cache *cache);
 
 /**
  * Adds configuration object to the cache.
@@ -120,11 +133,25 @@ M0_INTERNAL void m0_conf_cache_del(const struct m0_conf_cache *cache,
  *
  * Returns NULL if there is no such object in the cache.
  */
-M0_INTERNAL struct m0_conf_obj *
+M0_INTERNAL struct m0_conf_obj*
 m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 		     const struct m0_fid *id);
 
 M0_INTERNAL bool m0_conf_cache_invariant(const struct m0_conf_cache *cache);
+
+struct m0_confx;
+
+/**
+ * Constructs confx structure containing all objects in the cache
+   except m0_conf_dir
+ */
+M0_INTERNAL int m0_conf_cache_encode(struct m0_conf_cache *cache,
+				     struct m0_confx      *dest);
+
+M0_INTERNAL int m0_conf_cache_to_string(struct m0_conf_cache  *cache,
+					char                 **str);
+
+M0_INTERNAL int m0_conf_version(struct m0_conf_cache *cache);
 
 /** @} conf_dfspec_cache */
 #endif /* __MERO_CONF_CACHE_H__ */

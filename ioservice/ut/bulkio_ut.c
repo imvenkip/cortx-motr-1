@@ -28,8 +28,8 @@
 #include "bulkio_common.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"
-#include "ioservice/io_fops.c"	/* To access static APIs. */
-#include "ioservice/io_foms.c"	/* To access static APIs. */
+#include "ioservice/io_fops.c"  /* To access static APIs. */
+#include "ioservice/io_foms.c"  /* To access static APIs. */
 #include "mero/setup.h"
 #include "mero/setup_internal.h" /* m0_mero_conf_setup */
 #include "conf/preload.h"        /* M0_CONF_STR_MAXLEN */
@@ -88,14 +88,6 @@ static const struct m0_fom_type_ops ut_io_fom_cob_rw_type_ops = {
 	.fto_create = ut_io_fom_cob_rw_create,
 };
 
-static inline struct m0_net_transfer_mc *
-fop_tm_get(const struct m0_fop *fop)
-{
-	M0_PRE(fop != NULL);
-
-	return &fop->f_item.ri_rmachine->rm_tm;
-}
-
 static void bulkio_stob_fom_fini(struct m0_fom *fom)
 {
 	struct m0_io_fom_cob_rw *fom_obj;
@@ -118,7 +110,7 @@ struct m0_net_buffer_pool * ut_get_buffer_pool(struct m0_fom *fom)
 	                        struct m0_reqh_io_service, rios_gen);
 
 	/* Get network buffer pool for network domain */
-	fop_ndom = fop_tm_get(fop)->ntm_dom;
+	fop_ndom = m0_fop_domain_get(fop);
 
 	bpdesc = m0_tl_find(bufferpools, bpdesc, &serv_obj->rios_buffer_pools,
 			    bpdesc->rios_ndom == fop_ndom);
@@ -361,7 +353,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	fop = fom->fo_fop;
 	rwfop = io_rw_get(fop);
 
-	tm = fop_tm_get(fop);
+	tm = m0_fop_tm_get(fop);
 	colour = m0_net_tm_colour_get(tm);
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
@@ -484,7 +476,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 		 * net domain max), so that zero-copy initialisation fails.
 		 */
 		saved_count = rwfop->crw_desc.id_descs[cdi].bdd_used;
-		netdom = fop_tm_get(fop)->ntm_dom;
+		netdom = m0_fop_domain_get(fop);
 		rwfop->crw_desc.id_descs[cdi].bdd_used =
 			m0_net_domain_get_max_buffer_size(netdom) + 4096;
 
@@ -707,7 +699,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	fop = fom->fo_fop;
 	rwfop = io_rw_get(fop);
 
-	tm = fop_tm_get(fop);
+	tm = m0_fop_tm_get(fop);
 	colour = m0_net_tm_colour_get(tm);
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
@@ -922,7 +914,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 		 * net domain max), so that zero-copy initialisation fails.
 		 */
 		saved_count = rwfop->crw_desc.id_descs[cdi].bdd_used;
-		netdom = fop_tm_get(fop)->ntm_dom;
+		netdom = m0_fop_domain_get(fop);
 		rwfop->crw_desc.id_descs[cdi].bdd_used =
 			m0_net_domain_get_max_buffer_size(netdom) + 4096;
 

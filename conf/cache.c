@@ -23,8 +23,11 @@
 
 #include "conf/cache.h"
 #include "conf/obj_ops.h"   /* m0_conf_obj_delete */
+#include "conf/preload.h"
 #include "mero/magic.h"     /* M0_CONF_OBJ_MAGIC, M0_CONF_CACHE_MAGIC */
 #include "lib/errno.h"      /* EEXIST */
+#include "conf/onwire.h"    /* m0_confx */
+#include "lib/memory.h"     /* M0_ALLOC_PTR */
 
 /**
  * @defgroup conf_dlspec_cache Configuration Cache (lspec)
@@ -117,22 +120,147 @@ m0_conf_cache_del(const struct m0_conf_cache *cache, struct m0_conf_obj *obj)
 	M0_LEAVE();
 }
 
+M0_INTERNAL void m0_conf_cache_clean(struct m0_conf_cache *cache)
+{
+	struct m0_conf_obj *obj;
+
+	M0_ENTRY();
+
+	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		_obj_del(obj);
+	} m0_tl_endfor;
+
+	M0_LEAVE();
+}
+
 M0_INTERNAL void m0_conf_cache_fini(struct m0_conf_cache *cache)
+{
+	M0_ENTRY();
+
+	m0_conf_cache_lock(cache);
+	m0_conf_cache_clean(cache);
+	m0_conf_cache_tlist_fini(&cache->ca_registry);
+	m0_conf_cache_unlock(cache);
+
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_conf_cache_dir_clean(struct m0_conf_cache *cache)
 {
 	struct m0_conf_obj *obj;
 
 	M0_ENTRY();
 
 	m0_conf_cache_lock(cache);
-
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
-		_obj_del(obj);
+		if (m0_conf_obj_type(obj) == &M0_CONF_DIR_TYPE)
+			_obj_del(obj);
 	} m0_tl_endfor;
-	m0_conf_cache_tlist_fini(&cache->ca_registry);
-
 	m0_conf_cache_unlock(cache);
 
 	M0_LEAVE();
+}
+
+static int
+conf_encode(struct m0_confx *enc, const struct m0_conf_obj *obj)
+{
+	int rc;
+
+	M0_PRE(m0_conf_obj_invariant(obj) && obj->co_status == M0_CS_READY);
+
+	rc = obj->co_ops->coo_encode(M0_CONFX_AT(enc, enc->cx_nr), obj);
+	if (rc == 0)
+		++enc->cx_nr;
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_conf_cache_encode(struct m0_conf_cache *cache,
+				     struct m0_confx      *dest)
+{
+	struct m0_conf_obj *obj = NULL;
+	int                 rc;
+	size_t              nr;
+	char               *data;
+
+	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
+
+	M0_SET0(dest);
+
+	rc = m0_tl_forall(m0_conf_cache, scan, &cache->ca_registry,
+			  (m0_conf_obj_invariant(scan) &&
+			   scan->co_status == M0_CS_READY))
+		? 0 : -EINVAL;
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	nr = m0_tl_reduce(m0_conf_cache, scan, &cache->ca_registry, 0,
+		+ (m0_conf_obj_type(scan) != &M0_CONF_DIR_TYPE));
+
+	M0_ALLOC_ARR(data, nr * m0_confx_sizeof());
+	if (data == NULL)
+		return M0_ERR(-ENOMEM);
+	/* "data" is freed by m0_confx_free(dest). */
+	dest->cx__objs = (void *)data;
+
+	M0_LOG(M0_DEBUG, "Will encode %zu configuration objects", nr);
+
+	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		if (m0_conf_obj_type(obj) != &M0_CONF_DIR_TYPE) {
+			rc = conf_encode(dest, obj);
+			if (rc != 0)
+				break;
+		}
+	} m0_tl_endfor;
+
+	if (rc == 0)
+		M0_ASSERT(nr == dest->cx_nr);
+	else {
+		m0_free(data);
+		dest->cx__objs = NULL;
+	}
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_conf_cache_to_string(struct m0_conf_cache  *cache,
+					char                 **str)
+{
+	struct m0_confx *confx = NULL;
+	int              rc;
+
+	M0_ENTRY();
+
+	M0_ALLOC_PTR(confx);
+	if (confx == NULL)
+		return M0_ERR(-ENOMEM);
+
+	m0_conf_cache_lock(cache);
+	rc = m0_conf_cache_encode(cache, confx);
+	m0_conf_cache_unlock(cache);
+	if (rc != 0)
+		goto done;
+
+	rc = m0_confx_to_string(confx, str);
+
+done:
+	m0_confx_free(confx);
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_conf_version(struct m0_conf_cache *cache)
+{
+	struct m0_conf_obj *obj;
+	int ver;
+
+	M0_ENTRY();
+
+	m0_conf_cache_lock(cache);
+	obj = m0_conf_cache_lookup(cache, &M0_CONF_ROOT_FID);
+	ver = obj != NULL ? M0_CONF_CAST(obj, m0_conf_root)->rt_verno : 0;
+	m0_conf_cache_unlock(cache);
+
+	return M0_RC(ver);
 }
 
 /** @} conf_dlspec_cache */

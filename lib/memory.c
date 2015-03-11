@@ -140,6 +140,9 @@ M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 	void  *result;
 	size_t alignment;
 
+	if (M0_FI_ENABLED("fail_allocation"))
+		return NULL;
+
 	/*
 	 * posix_memalign(3):
 	 *

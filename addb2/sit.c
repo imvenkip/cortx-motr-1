@@ -395,37 +395,20 @@ static bool it_invariant(const struct m0_addb2_sit *it)
 static int it_read(const struct m0_addb2_sit *it, void *buf,
 		   m0_bindex_t offset, m0_bcount_t count)
 {
-	struct m0_stob_io io;
-	struct m0_clink   clink;
 	int               result;
 
 	M0_PRE(it_rounded(it, offset));
 	M0_PRE(it_rounded(it, count));
 	M0_PRE(it_rounded(it, (uint64_t)buf));
 
-	m0_stob_io_init(&io);
 	buf = m0_stob_addr_pack(buf, it->s_bshift);
 	count  >>= it->s_bshift;
 	offset >>= it->s_bshift;
-	io.si_opcode = SIO_READ;
-	io.si_user   = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&buf, &count);
-	io.si_stob   = (struct m0_indexvec) {
-		.iv_vec   = {
-			.v_nr    = 1,
-			.v_count = &count
-		},
-		.iv_index = &offset
-	};
-	m0_clink_init(&clink, NULL);
-	m0_clink_add_lock(&io.si_wait, &clink);
-	result = m0_stob_io_launch(&io, it->s_stob, NULL, NULL);
-	if (result == 0) {
-		m0_chan_wait(&clink);
-		result = io.si_rc;
-	}
-	m0_clink_del_lock(&clink);
-	m0_clink_fini(&clink);
-	m0_stob_io_fini(&io);
+
+	result = m0_stob_io_bufvec_launch(it->s_stob,
+			  &(struct m0_bufvec)M0_BUFVEC_INIT_BUF(&buf, &count),
+			  SIO_READ, offset);
+
 	return M0_RC(result);
 }
 
