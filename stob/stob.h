@@ -89,6 +89,18 @@ enum m0_stob_state {
 };
 
 /**
+ * Identifier of a storage object.
+ *
+ * @see m0_stob, m0_stob_find(), m0_stob_lookup().
+ */
+struct m0_stob_id {
+	/* Stob domain fid. @see m0_stob_domain, m0_stob */
+	struct m0_fid si_domain_fid;
+	/* Stob fid. @see m0_stob */
+	struct m0_fid si_fid;
+};
+
+/**
  * In-memory representation of a storage object.
  *
  * <b>Description</b>.
@@ -116,11 +128,20 @@ enum m0_stob_state {
  *
  * Stob id is unique within a domain but not across cluster.
  * User chooses ids and is responsible for the uniqeness within their domain.
- * Stob id is represented by m0_fid and consists of:
+ * Stob id is represented by struct m0_stob_id and consists of:
  *
- *     - Stob domain id;
+ *     - Stob domain fid;
+ *     - Stob fid.
  *
- *     - Stob key.
+ * Stob fid has the following structure:
+ *
+ *           8 bits                            120 bits
+ *   +----------------------+----------------------------------------------+
+ *   |     stob type id     |                  stob key                    |
+ *   +----------------------+----------------------------------------------+
+ *
+ * Note: stob type id is not the same as stob domain type id. It's made to make
+ * possible to distinguish stob fids from stob domain fids.
  *
  * <b>Reference counting semantics</b>.
  *
