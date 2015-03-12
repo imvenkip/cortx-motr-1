@@ -103,6 +103,13 @@ AS_CASE([$host_os],
         [AC_MSG_ERROR([Unsupported platform detected!])]
 )
 
+AC_MSG_CHECKING([for lsb_release])
+LSB_RELEASE=$(which lsb_release 2>/dev/null)
+AS_IF([test -z "$LSB_RELEASE"],
+      [AC_MSG_ERROR(['lsb_release' not found in PATH, please install 'redhat-lsb' package])]
+)
+AC_MSG_RESULT([$LSB_RELEASE])
+
 OS_DIST=$(lsb_release -si)
 OS_DIST_RELEASE=$(lsb_release -sr | cut -f1 -d.)
 
