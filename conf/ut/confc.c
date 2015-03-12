@@ -274,7 +274,7 @@ static void test_confc_local(void)
 	struct m0_conf_obj *obj;
 	int                 rc;
 
-	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf-str.txt"), g_confc_str,
+	rc = m0_ut_file_read(M0_UT_CONF_PATH("conf-str.txt"), g_confc_str,
 			     sizeof g_confc_str);
 	M0_UT_ASSERT(rc == 0);
 
@@ -310,7 +310,8 @@ static void test_confc_net(void)
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb_stob"),
 		"-w", "10",
 		"-e", SERVER_ENDPOINT, "-s", "confd",
-		"-c", M0_CONF_UT_PATH("conf-str.txt")
+		"-c", M0_UT_CONF_PATH("conf-str.txt"),
+		"-P", M0_UT_CONF_PROFILE
 	};
 	struct m0_rpc_server_ctx confd = {
 		.rsx_xprts         = &g_xprt,
@@ -338,15 +339,13 @@ static void test_confc_invalid_input(void)
 	struct m0_confc confc = {};
 	int             rc;
 
-	rc = m0_ut_file_read(M0_CONF_UT_PATH("duplicated-ids.txt"),
+	rc = m0_ut_file_read(M0_UT_CONF_PATH("duplicated-ids.txt"),
 			     g_confc_str, sizeof g_confc_str);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, g_confc_str);
 	M0_UT_ASSERT(rc == -EEXIST);
 }
-
-/* ------------------------------------------------------------------ */
 
 struct m0_ut_suite confc_ut = {
 	.ts_name  = "confc-ut",

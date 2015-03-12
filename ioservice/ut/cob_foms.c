@@ -115,21 +115,11 @@ struct cobthread_arg {
 static char *server_args[] = {
 	"m0d", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-A", "linuxstob:cobfoms_ut_addb_stob",
-	"-e", SERVER_ENDP, "-s", "ioservice", "-s", "rmservice",
-	"-s", "stats", "-s", "mdservice", "-w", "10"/* =POOL_WIDTH */,
-	"-q", COB_FOP_NR_STR,
+	"-e", SERVER_ENDP, "-s", "ioservice", "-s" "stats", "-w", "10",
+	"-s", "mdservice", "-s", "rmservice",
+	"-q", COB_FOP_NR_STR, "-c", M0_UT_CONF_PATH("dir_iter_xc.txt"),
+	"-P", M0_UT_CONF_PROFILE
 };
-
-static void cobfoms_ut_conf_init(struct m0_mero *mero)
-{
-	char local_conf[M0_CONF_STR_MAXLEN];
-	int  rc;
-
-	rc = m0_ut_file_read(IO_CONF_PATH, local_conf, sizeof local_conf);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_mero_conf_setup(mero, local_conf, &CONF_PROFILE_FID);
-	M0_UT_ASSERT(rc == 0);
-}
 
 static void cobfoms_utinit(void)
 {
@@ -154,8 +144,6 @@ static void cobfoms_utinit(void)
 
 	rc = m0_rpc_server_start(sctx);
 	M0_UT_ASSERT(rc == 0);
-
-	cobfoms_ut_conf_init(&sctx->rsx_mero_ctx);
 
 	cctx = &cut->cu_cctx;
 	cctx->rcx_net_dom            = &cut->cu_nd;

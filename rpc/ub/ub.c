@@ -33,6 +33,7 @@
 #include "rpc/rpclib.h"     /* m0_rpc_server_ctx, m0_rpc_client_ctx */
 #include "rpc/session.h"    /* m0_rpc_session_timedwait */
 #include "rpc/ub/rpc_ub_fops.h"
+#include "ut/file_helpers.h" /* M0_UT_CONF_PATH */
 
 /* ----------------------------------------------------------------
  * CLI arguments
@@ -167,7 +168,8 @@ M0_BASSERT(MIN_RECV_QUEUE_LEN == 200);
 static char *g_argv[] = {
 	NAME(""), "-Q", "200" /* MIN_RECV_QUEUE_LEN */, "-w", "10",
 	"-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
-	"-A", "linuxstob:"NAME(".addb-stob"), "-e", SERVER_ENDPOINT, "-s", "ds1"
+	"-A", "linuxstob:"NAME(".addb-stob"), "-e", SERVER_ENDPOINT, "-s", "ds1",
+	"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
 };
 
 static struct m0_rpc_server_ctx g_sctx = {

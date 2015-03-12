@@ -29,6 +29,7 @@
 #include "spiel/spiel.h"
 #include "ut/ut.h"
 #include "spiel/ut/spiel_ut_common.h"
+#include "ut/file_helpers.h"           /* M0_UT_CONF_PATH */
 
 M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 		                       const char              *ep_addr)
@@ -106,9 +107,9 @@ M0_INTERNAL int m0_spiel__ut_confd_start(struct m0_rpc_server_ctx *rpc_srv,
 	char                    *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb_stob"),
-		"-w", "10",
-		"-e", full_ep, "-s", "confd", "-m", max_rpc_size,
-		"-c", (char *)confdb_path
+		"-w", "10", "-e", full_ep, "-s", "confd",
+		"-s", "rmservice", "-m", max_rpc_size,
+		"-c", M0_UT_CONF_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 	};
 #undef NAME
 

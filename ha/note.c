@@ -208,7 +208,6 @@ M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
 {
 	struct m0_conf_obj   *obj;
 	struct m0_conf_cache *cache;
-	struct m0_fid        *id;
 	int                   i;
 
 	M0_ENTRY();
@@ -216,13 +215,11 @@ M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
 
 	cache = &confc->cc_cache;
 	for (i = 0; i < note->nv_nr; ++i) {
-		id = &note->nv_note[i].no_id;
-
-		m0_mutex_lock(cache->ca_lock);
-		obj = m0_conf_cache_lookup(cache, id);
+		m0_conf_cache_lock(cache);
+		obj = m0_conf_cache_lookup(cache, &note->nv_note[i].no_id);
 		if (obj != NULL)
 			obj->co_ha_state = note->nv_note[i].no_state;
-		m0_mutex_unlock(cache->ca_lock);
+		m0_conf_cache_unlock(cache);
 	}
 	M0_LEAVE();
 }

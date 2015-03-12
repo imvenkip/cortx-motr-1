@@ -223,6 +223,9 @@ struct m0_conf_obj {
 	/** Linkage to m0_conf_dir::cd_items. */
 	struct m0_tlink               co_dir_link;
 
+	/** Linkage to m0t1fs_sb::csb_failure_set . */
+	struct m0_tlink               co_fs_link;
+
 	/**
 	 * Generic magic.
 	 *

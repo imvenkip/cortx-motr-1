@@ -31,6 +31,7 @@
 #include "rpc/rpc_internal.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
+#include "ha/note_fops.h"  /* m0_ha_state_fop_init */
 
 /**
    @addtogroup rpc_service
@@ -119,12 +120,14 @@ M0_EXPORTED(m0_rpc_service_type);
 
 M0_INTERNAL int m0_rpc_service_register(void)
 {
+	m0_ha_state_fop_init();
 	return m0_reqh_service_type_register(&m0_rpc_service_type);
 }
 
 M0_INTERNAL void m0_rpc_service_unregister(void)
 {
 	m0_reqh_service_type_unregister(&m0_rpc_service_type);
+	m0_ha_state_fop_fini();
 }
 
 M0_INTERNAL struct m0_rpc_session *

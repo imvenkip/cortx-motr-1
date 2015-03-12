@@ -6,7 +6,7 @@ readonly PROG_NAME=$(basename $0)
 
 # global variables, which can be overriden in /etc/sysconfig/mero
 MERO_GENDERS_CONF=/etc/mero/genders
-MERO_M0D_OPTS=""
+MERO_M0D_OPTS=''
 
 # service local variables
 user_config=/etc/sysconfig/mero
@@ -16,6 +16,8 @@ service_funcs=/usr/libexec/mero/mero-service.functions
 m0_server()
 {
     local service=$1
+    local cmd=${2:-m0d}
+    local cmd_opts="$3"
 
     source $service_funcs
 
@@ -25,37 +27,39 @@ m0_server()
 
     [ -n "$MERO_M0D_DEBUGGER" ] && export M0_DEBUGGER=$MERO_M0D_DEBUGGER
 
-    service_dir=$(m0_get_m0d_data_dir_for $service)
+    local service_dir=$(m0_get_m0d_data_dir_for $service)
     if [ x$MERO_M0D_REMOVE_SERVICE_DIR = xtrue ] && [ -d "$service_dir" ] ; then
         rm -rf "$service_dir"
     fi
     [ ! -d "$service_dir" ] && mkdir -p "$service_dir"
     cd $service_dir
 
-    env_config=$service_dir/env.conf
-    [ -r $env_config ] && source $env_config
+    local MERO_M0D_OPTS+=$(m0_get_core_params)
+    local m0d_services='-s addb2 -s rmservice'
+    local stob_type='-T ad'
+    local stob_opts
 
-    stob_type='-T ad'
-    stob_opts='-D db -S stobs -A linuxstob:addb-stobs'
-
-    params=$(m0_get_core_params $service_dir)
     case "$service" in
-        mds)  stob_type='-T linux'
-              m0d_services="-s mdservice -s stats $params"
+        mds*)  m0d_services+=' -s mdservice -s stats'
             ;;
 
-        ios*) stob_opts+=" -d /etc/mero/disks-$service.conf"
-              m0d_services="-s ioservice -s sns_repair -s sns_rebalance $params"
+        ios*)  stob_opts+=" -d /etc/mero/disks-$service.conf"
+               m0d_services+=' -s ioservice -s sns_repair -s sns_rebalance'
             ;;
 
         confd) stob_type='-T linux'
-               m0d_services="-s confd -c conf.xc $params"
+               m0d_services+=' -s confd'
+               MERO_M0D_OPTS+=' -c conf.xc'
+            ;;
+
+        ha)    stob_type='-T linux'
+               unset m0d_services
             ;;
 
         singlenode)
-              stob_opts+=" -d /etc/mero/disks-$service.conf"
-              m0d_services="-s mdservice -s stats -s ioservice \
-                            -s sns_repair -s sns_rebalance $params"
+               stob_opts+=" -d /etc/mero/disks-$service.conf"
+               m0d_services+=' -s mdservice -s stats -s ioservice \
+                               -s sns_repair -s sns_rebalance'
             ;;
 
         *) m0_exit "Failed to start unknown service '$service'," \
@@ -63,18 +67,16 @@ m0_server()
             ;;
     esac
 
-    m0mkfs=$(m0_path_to m0mkfs)
-    m0d=$(m0_path_to m0d)
+    local confd_ep=${MERO_CONFD_EP:-$(m0_get_ep_of confd)}
+    local service_ep="lnet:$(m0_get_ep_of $service)"
 
-    if [ $service != "confd" ]; then
-        confd_ep=${MERO_CONFD_EP:-$(m0_get_confd_ep)}
-        MERO_M0D_OPTS+=" -P $m0_prof_opt -C ${confd_ep#lnet:}"
+    if [[ $service == confd ]]; then
+        m0_build_local_conf > $service_dir/conf.xc
+    else
+        MERO_M0D_OPTS+=" -C $confd_ep"
     fi
 
-    pool_width=$(m0_genders_value_of m0_pool_width)
-    MERO_M0D_OPTS+=" -w $pool_width \
-                     -m $(m0_genders_value_of m0_max_rpc_msg_size) \
-                     -q $(m0_genders_value_of m0_min_rpc_recvq_len)"
+    local binary=$(m0_path_to $cmd)
 
     # enable core dumps
     ulimit -c unlimited
@@ -82,9 +84,9 @@ m0_server()
     # show actual exec commands in log file
     set -x
 
-    exec $m0d $MERO_M0D_OPTS $stob_type $stob_opts $m0d_services \
-              -e $EP $MERO_M0D_EXTRA_OPTS
+    exec $binary -e $service_ep $stob_type $MERO_M0D_OPTS $m0d_services \
+                    $stob_opts $MERO_M0D_EXTRA_OPTS $cmd_opts
 }
 
 
-m0_server $1
+m0_server "$@"

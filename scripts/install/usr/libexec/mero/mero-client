@@ -16,7 +16,7 @@ start()
     [ -r $user_config ] && source $user_config
 
     mountpoint=${MERO_M0T1FS_MOUNTPOINT:-$(m0_genders_value_of m0_t1fs_mountpoint)}
-    confd_ep=$(echo ${MERO_CONFD_EP:-$(m0_get_confd_ep)} | sed -e 's/^lnet://')
+    confd_ep=$(echo ${MERO_CONFD_EP:-$(m0_get_ep_of confd)})
 
     [ ! -d "$mountpoint" ] && mkdir -p "$mountpoint"
 

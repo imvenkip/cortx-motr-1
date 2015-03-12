@@ -59,9 +59,11 @@ static char **server_argv_alloc(const char *server_ep_addr, int *argc)
 	const char *argv[] = {
 		"bulkio_st", "-T", "AD", "-D", S_DBFILE,
 		"-S", S_STOBFILE, "-A", S_ADDB_STOBFILE, "-e", ep,
-		"-s", "ioservice", "-s", "sns_repair", "-s", "rmservice",
-		"-s", "mdservice", "-s", "stats", "-q", tm_len,
-		"-m", rpc_size, "-w", "10", "-G", ep
+		"-s", "mdservice", "-s", "rmservice", "-s", "stats",
+		"-s", "ioservice", "-s", "sns_repair", "-q", tm_len,
+		"-m", rpc_size, "-w", "10", "-G", ep,
+		"-c", M0_UT_CONF_PATH("dir_iter_xc.txt"),
+		"-P", M0_UT_CONF_PROFILE
 	};
 
 	n = snprintf(ep, sizeof ep, "lnet:%s", server_ep_addr);

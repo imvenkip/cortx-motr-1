@@ -25,6 +25,7 @@
 #include "rm/ut/rmut.h"
 #include "rpc/rpclib.h"
 #include "ut/cs_service.h"
+#include "ut/file_helpers.h"  /* M0_UT_CONF_PATH */
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
@@ -36,7 +37,8 @@
 static char *server_argv[] = {
 	"rm-ut", "-T", "linux", "-D", SERVER_DB,
 	"-S", SERVER_STOB, "-A", SERVER_ADDB_STOB, "-e", SERVER_ENDPOINT,
-	"-w", "10", "-s", "rmservice"
+	"-w", "10", "-s", "rmservice",
+	"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
 };
 
 extern struct m0_reqh_service_type      m0_rms_type;

@@ -94,13 +94,9 @@ M0_INTERNAL int m0t1fs_init(void)
 	if (rc != 0)
 		goto ioservice_fini;
 
-	rc = m0_ha_state_fop_init();
-	if (rc != 0)
-		goto mdservice_fini;
-
 	rc = m0t1fs_inode_cache_init();
 	if (rc != 0)
-		goto ha_state_fop_fini;
+		goto mdservice_fini;
 
 	m0_addb2_sys_sm_start(sys);
 	rc = m0_addb2_sys_net_start(sys);
@@ -127,8 +123,6 @@ addb2_fini:
 	m0_addb2_sys_sm_stop(sys);
 icache_fini:
 	m0t1fs_inode_cache_fini();
-ha_state_fop_fini:
-	m0_ha_state_fop_fini();
 mdservice_fini:
 	m0_mdservice_fop_fini();
 ioservice_fini:

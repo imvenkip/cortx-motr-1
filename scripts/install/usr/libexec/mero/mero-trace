@@ -40,16 +40,17 @@ m0_traced()
             fi
             ;;
 
-        confd|ios*|mds|singlenode)
+        confd|ha|ios*|mds|singlenode)
             [[ $MERO_TRACED_M0D == yes ]] || exit 0
             local server_pid=$(m0_get_server_pid_for $target)
             local server_trace_file=$(m0_get_m0d_data_dir_for $target)/m0trace.$server_pid
-            local opts="-i $server_trace_file"
+            local opts="-i $server_trace_file ${MERO_TRACED_CHECK_INPUT:+-m $MERO_TRACED_CHECK_INPUT}"
             local output_file=$MERO_LOG_DIR/trace-m0d-$target-$server_pid~$date.bin
             ;;
 
         *) m0_exit "Failed to start m0traced for unknown target '$target'," \
-                   " available targets are 'kernel' and 'server-*'"
+                   " available targets are 'kernel', 'confd', 'ios*', 'mds*'" \
+		   " 'ha' and 'singlenode'"
             ;;
     esac
 

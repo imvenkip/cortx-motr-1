@@ -344,8 +344,6 @@ struct m0_reqh_context {
    network transports, network domains and a request handler.
  */
 struct m0_mero {
-	struct m0_confc             cc_confc;
-
 	struct m0_conf_filesystem  *cc_fs;
 
 	/** Resources shared between multiple pools. */
@@ -518,6 +516,9 @@ M0_INTERNAL struct m0_net_domain *m0_cs_net_domain_locate(struct m0_mero *cctx,
  */
 M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
 				       const char *ep);
+
+/** get local end point */
+M0_INTERNAL const char *m0_cs_local_ep(struct m0_mero *cctx);
 
 M0_TL_DESCR_DECLARE(cs_eps, extern);
 M0_TL_DECLARE(cs_eps, M0_INTERNAL, struct cs_endpoint_and_xprt);

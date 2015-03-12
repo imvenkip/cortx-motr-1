@@ -52,8 +52,9 @@ DDEV_ID=1          #data devices
 ADEV_ID=100        #addb devices
 MDEV_ID=200        #meta-data devices
 
+HA_EP=12345:34:1
 CONFD_EP=12345:33:100
-STATSEP=12345:33:800    #stats service runs on any one node.
+STATSEP=12345:33:800    #stats service runs on a single node.
 
 # list of io server end points: e.g., tmid in [900, 999).
 IOSEP=(
@@ -216,6 +217,7 @@ function build_conf()
 	# prepare configuration data
 	local RMS_ENDPOINT="\"${mdservices[0]}\""
 	local STATS_ENDPOINT="\"${statservices[0]}\""
+	local HA_ENDPOINT="\"${server_nid}:${HA_EP}\""
 	local  ROOT='(0x7400000000000001, 0)'
 	local  PROF='(0x7000000000000001, 0)'
 	local    FS='(0x6600000000000001, 1)'
@@ -223,6 +225,7 @@ function build_conf()
 	local  PROC='(0x7200000000000001, 3)'
 	local    RM='(0x7300000000000001, 4)'
 	local STATS='(0x7300000000000001, 5)'
+	local HA_SVC_ID='(0x7300000000000001, 6)'
 	local  RACKID='(0x6100000000000001, 6)'
 	local  ENCLID='(0x6500000000000001, 7)'
 	local  CTRLID='(0x6300000000000001, 8)'
@@ -273,8 +276,10 @@ function build_conf()
 	local ENCLV="{0x6a| (($ENCLVID), $ENCLID, [1: $CTRLVID])}"
 	local CTRLV="{0x6a| (($CTRLVID), $CTRLID, [$NR_DISKV_FIDS: $DISKV_FIDS])}"
 
+ # Here "15" configuration objects includes services excluding ios & mds,
+ # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
- [$((${#ioservices[*]} + ${#mdservices[*]} + $NR_IOS_DEVS+ $NR_MDS_DEVS + 15)):
+ [$((${#ioservices[*]} + ${#mdservices[*]} + $NR_IOS_DEVS+ $NR_MDS_DEVS + 16)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
@@ -285,9 +290,10 @@ function build_conf()
 	      [1: $RACKID])},
   {0x6e| (($NODE), 16000, 2, 3, 2, $POOLID, [1: $PROC])},
   {0x72| (($PROC), 4000, 2,
-	           [$((${#ioservices[*]} + ${#mdservices[*]} + 2)): $MDS_NAMES, $RM, $IOS_NAMES, $STATS])},
+	           [$((${#ioservices[*]} + ${#mdservices[*]} + 3)): $MDS_NAMES, $RM, $IOS_NAMES, $STATS, $HA_SVC_ID])},
   {0x73| (($RM), 4, [1: $RMS_ENDPOINT], [0])},
   {0x73| (($STATS), 5, [1: $STATS_ENDPOINT], [0])},
+  {0x73| (($HA_SVC_ID), 6, [1: $HA_ENDPOINT], [0])},
   $MDS_OBJS,
   $IOS_OBJS,
   $IOS_DEVS,

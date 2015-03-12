@@ -25,6 +25,7 @@
 #include "conf/obj.h"
 
 struct m0_mutex;
+M0_TL_DESCR_DECLARE(m0_conf_cache, extern);
 
 /**
  * @page conf-fspec-cache Configuration Cache
@@ -81,6 +82,10 @@ struct m0_conf_cache {
 
 M0_TL_DECLARE(m0_conf_cache, M0_INTERNAL, struct m0_conf_obj);
 
+M0_INTERNAL void m0_conf_cache_lock(struct m0_conf_cache *cache);
+M0_INTERNAL void m0_conf_cache_unlock(struct m0_conf_cache *cache);
+M0_INTERNAL bool m0_conf_cache_is_locked(const struct m0_conf_cache *cache);
+
 /** Initialises configuration cache. */
 M0_INTERNAL void m0_conf_cache_init(struct m0_conf_cache *cache,
 				    struct m0_mutex *lock);
@@ -118,6 +123,8 @@ M0_INTERNAL void m0_conf_cache_del(const struct m0_conf_cache *cache,
 M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 		     const struct m0_fid *id);
+
+M0_INTERNAL bool m0_conf_cache_invariant(const struct m0_conf_cache *cache);
 
 /** @} conf_dfspec_cache */
 #endif /* __MERO_CONF_CACHE_H__ */

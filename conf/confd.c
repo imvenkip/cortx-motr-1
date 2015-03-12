@@ -470,66 +470,6 @@ static const struct m0_reqh_service_ops confd_ops = {
 	.rso_fini        = confd_fini
 };
 
-/**
- * Reads contents of file into a buffer.
- *
- * @param path  Name of file to read.
- * @param dest  Buffer to read into.
- * @param sz    Size of `dest'.
- *
- * XXX FIXME: Code duplication!
- * See m0_ut_file_read() in `conf/ut/file_helpers.c'.
- */
-static int file_read(const char *path, char *dest, size_t sz)
-{
-	FILE  *f;
-	size_t n;
-	int    rc = 0;
-
-	M0_ENTRY("path=`%s'", path);
-
-	f = fopen(path, "r");
-	if (f == NULL)
-		return M0_ERR_INFO(-errno, "path=`%s'", path);
-
-	n = fread(dest, 1, sz - 1, f);
-	if (ferror(f))
-		rc = -errno;
-	else if (!feof(f))
-		rc = -EFBIG;
-	else
-		dest[n] = '\0';
-
-	fclose(f);
-	return M0_RC(rc);
-}
-
-static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
-{
-	static char      buf[M0_CONF_STR_MAXLEN];
-	struct m0_confx *enc;
-	int              i;
-	int              rc;
-
-	M0_ENTRY();
-	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
-
-	rc = file_read(dbpath, buf, sizeof buf) ?: m0_confstr_parse(buf, &enc);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	for (i = 0; i < enc->cx_nr && rc == 0; ++i) {
-		struct m0_conf_obj        *obj;
-		const struct m0_confx_obj *xobj = M0_CONFX_AT(enc, i);
-
-		rc = m0_conf_obj_find(cache, m0_conf_objx_fid(xobj), &obj) ?:
-			m0_conf_obj_fill(obj, xobj, cache);
-	}
-
-	m0_confx_free(enc);
-	return M0_RC(rc);
-}
-
 /** Allocates and initialises confd service. */
 static int confd_allocate(struct m0_reqh_service **service,
 			  const struct m0_reqh_service_type *stype)
@@ -543,8 +483,6 @@ static int confd_allocate(struct m0_reqh_service **service,
 	if (confd == NULL)
 		return M0_RC(-ENOMEM);
 
-	m0_mutex_init(&confd->d_lock);
-	m0_conf_cache_init(&confd->d_cache, &confd->d_lock);
 	m0_bob_init(&m0_confd_bob, confd);
 	*service = &confd->d_reqh;
 	(*service)->rs_ops = &confd_ops;
@@ -559,42 +497,23 @@ static void confd_fini(struct m0_reqh_service *service)
 	M0_ENTRY();
 
 	m0_bob_fini(&m0_confd_bob, confd);
-	m0_conf_cache_fini(&confd->d_cache);
-	m0_mutex_fini(&confd->d_lock);
 	m0_free(confd);
 
 	M0_LEAVE();
-}
-
-static bool nil(const char *s)
-{
-	return s == NULL || *s == '\0';
 }
 
 static int confd_start(struct m0_reqh_service *service)
 {
 	struct m0_confd *confd = bob_of(service, struct m0_confd, d_reqh,
 					&m0_confd_bob);
-	const char      *dbpath;
-	char            *s = NULL;
-	int              rc;
-
+	struct m0_confc *confc = &service->rs_reqh->rh_confc;
 	M0_ENTRY();
 
-	if (m0_buf_is_set(&service->rs_ss_param))
-		s = m0_buf_strdup(&service->rs_ss_param);
-	dbpath = nil(s) ? service->rs_reqh_ctx->rc_confdb : s;
-	if (nil(dbpath)) {
-		M0_LOG(M0_ERROR,
-		       "Path to the configuration database is not provided");
-		rc = -EPROTO;
-	} else {
-		m0_mutex_lock(&confd->d_lock);
-		rc = confd_cache_preload(&confd->d_cache, dbpath);
-		m0_mutex_unlock(&confd->d_lock);
-	}
-	m0_free(s);
-	return M0_RC(rc);
+	M0_PRE(m0_confc_invariant(confc));
+	M0_PRE(m0_conf_cache_invariant(&confc->cc_cache));
+
+	confd->d_cache = &confc->cc_cache;
+	return M0_RC(0);
 }
 
 static void confd_stop(struct m0_reqh_service *service)

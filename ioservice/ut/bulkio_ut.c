@@ -1789,17 +1789,6 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	m0_fop_put_lock(rfop);
 }
 
-static void bulkio_mero_conf_init(struct m0_mero *mero)
-{
-	char local_conf[M0_CONF_STR_MAXLEN];
-	int  rc;
-
-	rc = m0_ut_file_read(IO_CONF_PATH, local_conf, sizeof local_conf);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_mero_conf_setup(mero, local_conf, &CONF_PROFILE_FID);
-	M0_UT_ASSERT(rc == 0);
-}
-
 static void bulkio_init(void)
 {
 	int         rc;
@@ -1816,7 +1805,6 @@ static void bulkio_init(void)
 	rc = bulkio_client_start(bp, caddr, saddr);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(bp->bp_cctx != NULL);
-	bulkio_mero_conf_init(&bp->bp_sctx->rsx_mero_ctx);
 
 	bulkio_stob_create();
 }
@@ -1829,11 +1817,6 @@ static void bulkio_fini(void)
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
 	m0_reqh_idle_wait(reqh);
 	bulkio_client_stop(bp->bp_cctx);
-	/*
-	 * We have explicitly initialise the confc, pools and pool versions but
-	 * finalisation for the same is done during m0_cs_fini() as part of
-	 * m0_rpc_server_stop().
-	 */
 	bulkio_server_stop(bp->bp_sctx);
 	bulkio_params_fini(bp);
 	m0_free(bp);

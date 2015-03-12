@@ -28,6 +28,7 @@
 #include "ut/ut.h"
 #include "rpc/rpclib.h"
 #include "spiel/ut/spiel_ut_common.h"
+#include "ut/file_helpers.h"            /* M0_UT_CONF_PROFILE */
 
 static void spiel_start_stop(void)
 {
@@ -36,14 +37,14 @@ static void spiel_start_stop(void)
 	struct m0_spiel           spiel;
 	struct m0_rpc_server_ctx  confd_srv;
 	const char               *confd_eps[] = { "0@lo:12345:35:1", NULL };
-	const char               *profile = "<0x7000000000000001:0>";
+	const char               *profile = M0_UT_CONF_PROFILE;
 	const char               *client_ep = "0@lo:12345:34:1";
 
 	rc = m0_spiel__ut_reqh_init(&spl_reqh, client_ep);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_spiel__ut_confd_start(&confd_srv, confd_eps[0],
-				      M0_SPIEL_UT_PATH("conf-str.txt"));
+				      M0_UT_CONF_PATH("conf-str.txt"));
 	M0_ASSERT(rc == 0);
 	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, confd_eps, profile);
 	M0_UT_ASSERT(rc == 0);

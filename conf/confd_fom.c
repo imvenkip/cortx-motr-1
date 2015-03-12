@@ -117,10 +117,10 @@ static int conf_fetch_tick(struct m0_fom *fom)
 	r = m0_fop_data(fom->fo_rep_fop);
 
 	confd = bob_of(fom->fo_service, struct m0_confd, d_reqh, &m0_confd_bob);
-	m0_mutex_lock(&confd->d_lock);
+	m0_conf_cache_lock(confd->d_cache);
 	rc = confx_populate(&r->fr_data, &q->f_origin, &q->f_path,
-			    &confd->d_cache);
-	m0_mutex_unlock(&confd->d_lock);
+			    confd->d_cache);
+	m0_conf_cache_unlock(confd->d_cache);
 	if (rc != 0)
 		M0_ASSERT(r->fr_data.cx_nr == 0 && r->fr_data.cx__objs == NULL);
 	r->fr_rc = rc;
@@ -237,7 +237,7 @@ static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
 	char               *data;
 
 	M0_ENTRY();
-	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
+	M0_PRE(m0_conf_cache_is_locked(cache));
 
 	M0_SET0(dest);
 

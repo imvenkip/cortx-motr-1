@@ -45,6 +45,8 @@
 #include "layout/pdclust.h"
 #include "fop/fom_simple.h"
 #include "pool/pool.h"
+#include "conf/helpers.h"              /* m0_conf_fs_get */
+
 #include "be/ut/helper.h"
 
 /**
@@ -519,8 +521,16 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 		m0_rwlock_read_unlock(&reqh->rh_rwlock);
 		M0_LOG(M0_WARN, "fop \"%s\"@%p disallowed: %i.",
 		       m0_fop_name(fop), fop, rc);
-		if (m0_rpc_item_is_request(&fop->f_item))
+		if (m0_rpc_item_is_request(&fop->f_item)) {
+			struct m0_reqh_service_type *rst =
+				m0_reqh_service_type_find("simple-fom-service");
+			if (rst != NULL &&
+			    m0_reqh_service_find(rst, reqh) == NULL)
+				return M0_ERR_INFO(-ESHUTDOWN,
+						   "Service shutdown.");
+
 			fop_disallowed(reqh, fop, M0_ERR(-ESHUTDOWN));
+		}
 		/*
 		 * Note :
 		 *      Since client will receive generic reply for
@@ -686,6 +696,18 @@ M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh)
 {
 	M0_PRE(m0_reqh_invariant(reqh));
 	return m0_fom_dom()->fd_localities_nr;
+}
+
+M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
+				   struct m0_confc_args *args)
+{
+	struct m0_confc *confc = &reqh->rh_confc;
+
+	M0_PRE(ergo(args->ca_confd != NULL,
+		    (args->ca_group != NULL && args->ca_rmach != NULL)));
+
+	return m0_confc_init(confc, args->ca_group, args->ca_confd,
+			     args->ca_rmach, args->ca_confstr);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -29,8 +29,10 @@
 #include "conf/schema.h"   /* M0_CST_IOS, M0_CST_MDS */
 #include "conf/dir_iter.h" /* m0_conf_diter_init, m0_conf_diter_next_sync */
 #include "conf/obj_ops.h"  /* m0_conf_dirval */
+#include "conf/helpers.h"  /* m0_obj_is_pver */
 
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
+#include "reqh/reqh.h"
 
 #include "pool/pool.h"
 #include "pool/pool_fops.h"
@@ -265,18 +267,7 @@ M0_INTERNAL void m0_pool_fini(struct m0_pool *pool)
 
 static bool pools_common_invariant(const struct m0_pools_common *pc)
 {
-	return _0C(pc != NULL) && _0C(pc->pc_confc != NULL) &&
-	       _0C(!pools_common_svc_ctx_tlist_is_empty(&pc->pc_svc_ctxs)) &&
-	       _0C(ergo(pc->pc_mds_map != NULL,
-		   m0_forall(i, pc->pc_nr_svcs[M0_CST_MDS],
-			pools_common_svc_ctx_tlist_contains(&pc->pc_svc_ctxs,
-							pc->pc_mds_map[i])))) &&
-	       _0C(ergo(pc->pc_rm_ctx != NULL,
-		   pools_common_svc_ctx_tlist_contains(&pc->pc_svc_ctxs,
-							pc->pc_rm_ctx))) &&
-	       _0C(ergo(pc->pc_ss_ctx != NULL,
-		   pools_common_svc_ctx_tlist_contains(&pc->pc_svc_ctxs,
-							pc->pc_ss_ctx)));
+	return _0C(pc != NULL) && _0C(pc->pc_confc != NULL);
 }
 
 static bool pool_version_invariant(const struct m0_pool_version *pv)
@@ -289,7 +280,7 @@ static bool pool_version_invariant(const struct m0_pool_version *pv)
 						pv->pv_dev_to_ios_map[i]))));
 }
 
-static bool _filter_service(const struct m0_conf_obj *obj)
+static bool obj_is_service(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
 }
@@ -310,7 +301,7 @@ static int __mds_map(struct m0_conf_controller *c, struct m0_pools_common *pc)
 	if (rc != 0)
 		return M0_RC(rc);
 
-	while ((rc = m0_conf_diter_next_sync(&it, _filter_service)) ==
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_service)) ==
 							M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE);
@@ -328,7 +319,7 @@ static int __mds_map(struct m0_conf_controller *c, struct m0_pools_common *pc)
 	return M0_RC(rc);
 }
 
-static bool _filter_controllerv(const struct m0_conf_obj *obj)
+static bool obj_is_controllerv(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE &&
 	       m0_conf_obj_type(M0_CONF_CAST(obj, m0_conf_objv)->cv_real) ==
@@ -355,8 +346,8 @@ M0_INTERNAL int m0_pool_mds_map_init(struct m0_conf_filesystem *fs,
 	if (rc != 0)
 		return M0_RC(rc);
 
-	while ((rc = m0_conf_diter_next_sync(&it,
-				_filter_controllerv)) == M0_CONF_DIRNEXT) {
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_controllerv)) ==
+		M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE);
 		ov = M0_CONF_CAST(obj, m0_conf_objv);
@@ -373,7 +364,7 @@ M0_INTERNAL int m0_pool_mds_map_init(struct m0_conf_filesystem *fs,
 	return M0_RC(rc);
 }
 
-static bool _filter_diskv(const struct m0_conf_obj *obj)
+static bool obj_is_diskv(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE &&
 	       m0_conf_obj_type(M0_CONF_CAST(obj, m0_conf_objv)->cv_real) ==
@@ -409,7 +400,7 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 	 * XXX TODO: Replace m0_conf_diter_next_sync() with
 	 * m0_conf_diter_next().
 	 */
-	while ((rc = m0_conf_diter_next_sync(&it, _filter_diskv)) ==
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_diskv)) ==
 							M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE);
@@ -513,8 +504,8 @@ static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 	 * XXX TODO: Replace m0_conf_diter_next_sync() with
 	 * m0_conf_diter_next().
 	 */
-	while ((rc = m0_conf_diter_next_sync(&it, _filter_controllerv)) ==
-							M0_CONF_DIRNEXT) {
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_controllerv)) ==
+		M0_CONF_DIRNEXT) {
 		/* We filter only controllerv objects. */
 		M0_CNT_INC(nr_nodes);
 	}
@@ -610,6 +601,7 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	int                          rc = 0;
 
 	M0_PRE(M0_CONF_SVC_TYPE_IS_VALID(cs->cs_type));
+	M0_PRE((pc->pc_rmach != NULL) == services_connect);
 
 	for (endpoint = cs->cs_endpoints; *endpoint != NULL; ++endpoint) {
 		rc = m0_reqh_service_ctx_create(&cs->cs_obj.co_id, pc->pc_rmach,
@@ -646,8 +638,8 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 	 * XXX TODO: Replace m0_conf_diter_next_sync() with
 	 * m0_conf_diter_next().
 	 */
-	while ((rc = m0_conf_diter_next_sync(&it, _filter_service)) ==
-							M0_CONF_DIRNEXT) {
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_service)) ==
+		M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE);
 		s = M0_CONF_CAST(obj, m0_conf_service);
@@ -681,49 +673,6 @@ m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
 			  m0_fid_eq(id, &ctx->sc_fid) && ctx->sc_type == type);
 }
 
-static int _conf_load(struct m0_conf_filesystem *fs, const struct m0_fid *path,
-		  uint32_t nr_levels)
-{
-
-	struct m0_conf_diter  it;
-	struct m0_conf_obj   *fs_obj = &fs->cf_obj;
-	int                   rc;
-
-	M0_ENTRY();
-	M0_PRE(path != NULL);
-
-	rc = m0_conf__diter_init(&it, m0_confc_from_obj(fs_obj), fs_obj,
-				 nr_levels, path);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	while ((rc = m0_conf_diter_next_sync(&it, NULL)) == M0_CONF_DIRNEXT)
-		/*
-		 * We travers configuration DAG in order for conf objects to
-		 * be cached.
-		 */
-		;
-
-	m0_conf_diter_fini(&it);
-
-	return M0_RC(rc);
-}
-
-static int devs_conf_load(struct m0_conf_filesystem *fs)
-{
-	const struct m0_fid fs_to_disks[] = {M0_CONF_FILESYSTEM_RACKS_FID,
-					     M0_CONF_RACK_ENCLS_FID,
-					     M0_CONF_ENCLOSURE_CTRLS_FID,
-					     M0_CONF_CONTROLLER_DISKS_FID};
-	const struct m0_fid fs_to_sdevs[] = {M0_CONF_FILESYSTEM_NODES_FID,
-					     M0_CONF_NODE_PROCESSES_FID,
-					     M0_CONF_PROCESS_SERVICES_FID,
-					     M0_CONF_SERVICE_SDEVS_FID};
-
-	return M0_RC(_conf_load(fs, fs_to_sdevs, ARRAY_SIZE(fs_to_disks)) ?:
-		     _conf_load(fs, fs_to_disks, ARRAY_SIZE(fs_to_sdevs)));
-}
-
 static int pc_service_find(struct m0_reqh_service_ctx **dest,
 			   const struct m0_tl          *svc_ctxs,
 			   enum m0_conf_service_type    type)
@@ -734,17 +683,16 @@ static int pc_service_find(struct m0_reqh_service_ctx **dest,
 			   ctx->sc_type == type);
 	if (*dest != NULL)
 		return M0_RC(0);
-	M0_LOG(M0_ERROR, "The mandatory %s service is missing."
-	       " Make sure it is specified in the conf db.",
-		type == M0_CST_STS ? "STS" : "RM");
-	return M0_RC(-EPROTO);
+
+	return M0_ERR_INFO(-EPROTO, "The mandatory %s service is missing."
+			   " Make sure it is specified in the conf db.",
+			   type == M0_CST_STS ? "STS" : "RM");
 }
 
-M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
-				     struct m0_rpc_machine *rmach,
-				     struct m0_conf_filesystem *fs)
+M0_INTERNAL void m0_pools_common_init(struct m0_pools_common *pc,
+				      struct m0_rpc_machine *rmach,
+				      struct m0_conf_filesystem *fs)
 {
-	int rc;
 
 	M0_ENTRY();
 	M0_PRE(pc != NULL && fs != NULL);
@@ -755,8 +703,19 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 				.pc_confc = m0_confc_from_obj(&fs->cf_obj)};
 
 	pools_common_svc_ctx_tlist_init(&pc->pc_svc_ctxs);
-	rc = devs_conf_load(fs) ?:
-	     service_ctxs_create(pc, fs, pc->pc_rmach != NULL);
+	pools_tlist_init(&pc->pc_pools);
+	M0_LEAVE();
+}
+
+M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
+					    struct m0_conf_filesystem *fs)
+{
+	int rc;
+
+	M0_ENTRY();
+	M0_PRE(pc != NULL && fs != NULL);
+
+	rc = service_ctxs_create(pc, fs, pc->pc_rmach != NULL);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -771,8 +730,6 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 	if (rc != 0)
 		goto err;
 
-	pools_tlist_init(&pc->pc_pools);
-
 	M0_POST(pools_common_invariant(pc));
 	return M0_RC(rc);
 err:
@@ -786,35 +743,39 @@ M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
 	M0_ENTRY();
 	M0_PRE(pools_common_invariant(pc));
 
-	m0_pools_destroy(pc);
-	service_ctxs_destroy(pc);
-	m0_free(pc->pc_mds_map);
 	pools_common_svc_ctx_tlist_fini(&pc->pc_svc_ctxs);
 	pools_tlist_fini(&pc->pc_pools);
 
 	M0_LEAVE();
 }
 
-static bool _filter_pool_pver(const struct m0_conf_obj *obj)
+M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc)
 {
-	return m0_conf_obj_type(obj) == &M0_CONF_POOL_TYPE ||
-	       m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE;
+	M0_ENTRY();
+	M0_PRE(pools_common_invariant(pc));
+
+	service_ctxs_destroy(pc);
+	m0_free(pc->pc_mds_map);
+	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
-			       struct m0_conf_filesystem *fs,
-			       struct m0_be_seg *be_seg,
-			       struct m0_sm_group *sm_grp,
-			       struct m0_dtm *dtm)
+static bool obj_is_pool(const struct m0_conf_obj *obj)
 {
-	struct m0_conf_diter    it;
-	struct m0_conf_pver    *pv;
-	struct m0_pool_version *pver;
-	struct m0_conf_pool    *p;
-	struct m0_conf_obj     *pool_obj;
-	struct m0_pool         *pool = NULL;
+	return m0_conf_obj_type(obj) == &M0_CONF_POOL_TYPE;
+}
+
+M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
+				       struct m0_conf_filesystem *fs,
+				       struct m0_be_seg          *be_seg,
+				       struct m0_sm_group        *sm_grp,
+				       struct m0_dtm             *dtm)
+{
 	struct m0_confc        *confc;
-	struct m0_conf_obj     *obj;
+	struct m0_conf_diter    it;
+	struct m0_pool_version *pver;
+	struct m0_conf_pver    *pver_obj;
+	struct m0_fid          *pool_id;
+	struct m0_pool         *pool;
 	int                     rc;
 
 	M0_ENTRY();
@@ -824,43 +785,65 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
 				M0_CONF_FILESYSTEM_POOLS_FID,
 				M0_CONF_POOL_PVERS_FID);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
-	while ((rc = m0_conf_diter_next_sync(&it, _filter_pool_pver)) ==
-							M0_CONF_DIRNEXT) {
-		obj = m0_conf_diter_result(&it);
-		M0_ASSERT(M0_IN(m0_conf_obj_type(obj), (&M0_CONF_POOL_TYPE,
-							&M0_CONF_PVER_TYPE)));
-		if (m0_conf_obj_type(obj) == &M0_CONF_POOL_TYPE) {
-			p = M0_CONF_CAST(obj, m0_conf_pool);
-			M0_ALLOC_PTR(pool);
-			if (pool == NULL) {
-				rc = -ENOMEM;
-				break;
-			}
-			rc = m0_pool_init(pool, &p->pl_obj.co_id);
-			if (rc != 0)
-				break;
-			pools_tlink_init_at_tail(pool, &pc->pc_pools);
+	while ((rc = m0_conf_diter_next_sync(&it, m0_obj_is_pver)) ==
+		M0_CONF_DIRNEXT) {
+		M0_ALLOC_PTR(pver);
+		if (pver == NULL) {
+			rc = -ENOMEM;
+			break;
 		}
-		if (m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE) {
-			pv = M0_CONF_CAST(obj, m0_conf_pver);
-			M0_ALLOC_PTR(pver);
-			if (pver == NULL) {
-				rc = -ENOMEM;
-				break;
-			}
-			pool_obj = pv->pv_obj.co_parent->co_parent;
-			/*
-			 * Confirm that pool version belongs to pool we had
-			 * created earlier.
-			 */
-			M0_ASSERT(m0_fid_eq(&pool_obj->co_id, &pool->po_id));
-			rc = m0_pool_version_init_by_conf(pver, pv, pool, pc,
-							  be_seg, sm_grp, dtm);
-			if (rc != 0)
-				break;
+		pver_obj = M0_CONF_CAST(m0_conf_diter_result(&it),
+					m0_conf_pver);
+		pool_id = &pver_obj->pv_obj.co_parent->co_parent->co_id;
+		pool = m0_tl_find(pools, pool, &pc->pc_pools,
+                          m0_fid_eq(&pool->po_id, pool_id));
+
+		M0_ASSERT(m0_fid_eq(&pool->po_id, pool_id));
+		rc = m0_pool_version_init_by_conf(pver, pver_obj, pool, pc,
+						  be_seg, sm_grp, dtm);
+		if (rc != 0)
+			break;
+	}
+
+	m0_conf_diter_fini(&it);
+	if (rc != 0)
+		m0_pools_destroy(pc);
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
+			       struct m0_conf_filesystem *fs,
+			       struct m0_be_seg          *be_seg,
+			       struct m0_sm_group        *sm_grp,
+			       struct m0_dtm             *dtm)
+{
+	struct m0_confc      *confc;
+	struct m0_conf_diter  it;
+	struct m0_pool       *pool;
+	int                   rc;
+
+	M0_ENTRY();
+
+	confc = m0_confc_from_obj(&fs->cf_obj);
+	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_POOLS_FID);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_pool)) ==
+		M0_CONF_DIRNEXT) {
+		M0_ALLOC_PTR(pool);
+		if (pool == NULL) {
+			rc = -ENOMEM;
+			break;
 		}
+		rc = m0_pool_init(pool, &m0_conf_diter_result(&it)->co_id);
+		if (rc != 0)
+			break;
+		pools_tlink_init_at_tail(pool, &pc->pc_pools);
 	}
 
 	pc->pc_md_pool = m0_pool_find(pc, &fs->cf_md_pool->pl_obj.co_id);
@@ -873,18 +856,26 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc)
+{
+        struct m0_pool *p;
+
+	M0_ENTRY();
+        m0_tl_teardown(pools, &pc->pc_pools, p) {
+                m0_pool_versions_fini(p);
+        }
+	M0_LEAVE();
+}
+
 M0_INTERNAL void m0_pools_destroy(struct m0_pools_common *pc)
 {
         struct m0_pool *p;
 
 	M0_ENTRY();
-
         m0_tl_teardown(pools, &pc->pc_pools, p) {
-                m0_pool_versions_fini(p);
                 m0_pool_fini(p);
                 m0_free(p);
         }
-
 	M0_LEAVE();
 }
 

@@ -690,6 +690,7 @@ int main(int argc, char *argv[])
 	void                             *logbuf;
 	struct m0_thread                  rotator_tid = { 0 };
 	struct rotator_ctx                rotator_data;
+	int32_t                           monitor_cycles = 0;
 
 	struct sigaction old_sa;
 	struct sigaction sa = {
@@ -770,6 +771,13 @@ int main(int argc, char *argv[])
 			keep_logs = k;
 		})
 	  ),
+	  M0_NUMBERARG('m',
+		"monitor trace buffer file creation each second during"
+		" specified period of time (in seconds)",
+		LAMBDA(void, (int64_t k) {
+			monitor_cycles = k;
+		})
+	  ),
 	);
 
 	if (rc != 0)
@@ -806,6 +814,13 @@ int main(int argc, char *argv[])
 		rc = save_kore_file();
 		if (rc != 0)
 			return rc;
+	}
+
+	while (monitor_cycles-- > 0) {
+		rc = access(input_file_name, F_OK);
+		if (rc == 0)
+			break;
+		sleep(1);
 	}
 
 	/* open input file */

@@ -1,3 +1,8 @@
+# Profile fid in the format suitable for 'prof=' mount option. Must match $prof
+# variable in m0_build_local_conf()
+m0_prof_opt='<0x7000000000000001:0>'
+
+
 # Print message on console (STDERR) and write it into system log
 #   @param  $1  msg
 m0_log()
@@ -205,36 +210,71 @@ m0_get_kmod_ep()
     echo "$(m0_get_lnet_nid):12345:41:301"
 }
 
-# Return MDS endpoint
-m0_get_mds_ep()
+# Return endpoint of a particular service
+#   @param  $1  service name
+#   @param  $2  optional name of a node, for which the query is performed, if
+#               ommited, then value is returned for current node
+m0_get_ep_of()
 {
-    local node
-    local service
+    local service=$1
+    local node=$2
 
-    for node in $(m0_get_nodes); do
-        for service in $(m0_get_services $node); do
-            if [ "$service" = "mds" -o "$service" = "singlenode" ]; then
-                echo "lnet:$(m0_get_lnet_nid $node):12345:41:101"
-                return
-            fi
-        done
+    local lnid=$(m0_get_lnet_nid $node)
+    local lpid=12345
+    local confd_portal=41
+    local mds_portal=41
+    local ha_portal=34
+    local ios_portal=41
+    local confd_tid=101
+    local mds_tid=201
+    local ha_tid=1
+    local ios_tid=401
+    local ep
+    local s
+
+    for s in $(m0_get_services $node); do
+        case $s in
+            confd) ep="$lnid:$lpid:$confd_portal:$((confd_tid++))"
+                ;;
+            mds*|singlenode)
+                  ep="$lnid:$lpid:$mds_portal:$((mds_tid++))"
+                ;;
+            ios*) ep="$lnid:$lpid:$ios_portal:$((ios_tid++))"
+                ;;
+            ha*)  ep="$lnid:$lpid:$ha_portal:$((ha_tid++))"
+                ;;
+        esac
+
+        if [[ $s == $service ]] ; then
+            break
+        fi
     done
+
+    echo $ep
 }
 
-# Return confd service endpoint
-m0_get_confd_ep()
+# Return space-separated list of all IOS endpoints in the cluster, from genders
+# file
+#   @param  $1  service type (confd mds ios ha)
+m0_get_global_eps_of()
 {
-    local node
-    local service
+    local stype=$1
 
-    for node in $(m0_get_nodes); do
-        for service in $(m0_get_services $node); do
-            if [ "$service" = "confd" ]; then
-                echo "lnet:$(m0_get_lnet_nid $node):12345:41:100"
-                return
-            fi
+    local global_ios
+    local n
+    local s
+
+    for n in $(m0_get_nodes); do
+        for s in $(m0_get_services $n); do
+            case $s in
+                ${stype}*|singlenode)
+                    global_eps="$global_ios_eps $(m0_get_ep_of $s $n)"
+                    ;;
+            esac
         done
     done
+
+    echo $global_eps
 }
 
 #
@@ -244,47 +284,11 @@ m0_get_confd_ep()
 #
 m0_get_core_params()
 {
-    local dir=$1
-
-    m0_build_local_conf > $dir/conf.xc
-    echo "-s addb2 -s rmservice"
-}
-
-# Return space-separated list of IOS endpoints of a node
-#   @param  $1  optional name of a node, for which the query is performed, if
-#               ommited, then value is returned for current node
-m0_get_ios_eps()
-{
-    local node=$1
-
-    local ios_eps
-    local lnid=$(m0_get_lnet_nid $node)
-    local ios_tid=201
-    local service
-
-    for service in $(m0_get_services $node); do
-        if echo $service | grep -q -E '^ios([[:digit:]]+)?$'; then
-            ios_eps="$ios_eps lnet:$lnid:12345:41:$((ios_tid++))"
-        elif echo $service | grep -q -E '^singlenode$'; then
-            ios_eps=$(m0_get_mds_ep)
-        fi
-    done
-
-    echo $ios_eps
-}
-
-# Return space-separated list of all IOS endpoints in the cluster, from genders
-# file
-m0_get_global_ios_eps()
-{
-    local global_ios_eps
-    local node
-
-    for node in $(m0_get_nodes); do
-        global_ios_eps="$global_ios_eps $(m0_get_ios_eps $node)"
-    done
-
-    echo $global_ios_eps
+    echo " -D db -S stobs -A linuxstob:addb-stobs" \
+         " -P $m0_prof_opt" \
+         " -w $(m0_genders_value_of m0_pool_width)" \
+         " -m $(m0_genders_value_of m0_max_rpc_msg_size)" \
+         " -q $(m0_genders_value_of m0_min_rpc_recvq_len)"
 }
 
 # Return space-separated list of running Mero servers on a current node
@@ -307,7 +311,9 @@ m0_get_server_pid_for()
     local service=$1
 
     local t='@'
-    [[ $service != confd ]] || t='-'
+    case $service in
+        confd|ha) t='-' ;;
+    esac
 
     if [ -x /usr/bin/systemctl ] ; then
         systemctl show -pMainPID mero-server${t}${service}.service \
@@ -382,17 +388,14 @@ _build_ios_devs()
     echo -e "$devs"
 }
 
-# Profile fid in the format suitable for 'prof=' mount option. Must match $prof
-# variable in m0_build_local_conf()
-m0_prof_opt='<0x7000000000000001:0>'
-
 # Construct local_conf mount option from genders file
 m0_build_local_conf()
 {
     local local_conf
-    local mds_ep=$(m0_get_mds_ep | sed -e 's/^lnet://')
+    local mds_ep=$(m0_get_ep_of mds)
     local rms_ep=$mds_ep # RM service is running on the same node as MDS
     local stats_ep=$mds_ep # STATS service is running on the same node as MDS
+    local ha_ep=$(m0_get_ep_of ha)
     local pool_width=$(m0_genders_value_of m0_pool_width)
     local data_units=$(m0_genders_value_of m0_data_units)
     local parity_units=$(m0_genders_value_of m0_parity_units)
@@ -404,7 +407,7 @@ m0_build_local_conf()
     local ios_names
     local ios_objs
     local ios_ep
-    for ios_ep in $(m0_get_global_ios_eps | sed -e 's/lnet://g'); do
+    for ios_ep in $(m0_get_global_eps_of ios); do
         local disk_ids=$(_build_disk_ids_str $(($ios_idx * $disks_per_ios + 1)) $disks_per_ios)
         local ios_name="(0x7300000000000002, $((ios_idx++)))"
         ios_names="$ios_names${ios_names:+, }$ios_name"
@@ -423,6 +426,7 @@ m0_build_local_conf()
     local  proc='(0x7200000000000001, 3)'
     local    rm='(0x7300000000000001, 4)'
     local stats='(0x7300000000000001, 5)'
+    local    ha='(0x7300000000000001, 6)'
 
     local rackid='(0x6100000000000001, 6)'
     local enclid='(0x6500000000000001, 7)'
@@ -444,7 +448,7 @@ m0_build_local_conf()
     local ctrlv="{0x6a| (($ctrlvid), $ctrlid, $(_build_diskv_fids_str $pool_width))}"
 
     local_conf=$(cat <<CONF_END
-[$(( $ios_count + 1 + $pool_width * 3 + 15 )):
+[$(( $ios_count + 1 + $pool_width * 3 + 16 )):
   {0x74| (($root), 1, [1: $prof])},
   {0x70| (($prof), $fs)},
   {0x66| (($fs), (11, 22), 1,
@@ -455,9 +459,10 @@ m0_build_local_conf()
           [1: $rackid])},
   {0x6e| (($node), 16000, 2, 3, 2, $poolid, [1: $proc])},
   {0x72| (($proc), 4000, 2,
-               [$(($ios_count + 3)): $mds_name, $rm, $ios_names, $stats])},
+               [$(($ios_count + 4)): $mds_name, $rm, $ios_names, $stats, $ha])},
   {0x73| (($rm), 4, [1: "$rms_ep"], [0])},
   {0x73| (($stats), 5, [1: "$stats_ep"], [0])},
+  {0x73| (($ha), 6, [1: "$ha_ep"], [0])},
   $mds_obj,
   $ios_objs,
   $(_build_ios_devs $pool_width),

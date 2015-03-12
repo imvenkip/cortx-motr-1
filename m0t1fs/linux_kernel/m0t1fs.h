@@ -683,9 +683,6 @@ struct m0t1fs_sb {
 	/** used by temporary implementation of m0t1fs_fid_alloc(). */
 	uint64_t                                csb_next_key;
 
-	/** Configuration cache loaded during mount. */
-	struct m0_confc                         csb_confc;
-
 	/** mutex that serialises all file and directory operations */
 	struct m0_mutex                         csb_mutex;
 
@@ -747,6 +744,15 @@ struct m0t1fs_sb {
 	bool                                    csb_oostore;
 	/** verify mode: verify parity on read */
 	bool                                    csb_verify;
+
+	/** HA service context. */
+	struct m0_reqh_service_ctx             *csb_ha_rsctx;
+	/**
+	 * Failure set of resources.
+	 * @see m0t1fs_ha_setup(),
+	 * m0_conf_failure_sets_build()
+	 */
+	struct m0_tl                            csb_failure_sets;
 
 	/**
 	 * list of pending transactions, by service,

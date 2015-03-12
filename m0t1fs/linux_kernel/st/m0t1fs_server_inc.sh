@@ -232,123 +232,140 @@ mero_service()
 		DIR=$MERO_M0T1FS_TEST_DIR/confd
 		build_conf $N $K $P | tee $DIR/conf.xc
 
-		opts="-T linux -D db -S stobs -A linuxstob:addb-stobs \
-		      -w $P -e $XPT:$CONFD_EP -s confd -c $DIR/conf.xc \
-		      -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN"
+		common_opts="-D db -S stobs -A linuxstob:addb-stobs \
+			     -w $P -m $MAX_RPC_MSG_SIZE \
+			     -q $TM_MIN_RECV_QUEUE_LEN -P '$PROF_OPT' "
+
+		# mkfs for confd server
+		opts="$common_opts -T linux -e $XPT:$CONFD_EP \
+		      -s confd -c $DIR/conf.xc"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0d.log"
 		echo $cmd
 		(eval "$cmd")
+
+		# spawn confd
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		echo $cmd
 		(eval "$cmd") &
 
-		# wait till the server start completes
-		local m0d_log=$DIR/m0d.log
-		touch $m0d_log
-		sleep 5
-		while status $prog_exec > /dev/null && \
-		      ! grep CTRL $m0d_log > /dev/null; do
+		# mkfs for ha agent
+		DIR=$MERO_M0T1FS_TEST_DIR/ha
+		rm -rf $DIR
+		mkdir -p $DIR
+		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
+		      -C $CONFD_EP"
+		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0d.log"
+		echo $cmd
+		(eval "$cmd")
+
+		# spawn ha agent
+		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
+		echo $cmd
+		(eval "$cmd") &
+
+		#mds mkfs
+		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
+			local mds=`expr $i + 1`
+			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
+
+			SNAME="-s mdservice -s rmservice -s addb2 \
+                               -s stats"
+			ulimit -c unlimited
+			cmd="cd $DIR && exec \
+			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
+			$common_opts -e $XPT:${lnet_nid}:${MDSEP[$i]} \
+			$SNAME -C $CONFD_EP |& tee -a m0d.log"
+			echo $cmd
+			eval "$cmd"
+		done
+
+		#ios mkfs
+		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+			local ios=`expr $i + 1`
+			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
+
+			SNAME="-s ioservice -s sns_repair -s sns_rebalance \
+                               -s addb2"
+
+			ulimit -c unlimited
+			cmd="cd $DIR && exec \
+			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
+			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]} \
+			$SNAME -C $CONFD_EP |& tee -a m0d.log"
+			echo $cmd
+			eval "$cmd"
+		done
+
+		# spawn mds
+		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
+			local mds=`expr $i + 1`
+			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
+
+			SNAME="-s mdservice -s rmservice -s addb2 \
+                               -s stats"
+			ulimit -c unlimited
+
+			cmd="cd $DIR && exec \
+			$prog_start -T $MERO_STOB_DOMAIN \
+			$common_opts -e $XPT:${lnet_nid}:${MDSEP[$i]} \
+			-C $CONFD_EP $SNAME |& tee -a m0d.log"
+			echo $cmd
+
+			local m0d_log=$DIR/m0d.log
+			touch $m0d_log
+			(eval "$cmd") &
+
+		done
+
+		# spawn ios
+		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+			local ios=`expr $i + 1`
+			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
+
+			SNAME="-s ioservice -s sns_repair -s sns_rebalance \
+                               -s addb2"
+
+			ulimit -c unlimited
+
+			cmd="cd $DIR && exec \
+			$prog_start -T $MERO_STOB_DOMAIN \
+			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]} \
+			-C $CONFD_EP $SNAME |& tee -a m0d.log"
+			echo $cmd
+
+			local m0d_log=$DIR/m0d.log
+			touch $m0d_log
+			(eval "$cmd") &
+
+		done
+
+		# Wait for confd to start
+		local confd_log=$MERO_M0T1FS_TEST_DIR/confd/m0d.log
+		while ! grep CTRL $confd_log > /dev/null; do
 			sleep 2
 		done
+		echo "Mero confd started."
 
-		status $prog_exec
-		if [ $? -eq 0 ]; then
-			echo "Mero confd service started."
-		else
-			echo "Mero confd service failed to start."
-			return 1
-		fi
 
-		# spawn mds servers
+		# Wait for HA agent to start
+		while ! grep CTRL $MERO_M0T1FS_TEST_DIR/ha/m0d.log > /dev/null;
+		do
+			sleep 2
+		done
+		echo "Mero HA agent started."
+
+		# Wait for mds to start
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
 			local mds=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
-
-			SNAME="-s mdservice -s rmservice -s addb2 \
-                               -s stats"
-			ulimit -c unlimited
-			cmd="cd $DIR && exec \
-			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
-			 -D db -S stobs -A linuxstob:addb-stobs \
-			 -w $P -e $XPT:${lnet_nid}:${MDSEP[$i]} \
-			 $SNAME |& tee -a m0d.log"
-			echo $cmd
-			eval "$cmd"
-		done
-
-		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-			local ios=`expr $i + 1`
-			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
-
-			SNAME="-s ioservice -s sns_repair -s sns_rebalance \
-                               -s addb2"
-
-			ulimit -c unlimited
-			cmd="cd $DIR && exec \
-			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
-			 -D db -S stobs -A linuxstob:addb-stobs \
-			 -w $P -e $XPT:${lnet_nid}:${IOSEP[$i]} \
-			 $SNAME |& tee -a m0d.log"
-			echo $cmd
-			eval "$cmd"
-		done
-
-		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
-			local mds=`expr $i + 1`
-			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
-
-			SNAME="-s mdservice -s rmservice -s addb2 \
-                               -s stats"
-			ulimit -c unlimited
-
-			cmd="cd $DIR && exec \
-			$prog_start -T $MERO_STOB_DOMAIN \
-			 -D db -S stobs -A linuxstob:addb-stobs -w $P \
-			 -e $XPT:${lnet_nid}:${MDSEP[$i]} \
-			 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
-			 -P '$PROF_OPT' -C $CONFD_EP $SNAME |& tee -a m0d.log"
-			echo $cmd
-
-			# wait till the server start completes
 			local m0d_log=$DIR/m0d.log
-			touch $m0d_log
-			(eval "$cmd") &
-
-		done
-
-		# spawn io servers
-
-		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-			local ios=`expr $i + 1`
-			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
-
-			SNAME="-s ioservice -s sns_repair -s sns_rebalance \
-                               -s addb2"
-
-			ulimit -c unlimited
-
-			cmd="cd $DIR && exec \
-			$prog_start -T $MERO_STOB_DOMAIN \
-			 -D db -S stobs -A linuxstob:addb-stobs \
-			 -w $P -e $XPT:${lnet_nid}:${IOSEP[$i]} \
-			 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
-			 -P '$PROF_OPT' -C $CONFD_EP $SNAME |& tee -a m0d.log"
-			echo $cmd
-
-			# wait till the server start completes
-			local m0d_log=$DIR/m0d.log
-			touch $m0d_log
-			(eval "$cmd") &
-
-		done
-		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
-			local mds=`expr $i + 1`
-			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 			while ! grep CTRL $m0d_log > /dev/null; do
 				sleep 2
 			done
 		done
 		echo "Mero mdservices started."
+
+		# Wait for ios to start
 		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 			local ios=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios

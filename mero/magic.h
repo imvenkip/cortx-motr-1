@@ -222,6 +222,9 @@ enum m0_magic_satchel {
 	 * Let's hope we won't be sued by Symantec for this name. */
 	M0_CONF_PARTITION_MAGIC = 0x33bacca15a100f77,
 
+	/* m0t1fs_sb::csb_failure_sets (doss dose doze) */
+	M0_CONF_FAILURE_SETS_MAGIC = 0x33d055d05ed02e77,
+
 	/* m0_confc::cc_magic (zodiac doable) */
 	M0_CONFC_MAGIC = 0x3320d1acd0ab1e77,
 

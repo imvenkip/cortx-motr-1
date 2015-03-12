@@ -49,6 +49,9 @@
 #include "addb2/storage.h"
 #include "addb2/net.h"
 #include "module/instance.h"	/* m0_get */
+#include "conf/helpers.h"       /* m0_confc_args */
+#include "conf/preload.h"       /* M0_CONF_STR_MAXLEN */
+
 #include "be/ut/helper.h"
 #include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */
 
@@ -1863,30 +1866,111 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	return _args_parse(cctx, argc, argv);
 }
 
+M0_INTERNAL const char *m0_cs_local_ep(struct m0_mero *cctx)
+{
+	struct cs_endpoint_and_xprt *epx;
+
+	epx = cs_eps_tlist_head(&cctx->cc_reqh_ctx.rc_eps);
+	return epx->ex_endpoint;
+}
+
+static int file_read(const char *path, char *dest, size_t sz)
+{
+	FILE  *f;
+	size_t n;
+	int    rc = 0;
+
+	M0_ENTRY("path=`%s'", path);
+
+	f = fopen(path, "r");
+	if (f == NULL)
+		return M0_ERR_INFO(-errno, "path=`%s'", path);
+
+	n = fread(dest, 1, sz - 1, f);
+	if (ferror(f))
+		rc = -errno;
+	else if (!feof(f))
+		rc = -EFBIG;
+	else
+		dest[n] = '\0';
+
+	fclose(f);
+	return M0_RC(rc);
+}
+
 static int cs_conf_setup(struct m0_mero *cctx)
 {
-	struct cs_args *args = &cctx->cc_args;
-	int             rc;
+	struct cs_args       *args = &cctx->cc_args;
+	struct m0_confc_args *conf_args;
+	static char           confstr[M0_CONF_STR_MAXLEN];
+	int                   rc;
 
-	if (cctx->cc_confd_addr == NULL && cctx->cc_profile == NULL)
-		return 0;
-	rc = m0_mero_conf_setup(cctx, NULL, NULL);
+        M0_PRE(cctx->cc_profile != NULL);
+        M0_PRE((cctx->cc_reqh_ctx.rc_confdb == NULL) !=
+               (cctx->cc_confd_addr == NULL));
+
+	if (cctx->cc_reqh_ctx.rc_confdb != NULL) {
+		rc = file_read(cctx->cc_reqh_ctx.rc_confdb,
+			       confstr, sizeof confstr);
+		if (rc != 0)
+			return M0_ERR(rc);
+	}
+
+	conf_args = &(struct m0_confc_args){
+		.ca_profile = cctx->cc_profile,
+		.ca_confstr = confstr,
+		.ca_confd   = cctx->cc_confd_addr,
+		.ca_rmach   = m0_mero_to_rmach(cctx),
+		.ca_group   = m0_locality0_get()->lo_grp,
+	};
+
+	rc = m0_reqh_conf_setup(&cctx->cc_reqh_ctx.rc_reqh, conf_args);
 	if (rc != 0)
 		return M0_ERR(rc);
+
+        rc = m0_conf_fs_get(conf_args->ca_profile,
+			    &cctx->cc_reqh_ctx.rc_reqh.rh_confc, &cctx->cc_fs);
+        if (rc != 0)
+                goto conf_destroy;
+
+	rc = m0_conf_full_load(cctx->cc_fs);
+	if (rc != 0)
+                goto conf_destroy;
 
 	M0_ASSERT(cctx->cc_fs != NULL);
 	rc = cs_conf_to_args(args, cctx->cc_fs) ?:
 		_args_parse(cctx, args->ca_argc, args->ca_argv);
+	if (rc != 0)
+		goto conf_destroy;
+
+	m0_pools_common_init(&cctx->cc_pools_common,
+			     cctx->cc_mkfs ? NULL : m0_mero_to_rmach(cctx),
+			     cctx->cc_fs);
+
+	rc = m0_pools_setup(&cctx->cc_pools_common, cctx->cc_fs,
+			    NULL, NULL, NULL);
+	if (rc != 0)
+		goto pools_common_fini;
 
 	return M0_RC(rc);
+pools_common_fini:
+	m0_pools_common_fini(&cctx->cc_pools_common);
+conf_destroy:
+	m0_confc_close(&cctx->cc_fs->cf_obj);
+	m0_confc_fini(&cctx->cc_reqh_ctx.rc_reqh.rh_confc);
+	cctx->cc_fs = NULL;
+	return M0_ERR(rc);
 }
 
 static void cs_conf_destroy(struct m0_mero *cctx)
 {
 	if (cctx->cc_fs != NULL) {
+		m0_pool_versions_destroy(&cctx->cc_pools_common);
+		m0_pools_service_ctx_destroy(&cctx->cc_pools_common);
+		m0_pools_destroy(&cctx->cc_pools_common);
 		m0_pools_common_fini(&cctx->cc_pools_common);
 		m0_confc_close(&cctx->cc_fs->cf_obj);
-		m0_confc_fini(&cctx->cc_confc);
+		m0_confc_fini(&cctx->cc_reqh_ctx.rc_reqh.rh_confc);
 		cctx->cc_fs = NULL;
 	}
 }
@@ -1915,19 +1999,42 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	     cs_buffer_pool_setup(cctx) ?:
 	     cs_reqh_start(&cctx->cc_reqh_ctx, cctx->cc_mkfs, cctx->cc_force) ?:
 	     cs_rpc_machines_init(cctx) ?:
-	     cs_conf_setup(cctx) ?:
-	     cs_reqh_layouts_setup(cctx);
+	     cs_conf_setup(cctx);
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 	return M0_RC(rc);
 }
 
 int m0_cs_start(struct m0_mero *cctx)
 {
-	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	struct m0_reqh_context     *rctx = &cctx->cc_reqh_ctx;
+	int                         rc;
 
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
-	return M0_RC(reqh_services_start(rctx));
+
+	rc = reqh_services_start(rctx);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0_pools_service_ctx_create(&cctx->cc_pools_common, cctx->cc_fs);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0_pool_versions_setup(&cctx->cc_pools_common, cctx->cc_fs,
+				    NULL, NULL, NULL);
+        if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = cs_reqh_layouts_setup(cctx);
+        if (rc != 0)
+		return M0_ERR(rc);
+
+	if (cctx->cc_pools_common.pc_ss_ctx != NULL)
+		M0_LOG(M0_DEBUG, "Stats service connected");
+	else
+		M0_LOG(M0_WARN, "Stats service not connected");
+
+	return M0_RC(rc);
 }
 
 int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,

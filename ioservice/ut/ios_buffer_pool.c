@@ -29,6 +29,7 @@
 #include "ioservice/io_service.h"
 #include "mero/setup.h"
 #include "ut/cs_service.h"         /* m0_cs_default_stypes */
+#include "ut/file_helpers.h"
 
 #include "ioservice/io_service.c"
 
@@ -40,7 +41,10 @@ static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-T", "AD",
 				"-A", "linuxstob:cs_addb_stob",
 				"-e", "lnet:0@lo:12345:34:1",
 				"-w", "10",
-				"-s", "ioservice"};
+				"-s", "ioservice",
+				"-s", "stats",
+				"-P", M0_UT_CONF_PROFILE,
+				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
 static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-T", "AD",
 				"-D", "cs_sdb", "-S", "cs_stob",
@@ -48,24 +52,34 @@ static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-T", "AD",
 				"-w", "10",
 				"-e", "lnet:0@lo:12345:34:1",
 				"-e", "bulk-mem:127.0.0.1:35678",
-				"-s", "ioservice"};
+				"-s", "ioservice",
+				"-s", "stats",
+				"-P", M0_UT_CONF_PROFILE,
+				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
 static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-D", "cs_sdb", "-S", "cs_stob",
 				"-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
+				"-e", "lnet:0@lo:12345:34:1",
 				"-e", "bulk-mem:127.0.0.1:35678",
 				"-e", "bulk-mem:127.0.0.1:35679",
-				"-s", "ioservice"};
+				"-s", "stats",
+				"-s", "ioservice",
+				"-P", M0_UT_CONF_PROFILE,
+				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
 static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-D", "cs_sdb", "-S", "cs_stob",
 				"-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
-				"-e", "lnet:0@lo:12345:35:1",
+				"-e", "lnet:0@lo:12345:34:1",
 				"-e", "bulk-mem:127.0.0.1:35678",
 				"-e", "bulk-mem:127.0.0.1:35679",
-				"-s", "ioservice"};
+				"-s", "ioservice",
+				"-s", "stats",
+				"-P", M0_UT_CONF_PROFILE,
+				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
 /* Transports used in mero context. */
 static struct m0_net_xprt *cs_xprts[] = {
@@ -129,7 +143,7 @@ void test_ios_bp_repeat_dom()
 {
 	/* It will create single buffer pool (per domain) */
 	check_buffer_pool_per_domain(ios_ut_bp_repeatdom_cmd,
-				     ARRAY_SIZE(ios_ut_bp_repeatdom_cmd), 1);
+				     ARRAY_SIZE(ios_ut_bp_repeatdom_cmd), 2);
 }
 void test_ios_bp_onerepeat_dom()
 {

@@ -168,11 +168,16 @@ M0_TL_DECLARE(pools_common_svc_ctx, M0_EXTERN, struct m0_reqh_service_ctx);
 M0_TL_DESCR_DECLARE(pool_version, M0_EXTERN);
 M0_TL_DECLARE(pool_version, M0_EXTERN, struct m0_pool_version);
 
-M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
-				     struct m0_rpc_machine *rmach,
-				     struct m0_conf_filesystem *fs);
+M0_INTERNAL void m0_pools_common_init(struct m0_pools_common *pc,
+				      struct m0_rpc_machine *rmach,
+				      struct m0_conf_filesystem *fs);
 
 M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc);
+
+
+M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
+					    struct m0_conf_filesystem *fs);
+M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc);
 
 M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id);
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool);
@@ -226,6 +231,14 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
 			       struct m0_dtm *dtm);
 
 M0_INTERNAL void m0_pools_destroy(struct m0_pools_common *pc);
+
+M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common *pc,
+				       struct m0_conf_filesystem *fs,
+				       struct m0_be_seg *be_seg,
+				       struct m0_sm_group *sm_grp,
+				       struct m0_dtm *dtm);
+
+M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc);
 
 M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
 					 const struct m0_fid *id);

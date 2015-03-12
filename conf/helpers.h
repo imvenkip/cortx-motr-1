@@ -32,6 +32,23 @@ struct m0_conf_pver;
 struct m0_conf_obj;
 struct m0_conf_root;
 struct m0_conf_service;
+struct m0_rpc_session;
+
+M0_TL_DESCR_DECLARE(m0_conf_failure_sets, M0_EXTERN);
+M0_TL_DECLARE(m0_conf_failure_sets, M0_EXTERN, struct m0_conf_obj);
+
+struct m0_confc_args {
+	/** Cofiguration profile. */
+	const char            *ca_profile;
+	/** Cofiguration string. */
+	const char            *ca_confstr;
+	/** Cofiguration server endpoint. */
+	const char            *ca_confd;
+	/** Configuration retrieval state machine. */
+	struct m0_sm_group    *ca_group;
+	/** Configuration retrieval rpc machine. */
+	struct m0_rpc_machine *ca_rmach;
+};
 
 /**
  * Obtains filesystem object associated with given profile.
@@ -40,9 +57,6 @@ struct m0_conf_service;
  *       to finalise it.
  */
 M0_INTERNAL int m0_conf_fs_get(const char                 *profile,
-			       const char                 *confd_addr,
-			       struct m0_rpc_machine      *rmach,
-			       struct m0_sm_group         *grp,
 			       struct m0_confc            *confc,
 			       struct m0_conf_filesystem **result);
 
@@ -52,8 +66,22 @@ M0_INTERNAL int m0_conf_poolversion_get(struct m0_conf_filesystem *fs,
 					struct m0_conf_pver **result);
 
 /**
- * Opens root configuration object.
- *
+ * Load full configuration tree.
+ */
+M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs);
+
+/**
+ * Build failure set of resources by scanning ha state.
+ */
+M0_INTERNAL int
+m0_conf_failure_sets_build(struct m0_rpc_session     *session,
+			   struct m0_conf_filesystem *fs,
+			   struct m0_tl              *failure_sets);
+
+M0_INTERNAL void m0_conf_failure_sets_destroy(struct m0_tl *failure_sets);
+
+/**
+ * Open root configuration object.
  * @param confc already initialised confc instance
  * @param root  output parameter. Should be closed by user.
  */
@@ -62,5 +90,6 @@ M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
 
 /** Get service name by service configuration object */
 M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc);
+M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj);
 
 #endif /* __MERO_CONF_HELPERS_H__ */

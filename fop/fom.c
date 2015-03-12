@@ -1455,6 +1455,13 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 	return m0_dtx_fol_add(&fom->fo_tx);
 }
 
+M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom)
+{
+	M0_PRE(fom != NULL && fom->fo_service != NULL);
+	return fom->fo_service->rs_reqh;
+}
+
+
 /** @} endgroup fom */
 /*
  *  Local variables:

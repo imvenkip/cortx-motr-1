@@ -72,10 +72,6 @@ static uint32_t max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 module_param(max_rpc_msg_size, int, S_IRUGO);
 MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
 
-static char *ha_addr = "0@lo:12345:66:";
-module_param(ha_addr, charp, S_IRUGO);
-MODULE_PARM_DESC(ha_addr, "End-point address of running HA instance.");
-
 M0_INTERNAL void io_bob_tlists_init(void);
 static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf);
 
@@ -577,12 +573,24 @@ int m0t1fs_pool_find(struct m0t1fs_sb *csb, struct m0_conf_filesystem *fs)
 	return M0_RC(rc);
 }
 
-static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
+static int m0t1fs_ha_setup(struct m0t1fs_sb *csb)
+{
+	csb->csb_ha_rsctx = m0_tl_find(pools_common_svc_ctx, ctx,
+				       &csb->csb_pools_common.pc_svc_ctxs,
+				       ctx->sc_type == M0_CST_HA);
+	if (csb->csb_ha_rsctx == NULL)
+		return M0_ERR(-ENOENT);
+
+	return M0_RC(m0_ha_state_init(&csb->csb_ha_rsctx->sc_session));
+}
+
+int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 {
 	struct m0_reqh_service_ctx *ctx;
 	const char                 *ep_addr;
 	struct m0_addb2_sys        *sys = m0_addb2_global_get();
 	struct m0_pools_common     *pools = &csb->csb_pools_common;
+	struct m0_confc_args       *confc_args;
 	int                         rc;
 
 	M0_ENTRY();
@@ -590,7 +598,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	rc = m0t1fs_net_init(csb);
 	if (rc != 0)
-		goto err_return;
+		return M0_ERR(rc);
 
 	rc = m0t1fs_rpc_init(csb);
 	if (rc != 0)
@@ -598,34 +606,55 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	csb->csb_next_key = mops->mo_fid_start;
 
-	rc = m0_conf_fs_get(mops->mo_profile, mops->mo_confd,
-			    &csb->csb_rpc_machine, &csb->csb_iogroup,
-			    &csb->csb_confc, &csb->csb_fs);
+	confc_args = &(struct m0_confc_args){
+		.ca_profile = mops->mo_profile,
+		.ca_confd   = mops->mo_confd,
+		.ca_rmach   = &csb->csb_rpc_machine,
+		.ca_group   = &csb->csb_iogroup,
+	};
+
+	rc = m0_reqh_conf_setup(&csb->csb_reqh, confc_args);
 	if (rc != 0)
 		goto err_rpc_fini;
 
-	rc = m0_pools_common_init(pools, &csb->csb_rpc_machine, csb->csb_fs);
+	rc = m0_conf_fs_get(confc_args->ca_profile, &csb->csb_reqh.rh_confc,
+			    &csb->csb_fs);
 	if (rc != 0)
 		goto err_conf_fini;
-	M0_ASSERT(ergo(csb->csb_oostore, pools->pc_md_redundancy > 0));
 
-	ctx = m0_pools_common_service_ctx_find_by_type(pools, M0_CST_HA);
-	if (rc != 0 || ctx == NULL) {
-		M0_LOG(M0_WARN, "Cannot connect to HA service.");
-	} else {
-		rc = m0_ha_state_init(&ctx->sc_session);
-		if (rc != 0)
-			goto err_pools_common_fini;
-	}
+	rc = m0_conf_full_load(csb->csb_fs);
+	if (rc != 0)
+		goto err_conf_fini;
+
+	m0_pools_common_init(&csb->csb_pools_common,
+			     &csb->csb_rpc_machine, csb->csb_fs);
+	M0_ASSERT(ergo(csb->csb_oostore, pools->pc_md_redundancy > 0));
 
 	rc = m0_pools_setup(pools, csb->csb_fs, NULL, NULL, NULL);
 	if (rc != 0)
-		goto err_ha_fini;
+		goto err_conf_fini;
+
+	rc = m0_pools_service_ctx_create(&csb->csb_pools_common, csb->csb_fs);
+	if (rc != 0)
+		goto err_pools_destroy;
+
+	rc = m0_pool_versions_setup(pools, csb->csb_fs, NULL, NULL, NULL);
+	if (rc != 0)
+		goto err_pools_service_ctx_destroy;
+
+	rc = m0t1fs_ha_setup(csb);
+	if (rc != 0)
+		goto err_pool_versions_destroy;
+
+	rc = m0_conf_failure_sets_build(&csb->csb_ha_rsctx->sc_session,
+					csb->csb_fs, &csb->csb_failure_sets);
+	if (rc != 0)
+		goto err_ha_destroy;
 
 	/* Find pool and pool version to use. */
 	rc = m0t1fs_pool_find(csb, csb->csb_fs);
 	if (rc != 0)
-		goto err_pools_common_fini;
+		goto err_failure_set_destroy;
 
 	ctx = pools->pc_ss_ctx;
 	if (ctx != NULL) {
@@ -637,35 +666,38 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	/* Start resource manager service */
 	rc = m0t1fs_reqh_services_start(csb);
 	if (rc != 0)
-		goto err_pools_common_fini;
+		goto err_failure_set_destroy;
 
 	rc = m0t1fs_sb_layouts_init(csb);
 	if (rc != 0)
 		goto err_services_terminate;
 
 	rc = m0_addb2_sys_net_start_with(sys, &pools->pc_svc_ctxs);
-	if (rc != 0)
-		goto err_sb_layout_fini;
+	if (rc == 0)
+		return M0_RC(0);
 
-	return M0_RC(rc);
-
-err_sb_layout_fini:
 	m0t1fs_sb_layouts_fini(csb);
 err_services_terminate:
 	m0_reqh_services_terminate(&csb->csb_reqh);
-err_ha_fini:
+err_failure_set_destroy:
+	m0_conf_failure_sets_destroy(&csb->csb_failure_sets);
+err_ha_destroy:
 	m0_ha_state_fini();
-err_pools_common_fini:
-	m0_pools_common_fini(pools);
+err_pool_versions_destroy:
+	m0_pool_versions_destroy(&csb->csb_pools_common);
+err_pools_service_ctx_destroy:
+	m0_pools_service_ctx_destroy(&csb->csb_pools_common);
+err_pools_destroy:
+	m0_pools_destroy(&csb->csb_pools_common);
+	m0_pools_common_fini(&csb->csb_pools_common);
 err_conf_fini:
 	/* Close filesystem. */
 	m0_confc_close(&csb->csb_fs->cf_obj);
-	m0_confc_fini(&csb->csb_confc);
+	m0_confc_fini(&csb->csb_reqh.rh_confc);
 err_rpc_fini:
 	m0t1fs_rpc_fini(csb);
 err_net_fini:
 	m0t1fs_net_fini(csb);
-err_return:
 	return M0_ERR(rc);
 }
 
@@ -675,11 +707,15 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0t1fs_sb_layouts_fini(csb);
 	m0_reqh_services_terminate(&csb->csb_reqh);
 	/* @todo Make a separate unconfigure api and do this in that */
+	m0_conf_failure_sets_destroy(&csb->csb_failure_sets);
 	m0_ha_state_fini();
+	m0_pool_versions_destroy(&csb->csb_pools_common);
+	m0_pools_service_ctx_destroy(&csb->csb_pools_common);
+	m0_pools_destroy(&csb->csb_pools_common);
 	m0_pools_common_fini(&csb->csb_pools_common);
 	/* Close filesystem. */
 	m0_confc_close(&csb->csb_fs->cf_obj);
-	m0_confc_fini(&csb->csb_confc);
+	m0_confc_fini(&csb->csb_reqh.rh_confc);
 	m0t1fs_rpc_fini(csb);
 	m0t1fs_net_fini(csb);
 }

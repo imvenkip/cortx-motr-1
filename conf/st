@@ -123,11 +123,12 @@ confdb() {
 (process-0 mem_limit=4000 cores=2 services=[service-0])
 (process-1 mem_limit=4000 cores=2 services=[service-1])
 (process-2 mem_limit=4000 cores=1 services=[service-2])
-(process-3 mem_limit=4000 cores=2 services=[service-3])
+(process-3 mem_limit=4000 cores=2 services=[service-3, service-4])
 (service-0 type=5 endpoints=["$SSS_ENDPOINT"] sdevs=[])
 (service-1 type=4 endpoints=["$RMS_ENDPOINT"] sdevs=[])
 (service-2 type=1 endpoints=["$MDS_ENDPOINT"] sdevs=[sdev-0])
 (service-3 type=2 endpoints=["$IOS0_ENDPOINT"] sdevs=[sdev-1, sdev-2])
+(service-4 type=6 endpoints=["$IOS0_ENDPOINT"] sdevs=[])
 (sdev-0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
     filename="/dev/sdev0")
 (sdev-1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
@@ -176,7 +177,7 @@ services_start() {
     [ $# -eq 0 -o "${1:-}" = autoconf ] || error 'Invalid argument'
     local MODE="${1:-}"
 
-    local PROF_AC_OPT='<0x7000000000000001:10>' # "profile-10"
+    local PROF_AC_OPT='<0x7000000000000001:0>' # "profile-0"
     local CONFD_SPEC="-s confd -c $CONF_FILE"
     local OPTS=
 
@@ -189,7 +190,7 @@ services_start() {
 -F -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
 -A linuxstob:$SANDBOX_DIR/addb-stobs
 -e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb2 -s ioservice
--m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3"
+-m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_AC_OPT"
     fi
 
     confdb | $M0_CORE_DIR/utils/m0confgen >$CONF_FILE

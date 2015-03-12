@@ -127,7 +127,7 @@ char local_conf[] = "[34:\
            [0])},\
    {0x73| (((0x7300000000000001, 8)), 5, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
            [0])},\
-   {0x73| (((0x7300000000000001, 9)), 6, [1: \"addr-3\"],\
+   {0x73| (((0x7300000000000001, 9)), 2, [1: \"addr-3\"],\
            [0])},\
    {0x64| (((0x6400000000000001, 10)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/sdev0\")},\
    {0x64| (((0x6400000000000001, 11)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/sdev1\")},\
@@ -206,10 +206,16 @@ static int file_io_ut_init(void)
 				M0_CONF_PROFILE_FILESYSTEM_FID);
 	M0_UT_ASSERT(rc == 0);
 	fs = M0_CONF_CAST(fs_obj, m0_conf_filesystem);
-	rc = m0_pools_common_init(&csb.csb_pools_common, NULL, fs);
-	M0_UT_ASSERT(rc == 0);
+	m0_pools_common_init(&csb.csb_pools_common, NULL, fs);
 
 	rc = m0_pools_setup(&csb.csb_pools_common, fs, NULL, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_pools_service_ctx_create(&csb.csb_pools_common, fs);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_pool_versions_setup(&csb.csb_pools_common, fs,
+				    NULL, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0t1fs_pool_find(&csb, fs);
@@ -294,6 +300,9 @@ static int file_io_ut_fini(void)
 	m0_layout_instance_fini(ci.ci_layout_instance);
 	/* Finalizes the m0_pdclust_layout type. */
 	m0_layout_put(&pdlay->pl_base.sl_base);
+	m0_pool_versions_destroy(&csb.csb_pools_common);
+	m0_pools_service_ctx_destroy(&csb.csb_pools_common);
+	m0_pools_destroy(&csb.csb_pools_common);
 	m0_pools_common_fini(&csb.csb_pools_common);
 	m0_confc_fini(&confc);
 	m0_reqh_services_terminate(&csb.csb_reqh);

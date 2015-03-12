@@ -20,33 +20,31 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_HA
 #include "lib/trace.h"
-
-#include "ha/note_foms.h"
-#include "ha/note_foms_internal.h"
-
 #include "fop/fom_generic.h"
 #include "fop/fop.h"
+#include "fop/fom.h"
 #include "ha/note.h"
+#include "ha/note_fops.h"             /* m0_ha_state_fop */
 #include "lib/memory.h"
 #include "rpc/rpc.h"
 #include "reqh/reqh.h"
+#include "conf/confc.h"               /* m0_conf_cache */
 
-M0_INTERNAL void m0_ha_state_set_fom_fini(struct m0_fom *fom)
+static void ha_state_fom_fini(struct m0_fom *fom)
 {
 	m0_fom_fini(fom);
 	m0_free(fom);
 }
 
-M0_INTERNAL size_t m0_ha_state_set_fom_home_locality(const struct m0_fom *fom)
+static  size_t ha_state_fom_home_locality(const struct m0_fom *fom)
 {
-	size_t seq = 0;
-	return ++seq;
+	return m0_fop_opcode(fom->fo_fop);
 }
 
-M0_INTERNAL int m0_ha_state_set_fom_tick(struct m0_fom *fom)
+static int ha_state_set_fom_tick(struct m0_fom *fom)
 {
 	m0_fom_block_enter(fom);
-	m0_ha_state_accept(&m0_fom_reqh(fom)->rh_confc,
+	m0_ha_state_accept(&m0_fom2reqh(fom)->rh_confc,
 			   m0_fop_data(fom->fo_fop));
 	m0_fom_block_leave(fom);
 	m0_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
@@ -55,9 +53,9 @@ M0_INTERNAL int m0_ha_state_set_fom_tick(struct m0_fom *fom)
 }
 
 const struct m0_fom_ops m0_ha_state_set_fom_ops = {
-	.fo_tick          = &m0_ha_state_set_fom_tick,
-	.fo_fini          = &m0_ha_state_set_fom_fini,
-	.fo_home_locality = &m0_ha_state_set_fom_home_locality
+	.fo_tick          = &ha_state_set_fom_tick,
+	.fo_fini          = &ha_state_fom_fini,
+	.fo_home_locality = &ha_state_fom_home_locality,
 };
 
 M0_INTERNAL int m0_ha_state_set_fom_create(struct m0_fop *fop,
@@ -91,6 +89,99 @@ M0_INTERNAL int m0_ha_state_set_fom_create(struct m0_fop *fop,
 
 const struct m0_fom_type_ops m0_ha_state_set_fom_type_ops = {
 	.fto_create = &m0_ha_state_set_fom_create
+};
+
+static void ha_state_get(struct m0_conf_cache   *cache,
+			struct m0_ha_nvec      *req_fop,
+			struct m0_ha_state_fop *rep_fop)
+{
+	struct m0_conf_obj *obj;
+	struct m0_ha_nvec  *note_vec = &rep_fop->hs_note;
+	int                 i;
+
+	M0_ENTRY();
+	note_vec->nv_nr = req_fop->nv_nr;
+	for (i = 0; i < req_fop->nv_nr; ++i) {
+		m0_conf_cache_lock(cache);
+		obj = m0_conf_cache_lookup(cache, &req_fop->nv_note[i].no_id);
+		if (obj != NULL) {
+			note_vec->nv_note[i].no_id = obj->co_id;
+			note_vec->nv_note[i].no_state = obj->co_ha_state;
+		}
+		m0_conf_cache_unlock(cache);
+	}
+	M0_LEAVE();
+}
+
+static int ha_state_get_fom_tick(struct m0_fom *fom)
+{
+	struct m0_ha_nvec      *req_fop;
+	struct m0_ha_state_fop *rep_fop;
+	struct m0_confc        *confc = &m0_fom2reqh(fom)->rh_confc;
+
+	req_fop = m0_fop_data(fom->fo_fop);
+	rep_fop = m0_fop_data(fom->fo_rep_fop);
+
+	ha_state_get(&confc->cc_cache, req_fop, rep_fop);
+
+        m0_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
+        m0_fom_phase_set(fom, M0_FOPH_FINISH);
+        return M0_FSO_WAIT;
+}
+
+const struct m0_fom_ops m0_ha_state_get_fom_ops = {
+	.fo_tick          = ha_state_get_fom_tick,
+	.fo_fini          = ha_state_fom_fini,
+	.fo_home_locality = ha_state_fom_home_locality,
+};
+
+static int m0_ha_state_get_fom_create(struct m0_fop  *fop,
+				      struct m0_fom  **m,
+				      struct m0_reqh *reqh)
+{
+	struct m0_fom          *fom;
+	struct m0_ha_state_fop *ha_state_fop;
+	struct m0_ha_nvec      *req_fop;
+
+	M0_PRE(fop != NULL);
+	M0_PRE(m != NULL);
+
+	M0_ALLOC_PTR(fom);
+	if (fom == NULL)
+		return M0_ERR(-ENOMEM);
+
+	M0_ALLOC_PTR(ha_state_fop);
+	if (ha_state_fop == NULL){
+		m0_free(fom);
+		return M0_ERR(-ENOMEM);
+	}
+
+	req_fop = m0_fop_data(fop);
+	M0_ALLOC_ARR(ha_state_fop->hs_note.nv_note, req_fop->nv_nr);
+	if (ha_state_fop->hs_note.nv_note == NULL){
+		m0_free(ha_state_fop);
+		m0_free(fom);
+		return M0_ERR(-ENOMEM);
+	}
+
+	fom->fo_rep_fop = m0_fop_alloc(&m0_ha_state_get_rep_fopt, ha_state_fop,
+				       m0_fop_rpc_machine(fop));
+	if (fom->fo_rep_fop == NULL) {
+		m0_free(ha_state_fop->hs_note.nv_note);
+		m0_free(ha_state_fop);
+		m0_free(fom);
+		return M0_ERR(-ENOMEM);
+	}
+
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, &m0_ha_state_get_fom_ops,
+		    fop, fom->fo_rep_fop, reqh);
+
+	*m = fom;
+	return M0_RC(0);
+}
+
+const struct m0_fom_type_ops m0_ha_state_get_fom_type_ops = {
+	.fto_create = m0_ha_state_get_fom_create
 };
 
 #undef M0_TRACE_SUBSYSTEM

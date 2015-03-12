@@ -30,6 +30,7 @@
 #include "reqh/ut/reqh_service_xc.h"
 #include "ut/cs_fop.h"
 #include "ut/ut_rpc_machine.h"
+#include "ut/file_helpers.h"
 
 #include "rpc/ut/clnt_srv_ctx.c"
 #include "reqh/ut/reqhut_fom.c"
@@ -39,7 +40,8 @@ static int fom_tick(struct m0_fom *fom);
 static char *ut_server_argv[] = {
 	"rpclib_ut", "-T", "AD", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
-	"-e", SERVER_ENDPOINT, "-w", "10"
+	"-e", SERVER_ENDPOINT, "-w", "10",
+	"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
 };
 
 struct m0_reqh_service_type *ut_stypes[] = {

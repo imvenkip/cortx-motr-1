@@ -23,6 +23,7 @@
 #include "sns/cm/repair/ut/cp_common.h"
 #include "sns/cm/repair/service.c"
 #include "sns/cm/rebalance/service.c"
+#include "ut/file_helpers.h"  /* M0_UT_CONF_PATH */
 
 /* Global structures for setting up mero service. */
 const char log_file_name[] = "sr_ut.errlog";
@@ -35,7 +36,9 @@ char      *sns_cm_ut_svc[] = { "m0d", "-T", "LINUX",
 			       "-s", "mdservice",
                                "-s", "ioservice",
 			       "-s", "sns_repair",
-                               "-s", "rmservice"};
+                               "-s", "rmservice",
+			       "-P", M0_UT_CONF_PROFILE,
+			       "-c", M0_UT_CONF_PATH("conf-str.txt")};
 
 struct m0_net_xprt *sr_xprts[] = {
         &m0_net_lnet_xprt,

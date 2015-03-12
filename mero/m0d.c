@@ -18,8 +18,9 @@
  * Original creation date: 05/08/2011
  */
 
-#include <stdio.h>            /* fprintf */
+#include <stdio.h>            /* printf */
 #include <unistd.h>           /* pause */
+#include <err.h>              /* warnx */
 #include <signal.h>           /* sigaction */
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -101,20 +102,20 @@ M0_INTERNAL int main(int argc, char **argv)
 
 	rc = setrlimit(RLIMIT_NOFILE, &rlim);
 	if (rc != 0) {
-		fprintf(stderr, "\n Failed to setrlimit\n");
+		warnx("\n Failed to setrlimit\n");
 		goto out;
 	}
 	errno = 0;
 	M0_SET0(&mero_ctx);
 	rc = m0_init(&instance);
 	if (rc != 0) {
-		fprintf(stderr, "\n Failed to initialise Mero \n");
+		warnx("\n Failed to initialise Mero \n");
 		goto out;
 	}
 
 	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, false);
 	if (rc != 0) {
-		fprintf(stderr, "\n Failed to initialise Mero \n");
+		warnx("\n Failed to initialise Mero \n");
 		goto cleanup2;
 	}
 
@@ -122,19 +123,19 @@ M0_INTERNAL int main(int argc, char **argv)
 	if (rc != 0)
 		goto cleanup1;
 
+#ifdef HAVE_SYSTEMD
+	rc = sd_notify(0, "READY=1");
+	if (rc < 0)
+		warnx("systemd READY notification failed, rc=%d\n", rc);
+	else if (rc == 0)
+		warnx("systemd notifications not allowed\n");
+	else
+		warnx("systemd READY notification successfull\n");
+#endif
+
 	rc = m0_cs_start(&mero_ctx);
 
 	if (rc == 0) {
-#ifdef HAVE_SYSTEMD
-		rc = sd_notify(0, "READY=1");
-		if (rc < 0)
-			fprintf(stderr, "systemd READY notification failed,"
-					" rc=%d\n", rc);
-		else if (rc == 0)
-			fprintf(stderr, "systemd notifications not allowed\n");
-		else
-			fprintf(stderr, "systemd READY notification successfull\n");
-#endif
 		cs_wait_for_termination();
 	}
 

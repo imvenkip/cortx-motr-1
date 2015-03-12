@@ -37,25 +37,18 @@
 #include "conf/ut/confc.h"  /* conf_ut_obj_find() */
 
 #include "ha/note.c"
-#include "ha/note_foms.h"
-#include "ha/note_foms_internal.h"
 #include "ha/note_fops.h"
 #include "ha/note_fops_xc.h"
 #include "ha/note_xc.h"
-
-#define _QUOTE(s) #s
-#define QUOTE(s) _QUOTE(s)
-
-/* See "ha/ut/Makefile.sub" for M0_HA_UT_DIR */
-#define M0_HA_UT_PATH(name)   QUOTE(M0_CONF_UT_DIR) "/" name
+#include "conf/helpers.h"  /* m0_conf_fs_get */
 
 #define CLIENT_DB_NAME        "ha_ut_client.db"
 #define CLIENT_ENDPOINT_ADDR  "0@lo:12345:34:*"
 
-#define SERVER_DB_NAME        "ha_ut_server.db"
-#define SERVER_STOB_NAME      "ha_ut_server.stob"
-#define SERVER_ADDB_STOB_NAME "linuxstob:ha_ut_server.addb_stob"
-#define SERVER_LOG_NAME       "ha_ut_server.log"
+#define SERVER_DB_NAME        "ha_ut_confd_server.db"
+#define SERVER_STOB_NAME      "ha_ut_confd_server.stob"
+#define SERVER_ADDB_STOB_NAME "linuxstob:ha_ut_confd_server.addb_stob"
+#define SERVER_LOG_NAME       "ha_ut_confd_server.log"
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
 #define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
 
@@ -83,8 +76,9 @@ static struct m0_rpc_client_ctx cctx = {
 static char *server_argv[] = {
 	"ha_ut", "-T", "AD", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
-	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2", "-s", "addb2", "-w",
-	"10", "-s", "confd", "-c", M0_HA_UT_PATH("conf-str.txt")
+	"-e", SERVER_ENDPOINT, "-s", "addb2", "-w", "10",
+	"-s", "confd", "-P", M0_UT_CONF_PROFILE,
+	"-c", M0_UT_CONF_PATH("conf-str.txt")
 };
 
 static struct m0_rpc_server_ctx sctx = {
@@ -107,173 +101,6 @@ static struct {
 	bool             run;
 	struct m0_thread thread;
 } g_ast;
-
-/* ----------------------------------------------------------------
- * Dummy FOMs for unit test
- * ---------------------------------------------------------------- */
-
-/*
- * Common FOM functions. These are implemented here because we are mocking
- * the HA side.
- *
- * Crucially, the GET FOP is only used in requesting status updates from HA.
- * As such, there does not exist an implementation of the relevant FOM inside
- * Mero, since Mero will never handle this message.
- *
- * The SET FOP is used in two ways. It is used by the HA subsystem to send
- * verified status change notification to Mero, and an implementation of the
- * FOM to manage this is included in Mero (see note_foms.c). However, it is also
- * used to send tentative status notification from a Mero instance to HA. This
- * test therefore includes a fom for handling the SET FOP on the HA side.
- */
-
-static int ha_state_ut_fom_create(const struct m0_fom_ops *ops,
-				  struct m0_fop *fop, struct m0_fom **m,
-				  struct m0_reqh *reqh)
-{
-	struct m0_fom *fom;
-
-	M0_ALLOC_PTR(fom);
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, NULL, reqh);
-	*m = fom;
-	return 0;
-}
-
-/*
- * Get FOM ops for unit test
- */
-
-static int ha_state_ut_fom_get_tick(struct m0_fom *fom)
-{
-	struct m0_fop          *reply_fop;
-	struct m0_ha_nvec      *req;
-	struct m0_ha_state_fop *reply;
-	int                     i;
-
-	reply_fop = m0_fop_reply_alloc(fom->fo_fop, &m0_ha_state_get_rep_fopt);
-	M0_UT_ASSERT(reply_fop != NULL);
-
-	req = m0_fop_data(fom->fo_fop);
-
-	reply                = m0_fop_data(reply_fop);
-	reply->hs_rc         = 0;
-	reply->hs_note.nv_nr = req->nv_nr;
-
-	M0_ALLOC_ARR(reply->hs_note.nv_note, req->nv_nr);
-	M0_UT_ASSERT(reply->hs_note.nv_note != NULL);
-	for (i = 0; i < req->nv_nr; ++i) {
-		reply->hs_note.nv_note[i] = (struct m0_ha_note) {
-			.no_id    = req->nv_note[i].no_id,
-			.no_state = M0_NC_ONLINE
-		};
-	}
-
-	m0_rpc_reply_post(m0_fop_to_rpc_item(fom->fo_fop),
-			  m0_fop_to_rpc_item(reply_fop));
-	m0_fom_phase_set(fom, M0_FOPH_FINISH);
-	return M0_FSO_WAIT;
-}
-
-static const struct m0_fom_ops ha_state_ut_get_fom_ops = {
-	.fo_tick          = &ha_state_ut_fom_get_tick,
-	.fo_fini          = &m0_ha_state_set_fom_fini,
-	.fo_home_locality = &m0_ha_state_set_fom_home_locality
-};
-
-static int ha_state_ut_get_fom_create(struct m0_fop *fop, struct m0_fom **m,
-				      struct m0_reqh *reqh)
-{
-	return ha_state_ut_fom_create(&ha_state_ut_get_fom_ops, fop, m, reqh);
-}
-
-const struct m0_fom_type_ops ha_state_ut_get_fom_type_ops = {
-	.fto_create = &ha_state_ut_get_fom_create
-};
-
-/*
- * Set FOM ops for unit test
- */
-
-static int ha_state_ut_fom_set_tick(struct m0_fom *fom)
-{
-	struct m0_fop     *fop;
-	struct m0_ha_nvec *note;
-	struct m0_fid      u;
-
-	fop = m0_fop_reply_alloc(fom->fo_fop, &m0_fop_generic_reply_fopt);
-	M0_UT_ASSERT(fop != NULL);
-
-	note = m0_fop_data(fom->fo_fop);
-	u = note->nv_note[0].no_id;
-
-	M0_UT_ASSERT(note->nv_nr == 1);
-	M0_UT_ASSERT(note->nv_note[0].no_state == M0_NC_ONLINE);
-	M0_UT_ASSERT(m0_fid_eq(&u, &conf_obj_id_fs));
-
-	m0_rpc_reply_post(m0_fop_to_rpc_item(fom->fo_fop),
-			  m0_fop_to_rpc_item(fop));
-	m0_fom_phase_set(fom, M0_FOPH_FINISH);
-	return M0_FSO_WAIT;
-}
-
-static const struct m0_fom_ops ha_state_ut_set_fom_ops = {
-	.fo_tick          = ha_state_ut_fom_set_tick,
-	.fo_fini          = m0_ha_state_set_fom_fini,
-	.fo_home_locality = m0_ha_state_set_fom_home_locality
-};
-
-static int ha_state_ut_set_fom_create(struct m0_fop *fop, struct m0_fom **m,
-				      struct m0_reqh *reqh)
-{
-	return ha_state_ut_fom_create(&ha_state_ut_set_fom_ops, fop, m, reqh);
-}
-
-const struct m0_fom_type_ops ha_state_ut_set_fom_type_ops = {
-	.fto_create = ha_state_ut_set_fom_create
-};
-
-/*
- * Init and fini
- */
-
-static int ha_state_ut_fop_init(void)
-{
-	m0_xc_note_init();
-	m0_xc_note_fops_init();
-
-	M0_FOP_TYPE_INIT(&m0_ha_state_get_fopt,
-			 .name      = "HA State Get",
-			 .opcode    = M0_HA_NOTE_GET_OPCODE,
-			 .xt        = m0_ha_nvec_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-			 .fom_ops   = &ha_state_ut_get_fom_type_ops,
-			 .sm        = &m0_generic_conf,
-			 .svc_type  = &m0_rpc_service_type);
-	M0_FOP_TYPE_INIT(&m0_ha_state_get_rep_fopt,
-			 .name      = "HA State Get Reply",
-			 .opcode    = M0_HA_NOTE_GET_REP_OPCODE,
-			 .xt        = m0_ha_state_fop_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-			 .svc_type  = &m0_rpc_service_type);
-	M0_FOP_TYPE_INIT(&m0_ha_state_set_fopt,
-			 .name      = "HA State Set",
-			 .opcode    = M0_HA_NOTE_SET_OPCODE,
-			 .xt        = m0_ha_nvec_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-			 .fom_ops   = &ha_state_ut_set_fom_type_ops,
-			 .sm        = &m0_generic_conf,
-			 .svc_type  = &m0_rpc_service_type);
-	return 0;
-}
-
-static void ha_state_ut_fop_fini(void)
-{
-	m0_fop_type_fini(&m0_ha_state_get_fopt);
-	m0_fop_type_fini(&m0_ha_state_get_rep_fopt);
-	m0_fop_type_fini(&m0_ha_state_set_fopt);
-	m0_xc_note_fini();
-	m0_xc_note_fops_fini();
-}
 
 /* ----------------------------------------------------------------
  * Auxiliary functions
@@ -348,14 +175,14 @@ static void local_confc_init(struct m0_confc *confc)
 {
 	int rc;
 
-	rc = m0_ut_file_read(M0_HA_UT_PATH("conf-str.txt"),
+	rc = m0_ut_file_read(M0_UT_CONF_PATH("conf-str.txt"),
 			     ut_ha_conf_str, sizeof ut_ha_conf_str);
 	M0_UT_ASSERT(rc == 0);
 
 	/*
-	 * All configuration object need to be preloaded, since
+	 * All configuration objects need to be preloaded, since
 	 * m0_ha_state_accept() function traverses all the descendants appearing
-	 * in preloaded data. When missing configuration object were found,
+	 * in preloaded data. When missing configuration object is found,
 	 * unit test for m0_ha_state_accept() will likely to show an error
 	 * similar to below:
 	 *
@@ -367,12 +194,7 @@ static void local_confc_init(struct m0_confc *confc)
 	M0_UT_ASSERT(rc == 0);
 }
 
-static void local_confc_fini(struct m0_confc *confc)
-{
-	m0_confc_fini(confc);
-}
-
-static void compare_ha_state(struct m0_confc      confc,
+static void compare_ha_state(struct m0_confc *confc,
 			     enum m0_ha_obj_state state)
 {
 	struct m0_conf_obj *node_dir;
@@ -381,9 +203,9 @@ static void compare_ha_state(struct m0_confc      confc,
 	struct m0_conf_obj *svc;
 	int                 rc;
 
-	rc = m0_confc_open_sync(&node_dir, confc.cc_root,
+	rc = m0_confc_open_sync(&node_dir, confc->cc_root,
 				M0_CONF_ROOT_PROFILES_FID,
-				M0_FID_TINIT('p', 1, 0),
+				m0_ut_conf_fids[M0_UT_CONF_PROF],
 				M0_CONF_PROFILE_FILESYSTEM_FID,
 				M0_CONF_FILESYSTEM_NODES_FID);
 	M0_UT_ASSERT(rc == 0);
@@ -416,33 +238,31 @@ static void compare_ha_state(struct m0_confc      confc,
 /* ----------------------------------------------------------------
  * Unit tests
  * ---------------------------------------------------------------- */
-
-static void test_ha_state_get(void)
+static void test_ha_state_set_and_get(void)
 {
-	struct m0_ha_note n1 = { conf_obj_id_fs, M0_NC_UNKNOWN };
-	struct m0_ha_nvec nvec = { 1, &n1 };
-	int rc;
+	struct m0_confc   confc;
+	int               rc;
+	struct m0_ha_note n1[] = {
+		{ M0_FID_TINIT('n', 1, 2), M0_NC_ONLINE },
+		{ M0_FID_TINIT('s', 1, 9), M0_NC_ONLINE },
+		{ M0_FID_TINIT('s', 1, 10), M0_NC_ONLINE},
+	};
+	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
 
-	rc = m0_ha_state_get(session, &nvec, &chan);
-	M0_UT_ASSERT(rc == 0);
-
-	m0_chan_wait(&clink);
-	M0_UT_ASSERT(n1.no_state == M0_NC_ONLINE);
-}
-
-static void test_ha_state_set(void)
-{
-	struct m0_fid     u = conf_obj_id_fs;
-	struct m0_ha_note n1;
-	struct m0_ha_nvec nvec;
-
-	n1.no_id    = u;
-	n1.no_state = M0_NC_ONLINE;
-
-	nvec.nv_nr   = 1;
-	nvec.nv_note = &n1;
+	local_confc_init(&confc);
 
 	m0_ha_state_set(session, &nvec);
+
+	n1[0].no_state = M0_NC_UNKNOWN;
+	n1[1].no_state = M0_NC_UNKNOWN;
+	n1[2].no_state = M0_NC_UNKNOWN;
+	rc = m0_ha_state_get(session, &nvec, &chan);
+	M0_UT_ASSERT(rc == 0);
+	m0_chan_wait(&clink);
+	m0_ha_state_accept(&confc, &nvec);
+	compare_ha_state(&confc, M0_NC_ONLINE);
+
+	m0_confc_fini(&confc);
 }
 
 static void test_ha_state_accept(void)
@@ -470,17 +290,55 @@ static void test_ha_state_accept(void)
 		n[i].no_state = M0_NC_ONLINE;
 	}
 	m0_ha_state_accept(&confc, &nvec);
-	compare_ha_state(confc, M0_NC_ONLINE);
+	compare_ha_state(&confc, M0_NC_ONLINE);
 
 	/* To check updates */
 	for (i = 0; i < ARRAY_SIZE(u); ++i) {
 		n[i].no_state = M0_NC_FAILED;
 	}
 	m0_ha_state_accept(&confc, &nvec);
-	compare_ha_state(confc, M0_NC_FAILED);
+	compare_ha_state(&confc, M0_NC_FAILED);
 
-	local_confc_fini(&confc);
+	m0_confc_fini(&confc);
 	m0_free(n);
+}
+
+static void test_failure_sets(void)
+{
+	struct m0_confc            confc;
+	int                        rc;
+	struct m0_tl               failure_set;
+	struct m0_conf_filesystem *fs;
+	struct m0_conf_obj        *obj;
+	struct m0_ha_note n1[] = {
+		{ M0_FID_TINIT('n', 1, 2),  M0_NC_FAILED },
+		{ M0_FID_TINIT('s', 1, 9),  M0_NC_FAILED },
+		{ M0_FID_TINIT('s', 1, 10), M0_NC_FAILED },
+	};
+	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
+
+	local_confc_init(&confc);
+	m0_ha_state_set(session, &nvec);
+
+	rc = m0_conf_fs_get(M0_UT_CONF_PROFILE, &confc, &fs);
+	M0_UT_ASSERT(rc == 0);
+
+        rc = m0_conf_full_load(fs);
+        M0_UT_ASSERT(rc == 0);
+
+	rc = m0_conf_failure_sets_build(session, fs, &failure_set);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_UT_ASSERT(m0_conf_failure_sets_tlist_length(&failure_set) == 3);
+
+	m0_tl_for(m0_conf_failure_sets, &failure_set, obj) {
+		M0_UT_ASSERT(obj->co_ha_state == M0_NC_FAILED);
+	} m0_tlist_endfor;
+
+	m0_conf_failure_sets_destroy(&failure_set);
+
+	m0_confc_close(&fs->cf_obj);
+	m0_confc_fini(&confc);
 }
 
 /* -------------------------------------------------------------------
@@ -490,9 +348,6 @@ static void test_ha_state_accept(void)
 static int ha_state_ut_init(void)
 {
 	int rc;
-
-	rc = ha_state_ut_fop_init();
-	M0_ASSERT(rc == 0);
 
 	rc = ast_thread_init();
 	M0_ASSERT(rc == 0);
@@ -509,7 +364,6 @@ static int ha_state_ut_fini(void)
 	stop_rpc_client_and_server();
 	done_get_chan_fini();
 	ast_thread_fini();
-	ha_state_ut_fop_fini();
 	return 0;
 }
 
@@ -518,9 +372,9 @@ struct m0_ut_suite ha_state_ut = {
 	.ts_init = ha_state_ut_init,
 	.ts_fini = ha_state_ut_fini,
 	.ts_tests = {
-		{ "ha_state_get", test_ha_state_get },
-		{ "ha_state_set", test_ha_state_set },
-		{ "ha_state_accept", test_ha_state_accept },
+		{ "ha_state_set_and_get", test_ha_state_set_and_get },
+		{ "ha_state_accept",      test_ha_state_accept },
+		{ "ha-failure-sets",      test_failure_sets },
 		{ NULL, NULL }
 	}
 };

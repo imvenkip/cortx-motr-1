@@ -93,9 +93,8 @@ static bool m0_chan_invariant(struct m0_chan *chan)
 M0_INTERNAL void m0_chan_init(struct m0_chan *chan, struct m0_mutex *ch_guard)
 {
 	M0_PRE(ch_guard != NULL);
+	*chan = (struct m0_chan){ .ch_guard = ch_guard };
 	clink_tlist_init(&chan->ch_links);
-	chan->ch_guard = ch_guard;
-	chan->ch_waiters = 0;
 }
 M0_EXPORTED(m0_chan_init);
 

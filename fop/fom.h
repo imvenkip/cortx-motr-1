@@ -856,6 +856,8 @@ M0_INTERNAL int m0_fom_addb2_init(struct m0_fom_type *type, uint64_t id);
  */
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
 
+M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom);
+
 #endif /* __MERO_FOP_FOM_H__ */
 /** @} end of fom group */
 

@@ -1,56 +1,29 @@
 #!/bin/bash
 
 
+# constants
+readonly PROG_NAME=$(basename $0)
+
 # global variables, which can be overriden in /etc/sysconfig/mero
 MERO_GENDERS_CONF=/etc/mero/genders
 
 # service local variables
+mero_exec_dir=/usr/libexec/mero
 user_config=/etc/sysconfig/mero
-service_funcs=/usr/libexec/mero/mero-service.functions
+service_funcs=$mero_exec_dir/mero-service.functions
 
 
 m0_mkfs()
 {
     local service=$1
 
-    [[ -n $service ]] || m0_exit "usage: mero-mkfs <SERVICE>"
+    [[ -n $service ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
 
-    [ -n "$MERO_M0D_DEBUGGER" ] && export M0_DEBUGGER=$MERO_M0D_DEBUGGER
+    local segment_size=$(m0_genders_value_of m0_be_segment_size)
+    local be_opts=${segment_size:+ -z $segment_size}
+    local node_uuid=$(m0_genders_value_of m0_uuid)
 
-    service_dir=$(m0_get_m0d_data_dir_for $service)
-    if [ x$MERO_M0D_REMOVE_SERVICE_DIR = xtrue ] && [ -d "$service_dir" ] ; then
-        rm -rf "$service_dir"
-    fi
-    [ ! -d "$service_dir" ] && mkdir -p "$service_dir"
-    cd $service_dir
-
-    stob_type='-T ad'
-    stob_opts='-D db -S stobs -A linuxstob:addb-stobs'
-    segment_size=$(m0_genders_value_of m0_be_segment_size)
-    be_opts=${segment_size:+ -z $segment_size}
-    node_uuid=$(m0_genders_value_of m0_uuid)
-
-    case "$service" in
-        confd|mds) stob_type='-T linux'
-            ;;
-
-        singlenode|ios*) stob_opts+=" -d /etc/mero/disks-$service.conf"
-            ;;
-
-        *) m0_exit "Failed to start unknown service '$service'," \
-                   " available services are 'mds' and 'ios*'"
-            ;;
-    esac
-
-    m0mkfs=$(m0_path_to m0mkfs)
-
-    # enable core dumps
-    ulimit -c unlimited
-
-    # show actual exec commands in log file
-    set -x
-
-    $m0mkfs -u $node_uuid $stob_type $stob_opts $be_opts
+    $mero_exec_dir/mero-server $service m0mkfs "-F -u $node_uuid $be_opts"
 }
 
 
@@ -58,11 +31,39 @@ source $service_funcs
 
 [[ -r $user_config ]] && source $user_config
 
+# exit immediately if one the commands exits with a non-zero status
+set -e
+
 if [[ -n $1 ]] ; then
     m0_mkfs $1
 else
-    services=$(m0_get_services)
+    confd_is_started=false
+    services=$(m0_get_services | sed 's/confd//')
+
+    # check if there is a 'confd' service, we need to start it first,
+    # but only if there are other services on this node which require mkfs
+    if [[ $services != $(m0_get_services) ]] ; then
+        systemctl start mero-mkfs@confd.service
+        if [[ -n $services ]] ; then
+            systemctl start mero-server-confd.service
+            confd_is_started=true
+            # hideous hack to workaround confd's long startup time
+            sleep 5
+        fi
+    fi
+
     for s in $services; do
         systemctl start mero-mkfs@${s}.service
     done
+
+    if $confd_is_started ; then
+        systemctl stop mero-server-confd.service
+        if systemctl -q is-active mero-trace@confd.service ; then
+            systemctl stop mero-trace@confd.service
+        fi
+    fi
+
+    if systemctl -q is-active mero-kernel.service ; then
+        systemctl stop mero-kernel.service
+    fi
 fi

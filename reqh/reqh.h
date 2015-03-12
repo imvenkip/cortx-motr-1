@@ -60,6 +60,7 @@ High level design of M0 request handler</a>
 struct m0_fop;
 struct m0_rpc_machine;
 struct m0_addb2_storage;
+struct m0_confc_args;
 
 M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 256);
 
@@ -332,6 +333,12 @@ M0_INTERNAL void m0_reqhs_fini(void);
 
 /** Returns number of localities in request handler FOM domain. */
 M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh);
+
+/**
+ * Initialises confc.
+ */
+M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
+				   struct m0_confc_args *args);
 
 /** Descriptor for tlist of request handler services. */
 M0_TL_DESCR_DECLARE(m0_reqh_svc, M0_EXTERN);

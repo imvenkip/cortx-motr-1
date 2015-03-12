@@ -680,6 +680,7 @@ usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/lnet.service \
                         scripts/install/usr/lib/systemd/system/mero-mkfs.service \
                         scripts/install/usr/lib/systemd/system/mero-mkfs@.service \
                         scripts/install/usr/lib/systemd/system/mero-server-confd.service \
+                        scripts/install/usr/lib/systemd/system/mero-server-ha.service \
                         scripts/install/usr/lib/systemd/system/mero-server@.service \
                         scripts/install/usr/lib/systemd/system/mero-singlenode.service \
                         scripts/install/usr/lib/systemd/system/mero-trace@.service \

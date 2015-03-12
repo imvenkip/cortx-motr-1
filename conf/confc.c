@@ -366,7 +366,7 @@ static const struct m0_bob_type ctx_bob = {
 };
 M0_BOB_DEFINE(static, &ctx_bob, m0_confc_ctx);
 
-static bool confc_invariant(const struct m0_confc *confc)
+M0_INTERNAL bool m0_confc_invariant(const struct m0_confc *confc)
 {
 	return m0_confc_bob_check(confc);
 }
@@ -376,11 +376,10 @@ static bool ctx_invariant(const struct m0_confc_ctx *ctx)
 	M0_PRE(ctx != NULL);
 	return m0_confc_ctx_bob_check(ctx);
 }
-
+
 /* ------------------------------------------------------------------
  * m0_confc
  * ------------------------------------------------------------------ */
-
 static int confc_cache_preload(struct m0_confc *confc, const char *local_conf);
 static bool confc_is_online(const struct m0_confc *confc);
 static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
@@ -448,7 +447,7 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 		m0_confc_bob_init(confc);
 
 		M0_POST(not_empty(confd_addr) == confc_is_online(confc));
-		M0_POST(confc_invariant(confc));
+		M0_POST(m0_confc_invariant(confc));
 		return M0_RC(0);
 	}
 err:
@@ -502,7 +501,7 @@ M0_INTERNAL void
 m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 {
 	M0_ENTRY("ctx=%p confc=%p", ctx, confc);
-	M0_PRE(confc_invariant(confc));
+	M0_PRE(m0_confc_invariant(confc));
 
 	M0_SET0(ctx);
 	ctx->fc_confc = confc;
@@ -560,7 +559,7 @@ static bool _ctx_check(const void *bob)
 	const struct m0_confc_ctx *ctx = bob;
 	const struct m0_sm        *mach = &ctx->fc_mach;
 
-	return  confc_invariant(ctx->fc_confc) &&
+	return  m0_confc_invariant(ctx->fc_confc) &&
 		ctx->fc_ast.sa_datum == &ctx->fc_ast_datum &&
 		ctx->fc_clink.cl_cb == on_object_updated &&
 		ergo(ctx->fc_rpc_item != NULL, request_check(ctx)) &&

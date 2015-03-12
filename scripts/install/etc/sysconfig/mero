@@ -57,6 +57,9 @@ MERO_TRACED_KMOD=yes
 # Use m0traced daemon to collect trace logs of m0d processes.
 MERO_TRACED_M0D=yes
 
+# Can be set to a number of seconds for m0traced to monitor input file creation
+MERO_TRACED_CHECK_INPUT=30
+
 # Additional m0traced options (will be appended to the default option list).
 #MERO_TRACED_EXTRA_OPTS=
 

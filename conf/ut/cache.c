@@ -157,7 +157,7 @@ void test_obj_fill(void)
 
 	m0_confx_free(NULL); /* to make sure this can be done */
 
-	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf-str.txt"), buf, sizeof buf);
+	rc = m0_ut_file_read(M0_UT_CONF_PATH("conf-str.txt"), buf, sizeof buf);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_confstr_parse(buf, &enc);

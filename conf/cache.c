@@ -37,10 +37,32 @@
  * @{
  */
 
-M0_TL_DESCR_DEFINE(m0_conf_cache, "registered m0_conf_obj-s", static,
+M0_TL_DESCR_DEFINE(m0_conf_cache, "registered m0_conf_obj-s", ,
 		   struct m0_conf_obj, co_cache_link, co_gen_magic,
 		   M0_CONF_OBJ_MAGIC, M0_CONF_CACHE_MAGIC);
 M0_TL_DEFINE(m0_conf_cache, M0_INTERNAL, struct m0_conf_obj);
+
+M0_INTERNAL void m0_conf_cache_lock(struct m0_conf_cache *cache)
+{
+	m0_mutex_lock(cache->ca_lock);
+}
+
+M0_INTERNAL void m0_conf_cache_unlock(struct m0_conf_cache *cache)
+{
+	m0_mutex_unlock(cache->ca_lock);
+}
+
+M0_INTERNAL bool m0_conf_cache_is_locked(const struct m0_conf_cache *cache)
+{
+	return m0_mutex_is_locked(cache->ca_lock);
+}
+
+
+M0_INTERNAL bool m0_conf_cache_invariant(const struct m0_conf_cache *cache)
+{
+	return m0_conf_cache_tlist_invariant(&cache->ca_registry) &&
+	       cache->ca_lock != NULL;
+}
 
 M0_INTERNAL void
 m0_conf_cache_init(struct m0_conf_cache *cache, struct m0_mutex *lock)
@@ -59,7 +81,7 @@ m0_conf_cache_add(struct m0_conf_cache *cache, struct m0_conf_obj *obj)
 	const struct m0_conf_obj *x;
 
 	M0_ENTRY();
-	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
+	M0_PRE(m0_conf_cache_is_locked(cache));
 	M0_PRE(!m0_conf_cache_tlink_is_in(obj));
 
 	x = m0_conf_cache_lookup(cache, &obj->co_id);
@@ -87,7 +109,7 @@ M0_INTERNAL void
 m0_conf_cache_del(const struct m0_conf_cache *cache, struct m0_conf_obj *obj)
 {
 	M0_ENTRY();
-	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
+	M0_PRE(m0_conf_cache_is_locked(cache));
 	M0_PRE(m0_conf_cache_tlist_contains(&cache->ca_registry, obj));
 
 	_obj_del(obj);
@@ -101,14 +123,14 @@ M0_INTERNAL void m0_conf_cache_fini(struct m0_conf_cache *cache)
 
 	M0_ENTRY();
 
-	m0_mutex_lock(cache->ca_lock);
+	m0_conf_cache_lock(cache);
 
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
 		_obj_del(obj);
 	} m0_tl_endfor;
 	m0_conf_cache_tlist_fini(&cache->ca_registry);
 
-	m0_mutex_unlock(cache->ca_lock);
+	m0_conf_cache_unlock(cache);
 
 	M0_LEAVE();
 }

@@ -28,16 +28,6 @@
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine */
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx */
 
-#define _QUOTE(s) #s
-#define QUOTE(s) _QUOTE(s)
-
-/**
- * Returns absolute path to given file in spiel/ut directory.
- * M0_SPIEL_UT_DIR is defined in spiel/ut/Makefile.am.
- */
-#define M0_SPIEL_UT_PATH(name) QUOTE(M0_SPIEL_UT_DIR) "/" name
-
-
 /**
  * Request handler context with all necessary structures.
  *

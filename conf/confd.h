@@ -151,17 +151,13 @@ struct m0_confd {
 	/** Generic service. */
 	struct m0_reqh_service d_reqh;
 
-	/** Configuration cache. */
-	struct m0_conf_cache   d_cache;
-
 	/**
-	 * Confd cache lock.
-	 *
-	 * - Protects the DAG of cached configuration objects from
-	 *   concurrent modifications.
-	 * - Guards m0_conf_obj::co_chan of the cached objects.
+	 * Configuration cache.
+	 * This configuration cache is used from m0_reqh::rh_confc::cc_cache.
+	 * m0_reqh::rh_confc::cc_cache is populated on conf setup during
+	 * m0d startup.
 	 */
-	struct m0_mutex        d_lock;
+	struct m0_conf_cache  *d_cache;
 
 	/** Magic value == M0_CONFD_MAGIC. */
 	uint64_t               d_magic;

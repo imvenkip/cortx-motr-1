@@ -133,6 +133,7 @@ install_files()
                     'scripts/install/usr/lib/systemd/system/mero-mkfs.service' \
                     'scripts/install/usr/lib/systemd/system/mero-mkfs@.service' \
                     'scripts/install/usr/lib/systemd/system/mero-server-confd.service' \
+                    'scripts/install/usr/lib/systemd/system/mero-server-ha.service' \
                     'scripts/install/usr/lib/systemd/system/mero-server@.service' \
                     'scripts/install/usr/lib/systemd/system/mero.service' \
                     'scripts/install/usr/lib/systemd/system/mero-client.service' \
@@ -207,6 +208,7 @@ uninstall_files()
                     /usr/lib/systemd/system/mero-mkfs.service
                     /usr/lib/systemd/system/mero-mkfs@.service
                     /usr/lib/systemd/system/mero-server-confd.service
+                    /usr/lib/systemd/system/mero-server-ha.service
                     /usr/lib/systemd/system/mero-server@.service
                     /usr/lib/systemd/system/mero.service
                     /usr/lib/systemd/system/mero-client.service

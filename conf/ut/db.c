@@ -136,7 +136,7 @@ void test_confdb(void)
 		{ &m0_ut_conf_fids[M0_UT_CONF_DISKV], &diskv_check   }
 	};
 
-	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf-str.txt"), m0_ut_conf_str,
+	rc = m0_ut_file_read(M0_UT_CONF_PATH("conf-str.txt"), m0_ut_conf_str,
 			     sizeof m0_ut_conf_str);
 	M0_UT_ASSERT(rc == 0);
 

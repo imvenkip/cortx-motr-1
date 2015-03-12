@@ -24,6 +24,7 @@
 #include "stats/stats_fops.h"
 #include "reqh/reqh_service.h"
 #include "stats/stats_api.h"
+#include "ut/file_helpers.h"
 
 #include "stats/stats_srv.c"
 #include "rpc/ut/clnt_srv_ctx.c"
@@ -33,9 +34,10 @@ struct m0_rpc_server_ctx stats_ut_sctx_bk;
 struct m0_rpc_machine ut_stats_machine;
 
 static char *stats_ut_server_argv[] = {
-	"rpclib_ut", "-T", "AD", "-D", SERVER_DB_NAME,
-	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
-	"-e", SERVER_ENDPOINT, "-s", "stats", "-w", "10"
+        "rpclib_ut", "-T", "AD", "-D", SERVER_DB_NAME,
+        "-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
+        "-e", SERVER_ENDPOINT, "-s", "stats", "-w", "10",
+	"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
 };
 
 enum stats_id {
