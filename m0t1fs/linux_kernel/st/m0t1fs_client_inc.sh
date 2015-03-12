@@ -458,13 +458,9 @@ obf_test()
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || {
 		return 1
 	}
-	stat $MERO_M0T1FS_MOUNT_DIR/.mero || rc=1
-	ls -la $MERO_M0T1FS_MOUNT_DIR/.mero || rc=1
-	stat $MERO_M0T1FS_MOUNT_DIR/.mero/fid || rc=1
-	ls -la $MERO_M0T1FS_MOUNT_DIR/.mero/fid || rc=1
 	touch $MERO_M0T1FS_MOUNT_DIR/0:30000 || rc=1
-	stat $MERO_M0T1FS_MOUNT_DIR/.mero/fid/0:30000 || rc=1
-	ls -la $MERO_M0T1FS_MOUNT_DIR/.mero/fid/0:30000 || rc=1
+	stat $MERO_M0T1FS_MOUNT_DIR/0:30000 || rc=1
+	ls -la $MERO_M0T1FS_MOUNT_DIR/0:30000 || rc=1
 	rm $MERO_M0T1FS_MOUNT_DIR/0:30000 || rc=1
 	unmount_m0t1fs $MERO_M0T1FS_MOUNT_DIR
 	if [ $rc -eq 0 ]; then
@@ -663,11 +659,6 @@ m0t1fs_system_tests()
 
 	m0t1fs_oostore_mode_basic || {
 		echo "Failed: m0t1fs oostore mode basic test failed."
-		return 1
-	}
-
-	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
-		echo "Failed: IO failed.."
 		return 1
 	}
 

@@ -52,8 +52,8 @@ child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 static void dir_id_build(struct m0_fid *out, const struct m0_fid *id,
 			 const struct m0_conf_obj_type *children_type)
 {
-	m0_fid_tset(out, M0_CONF_DIR_TYPE.cot_ftype.ft_id,
-		    id->f_container, id->f_key);
+	*out = *id;
+	m0_fid_tassume(out, &M0_CONF_DIR_TYPE.cot_ftype);
 	/* clear the next 16 bits after fid type... */
 	out->f_container &= ~0x00ffff00000000ULL;
 	/* ... place parent type there... */

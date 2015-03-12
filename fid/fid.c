@@ -123,6 +123,25 @@ M0_INTERNAL void m0_fid_tset(struct m0_fid *fid,
 }
 M0_EXPORTED(m0_fid_tset);
 
+M0_INTERNAL void m0_fid_tchange(struct m0_fid *fid, uint8_t tid)
+{
+	M0_PRE(fid != NULL);
+	M0_PRE(m0_fid_is_set(fid));
+
+	fid->f_container = M0_FID_TCONTAINER(tid, fid->f_container);
+
+	M0_POST(m0_fid_is_valid(fid));
+}
+
+M0_INTERNAL void m0_fid_tassume(struct m0_fid *fid,
+				const struct m0_fid_type *ft)
+{
+	M0_PRE(fid != NULL);
+	M0_PRE(ft != NULL);
+
+	m0_fid_tchange(fid, ft->ft_id);
+}
+
 M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0, const struct m0_fid *fid1)
 {
 	return memcmp(fid0, fid1, sizeof *fid0) == 0;
@@ -175,6 +194,7 @@ M0_EXPORTED(m0_fid_init);
 
 M0_INTERNAL void m0_fid_fini(void)
 {
+	m0_fid_type_unregister(&misc);
 	m0_xc_fid_fini();
 }
 M0_EXPORTED(m0_fid_fini);

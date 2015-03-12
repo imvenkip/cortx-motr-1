@@ -27,6 +27,7 @@
 #undef M0_ADDB_RT_CREATE_DEFINITION
 #define M0_ADDB_RT_CREATE_DEFINITION
 #include "cob/cob_addb.h"
+#include "fid/fid.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
 #include "lib/trace.h"
@@ -107,6 +108,11 @@ do {									\
 				  rc, &m0_cob_mod_ctx);			\
 } while (0)
 
+const struct m0_fid_type m0_cob_fid_type = {
+	.ft_id   = 'C',
+	.ft_name = "cob fid"
+};
+
 M0_INTERNAL const struct m0_fid *m0_cob_fid(const struct m0_cob *cob)
 {
 	M0_PRE(cob != NULL);
@@ -116,6 +122,7 @@ M0_INTERNAL const struct m0_fid *m0_cob_fid(const struct m0_cob *cob)
 
 M0_INTERNAL int m0_cob_mod_init(void)
 {
+	m0_fid_type_register(&m0_cob_fid_type);
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_mod);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_cob_mod_ctx,
 			 &m0_addb_ct_cob_mod, &m0_addb_proc_ctx);
@@ -124,9 +131,11 @@ M0_INTERNAL int m0_cob_mod_init(void)
 
 M0_INTERNAL void m0_cob_mod_fini(void)
 {
+	m0_fid_type_unregister(&m0_cob_fid_type);
 	m0_addb_ctx_fini(&m0_cob_mod_ctx);
 }
 
+#ifndef __KERNEL__
 M0_INTERNAL void m0_cob_oikey_make(struct m0_cob_oikey *oikey,
 				   const struct m0_fid *fid, int linkno)
 {
@@ -235,7 +244,7 @@ M0_INTERNAL size_t m0_cob_max_earec_size(void)
 /**
    Maximal possible eakey size.
  */
-static size_t m0_cob_max_eakey_size()
+static size_t m0_cob_max_eakey_size(void)
 {
 	return sizeof(struct m0_cob_eakey) + M0_COB_NAME_MAX;
 }
@@ -310,7 +319,7 @@ static int m0_cob_max_nskey_make(struct m0_cob_nskey **keyh,
    and want to allocate it for worst case scenario, that is, for max
    possible name len.
  */
-static size_t m0_cob_max_nskey_size()
+static size_t m0_cob_max_nskey_size(void)
 {
 	return sizeof(struct m0_cob_nskey) + M0_COB_NAME_MAX;
 }
@@ -466,7 +475,7 @@ int
 m0_cob_domain_init(struct m0_cob_domain *dom,
 		   struct m0_be_seg *seg, const struct m0_cob_domain_id *id)
 {
-	M0_ENTRY("dom=%p seg=%p id=%lx", dom, seg, id->id);
+	M0_ENTRY("dom=%p seg=%p id=%"PRIx64"", dom, seg, id->id);
 
 	if (dom == NULL)
 		return M0_RC(-ENOENT);
@@ -1420,7 +1429,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	if (rc == -ENOENT)
 		cob_table_insert(&cob->co_dom->cd_fileattr_omg, tx, &key, &val);
 	else
-		M0_LOG(M0_DEBUG, "the same omgkey: %016lX is being added "
+		M0_LOG(M0_DEBUG, "the same omgkey: %"PRIx64" is being added "
 		       "multiple times", omgkey.cok_omgid);
 	rc = 0;
 	cob->co_flags |= M0_CA_NSKEY_FREE | M0_CA_FABREC;
@@ -1785,12 +1794,12 @@ static void cob_table_tx_credit(struct m0_be_btree *tree,
 			.s_rec = m0_cob_max_earec_size(),
 		},
 		[COB_KVTYPE_NS] = {
-			.s_key = m0_cob_max_nskey_size(NULL),
+			.s_key = m0_cob_max_nskey_size(),
 			.s_rec = sizeof(struct m0_cob_nsrec),
 		},
 		[COB_KVTYPE_OI] = {
 			.s_key = sizeof(struct m0_cob_oikey),
-			.s_rec = m0_cob_max_nskey_size(NULL),
+			.s_rec = m0_cob_max_nskey_size(),
 				     /* XXX ^^^^^ is it right? */
 		},
 	};
@@ -1910,6 +1919,7 @@ M0_INTERNAL void m0_cob_ea_iterator_init_credit(struct m0_cob *cob,
 {
 	M0_IMPOSSIBLE("-ENOSYS");
 }
+#endif
 
 /** @} end group cob */
 #undef M0_TRACE_SUBSYSTEM

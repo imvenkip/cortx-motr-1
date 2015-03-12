@@ -596,6 +596,22 @@ struct m0_file *m0_resource_to_file(const struct m0_fid *fid,
 }
 M0_EXPORTED(m0_resource_to_file);
 
+const struct m0_fid_type m0_file_fid_type = {
+	.ft_id   = 'G',
+	.ft_name = "file fid"
+};
+
+M0_INTERNAL int m0_file_mod_init(void)
+{
+	m0_fid_type_register(&m0_file_fid_type);
+	return 0;
+}
+
+M0_INTERNAL void m0_file_mod_fini(void)
+{
+	m0_fid_type_unregister(&m0_file_fid_type);
+}
+
 /** @} end of FileLock */
 
 #undef M0_TRACE_SUBSYSTEM

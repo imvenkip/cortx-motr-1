@@ -48,6 +48,7 @@ M0_INTERNAL void m0_fid_set(struct m0_fid *fid,
 			    uint64_t container, uint64_t key);
 M0_INTERNAL void m0_fid_tset(struct m0_fid *fid,
 			     uint8_t tid, uint64_t container, uint64_t key);
+M0_INTERNAL void m0_fid_tchange(struct m0_fid *fid, uint8_t tid);
 
 M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid);
 M0_INTERNAL int m0_fid_sscanf_simple(const char *s, struct m0_fid *fid);
@@ -98,6 +99,8 @@ M0_INTERNAL const struct m0_fid_type *m0_fid_type_gethi(uint64_t id);
 M0_INTERNAL const struct m0_fid_type *
 m0_fid_type_getfid(const struct m0_fid *fid);
 M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name);
+M0_INTERNAL void m0_fid_tassume(struct m0_fid *fid,
+				const struct m0_fid_type *ft);
 
 /**
  * Returns a random value upto 'max', with the 'fid' and 'i' as seeds.

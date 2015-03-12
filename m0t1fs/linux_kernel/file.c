@@ -4814,6 +4814,7 @@ static int m0t1fs_open(struct inode *inode, struct file *file)
 			m0t1fs_fs_unlock(csb);
 			return M0_RC(rc);
 		}
+		m0_fid_tassume(&fid, &m0_file_fid_type);
 		inode->i_ino = fid_hash(&fid);
 		ci = M0T1FS_I(inode);
 		ci->ci_fid = fid;

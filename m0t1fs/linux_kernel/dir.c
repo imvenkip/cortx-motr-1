@@ -465,6 +465,7 @@ static int m0t1fs_create(struct inode     *dir,
 	} else {
 		m0t1fs_fid_alloc(csb, &new_fid);
 	}
+	m0_fid_tassume(&new_fid, &m0_file_fid_type);
 	M0_LOG(M0_DEBUG, "New fid = "FID_F, FID_P(&new_fid));
 	inode->i_ino = fid_hash(&new_fid);
 	ci = M0T1FS_I(inode);
@@ -675,6 +676,7 @@ static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
 		M0_LEAVE("Cannot parse fid \"%s\"", (char*)dentry->d_name.name);
 		return ERR_PTR(rc);
         }
+	m0_fid_tassume(&fid, &m0_file_fid_type);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
         return m0t1fs_lookup(dir, dentry, flags);
 #else

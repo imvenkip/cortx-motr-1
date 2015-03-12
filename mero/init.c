@@ -117,6 +117,7 @@ struct init_fini_call subsystem[] = {
 	{ &libm0_init,          &libm0_fini,          "libm0" },
 	{ &m0_ha_global_init ,  &m0_ha_global_fini,   "ha" },
 	{ &m0_fid_init,         &m0_fid_fini,         "fid" },
+	{ &m0_file_mod_init,    &m0_file_mod_fini,     "file" },
 	{ &m0_cookie_global_init, &m0_cookie_global_fini, "cookie" },
 	{ &m0_processors_init,  &m0_processors_fini,  "processors" },
 	/* localities must be initialised before lib/processor.h */
@@ -146,8 +147,8 @@ struct init_fini_call subsystem[] = {
 	{ &m0_addb2_net_module_init, &m0_addb2_net_module_fini, "addb2-net" },
 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
-#ifndef __KERNEL__
 	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
+#ifndef __KERNEL__
 	{ &m0_stob_types_init,  &m0_stob_types_fini,  "stob-types" },
 	{ &m0_ut_stob_init,	&m0_ut_stob_fini,     "ut-stob" },
 	{ &sim_global_init,     &sim_global_fini,     "desim" },

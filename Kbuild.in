@@ -61,6 +61,7 @@ include $(src)/addb/Kbuild.sub
 include $(src)/addb2/Kbuild.sub
 include $(src)/be/Kbuild.sub
 include $(src)/conf/Kbuild.sub
+include $(src)/cob/Kbuild.sub
 include $(src)/dtm/Kbuild.sub
 include $(src)/fid/Kbuild.sub
 include $(src)/file/Kbuild.sub

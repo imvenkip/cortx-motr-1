@@ -165,6 +165,18 @@ M0_INTERNAL
 struct m0_file *m0_resource_to_file(const struct m0_fid *fid,
 				    struct m0_rm_resource_type *flock_rt);
 
+extern const struct m0_fid_type m0_file_fid_type;
+
+/**
+   Module initializer.
+ */
+M0_INTERNAL int m0_file_mod_init(void);
+
+/**
+   Module finalizer.
+ */
+M0_INTERNAL void m0_file_mod_fini(void);
+
 /** @} end of FileLock */
 
 #endif /*  __MERO_FILE_H__ */
