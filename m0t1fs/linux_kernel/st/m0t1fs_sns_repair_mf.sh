@@ -52,8 +52,8 @@ sns_repair_test()
 {
 	local rc=0
 	local fail_device1=1
-	local fail_device2=3
-	local fail_device3=9
+	local fail_device2=9
+	local fail_device3=3
 	local unit_size=$((stride * 1024))
 
 	echo "Starting SNS repair testing ..."
@@ -82,7 +82,13 @@ sns_repair_test()
 	mount
 
 ####### Set Failure device
-	pool_mach_set_failure $fail_device1
+	pool_mach_set_failure $fail_device1 $fail_device2
+	if [ $? -ne "0" ]
+	then
+		return $?
+	fi
+
+	pool_mach_query $fail_device1 $fail_device2
 	if [ $? -ne "0" ]
 	then
 		return $?
@@ -103,34 +109,7 @@ sns_repair_test()
 	fi
 ####### Query device state
 
-	pool_mach_query $fail_device1
-	if [ $? -ne "0" ]
-	then
-		return $?
-	fi
-
-	pool_mach_set_failure $fail_device2
-	if [ $? -ne "0" ]
-	then
-		return $?
-	fi
-
-	sns_repair
-	if [ $? -ne "0" ]
-	then
-		return $?
-	else
-		echo "SNS Repair done."
-		md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
-		if [ $? -ne "0" ]
-		then
-			echo "md5 sum does not match"
-			unmount_and_clean &>> $MERO_TEST_LOGFILE
-		fi
-	fi
-####### Query device state
-
-	pool_mach_query $fail_device2
+	pool_mach_query $fail_device1 $fail_device2
 	if [ $? -ne "0" ]
 	then
 		return $?

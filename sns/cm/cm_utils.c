@@ -340,8 +340,9 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 	uint64_t                     nr_devs_checked = 0;
 
 	m0_tl_for(cs_eps, &mero->cc_ios_eps, ex) {
-		nr_devs_in_ios = nr_devs_unchecked / nr_ios +
-				 nr_devs_unchecked % nr_ios;
+		nr_devs_in_ios = nr_devs_unchecked / nr_ios;
+		if (nr_devs_unchecked % nr_ios > 0)
+			M0_CNT_INC(nr_devs_in_ios);
 		nr_devs_checked += nr_devs_in_ios;
 		if (cfid->f_container > nr_devs_checked) {
 			M0_CNT_DEC(nr_ios);
