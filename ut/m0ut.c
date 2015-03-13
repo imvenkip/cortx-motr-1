@@ -110,6 +110,8 @@ extern struct m0_ut_suite snscm_net_ut;
 extern struct m0_ut_suite snscm_storage_ut;
 extern struct m0_ut_suite snscm_xform_ut;
 extern struct m0_ut_suite spiel_ut;
+extern struct m0_ut_suite spiel_ci_ut;
+extern struct m0_ut_suite sss_ut;
 extern struct m0_ut_suite stats_ut;
 extern struct m0_ut_suite stob_ut;
 extern struct m0_ut_suite udb_ut;
@@ -189,12 +191,15 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &snscm_net_ut, true);
 	m0_ut_add(m, &sns_flock_ut, true);
 	m0_ut_add(m, &spiel_ut, true);
+	m0_ut_add(m, &spiel_ci_ut, true);
+	m0_ut_add(m, &sss_ut, true);
 	m0_ut_add(m, &stats_ut, true);
 	m0_ut_add(m, &stob_ut, true);
 	m0_ut_add(m, &udb_ut, true);
 	m0_ut_add(m, &xcode_bufvec_fop_ut, true);
 	m0_ut_add(m, &xcode_ff2c_ut, true);
 	m0_ut_add(m, &xcode_ut, true);
+
 	/* These tests have redirection of messages. */
 	m0_ut_add(m, &console_ut, true);
 }

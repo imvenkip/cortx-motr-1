@@ -260,10 +260,11 @@ static const struct m0_reqh_service_ops addb2_service_ops = {
 };
 
 M0_INTERNAL struct m0_reqh_service_type m0_addb2_service_type = {
-	.rst_name    = "addb2",
-	.rst_ops     = &addb2_service_type_ops,
-	.rst_addb_ct = &m0_addb_ct_addb2_svc,
-	.rst_level   = 2
+	.rst_name     = "addb2",
+	.rst_ops      = &addb2_service_type_ops,
+	.rst_addb_ct  = &m0_addb_ct_addb2_svc,
+	.rst_level    = 2,
+	.rst_typecode = 0
 };
 
 

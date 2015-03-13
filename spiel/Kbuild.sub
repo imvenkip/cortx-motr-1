@@ -1,1 +1,2 @@
-m0mero_objects += spiel/spiel.o
+m0mero_objects += spiel/spiel.o \
+		  spiel/cmd.o

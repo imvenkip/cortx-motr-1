@@ -609,8 +609,7 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	const char                 **endpoint;
 	int                          rc = 0;
 
-	M0_PRE(M0_IN(cs->cs_type, (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS,
-				   M0_CST_RMS, M0_CST_SS, M0_CST_HA)));
+	M0_PRE(M0_CONF_SVC_TYPE_IS_VALID(cs->cs_type));
 
 	for (endpoint = cs->cs_endpoints; *endpoint != NULL; ++endpoint) {
 		rc = m0_reqh_service_ctx_create(&cs->cs_obj.co_id, pc->pc_rmach,
@@ -729,7 +728,7 @@ static int pc_service_find(struct m0_reqh_service_ctx **dest,
 			   const struct m0_tl          *svc_ctxs,
 			   enum m0_conf_service_type    type)
 {
-	M0_PRE(M0_IN(type, (M0_CST_RMS, M0_CST_SS)));
+	M0_PRE(M0_IN(type, (M0_CST_RMS, M0_CST_STS)));
 
 	*dest = m0_tl_find(pools_common_svc_ctx, ctx, svc_ctxs,
 			   ctx->sc_type == type);
@@ -737,7 +736,7 @@ static int pc_service_find(struct m0_reqh_service_ctx **dest,
 		return M0_RC(0);
 	M0_LOG(M0_ERROR, "The mandatory %s service is missing."
 	       " Make sure it is specified in the conf db.",
-		type == M0_CST_SS ? "SS" : "RM");
+		type == M0_CST_STS ? "STS" : "RM");
 	return M0_RC(-EPROTO);
 }
 
@@ -768,7 +767,7 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 		goto err;
 
 	rc = pc_service_find(&pc->pc_rm_ctx, &pc->pc_svc_ctxs, M0_CST_RMS) ?:
-	     pc_service_find(&pc->pc_ss_ctx, &pc->pc_svc_ctxs, M0_CST_SS);
+	     pc_service_find(&pc->pc_ss_ctx, &pc->pc_svc_ctxs, M0_CST_STS);
 	if (rc != 0)
 		goto err;
 

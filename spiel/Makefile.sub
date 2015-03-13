@@ -1,3 +1,4 @@
 nobase_mero_include_HEADERS += spiel/spiel.h
 
-mero_libmero_la_SOURCES += spiel/spiel.c
+mero_libmero_la_SOURCES += spiel/spiel.c \
+			   spiel/cmd.c

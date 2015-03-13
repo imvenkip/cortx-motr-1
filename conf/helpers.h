@@ -22,6 +22,17 @@
 #ifndef __MERO_CONF_HELPERS_H__
 #define __MERO_CONF_HELPERS_H__
 
+/* import */
+struct m0_rpc_machine;
+struct m0_sm_group;
+struct m0_tl;
+struct m0_confc;
+struct m0_conf_filesystem;
+struct m0_conf_pver;
+struct m0_conf_obj;
+struct m0_conf_root;
+struct m0_conf_service;
+
 /**
  * Obtains filesystem object associated with given profile.
  *
@@ -48,5 +59,8 @@ M0_INTERNAL int m0_conf_poolversion_get(struct m0_conf_filesystem *fs,
  */
 M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
 			          struct m0_conf_root **root);
+
+/** Get service name by service configuration object */
+M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc);
 
 #endif /* __MERO_CONF_HELPERS_H__ */

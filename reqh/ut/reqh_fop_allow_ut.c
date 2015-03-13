@@ -153,7 +153,8 @@ static struct m0_fop *ut_ssfop_alloc(const char *name, uint32_t cmd)
 
 }
 
-static int ut_sss_req(const char *name, uint32_t cmd)
+static void ut_sss_req(const char *name, uint32_t cmd, int expected_rc,
+		      int expected_state)
 {
 	int                 rc;
 	struct m0_fop      *fop;
@@ -171,12 +172,10 @@ static int ut_sss_req(const char *name, uint32_t cmd)
 	M0_UT_ASSERT(rfop != NULL);
 
 	ss_rfop = m0_fop_data(rfop);
-	M0_UT_ASSERT(ss_rfop->ssr_rc == 0);
-	rc = ss_rfop->ssr_state;
-
+	M0_UT_ASSERT(ss_rfop->ssr_rc == expected_rc);
+	if (expected_state != 0)
+		M0_UT_ASSERT(ss_rfop->ssr_state == expected_state);
 	m0_fop_put_lock(fop);
-
-	return rc;
 }
 
 static void fop_allow_test(void)
@@ -190,14 +189,15 @@ static void fop_allow_test(void)
 	M0_UT_ASSERT(rc == 0);
 
 	start_rpc_client_and_server();
+	ut_sss_req(ds1_service_type.rst_name, M0_SERVICE_STATUS, -ENOENT, 0);
 
-	M0_UT_ASSERT(ut_sss_req(ds1_service_type.rst_name,
-				M0_SERVICE_STATUS) == M0_RST_STOPPED);
 	rc = send_fop();
 	M0_UT_ASSERT(rc == -ESHUTDOWN);
 
-	M0_UT_ASSERT(ut_sss_req(ds1_service_type.rst_name,
-				M0_SERVICE_START) == M0_RST_STARTED);
+	ut_sss_req(ds1_service_type.rst_name,
+		   M0_SERVICE_INIT, 0,  M0_RST_INITIALISED);
+	ut_sss_req(ds1_service_type.rst_name,
+		   M0_SERVICE_START, 0,  M0_RST_STARTED);
 	rc = send_fop();
 	M0_UT_ASSERT(rc == 0);
 

@@ -23,9 +23,11 @@
 #ifndef __MERO_SPIEL_SPIEL_H__
 #define __MERO_SPIEL_SPIEL_H__
 
-#include "fid/fid.h"          /* m0_fid */
-#include "conf/schema.h"      /* m0_conf_service_type */
-#include "conf/confc.h"       /* m0_confc */
+#include "fid/fid.h"           /* m0_fid */
+#include "conf/schema.h"       /* m0_conf_service_type */
+#include "conf/confc.h"        /* m0_confc */
+#include "reqh/reqh_service.h" /* m0_service_health */
+
 
 /**
  * @defgroup sspl Spiel
@@ -251,12 +253,16 @@ struct m0_spiel_tx *m0_spiel_tx_open(struct m0_spiel    *spiel,
 /**
  * Cancel (rollback) spiel transaction
  *
+ * Once function is called spiel transaction can't be used anymore.
+ *
  * @param tx spiel transaction
  */
 void m0_spiel_tx_cancel(struct m0_spiel_tx *tx);
 
 /**
  * Commit filled spiel transaction
+ *
+ * Once function is called spiel transaction can't be used anymore.
  *
  * @param tx spiel transaction
  */
@@ -512,16 +518,6 @@ int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid);
 /*                 Command interface                      */
 /**********************************************************/
 
-/** Health status of some mero resource
- *  @see m0_spiel_service_health, m0_spiel_process_health */
-enum m0_spiel_health {
-	/** Good health (service is able to process incoming requests,
-	 *  process is running, etc.) */
-	M0_HEALTH_GOOD    = 0,
-	/** Something wrong with the resource */
-	M0_HEALTH_BAD     = 1,
-};
-
 /**
  * Initialize mero service
  *
@@ -551,7 +547,7 @@ int m0_spiel_service_stop(struct m0_spiel *spl, const struct m0_fid *svc_fid);
  *
  * @param spl spiel instance
  * @param svc_fid service fid from configuration DB
- * @return value from @ref ::m0_spiel_health if operation successful @n
+ * @return value from @ref ::m0_service_health if operation successful @n
  *         negative value if error occurred
  */
 int m0_spiel_service_health(struct m0_spiel *spl, const struct m0_fid *svc_fid);
@@ -611,7 +607,7 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
  * Check health status of the mero process
  *
  * @param spl spiel instance
- * @return value from @ref ::m0_spiel_health if operation successful @n
+ * @return value from @ref ::m0_health if operation successful @n
  *         negative value if error occurred
  */
 int m0_spiel_process_health(struct m0_spiel     *spl,

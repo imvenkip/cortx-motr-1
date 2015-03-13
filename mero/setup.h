@@ -256,8 +256,8 @@ struct m0_reqh_context {
 	/** Services running in request handler context. */
 	char                       **rc_services;
 
-	/** Service UUIDs */
-	struct m0_uint128           *rc_service_uuids;
+	/** Service fids */
+	struct m0_fid               *rc_service_fids;
 
 	/** Number of services configured in request handler context. */
 	uint32_t                     rc_nr_services;

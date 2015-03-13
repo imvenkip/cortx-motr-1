@@ -55,7 +55,7 @@ static void fom_simple_svc_start(void)
 	rc = m0_reqh_service_allocate(&service, stype, NULL);
 	M0_ASSERT(rc == 0);
 	m0_reqh_service_init(service, &reqh,
-			     &M0_UINT128(0xdeadbeef, 0xbeefdead));
+			     &M0_FID_INIT(0xdeadbeef, 0xbeefdead));
 	rc = m0_reqh_service_start(service);
 	M0_ASSERT(rc == 0);
 	M0_POST(m0_reqh_service_invariant(service));

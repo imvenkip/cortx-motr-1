@@ -379,7 +379,7 @@ static void addb2_introduce(struct m0_fom *fom)
 	fom_addb2_push(fom);
 	M0_ADDB2_ADD(M0_AVI_FOM_DESCR,
 		     m0_time_now(),
-		     U128_P(&fom->fo_service->rs_service_uuid),
+		     FID_P(&fom->fo_service->rs_service_fid),
 		     /*
 		      * Session can be NULL for connection and session
 		      * establishing fops.

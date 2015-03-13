@@ -267,6 +267,7 @@ include $(top_srcdir)/sm/ut/Makefile.sub
 include $(top_srcdir)/sns/cm/repair/ut/Makefile.sub
 include $(top_srcdir)/sns/ut/Makefile.sub
 include $(top_srcdir)/spiel/ut/Makefile.sub
+include $(top_srcdir)/sss/ut/Makefile.sub
 include $(top_srcdir)/stob/ut/Makefile.sub
 include $(top_srcdir)/stats/ut/Makefile.sub
 include $(top_srcdir)/udb/ut/Makefile.sub

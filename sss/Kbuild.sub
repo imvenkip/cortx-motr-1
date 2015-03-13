@@ -1,2 +1,3 @@
-m0mero_objects += sss/ss_fops_xc.o
-
+m0mero_objects += sss/ss_fops.o    \
+		  sss/ss_fops_xc.o \
+		  sss/ss_svc.o

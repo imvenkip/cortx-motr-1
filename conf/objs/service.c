@@ -22,6 +22,7 @@
 
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"  /* m0_confx_service_xc */
+#include "conf/schema.h"     /* M0_CONF_SVC_TYPE_IS_VALID */
 #include "mero/magic.h"      /* M0_CONF_SERVICE_MAGIC */
 
 static bool service_check(const void *bob)
@@ -32,9 +33,7 @@ static bool service_check(const void *bob)
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_SERVICE_TYPE);
 
 	return ergo(self_obj->co_status == M0_CS_READY,
-		    M0_IN(self->cs_type,
-			  (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_RMS,
-			   M0_CST_SS, M0_CST_HA)));
+		    M0_CONF_SVC_TYPE_IS_VALID(self->cs_type));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_service, M0_CONF_SERVICE_MAGIC, service_check);
@@ -125,10 +124,17 @@ static const struct m0_conf_obj_ops service_ops = {
 
 M0_CONF__CTOR_DEFINE(service_create, m0_conf_service, &service_ops);
 
+static bool service_fid_is_valid(const struct m0_fid *fid)
+{
+	return M0_RC(m0_fid_type_getfid(fid)->ft_id ==
+		     M0_CONF_SERVICE_TYPE.cot_ftype.ft_id);
+}
+
 const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 's',
-		.ft_name = "service"
+		.ft_id       = 's',
+		.ft_name     = "service",
+		.ft_is_valid = service_fid_is_valid
 	},
 	.cot_create  = &service_create,
 	.cot_xt      = &m0_confx_service_xc,

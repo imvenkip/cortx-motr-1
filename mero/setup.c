@@ -32,7 +32,6 @@
 #include "lib/getopts.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "lib/uuid.h"
 #include "lib/locality.h"
 #include "stob/ad.h"
 #include "net/net.h"
@@ -374,10 +373,10 @@ static int cs_reqh_ctx_init(struct m0_mero *cctx)
 		return M0_ERR_INFO(-EINVAL, "No services registered");
 
 	M0_ALLOC_ARR(rctx->rc_services,      rctx->rc_max_services);
-	M0_ALLOC_ARR(rctx->rc_service_uuids, rctx->rc_max_services);
-	if (rctx->rc_services == NULL || rctx->rc_service_uuids == NULL) {
+	M0_ALLOC_ARR(rctx->rc_service_fids, rctx->rc_max_services);
+	if (rctx->rc_services == NULL || rctx->rc_service_fids == NULL) {
 		m0_free(rctx->rc_services);
-		m0_free(rctx->rc_service_uuids);
+		m0_free(rctx->rc_service_fids);
 		return M0_ERR(-ENOMEM);
 	}
 
@@ -407,7 +406,7 @@ static void cs_reqh_ctx_fini(struct m0_reqh_context *rctx)
 	for (i = 0; i < rctx->rc_max_services; ++i)
 		m0_free(rctx->rc_services[i]);
 	m0_free(rctx->rc_services);
-	m0_free(rctx->rc_service_uuids);
+	m0_free(rctx->rc_service_fids);
 }
 
 M0_INTERNAL struct m0_net_domain *
@@ -885,7 +884,7 @@ static void cs_storage_fini(struct cs_stobs *stob)
    appropriate request handler.
  */
 static int cs_service_init(const char *name, struct m0_reqh_context *rctx,
-			   struct m0_reqh *reqh, struct m0_uint128 *uuid)
+			   struct m0_reqh *reqh, struct m0_fid *fid)
 {
 	struct m0_reqh_service_type *stype;
 	struct m0_reqh_service      *service;
@@ -902,7 +901,7 @@ static int cs_service_init(const char *name, struct m0_reqh_context *rctx,
 	if (rc != 0)
 		return M0_RC(rc);
 
-	m0_reqh_service_init(service, reqh, uuid);
+	m0_reqh_service_init(service, reqh, fid);
 
 	rc = m0_reqh_service_start(service);
 	if (rc != 0)
@@ -924,7 +923,7 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx)
 	for (i = 0, rc = 0; i < rctx->rc_nr_services && rc == 0; ++i) {
 		name = rctx->rc_services[i];
 		rc = cs_service_init(name, rctx, &rctx->rc_reqh,
-				     &rctx->rc_service_uuids[i]);
+				     &rctx->rc_service_fids[i]);
 	}
 	if (rc != 0)
 		m0_reqh_pre_storage_fini_svcs_stop(&rctx->rc_reqh);
@@ -1632,23 +1631,23 @@ static int cs_daemonize(struct m0_mero *cctx)
 /**
    Parses a service string of the following forms:
    - service-type
-   - service-type:uuid-str
+   - service-type:fid
 
-   In the latter case it isolates and parses the UUID string, and returns it
-   in the uuid parameter.
+   In the latter case it isolates and parses the fid string, and returns it
+   in the fid parameter.
 
    @param str Input string
    @param svc Allocated service type name
-   @param uuid Numerical UUID value if present and valid, or zero.
+   @param fid Numerical fid value if present and valid, or zero.
  */
 static int
-service_string_parse(const char *str, char **svc, struct m0_uint128 *uuid)
+service_string_parse(const char *str, char **svc, struct m0_fid *fid)
 {
 	const char *colon;
 	size_t      len;
 	int         rc;
 
-	uuid->u_lo = uuid->u_hi = 0;
+	fid->f_key = fid->f_container = 0;
 	colon = strchr(str, ':');
 	if (colon == NULL) {
 		*svc = m0_strdup(str);
@@ -1663,10 +1662,12 @@ service_string_parse(const char *str, char **svc, struct m0_uint128 *uuid)
 	strncpy(*svc, str, len);
 	*(*svc + len) = '\0';
 
-	/* parse the UUID */
-	rc = m0_uuid_parse(++colon, uuid);
+	/* parse the FID */
+	rc = m0_fid_sscanf(++colon, fid);
 	if (rc != 0)
 		m0_free0(svc);
+	if (!m0_fid_is_valid(fid))
+		return M0_ERR(-EINVAL);
 	return M0_RC(rc);
 }
 
@@ -1859,7 +1860,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 					i = rctx->rc_nr_services;
 					rc = service_string_parse(s,
 						   &rctx->rc_services[i],
-						   &rctx->rc_service_uuids[i]);
+						   &rctx->rc_service_fids[i]);
 					if (rc == 0)
 						M0_CNT_INC(
 							rctx->rc_nr_services);

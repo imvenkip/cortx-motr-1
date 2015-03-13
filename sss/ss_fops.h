@@ -41,7 +41,10 @@ extern struct m0_fop_type m0_fop_ss_rep_fopt;
 enum m0_sss_req_cmd {
 	M0_SERVICE_START,
 	M0_SERVICE_STOP,
-	M0_SERVICE_STATUS
+	M0_SERVICE_STATUS,
+	M0_SERVICE_QUIESCE,
+	M0_SERVICE_INIT,
+	M0_SERVICE_HEALTH
 };
 
 /** Request to start/stop a service. */
@@ -52,7 +55,7 @@ struct m0_sss_req {
 	 */
 	uint32_t      ss_cmd;
 	/**
-	 * Name of service type.
+	 * Name of service type. Mandatory only for M0_SERVICE_INIT command.
 	 * @see m0_reqh_service_type::rst_name
 	 */
 	struct m0_buf ss_name;
@@ -68,12 +71,11 @@ struct m0_sss_req {
 /** Response to m0_sss_req. */
 struct m0_sss_rep {
 	/**
-	 * Result of service start/stop operation
-	 * (-Exxx = failure, 0 = success).
+	 * Result of service operation
 	 */
 	int32_t  ssr_rc;
 	/**
-	 * Service status.
+	 * Service status. Undefined if ssr_rc < 0.
 	 * @see enum m0_reqh_service_state
 	 */
 	uint32_t ssr_state;

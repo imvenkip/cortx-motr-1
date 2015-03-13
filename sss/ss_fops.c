@@ -50,8 +50,10 @@ static const struct m0_rpc_item_type_ops ss_item_type_ops = {
 
 M0_INTERNAL int m0_ss_fops_init(void)
 {
+#ifndef __KERNEL__
 	m0_sm_conf_extend(m0_generic_conf.scf_state, ss_fom_phases,
 			  m0_generic_conf.scf_nr_states);
+#endif
 	m0_fop_ss_rep_fopt.ft_magix = 0;
 	M0_FOP_TYPE_INIT(&m0_fop_ss_fopt,
 			 .name      = "Start Stop fop",

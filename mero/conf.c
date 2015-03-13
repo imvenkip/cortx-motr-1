@@ -54,23 +54,6 @@ fs_options_add(struct cs_args *args, const struct m0_conf_filesystem *fs)
 		option_add(args, m0_strdup(fs->cf_params[i]));
 }
 
-static const char *service_name[] = {
-	[0]          = NULL,/* unused, enum declarations start from 1 */
-	[M0_CST_MDS] = "mdservice",  /* Meta-data service. */
-	[M0_CST_IOS] = "ioservice",  /* IO/data service. */
-	[M0_CST_MGS] = "confd",      /* Management service (confd). */
-	[M0_CST_RMS] = "rmservice",  /* RM service. */
-	[M0_CST_SS]  = "stats",      /* Stats service */
-	[M0_CST_HA]  = "haservice"   /* HA service */
-};
-
-M0_UNUSED static char *
-service_name_dup(const struct m0_conf_service *svc)
-{
-	M0_ASSERT(svc->cs_type > 0 && svc->cs_type < ARRAY_SIZE(service_name));
-	return m0_strdup(service_name[svc->cs_type]);
-}
-
 static char *
 strxdup(const char *addr)
 {
@@ -91,7 +74,7 @@ service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
 		[M0_CST_MDS] = "-G",
 		[M0_CST_IOS] = "-i",
 		[M0_CST_RMS] = "",
-		[M0_CST_SS]  = "-R"
+		[M0_CST_STS] = "-R"
 	};
 	int         i;
 	const char *opt;

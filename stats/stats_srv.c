@@ -294,7 +294,8 @@ static const struct m0_reqh_service_type_ops stats_service_type_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_stats_svc_type, &stats_service_type_ops,
-			    M0_STATS_SVC_NAME, &m0_addb_ct_stats_svc, 2);
+			    M0_STATS_SVC_NAME, &m0_addb_ct_stats_svc, 2,
+			    M0_CST_STS);
 
 /*
  * Public interfaces

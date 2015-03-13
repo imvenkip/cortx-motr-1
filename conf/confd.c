@@ -450,7 +450,7 @@ static const struct m0_reqh_service_type_ops confd_stype_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_confd_stype, &confd_stype_ops, "confd",
-			    &m0_addb_ct_conf_serv, 2);
+			    &m0_addb_ct_conf_serv, 2, M0_CST_MGS);
 
 M0_INTERNAL int m0_confd_register(void)
 {

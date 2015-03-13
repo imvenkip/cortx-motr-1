@@ -27,7 +27,6 @@
 #include "lib/time.h"
 #include "lib/misc.h"    /* M0_SET_ARR0 */
 #include "lib/finject.h" /* M0_FI_ENABLED */
-#include "lib/uuid.h"
 #include "lib/lockers.h"
 #include "fop/fom.h"
 #include "rpc/conn.h"
@@ -366,29 +365,31 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	m0_reqh_lockers_clear(reqh, key);
 }
 
-M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service  *service,
-				      struct m0_reqh          *reqh,
-				      const struct m0_uint128 *uuid)
+M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
+				      struct m0_reqh         *reqh,
+				      const struct m0_fid    *fid)
 {
 	struct m0_addb_ctx_type *serv_addb_ct;
 
 	M0_PRE(service != NULL && reqh != NULL &&
 		service->rs_sm.sm_state == M0_RST_INITIALISING);
+	/* Currently fid may be NULL */
+	M0_PRE(fid == NULL || m0_fid_is_valid(fid));
 
 	serv_addb_ct = service->rs_type->rst_addb_ct;
 	M0_ASSERT(m0_addb_ctx_type_lookup(serv_addb_ct->act_id) != NULL);
 
 	/**
 	    act_cf_nr is 2 for all service ctx types,
-	    1 for "hi" & 2 for "low"
+	    1 for fid->f_container & 2 for fid->f_key
 	 */
 	M0_ASSERT(serv_addb_ct->act_cf_nr == 2);
 
 	m0_sm_init(&service->rs_sm, &service_states_conf, M0_RST_INITIALISING,
 		   &reqh->rh_sm_grp);
 
-	if (uuid != NULL)
-		service->rs_service_uuid = *uuid;
+	if (fid != NULL)
+		service->rs_service_fid = *fid;
 	service->rs_reqh = reqh;
 	m0_mutex_init(&service->rs_mutex);
 	reqh_service_state_set(service, M0_RST_INITIALISED);
@@ -400,7 +401,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service  *service,
 	 */
 	m0_reqh_svc_tlink_init_at(service, &reqh->rh_services);
 
-	/** @todo: Need to pass the service uuid "hi" & "low"
+	/** @todo: Need to pass the service fid "f_container" & "f_key"
 	   once available
 	*/
 	if (m0_addb_mc_is_fully_configured(m0_fom_addb_mc()))
@@ -508,6 +509,16 @@ m0_reqh_service_find(const struct m0_reqh_service_type *st,
 }
 M0_EXPORTED(m0_reqh_service_find);
 
+M0_INTERNAL struct m0_reqh_service *
+m0_reqh_service_lookup(const struct m0_reqh *reqh, const struct m0_fid *fid)
+{
+	M0_PRE(reqh != NULL);
+	M0_PRE(fid != NULL);
+
+	return m0_tl_find(m0_reqh_svc, s, &reqh->rh_services,
+			  m0_fid_eq(fid, &s->rs_service_fid));
+}
+
 M0_INTERNAL int m0_reqh_service_state_get(const struct m0_reqh_service *s)
 {
 	return s->rs_sm.sm_state;
@@ -517,7 +528,7 @@ M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service     **out,
 				      struct m0_reqh_service_type *stype,
 				      struct m0_reqh              *reqh,
 				      struct m0_reqh_context      *rctx,
-				      const struct m0_uint128     *uuid)
+				      const struct m0_fid         *fid)
 {
 	int result;
 
@@ -528,7 +539,7 @@ M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service     **out,
 	if (result == 0) {
 		struct m0_reqh_service *svc = *out;
 
-		m0_reqh_service_init(svc, reqh, uuid);
+		m0_reqh_service_init(svc, reqh, fid);
 		result = m0_reqh_service_start(svc);
 		if (result != 0)
 			m0_reqh_service_fini(svc);

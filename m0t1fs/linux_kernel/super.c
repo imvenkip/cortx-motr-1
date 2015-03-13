@@ -506,7 +506,10 @@ static int m0t1fs_service_start(struct m0_reqh_service_type *stype,
 	struct m0_uint128       uuid;
 
 	m0_uuid_generate(&uuid);
-	return m0_reqh_service_setup(&service, stype, reqh, NULL, &uuid);
+	/* now force it be a service fid */
+	m0_fid_tassume((struct m0_fid *)&uuid, &M0_CONF_SERVICE_TYPE.cot_ftype);
+	return m0_reqh_service_setup(&service, stype, reqh, NULL,
+			            (struct m0_fid *)&uuid);
 }
 
 int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb)

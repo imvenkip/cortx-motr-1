@@ -213,7 +213,7 @@ struct m0_reqh_service {
 	/**
 	   Service id that should be unique throughout the cluster.
 	 */
-	struct m0_uint128                  rs_service_uuid;
+	struct m0_fid                      rs_service_fid;
 
 	/**
 	   Service type specific structure to hold service specific
@@ -299,6 +299,33 @@ struct m0_reqh_service_start_async_ctx {
 };
 
 /**
+ *  Health status of the service or the mero process
+ *
+ *  @see m0_spiel_service_health, m0_spiel_process_health
+ *  @see m0_reqh_service_ops::rso_health
+ */
+enum m0_service_health {
+	/**
+	 * Good health (service is able to process incoming requests,
+	 * process is running, etc.)
+	 */
+	M0_HEALTH_GOOD     = 0,
+	/**
+	 * Something wrong with the resource
+	 */
+	M0_HEALTH_BAD      = 1,
+	/**
+	 * Service isn't in M0_RST_STARTED state
+	 */
+	M0_HEALTH_INACTIVE = 2,
+	/**
+	 * Health unknown (e.g. service doesn't implement @ref ::rso_health)
+	 */
+	M0_HEALTH_UNKNOWN  = 3,
+};
+
+
+/**
    Service specific operations vector.
  */
 struct m0_reqh_service_ops {
@@ -329,8 +356,6 @@ struct m0_reqh_service_ops {
            specific startup operations are performed, the service is registered
            with the request handler.
 
-	   @param service Service to be started.
-
 	   @see m0_reqh_service_start()
 	 */
 	int (*rso_start)(struct m0_reqh_service *service);
@@ -357,7 +382,6 @@ struct m0_reqh_service_ops {
 
 	   The service will be in the M0_RST_STOPPED state when the method
 	   is invoked.
-	   @param service Service to be stopped
 
 	   @see m0_reqh_service_stop()
 	 */
@@ -393,7 +417,14 @@ struct m0_reqh_service_ops {
 	 */
 	int (*rso_fop_accept)(struct m0_reqh_service *service,
 			      struct m0_fop *fop);
-
+	/**
+	   Method to determine that service functioning properly and
+	   is able to process incoming requests.
+	   If some error happens during invocation, then M0_HEALTH_UNKNOWN
+	   should be returned.
+	   The method is optional.
+	 */
+	enum m0_service_health (*rso_health)(struct m0_reqh_service *service);
 };
 
 /**
@@ -438,6 +469,12 @@ struct m0_reqh_service_type {
 	   Pointer to ADDB context type for this service type
 	 */
 	struct m0_addb_ctx_type               *rst_addb_ct;
+
+	/**
+	 * Configuration service type
+	 * @see m0_conf_service::cs_type
+	 */
+	enum m0_conf_service_type              rst_typecode;
 
 	/**
 	    Linkage into global service types list.
@@ -556,7 +593,7 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service);
 
    @param service service to be initialised
    @param reqh Request handler
-   @param uuid Pointer to service UUID or NULL if not known.
+   @param fid Pointer to service fid or NULL if not known.
 
    @pre service != NULL && reqh != NULL &&
         service->rs_sm.sm_state == M0_RST_INITIALISING
@@ -565,8 +602,8 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service);
    @see cs_service_init()
  */
 M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
-				      struct m0_reqh *reqh,
-				      const struct m0_uint128 *uuid);
+				      struct m0_reqh         *reqh,
+				      const struct m0_fid    *fid);
 
 /**
    Performs generic part of service finalisation, including deregistering
@@ -587,12 +624,13 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service);
     ADDB context type has to be registered before
     invoking m0_reqh_service_type_register()
 */
-#define M0_REQH_SERVICE_TYPE_DEFINE(stype, ops, name, ct, level)  \
-struct m0_reqh_service_type stype = {                             \
-	.rst_name    = (name),	                                  \
-	.rst_ops     = (ops),                                     \
-	.rst_addb_ct = (ct),                                      \
-	.rst_level   = (level),                                   \
+#define M0_REQH_SERVICE_TYPE_DEFINE(stype, ops, name, ct, level, typecode)  \
+struct m0_reqh_service_type stype = {                                       \
+	.rst_name     = (name),	                                            \
+	.rst_ops      = (ops),                                              \
+	.rst_addb_ct  = (ct),                                               \
+	.rst_level    = (level),                                            \
+	.rst_typecode = (typecode),                                         \
 }
 
 /**
@@ -630,10 +668,21 @@ M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service
 
 /**
    Returns service instance of the given service type.
+   Search is done through "active" services (m0_reqh_service_start_{async}()
+   is called and they are not stopped yet).
+   @see m0_reqh_service_lookup
  */
 M0_INTERNAL struct m0_reqh_service *
 m0_reqh_service_find(const struct m0_reqh_service_type *st,
 		     const struct m0_reqh              *reqh);
+
+/**
+ * Search for service in given request handler by fid.
+ * Search is done through all initialized services
+ * @see m0_reqh_service_find
+ */
+M0_INTERNAL struct m0_reqh_service *
+m0_reqh_service_lookup(const struct m0_reqh *reqh, const struct m0_fid *fid);
 
 M0_INTERNAL int m0_reqh_service_types_length(void);
 M0_INTERNAL bool m0_reqh_service_is_registered(const char *sname);
@@ -648,7 +697,7 @@ M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service     **out,
 				      struct m0_reqh_service_type *stype,
 				      struct m0_reqh              *reqh,
 				      struct m0_reqh_context      *rctx,
-				      const struct m0_uint128     *uuid);
+				      const struct m0_fid         *fid);
 
 /** Dual to m0_reqh_service_setup(), stops and finalises the service. */
 M0_INTERNAL void m0_reqh_service_quit(struct m0_reqh_service *svc);

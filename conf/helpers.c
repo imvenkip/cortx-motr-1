@@ -23,6 +23,7 @@
 #include "lib/trace.h"
 
 #include "lib/errno.h"     /* EINVAL */
+#include "lib/string.h"    /* m0_strdup */
 #include "conf/confc.h"
 #include "conf/obj_ops.h"  /* m0_conf_dirval */
 #include "conf/dir_iter.h" /* m0_conf_diter_init, m0_conf_diter_next_sync */
@@ -129,6 +130,23 @@ M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
 	if (rc == 0)
 		*root = M0_CONF_CAST(root_obj, m0_conf_root);
 	return M0_RC(rc);
+}
+
+static const char *service_name[] = {
+	[0]          = NULL,/* unused, enum declarations start from 1 */
+	[M0_CST_MDS] = "mdservice",  /* Meta-data service. */
+	[M0_CST_IOS] = "ioservice",  /* IO/data service. */
+	[M0_CST_MGS] = "confd",      /* Management service (confd). */
+	[M0_CST_RMS] = "rmservice",  /* RM service. */
+	[M0_CST_STS] = "stats",      /* Stats service */
+	[M0_CST_HA]  = "haservice",  /* HA service */
+	[M0_CST_SSS] = "sss"         /* Start/stop service */
+};
+
+M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc)
+{
+	M0_PRE(IS_IN_ARRAY(svc->cs_type, service_name));
+	return m0_strdup(service_name[svc->cs_type]);
 }
 
 #undef M0_TRACE_SUBSYSTEM

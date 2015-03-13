@@ -45,18 +45,18 @@ struct ss_fom {
 	uint64_t                               ssf_magic;
 	struct m0_fom                          ssf_fom;
 	struct m0_reqh_service_start_async_ctx ssf_ctx;
-	const struct m0_reqh_service_type     *ssf_stype;
 	struct m0_reqh_service                *ssf_svc;
 };
 
 enum ss_fom_phases {
 	SS_FOM_INIT = M0_FOPH_NR + 1,
-	SS_FOM_SVC_ALLOC,
+	SS_FOM_SVC_INIT,
 	SS_FOM_START,
 	SS_FOM_START_WAIT,
+	SS_FOM_QUIESCE,
 	SS_FOM_STOP,
-	SS_FOM_STOP_WAIT,
 	SS_FOM_STATUS,
+	SS_FOM_HEALTH
 };
 
 M0_INTERNAL int m0_ss_svc_init(void);
