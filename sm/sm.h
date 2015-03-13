@@ -766,6 +766,15 @@ M0_INTERNAL bool m0_sm_invariant(const struct m0_sm *mach);
 M0_INTERNAL void m0_sm_conf_init(struct m0_sm_conf *conf);
 
 /**
+ * Finalises state machine configuration.
+ *
+ * @see m0_addb_rec_type_umregister()
+ *
+ * @pre conf->scf_magic == M0_SM_CONF_MAGIC
+ */
+M0_INTERNAL void m0_sm_conf_fini(struct m0_sm_conf *conf);
+
+/**
  * Returns true if sm configuration was initialized already.
  */
 M0_INTERNAL bool m0_sm_conf_is_initialized(const struct m0_sm_conf *conf);
@@ -785,7 +794,9 @@ struct m0_sm_group_addb2 {
 };
 
 M0_INTERNAL int m0_sm_addb2_init(struct m0_sm_conf *conf,
-				 uint64_t id, uint64_t counter);
+         uint64_t id, uint64_t counter);
+
+M0_INTERNAL void m0_sm_addb2_fini(struct m0_sm_conf *conf);
 
 M0_INTERNAL bool m0_sm_addb2_counter_init(struct m0_sm *sm);
 

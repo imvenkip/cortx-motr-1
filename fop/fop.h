@@ -370,6 +370,8 @@ enum m0_addb2_fop_counter {
 
 int m0_fop_type_addb2_instrument(struct m0_fop_type *type);
 
+void m0_fop_type_addb2_deinstrument(struct m0_fop_type *type);
+
 /** @} end of fop group */
 #endif /* __MERO_FOP_FOP_H__ */
 

@@ -31,6 +31,27 @@
  * @{
  */
 
+/**
+   Process Reconfig command contains the series of steps:
+
+   1. Save core mask and memory limits to instance data (@ref m0).
+      Core mask and memory limits applied in between of finalisation and
+      initialisation of modules.
+
+   2. Send signal for finalisation of current Mero instance.
+      During finalisation of current Mero instance the system correctly
+      finalises all modules and all Mero entities (services, REQH, localities,
+      FOPs, FOMs, etc).
+
+   3. Apply core mask and memory limits (see setup.c and instance.c).
+
+   4. Restart Mero instance.
+
+      @note For future development, common possible problem in processing
+      Reconfig command is missing of a Mero entity finalisation or cleanup.
+ */
+
+
 /** @} end group ss_process */
 
 #endif /* __MERO_SSS_PROCESS_FOMS_H__ */

@@ -36,7 +36,6 @@
 struct m0_ref;
 struct m0_rpc_machine;
 extern struct m0_fop_type m0_fop_process_fopt;
-extern struct m0_fop_type m0_fop_process_reconfig_fopt;
 extern struct m0_fop_type m0_fop_process_rep_fopt;
 extern struct m0_fop_type m0_fop_process_svc_list_rep_fopt;
 
@@ -46,6 +45,7 @@ extern struct m0_fop_type m0_fop_process_svc_list_rep_fopt;
  */
 enum m0_ss_process_req_cmd {
 	M0_PROCESS_STOP,
+	M0_PROCESS_RECONFIG,
 	M0_PROCESS_HEALTH,
 	M0_PROCESS_QUIESCE,
 	M0_PROCESS_RUNNING_LIST,
@@ -58,19 +58,12 @@ struct m0_ss_process_req {
 	 * Command to execute.
 	 * @see enum m0_ss_process_req_cmd
 	 */
-	uint32_t ssp_cmd;
-} M0_XCA_RECORD;
-
-/** Request to command a process. */
-struct m0_ss_process_reconfig_req {
+	uint32_t      ssp_cmd;
 	/**
-	 * Core mask
+	 * Identifier of the process being started.
+	 * fid type should set to M0_CONF_PROCESS_TYPE.cot_ftype
 	 */
-	uint32_t ssp_cores;
-	/**
-	 * Memory limits
-	 */
-	uint32_t ssp_memlimit;
+	struct m0_fid ssp_id;
 } M0_XCA_RECORD;
 
 /** Response to m0_ss_process_req. */
@@ -98,23 +91,16 @@ struct m0_ss_process_svc_list_rep {
 } M0_XCA_RECORD;
 
 M0_INTERNAL struct m0_fop *m0_ss_process_fop_create(struct m0_rpc_machine *mach,
-						    uint32_t               cmd);
-M0_INTERNAL struct m0_fop *m0_ss_process_reconfig_fop_create(
-					struct m0_rpc_machine *mach,
-					uint32_t               cores,
-					uint32_t               memlimit);
+						    uint32_t               cmd,
+						    const struct m0_fid   *fid);
 
 M0_INTERNAL bool m0_ss_fop_is_process_req(const struct m0_fop *fop);
 M0_INTERNAL struct m0_ss_process_req *m0_ss_fop_process_req(struct m0_fop *fop);
 
-M0_INTERNAL bool m0_ss_fop_is_process_reconfig(const struct m0_fop *fop);
-M0_INTERNAL struct m0_ss_process_reconfig_req *
-m0_ss_proc_reconfig_req(struct m0_fop *fop);
-
 M0_INTERNAL struct m0_ss_process_rep* m0_ss_fop_process_rep(struct m0_fop *fop);
 
 M0_INTERNAL struct  m0_ss_process_svc_list_rep *
-m0_ss_fop_process_svc_list_rep(struct m0_fop *fop);
+			m0_ss_fop_process_svc_list_rep(struct m0_fop *fop);
 
 M0_INTERNAL int m0_ss_process_fops_init(void);
 M0_INTERNAL void m0_ss_process_fops_fini(void);

@@ -306,6 +306,12 @@ M0_INTERNAL void m0_sm_conf_init(struct m0_sm_conf *conf)
 	M0_POST(m0_sm_conf_is_initialized(conf));
 }
 
+M0_INTERNAL void m0_sm_conf_fini(struct m0_sm_conf *conf)
+{
+	M0_PRE(conf->scf_magic == M0_SM_CONF_MAGIC);
+	conf->scf_magic = 0;
+}
+
 M0_INTERNAL bool m0_sm_conf_is_initialized(const struct m0_sm_conf *conf)
 {
 	return conf->scf_magic == M0_SM_CONF_MAGIC;
@@ -656,7 +662,13 @@ M0_INTERNAL void m0_sm_conf_trans_extend(const struct m0_sm_conf *base,
 
 	M0_PRE(conf_invariant(base));
 
-	for (i = 0, j = 0; i < base->scf_trans_nr; i++) {
+	/* search first empty slot */
+	for (j = 0; j < sub->scf_trans_nr; j++)
+		if( sub->scf_trans[j].td_src == 0 &&
+		    sub->scf_trans[j].td_tgt == 0)
+			break;
+
+	for (i = 0; i < base->scf_trans_nr; i++) {
 		const struct m0_sm_trans_descr *b = &base->scf_trans[i];
 
 		if (!trans_exists(sub, b->td_src, b->td_tgt)) {
@@ -666,10 +678,12 @@ M0_INTERNAL void m0_sm_conf_trans_extend(const struct m0_sm_conf *base,
 		}
 	}
 
-	for (; i < sub->scf_trans_nr; i++)
-		sub->scf_trans[j++] = sub->scf_trans[i];
-
-	sub->scf_trans_nr = j;
+	/* remove empty slots */
+	if (j < i) {
+		for (; i < sub->scf_trans_nr; i++)
+			sub->scf_trans[j++] = sub->scf_trans[i];
+		sub->scf_trans_nr = j;
+	}
 
 	M0_POST(conf_invariant(sub));
 }
@@ -778,6 +792,18 @@ M0_INTERNAL int m0_sm_addb2_init(struct m0_sm_conf *conf,
 		result = 0;
 	}
 	return result;
+}
+
+M0_INTERNAL void m0_sm_addb2_fini(struct m0_sm_conf *conf)
+{
+//	M0_PRE(conf->scf_addb2_id != 0);
+
+	if (conf->scf_addb2_key > 0)
+		m0_locality_data_free(conf->scf_addb2_key - 1);
+
+	conf->scf_addb2_id = 0;
+	conf->scf_addb2_counter = 0;
+	conf->scf_addb2_key = 0;
 }
 
 M0_INTERNAL bool m0_sm_addb2_counter_init(struct m0_sm *sm)

@@ -39,6 +39,7 @@
 #include "mero/magic.h"
 #include "fop/fop.h"
 #include "fop/fom_long_lock.h"
+#include "module/instance.h"          /* m0_get */
 #include "reqh/reqh.h"
 #include "sm/sm.h"
 #include "rpc/rpc_machine.h"
@@ -224,7 +225,9 @@ static bool thread_invariant(const struct m0_loc_thread *t)
 
 M0_INTERNAL bool m0_fom_domain_invariant(const struct m0_fom_domain *dom)
 {
+	size_t cpu_max = m0_processor_nr_max();
 	return dom != NULL && dom->fd_localities != NULL &&
+	       dom->fd_localities_nr <= cpu_max &&
 	       m0_forall(i, dom->fd_localities_nr,
 			 dom->fd_localities[i] != NULL) &&
 		dom->fd_ops != NULL;
@@ -933,29 +936,52 @@ err:
 	return M0_ERR(res);
 }
 
+/*
+ * Compose HW core mask with preset mask from instance
+ */
+static void core_mask_apply(struct m0_bitmap *onln_cpu_map)
+{
+	struct m0_bitmap *cores;
+	int               i;
+
+	cores = &m0_get()->i_proc_attr.pca_core_mask;
+
+	if (m0_bitmap_set_nr(cores) == 0)
+		return;
+
+	for (i = 0; i < cores->b_nr && i < onln_cpu_map->b_nr; ++i)
+		if (!m0_bitmap_get(cores, i))
+			m0_bitmap_set(onln_cpu_map, i, false);
+}
+
 M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain **out)
 {
 	struct m0_fom_domain   *dom;
-	struct m0_bitmap        cpu_map;
 	struct m0_fom_locality *loc;
 	int                     result;
+	size_t                  cpu_max;
 	size_t                  cpu_nr;
 	size_t                  i;
+	struct m0_bitmap        cpu_map;
 
-	cpu_nr = m0_processor_nr_max();
-	result = m0_bitmap_init(&cpu_map, cpu_nr + 1);
+	M0_ENTRY();
+
+	cpu_max = m0_processor_nr_max();
+	result = m0_bitmap_init(&cpu_map, cpu_max);
 	if (result != 0)
 		return M0_ERR(result);
+
+	m0_processors_online(&cpu_map);
+	core_mask_apply(&cpu_map);
+	cpu_nr = m0_bitmap_set_nr(&cpu_map);
 
 	M0_ALLOC_PTR(dom);
 	if (dom == NULL) {
 		m0_bitmap_fini(&cpu_map);
 		return M0_ERR(-ENOMEM);
 	}
-
-	m0_processors_online(&cpu_map);
-	cpu_nr = m0_bitmap_set_nr(&cpu_map);
 	dom->fd_ops = &m0_fom_dom_ops;
+
 	result = m0_addb2_sys_init(&dom->fd_addb2_sys,
 				   &(struct m0_addb2_config) {
 					   .co_queue_max = 1024 * 1024,
@@ -1395,7 +1421,9 @@ M0_INTERNAL int m0_foms_init(void)
 }
 
 M0_INTERNAL void m0_foms_fini(void)
-{;}
+{
+	m0_sm_addb2_fini(&fom_states_conf);
+}
 
 M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 {

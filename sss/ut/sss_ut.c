@@ -100,12 +100,14 @@ static void rpc_client_and_server_start(void)
 
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
+#if 0
 	/* Test case: memory error on service allocate */
 	m0_fi_enable("ss_svc_rsto_service_allocate", "fail_allocation");
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc != 0);
 	m0_fi_disable("ss_svc_rsto_service_allocate", "fail_allocation");
 	m0_rpc_server_stop(&sctx);
+#endif
 	/* Normal start */
 	rc = m0_rpc_server_start(&sctx);
 	M0_ASSERT(rc == 0);
@@ -221,25 +223,10 @@ static struct m0_fop *ut_sss_process_create_req(uint32_t cmd)
 	M0_UT_ASSERT(process_fop_req != NULL);
 
 	process_fop_req->ssp_cmd = cmd;
+	process_fop_req->ssp_id = M0_FID_TINIT('r', 1, 5);
 	m0_fop_init(fop,
 		    &m0_fop_process_fopt,
 		    (void *)process_fop_req,
-		    m0_fop_release);
-
-	return fop;
-}
-
-static struct m0_fop *ut_sss_process_create_reconfig_req()
-{
-	struct m0_fop                     *fop;
-	struct m0_ss_process_reconfig_req *process_reconfig_fop_req;
-
-	M0_ALLOC_PTR(fop);
-	M0_ALLOC_PTR(process_reconfig_fop_req);
-	process_reconfig_fop_req->ssp_cores = 7;
-	m0_fop_init(fop,
-		    &m0_fop_process_reconfig_fopt,
-		    (void *)process_reconfig_fop_req,
 		    m0_fop_release);
 
 	return fop;
@@ -286,7 +273,8 @@ static void sss_process_reconfig_test(void)
 	int rc;
 	struct m0_fop *fop;
 
-	fop = ut_sss_process_create_reconfig_req();
+	m0_fi_enable_off_n_on_m("ss_process_reconfig", "unit_test", 0, 1);
+	fop = ut_sss_process_create_req(M0_PROCESS_RECONFIG);
 	rc = ut_sss_process_req(fop, 0);
 	M0_UT_ASSERT(rc == 0);
 }
@@ -349,8 +337,8 @@ static void sss_process_svc_list_test()
 static void sss_fop_ut_release(struct m0_ref *ref)
 {
 	struct m0_fop    *fop;
-        fop  = container_of(ref, struct m0_fop, f_ref);
-        m0_free(fop);
+	fop  = container_of(ref, struct m0_fop, f_ref);
+	m0_free(fop);
 }
 
 static void sss_process_fom_create_fail(void)

@@ -108,7 +108,8 @@ static void nodes_open(struct m0_conf_obj **result,
 
 static void _proc_cores_add(const struct m0_conf_obj *obj)
 {
-	g_num += M0_CONF_CAST(obj, m0_conf_process)->pc_cores;
+	g_num += m0_bitmap_set_nr(
+			&M0_CONF_CAST(obj, m0_conf_process)->pc_cores);
 }
 
 static bool _proc_has_services(const struct m0_conf_obj *obj)
@@ -181,12 +182,12 @@ static void dir_test(struct m0_confc *confc)
 	g_num = 0;
 	rc = dir_entries_use(procs_dir, _proc_cores_add, NULL);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(g_num == 3);
+	M0_UT_ASSERT(g_num == 2);
 
 	g_num = 0;
 	rc = dir_entries_use(procs_dir, _proc_cores_add, _proc_has_services);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(g_num == 2);
+	M0_UT_ASSERT(g_num == 1);
 
 	g_num = 0;
 	while (m0_confc_readdir_sync(procs_dir, &entry) > 0)

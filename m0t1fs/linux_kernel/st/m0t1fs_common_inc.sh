@@ -295,7 +295,7 @@ function build_conf()
 	      [1: $POOLID],
 	      [1: $RACKID])},
   {0x6e| (($NODE), 16000, 2, 3, 2, $POOLID, [1: $PROC])},
-  {0x72| (($PROC), 4000, 2,
+  {0x72| (($PROC), [1:3], 0, 0, 0, 0,
 	           [$((${#ioservices[*]} + ${#mdservices[*]} + 3)): $MDS_NAMES, $RM, $IOS_NAMES, $STATS, $HA_SVC_ID])},
   {0x73| (($RM), 4, [1: $RMS_ENDPOINT], [0])},
   {0x73| (($STATS), 5, [1: $STATS_ENDPOINT], [0])},

@@ -217,6 +217,7 @@ static void test_spiel_process_cmds(void)
 	rc = m0_spiel_process_reconfig(&spiel, &profile_second_fid);
 	M0_UT_ASSERT(rc == -ENOENT);
 
+	m0_fi_enable_once("ss_process_reconfig", "unit_test");
 	rc = m0_spiel_process_reconfig(&spiel, &profile_fid);
 	M0_UT_ASSERT(rc == 0);
 

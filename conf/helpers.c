@@ -62,6 +62,28 @@ M0_INTERNAL int m0_conf_fs_get(const char *profile,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL int m0_conf_process_get(struct m0_confc         *confc,
+				    struct m0_fid           *fid,
+				    struct m0_conf_process **process)
+{
+	struct m0_conf_obj *obj;
+	int                 rc;
+
+	M0_PRE(confc != NULL);
+	M0_PRE(fid != NULL);
+
+	m0_conf_cache_lock(&confc->cc_cache);
+	rc = m0_conf_obj_find(&confc->cc_cache, fid, &obj);
+	m0_conf_cache_unlock(&confc->cc_cache);
+
+	if (rc == 0)
+		rc = m0_confc_open_sync(&obj, obj, M0_FID0);
+	if (rc == 0)
+		*process = M0_CONF_CAST(obj, m0_conf_process);
+
+	return M0_RC(rc);
+}
+
 M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE;

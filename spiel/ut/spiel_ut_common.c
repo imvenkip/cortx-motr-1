@@ -44,11 +44,11 @@ M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 		return rc;
 
 	rc = m0_rpc_net_buffer_pool_setup(&spl_reqh->sur_net_dom,
-	                                  &spl_reqh->sur_buf_pool,
-	                                  m0_rpc_bufs_nr(
-	                                     M0_NET_TM_RECV_QUEUE_DEF_LEN,
-	                                     NR_TMS),
-	                                  NR_TMS);
+					  &spl_reqh->sur_buf_pool,
+					  m0_rpc_bufs_nr(
+					     M0_NET_TM_RECV_QUEUE_DEF_LEN,
+					     NR_TMS),
+					  NR_TMS);
 	if (rc != 0)
 		goto net;
 
@@ -62,11 +62,11 @@ M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 	m0_reqh_start(&spl_reqh->sur_reqh);
 
 	rc = m0_rpc_machine_init(&spl_reqh->sur_rmachine,
-	                         &spl_reqh->sur_net_dom, ep_addr,
-	                         &spl_reqh->sur_reqh, &spl_reqh->sur_buf_pool,
-	                         M0_BUFFER_ANY_COLOUR,
-	                         M0_RPC_DEF_MAX_RPC_MSG_SIZE,
-	                         M0_NET_TM_RECV_QUEUE_DEF_LEN);
+				 &spl_reqh->sur_net_dom, ep_addr,
+				 &spl_reqh->sur_reqh, &spl_reqh->sur_buf_pool,
+				 M0_BUFFER_ANY_COLOUR,
+				 M0_RPC_DEF_MAX_RPC_MSG_SIZE,
+				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
 	if (rc == 0) {
 		return 0;
 	}

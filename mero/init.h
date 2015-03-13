@@ -45,6 +45,23 @@ int m0_init(struct m0 *instance);
  */
 void m0_fini(void);
 
+/**
+   Performs part global initializations of M0 sub-systems, when stopped before
+   reconfigure Mero.
+
+   @see m0_init(), @see m0_fini(), @see m0_quiesce().
+ */
+int m0_resume(struct m0 *instance);
+
+/**
+   Finalizes part global initializations of M0 sub-systems, for starting
+   reconfigure Mero. Sub-systems finalize from high level to quiese level.
+   @see M0_LEVEL_INST_QUIESCE_SYSTEM.
+
+   @see m0_init(), @see m0_fini(), @see m0_resume().
+ */
+void m0_quiesce(void);
+
 #endif /* XXX OBSOLETE */
 
 /** @} end of init group */

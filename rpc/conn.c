@@ -29,6 +29,7 @@
 #include "lib/finject.h"
 #include "lib/uuid.h"
 #include "fop/fop.h"
+#include "module/instance.h"  /* m0_get */
 #include "rpc/rpc_internal.h"
 
 /**

@@ -95,6 +95,8 @@ M0_INTERNAL void m0_mds_unregister(void)
 	m0_reqh_service_type_unregister(&m0_mds_type);
 	m0_mdservice_fop_fini();
 	m0_mdservice_fsync_fop_fini();
+
+	m0_reqh_lockers_free(m0_get()->i_mds_cdom_key);
 }
 
 /**

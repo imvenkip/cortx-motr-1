@@ -22,14 +22,18 @@
 #ifndef __MERO_CONF_HELPERS_H__
 #define __MERO_CONF_HELPERS_H__
 
+#include "lib/tlist.h"
+
 /* import */
 struct m0_rpc_machine;
 struct m0_sm_group;
 struct m0_tl;
+struct m0_fid;
 struct m0_confc;
 struct m0_conf_filesystem;
 struct m0_conf_pver;
 struct m0_conf_obj;
+struct m0_conf_process;
 struct m0_conf_root;
 struct m0_conf_service;
 struct m0_rpc_session;
@@ -59,6 +63,13 @@ struct m0_confc_args {
 M0_INTERNAL int m0_conf_fs_get(const char                 *profile,
 			       struct m0_confc            *confc,
 			       struct m0_conf_filesystem **result);
+
+/**
+ * Obtains process object associated with given profile.
+ */
+M0_INTERNAL int m0_conf_process_get(struct m0_confc         *confc,
+				    struct m0_fid           *fid,
+				    struct m0_conf_process **process);
 
 /** Finds pool version which does not intersect with the given failure set. */
 M0_INTERNAL int m0_conf_poolversion_get(struct m0_conf_filesystem *fs,

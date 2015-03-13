@@ -110,17 +110,24 @@ struct init_fini_call {
 	const char *ifc_name;
 };
 
-/*
-  XXX dummy_init_fini.c defines dummy init() and fini() routines for
-  subsystems, that are not yet ported to kernel mode.
- */
-struct init_fini_call subsystem[] = {
+struct init_fini_call quiesce[] = {
 #ifndef __KERNEL__
 	{ &m0_utime_init,       &m0_utime_fini,       "time" },
 #endif
 	{ &m0_xcode_init,       &m0_xcode_fini,       "xcode" },
 	{ &m0_trace_init,       &m0_trace_fini,       "trace" },
 	{ &m0_fi_init,          &m0_fi_fini,          "finject" },
+};
+
+struct init_fini_call once[] = {
+	{ &m0_threads_once_init, &m0_threads_once_fini, "threads" }
+};
+
+/*
+  XXX dummy_init_fini.c defines dummy init() and fini() routines for
+  subsystems, that are not yet ported to kernel mode.
+ */
+struct init_fini_call subsystem[] = {
 	{ &m0_memory_init,      &m0_memory_fini,      "memory" },
 	{ &libm0_init,          &libm0_fini,          "libm0" },
 	{ &m0_ha_global_init ,  &m0_ha_global_fini,   "ha" },
@@ -195,16 +202,29 @@ struct init_fini_call subsystem[] = {
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" }
 };
 
-struct init_fini_call once[] = {
-	{ &m0_threads_once_init, &m0_threads_once_fini, "threads" }
-};
-
 static void fini_nr(struct init_fini_call *arr, int nr)
 {
 	while (--nr >= 0) {
 		if (arr[nr].ifc_fini != NULL)
 			arr[nr].ifc_fini();
 	}
+}
+
+static int init_nr(struct init_fini_call *arr, int nr)
+{
+	int i;
+	int rc;
+
+	for (i = 0; i < nr; ++i) {
+		rc = arr[i].ifc_init();
+		if (rc != 0) {
+			m0_error_printf("subsystem %s init failed: rc = %d\n",
+					arr[i].ifc_name, rc);
+			fini_nr(arr, i);
+			return rc;
+		}
+	}
+	return 0;
 }
 
 /**
@@ -218,21 +238,13 @@ M0_INTERNAL int m0_init_once(struct m0 *instance)
 	int rc;
 
 	if (!initialised_once) {
-		int i;
 		/*
 		 * Bravely ignore all issues of concurrency and memory
 		 * consistency models, which occupy weaker minds.
 		 */
-		for (i = 0; i < ARRAY_SIZE(once); ++i) {
-			rc = once[i].ifc_init();
-			if (rc != 0) {
-				m0_error_printf("subsystem '%s' init failed:"
-						" rc=%d\n",
-						subsystem[i].ifc_name, rc);
-				fini_nr(once, i);
-				return rc;
-			}
-		}
+		rc = init_nr(once, ARRAY_SIZE(once));
+		if (rc != 0)
+			return rc;
 		initialised_once = true;
 	}
 
@@ -267,27 +279,40 @@ void m0_fini(void)
 	m0_module_fini(&m0_get()->i_self, M0_MODLEV_NONE);
 }
 
+int m0_resume(struct m0 *instance)
+{
+	int rc;
+	rc = m0_module_init(&instance->i_self, M0_LEVEL_INST_READY);
+	m0_rwlockable_domain_init();
+	return rc;
+}
+
+void m0_quiesce(void)
+{
+	m0_rwlockable_domain_fini();
+	m0_module_fini(&m0_get()->i_self, M0_LEVEL_INST_QUIESCE_SYSTEM);
+}
+
 M0_INTERNAL int m0_subsystems_init(void)
 {
-	int i;
-	int rc;
-
-	for (i = 0; i < ARRAY_SIZE(subsystem); ++i) {
-		rc = subsystem[i].ifc_init();
-		if (rc != 0) {
-			m0_error_printf("subsystem %s init failed: rc = %d\n",
-					subsystem[i].ifc_name, rc);
-			fini_nr(subsystem, i);
-			return rc;
-		}
-	}
-	return 0;
+	return init_nr(subsystem, ARRAY_SIZE(subsystem));
 }
 
 M0_INTERNAL void m0_subsystems_fini(void)
 {
 	fini_nr(subsystem, ARRAY_SIZE(subsystem));
 }
+
+M0_INTERNAL int m0_quiesce_init(void)
+{
+	return init_nr(quiesce, ARRAY_SIZE(quiesce));
+}
+
+M0_INTERNAL void m0_quiesce_fini(void)
+{
+	fini_nr(quiesce, ARRAY_SIZE(quiesce));
+}
+
 #endif /* XXX OBSOLETE */
 
 /** @} end of init group */

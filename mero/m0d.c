@@ -39,6 +39,7 @@
 #include "module/instance.h"  /* m0 */
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
+#include "mero/process_attr.h"
 
 /**
    @addtogroup m0d
@@ -53,7 +54,18 @@ static struct m0_net_xprt *cs_xprts[] = {
 	&m0_net_lnet_xprt
 };
 
-static volatile sig_atomic_t gotsignal = 0;
+/* Signal handler result */
+enum result_status
+{
+	/* Default value */
+	M0_RESULT_STATUS_WORK    = 0,
+	/* Stop work Mero instance */
+	M0_RESULT_STATUS_STOP    = 1,
+	/* Restart Mero instance */
+	M0_RESULT_STATUS_RESTART = 2,
+};
+
+static volatile sig_atomic_t gotsignal = M0_RESULT_STATUS_WORK;
 
 /**
    Signal handler registered so that pause()
@@ -61,14 +73,17 @@ static volatile sig_atomic_t gotsignal = 0;
  */
 static void cs_term_sig_handler(int signum)
 {
-	gotsignal = 1;
+	gotsignal = signum == SIGUSR1 ? M0_RESULT_STATUS_RESTART :
+					M0_RESULT_STATUS_STOP;
 }
 
 /**
    Registers signal handler to catch SIGTERM, SIGINT and
-   SIGQUIT signals and pause the mero process.
+   SIGQUIT signals and pauses the Mero process.
+   Registers signal handler to catch SIGUSR1 signals to
+   restart the Mero process.
  */
-static void cs_wait_for_termination(void)
+static int cs_wait_for_termination(void)
 {
 	struct sigaction        term_act;
 
@@ -78,21 +93,24 @@ static void cs_wait_for_termination(void)
 	sigaction(SIGTERM, &term_act, NULL);
 	sigaction(SIGINT,  &term_act, NULL);
 	sigaction(SIGQUIT, &term_act, NULL);
+	sigaction(SIGUSR1, &term_act, NULL);
 
 	printf("Press CTRL+C to quit.\n");
 	fflush(stdout);
 	do {
 		pause();
 	} while (!gotsignal);
+
+	return gotsignal;
 }
 
 M0_INTERNAL int main(int argc, char **argv)
 {
-	static struct m0 instance;
-
-	int            rc;
-	struct m0_mero mero_ctx;
-	struct rlimit rlim = {10240, 10240};
+	static struct m0       instance;
+	int                    result;
+	int                    rc;
+	struct m0_mero         mero_ctx;
+	struct rlimit          rlim = {10240, 10240};
 
 	if (argc > 1 &&
 	    (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)) {
@@ -105,6 +123,7 @@ M0_INTERNAL int main(int argc, char **argv)
 		warnx("\n Failed to setrlimit\n");
 		goto out;
 	}
+
 	errno = 0;
 	M0_SET0(&mero_ctx);
 	rc = m0_init(&instance);
@@ -113,6 +132,7 @@ M0_INTERNAL int main(int argc, char **argv)
 		goto out;
 	}
 
+start_m0d:
 	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, false);
 	if (rc != 0) {
 		warnx("\n Failed to initialise Mero \n");
@@ -133,20 +153,48 @@ M0_INTERNAL int main(int argc, char **argv)
 	if (rc != 0)
 		goto cleanup1;
 
-#ifdef HAVE_SYSTEMD
-	rc = sd_notify(0, "READY=1");
-	if (rc < 0)
-		warnx("systemd READY notification failed, rc=%d\n", rc);
-	else if (rc == 0)
-		warnx("systemd notifications not allowed\n");
-	else
-		warnx("systemd READY notification successfull\n");
-#endif
-
 	rc = m0_cs_start(&mero_ctx);
 
 	if (rc == 0) {
-		cs_wait_for_termination();
+#ifdef HAVE_SYSTEMD
+		rc = sd_notify(0, "READY=1");
+		if (rc < 0)
+			warnx("systemd READY notification failed, rc=%d\n", rc);
+		else if (rc == 0)
+			warnx("systemd notifications not allowed\n");
+		else
+			warnx("systemd READY notification successfull\n");
+#endif
+		result = cs_wait_for_termination();
+	}
+
+	if (rc == 0 && result == M0_RESULT_STATUS_RESTART) {
+		/*
+		 * Note! A very common cause of failure restart is
+		 * non-finalize (non-clean) any subsystem
+		 */
+		m0_cs_fini(&mero_ctx);
+		m0_quiesce();
+
+		gotsignal = M0_RESULT_STATUS_WORK;
+
+		rc = m0_cs_memory_limits_setup(&instance);
+		if (rc != 0) {
+			warnx("\n Failed to set process memory limits Mero \n");
+			goto out;
+		}
+
+		rc = m0_resume(&instance);
+		if (rc != 0) {
+			warnx("\n Failed to reconfigure Mero \n");
+			goto out;
+		}
+
+		/* Print to m0.log for ./sss/st system test*/
+		printf("Restarting\n");
+		fflush(stdout);
+
+		goto start_m0d;
 	}
 
 cleanup1:

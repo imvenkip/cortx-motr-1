@@ -233,24 +233,6 @@ const struct m0_fop_type_ops io_fop_cd_ops = {
 	.fto_redo = io_fol_cd_rec_frag_redo,
 };
 
-M0_INTERNAL void m0_ioservice_fop_fini(void)
-{
-	m0_fop_type_fini(&m0_fop_cob_setattr_reply_fopt);
-	m0_fop_type_fini(&m0_fop_cob_setattr_fopt);
-	m0_fop_type_fini(&m0_fop_cob_getattr_reply_fopt);
-	m0_fop_type_fini(&m0_fop_cob_getattr_fopt);
-	m0_fop_type_fini(&m0_fop_cob_op_reply_fopt);
-	m0_fop_type_fini(&m0_fop_fv_notification_fopt);
-	m0_fop_type_fini(&m0_fop_cob_truncate_fopt);
-	m0_fop_type_fini(&m0_fop_cob_delete_fopt);
-	m0_fop_type_fini(&m0_fop_cob_create_fopt);
-	m0_fop_type_fini(&m0_fop_cob_writev_rep_fopt);
-	m0_fop_type_fini(&m0_fop_cob_readv_rep_fopt);
-	m0_fop_type_fini(&m0_fop_cob_writev_fopt);
-	m0_fop_type_fini(&m0_fop_cob_readv_fopt);
-	m0_fop_type_fini(&m0_fop_fsync_ios_fopt);
-}
-
 extern struct m0_reqh_service_type m0_ios_type;
 extern const struct m0_fom_type_ops cob_fom_type_ops;
 extern const struct m0_fom_type_ops io_fom_type_ops;
@@ -259,6 +241,31 @@ extern struct m0_sm_conf io_conf;
 extern struct m0_sm_state_descr io_phases[];
 extern const struct m0_sm_conf cob_ops_conf;
 extern struct m0_sm_state_descr cob_ops_phases[];
+
+M0_INTERNAL void m0_ioservice_fop_fini(void)
+{
+	m0_fop_type_addb2_deinstrument(&m0_fop_cob_readv_fopt);
+	m0_fop_type_addb2_deinstrument(&m0_fop_cob_writev_fopt);
+
+	m0_fop_type_fini(&m0_fop_cob_readv_fopt);
+	m0_fop_type_fini(&m0_fop_cob_writev_fopt);
+	m0_fop_type_fini(&m0_fop_cob_readv_rep_fopt);
+	m0_fop_type_fini(&m0_fop_cob_writev_rep_fopt);
+	m0_fop_type_fini(&m0_fop_cob_create_fopt);
+	m0_fop_type_fini(&m0_fop_cob_delete_fopt);
+	m0_fop_type_fini(&m0_fop_cob_truncate_fopt);
+	m0_fop_type_fini(&m0_fop_cob_op_reply_fopt);
+	m0_fop_type_fini(&m0_fop_fv_notification_fopt);
+	m0_fop_type_fini(&m0_fop_cob_getattr_fopt);
+	m0_fop_type_fini(&m0_fop_cob_getattr_reply_fopt);
+	m0_fop_type_fini(&m0_fop_fsync_ios_fopt);
+	m0_fop_type_fini(&m0_fop_cob_setattr_fopt);
+	m0_fop_type_fini(&m0_fop_cob_setattr_reply_fopt);
+
+#ifndef __KERNEL__
+	m0_sm_conf_fini(&io_conf);
+#endif
+}
 
 M0_INTERNAL int m0_ioservice_fop_init(void)
 {

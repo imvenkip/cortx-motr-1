@@ -70,6 +70,11 @@ class Fid(Structure):
     _fields_ = [("f_container", c_uint64), ("f_key", c_uint64)]
 
 
+# struct m0_bitmap
+class Bitmap(Structure):
+    _fields_ = [("b_nr", c_uint32), ("b_words", c_void_p)]
+
+
 # struct m0_net_xprt
 class NetXprt(Structure):
     _fields_ = [('nx_name', c_char_p), ('nx_ops', c_void_p)]
@@ -185,11 +190,15 @@ class SpielWrapper:
         return self.mero.m0_spiel_node_add(spiel_tx, fid, parent, memsize,
                                            nr_cpu, last_state, flags, pool_fid)
 
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, cores=int,
-             memory_limit=long)
-    def process_add(self, spiel_tx, fid, parent, cores, memory_limit):
+    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, cores=Bitmap,
+             memory_limit_as=long, memory_limit_rss=int, memory_limit_stack=int,
+             memory_limit_memlock=int)
+    def process_add(self, spiel_tx, fid, parent, cores, memory_limit_as,
+             memory_limit_rss, memory_limit_stack, memory_limit_memlock):
         return self.mero.m0_spiel_process_add(spiel_tx, fid, parent, cores,
-                                              memory_limit)
+                                              memory_limit_as, memory_limit_rss,
+                                              memory_limit_stack,
+                                              memory_limit_memlock)
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, service_info=ServiceInfo)
     def service_add(self, spiel_tx, fid, parent, service_info):
@@ -397,6 +406,8 @@ class SpielToolTest(unittest.TestCase):
         self.fid = Fid(1, 1)
         self.parent = Fid(2, 2)
         self.real = Fid(1, 2)
+        self.Bitmap = Bitmap(32, 0)
+        self.Bitmap.b_words = __allocate_memory(32)
 
     def test_typed_parameters(self):
         self.assertRaises(TypeError, self.spiel.tx_open, "Wrong type")
@@ -409,7 +420,8 @@ class SpielToolTest(unittest.TestCase):
                   Fid(3, 3), [b'param1', b'param2']),
                  ('node_add', self.spielTx, self.fid, self.parent, 1L, 1, 1L,
                   1L, Fid(4, 4)),
-                 ('process_add', self.spielTx, self.fid, self.parent, 1, 1L),
+                 ('process_add', self.spielTx, self.fid, self.parent,
+                    self.Bitmap, 1L, 2, 3, 4),
                  ('service_add', self.spielTx, self.fid, self.parent,
                   ServiceInfo()),
                  ('device_add', self.spielTx, self.fid, self.parent, 1, 1, 1,

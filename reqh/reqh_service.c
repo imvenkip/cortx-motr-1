@@ -432,6 +432,7 @@ void m0_reqh_service_type_unregister(struct m0_reqh_service_type *rstype)
 	M0_PRE(rstype != NULL && m0_reqh_service_type_bob_check(rstype));
 
 	rstypes_tlink_del_fini(rstype);
+	m0_reqh_lockers_free(rstype->rst_key);
 	m0_reqh_service_type_bob_fini(rstype);
 }
 

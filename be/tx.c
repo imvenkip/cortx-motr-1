@@ -638,7 +638,12 @@ M0_INTERNAL int m0_be_tx_mod_init(void)
 }
 
 M0_INTERNAL void m0_be_tx_mod_fini(void)
-{;}
+{
+	m0_sm_addb2_fini(&op_states_conf);
+	m0_sm_addb2_fini(&be_tx_sm_conf);
+	m0_sm_conf_fini(&op_states_conf);
+	m0_sm_conf_fini(&be_tx_sm_conf);
+}
 
 #undef BE_TX_LOCKED_AT_STATE
 

@@ -774,6 +774,14 @@ bool m0_xcode_type_invariant(const struct m0_xcode_type *xt);
 M0_INTERNAL void m0_xcode_union_init (struct m0_xcode_type *un, const char *name,
 				      const char *discriminator,
 				      size_t maxbranches);
+
+/**
+ * Finalises a "dynamic union".
+ *
+ * @see m0_xcode_union_init(), m0_xcode_union_close()
+ */
+M0_INTERNAL void m0_xcode_union_fini(struct m0_xcode_type *un);
+
 /**
  * Adds another branch to the dynamic union.
  *

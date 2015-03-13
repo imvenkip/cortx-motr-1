@@ -46,6 +46,10 @@ M0_INTERNAL void m0_mdservice_fsync_fop_fini(void)
 	m0_fop_type_fini(&m0_fop_fsync_mds_fopt);
 
 	m0_fop_type_fini(&m0_fop_fsync_rep_fopt);
+
+#ifndef __KERNEL__
+	m0_sm_conf_fini(&m0_fsync_fom_conf);
+#endif
 }
 M0_EXPORTED(m0_mdservice_fsync_fop_fini);
 

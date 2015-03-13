@@ -23,7 +23,9 @@
 #define __MERO_CONF_ONWIRE_H__
 
 #include "xcode/xcode.h"
-#include "lib/types.h"    /* m0_conf_verno_t */
+#include "lib/types.h"     /* m0_conf_verno_t */
+#include "lib/bitmap.h"    /* m0_bitmap_onwire */
+#include "lib/bitmap_xc.h" /* m0_bitmap_onwire */
 #include "lib/buf_xc.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
@@ -134,11 +136,14 @@ struct m0_confx_node {
 } M0_XCA_RECORD;
 
 struct m0_confx_process {
-	struct m0_confx_header xr_header;
-	uint32_t               xr_mem_limit;
-	uint32_t               xr_cores;
+	struct m0_confx_header  xr_header;
+	struct m0_bitmap_onwire xr_cores;
+	uint64_t                xr_mem_limit_as;
+	uint64_t                xr_mem_limit_rss;
+	uint64_t                xr_mem_limit_stack;
+	uint64_t                xr_mem_limit_memlock;
 	/* Services being run by this process. */
-	struct arr_fid         xr_services;
+	struct arr_fid          xr_services;
 } M0_XCA_RECORD;
 
 struct m0_confx_service {

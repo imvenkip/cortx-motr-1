@@ -425,5 +425,6 @@ M0_INTERNAL void m0_conf_obj_fini(void)
 	M0_CONF_OBJ_TYPES;
 #undef X_CONF
 	m0_fid_type_unregister(&M0_CONF_RELFID_TYPE);
+	m0_xcode_union_fini(m0_confx_obj_xc);
 }
 #undef M0_TRACE_SUBSYSTEM

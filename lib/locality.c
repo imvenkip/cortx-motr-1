@@ -247,6 +247,7 @@ M0_INTERNAL void m0_localities_fini(void)
 	locality_data_free_all();
 	if (glob->lg_dom != NULL)
 		m0_fom_domain_fini(glob->lg_dom);
+	glob->lg_dom = NULL;
 	glob->lg_shutdown = true;
 	m0_clink_signal(&glob->lg_grp.s_clink);
 	m0_thread_join(&glob->lg_ast_thread);
@@ -255,6 +256,7 @@ M0_INTERNAL void m0_localities_fini(void)
 	m0_sm_group_fini(&glob->lg_grp);
 	chores_g_tlist_fini(&glob->lg_chore);
 	m0_mutex_fini(&glob->lg_lock);
+	M0_SET0(glob);
 }
 
 /*
@@ -446,6 +448,7 @@ int m0_locality_data_alloc(size_t nob, int (*ctor)(void *, void *),
 		.ld_dtor  = dtor,
 		.ld_datum = datum
 	};
+
 	return ldata_alloc(&loc_glob()->lg_fallback, key) ?:
 		locality_data_alloc(key) ?: key;
 }
@@ -458,6 +461,7 @@ void m0_locality_data_free(int key)
 	locality_data_free(key);
 	ldata_free(&loc_glob()->lg_fallback, key);
 	ldata[key].ld_nob = 0;
+	m0_locality_lockers_free(key);
 }
 
 void *m0_locality_data(int key)

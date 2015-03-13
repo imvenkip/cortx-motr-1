@@ -181,6 +181,10 @@ M0_INTERNAL int m0_ios_register(void)
  */
 M0_INTERNAL void m0_ios_unregister(void)
 {
+	m0_reqh_lockers_free(ios_mds_conn_key);
+	m0_reqh_lockers_free(poolmach_key);
+	m0_reqh_lockers_free(m0_get()->i_ios_cdom_key);
+
 	m0_reqh_service_type_unregister(&m0_ios_type);
 	m0_ioservice_fop_fini();
 }
@@ -188,7 +192,7 @@ M0_INTERNAL void m0_ios_unregister(void)
 M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service
 					      *rios)
 {
-        return rios->rios_magic == M0_IOS_REQH_SVC_MAGIC;
+	return rios->rios_magic == M0_IOS_REQH_SVC_MAGIC;
 }
 
 /**

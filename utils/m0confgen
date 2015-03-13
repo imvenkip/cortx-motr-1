@@ -35,6 +35,7 @@ input_format = """Input format:
     attr    = ID "=" ( NUMBER | STRING | fid | objid | list )
     fid     = "(" NUMBER "," NUMBER ")"
     list    = "[" [ csv(NUMBER) | csv(STRING) | csv(fid) | csv(objid) ] "]"
+    bitmap  = "[NUMBER : NUMBER]"
     objtype = { %(objtypes)s }
 
 Examples:
@@ -69,7 +70,9 @@ conf_obj_types = {
     'objv': ('j', 'real=objid children=[objid]'),
     'node': ('n', 'memsize=NUMBER nr_cpu=NUMBER last_state=NUMBER flags=NUMBER'
              ' pool_id=objid processes=[objid]'),
-    'process': ('r', 'mem_limit=NUMBER cores=NUMBER services=[objid]'),
+    'process': ('r', 'mem_limit_as=NUMBER mem_limit_rss=NUMBER'
+                ' mem_limit_stack=NUMBER mem_limit_memlock=NUMBER cores=bitmap'
+                ' services=[objid]'),
     'service': ('s', 'type=NUMBER endpoints=[STRING] sdevs=[objid]'),
     'sdev': ('d', 'iface=NUMBER media=NUMBER bsize=NUMBER size=NUMBER'
              ' last_state=NUMBER flags=NUMBER filename=STRING'),
@@ -117,7 +120,8 @@ def conf_type2enc(t):
         'NUMBER': str,
         'STRING': quote,
         'fid': repr,
-        'objid': conf_objid_encode
+        'objid': conf_objid_encode,
+        'bitmap': repr
     }[t]
     return list_encode_with(enc) if list_p else enc
 
@@ -210,6 +214,10 @@ def p_fid(p):
     "fid : '(' NUMBER ',' NUMBER ')'"
     p[0] = p[2], p[4]
 
+def p_bitmap(p):
+    "bitmap : '[' NUMBER ':' NUMBER ']'"
+    p[0] = p[2], p[4]
+
 def p_attrs(p):
     """
     attrs : attr
@@ -298,6 +306,7 @@ class TestEncoders(unittest.TestCase):
         self.assertEqual(conf_type2enc('NUMBER')(42), '42')
         self.assertEqual(conf_type2enc('STRING')('abc'), '"abc"')
         self.assertEqual(conf_type2enc('fid')((11, 22)), '(11, 22)')
+        self.assertEqual(conf_type2enc('bitmap')((1, 3)), '[1:3]')
         self.assertEqual(conf_type2enc('[NUMBER]')([3, 4]), '[2: 3, 4]')
         self.assertEqual(conf_type2enc('[STRING]')('abc'), '[3: "a", "b", "c"]')
         self.assertEqual(conf_type2enc('[fid]')([(11, 22)]), '[1: (11, 22)]')

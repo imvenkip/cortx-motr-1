@@ -418,8 +418,16 @@ struct m0_conf_process {
 	struct m0_conf_obj  pc_obj;
 	struct m0_conf_dir *pc_services;
 /* configuration data (for the application) */
-	uint32_t            pc_cores;
-	uint32_t            pc_memlimit;
+	/** Core mask  */
+	struct m0_bitmap    pc_cores;
+	/** Memory limits - AS */
+	uint64_t            pc_memlimit_as;
+	/** Memory limits - RSS */
+	uint64_t            pc_memlimit_rss;
+	/** Memory limits - Stack */
+	uint64_t            pc_memlimit_stack;
+	/** Memory limits - Memory Lock */
+	uint64_t            pc_memlimit_memlock;
 };
 
 struct m0_conf_service {

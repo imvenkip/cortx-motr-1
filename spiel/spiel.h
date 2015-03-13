@@ -284,12 +284,16 @@ struct m0_spiel_tx *m0_spiel_tx_open(struct m0_spiel    *spiel,
  *
  * Close spiel transaction.
  *
+ * Once function is called spiel transaction can't be used anymore.
+ *
  * @param tx spiel transaction
  */
 void m0_spiel_tx_close(struct m0_spiel_tx *tx);
 
 /**
  * Commit filled spiel transaction
+ *
+ * Once function is called spiel transaction can't be used anymore.
  *
  * @param tx spiel transaction
  */
@@ -354,8 +358,11 @@ int m0_spiel_node_add(struct m0_spiel_tx  *tx,
 int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 			 const struct m0_fid *fid,
 			 const struct m0_fid *parent,
-			 uint32_t             cores,
-			 uint32_t             memlimit);
+			 struct m0_bitmap    *cores,
+			 uint64_t             memlimit_as,
+			 uint64_t             memlimit_rss,
+			 uint64_t             memlimit_stack,
+			 uint64_t             memlimit_memlock);
 
 /** Spiel service information */
 struct m0_spiel_service_info {
@@ -660,7 +667,6 @@ struct m0_spiel_running_svc {
 /**
  * List currently running services inside the mero process.
  * Can be used to monitor services and detect service failures.
- * Caller provides place to put fids of running services.
  *
  * @return number of filled elements in services array on success,
  *         error code otherwise.

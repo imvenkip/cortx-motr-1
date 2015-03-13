@@ -319,6 +319,8 @@ M0_INTERNAL void m0_fops_fini(void)
 	m0_mutex_fini(&fop_types_lock);
 	/* Do not finalise fop_types_list, it can be validly non-empty. */
 	m0_fol_frag_type_deregister(&m0_fop_fol_frag_type);
+
+	m0_sm_conf_fini(&fom_states_conf);
 }
 
 struct m0_rpc_item *m0_fop_to_rpc_item(struct m0_fop *fop)
@@ -471,6 +473,17 @@ struct m0_net_domain *m0_fop_domain_get(const struct m0_fop *fop)
 	M0_PRE(fop != NULL);
 
 	return m0_fop_tm_get(fop)->ntm_dom;
+}
+
+void m0_fop_type_addb2_deinstrument(struct m0_fop_type *type)
+{
+	struct m0_fom_type      *ft = &type->ft_fom_type;
+	struct m0_rpc_item_type *rt = &type->ft_rpc_item_type;
+
+	m0_sm_addb2_fini(&ft->ft_conf);
+	m0_sm_addb2_fini(&ft->ft_state_conf);
+	m0_sm_addb2_fini(&rt->rit_outgoing_conf);
+	m0_sm_addb2_fini(&rt->rit_incoming_conf);
 }
 
 /** @} end of fop group */

@@ -504,7 +504,7 @@ static int spiel_process_command_execute(struct m0_spiel     *spl,
 	M0_PRE(proc_fid != NULL);
 	M0_PRE(m0_conf_fid_type(proc_fid) == &M0_CONF_PROCESS_TYPE);
 
-	fop = m0_ss_process_fop_create(spl->spl_rmachine, cmd);
+	fop = m0_ss_process_fop_create(spl->spl_rmachine, cmd, proc_fid);
 	if (fop == NULL)
 		return M0_RC(-ENOMEM);
 	rc = spiel_process_command_send(spl, proc_fid, fop);
@@ -530,31 +530,13 @@ M0_EXPORTED(m0_spiel_process_stop);
 int m0_spiel_process_reconfig(struct m0_spiel     *spl,
 			      const struct m0_fid *proc_fid)
 {
-	struct m0_fop          *fop;
-	struct m0_conf_process *process;
-	int                     rc;
-
 	M0_ENTRY();
-	M0_PRE(spl != NULL);
-	M0_PRE(proc_fid != NULL);
 
 	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
 		return M0_ERR(-EINVAL);
 
-	rc = spiel_proc_conf_obj_find(spl, proc_fid, &process);
-	if (rc != 0)
-		return M0_ERR(rc);
-
-	fop = m0_ss_process_reconfig_fop_create(spl->spl_rmachine,
-						process->pc_cores,
-						process->pc_memlimit);
-	m0_confc_close(&process->pc_obj);
-	if (fop == NULL)
-		return M0_RC(-ENOMEM);
-	rc = spiel_process_command_send(spl, proc_fid, fop) ?:
-		spiel_process_reply_status(fop);
-	m0_fop_put_lock(fop);
-	return M0_RC(rc);
+	return M0_RC(spiel_process_command_execute(spl, proc_fid,
+						   M0_PROCESS_RECONFIG));
 }
 M0_EXPORTED(m0_spiel_process_reconfig);
 
@@ -627,7 +609,7 @@ int m0_spiel_process_list_services(struct m0_spiel              *spl,
 		return M0_ERR(-EINVAL);
 
 	fop = m0_ss_process_fop_create(spl->spl_rmachine,
-				       M0_PROCESS_RUNNING_LIST);
+				       M0_PROCESS_RUNNING_LIST, proc_fid);
 	if (fop == NULL)
 		return M0_RC(-ENOMEM);
 	rc = spiel_process_command_send(spl, proc_fid, fop);

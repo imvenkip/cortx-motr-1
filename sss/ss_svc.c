@@ -32,9 +32,11 @@
 #include "fop/fop.h"
 #include "fop/fom_generic.h"
 #include "reqh/reqh_service.h"
+#include "rpc/rpc_opcodes.h"
 #ifndef __KERNEL__
 #include "mero/setup.h"
 #endif
+#include "spiel/spiel.h" /* m0_spiel_health */
 #include "sss/process_fops.h"
 #include "sss/ss_fops.h"
 #include "sss/ss_svc.h"

@@ -116,6 +116,7 @@ static int test_stats_fini(void)
 {
 	m0_ut_rpc_mach_fini(&rmach_ctx);
 	m0_reqh_service_type_unregister(&ut_stats_service_type);
+	m0_sm_conf_fini(&fom_phases_conf);
 	return 0;
 }
 

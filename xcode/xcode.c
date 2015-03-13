@@ -725,6 +725,18 @@ M0_INTERNAL void m0_xcode_union_init(struct m0_xcode_type *un, const char *name,
 	};
 }
 
+M0_INTERNAL void m0_xcode_union_fini(struct m0_xcode_type *un)
+{
+	int i;
+	for (i = 0; i < un->xct_nr; ++i)
+		un->xct_child[i].xf_name = NULL;
+	*un = (typeof(*un)) {
+		.xct_aggr  = 0,
+		.xct_name  = NULL,
+		.xct_nr    = 0
+	};
+}
+
 M0_INTERNAL void m0_xcode_union_add(struct m0_xcode_type *un, const char *name,
 				    const struct m0_xcode_type *xt,
 				    uint64_t tag)

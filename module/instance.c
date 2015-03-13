@@ -31,6 +31,8 @@ M0_INTERNAL int m0_init_once(struct m0 *instance);
 M0_INTERNAL void m0_fini_once(void);
 M0_INTERNAL int m0_subsystems_init(void);
 M0_INTERNAL void m0_subsystems_fini(void);
+M0_INTERNAL int m0_quiesce_init(void);
+M0_INTERNAL void m0_quiesce_fini(void);
 
 M0_LOCKERS__DEFINE(M0_INTERNAL, m0_inst, m0, i_lockers);
 
@@ -57,6 +59,8 @@ static int level_inst_enter(struct m0_module *module)
 		m0_inst_lockers_init(inst);
 		return 0;
 	}
+	case M0_LEVEL_INST_QUIESCE_SYSTEM:
+		return m0_quiesce_init();
 	case M0_LEVEL_INST_ONCE:
 		return m0_init_once(container_of(module, struct m0, i_self));
 	case M0_LEVEL_INST_SUBSYSTEMS:
@@ -80,6 +84,11 @@ static const struct m0_modlev levels_inst[] = {
 		.ml_name  = "M0_LEVEL_INST_PREPARE",
 		.ml_enter = level_inst_enter,
 		.ml_leave = level_inst_leave
+	},
+	[M0_LEVEL_INST_QUIESCE_SYSTEM] = {
+		.ml_name  = "M0_LEVEL_INST_QUIESCE_SYSTEM",
+		.ml_enter = level_inst_enter,
+		.ml_leave = (void *)m0_quiesce_fini
 	},
 	[M0_LEVEL_INST_ONCE] = {
 		.ml_name  = "M0_LEVEL_INST_ONCE",

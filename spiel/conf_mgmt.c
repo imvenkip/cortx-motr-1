@@ -678,7 +678,7 @@ static int spiel_conf_parameter_check(struct m0_conf_cache    *cache,
 
 int m0_spiel_profile_add(struct m0_spiel_tx *tx, const struct m0_fid *fid)
 {
-	int 		     rc;
+	int                  rc;
 	struct m0_conf_obj  *obj = NULL;
 	struct m0_conf_obj  *obj_parent;
 	struct m0_conf_root *root;
@@ -842,8 +842,11 @@ M0_EXPORTED(m0_spiel_node_add);
 int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 			 const struct m0_fid *fid,
 			 const struct m0_fid *parent,
-			 uint32_t             cores,
-			 uint32_t             memlimit)
+			 struct m0_bitmap    *cores,
+			 uint64_t             memlimit_as,
+			 uint64_t             memlimit_rss,
+			 uint64_t             memlimit_stack,
+			 uint64_t             memlimit_memlock)
 {
 	int                     rc;
 	struct m0_conf_obj     *obj = NULL;
@@ -862,8 +865,15 @@ int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 		goto fail;
 
 	process = M0_CONF_CAST(obj, m0_conf_process);
-	process->pc_cores = cores;
-	process->pc_memlimit = memlimit;
+
+	rc = m0_bitmap_init(&process->pc_cores, cores->b_nr);
+	if (rc != 0)
+		goto fail;
+	m0_bitmap_copy(&process->pc_cores, cores);
+	process->pc_memlimit_as      = memlimit_as;
+	process->pc_memlimit_rss     = memlimit_rss;
+	process->pc_memlimit_stack   = memlimit_stack;
+	process->pc_memlimit_memlock = memlimit_memlock;
 
 	if (process->pc_services == NULL)
 		rc = spiel_process_dirs_create(&tx->spt_cache, process);

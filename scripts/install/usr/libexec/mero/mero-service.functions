@@ -673,7 +673,7 @@ m0_build_local_conf()
           [1: $poolid],
           [1: $rackid])},
   {0x6e| (($node), 16000, 2, 3, 2, $poolid, [1: $proc])},
-  {0x72| (($proc), 4000, 2,
+  {0x72| (($proc), [1:3], 0, 0, 0, 0,
                [$(($mds_count + $ios_count + $rms_count + $stats_count + $ha_count)): $mds_names, $ios_names, $rms_names, $stats_names, $ha_names])},
   $mds_objs,
   $ios_objs,

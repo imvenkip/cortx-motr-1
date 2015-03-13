@@ -21,9 +21,11 @@
 #define __MERO_MODULE_INSTANCE_H__
 
 #include "module/module.h"  /* m0_module */
+#include "lib/bitmap.h"     /* m0_bitmap */
 #include "lib/lockers.h"    /* M0_LOCKERS__DECLARE */
 #include "stob/module.h"    /* m0_stob_module */
 #include "ut/stob.h"        /* m0_ut_stob_module */
+#include "mero/process_attr.h"    /* m0_proc_attr */
 
 struct m0_be_domain;
 
@@ -108,10 +110,11 @@ struct m0 {
 	unsigned                  i_ios_cdom_key;
 	/** Key for mdservice cob domain */
 	unsigned                  i_mds_cdom_key;
-
+	/** Process attributes - memory limits and core mask */
+	struct m0_proc_attr       i_proc_attr;
 };
 
-/**
+/**.
  * Returns current m0 instance.
  *
  * In the kernel, there is only one instance. It is returned.
@@ -143,6 +146,10 @@ enum {
 	 * M0_LEVEL_INST_PREPARE or after it leaves it.
 	 */
 	M0_LEVEL_INST_PREPARE,
+	/**
+	* Layer subsystem non-reloaded for reconfigure Mero.
+	*/
+	M0_LEVEL_INST_QUIESCE_SYSTEM,
 	M0_LEVEL_INST_ONCE,
 	/*
 	 * XXX DELETEME after the removal of m0_init() function and
@@ -161,15 +168,17 @@ enum {
 
 /*
  *  m0
- * +--------------------------+
- * | M0_LEVEL_INST_READY      |
- * +--------------------------+
- * | M0_LEVEL_INST_SUBSYSTEMS |
- * +--------------------------+
- * | M0_LEVEL_INST_ONCE       |
- * +--------------------------+
- * | M0_LEVEL_INST_PREPARE    |
- * +--------------------------+
+ * +------------------------------+
+ * | M0_LEVEL_INST_READY          |
+ * +------------------------------+
+ * | M0_LEVEL_INST_SUBSYSTEMS     |
+ * +------------------------------+
+ * | M0_LEVEL_INST_ONCE           |
+ * +------------------------------+
+ * | M0_LEVEL_INST_QUIESCE_SYSTEM |
+ * +------------------------------+
+ * | M0_LEVEL_INST_PREPARE        |
+ * +------------------------------+
  */
 M0_INTERNAL void m0_instance_setup(struct m0 *instance);
 

@@ -38,16 +38,12 @@
 #endif
 
 struct m0_fop_type m0_fop_process_fopt;
-struct m0_fop_type m0_fop_process_reconfig_fopt;
 struct m0_fop_type m0_fop_process_rep_fopt;
 struct m0_fop_type m0_fop_process_svc_list_rep_fopt;
 
 extern struct m0_sm_state_descr     ss_process_fom_phases[];
-extern struct m0_sm_state_descr     ss_process_reconfig_fom_phases[];
 extern struct m0_sm_conf            ss_process_fom_conf;
-extern struct m0_sm_conf            ss_process_reconfig_fom_conf;
 extern const struct m0_fom_type_ops ss_process_fom_type_ops;
-extern const struct m0_fom_type_ops ss_process_reconfig_fom_type_ops;
 const struct m0_fop_type_ops        ss_process_fop_type_ops;
 const struct m0_fop_type_ops        ss_process_svc_list_fop_type_ops;
 
@@ -61,12 +57,8 @@ M0_INTERNAL int m0_ss_process_fops_init(void)
 	m0_sm_conf_extend(m0_generic_conf.scf_state,
 			  ss_process_fom_phases,
 			  m0_generic_conf.scf_nr_states);
-	m0_sm_conf_extend(m0_generic_conf.scf_state,
-			  ss_process_reconfig_fom_phases,
-			  m0_generic_conf.scf_nr_states);
 #endif
 	m0_fop_process_fopt.ft_magix = 0;
-	m0_fop_process_reconfig_fopt.ft_magix = 0;
 	m0_fop_process_rep_fopt.ft_magix = 0;
 	m0_fop_process_svc_list_rep_fopt.ft_magix = 0;
 
@@ -78,17 +70,6 @@ M0_INTERNAL int m0_ss_process_fops_init(void)
 			 .fop_ops   = &ss_process_fop_type_ops,
 			 .fom_ops   = &ss_process_fom_type_ops,
 			 .sm        = &ss_process_fom_conf,
-			 .svc_type  = &m0_ss_svc_type,
-			 .rpc_ops   = &ss_process_item_type_ops);
-
-	M0_FOP_TYPE_INIT(&m0_fop_process_reconfig_fopt,
-			 .name      = "Process reconfig fop",
-			 .opcode    = M0_SSS_PROCESS_CFG_REQ_OPCODE,
-			 .xt        = m0_ss_process_reconfig_req_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-			 .fop_ops   = &ss_process_fop_type_ops,
-			 .fom_ops   = &ss_process_reconfig_fom_type_ops,
-			 .sm        = &ss_process_reconfig_fom_conf,
 			 .svc_type  = &m0_ss_svc_type,
 			 .rpc_ops   = &ss_process_item_type_ops);
 
@@ -119,7 +100,6 @@ M0_INTERNAL int m0_ss_process_fops_init(void)
 M0_INTERNAL void m0_ss_process_fops_fini(void)
 {
 	m0_fop_type_fini(&m0_fop_process_fopt);
-	m0_fop_type_fini(&m0_fop_process_reconfig_fopt);
 	m0_fop_type_fini(&m0_fop_process_rep_fopt);
 	m0_fop_type_fini(&m0_fop_process_svc_list_rep_fopt);
 }
@@ -135,6 +115,7 @@ static bool ss_fop_is_process_svc_list_rep(const struct m0_fop *fop)
 	M0_PRE(fop != NULL);
 	return fop->f_type == &m0_fop_process_svc_list_rep_fopt;
 }
+
 
 M0_INTERNAL void m0_ss_process_stop_fop_release(struct m0_ref *ref)
 {
@@ -156,7 +137,8 @@ M0_INTERNAL void m0_ss_process_stop_fop_release(struct m0_ref *ref)
 }
 
 M0_INTERNAL struct m0_fop *m0_ss_process_fop_create(struct m0_rpc_machine *mach,
-						    uint32_t               cmd)
+						    uint32_t               cmd,
+						    const struct m0_fid   *fid)
 {
 	struct m0_fop            *fop;
 	struct m0_ss_process_req *req;
@@ -170,27 +152,7 @@ M0_INTERNAL struct m0_fop *m0_ss_process_fop_create(struct m0_rpc_machine *mach,
 
 	req = m0_ss_fop_process_req(fop);
 	req->ssp_cmd = cmd;
-
-	return fop;
-}
-
-M0_INTERNAL struct m0_fop *m0_ss_process_reconfig_fop_create(
-					struct m0_rpc_machine *mach,
-					uint32_t               cores,
-					uint32_t               memlimit)
-{
-	struct m0_fop                     *fop;
-	struct m0_ss_process_reconfig_req *req;
-
-	M0_PRE(mach != NULL);
-
-	fop = m0_fop_alloc(&m0_fop_process_reconfig_fopt, NULL, mach);
-	if (fop == NULL)
-		return NULL;
-
-	req = m0_ss_proc_reconfig_req(fop);
-	req->ssp_cores = cores;
-	req->ssp_memlimit = memlimit;
+	req->ssp_id = *fid;
 
 	return fop;
 }
@@ -209,21 +171,6 @@ M0_INTERNAL struct m0_ss_process_req *m0_ss_fop_process_req(struct m0_fop *fop)
 	return (struct m0_ss_process_req *)m0_fop_data(fop);
 }
 
-M0_INTERNAL bool m0_ss_fop_is_process_reconfig(const struct m0_fop *fop)
-{
-	M0_PRE(fop != NULL);
-	return fop->f_type == &m0_fop_process_reconfig_fopt;
-}
-
-M0_INTERNAL struct m0_ss_process_reconfig_req*
-m0_ss_proc_reconfig_req(struct m0_fop *fop)
-{
-	M0_PRE(fop != NULL);
-	M0_PRE(m0_ss_fop_is_process_reconfig(fop));
-
-	return (struct m0_ss_process_reconfig_req *)m0_fop_data(fop);
-}
-
 M0_INTERNAL struct m0_ss_process_rep* m0_ss_fop_process_rep(struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
@@ -233,7 +180,7 @@ M0_INTERNAL struct m0_ss_process_rep* m0_ss_fop_process_rep(struct m0_fop *fop)
 }
 
 M0_INTERNAL struct m0_ss_process_svc_list_rep *
-m0_ss_fop_process_svc_list_rep(struct m0_fop *fop)
+			m0_ss_fop_process_svc_list_rep(struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
 	M0_PRE(ss_fop_is_process_svc_list_rep(fop));

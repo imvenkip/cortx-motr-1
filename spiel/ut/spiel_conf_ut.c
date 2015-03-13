@@ -95,6 +95,11 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 						       .pa_P=0};
 	const char                   *fs_param[] = { "11111", "22222", NULL };
 	struct m0_spiel_service_info  service_info = {.svi_endpoints=fs_param };
+	struct m0_bitmap              bitmap;
+
+	m0_bitmap_init(&bitmap, 32);
+	m0_bitmap_set(&bitmap, 0, true);
+	m0_bitmap_set(&bitmap, 1, true);
 
 	tmp = m0_spiel_tx_open(spiel, tx);
 	M0_UT_ASSERT(tmp == tx);
@@ -170,7 +175,7 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 	rc = m0_spiel_process_add(tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
-				  2, 16);
+				  &bitmap, 4000, 1, 2, 3);
 	M0_UT_ASSERT(rc == 0);
 
 	service_info.svi_type = M0_CST_IOS;
@@ -188,6 +193,8 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, "fake_filename");
 	M0_UT_ASSERT(rc == 0);
+
+	m0_bitmap_fini(&bitmap);
 }
 
 /*
@@ -230,6 +237,11 @@ static void spiel_conf_create_fail(void)
 	struct m0_fid                 fake_fid =
 					spiel_obj_fid[SPIEL_UT_OBJ_PROFILE];
 	struct m0_spiel               spiel;
+	struct m0_bitmap              bitmap;
+
+	m0_bitmap_init(&bitmap, 32);
+	m0_bitmap_set(&bitmap, 0, true);
+	m0_bitmap_set(&bitmap, 1, true);
 
 	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
@@ -502,22 +514,19 @@ static void spiel_conf_create_fail(void)
 	rc = m0_spiel_process_add(&tx,
 				  &fake_fid,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
-				  2,
-				  16);
+				  &bitmap, 4000, 1, 2, 3);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	rc = m0_spiel_process_add(&tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
 				  &fake_fid,
-				  2,
-				  16);
+				  &bitmap, 4000, 1, 2, 3);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	rc = m0_spiel_process_add(&tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
-				  2,
-				  16);
+				  &bitmap, 4000, 1, 2, 3);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Service */
@@ -651,6 +660,8 @@ static void spiel_conf_create_fail(void)
 
 	m0_spiel_tx_close(&tx);
 	m0_spiel_stop(&spiel);
+
+	m0_bitmap_fini(&bitmap);
 }
 
 /*
@@ -696,10 +707,10 @@ static void spiel_conf_delete(void)
    {0x6e| (((0x6e00000000000001, 2)), 16000, 2, 3, 2, (0x6f00000000000001, 4),
 	   [2: (0x7200000000000001, 5), (0x7200000000000001, 6)])},
 # process "p0": ('r', 1,  5)
-   {0x72| (((0x7200000000000001, 5)), 4000, 2, [2: (0x7300000000000001, 9),
+   {0x72| (((0x7200000000000001, 5)), [1:3], 0, 0, 0, 0, [2: (0x7300000000000001, 9),
 						   (0x7300000000000001, 10)])},
 # process "p1": ('r', 1,  6)
-   {0x72| (((0x7200000000000001, 6)), 4000, 1, [0])},
+   {0x72| (((0x7200000000000001, 6)), [1:3], 0, 0, 0, 0, [0])},
 # service "s0": ('s', 1,  9)
    {0x73| (((0x7300000000000001, 9)), 3, [3: "addr-0", "addr-1", "addr-2"],
 	   [2: (0x6400000000000001, 13), (0x6400000000000001, 14)])},
@@ -817,6 +828,12 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	struct m0_fid                 fid_sdev3     = M0_FID_TINIT( 0x64,1,15 );
 	struct m0_fid                 fid_enclosure_v=M0_FID_TINIT( 0x6a,1,17 );
 	struct m0_fid                 fid_controller_v=M0_FID_TINIT(0x6a,1,18 );
+	struct m0_bitmap              bitmap;
+
+	m0_bitmap_init(&bitmap, 32);
+	m0_bitmap_set(&bitmap, 0, true);
+	m0_bitmap_set(&bitmap, 1, true);
+
 
 	rc = m0_spiel_profile_add(tx, &fid_profile);
 	M0_UT_ASSERT(rc == 0);
@@ -856,10 +873,12 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 				       &fid_controller);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_process_add(tx, &fid_process1, &fid_node, 4000, 2);
+	rc = m0_spiel_process_add(tx, &fid_process1, &fid_node,
+				  &bitmap, 4000, 1, 2, 3);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_process_add(tx, &fid_process2, &fid_node, 4000, 1);
+	rc = m0_spiel_process_add(tx, &fid_process2, &fid_node,
+				  &bitmap, 4000, 1, 2, 3);
 	M0_UT_ASSERT(rc == 0);
 
 	service_info1.svi_type = 3;
@@ -885,6 +904,8 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	rc = m0_spiel_device_add(tx, &fid_sdev3, &fid_service2,
 				 7, 2, 8192, 320000000000, 2, 4, "/dev/sdev2");
 	M0_UT_ASSERT(rc == 0);
+
+	m0_bitmap_fini(&bitmap);
 }
 
 static int spiel_str_to_file(char *str, const char *filename)

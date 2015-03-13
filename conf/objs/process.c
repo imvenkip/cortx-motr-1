@@ -46,26 +46,43 @@ static int process_decode(struct m0_conf_obj        *dest,
 	struct m0_conf_process        *d = M0_CONF_CAST(dest, m0_conf_process);
 	const struct m0_confx_process *s = XCAST(src);
 
-	d->pc_cores    = s->xr_cores;
-	d->pc_memlimit = s->xr_mem_limit;
+	rc = m0_bitmap_init(&d->pc_cores, s->xr_cores.bo_size);
+	if (rc != 0)
+		goto done;
+	m0_bitmap_load(&s->xr_cores, &d->pc_cores);
+
+	d->pc_memlimit_as      = s->xr_mem_limit_as;
+	d->pc_memlimit_rss     = s->xr_mem_limit_rss;
+	d->pc_memlimit_stack   = s->xr_mem_limit_stack;
+	d->pc_memlimit_memlock = s->xr_mem_limit_memlock;
 
 	rc = dir_new(cache, &dest->co_id, &M0_CONF_PROCESS_SERVICES_FID,
 		     &M0_CONF_SERVICE_TYPE, &s->xr_services, &d->pc_services);
 	if (rc == 0)
 		child_adopt(dest, &d->pc_services->cd_obj);
 
+done:
 	return M0_RC(rc);
 }
 
 static int
 process_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
+	int                      rc;
 	struct m0_conf_process  *s = M0_CONF_CAST(src, m0_conf_process);
 	struct m0_confx_process *d = XCAST(dest);
 
 	confx_encode(dest, src);
-	d->xr_cores     = s->pc_cores;
-	d->xr_mem_limit = s->pc_memlimit;
+
+	rc = m0_bitmap_onwire_init(&d->xr_cores, s->pc_cores.b_nr);
+	if (rc != 0)
+		return M0_ERR(rc);
+	m0_bitmap_store(&s->pc_cores, &d->xr_cores);
+
+	d->xr_mem_limit_as      = s->pc_memlimit_as;
+	d->xr_mem_limit_rss     = s->pc_memlimit_rss;
+	d->xr_mem_limit_stack   = s->pc_memlimit_stack;
+	d->xr_mem_limit_memlock = s->pc_memlimit_memlock;
 	return M0_RC(arrfid_from_dir(&d->xr_services, s->pc_services));
 }
 
@@ -76,8 +93,10 @@ process_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	const struct m0_conf_process  *obj =
 		M0_CONF_CAST(cached, m0_conf_process);
 
-	return  obj->pc_memlimit == xobj->xr_mem_limit &&
-		obj->pc_cores	 == xobj->xr_cores     &&
+	return  obj->pc_memlimit_as      == xobj->xr_mem_limit_as &&
+		obj->pc_memlimit_rss     == xobj->xr_mem_limit_rss &&
+		obj->pc_memlimit_stack   == xobj->xr_mem_limit_stack &&
+		obj->pc_memlimit_memlock == xobj->xr_mem_limit_memlock &&
 		m0_conf_dir_elems_match(obj->pc_services, &xobj->xr_services);
 }
 
@@ -100,6 +119,8 @@ static void process_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_process *x = M0_CONF_CAST(obj, m0_conf_process);
 	m0_conf_process_bob_fini(x);
+	if (x->pc_cores.b_nr != 0)
+		m0_bitmap_fini(&x->pc_cores);
 	m0_free(x);
 }
 
