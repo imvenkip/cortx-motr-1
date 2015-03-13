@@ -22,8 +22,8 @@ else
 fi
 
 pushd workdir/src/
-    git clean -dfx
-    git submodule foreach git clean -dfx
+    sudo git clean -dfx
+    sudo git submodule foreach git clean -dfx
     git submodule update
 
     ./autogen.sh |& tee $ARTIFACTS/configure.log
