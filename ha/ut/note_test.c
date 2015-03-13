@@ -76,13 +76,18 @@ static struct m0_rpc_client_ctx cctx = {
 	.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
 	.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
 	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	.rcx_fid                = &g_process_fid,
 };
 
 static char *server_argv[] = {
 	"ha_ut", "-T", "AD", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
-	"-e", SERVER_ENDPOINT, "-s", "addb2", "-w", "10",
-	"-s", "confd", "-P", M0_UT_CONF_PROFILE,
+	"-e", SERVER_ENDPOINT, "-w", "10",
+	"-s", "ds1:<0x7300000000000001:1>",
+	"-s", "ds2:<0x7300000000000001:2>",
+	"-s", "addb2:<0x7300000000000001:3>",
+	"-s", "confd:<0x7300000000000001:4>",
+	"-P", M0_UT_CONF_PROFILE,
 	"-c", M0_UT_CONF_PATH("conf-str.txt")
 };
 

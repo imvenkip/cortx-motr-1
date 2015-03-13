@@ -290,6 +290,7 @@ static int run_client(void)
 	 */
 	static struct m0_net_domain     client_net_dom;
 	static struct m0_rpc_client_ctx cctx;
+	static struct m0_fid            process_fid = M0_FID_TINIT('r', 0, 1);
 
 	m0_time_t start;
 	m0_time_t delta;
@@ -299,7 +300,8 @@ static int run_client(void)
 	cctx.rcx_remote_addr           = server_endpoint;
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
-	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size,
+	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size;
+	cctx.rcx_fid                   = &process_fid;
 
 	rc = build_endpoint_addr(EP_SERVER, server_endpoint,
 				 sizeof server_endpoint);
@@ -381,9 +383,13 @@ static int run_server(void)
 	int	    rc;
 	char       *argv[] = {
 		"rpclib_ut", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+		"-f", "<0x7200000000000002:1>",
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
-		"-A", SERVER_ADDB_STOB_FILE_NAME, "-w", "5", "-s", "confd",
-		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
+		"-A", SERVER_ADDB_STOB_FILE_NAME, "-w", "5",
+		"-s", "ds1:<0x7300000000000001:1>",
+		"-s", "ds2:<0x7300000000000001:2>",
+		"-s", "confd:<0x7300000000000001:3>",
+		"-q", tm_len, "-m", rpc_size,
 		"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
 	};
 	struct m0_rpc_server_ctx sctx = {

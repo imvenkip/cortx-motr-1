@@ -277,6 +277,39 @@ m0_get_ep_of()
     echo $ep
 }
 
+_word_index()
+{
+    local str=$1
+    local word=$2
+
+    echo $str | awk "{ for (i = 1; i <= NF; i++) if (\"$word\" == \$i) print i }"
+}
+
+m0_get_proc_fid_for()
+{
+    local service=$1
+    local node=$2
+
+    local nidx
+    local sidx
+    local proc_fid=''
+
+    nidx=$(_word_index "$(m0_get_nodes)" ${node:-$(hostname -s)})
+
+    if [[ -n $nidx ]] ; then
+        sidx=$(_word_index "$(m0_get_services)" $service)
+        if [[ -n $sidx ]] ; then
+            proc_fid=$(printf 0x%x:%d $((0x7200000000000000+$nidx)) $sidx)
+        else
+            m0_exit "cannot find service $service"
+        fi
+    else
+        m0_exit "cannot find node $node"
+    fi
+
+    echo $proc_fid
+}
+
 # Return space-separated list of all endpoints in the cluster for particular
 # service type, from genders file
 #   @param  $1  service type (confd mds ios ha rms stats)
@@ -363,6 +396,79 @@ m0_get_server_pid_for()
     fi
 }
 
+# Return generated service FID in form of container:key
+#   @param  $1  name of a service, e.g. 'mds', 'ios1'
+#   @param  $2  node index in global nodes array where service is located
+m0_build_service_fid()
+{
+    local service=$1
+    local node_idx=$2
+
+    local stype
+    local sidx
+    local container
+
+    if [[ $service == "addb2" ]] ; then
+       stype="addb2"
+       sidx=0
+    else
+       stype=${service//[0-9]}
+       sidx=${service//[^0-9]}
+       sidx=${sidx:-0}
+    fi
+
+    case $stype in
+        mds)       container='0x7300000000000001' ;;
+        ios)       container='0x7300000000000002' ;;
+        confd)     container='0x7300000000000003' ;;
+        rms)       container='0x7300000000000004' ;;
+        stats)     container='0x7300000000000005' ;;
+        ha)        container='0x7300000000000006' ;;
+        repair)    container='0x7300000000000007' ;;
+        rebalance) container='0x7300000000000008' ;;
+        addb2)     container='0x7300000000000009' ;;
+    esac
+
+    printf %x:%d $(( $container + $node_idx * 16 )) $sidx
+}
+
+# Return well formed -s command line options ready to be inserted in m0d command
+# line. Command line options are formed for one particular service.
+#   @param  $1  name of a service, e.g. 'mds', 'ios1'
+#   @param  $2  node index in global nodes array where service is located
+m0_get_m0d_services_for()
+{
+    local service=$1
+    local node=$2
+
+    local nidx
+    local res=''
+
+    nidx=$(_word_index "$(m0_get_nodes)" ${node:-$(hostname -s)})
+
+    if [[ -n $nidx ]] ; then
+        case "$service" in
+            mds*)
+               res+=" -s mdservice:<$(m0_build_service_fid $service $nidx)>"
+               res+=" -s rmservice:<$(m0_build_service_fid ${service/mds/rms} $nidx)>"
+               res+=" -s stats:<$(m0_build_service_fid ${service/mds/stats} $nidx)>"
+               ;;
+            ios*)
+               res+=" -s ioservice:<$(m0_build_service_fid $service $nidx)>"
+               res+=" -s sns_repair:<$(m0_build_service_fid ${service/ios/repair} $nidx)>"
+               res+=" -s sns_rebalance:<$(m0_build_service_fid ${service/ios/rebalance} $nidx)>"
+               ;;
+            confd|addb2)
+               res+=" -s $service:<$(m0_build_service_fid $service $nidx)>"
+               ;;
+        esac
+    else
+        m0_exit "cannot find node $node"
+    fi
+
+    echo $res
+}
+
 _build_disk_ids_str()
 {
     local start_id=$1
@@ -430,31 +536,34 @@ _build_service_names_for()
 {
     local service_type=$1
 
+    local genders_stype
+
     # check service type
     case $service_type in
-        ios|mds|rms|stats|ha) # valid services
-            ;;
+        ios|mds|ha)
+            genders_stype=$service_type
+           ;;
+        rms|stats)
+            genders_stype=mds
+           ;;
         *) m0_exit "Internal error, unkonwn service type '$service_type' in"
                    " _build_service_names_for()"
            ;;
     esac
 
-    local container
-    case $service_type in
-        mds)   container='0x7300000000000001' ;;
-        ios)   container='0x7300000000000002' ;;
-        rms)   container='0x7300000000000004' ;;
-        stats) container='0x7300000000000005' ;;
-        ha)    container='0x7300000000000006' ;;
-    esac
-
-    local idx=0
+    local node_idx=0
     local names
+    local node
     local s
 
-    for s in $(m0_get_global_services $service_type); do
-        local name="($container, $((idx++)))"
-        names="$names${names:+, }$name"
+    for node in $(m0_get_nodes) ; do
+        for s in $(m0_get_services $n) ; do
+            if [[ $s == $genders_stype* ]] ; then
+                local name="(0x$(m0_build_service_fid ${s/$genders_stype/$service_type} $node_idx))"
+                names="$names${names:+, }${name/:/,}"
+            fi
+        done
+        $((node_idx++))
     done
 
     echo "$names"

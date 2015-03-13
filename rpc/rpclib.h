@@ -138,6 +138,9 @@ struct m0_rpc_client_ctx {
 
 	/** Maximum RPC recive buffer size. */
         uint32_t		   rcx_max_rpc_msg_size;
+
+	/** Process FID */
+	struct m0_fid             *rcx_fid;
 };
 
 /**

@@ -20,6 +20,7 @@
 
 #include "reqh/reqh.h"
 #include "rpc/rpc.h"
+#include "ut/ut.h"
 
 static struct m0_reqh            g_reqh;
 static struct m0_net_domain      g_net_dom;
@@ -49,7 +50,9 @@ M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
 
 	rc = M0_REQH_INIT(&g_reqh,
 			  .rhia_dtm     = (void *)1,
-			  .rhia_mdstore = (void *)1);
+			  .rhia_mdstore = (void *)1,
+			  .rhia_fid     = &g_process_fid,
+		);
 	if (rc != 0)
 		goto buf_pool;
 	m0_reqh_start(&g_reqh);

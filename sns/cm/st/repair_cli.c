@@ -27,10 +27,12 @@
 #include "rpc/rpclib.h"
 #include "repair_cli.h"
 
+static struct m0_fid            process_fid = M0_FID_TINIT('r', 0, 1);
 static struct m0_net_domain     cl_ndom;
 static struct m0_rpc_client_ctx cl_ctx = {
 	.rcx_net_dom            = &cl_ndom,
-	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT
+	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	.rcx_fid                = &process_fid,
 };
 
 const char *cl_ep_addr;

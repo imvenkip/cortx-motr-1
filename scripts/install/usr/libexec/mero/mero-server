@@ -35,24 +35,23 @@ m0_server()
     cd $service_dir
 
     local MERO_M0D_OPTS+=$(m0_get_core_params)
-    local m0d_services='-s addb2'
+    local m0d_services="$(m0_get_m0d_services_for addb2) $(m0_get_m0d_services_for $service)"
     local stob_type='-T ad'
     local stob_opts
+    local proc_fid="<$(m0_get_proc_fid_for $service)>"
 
     case "$service" in
-        mds*)  m0d_services+=' -s mdservice -s rmservice -s stats'
+        mds*)
             ;;
 
         ios*)  stob_opts+=" -d /etc/mero/disks-$service.conf"
-               m0d_services+=' -s ioservice -s sns_repair -s sns_rebalance'
             ;;
 
         confd) stob_type='-T linux'
-               m0d_services+=' -s confd'
                MERO_M0D_OPTS+=' -c conf.xc'
             ;;
 
-        ha)    stob_type='-T linux'
+        ha*)   stob_type='-T linux'
                unset m0d_services
             ;;
 
@@ -78,8 +77,8 @@ m0_server()
     # show actual exec commands in log file
     set -x
 
-    exec $binary -e $service_ep $stob_type $MERO_M0D_OPTS $m0d_services \
-                    $stob_opts $MERO_M0D_EXTRA_OPTS $cmd_opts
+    exec $binary -e $service_ep -f $proc_fid $stob_type $MERO_M0D_OPTS \
+                    $m0d_services $stob_opts $MERO_M0D_EXTRA_OPTS $cmd_opts
 }
 
 

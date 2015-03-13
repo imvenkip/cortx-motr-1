@@ -90,6 +90,8 @@ TM_MIN_RECV_QUEUE_LEN=16
 MAX_RPC_MSG_SIZE=65536
 XPT=lnet
 MD_REDUNDANCY=1  # Meta-data redundancy, use greater than 1 after failure domain is available.
+PROC_FID_CNTR=0x7200000000000001
+PROC_FID_KEY=3
 
 unload_kernel_module()
 {
@@ -183,6 +185,8 @@ unprepare()
 
 PROF_OPT='<0x7000000000000001:0>'
 
+. `dirname $0`/common_service_fids_inc.sh
+
 ###############################
 # globals: MDSEP[], IOSEP[], server_nid
 ###############################
@@ -224,9 +228,9 @@ function build_conf()
 	local  PROF='(0x7000000000000001, 0)'
 	local    FS='(0x6600000000000001, 1)'
 	local  NODE='(0x6e00000000000001, 2)'
-	local  PROC='(0x7200000000000001, 3)'
-	local    RM='(0x7300000000000001, 4)'
-	local STATS='(0x7300000000000001, 5)'
+	local  PROC="($PROC_FID_CNTR, $PROC_FID_KEY)"
+	local    RM="($RMS_FID_CON, 0)"
+	local STATS="($STS_FID_CON, 0)"
 	local HA_SVC_ID='(0x7300000000000001, 6)'
 	local  RACKID='(0x6100000000000001, 6)'
 	local  ENCLID='(0x6500000000000001, 7)'
@@ -241,7 +245,7 @@ function build_conf()
 	local i
 
 	for ((i=0; i < ${#ioservices[*]}; i++)); do
-	    local IOS_NAME="(0x7300000000000002, $i)"
+	    local IOS_NAME="($IOS_FID_CON, $i)"
 	    local iosep="\"${ioservices[$i]}\""
 	    local IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: $iosep], ${IOS_DEV_IDS[$i]})}"
 
@@ -255,7 +259,7 @@ function build_conf()
 	done
 
 	for ((i=0; i < ${#mdservices[*]}; i++)); do
-	    local MDS_NAME="(0x7300000000000003, $i)"
+	    local MDS_NAME="($MDS_FID_CON, $i)"
 	    local mdsep="\"${mdservices[$i]}\""
 	    local MDS_OBJ="{0x73| (($MDS_NAME), 1, [1: $mdsep], ${MDS_DEV_IDS[$i]})}"
 

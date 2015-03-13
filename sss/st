@@ -11,8 +11,11 @@ SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.sss-st}
 
 SERVER_TMID=1001
 CLIENT_TMID=1002
-SVC_ID='(8286623314361712641, 1)'
-SVC_ID_ARG='<7300000000000001:1>'
+SVC_IOS_FID='<7300000000000001:1>'
+CONFD_FID='<7300000000000001:2>'
+SVC_IOS_ID='(8286623314361712641, 1)'
+SVC_ID_NOENT='(8286623314361712641, 10)'
+SVC_ID=$SVC_IOS_ID
 
 M0_CORE_DIR=`readlink -f $0`
 M0_CORE_DIR=${M0_CORE_DIR%/*/*}
@@ -103,10 +106,10 @@ endpoint() {
 }
 
 m0d_start() {
-	local MKFS_OPTS="-T linux -D sss_st.db -S sss_st.stob \
-			 -A linuxstob:sss_st-addb.stob        \
-			 -e lnet:$(endpoint $SERVER_TMID) -s confd \
-			 -c $CONFDB_PATH -P $CONF_PROFILE"
+	local MKFS_OPTS="-T linux -D sss_st.db -S sss_st.stob'\
+		' -A linuxstob:sss_st-addb.stob -e lnet:$(endpoint\
+		$SERVER_TMID) -s confd:$CONFD_FID -c $CONFDB_PATH\
+		-P $CONF_PROFILE"
 	local M0D_OPT='-w 4 -m 163840 -q 16'
 
 	echo -n 'Running m0mkfs... ' >&2
@@ -117,8 +120,8 @@ m0d_start() {
 	## "sns_repair" and "sns_rebalance" (see below)
 	## require "ioservice" running.
 	env ${TRACE_m0d:-} $M0_CORE_DIR/mero/m0d $MKFS_OPTS \
-		${CONFDB_m0d:-} $M0D_OPT \
-		-s "ioservice:$SVC_ID_ARG" &>$SANDBOX_DIR/m0d.log &
+		${CONFDB_m0d:-} $M0D_OPT -f '<0x7200000000000001:1>'\
+		-s "ioservice:$SVC_IOS_FID" &>$SANDBOX_DIR/m0d.log &
 	sleep 1
 	killall -q -0 lt-m0d || die 'Failed to start m0d'
 }
@@ -154,38 +157,39 @@ sandbox_init
 m0d_start
 
 sss_check ioservice M0_SERVICE_STATUS "$SVC_ID" ssr_state M0_RST_STARTED
-sss_check ioservice M0_SERVICE_STATUS '(0, 0)'  ssr_rc    _EINVAL
+sss_check ioservice M0_SERVICE_STATUS "$SVC_ID_NOENT" ssr_rc _ENOENT  # invalid id
 
 SVC_NAMES=(stats rmservice mdservice addb2 sns_repair sns_rebalance)
 for ((i=0; i < ${#SVC_NAMES[*]}; i += 1)); do
-	SVC2_ID="(8286623314361712642, $i)"
-	echo "id=$SVC2_ID"
-	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS "$SVC2_ID" \
+        SVC_ID="(8286623314361712642, $i)"
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS  "$SVC_ID" \
 		ssr_rc _ENOENT
-	sss_check ${SVC_NAMES[$i]} M0_SERVICE_INIT   "$SVC2_ID" \
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_INIT    "$SVC_ID" \
 		ssr_state M0_RST_INITIALISED
-	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS "$SVC2_ID" \
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS  "$SVC_ID" \
 		ssr_state M0_RST_INITIALISED
-	sss_check ${SVC_NAMES[$i]} M0_SERVICE_START  "$SVC2_ID" \
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_START   "$SVC_ID" \
 		ssr_state M0_RST_STARTED
-	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS "$SVC2_ID" \
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS  "$SVC_ID" \
 		ssr_state M0_RST_STARTED
-	sss_check ${SVC_NAMES[$i]} M0_SERVICE_START  "$SVC2_ID" \
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_START   "$SVC_ID" \
 		ssr_rc    _EPROTO
-	sss_check ${SVC_NAMES[$i]} M0_SERVICE_QUIESCE   "$SVC2_ID" \
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_QUIESCE "$SVC_ID" \
 		ssr_state M0_RST_STOPPING
-	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS "$SVC2_ID" \
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS  "$SVC_ID" \
 		ssr_state M0_RST_STOPPING
-	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STOP   "$SVC2_ID" \
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STOP    "$SVC_ID" \
 		ssr_state M0_RST_STOPPED
-	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS "$SVC2_ID" \
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS  "$SVC_ID" \
 		ssr_rc _ENOENT
 done
-sss_check unknown_service M0_SERVICE_START   "(8286623314361712643, 10)" ssr_rc  _ENOENT
+SVC_ID=$SVC_IOS_ID
+sss_check unknown_service M0_SERVICE_START   "$SVC_ID_NOENT" ssr_rc  _ENOENT
+sss_check unknown_service M0_SERVICE_START   "$SVC_ID" ssr_rc    _EPROTO
 sss_check ioservice       M0_SERVICE_QUIESCE "$SVC_ID" ssr_state M0_RST_STOPPING
 sss_check ioservice       M0_SERVICE_STATUS  "$SVC_ID" ssr_state M0_RST_STOPPING
 sss_check ioservice       M0_SERVICE_STOP    "$SVC_ID" ssr_state M0_RST_STOPPED
-sss_check ioservice       M0_SERVICE_STATUS  "$SVC_ID" ssr_rc _ENOENT
+sss_check ioservice       M0_SERVICE_STATUS  "$SVC_ID" ssr_rc    _ENOENT
 
 m0d_stop
 sandbox_fini

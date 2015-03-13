@@ -183,7 +183,9 @@ static int server_init(const char             *stob_path,
 	rc = M0_REQH_INIT(&reqh,
 			  .rhia_dtm       = NULL,
 			  .rhia_db        = NULL,
-			  .rhia_mdstore   = &srv_mdstore);
+			  .rhia_mdstore   = &srv_mdstore,
+			  .rhia_fid       = &g_process_fid,
+		);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_be_ut_backend_init(&ut_be);
@@ -391,6 +393,7 @@ void test_reqh(void)
 		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
 		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
 		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+		.rcx_fid                = &g_process_fid,
 	};
 
 	setbuf(stdout, NULL);

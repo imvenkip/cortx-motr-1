@@ -35,6 +35,7 @@
 #include "rpc/rpclib.h"		/* m0_rpc_server_start */
 #include "net/net.h"		/* m0_net_xprt */
 #include "module/instance.h"	/* m0_get */
+#include "conf/obj.h"           /* M0_CONF_PROCESS_TYPE */
 #include "stob/domain.h"	/* m0_stob_domain_create */
 
 #include "ut/ast_thread.h"
@@ -129,8 +130,11 @@ M0_INTERNAL uint64_t m0_be_ut_seg_allocate_id(void)
  */
 M0_INTERNAL void m0_be_ut_reqh_create(struct m0_reqh **pptr)
 {
-	struct be_ut_helper_struct *h = &be_ut_helper;
-	int rc;
+	struct be_ut_helper_struct *h   = &be_ut_helper;
+	struct m0_fid               fid = M0_FID_TINIT(
+					   M0_CONF_PROCESS_TYPE.cot_ftype.ft_id,
+					   0, 1);
+	int                         rc;
 
 	M0_PRE(*pptr == NULL && h->buh_reqh == NULL);
 
@@ -142,7 +146,7 @@ M0_INTERNAL void m0_be_ut_reqh_create(struct m0_reqh **pptr)
 	 * is a kludge and should be removed.
 	 */
 	M0_ASSERT(*pptr != NULL);
-	rc = M0_REQH_INIT(*pptr);
+	rc = M0_REQH_INIT(*pptr, .rhia_fid = &fid);
 	M0_ASSERT(rc == 0);
 	/*
 	 * Remember the address of allocated pointer, so that it can be

@@ -116,8 +116,13 @@ struct cobthread_arg {
 static char *server_args[] = {
 	"m0d", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-A", "linuxstob:cobfoms_ut_addb_stob",
-	"-e", SERVER_ENDP, "-s", "ioservice", "-s" "stats", "-w", "10",
-	"-s", "mdservice", "-s", "rmservice", "-s", "confd",
+	"-e", SERVER_ENDP, "-w", "10",
+	"-s", "ioservice:<0x7300000000000001:1>",
+	"-s", "rmservice:<0x7300000000000001:2>",
+	"-s", "stats:<0x7300000000000001:3>",
+	"-s", "mdservice:<0x7300000000000001:4>",
+	"-s", "confd:<0x7300000000000001:5>",
+	"-f", "<0x7200000000000001:1>",
 	"-q", COB_FOP_NR_STR, "-c", M0_UT_CONF_PATH("dir_iter_xc.txt"),
 	"-P", M0_UT_CONF_PROFILE
 };
@@ -152,6 +157,7 @@ static void cobfoms_utinit(void)
 	cctx->rcx_remote_addr        = SERVER_EP_ADDR;
 	cctx->rcx_max_rpcs_in_flight = CLIENT_MAX_RPCS_IN_FLIGHT;
 	cctx->rcx_recv_queue_min_length = COB_FOP_NR;
+	cctx->rcx_fid                = &g_process_fid;
 
 	m0_fom_type_init(&ft, M0_UT_IOS_OPCODE,
 			 NULL, &m0_ios_type, &cob_ops_conf);

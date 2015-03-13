@@ -33,6 +33,8 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/locality.h"
+#include "lib/uuid.h"       /* m0_uuid_generate */
+#include "fid/fid.h"
 #include "stob/ad.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
@@ -49,6 +51,7 @@
 #include "addb2/storage.h"
 #include "addb2/net.h"
 #include "module/instance.h"	/* m0_get */
+#include "conf/obj.h"           /* M0_CONF_PROCESS_TYPE */
 #include "conf/helpers.h"       /* m0_confc_args */
 #include "conf/preload.h"       /* M0_CONF_STR_MAXLEN */
 
@@ -1229,7 +1232,8 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 
 	rc = M0_REQH_INIT(&rctx->rc_reqh,
 			  .rhia_mdstore = &rctx->rc_mdstore,
-			  .rhia_pc = &rctx->rc_mero->cc_pools_common);
+			  .rhia_pc = &rctx->rc_mero->cc_pools_common,
+			  .rhia_fid = &rctx->rc_fid);
 	if (rc != 0)
 		goto out;
 
@@ -1525,12 +1529,11 @@ static void cs_help(FILE *out, const char *progname)
 "           If multiple '-e' options are provided, network transport\n"
 "           will have several endpoints, distinguished by transfer machine id\n"
 "           (the 4th component of 4-tuple endpoint address in lnet).\n"
+"  -f fid   FID of the process, in case of m0d is a mandatory parameter\n"
 "  -s str   Service (type) to be started.\n"
-"           The string is of one of the following forms:\n"
-"              ServiceTypeName:ServiceInstanceUUID\n"
-"              ServiceTypeName\n"
-"           with the UUID expressed in the standard 8-4-4-4-12 hexadecimal\n"
-"           string form. The non-UUID form is permitted for testing purposes.\n"
+"           The string is of the following form:\n"
+"              ServiceTypeName:ServiceFID\n"
+"              e.g. -s 'ioservice:<0x7300000000000001:1>'"
 "           Multiple '-s' options are allowed, but the values must be unique.\n"
 "           Use '-l' to get a list of registered service types.\n"
 "  -q num   [optional] Minimum length of TM receive queue.\n"
@@ -1540,7 +1543,9 @@ static void cs_help(FILE *out, const char *progname)
 "\n"
 "Example:\n"
 "    %s -Q 4 -M 4096 -T linux -D bepath -S stobfile \\\n"
-"        -e lnet:172.18.50.40@o2ib1:12345:34:1 -s mds -q 8 -m 65536\n",
+"        -e lnet:172.18.50.40@o2ib1:12345:34:1 \\\n"
+"        -s 'mds:<0x7300000000000002:1>'-q 8 -m 65536 \\\n"
+"        -f '<0x7200000000000001:1>'\n",
 CONFD_CONN_TIMEOUT, CONFD_CONN_RETRY, progname);
 }
 
@@ -1625,16 +1630,14 @@ static int cs_daemonize(struct m0_mero *cctx)
 }
 
 /**
-   Parses a service string of the following forms:
-   - service-type
+   Parses a service string of the following form:
    - service-type:fid
 
-   In the latter case it isolates and parses the fid string, and returns it
-   in the fid parameter.
+   It isolates and parses the fid string, and returns it in the fid parameter.
 
    @param str Input string
    @param svc Allocated service type name
-   @param fid Numerical fid value if present and valid, or zero.
+   @param fid Numerical service fid value, mandatory and valid.
  */
 static int
 service_string_parse(const char *str, char **svc, struct m0_fid *fid)
@@ -1646,8 +1649,8 @@ service_string_parse(const char *str, char **svc, struct m0_fid *fid)
 	fid->f_key = fid->f_container = 0;
 	colon = strchr(str, ':');
 	if (colon == NULL) {
-		*svc = m0_strdup(str);
-		return *svc ? 0 : M0_ERR(-ENOMEM);
+		/* Service FID is mandatory */
+		return M0_ERR(-EINVAL);
 	}
 
 	/* isolate and copy the service type */
@@ -1662,9 +1665,29 @@ service_string_parse(const char *str, char **svc, struct m0_fid *fid)
 	rc = m0_fid_sscanf(++colon, fid);
 	if (rc != 0)
 		m0_free0(svc);
-	if (!m0_fid_is_valid(fid))
+	if (!m0_fid_is_valid(fid) ||
+	    !M0_CONF_SERVICE_TYPE.cot_ftype.ft_is_valid(fid))
 		return M0_ERR(-EINVAL);
 	return M0_RC(rc);
+}
+
+static int process_fid_parse(const char *str, struct m0_fid *fid)
+{
+	M0_PRE(str != NULL);
+	M0_PRE(fid != NULL);
+	return m0_fid_sscanf(str, fid) ?:
+	       m0_fid_tget(fid) == M0_CONF_PROCESS_TYPE.cot_ftype.ft_id &&
+	       m0_fid_is_valid(fid) ?
+	       0 : M0_ERR(-EINVAL);
+}
+
+/* With this, utilities like m0mkfs will generate process FID on the fly */
+static void process_fid_generate_conditional(struct m0_reqh_context *rctx)
+{
+	if (!m0_fid_is_set(&rctx->rc_fid)) {
+		m0_uuid_generate((struct m0_uint128*)&rctx->rc_fid);
+		m0_fid_tassume(&rctx->rc_fid, &M0_CONF_PROCESS_TYPE.cot_ftype);
+	}
 }
 
 /** Parses CLI arguments, filling m0_mero structure. */
@@ -1842,6 +1865,11 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				{
 				      rc = ep_and_xprt_append(&rctx->rc_eps, s);
 				})),
+		       M0_STRINGARG('f', "Process FID string",
+				LAMBDA(void, (const char *s)
+				{
+				      rc = process_fid_parse(s, &rctx->rc_fid);
+				})),
 			M0_STRINGARG('s', "Services to be configured",
 				LAMBDA(void, (const char *s)
 				{
@@ -1875,6 +1903,9 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 					/* not used here, it's a placeholder */
 				})),
 			);
+	/* generate reqh fid in case it is all-zero */
+	process_fid_generate_conditional(rctx);
+
 	return M0_RC(rc_getops ?: rc);
 }
 

@@ -93,7 +93,8 @@ static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom            = &client_net_dom,
 	.rcx_local_addr         = client_addr,
 	.rcx_remote_addr        = server_addr,
-	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT
+	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	.rcx_fid                = &g_process_fid,
 };
 
 extern struct m0_cm_type sender_cm_cmt;

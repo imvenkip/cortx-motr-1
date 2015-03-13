@@ -38,6 +38,7 @@
 
 static struct m0_net_domain     cl_ndom;
 static struct m0_rpc_client_ctx cl_ctx;
+static struct m0_fid            cl_process_fid = M0_FID_TINIT('r', 0, 1);
 
 enum {
 	MAX_RPCS_IN_FLIGHT = 10,
@@ -71,6 +72,7 @@ static int poolmach_client_init(void)
 	cl_ctx.rcx_local_addr         = cl_ep_addr;
 	cl_ctx.rcx_remote_addr        = srv_ep_addr[0];
 	cl_ctx.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
+	cl_ctx.rcx_fid                = &cl_process_fid;
 
 	rc = m0_rpc_client_start(&cl_ctx);
 	if (rc != 0)

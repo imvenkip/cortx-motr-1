@@ -173,25 +173,30 @@ EOF
 ###   services_start autoconf
 ###       m0d starts with minimal set of options and configures itself.
 ###
+
+. $M0_CORE_DIR/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
+
 services_start() {
     [ $# -eq 0 -o "${1:-}" = autoconf ] || error 'Invalid argument'
     local MODE="${1:-}"
 
     local PROF_AC_OPT='<0x7000000000000001:0>' # "profile-0"
-    local CONFD_SPEC="-s confd -c $CONF_FILE"
+    local CONFD_SPEC="-s confd:<$CONF_FID_CON:1> -c $CONF_FILE"
     local OPTS=
-
     if [ "$MODE" = autoconf ]; then
 	OPTS="-C $CONFD_ENDPOINT -P $PROF_AC_OPT
--e lnet:$IOS1_ENDPOINT -s ioservice
+-e lnet:$IOS1_ENDPOINT -s ioservice:<$IOS_FID_CON:1>
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN"
     else
 	OPTS="
 -F -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
 -A linuxstob:$SANDBOX_DIR/addb-stobs
--e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb2 -s ioservice
+-e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice:<$MDS_FID_CON:1>
+-s addb2:<$ADD2_FID_CON:1> -s ioservice:<$IOS_FID_CON:1>
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_AC_OPT"
     fi
+
+    OPTS="$OPTS -f <0x7200000000000001:1>"
 
     confdb | $M0_CORE_DIR/utils/m0confgen >$CONF_FILE
 

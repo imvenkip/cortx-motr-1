@@ -59,11 +59,15 @@ static char **server_argv_alloc(const char *server_ep_addr, int *argc)
 	const char *argv[] = {
 		"bulkio_st", "-T", "AD", "-D", S_DBFILE,
 		"-S", S_STOBFILE, "-A", S_ADDB_STOBFILE, "-e", ep,
-		"-s", "mdservice", "-s", "rmservice", "-s", "stats",
-		"-s", "ioservice", "-s", "sns_repair", "-q", tm_len,
-		"-m", rpc_size, "-w", "10", "-G", ep,
-		"-s" "confd", "-c", M0_UT_CONF_PATH("dir_iter_xc.txt"),
-		"-P", M0_UT_CONF_PROFILE
+		"-s", "ioservice:<0x7300000000000001:1>",
+		"-s", "sns_repair:<0x7300000000000001:2>",
+		"-s", "rmservice:<0x7300000000000001:3>",
+		"-s", "mdservice:<0x7300000000000001:4>",
+		"-s", "stats:<0x7300000000000001:5>",
+		"-s", "confd:<0x7300000000000001:6>",
+		"-q", tm_len, "-m", rpc_size, "-w", "10", "-G", ep,
+		"-c", M0_UT_CONF_PATH("dir_iter_xc.txt"),
+		"-f", "<0x7200000000000001:1>", "-P", M0_UT_CONF_PROFILE
 	};
 
 	n = snprintf(ep, sizeof ep, "lnet:%s", server_ep_addr);
@@ -488,6 +492,7 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
 	cctx->rcx_max_rpc_msg_size	= M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 	cctx->rcx_local_addr            = caddr;
 	cctx->rcx_net_dom               = &bp->bp_cnetdom;
+	cctx->rcx_fid                   = &g_process_fid;
 
 	M0_ALLOC_ARR(cdbname, IO_STR_LEN);
 	M0_ASSERT(cdbname != NULL);

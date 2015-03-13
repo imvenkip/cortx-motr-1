@@ -53,7 +53,8 @@ static int ut_mero_start(struct m0_rpc_machine    *mach,
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
 		"-w", "10", "-P", M0_UT_CONF_PROFILE,
-		"-e", SERVER_ENDPOINT, "-s", "confd", "-s", "rmservice",
+		"-e", SERVER_ENDPOINT, "-s", "confd:<0x7300000000000001:6>",
+		"-s", "rmservice:<0x7300000000000001:3>",
 		"-c", M0_UT_CONF_PATH("dir_iter_xc.txt")
 	};
 	*rctx = (struct m0_rpc_server_ctx) {

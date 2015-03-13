@@ -308,9 +308,9 @@ static void test_confc_net(void)
 	char                    *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb_stob"),
-		"-w", "10",
-		"-e", SERVER_ENDPOINT, "-s", "confd",
 		"-c", M0_UT_CONF_PATH("conf-str.txt"),
+		"-w", "10", "-e", SERVER_ENDPOINT,
+		"-s", "confd:<0x7300000000000001:1>",
 		"-P", M0_UT_CONF_PROFILE
 	};
 	struct m0_rpc_server_ctx confd = {

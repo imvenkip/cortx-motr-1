@@ -103,7 +103,9 @@ static void test_mkfs(void)
 	be_seg = m0_be_domain_seg0_get(&ut_be.but_dom);
 	rc = M0_REQH_INIT(&reqh,
 			  .rhia_db = be_seg,
-			  .rhia_mdstore = &md);
+			  .rhia_mdstore = &md,
+			  .rhia_fid     = &g_process_fid,
+		);
         M0_UT_ASSERT(rc == 0);
 	ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &reqh;
 	m0_be_ut_backend_init(&ut_be);

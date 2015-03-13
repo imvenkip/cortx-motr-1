@@ -119,6 +119,16 @@ M0_INTERNAL int main(int argc, char **argv)
 		goto cleanup2;
 	}
 
+	/*
+	 * Prevent from automatic process fid generation by setting the context
+	 * up with a dummy fid of non-process type.
+	 */
+	mero_ctx.cc_reqh_ctx.rc_fid = M0_FID_INIT(0, 1);
+	/*
+	 * Process FID specification is mandatory for m0d. Mero instance setup
+	 * is going to stumble upon fid type precondition in m0_reqh_init()
+	 * unless real process fid is present in argv.
+	 */
 	rc = m0_cs_setup_env(&mero_ctx, argc, argv);
 	if (rc != 0)
 		goto cleanup1;

@@ -29,6 +29,8 @@
 #include "mero/init.h"        /* m0_init */
 #include "rpc/rpclib.h"       /* m0_rpc_post_sync */
 #include "fop/fop.h"
+#include "fid/fid.h"          /* M0_FID_TINIT */
+#include "conf/obj.h"         /* M0_CONF_PROCESS_TYPE */
 #include "module/instance.h"  /* m0 */
 #include "console/console.h"
 #include "console/console_mesg.h"
@@ -36,6 +38,7 @@
 #include "console/console_yaml.h"
 #include "console/console_fop.h"
 
+#define PROC_FT M0_CONF_PROCESS_TYPE.cot_ftype.ft_id
 /**
    @addtogroup console
    @{
@@ -221,6 +224,7 @@ int main(int argc, char **argv)
 		.rcx_local_addr            = "0@lo:12345:34:*",
 		.rcx_remote_addr           = "0@lo:12345:34:1",
 		.rcx_max_rpcs_in_flight    = 1,
+		.rcx_fid                   = &M0_FID_TINIT(PROC_FT, 0, 1),
 	};
 
 	m0_console_verbose = false;

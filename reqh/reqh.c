@@ -39,13 +39,14 @@
 #include "fop/fom_generic.h"
 #include "dtm/dtm.h"
 #include "rpc/rpc.h"
-#include "rpc/item_internal.h"          /* m0_rpc_item_is_request */
+#include "rpc/item_internal.h" /* m0_rpc_item_is_request */
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "layout/pdclust.h"
 #include "fop/fom_simple.h"
 #include "pool/pool.h"
-#include "conf/helpers.h"              /* m0_conf_fs_get */
+#include "conf/obj.h"          /* M0_CONF_PROCESS_TYPE, m0_conf_fid_type */
+#include "conf/helpers.h"      /* m0_conf_fs_get */
 
 #include "be/ut/helper.h"
 
@@ -228,12 +229,16 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	int rc = 0;
 
 	M0_ENTRY("%p", reqh);
+	M0_PRE(reqh_args->rhia_fid != NULL);
+	M0_PRE(m0_conf_fid_type(reqh_args->rhia_fid) == &M0_CONF_PROCESS_TYPE);
+	M0_PRE(m0_fid_is_valid(reqh_args->rhia_fid));
 
 	reqh->rh_dtm     = reqh_args->rhia_dtm;
 	reqh->rh_beseg   = reqh_args->rhia_db;
 	reqh->rh_mdstore = reqh_args->rhia_mdstore;
 	reqh->rh_pools   = reqh_args->rhia_pc;
 	reqh->rh_oostore = false;
+	reqh->rh_fid     = *reqh_args->rhia_fid;
 
 	m0_fol_init(&reqh->rh_fol);
 	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);

@@ -168,7 +168,8 @@ M0_BASSERT(MIN_RECV_QUEUE_LEN == 200);
 static char *g_argv[] = {
 	NAME(""), "-Q", "200" /* MIN_RECV_QUEUE_LEN */, "-w", "10",
 	"-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
-	"-A", "linuxstob:"NAME(".addb-stob"), "-e", SERVER_ENDPOINT, "-s", "ds1",
+	"-A", "linuxstob:"NAME(".addb-stob"), "-e", SERVER_ENDPOINT,
+	"-s", "ds1:<0x7300000000000001:1>",
 	"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
 };
 
@@ -195,6 +196,7 @@ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
 			  const char *ep)
 {
 	int rc;
+	struct m0_fid process_fid = M0_FID_TINIT('r', 2, 1);
 
 	rc = m0_net_domain_init(&client->rc_net_dom, g_xprt);
 	M0_ASSERT(rc == 0);
@@ -204,7 +206,8 @@ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
 		.rcx_local_addr            = m0_strdup(ep),
 		.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
 		.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
-		.rcx_recv_queue_min_length = MIN_RECV_QUEUE_LEN
+		.rcx_recv_queue_min_length = MIN_RECV_QUEUE_LEN,
+		.rcx_fid                   = &process_fid,
 	};
 	rc = m0_rpc_client_start(&client->rc_ctx);
 	if (rc != 0)

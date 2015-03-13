@@ -322,9 +322,10 @@ static void test_diter_net(void)
 	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
-		"-w", "10",
-		"-e", SERVER_ENDPOINT, "-s", "confd", "-s", "stats",
-		"-c", M0_UT_CONF_PATH("dir_iter_xc.txt"), "-P", M0_UT_CONF_PROFILE
+		"-w", "10", "-e", SERVER_ENDPOINT,
+		"-s", "confd:<0x7300000000000001:1>",
+		"-c", M0_UT_CONF_PATH("dir_iter_xc.txt"),
+		"-P", M0_UT_CONF_PROFILE
 	};
 	struct m0_rpc_server_ctx confd = {
 		.rsx_xprts         = &g_xprt,

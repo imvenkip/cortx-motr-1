@@ -268,7 +268,8 @@ static int conf_ut_reqh_init(struct m0_conf_ut_reqh *conf_reqh,
 
 	rc = M0_REQH_INIT(&conf_reqh->cur_reqh,
 			  .rhia_dtm     = (void *)1,
-			  .rhia_mdstore = (void *)1);
+			  .rhia_mdstore = (void *)1,
+			  .rhia_fid     = &g_process_fid);
 	if (rc != 0)
 		goto buf_pool;
 	m0_reqh_start(&conf_reqh->cur_reqh);

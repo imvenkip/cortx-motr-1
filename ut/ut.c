@@ -588,6 +588,8 @@ M0_INTERNAL void m0_ut_shuffle(unsigned seed)
 }
 #endif
 
+struct m0_fid g_process_fid = M0_FID_TINIT('r', 1, 1);
+
 /** @} ut */
 #undef M0_TRACE_SUBSYSTEM
 

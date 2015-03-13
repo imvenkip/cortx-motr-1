@@ -54,7 +54,9 @@ M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 
 	rc = M0_REQH_INIT(&spl_reqh->sur_reqh,
 			  .rhia_dtm     = (void *)1,
-			  .rhia_mdstore = (void *)1);
+			  .rhia_mdstore = (void *)1,
+			  .rhia_fid     = &g_process_fid,
+		);
 	if (rc != 0)
 		goto buf_pool;
 	m0_reqh_start(&spl_reqh->sur_reqh);
@@ -107,8 +109,10 @@ M0_INTERNAL int m0_spiel__ut_confd_start(struct m0_rpc_server_ctx *rpc_srv,
 	char                    *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb_stob"),
-		"-w", "10", "-e", full_ep, "-s", "confd",
-		"-s", "rmservice", "-m", max_rpc_size,
+		"-w", "10", "-e", full_ep,
+		"-f", "<0x7200000000000001:1>",
+		"-s", "confd:<0x7300000000000001:1>", "-m", max_rpc_size,
+		"-s", "rmservice:<0x7300000000000002:1>",
 		"-c", M0_UT_CONF_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 	};
 #undef NAME

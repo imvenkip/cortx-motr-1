@@ -515,7 +515,10 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 			  .rhia_dtm = (void*)1,
 			  .rhia_db = csb->csb_ut_seg.bus_seg,
 			  .rhia_mdstore = (void*)1,
-			  .rhia_pc = &csb->csb_pools_common);
+			  .rhia_pc = &csb->csb_pools_common,
+			  /* fake process fid */
+			  .rhia_fid = &M0_FID_TINIT(
+				  M0_CONF_PROCESS_TYPE.cot_ftype.ft_id, 0, 0));
 	if (rc != 0)
 		goto pool_fini;
 	rc = m0_rpc_machine_init(rpc_machine, ndom, laddr, reqh,

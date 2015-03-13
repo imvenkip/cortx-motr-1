@@ -164,6 +164,9 @@ struct m0_reqh {
 	 * @see m0_conf_failure_sets_build().
 	 */
 	struct m0_tl                  rh_failure_sets;
+
+	/** Process FID. */
+	struct m0_fid                 rh_fid;
 };
 
 /**
@@ -175,6 +178,7 @@ struct m0_reqh_init_args {
 	struct m0_be_seg        *rhia_db;
 	struct m0_mdstore       *rhia_mdstore;
 	struct m0_pools_common  *rhia_pc;
+	struct m0_fid           *rhia_fid;
 };
 
 /**

@@ -115,7 +115,7 @@
     Similarly, to setup mero externally, using m0d program along
     with parameters specified as above.
     e.g. ./m0d -T linux -D dbpath -S stobfile \
-           -e xport:172.18.50.40@o2ib1:12345:34:1 -s service
+           -e xport:172.18.50.40@o2ib1:12345:34:1 -s 'service:ServiceFID'
 
     Below image gives an overview of entire mero context.
     @note This image is borrowed from the "New developer guide for mero"
@@ -337,6 +337,9 @@ struct m0_reqh_context {
 
 	/** Preallocate an entire stob for db5 emulation BE segment */
 	bool                         rc_be_seg_preallocate;
+
+	/** Process FID */
+	struct m0_fid                rc_fid;
 };
 
 /**

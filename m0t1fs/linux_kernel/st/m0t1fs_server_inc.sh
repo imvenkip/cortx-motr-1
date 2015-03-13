@@ -190,6 +190,11 @@ mero_service()
 
 	start() {
 		local i
+		# Use one process fid for all processes for now.
+		# Confd database contains only one process, too.
+		# Actually, every process should have its own entry
+		# in confd database.
+		local proc_fid=\''<'$PROC_FID_CNTR:$PROC_FID_KEY'>'\'
 
 		prepare
 
@@ -238,14 +243,15 @@ mero_service()
 
 		# mkfs for confd server
 		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$MKFS_EP \
-		      -s confd -c $DIR/conf.xc"
+		      -s 'confd:<$CONF_FID_CON:1>' -c $DIR/conf.xc"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0d.log"
+
 		echo $cmd
 		(eval "$cmd")
 
 		# spawn confd
-		opts="$common_opts -T linux -e $XPT:$CONFD_EP \
-		      -s confd -c $DIR/conf.xc"
+		opts="$common_opts -f $proc_fid -T linux -e $XPT:$CONFD_EP \
+		      -s 'confd:<$CONF_FID_CON:2>' -c $DIR/conf.xc"
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		echo $cmd
 		(eval "$cmd") &
@@ -263,13 +269,23 @@ mero_service()
 		echo $cmd
 		(eval "$cmd")
 
+		# spawn ha agent
+		opts="$common_opts -f $proc_fid -T linux \
+		      -e $XPT:${lnet_nid}:$HA_EP -C $CONFD_EP"
+		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
+		echo $cmd
+		(eval "$cmd") &
+
 		#mds mkfs
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
 			local mds=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 
-			SNAME="-s mdservice -s rmservice -s addb2 \
-                               -s stats"
+			SNAME="-s 'mdservice:<$MDS_FID_CON:$i>' \
+                               -s 'rmservice:<$RMS_FID_CON:$i>' \
+                               -s 'addb2:<$ADD2_FID_CON:$i>' \
+                               -s 'stats:<$STS_FID_CON:$i>'"
+
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
@@ -284,8 +300,10 @@ mero_service()
 			local ios=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 
-			SNAME="-s ioservice -s sns_repair -s sns_rebalance \
-                               -s addb2"
+			SNAME="-s 'ioservice:<$IOS_FID_CON:$i>' \
+                               -s 'sns_repair:<$SNSR_FID_CON:$i>' \
+                               -s 'sns_rebalance:<$SNSB_FID_CON:$i>' \
+                               -s 'addb2:<$ADD2_FID_CON:$i>'"
 
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
@@ -298,7 +316,7 @@ mero_service()
 
 		# spawn ha agent
 		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
-		      -C $CONFD_EP"
+		      -C $CONFD_EP -f $proc_fid"
 		DIR=$MERO_M0T1FS_TEST_DIR/ha
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		echo $cmd
@@ -309,13 +327,17 @@ mero_service()
 			local mds=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 
-			SNAME="-s mdservice -s rmservice -s addb2 \
-                               -s stats"
+			SNAME="-s 'mdservice:<$MDS_FID_CON:$i>' \
+                               -s 'rmservice:<$RMS_FID_CON:$i>' \
+                               -s 'addb2:<$ADD2_FID_CON:$i>' \
+                               -s 'stats:<$STS_FID_CON:$i>'"
+
 			ulimit -c unlimited
 
 			cmd="cd $DIR && exec \
 			$prog_start -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:${MDSEP[$i]} \
+                        -f $proc_fid \
 			-C $CONFD_EP $SNAME |& tee -a m0d.log"
 			echo $cmd
 
@@ -330,14 +352,17 @@ mero_service()
 			local ios=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 
-			SNAME="-s ioservice -s sns_repair -s sns_rebalance \
-                               -s addb2"
+			SNAME="-s 'ioservice:<$IOS_FID_CON:$i>' \
+                               -s 'sns_repair:<$SNSR_FID_CON:$i>' \
+                               -s 'sns_rebalance:<$SNSB_FID_CON:$i>' \
+                               -s 'addb2:<$ADD2_FID_CON:$i>'"
 
 			ulimit -c unlimited
 
 			cmd="cd $DIR && exec \
 			$prog_start -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]} \
+                        -f $proc_fid \
 			-C $CONFD_EP $SNAME |& tee -a m0d.log"
 			echo $cmd
 
