@@ -174,7 +174,7 @@ void test_obj_fill(void)
 
 	rc = m0_confstr_parse(buf, &enc);
 	M0_UT_ASSERT(rc == 0);
-        M0_UT_ASSERT(enc->cx_nr == 20); /* conf-str.txt describes 20 objects */
+        M0_UT_ASSERT(enc->cx_nr == 21); /* conf-str.txt describes 21 objects */
 
 	m0_mutex_lock(&g_lock);
 	for (i = 0; i < enc->cx_nr; ++i) {

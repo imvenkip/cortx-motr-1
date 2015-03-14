@@ -162,6 +162,7 @@ enum m0_conf_service_type {
 #define M0_CONF_SVC_TYPE_IS_VALID(stype)                    \
         M0_IN((stype), (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, \
 			M0_CST_RMS, M0_CST_SS, M0_CST_HA))
+
 /**
    @} conf_schema end group
 */

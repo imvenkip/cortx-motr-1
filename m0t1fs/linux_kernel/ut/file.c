@@ -100,7 +100,8 @@ void m0t1fs_addb_mon_total_io_size_fini(struct m0t1fs_sb *csb);
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
 void m0t1fs_net_fini(struct m0t1fs_sb *csb);
 
-char local_conf[] = "[33:\
+char local_conf[] = "[34:\
+   {0x74| (((0x7400000000000001, 0)), 1, [1 : (0x7000000000000001, 0)])},\
    {0x70| (((0x7000000000000001, 0)), (0x6600000000000001, 1))},\
    {0x66| (((0x6600000000000001, 1)),\
         (11, 22), 41212, [3: \"param-0\", \"param-1\", \"param-2\"],\
@@ -198,10 +199,11 @@ static int file_io_ut_init(void)
 	rc = M0_THREAD_INIT(&csb.csb_astthread, struct m0t1fs_sb *, NULL,
 			    &ast_thread, &csb, "m0_ast_thread");
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(&confc, &csb.csb_iogroup, &M0_FID_TINIT('p', 1, 0),
-			   NULL, NULL, local_conf);
+	rc = m0_confc_init(&confc, &csb.csb_iogroup, NULL, NULL, local_conf);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,
+				M0_CONF_ROOT_PROFILES_FID,
+				M0_FID_TINIT('p', 1, 0),
 				M0_CONF_PROFILE_FILESYSTEM_FID);
 	M0_UT_ASSERT(rc == 0);
 	fs = M0_CONF_CAST(fs_obj, m0_conf_filesystem);

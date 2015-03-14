@@ -54,12 +54,12 @@ M0_INTERNAL int m0_conf_fs_get(const char *profile,
 		return M0_ERR_INFO(-EINVAL, "Wrong profile fid "FID_F,
 				   FID_P(&prof_fid));
 
-	rc = m0_confc_init(confc, grp, &prof_fid, confd_addr,
-			   rmach, NULL);
+	rc = m0_confc_init(confc, grp, confd_addr, rmach, NULL);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "m0_confc_init() failed");
 
 	rc = m0_confc_open_sync(&fs_obj, confc->cc_root,
+				M0_CONF_ROOT_PROFILES_FID, prof_fid,
 				M0_CONF_PROFILE_FILESYSTEM_FID);
 	if (rc != 0) {
 		M0_LOG(M0_FATAL, "m0_confc_open_sync() failed: rc=%d", rc);
@@ -126,6 +126,21 @@ M0_INTERNAL bool m0_conf_filter_cntv_diskv(const struct m0_conf_obj *obj)
 			return true;
 	}
 	return false;
+}
+
+M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
+			          struct m0_conf_root **root)
+{
+	struct m0_conf_obj *root_obj;
+	int                 rc;
+
+	M0_ENTRY();
+	M0_PRE(confc->cc_root != NULL);
+
+	rc = m0_confc_open_sync(&root_obj, confc->cc_root, M0_FID0);
+	if (rc == 0)
+		*root = M0_CONF_CAST(root_obj, m0_conf_root);
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

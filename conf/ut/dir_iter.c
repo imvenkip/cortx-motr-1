@@ -32,6 +32,7 @@
 #include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"     /* m0_rpc_server_ctx */
 #include "ut/ut.h"
+#include "conf/ut/confc.h"
 
 enum {
 	PROF,
@@ -285,11 +286,10 @@ static void conf_diter_test(const char *confd_addr,
 	int                 rc;
 
 	M0_SET0(&confc);
-	rc = m0_confc_init(&confc, &g_grp, &fids[PROF],
-			   confd_addr, rpc_mach, local_conf);
+	rc = m0_confc_init(&confc, &g_grp, confd_addr, rpc_mach, local_conf);
 	M0_UT_ASSERT(rc == 0);
-
 	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,
+				M0_CONF_ROOT_PROFILES_FID, fids[PROF],
 				M0_CONF_PROFILE_FILESYSTEM_FID);
 	M0_UT_ASSERT(rc == 0);
 
@@ -359,11 +359,11 @@ static void test_diter_invalid_input(void)
 	rc = m0_ut_file_read(M0_CONF_UT_PATH("dir_iter_xc.txt"), local_conf,
 			     sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(&confc, &g_grp, &fids[PROF],
-			   NULL, NULL, local_conf);
+	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, local_conf);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,
-			       M0_CONF_PROFILE_FILESYSTEM_FID);
+				M0_CONF_ROOT_PROFILES_FID, fids[PROF],
+				M0_CONF_PROFILE_FILESYSTEM_FID);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_conf_diter_init(&it, &confc, fs_obj,

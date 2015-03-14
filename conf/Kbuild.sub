@@ -20,6 +20,7 @@ m0mero_objects += \
                   conf/objs/profile.o \
                   conf/objs/pver.o \
                   conf/objs/rack.o \
+                  conf/objs/root.o \
                   conf/objs/sdev.o \
                   conf/objs/service.o \
                   conf/onwire_xc.o \

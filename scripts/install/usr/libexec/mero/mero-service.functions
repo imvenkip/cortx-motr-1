@@ -335,6 +335,7 @@ m0_build_local_conf()
     local ios_idx=1
     local ios_ep
 
+    root='(0x7400000000000001, 0)'
     prof='(0x7000000000000001, 0)'
     fs='(0x6600000000000001, 1)'
     mds='(0x7300000000000001, 2)'
@@ -351,7 +352,8 @@ m0_build_local_conf()
     done
 
     local_conf=$(cat <<CONF_END
-[$((ios_num + 5)):
+[$((ios_num + 6)):
+  {0x74| (($root), 1, [1: $prof])},
   {0x70| (($prof), $fs)},
   {0x66| (($fs), (11, 22),
               [1: "$pool_width $data_units $parity_units"],

@@ -41,6 +41,20 @@
 static char g_confc_str[M0_CONF_STR_MAXLEN];
 uint8_t     g_num;
 
+static void root_open_test(struct m0_confc *confc)
+{
+	struct m0_conf_root *root_obj;
+	int                  rc;
+
+	rc = m0_conf_root_open(confc, &root_obj);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_fid_eq(&root_obj->rt_obj.co_id,
+	                       &m0_ut_conf_fids[M0_UT_CONF_ROOT]));
+	M0_UT_ASSERT(root_obj->rt_verno == 1);
+
+	m0_confc_close(&root_obj->rt_obj);
+}
+
 static void sync_open_test(struct m0_conf_obj *nodes_dir)
 {
 	struct m0_conf_obj  *obj;
@@ -71,13 +85,17 @@ static void sync_open_test(struct m0_conf_obj *nodes_dir)
 	m0_confc_close(obj);
 }
 
-static void nodes_open(struct m0_conf_obj **result, struct m0_confc *confc)
+static void nodes_open(struct m0_conf_obj **result,
+		       struct m0_confc     *confc)
 {
 	struct conf_ut_waiter w;
 	int                   rc;
 
 	conf_ut_waiter_init(&w, confc);
-	rc = m0_confc_open(&w.w_ctx, NULL, M0_CONF_PROFILE_FILESYSTEM_FID,
+	rc = m0_confc_open(&w.w_ctx, NULL,
+			   M0_CONF_ROOT_PROFILES_FID,
+			   m0_ut_conf_fids[M0_UT_CONF_PROF],
+			   M0_CONF_PROFILE_FILESYSTEM_FID,
 			   M0_CONF_FILESYSTEM_NODES_FID);
 	M0_UT_ASSERT(rc == 0);
 	rc = conf_ut_waiter_wait(&w, result);
@@ -152,6 +170,8 @@ static void dir_test(struct m0_confc *confc)
 	int                 rc;
 
 	rc = m0_confc_open_sync(&procs_dir, confc->cc_root,
+				M0_CONF_ROOT_PROFILES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_PROF],
 				M0_CONF_PROFILE_FILESYSTEM_FID,
 				M0_CONF_FILESYSTEM_NODES_FID,
 				m0_ut_conf_fids[M0_UT_CONF_NODE],
@@ -185,7 +205,10 @@ static void _retrieval_initiate(struct m0_confc_ctx *ctx)
 {
 	int rc;
 
-	rc = m0_confc_open(ctx, NULL, M0_CONF_PROFILE_FILESYSTEM_FID,
+	rc = m0_confc_open(ctx, NULL,
+			   M0_CONF_ROOT_PROFILES_FID,
+			   m0_ut_conf_fids[M0_UT_CONF_PROF],
+			   M0_CONF_PROFILE_FILESYSTEM_FID,
 			   M0_CONF_FILESYSTEM_NODES_FID,
 			   m0_ut_conf_fids[M0_UT_CONF_NODE],
 			   M0_CONF_NODE_PROCESSES_FID,
@@ -232,36 +255,47 @@ static void confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
 	struct m0_conf_obj *nodes_dir;
 	int                 rc;
 
-	rc = m0_confc_init(&confc, &g_grp, &m0_ut_conf_fids[M0_UT_CONF_PROF],
-			   confd_addr, rpc_mach, conf_str);
+	rc = m0_confc_init(&confc, &g_grp, confd_addr, rpc_mach, conf_str);
 	M0_UT_ASSERT(rc == 0);
 
+	root_open_test(&confc);
 	dir_test(&confc);
 	misc_test(&confc);
 	nodes_open(&nodes_dir, &confc); /* tests asynchronous interface */
 	sync_open_test(nodes_dir);
 
 	m0_confc_close(nodes_dir);
-
 	m0_confc_fini(&confc);
 }
 
 static void test_confc_local(void)
 {
-	struct m0_confc confc;
-	int             rc;
+	struct m0_confc     confc;
+	struct m0_conf_obj *obj;
+	int                 rc;
 
 	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf-str.txt"), g_confc_str,
 			     sizeof g_confc_str);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_confc_init(&confc, &g_grp, &m0_ut_conf_fids[M0_UT_CONF_PROF],
-			   NULL, NULL, "bad configuration string");
+	rc = m0_confc_init(&confc, &g_grp, NULL, NULL,
+			   "bad configuration string");
 	M0_UT_ASSERT(rc == -EPROTO);
 
-	rc = m0_confc_init(&confc, &g_grp, &M0_FID_TINIT('p', 7, 7),
-			   NULL, NULL, g_confc_str);
-	M0_UT_ASSERT(rc == -ENODATA);
+	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, g_confc_str);
+	M0_UT_ASSERT(rc == 0);
+	/* normal case - profile exists in conf */
+	rc = m0_confc_open_sync(&obj, confc.cc_root,
+				M0_CONF_ROOT_PROFILES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_PROF]);
+	M0_UT_ASSERT(rc == 0);
+	m0_confc_close(obj);
+	/* fail case - profile does not exist */
+	rc = m0_confc_open_sync(&obj, confc.cc_root,
+				M0_CONF_ROOT_PROFILES_FID,
+				M0_FID_TINIT('p', 7, 7));
+	M0_UT_ASSERT(rc == -ENOENT);
+	m0_confc_fini(&confc);
 
 	confc_test(NULL, NULL, g_confc_str);
 }
@@ -308,8 +342,7 @@ static void test_confc_invalid_input(void)
 			     g_confc_str, sizeof g_confc_str);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_confc_init(&confc, &g_grp, &m0_ut_conf_fids[M0_UT_CONF_PROF],
-			   NULL, NULL, g_confc_str);
+	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, g_confc_str);
 	M0_UT_ASSERT(rc == -EEXIST);
 }
 

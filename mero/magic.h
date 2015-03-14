@@ -266,6 +266,9 @@ enum m0_magic_satchel {
 	/* m0_conf_dir::cd_obj.co_con_magic (old calaboose) */
 	M0_CONF_DIR_MAGIC = 0x3301dca1ab005e77,
 
+	/* m0_conf_root::crt_obj.co_con_magic (addable libel) */
+	M0_CONF_ROOT_MAGIC = 0x33addab1e11be177,
+
 	/* m0_conf_profile::cp_obj.co_con_magic (closable seal) */
 	M0_CONF_PROFILE_MAGIC = 0x33c105ab1e5ea177,
 

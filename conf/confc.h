@@ -75,7 +75,8 @@ struct m0_conf_obj;
  * @section confc-fspec-sub Subroutines
  *
  * - m0_confc_init() initialises configuration cache, creates a stub
- *   for the root object (m0_conf_profile).
+ *   for the root object (m0_conf_root). If user specifies profile, then
+ *   a stub for the profile (m0_conf_profile) is also created.
  * - m0_confc_fini() finalises confc, destroys configuration cache.
  *
  * - m0_confc_ctx_init() initialises context object, which will be
@@ -201,7 +202,10 @@ struct m0_conf_obj;
  *
  *         sm_waiter_init(&w, g_confc);
  *
- *         m0_confc_open(&w.w_ctx, NULL, M0_CONF_PROFILE_FILESYSTEM_FID);
+ *         m0_confc_open(&w.w_ctx, NULL,
+ *                       M0_CONF_ROOT_PROFILES_FID,
+ *                       profile_fid,
+ *                       M0_CONF_PROFILE_FILESYSTEM_FID);
  *         while (!m0_confc_ctx_is_completed(&w.w_ctx))
  *                 m0_chan_wait(&w.w_clink);
  *
@@ -221,6 +225,8 @@ struct m0_conf_obj;
  *         int                 rc;
  *
  *         rc = m0_confc_open_sync(&obj, g_confc->cc_root,
+ *                                 M0_CONF_ROOT_PROFILES_FID,
+ *                                 profile_fid,
  *                                 M0_CONF_PROFILE_FILESYSTEM_FID);
  *         if (rc == 0)
  *                 *fs = M0_CONF_CAST(obj, m0_conf_filesystem);
@@ -267,6 +273,8 @@ struct m0_conf_obj;
  *         int                 rc;
  *
  *         rc = m0_confc_open_sync(&dir, g_confc->cc_root,
+ *                                 M0_CONF_ROOT_PROFILES_FID,
+ *                                 profile_fid,
  *                                 M0_CONF_PROFILE_FILESYSTEM_FID,
  *                                 M0_CONF_FILESYSTEM_SERVICES_FID);
  *         if (rc != 0)
@@ -309,6 +317,8 @@ struct m0_conf_obj;
  *         int                 rc;
  *
  *         rc = m0_confc_open_sync(&dir, g_confc->cc_root,
+ *                                 M0_CONF_ROOT_PROFILES_FID,
+ *                                 profile_fid,
  *                                 M0_CONF_PROFILE_FILESYSTEM_FID,
  *                                 M0_CONF_FILESYSTEM_SERVICES_FID);
  *         if (rc != 0)
@@ -504,9 +514,10 @@ struct m0_confc {
 	/**
 	 * Root of the DAG of configuration objects.
 	 *
-	 * ->cc_root object is never pinned, as there is no way for
-	 * the application to m0_confc_open*() it.  See the note in
-	 * @ref confc-fspec-sub-use.
+	 * The object may be opened explicitly with m0_conf_root_open(),
+	 * e.g. for reading conf version number m0_conf_root::rt_verno, and this
+	 * way appears pinned as any other object. Under the circumstances the
+	 * root object requires for being closed same explicit way.
 	 */
 	struct m0_conf_obj      *cc_root;
 
@@ -536,7 +547,6 @@ struct m0_confc {
  *
  * @param confc        A confc instance to be initialised.
  * @param sm_group     State machine group to be associated with this confc.
- * @param profile      Name of profile used by this confc.
  * @param confd_addr   End point address of configuration server (confd).
  * @param rpc_mach     RPC machine that will process configuration RPC items.
  * @param local_conf   Configuration string --- ASCII description of
@@ -548,7 +558,6 @@ struct m0_confc {
  */
 M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 			      struct m0_sm_group    *sm_group,
-			      const struct m0_fid   *profile,
 			      const char            *confd_addr,
 			      struct m0_rpc_machine *rpc_mach,
 			      const char            *local_conf);

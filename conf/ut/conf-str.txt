@@ -2,7 +2,9 @@
 # Source file for conf/ut/db.c and conf/ut/cache.c UT
 #
 
-[20:
+[21:
+# root          ('t', 1,  0)
+   {0x74| (((0x7400000000000001, 0)), 1, [1 : (0x7000000000000001, 0)])},
 # profile:      ('p', 1,  0)
    {0x70| (((0x7000000000000001, 0)), (0x6600000000000001, 1))},
 # filesystem:   ('f', 1,  1)
@@ -61,6 +63,7 @@
    {0x6a| (((0x6a00000000000001, 19)), (0x6b00000000000001, 16), [0])}]
 
 # digraph conf {
+#     root [label="root\n('t', 0)"];
 #     profile [label="profile\n('p', 0)"];
 #     filesystem [label="filesystem\n('f', 1)"];
 #     "node" [label="node\n('n', 2)"];
@@ -82,6 +85,7 @@
 #     ctrl_v [label="ctrl-v\n('j', 18)"];
 #     disk_v [label="disk-v\n('j', 19)"];
 #
+#     root -> profile;
 #     profile -> filesystem;
 #     filesystem -> "node";
 #     filesystem -> rack -> encl -> ctrl -> disk;

@@ -396,41 +396,28 @@ static bool not_empty(const char *s)
 }
 
 static int confc_cache_create(struct m0_confc *confc,
-			      const struct m0_fid *profile,
 			      const char *local_conf)
 {
 	int rc;
 
 	M0_ENTRY("confc=%p", confc);
-	M0_PRE(m0_fid_is_set(profile));
 	M0_PRE(confc_is_locked(confc));
 
 	m0_conf_cache_init(&confc->cc_cache, &confc->cc_lock);
 
-	/* Create a stub for root object. */
-	rc = m0_conf_obj_find(&confc->cc_cache, profile, &confc->cc_root);
+	/* Create stub for root object */
+	rc = m0_conf_obj_find(&confc->cc_cache, &M0_CONF_ROOT_FID,
+	                      &confc->cc_root);
 	if (rc != 0)
-		return M0_RC(rc);
-	if (not_empty(local_conf)) {
+		return M0_ERR(rc);
+
+	if (not_empty(local_conf))
 		rc = confc_cache_preload(confc, local_conf);
-		if (rc == 0 && confc->cc_root->co_status != M0_CS_READY) {
-			/* XXX Is this really a problem?  We can
-			 * imagine a situation when non-profile
-			 * configuration is preloaded from a string
-			 * and the rest of configuration, including
-			 * that of profile, is retrieved from confd.
-			 *  --vvv */
-			M0_LOG(M0_ERROR, "Preloaded configuration has no data"
-			       " on profile "FID_F, FID_P(profile));
-			rc = -ENODATA;
-		}
-	}
 	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 			      struct m0_sm_group    *sm_group,
-			      const struct m0_fid   *profile,
 			      const char            *confd_addr,
 			      struct m0_rpc_machine *rpc_mach,
 			      const char            *local_conf)
@@ -441,13 +428,11 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 	M0_PRE(sm_group != NULL);
 	M0_PRE(not_empty(confd_addr) || not_empty(local_conf));
 	M0_PRE(ergo(not_empty(confd_addr), rpc_mach != NULL));
-	M0_PRE(m0_conf_fid_type(profile) == &M0_CONF_PROFILE_TYPE);
-
 	M0_LOG(M0_DEBUG, "confd=%s lconf=%s", confd_addr, local_conf);
 
 	m0_mutex_init(&confc->cc_lock);
 	confc_lock(confc);
-	rc = confc_cache_create(confc, profile, local_conf);
+	rc = confc_cache_create(confc, local_conf);
 	confc_unlock(confc);
 	if (rc != 0)
 		goto err;
@@ -665,7 +650,7 @@ static int path_copy(const struct m0_fid *src, struct m0_fid *dest,
 		     size_t dest_sz);
 
 M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
-			       struct m0_conf_obj *origin,
+			       struct m0_conf_obj  *origin,
 			       const struct m0_fid *path)
 {
 	int rc;

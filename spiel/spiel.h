@@ -183,6 +183,9 @@ struct m0_spiel {
 
 	/** Confc instance */
 	struct m0_confc           spl_confc;
+
+	/** Configuration profile for spiel command interface */
+	struct m0_fid             spl_profile;
 };
 
 /**

@@ -23,6 +23,7 @@
 #define __MERO_CONF_ONWIRE_H__
 
 #include "xcode/xcode.h"
+#include "lib/types.h"    /* m0_conf_verno_t */
 #include "lib/buf_xc.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
@@ -52,6 +53,14 @@ struct arr_u32 {
 /** Common header of all confx objects. */
 struct m0_confx_header {
 	struct m0_fid ch_id;
+} M0_XCA_RECORD;
+
+struct m0_confx_root {
+	struct m0_confx_header xt_header;
+	/* Configuration database version */
+	uint64_t               xt_verno;
+	/* Profiles in configuration database */
+	struct arr_fid         xt_profiles;
 } M0_XCA_RECORD;
 
 struct m0_confx_profile {

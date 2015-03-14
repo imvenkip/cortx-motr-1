@@ -40,7 +40,6 @@ int m0_spiel_start(struct m0_spiel *spiel,
 		   const char      *profile)
 {
 	int           rc;
-	struct m0_fid prof_fid;
 
 	M0_ENTRY();
 
@@ -61,10 +60,9 @@ int m0_spiel_start(struct m0_spiel *spiel,
 	if (spiel->spl_confd_eps == NULL)
 		return M0_ERR(-ENOMEM);
 
-	rc = m0_fid_sscanf(profile, &prof_fid) ?:
+	rc = m0_fid_sscanf(profile, &spiel->spl_profile) ?:
 	     m0_confc_init(&spiel->spl_confc,
 			   m0_locality0_get()->lo_grp,
-			   &prof_fid,
 			   spiel->spl_confd_eps[0],
 			   spiel->spl_rmachine,
 			   NULL);

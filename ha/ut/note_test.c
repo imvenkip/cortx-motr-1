@@ -34,6 +34,7 @@
 #include "rpc/rpclib.h"
 #include "ut/cs_service.h"
 #include "ut/ut.h"
+#include "conf/ut/confc.h"  /* conf_ut_obj_find() */
 
 #include "ha/note.c"
 #include "ha/note_foms.h"
@@ -363,9 +364,8 @@ static void local_confc_init(struct m0_confc *confc)
 	 *  FATAL : [lib/assert.c:43:m0_panic] panic:
 	 *    obj->co_status == M0_CS_READY m0_conf_obj_put()
 	 */
-	rc = m0_confc_init(confc, &g_grp, &M0_FID_TINIT('p', 1, 0),
-			   SERVER_ENDPOINT_ADDR, &(cctx.rcx_rpc_machine),
-			   ut_ha_conf_str);
+	rc = m0_confc_init(confc, &g_grp, SERVER_ENDPOINT_ADDR,
+			   &(cctx.rcx_rpc_machine), ut_ha_conf_str);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -374,7 +374,7 @@ static void local_confc_fini(struct m0_confc *confc)
 	m0_confc_fini(confc);
 }
 
-static void compare_ha_state(struct m0_confc confc,
+static void compare_ha_state(struct m0_confc      confc,
 			     enum m0_ha_obj_state state)
 {
 	struct m0_conf_obj *node_dir;
@@ -384,6 +384,8 @@ static void compare_ha_state(struct m0_confc confc,
 	int                 rc;
 
 	rc = m0_confc_open_sync(&node_dir, confc.cc_root,
+				M0_CONF_ROOT_PROFILES_FID,
+				M0_FID_TINIT('p', 1, 0),
 				M0_CONF_PROFILE_FILESYSTEM_FID,
 				M0_CONF_FILESYSTEM_NODES_FID);
 	M0_UT_ASSERT(rc == 0);

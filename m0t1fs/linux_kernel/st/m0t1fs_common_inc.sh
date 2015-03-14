@@ -189,6 +189,7 @@ function build_conf()
 	# prepare configuration data
 	local RMS_ENDPOINT="\"${server_nid}:${MDSEP[0]}\""
 	local STATS_ENDPOINT="\"${server_nid}:${STATSEP[0]}\""
+	local  ROOT='(0x7400000000000001, 0)'
 	local  PROF='(0x7000000000000001, 0)'
 	local    FS='(0x6600000000000001, 1)'
 	local  NODE='(0x6e00000000000001, 2)'
@@ -246,7 +247,8 @@ function build_conf()
 	local CTRLV="{0x6a| (($CTRLVID), $CTRLID, [$NR_DISKV_FIDS: $DISKV_FIDS])}"
 
 	echo -e "
- [$((${#IOSEP[*]} + ${#MDSEP[*]} + $NR_IOS_DEVS+ $NR_MDS_DEVS + 14)):
+ [$((${#IOSEP[*]} + ${#MDSEP[*]} + $NR_IOS_DEVS+ $NR_MDS_DEVS + 15)):
+  {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), 41212,
 	      [1: \"$pool_width $nr_data_units $nr_parity_units\"],

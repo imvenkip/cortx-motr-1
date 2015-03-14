@@ -34,8 +34,8 @@ M0_CONF_REL_FIDS;
 M0_INTERNAL void
 child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 {
-	/* Profile cannot be a child, because it is the topmost object. */
-	M0_PRE(m0_conf_obj_type(child) != &M0_CONF_PROFILE_TYPE);
+	/* Root cannot be a child, because it is the topmost object. */
+	M0_PRE(m0_conf_obj_type(child) != &M0_CONF_ROOT_TYPE);
 	M0_PRE(child->co_cache == parent->co_cache);
 
 	if (child->co_parent != child)

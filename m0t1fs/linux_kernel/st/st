@@ -105,6 +105,7 @@ services_start() {
 	error 'Invalid argument'
     local MODE="${1:-}"
 
+    ROOT='(0x7400000000000001, 0)'
     PROF='(0x7000000000000001, 0)'
     PROF_OPT='<0x7000000000000001:0>'
     FS='(0x6600000000000001, 1)'
@@ -121,7 +122,8 @@ services_start() {
     IOS1='(0x7300000000000003, 2)'
 
     local CONF="`cat <<EOF
-[9:
+[10:
+  {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22),
               [4: "pool_width=3", "nr_data_units=1", "nr_parity_units=1",
@@ -187,6 +189,7 @@ _mount() {
 '[4: "pool_width=3","nr_data_units=1","nr_parity_units=1","unit_size=4096"]'
     [ "$fault" = bad_fs_params ] && FS_PARAMS='[1: "bad_param"]'
 
+    ROOT='(0x7400000000000001, 0)'
     PROF='(0x7000000000000001, 0)'
     PROF_OPT='<0x7000000000000001:0>'
     FS='(0x6600000000000001, 1)'
@@ -197,7 +200,8 @@ _mount() {
     NODE0='(0x6e00000000000004, 0)'
 
     local CONF="`cat <<EOF
-[5:
+[6:
+  {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $FS_PARAMS, [3: $MDS, $RM, $IOS])},
   {0x73| (($MDS), 1, [1: "$MDS_ENDPOINT"], $NODE0)},

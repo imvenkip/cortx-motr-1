@@ -52,6 +52,7 @@ struct m0_xcode_type;
  * types:
  *
  * - m0_conf_dir (a container for configuration objects),
+ * - m0_conf_root
  * - m0_conf_profile,
  * - m0_conf_filesystem,
  * - m0_conf_pool,
@@ -76,8 +77,7 @@ struct m0_xcode_type;
  * digraph x {
  *   edge [arrowhead=open, fontsize=11];
  *
- *   root [height=0.15, width=0.15, label=""];
- *   root -> profile;
+ *   root -> profile [label=profiles];
  *   profile -> filesystem;
  *
  *   filesystem -> "node" [label=nodes];
@@ -300,9 +300,26 @@ struct m0_conf_dir {
 	struct m0_fid                  cd_relfid;
 };
 
+/** Root object. Top-level configuration object */
+struct m0_conf_root {
+	/**
+	 * ->rt_obj.co_parent == NULL: m0_conf_root is the topmost
+	 * object in a DAG of configuration objects.
+	 */
+	struct m0_conf_obj  rt_obj;
+	struct m0_conf_dir *rt_profiles;
+	/**
+	 * Version of the configuration database.  Incremented after every
+	 * configuration database update.
+	 *
+	 * Value 0 is reserved as CONF_VER_UNKNOWN and must not be used.
+	 */
+	uint64_t            rt_verno;
+};
+
 struct m0_conf_profile {
 	/*
-	 * ->cp_obj.co_parent == NULL: m0_conf_profile is the top-most
+	 * ->cp_obj.co_parent != NULL: m0_conf_profile is always a child of root
 	 * object in a DAG of configuration objects.
 	 */
 	struct m0_conf_obj         cp_obj;
@@ -471,6 +488,7 @@ struct m0_conf_disk {
 	bob_of(ptr, struct type, type ## _cast_field, &type ## _bob)
 
 #define m0_conf_dir_cast_field        cd_obj
+#define m0_conf_root_cast_field       rt_obj
 #define m0_conf_profile_cast_field    cp_obj
 #define m0_conf_filesystem_cast_field cf_obj
 #define m0_conf_pool_cast_field       pl_obj
@@ -486,6 +504,7 @@ struct m0_conf_disk {
 #define m0_conf_disk_cast_field       ck_obj
 
 #define M0_CONF_OBJ_TYPES               \
+	X_CONF(root,       ROOT);       \
 	X_CONF(dir,        DIR);        \
 	X_CONF(profile,    PROFILE);    \
 	X_CONF(filesystem, FILESYSTEM); \
@@ -509,31 +528,38 @@ M0_CONF_OBJ_TYPES;
 
 /* Relation fids. */
 #define M0_CONF_REL_FIDS               \
-	X_CONF(PROFILE_FILESYSTEM, 1); \
-	X_CONF(FILESYSTEM_NODES,   2); \
-	X_CONF(FILESYSTEM_POOLS,   3); \
-	X_CONF(FILESYSTEM_RACKS,   4); \
-	X_CONF(POOL_PVERS,         5); \
-	X_CONF(PVER_RACKVS,        6); \
-	X_CONF(RACKV_ENCLVS,       7); \
-	X_CONF(ENCLV_CTRLVS,       8); \
-	X_CONF(CTRLV_DISKVS,       9); \
-	X_CONF(NODE_PROCESSES,    10); \
-	X_CONF(PROCESS_SERVICES,  11); \
-	X_CONF(SERVICE_SDEVS,     12); \
-	X_CONF(RACK_ENCLS,        13); \
-	X_CONF(RACK_PVERS,        14); \
-	X_CONF(ENCLOSURE_CTRLS,   15); \
-	X_CONF(ENCLOSURE_PVERS,   16); \
-	X_CONF(CONTROLLER_DISKS,  17); \
-	X_CONF(CONTROLLER_PVERS,  18); \
-	X_CONF(DISK_SDEV,         19)
+	X_CONF(ROOT_PROFILES,      1); \
+	X_CONF(PROFILE_FILESYSTEM, 2); \
+	X_CONF(FILESYSTEM_NODES,   3); \
+	X_CONF(FILESYSTEM_POOLS,   4); \
+	X_CONF(FILESYSTEM_RACKS,   5); \
+	X_CONF(POOL_PVERS,         6); \
+	X_CONF(PVER_RACKVS,        7); \
+	X_CONF(RACKV_ENCLVS,       8); \
+	X_CONF(ENCLV_CTRLVS,       9); \
+	X_CONF(CTRLV_DISKVS,      10); \
+	X_CONF(NODE_PROCESSES,    11); \
+	X_CONF(PROCESS_SERVICES,  12); \
+	X_CONF(SERVICE_SDEVS,     13); \
+	X_CONF(RACK_ENCLS,        14); \
+	X_CONF(RACK_PVERS,        15); \
+	X_CONF(ENCLOSURE_CTRLS,   16); \
+	X_CONF(ENCLOSURE_PVERS,   17); \
+	X_CONF(CONTROLLER_DISKS,  18); \
+	X_CONF(CONTROLLER_PVERS,  19); \
+	X_CONF(DISK_SDEV,         20)
 
 #define X_CONF(name, _) \
 	extern const struct m0_fid M0_CONF_ ## name ## _FID
 M0_CONF_REL_FIDS;
 #undef X_CONF
 extern const struct m0_fid_type M0_CONF_RELFID_TYPE;
+
+/**
+ * Root configuration object FID.
+ * The same in any configuration database.
+ */
+extern const struct m0_fid M0_CONF_ROOT_FID; /*  M0_FID_TINIT('t', 1, 0) */
 
 /**
  * Iterates over registered conf object types.

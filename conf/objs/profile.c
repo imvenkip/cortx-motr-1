@@ -32,10 +32,7 @@ static bool profile_check(const void *bob)
 	const struct m0_conf_profile *self = bob;
 	const struct m0_conf_obj     *self_obj = &self->cp_obj;
 
-	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_PROFILE_TYPE);
-
-	/* profile is the topmost object of a DAG */
-	return self_obj->co_parent == NULL;
+	return m0_conf_obj_type(self_obj) == &M0_CONF_PROFILE_TYPE;
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_profile, M0_CONF_PROFILE_MAGIC, profile_check);

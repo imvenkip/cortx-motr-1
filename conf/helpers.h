@@ -47,4 +47,13 @@ M0_INTERNAL int m0_conf_poolversion_get(struct m0_conf_filesystem *fs,
  */
 M0_INTERNAL bool m0_conf_filter_cntv_diskv(const struct m0_conf_obj *obj);
 
+/**
+ * Open root configuration object.
+ *
+ * @param confc already initialized confc instance
+ * @param root  output parameter. Should be closed by user.
+ */
+M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
+			          struct m0_conf_root **root);
+
 #endif /* __MERO_CONF_HELPERS_H__ */

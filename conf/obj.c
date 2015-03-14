@@ -100,7 +100,7 @@
  *   one-to-many relation.
  *
  * - @b Downlink: a relation whose destination is located further from
- *   "profile" object than the origin.
+ *   the "root" configuration object than the origin.
  *
  * <hr> <!------------------------------------------------------------>
  * @section conf-req Requirements
