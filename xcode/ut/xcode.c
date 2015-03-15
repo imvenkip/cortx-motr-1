@@ -737,16 +737,18 @@ static void xcode_print_test(void)
 		.t_un   = { .u_tag = 1, .u = { .u_x = 42 }},
 		.t_opaq = { .o_64 = &o64 }
 	};
+	struct top *V;
 
 	rc = m0_xcode_print(OBJ(&xut_top.xt, &T), buf, ARRAY_SIZE(buf));
 	M0_UT_ASSERT(rc == strlen(buf));
 	for (s0 = buf, s1 = ""
-		     "((1, 2),"
-		     " 8,"
-		     " [4: 1, 2, 3, 4],"
-		     " 4,"
-		     " {1| 2a},"
-		     " 7)"; *s0 != 0 && *s1 != 0; ++s0, ++s1) {
+		     "((0x1, 0x2),"
+		     " 0x8,"
+		     " [0x4: 0x1, 0x2, 0x3, 0x4],"
+		     " 0x4,"
+		     " {0x1| 0x2a},"
+		     " 0x7)";
+	     *s0 != 0 && *s1 != 0; ++s0, ++s1) {
 		while (isspace(*s0))
 			++s0;
 		while (isspace(*s1))
@@ -755,6 +757,14 @@ static void xcode_print_test(void)
 	}
 	M0_UT_ASSERT(*s0 == 0);
 	M0_UT_ASSERT(*s1 == 0);
+
+	/* Read back printed obj */
+	M0_ALLOC_PTR(V);
+	rc = m0_xcode_read(OBJ(&xut_top.xt, V), buf);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_xcode_cmp(
+			OBJ(&xut_top.xt, V), OBJ(&xut_top.xt, &T)) == 0);
+	m0_xcode_free_obj(OBJ(&xut_top.xt, V));
 
 	rc = m0_xcode_print(OBJ(&xut_top.xt, &T), NULL, 0);
 	M0_UT_ASSERT(rc == strlen(buf));

@@ -245,7 +245,7 @@ M0_INTERNAL int m0_xcode_print(const struct m0_xcode_obj *obj,
 		PCHAR(structure[aggr][flag]);
 
 		if (flag == M0_XCODE_CURSOR_PRE && aggr == M0_XA_ATOM)
-			P("%lx", (unsigned long)m0_xcode_atom(cur));
+			P("%#lx", (unsigned long)m0_xcode_atom(cur));
 	}
 	return result ?: nob;
 #undef PCHAR
