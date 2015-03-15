@@ -430,7 +430,7 @@ struct m0_addb2_trace_obj {
 	/** Pointer to the machine in which the trace was generated. */
 	struct m0_addb2_mach *o_mach;
 	/** Completion call-back. */
-	const void          (*o_done)(struct m0_addb2_trace_obj *obj);
+	void                (*o_done)(struct m0_addb2_trace_obj *obj);
 	/** Push this trace through to the consumers as soon as possible,
 	    bypassing caches. */
 	bool                  o_force;
