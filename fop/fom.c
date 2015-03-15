@@ -897,8 +897,10 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 
 	m0_semaphore_init(&loc->fl_addb2_idle, 0);
 	loc->fl_addb2_mach = m0_addb2_mach_init(&addb2_ops, loc);
-	if (loc->fl_addb2_mach == NULL)
+	if (loc->fl_addb2_mach == NULL) {
+		res = M0_ERR(-ENOMEM);
 		goto err3;
+	}
 
 	runq_tlist_init(&loc->fl_runq);
 	loc->fl_runq_nr = 0;
