@@ -189,7 +189,7 @@ static void dir_test(struct m0_confc *confc)
 	M0_UT_ASSERT(g_num == 2);
 
 	g_num = 0;
-	while ((rc = m0_confc_readdir_sync(procs_dir, &entry)) > 0)
+	while (m0_confc_readdir_sync(procs_dir, &entry) > 0)
 		++g_num;
 	M0_UT_ASSERT(g_num == 2);
 

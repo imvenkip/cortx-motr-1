@@ -55,24 +55,24 @@ enum {
 	FILE_START_INDEX = 21340,
 
 	/* Number of data units. */
-	LAY_N		 = 3,
+	LAY_N            = 3,
 
 	/* Number of parity units. */
-	LAY_K		 = 1,
+	LAY_K            = 1,
 
 	/* Number of members in pool. */
 	LAY_P            = LAY_N + 2 * LAY_K,
 
 	/* Unit Size = 12K. */
-	UNIT_SIZE	 = 3 * PAGE_CACHE_SIZE,
+	UNIT_SIZE        = 3 * PAGE_CACHE_SIZE,
 	INDEXPG          = 2000,
 	INDEXPG_STEP     = 5000,
 
 	/* Data size for parity group = 12K * 3 = 36K. */
 	DATA_SIZE        = UNIT_SIZE * LAY_N,
-	FID_KEY		 = 3,
-	ATTR_A_CONST	 = 1,
-	ATTR_B_CONST	 = 1,
+	FID_KEY          = 3,
+	ATTR_A_CONST     = 1,
+	ATTR_B_CONST     = 1,
 	DGMODE_IOVEC_NR  = 8,
 };
 
@@ -85,7 +85,7 @@ static struct m0_layout_linear_attr  llattr;
 static struct m0t1fs_inode           ci;
 static struct m0_layout_linear_attr  llattr;
 static struct file                   lfile;
-static struct m0_confc                confc;
+static struct m0_confc               confc;
 static struct m0_rm_remote           creditor;
 static bool                          runast = false;
 
@@ -219,7 +219,7 @@ static int file_io_ut_init(void)
 	M0_UT_ASSERT(csb.csb_pool_version != NULL);
 	pver = csb.csb_pool_version;
 
-	sb.s_fs_info          = &csb;
+	sb.s_fs_info         = &csb;
 	csb.csb_next_key     = FID_KEY;
 	m0_chan_init(&csb.csb_iowait, &csb.csb_iogroup.s_lock);
 	m0_atomic64_set(&csb.csb_pending_io_nr, 0);
@@ -227,38 +227,38 @@ static int file_io_ut_init(void)
 
 	m0t1fs_fs_lock(&csb);
 
-        rc = m0t1fs_net_init(&csb);
-        M0_ASSERT(rc == 0);
+	rc = m0t1fs_net_init(&csb);
+	M0_ASSERT(rc == 0);
 
-        rc = m0t1fs_rpc_init(&csb);
-        M0_ASSERT(rc == 0);
+	rc = m0t1fs_rpc_init(&csb);
+	M0_ASSERT(rc == 0);
 
-        rc = m0t1fs_addb_mon_total_io_size_init(&csb);
-        M0_ASSERT(rc == 0);
+	rc = m0t1fs_addb_mon_total_io_size_init(&csb);
+	M0_ASSERT(rc == 0);
 
-        rc = m0t1fs_reqh_services_start(&csb);
-        M0_ASSERT(rc == 0);
+	rc = m0t1fs_reqh_services_start(&csb);
+	M0_ASSERT(rc == 0);
 
-        /* Tries to build a layout. */
-        llattr = (struct m0_layout_linear_attr) {
-                .lla_nr = pver->pv_attr.pa_P,
-                .lla_A  = ATTR_A_CONST,
-                .lla_B  = ATTR_B_CONST,
-        };
-        llenum = NULL;
-        rc = m0_linear_enum_build(&csb.csb_reqh.rh_ldom, &llattr,
+	/* Tries to build a layout. */
+	llattr = (struct m0_layout_linear_attr) {
+	        .lla_nr = pver->pv_attr.pa_P,
+	        .lla_A  = ATTR_A_CONST,
+	        .lla_B  = ATTR_B_CONST,
+	};
+	llenum = NULL;
+	rc = m0_linear_enum_build(&csb.csb_reqh.rh_ldom, &llattr,
 			          &llenum);
-        M0_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0);
 
-        pdattr = (struct m0_pdclust_attr) {
-                .pa_N         = pver->pv_attr.pa_N,
-                .pa_K         = pver->pv_attr.pa_K,
-                .pa_P         = pver->pv_attr.pa_P,
-                .pa_unit_size = UNIT_SIZE,
+	pdattr = (struct m0_pdclust_attr) {
+	        .pa_N         = pver->pv_attr.pa_N,
+	        .pa_K         = pver->pv_attr.pa_K,
+	        .pa_P         = pver->pv_attr.pa_P,
+	        .pa_unit_size = UNIT_SIZE,
 
-        };
-        m0_uint128_init(&pdattr.pa_seed, "upjumpandpumpim,");
-        rc = m0_pdclust_build(&csb.csb_reqh.rh_ldom, M0_DEFAULT_LAYOUT_ID,
+	};
+	m0_uint128_init(&pdattr.pa_seed, "upjumpandpumpim,");
+	rc = m0_pdclust_build(&csb.csb_reqh.rh_ldom, M0_DEFAULT_LAYOUT_ID,
 			      &pdattr, &llenum->lle_base, &pdlay);
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(pdlay != NULL);
@@ -312,21 +312,20 @@ static int file_io_ut_fini(void)
 
 static void ds_test(void)
 {
-	int			    rc;
-	int			    cnt;
-	struct m0_fid		    cfid = M0_FID_INIT(0, 5);
-	struct data_buf		   *dbuf;
-	struct io_request	    req;
-	struct iovec		    iovec_arr[IOVEC_NR];
-	struct m0_indexvec	    ivec;
-	struct pargrp_iomap	   *map;
-	struct m0_pdclust_layout   *play;
+	int                         rc;
+	int                         cnt;
+	struct m0_fid               cfid = M0_FID_INIT(0, 5);
+	struct data_buf            *dbuf;
+	struct io_request           req;
+	struct iovec                iovec_arr[IOVEC_NR];
+	struct m0_indexvec          ivec;
+	struct pargrp_iomap        *map;
 	struct m0_pdclust_instance *play_instance;
 	struct m0_pdclust_src_addr  src;
 	struct m0_pdclust_tgt_addr  tgt;
-	struct target_ioreq	    ti;
-	struct io_req_fop	   *irfop;
-	struct m0_rpc_session	    session;
+	struct target_ioreq         ti;
+	struct io_req_fop          *irfop;
+	struct m0_rpc_session       session;
 
 	M0_SET0(&req);
 	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr),
@@ -335,7 +334,7 @@ static void ds_test(void)
 
 	for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
 		iovec_arr[cnt].iov_base = &rc;
-		iovec_arr[cnt].iov_len	= IOVEC_BUF_LEN;
+		iovec_arr[cnt].iov_len  = IOVEC_BUF_LEN;
 
 		INDEX(&ivec, cnt) = FILE_START_INDEX - cnt * IOVEC_BUF_LEN;
 		COUNT(&ivec, cnt) = IOVEC_BUF_LEN;
@@ -344,14 +343,14 @@ static void ds_test(void)
 	/* io_request attributes test. */
 	rc = io_request_init(&req, &lfile, iovec_arr, &ivec, IRT_WRITE);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(req.ir_rc	     == 0);
+	M0_UT_ASSERT(req.ir_rc       == 0);
 	M0_UT_ASSERT(req.ir_file     == &lfile);
 	M0_UT_ASSERT(req.ir_type     == IRT_WRITE);
 	M0_UT_ASSERT(req.ir_iovec    == iovec_arr);
 	M0_UT_ASSERT(req.ir_magic    == M0_T1FS_IOREQ_MAGIC);
-	M0_UT_ASSERT(req.ir_ivec.iv_vec.v_nr	== IOVEC_NR);
-	M0_UT_ASSERT(req.ir_sm.sm_state		== IRS_INITIALIZED);
-	M0_UT_ASSERT(req.ir_ivec.iv_index	!= NULL);
+	M0_UT_ASSERT(req.ir_ivec.iv_vec.v_nr    == IOVEC_NR);
+	M0_UT_ASSERT(req.ir_sm.sm_state         == IRS_INITIALIZED);
+	M0_UT_ASSERT(req.ir_ivec.iv_index       != NULL);
 	M0_UT_ASSERT(req.ir_ivec.iv_vec.v_count != NULL);
 
 	/* Index array should be sorted in increasing order of file offset. */
@@ -383,15 +382,15 @@ static void ds_test(void)
 	M0_UT_ASSERT(m0_vec_count(&map->pi_ivec.iv_vec) ==
 		     PAGE_CACHE_SIZE * 2);
 
-        /*
-         * Given input index vector results into 2 pages.
-         * {{16384, 4096}, {20480, 4096}}
-         * The data matrix in this case is 3 x 3.
-         * Since these indices map to page id
-         * 5(maps to element [1][1]) and 6(maps to element [2][1])
-         * in the data matrix.
-         * Rest all pages in data matrix will be NULL.
-         */
+	/*
+	 * Given input index vector results into 2 pages.
+	 * {{16384, 4096}, {20480, 4096}}
+	 * The data matrix in this case is 3 x 3.
+	 * Since these indices map to page id
+	 * 5(maps to element [1][1]) and 6(maps to element [2][1])
+	 * in the data matrix.
+	 * Rest all pages in data matrix will be NULL.
+	 */
 	M0_UT_ASSERT(map->pi_ivec.iv_index[0] == PAGE_CACHE_SIZE * 4);
 	M0_UT_ASSERT(map->pi_ivec.iv_vec.v_count[0] == 2 * PAGE_CACHE_SIZE);
 	M0_UT_ASSERT(map->pi_databufs   != NULL);
@@ -413,7 +412,6 @@ static void ds_test(void)
 
 	src.sa_group = 0;
 	src.sa_unit  = 0;
-	play = pdlayout_get(&req);
 	play_instance = pdlayout_instance(layout_instance(&req));
 	m0_pdclust_instance_map(play_instance, &src, &tgt);
 	cfid = target_fid(&req, &tgt);
@@ -730,7 +728,7 @@ static void helpers_test(void)
 	req.ir_file  = &lfile;
 	map = (struct pargrp_iomap) {
 		.pi_ioreq = &req,
-			.pi_grpid = 0,
+		.pi_grpid = 0,
 	};
 
 	for (i = 0; i < UNIT_SIZE / PAGE_CACHE_SIZE; ++i) {
@@ -1215,11 +1213,11 @@ struct m0_ut_suite file_io_ut = {
 		{"basic_data_structures_test", ds_test},
 		{"helper_routines_test",       helpers_test},
 		{"parity_group_ops_test",      pargrp_iomap_test},
-		{"nw_xfer_ops_test",	       nw_xfer_ops_test},
+		{"nw_xfer_ops_test",           nw_xfer_ops_test},
 		{"target_ioreq_ops_test",      target_ioreq_test},
-		{"dgmode_readio_test",	       dgmode_readio_test},
-		{"fsync_test",		       fsync_test},
-		{NULL,			       NULL},
+		{"dgmode_readio_test",         dgmode_readio_test},
+		{"fsync_test",                 fsync_test},
+		{NULL,                         NULL},
 	},
 };
 M0_EXPORTED(file_io_ut);
