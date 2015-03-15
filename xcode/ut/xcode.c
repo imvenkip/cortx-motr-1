@@ -584,12 +584,12 @@ static void xcode_cmp_test(void)
 
 static void xcode_read_test(void)
 {
-	int        result;
-	struct foo F;
-	struct un  U;
-	struct v   V;
-	struct top _T;
-	struct top _Tmp;
+	int         result;
+	struct foo  F;
+	struct un   U;
+	struct v   *V;
+	struct top *_T;
+	struct top  _Tmp;
 
 	M0_SET0(&F);
 	result = m0_xcode_read(OBJ(&xut_foo.xt, &F), "(10, 0xff)");
@@ -650,47 +650,55 @@ static void xcode_read_test(void)
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(U.u_tag == 3);
 
-	M0_SET0(&V);
-	result = m0_xcode_read(OBJ(&xut_v.xt, &V), "[0]");
+	M0_ALLOC_PTR(V);
+	result = m0_xcode_read(OBJ(&xut_v.xt, V), "[0]");
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(V.v_nr == 0);
+	M0_UT_ASSERT(V->v_nr == 0);
+	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
 
-	M0_SET0(&V);
-	result = m0_xcode_read(OBJ(&xut_v.xt, &V), "[1: 42]");
+	M0_ALLOC_PTR(V);
+	result = m0_xcode_read(OBJ(&xut_v.xt, V), "[1: 42]");
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(V.v_nr == 1);
-	M0_UT_ASSERT(V.v_data[0] == 42);
+	M0_UT_ASSERT(V->v_nr == 1);
+	M0_UT_ASSERT(V->v_data[0] == 42);
+	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
 
-	result = m0_xcode_read(OBJ(&xut_v.xt, &V), "[3: 42, 43, 44]");
+	M0_ALLOC_PTR(V);
+	result = m0_xcode_read(OBJ(&xut_v.xt, V), "[3: 42, 43, 44]");
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(V.v_nr == 3);
-	M0_UT_ASSERT(V.v_data[0] == 42);
-	M0_UT_ASSERT(V.v_data[1] == 43);
-	M0_UT_ASSERT(V.v_data[2] == 44);
+	M0_UT_ASSERT(V->v_nr == 3);
+	M0_UT_ASSERT(V->v_data[0] == 42);
+	M0_UT_ASSERT(V->v_data[1] == 43);
+	M0_UT_ASSERT(V->v_data[2] == 44);
+	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
 
-	M0_SET0(&V);
-	result = m0_xcode_read(OBJ(&xut_v.xt, &V), "\"a\"");
+	M0_ALLOC_PTR(V);
+	result = m0_xcode_read(OBJ(&xut_v.xt, V), "\"a\"");
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(V.v_nr == 1);
-	M0_UT_ASSERT(strncmp(V.v_data, "a", 1) == 0);
+	M0_UT_ASSERT(V->v_nr == 1);
+	M0_UT_ASSERT(strncmp(V->v_data, "a", 1) == 0);
+	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
 
-	M0_SET0(&V);
-	result = m0_xcode_read(OBJ(&xut_v.xt, &V), "\"abcdef\"");
+	M0_ALLOC_PTR(V);
+	result = m0_xcode_read(OBJ(&xut_v.xt, V), "\"abcdef\"");
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(V.v_nr == 6);
-	M0_UT_ASSERT(strncmp(V.v_data, "abcdef", 6) == 0);
+	M0_UT_ASSERT(V->v_nr == 6);
+	M0_UT_ASSERT(strncmp(V->v_data, "abcdef", 6) == 0);
+	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
 
-	M0_SET0(&V);
-	result = m0_xcode_read(OBJ(&xut_v.xt, &V), "\"\"");
+	M0_ALLOC_PTR(V);
+	result = m0_xcode_read(OBJ(&xut_v.xt, V), "\"\"");
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(V.v_nr == 0);
+	M0_UT_ASSERT(V->v_nr == 0);
+	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
 
-	M0_SET0(&V);
-	result = m0_xcode_read(OBJ(&xut_v.xt, &V), "\"");
+	M0_ALLOC_PTR(V);
+	result = m0_xcode_read(OBJ(&xut_v.xt, V), "\"");
 	M0_UT_ASSERT(result == -EPROTO);
+	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
 
-	M0_SET0(&_T);
-	result = m0_xcode_read(OBJ(&xut_top.xt, &_T), ""
+	M0_ALLOC_PTR(_T);
+	result = m0_xcode_read(OBJ(&xut_top.xt, _T), ""
 "((1, 2),"
 " 8,"
 " [4: 1, 2, 3, 4],"
@@ -703,12 +711,13 @@ static void xcode_read_test(void)
 	_Tmp.t_foo.f_y = 2;
 	_Tmp.t_flag = 8;
 	_Tmp.t_v.v_nr = 4;
-	_Tmp.t_v.v_data = _T.t_v.v_data;
+	_Tmp.t_v.v_data = _T->t_v.v_data;
 	_Tmp.t_def = 4;
 	_Tmp.t_un.u_tag = 1;
 	_Tmp.t_un.u.u_x = 42;
-	_Tmp.t_opaq.o_32 = _T.t_opaq.o_32;
-	M0_UT_ASSERT(memcmp(&_T, &_Tmp, sizeof _T) == 0);
+	_Tmp.t_opaq.o_32 = _T->t_opaq.o_32;
+	M0_UT_ASSERT(memcmp(_T, &_Tmp, sizeof(struct top)) == 0);
+	m0_xcode_free_obj(OBJ(&xut_top.xt, _T));
 }
 
 #ifndef __KERNEL__
