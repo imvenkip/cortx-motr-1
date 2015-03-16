@@ -65,7 +65,7 @@ M0_INTERNAL void m0_be_obj_header_unpack(struct m0_be_obj_tag *dest,
 struct m0_be_mutex {
 	union {
 		struct m0_mutex mutex;
-		char            pad[128];
+		char            pad[168];
 	} bm_u;
 };
 M0_BASSERT(sizeof(struct m0_mutex) <=
@@ -74,7 +74,7 @@ M0_BASSERT(sizeof(struct m0_mutex) <=
 struct m0_be_rwlock {
 	union {
 		struct m0_rwlock rwlock;
-		char             pad[96];
+		char             pad[144];
 	} bl_u;
 };
 M0_BASSERT(sizeof(struct m0_rwlock) <=
