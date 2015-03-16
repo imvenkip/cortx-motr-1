@@ -93,6 +93,9 @@ M0_INTERNAL void libm0_fini(void);
 M0_INTERNAL int  m0_addb2_net_module_init(void);
 M0_INTERNAL void m0_addb2_net_module_fini(void);
 
+M0_INTERNAL int  m0_addb2_global_init(void);
+M0_INTERNAL void m0_addb2_global_fini(void);
+
 /**
    @addtogroup init
    @{
@@ -122,11 +125,12 @@ struct init_fini_call subsystem[] = {
 	{ &m0_file_mod_init,    &m0_file_mod_fini,     "file" },
 	{ &m0_cookie_global_init, &m0_cookie_global_fini, "cookie" },
 	{ &m0_processors_init,  &m0_processors_fini,  "processors" },
-	/* localities must be initialised before lib/processor.h */
-	{ &m0_localities_init,  &m0_localities_fini,  "locality" },
 	{ &m0_timers_init,      &m0_timers_fini,      "timer" },
 	{ &m0_addb_init,        &m0_addb_fini,        "addb" },
 	{ &m0_addb2_module_init, &m0_addb2_module_fini, "addb2" },
+	{ &m0_addb2_global_init, &m0_addb2_global_fini, "addb2-global" },
+	/* localities must be initialised before lib/processor.h */
+	{ &m0_localities_init,  &m0_localities_fini,  "locality" },
 //	{ &m0_db_init,          &m0_db_fini,          "db" },
 	{ &m0_fols_init,        &m0_fols_fini,        "fol" },
 	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },

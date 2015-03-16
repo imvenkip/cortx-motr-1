@@ -280,9 +280,9 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	header->trh_magic = M0_TRACE_MAGIC;
 
 #ifdef ENABLE_IMMEDIATE_TRACE
-	if ( (td->td_subsys & m0_trace_immediate_mask ||
-	      td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
-	     td->td_level & m0_trace_level )
+	if ((td->td_subsys & m0_trace_immediate_mask ||
+	     td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
+	    td->td_level & m0_trace_level)
 		m0_trace_record_print(header, body_in_buf);
 #endif
 }
@@ -465,7 +465,7 @@ static enum m0_trace_level trace_level_value_plus(char *level_name)
  *
  * @param str textual trace level specification in form "level[+][,level[+]]",
  *            where level is one of "call|debug|info|warn|error|fatal",
- *            for example: 'warn+' or 'debug', 'trace,warn,error'
+ *            for example: 'warn+' or 'debug', 'call,warn,error'
  *
  * @return m0_trace_level enum value, on success
  * @return M0_NONE on failure

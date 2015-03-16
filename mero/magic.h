@@ -124,6 +124,10 @@ enum m0_magic_satchel {
 	M0_ADDB_MONITOR_CTX_MAGIC = 0x33ba5115ba511577,
 
 /* ADDB2 */
+	/** m0_addb2_mach::ma_magix (acceeded deal) */
+	M0_ADDB2_MACH_MAGIC        = 0x33acceededdea177,
+	/** addb2/addb2.c, mach tlist head (decoded Coala) */
+	M0_ADDB2_MACH_HEAD_MAGIC   = 0x33dec0dedc0a1a77,
 	/** addb2/addb2.c, buffer::b_magix (callable loeb) */
 	M0_ADDB2_BUF_MAGIC         = 0x33ca11ab1e10eb77,
 	/** addb2/addb2.c, buf_tlist head magic (libel offload) */

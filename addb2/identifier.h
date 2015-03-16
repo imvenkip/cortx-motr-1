@@ -65,13 +65,19 @@ enum m0_addb2_value_id {
 	M0_AVI_RUNQ,
 	/** Measurement: wait list length. */
 	M0_AVI_WAIL,
+	/** Label: ast context. */
+	M0_AVI_AST,
+	/** Label: fom call-back context.. */
+	M0_AVI_FOM_CB,
 
 	M0_AVI_LIB_RANGE_START     = 0x3000,
 	/** Measurement: memory allocation. */
 	M0_AVI_ALLOC,
 
 	M0_AVI_RM_RANGE_START      = 0x4000,
+	M0_AVI_M0T1FS_RANGE_START  = 0x5000,
 
+	M0_AVI_LAST                = 0x5fff,
 	/** No data. */
 	M0_AVI_NODATA = 0x00ffffffffffffffull,
 };

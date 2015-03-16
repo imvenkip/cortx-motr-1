@@ -52,13 +52,15 @@ static struct m0_net_xprt *cs_xprts[] = {
 	&m0_net_lnet_xprt
 };
 
+static volatile sig_atomic_t gotsignal = 0;
+
 /**
    Signal handler registered so that pause()
    returns in order to trigger proper cleanup.
  */
 static void cs_term_sig_handler(int signum)
 {
-
+	gotsignal = 1;
 }
 
 /**
@@ -78,7 +80,9 @@ static void cs_wait_for_termination(void)
 
 	printf("Press CTRL+C to quit.\n");
 	fflush(stdout);
-	pause();
+	do {
+		pause();
+	} while (!gotsignal);
 }
 
 M0_INTERNAL int main(int argc, char **argv)

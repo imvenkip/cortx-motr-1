@@ -515,6 +515,7 @@ M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 	int rc;
 
 	M0_ENTRY("rlink=%p ep=%s", rlink, ep);
+	M0_PRE(M0_IS0(rlink));
 
 	rlink->rlk_connected          = false;
 	rlink->rlk_timeout            = timeout;
@@ -550,6 +551,7 @@ static void rpc_link_fom_queue(struct m0_rpc_link *rlink,
 	rlink->rlk_rc = 0;
 	if (wait_clink != NULL)
 		m0_clink_add_lock(&rlink->rlk_wait, wait_clink);
+	M0_SET0(&rlink->rlk_fom);
 	m0_fom_init(&rlink->rlk_fom, fom_type, fom_ops, NULL, NULL,
 		    mach->rm_reqh);
 	m0_fom_queue(&rlink->rlk_fom, mach->rm_reqh);

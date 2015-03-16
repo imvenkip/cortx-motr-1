@@ -391,6 +391,7 @@ static void iter_run(uint64_t pool_width, uint64_t nr_files)
 	cobs_create(nr_files, pool_width);
 	scm->sc_it.si_fom = &iter_fom.si_fom;
 	m0_semaphore_init(&iter_sem, 0);
+	M0_SET0(&iter_fom);
 	M0_FOM_SIMPLE_POST(&iter_fom, reqh, &iter_ut_conf,
 			   &iter_ut_fom_tick, NULL, NULL, 2);
 	m0_semaphore_down(&iter_sem);

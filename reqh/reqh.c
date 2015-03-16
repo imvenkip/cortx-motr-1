@@ -35,8 +35,7 @@
 #include "lib/semaphore.h"
 
 #include "mero/magic.h"
-#include "addb2/storage.h"
-#include "addb2/net.h"
+#include "addb2/sys.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
@@ -297,53 +296,24 @@ M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
 	return M0_RC(rc);
 }
 
-static void reqh_addb2_idle(struct m0_addb2_storage *stor)
+M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, struct m0_stob *stob,
+				   bool mkfs)
 {
-	struct m0_reqh *reqh = m0_addb2_storage_cookie(stor);
+	struct m0_addb2_sys *sys = &reqh->rh_fom_dom.fd_addb2_sys;
+	int                  result;
 
-	M0_ASSERT(M0_IN(reqh->rh_addb2_stor, (stor, NULL)));
-	m0_semaphore_up(&reqh->rh_addb2_stor_idle);
-}
-
-static void reqh_addb2_done(struct m0_addb2_storage *stor,
-			    struct m0_addb2_trace_obj *obj)
-{
-}
-
-static void reqh_addb2_commit(struct m0_addb2_storage *stor,
-			      const struct m0_addb2_frame_header *anchor)
-{
-	/** @todo update anchor object in BE. */
-}
-
-static const struct m0_addb2_storage_ops reqh_addb2_ops = {
-	.sto_idle   = &reqh_addb2_idle,
-	.sto_done   = &reqh_addb2_done,
-	.sto_commit = &reqh_addb2_commit
-};
-
-M0_INTERNAL int m0_reqh_addb2_config(struct m0_reqh *reqh, struct m0_stob *stob,
-				     bool mkfs)
-{
 	/**
-	 * @todo replace size constant with a value from confc.
+	 * @todo replace size constant (128GB)  with a value from confc.
 	 */
-	reqh->rh_addb2_stor = m0_addb2_storage_init
-		(stob, 128ULL << 30, /* 128GB */
-		 mkfs ? &M0_ADDB2_HEADER_INIT : NULL, &reqh_addb2_ops, reqh);
-	reqh->rh_addb2_net = m0_addb2_net_init();
-	if (reqh->rh_addb2_stor != NULL && reqh->rh_addb2_net != NULL) {
-		m0_semaphore_init(&reqh->rh_addb2_stor_idle, 0);
-		m0_semaphore_init(&reqh->rh_addb2_net_idle, 0);
-		return 0;
+	result = m0_addb2_sys_stor_start(sys, stob, 128ULL << 30, mkfs);
+	if (result == 0) {
+		result = m0_addb2_sys_net_start(sys);
+		if (result == 0)
+			m0_addb2_sys_sm_start(sys);
+		else
+			m0_addb2_sys_stor_stop(sys);
 	}
-	else if (reqh->rh_addb2_stor != NULL)
-		m0_addb2_storage_fini(reqh->rh_addb2_stor);
-	else
-		m0_addb2_net_fini(reqh->rh_addb2_net);
-	reqh->rh_addb2_stor = NULL;
-	reqh->rh_addb2_net  = NULL;
-	return M0_ERR(-ENOMEM);
+	return result;
 }
 
 #else /* !__KERNEL__ */
@@ -353,12 +323,27 @@ M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
 	return 0;
 }
 
-M0_INTERNAL int m0_reqh_addb2_config(struct m0_reqh *reqh, struct m0_stob *stob,
-				     bool mkfs)
+M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, struct m0_stob *stob,
+				   bool mkfs)
 {
-	return 0;
+	struct m0_addb2_sys *sys = &reqh->rh_fom_dom.fd_addb2_sys;
+	int                  result;
+
+	result = m0_addb2_sys_net_start(sys);
+	if (result == 0)
+		m0_addb2_sys_sm_start(sys);
+	return result;
 }
 #endif
+
+M0_INTERNAL void m0_reqh_addb2_fini(struct m0_reqh *reqh)
+{
+	struct m0_addb2_sys *sys = &reqh->rh_fom_dom.fd_addb2_sys;
+
+	m0_addb2_sys_sm_stop(sys);
+	m0_addb2_sys_net_stop(sys);
+	m0_addb2_sys_stor_stop(sys);
+}
 
 M0_INTERNAL int m0_reqh_state_get(struct m0_reqh *reqh)
 {

@@ -230,12 +230,14 @@ void test_locality(void)
 						  m0_bitmap_get(&online, j))));
 	nr = 0;
 	free_func_called = false;
+	M0_SET0(&s[0]);
 	M0_FOM_SIMPLE_POST(&s[0], &reqh, NULL, &tick_once, free_func, &nr, 1);
 	m0_semaphore_down(&sem[0]);
 	m0_reqh_idle_wait(&reqh);
 	M0_UT_ASSERT(free_func_called);
 
 	nr = 0;
+	M0_SET0(&s[0]);
 	M0_FOM_SIMPLE_POST(&s[0], &reqh, NULL, &simple_tick, NULL, &nr, 1);
 	m0_semaphore_down(&sem[0]);
 	M0_UT_ASSERT(nr == NR);
@@ -250,6 +252,7 @@ void test_locality(void)
 	m0_reqh_idle_wait(&reqh);
 	M0_SET0(&s[0]);
 	m0_atomic64_set(&hoarded, 0);
+	memset(s, 0, sizeof s);
 	m0_fom_simple_hoard(s, ARRAY_SIZE(s), &reqh, NULL,
 			    &cat_tick, NULL, NULL);
 	for (i = 0; i < ARRAY_SIZE(sem); ++i)

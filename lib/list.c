@@ -88,7 +88,7 @@ M0_INTERNAL bool m0_list_contains(const struct m0_list *list,
 
 static inline void __m0_list_add(struct m0_list_link *prev,
 				 struct m0_list_link *next,
-			         struct m0_list_link *new)
+				 struct m0_list_link *new)
 {
 	M0_ASSERT(prev->ll_next == next && next->ll_prev == prev);
 	M0_ASSERT_EX(m0_list_link_invariant(next));

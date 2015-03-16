@@ -49,6 +49,7 @@ extern struct m0_ut_suite addb2_base_ut;
 extern struct m0_ut_suite addb2_consumer_ut;
 extern struct m0_ut_suite addb2_net_ut;
 extern struct m0_ut_suite addb2_storage_ut;
+extern struct m0_ut_suite addb2_sys_ut;
 extern struct m0_ut_suite balloc_ut;
 extern struct m0_ut_suite be_ut;
 extern struct m0_ut_suite buffer_pool_ut;
@@ -129,6 +130,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &addb2_consumer_ut, true);
 	m0_ut_add(m, &addb2_net_ut, true);
 	m0_ut_add(m, &addb2_storage_ut, true);
+	m0_ut_add(m, &addb2_sys_ut, true);
 	m0_ut_add(m, &di_ut, true);
 	m0_ut_add(m, &balloc_ut, true);
 	m0_ut_add(m, &be_ut, true);

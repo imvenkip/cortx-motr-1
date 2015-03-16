@@ -492,7 +492,7 @@ M0_INTERNAL void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 	m0_atomic64_set(&csb->csb_pending_io_nr, 0);
 
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &csb->csb_addb_ctx,
-	                 &m0_addb_ct_m0t1fs_mountp, &m0t1fs_addb_ctx);
+			 &m0_addb_ct_m0t1fs_mountp, &m0t1fs_addb_ctx);
 
 #undef CNTR_INIT
 #define CNTR_INIT(_n) m0_addb_counter_init(&csb->csb_io_stats[i]	\
@@ -729,16 +729,13 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 	tm = &rpc_machine->rm_tm;
 	M0_ASSERT(tm->ntm_recv_pool == buffer_pool);
 	return M0_RC(rc);
-
 reqh_fini:
 	m0_reqh_fini(reqh);
 pool_fini:
 	m0_rpc_net_buffer_pool_cleanup(buffer_pool);
 be_fini:
 	m0_be_ut_seg_fini(&csb->csb_ut_seg);
-	M0_LEAVE("rc: %d", rc);
-	M0_ASSERT(rc != 0);
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 
 struct m0t1fs_sb *reqh2sb(struct m0_reqh *reqh)
@@ -776,7 +773,7 @@ static void m0t1fs_mon_rw_io_watch(struct m0_addb_monitor   *mon,
 
 static struct m0_addb_sum_rec *
 m0t1fs_mon_rw_io_sum_rec(struct m0_addb_monitor *mon,
-		         struct m0_reqh         *reqh)
+			 struct m0_reqh         *reqh)
 {
 	struct m0_addb_sum_rec *sum_rec;
 
@@ -788,8 +785,8 @@ m0t1fs_mon_rw_io_sum_rec(struct m0_addb_monitor *mon,
 }
 
 const struct m0_addb_monitor_ops m0t1fs_addb_mon_rw_io_ops = {
-	.amo_watch   = m0t1fs_mon_rw_io_watch,
-	.amo_sum_rec = m0t1fs_mon_rw_io_sum_rec
+	.amo_watch   = &m0t1fs_mon_rw_io_watch,
+	.amo_sum_rec = &m0t1fs_mon_rw_io_sum_rec
 };
 
 int m0t1fs_addb_mon_total_io_size_init(struct m0t1fs_sb *csb)
@@ -1032,93 +1029,93 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 static void m0t1fs_dput(struct dentry *dentry)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-        clear_nlink(dentry->d_inode);
+	clear_nlink(dentry->d_inode);
 #else
-        dentry->d_inode->i_nlink = 0;
+	dentry->d_inode->i_nlink = 0;
 #endif
-        d_delete(dentry);
-        dput(dentry);
+	d_delete(dentry);
+	dput(dentry);
 }
 
 static void m0t1fs_obf_dealloc(struct m0t1fs_sb *csb) {
 	M0_ENTRY();
 
-        M0_PRE(csb != NULL);
+	M0_PRE(csb != NULL);
 
 	if (csb->csb_fid_dentry != NULL) {
-	        m0t1fs_dput(csb->csb_fid_dentry);
-                csb->csb_fid_dentry = NULL;
-        }
+		m0t1fs_dput(csb->csb_fid_dentry);
+		csb->csb_fid_dentry = NULL;
+	}
 	if (csb->csb_mero_dentry != NULL) {
-	        m0t1fs_dput(csb->csb_mero_dentry);
-                csb->csb_mero_dentry = NULL;
-        }
+		m0t1fs_dput(csb->csb_mero_dentry);
+		csb->csb_mero_dentry = NULL;
+	}
 
 	M0_LEAVE();
 }
 
 static int m0t1fs_obf_alloc(struct super_block *sb)
 {
-        struct inode             *mero_inode;
-        struct dentry            *mero_dentry;
-        struct inode             *fid_inode;
-        struct dentry            *fid_dentry;
-        struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
+	struct inode             *mero_inode;
+	struct dentry            *mero_dentry;
+	struct inode             *fid_inode;
+	struct dentry            *fid_dentry;
+	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
 	struct m0_fop_cob        *body = &csb->csb_virt_body;
 
 	M0_ENTRY();
 
-        body->b_atime = body->b_ctime = body->b_mtime =
+	body->b_atime = body->b_ctime = body->b_mtime =
 					m0_time_seconds(m0_time_now());
-        body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_CTIME |
-	                 M0_COB_UID | M0_COB_GID | M0_COB_BLOCKS |
-	                 M0_COB_SIZE | M0_COB_NLINK | M0_COB_MODE |
-	                 M0_COB_LID);
-        body->b_blocks = 16;
-        body->b_size = 4096;
-        body->b_blksize = 4096;
-        body->b_nlink = 2;
-        body->b_lid = M0_DEFAULT_LAYOUT_ID;
-        body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR |/*rwx for owner*/
-                        S_IRGRP | S_IXGRP |                    /*r-x for group*/
-                        S_IROTH | S_IXOTH);
+	body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_CTIME |
+			 M0_COB_UID | M0_COB_GID | M0_COB_BLOCKS |
+			 M0_COB_SIZE | M0_COB_NLINK | M0_COB_MODE |
+			 M0_COB_LID);
+	body->b_blocks = 16;
+	body->b_size = 4096;
+	body->b_blksize = 4096;
+	body->b_nlink = 2;
+	body->b_lid = M0_DEFAULT_LAYOUT_ID;
+	body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR |/*rwx for owner*/
+			S_IRGRP | S_IXGRP |                    /*r-x for group*/
+			S_IROTH | S_IXOTH);
 
-        /* Init virtual .mero directory */
-        mero_dentry = d_alloc_name(sb->s_root, M0_DOT_MERO_NAME);
-        if (mero_dentry == NULL)
-                return M0_RC(-ENOMEM);
-
-	m0t1fs_fs_lock(csb);
-        mero_inode = m0t1fs_iget(sb, &M0_DOT_MERO_FID, body);
-	m0t1fs_fs_unlock(csb);
-        if (IS_ERR(mero_inode)) {
-                dput(mero_dentry);
-                return M0_RC((int)PTR_ERR(mero_inode));
-        }
-
-        /* Init virtual .mero/fid directory */
-        fid_dentry = d_alloc_name(mero_dentry, M0_DOT_MERO_FID_NAME);
-        if (fid_dentry == NULL) {
-                iput(mero_inode);
-                dput(mero_dentry);
-                return M0_RC(-ENOMEM);
-        }
+	/* Init virtual .mero directory */
+	mero_dentry = d_alloc_name(sb->s_root, M0_DOT_MERO_NAME);
+	if (mero_dentry == NULL)
+		return M0_RC(-ENOMEM);
 
 	m0t1fs_fs_lock(csb);
-        fid_inode = m0t1fs_iget(sb, &M0_DOT_MERO_FID_FID, body);
+	mero_inode = m0t1fs_iget(sb, &M0_DOT_MERO_FID, body);
 	m0t1fs_fs_unlock(csb);
-        if (IS_ERR(fid_inode)) {
-                dput(fid_dentry);
-                iput(mero_inode);
-                dput(mero_dentry);
-                return M0_RC((int)PTR_ERR(fid_inode));
-        }
+	if (IS_ERR(mero_inode)) {
+		dput(mero_dentry);
+		return M0_RC((int)PTR_ERR(mero_inode));
+	}
 
-        d_add(fid_dentry, fid_inode);
-        csb->csb_fid_dentry = fid_dentry;
+	/* Init virtual .mero/fid directory */
+	fid_dentry = d_alloc_name(mero_dentry, M0_DOT_MERO_FID_NAME);
+	if (fid_dentry == NULL) {
+		iput(mero_inode);
+		dput(mero_dentry);
+		return M0_RC(-ENOMEM);
+	}
 
-        d_add(mero_dentry, mero_inode);
-        csb->csb_mero_dentry = mero_dentry;
+	m0t1fs_fs_lock(csb);
+	fid_inode = m0t1fs_iget(sb, &M0_DOT_MERO_FID_FID, body);
+	m0t1fs_fs_unlock(csb);
+	if (IS_ERR(fid_inode)) {
+		dput(fid_dentry);
+		iput(mero_inode);
+		dput(mero_dentry);
+		return M0_RC((int)PTR_ERR(fid_inode));
+	}
+
+	d_add(fid_dentry, fid_inode);
+	csb->csb_fid_dentry = fid_dentry;
+
+	d_add(mero_dentry, mero_inode);
+	csb->csb_mero_dentry = mero_dentry;
 
 	return M0_RC(0);
 }
@@ -1222,9 +1219,9 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	if (rc != 0)
 		goto m0t1fs_teardown;
 
-        rc = m0t1fs_obf_alloc(sb);
-        if (rc != 0)
-                goto m0t1fs_teardown;
+	rc = m0t1fs_obf_alloc(sb);
+	if (rc != 0)
+		goto m0t1fs_teardown;
 
 	io_bob_tlists_init();
 	M0_SET0(&iommstats);
@@ -1282,12 +1279,12 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 	bdi_unregister(sb->s_bdi);
 #endif
 
-        /*
-         * Dealloc virtual .mero/fid dirs. This should be done _before_
-         * kill_anon_super()
-         */
+	/*
+	 * Dealloc virtual .mero/fid dirs. This should be done _before_
+	 * kill_anon_super()
+	 */
 	if (csb != NULL)
-                m0t1fs_obf_dealloc(csb);
+		m0t1fs_obf_dealloc(csb);
 
 	kill_anon_super(sb);
 

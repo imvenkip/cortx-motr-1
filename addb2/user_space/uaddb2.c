@@ -29,11 +29,6 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADDB
 
-struct m0_addb2_mach *m0_addb2_arch_mach_get(void)
-{
-	return NULL;
-}
-
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of addb2 group */

@@ -3,22 +3,26 @@ nobase_mero_include_HEADERS += \
 			    addb2/addb2_xc.h \
 			    addb2/consumer.h \
 			    addb2/counter.h \
+			    addb2/global.h \
 			    addb2/identifier.h \
 			    addb2/internal.h \
 			    addb2/net.h \
 			    addb2/storage.h \
-			    addb2/storage_xc.h
+			    addb2/storage_xc.h \
+			    addb2/sys.h
 
 mero_libmero_la_SOURCES  += \
                             addb2/addb2.c \
 			    addb2/addb2_xc.c \
 			    addb2/consumer.c \
 			    addb2/counter.c \
+			    addb2/global.c \
 			    addb2/identifier.c \
 			    addb2/net.c \
 			    addb2/sit.c \
 			    addb2/storage.c \
 			    addb2/storage_xc.c \
+			    addb2/sys.c \
                             addb2/user_space/uaddb2.c
 
 addb2_m0addb2dump_SOURCES  = addb2/dump.c

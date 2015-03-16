@@ -34,6 +34,7 @@
 #include "lib/processor.h"
 struct m0_sm_group;
 struct m0_reqh;
+struct m0_fom_domain;
 
 /* export */
 struct m0_locality;
@@ -75,11 +76,14 @@ M0_INTERNAL struct m0_locality *m0_locality_get(uint64_t value);
 M0_INTERNAL struct m0_locality *m0_locality0_get(void);
 
 /**
- * Initialises per-core state for the specified core.
- *
- * This has effect only once per-core.
+ * Starts using localities from the specified domain.
  */
-M0_INTERNAL void m0_locality_set(m0_processor_nr_t id, struct m0_locality *val);
+M0_INTERNAL void m0_locality_dom_set(struct m0_fom_domain *dom);
+
+/**
+ * Stops using the domain, falls back to a single locality.
+ */
+M0_INTERNAL void m0_locality_dom_clear(struct m0_fom_domain *dom);
 
 M0_INTERNAL int  m0_localities_init(void);
 M0_INTERNAL void m0_localities_fini(void);

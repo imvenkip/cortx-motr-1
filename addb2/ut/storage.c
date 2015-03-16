@@ -118,7 +118,13 @@ static void write_init_fini(void)
 				     &M0_ADDB2_HEADER_INIT, &ops, NULL);
 	M0_UT_ASSERT(stor != NULL);
 	m0_addb2_storage_stop(stor);
-	M0_UT_ASSERT(!idled);
+	/*
+	 * Storage machine may not be idle at this point, because whenever the
+	 * machine is initialised a special marker record is pushed onto
+	 * stob. But the corresponding IO can be already completed by the time
+	 * m0_addb2_storage_stop() returns, so neither "idled" nor "!idled" can
+	 * be asserted.
+	 */
 	m0_semaphore_down(&idlewait);
 	M0_UT_ASSERT(idled);
 	m0_addb2_storage_fini(stor);
@@ -271,7 +277,7 @@ static unsigned issued;
 		8 - seq			\
 }
 
-enum { DEPTH_MAX = 200 };
+enum { DEPTH_MAX = M0_ADDB2_LABEL_MAX };
 
 static void add_one(void)
 {

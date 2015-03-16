@@ -252,6 +252,16 @@ M0_INTERNAL void m0_addb2_net_stop(struct m0_addb2_net *net,
 {
 	net_lock(net);
 	M0_PRE(net->ne_callback == NULL);
+	/*
+	 * If there are no sources, it makes no sense to wait for queue drain.
+	 */
+	if (src_tlist_is_empty(&net->ne_src)) {
+		struct m0_addb2_trace_obj *obj;
+
+		m0_tl_teardown(tr, &net->ne_queue, obj) {
+			m0_addb2_trace_done(&obj->o_tr);
+		}
+	}
 	if (tr_tlist_is_empty(&net->ne_queue))
 		(*callback)(net, datum);
 	else {

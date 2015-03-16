@@ -56,7 +56,7 @@ int main(int argc, char **argv)
 	struct m0_addb2_sit    *sit;
 	struct stat             buf;
 	struct m0_addb2_record *rec;
-	struct m0               instance;
+	struct m0               instance = {0};
 	int                     result;
 
 	static struct m0_addb2_value_descr descr[] = {
@@ -65,7 +65,6 @@ int main(int argc, char **argv)
 		{ M0_AVI_THREAD,               "thread" },
 		{ M0_AVI_SERVICE,              "service" },
 		{ M0_AVI_FOM,                  "fom" },
-		{ M0_AVI_NULL,                 "null" },
 		{ M0_AVI_CLOCK,                "clock" },
 		{ M0_AVI_PHASE,                "fom-phase" },
 		{ M0_AVI_STATE,                "fom-state" },
@@ -106,7 +105,7 @@ int main(int argc, char **argv)
 		err(EX_NOINPUT, "Cannot stat: %d", result);
 
 	m0_addb2_value_id_set_nr(descr);
-	/** @todo XXX size parameter copied from m0_reqh_addb2_config(). */
+	/** @todo XXX size parameter copied from m0_reqh_addb2_init(). */
 	result = m0_addb2_sit_init(&sit, stob, 128ULL << 30, NULL);
 	if (result != 0)
 		err(EX_DATAERR, "Cannot initialise iterator: %d", result);

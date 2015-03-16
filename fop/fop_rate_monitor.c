@@ -79,7 +79,7 @@ static int timer_arm(struct m0_fop_rate_monitor *mon)
 	m0_time_t        expire;
 	struct m0_timer *timer = &mon->frm_timer;
 
-	result = m0_timer_init(timer, M0_TIMER_SOFT, NULL, timer_callback,
+	result = m0_timer_init(timer, M0_TIMER_HARD, NULL, timer_callback,
 			       (unsigned long)mon);
 	if (result != 0)
 		return result;

@@ -92,12 +92,13 @@ M0_INTERNAL void m0_threads_once_fini(void)
 {
 }
 
-M0_INTERNAL void m0_thread_enter(struct m0_thread_tls *tls)
+M0_INTERNAL void m0_thread_enter(struct m0_thread *thread)
 {
-	M0_PRE(M0_IS0(tls));
+	M0_PRE(M0_IS0(thread));
 
-	tls->tls_arch.tat_prev = current->journal_info;
-	current->journal_info = tls;
+	thread->t_tls.tls_arch.tat_prev = current->journal_info;
+	thread->t_tls.tls_self = thread;
+	current->journal_info = &thread->t_tls;
 	if (__instance != NULL)
 		m0_set(__instance);
 }
@@ -117,7 +118,7 @@ M0_INTERNAL void m0_thread_leave(void)
 }
 M0_EXPORTED(m0_thread_leave);
 
-M0_INTERNAL void m0_thread__cleanup(struct m0_thread_tls *bye)
+M0_INTERNAL void m0_thread__cleanup(struct m0_thread *bye)
 {
 	m0_thread_leave();
 }
@@ -126,8 +127,8 @@ M0_EXPORTED(m0_thread__cleanup);
 static int kthread_trampoline(void *arg)
 {
 	struct m0_thread *t = arg;
-	M0_THREAD_ENTER;
 
+	current->journal_info = &t->t_tls;
 	/* Required for correct m0_thread_join() behavior in kernel:
 	   kthread_stop() will not stop if the thread has been created but has
 	   not yet started executing.  So, m0_thread_join() blocks on the
@@ -142,7 +143,7 @@ static int kthread_trampoline(void *arg)
 	if (t->t_init == NULL)
 		m0_semaphore_up(&t->t_wait);
 	m0_thread_trampoline(arg);
-
+	current->journal_info = NULL;
 	set_current_state(TASK_INTERRUPTIBLE);
 	while (!kthread_should_stop()) {
 		schedule();

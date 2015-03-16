@@ -1,0 +1,383 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <nikita.danilov@seagate.com>
+ * Original creation date: 17-Mar-2015
+ */
+
+
+/**
+ * @addtogroup addb2
+ *
+ * @{
+ */
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADDB
+
+#include "lib/misc.h"                   /* M0_IS0, M0_AMB */
+#include "lib/arith.h"                  /* M0_CNT_DEC, M0_CNT_INC */
+#include "lib/errno.h"                  /* ENOMEM */
+#include "lib/finject.h"
+#include "lib/locality.h"
+#include "lib/trace.h"
+#include "lib/thread.h"
+
+#include "addb2/addb2.h"
+#include "addb2/storage.h"
+#include "addb2/net.h"
+#include "addb2/internal.h"
+#include "addb2/sys.h"
+
+static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
+static void sys_post(struct m0_addb2_sys *sys);
+static void sys_idle(struct m0_addb2_mach *mach);
+static void sys_lock(struct m0_addb2_sys *sys);
+static void sys_unlock(struct m0_addb2_sys *sys);
+static void sys_balance(struct m0_addb2_sys *sys);
+static bool sys_invariant(const struct m0_addb2_sys *sys);
+static int  sys_submit(const struct m0_addb2_mach *mach,
+		       struct m0_addb2_trace_obj  *obj);
+static void net_idle(struct m0_addb2_net *net, void *datum);
+static void net_stop(struct m0_addb2_sys *sys);
+static void stor_stop(struct m0_addb2_sys *sys);
+static m0_bcount_t sys_size(const struct m0_addb2_sys *sys);
+
+static const struct m0_addb2_mach_ops sys_mach_ops;
+static const struct m0_addb2_storage_ops sys_stor_ops;
+
+void m0_addb2_sys_init(struct m0_addb2_sys *sys,
+		       const struct m0_addb2_config *conf)
+{
+	M0_PRE(M0_IS0(sys));
+	M0_PRE(conf->co_buffer_min <= conf->co_buffer_max);
+	M0_PRE(conf->co_pool_min <= conf->co_pool_max);
+	M0_PRE(conf->co_buffer_size % sizeof(uint64_t) == 0);
+	sys->sy_conf = *conf;
+	m0_mutex_init(&sys->sy_lock);
+	m0_semaphore_init(&sys->sy_wait, 0);
+	tr_tlist_init(&sys->sy_queue);
+	mach_tlist_init(&sys->sy_pool);
+	mach_tlist_init(&sys->sy_granted);
+	mach_tlist_init(&sys->sy_moribund);
+	mach_tlist_init(&sys->sy_deathrow);
+}
+
+void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
+{
+	struct m0_addb2_mach      *m;
+	struct m0_addb2_trace_obj *to;
+
+	sys_lock(sys); /* synchronise with concurrent asts. */
+	sys_unlock(sys);
+	M0_ASSERT(sys->sy_ast.sa_next == NULL);
+	/* Disable further asts. */
+	sys->sy_ast.sa_cb = NULL;
+	m0_tl_for(mach, &sys->sy_pool, m) {
+		mach_tlist_move_tail(&sys->sy_moribund, m);
+		m0_addb2_mach_stop(m);
+	} m0_tl_endfor;
+	mach_tlist_fini(&sys->sy_pool);
+	/* to keep invariant happy, no concurrency at this point. */
+	sys_lock(sys);
+	sys_balance(sys);
+	sys_unlock(sys);
+	if (sys->sy_queued > 0)
+		M0_LOG(M0_WARN, "Records lost: %"PRIi64"/%zi.",
+		       sys->sy_queued, tr_tlist_length(&sys->sy_queue));
+	m0_tl_teardown(tr, &sys->sy_queue, to) {
+		/*
+		 * Update the counter *before* calling m0_addb2_trace_done(),
+		 * because it might invoke sys_invariant() via sys_idle().
+		 */
+		sys->sy_queued -= to->o_tr.tr_nr;
+		m0_addb2_trace_done(&to->o_tr);
+	}
+	m0_tl_for(mach, &sys->sy_moribund, m) {
+		m0_addb2_mach_wait(m);
+	} m0_tl_endfor;
+	mach_tlist_fini(&sys->sy_moribund);
+	sys_lock(sys);
+	sys_balance(sys);
+	mach_tlist_fini(&sys->sy_deathrow);
+	m0_tl_for(mach, &sys->sy_granted, m) {
+		/* Print still granted machines, there should be none! */
+		m0_addb2__mach_print(m);
+	} m0_tl_endfor;
+	M0_ASSERT_INFO(sys->sy_total == 0, "%"PRIi64, sys->sy_total);
+	mach_tlist_fini(&sys->sy_granted);
+	net_stop(sys);
+	stor_stop(sys);
+	sys_unlock(sys);
+	tr_tlist_fini(&sys->sy_queue);
+	m0_semaphore_fini(&sys->sy_wait);
+	m0_mutex_fini(&sys->sy_lock);
+}
+
+struct m0_addb2_mach *m0_addb2_sys_get(struct m0_addb2_sys *sys)
+{
+	struct m0_addb2_mach *m;
+
+	sys_lock(sys);
+	m = mach_tlist_pop(&sys->sy_pool);
+	if (m == NULL) {
+		if (sys->sy_total < sys->sy_conf.co_pool_max) {
+			m = m0_addb2_mach_init(&sys_mach_ops, sys);
+			if (m != NULL)
+				M0_CNT_INC(sys->sy_total);
+			else
+				M0_LOG(M0_WARN, "Init: %"PRId64".",
+				       sys->sy_total);
+		} else
+			M0_LOG(M0_WARN, "Limit: %"PRId64".", sys->sy_total);
+	}
+	if (m != NULL)
+		mach_tlist_add(&sys->sy_granted, m);
+	sys_unlock(sys);
+	return m;
+}
+
+void m0_addb2_sys_put(struct m0_addb2_sys *sys, struct m0_addb2_mach *m)
+{
+	bool kill;
+
+	sys_lock(sys);
+	M0_PRE(mach_tlist_contains(&sys->sy_granted, m));
+	kill = sys->sy_total > sys->sy_conf.co_pool_min;
+	if (kill)
+		mach_tlist_move_tail(&sys->sy_moribund, m);
+	else
+		mach_tlist_move(&sys->sy_pool, m);
+	sys_balance(sys);
+	sys_unlock(sys);
+	if (kill)
+		m0_addb2_mach_stop(m);
+}
+
+int m0_addb2_sys_net_start(struct m0_addb2_sys *sys)
+{
+	M0_PRE(sys->sy_net == NULL);
+
+	sys->sy_net = m0_addb2_net_init();
+	return sys->sy_net != NULL ? 0 : M0_ERR(-ENOMEM);
+}
+
+void m0_addb2_sys_net_stop(struct m0_addb2_sys *sys)
+{
+	sys_lock(sys);
+	net_stop(sys);
+	sys_unlock(sys);
+}
+
+int m0_addb2_sys_stor_start(struct m0_addb2_sys *sys, struct m0_stob *stob,
+			     m0_bcount_t size, bool format)
+{
+	M0_PRE(sys->sy_stor == NULL);
+
+	sys->sy_stor = m0_addb2_storage_init(stob, size,
+				     format ? &M0_ADDB2_HEADER_INIT : NULL,
+				     &sys_stor_ops, sys);
+	return sys->sy_stor != NULL ? 0 : M0_ERR(-ENOMEM);
+}
+
+void m0_addb2_sys_stor_stop(struct m0_addb2_sys *sys)
+{
+	sys_lock(sys);
+	stor_stop(sys);
+	sys_unlock(sys);
+}
+
+void m0_addb2_sys_sm_start(struct m0_addb2_sys *sys)
+{
+	sys_lock(sys);
+	sys->sy_ast.sa_cb = &sys_ast;
+	sys_unlock(sys);
+}
+
+void m0_addb2_sys_sm_stop(struct m0_addb2_sys *sys)
+{
+	sys_lock(sys);
+	sys->sy_ast.sa_cb = NULL;
+	sys_unlock(sys);
+}
+
+static void sys_balance(struct m0_addb2_sys *sys)
+{
+	struct m0_addb2_trace_obj *obj;
+	struct m0_addb2_mach      *m;
+
+	M0_PRE(sys_invariant(sys));
+	if (sys->sy_stor != NULL || sys->sy_net != NULL) {
+		while ((obj = tr_tlist_pop(&sys->sy_queue)) != NULL) {
+			sys->sy_queued -= obj->o_tr.tr_nr;
+			if ((sys->sy_stor != NULL ?
+			     m0_addb2_storage_submit(sys->sy_stor, obj) :
+			     m0_addb2_net_submit(sys->sy_net, obj)) == 0)
+				m0_addb2_trace_done(&obj->o_tr);
+		}
+	}
+	m0_tl_teardown(mach, &sys->sy_deathrow, m) {
+		m0_addb2_mach_fini(m);
+		M0_CNT_DEC(sys->sy_total);
+	}
+	M0_POST(sys_invariant(sys));
+}
+
+void (*m0_addb2__sys_submit_trap)(struct m0_addb2_sys *sys,
+				  struct m0_addb2_trace_obj *obj) = NULL;
+
+static int sys_submit(const struct m0_addb2_mach *m,
+		      struct m0_addb2_trace_obj *obj)
+{
+	struct m0_addb2_sys *sys = m0_addb2_mach_cookie(m);
+
+	if (M0_FI_ENABLED("trap") && m0_addb2__sys_submit_trap != NULL)
+		m0_addb2__sys_submit_trap(sys, obj);
+
+	sys_lock(sys);
+	if (sys->sy_queued + obj->o_tr.tr_nr <= sys->sy_conf.co_queue_max) {
+		sys->sy_queued += obj->o_tr.tr_nr;
+		tr_tlink_init_at_tail(obj, &sys->sy_queue);
+		sys_post(sys);
+	} else {
+		M0_LOG(M0_WARN, "Queue overflow.");
+		obj = NULL;
+	}
+	sys_unlock(sys);
+	return obj != NULL;
+}
+
+static void sys_post(struct m0_addb2_sys *sys)
+{
+	M0_PRE(m0_mutex_is_locked(&sys->sy_lock));
+	if (sys->sy_ast.sa_cb != NULL && sys->sy_ast.sa_next == NULL)
+		m0_sm_ast_post(m0_locality_here()->lo_grp, &sys->sy_ast);
+}
+
+static void sys_idle(struct m0_addb2_mach *m)
+{
+	struct m0_addb2_sys *sys = m0_addb2_mach_cookie(m);
+
+	sys_lock(sys);
+	M0_PRE(mach_tlist_contains(&sys->sy_moribund, m));
+	mach_tlist_move(&sys->sy_deathrow, m);
+	sys_post(sys);
+	sys_unlock(sys);
+}
+
+static void net_stop(struct m0_addb2_sys *sys)
+{
+	M0_PRE(m0_mutex_is_locked(&sys->sy_lock));
+	sys_balance(sys);
+	if (sys->sy_net != NULL) {
+		m0_addb2_net_stop(sys->sy_net, &net_idle, sys);
+		m0_semaphore_down(&sys->sy_wait);
+		m0_addb2_net_fini(sys->sy_net);
+		sys->sy_net = NULL;
+	}
+}
+
+static void stor_stop(struct m0_addb2_sys *sys)
+{
+	M0_PRE(m0_mutex_is_locked(&sys->sy_lock));
+	sys_balance(sys);
+	if (sys->sy_stor != NULL) {
+		m0_addb2_storage_stop(sys->sy_stor);
+		m0_semaphore_down(&sys->sy_wait);
+		m0_addb2_storage_fini(sys->sy_stor);
+		sys->sy_stor = NULL;
+	}
+}
+
+void (*m0_addb2__sys_ast_trap)(struct m0_addb2_sys *sys) = NULL;
+
+static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_addb2_sys *sys = M0_AMB(sys, ast, sy_ast);
+
+	if (M0_FI_ENABLED("trap") && m0_addb2__sys_ast_trap != NULL)
+		m0_addb2__sys_ast_trap(sys);
+	sys_lock(sys);
+	sys_balance(sys);
+	sys_unlock(sys);
+}
+
+static void sys_lock(struct m0_addb2_sys *sys)
+{
+	m0_mutex_lock(&sys->sy_lock);
+	M0_ASSERT(sys_invariant(sys));
+}
+
+static void sys_unlock(struct m0_addb2_sys *sys)
+{
+	M0_ASSERT(sys_invariant(sys));
+	m0_mutex_unlock(&sys->sy_lock);
+}
+
+static void net_idle(struct m0_addb2_net *net, void *datum)
+{
+	struct m0_addb2_sys *sys = datum;
+	m0_semaphore_up(&sys->sy_wait);
+}
+
+static void stor_idle(struct m0_addb2_storage *stor)
+{
+	struct m0_addb2_sys *sys = m0_addb2_storage_cookie(stor);
+	m0_semaphore_up(&sys->sy_wait);
+}
+
+static m0_bcount_t sys_size(const struct m0_addb2_sys *sys)
+{
+	return  mach_tlist_length(&sys->sy_pool) +
+		mach_tlist_length(&sys->sy_granted) +
+		mach_tlist_length(&sys->sy_moribund) +
+		mach_tlist_length(&sys->sy_deathrow);
+}
+
+static const struct m0_addb2_mach_ops sys_mach_ops = {
+	.apo_submit = &sys_submit,
+	.apo_idle   = &sys_idle
+};
+
+static const struct m0_addb2_storage_ops sys_stor_ops = {
+	.sto_idle = &stor_idle
+};
+
+static bool sys_invariant(const struct m0_addb2_sys *sys)
+{
+	return  _0C(m0_mutex_is_locked(&sys->sy_lock)) &&
+		_0C(sys->sy_queued <= sys->sy_conf.co_queue_max) &&
+		_0C(sys->sy_queued == m0_tl_reduce(tr, t, &sys->sy_queue,
+						   0, + t->o_tr.tr_nr)) &&
+		_0C(sys_size(sys) == sys->sy_total) &&
+		_0C(sys->sy_total <= sys->sy_conf.co_pool_max);
+}
+
+#undef M0_TRACE_SUBSYSTEM
+
+/** @} end of addb2 group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */

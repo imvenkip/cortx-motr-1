@@ -20,6 +20,8 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
 #include "lib/assert.h"  /* M0_PRE */
 #include "lib/memory.h"
 #include "lib/atomic.h"  /* m0_atomic64 */
@@ -48,6 +50,10 @@ M0_INTERNAL void *m0_alloc(size_t size)
 	if (p != NULL)
 		m0_atomic64_add(&cumulative_alloc, size);
 #endif
+	if (p == NULL) {
+		M0_LOG(M0_ERROR, "Failed to allocate %zi bytes.", size);
+		dump_stack();
+	}
 	return p;
 }
 M0_EXPORTED(m0_alloc);

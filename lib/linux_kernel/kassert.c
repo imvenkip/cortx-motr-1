@@ -50,6 +50,7 @@ M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c, va_list ap)
 		vprintk(c->pc_fmt, ap);
 		pr_emerg("\n");
 	}
+	dump_stack();
 	/*
 	 * Delay BUG() call in in order to allow m0traced process to fetch all
 	 * trace records from kernel buffer, before system-wide Kernel Panic is

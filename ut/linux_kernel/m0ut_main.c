@@ -44,6 +44,7 @@ extern struct m0_ut_suite m0_klibm0_ut; /* test lib first */
 extern struct m0_ut_suite m0_addb_ut;
 extern struct m0_ut_suite addb2_base_ut;
 extern struct m0_ut_suite addb2_consumer_ut;
+extern struct m0_ut_suite addb2_sys_ut;
 extern struct m0_ut_suite be_ut;
 extern struct m0_ut_suite buffer_pool_ut;
 extern struct m0_ut_suite bulkio_client_ut;
@@ -85,6 +86,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_addb_ut, true);
 	m0_ut_add(m, &addb2_base_ut, true);
 	m0_ut_add(m, &addb2_consumer_ut, true);
+	m0_ut_add(m, &addb2_sys_ut, true);
 	m0_ut_add(m, &di_ut, true);
 	m0_ut_add(m, &file_io_ut, true);
 	m0_ut_add(m, &be_ut, true);
@@ -97,6 +99,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_net_lnet_ut, true);
 	m0_ut_add(m, &m0_net_test_ut, true);
 	m0_ut_add(m, &m0_net_tm_prov_ut, true);
+
 	m0_ut_add(m, &conn_ut, true);
 	m0_ut_add(m, &dtm_nucleus_ut, true);
 	m0_ut_add(m, &dtm_transmit_ut, true);

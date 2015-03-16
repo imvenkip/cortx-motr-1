@@ -376,7 +376,7 @@ static void sensor_depth(void)
 
 	M0_SET0(&s);
 	m = mach_set(&sensor_submit);
-	for (depth = 0; depth < 128; ++depth)
+	for (depth = 0; depth < M0_ADDB2_LABEL_MAX; ++depth)
 		m0_addb2_push(LABEL_ID_0 + depth, 0, NULL);
 	m0_addb2_sensor_add(&s, LABEL_ID_0 + 5, 2, &sensor_ops);
 	fill_one(m);

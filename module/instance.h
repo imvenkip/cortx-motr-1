@@ -37,6 +37,7 @@ struct m0_be_domain;
 enum m0_module_id {
 	M0_MODULE_NET,
 	M0_MODULE_UT,
+	M0_MODULE_ADDB2,
 	/* XXX ... more to come ... */
 	M0_MODULE_NR
 };

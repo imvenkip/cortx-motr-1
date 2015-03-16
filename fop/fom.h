@@ -204,6 +204,7 @@ Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
 #include "lib/chan.h"
 #include "lib/atomic.h"
 #include "lib/tlist.h"
+#include "lib/locality.h"
 #include "lib/lockers.h"
 
 #include "dtm/dtm.h"               /* m0_dtx */
@@ -213,6 +214,7 @@ Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
 #include "reqh/reqh_service.h"
 #include "addb/addb_monitor.h"
 #include "addb2/counter.h"
+#include "addb2/sys.h"
 
 struct m0_addb2_mach;
 
@@ -308,11 +310,11 @@ struct m0_fom_locality {
 	struct m0_sm_ast               fl_post_stats_ast;
 	int                            fl_idx;
 	struct m0_addb2_mach          *fl_addb2_mach;
-	struct m0_semaphore            fl_addb2_idle;
 	struct m0_addb2_counter        fl_fom_active;
 	struct m0_addb2_counter        fl_runq_counter;
 	struct m0_addb2_counter        fl_wail_counter;
 	struct m0_addb2_sensor         fl_clock;
+	struct m0_locality             fl_locality;
 	/** Something for memory, see set_mempolicy(2). */
 
 	/** Lockers to store service specific private data */
@@ -351,6 +353,7 @@ struct m0_fom_domain {
 	struct m0_reqh			*fd_reqh;
 	/** Addb context for fom */
 	struct m0_addb_ctx               fd_addb_ctx;
+	struct m0_addb2_sys              fd_addb2_sys;
 };
 
 /** Operations vector attached to a domain. */

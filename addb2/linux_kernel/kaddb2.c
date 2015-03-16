@@ -32,18 +32,37 @@
 
 struct m0_addb2_trace_obj;
 struct m0_addb2_storage;
+struct m0_addb2_storage_ops;
+struct m0_addb2_frame_header;
+struct m0_stob;
 
-struct m0_addb2_mach *m0_addb2_arch_mach_get(void)
+M0_INTERNAL struct m0_addb2_storage *
+m0_addb2_storage_init(struct m0_stob *stob, m0_bcount_t size,
+		      const struct m0_addb2_frame_header *last,
+		      const struct m0_addb2_storage_ops *ops, void *cookie)
 {
+	M0_IMPOSSIBLE("Storage init in kernel mode?");
 	return NULL;
 }
 
 M0_INTERNAL int m0_addb2_storage_submit(struct m0_addb2_storage *stor,
 					struct m0_addb2_trace_obj *obj)
 {
-	M0_IMPOSSIBLE("Storage in kernel mode?");
+	M0_IMPOSSIBLE("Storage submit in kernel mode?");
 	return 0;
 }
+
+M0_INTERNAL void *m0_addb2_storage_cookie(const struct m0_addb2_storage *stor)
+{
+	M0_IMPOSSIBLE("Storage cookie in kernel mode?");
+	return NULL;
+}
+
+M0_INTERNAL void m0_addb2_storage_fini(struct m0_addb2_storage *stor)
+{;}
+
+M0_INTERNAL void m0_addb2_storage_stop(struct m0_addb2_storage *stor)
+{;}
 
 #undef M0_TRACE_SUBSYSTEM
 

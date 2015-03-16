@@ -392,10 +392,11 @@ static void test_module(void)
 
 static void inherit(int _)
 {
+	struct m0 *orig;
 	struct m0 *inst;
 	struct m0  local;
 
-	inst = m0_get();
+	orig = inst = m0_get();
 	M0_UT_ASSERT(inst == g_instance);
 
 	m0_set(&local);
@@ -406,6 +407,7 @@ static void inherit(int _)
 	 * `local' is zeroed, no valid pointers can be obtained from it.
 	 */
 	M0_ASSERT(inst == &local);
+	m0_set(orig);
 }
 
 static void test_instance(void)

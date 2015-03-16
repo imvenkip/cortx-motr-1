@@ -55,14 +55,14 @@ void m0_addb2_value_id_set_nr(struct m0_addb2_value_descr *descr)
 struct m0_addb2_value_descr *m0_addb2_value_id_get(uint64_t id)
 {
 	struct m0_addb2_value_descr **addr;
-	struct m0_addb2_value_descr  *descr;
+	struct m0_addb2_value_descr  *descr = NULL;
 
 	m0_mutex_lock(&value_id_lock);
-	addr = m0_varr_ele_get(&value_id, id);
-	if (addr == NULL)
-		descr = NULL;
-	else
-		descr = *addr;
+	if (id < m0_varr_size(&value_id)) {
+		addr = m0_varr_ele_get(&value_id, id);
+		if (addr != NULL)
+			descr = *addr;
+	}
 	m0_mutex_unlock(&value_id_lock);
 	return descr;
 }
@@ -71,7 +71,7 @@ M0_INTERNAL int m0_addb2_identifier_module_init(void)
 {
 	int result;
 
-	result = m0_varr_init(&value_id, 4096, sizeof(char *), 4096);
+	result = m0_varr_init(&value_id, M0_AVI_LAST, sizeof(char *), 4096);
 	if (result == 0) {
 		m0_mutex_init(&value_id_lock);
 		m0_addb2_value_id_set

@@ -31,6 +31,8 @@
 #endif
 #include "lib/semaphore.h"
 
+#include "lib/list.h"
+
 struct m0_bitmap;
 struct m0;
 struct m0_addb2_mach;
@@ -53,6 +55,8 @@ struct m0_addb2_mach;
    @{
  */
 
+struct m0_thread;
+
 /** Thread-local storage. */
 struct m0_thread_tls {
 	/** m0 instance this thread belong to. */
@@ -60,6 +64,7 @@ struct m0_thread_tls {
 	/** Platform specific part of tls. Defined in lib/PLATFORM/thread.h. */
 	struct m0_thread_arch_tls  tls_arch;
 	struct m0_addb2_mach      *tls_addb2_mach;
+	struct m0_thread          *tls_self;
 };
 
 /**
@@ -108,6 +113,7 @@ struct m0_thread {
 	struct m0_semaphore     t_wait;
 	int                     t_initrc;
 	struct m0_thread_tls    t_tls;
+	char                    t_namebuf[M0_THREAD_NAME_LEN];
 };
 
 /**
@@ -135,7 +141,7 @@ struct m0_thread {
 	(void)(__func == (void (*)(TYPE))NULL);				\
 	(void)(&__arg == &__dummy);					\
 	m0_thread_init(thread,						\
-                       (int  (*)(void *))init,				\
+		       (int  (*)(void *))init,				\
 		       (void (*)(void *))__func,			\
 		       (void *)(unsigned long)__arg,			\
 		       namefmt , ## __VA_ARGS__);			\

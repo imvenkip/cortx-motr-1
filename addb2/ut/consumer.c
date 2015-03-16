@@ -122,7 +122,7 @@ static void empty_push_pop(void)
 	fired = 0;
 	fire = &cmp_fire;
 	source_get();
-	for (i = 0; i < 128; ++i) {
+	for (i = 0; i < M0_ADDB2_LABEL_MAX / 2; ++i) {
 		m0_addb2_push(LABEL_ID + i, i/8, payload + i);
 		m0_addb2_push(LABEL_ID, 0, NULL);
 		m0_addb2_pop(LABEL_ID);

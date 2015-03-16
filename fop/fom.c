@@ -34,6 +34,8 @@
 #include "addb2/addb2.h"
 #include "addb2/storage.h"
 #include "addb2/identifier.h"
+#include "addb2/sys.h"
+#include "addb2/global.h"
 #include "mero/magic.h"
 #include "fop/fop.h"
 #include "fop/fom_long_lock.h"
@@ -610,6 +612,7 @@ static void fom_exec(struct m0_fom *fom)
 		 *
 		 * Note: call-backs are executed in LIFO order.
 		 */
+		M0_ADDB2_PUSH(M0_AVI_FOM_CB);
 		while ((cb = fom->fo_pending) != NULL) {
 			fom->fo_pending = cb_next(cb);
 			cb_run(cb);
@@ -620,6 +623,7 @@ static void fom_exec(struct m0_fom *fom)
 			if (fom_state(fom) != M0_FOS_WAITING)
 				break;
 		}
+		m0_addb2_pop(M0_AVI_FOM_CB);
 		M0_ASSERT(m0_fom_invariant(fom));
 	}
 }
@@ -645,34 +649,6 @@ static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
 	return fom;
 }
 
-static int loc_addb2_submit(const struct m0_addb2_mach *mach,
-			    struct m0_addb2_trace_obj  *tobj)
-{
-	struct m0_fom_locality *loc  = m0_addb2_mach_cookie(mach);
-	struct m0_reqh         *reqh = loc->fl_dom->fd_reqh;
-
-	if (reqh->rh_addb2_stor != NULL)
-		return m0_addb2_storage_submit(reqh->rh_addb2_stor, tobj);
-	else if (reqh->rh_addb2_net != NULL)
-		return m0_addb2_net_submit(reqh->rh_addb2_net, tobj);
-	else {
-		M0_LOG(M0_NOTICE, "Nowhere to submit.");
-		return 0;
-	}
-}
-
-static void loc_addb2_idle(const struct m0_addb2_mach *mach)
-{
-	struct m0_fom_locality *loc = m0_addb2_mach_cookie(mach);
-
-	m0_semaphore_up(&loc->fl_addb2_idle);
-}
-
-static const struct m0_addb2_mach_ops addb2_ops = {
-	.apo_submit = &loc_addb2_submit,
-	.apo_idle   = &loc_addb2_idle
-};
-
 /**
  * Locality handler thread. See the "Locality internals" section.
  */
@@ -694,6 +670,7 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 		M0_ASSERT(loc->fl_handler == NULL);
 		loc->fl_handler = th;
 		th->lt_state = HANDLER;
+		m0_addb2_global_thread_leave();
 		thr_addb2_enter(th, loc);
 
 		/*
@@ -728,7 +705,9 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 				 * many), becomes the new handler.
 				 */
 				break;
+			M0_ADDB2_PUSH(M0_AVI_AST);
 			m0_sm_asts_run(&loc->fl_group);
+			m0_addb2_pop(M0_AVI_AST);
 			fom = fom_dequeue(loc);
 			if (fom != NULL) {
 				fom_addb2_push(fom);
@@ -751,6 +730,7 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 		m0_clink_init(&th->lt_clink, NULL);
 		m0_clink_add(&loc->fl_idle, &th->lt_clink);
 		thr_addb2_leave(th, loc);
+		m0_addb2_global_thread_enter();
 		group_unlock(loc);
 		if (loc->fl_shutdown)
 			break;
@@ -807,14 +787,13 @@ static int loc_thr_create(struct m0_fom_locality *loc)
 
 static void loc_addb2_fini(struct m0_fom_locality *loc)
 {
+	struct m0_addb2_mach *orig = m0_thread_tls()->tls_addb2_mach;
+
 	m0_thread_tls()->tls_addb2_mach = loc->fl_addb2_mach;
 	m0_addb2_pop(M0_AVI_LOCALITY);
 	m0_addb2_pop(M0_AVI_NODE);
-	m0_thread_tls()->tls_addb2_mach = NULL;
-	m0_addb2_mach_stop(loc->fl_addb2_mach);
-	m0_semaphore_down(&loc->fl_addb2_idle);
-	m0_addb2_mach_fini(loc->fl_addb2_mach);
-	m0_semaphore_fini(&loc->fl_addb2_idle);
+	m0_thread_tls()->tls_addb2_mach = orig;
+	m0_addb2_sys_put(&loc->fl_dom->fd_addb2_sys, loc->fl_addb2_mach);
 }
 
 /**
@@ -878,8 +857,9 @@ static void loc_fini(struct m0_fom_locality *loc)
  */
 static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 {
-	int                res;
-	struct m0_addb_mc *addb_mc;
+	int                   res;
+	struct m0_addb_mc    *addb_mc;
+	struct m0_addb2_mach *orig = m0_thread_tls()->tls_addb2_mach;
 
 	M0_PRE(loc != NULL);
 
@@ -895,8 +875,7 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	M0_ADDB_CTX_INIT(addb_mc, &loc->fl_addb_ctx, &m0_addb_ct_fom_locality,
 			 &loc->fl_dom->fd_reqh->rh_addb_ctx, cpu);
 
-	m0_semaphore_init(&loc->fl_addb2_idle, 0);
-	loc->fl_addb2_mach = m0_addb2_mach_init(&addb2_ops, loc);
+	loc->fl_addb2_mach = m0_addb2_sys_get(&loc->fl_dom->fd_addb2_sys);
 	if (loc->fl_addb2_mach == NULL) {
 		res = M0_ERR(-ENOMEM);
 		goto err3;
@@ -915,7 +894,7 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	m0_addb2_counter_add(&loc->fl_fom_active, M0_AVI_FOM_ACTIVE);
 	m0_addb2_counter_add(&loc->fl_runq_counter, M0_AVI_RUNQ);
 	m0_addb2_counter_add(&loc->fl_wail_counter, M0_AVI_WAIL);
-	m0_thread_tls()->tls_addb2_mach = NULL;
+	m0_thread_tls()->tls_addb2_mach = orig;
 
 	res = m0_addb_counter_init(&loc->fl_stat_run_times,
 				      &m0_addb_rt_fl_run_times);
@@ -1013,7 +992,6 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 	result = m0_bitmap_init(&onln_cpu_map, cpu_max);
 	if (result != 0)
 		return result;
-
 	m0_processors_online(&onln_cpu_map);
 	M0_LOG(M0_DEBUG, "sizeof struct m0_fom_locality = %d cpu_max = %d",
 			 (int)(sizeof **dom->fd_localities), (int)cpu_max);
@@ -1036,7 +1014,11 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 			return M0_ERR(-ENOMEM);
 		}
 	}
-
+	m0_addb2_sys_init(&dom->fd_addb2_sys, &(struct m0_addb2_config) {
+		.co_queue_max = 1024 * 1024,
+		.co_pool_min  = m0_bitmap_set_nr(&onln_cpu_map),
+		.co_pool_max  = m0_bitmap_set_nr(&onln_cpu_map)
+	});
 	for (cpu = 0; cpu < cpu_max; ++cpu) {
 		struct m0_fom_locality *loc;
 
@@ -1049,15 +1031,15 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 			m0_fom_domain_fini(dom);
 			break;
 		}
-		m0_locality_set(cpu, &(struct m0_locality){
-				.lo_grp  = &loc->fl_group,
-				.lo_reqh = dom->fd_reqh,
-				.lo_idx  = dom->fd_localities_nr });
+		loc->fl_locality = (struct m0_locality) {
+			.lo_grp  = &loc->fl_group,
+			.lo_reqh = dom->fd_reqh,
+			.lo_idx  = dom->fd_localities_nr
+		};
 		M0_CNT_INC(dom->fd_localities_nr);
 	}
-
 	m0_bitmap_fini(&onln_cpu_map);
-
+	m0_locality_dom_set(dom);
 	return M0_RC(result);
 }
 
@@ -1067,6 +1049,7 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 
 	M0_ASSERT(m0_fom_domain_invariant(dom));
 
+	m0_locality_dom_clear(dom);
 	if (dom->fd_localities != NULL) {
 		i = dom->fd_localities_nr;
 		for (i = dom->fd_localities_nr; i > 0; --i)
@@ -1076,6 +1059,7 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 			m0_free(dom->fd_localities[i]);
 		m0_free0(&dom->fd_localities);
 	}
+	m0_addb2_sys_fini(&dom->fd_addb2_sys);
 }
 
 static bool is_loc_locker_empty(struct m0_fom_locality *loc, uint32_t key)
@@ -1471,7 +1455,7 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 	conf = fom->fo_type->ft_conf;
 	M0_ASSERT(conf->scf_nr_states != 0);
 
-	fom_group    = &fom->fo_loc->fl_group;
+	fom_group = &fom->fo_loc->fl_group;
 
 	m0_sm_init(&fom->fo_sm_phase, conf, M0_FOM_PHASE_INIT, fom_group);
 	fom->fo_sm_phase.sm_addb2_id = M0_AVI_PHASE;

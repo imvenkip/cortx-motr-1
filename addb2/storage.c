@@ -689,7 +689,7 @@ static bool frame_invariant(const struct frame *frame)
 			 stor_rounded(stor, h->he_size))) &&
 		_0C(ergo(frame_tlist_contains(&stor->as_idle, frame) &&
 			 h->he_trace_nr > 0, frame == frame_cur(stor))) &&
-		_0C(h->he_trace_nr < ARRAY_SIZE(frame->f_trace)) &&
+		_0C(h->he_trace_nr <= ARRAY_SIZE(frame->f_trace)) &&
 		_0C(h->he_offset <= stor->as_size - FRAME_SIZE_MAX) &&
 		_0C(h->he_size <= FRAME_SIZE_MAX);
 }
@@ -704,16 +704,6 @@ static bool stor_invariant(const struct m0_addb2_storage *stor)
 		m0_forall(i, ARRAY_SIZE(stor->as_prealloc),
 			  frame_invariant(&stor->as_prealloc[i]));
 }
-
-M0_INTERNAL const struct m0_addb2_frame_header M0_ADDB2_HEADER_INIT = {
-	.he_seqno       = 0,
-	.he_offset      = 0,
-	.he_prev_offset = 0,
-	.he_trace_nr    = 1,
-	.he_size        = FRAME_SIZE_MAX,
-	.he_header_size = sizeof M0_ADDB2_HEADER_INIT,
-	.he_magix       = M0_ADDB2_FRAME_HEADER_MAGIX
-};
 
 #undef M0_TRACE_SUBSYSTEM
 

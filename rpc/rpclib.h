@@ -174,6 +174,9 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx);
  */
 int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx);
 
+int m0_rpc_client_stop_stats(struct m0_rpc_client_ctx *cctx,
+			     void (*printout)(struct m0_rpc_machine *));
+
 /**
  * Sends a fop (an RPC item, to be precise) and waits for reply.
  *

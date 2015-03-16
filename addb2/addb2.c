@@ -130,16 +130,19 @@
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/mutex.h"
+#include "lib/mutex.h"
 #include "fid/fid.h"
 
 #include "addb2/addb2.h"
 #include "addb2/internal.h"
 #include "addb2/consumer.h"
 #include "addb2/addb2_xc.h"
+#include "addb2/storage.h"                   /* m0_addb2_frame_header */
 #include "addb2/storage_xc.h"
-#include "addb2/identifier.h"                /* M0_AVI_NODATA*/
+#include "addb2/identifier.h"                /* M0_AVI_NODATA */
 
 enum {
+#ifndef __KERNEL__
 	/**
 	 * Trace buffer size (m0_addb2_trace::tr_body[]) in bytes.
 	 *
@@ -150,9 +153,13 @@ enum {
 	 */
 	BUFFER_SIZE  = 64 * 1024,
 	/**
-	 * Miminal number of trace buffers allocated for a machine.
+	 * Minimal number of trace buffers allocated for a machine.
 	 */
 	BUFFER_MIN   = 4,
+#else
+	BUFFER_SIZE  = 4096,
+	BUFFER_MIN   = 0,
+#endif
 	/** Must be enough to push 1 storage frame out. */
 	BUFFER_MAX   = 2 * (FRAME_SIZE_MAX / BUFFER_SIZE + 1),
 	/**
@@ -166,8 +173,21 @@ enum {
 	 * Bit-mask identifying bits used to store a "tag", which is
 	 * (opcode|payloadsize).
 	 */
-	TAG_MASK     = 0xff00000000000000ull
+	TAG_MASK     = 0xff00000000000000ull,
 };
+
+/**
+ * When define, a ->ma_name[] field is added to the m0_addb2_mach, where name of
+ * the creator thread is stored.
+ */
+#define DEBUG_OWNERSHIP (1)
+
+/**
+ * Check that buffer still have free space after all labels are pushed.
+ *
+ * Arbitrary assume that a label has 2 payload elements on average.
+ */
+M0_BASSERT(BUFFER_SIZE > M0_ADDB2_LABEL_MAX * 3 * sizeof(uint64_t));
 
 /**
  * Trace buffer that can be linked in a per-machine list.
@@ -268,6 +288,18 @@ struct m0_addb2_mach {
 	 * m0_addb2_cookie().
 	 */
 	void                           *ma_cookie;
+	/**
+	 * Semaphore upped when the machine becomes idle.
+	 */
+	struct m0_semaphore             ma_idlewait;
+	/**
+	 * Linkage into mach_tlist used by sys.c.
+	 */
+	struct m0_tlink                 ma_linkage;
+	uint64_t                        ma_magix;
+#if DEBUG_OWNERSHIP
+	char                            ma_name[100];
+#endif
 };
 
 /**
@@ -294,6 +326,14 @@ M0_TL_DESCR_DEFINE(sensor, "addb2 sensors",
 		   static, struct m0_addb2_sensor, s_linkage, s_magix,
 		   M0_ADDB2_SENSOR_MAGIC, M0_ADDB2_SENSOR_HEAD_MAGIC);
 M0_TL_DEFINE(sensor, static, struct m0_addb2_sensor);
+
+/**
+ * List of addb2 machines, used to implement machine pool in addb2/sys.c
+ */
+M0_TL_DESCR_DEFINE(mach, "addb2 machines",
+		   M0_INTERNAL, struct m0_addb2_mach, ma_linkage, ma_magix,
+		   M0_ADDB2_MACH_MAGIC, M0_ADDB2_MACH_HEAD_MAGIC);
+M0_TL_DEFINE(mach, M0_INTERNAL, struct m0_addb2_mach);
 
 /**
  * Trace bytecodes.
@@ -329,6 +369,7 @@ static struct tentry *mach_top(struct m0_addb2_mach *m);
 static struct buffer *cur(struct m0_addb2_mach *mach, m0_bcount_t space);
 static struct m0_addb2_mach *mach(void);
 static void mach_put(struct m0_addb2_mach *m);
+static void mach_idle(struct m0_addb2_mach *m);
 static void add(struct m0_addb2_mach *mach, uint64_t id, int n,
 		const uint64_t *value);
 static void pack(struct m0_addb2_mach *mach);
@@ -336,9 +377,6 @@ static uint64_t tag(uint8_t code, uint64_t id);
 static void sensor_place(struct m0_addb2_mach *m, struct m0_addb2_sensor *s);
 static void record_consume(struct m0_addb2_mach *m,
 			   uint64_t id, int n, const uint64_t *value);
-
-/* defined in addb2/PLATFORM/?addb2.c */
-M0_EXTERN struct m0_addb2_mach *m0_addb2_arch_mach_get(void);
 
 /**
  * Depths of machine context stack.
@@ -462,9 +500,14 @@ m0_addb2_mach_init(const struct m0_addb2_mach_ops *ops, void *cookie)
 		mach->ma_ops = ops;
 		mach->ma_cookie = cookie;
 		m0_mutex_init(&mach->ma_lock);
+		m0_semaphore_init(&mach->ma_idlewait, 0);
 		buf_tlist_init(&mach->ma_idle);
 		buf_tlist_init(&mach->ma_busy);
 		m0_addb2_source_init(&mach->ma_src);
+		mach_tlink_init(mach);
+#if DEBUG_OWNERSHIP
+		strcpy(mach->ma_name, m0_thread_tls()->tls_self->t_namebuf);
+#endif
 		for (i = 0; i < ARRAY_SIZE(mach->ma_rec.ar_label); ++i) {
 			struct tentry         *t = &mach->ma_label[i];
 			struct m0_addb2_value *v = &mach->ma_rec.ar_label[i];
@@ -506,9 +549,11 @@ void m0_addb2_mach_fini(struct m0_addb2_mach *mach)
 		buffer_fini(buf);
 	}
 	m0_addb2_source_fini(&mach->ma_src);
+	mach_tlink_fini(mach);
 	buf_tlist_fini(&mach->ma_idle);
 	buf_tlist_fini(&mach->ma_busy);
 	m0_mutex_fini(&mach->ma_lock);
+	m0_semaphore_fini(&mach->ma_idlewait);
 	m0_free(mach);
 }
 
@@ -516,8 +561,13 @@ void m0_addb2_mach_stop(struct m0_addb2_mach *mach)
 {
 	mach->ma_stopping = true;
 	pack(mach);
-	if (buf_tlist_is_empty(&mach->ma_busy))
-		mach->ma_ops->apo_idle(mach);
+	mach_idle(mach);
+}
+
+void m0_addb2_mach_wait(struct m0_addb2_mach *mach)
+{
+	M0_PRE(mach->ma_stopping);
+	m0_semaphore_down(&mach->ma_idlewait);
 }
 
 void *m0_addb2_mach_cookie(const struct m0_addb2_mach *mach)
@@ -545,8 +595,8 @@ void m0_addb2_trace_done(const struct m0_addb2_trace *ctrace)
 			buf_tlist_del(buf);
 			buffer_fini(buf);
 		}
-		if (mach->ma_stopping && buf_tlist_is_empty(&mach->ma_busy))
-			mach->ma_ops->apo_idle(mach);
+		if (mach->ma_stopping)
+			mach_idle(mach);
 		m0_mutex_unlock(&mach->ma_lock);
 	}
 }
@@ -670,7 +720,7 @@ static struct buffer *mach_buffer(struct m0_addb2_mach *mach)
 			if (buf_tlist_length(&mach->ma_busy) <= BUFFER_MAX)
 				buffer_alloc(mach);
 			else
-				M0_LOG(M0_WARN, "Too many ADDB2 buffers.");
+				M0_LOG(M0_NOTICE, "Too many ADDB2 buffers.");
 		}
 		mach->ma_cur = buf_tlist_pop(&mach->ma_idle);
 		/*
@@ -715,9 +765,6 @@ static struct m0_addb2_mach *mach(void)
 	struct m0_thread_tls *tls  = m0_thread_tls();
 	struct m0_addb2_mach *mach = tls != NULL ? tls->tls_addb2_mach : NULL;
 
-	if (mach == NULL)
-		mach = m0_addb2_arch_mach_get();
-
 	if (M0_FI_ENABLED("surrogate-mach") && m0_addb2__mach != NULL)
 		mach = m0_addb2__mach();
 
@@ -744,6 +791,18 @@ static void mach_put(struct m0_addb2_mach *m)
 {
 	M0_PRE(m->ma_nesting > 0);
 	-- m->ma_nesting;
+}
+
+/**
+ * Checks and signals if the machine is idle.
+ */
+static void mach_idle(struct m0_addb2_mach *m)
+{
+	if (buf_tlist_is_empty(&m->ma_busy)) {
+		if (m->ma_ops->apo_idle != NULL)
+			m->ma_ops->apo_idle(m);
+		m0_semaphore_up(&m->ma_idlewait);
+	}
 }
 
 /**
@@ -831,7 +890,7 @@ static int buffer_alloc(struct m0_addb2_mach *mach)
 		buf_tlink_init_at_tail(buf, &mach->ma_idle);
 		return 0;
 	} else {
-		M0_LOG(M0_WARN, "Cannot allocate ADDB2 buffer.");
+		M0_LOG(M0_NOTICE, "Cannot allocate ADDB2 buffer.");
 		m0_free(buf);
 		m0_free(area);
 		return M0_ERR(-ENOMEM);
@@ -899,6 +958,33 @@ M0_INTERNAL uint64_t m0_addb2__dummy_payload[1] = {};
 
 M0_INTERNAL uint64_t m0_addb2__dummy_payload_size =
 	ARRAY_SIZE(m0_addb2__dummy_payload);
+
+/**
+ * Predefined header, which means "format storage" when passed to
+ * m0_addb2_storage_init().
+ *
+ * This is defined here rather than in addb2/storage.c, because it is needed by
+ * the kernel code too.
+ */
+M0_INTERNAL const struct m0_addb2_frame_header M0_ADDB2_HEADER_INIT = {
+	.he_seqno       = 0,
+	.he_offset      = 0,
+	.he_prev_offset = 0,
+	.he_trace_nr    = 1,
+	.he_size        = FRAME_SIZE_MAX,
+	.he_header_size = sizeof M0_ADDB2_HEADER_INIT,
+	.he_magix       = M0_ADDB2_FRAME_HEADER_MAGIX
+};
+
+M0_INTERNAL void m0_addb2__mach_print(const struct m0_addb2_mach *m)
+{
+#if DEBUG_OWNERSHIP
+	const char *name = m->ma_name;
+	M0_LOG(M0_FATAL, "mach: %p %s.", m, name);
+#else
+	M0_LOG(M0_FATAL, "mach: %p.", m);
+#endif
+}
 
 #undef M0_TRACE_SUBSYSTEM
 

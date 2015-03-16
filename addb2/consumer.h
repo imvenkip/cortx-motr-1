@@ -90,7 +90,7 @@ enum {
 	/**
 	 * Maximal number of labels in addb2 context.
 	 */
-	M0_ADDB2_LABEL_MAX = 256
+	M0_ADDB2_LABEL_MAX = 64
 };
 
 /**

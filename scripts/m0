@@ -58,7 +58,7 @@ run_ut()  { run_init; $SUDO "$SRC/utils/m0run" m0ut -- "$@"; }
 run_kut() {
     run_init
     echo 'Running kernel UT (this may take a while) ...'
-    $SUDO "$SRC/ut/m0kut"
+    $SUDO "$SRC/ut/m0kut" "$@"
 }
 
 run_st() {
@@ -173,7 +173,7 @@ case "${1:-}" in
 	fi;;
     rebuild) clean; build;;
     run-ut)  shift; run_ut "$@";;
-    run-kut) run_kut;;
+    run-kut) shift; run_kut "$@";;
     run-st)  run_st;;
     run-all)
         shift; run_ut "$@"

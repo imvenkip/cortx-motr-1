@@ -37,7 +37,7 @@ static int test_submit(const struct m0_addb2_mach *mach,
 	return (*submit)(mach, &obj->o_tr);
 }
 
-static void test_idle(const struct m0_addb2_mach *mach)
+static void test_idle(struct m0_addb2_mach *mach)
 {
 	if (idle != NULL)
 		(*idle)(mach);

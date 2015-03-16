@@ -172,7 +172,15 @@ err:
 }
 M0_EXPORTED(m0_rpc_client_start);
 
+
 int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
+{
+	return m0_rpc_client_stop_stats(cctx, NULL);
+}
+M0_EXPORTED(m0_rpc_client_stop);
+
+int m0_rpc_client_stop_stats(struct m0_rpc_client_ctx *cctx,
+			     void (*printout)(struct m0_rpc_machine *))
 {
 	int rc0;
 	int rc1;
@@ -186,7 +194,8 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection, M0_TIME_NEVER);
 	if (rc1 != 0)
 		M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc1);
-
+	if (printout != NULL)
+		printout(&cctx->rcx_rpc_machine);
 	m0_reqh_services_terminate(&cctx->rcx_reqh);
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
 	m0_reqh_fini(&cctx->rcx_reqh);
@@ -194,6 +203,7 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 
 	return M0_RC(rc0 ?: rc1);
 }
+M0_EXPORTED(m0_rpc_client_stop_stats);
 
 int m0_rpc_post_sync(struct m0_fop                *fop,
 		     struct m0_rpc_session        *session,

@@ -1118,7 +1118,7 @@ static int nlx_dev_ioctl_buf_event_wait(const struct nlx_kcore_domain *kd,
 	M0_ASSERT(nlx_kcore_tm_invariant(ktm));
 	ctm = nlx_kcore_core_tm_map(ktm);
 	if (!nlx_core_tm_invariant(ctm))
-		rc = -EBADR;
+		rc = M0_ERR(-EBADR);
 	else
 		rc = kd->kd_drv_ops->ko_buf_event_wait(ctm, ktm,
 						       p->dbw_timeout);
@@ -1379,8 +1379,7 @@ fail_page:
 static long nlx_dev_ioctl(struct file *file,
 			  unsigned int cmd, unsigned long arg)
 {
-	struct nlx_kcore_domain *kd =
-	    (struct nlx_kcore_domain *) file->private_data;
+	struct nlx_kcore_domain *kd = file->private_data;
 	union {
 		struct m0_lnet_dev_dom_init_params       dip;
 		struct m0_lnet_dev_tm_start_params       tsp;
@@ -1394,22 +1393,21 @@ static long nlx_dev_ioctl(struct file *file,
 		struct m0_lnet_dev_bev_bless_params      bbp;
 	} p;
 	unsigned sz = _IOC_SIZE(cmd);
-        int rc;
+	int rc;
 
 	M0_THREAD_ENTER;
 	M0_PRE(nlx_kcore_domain_invariant(kd));
 
-        if (_IOC_TYPE(cmd) != M0_LNET_IOC_MAGIC ||
-            _IOC_NR(cmd) < M0_LNET_IOC_MIN_NR  ||
-            _IOC_NR(cmd) > M0_LNET_IOC_MAX_NR ||
-	    sz > sizeof p) {
-		rc = -ENOTTY;
+	if (_IOC_TYPE(cmd) != M0_LNET_IOC_MAGIC ||
+	    _IOC_NR(cmd) < M0_LNET_IOC_MIN_NR  ||
+	    _IOC_NR(cmd) > M0_LNET_IOC_MAX_NR || sz > sizeof p) {
+		rc = M0_ERR(-ENOTTY);
 		goto done;
 	}
 
 	if (_IOC_DIR(cmd) & _IOC_WRITE) {
 		if (copy_from_user(&p, (void __user *) arg, sz)) {
-			rc = -EFAULT;
+			rc = M0_ERR(-EFAULT);
 			goto done;
 		}
 	}
@@ -1473,13 +1471,13 @@ static long nlx_dev_ioctl(struct file *file,
 		rc = nlx_dev_ioctl_nidstrs_get(kd, &p.ngp);
 		break;
 	default:
-		rc = -ENOTTY;
+		rc = M0_ERR(-ENOTTY);
 		break;
 	}
 
 	if (rc >= 0 && (_IOC_DIR(cmd) & _IOC_READ)) {
 		if (copy_to_user((void __user *) arg, &p, sz))
-			rc = -EFAULT;
+			rc = M0_ERR(-EFAULT);
 	}
 
 done:
@@ -1504,7 +1502,7 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 	struct nlx_kcore_domain *kd;
 	int rc;
 
-        if (!capable(CAP_SYS_ADMIN))
+	if (!capable(CAP_SYS_ADMIN))
 		return M0_ERR(-EPERM);
 
 	if (!(file->f_flags & O_RDWR))

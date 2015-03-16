@@ -666,9 +666,9 @@ struct m0t1fs_addb_mon_sum_data_io_size {
 
 /** Represents type of IO request. */
 enum io_req_type {
-        IRT_READ,
-        IRT_WRITE,
-        IRT_TYPE_NR,
+	IRT_READ,
+	IRT_WRITE,
+	IRT_TYPE_NR,
 };
 
 /**
@@ -1017,16 +1017,16 @@ M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry,
 				   uint64_t newsize);
 
 M0_INTERNAL int m0t1fs_setxattr(struct dentry *dentry, const char *name,
-                                const void *value, size_t size, int flags);
+				const void *value, size_t size, int flags);
 
 M0_INTERNAL int m0t1fs_fid_setxattr(struct dentry *dentry, const char *name,
-                                    const void *value, size_t size, int flags);
+				    const void *value, size_t size, int flags);
 
 M0_INTERNAL ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
-                                    void *buffer, size_t size);
+				    void *buffer, size_t size);
 
 M0_INTERNAL ssize_t m0t1fs_fid_getxattr(struct dentry *dentry, const char *name,
-                                        void *buffer, size_t size);
+					void *buffer, size_t size);
 
 M0_INTERNAL int m0t1fs_removexattr(struct dentry *dentry, const char *name);
 M0_INTERNAL int m0t1fs_fid_removexattr(struct dentry *dentry, const char *name);
@@ -1062,6 +1062,7 @@ struct m0_fid m0t1fs_hash_ios(struct m0t1fs_sb *csb,
 
 M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode);
 M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo);
+
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 
 /*

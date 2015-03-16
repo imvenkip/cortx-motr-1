@@ -247,7 +247,7 @@ void test_atomic(void)
 		m0_thread_fini(&t[i]);
 	}
 #else
-        M0_ASSERT("pthread barriers are not supported!" == NULL);
+	M0_ASSERT("pthread barriers are not supported!" == NULL);
 #endif
 
 }

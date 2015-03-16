@@ -90,6 +90,7 @@ static void test_flock(struct m0_rm_owner *owner, struct m0_file *file,
 	int                    rc;
 	struct m0_rm_incoming  in;
 
+	M0_SET0(owner);
 	m0_file_init(file, fid, &rm_test_data.rd_dom, 0);
 	m0_file_owner_init(owner, &m0_rm_no_group, file, NULL);
 	owner->ro_creditor = creditor;
@@ -129,10 +130,10 @@ static void rm_client(const int tid)
 	m0_chan_wait(&tests_clink[SERVER_1]);
 
 	m0_ut_rpc_mach_init_and_add(&client_ctx->rc_rmach_ctx);
-        rc = m0_reqh_service_setup(&rmservice, &m0_rms_type,
+	rc = m0_reqh_service_setup(&rmservice, &m0_rms_type,
 				   &client_ctx->rc_rmach_ctx.rmc_reqh,
 				   NULL, NULL);
-        M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
 	m0_mutex_init(&client_ctx->rc_mutex);
 	m0_chan_init(&client_ctx->rc_chan, &client_ctx->rc_mutex);

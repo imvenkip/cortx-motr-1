@@ -27,6 +27,7 @@
 #include "lib/thread.h"
 #include "lib/misc.h"         /* M0_SET0 */
 #include "module/instance.h"  /* m0_get */
+#include "addb2/global.h"
 
 /**
    @addtogroup thread Thread
@@ -40,17 +41,17 @@ int m0_thread_init(struct m0_thread *q, int (*init)(void *),
 		   void (*func)(void *), void *arg, const char *namefmt, ...)
 {
 	int     result;
-	char    namebuf[M0_THREAD_NAME_LEN];
 	va_list varargs;
 
+	M0_PRE(M0_IS0(q));
 	M0_PRE(q->t_func == NULL);
 	M0_PRE(q->t_state == TS_PARKED);
 
 	va_start(varargs, namefmt);
-	result = vsnprintf(namebuf, sizeof namebuf, namefmt, varargs);
+	result = vsnprintf(q->t_namebuf, sizeof q->t_namebuf, namefmt, varargs);
 	va_end(varargs);
-	M0_ASSERT_INFO(result < sizeof namebuf, "namebuf truncated to \"%s\"",
-		       namebuf);
+	M0_ASSERT_INFO(result < sizeof q->t_namebuf,
+		       "namebuf truncated to \"%s\"", q->t_namebuf);
 
 	q->t_state = TS_RUNNING;
 	q->t_init  = init;
@@ -65,8 +66,9 @@ int m0_thread_init(struct m0_thread *q, int (*init)(void *),
 	 * m0_set() is of no use here, since it has no impact on the TLS
 	 * of `q'. */
 	q->t_tls.tls_m0_instance = m0_get();
+	q->t_tls.tls_self = q;
 
-	result = m0_thread_init_impl(q, namebuf);
+	result = m0_thread_init_impl(q, q->t_namebuf);
 	if (result != 0)
 		goto err;
 
@@ -102,14 +104,17 @@ M0_INTERNAL void *m0_thread_trampoline(void *arg)
 	M0_PRE(t->t_state == TS_RUNNING);
 	M0_PRE(t->t_initrc == 0);
 	M0_PRE(t->t_tls.tls_m0_instance != NULL);
+	M0_PRE(t->t_tls.tls_self == t);
 
 	m0_set(t->t_tls.tls_m0_instance);
+	m0_addb2_global_thread_enter();
 	if (t->t_init != NULL) {
 		t->t_initrc = t->t_init(t->t_arg);
 		m0_semaphore_up(&t->t_wait);
 	}
 	if (t->t_initrc == 0)
 		t->t_func(t->t_arg);
+	m0_addb2_global_thread_leave();
 	return NULL;
 }
 

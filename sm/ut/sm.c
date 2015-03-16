@@ -124,18 +124,21 @@ static void transition(void)
 	M0_UT_ASSERT(states[S_TERMINAL].sd_trans[S_TERMINAL] == ~0);
 
 	m0_sm_group_lock(&G);
+	M0_SET0(&m);
 	m0_sm_init(&m, &conf, S_INITIAL, &G);
 	M0_UT_ASSERT(m.sm_state == S_INITIAL);
 	m0_sm_state_set(&m, S_TERMINAL);
 	M0_UT_ASSERT(m.sm_state == S_TERMINAL);
 	m0_sm_fini(&m);
 
+	M0_SET0(&m);
 	m0_sm_init(&m, &conf, S_INITIAL, &G);
 	M0_UT_ASSERT(m.sm_state == S_INITIAL);
 	m0_sm_move(&m, 0, S_TERMINAL);
 	M0_UT_ASSERT(m.sm_state == S_TERMINAL);
 	m0_sm_fini(&m);
 
+	M0_SET0(&m);
 	m0_sm_init(&m, &conf, S_INITIAL, &G);
 	M0_UT_ASSERT(m.sm_state == S_INITIAL);
 	m0_sm_move(&m, -EINVAL, S_FAILURE);
@@ -276,6 +279,7 @@ static void timeout(void)
 	M0_UT_ASSERT(result == 0);
 
 	m0_sm_group_lock(&G);
+	M0_SET0(&m);
 	m0_sm_init(&m, &tmo_sm_conf, S_TMO_INITIAL, &G);
 
 	/* check that timeout initialisation and finalisation work. */
@@ -404,7 +408,7 @@ static void group(void)
 		.scf_state     = states
 	};
 
-	struct story         s;
+	struct story         s = {};
 	struct m0_sm_timeout to;
 	int                  result;
 
@@ -582,6 +586,7 @@ static void chain(void)
 	int i;
 
 	m0_sm_group_lock(&G);
+	M0_SET0(&m);
 	m0_sm_init(&m, &conf, C_INIT, &G);
 	M0_UT_ASSERT(m.sm_state == C_INIT);
 

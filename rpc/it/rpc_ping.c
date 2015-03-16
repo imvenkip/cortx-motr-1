@@ -276,28 +276,6 @@ static void rpcping_thread(struct m0_rpc_session *session)
 		send_ping_fop(session);
 }
 
-/*
- * An rpcping-specific implementation of client fini function, which is used
- * instead of m0_rpc_client_stop(). It's required in order to get a correct
- * statistics from rpc machine, which is possible only when all connections,
- * associated with rpc machine, are terminated, but rpc machine itself is not
- * finalized yet.
- */
-static int client_fini(struct m0_rpc_client_ctx *cctx)
-{
-	int rc0;
-	int rc1;
-
-	rc0 = m0_rpc_session_destroy(&cctx->rcx_session, M0_TIME_NEVER);
-	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection, M0_TIME_NEVER);
-	if (verbose)
-		__print_stats(&cctx->rcx_rpc_machine);
-	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
-	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
-
-	return rc0 ?: rc1;
-}
-
 static int run_client(void)
 {
 	int               rc;
@@ -362,11 +340,7 @@ static int run_client(void)
 
 	delta = m0_time_sub(m0_time_now(), start);
 
-	/*
-	 * NOTE: don't use m0_rpc_client_stop() here, see the comment above
-	 * client_fini() for explanation.
-	 */
-	rc = client_fini(&cctx);
+	rc = m0_rpc_client_stop_stats(&cctx, &__print_stats);
 	if (verbose)
 		printf("Time: %lu.%2.2lu sec\n",
 		       (unsigned long)m0_time_seconds(delta),

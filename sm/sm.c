@@ -22,7 +22,7 @@
 #include "lib/trace.h"
 
 #include "lib/errno.h"              /* ESRCH */
-#include "lib/misc.h"               /* M0_SET0 */
+#include "lib/misc.h"               /* M0_SET0, M0_IS0 */
 #include "lib/mutex.h"
 #include "lib/arith.h"              /* m0_is_po2 */
 #include "lib/memory.h"
@@ -246,11 +246,12 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
 	M0_PRE(conf_invariant(conf));
 	M0_PRE(conf->scf_state[state].sd_flags & M0_SDF_INITIAL);
 
-	mach->sm_state = state;
-	mach->sm_conf  = conf;
-	mach->sm_grp   = grp;
-	mach->sm_rc    = 0;
+	mach->sm_state       = state;
+	mach->sm_conf        = conf;
+	mach->sm_grp         = grp;
+	mach->sm_rc          = 0;
 	mach->sm_state_epoch = 0;
+	mach->sm_addb2_id    = 0;
 	m0_chan_init(&mach->sm_chan, &grp->s_lock);
 	M0_POST(sm_invariant0(mach));
 }
@@ -287,8 +288,8 @@ M0_INTERNAL void m0_sm_conf_init(struct m0_sm_conf *conf)
 	for (i = 0; i < conf->scf_nr_states; ++i)
 		for (to = 0; to < conf->scf_nr_states; ++to)
 			M0_ASSERT(ergo(conf->scf_state[i].sd_allowed &
-			               M0_BITS(to),
-			               conf->scf_state[i].sd_trans[to] != ~0));
+				       M0_BITS(to),
+				       conf->scf_state[i].sd_trans[to] != ~0));
 
 	conf->scf_magic = M0_SM_CONF_MAGIC;
 
@@ -528,7 +529,7 @@ M0_INTERNAL int m0_sm_timer_start(struct m0_sm_timer *timer,
 	 *    - the AST invokes user-supplied call-back.
 	 */
 
-	result = m0_timer_init(&timer->tr_timer, M0_TIMER_SOFT, NULL,
+	result = m0_timer_init(&timer->tr_timer, M0_TIMER_HARD, NULL,
 			       sm_timer_top, (unsigned long)timer);
 	if (result == 0) {
 		timer->tr_state = ARMED;

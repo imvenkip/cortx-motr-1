@@ -15,13 +15,13 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita.danilov@seagate.com>
- * Original creation date: 4-Feb-2015
+ * Original creation date: 21-Mar-2015
  */
 
 #pragma once
 
-#ifndef __MERO_ADDB2_INTERNAL_H__
-#define __MERO_ADDB2_INTERNAL_H__
+#ifndef __MERO_ADDB2_GLOBAL_H__
+#define __MERO_ADDB2_GLOBAL_H__
 
 /**
  * @defgroup addb2
@@ -29,39 +29,16 @@
  * @{
  */
 
-#define HEADER_XO(h) &(struct m0_xcode_obj) {	\
-	.xo_type = m0_addb2_frame_header_xc,	\
-	.xo_ptr  = (h)				\
-}
+struct m0_addb2_conf;
 
-#define TRACE_XO(t) &(struct m0_xcode_obj) {	\
-	.xo_type = m0_addb2_trace_xc,		\
-	.xo_ptr  = (t)				\
-}
-
-enum {
-	FRAME_TRACE_MAX = 128,
-	FRAME_SIZE_MAX  = 4 * 1024 * 1024,
-};
-
-M0_INTERNAL m0_bcount_t m0_addb2_trace_size(const struct m0_addb2_trace *trace);
-
-M0_EXTERN uint64_t m0_addb2__dummy_payload[];
-M0_EXTERN uint64_t m0_addb2__dummy_payload_size;
-
-M0_INTERNAL int m0_addb2_identifier_module_init(void);
-M0_INTERNAL void m0_addb2_identifier_module_fini(void);
-
-M0_TL_DESCR_DECLARE(tr, M0_EXTERN);
-M0_TL_DECLARE(tr, M0_INTERNAL, struct m0_addb2_trace_obj);
-
-M0_TL_DESCR_DECLARE(mach, M0_EXTERN);
-M0_TL_DECLARE(mach, M0_INTERNAL, struct m0_addb2_mach);
-
-M0_INTERNAL void m0_addb2__mach_print(const struct m0_addb2_mach *m);
+M0_INTERNAL int  m0_addb2_global_init(void);
+M0_INTERNAL void m0_addb2_global_fini(void);
+M0_INTERNAL struct m0_addb2_sys *m0_addb2_global_get(void);
+M0_INTERNAL void m0_addb2_global_thread_enter(void);
+M0_INTERNAL void m0_addb2_global_thread_leave(void);
 
 /** @} end of addb2 group */
-#endif /* __MERO_ADDB2_INTERNAL_H__ */
+#endif /* __MERO_ADDB2_GLOBAL_H__ */
 
 /*
  *  Local variables:

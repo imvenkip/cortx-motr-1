@@ -3,7 +3,9 @@ m0mero_objects += \
                   addb2/addb2_xc.o \
                   addb2/consumer.o \
                   addb2/counter.o \
+                  addb2/global.o \
                   addb2/identifier.o \
                   addb2/net.o \
                   addb2/storage_xc.o \
+                  addb2/sys.o \
                   addb2/linux_kernel/kaddb2.o

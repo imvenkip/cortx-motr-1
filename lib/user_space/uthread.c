@@ -152,7 +152,13 @@ M0_INTERNAL void m0_threads_fini(void)
 
 M0_INTERNAL int m0_threads_once_init(void)
 {
-	static struct m0_thread main_thread;
+	static struct m0_thread main_thread = {
+		.t_state = TS_RUNNING,
+		.t_tls   = {
+			.tls_self = &main_thread
+		},
+		.t_namebuf = "main()"
+	};
 	static char             pidbuf[20];
 	char                   *env_ptr;
 	int                     result;
@@ -200,12 +206,24 @@ M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
 
 M0_INTERNAL void m0_enter_awkward(void)
 {
-	M0_CNT_INC(m0_thread_tls()->tls_arch.tat_awkward);
+	struct m0_thread_tls *tls = m0_thread_tls();
+
+	/*
+	 * m0_enter_awkward() can be called at arbitrary moment. It is possible
+	 * that TLS is not yet set (or already released) at this time (this
+	 * happens, for example, when a timer signal) arrives to a thread
+	 * executing glibc code, creating or destroying a thread.
+	 */
+	if (tls != NULL)
+		M0_CNT_INC(tls->tls_arch.tat_awkward);
 }
 
 M0_INTERNAL void m0_exit_awkward(void)
 {
-	M0_CNT_DEC(m0_thread_tls()->tls_arch.tat_awkward);
+	struct m0_thread_tls *tls = m0_thread_tls();
+
+	if (tls != NULL)
+		M0_CNT_DEC(tls->tls_arch.tat_awkward);
 }
 
 M0_INTERNAL bool m0_is_awkward(void)

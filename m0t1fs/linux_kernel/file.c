@@ -3992,7 +3992,7 @@ static void device_state_reset(struct nw_xfer_request *xfer, bool rmw)
 }
 
 static int io_request_init(struct io_request        *req,
-			   struct file	            *file,
+			   struct file              *file,
 			   const struct iovec       *iov,
 			   const struct m0_indexvec *ivec,
 			   enum io_req_type          rw)
@@ -4006,6 +4006,7 @@ static int io_request_init(struct io_request        *req,
 	M0_PRE(iov  != NULL);
 	M0_PRE(ivec != NULL);
 	M0_PRE(M0_IN(rw, (IRT_READ, IRT_WRITE)));
+	M0_PRE(M0_IS0(req));
 
 	req->ir_rc	  = 0;
 	req->ir_ops	  = &ioreq_ops;
@@ -4027,11 +4028,11 @@ static int io_request_init(struct io_request        *req,
 		   file_to_smgroup(req->ir_file));
 
 	rc = m0_indexvec_alloc(&req->ir_ivec, SEG_NR(ivec),
-	                       &m0t1fs_addb_ctx,
-	                       M0T1FS_ADDB_LOC_IOREQ_INIT_IV);
+			       &m0t1fs_addb_ctx,
+			       M0T1FS_ADDB_LOC_IOREQ_INIT_IV);
 
 	if (rc != 0)
-		return M0_ERR_INFO(-ENOMEM, "Allocation failed for m0_indexvec");
+		return M0_ERR_INFO(-ENOMEM, "Allocation of m0_indexvec");
 
 	for (seg = 0; seg < SEG_NR(ivec); ++seg) {
 		INDEX(&req->ir_ivec, seg) = INDEX(ivec, seg);

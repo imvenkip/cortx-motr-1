@@ -352,7 +352,7 @@ struct m0_addb2_mach_ops {
 	 * Invoked by IMPLEMENTATION to notify SYSTEM that stopped machine
 	 * completed its operation and can be finalised.
 	 */
-	void (*apo_idle)(const struct m0_addb2_mach *mach);
+	void (*apo_idle)(struct m0_addb2_mach *mach);
 };
 
 /**
@@ -397,6 +397,11 @@ void m0_addb2_mach_fini(struct m0_addb2_mach *mach);
  * finalised.
  */
 void m0_addb2_mach_stop(struct m0_addb2_mach *mach);
+
+/**
+ * Waits until stopped machine becomes idle.
+ */
+void m0_addb2_mach_wait(struct m0_addb2_mach *mach);
 
 /**
  * Returns cookie passed to m0_addb2_mach_init().

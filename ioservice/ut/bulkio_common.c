@@ -348,6 +348,7 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 	bp = t->ta_bp;
 	io_fops = (t->ta_op == M0_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
 		  bp->bp_rfops;
+	M0_SET0(&io_fops[i]->if_fop.f_item.ri_sm);
 	rbulk = m0_fop_to_rpcbulk(&io_fops[i]->if_fop);
 	item = &io_fops[i]->if_fop.f_item;
 	item->ri_session = &bp->bp_cctx->rcx_session;

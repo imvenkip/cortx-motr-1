@@ -49,16 +49,15 @@ struct m0_thread_arch_tls {
 	void *tat_prev;
 };
 
-struct m0_thread_tls;
-
-M0_INTERNAL void m0_thread_enter(struct m0_thread_tls *tls);
+struct m0_thread;
+M0_INTERNAL void m0_thread_enter(struct m0_thread *thread);
 M0_INTERNAL void m0_thread_leave(void);
-M0_INTERNAL void m0_thread__cleanup(struct m0_thread_tls *bye);
+M0_INTERNAL void m0_thread__cleanup(struct m0_thread *bye);
 
 #define M0_THREAD_ENTER						\
-	struct m0_thread_tls __tls					\
+	struct m0_thread __th						\
 		__attribute__((cleanup(m0_thread__cleanup))) = { 0, };	\
-	m0_thread_enter(&__tls)
+	m0_thread_enter(&__th)
 
 M0_INTERNAL struct m0_thread_tls *m0_thread_tls_pop(void);
 M0_INTERNAL void m0_thread_tls_back(struct m0_thread_tls *tls);

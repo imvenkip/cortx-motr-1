@@ -1199,38 +1199,6 @@ M0_INTERNAL void cs_be_fini(struct m0_be_ut_backend *be)
 	m0_free(be->but_stob_domain_location);
 }
 
-#ifndef __KERNEL__
-static void reqh_addb2_net_stop(struct m0_addb2_net *net, void *datum)
-{
-	struct m0_reqh *reqh = datum;
-	m0_semaphore_up(&reqh->rh_addb2_net_idle);
-}
-
-static void cs_addb2_stop(struct m0_reqh *reqh)
-{
-	struct m0_addb2_storage *stor = reqh->rh_addb2_stor;
-	struct m0_addb2_net     *net  = reqh->rh_addb2_net;
-
-	if (stor != NULL) {
-		reqh->rh_addb2_stor = NULL;
-		m0_addb2_storage_stop(stor);
-		m0_semaphore_down(&reqh->rh_addb2_stor_idle);
-		m0_semaphore_fini(&reqh->rh_addb2_stor_idle);
-		m0_addb2_storage_fini(stor);
-	}
-	if (net != NULL) {
-		reqh->rh_addb2_net = NULL;
-		m0_addb2_net_stop(net, &reqh_addb2_net_stop, reqh);
-		m0_semaphore_down(&reqh->rh_addb2_net_idle);
-		m0_semaphore_fini(&reqh->rh_addb2_net_idle);
-		m0_addb2_net_fini(net);
-	}
-}
-#else /* !__KERNEL__ */
-static void cs_addb2_stop(struct m0_reqh *reqh)
-{}
-#endif
-
 /**
    Initialises a request handler context.
    A request handler context consists of the storage domain, database,
@@ -1308,8 +1276,8 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 	if (rc != 0)
 		goto cleanup_addb2_stob;
 
-	rc = m0_reqh_addb2_config(&rctx->rc_reqh, rctx->rc_addb2_stob.cas_stob,
-				  mkfs);
+	rc = m0_reqh_addb2_init(&rctx->rc_reqh, rctx->rc_addb2_stob.cas_stob,
+				mkfs);
 	if (rc != 0)
 		goto cleanup_addb_mc;
 
@@ -1352,7 +1320,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 	return M0_RC(rc);
 
 cleanup_addb2:
-	cs_addb2_stop(&rctx->rc_reqh);
+	m0_reqh_addb2_fini(&rctx->rc_reqh);
 cleanup_addb_mc:
 	m0_addb_mc_unconfigure(&rctx->rc_reqh.rh_addb_mc);
 cleanup_addb2_stob:
@@ -1402,7 +1370,7 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
 	m0_reqh_be_fini(reqh);
 	m0_mdstore_fini(&rctx->rc_mdstore);
-	cs_addb2_stop(reqh);
+	m0_reqh_addb2_fini(reqh);
 	m0_stob_put(rctx->rc_addb2_stob.cas_stob);
 	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
