@@ -196,7 +196,7 @@ m0_get_global_services()
 # Return space-separated list of all services in the cluster
 m0_get_global_ios_services()
 {
-    echo $(m0_get_global_services) | grep -E -o 'ios([[:digit:]]+)?'
+    echo $(m0_get_global_services) | grep -E -o 'ios([[:digit:]]+)?|singlenode'
 }
 
 # Return m0mero.ko endpoint
@@ -318,6 +318,69 @@ m0_get_server_pid_for()
     fi
 }
 
+_build_disk_ids_str()
+{
+    local start_id=$1
+    local count=$2
+
+    local dev_ids
+    local id
+    for id in $(seq $start_id $(($start_id + $count - 1))) ; do
+        local dev_id="(0x6400000000000001, $id)"
+        dev_ids="$dev_ids${dev_ids:+, }$dev_id"
+    done
+
+    echo "[$count: $dev_ids]"
+}
+
+_build_disk_fids_str()
+{
+    local count=$1
+
+    local disk_fids
+    local id
+    for id in $(seq 1 $count) ; do
+        local ddisk_id="(0x6b00000000000001, $id)"
+        disk_fids="$disk_fids${disk_fids:+, }$ddisk_id"
+    done
+
+    echo "[$count: $disk_fids]"
+}
+
+_build_diskv_fids_str()
+{
+    local count=$1
+
+    local disk_fids
+    local id
+    for id in $(seq 1 $count) ; do
+        local ddiskv_id="(0x6a00000000000001, $id)"
+        disk_fids="$disk_fids${disk_fids:+, }$ddiskv_id"
+    done
+
+    echo "[$count: $disk_fids]"
+}
+
+_build_ios_devs()
+{
+    local count=$1
+
+    local devs
+    local id
+    for id in $(seq 1 $count) ; do
+        local ddev_id="(0x6400000000000001, $id)"
+        local ddisk_id="(0x6b00000000000001, $id)"
+        local ddiskv_id="(0x6a00000000000001, $id)"
+        local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"/disk/path/is/not/used/yet\")}"
+        local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id)}"
+        local ddiskv_obj="{0x6a| (($ddiskv_id), $ddisk_id, [0])}"
+        local dev="$ddev_obj,\n  $ddisk_obj,\n  $ddiskv_obj"
+        devs="$devs${devs:+,\n  }$dev"
+    done
+
+    echo -e "$devs"
+}
+
 # Profile fid in the format suitable for 'prof=' mount option. Must match $prof
 # variable in m0_build_local_conf()
 m0_prof_opt='<0x7000000000000001:0>'
@@ -332,40 +395,83 @@ m0_build_local_conf()
     local pool_width=$(m0_genders_value_of m0_pool_width)
     local data_units=$(m0_genders_value_of m0_data_units)
     local parity_units=$(m0_genders_value_of m0_parity_units)
-    local ios_idx=1
+
+    # IOS objects
+    local ios_count=$(m0_get_global_ios_services | wc -w)
+    local disks_per_ios=$(( $pool_width / $ios_count ))
+    local ios_idx=0
+    local ios_names
+    local ios_objs
     local ios_ep
-
-    root='(0x7400000000000001, 0)'
-    prof='(0x7000000000000001, 0)'
-    fs='(0x6600000000000001, 1)'
-    mds='(0x7300000000000001, 2)'
-    rm='(0x7300000000000001, 3)'
-    stats='(0x7300000000000001, 4)'
-    node='(0x6e00000000000001, 0)'
-
-    ios_num=0
     for ios_ep in $(m0_get_global_ios_eps | sed -e 's/lnet://g'); do
-        local ios_name="(0x7300000000000003, $((ios_idx++)))"
-        ios_num=$(($ios_num+1))
+        local disk_ids=$(_build_disk_ids_str $(($ios_idx * $disks_per_ios + 1)) $disks_per_ios)
+        local ios_name="(0x7300000000000002, $((ios_idx++)))"
         ios_names="$ios_names${ios_names:+, }$ios_name"
-        ios_objs="$ios_objs${ios_objs:+, }{0x73| (($ios_name), 2, [1: \"$ios_ep\"], $node)}"
+        ios_objs="$ios_objs${ios_objs:+, }{0x73| (($ios_name), 2, [1: \"$ios_ep\"], $disk_ids)}"
     done
 
+    # MDS objects (current version of initscripts support only single MDS
+    # it will be eliminated completely in LA release
+    local mds_name="(0x7300000000000003, 0)"
+    local mds_obj="{0x73| (($mds_name), 1, [1: \"$mds_ep\"], [0])}"
+
+    local  root='(0x7400000000000001, 0)'
+    local  prof='(0x7000000000000001, 0)'
+    local    fs='(0x6600000000000001, 1)'
+    local  node='(0x6e00000000000001, 2)'
+    local  proc='(0x7200000000000001, 3)'
+    local    rm='(0x7300000000000001, 4)'
+    local stats='(0x7300000000000001, 5)'
+
+    local rackid='(0x6100000000000001, 6)'
+    local enclid='(0x6500000000000001, 7)'
+    local ctrlid='(0x6300000000000001, 8)'
+    local poolid='(0x6f00000000000001, 9)'
+    local pverid='(0x7600000000000001, 10)'
+
+    local rackvid="(0x6a00000000000001, $(($pool_width + 1)))"
+    local enclvid="(0x6a00000000000001, $(($pool_width + 2)))"
+    local ctrlvid="(0x6a00000000000001, $(($pool_width + 3)))"
+
+    local rack="{0x61| (($rackid), [1: $enclid], [1: $pverid])}"
+    local encl="{0x65| (($enclid), [1: $ctrlid], [1: $pverid])}"
+    local ctrl="{0x63| (($ctrlid), $node, $(_build_disk_fids_str $pool_width), [1: $pverid])}"
+    local pool="{0x6f| (($poolid), 0, [1: $pverid])}"
+    local pver="{0x76| (($pverid), 0, $data_units, $parity_units, $pool_width, [3: 1, 2, 3], [0], [1: $rackvid])}"
+    local rackv="{0x6a| (($rackvid), $rackid, [1: $enclvid])}"
+    local enclv="{0x6a| (($enclvid), $enclid, [1: $ctrlvid])}"
+    local ctrlv="{0x6a| (($ctrlvid), $ctrlid, $(_build_diskv_fids_str $pool_width))}"
+
     local_conf=$(cat <<CONF_END
-[$((ios_num + 6)):
+[$(( $ios_count + 1 + $pool_width * 3 + 15 )):
   {0x74| (($root), 1, [1: $prof])},
   {0x70| (($prof), $fs)},
-  {0x66| (($fs), (11, 22),
-              [1: "$pool_width $data_units $parity_units"],
-              [$((ios_num + 3)): $mds, $rm, $stats, $ios_names])},
-  {0x73| (($mds), 1, [1: "$mds_ep"], $node)},
-  {0x73| (($rm), 4, [1: "$rms_ep"], $node)},
-  {0x73| (($stats), 5, [1: "$stats_ep"], $node)},
-  $ios_objs]
+  {0x66| (($fs), (11, 22), 41212,
+          [1: "$pool_width $data_units $parity_units"],
+          $poolid,
+          [1: $node],
+          [1: $poolid],
+          [1: $rackid])},
+  {0x6e| (($node), 16000, 2, 3, 2, $poolid, [1: $proc])},
+  {0x72| (($proc), 4000, 2,
+               [$(($ios_count + 3)): $mds_name, $rm, $ios_names, $stats])},
+  {0x73| (($rm), 4, [1: "$rms_ep"], [0])},
+  {0x73| (($stats), 5, [1: "$stats_ep"], [0])},
+  $mds_obj,
+  $ios_objs,
+  $(_build_ios_devs $pool_width),
+  $rack,
+  $encl,
+  $ctrl,
+  $pool,
+  $pver,
+  $rackv,
+  $enclv,
+  $ctrlv]
 CONF_END
 )
 
-    echo $local_conf
+    echo "$local_conf"
 }
 
 # vim: tabstop=4 shiftwidth=4 expandtab filetype=sh

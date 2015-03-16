@@ -17,9 +17,9 @@ m0_server()
 {
     local service=$1
 
-    [[ -n $service ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
-
     source $service_funcs
+
+    [[ -n $service ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
 
     [ -r $user_config ] && source $user_config
 
