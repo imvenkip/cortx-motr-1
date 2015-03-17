@@ -2020,6 +2020,11 @@ static int nlx_core_init(void)
 	int i;
 	lnet_process_id_t id;
 	const char *nidstr;
+	/*
+	 * Temporarily reset current->journal_info, because LNetNIInit assumes
+	 * it is NULL.
+	 */
+	struct m0_thread_tls *tls = m0_thread_tls_pop();
 
 	/*
 	 * Init LNet with same PID as Lustre would use in case we are first.
@@ -2031,6 +2036,7 @@ static int nlx_core_init(void)
 #else
 	rc = LNetNIInit(LUSTRE_SRV_LNET_PID);
 #endif
+	m0_thread_tls_back(tls);
 	if (rc < 0)
 		return M0_RC(rc);
 

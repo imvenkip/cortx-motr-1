@@ -60,6 +60,8 @@ M0_INTERNAL void m0_thread__cleanup(struct m0_thread_tls *bye);
 		__attribute__((cleanup(m0_thread__cleanup))) = { 0, };	\
 	m0_thread_enter(&__tls)
 
+M0_INTERNAL struct m0_thread_tls *m0_thread_tls_pop(void);
+M0_INTERNAL void m0_thread_tls_back(struct m0_thread_tls *tls);
 
 /** @} end of thread group */
 #endif /* __MERO_LIB_LINUX_KERNEL_THREAD_H__ */

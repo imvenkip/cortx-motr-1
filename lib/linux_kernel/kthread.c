@@ -282,6 +282,22 @@ M0_INTERNAL bool m0_is_awkward(void)
 	return in_irq();
 }
 
+M0_INTERNAL struct m0_thread_tls *m0_thread_tls_pop(void)
+{
+	struct m0_thread_tls *tls  = current->journal_info;
+
+	current->journal_info = tls->tls_arch.tat_prev;
+	return tls;
+}
+
+M0_INTERNAL void m0_thread_tls_back(struct m0_thread_tls *tls)
+{
+	M0_PRE(__instance != NULL);
+	M0_PRE(tls->tls_arch.tat_prev == current->journal_info);
+
+	current->journal_info = tls;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of thread group */
