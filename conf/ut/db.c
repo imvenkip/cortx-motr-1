@@ -149,7 +149,7 @@ void test_confdb(void)
 
 	rc = m0_confstr_parse(m0_ut_conf_str, &enc);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(enc->cx_nr == 21);
+	M0_UT_ASSERT(enc->cx_nr == M0_CONF_UT_STR_NR_OBJS);
 
 	conf_ut_db_init();
 
@@ -178,7 +178,7 @@ void test_confdb(void)
 
 	rc = m0_confdb_read(seg, &dec);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(enc->cx_nr == 21);
+	M0_UT_ASSERT(enc->cx_nr == M0_CONF_UT_STR_NR_OBJS);
 	/*
 	 * @dec can be re-ordered w.r.t. to @enc.
 	 */

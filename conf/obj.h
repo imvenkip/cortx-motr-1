@@ -308,6 +308,7 @@ struct m0_conf_root {
 	 */
 	struct m0_conf_obj  rt_obj;
 	struct m0_conf_dir *rt_profiles;
+/* configuration data (for the application) */
 	/**
 	 * Version of the configuration database.  Incremented after every
 	 * configuration database update.
@@ -559,7 +560,7 @@ extern const struct m0_fid_type M0_CONF_RELFID_TYPE;
  * Root configuration object FID.
  * The same in any configuration database.
  */
-extern const struct m0_fid M0_CONF_ROOT_FID; /*  M0_FID_TINIT('t', 1, 0) */
+extern const struct m0_fid M0_CONF_ROOT_FID;
 
 /**
  * Iterates over registered conf object types.

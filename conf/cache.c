@@ -63,11 +63,10 @@ m0_conf_cache_add(struct m0_conf_cache *cache, struct m0_conf_obj *obj)
 	M0_PRE(!m0_conf_cache_tlink_is_in(obj));
 
 	x = m0_conf_cache_lookup(cache, &obj->co_id);
-	if (x == NULL) {
-		m0_conf_cache_tlist_add(&cache->ca_registry, obj);
-		return M0_RC(0);
-	}
-	return M0_RC(-EEXIST);
+	if (x != NULL)
+		return M0_ERR(-EEXIST);
+	m0_conf_cache_tlist_add(&cache->ca_registry, obj);
+	return M0_RC(0);
 }
 
 M0_INTERNAL struct m0_conf_obj *

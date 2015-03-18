@@ -36,7 +36,7 @@ void test_obj_xtors(void)
 	const struct m0_conf_obj_type *t = NULL;
 
 	while ((t = m0_conf_obj_type_next(t)) != NULL) {
-		const struct m0_fid fid = M0_FID_TINIT(t->cot_ftype.ft_id ,
+		const struct m0_fid fid = M0_FID_TINIT(t->cot_ftype.ft_id,
 						       1, 0);
 		M0_ASSERT(m0_conf_fid_is_valid(&fid));
 		obj = m0_conf_obj_create(&g_cache, &fid);
@@ -49,7 +49,7 @@ void test_obj_xtors(void)
 }
 
 static void
-conf_obj_create(const struct m0_fid *fid, struct m0_conf_obj **result)
+ut_conf_obj_create(const struct m0_fid *fid, struct m0_conf_obj **result)
 {
 	int rc;
 
@@ -68,7 +68,7 @@ conf_obj_create(const struct m0_fid *fid, struct m0_conf_obj **result)
 	M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache, fid) == *result);
 }
 
-static void conf_obj_delete(struct m0_conf_obj *obj)
+static void ut_conf_obj_delete(struct m0_conf_obj *obj)
 {
 	m0_mutex_lock(&g_lock);
 	m0_conf_cache_del(&g_cache, obj);
@@ -77,52 +77,40 @@ static void conf_obj_delete(struct m0_conf_obj *obj)
 	M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache, &obj->co_id) == NULL);
 }
 
-void test_dir_add()
+void test_dir_add_del(void)
 {
-	struct m0_conf_obj *fs;
-	struct m0_conf_obj *rack;
-	struct m0_conf_obj *racks_dir;
-	const struct m0_fid rackid = M0_FID_TINIT('a', 8, 1);
+	struct m0_conf_obj *dir;
+	struct m0_conf_obj *obj;
+	const struct m0_fid objid = M0_FID_TINIT('a', 8, 1);
 
-	conf_obj_create(&M0_FID_TINIT('f', 8, 1), &fs);
-	conf_obj_create(&rackid, &rack);
+	ut_conf_obj_create(&M0_FID_TINIT('D', 8, 1), &dir);
+	M0_CONF_CAST(dir, m0_conf_dir)->cd_relfid = M0_FID_TINIT('/', 0, 999);
+	M0_CONF_CAST(dir, m0_conf_dir)->cd_item_type = m0_conf_fid_type(&objid);
 
-	conf_obj_create(&M0_FID_TINIT('D', 8, 1), &racks_dir);
+	ut_conf_obj_create(&objid, &obj);
+	m0_conf_dir_add(M0_CONF_CAST(dir, m0_conf_dir), obj);
+	m0_conf_dir_del(M0_CONF_CAST(dir, m0_conf_dir), obj);
 
-	M0_CONF_CAST(racks_dir, m0_conf_dir)->cd_relfid =
-		M0_FID_TINIT('/', 0, 999);
-	M0_CONF_CAST(racks_dir, m0_conf_dir)->cd_item_type =
-		m0_conf_fid_type(&rackid);
-	m0_conf_dir_add(M0_CONF_CAST(racks_dir, m0_conf_dir), rack);
-	M0_CONF_CAST(fs, m0_conf_filesystem)->cf_racks =
-		M0_CONF_CAST(racks_dir, m0_conf_dir);
-
-	m0_conf_dir_del(M0_CONF_CAST(racks_dir, m0_conf_dir), rack);
-	conf_obj_delete(racks_dir);
-	conf_obj_delete(rack);
-	conf_obj_delete(fs);
+	ut_conf_obj_delete(obj);
+	ut_conf_obj_delete(dir);
 }
 
 void test_cache(void)
 {
-	int                  rc;
-	struct m0_conf_obj  *obj;
-	size_t               i;
-	struct {
-		struct m0_fid id;
-	} samples[] = {
-		{ /* profile */     M0_FID_TINIT('p', ~0, 0)},
-		{ /* file-system */ M0_FID_TINIT('f', 7, 2) },
-		{ /* directory */   M0_FID_TINIT('D', 7, 3) },
+	int                 rc;
+	struct m0_conf_obj *obj;
+	struct m0_fid       samples[] = {
+		M0_FID_TINIT('p', ~0, 0),
+		M0_FID_TINIT('f', 7, 2),
+		M0_FID_TINIT('D', 7, 3)
 	};
 
-	for (i = 0; i < ARRAY_SIZE(samples); ++i)
-		conf_obj_create(&samples[i].id, &obj);
-
-	conf_obj_delete(obj);
+	m0_forall(i, ARRAY_SIZE(samples),
+		  ut_conf_obj_create(&samples[i], &obj), true);
+	ut_conf_obj_delete(obj); /* delete the last object */
 
 	/* Duplicated identity. */
-	obj = m0_conf_obj_create(&g_cache, &samples[0].id);
+	obj = m0_conf_obj_create(&g_cache, &samples[0]);
 	M0_UT_ASSERT(obj != NULL);
 
 	m0_mutex_lock(&g_lock);
@@ -174,7 +162,7 @@ void test_obj_fill(void)
 
 	rc = m0_confstr_parse(buf, &enc);
 	M0_UT_ASSERT(rc == 0);
-        M0_UT_ASSERT(enc->cx_nr == 21); /* conf-str.txt describes 21 objects */
+	M0_UT_ASSERT(enc->cx_nr == M0_CONF_UT_STR_NR_OBJS);
 
 	m0_mutex_lock(&g_lock);
 	for (i = 0; i < enc->cx_nr; ++i) {
@@ -182,7 +170,6 @@ void test_obj_fill(void)
 
 		rc = m0_conf_obj_find(&g_cache, m0_conf_objx_fid(xobj), &obj) ?:
 			m0_conf_obj_fill(obj, xobj, &g_cache);
-M0_ASSERT_INFO(rc == 0, "XXX rc=%d i=%d", rc, i);
 		M0_UT_ASSERT(rc == 0);
 	}
 	m0_mutex_unlock(&g_lock);
@@ -211,11 +198,11 @@ struct m0_ut_suite conf_ut = {
 	.ts_init  = cache_init,
 	.ts_fini  = cache_fini,
 	.ts_tests = {
-		{ "obj-xtors", test_obj_xtors },
-		{ "cache",     test_cache     },
-		{ "obj-find",  test_obj_find  },
-		{ "obj-fill",  test_obj_fill  },
-		{ "dir-add",   test_dir_add   },
+		{ "obj-xtors",   test_obj_xtors },
+		{ "cache",       test_cache     },
+		{ "obj-find",    test_obj_find  },
+		{ "obj-fill",    test_obj_fill  },
+		{ "dir-add-del", test_dir_add_del },
 		{ NULL, NULL }
 	}
 };

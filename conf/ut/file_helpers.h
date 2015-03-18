@@ -28,7 +28,7 @@
 
 /**
  * Returns absolute path to given file in conf/ut directory.
- * M0_CONF_UT_DIR is defined in conf/ut/Makefile.am.
+ * M0_CONF_UT_DIR is defined in conf/ut/Makefile.sub.
  */
 #define M0_CONF_UT_PATH(name) QUOTE(M0_CONF_UT_DIR) "/" name
 

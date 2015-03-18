@@ -50,14 +50,13 @@ static int root_decode(struct m0_conf_obj        *dest,
 
 	if (s->xt_verno == 0)
 		return M0_ERR(-EINVAL);
-
 	d->rt_verno = s->xt_verno;
 
 	return M0_RC(dir_create_and_populate(
 			&d->rt_profiles,
 			&CONF_DIR_ENTRIES(&M0_CONF_ROOT_PROFILES_FID,
-			                  &M0_CONF_PROFILE_TYPE,
-			                  &s->xt_profiles), dest, cache));
+					  &M0_CONF_PROFILE_TYPE,
+					  &s->xt_profiles), dest, cache));
 }
 
 static int root_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
@@ -65,12 +64,11 @@ static int root_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_conf_root  *s = M0_CONF_CAST(src, m0_conf_root);
 	struct m0_confx_root *d = XCAST(dest);
 	const struct conf_dir_encoding_pair dirs[] = {
-		{ s->rt_profiles, &d->xt_profiles },
+		{ s->rt_profiles, &d->xt_profiles }
 	};
 
 	confx_encode(dest, src);
-	d->xt_verno    = s->rt_verno;
-
+	d->xt_verno = s->rt_verno;
 	return conf_dirs_encode(dirs, ARRAY_SIZE(dirs));
 }
 
@@ -85,8 +83,8 @@ static bool root_match(const struct m0_conf_obj  *cached,
 }
 
 static int root_lookup(struct m0_conf_obj  *parent,
-			     const struct m0_fid *name,
-			     struct m0_conf_obj **out)
+		       const struct m0_fid *name,
+		       struct m0_conf_obj **out)
 {
 	struct m0_conf_root *root = M0_CONF_CAST(parent, m0_conf_root);
 	const struct conf_dir_relation dirs[] = {

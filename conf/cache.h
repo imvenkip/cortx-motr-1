@@ -77,11 +77,6 @@ struct m0_conf_cache {
 
 	/** Cache lock. */
 	struct m0_mutex *ca_lock;
-
-#if 0 /* XXX USEME */
-	/** Magic value. */
-	uint64_t         ca_magic;
-#endif
 };
 
 M0_TL_DECLARE(m0_conf_cache, M0_INTERNAL, struct m0_conf_obj);
