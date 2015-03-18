@@ -50,6 +50,7 @@ extern void test_vec(void);
 extern void test_zerovec(void);
 extern void test_locality(void);
 extern void test_hashtable(void);
+extern void test_fold(void);
 
 struct m0_ut_suite libm0_ut = {
 	.ts_name = "libm0-ut",
@@ -86,6 +87,7 @@ struct m0_ut_suite libm0_ut = {
 		{ "varr",             test_varr          },
 		{ "vec",              test_vec           },
 		{ "zerovec",          test_zerovec       },
+		{ "fold",             test_fold,         "Nikita" },
 		{ NULL,               NULL               }
 	}
 };

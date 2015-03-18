@@ -49,6 +49,7 @@ M0_INTERNAL void test_bob(void);
 M0_INTERNAL void m0_ut_lib_buf_test(void);
 M0_INTERNAL void m0_test_lib_uuid(void);
 M0_INTERNAL void test_hashtable(void);
+M0_INTERNAL void test_fold(void);
 
 struct m0_ut_suite m0_klibm0_ut = {
 	.ts_name = "klibm0-ut",
@@ -81,6 +82,7 @@ struct m0_ut_suite m0_klibm0_ut = {
 		{ "varr",          test_varr	      },
 		{ "vec",           test_vec           },
 		{ "zerovec",       test_zerovec       },
+		{ "fold",          test_fold,         "Nikita" },
 		{ NULL,            NULL               }
 	}
 };

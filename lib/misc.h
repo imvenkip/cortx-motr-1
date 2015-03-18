@@ -122,6 +122,60 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
 #define m0_exists(var, nr, ...) !m0_forall(var, (nr), !(__VA_ARGS__))
 
 /**
+ * Reduces ("aggregates") given expression over an interval.
+ *
+ * @see http://en.wikipedia.org/wiki/Fold_(higher-order_function)
+ *
+ * Example uses
+ *
+ * @code
+ * sum = m0_reduce(i, ARRAY_SIZE(a), 0, + a[i]);
+ * product = m0_reduce(i, ARRAY_SIZE(b), 1, * b[i]);
+ * @encode
+ *
+ * @see m0_fold(), m0_tl_reduce()
+ */
+#define m0_reduce(var, nr, init, exp)		\
+({						\
+	unsigned __nr = (nr);			\
+	unsigned var;				\
+	typeof(init) __accum = (init);		\
+						\
+	for (var = 0; var < __nr; ++var) {	\
+		__accum = __accum exp;		\
+	}					\
+	__accum;				\
+})
+
+/**
+ * Folds given expression over an interval.
+ *
+ * This is a generalised version of m0_reduce().
+ *
+ * @see http://en.wikipedia.org/wiki/Fold_(higher-order_function)
+ *
+ * Example uses
+ *
+ * @code
+ * sum = m0_fold(i, s, ARRAY_SIZE(a), 0, s + a[i]);
+ * max = m0_fold(i, m, ARRAY_SIZE(b), INT_MIN, max_t(int, m, a[i]));
+ * @encode
+ *
+ * @see m0_reduce(), m0_tl_fold()
+ */
+#define m0_fold(var, accum, nr, init, exp)	\
+({						\
+	unsigned __nr = (nr);			\
+	unsigned var;				\
+	typeof(init) accum = (init);		\
+						\
+	for (var = 0; var < __nr; ++var) {	\
+		accum = exp;			\
+	}					\
+	accum;					\
+})
+
+/**
    Evaluates to true iff x is present in set.
 
    e.g. M0_IN(session->s_state, (M0_RPC_SESSION_IDLE,

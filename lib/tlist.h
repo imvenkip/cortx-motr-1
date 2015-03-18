@@ -772,7 +772,59 @@ struct __ ## name ## _terminate_me_with_a_semicolon { ; }
  * @see m0_tl_forall()
  */
 #define m0_tl_exists(name, var, head, ...)			\
-        (!m0_tl_forall(name, var, head, !({ __VA_ARGS__ ; })))
+	(!m0_tl_forall(name, var, head, !({ __VA_ARGS__ ; })))
+
+/**
+ * Reduces ("aggregates") given expression over a list.
+ *
+ * @see http://en.wikipedia.org/wiki/Fold_(higher-order_function)
+ *
+ * Example uses
+ *
+ * @code
+ * sum = m0_tl_reduce(foo, scan, &foos, 0, + scan->f_delta);
+ * product = m0_tl_reduce(foo, scan, &foos, 1, * scan->f_factor);
+ * @encode
+ *
+ * @see m0_tl_fold(), m0_reduce()
+ */
+#define m0_tl_reduce(name, var, head, init, exp)	\
+({							\
+	typeof (name ## _tlist_head(NULL)) var;	\
+	typeof(init) __accum = (init);			\
+							\
+	m0_tl_for(name, head, var) {			\
+		__accum = __accum exp;			\
+	} m0_tlist_endfor;				\
+	__accum;					\
+})
+
+/**
+ * Folds given expression over a list.
+ *
+ * This is a generalised version of m0_tl_reduce().
+ *
+ * @see http://en.wikipedia.org/wiki/Fold_(higher-order_function)
+ *
+ * Example uses
+ *
+ * @code
+ * total = m0_tl_fold(foo, scan, sum, &foos, 0, sum + scan->f_delta);
+ * max = m0_tl_fold(foo, scan, m, &foos, INT_MIN, max_t(int, m, scan->f_val));
+ * @encode
+ *
+ * @see m0_tl_reduce(), m0_fold()
+ */
+#define m0_tl_fold(name, var, accum, head, init, exp)	\
+({							\
+	typeof (name ## _tlist_head(NULL)) var;	\
+	typeof(init) accum = (init);			\
+							\
+	m0_tl_for(name, head, var) {			\
+		accum = exp;				\
+	} m0_tlist_endfor;				\
+	accum;						\
+})
 
 /** @} end of tlist group */
 

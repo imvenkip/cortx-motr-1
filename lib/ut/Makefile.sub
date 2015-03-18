@@ -6,6 +6,7 @@ ut_libmero_ut_la_SOURCES += lib/ut/main.c \
                             lib/ut/chan.c \
                             lib/ut/cookie.c \
                             lib/ut/finject.c \
+                            lib/ut/fold.c \
                             lib/ut/getopts.c \
                             lib/ut/list.c \
                             lib/ut/locality.c \
