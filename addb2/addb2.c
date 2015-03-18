@@ -633,8 +633,6 @@ int m0_addb2_cursor_next(struct m0_addb2_cursor *cur)
 
 int m0_addb2_module_init(void)
 {
-	m0_xc_addb2_init();
-	m0_xc_storage_init();
 	m0_addb2__dummy_payload[0] = tag(DATA | 0, M0_AVI_NODATA);
 	return m0_addb2_identifier_module_init();
 }
@@ -642,8 +640,6 @@ int m0_addb2_module_init(void)
 void m0_addb2_module_fini(void)
 {
 	m0_addb2_identifier_module_fini();
-	m0_xc_storage_fini();
-	m0_xc_addb2_fini();
 }
 
 /**

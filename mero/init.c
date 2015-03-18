@@ -78,6 +78,7 @@
 #include "addb/addb_fops.h"
 #include "stats/stats_fops.h"
 #include "ha/epoch.h"
+#include "xcode/init.h"
 #include "module/instance.h"  /* m0_instance_setup */
 
 M0_INTERNAL int m0_utime_init(void);
@@ -111,6 +112,7 @@ struct init_fini_call subsystem[] = {
 #ifndef __KERNEL__
 	{ &m0_utime_init,       &m0_utime_fini,       "time" },
 #endif
+	{ &m0_xcode_init,       &m0_xcode_fini,       "xcode" },
 	{ &m0_trace_init,       &m0_trace_fini,       "trace" },
 	{ &m0_fi_init,          &m0_fi_fini,          "finject" },
 	{ &m0_memory_init,      &m0_memory_fini,      "memory" },

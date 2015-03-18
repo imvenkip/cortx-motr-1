@@ -46,7 +46,6 @@ M0_INTERNAL void m0_mdservice_fsync_fop_fini(void)
 	m0_fop_type_fini(&m0_fop_fsync_mds_fopt);
 
 	m0_fop_type_fini(&m0_fop_fsync_rep_fopt);
-	m0_xc_fsync_fops_fini();
 }
 M0_EXPORTED(m0_mdservice_fsync_fop_fini);
 
@@ -109,9 +108,6 @@ M0_EXPORTED(m0_mdservice_fsync_fop_init);
  */
 M0_INTERNAL int m0_mdservice_fsync_fop_init(struct m0_reqh_service_type * svct)
 {
-	/* Provided by gccxml2xcode after parsing md_fops.h */
-	m0_xc_fsync_fops_init();
-
 	fop_init(svct);
 
 	M0_FOP_TYPE_INIT(&m0_fop_fsync_rep_fopt,

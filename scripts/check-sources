@@ -159,7 +159,8 @@ sub check_include_guards
               : "WARNING: no '#pragma once' statement is found in '$file'\n";
 
         warn $missing_pragma_msg
-            if $content !~ / ^ \s* \# \s* pragma \s+ once \s* $ /xms;
+            if $content !~ / ^ \s* \# \s* pragma \s+ once \s* $ /xms
+	       and $file ne 'xcode/xlist.h';
 
         my ($include_guard_name)
             = $content =~ /

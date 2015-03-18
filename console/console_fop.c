@@ -44,15 +44,12 @@ M0_INTERNAL void m0_console_fop_fini(void)
 	m0_fop_type_fini(&m0_cons_fop_device_fopt);
 	m0_fop_type_fini(&m0_cons_fop_reply_fopt);
 	m0_fop_type_fini(&m0_cons_fop_test_fopt);
-	m0_xc_console_fop_fini();
 }
 
 extern const struct m0_fom_type_ops m0_cons_fom_device_type_ops;
 
 M0_INTERNAL int m0_console_fop_init(void)
 {
-	m0_xc_console_fop_init();
-
 	M0_FOP_TYPE_INIT(&m0_cons_fop_device_fopt,
 			 .name      = "Device Failed",
 			 .opcode    = M0_CONS_FOP_DEVICE_OPCODE,

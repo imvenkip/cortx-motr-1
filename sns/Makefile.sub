@@ -14,4 +14,5 @@ mero_libmero_la_SOURCES  += sns/sns.c \
                                   sns/parity_ops.c \
                                   sns/parity_repair.c
 
-EXTRA_DIST += sns/poolmach.c
+EXTRA_DIST += sns/poolmach.c \
+              sns/Kbuild.sub

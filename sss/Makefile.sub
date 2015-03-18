@@ -7,3 +7,5 @@ mero_libmero_la_SOURCES += sss/ss_fops.c    \
 			   sss/ss_svc.c
 
 XC_FILES += sss/ss_fops_xc.h
+
+EXTRA_DIST += sss/Kbuild.sub

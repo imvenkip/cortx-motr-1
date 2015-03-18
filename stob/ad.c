@@ -201,7 +201,6 @@ static void stob_ad_type_register(struct m0_stob_type *type)
 	struct m0_stob_ad_module *module = &m0_get()->i_stob_ad_module;
 	int                       rc;
 
-	m0_xc_ad_private_init();
 	M0_FOL_FRAG_TYPE_INIT(stob_ad_rec_frag, "AD record fragment");
 	rc = m0_fol_frag_type_register(&stob_ad_rec_frag_type);
 	M0_ASSERT(rc == 0); /* XXX void */
@@ -215,7 +214,6 @@ static void stob_ad_type_deregister(struct m0_stob_type *type)
 
 	ad_domains_tlist_fini(&module->sam_domains);
 	m0_mutex_fini(&module->sam_lock);
-	m0_xc_ad_private_fini();
 	m0_fol_frag_type_deregister(&stob_ad_rec_frag_type);
 }
 

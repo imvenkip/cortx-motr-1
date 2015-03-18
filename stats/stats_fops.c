@@ -53,7 +53,6 @@ const struct m0_fop_type_ops stats_query_fop_ops;
 
 M0_INTERNAL int m0_stats_fops_init(void)
 {
-	m0_xc_stats_fops_init();
 #ifndef __KERNEL__
         m0_sm_conf_extend(m0_generic_conf.scf_state, stats_query_phases,
                           m0_generic_conf.scf_nr_states);
@@ -92,7 +91,6 @@ M0_INTERNAL int m0_stats_fops_init(void)
 
 M0_INTERNAL void m0_stats_fops_fini(void)
 {
-	m0_xc_stats_fops_fini();
 	m0_fop_type_fini(&m0_fop_stats_update_fopt);
 	m0_fop_type_fini(&m0_fop_stats_query_fopt);
 	m0_fop_type_fini(&m0_fop_stats_query_rep_fopt);

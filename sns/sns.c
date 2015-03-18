@@ -42,17 +42,11 @@ M0_INTERNAL int m0_sns_init()
 	m0_addb_rec_type_register(&m0_addb_rt_sns_repair_info);
 	m0_addb_rec_type_register(&m0_addb_rt_sns_repair_progress);
 
-	m0_xc_sns_cp_onwire_init();
-	m0_xc_sw_onwire_fop_init();
-	m0_xc_trigger_fop_init();
 	return m0_sns_cm_type_register();
 }
 
 M0_INTERNAL void m0_sns_fini()
 {
-	m0_xc_sns_cp_onwire_fini();
-	m0_xc_sw_onwire_fop_fini();
-	m0_xc_trigger_fop_fini();
 	m0_sns_cm_type_deregister();
 }
 

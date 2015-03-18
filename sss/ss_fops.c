@@ -50,7 +50,6 @@ static const struct m0_rpc_item_type_ops ss_item_type_ops = {
 
 M0_INTERNAL int m0_ss_fops_init(void)
 {
-	m0_xc_ss_fops_init();
 	m0_sm_conf_extend(m0_generic_conf.scf_state, ss_fom_phases,
 			  m0_generic_conf.scf_nr_states);
 	m0_fop_ss_rep_fopt.ft_magix = 0;
@@ -79,7 +78,6 @@ M0_INTERNAL int m0_ss_fops_init(void)
 
 M0_INTERNAL void m0_ss_fops_fini(void)
 {
-	m0_xc_ss_fops_fini();
 	m0_fop_type_fini(&m0_fop_ss_fopt);
 	m0_fop_type_fini(&m0_fop_ss_rep_fopt);
 }

@@ -96,12 +96,6 @@ M0_INTERNAL int m0_rpc_item_module_init(void)
 
 	M0_ENTRY();
 
-	/**
-	 * @todo This should be done from dtm subsystem init.
-	 */
-	m0_xc_rpc_onwire_init();
-	m0_xc_cookie_init();
-
 	m0_rwlock_init(&rpc_item_types_lock);
 	rit_tlist_init(&rpc_item_types_list);
 

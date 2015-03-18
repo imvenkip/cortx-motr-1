@@ -21,3 +21,5 @@ mero_libmero_la_SOURCES += cm/ag.c \
 
 
 XC_FILES += cm/ag_xc.h cm/cp_onwire_xc.h cm/sw_xc.h
+
+EXTRA_DIST += cm/Kbuild.sub

@@ -511,10 +511,6 @@ M0_INTERNAL void m0_rm_fop_fini(void)
 	m0_fop_type_fini(&m0_rm_fop_revoke_fopt);
 	m0_fop_type_fini(&m0_rm_fop_borrow_rep_fopt);
 	m0_fop_type_fini(&m0_rm_fop_borrow_fopt);
-	m0_xc_rm_fops_fini();
-	m0_xc_fom_generic_fini();
-	m0_xc_cookie_fini();
-	m0_xc_buf_fini();
 }
 M0_EXPORTED(m0_rm_fop_fini);
 
@@ -524,11 +520,6 @@ M0_EXPORTED(m0_rm_fop_fini);
  */
 M0_INTERNAL int m0_rm_fop_init(void)
 {
-	m0_xc_buf_init();
-	m0_xc_cookie_init();
-	m0_xc_fom_generic_init();
-	m0_xc_rm_fops_init();
-
 	M0_FOP_TYPE_INIT(&m0_rm_fop_borrow_fopt,
 			 .name      = "Credit Borrow",
 			 .opcode    = M0_RM_FOP_BORROW,

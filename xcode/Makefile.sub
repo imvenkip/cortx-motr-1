@@ -1,7 +1,9 @@
 nobase_mero_include_HEADERS += xcode/xcode.h \
+                                  xcode/init.h \
                                   xcode/xcode_attr.h
 
 mero_libmero_la_SOURCES  += xcode/string.c \
+                                  xcode/init.c \
                                   xcode/xcode.c
 
 EXTRA_DIST += xcode/gccxml2xcode \

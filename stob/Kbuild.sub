@@ -1,7 +1,8 @@
 m0mero_objects += stob/stob.o \
-                 stob/cache.o \
-                 stob/domain.o \
-                 stob/io.o \
-                 stob/module.o \
-                 stob/null.o \
-		 stob/type.o
+                  stob/ad_private_xc.o \
+                  stob/cache.o \
+                  stob/domain.o \
+                  stob/io.o \
+                  stob/module.o \
+                  stob/null.o \
+                  stob/type.o

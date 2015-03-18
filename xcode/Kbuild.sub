@@ -1,2 +1,3 @@
 m0mero_objects += xcode/xcode.o \
-                 xcode/string.o
+                  xcode/init.o \
+                  xcode/string.o

@@ -808,7 +808,6 @@ M0_INTERNAL int m0_addb_init(void)
 	if (rc != 0)
 		return M0_RC(rc);
 	m0_mutex_init(&addb_mutex);
-	m0_xc_addb_wire_init();
 	addb_ct_init();
 	addb_rt_init();
 	addb_ctx_init();
@@ -829,7 +828,6 @@ M0_INTERNAL void m0_addb_fini(void)
 	addb_ctx_fini();
 	addb_rt_fini();
 	addb_ct_fini();
-	m0_xc_addb_wire_fini();
 	m0_mutex_fini(&addb_mutex);
 }
 

@@ -112,8 +112,6 @@ M0_INTERNAL void m0_rpc_session_fop_fini(void)
 	m0_fop_type_fini(&m0_rpc_fop_session_establish_fopt);
 	m0_fop_type_fini(&m0_rpc_fop_conn_terminate_fopt);
 	m0_fop_type_fini(&m0_rpc_fop_conn_establish_fopt);
-	m0_xc_session_fops_fini();
-	m0_xc_rpc_onwire_fini();
 }
 
 extern struct m0_fom_type_ops m0_rpc_fom_conn_establish_type_ops;
@@ -124,7 +122,6 @@ extern struct m0_reqh_service_type m0_rpc_service_type;
 
 M0_INTERNAL int m0_rpc_session_fop_init(void)
 {
-	m0_xc_session_fops_init();
 	M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_establish_fopt,
 			 .name      = "Rpc conn establish",
 			 .opcode    = M0_RPC_CONN_ESTABLISH_OPCODE,

@@ -193,7 +193,6 @@ static const struct m0_fid_type misc = {
 M0_INTERNAL int m0_fid_init(void)
 {
 	m0_fid_type_register(&misc);
-	m0_xc_fid_init();
 	return 0;
 }
 M0_EXPORTED(m0_fid_init);
@@ -201,7 +200,6 @@ M0_EXPORTED(m0_fid_init);
 M0_INTERNAL void m0_fid_fini(void)
 {
 	m0_fid_type_unregister(&misc);
-	m0_xc_fid_fini();
 }
 M0_EXPORTED(m0_fid_fini);
 

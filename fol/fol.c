@@ -162,14 +162,12 @@ static struct m0_mutex rptypes_lock;
 
 M0_INTERNAL int m0_fols_init(void)
 {
-	m0_xc_fol_init();
 	m0_mutex_init(&rptypes_lock);
 	return 0;
 }
 
 M0_INTERNAL void m0_fols_fini(void)
 {
-	m0_xc_fol_fini();
 	m0_mutex_fini(&rptypes_lock);
 }
 

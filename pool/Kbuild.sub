@@ -1,1 +1,4 @@
-m0mero_objects += pool/pool.o pool/pool_store.o pool/pool_machine.o
+m0mero_objects += pool/pool.o \
+                  pool/pool_fops_xc.o \
+                  pool/pool_store.o \
+                  pool/pool_machine.o

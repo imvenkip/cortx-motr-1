@@ -38,15 +38,10 @@ M0_INTERNAL void m0_ha_state_fop_fini(void)
 	m0_fop_type_fini(&m0_ha_state_get_fopt);
 	m0_fop_type_fini(&m0_ha_state_get_rep_fopt);
 	m0_fop_type_fini(&m0_ha_state_set_fopt);
-	m0_xc_note_fini();
-	m0_xc_note_fops_fini();
 }
 
 M0_INTERNAL int m0_ha_state_fop_init(void)
 {
-	m0_xc_note_init();
-	m0_xc_note_fops_init();
-
 	M0_FOP_TYPE_INIT(&m0_ha_state_get_fopt,
 			 .name      = "HA State Get",
 			 .opcode    = M0_HA_NOTE_GET_OPCODE,

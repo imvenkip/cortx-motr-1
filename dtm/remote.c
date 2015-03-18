@@ -192,7 +192,6 @@ static void rem_rpc_notify(struct m0_dtm_remote *rem,
 
 M0_INTERNAL int m0_dtm_remote_global_init(void)
 {
-	m0_xc_remote_init();
 	rem_rpc_itype_ops = m0_fop_default_item_type_ops;
 	rem_rpc_itype_ops.rito_deliver = &rem_rpc_deliver;
 	M0_FOP_TYPE_INIT(&rem_rpc_fopt,
@@ -208,7 +207,6 @@ M0_INTERNAL int m0_dtm_remote_global_init(void)
 M0_INTERNAL void m0_dtm_remote_global_fini(void)
 {
 	m0_fop_type_fini(&rem_rpc_fopt);
-	m0_xc_remote_fini();
 }
 
 static void notice_deliver(struct m0_dtm_notice *notice, struct m0_dtm *dtm)

@@ -22,7 +22,7 @@ EXTRA_DIST += addb/addb_counter.c \
               addb/addb_fops.c \
               addb/addb_fops_xc.c \
               addb/addb_mc.c \
-	      addb/addb_monitor.c \
+              addb/addb_monitor.c \
               addb/addbmc.dia \
               addb/addbmc.png \
               addb/addb_rec.c \
@@ -36,7 +36,3 @@ EXTRA_DIST += addb/addb_counter.c \
               addb/user_space/addb_stobsink.c \
               addb/addb_svc.c \
               addb/user_space/uctx.c
-
-addb/addb.c: \
-	     addb/addb_fops_xc.h \
-             addb/addb_wire_xc.h

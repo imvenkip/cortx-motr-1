@@ -866,13 +866,6 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	return M0_RC(rc);
 }
 
-static void cm_xc_init()
-{
-	m0_xc_ag_init();
-	m0_xc_cp_onwire_init();
-	m0_xc_sw_init();
-}
-
 M0_INTERNAL int m0_cm_module_init(void)
 {
 
@@ -883,17 +876,9 @@ M0_INTERNAL int m0_cm_module_init(void)
 	cmtypes_tlist_init(&cmtypes);
 	m0_bob_type_tlist_init(&cmtypes_bob, &cmtypes_tl);
 	m0_mutex_init(&cmtypes_mutex);
-	cm_xc_init();
 
 	M0_LEAVE();
 	return 0;
-}
-
-static void cm_xc_fini()
-{
-	m0_xc_ag_fini();
-	m0_xc_cp_onwire_fini();
-	m0_xc_sw_fini();
 }
 
 M0_INTERNAL void m0_cm_module_fini(void)
@@ -903,7 +888,6 @@ M0_INTERNAL void m0_cm_module_fini(void)
 	cmtypes_tlist_fini(&cmtypes);
 	m0_mutex_fini(&cmtypes_mutex);
         m0_addb_ctx_fini(&m0_cm_mod_ctx);
-	cm_xc_fini();
 
 	M0_LEAVE();
 }

@@ -49,12 +49,10 @@ M0_EXPORTED(m0_fop_generic_reply_fopt);
 M0_INTERNAL void m0_fom_generic_fini(void)
 {
 	m0_fop_type_fini(&m0_fop_generic_reply_fopt);
-	m0_xc_fom_generic_fini();
 }
 
 M0_INTERNAL int m0_fom_generic_init(void)
 {
-	m0_xc_fom_generic_init();
 	M0_FOP_TYPE_INIT(&m0_fop_generic_reply_fopt,
 			 .name      = "generic-reply",
 			 .opcode    = M0_REQH_ERROR_REPLY_OPCODE,

@@ -138,9 +138,6 @@ M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
 
 M0_INTERNAL int m0_dtm_global_init(void)
 {
-	m0_xc_dtm_update_init();
-	m0_xc_operation_init();
-	m0_xc_update_init();
 	m0_dtm_nuclei_init();
 	return m0_dtm_remote_global_init();
 }
@@ -149,9 +146,6 @@ M0_INTERNAL void m0_dtm_global_fini(void)
 {
 	m0_dtm_remote_global_fini();
 	m0_dtm_nuclei_fini();
-	m0_xc_dtm_update_fini();
-	m0_xc_update_fini();
-	m0_xc_operation_fini();
 }
 
 M0_INTERNAL struct m0_dtm *nu_dtm(struct m0_dtm_nu *nu)

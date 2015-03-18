@@ -309,7 +309,6 @@ M0_INTERNAL struct m0_fop_type *m0_fop_type_next(struct m0_fop_type *ftype)
 M0_FOL_FRAG_TYPE_DECLARE(m0_fop_fol_frag, , NULL, NULL, NULL, NULL);
 M0_INTERNAL int m0_fops_init(void)
 {
-	m0_xc_fop_init();
 	m0_sm_conf_init(&fom_states_conf);
 	m0_addb_ctx_type_register(&m0_addb_ct_fop_mod);
 	m0_addb_ctx_type_register(&m0_addb_ct_fom_locality);
@@ -338,7 +337,6 @@ M0_INTERNAL int m0_fops_init(void)
 
 M0_INTERNAL void m0_fops_fini(void)
 {
-	m0_xc_fop_fini();
 	m0_addb_ctx_fini(&m0_fop_addb_ctx);
 	m0_mutex_fini(&fop_types_lock);
 	ft_tlist_fini(&fop_types_list);

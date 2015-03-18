@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,29 +14,37 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Yuriy Umanets <Yuriy_Umanets@xyratex.com>
- * Original creation date: 01/23/2010
+ * Original author: Nikita Danilov <nikita.danilov@seagate.com>
+ * Original creation date: 18-Mar-2015
  */
 
-#include "lib/bitmap_xc.h"
-#include "lib/buf_xc.h"
-#include "lib/types_xc.h"
-#include "lib/vec_xc.h"
-#include "lib/types_xc.h"
-#include "lib/ext_xc.h"
-#include "lib/string_xc.h"
-#include "lib/misc.h"       /* M0_EXPORTED */
+#pragma once
 
-M0_INTERNAL int libm0_init(void)
-{
-	return 0;
-}
-M0_EXPORTED(libm0_init);
+#ifndef __MERO_XCODE_INIT_H__
+#define __MERO_XCODE_INIT_H__
 
-M0_INTERNAL void libm0_fini(void)
-{
-}
-M0_EXPORTED(libm0_fini);
+/**
+ * @defgroup xcode
+ *
+ * @{
+ */
+
+/**
+ * Initialises all xcode types processed by gccxml2xcode during build.
+ *
+ * @see m0_xcode_fini()
+ */
+M0_INTERNAL int m0_xcode_init(void);
+
+/**
+ * Finalises all xcode types processed by gccxml2xcode during build.
+ *
+ * @see m0_xcode_init()
+ */
+M0_INTERNAL void m0_xcode_fini(void);
+
+/** @} end of xcode group */
+#endif /* __MERO_XCODE_INIT_H__ */
 
 /*
  *  Local variables:
@@ -46,4 +54,7 @@ M0_EXPORTED(libm0_fini);
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */

@@ -35,4 +35,5 @@ mero_libmero_la_SOURCES  += sns/cm/ag.c \
 
 XC_FILES += sns/cm/sns_cp_onwire_xc.h sns/cm/sw_onwire_fop_xc.h sns/cm/trigger_fop_xc.h
 
-EXTRA_DIST += sns/poolmach.c
+EXTRA_DIST += sns/poolmach.c \
+              sns/cm/Kbuild.sub

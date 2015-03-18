@@ -68,7 +68,6 @@ struct m0_addb_ctx m0_net_addb_ctx;
 M0_INTERNAL int m0_net_init()
 {
 	m0_mutex_init(&m0_net_mutex);
-	m0_xc_net_otw_types_init();
 
 	m0_addb_ctx_type_register(&m0_addb_ct_net_mod);
 	m0_addb_ctx_type_register(&m0_addb_ct_net_dom);
@@ -99,7 +98,6 @@ M0_INTERNAL int m0_net_init()
 
 M0_INTERNAL void m0_net_fini()
 {
-	m0_xc_net_otw_types_fini();
 	m0_addb_ctx_fini(&m0_net_addb_ctx);
 	m0_mutex_fini(&m0_net_mutex);
 }

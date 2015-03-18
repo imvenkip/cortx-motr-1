@@ -1,6 +1,7 @@
 m0mero_objects += \
                   be/btree.o \
                   be/extmap.o \
+                  be/extmap_xc.o \
                   be/list.o \
                   be/obj_xc.o \
                   be/seg_dict.o \

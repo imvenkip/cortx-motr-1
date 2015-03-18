@@ -50,8 +50,6 @@ static void m0_addb_rpc_sink_fop_release(struct m0_ref *ref)
 
 M0_INTERNAL int m0_addb_service_fop_init(void)
 {
-	m0_xc_addb_fops_init();
-
 	/**
 	 * @todo Add rpc_ops, when addb rpc items encode/decode functions
 	 * would be defined, currently make use of default ones.
@@ -73,7 +71,6 @@ M0_INTERNAL int m0_addb_service_fop_init(void)
 M0_INTERNAL void m0_addb_service_fop_fini(void)
 {
 	m0_fop_type_fini(&m0_fop_addb_rpc_sink_fopt);
-	m0_xc_addb_fops_fini();
 }
 
 M0_INTERNAL int m0_addb_rpc_sink_fop_init(struct rpcsink_fop *rsfop,

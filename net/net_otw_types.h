@@ -26,6 +26,8 @@
 
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
+#include "addb/addb_wire.h"
+#include "addb/addb_wire_xc.h"
 
 /**
  @addtogroup net

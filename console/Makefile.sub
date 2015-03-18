@@ -17,4 +17,5 @@ mero_libmero_la_SOURCES  += console/console_fop.c \
 
 XC_FILES   += console/console_fop_xc.h
 
-EXTRA_DIST += console/st/console-st.sh
+EXTRA_DIST += console/st/console-st.sh \
+              console/Kbuild.sub

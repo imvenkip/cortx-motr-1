@@ -43,7 +43,6 @@ M0_INTERNAL void m0_poolmach_fop_fini(void)
 	m0_fop_type_fini(&m0_fop_poolmach_query_rep_fopt);
 	m0_fop_type_fini(&m0_fop_poolmach_set_fopt);
 	m0_fop_type_fini(&m0_fop_poolmach_set_rep_fopt);
-	m0_xc_pool_fops_fini();
 }
 
 extern struct m0_reqh_service_type m0_ios_type;
@@ -54,7 +53,6 @@ extern struct m0_sm_state_descr poolmach_phases[];
 
 M0_INTERNAL int m0_poolmach_fop_init(void)
 {
-	m0_xc_pool_fops_init();
 	m0_sm_conf_extend(m0_generic_conf.scf_state, poolmach_phases,
 			  m0_generic_conf.scf_nr_states);
 	M0_FOP_TYPE_INIT(&m0_fop_poolmach_query_fopt,

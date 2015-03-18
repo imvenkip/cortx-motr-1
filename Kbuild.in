@@ -62,6 +62,8 @@ include $(src)/addb2/Kbuild.sub
 include $(src)/be/Kbuild.sub
 include $(src)/conf/Kbuild.sub
 include $(src)/cob/Kbuild.sub
+include $(src)/console/Kbuild.sub
+include $(src)/cm/Kbuild.sub
 include $(src)/dtm/Kbuild.sub
 include $(src)/fid/Kbuild.sub
 include $(src)/file/Kbuild.sub
@@ -83,7 +85,9 @@ include $(src)/rm/Kbuild.sub
 include $(src)/rpc/Kbuild.sub
 include $(src)/sm/Kbuild.sub
 include $(src)/sns/Kbuild.sub
+include $(src)/sns/cm/Kbuild.sub
 include $(src)/spiel/Kbuild.sub
+include $(src)/sss/Kbuild.sub
 include $(src)/stats/Kbuild.sub
 include $(src)/stob/Kbuild.sub
 include $(src)/xcode/Kbuild.sub

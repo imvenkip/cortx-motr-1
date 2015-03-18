@@ -400,6 +400,11 @@ AX_PROG_PERL_MODULES([IO::All], ,
 perl-IO-All package on Red Hat based systems])
 )
 
+AX_PROG_PERL_MODULES([File::Slurp], ,
+        AC_MSG_ERROR([No File::Slurp Perl module found: it can be installed from \
+perl-File-Slurp package on Red Hat based systems])
+)
+
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
 AS_IF([test -z $POD2MAN],
       AC_MSG_ERROR([pod2man is not found please install perl])
