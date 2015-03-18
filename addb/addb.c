@@ -706,7 +706,6 @@ Plan</a> for details.
 #include "addb/addb_wire_xc.h"
 #include "addb/addb_fops_xc.h"
 #include "addb/addb_monitor.h"
-#include "addb/addb_monitor_wire_xc.h"
 struct m0_uint128 m0_node_uuid; /* globally visible uuid */
 
 /**

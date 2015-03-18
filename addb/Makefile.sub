@@ -3,8 +3,6 @@ nobase_mero_include_HEADERS += addb/addb.h \
                                addb/addb_fops_xc.h \
                                addb/addb_macros.h \
 			       addb/addb_monitor.h \
-			       addb/addb_monitor_wire.h \
-			       addb/addb_monitor_wire_xc.h \
                                addb/addb_pvt.h \
                                addb/addb_wire.h \
                                addb/addb_wire_xc.h \
@@ -15,7 +13,6 @@ mero_libmero_la_SOURCES  += addb/addb.c \
                             addb/addb_wire_xc.c
 
 XC_FILES   += addb/addb_wire_xc.h \
-	      addb/addb_monitor_wire_xc.h \
               addb/addb_fops_xc.h
 
 EXTRA_DIST += addb/addb_counter.c \
@@ -26,7 +23,6 @@ EXTRA_DIST += addb/addb_counter.c \
               addb/addb_fops_xc.c \
               addb/addb_mc.c \
 	      addb/addb_monitor.c \
-	      addb/addb_monitor_wire_xc.c \
               addb/addbmc.dia \
               addb/addbmc.png \
               addb/addb_rec.c \
@@ -41,6 +37,6 @@ EXTRA_DIST += addb/addb_counter.c \
               addb/addb_svc.c \
               addb/user_space/uctx.c
 
-addb/addb.c: addb/addb_monitor_wire_xc.h \
+addb/addb.c: \
 	     addb/addb_fops_xc.h \
              addb/addb_wire_xc.h
