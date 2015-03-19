@@ -129,6 +129,18 @@ static void get_fop_release(struct m0_ref *ref)
 	M0_LEAVE();
 }
 
+static bool note_invariant(const struct m0_ha_nvec *note, bool known)
+{
+#define N(i) (note->nv_note[i])
+	return m0_forall(i, note->nv_nr,
+			 _0C((N(i).no_state != M0_NC_UNKNOWN) == known) &&
+			 _0C(m0_conf_fid_is_valid(&N(i).no_id)) &&
+			 _0C(ergo(M0_IN(N(i).no_state,
+					(M0_NC_REPAIR, M0_NC_REBALANCE)),
+			 m0_conf_fid_type(&N(i).no_id) == &M0_CONF_POOL_TYPE)));
+#undef N
+}
+
 M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 				struct m0_ha_nvec *note, struct m0_chan *chan)
 {
@@ -138,13 +150,7 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 	struct get_fop_context *ctx;
 
 	M0_ENTRY();
-	M0_PRE(m0_forall(i, note->nv_nr,
-			 note->nv_note[i].no_state == M0_NC_UNKNOWN &&
-			 m0_conf_fid_is_valid(&note->nv_note[i].no_id)));
-	/** @todo once M0_CONF_POOL_TYPE is landed.
- *    ergo(M0_IN(note->nv_note[i].no_state, (M0_NC_REPAIR, M0_NC_REBALANCE)),
- *         m0_conf_fid_type(&note->nv_note[i].no_id) == &M0_CONF_POOL_TYPE))
- */
+	M0_PRE(note_invariant(note, false));
 	M0_ALLOC_PTR(ctx);
 	if (ctx == NULL)
 		return M0_ERR(-ENOMEM);
@@ -170,13 +176,8 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 	int                 rc;
 
 	M0_ENTRY();
-	M0_PRE(m0_forall(i, note->nv_nr,
-			 note->nv_note[i].no_state != M0_NC_UNKNOWN &&
-			 m0_conf_fid_is_valid(&note->nv_note[i].no_id)));
-	/** @todo once M0_CONF_POOL_TYPE is landed.
- *    ergo(M0_IN(note->nv_note[i].no_state, (M0_NC_REPAIR, M0_NC_REBALANCE)),
- *         m0_conf_fid_type(&note->nv_note[i].no_id) == &M0_CONF_POOL_TYPE))
- */
+	M0_PRE(note_invariant(note, true));
+
 	fop = m0_fop_alloc(&m0_ha_state_set_fopt, note,
 			   m0_fop_session_machine(session));
 	if (fop != NULL) {
@@ -207,13 +208,8 @@ M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
 	int                   i;
 
 	M0_ENTRY();
-	M0_PRE(m0_forall(i, note->nv_nr,
-			 note->nv_note[i].no_state != M0_NC_UNKNOWN &&
-			 m0_conf_fid_is_valid(&note->nv_note[i].no_id)));
-	/** @todo once M0_CONF_POOL_TYPE is landed.
- *    ergo(M0_IN(note->nv_note[i].no_state, (M0_NC_REPAIR, M0_NC_REBALANCE)),
- *         m0_conf_fid_type(&note->nv_note[i].no_id) == &M0_CONF_POOL_TYPE))
- */
+	M0_PRE(note_invariant(note, true));
+
 	cache = &confc->cc_cache;
 	for (i = 0; i < note->nv_nr; ++i) {
 		id = &note->nv_note[i].no_id;
