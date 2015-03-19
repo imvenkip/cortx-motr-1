@@ -561,11 +561,11 @@ fmio_m0t1fs_mount()
 {
 	# XXX MERO-704: Perform testing with non-oostore mode once MERO-678 is
 	# fixed
-	oostore="oostore"
+	local mountopt="oostore,verify"
 
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P $oostore &>> $MERO_TEST_LOGFILE || {
+		mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P $mountopt &>> $MERO_TEST_LOGFILE || {
 			cat $MERO_TEST_LOGFILE
 			return 1
 		}

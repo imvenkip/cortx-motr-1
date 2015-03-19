@@ -57,7 +57,7 @@ sns_repair_test()
 	local unit_size=$((stride * 1024))
 
 	echo "Starting SNS repair testing ..."
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P "oostore" &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P "oostore,verify" &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
@@ -86,6 +86,15 @@ sns_repair_test()
 	if [ $? -ne "0" ]
 	then
 		return $?
+	fi
+
+	echo "Device $fail_device1 and $fail_device2 failed. Do dgmode read"
+	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "md5 sum does not match in dgmode: $rc"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
 	fi
 
 	pool_mach_query $fail_device1 $fail_device2

@@ -366,7 +366,7 @@ static void ds_test(void)
 	/* nw_xfer_request attributes test. */
 	M0_UT_ASSERT(req.ir_nwxfer.nxr_rc == 0);
 	M0_UT_ASSERT(req.ir_nwxfer.nxr_bytes == 0);
-	M0_UT_ASSERT(req.ir_nwxfer.nxr_iofop_nr == 0);
+	M0_UT_ASSERT(m0_atomic64_get(&req.ir_nwxfer.nxr_iofop_nr) == 0);
 	M0_UT_ASSERT(req.ir_nwxfer.nxr_magic == M0_T1FS_NWREQ_MAGIC);
 	M0_UT_ASSERT(req.ir_nwxfer.nxr_state == NXS_INITIALIZED);
 
@@ -885,7 +885,7 @@ static void target_ioreq_test(void)
 
 	rc = target_ioreq_iofops_prepare(&ti, PA_DATA);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(ti.ti_nwxfer->nxr_iofop_nr == 1);
+	M0_UT_ASSERT(m0_atomic64_get(&ti.ti_nwxfer->nxr_iofop_nr) == 1);
 
 	m0_tl_for(iofops, &ti.ti_iofops, irfop) {
 		struct m0_rpc_bulk *rbulk = &irfop->irf_iofop.if_rbulk;
@@ -898,11 +898,11 @@ static void target_ioreq_test(void)
 	m0_tl_teardown(iofops, &ti.ti_iofops, irfop) {
 		struct m0_io_fop *iofop = &irfop->irf_iofop;
 
-		req.ir_nwxfer.nxr_rdbulk_nr -=
-			rpcbulk_tlist_length(&iofop->if_rbulk.rb_buflist);
+		m0_atomic64_sub(&req.ir_nwxfer.nxr_rdbulk_nr,
+			rpcbulk_tlist_length(&iofop->if_rbulk.rb_buflist));
 		irfop_fini(irfop);
 		m0_io_fop_fini(iofop);
-		M0_CNT_DEC(req.ir_nwxfer.nxr_iofop_nr);
+		m0_atomic64_dec(&req.ir_nwxfer.nxr_iofop_nr);
 	}
 
 	/* Checks allocation failure. */
@@ -1199,8 +1199,8 @@ static void dgmode_readio_test(void)
 	m0_rpc_bulk_buflist_empty(rbulk);
 	m0_fop_put_lock(reply);
 	ioreq_sm_state_set(req, IRS_READ_COMPLETE);
-	req->ir_nwxfer.nxr_iofop_nr = 0;
-	req->ir_nwxfer.nxr_rdbulk_nr = 0;
+	m0_atomic64_set(&req->ir_nwxfer.nxr_iofop_nr, 0);
+	m0_atomic64_set(&req->ir_nwxfer.nxr_rdbulk_nr, 0);
 	ti->ti_dgvec = NULL;
 
 	req->ir_ops->iro_iomaps_destroy(req);

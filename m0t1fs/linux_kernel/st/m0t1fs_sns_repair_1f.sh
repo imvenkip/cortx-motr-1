@@ -29,7 +29,7 @@ sns_repair_test()
 	local unit_size=$((stride * 1024))
 
 	echo "Starting SNS repair testing ..."
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore,verify" &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
@@ -57,6 +57,15 @@ sns_repair_test()
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "m0poolmach failed: $rc"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
+	fi
+
+	echo "Device $fail_device failed. Do dgmode read"
+	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "SNS: gmode read failed: $rc"
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return $rc
 	fi

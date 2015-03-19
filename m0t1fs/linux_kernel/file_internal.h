@@ -1214,7 +1214,7 @@ struct nw_xfer_request {
 	 * For READ, When it reaches zero and read bulk count reaches zero,
 	 * state of io_request::ir_sm changes.
 	 */
-	uint64_t                  nxr_iofop_nr;
+	struct m0_atomic64        nxr_iofop_nr;
 
 	/**
 	 * Number of read IO bulks issued by all target_ioreq structures
@@ -1223,7 +1223,7 @@ struct nw_xfer_request {
 	 * When it reaches zero, and nxr_iofop_nr reaches zero, state of
 	 * io_request::ir_sm changes
 	 */
-	uint64_t                  nxr_rdbulk_nr;
+	struct m0_atomic64        nxr_rdbulk_nr;
 };
 
 /**

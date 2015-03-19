@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
 	for (i = 0; i < NUM_ITERATIONS; ++i) {
 		ch = 'a';
 		for (j = 0; j < NUM_ALPHABETS; ++j, ++ch) {
-			for (k = 0; k < NUM_ALPHABET_REPEATITIONS; ++k)
+			for (k = 0; k < NUM_ALPHABET_REPEATITIONS - 1; ++k) {
 				bytes = fwrite(&ch, sizeof(char), 1, fd);
 				/*
 				 * bytes is collected here just to keep the
@@ -42,12 +42,15 @@ int main(int argc, char *argv[])
 				 * only once below, again to keep the compiler
 				 * happy!
 				 */
+			}
+			bytes = fwrite("\n", sizeof(char), 1, fd);
 		}
 	}
 	assert(bytes == sizeof(char));
-	fclose(fd);
 	total_size = NUM_ALPHABETS * NUM_ALPHABET_REPEATITIONS *
 		     NUM_ITERATIONS;
+	assert(ftell(fd) == total_size);
+	fclose(fd);
 	total_size_MB = (float)total_size / 1024 / 1024;
 	printf("File \"%s\" closed after writing %llu bytes (%f MB)\n",
 	       argv[1], total_size, total_size_MB);
