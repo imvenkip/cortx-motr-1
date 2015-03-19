@@ -188,6 +188,11 @@ $copyright_header
  * \@{
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_XXX
+/*** Header includes are after this line. Remove this line. ***/
+
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** \@} end of XXX group */
 
