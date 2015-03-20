@@ -331,6 +331,12 @@ struct m0_rpc_session {
 	 * This cache is protected with rpc machine lock.
 	 */
 	struct m0_rpc_item_cache  s_reply_cache;
+
+	/**
+	 * Requests which are handling already.
+	 * This cache is protected with rpc machine lock.
+	 */
+	struct m0_rpc_item_cache  s_req_cache;
 };
 
 /**

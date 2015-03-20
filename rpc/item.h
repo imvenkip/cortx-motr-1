@@ -117,6 +117,7 @@ enum m0_rpc_item_resend {
 	 */
 	M0_RPC_ITEM_RESEND_INTERVAL = 1, /* in secs */
 	M0_RPC_ITEM_REPLY_CACHE_TMO = M0_RPC_ITEM_RESEND_INTERVAL * 10,
+	M0_RPC_ITEM_REQ_CACHE_TMO = M0_RPC_ITEM_RESEND_INTERVAL * 10,
 };
 
 /**
@@ -315,8 +316,8 @@ int m0_rpc_item_timedwait(struct m0_rpc_item *item,
    Waits until either item reaches in one of REPLIED/FAILED states
    or timeout is elapsed.
 
-   @returns 0 when item is REPLIED
-   @returns item->ri_error if item is FAILED
+   @return 0 when item is REPLIED,
+   @return item->ri_error if item is FAILED.
  */
 int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
 			       m0_time_t timeout);
@@ -509,8 +510,10 @@ M0_INTERNAL bool m0_rpc_item_cache__invariant(struct m0_rpc_item_cache *ic);
  * @param ic - items cache.
  * @param item to be added.
  * @param deadline - timeout in absolute time value.
+ * @return true if item was added,
+ * @return false otherwise.
  */
-M0_INTERNAL void m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
+M0_INTERNAL bool m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
 				       struct m0_rpc_item	*item,
 				       m0_time_t		 deadline);
 /**

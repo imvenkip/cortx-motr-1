@@ -237,6 +237,8 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	m0_rpc_item_cache_init(&session->s_reply_cache,
 			       &conn->c_rpc_machine->rm_sm_grp.s_lock);
+	m0_rpc_item_cache_init(&session->s_req_cache,
+			       &conn->c_rpc_machine->rm_sm_grp.s_lock);
 	M0_LOG(M0_INFO, "Session %p INITIALISED \n", session);
 
 	return M0_RC(0);
@@ -284,6 +286,7 @@ M0_INTERNAL void m0_rpc_session_fini_locked(struct m0_rpc_session *session)
 					      M0_RPC_SESSION_FAILED)));
 
 	m0_rpc_item_cache_fini(&session->s_reply_cache);
+	m0_rpc_item_cache_fini(&session->s_req_cache);
 	m0_rpc_conn_remove_session(session);
 	__session_fini(session);
 	session->s_session_id = SESSION_ID_INVALID;

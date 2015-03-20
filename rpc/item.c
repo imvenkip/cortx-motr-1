@@ -499,7 +499,8 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
  * will be resent again.
  * Purges the slate items from reply cache also.
  */
-M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item)
+M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
+				       struct m0_rpc_item **next)
 {
 	struct m0_rpc_session *sess = item->ri_session;
 	uint64_t               xid  = item->ri_header.osr_xid;
@@ -508,32 +509,53 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item)
 	/* If item doesn't need xid then xid doesn't need to be checked */
 	if (!rpc_item_needs_xid(item))
 		return true;
+
+	M0_LOG(M0_DEBUG, "item: %p [%s/%u] xid=%"PRIu64" s_xid=%"PRIu64,
+	       item, item_kind(item), item->ri_type->rit_opcode,
+	       xid, sess->s_xid);
 	/*
-	 * Item wasn't received yet and wasn't handled yet.
-	 * It is the normal case.
+	 * Purge cache on every N-th packet
+	 * (not on every one - that could be pretty expensive).
 	 */
-	if (M0_IN(xid, (sess->s_xid + 1, UINT64_MAX))) {
-		++sess->s_xid;
-		return true;
-	}
+	if ((xid & 0xff) == 0)
+		m0_rpc_item_cache_purge(&sess->s_reply_cache);
 
 	/*
-	 * XXX: Note, on a high loads, cache may grow huge.
+	 * The new item which wasn't handled yet.
+	 *
+	 * XXX: Note, on a high loads, reply cache may grow huge.
 	 * This can be optimized by implementing the sending
 	 * of the last consequent received reply xid in every
 	 * request from the client.
 	 */
-	m0_rpc_item_cache_purge(&sess->s_reply_cache);
+	if (xid == sess->s_xid + 1) { /* Normal case. */
+		++sess->s_xid;
+		if (next != NULL)
+			*next = m0_rpc_item_cache_lookup(&sess->s_req_cache,
+							 xid + 1);
+		return true;
+	} else if (m0_mod_gt(xid, sess->s_xid)) {
+		/* Out-of-order case. Cache it for the future. */
+		cached = m0_rpc_item_cache_lookup(&sess->s_req_cache, xid);
+		if (cached == NULL)
+			m0_rpc_item_cache_add(&sess->s_req_cache, item,
+				m0_time_from_now(M0_RPC_ITEM_REQ_CACHE_TMO, 0));
+		return false;
+	}
 
-	/* Resend reply if it is available for the request */
+	/* Resend cached reply if it is available for the request. */
 	cached = m0_rpc_item_cache_lookup(&sess->s_reply_cache, xid);
-	if (cached != NULL && M0_IN(cached->ri_sm.sm_state,
-				    (M0_RPC_ITEM_SENT, M0_RPC_ITEM_FAILED))) {
-		m0_rpc_session_hold_busy(sess);
-		m0_rpc_item_change_state(item, M0_RPC_ITEM_ACCEPTED);
-		if (cached->ri_error == -ENETDOWN)
-			cached->ri_error = 0;
-		m0_rpc_item_send_reply(item, cached);
+	if (cached != NULL) {
+		M0_LOG(M0_DEBUG, "cached_reply=%p xid=%"PRIu64" state=%d",
+		       cached, xid, cached->ri_sm.sm_state);
+		if (M0_IN(cached->ri_sm.sm_state, (M0_RPC_ITEM_SENT,
+						   M0_RPC_ITEM_FAILED))) {
+			m0_rpc_session_hold_busy(sess);
+			m0_rpc_item_change_state(item, M0_RPC_ITEM_ACCEPTED);
+			if (cached->ri_error == -ENETDOWN)
+				cached->ri_error = 0;
+			m0_rpc_item_send_reply(item, cached);
+		}
 		return false;
 	}
 
@@ -541,6 +563,7 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item)
 	M0_LOG(M0_NOTICE, "item: %p [%s/%u] misordered %"PRIu64" != %"PRIu64,
 	       item, item_kind(item), item->ri_type->rit_opcode,
 	       xid, sess->s_xid + 1);
+
 	return false;
 }
 
@@ -870,6 +893,7 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	struct m0_rpc_item    *req;
 	struct m0_rpc_conn    *conn;
 	struct m0_rpc_session *sess;
+	struct m0_rpc_item    *next;
 	int rc = 0;
 
 	M0_PRE(item != NULL);
@@ -922,12 +946,18 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	 * solutions until DTM is implemented.
 	 */
 	if (m0_rpc_item_is_request(item)) {
-		if (!m0_rpc_item_xid_check(item))
-			return M0_RC(0);
-		m0_rpc_session_hold_busy(sess);
-		rc = m0_rpc_item_dispatch(item);
-		if (rc != 0)
-			m0_rpc_session_release(sess);
+		for (next = NULL;
+		     item != NULL && m0_rpc_item_xid_check(item, &next);
+		     item = next) {
+			m0_rpc_session_hold_busy(sess);
+			rc = m0_rpc_item_dispatch(item);
+			m0_rpc_item_cache_del(&sess->s_req_cache,
+					      item->ri_header.osr_xid);
+			if (rc != 0) {
+				m0_rpc_session_release(sess);
+				break;
+			}
+		}
 	} else {
 		rc = item_reply_received(item, &req);
 	}
@@ -1120,7 +1150,7 @@ M0_INTERNAL bool m0_rpc_item_cache__invariant(struct m0_rpc_item_cache *ic)
 	return m0_mutex_is_locked(ic->ric_lock);
 }
 
-M0_INTERNAL void m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
+M0_INTERNAL bool m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
 				       struct m0_rpc_item	*item,
 				       m0_time_t		 deadline)
 {
@@ -1133,8 +1163,11 @@ M0_INTERNAL void m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
 		m0_rpc_item_get(item);
 		ric_tlink_init_at(item, &ic->ric_items);
 	}
-	M0_ASSERT(M0_IN(cached, (NULL, item)));
+	M0_ASSERT_INFO(M0_IN(cached, (NULL, item)), "duplicate xid=%"PRIu64
+		       " item=%p", item->ri_header.osr_xid, item);
 	item->ri_cache_deadline = deadline;
+
+	return cached == NULL;
 }
 
 static void rpc_item_cache_del(struct m0_rpc_item_cache *ic,
