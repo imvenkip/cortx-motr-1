@@ -1,0 +1,388 @@
+#!/usr/bin/env python
+from __future__ import print_function
+
+### XXX TODO:
+###  - Pretty printer.
+###  - DOT output.
+###  - Error handling instead of asserts.
+###  - Default values.
+###  - Random values a-la QuickCheck.
+###  - ? conf_obj_types: use a class instead of tuple.
+
+from ply import lex, yacc
+from optparse import OptionParser  # no argparse on devvm
+import textwrap
+import unittest
+import sys
+
+__all__ = ['conf_objs_encode', 'conf_obj_encode']
+
+__doc__ = """Configuration string generator.
+
+Generates configuration string in xcode_read format from its
+human-friendly description.
+
+%(input_format)s
+"""
+
+input_format = """Input format:
+
+    input   = [ seq(obj) ]
+    seq(t)  = *( t )
+    csv(t)  = t | csv(t) "," t
+    obj     = "(" objid *( attr ) ")"
+    objid   = objtype "-" NUMBER
+    attr    = ID "=" ( NUMBER | STRING | fid | objid | list )
+    fid     = "(" NUMBER "," NUMBER ")"
+    list    = "[" [ csv(NUMBER) | csv(STRING) | csv(fid) | csv(objid) ] "]"
+    objtype = { %(objtypes)s }
+
+Examples:
+
+    (root-0 verno=1 profiles=[profile-0])
+    (profile-0 filesystem=filesystem-1)
+    (filesystem-1 rootfid=(11, 12) redundancy=41212
+        params=["param-0", "param-1", "param-2"]
+        mdpool=pool-4
+        nodes=[node-2] pools=[pool-4, pool-5] racks=[])
+
+Configuration object types and attributes:
+
+    %(attrs)s"""
+
+class Error(Exception):
+    pass
+
+### ------------------------------------------------------------------
+### Conf
+
+conf_obj_types = {
+    'root': ('t', 'verno=NUMBER profiles=[objid]'),
+    'profile': ('p', 'filesystem=objid'),
+    'filesystem': ('f',
+                   'rootfid=fid redundancy=NUMBER params=[STRING]'
+                   ' mdpool=objid nodes=[objid] pools=[objid] racks=[objid]'),
+    'pool': ('o', 'order=NUMBER pvers=[objid]'),
+    'pver': ('v',
+             'ver=NUMBER N=NUMBER K=NUMBER P=NUMBER permutations=[NUMBER]'
+             ' nr_failures=[NUMBER] rackvs=[objid]'),
+    'objv': ('j', 'real=objid children=[objid]'),
+    'node': ('n', 'memsize=NUMBER nr_cpu=NUMBER last_state=NUMBER flags=NUMBER'
+             ' pool_id=objid processes=[objid]'),
+    'process': ('r', 'mem_limit=NUMBER cores=NUMBER services=[objid]'),
+    'service': ('s', 'type=NUMBER endpoints=[STRING] sdevs=[objid]'),
+    'sdev': ('d', 'iface=NUMBER media=NUMBER bsize=NUMBER size=NUMBER'
+             ' last_state=NUMBER flags=NUMBER filename=STRING'),
+    'rack': ('a', 'encls=[objid] pvers=[objid]'),
+    'enclosure': ('e', 'ctrls=[objid] pvers=[objid]'),
+    'controller': ('c', 'node=objid disks=[objid] pvers=[objid]'),
+    'disk': ('k', 'dev=objid')
+}
+
+def list_encode(xs):
+    return '[{len:d}{sep}{elems}]'.format(len=len(xs),
+                                          sep=': ' if xs else '',
+                                          elems=', '.join(xs))
+
+def list_encode_with(func):
+    return lambda xs: list_encode(map(func, xs))
+
+def conf_objid_encode(objid):
+    t, k = objid
+    return '(0x%x00000000000001, %d)' % (ord(conf_obj_types[t][0]), k)
+
+def conf_obj_encode(objid, attrs):
+    ft, _, ops = conf_obj_types[objid[0]]
+    return '{0x%x| ((%s), %s)}' % (ord(ft), conf_objid_encode(objid),
+                                   ', '.join([op(attrs[k]) for k, op in ops]))
+
+def all_unique(xs):
+    """Returns True iff all entries of the sequence are unique.
+    """
+    return len(xs) == len(set(xs))
+
+def conf_objs_encode(objs):
+    assert all_unique([objid for objid, _ in objs])
+    return list_encode_with(lambda t: conf_obj_encode(*t))(objs)
+
+quote = lambda s: '"%s"' % s
+
+def conf_type2enc(t):
+    list_p = False
+    if t[0] == '[':
+        assert t[-1] == ']'
+        list_p = True
+        t = t[1:-1]
+    enc = {
+        'NUMBER': str,
+        'STRING': quote,
+        'fid': repr,
+        'objid': conf_objid_encode
+    }[t]
+    return list_encode_with(enc) if list_p else enc
+
+def conf_obj_attr_encs(s):
+    return [(k, conf_type2enc(v)) for k, v in
+            [a.split('=', 1) for a in s.split()]]
+
+conf_obj_types = dict((t, (v[0], v[1], conf_obj_attr_encs(v[1])))
+                      for t, v in conf_obj_types.items())
+
+input_format = input_format % {
+    'objtypes': ' | '.join(map(quote, sorted(conf_obj_types.keys()))),
+    'attrs': '\n    '.join(['%-14s%s' % (
+        k + ':',
+        textwrap.fill(v[1], width=60, subsequent_indent=' ' * 22,
+                      break_long_words=False))
+                            for k, v in sorted(conf_obj_types.items())])
+}
+__doc__ = __doc__ % { 'input_format' : input_format }
+
+### ------------------------------------------------------------------
+### Lexer
+
+tokens = ('NUMBER', 'STRING', 'ID')
+literals = '()[]-=,'
+
+t_ID = r'[a-zA-Z]\w*'
+t_ignore = ' \t'
+
+def t_NUMBER(t):
+    r'\d+'
+    t.value = int(t.value)
+    return t
+
+def t_STRING(t):
+    r'"[^"]*"'
+    t.value = t.value[1:-1]
+    return t
+
+def t_comment(t):
+    r'\#.*'
+
+def t_newline(t):
+    r'\n+'
+    t.lexer.lineno += len(t.value)
+
+def t_error(t):
+    raise Error("Illegal character '%s' at byte %d" % (t.value[0],
+                                                       t.lexpos + 1))
+
+lexer = lex.lex()
+
+### ------------------------------------------------------------------
+### Parser
+
+def p_opsequence(p):
+    """
+    opsequence : strings
+               | numbers
+               | objids
+               | objs
+               | empty
+    """
+    p[0] = [] if p[1] is None else p[1]
+
+def p_empty(p):
+    "empty :"
+
+def p_objs(p):
+    """
+    objs : obj
+         | objs obj
+    """
+    if len(p) == 2:
+        p[0] = [p[1]]
+    else:
+        p[0] = p[1] + [p[2]]
+
+def p_obj(p):
+    "obj : '(' objid attrs ')'"
+    assert all_unique([k for k, _ in p[3]]) # reject re-assignments
+                                            # (e.g. `foo=1 foo=2')
+    p[0] = p[2], dict(p[3])
+
+def p_objid(p):
+    "objid : ID '-' NUMBER"
+    assert p[1] in conf_obj_types.keys()
+    p[0] = p[1], p[3]
+
+def p_fid(p):
+    "fid : '(' NUMBER ',' NUMBER ')'"
+    p[0] = p[2], p[4]
+
+def p_attrs(p):
+    """
+    attrs : attr
+          | attrs attr
+    """
+    if len(p) == 2:
+        p[0] = [p[1]]
+    else:
+        p[0] = p[1] + [p[2]]
+
+def p_attr(p):
+    """
+    attr : ID '=' NUMBER
+         | ID '=' STRING
+         | ID '=' objid
+         | ID '=' fid
+         | ID '=' list
+    """
+    p[0] = p[1], p[3]
+
+def p_list(p):
+    "list : '[' opsequence ']'"
+    p[0] = p[2]
+
+def p_sequence(p):
+    """
+    strings : STRING
+            | strings ',' STRING
+    numbers : NUMBER
+            | numbers ',' NUMBER
+    objids : objid
+           | objids ',' objid
+    """
+    if len(p) == 2:
+        p[0] = [p[1]]
+    else:
+        p[0] = p[1] + [p[3]]
+
+def p_error(t):
+    raise Error('Syntax error at byte ' + str(t.lexpos + 1))
+
+parser = yacc.yacc(debug=False)
+
+### ------------------------------------------------------------------
+### Tests
+
+class TestParser(unittest.TestCase):
+    def test_obj_profile(self):
+        self.assertEqual(parser.parse(''), [])
+        self.assertEqual(parser.parse('(profile-0 filesystem=filesystem-1)'),
+                         [(('profile', 0), dict(filesystem=('filesystem', 1)))])
+        self.assertEqual(parser.parse(
+"""(filesystem-1 rootfid=(11, 12) redundancy=41212
+    params=["param-0", "param-1", "param-2"]
+    mdpool=pool-4
+    nodes=[node-2] pools=[pool-4] racks=[])
+"""),
+                         [(('filesystem', 1), dict(
+                             rootfid=(11, 12),
+                             redundancy=41212,
+                             params=['param-0', 'param-1', 'param-2'],
+                             mdpool=('pool', 4),
+                             nodes=[('node', 2)],
+                             pools=[('pool', 4)],
+                             racks=[]))])
+        self.assertEqual(parser.parse("""(profile-0 filesystem=filesystem-1)
+(filesystem-1 rootfid=(11, 12) redundancy=41212
+    params=["param-0", "param-1", "param-2"]
+    mdpool=pool-4
+    nodes=[node-2] pools=[pool-4] racks=[rack-3])
+"""),
+                         [(('profile', 0), dict(filesystem=('filesystem', 1))),
+                          (('filesystem', 1), dict(
+                              rootfid=(11, 12),
+                              redundancy=41212,
+                              params=['param-0', 'param-1', 'param-2'],
+                              mdpool=('pool', 4),
+                              nodes=[('node', 2)],
+                              pools=[('pool', 4)],
+                              racks=[('rack', 3)]))])
+        self.assertEqual(21, len(parser.parse(
+            file('conf/ut/conf-str.txt.in').read())))
+
+class TestEncoders(unittest.TestCase):
+    def test_type2enc(self):
+        self.assertEqual(conf_type2enc('NUMBER')(42), '42')
+        self.assertEqual(conf_type2enc('STRING')('abc'), '"abc"')
+        self.assertEqual(conf_type2enc('fid')((11, 22)), '(11, 22)')
+        self.assertEqual(conf_type2enc('[NUMBER]')([3, 4]), '[2: 3, 4]')
+        self.assertEqual(conf_type2enc('[STRING]')('abc'), '[3: "a", "b", "c"]')
+        self.assertEqual(conf_type2enc('[fid]')([(11, 22)]), '[1: (11, 22)]')
+        self.assertEqual(conf_type2enc('[objid]')([]), '[0]')
+
+    def test_objid_encode(self):
+        self.assertEqual(conf_objid_encode(('service', 42)),
+                         '(0x7300000000000001, 42)')
+
+    def test_list_encode(self):
+        self.assertEqual(list_encode([]), '[0]')
+        self.assertEqual(list_encode(['foo']), '[1: foo]')
+        self.assertEqual(list_encode(['foo', 'bar']), '[2: foo, bar]')
+
+    def test_obj_encode(self):
+        self.assertEqual(conf_obj_encode(('root', 0),
+                                         dict(verno=1,
+                                              profiles=[('profile', 0)])),
+                         '{0x74| (((0x7400000000000001, 0)), 1,' \
+                         ' [1: (0x7000000000000001, 0)])}')
+        self.assertEqual(conf_obj_encode(('objv', 19),
+                                         dict(real=('disk', 16), children=[])),
+                         '{0x6a| (((0x6a00000000000001, 19)),' \
+                         ' (0x6b00000000000001, 16), [0])}')
+
+    def test_encode(self):
+        self.assertEqual(conf_objs_encode([
+            (('root', 0), dict(verno=1, profiles=[('profile', 0)])),
+            (('profile', 0), dict(filesystem=('filesystem', 1))),
+            (('filesystem', 1), dict(rootfid=(11, 22), redundancy=41212,
+                                     params=["param-0", "param-1", "param-2"],
+                                     mdpool=('pool', 4), nodes=[('node', 2)],
+                                     pools=[('pool', 4)], racks=[('rack', 3)])),
+            (('objv', 19), dict(real=('disk', 16), children=[]))]),
+                         """[4:
+ {0x74| (((0x7400000000000001, 0)), 1, [1: (0x7000000000000001, 0)])},
+ {0x70| (((0x7000000000000001, 0)), (0x6600000000000001, 1))},
+ {0x66| (((0x6600000000000001, 1)), (11, 22), 41212,
+ [3: "param-0", "param-1", "param-2"], (0x6f00000000000001, 4),
+ [1: (0x6e00000000000001, 2)], [1: (0x6f00000000000001, 4)],
+ [1: (0x6100000000000001, 3)])},
+ {0x6a| (((0x6a00000000000001, 19)), (0x6b00000000000001, 16),
+ [0])}]""".replace('\n', ''))
+
+### ------------------------------------------------------------------
+### main
+
+def encode_and_print(s):
+    try:
+        print(conf_objs_encode(parser.parse(s)))
+    except Error, e:
+        print(e, file=sys.stderr)
+        return 1
+
+def main():
+    op = OptionParser(usage='%prog [OPTION]... [FILE]',
+                      description='Generates configuration string in xcode_read'
+                      ' format from its "human-friendly" description.',
+                      epilog='  FILE    Input file. With no FILE, or when FILE'
+                      ' is -, read standard input.')
+    op.add_option('--help-format',
+                  help='Print input format documentation and exit.',
+                  action='store_true')
+    op.add_option('--self-check', help='Run unit tests and exit.',
+                  action='store_true')
+    opts, args = op.parse_args()
+    if len(args) > 1:
+        op.error("Invalid arguments\nUse `--help'.")
+
+    if opts.help_format:
+        print(input_format)
+        return
+    if opts.self_check:
+        unittest.main(argv=sys.argv[:1])
+
+    if args[0] is None or args[0] == '-':
+        f = sys.stdin
+    else:
+        try:
+            f = file(args[0])
+        except IOError, e:
+            print(e, file=sys.stderr)
+            return e.errno
+    return encode_and_print(f.read())
+
+if __name__ == '__main__':
+    sys.exit(main())
