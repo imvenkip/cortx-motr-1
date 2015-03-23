@@ -57,6 +57,8 @@
 #include "be/tx.h"
 
 #include "module/instance.h"
+#include "reqh/reqh_service.h"
+#include "reqh/reqh.h"
 
 
 /**
@@ -75,23 +77,39 @@ struct m0_addb_ctx m0_cob_mod_ctx;
 static int cob0_init(struct m0_be_domain *dom, const char *suffix,
 		     const struct m0_buf *data)
 {
-	struct m0             *m0inst = m0_get();
-	struct m0_cob_domain **module;
+	struct m0_cob_domain  *cdom = *(struct m0_cob_domain**)data->b_addr;
+	struct m0_reqh        *reqh = dom->bd_cfg.bc_engine.bec_group_fom_reqh;
+	unsigned               key;
 
-	/* XXX: Uncomment when ioservice obtain separate structure inside m0 */
-	/* M0_PRE(m0inst->i_cob_module == NULL); */
-	M0_ENTRY("s: %s, d: %p", suffix, data->b_addr);
-	module = data->b_addr;
-	m0inst->i_cob_module = *module;
+	M0_ENTRY("suffix: %s, data: %p, cdom: %p", suffix, data->b_addr, cdom);
+
+	/* @todo:
+	 * The following code is a workaround until full-scale m0mkfs is ready.
+	 * It's planned to put cob-domains inside rehq_{io, mds, ..}_services.
+	 *
+	 * During mkfs phase, rehq_{io, mds, ..}_services have to be allocated
+	 * with service_ops->rsto_service_allocate(). Identifiers of the service
+	 * and cob-domain will be the same: cob-domain will take the id of the
+	 * containing service.
+	 *
+	 * During reload phase cob_0type->b0_init() will initialize the
+	 * corresponding cob domain and {io, mds, ...}srv_0type->b0_init()
+	 * will initialise containing service.
+	 */
+
+	key = cdom->cd_id.id < M0_IOS_COB_ID_START ? m0_get()->i_mds_cdom_key :
+		m0_get()->i_ios_cdom_key;
+
+	if (m0_reqh_lockers_get(reqh, key) == NULL)
+		m0_reqh_lockers_set(reqh, key, cdom);
+
 	return M0_RC(0);
 }
 
 static void cob0_fini(struct m0_be_domain *dom, const char *suffix,
 		      const struct m0_buf *data)
 {
-	struct m0 *m0inst = m0_get();
 	M0_ENTRY();
-	m0inst->i_cob_module = NULL;
 	M0_LEAVE();
 }
 
@@ -468,12 +486,9 @@ M0_UNUSED static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id 
 
    Tables are identified by the domain id, which must be set before calling
    this function.
-
-   XXX: for now grp is passed from the top level code, in future -- undetermined.
-  */
-int
-m0_cob_domain_init(struct m0_cob_domain *dom,
-		   struct m0_be_seg *seg, const struct m0_cob_domain_id *id)
+ */
+int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg,
+		       const struct m0_cob_domain_id *id)
 {
 	M0_ENTRY("dom=%p seg=%p id=%"PRIx64"", dom, seg, id->id);
 

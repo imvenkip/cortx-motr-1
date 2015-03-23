@@ -43,6 +43,8 @@
 #include "mdservice/md_fops.h"
 #include "mdservice/md_service.h"
 #include "mdservice/fsync_fops.h"
+#include "module/instance.h"	/* m0_get */
+
 
 static struct m0_addb_ctx m0_mds_mod_ctx;
 
@@ -77,6 +79,7 @@ M0_INTERNAL int m0_mds_register(void)
 {
 	int     rc = 0;
 
+	m0_get()->i_mds_cdom_key = m0_reqh_lockers_allot();
 	m0_addb_ctx_type_register(&m0_addb_ct_mds_mod);
 	m0_addb_ctx_type_register(&m0_addb_ct_mds_serv);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_mds_mod_ctx,
@@ -186,6 +189,7 @@ static int mds_start(struct m0_reqh_service *service)
  */
 static void mds_stop(struct m0_reqh_service *service)
 {
+	m0_reqh_lockers_clear(service->rs_reqh, m0_get()->i_mds_cdom_key);
 }
 
 #undef M0_TRACE_SUBSYSTEM

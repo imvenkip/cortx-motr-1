@@ -98,9 +98,16 @@ static void test_mkfs(void)
 	int			 rc;
 
 	m0_be_ut_fake_mkfs();
+
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
 	be_seg = m0_be_domain_seg0_get(&ut_be.but_dom);
+	rc = M0_REQH_INIT(&reqh,
+			  .rhia_db = be_seg,
+			  .rhia_mdstore = &md);
+        M0_UT_ASSERT(rc == 0);
+	ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &reqh;
+	m0_be_ut_backend_init(&ut_be);
+
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 
         fd = open(M0_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
@@ -149,11 +156,6 @@ static void test_init(void)
 	m0_md_fom_ops.fto_create = fom_create;
         rc = m0_mdstore_init(&md, &id, be_seg, true);
         M0_UT_ASSERT(rc == 0);
-	rc = M0_REQH_INIT(&reqh,
-		          .rhia_dtm       = NULL,
-		          .rhia_db        = be_seg,
-		          .rhia_mdstore   = &md);
-        M0_UT_ASSERT(rc == 0);
 
 	rc = m0_reqh_service_allocate(&mdservice, &m0_mds_type, NULL);
         M0_UT_ASSERT(rc == 0);
@@ -175,14 +177,18 @@ static void test_fini(void)
 	m0_reqh_service_stop(mdservice);
 	m0_reqh_service_fini(mdservice);
 
-	m0_reqh_shutdown_wait(&reqh);
-	m0_reqh_services_terminate(&reqh);
-	m0_reqh_fini(&reqh);
+	if (m0_reqh_state_get(&reqh) == M0_REQH_ST_NORMAL)
+		m0_reqh_shutdown_wait(&reqh);
 
-	m0_be_ut_backend_fini(&ut_be);
+	if (M0_IN(m0_reqh_state_get(&reqh), (M0_REQH_ST_DRAIN, M0_REQH_ST_INIT)))
+		m0_reqh_pre_storage_fini_svcs_stop(&reqh);
 
 	m0_md_fom_ops.fto_create = orig_fom_create;
 	m0_md_req_fom_fini_func = orig_fom_fini;
+
+	m0_be_ut_backend_fini(&ut_be);
+	m0_reqh_post_storage_fini_svcs_stop(&reqh);
+	m0_reqh_fini(&reqh);
 }
 
 enum { REC_NR = 128 };

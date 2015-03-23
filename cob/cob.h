@@ -219,6 +219,16 @@ struct m0_cob_id;
 struct m0_cob_domain;
 struct m0_cob_domain_id;
 
+/*
+ * This is used to separate the range of COB IDs for IOS-es and MDS-es, which is
+ * needed to do correct restart and match cob domains by id for each service
+ * which uses its own cob-domain.
+ */
+enum {
+	M0_MDS_COB_ID_START = 0,
+	M0_IOS_COB_ID_START = 1000,
+};
+
 /**
    Unique cob domain identifier.
 

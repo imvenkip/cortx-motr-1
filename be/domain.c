@@ -891,14 +891,16 @@ static int level_be_domain_enter(struct m0_module *module)
 		M0_ALLOC_ARR(dom->bd_0types_allocated, cfg->bc_0types_nr);
 		if (dom->bd_0types_allocated == NULL)
 			return -ENOMEM;
-		for (i = 0; i < cfg->bc_0types_nr; ++i) {
-			dom->bd_0types_allocated[i] = *cfg->bc_0types[i];
-			m0_be_0type_register(dom, &dom->bd_0types_allocated[i]);
-		}
+
 		dom->bd_0type_log = m0_be_0type_log;
 		dom->bd_0type_seg = m0_be_0type_seg;
 		m0_be_0type_register(dom, &dom->bd_0type_log);
 		m0_be_0type_register(dom, &dom->bd_0type_seg);
+
+		for (i = 0; i < cfg->bc_0types_nr; ++i) {
+			dom->bd_0types_allocated[i] = *cfg->bc_0types[i];
+			m0_be_0type_register(dom, &dom->bd_0types_allocated[i]);
+		}
 		return 0;
 
 	case M0_LEVEL_BE_DOMAIN_READY:
@@ -919,11 +921,13 @@ static void level_be_domain_leave(struct m0_module *module)
 		return;
 
 	case M0_LEVEL_BE_DOMAIN_0TYPES:
-		m0_be_0type_unregister(dom, &dom->bd_0type_seg);
-		m0_be_0type_unregister(dom, &dom->bd_0type_log);
 		for (i = 0; i < dom->bd_cfg.bc_0types_nr; ++i)
 			m0_be_0type_unregister(dom,
 					       &dom->bd_0types_allocated[i]);
+
+		m0_be_0type_unregister(dom, &dom->bd_0type_seg);
+		m0_be_0type_unregister(dom, &dom->bd_0type_log);
+
 		m0_free0(&dom->bd_0types_allocated);
 		return;
 

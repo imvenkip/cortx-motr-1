@@ -59,13 +59,6 @@
    @{
  */
 
-/**
-   Represents cob domain id, it is incremented for every new cob domain.
-
-   @todo Have a generic mechanism to generate unique cob domain id.
-   @todo Handle error messages properly
- */
-static int cdom_id;
 extern struct m0_reqh_service_type m0_ss_svc_type;
 
 enum {
@@ -1211,7 +1204,10 @@ M0_INTERNAL void cs_be_fini(struct m0_be_ut_backend *be)
  */
 static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 {
-	int rc;
+	/* @todo Have a generic mechanism to generate unique cob domain id.
+	   @todo Handle error messages properly */
+	static int cdom_id = M0_MDS_COB_ID_START;
+	int        rc;
 
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
@@ -1304,9 +1300,10 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 			goto cleanup_addb2;
 		}
 	}
-	/* XXX: remove when all mdservice modules go to m0 structure and removed
-	 * from mero context */
-	rctx->rc_mdstore.md_dom = m0_get()->i_cob_module;
+
+	rctx->rc_mdstore.md_dom = m0_reqh_lockers_get(&rctx->rc_reqh,
+						      m0_get()->i_mds_cdom_key);
+	M0_ASSERT(rctx->rc_mdstore.md_dom != NULL);
 	/* Init mdstore and root cob as it should be created by mkfs. */
 	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
 			     rctx->rc_beseg, true);

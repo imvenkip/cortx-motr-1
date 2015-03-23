@@ -49,6 +49,8 @@
 #include "layout/layout.h"
 #include "layout/pdclust.h"
 #include "mdservice/fsync_fops.h"
+#include "module/instance.h"	/* m0_get */
+
 
 M0_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh",
 		   M0_INTERNAL,
@@ -71,11 +73,6 @@ enum {
  * For usage please see ioservice/io_device.c:m0_ios_poolmach_*()
  */
 M0_INTERNAL unsigned poolmach_key;
-
-/**
- * Key for ioservice cob domain
- */
-static unsigned ios_cdom_key;
 
 /**
  * Key for ios mds connection.
@@ -213,7 +210,7 @@ M0_INTERNAL int m0_ios_register(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_setattr_fom);
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_io_rw_fom);
 	m0_reqh_service_type_register(&m0_ios_type);
-	ios_cdom_key = m0_reqh_lockers_allot();
+	m0_get()->i_ios_cdom_key = m0_reqh_lockers_allot();
 	poolmach_key = m0_reqh_lockers_allot();
 	ios_mds_conn_key = m0_reqh_lockers_allot();
 	return M0_RC(rc);
@@ -489,15 +486,14 @@ static void ios_stop(struct m0_reqh_service *service)
 	m0_ios_poolmach_fini(service);
 	ios_delete_buffer_pool(service);
 	m0_ios_cdom_fini(service->rs_reqh);
-	m0_reqh_lockers_clear(service->rs_reqh, ios_cdom_key);
+	m0_reqh_lockers_clear(service->rs_reqh, m0_get()->i_ios_cdom_key);
 	M0_LOG(M0_DEBUG, "ioservice STOPPED");
 }
 
 M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 				struct m0_cob_domain **out)
 {
-	/* XXX For now generating cob domain id randomly. Should be fixed */
-	static uint64_t          cid = 37;
+	static uint64_t          cid = M0_IOS_COB_ID_START;
 	int                      rc = 0;
 	struct m0_cob_domain    *cdom;
 	struct m0_cob_domain_id  cdom_id;
@@ -508,18 +504,19 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 
-	cdom = m0_reqh_lockers_get(reqh, ios_cdom_key);
+	cdom = m0_reqh_lockers_get(reqh, m0_get()->i_ios_cdom_key);
 	if (cdom == NULL) {
-		cdom_id.id = m0_rnd(1ULL << 47, &cid);
+		cdom_id.id = cid;
+		M0_CNT_INC(cid);
 		m0_sm_group_lock(grp);
 		rc = m0_cob_domain_create(&cdom, grp, &cdom_id, reqh->rh_beseg);
 		m0_sm_group_unlock(grp);
 		if (rc != 0)
 			goto cdom_fini;
 
-		m0_reqh_lockers_set(reqh, ios_cdom_key, cdom);
+		m0_reqh_lockers_set(reqh, m0_get()->i_ios_cdom_key, cdom);
 		M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d",
-		       reqh, ios_cdom_key);
+		       reqh, m0_get()->i_ios_cdom_key);
 
 		m0_sm_group_lock(grp);
 		m0_dtx_init(&tx, reqh->rh_beseg->bs_domain, grp);
@@ -554,9 +551,8 @@ M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh)
 	M0_PRE(reqh != NULL);
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	cdom = m0_reqh_lockers_get(reqh, ios_cdom_key);
+	cdom = m0_reqh_lockers_get(reqh, m0_get()->i_ios_cdom_key);
 	m0_cob_domain_fini(cdom);
-	/* m0_free(cdom); */ /* cdom is in BE segment */
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
