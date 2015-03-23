@@ -492,14 +492,6 @@ M0_INTERNAL void m0_sns_cm_file_unlock(struct m0_sns_cm *scm,
 #define _AST2FCTX(ast, field) \
 	container_of(ast, struct m0_sns_cm_file_ctx, field)
 
-static void _layout_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_sns_cm_file_ctx *fctx = _AST2FCTX(ast, sf_layout_ast);
-
-	if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LAYOUT_FETCH)
-		_fctx_status_set(fctx, M0_SCFS_LAYOUT_FETCHED);
-}
-
 static void _attr_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_sns_cm_file_ctx *fctx = _AST2FCTX(ast, sf_attr_ast);
@@ -509,14 +501,6 @@ static void _attr_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 }
 
 #undef _AST2FCTX
-
-static void _layout_cb(void *arg, int rc)
-{
-	struct m0_sns_cm_file_ctx *fctx = arg;
-
-	fctx->sf_layout_ast.sa_cb = _layout_ast_cb;
-	__fctx_ast_post(fctx, &fctx->sf_layout_ast);
-}
 
 static void _attr_cb(void *arg, int rc)
 {
@@ -550,23 +534,14 @@ static int _layout_fetch(struct m0_sns_cm_file_ctx *fctx)
 	struct m0_reqh          *reqh = cm->cm_service.rs_reqh;
 	struct m0_layout_domain *ldom = &reqh->rh_ldom;
 	struct m0_layout        *l;
-	int                      rc;
 
 	M0_PRE(m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LAYOUT_FETCH);
 
 	l = fctx->sf_layout ?: m0_layout_find(ldom, fctx->sf_attr.ca_lid);
-	if (l != NULL) {
-		fctx->sf_layout = l;
-		return M0_RC(0);
-	}
-
-        rc = m0_ios_mds_layout_get_async(reqh, ldom, fctx->sf_attr.ca_lid,
-					 &fctx->sf_layout,
-					 &_layout_cb, fctx);
-	if (rc == 0)
-		return M0_RC(-EAGAIN);
-
-	return M0_RC(rc);
+	if (l == NULL)
+		return M0_RC(-ENOENT);
+	fctx->sf_layout = l;
+	return M0_RC(0);
 }
 
 static int fid_layout_instance(struct m0_sns_cm_file_ctx *fctx)

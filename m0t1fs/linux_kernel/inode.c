@@ -420,6 +420,8 @@ static int m0t1fs_inode_read(struct inode      *inode,
 	if (!m0t1fs_inode_is_root(inode)) {
 		ci->ci_layout_id = body->b_lid;
 		rc = m0t1fs_inode_layout_init(ci);
+		if (rc != 0)
+			M0_LOG(M0_WARN, "m0t1fs_inode_layout_init() failed, rc=%d", rc);
 	}
 	if (rc == 0)
 		m0t1fs_fid_accept(M0T1FS_SB(inode->i_sb),
@@ -493,15 +495,14 @@ static int m0t1fs_build_layout_instance(struct m0t1fs_sb           *csb,
 	M0_PRE(fid != NULL);
 	M0_PRE(linst != NULL);
 
-	layout = m0_layout_find(&csb->csb_layout_dom, layout_id);
+	/*
+	 * All the layouts should already be generated on startup and added
+	 * to the list unless wrong layout_id is used.
+	 */
+	layout = m0_layout_find(&csb->csb_reqh.rh_ldom, layout_id);
 	if (layout == NULL) {
-		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP,
-				      layout_id, &layout);
-		if (rc != 0) {
-			if (rc == -ENOENT)
-				rc = -EINVAL;
-			goto out;
-		}
+		rc = -EINVAL;
+		goto out;
 	}
 
 	*linst = NULL;

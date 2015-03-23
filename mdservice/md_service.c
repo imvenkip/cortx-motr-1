@@ -73,11 +73,6 @@ static const struct m0_reqh_service_ops mds_ops = {
 M0_REQH_SERVICE_TYPE_DEFINE(m0_mds_type, &mds_type_ops, "mdservice",
 			     &m0_addb_ct_mds_serv, 2);
 
-M0_TL_DESCR_DEFINE(mds_layout, "mds-layout-list", static,
-           struct m0_layout, l_mds_linkage, l_magic,
-           M0_LAYOUT_MAGIC, M0_LAYOUT_MD_MAGIC);
-M0_TL_DEFINE(mds_layout, static, struct m0_layout);
-
 M0_INTERNAL int m0_mds_register(void)
 {
 	int     rc = 0;
@@ -150,227 +145,6 @@ static void mds_fini(struct m0_reqh_service *service)
         m0_free(serv_obj);
 }
 
-static int mds_ldom_init(struct m0_reqh_md_service *mds)
-{
-	int rc;
-
-	M0_ENTRY();
-
-	rc = m0_layout_domain_init(&mds->rmds_layout_dom);
-	if (rc == 0) {
-		rc = m0_layout_standard_types_register(&mds->rmds_layout_dom);
-		if (rc != 0)
-			m0_layout_domain_fini(&mds->rmds_layout_dom);
-	}
-
-	return M0_RC(rc);
-}
-
-static void mds_ldom_fini(struct m0_reqh_md_service *mds)
-{
-	M0_ENTRY();
-
-	m0_layout_standard_types_unregister(&mds->rmds_layout_dom);
-	m0_layout_domain_fini(&mds->rmds_layout_dom);
-
-	M0_LEAVE();
-}
-
-static int mds_layout_enum_build(struct m0_reqh_md_service *mds,
-				 const uint32_t pool_width,
-				 struct m0_layout_enum **lay_enum)
-{
-	struct m0_layout_linear_attr  lin_attr;
-	struct m0_layout_linear_enum *lle;
-	int                           rc;
-
-	M0_ENTRY();
-	M0_PRE(pool_width > 0 && lay_enum != NULL);
-	/*
-	 * cob_fid = fid { B * idx + A, gob_fid.key }
-	 * where idx is in [0, pool_width)
-	 */
-	lin_attr = (struct m0_layout_linear_attr){
-		.lla_nr = pool_width,
-		.lla_A  = 1,
-		.lla_B  = 1
-	};
-
-	*lay_enum = NULL;
-	rc = m0_linear_enum_build(&mds->rmds_layout_dom,
-				  &lin_attr, &lle);
-	if (rc == 0)
-		*lay_enum = &lle->lle_base;
-
-	return M0_RC(rc);
-}
-
-static int mds_layout_build(struct m0_reqh_md_service *mds,
-			    const uint64_t layout_id,
-			    const uint32_t N,
-			    const uint32_t K,
-			    const uint32_t pool_width,
-			    const uint64_t unit_size,
-			    struct m0_layout_enum *le,
-			    struct m0_layout **layout)
-{
-	struct m0_pdclust_attr    pl_attr;
-	struct m0_pdclust_layout *pdlayout = NULL;
-	int                       rc;
-
-	M0_ENTRY();
-	M0_PRE(pool_width > 0);
-	M0_PRE(le != NULL && layout != NULL);
-
-	pl_attr = (struct m0_pdclust_attr){
-		.pa_N         = N,
-		.pa_K         = K,
-		.pa_P         = pool_width,
-		.pa_unit_size = unit_size,
-	};
-	m0_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
-
-	*layout = NULL;
-	rc = m0_pdclust_build(&mds->rmds_layout_dom,
-			      layout_id, &pl_attr, le,
-			      &pdlayout);
-	if (rc == 0)
-		*layout = m0_pdl_to_layout(pdlayout);
-
-	return M0_RC(rc);
-}
-
-M0_INTERNAL struct m0_layout *m0_mds_layout_find(struct m0_reqh_md_service *mds,
-					         uint64_t lid)
-{
-	struct m0_layout_domain *dom = &mds->rmds_layout_dom;
-	struct m0_layout *l;
-
-	M0_ENTRY("lid %"PRIu64, lid);
-	l = m0_layout_find(dom, lid);
-	if (l != NULL) {
-		/*
-		 * Layout object exists in memory and m0_layout__list_lookup()
-		 * has now acquired a reference on it.
-		 */
-		M0_LEAVE("lid %"PRIu64", rc %p", lid, l);
-		return l;
-	}
-	m0_mutex_lock(&mds->rmds_lock);
-	l = m0_tl_find(mds_layout, mds_layout, &mds->rmds_layouts,
-		       lid == mds_layout->l_id);
-	if (l != NULL) {
-		m0_layout_get(l);
-		m0_mutex_unlock(&mds->rmds_lock);
-		M0_LEAVE("lid %"PRIu64", rc %p", lid, l);
-		return l;
-	}
-	m0_mutex_unlock(&mds->rmds_lock);
-	M0_LEAVE("lid %"PRIu64", rc %p", lid, NULL);
-	return NULL;
-}
-
-static int
-mds_layout_add(struct m0_reqh_md_service *mds, struct m0_layout *l, uint64_t lid)
-{
-#if 0
-	struct m0_db_pair   pair;
-	struct m0_buf       buf;
-	struct m0_reqh     *reqh = mds->rmds_gen.rs_reqh;
-	struct m0_db_tx     tx;
-#endif
-	int                 rc = 0;
-
-	m0_mutex_lock(&mds->rmds_lock);
-	/**
-	 * Add @l to list of layouts. It later will be used for satisfying
-	 * layout related fops from ioservice.
-	 */
-	mds_layout_tlink_init_at_tail(l, &mds->rmds_layouts);
-	m0_mutex_unlock(&mds->rmds_lock);
-
-#if 0
-	/* TODO m0_layout_size(const struct *l) should be used
-	 * in the future to calculate buffer size large enough
-	 * for any type of layout.
-	 */
-	buf.b_nob = m0_layout_max_recsize(&mds->rmds_layout_dom);
-	buf.b_addr = m0_alloc(buf.b_nob);
-	if (buf.b_addr == NULL)
-		return M0_ERR_INFO(-ENOMEM, "layout buffer allocation failed");
-
-	m0_layout_pair_set(&pair, &lid, buf.b_addr, buf.b_nob);
-
-	m0_db_tx_init(&tx, reqh->rh_dbenv, 0);
-	rc = m0_layout_add(l, &tx, &pair);
-	m0_db_tx_commit(&tx);
-
-	m0_buf_free(&buf);
-#endif
-
-	return M0_RC(rc);
-}
-
-/* start from 1 */
-static int lid_to_unit_map[] = {
-	[ 0] =       -1, /* invalid */
-	[ 1] =     4096,
-	[ 2] =     8192,
-	[ 3] =    16384,
-	[ 4] =    32768,
-	[ 5] =    65536,
-	[ 6] =   131072,
-	[ 7] =   262144,
-	[ 8] =   524288,
-	[ 9] =  1048576,
-	[10] =  2097152,
-	[11] =  4194304,
-	[12] =  8388608,
-	[13] = 16777216,
-	[14] = 33554432,
-};
-
-static int mds_layouts_init(struct m0_reqh_md_service *mds,
-			    const struct m0_pdclust_attr *pa)
-{
-	struct m0_layout	*layout;
-	struct m0_layout_enum	*layout_enum;
-	int			 i;
-	int			 rc;
-
-	M0_ENTRY();
-
-	M0_PRE(pa->pa_P != 0);
-	M0_PRE(pa->pa_N != 0);
-	M0_PRE(pa->pa_K != 0);
-
-	for (i = 1; i < ARRAY_SIZE(lid_to_unit_map); ++i) {
-		rc = mds_layout_enum_build(mds, pa->pa_P, &layout_enum);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR, "layout %d enum build failed: rc=%d",
-						i, rc);
-			break;
-		}
-
-		rc = mds_layout_build(mds, i, pa->pa_N, pa->pa_K, pa->pa_P,
-				      lid_to_unit_map[i],
-				      layout_enum,
-				      &layout);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR, "layout %d build failed: rc=%d",
-						i, rc);
-			m0_layout_enum_fini(layout_enum);
-			break;
-		}
-
-		rc = mds_layout_add(mds, layout, i);
-		if (rc != 0)
-			break;
-	}
-
-	return M0_RC(rc);
-}
-
 /**
  * Start MD Service.
  * @param service pointer to service instance.
@@ -383,25 +157,14 @@ static int mds_start(struct m0_reqh_service *service)
 	struct m0_reqh            *reqh;
 	struct m0_reqh_md_service *mds;
 	struct m0_sm_group        *grp;
-	struct m0_rpc_machine     *rmach;
-	struct m0_confc            confc;
-	struct m0_conf_filesystem *fs;
-	struct m0_pdclust_attr     pa = {0};
-	int                        rc;
 
 	M0_PRE(service != NULL);
 
 	mds = container_of(service, struct m0_reqh_md_service, rmds_gen);
-	m0_mutex_init(&mds->rmds_lock);
-	mds_layout_tlist_init(&mds->rmds_layouts);
 
 	/* in UT we don't init layouts */
 	if (mds->rmds_gen.rs_reqh_ctx == NULL)
 		return 0;
-
-	rc = mds_ldom_init(mds);
-	if (rc != 0)
-		return M0_ERR_INFO(rc, "layout domain initialization failed");
 
 	cctx = mds->rmds_gen.rs_reqh_ctx->rc_mero;
 	if (cctx->cc_profile == NULL || cctx->cc_confd_addr == NULL)
@@ -412,18 +175,7 @@ static int mds_start(struct m0_reqh_service *service)
 	 *        see MERO-317
 	 */
 	grp  = m0_locality0_get()->lo_grp;
-	rmach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
-	rc = m0_conf_fs_get(cctx->cc_profile, cctx->cc_confd_addr,
-			    rmach, grp, &confc, &fs);
-	if (rc != 0)
-		return M0_ERR_INFO(rc, "failed to get fs configuration");
-	rc = m0_pdclust_attr_read(fs, &pa);
-	m0_confc_close(&fs->cf_obj);
-	m0_confc_fini(&confc);
-	if (rc != 0)
-		return M0_ERR_INFO(rc, "failed to get fs params");
-
-	return mds_layouts_init(mds, &pa);
+	return 0;
 }
 
 /**
@@ -434,22 +186,6 @@ static int mds_start(struct m0_reqh_service *service)
  */
 static void mds_stop(struct m0_reqh_service *service)
 {
-	struct m0_reqh_md_service	*mds;
-	struct m0_layout 		*obj;
-
-	M0_PRE(service != NULL);
-
-	mds = container_of(service, struct m0_reqh_md_service, rmds_gen);
-	m0_tl_teardown(mds_layout, &mds->rmds_layouts, obj) {
-		mds_layout_tlink_fini(obj);
-		m0_layout_put(obj);
-	}
-	mds_layout_tlist_fini(&mds->rmds_layouts);
-
-	if (mds->rmds_gen.rs_reqh_ctx != NULL)
-		mds_ldom_fini(mds);
-
-	m0_mutex_fini(&mds->rmds_lock);
 }
 
 #undef M0_TRACE_SUBSYSTEM

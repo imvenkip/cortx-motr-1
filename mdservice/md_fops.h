@@ -49,7 +49,6 @@ extern struct m0_fop_type m0_fop_listxattr_fopt;
 extern struct m0_fop_type m0_fop_statfs_fopt;
 extern struct m0_fop_type m0_fop_rename_fopt;
 extern struct m0_fop_type m0_fop_readdir_fopt;
-extern struct m0_fop_type m0_fop_layout_fopt;
 
 extern struct m0_fop_type m0_fop_create_rep_fopt;
 extern struct m0_fop_type m0_fop_lookup_rep_fopt;
@@ -66,7 +65,6 @@ extern struct m0_fop_type m0_fop_listxattr_rep_fopt;
 extern struct m0_fop_type m0_fop_statfs_rep_fopt;
 extern struct m0_fop_type m0_fop_rename_rep_fopt;
 extern struct m0_fop_type m0_fop_readdir_rep_fopt;
-extern struct m0_fop_type m0_fop_layout_rep_fopt;
 
 struct m0_fop_cob {
 	uint32_t      b_rc;
@@ -276,25 +274,6 @@ struct m0_fop_statfs_rep {
 	uint64_t          f_ffree;
 	uint32_t          f_namelen;
 	struct m0_fid     f_root;
-} M0_XCA_RECORD;
-
-enum m0_layout_opcode {
-	M0_LAYOUT_OP_NOOP   = 0,
-	M0_LAYOUT_OP_ADD    = 1,
-	M0_LAYOUT_OP_DELETE = 2,
-	M0_LAYOUT_OP_LOOKUP = 3,
-	M0_LAYOUT_OP_UPDATE = 4
-};
-
-struct m0_fop_layout {
-	uint32_t          l_op; /*< m0_layout_opcode */
-	uint64_t          l_lid;
-	struct m0_fop_buf l_buf;
-} M0_XCA_RECORD;
-
-struct m0_fop_layout_rep {
-	int32_t           lr_rc;
-	struct m0_fop_buf lr_buf;
 } M0_XCA_RECORD;
 
 /**

@@ -46,6 +46,7 @@
 #include "rm/rm_service.h"                 /* m0_rms_type */
 #include "addb/addb_svc.h"                 /* m0_addb_svc_type */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
+#include "reqh/reqh.h"
 
 extern struct io_mem_stats iommstats;
 extern struct m0_bitmap    m0t1fs_client_ep_tmid;
@@ -560,50 +561,17 @@ M0_INTERNAL void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 static int
 m0t1fs_sb_layouts_init(struct m0t1fs_sb *csb)
 {
-	struct m0_layout *l;
-	int		  rc;
-	int		  i;
+	int rc;
 
 	M0_ENTRY();
-
-	for (i = 1; ; ++i) {
-		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP, i, &l);
-		/* all layouts are added to domain, so we don't lose them */
-		if (rc != 0) {
-			if (rc == -ENOENT) {
-				if (i > 1) {
-					rc = 0;
-					M0_LOG(M0_DEBUG, "found %d layouts",
-							i - 1);
-				} else {
-					M0_LOG(M0_ERROR, "no layouts found");
-				}
-			} else {
-				M0_LOG(M0_ERROR, "error obtaining layout "
-				       "lid=%d: %d", i, rc);
-			}
-			break;
-		}
-	}
-
+	rc = m0_reqh_layouts_setup(&csb->csb_reqh, &csb->csb_pools_common);
 	return M0_RC(rc);
 }
 
 static void m0t1fs_sb_layouts_fini(struct m0t1fs_sb *csb)
 {
-	struct m0_layout *l;
-	int		  i;
-
 	M0_ENTRY();
-
-	for (i = 1; ; ++i) {
-		l = m0_layout_find(&csb->csb_layout_dom, i);
-		if (l == NULL)
-			break;
-		m0_layout_put(l); /* after find() */
-		m0_layout_put(l);
-	}
-
+	m0_reqh_layouts_cleanup(&csb->csb_reqh);
 	M0_LEAVE();
 }
 
@@ -849,36 +817,6 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
-int m0t1fs_layout_init(struct m0t1fs_sb *csb)
-{
-	int rc;
-
-	M0_ENTRY();
-
-	/*
-	 * XXX TODO: Use csb->csb_pool_version to build layout.
-	 */
-	rc = m0_layout_domain_init(&csb->csb_layout_dom);
-	if (rc == 0) {
-		rc = m0_layout_standard_types_register(
-						&csb->csb_layout_dom);
-		if (rc != 0)
-			m0_layout_domain_fini(&csb->csb_layout_dom);
-	}
-
-	return M0_RC(rc);
-}
-
-void m0t1fs_layout_fini(struct m0t1fs_sb *csb)
-{
-	M0_ENTRY();
-
-	m0_layout_standard_types_unregister(&csb->csb_layout_dom);
-	m0_layout_domain_fini(&csb->csb_layout_dom);
-
-	M0_LEAVE();
-}
-
 int m0t1fs_pool_find(struct m0t1fs_sb *csb, struct m0_conf_filesystem *fs)
 {
 	struct m0_conf_pool *cp;
@@ -953,11 +891,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	/* Find pool and pool version to use. */
 	rc = m0t1fs_pool_find(csb, csb->csb_fs);
 	if (rc != 0)
-		goto err_ha_fini;
-
-	rc = m0t1fs_layout_init(csb);
-	if (rc != 0)
-		goto err_ha_fini;
+		goto err_pools_common_fini;
 
 	ctx = csb->csb_pools_common.pc_ss_ctx;
 	if (ctx != NULL) {
@@ -969,7 +903,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	rc = configure_addb_rpc_sink(csb, &m0_addb_gmc);
 	if (rc != 0)
-		goto err_layout_fini;
+		goto err_pools_common_fini;
 
 	/* Start resource manager service */
 	rc = m0t1fs_reqh_services_start(csb);
@@ -988,8 +922,6 @@ err_addb_mc_unconf:
 	/* @todo Make a separate unconfigure api and do this in that */
 	m0_addb_mc_fini(&m0_addb_gmc);
 	m0_addb_mc_init(&m0_addb_gmc);
-err_layout_fini:
-	m0t1fs_layout_fini(csb);
 err_ha_fini:
 	m0_ha_state_fini();
 err_pools_common_fini:
@@ -1015,7 +947,6 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	/* @todo Make a separate unconfigure api and do this in that */
 	m0_addb_mc_fini(&m0_addb_gmc);
 	m0_addb_mc_init(&m0_addb_gmc);
-	m0t1fs_layout_fini(csb);
 	m0_ha_state_fini();
 	m0_pools_common_fini(&csb->csb_pools_common);
 	/* Close filesystem. */
@@ -1088,28 +1019,34 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
 	m0t1fs_fs_lock(csb);
 	mero_inode = m0t1fs_iget(sb, &M0_DOT_MERO_FID, body);
 	m0t1fs_fs_unlock(csb);
-	if (IS_ERR(mero_inode)) {
-		dput(mero_dentry);
-		return M0_RC((int)PTR_ERR(mero_inode));
-	}
+        if (IS_ERR(mero_inode)) {
+                dput(mero_dentry);
+		M0_LOG(M0_ERROR, "m0t1fs_iget(M0_DOT_MERO_FID) failed, rc=%d",
+		       (int)PTR_ERR(mero_inode));
+                return M0_RC((int)PTR_ERR(mero_inode));
+        }
 
-	/* Init virtual .mero/fid directory */
-	fid_dentry = d_alloc_name(mero_dentry, M0_DOT_MERO_FID_NAME);
-	if (fid_dentry == NULL) {
-		iput(mero_inode);
-		dput(mero_dentry);
-		return M0_RC(-ENOMEM);
-	}
+        /* Init virtual .mero/fid directory */
+        fid_dentry = d_alloc_name(mero_dentry, M0_DOT_MERO_FID_NAME);
+        if (fid_dentry == NULL) {
+                iput(mero_inode);
+                dput(mero_dentry);
+		M0_LOG(M0_ERROR, "m0t1fs_iget(M0_DOT_MERO_FID_NAME) "
+		       "failed, rc=%d", -ENOMEM);
+                return M0_RC(-ENOMEM);
+        }
 
 	m0t1fs_fs_lock(csb);
 	fid_inode = m0t1fs_iget(sb, &M0_DOT_MERO_FID_FID, body);
 	m0t1fs_fs_unlock(csb);
-	if (IS_ERR(fid_inode)) {
-		dput(fid_dentry);
-		iput(mero_inode);
-		dput(mero_dentry);
-		return M0_RC((int)PTR_ERR(fid_inode));
-	}
+        if (IS_ERR(fid_inode)) {
+                dput(fid_dentry);
+                iput(mero_inode);
+                dput(mero_dentry);
+		M0_LOG(M0_ERROR, "m0t1fs_iget(M0_DOT_MERO_FID_FID) "
+		       "failed, rc=%d", (int)PTR_ERR(fid_inode));
+                return M0_RC((int)PTR_ERR(fid_inode));
+        }
 
 	d_add(fid_dentry, fid_inode);
 	csb->csb_fid_dentry = fid_dentry;
@@ -1210,18 +1147,24 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	/* for .sync_fs() callback to be called by kernel */
 	sb->s_bdi = NULL;
 	rc = bdi_register_dev(&csb->csb_backing_dev_info, sb->s_dev);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "bdi_register_dev() failed, rc=%d", rc);
 		goto m0t1fs_teardown;
+	}
 	sb->s_bdi = &csb->csb_backing_dev_info;
 #endif
 
 	rc = m0t1fs_root_alloc(sb);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "m0t1fs_root_alloc() failed, rc=%d", rc);
 		goto m0t1fs_teardown;
+	}
 
-	rc = m0t1fs_obf_alloc(sb);
-	if (rc != 0)
-		goto m0t1fs_teardown;
+        rc = m0t1fs_obf_alloc(sb);
+        if (rc != 0) {
+		M0_LOG(M0_ERROR, "m0t1fs_obf_alloc() failed, rc=%d", rc);
+                goto m0t1fs_teardown;
+        }
 
 	io_bob_tlists_init();
 	M0_SET0(&iommstats);
@@ -1276,7 +1219,8 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 	M0_ENTRY("csb = %p", csb);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
-	bdi_unregister(sb->s_bdi);
+	if (sb->s_bdi != NULL)
+		bdi_unregister(sb->s_bdi);
 #endif
 
 	/*

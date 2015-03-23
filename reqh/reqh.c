@@ -138,6 +138,25 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 		     m0_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
+M0_INTERNAL int m0_reqh_layouts_setup(struct m0_reqh *reqh,
+				      struct m0_pools_common *pc)
+{
+	int rc;
+
+	M0_PRE(pc != NULL);
+
+	M0_ENTRY("%p", reqh);
+	reqh->rh_pools   = pc;
+	rc = m0_layout_domain_setup_by_pools(&reqh->rh_ldom, pc);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_reqh_layouts_cleanup(struct m0_reqh *reqh)
+{
+	m0_layout_domain_cleanup(&reqh->rh_ldom);
+	reqh->rh_pools = NULL;
+}
+
 M0_INTERNAL int
 m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 {
@@ -208,10 +227,9 @@ m0_reqh_be_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
 		rc = m0_layout_standard_types_register(&reqh->rh_ldom);
 		if (rc != 0)
 			m0_layout_domain_fini(&reqh->rh_ldom);
+		reqh->rh_beseg = seg;
+		M0_POST(m0_reqh_invariant(reqh));
 	}
-
-	reqh->rh_beseg = seg;
-	M0_POST(m0_reqh_invariant(reqh));
 
 	return M0_RC(rc);
 }

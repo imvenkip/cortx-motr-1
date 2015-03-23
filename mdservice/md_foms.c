@@ -1192,139 +1192,6 @@ out:
 	return M0_FSO_AGAIN;
 }
 
-static int m0_md_tick_layout(struct m0_fom *fom)
-{
-	struct m0_fop_layout          *req;
-	struct m0_fop_layout_rep      *rep;
-	struct m0_fop                 *fop;
-	struct m0_fop                 *fop_rep;
-	int                            rc;
-	struct m0_layout              *l;
-#if 0
-	struct m0_bufvec               bv;
-	struct m0_bufvec_cursor        cur;
-	struct m0_layout_type         *lt;
-	struct m0_db_pair              pair;
-#endif
-	struct m0_reqh                *reqh;
-	struct m0_reqh_md_service     *mds;
-	struct m0_reqh_service        *svc;
-	struct m0_bufvec               bv;
-	void                          *rec_buf;
-	m0_bcount_t		       rec_count;
-	struct m0_bufvec_cursor        rec_cur;
-
-	rc = m0_md_tick_generic(fom);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	fop = fom->fo_fop;
-	M0_ASSERT(fop != NULL);
-	req = m0_fop_data(fop);
-
-	fop_rep = fom->fo_rep_fop;
-	M0_ASSERT(fop_rep != NULL);
-	rep = m0_fop_data(fop_rep);
-
-	rc = m0_md_fop_init(fop, fom);
-	if (rc != 0)
-		goto out;
-
-	M0_LOG(M0_DEBUG, "This is a layout fop op = %u, lid = %llu",
-		req->l_op, (unsigned long long)req->l_lid);
-
-	reqh = fom->fo_service->rs_reqh;
-
-	switch (req->l_op) {
-	case M0_LAYOUT_OP_ADD:
-	case M0_LAYOUT_OP_DELETE:
-#if 0
-		bv = (struct m0_bufvec)
-			M0_BUFVEC_INIT_BUF((void**)&req->l_buf.b_addr,
-					   (m0_bcount_t*)&req->l_buf.b_count);
-		m0_bufvec_cursor_init(&cur, &bv);
-		lt = &m0_pdclust_layout_type;
-
-		rc = lt->lt_ops->lto_allocate(&reqh->rh_ldom,
-					      req->l_lid, &l);
-		if (rc != 0)
-			break;
-
-		rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP, NULL);
-		m0_mutex_unlock(&l->l_lock); /* lock held by ->lto_allocate() */
-		if (rc == 0) {
-			M0_LOG(M0_DEBUG, "Start");
-			m0_layout_pair_set(&pair, &req->l_lid,
-					req->l_buf.b_addr,
-					req->l_buf.b_count);
-			if (req->l_op == M0_LAYOUT_OP_ADD)
-				rc = m0_layout_add(l, &fom->fo_tx.tx_dbtx,
-						   &pair);
-			else if (req->l_op == M0_LAYOUT_OP_DELETE)
-				rc = m0_layout_delete(l, &fom->fo_tx.tx_dbtx,
-						      &pair);
-			M0_LOG(M0_DEBUG, "Done");
-		}
-		m0_layout_put(l); /* ref from ->lto_allocate() */
-#endif
-		rc = -EOPNOTSUPP;
-		break;
-
-	case M0_LAYOUT_OP_LOOKUP:
-		M0_LOG(M0_DEBUG, "Lookup Start");
-
-		rep->lr_buf.b_count = m0_layout_max_recsize(
-					&reqh->rh_ldom);
-		rep->lr_buf.b_addr = m0_alloc(rep->lr_buf.b_count);
-		if (rep->lr_buf.b_addr == NULL) {
-			rc = -ENOMEM;
-			break;
-		}
-
-#if 0
-		m0_layout_pair_set(&pair, &req->l_lid,
-				rep->lr_buf.b_addr,
-				rep->lr_buf.b_count);
-		/* lookup from db and encode into pair */
-		rc = m0_layout_lookup(&reqh->rh_ldom, req->l_lid,
-				      &m0_pdclust_layout_type,
-				      &fom->fo_tx.tx_dbtx, &pair, &l);
-		if (rc == 0)
-			m0_layout_put(l);
-#endif
-
-		svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
-		mds = container_of(svc, struct m0_reqh_md_service, rmds_gen);
-		l = m0_mds_layout_find(mds, req->l_lid);
-		if (l == NULL) {
-			rc = -ENOENT;
-			break;
-		}
-		m0_mutex_lock(&l->l_lock);
-		rec_buf = rep->lr_buf.b_addr;
-		rec_count = rep->lr_buf.b_count;
-		bv = (struct m0_bufvec)M0_BUFVEC_INIT_BUF(&rec_buf, &rec_count);
-		m0_bufvec_cursor_init(&rec_cur, &bv);
-		rc = m0_layout_encode(l, M0_LXO_BUFFER_OP,
-				      &fom->fo_tx.tx_betx, &rec_cur);
-		m0_mutex_unlock(&l->l_lock);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR, "Layout %llu encode failed",
-			       (unsigned long long)req->l_lid);
-			m0_layout_put(l);
-			break;
-		}
-		m0_layout_put(l);
-		M0_LOG(M0_DEBUG, "Lookup Done");
-		break;
-	}
-
-out:
-	rep->lr_rc = rc;
-	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-	return M0_FSO_AGAIN;
-}
-
 static int m0_md_req_path_get(struct m0_mdstore *mdstore,
 			      struct m0_fid *fid,
 			      struct m0_fop_str *str)
@@ -1591,13 +1458,6 @@ static const struct m0_fom_ops m0_md_fom_readdir_ops = {
         .fo_addb_init = m0_md_fom_addb_init
 };
 
-static const struct m0_fom_ops m0_md_fom_layout_ops = {
-	.fo_home_locality = m0_md_req_fom_locality_get,
-	.fo_tick   = m0_md_tick_layout,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
-};
-
 M0_INTERNAL int m0_md_rep_fom_create(struct m0_fop *fop, struct m0_fom **m,
 				     struct m0_reqh *reqh)
 {
@@ -1680,10 +1540,6 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	case M0_MDSERVICE_READDIR_OPCODE:
 		ops = &m0_md_fom_readdir_ops;
 		rep_fopt = &m0_fop_readdir_rep_fopt;
-		break;
-	 case M0_LAYOUT_OPCODE:
-		ops = &m0_md_fom_layout_ops;
-		rep_fopt = &m0_fop_layout_rep_fopt;
 		break;
 	default:
 		m0_free(fom_obj);

@@ -92,12 +92,10 @@ static bool                          runast = false;
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 
-int m0t1fs_layout_init(struct m0t1fs_sb *csb);
 int m0t1fs_addb_mon_total_io_size_init(struct m0t1fs_sb *csb);
 int m0t1fs_rpc_init(struct m0t1fs_sb *csb);
 int m0t1fs_net_init(struct m0t1fs_sb *csb);
 int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb);
-void m0t1fs_layout_fini(struct m0t1fs_sb *csb);
 void m0t1fs_addb_mon_total_io_size_fini(struct m0t1fs_sb *csb);
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
 void m0t1fs_net_fini(struct m0t1fs_sb *csb);
@@ -227,40 +225,38 @@ static int file_io_ut_init(void)
 
 	m0t1fs_fs_lock(&csb);
 
-	rc = m0t1fs_net_init(&csb);
-	M0_ASSERT(rc == 0);
+        rc = m0t1fs_net_init(&csb);
+        M0_ASSERT(rc == 0);
 
-	rc = m0t1fs_rpc_init(&csb);
-	M0_ASSERT(rc == 0);
+        rc = m0t1fs_rpc_init(&csb);
+        M0_ASSERT(rc == 0);
 
-	rc = m0t1fs_addb_mon_total_io_size_init(&csb);
-	M0_ASSERT(rc == 0);
+        rc = m0t1fs_addb_mon_total_io_size_init(&csb);
+        M0_ASSERT(rc == 0);
 
-	rc = m0t1fs_layout_init(&csb);
-	M0_ASSERT(rc == 0);
-	rc = m0t1fs_reqh_services_start(&csb);
-	M0_ASSERT(rc == 0);
+        rc = m0t1fs_reqh_services_start(&csb);
+        M0_ASSERT(rc == 0);
 
-	/* Tries to build a layout. */
-	llattr = (struct m0_layout_linear_attr) {
-		.lla_nr = pver->pv_attr.pa_P,
-		.lla_A	= ATTR_A_CONST,
-		.lla_B	= ATTR_B_CONST,
-	};
-	llenum = NULL;
-	rc = m0_linear_enum_build(&csb.csb_layout_dom, &llattr,
-				  &llenum);
-	M0_ASSERT(rc == 0);
+        /* Tries to build a layout. */
+        llattr = (struct m0_layout_linear_attr) {
+                .lla_nr = pver->pv_attr.pa_P,
+                .lla_A  = ATTR_A_CONST,
+                .lla_B  = ATTR_B_CONST,
+        };
+        llenum = NULL;
+        rc = m0_linear_enum_build(&csb.csb_reqh.rh_ldom, &llattr,
+			          &llenum);
+        M0_ASSERT(rc == 0);
 
-	pdattr = (struct m0_pdclust_attr) {
-		.pa_N	      = pver->pv_attr.pa_N,
-		.pa_K	      = pver->pv_attr.pa_K,
-		.pa_P	      = pver->pv_attr.pa_P,
-		.pa_unit_size = UNIT_SIZE,
+        pdattr = (struct m0_pdclust_attr) {
+                .pa_N         = pver->pv_attr.pa_N,
+                .pa_K         = pver->pv_attr.pa_K,
+                .pa_P         = pver->pv_attr.pa_P,
+                .pa_unit_size = UNIT_SIZE,
 
-	};
-	m0_uint128_init(&pdattr.pa_seed, "upjumpandpumpim,");
-	rc = m0_pdclust_build(&csb.csb_layout_dom, M0_DEFAULT_LAYOUT_ID,
+        };
+        m0_uint128_init(&pdattr.pa_seed, "upjumpandpumpim,");
+        rc = m0_pdclust_build(&csb.csb_reqh.rh_ldom, M0_DEFAULT_LAYOUT_ID,
 			      &pdattr, &llenum->lle_base, &pdlay);
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(pdlay != NULL);
@@ -299,7 +295,6 @@ static int file_io_ut_fini(void)
 	m0_layout_instance_fini(ci.ci_layout_instance);
 	/* Finalizes the m0_pdclust_layout type. */
 	m0_layout_put(&pdlay->pl_base.sl_base);
-	m0t1fs_layout_fini(&csb);
 	m0_pools_common_fini(&csb.csb_pools_common);
 	m0_confc_fini(&confc);
 	m0t1fs_addb_mon_total_io_size_fini(&csb);

@@ -1868,6 +1868,15 @@ static void cs_conf_destroy(struct m0_mero *cctx)
 	}
 }
 
+static int cs_reqh_layouts_setup(struct m0_mero *cctx)
+{
+	if (cctx->cc_profile == NULL && cctx->cc_confd_addr == NULL)
+		return 0;
+	int rc = m0_reqh_layouts_setup(&cctx->cc_reqh_ctx.rc_reqh,
+				       &cctx->cc_pools_common);
+	return M0_RC(rc);
+}
+
 int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 {
 	int rc;
@@ -1883,7 +1892,8 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	     cs_buffer_pool_setup(cctx) ?:
 	     cs_reqh_start(&cctx->cc_reqh_ctx, cctx->cc_mkfs, cctx->cc_force) ?:
 	     cs_rpc_machines_init(cctx) ?:
-	     cs_conf_setup(cctx);
+	     cs_conf_setup(cctx) ?:
+	     cs_reqh_layouts_setup(cctx);
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 
 	if (rc < 0)
@@ -1939,6 +1949,9 @@ void m0_cs_fini(struct m0_mero *cctx)
 	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
 
 	M0_ENTRY();
+
+	if (rctx->rc_state == RC_INITIALISED)
+		m0_reqh_layouts_cleanup(&rctx->rc_reqh);
 
 	cs_conf_destroy(cctx);
 	if (rctx->rc_state == RC_INITIALISED)

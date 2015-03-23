@@ -44,18 +44,11 @@
  */
 struct m0_reqh_md_service {
 	/** Generic reqh service object */
-	struct m0_reqh_service	 rmds_gen;
-	struct m0_layout_domain	 rmds_layout_dom;
+	struct m0_reqh_service	rmds_gen;
 	/** Magic to check io service object */
-	uint64_t		 rmds_magic;
-	/** Mostly to protect @rmds_layouts. */
-	struct m0_mutex 	 rmds_lock;
-	/** Layouts list populated with mds_layout_add(). */
-	struct m0_tl 		 rmds_layouts;
+	uint64_t		rmds_magic;
 };
 
-M0_INTERNAL struct m0_layout *m0_mds_layout_find(struct m0_reqh_md_service *mds,
-						 uint64_t lid);
 M0_INTERNAL void m0_mds_unregister(void);
 M0_INTERNAL int m0_mds_register(void);
 

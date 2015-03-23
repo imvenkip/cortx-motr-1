@@ -100,6 +100,9 @@ struct m0_reqh {
 	/** Mdstore for this request handler. */
 	struct m0_mdstore            *rh_mdstore;
 
+	/* Initialized pools */
+	struct m0_pools_common       *rh_pools;
+
 	/** Fol pointer for this request handler. */
 	struct m0_fol                 rh_fol;
 
@@ -218,12 +221,23 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh);
    Initialises be-dependant part (in future) of request handler.
  */
 M0_INTERNAL int m0_reqh_be_init(struct m0_reqh *reqh,
-				struct m0_be_seg *dbenv);
+				struct m0_be_seg *seg);
 
 /**
    Finalises be-dependant part of request handler.
  */
 M0_INTERNAL void m0_reqh_be_fini(struct m0_reqh *reqh);
+
+/**
+   Setup all the layouts based on pools.
+ */
+M0_INTERNAL int m0_reqh_layouts_setup(struct m0_reqh *reqh,
+				      struct m0_pools_common *pc);
+
+/**
+   Release layouts in layout domain.
+ */
+M0_INTERNAL void m0_reqh_layouts_cleanup(struct m0_reqh *reqh);
 
 M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
 				       struct m0_stob *stob);

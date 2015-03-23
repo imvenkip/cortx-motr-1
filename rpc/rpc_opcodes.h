@@ -163,9 +163,6 @@ enum M0_RPC_OPCODES {
 	M0_RM_FOP_REVOKE_REPLY              = 90,
 	M0_RM_FOP_CANCEL                    = 91,
 
-	M0_LAYOUT_OPCODE                    = 92,
-	M0_LAYOUT_REP_OPCODE                = 93,
-
 	/* SNS copy packet. */
 	M0_SNS_CM_REPAIR_CP_OPCODE          = 94,
 	M0_SNS_CM_REPAIR_CP_REP_OPCODE      = 95,

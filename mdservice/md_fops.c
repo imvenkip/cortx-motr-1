@@ -62,7 +62,6 @@ struct m0_fop_type m0_fop_listxattr_fopt;
 struct m0_fop_type m0_fop_statfs_fopt;
 struct m0_fop_type m0_fop_rename_fopt;
 struct m0_fop_type m0_fop_readdir_fopt;
-struct m0_fop_type m0_fop_layout_fopt;
 
 struct m0_fop_type m0_fop_create_rep_fopt;
 struct m0_fop_type m0_fop_lookup_rep_fopt;
@@ -79,7 +78,6 @@ struct m0_fop_type m0_fop_listxattr_rep_fopt;
 struct m0_fop_type m0_fop_statfs_rep_fopt;
 struct m0_fop_type m0_fop_rename_rep_fopt;
 struct m0_fop_type m0_fop_readdir_rep_fopt;
-struct m0_fop_type m0_fop_layout_rep_fopt;
 
 M0_INTERNAL int m0_mdservice_fopts_init(void)
 {
@@ -257,17 +255,6 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .svc_type  = &m0_mds_type,
 #endif
 			 .sm        = &m0_generic_conf);
-	M0_FOP_TYPE_INIT(&m0_fop_layout_fopt,
-			 .name      = "Layout request",
-			 .opcode    = M0_LAYOUT_OPCODE,
-			 .xt        = m0_fop_layout_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-			 .fop_ops   = &m0_md_fop_ops,
-#ifndef __KERNEL__
-			 .fom_ops   = &m0_md_fom_ops,
-			 .svc_type  = &m0_mds_type,
-#endif
-			 .sm        = &m0_generic_conf);
 	return 0;
 }
 
@@ -348,11 +335,6 @@ M0_INTERNAL int m0_mdservice_rep_fopts_init(void)
 			 .opcode    = M0_MDSERVICE_READDIR_REP_OPCODE,
 			 .xt        = m0_fop_readdir_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_FOP_TYPE_INIT(&m0_fop_layout_rep_fopt,
-			 .name      = "Layout reply",
-			 .opcode    = M0_LAYOUT_REP_OPCODE,
-			 .xt        = m0_fop_layout_rep_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 	return 0;
 }
 
@@ -380,7 +362,6 @@ M0_INTERNAL void m0_mdservice_fop_fini(void)
         m0_fop_type_fini(&m0_fop_statfs_fopt);
         m0_fop_type_fini(&m0_fop_rename_fopt);
         m0_fop_type_fini(&m0_fop_readdir_fopt);
-        m0_fop_type_fini(&m0_fop_layout_fopt);
 
         m0_fop_type_fini(&m0_fop_create_rep_fopt);
         m0_fop_type_fini(&m0_fop_lookup_rep_fopt);
@@ -397,7 +378,8 @@ M0_INTERNAL void m0_mdservice_fop_fini(void)
         m0_fop_type_fini(&m0_fop_statfs_rep_fopt);
         m0_fop_type_fini(&m0_fop_rename_rep_fopt);
         m0_fop_type_fini(&m0_fop_readdir_rep_fopt);
-        m0_fop_type_fini(&m0_fop_layout_rep_fopt);
+
+	m0_xc_md_fops_fini();
 }
 M0_EXPORTED(m0_mdservice_fop_fini);
 

@@ -95,6 +95,7 @@
 #include "mero/magic.h"
 #include "layout/layout_internal.h"
 #include "layout/layout.h"
+#include "pool/pool.h" /* M0_TL_DESCR_DECLARE(pools, M0_EXTERN) */
 
 extern struct m0_layout_type m0_pdclust_layout_type;
 //extern struct m0_layout_enum_type m0_list_enum_type;
@@ -262,13 +263,13 @@ static void enum_type_put(struct m0_layout_domain *ldom,
 /**
  * Adds an entry in the layout list, with the specified layout pointer and id.
  */
-static void layout_list_add(struct m0_layout *l)
+M0_INTERNAL void m0_layout_add(struct m0_layout_domain *dom, struct m0_layout *l)
 {
-	M0_ENTRY("dom %p, lid %llu", l->l_dom, (unsigned long long)l->l_id);
-	m0_mutex_lock(&l->l_dom->ld_lock);
-	M0_PRE(m0_layout__list_lookup(l->l_dom, l->l_id, false) == NULL);
+	M0_ENTRY("dom %p, lid %llu", dom, (unsigned long long)l->l_id);
+	m0_mutex_lock(&dom->ld_lock);
+	M0_PRE(m0_layout__list_lookup(dom, l->l_id, false) == NULL);
 	layout_tlink_init_at(l, &l->l_dom->ld_layout_list);
-	m0_mutex_unlock(&l->l_dom->ld_lock);
+	m0_mutex_unlock(&dom->ld_lock);
 	M0_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
@@ -364,7 +365,7 @@ M0_INTERNAL void m0_layout__populate(struct m0_layout *l, uint32_t user_count)
 
 	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	l->l_user_count = user_count;
-	layout_list_add(l);
+	m0_layout_add(l->l_dom, l);
 	M0_POST(m0_layout__invariant(l));
 	M0_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
@@ -683,6 +684,48 @@ M0_INTERNAL void m0_layout_domain_fini(struct m0_layout_domain *dom)
 
 	m0_mutex_fini(&dom->ld_lock);
 	layout_tlist_fini(&dom->ld_layout_list);
+}
+
+M0_INTERNAL int m0_layout_domain_setup_by_pools(struct m0_layout_domain *dom,
+						struct m0_pools_common *pc)
+{
+	int 			count = 0;
+	struct m0_pool_version *pv;
+	struct m0_pool		*p;
+	int 			rc;
+
+        M0_ENTRY();
+	m0_tl_for(pools, &pc->pc_pools, p) {
+		m0_tl_for(pool_version, &p->po_vers, pv) {
+			rc = m0_layout_init_by_pver(dom, pv, &count);
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "layout build failed for pver "
+				       FID_F": rc=%d", FID_P(&pv->pv_id), rc);
+				return M0_RC(rc);
+			}
+		} m0_tl_endfor;
+	} m0_tl_endfor;
+
+	M0_LOG(M0_INFO, "Found %d layout(s)", count);
+        return M0_RC(0);
+}
+
+M0_INTERNAL void m0_layout_domain_cleanup(struct m0_layout_domain *dom)
+{
+	int 		  count = 0;
+	struct m0_layout *l;
+
+	M0_ENTRY();
+	M0_PRE(dom != NULL);
+
+	while (!layout_tlist_is_empty(&dom->ld_layout_list)) {
+		l = layout_tlist_head(&dom->ld_layout_list);
+		m0_layout_put(l);
+		count++;
+	}
+	if (count > 0)
+		M0_LOG(M0_INFO, "Killed %d layout(s)", count);
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_layout_standard_types_register(struct m0_layout_domain *dom)

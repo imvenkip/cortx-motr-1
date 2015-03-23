@@ -131,6 +131,7 @@
 #include "fid/fid.h"    /* struct m0_fid */
 #include "addb/addb.h"
 #include "be/be.h"      /* struct m0_be_tx */
+#include "layout/layout_pver.h" /* m0_layout_init_by_pver() */
 
 struct m0_addb_ctx;
 struct m0_bufvec_cursor;
@@ -150,6 +151,7 @@ struct m0_striped_layout;
 struct m0_layout_instance;
 struct m0_layout_instance_ops;
 struct m0_layout_rec;
+struct m0_pools_common;
 
 enum {
 	M0_LAYOUT_TYPE_MAX      = 32,
@@ -235,12 +237,6 @@ struct m0_layout {
 	 * the m0_layout_domain object.
 	 */
 	struct m0_tlink              l_list_linkage;
-
-	/**
-	 * Linkage used for maintaning list of layout objects stored in md
-	 * service and populated with mds_layout_add()
-	 */
-	struct m0_tlink              l_mds_linkage;
 };
 
 struct m0_layout_ops {
@@ -668,7 +664,7 @@ M0_INTERNAL void m0_layouts_fini(void);
 
 /**
  * Initialises layout domain - Initialises arrays to hold the objects for
- * layout types and enum types and creates the layouts table.
+ * layout types and enum types.
  */
 M0_INTERNAL int m0_layout_domain_init(struct m0_layout_domain *dom);
 
@@ -678,6 +674,19 @@ M0_INTERNAL int m0_layout_domain_init(struct m0_layout_domain *dom);
  * @pre All the layout types and enum types should be unregistered.
  */
 M0_INTERNAL void m0_layout_domain_fini(struct m0_layout_domain *dom);
+
+/**
+ * Enumerate all pools and their versions to generate layouts and
+ * place them to passed layout domain @dom. Return 0 on success
+ * or error code otherwise.
+ */
+M0_INTERNAL int m0_layout_domain_setup_by_pools(struct m0_layout_domain *dom,
+						struct m0_pools_common *pc);
+
+/**
+   Release all layouts in the domain.
+ */
+M0_INTERNAL void m0_layout_domain_cleanup(struct m0_layout_domain *dom);
 
 /** Registers all the standard layout types and enum types. */
 M0_INTERNAL int m0_layout_standard_types_register(struct m0_layout_domain *dom);
@@ -717,6 +726,11 @@ M0_INTERNAL int m0_layout_enum_type_register(struct m0_layout_domain *dom,
  */
 M0_INTERNAL void m0_layout_enum_type_unregister(struct m0_layout_domain *dom,
 						struct m0_layout_enum_type *et);
+
+/**
+ * Adds the layout to domain list.
+ */
+M0_INTERNAL void m0_layout_add(struct m0_layout_domain *dom, struct m0_layout *l);
 
 /**
  * Returns the layout object if it exists in memory by incrementing a reference

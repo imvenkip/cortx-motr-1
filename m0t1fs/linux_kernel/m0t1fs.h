@@ -753,7 +753,6 @@ struct m0t1fs_sb {
 	struct m0_rpc_machine                   csb_rpc_machine;
 	struct m0_reqh                          csb_reqh;
 	struct m0_net_buffer_pool               csb_buffer_pool;
-	struct m0_layout_domain                 csb_layout_dom;
 
 	struct m0_addb_monitor                  csb_addb_mon_rw_io_size;
 	struct m0t1fs_addb_mon_sum_data_io_size csb_addb_mon_sum_data_rw_io_size;
@@ -800,7 +799,6 @@ struct m0t1fs_filedata {
  */
 struct m0t1fs_mdop {
 	struct m0_cob_attr    mo_attr;
-	enum m0_layout_opcode mo_layout_op;
 	struct m0_layout     *mo_layout;
 	bool                  mo_use_hint; /**< if true, mo_hash_hint is valid*/
 	uint32_t              mo_hash_hint;/**< hash hint for mdservice map   */
@@ -1000,18 +998,6 @@ M0_INTERNAL int m0t1fs_mds_cob_listxattr(struct m0t1fs_sb             *csb,
 M0_INTERNAL int m0t1fs_mds_cob_delxattr(struct m0t1fs_sb            *csb,
 					const struct m0t1fs_mdop    *mo,
 					struct m0_fop              **rep_fop);
-
-/**
- * layout operation from client to mds.
- * @param op in {CREATE/DELETE/LOOKUP}
- * @param lid layout id
- * @param l_out if op is LOOKUP, new layout is returned here. If *l_out is
- *        returned properly, m0_layout_put() should be called after use.
- */
-M0_INTERNAL int m0t1fs_layout_op(struct m0t1fs_sb *csb,
-				 enum m0_layout_opcode op,
-				 uint64_t lid,
-				 struct m0_layout **l_out);
 
 M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry,
 				   uint64_t newsize);

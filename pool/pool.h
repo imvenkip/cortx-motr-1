@@ -32,6 +32,9 @@
 #include "layout/pdclust.h"    /* m0_pdclust_attr */
 #include "pool/pool_machine.h"
 
+M0_TL_DESCR_DECLARE(pools, M0_EXTERN);
+M0_TL_DESCR_DECLARE(pool_version, M0_EXTERN);
+
 /**
    @defgroup pool Storage pools.
 

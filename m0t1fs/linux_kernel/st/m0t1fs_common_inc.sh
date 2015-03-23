@@ -136,10 +136,10 @@ load_kernel_module()
 
 prepare_testdir()
 {
-	echo "Cleaning up test directory ..."
+	echo "Cleaning up test directory $MERO_M0T1FS_TEST_DIR ..."
 	rm -rf $MERO_M0T1FS_TEST_DIR	 &> /dev/null
 
-	echo "Creating test directory ..."
+	echo "Creating test directory $MERO_M0T1FS_TEST_DIR ..."
 	mkdir -p $MERO_M0T1FS_TEST_DIR &> /dev/null
 
 	if [ $? -ne "0" ]

@@ -153,7 +153,7 @@ mero_service()
 		# start confd
 		DIR=$MERO_M0T1FS_TEST_DIR/confd
 		rm -rf $DIR
-		mkdir $DIR
+		mkdir -p $DIR
 		ulimit -c unlimited
 
 		local nr_ios=${#IOSEP[*]}
@@ -165,7 +165,7 @@ mero_service()
 			local mds=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 			rm -rf $DIR
-			mkdir $DIR
+			mkdir -p $DIR
 
 			mkmdsloopdevs $mds $DIR || return 1
 		done
@@ -176,7 +176,7 @@ mero_service()
 			local nr_dev=$nr_dev_per_ios
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 			rm -rf $DIR
-			mkdir $DIR
+			mkdir -p $DIR
 
 			if (($i < $remainder))
 			then
@@ -201,7 +201,7 @@ mero_service()
 		# wait till the server start completes
 		local m0d_log=$DIR/m0d.log
 		touch $m0d_log
-		sleep 2
+		sleep 5
 		while status $prog_exec > /dev/null && \
 		      ! grep CTRL $m0d_log > /dev/null; do
 			sleep 2

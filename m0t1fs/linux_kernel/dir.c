@@ -1454,7 +1454,6 @@ static int m0t1fs_mds_cob_fop_populate(struct m0t1fs_sb         *csb,
 	struct m0_fop_statfs    *statfs;
 	struct m0_fop_setattr   *setattr;
 	struct m0_fop_readdir   *readdir;
-	struct m0_fop_layout    *layout;
 	struct m0_fop_setxattr  *setxattr;
 	struct m0_fop_getxattr  *getxattr;
 	struct m0_fop_listxattr *listxattr;
@@ -1521,42 +1520,6 @@ static int m0t1fs_mds_cob_fop_populate(struct m0t1fs_sb         *csb,
 		req->b_tfid = mo->mo_attr.ca_tfid;
 		rc = name_mem2wire(&readdir->r_pos, &mo->mo_attr.ca_name);
 		break;
-	 case M0_LAYOUT_OPCODE: {
-		struct m0_bufvec          bv;
-		struct m0_bufvec_cursor   cur;
-		struct m0_layout         *l = mo->mo_layout;
-
-		layout = m0_fop_data(fop);
-		layout->l_op  = mo->mo_layout_op;
-		layout->l_lid = mo->mo_attr.ca_lid;
-
-		if (layout->l_op == M0_LAYOUT_OP_ADD ||
-		    layout->l_op == M0_LAYOUT_OP_DELETE) {
-			M0_ASSERT(l != NULL);
-
-			/* TODO m0_layout_size(const struct *l) should be used
-			 * in the future to calculate buffer size large enough
-			 * for any type of layout.
-			 */
-			layout->l_buf.b_count = m0_layout_max_recsize(
-						&csb->csb_layout_dom);
-			layout->l_buf.b_addr = m0_alloc(layout->l_buf.b_count);
-			if (layout->l_buf.b_addr == NULL) {
-				rc = -ENOMEM;
-				break;
-			}
-
-			bv = (struct m0_bufvec)
-			       M0_BUFVEC_INIT_BUF((void**)&layout->l_buf.b_addr,
-					 (m0_bcount_t *)&layout->l_buf.b_count);
-			m0_bufvec_cursor_init(&cur, &bv);
-
-			m0_mutex_lock(&l->l_lock);
-			rc = m0_layout_encode(l, M0_LXO_BUFFER_OP, NULL, &cur);
-			m0_mutex_unlock(&l->l_lock);
-		}
-		break;
-	}
 	case M0_MDSERVICE_SETXATTR_OPCODE:
 		setxattr = m0_fop_data(fop);
 		req = &setxattr->s_body;
@@ -1614,7 +1577,6 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		struct m0_fop_open_rep      *open_rep;
 		struct m0_fop_close_rep     *close_rep;
 		struct m0_fop_readdir_rep   *readdir_rep;
-		struct m0_fop_layout_rep    *layout_rep;
 		struct m0_fop_setxattr_rep  *setxattr_rep;
 		struct m0_fop_getxattr_rep  *getxattr_rep;
 		struct m0_fop_listxattr_rep *listxattr_rep;
@@ -1724,10 +1686,6 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		u.readdir_rep = reply_data;
 		rc = u.readdir_rep->r_body.b_rc;
 		break;
-	case M0_LAYOUT_OPCODE:
-		u.layout_rep = reply_data;
-		rc = u.layout_rep->lr_rc;
-		break;
 	case M0_MDSERVICE_SETXATTR_OPCODE:
 		u.setxattr_rep = reply_data;
 		rc = u.setxattr_rep->s_body.b_rc;
@@ -1760,77 +1718,6 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 
 out:
 	m0_fop_put0_lock(fop);
-	return M0_RC(rc);
-}
-
-
-int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
-		     uint64_t lid, struct m0_layout **l_out)
-{
-	struct m0t1fs_mdop        mo = { {  { 0 } } };
-	struct m0_fop_layout_rep *rep = NULL;
-	int                       rc;
-	struct m0_layout         *layout = NULL;
-	struct m0_layout_domain  *ldom = &csb->csb_layout_dom;
-	struct m0_fop            *rep_fop;
-
-	M0_ENTRY();
-
-	M0_LOG(M0_DEBUG, "layout op = %u lid = %llu", op, lid);
-	if (op == M0_LAYOUT_OP_ADD || op == M0_LAYOUT_OP_DELETE) {
-		layout = m0_layout_find(ldom, lid);
-		if (layout == NULL)
-			return M0_RC(-ENOENT);
-	}
-
-	mo.mo_layout_op   = op;
-	mo.mo_attr.ca_lid = lid;
-	mo.mo_layout      = layout;
-
-	rc = m0t1fs_mds_cob_op(csb, &mo, &m0_fop_layout_fopt, &rep_fop);
-	M0_LOG(M0_DEBUG, "layout rep rc = %d", rc);
-	if (rc == 0) {
-		rep = m0_fop_data(rep_fop);
-		M0_LOG(M0_DEBUG, "layout rep->lr_rc = %d", rep->lr_rc);
-
-		if (op == M0_LAYOUT_OP_LOOKUP) {
-			struct m0_bufvec               bv;
-			struct m0_bufvec_cursor        cur;
-			struct m0_layout              *l;
-			struct m0_layout_type         *lt;
-			M0_ASSERT(l_out != NULL);
-
-			bv = (struct m0_bufvec)
-				M0_BUFVEC_INIT_BUF((void**)&rep->lr_buf.b_addr,
-					   (m0_bcount_t*)&rep->lr_buf.b_count);
-			m0_bufvec_cursor_init(&cur, &bv);
-
-			/* FIXME This hard coding of 'lt' will be gotten rid of
-			 * once we enhance the layout id to contain the layout
-			 * type as well.
-			 */
-			lt = &m0_pdclust_layout_type;
-			rc = lt->lt_ops->lto_allocate(ldom, lid, &l);
-			if (rc == 0) {
-				rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP,
-						      NULL);
-				/* release lock held by ->lto_allocate() */
-				m0_mutex_unlock(&l->l_lock);
-				if (rc == 0) {
-					/* m0_layout_put() should be called
-					 * after use of this l_out */
-					*l_out = l;
-				} else {
-					m0_layout_put(l);
-				}
-			}
-		}
-	}
-
-	m0_fop_put0_lock(rep_fop);
-	if (layout != NULL)
-		m0_layout_put(layout); /* dual to m0_layout_find() */
-
 	return M0_RC(rc);
 }
 
