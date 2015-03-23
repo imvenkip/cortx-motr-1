@@ -144,7 +144,8 @@ static int64_t getdelta(uint64_t x0, uint64_t x1)
 	int64_t delta;
 
 	delta = (int64_t)x0 - (int64_t)x1;
-	M0_ASSERT(delta < M0_MOD_SAFE_LIMIT && -delta < M0_MOD_SAFE_LIMIT);
+	M0_ASSERT( delta < (int64_t)M0_MOD_SAFE_LIMIT &&
+		  -delta < (int64_t)M0_MOD_SAFE_LIMIT);
 	return delta;
 }
 
