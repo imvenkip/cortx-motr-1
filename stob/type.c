@@ -118,9 +118,9 @@ M0_INTERNAL void m0_stob_types_fini(void)
 	stob_types_destroy_list(types);
 }
 
-M0_INTERNAL struct m0_stob_type *m0_stob_type_by_dom_id(uint64_t id)
+M0_INTERNAL struct m0_stob_type *m0_stob_type_by_dom_id(const struct m0_fid *id)
 {
-	const struct m0_fid_type *fidt = m0_fid_type_gethi(id);
+	const struct m0_fid_type *fidt = m0_fid_type_get(m0_fid_tget(id));
 
 	/* XXX cast from const to non-const here */
 	return fidt == NULL ? NULL :
@@ -187,13 +187,13 @@ M0_INTERNAL void m0_stob_type__dom_del(struct m0_stob_type *type,
 }
 
 M0_INTERNAL struct m0_stob_domain *
-m0_stob_type__dom_find(struct m0_stob_type *type, uint64_t dom_id)
+m0_stob_type__dom_find(struct m0_stob_type *type, const struct m0_fid *dom_id)
 {
 	struct m0_stob_domain *dom;
 
 	m0_mutex_lock(&type->st_domains_lock);
 	dom = m0_tl_find(domains, dom, &type->st_domains,
-			 m0_stob_domain_id_get(dom) == dom_id);
+			 m0_fid_cmp(m0_stob_domain_id_get(dom), dom_id) == 0);
 	m0_mutex_unlock(&type->st_domains_lock);
 
 	return dom;

@@ -8,9 +8,9 @@
     processes=[process-5, process-6])
 (process-5 mem_limit=4000 cores=2 services=[service-9, service-10])
 (process-6 mem_limit=4000 cores=1 services=[])
-(service-9 type=3 endpoints=["addr-0", "addr-1", "addr-2"]
+(service-9 type=3 endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-13, sdev-14])
-(service-10 type=1 endpoints=["addr-3"] sdevs=[sdev-15])
+(service-10 type=1 endpoints=["0@lo:12345:34:1"] sdevs=[sdev-15])
 (sdev-13 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
     filename="/dev/sdev0")
 (sdev-14 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4

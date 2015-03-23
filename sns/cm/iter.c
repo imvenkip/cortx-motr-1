@@ -40,6 +40,7 @@
 #include "sns/cm/ag.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/file.h"
+#include "ioservice/fid_convert.h" /* m0_fid_gob_make */
 
 /**
   @addtogroup SNSCM
@@ -317,17 +318,17 @@ end:
 static int iter_fid_next(struct m0_sns_cm_iter *it)
 {
 	struct m0_sns_cm_iter_file_ctx   *ifc = &it->si_fc;
-	struct m0_fid                     fid_next = {0, 0};
+	struct m0_fid                     fid_next;
 	int                               rc;
 	M0_ENTRY("it = %p", it);
 
+	m0_fid_gob_make(&fid_next, 0, 0);
 	it->si_fc.ifc_fctx = NULL;
 	/* Get current GOB fid saved in the iterator. */
 	do {
 		rc = __fid_next(it, &fid_next);
 	} while (rc == 0 && (m0_fid_eq(&fid_next, &M0_COB_ROOT_FID)     ||
 			     m0_fid_eq(&fid_next, &M0_MDSERVICE_SLASH_FID)));
-
 	if (rc == 0) {
 		/* Save next GOB fid in the iterator. */
 		ifc->ifc_gfid = fid_next;
@@ -803,7 +804,6 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 	struct m0_cm         *cm;
 	int                   rc;
 
-
 	M0_PRE(it != NULL);
 
 	cm = &scm->sc_base;
@@ -823,12 +823,13 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 
 M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 {
-	struct m0_fid gfid = {0, 1};
+	struct m0_fid gfid;
 	int           rc;
 
 	M0_PRE(it != NULL);
 	M0_PRE(iter_phase(it) == ITPH_IDLE);
 
+	m0_fid_gob_make(&gfid, 0, 1);
 	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, it->si_cob_dom);
 	if (rc == 0)
 		M0_SET0(&it->si_fc);

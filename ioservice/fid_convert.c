@@ -20,6 +20,8 @@
 
 #include "ioservice/fid_convert.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
 #include "lib/assert.h"         /* M0_PRE */
 
 #include "fid/fid.h"            /* m0_fid */
@@ -74,7 +76,7 @@ M0_INTERNAL void m0_fid_convert_cob2gob(const struct m0_fid *cob_fid,
 	M0_POST(m0_fid_validate_gob(gob_fid));
 }
 
-M0_INTERNAL uint32_t m0_fid_cob_device_id(struct m0_fid *cob_fid)
+M0_INTERNAL uint32_t m0_fid_cob_device_id(const struct m0_fid *cob_fid)
 {
 	M0_PRE(m0_fid_validate_cob(cob_fid));
 
@@ -92,6 +94,7 @@ M0_INTERNAL bool m0_fid_validate_cob(const struct m0_fid *cob_fid)
 	return m0_fid_tget(cob_fid) == m0_cob_fid_type.ft_id;
 }
 
+#undef M0_TRACE_SUBSYSTEM
 /** @} end of fidconvert group */
 
 /*

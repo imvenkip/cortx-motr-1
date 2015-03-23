@@ -114,10 +114,10 @@ M0_ADDB_RT_DP(m0_addb_rt_ios_rwfom_finish,
 	      "return_code", "io_size", "turnaround_time_ns");
 M0_ADDB_RT_DP(m0_addb_rt_ios_ccfom_finish,
 	      M0_ADDB_RECID_IOS_CCFOM_FINISH,
-	      "stob_id.hi", "stob_id.lo", "rc");
+	      "stob_id.type", "stob_id.hi", "stob_id.lo", "rc");
 M0_ADDB_RT_DP(m0_addb_rt_ios_cdfom_finish,
 	      M0_ADDB_RECID_IOS_CDFOM_FINISH,
-	      "stob_id.hi", "stob_id.lo", "rc");
+	      "stob_id.type", "stob_id.hi", "stob_id.lo", "rc");
 
 /*
  ******************************************************************************
@@ -190,8 +190,7 @@ enum {
 	M0_IOS_ADDB_LOC_COB_FOM_CREATE_1,
 	M0_IOS_ADDB_LOC_COB_FOM_CREATE_2,
 	M0_IOS_ADDB_LOC_CC_STOB_CREATE_CRED,
-	M0_IOS_ADDB_LOC_CC_STOB_CREATE_1,
-	M0_IOS_ADDB_LOC_CC_STOB_CREATE_2,
+	M0_IOS_ADDB_LOC_CC_STOB_CREATE,
 	M0_IOS_ADDB_LOC_CC_COB_CREATE_1,
 	M0_IOS_ADDB_LOC_CC_COB_CREATE_2,
 	M0_IOS_ADDB_LOC_CC_STOB_EDIT_CRED_1,

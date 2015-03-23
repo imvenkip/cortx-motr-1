@@ -22,10 +22,8 @@
 #include "lib/assert.h"
 #include "lib/arith.h"      /* M0_3WAY */
 #include "lib/misc.h"
-
-#ifndef __KERNEL__
-#include <limits.h>	    /* CHAR_BIT */
-#endif
+#include "lib/string.h"     /* sscanf */
+#include "lib/errno.h"      /* EINVAL */
 
 void __dummy_function(void)
 {
@@ -44,6 +42,12 @@ M0_INTERNAL int m0_uint128_cmp(const struct m0_uint128 *u0,
 			       const struct m0_uint128 *u1)
 {
 	return M0_3WAY(u0->u_hi, u1->u_hi) ?: M0_3WAY(u0->u_lo, u1->u_lo);
+}
+
+M0_INTERNAL int m0_uint128_sscanf(const char *s, struct m0_uint128 *u128)
+{
+	int rc = sscanf(s, U128X_F, U128_S(u128));
+	return rc == 2 ? 0 : -EINVAL;
 }
 
 M0_INTERNAL void m0_uint128_add(struct m0_uint128 *res,

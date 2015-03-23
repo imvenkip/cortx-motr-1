@@ -23,6 +23,8 @@
 #ifndef __MERO_IOSERVICE_COB_FOMS_H__
 #define __MERO_IOSERVICE_COB_FOMS_H__
 
+#include "cob/cob.h"
+
 /**
  * Phases of cob create/delete state machine.
  */
@@ -42,7 +44,7 @@ enum m0_fom_cob_operations_phases {
  */
 struct m0_fom_cob_op {
 	/** Stob identifier. */
-	struct m0_fid		 fco_stob_fid;
+	struct m0_stob_id        fco_stob_id;
 	/** Generic fom object. */
 	struct m0_fom		 fco_fom;
         /** Pool version for this request. */
@@ -53,6 +55,8 @@ struct m0_fom_cob_op {
 	struct m0_fid		 fco_cfid;
 	/** Unique cob index in pool. */
 	uint32_t                 fco_cob_idx;
+	/** Cob type. */
+	enum m0_cob_type         fco_cob_type;
 	struct m0_stob          *fco_stob;
 	bool                     fco_is_done;
 	/** FOL rec fragment for create and delete operations. */

@@ -56,6 +56,10 @@
  *    stob fid     |     type id     |                                       |
  *                 +-----------------+---------------------------------------+
  *                       8 bits                     120 bits
+ *                 +-----------------+---------------------------------------+
+ *     Linux stob  | Linux stob dom  |                                       |
+ *   domain fid    |    type id      |        FIXED DOM KEY                  |
+ *                 +-----------------+---------------------------------------+
  * @endverbatim
  *
  * Note: ad stob backing store conversion is here because ad stob itself doesn't
@@ -74,6 +78,7 @@ enum {
 				    M0_FID_DEVICE_ID_OFFSET,
 	M0_FID_DEVICE_ID_MAX      = (1ULL << M0_FID_DEVICE_ID_BITS) - 1,
 	M0_FID_GOB_CONTAINER_MASK = (1ULL << M0_FID_DEVICE_ID_OFFSET) - 1,
+	M0_AD_STOB_LINUX_DOM_KEY  = 0xadf11e, /* AD file */
 };
 
 M0_INTERNAL void m0_fid_gob_make(struct m0_fid *gob_fid,
@@ -85,11 +90,15 @@ M0_INTERNAL void m0_fid_convert_gob2cob(const struct m0_fid *gob_fid,
 					uint32_t             device_id);
 M0_INTERNAL void m0_fid_convert_cob2gob(const struct m0_fid *cob_fid,
 					struct m0_fid       *gob_fid);
+M0_INTERNAL void m0_fid_convert_cob2stob(const struct m0_fid *cob_fid,
+					 struct m0_stob_id   *stob_id);
 
 M0_INTERNAL void m0_fid_convert_cob2adstob(const struct m0_fid *cob_fid,
 					   struct m0_stob_id   *stob_id);
 M0_INTERNAL void m0_fid_convert_adstob2cob(const struct m0_stob_id *stob_id,
 					   struct m0_fid           *cob_fid);
+M0_INTERNAL void m0_fid_convert_stob2cob(const struct m0_stob_id   *stob_id,
+					 struct m0_fid *cob_fid);
 M0_INTERNAL void
 m0_fid_convert_bstore2adstob(const struct m0_fid *bstore_fid,
 			     struct m0_fid       *stob_domain_fid);
@@ -97,7 +106,7 @@ M0_INTERNAL void
 m0_fid_convert_adstob2bstore(const struct m0_fid *stob_domain_fid,
 			     struct m0_fid       *bstore_fid);
 
-M0_INTERNAL uint32_t m0_fid_cob_device_id(struct m0_fid *cob_fid);
+M0_INTERNAL uint32_t m0_fid_cob_device_id(const struct m0_fid *cob_fid);
 
 M0_INTERNAL bool m0_fid_validate_gob(const struct m0_fid *gob_fid);
 M0_INTERNAL bool m0_fid_validate_cob(const struct m0_fid *cob_fid);

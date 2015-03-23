@@ -34,8 +34,7 @@
 #include "sns/cm/ag.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/sns_cp_onwire.h"
-
-#include "ioservice/io_foms.h"	/* io_fom_cob_rw_fid2stob_map */
+#include "ioservice/fid_convert.h"      /* m0_fid_convert_cob2stob */
 
 /**
   @addtogroup SNSCMCP
@@ -77,8 +76,9 @@ M0_INTERNAL void m0_sns_cm_cp_addb_log(const struct m0_cm_cp *cp)
 		     M0_ADDB_CTX_VEC(&m0_sns_cp_addb_ctx),
 		     ag->cag_id.ai_hi.u_hi, ag->cag_id.ai_hi.u_lo,
                      ag->cag_id.ai_lo.u_hi, ag->cag_id.ai_lo.u_lo,
-		     m0_stob_fid_dom_id_get(&sns_cp->sc_stob_fid),
-		     m0_stob_fid_key_get(&sns_cp->sc_stob_fid),
+		     m0_stob_id_dom_id_get(&sns_cp->sc_stob_id),
+		     sns_cp->sc_stob_id.si_fid.f_container,
+		     sns_cp->sc_stob_id.si_fid.f_key,
 		     sns_cp->sc_index, sns_cp->sc_is_local);
 }
 
@@ -93,7 +93,8 @@ M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp)
 
 	return m0_fom_phase(&cp->c_fom) < M0_CCP_NR &&
 	       ergo(m0_fom_phase(&cp->c_fom) > M0_CCP_INIT,
-		    m0_fid_is_valid(&sns_cp->sc_stob_fid));
+		    m0_fid_is_valid(&sns_cp->sc_stob_id.si_fid) &&
+		    m0_fid_is_valid(&sns_cp->sc_stob_id.si_domain_fid));
 }
 
 /*
@@ -112,7 +113,7 @@ M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
          */
 	if (fop != NULL && (m0_fom_phase(&cp->c_fom) != M0_CCP_FINI)) {
 		sns_cpx = m0_fop_data(fop);
-		return m0_stob_fid_dom_id_get(&sns_cpx->scx_stob_fid);
+		return m0_stob_id_dom_id_get(&sns_cpx->scx_stob_id);
 	} else
 		return sns_cp->sc_cobfid.f_container;
 }
@@ -223,7 +224,7 @@ M0_INTERNAL void m0_sns_cm_cp_tgt_info_fill(struct m0_sns_cm_cp *scp,
 					    uint64_t ag_cp_idx)
 {
 	scp->sc_cobfid = *cob_fid;
-	io_fom_cob_rw_fid2stob_map(cob_fid, &scp->sc_stob_fid);
+	m0_fid_convert_cob2stob(cob_fid, &scp->sc_stob_id);
 	scp->sc_index = stob_offset;
 	scp->sc_base.c_ag_cp_idx = ag_cp_idx;
 }
@@ -271,7 +272,7 @@ M0_INTERNAL int m0_sns_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest)
 		src_scp = cp2snscp(src);
 		dest_scp->sc_is_acc = true;
 		dest_scp->sc_cobfid = src_scp->sc_cobfid;
-		dest_scp->sc_stob_fid = src_scp->sc_stob_fid;
+		dest_scp->sc_stob_id = src_scp->sc_stob_id;
 		dest_scp->sc_is_local = src_scp->sc_is_local;
 		dest_scp->sc_failed_idx = src_scp->sc_failed_idx;
 		dest_scp->sc_index = src_scp->sc_index;

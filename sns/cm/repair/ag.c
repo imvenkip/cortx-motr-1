@@ -36,6 +36,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/file.h"
 #include "sns/cm/cm.h"
+#include "ioservice/fid_convert.h" /* m0_fid_cob_device_id */
 
 /**
    @addtogroup SNSCMAG
@@ -313,7 +314,8 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 		 */
 		if (data_unit_id_out == i) {
 			rc = m0_poolmach_device_state(cm->cm_pm,
-					cobfid.f_container, &state_out);
+					m0_fid_cob_device_id(&cobfid),
+					&state_out);
 			if (rc != 0)
 				return M0_RC(rc);
 			if (state_out == M0_PNDS_SNS_REPAIRED)
@@ -321,7 +323,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 		}
 
 		tgt_unit = repair_ag_target_unit(sag, pl, pi,
-						 cobfid.f_container,
+						 m0_fid_cob_device_id(&cobfid),
 						 data_unit_id_out);
 		rag_fc = &rag->rag_fc[fidx];
 		tgt_cobfid = &rag_fc->fc_tgt_cobfid;

@@ -55,6 +55,7 @@
 #include "m0t1fs/m0t1fs_addb.h"
 #include "m0t1fs/linux_kernel/fsync.h"
 #include "m0t1fs/linux_kernel/ioctl.h"
+#include "ioservice/fid_convert.h" /* m0_fid_cob_device_id */
 
 /**
    @page iosnsrepair I/O with SNS and SNS repair.
@@ -615,7 +616,7 @@ static inline struct m0_rpc_session *target_session(struct io_request *req,
 						    struct m0_fid      tfid)
 {
 	return m0t1fs_container_id_to_session(file_to_sb(req->ir_file),
-					      tfid.f_container);
+					      m0_fid_cob_device_id(&tfid));
 }
 
 static inline uint64_t page_id(m0_bindex_t offset)
@@ -2644,7 +2645,8 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 
 	msb = file_to_sb(map->pi_ioreq->ir_file);
 	rc = m0_poolmach_device_state(&msb->csb_pool_version->pv_mach,
-				      tio->ti_fid.f_container, &dev_state);
+				      m0_fid_cob_device_id(&tio->ti_fid),
+				      &dev_state);
 	play = pdlayout_get(map->pi_ioreq);
 	pargrp_src_addr(index[0], map->pi_ioreq, tio, &src);
 	M0_ASSERT(src.sa_group == map->pi_grpid);
@@ -2765,7 +2767,8 @@ static int unit_state(const struct m0_pdclust_src_addr *src,
 	play_instance = pdlayout_instance(layout_instance(req));
 	m0_pdclust_instance_map(play_instance, src, &tgt);
 	tfid = target_fid(req, &tgt);
-	rc = m0_poolmach_device_state(&msb->csb_pool_version->pv_mach, tfid.f_container,
+	rc = m0_poolmach_device_state(&msb->csb_pool_version->pv_mach,
+				      m0_fid_cob_device_id(&tfid),
 				      state);
 	if (rc != 0) {
 		M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
@@ -3499,7 +3502,8 @@ static int device_check(struct io_request *req)
 
 	m0_htable_for (tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
 		rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
-					      ti->ti_fid.f_container, &state);
+				              m0_fid_cob_device_id(&ti->ti_fid),
+					      &state);
 		if (rc != 0)
 			return M0_ERR_INFO(rc, "Failed to retrieve target device"
 				       " state");
@@ -3655,7 +3659,8 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		 * in ti->ti_state. Why do we do this again?
 		 */
 		rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
-				ti->ti_fid.f_container, &state);
+					      m0_fid_cob_device_id(&ti->ti_fid),
+					      &state);
 		if (rc != 0)
 			return M0_ERR_INFO(rc, "Failed to retrieve device state");
 		M0_LOG(M0_INFO, "device state for "FID_F" is %d",
@@ -4182,7 +4187,8 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 
 	csb = file_to_sb(req->ir_file);
 	rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
-				      tfid.f_container, &device_state);
+				      m0_fid_cob_device_id(&tfid),
+				      &device_state);
 	if (rc != 0) {
 		M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
 				  M0T1FS_ADDB_LOC_TIOREQ_MAP_QDEVST, rc,
@@ -4292,7 +4298,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 			m0_pdclust_instance_map(play_instance, &spare, tgt);
 			tfid = target_fid(req, tgt);
 			rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
-						      tfid.f_container,
+						      m0_fid_cob_device_id(&tfid),
 						      &device_state_prev);
 			if (rc != 0) {
 				M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
@@ -5124,47 +5130,6 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	return res;
 }
 
-static int m0t1fs_open(struct inode *inode, struct file *file)
-{
-	struct super_block  *sb  = inode->i_sb;
-	struct m0t1fs_sb    *csb = M0T1FS_SB(sb);
-	struct dentry       *dentry = file->f_path.dentry;
-	struct m0_fid        fid;
-	struct m0t1fs_inode *ci;
-	int                  rc;
-	unsigned int         flag = file->f_flags;
-
-	M0_THREAD_ENTER;
-	M0_ENTRY();
-	if (csb->csb_oostore) {
-		m0t1fs_fs_lock(csb);
-		rc = m0_fid_sscanf_simple(dentry->d_name.name, &fid);
-		if (rc != 0) {
-			m0t1fs_fs_unlock(csb);
-			return M0_RC(rc);
-		}
-		m0_fid_tassume(&fid, &m0_file_fid_type);
-		inode->i_ino = fid_hash(&fid);
-		ci = M0T1FS_I(inode);
-		ci->ci_fid = fid;
-		/** @todo Based on hash of the fid, find the ioservices on which
-		 * meta-data cobs are present and get attributes from it.  Hash
-		 * of the fid gives us fids of mdservices (as specified in the
-		 * confd), not end-points. This would allow us, in the next
-		 * version, to migrate "original" mdservices to different nodes.
-		 * If needed get attributes like pool_version or layout and
-		 * store them in inode.
-		 */
-		M0_LOG(M0_DEBUG, "open flag = %d (%d=RDONLY;%d=WRONLY;%d=RW)",
-				 flag & O_ACCMODE, O_RDONLY, O_WRONLY, O_RDWR);
-		m0t1fs_cob_getattr(inode);
-		m0t1fs_fs_unlock(csb);
-		mark_inode_dirty(inode);
-		M0_ADDB2_ADD(M0_AVI_FS_OPEN, FID_P(&fid), flag);
-	}
-	return M0_RC(0);
-}
-
 int m0t1fs_flush(struct file *file, fl_owner_t id)
 {
 	struct inode        *inode = m0t1fs_file_to_inode(file);
@@ -5173,13 +5138,13 @@ int m0t1fs_flush(struct file *file, fl_owner_t id)
 	int                  rc;
 
 	M0_THREAD_ENTER;
+	M0_LOG(M0_INFO, "close size %d", (unsigned int)inode->i_size);
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid   = *m0t1fs_inode_fid(ci);
 	mo.mo_attr.ca_size   = inode->i_size;
 	mo.mo_attr.ca_valid |= M0_COB_SIZE;
 
 	rc = m0t1fs_cob_setattr(inode, &mo);
-
 	return M0_RC(rc);
 }
 
@@ -5195,7 +5160,6 @@ const struct file_operations m0t1fs_reg_file_operations = {
 	.ioctl     = m0t1fs_ioctl,
 #endif
 	.fsync          = m0t1fs_fsync,
-	.open           = m0t1fs_open,
 	.flush          = m0t1fs_flush,
 };
 

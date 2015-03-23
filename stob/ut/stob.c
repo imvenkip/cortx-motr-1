@@ -55,8 +55,10 @@ static void stob_ut_stob_thread(void *param)
 	bool                     stob_creator = false;
 	int                      rc;
 	int                      i;
+	struct m0_stob_id        stob_id;
 
-	rc = m0_stob_find_by_key(ctx->su_domain, ctx->su_stob_key, &stob);
+	m0_stob_id_make(0, ctx->su_stob_key, &ctx->su_domain->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &stob);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(stob != NULL);
 
@@ -115,7 +117,7 @@ static void stob_ut_stob_multi(const char *location,
 	struct m0_mutex       *stob_mtxs;
 	struct m0_semaphore   *destroy_sems;
 	struct m0_stob_domain *dom;
-	uint64_t               dom_key = 0xba5ec0de;
+	uint64_t               dom_key = 0xec0de;
 	int                    rc;
 	int                    i;
 
@@ -166,15 +168,16 @@ static void stob_ut_stob_single(const char *location,
 	struct m0_stob_domain *dom;
 	struct m0_stob        *stob;
 	struct m0_stob        *stob2;
-	struct m0_fid          fid;
-	uint64_t               dom_key = 0xba5ec0de;
+	struct m0_stob_id      stob_id;
+	uint64_t               dom_key = 0xec0de;
 	uint64_t               stob_key = 0xc0deba5e;
 	int                    rc;
 
 	rc = m0_stob_domain_create(location, NULL, dom_key, dom_cfg, &dom);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_stob_find_by_key(dom, stob_key, &stob);
+	m0_stob_id_make(0, stob_key, &dom->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &stob);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(stob != NULL);
 	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_UNKNOWN);
@@ -186,11 +189,11 @@ static void stob_ut_stob_single(const char *location,
 	rc = m0_ut_stob_create(stob, stob_cfg);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
-	M0_UT_ASSERT(m0_stob_key_get(stob) == stob_key);
+	M0_UT_ASSERT(m0_fid_cmp(m0_stob_fid_get(stob), &stob_id.si_fid) == 0);
 	rc = m0_ut_stob_create(stob, stob_cfg);
 	M0_UT_ASSERT(rc == -EEXIST);
 
-	rc = m0_stob_lookup_by_key(dom, stob_key, &stob2);
+	rc = m0_stob_lookup(&stob_id, &stob2);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(stob2 == stob);
 	m0_stob_put(stob2);
@@ -198,23 +201,23 @@ static void stob_ut_stob_single(const char *location,
 	m0_stob_get(stob);
 	m0_stob_put(stob);
 
-	fid = *m0_stob_fid_get(stob);
+	stob_id = *m0_stob_id_get(stob);
 
 	m0_stob_put(stob);
 	m0_stob_domain_fini(dom);
 
 	rc = m0_stob_domain_init(location, NULL, &dom);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_find(&fid, &stob);
+	rc = m0_stob_find(&stob_id, &stob);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(stob != NULL);
 	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_UNKNOWN);
 	rc = m0_stob_locate(stob);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
-	M0_UT_ASSERT(m0_stob_key_get(stob) == stob_key);
+	M0_UT_ASSERT(m0_fid_cmp(m0_stob_fid_get(stob), &stob_id.si_fid) == 0);
 
-	rc = m0_stob_lookup(&fid, &stob2);
+	rc = m0_stob_lookup(&stob_id, &stob2);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(stob2 == stob);
 	m0_stob_put(stob2);
@@ -257,7 +260,7 @@ void m0_stob_ut_stob_ad(void)
 	stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(stob != NULL);
 
-	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg, m0_stob_fid_get(stob));
+	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg, m0_stob_id_get(stob));
 	M0_UT_ASSERT(dom_cfg != NULL);
 
 	stob_ut_stob_single("adstob:some_suffix", dom_cfg, NULL);

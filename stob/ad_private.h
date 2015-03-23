@@ -23,19 +23,21 @@
 #ifndef __MERO_STOB_AD_PRIVATE_H__
 #define __MERO_STOB_AD_PRIVATE_H__
 
-#include "fid/fid.h"		/* m0_fid */
-#include "fid/fid_xc.h"		/* m0_fid_xc */
-#include "be/extmap_xc.h"	/* m0_be_emap_seg */
+#include "fid/fid.h"       /* m0_fid */
+#include "fid/fid_xc.h"    /* m0_fid_xc */
+#include "be/extmap_xc.h"  /* m0_be_emap_seg */
+#include "stob/stob.h"     /* m0_stob_id */
+#include "stob/stob_xc.h"  /* m0_stob_id */
 
 struct stob_ad_rec_frag_seg {
-	uint32_t		 ps_segments;
-	struct m0_be_emap_seg	*ps_old_data;
+	uint32_t                ps_segments;
+	struct m0_be_emap_seg  *ps_old_data;
 } M0_XCA_SEQUENCE;
 
 struct stob_ad_rec_frag {
-	uint64_t			 arp_dom_id;
-	struct m0_fid			 arp_stob_fid;
-	struct stob_ad_rec_frag_seg	 arp_seg;
+	struct m0_fid               arp_dom_id;
+	struct m0_stob_id           arp_stob_id;
+	struct stob_ad_rec_frag_seg arp_seg;
 } M0_XCA_RECORD;
 
 /* __MERO_STOB_AD_PRIVATE_H__ */

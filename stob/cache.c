@@ -117,7 +117,7 @@ M0_INTERNAL void m0_stob_cache_add(struct m0_stob_cache *cache,
 				   struct m0_stob *stob)
 {
 	M0_PRE(m0_stob_cache__invariant(cache));
-	M0_PRE_EX(m0_stob_cache_lookup(cache, m0_stob_key_get(stob)) == NULL);
+	M0_PRE_EX(m0_stob_cache_lookup(cache, m0_stob_fid_get(stob)) == NULL);
 
 	stob_cache_tlink_init_at(stob, &cache->sc_busy);
 }
@@ -131,21 +131,21 @@ M0_INTERNAL void m0_stob_cache_idle(struct m0_stob_cache *cache,
 }
 
 M0_INTERNAL struct m0_stob *m0_stob_cache_lookup(struct m0_stob_cache *cache,
-						 uint64_t stob_key)
+						 const struct m0_fid *stob_fid)
 {
 	struct m0_stob *stob;
 
 	M0_PRE(m0_stob_cache__invariant(cache));
 
 	m0_tl_for(stob_cache, &cache->sc_busy, stob) {
-		if (stob_key == m0_stob_key_get(stob)) {
+		if (m0_fid_cmp(stob_fid, m0_stob_fid_get(stob)) == 0) {
 			++cache->sc_busy_hits;
 			return stob;
 		}
 	} m0_tl_endfor;
 
 	m0_tl_for(stob_cache, &cache->sc_idle, stob) {
-		if (stob_key == m0_stob_key_get(stob)) {
+		if (m0_fid_cmp(stob_fid, m0_stob_fid_get(stob)) == 0) {
 			++cache->sc_idle_hits;
 			stob_cache_idle_del(cache, stob);
 			stob_cache_tlink_init_at(stob, &cache->sc_busy);
@@ -221,16 +221,16 @@ M0_INTERNAL void m0_stob_cache__print(struct m0_stob_cache *cache)
 	M0_LOG(LEVEL, "m0_stob_cache %p: sc_busy list", cache);
 	i = 0;
 	m0_tl_for(stob_cache, &cache->sc_busy, stob) {
-		M0_LOG(LEVEL, "%d: %p, stob_key = %"PRIu64,
-		       i, stob, m0_stob_key_get(stob));
+		M0_LOG(LEVEL, "%d: %p, stob_fid =" FID_F,
+		       i, stob, FID_P(m0_stob_fid_get(stob)));
 		++i;
 	} m0_tl_endfor;
 
 	M0_LOG(LEVEL, "m0_stob_cache %p: sc_idle list", cache);
 	i = 0;
 	m0_tl_for(stob_cache, &cache->sc_idle, stob) {
-		M0_LOG(LEVEL, "%d: %p, stob_key = %"PRIu64,
-		       i, stob, m0_stob_key_get(stob));
+		M0_LOG(LEVEL, "%d: %p, stob_key =" FID_F,
+		       i, stob, FID_P(m0_stob_fid_get(stob)));
 		++i;
 	} m0_tl_endfor;
 	M0_LOG(LEVEL, "m0_stob_cache %p: end.", cache);

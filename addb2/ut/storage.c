@@ -45,14 +45,16 @@ enum {
 
 static void stob_get(bool create)
 {
-	int result;
+	int               result;
+	struct m0_stob_id stob_id;
 
 	result = m0_stob_domain_create_or_init("linuxstob:./__s",
 					       "directio=true",
 					       DOMAIN_KEY, NULL, &dom);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(dom != NULL);
-	result = m0_stob_find_by_key(dom, STOB_KEY, &stob);
+	m0_stob_id_make(0, STOB_KEY, &dom->sd_id, &stob_id);
+	result = m0_stob_find(&stob_id, &stob);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(stob != NULL);
 	result = m0_stob_locate(stob);

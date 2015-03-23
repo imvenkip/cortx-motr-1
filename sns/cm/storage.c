@@ -29,7 +29,7 @@
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 
-#include "stob/domain.h"	/* m0_stob_domain_find_by_stob_fid */
+#include "stob/domain.h"    /* m0_stob_domain_find_by_stob_id */
 
 /**
  * @addtogroup SNSCMCP
@@ -148,14 +148,14 @@ static int cp_stob_io_init(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 
 	sns_cp = cp2snscp(cp);
 	stio = &sns_cp->sc_stio;
-	dom = m0_stob_domain_find_by_stob_fid(&sns_cp->sc_stob_fid);
+	dom = m0_stob_domain_find_by_stob_id(&sns_cp->sc_stob_id);
 	addb_ctx = &cp->c_ag->cag_cm->cm_service.rs_addb_ctx;
 	m0_sns_cm_cp_addb_log(cp);
 
 	if (dom == NULL)
 		return M0_ERR(-EINVAL);
 
-	rc = m0_stob_find(&sns_cp->sc_stob_fid, &sns_cp->sc_stob);
+	rc = m0_stob_find(&sns_cp->sc_stob_id, &sns_cp->sc_stob);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -192,7 +192,7 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	reqh = m0_fom_reqh(cp_fom);
 	sns_cp = cp2snscp(cp);
 	stio = &sns_cp->sc_stio;
-	dom = m0_stob_domain_find_by_stob_fid(&sns_cp->sc_stob_fid);
+	dom = m0_stob_domain_find_by_stob_id(&sns_cp->sc_stob_id);
 	if (tx->tx_state < M0_DTX_INIT) {
 		rc = cp_stob_io_init(cp, op);
 		if (rc != 0)

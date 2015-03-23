@@ -21,7 +21,9 @@
 #include "desim/sim.h"
 #include "desim/net.h"
 #include "desim/m0t1fs.h"
-#include "layout/linear_enum.h" /* struct m0_layout_linear_enum */
+#include "layout/linear_enum.h"    /* struct m0_layout_linear_enum */
+#include "cob/cob.h"               /* m0_cob_fid_type */
+#include "ioservice/fid_convert.h" /* m0_fid_convert_cob2adstob */
 
 /**
    @addtogroup desim desim
@@ -70,6 +72,7 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 			uint32_t                   srv;
 			struct m0t1fs_conn        *conn;
 			struct m0_fid              fid;
+			struct m0_stob_id          stob_id;
 
 			m0_pdclust_instance_map(pi, &src, &tgt);
 			/* @todo for parity unit waste some time calculating
@@ -91,8 +94,10 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 			while (conn->cs_inflight >= conf->ct_inflight_max)
 				sim_chan_wait(&conn->cs_wakeup, t);
 			conn->cs_inflight++;
+			m0_fid_tassume(&fid, &m0_cob_fid_type);
+			m0_fid_convert_cob2adstob(&fid, &stob_id);
 			net_rpc_process(t, conf->ct_net, &conf->ct_srv[srv],
-					&fid, tgt.ta_frame * unit, unit);
+					&stob_id, tgt.ta_frame * unit, unit);
 			conn->cs_inflight--;
 			sim_chan_signal(&conn->cs_wakeup);
 		}

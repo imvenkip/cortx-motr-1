@@ -34,10 +34,8 @@ enum m0_stob_state;
 struct m0_stob;
 struct m0_stob_domain;
 
-M0_INTERNAL void m0_stob__fid_set(struct m0_stob *stob,
-				  struct m0_stob_domain *dom,
-				  uint64_t stob_key);
-M0_INTERNAL void m0_stob__key_set(struct m0_stob *stob, uint64_t stob_key);
+M0_INTERNAL void m0_stob__id_set(struct m0_stob *stob,
+				 const struct m0_fid *stob_fid);
 M0_INTERNAL void m0_stob__state_set(struct m0_stob *stob,
 				    enum m0_stob_state state);
 

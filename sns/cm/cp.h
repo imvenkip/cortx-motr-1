@@ -39,8 +39,8 @@ struct m0_sns_cm_cp {
 	/** cob fid of the cob this copy packet is targeted for. */
 	struct m0_fid          sc_cobfid;
 
-	/** Read/write stob fid. */
-	struct m0_fid	       sc_stob_fid;
+	/** Read/write stob id. */
+	struct m0_stob_id      sc_stob_id;
 
 	/**
 	 * This is true if for the local/outgoing copy packet and false

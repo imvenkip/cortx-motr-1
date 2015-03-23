@@ -46,8 +46,9 @@
 #include "pool/pool.h"
 #include "ioservice/io_service_addb.h"
 #include "ioservice/io_addb2.h"
-#include "sns/cm/cm.h" /* m0_sns_cm_fid_repair_done() */
-#include "module/instance.h"	/* m0_get() */
+#include "sns/cm/cm.h"             /* m0_sns_cm_fid_repair_done() */
+#include "module/instance.h"       /* m0_get() */
+#include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
 
 /**
    @page DLD-bulk-server DLD of Bulk Server
@@ -903,71 +904,6 @@ enum {
 	IO_FOM_STOB_KEY_MAX = 0x10000000ULL,
 };
 
-/**
- * Function to map given fid to corresponding Component object id(in turn,
- * storage object id).
- *
- * Current mapping function:
- * - if reqh has multiple ad stob domains, then:
- *   - stob domain id name is "adstob";
- *   - stob domain key is cob fid container;
- *   - stob key is cob fid key;
- * - if reqh has only one ad or linux stob domain, then:
- *   - stob domain id name is "adstob" or "linuxstob";
- *   - stob domain key is:
- *     - M0_AD_STOB_DOM_KEY_DEFAULT if ad stobs are used;
- *     - M0_AD_STOB_LINUX_DOM_KEY if linux stobs are used;
- *   - stob key is (cob fid container) * 10000 + (cob fid key)
- *
- * Stob domains are created in cs_storage_init().
- *
- * @param in file identifier
- * @param out corresponding STOB fid
- *
- * @see io_fom_cob_rw_stob2fid_map(), cs_storage_init().
- */
-M0_INTERNAL void io_fom_cob_rw_fid2stob_map(const struct m0_fid *in,
-					    struct m0_fid *out)
-{
-	uint8_t  type_id;
-	uint64_t dom_id;
-	uint64_t dom_key  = in->f_container;
-	uint64_t stob_key = in->f_key;
-	bool	 stob_ad  = m0_get()->i_reqh_uses_ad_stob;
-
-	type_id = m0_stob_type_id_by_name(stob_ad ? "adstob" : "linuxstob");
-	if (!m0_get()->i_reqh_has_multiple_ad_domains || !stob_ad) {
-		M0_ASSERT_INFO(stob_key < IO_FOM_STOB_KEY_MAX &&
-			       dom_key < UINT64_MAX / IO_FOM_STOB_KEY_MAX,
-			       "stob_key = %"PRIu64", dom_key = %"PRIu64
-			       ", IO_FOM_STOB_KEY_MAX = %lu",
-			       stob_key, dom_key, (long)IO_FOM_STOB_KEY_MAX);
-		stob_key = dom_key * IO_FOM_STOB_KEY_MAX + stob_key;
-		dom_key  = stob_ad ? M0_AD_STOB_DOM_KEY_DEFAULT :
-				     M0_AD_STOB_LINUX_DOM_KEY;
-	}
-	dom_id = m0_stob_domain__dom_id(type_id, dom_key);
-	m0_stob_fid_make(out, dom_id, stob_key);
-}
-
-/**
- * Complementary function for io_fom_cob_rw_fid2stob_map().
- */
-M0_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct m0_fid *in,
-					    struct m0_fid *out)
-{
-	uint64_t dom_id	  = m0_stob_fid_dom_id_get(in);
-	uint64_t dom_key  = m0_stob_domain__dom_key(dom_id);
-	uint64_t stob_key = m0_stob_fid_key_get(in);
-
-	if (!m0_get()->i_reqh_has_multiple_ad_domains ||
-	    !m0_get()->i_reqh_uses_ad_stob) {
-		dom_key	  = stob_key / IO_FOM_STOB_KEY_MAX;
-		stob_key %= IO_FOM_STOB_KEY_MAX;
-	}
-	*out = M0_FID_INIT(dom_key, stob_key);
-}
-
 static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
 			   struct m0_file **out)
 {
@@ -1063,11 +999,10 @@ static int align_bufvec(struct m0_fom    *fom,
  */
 static int stob_object_find(struct m0_fom *fom)
 {
-	int			 result;
-	struct m0_io_fom_cob_rw	*fom_obj;
-	struct m0_fid		 stob_fid;
-	struct m0_fop_cob_rw	*rwfop;
-	// struct m0_stob_domain	*fom_stdom;
+	int                      result;
+	struct m0_io_fom_cob_rw *fom_obj;
+	struct m0_stob_id        stob_id;
+	struct m0_fop_cob_rw    *rwfop;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1076,15 +1011,15 @@ static int stob_object_find(struct m0_fom *fom)
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
 	rwfop = io_rw_get(fom->fo_fop);
-
-	io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stob_fid);
-	result = m0_stob_find(&stob_fid, &fom_obj->fcrw_stob);
+	m0_fid_convert_cob2stob(&rwfop->crw_fid, &stob_id);
+	result = m0_stob_find(&stob_id, &fom_obj->fcrw_stob);
 	if (result != 0)
 		return result;
 	if (m0_stob_state_get(fom_obj->fcrw_stob) == CSS_UNKNOWN)
 		result = m0_stob_locate(fom_obj->fcrw_stob);
 	if (result != 0)
 		m0_stob_put(fom_obj->fcrw_stob);
+	M0_LOG(M0_DEBUG, "fid found " FID_F, FID_P(&stob_id.si_fid));
 	return result;
 }
 
@@ -1227,7 +1162,8 @@ static int io_prepare(struct m0_fom *fom)
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		goto out;
 	}
-	rc = m0_poolmach_device_state(poolmach, rwfop->crw_fid.f_container,
+	rc = m0_poolmach_device_state(poolmach,
+				      m0_fid_cob_device_id(&rwfop->crw_fid),
 				      &device_state);
 	if (rc == 0 && device_state != M0_PNDS_ONLINE) {
 		M0_LOG(M0_DEBUG, "IO @"FID_F" on failed device: "
@@ -2113,7 +2049,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
  */
 static size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom)
 {
-	return m0_fid_hash(&io_rw_get(fom->fo_fop)->crw_fid, 1 << 30, 42) >> 1;
+	return m0_fid_hash(&io_rw_get(fom->fo_fop)->crw_fid) >> 1;
 }
 
 /**

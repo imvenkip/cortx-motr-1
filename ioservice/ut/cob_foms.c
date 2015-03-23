@@ -75,20 +75,17 @@ enum {
 	CLIENT_RPC_CONN_TIMEOUT   = 200,
 	CLIENT_MAX_RPCS_IN_FLIGHT = 8,
 	COB_NAME_STRLEN           = 34,
-	COB_FID_CONTAINER_ID      = 1234,
-	COB_FID_KEY_ID            = 5678,
 	GOB_FID_CONTAINER_ID      = 1000,
 	GOB_FID_KEY_ID            = 5678,
 	COB_FOP_SINGLE            = 1,
 	COB_FOP_NR                = 5,
 	POOL_WIDTH                = 10,
 	COB_TEST_KEY              = 111,
-	COB_TEST_CONTAINER        = 1 + COB_TEST_KEY % POOL_WIDTH,
 };
 
 static char COB_FOP_NR_STR[] = { '0' + COB_FOP_NR, '\0'};
 
-#define SERVER_EP_ADDR              "0@lo:12345:34:123"
+#define SERVER_EP_ADDR              "0@lo:12345:34:1"
 #define CLIENT_EP_ADDR              "0@lo:12345:34:*"
 #define SERVER_ENDP                 "lnet:" SERVER_EP_ADDR
 static const char *SERVER_LOGFILE = "cobfoms_ut.log";
@@ -118,7 +115,8 @@ struct cobthread_arg {
 static char *server_args[] = {
 	"m0d", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-A", "linuxstob:cobfoms_ut_addb_stob",
-	"-e", SERVER_ENDP, "-s", "ioservice", "-w", "10"/* =POOL_WIDTH */,
+	"-e", SERVER_ENDP, "-s", "ioservice", "-s", "rmservice",
+	"-s", "stats", "-s", "mdservice", "-w", "10"/* =POOL_WIDTH */,
 	"-q", COB_FOP_NR_STR,
 };
 
@@ -204,10 +202,10 @@ static void cobfops_populate_internal(struct m0_fop *fop, uint64_t gob_fid_key)
 	M0_UT_ASSERT(fop->f_type != NULL);
 
 	common = m0_cobfop_common_get(fop);
-	m0_fid_set(&common->c_gobfid, 0,
-		   GOB_FID_KEY_ID + gob_fid_key);
-	m0_fid_set(&common->c_cobfid, 1 + gob_fid_key % POOL_WIDTH,
-		   GOB_FID_KEY_ID + gob_fid_key);
+	m0_fid_gob_make(&common->c_gobfid, 1 + gob_fid_key % POOL_WIDTH,
+		        GOB_FID_KEY_ID + gob_fid_key);
+	m0_fid_convert_gob2cob(&common->c_gobfid, &common->c_cobfid,
+			       M0_AD_STOB_DOM_KEY_DEFAULT);
 	common->c_pver = CONF_PVER_FID;
 	m0_md_cob_mem2wire(&common->c_body, &attr);
 }
@@ -657,8 +655,9 @@ static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
 	}
 	c = m0_cobfop_common_get(base_fop);
 	c->c_pver = CONF_PVER_FID;
-	m0_fid_set(&c->c_gobfid, 0, COB_TEST_KEY);
-	m0_fid_set(&c->c_cobfid, COB_TEST_CONTAINER, COB_TEST_KEY);
+	m0_fid_gob_make(&c->c_gobfid, 0, COB_TEST_KEY);
+	m0_fid_convert_gob2cob(&c->c_gobfid, &c->c_cobfid,
+			       M0_AD_STOB_DOM_KEY_DEFAULT);
 
 	cob_attr_default_fill(&attr);
 	if (base_fop->f_type == &m0_fop_cob_create_fopt)
@@ -668,7 +667,7 @@ static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
 
 	m0_md_cob_mem2wire(&c->c_body, &attr);
 
-	c->c_cob_idx = COB_TEST_CONTAINER;
+	c->c_cob_idx = M0_AD_STOB_DOM_KEY_DEFAULT;
 	fom->fo_fop = base_fop;
 	fom->fo_type = &base_fop->f_type->ft_fom_type;
 
@@ -817,20 +816,22 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
 	int		      rc;
 	struct m0_cob_domain *cobdom;
 	struct m0_cob_nskey  *nskey;
-	struct m0_fid         fid = {0, COB_TEST_KEY};
-        char                  nskey_bs[UINT32_MAX_STR_LEN];
+	struct m0_fid         gfid;
+	struct m0_fid         cfid;
+        char                  nskey_bs[UINT32_STR_LEN];
         uint32_t              nskey_bs_len;
-	uint32_t              cob_idx = COB_TEST_CONTAINER;
+	uint32_t              cob_idx = M0_AD_STOB_DOM_KEY_DEFAULT;
 
+	m0_fid_gob_make(&gfid, 0, COB_TEST_KEY);
+	m0_fid_convert_gob2cob(&gfid, &cfid, M0_AD_STOB_DOM_KEY_DEFAULT);
 	rc = m0_ios_cdom_get(m0_fom_reqh(fom), &cobdom);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cobdom != NULL);
 
-        snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
-                 (uint32_t)cob_idx);
+        snprintf(nskey_bs, UINT32_STR_LEN, "%u", cob_idx);
         nskey_bs_len = strlen(nskey_bs);
 
-	rc = m0_cob_nskey_make(&nskey, &fid, (char *)nskey_bs, nskey_bs_len);
+	rc = m0_cob_nskey_make(&nskey, &gfid, nskey_bs, nskey_bs_len);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_cob_lookup(cobdom, nskey, 0, &test_cob);
@@ -975,8 +976,9 @@ static void cc_fom_populate_test()
 	M0_UT_ASSERT(fom != NULL);
 
 	cc = cob_fom_get(fom);
-	M0_UT_ASSERT(cc->fco_cfid.f_container == COB_TEST_CONTAINER);
 	M0_UT_ASSERT(cc->fco_cfid.f_key == COB_TEST_KEY);
+	M0_UT_ASSERT(m0_fid_cob_device_id(&cc->fco_cfid) ==
+			M0_AD_STOB_DOM_KEY_DEFAULT);
 	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_EXECUTE);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 	cc_fom_dealloc(fom);
@@ -1053,8 +1055,9 @@ static void cd_fom_populate_test()
 	M0_UT_ASSERT(fom != NULL);
 
 	cd = cob_fom_get(fom);
-	M0_UT_ASSERT(cd->fco_cfid.f_container == COB_TEST_CONTAINER);
 	M0_UT_ASSERT(cd->fco_cfid.f_key == COB_TEST_KEY);
+	M0_UT_ASSERT(m0_fid_cob_device_id(&cd->fco_cfid) ==
+			M0_AD_STOB_DOM_KEY_DEFAULT);
 	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_EXECUTE);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 	cd_fom_dealloc(fom);
@@ -1186,6 +1189,7 @@ static void cd_cob_delete_test()
 	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
 	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
 	rc = cd_cob_delete(dfom, cd, &attr);
+	M0_UT_ASSERT(rc != 0);
 
 	/*
 	 * Now do the cleanup.

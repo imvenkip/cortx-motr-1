@@ -32,6 +32,7 @@
 
 #include "mdservice/fsync_fops.h"
 #include "ioservice/io_fops.h"     /* m0_fop_fsync_ios_fopt */
+#include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob */
 
 #define S_DBFILE        "bulkio_st.db"
 #define S_STOBFILE      "bulkio_st_stob"
@@ -58,7 +59,8 @@ static char **server_argv_alloc(const char *server_ep_addr, int *argc)
 	const char *argv[] = {
 		"bulkio_st", "-T", "AD", "-D", S_DBFILE,
 		"-S", S_STOBFILE, "-A", S_ADDB_STOBFILE, "-e", ep,
-		"-s", "ioservice", "-s", "sns_repair", "-q", tm_len,
+		"-s", "ioservice", "-s", "sns_repair", "-s", "rmservice",
+		"-s", "mdservice", "-s", "stats", "-q", tm_len,
 		"-m", rpc_size, "-w", "10", "-G", ep
 	};
 
@@ -119,14 +121,16 @@ void bulkio_server_stop(struct m0_rpc_server_ctx *sctx)
 
 static void io_fids_init(struct bulkio_params *bp)
 {
-	int i;
-	struct m0_fid gfid = M0_MDSERVICE_SLASH_FID;
+	int           i;
+	struct m0_fid gfid;
 
 	M0_ASSERT(bp != NULL);
 	/* Populates fids. */
-	for (i = 0; i < IO_FIDS_NR; ++i)
-	        m0_fid_set(&bp->bp_fids[i], gfid.f_container + i,
-			gfid.f_key + i);
+	for (i = 0; i < IO_FIDS_NR; ++i) {
+		m0_fid_gob_make(&gfid, 2, 12345 + i);
+	        m0_fid_convert_gob2cob(&gfid, &bp->bp_fids[i],
+				       M0_AD_STOB_DOM_KEY_DEFAULT);
+	}
 }
 
 static void io_buffers_allocate(struct bulkio_params *bp)

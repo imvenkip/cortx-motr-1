@@ -30,6 +30,7 @@
 #  include "lib/linux_kernel/misc.h"
 #else
 #  include <string.h>             /* memset, ffs, strstr */
+#  include <limits.h>             /* CHAR_BIT */
 #  include "lib/user_space/misc.h"
 #endif
 #include "lib/types.h"
@@ -378,6 +379,21 @@ m0_full_name_hash(const unsigned char *name, unsigned int len);
 M0_INTERNAL uint64_t m0_ptr_wrap(const void *p);
 
 M0_INTERNAL const void *m0_ptr_unwrap(uint64_t val);
+
+/**
+ * Val should be of unsigned type.
+ */
+#define M0_CIRCULAR_SHIFT_LEFT(val, bits)                       \
+({                                                              \
+	typeof(val) __v = (val);                                \
+	typeof(bits) __b = (bits);                              \
+								\
+	(__v << __b) | (__v >> (sizeof(__v) * CHAR_BIT - __b)); \
+})
+
+enum {
+	UINT32_STR_LEN = 64
+};
 
 #endif /* __MERO_LIB_MISC_H__ */
 

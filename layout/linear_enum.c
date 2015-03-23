@@ -39,6 +39,7 @@
 #include "fid/fid.h"    /* m0_fid_set(), m0_fid_is_valid() */
 #include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
+#include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob */
 
 static const struct m0_bob_type linear_bob = {
 	.bt_name         = "linear_enum",
@@ -303,9 +304,8 @@ static void linear_get(const struct m0_layout_enum *e, uint32_t idx,
 		 (unsigned long long)e->le_sl->sl_base.l_id, e);
 	lin_enum = enum_to_linear_enum(e);
 	M0_ASSERT(idx < lin_enum->lle_attr.lla_nr);
-	m0_fid_set(out,
-		   lin_enum->lle_attr.lla_A + idx * lin_enum->lle_attr.lla_B,
-		   gfid->f_key);
+	m0_fid_convert_gob2cob(gfid, out, lin_enum->lle_attr.lla_A +
+					  idx * lin_enum->lle_attr.lla_B);
 
 	M0_LEAVE("lid %llu, enum_pointer %p, fid_pointer %p",
 		 (unsigned long long)e->le_sl->sl_base.l_id, e, out);

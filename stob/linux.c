@@ -142,9 +142,10 @@ static char *stob_linux_file_domain_id(const char *path)
 	return stob_linux_vsnprintf("%s/id", path);
 }
 
-static char *stob_linux_file_stob(const char *path, uint64_t stob_key)
+static char *stob_linux_file_stob(const char *path, const struct m0_fid *stob_fid)
 {
-	return stob_linux_vsnprintf("%s/o/%016lx", path, stob_key);
+	return stob_linux_vsnprintf("%s/o/%"PRIx64":%"PRIx64"", path,
+			stob_fid->f_container, stob_fid->f_key);
 }
 
 static int stob_linux_domain_key_get_set(const char *path,
@@ -225,11 +226,11 @@ static int stob_linux_domain_init(struct m0_stob_type *type,
 				  struct m0_stob_domain **out)
 {
 	struct m0_stob_linux_domain *ldom;
-	uint64_t		     dom_key;
-	uint64_t		     dom_id;
-	uint8_t			     type_id;
-	int			     rc;
-	char			    *path;
+	uint64_t                     dom_key;
+	struct m0_fid                dom_id;
+	uint8_t                      type_id;
+	int                          rc;
+	char                        *path;
 
 	M0_PRE(location_data != NULL);
 
@@ -248,8 +249,8 @@ static int stob_linux_domain_init(struct m0_stob_type *type,
 		ldom->sld_dom.sd_ops = &stob_linux_domain_ops;
 		ldom->sld_path	     = path;
 		type_id = m0_stob_type_id_get(type);
-		dom_id  = m0_stob_domain__dom_id(type_id, dom_key);
-		m0_stob_domain__id_set(&ldom->sld_dom, dom_id);
+		m0_stob_domain__dom_id_make(&dom_id, type_id, 0, dom_key);
+		m0_stob_domain__id_set(&ldom->sld_dom, &dom_id);
 	}
 	if (rc == -ENOMEM)
 		M0_STOB_OOM(LS_DOM_LOCATE);
@@ -334,7 +335,7 @@ static int stob_linux_domain_destroy(struct m0_stob_type *type,
 }
 
 static struct m0_stob *stob_linux_alloc(struct m0_stob_domain *dom,
-					uint64_t stob_key)
+					const struct m0_fid *stob_fid)
 {
 	struct m0_stob_linux *lstob;
 
@@ -364,7 +365,7 @@ static void stob_linux_cfg_free(void *cfg_create)
 
 static int stob_linux_open(struct m0_stob *stob,
 			   struct m0_stob_domain *dom,
-			   uint64_t stob_key,
+			   const struct m0_fid *stob_fid,
 			   void *cfg,
 			   bool create)
 {
@@ -380,7 +381,7 @@ static int stob_linux_open(struct m0_stob *stob,
 	stob->so_ops = &stob_linux_ops;
 	lstob->sl_dom = ldom;
 
-	file_stob = stob_linux_file_stob(path, stob_key);
+	file_stob = stob_linux_file_stob(path, stob_fid);
 	rc	  = file_stob == NULL ? -ENOMEM : 0;
 	if (rc == 0) {
 		rc = create && cfg != NULL ? symlink((char*)cfg, file_stob) : 0;
@@ -402,9 +403,9 @@ static int stob_linux_open(struct m0_stob *stob,
 
 static int stob_linux_init(struct m0_stob *stob,
 			   struct m0_stob_domain *dom,
-			   uint64_t stob_key)
+			   const struct m0_fid *stob_fid)
 {
-	return stob_linux_open(stob, dom, stob_key, NULL, false);
+	return stob_linux_open(stob, dom, stob_fid, NULL, false);
 }
 
 static void stob_linux_fini(struct m0_stob *stob)
@@ -427,10 +428,10 @@ static void stob_linux_create_credit(struct m0_stob_domain *dom,
 static int stob_linux_create(struct m0_stob *stob,
 			     struct m0_stob_domain *dom,
 			     struct m0_dtx *dtx,
-			     uint64_t stob_key,
+			     const struct m0_fid *stob_fid,
 			     void *cfg)
 {
-	return stob_linux_open(stob, dom, stob_key, cfg, true);
+	return stob_linux_open(stob, dom, stob_fid, cfg, true);
 }
 
 static int stob_linux_destroy_credit(struct m0_stob *stob,
@@ -447,7 +448,7 @@ static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 
 	stob_linux_fini(stob);
 	file_stob = stob_linux_file_stob(lstob->sl_dom->sld_path,
-					 m0_stob_key_get(stob));
+					 m0_stob_fid_get(stob));
 	rc	  = file_stob == NULL ? -ENOMEM : unlink(file_stob);
 	m0_free(file_stob);
 	return M0_RC(rc);

@@ -63,13 +63,13 @@ static void stob_ut_cache_thread(struct stob_ut_cache_ctx *ctx)
 		/* add to cache if it hasn't been added yet */
 		/* delete if it has already been added */
 		m0_stob_cache_lock(cache);
-		found = m0_stob_cache_lookup(cache, m0_stob_key_get(stob));
+		found = m0_stob_cache_lookup(cache, m0_stob_fid_get(stob));
 		if (found == NULL) {
 			m0_stob_cache_add(cache, stob);
 		} else {
 			m0_stob_cache_idle(cache, stob);
 		}
-		found2 = m0_stob_cache_lookup(cache, m0_stob_key_get(stob));
+		found2 = m0_stob_cache_lookup(cache, m0_stob_fid_get(stob));
 		/*
 		 * If stob was in the cache before and idle_size > 0
 		 * then second lookup will bring stob back to busy cache.
@@ -98,7 +98,7 @@ static void stob_ut_cache_test(size_t thread_nr,
 {
 	struct stob_ut_cache_ctx *ctxs;
 	struct m0_stob		 *stob;
-	uint64_t		  stob_key;
+	const struct m0_fid      *stob_fid;
 	size_t			  i;
 	int			  rc;
 	uint64_t		  state = 0;
@@ -114,7 +114,7 @@ static void stob_ut_cache_test(size_t thread_nr,
 	M0_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < ARRAY_SIZE(stob_ut_cache_stobs); ++i)
-		m0_stob__key_set(&stob_ut_cache_stobs[i], m0_rnd64(&state));
+		stob_ut_cache_stobs[i].so_id.si_fid.f_key = m0_rnd64(&state);
 
 	for (i = 0; i < thread_nr; ++i) {
 		ctxs[i] = (struct stob_ut_cache_ctx){
@@ -129,8 +129,8 @@ static void stob_ut_cache_test(size_t thread_nr,
 	/* clear stob cache */
 	m0_stob_cache_lock(&stob_ut_cache);
 	for (i = 0; i < ARRAY_SIZE(stob_ut_cache_stobs); ++i) {
-		stob_key = m0_stob_key_get(&stob_ut_cache_stobs[i]);
-		stob = m0_stob_cache_lookup(&stob_ut_cache, stob_key);
+		stob_fid = m0_stob_fid_get(&stob_ut_cache_stobs[i]);
+		stob = m0_stob_cache_lookup(&stob_ut_cache, stob_fid);
 		if (stob != NULL)
 			m0_stob_cache_idle(&stob_ut_cache, stob);
 	}

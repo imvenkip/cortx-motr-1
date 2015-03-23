@@ -190,6 +190,7 @@ static int file_io_ut_init(void)
 	struct m0_pool_version    *pver;
 	struct m0_layout          *lay;
 	int                        rc;
+	struct m0_fid              fid;
 
 	M0_SET0(&sb);
 	M0_SET0(&creditor);
@@ -266,7 +267,8 @@ static int file_io_ut_init(void)
 	/* Initializes the m0t1fs inode and build layout instance. */
 	M0_SET0(&ci);
 	ci.ci_layout_id = M0_DEFAULT_LAYOUT_ID;
-	m0t1fs_fid_alloc(&csb, &ci.ci_fid);
+	m0t1fs_fid_alloc(&csb, &fid);
+	m0_fid_gob_make(&ci.ci_fid, fid.f_container, fid.f_key);
 	m0t1fs_file_lock_init(&ci, &csb);
 
 	lay = m0_pdl_to_layout(pdlay);
@@ -314,7 +316,7 @@ static void ds_test(void)
 {
 	int                         rc;
 	int                         cnt;
-	struct m0_fid               cfid = M0_FID_INIT(0, 5);
+	struct m0_fid               cfid;
 	struct data_buf            *dbuf;
 	struct io_request           req;
 	struct iovec                iovec_arr[IOVEC_NR];
@@ -827,7 +829,7 @@ static void target_ioreq_test(void)
 	struct target_ioreq         ti;
 	struct io_request           req;
 	uint64_t                    size;
-	struct m0_fid               cfid = M0_FID_INIT(0, 5);
+	struct m0_fid               cfid;
 	struct m0_rpc_session       session;
 	struct m0_rpc_conn          conn;
 	struct io_req_fop          *irfop;
@@ -992,7 +994,6 @@ static void dgmode_readio_test(void)
 	uint32_t                    row;
 	uint32_t                    col;
 	uint64_t                    pgcur = 0;
-	uint64_t                    key;
 	struct iovec                iovec_arr[DGMODE_IOVEC_NR];
 	struct m0_fop              *reply;
 	struct io_request          *req;
@@ -1010,6 +1011,7 @@ static void dgmode_readio_test(void)
 	struct m0_pdclust_src_addr  src;
 	struct m0_pdclust_tgt_addr  tgt;
 	struct m0_fop_cob_rw_reply *rw_rep;
+	struct m0_fid               cfid;
 
 	M0_ALLOC_PTR(req);
 	M0_UT_ASSERT(req != NULL);
@@ -1040,9 +1042,10 @@ static void dgmode_readio_test(void)
 	M0_UT_ASSERT(rc == 0);
 
 	ioreq_sm_state_set(req, IRS_READING);
-	key = 1;
-	ti = tioreqht_htable_lookup(&req->ir_nwxfer.nxr_tioreqs_hash, &key);
-
+	m0_fid_convert_gob2cob(&ci.ci_fid, &cfid, 1);
+	ti = tioreqht_htable_lookup(&req->ir_nwxfer.nxr_tioreqs_hash,
+				    &cfid.f_container);
+	M0_UT_ASSERT(ti != NULL);
 	/*
 	 * Fake data structure members so that UT passes through
 	 * PRE checks unhurt.
@@ -1090,6 +1093,7 @@ static void dgmode_readio_test(void)
 	play = pdlayout_get(req);
 	le   = m0_layout_instance_to_enum(m0t1fs_file_to_m0inode(req->ir_file)->
 	       ci_layout_instance);
+	M0_UT_ASSERT(le != NULL);
 
 	for (cnt = 0; cnt < req->ir_iomap_nr; ++cnt) {
 		if (req->ir_iomaps[cnt]->pi_state != PI_DEGRADED)
@@ -1106,6 +1110,7 @@ static void dgmode_readio_test(void)
 				   &pgcur, &map);
 		M0_UT_ASSERT(map != NULL);
 		M0_UT_ASSERT(map->pi_state == PI_DEGRADED);
+		pargrp_src_addr(z_index, req, ti, &src);
 
 		tgt.ta_frame = z_index / layout_unit_size(play);
 		tgt.ta_obj   = m0_layout_enum_find(le,

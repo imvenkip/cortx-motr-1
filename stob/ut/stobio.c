@@ -54,8 +54,8 @@ enum {
 };
 
 enum {
-	M0_STOB_UT_DOM_KEY = 0xba5ec0de,
-	M0_STOB_UT_DOM_DIO_KEY = 0xc0deba5e,
+	M0_STOB_UT_DOM_KEY = 0xec0de,
+	M0_STOB_UT_DOM_DIO_KEY = 0xeba5e,
 };
 
 struct stobio_test {
@@ -120,11 +120,14 @@ struct stobio_test tests[TEST_NR] = {
 
 static char *stob_backingfile_get(const struct stobio_test *test)
 {
-	char backingfile[PATH_MAX];
-	int  rc;
+	char          backingfile[PATH_MAX];
+	int           rc;
+	struct m0_fid fid;
 
-	rc = sprintf(backingfile, "%s/%lu", test->st_dom->sd_location_data,
-					    test->st_stob_key);
+	m0_fid_set(&fid, 0, test->st_stob_key);
+	rc = sprintf(backingfile, "%s/%"PRIx64":%"PRIx64"",
+				   test->st_dom->sd_location_data,
+				   fid.f_container, fid.f_key);
 	M0_ASSERT(rc < sizeof(backingfile));
 	M0_ASSERT(backingfile[0] != '/');
 	return m0_strdup(backingfile);
@@ -342,11 +345,12 @@ static void stobio_storage_fini(void)
 
 static int stobio_init(struct stobio_test *test)
 {
-	int result;
+	int               result;
+	struct m0_stob_id stob_id;
 
 	test->st_dom = test->st_directio ? test_dom_dio : test_dom;
-	result = m0_stob_find_by_key(test->st_dom, test->st_stob_key,
-				     &test->st_obj);
+	m0_stob_id_make(0, test->st_stob_key, &test->st_dom->sd_id, &stob_id);
+	result = m0_stob_find(&stob_id, &test->st_obj);
 	M0_UT_ASSERT(result == 0);
 
 	if (test->st_dev_path != NULL)

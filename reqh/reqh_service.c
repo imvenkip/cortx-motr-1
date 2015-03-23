@@ -602,7 +602,8 @@ static int reqh_service_connect(struct m0_reqh_service_ctx *ctx,
 	if (rc == 0) {
 		ctx->sc_is_active = true;
 		M0_LOG(M0_INFO, "Connected to service `%s'", addr);
-	}
+	} else
+		M0_LOG(M0_DEBUG, "Failed to Connect to service `%s'", addr);
 
 	return M0_RC(rc);
 }
@@ -628,6 +629,7 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 	M0_SET0(ctx);
 	ctx->sc_fid = *id;
 	ctx->sc_type = stype;
+	M0_LOG(M0_DEBUG, FID_F "%d", FID_P(id), stype);
 	m0_reqh_service_ctx_bob_init(ctx);
 	m0_mutex_init(&ctx->sc_max_pending_tx_lock);
 

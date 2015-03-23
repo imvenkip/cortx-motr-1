@@ -34,8 +34,8 @@
 static void stob_ut_stob_domain(const char *location, const char *cfg)
 {
 	struct m0_stob_domain *dom;
-	uint64_t               dom_key = 0xba5ec0de;
-	uint64_t               dom_id;
+	uint64_t               dom_key = 0xec0de;
+	struct m0_fid          dom_id;
 	int		       rc;
 
 	rc = m0_stob_domain_init(location, NULL, &dom);
@@ -57,12 +57,12 @@ static void stob_ut_stob_domain(const char *location, const char *cfg)
 		     dom_key);
 
 	/* Find existent domain */
-	dom_id = m0_stob_domain_id_get(dom);
-	M0_UT_ASSERT(m0_stob_domain_find(dom_id) == dom);
+	dom_id = *m0_stob_domain_id_get(dom);
+	M0_UT_ASSERT(m0_stob_domain_find(&dom_id) == dom);
 
 	/* Find non-existent domain */
-	dom_id ^= (1ULL << 56) - 1;
-	M0_UT_ASSERT(m0_stob_domain_find(dom_id) == NULL);
+	dom_id.f_key  ^= (1ULL << 56) - 1;
+	M0_UT_ASSERT(m0_stob_domain_find(&dom_id) == NULL);
 
 	rc = m0_stob_domain_destroy(dom);
 	M0_UT_ASSERT(rc == 0);
@@ -100,7 +100,7 @@ void m0_stob_ut_stob_domain_ad(void)
 	m0_stob_ut_ad_init(&ut_be, &ut_seg);
 	stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(stob != NULL);
-	m0_stob_ad_cfg_make(&cfg, ut_seg.bus_seg, m0_stob_fid_get(stob));
+	m0_stob_ad_cfg_make(&cfg, ut_seg.bus_seg, m0_stob_id_get(stob));
 	M0_UT_ASSERT(cfg != NULL);
 
 	stob_ut_stob_domain("adstob:some_suffix", cfg);

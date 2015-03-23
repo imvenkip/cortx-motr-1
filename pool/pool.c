@@ -348,8 +348,7 @@ M0_INTERNAL int m0_pool_mds_map_init(struct m0_conf_filesystem *fs,
 	M0_PRE(!pools_common_svc_ctx_tlist_is_empty(&pc->pc_svc_ctxs));
 	M0_PRE(pc->pc_mds_map != NULL);
 
-	rc = m0_conf_diter_init(&it, pc->pc_confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_POOLS_FID,
+	rc = m0_conf_diter_init(&it, pc->pc_confc, &fs->cf_md_pool->pl_obj,
 				M0_CONF_POOL_PVERS_FID, M0_CONF_PVER_RACKVS_FID,
 				M0_CONF_RACKV_ENCLVS_FID,
 				M0_CONF_ENCLV_CTRLVS_FID);
@@ -608,7 +607,7 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 {
 	struct m0_reqh_service_ctx  *ctx;
 	const char                 **endpoint;
-	int                          rc;
+	int                          rc = 0;
 
 	M0_PRE(M0_IN(cs->cs_type, (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS,
 				   M0_CST_RMS, M0_CST_SS, M0_CST_HA)));
@@ -864,6 +863,9 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
 				break;
 		}
 	}
+
+	pc->pc_md_pool = m0_pool_find(pc, &fs->cf_md_pool->pl_obj.co_id);
+	M0_ASSERT(pc->pc_md_pool != NULL);
 
 	m0_conf_diter_fini(&it);
 	if (rc != 0)

@@ -5,5 +5,6 @@ m0ut_objects += ut/cs_fop.o \
                 ut/be.o \
                 ut/threads.o \
                 ut/ut.o \
+		ut/stob.o \
                 ut/linux_kernel/ut.o \
                 ut/ut_rpc_machine.o \

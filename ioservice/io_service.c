@@ -49,8 +49,8 @@
 #include "layout/layout.h"
 #include "layout/pdclust.h"
 #include "mdservice/fsync_fops.h"
-#include "module/instance.h"	/* m0_get */
-
+#include "module/instance.h"       /* m0_get */
+#include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob */
 
 M0_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh",
 		   M0_INTERNAL,
@@ -446,6 +446,7 @@ static int ios_start(struct m0_reqh_service *service)
 	rc = m0_ios_cdom_get(service->rs_reqh, &serv_obj->rios_cdom);
 	if (rc != 0)
 		return M0_RC(rc);
+	M0_LOG(M0_DEBUG, "io cob domain %p", serv_obj->rios_cdom);
 
 	rc = ios_create_buffer_pool(service);
 	if (rc != 0) {
@@ -603,6 +604,7 @@ static int m0_ios_mds_conn_init(struct m0_reqh             *reqh,
 	rpc_machine = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
 	M0_ASSERT(mero != NULL);
 	M0_ASSERT(rpc_machine != NULL);
+	conn_map->imc_nr = 0;
 
 	m0_tl_for(cs_eps, &mero->cc_mds_eps, ep) {
 		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
@@ -694,18 +696,14 @@ static struct m0_ios_mds_conn *
 m0_ios_mds_conn_map_hash(const struct m0_ios_mds_conn_map *imc_map,
 			 const struct m0_fid *gfid)
 {
-	char         filename[64];
-	int          nlen;
-	unsigned int hash;
+	struct m0_fid fid = *gfid;
+	unsigned int  hash;
 
-	nlen = sprintf(filename, "%llx:%llx",
-		       (unsigned long long)gfid->f_container,
-		       (unsigned long long)gfid->f_key);
-
-	hash = m0_full_name_hash((const unsigned char *)filename, nlen);
-	M0_LOG(M0_DEBUG, "%s -> %d nr=%d", (char*)filename,
+	m0_fid_tchange(&fid, 0);
+	hash = m0_fid_hash(&fid);
+	M0_LOG(M0_DEBUG, "%d nr=%d" FID_F,
 			 hash % imc_map->imc_nr,
-			 imc_map->imc_nr);
+			 imc_map->imc_nr, FID_P(gfid));
 	return imc_map->imc_map[hash % imc_map->imc_nr];
 }
 
@@ -805,8 +803,8 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 	return M0_RC(rc);
 }
 
-static int _rpc_post(struct m0_fop                *fop,
-		     struct m0_rpc_session        *session)
+static int _rpc_post(struct m0_fop         *fop,
+		     struct m0_rpc_session *session)
 {
 	struct m0_rpc_item *item;
 
@@ -848,13 +846,12 @@ static void mds_op_release(struct m0_ref *ref)
 
 static void getattr_rpc_item_reply_cb(struct m0_rpc_item *item)
 {
-	struct mds_op               *mdsop;
-	struct m0_fop               *req;
-	struct m0_fop               *rep;
-	struct m0_fop_getattr_rep   *getattr_rep;
-	struct m0_fop_cob           *rep_fop_cob;
-	struct m0_cob_attr          *attr;
-	int                          rc;
+	struct mds_op      *mdsop;
+	struct m0_fop      *req;
+	struct m0_fop      *rep;
+	struct m0_fop_cob  *rep_fop_cob;
+	struct m0_cob_attr *attr;
+	int                 rc;
 
 	M0_PRE(item != NULL);
 	req = m0_rpc_item_to_fop(item);
@@ -862,18 +859,24 @@ static void getattr_rpc_item_reply_cb(struct m0_rpc_item *item)
 	attr = mdsop->mo_out;
 
 	rc = item->ri_error;
-
-	M0_LOG(M0_DEBUG, "ios getattr replied :%d", rc);
 	if (rc == 0) {
 		rep = m0_rpc_item_to_fop(item->ri_reply);
-		getattr_rep = m0_fop_data(rep);
-		rep_fop_cob = &getattr_rep->g_body;
+		if (m0_is_cob_getattr_fop(req)) {
+			struct m0_fop_cob_getattr_reply *getattr_rep;
+			getattr_rep = m0_fop_data(rep);
+			rep_fop_cob = &getattr_rep->cgr_body;
+		} else {
+			struct m0_fop_getattr_rep *getattr_rep;
+			getattr_rep = m0_fop_data(rep);
+			rep_fop_cob = &getattr_rep->g_body;
+		}
 		if (rep_fop_cob->b_rc == 0)
 			m0_md_cob_wire2mem(attr, rep_fop_cob);
 		else
 			rc = rep_fop_cob->b_rc;
 	}
 
+	M0_LOG(M0_DEBUG, "ios getattr replied :%d", rc);
 	mdsop->mo_cb(mdsop->mo_arg, rc);
 }
 
@@ -881,12 +884,127 @@ const struct m0_rpc_item_ops getattr_fop_rpc_item_ops = {
 	.rio_replied = getattr_rpc_item_reply_cb,
 };
 
+static void ios_cob_fop_populate(struct m0_reqh      *reqh,
+				 struct m0_fop       *fop,
+				 const struct m0_fid *cob_fid,
+				 const struct m0_fid *gob_fid,
+				 uint32_t             cob_idx)
+{
+	struct m0_fop_cob_common *common;
+	struct m0_poolmach       *poolmach;
+
+	M0_PRE(fop != NULL);
+	M0_PRE(fop->f_type != NULL);
+	M0_PRE(cob_fid != NULL);
+	M0_PRE(gob_fid != NULL);
+
+	common = m0_cobfop_common_get(fop);
+	M0_ASSERT(common != NULL);
+
+	poolmach = m0_ios_poolmach_get(reqh);
+	/* fill in the current client known version */
+	m0_poolmach_current_version_get(poolmach,
+		(struct m0_poolmach_versions *)&common->c_version);
+	common->c_gobfid   = *gob_fid;
+	common->c_cobfid   = *cob_fid;
+	common->c_cob_idx  = cob_idx;
+	common->c_cob_type = M0_COB_MD;
+
+}
+
+/**
+ * Getattr of file from ioservice synchronously.
+ */
+M0_INTERNAL int m0_ios_getattr(struct m0_reqh *reqh,
+			       const struct m0_fid *gfid,
+			       uint64_t index,
+			       struct m0_cob_attr *attr)
+{
+	struct m0_fop         *req;
+	int                    rc;
+	struct m0_fid          md_fid;
+	struct m0_rpc_session *rpc_session;
+	struct m0_fop_cob     *rep_fop_cob;
+
+	m0_fid_convert_gob2cob(gfid, &md_fid, 0);
+	rpc_session = m0_reqh_mdpool_service_index_to_session(reqh,
+					gfid, index);
+	req = m0_fop_alloc_at(rpc_session, &m0_fop_cob_getattr_fopt);
+	if (req == NULL)
+		return M0_ERR(-ENOMEM);
+
+	ios_cob_fop_populate(reqh, req, &md_fid, gfid, index);
+	M0_LOG(M0_DEBUG, "ios getattr for "FID_F, FID_P(gfid));
+	rc = m0_rpc_post_sync(req, rpc_session, NULL, 0);
+	M0_LOG(M0_DEBUG, "ios getattr sent synchronously: rc = %d", rc);
+	if (rc == 0) {
+		struct m0_fop                   *rep;
+		struct m0_fop_cob_getattr_reply *getattr_rep;
+
+		rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
+		getattr_rep = m0_fop_data(rep);
+		rep_fop_cob = &getattr_rep->cgr_body;
+		if (rep_fop_cob->b_rc == 0)
+			m0_md_cob_wire2mem(attr, rep_fop_cob);
+		else
+			rc = rep_fop_cob->b_rc;
+	}
+	m0_fop_put_lock(req);
+	return M0_RC(rc);
+}
+
+/**
+ * getattr from ioservice asynchronously.
+ */
+M0_INTERNAL int m0_ios_getattr_async(struct m0_reqh *reqh,
+				     const struct m0_fid *gfid,
+				     struct m0_cob_attr *attr,
+				     uint64_t index,
+				     void (*cb)(void *arg, int rc),
+				     void *arg)
+{
+	struct mds_op         *mdsop;
+	struct m0_fop         *req;
+	int                    rc;
+	struct m0_fid          md_fid;
+	struct m0_rpc_session *rpc_session;
+
+	m0_fid_convert_gob2cob(gfid, &md_fid, 0);
+	rpc_session = m0_reqh_mdpool_service_index_to_session(reqh,
+					gfid, index);
+	M0_ASSERT(rpc_session != NULL);
+
+	M0_ALLOC_PTR(mdsop);
+	if (mdsop == NULL)
+		return M0_ERR(-ENOMEM);
+	req = &mdsop->mo_fop;
+	m0_fop_init(req, &m0_fop_cob_getattr_fopt, NULL, &mds_op_release);
+	rc = m0_fop_data_alloc(req);
+	if (rc != 0) {
+		m0_free(mdsop);
+		return M0_RC(rc);
+	}
+	req->f_item.ri_ops = &getattr_fop_rpc_item_ops;
+
+	mdsop->mo_cb  = cb;
+	mdsop->mo_arg = arg;
+	mdsop->mo_out = attr;
+
+	ios_cob_fop_populate(reqh, req, &md_fid, gfid, index);
+	M0_LOG(M0_DEBUG, "ios getattr for index:%d"FID_F, (int)index, FID_P(gfid));
+	rc = _rpc_post(req, rpc_session);
+	M0_LOG(M0_DEBUG, "ios getattr sent asynchronously: rc = %d", rc);
+
+	m0_fop_put_lock(req);
+	return M0_RC(rc);
+}
+
 /**
  * getattr from mdservice asynchronously.
  */
 M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
 				         const struct m0_fid *gfid,
-					 struct m0_cob_attr  *attr,
+					 struct m0_cob_attr *attr,
 					 void (*cb)(void *arg, int rc),
 					 void *arg)
 {
@@ -902,6 +1020,7 @@ M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
 	rc = m0_ios_mds_conn_get(reqh, &imc_map);
 	if (rc != 0)
 		return M0_RC(rc);
+	M0_ASSERT(imc_map->imc_nr != 0);
 	imc = m0_ios_mds_conn_map_hash(imc_map, gfid);
 
 	if (!imc->imc_connected)

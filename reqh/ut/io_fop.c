@@ -208,10 +208,13 @@ static const struct m0_fom_type_ops stob_write_fom_type_ops = {
 static struct m0_stob *stob_object_find(const struct stob_io_fop_fid *fid,
 					struct m0_fom *fom)
 {
-	struct m0_stob *stob;
-	int		rc;
+	struct m0_stob   *stob;
+	int		  rc;
+	struct m0_stob_id stob_id;
 
-	rc = m0_stob_find_by_key(reqh_ut_stob_domain_find(), fid->f_oid, &stob);
+	m0_stob_id_make(0, fid->f_oid, &reqh_ut_stob_domain_find()->sd_id,
+			&stob_id);
+	rc = m0_stob_find(&stob_id, &stob);
 	M0_ASSERT(rc == 0);
 	rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
 	M0_ASSERT(rc == 0);

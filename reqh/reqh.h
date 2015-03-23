@@ -361,6 +361,17 @@ M0_TL_DECLARE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
 M0_INTERNAL struct m0_addb_mc  *m0_fom_addb_mc(void);
 M0_INTERNAL struct m0_addb_ctx *m0_fom_addb_ctx(void);
 
+M0_INTERNAL int m0_reqh_mdpool_layout_build(struct m0_reqh *reqh);
+/**
+ * Returns the remote rpc session of the service in mdpool on which meta data
+ * cob is present.
+ * @param index index of the remote service in mdpool.
+ * @pre index < pools_common.pc_md_redundancy
+ */
+M0_INTERNAL struct m0_rpc_session *
+m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
+				        const struct m0_fid *gfid,
+				        uint32_t index);
 /** @} endgroup reqh */
 
 /* __MERO_REQH_REQH_H__ */

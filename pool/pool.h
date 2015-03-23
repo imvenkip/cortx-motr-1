@@ -96,7 +96,7 @@ struct m0_pool_version {
 	struct m0_poolmach           pv_mach;
 
 	/**
-	 * An array of size m0_poolversion::pv_width.
+	 * An array of size m0_poolversion::pv_attr:pa_P.
 	 * Maps device to io service.
 	 * Each pv_dev_to_ios_map[i] entry points to instance of
 	 * struct m0_reqh_service_ctx which has established rpc connections
@@ -156,10 +156,17 @@ struct m0_pools_common {
 
 	/** Metadata redundancy count. */
 	uint32_t                     pc_md_redundancy;
+	/** Pool of ioservices used to store meta data cobs. */
+	struct m0_pool              *pc_md_pool;
+	/** Layout instance of the mdpool. */
+	struct m0_layout_instance   *pc_md_pool_linst;
 };
 
 M0_TL_DESCR_DECLARE(pools_common_svc_ctx, M0_EXTERN);
 M0_TL_DECLARE(pools_common_svc_ctx, M0_EXTERN, struct m0_reqh_service_ctx);
+
+M0_TL_DESCR_DECLARE(pool_version, M0_EXTERN);
+M0_TL_DECLARE(pool_version, M0_EXTERN, struct m0_pool_version);
 
 M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 				     struct m0_rpc_machine *rmach,

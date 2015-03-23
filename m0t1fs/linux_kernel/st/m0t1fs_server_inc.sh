@@ -229,6 +229,7 @@ mero_service()
 			mkiosloopdevs $ios $nr_dev $DIR || return 1
 		done
 
+		DIR=$MERO_M0T1FS_TEST_DIR/confd
 		build_conf $N $K $P | tee $DIR/conf.xc
 
 		opts="-T linux -D db -S stobs -A linuxstob:addb-stobs \
@@ -273,38 +274,8 @@ mero_service()
 			 $SNAME |& tee -a m0d.log"
 			echo $cmd
 			eval "$cmd"
-			
-			cmd="cd $DIR && exec \
-			$prog_start -T $MERO_STOB_DOMAIN \
-			 -D db -S stobs -A linuxstob:addb-stobs -w $P \
-			 -e $XPT:${lnet_nid}:${MDSEP[$i]} \
-			 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
-			 -P '$PROF_OPT' -C $CONFD_EP $SNAME |& tee -a m0d.log"
-			echo $cmd
-
-			# wait till the server start completes
-			local m0d_log=$DIR/m0d.log
-			touch $m0d_log
-			(eval "$cmd") &
-
-			sleep 5
-			while status $prog_exec > /dev/null && \
-			      ! grep CTRL $m0d_log > /dev/null; do
-				sleep 2
-			done
-
-			status $prog_exec
-			if [ $? -eq 0 ]; then
-				SNAME=$(echo $SNAME | sed 's/-s //g')
-				echo "Mero services ($SNAME) started."
-			else
-				echo "Mero service failed to start."
-				return 1
-			fi
 		done
 
-
-		# spawn io servers
 		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 			local ios=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
@@ -320,6 +291,41 @@ mero_service()
 			 $SNAME |& tee -a m0d.log"
 			echo $cmd
 			eval "$cmd"
+		done
+
+		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
+			local mds=`expr $i + 1`
+			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
+
+			SNAME="-s mdservice -s rmservice -s addb -s addb2 \
+                               -s stats"
+			ulimit -c unlimited
+
+			cmd="cd $DIR && exec \
+			$prog_start -T $MERO_STOB_DOMAIN \
+			 -D db -S stobs -A linuxstob:addb-stobs -w $P \
+			 -e $XPT:${lnet_nid}:${MDSEP[$i]} \
+			 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
+			 -P '$PROF_OPT' -C $CONFD_EP $SNAME |& tee -a m0d.log"
+			echo $cmd
+
+			# wait till the server start completes
+			local m0d_log=$DIR/m0d.log
+			touch $m0d_log
+			(eval "$cmd") &
+
+		done
+
+		# spawn io servers
+
+		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+			local ios=`expr $i + 1`
+			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
+
+			SNAME="-s ioservice -s sns_repair -s sns_rebalance \
+                               -s addb -s addb2"
+
+			ulimit -c unlimited
 
 			cmd="cd $DIR && exec \
 			$prog_start -T $MERO_STOB_DOMAIN \
@@ -334,21 +340,24 @@ mero_service()
 			touch $m0d_log
 			(eval "$cmd") &
 
-			sleep 5
-			while status $prog_exec > /dev/null && \
-			      ! grep CTRL $m0d_log > /dev/null; do
+		done
+		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
+			local mds=`expr $i + 1`
+			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
+			while ! grep CTRL $m0d_log > /dev/null; do
 				sleep 2
 			done
-
-			status $prog_exec
-			if [ $? -eq 0 ]; then
-				SNAME=$(echo $SNAME | sed 's/-s //g')
-				echo "Mero services ($SNAME) started."
-			else
-				echo "Mero service failed to start."
-				return 1
-			fi
 		done
+		echo "Mero mdservices started."
+		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+			local ios=`expr $i + 1`
+			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
+			local m0d_log=$DIR/m0d.log
+			while ! grep CTRL $m0d_log > /dev/null; do
+				sleep 2
+			done
+		done
+		echo "Mero ioservices started."
 	}
 
 	stop() {

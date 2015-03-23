@@ -77,7 +77,7 @@ static void level_ut_stob_leave(struct m0_module *module)
 	m0_ut_stob_fini();
 }
 
-static struct ut_stob_module *ut_stob_init_on_demand()
+static struct ut_stob_module *ut_stob_init_on_demand(void)
 {
 	struct ut_stob_module *usm;
 	int		       rc;
@@ -119,6 +119,7 @@ M0_INTERNAL int m0_ut_stob_init(void)
 	/* nothing to do here, @see ut_stob_init_on_demand() */
 	return 0;
 }
+M0_EXPORTED(m0_ut_stob_init);
 
 M0_INTERNAL void m0_ut_stob_fini(void)
 {
@@ -130,6 +131,7 @@ M0_INTERNAL void m0_ut_stob_fini(void)
 		m0_free(usm);
 	}
 }
+M0_EXPORTED(m0_ut_stob_fini);
 
 M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get(void)
 {
@@ -147,10 +149,12 @@ M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get_by_key(uint64_t stob_key)
 	struct ut_stob_module *usm = ut_stob_module_get(true);
 	struct m0_stob	      *stob;
 	int		       rc;
+	struct m0_stob_id      stob_id;
 
 	m0_mutex_lock(&usm->usm_lock);
 
-	rc = m0_stob_find_by_key(usm->usm_dom_linux, stob_key, &stob);
+	m0_stob_id_make(0, stob_key, &usm->usm_dom_linux->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &stob);
 	M0_ASSERT(rc == 0);
 	rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
@@ -221,10 +225,12 @@ M0_INTERNAL struct m0_stob *m0_ut_stob_open(struct m0_stob_domain *dom,
 					    uint64_t stob_key,
 					    const char *str_cfg)
 {
-	struct m0_stob *stob;
-	int		rc;
+	struct m0_stob   *stob;
+	int		  rc;
+	struct m0_stob_id stob_id;
 
-	rc = m0_stob_find_by_key(dom, stob_key, &stob);
+	m0_stob_id_make(0, stob_key, &dom->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &stob);
 	M0_ASSERT(rc == 0);
 	rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
@@ -242,13 +248,13 @@ M0_INTERNAL void m0_ut_stob_close(struct m0_stob *stob, bool destroy)
 	}
 }
 
-M0_INTERNAL int m0_ut_stob_create_by_fid(struct m0_fid *stob_fid,
-					 const char *str_cfg)
+M0_INTERNAL int m0_ut_stob_create_by_stob_id(struct m0_stob_id *stob_id,
+					     const char *str_cfg)
 {
 	struct m0_stob *stob;
 	int		rc;
 
-	rc = m0_stob_find(stob_fid, &stob);
+	rc = m0_stob_find(stob_id, &stob);
 	if (rc == 0) {
 		rc = m0_stob_state_get(stob) == CSS_UNKNOWN ?
 		     m0_stob_locate(stob) : 0;
@@ -258,12 +264,12 @@ M0_INTERNAL int m0_ut_stob_create_by_fid(struct m0_fid *stob_fid,
 	return rc;
 }
 
-M0_INTERNAL int m0_ut_stob_destroy_by_fid(struct m0_fid *stob_fid)
+M0_INTERNAL int m0_ut_stob_destroy_by_stob_id(struct m0_stob_id *stob_id)
 {
 	struct m0_stob *stob;
 	int		rc;
 
-	rc = m0_stob_find(stob_fid, &stob);
+	rc = m0_stob_find(stob_id, &stob);
 	if (rc == 0) {
 		rc = m0_stob_state_get(stob) == CSS_UNKNOWN ?
 		     m0_stob_locate(stob) : 0;

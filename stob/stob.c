@@ -42,6 +42,7 @@
 #include "stob/domain.h"
 #include "stob/stob.h"
 #include "stob/stob_internal.h"
+#include "stob/stob_xc.h"
 
 /**
    @addtogroup stob
@@ -55,9 +56,10 @@ m0_stob_domain__cache(struct m0_stob_domain *dom)
 }
 
 M0_INTERNAL struct m0_stob *
-m0_stob_domain__stob_alloc(struct m0_stob_domain *dom, uint64_t stob_key)
+m0_stob_domain__stob_alloc(struct m0_stob_domain *dom,
+			   const struct m0_fid *stob_fid)
 {
-	return dom->sd_ops->sdo_stob_alloc(dom, stob_key);
+	return dom->sd_ops->sdo_stob_alloc(dom, stob_fid);
 }
 
 M0_INTERNAL void m0_stob_domain__stob_free(struct m0_stob_domain *dom,
@@ -68,24 +70,24 @@ M0_INTERNAL void m0_stob_domain__stob_free(struct m0_stob_domain *dom,
 
 /** @todo move allocation out of cache lock if needed */
 M0_INTERNAL int m0_stob_find_by_key(struct m0_stob_domain *dom,
-				    uint64_t stob_key,
+				    const struct m0_fid *stob_fid,
 				    struct m0_stob **out)
 {
 	struct m0_stob_cache *cache = m0_stob_domain__cache(dom);
 	struct m0_stob	     *stob;
 
 	m0_stob_cache_lock(cache);
-	stob = m0_stob_cache_lookup(cache, stob_key);
+	stob = m0_stob_cache_lookup(cache, stob_fid);
 	if (stob != NULL) {
 		M0_CNT_INC(stob->so_ref);
 	} else {
-		stob = m0_stob_domain__stob_alloc(dom, stob_key);
+		stob = m0_stob_domain__stob_alloc(dom, stob_fid);
 		if (stob != NULL) {
 			/* XXX M0_PRE(M0_IS_ZEROED(stob)); */
 			/* so_ops is set by domain */
 			/* so_private is set by domain */
 			stob->so_domain = dom;
-			m0_stob__fid_set(stob, dom, stob_key);
+			m0_stob__id_set(stob, stob_fid);
 			stob->so_state = CSS_UNKNOWN;
 			stob->so_ref = 1;
 			m0_stob_cache_add(cache, stob);
@@ -97,23 +99,23 @@ M0_INTERNAL int m0_stob_find_by_key(struct m0_stob_domain *dom,
 	return stob == NULL ? -ENOMEM : 0;
 }
 
-M0_INTERNAL int m0_stob_find(struct m0_fid *fid, struct m0_stob **out)
+M0_INTERNAL int m0_stob_find(const struct m0_stob_id *id, struct m0_stob **out)
 {
-	struct m0_stob_domain *dom = m0_stob_domain_find_by_stob_fid(fid);
+	struct m0_stob_domain *dom = m0_stob_domain_find_by_stob_id(id);
 
 	return dom == NULL ? -EINVAL :
-	       m0_stob_find_by_key(dom, m0_stob_fid_key_get(fid), out);
+	       m0_stob_find_by_key(dom, &id->si_fid, out);
 }
 
 M0_INTERNAL int m0_stob_lookup_by_key(struct m0_stob_domain *dom,
-				      uint64_t stob_key,
+				      const struct m0_fid *stob_fid,
 				      struct m0_stob **out)
 {
 	struct m0_stob_cache *cache = m0_stob_domain__cache(dom);
 	struct m0_stob	     *stob;
 
 	m0_stob_cache_lock(cache);
-	stob = m0_stob_cache_lookup(cache, stob_key);
+	stob = m0_stob_cache_lookup(cache, stob_fid);
 	if (stob != NULL)
 		M0_CNT_INC(stob->so_ref);
 	m0_stob_cache_unlock(cache);
@@ -122,12 +124,13 @@ M0_INTERNAL int m0_stob_lookup_by_key(struct m0_stob_domain *dom,
 	return stob == NULL ? -ENOENT : 0;
 }
 
-M0_INTERNAL int m0_stob_lookup(struct m0_fid *fid, struct m0_stob **out)
+M0_INTERNAL int m0_stob_lookup(const struct m0_stob_id *id,
+			       struct m0_stob **out)
 {
-	struct m0_stob_domain *dom = m0_stob_domain_find_by_stob_fid(fid);
+	struct m0_stob_domain *dom = m0_stob_domain_find_by_stob_id(id);
 
 	return dom == NULL ? -EINVAL :
-	       m0_stob_lookup_by_key(dom, m0_stob_fid_key_get(fid), out);
+	       m0_stob_lookup_by_key(dom, &id->si_fid, out);
 }
 
 M0_INTERNAL int m0_stob_locate(struct m0_stob *stob)
@@ -135,14 +138,15 @@ M0_INTERNAL int m0_stob_locate(struct m0_stob *stob)
 	struct m0_stob_domain *dom = m0_stob_dom_get(stob);
 	int		       rc;
 
+	M0_ENTRY();
 	M0_PRE(stob->so_ref > 0);
 	M0_PRE(m0_stob_state_get(stob) == CSS_UNKNOWN);
 
-	rc = dom->sd_ops->sdo_stob_init(stob, dom, m0_stob_key_get(stob));
+	rc = dom->sd_ops->sdo_stob_init(stob, dom, m0_stob_fid_get(stob));
 	m0_stob__state_set(stob,
 			   rc == 0	 ? CSS_EXISTS :
 			   rc == -ENOENT ? CSS_NOENT : m0_stob_state_get(stob));
-	return M0_IN(rc, (0, -ENOENT)) ? 0 : rc;
+	return M0_RC(M0_IN(rc, (0, -ENOENT)) ? 0 : rc);
 }
 
 M0_INTERNAL void m0_stob_create_credit(struct m0_stob_domain *dom,
@@ -157,7 +161,6 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
 {
 	struct m0_stob_domain		*dom	  = m0_stob_dom_get(stob);
 	const struct m0_stob_domain_ops *dom_ops  = dom->sd_ops;
-	uint64_t			 stob_key = m0_stob_key_get(stob);
 	void				*cfg;
 	int				 rc;
 
@@ -168,7 +171,8 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
 	rc = dom_ops->sdo_stob_cfg_parse(str_cfg, &cfg);
 	if (rc == 0) {
 		rc = m0_stob_state_get(stob) == CSS_EXISTS ? -EEXIST :
-		     dom->sd_ops->sdo_stob_create(stob, dom, dtx, stob_key, cfg);
+		     dom->sd_ops->sdo_stob_create(stob, dom, dtx,
+						  m0_stob_fid_get(stob), cfg);
 		dom_ops->sdo_stob_cfg_free(cfg);
 	}
 	m0_stob__state_set(stob,
@@ -233,27 +237,22 @@ M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain *dom,
 
 M0_INTERNAL uint64_t m0_stob_dom_id_get(struct m0_stob *stob)
 {
-	return m0_stob_fid_dom_id_get(m0_stob_fid_get(stob));
+	return m0_stob_id_dom_id_get(m0_stob_id_get(stob));
 }
 
-M0_INTERNAL uint64_t m0_stob_key_get(struct m0_stob *stob)
+M0_INTERNAL const struct m0_stob_id *m0_stob_id_get(struct m0_stob *stob)
 {
-	return m0_stob_fid_key_get(m0_stob_fid_get(stob));
+	return &stob->so_id;
 }
 
 M0_INTERNAL const struct m0_fid *m0_stob_fid_get(struct m0_stob *stob)
 {
-	return &stob->so_fid;
+	return &stob->so_id.si_fid;
 }
 
-M0_INTERNAL uint64_t m0_stob_fid_dom_id_get(const struct m0_fid *stob_fid)
+M0_INTERNAL uint64_t m0_stob_id_dom_id_get(const struct m0_stob_id *stob_id)
 {
-	return stob_fid->f_container;
-}
-
-M0_INTERNAL uint64_t m0_stob_fid_key_get(const struct m0_fid *stob_fid)
-{
-	return stob_fid->f_key;
+	return m0_fid_tget(&stob_id->si_domain_fid);
 }
 
 M0_INTERNAL enum m0_stob_state m0_stob_state_get(struct m0_stob *stob)
@@ -291,14 +290,12 @@ M0_INTERNAL void m0_stob_put(struct m0_stob *stob)
 	m0_stob_cache_unlock(cache);
 }
 
-M0_INTERNAL void m0_stob__fid_set(struct m0_stob *stob,
-				  struct m0_stob_domain *dom,
-				  uint64_t stob_key)
+M0_INTERNAL void m0_stob__id_set(struct m0_stob *stob,
+				 const struct m0_fid *stob_fid)
 {
-	stob->so_fid = (struct m0_fid){
-		.f_container = m0_stob_domain_id_get(dom),
-		.f_key	     = stob_key,
-	};
+	M0_LOG(M0_DEBUG, FID_F, FID_P(stob_fid));
+	stob->so_id.si_domain_fid = stob->so_domain->sd_id;
+	stob->so_id.si_fid = *stob_fid;
 }
 
 M0_INTERNAL void m0_stob__cache_evict(struct m0_stob *stob)
@@ -307,11 +304,6 @@ M0_INTERNAL void m0_stob__cache_evict(struct m0_stob *stob)
 
 	stob->so_ops->sop_fini(stob);
 	dom->sd_ops->sdo_stob_free(dom, stob);
-}
-
-M0_INTERNAL void m0_stob__key_set(struct m0_stob *stob, uint64_t stob_key)
-{
-	stob->so_fid.f_key = stob_key;
 }
 
 M0_INTERNAL void m0_stob__state_set(struct m0_stob *stob,
@@ -325,11 +317,24 @@ M0_INTERNAL struct m0_stob_domain *m0_stob_dom_get(struct m0_stob *stob)
 	return stob->so_domain;
 }
 
-M0_INTERNAL void m0_stob_fid_make(struct m0_fid *stob_fid,
-				  uint64_t dom_id,
-				  uint64_t stob_key)
+M0_INTERNAL int m0_stob_mod_init(void)
 {
-	*stob_fid = M0_FID_INIT(dom_id, stob_key);
+	m0_xc_stob_init();
+	return 0;
+}
+
+M0_INTERNAL void m0_stob_mod_fini(void)
+{
+	m0_xc_stob_fini();
+}
+
+M0_INTERNAL void m0_stob_id_make(uint64_t container,
+				 uint64_t key,
+				 const struct m0_fid *dom_id,
+				 struct m0_stob_id *stob_id)
+{
+	stob_id->si_domain_fid = *dom_id;
+	m0_fid_tset(&stob_id->si_fid, m0_fid_tget(dom_id), container, key);
 }
 
 /** @} end group stob */

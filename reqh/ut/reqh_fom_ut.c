@@ -178,6 +178,7 @@ static int server_init(const char             *stob_path,
 	uint32_t		     tms_nr;
 	char			    *sdom_cfg;
 	char			    *sdom_location;
+	struct m0_stob_id            stob_id;
 
         srv_cob_dom_id.id = 102;
 
@@ -200,10 +201,11 @@ static int server_init(const char             *stob_path,
 	 * Locate and create (if necessary) the backing store object.
 	 */
 	rc = m0_stob_domain_create_or_init(SERVER_BDOM_LOCATION, NULL,
-					   SERVER_BDOM_KEY, NULL, bdom);
+					   SERVER_BDOM_KEY, NULL,
+					   bdom);
 	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_stob_find_by_key(*bdom, back_key, &bstore);
+	m0_stob_id_make(0, back_key, &(*bdom)->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &bstore);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_locate(bstore);
 	M0_UT_ASSERT(rc == 0);
@@ -213,7 +215,7 @@ static int server_init(const char             *stob_path,
 	/*
 	 * Create AD domain over backing store object.
 	 */
-	m0_stob_ad_cfg_make(&sdom_cfg, seg, m0_stob_fid_get(bstore));
+	m0_stob_ad_cfg_make(&sdom_cfg, seg, m0_stob_id_get(bstore));
 	sdom_location = m0_alloc(0x1000);
 	snprintf(sdom_location, 0x1000, "adstob:seg=%p,1234", seg);
 	rc = m0_stob_domain_create(sdom_location, NULL, 2, sdom_cfg, &sdom);
@@ -223,8 +225,9 @@ static int server_init(const char             *stob_path,
 	m0_free(sdom_location);
 	m0_stob_put(bstore);
 
+	m0_stob_id_make(0, rh_addb_stob_key, &(*bdom)->sd_id, &stob_id);
 	/* Create or open a stob into which to store the record. */
-	rc = m0_stob_find_by_key(*bdom, rh_addb_stob_key, &*reqh_addb_stob);
+	rc = m0_stob_find(&stob_id, &*reqh_addb_stob);
 	M0_ASSERT(rc == 0);
 	rc = m0_stob_locate(*reqh_addb_stob);
 	M0_UT_ASSERT(rc == 0);
@@ -278,6 +281,7 @@ static void server_fini(struct m0_stob_domain *bdom,
 	struct m0_sm_group *grp;
 	struct m0_stob	   *bstore;
 	int		    rc;
+	struct m0_stob_id   stob_id;
 
 	if (m0_reqh_state_get(&reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown_wait(&reqh);
@@ -304,7 +308,8 @@ static void server_fini(struct m0_stob_domain *bdom,
 	rc = m0_stob_destroy(reqh_addb_stob, NULL);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_stob_find_by_key(bdom, back_key, &bstore);
+	m0_stob_id_make(0, back_key, &bdom->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &bstore);
 	M0_ASSERT(rc == 0);
 	rc = m0_stob_destroy(bstore, NULL);
 	M0_ASSERT(rc == 0);

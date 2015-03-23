@@ -44,10 +44,6 @@
  * @{
  */
 
-enum {
-	UINT32_MAX_STR_LEN      = 12
-};
-
 struct m0_cob_fid_ns_iter {
 	/** Cob domain. */
 	struct m0_cob_domain *cni_cdom;

@@ -908,6 +908,12 @@ M0_INTERNAL int m0_cob_mod_init(void);
 M0_INTERNAL void m0_cob_mod_fini(void);
 
 extern const struct m0_fid_type m0_cob_fid_type;
+enum m0_cob_type {
+	M0_COB_IO,
+	M0_COB_MD
+};
+
+extern const struct m0_fid_type m0_cob_fid_type;
 
 /** @} end group cob */
 #endif /* __MERO_COB_COB_H__ */

@@ -59,21 +59,21 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
         struct m0_buf              kbuf;
         struct m0_be_btree_cursor  it;
 	uint32_t                   cob_idx = 0;
-        char                       nskey_bs[UINT32_MAX_STR_LEN];
+        char                       nskey_bs[UINT32_STR_LEN];
         uint32_t                   nskey_bs_len;
 	int                        rc;
 
         m0_be_btree_cursor_init(&it, cob_namespace);
 	M0_SET0(&nskey_bs);
-        snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u", (uint32_t)cob_idx);
+        snprintf(nskey_bs, UINT32_STR_LEN, "%u", cob_idx);
         nskey_bs_len = strlen(nskey_bs);
 
-        rc = m0_cob_nskey_make(&key, key_gfid, (char *)nskey_bs,
+        rc = m0_cob_nskey_make(&key, key_gfid, nskey_bs,
 			       nskey_bs_len);
         if (rc != 0)
                 return M0_RC(rc);
 
-	m0_buf_init(&kbuf, key, m0_cob_nskey_size(key) + UINT32_MAX_STR_LEN);
+	m0_buf_init(&kbuf, key, m0_cob_nskey_size(key) + UINT32_STR_LEN);
         rc = m0_be_btree_cursor_get_sync(&it, &kbuf, true);
 	if (rc == 0) {
 		/*

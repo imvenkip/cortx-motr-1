@@ -26,6 +26,7 @@
 #include "lib/mutex.h"	/* m0_mutex */
 #include "lib/tlist.h"	/* m0_tl */
 #include "lib/types.h"	/* uint64_t */
+#include "fid/fid.h"    /* m0_fid */
 
 /**
  * @defgroup stob Storage object
@@ -103,7 +104,7 @@ M0_INTERNAL void m0_stob_cache_idle(struct m0_stob_cache *cache,
  * @post m0_stob_cache_is_locked(cache)
  */
 M0_INTERNAL struct m0_stob *m0_stob_cache_lookup(struct m0_stob_cache *cache,
-						 uint64_t stob_key);
+						 const struct m0_fid *stob_fid);
 
 /**
  * Purges at most nr items from the idle stob cache.

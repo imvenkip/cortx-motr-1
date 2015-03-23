@@ -24,8 +24,9 @@
 #include "mero/setup.h"
 #include "sns/cm/repair/xform.c"
 #include "sns/cm/repair/ut/cp_common.h"
-#include "ioservice/io_foms.h"		/* io_fom_cob_rw_fid2stob_map */
-#include "ut/stob.h"			/* m0_ut_stob_create_by_fid */
+#include "ioservice/fid_convert.h"	/* m0_fid_convert_cob2stob */
+#include "ut/stob.h"			/* m0_ut_stob_create_by_stob_id */
+#include "module/instance.h"            /* m0_get */
 
 enum {
 	SEG_NR                  = 16,
@@ -40,7 +41,8 @@ enum {
 	MULTI_FAIL_MULTI_CP_NR  = 5,
 };
 
-static struct m0_fid cob_fid = M0_FID_INIT(0, 4);
+static struct m0_fid gob_fid;
+static struct m0_fid cob_fid;
 
 static struct m0_reqh            *reqh;
 static struct m0_cm              *cm;
@@ -86,7 +88,7 @@ M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
                             uint64_t cont, struct m0_fid *gfid,
 			    uint32_t cob_idx);
 M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
-			    uint64_t cont, uint64_t key);
+			    uint64_t cont, const struct m0_fid *gfid);
 
 static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
 {
@@ -237,16 +239,14 @@ static void cp_buf_free(struct m0_sns_cm_ag *sag)
 
 static void tgt_fid_cob_create(struct m0_reqh *reqh)
 {
-	struct m0_fid	 stob_fid;
-        struct m0_fid	 gfid = cob_fid;
-        int		 rc;
+	struct m0_stob_id stob_id;
+        int		  rc;
 
 	rc = m0_ios_cdom_get(reqh, &cdom);
 	M0_ASSERT(rc == 0);
-        cob_create(cdom, 0, &gfid, 0);
-
-	io_fom_cob_rw_fid2stob_map(&cob_fid, &stob_fid);
-	rc = m0_ut_stob_create_by_fid(&stob_fid, NULL);
+        cob_create(cdom, 0, &gob_fid, m0_fid_cob_device_id(&cob_fid));
+	m0_fid_convert_cob2stob(&cob_fid, &stob_id);
+	rc = m0_ut_stob_create_by_stob_id(&stob_id, NULL);
 	M0_ASSERT(rc == 0);
 }
 
@@ -532,6 +532,9 @@ static int xform_init(void)
 	rc = cs_init(&sctx);
 	M0_ASSERT(rc == 0);
 
+	m0_fid_gob_make(&gob_fid, 0, 4);
+	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, 1);
+
 	reqh = m0_cs_reqh_get(&sctx);
 	tgt_fid_cob_create(reqh);
 
@@ -552,15 +555,15 @@ static int xform_init(void)
 static int xform_fini(void)
 {
 	struct m0_cob_domain *cdom;
-	struct m0_fid         stob_fid;
+	struct m0_stob_id     stob_id;
 	int                   rc;
 
-	io_fom_cob_rw_fid2stob_map(&cob_fid, &stob_fid);
-	rc = m0_ut_stob_destroy_by_fid(&stob_fid);
+	m0_fid_convert_cob2stob(&cob_fid, &stob_id);
+	rc = m0_ut_stob_destroy_by_stob_id(&stob_id);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_ios_cdom_get(reqh, &cdom);
 	M0_UT_ASSERT(rc == 0);
-	cob_delete(cdom, 0, 4);
+	cob_delete(cdom, 0, &gob_fid);
         cs_fini(&sctx);
         return 0;
 }

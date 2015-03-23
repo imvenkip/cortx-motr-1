@@ -22,6 +22,7 @@
 #include "lib/misc.h"
 #include "lib/errno.h"
 #include "sns/parity_repair.h"
+#include "ioservice/fid_convert.h"  /* m0_fid_cob_device_id */
 
 static void device_index_get(const struct m0_fid *fid,
 			     struct m0_pdclust_layout *pl,
@@ -45,7 +46,7 @@ static void device_index_get(const struct m0_fid *fid,
         sa.sa_unit = unit_number;
         m0_pdclust_instance_map(pi, &sa, &ta);
 	m0_layout_enum_get(le, ta.ta_obj, fid, &cob_fid);
-	*device_index_out = cob_fid.f_container;
+	*device_index_out = m0_fid_cob_device_id(&cob_fid);
 }
 
 M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,

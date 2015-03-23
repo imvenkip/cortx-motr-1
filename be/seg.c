@@ -84,7 +84,7 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 		.bs_domain   = dom,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
-		.bs_id       = stob->so_fid.f_key,
+		.bs_id       = m0_stob_fid_get(stob)->f_key,
 	};
 	m0_stob_get(seg->bs_stob);
 	M0_LEAVE();

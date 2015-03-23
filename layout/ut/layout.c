@@ -42,6 +42,7 @@
 #include "layout/pdclust.h"
 //#include "layout/list_enum.h"
 #include "layout/linear_enum.h"
+#include "ioservice/fid_convert.h"       /* m0_fid_convert_gob2cob */
 
 static const char              db_name[] = "ut-layout";
 static struct m0_layout_domain domain;
@@ -2093,14 +2094,14 @@ static void enum_op_verify(uint32_t enum_id, uint64_t lid,
 		}
 	} else {
 		/* Set gfid to some dummy value. */
-		m0_fid_set(&gfid, 0, 999);
+		m0_fid_gob_make(&gfid, 0, 999);
 		lin_enum = container_of(e, struct m0_layout_linear_enum,
 					lle_base);
+		M0_UT_ASSERT(lin_enum != NULL);
 		for(i = 0; i < nr; ++i) {
-			m0_fid_set(&fid_calculated,
-				   lin_enum->lle_attr.lla_A +
-				   i * lin_enum->lle_attr.lla_B,
-				   gfid.f_key);
+			m0_fid_convert_gob2cob(&gfid, &fid_calculated,
+					       lin_enum->lle_attr.lla_A +
+					       i * lin_enum->lle_attr.lla_B);
 			m0_layout_enum_get(e, i, &gfid, &fid_from_layout);
 			M0_UT_ASSERT(m0_fid_eq(&fid_calculated,
 					       &fid_from_layout));

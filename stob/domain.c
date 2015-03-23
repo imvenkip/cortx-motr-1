@@ -198,7 +198,7 @@ M0_INTERNAL int m0_stob_domain_init(const char *location,
 
 M0_INTERNAL void m0_stob_domain_fini(struct m0_stob_domain *dom)
 {
-	uint64_t             dom_id = m0_stob_domain_id_get(dom);
+	const struct m0_fid *dom_id = m0_stob_domain_id_get(dom);
 	struct m0_stob_type *type   = m0_stob_type_by_dom_id(dom_id);
 
 	M0_ASSERT(type != NULL);
@@ -268,7 +268,8 @@ M0_INTERNAL int m0_stob_domain_create_or_init(const char *location,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL struct m0_stob_domain *m0_stob_domain_find(uint64_t dom_id)
+M0_INTERNAL struct m0_stob_domain *
+m0_stob_domain_find(const struct m0_fid *dom_id)
 {
 	return m0_stob_type__dom_find(m0_stob_type_by_dom_id(dom_id), dom_id);
 }
@@ -284,14 +285,14 @@ m0_stob_domain_find_by_location(const char *location)
 }
 
 M0_INTERNAL struct m0_stob_domain *
-m0_stob_domain_find_by_stob_fid(struct m0_fid *stob_fid)
+m0_stob_domain_find_by_stob_id(const struct m0_stob_id *stob_id)
 {
-	return m0_stob_domain_find(m0_stob_fid_dom_id_get(stob_fid));
+	return m0_stob_domain_find(&stob_id->si_domain_fid);
 }
 
-M0_INTERNAL uint64_t m0_stob_domain_id_get(struct m0_stob_domain *dom)
+M0_INTERNAL const struct m0_fid *m0_stob_domain_id_get(struct m0_stob_domain *dom)
 {
-	return dom->sd_id;
+	return &dom->sd_id;
 }
 
 M0_INTERNAL const char *m0_stob_domain_location_get(struct m0_stob_domain *dom)
@@ -300,33 +301,36 @@ M0_INTERNAL const char *m0_stob_domain_location_get(struct m0_stob_domain *dom)
 }
 
 M0_INTERNAL void m0_stob_domain__id_set(struct m0_stob_domain *dom,
-					uint64_t dom_id)
+					 struct m0_fid *dom_id)
 {
-	dom->sd_id = dom_id;
+	dom->sd_id = *dom_id;
 }
 
-M0_INTERNAL uint8_t m0_stob_domain__type_id(uint64_t dom_id)
+M0_INTERNAL uint8_t m0_stob_domain__type_id(const struct m0_fid *dom_id)
 {
-	return (uint8_t)(dom_id >> 56);
+	return m0_fid_tget(dom_id);
 }
 
-M0_INTERNAL uint64_t m0_stob_domain__dom_key(uint64_t dom_id)
+M0_INTERNAL uint64_t m0_stob_domain__dom_key(const struct m0_fid *dom_id)
 {
-	return dom_id & ((1ULL << 56) - 1);
+	return dom_id->f_key;
 }
 
-M0_INTERNAL uint64_t m0_stob_domain__dom_id(uint8_t type_id, uint64_t dom_key)
+M0_INTERNAL void m0_stob_domain__dom_id_make(struct m0_fid *dom_id,
+					     uint8_t type_id,
+					     uint64_t dom_container,
+					     uint64_t dom_key)
 {
-	return (uint64_t)type_id << 56 | dom_key;
+	m0_fid_tset(dom_id, type_id, dom_container, dom_key);
 }
 
 M0_INTERNAL bool m0_stob_domain__invariant(struct m0_stob_domain *dom)
 {
-	uint64_t	     id	  = m0_stob_domain_id_get(dom);
+	const struct m0_fid *dom_id = m0_stob_domain_id_get(dom);
 	struct m0_stob_type *type = dom->sd_type;
 
 	return _0C(type != NULL) &&
-	       _0C(m0_stob_domain__type_id(id) == m0_stob_type_id_get(type));
+	       _0C(m0_stob_domain__type_id(dom_id) == m0_stob_type_id_get(type));
 }
 
 M0_INTERNAL bool m0_stob_domain__dom_key_is_valid(uint64_t dom_key)

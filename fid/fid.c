@@ -203,17 +203,12 @@ M0_INTERNAL void m0_fid_fini(void)
 }
 M0_EXPORTED(m0_fid_fini);
 
-M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid, uint64_t max,
-				 uint32_t i)
+M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid)
 
 {
-	uint64_t hash;
-	uint64_t index;
+	return m0_hash(M0_CIRCULAR_SHIFT_LEFT(fid->f_container, 3) ^
+		       M0_CIRCULAR_SHIFT_LEFT(fid->f_key, 17));
 
-	hash = m0_hash(fid->f_container + fid->f_key + i);
-	index = m0_rnd(max, &hash);
-	M0_ASSERT(index < max);
-	return index;
 }
 
 /** @} end of fid group */

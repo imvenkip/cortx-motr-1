@@ -26,8 +26,9 @@
 #include "mero/setup.h"
 #include "net/net.h"
 #include "sns/cm/repair/ut/cp_common.h"
-#include "ioservice/io_foms.h"		/* io_fom_cob_rw_fid2stob_map */
-#include "ut/stob.h"			/* m0_ut_stob_create_by_fid */
+#include "ioservice/fid_convert.h"	/* m0_fid_convert_cob2stob */
+#include "ut/stob.h"			/* m0_ut_stob_create_by_stob_id */
+#include "module/instance.h"            /* m0_get */
 
 struct m0_reqh_service          *service;
 static struct m0_reqh           *reqh;
@@ -44,7 +45,8 @@ static struct m0_sns_cm_ag  r_sag;
 static struct m0_sns_cm_cp  r_sns_cp;
 static struct m0_net_buffer r_buf;
 
-static struct m0_fid cob_fid = M0_FID_INIT(1, 1);
+static struct m0_fid gob_fid;
+static struct m0_fid cob_fid;
 
 /*
  * Copy packet will typically have a single segment with its size equal to
@@ -196,15 +198,15 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 
 void write_post(void)
 {
-	struct m0_fid stob_fid;
-	int	      rc;
+	struct m0_stob_id stob_id;
+	int	          rc;
 
 	m0_semaphore_init(&sem, 0);
 	w_buf.nb_pool = &nbp;
 	cp_prepare(&w_sns_cp.sc_base, &w_buf, SEG_NR, SEG_SIZE,
 		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false, NULL);
 	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
-	io_fom_cob_rw_fid2stob_map(&cob_fid, &w_sns_cp.sc_stob_fid);
+	m0_fid_convert_cob2stob(&cob_fid, &w_sns_cp.sc_stob_id);
 	w_sns_cp.sc_cobfid = M0_MDSERVICE_SLASH_FID;
 	w_sag.sag_base.cag_cp_local_nr = 1;
 	w_sag.sag_fnr = 1;
@@ -213,8 +215,8 @@ void write_post(void)
          * Create a stob. In actual repair scenario, this will already be
          * created by the IO path.
          */
-	io_fom_cob_rw_fid2stob_map(&cob_fid, &stob_fid);
-	rc = m0_ut_stob_create_by_fid(&stob_fid, NULL);
+	m0_fid_convert_cob2stob(&cob_fid, &stob_id);
+	rc = m0_ut_stob_create_by_stob_id(&stob_id, NULL);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_fom_queue(&w_sns_cp.sc_base.c_fom, reqh);
@@ -260,7 +262,7 @@ static void read_post(void)
 	r_sns_cp.sc_base.c_ops = &read_cp_dummy_ops;
 	r_sag.sag_base.cag_cp_local_nr = 1;
 	r_sag.sag_fnr = 1;
-	io_fom_cob_rw_fid2stob_map(&cob_fid, &r_sns_cp.sc_stob_fid);
+	m0_fid_convert_cob2stob(&cob_fid, &r_sns_cp.sc_stob_id);
 	r_sns_cp.sc_cobfid = M0_MDSERVICE_SLASH_FID;
 	m0_fom_queue(&r_sns_cp.sc_base.c_fom, reqh);
 
@@ -276,6 +278,8 @@ static void test_cp_write_read(void)
 	rc = cs_init(&sctx);
 	M0_ASSERT(rc == 0);
 
+	m0_fid_gob_make(&gob_fid, 1, 1);
+	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, 1);
 	reqh = m0_cs_reqh_get(&sctx);
 	/*
 	 * Write using a dummy copy packet. This data which is written, will

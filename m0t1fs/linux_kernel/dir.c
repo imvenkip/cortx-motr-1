@@ -39,6 +39,8 @@
 #include "layout/pdclust.h"
 #include "m0t1fs/linux_kernel/m0t1fs.h"
 #include "m0t1fs/linux_kernel/fsync.h"
+#include "pool/pool.h"
+#include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob, m0_fid_cob_device_id */
 
 
 extern const struct m0_uint128 m0_rm_m0t1fs_group;
@@ -54,6 +56,7 @@ struct cob_req {
 	m0_time_t           cr_deadline;
 	struct m0t1fs_sb   *cr_csb;
 	int32_t             cr_rc;
+	struct m0_fid       cr_fid;
 };
 
 struct cob_fop {
@@ -105,7 +108,8 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 
 	m0_semaphore_up(&creq->cr_sem);
 
-	M0_LOG(M0_DEBUG, "cob_req_fop=%p rc %d", cfop, creq->cr_rc);
+	M0_LOG(M0_DEBUG, "cob_req_fop=%p rc %d, "FID_F"", cfop,
+			creq->cr_rc, FID_P(&creq->cr_fid));
 	M0_LEAVE();
 }
 
@@ -121,7 +125,7 @@ static int file_lock_acquire(struct m0_rm_incoming *rm_in,
 			     struct m0t1fs_inode *ci);
 static void file_lock_release(struct m0_rm_incoming *rm_in);
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
-				       const struct m0t1fs_mdop *mop,
+				       struct m0t1fs_mdop *mop,
 				       int (*func)(struct cob_req *,
 						   const struct m0t1fs_inode *,
 						   const struct m0t1fs_mdop *,
@@ -304,7 +308,8 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		mo.mo_attr.ca_lid = ci->ci_layout_id;
 		mo.mo_attr.ca_valid |= M0_COB_LID;
 
-		rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
+		if (!csb->csb_oostore)
+			rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
 		if (rc == 0) {
 			M0_LOG(M0_DEBUG, "changing lid to %lld",
 					 mo.mo_attr.ca_lid);
@@ -312,6 +317,8 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 						m0t1fs_ios_cob_setattr);
 		}
 	} else {
+		if (csb->csb_oostore)
+			return M0_ERR(-EOPNOTSUPP);
 		m0_buf_init(&mo.mo_attr.ca_eakey, (void*)name, strlen(name));
 		m0_buf_init(&mo.mo_attr.ca_eaval, (void*)value, size);
 		rc = m0t1fs_mds_cob_setxattr(csb, &mo, &rep_fop);
@@ -343,6 +350,8 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 	M0_ENTRY("Getting %.*s's xattr %s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name);
 
+	if (csb->csb_oostore)
+		return M0_ERR(-EOPNOTSUPP);
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
@@ -450,14 +459,14 @@ static int m0t1fs_create(struct inode     *dir,
 	struct m0t1fs_mdop        mo;
 	struct inode             *inode;
 	struct m0_fid             new_fid;
+	struct m0_fid             gfid;
 	int                       rc;
 	struct m0_fop            *rep_fop = NULL;
-	uint32_t                  i;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
 
-	M0_LOG(M0_INFO, "Creating \"%s\" in pdir %lu "FID_F,
+	M0_LOG(M0_DEBUG, "Creating \"%s\" in pdir %lu "FID_F,
 	       (char*)dentry->d_name.name, dir->i_ino,
 	       FID_P(m0t1fs_inode_fid(M0T1FS_I(dir))));
 
@@ -475,11 +484,11 @@ static int m0t1fs_create(struct inode     *dir,
 	} else {
 		m0t1fs_fid_alloc(csb, &new_fid);
 	}
-	m0_fid_tassume(&new_fid, &m0_file_fid_type);
+	m0_fid_gob_make(&gfid, new_fid.f_container, new_fid.f_key);
 	M0_LOG(M0_DEBUG, "New fid = "FID_F, FID_P(&new_fid));
-	inode->i_ino = fid_hash(&new_fid);
+	inode->i_ino = m0_fid_hash(&gfid);
 	ci = M0T1FS_I(inode);
-	ci->ci_fid = new_fid;
+	ci->ci_fid = gfid;
 
 	inode->i_mode = mode;
 	inode->i_uid = current_fsuid();
@@ -532,40 +541,11 @@ static int m0t1fs_create(struct inode     *dir,
 	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
 
-	if (csb->csb_oostore) {
-		/** @todo MM5, MM4 FCIDM.4 PICS.3
-		 * Get service endpoint from service fid returned by
-		 * m0t1fs_hash_ios() based on file fid.
-		 * Create metadata cobs on these redundant services using
-		 * modified m0t1fs_component_objects_op().
-		 */
-		for (i = 0; i < csb->csb_pools_common.pc_md_redundancy; i++) {
-			struct m0_fid           md_conf_fid;
-			struct m0_conf_obj     *obj;
-			struct m0_conf_service *svc;
-
-			md_conf_fid = m0t1fs_hash_ios(csb, &new_fid, i);
-			obj = m0_conf_cache_lookup(&csb->csb_confc.cc_cache,
-						   &md_conf_fid);
-			svc = M0_CONF_CAST(obj, m0_conf_service);
-			/** @todo Use this confguration service to connect to
-			 * ioservice and create metadata cob on it.
-			 */
-		}
+	if (!csb->csb_oostore) {
+		rc = m0t1fs_mds_cob_create(csb, &mo, &rep_fop);
+		if (rc != 0)
+			goto out;
 	}
-
-	/* @todo: According to MM, a hash function will be used to choose
-	 * a list of extra ioservices, on which "meta component objects" will
-	 * be created by:
-	 *     rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_create);
-	 * cob creation will be handled as normal, other than that the cob index
-	 * will be some special value, e.g. -1 as the cob index.
-	 * That will be done in separated MM tasks.
-	 */
-	rc = m0t1fs_mds_cob_create(csb, &mo, &rep_fop);
-	if (rc != 0)
-		goto out;
-
 	if (S_ISREG(mode)) {
 		rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_create);
 		if (rc != 0)
@@ -573,7 +553,7 @@ static int m0t1fs_create(struct inode     *dir,
 	}
 
 	if (insert_inode_locked(inode) < 0) {
-		M0_LOG(M0_ERROR, "Duplicate inode: "FID_F, FID_P(&new_fid));
+		M0_LOG(M0_ERROR, "Duplicate inode: "FID_F, FID_P(&gfid));
 		rc = M0_ERR(-EIO);
 		goto out;
 	}
@@ -632,7 +612,7 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	struct m0_fop_lookup_rep *rep = NULL;
 	struct m0t1fs_mdop        mo;
 	int                       rc;
-	struct m0_fop            *rep_fop;
+	struct m0_fop            *rep_fop = NULL;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
@@ -645,9 +625,39 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		return ERR_PTR(-ENAMETOOLONG);
 	}
 
-	M0_LOG(M0_DEBUG, "Name: \"%s\"", (char*)dentry->d_name.name);
+	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
 
 	m0t1fs_fs_lock(csb);
+	if (csb->csb_oostore) {
+		struct m0_fid     new_fid;
+		struct m0_fid     gfid;
+		struct m0_fop_cob body;
+
+		rc = m0_fid_sscanf_simple(dentry->d_name.name, &new_fid);
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "Cannot parse fid \"%s\" in oostore",
+					 (char*)dentry->d_name.name);
+			m0t1fs_fs_unlock(csb);
+			return ERR_PTR(-EINVAL);
+		}
+		m0_fid_gob_make(&gfid, new_fid.f_container, new_fid.f_key);
+		body.b_valid = (M0_COB_MODE | M0_COB_LID);
+		body.b_lid = M0_DEFAULT_LAYOUT_ID;
+		body.b_mode = S_IFREG;
+		inode = m0t1fs_iget(dir->i_sb, &gfid, &body);
+		if (IS_ERR(inode)) {
+			M0_LEAVE("ERROR: %p", ERR_CAST(inode));
+			m0t1fs_fs_unlock(csb);
+			return ERR_CAST(inode);
+		}
+		rc = m0t1fs_cob_getattr(inode);
+		if (rc != 0) {
+			make_bad_inode(inode);
+			iput(inode);
+			inode = NULL;
+		}
+		goto out;
+	}
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_pfid = *m0t1fs_inode_fid(M0T1FS_I(dir));
@@ -666,8 +676,8 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 			return ERR_CAST(inode);
 		}
 	}
-
 	m0_fop_put0_lock(rep_fop);
+out:
 	m0t1fs_fs_unlock(csb);
 	M0_LEAVE();
 
@@ -797,6 +807,8 @@ static int m0t1fs_readdir(struct file *f,
 	csb    = M0T1FS_SB(dir->i_sb);
 	i      = f->f_pos;
 
+	if (csb->csb_oostore)
+		return M0_RC(0);
 	fd = f->private_data;
 	if (fd->fd_direof)
 		return M0_RC(0);
@@ -1011,6 +1023,14 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	m0_buf_init(&mo.mo_attr.ca_name,
 		    (char*)dentry->d_name.name, dentry->d_name.len);
 
+	if (csb->csb_oostore) {
+		rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_delete);
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "ioservice delete fop failed: %d", rc);
+		m0t1fs_fs_unlock(csb);
+		return M0_RC(rc);
+	}
+
 	rc = m0t1fs_mds_cob_lookup(csb, &mo, &lookup_rep_fop);
 	if (rc != 0)
 		goto out;
@@ -1149,7 +1169,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	struct m0t1fs_inode             *ci;
 	struct m0t1fs_mdop               mo;
 	int                              rc;
-	struct m0_fop                   *rep_fop;
+	struct m0_fop                   *rep_fop = NULL;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
@@ -1162,8 +1182,13 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 	m0t1fs_fs_lock(csb);
 
+	if (csb->csb_oostore) {
+		rc = m0t1fs_cob_getattr(inode);
+		goto update;
+	}
+
 	M0_SET0(&mo);
-	mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
+	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
 	m0_buf_init(&mo.mo_attr.ca_name,
 		    (char*)dentry->d_name.name, dentry->d_name.len);
 
@@ -1192,7 +1217,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 		rc = m0t1fs_inode_layout_init(ci);
 		M0_ASSERT(rc == 0);
 	}
-
+update:
 	/** Now its time to return inode stat data to user. */
 	stat->dev = inode->i_sb->s_dev;
 	stat->ino = inode->i_ino;
@@ -1223,15 +1248,18 @@ M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry, uint64_t newsize)
 	struct inode                    *inode;
 	struct m0t1fs_inode             *ci;
 	struct m0t1fs_mdop               mo;
-	int                              rc;
-	struct m0_fop                   *rep_fop;
+	int                              rc = 0;
+	struct m0_fop                   *rep_fop = NULL;
 
 	inode = dentry->d_inode;
 	csb   = M0T1FS_SB(inode->i_sb);
 	ci    = M0T1FS_I(inode);
 
 	m0t1fs_fs_lock(csb);
-
+	if (csb->csb_oostore) {
+		inode->i_size = newsize;
+		goto out;
+	}
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid   = *m0t1fs_inode_fid(ci);
 	mo.mo_attr.ca_size   = newsize;
@@ -1242,7 +1270,6 @@ M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry, uint64_t newsize)
 	rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
 	if (rc != 0)
 		goto out;
-
 	inode->i_size = newsize;
 out:
 	m0_fop_put0_lock(rep_fop);
@@ -1341,12 +1368,13 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	 * valid layout id should be called.
 	 */
 
-	rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
-	if (rc != 0) {
-		m0_fop_put0_lock(rep_fop);
-		goto out;
+	if (!csb->csb_oostore) {
+		rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
+		if (rc != 0) {
+			m0_fop_put0_lock(rep_fop);
+			goto out;
+		}
 	}
-
 	rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_setattr);
 	if (rc != 0)
 		goto out;
@@ -1417,19 +1445,20 @@ static uint32_t m0t1fs_ios_cob_idx(const struct m0t1fs_inode *ci,
 				   const struct m0_fid *cfid)
 {
 	uint32_t cob_idx;
+
 	M0_PRE(ci->ci_layout_instance != NULL);
 	M0_PRE(gfid != NULL);
 	M0_PRE(cfid != NULL);
 
 	cob_idx = m0_layout_enum_find(m0_layout_instance_to_enum(
 				      ci->ci_layout_instance), gfid, cfid);
-	M0_LOG(M0_DEBUG, "cob idx for gob fid "FID_F" cob fid "FID_F": %d",
-			 FID_P(gfid), FID_P(cfid), cob_idx);
+	M0_LOG(M0_DEBUG, "cob idx: %d for gob fid "FID_F" cob fid "FID_F"",
+			 cob_idx, FID_P(gfid), FID_P(cfid));
 	return cob_idx;
 }
 
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
-				       const struct m0t1fs_mdop *mop,
+				       struct m0t1fs_mdop *mop,
 				       int (*func)(struct cob_req *,
 						   const struct m0t1fs_inode *,
 						   const struct m0t1fs_mdop *,
@@ -1469,12 +1498,34 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 	cob_req.cr_deadline = m0_time_from_now(0, COB_REQ_DEADLINE);
 	cob_req.cr_csb = csb;
 	cob_req.cr_rc = 0;
+	cob_req.cr_fid = *m0t1fs_inode_fid(ci);
+
+	if (csb->csb_oostore && func != m0t1fs_ios_cob_truncate) {
+		M0_LOG(M0_DEBUG,"oostore mode");
+		mop->mo_cob_type = M0_COB_MD;
+		/** Create, delete and setattr operations on meta data cobs on
+		 * ioservices are performed.
+		 */
+		for (i = 0; i < csb->csb_pools_common.pc_md_redundancy; i++) {
+			rc = func(&cob_req, ci, mop, i);
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "Cob %s "FID_F" failed with %d",
+					op_name, FID_P(&cob_req.cr_fid), rc);
+				goto out;
+			}
+		}
+		if (func == m0t1fs_ios_cob_setattr)
+			goto out;
+		while (--i >= 0)
+			m0_semaphore_down(&cob_req.cr_sem);
+	}
 
 	for (i = 0; i < pool_width; ++i) {
 		cob_fid = m0t1fs_ios_cob_fid(ci, i);
 		cob_idx = m0t1fs_ios_cob_idx(ci, m0t1fs_inode_fid(ci),
 					     &cob_fid);
 		M0_ASSERT(cob_idx != ~0);
+		mop->mo_cob_type = M0_COB_IO;
 		rc = func(&cob_req, ci, mop, i);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cob %s "FID_F" failed with %d",
@@ -1482,11 +1533,12 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 			break;
 		}
 	}
-
+out:
 	while (--i >= 0)
 		m0_semaphore_down(&cob_req.cr_sem);
-
 	m0_semaphore_fini(&cob_req.cr_sem);
+	M0_LOG(M0_DEBUG, "Cob %s "FID_F" with %d", op_name, FID_P(&cob_fid),
+			rc ?: cob_req.cr_rc);
 
 	return M0_RC(rc ?: cob_req.cr_rc);
 }
@@ -1886,11 +1938,8 @@ static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb   *csb,
 	common->c_gobfid = *gob_fid;
 	common->c_cobfid = *cob_fid;
 	common->c_pver   = csb->csb_pool_version->pv_id;
-
-	/* For special "meta cobs", this would be some special value,
-	 * e.g. -1. @todo this will be done in MM hash function task.
-	 */
 	common->c_cob_idx = cob_idx;
+	common->c_cob_type = mop->mo_cob_type;
 
 	if (m0_is_cob_truncate_fop(fop)) {
 		ct = m0_fop_data(fop);
@@ -1937,11 +1986,19 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 	M0_ENTRY();
 
 	csb = M0T1FS_SB(ci->ci_inode.i_sb);
-	cob_fid = m0t1fs_ios_cob_fid(ci, idx);
 	gob_fid = m0t1fs_inode_fid(ci);
-	cob_idx = m0t1fs_ios_cob_idx(ci, gob_fid, &cob_fid);
 
-	session = m0t1fs_container_id_to_session(csb, cob_fid.f_container);
+	if (mop->mo_cob_type == M0_COB_MD) {
+		session = m0_reqh_mdpool_service_index_to_session(
+				&csb->csb_reqh, gob_fid, idx);
+		m0_fid_convert_gob2cob(gob_fid, &cob_fid, 0);
+		cob_idx = idx;
+	} else {
+		cob_fid = m0t1fs_ios_cob_fid(ci, idx);
+		cob_idx = m0t1fs_ios_cob_idx(ci, gob_fid, &cob_fid);
+		session = m0t1fs_container_id_to_session(csb,
+				m0_fid_cob_device_id(&cob_fid));
+	}
 	M0_ASSERT(session != NULL);
 
 	M0_ALLOC_PTR(cfop);
@@ -2025,101 +2082,98 @@ static int m0t1fs_ios_cob_setattr(struct cob_req *cr,
 
 M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 {
-	struct m0t1fs_sb                *csb;
+	const struct m0t1fs_sb          *csb;
 	struct m0t1fs_inode             *ci;
-	struct m0_fop                   *fop;
-	struct m0_fop_cob_getattr_reply *getattr_rep;
+	const struct m0_fid             *gob_fid;
+	struct m0_fop                   *fop = NULL;
 	struct m0_fop_cob               *body;
-	struct m0_fid                    gob_fid;
 	struct m0_fid                    cob_fid;
 	uint32_t                         cob_idx;
-	uint64_t                         idx = 0;
-	int                              rc;
+	int                              rc = 0;
 	struct m0_cob_attr               attr;
 	struct m0_rpc_session           *session;
 	struct m0t1fs_mdop               mo;
+	uint32_t                         i;
+	struct m0_fop_cob_getattr_reply *getattr_rep;
 
 	M0_ENTRY();
 
 	csb = M0T1FS_SB(inode->i_sb);
 	ci  = M0T1FS_I(inode);
 
-	gob_fid = *m0t1fs_inode_fid(ci);
-	/* cob fid is unknown at this moment. */
-	idx = m0_rnd(csb->csb_pools_common.pc_md_redundancy, &idx);
-	cob_idx = 1 + idx;
-	cob_fid = (struct m0_fid) { cob_idx, gob_fid.f_key };
-	/* md_conf_fid = m0t1fs_hash_ios(csb, &gob_fid, idx); */
-	/* idx = find ios with the above md_conf_fid */
+	gob_fid = m0t1fs_inode_fid(ci);
 
-	M0_LOG(M0_DEBUG, "Getattr for "FID_F "~" FID_F,
-			 FID_P(&gob_fid), FID_P(&cob_fid));
-	session = m0t1fs_container_id_to_session(csb, cob_idx);
-	M0_ASSERT(session != NULL);
+	for (i = 0; i < csb->csb_pools_common.pc_md_redundancy; i++) {
+		session = m0_reqh_mdpool_service_index_to_session(
+				&csb->csb_reqh, gob_fid, i);
+		M0_ASSERT(session != NULL);
+		m0_fid_convert_gob2cob(gob_fid, &cob_fid, i);
+		cob_idx = i;
 
-	fop = m0_fop_alloc_at(session, &m0_fop_cob_getattr_fopt);
-	if (fop == NULL) {
-		rc = M0_ERR(-ENOMEM);
-		M0_LOG(M0_ERROR, "m0_fop_alloc() failed with %d", rc);
-		goto out;
-	}
+		M0_LOG(M0_DEBUG, "Getattr for "FID_F "~" FID_F,
+			 FID_P(gob_fid), FID_P(&cob_fid));
 
-	M0_SET0(&mo);
-	mo.mo_attr.ca_pfid = gob_fid;
-	mo.mo_attr.ca_tfid = gob_fid;
-	m0t1fs_ios_cob_fop_populate(csb, &mo, fop, &cob_fid, &gob_fid, cob_idx);
-
-	M0_LOG(M0_DEBUG, "Send cob operation %u %s to session %p (sid=%lu)",
-			 m0_fop_opcode(fop), m0_fop_name(fop), session,
-			 (unsigned long)session->s_session_id);
-
-	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
-	if (rc != 0)
-		goto err;
-	getattr_rep = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
-	rc = getattr_rep->cgr_rc;
-	M0_LOG(M0_DEBUG, "getattr returned: %d", rc);
-
-	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-		struct m0_fop_cob_op_rep_common *r_common;
-		struct m0_fv_event *event;
-		uint32_t            i;
-
-		/* Retrieve the latest server version and updates and apply
-		 * to the client's copy.
-		 */
-		rc = 0;
-		r_common = &getattr_rep->cgr_common;
-		for (i = 0; i < r_common->cor_fv_updates.fvu_count; ++i) {
-			event = &r_common->cor_fv_updates.fvu_events[i];
-			m0_poolmach_state_transit(&csb->csb_pool_version->pv_mach,
-						  (struct m0_poolmach_event*)event,
-						  NULL);
+		fop = m0_fop_alloc_at(session, &m0_fop_cob_getattr_fopt);
+		if (fop == NULL) {
+			rc = -ENOMEM;
+			M0_LOG(M0_ERROR, "m0_fop_alloc() failed with %d", rc);
+			return M0_RC(rc);
 		}
+
+		M0_SET0(&mo);
+		mo.mo_attr.ca_pfid = *gob_fid;
+		mo.mo_attr.ca_tfid = *gob_fid;
+		mo.mo_cob_type = M0_COB_MD;
+		m0t1fs_ios_cob_fop_populate(csb, &mo, fop, &cob_fid, gob_fid,
+					    cob_idx);
+
+		M0_LOG(M0_DEBUG, "Send cob operation %u %s to session %p"
+				"(sid=%lu)", m0_fop_opcode(fop),
+				m0_fop_name(fop), session,
+				(unsigned long)session->s_session_id);
+
+		rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
+		if (rc != 0) {
+			m0_fop_put0_lock(fop);
+			return M0_RC(rc);
+		}
+		getattr_rep = m0_fop_data(m0_rpc_item_to_fop(
+					  fop->f_item.ri_reply));
+		rc = getattr_rep->cgr_rc;
+		M0_LOG(M0_DEBUG, "getattr returned: %d", rc);
+
+		if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+			struct m0_fop_cob_op_rep_common *r_common;
+			struct m0_fv_event              *event;
+			uint32_t                         i;
+			/* Retrieve the latest server version and updates
+			 * and apply to the client's copy.
+			 */
+			rc = 0;
+			r_common = &getattr_rep->cgr_common;
+			for (i = 0; i < r_common->cor_fv_updates.fvu_count; ++i) {
+				event = &r_common->cor_fv_updates.fvu_events[i];
+				m0_poolmach_state_transit(&csb->csb_pool_version->pv_mach,
+					(struct m0_poolmach_event*)event, NULL);
+			}
+		}
+
+		if (rc == 0) {
+			body = &getattr_rep->cgr_body;
+			body_wire2mem(&attr, body);
+			m0_dump_cob_attr(&attr);
+			/* Update inode fields with data from @getattr_rep. */
+			m0t1fs_inode_update(inode, body);
+			if (ci->ci_layout_id != body->b_lid) {
+				/* Change the layout for the file. */
+				ci->ci_layout_id = body->b_lid;
+				rc = m0t1fs_inode_layout_init(ci);
+			}
+			m0_fop_put0_lock(fop);
+			break;
+		}
+		m0_fop_put0_lock(fop);
 	}
-
-	if (rc != 0)
-		goto err;
-	body = &getattr_rep->cgr_body;
-	body_wire2mem(&attr, body);
-	m0_dump_cob_attr(&attr);
-
-	/* Update inode fields with data from @getattr_rep. */
-	m0t1fs_inode_update(inode, body);
-
-	if (!m0t1fs_inode_is_root(&ci->ci_inode) &&
-	    ci->ci_layout_id != body->b_lid) {
-		/* layout for this file is changed. */
-
-		if (ci->ci_layout_instance != NULL)
-			m0_layout_instance_fini(ci->ci_layout_instance);
-		ci->ci_layout_id = body->b_lid;
-		rc = m0t1fs_inode_layout_init(ci);
-		M0_ASSERT(rc == 0);
-	}
-err:
-	m0_fop_put0_lock(fop);
-out:
 	return M0_RC(rc);
 }
 

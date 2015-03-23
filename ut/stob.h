@@ -36,7 +36,7 @@ struct m0_stob;
 struct m0_stob_domain;
 struct m0_be_tx_credit;
 struct ut_stob_module;
-struct m0_fid;
+struct m0_stob_id;
 
 enum {
 	M0_LEVEL_UT_STOB,
@@ -61,9 +61,9 @@ M0_INTERNAL struct m0_stob *m0_ut_stob_open(struct m0_stob_domain *dom,
 					    const char *str_cfg);
 M0_INTERNAL void m0_ut_stob_close(struct m0_stob *stob, bool destroy);
 
-M0_INTERNAL int m0_ut_stob_create_by_fid(struct m0_fid *stob_fid,
-					 const char *str_cfg);
-M0_INTERNAL int m0_ut_stob_destroy_by_fid(struct m0_fid *stob_fid);
+M0_INTERNAL int m0_ut_stob_create_by_stob_id(struct m0_stob_id *stob_id,
+					     const char *str_cfg);
+M0_INTERNAL int m0_ut_stob_destroy_by_stob_id(struct m0_stob_id *stob_id);
 
 /* XXX move somewhere else */
 M0_INTERNAL struct m0_dtx *m0_ut_dtx_open(struct m0_be_tx_credit *cred);

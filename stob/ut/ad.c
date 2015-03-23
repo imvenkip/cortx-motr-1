@@ -163,32 +163,35 @@ static void init_vecs()
 
 static int test_ad_init(void)
 {
-	char *dom_cfg;
-	int   i;
-	int   rc;
-
-	m0_stob_ut_ad_init(&ut_be, &ut_seg);
+	char             *dom_cfg;
+	int               i;
+	int               rc;
+	struct m0_stob_id stob_id;
 
 	rc = m0_stob_domain_create("linuxstob:./__s", "directio=true",
-				   0xc0de, NULL, &dom_back);
+				    0xc0de, NULL, &dom_back);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_stob_find_by_key(dom_back, 0xba5e, &obj_back);
+	m0_stob_id_make(0, 0xba5e, &dom_back->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &obj_back);
 	M0_ASSERT(rc == 0);
 	rc = m0_stob_locate(obj_back);
 	M0_ASSERT(rc == 0);
 	rc = m0_ut_stob_create(obj_back, NULL);
 	M0_ASSERT(rc == 0);
 
+	m0_stob_ut_ad_init(&ut_be, &ut_seg);
+
 	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg,
-			    m0_stob_fid_get(obj_back));
-	M0_ASSERT(dom_cfg != NULL);
+			    m0_stob_id_get(obj_back));
+	M0_UT_ASSERT(dom_cfg != NULL);
 
 	rc = m0_stob_domain_create("adstob:ad", NULL, 0xad, dom_cfg, &dom_fore);
 	M0_ASSERT(rc == 0);
 	m0_free(dom_cfg);
 
-	rc = m0_stob_find_by_key(dom_fore, 0xd15c, &obj_fore);
+	m0_stob_id_make(0, 0xd15c, &dom_fore->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &obj_fore);
 	M0_ASSERT(rc == 0);
 	rc = m0_stob_locate(obj_fore);
 	M0_ASSERT(rc == 0);

@@ -49,7 +49,7 @@
 #include "reqh/reqh.h"
 #include "layout/pdclust.h"
 #include "fop/fom_simple.h"
-
+#include "pool/pool.h"
 #include "be/ut/helper.h"
 
 /**
@@ -150,12 +150,35 @@ M0_INTERNAL int m0_reqh_layouts_setup(struct m0_reqh *reqh,
 
 	M0_ENTRY("%p", reqh);
 	reqh->rh_pools   = pc;
-	rc = m0_layout_domain_setup_by_pools(&reqh->rh_ldom, pc);
+	rc = m0_layout_domain_setup_by_pools(&reqh->rh_ldom, pc) ?:
+		m0_reqh_mdpool_layout_build(reqh);
 	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_reqh_mdpool_layout_build(struct m0_reqh *reqh)
+{
+	struct m0_pools_common *pc = reqh->rh_pools;
+	struct m0_pool_version *pv;
+	struct m0_layout       *layout;
+	int                     rc;
+
+	M0_ENTRY();
+	pv = pool_version_tlist_head(&pc->pc_md_pool->po_vers);
+	layout = m0_layout_find(&reqh->rh_ldom, M0_DEFAULT_LAYOUT_ID);
+	if (layout == NULL)
+		return M0_RC(-EINVAL);
+
+	rc = m0_layout_instance_build(layout, &pv->pv_id,
+				      &pc->pc_md_pool_linst);
+	m0_layout_put(layout);
+
+        return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_reqh_layouts_cleanup(struct m0_reqh *reqh)
 {
+	if (reqh->rh_pools != NULL)
+		m0_layout_instance_fini(reqh->rh_pools->pc_md_pool_linst);
 	m0_layout_domain_cleanup(&reqh->rh_ldom);
 	reqh->rh_pools = NULL;
 }
@@ -188,6 +211,47 @@ static int fop_rate_init(struct m0_reqh *reqh)
 		}
 	}
 	return 0;
+}
+
+M0_INTERNAL struct m0_rpc_session *
+m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
+				        const struct m0_fid *gob_fid,
+				        uint32_t index)
+{
+	struct m0_reqh_service_ctx    *ctx;
+	struct m0_pdclust_instance    *pi;
+	struct m0_pdclust_src_addr     src;
+	struct m0_pdclust_tgt_addr     tgt;
+	uint64_t                       mds_nr;
+	struct m0_pool_version        *md_pv;
+	const struct m0_pools_common  *pc = reqh->rh_pools;
+
+	M0_ENTRY();
+
+	M0_LOG(M0_INFO, "index=%d redundancy =%d", index,
+			(unsigned int)pc->pc_md_redundancy);
+	M0_PRE(index < pc->pc_md_redundancy);
+
+	md_pv = pool_version_tlist_head(&pc->pc_md_pool->po_vers);
+	mds_nr = md_pv->pv_attr.pa_P;
+	M0_LOG(M0_DEBUG, "number of mdservices =%d", (unsigned int)mds_nr);
+	M0_ASSERT(pc->pc_md_redundancy <=
+		  (md_pv->pv_attr.pa_N + 2 * md_pv->pv_attr.pa_K));
+	M0_ASSERT(index <= mds_nr);
+
+	pi = m0_layout_instance_to_pdi(pc->pc_md_pool_linst);
+	src.sa_group = m0_fid_hash(gob_fid);
+	src.sa_unit = index;
+
+	m0_pdclust_instance_map(pi, &src, &tgt);
+	M0_ASSERT(tgt.ta_obj < mds_nr);
+	ctx = md_pv->pv_dev_to_ios_map[tgt.ta_obj];
+	M0_ASSERT(ctx != NULL);
+
+	M0_LOG(M0_DEBUG, "redundancy %d id %d -> ctx=%p session=%p", index,
+			(unsigned int)tgt.ta_obj, ctx, &ctx->sc_session);
+	M0_LEAVE();
+	return &ctx->sc_session;
 }
 
 M0_INTERNAL int
@@ -522,8 +586,8 @@ static void disallowed_fop_free(struct m0_fom_simple *sfom)
 }
 
 static void fop_disallowed(struct m0_reqh *reqh,
-				  struct m0_fop  *req_fop,
-				  int             rc)
+			   struct m0_fop  *req_fop,
+			   int             rc)
 {
 	struct disallowed_fop_reply *reply;
 
@@ -547,7 +611,7 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 	struct m0_fom *fom;
 	int            rc;
 
-	M0_ENTRY();
+	M0_ENTRY("%p", reqh);
 	M0_PRE(reqh != NULL);
 	M0_PRE(fop != NULL);
 

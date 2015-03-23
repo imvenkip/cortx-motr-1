@@ -132,12 +132,22 @@ M0_INTERNAL void m0_ios_mds_conn_fini(struct m0_reqh *reqh);
 M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 				   const struct m0_fid *gfid,
 				   struct m0_cob_attr *attr);
+M0_INTERNAL int m0_ios_getattr(struct m0_reqh *reqh,
+			       const struct m0_fid *gfid,
+			       uint64_t index,
+			       struct m0_cob_attr *attr);
 
 M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
 				         const struct m0_fid *gfid,
 					 struct m0_cob_attr  *attr,
 					 void (*cb)(void *arg, int rc),
 					 void *arg);
+M0_INTERNAL int m0_ios_getattr_async(struct m0_reqh *reqh,
+				     const struct m0_fid *gfid,
+				     struct m0_cob_attr  *attr,
+				     uint64_t index,
+				     void (*cb)(void *arg, int rc),
+				     void *arg);
 
 /** @} end of io_service */
 

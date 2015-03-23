@@ -56,6 +56,13 @@ extern struct m0_mutex     m0t1fs_mutex;
 extern uint32_t            m0t1fs_addb_mon_rw_io_size_key;
 
 static char *local_addr = "0@lo:12345:45:";
+M0_INTERNAL const struct m0_fid M0_ROOT_FID = {
+	.f_container = 1ULL,
+	.f_key       = 1ULL
+};
+
+#define M0T1FS_NAME_LEN 256
+
 module_param(local_addr, charp, S_IRUGO);
 MODULE_PARM_DESC(local_addr, "End-point address of m0t1fs "
 		 "e.g. 172.18.50.40@o2ib1:12345:34:\n"
@@ -136,8 +143,7 @@ m0t1fs_filename_to_mds_session(const struct m0t1fs_sb *csb,
 {
 	struct m0_reqh_service_ctx   *ctx;
 	const struct m0_pools_common *pc;
-	unsigned int                  hash;
-
+	unsigned long hash;
 	M0_ENTRY();
 
 	if (use_hint)
@@ -194,6 +200,8 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 
 	M0_ENTRY();
 
+	if (csb->csb_oostore)
+		return M0_RC(0);
 	m0t1fs_fs_lock(csb);
 	rc = m0t1fs_mds_statfs(csb, &rep_fop);
 	rep = m0_fop_data(rep_fop);
@@ -365,19 +373,6 @@ out:
 }
 
 
-struct m0_fid m0t1fs_hash_ios(struct m0t1fs_sb *csb,
-			      const struct m0_fid *fid,
-			      uint32_t i)
-
-{
-	uint64_t index;
-
-	M0_PRE(i < csb->csb_pools_common.pc_md_redundancy);
-
-	index = m0_fid_hash(fid, csb->csb_pools_common.pc_nr_svcs[M0_CST_IOS], i);
-	return csb->csb_pool_version->pv_dev_to_ios_map[index]->sc_fid;
-}
-
 static int configure_addb_rpc_sink(struct m0t1fs_sb *csb,
 				   struct m0_addb_mc *addb_mc)
 {
@@ -488,8 +483,7 @@ M0_INTERNAL void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
  * ----------------------------------------------------------------
  */
 
-static int
-m0t1fs_sb_layouts_init(struct m0t1fs_sb *csb)
+static int m0t1fs_sb_layouts_init(struct m0t1fs_sb *csb)
 {
 	int rc;
 
@@ -800,6 +794,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0_pools_common_init(pools, &csb->csb_rpc_machine, csb->csb_fs);
 	if (rc != 0)
 		goto err_conf_fini;
+	M0_ASSERT(ergo(csb->csb_oostore, pools->pc_md_redundancy > 0));
 
 	ctx = m0_pools_common_service_ctx_find_by_type(pools, M0_CST_HA);
 	if (rc != 0 || ctx == NULL) {
@@ -843,6 +838,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0_addb2_sys_net_start_with(sys, &pools->pc_svc_ctxs);
 	if (rc != 0)
 		goto err_sb_layout_fini;
+
 	return M0_RC(rc);
 
 err_sb_layout_fini:
@@ -917,36 +913,42 @@ static void m0t1fs_obf_dealloc(struct m0t1fs_sb *csb) {
 	M0_LEAVE();
 }
 
+M0_INTERNAL void m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
+{
+	M0_PRE(body != NULL);
+
+	body->b_atime = body->b_ctime = body->b_mtime =
+					m0_time_seconds(m0_time_now());
+        body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_CTIME |
+	                 M0_COB_UID | M0_COB_GID | M0_COB_BLOCKS |
+	                 M0_COB_SIZE | M0_COB_NLINK | M0_COB_MODE |
+	                 M0_COB_LID);
+        body->b_blocks = 16;
+        body->b_size = 4096;
+        body->b_blksize = 4096;
+        body->b_nlink = 2;
+        body->b_lid = M0_DEFAULT_LAYOUT_ID;
+        body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR |/*rwx for owner*/
+                        S_IRGRP | S_IXGRP |                    /*r-x for group*/
+                        S_IROTH | S_IXOTH);
+}
+
 static int m0t1fs_obf_alloc(struct super_block *sb)
 {
-	struct inode             *mero_inode;
-	struct dentry            *mero_dentry;
-	struct inode             *fid_inode;
-	struct dentry            *fid_dentry;
-	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
+        struct inode             *mero_inode;
+        struct dentry            *mero_dentry;
+        struct inode             *fid_inode;
+        struct dentry            *fid_dentry;
+        struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
 	struct m0_fop_cob        *body = &csb->csb_virt_body;
 
 	M0_ENTRY();
 
-	body->b_atime = body->b_ctime = body->b_mtime =
-					m0_time_seconds(m0_time_now());
-	body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_CTIME |
-			 M0_COB_UID | M0_COB_GID | M0_COB_BLOCKS |
-			 M0_COB_SIZE | M0_COB_NLINK | M0_COB_MODE |
-			 M0_COB_LID);
-	body->b_blocks = 16;
-	body->b_size = 4096;
-	body->b_blksize = 4096;
-	body->b_nlink = 2;
-	body->b_lid = M0_DEFAULT_LAYOUT_ID;
-	body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR |/*rwx for owner*/
-			S_IRGRP | S_IXGRP |                    /*r-x for group*/
-			S_IROTH | S_IXOTH);
-
-	/* Init virtual .mero directory */
-	mero_dentry = d_alloc_name(sb->s_root, M0_DOT_MERO_NAME);
-	if (mero_dentry == NULL)
-		return M0_RC(-ENOMEM);
+	m0t1fs_fill_cob_attr(body);
+        /* Init virtual .mero directory */
+        mero_dentry = d_alloc_name(sb->s_root, M0_DOT_MERO_NAME);
+        if (mero_dentry == NULL)
+                return M0_RC(-ENOMEM);
 
 	m0t1fs_fs_lock(csb);
 	mero_inode = m0t1fs_iget(sb, &M0_DOT_MERO_FID, body);
@@ -996,26 +998,29 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
 	struct m0_fop_statfs_rep *rep = NULL;
 	struct m0_addb_ctx       *cv[] = { &csb->csb_addb_ctx, NULL };
-	struct m0_fop            *rep_fop;
+	struct m0_fop            *rep_fop = NULL;
 	M0_THREAD_ENTER;
 
 	M0_ENTRY();
 
-	rc = m0t1fs_mds_statfs(csb, &rep_fop);
-	rep = m0_fop_data(rep_fop);
-	if (rc != 0)
-		goto out;
+	if (!csb->csb_oostore) {
+		rc = m0t1fs_mds_statfs(csb, &rep_fop);
+		rep = m0_fop_data(rep_fop);
+		if (rc != 0)
+			goto out;
+		sb->s_magic = rep->f_type;
+		csb->csb_namelen = rep->f_namelen;
 
-	sb->s_magic = rep->f_type;
-	csb->csb_namelen = rep->f_namelen;
-
-	M0_LOG(M0_DEBUG, "Got mdservice root "FID_F, FID_P(&rep->f_root));
-
-	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_root_cob, cv,
-		     rep->f_root.f_container, rep->f_root.f_key);
+		M0_LOG(M0_DEBUG, "Got mdservice root "FID_F,
+				FID_P(&rep->f_root));
+		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_root_cob, cv,
+			     rep->f_root.f_container, rep->f_root.f_key);
+	} else
+		csb->csb_namelen = M0T1FS_NAME_LEN;
 
 	m0t1fs_fs_lock(csb);
-	root_inode = m0t1fs_root_iget(sb, &rep->f_root);
+	root_inode = m0t1fs_root_iget(sb, csb->csb_oostore ? &M0_ROOT_FID :
+							     &rep->f_root);
 	m0t1fs_fs_unlock(csb);
 	if (IS_ERR(root_inode)) {
 		rc = (int)PTR_ERR(root_inode);
@@ -1031,6 +1036,7 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 		rc = -ENOMEM;
 		goto out;
 	}
+
 out:
 	m0_fop_put0_lock(rep_fop);
 	return M0_RC(rc);

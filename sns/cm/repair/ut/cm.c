@@ -36,6 +36,7 @@
 #include "fop/fom.h" /* M0_FSO_AGAIN, M0_FSO_WAIT */
 #include "fop/fom_simple.h"
 #include "ioservice/io_service.h"
+#include "ioservice/fid_convert.h"      /* m0_fid_convert_gob2cob */
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
 #include "mdservice/md_fid.h"
@@ -178,7 +179,8 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 
 static bool cp_verify(struct m0_sns_cm_cp *scp)
 {
-	return m0_fid_is_valid(&scp->sc_stob_fid) &&
+	return m0_fid_is_valid(&scp->sc_stob_id.si_fid) &&
+	       m0_fid_is_valid(&scp->sc_stob_id.si_domain_fid) &&
 	       scp->sc_base.c_ag != NULL &&
 	       !cp_data_buf_tlist_is_empty(&scp->sc_base.c_buffers);
 }
@@ -202,7 +204,7 @@ M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
 	struct m0_cob_nsrec   nsrec;
 	struct m0_cob_fabrec *fabrec;
 	struct m0_cob_omgrec  omgrec;
-        char                  nskey_bs[UINT32_MAX_STR_LEN];
+        char                  nskey_bs[UINT32_STR_LEN];
         uint32_t              nskey_bs_len;
 	int                   rc;
 
@@ -210,14 +212,13 @@ M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
 	M0_SET0(&omgrec);
 	rc = m0_cob_alloc(cdom, &cob);
 	M0_ASSERT(rc == 0 && cob != NULL);
-	m0_fid_set(&cob_fid, cont, gfid->f_key);
+	m0_fid_convert_gob2cob(gfid, &cob_fid, cont);
 
 	M0_SET_ARR0(nskey_bs);
-        snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
-                 (uint32_t)cob_idx);
+        snprintf(nskey_bs, UINT32_STR_LEN, "%u", cob_idx);
         nskey_bs_len = strlen(nskey_bs);
 
-	rc = m0_cob_nskey_make(&nskey, gfid, (char *)nskey_bs, nskey_bs_len);
+	rc = m0_cob_nskey_make(&nskey, gfid, nskey_bs, nskey_bs_len);
 	M0_ASSERT(rc == 0 && nskey != NULL);
 	nsrec.cnr_fid = cob_fid;
 	nsrec.cnr_nlink = 1;
@@ -238,7 +239,7 @@ M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
 }
 
 M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
-			    uint64_t cont, uint64_t key)
+			    uint64_t cont, const struct m0_fid *gfid)
 {
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_cob        *cob;
@@ -247,7 +248,7 @@ M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
 	struct m0_cob_oikey   oikey;
 	int                   rc;
 
-	m0_fid_set(&cob_fid, cont, key);
+	m0_fid_convert_gob2cob(gfid, &cob_fid, cont);
 	m0_cob_oikey_make(&oikey, &cob_fid, 0);
 	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
 	M0_UT_ASSERT(rc == 0);
@@ -306,9 +307,8 @@ static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
 	int                   j;
 
 	cob_domain_get(&cdom);
-	gfid.f_container = 0;
 	for (i = 0; i < nr_files; ++i) {
-		gfid.f_key = M0_MDSERVICE_START_FID.f_key + i;
+		m0_fid_gob_make(&gfid, 0, M0_MDSERVICE_START_FID.f_key + i);
 		cob_idx = 0;
 		for (j = 1; j <= nr_cobs; ++j) {
 			cob_create(cdom, j, &gfid, cob_idx);
@@ -320,13 +320,15 @@ static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
 static void cobs_delete(uint64_t nr_files, uint64_t nr_cobs)
 {
 	struct m0_cob_domain *cdom;
+	struct m0_fid         gfid;
 	int                   i;
 	int                   j;
 
 	cob_domain_get(&cdom);
 	for (i = 0; i < nr_files; ++i) {
+		m0_fid_gob_make(&gfid, 0, M0_MDSERVICE_START_FID.f_key + i);
 		for (j = 1; j <= nr_cobs; ++j)
-			cob_delete(cdom, j, M0_MDSERVICE_START_FID.f_key + i);
+			cob_delete(cdom, j, &gfid);
 	}
 }
 

@@ -716,9 +716,6 @@ failure_modes_test()
 		echo "--------------------------------------------------------"
 		failed_dev_test=1
 
-		echo "ls -l $MERO_M0T1FS_MOUNT_DIR"
-		ls -l $MERO_M0T1FS_MOUNT_DIR
-
 		# Perform failed device IO test by 'marking some devices as
 		# failed' in between
 		fmio_failed_dev_test || {
@@ -754,9 +751,6 @@ failure_modes_test()
 #		fi
 
 		failed_dev_test=0
-
-		echo "ls -l $MERO_M0T1FS_MOUNT_DIR"
-		ls -l $MERO_M0T1FS_MOUNT_DIR
 
 		# Perform repaired device IO test by 'marking some devices as
 		# failed followed by performing repair' in between

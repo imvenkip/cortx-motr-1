@@ -169,13 +169,15 @@ static void addb_ut_stobsink_search(void)
 	int                       i;
 	int64_t                   expected_nr;
 	int64_t                   expected_offset;
+	struct m0_stob_id         stob_id;
 
 	m0_addb_mc_init(&mc);
 
 	/* must jump thru hoops to make mock stob usable */
 	rc = m0_stob_domain_create("nullstob:addb-mock", NULL, 0, NULL, &dom);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_find_by_key(dom, stobsink_stob_key, &stob);
+	m0_stob_id_make(0, stobsink_stob_key, &dom->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &stob);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_locate(stob);
 	M0_UT_ASSERT(rc == 0);
@@ -415,10 +417,12 @@ static struct m0_stob *addb_ut_retrieval_stob_setup(const char *domain_location,
 	struct m0_stob_domain *dom;
 	struct m0_stob        *stob = NULL;
 	int                    rc;
+	struct m0_stob_id      stob_id;
 
 	rc = m0_stob_domain_init(domain_location, NULL, &dom);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_find_by_key(dom, stob_key, &stob);
+	m0_stob_id_make(0, stob_key, &dom->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &stob);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_locate(stob);
 	M0_UT_ASSERT(rc == 0);
@@ -622,6 +626,7 @@ static void addb_ut_stob(void)
 	void                     *vp;
 	bool                      stob_wrapped;
 	bool                      bp_wrapped;
+	struct m0_stob_id         stob_id;
 
 	/* Skip rec_post UT hooks, only for validation of posting rec's data */
 	addb_rec_post_ut_data_enabled = false;
@@ -629,7 +634,8 @@ static void addb_ut_stob(void)
 	M0_UT_ASSERT(M0_IN(rc, (0, -ENOENT)));
 	rc = m0_stob_domain_create("linuxstob:./_addb", NULL, 0, NULL, &dom);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_find_by_key(dom, stobsink_stob_key, &stob);
+	m0_stob_id_make(0, stobsink_stob_key, &dom->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &stob);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_locate(stob);
 	M0_UT_ASSERT(rc == 0);

@@ -165,6 +165,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
 	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
+	{ &m0_stob_mod_init,    &m0_stob_mod_fini,    "stob" },
 #ifndef __KERNEL__
 	{ &m0_stob_types_init,  &m0_stob_types_fini,  "stob-types" },
 	{ &m0_ut_stob_init,	&m0_ut_stob_fini,     "ut-stob" },

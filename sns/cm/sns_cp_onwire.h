@@ -24,7 +24,8 @@
 #define __MERO_SNS_CM_CP_ONWIRE_H__
 
 #include "rpc/rpc_opcodes.h"
-
+#include "stob/stob.h"
+#include "stob/stob_xc.h"
 #include "cm/cp_onwire.h"
 #include "cm/cp_onwire_xc.h"
 
@@ -40,8 +41,8 @@ struct m0_sns_cpx {
          */
         struct m0_io_indexvec_seq scx_ivecs;
 
-        /** Destination stob fid. */
-        struct m0_fid             scx_stob_fid;
+        /** Destination stob id. */
+        struct m0_stob_id         scx_stob_id;
 
 	uint64_t                  scx_failed_idx;
 

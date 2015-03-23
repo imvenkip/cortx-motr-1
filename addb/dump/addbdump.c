@@ -87,11 +87,14 @@ static int dump_stob_locate(struct m0_stob_domain *dom,
 			    uint64_t stob_key,
 			    struct m0_stob **out)
 {
-	struct m0_stob *stob;
-	int             rc;
+	struct m0_stob   *stob;
+	int               rc;
+	struct m0_stob_id stob_id;
 
 	*out = NULL;
-	rc = m0_stob_find_by_key(dom, stob_key, &stob);
+
+	m0_stob_id_make(0, stob_key, &dom->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &stob);
 	if (rc == 0) {
 		/*
 		 * Here, stob != NULL and m0_stob_find_by_key() has taken

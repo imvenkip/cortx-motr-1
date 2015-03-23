@@ -96,7 +96,7 @@ struct m0_stob_ad_domain {
 	struct m0_format_header sad_header;
 	struct m0_stob_domain   sad_base;
 	struct m0_stob         *sad_bstore;
-	struct m0_fid           sad_bstore_fid;
+	struct m0_stob_id       sad_bstore_id;
 	struct m0_be_emap       sad_adata;
 	struct m0_ad_balloc    *sad_ballroom;
 	m0_bcount_t             sad_container_size;
@@ -139,7 +139,7 @@ M0_INTERNAL bool m0_stob_ad_domain__invariant(struct m0_stob_ad_domain *adom);
 
 M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 				     const struct m0_be_seg *seg,
-				     const struct m0_fid *bstore_fid);
+				     const struct m0_stob_id *bstore_id);
 
 /** @} end group stobad */
 

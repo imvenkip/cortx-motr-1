@@ -262,29 +262,39 @@ M0_INTERNAL void m0t1fs_destroy_inode(struct inode *inode)
 }
 
 M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
-					   struct m0_fid      *root_fid)
+					   const struct m0_fid *root_fid)
 {
 	struct m0_fop_getattr_rep *rep = NULL;
 	struct m0t1fs_mdop         mo;
 	struct inode              *inode;
 	int                        rc;
-	struct m0_fop             *rep_fop;
+	struct m0_fop             *rep_fop = NULL;
+	struct m0t1fs_sb          *csb;
+	struct m0_fop_cob         *body;
 
 	M0_ENTRY("sb: %p", sb);
 
+	csb = M0T1FS_SB(sb);
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *root_fid;
-	M0T1FS_SB(sb)->csb_root_fid = *root_fid;
+	csb->csb_root_fid = *root_fid;
 
-	rc = m0t1fs_mds_cob_getattr(M0T1FS_SB(sb), &mo, &rep_fop);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "m0t1fs_mds_cob_getattr() failed with %d", rc);
-		m0_fop_put0_lock(rep_fop);
-		return ERR_PTR(rc);
+	if (!csb->csb_oostore) {
+		rc = m0t1fs_mds_cob_getattr(csb, &mo, &rep_fop);
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "m0t1fs_mds_cob_getattr() failed"
+					"with %d", rc);
+			m0_fop_put0_lock(rep_fop);
+			return ERR_PTR(rc);
+		}
+		rep = m0_fop_data(rep_fop);
+		body = &rep->g_body;
+	} else {
+		body = &csb->csb_virt_body;
+		m0t1fs_fill_cob_attr(body);
 	}
-	rep = m0_fop_data(rep_fop);
 
-	inode = m0t1fs_iget(sb, root_fid, &rep->g_body);
+	inode = m0t1fs_iget(sb, root_fid, body);
 
 	m0_fop_put0_lock(rep_fop);
 
@@ -334,7 +344,7 @@ static int m0t1fs_inode_set(struct inode *inode, void *opaque)
 		ci->ci_flock.fi_fid = fid;
 	else
 		m0t1fs_file_lock_init(ci, csb);
-	inode->i_ino = fid->f_key;
+	inode->i_ino = m0_fid_hash(fid);
 
 	M0_LOG(M0_DEBUG, "inode (%p) "FID_F, inode, FID_P(fid));
 	return M0_RC(0);
@@ -429,16 +439,6 @@ static int m0t1fs_inode_read(struct inode      *inode,
 	return M0_RC(rc);
 }
 
-/**
-   XXX Temporary implementation of simple hash on fid
- */
-unsigned long fid_hash(const struct m0_fid *fid)
-{
-	M0_ENTRY();
-	M0_LEAVE("hash: %lu", (unsigned long) fid->f_key);
-	return fid->f_key;
-}
-
 M0_INTERNAL struct inode *m0t1fs_iget(struct super_block *sb,
 				      const struct m0_fid *fid,
 				      struct m0_fop_cob *body)
@@ -449,7 +449,7 @@ M0_INTERNAL struct inode *m0t1fs_iget(struct super_block *sb,
 
 	M0_ENTRY();
 
-	hash = fid_hash(fid);
+	hash = m0_fid_hash(fid);
 
 	/*
 	 * Search inode cache for an inode that has matching @fid.

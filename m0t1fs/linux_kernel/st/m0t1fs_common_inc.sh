@@ -27,7 +27,6 @@ MERO_TRACE_PRINT_CONTEXT=short
 MERO_TRACE_LEVEL=call+
 
 #user-space tracing parameters
-export M0_TRACE_IMMEDIATE_MASK="cm,sns,snscm"
 export M0_TRACE_IMMEDIATE_MASK="!all"
 export M0_TRACE_LEVEL=call+
 export M0_TRACE_PRINT_CONTEXT=short
@@ -85,9 +84,9 @@ UNIT_SIZE=$(expr 1024 \* 1024)
 #MAX_NR_FILES=250
 MAX_NR_FILES=20 # XXX temporary workaround for performance issues
 TM_MIN_RECV_QUEUE_LEN=16
-# Maximum value needed to run current ST is 160k.
-MAX_RPC_MSG_SIZE=163840
+MAX_RPC_MSG_SIZE=65536
 XPT=lnet
+MD_REDUNDANCY=1  # Meta-data redundancy, use greater than 1 after failure domain is available.
 
 unload_kernel_module()
 {
@@ -278,7 +277,7 @@ function build_conf()
  [$((${#ioservices[*]} + ${#mdservices[*]} + $NR_IOS_DEVS+ $NR_MDS_DEVS + 15)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
-  {0x66| (($FS), (11, 22), 41212,
+  {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
 	      [1: \"$pool_width $nr_data_units $nr_parity_units\"],
 	      $POOLID,
 	      [1: $NODE],

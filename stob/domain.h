@@ -37,6 +37,7 @@
 struct m0_stob_type;
 struct m0_stob_domain_ops;
 struct m0_stob;
+struct m0_stob_id;
 struct m0_stob_io;
 struct m0_be_tx_credit;
 struct m0_fid;
@@ -89,7 +90,7 @@ struct m0_indexvec;
 struct m0_stob_domain {
 	const struct m0_stob_domain_ops *sd_ops;
 	struct m0_stob_type		*sd_type;
-	uint64_t			 sd_id;
+	struct m0_fid                    sd_id;
 	char				*sd_location;
 	char				*sd_location_data;
 	/** Linkage into m0_stob_type::st_domains list */
@@ -108,7 +109,7 @@ struct m0_stob_domain_ops {
 	 * @see m0_stob_find_by_key()
 	 */
 	struct m0_stob *(*sdo_stob_alloc)(struct m0_stob_domain *dom,
-					  uint64_t stob_key);
+					  const struct m0_fid *stob_fid);
 	/**
 	 * Frees memory for m0_stob structure allocated by
 	 * m0_stob_domain_ops::sdo_stob_alloc().
@@ -127,7 +128,7 @@ struct m0_stob_domain_ops {
 	/** m0_stob_locate() type-specific implementation */
 	int (*sdo_stob_init)(struct m0_stob *stob,
 			     struct m0_stob_domain *dom,
-			     uint64_t stob_key);
+			     const struct m0_fid *stob_fid);
 	/** @see m0_stob_create_credit() */
 	void (*sdo_stob_create_credit)(struct m0_stob_domain *dom,
 				       struct m0_be_tx_credit *accum);
@@ -135,7 +136,7 @@ struct m0_stob_domain_ops {
 	int (*sdo_stob_create)(struct m0_stob *stob,
 			       struct m0_stob_domain *dom,
 			       struct m0_dtx *dtx,
-			       uint64_t stob_key,
+			       const struct m0_fid *stob_fid,
 			       void *cfg);
 	/** @see m0_stob_io_credit() */
 	void (*sdo_stob_write_credit)(const struct m0_stob_domain *dom,
@@ -208,16 +209,18 @@ M0_INTERNAL int m0_stob_domain_create_or_init(const char *location,
  * Searches domain with the given dom_id that was previously initialised with
  * m0_stob_domain_init() or m0_stob_domain_create().
  */
-M0_INTERNAL struct m0_stob_domain *m0_stob_domain_find(uint64_t dom_id);
+M0_INTERNAL struct m0_stob_domain *
+m0_stob_domain_find(const struct m0_fid *dom_id);
 /** Searches domain with the given location. */
 M0_INTERNAL struct m0_stob_domain *
 m0_stob_domain_find_by_location(const char *location);
-/** Searches domain with the given dom_id, extracted from stob fid. */
+/** Searches domain with the given dom_id, extracted from stob id. */
 M0_INTERNAL struct m0_stob_domain *
-m0_stob_domain_find_by_stob_fid(struct m0_fid *stob_fid);
+m0_stob_domain_find_by_stob_id(const struct m0_stob_id *stob_id);
 
 /** Returns stob domain id. */
-M0_INTERNAL uint64_t m0_stob_domain_id_get(struct m0_stob_domain *dom);
+M0_INTERNAL const struct m0_fid *
+m0_stob_domain_id_get(struct m0_stob_domain *dom);
 /** Returns stob domain location. */
 M0_INTERNAL const char *m0_stob_domain_location_get(struct m0_stob_domain *dom);
 /**
@@ -226,14 +229,16 @@ M0_INTERNAL const char *m0_stob_domain_location_get(struct m0_stob_domain *dom);
  * @note This function should be used from stob type implementation code only.
  */
 M0_INTERNAL void m0_stob_domain__id_set(struct m0_stob_domain *dom,
-					uint64_t dom_id);
+					 struct m0_fid *dom_id);
+M0_INTERNAL void m0_stob_domain__dom_id_make(struct m0_fid *dom_id,
+					     uint8_t type_id,
+					     uint64_t dom_container,
+					     uint64_t dom_key);
 
 /** Extracts stob type id from stob domain id. */
-M0_INTERNAL uint8_t m0_stob_domain__type_id(uint64_t dom_id);
+M0_INTERNAL uint8_t m0_stob_domain__type_id(const struct m0_fid *dom_id);
 /** Extracts stob domain key from stob domain id. */
-M0_INTERNAL uint64_t m0_stob_domain__dom_key(uint64_t dom_id);
-/** Makes stob domain id from stob type id and stob domain key. */
-M0_INTERNAL uint64_t m0_stob_domain__dom_id(uint8_t type_id, uint64_t dom_key);
+M0_INTERNAL uint64_t m0_stob_domain__dom_key(const struct m0_fid *dom_id);
 
 /** Checks if domain key is valid. */
 M0_INTERNAL bool m0_stob_domain__dom_key_is_valid(uint64_t dom_key);
@@ -242,7 +247,8 @@ M0_INTERNAL struct m0_stob_cache *
 m0_stob_domain__cache(struct m0_stob_domain *dom);
 
 M0_INTERNAL struct m0_stob *
-m0_stob_domain__stob_alloc(struct m0_stob_domain *dom, uint64_t stob_key);
+m0_stob_domain__stob_alloc(struct m0_stob_domain *dom,
+			   const struct m0_fid *stob_fid);
 M0_INTERNAL void m0_stob_domain__stob_free(struct m0_stob_domain *dom,
 					   struct m0_stob *stob);
 /** @} end of stob group */

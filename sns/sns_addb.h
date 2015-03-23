@@ -156,8 +156,8 @@ M0_ADDB_RT_DP(m0_addb_rt_sns_ag_info, M0_ADDB_RECID_SNS_AG_INFO,
 
 M0_ADDB_RT_DP(m0_addb_rt_sns_cp_info, M0_ADDB_RECID_SNS_CP_INFO,
 	     "ai_hi:u_hi", "ai_hi:u_lo", "ai_lo:u_hi",
-	     "ai_lo:u_lo", "stob_id:u_hi", "stob_id:u_lo", "offset_in_stob",
-	     "is_local_status");
+	     "ai_lo:u_lo", "stob_id:type", "stob_id:u_hi", "stob_id:u_lo",
+	     "offset_in_stob", "is_local_status");
 
 M0_ADDB_RT_DP(m0_addb_rt_sns_repair_info, M0_ADDB_RECID_SNS_REPAIR_INFO,
 	      "time in nanosecs", "size in bytes");

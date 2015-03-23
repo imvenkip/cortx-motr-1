@@ -51,8 +51,8 @@
 #include "addb2/storage.h"
 #include "addb2/net.h"
 #include "module/instance.h"	/* m0_get */
-
 #include "be/ut/helper.h"
+#include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */
 
 /**
    @addtogroup m0d
@@ -674,6 +674,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	char              *dom_cfg;
 	struct m0_stob    *bstore;
 	struct cs_ad_stob *adstob;
+	struct m0_stob_id  stob_id;
 
 	M0_ENTRY("cid=%llu path=%s", (unsigned long long)cid, f_path);
 
@@ -681,7 +682,8 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	if (adstob == NULL)
 		return M0_ERR_INFO(-ENOMEM, "adstob object allocation failed");
 
-	rc = m0_stob_find_by_key(stob->s_sdom, cid, &bstore);
+	m0_stob_id_make(0, cid, &stob->s_sdom->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &bstore);
 	if (rc == 0 && m0_stob_state_get(bstore) == CSS_UNKNOWN) {
 		rc = m0_stob_locate(bstore);
 		adstob->as_stob_back = bstore;
@@ -696,7 +698,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 		rc = snprintf(location, sizeof(location),
 			      "adstob:%llu", (unsigned long long)cid);
 		M0_ASSERT(rc < sizeof(location));
-		m0_stob_ad_cfg_make(&dom_cfg, seg, m0_stob_fid_get(bstore));
+		m0_stob_ad_cfg_make(&dom_cfg, seg, m0_stob_id_get(bstore));
 		if (dom_cfg == NULL) {
 			rc = -ENOMEM;
 		} else {
@@ -1064,10 +1066,12 @@ static int cs_addb_stob_init(struct m0_reqh_context *rctx,
 			     struct cs_addb_stob *addb_stob,
 			     struct m0_stob_domain *dom, uint64_t key)
 {
-	struct m0_stob *stob;
-	int             rc;
+	struct m0_stob   *stob;
+	int               rc;
+	struct m0_stob_id stob_id;
 
-	rc = m0_stob_find_by_key(dom, key, &stob);
+	m0_stob_id_make(0, key, &dom->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &stob);
 	if (rc == 0) {
 		rc = m0_stob_locate(stob) ?:
 			m0_stob_state_get(stob) == CSS_EXISTS ? 0 :

@@ -511,6 +511,9 @@ struct m0_fop_cob_common {
 
 	/** Unique cob index in pool. */
 	uint32_t             c_cob_idx;
+
+	/** Cob type to identfiy whether it is of regular or md cob. */
+	uint32_t             c_cob_type;
 } M0_XCA_RECORD;
 
 /**

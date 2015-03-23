@@ -37,8 +37,16 @@
    @{
  */
 
+#define _AST2FCTX(ast, field) \
+	container_of(ast, struct m0_sns_cm_file_ctx, field)
+
 const struct m0_uint128 m0_rm_sns_cm_group = M0_UINT128(0, 2);
 extern const struct m0_rm_resource_type_ops file_lock_type_ops;
+
+static struct m0_reqh *sns_cm2reqh(const struct m0_sns_cm *snscm)
+{
+	return snscm->sc_base.cm_service.rs_reqh;
+}
 
 static uint64_t sns_cm_fctx_hash_func(const struct m0_htable *htable,
 				      const void *k)
@@ -133,8 +141,7 @@ static void __fctx_ast_post(struct m0_sns_cm_file_ctx *fctx,
 
 static void _fctx_fini(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_sns_cm_file_ctx *fctx =
-		container_of(ast, struct m0_sns_cm_file_ctx, sf_fini_ast);
+	struct m0_sns_cm_file_ctx *fctx = _AST2FCTX(ast, sf_fini_ast);
 
 	_fctx_status_set(fctx, M0_SCFS_FINI);
 	m0_sm_fini(&fctx->sf_sm);
@@ -211,7 +218,7 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 				    struct m0_sns_cm_file_ctx **sc_fctx)
 {
 	struct m0_sns_cm_file_ctx *fctx;
-	struct m0_be_seg          *seg = scm->sc_base.cm_service.rs_reqh->rh_beseg;
+	struct m0_be_seg          *seg = sns_cm2reqh(scm)->rh_beseg;
 
 	M0_ENTRY();
 	M0_PRE(sc_fctx != NULL || scm != NULL || fid!= NULL);
@@ -224,7 +231,6 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 	M0_ALLOC_PTR(fctx);
 	if (fctx == NULL)
 		return M0_ERR(-ENOMEM);
-
 	m0_fid_set(&fctx->sf_fid, fid->f_container, fid->f_key);
 	m0_file_init(&fctx->sf_file, &fctx->sf_fid, &scm->sc_rm_ctx.rc_dom, M0_DI_NONE);
 	m0_rm_remote_init(&fctx->sf_creditor, &fctx->sf_file.fi_res);
@@ -239,6 +245,7 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 	fctx->sf_creditor.rem_cookie = M0_COOKIE_NULL;
 	fctx->sf_layout = NULL;
 	fctx->sf_pi = NULL;
+	fctx->sf_nr_ios_visited = 0;
 	m0_scmfctx_tlink_init(fctx);
 	m0_ref_init(&fctx->sf_ref, 1, sns_cm_fctx_release);
 	m0_sm_init(&fctx->sf_sm, &fctx_sm_conf, M0_SCFS_INIT, grp);
@@ -489,39 +496,60 @@ M0_INTERNAL void m0_sns_cm_file_unlock(struct m0_sns_cm *scm,
 	__sns_cm_file_unlock(fctx);
 }
 
-#define _AST2FCTX(ast, field) \
-	container_of(ast, struct m0_sns_cm_file_ctx, field)
+static int _attr_fetch(struct m0_sns_cm_file_ctx *fctx);
 
 static void _attr_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_sns_cm_file_ctx *fctx = _AST2FCTX(ast, sf_attr_ast);
+	struct m0_reqh            *reqh = sns_cm2reqh(fctx->sf_scm);
 
+	/**
+	 * Use redundant next meta data service, if error is returned from
+	 * current service, until pc_md_redundancy.
+	 **/
+	if (fctx->sf_rc != 0 &&
+	    ++fctx->sf_nr_ios_visited < reqh->rh_pools->pc_md_redundancy) {
+		M0_LOG(M0_DEBUG, "getattr from service %d"FID_F,
+			(int)fctx->sf_nr_ios_visited, FID_P(&fctx->sf_fid));
+		fctx->sf_rc = _attr_fetch(fctx);
+		return;
+	}
 	if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_ATTR_FETCH)
 		_fctx_status_set(fctx, M0_SCFS_ATTR_FETCHED);
 }
 
-#undef _AST2FCTX
-
-static void _attr_cb(void *arg, int rc)
+static inline void _attr_cb(void *arg, int rc)
 {
 	struct m0_sns_cm_file_ctx *fctx = arg;
 
 	fctx->sf_attr_ast.sa_cb = _attr_ast_cb;
+	M0_LOG(M0_DEBUG, "rc:%d %"PRIx64" %d", rc, fctx->sf_attr.ca_size,
+					       (int)fctx->sf_nr_ios_visited);
+	fctx->sf_rc = rc;
 	__fctx_ast_post(fctx, &fctx->sf_attr_ast);
 }
 
 static int _attr_fetch(struct m0_sns_cm_file_ctx *fctx)
 {
-	struct m0_reqh *reqh = fctx->sf_scm->sc_base.cm_service.rs_reqh;
+	struct m0_reqh *reqh = sns_cm2reqh(fctx->sf_scm);
 	int             rc;
 
 	M0_PRE(m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_ATTR_FETCH);
-
-	if (fctx->sf_attr.ca_size > 0 && fctx->sf_attr.ca_lid != 0)
+	if (fctx->sf_rc == 0 && fctx->sf_attr.ca_size > 0 &&
+	    fctx->sf_attr.ca_lid != 0)
 		return M0_RC(0);
-	rc = m0_ios_mds_getattr_async(reqh, &fctx->sf_fid,
-				      &fctx->sf_attr,
-				      &_attr_cb, fctx);
+	M0_LOG(M0_DEBUG, "Redundancy:%d", reqh->rh_pools->pc_md_redundancy);
+	/** @todo When redundancy is zero SNS assumes it as non-oostore mode. */
+	if (reqh->rh_pools->pc_md_redundancy == 0) {
+		rc = m0_ios_mds_getattr_async(reqh, &fctx->sf_fid,
+					      &fctx->sf_attr,
+					      &_attr_cb, fctx);
+	} else {
+		rc = m0_ios_getattr_async(reqh, &fctx->sf_fid,
+					  &fctx->sf_attr,
+					  fctx->sf_nr_ios_visited,
+					  &_attr_cb, fctx);
+	}
 	if (rc == 0 && fctx->sf_attr.ca_size == 0)
 		return M0_RC(-EAGAIN);
 
@@ -586,6 +614,8 @@ m0_sns_cm_file_attr_and_layout(struct m0_sns_cm_file_ctx *fctx)
 			return M0_RC(rc);
 		_fctx_status_set(fctx, M0_SCFS_ATTR_FETCHED);
 	case M0_SCFS_ATTR_FETCHED :
+		if (fctx->sf_rc != 0)
+			return M0_ERR(fctx->sf_rc);
 		_fctx_status_set(fctx, M0_SCFS_LAYOUT_FETCH);
 		rc = _layout_fetch(fctx);
 		if (rc != 0)
@@ -613,6 +643,8 @@ m0_sns_cm_file_attr_and_layout_wait(struct m0_sns_cm_file_ctx *fctx,
 {
 	m0_fom_wait_on(fom, &fctx->sf_sm.sm_chan, &fom->fo_cb);
 }
+
+#undef _AST2FCTX
 
 /** @} SNSCMFILE */
 #undef M0_TRACE_SUBSYSTEM

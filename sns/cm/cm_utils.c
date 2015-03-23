@@ -33,6 +33,7 @@
 #include "sns/cm/iter.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/file.h"
+#include "ioservice/fid_convert.h" /* m0_fid_cob_device_id */
 
 /**
    @addtogroup SNSCM
@@ -114,9 +115,7 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 {
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
-	struct m0_fid               gobfid;
 
-	agid2fid(&sag->sag_base.cag_id, &gobfid);
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = unit;
 	m0_pdclust_instance_map(pi, &sa, &ta);
@@ -199,7 +198,8 @@ M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 					 const struct m0_fid *cob_fid)
 {
 	enum m0_pool_nd_state state_out = 0;
-	m0_poolmach_device_state(scm->sc_base.cm_pm, cob_fid->f_container,
+	m0_poolmach_device_state(scm->sc_base.cm_pm,
+				 m0_fid_cob_device_id(cob_fid),
 				 &state_out);
 	return M0_IN(state_out, (M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING,
 				 M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING));
@@ -209,7 +209,8 @@ M0_INTERNAL bool m0_sns_cm_is_cob_repaired(const struct m0_sns_cm *scm,
 					   const struct m0_fid *cob_fid)
 {
 	enum m0_pool_nd_state state_out = 0;
-	m0_poolmach_device_state(scm->sc_base.cm_pm, cob_fid->f_container,
+	m0_poolmach_device_state(scm->sc_base.cm_pm,
+				 m0_fid_cob_device_id(cob_fid),
 				 &state_out);
 	return state_out == M0_PNDS_SNS_REPAIRED;
 }
@@ -241,7 +242,7 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 		sa.sa_group = group_nr;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
 		rc = m0_poolmach_device_state(scm->sc_base.cm_pm,
-			cobfid.f_container, &state_out);
+			m0_fid_cob_device_id(&cobfid), &state_out);
 		M0_ASSERT(rc == 0);
 		if (state_out == M0_PNDS_SNS_REPAIRED)
 			goto out;
@@ -277,9 +278,9 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
 		if (m0_poolmach_device_is_in_spare_usage_array(
 					scm->sc_base.cm_pm,
-					cobfid.f_container)) {
+					m0_fid_cob_device_id(&cobfid))) {
 			rc = m0_poolmach_device_state(scm->sc_base.cm_pm,
-				cobfid.f_container, &state_out);
+				m0_fid_cob_device_id(&cobfid), &state_out);
 			M0_ASSERT(rc == 0);
 			if (!M0_IN(state_out, (M0_PNDS_SNS_REPAIRED,
 					       M0_PNDS_SNS_REBALANCING)))
@@ -344,7 +345,7 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 		if (nr_devs_unchecked % nr_ios > 0)
 			M0_CNT_INC(nr_devs_in_ios);
 		nr_devs_checked += nr_devs_in_ios;
-		if (cfid->f_container > nr_devs_checked) {
+		if (m0_fid_cob_device_id(cfid) > nr_devs_checked) {
 			M0_CNT_DEC(nr_ios);
 			nr_devs_unchecked -= nr_devs_in_ios;
 			continue;

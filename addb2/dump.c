@@ -171,8 +171,10 @@ static void file_dump(struct m0_stob_domain *dom, const char *fname)
 	struct stat             buf;
 	struct m0_addb2_record *rec;
 	int                     result;
+	struct m0_stob_id       stob_id;
 
-	result = m0_stob_find_by_key(dom, 1 /* stob key, any */, &stob);
+	m0_stob_id_make(0, 1 /* stob key, any */, &dom->sd_id, &stob_id);
+	result = m0_stob_find(&stob_id, &stob);
 	if (result != 0)
 		err(EX_CANTCREAT, "Cannot find stob: %d", result);
 	if (m0_stob_state_get(stob) == CSS_UNKNOWN) {

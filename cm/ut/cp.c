@@ -202,7 +202,7 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp, struct m0_cm_aggr_group *ag,
 
 	cp = &sns_cp->sc_base;
 	cp->c_ag = ag;
-	sns_cp->sc_stob_fid = M0_FID_INIT(1, 1);	/* XXX ? */
+	m0_stob_id_make(0, 1, &M0_FID_INIT(1, 1), &sns_cp->sc_stob_id);
 	cp->c_ops = &m0_sns_cm_cp_dummy_ops;
 	m0_cm_cp_fom_init(ag->cag_cm, cp);
 	/* Over-ride the fom ops. */

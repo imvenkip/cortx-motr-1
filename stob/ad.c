@@ -73,7 +73,7 @@ enum stob_ad_allocation_extent_type {
 };
 
 struct ad_domain_cfg {
-	struct m0_fid     adg_fid;
+	struct m0_stob_id adg_id;
 	struct m0_be_seg *adg_seg;
 	m0_bcount_t       adg_container_size;
 	uint32_t          adg_bshift;
@@ -215,11 +215,13 @@ static void stob_ad_type_deregister(struct m0_stob_type *type)
 
 M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 				     const struct m0_be_seg *seg,
-				     const struct m0_fid *bstore_fid)
+				     const struct m0_stob_id *bstore_id)
 {
 	char buf[0x400];
 
-	snprintf(buf, ARRAY_SIZE(buf), "%p:"FID_F, seg, FID_P(bstore_fid));
+	snprintf(buf, ARRAY_SIZE(buf), "%p:"FID_F":"FID_F, seg,
+			FID_P(&bstore_id->si_domain_fid),
+			FID_P(&bstore_id->si_fid));
 	*str = m0_strdup(buf);
 }
 
@@ -250,10 +252,12 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 			.adg_blocks_per_group = BALLOC_DEF_BLOCKS_PER_GROUP,
 			.adg_res_groups       = BALLOC_DEF_RESERVED_GROUPS,
 		};
-		/* format = seg:fid */
-		rc = sscanf(str_cfg_create, "%p:" FID_SF,
-			    (void **)&cfg->adg_seg, FID_S(&cfg->adg_fid));
-		rc = rc == 3 ? 0 : -EINVAL;
+		/* format = seg:domain_fid:fid */
+		rc = sscanf(str_cfg_create, "%p:"FID_SF":"FID_SF,
+			    (void **)&cfg->adg_seg,
+			    FID_S(&cfg->adg_id.si_domain_fid),
+			    FID_S(&cfg->adg_id.si_fid));
+		rc = rc == 5 ? 0 : -EINVAL;
 	} else
 		rc = -ENOMEM;
 
@@ -278,12 +282,12 @@ static struct m0_sm_group *stob_ad_sm_group(void)
 	return m0_locality0_get()->lo_grp;
 }
 
-static int stob_ad_bstore(struct m0_fid *fid, struct m0_stob **out)
+static int stob_ad_bstore(struct m0_stob_id *stob_id, struct m0_stob **out)
 {
 	struct m0_stob *stob;
 	int		rc;
 
-	rc = m0_stob_find(fid, &stob);
+	rc = m0_stob_find(stob_id, &stob);
 	if (rc == 0) {
 		if (m0_stob_state_get(stob) == CSS_UNKNOWN)
 			rc = m0_stob_locate(stob);
@@ -350,7 +354,8 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 					       adom->sad_res_groups);
 		m0_sm_group_unlock(grp);
 		balloc_inited = rc == 0;
-		rc = rc ?: stob_ad_bstore(&adom->sad_bstore_fid,
+
+		rc = rc ?: stob_ad_bstore(&adom->sad_bstore_id,
 					  &adom->sad_bstore);
 		if (rc != 0) {
 			if (balloc_inited)
@@ -449,13 +454,14 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		M0_BE_ALLOC_PTR_SYNC(adom, seg, &tx);
 	if (adom != NULL) {
 		dom = &adom->sad_base;
-		dom->sd_id = m0_stob_domain__dom_id(m0_stob_type_id_get(type),
-						    dom_key);
+		m0_stob_domain__dom_id_make(&dom->sd_id,
+					    m0_stob_type_id_get(type),
+					    0, dom_key);
 		adom->sad_container_size   = cfg->adg_container_size;
 		adom->sad_bshift           = cfg->adg_bshift;
 		adom->sad_blocks_per_group = cfg->adg_blocks_per_group;
 		adom->sad_res_groups       = cfg->adg_res_groups;
-		adom->sad_bstore_fid       = cfg->adg_fid;
+		adom->sad_bstore_id        = cfg->adg_id;
 		adom->sad_overwrite        = false;
 		strcpy(adom->sad_path, location_data);
 		emap = &adom->sad_adata;
@@ -528,7 +534,7 @@ static int stob_ad_domain_destroy(struct m0_stob_type *type,
 }
 
 static struct m0_stob *stob_ad_alloc(struct m0_stob_domain *dom,
-				     uint64_t stob_key)
+				     const struct m0_fid *stob_fid)
 {
 	struct m0_stob_ad *adstob;
 
@@ -554,21 +560,21 @@ static void stob_ad_cfg_free(void *cfg_create)
 
 static int stob_ad_init(struct m0_stob *stob,
 			struct m0_stob_domain *dom,
-			uint64_t stob_key)
+			const struct m0_fid *stob_fid)
 {
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 	struct m0_be_emap_cursor  it;
 	struct m0_uint128         prefix;
 	int                       rc;
 
+	prefix = M0_UINT128(stob_fid->f_container, stob_fid->f_key);
+	M0_LOG(M0_DEBUG, U128D_F, U128_P(&prefix));
 	stob->so_ops = &stob_ad_ops;
-	prefix = M0_UINT128(m0_stob_domain_id_get(dom), stob_key);
 	rc = M0_BE_OP_SYNC_RET_WITH(
 		&it.ec_op,
 		m0_be_emap_lookup(&adom->sad_adata, &prefix, 0, &it),
 		bo_u.u_emap.e_rc);
 	if (rc == 0) {
-		m0_stob__fid_set(stob, dom, stob_key);
 		m0_be_emap_close(&it);
 	}
 	return rc == -ESRCH ? -ENOENT : rc;
@@ -588,14 +594,14 @@ static void stob_ad_create_credit(struct m0_stob_domain *dom,
 static int stob_ad_create(struct m0_stob *stob,
 			  struct m0_stob_domain *dom,
 			  struct m0_dtx *dtx,
-			  uint64_t stob_key,
+			  const struct m0_fid *stob_fid,
 			  void *cfg)
 {
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 	struct m0_uint128         prefix;
 
 	M0_PRE(dtx != NULL);
-	prefix = M0_UINT128(m0_stob_domain_id_get(dom), stob_key);
+	prefix = M0_UINT128(stob_fid->f_container, stob_fid->f_key);
 	M0_LOG(M0_DEBUG, U128D_F, U128_P(&prefix));
 	return M0_BE_OP_SYNC_RET(op,
 				 m0_be_emap_obj_insert(&adom->sad_adata,
@@ -700,7 +706,6 @@ static int ext_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	if (rc != 0)
 		return M0_RC(rc);
 	astob = stob_ad_stob2ad(stob);
-	M0_LOG(M0_DEBUG, U128D_F, U128_P(&it.ec_prefix));
 	ext = &it.ec_seg.ee_ext;
 	M0_LOG(M0_DEBUG, "ext="EXT_F" val=%llu",
 		EXT_P(ext), (unsigned long long)it.ec_seg.ee_val);
@@ -740,9 +745,10 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	struct m0_stob_ad_domain *adom;
 	struct m0_uint128         prefix;
 	int                       rc;
+	const struct m0_fid      *fid = m0_stob_fid_get(stob);
 
 	adom   = stob_ad_domain2ad(m0_stob_dom_get(stob));
-	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
+	prefix = M0_UINT128(fid->f_container, fid->f_key);
 	rc = ext_destroy(stob, tx);
 	if (rc == 0)
 		rc = M0_BE_OP_SYNC_RET(op,
@@ -913,8 +919,8 @@ static int stob_ad_cursor(struct m0_stob_ad_domain *adom,
 	struct m0_uint128    prefix;
 	int                  rc;
 
-	/* XXX make fid2prefix */
 	prefix = M0_UINT128(fid->f_container, fid->f_key);
+	M0_LOG(M0_DEBUG, FID_F, FID_P(fid));
 	rc = M0_BE_OP_SYNC_RET_WITH(
 		&it->ec_op,
 		m0_be_emap_lookup(&adom->sad_adata, &prefix, offset, it),
@@ -1584,8 +1590,8 @@ static int stob_ad_write_map(struct m0_stob_io *io,
 	if (rc != 0)
 		return M0_RC(rc);
 	arp = frag->rp_data;
-	arp->arp_stob_fid = *m0_stob_fid_get(io->si_obj);
-	arp->arp_dom_id   =  m0_stob_domain_id_get(&adom->sad_base);
+	arp->arp_stob_id = *m0_stob_id_get(io->si_obj);
+	arp->arp_dom_id  = *m0_stob_domain_id_get(&adom->sad_base);
 
 	do {
 		off = m0_ivec_cursor_index(dst);
@@ -1822,7 +1828,7 @@ stob_ad_rec_frag_undo_redo_op_cred(const struct m0_fol_frag *frag,
 				   struct m0_be_tx_credit   *accum)
 {
 	struct stob_ad_rec_frag  *arp  = frag->rp_data;
-	struct m0_stob_domain    *dom  = m0_stob_domain_find(arp->arp_dom_id);
+	struct m0_stob_domain    *dom  = m0_stob_domain_find(&arp->arp_dom_id);
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 
 	M0_PRE(dom != NULL);
@@ -1838,7 +1844,7 @@ static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
 					 struct m0_be_tx    *tx)
 {
 	struct stob_ad_rec_frag  *arp  = frag->rp_data;
-	struct m0_stob_domain    *dom  = m0_stob_domain_find(arp->arp_dom_id);
+	struct m0_stob_domain    *dom  = m0_stob_domain_find(&arp->arp_dom_id);
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 	struct m0_be_emap_seg    *old_data = arp->arp_seg.ps_old_data;
 	struct m0_be_emap_cursor  it;

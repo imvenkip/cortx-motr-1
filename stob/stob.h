@@ -33,6 +33,7 @@
 #include "fid/fid.h"
 #include "sm/sm.h"
 #include "stob/cache.h"		/* m0_stob_cache */
+#include "fid/fid_xc.h"
 
 #ifndef MAXPATHLEN
 #define MAXPATHLEN 1024
@@ -98,7 +99,7 @@ struct m0_stob_id {
 	struct m0_fid si_domain_fid;
 	/* Stob fid. @see m0_stob */
 	struct m0_fid si_fid;
-};
+} M0_XCA_RECORD;
 
 /**
  * In-memory representation of a storage object.
@@ -152,7 +153,7 @@ struct m0_stob_id {
 struct m0_stob {
 	const struct m0_stob_ops *so_ops;
 	struct m0_stob_domain	 *so_domain;
-	struct m0_fid		  so_fid;
+	struct m0_stob_id         so_id;
 	enum m0_stob_state	  so_state;
 	uint64_t		  so_ref;
 	struct m0_tlink		  so_cache_linkage;
@@ -200,15 +201,16 @@ struct m0_stob_ops {
  *
  * @post equi(rc == 0, *out != NULL)
  */
-M0_INTERNAL int m0_stob_find(struct m0_fid *fid, struct m0_stob **out);
+M0_INTERNAL int m0_stob_find(const struct m0_stob_id *id, struct m0_stob **out);
 M0_INTERNAL int m0_stob_find_by_key(struct m0_stob_domain *dom,
-				    uint64_t stob_key,
+				    const struct m0_fid *stob_fid,
 				    struct m0_stob **out);
 
 /** The same as m0_stob_find() but without m0_stob allocation. */
-M0_INTERNAL int m0_stob_lookup(struct m0_fid *fid, struct m0_stob **out);
+M0_INTERNAL int m0_stob_lookup(const struct m0_stob_id *id,
+			       struct m0_stob **out);
 M0_INTERNAL int m0_stob_lookup_by_key(struct m0_stob_domain *dom,
-				      uint64_t stob_key,
+				      const struct m0_fid *stob_fid,
 				      struct m0_stob **out);
 
 /**
@@ -298,19 +300,20 @@ M0_INTERNAL enum m0_stob_state m0_stob_state_get(struct m0_stob *stob);
 
 /** Returns stob domain id. */
 M0_INTERNAL uint64_t m0_stob_dom_id_get(struct m0_stob *stob);
-/** Returns stob key. */
-M0_INTERNAL uint64_t m0_stob_key_get(struct m0_stob *stob);
-
+/** Returns stob id. */
+M0_INTERNAL const struct m0_stob_id *m0_stob_id_get(struct m0_stob *stob);
 /** Returns stob fid. */
 M0_INTERNAL const struct m0_fid *m0_stob_fid_get(struct m0_stob *stob);
-/** Returns stob domain id from a stob fid. */
-M0_INTERNAL uint64_t m0_stob_fid_dom_id_get(const struct m0_fid *stob_fid);
-/** Returns stob key from a stob fid. */
-M0_INTERNAL uint64_t m0_stob_fid_key_get(const struct m0_fid *stob_fid);
-/** Makes stob fid from domain id and stob key. */
-M0_INTERNAL void m0_stob_fid_make(struct m0_fid *stob_fid,
-				  uint64_t dom_id,
-				  uint64_t stob_key);
+/** Returns stob domain id from a stob id. */
+M0_INTERNAL uint64_t m0_stob_id_dom_id_get(const struct m0_stob_id *stob_id);
+/** Makes stob id from domain id and stob key. */
+M0_INTERNAL void m0_stob_id_make(uint64_t container,
+				 uint64_t key,
+				 const struct m0_fid *dom_id,
+				 struct m0_stob_id *stob_id);
+
+M0_INTERNAL int m0_stob_mod_init(void);
+M0_INTERNAL void m0_stob_mod_fini(void);
 
 /** @} end group stob */
 #endif /* __MERO_STOB_STOB_H__ */

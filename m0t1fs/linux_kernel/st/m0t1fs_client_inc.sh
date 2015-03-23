@@ -109,15 +109,19 @@ unmount_m0t1fs()
 
 bulkio_test()
 {
-	local local_input=$MERO_M0T1FS_TEST_DIR/file1.data
-	local local_output=$MERO_M0T1FS_TEST_DIR/file2.data
+	local fsname1="0:100125"
+	local fsname2="0:600456"
+	local fsname3="0:a0089b"
+	local local_input=$MERO_M0T1FS_TEST_DIR/$fsname1
+	local local_output=$MERO_M0T1FS_TEST_DIR/$fsname2
 	local m0t1fs_mount_dir=$MERO_M0T1FS_MOUNT_DIR
-	local m0t1fs_file=$m0t1fs_mount_dir/file.data
+	local m0t1fs_file=$m0t1fs_mount_dir/1:23456
 	local unit_size=$1
 	local io_counts=$2
-	local mountopt=$3
+	local mode=$3
+	local mountopt=$4
 
-	mount_m0t1fs $m0t1fs_mount_dir $NR_DATA $NR_PARITY $POOL_WIDTH $mountopt || return 1
+	mount_m0t1fs $m0t1fs_mount_dir $NR_DATA $NR_PARITY $POOL_WIDTH "$mode,$mountopt" || return 1
 
 	echo "Creating local input file of I/O size ..."
 	run "dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts"
@@ -183,11 +187,12 @@ io_combinations()
 {
 	# This test runs for various stripe unit size values
 
-	echo "Test: io_combinations: (N,P,K) = ($2,$1,$3)..."
+	echo "Test: io_combinations: (N,P,K) = ($2,$1,$3) $4 ..."
 
 	pool_width=$1
 	data_units=$2
 	parity_units=$3
+	mode=$4
 
 	p=`expr $data_units + 2 '*' $parity_units`
 	if [ $p -gt $pool_width ]
@@ -210,7 +215,7 @@ io_combinations()
 		io_size=${io_size}K
 		echo -n "Test: I/O for stripe = ${stripe_size}K," \
 		     "bs = $io_size, count = 1... "
-		bulkio_test $unit_size 1 "" &>> $MERO_TEST_LOGFILE
+		bulkio_test $unit_size 1 $mode "" &>> $MERO_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
@@ -220,7 +225,7 @@ io_combinations()
 		# Multiple I/Os
 		echo -n "Test: I/O for stripe = ${stripe_size}K," \
 		     "bs = $io_size, count = 2... "
-		bulkio_test $unit_size 2 "" &>> $MERO_TEST_LOGFILE
+		bulkio_test $unit_size 2 $mode "" &>> $MERO_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
@@ -294,9 +299,11 @@ m0loop_st()
 file_creation_test()
 {
 	local nr_files=$1
+	local mode=$2
 	local SOURCE_TXT=/tmp/source.txt
+	local START_FID=15     # Added to skip root and other system fids.
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "verify" || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$mode,"verify"" || {
 		return 1
 	}
 	for i in {a..z} {A..Z} ; do
@@ -306,47 +313,70 @@ file_creation_test()
 		echo;
 	done > $SOURCE_TXT
 
-	echo "Test: Creating $nr_files files on m0t1fs..."
-	for ((i=0; i<$nr_files; ++i)); do
-		touch $MERO_M0T1FS_MOUNT_DIR/file$i || break
-		cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/file$i || break
-		cp -v $MERO_M0T1FS_MOUNT_DIR/file$i /tmp/dest.txt || break
-		diff -C 0 $SOURCE_TXT /tmp/dest.txt || {
-			echo "file content differ!!!!!!!!!!!!!!!!! at $i file. "
-#			echo "Press Enter to go";
-#			read;
-			break;
-		}
-		#arbitrary file size. "1021" is a prime close to 1024.
-		touch $MERO_M0T1FS_MOUNT_DIR/file_b$i || break
-		dd if=$SOURCE_TXT of=/tmp/src bs=1021 count=`expr $i + 1` >/dev/null 2>&1 || break
-		cp -v /tmp/src $MERO_M0T1FS_MOUNT_DIR/file_b$i      || break
-		cp -v $MERO_M0T1FS_MOUNT_DIR/file_b$i /tmp/dest     || break
-		diff -C 0 /tmp/src /tmp/dest || {
-			echo "file content differ at $i file. "
-			break;
-		}
+	NR_FILES=$[ $nr_files - $START_FID ]
+	NR_FILES=$[ $NR_FILES * $NR_FILES ]
+	echo "Test: Creating $NR_FILES files on m0t1fs..."
+	for ((i=$START_FID; i<$nr_files; ++i)); do
+		for ((j=$START_FID; j<$nr_files; ++j)); do
+			touch $MERO_M0T1FS_MOUNT_DIR/$j:$i || break
+			cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/$j:$i || break
+			cp -v $MERO_M0T1FS_MOUNT_DIR/$j:$i /tmp/dest.txt || break
+			diff -C 0 $SOURCE_TXT /tmp/dest.txt || {
+				echo "file content differ!!!!!!!!!!!!!!!!! at $j:$i file. "
+#				echo "Press Enter to go";
+#				read;
+				break;
+			}
+		done
 	done
 	unmount_and_clean
 	echo -n "Test: file creation: "
-	if [ $i -eq $nr_files ]; then
+	if (( $i == $nr_files && $j == $nr_files )); then
 		echo "success."
 	else
 		echo "failed."
 		return 1
 	fi
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH $mode || {
 		return 1
 	}
-	echo "Test: removing $nr_files files on m0t1fs..."
-	for ((i=0; i<$nr_files; ++i)); do
-		rm -vf $MERO_M0T1FS_MOUNT_DIR/file$i || break
-		rm -vf $MERO_M0T1FS_MOUNT_DIR/file_b$i || break
+	echo "Test: removing $NR_FILES files on m0t1fs..."
+	for ((i=$START_FID; i<$nr_files; ++i)); do
+		for ((j=$START_FID; j<$nr_files; ++j)); do
+			echo "rm -vf $MERO_M0T1FS_MOUNT_DIR/$j:$i"
+			rm -vf $MERO_M0T1FS_MOUNT_DIR/$j:$i || break
+		done
 	done
 
 	unmount_and_clean
 	echo -n "Test: file removal: "
+	if (( $i == $nr_files && $j == $nr_files )); then
+		echo "success."
+	else
+		echo "failed."
+		return 1
+	fi
+
+	if [ "$mode" == "oostore" ]; then
+		return 0
+	fi
+
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "verify" || {
+                return 1
+        }
+	for ((i=0; i<$nr_files; ++i)); do
+		#arbitrary file size. "1021" is a prime close to 1024.
+		touch $MERO_M0T1FS_MOUNT_DIR/file$i || break
+		dd if=$SOURCE_TXT of=/tmp/src bs=1021 count=`expr $i + 1` >/dev/null 2>&1 || break
+		cp -v /tmp/src $MERO_M0T1FS_MOUNT_DIR/file$i      || break
+		cp -v $MERO_M0T1FS_MOUNT_DIR/file$i /tmp/dest     || break
+		diff -C 0 /tmp/src /tmp/dest || {
+			echo "file content differ at file$i file. "
+			break;
+		}
+	done
+
 	if [ $i -eq $nr_files ]; then
 		echo "success."
 	else
@@ -354,6 +384,16 @@ file_creation_test()
 		return 1
 	fi
 
+	for ((i=0; i<$nr_files; ++i)); do
+		rm -vf $MERO_M0T1FS_MOUNT_DIR/file$i      || break
+	done
+	if [ $i -eq $nr_files ]; then
+		echo "success."
+	else
+		echo "failed."
+		return 1
+	fi
+	unmount_and_clean
 	return 0
 }
 
@@ -433,7 +473,8 @@ multi_client_test()
 
 rmw_test()
 {
-	local mountopt=$1
+	local mode=$1
+	local mountopt=$2
 
 	echo "Test: RMW (with mountopt=\"${mountopt}\") ..."
 	for unit_size in 4 8 16 32
@@ -443,13 +484,13 @@ rmw_test()
 			io_size=${io}K
 			echo -n "IORMW Test: I/O for unit ="\
 			     "${unit_size}K, bs = $io_size, count = 1... "
-			bulkio_test $unit_size 1 $mountopt &>> $MERO_TEST_LOGFILE || return 1
+			bulkio_test $unit_size 1 $mode $mountopt &>> $MERO_TEST_LOGFILE || return 1
 			show_write_speed
 
 			# Multiple I/O
 			echo -n "IORMW Test: I/O for unit ="\
 			   "${unit_size}K, bs = $io_size, count = 2... "
-			bulkio_test $unit_size 2 $mountopt &>> $MERO_TEST_LOGFILE || return 1
+			bulkio_test $unit_size 2 $mode $mountopt &>> $MERO_TEST_LOGFILE || return 1
 			show_write_speed
 		done
 	done
@@ -462,6 +503,8 @@ rmw_test()
 ###########################################
 # This test is only valid in OOSTORE mode.
 # Mero.cmd hash file by filename.
+# In oostore mode directory support is not available,
+# so creation of the file inside a sub directory test is removed.
 ###########################################
 obf_test()
 {
@@ -491,6 +534,7 @@ m0t1fs_crud()
 	local fsname1=$1
 	local fsname2=$2
 	local fsname3=$3
+	local mode=$4
 	touch $MERO_M0T1FS_MOUNT_DIR/$fsname1 || rc=1
 	touch $MERO_M0T1FS_MOUNT_DIR/$fsname2 || rc=1
 	touch $MERO_M0T1FS_MOUNT_DIR/$fsname3 || rc=1
@@ -524,7 +568,9 @@ m0t1fs_crud()
 	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname1 -c "%n: %a %s" || rc=1
 	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname2 -c "%n: %a %s" || rc=1
 	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname3 -c "%n: %a %s" || rc=1
-	ls -l $MERO_M0T1FS_MOUNT_DIR || rc=1
+	if [ "$mode" != "oostore" ]; then
+		ls -l $MERO_M0T1FS_MOUNT_DIR || rc=1
+	fi
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname1 || rc=1
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname2 || rc=1
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname3 || rc=1
@@ -592,18 +638,18 @@ m0t1fs_large_dir()
 	return $rc
 }
 
-
 m0t1fs_oostore_mode()
 {
 	local rc=0
 	local fsname1="0:100125"
 	local fsname2="0:600456"
 	local fsname3="0:a0089b"
+	local mode="oostore"
 
 	echo "Test: oostore_mode..."
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || rc=1
-	df
-	m0t1fs_crud $fsname1 $fsname2 $fsname3 || rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH $mode || rc=1
+	mount | grep m0t1fs                              || rc=1
+	m0t1fs_crud $fsname1 $fsname2 $fsname3 $mode || rc=1
 	touch $MERO_M0T1FS_MOUNT_DIR/123456 2>/dev/null && rc=1
 	stat  $MERO_M0T1FS_MOUNT_DIR/123456 2>/dev/null && rc=1
 	touch $MERO_M0T1FS_MOUNT_DIR/abcdef 2>/dev/null && rc=1
@@ -618,6 +664,11 @@ m0t1fs_oostore_mode_basic()
 	local rc=0
 	local fsname1="0:100125"
 	local fsname2="0:100321"
+	local file="1:23456"
+	local file1="3:23457"
+	local file2="2:23458"
+	local file3="2:23459"
+	local file4="3:23459"
 
 	local SOURCE_TXT=/tmp/source.txt
 
@@ -631,7 +682,7 @@ m0t1fs_oostore_mode_basic()
 	done > $SOURCE_TXT
 
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || rc=1
-	df -t m0t1fs                                        || rc=1
+	mount | grep m0t1fs                                 || rc=1
 	cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/$fsname1   || rc=1
 	cat $MERO_M0T1FS_MOUNT_DIR/$fsname1 > /tmp/$fsname1 || rc=1
 	# sleep two seconds, so the {a,c,m}time are different
@@ -653,6 +704,17 @@ m0t1fs_oostore_mode_basic()
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname1               || rc=1
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname2               || rc=1
 
+	cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/$file                   || rc=1
+	cp -v $MERO_M0T1FS_MOUNT_DIR/$file $MERO_M0T1FS_MOUNT_DIR/$file1 || rc=1
+	cp -v $MERO_M0T1FS_MOUNT_DIR/$file $MERO_M0T1FS_MOUNT_DIR/$file2 || rc=1
+	cp -v $MERO_M0T1FS_MOUNT_DIR/$file $MERO_M0T1FS_MOUNT_DIR/$file3 || rc=1
+	cp -v $MERO_M0T1FS_MOUNT_DIR/$file $MERO_M0T1FS_MOUNT_DIR/$file4 || rc=1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$file                               || rc=1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$file1                              || rc=1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$file2                              || rc=1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$file3                              || rc=1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$file4                              || rc=1
+
 	unmount_and_clean
 
 	return $rc
@@ -665,13 +727,13 @@ m0t1fs_system_tests()
 		return 1
 	}
 
-	m0t1fs_basic || {
-		echo "Failed: m0t1fs basic test failed."
+	file_creation_test $MAX_NR_FILES "oostore" || {
+		echo "Failed: File creation test failed."
 		return 1
 	}
 
-	m0t1fs_oostore_mode_basic || {
-		echo "Failed: m0t1fs oostore mode basic test failed."
+	m0t1fs_basic || {
+		echo "Failed: m0t1fs basic test failed."
 		return 1
 	}
 
@@ -680,13 +742,13 @@ m0t1fs_system_tests()
 		return 1
 	}
 
-	m0t1fs_large_dir "" "mero-testfile-" || {
-		echo "Failed: m0t1fs large dir test failed."
+	m0t1fs_oostore_mode_basic || {
+		echo "Failed: m0t1fs oostore mode basic test failed."
 		return 1
 	}
 
-	m0t1fs_large_dir "oostore" "0:10000" || {
-		echo "Failed: m0t1fs large dir test in oostore mode failed."
+	m0t1fs_large_dir "" "mero-testfile-" || {
+		echo "Failed: m0t1fs large dir test failed."
 		return 1
 	}
 
@@ -695,12 +757,22 @@ m0t1fs_system_tests()
 		return 1
 	}
 
-	rmw_test "" || {
+	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
+		echo "Failed: IO failed.."
+		return 1
+	}
+
+	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY "oostore"|| {
+		echo "Failed: IO failed oostore mode.."
+		return 1
+	}
+
+	rmw_test "" "" || {
 		echo "Failed: IO-RMW failed.."
 		return 1
 	}
 
-	rmw_test "verify" || {
+	rmw_test "" "verify" || {
 		echo "Failed: IO-RMW failed.."
 		return 1
 	}

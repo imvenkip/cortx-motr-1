@@ -384,8 +384,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	struct m0_stob_io_desc    *saved_stobio_desc;
 	int                        saved_count;
 	struct m0_net_domain      *netdom;
-	struct m0_stob_domain     *fom_stdom;
-	struct m0_fid		   stob_fid;
+	struct m0_stob_id          stob_id;
 	struct m0_net_transfer_mc *tm;
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
@@ -586,7 +585,8 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	         * to make I/O launch fail. */
 	        saved_fid = rwfop->crw_fid;
 	        m0_fid_set(&invalid_fid, 111, 222);
-
+		m0_fid_tassume(&invalid_fid, &m0_cob_fid_type);
+		fom_obj->fcrw_stob = NULL;
 	        rwfop->crw_fid = invalid_fid;
 	        fom_phase_set(fom, M0_FOPH_IO_STOB_INIT);
 
@@ -645,11 +645,9 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	         * Restore original fom.
 	         */
 	        stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
-	        io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stob_fid);
-	        fom_stdom = m0_stob_domain_find_by_stob_fid(&stob_fid);
-		M0_UT_ASSERT(fom_stdom != NULL);
+		m0_fid_convert_cob2stob(&rwfop->crw_fid, &stob_id);
 
-		rc = m0_stob_find(&stob_fid, &fom_obj->fcrw_stob);
+		rc = m0_stob_find(&stob_id, &fom_obj->fcrw_stob);
 	        M0_UT_ASSERT(rc == 0);
 
 	        rc = M0_FSO_WAIT;
@@ -732,8 +730,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	struct m0_fid              saved_fid;
 	struct m0_fid              invalid_fid;
 	struct m0_stob_io_desc    *saved_stobio_desc;
-	struct m0_stob_domain     *fom_stdom;
-	struct m0_fid		   stob_fid;
+	struct m0_stob_id          stob_id;
 	struct m0_net_transfer_mc *tm;
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
@@ -860,7 +857,8 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	         * fail. */
 	        saved_fid = rwfop->crw_fid;
 	        m0_fid_set(&invalid_fid, 111, 222);
-
+		m0_fid_tassume(&invalid_fid, &m0_cob_fid_type);
+		fom_obj->fcrw_stob = NULL;
 	        rwfop->crw_fid = invalid_fid;
 
 	        fom_phase_set(fom, M0_FOPH_IO_STOB_INIT);
@@ -925,11 +923,9 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	         * Restore original fom.
 	         */
 	        stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
-	        io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stob_fid);
-	        fom_stdom = m0_stob_domain_find_by_stob_fid(&stob_fid);
-		M0_UT_ASSERT(fom_stdom != NULL);
+		m0_fid_convert_cob2stob(&rwfop->crw_fid, &stob_id);
 
-		rc = m0_stob_find(&stob_fid, &fom_obj->fcrw_stob);
+		rc = m0_stob_find(&stob_id, &fom_obj->fcrw_stob);
 	        M0_UT_ASSERT(rc == 0);
 
 	        rc = M0_FSO_WAIT;
@@ -1065,13 +1061,15 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 {
 	struct m0_fop_cob_rw         *rwfop;
 	struct m0_stob_domain        *fom_stdom;
-	struct m0_fid		      stob_fid;
+	struct m0_stob_id             stob_id;
 	int			      rc;
 	struct m0_fop_cob_writev_rep *wrep;
 	struct m0_io_fom_cob_rw      *fom_obj;
 	struct m0_fom_cob_op	      cc;
 	struct m0_reqh_io_service    *ios;
 	struct m0_cob_attr            attr = { {0, } };
+	struct m0_cob_oikey           oikey;
+	struct m0_cob                *cob;
 
 	cob_attr_default_fill(&attr);
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
@@ -1079,8 +1077,8 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 			   rios_gen);
 
 	rwfop = io_rw_get(fom->fo_fop);
-	io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stob_fid);
-	fom_stdom = m0_stob_domain_find_by_stob_fid(&stob_fid);
+	m0_fid_convert_cob2stob(&rwfop->crw_fid, &stob_id);
+	fom_stdom = m0_stob_domain_find_by_stob_id(&stob_id);
 	M0_UT_ASSERT(fom_stdom != NULL);
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
@@ -1092,19 +1090,24 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 		return m0_fom_tick_generic(fom);
 	}
 
-	cc.fco_stob_fid = stob_fid;
-	cc.fco_gfid	= M0_MDSERVICE_SLASH_FID;
-	cc.fco_cfid	= rwfop->crw_gfid;
+	cc.fco_stob_id  = stob_id;
+	cc.fco_gfid	= rwfop->crw_gfid;
+	cc.fco_cfid	= rwfop->crw_fid;
 	cc.fco_cob_idx	= (uint32_t) rwfop->crw_gfid.f_key;
+	cc.fco_cob_type = M0_COB_IO;
 
 	rc = m0_cc_cob_setup(&cc, ios->rios_cdom, &attr, m0_fom_tx(fom));
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_stob_find(&stob_fid, &fom_obj->fcrw_stob);
+	rc = m0_stob_find(&stob_id, &fom_obj->fcrw_stob);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_locate(fom_obj->fcrw_stob);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_create(fom_obj->fcrw_stob, &fom->fo_tx, NULL);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_cob_oikey_make(&oikey, &cc.fco_cfid, 0);
+	rc = m0_cob_locate(ios->rios_cdom, &oikey, 0, &cob);
 	M0_UT_ASSERT(rc == 0);
 
 	wrep = m0_fop_data(fom->fo_rep_fop);
@@ -1370,6 +1373,10 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	int			result;
 	struct m0_fol_frag     *dec_frag;
 	struct m0_buf           save_buf = M0_BUF_INIT0;
+	bool                    stob_ad = m0_get()->i_reqh_uses_ad_stob;
+
+	if (!stob_ad)
+		return;
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
 	/* Write data "b" in the file. */
@@ -1380,6 +1387,8 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	io_fops_destroy(bp);
 	result = m0_buf_copy(&save_buf, &payload_buf);
 	M0_UT_ASSERT(result == 0);
+	io_single_fop_submit(M0_IOSERVICE_READV_OPCODE);
+	io_fops_destroy(bp);
 
 	/* Write data "a" in the file. */
 	for (j = 0; j < IO_SEGS_NR; ++j) {
@@ -1391,6 +1400,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	/* Undo the last write, so that file contains data "b". */
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
 	M0_UT_ASSERT(reqh != NULL);
+	m0_reqh_idle_wait(reqh);
 
 	m0_fol_rec_init(&dec_rec, &reqh->rh_fol);
 	result = m0_fol_rec_decode(&dec_rec, &save_buf);
@@ -1434,6 +1444,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	/* Read that data from file and compare it with data "b". */
 	io_single_fop_submit(M0_IOSERVICE_READV_OPCODE);
 	io_fops_destroy(bp);
+	m0_reqh_idle_wait(reqh);
 }
 
 /*
@@ -1445,6 +1456,7 @@ static void bulkio_server_read_write_state_test(void)
 	int		    j;
 	enum M0_RPC_OPCODES op;
 	struct m0_bufvec   *buf;
+	struct m0_reqh     *reqh;
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
@@ -1458,6 +1470,8 @@ static void bulkio_server_read_write_state_test(void)
 		&bulkio_server_write_fop_ut_ops;
 	io_fops_submit(0, op);
 	io_fops_destroy(bp);
+	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
+	m0_reqh_idle_wait(reqh);
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
@@ -1471,6 +1485,7 @@ static void bulkio_server_read_write_state_test(void)
 		&bulkio_server_read_fop_ut_ops;
 	io_fops_submit(0, op);
 	io_fops_destroy(bp);
+	m0_reqh_idle_wait(reqh);
 }
 
 /*
@@ -1483,6 +1498,7 @@ static void bulkio_server_rw_state_transition_test(void)
 	int		    j;
 	enum M0_RPC_OPCODES op;
 	struct m0_bufvec   *buf;
+	struct m0_reqh     *reqh;
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
@@ -1496,6 +1512,8 @@ static void bulkio_server_rw_state_transition_test(void)
 		&bulkio_server_write_fop_ut_ops;
 	io_fops_submit(0, op);
 	io_fops_destroy(bp);
+	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
+	m0_reqh_idle_wait(reqh);
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
@@ -1509,6 +1527,7 @@ static void bulkio_server_rw_state_transition_test(void)
 		&bulkio_server_read_fop_ut_ops;
 	io_fops_submit(0, op);
 	io_fops_destroy(bp);
+	m0_reqh_idle_wait(reqh);
 }
 
 /**
@@ -1526,6 +1545,7 @@ static void bulkio_server_fsync_multiple_read_write(void)
 	struct m0_bufvec       *buf;
 	struct m0_be_tx_remid   remid;
 	int                     rc;
+	struct m0_reqh         *reqh;
 
 	for (i = 0; i < IO_FOPS_NR; ++i) {
 		buf = &bp->bp_iobuf[i]->nb_buffer;
@@ -1556,6 +1576,8 @@ static void bulkio_server_fsync_multiple_read_write(void)
 	 */
 	rc = io_fsync_send_fop(&remid, &targ[0]);
 	M0_UT_ASSERT(rc == 0);
+	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
+	m0_reqh_idle_wait(reqh);
 }
 
 static void bulkio_server_multiple_read_write(void)
@@ -1566,6 +1588,7 @@ static void bulkio_server_multiple_read_write(void)
 	enum M0_RPC_OPCODES  op;
 	struct thrd_arg      targ[IO_FOPS_NR];
 	struct m0_bufvec    *buf;
+	struct m0_reqh      *reqh;
 
 	for (i = 0; i < IO_FOPS_NR; ++i) {
 		buf = &bp->bp_iobuf[i]->nb_buffer;
@@ -1601,6 +1624,8 @@ static void bulkio_server_multiple_read_write(void)
 		}
 	        io_fops_destroy(bp);
 	}
+	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
+	m0_reqh_idle_wait(reqh);
 }
 
 static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
@@ -1697,6 +1722,7 @@ static void bulkio_server_read_write_multiple_nb(void)
 	int		    buf_nr;
 	enum M0_RPC_OPCODES op;
 	struct m0_bufvec   *buf;
+	struct m0_reqh     *reqh;
 
 	buf_nr = IO_FOPS_NR / 4;
 	for (i = 0; i < buf_nr; ++i) {
@@ -1710,6 +1736,8 @@ static void bulkio_server_read_write_multiple_nb(void)
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
 	io_fops_submit(0, op);
 	io_fops_destroy(bp);
+	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
+	m0_reqh_idle_wait(reqh);
 
 	for (i = 0; i < buf_nr; ++i) {
 		buf = &bp->bp_iobuf[i]->nb_buffer;
@@ -1722,6 +1750,7 @@ static void bulkio_server_read_write_multiple_nb(void)
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
 	io_fops_submit(0, op);
 	io_fops_destroy(bp);
+	m0_reqh_idle_wait(reqh);
 }
 
 static void bulkio_server_read_write_fv_mismatch(void)

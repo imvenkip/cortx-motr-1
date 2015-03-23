@@ -98,6 +98,8 @@ struct m0_stob_type_ops {
 	 * @note There is no m0_stob_domain parameter here, so this function
 	 * shouldn't initialise stob domain. Initialisation will be done by
 	 * domain generic code after successful create call.
+	 * Currently m0_stob_domain uses only 64-bit key and 8-bit type from
+	 * 128-bit fid identifier and it may be changed in the future.
 	 *
 	 * @see m0_stob_domain_create()
 	 */
@@ -120,7 +122,8 @@ M0_INTERNAL void m0_stob_type_register(struct m0_stob_type *type);
 M0_INTERNAL void m0_stob_type_deregister(struct m0_stob_type *type);
 
 /** Gets stob type by domain id. */
-M0_INTERNAL struct m0_stob_type *m0_stob_type_by_dom_id(uint64_t id);
+M0_INTERNAL struct m0_stob_type *
+m0_stob_type_by_dom_id(const struct m0_fid *id);
 /** Gets stob type by name. */
 M0_INTERNAL struct m0_stob_type *m0_stob_type_by_name(const char *name);
 /** Gets stob type id by name. */
@@ -152,7 +155,7 @@ M0_INTERNAL void m0_stob_type__dom_del(struct m0_stob_type *type,
  * m0_stob_type__dom_find_by_location().
  */
 M0_INTERNAL struct m0_stob_domain *
-m0_stob_type__dom_find(struct m0_stob_type *type, uint64_t dom_id);
+m0_stob_type__dom_find(struct m0_stob_type *type, const struct m0_fid *dom_id);
 
 /**
  * The same as m0_stob_type__dom_find(), but it performs search by

@@ -38,8 +38,7 @@
 #include "rpc/session.h"
 #include "rpc/conn.h"
 #include "rpc/rpc_machine_internal.h"
-
-#include "ioservice/io_foms.h"	/* io_fom_cob_rw_stob2fid_map */
+#include "ioservice/fid_convert.h"     /* m0_fid_convert_stob2cob */
 
 /**
  * @addtogroup SNSCMCP
@@ -110,8 +109,8 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
         M0_PRE(sns_cp != NULL);
         M0_PRE(sns_cpx != NULL);
 
-        sns_cp->sc_stob_fid = sns_cpx->scx_stob_fid;
-	io_fom_cob_rw_stob2fid_map(&sns_cpx->scx_stob_fid, &sns_cp->sc_cobfid);
+        sns_cp->sc_stob_id = sns_cpx->scx_stob_id;
+	m0_fid_convert_stob2cob(&sns_cpx->scx_stob_id, &sns_cp->sc_cobfid);
 	sns_cp->sc_failed_idx = sns_cpx->scx_failed_idx;
 
         sns_cp->sc_index =
@@ -158,7 +157,7 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
 
         cp = &sns_cp->sc_base;
 
-        sns_cpx->scx_stob_fid = sns_cp->sc_stob_fid;
+        sns_cpx->scx_stob_id = sns_cp->sc_stob_id;
 	sns_cpx->scx_failed_idx = sns_cp->sc_failed_idx;
         sns_cpx->scx_cp.cpx_prio = cp->c_prio;
         sns_cpx->scx_phase = M0_CCP_SEND;
@@ -495,7 +494,7 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 
 	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_SW_CHECK);
 
-	io_fom_cob_rw_stob2fid_map(&scp->sc_stob_fid, &cob_fid);
+	m0_fid_convert_stob2cob(&scp->sc_stob_id, &cob_fid);
 	remote_rep = m0_sns_cm_tgt_ep(cm, &cob_fid);
 	M0_ASSERT(remote_rep != NULL);
 	if (cp->c_cm_proxy == NULL) {

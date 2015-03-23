@@ -652,8 +652,6 @@ enum {
 	M0T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
 	M0T1FS_MAX_NR_CONTAINERS        = 4096,
 	M0T1FS_COB_ID_STRLEN            = 34,
-	M0T1FS_MD_REDUNDANCY            = 3,
-	M0T1FS_IOS_NR                   = 1024
 };
 
 struct m0t1fs_addb_mon_sum_data_io_size {
@@ -692,13 +690,6 @@ struct m0t1fs_sb {
 
 	/** Configuration cache loaded during mount. */
 	struct m0_confc                         csb_confc;
-
-	/**
-	 * Array of fids of base pool ioservices used for hashing contains
-	 * csb_ios_nr valid elements. Used for finding the ioservice to be
-	 * used as mdservice using fid of the file.
-	 */
-	struct m0_fid                           csb_ios[M0T1FS_IOS_NR];
 
 	/** mutex that serialises all file and directory operations */
 	struct m0_mutex                         csb_mutex;
@@ -796,6 +787,7 @@ struct m0t1fs_filedata {
  */
 struct m0t1fs_mdop {
 	struct m0_cob_attr    mo_attr;
+	enum m0_cob_op        mo_cob_type;
 	struct m0_layout     *mo_layout;
 	bool                  mo_use_hint; /**< if true, mo_hash_hint is valid*/
 	uint32_t              mo_hash_hint;/**< hash hint for mdservice map   */
@@ -907,7 +899,7 @@ M0_INTERNAL bool m0t1fs_inode_is_dot_mero(const struct inode *inode);
 M0_INTERNAL bool m0t1fs_inode_is_dot_mero_fid(const struct inode *inode);
 
 M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
-					   struct m0_fid *root_fid);
+					   const struct m0_fid *root_fid);
 M0_INTERNAL struct inode *m0t1fs_iget(struct super_block *sb,
 				      const struct m0_fid *fid,
 				      struct m0_fop_cob *body);
@@ -1034,18 +1026,9 @@ void m0t1fs_fid_accept(struct m0t1fs_sb *csb, const struct m0_fid *fid);
 unsigned long fid_hash(const struct m0_fid *fid);
 M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop);
 
-/**
- * Given a fid of a file, return configuration fid of ioservice on which
- * metadata cob will be created.
- * Where 'i' should not be greater than metadata redundancy.
- */
-struct m0_fid m0t1fs_hash_ios(struct m0t1fs_sb *csb,
-			      const struct m0_fid *fid,
-			      uint32_t i);
-
 M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode);
 M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo);
-
+M0_INTERNAL void m0t1fs_fill_cob_attr(struct m0_fop_cob *cob);
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 
 /*

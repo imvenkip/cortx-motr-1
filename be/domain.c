@@ -146,9 +146,11 @@ static int be_domain_stob_open(struct m0_be_domain  *dom,
 			       struct m0_stob	   **out,
 			       bool		     create)
 {
-	int rc;
+	int               rc;
+	struct m0_stob_id stob_id;
 
-	rc = m0_stob_find_by_key(dom->bd_stob_domain, stob_key, out);
+	m0_stob_id_make(0, stob_key, &dom->bd_stob_domain->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, out);
 	if (rc == 0) {
 		rc = m0_stob_state_get(*out) == CSS_UNKNOWN ?
 		     m0_stob_locate(*out) : 0;

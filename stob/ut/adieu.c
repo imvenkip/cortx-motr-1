@@ -57,7 +57,7 @@ enum {
 static const char linux_location[] = "linuxstob:./__s";
 static struct m0_stob_domain *dom;
 static struct m0_stob *obj;
-static const char path[] = "./__s/o/0000000000000002";
+static const char path[] = "./__s/o/100000000000000:2";
 static struct m0_stob_io io;
 static m0_bcount_t user_vec[NR];
 static char *user_buf[NR];
@@ -74,15 +74,17 @@ static int test_adieu_init(const char *location,
 			   const char *dom_cfg,
 			   const char *stob_cfg)
 {
-	int i;
-	int rc;
+	int               i;
+	int               rc;
+	struct m0_stob_id stob_id;
 
 	rc = m0_stob_domain_create(location,
 				   NULL, M0_STOB_UT_DOMAIN_KEY, dom_cfg, &dom);
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(dom != NULL);
 
-	rc = m0_stob_find_by_key(dom, M0_STOB_UT_STOB_KEY, &obj);
+	m0_stob_id_make(0, M0_STOB_UT_STOB_KEY, &dom->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &obj);
 	M0_ASSERT(rc == 0);
 	rc = m0_stob_locate(obj);
 	M0_ASSERT(rc == 0);

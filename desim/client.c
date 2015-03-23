@@ -56,6 +56,7 @@ static void client_pageout(struct sim *s, struct sim_thread *t, void *arg)
 	struct client_conf      *conf = c->cl_conf;
 	unsigned                 size = conf->cc_opt_count;
 	struct client_write_ext *ext;
+	struct m0_stob_id        stob_id;
 
 	while (1) {
 		while (c->cl_dirty - c->cl_io < size) {
@@ -72,9 +73,9 @@ static void client_pageout(struct sim *s, struct sim_thread *t, void *arg)
 			c->cl_inflight, c->cl_fid, ext->cwe_offset, size);
 		c->cl_io += size;
 		c->cl_inflight++;
+		m0_stob_id_make(0, c->cl_fid, &M0_FID_INIT(0, c->cl_fid), &stob_id);
 		net_rpc_process(t, conf->cc_net, conf->cc_srv,
-				&M0_FID_INIT(c->cl_fid, c->cl_fid),
-				ext->cwe_offset, size);
+				&stob_id, ext->cwe_offset, size);
 		c->cl_inflight--;
 		c->cl_io -= size;
 		M0_ASSERT(c->cl_cached >= size);

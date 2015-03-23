@@ -37,9 +37,10 @@ struct m0_uint128 {
 
 #define M0_UINT128(hi, lo) (struct m0_uint128) { .u_hi = (hi), .u_lo = (lo) }
 
-#define U128X_F "%lx:%lx"
+#define U128X_F "%"PRIx64":%"PRIx64""
 #define U128D_F "%lu:%lu"
-#define U128_P(x) (unsigned long)(x)->u_hi, (unsigned long)(x)->u_lo
+#define U128_P(x) (x)->u_hi, (x)->u_lo
+#define U128_S(u) &(u)->u_hi, &(u)->u_lo
 
 M0_INTERNAL bool m0_uint128_eq(const struct m0_uint128 *u0,
 			       const struct m0_uint128 *u1);
@@ -53,6 +54,7 @@ M0_INTERNAL void m0_uint128_add(struct m0_uint128 *res,
 /** res = a * b; */
 M0_INTERNAL void m0_uint128_mul64(struct m0_uint128 *res, uint64_t a,
 				  uint64_t b);
+M0_INTERNAL int m0_uint128_sscanf(const char *s, struct m0_uint128 *u128);
 
 /** count of bytes (in extent, IO operation, etc.) */
 typedef uint64_t m0_bcount_t;

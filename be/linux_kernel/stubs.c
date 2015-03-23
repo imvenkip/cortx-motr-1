@@ -313,16 +313,6 @@ M0_INTERNAL struct m0_be_seg *m0_be_domain_seg0_get(struct m0_be_domain *dom)
 	return NULL;
 }
 
-M0_INTERNAL int m0_ut_stob_create(struct m0_stob *stob, const char *str_cfg)
-{
-	return 0;
-}
-
-M0_INTERNAL int m0_ut_stob_destroy(struct m0_stob *stob)
-{
-	return 0;
-}
-
 int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec)
 {
 	return M0_ERR(-EINVAL);

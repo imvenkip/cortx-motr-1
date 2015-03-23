@@ -158,7 +158,6 @@ enum {
 	M0_LAYOUT_ENUM_TYPE_MAX = 32
 };
 
-
 enum { M0_DEFAULT_LAYOUT_ID = 1 };
 
 /**

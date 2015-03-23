@@ -117,6 +117,13 @@ service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
 M0_UNUSED static void
 node_options_add(struct cs_args *args, const struct m0_conf_node *node)
 {
+/*
+ * @todo Node parameters cn_memsize and cn_flags options are not used currently.
+ * Options '-m' and '-q' options are used for maximum RPC message size and
+ * minimum length of TM receive queue.
+ * If required, change the option names accordingly.
+ */
+/*
 	char buf[64] = {0};
 
 	option_add(args, m0_strdup("-m"));
@@ -126,6 +133,7 @@ node_options_add(struct cs_args *args, const struct m0_conf_node *node)
 	option_add(args, m0_strdup("-q"));
 	(void)snprintf(buf, ARRAY_SIZE(buf) - 1, "%lu", node->cn_flags);
 	option_add(args, m0_strdup(buf));
+*/
 }
 
 static bool service_and_node(const struct m0_conf_obj *obj)
@@ -199,8 +207,8 @@ M0_INTERNAL int m0_mero_conf_setup(struct m0_mero *mero, const char *local_conf,
 	M0_PRE((local_conf != NULL && m0_fid_is_set(profile)) ||
 	       (mero->cc_profile != NULL && mero->cc_confd_addr != NULL));
 
+	rmach = m0_mero_to_rmach(mero);
 	if (local_conf == NULL) {
-		rmach = m0_mero_to_rmach(mero);
 		rc = m0_conf_fs_get(mero->cc_profile, mero->cc_confd_addr,
 				    rmach, loc->lo_grp, confc, &mero->cc_fs);
 		if (rc != 0)
@@ -220,7 +228,7 @@ M0_INTERNAL int m0_mero_conf_setup(struct m0_mero *mero, const char *local_conf,
 		mero->cc_fs = M0_CONF_CAST(fs_obj, m0_conf_filesystem);
 	}
 
-	rc = m0_pools_common_init(&mero->cc_pools_common, NULL, mero->cc_fs);
+	rc = m0_pools_common_init(&mero->cc_pools_common, rmach, mero->cc_fs);
 	if (rc != 0)
 		goto cleanup;
         rc = m0_pools_setup(&mero->cc_pools_common, mero->cc_fs, NULL, NULL, NULL);

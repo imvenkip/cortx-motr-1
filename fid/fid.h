@@ -61,7 +61,8 @@ M0_INTERNAL void m0_fid_fini(void);
 
 enum {
 	/** Clears high 8 bits off. */
-	M0_FID_TYPE_MASK = 0x00ffffffffffffffULL
+	M0_FID_TYPE_MASK        = 0x00ffffffffffffffULL,
+	M0_FID_STR_LEN          = 64,
 };
 
 #define FID_F  "<%"PRIx64":%"PRIx64">"
@@ -105,12 +106,7 @@ M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name);
 M0_INTERNAL void m0_fid_tassume(struct m0_fid *fid,
 				const struct m0_fid_type *ft);
 
-/**
- * Returns a random value upto 'max', with the 'fid' and 'i' as seeds.
- * The function should return the same value when same 'fid' and 'i' are passed.
- */
-M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid, uint64_t max,
-				 uint32_t i);
+M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid);
 
 /** @} end of fid group */
 #endif /* __MERO_FID_FID_H__ */
