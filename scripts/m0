@@ -183,7 +183,7 @@ case "${1:-}" in
     check-everything)
 	check_everything
 	echo ${CONFIGURE_OPTS:-} | grep -qe '--disable-m0-asserts' || {
-	    CONFIGURE_OPTS="$CONFIGURE_OPTS --disable-m0-asserts"
+	    CONFIGURE_OPTS="${CONFIGURE_OPTS:-} --disable-m0-asserts"
 	    check_everything
 	};;
     clean) shift; clean "$@";;
