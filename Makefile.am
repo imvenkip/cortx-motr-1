@@ -675,6 +675,14 @@ addb2_m0addb2dump_CPPFLAGS  = -DM0_TARGET='m0addb2dump' $(AM_CPPFLAGS)
 addb2_m0addb2dump_LDADD     = $(top_builddir)/mero/libmero.la
 
 #
+# addb2/dump
+#
+
+sbin_PROGRAMS                 += xcode/m0protocol
+xcode_m0protocol_CPPFLAGS  = -DM0_TARGET='m0protocol' $(AM_CPPFLAGS)
+xcode_m0protocol_LDADD     = $(top_builddir)/mero/libmero.la
+
+#
 # stats/util/m0stats
 #
 

@@ -6,5 +6,7 @@ mero_libmero_la_SOURCES  += xcode/string.c \
                                   xcode/init.c \
                                   xcode/xcode.c
 
+xcode_m0protocol_SOURCES  = xcode/protocol.c
+
 EXTRA_DIST += xcode/gccxml2xcode \
               xcode/cursor.c
