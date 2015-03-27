@@ -1137,7 +1137,7 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
 }
 
 static void be_seg_init(struct m0_be_ut_backend *be,
-			const char		*name,
+			m0_bcount_t		 size,
 			bool		 	 preallocate,
 			bool		 	 mkfs,
 			const char		*stob_create_cfg,
@@ -1151,7 +1151,9 @@ static void be_seg_init(struct m0_be_ut_backend *be,
 		seg = NULL;
 	}
 	if (seg == NULL) {
-		m0_be_ut_backend_seg_add2(be, M0_BE_SEGMENT_SIZE, preallocate,
+		if (size == 0)
+			size = M0_BE_SEG_SIZE_DEFAULT;
+		m0_be_ut_backend_seg_add2(be, size, preallocate,
 					  stob_create_cfg, &seg);
 	}
 	*out = seg;
@@ -1180,7 +1182,8 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 	if (rc != 0)
 		goto err;
 
-	be_seg_init(be, name, preallocate, mkfs, rctx->rc_be_seg_path, out);
+	be_seg_init(be, rctx->rc_be_seg_size, preallocate, mkfs,
+		    rctx->rc_be_seg_path, out);
 	if (*out != NULL)
 		return 0;
 	M0_LOG(M0_ERROR, "cs_be_init: failed to init segment");
@@ -1496,6 +1499,7 @@ static void cs_help(FILE *out, const char *progname)
 "  -F       Force mkfs to override found filesystem.\n"
 "  -t num   Timeout value to wait for connection to confd. (default %u sec)\n"
 "  -r num   Number of retries in connecting to confd. (default %u)\n"
+"  -z num   backend segment size in bytes (used only by m0mkfs).\n"
 "\n"
 "Request handler options:\n"
 "  -D str   Database environment path.\n"
@@ -1771,6 +1775,11 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				LAMBDA(void, (const char *s)
 				{
 					rctx->rc_be_seg_path = s;
+				})),
+			M0_NUMBERARG('z', "BE primary segment size",
+				LAMBDA(void, (int64_t size)
+				{
+					rctx->rc_be_seg_size = size;
 				})),
 			M0_STRINGARG('c', "Path to the configuration database",
 				LAMBDA(void, (const char *s)

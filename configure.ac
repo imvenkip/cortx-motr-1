@@ -316,18 +316,6 @@ AC_SUBST([LUSTRE_VERSION])
 AS_VERSION_COMPARE(${LUSTRE_VERSION}, ${LHSM_BUILD_VERSION}, [LHSM_BUILD=0], [LHSM_BUILD=1], [LHSM_BUILD=1])
 AM_CONDITIONAL([LHSM_BUILD], [test "$LHSM_BUILD" = 1])
 
-AC_ARG_WITH([segment-size],
-        [AS_HELP_STRING([--with-segment-size=number],
-                        [set BE segment size in MiB, default is 128MiB])],
-        [SEG_SIZE=$with_segment_size],
-        [SEG_SIZE=128]
-)
-# TODO: check whether $SEG_SIZE is a correct number
-AS_IF([test -z "$SEG_SIZE" || test "x$SEG_SIZE" = xyes || test "x$SEG_SIZE" = xno],
-      [AC_MSG_ERROR([Segment size must be set with --with-segment-size option.])]
-)
-AC_DEFINE_UNQUOTED([M0_BE_SEGMENT_SIZE], [(${SEG_SIZE}UL * 1024 * 1024)])
-
 AC_ARG_WITH([trace-kbuf-size],
         [AS_HELP_STRING([--with-trace-kbuf-size=number],
                         [set kernel space trace buffer size in MiB, default is 4MiB])],

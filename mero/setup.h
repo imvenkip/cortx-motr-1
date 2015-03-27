@@ -135,6 +135,7 @@ enum {
 	M0_AD_STOB_LINUX_DOM_KEY   = 0xadf11e, /* AD file */
 	M0_ADDB_STOB_KEY           = 1,
 	M0_ADDB2_STOB_KEY          = 2,
+	M0_BE_SEG_SIZE_DEFAULT	   = 128 * 1024 * 1024ULL,
 };
 
 enum stob_type {
@@ -294,6 +295,8 @@ struct m0_reqh_context {
 	const char		    *rc_be_log_path;
 	const char		    *rc_be_seg0_path;
 	const char		    *rc_be_seg_path;
+	/** BE primary segment size for m0mkfs. */
+	m0_bcount_t		     rc_be_seg_size;
 
 	/**
 	 * Default path to the configuration database.
