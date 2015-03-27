@@ -561,7 +561,9 @@ void m0_addb2_mach_stop(struct m0_addb2_mach *mach)
 {
 	mach->ma_stopping = true;
 	pack(mach);
+	m0_mutex_lock(&mach->ma_lock);
 	mach_idle(mach);
+	m0_mutex_unlock(&mach->ma_lock);
 }
 
 void m0_addb2_mach_wait(struct m0_addb2_mach *mach)
