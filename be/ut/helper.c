@@ -415,14 +415,15 @@ M0_INTERNAL void
 m0_be_ut_backend_seg_add2(struct m0_be_ut_backend	   *ut_be,
 			  m0_bcount_t			    size,
 			  bool				    preallocate,
+			  const char			   *stob_create_cfg,
 			  struct m0_be_seg		  **out)
 {
 	struct m0_be_0type_seg_cfg seg_cfg = {
-		.bsc_stob_key	 = m0_be_ut_seg_allocate_id(),
-		.bsc_size	 = size,
-		.bsc_preallocate = preallocate,
-		.bsc_addr	 = m0_be_ut_seg_allocate_addr(size),
-		.bsc_stob_create_cfg = NULL,
+		.bsc_stob_key	     = m0_be_ut_seg_allocate_id(),
+		.bsc_size	     = size,
+		.bsc_preallocate     = preallocate,
+		.bsc_addr	     = m0_be_ut_seg_allocate_addr(size),
+		.bsc_stob_create_cfg = stob_create_cfg,
 	};
 	m0_be_ut_backend_seg_add(ut_be, &seg_cfg, out);
 }

@@ -1140,6 +1140,7 @@ static void be_seg_init(struct m0_be_ut_backend *be,
 			const char		*name,
 			bool		 	 preallocate,
 			bool		 	 mkfs,
+			const char		*stob_create_cfg,
 			struct m0_be_seg       **out)
 {
 	struct m0_be_seg *seg;
@@ -1150,13 +1151,14 @@ static void be_seg_init(struct m0_be_ut_backend *be,
 		seg = NULL;
 	}
 	if (seg == NULL) {
-		m0_be_ut_backend_seg_add2(be, M0_BE_SEGMENT_SIZE,
-					  preallocate, &seg);
+		m0_be_ut_backend_seg_add2(be, M0_BE_SEGMENT_SIZE, preallocate,
+					  stob_create_cfg, &seg);
 	}
 	*out = seg;
 }
 
-static int cs_be_init(struct m0_be_ut_backend *be,
+static int cs_be_init(struct m0_reqh_context *rctx,
+		      struct m0_be_ut_backend *be,
 		      const char              *name,
 		      bool                     preallocate,
 		      bool                     mkfs,
@@ -1172,11 +1174,13 @@ static int cs_be_init(struct m0_be_ut_backend *be,
 	snprintf(*loc, len, "linuxstob:%s%s", name[0] == '/' ? "" : "./", name);
 
 	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
+	be->but_dom_cfg.bc_log_cfg.blc_stob_create_cfg = rctx->rc_be_log_path;
+	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
 	rc = m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, mkfs);
 	if (rc != 0)
 		goto err;
 
-	be_seg_init(be, name, preallocate, mkfs, out);
+	be_seg_init(be, name, preallocate, mkfs, rctx->rc_be_seg_path, out);
 	if (*out != NULL)
 		return 0;
 	M0_LOG(M0_ERROR, "cs_be_init: failed to init segment");
@@ -1224,7 +1228,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 
 	rctx->rc_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &rctx->rc_reqh;
 
-	rc = cs_be_init(&rctx->rc_be, rctx->rc_bepath,
+	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
 			rctx->rc_be_seg_preallocate, mkfs, &rctx->rc_beseg);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "cs_be_init");
@@ -1752,6 +1756,21 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				LAMBDA(void, (const char *s)
 				{
 					rctx->rc_bepath = s;
+				})),
+			M0_STRINGARG('L', "BE log file path",
+				LAMBDA(void, (const char *s)
+				{
+					rctx->rc_be_log_path = s;
+				})),
+			M0_STRINGARG('b', "BE seg0 file path",
+				LAMBDA(void, (const char *s)
+				{
+					rctx->rc_be_seg0_path = s;
+				})),
+			M0_STRINGARG('B', "BE primary segment file path",
+				LAMBDA(void, (const char *s)
+				{
+					rctx->rc_be_seg_path = s;
 				})),
 			M0_STRINGARG('c', "Path to the configuration database",
 				LAMBDA(void, (const char *s)

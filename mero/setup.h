@@ -36,7 +36,7 @@
 #include "reqh/reqh.h"        /* m0_reqh */
 #include "yaml.h"             /* yaml_document_t */
 
-#include "be/ut/helper.h"     /* m0_be_ut_backend_seg_add2() */
+#include "be/ut/helper.h"     /* m0_be_ut_backend_seg_add2 */
 #include "pool/pool.h"        /* m0_pools_common */
 
 /**
@@ -286,6 +286,14 @@ struct m0_reqh_context {
 	/** BE env and segment used by the request handler */
 	struct m0_be_ut_backend      rc_be;
 	struct m0_be_seg            *rc_beseg;
+
+	/**
+	 * Path to BE log, seg0 and primary segment.
+	 * File in BE domain stob domain is used if for those are NULL.
+	 */
+	const char		    *rc_be_log_path;
+	const char		    *rc_be_seg0_path;
+	const char		    *rc_be_seg_path;
 
 	/**
 	 * Default path to the configuration database.

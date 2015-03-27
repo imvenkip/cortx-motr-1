@@ -78,6 +78,7 @@ M0_INTERNAL void
 m0_be_ut_backend_seg_add2(struct m0_be_ut_backend	   *ut_be,
 			  m0_bcount_t			    size,
 			  bool				    preallocate,
+			  const char			   *stob_create_cfg,
 			  struct m0_be_seg		  **out);
 M0_INTERNAL void
 m0_be_ut_backend_seg_add(struct m0_be_ut_backend	   *ut_be,
