@@ -47,6 +47,8 @@
 #include "addb/addb_svc.h"                 /* m0_addb_svc_type */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
+#include "addb2/global.h"
+#include "addb2/sys.h"
 
 extern struct io_mem_stats iommstats;
 extern struct m0_bitmap    m0t1fs_client_ep_tmid;
@@ -914,8 +916,14 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_services_terminate;
 
+	rc = m0_addb2_sys_net_start_with(m0_addb2_global_get(),
+					 &csb->csb_pools_common.pc_svc_ctxs);
+	if (rc != 0)
+		goto err_sb_layout_fini;
 	return M0_RC(rc);
 
+err_sb_layout_fini:
+	m0t1fs_sb_layouts_fini(csb);
 err_services_terminate:
 	m0_reqh_services_terminate(&csb->csb_reqh);
 err_addb_mc_unconf:
@@ -942,6 +950,7 @@ err_return:
 
 static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 {
+	m0_addb2_sys_net_stop(m0_addb2_global_get());
 	m0t1fs_sb_layouts_fini(csb);
 	m0_reqh_services_terminate(&csb->csb_reqh);
 	/* @todo Make a separate unconfigure api and do this in that */
