@@ -273,6 +273,7 @@ M0_INTERNAL void m0_be_ut_fake_mkfs(void)
 			.bsc_size	 = 1 << 24,
 			.bsc_preallocate = false,
 			.bsc_addr	 = m0_be_ut_seg_allocate_addr(1 << 24),
+			.bsc_stob_create_cfg = NULL,
 		};
 	}
 	m0_be_ut_backend_cfg_default(&dom_cfg);
@@ -320,13 +321,16 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_stob_domain_cfg_create = NULL,
 		.bc_stob_domain_key	= m0_atomic64_add_return(&dom_key, 1),
 		.bc_log_cfg = {
-			.blc_stob_key = m0_be_ut_seg_allocate_id(),
-			.blc_size     = 1 << 27,
+			.blc_stob_key	     = m0_be_ut_seg_allocate_id(),
+			.blc_size	     = 1 << 27,
+			.blc_stob_create_cfg = NULL,
 		},
 		.bc_seg0_cfg = {
-			.bsc_stob_key = BE_UT_SEG_START_ID - 1,
-			.bsc_size     = 1 << 20,
-			.bsc_addr     = m0_be_ut_seg_allocate_addr(1 << 20),
+			.bsc_stob_key	     = BE_UT_SEG_START_ID - 1,
+			.bsc_size	     = 1 << 20,
+			.bsc_preallocate     = false,
+			.bsc_addr	  = m0_be_ut_seg_allocate_addr(1 << 20),
+			.bsc_stob_create_cfg = NULL,
 		},
 		.bc_seg_cfg		   = NULL,
 		.bc_seg_nr		   = 0,
@@ -418,6 +422,7 @@ m0_be_ut_backend_seg_add2(struct m0_be_ut_backend	   *ut_be,
 		.bsc_size	 = size,
 		.bsc_preallocate = preallocate,
 		.bsc_addr	 = m0_be_ut_seg_allocate_addr(size),
+		.bsc_stob_create_cfg = NULL,
 	};
 	m0_be_ut_backend_seg_add(ut_be, &seg_cfg, out);
 }
@@ -580,6 +585,7 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 			.bsc_size	 = size,
 			.bsc_preallocate = false,
 			.bsc_addr	 = m0_be_ut_seg_allocate_addr(size),
+			.bsc_stob_create_cfg = NULL,
 		};
 		m0_be_ut_backend_seg_add(ut_be, &seg_cfg, &ut_seg->bus_seg);
 	}

@@ -60,8 +60,9 @@ struct m0_be_0type;
 struct m0_be_log;
 
 struct m0_be_0type_log_cfg {
-	uint64_t    blc_stob_key;
-	m0_bcount_t blc_size;
+	uint64_t     blc_stob_key;
+	m0_bcount_t  blc_size;
+	const char  *blc_stob_create_cfg;
 };
 
 struct m0_be_0type_seg_cfg {
@@ -69,6 +70,7 @@ struct m0_be_0type_seg_cfg {
 	bool	     bsc_preallocate;
 	m0_bcount_t  bsc_size;
 	void	    *bsc_addr;
+	const char  *bsc_stob_create_cfg;
 };
 
 struct m0_be_domain_cfg {

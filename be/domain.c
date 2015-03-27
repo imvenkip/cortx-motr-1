@@ -142,6 +142,7 @@ static int _0types_visit(struct m0_be_domain *dom, bool init)
 
 static int be_domain_stob_open(struct m0_be_domain  *dom,
 			       uint64_t		     stob_key,
+			       const char	    *stob_create_cfg,
 			       struct m0_stob	   **out,
 			       bool		     create)
 {
@@ -152,7 +153,7 @@ static int be_domain_stob_open(struct m0_be_domain  *dom,
 		rc = m0_stob_state_get(*out) == CSS_UNKNOWN ?
 		     m0_stob_locate(*out) : 0;
 		rc = rc ?: create && m0_stob_state_get(*out) == CSS_NOENT ?
-		     m0_stob_create(*out, NULL, NULL) : 0;
+		     m0_stob_create(*out, NULL, stob_create_cfg) : 0;
 		rc = rc ?: m0_stob_state_get(*out) == CSS_EXISTS ? 0 : -ENOENT;
 		if (rc != 0)
 			m0_stob_put(*out);
@@ -226,7 +227,7 @@ static int be_domain_seg_open(struct m0_be_domain *dom,
 	struct m0_stob *stob;
 	int		rc;
 
-	rc = be_domain_stob_open(dom, stob_key, &stob, false);
+	rc = be_domain_stob_open(dom, stob_key, NULL, &stob, false);
 	if (rc == 0) {
 		m0_be_seg_init(seg, stob, dom);
 		m0_stob_put(stob);
@@ -264,7 +265,8 @@ static int be_domain_seg_create(struct m0_be_domain		 *dom,
 	int		rc;
 	int		rc1;
 
-	rc = be_domain_stob_open(dom, seg_cfg->bsc_stob_key, &stob, true);
+	rc = be_domain_stob_open(dom, seg_cfg->bsc_stob_key,
+				 seg_cfg->bsc_stob_create_cfg, &stob, true);
 	if (rc != 0)
 		goto out;
 	m0_be_seg_init(seg, stob, dom);
@@ -362,7 +364,9 @@ static int be_domain_log_init(struct m0_be_domain *dom,
 	M0_ENTRY("BE dom = %p, log stob key = %"PRIu64,
 		 dom, log_cfg->blc_stob_key);
 
-	rc = be_domain_stob_open(dom, log_cfg->blc_stob_key, &log_stob, create);
+	rc = be_domain_stob_open(dom, log_cfg->blc_stob_key,
+				 log_cfg->blc_stob_create_cfg,
+				 &log_stob, create);
 	if (rc == 0) {
 		m0_be_log_init(log, log_stob, m0_be_engine_got_log_space_cb);
 		m0_stob_put(log_stob);
