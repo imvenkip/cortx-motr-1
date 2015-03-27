@@ -346,8 +346,8 @@ struct m0_addb2_mach_ops {
 	 *
 	 * see fop/fom.c:loc_addb2_submit().
 	 */
-	int (*apo_submit)(const struct m0_addb2_mach *mach,
-			  struct m0_addb2_trace_obj  *tobj);
+	int (*apo_submit)(struct m0_addb2_mach *mach,
+			  struct m0_addb2_trace_obj *tobj);
 	/**
 	 * Invoked by IMPLEMENTATION to notify SYSTEM that stopped machine
 	 * completed its operation and can be finalised.

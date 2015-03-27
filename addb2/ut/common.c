@@ -31,7 +31,7 @@ int (*submit)(const struct m0_addb2_mach *mach,
 	      struct m0_addb2_trace *trace);
 void (*idle)(const struct m0_addb2_mach *mach);
 
-static int test_submit(const struct m0_addb2_mach *mach,
+static int test_submit(struct m0_addb2_mach *mach,
 		       struct m0_addb2_trace_obj *obj)
 {
 	return (*submit)(mach, &obj->o_tr);
