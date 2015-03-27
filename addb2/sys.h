@@ -35,6 +35,7 @@
 #include "lib/tlist.h"
 #include "lib/semaphore.h"
 #include "sm/sm.h"
+struct m0_addb2_trace_obj;
 struct m0_addb2_storage;
 struct m0_addb2_net;
 struct m0_stob;
@@ -79,9 +80,13 @@ void m0_addb2_sys_sm_stop(struct m0_addb2_sys *sys);
 
 int  m0_addb2_sys_net_start(struct m0_addb2_sys *sys);
 void m0_addb2_sys_net_stop(struct m0_addb2_sys *sys);
+int  m0_addb2_sys_net_start_with(struct m0_addb2_sys *sys, struct m0_tl *head);
 int  m0_addb2_sys_stor_start(struct m0_addb2_sys *sys, struct m0_stob *stob,
 			     m0_bcount_t size, bool format);
 void m0_addb2_sys_stor_stop(struct m0_addb2_sys *sys);
+
+int m0_addb2_sys_submit(struct m0_addb2_sys *sys,
+			struct m0_addb2_trace_obj *obj);
 
 
 /** @} end of addb2 group */

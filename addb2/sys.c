@@ -35,6 +35,8 @@
 #include "lib/trace.h"
 #include "lib/thread.h"
 
+#include "pool/pool.h"                  /* pools_common_svc_ctx_tl */
+
 #include "addb2/addb2.h"
 #include "addb2/storage.h"
 #include "addb2/net.h"
@@ -48,7 +50,7 @@ static void sys_lock(struct m0_addb2_sys *sys);
 static void sys_unlock(struct m0_addb2_sys *sys);
 static void sys_balance(struct m0_addb2_sys *sys);
 static bool sys_invariant(const struct m0_addb2_sys *sys);
-static int  sys_submit(const struct m0_addb2_mach *mach,
+static int  sys_submit(struct m0_addb2_mach *mach,
 		       struct m0_addb2_trace_obj  *obj);
 static void net_idle(struct m0_addb2_net *net, void *datum);
 static void net_stop(struct m0_addb2_sys *sys);
@@ -181,6 +183,32 @@ void m0_addb2_sys_net_stop(struct m0_addb2_sys *sys)
 	sys_unlock(sys);
 }
 
+int m0_addb2_sys_net_start_with(struct m0_addb2_sys *sys, struct m0_tl *head)
+{
+	struct m0_reqh_service_ctx *service;
+	int                         result;
+
+	result = m0_addb2_sys_net_start(sys);
+	if (result != 0)
+		return M0_ERR(result);
+
+	m0_tl_for(pools_common_svc_ctx, head, service) {
+		/**
+		 * @todo somewhat arbitrary assumption that MD and IO services
+		 * should receive addb2 records. The proper solution is to add
+		 * addb2 services to conf.
+		 */
+		if (!M0_IN(service->sc_type, (M0_CST_MDS, M0_CST_IOS)))
+			continue;
+		result = m0_addb2_net_add(sys->sy_net, &service->sc_conn);
+		if (result != 0) {
+			m0_addb2_sys_net_stop(sys);
+			break;
+		}
+	} m0_tl_endfor;
+	return result;
+}
+
 int m0_addb2_sys_stor_start(struct m0_addb2_sys *sys, struct m0_stob *stob,
 			     m0_bcount_t size, bool format)
 {
@@ -213,6 +241,22 @@ void m0_addb2_sys_sm_stop(struct m0_addb2_sys *sys)
 	sys_unlock(sys);
 }
 
+int m0_addb2_sys_submit(struct m0_addb2_sys *sys,
+			struct m0_addb2_trace_obj *obj)
+{
+	sys_lock(sys);
+	if (sys->sy_queued + obj->o_tr.tr_nr <= sys->sy_conf.co_queue_max) {
+		sys->sy_queued += obj->o_tr.tr_nr;
+		tr_tlink_init_at_tail(obj, &sys->sy_queue);
+		sys_post(sys);
+	} else {
+		M0_LOG(M0_WARN, "Queue overflow.");
+		obj = NULL;
+	}
+	sys_unlock(sys);
+	return obj != NULL;
+}
+
 static void sys_balance(struct m0_addb2_sys *sys)
 {
 	struct m0_addb2_trace_obj *obj;
@@ -238,25 +282,13 @@ static void sys_balance(struct m0_addb2_sys *sys)
 void (*m0_addb2__sys_submit_trap)(struct m0_addb2_sys *sys,
 				  struct m0_addb2_trace_obj *obj) = NULL;
 
-static int sys_submit(const struct m0_addb2_mach *m,
-		      struct m0_addb2_trace_obj *obj)
+static int sys_submit(struct m0_addb2_mach *m, struct m0_addb2_trace_obj *obj)
 {
 	struct m0_addb2_sys *sys = m0_addb2_mach_cookie(m);
 
 	if (M0_FI_ENABLED("trap") && m0_addb2__sys_submit_trap != NULL)
 		m0_addb2__sys_submit_trap(sys, obj);
-
-	sys_lock(sys);
-	if (sys->sy_queued + obj->o_tr.tr_nr <= sys->sy_conf.co_queue_max) {
-		sys->sy_queued += obj->o_tr.tr_nr;
-		tr_tlink_init_at_tail(obj, &sys->sy_queue);
-		sys_post(sys);
-	} else {
-		M0_LOG(M0_WARN, "Queue overflow.");
-		obj = NULL;
-	}
-	sys_unlock(sys);
-	return obj != NULL;
+	return m0_addb2_sys_submit(sys, obj);
 }
 
 static void sys_post(struct m0_addb2_sys *sys)
