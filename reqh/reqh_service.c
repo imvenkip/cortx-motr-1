@@ -639,7 +639,7 @@ M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_fid *id,
 
 	M0_ALLOC_PTR(*ctx);
 	if (ctx == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	rc = m0_reqh_service_ctx_init(*ctx, id, stype);
 	if (rc == 0 && connect) {
 		rc = reqh_service_connect(*ctx, rmach, endpoint,

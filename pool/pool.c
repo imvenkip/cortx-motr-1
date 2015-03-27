@@ -586,7 +586,7 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 						cs->cs_type, *endpoint, &ctx,
 						services_connect);
 		if (rc != 0)
-			return M0_RC(rc);
+			return M0_ERR(rc);
 		pools_common_svc_ctx_tlink_init_at_tail(ctx, &pc->pc_svc_ctxs);
 	}
 	M0_CNT_INC(pc->pc_nr_svcs[cs->cs_type]);
@@ -608,7 +608,7 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	/*
 	 * XXX TODO: Replace m0_conf_diter_next_sync() with
