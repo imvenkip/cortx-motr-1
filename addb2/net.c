@@ -106,6 +106,7 @@ M0_TL_DEFINE(src, static, struct source);
 static void src_fini     (struct source *s);
 static void net_lock     (struct m0_addb2_net *net);
 static void net_unlock   (struct m0_addb2_net *net);
+static void net_force    (struct m0_addb2_net *net);
 static void net_sent     (struct m0_rpc_item *item);
 static bool src_invariant(const struct source *s);
 static bool net_invariant(const struct m0_addb2_net *net);
@@ -206,44 +207,13 @@ M0_INTERNAL int m0_addb2_net_submit(struct m0_addb2_net *net,
 
 M0_INTERNAL void m0_addb2_net_tick(struct m0_addb2_net *net)
 {
-	struct source               *s;
-	struct m0_fop               *fop;
-	static struct m0_addb2_trace NULL_TRACE = {
-		.tr_nr   = 0,
-		.tr_body = NULL
-	};
-
 	/*
 	 * If a trace was sent out recently, do nothing, otherwise send a dummy
 	 * null trace through some of connections to trigger piggy-backing of
 	 * more traces.
 	 */
-
-	if (!m0_time_is_in_past(m0_time_add(net->ne_last, IDLE_THRESHOLD)))
-		return;
-
-	M0_ALLOC_PTR(fop);
-	if (fop != NULL) {
-		net_fop_init(fop, net, &NULL_TRACE);
-		net_lock(net);
-		/* Send everything to the first addb service. Scalability
-		   problem. */
-		s = src_tlist_head(&net->ne_src);
-		net_unlock(net);
-		if (s != NULL) {
-			int result;
-
-			result = m0_rpc_oneway_item_post(s->s_src.ris_conn,
-							 &fop->f_item);
-			if (result != 0)
-				M0_LOG(M0_ERROR, "Post failure: %i.", result);
-		} else {
-			fop->f_data.fd_data = NULL;
-			m0_fop_fini(fop);
-			m0_free(fop);
-		}
-	} else
-		M0_LOG(M0_ERROR, "Cannot allocate fop.");
+	if (m0_time_is_in_past(m0_time_add(net->ne_last, IDLE_THRESHOLD)))
+		net_force(net);
 }
 
 M0_INTERNAL void m0_addb2_net_stop(struct m0_addb2_net *net,
@@ -251,25 +221,39 @@ M0_INTERNAL void m0_addb2_net_stop(struct m0_addb2_net *net,
 						    void *),
 				   void *datum)
 {
-	net_lock(net);
+	struct m0_tl              *q = &net->ne_queue;
+	struct m0_addb2_trace_obj *obj;
+
+
 	M0_PRE(net->ne_callback == NULL);
 	/*
 	 * If there are no sources, it makes no sense to wait for queue drain.
 	 */
 	if (src_tlist_is_empty(&net->ne_src)) {
-		struct m0_addb2_trace_obj *obj;
-
-		m0_tl_teardown(tr, &net->ne_queue, obj) {
+		m0_tl_teardown(tr, q, obj) {
 			m0_addb2_trace_done(&obj->o_tr);
 		}
 	}
-	if (tr_tlist_is_empty(&net->ne_queue))
+	/*
+	 * @todo What to do when addb2 net is stopping, but there are no rpc
+	 * packets to piggy-back remaining traces to?
+	 *
+	 * This usually happens during umount.
+	 *
+	 * For now, just discard all the traces.
+	 */
+	if (!tr_tlist_is_empty(q)) {
+		M0_LOG(M0_WARN, "Traces discarded: %zi", tr_tlist_length(q));
+		m0_tl_teardown(tr, q, obj) {
+			m0_addb2_trace_done(&obj->o_tr);
+		}
+	}
+	if (tr_tlist_is_empty(q))
 		(*callback)(net, datum);
 	else {
 		net->ne_callback = callback;
 		net->ne_datum    = datum;
 	}
-	net_unlock(net);
 }
 
 M0_INTERNAL int m0_addb2_net_module_init(void)
@@ -321,6 +305,39 @@ static bool net_invariant(const struct m0_addb2_net *net)
 {
 	return m0_tl_forall(src, s, &net->ne_src,
 			    s->s_net == net && src_invariant(s));
+}
+
+static void net_force(struct m0_addb2_net *net)
+{
+	struct source               *s;
+	struct m0_fop               *fop;
+	static struct m0_addb2_trace NULL_TRACE = {
+		.tr_nr   = 0,
+		.tr_body = NULL
+	};
+
+	M0_ALLOC_PTR(fop);
+	if (fop != NULL) {
+		net_fop_init(fop, net, &NULL_TRACE);
+		net_lock(net);
+		/* Send everything to the first addb service. Scalability
+		   problem. */
+		s = src_tlist_head(&net->ne_src);
+		net_unlock(net);
+		if (s != NULL) {
+			int result;
+
+			result = m0_rpc_oneway_item_post(s->s_src.ris_conn,
+							 &fop->f_item);
+			if (result != 0)
+				M0_LOG(M0_ERROR, "Post failure: %i.", result);
+		} else {
+			fop->f_data.fd_data = NULL;
+			m0_fop_fini(fop);
+			m0_free(fop);
+		}
+	} else
+		M0_LOG(M0_ERROR, "Cannot allocate fop.");
 }
 
 /**
