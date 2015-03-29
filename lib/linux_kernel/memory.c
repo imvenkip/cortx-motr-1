@@ -34,6 +34,26 @@
 
 M0_INTERNAL void *m0_arch_alloc(size_t size)
 {
+	/**
+	 * GFP_NOFS is used here to avoid deadlocks.
+	 *
+	 * Normal kernel allocation mode (GFP_KERNEL) allows kernel memory
+	 * allocator to call file-system to free some cached objects (pages,
+	 * inodes, etc.). This introduces a danger of deadlock when a memory
+	 * allocation is done under a lock and to free cached object the same
+	 * lock has to be taken.
+	 *
+	 * m0t1fs liberally allocated memory under critical locks (e.g., rpc
+	 * machine lock), which is inherently dead-lock prone.
+	 *
+	 * Using GFP_NOFS disabled re-entering file systems from the allocator,
+	 * eliminating dead-locks at the risk of getting -ENOMEM earlier than
+	 * necessary.
+	 *
+	 * @todo The proper solution is to introduce an additional interface
+	 * m0_alloc_safe(), to be called outside of critical locks and using
+	 * GFP_KERNEL.
+	 */
 	return kzalloc(size, GFP_NOFS);
 }
 
