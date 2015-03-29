@@ -1501,6 +1501,7 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 {
 	struct nlx_kcore_domain *kd;
 	int rc;
+	M0_THREAD_ENTER;
 
 	if (!capable(CAP_SYS_ADMIN))
 		return M0_ERR(-EPERM);
@@ -1544,6 +1545,7 @@ M0_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 	struct nlx_kcore_buffer *kb;
 	bool cleanup = false;
 	int rc;
+	M0_THREAD_ENTER;
 
 	M0_PRE(nlx_kcore_domain_invariant(kd));
 	file->private_data = NULL;
