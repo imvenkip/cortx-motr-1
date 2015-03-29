@@ -32,6 +32,8 @@
 #include "lib/memory.h"
 #include "module/instance.h"
 #include "addb2/sys.h"
+#include "addb2/identifier.h"         /* M0_AVI_THREAD */
+#include "addb2/addb2.h"
 
 #define SYS(instance)							\
 	((struct m0_addb2_sys *)(instance)->i_moddata[M0_MODULE_ADDB2])
@@ -42,8 +44,10 @@ M0_INTERNAL void m0_addb2_global_thread_enter(void)
 	struct m0_thread_tls *tls = m0_thread_tls();
 
 	M0_PRE(tls->tls_addb2_mach == NULL);
-	if (sys != NULL)
+	if (sys != NULL) {
 		tls->tls_addb2_mach = m0_addb2_sys_get(sys);
+		m0_addb2_push(M0_AVI_THREAD, M0_ADDB2_OBJ(&tls->tls_self->t_h));
+	}
 }
 
 M0_INTERNAL void m0_addb2_global_thread_leave(void)
@@ -54,6 +58,7 @@ M0_INTERNAL void m0_addb2_global_thread_leave(void)
 
 	if (mach != NULL) {
 		M0_ASSERT(sys != NULL);
+		m0_addb2_pop(M0_AVI_THREAD);
 		m0_addb2_sys_put(sys, mach);
 		tls->tls_addb2_mach = NULL;
 	}
