@@ -196,7 +196,7 @@ static void addb2_fom_fini(struct m0_fom *fom0)
 	struct addb2_fom *fom = M0_AMB(fom, fom0, a2_fom);
 
 	m0_fom_fini(fom0);
-	m0_chan_fini(&fom->a2_chan);
+	m0_chan_fini_lock(&fom->a2_chan);
 	m0_mutex_fini(&fom->a2_lock);
 	m0_free(fom);
 }
