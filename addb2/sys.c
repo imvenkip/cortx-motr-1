@@ -188,9 +188,11 @@ int m0_addb2_sys_net_start_with(struct m0_addb2_sys *sys, struct m0_tl *head)
 	struct m0_reqh_service_ctx *service;
 	int                         result;
 
-	result = m0_addb2_sys_net_start(sys);
-	if (result != 0)
-		return M0_ERR(result);
+	if (sys->sy_net == NULL) {
+		result = m0_addb2_sys_net_start(sys);
+		if (result != 0)
+			return M0_ERR(result);
+	}
 
 	m0_tl_for(pools_common_svc_ctx, head, service) {
 		/**
