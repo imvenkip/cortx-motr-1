@@ -210,7 +210,7 @@ static void addb2_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 static void addb2_done(struct m0_addb2_trace_obj *obj)
 {
 	struct addb2_fom *fom = M0_AMB(fom, obj, a2_obj);
-	m0_chan_signal(&fom->a2_chan);
+	m0_chan_signal_lock(&fom->a2_chan);
 }
 
 static size_t addb2_fom_home_locality(const struct m0_fom *fom)
