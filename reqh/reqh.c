@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
- *		    Mandar Sawant <Mandar_Sawant@xyratex.com>
+ *                  Mandar Sawant <Mandar_Sawant@xyratex.com>
  * Original creation date: 05/19/2010
  */
 
@@ -42,6 +42,7 @@
 #include "fop/fom_generic.h"
 #include "dtm/dtm.h"
 #include "rpc/rpc.h"
+#include "rpc/item_internal.h"          /* m0_rpc_item_is_request */
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "layout/pdclust.h"
@@ -91,33 +92,33 @@ struct disallowed_fop_reply {
    Request handler state machine description
  */
 static struct m0_sm_state_descr m0_reqh_sm_descr[] = {
-        [M0_REQH_ST_INIT] = {
-                .sd_flags       = M0_SDF_INITIAL | M0_SDF_FINAL,
-                .sd_name        = "Init",
-                .sd_allowed     = M0_BITS(M0_REQH_ST_NORMAL,
+	[M0_REQH_ST_INIT] = {
+		.sd_flags       = M0_SDF_INITIAL | M0_SDF_FINAL,
+		.sd_name        = "Init",
+		.sd_allowed     = M0_BITS(M0_REQH_ST_NORMAL,
 					  M0_REQH_ST_SVCS_STOP)
-        },
-        [M0_REQH_ST_NORMAL] = {
-                .sd_flags       = 0,
-                .sd_name        = "Normal",
-                .sd_allowed     = M0_BITS(M0_REQH_ST_DRAIN,
+	},
+	[M0_REQH_ST_NORMAL] = {
+		.sd_flags       = 0,
+		.sd_name        = "Normal",
+		.sd_allowed     = M0_BITS(M0_REQH_ST_DRAIN,
 					  M0_REQH_ST_SVCS_STOP)
-        },
-        [M0_REQH_ST_DRAIN] = {
-                .sd_flags       = 0,
-                .sd_name        = "Drain",
-                .sd_allowed     = M0_BITS(M0_REQH_ST_SVCS_STOP)
-        },
-        [M0_REQH_ST_SVCS_STOP] = {
-                .sd_flags       = 0,
-                .sd_name        = "ServicesStop",
-                .sd_allowed     = M0_BITS(M0_REQH_ST_STOPPED)
-        },
-        [M0_REQH_ST_STOPPED] = {
-                .sd_flags       = M0_SDF_TERMINAL,
-                .sd_name        = "Stopped",
-                .sd_allowed     = 0
-        },
+	},
+	[M0_REQH_ST_DRAIN] = {
+		.sd_flags       = 0,
+		.sd_name        = "Drain",
+		.sd_allowed     = M0_BITS(M0_REQH_ST_SVCS_STOP)
+	},
+	[M0_REQH_ST_SVCS_STOP] = {
+		.sd_flags       = 0,
+		.sd_name        = "ServicesStop",
+		.sd_allowed     = M0_BITS(M0_REQH_ST_STOPPED)
+	},
+	[M0_REQH_ST_STOPPED] = {
+		.sd_flags       = M0_SDF_TERMINAL,
+		.sd_name        = "Stopped",
+		.sd_allowed     = 0
+	},
 };
 
 /**
@@ -398,14 +399,18 @@ M0_INTERNAL int m0_reqh_services_state_count(struct m0_reqh *reqh, int state)
 
 M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 {
-	int                     rh_st;
-	int                     svc_st;
-	struct m0_reqh_service *svc;
+	int                                rh_st;
+	int                                svc_st;
+	struct m0_reqh_service            *svc;
+	const struct m0_reqh_service_type *stype;
 
 	M0_PRE(reqh != NULL);
 	M0_PRE(fop != NULL && fop->f_type != NULL);
 
-	svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
+	stype = fop->f_type->ft_fom_type.ft_rstype;
+	if (stype == NULL)
+		return M0_ERR(-ENOSYS);
+	svc = m0_reqh_service_find(stype, reqh);
 	if (svc == NULL)
 		return M0_ERR(-ECONNREFUSED);
 	rh_st = m0_reqh_state_get(reqh);
@@ -414,7 +419,7 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 		 * Allow rpc connection fops from other services during
 		 * startup.
 		 */
-		if (svc != NULL && svc->rs_type == &m0_rpc_service_type)
+		if (svc != NULL && stype == &m0_rpc_service_type)
 			return 0;
 		return M0_ERR(-EAGAIN);
 	}
@@ -457,8 +462,8 @@ static int disallowed_fop_tick(struct m0_fom *fom, void *data, int *phase)
 
 	ctx = reqh != NULL ? &reqh->rh_addb_ctx : &m0_addb_proc_ctx;
 	fop = m0_fop_reply_alloc(reply->ffr_fop, &m0_fop_generic_reply_fopt);
-        if (fop == NULL)
-                REQH_ADDB_OOM(FOP_FAILED_REPLY_TICK_1, ctx);
+	if (fop == NULL)
+		REQH_ADDB_OOM(FOP_FAILED_REPLY_TICK_1, ctx);
 	else {
 		struct m0_fop_generic_reply *rep = m0_fop_data(fop);
 
@@ -520,7 +525,8 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 		m0_rwlock_read_unlock(&reqh->rh_rwlock);
 		M0_LOG(M0_WARN, "fop \"%s\"@%p disallowed: %i.",
 		       m0_fop_name(fop), fop, rc);
-		fop_disallowed(reqh, fop, -ESHUTDOWN);
+		if (m0_rpc_item_is_request(&fop->f_item))
+			fop_disallowed(reqh, fop, M0_ERR(-ESHUTDOWN));
 		/*
 		 * Note :
 		 *      Since client will receive generic reply for
@@ -650,7 +656,7 @@ M0_INTERNAL void m0_reqh_services_terminate(struct m0_reqh *reqh)
 M0_INTERNAL void m0_reqh_pre_storage_fini_svcs_stop(struct m0_reqh *reqh)
 {
 	M0_PRE(reqh != NULL);
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	M0_PRE(m0_reqh_invariant(reqh));
 	M0_PRE(M0_IN(m0_reqh_state_get(reqh),
 		     (M0_REQH_ST_DRAIN, M0_REQH_ST_NORMAL, M0_REQH_ST_INIT)));
@@ -658,12 +664,12 @@ M0_INTERNAL void m0_reqh_pre_storage_fini_svcs_stop(struct m0_reqh *reqh)
 	reqh_state_set(reqh, M0_REQH_ST_SVCS_STOP);
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_SVCS_STOP);
 
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	__reqh_svcs_stop(reqh, 2);
 
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	reqh_state_set(reqh, M0_REQH_ST_STOPPED);
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
 M0_INTERNAL void m0_reqh_post_storage_fini_svcs_stop(struct m0_reqh *reqh)
@@ -675,13 +681,13 @@ M0_INTERNAL void m0_reqh_post_storage_fini_svcs_stop(struct m0_reqh *reqh)
 M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh)
 {
 	M0_PRE(reqh != NULL);
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	M0_PRE(m0_reqh_invariant(reqh));
 
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_INIT);
 	reqh_state_set(reqh, M0_REQH_ST_NORMAL);
 
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
 M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)
@@ -699,7 +705,7 @@ M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)
 		m0_net_tm_stats_post_addb(&rpcmach->rm_tm);
 	} m0_tl_endfor;
 
-        m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
+	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
 		if (service->rs_ops->rso_stats_post_addb != NULL)
 			(*service->rs_ops->rso_stats_post_addb)(service);

@@ -22,10 +22,12 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
-#include "lib/assert.h"  /* M0_PRE */
+#include "lib/assert.h"               /* M0_PRE */
 #include "lib/memory.h"
-#include "lib/atomic.h"  /* m0_atomic64 */
-#include "lib/finject.h" /* M0_FI_ENABLED */
+#include "lib/atomic.h"               /* m0_atomic64 */
+#include "lib/finject.h"              /* M0_FI_ENABLED */
+#include "addb2/addb2.h"
+#include "addb2/identifier.h"         /* M0_AVI_ALLOC */
 
 /**
    @addtogroup memory
@@ -50,6 +52,7 @@ M0_INTERNAL void *m0_alloc(size_t size)
 	if (p != NULL)
 		m0_atomic64_add(&cumulative_alloc, size);
 #endif
+	M0_ADDB2_ADD(M0_AVI_ALLOC, size, (uint64_t)p);
 	if (p == NULL) {
 		M0_LOG(M0_ERROR, "Failed to allocate %zi bytes.", size);
 		dump_stack();

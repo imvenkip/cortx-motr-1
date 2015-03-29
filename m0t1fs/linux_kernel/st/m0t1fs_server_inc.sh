@@ -220,7 +220,8 @@ mero_service()
 			local mds=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 
-			SNAME="-s mdservice -s rmservice -s addb -s stats"
+			SNAME="-s mdservice -s rmservice -s addb -s addb2 \
+                               -s stats"
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
@@ -229,7 +230,7 @@ mero_service()
 			 $SNAME |& tee -a m0d.log"
 			echo $cmd
 			eval "$cmd"
-
+			
 			cmd="cd $DIR && exec \
 			$prog_start -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs -w $P \
@@ -265,7 +266,8 @@ mero_service()
 			local ios=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 
-			SNAME="-s ioservice -s sns_repair -s sns_rebalance -s addb"
+			SNAME="-s ioservice -s sns_repair -s sns_rebalance \
+                               -s addb -s addb2"
 
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \

@@ -36,6 +36,8 @@
 
 #include "m0t1fs/m0t1fs_addb.h"
 #include "ha/note_fops.h"
+#include "addb2/global.h"
+#include "addb2/sys.h"
 
 static char *node_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */
 module_param(node_uuid, charp, S_IRUGO);
@@ -68,8 +70,9 @@ M0_INTERNAL const char *m0t1fs_param_node_uuid_get(void)
 
 M0_INTERNAL int m0t1fs_init(void)
 {
-	int rc;
-	int cpus;
+	struct m0_addb2_sys *sys = m0_addb2_global_get();
+	int                  rc;
+	int                  cpus;
 
 	M0_ENTRY();
 
@@ -125,10 +128,14 @@ M0_INTERNAL int m0t1fs_init(void)
 	if (rc != 0)
 		goto ha_state_fop_fini;
 
-	rc = register_filesystem(&m0t1fs_fs_type);
+	m0_addb2_sys_sm_start(sys);
+	rc = m0_addb2_sys_net_start(sys);
 	if (rc != 0)
 		goto icache_fini;
 
+	rc = register_filesystem(&m0t1fs_fs_type);
+	if (rc != 0)
+		goto addb2_fini;
 	/*
 	 * Limit the number of concurrent parity calculations
 	 * to avoid starving other threads (especially LNet) out.
@@ -139,9 +146,10 @@ M0_INTERNAL int m0t1fs_init(void)
 	cpus = (num_online_cpus() / 2) ?: 1;
 	printk(KERN_INFO "mero: max CPUs for parity calcs: %d\n", cpus);
 	m0_semaphore_init(&m0t1fs_cpus_sem, cpus);
-
 	return M0_RC(0);
 
+addb2_fini:
+	m0_addb2_sys_net_stop(sys);
 icache_fini:
 	m0t1fs_inode_cache_fini();
 ha_state_fop_fini:
@@ -157,10 +165,7 @@ bitmap_fini:
 	m0_mutex_fini(&m0t1fs_mutex);
 out:
 	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
-
-	M0_LEAVE("rc: %d", rc);
-	M0_ASSERT(rc != 0);
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL void m0t1fs_fini(void)
@@ -170,6 +175,7 @@ M0_INTERNAL void m0t1fs_fini(void)
 
 	(void)unregister_filesystem(&m0t1fs_fs_type);
 
+	m0_addb2_sys_net_stop(m0_addb2_global_get());
 	m0t1fs_inode_cache_fini();
 	m0_ha_state_fop_fini();
 	m0_mdservice_fop_fini();

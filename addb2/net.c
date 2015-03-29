@@ -50,6 +50,7 @@
 #include "rpc/rpc_opcodes.h"            /* M0_ADDB_FOP_OPCODE */
 #include "addb2/addb2.h"
 #include "addb2/addb2_xc.h"
+#include "addb2/service.h"
 #include "addb2/internal.h"
 
 /**
@@ -277,7 +278,10 @@ M0_INTERNAL int m0_addb2_net_module_init(void)
 			 .name      = "addb2 fop",
 			 .opcode    = M0_ADDB_FOP_OPCODE,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
-			 .xt        = m0_addb2_trace_xc);
+			 .xt        = m0_addb2_trace_xc,
+			 .fom_ops   = &m0_addb2__fom_type_ops,
+			 .sm        = &m0_addb2__sm_conf,
+			 .svc_type  = &m0_addb2_service_type);
 	return 0;
 }
 
@@ -413,9 +417,15 @@ static void src_conn_terminating(struct m0_rpc_item_source *ris)
  */
 static void net_sent(struct m0_rpc_item *item)
 {
-	m0_addb2_trace_done(m0_fop_data(m0_rpc_item_to_fop(item)));
+	struct m0_fop *fop = m0_rpc_item_to_fop(item);
+	m0_addb2_trace_done(m0_fop_data(fop));
 	if (item->ri_error != 0)
 		M0_LOG(M0_ERROR, "Addb trace lost in rpc.");
+	/*
+	 * Clear fop data, which points to a trace, so that m0_fop_fini() won't
+	 * try to free it.
+	 */
+	fop->f_data.fd_data = NULL;
 }
 
 static const struct m0_rpc_item_source_ops src_ops = {

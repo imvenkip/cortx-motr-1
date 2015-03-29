@@ -31,6 +31,7 @@
 #include "lib/trace.h"
 #include "lib/assert.h"
 #include "lib/chan.h"
+#include "lib/mutex.h"
 #include "lib/memory.h"
 #include "lib/errno.h"                  /* ENOMEM */
 #include "lib/misc.h"                   /* M0_AMB */
@@ -55,6 +56,7 @@ struct addb2_fom {
 	struct m0_fom             a2_fom;
 	struct m0_addb2_trace_obj a2_obj;
 	struct m0_chan            a2_chan;
+	struct m0_mutex           a2_lock;
 	struct m0_addb2_cursor    a2_cur;
 };
 
@@ -69,7 +71,6 @@ static int    addb2_service_type_allocate(struct m0_reqh_service **service,
 static const struct m0_reqh_service_ops       addb2_service_ops;
 static const struct m0_reqh_service_type_ops  addb2_service_type_ops;
 static const struct m0_fom_ops                addb2_fom_ops;
-static const struct m0_fom_type_ops           addb2_fom_type_ops;
 
 enum {
 	M0_ADDB_CTXID_ADDB2_SVC = 2000,
@@ -137,7 +138,8 @@ static int addb2_fom_create(struct m0_fop *fop,
 	M0_ALLOC_PTR(fom);
 	if (fom != NULL) {
 		*out = &fom->a2_fom;
-		m0_chan_init(&fom->a2_chan, NULL);
+		m0_mutex_init(&fom->a2_lock);
+		m0_chan_init(&fom->a2_chan, &fom->a2_lock);
 		m0_fom_init(*out, &fop->f_type->ft_fom_type,
 			    &addb2_fom_ops, fop, NULL, reqh);
 		return M0_RC(0);
@@ -175,7 +177,9 @@ static int addb2_fom_tick(struct m0_fom *fom0)
 	case ADDB2_SUBMIT:
 		obj->o_tr   = *trace;
 		obj->o_done = &addb2_done;
+		m0_mutex_lock(&fom->a2_lock);
 		m0_fom_wait_on(fom0, &fom->a2_chan, &fom0->fo_cb);
+		m0_mutex_unlock(&fom->a2_lock);
 		m0_addb2_sys_submit(sys, obj);
 		m0_fom_phase_set(fom0, ADDB2_DONE);
 		return M0_FSO_WAIT;
@@ -193,6 +197,7 @@ static void addb2_fom_fini(struct m0_fom *fom0)
 
 	m0_fom_fini(fom0);
 	m0_chan_fini(&fom->a2_chan);
+	m0_mutex_fini(&fom->a2_lock);
 	m0_free(fom);
 }
 
@@ -204,7 +209,7 @@ static void addb2_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 
 static void addb2_done(struct m0_addb2_trace_obj *obj)
 {
-	struct addb2_fom *fom = M0_AMB(fom, obj, a2_obj.o_tr);
+	struct addb2_fom *fom = M0_AMB(fom, obj, a2_obj);
 	m0_chan_signal(&fom->a2_chan);
 }
 
@@ -221,8 +226,34 @@ static const struct m0_fom_ops addb2_fom_ops = {
 	.fo_fini          = &addb2_fom_fini
 };
 
-static const struct m0_fom_type_ops addb2_fom_type_ops = {
+M0_INTERNAL const struct m0_fom_type_ops m0_addb2__fom_type_ops = {
 	.fto_create = &addb2_fom_create
+};
+
+static struct m0_sm_state_descr addb2_fom_phases[] = {
+	[ADDB2_CONSUME] = {
+		.sd_name      = "consume",
+		.sd_allowed   = M0_BITS(ADDB2_SUBMIT),
+		.sd_flags     = M0_SDF_INITIAL
+	},
+	[ADDB2_SUBMIT] = {
+		.sd_name      = "submit",
+		.sd_allowed   = M0_BITS(ADDB2_DONE),
+	},
+	[ADDB2_DONE] = {
+		.sd_name      = "wait-done",
+		.sd_allowed   = M0_BITS(ADDB2_FINISH),
+	},
+	[ADDB2_FINISH] = {
+		.sd_name      = "finish",
+		.sd_flags     = M0_SDF_TERMINAL
+	}
+};
+
+M0_INTERNAL struct m0_sm_conf m0_addb2__sm_conf = {
+	.scf_name      = "addb2 fom phases",
+	.scf_nr_states = ARRAY_SIZE(addb2_fom_phases),
+	.scf_state     = addb2_fom_phases
 };
 
 static const struct m0_reqh_service_type_ops addb2_service_type_ops = {
@@ -235,8 +266,13 @@ static const struct m0_reqh_service_ops addb2_service_ops = {
 	.rso_fini  = &addb2_service_fini
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_addb2_service_type, &addb2_service_type_ops,
-			    "addb2", &m0_addb_ct_addb2_svc, 2);
+M0_INTERNAL struct m0_reqh_service_type m0_addb2_service_type = {
+	.rst_name    = "addb2",
+	.rst_ops     = &addb2_service_type_ops,
+	.rst_addb_ct = &m0_addb_ct_addb2_svc,
+	.rst_level   = 2
+};
+
 
 #undef M0_TRACE_SUBSYSTEM
 

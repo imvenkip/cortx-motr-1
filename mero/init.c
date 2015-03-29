@@ -96,6 +96,9 @@ M0_INTERNAL void m0_addb2_net_module_fini(void);
 M0_INTERNAL int  m0_addb2_global_init(void);
 M0_INTERNAL void m0_addb2_global_fini(void);
 
+M0_INTERNAL int m0_addb2_service_module_init(void);
+M0_INTERNAL void m0_addb2_service_module_fini(void);
+
 /**
    @addtogroup init
    @{
@@ -143,8 +146,13 @@ struct init_fini_call subsystem[] = {
 	{ &m0_net_test_init,    &m0_net_test_fini,    "net-test" },
 #endif
 	{ &m0_reqhs_init,       &m0_reqhs_fini,       "reqhs" },
-	/* fom-simple must go after reqh init */
+	/* fom-simple must go after reqh init, because it registers a service
+	   type. */
 	{ &m0_fom_simples_init, &m0_fom_simples_fini, "fom-simple" },
+	/* addb2-service must go after reqh init, because it registers a service
+	   type. */
+	{ &m0_addb2_service_module_init,
+	  &m0_addb2_service_module_fini, "addb2-service" },
 	{ &m0_rpc_init,         &m0_rpc_fini,         "rpc" },
 	/* fom generic must be after rpc, because it initialises rpc item
 	   type for generic error reply. */

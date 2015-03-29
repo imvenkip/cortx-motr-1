@@ -596,7 +596,8 @@ M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
 -w $POOL_WIDTH -e $XPT:$MDS_EP -P '$PROF_OPT' -C $CONFD_EP \
--s mdservice -s rmservice -s stats -s addb $XPT_SETUP" >> ${SLOG}-mds.log &
+-s mdservice -s rmservice \
+-s stats -s addb -s addb2 $XPT_SETUP" >> ${SLOG}-mds.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start m0d on $H
 			return 1
@@ -604,7 +605,7 @@ $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
 		sleep 2
 	fi
 	SNAME+=" -P '$PROF_OPT' -C $CONFD_EP"
-	SNAME+=" -s addb -s ioservice -s sns_repair -s sns_rebalance"
+	SNAME+=" -s addb -s addb2 -s ioservice -s sns_repair -s sns_rebalance"
 
 	if [ $run_mkfs -eq 1 ]; then
 		mkfs "$DDIR" "$STOB_PARAMS" || return 1

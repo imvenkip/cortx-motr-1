@@ -151,7 +151,7 @@ EOF`"
     local OPTIONS="`cat <<EOF
 -F -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
 -A linuxstob:$SANDBOX_DIR/addb-stobs
--e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s ioservice
+-e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s addb2 -s ioservice
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3
 EOF`"
 
@@ -300,9 +300,9 @@ say 'Suite: successes'
 
 echo 8 >/proc/sys/kernel/printk  # Print kernel messages to the console.
 
-say '  Test: m0t1fs local_conf'
-_mount local || _fini $?
-umount $SANDBOX_DIR/mnt
+#say '  Test: m0t1fs local_conf'
+#_mount local || _fini $?
+#umount $SANDBOX_DIR/mnt
 
 say '  Test: m0t1fs confd'
 _mount net || _fini $?

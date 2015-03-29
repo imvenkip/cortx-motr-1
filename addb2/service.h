@@ -32,7 +32,7 @@
 #include "reqh/reqh_service.h"
 
 /* export */
-extern struct m0_reqh_service_type m0_addb2_service_type;
+M0_EXTERN struct m0_reqh_service_type m0_addb2_service_type;
 M0_INTERNAL int  m0_addb2_service_module_init(void);
 M0_INTERNAL void m0_addb2_service_module_fini(void);
 

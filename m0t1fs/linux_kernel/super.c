@@ -190,6 +190,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	struct m0t1fs_sb         *csb = M0T1FS_SB(dentry->d_sb);
 	struct m0_fop_statfs_rep *rep = NULL;
 	struct m0_fop            *rep_fop;
+	M0_THREAD_ENTER;
 
 	M0_ENTRY();
 
@@ -410,7 +411,7 @@ static int mount_opts_parse(struct m0t1fs_sb *csb, char *options,
 
 			dest->mo_local_conf = kstrdup(start, GFP_KERNEL);
 			if (dest->mo_local_conf == NULL)
-				return M0_RC(-ENOMEM);
+				return M0_ERR(-ENOMEM);
 
 			M0_LOG(M0_INFO, "local_conf: `%s'",
 			       dest->mo_local_conf);
@@ -842,6 +843,8 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 {
 	struct m0_reqh_service_ctx *ctx;
 	const char                 *ep_addr;
+	struct m0_addb2_sys        *sys = m0_addb2_global_get();
+	struct m0_pools_common     *pools = &csb->csb_pools_common;
 	int                         rc;
 
 	M0_ENTRY();
@@ -867,13 +870,11 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_addb_mon_fini;
 
-	rc = m0_pools_common_init(&csb->csb_pools_common,
-				  &csb->csb_rpc_machine, csb->csb_fs);
+	rc = m0_pools_common_init(pools, &csb->csb_rpc_machine, csb->csb_fs);
 	if (rc != 0)
 		goto err_conf_fini;
 
-	ctx = m0_pools_common_service_ctx_find_by_type(&csb->csb_pools_common,
-						       M0_CST_HA);
+	ctx = m0_pools_common_service_ctx_find_by_type(pools, M0_CST_HA);
 	if (rc != 0 || ctx == NULL) {
 		M0_LOG(M0_WARN, "Cannot connect to HA service.");
 	} else {
@@ -886,7 +887,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_pools_common_fini;
 
-	rc = m0_pools_setup(&csb->csb_pools_common, csb->csb_fs, NULL, NULL, NULL);
+	rc = m0_pools_setup(pools, csb->csb_fs, NULL, NULL, NULL);
 	if (rc != 0)
 		goto err_ha_fini;
 
@@ -895,7 +896,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_pools_common_fini;
 
-	ctx = csb->csb_pools_common.pc_ss_ctx;
+	ctx = pools->pc_ss_ctx;
 	if (ctx != NULL) {
 		ep_addr = ctx->sc_conn.c_rpcchan->rc_destep->nep_addr;
 		m0_addb_monitor_setup(&csb->csb_reqh, &ctx->sc_conn, ep_addr);
@@ -916,8 +917,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_services_terminate;
 
-	rc = m0_addb2_sys_net_start_with(m0_addb2_global_get(),
-					 &csb->csb_pools_common.pc_svc_ctxs);
+	rc = m0_addb2_sys_net_start_with(sys, &pools->pc_svc_ctxs);
 	if (rc != 0)
 		goto err_sb_layout_fini;
 	return M0_RC(rc);
@@ -933,7 +933,7 @@ err_addb_mc_unconf:
 err_ha_fini:
 	m0_ha_state_fini();
 err_pools_common_fini:
-	m0_pools_common_fini(&csb->csb_pools_common);
+	m0_pools_common_fini(pools);
 err_conf_fini:
 	/* Close filesystem. */
 	m0_confc_close(&csb->csb_fs->cf_obj);
@@ -945,7 +945,7 @@ err_rpc_fini:
 err_net_fini:
 	m0t1fs_net_fini(csb);
 err_return:
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 
 static void m0t1fs_teardown(struct m0t1fs_sb *csb)
@@ -1074,6 +1074,7 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 	struct m0_fop_statfs_rep *rep = NULL;
 	struct m0_addb_ctx       *cv[] = { &csb->csb_addb_ctx, NULL };
 	struct m0_fop            *rep_fop;
+	M0_THREAD_ENTER;
 
 	M0_ENTRY();
 
@@ -1123,11 +1124,10 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 
 	M0_ALLOC_PTR(csb);
 	if (csb == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		goto end;
 	}
 	m0t1fs_sb_init(csb);
-
 	rc = mount_opts_parse(csb, data, &mops);
 	if (rc != 0)
 		goto sb_fini;
@@ -1194,8 +1194,7 @@ sb_fini:
 	mount_opts_fini(&mops);
 end:
 	sb->s_fs_info = NULL;
-	M0_ASSERT(rc != 0);
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 
 /** Implementation of file_system_type::get_sb() interface. */
