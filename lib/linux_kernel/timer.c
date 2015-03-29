@@ -35,8 +35,10 @@
 static void timer_kernel_trampoline_callback(unsigned long data)
 {
 	struct m0_timer *timer = (struct m0_timer *)data;
-	M0_THREAD_ENTER;
+	struct m0_thread th    = { 0, };
+	m0_thread_enter(&th, false);
 	m0_timer_callback_execute(timer);
+	m0_thread_leave();
 }
 
 static int timer_kernel_init(struct m0_timer	      *timer,

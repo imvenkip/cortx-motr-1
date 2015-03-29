@@ -25,6 +25,7 @@
 #include "lib/arith.h"        /* min64u */
 #include "lib/bitmap.h"       /* m0_bitmap_get */
 #include "module/instance.h"  /* m0_set */
+#include "addb2/global.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
@@ -92,15 +93,18 @@ M0_INTERNAL void m0_threads_once_fini(void)
 {
 }
 
-M0_INTERNAL void m0_thread_enter(struct m0_thread *thread)
+M0_INTERNAL void m0_thread_enter(struct m0_thread *thread, bool full)
 {
 	M0_PRE(M0_IS0(thread));
 
 	thread->t_tls.tls_arch.tat_prev = current->journal_info;
 	thread->t_tls.tls_self = thread;
 	current->journal_info = &thread->t_tls;
-	if (__instance != NULL)
+	if (__instance != NULL) {
 		m0_set(__instance);
+		if (full)
+			m0_addb2_global_thread_enter();
+	}
 }
 M0_EXPORTED(m0_thread_enter);
 
@@ -114,6 +118,7 @@ M0_INTERNAL void m0_thread_leave(void)
 	void                 *prev = tls->tls_arch.tat_prev;
 
 	tls_fini(tls);
+	m0_addb2_global_thread_leave();
 	current->journal_info = prev;
 }
 M0_EXPORTED(m0_thread_leave);
@@ -217,7 +222,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 	nr_allowed = cpumask_weight(cpuset);
 
 	if (nr_allowed == 0) {
-		result = -EINVAL;
+		result = M0_ERR(-EINVAL);
 	} else {
 		/*
 		  The following code would safely access the task_struct and
@@ -285,7 +290,7 @@ M0_INTERNAL bool m0_is_awkward(void)
 
 M0_INTERNAL struct m0_thread_tls *m0_thread_tls_pop(void)
 {
-	struct m0_thread_tls *tls  = current->journal_info;
+	struct m0_thread_tls *tls = current->journal_info;
 
 	current->journal_info = tls->tls_arch.tat_prev;
 	return tls;

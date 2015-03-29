@@ -50,14 +50,14 @@ struct m0_thread_arch_tls {
 };
 
 struct m0_thread;
-M0_INTERNAL void m0_thread_enter(struct m0_thread *thread);
+M0_INTERNAL void m0_thread_enter(struct m0_thread *thread, bool full);
 M0_INTERNAL void m0_thread_leave(void);
 M0_INTERNAL void m0_thread__cleanup(struct m0_thread *bye);
 
 #define M0_THREAD_ENTER						\
 	struct m0_thread __th						\
 		__attribute__((cleanup(m0_thread__cleanup))) = { 0, };	\
-	m0_thread_enter(&__th)
+	m0_thread_enter(&__th, true)
 
 M0_INTERNAL struct m0_thread_tls *m0_thread_tls_pop(void);
 M0_INTERNAL void m0_thread_tls_back(struct m0_thread_tls *tls);
