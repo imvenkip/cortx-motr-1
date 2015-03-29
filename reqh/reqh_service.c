@@ -59,8 +59,8 @@ enum {
 static struct m0_rwlock rstypes_rwlock;
 
 M0_TL_DESCR_DEFINE(rstypes, "reqh service types", static,
-                   struct m0_reqh_service_type, rst_linkage, rst_magix,
-                   M0_REQH_SVC_TYPE_MAGIC, M0_REQH_SVC_HEAD_MAGIC);
+		   struct m0_reqh_service_type, rst_linkage, rst_magix,
+		   M0_REQH_SVC_TYPE_MAGIC, M0_REQH_SVC_HEAD_MAGIC);
 
 M0_TL_DEFINE(rstypes, static, struct m0_reqh_service_type);
 
@@ -153,7 +153,7 @@ m0_reqh_service_type_find(const char *sname)
 		M0_ASSERT(m0_reqh_service_type_bob_check(t));
 
 	m0_rwlock_read_unlock(&rstypes_rwlock);
-        return t;
+	return t;
 }
 
 M0_INTERNAL int
@@ -166,8 +166,8 @@ m0_reqh_service_allocate(struct m0_reqh_service **out,
 	M0_ENTRY();
 	M0_PRE(out != NULL && stype != NULL);
 
-        rc = stype->rst_ops->rsto_service_allocate(out, stype);
-        if (rc == 0) {
+	rc = stype->rst_ops->rsto_service_allocate(out, stype);
+	if (rc == 0) {
 		struct m0_reqh_service *service = *out;
 		service->rs_type = stype;
 		service->rs_reqh_ctx = rctx;
@@ -180,7 +180,7 @@ m0_reqh_service_allocate(struct m0_reqh_service **out,
 }
 
 static void reqh_service_state_set(struct m0_reqh_service *service,
-                                   enum m0_reqh_service_state state)
+				   enum m0_reqh_service_state state)
 {
 	m0_sm_group_lock(&service->rs_reqh->rh_sm_grp);
 	m0_sm_state_set(&service->rs_sm, state);
@@ -328,7 +328,7 @@ m0_reqh_service_prepare_to_stop(struct m0_reqh_service *service)
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	M0_PRE(m0_reqh_service_invariant(service));
 	M0_ASSERT(M0_IN(service->rs_sm.sm_state, (M0_RST_STARTED,
-	                                          M0_RST_STOPPING)));
+						  M0_RST_STOPPING)));
 	if (service->rs_sm.sm_state == M0_RST_STARTED) {
 		reqh_service_state_set(service, M0_RST_STOPPING);
 		M0_ASSERT(m0_reqh_service_invariant(service));
@@ -379,7 +379,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service  *service,
 	M0_ASSERT(serv_addb_ct->act_cf_nr == 2);
 
 	m0_sm_init(&service->rs_sm, &service_states_conf, M0_RST_INITIALISING,
-	           &reqh->rh_sm_grp);
+		   &reqh->rh_sm_grp);
 
 	if (uuid != NULL)
 		service->rs_service_uuid = *uuid;
@@ -463,15 +463,15 @@ M0_INTERNAL void m0_reqh_service_list_print(void)
 {
 	struct m0_reqh_service_type *stype;
 
-        m0_tl_for(rstypes, &rstypes, stype) {
-                M0_ASSERT(m0_reqh_service_type_bob_check(stype));
-                m0_console_printf(" %s\n", stype->rst_name);
-        } m0_tl_endfor;
+	m0_tl_for(rstypes, &rstypes, stype) {
+		M0_ASSERT(m0_reqh_service_type_bob_check(stype));
+		m0_console_printf(" %s\n", stype->rst_name);
+	} m0_tl_endfor;
 }
 
 M0_INTERNAL bool m0_reqh_service_is_registered(const char *sname)
 {
-        return m0_tl_exists(rstypes, stype, &rstypes,
+	return m0_tl_exists(rstypes, stype, &rstypes,
 			    strcasecmp(stype->rst_name, sname) == 0);
 }
 
@@ -496,9 +496,12 @@ M0_INTERNAL struct m0_reqh_service *
 m0_reqh_service_find(const struct m0_reqh_service_type *st,
 		     const struct m0_reqh              *reqh)
 {
-	M0_PRE(st != NULL && reqh != NULL);
+	struct m0_reqh_service *service;
 
-	return m0_reqh_lockers_get(reqh, st->rst_key);
+	M0_PRE(st != NULL && reqh != NULL);
+	service = m0_reqh_lockers_get(reqh, st->rst_key);
+	M0_POST(ergo(service != NULL, service->rs_type == st));
+	return service;
 }
 M0_EXPORTED(m0_reqh_service_find);
 

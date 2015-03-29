@@ -389,8 +389,8 @@
  */
 
 M0_TL_DESCR_DEFINE(cp_data_buf, "copy packet data buffers", M0_INTERNAL,
-                   struct m0_net_buffer, nb_extern_linkage, nb_magic,
-                   M0_NET_BUFFER_LINK_MAGIC, CM_CP_DATA_BUF_HEAD_MAGIX);
+		   struct m0_net_buffer, nb_extern_linkage, nb_magic,
+		   M0_NET_BUFFER_LINK_MAGIC, CM_CP_DATA_BUF_HEAD_MAGIX);
 M0_TL_DEFINE(cp_data_buf, M0_INTERNAL, struct m0_net_buffer);
 
 static const struct m0_bob_type cp_bob = {
@@ -412,12 +412,12 @@ static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
 			 struct m0_reqh *reqh);
 
 M0_INTERNAL const struct m0_fom_type_ops cp_fom_type_ops = {
-        .fto_create = cp_fom_create
+	.fto_create = cp_fom_create
 };
 
 static void cp_fom_fini(struct m0_fom *fom)
 {
-        struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
+	struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
 	struct m0_cm_aggr_group *ag = cp->c_ag;
 	struct m0_cm            *cm = ag->cag_cm;
 	bool                     ag_fini;
@@ -445,14 +445,14 @@ static void cp_fom_fini(struct m0_fom *fom)
 
 static uint64_t cp_fom_locality(const struct m0_fom *fom)
 {
-        struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
+	struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
 
 	return cp->c_ops->co_home_loc_helper(cp);
 }
 
 static int cp_fom_tick(struct m0_fom *fom)
 {
-        struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
+	struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
 	int		 phase = m0_fom_phase(fom);
 	int              rc;
 
@@ -474,9 +474,9 @@ static void cp_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 
 /** Copy packet FOM operations */
 static const struct m0_fom_ops cp_fom_ops = {
-        .fo_fini          = cp_fom_fini,
-        .fo_tick          = cp_fom_tick,
-        .fo_home_locality = cp_fom_locality,
+	.fo_fini          = cp_fom_fini,
+	.fo_tick          = cp_fom_tick,
+	.fo_home_locality = cp_fom_locality,
 	.fo_addb_init     = cp_fom_addb_init
 };
 
@@ -487,8 +487,8 @@ static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	struct m0_cm           *cm;
 	struct m0_reqh_service *service;
 
-        M0_PRE(fop != NULL);
-        M0_PRE(m != NULL);
+	M0_PRE(fop != NULL);
+	M0_PRE(m != NULL);
 
 	service = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype,
 				       reqh);
@@ -496,15 +496,15 @@ static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	cm = container_of(service, struct m0_cm, cm_service);
 	M0_PRE(cm != NULL);
 	cp = cm->cm_ops->cmo_cp_alloc(cm);
-        if (cp == NULL)
-                return M0_ERR(-ENOMEM);
+	if (cp == NULL)
+		return M0_ERR(-ENOMEM);
 
 	m0_cm_cp_fom_init(cm, cp);
 	cp->c_fom.fo_addb_ctx.ac_magic = 0;
-        m0_fom_init(&cp->c_fom, &cm->cm_type->ct_fomt, &cp_fom_ops, fop,
-                    NULL, reqh);
-        *m = &cp->c_fom;
-        return 0;
+	m0_fom_init(&cp->c_fom, &cm->cm_type->ct_fomt, &cp_fom_ops, fop,
+		    NULL, reqh);
+	*m = &cp->c_fom;
+	return 0;
 }
 
 /** @} end internal */
@@ -515,71 +515,71 @@ static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
  */
 
 static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
-        [M0_CCP_INIT] = {
-                .sd_flags       = M0_SDF_INITIAL,
-                .sd_name        = "Init",
-                .sd_allowed     = M0_BITS(M0_CCP_READ, M0_CCP_WRITE,
+	[M0_CCP_INIT] = {
+		.sd_flags       = M0_SDF_INITIAL,
+		.sd_name        = "Init",
+		.sd_allowed     = M0_BITS(M0_CCP_READ, M0_CCP_WRITE,
 					  M0_CCP_XFORM, M0_CCP_SEND,
 					  M0_CCP_SW_CHECK)
-        },
-        [M0_CCP_READ] = {
-                .sd_flags       = 0,
-                .sd_name        = "Read",
-                .sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FINI)
-        },
-        [M0_CCP_WRITE] = {
-                .sd_flags       = 0,
-                .sd_name        = "Write",
-                .sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FINI)
-        },
+	},
+	[M0_CCP_READ] = {
+		.sd_flags       = 0,
+		.sd_name        = "Read",
+		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FINI)
+	},
+	[M0_CCP_WRITE] = {
+		.sd_flags       = 0,
+		.sd_name        = "Write",
+		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FINI)
+	},
 	[M0_CCP_IO_WAIT] = {
 		.sd_flags       = 0,
 		.sd_name        = "IO Wait",
 		.sd_allowed     = M0_BITS(M0_CCP_XFORM, M0_CCP_SEND,
 					  M0_CCP_FINI)
 	},
-        [M0_CCP_XFORM] = {
-                .sd_flags       = 0,
-                .sd_name        = "Xform",
-                .sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_WRITE,
+	[M0_CCP_XFORM] = {
+		.sd_flags       = 0,
+		.sd_name        = "Xform",
+		.sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_WRITE,
 					  M0_CCP_SEND, M0_CCP_SW_CHECK)
-        },
-        [M0_CCP_SW_CHECK] = {
-                .sd_flags       = 0,
-                .sd_name        = "Sliding window check",
-                .sd_allowed     = M0_BITS(M0_CCP_SEND, M0_CCP_FAIL)
-        },
-        [M0_CCP_SEND] = {
-                .sd_flags       = 0,
-                .sd_name        = "Send",
-                .sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_RECV_INIT,
+	},
+	[M0_CCP_SW_CHECK] = {
+		.sd_flags       = 0,
+		.sd_name        = "Sliding window check",
+		.sd_allowed     = M0_BITS(M0_CCP_SEND, M0_CCP_FAIL)
+	},
+	[M0_CCP_SEND] = {
+		.sd_flags       = 0,
+		.sd_name        = "Send",
+		.sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_RECV_INIT,
 					  M0_CCP_SEND_WAIT, M0_CCP_FAIL)
-        },
-        [M0_CCP_SEND_WAIT] = {
-                .sd_flags       = 0,
-                .sd_name        = "Send Wait",
-                .sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_FAIL)
-        },
-        [M0_CCP_RECV_INIT] = {
-                .sd_flags       = 0,
-                .sd_name        = "Recv Init",
-                .sd_allowed     = M0_BITS(M0_CCP_RECV_WAIT, M0_CCP_FAIL)
-        },
-        [M0_CCP_RECV_WAIT] = {
-                .sd_flags       = 0,
-                .sd_name        = "Recv Wait",
-                .sd_allowed     = M0_BITS(M0_CCP_XFORM, M0_CCP_FAIL)
-        },
-        [M0_CCP_FAIL] = {
-                .sd_flags       = M0_SDF_FAILURE,
-                .sd_name        = "Failure",
-                .sd_allowed     = M0_BITS(M0_CCP_FINI)
-        },
-        [M0_CCP_FINI] = {
-                .sd_flags       = M0_SDF_TERMINAL,
-                .sd_name        = "Fini",
-                .sd_allowed     = 0
-        },
+	},
+	[M0_CCP_SEND_WAIT] = {
+		.sd_flags       = 0,
+		.sd_name        = "Send Wait",
+		.sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_FAIL)
+	},
+	[M0_CCP_RECV_INIT] = {
+		.sd_flags       = 0,
+		.sd_name        = "Recv Init",
+		.sd_allowed     = M0_BITS(M0_CCP_RECV_WAIT, M0_CCP_FAIL)
+	},
+	[M0_CCP_RECV_WAIT] = {
+		.sd_flags       = 0,
+		.sd_name        = "Recv Wait",
+		.sd_allowed     = M0_BITS(M0_CCP_XFORM, M0_CCP_FAIL)
+	},
+	[M0_CCP_FAIL] = {
+		.sd_flags       = M0_SDF_FAILURE,
+		.sd_name        = "Failure",
+		.sd_allowed     = M0_BITS(M0_CCP_FINI)
+	},
+	[M0_CCP_FINI] = {
+		.sd_flags       = M0_SDF_TERMINAL,
+		.sd_name        = "Fini",
+		.sd_allowed     = 0
+	},
 };
 
 static struct m0_sm_conf m0_cm_cp_sm_conf = {
@@ -652,14 +652,14 @@ M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_cm_cp *cp)
 
 M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
 {
-        struct m0_fom  *fom = &cp->c_fom;
-        struct m0_reqh *reqh = cm->cm_service.rs_reqh;
+	struct m0_fom  *fom = &cp->c_fom;
+	struct m0_reqh *reqh = cm->cm_service.rs_reqh;
 
-        M0_PRE(reqh != NULL);
-        M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
-        M0_PRE(m0_cm_cp_invariant(cp));
+	M0_PRE(reqh != NULL);
+	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
+	M0_PRE(m0_cm_cp_invariant(cp));
 
-        m0_fom_queue(fom, reqh);
+	m0_fom_queue(fom, reqh);
 }
 
 M0_INTERNAL void m0_cm_cp_buf_add(struct m0_cm_cp *cp, struct m0_net_buffer *nb)

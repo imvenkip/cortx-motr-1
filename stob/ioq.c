@@ -201,7 +201,7 @@ M0_INTERNAL int m0_stob_linux_io_init(struct m0_stob *stob,
 		result = 0;
 	} else {
 		M0_STOB_OOM(LAD_STOB_IO_INIT);
-		result = -ENOMEM;
+		result = M0_ERR(-ENOMEM);
 	}
 	return result;
 }
@@ -281,7 +281,7 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 	qev = lio->si_qev;
 	if (qev == NULL || iov == NULL) {
 		M0_STOB_OOM(LAD_STOB_IO_LAUNCH_2);
-		result = -ENOMEM;
+		result = M0_ERR(-ENOMEM);
 	}
 	opcode = io->si_opcode == SIO_READ ? IO_CMD_PREADV : IO_CMD_PWRITEV;
 
@@ -318,7 +318,7 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 			if (frag_size > (size_t)~0ULL) {
 				M0_STOB_FUNC_FAIL(LAD_STOB_IO_LAUNCH_1,
 						  -EOVERFLOW);
-				result = -EOVERFLOW;
+				result = M0_ERR(-EOVERFLOW);
 				break;
 			}
 
@@ -507,9 +507,9 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 	if (M0_FI_ENABLED("ioq_timeout"))
 		ioq_io_error(ioq, qev);
 
-	/* short read. */
 	M0_LOG(M0_DEBUG, "res=%lx nbytes=%lx", (unsigned long)res,
 					(unsigned long)qev->iq_nbytes);
+	/* short read. */
 	if (io->si_opcode == SIO_READ && res >= 0 && res < qev->iq_nbytes) {
 		/* fill the rest of the user buffer with zeroes. */
 		const struct iovec *iov = iocb->u.v.vec;
@@ -532,7 +532,7 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 	if (res > 0) {
 		if ((res & m0_stob_ioq_bmask(ioq)) != 0) {
 			M0_STOB_FUNC_FAIL(LAD_IOQ_COMPLETE, -EIO);
-			res = -EIO;
+			res = M0_ERR(-EIO);
 			ioq_io_error(ioq, qev);
 		} else
 			m0_atomic64_add(&lio->si_bdone, res);

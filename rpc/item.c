@@ -894,7 +894,7 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 
 	M0_ENTRY("item=%p xid=%llu machine=%p", item,
-	         (unsigned long long)item->ri_header.osr_xid, machine);
+		 (unsigned long long)item->ri_header.osr_xid, machine);
 
 	m0_addb_counter_update(&machine->rm_cntr_rcvd_item_sizes,
 			       (uint64_t)m0_rpc_item_size(item));
@@ -971,7 +971,7 @@ static int item_reply_received(struct m0_rpc_item *reply,
 	*req_out = NULL;
 
 	req = m0_cookie_of(&reply->ri_header.osr_cookie,
-	                   struct m0_rpc_item, ri_cookid);
+			   struct m0_rpc_item, ri_cookid);
 	if (req == NULL) {
 		/*
 		 * Either it is a duplicate reply and its corresponding request

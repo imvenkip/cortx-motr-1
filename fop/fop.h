@@ -288,7 +288,7 @@ struct __m0_fop_type_init_args {
 	const struct m0_fop_type_ops      *fop_ops;
 	const struct m0_fom_type_ops      *fom_ops;
 	const struct m0_rpc_item_type_ops *rpc_ops;
-	      struct m0_sm_conf		  *sm;
+	      struct m0_sm_conf           *sm;
 	const struct m0_reqh_service_type *svc_type;
 };
 
@@ -302,8 +302,8 @@ void m0_fop_type_init(struct m0_fop_type *ft,
  * @see http://www.cofault.com/2005/08/named-formals.html
  */
 #define M0_FOP_TYPE_INIT(ft, ...)                                        \
-        m0_fop_type_init((ft), &(const struct __m0_fop_type_init_args) { \
-                                 __VA_ARGS__ })
+	m0_fop_type_init((ft), &(const struct __m0_fop_type_init_args) { \
+			__VA_ARGS__ })
 
 void m0_fop_type_fini(struct m0_fop_type *fopt);
 

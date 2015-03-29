@@ -1170,7 +1170,7 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 
 	*loc = m0_alloc(len);
 	if (*loc == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	snprintf(*loc, len, "linuxstob:%s%s", name[0] == '/' ? "" : "./", name);
 
 	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
@@ -1184,10 +1184,10 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 	if (*out != NULL)
 		return 0;
 	M0_LOG(M0_ERROR, "cs_be_init: failed to init segment");
-	rc = -ENOMEM;
+	rc = M0_ERR(-ENOMEM);
 err:
 	m0_free0(loc);
-	return rc;
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL void cs_be_fini(struct m0_be_ut_backend *be)
@@ -1635,7 +1635,7 @@ service_string_parse(const char *str, char **svc, struct m0_uint128 *uuid)
 	colon = strchr(str, ':');
 	if (colon == NULL) {
 		*svc = m0_strdup(str);
-		return *svc ? 0 : -ENOMEM;
+		return *svc ? 0 : M0_ERR(-ENOMEM);
 	}
 
 	/* isolate and copy the service type */
@@ -1824,7 +1824,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 					int i;
 					if (rctx->rc_nr_services >=
 					    rctx->rc_max_services) {
-						rc = -E2BIG;
+						rc = M0_ERR(-E2BIG);
 						M0_LOG(M0_ERROR,
 						       "Too many services");
 						return;
