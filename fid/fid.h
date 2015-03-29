@@ -34,8 +34,8 @@
 #include "xcode/xcode_attr.h"
 
 struct m0_fid {
-        uint64_t f_container;
-        uint64_t f_key;
+	uint64_t f_container;
+	uint64_t f_key;
 } M0_XCA_RECORD;
 
 M0_INTERNAL bool m0_fid_is_set(const struct m0_fid *fid);
