@@ -50,6 +50,7 @@
 #include "file/file.h"
 #include "lib/hash.h"	    /* m0_htable */
 #include "sns/parity_repair.h"  /*m0_sns_repair_spare_map() */
+#include "addb2/addb2.h"
 #include "m0t1fs/linux_kernel/file_internal.h"
 #include "m0t1fs/m0t1fs_addb.h"
 #include "m0t1fs/linux_kernel/fsync.h"
@@ -4921,10 +4922,8 @@ static ssize_t file_dio_write(struct kiocb	 *kcb,
 	return written;
 }
 
-static ssize_t file_aio_write(struct kiocb	 *kcb,
-			      const struct iovec *iov,
-			      unsigned long	  seg_nr,
-			      loff_t		  pos)
+static ssize_t aio_write(struct kiocb *kcb, const struct iovec *iov,
+			 unsigned long  seg_nr, loff_t  pos)
 {
 	int		    rc;
 	size_t		    count = 0;
@@ -4986,15 +4985,31 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 	return written;
 }
 
-static ssize_t file_aio_read(struct kiocb	*kcb,
-			     const struct iovec *iov,
-			     unsigned long	 seg_nr,
-			     loff_t		 pos)
+static ssize_t file_aio_write(struct kiocb       *kcb,
+			      const struct iovec *iov,
+			      unsigned long       seg_nr,
+			      loff_t              pos)
 {
-	int		    seg;
-	size_t		    count = 0;
-	loff_t		    size;
-	ssize_t		    res;
+	ssize_t              res;
+	struct m0t1fs_inode *ci = m0t1fs_file_to_m0inode(kcb->ki_filp);
+
+	M0_THREAD_ENTER;
+
+	m0_addb2_push(M0_AVI_FS_WRITE, M0_ADDB2_OBJ(&ci->ci_fid));
+	res = aio_write(kcb, iov, seg_nr, pos);
+	M0_ADDB2_ADD(M0_AVI_FS_IO_DESCR, pos, res);
+	m0_addb2_pop(M0_AVI_FS_WRITE);
+	return res;
+}
+
+
+static ssize_t aio_read(struct kiocb *kcb, const struct iovec *iov,
+			unsigned long seg_nr, loff_t pos)
+{
+	int                 seg;
+	size_t              count = 0;
+	loff_t              size;
+	ssize_t             res;
 	struct file        *filp;
 	struct m0_indexvec *ivec;
 
@@ -5067,6 +5082,23 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	return res;
 }
 
+static ssize_t file_aio_read(struct kiocb	*kcb,
+			     const struct iovec *iov,
+			     unsigned long	 seg_nr,
+			     loff_t		 pos)
+{
+	ssize_t              res;
+	struct m0t1fs_inode *ci = m0t1fs_file_to_m0inode(kcb->ki_filp);
+
+	M0_THREAD_ENTER;
+
+	m0_addb2_push(M0_AVI_FS_READ, M0_ADDB2_OBJ(&ci->ci_fid));
+	res = aio_read(kcb, iov, seg_nr, pos);
+	M0_ADDB2_ADD(M0_AVI_FS_IO_DESCR, pos, res);
+	m0_addb2_pop(M0_AVI_FS_READ);
+	return res;
+}
+
 static int m0t1fs_open(struct inode *inode, struct file *file)
 {
 	struct super_block  *sb  = inode->i_sb;
@@ -5090,11 +5122,11 @@ static int m0t1fs_open(struct inode *inode, struct file *file)
 		inode->i_ino = fid_hash(&fid);
 		ci = M0T1FS_I(inode);
 		ci->ci_fid = fid;
-		/** @todo Based on hash of the fid, find the ioservices on
-		 * which meta-data cobs are present and get attributes from it.
-		 * Hash of the fid gives us fids of mdservices (as specified in
-		 * the confd), not end-points. This would allow us, in the next
-		 * version, to migrate "original"mdservices to different nodes.
+		/** @todo Based on hash of the fid, find the ioservices on which
+		 * meta-data cobs are present and get attributes from it.  Hash
+		 * of the fid gives us fids of mdservices (as specified in the
+		 * confd), not end-points. This would allow us, in the next
+		 * version, to migrate "original" mdservices to different nodes.
 		 * If needed get attributes like pool_version or layout and
 		 * store them in inode.
 		 */
@@ -5103,6 +5135,7 @@ static int m0t1fs_open(struct inode *inode, struct file *file)
 		m0t1fs_cob_getattr(inode);
 		m0t1fs_fs_unlock(csb);
 		mark_inode_dirty(inode);
+		M0_ADDB2_ADD(M0_AVI_FS_OPEN, fid.f_container, fid.f_key, flag);
 	}
 	return M0_RC(0);
 }

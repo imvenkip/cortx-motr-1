@@ -1051,7 +1051,10 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode);
 M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo);
 
 enum {
-	M0_AVI_FS_READ = M0_AVI_M0T1FS_RANGE_START + 1,
+	M0_AVI_FS_OPEN = M0_AVI_M0T1FS_RANGE_START + 1,
+	M0_AVI_FS_LOOKUP,
+	M0_AVI_FS_CREATE,
+	M0_AVI_FS_READ,
 	M0_AVI_FS_WRITE,
 	M0_AVI_FS_IO_DESCR
 };

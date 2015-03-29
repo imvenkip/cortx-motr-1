@@ -570,7 +570,8 @@ static int m0t1fs_create(struct inode     *dir,
 	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	unlock_new_inode(inode);
-
+	M0_ADDB2_ADD(M0_AVI_FS_CREATE,
+		     new_fid.f_container, new_fid.f_key, mode, 0);
 	mark_inode_dirty(dir);
 	d_instantiate(dentry, inode);
 	return M0_RC(0);
@@ -580,6 +581,8 @@ out:
 	m0t1fs_fs_unlock(csb);
 	make_bad_inode(inode);
 	iput(inode);
+	M0_ADDB2_ADD(M0_AVI_FS_CREATE,
+		     new_fid.f_container, new_fid.f_key, mode, rc);
 	return M0_ERR(rc);
 }
 
@@ -623,6 +626,7 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	M0_THREAD_ENTER;
 	M0_ENTRY();
 
+	m0_addb2_add(M0_AVI_FS_LOOKUP, M0_ADDB2_OBJ(&M0T1FS_I(dir)->ci_fid));
 	csb = M0T1FS_SB(dir->i_sb);
 
 	if (dentry->d_name.len > csb->csb_namelen) {
