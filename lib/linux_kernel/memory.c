@@ -21,13 +21,8 @@
 #include <linux/module.h>
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
-#include "lib/trace.h"
 #include "lib/assert.h"               /* M0_PRE */
 #include "lib/memory.h"
-#include "lib/atomic.h"               /* m0_atomic64 */
-#include "lib/finject.h"              /* M0_FI_ENABLED */
-#include "addb2/addb2.h"
-#include "addb2/identifier.h"         /* M0_AVI_ALLOC */
 
 /**
    @addtogroup memory
@@ -37,112 +32,67 @@
    @{
 */
 
-static struct m0_atomic64 cumulative_alloc;
-static struct m0_atomic64 cumulative_free;
-
-M0_INTERNAL void *m0_alloc(size_t size)
+M0_INTERNAL void *m0_arch_alloc(size_t size)
 {
-	void *p;
-
-	if (M0_FI_ENABLED("fail_allocation"))
-		return NULL;
-
-	p = kzalloc(size, GFP_KERNEL);
-#ifdef ENABLE_DEV_MODE
-	if (p != NULL)
-		m0_atomic64_add(&cumulative_alloc, size);
-#endif
-	M0_ADDB2_ADD(M0_AVI_ALLOC, size, (uint64_t)p);
-	if (p == NULL) {
-		M0_LOG(M0_ERROR, "Failed to allocate %zi bytes.", size);
-		dump_stack();
-	}
-	return p;
+	return kzalloc(size, GFP_NOFS);
 }
-M0_EXPORTED(m0_alloc);
 
-M0_INTERNAL void m0_free(void *data)
+M0_INTERNAL void m0_arch_free(void *data)
 {
-#ifdef ENABLE_DEV_MODE
-	if (data != NULL)
-		m0_atomic64_add(&cumulative_free, ksize(data));
-#endif
 	kfree(data);
 }
-M0_EXPORTED(m0_free);
 
-M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
+M0_INTERNAL void m0_arch_allocated_zero(void *data, size_t size)
 {
-	void *p;
+	/* do nothing already zeroed. */
+}
 
+M0_INTERNAL size_t m0_arch_alloc_size(void *data)
+{
+	return ksize(data);
+}
+
+M0_INTERNAL void *m0_arch_alloc_aligned(size_t alignment, size_t size)
+{
 	/*
 	 * Currently it supports alignment of PAGE_SHIFT only.
 	 */
-	M0_PRE(shift == PAGE_SHIFT);
-	if (size == 0) {
-		return NULL;
-	} else {
-		p = alloc_pages_exact(size, GFP_KERNEL | __GFP_ZERO);
-#ifdef ENABLE_DEV_MODE
-		if (p != NULL)
-			m0_atomic64_add(&cumulative_alloc, size);
-#endif
-		return p;
-	}
+	M0_PRE(alignment == PAGE_SIZE);
+	return size == 0 ? NULL : alloc_pages_exact(size,
+						    GFP_NOFS | __GFP_ZERO);
 }
-M0_EXPORTED(m0_alloc_aligned);
 
-M0_INTERNAL void m0_free_aligned(void *addr, size_t size, unsigned shift)
+M0_INTERNAL void m0_arch_free_aligned(void *addr, size_t size, unsigned shift)
 {
 	M0_PRE(shift == PAGE_SHIFT);
-	M0_PRE(m0_addr_is_aligned(addr, shift));
-#ifdef ENABLE_DEV_MODE
-	m0_atomic64_add(&cumulative_free, size);
-#endif
 	free_pages_exact(addr, size);
 }
-M0_EXPORTED(m0_free_aligned);
 
-M0_INTERNAL void *m0_alloc_wired(size_t size, unsigned shift)
+M0_INTERNAL void *m0_arch_alloc_wired(size_t size, unsigned shift)
 {
 	return m0_alloc_aligned(size, shift);
 }
 
-M0_INTERNAL void m0_free_wired(void *data, size_t size, unsigned shift)
+M0_INTERNAL void m0_arch_free_wired(void *data, size_t size, unsigned shift)
 {
 	m0_free_aligned(data, size, shift);
 }
 
-M0_INTERNAL size_t m0_allocated(void)
+M0_INTERNAL size_t m0_arch_allocated(void)
 {
 	return 0;
 }
-M0_EXPORTED(m0_allocated);
 
-M0_INTERNAL size_t m0_allocated_total(void)
+M0_INTERNAL int m0_arch_memory_init(void)
 {
-	return m0_atomic64_get(&cumulative_alloc);
-}
-M0_EXPORTED(m0_allocated_total);
-
-M0_INTERNAL size_t m0_freed_total(void)
-{
-	return m0_atomic64_get(&cumulative_free);
-}
-M0_EXPORTED(m0_freed_total);
-
-M0_INTERNAL int m0_memory_init(void)
-{
-	m0_atomic64_set(&cumulative_alloc, 0);
-	m0_atomic64_set(&cumulative_free, 0);
 	return 0;
 }
 
-M0_INTERNAL void m0_memory_fini(void)
+M0_INTERNAL void m0_arch_memory_fini(void)
 {
 }
 
-M0_INTERNAL int m0_pagesize_get(void)
+M0_INTERNAL int m0_arch_pagesize_get(void)
 {
 	return PAGE_SIZE;
 }

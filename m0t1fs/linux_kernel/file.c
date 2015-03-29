@@ -818,7 +818,7 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map);
 
 static int pargrp_iomap_dgmode_process (struct pargrp_iomap *map,
 					struct target_ioreq *tio,
-					0_bindex_t         *index,
+					m0_bindex_t         *index,
 					uint32_t             count);
 
 static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map);

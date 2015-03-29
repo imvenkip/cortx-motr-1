@@ -36,6 +36,7 @@ static int m0_panic_delay_msec = 110;
 
 void m0_arch_backtrace()
 {
+	dump_stack();
 }
 
 M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c, va_list ap)

@@ -19,6 +19,7 @@ m0mero_objects += lib/assert.o \
                   lib/locality.o \
                   lib/lockers.o \
                   lib/m0lib.o \
+                  lib/memory.o \
                   lib/misc.o \
                   lib/queue.o \
                   lib/refs.o \

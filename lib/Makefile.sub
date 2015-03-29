@@ -80,6 +80,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
 			   lib/locality.c \
                            lib/lockers.c \
                            lib/m0lib.c \
+                           lib/memory.c \
                            lib/misc.c \
                            lib/mutex.c \
                            lib/queue.c \

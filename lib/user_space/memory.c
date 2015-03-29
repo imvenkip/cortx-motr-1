@@ -23,18 +23,12 @@
 #include <errno.h>
 #include <sys/mman.h>
 
-#include "config.h"      /* ENABLE_FREE_POISON */
 #include "lib/arith.h"   /* min_type, m0_is_po2 */
 #include "lib/assert.h"
-#include "lib/atomic.h"
 #include "lib/memory.h"
-#include "lib/finject.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
 #include "lib/trace.h"
-
-#include "addb2/addb2.h"
-#include "addb2/identifier.h"
 
 /**
    @addtogroup memory
@@ -52,28 +46,13 @@
    @{
 */
 
-static struct m0_atomic64 allocated;
-static struct m0_atomic64 cumulative_alloc;
-static struct m0_atomic64 cumulative_free;
-
-enum { U_POISON_BYTE = 0x5f };
-
 #ifdef HAVE_MALLINFO
 
 #include <malloc.h>
-static size_t __allocated(void)
-{
-	return mallinfo().uordblks;
-}
 
-#define __malloc malloc
-
-static void __free(void *ptr)
+M0_INTERNAL size_t m0_arch_alloc_size(void *data)
 {
-#ifdef ENABLE_FREE_POISON
-	memset(ptr, U_POISON_BYTE, malloc_usable_size(ptr));
-#endif
-	free(ptr);
+	return malloc_usable_size(data);
 }
 
 /* HAVE_MALLINFO */
@@ -81,132 +60,53 @@ static void __free(void *ptr)
 
 #include <malloc/malloc.h>
 
-static void __free(void *ptr)
+M0_INTERNAL size_t m0_arch_alloc_size(void *data)
 {
-	size_t size = malloc_size(ptr);
-
-	m0_atomic64_sub(&allocated, size);
-#ifdef ENABLE_DEV_MODE
-	m0_atomic64_add(&cumulative_free, size);
-#endif
-#ifdef ENABLE_FREE_POISON
-	memset(ptr, U_POISON_BYTE, size);
-#endif
-	free(ptr);
-}
-
-M0_INTERNAL void *__malloc(size_t size)
-{
-	void *area;
-
-	area = malloc(size);
-#ifdef ENABLE_DEV_MODE
-	m0_atomic64_add(&allocated, malloc_size(area));
-#endif
-	return area;
-}
-
-static size_t __allocated(void)
-{
-	return m0_atomic64_get(&allocated);
+	return malloc_size(data);
 }
 
 /* HAVE_MALLOC_SIZE */
 #else
 
-static size_t __allocated(void)
+M0_INTERNAL size_t m0_arch_alloc_size(void *data)
 {
 	return 0;
 }
 
-#define __free free
-#define __malloc malloc
-
 #endif
 
-void *m0_alloc(size_t size)
+void *m0_arch_alloc(size_t size)
 {
-	void *ret;
-
-	if (M0_FI_ENABLED("fail_allocation"))
-		return NULL;
-
-	M0_ENTRY("size=%lu", size);
-	ret = __malloc(size);
-	if (ret != NULL) {
-		memset(ret, 0, size);
-#ifdef ENABLE_DEV_MODE
-		m0_atomic64_add(&cumulative_alloc, size);
-#endif
-	}
-	M0_ADDB2_ADD(M0_AVI_ALLOC, size, (uint64_t)ret);
-	M0_LEAVE("ptr=%p size=%lu", ret, size);
-	return ret;
+	return malloc(size);
 }
 
-void m0_free(void *data)
+void m0_arch_free(void *data)
 {
-	M0_ENTRY("ptr=%p", data);
-	__free(data);
-	M0_LEAVE();
+	free(data);
 }
 
-M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift)
+M0_INTERNAL void m0_arch_allocated_zero(void *data, size_t size)
 {
-	M0_PRE(m0_addr_is_aligned(data, shift));
-	m0_free(data);
+	memset(data, 0, size);
 }
 
-static size_t used0;
-
-M0_INTERNAL size_t m0_allocated(void)
+M0_INTERNAL void m0_arch_free_aligned(void *data, size_t size, unsigned shift)
 {
-	size_t used;
-
-	used = __allocated();
-	if (used < used0)
-		used = used0;
-	return used - used0;
+	free(data);
 }
 
-M0_INTERNAL size_t m0_allocated_total(void)
+M0_INTERNAL void *m0_arch_alloc_aligned(size_t alignment, size_t size)
 {
-	return m0_atomic64_get(&cumulative_alloc);
-}
+	int   rc;
+	void *result;
 
-M0_INTERNAL size_t m0_freed_total(void)
-{
-	return m0_atomic64_get(&cumulative_free);
-}
-
-M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
-{
-	void  *result;
-	int    rc;
-	size_t alignment;
-
-	/*
-	 * posix_memalign(3):
-	 *
-	 *         The requested alignment must be a power of 2 at least as
-	 *         large as sizeof(void *).
-	 */
-
-	alignment = max_type(size_t, 1 << shift, sizeof result);
-	M0_ASSERT(m0_is_po2(alignment));
 	rc = posix_memalign(&result, alignment, size);
-	if (rc == 0) {
-		memset(result, 0, size);
-#ifdef ENABLE_DEV_MODE
-		m0_atomic64_add(&cumulative_alloc, size);
-#endif
-	} else {
+	if (rc != 0)
 		result = NULL;
-	}
 	return result;
 }
 
-M0_INTERNAL void *m0_alloc_wired(size_t size, unsigned shift)
+M0_INTERNAL void *m0_arch_alloc_wired(size_t size, unsigned shift)
 {
 	void *res;
 	int   rc;
@@ -224,7 +124,7 @@ M0_INTERNAL void *m0_alloc_wired(size_t size, unsigned shift)
 	}
 
 	rc = madvise((void*)((unsigned long)res & ~(PAGE_SIZE - 1)), 1,
-	             MADV_DONTFORK);
+		     MADV_DONTFORK);
 	if (rc == -1) {
 		M0_LOG(M0_ERROR, "madvise() failed: rc=%d", errno);
 		m0_free_wired(res, size, shift);
@@ -234,19 +134,19 @@ out:
 	return res;
 }
 
-M0_INTERNAL void m0_free_wired(void *data, size_t size, unsigned shift)
+M0_INTERNAL void m0_arch_free_wired(void *data, size_t size, unsigned shift)
 {
 	int rc;
 
 	rc = madvise((void*)((unsigned long)data & ~(PAGE_SIZE - 1)), 1,
-	             MADV_DOFORK);
+		     MADV_DOFORK);
 	if (rc == -1)
 		M0_LOG(M0_WARN, "madvise() failed: rc=%d", errno);
 	munlock(data, 1);
 	m0_free_aligned(data, size, shift);
 }
 
-M0_INTERNAL int m0_memory_init(void)
+M0_INTERNAL int m0_arch_memory_init(void)
 {
 	void *nothing;
 
@@ -256,18 +156,14 @@ M0_INTERNAL int m0_memory_init(void)
 	nothing = m0_alloc(0);
 	M0_ASSERT(nothing != NULL);
 	m0_free(nothing);
-	m0_atomic64_set(&allocated, 0);
-	m0_atomic64_set(&cumulative_alloc, 0);
-	m0_atomic64_set(&cumulative_free, 0);
-	used0 = __allocated();
 	return 0;
 }
 
-M0_INTERNAL void m0_memory_fini(void)
+M0_INTERNAL void m0_arch_memory_fini(void)
 {
 }
 
-M0_INTERNAL int m0_pagesize_get()
+M0_INTERNAL int m0_arch_pagesize_get()
 {
 	return getpagesize();
 }

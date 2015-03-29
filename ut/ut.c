@@ -409,6 +409,8 @@ static int run_suite(const struct m0_ut_suite *suite, int max_name_len)
 	end         = m0_time_now();
 	mem_after   = m0_allocated_total();
 	alloc_after = m0_allocated();
+	/* It's possible that some earlier allocated memory was released. */
+	alloc_after = max64(alloc_after, alloc_before);
 	duration    = m0_time_sub(end, start);
 	mem_used    = mem_after - mem_before;
 

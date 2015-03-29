@@ -162,12 +162,14 @@ M0_INTERNAL void m0_free_wired(void *data, size_t size, unsigned shift);
 M0_INTERNAL size_t m0_allocated(void);
 
 /**
- * Returns cumulative amount of memory allocated so far since libmero library loading.
+ * Returns cumulative amount of memory allocated so far since libmero library
+ * loading.
  */
 M0_INTERNAL size_t m0_allocated_total(void);
 
 /**
- * Returns cumulative amount of memory freed so far since libmero library loading.
+ * Returns cumulative amount of memory freed so far since libmero library
+ * loading.
  */
 M0_INTERNAL size_t m0_freed_total(void);
 
