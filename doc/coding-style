@@ -196,6 +196,11 @@ try to adhere to some higher level idioms.
                 ...
         };
 
+    * avoid implicit field initialization using designated initializers;
+
+    (Rationale: it helps to find all struct field usage and it documents
+    default value of the field.);
+
     * use enums to define numerical constants:
 
         enum LSD_HASHTABLE_PARAMS {
