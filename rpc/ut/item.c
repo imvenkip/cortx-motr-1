@@ -600,17 +600,17 @@ static uint64_t test_item_cache_item_put_xid = UINT64_MAX - 1;
 
 static void test_item_cache_item_get(struct m0_rpc_item *item)
 {
-	M0_UT_ASSERT(_0C(test_item_cache_item_get_xid == UINT64_MAX) ||
-		     _0C(item->ri_header.osr_xid ==
-			 test_item_cache_item_get_xid));
+	M0_UT_ASSERT(test_item_cache_item_get_xid == UINT64_MAX ||
+		     item->ri_header.osr_xid ==
+		     test_item_cache_item_get_xid);
 	test_item_cache_item_get_xid = UINT64_MAX - 1;
 }
 
 static void test_item_cache_item_put(struct m0_rpc_item *item)
 {
-	M0_UT_ASSERT(_0C(test_item_cache_item_put_xid == UINT64_MAX) ||
-		     _0C(item->ri_header.osr_xid ==
-			 test_item_cache_item_put_xid));
+	M0_UT_ASSERT(test_item_cache_item_put_xid == UINT64_MAX ||
+		     item->ri_header.osr_xid ==
+		     test_item_cache_item_put_xid);
 	test_item_cache_item_put_xid = UINT64_MAX - 1;
 }
 
