@@ -258,7 +258,7 @@ struct m0_rpc_conn {
 	    m0_rpc_machine::rm_outgoing_conns.
 	    List descriptor: rpc_conn
 	 */
-	struct m0_tlink		  c_link;
+	struct m0_tlink           c_link;
 
 	/** Counts number of sessions (excluding session 0) */
 	uint64_t                  c_nr_sessions;

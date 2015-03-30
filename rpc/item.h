@@ -130,7 +130,7 @@ enum m0_rpc_item_resend {
 struct m0_rpc_item {
 /* Public fields: write-once/read */
 
-	enum m0_rpc_item_priority	 ri_prio;
+	enum m0_rpc_item_priority        ri_prio;
 
 	/** HA epoch transferred by the item. */
 	uint64_t                         ri_ha_epoch;
@@ -144,7 +144,7 @@ struct m0_rpc_item {
 	m0_time_t                        ri_resend_interval;
 	/** How many resending attempts to make (defaults to ~0). */
 	uint64_t                         ri_nr_sent_max;
-	struct m0_rpc_session		*ri_session;
+	struct m0_rpc_session           *ri_session;
 	/** item operations */
 	const struct m0_rpc_item_ops	*ri_ops;
 	/**
@@ -158,9 +158,9 @@ struct m0_rpc_item {
 /* Public fields: read only */
 
 	struct m0_rpc_machine           *ri_rmachine;
-	int32_t				 ri_error;
+	int32_t                          ri_error;
 	/** reply item */
-	struct m0_rpc_item		*ri_reply;
+	struct m0_rpc_item              *ri_reply;
 
 /* Private fields: */
 	/** If ri_deadline is not in past the ri_deadline_timeout is used to

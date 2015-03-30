@@ -310,7 +310,7 @@ struct m0_rpc_session {
 	/** Link in RPC conn. m0_rpc_conn::c_sessions
 	    List descriptor: session
 	 */
-	struct m0_tlink		  s_link;
+	struct m0_tlink           s_link;
 
 	/** if > 0, then session is in BUSY state */
 	uint32_t                  s_hold_cnt;
@@ -318,10 +318,10 @@ struct m0_rpc_session {
 	/** RPC session state machine
 	    @see m0_rpc_session_state, session_conf
 	 */
-	struct m0_sm		  s_sm;
+	struct m0_sm              s_sm;
 
 	/** M0_RPC_SESSION_MAGIC */
-	uint64_t		  s_magic;
+	uint64_t                  s_magic;
 
 	/** Unique item identifier counter */
 	uint64_t                  s_xid;
