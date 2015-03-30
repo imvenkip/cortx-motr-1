@@ -353,6 +353,29 @@ static void readyit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	m0_fom_ready(fom);
 }
 
+static void addb2_introduce(struct m0_fom *fom)
+{
+	struct m0_rpc_item *req;
+
+	req = fom->fo_fop != NULL ? &fom->fo_fop->f_item : NULL;
+
+	M0_ADDB2_ADD(M0_AVI_FOM_DESCR,
+		     m0_time_now(),
+		     U128_P(&fom->fo_service->rs_service_uuid),
+		     /*
+		      * Session can be NULL for connection and session
+		      * establishing fops.
+		      */
+		     req != NULL && req->ri_session != NULL ?
+				req->ri_session->s_conn->c_sender_id : 0,
+		     req != NULL ? req->ri_type->rit_opcode : 0,
+		     fom->fo_rep_fop != NULL ?
+			     fom->fo_rep_fop->f_item.ri_type->rit_opcode : 0,
+		     fom->fo_local);
+	if (fom->fo_ops->fo_addb2_descr != NULL)
+		fom->fo_ops->fo_addb2_descr(fom);
+}
+
 static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_fom *fom = container_of(ast, struct m0_fom, fo_cb.fc_ast);
@@ -361,6 +384,7 @@ static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_INIT);
 
 	m0_fom_locality_inc(fom);
+	addb2_introduce(fom);
 	fom_ready(fom);
 }
 
@@ -511,18 +535,6 @@ static void fom_wait(struct m0_fom *fom)
 	M0_POST(m0_fom_invariant(fom));
 }
 
-static void addb2_introduce(struct m0_fom *fom)
-{
-	M0_ADDB2_ADD(M0_AVI_FOM_DESCR,
-		     fom->fo_service->rs_service_uuid.u_hi,
-		     fom->fo_service->rs_service_uuid.u_lo,
-		     fom->fo_fop != NULL ?
-			     fom->fo_fop->f_item.ri_type->rit_opcode : 0,
-		     fom->fo_rep_fop != NULL ?
-			     fom->fo_rep_fop->f_item.ri_type->rit_opcode : 0,
-		     fom->fo_local);
-}
-
 /**
  * Helper function advancing a fom call-back from ARMED to DONE state.
  */
@@ -569,8 +581,6 @@ static void fom_exec(struct m0_fom *fom)
 	fom->fo_thread = loc->fl_handler;
 	fom_state_set(fom, M0_FOS_RUNNING);
 	exec_time = fom->fo_sm_state.sm_state_epoch;
-	if (fom->fo_transitions == 0)
-		addb2_introduce(fom);
 	do {
 		M0_ASSERT(m0_fom_invariant(fom));
 		M0_ASSERT(m0_fom_phase(fom) != M0_FOM_PHASE_FINISH);
