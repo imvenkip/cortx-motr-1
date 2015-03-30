@@ -35,7 +35,7 @@
 #include "reqh/reqh_service.h" /* m0_service_health */
 #include "ut/ut.h"
 #include "ut/file_helpers.h"   /* M0_UT_CONF_PATH */
-
+#include "sss/process_fops.h"
 #include "sss/ss_fops.h"
 
 #define SERVER_DB_NAME        "sss_ut_server.db"
@@ -58,6 +58,12 @@ static const struct m0_fid ut_fid = {
 	.f_container = 8286623314361712755,
 	.f_key       = 1
 };
+
+static const struct m0_fid ut_process_fid = {
+	.f_container = 8286623314361712755,
+	.f_key       = 1
+};
+
 static struct m0_net_domain    client_net_dom;
 static struct m0_net_xprt     *xprt = &m0_net_lnet_xprt;
 
@@ -82,6 +88,9 @@ static struct m0_rpc_client_ctx cctx = {
 	.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
 	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 };
+
+extern const struct m0_fom_type_ops ss_process_fom_type_ops;
+extern struct m0_fop_type m0_fop_process_fopt;
 
 static void rpc_client_and_server_start(void)
 {
@@ -199,12 +208,197 @@ static void sss_commands_test(void)
 	sss_ut_req(M0_SERVICE_STATUS, -ENOENT, 0);
 }
 
+static struct m0_fop *ut_sss_process_create_req(uint32_t cmd)
+{
+	struct m0_fop            *fop;
+	struct m0_ss_process_req *process_fop_req;
+
+	M0_ALLOC_PTR(fop);
+	M0_UT_ASSERT(fop != NULL);
+	M0_ALLOC_PTR(process_fop_req);
+	M0_UT_ASSERT(process_fop_req != NULL);
+
+	process_fop_req->ssp_cmd = cmd;
+	m0_fop_init(fop,
+		    &m0_fop_process_fopt,
+		    (void *)process_fop_req,
+		    m0_fop_release);
+
+	return fop;
+}
+
+static struct m0_fop *ut_sss_process_create_reconfig_req()
+{
+	struct m0_fop                     *fop;
+	struct m0_ss_process_reconfig_req *process_reconfig_fop_req;
+
+	M0_ALLOC_PTR(fop);
+	M0_ALLOC_PTR(process_reconfig_fop_req);
+	process_reconfig_fop_req->ssp_cores = 7;
+	m0_fop_init(fop,
+		    &m0_fop_process_reconfig_fopt,
+		    (void *)process_reconfig_fop_req,
+		    m0_fop_release);
+
+	return fop;
+}
+
+/**
+ * Process commands test
+ */
+static int ut_sss_process_req(struct m0_fop *fop, int ssr_rc_exptd)
+{
+	int                       rc;
+	struct m0_fop            *rfop;
+	struct m0_ss_process_rep *process_fop_resp;
+	struct m0_rpc_item       *item;
+
+	item = &fop->f_item;
+	rc = m0_rpc_post_sync(fop, &cctx.rcx_session, NULL, 0);
+	M0_UT_ASSERT(rc == 0);
+
+	rfop  = m0_rpc_item_to_fop(item->ri_reply);
+	M0_UT_ASSERT(rfop != NULL);
+
+	process_fop_resp = m0_fop_data(rfop);
+	M0_UT_ASSERT(process_fop_resp->sspr_rc == ssr_rc_exptd);
+	rc = process_fop_resp->sspr_rc;
+
+	m0_fop_put_lock(fop);
+
+	return rc;
+}
+
+static void sss_process_quiesce_test(void)
+{
+	int            rc;
+	struct m0_fop *fop;
+
+	fop = ut_sss_process_create_req(M0_PROCESS_QUIESCE);
+	rc = ut_sss_process_req(fop, 0);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void sss_process_reconfig_test(void)
+{
+	int rc;
+	struct m0_fop *fop;
+
+	fop = ut_sss_process_create_reconfig_req();
+	rc = ut_sss_process_req(fop, 0);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void sss_process_health_test(void)
+{
+	int rc;
+	struct m0_fop *fop;
+
+	fop = ut_sss_process_create_req(M0_PROCESS_HEALTH);
+	rc = ut_sss_process_req(fop, 0);
+	M0_UT_ASSERT(rc == M0_HEALTH_GOOD);
+}
+
+static void sss_process_stop_test(void)
+{
+	int rc;
+	m0_fi_enable_once("m0_ss_process_stop_fop_release", "no_kill");
+	struct m0_fop *fop;
+
+	fop = ut_sss_process_create_req(M0_PROCESS_STOP);
+	rc = ut_sss_process_req(fop, 0);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void sss_process_commands_test(void)
+{
+	sss_process_reconfig_test();
+	sss_process_quiesce_test();
+	sss_process_health_test();
+	sss_process_stop_test();
+}
+
+static void sss_process_svc_list_test()
+{
+	int                                rc;
+	struct m0_fop                     *fop;
+	struct m0_fop                     *rfop;
+	struct m0_ss_process_svc_list_rep *process_fop_resp;
+	struct m0_rpc_item                *item;
+
+	fop = ut_sss_process_create_req(M0_PROCESS_RUNNING_LIST);
+	item = &fop->f_item;
+	rc = m0_rpc_post_sync(fop, &cctx.rcx_session, NULL, 0);
+	M0_UT_ASSERT(rc == 0);
+
+	rfop  = m0_rpc_item_to_fop(item->ri_reply);
+	M0_UT_ASSERT(rfop != NULL);
+
+	process_fop_resp = m0_fop_data(rfop);
+	M0_UT_ASSERT(process_fop_resp->sspr_rc == 0);
+	rc = process_fop_resp->sspr_rc;
+	M0_UT_ASSERT(rc == 0);
+
+	M0_UT_ASSERT(process_fop_resp->sspr_services.ab_count > 0);
+
+	m0_fop_put_lock(fop);
+}
+
+static void sss_fop_ut_release(struct m0_ref *ref)
+{
+	struct m0_fop    *fop;
+        fop  = container_of(ref, struct m0_fop, f_ref);
+        m0_free(fop);
+}
+
+static void sss_process_fom_create_fail(void)
+{
+	int             rc;
+	struct m0_fop  *fop;
+	struct m0_fom  *fom;
+	struct m0_reqh *reqh;
+	struct m0_ss_process_req *req;
+
+	M0_ALLOC_PTR(fop);
+	M0_ALLOC_PTR(req);
+	M0_ALLOC_PTR(fom);
+	M0_ALLOC_PTR(reqh);
+
+	m0_fop_init(fop, &m0_fop_process_fopt, req,
+		    sss_fop_ut_release);
+	req->ssp_cmd = 1;
+
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	rc = ss_process_fom_type_ops.fto_create(fop, &fom, reqh);
+	M0_UT_ASSERT(rc == -ENOMEM);
+
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
+	fop->f_item.ri_rmachine = &cctx.rcx_rpc_machine;
+	rc = ss_process_fom_type_ops.fto_create(fop, &fom, reqh);
+	m0_fi_disable("m0_alloc", "fail_allocation");
+	M0_UT_ASSERT(rc == -ENOMEM);
+
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 2, 1);
+	fop->f_item.ri_rmachine = &cctx.rcx_rpc_machine;
+	rc = ss_process_fom_type_ops.fto_create(fop, &fom, reqh);
+	m0_fi_disable("m0_alloc", "fail_allocation");
+	M0_UT_ASSERT(rc == -ENOMEM);
+
+	m0_fop_fini(fop);
+	m0_free(fom);
+	m0_free(reqh);
+}
+
+
 const struct m0_ut_suite sss_ut = {
 	.ts_name = "sss-ut",
 	.ts_init = sss_ut_init,
 	.ts_fini = sss_ut_fini,
 	.ts_tests = {
 		{ "commands", sss_commands_test },
+		{ "process-commands", sss_process_commands_test },
+		{ "process-services-list", sss_process_svc_list_test },
+		{ "process-fom-create-fail", sss_process_fom_create_fail },
 		{ NULL, NULL },
 	},
 };

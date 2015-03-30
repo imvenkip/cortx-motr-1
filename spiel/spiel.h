@@ -26,7 +26,7 @@
 #include "fid/fid.h"           /* m0_fid */
 #include "conf/schema.h"       /* m0_conf_service_type */
 #include "conf/confc.h"        /* m0_confc */
-#include "reqh/reqh_service.h" /* m0_service_health */
+#include "reqh/reqh_service.h" /* enum m0_service_health */
 
 
 /**
@@ -625,20 +625,29 @@ int m0_spiel_process_health(struct m0_spiel     *spl,
 int m0_spiel_process_quiesce(struct m0_spiel     *spl,
 			     const struct m0_fid *proc_fid);
 
+struct m0_spiel_running_svc {
+	/* Service FID */
+	struct m0_fid  spls_fid;
+	/* Service type name */
+	char          *spls_name;
+};
+
 /**
  * List currently running services inside the mero process.
  * Can be used to monitor services and detect service failures.
  * Caller provides place to put fids of running services.
  *
+ * @return number of filled elements in services array on success,
+ *         error code otherwise.
+ *
  * @param spl            spiel instance
  * @param proc_fid       process fid from configuration DB
- * @param services       array to store running services fids
- * @param services_count number of elements in services array
+ * @param services       array to store running services fid and name,
+ *                       see @ref m0_spiel_running_svc
  */
-int m0_spiel_process_list_services(struct m0_spiel      *spl,
-				   const struct m0_fid  *proc_fid,
-				   struct m0_fid        *services,
-				   int                   services_count);
+int m0_spiel_process_list_services(struct m0_spiel              *spl,
+				   const struct m0_fid          *proc_fid,
+				   struct m0_spiel_running_svc **services);
 
 /**
  * Start pool repair

@@ -22,6 +22,7 @@
 #include "lib/misc.h"
 #include "lib/types.h"
 #include "lib/refs.h"
+#include "mero/magic.h"
 #include "sm/sm.h"
 #include "fop/fop.h"
 #include "fop/fom.h"

@@ -16,7 +16,7 @@
  *
  * Original author: Egor Nikulenkov <egor.nikulenkov@seagate.com>
 
- * Original creation date: 02/24/2015
+ * Original creation date: 24-Feb-2015
  */
 
 

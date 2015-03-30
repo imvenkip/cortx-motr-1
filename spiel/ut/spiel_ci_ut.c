@@ -22,6 +22,8 @@
 #include "lib/trace.h"
 
 #include "net/lnet/lnet.h"    /* m0_net_lnet_xprt */
+#include "lib/finject.h"      /* m0_fi_enable_once */
+#include "conf/obj_ops.h"
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine */
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx */
 #include "ut/ut.h"
@@ -37,13 +39,18 @@ static struct m0_reqh            g_reqh;
 static struct m0_net_domain      g_net_dom;
 static struct m0_net_buffer_pool g_buf_pool;
 
+int spiel_proc_conf_obj_find(struct m0_confc         *confc,
+			     const struct m0_fid     *profile,
+			     const struct m0_fid     *proc_fid,
+			     struct m0_conf_process **proc_obj);
+
 static void test_spiel_service_cmds(void)
 {
 	struct m0_rpc_server_ctx  confd_srv;
 	struct m0_spiel           spiel;
 	int                       rc;
 	const char               *confd_eps[] = { SERVER_ENDPOINT_ADDR, NULL };
-	const char               *profile = "<0x7000000000000001:0>";
+	const char               *profile = M0_UT_CONF_PROFILE;
 	const struct m0_fid       svc_fid = M0_FID_TINIT('s', 1,  10);
 	const struct m0_fid       svc_invalid_fid = M0_FID_TINIT('s', 1,  13);
 	struct m0_spiel_ut_reqh   ut_reqh = {
@@ -87,12 +94,157 @@ static void test_spiel_service_cmds(void)
 	m0_spiel__ut_confd_stop(&confd_srv);
 }
 
+static void test_spiel_process_prepare_fini(struct m0_spiel     *spl,
+					    const struct m0_fid *proc_fid)
+{
+	struct m0_mutex        *conf_cache_mutex = &spl->spl_confc.cc_lock;
+	struct m0_conf_process *proc;
+	struct m0_conf_obj     *obj;
+	int                     rc = 0;
+
+	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
+		return;
+
+	rc = spiel_proc_conf_obj_find(&spl->spl_confc, &spl->spl_profile,
+				      proc_fid, &proc);
+
+	if (rc != 0)
+		return;
+
+	m0_mutex_lock(conf_cache_mutex);
+	m0_tl_for(m0_conf_dir, &proc->pc_services->cd_items, obj) {
+		while (obj->co_nrefs > 0)
+			m0_conf_obj_put(obj);
+	} m0_tl_endfor;
+
+	while (proc->pc_obj.co_nrefs > 0)
+		m0_conf_obj_put(&proc->pc_obj);
+	m0_mutex_unlock(conf_cache_mutex);
+}
+
+static void test_spiel_process_services_list(void)
+{
+	struct m0_rpc_server_ctx     confd_srv;
+	struct m0_spiel              spiel;
+	struct m0_spiel_running_svc *svcs;
+	int                          rc;
+	int                          i;
+	const char                  *confd_eps[] = {
+		SERVER_ENDPOINT_ADDR,
+		NULL
+	};
+	const char *profile = M0_UT_CONF_PROFILE;
+	const struct m0_fid proc_fid = M0_FID_TINIT('r', 1,  5);
+
+	struct m0_spiel_ut_reqh ut_reqh = {
+		.sur_net_dom  = g_net_dom,
+		.sur_buf_pool = g_buf_pool,
+		.sur_reqh     = g_reqh,
+	};
+	rc = m0_spiel__ut_confd_start(&confd_srv, confd_eps[0],
+				      M0_UT_CONF_PATH("conf-str.txt"));
+	M0_UT_ASSERT(rc == 0);
+
+	m0_spiel__ut_reqh_init(&ut_reqh, CLIENT_ENDPOINT_ADDR);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_start(&spiel, &ut_reqh.sur_reqh, confd_eps, profile);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_process_list_services(&spiel, &proc_fid, &svcs);
+	M0_UT_ASSERT(rc > 0);
+	M0_UT_ASSERT(svcs != NULL);
+	for (i = 0; i < rc; ++i)
+		m0_free(svcs[i].spls_name);
+	m0_free(svcs);
+
+	test_spiel_process_prepare_fini(&spiel, &proc_fid);
+	m0_spiel_stop(&spiel);
+
+	m0_spiel__ut_reqh_fini(&ut_reqh);
+	m0_spiel__ut_confd_stop(&confd_srv);
+}
+
+static void test_spiel_process_cmds(void)
+{
+	struct m0_rpc_server_ctx  confd_srv;
+	struct m0_spiel           spiel;
+	int                       rc;
+	const char              *confd_eps[] = {
+		SERVER_ENDPOINT_ADDR,
+		NULL
+	};
+	const char *profile = M0_UT_CONF_PROFILE;
+	const struct m0_fid profile_fid = M0_FID_TINIT('r', 1, 5);
+	const struct m0_fid profile_second_fid = M0_FID_TINIT('r', 1, 13);
+	const struct m0_fid profile_invalid_fid = M0_FID_TINIT('s', 4, 15);
+
+	struct m0_spiel_ut_reqh ut_reqh = {
+		.sur_net_dom  = g_net_dom,
+		.sur_buf_pool = g_buf_pool,
+		.sur_reqh     = g_reqh,
+	};
+	rc = m0_spiel__ut_confd_start(&confd_srv, confd_eps[0],
+				      M0_UT_CONF_PATH("conf-str.txt"));
+	M0_UT_ASSERT(rc == 0);
+
+	m0_spiel__ut_reqh_init(&ut_reqh, CLIENT_ENDPOINT_ADDR);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_start(&spiel, &ut_reqh.sur_reqh, confd_eps, profile);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Reconfig */
+	rc = m0_spiel_process_reconfig(&spiel, &profile_invalid_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	rc = m0_spiel_process_reconfig(&spiel, &profile_fid);
+	M0_UT_ASSERT(rc == -ENOMEM);
+
+	rc = m0_spiel_process_reconfig(&spiel, &profile_second_fid);
+	M0_UT_ASSERT(rc == -ENOENT);
+
+	rc = m0_spiel_process_reconfig(&spiel, &profile_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Health */
+	rc = m0_spiel_process_health(&spiel, &profile_invalid_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_process_health(&spiel, &profile_fid);
+	M0_UT_ASSERT(rc == M0_HEALTH_GOOD);
+
+	/* Quiesce */
+	rc = m0_spiel_process_quiesce(&spiel, &profile_invalid_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_process_quiesce(&spiel, &profile_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Stop */
+	rc = m0_spiel_process_stop(&spiel, &profile_invalid_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	m0_fi_enable_once("m0_ss_process_stop_fop_release", "no_kill");
+	rc = m0_spiel_process_stop(&spiel, &profile_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Finish test */
+	m0_spiel_stop(&spiel);
+
+	m0_spiel__ut_reqh_fini(&ut_reqh);
+	m0_spiel__ut_confd_stop(&confd_srv);
+}
+
 struct m0_ut_suite spiel_ci_ut = {
 	.ts_name  = "spiel-ci-ut",
 	.ts_init  = NULL,
 	.ts_fini  = NULL,
 	.ts_tests = {
 		{ "service-cmds", test_spiel_service_cmds },
+		{ "process-services-list", test_spiel_process_services_list },
+		{ "process-cmds", test_spiel_process_cmds },
 		{ NULL, NULL }
 	}
 };

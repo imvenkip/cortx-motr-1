@@ -24,6 +24,7 @@
 #include "lib/memory.h"       /* M0_ALLOC_PTR, m0_free */
 #include "lib/errno.h"
 #include "lib/buf.h"          /* m0_buf_init */
+#include "lib/finject.h"      /* M0_FI_ENABLED */
 #include "lib/mutex.h"        /* m0_mutex_lock, m0_mutex_unlock */
 #include "conf/helpers.h"     /* service_name_dup */
 #include "conf/obj.h"
@@ -35,6 +36,7 @@
 #include "rpc/link.h"
 #include "rpc/rpclib.h"       /* m0_rpc_post_sync */
 #include "sss/ss_fops.h"
+#include "sss/process_fops.h"
 #include "spiel/spiel.h"
 
 #define SPIEL_CONF_OBJ_FIND(confc, profile, fid, conf_obj, filter, ...) \
@@ -68,7 +70,7 @@ static int spiel_send_cmd(struct m0_rpc_machine *rmachine,
 		return M0_ERR(-ENOMEM);
 
 	rc = m0_rpc_link_init(rlink, rmachine, remote_ep,
-		       	SPIEL_CONN_TIMEOUT, SPIEL_MAX_RPCS_IN_FLIGHT);
+			SPIEL_CONN_TIMEOUT, SPIEL_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
 		rc = m0_rpc_link_connect_sync(rlink) ?:
 		     m0_rpc_post_sync(cmd_fop,
@@ -173,8 +175,8 @@ static int _spiel_conf_obj_find(struct m0_confc       *confc,
 	return M0_RC(rc);
 }
 
-static int spiel_ss_ep_for_process(struct m0_conf_obj  *process,
-				   char               **ss_ep)
+static int spiel_ss_ep_lookup(struct m0_conf_obj  *svc_dir,
+			      char               **ss_ep)
 {
 	int                      rc;
 	struct m0_conf_service  *svc;
@@ -183,15 +185,15 @@ static int spiel_ss_ep_for_process(struct m0_conf_obj  *process,
 	M0_ENTRY();
 
 	M0_PRE(ss_ep != NULL);
-	M0_PRE(process != NULL);
+	M0_PRE(svc_dir != NULL);
 
 	*ss_ep = NULL;
 
-	rc = m0_confc_open_sync(&process, process, M0_FID0);
+	rc = m0_confc_open_sync(&svc_dir, svc_dir, M0_FID0);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	for (svc = NULL; (rc = m0_confc_readdir_sync(process, &obj)) > 0; ) {
+	for (svc = NULL; (rc = m0_confc_readdir_sync(svc_dir, &obj)) > 0; ) {
 		svc = M0_CONF_CAST(obj, m0_conf_service);
 		if (svc->cs_type == M0_CST_SSS) {
 			*ss_ep = m0_strdup(svc->cs_endpoints[0]);
@@ -201,7 +203,7 @@ static int spiel_ss_ep_for_process(struct m0_conf_obj  *process,
 	}
 
 	m0_confc_close(obj);
-	m0_confc_close(process);
+	m0_confc_close(svc_dir);
 
 	if (rc == 0 && *ss_ep == NULL)
 		rc = M0_ERR(-ENOENT);
@@ -223,8 +225,8 @@ static int spiel_ss_ep_for_svc(const struct m0_conf_service  *s,
 
 	M0_ENTRY();
 
-	/* process is the parent for the service */
-	return M0_RC(spiel_ss_ep_for_process(s->cs_obj.co_parent, ss_ep));
+	/* m0_conf_process::pc_services dir is the parent for the service */
+	return M0_RC(spiel_ss_ep_lookup(s->cs_obj.co_parent, ss_ep));
 }
 
 static bool _filter_svc(const struct m0_conf_obj *obj)
@@ -298,14 +300,12 @@ static int spiel_svc_fop_fill_and_send(struct m0_spiel     *spl,
 
 	rc = spiel_svc_fop_fill(fop, svc, cmd) ?:
 	     spiel_ss_ep_for_svc(svc, &ss_ep);
-
 	if (rc == 0) {
 		rc = spiel_send_cmd(spl->spl_rmachine, ss_ep, fop);
 		m0_free(ss_ep);
 	}
 
 	m0_confc_close(&svc->cs_obj);
-
 	return M0_RC(rc);
 }
 
@@ -425,22 +425,136 @@ M0_EXPORTED(m0_spiel_device_format);
 /****************************************************/
 /*                   Processes                      */
 /****************************************************/
+static bool _filter_proc(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_PROCESS_TYPE;
+}
+
+/* Non static for use in UT only */
+int spiel_proc_conf_obj_find(struct m0_confc         *confc,
+			     const struct m0_fid     *profile,
+			     const struct m0_fid     *proc_fid,
+			     struct m0_conf_process **proc_obj)
+{
+	struct m0_conf_obj *obj;
+	int                 rc;
+
+	rc = SPIEL_CONF_OBJ_FIND(confc, profile, proc_fid, &obj, _filter_proc,
+				 M0_CONF_FILESYSTEM_NODES_FID,
+				 M0_CONF_NODE_PROCESSES_FID);
+
+	*proc_obj = rc == 0 ? M0_CONF_CAST(obj, m0_conf_process) : NULL;
+
+	return M0_RC(rc);
+}
+
+static int spiel_process_command_send(struct m0_spiel     *spl,
+				      const struct m0_fid *proc_fid,
+				      struct m0_fop       *fop)
+{
+	struct m0_conf_process *process;
+	char                   *ep;
+	int                     rc;
+
+	M0_ENTRY();
+
+	M0_PRE(spl != NULL);
+	M0_PRE(proc_fid != NULL);
+	M0_PRE(fop != NULL);
+	M0_PRE(m0_conf_fid_type(proc_fid) == &M0_CONF_PROCESS_TYPE);
+
+	rc = spiel_proc_conf_obj_find(&spl->spl_confc, &spl->spl_profile,
+				      proc_fid, &process);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = spiel_ss_ep_lookup(&process->pc_services->cd_obj, &ep);
+	m0_confc_close(&process->pc_obj);
+
+	if (rc == 0)
+		rc = spiel_send_cmd(spl->spl_rmachine, ep, fop);
+	m0_free(ep);
+
+	if (rc != 0) {
+		m0_fop_fini(fop);
+		m0_free(fop);
+	}
+
+	return M0_RC(rc);
+}
+
+static int spiel_process_reply_status(struct m0_fop *fop)
+{
+	struct m0_ss_process_rep *rep;
+
+	rep = m0_ss_fop_process_rep(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+	return rep->sspr_rc;
+}
+
+static int spiel_process_command_execute(struct m0_spiel     *spl,
+					 const struct m0_fid *proc_fid,
+					 int                  cmd)
+{
+	struct m0_fop *fop;
+	int            rc;
+
+	M0_ENTRY();
+
+	M0_PRE(spl != NULL);
+	M0_PRE(proc_fid != NULL);
+	M0_PRE(m0_conf_fid_type(proc_fid) == &M0_CONF_PROCESS_TYPE);
+
+	fop = m0_ss_process_fop_create(spl->spl_rmachine, cmd);
+	if (fop == NULL)
+		return M0_RC(-ENOMEM);
+	rc = spiel_process_command_send(spl, proc_fid, fop);
+	if (rc == 0) {
+		rc = spiel_process_reply_status(fop);
+		m0_fop_put_lock(fop);
+	}
+	return M0_RC(rc);
+}
 
 int m0_spiel_process_stop(struct m0_spiel *spl, const struct m0_fid *proc_fid)
 {
-	int rc = 0;
 	M0_ENTRY();
 
-	return M0_RC(rc);
+	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
+		return M0_ERR(-EINVAL);
+
+	return M0_RC(spiel_process_command_execute(spl, proc_fid,
+						   M0_PROCESS_STOP));
 }
 M0_EXPORTED(m0_spiel_process_stop);
 
 int m0_spiel_process_reconfig(struct m0_spiel     *spl,
 			      const struct m0_fid *proc_fid)
 {
-	int rc = 0;
+	struct m0_fop          *fop;
+	struct m0_conf_process *process;
+	int                     rc;
+
 	M0_ENTRY();
 
+	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
+		return M0_ERR(-EINVAL);
+
+	rc = spiel_proc_conf_obj_find(&spl->spl_confc, &spl->spl_profile,
+				      proc_fid, &process);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	fop = m0_ss_process_reconfig_fop_create(spl->spl_rmachine,
+						process->pc_cores,
+						process->pc_memlimit);
+	m0_confc_close(&process->pc_obj);
+	if (fop == NULL)
+		return M0_RC(-ENOMEM);
+	rc = spiel_process_command_send(spl, proc_fid, fop);
+	if (rc == 0) {
+		rc = spiel_process_reply_status(fop);
+		m0_fop_put_lock(fop);
+	}
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_process_reconfig);
@@ -448,30 +562,85 @@ M0_EXPORTED(m0_spiel_process_reconfig);
 int m0_spiel_process_health(struct m0_spiel     *spl,
 			    const struct m0_fid *proc_fid)
 {
-	int rc = 0;
 	M0_ENTRY();
 
-	return M0_RC(rc);
+	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
+		return M0_ERR(-EINVAL);
+
+	return M0_RC(spiel_process_command_execute(spl, proc_fid,
+						   M0_PROCESS_HEALTH));
 }
 M0_EXPORTED(m0_spiel_process_health);
 
 int m0_spiel_process_quiesce(struct m0_spiel     *spl,
 			     const struct m0_fid *proc_fid)
 {
-	int rc = 0;
 	M0_ENTRY();
 
-	return M0_RC(rc);
+	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
+		return M0_ERR(-EINVAL);
+
+	return M0_RC(spiel_process_command_execute(spl, proc_fid,
+						   M0_PROCESS_QUIESCE));
 }
 M0_EXPORTED(m0_spiel_process_quiesce);
 
-int m0_spiel_process_list_services(struct m0_spiel      *spl,
-				   const struct m0_fid  *proc_fid,
-				   struct m0_fid        *services,
-				   int                   services_count)
+static int spiel_running_svcs_list_fill(struct m0_bufs               *bufs,
+					struct m0_spiel_running_svc **svcs)
 {
-	int rc = 0;
+	struct m0_ss_process_svc_item *src;
+	struct m0_spiel_running_svc   *services;
+	int                            i;
+
 	M0_ENTRY();
+
+	M0_ALLOC_ARR(services, bufs->ab_count);
+	if (services == NULL)
+		return M0_ERR(-ENOMEM);
+	for(i = 0; i < bufs->ab_count; ++i) {
+		src = (struct m0_ss_process_svc_item *)bufs->ab_elems[i].b_addr;
+		services[i].spls_fid = src->ssps_fid;
+		services[i].spls_name = m0_strdup(src->ssps_name);
+		if (services[i].spls_name == NULL)
+			goto err;
+	}
+	*svcs = services;
+
+	return M0_RC(bufs->ab_count);
+err:
+	for(i = 0; i < bufs->ab_count; ++i)
+		m0_free(services[i].spls_name);
+	m0_free(services);
+	return M0_ERR(-ENOMEM);
+}
+
+int m0_spiel_process_list_services(struct m0_spiel              *spl,
+				   const struct m0_fid          *proc_fid,
+				   struct m0_spiel_running_svc **services)
+{
+	struct m0_fop                     *fop;
+	struct m0_ss_process_svc_list_rep *rep;
+	int                                rc;
+
+	M0_ENTRY();
+
+	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
+		return M0_ERR(-EINVAL);
+
+	fop = m0_ss_process_fop_create(spl->spl_rmachine,
+				       M0_PROCESS_RUNNING_LIST);
+	if (fop == NULL)
+		return M0_RC(-ENOMEM);
+	rc = spiel_process_command_send(spl, proc_fid, fop);
+	if (rc == 0) {
+		rep = m0_ss_fop_process_svc_list_rep(
+				m0_rpc_item_to_fop(fop->f_item.ri_reply));
+		rc = rep->sspr_rc;
+		if (rc == 0)
+			rc = spiel_running_svcs_list_fill(&rep->sspr_services,
+							  services);
+		m0_fop_put_lock(fop);
+	}
 
 	return M0_RC(rc);
 }

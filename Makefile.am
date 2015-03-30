@@ -1221,9 +1221,9 @@ EXTRA_DIST += \
               fop/Kbuild.sub \
               fop/ut/Kbuild.sub \
               format/Kbuild.sub \
-	      file/Kbuild.sub \
-	      file/ut/Kbuild.sub \
-	      graph/Kbuild.sub \
+              file/Kbuild.sub \
+              file/ut/Kbuild.sub \
+              graph/Kbuild.sub \
               ha/Kbuild.sub \
               ioservice/Kbuild.sub \
               ioservice/ut/Kbuild.sub \
@@ -1257,6 +1257,7 @@ EXTRA_DIST += \
               sm/ut/Kbuild.sub \
               sns/Kbuild.sub \
               spiel/Kbuild.sub \
+              sss/Kbuild.sub \
               stats/Kbuild.sub \
               stob/Kbuild.sub \
               stob/ut/Kbuild.sub \

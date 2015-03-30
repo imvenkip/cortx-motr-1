@@ -35,6 +35,7 @@
 #ifndef __KERNEL__
 #include "mero/setup.h"
 #endif
+#include "sss/process_fops.h"
 #include "sss/ss_fops.h"
 #include "sss/ss_svc.h"
 
@@ -127,6 +128,13 @@ M0_INTERNAL int m0_ss_svc_init(void)
 	rc = m0_ss_fops_init();
 	if (rc != 0)
 		m0_reqh_service_type_unregister(&m0_ss_svc_type);
+
+	rc = m0_ss_process_fops_init();
+	if (rc != 0){
+		m0_ss_fops_fini();
+		m0_reqh_service_type_unregister(&m0_ss_svc_type);
+	}
+
 	return M0_RC(rc);
 }
 
@@ -135,6 +143,7 @@ M0_INTERNAL void m0_ss_svc_fini(void)
 	M0_ENTRY();
 	m0_reqh_service_type_unregister(&m0_ss_svc_type);
 	m0_ss_fops_fini();
+	m0_ss_process_fops_fini();
 	M0_LEAVE();
 }
 
@@ -157,7 +166,7 @@ struct m0_sm_state_descr ss_fom_phases[] = {
 		.sd_name    = "SS_FOM_INIT",
 		.sd_allowed = M0_BITS(SS_FOM_SVC_INIT, SS_FOM_QUIESCE,
 				      SS_FOM_START, SS_FOM_STOP, SS_FOM_STATUS,
-				      SS_FOM_HEALTH, M0_FOPH_FAILURE),
+				      M0_FOPH_FAILURE, SS_FOM_HEALTH),
 	},
 	[SS_FOM_SVC_INIT]= {
 		.sd_name    = "SS_FOM_SVC_INIT",
@@ -221,8 +230,8 @@ ss_fom_create(struct m0_fop *fop, struct m0_fom **out, struct m0_reqh *reqh)
 		goto err;
 
 	fom = &ssfom->ssf_fom;
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, &ss_fom_ops, fop, rfop,
-		    reqh);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type,
+		    &ss_fom_ops, fop, rfop, reqh);
 
 	ssfom->ssf_magic = M0_SS_FOM_MAGIC;
 	*out = fom;

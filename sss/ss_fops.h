@@ -23,8 +23,10 @@
 #ifndef __MERO_SSS_SS_FOPS_H__
 #define __MERO_SSS_SS_FOPS_H__
 
+#include "conf/onwire.h"
 #include "lib/types_xc.h"
 #include "lib/buf_xc.h"
+#include "lib/tlist.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
 
@@ -36,6 +38,8 @@
 struct m0_ref;
 extern struct m0_fop_type m0_fop_ss_fopt;
 extern struct m0_fop_type m0_fop_ss_rep_fopt;
+extern struct m0_fop_type m0_fop_ss_svc_list_fopt;
+extern struct m0_fop_type m0_fop_ss_svc_list_rep_fopt;
 
 /** Service commands. */
 enum m0_sss_req_cmd {
@@ -44,7 +48,7 @@ enum m0_sss_req_cmd {
 	M0_SERVICE_STATUS,
 	M0_SERVICE_QUIESCE,
 	M0_SERVICE_INIT,
-	M0_SERVICE_HEALTH
+	M0_SERVICE_HEALTH,
 };
 
 /** Request to start/stop a service. */

@@ -56,7 +56,7 @@ enum ss_fom_phases {
 	SS_FOM_QUIESCE,
 	SS_FOM_STOP,
 	SS_FOM_STATUS,
-	SS_FOM_HEALTH
+	SS_FOM_HEALTH,
 };
 
 M0_INTERNAL int m0_ss_svc_init(void);

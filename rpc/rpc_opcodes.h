@@ -226,6 +226,12 @@ enum M0_RPC_OPCODES {
 	/* reqh/ut/reqh_fop_allow_ut.c */
 	M0_REQH_UT_ALLOW_OPCODE             = 151,
 
+	/** SSS process fops */
+	M0_SSS_PROCESS_REQ_OPCODE           = 200,
+	M0_SSS_PROCESS_CFG_REQ_OPCODE       = 201,
+	M0_SSS_PROCESS_REP_OPCODE           = 202,
+	M0_SSS_PROCESS_SVC_LIST_REP_OPCODE  = 203,
+
 	/*
 	 * Identifiers below are for fop-less foms, not fops.
 	 */

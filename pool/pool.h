@@ -317,7 +317,7 @@ struct m0_pooldev {
 	char                    pd_pad[4];
 	/** pool device identity */
 	struct m0_fid           pd_id;
-	/* a node this storage devie is attached to */
+	/* a node this storage device is attached to */
 	struct m0_poolnode     *pd_node;
 	struct m0_format_footer pd_footer;
 };

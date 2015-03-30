@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mikhail Antropov <mikhail.v.antropov@seagate.com>
- * Original creation date: 2/11/2015
+ * Original creation date: 11-Feb-2015
  */
 
 
