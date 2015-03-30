@@ -157,9 +157,9 @@ static void mds_fini(struct m0_reqh_service *service)
 static int mds_start(struct m0_reqh_service *service)
 {
 	struct m0_mero            *cctx;
-	struct m0_reqh            *reqh;
+	/*struct m0_reqh            *reqh;*/
 	struct m0_reqh_md_service *mds;
-	struct m0_sm_group        *grp;
+	/*struct m0_sm_group        *grp;*/
 
 	M0_PRE(service != NULL);
 
@@ -172,12 +172,12 @@ static int mds_start(struct m0_reqh_service *service)
 	cctx = mds->rmds_gen.rs_reqh_ctx->rc_mero;
 	if (cctx->cc_profile == NULL || cctx->cc_confd_addr == NULL)
 		return 0;
-	reqh = mds->rmds_gen.rs_reqh;
+	/*reqh = mds->rmds_gen.rs_reqh;*/
 	/* grp  = &reqh->rh_sm_grp; - no, reqh is not started yet */
 	/** @todo XXX change this when reqh will be started before services,
 	 *        see MERO-317
 	 */
-	grp  = m0_locality0_get()->lo_grp;
+	/*grp  = m0_locality0_get()->lo_grp;*/
 	return 0;
 }
 
