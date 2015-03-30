@@ -118,6 +118,11 @@ M0_INTERNAL void *m0_thread_trampoline(void *arg)
 	return NULL;
 }
 
+M0_INTERNAL struct m0_thread *m0_thread_self(void)
+{
+	return m0_thread_tls()->tls_self;
+}
+
 /** @} end of thread group */
 
 /*

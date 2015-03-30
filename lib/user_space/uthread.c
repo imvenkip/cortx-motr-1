@@ -193,17 +193,6 @@ M0_INTERNAL void m0_threads_once_fini(void)
 	m0_free0(&m0_debugger_args[0]);
 }
 
-M0_INTERNAL void m0_thread_self(struct m0_thread_handle *id)
-{
-	id->h_id = pthread_self();
-}
-
-M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
-				     struct m0_thread_handle *h2)
-{
-	return h1->h_id == h2->h_id;
-}
-
 M0_INTERNAL void m0_enter_awkward(void)
 {
 	struct m0_thread_tls *tls = m0_thread_tls();

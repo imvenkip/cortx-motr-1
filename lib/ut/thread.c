@@ -54,7 +54,6 @@ static void t3(int n)
 {
 	int result;
 	struct m0_bitmap t3bm;
-	struct m0_thread_handle myhandle;
 
 	/* set affinity (confine) to CPU 0 */
 	M0_UT_ASSERT(m0_bitmap_init(&t3bm, 3) == 0);
@@ -65,9 +64,7 @@ static void t3(int n)
 
 	m0_bitmap_fini(&t3bm);
 
-	/* another handle test */
-	m0_thread_self(&myhandle);
-	M0_UT_ASSERT(m0_thread_handle_eq(&myhandle, &t[n].t_h));
+	M0_UT_ASSERT(m0_thread_self() == &t[n]);
 }
 
 static char t1place[100];
@@ -99,21 +96,15 @@ void test_thread(void)
 {
 	int i;
 	int result;
-	struct m0_thread_handle thandle;
-	struct m0_thread_handle myhandle;
 
-	m0_thread_self(&myhandle);
-	m0_thread_self(&thandle);
-	M0_UT_ASSERT(m0_thread_handle_eq(&myhandle, &thandle));
+	M0_UT_ASSERT(m0_thread_self() == m0_thread_self());
 
 	M0_SET_ARR0(r);
 	t0place = 0;
 	result = M0_THREAD_INIT(&t[0], int, NULL, &t0, 42, "t0");
 	M0_UT_ASSERT(result == 0);
 
-	M0_UT_ASSERT(!m0_thread_handle_eq(&myhandle, &t[0].t_h));
-	M0_UT_ASSERT(m0_thread_handle_eq(&t[0].t_h, &t[0].t_h));
-
+	M0_UT_ASSERT(m0_thread_self() != &t[0]);
 	M0_UT_ASSERT(m0_thread_join(&t[0]) == 0);
 	m0_thread_fini(&t[0]);
 	M0_UT_ASSERT(t0place == 42);

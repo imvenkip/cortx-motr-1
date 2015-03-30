@@ -132,10 +132,7 @@ static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
 	nlx_core_tm_set_debug(ctp, tp->_debug_);
 
 	if (tp->xtm_processors.b_nr != 0) {
-		struct m0_thread_handle me;
-
-		m0_thread_self(&me);
-		M0_ASSERT(m0_thread_handle_eq(&me, &tp->xtm_ev_thread.t_h));
+		M0_ASSERT(m0_thread_self() == &tp->xtm_ev_thread);
 		rc = m0_thread_confine(&tp->xtm_ev_thread, &tp->xtm_processors);
 	}
 

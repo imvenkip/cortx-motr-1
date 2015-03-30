@@ -242,18 +242,9 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 				  const struct m0_bitmap *processors);
 
 /**
-   Returns the handle of the current thread.
-   @pre The kernel code will assert !in_interrupt().
-*/
-M0_INTERNAL void m0_thread_self(struct m0_thread_handle *id);
-
-/**
-   Tests whether two thread handles are identical.
-   @ret true if h1 == h2
-   @ret false if h1 != h2
-*/
-M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
-				     struct m0_thread_handle *h2);
+ * Returns the current thread.
+ */
+M0_INTERNAL struct m0_thread *m0_thread_self(void);
 
 /**
  * Returns thread-local storage.

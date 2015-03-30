@@ -41,7 +41,8 @@
 enum { M0_THREAD_NAME_LEN = TASK_COMM_LEN };
 
 struct m0_thread_handle {
-	struct task_struct *h_t;
+	struct task_struct *h_tsk;
+	unsigned long       h_pid;
 };
 
 /** Kernel thread-local storage. */

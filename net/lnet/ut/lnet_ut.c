@@ -22,7 +22,7 @@
 #include "net/lnet/lnet_main.c"
 #include "lib/assert.h" /* M0_IMPOSSIBLE */
 #include "lib/arith.h"  /* max64u */
-#include "lib/thread.h" /* m0_thread_self, m0_thread_handle_eq */
+#include "lib/thread.h" /* m0_thread_self */
 #include "ut/ut.h"
 
 static int ut_verbose = 0;
@@ -1863,15 +1863,13 @@ static void test_bulk(void)
 #endif
 }
 
-static struct m0_thread_handle test_sync_ut_handle;
+static struct m0_thread *test_sync_ut_handle;
 
 /* replacement for ut_buf_cb2 for this test */
 static void test_sync_msg_send_cb2(const struct m0_net_buffer_event *ev)
 {
-	struct m0_thread_handle self;
-	m0_thread_self(&self);
 	/* async callback on background thread */
-	M0_UT_ASSERT(!m0_thread_handle_eq(&self, &test_sync_ut_handle));
+	M0_UT_ASSERT(m0_thread_self() != test_sync_ut_handle);
 
 	ut_buf_cb2(ev);
 }
@@ -1879,10 +1877,8 @@ static void test_sync_msg_send_cb2(const struct m0_net_buffer_event *ev)
 /* replacement for ut_buf_cb1 for this test */
 static void test_sync_msg_recv_cb1(const struct m0_net_buffer_event *ev)
 {
-	struct m0_thread_handle self;
-	m0_thread_self(&self);
 	/* synchronous callback on application thread */
-	M0_UT_ASSERT(m0_thread_handle_eq(&self, &test_sync_ut_handle));
+	M0_UT_ASSERT(m0_thread_self() == test_sync_ut_handle);
 
 	cb_save_ep1 = true;
 	ut_buf_cb1(ev);
@@ -1934,7 +1930,7 @@ static void test_sync_body(struct ut_data *td)
 
 	ut_cbreset();
 
-	m0_thread_self(&test_sync_ut_handle); /* save thread handle */
+	test_sync_ut_handle = m0_thread_self(); /* save thread handle */
 
 	num_msgs = 4;
 	initial_len = 256;

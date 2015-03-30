@@ -99,6 +99,8 @@ M0_INTERNAL void m0_thread_enter(struct m0_thread *thread, bool full)
 
 	thread->t_tls.tls_arch.tat_prev = current->journal_info;
 	thread->t_tls.tls_self = thread;
+	thread->t_h.h_tsk = current;
+	thread->t_h.h_pid = current->pid;
 	current->journal_info = &thread->t_tls;
 	if (__instance != NULL) {
 		m0_set(__instance);
@@ -162,15 +164,18 @@ static int kthread_trampoline(void *arg)
 M0_INTERNAL int m0_thread_init_impl(struct m0_thread *q, const char *name)
 {
 	int result;
+	struct task_struct *task;
 
 	M0_PRE(q->t_state == TS_RUNNING);
 
-	q->t_h.h_t = kthread_create(kthread_trampoline, q, "%s", name);
-	if (IS_ERR(q->t_h.h_t)) {
-		result = PTR_ERR(q->t_h.h_t);
+	task = kthread_create(kthread_trampoline, q, "%s", name);
+	if (IS_ERR(task)) {
+		result = PTR_ERR(q->t_h.h_tsk);
 	} else {
 		result = 0;
-		wake_up_process(q->t_h.h_t);
+		q->t_h.h_tsk = task;
+		q->t_h.h_pid = task->pid;
+		wake_up_process(task);
 	}
 	return result;
 }
@@ -180,7 +185,7 @@ int m0_thread_join(struct m0_thread *q)
 	int result;
 
 	M0_PRE(q->t_state == TS_RUNNING);
-	M0_PRE(q->t_h.h_t != current);
+	M0_PRE(q->t_h.h_tsk != current);
 
 	/* see comment in kthread_trampoline */
 	if (q->t_init == NULL)
@@ -191,7 +196,7 @@ int m0_thread_join(struct m0_thread *q)
 	  kthread_trampoline() always returns 0, but kthread_stop() can return
 	  -errno on failure.
 	 */
-	result = kthread_stop(q->t_h.h_t);
+	result = kthread_stop(q->t_h.h_tsk);
 	if (result == 0)
 		q->t_state = TS_PARKED;
 	return result;
@@ -210,7 +215,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 	size_t              idx;
 	size_t              nr_bits = min64u(processors->b_nr, nr_cpu_ids);
 	cpumask_var_t       cpuset;
-	struct task_struct *p = q->t_h.h_t;
+	struct task_struct *p = q->t_h.h_tsk;
 	int                 nr_allowed;
 
 	if (!zalloc_cpumask_var(&cpuset, GFP_KERNEL))
@@ -250,17 +255,6 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 	}
 	free_cpumask_var(cpuset);
 	return result;
-}
-
-M0_INTERNAL void m0_thread_self(struct m0_thread_handle *id)
-{
-	id->h_t = current;
-}
-
-M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
-				     struct m0_thread_handle *h2)
-{
-	return h1->h_t == h2->h_t;
 }
 
 M0_INTERNAL void m0_enter_awkward(void)

@@ -49,15 +49,12 @@ static const struct m0_addb2_mach_ops test_mach_ops = {
 };
 
 extern struct m0_addb2_mach *(*m0_addb2__mach)(void);
-static struct m0_thread_handle main_thread;
+static struct m0_thread     *main_thread;
 static struct m0_addb2_mach *__mach;
 
 static struct m0_addb2_mach *getmach(void)
 {
-	struct m0_thread_handle self;
-
-	m0_thread_self(&self);
-	if (m0_thread_handle_eq(&self, &main_thread))
+	if (m0_thread_self() == main_thread)
 		return __mach;
 	else
 		return NULL;
@@ -70,7 +67,7 @@ struct m0_addb2_mach *mach_set(int (*s)(const struct m0_addb2_mach  *,
 	submit = s;
 	__mach = m0_addb2_mach_init(&test_mach_ops, NULL);
 	M0_UT_ASSERT(__mach != NULL);
-	m0_thread_self(&main_thread);
+	main_thread = m0_thread_self();
 	m0_addb2__mach = &getmach;
 	m0_fi_enable("mach", "surrogate-mach");
 	return __mach;
