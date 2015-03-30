@@ -50,12 +50,14 @@ m0_addb2_sys_fini
 m0_addb2_sys_get
 m0_addb2_sys_init
 m0_addb2_sys_net_start
+m0_addb2_sys_net_start_with
 m0_addb2_sys_net_stop
 m0_addb2_sys_put
 m0_addb2_sys_sm_start
 m0_addb2_sys_sm_stop
 m0_addb2_sys_stor_start
 m0_addb2_sys_stor_stop
+m0_addb2_sys_submit
 m0_addb2_trace_done
 m0_addb2_value_id_get
 m0_addb2_value_id_set
