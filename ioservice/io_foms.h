@@ -154,15 +154,15 @@ struct m0_stob_io_desc {
 	/** Magic to verify sanity of struct m0_stob_io_desc */
 	uint64_t		 siod_magic;
 	/** Stob IO packet for the operation. */
-        struct m0_stob_io        siod_stob_io;
-        /** Linkage into m0_io_fom_cob_rw::fcrw_stobio_list */
-        struct m0_tlink          siod_linkage;
-        struct m0_fom_callback   siod_fcb;
+	struct m0_stob_io        siod_stob_io;
+	/** Linkage into m0_io_fom_cob_rw::fcrw_stobio_list */
+	struct m0_tlink          siod_linkage;
+	struct m0_fom_callback   siod_fcb;
 	/**
 	 * Fol record part representing stob io operations.
 	 * It should be pointed by m0_stob_io::si_fol_frag.
 	 */
-        struct m0_fol_frag       siod_fol_frag;
+	struct m0_fol_frag       siod_fol_frag;
 };
 
 /**
@@ -171,21 +171,21 @@ struct m0_stob_io_desc {
  */
 struct m0_io_fom_cob_rw {
 	/** Generic m0_fom object. */
-        struct m0_fom                    fcrw_gen;
-        /** Number of desc io_fop desc list*/
-        uint32_t                         fcrw_ndesc;
-        /** index of net buffer descriptor under process*/
-        int                              fcrw_curr_desc_index;
+	struct m0_fom                    fcrw_gen;
+	/** Number of desc io_fop desc list*/
+	uint32_t                         fcrw_ndesc;
+	/** index of net buffer descriptor under process*/
+	int                              fcrw_curr_desc_index;
 	/** Total IO requested from m0_io_indexvec */
 	m0_bcount_t                      fcrw_total_ioivec_cnt;
-        /** Current position in bytes */
-        m0_bcount_t                      fcrw_curr_size;
-        /** no. of descriptor going to process */
-        uint32_t                         fcrw_batch_size;
-        /** Number of bytes requested to transfer. */
-        m0_bcount_t                      fcrw_req_count;
-        /** Number of bytes successfully transferred. */
-        m0_bcount_t                      fcrw_count;
+	/** Current position in bytes */
+	m0_bcount_t                      fcrw_curr_size;
+	/** no. of descriptor going to process */
+	uint32_t                         fcrw_batch_size;
+	/** Number of bytes requested to transfer. */
+	m0_bcount_t                      fcrw_req_count;
+	/** Number of bytes successfully transferred. */
+	m0_bcount_t                      fcrw_count;
 	/** Stob block shift */
 	uint32_t                         fcrw_bshift;
 
@@ -195,24 +195,24 @@ struct m0_io_fom_cob_rw {
 	 */
 	struct m0_stob_io                fcrw_io;
 
-        /** Number of STOB I/O launched */
-        uint32_t                         fcrw_num_stobio_launched;
-        /** Pointer to buffer pool refered by FOM */
-        struct m0_net_buffer_pool       *fcrw_bp;
+	/** Number of STOB I/O launched */
+	uint32_t                         fcrw_num_stobio_launched;
+	/** Pointer to buffer pool refered by FOM */
+	struct m0_net_buffer_pool       *fcrw_bp;
 	/** Stob object on which this FOM is acting. */
-        struct m0_stob		        *fcrw_stob;
+	struct m0_stob                  *fcrw_stob;
 	/** Stob IO packets for the operation. */
-        struct m0_tl                     fcrw_stio_list;
+	struct m0_tl                     fcrw_stio_list;
 	/** Completed stob IOs, used as holders for fol records. */
-        struct m0_tl                     fcrw_done_list;
-        /** rpc bulk load data. */
-        struct m0_rpc_bulk               fcrw_bulk;
-        /** Start time for FOM. */
-        m0_time_t                        fcrw_fom_start_time;
-        /** Start time for FOM specific phase. */
-        m0_time_t                        fcrw_phase_start_time;
-        /** network buffer list currently acquired by io service*/
-        struct m0_tl                     fcrw_netbuf_list;
+	struct m0_tl                     fcrw_done_list;
+	/** rpc bulk load data. */
+	struct m0_rpc_bulk               fcrw_bulk;
+	/** Start time for FOM. */
+	m0_time_t                        fcrw_fom_start_time;
+	/** Start time for FOM specific phase. */
+	m0_time_t                        fcrw_phase_start_time;
+	/** network buffer list currently acquired by io service*/
+	struct m0_tl                     fcrw_netbuf_list;
 	/** Used to store error when any of the stob io fails while
 	 *  waiting for stob io to finish(i.e. all stobio call backs
 	 *  are returned successfully).
@@ -229,30 +229,30 @@ struct m0_io_fom_cob_rw {
  * complete FOM and reqh infrastructure is in place.
  */
 enum m0_io_fom_cob_rw_phases {
-        M0_FOPH_IO_FOM_PREPARE = M0_FOPH_NR + 1,
-        M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
-        M0_FOPH_IO_FOM_BUFFER_WAIT,
-        M0_FOPH_IO_STOB_INIT,
-        M0_FOPH_IO_STOB_WAIT,
-        M0_FOPH_IO_ZERO_COPY_INIT,
-        M0_FOPH_IO_ZERO_COPY_WAIT,
-        M0_FOPH_IO_BUFFER_RELEASE,
+	M0_FOPH_IO_FOM_PREPARE = M0_FOPH_NR + 1,
+	M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
+	M0_FOPH_IO_FOM_BUFFER_WAIT,
+	M0_FOPH_IO_STOB_INIT,
+	M0_FOPH_IO_STOB_WAIT,
+	M0_FOPH_IO_ZERO_COPY_INIT,
+	M0_FOPH_IO_ZERO_COPY_WAIT,
+	M0_FOPH_IO_BUFFER_RELEASE,
 };
 
 /**
  * State transition information.
  */
 struct m0_io_fom_cob_rw_state_transition {
-        /** Current phase of I/O FOM */
-        int         fcrw_st_current_phase;
-        /** Function which executes current phase */
-        int         (*fcrw_st_state_function)(struct m0_fom *);
-        /** Next phase in which FOM is going to execute */
-        int         fcrw_st_next_phase_again;
-        /** Next phase in which FOM is going to wait */
-        int         fcrw_st_next_phase_wait;
-        /** Description of phase */
-        const char *fcrw_st_desc;
+	/** Current phase of I/O FOM */
+	int         fcrw_st_current_phase;
+	/** Function which executes current phase */
+	int         (*fcrw_st_state_function)(struct m0_fom *);
+	/** Next phase in which FOM is going to execute */
+	int         fcrw_st_next_phase_again;
+	/** Next phase in which FOM is going to wait */
+	int         fcrw_st_next_phase_wait;
+	/** Description of phase */
+	const char *fcrw_st_desc;
 };
 
 /**

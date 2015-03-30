@@ -45,6 +45,7 @@
 #include "mero/setup.h"
 #include "pool/pool.h"
 #include "ioservice/io_service_addb.h"
+#include "ioservice/io_addb2.h"
 #include "sns/cm/cm.h" /* m0_sns_cm_fid_repair_done() */
 #include "module/instance.h"	/* m0_get() */
 
@@ -561,6 +562,7 @@ Mm8pb2tQpfGoT-OFgrcF_7wxKoQ/edit?hl=en_US">High Level Design - FOP State Machine
  * @addtogroup io_foms
  * @{
  */
+
 #define IOSERVICE_NAME "ioservice"
 
 M0_TL_DESCR_DEFINE(stobio, "STOB I/O", static, struct m0_stob_io_desc,
@@ -608,15 +610,17 @@ static int zero_copy_finish(struct m0_fom *);
 static int net_buffer_release(struct m0_fom *);
 
 static inline struct m0_addb_mc *fom_to_addb_mc(const struct m0_fom *fom);
+static void io_fom_addb2_descr(struct m0_fom *fom);
 
 /**
  * I/O FOM operation vector.
  */
 struct m0_fom_ops ops = {
-	.fo_fini = m0_io_fom_cob_rw_fini,
-	.fo_tick = m0_io_fom_cob_rw_tick,
-	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
-	.fo_addb_init = m0_io_fom_cob_rw_addb_init
+	.fo_fini          = &m0_io_fom_cob_rw_fini,
+	.fo_tick          = &m0_io_fom_cob_rw_tick,
+	.fo_home_locality = &m0_io_fom_cob_rw_locality_get,
+	.fo_addb_init     = &m0_io_fom_cob_rw_addb_init,
+	.fo_addb2_descr   = &io_fom_addb2_descr
 };
 
 /**
@@ -1067,7 +1071,7 @@ static int stob_object_find(struct m0_fom *fom)
 	// struct m0_stob_domain	*fom_stdom;
 
 	M0_PRE(fom != NULL);
-        M0_PRE(m0_is_io_fop(fom->fo_fop));
+	M0_PRE(m0_is_io_fop(fom->fo_fop));
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
@@ -1147,7 +1151,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_LOG(M0_DEBUG, "fom=%p : op=%s, desc=%d.", fom,
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", rwfop->crw_desc.id_nr);
 
-        return M0_RC(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1242,116 +1246,116 @@ out:
  */
 static int net_buffer_acquire(struct m0_fom *fom)
 {
-        uint32_t                   colour;
-        int                        acquired_net_bufs;
-        int                        required_net_bufs;
-        struct m0_fop             *fop;
-        struct m0_io_fom_cob_rw   *fom_obj;
-        struct m0_net_transfer_mc *tm;
+	uint32_t                   colour;
+	int                        acquired_net_bufs;
+	int                        required_net_bufs;
+	struct m0_fop             *fop;
+	struct m0_io_fom_cob_rw   *fom_obj;
+	struct m0_net_transfer_mc *tm;
 
-        M0_PRE(fom != NULL);
-        M0_PRE(m0_is_io_fop(fom->fo_fop));
-        M0_PRE(fom->fo_service != NULL);
-        M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_FOM_BUFFER_ACQUIRE ||
-               m0_fom_phase(fom) == M0_FOPH_IO_FOM_BUFFER_WAIT);
+	M0_PRE(fom != NULL);
+	M0_PRE(m0_is_io_fop(fom->fo_fop));
+	M0_PRE(fom->fo_service != NULL);
+	M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_FOM_BUFFER_ACQUIRE ||
+	       m0_fom_phase(fom) == M0_FOPH_IO_FOM_BUFFER_WAIT);
 
 	M0_ENTRY("fom=%p", fom);
 
-        fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
-        M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
-        fop = fom->fo_fop;
-        fom_obj->fcrw_phase_start_time = m0_time_now();
+	fop = fom->fo_fop;
+	fom_obj->fcrw_phase_start_time = m0_time_now();
 
-        tm = io_fop_tm_get(fop);
-        /**
-         * Cache buffer pool pointer with FOM object.
-         */
-        if (fom_obj->fcrw_bp == NULL) {
-                struct m0_reqh_io_service  *serv_obj;
-                struct m0_rios_buffer_pool *bpdesc;
-                struct m0_net_domain       *fop_ndom;
+	tm = io_fop_tm_get(fop);
+	/**
+	 * Cache buffer pool pointer with FOM object.
+	 */
+	if (fom_obj->fcrw_bp == NULL) {
+		struct m0_reqh_io_service  *serv_obj;
+		struct m0_rios_buffer_pool *bpdesc;
+		struct m0_net_domain       *fop_ndom;
 
-                serv_obj = container_of(fom->fo_service,
-                                        struct m0_reqh_io_service, rios_gen);
-                M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
+		serv_obj = container_of(fom->fo_service,
+					struct m0_reqh_io_service, rios_gen);
+		M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
-                /* Get network buffer pool for network domain */
-                fop_ndom = tm->ntm_dom;
-                bpdesc = m0_tl_find(bufferpools, bpdesc,
+		/* Get network buffer pool for network domain */
+		fop_ndom = tm->ntm_dom;
+		bpdesc = m0_tl_find(bufferpools, bpdesc,
 				    &serv_obj->rios_buffer_pools,
 				    bpdesc->rios_ndom == fop_ndom);
 		fom_obj->fcrw_bp = bpdesc == NULL ? NULL : &bpdesc->rios_bp;
-                M0_ASSERT(fom_obj->fcrw_bp != NULL);
-        }
-        colour = m0_net_tm_colour_get(tm);
+		M0_ASSERT(fom_obj->fcrw_bp != NULL);
+	}
+	colour = m0_net_tm_colour_get(tm);
 
-        acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
-        required_net_bufs = fom_obj->fcrw_ndesc - fom_obj->fcrw_curr_desc_index;
+	acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
+	required_net_bufs = fom_obj->fcrw_ndesc - fom_obj->fcrw_curr_desc_index;
 
-        /*
-         * Acquire as many net buffers as to process all descriptors.
-         * If FOM is able to acquire more buffers then it can change batch size
-         * dynamically.
-         */
-        M0_ASSERT(acquired_net_bufs <= required_net_bufs);
-        while (acquired_net_bufs < required_net_bufs) {
-            struct m0_net_buffer *nb;
+	/*
+	 * Acquire as many net buffers as to process all descriptors.
+	 * If FOM is able to acquire more buffers then it can change batch size
+	 * dynamically.
+	 */
+	M0_ASSERT(acquired_net_bufs <= required_net_bufs);
+	while (acquired_net_bufs < required_net_bufs) {
+	    struct m0_net_buffer *nb;
 
-            m0_net_buffer_pool_lock(fom_obj->fcrw_bp);
-            nb = m0_net_buffer_pool_get(fom_obj->fcrw_bp, colour);
+	    m0_net_buffer_pool_lock(fom_obj->fcrw_bp);
+	    nb = m0_net_buffer_pool_get(fom_obj->fcrw_bp, colour);
 
-            if (nb == NULL && acquired_net_bufs == 0) {
-                    struct m0_rios_buffer_pool *bpdesc;
+	    if (nb == NULL && acquired_net_bufs == 0) {
+		    struct m0_rios_buffer_pool *bpdesc;
 
-                    /*
-                     * Network buffer is not available. At least one
-                     * buffer is need for zero-copy. Registers FOM clink
-                     * with buffer pool wait channel to get buffer
-                     * pool non-empty signal.
-                     */
-                    bpdesc = container_of(fom_obj->fcrw_bp,
+		    /*
+		     * Network buffer is not available. At least one
+		     * buffer is need for zero-copy. Registers FOM clink
+		     * with buffer pool wait channel to get buffer
+		     * pool non-empty signal.
+		     */
+		    bpdesc = container_of(fom_obj->fcrw_bp,
 					  struct m0_rios_buffer_pool, rios_bp);
 		    M0_ADDB_POST(fom_to_addb_mc(fom),
 				 &m0_addb_rt_ios_buffer_pool_low,
 				 M0_FOM_ADDB_CTX_VEC(fom));
 
-                    m0_fom_wait_on(fom, &bpdesc->rios_bp_wait, &fom->fo_cb);
+		    m0_fom_wait_on(fom, &bpdesc->rios_bp_wait, &fom->fo_cb);
 
-                    m0_fom_phase_set(fom, M0_FOPH_IO_FOM_BUFFER_WAIT);
-                    m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+		    m0_fom_phase_set(fom, M0_FOPH_IO_FOM_BUFFER_WAIT);
+		    m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
 
-                    M0_LEAVE();
-                    return M0_FSO_WAIT;
-            } else if (nb == NULL) {
-                    m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
-                    /*
-                     * Some network buffers are available for zero copy
-                     * init. FOM can continue with available buffers.
-                     */
-                    break;
-            }
-            m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+		    M0_LEAVE();
+		    return M0_FSO_WAIT;
+	    } else if (nb == NULL) {
+		    m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+		    /*
+		     * Some network buffers are available for zero copy
+		     * init. FOM can continue with available buffers.
+		     */
+		    break;
+	    }
+	    m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
 
-            if (m0_is_read_fop(fop))
-                   nb->nb_qtype = M0_NET_QT_ACTIVE_BULK_SEND;
-            else
-                   nb->nb_qtype = M0_NET_QT_ACTIVE_BULK_RECV;
+	    if (m0_is_read_fop(fop))
+		   nb->nb_qtype = M0_NET_QT_ACTIVE_BULK_SEND;
+	    else
+		   nb->nb_qtype = M0_NET_QT_ACTIVE_BULK_RECV;
 
-            M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
+	    M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
 					       &fom_obj->fcrw_netbuf_list));
 
-            netbufs_tlink_init(nb);
-            netbufs_tlist_add(&fom_obj->fcrw_netbuf_list, nb);
-            acquired_net_bufs++;
-        }
+	    netbufs_tlink_init(nb);
+	    netbufs_tlist_add(&fom_obj->fcrw_netbuf_list, nb);
+	    acquired_net_bufs++;
+	}
 
-        fom_obj->fcrw_batch_size = acquired_net_bufs;
+	fom_obj->fcrw_batch_size = acquired_net_bufs;
 	M0_LOG(M0_DEBUG, "Acquired network buffers, batch_size = %d.",
 	       fom_obj->fcrw_batch_size);
 
 	M0_LEAVE();
-        return M0_FSO_AGAIN;
+	return M0_FSO_AGAIN;
 }
 
 /**
@@ -1368,12 +1372,12 @@ static int net_buffer_acquire(struct m0_fom *fom)
  */
 static int net_buffer_release(struct m0_fom *fom)
 {
-        uint32_t                  colour;
-        int                       acquired_net_bufs;
-        int                       required_net_bufs;
-        struct m0_fop             *fop;
-        struct m0_io_fom_cob_rw   *fom_obj;
-        struct m0_net_transfer_mc *tm;
+	uint32_t                  colour;
+	int                       acquired_net_bufs;
+	int                       required_net_bufs;
+	struct m0_fop             *fop;
+	struct m0_io_fom_cob_rw   *fom_obj;
+	struct m0_net_transfer_mc *tm;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_read_fop(fom->fo_fop) || m0_is_write_fop(fom->fo_fop));
@@ -1407,12 +1411,12 @@ static int net_buffer_release(struct m0_fom *fom)
 	}
 	m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
 
-        fom_obj->fcrw_batch_size = acquired_net_bufs;
+	fom_obj->fcrw_batch_size = acquired_net_bufs;
 	M0_LOG(M0_DEBUG, "Released network buffers, batch_size = %d.",
 	       fom_obj->fcrw_batch_size);
 
-        if (required_net_bufs == 0)
-               m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+	if (required_net_bufs == 0)
+	       m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 
 	M0_LEAVE();
 	return M0_FSO_AGAIN;
@@ -1431,20 +1435,20 @@ static int net_buffer_release(struct m0_fom *fom)
  */
 static int zero_copy_initiate(struct m0_fom *fom)
 {
-        int                          rc;
-        struct m0_fop               *fop;
-        struct m0_io_fom_cob_rw     *fom_obj;
-        struct m0_fop_cob_rw        *rwfop;
-        struct m0_rpc_bulk          *rbulk;
-        struct m0_net_buffer        *nb;
-        struct m0_net_buf_desc_data *nbd_data;
-        struct m0_net_domain        *dom;
-        uint32_t                     buffers_added = 0;
+	int                          rc;
+	struct m0_fop               *fop;
+	struct m0_io_fom_cob_rw     *fom_obj;
+	struct m0_fop_cob_rw        *rwfop;
+	struct m0_rpc_bulk          *rbulk;
+	struct m0_net_buffer        *nb;
+	struct m0_net_buf_desc_data *nbd_data;
+	struct m0_net_domain        *dom;
+	uint32_t                     buffers_added = 0;
 	m0_bcount_t                  max_seg_size;
 
-        M0_PRE(fom != NULL);
-        M0_PRE(m0_is_io_fop(fom->fo_fop));
-        M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_INIT);
+	M0_PRE(fom != NULL);
+	M0_PRE(m0_is_io_fop(fom->fo_fop));
+	M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_INIT);
 
 	M0_ENTRY("fom=%p", fom);
 
@@ -1465,10 +1469,10 @@ static int zero_copy_initiate(struct m0_fom *fom)
 	nbd_data     = &rwfop->crw_desc.id_descs[fom_obj->
 						 fcrw_curr_desc_index];
 
-        /* Create rpc bulk bufs list using available net buffers */
-        m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
-                uint32_t                segs_nr = 0;
-                struct m0_rpc_bulk_buf *rb_buf;
+	/* Create rpc bulk bufs list using available net buffers */
+	m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
+		uint32_t                segs_nr = 0;
+		struct m0_rpc_bulk_buf *rb_buf;
 		m0_bcount_t             used_size;
 
 		used_size = rwfop->crw_desc.id_descs[fom_obj->
@@ -1476,58 +1480,58 @@ static int zero_copy_initiate(struct m0_fom *fom)
 		segs_nr = used_size / max_seg_size;
 		M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
 
-                /*
-                 * @todo : Since passing only number of segments, supports full
-                 *         stripe I/Os. Should set exact count for last segment
-                 *         of network buffer. Also need to reset last segment
-                 *         count to original since buffers are reused by other
-                 *         I/O requests.
-                 */
+		/*
+		 * @todo : Since passing only number of segments, supports full
+		 *         stripe I/Os. Should set exact count for last segment
+		 *         of network buffer. Also need to reset last segment
+		 *         count to original since buffers are reused by other
+		 *         I/O requests.
+		 */
 		rc = m0_rpc_bulk_buf_add(rbulk, segs_nr, dom, nb, &rb_buf);
-                if (rc != 0) {
-                        m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-                        IOS_ADDB_FUNCFAIL(rc, ZERO_COPY_INITIATE_1,
+		if (rc != 0) {
+			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+			IOS_ADDB_FUNCFAIL(rc, ZERO_COPY_INITIATE_1,
 					  &fom->fo_addb_ctx);
 			M0_LEAVE();
-                        return M0_FSO_AGAIN;
-                }
+			return M0_FSO_AGAIN;
+		}
 
-                fom_obj->fcrw_curr_desc_index++;
-                buffers_added++;
-        } m0_tl_endfor;
+		fom_obj->fcrw_curr_desc_index++;
+		buffers_added++;
+	} m0_tl_endfor;
 
-        M0_ASSERT(buffers_added == fom_obj->fcrw_batch_size);
+	M0_ASSERT(buffers_added == fom_obj->fcrw_batch_size);
 
-        /*
-         * On completion of zero-copy on all buffers rpc_bulk
-         * sends signal on channel rbulk->rb_chan.
-         */
-        m0_mutex_lock(&rbulk->rb_mutex);
-        m0_fom_wait_on(fom, &rbulk->rb_chan, &fom->fo_cb);
-        m0_mutex_unlock(&rbulk->rb_mutex);
+	/*
+	 * On completion of zero-copy on all buffers rpc_bulk
+	 * sends signal on channel rbulk->rb_chan.
+	 */
+	m0_mutex_lock(&rbulk->rb_mutex);
+	m0_fom_wait_on(fom, &rbulk->rb_chan, &fom->fo_cb);
+	m0_mutex_unlock(&rbulk->rb_mutex);
 
-        /*
-         * This function deletes m0_rpc_bulk_buf object one
-         * by one as zero copy completes on respective buffer.
-         */
-        rc = m0_rpc_bulk_load(rbulk, fop->f_item.ri_session->s_conn, nbd_data,
+	/*
+	 * This function deletes m0_rpc_bulk_buf object one
+	 * by one as zero copy completes on respective buffer.
+	 */
+	rc = m0_rpc_bulk_load(rbulk, fop->f_item.ri_session->s_conn, nbd_data,
 			      &m0_rpc__buf_bulk_cb);
-        if (rc != 0) {
-                m0_mutex_lock(&rbulk->rb_mutex);
-                m0_fom_callback_cancel(&fom->fo_cb);
-                m0_mutex_unlock(&rbulk->rb_mutex);
-                m0_rpc_bulk_buflist_empty(rbulk);
-                m0_rpc_bulk_fini(rbulk);
-                m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-                IOS_ADDB_FUNCFAIL(rc, ZERO_COPY_INITIATE_2, &fom->fo_addb_ctx);
+	if (rc != 0) {
+		m0_mutex_lock(&rbulk->rb_mutex);
+		m0_fom_callback_cancel(&fom->fo_cb);
+		m0_mutex_unlock(&rbulk->rb_mutex);
+		m0_rpc_bulk_buflist_empty(rbulk);
+		m0_rpc_bulk_fini(rbulk);
+		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+		IOS_ADDB_FUNCFAIL(rc, ZERO_COPY_INITIATE_2, &fom->fo_addb_ctx);
 		M0_LEAVE();
-                return M0_FSO_AGAIN;
-        }
+		return M0_FSO_AGAIN;
+	}
 	M0_LOG(M0_DEBUG, "Zero-copy initiated. Added buffers %d",
 	       buffers_added);
 
 	M0_LEAVE();
-        return M0_FSO_WAIT;
+	return M0_FSO_WAIT;
 }
 
 /**
@@ -1546,32 +1550,32 @@ static int zero_copy_finish(struct m0_fom *fom)
 
 	M0_ENTRY("fom=%p", fom);
 
-        M0_PRE(fom != NULL);
-        M0_PRE(m0_is_io_fop(fom->fo_fop));
-        M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_WAIT);
+	M0_PRE(fom != NULL);
+	M0_PRE(m0_is_io_fop(fom->fo_fop));
+	M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_WAIT);
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
-        M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
-        rbulk = &fom_obj->fcrw_bulk;
+	rbulk = &fom_obj->fcrw_bulk;
 
-        m0_mutex_lock(&rbulk->rb_mutex);
-        M0_ASSERT(rpcbulkbufs_tlist_is_empty(&rbulk->rb_buflist));
-        if (rbulk->rb_rc != 0){
-                m0_fom_phase_move(fom, rbulk->rb_rc, M0_FOPH_FAILURE);
-                IOS_ADDB_FUNCFAIL(rbulk->rb_rc, ZERO_COPY_FINISH,
+	m0_mutex_lock(&rbulk->rb_mutex);
+	M0_ASSERT(rpcbulkbufs_tlist_is_empty(&rbulk->rb_buflist));
+	if (rbulk->rb_rc != 0){
+		m0_fom_phase_move(fom, rbulk->rb_rc, M0_FOPH_FAILURE);
+		IOS_ADDB_FUNCFAIL(rbulk->rb_rc, ZERO_COPY_FINISH,
 				  &fom->fo_addb_ctx);
-                m0_mutex_unlock(&rbulk->rb_mutex);
+		m0_mutex_unlock(&rbulk->rb_mutex);
 		M0_LEAVE();
-                return M0_FSO_AGAIN;
-        }
+		return M0_FSO_AGAIN;
+	}
 
-        m0_mutex_unlock(&rbulk->rb_mutex);
-        m0_rpc_bulk_fini(rbulk);
+	m0_mutex_unlock(&rbulk->rb_mutex);
+	m0_rpc_bulk_fini(rbulk);
 	M0_LOG(M0_DEBUG, "Zero-copy finished.");
 
 	M0_LEAVE();
-        return M0_FSO_AGAIN;
+	return M0_FSO_AGAIN;
 }
 
 static void stio_desc_fini(struct m0_stob_io_desc *stio_desc)
@@ -1614,8 +1618,8 @@ static int io_launch(struct m0_fom *fom)
 	uint32_t                 index;
 
 	M0_PRE(fom != NULL);
-        M0_PRE(m0_is_io_fop(fom->fo_fop));
-        M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_STOB_INIT);
+	M0_PRE(m0_is_io_fop(fom->fo_fop));
+	M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_STOB_INIT);
 
 	M0_ENTRY("fom=%p", fom);
 
@@ -1691,36 +1695,36 @@ static int io_launch(struct m0_fom *fom)
 				       &fom->fo_addb_ctx,
 				       M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
 				       mem_ivec);
-                if (rc != 0) {
-                        /*
-                         * Since this stob io not added into list
-                         * yet, free it here.
-                         */
-                        IOS_ADDB_FUNCFAIL(rc, IO_LAUNCH_2, &fom->fo_addb_ctx);
-                        m0_stob_io_fini(stio);
-                        m0_free(stio_desc);
-                        break;
-                }
+		if (rc != 0) {
+			/*
+			 * Since this stob io not added into list
+			 * yet, free it here.
+			 */
+			IOS_ADDB_FUNCFAIL(rc, IO_LAUNCH_2, &fom->fo_addb_ctx);
+			m0_stob_io_fini(stio);
+			m0_free(stio_desc);
+			break;
+		}
 
-                /*
-                 * Copy aligned network buffer to stobio object.
-                 * Also trim network buffer as per I/O size.
-                 */
-                ivec_count = m0_vec_count(&mem_ivec->iv_vec);
-                rc = align_bufvec(fom, &stio->si_user, &nb->nb_buffer,
+		/*
+		 * Copy aligned network buffer to stobio object.
+		 * Also trim network buffer as per I/O size.
+		 */
+		ivec_count = m0_vec_count(&mem_ivec->iv_vec);
+		rc = align_bufvec(fom, &stio->si_user, &nb->nb_buffer,
 				  ivec_count, fom_obj->fcrw_bshift);
-                if (rc != 0) {
-                        /*
-                         * Since this stob io not added into list
-                         * yet, free it here.
-                         */
+		if (rc != 0) {
+			/*
+			 * Since this stob io not added into list
+			 * yet, free it here.
+			 */
 			fom_obj->fcrw_rc = rc;
-                        IOS_ADDB_FUNCFAIL(rc, IO_LAUNCH_3, &fom->fo_addb_ctx);
+			IOS_ADDB_FUNCFAIL(rc, IO_LAUNCH_3, &fom->fo_addb_ctx);
 			stio_desc_fini(stio_desc);
-                        break;
-                }
+			break;
+		}
 
-                if (m0_is_write_fop(fop)) {
+		if (m0_is_write_fop(fop)) {
 			uint32_t di_size = m0_di_size_get(file, ivec_count);
 			uint32_t curr_pos = m0_di_size_get(file,
 						fom_obj->fcrw_curr_size);
@@ -1743,32 +1747,32 @@ static int io_launch(struct m0_fom *fom)
 		 * m0_io_indexvec from on-wire to in-mem.
 		 * */
 		fom_obj->fcrw_curr_size += ivec_count;
-                stio_desc->siod_fcb.fc_bottom = stobio_complete_cb;
-                m0_mutex_lock(&stio->si_mutex);
-                m0_fom_callback_arm(fom, &stio->si_wait, &stio_desc->siod_fcb);
-                m0_mutex_unlock(&stio->si_mutex);
+		stio_desc->siod_fcb.fc_bottom = stobio_complete_cb;
+		m0_mutex_lock(&stio->si_mutex);
+		m0_fom_callback_arm(fom, &stio->si_wait, &stio_desc->siod_fcb);
+		m0_mutex_unlock(&stio->si_mutex);
 
-                M0_LOG(M0_DEBUG, "launch fom: %lu, req_count: %lx, "
+		M0_LOG(M0_DEBUG, "launch fom: %lu, req_count: %lx, "
 		       "count: %lx, submitted: %lx, expect: %lx",
 		       fom_obj->fcrw_fom_start_time,
 		       fom_obj->fcrw_req_count, fom_obj->fcrw_count,
 		       m0_vec_count(&stio->si_user.ov_vec), ivec_count);
 		fom_obj->fcrw_io_launch_time = m0_time_now();
 
-                rc = m0_stob_io_launch(stio, fom_obj->fcrw_stob,
+		rc = m0_stob_io_launch(stio, fom_obj->fcrw_stob,
 				       &fom->fo_tx, NULL);
-                if (rc != 0) {
+		if (rc != 0) {
 			M0_LOG(M0_ERROR, "stob_io_launch failed: rc=%d", rc);
-                        m0_mutex_lock(&stio->si_mutex);
-                        m0_fom_callback_cancel(&stio_desc->siod_fcb);
-                        m0_mutex_unlock(&stio->si_mutex);
-                        /*
-                         * Since this stob io not added into list
-                         * yet, free it here.
-                         */
+			m0_mutex_lock(&stio->si_mutex);
+			m0_fom_callback_cancel(&stio_desc->siod_fcb);
+			m0_mutex_unlock(&stio->si_mutex);
+			/*
+			 * Since this stob io not added into list
+			 * yet, free it here.
+			 */
 			fom_obj->fcrw_rc = rc;
-                        IOS_ADDB_FUNCFAIL(rc, IO_LAUNCH_4, &fom->fo_addb_ctx);
-                        m0_stob_io_fini(stio);
+			IOS_ADDB_FUNCFAIL(rc, IO_LAUNCH_4, &fom->fo_addb_ctx);
+			m0_stob_io_fini(stio);
 			m0_fom_callback_fini(&stio_desc->siod_fcb);
 			m0_free(stio_desc);
 			break;
@@ -1822,42 +1826,42 @@ out:
  */
 static int io_finish(struct m0_fom *fom)
 {
-        struct m0_io_fom_cob_rw *fom_obj;
-        struct m0_stob_io_desc  *stio_desc;
+	struct m0_io_fom_cob_rw *fom_obj;
+	struct m0_stob_io_desc  *stio_desc;
 	int                      rc  = 0;
 	m0_bcount_t              nob = 0;
 
-        M0_PRE(fom != NULL);
-        M0_PRE(m0_is_io_fop(fom->fo_fop));
-        M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_STOB_WAIT);
+	M0_PRE(fom != NULL);
+	M0_PRE(m0_is_io_fop(fom->fo_fop));
+	M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_STOB_WAIT);
 
 	M0_ENTRY("fom=%p", fom);
 
 	if (M0_FI_ENABLED("fake_error"))
 		rc = -EINVAL;
 
-        fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
-        M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
-        M0_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
-        M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl,
+	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+	M0_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
+	M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl,
 					   &fom_obj->fcrw_stio_list));
-        /*
-         * Empty the list as all STOB I/O completed here.
-         */
+	/*
+	 * Empty the list as all STOB I/O completed here.
+	 */
 	m0_tl_teardown(stobio, &fom_obj->fcrw_stio_list, stio_desc) {
-                struct m0_stob_io *stio;
+		struct m0_stob_io *stio;
 
-                stio = &stio_desc->siod_stob_io;
+		stio = &stio_desc->siod_stob_io;
 
-                if (stio->si_rc != 0) {
-                        rc = stio->si_rc;
-                } else {
-                        nob += stio->si_count;
-                        M0_LOG(M0_DEBUG, "rw_count %lx, si_count %lx",
-                               fom_obj->fcrw_count, stio->si_count);
+		if (stio->si_rc != 0) {
+			rc = stio->si_rc;
+		} else {
+			nob += stio->si_count;
+			M0_LOG(M0_DEBUG, "rw_count %lx, si_count %lx",
+			       fom_obj->fcrw_count, stio->si_count);
 		}
 		stobio_tlist_add(&fom_obj->fcrw_done_list, stio_desc);
-        }
+	}
 
 	M0_LOG(M0_DEBUG, "got    fom: %lu, req_count: %lx, "
 	       "count: %lx, nob: %lx", fom_obj->fcrw_fom_start_time,
@@ -1867,22 +1871,22 @@ static int io_finish(struct m0_fom *fom)
 		     M0_FOM_ADDB_CTX_VEC(fom), fom_obj->fcrw_count,
 		     m0_time_sub(m0_time_now(),
 				 fom_obj->fcrw_phase_start_time));
-        m0_stob_put(fom_obj->fcrw_stob);
+	m0_stob_put(fom_obj->fcrw_stob);
 	M0_ASSERT(ergo(rc == 0,
 		       fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 	rc = fom_obj->fcrw_rc ?: rc;
-        if (rc != 0) {
+	if (rc != 0) {
 		M0_LOG(M0_ERROR, "rc=%d", rc);
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-                IOS_ADDB_FUNCFAIL(rc, IO_FINISH, &fom->fo_addb_ctx);
+		IOS_ADDB_FUNCFAIL(rc, IO_FINISH, &fom->fo_addb_ctx);
 		M0_LEAVE();
-	        return M0_FSO_AGAIN;
-        }
+		return M0_FSO_AGAIN;
+	}
 
 	M0_LOG(M0_DEBUG, "STOB I/O finished.");
 
 	M0_LEAVE();
-        return M0_FSO_AGAIN;
+	return M0_FSO_AGAIN;
 }
 
 static int indexvec_wire2mem(struct m0_fom *fom, uint32_t bshift)
@@ -1924,7 +1928,7 @@ static void stob_be_credit(struct m0_fom *fom, bool is_op_write)
 	struct m0_stob_domain	*fom_stdom;
 
 	M0_PRE(fom != NULL);
-        M0_PRE(m0_is_io_fop(fom->fo_fop));
+	M0_PRE(m0_is_io_fop(fom->fo_fop));
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
@@ -1979,10 +1983,10 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	poolmach = m0_ios_poolmach_get(reqh);
 
 	/* first handle generic phase */
-        if (m0_fom_phase(fom) < M0_FOPH_NR) {
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
 			stob_be_credit(fom, m0_is_write_fop(fom->fo_fop));
-                return m0_fom_tick_generic(fom);
+		return m0_fom_tick_generic(fom);
 	}
 
 	st = m0_is_read_fop(fom->fo_fop) ?
@@ -1995,8 +1999,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
 	/* Set operation status in reply fop if FOM ends.*/
-        if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
-            m0_fom_phase(fom) == M0_FOPH_FAILURE) {
+	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
+	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
 		rwfop = io_rw_get(fom->fo_fop);
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
@@ -2029,9 +2033,9 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
  */
 static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 {
-	uint32_t		  colour;
-	struct m0_fop		  *fop;
-	struct m0_io_fom_cob_rw	  *fom_obj;
+	uint32_t                   colour;
+	struct m0_fop             *fop;
+	struct m0_io_fom_cob_rw   *fom_obj;
 	struct m0_reqh_io_service *serv_obj;
 	struct m0_net_buffer	  *nb;
 	struct m0_net_transfer_mc *tm;
@@ -2045,7 +2049,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 
 	rw = io_rw_get(fom->fo_fop);
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
-        M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 	serv_obj = container_of(fom->fo_service, struct m0_reqh_io_service,
 				rios_gen);
 	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
@@ -2151,6 +2155,22 @@ M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom)
 static inline struct m0_addb_mc *fom_to_addb_mc(const struct m0_fom *fom)
 {
 	return &fom->fo_service->rs_reqh->rh_addb_mc;
+}
+
+static void io_fom_addb2_descr(struct m0_fom *fom)
+{
+	struct m0_fop           *fop   = fom->fo_fop;
+	struct m0_fop_cob_rw    *rwfop = io_rw_get(fop);
+	struct m0_io_indexvec   *iv    = &rwfop->crw_ivec;
+
+	M0_ADDB2_ADD(M0_AVI_IOS_IO_DESCR,
+		     FID_P(&rwfop->crw_gfid), FID_P(&rwfop->crw_fid),
+		     rwfop->crw_version.fvv_read, rwfop->crw_version.fvv_write,
+		     iv->ci_nr,
+		     iv->ci_iosegs != NULL ? m0_io_count(iv) : 0,
+		     iv->ci_iosegs != NULL ? iv->ci_iosegs[0].ci_index : 0,
+		     rwfop->crw_desc.id_nr,
+		     m0_net_tm_colour_get(io_fop_tm_get(fop)));
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -270,7 +270,7 @@ static inline struct m0_net_transfer_mc *io_fop_tm_get(const struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
 
-	return &fop->f_item.ri_rmachine->rm_tm;
+	return &m0_fop_rpc_machine(fop)->rm_tm;
 }
 
 M0_INTERNAL size_t m0_io_fop_size_get(struct m0_fop *fop);
@@ -349,7 +349,7 @@ struct m0_fv_updates {
  * A common sub structure to be referred by read and write reply fops.
  */
 struct m0_fop_cob_rw_reply {
-        /** Status code of operation. */
+	/** Status code of operation. */
 	int32_t                rwr_rc;
 
 	/** Number of bytes read or written. */
