@@ -5135,7 +5135,7 @@ static int m0t1fs_open(struct inode *inode, struct file *file)
 		m0t1fs_cob_getattr(inode);
 		m0t1fs_fs_unlock(csb);
 		mark_inode_dirty(inode);
-		M0_ADDB2_ADD(M0_AVI_FS_OPEN, fid.f_container, fid.f_key, flag);
+		M0_ADDB2_ADD(M0_AVI_FS_OPEN, FID_P(&fid), flag);
 	}
 	return M0_RC(0);
 }

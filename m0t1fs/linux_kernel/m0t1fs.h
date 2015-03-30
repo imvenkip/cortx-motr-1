@@ -48,7 +48,7 @@
 #include "file/file.h"		 /* m0_file */
 #include "be/be.h"
 #include "be/ut/helper.h"
-#include "addb2/identifier.h"    /* M0_AVI_M0T1FS_RANGE_START */
+#include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
 
 /**
   @defgroup m0t1fs m0t1fs
@@ -1049,15 +1049,6 @@ struct m0_fid m0t1fs_hash_ios(struct m0t1fs_sb *csb,
 
 M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode);
 M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo);
-
-enum {
-	M0_AVI_FS_OPEN = M0_AVI_M0T1FS_RANGE_START + 1,
-	M0_AVI_FS_LOOKUP,
-	M0_AVI_FS_CREATE,
-	M0_AVI_FS_READ,
-	M0_AVI_FS_WRITE,
-	M0_AVI_FS_IO_DESCR
-};
 
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 
