@@ -730,6 +730,10 @@ struct m0_fom_ops {
 	size_t  (*fo_home_locality) (const struct m0_fom *fom);
 	/** Initializes ADDB context of this fom, invoked by m0_fom_init() */
 	void (*fo_addb_init)(struct m0_fom *fom, struct m0_addb_mc *mc);
+	/**
+	 * Optional method to post additional fom description to addb2.
+	 */
+	void (*fo_addb2_descr)(struct m0_fom *fom);
 };
 
 /**
