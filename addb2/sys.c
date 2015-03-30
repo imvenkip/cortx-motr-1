@@ -350,14 +350,22 @@ static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 static void sys_lock(struct m0_addb2_sys *sys)
 {
-	m0_mutex_lock(&sys->sy_lock);
+	if (sys->sy_owner != m0_thread_self()) {
+		m0_mutex_lock(&sys->sy_lock);
+		sys->sy_owner = m0_thread_self();
+		M0_ASSERT(sys->sy_nesting == 0);
+	}
+	++sys->sy_nesting;
 	M0_ASSERT(sys_invariant(sys));
 }
 
 static void sys_unlock(struct m0_addb2_sys *sys)
 {
 	M0_ASSERT(sys_invariant(sys));
-	m0_mutex_unlock(&sys->sy_lock);
+	if (--sys->sy_nesting == 0) {
+		sys->sy_owner = 0;
+		m0_mutex_unlock(&sys->sy_lock);
+	}
 }
 
 static void net_idle(struct m0_addb2_net *net, void *datum)
@@ -392,6 +400,7 @@ static const struct m0_addb2_storage_ops sys_stor_ops = {
 static bool sys_invariant(const struct m0_addb2_sys *sys)
 {
 	return  _0C(m0_mutex_is_locked(&sys->sy_lock)) &&
+		_0C(sys->sy_nesting > 0) &&
 		_0C(sys->sy_queued <= sys->sy_conf.co_queue_max) &&
 		_0C(sys->sy_queued == m0_tl_reduce(tr, t, &sys->sy_queue,
 						   0, + t->o_tr.tr_nr)) &&

@@ -38,6 +38,7 @@
 struct m0_addb2_trace_obj;
 struct m0_addb2_storage;
 struct m0_addb2_net;
+struct m0_thread;
 struct m0_stob;
 
 /* export */
@@ -67,6 +68,8 @@ struct m0_addb2_sys {
 	struct m0_tl             sy_deathrow;
 	m0_bcount_t              sy_total;
 	struct m0_semaphore      sy_wait;
+	struct m0_thread        *sy_owner;
+	unsigned                 sy_nesting;
 };
 
 void m0_addb2_sys_init(struct m0_addb2_sys *sys,
