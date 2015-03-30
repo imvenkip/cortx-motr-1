@@ -76,8 +76,9 @@ enum m0_addb2_value_id {
 
 	M0_AVI_RM_RANGE_START      = 0x4000,
 	M0_AVI_M0T1FS_RANGE_START  = 0x5000,
+	M0_AVI_IOS_RANGE_START     = 0x6000,
 
-	M0_AVI_LAST                = 0x5fff,
+	M0_AVI_LAST                = 0x6fff,
 	/** No data. */
 	M0_AVI_NODATA = 0x00ffffffffffffffull,
 };
