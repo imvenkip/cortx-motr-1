@@ -46,7 +46,9 @@ M0_INTERNAL void m0_addb2_global_thread_enter(void)
 	M0_PRE(tls->tls_addb2_mach == NULL);
 	if (sys != NULL) {
 		tls->tls_addb2_mach = m0_addb2_sys_get(sys);
+		m0_addb2_push(M0_AVI_NODE, M0_ADDB2_OBJ(&m0_node_uuid));
 		m0_addb2_push(M0_AVI_THREAD, M0_ADDB2_OBJ(&tls->tls_self->t_h));
+		m0_addb2_clock_add(&tls->tls_clock, M0_AVI_CLOCK);
 	}
 }
 
@@ -59,6 +61,8 @@ M0_INTERNAL void m0_addb2_global_thread_leave(void)
 	if (mach != NULL) {
 		M0_ASSERT(sys != NULL);
 		m0_addb2_pop(M0_AVI_THREAD);
+		m0_addb2_pop(M0_AVI_NODE);
+		M0_SET0(&tls->tls_clock);
 		m0_addb2_sys_put(sys, mach);
 		tls->tls_addb2_mach = NULL;
 	}
