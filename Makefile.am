@@ -1226,6 +1226,8 @@ help:
 #                                     Misc
 ################################################################################
 
+EXTRA_DIST += $(XC_LIST_FILE)
+
 EXTRA_DIST += addb/Kbuild.sub \
               addb/ut/Kbuild.sub \
               addb2/Kbuild.sub \
