@@ -59,9 +59,6 @@ m0_addb2_sys_stor_start
 m0_addb2_sys_stor_stop
 m0_addb2_sys_submit
 m0_addb2_trace_done
-m0_addb2_value_id_get
-m0_addb2_value_id_set
-m0_addb2_value_id_set_nr
 m0_alloc
 m0_backtrace
 m0_bcount_with_suffix

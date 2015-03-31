@@ -49,9 +49,6 @@ M0_INTERNAL m0_bcount_t m0_addb2_trace_size(const struct m0_addb2_trace *trace);
 M0_EXTERN uint64_t m0_addb2__dummy_payload[];
 M0_EXTERN uint64_t m0_addb2__dummy_payload_size;
 
-M0_INTERNAL int m0_addb2_identifier_module_init(void);
-M0_INTERNAL void m0_addb2_identifier_module_fini(void);
-
 M0_TL_DESCR_DECLARE(tr, M0_EXTERN);
 M0_TL_DECLARE(tr, M0_INTERNAL, struct m0_addb2_trace_obj);
 

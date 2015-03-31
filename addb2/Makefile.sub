@@ -18,7 +18,6 @@ mero_libmero_la_SOURCES  += \
 			    addb2/consumer.c \
 			    addb2/counter.c \
 			    addb2/global.c \
-			    addb2/identifier.c \
 			    addb2/net.c \
 			    addb2/service.c \
 			    addb2/sit.c \

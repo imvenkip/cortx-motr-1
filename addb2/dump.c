@@ -29,11 +29,13 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include <sysexits.h>
-#include <stdlib.h>                   /* system */
 
 #include "lib/assert.h"
 #include "lib/errno.h"
+#include "lib/varr.h"
 
+#include "rpc/item.h"                 /* m0_rpc_item_type_lookup */
+#include "fop/fop.h"
 #include "stob/domain.h"
 #include "stob/stob.h"
 #include "mero/init.h"
@@ -42,9 +44,30 @@
 #include "addb2/identifier.h"
 #include "addb2/consumer.h"
 #include "addb2/storage.h"
+#include "addb2/counter.h"
+
+#include "ioservice/io_addb2.h"
+#include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
+
+enum { BUF_SIZE = 256 };
+
+struct id_intrp {
+	uint64_t             ii_id;
+	const char          *ii_name;
+	void               (*ii_print[15])(const uint64_t *v, char *buf);
+};
+
+static struct m0_varr value_id;
+
+static void             id_init  (void);
+static void             id_fini  (void);
+static void             id_set   (struct id_intrp *intrp);
+static void             id_set_nr(struct id_intrp *intrp, int nr);
+static struct id_intrp *id_get   (uint64_t id);
 
 static void rec_dump(const struct m0_addb2_record *rec);
-static void val_dump(const struct m0_addb2_value *val, int indent);
+static void val_dump(const char *prefix,
+		     const struct m0_addb2_value *val, int indent);
 
 #define DOM "./_addb2-dump"
 
@@ -58,24 +81,6 @@ int main(int argc, char **argv)
 	struct m0_addb2_record *rec;
 	struct m0               instance = {0};
 	int                     result;
-
-	static struct m0_addb2_value_descr descr[] = {
-		{ M0_AVI_NODE,                 "node" },
-		{ M0_AVI_LOCALITY,             "locality" },
-		{ M0_AVI_THREAD,               "thread" },
-		{ M0_AVI_SERVICE,              "service" },
-		{ M0_AVI_FOM,                  "fom" },
-		{ M0_AVI_CLOCK,                "clock" },
-		{ M0_AVI_PHASE,                "fom-phase" },
-		{ M0_AVI_STATE,                "fom-state" },
-		{ M0_AVI_ALLOC,                "alloc" },
-		{ M0_AVI_FOM_DESCR,            "fom-descr" },
-		{ M0_AVI_FOM_ACTIVE,           "fom-active" },
-		{ M0_AVI_RUNQ,                 "runq" },
-		{ M0_AVI_WAIL,                 "wail" },
-		{ M0_AVI_NODATA,               "nodata" },
-		{ 0,                           NULL }
-	};
 
 	result = m0_init(&instance);
 	if (result != 0)
@@ -104,13 +109,14 @@ int main(int argc, char **argv)
 	if (result != 0)
 		err(EX_NOINPUT, "Cannot stat: %d", result);
 
-	m0_addb2_value_id_set_nr(descr);
 	/** @todo XXX size parameter copied from m0_reqh_addb2_init(). */
 	result = m0_addb2_sit_init(&sit, stob, 128ULL << 30, NULL);
 	if (result != 0)
 		err(EX_DATAERR, "Cannot initialise iterator: %d", result);
+	id_init();
 	while ((result = m0_addb2_sit_next(sit, &rec)) > 0)
 		rec_dump(rec);
+	id_fini();
 	if (result != 0)
 		err(EX_DATAERR, "Iterator error: %d", result);
 	m0_addb2_sit_fini(sit);
@@ -120,31 +126,203 @@ int main(int argc, char **argv)
 	return EX_OK;
 }
 
+static void dec(const uint64_t *v, char *buf)
+{
+	sprintf(buf, "%"PRId64, *v);
+}
+
+static void hex(const uint64_t *v, char *buf)
+{
+	sprintf(buf, "%"PRIx64, *v);
+}
+
+static void ptr(const uint64_t *v, char *buf)
+{
+	sprintf(buf, "@%p", *(void **)v);
+}
+
+static void bol(const uint64_t *v, char *buf)
+{
+	sprintf(buf, "%s", *v ? "true" : "false");
+}
+
+static void fid(const uint64_t *v, char *buf)
+{
+	sprintf(buf, FID_F, FID_P((struct m0_fid *)v));
+}
+
+static void skip(const uint64_t *v, char *buf)
+{
+	buf[0] = 0;
+}
+
+static void _clock(const uint64_t *v, char *buf)
+{
+	double t = ((double)*v) / M0_TIME_ONE_SECOND;
+	sprintf(buf, "time: %.9f", t);
+}
+
+static void fom_state(const uint64_t *v, char *buf)
+{
+	extern struct m0_sm_conf fom_states_conf;
+	struct m0_sm_trans_descr *d = &fom_states_conf.scf_trans[*v];
+
+	sprintf(buf, "%s -[%s]-> %s",
+		fom_states_conf.scf_state[d->td_src].sd_name,
+		d->td_cause,
+		fom_states_conf.scf_state[d->td_tgt].sd_name);
+}
+
+static void rpcop(const uint64_t *v, char *buf)
+{
+	struct m0_rpc_item_type *it = m0_rpc_item_type_lookup(*v);
+
+	if (it != NULL) {
+		struct m0_fop_type *ft = M0_AMB(ft, it, ft_rpc_item_type);
+		sprintf(buf, "%s", ft->ft_name);
+	} else
+		sprintf(buf, "?rpc: %"PRId64, *v);
+}
+static void counter(const uint64_t *v, char *buf)
+{
+	struct m0_addb2_counter_data *d = (void *)v;
+	double avg;
+	double dev;
+
+	avg = d->cod_nr > 0 ? ((double)d->cod_sum) / d->cod_nr : 0;
+	dev = d->cod_nr > 1 ? ((double)d->cod_ssq) / d->cod_nr - avg * avg : 0;
+
+	sprintf(buf, "nr: %"PRId64" min: %"PRId64" max: %"PRId64
+		" avg: %f dev: %f", d->cod_nr, d->cod_min, d->cod_max,
+		avg, dev);
+}
+
+#define COUNTER &counter, &skip, &skip, &skip, &skip
+#define FID &fid, &skip
+
+struct id_intrp ids[] = {
+	{ M0_AVI_NULL,            "null" },
+	{ M0_AVI_NODE,            "node",            { FID } },
+	{ M0_AVI_LOCALITY,        "locality",        { &dec } },
+	{ M0_AVI_THREAD,          "thread",          { &hex, &hex } },
+	{ M0_AVI_SERVICE,         "service",         { FID } },
+	{ M0_AVI_FOM,             "fom",             { &ptr, &dec, &dec } },
+	{ M0_AVI_CLOCK,           "clock",           { &_clock } },
+	{ M0_AVI_PHASE,           "fom-phase",       { &hex, &_clock } },
+	{ M0_AVI_STATE,           "fom-state",       { &fom_state, &_clock } },
+	{ M0_AVI_ALLOC,           "alloc",           { &dec, &ptr } },
+	{ M0_AVI_FOM_DESCR,       "fom-descr",       { &_clock, FID, &hex,
+						       &rpcop, &rpcop,
+						       &bol }  },
+	{ M0_AVI_FOM_ACTIVE,      "fom-active",      { COUNTER } },
+	{ M0_AVI_RUNQ,            "runq",            { COUNTER } },
+	{ M0_AVI_WAIL,            "wail",            { COUNTER } },
+	{ M0_AVI_AST,             "ast" },
+	{ M0_AVI_FOM_CB,          "fom-cb" },
+	{ M0_AVI_IOS_IO_DESCR,    "ios-io-descr",    { FID, FID,
+						       &hex, &hex, &dec, &dec,
+						       &dec, &dec, &dec } },
+	{ M0_AVI_FS_OPEN,         "m0t1fs-open",     { FID, &hex } },
+	{ M0_AVI_FS_LOOKUP,       "m0t1fs-lookup",   { FID } },
+	{ M0_AVI_FS_CREATE,       "m0t1fs-create",   { FID, &hex, &dec } },
+	{ M0_AVI_FS_READ,         "m0t1fs-read",     { FID } },
+	{ M0_AVI_FS_WRITE,        "m0t1fs-write",    { FID } },
+	{ M0_AVI_FS_IO_DESCR,     "m0t1fs-io-descr", { &dec, &dec } },
+
+	{ M0_AVI_NODATA,          "nodata" },
+};
+
+static void id_init(void)
+{
+	int result;
+
+	result = m0_varr_init(&value_id, M0_AVI_LAST, sizeof(char *), 4096);
+	if (result != 0)
+		err(EX_CONFIG, "Cannot initialise array: %d", result);
+	id_set_nr(ids, ARRAY_SIZE(ids));
+}
+
+static void id_fini(void)
+{
+	m0_varr_fini(&value_id);
+}
+
+static void id_set(struct id_intrp *intrp)
+{
+	struct id_intrp **addr;
+
+	if (intrp->ii_id < m0_varr_size(&value_id)) {
+		addr = m0_varr_ele_get(&value_id, intrp->ii_id);
+		if (addr != NULL)
+			*addr = intrp;
+	}
+}
+
+static void id_set_nr(struct id_intrp *intrp, int nr)
+{
+	while (nr-- > 0)
+		id_set(&intrp[nr]);
+}
+
+static struct id_intrp *id_get(uint64_t id)
+{
+	struct id_intrp **addr;
+	struct id_intrp  *intr = NULL;
+
+	if (id < m0_varr_size(&value_id)) {
+		addr = m0_varr_ele_get(&value_id, id);
+		if (addr != NULL)
+			intr = *addr;
+	}
+	return intr;
+}
+
 #define U64 "%16"PRIx64
 
 static void rec_dump(const struct m0_addb2_record *rec)
 {
 	int i;
 
-	val_dump(&rec->ar_val, 0);
+	val_dump("* ", &rec->ar_val, 0);
 	for (i = 0; i < rec->ar_label_nr; ++i)
-		val_dump(&rec->ar_label[i], 8);
+		val_dump("| ",&rec->ar_label[i], 8);
 }
 
-static void val_dump(const struct m0_addb2_value *val, int indent)
+static int pad(int indent)
 {
-	static const char ruler[] = "                                "
-		"                                                ";
-	struct m0_addb2_value_descr *descr = m0_addb2_value_id_get(val->va_id);
-	int                          i;
+	return indent > 0 ? printf("%*.*s", indent, indent,
+		   "                                                    ") : 0;
+}
 
-	printf("%*.*s", indent, indent, ruler);
-	if (descr != NULL)
-		printf("%-16s", descr->vd_name);
+static void val_dump(const char *prefix,
+		     const struct m0_addb2_value *val, int indent)
+{
+	struct id_intrp  *intrp = id_get(val->va_id);
+	int               i;
+	char              buf[BUF_SIZE];
+	enum { WIDTH = 12 };
+
+	printf(prefix);
+	pad(indent);
+	if (intrp != NULL)
+		printf("%-16s", intrp->ii_name);
 	else
 		printf(U64, val->va_id);
-	for (i = 0; i < val->va_nr; ++i)
-		printf("%s "U64, i > 0 ? "," : "", val->va_data[i]);
+	for (i = 0, indent = 0; i < val->va_nr; ++i) {
+		if (intrp == NULL)
+			sprintf(buf, U64, val->va_data[i]);
+		else if (intrp->ii_print[i] == NULL)
+			sprintf(buf, "?"U64"?", val->va_data[i]);
+		else {
+			if (intrp->ii_print[i] == &skip)
+				continue;
+			intrp->ii_print[i](&val->va_data[i], buf);
+		}
+		if (i > 0)
+			indent += printf(", ");
+		indent += pad(WIDTH * i - indent);
+		indent += printf("%s", buf);
+	}
 	printf("\n");
 }
 

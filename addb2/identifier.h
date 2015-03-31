@@ -83,15 +83,6 @@ enum m0_addb2_value_id {
 	M0_AVI_NODATA = 0x00ffffffffffffffull,
 };
 
-struct m0_addb2_value_descr {
-	uint64_t    vd_id;
-	const char *vd_name;
-};
-
-void  m0_addb2_value_id_set   (struct m0_addb2_value_descr *descr);
-void  m0_addb2_value_id_set_nr(struct m0_addb2_value_descr *descr);
-struct m0_addb2_value_descr *m0_addb2_value_id_get(uint64_t id);
-
 /** @} end of addb2 group */
 
 #endif /* __MERO_ADDB2_IDENTIFIER_H__ */
