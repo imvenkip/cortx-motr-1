@@ -353,12 +353,19 @@ static void readyit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	m0_fom_ready(fom);
 }
 
+static void fom_addb2_push(struct m0_fom *fom)
+{
+	M0_ADDB2_PUSH(M0_AVI_FOM, (uint64_t)fom, fom->fo_transitions,
+		      fom->fo_sm_phase.sm_state);
+}
+
 static void addb2_introduce(struct m0_fom *fom)
 {
 	struct m0_rpc_item *req;
 
 	req = fom->fo_fop != NULL ? &fom->fo_fop->f_item : NULL;
 
+	fom_addb2_push(fom);
 	M0_ADDB2_ADD(M0_AVI_FOM_DESCR,
 		     m0_time_now(),
 		     U128_P(&fom->fo_service->rs_service_uuid),
@@ -374,6 +381,7 @@ static void addb2_introduce(struct m0_fom *fom)
 		     fom->fo_local);
 	if (fom->fo_ops->fo_addb2_descr != NULL)
 		fom->fo_ops->fo_addb2_descr(fom);
+	m0_addb2_pop(M0_AVI_FOM);
 }
 
 static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -386,12 +394,6 @@ static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	m0_fom_locality_inc(fom);
 	addb2_introduce(fom);
 	fom_ready(fom);
-}
-
-static void fom_addb2_push(struct m0_fom *fom)
-{
-	M0_ADDB2_PUSH(M0_AVI_FOM, (uint64_t)fom, fom->fo_transitions,
-		      fom->fo_sm_phase.sm_state);
 }
 
 static void thr_addb2_enter(struct m0_loc_thread *thr,
