@@ -537,11 +537,8 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 		} else
 			m0_atomic64_add(&lio->si_bdone, res);
 	}
-
 	if (res < 0 && io->si_rc == 0)
 		io->si_rc = res;
-	M0_ASSERT(io->si_rc == 0);
-
 	/*
 	 * The position of this operation is critical:
 	 * all threads must complete the above code until
