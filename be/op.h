@@ -55,8 +55,17 @@ enum m0_be_op_type {
 };
 
 struct m0_be_op {
-	struct m0_sm       bo_sm;
-	struct m0_fom     *bo_fom;
+	struct m0_sm        bo_sm;
+	struct m0_fom	   *bo_fom;
+	/*
+	 * Hack.
+	 *
+	 * In the future sm group for m0_be_op should be taken
+	 * from m0_locality_here().
+	 *
+	 * @see MERO-787 comments for the reference.
+	 */
+	struct m0_sm_group  bo_sm_group;
 
 	enum m0_be_op_type bo_utype; /* bo_u type */
 	struct m0_be_op   *bo_parent_op;

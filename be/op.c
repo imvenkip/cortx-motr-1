@@ -32,10 +32,6 @@
  * @{
  */
 
-/* XXX Shouldn't we pass a pointer to m0_sm_group via m0_be_op_init()
- * parameter? */
-struct m0_sm_group be_op_sm_group;
-
 static void grp_lock(const struct m0_be_op *op)
 {
 	m0_sm_group_lock(op->bo_sm.sm_grp);
@@ -82,8 +78,9 @@ M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op)
 
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op)
 {
-	M0_SET0(op);
-	m0_sm_init(&op->bo_sm, &op_states_conf, M0_BOS_INIT, &be_op_sm_group);
+	M0_SET0(op);	/* XXX use M0_IS_ZEROED() */
+	m0_sm_group_init(&op->bo_sm_group);
+	m0_sm_init(&op->bo_sm, &op_states_conf, M0_BOS_INIT, &op->bo_sm_group);
 }
 
 M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op)
@@ -91,6 +88,7 @@ M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op)
 	grp_lock(op);
 	m0_sm_fini(&op->bo_sm);
 	grp_unlock(op);
+	m0_sm_group_fini(&op->bo_sm_group);
 }
 
 M0_INTERNAL void
