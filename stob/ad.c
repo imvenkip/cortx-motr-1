@@ -401,7 +401,7 @@ static void stob_ad_domain_destroy_credit(struct m0_be_seg *seg,
 					  const char *location_data,
 					  struct m0_be_tx_credit *accum)
 {
-	struct m0_be_emap map;
+	struct m0_be_emap map = {};
 
 	M0_BE_FREE_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
 	m0_be_emap_init(&map, seg);
