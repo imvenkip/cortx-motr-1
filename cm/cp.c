@@ -427,18 +427,18 @@ static void cp_fom_fini(struct m0_fom *fom)
 	if (cp->c_rc == 0)
 		M0_CNT_INC(ag->cag_freed_cp_nr);
 	m0_cm_cp_fom_fini(cp);
-	cp->c_ops->co_free(cp);
 	if (cp->c_rc == 0) {
 		ag_fini = ag->cag_ops->cago_ag_can_fini(ag);
 		if (ag_fini)
 			ag->cag_ops->cago_fini(ag);
 	}
-	/**
+	/*
 	 * Try to create a new copy packet since this copy packet is
 	 * making way for new copy packets in sliding window.
 	 */
 	if (m0_cm_has_more_data(cm))
 		m0_cm_continue(cm);
+	cp->c_ops->co_free(cp);
 	m0_cm_unlock(cm);
 	M0_LEAVE();
 }
