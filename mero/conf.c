@@ -185,19 +185,40 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, struct m0_conf_filesystem 
 	return conf_to_args(args, fs);
 }
 
-M0_INTERNAL int m0_mero_conf_setup(struct m0_mero *mero)
+M0_INTERNAL int m0_mero_conf_setup(struct m0_mero *mero, const char *local_conf,
+				   const struct m0_fid *profile)
 {
 	struct m0_rpc_machine *rmach;
 	struct m0_locality    *loc = m0_locality0_get();
+	struct m0_confc       *confc = &mero->cc_confc;
+	struct m0_conf_obj    *fs_obj;
 	int                    rc;
 
-	M0_PRE(mero->cc_profile != NULL && mero->cc_confd_addr != NULL);
+	M0_ENTRY();
 
-	rmach = m0_mero_to_rmach(mero);
-        rc = m0_conf_fs_get(mero->cc_profile, mero->cc_confd_addr,
-			    rmach, loc->lo_grp, &mero->cc_confc, &mero->cc_fs);
-	if (rc != 0)
-		goto out;
+	M0_PRE((local_conf != NULL && m0_fid_is_set(profile)) ||
+	       (mero->cc_profile != NULL && mero->cc_confd_addr != NULL));
+
+	if (local_conf == NULL) {
+		rmach = m0_mero_to_rmach(mero);
+		rc = m0_conf_fs_get(mero->cc_profile, mero->cc_confd_addr,
+				    rmach, loc->lo_grp, confc, &mero->cc_fs);
+		if (rc != 0)
+			goto out;
+	} else {
+		rc = m0_confc_init(confc, loc->lo_grp, NULL, NULL,
+				   local_conf);
+		if (rc != 0)
+			goto out;
+		rc = m0_confc_open_sync(&fs_obj, confc->cc_root,
+					M0_CONF_ROOT_PROFILES_FID, *profile,
+					M0_CONF_PROFILE_FILESYSTEM_FID);
+		if (rc != 0) {
+			m0_confc_fini(confc);
+			goto out;
+		}
+		mero->cc_fs = M0_CONF_CAST(fs_obj, m0_conf_filesystem);
+	}
 
 	rc = m0_pools_common_init(&mero->cc_pools_common, NULL, mero->cc_fs);
 	if (rc != 0)

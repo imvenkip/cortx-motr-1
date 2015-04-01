@@ -832,8 +832,8 @@ int m0t1fs_pool_find(struct m0t1fs_sb *csb, struct m0_conf_filesystem *fs)
 	cp = M0_CONF_CAST(pver->pv_obj.co_parent->co_parent, m0_conf_pool);
 	csb->csb_pool = m0_pool_find(&csb->csb_pools_common, &cp->pl_obj.co_id);
 	M0_ASSERT(csb->csb_pool != NULL);
-	csb->csb_pool_version = m0_pool_version_find(csb->csb_pool,
-						     &pver->pv_obj.co_id);
+	csb->csb_pool_version = m0__pool_version_find(csb->csb_pool,
+						      &pver->pv_obj.co_id);
 	M0_ASSERT(csb->csb_pool_version != NULL);
 
 	return M0_RC(rc);

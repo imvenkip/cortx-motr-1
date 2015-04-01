@@ -274,7 +274,6 @@ static void cob_fom_populate(struct m0_fom *fom)
 	M0_PRE(fom->fo_fop != NULL);
 
 	common = m0_cobfop_common_get(fom->fo_fop);
-
 	cfom = cob_fom_get(fom);
 	cfom->fco_gfid = common->c_gobfid;
 	cfom->fco_cfid = common->c_cobfid;
@@ -302,26 +301,43 @@ static int cob_ops_stob_find(struct m0_fom_cob_op *co)
 	return M0_RC(rc);
 }
 
+static int cob_fom_pool_version_get(struct m0_fom *fom)
+{
+	struct m0_fom_cob_op     *cob_op;
+	struct m0_fop_cob_common *common;
+	struct m0_reqh           *reqh;
+	struct m0_mero           *mero;
+	int                       rc = 0;
+
+	common = m0_cobfop_common_get(fom->fo_fop);
+	cob_op = cob_fom_get(fom);
+	reqh = m0_fom_reqh(fom);
+	mero = m0_cs_ctx_get(reqh);
+	cob_op->fco_pver = m0_pool_version_find(&mero->cc_pools_common,
+						&common->c_pver);
+	if (cob_op->fco_pver == NULL)
+		rc = -EINVAL;
+
+	return M0_RC(rc);
+}
+
 static int cob_tick_prepare(struct m0_fom *fom)
 {
 	struct m0_fop               *fop;
 	struct m0_fop_cob_common    *common;
-	struct m0_reqh              *reqh;
+	struct m0_fom_cob_op        *cob_op;
 	struct m0_poolmach          *poolmach;
 	struct m0_poolmach_versions *cliv;
-	int rc;
+
 	M0_PRE(fom != NULL);
 
 	fop = fom->fo_fop;
 	common = m0_cobfop_common_get(fop);
-	reqh = m0_fom_reqh(fom);
-	poolmach = m0_ios_poolmach_get(reqh);
-
+	cob_op = cob_fom_get(fom);
+	poolmach = &cob_op->fco_pver->pv_mach;
 	cliv = (struct m0_poolmach_versions*)&common->c_version;
 
-	rc = ios__poolmach_check(poolmach, cliv);
-	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_EXECUTE);
-	return M0_RC(rc);
+	return ios__poolmach_check(poolmach, cliv);
 }
 
 static void cob_tick_tail(struct m0_fom *fom,
@@ -329,24 +345,25 @@ static void cob_tick_tail(struct m0_fom *fom,
 {
 	struct m0_fop            *fop;
 	struct m0_fop_cob_common *common;
-	struct m0_reqh           *reqh;
-	struct m0_poolmach       *poolmach;
+	struct m0_fom_cob_op     *cob_op;
+	struct m0_poolmach       *poolmach = NULL;
+
 	M0_PRE(fom != NULL);
 
 	fop = fom->fo_fop;
 	common = m0_cobfop_common_get(fop);
-	reqh = m0_fom_reqh(fom);
-	poolmach = m0_ios_poolmach_get(reqh);
+	cob_op = cob_fom_get(fom);
+	poolmach = &cob_op->fco_pver->pv_mach;
 
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
 	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
 		/* Piggyback some information about the transaction */
 		m0_fom_mod_rep_fill(&r_common->cor_mod_rep, fom);
-
-		m0_ios_poolmach_version_updates_pack(poolmach,
-						     &common->c_version,
-						     &r_common->cor_fv_version,
-						     &r_common->cor_fv_updates);
+		if (poolmach != NULL)
+			m0_ios_poolmach_version_updates_pack(poolmach,
+						&common->c_version,
+						&r_common->cor_fv_version,
+						&r_common->cor_fv_updates);
 	}
 }
 
@@ -364,14 +381,21 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 	M0_PRE(fom->fo_ops != NULL);
 	M0_PRE(fom->fo_type != NULL);
 
-	if (m0_fom_phase(fom) < M0_FOPH_NR) {
-		rc = m0_fom_tick_generic(fom);
-		return M0_RC(rc);
-	}
-
 	fop = fom->fo_fop;
 	reply = m0_fop_data(fom->fo_rep_fop);
 	r_common = &reply->cgr_common;
+
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		if (m0_fom_phase(fom) == M0_FOPH_INIT) {
+			rc = cob_fom_pool_version_get(fom);
+			if (rc != 0) {
+				m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+				goto tail;
+			}
+		}
+		rc = m0_fom_tick_generic(fom);
+		return M0_RC(rc);
+	}
 
 	ops = m0_fop_name(fop);
 
@@ -379,6 +403,8 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 	case M0_FOPH_COB_OPS_PREPARE:
 		M0_LOG(M0_DEBUG, "Cob %s operation prepare", ops);
 		rc = cob_tick_prepare(fom);
+		m0_fom_phase_moveif(fom, rc, M0_FOPH_COB_OPS_EXECUTE,
+				    M0_FOPH_FAILURE);
 		reply->cgr_rc = rc;
 		return M0_FSO_AGAIN;
 	case M0_FOPH_COB_OPS_EXECUTE:
@@ -394,7 +420,7 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 		rc = -EINVAL;
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	}
-
+tail:
 	if (rc != 0)
 		reply->cgr_rc = rc;
 	cob_tick_tail(fom, r_common);
@@ -426,6 +452,13 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		switch(m0_fom_phase(fom)) {
+		case M0_FOPH_INIT:
+			rc = cob_fom_pool_version_get(fom);
+			if (rc != 0) {
+				m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+				goto tail;
+			}
+			break;
 		case M0_FOPH_TXN_OPEN:
 			tx_cred = m0_fom_tx_credit(fom);
 			cob_op_credit(fom, M0_COB_OP_UPDATE, tx_cred);
@@ -439,6 +472,8 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 	case M0_FOPH_COB_OPS_PREPARE:
 		M0_LOG(M0_DEBUG, "Cob %s operation prepare", ops);
 		rc = cob_tick_prepare(fom);
+		m0_fom_phase_moveif(fom, rc, M0_FOPH_COB_OPS_EXECUTE,
+				    M0_FOPH_FAILURE);
 		reply->csr_rc = rc;
 		return M0_FSO_AGAIN;
 	case M0_FOPH_COB_OPS_EXECUTE:
@@ -454,7 +489,7 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 		rc = -EINVAL;
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	}
-
+tail:
 	if (rc != 0)
 		reply->csr_rc = rc;
 	cob_tick_tail(fom, r_common);
@@ -489,15 +524,15 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 		cob_op = cob_fom_get(fom);
 		switch(m0_fom_phase(fom)) {
 		case M0_FOPH_INIT:
-			if (fop_is_create)
-				break;
+			rc = cob_fom_pool_version_get(fom);
 			/*
 			 * Find the stob and handle non-existing stob error
 			 * earlier, before initialising the transaction.
 			 * This avoids complications in handling transaction
 			 * cleanup.
 			 */
-			rc = cob_ops_stob_find(cob_op);
+			if (rc == 0 && !fop_is_create)
+				rc = cob_ops_stob_find(cob_op);
 			if (rc != 0) {
 				cob_op->fco_is_done = true;
 				m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
@@ -559,6 +594,8 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	switch (m0_fom_phase(fom)) {
 	case M0_FOPH_COB_OPS_PREPARE:
 		rc = cob_tick_prepare(fom);
+		m0_fom_phase_moveif(fom, rc, M0_FOPH_COB_OPS_EXECUTE,
+				    M0_FOPH_FAILURE);
 		reply->cor_rc = rc;
 		return M0_FSO_AGAIN;
 	case M0_FOPH_COB_OPS_EXECUTE:

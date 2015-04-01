@@ -349,8 +349,8 @@ struct m0_fv_updates {
  * A common sub structure to be referred by read and write reply fops.
  */
 struct m0_fop_cob_rw_reply {
-	/** Status code of operation. */
-	int32_t                rwr_rc;
+        /** Status code of operation. */
+	int32_t                 rwr_rc;
 
 	/** Number of bytes read or written. */
 	uint64_t                rwr_count;
@@ -414,6 +414,9 @@ struct m0_fop_cob_rw {
 
 	/** File identifier of read/write request. */
 	struct m0_fid             crw_fid;
+
+	/** Pool version for read/write request. */
+	struct m0_fid             crw_pver;
 
 	/**
 	 * Net buf descriptors representing the m0_net_buffer containing
@@ -500,6 +503,9 @@ struct m0_fop_cob_common {
 	 * Fid of component object.
 	 */
 	struct m0_fid        c_cobfid;
+
+	/** Pool version of component object. */
+	struct m0_fid        c_pver;
 
 	/** Unique cob index in pool. */
 	uint32_t             c_cob_idx;

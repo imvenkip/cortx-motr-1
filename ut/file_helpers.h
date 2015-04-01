@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,8 +18,8 @@
  * Original creation date: 28-Dec-2012
  */
 #pragma once
-#ifndef __MERO_CONF_UT_FILE_HELPERS_H__
-#define __MERO_CONF_UT_FILE_HELPERS_H__
+#ifndef __MERO_UT_FILE_HELPERS_H__
+#define __MERO_UT_FILE_HELPERS_H__
 
 #include <stddef.h>  /* size_t */
 
@@ -41,4 +41,4 @@
  */
 M0_INTERNAL int m0_ut_file_read(const char *path, char *dest, size_t sz);
 
-#endif /* __MERO_CONF_UT_FILE_HELPERS_H__ */
+#endif /* __MERO_UT_FILE_HELPERS_H__ */

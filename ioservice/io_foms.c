@@ -1184,8 +1184,10 @@ int ios__poolmach_check(struct m0_poolmach *poolmach,
 static int io_prepare(struct m0_fom *fom)
 {
 	struct m0_fop_cob_rw        *rwfop;
+	struct m0_io_fom_cob_rw     *fom_obj;
 	struct m0_poolmach          *poolmach;
 	struct m0_reqh              *reqh;
+	struct m0_mero              *mero;
 	struct m0_fop_cob_rw_reply  *rwrep;
 	struct m0_poolmach_versions *cliv;
 	enum m0_pool_nd_state        device_state = 0;
@@ -1194,9 +1196,20 @@ static int io_prepare(struct m0_fom *fom)
 	M0_ENTRY("fom=%p", fom);
 
 	reqh = m0_fom_reqh(fom);
-	poolmach = m0_ios_poolmach_get(reqh);
+	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+	mero = m0_cs_ctx_get(reqh);
 	rwfop = io_rw_get(fom->fo_fop);
 	rwrep = io_rw_rep_get(fom->fo_rep_fop);
+	M0_ASSERT(fom_obj->fcrw_pver == NULL);
+	fom_obj->fcrw_pver = m0_pool_version_find(&mero->cc_pools_common,
+						  &rwfop->crw_pver);
+	if (fom_obj->fcrw_pver == NULL) {
+		m0_fom_phase_move(fom, -EINVAL, M0_FOPH_FAILURE);
+		rc = M0_FSO_AGAIN;
+		goto out;
+	}
+	poolmach = &fom_obj->fcrw_pver->pv_mach;
 	cliv = (struct m0_poolmach_versions*)(&rwfop->crw_version);
 
 	M0_LOG(M0_DEBUG, "Preparing %s IO @"FID_F"",
@@ -1980,7 +1993,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
 	reqh = m0_fom_reqh(fom);
-	poolmach = m0_ios_poolmach_get(reqh);
 
 	/* first handle generic phase */
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
@@ -1997,16 +2009,17 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	M0_ASSERT(rc == M0_FSO_AGAIN || rc == M0_FSO_WAIT);
 
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
-
 	/* Set operation status in reply fop if FOM ends.*/
-	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
-	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
+        if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
+            m0_fom_phase(fom) == M0_FOPH_FAILURE) {
 		rwfop = io_rw_get(fom->fo_fop);
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
 		rwrep->rwr_count = fom_obj->fcrw_count << fom_obj->fcrw_bshift;
 		/* Information about the transaction for  this update op. */
 		m0_fom_mod_rep_fill(&rwrep->rwr_mod_rep, fom);
+		poolmach = &fom_obj->fcrw_pver->pv_mach;
+		M0_ASSERT(poolmach != NULL);
 		m0_ios_poolmach_version_updates_pack(poolmach,
 						     &rwfop->crw_version,
 						     &rwrep->rwr_fv_version,

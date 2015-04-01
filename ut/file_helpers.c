@@ -18,7 +18,7 @@
  * Original creation date: 28-Dec-2012
  */
 
-#include "conf/ut/file_helpers.h"
+#include "ut/file_helpers.h"
 #include "lib/string.h"  /* FILE, fread */
 #include "lib/errno.h"   /* EFBIG, errno */
 

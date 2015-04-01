@@ -248,9 +248,13 @@ M0_INTERNAL void m0_pools_fini(void)
 
 M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id)
 {
+	M0_ENTRY();
+
 	pool->po_id = *id;
 	pools_tlink_init(pool);
 	pool_version_tlist_init(&pool->po_vers);
+
+	M0_LEAVE();
 	return 0;
 }
 
@@ -300,6 +304,7 @@ static int __mds_map(struct m0_conf_controller *c, struct m0_pools_common *pc)
 	uint64_t                    idx = 0;
 	int                         rc;
 
+	M0_ENTRY();
 	rc = m0_conf_diter_init(&it, pc->pc_confc, &c->cc_node->cn_obj,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
@@ -340,6 +345,7 @@ M0_INTERNAL int m0_pool_mds_map_init(struct m0_conf_filesystem *fs,
 	struct m0_conf_obj        *obj;
 	int                        rc;
 
+	M0_ENTRY();
 	M0_PRE(!pools_common_svc_ctx_tlist_is_empty(&pc->pc_svc_ctxs));
 	M0_PRE(pc->pc_mds_map != NULL);
 
@@ -389,6 +395,7 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 	uint64_t                    dev_idx = 0;
 	int                         rc;
 
+	M0_ENTRY();
 	M0_PRE(!pools_common_svc_ctx_tlist_is_empty(&pc->pc_svc_ctxs));
 	M0_PRE(pv->pv_dev_to_ios_map != NULL);
 
@@ -440,6 +447,8 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				     struct m0_sm_group  *sm_grp,
 				     struct m0_dtm       *dtm)
 {
+	M0_ENTRY();
+
 	pv->pv_id = *id;
 	pv->pv_attr.pa_N = nr_data;
 	pv->pv_attr.pa_K = nr_failures;
@@ -456,14 +465,34 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 	pool_version_tlink_init(pv);
 
 	M0_POST(pool_version_invariant(pv));
+	M0_LEAVE();
+
 	return 0;
 }
 
 M0_INTERNAL struct m0_pool_version *
-m0_pool_version_find(struct m0_pool *pool, const struct m0_fid *id)
+m0__pool_version_find(struct m0_pool *pool, const struct m0_fid *id)
 {
 	return m0_tl_find(pool_version, pv, &pool->po_vers,
 			  m0_fid_eq(&pv->pv_id, id));
+}
+
+M0_INTERNAL struct m0_pool_version *
+m0_pool_version_find(struct m0_pools_common *pc, const struct m0_fid *id)
+{
+	struct m0_pool         *p;
+	struct m0_pool_version *pver;
+
+	M0_ENTRY();
+	M0_PRE(pc != NULL);
+
+	m0_tl_for(pools, &pc->pc_pools, p) {
+		pver = m0__pool_version_find(p, id);
+		if (pver != NULL)
+			return pver;
+	} m0_tl_endfor;
+
+	return NULL;
 }
 
 static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
@@ -509,6 +538,7 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 	uint32_t nodes = 0;
 	int      rc;
 
+	M0_ENTRY();
 	M0_PRE(pv != NULL && pver != NULL && pool != NULL && pc != NULL);
 
 	/*
@@ -534,12 +564,15 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 
 M0_INTERNAL void m0_pool_version_fini(struct m0_pool_version *pv)
 {
+	M0_ENTRY();
 	M0_PRE(pool_version_invariant(pv));
 
 	pool_version_tlink_fini(pv);
 	m0_pool_version_bob_fini(pv);
 	m0_free(pv->pv_dev_to_ios_map);
 	m0_poolmach_fini(&pv->pv_mach);
+
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_pool_versions_fini(struct m0_pool *pool)
@@ -603,6 +636,8 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 	struct m0_conf_obj     *obj;
 	int                     rc;
 
+	M0_ENTRY();
+
 	rc = m0_conf_diter_init(&it, pc->pc_confc, &fs->cf_obj,
 				M0_CONF_FILESYSTEM_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
@@ -657,6 +692,7 @@ static int _conf_load(struct m0_conf_filesystem *fs, const struct m0_fid *path,
 	struct m0_conf_obj   *fs_obj = &fs->cf_obj;
 	int                   rc;
 
+	M0_ENTRY();
 	M0_PRE(path != NULL);
 
 	rc = m0_conf__diter_init(&it, m0_confc_from_obj(fs_obj), fs_obj,
@@ -700,6 +736,7 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 {
 	int rc;
 
+	M0_ENTRY();
 	M0_PRE(pc != NULL && fs != NULL);
 
 	M0_SET0(pc);
@@ -739,6 +776,7 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 
 M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
 {
+	M0_ENTRY();
 	M0_PRE(pools_common_invariant(pc));
 
 	m0_pools_destroy(pc);
@@ -746,6 +784,8 @@ M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
 	m0_free(pc->pc_mds_map);
 	pools_common_svc_ctx_tlist_fini(&pc->pc_svc_ctxs);
 	pools_tlist_fini(&pc->pc_pools);
+
+	M0_LEAVE();
 }
 
 static bool _filter_pool_pver(const struct m0_conf_obj *obj)
@@ -769,6 +809,8 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
 	struct m0_confc        *confc;
 	struct m0_conf_obj     *obj;
 	int                     rc;
+
+	M0_ENTRY();
 
 	confc = m0_confc_from_obj(&fs->cf_obj);
 	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
@@ -825,11 +867,15 @@ M0_INTERNAL void m0_pools_destroy(struct m0_pools_common *pc)
 {
         struct m0_pool *p;
 
+	M0_ENTRY();
+
         m0_tl_teardown(pools, &pc->pc_pools, p) {
                 m0_pool_versions_fini(p);
                 m0_pool_fini(p);
                 m0_free(p);
         }
+
+	M0_LEAVE();
 }
 
 M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,

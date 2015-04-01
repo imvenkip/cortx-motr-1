@@ -31,6 +31,9 @@
 #include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"	/* To access static APIs. */
 #include "mero/setup.h"
+#include "mero/setup_internal.h" /* m0_mero_conf_setup */
+#include "conf/preload.h"        /* M0_CONF_STR_MAXLEN */
+#include "pool/pool.h"
 #include "fop/fom_generic.c"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
@@ -1634,6 +1637,7 @@ static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 	rw = io_rw_get(&io_fops[index]->if_fop);
 
 	rw->crw_fid = bp->bp_fids[0];
+	rw->crw_pver = CONF_PVER_FID;
 	bp->bp_offsets[0] = IO_SEG_START_OFFSET;
 
 	void add_buffer_bulk(int j)
@@ -1728,19 +1732,25 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	struct m0_fop		   *wfop;
 	struct m0_fop		   *rfop;
 	struct m0_fop_cob_rw_reply *rw_reply;
-	int			    rc;
 	struct m0_fop_cob_rw	   *rw;
 	struct m0_be_tx_credit      cred = {};
 	struct m0_be_tx             tx;
 	struct m0_sm_group         *grp  = m0_locality0_get()->lo_grp;
 	struct m0_rpc_session      *sess = &bp->bp_cctx->rcx_session;
+	struct m0_mero             *mero;
+	struct m0_pool_version     *pver;
+	int			    rc;
 
 	event.pe_type  = M0_POOL_DEVICE;
 	event.pe_index = 1;
 	event.pe_state = M0_PNDS_FAILED;
 
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
-	pm = m0_ios_poolmach_get(reqh);
+        mero = m0_cs_ctx_get(reqh);
+        pver = m0_pool_version_find(&mero->cc_pools_common,
+				    &CONF_PVER_FID);
+	M0_UT_ASSERT(pver != NULL);
+        pm = &pver->pv_mach;
 	M0_UT_ASSERT(pm != NULL);
 
 	m0_sm_group_lock(grp);
@@ -1768,6 +1778,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	rw = io_rw_get(wfop);
 
 	rw->crw_fid = bp->bp_fids[0];
+	rw->crw_pver = CONF_PVER_FID;
 
 	m0_fi_enable_once("stob_be_credit", "no_write_credit");
 	rc = m0_rpc_post_sync(wfop, sess, NULL, 0 /* deadline */);
@@ -1782,6 +1793,8 @@ static void bulkio_server_read_write_fv_mismatch(void)
 
 	rfop->f_type->ft_ops = &io_fop_rwv_ops;
 	rfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
+	rw = io_rw_get(rfop);
+	rw->crw_pver = CONF_PVER_FID;
 
 	m0_fi_enable_once("stob_be_credit", "no_write_credit");
 	rc = m0_rpc_post_sync(rfop, sess, NULL, 0 /* deadline */);
@@ -1790,6 +1803,17 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	M0_UT_ASSERT(rw_reply->rwr_rc ==
 			M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
 	m0_fop_put_lock(rfop);
+}
+
+static void bulkio_mero_conf_init(struct m0_mero *mero)
+{
+	char local_conf[M0_CONF_STR_MAXLEN];
+	int  rc;
+
+	rc = m0_ut_file_read(IO_CONF_PATH, local_conf, sizeof local_conf);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_mero_conf_setup(mero, local_conf, &CONF_PROFILE_FID);
+	M0_UT_ASSERT(rc == 0);
 }
 
 static void bulkio_init(void)
@@ -1808,6 +1832,7 @@ static void bulkio_init(void)
 	rc = bulkio_client_start(bp, caddr, saddr);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(bp->bp_cctx != NULL);
+	bulkio_mero_conf_init(&bp->bp_sctx->rsx_mero_ctx);
 
 	bulkio_stob_create();
 }
@@ -1820,6 +1845,11 @@ static void bulkio_fini(void)
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
 	m0_reqh_idle_wait(reqh);
 	bulkio_client_stop(bp->bp_cctx);
+	/*
+	 * We have explicitly initialise the confc, pools and pool versions but
+	 * finalisation for the same is done during m0_cs_fini() as part of
+	 * m0_rpc_server_stop().
+	 */
 	bulkio_server_stop(bp->bp_sctx);
 	m0_addb_mc_fini(&m0_addb_gmc);
 	m0_addb_mc_init(&m0_addb_gmc);

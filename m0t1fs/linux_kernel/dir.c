@@ -1838,6 +1838,7 @@ static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb   *csb,
 
 	common->c_gobfid = *gob_fid;
 	common->c_cobfid = *cob_fid;
+	common->c_pver   = csb->csb_pool_version->pv_id;
 
 	/* For special "meta cobs", this would be some special value,
 	 * e.g. -1. @todo this will be done in MM hash function task.

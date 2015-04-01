@@ -172,6 +172,8 @@ struct m0_stob_io_desc {
 struct m0_io_fom_cob_rw {
 	/** Generic m0_fom object. */
 	struct m0_fom                    fcrw_gen;
+	/** Pool version for this io request. */
+	struct m0_pool_version          *fcrw_pver;
 	/** Number of desc io_fop desc list*/
 	uint32_t                         fcrw_ndesc;
 	/** index of net buffer descriptor under process*/
@@ -200,7 +202,7 @@ struct m0_io_fom_cob_rw {
 	/** Pointer to buffer pool refered by FOM */
 	struct m0_net_buffer_pool       *fcrw_bp;
 	/** Stob object on which this FOM is acting. */
-	struct m0_stob                  *fcrw_stob;
+	struct m0_stob		        *fcrw_stob;
 	/** Stob IO packets for the operation. */
 	struct m0_tl                     fcrw_stio_list;
 	/** Completed stob IOs, used as holders for fol records. */

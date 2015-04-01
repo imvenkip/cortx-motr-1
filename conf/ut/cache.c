@@ -22,7 +22,7 @@
 #include "conf/obj_ops.h"  /* m0_conf_obj_create */
 #include "conf/preload.h"  /* m0_confstr_parse, m0_confx_free */
 #include "conf/onwire.h"   /* m0_confx_obj, m0_confx */
-#include "conf/ut/file_helpers.h"
+#include "ut/file_helpers.h"
 #include "lib/buf.h"       /* m0_buf, M0_BUF_INITS */
 #include "lib/errno.h"     /* ENOENT */
 #include "ut/ut.h"

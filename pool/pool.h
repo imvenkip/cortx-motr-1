@@ -193,7 +193,10 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				     struct m0_dtm       *dtm);
 
 M0_INTERNAL struct m0_pool_version *
-m0_pool_version_find(struct m0_pool *pool, const struct m0_fid *id);
+m0__pool_version_find(struct m0_pool *pool, const struct m0_fid *id);
+
+M0_INTERNAL struct m0_pool_version *
+m0_pool_version_find(struct m0_pools_common *pc, const struct m0_fid *id);
 
 M0_INTERNAL void m0_pool_version_fini(struct m0_pool_version *pv);
 

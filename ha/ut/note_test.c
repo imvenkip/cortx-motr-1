@@ -20,7 +20,7 @@
 
 #include "conf/confc.h"
 #include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
-#include "conf/ut/file_helpers.h"
+#include "ut/file_helpers.h"
 #include "fid/fid.h"
 #include "fop/fom_generic.h"
 #include "lib/buf.h"

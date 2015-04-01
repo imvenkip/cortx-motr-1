@@ -21,7 +21,7 @@
 
 #include <ctype.h>         /* isprint */
 #include "conf/preload.h"  /* m0_confstr_parse */
-#include "conf/ut/file_helpers.h"
+#include "ut/file_helpers.h"
 #include "lib/string.h"    /* strlen, m0_strdup */
 #include "lib/memory.h"    /* m0_free */
 #include "ut/ut.h"

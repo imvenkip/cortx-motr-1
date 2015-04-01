@@ -1872,7 +1872,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 
 	if (cctx->cc_confd_addr == NULL && cctx->cc_profile == NULL)
 		return 0;
-	rc = m0_mero_conf_setup(cctx);
+	rc = m0_mero_conf_setup(cctx, NULL, NULL);
 	if (rc != 0)
 		return M0_ERR(rc);
 

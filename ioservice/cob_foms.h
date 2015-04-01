@@ -45,6 +45,8 @@ struct m0_fom_cob_op {
 	struct m0_fid		 fco_stob_fid;
 	/** Generic fom object. */
 	struct m0_fom		 fco_fom;
+        /** Pool version for this request. */
+        struct m0_pool_version  *fco_pver;
 	/** Fid of global file. */
 	struct m0_fid		 fco_gfid;
 	/** Fid of component object. */

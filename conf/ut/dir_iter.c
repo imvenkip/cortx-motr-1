@@ -26,7 +26,7 @@
 #include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
 #include "conf/obj_ops.h"   /* M0_CONF_DIREND */
 #include "conf/dir_iter.h"
-#include "conf/ut/file_helpers.h"
+#include "ut/file_helpers.h"
 #include "conf/ut/rpc_helpers.h"
 #include "conf/ut/common.h"
 #include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */

@@ -173,9 +173,9 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	iofop = io_fops[index];
 	rw    = io_rw_get(&iofop->if_fop);
 	rw->crw_fid = bp->bp_fids[off_index];
+	rw->crw_pver = CONF_PVER_FID;
 
 	rbulk = &iofop->if_rbulk;
-
 	/*
 	 * Adds a m0_rpc_bulk_buf structure to list of such structures
 	 * in m0_rpc_bulk.

@@ -34,6 +34,8 @@
 #include "lib/thread.h"         /* M0_THREAD_INIT */
 #include "lib/misc.h"           /* M0_SET_ARR0 */
 
+#include "ut/file_helpers.h"    /* M0_CONF_UT_PATH */
+
 enum IO_UT_VALUES {
 	IO_FIDS_NR           = 2,
 	IO_SEGS_NR           = 16,
@@ -59,7 +61,10 @@ enum IO_UT_VALUES {
 #define IO_SERVER_DBFILE   "bulkio_st.db"
 #define IO_SERVER_LOGFILE  "bulkio_st.log"
 #define IO_SERVER_STOBFILE "bulk_st_stob"
+#define IO_CONF_PATH M0_CONF_UT_PATH("dir_iter_xc.txt")
 
+static const struct m0_fid CONF_PVER_FID = M0_FID_TINIT('v', 1, 24);
+static const struct m0_fid CONF_PROFILE_FID = M0_FID_TINIT('p', 1, 0);
 /* Structure containing data needed for UT. */
 struct bulkio_params {
 	/* Fids of global files. */

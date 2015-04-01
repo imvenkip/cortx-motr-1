@@ -5841,6 +5841,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	struct m0_rpc_bulk_buf      *rbuf;
 	struct m0_poolmach_versions  curr;
 	struct m0_poolmach_versions *cli;
+	struct m0t1fs_sb            *csb;
+	struct m0_fop_cob_rw        *rw_fop;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -5849,6 +5851,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 	req = bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
 		     &ioreq_bobtype);
+	csb = file_to_sb(req->ir_file);
+
 	M0_ASSERT(M0_IN(ioreq_sm_state(req),
 		  (IRS_READING, IRS_DEGRADED_READING,
 		   IRS_WRITING, IRS_DEGRADED_WRITING)));
@@ -5902,11 +5906,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		}
 		++iommstats.a_io_req_fop_nr;
 
-		m0_poolmach_current_version_get(&file_to_sb(req->ir_file)->
-						csb_pool_version->pv_mach,
+		m0_poolmach_current_version_get(&csb->csb_pool_version->pv_mach,
 						&curr);
-		cli = (struct m0_poolmach_versions *)
-		      &(io_rw_get(&irfop->irf_iofop.if_fop)->crw_version);
+		rw_fop = io_rw_get(&irfop->irf_iofop.if_fop);
+		cli = (struct m0_poolmach_versions *)&rw_fop->crw_version;
 		*cli = curr;
 
 		rc = bulk_buffer_add(irfop, ndom, &rbuf, &delta, maxsize);
@@ -5983,7 +5986,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rbuf->bb_nbuf->nb_buffer.ov_vec.v_nr = bbsegs;
 		rbuf->bb_zerovec.z_bvec.ov_vec.v_nr = bbsegs;
 
-		io_rw_get(&irfop->irf_iofop.if_fop)->crw_fid = ti->ti_fid;
+		rw_fop->crw_fid = ti->ti_fid;
+		rw_fop->crw_pver = csb->csb_pool_version->pv_id;
 
 		rc = m0_io_fop_prepare(&irfop->irf_iofop.if_fop);
 		if (rc != 0)

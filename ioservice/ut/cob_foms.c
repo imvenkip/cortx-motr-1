@@ -22,7 +22,9 @@
 #include "lib/locality.h"
 #include "lib/finject.h"
 #include "ut/ut.h"
+#include "ut/file_helpers.h"             /* m0_ut_file_read */
 #include "lib/memory.h"
+#include "conf/preload.h"                /* M0_CONF_STR_MAXLEN */
 #include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"                  /* m0_rpc_server_ctx */
 #include "ioservice/ut/bulkio_common.h"
@@ -37,6 +39,7 @@
 #include "ut/cs_fop.h"                   /* m0_ut_fom_phase_set */
 #include "rpc/rpc_machine_internal.h"
 #include "mdservice/fsync_fops.h"
+#include "mero/setup_internal.h"         /* m0_mero_conf_setup */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
 #include "lib/trace.h"
@@ -119,6 +122,17 @@ static char *server_args[] = {
 	"-q", COB_FOP_NR_STR,
 };
 
+static void cobfoms_ut_conf_init(struct m0_mero *mero)
+{
+	char local_conf[M0_CONF_STR_MAXLEN];
+	int  rc;
+
+	rc = m0_ut_file_read(IO_CONF_PATH, local_conf, sizeof local_conf);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_mero_conf_setup(mero, local_conf, &CONF_PROFILE_FID);
+	M0_UT_ASSERT(rc == 0);
+}
+
 static void cobfoms_utinit(void)
 {
 	int                       rc;
@@ -142,6 +156,8 @@ static void cobfoms_utinit(void)
 
 	rc = m0_rpc_server_start(sctx);
 	M0_UT_ASSERT(rc == 0);
+
+	cobfoms_ut_conf_init(&sctx->rsx_mero_ctx);
 
 	cctx = &cut->cu_cctx;
 	cctx->rcx_net_dom            = &cut->cu_nd;
@@ -191,6 +207,7 @@ static void cobfops_populate_internal(struct m0_fop *fop, uint64_t gob_fid_key)
 		   GOB_FID_KEY_ID + gob_fid_key);
 	m0_fid_set(&common->c_cobfid, 1 + gob_fid_key % POOL_WIDTH,
 		   GOB_FID_KEY_ID + gob_fid_key);
+	common->c_pver = CONF_PVER_FID;
 	m0_md_cob_mem2wire(&common->c_body, &attr);
 }
 
@@ -309,6 +326,7 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 		cut->cu_deletefops[i];
 
 	common = m0_cobfop_common_get(fop);
+	common->c_pver = CONF_PVER_FID;
 	M0_LOG(M0_DEBUG, "gobfid="FID_F" cobfid="FID_F,
 		FID_P(&common->c_gobfid), FID_P(&common->c_cobfid));
 
@@ -637,6 +655,7 @@ static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
 		break;
 	}
 	c = m0_cobfop_common_get(base_fop);
+	c->c_pver = CONF_PVER_FID;
 	m0_fid_set(&c->c_gobfid, 0, COB_TEST_KEY);
 	m0_fid_set(&c->c_cobfid, COB_TEST_CONTAINER, COB_TEST_KEY);
 
@@ -738,6 +757,8 @@ static struct m0_fom *cc_fom_alloc()
 	fop_alloc(fom, COB_CREATE);
 	M0_UT_ASSERT(fom->fo_fop != NULL);
 	cob_fom_populate(fom);
+	/* To populate pool version. */
+	cob_fom_pool_version_get(fom);
 	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_PREPARE);
 
 	return fom;
@@ -997,6 +1018,8 @@ static struct m0_fom *cd_fom_alloc()
 	fop_alloc(fom, COB_DELETE);
 	M0_UT_ASSERT(fom->fo_fop != NULL);
 	cob_fom_populate(fom);
+	/* To populate pool version. */
+	cob_fom_pool_version_get(fom);
 	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_PREPARE);
 
 	return fom;
@@ -1290,6 +1313,8 @@ static void cobfoms_fv_updates(void)
 	struct m0_be_tx_credit   cred = {};
 	struct m0_be_tx          tx;
 	struct m0_sm_group      *grp  = m0_locality0_get()->lo_grp;
+	struct m0_mero          *mero;
+	struct m0_pool_version  *pver;
 	int                      rc;
 
 	event.pe_type  = M0_POOL_DEVICE;
@@ -1297,7 +1322,11 @@ static void cobfoms_fv_updates(void)
 	event.pe_state = M0_PNDS_FAILED;
 
 	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
-	pm = m0_ios_poolmach_get(reqh);
+        mero = m0_cs_ctx_get(reqh);
+        pver = m0_pool_version_find(&mero->cc_pools_common,
+                                    &CONF_PVER_FID);
+        M0_UT_ASSERT(pver != NULL);
+        pm = &pver->pv_mach;
 	M0_UT_ASSERT(pm != NULL);
 
 	m0_sm_group_lock(grp);

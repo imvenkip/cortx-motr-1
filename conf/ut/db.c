@@ -24,7 +24,7 @@
 #include "conf/db.h"       /* m0_confdb_create, m0_confdb_read */
 #include "conf/onwire.h"   /* m0_confx_obj, m0_confx */
 #include "conf/preload.h"  /* m0_confstr_parse, m0_confx_free */
-#include "conf/ut/file_helpers.h"  /* m0_ut_file_read */
+#include "ut/file_helpers.h"  /* m0_ut_file_read */
 #include "lib/finject.h"   /* m0_fi_enable */
 #include "ut/ut.h"
 #include "be/ut/helper.h"  /* m0_be_ut_backend_init */

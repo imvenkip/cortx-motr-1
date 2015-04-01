@@ -45,13 +45,16 @@ struct cs_buffer_pool {
  *
  * @param[out] args   Arguments to be filled.
  */
-M0_INTERNAL int cs_conf_to_args(struct cs_args *args, struct m0_conf_filesystem *fs);
+M0_INTERNAL int cs_conf_to_args(struct cs_args *args,
+				struct m0_conf_filesystem *fs);
 
 /**
  * Initialises confc and fetches m0_conf_filesystem.
  * Initialises pools and pool versions without establishing rpc connections.
  */
-M0_INTERNAL int m0_mero_conf_setup(struct m0_mero *mero);
+M0_INTERNAL int m0_mero_conf_setup(struct m0_mero *mero,
+				   const char *local_conf,
+				   const struct m0_fid *profile);
 
 /** @} endgroup m0d */
 #endif /* __MERO_SETUP_INTERNAL_H__ */
