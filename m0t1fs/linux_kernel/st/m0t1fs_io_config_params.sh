@@ -11,9 +11,7 @@ FAILED_DEVICES="FAILED_DEVICES"
 REPAIRED_DEVICES="REPAIRED_DEVICES"
 BOTH_DEVICES="BOTH_DEVICES"       # default
 
-export failure_mode=$FAILED_DEVICES
-# XXX MERO-713: Enable the following once MERO-713 is fixed
-# export failure_mode=$BOTH_DEVICES
+export failure_mode=$BOTH_DEVICES
 
 # File kind to be used during multiple 'dd' operations
 # - SINGLE_FILE

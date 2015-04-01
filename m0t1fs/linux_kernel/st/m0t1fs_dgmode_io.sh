@@ -181,26 +181,10 @@ fmio_sns_repair()
 {
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		# XXX MERO-703: Use sns_repair unconditionally once
-		# MERO-699 and MERO-701 are fixed
-		if [ $# -eq 0 ]
-		then
-			pool_mach_set_repairing $fail_devices || {
-				echo "Failed: SNS repair..."
-				return 1
-			}
-			pool_mach_query $fail_devices
-
-			pool_mach_set_repaired $fail_devices || {
-				echo "Failed: SNS repair..."
-				return 1
-			}
-		else
-			sns_repair || {
-				echo "Failed: SNS repair..."
-				return 1
-			}
-		fi
+		sns_repair || {
+			echo "Failed: SNS repair..."
+			return 1
+		}
 		pool_mach_query $fail_devices
 	fi
 
@@ -217,17 +201,7 @@ fmio_sns_rebalance()
 {
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		# XXX MERO-703: Enable the following once MERO-699 and MERO-701
-		# are fixed
-		# sns_rebalance || {
-		#
-		pool_mach_set_rebalancing $fail_devices || {
-			echo "Failed: SNS rebalance..."
-			return 1
-		}
-		pool_mach_query $fail_devices
-
-		pool_mach_set_rebalanced $fail_devices || {
+		sns_rebalance || {
 			echo "Failed: SNS rebalance..."
 			return 1
 		}
@@ -238,7 +212,7 @@ fmio_sns_rebalance()
 
 fmio_repair_n_rebalance()
 {
-	echo "Performing repair (and rebalance) to mark the devices back online"
+	echo "Performing repair and rebalance to mark the devices back online"
 	fmio_sns_repair || {
 		echo "Failed: sns repair..."
 		return 1
@@ -375,7 +349,7 @@ fmio_io_test()
 	if [ $failed_dev_test -ne 1 ]
 	then
 		echo "Repairing after device1 failure"
-		fmio_sns_repair $fail_device1 || {
+		fmio_sns_repair || {
 			return 1
 		}
 	fi
@@ -410,7 +384,7 @@ fmio_io_test()
 	if [ $failed_dev_test -ne 1 ]
 	then
 		echo "Repairing after device2 failure"
-		fmio_sns_repair $fail_device2 || {
+		fmio_sns_repair || {
 			return 1
 		}
 	fi
@@ -451,7 +425,7 @@ fmio_io_test()
 	if [ $failed_dev_test -ne 1 ]
 	then
 		echo "Repairing after device3 failure"
-		fmio_sns_repair $fail_device3 || {
+		fmio_sns_repair || {
 			return 1
 		}
 	fi
