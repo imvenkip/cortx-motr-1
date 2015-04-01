@@ -8,6 +8,8 @@
 #   remote service nodes have this node's public certificate in
 #   their .ssh/authorized_keys file.  If services are defined on the local
 #   host then it should be possible to ssh into the local host.
+# - The script requires WORK_ARENA (var/mero) to be shared among the nodes
+#   of the same Titan/SSU.
 
 # Before running the script, make sure you configured
 # the IP/IB addresses of your setup correctly here (see below).
@@ -42,7 +44,7 @@
 # - The number of server records is the POOL_WIDTH.
 
 # This example uses co-located remote ioservices.
-#SERVICES=(
+#HOSTS_SERVICES=(
 #	sjt02-c2 172.18.50.45@o2ib:12345:41:101
 #	sjt02-c2 172.18.50.45@o2ib:12345:41:102
 #	sjt02-c2 172.18.50.45@o2ib:12345:41:103
@@ -51,10 +53,9 @@
 # IMPORTANT! Keep the same nodes together in the list
 # (the code depends on this).
 #
-# When using AD stobs and local configuration, please perform following steps
-# to control how AD devices are actually used.
-# for i in `seq 0 7`; do sudo dd if=/dev/zero of=disk$i bs=1M count=400; done
-# for i in `seq 0 7`; do sudo losetup /dev/loop$i disk$i; done
+
+. $PWD/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+. $PWD/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
 
 usage()
 {
@@ -112,10 +113,28 @@ Where:
 OPTIONS_STRING="acln:d:k:p:u:qhLsvm"
 
 # This example puts 3 ioservices on 3 nodes
+# SERVICES and HOSTS are populated from this array for non-local configuration.
+HOSTS_SERVICES=(
+        #sjt02-c1 172.18.50.40@o2ib:12345:41:101
+        sjt02-c2 172.18.50.45@o2ib:12345:41:101
+        #sjt00-c1 172.18.50.161@o2ib:12345:41:101
+)
+
 SERVICES=(
-	#sjt02-c1 172.18.50.40@o2ib:12345:41:101
-	sjt02-c2 172.18.50.45@o2ib:12345:41:101
-	#sjt00-c1 172.18.50.161@o2ib:12345:41:101
+
+)
+
+# HOSTS should match the SERVICES endpoints above with 1 <-> 1 relationship.
+HOSTS=(
+
+)
+
+MDSERVICES=(
+
+)
+
+STATSERVICES=(
+
 )
 
 declare -A NODE_UUID
@@ -255,11 +274,12 @@ setup_local_params()
 	fi
 
 	unset SERVICES
+	unset HOSTS
 	# Update each field of SERVICES array with local node values
 	# Update hostname and end point addresses
 	for ((i = 0; i < $SERVICES_NR; i++)); do
-		SERVICES[((i*2))]=$THIS_HOST
-		SERVICES[((i*2 +1))]="${LOCAL_EP}"$((i+1))
+		HOSTS[i]=$THIS_HOST
+		SERVICES[i]="${LOCAL_EP}"$((i+1))
 	done
 
 	if [ $use_loop_device -eq 1 ]; then
@@ -337,9 +357,9 @@ function setup_host ()
 function setup_hosts ()
 {
 	if [ $client_only -eq 0 ]; then
-		for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
-			H=${SERVICES[$i]}
-			EP=${SERVICES[((i+1))]}
+		for ((i=0; i < ${#SERVICES[*]}; i++)); do
+			H=${HOSTS[$i]}
+			EP=${SERVICES[$i]}
 			if [ X${SETUP[$H]} = X ]; then
 				setup_host $H $EP || return 1
 				SETUP[$H]=$H
@@ -350,6 +370,7 @@ function setup_hosts ()
 		setup_host $THIS_HOST $LOCAL_EP || return 1
 		SETUP[$THIS_HOST]=$THIS_HOST
 	fi
+
 	return 0
 }
 
@@ -371,6 +392,29 @@ function teardown_hosts ()
 	for H in ${SETUP[*]} ; do
 		teardown_host $H
 	done
+}
+
+function gen_device_conf_ids()
+{
+	local devs=0
+	local ios=1
+	local ids=""
+	local id_count=0
+	local disks_per_ios=0
+	local i=0
+
+	for (( i = 1; ((i <= $POOL_WIDTH)); i++ )); do
+		conf_ios_device_setup $i $id_count id_count "$ids" ids
+		disks_per_ios=`expr $DISKS_SH_NR - 1`
+		devs=$(expr $disks_per_ios  \* $ios)
+		if [ $i -eq $devs ]; then
+			IOS_DEV_IDS[`expr $ios - 1`]="[$id_count: $ids]"
+			ios=`expr $ios + 1`
+			ids=""
+			id_count=0
+		fi
+	done
+	conf_mds_devices_setup 1
 }
 
 function gen_disks_conf_files()
@@ -428,10 +472,9 @@ for dev in \$devs; do
 		[ \$j -eq \$DISKS_SH_NR ] && j=0 && f=\`expr \$f + 1\`
 	fi
 done
-
 exit 0
 EOF
-
+	gen_device_conf_ids
 	if [ $H != $THIS_HOST ]; then
 		l_do scp $SF $H:$DISKS_SH
 	else
@@ -449,41 +492,6 @@ EOF
 	fi
 
 	MAX_DISK_ID=`$RUN grep "id:" $WORK_ARENA/disks.conf | tail -1 | awk '{print $3}'`
-}
-
-function build_conf ()
-{
-	local i
-
-	# prepare configuration data
-	RMS_ENDPOINT="\"$MDS_EP\""
-	STATS_ENDPOINT="\"$MDS_EP\""
-	     ROOT='(0x7400000000000001, 0)'
-	     PROF='(0x7000000000000001, 0)'
-	 PROF_OPT='<0x7000000000000001:0>'
-	       FS='(0x6600000000000001, 1)'
-	      MDS='(0x7300000000000001, 2)'
-	       RM='(0x7300000000000001, 3)'
-	    STATS='(0x7300000000000001, 4)'
-	     NODE='(0x6e00000000000001, 0)'
-	IOS_NAMES='(0x7300000000000003, 1)'
-	IOS_OBJS="{0x73| (($IOS_NAMES), 2, [1: \"${SERVICES[1]}\"], $NODE)}"
-	for i in `seq 3 2 ${#SERVICES[*]}`; do
-		IOS_NAME="(0x7300000000000003, $(((i+1) / 2)))"
-		IOS_NAMES+=", $IOS_NAME"
-		IOS_OBJS+=", {0x73| (($IOS_NAME), 2, [1: \"${SERVICES[$i]}\"], $NODE)}"
-	done
-
-	echo "[$((SERVICES_NR + 6)):
-  {0x74| (($ROOT), 1, [1: $PROF])},
-  {0x70| (($PROF), $FS)},
-  {0x66| (($FS), (11, 22),
-              [1: \"$POOL_WIDTH $NR_DATA $NR_PARITY\"],
-              [$((SERVICES_NR + 3)): $MDS, $RM, $STATS, $IOS_NAMES])},
-  {0x73| (($MDS),   1, [1: \"$MDS_EP\"],   $NODE)},
-  {0x73| (($RM),    4, [1: $RMS_ENDPOINT],   $NODE)},
-  {0x73| (($STATS), 5, [1: $STATS_ENDPOINT], $NODE)},
-  $IOS_OBJS]"
 }
 
 function mkfs()
@@ -511,7 +519,7 @@ function start_server ()
 	I=$3
 	local dcf_id=$4
 
-	echo Starting server with end point $EP on host $H
+	echo "Starting server with end point $EP on host $H"
 	local DO
 	local RUN
 	if [ $H != $THIS_HOST ]; then
@@ -529,9 +537,12 @@ function start_server ()
 	local STOB_PARAMS="-T linux"
 	if [ $STOB == "ad" -o $STOB == "-td" ]; then
 
+		# WORK_ARENA is shared among nodes of Titan/SSU
+		# so gen_disks_conf_files() is run only once there
+		# to avoid detection of the same disks.
 		if ! $DO [ -f $DISKS_SH_FILE ]; then
 			local dev_id=1
-			if [ $dcf_id -eq 0 ]; then
+			if [ $dcf_id -eq 0 ]; then # new Titan/SSU
 				# -1 to exclude addb-stob from numbering
 				dev_id=$(($I * ($DISKS_SH_NR -1) +1))
 			fi
@@ -565,9 +576,12 @@ function start_server ()
 	local SNAME
 	if [ $I -eq 0 ]; then
 		local DIR=$WORK_ARENA/confd
-		build_conf > $CONF_FILE
+		build_conf $NR_DATA $NR_PARITY $POOL_WIDTH SERVICES[@] \
+				MDSERVICES[@] STATSERVICES[@] > $CONF_FILE
 		if [ $verbosity -gt 0 ] ;then
-			build_conf # just show the conf
+			# Just show conf
+			build_conf $NR_DATA $NR_PARITY $POOL_WIDTH SERVICES[@] \
+					MDSERVICES[@] STATSERVICES[@]
 		fi
 		if [ $run_mkfs -eq 1 ]; then
 			mkfs $DIR "-T linux" || return 1
@@ -630,27 +644,29 @@ function start_servers ()
 	local i
 	local devs_conf_cnt=0
 	if [ $STOB == "ad" -o $STOB == "-td" ]; then
-		for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
-			H=${SERVICES[$i]}
+		for ((i=0; i < ${#SERVICES[*]}; i++)); do
+			H=${HOSTS[$i]}
 			local RUN
 			[ $H == $THIS_HOST ] && RUN=l_run || RUN="r_run $H"
 			$RUN rm -f $WORK_ARENA/disks*.conf
 		done
 	fi
 
-	MDS_EP=${SERVICES[1]%:*}:99
-	STATS_EP=${SERVICES[1]}
-	CONFD_EP=${SERVICES[1]%:*}:100
+	MDS_EP=${SERVICES[0]%:*}:99
+	MDSERVICES[0]=$MDS_EP
+	STATSERVICES[0]=$MDS_EP
+	CONFD_EP=${SERVICES[0]%:*}:100
 
 	SLOG=$WORK_ARENA/server
 	rm -f ${SLOG}*.log
-	for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
-		H=${SERVICES[$i]}
-		SEP=${SERVICES[((i+1))]}	# server EP
-		# new Titan couple?
-		[ $i -gt 0 ] && [ ${H%-*} != ${SERVICES[((i-2))]%-*} ] && \
+	for ((i=0; i < ${#SERVICES[*]}; i++)); do
+		H=${HOSTS[$i]}
+		SEP=${SERVICES[$i]}	# server EP
+		# Check for new Titan/SSU
+		if [ $i -gt 0 ] && [ ${H%-*} != ${SERVICES[i]%-*} ]; then
 			devs_conf_cnt=0
-		start_server $H $SEP $((i / 2)) $devs_conf_cnt
+		fi
+		start_server $H $SEP $i $devs_conf_cnt
 		if [ $? -ne 0 ]; then
 			return 1
 		fi
@@ -684,20 +700,23 @@ function start_servers ()
 
 function stop_server ()
 {
-	H=$1
-	echo Stopping servers on host $H
+	local H=$1
+	local PATTERN=$2
 	local RUN
+
+	echo "stopping servers on host $H"
 	if [ $H != $THIS_HOST ]; then
 		RUN="r_run $H"
 	else
 		RUN=l_run
 	fi
-	$RUN pkill -INT -f m0d
+	$RUN pkill -f "'$PATTERN'"
 }
 
 function wait4server ()
 {
-	H=$1
+	local H=$1
+	local PATTERN=$2
 	echo Wait for servers to finish on host $H
 	local RUN
 	if [ $H != $THIS_HOST ]; then
@@ -705,19 +724,41 @@ function wait4server ()
 	else
 		RUN=l_run
 	fi
-	$RUN 'while [ "`ps ax | grep -v grep | grep m0d`" ];
-	      do echo -n .; sleep 2; done'
+	$RUN 'while [ "`pgrep -f '"'$PATTERN'"'`" ];
+	      do echo -n .; sleep 5; done'
 	echo
 }
 
-function stop_servers ()
+function wait4servers ()
 {
+	local PATTERN=$1
 	for H in ${STARTED[*]}; do
-		stop_server $H
+		wait4server $H "$PATTERN"
 	done
+}
+
+function pstop_servers()
+{
+	local PATTERN=$1
 	for H in ${STARTED[*]}; do
-		wait4server $H
+		stop_server $H "$PATTERN"
 	done
+	wait4servers "$PATTERN"
+}
+
+function stop_servers()
+{
+	pstop_servers "m0d.*-s [^c][^o][^n][^f][^d]"
+	pstop_servers m0d
+}
+
+create_loop_device ()
+{
+	local dev_id=$1
+
+	l_do mknod -m660 /dev/loop$dev_id b 7 $dev_id
+	l_do chown root.disk /dev/loop$dev_id
+	l_do chmod 666 /dev/loop$dev_id
 }
 
 function setup_loops ()
@@ -729,6 +770,9 @@ function setup_loops ()
 		if [ $run_mkfs -eq 1 ]; then
 			l_do dd if=/dev/zero of=$WORK_ARENA/disk-image-$i \
 				bs=1M seek=1M count=1
+		fi
+		if [ ! -e /dev/loop$i ]; then
+			create_loop_device $i
 		fi
 		l_do losetup /dev/loop$i $WORK_ARENA/disk-image-$i
 		loop_used=$i
@@ -759,13 +803,25 @@ EOF
 ######
 # main
 
+setup_services_and_hosts()
+{
+	local i
+
+        for ((i = 0; i < $((${#HOSTS_SERVICES[*]} / 2)); i++)); do
+                HOSTS[$i]=${HOSTS_SERVICES[((i*2))]}
+                SERVICES[$i]=${HOSTS_SERVICES[((i*2 +1))]}
+        done
+}
+
 setup_params()
 {
 	if [ $setup_local_server_config -eq 1 ]; then
 		setup_local_params
+	else
+		setup_services_and_hosts
 	fi
 
-	SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
+	SERVICES_NR=${#SERVICES[*]}
 	POOL_WIDTH=${POOL_WIDTH:-$SERVICES_NR}
 	if ((POOL_WIDTH % SERVICES_NR != 0)); then
 		echo -n "ERROR: Pool width ($POOL_WIDTH) must be multiple of "

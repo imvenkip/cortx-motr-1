@@ -185,10 +185,34 @@ function build_conf()
 	local nr_data_units=$1
 	local nr_parity_units=$2
 	local pool_width=$3
+	local ioservices=("${!4}")
+	local mdservices=("${!5}")
+	local statservices=("${!6}")
+
+	if [ -z "$ioservices" ]; then
+		ioservices=("${IOSEP[@]}")
+		for ((i = 0; i < ${#ioservices[*]}; i++)); do
+			ioservices[$i]=${server_nid}:${ioservices[$i]}
+		done
+	fi
+
+	if [ -z "$mdservices" ]; then
+		mdservices=("${MDSEP[@]}")
+		for ((i = 0; i < ${#mdservices[*]}; i++)); do
+			mdservices[$i]=${server_nid}:${mdservices[$i]}
+		done
+	fi
+
+	if [ -z "$statservices" ]; then
+		statservices=("${STATSEP[@]}")
+		for ((i = 0; i < ${#statservices[*]}; i++)); do
+			statservices[$i]=${server_nid}:${statservices[$i]}
+		done
+	fi
 
 	# prepare configuration data
-	local RMS_ENDPOINT="\"${server_nid}:${MDSEP[0]}\""
-	local STATS_ENDPOINT="\"${server_nid}:${STATSEP[0]}\""
+	local RMS_ENDPOINT="\"${mdservices[0]}\""
+	local STATS_ENDPOINT="\"${statservices[0]}\""
 	local  ROOT='(0x7400000000000001, 0)'
 	local  PROF='(0x7000000000000001, 0)'
 	local    FS='(0x6600000000000001, 1)'
@@ -208,9 +232,9 @@ function build_conf()
 
 	local i
 
-	for ((i=0; i < ${#IOSEP[*]}; i++)); do
+	for ((i=0; i < ${#ioservices[*]}; i++)); do
 	    local IOS_NAME="(0x7300000000000002, $i)"
-	    local iosep="\"${server_nid}:${IOSEP[$i]}\""
+	    local iosep="\"${ioservices[$i]}\""
 	    local IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: $iosep], ${IOS_DEV_IDS[$i]})}"
 
 	    if ((i == 0)); then
@@ -222,9 +246,9 @@ function build_conf()
 	    fi
 	done
 
-	for ((i=0; i < ${#MDSEP[*]}; i++)); do
+	for ((i=0; i < ${#mdservices[*]}; i++)); do
 	    local MDS_NAME="(0x7300000000000003, $i)"
-	    local mdsep="\"${server_nid}:${MDSEP[$i]}\""
+	    local mdsep="\"${mdservices[$i]}\""
 	    local MDS_OBJ="{0x73| (($MDS_NAME), 1, [1: $mdsep], ${MDS_DEV_IDS[$i]})}"
 
 	    if ((i == 0)); then
@@ -247,7 +271,7 @@ function build_conf()
 	local CTRLV="{0x6a| (($CTRLVID), $CTRLID, [$NR_DISKV_FIDS: $DISKV_FIDS])}"
 
 	echo -e "
- [$((${#IOSEP[*]} + ${#MDSEP[*]} + $NR_IOS_DEVS+ $NR_MDS_DEVS + 15)):
+ [$((${#ioservices[*]} + ${#mdservices[*]} + $NR_IOS_DEVS+ $NR_MDS_DEVS + 15)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), 41212,
@@ -258,7 +282,7 @@ function build_conf()
 	      [1: $RACKID])},
   {0x6e| (($NODE), 16000, 2, 3, 2, $POOLID, [1: $PROC])},
   {0x72| (($PROC), 4000, 2,
-	           [$((${#IOSEP[*]} + ${#MDSEP[*]} + 2)): $MDS_NAMES, $RM, $IOS_NAMES, $STATS])},
+	           [$((${#ioservices[*]} + ${#mdservices[*]} + 2)): $MDS_NAMES, $RM, $IOS_NAMES, $STATS])},
   {0x73| (($RM), 4, [1: $RMS_ENDPOINT], [0])},
   {0x73| (($STATS), 5, [1: $STATS_ENDPOINT], [0])},
   $MDS_OBJS,
