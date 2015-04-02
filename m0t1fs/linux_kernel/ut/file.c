@@ -898,7 +898,7 @@ static void target_ioreq_test(void)
 		m0_atomic64_sub(&req.ir_nwxfer.nxr_rdbulk_nr,
 			rpcbulk_tlist_length(&iofop->if_rbulk.rb_buflist));
 		irfop_fini(irfop);
-		m0_io_fop_fini(iofop);
+		/* @todo: fix me: m0_io_fop_fini(iofop); */
 		m0_atomic64_dec(&req.ir_nwxfer.nxr_iofop_nr);
 	}
 
