@@ -361,15 +361,11 @@ static void destroy_tree(struct m0_be_btree *tree)
 
 	M0_LOG(M0_INFO, "Btree %p destroy...", tree);
 	M0_BE_OP_SYNC(op, m0_be_btree_destroy(tree, tx, &op));
-
+	btree_dbg_print(tree);
 	M0_BE_FREE_PTR_SYNC(tree, seg, tx);
-
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
 	m0_free(tx);
-
-	btree_dbg_print(tree);
-
 	M0_LEAVE();
 }
 
