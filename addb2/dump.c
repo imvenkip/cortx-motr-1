@@ -46,6 +46,7 @@
 #include "addb2/storage.h"
 #include "addb2/counter.h"
 
+#include "stob/addb2.h"
 #include "ioservice/io_addb2.h"
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
 
@@ -228,6 +229,15 @@ struct id_intrp ids[] = {
 	{ M0_AVI_FS_READ,         "m0t1fs-read",     { FID } },
 	{ M0_AVI_FS_WRITE,        "m0t1fs-write",    { FID } },
 	{ M0_AVI_FS_IO_DESCR,     "m0t1fs-io-descr", { &dec, &dec } },
+	{ M0_AVI_STOB_IO_LAUNCH,  "stob-io-launch",  { &_clock, &fid, &dec,
+						       &dec, &dec, &dec,
+						       &dec } },
+	{ M0_AVI_STOB_IO_END,     "stob-io-end",     { &_clock, &fid, &dec,
+						       &dec, &dec } },
+	{ M0_AVI_STOB_IOQ,        "stob-ioq-thread", { &dec } },
+	{ M0_AVI_STOB_IOQ_INFLIGHT, "stob-ioq-inflight", { COUNTER } },
+	{ M0_AVI_STOB_IOQ_QUEUED, "stob-ioq-queued", { COUNTER } },
+	{ M0_AVI_STOB_IOQ_GOT,    "stob-ioq-got",    { COUNTER } },
 
 	{ M0_AVI_NODATA,          "nodata" },
 };
@@ -305,9 +315,9 @@ static void val_dump(const char *prefix,
 	printf(prefix);
 	pad(indent);
 	if (intrp != NULL)
-		printf("%-16s", intrp->ii_name);
+		printf("%-16s ", intrp->ii_name);
 	else
-		printf(U64, val->va_id);
+		printf(U64" ", val->va_id);
 	for (i = 0, indent = 0; i < val->va_nr; ++i) {
 		if (intrp == NULL)
 			sprintf(buf, U64, val->va_data[i]);
