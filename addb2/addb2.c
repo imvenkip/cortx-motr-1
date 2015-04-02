@@ -296,6 +296,10 @@ struct m0_addb2_mach {
 	 * Linkage into mach_tlist used by sys.c.
 	 */
 	struct m0_tlink                 ma_linkage;
+	/**
+	 * Time when current trace was last packed.
+	 */
+	m0_time_t                       ma_packed;
 	uint64_t                        ma_magix;
 #if DEBUG_OWNERSHIP
 	char                            ma_name[100];
@@ -499,6 +503,7 @@ m0_addb2_mach_init(const struct m0_addb2_mach_ops *ops, void *cookie)
 
 		mach->ma_ops = ops;
 		mach->ma_cookie = cookie;
+		mach->ma_packed = m0_time_now();
 		m0_mutex_init(&mach->ma_lock);
 		m0_semaphore_init(&mach->ma_idlewait, 0);
 		buf_tlist_init(&mach->ma_idle);
@@ -506,7 +511,7 @@ m0_addb2_mach_init(const struct m0_addb2_mach_ops *ops, void *cookie)
 		m0_addb2_source_init(&mach->ma_src);
 		mach_tlink_init(mach);
 #if DEBUG_OWNERSHIP
-		strcpy(mach->ma_name, m0_thread_tls()->tls_self->t_namebuf);
+		strcpy(mach->ma_name, m0_thread_self()->t_namebuf);
 #endif
 		for (i = 0; i < ARRAY_SIZE(mach->ma_rec.ar_label); ++i) {
 			struct tentry         *t = &mach->ma_label[i];
@@ -532,7 +537,6 @@ void m0_addb2_mach_fini(struct m0_addb2_mach *mach)
 	struct buffer *buf;
 
 	M0_PRE(MACH_DEPTH(mach) == 0);
-
 	/*
 	 * This lock-unlock is a barrier against concurrently finishing last
 	 * m0_addb2_trace_done(), which signalled ->apo_idle().
@@ -555,6 +559,19 @@ void m0_addb2_mach_fini(struct m0_addb2_mach *mach)
 	m0_mutex_fini(&mach->ma_lock);
 	m0_semaphore_fini(&mach->ma_idlewait);
 	m0_free(mach);
+}
+
+void m0_addb2_force(m0_time_t delay)
+{
+	struct m0_addb2_mach *m = mach();
+
+	if (m != NULL) {
+		if (delay == 0 || m0_time_is_in_past(m0_time_add(m->ma_packed,
+								 delay))) {
+			pack(m);
+		}
+		mach_put(m);
+	}
 }
 
 void m0_addb2_mach_stop(struct m0_addb2_mach *mach)
@@ -862,6 +879,7 @@ static void pack(struct m0_addb2_mach *m)
 		m->ma_cur = NULL;
 		m0_mutex_unlock(&m->ma_lock);
 	}
+	m->ma_packed = m0_time_now();
 }
 
 /**

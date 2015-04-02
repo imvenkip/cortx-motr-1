@@ -185,6 +185,7 @@
 
 /* import */
 #include "lib/types.h"
+#include "lib/time.h"
 #include "lib/tlist.h"
 #include "lib/misc.h"               /* ARRAY_SIZE */
 #include "xcode/xcode_attr.h"
@@ -325,6 +326,13 @@ void m0_addb2_sensor_add(struct m0_addb2_sensor *s, uint64_t id, unsigned nr,
  * Deletes a sensor.
  */
 void m0_addb2_sensor_del(struct m0_addb2_sensor *s);
+
+/**
+ * Forces current addb2 machine to send its collection of records for
+ * processing (to storage or network), iff it was last sent packing more than
+ * given delay ago.
+ */
+void m0_addb2_force(m0_time_t delay);
 
 /**
  * Machine operations vector provided by SYSTEM.
