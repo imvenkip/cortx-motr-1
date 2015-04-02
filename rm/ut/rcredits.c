@@ -18,6 +18,8 @@
  * Original creation date: 08/21/2012
  */
 
+#include "lib/chan.h"
+#include "lib/semaphore.h"
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
 #include "rm/rm_fops.h"
@@ -25,8 +27,9 @@
 #include "rm/ut/rings.h"
 
 /* Maximum test servers for this testcase */
-static enum rm_server  test_servers_nr;
-static struct m0_clink tests_clink[TEST_NR];
+static enum rm_server      test_servers_nr;
+static struct m0_clink     tests_clink[TEST_NR];
+static struct m0_semaphore startup_sem;
 
 static void server1_in_complete(struct m0_rm_incoming *in, int32_t rc)
 {
@@ -285,6 +288,8 @@ static void rm_server_start(const int tid)
 	if (tid < test_servers_nr) {
 		rings_utdata_ops_set(&rm_ctxs[tid].rc_test_data);
 		rm_ctx_server_start(tid);
+		/* Signal that RM server is started */
+		m0_semaphore_up(&startup_sem);
 	}
 
 	switch(tid) {
@@ -339,6 +344,7 @@ static void remote_credits_utinit(void)
 		m0_clink_init(&tests_clink[i], NULL);
 		m0_clink_add_lock(&rm_ut_tests_chan, &tests_clink[i]);
 	}
+	m0_semaphore_init(&startup_sem, 0);
 }
 
 static void remote_credits_utfini(void)
@@ -367,12 +373,14 @@ static void remote_credits_utfini(void)
 	}
 	m0_chan_fini_lock(&rm_ut_tests_chan);
 	m0_mutex_fini(&rm_ut_tests_chan_mutex);
+	m0_semaphore_fini(&startup_sem);
 }
 
 void remote_credits_test(void)
 {
-	int rc;
-	int i;
+	int  rc;
+	int  i;
+	bool ok;
 
 	remote_credits_utinit();
 	/* Start RM servers */
@@ -382,7 +390,14 @@ void remote_credits_test(void)
 		M0_UT_ASSERT(rc == 0);
 	}
 
-	/* Now start the tests - wait till all the servers are ready */
+	/* Wait till all RM servers are started */
+	for (i = 0; i < test_servers_nr; ++i) {
+		ok = m0_semaphore_timeddown(&startup_sem,
+				            m0_time_from_now(5, 0));
+		M0_UT_ASSERT(ok);
+	}
+
+	/* Now start the tests */
 	m0_chan_signal_lock(&rm_ut_tests_chan);
 	for (i = 0; i < test_servers_nr; ++i) {
 		m0_thread_join(&rm_ctxs[i].rc_thr);
