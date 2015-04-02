@@ -1,4 +1,5 @@
 nobase_mero_include_HEADERS += ioservice/fid_convert.h \
+                               ioservice/io_addb2.h \
                                ioservice/io_foms.h \
                                ioservice/io_fops.h \
                                ioservice/io_addb2.h \
