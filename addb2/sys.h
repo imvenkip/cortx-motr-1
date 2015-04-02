@@ -54,25 +54,7 @@ struct m0_addb2_config {
 	unsigned co_pool_max;
 };
 
-struct m0_addb2_sys {
-	struct m0_addb2_config   sy_conf;
-	struct m0_mutex          sy_lock;
-	struct m0_addb2_storage *sy_stor;
-	struct m0_addb2_net     *sy_net;
-	struct m0_tl             sy_queue;
-	m0_bcount_t              sy_queued;
-	struct m0_sm_ast         sy_ast;
-	struct m0_tl             sy_pool;
-	struct m0_tl             sy_granted;
-	struct m0_tl             sy_moribund;
-	struct m0_tl             sy_deathrow;
-	m0_bcount_t              sy_total;
-	struct m0_semaphore      sy_wait;
-	struct m0_thread        *sy_owner;
-	unsigned                 sy_nesting;
-};
-
-void m0_addb2_sys_init(struct m0_addb2_sys *sys,
+int  m0_addb2_sys_init(struct m0_addb2_sys **sys,
 		       const struct m0_addb2_config *conf);
 void m0_addb2_sys_fini(struct m0_addb2_sys *sys);
 struct m0_addb2_mach *m0_addb2_sys_get(struct m0_addb2_sys *sys);
@@ -90,6 +72,8 @@ void m0_addb2_sys_stor_stop(struct m0_addb2_sys *sys);
 
 int m0_addb2_sys_submit(struct m0_addb2_sys *sys,
 			struct m0_addb2_trace_obj *obj);
+void m0_addb2_sys_attach(struct m0_addb2_sys *sys, struct m0_addb2_sys *src);
+void m0_addb2_sys_detach(struct m0_addb2_sys *sys);
 
 
 /** @} end of addb2 group */

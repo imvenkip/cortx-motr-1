@@ -353,7 +353,7 @@ struct m0_fom_domain {
 	struct m0_reqh			*fd_reqh;
 	/** Addb context for fom */
 	struct m0_addb_ctx               fd_addb_ctx;
-	struct m0_addb2_sys              fd_addb2_sys;
+	struct m0_addb2_sys             *fd_addb2_sys;
 };
 
 /** Operations vector attached to a domain. */

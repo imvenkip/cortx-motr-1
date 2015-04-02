@@ -35,12 +35,11 @@
 #include "addb2/identifier.h"         /* M0_AVI_THREAD */
 #include "addb2/addb2.h"
 
-#define SYS(instance)							\
-	((struct m0_addb2_sys *)(instance)->i_moddata[M0_MODULE_ADDB2])
+#define SYS() (m0_get()->i_moddata[M0_MODULE_ADDB2])
 
 M0_INTERNAL void m0_addb2_global_thread_enter(void)
 {
-	struct m0_addb2_sys  *sys = SYS(m0_get());
+	struct m0_addb2_sys  *sys = SYS();
 	struct m0_thread_tls *tls = m0_thread_tls();
 
 	M0_PRE(tls->tls_addb2_mach == NULL);
@@ -54,7 +53,7 @@ M0_INTERNAL void m0_addb2_global_thread_enter(void)
 
 M0_INTERNAL void m0_addb2_global_thread_leave(void)
 {
-	struct m0_addb2_sys  *sys  = SYS(m0_get());
+	struct m0_addb2_sys  *sys  = SYS();
 	struct m0_thread_tls *tls  = m0_thread_tls();
 	struct m0_addb2_mach *mach = tls->tls_addb2_mach;
 
@@ -70,27 +69,17 @@ M0_INTERNAL void m0_addb2_global_thread_leave(void)
 
 M0_INTERNAL int m0_addb2_global_init(void)
 {
-	struct m0_addb2_sys *sys = SYS(m0_get());
-	int                  result;
-
-	M0_PRE(sys == NULL);
-	M0_ALLOC_PTR(sys);
-	if (sys != NULL) {
-		m0_addb2_sys_init(sys, &(struct m0_addb2_config) {
+	return m0_addb2_sys_init((struct m0_addb2_sys **)&SYS(),
+				 &(struct m0_addb2_config) {
 				.co_queue_max = 1024 * 1024,
 				.co_pool_min  = 1024,
 				.co_pool_max  = 1024 * 1024
 			});
-		m0_get()->i_moddata[M0_MODULE_ADDB2] = sys;
-		result = 0;
-	} else
-		result = M0_ERR(-ENOMEM);
-	return result;
 }
 
 M0_INTERNAL void m0_addb2_global_fini(void)
 {
-	struct m0_addb2_sys *sys = SYS(m0_get());
+	struct m0_addb2_sys *sys = SYS();
 
 	m0_addb2_global_thread_leave();
 	if (sys != NULL)
@@ -99,7 +88,7 @@ M0_INTERNAL void m0_addb2_global_fini(void)
 
 M0_INTERNAL struct m0_addb2_sys *m0_addb2_global_get(void)
 {
-	return SYS(m0_get());
+	return SYS();
 }
 
 #undef SYS

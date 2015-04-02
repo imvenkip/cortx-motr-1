@@ -30,6 +30,7 @@
 #include "lib/misc.h"                   /* M0_IS0, M0_AMB */
 #include "lib/arith.h"                  /* M0_CNT_DEC, M0_CNT_INC */
 #include "lib/errno.h"                  /* ENOMEM */
+#include "lib/memory.h"                 /* M0_ALLOC_PTR, m0_free */
 #include "lib/finject.h"
 #include "lib/locality.h"
 #include "lib/trace.h"
@@ -42,6 +43,24 @@
 #include "addb2/net.h"
 #include "addb2/internal.h"
 #include "addb2/sys.h"
+
+struct m0_addb2_sys {
+	struct m0_addb2_config   sy_conf;
+	struct m0_mutex          sy_lock;
+	struct m0_addb2_storage *sy_stor;
+	struct m0_addb2_net     *sy_net;
+	struct m0_tl             sy_queue;
+	m0_bcount_t              sy_queued;
+	struct m0_sm_ast         sy_ast;
+	struct m0_tl             sy_pool;
+	struct m0_tl             sy_granted;
+	struct m0_tl             sy_moribund;
+	struct m0_tl             sy_deathrow;
+	m0_bcount_t              sy_total;
+	struct m0_semaphore      sy_wait;
+	struct m0_thread        *sy_owner;
+	unsigned                 sy_nesting;
+};
 
 static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 static void sys_post(struct m0_addb2_sys *sys);
@@ -60,21 +79,31 @@ static m0_bcount_t sys_size(const struct m0_addb2_sys *sys);
 static const struct m0_addb2_mach_ops sys_mach_ops;
 static const struct m0_addb2_storage_ops sys_stor_ops;
 
-void m0_addb2_sys_init(struct m0_addb2_sys *sys,
-		       const struct m0_addb2_config *conf)
+int m0_addb2_sys_init(struct m0_addb2_sys **out,
+		      const struct m0_addb2_config *conf)
 {
-	M0_PRE(M0_IS0(sys));
+	struct m0_addb2_sys *sys;
+	int                  result;
+
 	M0_PRE(conf->co_buffer_min <= conf->co_buffer_max);
 	M0_PRE(conf->co_pool_min <= conf->co_pool_max);
 	M0_PRE(conf->co_buffer_size % sizeof(uint64_t) == 0);
-	sys->sy_conf = *conf;
-	m0_mutex_init(&sys->sy_lock);
-	m0_semaphore_init(&sys->sy_wait, 0);
-	tr_tlist_init(&sys->sy_queue);
-	mach_tlist_init(&sys->sy_pool);
-	mach_tlist_init(&sys->sy_granted);
-	mach_tlist_init(&sys->sy_moribund);
-	mach_tlist_init(&sys->sy_deathrow);
+
+	M0_ALLOC_PTR(sys);
+	if (sys != NULL) {
+		sys->sy_conf = *conf;
+		m0_mutex_init(&sys->sy_lock);
+		m0_semaphore_init(&sys->sy_wait, 0);
+		tr_tlist_init(&sys->sy_queue);
+		mach_tlist_init(&sys->sy_pool);
+		mach_tlist_init(&sys->sy_granted);
+		mach_tlist_init(&sys->sy_moribund);
+		mach_tlist_init(&sys->sy_deathrow);
+		*out = sys;
+		result = 0;
+	} else
+		result = M0_ERR(-ENOMEM);
+	return result;
 }
 
 void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
@@ -126,6 +155,7 @@ void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
 	tr_tlist_fini(&sys->sy_queue);
 	m0_semaphore_fini(&sys->sy_wait);
 	m0_mutex_fini(&sys->sy_lock);
+	m0_free(sys);
 }
 
 struct m0_addb2_mach *m0_addb2_sys_get(struct m0_addb2_sys *sys)
@@ -257,6 +287,23 @@ int m0_addb2_sys_submit(struct m0_addb2_sys *sys,
 	}
 	sys_unlock(sys);
 	return obj != NULL;
+}
+
+void m0_addb2_sys_attach(struct m0_addb2_sys *sys, struct m0_addb2_sys *src)
+{
+	sys_lock(sys);
+	sys->sy_net  = src->sy_net;
+	sys->sy_stor = src->sy_stor;
+	sys_unlock(sys);
+}
+
+void m0_addb2_sys_detach(struct m0_addb2_sys *sys)
+{
+	sys_lock(sys);
+	sys_balance(sys);
+	sys->sy_net  = NULL;
+	sys->sy_stor = NULL;
+	sys_unlock(sys);
 }
 
 static void sys_balance(struct m0_addb2_sys *sys)

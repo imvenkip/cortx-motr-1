@@ -36,6 +36,7 @@
 
 #include "mero/magic.h"
 #include "addb2/sys.h"
+#include "addb2/global.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
@@ -318,7 +319,8 @@ M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
 M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, struct m0_stob *stob,
 				   bool mkfs)
 {
-	struct m0_addb2_sys *sys = &reqh->rh_fom_dom.fd_addb2_sys;
+	struct m0_addb2_sys *sys  = reqh->rh_fom_dom.fd_addb2_sys;
+	struct m0_addb2_sys *gsys = m0_addb2_global_get();
 	int                  result;
 
 	/**
@@ -327,9 +329,11 @@ M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, struct m0_stob *stob,
 	result = m0_addb2_sys_stor_start(sys, stob, 128ULL << 30, mkfs);
 	if (result == 0) {
 		result = m0_addb2_sys_net_start(sys);
-		if (result == 0)
+		if (result == 0) {
+			m0_addb2_sys_attach(gsys, sys);
 			m0_addb2_sys_sm_start(sys);
-		else
+			m0_addb2_sys_sm_start(gsys);
+		} else
 			m0_addb2_sys_stor_stop(sys);
 	}
 	return result;
@@ -345,7 +349,7 @@ M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
 M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, struct m0_stob *stob,
 				   bool mkfs)
 {
-	struct m0_addb2_sys *sys = &reqh->rh_fom_dom.fd_addb2_sys;
+	struct m0_addb2_sys *sys = reqh->rh_fom_dom.fd_addb2_sys;
 	int                  result;
 
 	result = m0_addb2_sys_net_start(sys);
@@ -357,8 +361,14 @@ M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, struct m0_stob *stob,
 
 M0_INTERNAL void m0_reqh_addb2_fini(struct m0_reqh *reqh)
 {
-	struct m0_addb2_sys *sys = &reqh->rh_fom_dom.fd_addb2_sys;
+	struct m0_addb2_sys *sys  = reqh->rh_fom_dom.fd_addb2_sys;
 
+#ifndef __KERNEL__
+	struct m0_addb2_sys *gsys = m0_addb2_global_get();
+
+	m0_addb2_sys_detach(gsys);
+	m0_addb2_sys_sm_stop(gsys);
+#endif
 	m0_addb2_sys_sm_stop(sys);
 	m0_addb2_sys_net_stop(sys);
 	m0_addb2_sys_stor_stop(sys);

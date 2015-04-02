@@ -805,7 +805,7 @@ static void loc_addb2_fini(struct m0_fom_locality *loc)
 	m0_addb2_pop(M0_AVI_LOCALITY);
 	m0_addb2_pop(M0_AVI_NODE);
 	m0_thread_tls()->tls_addb2_mach = orig;
-	m0_addb2_sys_put(&loc->fl_dom->fd_addb2_sys, loc->fl_addb2_mach);
+	m0_addb2_sys_put(loc->fl_dom->fd_addb2_sys, loc->fl_addb2_mach);
 }
 
 /**
@@ -887,7 +887,7 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	M0_ADDB_CTX_INIT(addb_mc, &loc->fl_addb_ctx, &m0_addb_ct_fom_locality,
 			 &loc->fl_dom->fd_reqh->rh_addb_ctx, cpu);
 
-	loc->fl_addb2_mach = m0_addb2_sys_get(&loc->fl_dom->fd_addb2_sys);
+	loc->fl_addb2_mach = m0_addb2_sys_get(loc->fl_dom->fd_addb2_sys);
 	if (loc->fl_addb2_mach == NULL) {
 		res = M0_ERR(-ENOMEM);
 		goto err3;
@@ -1026,11 +1026,16 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 			return M0_ERR(-ENOMEM);
 		}
 	}
-	m0_addb2_sys_init(&dom->fd_addb2_sys, &(struct m0_addb2_config) {
+	result = m0_addb2_sys_init(&dom->fd_addb2_sys,
+				   &(struct m0_addb2_config) {
 		.co_queue_max = 1024 * 1024,
 		.co_pool_min  = m0_bitmap_set_nr(&onln_cpu_map),
 		.co_pool_max  = m0_bitmap_set_nr(&onln_cpu_map)
 	});
+	if (result != 0) {
+		m0_fom_domain_fini(dom);
+		return M0_ERR(result);
+	}
 	for (cpu = 0; cpu < cpu_max; ++cpu) {
 		struct m0_fom_locality *loc;
 
@@ -1064,14 +1069,17 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 	m0_locality_dom_clear(dom);
 	if (dom->fd_localities != NULL) {
 		i = dom->fd_localities_nr;
-		for (i = dom->fd_localities_nr; i > 0; --i)
-			loc_fini(dom->fd_localities[i - 1]);
+		for (i = dom->fd_localities_nr - 1; i >= 0; --i) {
+			if (dom->fd_localities[i] != NULL)
+				loc_fini(dom->fd_localities[i]);
+		}
 
 		for (i = 0; i < m0_processor_nr_max(); i++)
 			m0_free(dom->fd_localities[i]);
 		m0_free0(&dom->fd_localities);
 	}
-	m0_addb2_sys_fini(&dom->fd_addb2_sys);
+	if (dom->fd_addb2_sys != NULL)
+		m0_addb2_sys_fini(dom->fd_addb2_sys);
 }
 
 static bool is_loc_locker_empty(struct m0_fom_locality *loc, uint32_t key)

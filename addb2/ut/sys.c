@@ -56,65 +56,77 @@ static const struct m0_addb2_config queue = {
 
 static void init_fini(void)
 {
-	struct m0_addb2_sys s = {};
+	struct m0_addb2_sys *s;
+	int                  result;
 
-	m0_addb2_sys_init(&s, &noqueue);
-	M0_UT_ASSERT(memcmp(&s.sy_conf, &noqueue, sizeof noqueue) == 0);
-	m0_addb2_sys_fini(&s);
+	result = m0_addb2_sys_init(&s, &noqueue);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(s != NULL);
+	m0_addb2_sys_fini(s);
 }
 
 static void mach_1(void)
 {
-	struct m0_addb2_sys s = {};
 	struct m0_addb2_mach *m;
+	struct m0_addb2_sys  *s;
+	int                   result;
 
-	m0_addb2_sys_init(&s, &noqueue);
-	m = m0_addb2_sys_get(&s);
+	result = m0_addb2_sys_init(&s, &noqueue);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(s != NULL);
+	m = m0_addb2_sys_get(s);
 	M0_UT_ASSERT(m != NULL);
-	m0_addb2_sys_put(&s, m);
-	m0_addb2_sys_fini(&s);
+	m0_addb2_sys_put(s, m);
+	m0_addb2_sys_fini(s);
 }
 
 static void mach_toomany(void)
 {
-	struct m0_addb2_sys s = {};
 	struct m0_addb2_mach *m0;
 	struct m0_addb2_mach *m1;
+	struct m0_addb2_sys  *s;
+	int                   result;
 
-	m0_addb2_sys_init(&s, &noqueue);
-	m0 = m0_addb2_sys_get(&s);
+	result = m0_addb2_sys_init(&s, &noqueue);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(s != NULL);
+	m0 = m0_addb2_sys_get(s);
 	M0_UT_ASSERT(m0 != NULL);
-	m1 = m0_addb2_sys_get(&s);
+	m1 = m0_addb2_sys_get(s);
 	M0_UT_ASSERT(m1 == NULL);
-	m0_addb2_sys_put(&s, m0);
-	m0_addb2_sys_fini(&s);
+	m0_addb2_sys_put(s, m0);
+	m0_addb2_sys_fini(s);
 }
 
 static void mach_cache(void)
 {
-	struct m0_addb2_sys s = {};
 	struct m0_addb2_mach *m0;
 	struct m0_addb2_mach *m1;
+	struct m0_addb2_sys  *s;
+	int                   result;
 
-	m0_addb2_sys_init(&s, &noqueue);
-	m0 = m0_addb2_sys_get(&s);
+	result = m0_addb2_sys_init(&s, &noqueue);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(s != NULL);
+	m0 = m0_addb2_sys_get(s);
 	M0_UT_ASSERT(m0 != NULL);
-	m0_addb2_sys_put(&s, m0);
-	m1 = m0_addb2_sys_get(&s);
+	m0_addb2_sys_put(s, m0);
+	m1 = m0_addb2_sys_get(s);
 	M0_UT_ASSERT(m1 == m0);
-	m0_addb2_sys_put(&s, m1);
-	m0_addb2_sys_fini(&s);
+	m0_addb2_sys_put(s, m1);
+	m0_addb2_sys_fini(s);
 }
 
 enum { N = 17 };
 
 static void mach_cache_N(void)
 {
-	struct m0_addb2_sys s;
+	struct m0_addb2_sys *s;
 	struct m0_addb2_config conf = noqueue;
 	struct m0_addb2_mach *m[N];
 	struct m0_addb2_mach *mmm;
 	int i;
+	int result;
 
 	/* check various pool sizes. */
 	for (i = 0; i < N; ++i) {
@@ -122,56 +134,60 @@ static void mach_cache_N(void)
 
 		conf.co_pool_max = i;
 		conf.co_pool_min = i;
-		M0_SET0(&s);
-		m0_addb2_sys_init(&s, &conf);
+		result = m0_addb2_sys_init(&s, &conf);
+		M0_UT_ASSERT(result == 0);
+		M0_UT_ASSERT(s != NULL);
 		for (j = 0; j < i; ++j) {
-			m[j] = m0_addb2_sys_get(&s);
+			m[j] = m0_addb2_sys_get(s);
 			M0_UT_ASSERT(m[j] != NULL);
 			M0_UT_ASSERT(m0_forall(k, j, m[k] != m[j]));
 		}
-		mmm = m0_addb2_sys_get(&s);
+		mmm = m0_addb2_sys_get(s);
 		M0_UT_ASSERT(mmm == NULL);
 		for (j = 0; j < i; ++j) {
 			int t;
 
-			m0_addb2_sys_put(&s, m[j]);
+			m0_addb2_sys_put(s, m[j]);
 			/*
 			 * Machines from m[0] to m[j] were released back into
 			 * the pool. Reacquire them and check that the same
 			 * machines are returned.
 			 */
 			for (t = 0; t <= j; ++t) {
-				mmm = m0_addb2_sys_get(&s);
+				mmm = m0_addb2_sys_get(s);
 				M0_UT_ASSERT(mmm != NULL);
 				M0_UT_ASSERT(m0_exists(k, j + 1, mmm == m[k]));
 			}
-			mmm = m0_addb2_sys_get(&s);
+			mmm = m0_addb2_sys_get(s);
 			M0_UT_ASSERT(mmm == NULL);
 			for (t = 0; t <= j; ++t)
-				m0_addb2_sys_put(&s, m[t]);
+				m0_addb2_sys_put(s, m[t]);
 		}
-		m0_addb2_sys_fini(&s);
+		m0_addb2_sys_fini(s);
 	}
 }
 
 static void _add(const struct m0_addb2_config *conf, unsigned nr)
 {
-	struct m0_addb2_sys s = {};
+	struct m0_addb2_sys  *s;
 	struct m0_addb2_mach *orig;
 	struct m0_addb2_mach *m;
 	struct m0_thread_tls *tls = m0_thread_tls();
 	int i;
+	int result;
 
-	m0_addb2_sys_init(&s, conf);
-	m = m0_addb2_sys_get(&s);
+	result = m0_addb2_sys_init(&s, conf);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(s != NULL);
+	m = m0_addb2_sys_get(s);
 	M0_UT_ASSERT(m != NULL);
 	orig = tls->tls_addb2_mach;
 	tls->tls_addb2_mach = m;
 	for (i = 0; i < nr; ++i)
 		M0_ADDB2_ADD(10 + i, 9, 8, 7, 6 + i, 5, 4, 3 - i, 2, 1, 0);
 	tls->tls_addb2_mach = orig;
-	m0_addb2_sys_put(&s, m);
-	m0_addb2_sys_fini(&s);
+	m0_addb2_sys_put(s, m);
+	m0_addb2_sys_fini(s);
 }
 
 static void add_loop(const struct m0_addb2_config *conf)
@@ -211,11 +227,12 @@ static void ast_trap(struct m0_addb2_sys *sys)
 
 static void sm_add(void)
 {
-	struct m0_addb2_sys s = {};
+	struct m0_addb2_sys  *s;
 	struct m0_addb2_mach *m;
 	struct m0_addb2_config longqueue = queue;
 	struct m0_addb2_mach *orig;
 	struct m0_thread_tls *tls = m0_thread_tls();
+	int result;
 
 	longqueue.co_queue_max = 1000000;
 	m0_addb2__sys_submit_trap = &submit_trap;
@@ -225,9 +242,11 @@ static void sm_add(void)
 	m0_fi_enable("sys_submit", "trap");
 	m0_fi_enable("sys_ast", "trap");
 
-	m0_addb2_sys_init(&s, &longqueue);
-	m0_addb2_sys_sm_start(&s);
-	m = m0_addb2_sys_get(&s);
+	result = m0_addb2_sys_init(&s, &longqueue);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(s != NULL);
+	m0_addb2_sys_sm_start(s);
+	m = m0_addb2_sys_get(s);
 	M0_UT_ASSERT(m != NULL);
 	orig = tls->tls_addb2_mach;
 	tls->tls_addb2_mach = m;
@@ -239,8 +258,8 @@ static void sm_add(void)
 	m0_addb2__sys_ast_trap = NULL;
 
 	tls->tls_addb2_mach = orig;
-	m0_addb2_sys_put(&s, m);
-	m0_addb2_sys_fini(&s);
+	m0_addb2_sys_put(s, m);
+	m0_addb2_sys_fini(s);
 
 	m0_fi_disable("sys_submit", "trap");
 	m0_fi_disable("sys_ast", "trap");
