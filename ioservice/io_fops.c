@@ -847,20 +847,14 @@ static void ioseg_get(const struct m0_0vec *zvec, uint32_t seg_index,
 
 static bool io_fop_invariant(struct m0_io_fop *iofop)
 {
-	int i;
-
-	if (iofop == NULL || iofop->if_magic != M0_IO_FOP_MAGIC)
-		return false;
-
-	for (i = 0; i < ARRAY_SIZE(ioservice_fops); ++i)
-		if (iofop->if_fop.f_type == ioservice_fops[i])
-			break;
-
-	return i != ARRAY_SIZE(ioservice_fops);
+	return  _0C(iofop != NULL) &&
+		_0C(iofop->if_magic == M0_IO_FOP_MAGIC) &&
+		_0C(m0_exists(i, ARRAY_SIZE(ioservice_fops),
+			      iofop->if_fop.f_type == ioservice_fops[i]));
 }
 
 M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
-		               const struct m0_fid *gfid,
+			       const struct m0_fid *gfid,
 			       struct m0_fop_type *ftype,
 			       void (*fop_release)(struct m0_ref *))
 {
