@@ -1,6 +1,7 @@
 nobase_mero_include_HEADERS += stob/ad.h \
 				  stob/ad_private.h \
 				  stob/ad_private_xc.h \
+				  stob/addb2.h \
 				  stob/battr.h \
                                   stob/cache.h \
                                   stob/domain.h \

@@ -20,10 +20,12 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
 #include "lib/trace.h"
-#include "stob/io.h"
+#include "addb2/addb2.h"
 
+#include "stob/io.h"
 #include "stob/stob.h"		/* m0_stob_state_get */
 #include "stob/domain.h"	/* m0_stob_domain_id_get */
+#include "stob/addb2.h"
 
 /**
  * @addtogroup stob
@@ -71,20 +73,25 @@ M0_INTERNAL void m0_stob_io_credit(const struct m0_stob_io *io,
 M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 				  struct m0_dtx *tx, struct m0_io_scope *scope)
 {
-	uint8_t type_id;
-	int	result;
+	const struct m0_fid *fid = m0_stob_fid_get(obj);
+	struct m0_indexvec  *iv  = &io->si_stob;
+	struct m0_bufvec    *bv  = &io->si_user;
+	uint8_t              type_id;
+	int                  result;
 
 	M0_PRE(m0_stob_state_get(obj) == CSS_EXISTS);
 	M0_PRE(m0_chan_has_waiters(&io->si_wait));
 	M0_PRE(io->si_obj == NULL);
 	M0_PRE(io->si_state == SIS_IDLE);
 	M0_PRE(io->si_opcode != SIO_INVALID);
-	M0_PRE(m0_vec_count(&io->si_user.ov_vec) ==
-	       m0_vec_count(&io->si_stob.iv_vec));
-	M0_PRE(m0_stob_io_user_is_valid(&io->si_user));
-	M0_PRE(m0_stob_io_stob_is_valid(&io->si_stob));
+	M0_PRE(m0_vec_count(&bv->ov_vec) == m0_vec_count(&iv->iv_vec));
+	M0_PRE(m0_stob_io_user_is_valid(bv));
+	M0_PRE(m0_stob_io_stob_is_valid(iv));
 	M0_PRE(ergo(io->si_opcode == SIO_WRITE, io->si_fol_frag != NULL));
 
+	M0_ADDB2_PUSH(M0_AVI_STOB_IO_LAUNCH, m0_time_now(),
+		      FID_P(fid), m0_vec_count(&bv->ov_vec),
+		      bv->ov_vec.v_nr, iv->iv_vec.v_nr, iv->iv_index[0]);
 	type_id = m0_stob_domain__type_id(
 			m0_stob_domain_id_get(m0_stob_dom_get(obj)));
 	if (io->si_stob_magic != type_id) {
@@ -104,12 +111,11 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 		result = io->si_op->sio_launch(io);
 		if (result != 0) {
 			M0_LOG(M0_ERROR, "launch io=%p "FID_F" FAILED rc=%d",
-					 io,
-					 FID_P(m0_stob_fid_get(io->si_obj)),
-					 result);
+					 io, FID_P(fid), result);
 			io->si_state = SIS_IDLE;
 		}
 	}
+	m0_addb2_pop(M0_AVI_STOB_IO_LAUNCH);
 	M0_POST(ergo(result != 0, io->si_state == SIS_IDLE));
 	return result;
 }

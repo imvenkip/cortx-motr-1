@@ -34,11 +34,13 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADSTOB
 #include "lib/trace.h"		/* M0_LOG */
 
+#include "addb2/addb2.h"
 #include "module/instance.h"	/* m0_get */
 
 #include "stob/ad.h"
 #include "stob/ad_private.h"
 #include "stob/ad_private_xc.h"
+#include "stob/addb2.h"
 #include "stob/domain.h"
 #include "stob/io.h"
 #include "stob/module.h"	/* m0_stob_ad_module */
@@ -1089,7 +1091,7 @@ static int stob_ad_vec_alloc(struct m0_stob *obj,
 		if (counts == NULL || back->si_user.ov_buf == NULL ||
 		    back->si_stob.iv_index == NULL) {
 			M0_STOB_OOM(AD_VEC_ALLOC);
-			rc = -ENOMEM;
+			rc = M0_ERR(-ENOMEM);
 		}
 	}
 	return M0_RC(rc);
@@ -1664,7 +1666,7 @@ static int stob_ad_write_launch(struct m0_stob_io *io,
 	todo = m0_vec_count(&io->si_user.ov_vec);
 	M0_ENTRY("op=%d sz=%lu", io->si_opcode, (unsigned long)todo);
 	back = &aio->ai_back;
-        M0_SET0(&head);
+	M0_SET0(&head);
 	wext = &head;
 	wext->we_next = NULL;
 	while (1) {
@@ -1683,7 +1685,7 @@ static int stob_ad_write_launch(struct m0_stob_io *io,
 				wext = next;
 			} else {
 				M0_STOB_OOM(AD_WRITE_LAUNCH);
-				rc = -ENOMEM;
+				rc = M0_ERR(-ENOMEM);
 				break;
 			}
 		} else
@@ -1744,8 +1746,8 @@ static int stob_ad_io_launch(struct m0_stob_io *io)
 	if (rc != 0)
 		return M0_RC(rc);
 
-	back->si_opcode	  = io->si_opcode;
-	back->si_flags	  = io->si_flags;
+	back->si_opcode   = io->si_opcode;
+	back->si_flags    = io->si_flags;
 	back->si_fol_frag = io->si_fol_frag;
 
 	switch (io->si_opcode) {
@@ -1799,6 +1801,9 @@ static bool stob_ad_endio(struct m0_clink *link)
 	io->si_rc     = aio->ai_back.si_rc;
 	io->si_count += aio->ai_back.si_count;
 	io->si_state  = SIS_IDLE;
+	M0_ADDB2_ADD(M0_AVI_STOB_IO_END, m0_time_now(),
+		     FID_P(m0_stob_fid_get(io->si_obj)),
+		     io->si_rc, io->si_count, aio->ai_back.si_user.ov_vec.v_nr);
 	stob_ad_io_release(aio);
 	m0_chan_broadcast_lock(&io->si_wait);
 	return true;

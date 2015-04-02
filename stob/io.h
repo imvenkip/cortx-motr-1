@@ -284,7 +284,7 @@ struct m0_stob_io {
 	   m0_stob_io::si_user.ov_buf[] must be shifted block-shift bits
 	   to the left.
 	 */
-	struct m0_bufvec	    si_user;
+	struct m0_bufvec            si_user;
 	/**
 	   Where data are located in the storage object name-space.
 

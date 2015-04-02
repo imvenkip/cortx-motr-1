@@ -35,7 +35,9 @@
 
 #include "reqh/reqh.h"                  /* m0_reqh */
 #include "rpc/session.h"                /* m0_rpc_session */
+#include "addb2/addb2.h"
 
+#include "stob/addb2.h"
 #include "stob/stob_addb.h"		/* M0_STOB_OOM */
 #include "stob/linux.h"			/* m0_stob_linux_container */
 #include "stob/linux_getevents.h"	/* raw_io_getevents */
@@ -55,8 +57,8 @@
 
    On a high level, adieu IO request is first split into fragments. A fragment
    is initially placed into a per-domain queue (admission queue,
-   tmp_linux_domain::ioq_queue) where it is held until there is enough space in the
-   AIO ring buffer (tmp_linux_domain::ioq_ctx). Placing a fragment into the ring
+   linux_domain::ioq_queue) where it is held until there is enough space in the
+   AIO ring buffer (linux_domain::ioq_ctx). Placing a fragment into the ring
    buffer (ioq_queue_submit()) means that kernel AIO is launched for it. When IO
    completes, the kernel delivers an IO completion event via the ring buffer.
 
@@ -64,8 +66,8 @@
    created for each storage object domain. These threads are implementing
    admission control and completion notification, they
 
-       - listen for the AIO completion events on the in the ring buffer. When
-         AIO is completed, worker thread signals completion event to AIO users;
+       - listen for the AIO completion events in the ring buffer. When an AIO is
+         completed, worker thread signals completion event to AIO users;
 
        - when space becomes available in the ring buffer, a worker thread moves
          some number of pending fragments from the admission queue to the ring
@@ -81,7 +83,7 @@
    <b>Concurrency control</b>
 
    Per-domain data structures (queue, thresholds, etc.) are protected by
-   tmp_linux_domain::ioq_mutex.
+   linux_domain::ioq_mutex.
 
    Concurrency control for an individual adieu fragment is very simple: user is
    not allowed to touch it in SIS_BUSY state and io_getevents() exactly-once
@@ -103,13 +105,13 @@
    AIO fragment.
 
    A ioq_qev is created for each fragment of original adieu request (see
-   tmp_linux_stob_io_launch()).
+   linux_stob_io_launch()).
  */
 struct ioq_qev {
 	struct iocb           iq_iocb;
 	m0_bcount_t           iq_nbytes;
 	/** Linkage to a per-domain admission queue
-	    (tmp_linux_domain::ioq_queue). */
+	    (linux_domain::ioq_queue). */
 	struct m0_queue_link  iq_linkage;
 	struct m0_stob_io    *iq_io;
 };
@@ -281,7 +283,9 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 	qev = lio->si_qev;
 	if (qev == NULL || iov == NULL) {
 		M0_STOB_OOM(LAD_STOB_IO_LAUNCH_2);
-		result = M0_ERR(-ENOMEM);
+		stob_linux_io_release(lio);
+		m0_free(iov);
+		return M0_ERR(-ENOMEM);
 	}
 	opcode = io->si_opcode == SIO_READ ? IO_CMD_PREADV : IO_CMD_PWRITEV;
 
@@ -495,13 +499,11 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 	struct m0_stob_io    *io   = qev->iq_io;
 	struct stob_linux_io *lio  = io->si_stob_private;
 	struct iocb          *iocb = &qev->iq_iocb;
-	uint32_t              done;
+	const struct m0_fid  *fid  = m0_stob_fid_get(io->si_obj);
 
 	M0_ASSERT(!m0_queue_link_is_in(&qev->iq_linkage));
 	M0_ASSERT(io->si_state == SIS_BUSY);
-
-	done = m0_atomic64_get(&lio->si_done);
-	M0_ASSERT(done < lio->si_nr);
+	M0_ASSERT(m0_atomic64_get(&lio->si_done) < lio->si_nr);
 
 	/* Fault injection point for HA signaling. */
 	if (M0_FI_ENABLED("ioq_timeout"))
@@ -533,25 +535,25 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 		if ((res & m0_stob_ioq_bmask(ioq)) != 0) {
 			M0_STOB_FUNC_FAIL(LAD_IOQ_COMPLETE, -EIO);
 			res = M0_ERR(-EIO);
-			ioq_io_error(ioq, qev);
 		} else
 			m0_atomic64_add(&lio->si_bdone, res);
 	}
 	if (res < 0 && io->si_rc == 0)
 		io->si_rc = res;
+	if (io->si_rc != 0)
+		ioq_io_error(ioq, qev);
 	/*
 	 * The position of this operation is critical:
 	 * all threads must complete the above code until
 	 * some of them finds here out that all frags are done.
 	 */
-	done = m0_atomic64_add_return(&lio->si_done, 1);
-
-	if (done == lio->si_nr) {
+	if (m0_atomic64_add_return(&lio->si_done, 1) == lio->si_nr) {
 		m0_bcount_t bdone = m0_atomic64_get(&lio->si_bdone);
 
-		M0_LOG(M0_DEBUG, FID_F" nr=%d sz=%lx si_rc=%d",
-		       FID_P(m0_stob_fid_get(io->si_obj)),
-		       done, (unsigned long)bdone, (int)io->si_rc);
+		M0_LOG(M0_DEBUG, FID_F" nr=%d sz=%lx si_rc=%d", FID_P(fid),
+		       lio->si_nr, (unsigned long)bdone, (int)io->si_rc);
+		M0_ADDB2_ADD(M0_AVI_STOB_IO_END, m0_time_now(), FID_P(fid),
+			     io->si_rc, io->si_count, lio->si_nr);
 		io->si_count = bdone >> m0_stob_ioq_bshift(ioq);
 		stob_linux_io_release(lio);
 		io->si_state = SIS_IDLE;
@@ -576,20 +578,24 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 	int got;
 	int avail;
 	int i;
-	struct io_event evout[M0_STOB_IOQ_BATCH_OUT_SIZE];
-	struct timespec ioq_timeout;
+	struct io_event         evout[M0_STOB_IOQ_BATCH_OUT_SIZE];
+	struct timespec         timeout;
+	struct m0_addb2_counter inflight = {};
+	struct m0_addb2_counter queued   = {};
+	struct m0_addb2_counter gotten   = {};
 
+	M0_ADDB2_PUSH(M0_AVI_STOB_IOQ, m0_thread_self() - ioq->ioq_thread);
+	m0_addb2_counter_add(&inflight, M0_AVI_STOB_IOQ_INFLIGHT);
+	m0_addb2_counter_add(&queued,   M0_AVI_STOB_IOQ_QUEUED);
+	m0_addb2_counter_add(&gotten,   M0_AVI_STOB_IOQ_GOT);
 	while (!ioq->ioq_shutdown) {
-		ioq_timeout = ioq_timeout_default;
+		timeout = ioq_timeout_default;
 		got = raw_io_getevents(ioq->ioq_ctx, 1, ARRAY_SIZE(evout),
-				       evout, &ioq_timeout);
-		/* commented out because it floods trace logs */
-		/*M0_LOG(M0_DEBUG, "got=%d", got);*/
+				       evout, &timeout);
 		if (got > 0) {
 			avail = m0_atomic64_add_return(&ioq->ioq_avail, got);
 			M0_ASSERT(avail <= M0_STOB_IOQ_RING_SIZE);
 		}
-
 		for (i = 0; i < got; ++i) {
 			struct ioq_qev  *qev;
 			struct io_event *iev;
@@ -601,9 +607,13 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 		}
 		if (got < 0 && got != -EINTR)
 			M0_STOB_FUNC_FAIL(LAD_IOQ_THREAD, got);
-
 		ioq_queue_submit(ioq);
+		m0_addb2_counter_mod(&gotten, got);
+		m0_addb2_counter_mod(&queued, ioq->ioq_queued);
+		m0_addb2_counter_mod(&inflight, M0_STOB_IOQ_RING_SIZE -
+				     m0_atomic64_get(&ioq->ioq_avail));
 	}
+	m0_addb2_pop(M0_AVI_STOB_IOQ);
 }
 
 M0_INTERNAL int m0_stob_ioq_init(struct m0_stob_ioq *ioq)
