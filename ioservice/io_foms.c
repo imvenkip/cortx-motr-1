@@ -1976,13 +1976,10 @@ static void stob_be_credit(struct m0_fom *fom, bool is_op_write)
  */
 static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 {
-	int                                       rc = 0;
+	int                                       rc;
 	struct m0_io_fom_cob_rw                  *fom_obj;
-	struct m0_io_fom_cob_rw_state_transition  st = { M0_FOPH_FAILURE, NULL,
-							 M0_FOPH_FAILURE,
-							 M0_FOPH_FAILURE};
+	struct m0_io_fom_cob_rw_state_transition  st;
 	struct m0_poolmach                       *poolmach;
-	struct m0_reqh                           *reqh;
 	struct m0_fop_cob_rw                     *rwfop;
 	struct m0_fop_cob_rw_reply               *rwrep;
 
@@ -1991,8 +1988,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
-
-	reqh = m0_fom_reqh(fom);
 
 	/* first handle generic phase */
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
@@ -2010,8 +2005,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 	/* Set operation status in reply fop if FOM ends.*/
-        if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
-            m0_fom_phase(fom) == M0_FOPH_FAILURE) {
+	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
+	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
 		rwfop = io_rw_get(fom->fo_fop);
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
