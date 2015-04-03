@@ -31,8 +31,6 @@
 
 #include "conf/ut/confc.h" /* m0_ut_conf_fids */
 
-#define _BUF(str) M0_BUF_INITS(str)
-
 static struct m0_be_ut_backend ut_be;
 static struct m0_be_ut_seg     ut_seg;
 static struct m0_be_seg       *seg;
@@ -208,4 +206,10 @@ void test_confdb(void)
 	conf_ut_db_fini();
 }
 
-#undef _BUF
+struct m0_ut_suite confstr_ut = {
+	.ts_name  = "confstr-ut",
+	.ts_tests = {
+		{ "db", test_confdb },
+		{ NULL, NULL }
+	}
+};
