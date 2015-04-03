@@ -1,7 +1,7 @@
 [Unit]
 Description=Mero server helper for %i service
 Requires=mero-kernel.service mero-mkfs@%i.service mero-trace@%i.service
-After=mero-kernel.service mero-mkfs@%i.service
+After=mero-kernel.service mero-mkfs@%i.service mero-server-confd.service
 Before=mero-trace@%i.service mero-client.service
 PartOf=mero.service
 

@@ -1,0 +1,10 @@
+[Unit]
+Description=Mero server helper for confd service
+Requires=mero-kernel.service mero-mkfs@confd.service mero-trace@confd.service
+After=mero-kernel.service mero-mkfs@confd.service
+Before=mero-trace@confd.service mero-server@.service mero-client.service
+PartOf=mero.service
+
+[Service]
+Type=notify
+ExecStart=/usr/libexec/mero/mero-server confd

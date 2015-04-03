@@ -292,13 +292,11 @@ m0_get_running_servers()
 {
     if [ -x /usr/bin/systemctl ] ; then
         systemctl \
-        | sed -n -r -e 's#^mero-server@(.*)\.service.*running.*#\1#p' \
-        | xargs echo
+        | sed -n -r -e 's#^mero-server[-@](.*)\.service.*running.*#\1#p'
     elif [ -x /sbin/initctl ] ; then
         initctl list \
         | grep mero-server \
-        | sed -n -r -e 's#.*mero-server \((.*)\) start/running.*#\1#p' \
-        | xargs echo
+        | sed -n -r -e 's#.*mero-server \((.*)\) start/running.*#\1#p'
     fi
 }
 
@@ -308,8 +306,11 @@ m0_get_server_pid_for()
 {
     local service=$1
 
+    local t='@'
+    [[ $service != confd ]] || t='-'
+
     if [ -x /usr/bin/systemctl ] ; then
-        systemctl show -pMainPID mero-server@${service}.service \
+        systemctl show -pMainPID mero-server${t}${service}.service \
         | sed -e 's/MainPID=//'
     elif [ -x /sbin/initctl ] ; then
         initctl list \
