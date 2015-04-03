@@ -33,11 +33,11 @@
 #include "lib/types.h"
 #include "lib/processor.h"
 #include "lib/lockers.h"
-#include "lib/time.h"
 #include "lib/tlist.h"
+#include "lib/time.h"
 #include "lib/chan.h"
 #include "lib/mutex.h"
-struct m0_sm_group;
+#include "sm/sm.h"
 struct m0_reqh;
 struct m0_fom_domain;
 
@@ -64,9 +64,15 @@ struct m0_locality {
 	struct m0_sm_group        *lo_grp;
 	struct m0_reqh            *lo_reqh;
 	size_t                     lo_idx;
-	/** Lockers to store service specific private data */
+	/** Lockers to store locality-specific private data */
 	struct m0_locality_lockers lo_lockers;
+	struct m0_tl               lo_chores;
 };
+
+M0_INTERNAL void m0_locality_init(struct m0_locality *loc,
+				  struct m0_sm_group *grp,
+				  struct m0_reqh *reqh, size_t idx);
+M0_INTERNAL void m0_locality_fini(struct m0_locality *loc);
 
 /**
  * Returns locality corresponding to the core the call is made on.
@@ -88,7 +94,7 @@ M0_INTERNAL struct m0_locality *m0_locality0_get(void);
 /**
  * Starts using localities from the specified domain.
  */
-M0_INTERNAL void m0_locality_dom_set(struct m0_fom_domain *dom);
+M0_INTERNAL int m0_locality_dom_set(struct m0_fom_domain *dom);
 
 /**
  * Stops using the domain, falls back to a single locality.
@@ -101,30 +107,35 @@ M0_INTERNAL void m0_localities_fini(void);
 struct m0_locality_chore {
 	const struct m0_locality_chore_ops *lc_ops;
 	void                               *lc_datum;
-	struct m0_tl                        lc_linkage;
-	int                                 lc_key;
-	bool                                lc_quitting;
+	m0_time_t                           lc_interval;
 	struct m0_mutex                     lc_lock;
 	struct m0_chan                      lc_signal;
-	m0_time_t                           lc_last;
-	m0_time_t                           lc_interval;
+	int                                 lc_active;
+	struct m0_tlink                     lc_linkage;
+	struct m0_sm_ast                    lc_ast;
+	size_t                              lc_datasize;
+	int                                 lc_rc;
+	uint64_t                            lc_magix;
 };
 
 struct m0_locality_chore_ops {
 	const char *co_name;
 	int (*co_enter)(struct m0_locality_chore *chore,
-			struct m0_locality *loc, void **place);
+			struct m0_locality *loc, void *place);
 	void (*co_leave)(struct m0_locality_chore *chore,
 			 struct m0_locality *loc, void *place);
 	void (*co_tick)(struct m0_locality_chore *chore,
 			struct m0_locality *loc, void *place);
 };
 
-void m0_locality_chore_init(struct m0_locality_chore *chore,
-			    const struct m0_locality_chore_ops *lc_ops,
-			    void *datum);
+int m0_locality_chore_init(struct m0_locality_chore *chore,
+			   const struct m0_locality_chore_ops *ops,
+			   void *datum, m0_time_t interval,
+			   size_t datasize);
 void m0_locality_chore_quit(struct m0_locality_chore *chore);
 void m0_locality_chore_fini(struct m0_locality_chore *chore);
+
+M0_INTERNAL void m0_locality_chores_run(struct m0_locality *locality);
 
 /** @} end of locality group */
 

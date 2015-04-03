@@ -416,7 +416,8 @@ enum m0_fom_phase {
  *
  * @pre dom != NULL
  */
-M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom);
+M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom,
+				   struct m0_reqh *reqh);
 
 /**
  * Finalises fom domain.

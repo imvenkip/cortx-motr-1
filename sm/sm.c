@@ -59,6 +59,8 @@ M0_INTERNAL void m0_sm_group_init(struct m0_sm_group *grp)
 
 M0_INTERNAL void m0_sm_group_fini(struct m0_sm_group *grp)
 {
+	M0_PRE(grp->s_forkq == &eoq);
+
 	if (m0_clink_is_armed(&grp->s_clink))
 		m0_clink_del_lock(&grp->s_clink);
 	m0_clink_fini(&grp->s_clink);

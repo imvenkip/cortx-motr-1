@@ -67,8 +67,10 @@ enum m0_addb2_value_id {
 	M0_AVI_WAIL,
 	/** Label: ast context. */
 	M0_AVI_AST,
-	/** Label: fom call-back context.. */
+	/** Label: fom call-back context. */
 	M0_AVI_FOM_CB,
+	/** Label: locality chore. */
+	M0_AVI_CHORE,
 
 	M0_AVI_LIB_RANGE_START     = 0x3000,
 	/** Measurement: memory allocation. */

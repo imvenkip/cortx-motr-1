@@ -22,6 +22,9 @@
 #include "fop/fom.h"
 #include "fop/fom_simple.h"
 #include "lib/misc.h"           /* m0_forall */
+#include "lib/mutex.h"
+#include "lib/errno.h"
+#include "lib/assert.h"
 #include "lib/locality.h"
 #include "lib/finject.h"
 #include "ut/ut.h"
@@ -62,6 +65,7 @@ static void _reqh_init(void)
 {
 	int result;
 
+	M0_SET0(&reqh);
 	result = M0_REQH_INIT(&reqh,
 			      .rhia_dtm       = (void*)1,
 			      .rhia_db        = NULL,
@@ -265,6 +269,98 @@ void test_locality(void)
 	m0_mutex_fini(&lock);
 }
 M0_EXPORTED(test_locality);
+
+static int entered;
+static int left;
+static int ticked;
+
+static int enter(struct m0_locality_chore *chore,
+		 struct m0_locality *loc, void *place)
+{
+	M0_UT_ASSERT(chore->lc_datum == &lock);
+	M0_UT_ASSERT(place != NULL);
+	m0_mutex_lock(&lock);
+	++entered;
+	m0_mutex_unlock(&lock);
+	*(long *)place = (long)chore + (long)loc + (long)place;
+	return 0;
+}
+
+static void leave(struct m0_locality_chore *chore,
+		  struct m0_locality *loc, void *place)
+{
+	M0_UT_ASSERT(chore->lc_datum == &lock);
+	M0_UT_ASSERT(place != NULL);
+	m0_mutex_lock(&lock);
+	M0_UT_ASSERT(*(long *)place == (long)chore + (long)loc + (long)place);
+	++left;
+	m0_mutex_unlock(&lock);
+}
+
+static void tick(struct m0_locality_chore *chore,
+		 struct m0_locality *loc, void *place)
+{
+	M0_UT_ASSERT(chore->lc_datum == &lock);
+	M0_UT_ASSERT(place != NULL);
+	m0_mutex_lock(&lock);
+	++ticked;
+	m0_mutex_unlock(&lock);
+}
+
+static int nosys(struct m0_locality_chore *chore,
+		 struct m0_locality *loc, void *place)
+{
+	return -ENOSYS;
+}
+
+void test_locality_chore(void)
+{
+	struct m0_locality_chore           chore;
+	int                                result;
+	struct m0_locality_chore_ops ops = {
+		.co_enter = &enter,
+		.co_leave = &leave,
+		.co_tick  = &tick
+	};
+
+	entered = left = ticked = 0;
+	M0_SET0(&chore);
+	result = m0_locality_chore_init(&chore, &ops, &lock,
+					M0_MKTIME(1, 0), 4096);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(entered == 1);
+	M0_UT_ASSERT(left == 0);
+	m0_locality_chore_fini(&chore);
+	M0_UT_ASSERT(entered == 1);
+	M0_UT_ASSERT(left == 1);
+
+	M0_SET0(&chore);
+	m0_fi_enable_once("m0_alloc", "keep_quiet");
+	result = m0_locality_chore_init(&chore, &ops, &lock,
+					M0_MKTIME(1, 0), 1ULL << 60);
+	M0_UT_ASSERT(result == -ENOMEM);
+
+	M0_SET0(&chore);
+	ops.co_enter = &nosys;
+	result = m0_locality_chore_init(&chore, &ops, &lock,
+					M0_MKTIME(1, 0), 4096);
+	M0_UT_ASSERT(result == -ENOSYS);
+
+	_reqh_init();
+	ops.co_enter = &enter;
+	entered = left = ticked = 0;
+	M0_SET0(&chore);
+	result = m0_locality_chore_init(&chore, &ops, &lock,
+					M0_MKTIME(1, 0), 4096);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(entered == reqh.rh_fom_dom.fd_localities_nr);
+	M0_UT_ASSERT(left == 0);
+	m0_locality_chore_fini(&chore);
+	M0_UT_ASSERT(entered == reqh.rh_fom_dom.fd_localities_nr);
+	M0_UT_ASSERT(left == reqh.rh_fom_dom.fd_localities_nr);
+	_reqh_fini();
+}
+M0_EXPORTED(test_locality_chore);
 
 /*
  *  Local variables:

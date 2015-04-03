@@ -49,6 +49,7 @@ extern void test_varr(void);
 extern void test_vec(void);
 extern void test_zerovec(void);
 extern void test_locality(void);
+extern void test_locality_chore(void);
 extern void test_hashtable(void);
 extern void test_fold(void);
 
@@ -69,7 +70,8 @@ struct m0_ut_suite libm0_ut = {
 		{ "getopts",          test_getopts       },
 		{ "hash",	      test_hashtable     },
 		{ "list",             test_list          },
-		{ "locality",         test_locality      },
+		{ "locality",         test_locality,     "Nikita" },
+		{ "locality-chore",   test_locality_chore, "Nikita" },
 		{ "lockers",          test_lockers       },
 		{ "memory",           test_memory        },
 		{ "misc",             m0_test_misc       },

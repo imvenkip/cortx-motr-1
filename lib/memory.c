@@ -87,7 +87,7 @@ void *m0_alloc(size_t size)
 			m0_atomic64_add(&allocated, asize);
 			m0_atomic64_add(&cumulative_alloc, asize);
 		}
-	} else {
+	} else if (!M0_FI_ENABLED("keep_quiet")) {
 		M0_LOG(M0_ERROR, "Failed to allocate %zi bytes.", size);
 		m0_backtrace();
 	}

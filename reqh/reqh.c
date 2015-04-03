@@ -186,8 +186,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	if (rc != 0)
 		goto monitors_init_failed;
 
-	reqh->rh_fom_dom.fd_reqh = reqh;
-	rc = m0_fom_domain_init(&reqh->rh_fom_dom);
+	rc = m0_fom_domain_init(&reqh->rh_fom_dom, reqh);
 	if (rc != 0)
 		goto fom_domain_init_failed;
 

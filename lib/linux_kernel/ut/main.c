@@ -32,6 +32,7 @@ M0_INTERNAL void test_cookie(void);
 M0_INTERNAL void test_finject(void);
 M0_INTERNAL void test_list(void);
 M0_INTERNAL void test_locality(void);
+M0_INTERNAL void test_locality_chore(void);
 M0_INTERNAL void test_lockers(void);
 M0_INTERNAL void test_tlist(void);
 M0_INTERNAL void test_mutex(void);
@@ -68,7 +69,8 @@ struct m0_ut_suite m0_klibm0_ut = {
 #endif
 		{ "hash",          test_hashtable     },
 		{ "list",          test_list          },
-		{ "locality",      test_locality      },
+		{ "locality",      test_locality,       "Nikita" },
+		{ "loc-chores",    test_locality_chore, "Nikita" },
 		{ "lockers",       test_lockers       },
 		{ "tlist",         test_tlist         },
 		{ "mutex",         test_mutex         },
@@ -82,7 +84,7 @@ struct m0_ut_suite m0_klibm0_ut = {
 		{ "varr",          test_varr	      },
 		{ "vec",           test_vec           },
 		{ "zerovec",       test_zerovec       },
-		{ "fold",          test_fold,         "Nikita" },
+		{ "fold",          test_fold,           "Nikita" },
 		{ NULL,            NULL               }
 	}
 };

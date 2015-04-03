@@ -715,9 +715,9 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 				 * many), becomes the new handler.
 				 */
 				break;
-			M0_ADDB2_PUSH(M0_AVI_AST);
-			m0_sm_asts_run(&loc->fl_group);
-			m0_addb2_pop(M0_AVI_AST);
+			M0_ADDB2_IN(M0_AVI_AST, m0_sm_asts_run(&loc->fl_group));
+			M0_ADDB2_IN(M0_AVI_CHORE,
+				    m0_locality_chores_run(&loc->fl_locality));
 			fom = fom_dequeue(loc);
 			if (fom != NULL) {
 				fom_addb2_push(fom);
@@ -847,7 +847,7 @@ static void loc_fini(struct m0_fom_locality *loc)
 	m0_addb_counter_fini(&loc->fl_stat_run_times);
 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
 	loc_addb2_fini(loc);
-	m0_locality_lockers_fini(&loc->fl_locality);
+	m0_locality_fini(&loc->fl_locality);
 }
 
 /**
@@ -917,12 +917,8 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	if (res != 0)
 		goto err1;
 
-	loc->fl_locality = (struct m0_locality) {
-		.lo_grp  = &loc->fl_group,
-		.lo_reqh = dom->fd_reqh,
-		.lo_idx  = dom->fd_localities_nr
-	};
-	m0_locality_lockers_init(&loc->fl_locality);
+	m0_locality_init(&loc->fl_locality, &loc->fl_group, dom->fd_reqh,
+			 dom->fd_localities_nr);
 
 	res = m0_fop_rate_monitor_init(loc);
 	if (res < 0)
@@ -946,9 +942,12 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 			if (res != 0)
 				break;
 		}
-		/* wake up one idle thread. It becomes the handler thread. */
-		m0_chan_signal(&loc->fl_idle);
 		group_unlock(loc);
+		/*
+		 * All threads created above are blocked at
+		 * loc_handler_thread()::m0_chan_wait(clink). One thread
+		 * per-locality is woken at the end of m0_fom_domain_init().
+		 */
 	}
 	if (res != 0)
 		loc_fini(loc);
@@ -956,7 +955,7 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	return M0_RC(res);
 
 err0:
-	m0_locality_lockers_fini(&loc->fl_locality);
+	m0_locality_fini(&loc->fl_locality);
 	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
 err1:
 	m0_addb_counter_fini(&loc->fl_stat_run_times);
@@ -964,7 +963,7 @@ err2:
 	loc_addb2_fini(loc);
 err3:
 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
-	return M0_RC(res);
+	return M0_ERR(res);
 }
 
 static void loc_ast_post_stats(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -991,7 +990,8 @@ M0_INTERNAL void m0_fom_locality_post_stats(struct m0_fom_locality *loc)
 	}
 }
 
-M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
+M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom,
+				   struct m0_reqh *reqh)
 {
 	int                     result;
 	size_t                  cpu;
@@ -999,12 +999,13 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 	struct m0_bitmap        onln_cpu_map;
 	int                     i;
 
-	M0_PRE(dom != NULL);
+	M0_PRE(M0_IS0(dom));
 
 	M0_ENTRY("%p", dom);
 
 	cpu_max = m0_processor_nr_max();
 	dom->fd_ops = &m0_fom_dom_ops;
+	dom->fd_reqh = reqh;
 	result = m0_bitmap_init(&onln_cpu_map, cpu_max);
 	if (result != 0)
 		return result;
@@ -1055,7 +1056,21 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 		M0_CNT_INC(dom->fd_localities_nr);
 	}
 	m0_bitmap_fini(&onln_cpu_map);
-	m0_locality_dom_set(dom);
+	if (result == 0) {
+		result = m0_locality_dom_set(dom);
+		if (result == 0) {
+			/* Wake up handler threads. */
+			for (i = 0; i < dom->fd_localities_nr; ++i) {
+				struct m0_fom_locality *loc;
+
+				loc = dom->fd_localities[i];
+				group_lock(loc);
+				m0_chan_signal(&loc->fl_idle);
+				group_unlock(loc);
+			}
+		} else
+			m0_fom_domain_fini(dom);
+	}
 	return M0_RC(result);
 }
 
@@ -1065,7 +1080,6 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 
 	M0_ASSERT(m0_fom_domain_invariant(dom));
 
-	m0_locality_dom_clear(dom);
 	if (dom->fd_localities != NULL) {
 		i = dom->fd_localities_nr;
 		for (i = dom->fd_localities_nr - 1; i >= 0; --i) {
@@ -1079,6 +1093,7 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 	}
 	if (dom->fd_addb2_sys != NULL)
 		m0_addb2_sys_fini(dom->fd_addb2_sys);
+	m0_locality_dom_clear(dom);
 }
 
 static bool is_loc_locker_empty(struct m0_fom_locality *loc, uint32_t key)
