@@ -28,7 +28,8 @@
 /**
    Returns the address of a link embedded in an ambient object.
  */
-static struct m0_list_link *__link(const struct m0_tl_descr *d, const void *obj);
+static struct m0_list_link *__link(const struct m0_tl_descr *d,
+				   const void *obj);
 
 /**
    Returns the value of the magic field in an ambient object
