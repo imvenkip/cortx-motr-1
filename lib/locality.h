@@ -32,12 +32,21 @@
 /* import */
 #include "lib/types.h"
 #include "lib/processor.h"
+#include "lib/lockers.h"
+#include "lib/time.h"
+#include "lib/tlist.h"
+#include "lib/chan.h"
+#include "lib/mutex.h"
 struct m0_sm_group;
 struct m0_reqh;
 struct m0_fom_domain;
 
 /* export */
 struct m0_locality;
+struct m0_locality_chore;
+struct m0_locality_chore_ops;
+
+M0_LOCKERS_DECLARE(M0_EXTERN, m0_locality, 64);
 
 /**
  * Per-core state maintained by Mero.
@@ -52,10 +61,11 @@ struct m0_locality {
 	 * This group comes from request handler locality, so that execution of
 	 * ASTs is serialised with state transitions of foms in this locality.
 	 */
-	struct m0_sm_group *lo_grp;
-	struct m0_reqh     *lo_reqh;
-	size_t              lo_idx;
-	/* Other fields might be added here. */
+	struct m0_sm_group        *lo_grp;
+	struct m0_reqh            *lo_reqh;
+	size_t                     lo_idx;
+	/** Lockers to store service specific private data */
+	struct m0_locality_lockers lo_lockers;
 };
 
 /**
@@ -87,6 +97,34 @@ M0_INTERNAL void m0_locality_dom_clear(struct m0_fom_domain *dom);
 
 M0_INTERNAL int  m0_localities_init(void);
 M0_INTERNAL void m0_localities_fini(void);
+
+struct m0_locality_chore {
+	const struct m0_locality_chore_ops *lc_ops;
+	void                               *lc_datum;
+	struct m0_tl                        lc_linkage;
+	int                                 lc_key;
+	bool                                lc_quitting;
+	struct m0_mutex                     lc_lock;
+	struct m0_chan                      lc_signal;
+	m0_time_t                           lc_last;
+	m0_time_t                           lc_interval;
+};
+
+struct m0_locality_chore_ops {
+	const char *co_name;
+	int (*co_enter)(struct m0_locality_chore *chore,
+			struct m0_locality *loc, void **place);
+	void (*co_leave)(struct m0_locality_chore *chore,
+			 struct m0_locality *loc, void *place);
+	void (*co_tick)(struct m0_locality_chore *chore,
+			struct m0_locality *loc, void *place);
+};
+
+void m0_locality_chore_init(struct m0_locality_chore *chore,
+			    const struct m0_locality_chore_ops *lc_ops,
+			    void *datum);
+void m0_locality_chore_quit(struct m0_locality_chore *chore);
+void m0_locality_chore_fini(struct m0_locality_chore *chore);
 
 /** @} end of locality group */
 

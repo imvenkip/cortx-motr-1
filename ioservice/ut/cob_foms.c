@@ -1244,7 +1244,7 @@ static void dummy_locality_setup()
 
 	dummy_loc.fl_dom = &reqh->rh_fom_dom;
 	m0_sm_group_init(&dummy_loc.fl_group);
-	m0_fom_locality_lockers_init(&dummy_loc);
+	m0_locality_lockers_init(&dummy_loc.fl_locality);
 }
 
 static void cob_create_api_test(void)

@@ -34,6 +34,8 @@
 #include "lib/locality.h"
 #include "fop/fom.h"
 
+M0_LOCKERS_DEFINE(M0_INTERNAL, m0_locality, lo_lockers);
+
 static struct m0_locality    locs_fallback;
 static struct m0_sm_group    locs_grp;
 static struct m0_thread      locs_ast_thread;

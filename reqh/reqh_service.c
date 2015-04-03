@@ -439,7 +439,7 @@ int m0_reqh_service_type_register(struct m0_reqh_service_type *rstype)
 	m0_reqh_service_type_bob_init(rstype);
 	m0_rwlock_write_lock(&rstypes_rwlock);
 	rstype->rst_key = m0_reqh_lockers_allot();
-	rstype->rst_fomcnt_key = m0_fom_locality_lockers_allot();
+	rstype->rst_fomcnt_key = m0_locality_lockers_allot();
 	rstypes_tlink_init_at_tail(rstype, &rstypes);
 	m0_rwlock_write_unlock(&rstypes_rwlock);
 

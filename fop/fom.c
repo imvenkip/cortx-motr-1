@@ -161,8 +161,6 @@ struct m0_loc_thread {
 	uint64_t                lt_magix;
 };
 
-M0_LOCKERS_DEFINE(M0_INTERNAL, m0_fom_locality, fl_lockers);
-
 M0_TL_DESCR_DEFINE(thr, "fom thread", static, struct m0_loc_thread, lt_linkage,
 		   lt_magix, M0_FOM_THREAD_MAGIC, M0_FOM_THREAD_HEAD_MAGIC);
 M0_TL_DEFINE(thr, static, struct m0_loc_thread);
@@ -849,7 +847,7 @@ static void loc_fini(struct m0_fom_locality *loc)
 	m0_addb_counter_fini(&loc->fl_stat_run_times);
 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
 	loc_addb2_fini(loc);
-	m0_fom_locality_lockers_fini(loc);
+	m0_locality_lockers_fini(&loc->fl_locality);
 }
 
 /**
@@ -872,6 +870,7 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	int                   res;
 	struct m0_addb_mc    *addb_mc;
 	struct m0_addb2_mach *orig = m0_thread_tls()->tls_addb2_mach;
+	struct m0_fom_domain *dom  = loc->fl_dom;
 
 	M0_PRE(loc != NULL);
 
@@ -881,13 +880,13 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	 * @todo Need a locality specific ADDB machine
 	 * with a caching event manager.
 	 */
-	addb_mc = &loc->fl_dom->fd_reqh->rh_addb_mc;
+	addb_mc = &dom->fd_reqh->rh_addb_mc;
 	if (!m0_addb_mc_is_configured(addb_mc)) /* happens in UTs */
 		addb_mc = &m0_addb_gmc;
 	M0_ADDB_CTX_INIT(addb_mc, &loc->fl_addb_ctx, &m0_addb_ct_fom_locality,
-			 &loc->fl_dom->fd_reqh->rh_addb_ctx, cpu);
+			 &dom->fd_reqh->rh_addb_ctx, cpu);
 
-	loc->fl_addb2_mach = m0_addb2_sys_get(loc->fl_dom->fd_addb2_sys);
+	loc->fl_addb2_mach = m0_addb2_sys_get(dom->fd_addb2_sys);
 	if (loc->fl_addb2_mach == NULL) {
 		res = M0_ERR(-ENOMEM);
 		goto err3;
@@ -918,7 +917,12 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	if (res != 0)
 		goto err1;
 
-	m0_fom_locality_lockers_init(loc);
+	loc->fl_locality = (struct m0_locality) {
+		.lo_grp  = &loc->fl_group,
+		.lo_reqh = dom->fd_reqh,
+		.lo_idx  = dom->fd_localities_nr
+	};
+	m0_locality_lockers_init(&loc->fl_locality);
 
 	res = m0_fop_rate_monitor_init(loc);
 	if (res < 0)
@@ -952,7 +956,7 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	return M0_RC(res);
 
 err0:
-	m0_fom_locality_lockers_fini(loc);
+	m0_locality_lockers_fini(&loc->fl_locality);
 	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
 err1:
 	m0_addb_counter_fini(&loc->fl_stat_run_times);
@@ -1048,11 +1052,6 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 			m0_fom_domain_fini(dom);
 			break;
 		}
-		loc->fl_locality = (struct m0_locality) {
-			.lo_grp  = &loc->fl_group,
-			.lo_reqh = dom->fd_reqh,
-			.lo_idx  = dom->fd_localities_nr
-		};
 		M0_CNT_INC(dom->fd_localities_nr);
 	}
 	m0_bitmap_fini(&onln_cpu_map);
@@ -1084,7 +1083,7 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 
 static bool is_loc_locker_empty(struct m0_fom_locality *loc, uint32_t key)
 {
-	return m0_fom_locality_lockers_is_empty(loc, key);
+	return m0_locality_lockers_is_empty(&loc->fl_locality, key);
 }
 
 M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_fom_domain *dom,
@@ -1109,11 +1108,11 @@ M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom)
 	uint64_t                cnt;
 
 	M0_ASSERT(key != 0);
-	cnt = (uint64_t)m0_fom_locality_lockers_get(loc, key);
+	cnt = (uint64_t)m0_locality_lockers_get(&loc->fl_locality, key);
 	M0_CNT_INC(cnt);
 	M0_CNT_INC(loc->fl_foms);
 	m0_addb2_counter_mod(&loc->fl_fom_active, loc->fl_foms);
-	m0_fom_locality_lockers_set(loc, key, (void *)cnt);
+	m0_locality_lockers_set(&loc->fl_locality, key, (void *)cnt);
 }
 
 M0_INTERNAL bool m0_fom_locality_dec(struct m0_fom *fom)
@@ -1123,10 +1122,10 @@ M0_INTERNAL bool m0_fom_locality_dec(struct m0_fom *fom)
 	uint64_t                cnt;
 
 	M0_ASSERT(key != 0);
-	cnt = (uint64_t)m0_fom_locality_lockers_get(loc, key);
+	cnt = (uint64_t)m0_locality_lockers_get(&loc->fl_locality, key);
 	M0_CNT_DEC(cnt);
 	M0_CNT_DEC(loc->fl_foms);
-	m0_fom_locality_lockers_set(loc, key, (void *)cnt);
+	m0_locality_lockers_set(&loc->fl_locality, key, (void *)cnt);
 	m0_addb2_counter_mod(&loc->fl_fom_active, loc->fl_foms);
 	return cnt == 0;
 }

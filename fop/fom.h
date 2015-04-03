@@ -205,7 +205,6 @@ Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
 #include "lib/atomic.h"
 #include "lib/tlist.h"
 #include "lib/locality.h"
-#include "lib/lockers.h"
 
 #include "dtm/dtm.h"               /* m0_dtx */
 #include "fol/fol.h"
@@ -231,8 +230,6 @@ struct m0_fop_rate_monitor;
 
 /* defined in fom.c */
 struct m0_loc_thread;
-
-M0_LOCKERS_DECLARE(M0_EXTERN, m0_fom_locality, 32);
 
 /**
  * A locality is a partition of computational resources dedicated to fom
@@ -316,9 +313,6 @@ struct m0_fom_locality {
 	struct m0_addb2_sensor         fl_clock;
 	struct m0_locality             fl_locality;
 	/** Something for memory, see set_mempolicy(2). */
-
-	/** Lockers to store service specific private data */
-	struct m0_fom_locality_lockers fl_lockers;
 };
 
 /**
