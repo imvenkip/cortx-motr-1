@@ -198,8 +198,7 @@ def p_objs(p):
 
 def p_obj(p):
     "obj : '(' objid attrs ')'"
-    assert all_unique([k for k, _ in p[3]]) # reject re-assignments
-                                            # (e.g. `foo=1 foo=2')
+    assert all_unique([k for k, _ in p[3]]), 'Attribute reassignment'
     p[0] = p[2], dict(p[3])
 
 def p_objid(p):
@@ -374,7 +373,7 @@ def main():
     if opts.self_check:
         unittest.main(argv=sys.argv[:1])
 
-    if args[0] is None or args[0] == '-':
+    if not args or args[0] == '-':
         f = sys.stdin
     else:
         try:
