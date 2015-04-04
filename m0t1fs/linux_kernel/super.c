@@ -219,14 +219,12 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 struct mount_opts {
 	char     *mo_confd;
 	char     *mo_profile;
-	char     *mo_local_conf;
 	uint32_t  mo_fid_start;
 };
 
 enum m0t1fs_mntopts {
 	M0T1FS_MNTOPT_CONFD,
 	M0T1FS_MNTOPT_PROFILE,
-	M0T1FS_MNTOPT_LOCAL_CONF,
 	M0T1FS_MNTOPT_FID_START,
 	M0T1FS_MNTOPT_OOSTORE,
 	M0T1FS_MNTOPT_VERIFY,
@@ -236,7 +234,6 @@ enum m0t1fs_mntopts {
 static const match_table_t m0t1fs_mntopt_tokens = {
 	{ M0T1FS_MNTOPT_CONFD,      "confd=%s"      },
 	{ M0T1FS_MNTOPT_PROFILE,    "profile=%s"    },
-	{ M0T1FS_MNTOPT_LOCAL_CONF, "local_conf=%s" },
 	{ M0T1FS_MNTOPT_FID_START,  "fid_start=%s"  },
 	{ M0T1FS_MNTOPT_OOSTORE,    "oostore"       },
 	{ M0T1FS_MNTOPT_VERIFY,     "verify"        },
@@ -252,7 +249,6 @@ static void mount_opts_fini(struct mount_opts *mops)
 	 * was allocated using match_strdup(). */
 	kfree(mops->mo_confd);
 	kfree(mops->mo_profile);
-	kfree(mops->mo_local_conf);
 	M0_SET0(mops);
 
 	M0_LEAVE();
@@ -286,45 +282,6 @@ static int num_parse(uint32_t *dest, const substring_t *src)
 	return M0_RC(rc);
 }
 
-/**
- * Consumes a chunk of `local_conf=' mount option value.
- *
- * local_conf_step() knows how to tell the end of `local_conf=' value
- * by counting '[' and ']' characters.  local_conf_step() restores
- * comma at the end of given chunk, unless this is the last chunk of
- * `local_conf=' value.
- *
- * @retval 0        End of configuration string has been reached.
- * @retval 1        A chunk has been consumed. Parsing should be continued.
- * @retval -EPROTO  Too many unclosed brackets. Unable to proceed.
- *
- * @see @ref conf-fspec-preload
- */
-static int local_conf_step(char *s, uint8_t *depth)
-{
-	M0_PRE(*s != '\0');
-
-	for (; *s != '\0'; ++s) {
-		if (*s == '[') {
-			++*depth;
-			if (unlikely(*depth == 0))
-				return M0_ERR(-EPROTO);
-		} else if (*s == ']') {
-			if (*depth > 0)
-				--*depth;
-			if (*depth == 0)
-				break;
-		}
-	}
-
-	if (*depth == 0)
-		return 0;
-
-	if (*s == '\0')
-		*s = ',';
-	return 1;
-}
-
 static bool is_empty(const char *s)
 {
 	return s == NULL || *s == '\0';
@@ -332,19 +289,17 @@ static bool is_empty(const char *s)
 
 static int mount_opts_validate(const struct mount_opts *mops)
 {
-	if (is_empty(mops->mo_confd) && is_empty(mops->mo_local_conf))
-		return M0_ERR_INFO(-EINVAL, "Configuration source is not "
-			       "specified");
-
+	if (is_empty(mops->mo_confd))
+		return M0_ERR_INFO(-EINVAL,
+				   "Mandatory parameter is missing: confd");
 	if (is_empty(mops->mo_profile))
-		return M0_ERR_INFO(-EINVAL, "Mandatory parameter is missing: "
-			       "profile");
-
-	if (!ergo(mops->mo_fid_start != 0,
-		mops->mo_fid_start > M0_MDSERVICE_START_FID.f_key - 1))
-		return M0_ERR_INFO(-EINVAL, "fid_start must be greater than %llu",
-					M0_MDSERVICE_START_FID.f_key - 1);
-
+		return M0_ERR_INFO(-EINVAL,
+				   "Mandatory parameter is missing: profile");
+	if (mops->mo_fid_start != 0 &&
+	    mops->mo_fid_start <= M0_MDSERVICE_START_FID.f_key - 1)
+		return M0_ERR_INFO(-EINVAL,
+				   "fid_start must be greater than %llu",
+				   M0_MDSERVICE_START_FID.f_key - 1);
 	return M0_RC(0);
 }
 
@@ -389,34 +344,6 @@ static int mount_opts_parse(struct m0t1fs_sb *csb, char *options,
 				(unsigned long)dest->mo_fid_start);
 			break;
 
-		case M0T1FS_MNTOPT_LOCAL_CONF: {
-			const char *start = args->from;
-			uint8_t     depth = 0;
-
-			op = args->from;
-			do {
-				rc = local_conf_step(op, &depth);
-			} while (rc > 0 &&
-				 (op = strsep(&options, ",")) != NULL &&
-				 *op != '\0');
-
-			if (depth > 0)
-				return M0_ERR_INFO(-EPROTO, "Unexpected EOF");
-
-			if (rc < 0) {
-				M0_ASSERT(rc == -EPROTO);
-				return M0_ERR_INFO(rc, "Configuration string is "
-					       "too nested");
-			}
-
-			dest->mo_local_conf = kstrdup(start, GFP_KERNEL);
-			if (dest->mo_local_conf == NULL)
-				return M0_ERR(-ENOMEM);
-
-			M0_LOG(M0_INFO, "local_conf: `%s'",
-			       dest->mo_local_conf);
-			break;
-		}
 		case M0T1FS_MNTOPT_OOSTORE:
 			csb->csb_oostore = true;
 			M0_LOG(M0_DEBUG, "OOSTORE mode!!");

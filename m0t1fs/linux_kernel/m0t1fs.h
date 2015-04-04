@@ -84,10 +84,6 @@
   - profile [value type: string]
       configuration profile used while fetching configuration data from confd.
 
-  - local_conf [value type: string]
-      configuration string, containing data to pre-load configuration
-      cache with (see @ref conf-fspec-preload).
-
   - fid_start [value type: uint32_t, default: 4]
       TEMPORARY option.
       Client allocates fid for a file during its creation. It assigns
