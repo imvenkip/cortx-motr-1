@@ -21,10 +21,6 @@
 #ifndef __MERO_CONF_SCHEMA_H__
 #define __MERO_CONF_SCHEMA_H__
 
-/* import */
-#include "lib/types.h"
-#include "fid/fid.h" /** import m0_fid */
-
 /**
    @page DLD_conf_schema DLD for configuration schema
 
@@ -125,7 +121,6 @@ enum m0_cfg_storage_device_interface_type {
 	M0_CFG_DEVICE_INTERFACE_SAS2      /**< SAS II  */
 };
 
-
 /**
    Mero device media types.
 */
@@ -150,21 +145,14 @@ enum {
 
 /** Type of Mero service. */
 enum m0_conf_service_type {
-	M0_CST_MDS = 1, /*< Meta-data service. */
-	M0_CST_IOS,     /*< IO/data service. */
-	M0_CST_MGS,     /*< Management service (confd?). */
-	M0_CST_RMS,     /*< Resource management service. */
-	M0_CST_SS,      /*< Stats service */
-	M0_CST_HA,      /*< HA service */
+	M0_CST_MDS = 1, /**< Meta-data service. */
+	M0_CST_IOS,     /**< IO/data service. */
+	M0_CST_MGS,     /**< Management service (confd?). */
+	M0_CST_RMS,     /**< Resource management service. */
+	M0_CST_SS,      /**< Stats service */
+	M0_CST_HA,      /**< HA service */
 	M0_CST_NR
 };
 
-#define M0_CONF_SVC_TYPE_IS_VALID(stype)                    \
-        M0_IN((stype), (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, \
-			M0_CST_RMS, M0_CST_SS, M0_CST_HA))
-
-/**
-   @} conf_schema end group
-*/
-
+/** @} conf_schema */
 #endif /* __MERO_CONF_SCHEMA_H__ */

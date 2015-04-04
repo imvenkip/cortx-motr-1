@@ -34,6 +34,7 @@
 #include "be/tx.h"       /* m0_be_tx_remid */
 #include "conf/schema.h" /* m0_conf_service_type */
 #include "rpc/rpc.h"     /* m0_rpc_conn, m0_rpc_session */
+#include "fid/fid.h"
 
 struct m0_fop;
 struct m0_fom;

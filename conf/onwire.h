@@ -57,9 +57,9 @@ struct m0_confx_header {
 
 struct m0_confx_root {
 	struct m0_confx_header xt_header;
-	/* Configuration database version */
+	/* Configuration database version. */
 	uint64_t               xt_verno;
-	/* Profiles in configuration database */
+	/* Profiles in configuration database. */
 	struct arr_fid         xt_profiles;
 } M0_XCA_RECORD;
 
@@ -173,7 +173,7 @@ struct m0_confx_rack {
 	struct m0_confx_header xr_header;
 	/* Enclosures on this rack. */
 	struct arr_fid         xr_encls;
-	/* Pool versions for this pool. */
+	/* Pool versions this rack is part of. */
 	struct arr_fid         xr_pvers;
 } M0_XCA_RECORD;
 
@@ -181,17 +181,17 @@ struct m0_confx_enclosure {
 	struct m0_confx_header xe_header;
 	/* Controllers in this enclosure. */
 	struct arr_fid         xe_ctrls;
-	/* Pool versions for this pool. */
+	/* Pool versions this enclosure is part of. */
 	struct arr_fid         xe_pvers;
 } M0_XCA_RECORD;
 
 struct m0_confx_controller {
 	struct m0_confx_header xc_header;
-	/* Associated note for this controller. */
+	/* The node this controller is associated with. */
 	struct m0_fid          xc_node;
 	/* Storage disks attached to this controller. */
 	struct arr_fid         xc_disks;
-	/* Pool versions for this controller. */
+	/* Pool versions this controller is part of. */
 	struct arr_fid         xc_pvers;
 } M0_XCA_RECORD;
 

@@ -557,11 +557,16 @@ m0_reqh_service_async_start_simple(struct m0_reqh_service_start_async_ctx *asc)
 }
 M0_EXPORTED(m0_reqh_service_async_start_simple);
 
+static bool service_type_is_valid(enum m0_conf_service_type t)
+{
+	return 0 < t && t < M0_CST_NR;
+}
+
 static bool reqh_service_context_invariant(const struct m0_reqh_service_ctx *ctx)
 {
 	return _0C(ctx != NULL) && _0C(m0_reqh_service_ctx_bob_check(ctx)) &&
 	       _0C(m0_fid_is_set(&ctx->sc_fid)) &&
-	       _0C(M0_CONF_SVC_TYPE_IS_VALID(ctx->sc_type));
+	       _0C(service_type_is_valid(ctx->sc_type));
 }
 
 static void reqh_service_disconnect(struct m0_reqh_service_ctx *ctx)
@@ -638,7 +643,7 @@ M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_fid *id,
 	int rc;
 
 	M0_PRE(m0_fid_is_set(id));
-	M0_PRE(M0_CONF_SVC_TYPE_IS_VALID(stype));
+	M0_PRE(service_type_is_valid(stype));
 
 	M0_ALLOC_PTR(*ctx);
 	if (ctx == NULL)

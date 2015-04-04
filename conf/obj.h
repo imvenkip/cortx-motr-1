@@ -310,19 +310,15 @@ struct m0_conf_root {
 	struct m0_conf_dir *rt_profiles;
 /* configuration data (for the application) */
 	/**
-	 * Version of the configuration database.  Incremented after every
-	 * configuration database update.
+	 * Version of the configuration database.
+	 * Incremented after every configuration database update.
 	 *
-	 * Value 0 is reserved as CONF_VER_UNKNOWN and must not be used.
+	 * @note Value 0 is reserved and must not be used.
 	 */
 	uint64_t            rt_verno;
 };
 
 struct m0_conf_profile {
-	/*
-	 * ->cp_obj.co_parent != NULL: m0_conf_profile is always a child of root
-	 * object in a DAG of configuration objects.
-	 */
 	struct m0_conf_obj         cp_obj;
 	struct m0_conf_filesystem *cp_filesystem;
 };
@@ -391,9 +387,13 @@ struct m0_conf_node {
 	struct m0_conf_obj   cn_obj;
 	struct m0_conf_dir  *cn_processes;
 /* configuration data (for the application) */
+	/** Memory size in MB. */
 	uint32_t             cn_memsize;
+	/** Number of processors. */
 	uint32_t             cn_nr_cpu;
+	/** Last known state. See m0_cfg_state_bit. */
 	uint64_t             cn_last_state;
+	/** Property flags. See m0_cfg_flag_bit. */
 	uint64_t             cn_flags;
 	struct m0_conf_pool *cn_pool;
 };
@@ -412,7 +412,7 @@ struct m0_conf_service {
 /* configuration data (for the application) */
 	enum m0_conf_service_type cs_type;
 	/**
-	 * Service end point.
+	 * End-points from which this service is reachable.
 	 * NULL terminated array of C strings.
 	 */
 	const char              **cs_endpoints;
@@ -446,7 +446,7 @@ struct m0_conf_controller {
 	struct m0_conf_obj    cc_obj;
 	/** The node this controller is associated with. */
 	struct m0_conf_node  *cc_node;
-	/** Storage devices attached to this controller. */
+	/** Storage disks attached to this controller. */
 	struct m0_conf_dir   *cc_disks;
 	/** Pool versions this controller is part of. */
 	struct m0_conf_pver **cc_pvers;
@@ -455,12 +455,19 @@ struct m0_conf_controller {
 /** Hardware resource - storage device. */
 struct m0_conf_sdev {
 	struct m0_conf_obj sd_obj;
+	/** Interface type. See m0_cfg_storage_device_interface_type. */
 	uint32_t           sd_iface;
+	/** Media type. See m0_cfg_storage_device_media_type. */
 	uint32_t           sd_media;
+	/** Block size in bytes. */
 	uint32_t           sd_bsize;
+	/** Size in bytes. */
 	uint64_t           sd_size;
+	/** Last known state.  See m0_cfg_state_bit. */
 	uint64_t           sd_last_state;
+	/** Property flags.  See m0_cfg_flag_bit. */
 	uint64_t           sd_flags;
+	/** Filename in host OS. */
 	const char        *sd_filename;
 };
 
