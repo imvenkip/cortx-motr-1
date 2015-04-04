@@ -1178,6 +1178,12 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
 	be->but_dom_cfg.bc_log_cfg.blc_stob_create_cfg = rctx->rc_be_log_path;
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
+	if (!m0_is_po2(rctx->rc_be_log_size))
+		return M0_ERR(-EINVAL);
+	if (rctx->rc_be_log_size > 0) {
+		be->but_dom_cfg.bc_log_cfg.blc_size = rctx->rc_be_log_size;
+		be->but_dom_cfg.bc_engine.bec_log_size = rctx->rc_be_log_size;
+	}
 	rc = m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, mkfs);
 	if (rc != 0)
 		goto err;
@@ -1780,6 +1786,11 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				LAMBDA(void, (int64_t size)
 				{
 					rctx->rc_be_seg_size = size;
+				})),
+			M0_NUMBERARG('V', "BE log size",
+				LAMBDA(void, (int64_t size)
+				{
+					rctx->rc_be_log_size = size;
 				})),
 			M0_STRINGARG('c', "Path to the configuration database",
 				LAMBDA(void, (const char *s)

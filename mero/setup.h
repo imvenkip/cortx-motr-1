@@ -297,6 +297,7 @@ struct m0_reqh_context {
 	const char		    *rc_be_seg_path;
 	/** BE primary segment size for m0mkfs. */
 	m0_bcount_t		     rc_be_seg_size;
+	m0_bcount_t		     rc_be_log_size;
 
 	/**
 	 * Default path to the configuration database.
