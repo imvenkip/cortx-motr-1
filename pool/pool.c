@@ -722,12 +722,25 @@ static int devs_conf_load(struct m0_conf_filesystem *fs)
 					     M0_CONF_NODE_PROCESSES_FID,
 					     M0_CONF_PROCESS_SERVICES_FID,
 					     M0_CONF_SERVICE_SDEVS_FID};
-	int                 rc;
 
-	rc = _conf_load(fs, fs_to_sdevs, ARRAY_SIZE(fs_to_disks)) ?:
-	     _conf_load(fs, fs_to_disks, ARRAY_SIZE(fs_to_sdevs));
+	return M0_RC(_conf_load(fs, fs_to_sdevs, ARRAY_SIZE(fs_to_disks)) ?:
+		     _conf_load(fs, fs_to_disks, ARRAY_SIZE(fs_to_sdevs)));
+}
 
-	return M0_RC(rc);
+static int pc_service_find(struct m0_reqh_service_ctx **dest,
+			   const struct m0_tl          *svc_ctxs,
+			   enum m0_conf_service_type    type)
+{
+	M0_PRE(M0_IN(type, (M0_CST_RMS, M0_CST_SS)));
+
+	*dest = m0_tl_find(pools_common_svc_ctx, ctx, svc_ctxs,
+			   ctx->sc_type == type);
+	if (*dest != NULL)
+		return M0_RC(0);
+	M0_LOG(M0_ERROR, "The mandatory %s service is missing."
+	       " Make sure it is specified in the conf db.",
+		type == M0_CST_SS ? "SS" : "RM");
+	return M0_RC(-EPROTO);
 }
 
 M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
@@ -739,7 +752,6 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 	M0_ENTRY();
 	M0_PRE(pc != NULL && fs != NULL);
 
-	M0_SET0(pc);
 	*pc = (struct m0_pools_common){
 				.pc_rmach = rmach,
 				.pc_md_redundancy = fs->cf_redundancy,
@@ -749,29 +761,27 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 	rc = devs_conf_load(fs) ?:
 	     service_ctxs_create(pc, fs, pc->pc_rmach != NULL);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	M0_ALLOC_ARR(pc->pc_mds_map,
 		     pools_common_svc_ctx_tlist_length(&pc->pc_svc_ctxs));
 	rc = pc->pc_mds_map == NULL ? -ENOMEM : m0_pool_mds_map_init(fs, pc);
-	if (rc != 0) {
-		m0_free(pc->pc_mds_map);
-		service_ctxs_destroy(pc);
-		return M0_RC(rc);
-	}
+	if (rc != 0)
+		goto err;
 
-	pc->pc_rm_ctx = m0_tl_find(pools_common_svc_ctx, ctx, &pc->pc_svc_ctxs,
-				   ctx->sc_type == M0_CST_RMS);
-	M0_ASSERT(pc->pc_rm_ctx != NULL);
-	pc->pc_ss_ctx = m0_tl_find(pools_common_svc_ctx, ctx, &pc->pc_svc_ctxs,
-				   ctx->sc_type == M0_CST_SS);
-	M0_ASSERT(pc->pc_ss_ctx != NULL);
+	rc = pc_service_find(&pc->pc_rm_ctx, &pc->pc_svc_ctxs, M0_CST_RMS) ?:
+	     pc_service_find(&pc->pc_ss_ctx, &pc->pc_svc_ctxs, M0_CST_SS);
+	if (rc != 0)
+		goto err;
 
 	pools_tlist_init(&pc->pc_pools);
 
 	M0_POST(pools_common_invariant(pc));
-
 	return M0_RC(rc);
+err:
+	m0_free(pc->pc_mds_map);
+	service_ctxs_destroy(pc);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
