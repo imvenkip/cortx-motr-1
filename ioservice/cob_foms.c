@@ -328,11 +328,15 @@ static int cob_tick_prepare(struct m0_fom *fom)
 	struct m0_fom_cob_op        *cob_op;
 	struct m0_poolmach          *poolmach;
 	struct m0_poolmach_versions *cliv;
+	int                          rc;
 
 	M0_PRE(fom != NULL);
 
 	fop = fom->fo_fop;
 	common = m0_cobfop_common_get(fop);
+	rc = cob_fom_pool_version_get(fom);
+	if (rc != 0)
+		return M0_ERR(rc);
 	cob_op = cob_fom_get(fom);
 	poolmach = &cob_op->fco_pver->pv_mach;
 	cliv = (struct m0_poolmach_versions*)&common->c_version;
@@ -353,17 +357,18 @@ static void cob_tick_tail(struct m0_fom *fom,
 	fop = fom->fo_fop;
 	common = m0_cobfop_common_get(fop);
 	cob_op = cob_fom_get(fom);
-	poolmach = &cob_op->fco_pver->pv_mach;
 
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
 	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
 		/* Piggyback some information about the transaction */
 		m0_fom_mod_rep_fill(&r_common->cor_mod_rep, fom);
-		if (poolmach != NULL)
+		if (cob_op->fco_pver != NULL) {
+			poolmach = &cob_op->fco_pver->pv_mach;
 			m0_ios_poolmach_version_updates_pack(poolmach,
 						&common->c_version,
 						&r_common->cor_fv_version,
 						&r_common->cor_fv_updates);
+		}
 	}
 }
 
@@ -386,13 +391,6 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 	r_common = &reply->cgr_common;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
-		if (m0_fom_phase(fom) == M0_FOPH_INIT) {
-			rc = cob_fom_pool_version_get(fom);
-			if (rc != 0) {
-				m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-				goto tail;
-			}
-		}
 		rc = m0_fom_tick_generic(fom);
 		return M0_RC(rc);
 	}
@@ -420,7 +418,7 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 		rc = -EINVAL;
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	}
-tail:
+
 	if (rc != 0)
 		reply->cgr_rc = rc;
 	cob_tick_tail(fom, r_common);
@@ -452,13 +450,6 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		switch(m0_fom_phase(fom)) {
-		case M0_FOPH_INIT:
-			rc = cob_fom_pool_version_get(fom);
-			if (rc != 0) {
-				m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-				goto tail;
-			}
-			break;
 		case M0_FOPH_TXN_OPEN:
 			tx_cred = m0_fom_tx_credit(fom);
 			cob_op_credit(fom, M0_COB_OP_UPDATE, tx_cred);
@@ -489,7 +480,7 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 		rc = -EINVAL;
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	}
-tail:
+
 	if (rc != 0)
 		reply->csr_rc = rc;
 	cob_tick_tail(fom, r_common);
@@ -524,15 +515,15 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 		cob_op = cob_fom_get(fom);
 		switch(m0_fom_phase(fom)) {
 		case M0_FOPH_INIT:
-			rc = cob_fom_pool_version_get(fom);
+			if (fop_is_create)
+				break;
 			/*
 			 * Find the stob and handle non-existing stob error
 			 * earlier, before initialising the transaction.
 			 * This avoids complications in handling transaction
 			 * cleanup.
 			 */
-			if (rc == 0 && !fop_is_create)
-				rc = cob_ops_stob_find(cob_op);
+			rc = cob_ops_stob_find(cob_op);
 			if (rc != 0) {
 				cob_op->fco_is_done = true;
 				m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);

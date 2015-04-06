@@ -88,6 +88,7 @@ struct m0_fop_cob {
 	uint64_t      b_lid;
 	struct m0_fid b_pfid;
 	struct m0_fid b_tfid;
+	struct m0_fid b_pver;
 } M0_XCA_RECORD;
 
 struct m0_fop_buf {

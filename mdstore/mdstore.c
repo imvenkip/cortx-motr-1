@@ -266,6 +266,8 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 		m0_free(nskey);
 		goto out;
 	}
+	fabrec->cfb_pver = attr->ca_pver;
+
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
 	if (rc != 0) {
 		m0_cob_put(cob);
@@ -770,8 +772,10 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 	}
 
 	/*
-	 * @todo: Copy fab fields.
+	 * @todo: Copy rest of the fab fields.
 	 */
+	attr->ca_pver = cob->co_fabrec->cfb_pver;
+
 	MDSTORE_FUNC_FAIL(GETATTR, rc);
 	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);

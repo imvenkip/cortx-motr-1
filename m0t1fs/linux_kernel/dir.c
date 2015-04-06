@@ -154,6 +154,7 @@ static void body_mem2wire(struct m0_fop_cob *body,
 {
 	body->b_pfid = attr->ca_pfid;
 	body->b_tfid = attr->ca_tfid;
+	body->b_pver = attr->ca_pver;
 	if (valid & M0_COB_ATIME)
 		body->b_atime = attr->ca_atime;
 	if (valid & M0_COB_CTIME)
@@ -512,6 +513,7 @@ static int m0t1fs_create(struct inode     *dir,
 	mo.mo_attr.ca_blocks    = inode->i_blocks;
 	mo.mo_attr.ca_pfid      = *m0t1fs_inode_fid(M0T1FS_I(dir));
 	mo.mo_attr.ca_tfid      = *m0t1fs_inode_fid(ci);
+	mo.mo_attr.ca_pver      = csb->csb_pool_version->pv_id;
 	mo.mo_attr.ca_lid       = ci->ci_layout_id;
 	mo.mo_attr.ca_nlink     = inode->i_nlink;
 	mo.mo_attr.ca_valid     = (M0_COB_UID    | M0_COB_GID   | M0_COB_ATIME |
@@ -1251,8 +1253,8 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	struct inode                    *inode;
 	struct m0t1fs_inode             *ci;
 	struct m0t1fs_mdop               mo;
-	int                              rc;
 	struct m0_fop                   *rep_fop;
+	int                              rc;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
@@ -1472,6 +1474,7 @@ static int m0t1fs_mds_cob_fop_populate(struct m0t1fs_sb         *csb,
 
 		req->b_pfid = mo->mo_attr.ca_pfid;
 		req->b_tfid = mo->mo_attr.ca_tfid;
+		req->b_pver = mo->mo_attr.ca_pver;
 		body_mem2wire(req, &mo->mo_attr, mo->mo_attr.ca_valid);
 		rc = name_mem2wire(&create->c_name, &mo->mo_attr.ca_name);
 		break;

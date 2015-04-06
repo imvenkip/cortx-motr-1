@@ -321,6 +321,7 @@ enum m0_cob_valid_flags {
 struct m0_cob_attr {
 	struct m0_fid ca_pfid;    /**< parent fid */
 	struct m0_fid ca_tfid;    /**< object fid */
+	struct m0_fid ca_pver;    /**< cob pool version */
 	uint32_t      ca_valid;   /**< valid bits (enum m0_cob_valid_flags) */
 	uint32_t      ca_mode;    /**< protection. */
 	uint32_t      ca_uid;     /**< user ID of owner. */
@@ -409,6 +410,7 @@ struct m0_cob_fabkey {
 };
 
 struct m0_cob_fabrec {
+	struct m0_fid     cfb_pver;     /**< pool version fid */
 	uint64_t          cfb_version;  /**< version from last fop */
 	uint64_t          cfb_layoutid; /**< reference to layout */
 	uint16_t          cfb_linklen;  /**< symlink len if any */

@@ -54,6 +54,7 @@ M0_INTERNAL void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
 	M0_SET0(attr);
 	attr->ca_pfid = body->b_pfid;
 	attr->ca_tfid = body->b_tfid;
+	attr->ca_pver = body->b_pver;
 	attr->ca_valid = body->b_valid;
 	if (body->b_valid & M0_COB_MODE)
 		attr->ca_mode = body->b_mode;
@@ -88,6 +89,7 @@ M0_INTERNAL void m0_md_cob_mem2wire(struct m0_fop_cob *body,
 	body->b_pfid = attr->ca_pfid;
 	body->b_tfid = attr->ca_tfid;
 	body->b_valid = attr->ca_valid;
+	body->b_pver = attr->ca_pver;
 	if (body->b_valid & M0_COB_MODE)
 		body->b_mode = attr->ca_mode;
 	if (body->b_valid & M0_COB_UID)
