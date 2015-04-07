@@ -75,6 +75,8 @@
    @{
  */
 
+#include "rpc/rpc_opcodes.h" /* M0_ADDB_PFOM_OPCODE */
+
 static const struct m0_bob_type addb_pfom_bob = {
 	.bt_name = "addb pfom",
 	.bt_magix_offset = M0_MAGIX_OFFSET(struct addb_post_fom, pf_magic),
@@ -339,7 +341,8 @@ static void addb_pfom_start(struct addb_svc *svc)
  */
 M0_INTERNAL int addb_pfom_mod_init(void)
 {
-	m0_fom_type_init(&addb_pfom_type, &addb_pfom_type_ops,
+	m0_fom_type_init(&addb_pfom_type, M0_ADDB_PFOM_OPCODE,
+			 &addb_pfom_type_ops,
 			 &m0_addb_svc_type, &addb_pfom_sm_conf);
 	return 0;
 }

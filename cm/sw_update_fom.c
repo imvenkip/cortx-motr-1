@@ -27,6 +27,7 @@
 
 #include "reqh/reqh.h"
 #include "sm/sm.h"
+#include "rpc/rpc_opcodes.h" /* M0_CM_SW_UPDATE_OPCODE */
 
 #include "cm/sw.h"
 #include "cm/cm.h"
@@ -371,7 +372,8 @@ static const struct m0_fom_ops cm_sw_update_fom_ops = {
 
 M0_INTERNAL void m0_cm_sw_update_init(struct m0_cm_type *cmtype)
 {
-	m0_fom_type_init(&cmtype->ct_swu_fomt, &cm_sw_update_fom_type_ops,
+	m0_fom_type_init(&cmtype->ct_swu_fomt, cmtype->ct_fom_id + 1,
+			 &cm_sw_update_fom_type_ops,
 			 &cmtype->ct_stype, &cm_sw_update_conf);
 }
 

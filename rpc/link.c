@@ -31,6 +31,7 @@
 #include "sm/sm.h"
 #include "rpc/rpc_machine.h"          /* m0_rpc_machine */
 #include "rpc/rpc_machine_internal.h" /* m0_rpc_machine_lock */
+#include "rpc/rpc_opcodes.h"          /* M0_RPC_LINK_CONN_OPCODE */
 #include "rpc/link.h"
 
 /**
@@ -495,9 +496,11 @@ extern struct m0_reqh_service_type m0_rpc_service_type;
 
 M0_INTERNAL int m0_rpc_link_module_init(void)
 {
-	m0_fom_type_init(&rpc_link_conn_fom_type, &rpc_link_conn_fom_type_ops,
+	m0_fom_type_init(&rpc_link_conn_fom_type, M0_RPC_LINK_CONN_OPCODE,
+			 &rpc_link_conn_fom_type_ops,
 			 &m0_rpc_service_type, &rpc_link_conn_sm_conf);
-	m0_fom_type_init(&rpc_link_disc_fom_type, &rpc_link_disc_fom_type_ops,
+	m0_fom_type_init(&rpc_link_disc_fom_type, M0_RPC_LINK_DISC_OPCODE,
+			 &rpc_link_disc_fom_type_ops,
 			 &m0_rpc_service_type, &rpc_link_disc_sm_conf);
 	return 0;
 }

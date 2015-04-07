@@ -668,8 +668,9 @@ M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom);
 
 /** Type of fom. m0_fom_type is part of m0_fop_type. */
 struct m0_fom_type {
-	const struct m0_fom_type_ops	  *ft_ops;
-	const struct m0_sm_conf		  *ft_conf;
+	uint64_t                           ft_id;
+	const struct m0_fom_type_ops      *ft_ops;
+	const struct m0_sm_conf           *ft_conf;
 	const struct m0_reqh_service_type *ft_rstype;
 };
 
@@ -910,7 +911,7 @@ M0_INTERNAL int m0_fom_rc(const struct m0_fom *fom);
 
 M0_INTERNAL bool m0_fom_is_waiting(const struct m0_fom *fom);
 
-M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type,
+M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type, uint64_t id,
 				  const struct m0_fom_type_ops *ops,
 				  const struct m0_reqh_service_type *svc_type,
 				  struct m0_sm_conf *sm);

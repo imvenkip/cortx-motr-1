@@ -53,8 +53,8 @@ static const struct m0_reqh_service_type_ops repair_svc_type_ops = {
 	.rsto_service_allocate = repair_svc_allocate,
 };
 
-M0_CM_TYPE_DECLARE(sns_repair, &repair_svc_type_ops, "sns_repair",
-		   &m0_addb_ct_sns_cm);
+M0_CM_TYPE_DECLARE(sns_repair, M0_CM_REPAIR_OPCODE,
+		   &repair_svc_type_ops, "sns_repair", &m0_addb_ct_sns_cm);
 
 /** Copy machine service operations.*/
 static int repair_svc_start(struct m0_reqh_service *service);

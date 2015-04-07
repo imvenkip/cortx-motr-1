@@ -25,10 +25,11 @@
 
 #include "be/tx_group_fom.h"
 
-#include "lib/misc.h"       /* M0_BITS */
-#include "lib/memory.h"     /* m0_free */
-#include "lib/errno.h"      /* ENOMEM */
-#include "reqh/reqh.h"      /* m0_reqh_state_get */
+#include "lib/misc.h"        /* M0_BITS */
+#include "lib/memory.h"      /* m0_free */
+#include "lib/errno.h"       /* ENOMEM */
+#include "reqh/reqh.h"       /* m0_reqh_state_get */
+#include "rpc/rpc_opcodes.h" /* M0_BE_TX_GROUP_OPCODE */
 
 #include "be/tx_group.h"
 #include "be/tx_service.h"
@@ -446,7 +447,8 @@ static void be_op_reset(struct m0_be_op *op)
 
 M0_INTERNAL void m0_be_tx_group_fom_mod_init(void)
 {
-	m0_fom_type_init(&tx_group_fom_type, &tx_group_fom_type_ops,
+	m0_fom_type_init(&tx_group_fom_type, M0_BE_TX_GROUP_OPCODE,
+			 &tx_group_fom_type_ops,
 			 &m0_be_txs_stype, &tx_group_fom_conf);
 }
 

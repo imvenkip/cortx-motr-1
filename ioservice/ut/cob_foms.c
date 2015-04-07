@@ -166,7 +166,8 @@ static void cobfoms_utinit(void)
 	cctx->rcx_max_rpcs_in_flight = CLIENT_MAX_RPCS_IN_FLIGHT;
 	cctx->rcx_recv_queue_min_length = COB_FOP_NR;
 
-	m0_fom_type_init(&ft, NULL, &m0_ios_type, &cob_ops_conf);
+	m0_fom_type_init(&ft, M0_UT_IOS_OPCODE,
+			 NULL, &m0_ios_type, &cob_ops_conf);
 
 	rc = m0_rpc_client_start(cctx);
 	M0_UT_ASSERT(rc == 0);

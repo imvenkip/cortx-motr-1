@@ -22,6 +22,7 @@
 #include "ut/ut.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
+#include "rpc/rpc_opcodes.h"   /* M0_UT_STATS_OPCODE */
 
 #include "fop/ut/stats/stats_fom.c"
 #include "ut/ut_rpc_machine.h"
@@ -87,7 +88,7 @@ M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 M0_REQH_SERVICE_TYPE_DEFINE(ut_stats_service_type,
 			    &ut_stats_service_type_ops,
 			    "ut-stats-service",
-                            &m0_addb_ct_ut_service, 2);
+			    &m0_addb_ct_ut_service, 2);
 
 static int test_stats_init(void)
 {
@@ -97,8 +98,8 @@ static int test_stats_init(void)
 	m0_addb_rec_type_register(&addb_rt_fom_phase_stats);
 	rc = m0_reqh_service_type_register(&ut_stats_service_type);
 	M0_ASSERT(rc == 0);
-	m0_fom_type_init(&stats_fom_type, &fom_stats_type_ops,
-			 &ut_stats_service_type,
+	m0_fom_type_init(&stats_fom_type, M0_UT_STATS_OPCODE,
+			 &fom_stats_type_ops, &ut_stats_service_type,
 			 &fom_phases_conf);
 
 	M0_SET0(&rmach_ctx);

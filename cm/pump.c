@@ -26,6 +26,7 @@
 #include "lib/errno.h" /* ENOBUFS, ENODATA */
 
 #include "sm/sm.h"
+#include "rpc/rpc_opcodes.h" /* M0_CM_PUMP_OPCODE */
 
 #include "cm/pump.h"
 #include "cm/cm.h"
@@ -341,7 +342,8 @@ bool m0_cm_cp_pump_is_complete(const struct m0_cm_cp_pump *cp_pump)
 
 M0_INTERNAL void m0_cm_cp_pump_init(struct m0_cm_type *cmtype)
 {
-	m0_fom_type_init(&cmtype->ct_pump_fomt, &cm_cp_pump_fom_type_ops,
+	m0_fom_type_init(&cmtype->ct_pump_fomt, cmtype->ct_fom_id + 2,
+			 &cm_cp_pump_fom_type_ops,
 			 &cmtype->ct_stype, &cm_cp_pump_conf);
 }
 
@@ -354,8 +356,8 @@ M0_INTERNAL void m0_cm_cp_pump_prepare(struct m0_cm *cm)
 
 	cp_pump = &cm->cm_cp_pump;
 	m0_cm_cp_pump_bob_init(cp_pump);
-        m0_mutex_init(&cp_pump->p_signal_mutex);
-        m0_chan_init(&cp_pump->p_signal, &cp_pump->p_signal_mutex);
+	m0_mutex_init(&cp_pump->p_signal_mutex);
+	m0_chan_init(&cp_pump->p_signal, &cp_pump->p_signal_mutex);
 	m0_fom_init(&cp_pump->p_fom, &cm->cm_type->ct_pump_fomt,
 		    &cm_cp_pump_fom_ops, NULL, NULL, cm->cm_service.rs_reqh);
 }

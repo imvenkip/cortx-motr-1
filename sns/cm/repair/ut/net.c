@@ -630,7 +630,8 @@ static const struct m0_reqh_service_type_ops sender_cm_service_type_ops = {
 	.rsto_service_allocate = sender_cm_service_allocate
 };
 
-M0_CM_TYPE_DECLARE(sender_cm, &sender_cm_service_type_ops, "sender_cm",
+M0_CM_TYPE_DECLARE(sender_cm, M0_CM_UT_SENDER_OPCODE,
+		   &sender_cm_service_type_ops, "sender_cm",
 		   &m0_addb_ct_ut_service);
 
 void sender_service_alloc_init()

@@ -29,6 +29,7 @@
 #include "mero/magic.h"
 #include "reqh/reqh.h"
 #include "net/buffer_pool.h"
+#include "rpc/rpc_opcodes.h" /* M0_CM_CP_OPCODE */
 
 #include "cm/cp.h"
 #include "cm/ag.h"
@@ -590,7 +591,7 @@ static struct m0_sm_conf m0_cm_cp_sm_conf = {
 
 M0_INTERNAL void m0_cm_cp_init(struct m0_cm_type *cmtype)
 {
-	m0_fom_type_init(&cmtype->ct_fomt, &cp_fom_type_ops,
+	m0_fom_type_init(&cmtype->ct_fomt, cmtype->ct_fom_id, &cp_fom_type_ops,
 			 &cmtype->ct_stype, &m0_cm_cp_sm_conf);
 }
 

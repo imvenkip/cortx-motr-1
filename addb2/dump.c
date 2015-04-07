@@ -40,6 +40,7 @@
 #include "stob/stob.h"
 #include "mero/init.h"
 #include "module/instance.h"
+#include "rpc/rpc_opcodes.h"           /* M0_OPCODES_NR */
 
 #include "addb2/identifier.h"
 #include "addb2/consumer.h"
@@ -169,6 +170,17 @@ static void _clock(const uint64_t *v, char *buf)
 		tm.tm_min, tm.tm_sec, m0_time_nanoseconds(stamp));
 }
 
+static void fom_type(const uint64_t *v, char *buf)
+{
+	extern struct m0_fom_type *m0_fom__types[M0_OPCODES_NR];
+	const struct m0_fom_type *ftype = m0_fom__types[*v];
+
+	if (*v < ARRAY_SIZE(m0_fom__types))
+		sprintf(buf, "%s", ftype->ft_conf->scf_name);
+	else
+		sprintf(buf, "?%i", (int)*v);
+}
+
 static void fom_state(const uint64_t *v, char *buf)
 {
 	extern struct m0_sm_conf fom_states_conf;
@@ -204,6 +216,7 @@ static void rpcop(const uint64_t *v, char *buf)
 	} else
 		sprintf(buf, "?rpc: %"PRId64, *v);
 }
+
 static void counter(const uint64_t *v, char *buf)
 {
 	struct m0_addb2_counter_data *d = (void *)v;
@@ -232,9 +245,9 @@ struct id_intrp ids[] = {
 	{ M0_AVI_PHASE,           "fom-phase",       { &fom_phase, &_clock } },
 	{ M0_AVI_STATE,           "fom-state",       { &fom_state, &_clock } },
 	{ M0_AVI_ALLOC,           "alloc",           { &dec, &ptr } },
-	{ M0_AVI_FOM_DESCR,       "fom-descr",       { &_clock, FID, &hex,
-						       &rpcop, &rpcop,
-						       &bol }  },
+	{ M0_AVI_FOM_DESCR,       "fom-descr",       { &_clock, &fom_type,
+						       FID, &hex, &rpcop,
+						       &rpcop, &bol }  },
 	{ M0_AVI_FOM_ACTIVE,      "fom-active",      { COUNTER } },
 	{ M0_AVI_RUNQ,            "runq",            { COUNTER } },
 	{ M0_AVI_WAIL,            "wail",            { COUNTER } },

@@ -24,6 +24,7 @@
 #include "fop/fom_long_lock.h"
 #include "fop/fom_generic.h"   /* m0_generic_conf, M0_FOPH_NR */
 #include "reqh/reqh.h"
+#include "rpc/rpc_opcodes.h"   /* M0_UB_FOM_OPCODE */
 #include "lib/memory.h"        /* m0_free */
 #include "lib/ub.h"            /* M0_UB_ASSERT */
 
@@ -421,8 +422,8 @@ static int _init(const char *opts M0_UNUSED)
 	rc = m0_reqh_service_type_register(&ub_fom_stype);
 	M0_UB_ASSERT(rc == 0);
 
-	m0_fom_type_init(&ub_fom_type, &ub_fom_type_ops, &ub_fom_stype,
-			 &m0_generic_conf);
+	m0_fom_type_init(&ub_fom_type, M0_UB_FOM_OPCODE,
+			 &ub_fom_type_ops, &ub_fom_stype, &m0_generic_conf);
 
 	/* This benchmark doesn't need network, database and some other
 	 * subsystems for its operation.  Simplistic initialisation

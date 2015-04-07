@@ -53,7 +53,8 @@ static const struct m0_reqh_service_type_ops rebalance_svc_type_ops = {
 
 extern struct m0_addb_ctx_type m0_addb_ct_sns_cm;
 
-M0_CM_TYPE_DECLARE(sns_rebalance, &rebalance_svc_type_ops, "sns_rebalance",
+M0_CM_TYPE_DECLARE(sns_rebalance, M0_CM_REBALANCE_OPCODE,
+		   &rebalance_svc_type_ops, "sns_rebalance",
 		   &m0_addb_ct_sns_cm);
 
 /** Copy machine service operations.*/
