@@ -884,6 +884,8 @@ static int ioreq_iosm_handle	(struct io_request *req);
 
 static int  ioreq_file_lock     (struct io_request *req);
 static void ioreq_file_unlock   (struct io_request *req);
+static int  ioreq_no_lock       (struct io_request *req);
+static void ioreq_no_unlock     (struct io_request *req);
 
 static int ioreq_dgmode_read    (struct io_request *req, bool rmw);
 static int ioreq_dgmode_write   (struct io_request *req, bool rmw);
@@ -898,6 +900,20 @@ static const struct io_request_ops ioreq_ops = {
 	.iro_iosm_handle    = ioreq_iosm_handle,
 	.iro_file_lock      = ioreq_file_lock,
 	.iro_file_unlock    = ioreq_file_unlock,
+	.iro_dgmode_read    = ioreq_dgmode_read,
+	.iro_dgmode_write   = ioreq_dgmode_write,
+	.iro_dgmode_recover = ioreq_dgmode_recover,
+};
+
+static const struct io_request_ops ioreq_oostore_ops = {
+	.iro_iomaps_prepare = ioreq_iomaps_prepare,
+	.iro_iomaps_destroy = ioreq_iomaps_destroy,
+	.iro_user_data_copy = ioreq_user_data_copy,
+	.iro_parity_recalc  = ioreq_parity_recalc,
+	.iro_parity_verify  = ioreq_parity_verify,
+	.iro_iosm_handle    = ioreq_iosm_handle,
+	.iro_file_lock      = ioreq_no_lock,
+	.iro_file_unlock    = ioreq_no_unlock,
 	.iro_dgmode_read    = ioreq_dgmode_read,
 	.iro_dgmode_write   = ioreq_dgmode_write,
 	.iro_dgmode_recover = ioreq_dgmode_recover,
@@ -3770,6 +3786,14 @@ static void ioreq_file_unlock(struct io_request *req)
 	m0_file_unlock(&req->ir_in);
 }
 
+static int ioreq_no_lock(struct io_request *req)
+{
+	return 0;
+}
+
+static void ioreq_no_unlock(struct io_request *req)
+{;}
+
 static int ioreq_iosm_handle(struct io_request *req)
 {
 	int		     rc;
@@ -4049,14 +4073,15 @@ static int io_request_init(struct io_request        *req,
 	M0_PRE(M0_IS0(req));
 
 	req->ir_rc	  = 0;
-	req->ir_ops	  = &ioreq_ops;
-	req->ir_file	  = file;
-	req->ir_type	  = rw;
+	req->ir_file      = file;
+	req->ir_type      = rw;
 	req->ir_iovec	  = iov;
 	req->ir_iomap_nr  = 0;
 	req->ir_copied_nr = 0;
 	req->ir_direct_io = !!(file->f_flags & O_DIRECT);
 	req->ir_sns_state = SRS_UNINITIALIZED;
+	req->ir_ops       = file_to_sb(file)->csb_oostore ?
+		&ioreq_oostore_ops : &ioreq_ops;
 
 	io_request_bob_init(req);
 	nw_xfer_request_init(&req->ir_nwxfer);
@@ -4901,7 +4926,7 @@ static ssize_t file_dio_write(struct kiocb	 *kcb,
 			      loff_t		  pos)
 {
 	struct file  *file  = kcb->ki_filp;
-	struct inode *inode = file->f_mapping->host;
+	struct inode *inode = m0t1fs_file_to_inode(file);
 	ssize_t       written;
 	int           rc;
 
@@ -5020,7 +5045,7 @@ static ssize_t aio_read(struct kiocb *kcb, const struct iovec *iov,
 	M0_PRE(seg_nr > 0);
 
 	filp = kcb->ki_filp;
-	size = i_size_read(filp->f_mapping->host);
+	size = i_size_read(m0t1fs_file_to_inode(filp));
 
 	/* Returns if super block is inactive. */
 	if (!file_to_sb(filp)->csb_active)
@@ -6037,9 +6062,9 @@ static ssize_t m0t1fs_direct_IO(int rw,
 				unsigned long seg_nr)
 {
 	struct m0_indexvec *ivec;
-	ssize_t		    retval;
-	loff_t		    size = i_size_read(kcb->ki_filp->f_mapping->host);
-	int		    seg;
+	ssize_t             retval;
+	loff_t              size;
+	int                 seg;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
@@ -6049,6 +6074,7 @@ static ssize_t m0t1fs_direct_IO(int rw,
 
 	M0_PRE(M0_IN(rw, (READ, WRITE)));
 
+	size = i_size_read(m0t1fs_file_to_inode(kcb->ki_filp));
 	ivec = indexvec_create(seg_nr, iov, pos,
 			       M0T1FS_ADDB_LOC_AIO_WRITE);
 	if (ivec == NULL)
