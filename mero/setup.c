@@ -117,13 +117,14 @@ M0_BOB_DEFINE(static, &astob_bob, cs_ad_stob);
 
 static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
 {
-	return ergo(m0_exists(i, rctx->rc_nr_services,
-			      m0_streq(rctx->rc_services[i], "confd")),
-		    rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0') &&
-		rctx->rc_stype != NULL && rctx->rc_stpath != NULL &&
-		rctx->rc_addb_stlocation != NULL && rctx->rc_bepath != NULL &&
-		ergo(rctx->rc_nr_services != 0, rctx->rc_services != NULL &&
-		     !cs_eps_tlist_is_empty(&rctx->rc_eps));
+	return _0C(ergo(m0_exists(i, rctx->rc_nr_services,
+				  m0_streq(rctx->rc_services[i], "confd")),
+			rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0')) &&
+		_0C(rctx->rc_stype != NULL) && _0C(rctx->rc_stpath != NULL) &&
+		_0C(rctx->rc_addb_stlocation != NULL) &&
+		_0C(rctx->rc_bepath != NULL) &&
+		_0C(ergo(rctx->rc_nr_services != 0, rctx->rc_services != NULL &&
+			 !cs_eps_tlist_is_empty(&rctx->rc_eps)));
 }
 
 static bool reqh_context_check(const void *bob)
@@ -1557,7 +1558,9 @@ static int reqh_ctx_validate(struct m0_mero *cctx)
 	M0_ENTRY();
 
 	if (!reqh_ctx_args_are_valid(rctx))
-		return M0_ERR_INFO(-EINVAL, "Parameters are missing or invalid");
+		return M0_ERR_INFO(-EINVAL,
+				   "Parameters are missing or invalid\n"
+				   "Failed condition: %s", m0_failed_condition);
 
 	cctx->cc_recv_queue_min_length = max64(cctx->cc_recv_queue_min_length,
 					       M0_NET_TM_RECV_QUEUE_DEF_LEN);
