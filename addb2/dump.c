@@ -159,8 +159,14 @@ static void skip(const uint64_t *v, char *buf)
 
 static void _clock(const uint64_t *v, char *buf)
 {
-	double t = ((double)*v) / M0_TIME_ONE_SECOND;
-	sprintf(buf, "time: %.9f", t);
+	m0_time_t stamp = *v;
+	time_t    ts    = m0_time_seconds(stamp);
+	struct tm tm;
+
+	localtime_r(&ts, &tm);
+	sprintf(buf, "%04d-%02d-%02d %02d:%02d:%02d.%09lu",
+		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
+		tm.tm_min, tm.tm_sec, m0_time_nanoseconds(stamp));
 }
 
 static void fom_state(const uint64_t *v, char *buf)
@@ -172,6 +178,20 @@ static void fom_state(const uint64_t *v, char *buf)
 		fom_states_conf.scf_state[d->td_src].sd_name,
 		d->td_cause,
 		fom_states_conf.scf_state[d->td_tgt].sd_name);
+}
+
+static void fom_phase(const uint64_t *v, char *buf)
+{
+	extern struct m0_sm_conf m0_generic_conf;
+	struct m0_sm_trans_descr *d = &m0_generic_conf.scf_trans[*v];
+
+	if (*v < m0_generic_conf.scf_trans_nr) {
+		sprintf(buf, "%s -[%s]-> %s",
+			m0_generic_conf.scf_state[d->td_src].sd_name,
+			d->td_cause,
+			m0_generic_conf.scf_state[d->td_tgt].sd_name);
+	} else
+		sprintf(buf, "phase transition %i", (int)*v);
 }
 
 static void rpcop(const uint64_t *v, char *buf)
@@ -209,7 +229,7 @@ struct id_intrp ids[] = {
 	{ M0_AVI_SERVICE,         "service",         { FID } },
 	{ M0_AVI_FOM,             "fom",             { &ptr, &dec, &dec } },
 	{ M0_AVI_CLOCK,           "clock",           { &_clock } },
-	{ M0_AVI_PHASE,           "fom-phase",       { &hex, &_clock } },
+	{ M0_AVI_PHASE,           "fom-phase",       { &fom_phase, &_clock } },
 	{ M0_AVI_STATE,           "fom-state",       { &fom_state, &_clock } },
 	{ M0_AVI_ALLOC,           "alloc",           { &dec, &ptr } },
 	{ M0_AVI_FOM_DESCR,       "fom-descr",       { &_clock, FID, &hex,
