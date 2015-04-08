@@ -354,8 +354,8 @@ static void readyit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 static void fom_addb2_push(struct m0_fom *fom)
 {
-	M0_ADDB2_PUSH(M0_AVI_FOM, (uint64_t)fom, fom->fo_transitions,
-		      fom->fo_sm_phase.sm_state);
+	M0_ADDB2_PUSH(M0_AVI_FOM, (uint64_t)fom, fom->fo_type->ft_id,
+		      fom->fo_transitions, fom->fo_sm_phase.sm_state);
 }
 
 static void addb2_introduce(struct m0_fom *fom)
@@ -366,7 +366,7 @@ static void addb2_introduce(struct m0_fom *fom)
 
 	fom_addb2_push(fom);
 	M0_ADDB2_ADD(M0_AVI_FOM_DESCR,
-		     m0_time_now(), fom->fo_type->ft_id,
+		     m0_time_now(),
 		     U128_P(&fom->fo_service->rs_service_uuid),
 		     /*
 		      * Session can be NULL for connection and session
@@ -1434,13 +1434,15 @@ M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type, uint64_t id,
 {
 	M0_PRE(IS_IN_ARRAY(id, m0_fom__types));
 	M0_PRE(id > 0);
-	M0_PRE(m0_fom__types[id] == NULL);
+	M0_PRE(M0_IN(m0_fom__types[id], (NULL, type)));
 
-	type->ft_id     = id;
-	type->ft_ops    = ops;
-	type->ft_conf   = sm;
-	type->ft_rstype = svc_type;
-	m0_fom__types[id] = type;
+	if (m0_fom__types[id] == NULL) {
+		type->ft_id     = id;
+		type->ft_ops    = ops;
+		type->ft_conf   = sm;
+		type->ft_rstype = svc_type;
+		m0_fom__types[id] = type;
+	}
 }
 
 static struct m0_sm_state_descr fom_states[] = {
