@@ -314,7 +314,7 @@ static struct m0_sm_state_descr fom_phases[] = {
 };
 
 struct m0_sm_conf test_conf = {
-	.scf_name      = "dtm up fom phases",
+	.scf_name      = "dtm up fom",
 	.scf_nr_states = ARRAY_SIZE(fom_phases),
 	.scf_state     = fom_phases
 };

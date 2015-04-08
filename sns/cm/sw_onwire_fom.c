@@ -56,7 +56,7 @@ static struct m0_sm_state_descr sw_onwire_fom_phases[] = {
 };
 
 struct m0_sm_conf m0_sns_cm_sw_onwire_conf = {
-	.scf_name      = "SNS sw update phases",
+	.scf_name      = "SNS sw update",
 	.scf_nr_states = ARRAY_SIZE(sw_onwire_fom_phases),
 	.scf_state     = sw_onwire_fom_phases
 };

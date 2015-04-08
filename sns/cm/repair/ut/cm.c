@@ -91,7 +91,7 @@ static struct m0_sm_state_descr iter_ut_fom_phases[] = {
 };
 
 static struct m0_sm_conf iter_ut_conf = {
-	.scf_name      = "iter ut fom phases",
+	.scf_name      = "iter ut fom",
 	.scf_nr_states = ARRAY_SIZE(iter_ut_fom_phases),
 	.scf_state     = iter_ut_fom_phases,
 };

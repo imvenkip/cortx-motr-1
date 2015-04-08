@@ -187,7 +187,7 @@ static struct m0_sm_state_descr fom_simple_phases[] = {
 };
 
 static struct m0_sm_conf fom_simple_conf = {
-	.scf_name      = "simple fom phases",
+	.scf_name      = "simple fom",
 	.scf_nr_states = ARRAY_SIZE(fom_simple_phases),
 	.scf_state     = fom_simple_phases
 };

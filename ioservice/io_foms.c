@@ -828,7 +828,7 @@ struct m0_sm_trans_descr io_phases_trans[] = {
 };
 
 struct m0_sm_conf io_conf = {
-	.scf_name      = "IO phases",
+	.scf_name      = "IO fom",
 	.scf_nr_states = ARRAY_SIZE(io_phases),
 	.scf_state     = io_phases,
 	.scf_trans_nr  = ARRAY_SIZE(io_phases_trans),

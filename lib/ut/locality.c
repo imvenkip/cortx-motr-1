@@ -150,7 +150,7 @@ static struct m0_sm_state_descr semisimple_phases[] = {
 };
 
 static struct m0_sm_conf semisimple_conf = {
-	.scf_name      = "semisimple fom phases",
+	.scf_name      = "semisimple fom",
 	.scf_nr_states = ARRAY_SIZE(semisimple_phases),
 	.scf_state     = semisimple_phases
 };

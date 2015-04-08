@@ -85,7 +85,7 @@ static struct m0_sm_state_descr flock_ut_fom_phases[] = {
 };
 
 static struct m0_sm_conf flock_ut_conf = {
-	.scf_name      = "flock ut fom phases",
+	.scf_name      = "flock ut fom",
 	.scf_nr_states = ARRAY_SIZE(flock_ut_fom_phases),
 	.scf_state     = flock_ut_fom_phases,
 };

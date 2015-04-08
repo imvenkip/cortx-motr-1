@@ -105,7 +105,7 @@ static struct m0_sm_trans_descr fsync_fom_phases_trans[] = {
  *	its state changes to M0_BTS_LOGGED.
  */
 struct m0_sm_conf m0_fsync_fom_conf = {
-	.scf_name      = "fsync phases",
+	.scf_name      = "fsync",
 	.scf_nr_states = ARRAY_SIZE(m0_fsync_fom_phases),
 	.scf_state     = m0_fsync_fom_phases,
 	.scf_trans_nr  = ARRAY_SIZE(fsync_fom_phases_trans),
