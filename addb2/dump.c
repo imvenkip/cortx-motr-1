@@ -30,8 +30,10 @@
 #include <stdio.h>
 #include <sysexits.h>
 
+#include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
+#include "lib/tlist.h"
 #include "lib/varr.h"
 
 #include "rpc/item.h"                 /* m0_rpc_item_type_lookup */
@@ -52,11 +54,27 @@
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
 
 enum { BUF_SIZE = 256 };
+struct context;
 
 struct id_intrp {
 	uint64_t             ii_id;
 	const char          *ii_name;
-	void               (*ii_print[15])(const uint64_t *v, char *buf);
+	void               (*ii_print[15])(struct context *ctx,
+					   const uint64_t *v, char *buf);
+};
+
+struct fom {
+	struct m0_tlink           fo_linkage;
+	uint64_t                  fo_addr;
+	const struct m0_fom_type *fo_type;
+	m0_time_t                 fo_state_clock;
+	m0_time_t                 fo_phase_clock;
+	uint64_t                  fo_magix;
+};
+
+struct context {
+	struct fom c_fom;
+	m0_time_t  c_clock;
 };
 
 static struct m0_varr value_id;
@@ -67,9 +85,10 @@ static void             id_set   (struct id_intrp *intrp);
 static void             id_set_nr(struct id_intrp *intrp, int nr);
 static struct id_intrp *id_get   (uint64_t id);
 
-static void rec_dump(const struct m0_addb2_record *rec);
-static void val_dump(const char *prefix,
+static void rec_dump(struct context *ctx, const struct m0_addb2_record *rec);
+static void val_dump(struct context *ctx, const char *prefix,
 		     const struct m0_addb2_value *val, int indent);
+static void context_fill(struct context *ctx, const struct m0_addb2_value *val);
 
 #define DOM "./_addb2-dump"
 
@@ -117,7 +136,7 @@ int main(int argc, char **argv)
 		err(EX_DATAERR, "Cannot initialise iterator: %d", result);
 	id_init();
 	while ((result = m0_addb2_sit_next(sit, &rec)) > 0)
-		rec_dump(rec);
+		rec_dump(&(struct context){}, rec);
 	id_fini();
 	if (result != 0)
 		err(EX_DATAERR, "Iterator error: %d", result);
@@ -128,39 +147,39 @@ int main(int argc, char **argv)
 	return EX_OK;
 }
 
-static void dec(const uint64_t *v, char *buf)
+static void dec(struct context *ctx, const uint64_t *v, char *buf)
 {
-	sprintf(buf, "%"PRId64, *v);
+	sprintf(buf, "%"PRId64, v[0]);
 }
 
-static void hex(const uint64_t *v, char *buf)
+static void hex(struct context *ctx, const uint64_t *v, char *buf)
 {
-	sprintf(buf, "%"PRIx64, *v);
+	sprintf(buf, "%"PRIx64, v[0]);
 }
 
-static void ptr(const uint64_t *v, char *buf)
+static void ptr(struct context *ctx, const uint64_t *v, char *buf)
 {
 	sprintf(buf, "@%p", *(void **)v);
 }
 
-static void bol(const uint64_t *v, char *buf)
+static void bol(struct context *ctx, const uint64_t *v, char *buf)
 {
-	sprintf(buf, "%s", *v ? "true" : "false");
+	sprintf(buf, "%s", v[0] ? "true" : "false");
 }
 
-static void fid(const uint64_t *v, char *buf)
+static void fid(struct context *ctx, const uint64_t *v, char *buf)
 {
 	sprintf(buf, FID_F, FID_P((struct m0_fid *)v));
 }
 
-static void skip(const uint64_t *v, char *buf)
+static void skip(struct context *ctx, const uint64_t *v, char *buf)
 {
 	buf[0] = 0;
 }
 
-static void _clock(const uint64_t *v, char *buf)
+static void _clock(struct context *ctx, const uint64_t *v, char *buf)
 {
-	m0_time_t stamp = *v;
+	m0_time_t stamp = v[0];
 	time_t    ts    = m0_time_seconds(stamp);
 	struct tm tm;
 
@@ -168,56 +187,74 @@ static void _clock(const uint64_t *v, char *buf)
 	sprintf(buf, "%04d-%02d-%02d %02d:%02d:%02d.%09lu",
 		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
 		tm.tm_min, tm.tm_sec, m0_time_nanoseconds(stamp));
+	ctx->c_clock = stamp;
 }
 
-static void fom_type(const uint64_t *v, char *buf)
+static void fom_type(struct context *ctx, const uint64_t *v, char *buf)
 {
-	extern struct m0_fom_type *m0_fom__types[M0_OPCODES_NR];
-	const struct m0_fom_type *ftype = m0_fom__types[*v];
+	const struct m0_fom_type *ftype = ctx->c_fom.fo_type;
 
-	if (*v < ARRAY_SIZE(m0_fom__types))
-		sprintf(buf, "%s", ftype->ft_conf->scf_name);
-	else
-		sprintf(buf, "?%i", (int)*v);
+	sprintf(buf, "'%s'", ftype->ft_conf->scf_name);
 }
 
-static void fom_state(const uint64_t *v, char *buf)
+static void fom_state(struct context *ctx, const uint64_t *v, char *buf)
 {
 	extern struct m0_sm_conf fom_states_conf;
-	struct m0_sm_trans_descr *d = &fom_states_conf.scf_trans[*v];
-
+	struct m0_sm_trans_descr *d = &fom_states_conf.scf_trans[v[0]];
+	/*
+	 * v[0] - transition id
+	 * v[1] - state id
+	 * v[2] - time stamp
+	 */
+	M0_ASSERT(d->td_tgt == v[1]);
 	sprintf(buf, "%s -[%s]-> %s",
 		fom_states_conf.scf_state[d->td_src].sd_name,
 		d->td_cause,
 		fom_states_conf.scf_state[d->td_tgt].sd_name);
+	ctx->c_fom.fo_state_clock = v[2];
 }
 
-static void fom_phase(const uint64_t *v, char *buf)
+static void fom_phase(struct context *ctx, const uint64_t *v, char *buf)
 {
-	extern struct m0_sm_conf m0_generic_conf;
-	struct m0_sm_trans_descr *d = &m0_generic_conf.scf_trans[*v];
-
-	if (*v < m0_generic_conf.scf_trans_nr) {
-		sprintf(buf, "%s -[%s]-> %s",
-			m0_generic_conf.scf_state[d->td_src].sd_name,
-			d->td_cause,
-			m0_generic_conf.scf_state[d->td_tgt].sd_name);
+	const struct m0_sm_conf        *conf;
+	const struct m0_sm_trans_descr *d;
+	const struct m0_sm_state_descr *s;
+	/*
+	 * v[0] - transition id
+	 * v[1] - state id
+	 * v[2] - time stamp
+	 */
+	if (ctx->c_fom.fo_type != NULL) {
+		conf = ctx->c_fom.fo_type->ft_conf;
+		if (conf->scf_trans == NULL) {
+			M0_ASSERT(v[0] == 0);
+			s = &conf->scf_state[v[1]];
+			sprintf(buf, " --> %s", s->sd_name);
+		} else if (v[0] < conf->scf_trans_nr) {
+			d = &conf->scf_trans[v[0]];
+			s = &conf->scf_state[d->td_tgt];
+			sprintf(buf, "%s -[%s]-> %s",
+				conf->scf_state[d->td_src].sd_name,
+				d->td_cause, s->sd_name);
+		} else
+			sprintf(buf, "phase transition %i", (int)v[0]);
+		ctx->c_fom.fo_phase_clock = v[2];
 	} else
-		sprintf(buf, "phase transition %i", (int)*v);
+		sprintf(buf, "phase ast transition %i", (int)v[0]);
 }
 
-static void rpcop(const uint64_t *v, char *buf)
+static void rpcop(struct context *ctx, const uint64_t *v, char *buf)
 {
-	struct m0_rpc_item_type *it = m0_rpc_item_type_lookup(*v);
+	struct m0_rpc_item_type *it = m0_rpc_item_type_lookup(v[0]);
 
 	if (it != NULL) {
 		struct m0_fop_type *ft = M0_AMB(ft, it, ft_rpc_item_type);
 		sprintf(buf, "%s", ft->ft_name);
 	} else
-		sprintf(buf, "?rpc: %"PRId64, *v);
+		sprintf(buf, "?rpc: %"PRId64, v[0]);
 }
 
-static void counter(const uint64_t *v, char *buf)
+static void counter(struct context *ctx, const uint64_t *v, char *buf)
 {
 	struct m0_addb2_counter_data *d = (void *)v;
 	double avg;
@@ -240,14 +277,17 @@ struct id_intrp ids[] = {
 	{ M0_AVI_LOCALITY,        "locality",        { &dec } },
 	{ M0_AVI_THREAD,          "thread",          { &hex, &hex } },
 	{ M0_AVI_SERVICE,         "service",         { FID } },
-	{ M0_AVI_FOM,             "fom",             { &ptr, &dec, &dec } },
+	{ M0_AVI_FOM,             "fom",             { &ptr, &fom_type,
+						       &dec, &dec } },
 	{ M0_AVI_CLOCK,           "clock",           { &_clock } },
-	{ M0_AVI_PHASE,           "fom-phase",       { &fom_phase, &_clock } },
-	{ M0_AVI_STATE,           "fom-state",       { &fom_state, &_clock } },
+	{ M0_AVI_PHASE,           "fom-phase",       { &fom_phase, &skip,
+						       &_clock } },
+	{ M0_AVI_STATE,           "fom-state",       { &fom_state, &skip,
+						       &_clock } },
 	{ M0_AVI_ALLOC,           "alloc",           { &dec, &ptr } },
-	{ M0_AVI_FOM_DESCR,       "fom-descr",       { &_clock, &fom_type,
-						       FID, &hex, &rpcop,
-						       &rpcop, &bol }  },
+	{ M0_AVI_FOM_DESCR,       "fom-descr",       { &_clock, FID,
+						       &hex, &rpcop,
+						       &rpcop, &bol } },
 	{ M0_AVI_FOM_ACTIVE,      "fom-active",      { COUNTER } },
 	{ M0_AVI_RUNQ,            "runq",            { COUNTER } },
 	{ M0_AVI_WAIL,            "wail",            { COUNTER } },
@@ -322,13 +362,16 @@ static struct id_intrp *id_get(uint64_t id)
 
 #define U64 "%16"PRIx64
 
-static void rec_dump(const struct m0_addb2_record *rec)
+static void rec_dump(struct context *ctx, const struct m0_addb2_record *rec)
 {
 	int i;
 
-	val_dump("* ", &rec->ar_val, 0);
+	context_fill(ctx, &rec->ar_val);
 	for (i = 0; i < rec->ar_label_nr; ++i)
-		val_dump("| ",&rec->ar_label[i], 8);
+		context_fill(ctx, &rec->ar_label[i]);
+	val_dump(ctx, "* ", &rec->ar_val, 0);
+	for (i = 0; i < rec->ar_label_nr; ++i)
+		val_dump(ctx, "| ", &rec->ar_label[i], 8);
 }
 
 static int pad(int indent)
@@ -337,7 +380,7 @@ static int pad(int indent)
 		   "                                                    ") : 0;
 }
 
-static void val_dump(const char *prefix,
+static void val_dump(struct context *ctx, const char *prefix,
 		     const struct m0_addb2_value *val, int indent)
 {
 	struct id_intrp  *intrp = id_get(val->va_id);
@@ -359,7 +402,7 @@ static void val_dump(const char *prefix,
 		else {
 			if (intrp->ii_print[i] == &skip)
 				continue;
-			intrp->ii_print[i](&val->va_data[i], buf);
+			intrp->ii_print[i](ctx, &val->va_data[i], buf);
 		}
 		if (i > 0)
 			indent += printf(", ");
@@ -367,6 +410,18 @@ static void val_dump(const char *prefix,
 		indent += printf("%s", buf);
 	}
 	printf("\n");
+}
+
+extern struct m0_fom_type *m0_fom__types[M0_OPCODES_NR];
+static void context_fill(struct context *ctx, const struct m0_addb2_value *val)
+{
+	switch (val->va_id) {
+	case M0_AVI_FOM:
+		ctx->c_fom.fo_addr = val->va_data[0];
+		M0_ASSERT(val->va_data[1] < ARRAY_SIZE(m0_fom__types));
+		ctx->c_fom.fo_type = m0_fom__types[val->va_data[1]];
+		break;
+	}
 }
 
 /** @} end of addb2 group */
