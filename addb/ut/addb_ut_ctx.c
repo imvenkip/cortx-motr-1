@@ -40,7 +40,7 @@ static void addb_ut_ctx_global_init_test(void)
 	M0_UT_ASSERT(m0_addb_node_ctx.ac_id     == m0_node_uuid.u_lo);
 	M0_UT_ASSERT(m0_addb_node_ctx.ac_parent == &addb_node_root_ctx);
 	M0_UT_ASSERT(m0_addb_node_ctx.ac_imp_id == NULL);
-	M0_UT_ASSERT(m0_addb_node_ctx.ac_cntr   == 1);
+	M0_UT_ASSERT(m0_addb_node_ctx.ac_cntr   >= 1);
 	M0_UT_ASSERT(m0_addb_node_ctx.ac_depth  ==
 		     addb_node_root_ctx.ac_depth + 1);
 
