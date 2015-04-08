@@ -150,6 +150,7 @@ M0_INTERNAL int m0t1fs_init(void)
 
 addb2_fini:
 	m0_addb2_sys_net_stop(sys);
+	m0_addb2_sys_sm_stop(sys);
 icache_fini:
 	m0t1fs_inode_cache_fini();
 ha_state_fop_fini:
@@ -170,12 +171,16 @@ out:
 
 M0_INTERNAL void m0t1fs_fini(void)
 {
+	struct m0_addb2_sys *sys;
 	M0_THREAD_ENTER;
 	M0_ENTRY();
 
+	sys = m0_addb2_global_get();
+
 	(void)unregister_filesystem(&m0t1fs_fs_type);
 
-	m0_addb2_sys_net_stop(m0_addb2_global_get());
+	m0_addb2_sys_net_stop(sys);
+	m0_addb2_sys_sm_stop(sys);
 	m0t1fs_inode_cache_fini();
 	m0_ha_state_fop_fini();
 	m0_mdservice_fop_fini();
