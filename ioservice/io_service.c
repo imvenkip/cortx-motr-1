@@ -135,8 +135,8 @@ static void buffer_pool_not_empty(struct m0_net_buffer_pool *bp)
 
 	M0_PRE(bp != NULL);
 
-        buffer_desc = container_of(bp, struct m0_rios_buffer_pool, rios_bp);
-	m0_chan_broadcast(&buffer_desc->rios_bp_wait);
+	buffer_desc = container_of(bp, struct m0_rios_buffer_pool, rios_bp);
+	m0_chan_signal(&buffer_desc->rios_bp_wait);
 }
 
 /**

@@ -1265,6 +1265,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
 	struct m0_fop             *fop;
 	struct m0_io_fom_cob_rw   *fom_obj;
 	struct m0_net_transfer_mc *tm;
+	struct m0_net_buffer_pool *pool;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1284,22 +1285,21 @@ static int net_buffer_acquire(struct m0_fom *fom)
 	/**
 	 * Cache buffer pool pointer with FOM object.
 	 */
-	if (fom_obj->fcrw_bp == NULL) {
+	pool = fom_obj->fcrw_bp;
+	if (pool == NULL) {
 		struct m0_reqh_io_service  *serv_obj;
 		struct m0_rios_buffer_pool *bpdesc;
-		struct m0_net_domain       *fop_ndom;
 
 		serv_obj = container_of(fom->fo_service,
 					struct m0_reqh_io_service, rios_gen);
 		M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
 		/* Get network buffer pool for network domain */
-		fop_ndom = tm->ntm_dom;
 		bpdesc = m0_tl_find(bufferpools, bpdesc,
 				    &serv_obj->rios_buffer_pools,
-				    bpdesc->rios_ndom == fop_ndom);
-		fom_obj->fcrw_bp = bpdesc == NULL ? NULL : &bpdesc->rios_bp;
-		M0_ASSERT(fom_obj->fcrw_bp != NULL);
+				    bpdesc->rios_ndom == tm->ntm_dom);
+		M0_ASSERT(bpdesc != NULL);
+		fom_obj->fcrw_bp = pool = &bpdesc->rios_bp;
 	}
 	colour = m0_net_tm_colour_get(tm);
 
@@ -1315,8 +1315,8 @@ static int net_buffer_acquire(struct m0_fom *fom)
 	while (acquired_net_bufs < required_net_bufs) {
 	    struct m0_net_buffer *nb;
 
-	    m0_net_buffer_pool_lock(fom_obj->fcrw_bp);
-	    nb = m0_net_buffer_pool_get(fom_obj->fcrw_bp, colour);
+	    m0_net_buffer_pool_lock(pool);
+	    nb = m0_net_buffer_pool_get(pool, colour);
 
 	    if (nb == NULL && acquired_net_bufs == 0) {
 		    struct m0_rios_buffer_pool *bpdesc;
@@ -1327,8 +1327,8 @@ static int net_buffer_acquire(struct m0_fom *fom)
 		     * with buffer pool wait channel to get buffer
 		     * pool non-empty signal.
 		     */
-		    bpdesc = container_of(fom_obj->fcrw_bp,
-					  struct m0_rios_buffer_pool, rios_bp);
+		    bpdesc = container_of(pool, struct m0_rios_buffer_pool,
+					  rios_bp);
 		    M0_ADDB_POST(fom_to_addb_mc(fom),
 				 &m0_addb_rt_ios_buffer_pool_low,
 				 M0_FOM_ADDB_CTX_VEC(fom));
@@ -1336,19 +1336,23 @@ static int net_buffer_acquire(struct m0_fom *fom)
 		    m0_fom_wait_on(fom, &bpdesc->rios_bp_wait, &fom->fo_cb);
 
 		    m0_fom_phase_set(fom, M0_FOPH_IO_FOM_BUFFER_WAIT);
-		    m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+		    m0_net_buffer_pool_unlock(pool);
 
 		    M0_LEAVE();
 		    return M0_FSO_WAIT;
 	    } else if (nb == NULL) {
-		    m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+		    m0_net_buffer_pool_unlock(pool);
 		    /*
 		     * Some network buffers are available for zero copy
 		     * init. FOM can continue with available buffers.
 		     */
 		    break;
 	    }
-	    m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+	    acquired_net_bufs++;
+	    /* Signal next possible waiter for buffers. */
+	    if (acquired_net_bufs == required_net_bufs && pool->nbp_free > 0)
+			pool->nbp_ops->nbpo_not_empty(pool);
+	    m0_net_buffer_pool_unlock(pool);
 
 	    if (m0_is_read_fop(fop))
 		   nb->nb_qtype = M0_NET_QT_ACTIVE_BULK_SEND;
@@ -1360,7 +1364,6 @@ static int net_buffer_acquire(struct m0_fom *fom)
 
 	    netbufs_tlink_init(nb);
 	    netbufs_tlist_add(&fom_obj->fcrw_netbuf_list, nb);
-	    acquired_net_bufs++;
 	}
 
 	fom_obj->fcrw_batch_size = acquired_net_bufs;
