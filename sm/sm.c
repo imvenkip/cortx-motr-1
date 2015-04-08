@@ -388,7 +388,7 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 		}
 		if (mach->sm_addb2_id != 0)
 			M0_ADDB2_ADD(mach->sm_addb2_id,
-				     sd->sd_trans[state], m0_time_now());
+				     sd->sd_trans[state], state, m0_time_now());
 
 		mach->sm_state = state;
 		M0_ASSERT(m0_sm_invariant(mach));
