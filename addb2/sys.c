@@ -57,7 +57,10 @@ struct m0_addb2_sys {
 	struct m0_tl             sy_moribund;
 	struct m0_tl             sy_deathrow;
 	m0_bcount_t              sy_total;
+	bool                     sy_astenabled;
+	unsigned                 sy_outstanding;
 	struct m0_semaphore      sy_wait;
+	struct m0_chan           sy_astwait;
 	struct m0_thread        *sy_owner;
 	unsigned                 sy_nesting;
 };
@@ -92,7 +95,9 @@ int m0_addb2_sys_init(struct m0_addb2_sys **out,
 	M0_ALLOC_PTR(sys);
 	if (sys != NULL) {
 		sys->sy_conf = *conf;
+		sys->sy_ast.sa_cb = &sys_ast;
 		m0_mutex_init(&sys->sy_lock);
+		m0_chan_init(&sys->sy_astwait, &sys->sy_lock);
 		m0_semaphore_init(&sys->sy_wait, 0);
 		tr_tlist_init(&sys->sy_queue);
 		mach_tlist_init(&sys->sy_pool);
@@ -111,11 +116,7 @@ void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
 	struct m0_addb2_mach      *m;
 	struct m0_addb2_trace_obj *to;
 
-	sys_lock(sys); /* synchronise with concurrent asts. */
-	sys_unlock(sys);
-	M0_ASSERT(sys->sy_ast.sa_next == NULL);
-	/* Disable further asts. */
-	sys->sy_ast.sa_cb = NULL;
+	m0_addb2_sys_sm_stop(sys);
 	m0_tl_for(mach, &sys->sy_pool, m) {
 		mach_tlist_move_tail(&sys->sy_moribund, m);
 		m0_addb2_mach_stop(m);
@@ -151,6 +152,7 @@ void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
 	mach_tlist_fini(&sys->sy_granted);
 	net_stop(sys);
 	stor_stop(sys);
+	m0_chan_fini(&sys->sy_astwait);
 	sys_unlock(sys);
 	tr_tlist_fini(&sys->sy_queue);
 	m0_semaphore_fini(&sys->sy_wait);
@@ -262,15 +264,29 @@ void m0_addb2_sys_stor_stop(struct m0_addb2_sys *sys)
 void m0_addb2_sys_sm_start(struct m0_addb2_sys *sys)
 {
 	sys_lock(sys);
-	sys->sy_ast.sa_cb = &sys_ast;
+	sys->sy_astenabled = true;
 	sys_unlock(sys);
 }
 
 void m0_addb2_sys_sm_stop(struct m0_addb2_sys *sys)
 {
+	struct m0_clink clink;
+
+	m0_clink_init(&clink, NULL);
 	sys_lock(sys);
-	sys->sy_ast.sa_cb = NULL;
+	/* Disable further asts. */
+	sys->sy_astenabled = false;
+	m0_clink_add(&sys->sy_astwait, &clink);
+	/* Wait until outstanding ASTs complete. */
+	while (sys->sy_outstanding > 0) {
+		sys_unlock(sys);
+		m0_chan_wait(&clink);
+		sys_lock(sys);
+	}
+	M0_ASSERT(sys->sy_ast.sa_next == NULL);
+	m0_clink_del(&clink);
 	sys_unlock(sys);
+	m0_clink_fini(&clink);
 }
 
 int m0_addb2_sys_submit(struct m0_addb2_sys *sys,
@@ -343,8 +359,10 @@ static int sys_submit(struct m0_addb2_mach *m, struct m0_addb2_trace_obj *obj)
 static void sys_post(struct m0_addb2_sys *sys)
 {
 	M0_PRE(m0_mutex_is_locked(&sys->sy_lock));
-	if (sys->sy_ast.sa_cb != NULL && sys->sy_ast.sa_next == NULL)
+	if (sys->sy_astenabled && sys->sy_ast.sa_next == NULL) {
+		++ sys->sy_outstanding;
 		m0_sm_ast_post(m0_locality_here()->lo_grp, &sys->sy_ast);
+	}
 }
 
 static void sys_idle(struct m0_addb2_mach *m)
@@ -392,6 +410,8 @@ static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		m0_addb2__sys_ast_trap(sys);
 	sys_lock(sys);
 	sys_balance(sys);
+	sys->sy_outstanding--;
+	m0_chan_signal(&sys->sy_astwait);
 	sys_unlock(sys);
 }
 
