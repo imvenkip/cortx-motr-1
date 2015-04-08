@@ -40,27 +40,27 @@
 #define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
 
 static struct m0_ut_rpc_mach_ctx rmach_ctx;
-struct m0_fop_type m0_reqhut_dummy_fopt;
+static struct m0_fop_type m0_reqhut_dummy_fopt;
 
 enum {
 	MAX_REQH_UT_FOP = 25
 };
 
-int m0_reqhut_fop_init(const struct m0_fom_type_ops *fom_type_ops)
+static int m0_reqhut_fop_init(void)
 {
 	m0_xc_reqh_service_init();
 	M0_FOP_TYPE_INIT(&m0_reqhut_dummy_fopt,
 			 .name      = "Reqh unit test",
 			 .opcode    = M0_REQH_UT_DUMMY_OPCODE,
 			 .xt        = m0_reqhut_dummy_xc,
-			 .fom_ops   = fom_type_ops,
+			 .fom_ops   = &reqhut_fom_type_ops,
 			 .sm        = &m0_generic_conf,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .svc_type  = &ds1_service_type);
 	return 0;
 }
 
-void m0_reqhut_fop_fini(void)
+static void m0_reqhut_fop_fini(void)
 {
 	m0_fop_type_fini(&m0_reqhut_dummy_fopt);
 	m0_xc_reqh_service_fini();
@@ -76,7 +76,7 @@ static void test_service(void)
 	struct m0_fop               *fop;
 
 	m0_semaphore_init(&sem, 0);
-	rc = m0_reqhut_fop_init(&reqhut_fom_type_ops);
+	rc = m0_reqhut_fop_init();
 	M0_UT_ASSERT(rc == 0);
 
 	/* Hack */

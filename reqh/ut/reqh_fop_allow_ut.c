@@ -25,6 +25,7 @@
 #include "sss/ss_fops.h"
 #include "rpc/item.h"
 #include "rpc/rpclib.h"
+#include "rpc/rpc_opcodes.h"             /* M0_REQH_UT_ALLOW_OPCODE */
 #include "reqh/ut/reqh_service.h"
 #include "reqh/ut/reqh_service_xc.h"
 #include "ut/cs_fop.h"
@@ -42,7 +43,7 @@ static char *ut_server_argv[] = {
 };
 
 struct m0_reqh_service_type *ut_stypes[] = {
-        &ds1_service_type,
+	&ds1_service_type,
 };
 
 static const struct m0_fid ut_fid = {
@@ -62,7 +63,7 @@ static int fom_create(struct m0_fop  *fop,
 		      struct m0_reqh *reqh)
 {
 	struct m0_fom *fom;
-        struct m0_fop *rfop;
+	struct m0_fop *rfop;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(out != NULL);
@@ -83,9 +84,30 @@ static int fom_create(struct m0_fop  *fop,
 }
 
 static const struct m0_fom_type_ops ut_fom_type_ops = {
-        .fto_create = fom_create,
+	.fto_create = &fom_create
 };
 
+static struct m0_fop_type m0_reqhut_allow_fopt;
+
+static int m0_reqhut_fop_init(void)
+{
+	m0_xc_reqh_service_init();
+	M0_FOP_TYPE_INIT(&m0_reqhut_allow_fopt,
+			 .name      = "Reqh unit test",
+			 .opcode    = M0_REQH_UT_ALLOW_OPCODE,
+			 .xt        = m0_reqhut_dummy_xc,
+			 .fom_ops   = &ut_fom_type_ops,
+			 .sm        = &m0_generic_conf,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .svc_type  = &ds1_service_type);
+	return 0;
+}
+
+static void m0_reqhut_fop_fini(void)
+{
+	m0_fop_type_fini(&m0_reqhut_allow_fopt);
+	m0_xc_reqh_service_fini();
+}
 
 static int fom_tick(struct m0_fom *fom)
 {
@@ -101,7 +123,7 @@ static int send_fop()
 	struct m0_fop *fop;
 	int            rc;
 
-	fop = m0_fop_alloc(&m0_reqhut_dummy_fopt, NULL, &cctx.rcx_rpc_machine);
+	fop = m0_fop_alloc(&m0_reqhut_allow_fopt, NULL, &cctx.rcx_rpc_machine);
 	M0_UT_ASSERT(fop != NULL);
 
 	rc = m0_rpc_post_sync(fop, &cctx.rcx_session, NULL, 0);
@@ -164,7 +186,7 @@ static void fop_allow_test(void)
 	sctx.rsx_argv = ut_server_argv;
 	sctx.rsx_argc = ARRAY_SIZE(ut_server_argv);
 
-	rc = m0_reqhut_fop_init(&ut_fom_type_ops);
+	rc = m0_reqhut_fop_init();
 	M0_UT_ASSERT(rc == 0);
 
 	start_rpc_client_and_server();
@@ -184,11 +206,11 @@ static void fop_allow_test(void)
 }
 
 struct m0_ut_suite reqh_fop_allow_ut = {
-        .ts_name  = "reqh-fop-allow-ut",
-        .ts_tests = {
-                { "reqh-fop-allow", fop_allow_test },
-                { NULL, NULL }
-        }
+	.ts_name  = "reqh-fop-allow-ut",
+	.ts_tests = {
+		{ "reqh-fop-allow", fop_allow_test },
+		{ NULL, NULL }
+	}
 };
 M0_EXPORTED(reqh_fop_allow_ut);
 
