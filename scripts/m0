@@ -74,7 +74,7 @@ run_st() {
 
     say console ST
     $SUDO SANDBOX_DIR=$RUNDIR/sandbox.console-st \
-	"$SRC/console/st/console-st.sh"
+    "$SRC/console/st/console-st.sh"
 
     say start/stop service ST
     $SUDO SANDBOX_DIR=$RUNDIR/sandbox.sss-st "$SRC/sss/st"
@@ -109,6 +109,9 @@ EOF
 
     say SNS multi failure repair
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh"
+
+    say Concurrent i/o with sns repair
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_cc_io_with_sns_repair.sh"
 
     say fsync ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_fsync_test.sh"

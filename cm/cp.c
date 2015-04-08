@@ -418,7 +418,8 @@ M0_INTERNAL const struct m0_fom_type_ops cp_fom_type_ops = {
 
 static void cp_fom_fini(struct m0_fom *fom)
 {
-	struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
+	struct m0_cm_cp         *cp = bob_of(fom, struct m0_cm_cp, c_fom,
+					     &cp_bob);
 	struct m0_cm_aggr_group *ag = cp->c_ag;
 	struct m0_cm            *cm = ag->cag_cm;
 	int                      cp_rc;

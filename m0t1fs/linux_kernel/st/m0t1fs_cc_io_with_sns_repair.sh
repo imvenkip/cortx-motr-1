@@ -28,6 +28,21 @@ files=(
 	0:10011
 )
 
+new_files=(
+	0:10012
+	0:10013
+	0:10014
+	0:10015
+	0:10016
+	0:10017
+	0:10018
+	0:10019
+	0:10020
+	0:10021
+	0:10022
+	0:10023
+)
+
 file_size=(
 	50
 	70
@@ -38,7 +53,7 @@ file_size=(
 	60
 	90
 	10
-	20
+	5000
 	5
 	80
 )
@@ -48,26 +63,43 @@ K=3
 P=15
 stride=32
 
+create_files_and_checksum()
+{
+	local fids=("${!1}")
+	local start=$2
+	local end=$3
+
+	for ((i=$start; i < $end; i++)) ; do
+		touch_file $MERO_M0T1FS_MOUNT_DIR/${fids[$i]} $stride
+	done
+
+	for ((i=$start; i < $end; i++)) ; do
+		_dd ${fids[$i]} ${file_size[$i]}
+	done
+
+	for ((i=$start; i < $end; i++)) ; do
+		_md5sum ${fids[$i]}
+	done
+}
+
+wait4snsrepair()
+{
+	echo "**** Wait for sns repair to complete ****"
+	while [ "`ps ax | grep -v grep | grep m0repair`" ];
+		do echo -n .; sleep 5; done
+}
+
 sns_repair_test()
 {
+	local rc=0
 	local fail_device1=1
 	local fail_device2=9
 	local fail_device3=3
 	local unit_size=$((stride * 1024))
 
 	echo "Starting SNS repair testing ..."
-	for ((i=0; i < ${#files[*]}; i++)) ; do
-		touch_file $MERO_M0T1FS_MOUNT_DIR/${files[$i]} $stride
-	done
 
-	for ((i=0; i < ${#files[*]}; i++)) ; do
-		_dd ${files[$i]} ${file_size[$i]}
-	done
-
-
-	for ((i=0; i < ${#files[*]}; i++)) ; do
-		_md5sum ${files[$i]}
-	done
+	create_files_and_checksum files[@] 0 ${#files[*]}
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
@@ -83,9 +115,18 @@ sns_repair_test()
 
 	pool_mach_query $fail_device1 $fail_device2 || return $?
 
-	sns_repair || return $?
+	echo "**** Start sns repair in background ****"
+	sns_repair &
+	sleep 5
+	echo "**** Create files while sns repair is in-progress ****"
+	create_files_and_checksum new_files[@] 0 4
 
+	echo **** Perform read during repair. ****
+	md5sum_check || return $?
+
+	wait4snsrepair || return $?
 	echo "SNS Repair done."
+
 	md5sum_check || return $?
 
 ####### Query device state
@@ -99,7 +140,16 @@ sns_repair_test()
 
 	pool_mach_set_failure $fail_device3 || return $?
 
-	sns_repair || return $?
+	echo "**** Start sns repair in background ****"
+	sns_repair &
+	sleep 5
+	echo "**** Create files while sns repair is in-progress ****"
+	create_files_and_checksum new_files[@] 4 8
+
+	echo **** Perform read during repair. ****
+	md5sum_check || return $?
+
+	wait4snsrepair || return $?
 
 	echo "SNS Repair done."
 	md5sum_check || return $?
@@ -119,7 +169,7 @@ sns_repair_test()
 
 main()
 {
-	local rc=0
+	locla rc=0
 
 	NODE_UUID=`uuidgen`
 	mero_service start $stride $N $K $P || {

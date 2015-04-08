@@ -71,7 +71,11 @@ MDSEP=(
     12345:33:802   # MDS3 EP
 )
 
+# Use separate client endpoints for m0repair and m0poolmach utilities
+# to avoid network endpoint conflicts (-EADDRINUSE) in-case both the
+# utilities are run at the same time, e.g. concurrent i/o with sns repair.
 SNS_CLI_EP="12345:33:1000"
+POOL_MACHINE_CLI_EP="12345:33:1001"
 
 POOL_WIDTH=${#IOSEP[*]}
 NR_PARITY=1

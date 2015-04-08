@@ -704,10 +704,18 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 		rc = m0_cm_proxy_alloc(0, &ag_id0, &ag_id0, ex->ex_endpoint,
 				       &pxy);
 		if (rc == 0) {
+			/*
+			 * m0_rpc_client_connect() is blocking operation,
+			 * release cm_lock to unblock other operations,
+			 * e.g. m0_sns_cm_fid_repair_done() invoked from io_fom,
+			 * acquires cm_lock to check cm status.
+			 */
+			m0_cm_unlock(cm);
 			rc = m0_rpc_client_connect(&pxy->px_conn,
 						   &pxy->px_session,
 						   rmach, ex->ex_endpoint,
 						   CM_MAX_NR_RPC_IN_FLIGHT);
+			m0_cm_lock(cm);
 			if (rc == 0) {
 				m0_cm_proxy_add(cm, pxy);
 				M0_LOG(M0_DEBUG, "Connected to %s",

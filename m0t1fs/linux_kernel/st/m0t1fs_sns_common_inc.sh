@@ -8,7 +8,7 @@ pool_mach_set_failure()
 		STATE="$STATE -s 1"
 	done
 	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
-		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+		 $DEVICES $STATE -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
 	rc=$?
@@ -33,7 +33,7 @@ pool_mach_set_repairing()
 		STATE="$STATE -s 3"
 	done
 	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
-		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+		 $DEVICES $STATE -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
 	rc=$?
@@ -56,7 +56,7 @@ pool_mach_set_repaired()
 		STATE="$STATE -s 4"
 	done
 	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
-		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+		 $DEVICES $STATE -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
 	rc=$?
@@ -79,7 +79,7 @@ pool_mach_set_rebalancing()
 		STATE="$STATE -s 5"
 	done
 	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
-		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+		 $DEVICES $STATE -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
 	rc=$?
@@ -102,7 +102,7 @@ pool_mach_set_rebalanced()
 		STATE="$STATE -s 0"
 	done
 	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
-		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+		 $DEVICES $STATE -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
 	rc=$?
@@ -124,7 +124,7 @@ pool_mach_query()
 		DEVICES="$DEVICES -I $i"
 	done
 	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N $# \
-		 $DEVICES -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+		 $DEVICES -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
 	rc=$?
@@ -137,28 +137,48 @@ pool_mach_query()
 	return 0
 }
 
+sns_repair_mount()
+{
+	N=$1
+	K=$2
+	P=$3
+
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P "oostore,verify" &>> $MERO_TEST_LOGFILE || {
+		cat $MERO_TEST_LOGFILE
+		echo "mount failed"
+		return 1
+	}
+	mount
+}
+
 sns_repair()
 {
+	local rc=0
+
 	repair_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $repair_trigger
-	if ! $repair_trigger ; then
+	eval $repair_trigger
+	rc=$?
+	if [ $rc != 0 ]; then
 		echo "SNS Repair failed"
-		return 1
 	fi
 
-	return 0
+	return $rc
 }
 
 sns_rebalance()
 {
+	local rc=0
+
         rebalance_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 4 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
         echo $rebalance_trigger
-        if ! $rebalance_trigger ; then
+	eval $rebalance_trigger
+	rc=$?
+        if [ $rc != 0 ] ; then
                 echo "SNS Re-balance failed"
-                return 1
         fi
 
-	return 0
+	return $rc
 }
 
 _dd()
@@ -180,4 +200,16 @@ _md5sum()
 
 	md5sum $MERO_M0T1FS_MOUNT_DIR/$FILE | \
 		tee -a $MERO_M0T1FS_TEST_DIR/md5
+}
+
+md5sum_check()
+{
+	local rc
+
+	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "md5 sum does not match: $rc"
+	fi
+	return $rc
 }
