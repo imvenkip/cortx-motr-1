@@ -844,6 +844,8 @@ m0_rpc_machine_find_conn(const struct m0_rpc_machine *machine,
 	return conn;
 }
 
+M0_INTERNAL void (*m0_rpc__item_dropped)(struct m0_rpc_item *item);
+
 static void item_received(struct m0_rpc_item      *item,
 			  struct m0_net_end_point *from_ep)
 {
@@ -884,6 +886,9 @@ static void item_received(struct m0_rpc_item      *item,
 		M0_LOG(M0_DEBUG, "%p [%s/%d] dropped", item, item_kind(item),
 		       item->ri_type->rit_opcode);
 		machine->rm_stats.rs_nr_dropped_items++;
+		if (M0_FI_ENABLED("drop_signal") &&
+		    m0_rpc__item_dropped != NULL)
+			m0_rpc__item_dropped(item);
 	}
 
 	M0_LEAVE();
