@@ -20,6 +20,10 @@
  */
 
 #include "net/lnet/lnet_main.c"
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "lib/trace.h"
+
 #include "lib/assert.h" /* M0_IMPOSSIBLE */
 #include "lib/arith.h"  /* max64u */
 #include "lib/thread.h" /* m0_thread_self */
@@ -2312,6 +2316,8 @@ struct m0_ut_suite m0_net_lnet_ut = {
         }
 };
 M0_EXPORTED(m0_net_lnet_ut);
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

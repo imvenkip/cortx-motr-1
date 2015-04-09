@@ -791,7 +791,7 @@ sx4T_aGjFvsyjjvN1ygOtfoXcFg/view">RPC Bulk Transfer Task Plan</a>
 #endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LNET
-#include "lib/trace.h"        /* M0_LOG and M0_ENTRY */
+#include "lib/trace.h"
 
 #include "lib/errno.h"
 #include "lib/misc.h"
@@ -879,7 +879,7 @@ do {							\
 #include "net/lnet/linux_kernel/kbev_cqueue.c"
 #include "net/lnet/linux_kernel/klnet_core.c"
 #include "net/lnet/linux_kernel/klnet_drv.c"
-/* 
+/*
  * LUSTRE_SRV_LNET_PID is not available in user space, so assert that the
  * M0 equivalent is valid. Depending on the lustre version, the name may be
  * LUSTRE_SRV_LNET_PID or LNET_PID_LUSTRE.
@@ -1031,6 +1031,7 @@ M0_INTERNAL void m0_net_lnet_tm_set_debug(struct m0_net_transfer_mc *tm,
 M0_EXPORTED(m0_net_lnet_tm_set_debug);
 
 /** @} */ /* LNetDFS */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
