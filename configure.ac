@@ -200,7 +200,7 @@ AS_IF([test x$enable_data_integrity = xyes],
 AC_ARG_ENABLE([free_poison],
         [AS_HELP_STRING([--enable-free-poison],
                        [enable free poison])],
-        [], [enable_free_poison=no]
+        [], [enable_free_poison=$enable_dev_mode]
 )
 AS_IF([test x$enable_free_poison = xyes],
       AC_DEFINE([ENABLE_FREE_POISON]))
