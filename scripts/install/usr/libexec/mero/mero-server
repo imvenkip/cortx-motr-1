@@ -76,6 +76,9 @@ m0_server()
                      -m $(m0_genders_value_of m0_max_rpc_msg_size) \
                      -q $(m0_genders_value_of m0_min_rpc_recvq_len)"
 
+    # enable core dumps
+    ulimit -c unlimited
+
     # show actual exec commands in log file
     set -x
 

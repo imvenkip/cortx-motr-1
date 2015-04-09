@@ -132,6 +132,7 @@ AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in atomic functions])
 AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
+AH_TEMPLATE([ENABLE_DETAILED_BACKTRACE],[Enable detailed backtraces on crash using gdb.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([M0_DEBUG_BE_CREDITS],    [Enable BE tx credits debug code.])
 AH_TEMPLATE([M0_BE_SEGMENT_SIZE],     [BE segment size in MiB.])
@@ -234,6 +235,15 @@ AC_ARG_ENABLE([immediate-trace],
 )
 AS_IF([test x$enable_immediate_trace = xyes],
       AC_DEFINE([ENABLE_IMMEDIATE_TRACE]))
+
+AC_ARG_ENABLE([detailed-backtrace],
+        AC_HELP_STRING([--enable-detailed-backtrace],
+		       [enable detailed backtrace on crash using gdb]),
+        [],
+        [enable_detailed_backtrace=no]
+)
+AS_IF([test x$enable_detailed_backtrace = xyes],
+      AC_DEFINE([ENABLE_DETAILED_BACKTRACE]))
 
 AC_ARG_ENABLE([sync-atomic],
         AS_HELP_STRING([--enable-sync-atomic],

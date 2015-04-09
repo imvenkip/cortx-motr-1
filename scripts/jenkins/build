@@ -27,7 +27,7 @@ pushd workdir/src/
     git submodule update
 
     ./autogen.sh |& tee $ARTIFACTS/configure.log
-    ./configure |& tee -a $ARTIFACTS/configure.log
+    ./configure --enable-detailed-backtrace |& tee -a $ARTIFACTS/configure.log
 
     if [[ $1 = docs ]] ; then
         make -j doc |& tee $ARTIFACTS/make.log

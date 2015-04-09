@@ -46,6 +46,7 @@ enum { BACKTRACE_DEPTH_MAX = 256 };
 
 M0_EXTERN char *m0_debugger_args[4];
 
+#ifdef ENABLE_DETAILED_BACKTRACE
 static void arch_backtrace_detailed(void)
 {
 	const char *gdb_path = "/usr/bin/gdb";
@@ -80,6 +81,7 @@ static void arch_backtrace_detailed(void)
 		/* fork() failed, nothing to do */
 	}
 }
+#endif
 
 void m0_arch_backtrace(void)
 {
@@ -90,7 +92,9 @@ void m0_arch_backtrace(void)
 	nr = backtrace(trace, ARRAY_SIZE(trace));
 	backtrace_symbols_fd(trace, nr, STDERR_FILENO);
 #endif
+#ifdef ENABLE_DETAILED_BACKTRACE
 	arch_backtrace_detailed();
+#endif
 }
 
 /**

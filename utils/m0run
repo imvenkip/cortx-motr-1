@@ -296,6 +296,9 @@ cd "$rundir"
 
 load_modules
 
+# enable core dumps
+ulimit -c unlimited
+
 if [[ -n $debugger ]] ; then
     # libmero will attach debugger in case of panic, disable this as we already
     # going to run it under debugger

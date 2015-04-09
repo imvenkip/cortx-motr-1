@@ -47,6 +47,9 @@ m0_mkfs()
 
     m0mkfs=$(m0_path_to m0mkfs)
 
+    # enable core dumps
+    ulimit -c unlimited
+
     # show actual exec commands in log file
     set -x
 
