@@ -18,10 +18,6 @@
  * Original creation date: 16/04/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/memory.h"
 #include "lib/assert.h"

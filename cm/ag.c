@@ -19,10 +19,6 @@
  * Original creation date: 20/09/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
 #include "lib/trace.h"
 

@@ -223,10 +223,6 @@ ysXAXAgJ5lQoMcOkbBNBW9Nz9OM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
 
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
 #include "lib/trace.h"
 #include "lib/errno.h"

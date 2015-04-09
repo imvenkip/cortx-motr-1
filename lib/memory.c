@@ -26,7 +26,6 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
-#include "config.h"      /* ENABLE_FREE_POISON */
 #include "lib/arith.h"   /* min_type, m0_is_po2 */
 #include "lib/assert.h"
 #include "lib/atomic.h"

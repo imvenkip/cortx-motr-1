@@ -18,10 +18,6 @@
  * Original creation date: 10/09/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/trace.h"
 #include "lib/errno.h"

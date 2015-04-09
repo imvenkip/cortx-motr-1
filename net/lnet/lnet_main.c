@@ -788,7 +788,6 @@ sx4T_aGjFvsyjjvN1ygOtfoXcFg/view">RPC Bulk Transfer Task Plan</a>
  * Above values were lustre specific, change them again to mero specific.
  * since there are no guard macros around, this will not be a problem.
  */
-#include "config.h"        /* Mero specific */
 #endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LNET

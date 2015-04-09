@@ -18,10 +18,6 @@
  * Original creation date: 10/22/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "net/lnet/lnet.h"
 #include "mero/setup.h"
 #include "sns/cm/repair/ut/cp_common.h"
