@@ -18,15 +18,14 @@
  * Original creation date: 05/01/2015
  */
 
-#undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_POOL
 #include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "pool/pool.h"
 #include "conf/confc.h"
-#include "conf/helpers.h"  /* m0_conf_filter_cntv_diskv */
 #include "conf/obj_ops.h"  /* m0_conf_dirval */
 #include "conf/dir_iter.h" /* m0_conf_diter_init, m0_conf_diter_next_sync */
 
@@ -74,18 +73,44 @@ M0_INTERNAL bool m0_poolmach_version_before(const struct m0_poolmach_versions
 		v1->pvn_version[PVE_WRITE] < v2->pvn_version[PVE_WRITE];
 }
 
+static bool is_controllerv_or_diskv(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE &&
+		M0_IN(m0_conf_obj_type(
+			      M0_CONF_CAST(obj, m0_conf_objv)->cv_real),
+		      (&M0_CONF_CONTROLLER_TYPE, &M0_CONF_DISK_TYPE));
+}
+
+static void poolmach_state_update(struct m0_poolmach_state *st,
+				  const struct m0_conf_obj *objv_real,
+				  uint32_t                 *idx_nodes,
+				  uint32_t                 *idx_devices)
+{
+	struct m0_conf_disk *d;
+
+	if (m0_conf_obj_type(objv_real) == &M0_CONF_CONTROLLER_TYPE) {
+		st->pst_nodes_array[*idx_nodes].pn_id = objv_real->co_id;
+		M0_CNT_INC(*idx_nodes);
+	} else if (m0_conf_obj_type(objv_real) == &M0_CONF_DISK_TYPE) {
+		d = M0_CONF_CAST(objv_real, m0_conf_disk);
+		st->pst_devices_array[*idx_devices].pd_id =
+			d->ck_dev->sd_obj.co_id;
+		st->pst_devices_array[*idx_devices].pd_node =
+			&st->pst_nodes_array[*idx_nodes];
+		M0_CNT_INC(*idx_devices);
+	} else {
+		M0_IMPOSSIBLE("Invalid conf_obj type");
+	}
+}
+
 M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 					 struct m0_conf_pver *pver)
 {
-	struct m0_conf_diter       it;
-	struct m0_conf_objv       *ov;
-	struct m0_conf_disk       *d;
-	struct m0_conf_controller *c;
-	struct m0_conf_obj        *obj;
-	struct m0_confc           *confc;
-	uint32_t                   node = 0;
-	uint32_t                   dev = 0;
-	int                        rc;
+	struct m0_confc     *confc;
+	struct m0_conf_diter it;
+	uint32_t             idx_nodes = 0;
+	uint32_t             idx_devices = 0;
+	int                  rc;
 
 	confc = m0_confc_from_obj(&pver->pv_obj);
 	rc = m0_conf_diter_init(&it, confc, &pver->pv_obj,
@@ -94,36 +119,15 @@ M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 				M0_CONF_ENCLV_CTRLVS_FID,
 				M0_CONF_CTRLV_DISKVS_FID);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
-	while ((rc = m0_conf_diter_next_sync(&it,
-			m0_conf_filter_cntv_diskv)) == M0_CONF_DIRNEXT) {
-		obj = m0_conf_diter_result(&it);
-		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE);
-		ov = M0_CONF_CAST(obj, m0_conf_objv);
-		M0_ASSERT(m0_conf_obj_type(ov->cv_real) ==
-				&M0_CONF_CONTROLLER_TYPE ||
-			  m0_conf_obj_type(ov->cv_real) ==
-				&M0_CONF_DISK_TYPE);
-		if (m0_conf_obj_type(ov->cv_real) == &M0_CONF_CONTROLLER_TYPE) {
-			c = M0_CONF_CAST(ov->cv_real,
-					 m0_conf_controller);
-			pm->pm_state->pst_nodes_array[node].pn_id =
-						c->cc_obj.co_id;
-			M0_CNT_INC(node);
-		}
-		if (m0_conf_obj_type(ov->cv_real) == &M0_CONF_DISK_TYPE) {
-			d = M0_CONF_CAST(ov->cv_real, m0_conf_disk);
-			pm->pm_state->pst_devices_array[dev].pd_id =
-						d->ck_dev->sd_obj.co_id;
-			pm->pm_state->pst_devices_array[dev].pd_node =
-				&pm->pm_state->pst_nodes_array[node];
-			M0_CNT_INC(dev);
-		}
-	}
-
+	while ((rc = m0_conf_diter_next_sync(&it, is_controllerv_or_diskv)) ==
+	       M0_CONF_DIRNEXT)
+		poolmach_state_update(pm->pm_state,
+				      M0_CONF_CAST(m0_conf_diter_result(&it),
+						   m0_conf_objv)->cv_real,
+				      &idx_nodes, &idx_devices);
 	m0_conf_diter_fini(&it);
-
 	return M0_RC(rc);
 }
 

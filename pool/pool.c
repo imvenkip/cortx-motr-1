@@ -17,16 +17,15 @@
  * Original creation date: 07/15/2010
  */
 
-#undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_POOL
 #include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/assert.h"
 
 #include "conf/confc.h"    /* m0_confc_from_obj */
-#include "conf/helpers.h"  /* m0_conf_filter_cntv_diskv */
 #include "conf/schema.h"   /* M0_CST_IOS, M0_CST_MDS */
 #include "conf/dir_iter.h" /* m0_conf_diter_init, m0_conf_diter_next_sync */
 #include "conf/obj_ops.h"  /* m0_conf_dirval */

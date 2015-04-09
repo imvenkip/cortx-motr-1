@@ -116,20 +116,8 @@ M0_INTERNAL int m0_conf_poolversion_get(struct m0_conf_filesystem *fs,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL bool m0_conf_filter_cntv_diskv(const struct m0_conf_obj *obj)
-{
-	struct m0_conf_obj *r;
-	if (m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE) {
-		r = M0_CONF_CAST(obj, m0_conf_objv)->cv_real;
-		if (m0_conf_obj_type(r) == &M0_CONF_CONTROLLER_TYPE ||
-		    m0_conf_obj_type(r) == &M0_CONF_DISK_TYPE)
-			return true;
-	}
-	return false;
-}
-
 M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
-			          struct m0_conf_root **root)
+				  struct m0_conf_root **root)
 {
 	struct m0_conf_obj *root_obj;
 	int                 rc;

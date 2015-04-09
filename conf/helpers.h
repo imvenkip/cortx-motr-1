@@ -41,16 +41,9 @@ M0_INTERNAL int m0_conf_poolversion_get(struct m0_conf_filesystem *fs,
 					struct m0_conf_pver **result);
 
 /**
- * Filter function for m0_conf_diter.
- * Returns true if the configuration object is a m0_conf_objv and its
- * corresponding real object is a m0_conf_controller or m0_conf_disk.
- */
-M0_INTERNAL bool m0_conf_filter_cntv_diskv(const struct m0_conf_obj *obj);
-
-/**
- * Open root configuration object.
+ * Opens root configuration object.
  *
- * @param confc already initialized confc instance
+ * @param confc already initialised confc instance
  * @param root  output parameter. Should be closed by user.
  */
 M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
