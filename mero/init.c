@@ -87,6 +87,9 @@ M0_INTERNAL void m0_utime_fini(void);
 M0_INTERNAL int m0_memory_init(void);
 M0_INTERNAL void m0_memory_fini(void);
 
+M0_INTERNAL int m0_foms_init(void);
+M0_INTERNAL void m0_foms_fini(void);
+
 M0_INTERNAL int libm0_init(void);
 M0_INTERNAL void libm0_fini(void);
 
@@ -132,14 +135,14 @@ struct init_fini_call subsystem[] = {
 	{ &m0_addb_init,        &m0_addb_fini,        "addb" },
 	{ &m0_addb2_module_init, &m0_addb2_module_fini, "addb2" },
 	{ &m0_addb2_global_init, &m0_addb2_global_fini, "addb2-global" },
-	/* localities must be initialised before lib/processor.h */
+	/* localities must be initialised after lib/processor.h */
 	{ &m0_localities_init,  &m0_localities_fini,  "locality" },
-//	{ &m0_db_init,          &m0_db_fini,          "db" },
 	{ &m0_fols_init,        &m0_fols_fini,        "fol" },
 	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
 	/* fops must be initialised before network, because network build fop
 	   type for network descriptors. */
 	{ &m0_fops_init,        &m0_fops_fini,        "fop" },
+	{ &m0_foms_init,        &m0_foms_fini,        "fom" },
 	{ &m0_fop_rate_monitor_module_init, NULL,     "fop_rate_monitor" },
 	{ &m0_net_init,         &m0_net_fini,         "net" },
 #ifdef __KERNEL__

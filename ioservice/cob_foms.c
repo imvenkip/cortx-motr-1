@@ -236,11 +236,9 @@ static void cc_fom_fini(struct m0_fom *fom)
 	cfom = cob_fom_get(fom);
 	stob_fid = &cfom->fco_stob_fid;
 
-	M0_FOM_ADDB_POST(fom, &fom->fo_service->rs_reqh->rh_addb_mc,
-			 &m0_addb_rt_ios_ccfom_finish,
+	M0_FOM_ADDB_POST(fom, m0_fom_addb_mc(), &m0_addb_rt_ios_ccfom_finish,
 			 m0_stob_fid_dom_id_get(stob_fid),
-			 m0_stob_fid_key_get(stob_fid),
-			 m0_fom_rc(fom));
+			 m0_stob_fid_key_get(stob_fid), m0_fom_rc(fom));
 
 	m0_fom_fini(fom);
 	m0_free(cfom);
@@ -955,11 +953,9 @@ static void cd_fom_fini(struct m0_fom *fom)
 	cfom = cob_fom_get(fom);
 	stob_fid = &cfom->fco_stob_fid;
 
-	M0_FOM_ADDB_POST(fom, &fom->fo_service->rs_reqh->rh_addb_mc,
-			 &m0_addb_rt_ios_ccfom_finish,
+	M0_FOM_ADDB_POST(fom, m0_fom_addb_mc(), &m0_addb_rt_ios_ccfom_finish,
 			 m0_stob_fid_dom_id_get(stob_fid),
-			 m0_stob_fid_key_get(stob_fid),
-			 m0_fom_rc(fom));
+			 m0_stob_fid_key_get(stob_fid), m0_fom_rc(fom));
 
 	m0_fom_fini(fom);
 	m0_free(cfom);

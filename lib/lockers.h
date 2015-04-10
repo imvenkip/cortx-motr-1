@@ -75,7 +75,7 @@ struct m0_lockers_type {
 	/* Maximum number of keys that can be alloted */
 	uint32_t lot_max;
 	/* Current number of alloted keys */
-	uint32_t lot_count;
+	bool    *lot_inuse;
 };
 
 struct m0_lockers {
@@ -85,23 +85,26 @@ struct m0_lockers {
 #define M0_LOCKERS_DECLARE(scope, name, max) \
 	M0_LOCKERS__DECLARE(scope, name, name, max)
 
-#define M0_LOCKERS__DECLARE(scope, name, amb, max)                        \
-struct name;                                                              \
-									  \
-struct name ## _lockers {                                                 \
-	struct m0_lockers __base;                                         \
-	void             *__slots[(max)];                                 \
-};                                                                        \
-									  \
-M0_BASSERT(offsetof(struct name ## _lockers, __slots[0]) ==               \
-	   offsetof(struct m0_lockers, loc_slots[0]));                    \
-									  \
-scope void name ## _lockers_init(struct amb *par);                        \
-scope void name ## _lockers_fini(struct amb *par);                        \
-scope int name ## _lockers_allot(void);                                   \
-scope void name ## _lockers_set(struct amb *par, int key, void *data);    \
-scope void * name ## _lockers_get(const struct amb *par, int key);        \
-scope void name ## _lockers_clear(struct amb *par, int key);              \
+#define M0_LOCKERS__DECLARE(scope, name, amb, max)			\
+struct name;								\
+									\
+enum { M0_LOCKERS_ ## name ## _max = (max) };				\
+									\
+struct name ## _lockers {						\
+	struct m0_lockers __base;					\
+	void             *__slots[(max)];				\
+};									\
+									\
+M0_BASSERT(offsetof(struct name ## _lockers, __slots[0]) ==		\
+	   offsetof(struct m0_lockers, loc_slots[0]));			\
+									\
+scope void name ## _lockers_init(struct amb *par);			\
+scope void name ## _lockers_fini(struct amb *par);			\
+scope int name ## _lockers_allot(void);				\
+scope void name ## _lockers_free(int key);				\
+scope void name ## _lockers_set(struct amb *par, int key, void *data);	\
+scope void * name ## _lockers_get(const struct amb *par, int key);	\
+scope void name ## _lockers_clear(struct amb *par, int key);		\
 scope bool name ## _lockers_is_empty(const struct amb *par, int key)
 
 M0_INTERNAL void m0_lockers_init(const struct m0_lockers_type *lt,
@@ -112,10 +115,16 @@ M0_INTERNAL void m0_lockers_fini(struct m0_lockers_type *lt,
 				 struct m0_lockers      *lockers);
 
 /**
- * Allot a new key of type lt
+ * Allots a new key of type lt
  * @pre lt->lot_count < lt->lot_max
  */
 M0_INTERNAL int m0_lockers_allot(struct m0_lockers_type *lt);
+
+/**
+ * Frees a key of type lt
+ * @pre lt->lot_count < lt->lot_max
+ */
+M0_INTERNAL void m0_lockers_free(struct m0_lockers_type *lt, int key);
 
 /**
  * Stores a value in locker
@@ -152,51 +161,57 @@ M0_INTERNAL bool m0_lockers_is_empty(const struct m0_lockers_type *lt,
 #define M0_LOCKERS_DEFINE(scope, name, field) \
 	M0_LOCKERS__DEFINE(scope, name, name, field)
 
-#define M0_LOCKERS__DEFINE(scope, name, amb, field)                        \
-scope struct m0_lockers_type name ## _lockers_type = {                     \
-	.lot_max = ARRAY_SIZE(M0_FIELD_VALUE(struct name ## _lockers,      \
-					     __slots)),                    \
-	.lot_count = 0                                                     \
-};                                                                         \
-									   \
-scope void name ## _lockers_init(struct amb *par)                          \
-{                                                                          \
-	m0_lockers_init(&name ## _lockers_type, &par->field.__base);       \
-}                                                                          \
-									   \
-scope void name ## _lockers_fini(struct amb *par)                          \
-{                                                                          \
-	m0_lockers_fini(&name ## _lockers_type, &par->field.__base);       \
-}                                                                          \
-									   \
-scope int name ## _lockers_allot(void)                                     \
-{                                                                          \
-	return m0_lockers_allot(&name ## _lockers_type);                   \
-}                                                                          \
-									   \
-scope void name ## _lockers_set(struct amb *par, int key, void *data)      \
-{                                                                          \
-	m0_lockers_set(&name ## _lockers_type,                             \
-		       &par->field.__base, key, data);                     \
-}                                                                          \
-									   \
-scope void * name ## _lockers_get(const struct amb *par, int key)          \
-{                                                                          \
-	return m0_lockers_get(&name ## _lockers_type,                      \
-			      &par->field.__base, key);                    \
-}                                                                          \
-									   \
-scope void name ## _lockers_clear(struct amb *par, int key)                \
-{                                                                          \
+#define M0_LOCKERS__DEFINE(scope, name, amb, field)			\
+scope bool __ ## name ## _inuse [M0_LOCKERS_ ## name ## _max];		\
+scope struct m0_lockers_type name ## _lockers_type = {			\
+	.lot_max = ARRAY_SIZE(M0_FIELD_VALUE(struct name ## _lockers,	\
+					     __slots)),		\
+	.lot_inuse = __ ## name ## _inuse				\
+};									\
+									\
+scope void name ## _lockers_init(struct amb *par)			\
+{									\
+	m0_lockers_init(&name ## _lockers_type, &par->field.__base);	\
+}									\
+									\
+scope void name ## _lockers_fini(struct amb *par)			\
+{									\
+	m0_lockers_fini(&name ## _lockers_type, &par->field.__base);	\
+}									\
+									\
+scope int name ## _lockers_allot(void)					\
+{									\
+	return m0_lockers_allot(&name ## _lockers_type);		\
+}									\
+									\
+scope void name ## _lockers_free(int key)				\
+{									\
+	m0_lockers_free(&name ## _lockers_type, key);			\
+}									\
+									\
+scope void name ## _lockers_set(struct amb *par, int key, void *data)	\
+{									\
+	m0_lockers_set(&name ## _lockers_type,				\
+		       &par->field.__base, key, data);			\
+}									\
+									\
+scope void * name ## _lockers_get(const struct amb *par, int key)	\
+{									\
+	return m0_lockers_get(&name ## _lockers_type,			\
+			      &par->field.__base, key);		\
+}									\
+									\
+scope void name ## _lockers_clear(struct amb *par, int key)		\
+{									\
 	m0_lockers_clear(&name ## _lockers_type, &par->field.__base, key); \
-}                                                                          \
-									   \
-scope bool name ## _lockers_is_empty(const struct amb *par, int key)       \
-{                                                                          \
-	return m0_lockers_is_empty(&name ## _lockers_type,                 \
-				   &par->field.__base, key);               \
-}                                                                          \
-									   \
+}									\
+									\
+scope bool name ## _lockers_is_empty(const struct amb *par, int key)	\
+{									\
+	return m0_lockers_is_empty(&name ## _lockers_type,		\
+				   &par->field.__base, key);		\
+}									\
+									\
 struct __ ## type ## _semicolon_catcher
 
 /** @} end of lockers group */

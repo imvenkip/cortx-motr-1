@@ -45,7 +45,6 @@ static struct m0_net_xprt *xprt        = &m0_net_lnet_xprt;
 static struct rm_ctx  *server_ctx  = &rm_ctxs[SERVER_1];
 static struct rm_ctx  *client_ctx  = &rm_ctxs[SERVER_2];
 static struct m0_clink     tests_clink[TEST_NR];
-
 extern void flock_client_utdata_ops_set(struct rm_ut_data *data);
 
 static struct m0_rpc_server_ctx sctx = {
@@ -126,9 +125,6 @@ static void rm_client(const int tid)
 	struct m0_fid            fids[] = {{0, 1}, {0, 2}};
 	struct m0_reqh_service  *rmservice;
 
-	/* Wait till server starts */
-	m0_chan_wait(&tests_clink[SERVER_1]);
-
 	m0_ut_rpc_mach_init_and_add(&client_ctx->rc_rmach_ctx);
 	rc = m0_reqh_service_setup(&rmservice, &m0_rms_type,
 				   &client_ctx->rc_rmach_ctx.rmc_reqh,
@@ -138,6 +134,14 @@ static void rm_client(const int tid)
 	m0_mutex_init(&client_ctx->rc_mutex);
 	m0_chan_init(&client_ctx->rc_chan, &client_ctx->rc_mutex);
 	m0_clink_init(&client_ctx->rc_clink, NULL);
+
+	/* Start the server */
+	rc = M0_THREAD_INIT(&server_ctx->rc_thr, int, NULL, &rm_svc_server, 0,
+			    "rm_svc_%d", 0);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Wait till server starts */
+	m0_chan_wait(&tests_clink[SERVER_1]);
 
 	/* Connect to end point of SERVER_1 */
 	rm_ctx_connect(client_ctx, server_ctx);
@@ -238,18 +242,13 @@ void rmsvc(void)
 		m0_clink_add_lock(&rm_ut_tests_chan, &tests_clink[rc]);
 	}
 
-	/* Start the server */
-	rc = M0_THREAD_INIT(&server_ctx->rc_thr, int, NULL, &rm_svc_server, 0,
-			    "rm_svc_%d", 0);
-	M0_UT_ASSERT(rc == 0);
-
 	/* Start client */
 	rc = M0_THREAD_INIT(&client_ctx->rc_thr, int, NULL, &rm_client, 0,
 			    "rm_cli_%d", 0);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_thread_join(&server_ctx->rc_thr);
 	m0_thread_join(&client_ctx->rc_thr);
+	m0_thread_join(&server_ctx->rc_thr);
 	m0_thread_fini(&server_ctx->rc_thr);
 	m0_thread_fini(&client_ctx->rc_thr);
 

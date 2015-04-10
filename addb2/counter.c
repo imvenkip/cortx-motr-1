@@ -40,7 +40,8 @@ static const struct m0_addb2_sensor_ops clock_sensor_ops;
 static void counter_warn(struct m0_addb2_counter *c, uint64_t val);
 static void counter_data_init(struct m0_addb2_counter_data *d);
 
-void m0_addb2_counter_add(struct m0_addb2_counter *counter, uint64_t label)
+void m0_addb2_counter_add(struct m0_addb2_counter *counter, uint64_t label,
+			  int idx)
 {
 	struct m0_addb2_counter_data *d = &counter->co_val;
 
@@ -50,7 +51,7 @@ void m0_addb2_counter_add(struct m0_addb2_counter *counter, uint64_t label)
 	M0_PRE(M0_IS0(counter));
 	counter_data_init(d);
 	m0_addb2_sensor_add(&counter->co_sensor, label,
-			    sizeof *d / sizeof(uint64_t), &sensor_ops);
+			    sizeof *d / sizeof(uint64_t), idx, &sensor_ops);
 }
 
 void m0_addb2_counter_del(struct m0_addb2_counter *counter)
@@ -75,15 +76,16 @@ void m0_addb2_counter_mod(struct m0_addb2_counter *counter, int64_t val)
 		d->cod_sum = sum;
 		d->cod_min = min64u(d->cod_min, val);
 		d->cod_max = max64u(d->cod_max, val);
-		d->cod_ssq += val * val;
+		d->cod_ssq += sq;
 	}
 }
 
 void m0_addb2_list_counter_add(struct m0_addb2_list_counter *counter,
-			       struct m0_tl *list, uint64_t label)
+			       struct m0_tl *list, uint64_t label, int idx)
 {
 	counter->lc_list = list;
-	m0_addb2_sensor_add(&counter->lc_sensor, label, 1, &list_sensor_ops);
+	m0_addb2_sensor_add(&counter->lc_sensor,
+			    label, 1, idx, &list_sensor_ops);
 }
 
 void m0_addb2_list_counter_del(struct m0_addb2_list_counter *counter)
@@ -91,9 +93,9 @@ void m0_addb2_list_counter_del(struct m0_addb2_list_counter *counter)
 	m0_addb2_sensor_del(&counter->lc_sensor);
 }
 
-void m0_addb2_clock_add(struct m0_addb2_sensor *clock, uint64_t label)
+void m0_addb2_clock_add(struct m0_addb2_sensor *clock, uint64_t label, int idx)
 {
-	m0_addb2_sensor_add(clock, label, 1, &clock_sensor_ops);
+	m0_addb2_sensor_add(clock, label, 1, idx, &clock_sensor_ops);
 }
 
 void m0_addb2_clock_del(struct m0_addb2_sensor *clock)

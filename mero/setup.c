@@ -1333,7 +1333,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 cleanup_addb2:
 	m0_reqh_addb2_fini(&rctx->rc_reqh);
 cleanup_addb_mc:
-	m0_addb_mc_unconfigure(&rctx->rc_reqh.rh_addb_mc);
+	m0_addb_mc_unconfigure(m0_fom_addb_mc());
 cleanup_addb2_stob:
 	m0_stob_put(rctx->rc_addb2_stob.cas_stob);
 cleanup_addb_stob:
@@ -1383,7 +1383,7 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	m0_mdstore_fini(&rctx->rc_mdstore);
 	m0_reqh_addb2_fini(reqh);
 	m0_stob_put(rctx->rc_addb2_stob.cas_stob);
-	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
+	m0_addb_mc_unconfigure(m0_fom_addb_mc());
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
 	cs_storage_fini(&rctx->rc_stob);
 	cs_be_fini(&rctx->rc_be);

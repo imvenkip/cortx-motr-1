@@ -100,7 +100,7 @@ M0_INTERNAL int m0_spiel__ut_confd_start(struct m0_rpc_server_ctx *rpc_srv,
 
 	snprintf(full_ep, EP_MAX_LEN, "lnet:%s", confd_ep);
 	snprintf(max_rpc_size, RPC_SIZE_MAX_LEN,
-		       	"%d", M0_RPC_DEF_MAX_RPC_MSG_SIZE);
+		 "%d", M0_RPC_DEF_MAX_RPC_MSG_SIZE);
 
 #define NAME(ext) "ut_spiel" ext
 	char                    *argv[] = {

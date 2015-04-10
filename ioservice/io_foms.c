@@ -609,7 +609,6 @@ static int zero_copy_initiate(struct m0_fom *);
 static int zero_copy_finish(struct m0_fom *);
 static int net_buffer_release(struct m0_fom *);
 
-static inline struct m0_addb_mc *fom_to_addb_mc(const struct m0_fom *fom);
 static void io_fom_addb2_descr(struct m0_fom *fom);
 
 /**
@@ -888,7 +887,7 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
 	M0_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
-	M0_ADDB_POST(fom_to_addb_mc(fom), &m0_addb_rt_ios_desc_io_finish,
+	M0_ADDB_POST(m0_fom_addb_mc(), &m0_addb_rt_ios_desc_io_finish,
 		     M0_FOM_ADDB_CTX_VEC(fom),
 		     stio_desc->siod_stob_io.si_stob.iv_index[0],
 		     fom_obj->fcrw_req_count,
@@ -1329,8 +1328,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
 		     */
 		    bpdesc = container_of(pool, struct m0_rios_buffer_pool,
 					  rios_bp);
-		    M0_ADDB_POST(fom_to_addb_mc(fom),
-				 &m0_addb_rt_ios_buffer_pool_low,
+		    M0_ADDB_POST(m0_fom_addb_mc(), &m0_addb_rt_ios_buffer_pool_low,
 				 M0_FOM_ADDB_CTX_VEC(fom));
 
 		    m0_fom_wait_on(fom, &bpdesc->rios_bp_wait, &fom->fo_cb);
@@ -1883,7 +1881,7 @@ static int io_finish(struct m0_fom *fom)
 	       "count: %lx, nob: %lx", fom_obj->fcrw_fom_start_time,
 	       fom_obj->fcrw_req_count, fom_obj->fcrw_count, nob);
 	fom_obj->fcrw_count += nob;
-	M0_ADDB_POST(fom_to_addb_mc(fom), &m0_addb_rt_ios_io_finish,
+	M0_ADDB_POST(m0_fom_addb_mc(), &m0_addb_rt_ios_io_finish,
 		     M0_FOM_ADDB_CTX_VEC(fom), fom_obj->fcrw_count,
 		     m0_time_sub(m0_time_now(),
 				 fom_obj->fcrw_phase_start_time));
@@ -2094,8 +2092,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	stobio_tlist_fini(&fom_obj->fcrw_done_list);
 	stobio_tlist_fini(&fom_obj->fcrw_stio_list);
 
-	M0_FOM_ADDB_POST(fom, &fom->fo_service->rs_reqh->rh_addb_mc,
-			 &m0_addb_rt_ios_rwfom_finish,
+	M0_FOM_ADDB_POST(fom, m0_fom_addb_mc(), &m0_addb_rt_ios_rwfom_finish,
 			 m0_fom_rc(fom), fom_obj->fcrw_count,
 			 m0_time_sub(m0_time_now(),
 				      fom_obj->fcrw_fom_start_time));
@@ -2161,11 +2158,6 @@ M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom)
 	M0_PRE(fom->fo_fop != NULL);
 
 	return IOSERVICE_NAME;
-}
-
-static inline struct m0_addb_mc *fom_to_addb_mc(const struct m0_fom *fom)
-{
-	return &fom->fo_service->rs_reqh->rh_addb_mc;
 }
 
 static void io_fom_addb2_descr(struct m0_fom *fom)

@@ -157,10 +157,9 @@ static int addb2_fom_tick(struct m0_fom *fom0)
 	struct addb2_service      *service = M0_AMB(service, svc, ase_service);
 	struct m0_addb2_source    *src     = &service->ase_src;
 	struct m0_addb2_cursor    *cur     = &fom->a2_cur;
+	struct m0_addb2_sys       *sys     = m0_fom_dom()->fd_addb2_sys;
 	struct m0_addb2_trace_obj *obj;
-	struct m0_addb2_sys       *sys;
 
-	sys = svc->rs_reqh->rh_fom_dom.fd_addb2_sys;
 	switch (m0_fom_phase(fom0)) {
 	case ADDB2_CONSUME:
 		m0_addb2_cursor_init(cur, trace);

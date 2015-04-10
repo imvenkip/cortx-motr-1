@@ -186,9 +186,9 @@ static int __rpc_machine_init(struct m0_rpc_machine *machine)
 	rmach_watch_tlist_init(&machine->rm_watch);
 
 	addb_mc = REQH_ADDB_MC_CONFIGURED(machine->rm_reqh) ?
-		  &machine->rm_reqh->rh_addb_mc : &m0_addb_gmc;
+		m0_fom_addb_mc() : &m0_addb_gmc;
 	ctx     = machine->rm_reqh != NULL ?
-		  &machine->rm_reqh->rh_addb_ctx : &m0_addb_proc_ctx;
+		m0_fom_addb_ctx() : &m0_addb_proc_ctx;
 
 	M0_ADDB_CTX_INIT(addb_mc, &machine->rm_addb_ctx,
 			 &m0_addb_ct_rpc_machine, ctx);
@@ -386,7 +386,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 
 	machine = tm_to_rpc_machine(tm);
 	addb_mc = REQH_ADDB_MC_CONFIGURED(machine->rm_reqh) ?
-		  &machine->rm_reqh->rh_addb_mc : &m0_addb_gmc;
+		m0_fom_addb_mc() : &m0_addb_gmc;
 
 	rc = m0_net_tm_init(tm, net_dom, addb_mc, &machine->rm_addb_ctx);
 	if (rc < 0)
@@ -446,11 +446,11 @@ static void rpc_tm_cleanup(struct m0_rpc_machine *machine)
 		m0_clink_del_lock(&tmwait);
 		m0_clink_fini(&tmwait);
 		RPCMC_ADDB_FUNCFAIL(rc, machine->rm_reqh != NULL ?
-				    &machine->rm_reqh->rh_addb_mc :
-				    &m0_addb_gmc, MACHINE_RPC_TM_CLEANUP,
+				    m0_fom_addb_mc() : &m0_addb_gmc,
+				    MACHINE_RPC_TM_CLEANUP,
 				    machine->rm_reqh != NULL ?
-				    &machine->rm_reqh->rh_addb_ctx :
-				    &m0_addb_proc_ctx, &machine->rm_addb_ctx);
+				    m0_fom_addb_ctx() : &m0_addb_proc_ctx,
+				    &machine->rm_addb_ctx);
 		M0_LOG(M0_ERROR, "TM stopping: FAILED with err: %d", rc);
 		M0_LEAVE();
 		return;
@@ -528,9 +528,7 @@ static void __rpc_machine_stats_post_addb(struct m0_rpc_machine *machine)
 	cv[0] = &machine->rm_addb_ctx;
 	cv[1] = NULL;
 
-	addb_mc = machine->rm_reqh != NULL ?
-		  &machine->rm_reqh->rh_addb_mc :
-		  &m0_addb_gmc;
+	addb_mc = machine->rm_reqh != NULL ? m0_fom_addb_mc() : &m0_addb_gmc;
 	m0_addb_post_cntr(addb_mc, cv, &machine->rm_cntr_sent_item_sizes);
 	m0_addb_post_cntr(addb_mc, cv, &machine->rm_cntr_rcvd_item_sizes);
 
@@ -673,7 +671,7 @@ static int rpc_chan_create(struct m0_rpc_chan **chan,
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 
 	M0_ALLOC_PTR_ADDB(ch, machine->rm_reqh != NULL ?
-			  &machine->rm_reqh->rh_addb_mc : &m0_addb_gmc,
+			  m0_fom_addb_mc() : &m0_addb_gmc,
 			  M0_RPC_ADDB_LOC_MACHINE_RPC_CHAN_CREATE,
 			  &m0_addb_proc_ctx, &machine->rm_addb_ctx);
 	if (ch == NULL) {
@@ -776,11 +774,11 @@ static void net_buf_received(struct m0_net_buffer    *nb,
 	rc = m0_rpc_packet_decode(&p, &nb->nb_buffer, offset, length);
 	if (rc != 0)
 		RPCMC_ADDB_FUNCFAIL(rc, machine->rm_reqh != NULL ?
-				    &machine->rm_reqh->rh_addb_mc :
-				    &m0_addb_gmc, MACHINE_NET_BUF_RECEIVED,
+				    m0_fom_addb_mc() : &m0_addb_gmc,
+				    MACHINE_NET_BUF_RECEIVED,
 				    machine->rm_reqh != NULL ?
-				    &machine->rm_reqh->rh_addb_ctx :
-				    &m0_addb_proc_ctx, &machine->rm_addb_ctx);
+				    m0_fom_addb_ctx() : &m0_addb_proc_ctx,
+				    &machine->rm_addb_ctx);
 
 	/* There might be items in packet p, which were successfully decoded
 	   before an error occurred. */
@@ -896,15 +894,14 @@ static void item_received(struct m0_rpc_item      *item,
 
 static void net_buf_err(struct m0_net_buffer *nb, int32_t status)
 {
-	struct m0_rpc_machine *machine;
+	struct m0_rpc_machine *machine = tm_to_rpc_machine(nb->nb_tm);
 
-	machine = tm_to_rpc_machine(nb->nb_tm);
 	RPCMC_ADDB_FUNCFAIL(status, machine->rm_reqh != NULL ?
-			   &machine->rm_reqh->rh_addb_mc : &m0_addb_gmc,
-			   MACHINE_NET_BUF_ERR,
-			   machine->rm_reqh != NULL ?
-			   &machine->rm_reqh->rh_addb_ctx : &m0_addb_proc_ctx,
-			   &machine->rm_addb_ctx);
+			    m0_fom_addb_mc() : &m0_addb_gmc,
+			    MACHINE_NET_BUF_ERR,
+			    machine->rm_reqh != NULL ?
+			    m0_fom_addb_ctx() : &m0_addb_proc_ctx,
+			    &machine->rm_addb_ctx);
 }
 
 /* Put buffer back into the pool */

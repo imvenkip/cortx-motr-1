@@ -282,8 +282,7 @@ static void server_fini(struct m0_stob_domain *bdom,
 	if (m0_reqh_state_get(&reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown_wait(&reqh);
 
-	M0_UT_ASSERT(m0_fom_domain_is_idle_for(&reqh.rh_fom_dom,
-					       reqh_ut_service));
+	M0_UT_ASSERT(m0_fom_domain_is_idle_for(reqh_ut_service));
 	/* reqh_ut_service is finalised by m0_reqh_services_terminate(). */
 	m0_reqh_services_terminate(&reqh);
 	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);

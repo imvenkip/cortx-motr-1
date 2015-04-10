@@ -255,8 +255,7 @@ static void be_tx_group_fom_log(struct m0_be_tx_group_fom *m)
 static void be_tx_group_fom_handle(struct m0_sm_group *gr,
 				   struct m0_sm_ast   *ast)
 {
-	struct m0_be_tx_group_fom *m =
-		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_handle);
+	struct m0_be_tx_group_fom *m = M0_AMB(m, ast, tgf_ast_handle);
 
 	M0_ENTRY("m=%p", m);
 
@@ -285,8 +284,7 @@ static void be_tx_group_fom_iff_waiting_wakeup(struct m0_fom *fom)
 
 static void be_tx_group_fom_stable(struct m0_sm_group *_, struct m0_sm_ast *ast)
 {
-	struct m0_be_tx_group_fom *m =
-		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_stable);
+	struct m0_be_tx_group_fom *m = M0_AMB(m, ast, tgf_ast_stable);
 
 	m->tgf_stable = true;
 	be_tx_group_fom_iff_waiting_wakeup(&m->tgf_gen);
@@ -294,8 +292,7 @@ static void be_tx_group_fom_stable(struct m0_sm_group *_, struct m0_sm_ast *ast)
 
 static void be_tx_group_fom_stop(struct m0_sm_group *gr, struct m0_sm_ast *ast)
 {
-	struct m0_be_tx_group_fom *m =
-		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_stop);
+	struct m0_be_tx_group_fom *m = M0_AMB(m, ast, tgf_ast_stop);
 
 	m->tgf_stopping = true;
 	be_tx_group_fom_iff_waiting_wakeup(&m->tgf_gen);
@@ -303,8 +300,7 @@ static void be_tx_group_fom_stop(struct m0_sm_group *gr, struct m0_sm_ast *ast)
 
 static void be_tx_group_fom_timeout_cb(struct m0_fom_callback *cb)
 {
-	struct m0_be_tx_group_fom *m  =
-		container_of(cb->fc_fom, struct m0_be_tx_group_fom, tgf_gen);
+	struct m0_be_tx_group_fom *m  = M0_AMB(m, cb->fc_fom, tgf_gen);
 	struct m0_be_tx_group     *gr = m->tgf_group;
 
 	M0_ENTRY("m=%p", m);
@@ -321,8 +317,7 @@ static void be_tx_group_fom_handle_delayed(struct m0_sm_group *gr,
 					   struct m0_sm_ast   *ast)
 {
 	int                        rc;
-	struct m0_be_tx_group_fom *m =
-		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_timeout);
+	struct m0_be_tx_group_fom *m = M0_AMB(m, ast, tgf_ast_timeout);
 
 	M0_ENTRY();
 

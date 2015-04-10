@@ -677,12 +677,10 @@ static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
 }
 
 /*
- * A generic COB-FOM-delete verification function. Check memory usage.
+ * A generic COB-FOM-delete verification function.
  */
 static void fom_fini_test(enum cob_fom_type fomtype)
 {
-	size_t          tot_mem;
-	size_t          base_mem;
 	struct m0_fom  *fom;
 	struct m0_reqh *reqh;
 
@@ -695,15 +693,8 @@ static void fom_fini_test(enum cob_fom_type fomtype)
 	 */
 	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
 	m0_reqh_idle_wait(reqh);
-	base_mem = m0_allocated();
 	fom_create(&fom, fomtype);
-
-	/*
-	 * Ensure - after fom_fini() memory usage drops back to original value
-	 */
 	fom_fini(fom, fomtype);
-	tot_mem = m0_allocated();
-	M0_UT_ASSERT(tot_mem == base_mem);
 }
 
 /*
@@ -1241,9 +1232,7 @@ static void cd_fom_state_test(void)
 
 static void dummy_locality_setup()
 {
-	struct m0_reqh *reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
-
-	dummy_loc.fl_dom = &reqh->rh_fom_dom;
+	dummy_loc.fl_dom = m0_fom_dom();
 	m0_sm_group_init(&dummy_loc.fl_group);
 	m0_locality_lockers_init(&dummy_loc.fl_locality);
 }

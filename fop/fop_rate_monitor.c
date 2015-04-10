@@ -163,7 +163,7 @@ M0_INTERNAL int m0_fop_rate_monitor_module_init(void)
 }
 
 M0_INTERNAL
-int m0_fop_rate_monitor_init(struct m0_fom_locality *loc)
+int m0_fop_rate_monitor_init(struct m0_fom_locality *loc, struct m0_reqh *reqh)
 {
 	struct m0_fop_rate_monitor *fmon;
 	int                         result;
@@ -188,7 +188,7 @@ int m0_fop_rate_monitor_init(struct m0_fom_locality *loc)
 	fmon->frm_ast.sa_cb = timer_rearm;
 
 	m0_locality_lockers_set(&loc->fl_locality, key, fmon);
-	m0_addb_monitor_add(loc->fl_dom->fd_reqh, &fmon->frm_monitor);
+	m0_addb_monitor_add(reqh, &fmon->frm_monitor);
 	return 0;
 
 err0:
@@ -199,13 +199,13 @@ err1:
 }
 
 M0_INTERNAL
-void m0_fop_rate_monitor_fini(struct m0_fom_locality *loc)
+void m0_fop_rate_monitor_fini(struct m0_fom_locality *loc, struct m0_reqh *reqh)
 {
 	struct m0_fop_rate_monitor *fmon = m0_fop_rate_monitor_get(loc);
 
 	__timer_fini(&fmon->frm_timer);
 	m0_locality_lockers_clear(&loc->fl_locality, key);
-	m0_addb_monitor_del(loc->fl_dom->fd_reqh, &fmon->frm_monitor);
+	m0_addb_monitor_del(reqh, &fmon->frm_monitor);
 	m0_addb_monitor_fini(&fmon->frm_monitor);
 	m0_addb_counter_fini(&fmon->frm_addb_ctr);
 	m0_addb_monitor_sum_rec_fini(&fmon->frm_sum_rec);
@@ -215,6 +215,10 @@ void m0_fop_rate_monitor_fini(struct m0_fom_locality *loc)
 M0_INTERNAL
 struct m0_fop_rate_monitor *m0_fop_rate_monitor_get(struct m0_fom_locality *loc)
 {
+	/**
+	 * @see fop_rate_init().
+	 */
+	return NULL;
 	return m0_locality_lockers_get(&loc->fl_locality, key);
 }
 

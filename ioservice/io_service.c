@@ -562,9 +562,8 @@ M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh)
 static void ios_stats_post_addb(struct m0_reqh_service *service)
 {
 	struct m0_reqh_io_service *serv_obj;
-	struct m0_reqh            *reqh = service->rs_reqh;
 	struct m0_addb_ctx        *cv[] = { &service->rs_addb_ctx, NULL };
-	struct m0_addb_mc         *mc = &reqh->rh_addb_mc;
+	struct m0_addb_mc         *mc   = m0_fom_addb_mc();
 	int                        i;
 
 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);

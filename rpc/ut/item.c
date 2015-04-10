@@ -167,6 +167,7 @@ static void test_timeout(void)
 		     IS_INCR_BY_1(nr_failed_items));
 	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
 	m0_fop_put_lock(fop);
+	m0_rpc__item_dropped = NULL;
 	M0_LOG(M0_DEBUG, "TEST:2.1:END");
 
 	/* Test [ENQUEUED] ---timeout----> [FAILED] */

@@ -39,6 +39,7 @@ enum m0_module_id {
 	M0_MODULE_UT,
 	M0_MODULE_ADDB2,
 	M0_MODULE_LOCALITY,
+	M0_MODULE_HA,
 	/* XXX ... more to come ... */
 	M0_MODULE_NR
 };

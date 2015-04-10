@@ -469,7 +469,7 @@ static void flock_utinit(void)
 
 static void flock_utfini(void)
 {
-	uint32_t i;
+	int32_t i;
 
 	/*
 	 * Windup the server first, then the client. Trying to stop
@@ -483,12 +483,15 @@ static void flock_utfini(void)
 	 * Following loops cannot be combined.
 	 * The ops within the loops need sync points. Hence they are separate.
 	 */
-	/* Disconnect the servers */
-	for (i = 0; i < test_servers_nr; ++i) {
+	/* Disconnect the servers. */
+	for (i = test_servers_nr - 1; i >= 0; --i) {
 		rm_ctx_server_stop(i);
 	}
-	/* Finalise the servers */
-	for (i = 0; i < test_servers_nr; ++i) {
+	/*
+	 * Finalise the servers. Must be done in the reverse order, so that the
+	 * first initialised reqh is finalised last.
+	 */
+	for (i = test_servers_nr - 1; i >= 0; --i) {
 		rm_ctx_fini(&rm_ctxs[i]);
 	}
 	for (i = 0; i < LOCK_TESTS_NR; ++i) {

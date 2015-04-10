@@ -51,7 +51,7 @@ struct m0_spiel_ut_reqh {
 };
 
 M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
-		                       const char              *ep_addr);
+				       const char              *ep_addr);
 
 M0_INTERNAL void m0_spiel__ut_reqh_fini(struct m0_spiel_ut_reqh *spl_reqh);
 

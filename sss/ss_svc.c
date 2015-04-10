@@ -242,7 +242,7 @@ static int ss_fom_tick(struct m0_fom *fom)
 	m = container_of(fom, struct ss_fom, ssf_fom);
 	fop = m0_fop_data(fom->fo_fop);
 	rep = m0_fop_data(fom->fo_rep_fop);
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = m0_fom_reqh(fom);
 
 	switch (m0_fom_phase(fom)) {
 	case SS_FOM_INIT:
@@ -285,7 +285,7 @@ static int ss_fom_tick(struct m0_fom *fom)
 		return M0_FSO_AGAIN;
 
 	case SS_FOM_STOP_WAIT:
-		if (m0_fom_domain_is_idle_for(&reqh->rh_fom_dom, m->ssf_svc)) {
+		if (m0_fom_domain_is_idle_for(m->ssf_svc)) {
 			struct m0_reqh_service *svc = m->ssf_svc;
 
 			m0_reqh_service_stop(svc);

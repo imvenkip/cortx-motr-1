@@ -305,7 +305,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN){
-			pm = m0_ios_poolmach_get(fom->fo_loc->fl_dom->fd_reqh);
+			pm = m0_ios_poolmach_get(m0_fom_reqh(fom));
 			M0_ASSERT(pm != NULL);
 			nr_fail = __nr_dev_failures(pm);
 			tx_cred = m0_fom_tx_credit(fom);

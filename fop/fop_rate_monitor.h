@@ -63,14 +63,15 @@ M0_INTERNAL int m0_fop_rate_monitor_module_init(void);
  *         -ENOMEM if failed to allocate summary record.
  */
 M0_INTERNAL
-int m0_fop_rate_monitor_init(struct m0_fom_locality *loc);
+int m0_fop_rate_monitor_init(struct m0_fom_locality *loc, struct m0_reqh *reqh);
 
 /**
  * It finalise fop rate monitor.
  * @param loc pointer to fom locality.
  */
 M0_INTERNAL
-void m0_fop_rate_monitor_fini(struct m0_fom_locality *loc);
+void m0_fop_rate_monitor_fini(struct m0_fom_locality *loc,
+			      struct m0_reqh *reqh);
 
 /**
  * It returns instance of fop_rate_monitor for locality "loc".

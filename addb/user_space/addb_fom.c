@@ -98,7 +98,7 @@ static int addb_fom_fo_tick(struct m0_fom *fom)
 		break;
 	case ADDB_FOM_PHASE_REC_SEQ_STOB_WRITE:
 		reqh = m0_fom_reqh(fom);
-		M0_ASSERT(m0_addb_mc_is_fully_configured(&reqh->rh_addb_mc));
+		M0_ASSERT(m0_addb_mc_is_fully_configured(m0_fom_addb_mc()));
 		addb_fop = m0_fop_data(fom->fo_fop);
 		M0_ASSERT(addb_fop != NULL);
 		/* Get the length of addb recs seq */
@@ -121,8 +121,8 @@ static int addb_fom_fo_tick(struct m0_fom *fom)
 		}
 		M0_ASSERT(cur.bc_vc.vc_seg == 0 && cur.bc_vc.vc_offset == len);
 		m0_bufvec_cursor_init(&cur, &bv);
-		reqh->rh_addb_mc.am_sink->rs_save_seq(&reqh->rh_addb_mc, &cur,
-						      len);
+		m0_fom_addb_mc()->am_sink->rs_save_seq(m0_fom_addb_mc(),
+						       &cur, len);
 		m0_bufvec_free(&bv);
 		m0_fom_phase_set(fom, ADDB_FOM_PHASE_FINI);
 		rc = M0_FSO_WAIT;

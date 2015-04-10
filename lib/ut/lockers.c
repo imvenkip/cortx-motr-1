@@ -42,16 +42,19 @@ static void bank_fini(struct bank *bank)
 void test_lockers(void)
 {
 	int         key;
+	int         key1;
 	char       *valuable = "Gold";
 	char       *asset;
 	struct bank federal;
+	int         i;
 
 	bank_init(&federal);
 
 	key = bank_lockers_allot();
 	M0_UT_ASSERT(key == 0);
 
-	M0_UT_ASSERT(key != bank_lockers_allot());
+	key1 = bank_lockers_allot();
+	M0_UT_ASSERT(key != key1);
 
 	M0_UT_ASSERT(bank_lockers_is_empty(&federal, key));
 	bank_lockers_set(&federal, key, valuable);
@@ -64,6 +67,11 @@ void test_lockers(void)
 	M0_UT_ASSERT(bank_lockers_is_empty(&federal, key));
 
 	bank_fini(&federal);
+	for (i = 0; i < 1000; ++i) {
+		bank_lockers_free(key1);
+		key1 = bank_lockers_allot();
+		M0_UT_ASSERT(key != key1);
+	}
 }
 M0_EXPORTED(test_lockers);
 

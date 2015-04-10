@@ -512,8 +512,8 @@ M0_INTERNAL void m0__addb_ctx_init(struct m0_addb_mc *mc,
 
 	/* construct the context object */
 	ctx->ac_type = ct;
-	if (parent == &m0_addb_node_ctx || parent == &m0_addb_proc_ctx ||
-	    parent == &addb_node_root_ctx) {
+	if (M0_IN(parent, (&m0_addb_node_ctx,
+			   &m0_addb_proc_ctx, &addb_node_root_ctx))) {
 		m0_mutex_lock(&addb_mutex);
 		ctx->ac_id = ++parent->ac_cntr;
 		m0_mutex_unlock(&addb_mutex);

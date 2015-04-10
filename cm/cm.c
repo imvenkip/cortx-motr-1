@@ -537,7 +537,7 @@ M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 	M0_PRE(rc < 0);
 	M0_PRE(cm->cm_service.rs_reqh != NULL);
 
-	addb_mc = &cm->cm_service.rs_reqh->rh_addb_mc;
+	addb_mc = m0_fom_addb_mc();
 
 	/*
 	 * Set the corresponding error code in sm and move the copy machine

@@ -249,7 +249,7 @@ M0_INTERNAL bool m0_locality_invariant(const struct m0_fom_locality *loc)
 
 M0_INTERNAL struct m0_reqh *m0_fom_reqh(const struct m0_fom *fom)
 {
-	return fom->fo_loc->fl_dom->fd_reqh;
+	return fom->fo_service->rs_reqh;
 }
 
 static inline enum m0_fom_state fom_state(const struct m0_fom *fom)
@@ -360,7 +360,17 @@ static void fom_addb2_push(struct m0_fom *fom)
 
 static void addb2_introduce(struct m0_fom *fom)
 {
-	struct m0_rpc_item *req;
+	struct m0_rpc_item             *req;
+	const struct m0_sm_conf        *conf = fom->fo_type->ft_conf;
+	static struct m0_sm_addb2_stats phase_stats = {
+		.as_id = M0_AVI_PHASE,
+		.as_nr = 0
+	};
+
+	fom->fo_sm_phase.sm_addb2_stats = conf->scf_addb2_key == 0 ?
+		&phase_stats : m0_locality_data(conf->scf_addb2_key - 1);
+	fom->fo_sm_state.sm_addb2_stats =
+		m0_locality_data(fom_states_conf.scf_addb2_key - 1);
 
 	req = fom->fo_fop != NULL ? &fom->fo_fop->f_item : NULL;
 
@@ -390,18 +400,18 @@ static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_PRE(m0_fom_invariant(fom));
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_INIT);
 
-	m0_fom_locality_inc(fom);
 	addb2_introduce(fom);
+	m0_fom_locality_inc(fom);
 	fom_ready(fom);
 }
 
 static void thr_addb2_enter(struct m0_loc_thread *thr,
 			    struct m0_fom_locality *loc)
 {
-	M0_PRE(m0_thread_tls()->tls_addb2_mach == NULL);
-
+	m0_addb2_global_thread_leave();
+	M0_ASSERT(m0_thread_tls()->tls_addb2_mach == NULL);
 	m0_thread_tls()->tls_addb2_mach = loc->fl_addb2_mach;
-	m0_addb2_push(M0_AVI_THREAD, M0_ADDB2_OBJ(&thr->lt_thread.t_h));
+	 m0_addb2_push(M0_AVI_THREAD, M0_ADDB2_OBJ(&thr->lt_thread.t_h));
 }
 
 static void thr_addb2_leave(struct m0_loc_thread *thr,
@@ -410,6 +420,7 @@ static void thr_addb2_leave(struct m0_loc_thread *thr,
 	M0_PRE(m0_thread_tls()->tls_addb2_mach == loc->fl_addb2_mach);
 	m0_addb2_pop(M0_AVI_THREAD);
 	m0_thread_tls()->tls_addb2_mach = NULL;
+	m0_addb2_global_thread_enter();
 }
 
 M0_INTERNAL void m0_fom_wakeup(struct m0_fom *fom)
@@ -502,10 +513,10 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
 	M0_PRE(reqh != NULL);
 	M0_PRE(fom != NULL);
 
-	dom = &reqh->rh_fom_dom;
+	dom = m0_fom_dom();
 	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
 	M0_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
-	fom->fo_loc = reqh->rh_fom_dom.fd_localities[loc_idx];
+	fom->fo_loc = dom->fd_localities[loc_idx];
 	m0_fom_sm_init(fom);
 	fom->fo_cb.fc_ast.sa_cb = &queueit;
 	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
@@ -681,7 +692,6 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 		M0_ASSERT(loc->fl_handler == NULL);
 		loc->fl_handler = th;
 		th->lt_state = HANDLER;
-		m0_addb2_global_thread_leave();
 		thr_addb2_enter(th, loc);
 
 		/*
@@ -741,7 +751,6 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 		m0_clink_init(&th->lt_clink, NULL);
 		m0_clink_add(&loc->fl_idle, &th->lt_clink);
 		thr_addb2_leave(th, loc);
-		m0_addb2_global_thread_enter();
 		group_unlock(loc);
 		if (loc->fl_shutdown)
 			break;
@@ -830,20 +839,14 @@ static void loc_fini(struct m0_fom_locality *loc)
 
 	runq_tlist_fini(&loc->fl_runq);
 	M0_ASSERT(loc->fl_runq_nr == 0);
-
 	wail_tlist_fini(&loc->fl_wail);
 	M0_ASSERT(loc->fl_wail_nr == 0);
-
 	thr_tlist_fini(&loc->fl_threads);
 	M0_ASSERT(m0_atomic64_get(&loc->fl_unblocking) == 0);
-
 	m0_chan_fini_lock(&loc->fl_idle);
 	m0_chan_fini_lock(&loc->fl_runrun);
 	m0_sm_group_fini(&loc->fl_group);
-
 	m0_bitmap_fini(&loc->fl_processors);
-
-	m0_fop_rate_monitor_fini(loc);
 	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
 	m0_addb_counter_fini(&loc->fl_stat_run_times);
 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
@@ -881,11 +884,11 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	 * @todo Need a locality specific ADDB machine
 	 * with a caching event manager.
 	 */
-	addb_mc = &dom->fd_reqh->rh_addb_mc;
+	addb_mc = &dom->fd_addb_mc;
 	if (!m0_addb_mc_is_configured(addb_mc)) /* happens in UTs */
 		addb_mc = &m0_addb_gmc;
 	M0_ADDB_CTX_INIT(addb_mc, &loc->fl_addb_ctx, &m0_addb_ct_fom_locality,
-			 &dom->fd_reqh->rh_addb_ctx, cpu);
+			 &dom->fd_addb_ctx, cpu);
 
 	loc->fl_addb2_mach = m0_addb2_sys_get(dom->fd_addb2_sys);
 	if (loc->fl_addb2_mach == NULL) {
@@ -902,10 +905,10 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	m0_thread_tls()->tls_addb2_mach = loc->fl_addb2_mach;
 	m0_addb2_push(M0_AVI_NODE, M0_ADDB2_OBJ(&m0_node_uuid));
 	M0_ADDB2_PUSH(M0_AVI_LOCALITY, loc->fl_idx);
-	m0_addb2_clock_add(&loc->fl_clock, M0_AVI_CLOCK);
-	m0_addb2_counter_add(&loc->fl_fom_active, M0_AVI_FOM_ACTIVE);
-	m0_addb2_counter_add(&loc->fl_runq_counter, M0_AVI_RUNQ);
-	m0_addb2_counter_add(&loc->fl_wail_counter, M0_AVI_WAIL);
+	m0_addb2_clock_add(&loc->fl_clock, M0_AVI_CLOCK, -1);
+	m0_addb2_counter_add(&loc->fl_fom_active, M0_AVI_FOM_ACTIVE, -1);
+	m0_addb2_counter_add(&loc->fl_runq_counter, M0_AVI_RUNQ, -1);
+	m0_addb2_counter_add(&loc->fl_wail_counter, M0_AVI_WAIL, -1);
 	m0_thread_tls()->tls_addb2_mach = orig;
 
 	res = m0_addb_counter_init(&loc->fl_stat_run_times,
@@ -917,14 +920,8 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 				      &m0_addb_rt_fl_sched_wait_times);
 	if (res != 0)
 		goto err1;
-
-	m0_locality_init(&loc->fl_locality, &loc->fl_group, dom->fd_reqh,
-			 dom->fd_localities_nr);
-
-	res = m0_fop_rate_monitor_init(loc);
-	if (res < 0)
-		goto err0;
-
+	m0_locality_init(&loc->fl_locality,
+			 &loc->fl_group, loc->fl_dom, loc->fl_idx);
 	m0_sm_group_init(&loc->fl_group);
 	m0_chan_init(&loc->fl_runrun, &loc->fl_group.s_lock);
 	thr_tlist_init(&loc->fl_threads);
@@ -955,9 +952,6 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 
 	return M0_RC(res);
 
-err0:
-	m0_locality_fini(&loc->fl_locality);
-	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
 err1:
 	m0_addb_counter_fini(&loc->fl_stat_run_times);
 err2:
@@ -969,15 +963,18 @@ err3:
 
 static void loc_ast_post_stats(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_fom_locality     *loc = container_of(ast,
-						       struct m0_fom_locality,
-						       fl_post_stats_ast);
-	struct m0_addb_ctx         *cv[] = {&loc->fl_addb_ctx, NULL};
-	struct m0_addb_mc          *mc = &loc->fl_dom->fd_reqh->rh_addb_mc;
+	struct m0_fom_locality     *loc  = container_of(ast,
+							struct m0_fom_locality,
+							fl_post_stats_ast);
+	struct m0_addb_ctx         *cv[] = { &loc->fl_addb_ctx, NULL };
+	struct m0_addb_mc          *mc   = &loc->fl_dom->fd_addb_mc;
 
 	m0_addb_post_cntr(mc, cv, &loc->fl_stat_run_times);
 	m0_addb_post_cntr(mc, cv, &loc->fl_stat_sched_wait_times);
+	/**
+	 * @see fop_rate_init().
 	m0_addb_post_cntr(mc, cv, &m0_fop_rate_monitor_get(loc)->frm_addb_ctr);
+	*/
 
 	M0_ADDB_POST(mc, &m0_addb_rt_fl_runq_nr, cv, loc->fl_runq_nr);
 	M0_ADDB_POST(mc, &m0_addb_rt_fl_wail_nr, cv, loc->fl_wail_nr);
@@ -991,22 +988,25 @@ M0_INTERNAL void m0_fom_locality_post_stats(struct m0_fom_locality *loc)
 	}
 }
 
-M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom,
-				   struct m0_reqh *reqh)
+M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain **out)
 {
-	int                     result;
-	size_t                  cpu;
-	size_t                  cpu_max;
-	struct m0_bitmap        onln_cpu_map;
-	int                     i;
+	extern struct m0_addb_ctx_type m0_addb_ct_reqh_mod;
 
-	M0_PRE(M0_IS0(dom));
+	struct m0_fom_domain *dom;
+	int                   result;
+	size_t                cpu;
+	size_t                cpu_max;
+	struct m0_bitmap      onln_cpu_map;
+	int                   i;
 
-	M0_ENTRY("%p", dom);
+	M0_PRE(out != NULL && *out == NULL);
+
+	M0_ALLOC_PTR(dom);
+	if (dom == NULL)
+		return M0_ERR(-ENOMEM);
 
 	cpu_max = m0_processor_nr_max();
 	dom->fd_ops = &m0_fom_dom_ops;
-	dom->fd_reqh = reqh;
 	result = m0_bitmap_init(&onln_cpu_map, cpu_max);
 	if (result != 0)
 		return result;
@@ -1032,6 +1032,10 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom,
 			return M0_ERR(-ENOMEM);
 		}
 	}
+	m0_addb_mc_init(&dom->fd_addb_mc);
+	/* for UT specifically */
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &dom->fd_addb_ctx,
+			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
 	result = m0_addb2_sys_init(&dom->fd_addb2_sys,
 				   &(struct m0_addb2_config) {
 		.co_queue_max = 1024 * 1024,
@@ -1058,20 +1062,21 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom,
 	}
 	m0_bitmap_fini(&onln_cpu_map);
 	if (result == 0) {
-		result = m0_locality_dom_set(dom);
-		if (result == 0) {
-			/* Wake up handler threads. */
-			for (i = 0; i < dom->fd_localities_nr; ++i) {
-				struct m0_fom_locality *loc;
+		m0_locality_dom_set(dom);
+		/* Wake up handler threads. */
+		for (i = 0; i < dom->fd_localities_nr; ++i) {
+			struct m0_fom_locality *loc;
 
-				loc = dom->fd_localities[i];
-				group_lock(loc);
-				m0_chan_signal(&loc->fl_idle);
-				group_unlock(loc);
-			}
-		} else
+			loc = dom->fd_localities[i];
+			group_lock(loc);
+			m0_chan_signal(&loc->fl_idle);
+			group_unlock(loc);
+		}
+		if (result != 0)
 			m0_fom_domain_fini(dom);
 	}
+	if (result == 0)
+		*out = dom;
 	return M0_RC(result);
 }
 
@@ -1087,14 +1092,16 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 			if (dom->fd_localities[i] != NULL)
 				loc_fini(dom->fd_localities[i]);
 		}
-
+		m0_locality_dom_unset(dom);
 		for (i = 0; i < m0_processor_nr_max(); i++)
 			m0_free(dom->fd_localities[i]);
 		m0_free0(&dom->fd_localities);
 	}
+	m0_addb_ctx_fini(&dom->fd_addb_ctx);
+	m0_addb_mc_fini(&dom->fd_addb_mc);
 	if (dom->fd_addb2_sys != NULL)
 		m0_addb2_sys_fini(dom->fd_addb2_sys);
-	m0_locality_dom_clear(dom);
+	m0_free(dom);
 }
 
 static bool is_loc_locker_empty(struct m0_fom_locality *loc, uint32_t key)
@@ -1102,13 +1109,12 @@ static bool is_loc_locker_empty(struct m0_fom_locality *loc, uint32_t key)
 	return m0_locality_lockers_is_empty(&loc->fl_locality, key);
 }
 
-M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_fom_domain *dom,
-					   struct m0_reqh_service *svc)
+M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_reqh_service *svc)
 {
-	unsigned key = svc->rs_type->rst_fomcnt_key;
-
+	struct m0_fom_domain *dom = m0_fom_dom();
 	return m0_forall(i, dom->fd_localities_nr,
-			 is_loc_locker_empty(dom->fd_localities[i], key));
+			 is_loc_locker_empty(dom->fd_localities[i],
+					     svc->rs_fom_key));
 }
 
 M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
@@ -1119,7 +1125,7 @@ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
 
 M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom)
 {
-	unsigned                key = fom->fo_type->ft_rstype->rst_fomcnt_key;
+	unsigned                key = fom->fo_service->rs_fom_key;
 	struct m0_fom_locality *loc = fom->fo_loc;
 	uint64_t                cnt;
 
@@ -1133,7 +1139,7 @@ M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom)
 
 M0_INTERNAL bool m0_fom_locality_dec(struct m0_fom *fom)
 {
-	unsigned                key = fom->fo_type->ft_rstype->rst_fomcnt_key;
+	unsigned                key = fom->fo_service->rs_fom_key;
 	struct m0_fom_locality *loc = fom->fo_loc;
 	uint64_t                cnt;
 
@@ -1158,13 +1164,13 @@ void m0_fom_fini(struct m0_fom *fom)
 	M0_PRE(fom->fo_pending == NULL);
 
 	loc = fom->fo_loc;
-	reqh = loc->fl_dom->fd_reqh;
+	reqh = m0_fom_reqh(fom);
 	fom_state_set(fom, M0_FOS_FINISH);
 
 	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx)) {
-		m0_sm_stats_post(&fom->fo_sm_phase, &reqh->rh_addb_mc,
+		m0_sm_stats_post(&fom->fo_sm_phase, m0_fom_addb_mc(),
 				 M0_FOM_ADDB_CTX_VEC(fom));
-		m0_sm_stats_post(&fom->fo_sm_state, &reqh->rh_addb_mc,
+		m0_sm_stats_post(&fom->fo_sm_state, m0_fom_addb_mc(),
 				 M0_FOM_ADDB_CTX_VEC(fom));
 	}
 	m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
@@ -1233,12 +1239,12 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 	M0_ASSERT(fom->fo_service != NULL);
 	m0_mutex_lock(&fom->fo_service->rs_mutex);
 	M0_ASSERT(fom->fo_addb_ctx.ac_magic == 0);
-	(*fom->fo_ops->fo_addb_init)(fom, &reqh->rh_addb_mc);
+	(*fom->fo_ops->fo_addb_init)(fom, m0_fom_addb_mc());
 	M0_ASSERT(fom->fo_addb_ctx.ac_magic != 0);
 	m0_mutex_unlock(&fom->fo_service->rs_mutex);
 
 	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx))
-		M0_FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_init);
+		M0_FOM_ADDB_POST(fom, m0_fom_addb_mc(), &m0_addb_rt_fom_init);
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_fom_init);
@@ -1437,11 +1443,11 @@ M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type, uint64_t id,
 	M0_PRE(M0_IN(m0_fom__types[id], (NULL, type)));
 
 	if (m0_fom__types[id] == NULL) {
-		type->ft_id     = id;
-		type->ft_ops    = ops;
-		type->ft_conf   = sm;
-		type->ft_rstype = svc_type;
-		m0_fom__types[id] = type;
+		type->ft_id        = id;
+		type->ft_ops       = ops;
+		type->ft_conf      = sm;
+		type->ft_rstype    = svc_type;
+		m0_fom__types[id]  = type;
 	}
 }
 
@@ -1489,10 +1495,19 @@ struct m0_sm_conf fom_states_conf = {
 	.scf_trans     = fom_trans
 };
 
+M0_INTERNAL int m0_foms_init(void)
+{
+	return m0_sm_addb2_init(&fom_states_conf,
+				M0_AVI_STATE, M0_AVI_STATE_COUNTER);
+}
+
+M0_INTERNAL void m0_foms_fini(void)
+{;}
+
 M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 {
-	struct m0_sm_group             *fom_group;
-	const struct m0_sm_conf        *conf;
+	struct m0_sm_group      *fom_group;
+	const struct m0_sm_conf *conf;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_loc != NULL);
@@ -1503,9 +1518,7 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 	fom_group = &fom->fo_loc->fl_group;
 
 	m0_sm_init(&fom->fo_sm_phase, conf, M0_FOM_PHASE_INIT, fom_group);
-	fom->fo_sm_phase.sm_addb2_id = M0_AVI_PHASE;
 	m0_sm_init(&fom->fo_sm_state, &fom_states_conf, M0_FOS_INIT, fom_group);
-	fom->fo_sm_state.sm_addb2_id = M0_AVI_STATE;
 
 	m0_addb_sm_counter_init(&fom->fo_sm_state_stats,
 				&m0_addb_rt_fom_state_stats,

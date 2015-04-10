@@ -243,43 +243,39 @@ static void addb_ut_mon_fini(int idx)
 	m0_addb_monitor_fini(&ut_mon[idx]);
 }
 
-static void addb_post_record(struct m0_addb_mc *mc, int idx,
+static void addb_post_record(struct m0_addb_mc *_mc, int idx,
 			     struct m0_addb_ctx *cv[])
 {
+	struct m0_addb_mc *mc = m0_fom_addb_mc();
+
 	switch (idx) {
 	case 1:
-		M0_ADDB_POST(&ut_srv_reqh->rh_addb_mc, DPRTP(1), cv, 10);
+		M0_ADDB_POST(mc, DPRTP(1), cv, 10);
 		break;
 	case 2:
-		M0_ADDB_POST(&ut_srv_reqh->rh_addb_mc, DPRTP(2), cv, 10, 20);
+		M0_ADDB_POST(mc, DPRTP(2), cv, 10, 20);
 		break;
 	case 3:
-		M0_ADDB_POST(&ut_srv_reqh->rh_addb_mc, DPRTP(3), cv, 10, 20,
-			     30);
+		M0_ADDB_POST(mc, DPRTP(3), cv, 10, 20, 30);
 		break;
 	case 4:
-		M0_ADDB_POST(&ut_srv_reqh->rh_addb_mc, DPRTP(4), cv, 10, 20, 30,
-			     40);
+		M0_ADDB_POST(mc, DPRTP(4), cv, 10, 20, 30, 40);
 		break;
 	case 5:
-		M0_ADDB_POST(&ut_srv_reqh->rh_addb_mc, DPRTP(5), cv, 10, 20, 30,
-			     40, 50);
+		M0_ADDB_POST(mc, DPRTP(5), cv, 10, 20, 30, 40, 50);
 		break;
 	case 6:
-		M0_ADDB_POST(&ut_srv_reqh->rh_addb_mc, DPRTP(6), cv, 10, 20, 30,
-			     40, 50, 60);
+		M0_ADDB_POST(mc, DPRTP(6), cv, 10, 20, 30, 40, 50, 60);
 		break;
 	case 7:
-		M0_ADDB_POST(&ut_srv_reqh->rh_addb_mc, DPRTP(7), cv, 10, 20, 30,
-			     40, 50, 60, 70);
+		M0_ADDB_POST(mc, DPRTP(7), cv, 10, 20, 30, 40, 50, 60, 70);
 		break;
 	case 8:
-		M0_ADDB_POST(&ut_srv_reqh->rh_addb_mc, DPRTP(8), cv, 10, 20, 30,
-			     40, 50, 60, 70, 80);
+		M0_ADDB_POST(mc, DPRTP(8), cv, 10, 20, 30, 40, 50, 60, 70, 80);
 		break;
 	case 9:
-		M0_ADDB_POST(&ut_srv_reqh->rh_addb_mc, DPRTP(9), cv, 10, 20, 30,
-			     40, 50, 60, 70, 80, 90);
+		M0_ADDB_POST(mc, DPRTP(9), cv,
+			     10, 20, 30, 40, 50, 60, 70, 80, 90);
 		break;
 	default:
 		M0_UT_ASSERT(0);
@@ -316,13 +312,13 @@ static void clear_stats(struct stats_svc *stats_srv, int idx)
 
 static void mon_test(int test_no)
 {
-	int	                i;
+	int                     i;
 	struct m0_reqh_service *reqh_srv;
 
 	reqh_srv = m0_reqh_service_find(&m0_stats_svc_type, ut_srv_reqh);
 	M0_UT_ASSERT(reqh_srv != NULL);
 	for (i = 1; i < UT_ADDB_MONS_NR; ++i)
-		addb_post_record(&ut_srv_reqh->rh_addb_mc, i, cv);
+		addb_post_record(m0_fom_addb_mc(), i, cv);
 
 	for (i = 0; i < nfop_send; ++i)
 		m0_semaphore_down(&stats_done);
@@ -413,8 +409,8 @@ static void addb_ut_mon_infra_test(void)
 	m0__addb_ut_ct0.act_id = addb_ct_max_id + 1;
 	m0_addb_ctx_type_register(&m0__addb_ut_ct0);
 
-	M0_ADDB_CTX_INIT(&ut_srv_reqh->rh_addb_mc, &ctx, &m0__addb_ut_ct0,
-			 &m0_addb_proc_ctx);
+	M0_ADDB_CTX_INIT(m0_fom_addb_mc(), &ctx,
+			 &m0__addb_ut_ct0, &m0_addb_proc_ctx);
 	cv[0] = &ctx;
 
 	/**

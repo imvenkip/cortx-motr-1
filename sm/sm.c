@@ -27,6 +27,7 @@
 #include "lib/arith.h"              /* m0_is_po2 */
 #include "lib/memory.h"
 #include "lib/finject.h"
+#include "lib/locality.h"           /* m0_locality_data_alloc */
 #include "addb2/addb2.h"
 #include "sm/sm.h"
 
@@ -253,7 +254,7 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
 	mach->sm_grp         = grp;
 	mach->sm_rc          = 0;
 	mach->sm_state_epoch = 0;
-	mach->sm_addb2_id    = 0;
+	mach->sm_addb2_stats = NULL;
 	m0_chan_init(&mach->sm_chan, &grp->s_lock);
 	M0_POST(sm_invariant0(mach));
 }
@@ -318,12 +319,10 @@ M0_INTERNAL void m0_sm_stats_post(struct m0_sm *mach,
 				  struct m0_addb_mc *addb_mc,
 				  struct m0_addb_ctx **cv)
 {
-	if (mach->sm_state_epoch == 0)
-		return;
-
 	M0_ASSERT(m0_sm_invariant(mach));
 
-	if (m0_addb_sm_counter_nr(mach->sm_addb_stats) > 0)
+	if (mach->sm_addb_stats != NULL &&
+	    m0_addb_sm_counter_nr(mach->sm_addb_stats) > 0)
 		M0_ADDB_POST_SM_CNTR(addb_mc, cv, mach->sm_addb_stats);
 }
 
@@ -371,25 +370,32 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 	 * on the loop termination.
 	 */
 	do {
+		struct m0_sm_addb2_stats *stats = mach->sm_addb2_stats;
+		m0_time_t                 now   = m0_time_now();
+		m0_time_t                 delta;
+		uint32_t                  trans;
+
 		sd = sm_state(mach);
+		trans = sd->sd_trans[state];
 		M0_ASSERT_INFO(sd->sd_allowed & M0_BITS(state), "%s: %s -> %s",
 			       mach->sm_conf->scf_name, sd->sd_name,
 			       state_get(mach, state)->sd_name);
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);
 
-		/* Update statistics (if enabled) */
-		if (mach->sm_state_epoch != 0) {
-			m0_time_t now = m0_time_now();
-			m0_addb_sm_counter_update(mach->sm_addb_stats,
-			    sd->sd_trans[state],
-			    m0_time_sub(now, mach->sm_state_epoch) >> 10);
-			mach->sm_state_epoch = now;
+		delta = m0_time_sub(now, mach->sm_state_epoch) >> 10;
+		/* Update statistics (if enabled). */
+		if (mach->sm_addb_stats != NULL)
+			m0_addb_sm_counter_update(mach->sm_addb_stats, trans,
+						  delta);
+		if (stats != NULL) {
+			M0_ASSERT(stats->as_nr == 0 || trans < stats->as_nr);
+			M0_ADDB2_ADD(stats->as_id, trans, state, now);
+			if (stats->as_nr > 0)
+				m0_addb2_counter_mod(&stats->as_counter[trans],
+						     delta);
 		}
-		if (mach->sm_addb2_id != 0)
-			M0_ADDB2_ADD(mach->sm_addb2_id,
-				     sd->sd_trans[state], state, m0_time_now());
-
+		mach->sm_state_epoch = now;
 		mach->sm_state = state;
 		M0_ASSERT(m0_sm_invariant(mach));
 		sd = sm_state(mach);
@@ -705,6 +711,77 @@ M0_INTERNAL const char *m0_sm_conf_state_name(const struct m0_sm_conf *conf,
 M0_INTERNAL const char *m0_sm_state_name(const struct m0_sm *mach, int state)
 {
 	return m0_sm_conf_state_name(mach->sm_conf, state);
+}
+
+struct sm_call {
+	void               *sc_input;
+	int               (*sc_call)(void *);
+	int                 sc_output;
+	struct m0_semaphore sc_wait;
+};
+
+static void sm_call_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct sm_call *sc = ast->sa_datum;
+
+	sc->sc_output = sc->sc_call(sc->sc_input);
+	m0_semaphore_up(&sc->sc_wait);
+}
+
+int m0_sm_group_call(struct m0_sm_group *group, int (*cb)(void *), void *data)
+{
+	struct m0_sm_ast ast = {};
+	struct sm_call   sc  = {
+		.sc_input = data,
+		.sc_call  = cb
+	};
+	m0_semaphore_init(&sc.sc_wait, 0);
+	ast.sa_datum = &sc;
+	ast.sa_cb    = &sm_call_ast;
+	m0_sm_ast_post(group, &ast);
+	m0_semaphore_down(&sc.sc_wait);
+	m0_semaphore_fini(&sc.sc_wait);
+	return sc.sc_output;
+}
+
+static int sm_addb2_ctor(struct m0_sm_addb2_stats *stats, struct m0_sm_conf *c)
+{
+	int i;
+
+	stats->as_id = c->scf_addb2_id;
+	stats->as_nr = c->scf_trans_nr;
+	for (i = 0; i < stats->as_nr; ++i) {
+		m0_addb2_counter_add(&stats->as_counter[i],
+				     c->scf_addb2_counter + i, 1);
+	}
+	return 0;
+}
+
+static void sm_addb2_dtor(struct m0_sm_addb2_stats *stats, struct m0_sm_conf *c)
+{
+	int i;
+
+	for (i = 0; i < stats->as_nr; ++i)
+		m0_addb2_counter_del(&stats->as_counter[i]);
+}
+
+M0_INTERNAL int m0_sm_addb2_init(struct m0_sm_conf *conf,
+				 uint64_t id, uint64_t counter)
+{
+	size_t nob;
+	int    result;
+
+	conf->scf_addb2_id      = id;
+	conf->scf_addb2_counter = counter;
+	nob = sizeof(struct m0_sm_addb2_stats) +
+		conf->scf_trans_nr * sizeof(struct m0_addb2_counter);
+	result = m0_locality_data_alloc(nob, (void *)&sm_addb2_ctor,
+					(void *)sm_addb2_dtor, conf);
+	if (result >= 0) {
+		conf->scf_addb2_key = result + 1;
+		result = 0;
+	}
+	return result;
 }
 
 /** @} end of sm group */

@@ -37,16 +37,17 @@
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc.h"
-#include "ioservice/io_fops.h"
-#include "ioservice/io_fops_xc.h"
 #include "fop/fom_generic.h"
-#include "ioservice/cob_foms.h"
 #include "file/file.h"
 #include "lib/finject.h"
 #include "cob/cob.h"
 #include "mdservice/fsync_foms.h"       /* m0_fsync_fom_conf */
 #include "mdservice/fsync_fops.h"       /* m0_fsync_fom_ops */
 #include "mdservice/fsync_fops_xc.h"    /* m0_fop_fsync_xc */
+#include "ioservice/io_addb2.h"
+#include "ioservice/io_fops.h"
+#include "ioservice/io_fops_xc.h"
+#include "ioservice/cob_foms.h"
 #ifdef __KERNEL__
   #undef M0_ADDB_CT_CREATE_DEFINITION
   #include "m0t1fs/linux_kernel/m0t1fs.h"
@@ -415,8 +416,14 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .opcode    = M0_IOSERVICE_COB_SETATTR_REP_OPCODE,
 			 .xt        = m0_fop_cob_setattr_reply_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-
+#ifndef __KERNEL__
+	return  m0_sm_addb2_init(m0_fop_cob_readv_fopt.ft_fom_type.ft_conf,
+				 M0_AVI_PHASE, M0_AVI_IOS_READ_COUNTER) ?:
+		m0_sm_addb2_init(m0_fop_cob_writev_fopt.ft_fom_type.ft_conf,
+				 M0_AVI_PHASE, M0_AVI_IOS_WRITE_COUNTER);
+#else
 	return 0;
+#endif
 }
 
 /**

@@ -57,6 +57,8 @@ enum m0_addb2_value_id {
 	M0_AVI_PHASE,
 	/** Measurement: fom state transition. */
 	M0_AVI_STATE,
+	M0_AVI_STATE_COUNTER,
+	M0_AVI_STATE_COUNTER_END = M0_AVI_STATE_COUNTER + 0x100,
 	/** Measurement: fom description. */
 	M0_AVI_FOM_DESCR,
 	/** Measurement: active foms in locality counter. */

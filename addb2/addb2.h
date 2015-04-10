@@ -124,8 +124,8 @@
  * maximal (10MB) and average (4MB) IO sizes for the given device.
  *
  * IMPLEMENTATION is not interested in semantics of records. It is up to
- * PRODUCERS and CONSUMERS to agree on common value identifiers and meaning of
- * payloads.
+ * PRODUCERS and CONSUMERS to agree on common values of identifiers and meaning
+ * of payloads.
  *
  * PRODUCER interface
  * ------------------
@@ -177,8 +177,8 @@
  * pointer is NULL, no operation is performed. It is up to SYSTEM to setup this
  * pointer in some or all threads.
  *
- * @note Currently, this pointer is set only for the request handler locality
- * threads.
+ * @note Currently, this pointer is set for all threads except for some
+ * light-weight short-living threads like ones used to implement soft timers.
  *
  * @{
  */
@@ -318,10 +318,14 @@ struct m0_addb2_sensor {
  * Adds a sensor to the current context. This sensor will be periodically
  * queried (at the IMPLEMENTATION discretion) until it goes out of context.
  *
+ * "idx" is used to specify to which label in the context to add the sensor. -1
+ * means the topmost label, otherwise it is the level of label in the context
+ * (starting from 0).
+ *
  * @pre context stack must be non-empty.
  */
 void m0_addb2_sensor_add(struct m0_addb2_sensor *s, uint64_t id, unsigned nr,
-			 const struct m0_addb2_sensor_ops *ops);
+			 int idx, const struct m0_addb2_sensor_ops *ops);
 /**
  * Deletes a sensor.
  */

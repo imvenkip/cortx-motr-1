@@ -46,7 +46,8 @@ struct m0_locality;
 struct m0_locality_chore;
 struct m0_locality_chore_ops;
 
-M0_LOCKERS_DECLARE(M0_EXTERN, m0_locality, 64);
+enum { M0_LOCALITY_LOCKERS_NR = 256 };
+M0_LOCKERS_DECLARE(M0_EXTERN, m0_locality, M0_LOCALITY_LOCKERS_NR);
 
 /**
  * Per-core state maintained by Mero.
@@ -62,8 +63,8 @@ struct m0_locality {
 	 * ASTs is serialised with state transitions of foms in this locality.
 	 */
 	struct m0_sm_group        *lo_grp;
-	struct m0_reqh            *lo_reqh;
 	size_t                     lo_idx;
+	struct m0_fom_domain      *lo_dom;
 	/** Lockers to store locality-specific private data */
 	struct m0_locality_lockers lo_lockers;
 	struct m0_tl               lo_chores;
@@ -71,7 +72,7 @@ struct m0_locality {
 
 M0_INTERNAL void m0_locality_init(struct m0_locality *loc,
 				  struct m0_sm_group *grp,
-				  struct m0_reqh *reqh, size_t idx);
+				  struct m0_fom_domain *dom, size_t idx);
 M0_INTERNAL void m0_locality_fini(struct m0_locality *loc);
 
 /**
@@ -94,12 +95,12 @@ M0_INTERNAL struct m0_locality *m0_locality0_get(void);
 /**
  * Starts using localities from the specified domain.
  */
-M0_INTERNAL int m0_locality_dom_set(struct m0_fom_domain *dom);
+M0_INTERNAL void m0_locality_dom_set    (struct m0_fom_domain *dom);
 
 /**
  * Stops using the domain, falls back to a single locality.
  */
-M0_INTERNAL void m0_locality_dom_clear(struct m0_fom_domain *dom);
+M0_INTERNAL void m0_locality_dom_unset(struct m0_fom_domain *dom);
 
 M0_INTERNAL int  m0_localities_init(void);
 M0_INTERNAL void m0_localities_fini(void);
@@ -136,6 +137,15 @@ void m0_locality_chore_quit(struct m0_locality_chore *chore);
 void m0_locality_chore_fini(struct m0_locality_chore *chore);
 
 M0_INTERNAL void m0_locality_chores_run(struct m0_locality *locality);
+
+int   m0_locality_data_alloc(size_t nob, int (*ctor)(void *, void *),
+			     void (*dtor)(void *, void *), void *datum);
+void  m0_locality_data_free (int key);
+void *m0_locality_data      (int key);
+
+int m0_locality_call(struct m0_locality *loc, int (*cb)(void *), void *data);
+
+M0_INTERNAL struct m0_fom_domain *m0_fom_dom(void);
 
 /** @} end of locality group */
 

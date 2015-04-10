@@ -230,7 +230,8 @@ struct m0_reqh_service {
 	   m0_reqh_service_allocate().
 	 */
 	unsigned                           rs_level;
-
+	/** Key for per-locality-per-svc fom count. */
+	int                                rs_fom_key;
 	/**
 	   Service state machine.
 
@@ -432,12 +433,7 @@ struct m0_reqh_service_type {
 	 * @see m0_reqh::rh_key
 	 */
 	unsigned                               rst_key;
-
-	/** Key for per-locality-per-svc fom count. */
-	unsigned                               rst_fomcnt_key;
-
 	unsigned                               rst_level;
-
 	/**
 	   Pointer to ADDB context type for this service type
 	 */

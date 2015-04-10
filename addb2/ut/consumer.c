@@ -249,7 +249,7 @@ static void sensor(void)
 	source_get();
 	M0_ADDB2_PUSH(LABEL_ID + 0, 1, 1, 2, 3, 5);
 	M0_ADDB2_PUSH(LABEL_ID + 1, 1, 6, 21, 107);
-	m0_addb2_sensor_add(&sen, LABEL_ID + 2, 2, &sensor_ops);
+	m0_addb2_sensor_add(&sen, LABEL_ID + 2, 2, -1, &sensor_ops);
 	M0_ADDB2_ADD(LABEL_ID + 4, 1, 6, 21, 107);
 	m0_addb2_pop(LABEL_ID + 1);
 	m0_addb2_pop(LABEL_ID + 0);
@@ -276,7 +276,7 @@ static void sensor_N(void)
 	source_get();
 	M0_ADDB2_PUSH(LABEL_ID + 0, 1, 1, 2, 3, 5);
 	M0_ADDB2_PUSH(LABEL_ID + 1, 1, 6, 21, 107);
-	m0_addb2_sensor_add(&sen, LABEL_ID + 2, 2, &sensor_ops);
+	m0_addb2_sensor_add(&sen, LABEL_ID + 2, 2, -1, &sensor_ops);
 	M0_ADDB2_ADD(LABEL_ID + 4, 1, 6, 21, 107);
 	++ issued;
 	issued += fill_one(m);
@@ -333,7 +333,7 @@ static void id_philter(void)
 
 	M0_ADDB2_PUSH(LABEL_ID + 0, 1, 1, 2, 3, 5);
 	M0_ADDB2_PUSH(LABEL_ID + 1, 1, 6, 21, 107);
-	m0_addb2_sensor_add(&sen, LABEL_ID + 2, 2, &sensor_ops);
+	m0_addb2_sensor_add(&sen, LABEL_ID + 2, 2, -1, &sensor_ops);
 	fill_one(m);
 	fill_one(m);
 	fill_one(m);

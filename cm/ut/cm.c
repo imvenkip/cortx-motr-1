@@ -104,8 +104,7 @@ static void cm_setup_ut(void)
 	rc = m0_cm_start(cm);
 	M0_UT_ASSERT(rc == 0);
 
-	while (m0_fom_domain_is_idle_for(&cmut_rmach_ctx.rmc_reqh.rh_fom_dom,
-					 &cm->cm_service) ||
+	while (m0_fom_domain_is_idle_for(&cm->cm_service) ||
 	       !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
 		usleep(200);
 

@@ -346,6 +346,7 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	unsigned        key;
 
 	M0_PRE(m0_reqh_service_bob_check(service));
+	M0_PRE(m0_fom_domain_is_idle_for(service));
 	reqh = service->rs_reqh;
 	key = service->rs_type->rst_key;
 
@@ -357,6 +358,11 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	service->rs_ops->rso_stop(service);
+	/*
+	 * Wait again, in case ->rso_stop() launched more foms. E.g., rpcservice
+	 * starts reverse connection disconnection at this point.
+	 */
+	m0_reqh_idle_wait_for(reqh, service);
 	m0_reqh_lockers_clear(reqh, key);
 }
 
@@ -397,17 +403,13 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service  *service,
 	/** @todo: Need to pass the service uuid "hi" & "low"
 	   once available
 	*/
-	if (m0_addb_mc_is_fully_configured(&reqh->rh_addb_mc))
-		M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &service->rs_addb_ctx,
-				 serv_addb_ct,
-				 &reqh->rh_addb_ctx,
-				 0, 0);
+	if (m0_addb_mc_is_fully_configured(m0_fom_addb_mc()))
+		M0_ADDB_CTX_INIT(m0_fom_addb_mc(), &service->rs_addb_ctx,
+				 serv_addb_ct, m0_fom_addb_ctx(), 0, 0);
 	else /** This happens in UT, where no ADDB stob is specified */
 		M0_ADDB_CTX_INIT(&m0_addb_gmc, &service->rs_addb_ctx,
-				 serv_addb_ct,
-				 &reqh->rh_addb_ctx,
-				 0, 0);
-
+				 serv_addb_ct, m0_fom_addb_ctx(), 0, 0);
+	service->rs_fom_key = m0_locality_lockers_allot();
 	M0_POST(!m0_buf_is_set(&service->rs_ss_param));
 	M0_POST(m0_reqh_service_invariant(service));
 }
@@ -416,6 +418,8 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 {
 	M0_PRE(service != NULL && m0_reqh_service_bob_check(service));
 
+	M0_ASSERT(m0_fom_domain_is_idle_for(service));
+	m0_locality_lockers_free(service->rs_fom_key);
 	m0_reqh_svc_tlink_del_fini(service);
 	m0_addb_ctx_fini(&service->rs_addb_ctx);
 	m0_reqh_service_bob_fini(service);
@@ -439,7 +443,6 @@ int m0_reqh_service_type_register(struct m0_reqh_service_type *rstype)
 	m0_reqh_service_type_bob_init(rstype);
 	m0_rwlock_write_lock(&rstypes_rwlock);
 	rstype->rst_key = m0_reqh_lockers_allot();
-	rstype->rst_fomcnt_key = m0_locality_lockers_allot();
 	rstypes_tlink_init_at_tail(rstype, &rstypes);
 	m0_rwlock_write_unlock(&rstypes_rwlock);
 

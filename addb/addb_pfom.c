@@ -194,7 +194,7 @@ static size_t addb_pfom_fo_locality(const struct m0_fom *fom)
 
 static int addb_pfom_fo_tick(struct m0_fom *fom)
 {
-        struct addb_post_fom   *pfom = bob_of(fom, struct addb_post_fom, pf_fom,
+	struct addb_post_fom   *pfom = bob_of(fom, struct addb_post_fom, pf_fom,
 					      &addb_pfom_bob);
 	struct addb_svc        *svc = container_of(pfom, struct addb_svc,
 						   as_pfom);
@@ -260,9 +260,11 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 
 /** Only needed for stobsink, so should not be called in kernel */
 #ifndef __KERNEL__
-		if (reqh->rh_addb_mc.am_sink->rs_skulk != NULL)
-			(*reqh->rh_addb_mc.am_sink->rs_skulk)
-				(&reqh->rh_addb_mc);
+		{
+			struct m0_addb_mc *mc = m0_fom_addb_mc();
+			if (mc->am_sink->rs_skulk != NULL)
+				mc->am_sink->rs_skulk(mc);
+		}
 #endif
 		m0_fom_phase_set(fom, ADDB_PFOM_PHASE_CTO);
 		break;

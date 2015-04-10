@@ -129,12 +129,12 @@
    - The @ref rpc-layer-core-dld "RPC layer core" module has to be extended to
    provide the mechanisms needed to send ADDB records to an ADDB service.
    Details are found in @ref ADDB-DLD-RPCSINK-depends "RPC Sink Dependencies".
-   - The @ref reqh module must be extended to create an appropriate ADDB
+   - The @ref reqh/fom module must be extended to create an appropriate ADDB
    machine for use in a service.
 @code
-   struct m0_reqh {
+   struct m0_fom_domain {
         ...
-	struct m0_addb_mc        rh_addb_mc;
+	struct m0_addb_mc        fd_addb_mc;
    };
 @endcode
    The first request handler ADDB machine initialized must also be used to
@@ -390,12 +390,12 @@ Proposed ADDB machine</a>
    will be recognized as following the
    @ref ADDB-DLD-fspec-uc-PSMC "Configure a Persistent Store Machine" recipe:
 @code
-     m0_addb_mc_init(&reqh->rh_addb_mc);
-     rc = m0_addb_mc_configure_pt_evmgr(&reqh->rh_addb_mc);
-     rc = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc, addb_stob,
-           cctx->cc_addb_stob_segment_size);
+     m0_addb_mc_init(m0_fom_addb_mc());
+     rc = m0_addb_mc_configure_pt_evmgr(m0_fom_addb_mc());
+     rc = m0_addb_mc_configure_stob_sink(m0_fom_addb_mc(),
+           addb_stob, cctx->cc_addb_stob_segment_size);
      if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
-           m0_addb_mc_dup(&reqh->rh_addb_mc, &m0_addb_gmc);
+           m0_addb_mc_dup(m0_fom_addb_mc(), &m0_addb_gmc);
 @endcode
 
    Reference counts are maintained for each ADDB machine component. Internally,
@@ -516,7 +516,7 @@ Proposed ADDB machine</a>
    is provided for posting events in awkward contexts.
    - @b i.addb.post.non-blocking.minimum-context-switching Each request
    handler must configure its own ADDB machine, and this machine
-   is tracked in the m0_reqh::rh_addb_mc field.  One such machine shares
+   is tracked in the m0_fom_domain::fd_addb_mc field.  One such machine shares
    resources with the ::m0_addb_gmc, but this machine should be rarely used.
    - @b i.addb.post.reentrant The Event-Manager, as specified in
    @ref ADDB-DLD-lspec-mc, is decoupled from the configured Record-Sink.
@@ -799,6 +799,11 @@ static void addb_register_kernel_ctx_and_rec_types(void)
 }
 #endif
 
+extern struct m0_addb_ctx_type m0_addb_ct_reqh_mod;
+extern struct m0_addb_ctx_type m0_addb_ct_fom_locality;
+extern struct m0_addb_rec_type m0_addb_rt_fl_run_times;
+extern struct m0_addb_rec_type m0_addb_rt_fl_sched_wait_times;
+
 M0_INTERNAL int m0_addb_init(void)
 {
 	int rc;
@@ -813,6 +818,10 @@ M0_INTERNAL int m0_addb_init(void)
 	addb_ctx_init();
 
 	m0_addb_mc_init(&m0_addb_gmc);
+	m0_addb_ctx_type_register(&m0_addb_ct_reqh_mod);
+	m0_addb_ctx_type_register(&m0_addb_ct_fom_locality);
+	m0_addb_rec_type_register(&m0_addb_rt_fl_run_times);
+	m0_addb_rec_type_register(&m0_addb_rt_fl_sched_wait_times);
 
 #ifndef __KERNEL__
 	addb_register_kernel_ctx_and_rec_types();

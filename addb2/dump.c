@@ -57,10 +57,12 @@ enum { BUF_SIZE = 256 };
 struct context;
 
 struct id_intrp {
-	uint64_t             ii_id;
-	const char          *ii_name;
-	void               (*ii_print[15])(struct context *ctx,
-					   const uint64_t *v, char *buf);
+	uint64_t     ii_id;
+	const char  *ii_name;
+	void       (*ii_print[15])(struct context *ctx,
+				   const uint64_t *v, char *buf);
+	void       (*ii_spec)(struct context *ctx, char *buf);
+	int          ii_repeat;
 };
 
 struct fom {
@@ -73,8 +75,10 @@ struct fom {
 };
 
 struct context {
-	struct fom c_fom;
-	m0_time_t  c_clock;
+	struct fom                    c_fom;
+	m0_time_t                     c_clock;
+	const struct m0_addb2_record *c_rec;
+	const struct m0_addb2_value  *c_val;
 };
 
 static struct m0_varr value_id;
@@ -197,9 +201,10 @@ static void fom_type(struct context *ctx, const uint64_t *v, char *buf)
 	sprintf(buf, "'%s'", ftype->ft_conf->scf_name);
 }
 
+extern struct m0_sm_conf fom_states_conf;
+
 static void fom_state(struct context *ctx, const uint64_t *v, char *buf)
 {
-	extern struct m0_sm_conf fom_states_conf;
 	struct m0_sm_trans_descr *d = &fom_states_conf.scf_trans[v[0]];
 	/*
 	 * v[0] - transition id
@@ -268,6 +273,39 @@ static void counter(struct context *ctx, const uint64_t *v, char *buf)
 		avg, dev);
 }
 
+static void sm_trans(const struct m0_sm_conf *conf, const char *name,
+		     struct context *ctx, char *buf)
+{
+	int nob;
+	int idx = ctx->c_val->va_id - conf->scf_addb2_counter;
+	const struct m0_sm_trans_descr *trans = &conf->scf_trans[idx];
+
+	M0_PRE(conf->scf_addb2_key > 0);
+	M0_PRE(0 <= idx && idx < 100);
+
+	nob = sprintf(buf, "%s/%s: %s -[%s]-> %s ", name,
+		      conf->scf_name, conf->scf_state[trans->td_src].sd_name,
+		      trans->td_cause, conf->scf_state[trans->td_tgt].sd_name);
+	counter(ctx, &ctx->c_val->va_data[0], buf + nob);
+}
+
+static void fom_state_counter(struct context *ctx, char *buf)
+{
+	sm_trans(&fom_states_conf, "", ctx, buf);
+}
+
+extern struct m0_fop_type m0_fop_cob_readv_fopt;
+static void io_read_phase_counter(struct context *ctx, char *buf)
+{
+	sm_trans(m0_fop_cob_readv_fopt.ft_fom_type.ft_conf, "read", ctx, buf);
+}
+
+extern struct m0_fop_type m0_fop_cob_writev_fopt;
+static void io_write_phase_counter(struct context *ctx, char *buf)
+{
+	sm_trans(m0_fop_cob_writev_fopt.ft_fom_type.ft_conf, "write", ctx, buf);
+}
+
 #define COUNTER &counter, &skip, &skip, &skip, &skip
 #define FID &fid, &skip
 
@@ -284,6 +322,9 @@ struct id_intrp ids[] = {
 						       &_clock } },
 	{ M0_AVI_STATE,           "fom-state",       { &fom_state, &skip,
 						       &_clock } },
+	{ M0_AVI_STATE_COUNTER,   "",
+	  .ii_repeat = M0_AVI_STATE_COUNTER_END - M0_AVI_STATE_COUNTER,
+	  .ii_spec   = &fom_state_counter },
 	{ M0_AVI_ALLOC,           "alloc",           { &dec, &ptr } },
 	{ M0_AVI_FOM_DESCR,       "fom-descr",       { &_clock, FID,
 						       &hex, &rpcop,
@@ -296,6 +337,12 @@ struct id_intrp ids[] = {
 	{ M0_AVI_IOS_IO_DESCR,    "ios-io-descr",    { FID, FID,
 						       &hex, &hex, &dec, &dec,
 						       &dec, &dec, &dec } },
+	{ M0_AVI_IOS_READ_COUNTER,   "",
+	  .ii_repeat = M0_AVI_IOS_READ_COUNTER_END - M0_AVI_IOS_READ_COUNTER,
+	  .ii_spec   = &io_read_phase_counter },
+	{ M0_AVI_IOS_WRITE_COUNTER,   "",
+	  .ii_repeat = M0_AVI_IOS_WRITE_COUNTER_END - M0_AVI_IOS_WRITE_COUNTER,
+	  .ii_spec   = &io_write_phase_counter },
 	{ M0_AVI_FS_OPEN,         "m0t1fs-open",     { FID, &hex } },
 	{ M0_AVI_FS_LOOKUP,       "m0t1fs-lookup",   { FID } },
 	{ M0_AVI_FS_CREATE,       "m0t1fs-create",   { FID, &hex, &dec } },
@@ -336,15 +383,24 @@ static void id_set(struct id_intrp *intrp)
 
 	if (intrp->ii_id < m0_varr_size(&value_id)) {
 		addr = m0_varr_ele_get(&value_id, intrp->ii_id);
-		if (addr != NULL)
-			*addr = intrp;
+		M0_ASSERT(addr != NULL);
+		M0_ASSERT(*addr == NULL);
+		*addr = intrp;
 	}
 }
 
-static void id_set_nr(struct id_intrp *intrp, int nr)
+static void id_set_nr(struct id_intrp *batch, int nr)
 {
-	while (nr-- > 0)
-		id_set(&intrp[nr]);
+	while (nr-- > 0) {
+		struct id_intrp *intrp = &batch[nr];
+		int              i;
+
+		id_set(intrp);
+		for (i = 0; i < intrp->ii_repeat; ++i) {
+			++(intrp->ii_id);
+			id_set(intrp);
+		}
+	}
 }
 
 static struct id_intrp *id_get(uint64_t id)
@@ -366,6 +422,7 @@ static void rec_dump(struct context *ctx, const struct m0_addb2_record *rec)
 {
 	int i;
 
+	ctx->c_rec = rec;
 	context_fill(ctx, &rec->ar_val);
 	for (i = 0; i < rec->ar_label_nr; ++i)
 		context_fill(ctx, &rec->ar_label[i]);
@@ -388,8 +445,14 @@ static void val_dump(struct context *ctx, const char *prefix,
 	char              buf[BUF_SIZE];
 	enum { WIDTH = 12 };
 
+	ctx->c_val = val;
 	printf(prefix);
 	pad(indent);
+	if (intrp != NULL && intrp->ii_spec != NULL) {
+		intrp->ii_spec(ctx, buf);
+		printf("%s\n", buf);
+		return;
+	}
 	if (intrp != NULL)
 		printf("%-16s ", intrp->ii_name);
 	else

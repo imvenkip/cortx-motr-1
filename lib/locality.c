@@ -38,7 +38,19 @@
 #include "fop/fom.h"
 #include "reqh/reqh.h"
 
+/**
+ * @todo move m0_locality_lockers_type and ldata[] in locality_global, once
+ * lockers are updated to use non-global lockers type.
+ */
+
 M0_LOCKERS_DEFINE(M0_INTERNAL, m0_locality, lo_lockers);
+
+static struct {
+	size_t   ld_nob;
+	int    (*ld_ctor)(void *, void *);
+	void   (*ld_dtor)(void *, void *);
+	void    *ld_datum;
+} ldata[M0_LOCALITY_LOCKERS_NR];
 
 struct chore_local {
 	struct m0_locality_chore *lo_chore;
@@ -54,7 +66,6 @@ struct locality_global {
 	struct m0_thread      lg_ast_thread;
 	bool                  lg_shutdown;
 	struct m0_fom_domain *lg_dom;
-
 	struct m0_mutex       lg_lock;
 	struct m0_tl          lg_chore;
 };
@@ -84,6 +95,13 @@ static void chore_del_all(struct m0_locality_chore *chore);
 static void chore_add_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 static void chore_del_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 
+static int  locality_data_alloc(int key);
+static void locality_data_free(int key);
+static void locality_data_free_all(void);
+
+static int  ldata_alloc(struct m0_locality *loc, int key);
+static void ldata_free(struct m0_locality *loc, int key);
+
 #define LOC_FOR(idx_var, loc_var)					\
 do {									\
 	int idx_var;							\
@@ -103,12 +121,12 @@ do {									\
 
 M0_INTERNAL void m0_locality_init(struct m0_locality *loc,
 				  struct m0_sm_group *grp,
-				  struct m0_reqh *reqh, size_t idx)
+				  struct m0_fom_domain *dom, size_t idx)
 {
 	M0_PRE(M0_IS0(loc));
 	*loc = (struct m0_locality) {
 		.lo_grp  = grp,
-		.lo_reqh = reqh,
+		.lo_dom  = dom,
 		.lo_idx  = idx
 	};
 	m0_locality_lockers_init(loc);
@@ -123,23 +141,25 @@ M0_INTERNAL void m0_locality_fini(struct m0_locality *loc)
 
 M0_INTERNAL struct m0_locality *m0_locality_here(void)
 {
-	return m0_locality_get(m0_processor_id_get());
+	struct locality_global *glob = loc_glob();
+
+	if (glob->lg_dom == NULL || m0_thread_self() == &glob->lg_ast_thread)
+		return &glob->lg_fallback;
+	else
+		return m0_locality_get(m0_processor_id_get());
 }
 
 M0_INTERNAL struct m0_locality *m0_locality_get(uint64_t value)
 {
 	struct locality_global *glob = loc_glob();
 	struct m0_fom_domain   *dom  = glob->lg_dom;
+	struct m0_fom_locality *floc;
+	int                     idx = value % dom->fd_localities_nr;
 
-	if (dom != NULL) {
-		struct m0_fom_locality *floc;
-		int                     idx = value % dom->fd_localities_nr;
-
-		floc = dom->fd_localities[idx];
-		M0_ASSERT(m0_bitmap_get(&floc->fl_processors, idx));
-		return &floc->fl_locality;
-	} else
-		return &glob->lg_fallback;
+	M0_PRE(dom != NULL);
+	floc = dom->fd_localities[idx];
+	M0_ASSERT(m0_bitmap_get(&floc->fl_processors, idx));
+	return &floc->fl_locality;
 }
 
 M0_INTERNAL struct m0_locality *m0_locality0_get(void)
@@ -147,38 +167,20 @@ M0_INTERNAL struct m0_locality *m0_locality0_get(void)
 	return &loc_glob()->lg_fallback;
 }
 
-M0_INTERNAL int m0_locality_dom_set(struct m0_fom_domain *dom)
-{
-	struct locality_global *glob   = loc_glob();
-	int                     result = 0;
-
-	if (glob->lg_dom == NULL) {
-		glob->lg_dom = dom;
-		CHORES_FOR(chore) {
-			result = chore_add_all(chore);
-			if (result != 0) {
-				CHORES_FOR(scan) {
-					if (scan == chore)
-						break;
-					chore_del_all(chore);
-				} CHORES_ENDFOR;
-				glob->lg_dom = NULL;
-			}
-		} CHORES_ENDFOR;
-	}
-	return result;
-}
-
-M0_INTERNAL void m0_locality_dom_clear(struct m0_fom_domain *dom)
+M0_INTERNAL void m0_locality_dom_set(struct m0_fom_domain *dom)
 {
 	struct locality_global *glob = loc_glob();
 
-	if (dom == glob->lg_dom) {
-		CHORES_FOR(chore) {
-			chore_del_all(chore);
-		} CHORES_ENDFOR;
-		glob->lg_dom = NULL;
-	}
+	M0_PRE(glob->lg_dom == NULL);
+	glob->lg_dom = dom;
+}
+
+M0_INTERNAL void m0_locality_dom_unset(struct m0_fom_domain *dom)
+{
+	struct locality_global *glob = loc_glob();
+
+	M0_PRE(dom == glob->lg_dom);
+	glob->lg_dom = NULL;
 }
 
 static void locs_ast_handler(void *__unused)
@@ -204,6 +206,7 @@ static int ast_thread_init(void *__unused)
 M0_INTERNAL int m0_localities_init(void)
 {
 	struct locality_global *glob;
+	int                     result;
 
 	M0_ALLOC_PTR(glob);
 	if (glob != NULL) {
@@ -218,21 +221,28 @@ M0_INTERNAL int m0_localities_init(void)
 		 * started by the time M0_THREAD_INIT() returns. This is needed
 		 * to make intialisation order deterministic.
 		 */
-		return M0_THREAD_INIT(&glob->lg_ast_thread, void *,
-				      &ast_thread_init,
-				      &locs_ast_handler, NULL,
-				      "m0_fallback_ast");
+		result = M0_THREAD_INIT(&glob->lg_ast_thread, void *,
+					&ast_thread_init, &locs_ast_handler,
+					NULL, "m0_fallback_ast");
+		if (result == 0)
+			result = m0_fom_domain_init(&glob->lg_dom);
+		else
+			m0_free(glob);
 	} else
-		return M0_ERR(-ENOMEM);
+		result = M0_ERR(-ENOMEM);
+	return result;
 }
 
 M0_INTERNAL void m0_localities_fini(void)
 {
 	struct locality_global *glob = loc_glob();
 
-	M0_PRE(glob->lg_dom == NULL);
+	M0_PRE(glob->lg_dom != NULL);
 	M0_PRE(chores_g_tlist_is_empty(&glob->lg_chore));
 
+	locality_data_free_all();
+	if (glob->lg_dom != NULL)
+		m0_fom_domain_fini(glob->lg_dom);
 	glob->lg_shutdown = true;
 	m0_clink_signal(&glob->lg_grp.s_clink);
 	m0_thread_join(&glob->lg_ast_thread);
@@ -256,6 +266,7 @@ int m0_locality_chore_init(struct m0_locality_chore *chore,
 	int                     result;
 
 	M0_PRE(M0_IS0(chore));
+	M0_PRE(m0_fom_dom() != NULL);
 
 	chore->lc_ops = ops;
 	chore->lc_datum = datum;
@@ -283,19 +294,9 @@ void m0_locality_chore_fini(struct m0_locality_chore *chore)
 
 M0_INTERNAL void m0_locality_chores_run(struct m0_locality *locality)
 {
-	struct chore_local     *chloc;
-	struct locality_global *glob = loc_glob();
+	struct chore_local *chloc;
 
 	M0_PRE(m0_sm_group_is_locked(locality->lo_grp));
-
-	if (locality->lo_reqh != NULL &&
-	    &locality->lo_reqh->rh_fom_dom != glob->lg_dom)
-		/*
-		 * Multiple request handler are running. Run chores only in the
-		 * first one.
-		 */
-		return;
-
 	M0_ASSERT(locality == m0_locality_here());
 
 	m0_tl_for(chore_l, &locality->lo_chores, chloc) {
@@ -319,8 +320,8 @@ static struct locality_global *loc_glob(void)
 static int loc_nr(void)
 {
 	struct locality_global *glob = loc_glob();
-
-	return glob->lg_dom != NULL ? glob->lg_dom->fd_localities_nr : 1;
+	M0_PRE(glob->lg_dom != NULL);
+	return glob->lg_dom->fd_localities_nr;
 }
 
 static int chore_add_all(struct m0_locality_chore *chore)
@@ -423,6 +424,135 @@ static void chore_del_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	chore->lc_active--;
 	m0_free(chloc);
 	m0_chan_signal_lock(&chore->lc_signal);
+}
+
+int m0_locality_data_alloc(size_t nob, int (*ctor)(void *, void *),
+			   void (*dtor)(void *, void *), void *datum)
+{
+	int key;
+
+	M0_PRE(nob > 0);
+	M0_PRE(m0_fom_dom() != NULL);
+	key = m0_locality_lockers_allot();
+	M0_ASSERT(IS_IN_ARRAY(key, ldata));
+	M0_ASSERT(ldata[key].ld_nob == 0);
+	ldata[key] = (typeof(ldata[key])) {
+		.ld_nob   = nob,
+		.ld_ctor  = ctor,
+		.ld_dtor  = dtor,
+		.ld_datum = datum
+	};
+	return ldata_alloc(&loc_glob()->lg_fallback, key) ?:
+		locality_data_alloc(key) ?: key;
+}
+
+void m0_locality_data_free(int key)
+{
+	M0_PRE(IS_IN_ARRAY(key, ldata));
+	M0_PRE(ldata[key].ld_nob > 0);
+	M0_PRE(m0_fom_dom() != NULL);
+	locality_data_free(key);
+	ldata_free(&loc_glob()->lg_fallback, key);
+	ldata[key].ld_nob = 0;
+}
+
+void *m0_locality_data(int key)
+{
+	M0_PRE(m0_fom_dom() != NULL);
+	return m0_locality_lockers_get(m0_locality_here(), key);
+}
+
+static int locality_data_alloc(int key)
+{
+	int result = 0;
+
+	LOC_FOR(i, loc) {
+		result = ldata_alloc(loc, key);
+		if (result != 0)
+			break;
+	} LOC_ENDFOR;
+	return result;
+}
+
+static void locality_data_free(int key)
+{
+	LOC_FOR(i, loc) {
+		ldata_free(loc, key);
+	} LOC_ENDFOR;
+}
+
+static int ctor_cb(void *arg)
+{
+	int   key = *(int *)arg;
+	void *data = m0_locality_data(key);
+
+	M0_ASSERT(ldata[key].ld_ctor != NULL);
+	M0_ASSERT(data != NULL);
+	return ldata[key].ld_ctor(data, ldata[key].ld_datum);
+}
+
+static int dtor_cb(void *arg)
+{
+	int   key = *(int *)arg;
+	void *data = m0_locality_data(key);
+
+	M0_ASSERT(ldata[key].ld_dtor != NULL);
+	M0_ASSERT(data != NULL);
+	ldata[key].ld_dtor(data, ldata[key].ld_datum);
+	return 0;
+}
+
+static int ldata_alloc(struct m0_locality *loc, int key)
+{
+	int result = 0;
+
+	if (m0_locality_lockers_get(loc, key) == NULL) {
+		void *data = m0_alloc(ldata[key].ld_nob);
+
+		if (data != NULL) {
+			m0_locality_lockers_set(loc, key, data);
+			if (ldata[key].ld_ctor != NULL)
+				result = m0_locality_call(loc, &ctor_cb, &key);
+		} else
+			result = M0_ERR(-ENOMEM);
+	}
+	if (result != 0)
+		m0_locality_data_free(key);
+	return result;
+}
+
+static void ldata_free(struct m0_locality *loc, int key)
+{
+	void *data = m0_locality_lockers_get(loc, key);
+
+	if (data != NULL) {
+		if (ldata[key].ld_dtor != NULL)
+			m0_locality_call(loc, &dtor_cb, &key);
+		m0_free(data);
+		m0_locality_lockers_set(loc, key, NULL);
+	}
+}
+
+static void locality_data_free_all(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(ldata); ++i) {
+		if (ldata[i].ld_nob > 0)
+			locality_data_free(i);
+	}
+}
+
+int m0_locality_call(struct m0_locality *loc, int (*cb)(void *), void *data)
+{
+	return m0_sm_group_call(loc->lo_grp, cb, data);
+}
+
+M0_INTERNAL struct m0_fom_domain *m0_fom_dom(void)
+{
+	struct locality_global *glob = loc_glob();
+	M0_PRE(glob->lg_dom != NULL);
+	return glob->lg_dom;
 }
 
 #undef M0_TRACE_SUBSYSTEM

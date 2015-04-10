@@ -28,12 +28,19 @@
 #include "lib/misc.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
 #include "lib/trace.h"
+#include "lib/errno.h"               /* ENOMEM */
+#include "lib/memory.h"
+#include "module/instance.h"
 #include "mero/magic.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/item.h"
 #include "reqh/reqh.h"
 
 #include "ha/epoch.h"
+
+struct ha_global {
+	struct m0_rpc_session *hg_session;
+};
 
 M0_TL_DESCR_DEFINE(m0_ham, "ha epoch monitor", M0_INTERNAL,
 		   struct m0_ha_epoch_monitor, hem_linkage, hem_magix,
@@ -98,7 +105,8 @@ M0_INTERNAL uint64_t m0_ha_domain_get_write(struct m0_ha_domain *dom)
 	return dom->hdo_epoch;
 }
 
-M0_INTERNAL void m0_ha_domain_put_write(struct m0_ha_domain *dom, uint64_t epoch)
+M0_INTERNAL void m0_ha_domain_put_write(struct m0_ha_domain *dom,
+					uint64_t epoch)
 {
 	M0_PRE(epoch >= dom->hdo_epoch);
 	dom->hdo_epoch = epoch;
@@ -107,11 +115,30 @@ M0_INTERNAL void m0_ha_domain_put_write(struct m0_ha_domain *dom, uint64_t epoch
 
 M0_INTERNAL int m0_ha_global_init(void)
 {
-	return 0;
+	struct ha_global *hg;
+
+	M0_ALLOC_PTR(hg);
+	if (hg != NULL)
+		m0_get()->i_moddata[M0_MODULE_HA] = hg;
+	return hg != NULL ? 0 : M0_ERR(-ENOMEM);
 }
 
 M0_INTERNAL void m0_ha_global_fini(void)
 {
+	m0_free0(&m0_get()->i_moddata[M0_MODULE_HA]);
+}
+
+M0_INTERNAL void m0_ha__session_set(struct m0_rpc_session *session)
+{
+	struct ha_global *hg = m0_get()->i_moddata[M0_MODULE_HA];
+
+	hg->hg_session = session;
+}
+
+M0_INTERNAL struct m0_rpc_session *m0_ha_session_get(void)
+{
+	struct ha_global *hg = m0_get()->i_moddata[M0_MODULE_HA];
+	return hg->hg_session;
 }
 
 M0_INTERNAL int m0_ha_epoch_check(const struct m0_rpc_item *item)

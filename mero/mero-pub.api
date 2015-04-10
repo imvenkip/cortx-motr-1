@@ -131,8 +131,12 @@ m0_garc_type_register
 m0_garc_type_pair_register
 m0_garc_type_add
 m0_init
+m0_locality_call
 m0_locality_chore_fini
 m0_locality_chore_init
+m0_locality_data
+m0_locality_data_alloc
+m0_locality_data_free
 m0_matrix_elem_get
 m0_nanosleep
 m0_net_domain_fini
@@ -205,6 +209,7 @@ m0_rpc_server_stop
 m0_rpc_session_destroy
 m0_rwlock_read_lock
 m0_rwlock_read_unlock
+m0_sm_group_call
 m0_sm_state_set
 m0_spiel_controller_add
 m0_spiel_controller_v_add

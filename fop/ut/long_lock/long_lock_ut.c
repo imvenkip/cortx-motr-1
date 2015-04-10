@@ -165,8 +165,8 @@ struct m0_ut_suite m0_fop_lock_ut = {
 	.ts_init = test_long_lock_init,
 	.ts_fini = test_long_lock_fini,
 	.ts_tests = {
-		{ "fop-lock: 1reqh", test_long_lock_1 },
-		{ "fop-lock: 2reqh", test_long_lock_n },
+		{ "fop-lock-1reqh", test_long_lock_1 },
+		{ "fop-lock-2reqh", test_long_lock_n },
 		{ NULL, NULL }
 	}
 };

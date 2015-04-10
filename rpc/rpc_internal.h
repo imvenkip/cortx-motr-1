@@ -64,7 +64,7 @@ extern struct m0_addb_ctx m0_rpc_addb_ctx;
  */
 
 #define REQH_ADDB_MC_CONFIGURED(reqh)					\
-        reqh != NULL && m0_addb_mc_is_fully_configured(&reqh->rh_addb_mc)
+  (reqh != NULL && m0_addb_mc_is_fully_configured(m0_fom_addb_mc()))
 
 /**
    Initialises all the session related fop types

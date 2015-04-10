@@ -805,14 +805,10 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0 || ctx == NULL) {
 		M0_LOG(M0_WARN, "Cannot connect to HA service.");
 	} else {
-		csb->csb_reqh.rh_ha_rpc_session = ctx->sc_session;
-		/* Reset ctx for use later */
-		ctx = NULL;
+		rc = m0_ha_state_init(&ctx->sc_session);
+		if (rc != 0)
+			goto err_pools_common_fini;
 	}
-
-	rc = m0_ha_state_init();
-	if (rc != 0)
-		goto err_pools_common_fini;
 
 	rc = m0_pools_setup(pools, csb->csb_fs, NULL, NULL, NULL);
 	if (rc != 0)

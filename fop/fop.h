@@ -283,7 +283,6 @@ typedef uint32_t m0_fop_type_code_t;
 struct __m0_fop_type_init_args {
 	const char                        *name;
 	uint32_t                           opcode;
-	uint64_t                           fom_id;
 	uint64_t                           rpc_flags;
 	const struct m0_xcode_type        *xt;
 	const struct m0_fop_type_ops      *fop_ops;

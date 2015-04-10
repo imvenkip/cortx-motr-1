@@ -235,22 +235,25 @@ static void rm_group_utinit(void)
 
 static void rm_group_utfini(void)
 {
-	uint32_t i;
+	int32_t i;
 
 	/*
 	 * Following loops cannot be combined.
 	 * The ops within the loops need sync points. Hence they are separate.
 	 */
 	/* De-construct RM objects hierarchy */
-	for (i = 0; i < test_servers_nr; ++i) {
+	for (i = test_servers_nr - 1; i >= 0; --i) {
 		rm_ctx_server_windup(i);
 	}
 	/* Disconnect the servers */
-	for (i = 0; i < test_servers_nr; ++i) {
+	for (i = test_servers_nr - 1; i >= 0; --i) {
 		rm_ctx_server_stop(i);
 	}
-	/* Finalise the servers */
-	for (i = 0; i < test_servers_nr; ++i) {
+	/*
+	 * Finalise the servers. Must be done in the reverse order, so that the
+	 * first initialised reqh is finalised last.
+	 */
+	for (i = test_servers_nr - 1; i >= 0; --i) {
 		rm_ctx_fini(&rm_ctxs[i]);
 	}
 	for (i = 0; i < GROUP_TESTS_NR; ++i) {

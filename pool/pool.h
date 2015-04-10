@@ -213,10 +213,10 @@ M0_INTERNAL int m0_pools_init(void);
 M0_INTERNAL void m0_pools_fini(void);
 
 M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
-                               struct m0_conf_filesystem *fs,
-                               struct m0_be_seg *be_seg,
-                               struct m0_sm_group *sm_grp,
-                               struct m0_dtm *dtm);
+			       struct m0_conf_filesystem *fs,
+			       struct m0_be_seg *be_seg,
+			       struct m0_sm_group *sm_grp,
+			       struct m0_dtm *dtm);
 
 M0_INTERNAL void m0_pools_destroy(struct m0_pools_common *pc);
 

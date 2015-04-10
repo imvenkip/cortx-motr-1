@@ -43,16 +43,13 @@ static void spiel_start_stop(void)
 	M0_ASSERT(rc == 0);
 
 	rc = m0_spiel__ut_confd_start(&confd_srv, confd_eps[0],
-		       	M0_SPIEL_UT_PATH("conf-str.txt"));
+				      M0_SPIEL_UT_PATH("conf-str.txt"));
 	M0_ASSERT(rc == 0);
-
 	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, confd_eps, profile);
 	M0_UT_ASSERT(rc == 0);
-
 	m0_spiel_stop(&spiel);
-
-	m0_spiel__ut_reqh_fini(&spl_reqh);
 	m0_spiel__ut_confd_stop(&confd_srv);
+	m0_spiel__ut_reqh_fini(&spl_reqh);
 }
 
 const struct m0_ut_suite spiel_ut = {

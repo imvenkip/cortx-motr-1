@@ -32,6 +32,7 @@
 #include "lib/mutex.h"
 #include "lib/tlist.h"
 #include "addb/addb.h"
+#include "addb2/counter.h"
 
 /**
    @defgroup sm State machine
@@ -274,6 +275,7 @@ struct m0_sm_state_stats;
 struct m0_sm_conf;
 struct m0_sm_group;
 struct m0_sm_ast;
+struct m0_sm_addb2_stats;
 
 /* import */
 struct m0_timer;
@@ -302,7 +304,7 @@ struct m0_sm {
 
 	   @invariant mach->sm_state < mach->sm_conf->scf_nr_states
 	 */
-	uint32_t                 sm_state;
+	uint32_t                   sm_state;
 	/**
 	   State machine configuration.
 
@@ -311,8 +313,8 @@ struct m0_sm {
 	   code to check state transition correctness and to do some generic
 	   book-keeping, including addb-based accounting.
 	 */
-	const struct m0_sm_conf *sm_conf;
-	struct m0_sm_group      *sm_grp;
+	const struct m0_sm_conf   *sm_conf;
+	struct m0_sm_group        *sm_grp;
 	/**
 	   State machine transitions statistics
 	 */
@@ -321,17 +323,17 @@ struct m0_sm {
 	   The time entered to current state. Used to calculate how long
 	   we were in a state (counted at m0_sm_state_stats::smss_times).
 	 */
-	m0_time_t                sm_state_epoch;
-	uint64_t                 sm_addb2_id;
+	m0_time_t                  sm_state_epoch;
+	struct m0_sm_addb2_stats  *sm_addb2_stats;
 	/**
 	   Channel on which state transitions are announced.
 	 */
-	struct m0_chan           sm_chan;
+	struct m0_chan             sm_chan;
 	/**
 	   State machine "return code". This is set to a non-zero value when
 	   state machine transitions to an M0_SDF_FAILURE state.
 	 */
-	int32_t                  sm_rc;
+	int32_t                    sm_rc;
 };
 
 /**
@@ -352,6 +354,9 @@ struct m0_sm_conf {
 	uint32_t                        scf_trans_nr;
 	/** Array of state transitions descriptions. */
 	struct m0_sm_trans_descr       *scf_trans;
+	uint64_t                        scf_addb2_key;
+	uint64_t                        scf_addb2_id;
+	uint64_t                        scf_addb2_counter;
 };
 
 enum {
@@ -816,6 +821,18 @@ M0_INTERNAL void m0_sm_stats_enable(struct m0_sm *mach,
 M0_INTERNAL void m0_sm_stats_post(struct m0_sm *mach,
 				  struct m0_addb_mc *addb_mc,
 				  struct m0_addb_ctx **cv);
+
+int m0_sm_group_call(struct m0_sm_group *group,
+		     int (*cb)(void *), void *data);
+
+struct m0_sm_addb2_stats {
+	uint64_t                as_id;
+	int                     as_nr;
+	struct m0_addb2_counter as_counter[0];
+};
+
+M0_INTERNAL int m0_sm_addb2_init(struct m0_sm_conf *conf,
+				 uint64_t id, uint64_t counter);
 
 /** @} end of sm group */
 #endif /* __MERO_SM_SM_H__ */

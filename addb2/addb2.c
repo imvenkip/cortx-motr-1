@@ -456,7 +456,7 @@ void m0_addb2_add(uint64_t id, int n, const uint64_t *value)
 }
 
 void m0_addb2_sensor_add(struct m0_addb2_sensor *s, uint64_t id, unsigned nr,
-			 const struct m0_addb2_sensor_ops *ops)
+			 int idx, const struct m0_addb2_sensor_ops *ops)
 {
 	struct m0_addb2_mach *m = mach();
 
@@ -464,13 +464,16 @@ void m0_addb2_sensor_add(struct m0_addb2_sensor *s, uint64_t id, unsigned nr,
 	M0_PRE(nr <= VALUE_MAX_NR);
 
 	if (m != NULL) {
+		struct tentry *te = idx < 0 ? mach_top(m) : &m->ma_label[idx];
+
 		M0_PRE(MACH_DEPTH(m) > 0);
+		M0_PRE(ergo(idx >= 0, idx < MACH_DEPTH(m)));
 		M0_PRE(!m->ma_stopping);
 
 		s->s_id  = id;
 		s->s_nr  = nr;
 		s->s_ops = ops;
-		sensor_tlink_init_at_tail(s, &mach_top(m)->e_sensor);
+		sensor_tlink_init_at_tail(s, &te->e_sensor);
 		sensor_place(m, s);
 		mach_put(m);
 	}

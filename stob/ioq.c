@@ -166,10 +166,10 @@ static void io_err_callback(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_ENTRY();
 
-	lstob = container_of(ast, struct m0_stob_linux, sl_ast);
+	lstob = M0_AMB(lstob, ast, sl_ast);
 	ioq = &container_of(&lstob->sl_stob.so_domain,
-			   struct m0_stob_linux_domain, sld_dom)->sld_ioq;
-	rpc_ssn = &m0_locality_here()->lo_reqh->rh_ha_rpc_session;
+			    struct m0_stob_linux_domain, sld_dom)->sld_ioq;
+	rpc_ssn = m0_ha_session_get();
 	m0_mutex_lock(&ioq->ioq_lock);
 	if (rpc_ssn != NULL) {
 		note.no_id    = *m0_stob_fid_get(&lstob->sl_stob);
@@ -585,9 +585,9 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 	struct m0_addb2_counter gotten   = {};
 
 	M0_ADDB2_PUSH(M0_AVI_STOB_IOQ, m0_thread_self() - ioq->ioq_thread);
-	m0_addb2_counter_add(&inflight, M0_AVI_STOB_IOQ_INFLIGHT);
-	m0_addb2_counter_add(&queued,   M0_AVI_STOB_IOQ_QUEUED);
-	m0_addb2_counter_add(&gotten,   M0_AVI_STOB_IOQ_GOT);
+	m0_addb2_counter_add(&inflight, M0_AVI_STOB_IOQ_INFLIGHT, -1);
+	m0_addb2_counter_add(&queued,   M0_AVI_STOB_IOQ_QUEUED, -1);
+	m0_addb2_counter_add(&gotten,   M0_AVI_STOB_IOQ_GOT, -1);
 	while (!ioq->ioq_shutdown) {
 		timeout = ioq_timeout_default;
 		got = raw_io_getevents(ioq->ioq_ctx, 1, ARRAY_SIZE(evout),

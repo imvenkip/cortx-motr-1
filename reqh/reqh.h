@@ -105,17 +105,12 @@ struct m0_reqh {
 
 	/** Fol pointer for this request handler. */
 	struct m0_fol                 rh_fol;
-
-	/** Fom domain for this request handler. */
-	struct m0_fom_domain          rh_fom_dom;
-
 	/**
 	    Services registered with this request handler.
 
 	    @see m0_reqh_service::rs_linkage
 	 */
 	struct m0_tl                  rh_services;
-
 	/**
 	    RPC machines running in this request handler.
 	    There is one rpc machine per request handler
@@ -132,15 +127,6 @@ struct m0_reqh {
 
 	/** provides protected access to reqh members. */
 	struct m0_rwlock              rh_rwlock;
-
-	/**
-	   Private, fully configured, ADDB machine for the request handler.
-	   The first such machine created is used to configure the global
-	   machine, ::m0_addb_gmc.
-	 */
-	struct m0_addb_mc             rh_addb_mc;
-
-	struct m0_addb_ctx            rh_addb_ctx;
 
 	struct m0_addb2_storage      *rh_addb2_stor;
 	struct m0_semaphore           rh_addb2_stor_idle;
@@ -169,11 +155,6 @@ struct m0_reqh {
 	 * Confc instance.
 	 */
 	struct m0_confc               rh_confc;
-
-	/**
-	 * HA RPC session.
-	 */
-	struct m0_rpc_session         rh_ha_rpc_session;
 };
 
 /**
@@ -286,7 +267,7 @@ M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh);
 
 /**
    Waits on the request handler channel (m0_reqh::rh_sd_signal) until the
-   request handler FOM domain (m0_reqh::rh_fom_dom) is idle.
+   FOM domain (m0_fom_dom()) is idle.
 
    @note Use with caution. This can block forever if FOMs do not terminate.
    @see m0_fom_domain_is_idle()
@@ -376,6 +357,9 @@ M0_BOB_DECLARE(M0_EXTERN, m0_reqh_service);
 /** Descriptor for tlist of rpc machines. */
 M0_TL_DESCR_DECLARE(m0_reqh_rpc_mach, extern);
 M0_TL_DECLARE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
+
+M0_INTERNAL struct m0_addb_mc  *m0_fom_addb_mc(void);
+M0_INTERNAL struct m0_addb_ctx *m0_fom_addb_ctx(void);
 
 /** @} endgroup reqh */
 

@@ -273,12 +273,32 @@ M0_EXPORTED(test_locality);
 static int entered;
 static int left;
 static int ticked;
+static int key0;
+static int key;
+static int keyother;
+static bool has0;
+
+static int ctor(void *area, void *cookie)
+{
+	M0_UT_ASSERT(cookie == &ctor);
+	((char *)area)[0] = 'x';
+	return 0;
+}
 
 static int enter(struct m0_locality_chore *chore,
 		 struct m0_locality *loc, void *place)
 {
+	char *data      = m0_locality_data(key);
+	char *data0     = m0_locality_data(key0);
+	char *dataother = m0_locality_data(keyother);
+
 	M0_UT_ASSERT(chore->lc_datum == &lock);
 	M0_UT_ASSERT(place != NULL);
+	M0_UT_ASSERT(data != NULL);
+	M0_UT_ASSERT(data[0] == 'x');
+	M0_UT_ASSERT(dataother != NULL);
+	M0_UT_ASSERT(dataother[0] == 0);
+	M0_UT_ASSERT((data0 != NULL) == has0);
 	m0_mutex_lock(&lock);
 	++entered;
 	m0_mutex_unlock(&lock);
@@ -317,22 +337,32 @@ void test_locality_chore(void)
 {
 	struct m0_locality_chore           chore;
 	int                                result;
+	int                                nr_loc;
 	struct m0_locality_chore_ops ops = {
 		.co_enter = &enter,
 		.co_leave = &leave,
 		.co_tick  = &tick
 	};
 
+	nr_loc = m0_fom_dom()->fd_localities_nr;
+	key = m0_locality_data_alloc(721, &ctor, NULL, &ctor);
+	M0_UT_ASSERT(key >= 0);
+	key0 = m0_locality_data_alloc(721, NULL, NULL, NULL);
+	has0 = true;
+	M0_UT_ASSERT(key0 >= 0);
+	M0_UT_ASSERT(key != key0);
+	keyother = m0_locality_data_alloc(721, NULL, NULL, NULL);
+	M0_UT_ASSERT(keyother >= 0);
 	entered = left = ticked = 0;
 	M0_SET0(&chore);
 	result = m0_locality_chore_init(&chore, &ops, &lock,
 					M0_MKTIME(1, 0), 4096);
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(entered == 1);
+	M0_UT_ASSERT(entered == nr_loc);
 	M0_UT_ASSERT(left == 0);
 	m0_locality_chore_fini(&chore);
-	M0_UT_ASSERT(entered == 1);
-	M0_UT_ASSERT(left == 1);
+	M0_UT_ASSERT(entered == nr_loc);
+	M0_UT_ASSERT(left == nr_loc);
 
 	M0_SET0(&chore);
 	m0_fi_enable_once("m0_alloc", "keep_quiet");
@@ -345,7 +375,8 @@ void test_locality_chore(void)
 	result = m0_locality_chore_init(&chore, &ops, &lock,
 					M0_MKTIME(1, 0), 4096);
 	M0_UT_ASSERT(result == -ENOSYS);
-
+	m0_locality_data_free(key0);
+	has0 = false;
 	_reqh_init();
 	ops.co_enter = &enter;
 	entered = left = ticked = 0;
@@ -353,12 +384,17 @@ void test_locality_chore(void)
 	result = m0_locality_chore_init(&chore, &ops, &lock,
 					M0_MKTIME(1, 0), 4096);
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(entered == reqh.rh_fom_dom.fd_localities_nr);
+	M0_UT_ASSERT(entered == nr_loc);
 	M0_UT_ASSERT(left == 0);
 	m0_locality_chore_fini(&chore);
-	M0_UT_ASSERT(entered == reqh.rh_fom_dom.fd_localities_nr);
-	M0_UT_ASSERT(left == reqh.rh_fom_dom.fd_localities_nr);
+	M0_UT_ASSERT(entered == nr_loc);
+	M0_UT_ASSERT(left == nr_loc);
+	m0_locality_data_free(keyother);
+	m0_fi_enable_once("m0_alloc", "keep_quiet");
+	result = m0_locality_data_alloc(1ULL << 60, NULL, NULL, NULL);
+	M0_UT_ASSERT(result == -ENOMEM);
 	_reqh_fini();
+	m0_locality_data_free(key);
 }
 M0_EXPORTED(test_locality_chore);
 

@@ -176,22 +176,22 @@ static bool addb_counter_invariant(const struct m0_addb_counter *c)
 
 static bool addb_sm_counter_invariant(const struct m0_addb_sm_counter *c)
 {
-	return c != NULL &&
-	    c->asc_magic == M0_ADDB_CNTR_MAGIC &&
-	    c->asc_rt != NULL && addb_rec_type_invariant(c->asc_rt) &&
-	    c->asc_rt->art_base_type == M0_ADDB_BRT_SM_CNTR &&
-	    c->asc_data != NULL &&
-	    c->asc_cntr_data_sz > 0 &&
-	    c->asc_rt->art_sm_conf != NULL &&
-	    c->asc_rt->art_sm_conf->scf_trans != NULL &&
-	    c->asc_rt->art_sm_conf->scf_trans_nr > 0;
+	return  _0C(c != NULL) &&
+		_0C(c->asc_magic == M0_ADDB_CNTR_MAGIC) &&
+		_0C(c->asc_rt != NULL && addb_rec_type_invariant(c->asc_rt)) &&
+		_0C(c->asc_rt->art_base_type == M0_ADDB_BRT_SM_CNTR) &&
+		_0C(c->asc_data != NULL) &&
+		_0C(c->asc_cntr_data_sz > 0) &&
+		_0C(c->asc_rt->art_sm_conf != NULL) &&
+		_0C(c->asc_rt->art_sm_conf->scf_trans != NULL) &&
+		_0C(c->asc_rt->art_sm_conf->scf_trans_nr > 0);
 }
 
 static size_t counter_data_sz(const struct m0_addb_rec_type *rt)
 {
-	return (sizeof(struct m0_addb_counter_data) +
-	        ((rt->art_rf_nr > 0) ?
-		 (rt->art_rf_nr + 1) * sizeof(uint64_t) : 0));
+	return sizeof(struct m0_addb_counter_data) +
+		((rt->art_rf_nr > 0) ?
+		 (rt->art_rf_nr + 1) * sizeof(uint64_t) : 0);
 }
 
 /* public interfaces */

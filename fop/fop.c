@@ -311,12 +311,9 @@ M0_INTERNAL int m0_fops_init(void)
 {
 	m0_sm_conf_init(&fom_states_conf);
 	m0_addb_ctx_type_register(&m0_addb_ct_fop_mod);
-	m0_addb_ctx_type_register(&m0_addb_ct_fom_locality);
 	m0_addb_rec_type_register(&m0_addb_rt_fom_init);
 	m0_addb_rec_type_register(&m0_addb_rt_fom_fini);
 	m0_addb_rec_type_register(&m0_addb_rt_fom_state_stats);
-	m0_addb_rec_type_register(&m0_addb_rt_fl_run_times);
-	m0_addb_rec_type_register(&m0_addb_rt_fl_sched_wait_times);
 	m0_addb_rec_type_register(&m0_addb_rt_fl_runq_nr);
 	m0_addb_rec_type_register(&m0_addb_rt_fl_wail_nr);
 	m0_addb_rec_type_register(&m0_addb_rt_fop_rate_cntr);

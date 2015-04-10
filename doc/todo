@@ -160,7 +160,7 @@ sub-team leads, contact them to add more things here.
     configure.ac). Delete `#include "config.h"' directives from source
     files; remove the corresponding stanza from doc/source-structure.
 
-2012-Jul-26 Get rid of m0_fom::fo_fol, use fom->fo_loc->fl_dom->fd_reqh->rh_fol
+2012-Jul-26 Get rid of m0_fom::fo_fol, use fom->fo_service->rs_reqh->rh_fol
             instead. [2012-Sep-04]
 
 2012-Aug-28 Magic delimiters [2012-Sep-10]

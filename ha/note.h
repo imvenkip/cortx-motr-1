@@ -107,7 +107,7 @@ struct m0_ha_nvec;
 struct m0_confc;
 
 /** Intializes the notification interface. */
-M0_INTERNAL int m0_ha_state_init(void);
+M0_INTERNAL int m0_ha_state_init(struct m0_rpc_session *session);
 
 /** Finalizes the notification interface. */
 M0_INTERNAL void m0_ha_state_fini(void);
@@ -248,6 +248,8 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
  */
 M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
 				    const struct m0_ha_nvec *note);
+
+M0_INTERNAL struct m0_rpc_session *m0_ha_session_get(void);
 
 /** @} end of ha-note group */
 

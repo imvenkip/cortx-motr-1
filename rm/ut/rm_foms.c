@@ -39,6 +39,7 @@ enum test_type {
 };
 
 static struct m0_fom_locality  dummy_loc;
+struct m0_reqh_service         dummy_svc;
 static struct m0_rm_loan      *test_loan;
 struct m0_reqh		       reqh;
 struct m0_reqh_service        *reqh_svc;
@@ -56,14 +57,14 @@ extern const struct m0_tl_descr m0_remotes_tl;
 static void rmfoms_utinit(void)
 {
 	rm_ctx_init(&rm_ctxs[SERVER_1]);
-	dummy_loc.fl_dom = &rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_reqh.rh_fom_dom;
-        m0_sm_group_init(&dummy_loc.fl_group);
+	dummy_loc.fl_dom = m0_fom_dom();
+	m0_sm_group_init(&dummy_loc.fl_group);
 	machine = &rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_rpc;
 }
 
 static void rmfoms_utfini(void)
 {
-        m0_sm_group_fini(&dummy_loc.fl_group);
+	m0_sm_group_fini(&dummy_loc.fl_group);
 	rm_ctx_fini(&rm_ctxs[SERVER_1]);
 	machine = NULL;
 }
@@ -118,11 +119,11 @@ static void fom_create(enum m0_rm_incoming_type fomtype,
 	switch (fomtype) {
 	case M0_RIT_BORROW:
 		rc = borrow_fom_create(fop, fom,
-				       &rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_reqh);
+			       &rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_reqh);
 		break;
 	case M0_RIT_REVOKE:
 		rc = revoke_fom_create(fop, fom,
-				       &rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_reqh);
+			       &rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_reqh);
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid RM-FOM type");
@@ -131,15 +132,15 @@ static void fom_create(enum m0_rm_incoming_type fomtype,
 	M0_UT_ASSERT(ergo(!err_test, rc == 0));
 
 	if (!err_test) {
+		(*fom)->fo_service = &dummy_svc;
+		if (dummy_svc.rs_fom_key == 0)
+			dummy_svc.rs_fom_key = m0_locality_lockers_allot();
+		dummy_svc.rs_reqh = &rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_reqh;
 		base_fom = *fom;
 		base_fom->fo_fop = fop;
-
 		base_fom->fo_loc = &dummy_loc;
-		base_fom->fo_loc->fl_dom->fd_reqh =
-			&rm_ctxs[SERVER_1].rc_rmach_ctx.rmc_reqh;
 		M0_CNT_INC(base_fom->fo_loc->fl_foms);
 		m0_fom_sm_init(base_fom);
-		base_fom->fo_service = rm_ctxs[SERVER_1].rc_reqh_svc;
 		m0_fom_locality_inc(base_fom);
 	}
 }
@@ -163,12 +164,10 @@ static void fom_fini(struct m0_fom *fom, enum m0_rm_incoming_type fomtype)
 }
 
 /*
- * A generic RM-FOM-delete verification UT function. Check memory usage.
+ * A generic RM-FOM-delete verification UT function.
  */
 static void fom_fini_test(enum m0_rm_incoming_type fomtype)
 {
-	size_t	       tot_mem;
-	size_t	       base_mem;
 	struct m0_fom *fom;
 	struct m0_fop *fop;
 
@@ -177,17 +176,10 @@ static void fom_fini_test(enum m0_rm_incoming_type fomtype)
 	 * 2. Calculate memory usage before and after object allocation
 	 *    and de-allocation.
 	 */
-	base_mem = m0_allocated();
 	fop = fop_alloc(fomtype);
 
 	fom_create(fomtype, false, fop, &fom);
-
-	/*
-	 * Ensure - after fom_fini() memory usage drops back to original value
-	 */
 	fom_fini(fom, fomtype);
-	tot_mem = m0_allocated();
-	M0_UT_ASSERT(tot_mem == base_mem);
 }
 
 static void fom_create_test(enum m0_rm_incoming_type fomtype,

@@ -218,7 +218,7 @@ M0_INTERNAL void m0_rpc_frm_init(struct m0_rpc_frm *frm,
 
 	chan    = frm_rchan(frm);
 	addb_mc = REQH_ADDB_MC_CONFIGURED(chan->rc_rpc_machine->rm_reqh) ?
-		  &chan->rc_rpc_machine->rm_reqh->rh_addb_mc : &m0_addb_gmc;
+		  m0_fom_addb_mc() : &m0_addb_gmc;
 	pctx    = chan->rc_rpc_machine->rm_reqh != NULL ?
 		  &chan->rc_rpc_machine->rm_addb_ctx : &m0_rpc_addb_ctx;
 

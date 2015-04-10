@@ -58,14 +58,18 @@ struct get_fop_context {
 	struct m0_chan *gf_chan;
 };
 
+M0_EXTERN void m0_ha__session_set(struct m0_rpc_session *session);
 
-M0_INTERNAL int m0_ha_state_init(void)
+
+M0_INTERNAL int m0_ha_state_init(struct m0_rpc_session *session)
 {
+	m0_ha__session_set(session);
 	return 0;
 }
 
 M0_INTERNAL void m0_ha_state_fini()
 {
+	m0_ha__session_set(NULL);
 }
 
 M0_INTERNAL void ha_state_get_replied(struct m0_rpc_item *item)

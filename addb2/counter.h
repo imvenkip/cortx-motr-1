@@ -48,7 +48,8 @@ struct m0_addb2_counter {
 	struct m0_addb2_counter_data co_val;
 };
 
-void m0_addb2_counter_add(struct m0_addb2_counter *counter, uint64_t label);
+void m0_addb2_counter_add(struct m0_addb2_counter *counter, uint64_t label,
+			  int idx);
 void m0_addb2_counter_del(struct m0_addb2_counter *counter);
 void m0_addb2_counter_mod(struct m0_addb2_counter *counter, int64_t val);
 
@@ -58,10 +59,10 @@ struct m0_addb2_list_counter {
 };
 
 void m0_addb2_list_counter_add(struct m0_addb2_list_counter *counter,
-			       struct m0_tl *list, uint64_t label);
+			       struct m0_tl *list, uint64_t label, int idx);
 void m0_addb2_list_counter_del(struct m0_addb2_list_counter *counter);
 
-void m0_addb2_clock_add(struct m0_addb2_sensor *clock, uint64_t label);
+void m0_addb2_clock_add(struct m0_addb2_sensor *clock, uint64_t label, int idx);
 void m0_addb2_clock_del(struct m0_addb2_sensor *clock);
 
 /** @} end of addb2 group */

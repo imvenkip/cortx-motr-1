@@ -338,16 +338,20 @@ M0_INTERNAL void m0_fom_locality_post_stats(struct m0_fom_locality *loc);
  */
 struct m0_fom_domain {
 	/** An array of localities. */
-	struct m0_fom_locality	       **fd_localities;
+	struct m0_fom_locality        **fd_localities;
 	/** Number of localities in the domain. */
-	size_t				 fd_localities_nr;
+	size_t                          fd_localities_nr;
 	/** Domain operations. */
-	const struct m0_fom_domain_ops	*fd_ops;
-	/** Request handler this domain belongs to */
-	struct m0_reqh			*fd_reqh;
+	const struct m0_fom_domain_ops *fd_ops;
 	/** Addb context for fom */
-	struct m0_addb_ctx               fd_addb_ctx;
-	struct m0_addb2_sys             *fd_addb2_sys;
+	struct m0_addb_ctx              fd_addb_ctx;
+	struct m0_addb2_sys            *fd_addb2_sys;
+	/**
+	   Private, fully configured, ADDB machine for the request handler.
+	   The first such machine created is used to configure the global
+	   machine, ::m0_addb_gmc.
+	 */
+	struct m0_addb_mc               fd_addb_mc;
 };
 
 /** Operations vector attached to a domain. */
@@ -396,7 +400,7 @@ enum { M0_FOS_TRANS_NR = 8 };
 	(sizeof(struct m0_addb_counter_data) +				\
 	((M0_COUNT_PARAMS(M0_FOM_SM_STATS_HIST_ARGS2) > 0 ?		\
 	  M0_COUNT_PARAMS(M0_FOM_SM_STATS_HIST_ARGS2) + 1 : 0) *	\
-                  sizeof(uint64_t)))
+		sizeof(uint64_t)))
 enum {
 	FOM_STATE_STATS_DATA_SZ = M0_FOM_STATS_CNTR_DATA * M0_FOS_TRANS_NR
 };
@@ -416,8 +420,7 @@ enum m0_fom_phase {
  *
  * @pre dom != NULL
  */
-M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom,
-				   struct m0_reqh *reqh);
+M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain **dom);
 
 /**
  * Finalises fom domain.
@@ -437,8 +440,7 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom);
  * the caller must first guarantee that no new foms can be queued.
  */
 M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom);
-M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_fom_domain *dom,
-					   struct m0_reqh_service *svc);
+M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_reqh_service *svc);
 
 /**
  * This function iterates over m0_fom_domain members and checks
@@ -670,7 +672,7 @@ M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom);
 struct m0_fom_type {
 	uint64_t                           ft_id;
 	const struct m0_fom_type_ops      *ft_ops;
-	const struct m0_sm_conf           *ft_conf;
+	      struct m0_sm_conf           *ft_conf;
 	const struct m0_reqh_service_type *ft_rstype;
 };
 
@@ -915,6 +917,8 @@ M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type, uint64_t id,
 				  const struct m0_fom_type_ops *ops,
 				  const struct m0_reqh_service_type *svc_type,
 				  struct m0_sm_conf *sm);
+
+M0_INTERNAL int m0_fom_addb2_init(struct m0_fom_type *type, uint64_t id);
 
 /**
  * Associate an operational context with the FOM.
