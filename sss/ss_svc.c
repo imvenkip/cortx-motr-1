@@ -105,8 +105,8 @@ static const struct m0_reqh_service_type_ops ss_svc_type_ops = {
 	.rsto_service_allocate = ss_svc_rsto_service_allocate
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_ss_svc_type, &ss_svc_type_ops,
-			    M0_START_STOP_SVC_NAME, &m0_addb_ct_ss_svc, 1);
+M0_REQH_SERVICE_TYPE_DEFINE(m0_ss_svc_type, &ss_svc_type_ops, "sss",
+			    &m0_addb_ct_ss_svc, 1);
 
 /*
  * Public interfaces.

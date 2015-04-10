@@ -33,7 +33,6 @@
 
 enum { MAX_SERVICE_NAME_LEN = 128 };
 
-#define M0_START_STOP_SVC_NAME "sss"
 extern struct m0_reqh_service_type m0_ss_svc_type;
 
 /** Start Stop Service */
