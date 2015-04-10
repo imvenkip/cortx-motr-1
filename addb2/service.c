@@ -42,6 +42,7 @@
 #include "fop/fop.h"
 
 #include "addb2/addb2.h"
+#include "addb2/addb2_xc.h"
 #include "addb2/internal.h"
 #include "addb2/consumer.h"
 #include "addb2/sys.h"
@@ -53,11 +54,8 @@ struct addb2_service {
 };
 
 struct addb2_fom {
-	struct m0_fom             a2_fom;
-	struct m0_addb2_trace_obj a2_obj;
-	struct m0_chan            a2_chan;
-	struct m0_mutex           a2_lock;
-	struct m0_addb2_cursor    a2_cur;
+	struct m0_fom          a2_fom;
+	struct m0_addb2_cursor a2_cur;
 };
 
 static int    addb2_service_start(struct m0_reqh_service *service);
@@ -138,8 +136,6 @@ static int addb2_fom_create(struct m0_fop *fop,
 	M0_ALLOC_PTR(fom);
 	if (fom != NULL) {
 		*out = &fom->a2_fom;
-		m0_mutex_init(&fom->a2_lock);
-		m0_chan_init(&fom->a2_chan, &fom->a2_lock);
 		m0_fom_init(*out, &fop->f_type->ft_fom_type,
 			    &addb2_fom_ops, fop, NULL, reqh);
 		return M0_RC(0);
@@ -149,20 +145,19 @@ static int addb2_fom_create(struct m0_fop *fop,
 
 enum {
 	ADDB2_CONSUME = M0_FOM_PHASE_INIT,
-	ADDB2_FINISH  = M0_FOM_PHASE_FINISH,
-	ADDB2_SUBMIT,
-	ADDB2_DONE
+	ADDB2_DONE    = M0_FOM_PHASE_FINISH,
+	ADDB2_SUBMIT
 };
 
 static int addb2_fom_tick(struct m0_fom *fom0)
 {
 	struct addb2_fom          *fom     = M0_AMB(fom, fom0, a2_fom);
-	struct m0_addb2_trace_obj *obj     = &fom->a2_obj;
 	struct m0_addb2_trace     *trace   = m0_fop_data(fom0->fo_fop);
 	struct m0_reqh_service    *svc     = fom0->fo_service;
 	struct addb2_service      *service = M0_AMB(service, svc, ase_service);
 	struct m0_addb2_source    *src     = &service->ase_src;
 	struct m0_addb2_cursor    *cur     = &fom->a2_cur;
+	struct m0_addb2_trace_obj *obj;
 	struct m0_addb2_sys       *sys;
 
 	sys = svc->rs_reqh->rh_fom_dom.fd_addb2_sys;
@@ -175,16 +170,21 @@ static int addb2_fom_tick(struct m0_fom *fom0)
 		m0_fom_phase_set(fom0, ADDB2_SUBMIT);
 		return M0_FSO_AGAIN;
 	case ADDB2_SUBMIT:
-		obj->o_tr   = *trace;
-		obj->o_done = &addb2_done;
-		m0_mutex_lock(&fom->a2_lock);
-		m0_fom_wait_on(fom0, &fom->a2_chan, &fom0->fo_cb);
-		m0_mutex_unlock(&fom->a2_lock);
-		m0_addb2_sys_submit(sys, obj);
+		M0_ALLOC_PTR(obj);
+		if (obj != NULL) {
+			obj->o_tr   = *trace;
+			obj->o_done = &addb2_done;
+			/*
+			 * Reset the data, so fom finalisation doesn't free it.
+			 *
+			 * The trace is freed in addb2_done().
+			 */
+			fom0->fo_fop->f_data.fd_data = NULL;
+			if (m0_addb2_sys_submit(sys, obj) == 0)
+				addb2_done(obj);
+		} else
+			M0_LOG(M0_NOTICE, "Lost trace.");
 		m0_fom_phase_set(fom0, ADDB2_DONE);
-		return M0_FSO_WAIT;
-	case ADDB2_DONE:
-		m0_fom_phase_set(fom0, ADDB2_FINISH);
 		return M0_FSO_WAIT;
 	default:
 		M0_IMPOSSIBLE("Invalid phase");
@@ -196,8 +196,6 @@ static void addb2_fom_fini(struct m0_fom *fom0)
 	struct addb2_fom *fom = M0_AMB(fom, fom0, a2_fom);
 
 	m0_fom_fini(fom0);
-	m0_chan_fini_lock(&fom->a2_chan);
-	m0_mutex_fini(&fom->a2_lock);
 	m0_free(fom);
 }
 
@@ -209,8 +207,8 @@ static void addb2_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 
 static void addb2_done(struct m0_addb2_trace_obj *obj)
 {
-	struct addb2_fom *fom = M0_AMB(fom, obj, a2_obj);
-	m0_chan_signal_lock(&fom->a2_chan);
+	m0_free(obj->o_tr.tr_body);
+	m0_free(obj);
 }
 
 static size_t addb2_fom_home_locality(const struct m0_fom *fom)
@@ -241,11 +239,7 @@ static struct m0_sm_state_descr addb2_fom_phases[] = {
 		.sd_allowed   = M0_BITS(ADDB2_DONE),
 	},
 	[ADDB2_DONE] = {
-		.sd_name      = "wait-done",
-		.sd_allowed   = M0_BITS(ADDB2_FINISH),
-	},
-	[ADDB2_FINISH] = {
-		.sd_name      = "finish",
+		.sd_name      = "done",
 		.sd_flags     = M0_SDF_TERMINAL
 	}
 };

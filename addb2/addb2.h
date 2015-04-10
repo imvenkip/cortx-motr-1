@@ -442,7 +442,15 @@ struct m0_addb2_trace_obj {
 	struct m0_tlink       o_linkage;
 	/** Pointer to the machine in which the trace was generated. */
 	struct m0_addb2_mach *o_mach;
-	/** Completion call-back. */
+	/**
+	 * Completion call-back.
+	 *
+	 * This is called by the processing (storage or network) after the trace
+	 * has been processed (see frame_done()).
+	 *
+	 * @note If this is not defined, the standard call-back
+	 * m0_addb2_trace_done() is invoked.
+	 */
 	void                (*o_done)(struct m0_addb2_trace_obj *obj);
 	/** Push this trace through to the consumers as soon as possible,
 	    bypassing caches. */

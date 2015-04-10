@@ -656,11 +656,12 @@ static void frame_done(struct frame *frame)
 		struct m0_addb2_trace_obj *obj;
 
 		obj = M0_AMB(obj, frame->f_trace[i], o_tr);
-		if (obj->o_done != NULL)
-			obj->o_done(obj);
 		if (stor->as_ops->sto_done != NULL)
 			stor->as_ops->sto_done(stor, obj);
-		m0_addb2_trace_done(trace);
+		if (obj->o_done != NULL)
+			obj->o_done(obj);
+		else
+			m0_addb2_trace_done(trace);
 	}
 }
 
