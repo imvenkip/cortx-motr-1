@@ -124,8 +124,7 @@ static void test2_run(void)
 	 */
 	credit_setup(SERVER_1, RIF_MAY_BORROW, NENYA | DURIN);
 	m0_rm_credit_get(in);
-	if (incoming_state(in) == RI_WAIT)
-		m0_chan_wait(&rm_ctxs[SERVER_1].rc_clink);
+	m0_chan_wait(&rm_ctxs[SERVER_1].rc_clink);
 	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
 	M0_UT_ASSERT(in->rin_rc == 0);
 	m0_rm_credit_put(in);
@@ -181,8 +180,7 @@ static void test3_run(void)
 	credit_setup(SERVER_2, RIF_MAY_REVOKE | RIF_MAY_BORROW,
 		    NENYA | VILYA);
 	m0_rm_credit_get(in);
-	if (incoming_state(in) == RI_WAIT)
-		m0_chan_wait(&rm_ctxs[SERVER_2].rc_clink);
+	m0_chan_wait(&rm_ctxs[SERVER_2].rc_clink);
 	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
 	M0_UT_ASSERT(in->rin_rc == 0);
 	m0_rm_credit_put(in);
@@ -225,8 +223,7 @@ static void test1_run(void)
 	creditor_cookie_setup(SERVER_2, SERVER_3);
 	credit_setup(SERVER_2, RIF_MAY_BORROW, NENYA);
 	m0_rm_credit_get(in);
-	if (incoming_state(in) == RI_WAIT)
-		m0_chan_wait(&rm_ctxs[SERVER_2].rc_clink);
+	m0_chan_wait(&rm_ctxs[SERVER_2].rc_clink);
 	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
 	M0_UT_ASSERT(in->rin_rc == 0);
 	m0_rm_credit_put(in);
