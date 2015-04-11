@@ -421,16 +421,16 @@ static void cp_fom_fini(struct m0_fom *fom)
 	struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
 	struct m0_cm_aggr_group *ag = cp->c_ag;
 	struct m0_cm            *cm = ag->cag_cm;
-	bool                     ag_fini;
+	int                      cp_rc;
 	M0_ENTRY();
 
 	m0_cm_lock(cm);
-	if (cp->c_rc == 0)
-		M0_CNT_INC(ag->cag_freed_cp_nr);
+	cp_rc = cp->c_rc;
 	m0_cm_cp_fom_fini(cp);
-	if (cp->c_rc == 0) {
-		ag_fini = ag->cag_ops->cago_ag_can_fini(ag);
-		if (ag_fini)
+	cp->c_ops->co_free(cp);
+	if (cp_rc == 0) {
+		M0_CNT_INC(ag->cag_freed_cp_nr);
+		if (ag->cag_ops->cago_ag_can_fini(ag))
 			ag->cag_ops->cago_fini(ag);
 	}
 	/*
@@ -439,7 +439,6 @@ static void cp_fom_fini(struct m0_fom *fom)
 	 */
 	if (m0_cm_has_more_data(cm))
 		m0_cm_continue(cm);
-	cp->c_ops->co_free(cp);
 	m0_cm_unlock(cm);
 	M0_LEAVE();
 }
