@@ -51,12 +51,11 @@ static int root_decode(struct m0_conf_obj        *dest,
 	if (s->xt_verno == 0)
 		return M0_ERR(-EINVAL);
 	d->rt_verno = s->xt_verno;
-
 	return M0_RC(dir_create_and_populate(
-			&d->rt_profiles,
-			&CONF_DIR_ENTRIES(&M0_CONF_ROOT_PROFILES_FID,
-					  &M0_CONF_PROFILE_TYPE,
-					  &s->xt_profiles), dest, cache));
+			     &d->rt_profiles,
+			     &CONF_DIR_ENTRIES(&M0_CONF_ROOT_PROFILES_FID,
+					       &M0_CONF_PROFILE_TYPE,
+					       &s->xt_profiles), dest, cache));
 }
 
 static int root_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)

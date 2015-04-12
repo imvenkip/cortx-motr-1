@@ -663,7 +663,7 @@ M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
 
 	rc = path_copy(path, ctx->fc_path, ARRAY_SIZE(ctx->fc_path));
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 	ctx->fc_origin = origin == NULL ? ctx->fc_confc->cc_root : origin;
 
 	ast_state_set(&ctx->fc_ast, S_CHECK);
@@ -1044,7 +1044,6 @@ static int path_walk(struct m0_confc_ctx *ctx)
 	confc_unlock(ctx->fc_confc);
 
 	M0_POST(confc_group_is_locked(ctx->fc_confc));
-	M0_LEAVE("retval=%d", rc);
 	return M0_RC(rc);
 }
 

@@ -1875,7 +1875,6 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 {
 	M0_ENTRY();
-
 	return _args_parse(cctx, argc, argv);
 }
 
@@ -1934,9 +1933,6 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	     cs_conf_setup(cctx) ?:
 	     cs_reqh_layouts_setup(cctx);
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
-
-	if (rc < 0)
-		M0_LOG(M0_ERROR, "m0_cs_setup_env: %d", rc);
 	return M0_RC(rc);
 }
 
