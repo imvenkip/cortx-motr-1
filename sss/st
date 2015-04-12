@@ -139,7 +139,7 @@ case "${1:-}" in
 	*) usage >&2; die;;
 esac
 
-$M0_CORE_DIR/m0t1fs/linux_kernel/st/st insmod
+$M0_CORE_DIR/conf/st insmod
 sandbox_init
 m0d_start
 
@@ -167,4 +167,4 @@ sss_check ioservice       M0_SERVICE_STATUS "$SVC_ID" ssr_state M0_RST_STOPPED
 
 m0d_stop
 sandbox_fini
-$M0_CORE_DIR/m0t1fs/linux_kernel/st/st rmmod
+$M0_CORE_DIR/conf/st rmmod

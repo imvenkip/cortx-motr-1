@@ -61,42 +61,56 @@ run_kut() {
     $SUDO "$SRC/ut/m0kut" "$@"
 }
 
+say() { echo "<< $* >>"; }
+
 run_st() {
     run_init
+
+    say net ST
     $SUDO "$SRC/net/test/st/st.sh"
 
-    ## rpc ping
+    say rpc ping
     "$SRC/rpc/it/st.sh"
 
-    ## console ST
+    say console ST
     $SUDO SANDBOX_DIR=$RUNDIR/sandbox.console-st \
 	"$SRC/console/st/console-st.sh"
 
-    ## Start/stop service ST
+    say start/stop service ST
     $SUDO SANDBOX_DIR=$RUNDIR/sandbox.sss-st "$SRC/sss/st"
 
-    ## conf ST - disabled for now, see MERO-324
-    #$SUDO SANDBOX_DIR=$RUNDIR/sandbox.conf-st "$SRC/m0t1fs/linux_kernel/st/st"
+    say conf ST
+    if python -c 'import ply' 2>/dev/null; then
+	$SUDO SANDBOX_DIR=$RUNDIR/sandbox.conf-st "$SRC/conf/st"
+    else # XXX `ply' may become mandatory, if utils/m0confgen gains popularity.
+	{
+	    cat <<"EOF"
+*WARNING* Unable to run the test due to unmet dependency.
+`ply' Python module is missing. Try to install it:
+    sudo yum install python-ply
+EOF
+	} >&2
+    fi
 
-    ## IO ST
+    say IO ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
 
-    ## multi-clients support ST
+    say multi-clients support ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_multi_clients.sh"
 
-    ## Degraded-mode IO ST
+    say degraded-mode IO ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh"
 
-    ## Pool machine query/set testing.
+    say pool machine query/set testing
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh"
 
-    ## SNS single failure repair and rebalance
+    say SNS single failure repair and rebalance
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_1f.sh"
 
-    ## SNS multi failure repair
+    say SNS multi failure repair
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh"
 
-    ## Fsync ST
+    say fsync ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_fsync_test.sh"
 }
 
