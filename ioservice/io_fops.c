@@ -277,6 +277,9 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 {
 	struct m0_sm_conf *p_cob_ops_conf;
 #ifndef __KERNEL__
+	static struct m0_sm_conf io_conf_read;
+	static struct m0_sm_conf io_conf_write;
+
 	p_cob_ops_conf = &cob_ops_conf;
 #else
 	p_cob_ops_conf = &m0_generic_conf;
@@ -293,6 +296,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	m0_sm_conf_trans_extend(&m0_generic_conf, &io_conf);
 
 	m0_sm_conf_init(&io_conf);
+	io_conf_read  = io_conf;
+	io_conf_write = io_conf;
 #endif
 	M0_FOP_TYPE_INIT(&m0_fop_cob_readv_fopt,
 			 .name      = "Read request",
@@ -302,7 +307,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .fop_ops   = &io_fop_rwv_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &io_fom_type_ops,
-			 .sm        = &io_conf,
+			 .sm        = &io_conf_read,
 			 .svc_type  = &m0_ios_type,
 #endif
 			 .rpc_ops   = &io_item_type_ops);
@@ -316,7 +321,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .fop_ops   = &io_fop_rwv_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &io_fom_type_ops,
-			 .sm        = &io_conf,
+			 .sm        = &io_conf_write,
 			 .svc_type  = &m0_ios_type,
 #endif
 			 .rpc_ops   = &io_item_type_ops);
