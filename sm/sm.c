@@ -309,7 +309,6 @@ M0_INTERNAL void m0_sm_stats_enable(struct m0_sm *mach,
 {
 	M0_PRE(m0_sm_conf_is_initialized(mach->sm_conf));
 	M0_PRE(c->asc_magic == M0_ADDB_CNTR_MAGIC);
-	M0_PRE(c->asc_rt->art_sm_conf == mach->sm_conf);
 
 	mach->sm_addb_stats = c;
 	mach->sm_state_epoch = m0_time_now();
@@ -770,6 +769,10 @@ M0_INTERNAL int m0_sm_addb2_init(struct m0_sm_conf *conf,
 {
 	size_t nob;
 	int    result;
+
+	M0_PRE(conf->scf_addb2_id == 0);
+	M0_PRE(conf->scf_addb2_counter == 0);
+	M0_PRE(conf->scf_addb2_key == 0);
 
 	conf->scf_addb2_id      = id;
 	conf->scf_addb2_counter = counter;
