@@ -95,7 +95,7 @@ void m0_addb2_list_counter_del(struct m0_addb2_list_counter *counter)
 
 void m0_addb2_clock_add(struct m0_addb2_sensor *clock, uint64_t label, int idx)
 {
-	m0_addb2_sensor_add(clock, label, 1, idx, &clock_sensor_ops);
+	m0_addb2_sensor_add(clock, label, 0, idx, &clock_sensor_ops);
 }
 
 void m0_addb2_clock_del(struct m0_addb2_sensor *clock)
@@ -154,7 +154,7 @@ static const struct m0_addb2_sensor_ops list_sensor_ops = {
 
 static void clock_counter_snapshot(struct m0_addb2_sensor *s, uint64_t *area)
 {
-	area[0] = m0_time_now();
+	/* Do nothing, addb2/addb2.c:sensor_place() already added time-stamp. */
 }
 
 static const struct m0_addb2_sensor_ops clock_sensor_ops = {
