@@ -51,7 +51,7 @@ void m0_addb_kmod_uuid_file_set(const char *path)
 
 void m0_addb_node_uuid_string_set(char *uuid)
 {
-	use_default_node_uuid = true;
+	use_default_node_uuid = false;
 	if (uuid != NULL) {
 		strncpy(default_node_uuid, uuid, M0_UUID_STRLEN);
 		default_node_uuid[M0_UUID_STRLEN] = '\0';
