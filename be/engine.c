@@ -419,7 +419,7 @@ M0_INTERNAL void m0_be_engine__tx_force(struct m0_be_engine *en,
 	}
 
 	/*
-	* Is it possible that the tx has been commited to disk while
+	* Is it possible that the tx has been committed to disk while
 	* we were waiting for the lock?
 	*/
 	if (m0_be_tx_state(tx) < M0_BTS_LOGGED)
