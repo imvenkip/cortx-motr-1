@@ -261,14 +261,15 @@ static void rpcop(struct context *ctx, const uint64_t *v, char *buf)
 
 static void counter(struct context *ctx, const uint64_t *v, char *buf)
 {
-	struct m0_addb2_counter_data *d = (void *)v;
+	struct m0_addb2_counter_data *d = (void *)&v[1];
 	double avg;
 	double dev;
 
 	avg = d->cod_nr > 0 ? ((double)d->cod_sum) / d->cod_nr : 0;
 	dev = d->cod_nr > 1 ? ((double)d->cod_ssq) / d->cod_nr - avg * avg : 0;
 
-	sprintf(buf, "nr: %"PRId64" min: %"PRId64" max: %"PRId64
+	_clock(ctx, v, buf);
+	sprintf(buf + strlen(buf), " nr: %"PRId64" min: %"PRId64" max: %"PRId64
 		" avg: %f dev: %f", d->cod_nr, d->cod_min, d->cod_max,
 		avg, dev);
 }
@@ -306,7 +307,7 @@ static void io_write_phase_counter(struct context *ctx, char *buf)
 	sm_trans(m0_fop_cob_writev_fopt.ft_fom_type.ft_conf, "write", ctx, buf);
 }
 
-#define COUNTER &counter, &skip, &skip, &skip, &skip
+#define COUNTER  &counter, &skip, &skip, &skip, &skip
 #define FID &fid, &skip
 
 struct id_intrp ids[] = {
