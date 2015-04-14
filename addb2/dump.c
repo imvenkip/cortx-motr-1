@@ -93,19 +93,16 @@ static void rec_dump(struct context *ctx, const struct m0_addb2_record *rec);
 static void val_dump(struct context *ctx, const char *prefix,
 		     const struct m0_addb2_value *val, int indent);
 static void context_fill(struct context *ctx, const struct m0_addb2_value *val);
+static void file_dump(struct m0_stob_domain *dom, const char *fname);
 
 #define DOM "./_addb2-dump"
 
 int main(int argc, char **argv)
 {
 	struct m0_stob_domain  *dom;
-	struct m0_stob         *stob;
-	const char             *fname = argv[1];
-	struct m0_addb2_sit    *sit;
-	struct stat             buf;
-	struct m0_addb2_record *rec;
 	struct m0               instance = {0};
 	int                     result;
+	int                     i;
 
 	result = m0_init(&instance);
 	if (result != 0)
@@ -120,12 +117,31 @@ int main(int argc, char **argv)
 					       8, NULL, &dom);
 	if (result != 0)
 		err(EX_CANTCREAT, "Cannot create domain: %d", result);
+	id_init();
+	for (i = 1; i < argc; ++i)
+		file_dump(dom, argv[i]);
+	id_fini();
+	m0_stob_domain_destroy(dom);
+	m0_fini();
+	return EX_OK;
+}
+
+static void file_dump(struct m0_stob_domain *dom, const char *fname)
+{
+	struct m0_stob         *stob;
+	struct m0_addb2_sit    *sit;
+	struct stat             buf;
+	struct m0_addb2_record *rec;
+	int                     result;
+
 	result = m0_stob_find_by_key(dom, 1 /* stob key, any */, &stob);
 	if (result != 0)
 		err(EX_CANTCREAT, "Cannot find stob: %d", result);
-	result = m0_stob_locate(stob);
-	if (result != 0)
-		err(EX_CANTCREAT, "Cannot locate stob: %d", result);
+	if (m0_stob_state_get(stob) == CSS_UNKNOWN) {
+		result = m0_stob_locate(stob);
+		if (result != 0)
+			err(EX_CANTCREAT, "Cannot locate stob: %d", result);
+	}
 	result = m0_stob_create(stob, NULL, fname);
 	if (result != 0)
 		err(EX_NOINPUT, "Cannot create stob: %d", result);
@@ -138,17 +154,12 @@ int main(int argc, char **argv)
 	result = m0_addb2_sit_init(&sit, stob, 128ULL << 30, NULL);
 	if (result != 0)
 		err(EX_DATAERR, "Cannot initialise iterator: %d", result);
-	id_init();
 	while ((result = m0_addb2_sit_next(sit, &rec)) > 0)
 		rec_dump(&(struct context){}, rec);
-	id_fini();
 	if (result != 0)
 		err(EX_DATAERR, "Iterator error: %d", result);
 	m0_addb2_sit_fini(sit);
 	m0_stob_destroy(stob, NULL);
-	m0_stob_domain_destroy(dom);
-	m0_fini();
-	return EX_OK;
 }
 
 static void dec(struct context *ctx, const uint64_t *v, char *buf)
