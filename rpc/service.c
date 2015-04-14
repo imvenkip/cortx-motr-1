@@ -192,20 +192,30 @@ m0_rpc_service_reverse_session_put(struct m0_reqh_service *service)
 
 	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
 	m0_tl_for(rev_conn, &svc->rps_rev_conns, revc) {
-		m0_clink_init(&revc->rcf_disc_wait, NULL);
-		revc->rcf_disc_wait.cl_is_oneshot = true;
-		m0_rpc_link_disconnect_async(&revc->rcf_rlink,
-					     &revc->rcf_disc_wait);
+		M0_SET0(&revc->rcf_disc_wait);
+		if (revc->rcf_rlink.rlk_connected) {
+			m0_clink_init(&revc->rcf_disc_wait, NULL);
+			revc->rcf_disc_wait.cl_is_oneshot = true;
+			m0_rpc_link_disconnect_async(&revc->rcf_rlink,
+						     &revc->rcf_disc_wait);
+		}
 	} m0_tlist_endfor;
 	m0_tl_teardown(rev_conn, &svc->rps_rev_conns, revc) {
-		m0_chan_wait(&revc->rcf_disc_wait);
-		m0_clink_fini(&revc->rcf_disc_wait);
+		if (revc->rcf_disc_wait.cl_group != NULL) {
+			m0_chan_wait(&revc->rcf_disc_wait);
+			m0_clink_fini(&revc->rcf_disc_wait);
+		}
 		m0_rpc_link_fini(&revc->rcf_rlink);
 		rev_conn_tlink_fini(revc);
 		m0_free(revc);
 	}
 
 	M0_LEAVE();
+}
+
+M0_INTERNAL int m0_rpc_session_status(struct m0_rpc_session *session)
+{
+	return container_of(session, struct m0_rpc_link, rlk_sess)->rlk_rc;
 }
 
 M0_INTERNAL struct m0_reqh_service *

@@ -37,6 +37,7 @@
 
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
+#include "rpc/service.h"  /* m0_rpc_service_session_release */
 
 /**
    @addtogroup rm
@@ -1145,6 +1146,10 @@ static bool rev_session_clink_cb(struct m0_clink *link)
 	remote = bob_of(link, struct m0_rm_remote,
 			rem_rev_sess_clink, &rem_bob);
 	resource = remote->rem_resource;
+
+	if (m0_rpc_session_status(remote->rem_session) != 0)
+		/* The connection has failed. Stop further processing. */
+		return true;
 
 	/*
 	 * Do not break RM lock ordering.

@@ -84,6 +84,7 @@ extern struct m0_ut_suite ios_bufferpool_ut;
 extern struct m0_ut_suite item_ut;
 extern struct m0_ut_suite item_source_ut;
 extern struct m0_ut_suite layout_ut;
+extern struct m0_ut_suite link_lib_ut;
 extern struct m0_ut_suite m0_fop_lock_ut;
 extern struct m0_ut_suite m0_fom_stats_ut;
 extern struct m0_ut_suite m0_net_bulk_if_ut;
@@ -171,6 +172,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &item_ut, true);
 	m0_ut_add(m, &item_source_ut, true);
 	m0_ut_add(m, &layout_ut, true);
+	m0_ut_add(m, &link_lib_ut, true);
 	m0_ut_add(m, &m0_fop_lock_ut, true);
 	m0_ut_add(m, &m0_fom_stats_ut, true);
 	m0_ut_add(m, &m0_net_bulk_if_ut, true);

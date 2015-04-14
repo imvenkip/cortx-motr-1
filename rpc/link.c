@@ -188,6 +188,7 @@ static int rpc_link_sess_terminate(struct m0_rpc_link *rlink)
 static int rpc_link_conn_failure(struct m0_rpc_link *rlink)
 {
 	rlink->rlk_rc = m0_fom_rc(&rlink->rlk_fom);
+	m0_rpc_conn_fini(&rlink->rlk_conn);
 	return M0_FSO_WAIT;
 }
 
@@ -381,7 +382,7 @@ static void rpc_link_fom_fini_common(struct m0_fom *fom, bool connected)
 
 	rlink = container_of(fom, struct m0_rpc_link, rlk_fom);
 	m0_fom_fini(fom);
-	rlink->rlk_connected = connected;
+	rlink->rlk_connected = connected && (rlink->rlk_rc == 0);
 	m0_chan_broadcast_lock(&rlink->rlk_wait);
 
 	M0_LEAVE();
