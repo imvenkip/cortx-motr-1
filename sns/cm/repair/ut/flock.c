@@ -257,10 +257,36 @@ static int fids_set(void)
 	return 0;
 }
 
+static void file_lock_wait(struct m0_sns_cm_file_ctx *fctx,
+			   struct m0_clink *clink)
+{
+	struct m0_chan            *chan;
+	enum m0_rm_incoming_state  state;
+
+	chan = &fctx->sf_rin.rin_sm.sm_chan;
+	m0_rm_owner_lock(&fctx->sf_owner);
+	state = fctx->sf_rin.rin_sm.sm_state;
+	m0_clink_add(chan, clink);
+	m0_rm_owner_unlock(&fctx->sf_owner);
+	/* Check if the lock is already acquired before waiting. */
+	if (state == RI_WAIT)
+		m0_chan_wait(clink);
+	else {
+		M0_UT_ASSERT(state == RI_SUCCESS);
+		m0_sm_group_lock(fctx->sf_group);
+		m0_sm_state_set(&fctx->sf_sm, M0_SCFS_LOCKED);
+		m0_sm_group_unlock(fctx->sf_group);
+	}
+	m0_rm_owner_lock(&fctx->sf_owner);
+	m0_clink_del(clink);
+	m0_clink_fini(clink);
+	m0_rm_owner_unlock(&fctx->sf_owner);
+}
+
 static void sns_file_lock_unlock(void)
 {
 	struct m0_sns_cm_file_ctx *fctx[NR_FIDS];
-	struct m0_chan		  *chan;
+
 	struct m0_clink		   tc_clink[NR_FIDS];
 	struct m0_sm_group        *grp = m0_locality0_get()->lo_grp;
 	struct m0_fid              fid;
@@ -277,13 +303,9 @@ static void sns_file_lock_unlock(void)
 		m0_clink_init(&tc_clink[i], &flock_cb);
 		m0_sm_group_lock(grp);
 		rc = m0_sns_cm_file_lock(scm, &test_fids[i], grp, &fctx[i]);
-		m0_sm_group_unlock(grp);
-		chan = &fctx[i]->sf_rin.rin_sm.sm_chan;
-		m0_rm_owner_lock(&fctx[i]->sf_owner);
-		m0_clink_add(chan, &tc_clink[i]);
-		m0_rm_owner_unlock(&fctx[i]->sf_owner);
 		M0_UT_ASSERT(rc == -EAGAIN);
-		m0_chan_wait(&tc_clink[i]);
+		m0_sm_group_unlock(grp);
+		file_lock_wait(fctx[i], &tc_clink[i]);
 		m0_fid_set(&fid, cont, key);
 		file_lock_verify(scm, &fid, 1);
 		++key;
@@ -291,10 +313,6 @@ static void sns_file_lock_unlock(void)
 			cont++;
 			key = KEY_START;
 		}
-		m0_rm_owner_lock(&fctx[i]->sf_owner);
-		m0_clink_del(&tc_clink[i]);
-		m0_clink_fini(&tc_clink[i]);
-		m0_rm_owner_unlock(&fctx[i]->sf_owner);
 		m0_sm_group_lock(grp);
 		m0_sns_cm_file_unlock(scm, &test_fids[i]);
 		m0_sm_group_unlock(grp);
