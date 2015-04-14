@@ -307,7 +307,7 @@ static void io_write_phase_counter(struct context *ctx, char *buf)
 	sm_trans(m0_fop_cob_writev_fopt.ft_fom_type.ft_conf, "write", ctx, buf);
 }
 
-#define COUNTER  &counter, &skip, &skip, &skip, &skip
+#define COUNTER  &counter, &skip, &skip, &skip, &skip, &skip
 #define FID &fid, &skip
 
 struct id_intrp ids[] = {
