@@ -199,7 +199,7 @@ static void _clock(struct context *ctx, const uint64_t *v, char *buf)
 	struct tm tm;
 
 	localtime_r(&ts, &tm);
-	sprintf(buf, "%04d-%02d-%02d %02d:%02d:%02d.%09lu",
+	sprintf(buf, "%04d-%02d-%02d-%02d:%02d:%02d.%09lu",
 		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
 		tm.tm_min, tm.tm_sec, m0_time_nanoseconds(stamp));
 	ctx->c_clock = stamp;
