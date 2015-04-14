@@ -88,7 +88,6 @@ static int addb_fom_fo_tick(struct m0_fom *fom)
 	struct m0_bufvec_cursor       cur;
 	struct m0_bufvec              bv;
 	struct m0_xcode_ctx           ctx;
-	struct m0_reqh               *reqh;
 	m0_bcount_t                   len;
 	int                           rc = M0_FSO_AGAIN;
 
@@ -97,7 +96,6 @@ static int addb_fom_fo_tick(struct m0_fom *fom)
 		m0_fom_phase_set(fom, ADDB_FOM_PHASE_REC_SEQ_STOB_WRITE);
 		break;
 	case ADDB_FOM_PHASE_REC_SEQ_STOB_WRITE:
-		reqh = m0_fom_reqh(fom);
 		M0_ASSERT(m0_addb_mc_is_fully_configured(m0_fom_addb_mc()));
 		addb_fop = m0_fop_data(fom->fo_fop);
 		M0_ASSERT(addb_fop != NULL);
