@@ -739,7 +739,7 @@ struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 	{"FOM successfully completed",
 				 M0_FOPH_SUCCESS, M0_FOPH_FOL_REC_ADD},
 	{"FOL record added",     M0_FOPH_FOL_REC_ADD, M0_FOPH_TXN_COMMIT},
-	{"Transaction commited", M0_FOPH_TXN_COMMIT, M0_FOPH_QUEUE_REPLY},
+	{"Transaction committed", M0_FOPH_TXN_COMMIT, M0_FOPH_QUEUE_REPLY},
 	{"Wait reply queue",     M0_FOPH_QUEUE_REPLY, M0_FOPH_QUEUE_REPLY_WAIT},
 	{"Operation not complete",
 				 M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_COMMIT_WAIT},
