@@ -949,7 +949,7 @@ static struct tentry *mach_top(struct m0_addb2_mach *m)
  */
 static void sensor_place(struct m0_addb2_mach *m, struct m0_addb2_sensor *s)
 {
-	int      nr = s->s_nr + 1;
+	int nr = s->s_nr + 1;
 
 	M0_PRE(s != NULL);
 	M0_PRE(nr <= VALUE_MAX_NR);
