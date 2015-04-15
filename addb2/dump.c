@@ -217,8 +217,11 @@ static void _clock(struct context *ctx, const uint64_t *v, char *buf)
 static void fom_type(struct context *ctx, const uint64_t *v, char *buf)
 {
 	const struct m0_fom_type *ftype = ctx->c_fom.fo_type;
+	const struct m0_sm_conf  *conf  = ftype->ft_conf;
 
-	sprintf(buf, "'%s'", ftype->ft_conf->scf_name);
+	M0_ASSERT(v[2] < conf->scf_nr_states);
+	sprintf(buf, "'%s' transitions: %"PRId64" phase: %s",
+		conf->scf_name, v[1], conf->scf_state[v[2]].sd_name);
 }
 
 extern struct m0_sm_conf fom_states_conf;
@@ -337,8 +340,7 @@ struct id_intrp ids[] = {
 	{ M0_AVI_THREAD,          "thread",          { &hex, &hex } },
 	{ M0_AVI_SERVICE,         "service",         { FID } },
 	{ M0_AVI_FOM,             "fom",             { &ptr, &fom_type,
-						       &dec, &dec },
-	  { NULL, NULL, "transitions", "phase" } },
+						       &skip, &skip } },
 	{ M0_AVI_CLOCK,           "clock",           { &_clock } },
 	{ M0_AVI_PHASE,           "fom-phase",       { &fom_phase, &skip,
 						       &_clock } },
