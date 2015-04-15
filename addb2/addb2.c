@@ -829,7 +829,7 @@ static void mach_idle(struct m0_addb2_mach *m)
 /**
  * Adds a value (identifier and payload) to the current trace buffer.
  *
- * The buffer is assumed to have enough free space.
+ * New buffer is allocated if there is no enough space in the current one.
  */
 static void add(struct m0_addb2_mach *mach,
 		uint64_t id, int n, const uint64_t *value)
@@ -846,6 +846,8 @@ static void add(struct m0_addb2_mach *mach,
 
 /**
  * Adds a 64-bit value to a trace buffer.
+ *
+ * The buffer is assumed to have enough free space.
  */
 static void buffer_add(struct buffer *buf, uint64_t datum)
 {
