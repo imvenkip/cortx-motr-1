@@ -1,0 +1,145 @@
+Addb (Analytic and Diagnostic Data-Base) is a Mero sub-system that collects
+information about system behaviour ("telemetry information").
+
+Mero code is instrumented to produce addb records describing events (for
+example, memory allocations, error conditions, incoming fops, fom phase and
+state transition), operational parameters (queue depths, operation latencies,
+etc.) and statistical aggregates.
+
+Addb records produced on storage-less clients are transmitted over network to
+servers. Servers store records, both received from clients and produced locally,
+in dedicated storage stobs.
+
+Example
+.......
+
+Run Mero m0t1fs tests:
+
+$ sudo ./m0t1fs/linux_kernel/st/m0t1fs_test.sh
+
+This locally starts 3 md services and 4 ioservices in directories
+/var/mero/systest-$PID/{ios,mds}$N. Each server has its own addb stob:
+
+$ ls -l /var/mero/systest-*/????/addb-stobs/o/*2
+-rwx------ 1 root root 48955392 Apr 14 15:46 /var/mero/systest-27554/ios1/addb-stobs/o/0000000000000002
+-rwx------ 1 root root 41746432 Apr 14 15:46 /var/mero/systest-27554/ios2/addb-stobs/o/0000000000000002
+-rwx------ 1 root root 42991616 Apr 14 15:46 /var/mero/systest-27554/ios3/addb-stobs/o/0000000000000002
+-rwx------ 1 root root 52101120 Apr 14 15:46 /var/mero/systest-27554/ios4/addb-stobs/o/0000000000000002
+-rwx------ 1 root root 49676288 Apr 14 15:46 /var/mero/systest-27554/mds1/addb-stobs/o/0000000000000002
+-rwx------ 1 root root 22544384 Apr 14 15:46 /var/mero/systest-27554/mds2/addb-stobs/o/0000000000000002
+-rwx------ 1 root root 22937600 Apr 14 15:46 /var/mero/systest-27554/mds3/addb-stobs/o/0000000000000002
+
+(there are also addb-stobs/o/*1 files, created by the older version of addb).
+
+Addb stobs can be examined by m0addb2dump utility:
+
+$ # Note that full path to the stob must be used.
+$ # Multiple stobs can be passed on the command line.
+$ ./utils/m0run m0addb2dump -- /var/mero/systest-27554/????/addb-stobs/o/*2 |less
+
+The output consists of records, formatted as following:
+
+* clock            2015-04-14-15:32:02.395575233
+|         node             <11186d8bf0e34117:ab1897c062a22573>
+|         locality         0
+
+A line starting with '*' is a "measurement", it describes an event or
+parameter. Following lines, starting with '|' are measurement's context. In this
+case, the measurement is a time-stamp, and its context specifies the node and
+the locality where the measurement was taken (i.e., where time stamp was
+generated).
+
+A few more examples:
+
+* m0t1fs-create    <4700000000000000:10007>, mode: 100644, rc: 0
+|         node             <11186d8bf0e34117:ab1897c062a22573>
+|         thread           ffff88007407ca80, 7081
+
+This is a client-originated record. The measurement records file creation
+operation in m0t1fs.
+
+* fom-phase        Zero-copy finish -[Wait for Zero-copy finished buffer release]-> Network buffer release, 2015-04-14-15:33:11.986308972
+|         node             <11186d8bf0e34117:ab1897c062a22573>
+|         locality         3
+|         thread           7f79e57fb700
+|         fom              @0x7f795008a680, 'IO fom', transitions: 15, phase: 31
+
+This record describes fom state transition. Note the "fom" label in the context:
+it describes the fom which undergoes the phase transition.
+
+* fom-descr        2015-04-14-15:33:11.998165453, service: <0:0>, sender: c28baccf27e0001, req-opcode: Read request, rep-opcode: Read reply, local: false
+|         node             <11186d8bf0e34117:ab1897c062a22573>
+|         locality         3
+|         thread           7f79e57fb700
+|         ast
+|         fom              @0x7f795008ed20, 'IO fom', transitions: 0, phase: 0
+* ios-io-descr     file: <4700000000000000:10006>, cob: <1:10006>, read-v: 0,  write-v: 0, seg-nr: 1,  count: 8192, offset: 36864, descr-nr: 1, colour: 0
+|         node             <11186d8bf0e34117:ab1897c062a22573>
+|         locality         3
+|         thread           7f79e57fb700
+|         ast
+|         fom              @0x7f795008ed20, 'IO fom', transitions: 0, phase: 0
+
+Such records (always going one after another) describe new fom. First record is
+a generic fom description, second record is specific to the fom type (cob read
+request in our case).
+
+There are two types of measurements:
+
+    * measurements corresponding to something that happens in a particular
+      moment in particular place of code are technically called
+      "data-points". All records above, except for the first one, are examples
+      of data-points;
+
+    * other measurements correspond to parameters that change "continuously",
+      that is, too fast for each change to be sampled individually. Such
+      measurements are called "sensors". Addb2 periodically samples sensors and
+      records their measurements. Sensor records always include the time-stamp
+      of the moment when the sensor was sampled.
+
+"Clock" is a sensor. Other examples of sensors are:
+
+* fom-active       2015-04-15-13:04:19.614626769 nr: 24 min: 1 max: 2 avg: 1.500000 dev: 0.250000
+|         node             <b0cf922c851b42c4:89028b3a5eeded41>
+|         locality         0
+* runq             2015-04-15-13:04:19.614627234 nr: 242 min: 0 max: 2 avg: 0.657025 dev: 0.382368
+|         node             <b0cf922c851b42c4:89028b3a5eeded41>
+|         locality         0
+* wail             2015-04-15-13:04:19.614627526 nr: 218 min: 0 max: 2 avg: 0.940367 dev: 0.496444
+|         node             <b0cf922c851b42c4:89028b3a5eeded41>
+|         locality         0
+
+Which are, respectively, total number of foms in the locality given by the
+context, number of foms in locality run-queue and locality wait-list.
+
+Important sensors are fom phase transition counters:
+
+* read/IO fom: fom_tx_wait -[Transaction opened]-> IO Prepare 2015-04-15-13:04:18.607430792 nr: 5 min: 131 max: 898 avg: 379.600000 dev: 88701.040000
+|         node             <b0cf922c851b42c4:89028b3a5eeded41>
+|         locality         1
+
+This counter measures time spent in a particular phase transition for foms of
+particular type in a particular locality. Note that:
+
+    * this is statistical aggregate. Unless "nr" is 1, data for multiple foms
+      are accumulated in the measurement. In the example above, 5 foms executed
+      given state transition in the locality 1;
+
+    * the data are for foms of particular type. Not all fom types have such
+      counters configured for them;
+
+    * the data are for specific locality, indicated in the context;
+
+    * the counter is reset to 0 each time it is sampled. That is, the counter
+      shows the time spent in the given phase transition since last time this
+      counter was recorded.
+
+There is a similar counter for fom *state* transitions:
+
+* /FOM states: Ready -[Run]-> Running 2015-04-15-13:03:13.656801304 nr: 124 min: 3 max: 297 avg: 11.580645 dev: 698.808012
+|         node             <b0cf922c851b42c4:89028b3a5eeded41>
+|         locality         0
+
+This counter is shared by foms of all types (though this might be changed in the
+future in this case, the counter will be named like "read/FOM states", not "/FOM
+states". The counter, though, is still per-locality and resets on sampling.
