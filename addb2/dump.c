@@ -53,14 +53,18 @@
 #include "ioservice/io_addb2.h"
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
 
-enum { BUF_SIZE = 256 };
+enum {
+	BUF_SIZE  = 256,
+	FIELD_MAX = 15
+};
 struct context;
 
 struct id_intrp {
 	uint64_t     ii_id;
 	const char  *ii_name;
-	void       (*ii_print[15])(struct context *ctx,
-				   const uint64_t *v, char *buf);
+	void       (*ii_print[FIELD_MAX])(struct context *ctx,
+					  const uint64_t *v, char *buf);
+	const char  *ii_field[FIELD_MAX];
 	void       (*ii_spec)(struct context *ctx, char *buf);
 	int          ii_repeat;
 };
@@ -170,6 +174,11 @@ static void dec(struct context *ctx, const uint64_t *v, char *buf)
 static void hex(struct context *ctx, const uint64_t *v, char *buf)
 {
 	sprintf(buf, "%"PRIx64, v[0]);
+}
+
+static void oct(struct context *ctx, const uint64_t *v, char *buf)
+{
+	sprintf(buf, "%"PRIo64, v[0]);
 }
 
 static void ptr(struct context *ctx, const uint64_t *v, char *buf)
@@ -328,7 +337,8 @@ struct id_intrp ids[] = {
 	{ M0_AVI_THREAD,          "thread",          { &hex, &hex } },
 	{ M0_AVI_SERVICE,         "service",         { FID } },
 	{ M0_AVI_FOM,             "fom",             { &ptr, &fom_type,
-						       &dec, &dec } },
+						       &dec, &dec },
+	  { NULL, NULL, "transitions", "phase" } },
 	{ M0_AVI_CLOCK,           "clock",           { &_clock } },
 	{ M0_AVI_PHASE,           "fom-phase",       { &fom_phase, &skip,
 						       &_clock } },
@@ -337,10 +347,13 @@ struct id_intrp ids[] = {
 	{ M0_AVI_STATE_COUNTER,   "",
 	  .ii_repeat = M0_AVI_STATE_COUNTER_END - M0_AVI_STATE_COUNTER,
 	  .ii_spec   = &fom_state_counter },
-	{ M0_AVI_ALLOC,           "alloc",           { &dec, &ptr } },
+	{ M0_AVI_ALLOC,           "alloc",           { &dec, &ptr },
+	  { "size", "addr" } },
 	{ M0_AVI_FOM_DESCR,       "fom-descr",       { &_clock, FID,
 						       &hex, &rpcop,
-						       &rpcop, &bol } },
+						       &rpcop, &bol },
+	  { NULL, "service", NULL, "sender",
+	    "req-opcode", "rep-opcode", "local" } },
 	{ M0_AVI_FOM_ACTIVE,      "fom-active",      { COUNTER } },
 	{ M0_AVI_RUNQ,            "runq",            { COUNTER } },
 	{ M0_AVI_WAIL,            "wail",            { COUNTER } },
@@ -348,24 +361,31 @@ struct id_intrp ids[] = {
 	{ M0_AVI_FOM_CB,          "fom-cb" },
 	{ M0_AVI_IOS_IO_DESCR,    "ios-io-descr",    { FID, FID,
 						       &hex, &hex, &dec, &dec,
-						       &dec, &dec, &dec } },
+						       &dec, &dec, &dec },
+	  { "file", NULL, "cob", NULL, "read-v", "write-v",
+	    "seg-nr", "count", "offset", "descr-nr", "colour" }},
 	{ M0_AVI_IOS_READ_COUNTER,   "",
 	  .ii_repeat = M0_AVI_IOS_READ_COUNTER_END - M0_AVI_IOS_READ_COUNTER,
 	  .ii_spec   = &io_read_phase_counter },
 	{ M0_AVI_IOS_WRITE_COUNTER,   "",
 	  .ii_repeat = M0_AVI_IOS_WRITE_COUNTER_END - M0_AVI_IOS_WRITE_COUNTER,
 	  .ii_spec   = &io_write_phase_counter },
-	{ M0_AVI_FS_OPEN,         "m0t1fs-open",     { FID, &hex } },
+	{ M0_AVI_FS_OPEN,         "m0t1fs-open",     { FID, &oct },
+	  { NULL, NULL, "flags" }},
 	{ M0_AVI_FS_LOOKUP,       "m0t1fs-lookup",   { FID } },
-	{ M0_AVI_FS_CREATE,       "m0t1fs-create",   { FID, &hex, &dec } },
+	{ M0_AVI_FS_CREATE,       "m0t1fs-create",   { FID, &oct, &dec },
+	  { NULL, NULL, "mode", "rc" } },
 	{ M0_AVI_FS_READ,         "m0t1fs-read",     { FID } },
 	{ M0_AVI_FS_WRITE,        "m0t1fs-write",    { FID } },
-	{ M0_AVI_FS_IO_DESCR,     "m0t1fs-io-descr", { &dec, &dec } },
-	{ M0_AVI_STOB_IO_LAUNCH,  "stob-io-launch",  { &_clock, &fid, &dec,
+	{ M0_AVI_FS_IO_DESCR,     "m0t1fs-io-descr", { &dec, &dec },
+	  { "offset", "rc" }},
+	{ M0_AVI_STOB_IO_LAUNCH,  "stob-io-launch",  { &_clock, FID, &dec,
 						       &dec, &dec, &dec,
-						       &dec } },
-	{ M0_AVI_STOB_IO_END,     "stob-io-end",     { &_clock, &fid, &dec,
-						       &dec, &dec } },
+						       &dec },
+	  { NULL, NULL, NULL, "count", "bvec-nr", "ivec-nr", "offset" } },
+	{ M0_AVI_STOB_IO_END,     "stob-io-end",     { &_clock, FID, &dec,
+						       &dec, &dec },
+	  { NULL, NULL, NULL, "rc", "count", "frag" } },
 	{ M0_AVI_STOB_IOQ,        "stob-ioq-thread", { &dec } },
 	{ M0_AVI_STOB_IOQ_INFLIGHT, "stob-ioq-inflight", { COUNTER } },
 	{ M0_AVI_STOB_IOQ_QUEUED, "stob-ioq-queued", { COUNTER } },
@@ -457,6 +477,8 @@ static void val_dump(struct context *ctx, const char *prefix,
 	char              buf[BUF_SIZE];
 	enum { WIDTH = 12 };
 
+#define BEND (buf + strlen(buf))
+
 	ctx->c_val = val;
 	printf(prefix);
 	pad(indent);
@@ -470,14 +492,19 @@ static void val_dump(struct context *ctx, const char *prefix,
 	else
 		printf(U64" ", val->va_id);
 	for (i = 0, indent = 0; i < val->va_nr; ++i) {
+		buf[0] = 0;
 		if (intrp == NULL)
-			sprintf(buf, U64, val->va_data[i]);
-		else if (intrp->ii_print[i] == NULL)
 			sprintf(buf, "?"U64"?", val->va_data[i]);
 		else {
-			if (intrp->ii_print[i] == &skip)
-				continue;
-			intrp->ii_print[i](ctx, &val->va_data[i], buf);
+			if (intrp->ii_field[i] != NULL)
+				sprintf(buf, "%s: ", intrp->ii_field[i]);
+			if (intrp->ii_print[i] == NULL)
+				sprintf(BEND, "?"U64"?", val->va_data[i]);
+			else {
+				if (intrp->ii_print[i] == &skip)
+					continue;
+				intrp->ii_print[i](ctx, &val->va_data[i], BEND);
+			}
 		}
 		if (i > 0)
 			indent += printf(", ");
@@ -485,6 +512,7 @@ static void val_dump(struct context *ctx, const char *prefix,
 		indent += printf("%s", buf);
 	}
 	printf("\n");
+#undef BEND
 }
 
 extern struct m0_fom_type *m0_fom__types[M0_OPCODES_NR];
