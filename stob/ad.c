@@ -687,7 +687,6 @@ static int ext_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	struct m0_be_emap_seg    *seg;
 	struct m0_be_emap_cursor  it;
 	struct m0_stob_ad        *astob;
-	struct m0_uint128         prefix;
 	struct m0_be_op          *it_op;
 	struct m0_ext            *ext;
 	struct m0_ext             todo = {
@@ -697,7 +696,6 @@ static int ext_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	int                       rc;
 
 	adom   = stob_ad_domain2ad(m0_stob_dom_get(stob));
-	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
 	rc = stob_ad_cursor(adom, stob, 0, &it);
 	if (rc != 0)
 		return M0_RC(rc);
