@@ -128,7 +128,7 @@ static void tests_add(struct m0_ut_module *m)
 	/* sort test suites in alphabetic order */
 	m0_ut_add(m, &libm0_ut, true); /* test lib first */
 	m0_ut_add(m, &addb2_base_ut, true);
-	m0_ut_add(m, &addb2_consumer_ut, true);
+	m0_ut_add(m, &addb2_consumer_ut, false);
 	m0_ut_add(m, &addb2_net_ut, true);
 	m0_ut_add(m, &addb2_storage_ut, true);
 	m0_ut_add(m, &addb2_sys_ut, true);
