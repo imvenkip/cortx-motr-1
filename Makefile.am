@@ -702,7 +702,9 @@ usr_lib_systemddir    = $(prefix)/lib/systemd/system
 usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/lnet.service \
                         scripts/install/usr/lib/systemd/system/mero-client.service \
                         scripts/install/usr/lib/systemd/system/mero-kernel.service \
+                        scripts/install/usr/lib/systemd/system/mero-mkfs.service \
                         scripts/install/usr/lib/systemd/system/mero-mkfs@.service \
+                        scripts/install/usr/lib/systemd/system/mero-server-confd.service \
                         scripts/install/usr/lib/systemd/system/mero-server@.service \
                         scripts/install/usr/lib/systemd/system/mero-singlenode.service \
                         scripts/install/usr/lib/systemd/system/mero-trace@.service \
@@ -715,6 +717,7 @@ etc_init_DATA  = scripts/install/etc/init/mero.conf \
                  scripts/install/etc/init/mero-client.conf \
                  scripts/install/etc/init/mero-kernel.conf \
                  scripts/install/etc/init/mero-singlenode.conf \
+                 scripts/install/etc/init/mero-mkfs.conf \
                  scripts/install/etc/init/mero-server.conf \
                  scripts/install/etc/init/mero-trace.conf
 EXTRA_DIST    += $(etc_init_DATA)

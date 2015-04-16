@@ -15,10 +15,6 @@ m0_mkfs()
 
     [[ -n $service ]] || m0_exit "usage: mero-mkfs <SERVICE>"
 
-    source $service_funcs
-
-    [ -r $user_config ] && source $user_config
-
     [ -n "$MERO_M0D_DEBUGGER" ] && export M0_DEBUGGER=$MERO_M0D_DEBUGGER
 
     service_dir=$(m0_get_m0d_data_dir_for $service)
@@ -58,4 +54,15 @@ m0_mkfs()
 }
 
 
-m0_mkfs $1
+source $service_funcs
+
+[[ -r $user_config ]] && source $user_config
+
+if [[ -n $1 ]] ; then
+    m0_mkfs $1
+else
+    services=$(m0_get_services)
+    for s in $services; do
+        systemctl start mero-mkfs@${s}.service
+    done
+fi

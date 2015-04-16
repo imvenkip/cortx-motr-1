@@ -116,6 +116,7 @@ install_files()
                     'scripts/install/etc/init/mero-client.conf' \
                     'scripts/install/etc/init/mero-kernel.conf' \
                     'scripts/install/etc/init/mero-singlenode.conf' \
+                    'scripts/install/etc/init/mero-mkfs.conf' \
                     'scripts/install/etc/init/mero-server.conf' \
                     'scripts/install/etc/init/mero-trace.conf' \
                     ;
@@ -129,6 +130,7 @@ install_files()
         for file in 'scripts/install/usr/lib/systemd/system/lnet.service' \
                     'scripts/install/usr/lib/systemd/system/mero-trace@.service' \
                     'scripts/install/usr/lib/systemd/system/mero-kernel.service' \
+                    'scripts/install/usr/lib/systemd/system/mero-mkfs.service' \
                     'scripts/install/usr/lib/systemd/system/mero-mkfs@.service' \
                     'scripts/install/usr/lib/systemd/system/mero-server-confd.service' \
                     'scripts/install/usr/lib/systemd/system/mero-server@.service' \
@@ -193,6 +195,7 @@ uninstall_files()
                     /etc/init/mero-client.conf
                     /etc/init/mero-kernel.conf
                     /etc/init/mero-singlenode.conf
+                    /etc/init/mero-mkfs.conf
                     /etc/init/mero-server.conf
                     /etc/init/mero-trace.conf '
     fi
@@ -201,6 +204,7 @@ uninstall_files()
         file_list+='/usr/lib/systemd/system/lnet.service
                     /usr/lib/systemd/system/mero-trace@.service
                     /usr/lib/systemd/system/mero-kernel.service
+                    /usr/lib/systemd/system/mero-mkfs.service
                     /usr/lib/systemd/system/mero-mkfs@.service
                     /usr/lib/systemd/system/mero-server-confd.service
                     /usr/lib/systemd/system/mero-server@.service

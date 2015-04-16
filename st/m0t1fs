@@ -195,6 +195,8 @@ fi
 
 [[ -n $rpm_pkg ]] && install_mero_rpm $rpm_pkg
 
+info "Running mero-mkfs"
+systemctl start mero-mkfs
 info "Starting Mero"
 start mero-singlenode MERO_M0D_REMOVE_SERVICE_DIR=true
 

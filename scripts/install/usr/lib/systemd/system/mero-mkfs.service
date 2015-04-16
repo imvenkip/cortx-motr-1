@@ -1,0 +1,6 @@
+[Unit]
+Description=Mero mkfs
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mero/mero-mkfs
