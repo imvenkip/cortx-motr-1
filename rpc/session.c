@@ -715,7 +715,8 @@ M0_INTERNAL m0_bcount_t
 m0_rpc_session_get_max_item_size(const struct m0_rpc_session *session)
 {
 	return session->s_conn->c_rpc_machine->rm_min_recv_size -
-		m0_rpc_packet_onwire_header_size();
+		m0_rpc_packet_onwire_header_size() -
+		m0_rpc_packet_onwire_footer_size();
 }
 
 M0_INTERNAL m0_bcount_t

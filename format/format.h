@@ -17,8 +17,8 @@
  * Original creation date: 18-Dec-2014
  */
 #pragma once
-#ifndef __MERO_BE_OBJ_H__
-#define __MERO_BE_OBJ_H__
+#ifndef __MERO_FORMAT_H__
+#define __MERO_FORMAT_H__
 
 #include "lib/types.h"  /* uint64_t */
 #include "lib/misc.h"   /* M0_FIELD_VALUE */
@@ -26,41 +26,48 @@
 #include "lib/rwlock.h"
 
 /**
- * @defgroup be_obj Persistent objects
+ * @defgroup format Persistent objects format
  *
  * @{
  */
 
 /** Standard header of a persistent object. */
-struct m0_be_obj_header {
+struct m0_format_header {
 	/**
-	 * Encoding of m0_be_obj_tag data.
+	 * Encoding of m0_format_tag data.
 	 *
 	 * - 16 most significant bits  -- version number;
-	 * - 32 bits in the middle     -- object type;
-	 * - 16 least significant bits -- size, measured in 8-byte quantities.
+	 * - 16 bits in the middle     -- object type;
+	 * - 32 least significant bits -- size in bytes.
 	 *
-	 * @see  m0_be_obj_header_pack(), m0_be_obj_header_unpack()
+	 * @see  m0_format_header_pack(), m0_format_header_unpack()
 	 */
 	uint64_t hd_bits;
 } M0_XCA_RECORD;
 
 /** Standard footer of a persistent object. */
-struct m0_be_obj_footer {
+struct m0_format_footer {
 	uint64_t ft_magic;
 	uint64_t ft_checksum;
 } M0_XCA_RECORD;
 
-struct m0_be_obj_tag {
-	uint32_t ot_version;
-	uint32_t ot_type;
-	uint32_t ot_size; /* NOTE: the size is measured in 8-byte quantities */
+struct m0_format_tag {
+	uint16_t ot_version;
+	uint16_t ot_type;
+	uint32_t ot_size; /* NOTE: the size is measured in bytes */
 };
 
-M0_INTERNAL void m0_be_obj_header_pack(struct m0_be_obj_header *dest,
-				       const struct m0_be_obj_tag *src);
-M0_INTERNAL void m0_be_obj_header_unpack(struct m0_be_obj_tag *dest,
-					 const struct m0_be_obj_header *src);
+M0_INTERNAL void m0_format_header_pack(struct m0_format_header *dest,
+				       const struct m0_format_tag *src);
+M0_INTERNAL void m0_format_header_unpack(struct m0_format_tag *dest,
+					 const struct m0_format_header *src);
+
+M0_INTERNAL void m0_format_footer_generate(struct m0_format_footer *footer,
+					   void                    *buffer,
+					   uint32_t                 size);
+M0_INTERNAL int m0_format_footer_verify(const struct m0_format_footer *footer,
+					void                          *buffer,
+					uint32_t                       size);
 
 struct m0_be_mutex {
 	union {
@@ -80,5 +87,5 @@ struct m0_be_rwlock {
 M0_BASSERT(sizeof(struct m0_rwlock) <=
 	   sizeof(M0_FIELD_VALUE(struct m0_be_rwlock, bl_u.pad)));
 
-/** @} be */
-#endif /* __MERO_BE_OBJ_H__ */
+/** @} format */
+#endif /* __MERO_FORMAT_H__ */

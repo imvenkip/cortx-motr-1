@@ -23,7 +23,7 @@
 #ifndef __MERO_POOL_POOL_H__
 #define __MERO_POOL_POOL_H__
 
-#include "be/obj.h"            /* m0_be_obj_header */
+#include "format/format.h"     /* m0_format_header */
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
 #include "be/be.h"             /* struct m0_be_seg */
@@ -279,18 +279,18 @@ enum m0_pool_nd_state {
  * @see pool server
  */
 struct m0_poolnode {
-	struct m0_be_obj_header pn_header;
+	struct m0_format_header pn_header;
 	enum m0_pool_nd_state   pn_state;
 	char                    pn_pad[4];
 	/** Pool node identity. */
 	struct m0_fid           pn_id;
-	struct m0_be_obj_footer pn_footer;
+	struct m0_format_footer pn_footer;
 };
 M0_BASSERT(sizeof(enum m0_pool_nd_state) == 4);
 
 /** Storage device in a pool. */
 struct m0_pooldev {
-	struct m0_be_obj_header pd_header;
+	struct m0_format_header pd_header;
 	/** device state (as part of pool machine state). This field is only
 	    meaningful when m0_pooldev::pd_node.pn_state is PNS_ONLINE */
 	enum m0_pool_nd_state   pd_state;
@@ -299,7 +299,7 @@ struct m0_pooldev {
 	struct m0_fid           pd_id;
 	/* a node this storage devie is attached to */
 	struct m0_poolnode     *pd_node;
-	struct m0_be_obj_footer pd_footer;
+	struct m0_format_footer pd_footer;
 };
 
 /**
@@ -307,7 +307,7 @@ struct m0_pooldev {
  * If spare slot is not used for repair/rebalance, its :psp_device_index is -1.
  */
 struct m0_pool_spare_usage {
-	struct m0_be_obj_header psu_header;
+	struct m0_format_header psu_header;
 	/**
 	 * Index of the device from m0_poolmach_state::pst_devices_array in the
 	 * pool associated with this spare slot.
@@ -316,7 +316,7 @@ struct m0_pool_spare_usage {
 
 	/** state of the device to use this spare slot */
 	enum m0_pool_nd_state   psu_device_state;
-	struct m0_be_obj_footer psu_footer;
+	struct m0_format_footer psu_footer;
 };
 
 /** @} end group pool */

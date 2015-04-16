@@ -46,7 +46,7 @@
    Every group description will stay in a separate db.
  */
 struct m0_balloc_group_desc {
-	struct m0_be_obj_header bgd_header;
+	struct m0_format_header bgd_header;
 	/** group number */
 	m0_bindex_t             bgd_groupno;
 	/** total free blocks */
@@ -55,14 +55,14 @@ struct m0_balloc_group_desc {
 	m0_bcount_t             bgd_fragments;
 	/** max bytes of freespace chunk */
 	m0_bcount_t             bgd_maxchunk;
-	struct m0_be_obj_footer bgd_footer;
+	struct m0_format_footer bgd_footer;
 };
 
 /**
    In-memory data structure for group
  */
 struct m0_balloc_group_info {
-	struct m0_be_obj_header bgi_header;
+	struct m0_format_header bgi_header;
 	/** @see m0_balloc_group_info_state for values */
 	uint64_t                bgi_state;
 	/** group number */
@@ -79,7 +79,7 @@ struct m0_balloc_group_info {
 	struct m0_be_mutex      bgi_mutex;
 	/** (bgi_fragments+1) of extents */
 	struct m0_ext          *bgi_extents;
-	struct m0_be_obj_footer bgi_footer;
+	struct m0_format_footer bgi_footer;
 };
 
 enum m0_balloc_group_info_state {
@@ -134,7 +134,7 @@ enum m0_balloc_super_block_version {
    It includes pointers to db, various flags and parameters.
  */
 struct m0_balloc {
-	struct m0_be_obj_header      cb_header;
+	struct m0_format_header      cb_header;
 	struct m0_be_seg            *cb_be_seg;
 
 	/** container this block allocator belongs to. */
@@ -153,7 +153,7 @@ struct m0_balloc {
 	m0_bindex_t                  cb_last;
 
 	struct m0_ad_balloc          cb_ballroom;
-	struct m0_be_obj_footer      cb_footer;
+	struct m0_format_footer      cb_footer;
 };
 
 static inline struct m0_balloc *b2m0(const struct m0_ad_balloc *ballroom)

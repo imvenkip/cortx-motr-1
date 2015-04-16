@@ -31,6 +31,7 @@
 #include "xcode/xcode.h"
 #include "rpc/rpc_internal.h"
 #include "reqh/reqh.h"
+#include "format/format.h"
 
 /**
  * @addtogroup rpc
@@ -38,15 +39,7 @@
  */
 
 #define PACKHD_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_packet_onwire_header_xc, ptr)
-
-static int packet_header_encdec(struct m0_rpc_packet_onwire_header *ph,
-				struct m0_bufvec_cursor            *cursor,
-				enum m0_xcode_what                  what);
-
-static int item_encode(struct m0_rpc_item       *item,
-		       struct m0_bufvec_cursor  *cursor);
-static int item_decode(struct m0_bufvec_cursor  *cursor,
-		       struct m0_rpc_item      **item_out);
+#define PACKFT_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_packet_onwire_footer_xc, ptr)
 
 M0_TL_DESCR_DEFINE(packet_item, "packet_item", M0_INTERNAL, struct m0_rpc_item,
                    ri_plink, ri_magic, M0_RPC_ITEM_MAGIC,
@@ -67,24 +60,39 @@ M0_INTERNAL m0_bcount_t m0_rpc_packet_onwire_header_size(void)
 	return packet_header_size;
 }
 
+M0_INTERNAL m0_bcount_t m0_rpc_packet_onwire_footer_size(void)
+{
+	struct m0_rpc_packet_onwire_footer of;
+	struct m0_xcode_ctx                ctx;
+	static m0_bcount_t                 packet_footer_size;
+
+	if (packet_footer_size == 0) {
+		m0_xcode_ctx_init(&ctx, &PACKFT_XCODE_OBJ(&of));
+		packet_footer_size = m0_xcode_length(&ctx);
+	}
+
+	return packet_footer_size;
+}
+
 M0_INTERNAL bool m0_rpc_packet_invariant(const struct m0_rpc_packet *p)
 {
 	struct m0_rpc_item *item;
 	m0_bcount_t         size;
 
 	size = 0;
-	for_each_item_in_packet(item, p)
-		size += m0_rpc_item_size(item)
-	end_for_each_item_in_packet;
+	for_each_item_in_packet(item, p) {
+		size += m0_rpc_item_size(item);
+	} end_for_each_item_in_packet;
 
 	return
-		p != NULL &&
-		p->rp_ow.poh_version != 0 &&
-		p->rp_ow.poh_magic == M0_RPC_PACKET_HEAD_MAGIC &&
-		p->rp_rmachine != NULL &&
-		p->rp_ow.poh_nr_items ==
-			packet_item_tlist_length(&p->rp_items) &&
-		p->rp_size == size + m0_rpc_packet_onwire_header_size();
+		_0C(p != NULL) &&
+		_0C(p->rp_ow.poh_version != 0) &&
+		_0C(p->rp_ow.poh_magic == M0_RPC_PACKET_HEAD_MAGIC) &&
+		_0C(p->rp_rmachine != NULL) &&
+		_0C(p->rp_ow.poh_nr_items ==
+			packet_item_tlist_length(&p->rp_items)) &&
+		_0C(p->rp_size == size + m0_rpc_packet_onwire_header_size() +
+				  m0_rpc_packet_onwire_footer_size());
 }
 
 M0_INTERNAL void m0_rpc_packet_init(struct m0_rpc_packet *p,
@@ -97,7 +105,8 @@ M0_INTERNAL void m0_rpc_packet_init(struct m0_rpc_packet *p,
 
 	p->rp_ow.poh_version = M0_RPC_VERSION_1;
 	p->rp_ow.poh_magic = M0_RPC_PACKET_HEAD_MAGIC;
-	p->rp_size = m0_rpc_packet_onwire_header_size();
+	p->rp_size = m0_rpc_packet_onwire_header_size() +
+		     m0_rpc_packet_onwire_footer_size();
 	packet_item_tlist_init(&p->rp_items);
 	p->rp_rmachine = rmach;
 
@@ -226,33 +235,6 @@ M0_INTERNAL int m0_rpc_packet_encode(struct m0_rpc_packet *p,
 	return M0_RC(m0_rpc_packet_encode_using_cursor(p, &cur));
 }
 
-M0_INTERNAL int m0_rpc_packet_encode_using_cursor(struct m0_rpc_packet *packet,
-						  struct m0_bufvec_cursor
-						  *cursor)
-{
-	struct m0_rpc_item *item;
-	bool                end_of_bufvec;
-	int                 rc;
-
-	M0_ENTRY("packet: %p cursor: %p", packet, cursor);
-	M0_PRE(m0_rpc_packet_invariant(packet) && cursor != NULL);
-	M0_PRE(!m0_rpc_packet_is_empty(packet));
-
-	rc = packet_header_encdec(&packet->rp_ow, cursor, M0_XCODE_ENCODE);
-	if (rc == 0) {
-		for_each_item_in_packet(item, packet) {
-			m0_rpc_item_xid_assign(item);
-			rc = item_encode(item, cursor);
-			if (rc != 0)
-				break;
-		} end_for_each_item_in_packet;
-	}
-	end_of_bufvec = m0_bufvec_cursor_align(cursor, 8);
-	M0_ASSERT(end_of_bufvec ||
-		  M0_IS_8ALIGNED(m0_bufvec_cursor_addr(cursor)));
-	return M0_RC(rc);
-}
-
 static int packet_header_encdec(struct m0_rpc_packet_onwire_header *ph,
 				struct m0_bufvec_cursor            *cursor,
 				enum m0_xcode_what                  what)
@@ -262,10 +244,24 @@ static int packet_header_encdec(struct m0_rpc_packet_onwire_header *ph,
 	return M0_RC(m0_xcode_encdec(&PACKHD_XCODE_OBJ(ph), cursor, what));
 }
 
+static int packet_footer_encdec(struct m0_rpc_packet_onwire_footer *pf,
+				struct m0_bufvec_cursor            *cursor,
+				enum m0_xcode_what                  what)
+
+{
+	M0_ENTRY();
+	return M0_RC(m0_xcode_encdec(&PACKFT_XCODE_OBJ(pf), cursor, what));
+}
+
 static int item_encode(struct m0_rpc_item       *item,
 		       struct m0_bufvec_cursor  *cursor)
 {
 	struct m0_rpc_item_header1 ioh;
+	struct m0_format_tag       item_format_tag = {
+		.ot_version = M0_RPC_ITEM_FORMAT_VERSION,
+		.ot_type    = M0_RPC_ITEM_FORMAT_TYPE,
+	};
+	struct m0_rpc_item_footer  iof;
 	int                        rc;
 	struct m0_ha_domain       *ha_dom;
 	uint64_t                   epoch = M0_HA_EPOCH_NONE;
@@ -291,12 +287,62 @@ static int item_encode(struct m0_rpc_item       *item,
 		.ioh_ha_epoch = epoch,
 		.ioh_magic    = M0_RPC_ITEM_MAGIC,
 	};
+
+	/* measured in bytes: including header, payload, and footer */
+	item_format_tag.ot_size = item->ri_size;
+	m0_format_header_pack(&ioh.ioh_header, &item_format_tag);
+
 	if (item->ri_nr_sent > 0)
 		ioh.ioh_flags |= M0_RIF_DUP;
 	rc = m0_rpc_item_header1_encdec(&ioh, cursor, M0_XCODE_ENCODE);
 	if (rc == 0)
 		rc = item->ri_type->rit_ops->rito_encode(item->ri_type,
 							 item, cursor);
+	if (rc == 0) {
+		m0_format_footer_generate(&iof.iof_footer, NULL, 0);
+		rc = m0_rpc_item_footer_encdec(&iof, cursor, M0_XCODE_ENCODE);
+	}
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_rpc_packet_encode_using_cursor(struct m0_rpc_packet *packet,
+						  struct m0_bufvec_cursor
+						  *cursor)
+{
+	struct m0_rpc_item                *item;
+	bool                               end_of_bufvec;
+	struct m0_rpc_packet_onwire_footer pf;
+	int                                rc;
+	struct m0_format_tag               packet_format_tag = {
+		.ot_version = M0_RPC_PACKET_FORMAT_VERSION,
+		.ot_type    = M0_RPC_PACKET_FORMAT_TYPE,
+	};
+
+	M0_ENTRY("packet: %p cursor: %p", packet, cursor);
+	M0_PRE(m0_rpc_packet_invariant(packet) && cursor != NULL);
+	M0_PRE(!m0_rpc_packet_is_empty(packet));
+
+	/* measured in bytes: including header, items, and footer */
+	packet_format_tag.ot_size = packet->rp_size;
+	m0_format_header_pack(&packet->rp_ow.poh_header, &packet_format_tag);
+
+	rc = packet_header_encdec(&packet->rp_ow, cursor, M0_XCODE_ENCODE);
+	if (rc == 0) {
+		for_each_item_in_packet(item, packet) {
+			m0_rpc_item_xid_assign(item);
+			rc = item_encode(item, cursor);
+			if (rc != 0)
+				break;
+		} end_for_each_item_in_packet;
+	}
+	if (rc == 0) {
+		m0_format_footer_generate(&pf.pof_footer, NULL, 0);
+		rc = packet_footer_encdec(&pf, cursor, M0_XCODE_ENCODE);
+	}
+
+	end_of_bufvec = m0_bufvec_cursor_align(cursor, 8);
+	M0_ASSERT(end_of_bufvec ||
+		  M0_IS_8ALIGNED(m0_bufvec_cursor_addr(cursor)));
 	return M0_RC(rc);
 }
 
@@ -323,14 +369,67 @@ M0_INTERNAL int m0_rpc_packet_decode(struct m0_rpc_packet *p,
 	return M0_RC(rc);
 }
 
+static int item_decode(struct m0_bufvec_cursor  *cursor,
+		       struct m0_rpc_item      **item_out)
+{
+	struct m0_rpc_item_type    *item_type;
+	struct m0_rpc_item_header1  ioh;
+	struct m0_rpc_item_footer   iof;
+	int                         rc;
+	struct m0_format_tag        ioh_t;
+
+	M0_ENTRY();
+	M0_PRE(cursor != NULL && item_out != NULL);
+
+	rc = m0_rpc_item_header1_encdec(&ioh, cursor, M0_XCODE_DECODE);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	if (ioh.ioh_magic != M0_RPC_ITEM_MAGIC)
+		return M0_ERR(-EPROTO);
+
+	/* check version compatibility. */
+	m0_format_header_unpack(&ioh_t, &ioh.ioh_header);
+	if (ioh_t.ot_version != M0_RPC_ITEM_FORMAT_VERSION ||
+	    ioh_t.ot_type != M0_RPC_ITEM_FORMAT_TYPE)
+		return M0_ERR(-EPROTO);
+
+	*item_out = NULL;
+
+	item_type = m0_rpc_item_type_lookup(ioh.ioh_opcode);
+	if (item_type == NULL)
+		return M0_ERR(-EPROTO);
+
+	M0_ASSERT(item_type->rit_ops != NULL &&
+		  item_type->rit_ops->rito_decode != NULL);
+
+	rc = item_type->rit_ops->rito_decode(item_type, item_out, cursor);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0_rpc_item_footer_encdec(&iof, cursor, M0_XCODE_DECODE);
+	if (rc == 0)
+		rc = m0_format_footer_verify(&iof.iof_footer, NULL, 0);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	(*item_out)->ri_ha_epoch = ioh.ioh_ha_epoch;
+	(*item_out)->ri_flags    = ioh.ioh_flags;
+	M0_LOG(M0_DEBUG, "ha_epoch: %lu", (unsigned long)ioh.ioh_ha_epoch);
+
+	return M0_RC(0);
+}
+
 M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 						  struct m0_bufvec_cursor
 						  *cursor, m0_bcount_t len)
 {
 	struct m0_rpc_packet_onwire_header poh;
+	struct m0_rpc_packet_onwire_footer pof;
 	struct m0_rpc_item                *item;
 	int                                rc;
 	int                                i;
+	struct m0_format_tag               rpc_t;
 
 	M0_ENTRY();
 	M0_PRE(m0_rpc_packet_invariant(p) && cursor != NULL);
@@ -342,13 +441,26 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 	    poh.poh_magic != M0_RPC_PACKET_HEAD_MAGIC)
 		return M0_RC(-EPROTO);
 
+	/* check version compatibility. */
+	m0_format_header_unpack(&rpc_t, &poh.poh_header);
+	if (rpc_t.ot_version != M0_RPC_PACKET_FORMAT_VERSION ||
+	    rpc_t.ot_type != M0_RPC_PACKET_FORMAT_TYPE)
+		return M0_RC(-EPROTO);
+
+	/*
+	 * p->rp_ow.poh_{version,magic} are initialized in m0_rpc_packet_init().
+	 * p->rp_ow.poh_nr_items will be updated while decoding items in
+	 * the following item_decode().
+	 */
+	p->rp_ow.poh_header = poh.poh_header;
+
 	for (i = 0; i < poh.poh_nr_items; ++i) {
 		rc = item_decode(cursor, &item);
 		if (rc != 0) {
 			struct m0_fop *fop = m0_rpc_item_to_fop(item);
 
 			m0_fop_put_lock(fop);
-			return M0_RC(rc);
+			return M0_ERR(rc);
 		}
 		m0_rpc_machine_lock(p->rp_rmachine);
 		m0_rpc_packet_add_item(p, item);
@@ -356,47 +468,20 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 		m0_rpc_machine_unlock(p->rp_rmachine);
 		item = NULL;
 	}
+	rc = packet_footer_encdec(&pof, cursor, M0_XCODE_DECODE);
+	if (rc == 0)
+		rc = m0_format_footer_verify(&pof.pof_footer, NULL, 0);
+	if (rc != 0)
+		return M0_ERR(rc);
 	m0_bufvec_cursor_align(cursor, 8);
+
+	/* assert the decoded packet has the same number of items and size */
+	M0_ASSERT(p->rp_ow.poh_nr_items == poh.poh_nr_items);
+	M0_ASSERT(p->rp_size == rpc_t.ot_size);
+
 	M0_ASSERT(m0_rpc_packet_invariant(p));
 
 	return M0_RC(0);
-}
-
-static int item_decode(struct m0_bufvec_cursor  *cursor,
-		       struct m0_rpc_item      **item_out)
-{
-	struct m0_rpc_item_type    *item_type;
-	struct m0_rpc_item_header1  ioh;
-	int                         rc;
-
-	M0_ENTRY();
-	M0_PRE(cursor != NULL && item_out != NULL);
-
-	rc = m0_rpc_item_header1_encdec(&ioh, cursor, M0_XCODE_DECODE);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	if (ioh.ioh_magic != M0_RPC_ITEM_MAGIC)
-		return M0_ERR(-EPROTO);
-
-	*item_out = NULL;
-
-	item_type = m0_rpc_item_type_lookup(ioh.ioh_opcode);
-	if (item_type == NULL)
-		return M0_RC(-EPROTO);
-
-	M0_ASSERT(item_type->rit_ops != NULL &&
-		  item_type->rit_ops->rito_decode != NULL);
-
-	rc = item_type->rit_ops->rito_decode(item_type, item_out, cursor);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	(*item_out)->ri_ha_epoch = ioh.ioh_ha_epoch;
-	(*item_out)->ri_flags    = ioh.ioh_flags;
-	M0_LOG(M0_DEBUG, "ha_epoch: %lu", (unsigned long)ioh.ioh_ha_epoch);
-
-	return 0;
 }
 
 M0_INTERNAL void m0_rpc_packet_traverse_items(struct m0_rpc_packet *p,

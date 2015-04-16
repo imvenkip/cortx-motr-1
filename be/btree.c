@@ -44,14 +44,14 @@ enum {
 };
 
 struct bt_key_val {
-	struct m0_be_obj_header hdr;
+	struct m0_format_header hdr;
 	void                   *key;
 	void                   *val;
-	struct m0_be_obj_footer ftr;
+	struct m0_format_footer ftr;
 };
 
 struct m0_be_bnode {
-	struct m0_be_obj_header b_header;
+	struct m0_format_header b_header;
 	struct m0_be_bnode     *b_next;
 	unsigned int            b_nr_active; /**< Number of active keys. */
 	unsigned int            b_level;     /**< Level in the B-Tree. */
@@ -59,7 +59,7 @@ struct m0_be_bnode {
 	struct m0_be_bnode    **b_children;
 	bool                    b_leaf;      /**< Leaf node? */
 	char                    b_pad[7];
-	struct m0_be_obj_footer b_footer;
+	struct m0_format_footer b_footer;
 };
 M0_BASSERT(sizeof(bool) == 1);
 

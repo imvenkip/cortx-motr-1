@@ -29,7 +29,7 @@
 #include "be/ut/helper.h"	/* m0_be_ut_backend */
 #include "be/seg.h"
 #include "be/seg0.h"
-#include "be/obj.h"             /* m0_be_obj_header */
+#include "format/format.h"      /* m0_format_header */
 #include "stob/stob.h"
 #include "stob/linux.h"
 #include "ut/ut.h"
@@ -108,27 +108,27 @@ void m0_be_ut_seg0_test(void)
 void m0_be_ut_obj_test(void)
 {
 	static const struct {
-		struct m0_be_obj_tag    t;
-		struct m0_be_obj_header h;
+		struct m0_format_tag    t;
+		struct m0_format_header h;
 	} data[] = {
 		{
 			.t = { 1, 2, 3 },
-			.h = { 0x0001000000020003 }
+			.h = { 0x0001000200000003 }
 		},
 		{
 			.t = { 0x1111, 0x2222, 0x3333 },
-			.h = { 0x1111000022223333 }
+			.h = { 0x1111222200003333 }
 		}
 	};
-	struct m0_be_obj_header h;
-	struct m0_be_obj_tag    t;
+	struct m0_format_header h;
+	struct m0_format_tag    t;
 	unsigned                i;
 
 	for (i = 0; i < ARRAY_SIZE(data); ++i) {
-		m0_be_obj_header_pack(&h, &data[i].t);
+		m0_format_header_pack(&h, &data[i].t);
 		M0_UT_ASSERT(h.hd_bits == data[i].h.hd_bits);
 
-		m0_be_obj_header_unpack(&t, &data[i].h);
+		m0_format_header_unpack(&t, &data[i].h);
 		M0_UT_ASSERT(t.ot_version == data[i].t.ot_version);
 		M0_UT_ASSERT(t.ot_type == data[i].t.ot_type);
 		M0_UT_ASSERT(t.ot_size == data[i].t.ot_size);

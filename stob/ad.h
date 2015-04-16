@@ -93,7 +93,7 @@ struct m0_ad_balloc_ops {
 };
 
 struct m0_stob_ad_domain {
-	struct m0_be_obj_header sad_header;
+	struct m0_format_header sad_header;
 	struct m0_stob_domain   sad_base;
 	struct m0_stob         *sad_bstore;
 	struct m0_fid           sad_bstore_fid;
@@ -108,7 +108,7 @@ struct m0_stob_ad_domain {
 	char                    sad_path[MAXPATHLEN];
 	bool                    sad_overwrite;
 	char                    sad_pad[7];
-	struct m0_be_obj_footer sad_footer;
+	struct m0_format_footer sad_footer;
 };
 M0_BASSERT(sizeof(M0_FIELD_VALUE(struct m0_stob_ad_domain, sad_path)) % 8 == 0);
 M0_BASSERT(sizeof(bool) == 1);

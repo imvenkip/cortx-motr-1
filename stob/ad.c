@@ -89,10 +89,10 @@ struct ad_domain_map {
 };
 
 struct stob_ad_0type_rec {
-	struct m0_be_obj_header   sa0_header;
+	struct m0_format_header   sa0_header;
 	/* XXX pointer won't work with be_segment migration */
 	struct m0_stob_ad_domain *sa0_ad_domain;
-	struct m0_be_obj_footer   sa0_footer;
+	struct m0_format_footer   sa0_footer;
 };
 
 static struct m0_stob_domain_ops stob_ad_domain_ops;

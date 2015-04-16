@@ -64,6 +64,7 @@ struct m0_rpc_packet {
 };
 
 M0_INTERNAL m0_bcount_t m0_rpc_packet_onwire_header_size(void);
+M0_INTERNAL m0_bcount_t m0_rpc_packet_onwire_footer_size(void);
 
 M0_TL_DESCR_DECLARE(packet_item, M0_EXTERN);
 M0_TL_DECLARE(packet_item, M0_INTERNAL, struct m0_rpc_item);

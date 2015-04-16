@@ -915,6 +915,10 @@ enum m0_magic_satchel {
 /* MD */
 	/* rdms_layout:l_magic (coffeeless ad)*/
 	M0_LAYOUT_MD_MAGIC     = 0x33c0ffee1e55ad77,
+
+/* format */
+	/* m0_format_footer::ft_magic (footerfooter) */
+	M0_FORMAT_FOOTER_MAGIC = 0x33f007e7f007e777,
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */

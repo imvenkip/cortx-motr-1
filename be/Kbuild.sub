@@ -3,7 +3,6 @@ m0mero_objects += \
                   be/extmap.o \
                   be/extmap_xc.o \
                   be/list.o \
-                  be/obj_xc.o \
                   be/seg_dict.o \
                   be/linux_kernel/stubs.o \
 		  be/tx_xc.o

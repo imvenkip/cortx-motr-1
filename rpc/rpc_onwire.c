@@ -35,6 +35,7 @@
 
 #define ITEM_HEAD1_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_header1_xc, ptr)
 #define ITEM_HEAD2_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_header2_xc, ptr)
+#define ITEM_FOOTER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_footer_xc, ptr)
 
 M0_INTERNAL int m0_rpc_item_header1_encdec(struct m0_rpc_item_header1 *ioh,
 					   struct m0_bufvec_cursor    *cur,
@@ -52,6 +53,13 @@ M0_INTERNAL int m0_rpc_item_header2_encdec(struct m0_rpc_item_header2 *ioh,
 	return M0_RC(m0_xcode_encdec(&ITEM_HEAD2_XCODE_OBJ(ioh), cur, what));
 }
 
+M0_INTERNAL int m0_rpc_item_footer_encdec(struct m0_rpc_item_footer *iof,
+					  struct m0_bufvec_cursor   *cur,
+					  enum m0_xcode_what         what)
+{
+	M0_ENTRY("item footer: %p", iof);
+	return M0_RC(m0_xcode_encdec(&ITEM_FOOTER_XCODE_OBJ(iof), cur, what));
+}
 
 #undef M0_TRACE_SUBSYSTEM
 

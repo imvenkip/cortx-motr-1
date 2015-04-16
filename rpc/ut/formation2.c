@@ -434,7 +434,8 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 	/* Each packet should carry ITEMS_PER_PACKET items */
 	frm->f_constraints.fc_max_packet_size =
 		ITEMS_PER_PACKET * m0_rpc_item_size(items[0]) +
-		m0_rpc_packet_onwire_header_size();
+		m0_rpc_packet_onwire_header_size() +
+		m0_rpc_packet_onwire_footer_size();
 	/* trigger formation so that all items are formed */
 	frm->f_constraints.fc_max_nr_bytes_accumulated = 0;
 	m0_rpc_frm_run_formation(frm);
@@ -525,6 +526,7 @@ static void frm_test7(void)
 	saved_max_packet_size = frm->f_constraints.fc_max_packet_size;
 	frm->f_constraints.fc_max_packet_size = m0_rpc_item_size(item1) +
 					m0_rpc_packet_onwire_header_size() +
+					m0_rpc_packet_onwire_footer_size() +
 					m0_rpc_item_size(item1) / 2;
 
 	saved_max_nr_packets_enqed = frm->f_constraints.fc_max_nr_packets_enqed;
