@@ -295,7 +295,9 @@ static void sensor_check_fire(const struct m0_addb2_source   *s,
 			      const struct m0_addb2_record   *r)
 {
 	M0_UT_ASSERT(receq(r, &(struct small_record) {
-		.ar_val = VAL(LABEL_ID + 2, SENSOR_MARKER, seq),
+		/* copy time-stamp from r->ar_val.va_data[0]. */
+		.ar_val = VAL(LABEL_ID + 2, r->ar_val.va_data[0],
+					      SENSOR_MARKER, seq),
 		.ar_label_nr = 2,
 		.ar_label = {
 			[0] = VAL(LABEL_ID + 0, 1, 1, 2, 3, 5),
