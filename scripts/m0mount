@@ -26,6 +26,12 @@
 # | sjt02-c2   |  10.76.50.45   |  172.18.50.45   |  10.76.50.47   |
 # +----------------------------------------------------------------+
 #
+# Please note that in-order to avoid detecting devices of the same titan SSU
+# more than once, we use the part of controller's hostname before the first
+# occurance of '-'. E.g. in above configuration sjt00-c1 and sjt00-c2, c1 and
+# c2 both are part of the same SSU identified by sjt00.
+# Please see servers_start() for its implementation.
+#
 # Use root/Xyratex to login to any node.
 #
 # To see the serial console of sjt02-c1 node, for example,
@@ -663,7 +669,7 @@ function start_servers ()
 		H=${HOSTS[$i]}
 		SEP=${SERVICES[$i]}	# server EP
 		# Check for new Titan/SSU
-		if [ $i -gt 0 ] && [ ${H%-*} != ${SERVICES[i]%-*} ]; then
+		if [ $i -gt 0 ] && [ ${H%-*} != ${HOSTS[((i-1))]%-*} ]; then
 			devs_conf_cnt=0
 		fi
 		start_server $H $SEP $i $devs_conf_cnt
