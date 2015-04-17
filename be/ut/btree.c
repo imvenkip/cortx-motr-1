@@ -371,14 +371,15 @@ static void destroy_tree(struct m0_be_btree *tree)
 
 static void cursor_test(struct m0_be_btree *tree)
 {
-	struct m0_be_btree_cursor cursor;
-	struct m0_buf		  key;
-	struct m0_buf		  val;
-	char                      sbuf[INSERT_SIZE];
-	struct m0_buf		  start = M0_BUF_INIT(sizeof sbuf, sbuf);
-	int                       v;
-	int                       i;
-	int                       rc;
+	/* the structure is too large for kernel stack to be local */
+	static struct m0_be_btree_cursor cursor;
+	struct m0_buf                    key;
+	struct m0_buf                    val;
+	char                             sbuf[INSERT_SIZE];
+	struct m0_buf                    start = M0_BUF_INIT(sizeof sbuf, sbuf);
+	int                              v;
+	int                              i;
+	int                              rc;
 
 	m0_be_btree_cursor_init(&cursor, tree);
 

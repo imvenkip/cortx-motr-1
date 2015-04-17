@@ -391,8 +391,8 @@ struct m0_be_btree_cursor_stack_entry {
 
 /** Btree configuration constants. */
 enum {
-	BTREE_FAN_OUT    =  5,
-	BTREE_HEIGHT_MAX = 15
+	BTREE_FAN_OUT    = 128,
+	BTREE_HEIGHT_MAX = 5
 };
 
 /**
