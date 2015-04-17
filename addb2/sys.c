@@ -394,7 +394,9 @@ static void stor_stop(struct m0_addb2_sys *sys)
 	sys_balance(sys);
 	if (sys->sy_stor != NULL) {
 		m0_addb2_storage_stop(sys->sy_stor);
+		sys_unlock(sys);
 		m0_semaphore_down(&sys->sy_wait);
+		sys_lock(sys);
 		m0_addb2_storage_fini(sys->sy_stor);
 		sys->sy_stor = NULL;
 	}
