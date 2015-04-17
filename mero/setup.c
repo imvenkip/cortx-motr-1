@@ -1868,6 +1868,11 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 					m0_build_info_print();
 					rc = 1;
 				})),
+			M0_STRINGARG('u', "Node UUID",
+				LAMBDA(void, (const char *s)
+				{
+					/* not used here, it's a placeholder */
+				})),
 			);
 	return M0_RC(rc_getops ?: rc);
 }

@@ -32,6 +32,7 @@ m0_mkfs()
     stob_opts='-D db -S stobs -A linuxstob:addb-stobs'
     segment_size=$(m0_genders_value_of m0_be_segment_size)
     be_opts=${segment_size:+ -z $segment_size}
+    node_uuid=$(m0_genders_value_of m0_uuid)
 
     case "$service" in
         confd|mds) stob_type='-T linux'
@@ -53,7 +54,7 @@ m0_mkfs()
     # show actual exec commands in log file
     set -x
 
-    $m0mkfs $stob_type $stob_opts $be_opts
+    $m0mkfs -u $node_uuid $stob_type $stob_opts $be_opts
 }
 
 

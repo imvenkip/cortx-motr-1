@@ -96,9 +96,11 @@ static struct m0_net_xprt *cs_xprts[] = {
 M0_INTERNAL int main(int argc, char **argv)
 {
 	int              rc;
+	int              i;
 	struct m0_mero   mero_ctx;
 	static struct m0 instance;
 	struct rlimit    rlim = {10240, 10240};
+	char            *uuid = NULL;
 
 	if (argc > 1 &&
 	    (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)) {
@@ -112,9 +114,12 @@ M0_INTERNAL int main(int argc, char **argv)
 		goto out;
 	}
 
-	/* we don't need a real node uuid, so we force a default one to be useed
-	 * instead */
-	m0_addb_node_uuid_string_set(NULL);
+	for (i = 0; i < argc; ++i)
+		if (m0_streq("-u", argv[i])) {
+			uuid = argv[i + 1];
+			break;
+		}
+	m0_addb_node_uuid_string_set(uuid);
 
 	errno = 0;
 	M0_SET0(&mero_ctx);
