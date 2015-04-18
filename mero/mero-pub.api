@@ -16,6 +16,7 @@ m0_addb2_consume
 m0_addb2_counter_add
 m0_addb2_counter_del
 m0_addb2_counter_mod
+m0_addb2_counter_mod_with
 m0_addb2_cursor_fini
 m0_addb2_cursor_init
 m0_addb2_cursor_next

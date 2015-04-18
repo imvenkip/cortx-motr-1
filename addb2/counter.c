@@ -61,6 +61,12 @@ void m0_addb2_counter_del(struct m0_addb2_counter *counter)
 
 void m0_addb2_counter_mod(struct m0_addb2_counter *counter, int64_t val)
 {
+	m0_addb2_counter_mod_with(counter, val, 0);
+}
+
+void m0_addb2_counter_mod_with(struct m0_addb2_counter *counter,
+			       int64_t val, uint64_t datum)
+{
 	struct m0_addb2_counter_data *d   = &counter->co_val;
 	uint64_t                      sq  = val * val;
 	int64_t                       sum = d->cod_sum + val;
@@ -74,8 +80,11 @@ void m0_addb2_counter_mod(struct m0_addb2_counter *counter, int64_t val)
 	} else {
 		d->cod_nr ++;
 		d->cod_sum = sum;
+		if (val > d->cod_max) {
+			d->cod_datum = datum;
+			d->cod_max   = val;
+		}
 		d->cod_min = min64u(d->cod_min, val);
-		d->cod_max = max64u(d->cod_max, val);
 		d->cod_ssq += sq;
 	}
 }
