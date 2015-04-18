@@ -178,7 +178,7 @@ static bool addb_sm_counter_invariant(const struct m0_addb_sm_counter *c)
 {
 	return  _0C(c != NULL) &&
 		_0C(c->asc_magic == M0_ADDB_CNTR_MAGIC) &&
-		_0C(c->asc_rt != NULL && addb_rec_type_invariant(c->asc_rt)) &&
+		_0C(c->asc_rt != NULL) && addb_rec_type_invariant(c->asc_rt) &&
 		_0C(c->asc_rt->art_base_type == M0_ADDB_BRT_SM_CNTR) &&
 		_0C(c->asc_data != NULL) &&
 		_0C(c->asc_cntr_data_sz > 0) &&
