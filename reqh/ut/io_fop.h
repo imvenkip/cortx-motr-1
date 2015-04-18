@@ -72,14 +72,6 @@ extern struct m0_fop_type m0_stob_io_create_rep_fopt;
 extern struct m0_fop_type m0_stob_io_read_rep_fopt;
 extern struct m0_fop_type m0_stob_io_write_rep_fopt;
 
-extern struct m0_rpc_item_type m0_stob_create_rpc_item_type;
-extern struct m0_rpc_item_type m0_stob_read_rpc_item_type;
-extern struct m0_rpc_item_type m0_stob_write_rpc_item_type;
-
-extern struct m0_rpc_item_type m0_stob_create_rep_rpc_item_type;
-extern struct m0_rpc_item_type m0_stob_read_rep_rpc_item_type;
-extern struct m0_rpc_item_type m0_stob_write_rep_rpc_item_type;
-
 void m0_stob_io_fop_init(void);
 void m0_stob_io_fop_fini(void);
 
