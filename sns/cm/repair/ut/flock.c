@@ -88,7 +88,7 @@ static struct m0_sm_conf flock_ut_conf = {
 
 static int flock_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 {
-	int		           rc;
+	int                        rc;
 	struct m0_sns_cm_file_ctx *fctx;
 	struct m0_fid		  *fid;
 
