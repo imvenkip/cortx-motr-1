@@ -799,8 +799,7 @@ static struct m0_addb2_mach *mach(void)
 			mach = NULL;
 		else
 			++ mach->ma_nesting;
-	} else
-		M0_LOG(M0_DEBUG, "No ADDB2 mach.");
+	}
 	M0_POST(ergo(mach != NULL, mach->ma_nesting == 1));
 	return mach;
 }
