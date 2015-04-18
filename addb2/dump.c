@@ -36,13 +36,15 @@
 #include "lib/tlist.h"
 #include "lib/varr.h"
 
-#include "rpc/item.h"                 /* m0_rpc_item_type_lookup */
+#include "rpc/item.h"                  /* m0_rpc_item_type_lookup */
 #include "fop/fop.h"
 #include "stob/domain.h"
 #include "stob/stob.h"
 #include "mero/init.h"
 #include "module/instance.h"
 #include "rpc/rpc_opcodes.h"           /* M0_OPCODES_NR */
+#include "rpc/addb2.h"
+#include "addb/user_space/uctx.h"      /* m0_addb_node_uuid_string_set */
 
 #include "addb2/identifier.h"
 #include "addb2/consumer.h"
@@ -108,6 +110,7 @@ int main(int argc, char **argv)
 	int                     result;
 	int                     i;
 
+	m0_addb_node_uuid_string_set(NULL);
 	result = m0_init(&instance);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise mero: %d", result);
@@ -217,29 +220,38 @@ static void _clock(struct context *ctx, const uint64_t *v, char *buf)
 static void fom_type(struct context *ctx, const uint64_t *v, char *buf)
 {
 	const struct m0_fom_type *ftype = ctx->c_fom.fo_type;
-	const struct m0_sm_conf  *conf  = ftype->ft_conf;
+	const struct m0_sm_conf  *conf  = &ftype->ft_conf;
 
 	M0_ASSERT(v[2] < conf->scf_nr_states);
 	sprintf(buf, "'%s' transitions: %"PRId64" phase: %s",
 		conf->scf_name, v[1], conf->scf_state[v[2]].sd_name);
 }
 
-extern struct m0_sm_conf fom_states_conf;
-
-static void fom_state(struct context *ctx, const uint64_t *v, char *buf)
+static void sm_state(const struct m0_sm_conf *conf,
+		     struct context *ctx, const uint64_t *v, char *buf)
 {
-	struct m0_sm_trans_descr *d = &fom_states_conf.scf_trans[v[0]];
+	struct m0_sm_trans_descr *d = &conf->scf_trans[v[0]];
 	/*
 	 * v[0] - transition id
 	 * v[1] - state id
 	 * v[2] - time stamp
 	 */
-	M0_ASSERT(d->td_tgt == v[1]);
-	sprintf(buf, "%s -[%s]-> %s",
-		fom_states_conf.scf_state[d->td_src].sd_name,
-		d->td_cause,
-		fom_states_conf.scf_state[d->td_tgt].sd_name);
+	if (conf->scf_trans == NULL) {
+		M0_ASSERT(v[0] == 0);
+		sprintf(buf, " --> %s", conf->scf_state[v[1]].sd_name);
+	} else {
+		M0_ASSERT(d->td_tgt == v[1]);
+		sprintf(buf, "%s -[%s]-> %s",
+			conf->scf_state[d->td_src].sd_name,
+			d->td_cause, conf->scf_state[d->td_tgt].sd_name);
+	}
 	ctx->c_fom.fo_state_clock = v[2];
+}
+
+extern struct m0_sm_conf fom_states_conf;
+static void fom_state(struct context *ctx, const uint64_t *v, char *buf)
+{
+	sm_state(&fom_states_conf, ctx, v, buf);
 }
 
 static void fom_phase(struct context *ctx, const uint64_t *v, char *buf)
@@ -253,7 +265,7 @@ static void fom_phase(struct context *ctx, const uint64_t *v, char *buf)
 	 * v[2] - time stamp
 	 */
 	if (ctx->c_fom.fo_type != NULL) {
-		conf = ctx->c_fom.fo_type->ft_conf;
+		conf = &ctx->c_fom.fo_type->ft_conf;
 		if (conf->scf_trans == NULL) {
 			M0_ASSERT(v[0] == 0);
 			s = &conf->scf_state[v[1]];
@@ -278,7 +290,9 @@ static void rpcop(struct context *ctx, const uint64_t *v, char *buf)
 	if (it != NULL) {
 		struct m0_fop_type *ft = M0_AMB(ft, it, ft_rpc_item_type);
 		sprintf(buf, "%s", ft->ft_name);
-	} else
+	} else if (v[0] == 0)
+		sprintf(buf, "none");
+	else
 		sprintf(buf, "?rpc: %"PRId64, v[0]);
 }
 
@@ -293,8 +307,8 @@ static void counter(struct context *ctx, const uint64_t *v, char *buf)
 
 	_clock(ctx, v, buf);
 	sprintf(buf + strlen(buf), " nr: %"PRId64" min: %"PRId64" max: %"PRId64
-		" avg: %f dev: %f", d->cod_nr, d->cod_min, d->cod_max,
-		avg, dev);
+		" avg: %f dev: %f datum: %"PRIx64,
+		d->cod_nr, d->cod_min, d->cod_max, avg, dev, d->cod_datum);
 }
 
 static void sm_trans(const struct m0_sm_conf *conf, const char *name,
@@ -318,19 +332,45 @@ static void fom_state_counter(struct context *ctx, char *buf)
 	sm_trans(&fom_states_conf, "", ctx, buf);
 }
 
-extern struct m0_fop_type m0_fop_cob_readv_fopt;
-static void io_read_phase_counter(struct context *ctx, char *buf)
+static void fop_counter(struct context *ctx, char *buf)
 {
-	sm_trans(m0_fop_cob_readv_fopt.ft_fom_type.ft_conf, "read", ctx, buf);
+	uint64_t mask = ctx->c_val->va_id - M0_AVI_FOP_TYPES_RANGE_START;
+	struct m0_fop_type *fopt = m0_fop_type_find(mask >> 12);
+	const struct m0_sm_conf *conf;
+
+	M0_ASSERT_INFO(fopt != NULL, "mask: %"PRIx64, mask);
+	switch ((mask >> 8) & 0xf) {
+	case M0_AFC_PHASE:
+		conf = &fopt->ft_fom_type.ft_conf;
+		break;
+	case M0_AFC_STATE:
+		conf = &fopt->ft_fom_type.ft_state_conf;
+		break;
+	case M0_AFC_RPC_OUT:
+		conf = &fopt->ft_rpc_item_type.rit_outgoing_conf;
+		break;
+	case M0_AFC_RPC_IN:
+		conf = &fopt->ft_rpc_item_type.rit_incoming_conf;
+		break;
+	default:
+		M0_IMPOSSIBLE("Wrong mask.");
+	}
+	sm_trans(conf, fopt->ft_name, ctx, buf);
 }
 
-extern struct m0_fop_type m0_fop_cob_writev_fopt;
-static void io_write_phase_counter(struct context *ctx, char *buf)
+static void rpc_in(struct context *ctx, const uint64_t *v, char *buf)
 {
-	sm_trans(m0_fop_cob_writev_fopt.ft_fom_type.ft_conf, "write", ctx, buf);
+	extern const struct m0_sm_conf incoming_item_sm_conf;
+	sm_state(&incoming_item_sm_conf, ctx, v, buf);
 }
 
-#define COUNTER  &counter, &skip, &skip, &skip, &skip, &skip
+static void rpc_out(struct context *ctx, const uint64_t *v, char *buf)
+{
+	extern const struct m0_sm_conf outgoing_item_sm_conf;
+	sm_state(&outgoing_item_sm_conf, ctx, v, buf);
+}
+
+#define COUNTER  &counter, &skip, &skip, &skip, &skip, &skip, &skip
 #define FID &fid, &skip
 
 struct id_intrp ids[] = {
@@ -360,18 +400,15 @@ struct id_intrp ids[] = {
 	{ M0_AVI_RUNQ,            "runq",            { COUNTER } },
 	{ M0_AVI_WAIL,            "wail",            { COUNTER } },
 	{ M0_AVI_AST,             "ast" },
-	{ M0_AVI_FOM_CB,          "fom-cb" },
+	{ M0_AVI_LOCALITY_FORQ,      "loc-forq-counter",  { COUNTER } },
+	{ M0_AVI_LOCALITY_CHAN_WAIT, "loc-wait-counter",  { COUNTER } },
+	{ M0_AVI_LOCALITY_CHAN_CB,   "loc-cb-counter",    { COUNTER } },
+	{ M0_AVI_LOCALITY_CHAN_QUEUE,"loc-queue-counter", { COUNTER } },
 	{ M0_AVI_IOS_IO_DESCR,    "ios-io-descr",    { FID, FID,
 						       &hex, &hex, &dec, &dec,
 						       &dec, &dec, &dec },
 	  { "file", NULL, "cob", NULL, "read-v", "write-v",
 	    "seg-nr", "count", "offset", "descr-nr", "colour" }},
-	{ M0_AVI_IOS_READ_COUNTER,   "",
-	  .ii_repeat = M0_AVI_IOS_READ_COUNTER_END - M0_AVI_IOS_READ_COUNTER,
-	  .ii_spec   = &io_read_phase_counter },
-	{ M0_AVI_IOS_WRITE_COUNTER,   "",
-	  .ii_repeat = M0_AVI_IOS_WRITE_COUNTER_END - M0_AVI_IOS_WRITE_COUNTER,
-	  .ii_spec   = &io_write_phase_counter },
 	{ M0_AVI_FS_OPEN,         "m0t1fs-open",     { FID, &oct },
 	  { NULL, NULL, "flags" }},
 	{ M0_AVI_FS_LOOKUP,       "m0t1fs-lookup",   { FID } },
@@ -393,6 +430,15 @@ struct id_intrp ids[] = {
 	{ M0_AVI_STOB_IOQ_QUEUED, "stob-ioq-queued", { COUNTER } },
 	{ M0_AVI_STOB_IOQ_GOT,    "stob-ioq-got",    { COUNTER } },
 
+	{ M0_AVI_RPC_LOCK,        "rpc-machine-lock", { &ptr } },
+	{ M0_AVI_RPC_REPLIED,     "rpc-replied",      { &ptr, &rpcop } },
+	{ M0_AVI_RPC_OUT_PHASE,   "rpc-out-phase",    { &rpc_out,
+							&skip, &_clock } },
+	{ M0_AVI_RPC_IN_PHASE,    "rpc-in-phase",    { &rpc_in,
+						       &skip, &_clock } },
+	{ M0_AVI_FOP_TYPES_RANGE_START,   "",
+	  .ii_repeat = M0_AVI_FOP_TYPES_RANGE_END-M0_AVI_FOP_TYPES_RANGE_START,
+	  .ii_spec   = &fop_counter },
 	{ M0_AVI_NODATA,          "nodata" },
 };
 

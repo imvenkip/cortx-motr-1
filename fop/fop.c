@@ -28,11 +28,12 @@
 #include "lib/trace.h"
 
 #include "lib/memory.h"
-#include "lib/misc.h" /* M0_SET0 */
+#include "lib/misc.h"                 /* M0_SET0 */
 #include "lib/errno.h"
 #include "mero/magic.h"
-#include "rpc/rpc_machine.h" /* for ri_rmachine */
+#include "rpc/rpc_machine.h"          /* for ri_rmachine */
 #include "rpc/rpc_machine_internal.h" /* m0_rpc_machine_{lock|unlock} */
+#include "rpc/addb2.h"
 #include "fop/fop.h"
 #include "fop/fop_xc.h"
 #include "fop/fom.h"
@@ -40,6 +41,7 @@
 #include "fop/fom_generic_xc.h"
 #include "fop/fom_long_lock.h" /* m0_fom_ll_global_init */
 #include "addb/addb_monitor.h" /* stats register */
+#include "addb2/identifier.h"
 #include "reqh/reqh.h"
 
 /**
@@ -336,7 +338,7 @@ M0_INTERNAL void m0_fops_fini(void)
 {
 	m0_addb_ctx_fini(&m0_fop_addb_ctx);
 	m0_mutex_fini(&fop_types_lock);
-	ft_tlist_fini(&fop_types_list);
+	/* Do not finalise fop_types_list, it can be validly non-empty. */
 	m0_fol_frag_type_deregister(&m0_fop_fol_frag_type);
 }
 
@@ -459,6 +461,24 @@ struct m0_rpc_machine *m0_fop_session_machine(const struct m0_rpc_session *s)
 	return s->s_conn->c_rpc_machine;
 }
 M0_EXPORTED(m0_fop_session_machine);
+
+int m0_fop_type_addb2_instrument(struct m0_fop_type *type)
+{
+	struct m0_fom_type      *ft   = &type->ft_fom_type;
+	struct m0_rpc_item_type *rt   = &type->ft_rpc_item_type;
+	uint64_t                 mask = ((uint64_t)rt->rit_opcode) << 12;
+
+	mask |= M0_AVI_FOP_TYPES_RANGE_START;
+	return (ft->ft_conf.scf_name != NULL ?
+		m0_sm_addb2_init(&ft->ft_conf, M0_AVI_PHASE,
+				 mask | (M0_AFC_PHASE << 8)) : 0) ?:
+		m0_sm_addb2_init(&ft->ft_state_conf, M0_AVI_STATE,
+				 mask | (M0_AFC_STATE << 8)) ?:
+		m0_sm_addb2_init(&rt->rit_outgoing_conf, M0_AVI_RPC_OUT_PHASE,
+				 mask | (M0_AFC_RPC_OUT << 8)) ?:
+		m0_sm_addb2_init(&rt->rit_incoming_conf, M0_AVI_RPC_IN_PHASE,
+				 mask | (M0_AFC_RPC_IN << 8));
+}
 
 /** @} end of fop group */
 #undef M0_TRACE_SUBSYSTEM

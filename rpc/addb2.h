@@ -15,28 +15,31 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita.danilov@seagate.com>
- * Original creation date: 30-Mar-2015
+ * Original creation date: 16-Apr-2015
  */
 
 #pragma once
 
-#ifndef __MERO_IOSERVICE_IO_ADDB2_H__
-#define __MERO_IOSERVICE_IO_ADDB2_H__
+#ifndef __MERO_RPC_ADDB2_H__
+#define __MERO_RPC_ADDB2_H__
 
 /**
- * @defgroup io_foms
+ * @defgroup rpc
  *
  * @{
  */
 
-#include "addb2/identifier.h"    /* M0_AVI_IOS_RANGE_START */
+#include "addb2/identifier.h"
 
 enum {
-	M0_AVI_IOS_IO_DESCR = M0_AVI_IOS_RANGE_START + 1,
+	M0_AVI_RPC_LOCK = M0_AVI_RPC_RANGE_START + 1,
+	M0_AVI_RPC_REPLIED,
+	M0_AVI_RPC_OUT_PHASE,
+	M0_AVI_RPC_IN_PHASE
 };
 
-/** @} end of io_foms group */
-#endif /* __MERO_IOSERVICE_IO_ADDB2_H__ */
+/** @} end of rpc group */
+#endif /* __MERO_RPC_ADDB2_H__ */
 
 /*
  *  Local variables:

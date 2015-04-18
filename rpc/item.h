@@ -427,15 +427,17 @@ enum m0_rpc_item_type_flags {
  */
 struct m0_rpc_item_type {
 	/** Unique operation code. */
-	uint32_t			   rit_opcode;
+	uint32_t                           rit_opcode;
 	/** Operations that can be performed on the type */
 	const struct m0_rpc_item_type_ops *rit_ops;
 	/** @see m0_rpc_item_type_flags */
-	uint64_t			   rit_flags;
+	uint64_t                           rit_flags;
 	/** Linkage into rpc item types list (m0_rpc_item_types_list) */
-	struct m0_tlink			   rit_linkage;
+	struct m0_tlink                    rit_linkage;
 	/** Magic no for the item type struct */
-	uint64_t			   rit_magic;
+	uint64_t                           rit_magic;
+	struct m0_sm_conf                  rit_incoming_conf;
+	struct m0_sm_conf                  rit_outgoing_conf;
 };
 
 /**

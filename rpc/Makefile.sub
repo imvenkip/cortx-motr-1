@@ -1,4 +1,5 @@
 nobase_mero_include_HEADERS += rpc/session.h \
+                                  rpc/addb2.h \
                                   rpc/session_fops.h \
                                   rpc/session_foms.h \
                                   rpc/session_internal.h \

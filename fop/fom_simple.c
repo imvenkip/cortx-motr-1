@@ -47,6 +47,8 @@ static const struct m0_fom_ops fom_simple_ops;
 struct m0_addb_ctx m0_fom_simple_addb_ctx;
 static struct m0_sm_conf fom_simple_conf;
 
+M0_EXTERN struct m0_sm_conf fom_states_conf;
+
 enum {
 	M0_ADDB_CTXID_FOM_SIMPLE  = 8000,
 	M0_ADDB_FOM_SIMPLE_HI     = 8001,
@@ -71,9 +73,10 @@ M0_INTERNAL void m0_fom_simple_post(struct m0_fom_simple *simpleton,
 		conf = &fom_simple_conf;
 	fomt = &simpleton->si_type;
 	*fomt = (typeof(*fomt)) {
-		.ft_ops    = &fom_simple_ft_ops,
-		.ft_conf   = conf,
-		.ft_rstype = &fom_simple_rstype
+		.ft_ops        = &fom_simple_ft_ops,
+		.ft_conf       = *conf,
+		.ft_state_conf = fom_states_conf,
+		.ft_rstype     = &fom_simple_rstype
 	};
 	m0_fom_init(&simpleton->si_fom, fomt, &fom_simple_ops,
 		    NULL, NULL, reqh);
@@ -125,7 +128,7 @@ static int fom_simple_tick(struct m0_fom *fom)
 	int                   phase;
 	bool                  simple;
 
-	simple = fom->fo_type->ft_conf == &fom_simple_conf;
+	simple = fom->fo_type->ft_conf.scf_name == fom_simple_conf.scf_name;
 	phase = m0_fom_phase(fom);
 	M0_ASSERT(ergo(simple, phase == M0_FOM_PHASE_INIT));
 	if (m0_reqh_state_get(m0_fom_reqh(fom)) <= M0_REQH_ST_NORMAL)

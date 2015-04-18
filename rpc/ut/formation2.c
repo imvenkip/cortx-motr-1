@@ -34,11 +34,20 @@ static struct m0_rpc_frm_constraints  constraints;
 static struct m0_rpc_machine          rmachine;
 static struct m0_rpc_chan             rchan;
 static struct m0_rpc_session          session;
+static struct m0_rpc_item_type        twoway_item_type;
+static struct m0_rpc_item_type        oneway_item_type;
+
+extern const struct m0_sm_conf outgoing_item_sm_conf;
+extern const struct m0_sm_conf incoming_item_sm_conf;
 
 static int frm_ut_init(void)
 {
 	int rc;
 
+	twoway_item_type.rit_incoming_conf = incoming_item_sm_conf;
+	twoway_item_type.rit_outgoing_conf = outgoing_item_sm_conf;
+	oneway_item_type.rit_incoming_conf = incoming_item_sm_conf;
+	oneway_item_type.rit_outgoing_conf = outgoing_item_sm_conf;
 	rchan.rc_rpc_machine = &rmachine;
 	frm = &rchan.rc_frm;
 	rpc_conn_tlist_init(&rmachine.rm_outgoing_conns);
@@ -54,7 +63,7 @@ static int frm_ut_init(void)
 
 static int frm_ut_fini(void)
 {
-        rmachine.rm_stopping = true;
+	rmachine.rm_stopping = true;
 	m0_clink_signal(&rmachine.rm_sm_grp.s_clink);
 	m0_rpc_machine_unlock(&rmachine);
 	m0_thread_join(&rmachine.rm_worker);

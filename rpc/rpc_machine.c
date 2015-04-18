@@ -34,11 +34,13 @@
 #include "lib/errno.h"
 #include "lib/finject.h"       /* M0_FI_ENABLED */
 #include "addb/addb.h"
+#include "addb2/addb2.h"
 #include "mero/magic.h"
 #include "cob/cob.h"
 #include "net/net.h"
 #include "net/buffer_pool.h"   /* m0_net_buffer_pool_[lock|unlock] */
 #include "reqh/reqh.h"
+#include "rpc/addb2.h"
 #include "rpc/rpc_internal.h"
 
 #define RPCMC_ADDB_FUNCFAIL(rc, mc, loc, parentctx, ctx)		\
@@ -470,6 +472,7 @@ static void rpc_tm_cleanup(struct m0_rpc_machine *machine)
 M0_INTERNAL void m0_rpc_machine_lock(struct m0_rpc_machine *machine)
 {
 	M0_PRE(machine != NULL);
+	M0_ADDB2_PUSH(M0_AVI_RPC_LOCK, (uint64_t)machine);
 	m0_sm_group_lock(&machine->rm_sm_grp);
 }
 
@@ -477,6 +480,7 @@ M0_INTERNAL void m0_rpc_machine_unlock(struct m0_rpc_machine *machine)
 {
 	M0_PRE(machine != NULL);
 	m0_sm_group_unlock(&machine->rm_sm_grp);
+	m0_addb2_pop(M0_AVI_RPC_LOCK);
 }
 
 M0_INTERNAL bool m0_rpc_machine_is_locked(const struct m0_rpc_machine *machine)

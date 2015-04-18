@@ -331,7 +331,7 @@ static void fom_phase_set(struct m0_fom *fom, int phase)
 
 		m0_sm_fini(&fom->fo_sm_phase);
 		M0_SET0(&fom->fo_sm_phase);
-		m0_sm_init(&fom->fo_sm_phase, fom->fo_type->ft_conf,
+		m0_sm_init(&fom->fo_sm_phase, &fom->fo_type->ft_conf,
 			   M0_FOM_PHASE_INIT, &fom->fo_loc->fl_group);
 
 		while (m0_fom_phase(fom) != M0_FOPH_TYPE_SPECIFIC) {
@@ -1249,7 +1249,7 @@ static void bulkio_stob_create(void)
 		bp->bp_wfops[i]->if_fop.f_type->ft_fom_type.ft_ops =
 			&bulkio_stob_create_fomt_ops;
 		bp->bp_wfops[i]->if_fop.f_type->ft_fom_type.ft_conf =
-			&m0_generic_conf;
+			m0_generic_conf;
 		rw = io_rw_get(&bp->bp_wfops[i]->if_fop);
 		bp->bp_wfops[i]->if_fop.f_type->ft_ops =
 			&bulkio_stob_create_ops;
@@ -1291,7 +1291,7 @@ static void io_single_fop_submit(enum M0_RPC_OPCODES op)
 	 * changed during bulkio_stob_create test.
 	 */
 	fop->f_type->ft_ops = &io_fop_rwv_ops;
-	fop->f_type->ft_fom_type.ft_conf = &io_conf;
+	fop->f_type->ft_fom_type.ft_conf = io_conf;
 	io_fops_submit(0, op);
 }
 

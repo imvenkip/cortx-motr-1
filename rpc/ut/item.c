@@ -45,11 +45,16 @@ static struct m0_rpc_stats    stats;
 static struct m0_rpc_item    *item;
 static struct m0_fop         *fop;
 static int                    item_rc;
+static struct m0_rpc_item_type test_item_cache_itype;
+extern const struct m0_sm_conf outgoing_item_sm_conf;
+extern const struct m0_sm_conf incoming_item_sm_conf;
 
 #define IS_INCR_BY_1(p) _0C(saved.rs_ ## p + 1 == stats.rs_ ## p)
 
 static int ts_item_init(void)   /* ts_ for "test suite" */
 {
+	test_item_cache_itype.rit_incoming_conf = incoming_item_sm_conf;
+	test_item_cache_itype.rit_outgoing_conf = outgoing_item_sm_conf;
 	m0_rpc_test_fops_init();
 	start_rpc_client_and_server();
 	session = &cctx.rcx_session;
@@ -627,12 +632,15 @@ static void test_item_cache_item_put(struct m0_rpc_item *item)
 	test_item_cache_item_put_xid = UINT64_MAX - 1;
 }
 
+extern const struct m0_sm_conf outgoing_item_sm_conf;
+extern const struct m0_sm_conf incoming_item_sm_conf;
+
 static struct m0_rpc_item_type_ops test_item_cache_type_ops = {
 	.rito_item_get = test_item_cache_item_get,
 	.rito_item_put = test_item_cache_item_put,
 };
-static struct m0_rpc_item_type	   test_item_cache_itype = {
-	.rit_ops = &test_item_cache_type_ops,
+static struct m0_rpc_item_type test_item_cache_itype = {
+	.rit_ops           = &test_item_cache_type_ops,
 };
 
 /*

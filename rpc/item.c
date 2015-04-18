@@ -29,6 +29,8 @@
 #include "lib/finject.h"
 #include "ha/epoch.h"
 #include "mero/magic.h"
+#include "addb2/addb2.h"
+#include "rpc/addb2.h"
 #include "rpc/rpc_internal.h"
 
 /**
@@ -45,15 +47,17 @@ static int item_reply_received(struct m0_rpc_item *reply,
 			       struct m0_rpc_item **req_out);
 static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply);
 
-M0_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", M0_INTERNAL,
-		   struct m0_rpc_item, ri_field,
-	           ri_magic, M0_RPC_ITEM_MAGIC,
+const struct m0_sm_conf outgoing_item_sm_conf;
+const struct m0_sm_conf incoming_item_sm_conf;
+
+M0_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", M0_INTERNAL, struct m0_rpc_item,
+		   ri_field, ri_magic, M0_RPC_ITEM_MAGIC,
 		   M0_RPC_ITEM_HEAD_MAGIC);
 
 M0_TL_DEFINE(rpcitem, M0_INTERNAL, struct m0_rpc_item);
 
 M0_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct m0_rpc_item_type,
-		   rit_linkage,	rit_magic, M0_RPC_ITEM_TYPE_MAGIC,
+		   rit_linkage, rit_magic, M0_RPC_ITEM_TYPE_MAGIC,
 		   M0_RPC_ITEM_TYPE_HEAD_MAGIC);
 
 M0_TL_DEFINE(rit, static, struct m0_rpc_item_type);
@@ -137,6 +141,8 @@ M0_INTERNAL void m0_rpc_item_type_register(struct m0_rpc_item_type *item_type)
 	M0_PRE(ergo(item_type->rit_flags & M0_RPC_ITEM_TYPE_MUTABO,
 		    dir_flag == M0_RPC_ITEM_TYPE_REQUEST));
 
+	item_type->rit_outgoing_conf = outgoing_item_sm_conf;
+	item_type->rit_incoming_conf = incoming_item_sm_conf;
 	m0_rwlock_write_lock(&rpc_item_types_lock);
 	rit_tlink_init_at(item_type, &rpc_item_types_list);
 	m0_rwlock_write_unlock(&rpc_item_types_lock);
@@ -237,7 +243,7 @@ static struct m0_sm_state_descr outgoing_item_states[] = {
 	},
 };
 
-static const struct m0_sm_conf outgoing_item_sm_conf = {
+const struct m0_sm_conf outgoing_item_sm_conf = {
 	.scf_name      = "Outgoing-RPC-Item-sm",
 	.scf_nr_states = ARRAY_SIZE(outgoing_item_states),
 	.scf_state     = outgoing_item_states,
@@ -275,7 +281,7 @@ static struct m0_sm_state_descr incoming_item_states[] = {
 	},
 };
 
-static const struct m0_sm_conf incoming_item_sm_conf = {
+const struct m0_sm_conf incoming_item_sm_conf = {
 	.scf_name      = "Incoming-RPC-Item-sm",
 	.scf_nr_states = ARRAY_SIZE(incoming_item_states),
 	.scf_state     = incoming_item_states,
@@ -568,12 +574,13 @@ M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
 
 	M0_PRE(item != NULL && item->ri_rmachine != NULL);
 
-	conf = dir == M0_RPC_ITEM_OUTGOING ? &outgoing_item_sm_conf :
-					     &incoming_item_sm_conf;
+	conf = dir == M0_RPC_ITEM_OUTGOING ? &item->ri_type->rit_outgoing_conf :
+					     &item->ri_type->rit_incoming_conf;
 
 	M0_LOG(M0_DEBUG, "%p UNINITIALISED -> INITIALISED", item);
 	m0_sm_init(&item->ri_sm, conf, M0_RPC_ITEM_INITIALISED,
 		   &item->ri_rmachine->rm_sm_grp);
+	m0_sm_addb2_counter_init(&item->ri_sm);
 }
 
 M0_INTERNAL void m0_rpc_item_sm_fini(struct m0_rpc_item *item)
@@ -664,7 +671,7 @@ void m0_rpc_item_cancel(struct m0_rpc_item *item)
 	const struct m0_rpc_item_type *ri_type;
 
 	M0_PRE(m0_rpc_conn_is_snd(item->ri_session->s_conn));
-        m0_rpc_machine_lock(mach);
+	m0_rpc_machine_lock(mach);
 	M0_PRE(item->ri_sm.sm_state != M0_RPC_ITEM_SENT);
 
 	if (!M0_IN(item->ri_sm.sm_state, (M0_RPC_ITEM_FAILED,
@@ -1066,9 +1073,7 @@ M0_INTERNAL void m0_rpc_item_process_reply(struct m0_rpc_item *req,
 
 	m0_rpc_item_stop_timer(req);
 	req->ri_reply = reply;
-	if (req->ri_ops != NULL && req->ri_ops->rio_replied != NULL)
-		req->ri_ops->rio_replied(req);
-
+	m0_rpc_item_replied_invoke(req);
 	m0_rpc_item_change_state(req, M0_RPC_ITEM_REPLIED);
 	/*
 	 * Reference release done here is for the reference taken in
@@ -1214,6 +1219,16 @@ M0_INTERNAL void m0_rpc_item_cache_clear(struct m0_rpc_item_cache *ic)
 	m0_tl_for(ric, &ic->ric_items, item) {
 		rpc_item_cache_del(ic, item);
 	} m0_tl_endfor;
+}
+
+M0_INTERNAL void m0_rpc_item_replied_invoke(struct m0_rpc_item *req)
+{
+	if (req->ri_ops != NULL && req->ri_ops->rio_replied != NULL) {
+		M0_ADDB2_PUSH(M0_AVI_RPC_REPLIED,
+			      (uint64_t)req, req->ri_type->rit_opcode);
+		req->ri_ops->rio_replied(req);
+		m0_addb2_pop(M0_AVI_RPC_REPLIED);
+	}
 }
 
 /** @} end of rpc group */

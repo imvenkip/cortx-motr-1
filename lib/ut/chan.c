@@ -87,7 +87,7 @@ unsigned long signal_the_chan_in_timer(unsigned long data)
 void test_chan(void)
 {
 	struct m0_mutex mutex;
-	struct m0_chan  chan;
+	struct m0_chan  chan = {};
 	struct m0_clink clink1;
 	struct m0_clink clink2;
 	struct m0_clink clink3;

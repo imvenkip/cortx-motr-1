@@ -73,6 +73,14 @@ enum m0_addb2_value_id {
 	M0_AVI_FOM_CB,
 	/** Label: locality chore. */
 	M0_AVI_CHORE,
+	/** Counter: asts posted to locality fork-queue. */
+	M0_AVI_LOCALITY_FORQ,
+	/** Counter: wait times on locality runrun channel. */
+	M0_AVI_LOCALITY_CHAN_WAIT,
+	/** Counter: call-back times on locality runrun channel. */
+	M0_AVI_LOCALITY_CHAN_CB,
+	/** Counter: queue-length of locality runrun channel. */
+	M0_AVI_LOCALITY_CHAN_QUEUE,
 
 	M0_AVI_LIB_RANGE_START     = 0x3000,
 	/** Measurement: memory allocation. */
@@ -82,8 +90,28 @@ enum m0_addb2_value_id {
 	M0_AVI_M0T1FS_RANGE_START  = 0x5000,
 	M0_AVI_IOS_RANGE_START     = 0x6000,
 	M0_AVI_STOB_RANGE_START    = 0x7000,
+	M0_AVI_RPC_RANGE_START     = 0x8000,
 
-	M0_AVI_LAST                = 0x7fff,
+	/**
+	 * Reserve a range of identifiers for per-fop-type per-locality
+	 * counters. Identifier bits in this range are interpreted as following:
+	 *
+	 * @verbatim
+	 * 1 FFFF FFFF FFFF CCCC TTTT TTTT
+	 * @endverbatim
+	 *
+	 * Where
+	 *
+	 * FFFF FFFF FFFF: fop type identifier (rpc item opcode)
+	 *           CCCC: counter identifier
+	 *      TTTT TTTT: transition identifier.
+	 *
+	 * @see m0_fop_type_addb2_instrument().
+	 */
+	M0_AVI_FOP_TYPES_RANGE_START = 0x1000000,
+	M0_AVI_FOP_TYPES_RANGE_END   = 0x1ffffff,
+
+	M0_AVI_LAST,
 	/** No data. */
 	M0_AVI_NODATA = 0x00ffffffffffffffull,
 };

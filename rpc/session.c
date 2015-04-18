@@ -782,8 +782,7 @@ M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item)
 
 	if (m0_rpc_item_is_request(item)) {
 		M0_ASSERT(item->ri_error != 0);
-		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
-			item->ri_ops->rio_replied(item);
+		m0_rpc_item_replied_invoke(item);
 	}
 }
 

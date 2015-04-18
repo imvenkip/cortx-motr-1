@@ -178,6 +178,8 @@ static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
 				 const struct m0_fom *fom);
 static int loc_thr_create(struct m0_fom_locality *loc);
 
+static struct m0_sm_conf fom_states_conf0;
+
 /**
  * Fom domain operations.
  * @todo Support fom timeout functionality.
@@ -361,16 +363,16 @@ static void fom_addb2_push(struct m0_fom *fom)
 static void addb2_introduce(struct m0_fom *fom)
 {
 	struct m0_rpc_item             *req;
-	const struct m0_sm_conf        *conf = fom->fo_type->ft_conf;
 	static struct m0_sm_addb2_stats phase_stats = {
 		.as_id = M0_AVI_PHASE,
 		.as_nr = 0
 	};
 
-	fom->fo_sm_phase.sm_addb2_stats = conf->scf_addb2_key == 0 ?
-		&phase_stats : m0_locality_data(conf->scf_addb2_key - 1);
-	fom->fo_sm_state.sm_addb2_stats =
-		m0_locality_data(fom_states_conf.scf_addb2_key - 1);
+	if (!m0_sm_addb2_counter_init(&fom->fo_sm_phase))
+		fom->fo_sm_phase.sm_addb2_stats = &phase_stats;
+	if (!m0_sm_addb2_counter_init(&fom->fo_sm_state))
+		fom->fo_sm_state.sm_addb2_stats =
+			m0_locality_data(fom_states_conf.scf_addb2_key - 1);
 
 	req = fom->fo_fop != NULL ? &fom->fo_fop->f_item : NULL;
 
@@ -411,7 +413,7 @@ static void thr_addb2_enter(struct m0_loc_thread *thr,
 	m0_addb2_global_thread_leave();
 	M0_ASSERT(m0_thread_tls()->tls_addb2_mach == NULL);
 	m0_thread_tls()->tls_addb2_mach = loc->fl_addb2_mach;
-	 m0_addb2_push(M0_AVI_THREAD, M0_ADDB2_OBJ(&thr->lt_thread.t_h));
+	m0_addb2_push(M0_AVI_THREAD, M0_ADDB2_OBJ(&thr->lt_thread.t_h));
 }
 
 static void thr_addb2_leave(struct m0_loc_thread *thr,
@@ -901,7 +903,6 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	wail_tlist_init(&loc->fl_wail);
 	loc->fl_wail_nr = 0;
 	loc->fl_idx = cpu;
-
 	m0_thread_tls()->tls_addb2_mach = loc->fl_addb2_mach;
 	m0_addb2_push(M0_AVI_NODE, M0_ADDB2_OBJ(&m0_node_uuid));
 	M0_ADDB2_PUSH(M0_AVI_LOCALITY, loc->fl_idx);
@@ -909,6 +910,14 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	m0_addb2_counter_add(&loc->fl_fom_active, M0_AVI_FOM_ACTIVE, -1);
 	m0_addb2_counter_add(&loc->fl_runq_counter, M0_AVI_RUNQ, -1);
 	m0_addb2_counter_add(&loc->fl_wail_counter, M0_AVI_WAIL, -1);
+	m0_addb2_counter_add(&loc->fl_grp_addb2.ga_forq_counter,
+			     M0_AVI_LOCALITY_FORQ, -1);
+	m0_addb2_counter_add(&loc->fl_chan_addb2.ca_wait_counter,
+			     M0_AVI_LOCALITY_CHAN_WAIT, -1);
+	m0_addb2_counter_add(&loc->fl_chan_addb2.ca_cb_counter,
+			     M0_AVI_LOCALITY_CHAN_CB, -1);
+	m0_addb2_counter_add(&loc->fl_chan_addb2.ca_queue_counter,
+			     M0_AVI_LOCALITY_CHAN_QUEUE, -1);
 	m0_thread_tls()->tls_addb2_mach = orig;
 
 	res = m0_addb_counter_init(&loc->fl_stat_run_times,
@@ -923,7 +932,9 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	m0_locality_init(&loc->fl_locality,
 			 &loc->fl_group, loc->fl_dom, loc->fl_idx);
 	m0_sm_group_init(&loc->fl_group);
+	loc->fl_group.s_addb2 = &loc->fl_grp_addb2;
 	m0_chan_init(&loc->fl_runrun, &loc->fl_group.s_lock);
+	loc->fl_runrun.ch_addb2 = &loc->fl_chan_addb2;
 	thr_tlist_init(&loc->fl_threads);
 	m0_atomic64_set(&loc->fl_unblocking, 0);
 	m0_chan_init(&loc->fl_idle, &loc->fl_group.s_lock);
@@ -1436,18 +1447,20 @@ M0_INTERNAL struct m0_fom_type *m0_fom__types[M0_OPCODES_NR];
 M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type, uint64_t id,
 				  const struct m0_fom_type_ops *ops,
 				  const struct m0_reqh_service_type *svc_type,
-				  struct m0_sm_conf *sm)
+				  const struct m0_sm_conf *sm)
 {
 	M0_PRE(IS_IN_ARRAY(id, m0_fom__types));
 	M0_PRE(id > 0);
 	M0_PRE(M0_IN(m0_fom__types[id], (NULL, type)));
 
 	if (m0_fom__types[id] == NULL) {
-		type->ft_id        = id;
-		type->ft_ops       = ops;
-		type->ft_conf      = sm;
-		type->ft_rstype    = svc_type;
-		m0_fom__types[id]  = type;
+		type->ft_id         = id;
+		type->ft_ops        = ops;
+		if (sm != NULL)
+			type->ft_conf = *sm;
+		type->ft_state_conf = fom_states_conf0;
+		type->ft_rstype     = svc_type;
+		m0_fom__types[id]   = type;
 	}
 }
 
@@ -1487,7 +1500,7 @@ static struct m0_sm_trans_descr fom_trans[M0_FOS_TRANS_NR] = {
 	{ "Terminate", M0_FOS_WAITING,  M0_FOS_FINISH }
 };
 
-struct m0_sm_conf fom_states_conf = {
+M0_INTERNAL struct m0_sm_conf fom_states_conf = {
 	.scf_name      = "FOM states",
 	.scf_nr_states = ARRAY_SIZE(fom_states),
 	.scf_state     = fom_states,
@@ -1495,8 +1508,11 @@ struct m0_sm_conf fom_states_conf = {
 	.scf_trans     = fom_trans
 };
 
+static struct m0_sm_conf fom_states_conf0;
+
 M0_INTERNAL int m0_foms_init(void)
 {
+	fom_states_conf0 = fom_states_conf;
 	return m0_sm_addb2_init(&fom_states_conf,
 				M0_AVI_STATE, M0_AVI_STATE_COUNTER);
 }
@@ -1506,19 +1522,16 @@ M0_INTERNAL void m0_foms_fini(void)
 
 M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 {
-	struct m0_sm_group      *fom_group;
-	const struct m0_sm_conf *conf;
+	struct m0_sm_group *fom_group;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_loc != NULL);
 
-	conf = fom->fo_type->ft_conf;
-	M0_ASSERT(conf->scf_nr_states != 0);
-
 	fom_group = &fom->fo_loc->fl_group;
-
-	m0_sm_init(&fom->fo_sm_phase, conf, M0_FOM_PHASE_INIT, fom_group);
-	m0_sm_init(&fom->fo_sm_state, &fom_states_conf, M0_FOS_INIT, fom_group);
+	m0_sm_init(&fom->fo_sm_phase, &fom->fo_type->ft_conf,
+		   M0_FOM_PHASE_INIT, fom_group);
+	m0_sm_init(&fom->fo_sm_state, &fom->fo_type->ft_state_conf,
+		   M0_FOS_INIT, fom_group);
 
 	m0_addb_sm_counter_init(&fom->fo_sm_state_stats,
 				&m0_addb_rt_fom_state_stats,

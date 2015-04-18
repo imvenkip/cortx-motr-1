@@ -288,7 +288,7 @@ struct __m0_fop_type_init_args {
 	const struct m0_fop_type_ops      *fop_ops;
 	const struct m0_fom_type_ops      *fom_ops;
 	const struct m0_rpc_item_type_ops *rpc_ops;
-	      struct m0_sm_conf           *sm;
+	const struct m0_sm_conf           *sm;
 	const struct m0_reqh_service_type *svc_type;
 };
 
@@ -355,6 +355,19 @@ M0_INTERNAL int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 extern struct m0_fol_frag_type m0_fop_fol_frag_type;
 
 struct m0_rpc_machine *m0_fop_session_machine(const struct m0_rpc_session *s);
+
+enum m0_addb2_fop_counter {
+	/** Fom phase transitions. */
+	M0_AFC_PHASE,
+	/** Fom state transitions. */
+	M0_AFC_STATE,
+	/** Outgoing rpc item transitions. */
+	M0_AFC_RPC_OUT,
+	/** Incoming rpc item transitions. */
+	M0_AFC_RPC_IN
+};
+
+int m0_fop_type_addb2_instrument(struct m0_fop_type *type);
 
 /** @} end of fop group */
 #endif /* __MERO_FOP_FOP_H__ */

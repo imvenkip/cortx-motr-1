@@ -312,6 +312,8 @@ struct m0_fom_locality {
 	struct m0_addb2_counter        fl_wail_counter;
 	struct m0_addb2_sensor         fl_clock;
 	struct m0_locality             fl_locality;
+	struct m0_sm_group_addb2       fl_grp_addb2;
+	struct m0_chan_addb2           fl_chan_addb2;
 	/** Something for memory, see set_mempolicy(2). */
 };
 
@@ -672,7 +674,8 @@ M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom);
 struct m0_fom_type {
 	uint64_t                           ft_id;
 	const struct m0_fom_type_ops      *ft_ops;
-	      struct m0_sm_conf           *ft_conf;
+	      struct m0_sm_conf            ft_conf;
+	      struct m0_sm_conf            ft_state_conf;
 	const struct m0_reqh_service_type *ft_rstype;
 };
 
@@ -916,7 +919,7 @@ M0_INTERNAL bool m0_fom_is_waiting(const struct m0_fom *fom);
 M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type, uint64_t id,
 				  const struct m0_fom_type_ops *ops,
 				  const struct m0_reqh_service_type *svc_type,
-				  struct m0_sm_conf *sm);
+				  const struct m0_sm_conf *sm);
 
 M0_INTERNAL int m0_fom_addb2_init(struct m0_fom_type *type, uint64_t id);
 
