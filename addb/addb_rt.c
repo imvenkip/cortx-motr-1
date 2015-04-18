@@ -98,18 +98,18 @@ static struct m0_addb_rec_type *addb_rec_type_lookup(uint32_t id)
 
 static bool addb_rec_type_invariant(const struct m0_addb_rec_type *rt)
 {
-	return  rt != NULL &&
-		rt->art_magic == M0_ADDB_RT_MAGIC &&
-		rt->art_base_type >= M0_ADDB_BRT_EX &&
-		rt->art_base_type < M0_ADDB_BRT_NR &&
-		((rt->art_base_type == M0_ADDB_BRT_SM_CNTR) ==
-		 (rt->art_sm_conf != NULL)) &&
-		ergo(rt->art_base_type == M0_ADDB_BRT_SM_CNTR,
-		     m0_sm_conf_is_initialized(rt->art_sm_conf)) &&
-		rt->art_name != NULL &&
-		rt->art_id > 0 &&
-		ergo(rt->art_rf_nr > 0, rt->art_rf != NULL) &&
-		addb_rec_type_lookup(rt->art_id) == rt;
+	return  _0C(rt != NULL) &&
+		_0C(rt->art_magic == M0_ADDB_RT_MAGIC) &&
+		_0C(rt->art_base_type >= M0_ADDB_BRT_EX) &&
+		_0C(rt->art_base_type < M0_ADDB_BRT_NR) &&
+		_0C((rt->art_base_type == M0_ADDB_BRT_SM_CNTR) ==
+		    (rt->art_sm_conf != NULL)) &&
+		_0C(ergo(rt->art_base_type == M0_ADDB_BRT_SM_CNTR,
+			 m0_sm_conf_is_initialized(rt->art_sm_conf))) &&
+		_0C(rt->art_name != NULL) &&
+		_0C(rt->art_id > 0) &&
+		_0C(ergo(rt->art_rf_nr > 0, rt->art_rf != NULL)) &&
+		_0C(addb_rec_type_lookup(rt->art_id) == rt);
 }
 
 /** @} end group addb_pvt */
