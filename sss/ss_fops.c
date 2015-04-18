@@ -40,7 +40,7 @@ struct m0_fop_type m0_fop_ss_fopt;
 struct m0_fop_type m0_fop_ss_rep_fopt;
 
 extern struct m0_sm_state_descr     ss_fom_phases[];
-extern struct m0_sm_conf            ss_fom_conf;
+M0_EXTERN struct m0_sm_conf         ss_fom_conf;
 extern const struct m0_fom_type_ops ss_fom_type_ops;
 const struct m0_fop_type_ops        ss_fop_type_ops;
 

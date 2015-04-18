@@ -183,7 +183,7 @@ struct m0_sm_state_descr ss_fom_phases[] = {
 	},
 };
 
-struct m0_sm_conf ss_fom_conf = {
+M0_INTERNAL struct m0_sm_conf ss_fom_conf = {
 	.scf_name      = "ss-fom-sm",
 	.scf_nr_states = ARRAY_SIZE(ss_fom_phases),
 	.scf_state     = ss_fom_phases
