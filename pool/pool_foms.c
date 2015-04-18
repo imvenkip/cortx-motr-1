@@ -214,7 +214,7 @@ struct m0_sm_state_descr poolmach_phases[] = {
 	}
 };
 
-struct m0_sm_conf poolmach_conf = {
+const struct m0_sm_conf poolmach_conf = {
 	.scf_name      = "poolmach",
 	.scf_nr_states = ARRAY_SIZE(poolmach_phases),
 	.scf_state     = poolmach_phases

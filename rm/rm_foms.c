@@ -149,13 +149,13 @@ struct m0_sm_state_descr rm_req_phases[] = {
 
 };
 
-struct m0_sm_conf borrow_sm_conf = {
+const struct m0_sm_conf borrow_sm_conf = {
 	.scf_name      = "Borrow fom",
 	.scf_nr_states = ARRAY_SIZE(rm_req_phases),
 	.scf_state     = rm_req_phases
 };
 
-struct m0_sm_conf canoke_sm_conf = {
+const struct m0_sm_conf canoke_sm_conf = {
 	.scf_name      = "Canoke fom",
 	.scf_nr_states = ARRAY_SIZE(rm_req_phases),
 	.scf_state     = rm_req_phases

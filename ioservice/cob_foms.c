@@ -111,7 +111,7 @@ struct m0_sm_state_descr cob_ops_phases[] = {
 	}
 };
 
-struct m0_sm_conf cob_ops_conf = {
+const struct m0_sm_conf cob_ops_conf = {
 	.scf_name      = "COB create/delete/getattr",
 	.scf_nr_states = ARRAY_SIZE(cob_ops_phases),
 	.scf_state     = cob_ops_phases

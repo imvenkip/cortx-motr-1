@@ -83,11 +83,11 @@ struct m0_fop_type m0_rm_fop_cancel_fopt;
  * Extern FOM params
  */
 extern const struct m0_fom_type_ops rm_borrow_fom_type_ops;
-extern struct m0_sm_conf            borrow_sm_conf;
+extern const struct m0_sm_conf      borrow_sm_conf;
 
 extern const struct m0_fom_type_ops rm_revoke_fom_type_ops;
 extern const struct m0_fom_type_ops rm_cancel_fom_type_ops;
-extern struct m0_sm_conf            canoke_sm_conf;
+extern const struct m0_sm_conf      canoke_sm_conf;
 
 /*
  * Allocate and initialise remote request tracking structure.

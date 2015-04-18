@@ -759,7 +759,7 @@ struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 
 M0_BASSERT(ARRAY_SIZE(m0_generic_phases_trans) == M0_FOM_GENERIC_TRANS_NR);
 
-struct m0_sm_conf m0_generic_conf = {
+const struct m0_sm_conf m0_generic_conf = {
 	.scf_magic     = M0_SM_CONF_MAGIC,
 	.scf_name      = "FOM standard phases",
 	.scf_nr_states = ARRAY_SIZE(generic_phases),

@@ -204,8 +204,8 @@ M0_BOB_DEFINE(static, &stats_svc_bob, stats_svc);
 struct m0_addb_ctx stats_svc_addb_ctx;
 const struct m0_fom_type_ops stats_update_fom_type_ops;
 const struct m0_fom_type_ops stats_query_fom_type_ops;
-struct m0_sm_conf stats_update_fom_sm_conf;
-struct m0_sm_conf stats_query_fom_sm_conf;
+const struct m0_sm_conf stats_update_fom_sm_conf;
+const struct m0_sm_conf stats_query_fom_sm_conf;
 
 #define SUM_DATA_SIZE(sum_data) (sum_data->ss_data.au64s_nr * sizeof(uint64_t))
 
@@ -361,7 +361,7 @@ struct m0_sm_state_descr stats_update_phases[] = {
 	},
 };
 
-struct m0_sm_conf stats_update_fom_sm_conf = {
+const struct m0_sm_conf stats_update_fom_sm_conf = {
 	.scf_name      = "stats-update-fom-sm",
 	.scf_nr_states = ARRAY_SIZE(stats_update_phases),
 	.scf_state     = stats_update_phases
@@ -576,7 +576,7 @@ struct m0_sm_state_descr stats_query_phases[] = {
 	}
 };
 
-struct m0_sm_conf stats_query_fom_sm_conf = {
+const struct m0_sm_conf stats_query_fom_sm_conf = {
 	.scf_name      = "stats-query-fom-sm",
 	.scf_nr_states = ARRAY_SIZE(stats_query_phases),
 	.scf_state     = stats_query_phases

@@ -100,36 +100,36 @@ enum addb_pfom_phase {
 };
 
 static struct m0_sm_state_descr addb_pfom_state_descr[] = {
-        [ADDB_PFOM_PHASE_INIT] = {
-                .sd_flags       = M0_SDF_INITIAL,
-                .sd_name        = "Init",
-                .sd_allowed     = M0_BITS(ADDB_PFOM_PHASE_CTO)
-        },
-        [ADDB_PFOM_PHASE_CTO] = {
-                .sd_flags       = 0,
-                .sd_name        = "ComputeTimeOut",
-                .sd_allowed     = M0_BITS(ADDB_PFOM_PHASE_SLEEP)
-        },
-        [ADDB_PFOM_PHASE_SLEEP] = {
-                .sd_flags       = 0,
-                .sd_name        = "Sleep",
-                .sd_allowed     = M0_BITS(ADDB_PFOM_PHASE_POST,
+	[ADDB_PFOM_PHASE_INIT] = {
+		.sd_flags       = M0_SDF_INITIAL,
+		.sd_name        = "Init",
+		.sd_allowed     = M0_BITS(ADDB_PFOM_PHASE_CTO)
+	},
+	[ADDB_PFOM_PHASE_CTO] = {
+		.sd_flags       = 0,
+		.sd_name        = "ComputeTimeOut",
+		.sd_allowed     = M0_BITS(ADDB_PFOM_PHASE_SLEEP)
+	},
+	[ADDB_PFOM_PHASE_SLEEP] = {
+		.sd_flags       = 0,
+		.sd_name        = "Sleep",
+		.sd_allowed     = M0_BITS(ADDB_PFOM_PHASE_POST,
 					  ADDB_PFOM_PHASE_SLEEP,
 					  ADDB_PFOM_PHASE_FINI)
-        },
-        [ADDB_PFOM_PHASE_POST] = {
-                .sd_flags       = 0,
-                .sd_name        = "Post",
-                .sd_allowed     = M0_BITS(ADDB_PFOM_PHASE_CTO)
-        },
-        [ADDB_PFOM_PHASE_FINI] = {
-                .sd_flags       = M0_SDF_TERMINAL,
-                .sd_name        = "Fini",
-                .sd_allowed     = 0
-        },
+	},
+	[ADDB_PFOM_PHASE_POST] = {
+		.sd_flags       = 0,
+		.sd_name        = "Post",
+		.sd_allowed     = M0_BITS(ADDB_PFOM_PHASE_CTO)
+	},
+	[ADDB_PFOM_PHASE_FINI] = {
+		.sd_flags       = M0_SDF_TERMINAL,
+		.sd_name        = "Fini",
+		.sd_allowed     = 0
+	},
 };
 
-static struct m0_sm_conf addb_pfom_sm_conf = {
+const static struct m0_sm_conf addb_pfom_sm_conf = {
 	.scf_name = "addb-pfom-sm",
 	.scf_nr_states = ARRAY_SIZE(addb_pfom_state_descr),
 	.scf_state = addb_pfom_state_descr

@@ -84,7 +84,7 @@ struct m0_sm_state_descr stob_read_phases[] = {
 	},
 };
 
-struct m0_sm_conf read_conf = {
+const struct m0_sm_conf read_conf = {
 	.scf_name      = "Stob read",
 	.scf_nr_states = ARRAY_SIZE(stob_read_phases),
 	.scf_state     = stob_read_phases,
@@ -102,7 +102,7 @@ struct m0_sm_state_descr stob_write_phases[] = {
 	},
 };
 
-struct m0_sm_conf write_conf = {
+const struct m0_sm_conf write_conf = {
 	.scf_name      = "Stob write",
 	.scf_nr_states = ARRAY_SIZE(stob_write_phases),
 	.scf_state     = stob_write_phases,

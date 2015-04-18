@@ -45,31 +45,31 @@ static struct m0_sm_state_descr addb_fom_state_descr[] = {
 		.sd_name     = "Init",
 		.sd_allowed  = M0_BITS(ADDB_FOM_PHASE_REC_SEQ_STOB_WRITE)
 	},
-        [ADDB_FOM_PHASE_REC_SEQ_STOB_WRITE] = {
+	[ADDB_FOM_PHASE_REC_SEQ_STOB_WRITE] = {
 		.sd_flags       = 0,
-                .sd_name        = "ADDB rec seq. stob write",
-                .sd_allowed     = M0_BITS(ADDB_FOM_PHASE_FINI)
-        },
-        [ADDB_FOM_PHASE_FINI] = {
+		.sd_name        = "ADDB rec seq. stob write",
+		.sd_allowed     = M0_BITS(ADDB_FOM_PHASE_FINI)
+	},
+	[ADDB_FOM_PHASE_FINI] = {
 		.sd_flags       = M0_SDF_TERMINAL,
-                .sd_name        = "Fini",
-                .sd_allowed     = 0
-        },
+		.sd_name        = "Fini",
+		.sd_allowed     = 0
+	},
 };
 
-static struct m0_sm_conf addb_fom_sm_conf = {
+static const struct m0_sm_conf addb_fom_sm_conf = {
 	.scf_name = "addb-fom-sm",
 	.scf_nr_states = ARRAY_SIZE(addb_fom_state_descr),
 	.scf_state = addb_fom_state_descr,
 };
 
 static const struct m0_fom_type_ops addb_fom_type_ops = {
-        .fto_create = addb_fom_create,
+	.fto_create = addb_fom_create,
 };
 
 static void addb_fom_fo_fini(struct m0_fom *fom)
 {
-        struct addb_fom *addb_fom = container_of(fom, struct addb_fom, af_fom);
+	struct addb_fom *addb_fom = container_of(fom, struct addb_fom, af_fom);
 
 	m0_fom_fini(fom);
 	m0_free(addb_fom);

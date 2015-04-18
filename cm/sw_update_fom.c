@@ -98,7 +98,7 @@ static struct m0_sm_state_descr cm_sw_update_sd[SWU_NR] = {
 	},
 };
 
-static struct m0_sm_conf cm_sw_update_conf = {
+const static struct m0_sm_conf cm_sw_update_conf = {
 	.scf_name      = "sm: sw update conf",
 	.scf_nr_states = ARRAY_SIZE(cm_sw_update_sd),
 	.scf_state     = cm_sw_update_sd

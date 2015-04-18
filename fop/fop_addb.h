@@ -122,7 +122,7 @@ M0_ADDB_RT_DP(m0_addb_rt_fom_init, M0_ADDB_RECID_FOM_INIT);
  */
 M0_ADDB_RT_DP(m0_addb_rt_fom_fini, M0_ADDB_RECID_FOM_FINI, "transitions");
 
-extern struct m0_sm_conf fom_states_conf;
+M0_EXTERN struct m0_sm_conf fom_states_conf;
 
 /** FOM state statistics counter */
 #if defined(GCC_VERSION) && GCC_VERSION >= 4006

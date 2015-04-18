@@ -580,7 +580,7 @@ static void cobfoms_fsync_create_delete(void)
 	m0_free(fops);
 }
 
-extern struct m0_sm_conf cob_ops_conf;
+extern const struct m0_sm_conf cob_ops_conf;
 
 /*
  * Create COB FOMs - create or delete
@@ -589,7 +589,7 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 {
 	struct m0_fom          *base_fom;
 	struct m0_reqh         *reqh;
-	int		        rc;
+	int                     rc;
 
 	rc = cob_op_fom_create(fom);
 	M0_UT_ASSERT(rc == 0);

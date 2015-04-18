@@ -442,7 +442,7 @@ static struct m0_sm_state_descr rpc_link_conn_state_descr[] = {
 	},
 };
 
-static struct m0_sm_conf rpc_link_conn_sm_conf = {
+static const struct m0_sm_conf rpc_link_conn_sm_conf = {
 	.scf_name      = "rpc_link connection state machine",
 	.scf_nr_states = ARRAY_SIZE(rpc_link_conn_state_descr),
 	.scf_state     = rpc_link_conn_state_descr
@@ -486,7 +486,7 @@ static struct m0_sm_state_descr rpc_link_disc_state_descr[] = {
 	},
 };
 
-static struct m0_sm_conf rpc_link_disc_sm_conf = {
+static const struct m0_sm_conf rpc_link_disc_sm_conf = {
 	.scf_name      = "rpc_link disconnection state machine",
 	.scf_nr_states = ARRAY_SIZE(rpc_link_disc_state_descr),
 	.scf_state     = rpc_link_disc_state_descr

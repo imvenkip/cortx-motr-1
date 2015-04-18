@@ -257,7 +257,7 @@ static struct m0_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
 	},
 };
 
-static struct m0_sm_conf cm_cp_pump_conf = {
+const static struct m0_sm_conf cm_cp_pump_conf = {
 	.scf_name      = "sm: cp pump conf",
 	.scf_nr_states = ARRAY_SIZE(cm_cp_pump_sd),
 	.scf_state     = cm_cp_pump_sd

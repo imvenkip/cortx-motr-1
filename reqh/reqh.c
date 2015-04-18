@@ -126,7 +126,7 @@ static struct m0_sm_state_descr m0_reqh_sm_descr[] = {
 /**
    Request handler state machine configuration.
  */
-static struct m0_sm_conf m0_reqh_sm_conf = {
+static const struct m0_sm_conf m0_reqh_sm_conf = {
 	.scf_name      = "Request Handler States",
 	.scf_nr_states = ARRAY_SIZE(m0_reqh_sm_descr),
 	.scf_state     = m0_reqh_sm_descr,

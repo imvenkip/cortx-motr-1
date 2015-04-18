@@ -48,7 +48,7 @@ M0_INTERNAL void m0_poolmach_fop_fini(void)
 extern struct m0_reqh_service_type m0_ios_type;
 extern const struct m0_fom_type_ops poolmach_fom_type_ops;
 
-extern struct m0_sm_conf poolmach_conf;
+extern const struct m0_sm_conf poolmach_conf;
 extern struct m0_sm_state_descr poolmach_phases[];
 
 M0_INTERNAL int m0_poolmach_fop_init(void)

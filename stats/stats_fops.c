@@ -30,9 +30,9 @@
 #include "stats/stats_fops_xc.h"
 
 extern struct m0_sm_state_descr stats_update_phases[];
-extern struct m0_sm_conf stats_update_fom_sm_conf;
+extern const struct m0_sm_conf stats_update_fom_sm_conf;
 extern struct m0_sm_state_descr stats_query_phases[];
-extern struct m0_sm_conf stats_query_fom_sm_conf;
+extern const struct m0_sm_conf stats_query_fom_sm_conf;
 extern const struct m0_fom_type_ops stats_update_fom_type_ops;
 extern const struct m0_fom_type_ops stats_query_fom_type_ops;
 
@@ -41,11 +41,11 @@ struct m0_fop_type m0_fop_stats_query_fopt;
 struct m0_fop_type m0_fop_stats_query_rep_fopt;
 
 static const struct m0_rpc_item_type_ops stats_update_item_type_ops = {
-        M0_FOP_DEFAULT_ITEM_TYPE_OPS,
+	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
 };
 
 static const struct m0_rpc_item_type_ops stats_query_item_type_ops = {
-        M0_FOP_DEFAULT_ITEM_TYPE_OPS,
+	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
 };
 
 const struct m0_fop_type_ops stats_update_fop_ops;
@@ -54,10 +54,10 @@ const struct m0_fop_type_ops stats_query_fop_ops;
 M0_INTERNAL int m0_stats_fops_init(void)
 {
 #ifndef __KERNEL__
-        m0_sm_conf_extend(m0_generic_conf.scf_state, stats_query_phases,
-                          m0_generic_conf.scf_nr_states);
+	m0_sm_conf_extend(m0_generic_conf.scf_state, stats_query_phases,
+			  m0_generic_conf.scf_nr_states);
 #endif
-        M0_FOP_TYPE_INIT(&m0_fop_stats_update_fopt,
+	M0_FOP_TYPE_INIT(&m0_fop_stats_update_fopt,
 			 .name      = "Stats update fop",
 			 .opcode    = M0_STATS_UPDATE_FOP_OPCODE,
 			 .xt	    = m0_stats_update_fop_xc,

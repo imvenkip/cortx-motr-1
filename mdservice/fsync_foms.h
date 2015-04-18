@@ -31,7 +31,7 @@
  * Configuration of the fsync state machine. Defines the sm's phases
  * and additional information.
  */
-extern struct m0_sm_conf m0_fsync_fom_conf;
+M0_EXTERN struct m0_sm_conf m0_fsync_fom_conf;
 extern struct m0_sm_state_descr m0_fsync_fom_phases[];
 
 /**

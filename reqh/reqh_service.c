@@ -109,7 +109,7 @@ static struct m0_sm_state_descr service_states[] = {
 	},
 };
 
-struct m0_sm_conf service_states_conf = {
+const struct m0_sm_conf service_states_conf = {
 	.scf_name      = "Service states",
 	.scf_nr_states = ARRAY_SIZE(service_states),
 	.scf_state     = service_states

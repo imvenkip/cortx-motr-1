@@ -98,7 +98,7 @@ static struct m0_sm_state_descr trigger_phases[] = {
 	}
 };
 
-struct m0_sm_conf trigger_conf = {
+const struct m0_sm_conf trigger_conf = {
 	.scf_name      = "SNS Trigger",
 	.scf_nr_states = ARRAY_SIZE(trigger_phases),
 	.scf_state     = trigger_phases

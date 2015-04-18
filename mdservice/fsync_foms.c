@@ -104,7 +104,7 @@ static struct m0_sm_trans_descr fsync_fom_phases_trans[] = {
  *	- M0_FOPH_FSYNC_FOM_WAIT: The fom waits on the target transaction until
  *	its state changes to M0_BTS_LOGGED.
  */
-struct m0_sm_conf m0_fsync_fom_conf = {
+M0_INTERNAL struct m0_sm_conf m0_fsync_fom_conf = {
 	.scf_name      = "fsync",
 	.scf_nr_states = ARRAY_SIZE(m0_fsync_fom_phases),
 	.scf_state     = m0_fsync_fom_phases,

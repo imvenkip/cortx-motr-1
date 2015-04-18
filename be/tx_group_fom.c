@@ -130,7 +130,7 @@ static struct m0_sm_state_descr tx_group_fom_states[TGS_NR] = {
 #undef _S
 };
 
-static struct m0_sm_conf tx_group_fom_conf = {
+const static struct m0_sm_conf tx_group_fom_conf = {
 	.scf_name      = "m0_be_tx_group_fom",
 	.scf_nr_states = ARRAY_SIZE(tx_group_fom_states),
 	.scf_state     = tx_group_fom_states,

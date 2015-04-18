@@ -243,7 +243,7 @@ static struct m0_sm_state_descr addb2_fom_phases[] = {
 	}
 };
 
-M0_INTERNAL struct m0_sm_conf m0_addb2__sm_conf = {
+M0_INTERNAL const struct m0_sm_conf m0_addb2__sm_conf = {
 	.scf_name      = "addb2 fom",
 	.scf_nr_states = ARRAY_SIZE(addb2_fom_phases),
 	.scf_state     = addb2_fom_phases

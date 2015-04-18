@@ -209,7 +209,7 @@ enum {
 
 extern struct m0_sm_trans_descr
 m0_generic_phases_trans[M0_FOM_GENERIC_TRANS_NR];
-extern struct m0_sm_conf m0_generic_conf;
+extern const struct m0_sm_conf m0_generic_conf;
 
 /**
    Generic reply.
