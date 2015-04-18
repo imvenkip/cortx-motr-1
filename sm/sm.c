@@ -119,7 +119,13 @@ M0_INTERNAL void m0_sm_asts_run(struct m0_sm_group *grp)
 		M0_ASSERT(ast->sa_next != NULL);
 
 		ast->sa_next = NULL;
-		ast->sa_cb(grp, ast);
+		if (grp->s_addb2 == NULL)
+			ast->sa_cb(grp, ast);
+		else {
+			M0_ADDB2_TIMED(grp->s_addb2->ga_forq,
+				       &grp->s_addb2->ga_forq_counter,
+				       ast->sa_cb, ast->sa_cb(grp, ast));
+		}
 	}
 }
 
@@ -743,7 +749,8 @@ int m0_sm_group_call(struct m0_sm_group *group, int (*cb)(void *), void *data)
 	return sc.sc_output;
 }
 
-static int sm_addb2_ctor(struct m0_sm_addb2_stats *stats, struct m0_sm_conf *c)
+static int sm_addb2_ctor(struct m0_sm_addb2_stats *stats,
+			 const struct m0_sm_conf *c)
 {
 	int i;
 
@@ -756,7 +763,8 @@ static int sm_addb2_ctor(struct m0_sm_addb2_stats *stats, struct m0_sm_conf *c)
 	return 0;
 }
 
-static void sm_addb2_dtor(struct m0_sm_addb2_stats *stats, struct m0_sm_conf *c)
+static void sm_addb2_dtor(struct m0_sm_addb2_stats *stats,
+			  const struct m0_sm_conf *c)
 {
 	int i;
 
@@ -785,6 +793,15 @@ M0_INTERNAL int m0_sm_addb2_init(struct m0_sm_conf *conf,
 		result = 0;
 	}
 	return result;
+}
+
+M0_INTERNAL bool m0_sm_addb2_counter_init(struct m0_sm *sm)
+{
+	const struct m0_sm_conf *conf = sm->sm_conf;
+
+	if (conf->scf_addb2_key > 0)
+		sm->sm_addb2_stats = m0_locality_data(conf->scf_addb2_key - 1);
+	return conf->scf_addb2_key > 0;
 }
 
 /** @} end of sm group */

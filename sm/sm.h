@@ -155,13 +155,13 @@ void event_X(struct foo *f)
 @code
 int X_in(struct m0_sm *mach)
 {
-        struct foo *f = container_of(mach, struct foo, f_sm);
+	struct foo *f = container_of(mach, struct foo, f_sm);
 	// group lock is held.
 	process_X(f);
 	return NEXT_STATE;
 }
 
-struct m0_sm_conf foo_sm_conf = {
+const struct m0_sm_conf foo_sm_conf = {
 	...
 	.scf_state = foo_sm_states
 };
@@ -276,6 +276,7 @@ struct m0_sm_conf;
 struct m0_sm_group;
 struct m0_sm_ast;
 struct m0_sm_addb2_stats;
+struct m0_sm_group_addb2;
 
 /* import */
 struct m0_timer;
@@ -507,10 +508,11 @@ struct m0_sm_ast {
 };
 
 struct m0_sm_group {
-	struct m0_mutex   s_lock;
-	struct m0_clink   s_clink;
-	struct m0_sm_ast *s_forkq;
-	struct m0_chan    s_chan;
+	struct m0_mutex           s_lock;
+	struct m0_clink           s_clink;
+	struct m0_sm_ast         *s_forkq;
+	struct m0_chan            s_chan;
+	struct m0_sm_group_addb2 *s_addb2;
 };
 
 /**
@@ -831,8 +833,15 @@ struct m0_sm_addb2_stats {
 	struct m0_addb2_counter as_counter[0];
 };
 
+struct m0_sm_group_addb2 {
+	uint64_t                ga_forq;
+	struct m0_addb2_counter ga_forq_counter;
+};
+
 M0_INTERNAL int m0_sm_addb2_init(struct m0_sm_conf *conf,
 				 uint64_t id, uint64_t counter);
+
+M0_INTERNAL bool m0_sm_addb2_counter_init(struct m0_sm *sm);
 
 /** @} end of sm group */
 #endif /* __MERO_SM_SM_H__ */
