@@ -27,6 +27,7 @@
 #include "lib/mutex.h"
 #include "lib/time.h"
 #include "lib/semaphore.h"
+#include "addb2/counter.h"
 
 /**
    @defgroup chan Waiting channels
@@ -162,6 +163,7 @@
 
 struct m0_chan;
 struct m0_clink;
+struct m0_chan_addb2;
 
 /**
    Clink call-back called when event is delivered to the clink. The call-back
@@ -224,12 +226,13 @@ typedef bool (*m0_chan_cb_t)(struct m0_clink *link);
  */
 struct m0_chan {
 	/** Protecting lock, should be provided by user. */
-	struct m0_mutex *ch_guard;
+	struct m0_mutex      *ch_guard;
 	/** List of registered clinks. */
-	struct m0_tl     ch_links;
+	struct m0_tl          ch_links;
 	/** Number of clinks in m0_chan::ch_links. This is used to speed up
 	    m0_chan_broadcast(). */
-	uint32_t         ch_waiters;
+	uint32_t              ch_waiters;
+	struct m0_chan_addb2 *ch_addb2;
 };
 
 /**
@@ -411,6 +414,14 @@ M0_INTERNAL bool m0_chan_trywait(struct m0_clink *link);
  */
 M0_INTERNAL bool m0_chan_timedwait(struct m0_clink *link,
 				   const m0_time_t abs_timeout);
+
+struct m0_chan_addb2 {
+	uint64_t                ca_wait;
+	uint64_t                ca_cb;
+	struct m0_addb2_counter ca_wait_counter;
+	struct m0_addb2_counter ca_cb_counter;
+	struct m0_addb2_counter ca_queue_counter;
+};
 
 /** @} end of chan group */
 #endif /* __MERO_LIB_CHAN_H__ */

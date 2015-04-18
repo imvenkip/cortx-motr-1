@@ -22,6 +22,8 @@
 #include "lib/errno.h"
 #include "lib/chan.h"
 #include "lib/assert.h"
+#include "addb2/addb2.h"
+#include "addb2/counter.h"
 #include "mero/magic.h"
 
 /**
@@ -120,15 +122,20 @@ M0_EXPORTED(m0_chan_fini_lock);
 
 static void clink_signal(struct m0_clink *clink)
 {
-	struct m0_clink *grp      = clink->cl_group;
-	bool             consumed = false;
+	struct m0_clink      *grp      = clink->cl_group;
+	struct m0_chan_addb2 *ca       = clink->cl_chan->ch_addb2;
+	bool                  consumed = false;
 
 	if (clink->cl_is_oneshot)
 		m0_clink_del(clink);
-
 	if (clink->cl_cb != NULL) {
 		m0_enter_awkward();
-		consumed = clink->cl_cb(clink);
+		if (ca == NULL)
+			consumed = clink->cl_cb(clink);
+		else
+			M0_ADDB2_TIMED(ca->ca_cb, &ca->ca_cb_counter,
+				       clink->cl_cb,
+				       consumed = clink->cl_cb(clink));
 		m0_exit_awkward();
 	}
 	if (!consumed)
@@ -235,6 +242,9 @@ M0_INTERNAL void m0_clink_add(struct m0_chan *chan, struct m0_clink *link)
 	M0_ASSERT(m0_chan_invariant(chan));
 	chan->ch_waiters++;
 	clink_tlist_add_tail(&chan->ch_links, link);
+	if (chan->ch_addb2 != NULL)
+		m0_addb2_counter_mod(&chan->ch_addb2->ca_queue_counter,
+				     chan->ch_waiters);
 	M0_ASSERT(m0_chan_invariant(chan));
 
 	M0_POST(m0_clink_is_armed(link));
@@ -266,6 +276,9 @@ M0_INTERNAL void m0_clink_del(struct m0_clink *link)
 	M0_ASSERT(chan->ch_waiters > 0);
 	chan->ch_waiters--;
 	clink_tlist_del(link);
+	if (chan->ch_addb2 != NULL)
+		m0_addb2_counter_mod(&chan->ch_addb2->ca_queue_counter,
+				     chan->ch_waiters);
 	M0_ASSERT(m0_chan_invariant(chan));
 
 	link->cl_chan = NULL;
@@ -303,14 +316,32 @@ M0_INTERNAL bool m0_chan_trywait(struct m0_clink *link)
 
 M0_INTERNAL void m0_chan_wait(struct m0_clink *link)
 {
-	m0_semaphore_down(&link->cl_group->cl_wait);
+	struct m0_chan_addb2 *ca = link->cl_chan->ch_addb2;
+
+	if (ca == NULL)
+		m0_semaphore_down(&link->cl_group->cl_wait);
+	else
+		M0_ADDB2_TIMED(ca->ca_wait, &ca->ca_wait_counter,
+			       __builtin_return_address(0),
+			       m0_semaphore_down(&link->cl_group->cl_wait));
 }
 M0_EXPORTED(m0_chan_wait);
 
 M0_INTERNAL bool m0_chan_timedwait(struct m0_clink *link,
 				   const m0_time_t abs_timeout)
 {
-	return m0_semaphore_timeddown(&link->cl_group->cl_wait, abs_timeout);
+	struct m0_chan_addb2 *ca = link->cl_chan->ch_addb2;
+	bool                  got;
+
+	if (ca == NULL)
+		got = m0_semaphore_timeddown(&link->cl_group->cl_wait,
+					     abs_timeout);
+	else
+		M0_ADDB2_TIMED(ca->ca_wait, &ca->ca_wait_counter,
+		       __builtin_return_address(0),
+		       got = m0_semaphore_timeddown(&link->cl_group->cl_wait,
+						    abs_timeout));
+	return got;
 }
 M0_EXPORTED(m0_chan_timedwait);
 
