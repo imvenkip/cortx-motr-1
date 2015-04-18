@@ -31,7 +31,7 @@ M0_INTERNAL void m0_sns_cpx_init(struct m0_fop_type *ft, enum M0_RPC_OPCODES op,
 				 const struct m0_xcode_type *xt,
 				 uint64_t rpc_flags, struct m0_cm_type *cmt)
 {
-        M0_FOP_TYPE_INIT(ft,
+	M0_FOP_TYPE_INIT(ft,
 			 .name      = name,
 			 .opcode    = op,
 			 .xt        = xt,
@@ -43,7 +43,7 @@ M0_INTERNAL void m0_sns_cpx_init(struct m0_fop_type *ft, enum M0_RPC_OPCODES op,
 
 M0_INTERNAL void m0_sns_cpx_fini(struct m0_fop_type *ft)
 {
-        m0_fop_type_fini(ft);
+	m0_fop_type_fini(ft);
 }
 
 /*

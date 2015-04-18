@@ -96,8 +96,8 @@ static void service_start_success(void)
 {
 	int rc;
 
-        rc = cs_init(&sctx);
-        M0_ASSERT(rc == 0);
+	rc = cs_init(&sctx);
+	M0_ASSERT(rc == 0);
 	cs_fini(&sctx);
 }
 
@@ -106,8 +106,8 @@ static void service_init_failure(void)
 	int rc;
 
 	m0_fi_enable_once("m0_cm_init", "init_failure");
-        rc = cs_init(&sctx);
-        M0_ASSERT(rc != 0);
+	rc = cs_init(&sctx);
+	M0_ASSERT(rc != 0);
 }
 
 static void service_start_failure(void)
@@ -115,8 +115,8 @@ static void service_start_failure(void)
 	int rc;
 
 	m0_fi_enable_once("m0_cm_setup", "setup_failure");
-        rc = cs_init(&sctx);
-        M0_ASSERT(rc != 0);
+	rc = cs_init(&sctx);
+	M0_ASSERT(rc != 0);
 }
 
 static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
@@ -153,8 +153,8 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 {
 	int rc;
 
-        rc = cs_init(&sctx);
-        M0_ASSERT(rc == 0);
+	rc = cs_init(&sctx);
+	M0_ASSERT(rc == 0);
 
 	reqh = m0_cs_reqh_get(&sctx);
 	service = m0_reqh_service_find(m0_reqh_service_type_find("sns_repair"),
