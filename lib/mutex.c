@@ -20,7 +20,7 @@
 
 
 /**
-   @addtogroup mutex
+ * @addtogroup mutex
  *
  * @{
  */
