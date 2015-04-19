@@ -216,9 +216,9 @@ static void timer_locality_test(int nr_timers,
 {
 	int                      i;
 	int                      rc;
-	struct m0_timer		*timers;
-	struct m0_timer_locality loc;
-	int			 time;
+	struct m0_timer         *timers;
+	struct m0_timer_locality loc = {};
+	int                      time;
 
 	M0_ALLOC_ARR(timers, nr_timers);
 	M0_UT_ASSERT(timers != NULL);

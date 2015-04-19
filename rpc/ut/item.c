@@ -702,13 +702,13 @@ static void test_item_cache_add_nth(struct m0_rpc_item_cache *ic,
 
 static void test_item_cache(void)
 {
-	struct m0_rpc_item_cache  ic;
-	struct m0_rpc_machine	  rmach = {};
-	struct m0_rpc_item	 *items;
-	struct m0_mutex		  lock;
-	int			  items_nr;
-	int			  n;
-	int			  i;
+	struct m0_rpc_item_cache  ic = {};
+	struct m0_rpc_machine     rmach = {};
+	struct m0_rpc_item       *items;
+	struct m0_mutex           lock = {};
+	int                       items_nr;
+	int                       n;
+	int                       i;
 
 	M0_ALLOC_ARR(items, M0_RPC_ITEM_CACHE_ITEMS_NR_MAX);
 	M0_UT_ASSERT(items != NULL);

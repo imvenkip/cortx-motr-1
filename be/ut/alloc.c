@@ -54,8 +54,8 @@ static struct be_ut_alloc_thread_state be_ut_ts[BE_UT_ALLOC_THR_NR];
 
 M0_INTERNAL void m0_be_ut_alloc_init_fini(void)
 {
-	struct m0_be_ut_seg    ut_seg;
-	struct m0_be_allocator a;
+	struct m0_be_ut_seg    ut_seg = {};
+	struct m0_be_allocator a      = {};
 	int		       rc;
 
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_ALLOC_SEG_SIZE);

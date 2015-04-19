@@ -1239,9 +1239,9 @@ static bool node_bulk_bufs_unused_all(struct node_bulk_ctx *ctx)
 
 static void node_bulk_worker(struct node_bulk_ctx *ctx)
 {
-	struct m0_clink	tm_clink;
-	struct m0_chan	tm_chan;
-	struct m0_mutex tm_chan_mutex;
+	struct m0_clink tm_clink;
+	struct m0_chan  tm_chan = {};
+	struct m0_mutex tm_chan_mutex = {};
 	bool		pending;
 	bool		running;
 

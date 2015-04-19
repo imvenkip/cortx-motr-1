@@ -251,7 +251,7 @@ static void misc_test(struct m0_confc *confc)
 static void confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
 		       const char *conf_str)
 {
-	struct m0_confc     confc;
+	struct m0_confc     confc = {};
 	struct m0_conf_obj *nodes_dir;
 	int                 rc;
 
@@ -270,7 +270,7 @@ static void confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
 
 static void test_confc_local(void)
 {
-	struct m0_confc     confc;
+	struct m0_confc     confc = {};
 	struct m0_conf_obj *obj;
 	int                 rc;
 
@@ -335,7 +335,7 @@ static void test_confc_net(void)
 
 static void test_confc_invalid_input(void)
 {
-	struct m0_confc confc;
+	struct m0_confc confc = {};
 	int             rc;
 
 	rc = m0_ut_file_read(M0_CONF_UT_PATH("duplicated-ids.txt"),
