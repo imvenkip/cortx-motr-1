@@ -110,6 +110,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/user_space/ucookie.c \
                            lib/user_space/ugetopts.c \
                            lib/user_space/umisc.c \
+                           lib/user_space/umutex.c \
                            lib/user_space/uthread.c \
                            lib/user_space/utime.c \
                            lib/user_space/utrace.c \

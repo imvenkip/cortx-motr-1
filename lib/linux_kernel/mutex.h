@@ -32,7 +32,7 @@
    @{
  */
 
-struct m0_mutex {
+struct m0_arch_mutex {
 	struct mutex m_mutex;
 };
 

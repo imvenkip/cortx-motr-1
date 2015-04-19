@@ -24,6 +24,7 @@
 #define __MERO_LIB_MUTEX_H__
 
 #include "lib/types.h"
+#include "addb2/counter.h"
 
 /**
    @defgroup mutex Mutual exclusion synchronisation object
@@ -36,7 +37,16 @@
 #include "lib/linux_kernel/mutex.h"
 #endif
 
-/* struct m0_mutex is defined by headers above. */
+/* struct m0_arch_mutex is defined by headers above. */
+
+struct m0_mutex_addb2;
+struct m0_thread;
+
+struct m0_mutex {
+	struct m0_arch_mutex   m_arch;
+	struct m0_thread      *m_owner;
+	struct m0_mutex_addb2 *m_addb2;
+};
 
 M0_INTERNAL void m0_mutex_init(struct m0_mutex *mutex);
 M0_INTERNAL void m0_mutex_fini(struct m0_mutex *mutex);
@@ -76,12 +86,24 @@ M0_INTERNAL bool m0_mutex_is_locked(const struct m0_mutex *mutex);
    True iff mutex is not locked by the calling thread.
 
    @note this function can be used only in assertions.
-
-   @note that this function is *not* necessary equivalent to
-   !m0_mutex_is_locked(mutex).
  */
 M0_INTERNAL bool m0_mutex_is_not_locked(const struct m0_mutex *mutex);
 
+struct m0_mutex_addb2 {
+	m0_time_t               ma_taken;
+	struct m0_addb2_counter ma_hold;
+	struct m0_addb2_counter ma_wait;
+};
+
+/*
+ * Arch functions, implemented in lib/$ARCH/?mutex.c.
+ */
+
+M0_INTERNAL void m0_arch_mutex_init   (struct m0_arch_mutex *mutex);
+M0_INTERNAL void m0_arch_mutex_fini   (struct m0_arch_mutex *mutex);
+M0_INTERNAL void m0_arch_mutex_lock   (struct m0_arch_mutex *mutex);
+M0_INTERNAL void m0_arch_mutex_unlock (struct m0_arch_mutex *mutex);
+M0_INTERNAL int  m0_arch_mutex_trylock(struct m0_arch_mutex *mutex);
 
 /** @} end of mutex group */
 

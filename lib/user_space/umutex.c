@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,30 +15,47 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 08/05/2010
+ * Original creation date: 05/13/2010
  */
 
-#pragma once
-
-#ifndef __MERO_LIB_USER_SPACE_MUTEX_H__
-#define __MERO_LIB_USER_SPACE_MUTEX_H__
-
-#include <pthread.h>
+#include "lib/misc.h"   /* M0_SET0 */
+#include "lib/mutex.h"
+#include "lib/assert.h"
 
 /**
    @addtogroup mutex
 
-   <b>User space mutex.</b>
+   Implementation of m0_arch_mutex on top of pthread_mutex_t.
+
    @{
 */
 
-struct m0_arch_mutex {
-	/* POSIX mutex. */
-	pthread_mutex_t m_impl;
-};
+M0_INTERNAL void m0_arch_mutex_init(struct m0_arch_mutex *mutex)
+{
+	pthread_mutex_init(&mutex->m_impl, NULL);
+}
+
+M0_INTERNAL void m0_arch_mutex_fini(struct m0_arch_mutex *mutex)
+{
+	pthread_mutex_destroy(&mutex->m_impl);
+}
+
+M0_INTERNAL void m0_arch_mutex_lock(struct m0_arch_mutex *mutex)
+{
+	pthread_mutex_lock(&mutex->m_impl);
+}
+
+M0_INTERNAL void m0_arch_mutex_unlock(struct m0_arch_mutex *mutex)
+{
+	pthread_mutex_unlock(&mutex->m_impl);
+}
+
+M0_INTERNAL int m0_arch_mutex_trylock(struct m0_arch_mutex *mutex)
+{
+	return pthread_mutex_trylock(&mutex->m_impl);
+}
 
 /** @} end of mutex group */
-#endif /* __MERO_LIB_USER_SPACE_MUTEX_H__ */
 
 /*
  *  Local variables:

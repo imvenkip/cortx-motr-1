@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,83 +14,91 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 05/13/2010
+ * Original author: Nikita Danilov <nikita.danilov@seagate.com>
+ * Original creation date: 18-Apr-2015
  */
 
-#include "lib/misc.h"   /* M0_SET0 */
-#include "lib/mutex.h"
-#include "lib/assert.h"
 
 /**
    @addtogroup mutex
+ *
+ * @{
+ */
 
-   Implementation of m0_mutex on top of pthread_mutex_t.
-
-   @{
-*/
-
-static void mutex_owner_reset(struct m0_mutex *mutex)
-{
-	M0_SET0(&mutex->m_owner);
-}
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/mutex.h"
+#include "lib/thread.h"               /* m0_thread_self */
+#include "lib/misc.h"                 /* M0_IS0 */
 
 M0_INTERNAL void m0_mutex_init(struct m0_mutex *mutex)
 {
-	pthread_mutex_init(&mutex->m_impl, NULL);
-	mutex_owner_reset(mutex);
+	M0_SET0(mutex);
+	m0_arch_mutex_init(&mutex->m_arch);
 }
+M0_EXPORTED(m0_mutex_init);
 
 M0_INTERNAL void m0_mutex_fini(struct m0_mutex *mutex)
 {
-	pthread_mutex_destroy(&mutex->m_impl);
+	M0_PRE(mutex->m_owner == NULL);
+	m0_arch_mutex_fini(&mutex->m_arch);
 }
+M0_EXPORTED(m0_mutex_fini);
 
 M0_INTERNAL void m0_mutex_lock(struct m0_mutex *mutex)
 {
-	pthread_t self;
-
-	self = pthread_self();
-	M0_PRE(!pthread_equal(mutex->m_owner, self));
-	pthread_mutex_lock(&mutex->m_impl);
-	memcpy(&mutex->m_owner, &self, sizeof self);
+	M0_PRE(m0_mutex_is_not_locked(mutex));
+	if (mutex->m_addb2 == NULL)
+		m0_arch_mutex_lock(&mutex->m_arch);
+	else {
+		M0_ADDB2_TIMED(0, &mutex->m_addb2->ma_wait,
+			       __builtin_return_address(0),
+			       m0_arch_mutex_lock(&mutex->m_arch));
+		mutex->m_addb2->ma_taken = m0_time_now();
+	}
+	M0_ASSERT(mutex->m_owner == NULL);
+	mutex->m_owner = m0_thread_self();
 }
+M0_EXPORTED(m0_mutex_lock);
 
 M0_INTERNAL void m0_mutex_unlock(struct m0_mutex *mutex)
 {
-	pthread_t self;
-
-	self = pthread_self();
-	M0_PRE(pthread_equal(mutex->m_owner, self));
-	mutex_owner_reset(mutex);
-	pthread_mutex_unlock(&mutex->m_impl);
+	M0_PRE(m0_mutex_is_locked(mutex));
+	mutex->m_owner = NULL;
+	if (mutex->m_addb2 != NULL) {
+		m0_addb2_counter_mod_with(&mutex->m_addb2->ma_hold,
+				  m0_time_now() - mutex->m_addb2->ma_taken,
+				  (uint64_t)__builtin_return_address(0));
+	}
+	m0_arch_mutex_unlock(&mutex->m_arch);
 }
+M0_EXPORTED(m0_mutex_unlock);
 
 M0_INTERNAL int m0_mutex_trylock(struct m0_mutex *mutex)
 {
-	pthread_t self;
-	int ret;
-
-	self = pthread_self();
-	M0_PRE(!pthread_equal(mutex->m_owner, self));
-	ret = pthread_mutex_trylock(&mutex->m_impl);
-	if (ret == 0)
-		memcpy(&mutex->m_owner, &self, sizeof self);
-
-	return ret;
+	int try = m0_arch_mutex_trylock(&mutex->m_arch);
+	if (try == 0) {
+		M0_ASSERT(mutex->m_owner == NULL);
+		mutex->m_owner = m0_thread_self();
+	}
+	return try;
 }
+M0_EXPORTED(m0_mutex_trylock);
 
 M0_INTERNAL bool m0_mutex_is_locked(const struct m0_mutex *mutex)
 {
-	return pthread_equal(mutex->m_owner, pthread_self());
+	return mutex->m_owner == m0_thread_self();
 }
+M0_EXPORTED(m0_mutex_is_locked);
 
 M0_INTERNAL bool m0_mutex_is_not_locked(const struct m0_mutex *mutex)
 {
-	return !pthread_equal(mutex->m_owner, pthread_self());
+	return mutex->m_owner != m0_thread_self();
 }
+M0_EXPORTED(m0_mutex_is_not_locked);
 
-/** @} end of mutex group */
+#undef M0_TRACE_SUBSYSTEM
+
+/** @} end of XXX group */
 
 /*
  *  Local variables:
@@ -100,4 +108,7 @@ M0_INTERNAL bool m0_mutex_is_not_locked(const struct m0_mutex *mutex)
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */
