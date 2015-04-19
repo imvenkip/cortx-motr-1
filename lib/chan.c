@@ -52,9 +52,8 @@
    @{
  */
 
-M0_TL_DESCR_DEFINE(clink,
-		   "chan clinks", static, struct m0_clink, cl_linkage,	cl_magic,
-		   M0_LIB_CHAN_MAGIC, M0_LIB_CHAN_HEAD_MAGIC);
+M0_TL_DESCR_DEFINE(clink, "chan clinks", static, struct m0_clink, cl_linkage,
+		   cl_magic, M0_LIB_CHAN_MAGIC, M0_LIB_CHAN_HEAD_MAGIC);
 
 M0_TL_DEFINE(clink, static, struct m0_clink);
 
@@ -280,11 +279,12 @@ M0_INTERNAL void m0_clink_del(struct m0_clink *link)
 		m0_addb2_counter_mod(&chan->ch_addb2->ca_queue_counter,
 				     chan->ch_waiters);
 	M0_ASSERT(m0_chan_invariant(chan));
-
-	link->cl_chan = NULL;
 	if (clink_is_head(link))
 		m0_semaphore_fini(&link->cl_wait);
-
+	/*
+	 * Do not zero link->cl_chan: for one-short clinks channel should be
+	 * still valid at the time of m0_chan_wait() call.
+	 */
 	M0_POST(!m0_clink_is_armed(link));
 }
 M0_EXPORTED(m0_clink_del);
@@ -301,7 +301,8 @@ M0_EXPORTED(m0_clink_del_lock);
 
 M0_INTERNAL bool m0_clink_is_armed(const struct m0_clink *link)
 {
-	return link->cl_chan != NULL;
+	return  link->cl_linkage.t_link.ll_next != NULL &&
+		m0_list_link_is_in(&link->cl_linkage.t_link);
 }
 
 M0_INTERNAL void m0_clink_signal(struct m0_clink *clink)
