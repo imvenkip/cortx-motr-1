@@ -50,6 +50,7 @@ static ssize_t read_lnet_ut(struct file *file, char __user *buffer, size_t len,
 {
 	char code;
 	int  rc;
+	M0_THREAD_ENTER;
 
 	m0_semaphore_down(&ktest_sem);
 
@@ -75,6 +76,7 @@ static ssize_t read_lnet_ut(struct file *file, char __user *buffer, size_t len,
 static int read_lnet_ut(char *page, char **start, off_t off,
 			int count, int *eof, void *data)
 {
+	M0_THREAD_ENTER;
 	m0_semaphore_down(&ktest_sem);
 
 	/* page[PAGE_SIZE] and simpleminded proc file */
@@ -107,6 +109,7 @@ static int write_lnet_ut(struct file *file, const char __user *buffer,
 #endif
 {
 	char buf[UT_PROC_WRITE_SIZE];
+	M0_THREAD_ENTER;
 
 	if (count >= UT_PROC_WRITE_SIZE) {
 		printk("%s: writing wrong size %ld to proc file, max %d\n",

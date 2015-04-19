@@ -226,6 +226,7 @@ static void m0t1fs_inode_fini(struct m0t1fs_inode *ci)
 M0_INTERNAL struct inode *m0t1fs_alloc_inode(struct super_block *sb)
 {
 	struct m0t1fs_inode *ci;
+	M0_THREAD_ENTER;
 
 	M0_ENTRY("sb: %p", sb);
 
@@ -234,7 +235,6 @@ M0_INTERNAL struct inode *m0t1fs_alloc_inode(struct super_block *sb)
 		M0_LEAVE("inode: %p", NULL);
 		return NULL;
 	}
-
 	m0t1fs_inode_init(ci);
 
 	M0_LEAVE("inode: %p", &ci->ci_inode);
