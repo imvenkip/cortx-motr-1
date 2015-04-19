@@ -521,9 +521,19 @@ static void stor_update(struct m0_addb2_storage *stor,
  */
 static int frame_try(struct frame *frame)
 {
+
+#define PLACE(cur, obj, count)				\
+do {							\
+	M0_PRE(M0_IS_8ALIGNED(cur));			\
+	size_t __nob = (count) * sizeof *(obj);	\
+	memcpy((cur), (obj), __nob);			\
+	(cur) += __nob;				\
+	M0_POST(M0_IS_8ALIGNED(cur));			\
+} while (0)
+
 	struct m0_addb2_frame_header *h    = &frame->f_header;
 	struct m0_addb2_storage      *stor = frame->f_stor;
-	struct m0_bufvec_cursor       cursor;
+	void                         *cur;
 	int                           result;
 	int                           i;
 
@@ -537,19 +547,13 @@ static int frame_try(struct frame *frame)
 	h->he_prev_offset = stor->as_prev_offset;
 	frame->f_block_count = h->he_size;
 	frame->f_block_index = h->he_offset;
-	m0_bufvec_cursor_init(&cursor, &frame->f_io.si_user);
-	result = m0_xcode_encdec(HEADER_XO(h), &cursor, M0_XCODE_ENCODE);
-	if (result != 0) {
-		M0_LOG(M0_ERROR, "Header encode: %i.", result);
-		return M0_ERR(result);
-	}
+	cur = frame->f_area;
+	PLACE(cur, h, 1);
 	for (i = 0; i < h->he_trace_nr; ++i) {
-		result = m0_xcode_encdec(TRACE_XO(frame->f_trace[i]),
-					 &cursor, M0_XCODE_ENCODE);
-		if (result != 0) {
-			M0_LOG(M0_ERROR, "Trace encode: %i.", result);
-			return M0_ERR(result);
-		}
+		struct m0_addb2_trace *tr = frame->f_trace[i];
+
+		PLACE(cur, &tr->tr_nr, 1);
+		PLACE(cur, tr->tr_body, tr->tr_nr);
 	}
 	frame_io_pack(frame);
 	frame->f_io.si_obj = NULL;
@@ -559,6 +563,7 @@ static int frame_try(struct frame *frame)
 		M0_LOG(M0_ERROR, "Failed to launch: %i.", M0_ERR(result));
 	}
 	return M0_RC(result);
+#undef PLACE
 }
 
 /** Returns current frame. */
