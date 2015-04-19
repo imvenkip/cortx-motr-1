@@ -29,7 +29,8 @@
  * @{
  */
 
-struct m0_addb2_conf;
+struct m0_addb2_sys;
+struct m0_addb2_counter;
 
 M0_INTERNAL int  m0_addb2_global_init(void);
 M0_INTERNAL void m0_addb2_global_fini(void);

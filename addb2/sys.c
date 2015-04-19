@@ -41,6 +41,7 @@
 #include "addb2/addb2.h"
 #include "addb2/storage.h"
 #include "addb2/net.h"
+#include "addb2/identifier.h"
 #include "addb2/internal.h"
 #include "addb2/sys.h"
 
@@ -63,6 +64,8 @@ struct m0_addb2_sys {
 	struct m0_chan           sy_astwait;
 	struct m0_thread        *sy_owner;
 	unsigned                 sy_nesting;
+	struct m0_mutex_addb2    sy_lock_stats;
+	struct m0_list           sy_counters;
 };
 
 static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
@@ -104,6 +107,12 @@ int m0_addb2_sys_init(struct m0_addb2_sys **out,
 		mach_tlist_init(&sys->sy_granted);
 		mach_tlist_init(&sys->sy_moribund);
 		mach_tlist_init(&sys->sy_deathrow);
+		m0_list_init(&sys->sy_counters);
+		m0_addb2_sys_counter_add(sys, &sys->sy_lock_stats.ma_hold,
+					 M0_AVI_ADDB2_SYS_LOCK_HOLD);
+		m0_addb2_sys_counter_add(sys, &sys->sy_lock_stats.ma_wait,
+					 M0_AVI_ADDB2_SYS_LOCK_WAIT);
+		sys->sy_lock.m_addb2 = &sys->sy_lock_stats;
 		*out = sys;
 		result = 0;
 	} else
@@ -157,6 +166,7 @@ void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
 	tr_tlist_fini(&sys->sy_queue);
 	m0_semaphore_fini(&sys->sy_wait);
 	m0_mutex_fini(&sys->sy_lock);
+	/* Do not finalise &sys->sy_counters: can be non-empty. */
 	m0_free(sys);
 }
 
@@ -322,6 +332,16 @@ void m0_addb2_sys_detach(struct m0_addb2_sys *sys)
 	sys_unlock(sys);
 }
 
+void m0_addb2_sys_counter_add(struct m0_addb2_sys *sys,
+			      struct m0_addb2_counter *counter, uint64_t id)
+{
+	counter->co_sensor.s_id = id;
+	sys_lock(sys);
+	m0_list_add_tail(&sys->sy_counters,
+			 &counter->co_sensor.s_linkage.t_link);
+	sys_unlock(sys);
+}
+
 static void sys_balance(struct m0_addb2_sys *sys)
 {
 	struct m0_addb2_trace_obj *obj;
@@ -411,6 +431,20 @@ static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	if (M0_FI_ENABLED("trap") && m0_addb2__sys_ast_trap != NULL)
 		m0_addb2__sys_ast_trap(sys);
 	sys_lock(sys);
+	/*
+	 * Add counters one by one, trying to distribute them across localities.
+	 */
+	if (!m0_list_is_empty(&sys->sy_counters)) {
+		struct m0_addb2_counter *counter;
+		uint64_t                 id;
+
+		counter = M0_AMB(counter, m0_list_first(&sys->sy_counters),
+				 co_sensor.s_linkage.t_link);
+		id = counter->co_sensor.s_id;
+		m0_list_del(&counter->co_sensor.s_linkage.t_link);
+		M0_SET0(counter);
+		m0_addb2_counter_add(counter, id, -1);
+	}
 	sys_balance(sys);
 	sys->sy_outstanding--;
 	m0_chan_signal(&sys->sy_astwait);
@@ -471,9 +505,10 @@ static bool sys_invariant(const struct m0_addb2_sys *sys)
 	return  _0C(m0_mutex_is_locked(&sys->sy_lock)) &&
 		_0C(sys->sy_nesting > 0) &&
 		_0C(sys->sy_queued <= sys->sy_conf.co_queue_max) &&
-		_0C(sys->sy_queued == m0_tl_reduce(tr, t, &sys->sy_queue,
-						   0, + t->o_tr.tr_nr)) &&
-		_0C(sys_size(sys) == sys->sy_total) &&
+		_0C(M0_CHECK_EX(sys->sy_queued == m0_tl_reduce(tr, t,
+						       &sys->sy_queue,
+						       0, + t->o_tr.tr_nr))) &&
+		_0C(M0_CHECK_EX(sys_size(sys) == sys->sy_total)) &&
 		_0C(sys->sy_total <= sys->sy_conf.co_pool_max);
 }
 

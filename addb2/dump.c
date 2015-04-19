@@ -436,6 +436,8 @@ struct id_intrp ids[] = {
 							&skip, &_clock } },
 	{ M0_AVI_RPC_IN_PHASE,    "rpc-in-phase",    { &rpc_in,
 						       &skip, &_clock } },
+	{ M0_AVI_ADDB2_SYS_LOCK_HOLD, "sys-lock-hold", { COUNTER } },
+	{ M0_AVI_ADDB2_SYS_LOCK_WAIT, "sys-lock-wait", { COUNTER } },
 	{ M0_AVI_FOP_TYPES_RANGE_START,   "",
 	  .ii_repeat = M0_AVI_FOP_TYPES_RANGE_END-M0_AVI_FOP_TYPES_RANGE_START,
 	  .ii_spec   = &fop_counter },

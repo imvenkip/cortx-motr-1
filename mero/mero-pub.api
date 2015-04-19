@@ -49,6 +49,7 @@ m0_addb2_sit_source
 m0_addb2_source_fini
 m0_addb2_source_init
 m0_addb2_sys_attach
+m0_addb2_sys_counter_add
 m0_addb2_sys_detach
 m0_addb2_sys_fini
 m0_addb2_sys_get

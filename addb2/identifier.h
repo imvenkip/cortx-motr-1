@@ -91,6 +91,9 @@ enum m0_addb2_value_id {
 	M0_AVI_IOS_RANGE_START     = 0x6000,
 	M0_AVI_STOB_RANGE_START    = 0x7000,
 	M0_AVI_RPC_RANGE_START     = 0x8000,
+	M0_AVI_ADDB2_RANGE_START   = 0x9000,
+	M0_AVI_ADDB2_SYS_LOCK_HOLD,
+	M0_AVI_ADDB2_SYS_LOCK_WAIT,
 
 	/**
 	 * Reserve a range of identifiers for per-fop-type per-locality

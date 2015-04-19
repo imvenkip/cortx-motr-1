@@ -75,6 +75,9 @@ int m0_addb2_sys_submit(struct m0_addb2_sys *sys,
 void m0_addb2_sys_attach(struct m0_addb2_sys *sys, struct m0_addb2_sys *src);
 void m0_addb2_sys_detach(struct m0_addb2_sys *sys);
 
+void m0_addb2_sys_counter_add(struct m0_addb2_sys *sys,
+			      struct m0_addb2_counter *counter, uint64_t id);
+
 
 /** @} end of addb2 group */
 #endif /* __MERO_ADDB2_SYS_H__ */
