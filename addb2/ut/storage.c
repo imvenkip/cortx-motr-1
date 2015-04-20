@@ -355,7 +355,7 @@ static void frame_fill(void)
 
 	while (last.he_seqno == seqno) {
 		add_one();
-		while (traces_submitted - done >= 130) {
+		while (traces_submitted - done >= 100) {
 			nanosleep(&(struct timespec) { .tv_sec = 0,
 						.tv_nsec = 100000000 }, NULL);
 		}
