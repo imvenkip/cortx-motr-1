@@ -69,15 +69,13 @@ static const struct m0_bob_type proxy_bob = {
 
 M0_BOB_DEFINE(static, &proxy_bob, m0_cm_proxy);
 
-
-static void proxy_sw_onwire_ast_post(struct m0_cm_proxy *proxy);
-
 static bool cm_proxy_invariant(const struct m0_cm_proxy *pxy)
 {
 	/**
 	 * @todo : Add checks for pxy::px_id when uid mechanism is implemented.
 	 */
 	return _0C(pxy != NULL) &&  _0C(m0_cm_proxy_bob_check(pxy)) &&
+	       _0C(m0_cm_is_locked(pxy->px_cm)) &&
 	       _0C(pxy->px_endpoint != NULL) &&
 	       _0C(m0_cm_ag_id_cmp(&pxy->px_sw.sw_hi, &pxy->px_sw.sw_lo) >= 0);
 }
@@ -107,7 +105,6 @@ M0_INTERNAL int m0_cm_proxy_alloc(uint64_t px_id,
 	m0_mutex_init(&proxy->px_mutex);
 	proxy_cp_tlist_init(&proxy->px_pending_cps);
 	*pxy = proxy;
-	M0_POST(cm_proxy_invariant(*pxy));
 	return 0;
 }
 
@@ -234,30 +231,24 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	}
 }
 
-static void proxy_sw_onwire_ast_post(struct m0_cm_proxy *proxy)
-{
-	M0_ENTRY("%p", proxy);
-	M0_ASSERT(cm_proxy_invariant(proxy));
-
-	proxy->px_sw_onwire_ast.sa_cb = proxy_sw_onwire_ast_cb;
-	m0_sm_ast_post(&proxy->px_cm->cm_sm_group, &proxy->px_sw_onwire_ast);
-	m0_cm_ast_run_fom_wakeup(proxy->px_cm);
-	M0_LOG(M0_DEBUG, "Posting ast for %s", proxy->px_endpoint);
-	M0_LEAVE();
-}
-
 static void proxy_sw_onwire_item_sent_cb(struct m0_rpc_item *item)
 {
 	struct m0_fop                *fop;
 	struct m0_cm_proxy_sw_onwire *swu_fop;
 	struct m0_cm_proxy           *proxy;
 
+	M0_ENTRY("%p", item);
 
 	fop = m0_rpc_item_to_fop(item);
 	swu_fop = container_of(fop, struct m0_cm_proxy_sw_onwire, pso_fop);
 	proxy = swu_fop->pso_proxy;
-	M0_ASSERT(cm_proxy_invariant(proxy));
-	proxy_sw_onwire_ast_post(proxy);
+	M0_ASSERT(m0_cm_proxy_bob_check(proxy));
+	proxy->px_sw_onwire_ast.sa_cb = proxy_sw_onwire_ast_cb;
+	M0_LOG(M0_DEBUG, "Posting ast for %s", proxy->px_endpoint);
+	m0_sm_ast_post(&proxy->px_cm->cm_sm_group, &proxy->px_sw_onwire_ast);
+	m0_cm_ast_run_fom_wakeup(proxy->px_cm);
+
+	M0_LEAVE();
 }
 
 const struct m0_rpc_item_ops proxy_sw_onwire_item_ops = {
