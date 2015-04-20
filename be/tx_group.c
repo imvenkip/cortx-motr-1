@@ -303,11 +303,9 @@ M0_INTERNAL void m0_be_tx_group__deallocate(struct m0_be_tx_group *gr)
 	m0_be_group_format_fini(&gr->tg_od);
 }
 
-M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
-				     struct m0_be_op *op)
+M0_INTERNAL void m0_be_tx_group__log1(struct m0_be_tx_group *gr,
+				      struct m0_be_op *op)
 {
-	int rc;
-
 	/** XXX FIXME move somewhere else */
 	m0_be_group_format_io_reserved(&gr->tg_od, gr, &gr->tg_log_reserved);
 
@@ -318,11 +316,13 @@ M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 
 	/** XXX FIXME: write with single call to m0_be_log function */
 	m0_be_log_submit(gr->tg_log, op, gr);
-	rc = m0_be_op_wait(op);
-	M0_ASSERT(rc == 0);
-	/* XXX dirty hack */
-	m0_be_op_fini(op);
-	m0_be_op_init(op);
+}
+M0_INTERNAL void m0_be_tx_group__log2(struct m0_be_tx_group *gr,
+				      struct m0_be_op *op)
+{
+	if (be_tx_group_empty_handle(gr, op, true))
+		return;
+
 	m0_be_log_commit(gr->tg_log, op, gr);
 }
 

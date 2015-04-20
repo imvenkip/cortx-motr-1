@@ -93,7 +93,8 @@ enum tx_group_fom_state {
 	 */
 	TGS_OPEN   = M0_FOM_PHASE_NR,
 	/** Log stobio is in progress. */
-	TGS_LOGGING,
+	TGS_LOGGING1,
+	TGS_LOGGING2,
 	/** In-place (segment) stobio is in progress. */
 	TGS_PLACING,
 	TGS_PLACED,
@@ -121,8 +122,9 @@ static struct m0_sm_state_descr tx_group_fom_states[TGS_NR] = {
 	_S(TGS_FINISH, M0_SDF_TERMINAL, 0),
 	_S(TGS_FAILED, M0_SDF_FAILURE, M0_BITS(TGS_FINISH)),
 	_S(TGS_STOPPING,    0, M0_BITS(TGS_FINISH)),
-	_S(TGS_OPEN,        0, M0_BITS(TGS_LOGGING, TGS_STOPPING)),
-	_S(TGS_LOGGING,     0, M0_BITS(TGS_PLACING)),
+	_S(TGS_OPEN,        0, M0_BITS(TGS_LOGGING1, TGS_STOPPING)),
+	_S(TGS_LOGGING1,    0, M0_BITS(TGS_LOGGING2)),
+	_S(TGS_LOGGING2,    0, M0_BITS(TGS_PLACING)),
 	_S(TGS_PLACING,     0, M0_BITS(TGS_PLACED)),
 	_S(TGS_PLACED,      0, M0_BITS(TGS_STABILIZING)),
 	_S(TGS_STABILIZING, 0, M0_BITS(TGS_STABLE)),
@@ -158,9 +160,13 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 			return M0_FSO_AGAIN;
 		}
 		return M0_FSO_WAIT;
-	case TGS_LOGGING:
+	case TGS_LOGGING1:
 		be_op_reset(op);
-		m0_be_tx_group__log(gr, op);
+		m0_be_tx_group__log1(gr, op);
+		return m0_be_op_tick_ret(op, fom, TGS_LOGGING2);
+	case TGS_LOGGING2:
+		be_op_reset(op);
+		m0_be_tx_group__log2(gr, op);
 		return m0_be_op_tick_ret(op, fom, TGS_PLACING);
 	case TGS_PLACING:
 		m0_be_tx_group__tx_state_post(gr, M0_BTS_LOGGED, false);
@@ -246,8 +252,8 @@ static void be_tx_group_fom_log(struct m0_be_tx_group_fom *m)
 	 * The callback invoking this function might have kicked in after the
 	 * phase of the fom has been modified by the regular tick() function.
 	 */
-	if (m0_fom_phase(&m->tgf_gen) < TGS_LOGGING) {
-		m0_fom_phase_set(&m->tgf_gen, TGS_LOGGING);
+	if (m0_fom_phase(&m->tgf_gen) < TGS_LOGGING1) {
+		m0_fom_phase_set(&m->tgf_gen, TGS_LOGGING1);
 		m0_fom_ready(&m->tgf_gen);
 	}
 }

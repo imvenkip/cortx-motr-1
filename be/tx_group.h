@@ -165,8 +165,10 @@ M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr);
 M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group__deallocate(struct m0_be_tx_group *gr);
 
-M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
-				     struct m0_be_op *op);
+M0_INTERNAL void m0_be_tx_group__log1(struct m0_be_tx_group *gr,
+				      struct m0_be_op *op);
+M0_INTERNAL void m0_be_tx_group__log2(struct m0_be_tx_group *gr,
+				      struct m0_be_op *op);
 M0_INTERNAL void m0_be_tx_group__place(struct m0_be_tx_group *gr,
 				       struct m0_be_op *op);
 
