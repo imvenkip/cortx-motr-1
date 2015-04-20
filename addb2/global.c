@@ -62,8 +62,8 @@ M0_INTERNAL void m0_addb2_global_thread_leave(void)
 		m0_addb2_pop(M0_AVI_THREAD);
 		m0_addb2_pop(M0_AVI_NODE);
 		M0_SET0(&tls->tls_clock);
-		m0_addb2_sys_put(sys, mach);
 		tls->tls_addb2_mach = NULL;
+		m0_addb2_sys_put(sys, mach);
 	}
 }
 
