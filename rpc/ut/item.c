@@ -600,8 +600,9 @@ static void test_cancel(void)
 	item->ri_deadline = m0_time_from_now(0, 0);
 	rc = m0_rpc_post(item);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(item->ri_reply == NULL);
-	m0_nanosleep(m0_time(0, 100000000), NULL);
+	rc = m0_rpc_item_timedwait(item, M0_BITS(M0_RPC_ITEM_WAITING_FOR_REPLY),
+				   M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_WAITING_FOR_REPLY));
 	check_cancel();
 	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
