@@ -288,7 +288,7 @@ static void session_terminate_fail_test(void)
 	session_init_and_establish();
 	session_establish_reply(0);
 
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("m0_rpc_session_terminate", "fail_allocation");
 	rc = m0_rpc_session_terminate(&session, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == -ENOMEM);
 	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_FAILED);
@@ -309,7 +309,7 @@ static void session_terminate_fail_test(void)
 
 static void session_terminate_reply_fail_test(void)
 {
-	/* Checks for Conn M0_RPC_SESSION_TERMINATING => M0_RPC_SESSION_FAILED */
+	/* Checks for M0_RPC_SESSION_TERMINATING => M0_RPC_SESSION_FAILED */
 	session_init_and_establish();
 	session_establish_reply(0);
 	session_terminate();

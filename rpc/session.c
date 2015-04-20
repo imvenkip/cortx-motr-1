@@ -593,9 +593,13 @@ M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session,
 		return M0_RC(0);
 	}
 
-	fop = m0_fop_alloc(&m0_rpc_fop_session_terminate_fopt, NULL, machine);
+	if (!M0_FI_ENABLED("fail_allocation"))
+		fop = m0_fop_alloc(&m0_rpc_fop_session_terminate_fopt,
+				   NULL, machine);
+	else
+		fop = NULL;
 	if (fop == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		/* See [^1] about decision to move session to FAILED state */
 		session_failed(session, rc);
 		goto out_unlock;
