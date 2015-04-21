@@ -19,6 +19,9 @@
  * Original creation date: 10/31/2012
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/trace.h"
+
 #include <sys/stat.h>
 #include <stdlib.h>
 
@@ -87,6 +90,14 @@ const struct m0_rpc_item_ops trigger_fop_rpc_item_ops = {
 	.rio_replied = trigger_rpc_item_reply_cb
 };
 
+static void usage(void)
+{
+	fprintf(stdout,
+"-O Operation: SNS_REPAIR = 2 or SNS_REBALANCE = 4\n"
+"-C Client_end_point\n"
+"-S Server_end_point [-S Server_end_point ]: max number is %d\n", MAX_SERVERS);
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -102,6 +113,17 @@ int main(int argc, char *argv[])
 	int                    rc;
 	int                    i;
 
+	rc = m0_init(&instance);
+	if (rc != 0) {
+		fprintf(stderr, "Cannot init Mero: %d\n", rc);
+		return M0_RC(rc);
+	}
+
+	if (argc <= 1) {
+		usage();
+		return M0_RC(rc);
+	}
+
 	rc = M0_GETOPTS("repair", argc, argv,
 			M0_FORMATARG('O',
 				     "Operation, i.e. SNS_REPAIR = 2 or SNS_REBALANCE = 4",
@@ -116,11 +138,10 @@ int main(int argc, char *argv[])
 					++srv_cnt;
 					})),
 			);
-	if (rc != 0)
-		return rc;
 
-	rc = m0_init(&instance);
-	M0_ASSERT(rc == 0);
+	if (rc != 0)
+		return M0_RC(rc);
+
 	m0_sns_cm_repair_trigger_fop_init();
 	m0_sns_cm_rebalance_trigger_fop_init();
 	repair_client_init();
@@ -168,6 +189,8 @@ int main(int argc, char *argv[])
 
 	return rc;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
