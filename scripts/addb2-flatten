@@ -1,0 +1,46 @@
+#! /bin/sh
+
+OPTVAL=`getopt -o r -n 'addb2-flatten' -- "$@"`
+
+# Note the quotes around `$OPTVAL': they are essential!
+eval set -- "$OPTVAL"
+
+#
+# Somebody rewrite this extrmely slow script.
+#
+
+reverse=0
+
+while true ;do
+    case "$1" in
+	-r)
+	    reverse=1
+	    break
+	    ;;
+	--) 
+	    shift 
+	    break 
+	    ;;
+	*) 
+	    echo "Internal error!" 
+	    exit 1 
+	    ;;
+    esac
+done
+
+if [ x$reverse = x0 ] ;then
+    while read ;do
+	case "$REPLY" in
+	    \**)
+		echo
+		;;
+	    \|*)
+		;;
+	esac
+	echo -n "$REPLY "
+    done
+    echo
+else
+    sed -n 's/|/\
+|/gp'
+fi
