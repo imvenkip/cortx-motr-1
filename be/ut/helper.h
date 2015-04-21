@@ -93,6 +93,15 @@ M0_INTERNAL void m0_be_ut_reqh_destroy(void);
 
 struct m0_sm_group *
 m0_be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be);
+
+/*
+ * Runs asts for the current backend sm group.
+ * Waits until at least all asts which were in queue before function call
+ * are complete.
+ */
+M0_INTERNAL void
+m0_be_ut_backend_sm_group_asts_run(struct m0_be_ut_backend *ut_be);
+
 void m0_be_ut_backend_new_grp_lock_state_set(struct m0_be_ut_backend *ut_be,
 					     bool unlocked_new);
 

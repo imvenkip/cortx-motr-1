@@ -798,10 +798,16 @@ void m0_be_ut_tx_gc(void)
 		 * Wait for last closed transaction.
 		 * All previous transactions will be done after the waiting.
 		 */
-		if (i == BE_UT_TX_GC_TX_NR - 1)
+		if (i == BE_UT_TX_GC_TX_NR - 1) {
 			m0_be_tx_close_sync(tx);
-		else
+			/*
+			 * Run asts for all transactions, so all transactions
+			 * reach final state.
+			 */
+			m0_be_ut_backend_sm_group_asts_run(&ut_be);
+		} else {
 			m0_be_tx_close(tx);
+		}
 		if (gc_enabled)
 			++gc_enabled_nr;
 	}
@@ -811,13 +817,16 @@ void m0_be_ut_tx_gc(void)
 	 */
 	M0_UT_ASSERT(gc_enabled_nr > 0);
 	M0_UT_ASSERT(gc_enabled_nr < BE_UT_TX_GC_TX_NR);
+	/*
+	 * Finalise and free all tx that weren't GCed.
+	 */
 	for (i = 0; i < BE_UT_TX_GC_TX_NR; ++i) {
 		test = &be_ut_gc_tests[i];
-		M0_UT_ASSERT(equi(test->bugc_gc_enabled,
-				  test->bugc_tx == NULL));
-		if (test->bugc_tx != NULL) {
-			m0_be_tx_fini(test->bugc_tx);
-			m0_free(test->bugc_tx);
+		tx   = test->bugc_tx;
+		M0_UT_ASSERT(equi(test->bugc_gc_enabled, tx == NULL));
+		if (tx != NULL) {
+			m0_be_tx_fini(tx);
+			m0_free(tx);
 		}
 	}
 	/*

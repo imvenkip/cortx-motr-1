@@ -217,8 +217,8 @@ m0_be_tx_group_tx_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 
 	if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
 	    m0_be_tx_group_size(gr) < gr->tg_tx_nr_max) {
-		grp_tlink_init_at(tx, &gr->tg_txs);
-		gr->tg_used		 = group_used;
+		grp_tlink_init_at_tail(tx, &gr->tg_txs);
+		gr->tg_used = group_used;
 		gr->tg_payload_prepared += tx->t_payload.b_nob;
 		M0_CNT_INC(gr->tg_nr_unstable);
 		rc = 0;

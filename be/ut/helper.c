@@ -46,6 +46,7 @@
 struct m0_be_ut_sm_group_thread {
 	struct m0_thread    sgt_thread;
 	pid_t		    sgt_tid;
+	struct m0_semaphore sgt_asts_run_sem;
 	struct m0_semaphore sgt_stop_sem;
 	struct m0_sm_group  sgt_grp;
 	bool		    sgt_lock_new;
@@ -169,11 +170,16 @@ static pid_t gettid_impl(void)
 static void be_ut_sm_group_thread_func(struct m0_be_ut_sm_group_thread *sgt)
 {
 	struct m0_sm_group *grp = &sgt->sgt_grp;
+	bool                need_to_up_asts_run_sem;
 
 	while (!m0_semaphore_trydown(&sgt->sgt_stop_sem)) {
 		m0_chan_wait(&grp->s_clink);
 		m0_sm_group_lock(grp);
+		need_to_up_asts_run_sem =
+			m0_semaphore_trydown(&sgt->sgt_asts_run_sem);
 		m0_sm_asts_run(grp);
+		if (need_to_up_asts_run_sem)
+			m0_semaphore_up(&sgt->sgt_asts_run_sem);
 		m0_sm_group_unlock(grp);
 	}
 }
@@ -192,6 +198,7 @@ static int m0_be_ut_sm_group_thread_init(struct m0_be_ut_sm_group_thread **sgtp,
 
 		m0_sm_group_init(&sgt->sgt_grp);
 		m0_semaphore_init(&sgt->sgt_stop_sem, 0);
+		m0_semaphore_init(&sgt->sgt_asts_run_sem, 0);
 		rc = M0_THREAD_INIT(&sgt->sgt_thread,
 				    struct m0_be_ut_sm_group_thread *, NULL,
 				    &be_ut_sm_group_thread_func, sgt,
@@ -224,6 +231,7 @@ static void m0_be_ut_sm_group_thread_fini(struct m0_be_ut_sm_group_thread *sgt)
 	M0_ASSERT(rc == 0);
 	m0_thread_fini(&sgt->sgt_thread);
 
+	m0_semaphore_fini(&sgt->sgt_asts_run_sem);
 	m0_semaphore_fini(&sgt->sgt_stop_sem);
 	m0_sm_group_fini(&sgt->sgt_grp);
 	m0_free(sgt);
@@ -516,6 +524,18 @@ m0_be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be)
 {
 	return be_ut_backend_sm_group_lookup(ut_be,
 					     !ut_be->but_sm_groups_unlocked);
+}
+
+void m0_be_ut_backend_sm_group_asts_run(struct m0_be_ut_backend *ut_be)
+{
+	struct m0_be_ut_sm_group_thread *sgt;
+	struct m0_sm_group              *grp;
+
+	grp = m0_be_ut_backend_sm_group_lookup(ut_be);
+	sgt = container_of(grp, struct m0_be_ut_sm_group_thread, sgt_grp);
+	m0_semaphore_up(&sgt->sgt_asts_run_sem);
+	m0_clink_signal(&sgt->sgt_grp.s_clink);
+	m0_semaphore_down(&sgt->sgt_asts_run_sem);
 }
 
 void m0_be_ut_backend_new_grp_lock_state_set(struct m0_be_ut_backend *ut_be,
