@@ -57,7 +57,7 @@ static struct m0_addb2_mach *getmach(void)
 	if (m0_thread_self() == main_thread)
 		return __mach;
 	else
-		return NULL;
+		return m0_thread_tls()->tls_addb2_mach;
 }
 
 struct m0_addb2_mach *mach_set(int (*s)(const struct m0_addb2_mach  *,
