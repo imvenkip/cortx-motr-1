@@ -699,6 +699,19 @@ int main(int argc, char *argv[])
 
 	progname = basename(argv[0]);
 
+	/* prevent creation of trace file for ourselves */
+	m0_trace_set_mmapped_buffer(false);
+
+	/* we don't need a real node uuid, so we force a default one to be useed
+	 * instead */
+	m0_addb_node_uuid_string_set(NULL);
+
+	rc = m0_init(&instance);
+	if (rc != 0) {
+		log_err("failed to initialize libmero\n");
+		return EX_SOFTWARE;
+	}
+
 	/* process CLI options */
 	rc = M0_GETOPTS(progname, argc, argv,
 	  M0_HELPARG('h'),
@@ -831,19 +844,6 @@ int main(int argc, char *argv[])
 		log_err("failed to mmap trace buffer from '%s': %s\n",
 			input_file_name, strerror(errno));
 		return EX_OSERR;
-	}
-
-	/* prevent creation of trace file for ourselves */
-	m0_trace_set_mmapped_buffer(false);
-
-	/* we don't need a real node uuid, so we force a default one to be useed
-	 * instead */
-	m0_addb_node_uuid_string_set(NULL);
-
-	rc = m0_init(&instance);
-	if (rc != 0) {
-		log_err("failed to initialize libmero\n");
-		return EX_SOFTWARE;
 	}
 
 	m0_mutex_init(&write_data_mutex);

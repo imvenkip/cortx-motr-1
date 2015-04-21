@@ -154,6 +154,15 @@ M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list args)
 	vprintk(fmt, args);
 }
 
+M0_INTERNAL void m0_error_printf(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vprintk(fmt, ap);
+	va_end(ap);
+}
+
 M0_INTERNAL int m0_arch_trace_init()
 {
 	int                   rc;

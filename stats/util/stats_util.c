@@ -90,9 +90,9 @@ static int stats_parse_ids(const char                 *stats_list,
 	p = (char *)stats;
 	while(p != NULL) {
 		if (nstats > STATS_MAX_COUNT) {
-			m0_console_printf("m0stats:only %d stats can be query"
-					  "at once. Ignoring others.\n",
-					  STATS_MAX_COUNT);
+			m0_error_printf("m0stats: only %d stats can be queried"
+					"at once. Ignoring others.\n",
+					STATS_MAX_COUNT);
 			break;
 		}
 		p = strchr(stats, ',');
@@ -101,8 +101,8 @@ static int stats_parse_ids(const char                 *stats_list,
 
 		id = m0_addb_rec_type_name2id(stats);
 		if (id == M0_ADDB_RECID_UNDEF) {
-			m0_console_printf("m0stats:stats \"%s\" not defined.\n",
-					  stats);
+			m0_error_printf("m0stats: stats \"%s\" not defined.\n",
+					stats);
 			return -EINVAL;
 		}
 		ids[nstats++] = id;

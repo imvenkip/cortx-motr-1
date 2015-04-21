@@ -77,6 +77,8 @@ M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh);
 
 M0_INTERNAL void m0_trace_switch_to_static_logbuf(void);
 
+M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list ap);
+
 #endif /* __MERO_LIB_TRACE_INTERNAL_H__ */
 
 /*

@@ -448,7 +448,9 @@ M0_INTERNAL void m0_trace_print_subsystems(void);
 
 __attribute__ ((format (printf, 1, 2)))
 M0_INTERNAL void m0_console_printf(const char *fmt, ...);
-M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list ap);
+
+__attribute__ ((format (printf, 1, 2)))
+M0_INTERNAL void m0_error_printf(const char *fmt, ...);
 
 M0_INTERNAL
 int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,

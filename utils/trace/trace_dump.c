@@ -52,6 +52,17 @@ int main(int argc, char *argv[])
 	bool        dump_header_only = false;
 	int         rc;
 
+	/* prevent creation of trace file for ourselves */
+	m0_trace_set_mmapped_buffer(false);
+
+	/* we don't need a real node uuid, so we force a default one to be useed
+	 * instead */
+	m0_addb_node_uuid_string_set(NULL);
+
+	rc = m0_init(&instance);
+	if (rc != 0)
+		return EX_SOFTWARE;
+
 	/* process CLI options */
 	rc = M0_GETOPTS(basename(argv[0]), argc, argv,
 	  M0_HELPARG('h'),
@@ -111,17 +122,6 @@ int main(int argc, char *argv[])
 			err(EX_CANTCREAT, "Failed to open output file '%s'",
 					  output_file_name);
 	}
-
-	/* prevent creation of trace file for ourselves */
-	m0_trace_set_mmapped_buffer(false);
-
-	/* we don't need a real node uuid, so we force a default one to be useed
-	 * instead */
-	m0_addb_node_uuid_string_set(NULL);
-
-	rc = m0_init(&instance);
-	if (rc != 0)
-		return EX_SOFTWARE;
 
 	rc = m0_trace_parse(input_file, output_file, stream_mode,
 			    dump_header_only, m0mero_ko_path);

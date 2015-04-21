@@ -456,6 +456,15 @@ M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list args)
 	vprintf(fmt, args);
 }
 
+M0_INTERNAL void m0_error_printf(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+}
+
 /** @} end of trace group */
 
 /*

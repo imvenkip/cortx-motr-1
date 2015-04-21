@@ -233,9 +233,9 @@ M0_INTERNAL int m0_init_once(struct m0 *instance)
 		for (i = 0; i < ARRAY_SIZE(once); ++i) {
 			rc = once[i].ifc_init();
 			if (rc != 0) {
-				m0_console_printf("subsystem '%s' init failed:"
-						  " rc=%d\n",
-						  subsystem[i].ifc_name, rc);
+				m0_error_printf("subsystem '%s' init failed:"
+						" rc=%d\n",
+						subsystem[i].ifc_name, rc);
 				fini_nr(once, i);
 				return rc;
 			}
@@ -278,8 +278,8 @@ M0_INTERNAL int m0_subsystems_init(void)
 	for (i = 0; i < ARRAY_SIZE(subsystem); ++i) {
 		rc = subsystem[i].ifc_init();
 		if (rc != 0) {
-			m0_console_printf("subsystem %s init failed: rc = %d\n",
-					  subsystem[i].ifc_name, rc);
+			m0_error_printf("subsystem %s init failed: rc = %d\n",
+					subsystem[i].ifc_name, rc);
 			fini_nr(subsystem, i);
 			return rc;
 		}

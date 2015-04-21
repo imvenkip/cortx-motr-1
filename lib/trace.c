@@ -394,9 +394,9 @@ m0_trace_subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
 			*p++ = '\0';
 		m = subsys_name_to_mask(subsys);
 		if (m == 0) {
-			m0_console_printf("mero: failed to initialize trace"
-					  " immediate mask: subsystem '%s' not"
-					  " found\n", lowercase(subsys));
+			m0_error_printf("mero: failed to initialize trace"
+					" immediate mask: subsystem '%s' not"
+					" found\n", lowercase(subsys));
 			return -EINVAL;
 		}
 		mask |= m;
@@ -483,9 +483,9 @@ M0_INTERNAL enum m0_trace_level m0_trace_level_parse(char *str)
 			*p++ = '\0';
 		l = trace_level_value_plus(level_str);
 		if (l == M0_NONE) {
-			m0_console_printf("mero: failed to initialize trace"
-					  " level: no such level '%s'\n",
-					  lowercase(level_str));
+			m0_error_printf("mero: failed to initialize trace"
+					" level: no such level '%s'\n",
+					lowercase(level_str));
 			return M0_NONE;
 		}
 		level |= l;
@@ -505,8 +505,8 @@ m0_trace_print_context_parse(const char *ctx_name)
 		if (strcmp(ctx_name, trace_print_ctx_str[i]) == 0)
 			return i;
 
-	m0_console_printf("mero: failed to initialize trace print context:"
-			  " invalid value '%s'\n", ctx_name);
+	m0_error_printf("mero: failed to initialize trace print context:"
+			" invalid value '%s'\n", ctx_name);
 
 	return M0_TRACE_PCTX_INVALID;
 }
@@ -546,7 +546,7 @@ M0_INTERNAL int m0_trace_set_level(const char *level_str)
 	m0_free(level_str_copy);
 
 	if (level == M0_NONE) {
-		m0_console_printf("mero: incorrect trace level specification,"
+		m0_error_printf("mero: incorrect trace level specification,"
 			" it should be in form of 'level[+][,level[+]]'"
 			" where 'level' is one of call|debug|info|notice|warn|"
 			"error|fatal");
@@ -691,38 +691,38 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 	m0_trace_args_unpack(trh, args, buf);
 
 	if (m0_trace_print_context == M0_TRACE_PCTX_FULL) {
-		m0_console_printf("%5.5u %8.8llu %15.15llu %5.5x %-18s %-7s "
-				  "%-20s %s:%-3i\n\t",
-				  trh->trh_pid,
-				  (unsigned long long)trh->trh_no,
-				  (unsigned long long)trh->trh_timestamp,
-				  (unsigned) (trh->trh_sp & 0xfffff),
-				  subsys_str(td->td_subsys, subsys_map_str),
-				  m0_trace_level_name(td->td_level),
-				  td->td_func, m0_short_file_name(td->td_file),
-				  td->td_line);
+		m0_error_printf("%5.5u %8.8llu %15.15llu %5.5x %-18s %-7s "
+				"%-20s %s:%-3i\n\t",
+				trh->trh_pid,
+				(unsigned long long)trh->trh_no,
+				(unsigned long long)trh->trh_timestamp,
+				(unsigned) (trh->trh_sp & 0xfffff),
+				subsys_str(td->td_subsys, subsys_map_str),
+				m0_trace_level_name(td->td_level),
+				td->td_func, m0_short_file_name(td->td_file),
+				td->td_line);
 	}
 
 	if (m0_trace_print_context == M0_TRACE_PCTX_SHORT)
-		m0_console_printf("mero: %5x %6s : [%s:%i:%s] ",
-				  (unsigned) (trh->trh_sp & 0xfffff),
-				  m0_trace_level_name(td->td_level),
-				  m0_short_file_name(td->td_file),
-				  td->td_line, td->td_func);
+		m0_error_printf("mero: %5x %6s : [%s:%i:%s] ",
+				(unsigned) (trh->trh_sp & 0xfffff),
+				m0_trace_level_name(td->td_level),
+				m0_short_file_name(td->td_file),
+				td->td_line, td->td_func);
 	else if (m0_trace_print_context == M0_TRACE_PCTX_FUNC ||
 		 (m0_trace_print_context == M0_TRACE_PCTX_NONE &&
 		  (td->td_level == M0_CALL || td->td_level == M0_NOTICE)))
-		m0_console_printf("mero: %s: ", td->td_func);
+		m0_error_printf("mero: %s: ", td->td_func);
 	else /* td->td_level == M0_TRACE_PCTX_NONE
 		|| td->td_level == M0_TRACE_PCTX_FULL */
-		m0_console_printf("mero: ");
+		m0_error_printf("mero: ");
 
-	m0_console_printf(td->td_fmt, args[0], args[1], args[2], args[3],
-				      args[4], args[5], args[6], args[7],
-				      args[8]);
+	m0_error_printf(td->td_fmt, args[0], args[1], args[2], args[3],
+				    args[4], args[5], args[6], args[7],
+				    args[8]);
 
 	if (td->td_fmt[strlen(td->td_fmt) - 1] != '\n')
-		m0_console_printf("\n");
+		m0_error_printf("\n");
 }
 
 M0_INTERNAL void m0_console_printf(const char *fmt, ...)
@@ -814,14 +814,14 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
 		      args[2], args[3], args[4], args[5], args[6], args[7],
 		      args[8]);
 	if (rc > sizeof msg_buf)
-		m0_console_printf("mero: %s: 'msg' is too big and has been"
-				  " truncated to %zu bytes",
-				  __func__, sizeof msg_buf);
+		m0_error_printf("mero: %s: 'msg' is too big and has been"
+				" truncated to %zu bytes",
+				__func__, sizeof msg_buf);
 
 	rc = escape_yaml_str(msg_buf, sizeof msg_buf);
 	if (rc != 0)
-		m0_console_printf("mero: %s: failed to escape single quote"
-				  " characters in msg: %s", __func__, msg_buf);
+		m0_error_printf("mero: %s: failed to escape single quote"
+				" characters in msg: %s", __func__, msg_buf);
 
 	outbuf_used += snprintf(outbuf + outbuf_used, outbuf_size - outbuf_used,
 				"%s'\n", msg_buf);

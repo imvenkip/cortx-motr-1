@@ -99,7 +99,8 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
 
 	if (reply_fopt == NULL || fom_ops == NULL) {
 		rc = -EINVAL;
-		m0_console_printf("Error: session_gen_fom_create\n");
+		M0_LOG(M0_ERROR, "unsupported fop type '%s'\n",
+				 fop->f_type->ft_name);
 		goto out;
 	}
 
