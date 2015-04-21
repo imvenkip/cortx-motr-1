@@ -69,12 +69,17 @@ M0_INTERNAL void m0_addb2_global_thread_leave(void)
 
 M0_INTERNAL int m0_addb2_global_init(void)
 {
-	return m0_addb2_sys_init((struct m0_addb2_sys **)&SYS(),
-				 &(struct m0_addb2_config) {
-				.co_queue_max = 1024 * 1024,
-				.co_pool_min  = 1024,
-				.co_pool_max  = 1024 * 1024
-			});
+	int result;
+
+	result = m0_addb2_sys_init((struct m0_addb2_sys **)&SYS(),
+				   &(struct m0_addb2_config) {
+					       .co_queue_max = 1024 * 1024,
+					       .co_pool_min  = 1024,
+					       .co_pool_max  = 1024 * 1024
+				   });
+	if (result == 0)
+		m0_addb2_global_thread_enter();
+	return result;
 }
 
 M0_INTERNAL void m0_addb2_global_fini(void)
