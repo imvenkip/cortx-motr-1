@@ -40,6 +40,31 @@ struct m0_rm_resource_type rings_resource_type = {
 static void rings_policy(struct m0_rm_resource *resource,
 			 struct m0_rm_incoming *in)
 {
+	struct m0_rm_credit *credit;
+	struct m0_rm_pin    *pin;
+	uint64_t             datum;
+	int                  zeroes;
+
+	/* Grant "real" ring if ANY_RING was requested */
+	if (in->rin_want.cr_datum == ANY_RING) {
+		/* One credit is always enough to satisfy request for ANY_RING.
+		 * RM should not pin more than one credit in tests.
+		 */
+		M0_ASSERT(pi_tlist_length(&in->rin_pins) == 1);
+		m0_tl_for (pi, &in->rin_pins, pin) {
+			M0_ASSERT(pin->rp_flags == M0_RPF_PROTECT);
+			credit = pin->rp_credit;
+			datum = credit->cr_datum;
+			zeroes = 0;
+			M0_ASSERT(datum != 0);
+			while ((datum & 0x01) == 0) {
+				zeroes++;
+				datum >>= 1;
+			}
+			in->rin_want.cr_datum =  1 << zeroes;
+		} m0_tl_endfor;
+	}
+
 }
 
 static void rings_credit_init(struct m0_rm_resource *resource,
@@ -130,12 +155,15 @@ const struct m0_rm_resource_type_ops rings_rtype_ops = {
 static bool rings_credit_intersects(const struct m0_rm_credit *c0,
 				    const struct m0_rm_credit *c1)
 {
-      return (c0->cr_datum & c1->cr_datum) != 0;
+	if (c0->cr_datum == ANY_RING || c1->cr_datum == ANY_RING)
+		return true;
+	return (c0->cr_datum & c1->cr_datum) != 0;
 }
 
 static int rings_credit_join(struct m0_rm_credit       *c0,
 			     const struct m0_rm_credit *c1)
 {
+	M0_ASSERT(c0->cr_datum != ANY_RING && c1->cr_datum != ANY_RING);
 	c0->cr_datum |= c1->cr_datum;
 	return 0;
 }
@@ -143,7 +171,12 @@ static int rings_credit_join(struct m0_rm_credit       *c0,
 static int rings_credit_diff(struct m0_rm_credit       *c0,
 			     const struct m0_rm_credit *c1)
 {
-	c0->cr_datum &= ~c1->cr_datum;
+	M0_ASSERT(ergo(c1->cr_datum == ANY_RING, c0->cr_datum == ANY_RING));
+
+	if (c0->cr_datum == ANY_RING)
+		c0->cr_datum = (c1->cr_datum != 0) ? 0 : c0->cr_datum;
+	else
+		c0->cr_datum &= ~c1->cr_datum;
 	return 0;
 }
 
@@ -204,6 +237,9 @@ static m0_bcount_t rings_credit_len(const struct m0_rm_credit *credit)
 static bool rings_is_subset(const struct m0_rm_credit *src,
 			    const struct m0_rm_credit *dest)
 {
+	M0_ASSERT(dest->cr_datum != ANY_RING);
+	if (src->cr_datum == ANY_RING)
+		return dest->cr_datum != 0;
 	return (dest->cr_datum & src->cr_datum) == src->cr_datum;
 }
 
@@ -211,6 +247,8 @@ static int rings_disjoin(struct m0_rm_credit       *src,
 			 const struct m0_rm_credit *dest,
 			 struct m0_rm_credit       *intersection)
 {
+	M0_ASSERT(src->cr_datum != ANY_RING && dest->cr_datum != ANY_RING);
+
 	intersection->cr_datum = src->cr_datum & dest->cr_datum;
 	src->cr_datum &= ~intersection->cr_datum;
 	return 0;
@@ -219,6 +257,11 @@ static int rings_disjoin(struct m0_rm_credit       *src,
 static bool rings_conflicts(const struct m0_rm_credit *c0,
 			    const struct m0_rm_credit *c1)
 {
+	M0_ASSERT(c0->cr_datum != ANY_RING || c1->cr_datum != ANY_RING);
+
+	if (c0->cr_datum == ANY_RING || c1->cr_datum == ANY_RING)
+		return false;
+
 	return c0->cr_datum & c1->cr_datum;
 }
 

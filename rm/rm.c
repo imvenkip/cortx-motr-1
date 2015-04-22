@@ -1900,9 +1900,9 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 	for (i = 0; i < ARRAY_SIZE(o->ro_owned); ++i) {
 		m0_tl_for (m0_rm_ur, &o->ro_owned[i], r) {
 			M0_ASSERT(m0_rm_credit_bob_check(r));
-			if (!credit_intersects(r, want))
+			if (!credit_intersects(r, rest))
 				continue;
-			if (i == OWOS_HELD && credit_conflicts(r, want)) {
+			if (i == OWOS_HELD && credit_conflicts(r, rest)) {
 				if (in->rin_flags & RIF_LOCAL_WAIT) {
 					rc = pin_add(in, r, M0_RPF_TRACK);
 					if (rc == 0)

@@ -24,6 +24,7 @@
 #include "lib/ub.h"
 
 #include "rm/rm.h"
+#include "rm/rm_internal.h"      /* pi_tlist_length */
 #include "rm/ut/rings.h"
 
 static struct m0_chan lcredits_chan;
@@ -60,6 +61,51 @@ static void local_credits_fini(void)
 {
 	m0_chan_fini_lock(&lcredits_chan);
 	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+}
+
+static void credits_pinned_number_test(enum m0_rm_incoming_flags flags)
+{
+	struct m0_rm_incoming next_in;
+
+	/*
+	 * Test verifies that no excessive credits are pinned if several
+	 * cached/held credits fully satisfies incoming request by their own.
+	 *
+	 * The situation is simulated when owner has C0, C1 credits both fully
+	 * satisfying incoming request for credit C2.
+	 * Owner: Held->[C1], Cached->[C0]
+	 * in->rin_want: C2
+	 * diff(C2,C1) == 0 and diff(C2,C0) == 0
+	 *
+	 * Test checks that only one credit is used to satisfy incoming request.
+	 */
+
+	/* Move one cached credit to held list */
+	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
+			    M0_RIT_LOCAL, RIP_NONE, flags);
+	rm_test_data.rd_in.rin_want.cr_datum = NENYA;
+	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
+	m0_rm_credit_get(&rm_test_data.rd_in);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+
+	/* Ask for new credit and test number of pinned credits */
+	M0_SET0(&next_in);
+	m0_rm_incoming_init(&next_in, rm_test_data.rd_owner,
+			    M0_RIT_LOCAL, RINGS_RIP, flags);
+	next_in.rin_want.cr_datum = ANY_RING;
+	next_in.rin_ops = &rings_incoming_ops;
+
+	m0_rm_credit_get(&next_in);
+	M0_UT_ASSERT(next_in.rin_rc == 0);
+	M0_UT_ASSERT(next_in.rin_sm.sm_state == RI_SUCCESS);
+	M0_UT_ASSERT(pi_tlist_length(&next_in.rin_pins) == 1);
+
+	m0_rm_credit_put(&rm_test_data.rd_in);
+	m0_rm_credit_put(&next_in);
+
+	m0_rm_incoming_fini(&rm_test_data.rd_in);
+	m0_rm_incoming_fini(&next_in);
 }
 
 static void cached_credits_test(enum m0_rm_incoming_flags flags)
@@ -190,14 +236,17 @@ void local_credits_test(void)
 	 * 2. Get two non-overlapping cached credits - successful - WAIT, TRY
 	 * 3. Get held non-conflicting credit - wait - WAIT, TRY
 	 * 4. Get held conflicting credits - WAIT, TRY
-	 * 5. Get invalid credit - failure
-	 * 6. Owner in non-active state - failure
+	 * 5. Get credit when several owner credits are suitable - WAIT, TRY
+	 * 6. Get invalid credit - failure
+	 * 7. Owner in non-active state - failure
 	 */
 	local_credits_init();
 	cached_credits_test(RIF_LOCAL_WAIT);
 	cached_credits_test(RIF_LOCAL_TRY);
 	held_credits_test(RIF_LOCAL_WAIT);
 	held_credits_test(RIF_LOCAL_TRY);
+	credits_pinned_number_test(RIF_LOCAL_WAIT);
+	credits_pinned_number_test(RIF_LOCAL_TRY);
 	failures_test();
 	local_credits_fini();
 }

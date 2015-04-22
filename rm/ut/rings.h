@@ -70,11 +70,27 @@ enum {
 	/* Ring NOT in the story - to test failure cases */
 	INVALID_RING = 1 << 20,
 
+	/*
+	 * Special value for the ring denoting any ring.
+	 * Any cached or held credit is suitable for satisfying request
+	 * for ANY_RING. Also, ANY_RING doesn't conflicts with any other
+	 * particular ring (cro_conflicts(ANY_RING, _) == 0).
+	 *
+	 * ANY_RING is not borrowed or revoked "as is",
+	 * some "real" ring is borrowed/revoked instead.
+	 * This trick is made through rings_policy() callback.
+	 *
+	 * ANY_RING is introduced to test requests for
+	 * non-conflicting credits.
+	 */
+	ANY_RING = 1 << 21,
+
 	ALLRINGS = NARYA | NENYA | VILYA | DURIN | THROR | GR_2 |
 	GR_3 | GR_4 | GR_5 | GR_6 | ANGMAR | KHAMUL | MR_2 | MR_3 | MR_4 |
 	MR_5 | MR_6 | MR_7 | MR_8 | THE_ONE,
 
 	RINGS_RESOURCE_TYPE_ID = 0,
+	RINGS_RIP              = RIP_NR + 1
 };
 
 struct m0_rings {
