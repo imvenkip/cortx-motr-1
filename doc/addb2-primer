@@ -193,3 +193,17 @@ $ m0addb2dump $INPUT | addb2-flatten | \
 which finds all records about WRITE foms transition to the "transaction
 committed" phase, extracts locality number ($27) from records and counts how
 many times foms committed in each locality.
+
+To find how much memory is allocated for a particular fom, given by its address:
+
+$ m0addb2dump $PWD/ios1/addb-stobs/o/*2 | addb2-flatten | \
+       grep '^\* alloc.*@0x7f5f980527d0' | \
+       awk '{print $4; sum += $4} END {print "Total:", sum}'
+8,
+8,
+48,
+...
+4416,
+2680,
+4096,
+Total: 17665
