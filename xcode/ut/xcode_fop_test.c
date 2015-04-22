@@ -185,10 +185,7 @@ static void test_fop_encdec(void)
 	struct m0_xcode_ctx      xctx1;
 	size_t                   fop_size;
 	size_t                   act_fop_size = 6876;
-	size_t                   allocated;
 	struct m0_rpc_machine    machine;
-
-	allocated = m0_allocated();
 
 	M0_FOP_TYPE_INIT(&m0_fop_test_fopt,
 			 .name      = "xcode fop test",
@@ -301,7 +298,6 @@ static void test_fop_encdec(void)
 	fop_free(f1);
 	fop_free(fd1);
 	m0_fop_type_fini(&m0_fop_test_fopt);
-	M0_UT_ASSERT(allocated == m0_allocated());
 }
 
 static int xcode_bufvec_fop_init(void)
