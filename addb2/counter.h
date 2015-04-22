@@ -68,16 +68,19 @@ void m0_addb2_list_counter_del(struct m0_addb2_list_counter *counter);
 void m0_addb2_clock_add(struct m0_addb2_sensor *clock, uint64_t label, int idx);
 void m0_addb2_clock_del(struct m0_addb2_sensor *clock);
 
-#define M0_ADDB2_TIMED(id, counter, datum, ...)		\
-do {								\
-	m0_time_t __duration = m0_time_now();			\
-	__VA_ARGS__;						\
-	__duration = (m0_time_now() - __duration) >> 10;	\
-	if ((id) != 0)						\
-		M0_ADDB2_ADD((id), __duration);		\
-	if ((counter) != NULL)					\
-		m0_addb2_counter_mod_with((counter),		\
-			  __duration, (uint64_t)(datum));	\
+#define M0_ADDB2_TIMED(id, counter, datum, ...)			\
+do {									\
+	m0_time_t __start = m0_time_now();				\
+	m0_time_t __end;						\
+	m0_time_t __duration;						\
+	__VA_ARGS__;							\
+	__end = m0_time_now();						\
+	__duration = (__end - __start) >> 10;				\
+	if ((id) != 0)							\
+		M0_ADDB2_ADD((id), __start, __duration, (uint64_t)(datum)); \
+	if ((counter) != NULL)						\
+		m0_addb2_counter_mod_with((counter),			\
+			  __duration, (uint64_t)(datum));		\
 } while (0)
 
 /** @} end of addb2 group */

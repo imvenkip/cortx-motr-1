@@ -217,6 +217,14 @@ static void _clock(struct context *ctx, const uint64_t *v, char *buf)
 	ctx->c_clock = stamp;
 }
 
+static void duration(struct context *ctx, const uint64_t *v, char *buf)
+{
+	m0_time_t elapsed = v[0];
+
+	sprintf(buf, "%"PRId64".%09"PRId64,
+		m0_time_seconds(elapsed), m0_time_nanoseconds(elapsed));
+}
+
 static void fom_type(struct context *ctx, const uint64_t *v, char *buf)
 {
 	const struct m0_fom_type *ftype = ctx->c_fom.fo_type;
@@ -372,6 +380,7 @@ static void rpc_out(struct context *ctx, const uint64_t *v, char *buf)
 
 #define COUNTER  &counter, &skip, &skip, &skip, &skip, &skip, &skip
 #define FID &fid, &skip
+#define TIMED &_clock, &duration, &ptr
 
 struct id_intrp ids[] = {
 	{ M0_AVI_NULL,            "null" },
@@ -400,6 +409,7 @@ struct id_intrp ids[] = {
 	{ M0_AVI_RUNQ,            "runq",            { COUNTER } },
 	{ M0_AVI_WAIL,            "wail",            { COUNTER } },
 	{ M0_AVI_AST,             "ast" },
+	{ M0_AVI_LOCALITY_FORQ_DURATION, "loc-forq-duration", { TIMED } },
 	{ M0_AVI_LOCALITY_FORQ,      "loc-forq-counter",  { COUNTER } },
 	{ M0_AVI_LOCALITY_CHAN_WAIT, "loc-wait-counter",  { COUNTER } },
 	{ M0_AVI_LOCALITY_CHAN_CB,   "loc-cb-counter",    { COUNTER } },
