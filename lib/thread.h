@@ -277,6 +277,11 @@ M0_INTERNAL void m0_exit_awkward(void);
 /** Tells if executing thread is in awkward context. */
 M0_INTERNAL bool m0_is_awkward(void);
 
+/**
+ * Returns "process identifier", depending on the architecture.
+ */
+M0_INTERNAL uint64_t m0_process_id(void);
+
 /** @} end of thread group */
 #endif /* __MERO_LIB_THREAD_H__ */
 

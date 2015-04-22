@@ -298,6 +298,11 @@ M0_INTERNAL void m0_thread_tls_back(struct m0_thread_tls *tls)
 	current->journal_info = tls;
 }
 
+M0_INTERNAL uint64_t m0_process_id(void)
+{
+	return current->pid;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of thread group */
