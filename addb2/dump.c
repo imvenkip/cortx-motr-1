@@ -386,6 +386,7 @@ struct id_intrp ids[] = {
 	{ M0_AVI_NULL,            "null" },
 	{ M0_AVI_NODE,            "node",            { FID } },
 	{ M0_AVI_LOCALITY,        "locality",        { &dec } },
+	{ M0_AVI_PID,             "pid",             { &dec } },
 	{ M0_AVI_THREAD,          "thread",          { &hex, &hex } },
 	{ M0_AVI_SERVICE,         "service",         { FID } },
 	{ M0_AVI_FOM,             "fom",             { &ptr, &fom_type,

@@ -41,6 +41,8 @@ enum m0_addb2_value_id {
 	M0_AVI_GENERAL_RANGE_START = 0x1000,
 	/** Label: node fid. */
 	M0_AVI_NODE,
+	/** Label: process fid. */
+	M0_AVI_PID,
 	/** Measurement: current clock reading (m0_time_now()). */
 	M0_AVI_CLOCK,
 
