@@ -918,6 +918,7 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 			     M0_AVI_LOCALITY_CHAN_CB, -1);
 	m0_addb2_counter_add(&loc->fl_chan_addb2.ca_queue_counter,
 			     M0_AVI_LOCALITY_CHAN_QUEUE, -1);
+	loc->fl_grp_addb2.ga_forq = M0_AVI_LOCALITY_FORQ_DURATION;
 	m0_thread_tls()->tls_addb2_mach = orig;
 
 	res = m0_addb_counter_init(&loc->fl_stat_run_times,

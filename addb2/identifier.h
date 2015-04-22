@@ -24,7 +24,7 @@
 #define __MERO_ADDB2_IDENTIFIER_H__
 
 /**
- * @defgroup XXX
+ * @defgroup addb2
  *
  * Identifiers list
  * ----------------
@@ -73,6 +73,8 @@ enum m0_addb2_value_id {
 	M0_AVI_FOM_CB,
 	/** Label: locality chore. */
 	M0_AVI_CHORE,
+	/** Measurement: duration of asts posted to locality fork-queue. */
+	M0_AVI_LOCALITY_FORQ_DURATION,
 	/** Counter: asts posted to locality fork-queue. */
 	M0_AVI_LOCALITY_FORQ,
 	/** Counter: wait times on locality runrun channel. */
