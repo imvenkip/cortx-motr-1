@@ -673,7 +673,7 @@ include $(top_srcdir)/addb/dump/Makefile.sub
 
 sbin_PROGRAMS                 += addb2/m0addb2dump
 addb2_m0addb2dump_CPPFLAGS  = -DM0_TARGET='m0addb2dump' $(AM_CPPFLAGS)
-addb2_m0addb2dump_LDADD     = $(top_builddir)/mero/libmero.la
+addb2_m0addb2dump_LDADD     = $(top_builddir)/mero/libmero.la -lbfd -ldl
 
 #
 # addb2/dump

@@ -25,16 +25,22 @@
  * @{
  */
 
+#include <dlfcn.h>
 #include <err.h>
 #include <sys/stat.h>
 #include <stdio.h>
 #include <sysexits.h>
+#include <execinfo.h>
+#include <signal.h>
+#include <bfd.h>
+#include <stdlib.h>                    /* qsort */
 
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/tlist.h"
 #include "lib/varr.h"
+#include "lib/getopts.h"
 
 #include "rpc/item.h"                  /* m0_rpc_item_type_lookup */
 #include "fop/fop.h"
@@ -101,7 +107,12 @@ static void val_dump(struct context *ctx, const char *prefix,
 static void context_fill(struct context *ctx, const struct m0_addb2_value *val);
 static void file_dump(struct m0_stob_domain *dom, const char *fname);
 
+static void libbfd_init(const char *libpath);
+static void libbfd_fini(void);
+static void libbfd_resolve(uint64_t delta, char *buf);
+
 #define DOM "./_addb2-dump"
+extern int optind;
 
 int main(int argc, char **argv)
 {
@@ -114,6 +125,13 @@ int main(int argc, char **argv)
 	result = m0_init(&instance);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise mero: %d", result);
+	result = M0_GETOPTS("m0addb2dump", argc, argv,
+			M0_STRINGARG('l', "Mero library path",
+				     LAMBDA(void, (const char *path) {
+						     libbfd_init(path);
+					     })));
+	if (result != 0)
+		err(EX_USAGE, "Wrong option: %d", result);
 	result = m0_stob_domain_init("linuxstob:"DOM, "directio=true", &dom);
 	if (result == 0)
 		m0_stob_domain_destroy(dom);
@@ -125,10 +143,11 @@ int main(int argc, char **argv)
 	if (result != 0)
 		err(EX_CANTCREAT, "Cannot create domain: %d", result);
 	id_init();
-	for (i = 1; i < argc; ++i)
+	for (i = optind; i < argc; ++i)
 		file_dump(dom, argv[i]);
 	id_fini();
 	m0_stob_domain_destroy(dom);
+	libbfd_fini();
 	m0_fini();
 	return EX_OK;
 }
@@ -304,6 +323,26 @@ static void rpcop(struct context *ctx, const uint64_t *v, char *buf)
 		sprintf(buf, "?rpc: %"PRId64, v[0]);
 }
 
+static void sym(struct context *ctx, const uint64_t *v, char *buf)
+{
+	const void *addr = m0_ptr_unwrap(v[0]);
+
+	if (v[0] != 0) {
+		int     rc;
+		Dl_info info;
+
+		libbfd_resolve(v[0], buf);
+		buf += strlen(buf);
+		rc = dladdr(addr, &info); /* returns non-zero on *success* */
+		if (rc != 0 && info.dli_sname != NULL) {
+			sprintf(buf, " [%s+%lx]", info.dli_sname,
+				addr - info.dli_saddr);
+			buf += strlen(buf);
+		}
+		sprintf(buf, " @%p/%"PRIx64, addr, v[0]);
+	}
+}
+
 static void counter(struct context *ctx, const uint64_t *v, char *buf)
 {
 	struct m0_addb2_counter_data *d = (void *)&v[1];
@@ -315,8 +354,9 @@ static void counter(struct context *ctx, const uint64_t *v, char *buf)
 
 	_clock(ctx, v, buf);
 	sprintf(buf + strlen(buf), " nr: %"PRId64" min: %"PRId64" max: %"PRId64
-		" avg: %f dev: %f datum: %"PRIx64,
+		" avg: %f dev: %f datum: %"PRIx64" ",
 		d->cod_nr, d->cod_min, d->cod_max, avg, dev, d->cod_datum);
+	sym(ctx, &d->cod_datum, buf + strlen(buf));
 }
 
 static void sm_trans(const struct m0_sm_conf *conf, const char *name,
@@ -380,7 +420,7 @@ static void rpc_out(struct context *ctx, const uint64_t *v, char *buf)
 
 #define COUNTER  &counter, &skip, &skip, &skip, &skip, &skip, &skip
 #define FID &fid, &skip
-#define TIMED &_clock, &duration, &ptr
+#define TIMED &_clock, &duration, &sym
 
 struct id_intrp ids[] = {
 	{ M0_AVI_NULL,            "null" },
@@ -585,6 +625,80 @@ static void context_fill(struct context *ctx, const struct m0_addb2_value *val)
 		M0_ASSERT(val->va_data[1] < ARRAY_SIZE(m0_fom__types));
 		ctx->c_fom.fo_type = m0_fom__types[val->va_data[1]];
 		break;
+	}
+}
+
+static bfd      *abfd;
+static asymbol **syms;
+static uint64_t  base;
+static size_t    nr;
+
+static int asymbol_cmp(const void *a0, const void *a1)
+{
+	const asymbol *const* s0 = a0;
+	const asymbol *const* s1 = a1;
+
+	return ((int)bfd_asymbol_value(*s0)) - ((int)bfd_asymbol_value(*s1));
+}
+
+/**
+ * Initialises bfd.
+ */
+static void libbfd_init(const char *libpath)
+{
+	unsigned symtab_size;
+	size_t   i;
+
+	bfd_init();
+	abfd = bfd_openr(libpath, 0);
+	if (abfd == NULL)
+		err(EX_OSERR, "bfd_openr(): %d.", errno);
+	bfd_check_format(abfd, bfd_object); /* cargo-cult call. */
+	symtab_size = bfd_get_symtab_upper_bound(abfd);
+	syms = (asymbol **) m0_alloc(symtab_size);
+	if (syms == NULL)
+		err(EX_UNAVAILABLE, "Cannot allocate symtab.");
+	nr = bfd_canonicalize_symtab(abfd, syms);
+	for (i = 0; i < nr; ++i) {
+		if (strcmp(syms[i]->name, "m0_ptr_wrap") == 0) {
+			base = bfd_asymbol_value(syms[i]);
+			break;
+		}
+	}
+	if (base == 0)
+		err(EX_CONFIG, "No base symbol found.");
+	qsort(syms, nr, sizeof syms[0], &asymbol_cmp);
+}
+
+static void libbfd_fini(void)
+{
+	m0_free(syms);
+}
+
+static void libbfd_resolve(uint64_t delta, char *buf)
+{
+	if (abfd != NULL) {
+		size_t mid;
+		size_t left = 0;
+		size_t right = nr;
+
+		delta += base;
+		while (left + 1 < right) {
+			asymbol *sym;
+
+			mid = (left + right) / 2;
+			sym = syms[mid];
+
+			if (bfd_asymbol_value(sym) > delta)
+				right = mid;
+			else if (bfd_asymbol_value(sym) < delta)
+				left = mid;
+			else {
+				left = mid;
+				break;
+			}
+		}
+		sprintf(buf, " %s", syms[left]->name);
 	}
 }
 
