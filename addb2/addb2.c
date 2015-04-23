@@ -863,21 +863,24 @@ static void pack(struct m0_addb2_mach *m)
 {
 	if (m->ma_cur != NULL) {
 		struct m0_addb2_trace_obj *o = &m->ma_cur->b_trace;
+		bool                       wait;
 
 		m0_mutex_lock(&m->ma_lock);
 		o->o_force = m->ma_stopping;
-		if (m->ma_ops->apo_submit(m, o) > 0) {
-			/*
-			 * The buffer is on the busy list until
-			 * m0_addb2_trace_done() is called.
-			 */
-			buf_tlist_add_tail(&m->ma_busy, m->ma_cur);
-		} else {
+		/*
+		 * The buffer is on the busy list until m0_addb2_trace_done() is
+		 * called.
+		 */
+		buf_tlist_add_tail(&m->ma_busy, m->ma_cur);
+		m0_mutex_unlock(&m->ma_lock);
+		wait = m->ma_ops->apo_submit(m, o) > 0;
+		m0_mutex_lock(&m->ma_lock);
+		if (!wait) {
 			/*
 			 * The buffer was processed "instantly", can be re-used
 			 * outright.
 			 */
-			buf_tlist_add(&m->ma_idle, m->ma_cur);
+			buf_tlist_move(&m->ma_idle, m->ma_cur);
 			o->o_tr.tr_nr = 0;
 		}
 		m->ma_cur = NULL;
