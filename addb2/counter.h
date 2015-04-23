@@ -77,10 +77,10 @@ do {									\
 	__end = m0_time_now();						\
 	__duration = (__end - __start) >> 10;				\
 	if ((id) != 0)							\
-		M0_ADDB2_ADD((id), __start, __duration, (uint64_t)(datum)); \
+		M0_ADDB2_ADD((id), __start, __duration, (datum));	\
 	if ((counter) != NULL)						\
 		m0_addb2_counter_mod_with((counter),			\
-			  __duration, (uint64_t)(datum));		\
+			  __duration, (datum));			\
 } while (0)
 
 /** @} end of addb2 group */

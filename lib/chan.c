@@ -133,7 +133,7 @@ static void clink_signal(struct m0_clink *clink)
 			consumed = clink->cl_cb(clink);
 		else
 			M0_ADDB2_TIMED(ca->ca_cb, &ca->ca_cb_counter,
-				       clink->cl_cb,
+				       m0_ptr_wrap(clink->cl_cb),
 				       consumed = clink->cl_cb(clink));
 		m0_exit_awkward();
 	}
@@ -323,7 +323,7 @@ M0_INTERNAL void m0_chan_wait(struct m0_clink *link)
 		m0_semaphore_down(&link->cl_group->cl_wait);
 	else
 		M0_ADDB2_TIMED(ca->ca_wait, &ca->ca_wait_counter,
-			       __builtin_return_address(0),
+			       m0_ptr_wrap(__builtin_return_address(0)),
 			       m0_semaphore_down(&link->cl_group->cl_wait));
 }
 M0_EXPORTED(m0_chan_wait);
@@ -339,7 +339,7 @@ M0_INTERNAL bool m0_chan_timedwait(struct m0_clink *link,
 					     abs_timeout);
 	else
 		M0_ADDB2_TIMED(ca->ca_wait, &ca->ca_wait_counter,
-		       __builtin_return_address(0),
+		       m0_ptr_wrap(__builtin_return_address(0)),
 		       got = m0_semaphore_timeddown(&link->cl_group->cl_wait,
 						    abs_timeout));
 	return got;

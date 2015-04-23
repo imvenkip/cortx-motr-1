@@ -124,7 +124,8 @@ M0_INTERNAL void m0_sm_asts_run(struct m0_sm_group *grp)
 		else {
 			M0_ADDB2_TIMED(grp->s_addb2->ga_forq,
 				       &grp->s_addb2->ga_forq_counter,
-				       ast->sa_cb, ast->sa_cb(grp, ast));
+				       m0_ptr_wrap(ast->sa_cb),
+				       ast->sa_cb(grp, ast));
 		}
 	}
 }

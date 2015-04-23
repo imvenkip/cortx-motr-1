@@ -51,7 +51,7 @@ M0_INTERNAL void m0_mutex_lock(struct m0_mutex *mutex)
 		m0_arch_mutex_lock(&mutex->m_arch);
 	else {
 		M0_ADDB2_TIMED(0, &mutex->m_addb2->ma_wait,
-			       __builtin_return_address(0),
+			       m0_ptr_wrap(__builtin_return_address(0)),
 			       m0_arch_mutex_lock(&mutex->m_arch));
 		mutex->m_addb2->ma_taken = m0_time_now();
 	}
