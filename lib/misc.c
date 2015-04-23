@@ -255,6 +255,16 @@ m0_full_name_hash(const unsigned char *name, unsigned int len)
 	return ((unsigned int)hash);
 }
 
+M0_INTERNAL uint64_t m0_ptr_wrap(const void *p)
+{
+	return p != NULL ? p - (void *)&m0_ptr_wrap : 0;
+}
+
+M0_INTERNAL const void *m0_ptr_unwrap(uint64_t val)
+{
+	return val != 0 ? val + (void *)&m0_ptr_wrap : NULL;
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

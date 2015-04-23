@@ -366,6 +366,19 @@ M0_INTERNAL uint32_t m0_no_of_bits_set(uint64_t val);
 M0_INTERNAL unsigned int
 m0_full_name_hash(const unsigned char *name, unsigned int len);
 
+/**
+ * Converts Mero function pointer in a form that can be stored somewhere (e.g.,
+ * in a trace log or addb2 record) and later decoded back into original pointer.
+ *
+ * Such transformation is needed, because function pointers depend on the
+ * address at which Mero library is loaded.
+ *
+ * @pre "p" must be a pointer to Mero executable code or NULL.
+ */
+M0_INTERNAL uint64_t m0_ptr_wrap(const void *p);
+
+M0_INTERNAL const void *m0_ptr_unwrap(uint64_t val);
+
 #endif /* __MERO_LIB_MISC_H__ */
 
 /*
