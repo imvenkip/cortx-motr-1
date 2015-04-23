@@ -72,7 +72,7 @@ M0_INTERNAL int m0_bcount_get(const char *arg, m0_bcount_t * out)
 		} else
 			rc = -EINVAL;
 	}
-	return M0_RC(rc);
+	return rc;
 }
 
 M0_INTERNAL int m0_time_get(const char *arg, m0_time_t *out)
@@ -124,7 +124,7 @@ M0_INTERNAL int m0_time_get(const char *arg, m0_time_t *out)
 	}
 	if (rc == 0)
 		*out = before * unit_mul + after * unit_mul / pow_of_10;
-	return M0_RC(rc);
+	return rc;
 }
 
 #undef M0_TRACE_SUBSYSTEM
