@@ -24,10 +24,14 @@
 #include "lib/thread.h"
 #include "lib/bitmap.h"
 #include "lib/assert.h"
+#include "lib/memory.h"
+#include "lib/semaphore.h"
+#include "module/instance.h"
 
 enum { NR = 255 };
 
 void test_is_awkward(void);
+static void test_adopt(void);
 
 static int t0place;
 
@@ -147,6 +151,7 @@ void test_thread(void)
 #ifndef __KERNEL__
 	test_is_awkward();
 #endif
+	test_adopt();
 }
 M0_EXPORTED(test_thread);
 
@@ -278,6 +283,47 @@ void test_is_awkward(void)
 	m0_thread_join(&t[0]);
 	m0_thread_fini(&t[0]);
 }
+
+#ifndef __KERNEL__
+#include <pthread.h>
+
+static struct m0_semaphore synch;
+
+static void *adopted(void *arg)
+{
+	struct m0 *instance = arg;
+	struct m0_thread thread = {};
+	void *area;
+
+	m0_thread_adopt(&thread, instance);
+	M0_UT_ASSERT(m0_thread_tls() != 0);
+	M0_UT_ASSERT(m0_thread_self() == &thread);
+
+	/* Check that Mero calls work in this thread. */
+	area = m0_alloc(3215);
+	M0_UT_ASSERT(area != NULL);
+	m0_semaphore_up(&synch);
+	m0_free(area);
+	m0_thread_shun();
+	return NULL;
+}
+
+static void test_adopt(void)
+{
+	int result;
+	pthread_t rawthread;
+
+	m0_semaphore_init(&synch, 0);
+	result = pthread_create(&rawthread, NULL, &adopted, m0_get());
+	M0_UT_ASSERT(result == 0);
+	m0_semaphore_down(&synch);
+	pthread_join(rawthread, NULL);
+}
+
+#else /* __KERNEL__ */
+static void test_adopt(void)
+{;}
+#endif /* __KERNEL__ */
 
 /*
  *  Local variables:

@@ -95,18 +95,7 @@ M0_INTERNAL void m0_threads_once_fini(void)
 
 M0_INTERNAL void m0_thread_enter(struct m0_thread *thread, bool full)
 {
-	M0_PRE(M0_IS0(thread));
-
-	thread->t_tls.tls_arch.tat_prev = current->journal_info;
-	thread->t_tls.tls_self = thread;
-	thread->t_h.h_tsk = current;
-	thread->t_h.h_pid = current->pid;
-	current->journal_info = &thread->t_tls;
-	if (__instance != NULL) {
-		m0_set(__instance);
-		if (full)
-			m0_addb2_global_thread_enter();
-	}
+	m0_thread_arch_adopt(thread, __instance, full);
 }
 M0_EXPORTED(m0_thread_enter);
 
@@ -116,12 +105,7 @@ static void tls_fini(struct m0_thread_tls *tls)
 
 M0_INTERNAL void m0_thread_leave(void)
 {
-	struct m0_thread_tls *tls  = current->journal_info;
-	void                 *prev = tls->tls_arch.tat_prev;
-
-	tls_fini(tls);
-	m0_addb2_global_thread_leave();
-	current->journal_info = prev;
+	m0_thread_arch_shun();
 }
 M0_EXPORTED(m0_thread_leave);
 
@@ -302,6 +286,37 @@ M0_INTERNAL uint64_t m0_process_id(void)
 {
 	return current->pid;
 }
+
+M0_INTERNAL int m0_thread_arch_adopt(struct m0_thread *thread,
+				     struct m0 *instance, bool full)
+{
+	M0_PRE(M0_IS0(thread));
+	M0_PRE(instance == __instance);
+
+	thread->t_tls.tls_arch.tat_prev = current->journal_info;
+	thread->t_tls.tls_self = thread;
+	thread->t_h.h_tsk = current;
+	thread->t_h.h_pid = current->pid;
+	current->journal_info = &thread->t_tls;
+	if (__instance != NULL) {
+		m0_set(__instance);
+		if (full)
+			m0_addb2_global_thread_enter();
+	}
+	return 0;
+}
+M0_EXPORTED(m0_thread_arch_adopt);
+
+M0_INTERNAL void m0_thread_arch_shun(void)
+{
+	struct m0_thread_tls *tls  = current->journal_info;
+	void                 *prev = tls->tls_arch.tat_prev;
+
+	tls_fini(tls);
+	m0_addb2_global_thread_leave();
+	current->journal_info = prev;
+}
+M0_EXPORTED(m0_thread_arch_shun);
 
 #undef M0_TRACE_SUBSYSTEM
 

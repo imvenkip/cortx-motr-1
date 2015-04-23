@@ -33,6 +33,7 @@
 #include "lib/bitmap.h"
 #include "lib/assert.h"
 #include "module/instance.h"  /* m0_set */
+#include "addb2/global.h"     /* m0_addb2_global_thread_enter */
 
 /**
    @addtogroup thread Thread
@@ -73,13 +74,18 @@ M0_INTERNAL struct m0_thread_tls *m0_thread_tls(void)
 		return NULL;
 }
 
+static int setspecific(struct m0_thread *thread)
+{
+	return -pthread_setspecific(tls_key, &thread->t_tls);
+}
+
 static void *uthread_trampoline(void *arg)
 {
 	struct m0_thread *t = arg;
 
 	M0_PRE(m0_thread_tls() == NULL);
 
-	t->t_initrc = -pthread_setspecific(tls_key, &t->t_tls);
+	t->t_initrc = setspecific(t);
 	if (t->t_initrc == 0) {
 		m0_thread_trampoline(arg);
 		(void)pthread_setspecific(tls_key, NULL);
@@ -223,6 +229,29 @@ M0_INTERNAL bool m0_is_awkward(void)
 M0_INTERNAL uint64_t m0_process_id(void)
 {
 	return getpid();
+}
+
+M0_INTERNAL int m0_thread_arch_adopt(struct m0_thread *thread,
+				     struct m0 *instance, bool full)
+{
+	int result;
+
+	M0_PRE(M0_IS0(thread));
+
+	thread->t_tls.tls_self = thread;
+	result = setspecific(thread);
+	if (result == 0) {
+		m0_set(instance);
+		if (full)
+			m0_addb2_global_thread_enter();
+	}
+	return result;
+}
+
+M0_INTERNAL void m0_thread_arch_shun(void)
+{
+	m0_addb2_global_thread_leave();
+	(void)pthread_setspecific(tls_key, NULL);
 }
 
 /** @} end of thread group */

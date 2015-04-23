@@ -123,6 +123,19 @@ M0_INTERNAL struct m0_thread *m0_thread_self(void)
 	return m0_thread_tls()->tls_self;
 }
 
+M0_INTERNAL int m0_thread_adopt(struct m0_thread *thread, struct m0 *instance)
+{
+	M0_PRE(M0_IS0(thread));
+	M0_PRE(m0_thread_tls() == NULL);
+
+	return m0_thread_arch_adopt(thread, instance, true);
+}
+
+M0_INTERNAL void m0_thread_shun(void)
+{
+	m0_thread_arch_shun();
+}
+
 /** @} end of thread group */
 
 /*

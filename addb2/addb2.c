@@ -303,6 +303,7 @@ struct m0_addb2_mach {
 	uint64_t                        ma_magix;
 #if DEBUG_OWNERSHIP
 	char                            ma_name[100];
+	char                            ma_last[100];
 #endif
 };
 
@@ -797,8 +798,12 @@ static struct m0_addb2_mach *mach(void)
 			mach = NULL;
 		} else if (mach->ma_stopping)
 			mach = NULL;
-		else
+		else {
 			++ mach->ma_nesting;
+#if DEBUG_OWNERSHIP
+			strcpy(mach->ma_last, m0_thread_self()->t_namebuf);
+#endif
+		}
 	}
 	M0_POST(ergo(mach != NULL, mach->ma_nesting == 1));
 	return mach;

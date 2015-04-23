@@ -282,6 +282,35 @@ M0_INTERNAL bool m0_is_awkward(void);
  */
 M0_INTERNAL uint64_t m0_process_id(void);
 
+/**
+ * Accepts a thread as a Mero thread.
+ *
+ * Mero maintains a per-thread context needed for any Mero operation. A thread
+ * with such a context is "Mero thread". A thread that calls m0_init() is a Mero
+ * thread. A thread created by a call to m0_thread_init() (necessarily made by a
+ * Mero thread) is a Mero thread.
+ *
+ * To turn any other thread into a Mero thread call m0_thread_adopt() before any
+ * Mero call is made in the thread. m0_thread_shun() must be called before the
+ * thread exits.
+ *
+ * "thread" object must be owned by the calling thread (not accessed
+ * concurrently by multiple threads). It must exist at least until the matching
+ * m0_thread_shun() call returns.
+ *
+ * "instance" is m0 instance to which the thread belongs.
+ */
+M0_INTERNAL int m0_thread_adopt(struct m0_thread *thread, struct m0 *instance);
+
+/**
+ * Discards Mero per-thread context. This is dual to m0_thread_adopt().
+ */
+M0_INTERNAL void m0_thread_shun(void);
+
+M0_INTERNAL int m0_thread_arch_adopt(struct m0_thread *thread,
+				     struct m0 *instance, bool full);
+M0_INTERNAL void m0_thread_arch_shun(void);
+
 /** @} end of thread group */
 #endif /* __MERO_LIB_THREAD_H__ */
 
