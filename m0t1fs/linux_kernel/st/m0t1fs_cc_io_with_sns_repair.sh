@@ -169,7 +169,7 @@ sns_repair_test()
 
 main()
 {
-	locla rc=0
+	local rc=0
 
 	NODE_UUID=`uuidgen`
 	mero_service start $stride $N $K $P || {
