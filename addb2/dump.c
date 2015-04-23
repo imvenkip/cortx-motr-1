@@ -111,9 +111,12 @@ static void libbfd_init(const char *libpath);
 static void libbfd_fini(void);
 static void libbfd_resolve(uint64_t delta, char *buf);
 
+static void deflate(void);
+
 #define DOM "./_addb2-dump"
 extern int  optind;
 static bool flatten = false;
+static bool deflatten = false;
 
 int main(int argc, char **argv)
 {
@@ -131,9 +134,16 @@ int main(int argc, char **argv)
 				     LAMBDA(void, (const char *path) {
 						     libbfd_init(path);
 					     })),
-			M0_FLAGARG('f', "Flatten output", &flatten));
+			M0_FLAGARG('f', "Flatten output", &flatten),
+			M0_FLAGARG('d', "De-flatten input", &deflatten));
 	if (result != 0)
 		err(EX_USAGE, "Wrong option: %d", result);
+	if (deflatten) {
+		if (flatten || optind < argc)
+			err(EX_USAGE, "De-flattening is exclusive.");
+		deflate();
+		return EX_OK;
+	}
 	result = m0_stob_domain_init("linuxstob:"DOM, "directio=true", &dom);
 	if (result == 0)
 		m0_stob_domain_destroy(dom);
@@ -712,6 +722,17 @@ static void libbfd_resolve(uint64_t delta, char *buf)
 		}
 		name = syms[left]->name;
 		sprintf(buf, " %s", name);
+	}
+}
+
+static void deflate(void)
+{
+	int ch;
+
+	while ((ch = getchar()) != EOF) {
+		if (ch == '|')
+			putchar('\n');
+		putchar(ch);
 	}
 }
 

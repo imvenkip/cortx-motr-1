@@ -159,35 +159,34 @@ This counter is shared by foms of all types. There are also separate fom state t
 
 See "Fop instrumenting" below.
 
-addb2-flatten
-.............
+Flattening addb2dump stream
+...........................
 
-m0addb2dump output is suitable for human reader, but not very convenient for
-ad-hoc queries and parsing by line-oriented tools (grep, sed, awk), because
+Default m0addb2dump output is suitable for human reader, but not very convenient
+for ad-hoc queries and parsing by line-oriented tools (grep, sed, awk), because
 context and measurement are on separate lines.
 
-./scripts/addb2-flatten converts between m0addb2dump output format and
-line-oriented format. When called without options it assumes that its standard
-output is in m0addb2dump format and "flattens" it by appending context labels to
-the measurement line. E.g., the "clock" record above becomes
+addb2dump has options '-f' (flattan output) and '-d' (de-flatten input) converts
+between m0addb2dump output format and line-oriented format. Output is
+"flattened" by by appending context labels to the measurement line. E.g., the
+"clock" record above becomes
 
 * clock            2015-04-14-15:32:02.395575233 |         node             <11186d8bf0e34117:ab1897c062a22573> |         locality         0
 
 (as one line).
 
-"addb2-flatten -r" converts its input back into m0addb2dump format.
+'-r' converts its input back into default m0addb2dump format.
 
 Example use:
 
-m0addb2dump $INPUT | addb2-flatten | \
-     grep forq | sort -k9,9 -n | addb2-flatten -r | less
+m0addb2dump -f $INPUT | grep forq | sort -k9,9 -n | m0addb2dump -r | less
 
 This finds all addb2 records describing fork-queue AST processing, sorts them by
 processing time and displays results.
 
 A more sophisticated query would be:
 
-$ m0addb2dump $INPUT | addb2-flatten | \
+$ m0addb2dump -f $INPUT | \
      grep 'Write.*committed.*nr: [^0]' | awk '{print $27}' | sort | uniq -c
 
 which finds all records about WRITE foms transition to the "transaction
@@ -196,8 +195,7 @@ many times foms committed in each locality.
 
 To find how much memory is allocated for a particular fom, given by its address:
 
-$ m0addb2dump $PWD/ios1/addb-stobs/o/*2 | addb2-flatten | \
-       grep '^\* alloc.*@0x7f5f980527d0' | \
+$ m0addb2dump -f $PWD/ios1/addb-stobs/o/*2 | grep '^\* alloc.*@0x7f5f980527d0' |\
        awk '{print $4; sum += $4} END {print "Total:", sum}'
 8,
 8,
