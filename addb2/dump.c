@@ -103,7 +103,7 @@ static struct id_intrp *id_get   (uint64_t id);
 
 static void rec_dump(struct context *ctx, const struct m0_addb2_record *rec);
 static void val_dump(struct context *ctx, const char *prefix,
-		     const struct m0_addb2_value *val, int indent);
+		     const struct m0_addb2_value *val, int indent, bool cr);
 static void context_fill(struct context *ctx, const struct m0_addb2_value *val);
 static void file_dump(struct m0_stob_domain *dom, const char *fname);
 
@@ -112,7 +112,8 @@ static void libbfd_fini(void);
 static void libbfd_resolve(uint64_t delta, char *buf);
 
 #define DOM "./_addb2-dump"
-extern int optind;
+extern int  optind;
+static bool flatten = false;
 
 int main(int argc, char **argv)
 {
@@ -129,7 +130,8 @@ int main(int argc, char **argv)
 			M0_STRINGARG('l', "Mero library path",
 				     LAMBDA(void, (const char *path) {
 						     libbfd_init(path);
-					     })));
+					     })),
+			M0_FLAGARG('f', "Flatten output", &flatten));
 	if (result != 0)
 		err(EX_USAGE, "Wrong option: %d", result);
 	result = m0_stob_domain_init("linuxstob:"DOM, "directio=true", &dom);
@@ -559,9 +561,11 @@ static void rec_dump(struct context *ctx, const struct m0_addb2_record *rec)
 	context_fill(ctx, &rec->ar_val);
 	for (i = 0; i < rec->ar_label_nr; ++i)
 		context_fill(ctx, &rec->ar_label[i]);
-	val_dump(ctx, "* ", &rec->ar_val, 0);
+	val_dump(ctx, "* ", &rec->ar_val, 0, !flatten);
 	for (i = 0; i < rec->ar_label_nr; ++i)
-		val_dump(ctx, "| ", &rec->ar_label[i], 8);
+		val_dump(ctx, "| ", &rec->ar_label[i], 8, !flatten);
+	if (flatten)
+		puts("");
 }
 
 static int pad(int indent)
@@ -571,7 +575,7 @@ static int pad(int indent)
 }
 
 static void val_dump(struct context *ctx, const char *prefix,
-		     const struct m0_addb2_value *val, int indent)
+		     const struct m0_addb2_value *val, int indent, bool cr)
 {
 	struct id_intrp  *intrp = id_get(val->va_id);
 	int               i;
@@ -585,7 +589,7 @@ static void val_dump(struct context *ctx, const char *prefix,
 	pad(indent);
 	if (intrp != NULL && intrp->ii_spec != NULL) {
 		intrp->ii_spec(ctx, buf);
-		printf("%s\n", buf);
+		printf("%s%s", buf, cr ? "\n" : " ");
 		return;
 	}
 	if (intrp != NULL)
@@ -612,7 +616,7 @@ static void val_dump(struct context *ctx, const char *prefix,
 		indent += pad(WIDTH * i - indent);
 		indent += printf("%s", buf);
 	}
-	printf("\n");
+	printf("%s", cr ? "\n" : " ");
 #undef BEND
 }
 
@@ -677,11 +681,19 @@ static void libbfd_fini(void)
 
 static void libbfd_resolve(uint64_t delta, char *buf)
 {
-	if (abfd != NULL) {
+	static uint64_t    cached = 0;
+	static const char *name   = NULL;
+
+	if (abfd == NULL)
+		;
+	else if (delta == cached)
+		sprintf(buf, " %s", name);
+	else {
 		size_t mid;
 		size_t left = 0;
 		size_t right = nr;
 
+		cached = delta;
 		delta += base;
 		while (left + 1 < right) {
 			asymbol *sym;
@@ -698,7 +710,8 @@ static void libbfd_resolve(uint64_t delta, char *buf)
 				break;
 			}
 		}
-		sprintf(buf, " %s", syms[left]->name);
+		name = syms[left]->name;
+		sprintf(buf, " %s", name);
 	}
 }
 
