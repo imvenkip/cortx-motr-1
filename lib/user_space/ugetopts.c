@@ -108,7 +108,7 @@ int m0_getopts(const char *progname, int argc, char *const *argv,
 
 	for (scan = i = 0; i < nr; ++i) {
 		/* -W is reserved by POSIX.2 and used by GNU getopts as a long
-                    option escape. */
+		   option escape. */
 		M0_ASSERT(opts[i].go_opt != 'W');
 		optstring[scan++] = opts[i].go_opt;
 		if (!M0_IN(opts[i].go_type, (GOT_VOID, GOT_FLAG, GOT_HELP)))
@@ -161,7 +161,7 @@ int m0_getopts(const char *progname, int argc, char *const *argv,
 			case GOT_FORMAT:
 				result = sscanf(optarg, u->got_fmt.f_string,
 						u->got_fmt.f_out);
-				result = result == 1 ? 0 : -EINVAL;
+				result = result == 1 ? 0 : M0_ERR(-EINVAL);
 				if (result != 0) {
 					fprintf(stderr, "Cannot scan \"%s\" "
 						"as \"%s\" in \"%s\"\n",
@@ -185,7 +185,7 @@ int m0_getopts(const char *progname, int argc, char *const *argv,
 			M0_ASSERT(ch == '?');
 			fprintf(stderr, "Unknown option '%c'\n", optopt);
 			usage(progname, opts, nr);
-			result = -EINVAL;
+			result = M0_ERR(-EINVAL);
 		}
 	}
 
