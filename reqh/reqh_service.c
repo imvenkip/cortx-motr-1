@@ -649,7 +649,7 @@ M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_fid *id,
 	M0_PRE(service_type_is_valid(stype));
 
 	M0_ALLOC_PTR(*ctx);
-	if (ctx == NULL)
+	if (*ctx == NULL)
 		return M0_ERR(-ENOMEM);
 	rc = m0_reqh_service_ctx_init(*ctx, id, stype);
 	if (rc == 0 && connect) {
