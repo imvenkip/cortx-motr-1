@@ -62,7 +62,7 @@ M0_INTERNAL int m0_fom_generic_init(void)
 }
 
 M0_INTERNAL void m0_fom_mod_rep_fill(struct m0_fop_mod_rep *rep,
-		   		     struct m0_fom *fom)
+				     struct m0_fom *fom)
 {
 	rep->fmr_remid.tri_txid = m0_fom_tx(fom)->t_id;
 	rep->fmr_remid.tri_locality = fom->fo_ops->fo_home_locality(fom);
@@ -96,7 +96,7 @@ M0_EXPORTED(m0_rpc_item_generic_reply_rc);
  * through its standard phases
  */
 struct fom_phase_desc {
-        /**
+	/**
 	   Perfoms actions corresponding to a particular standard fom
 	   phase, as defined.
 
@@ -104,12 +104,12 @@ struct fom_phase_desc {
 
 	   @see m0_fom_tick_generic()
 	 */
-        int (*fpd_action) (struct m0_fom *fom);
-        /**
+	int (*fpd_action) (struct m0_fom *fom);
+	/**
 	   Next phase the fom should transition into, after successfully
 	   completing the current phase execution.
 	 */
-        int		   fpd_nextphase;
+	int		   fpd_nextphase;
 	/**
 	   Fom phase name in user readable format.
 	 */
@@ -451,9 +451,9 @@ static const struct fom_phase_desc fpd_table[] = {
 	[M0_FOPH_AUTHENTICATE] =	   { &fom_authen,
 					      M0_FOPH_RESOURCE_LOCAL,
 					     "fom_authen",
-				              1 << M0_FOPH_AUTHENTICATE },
+					     1 << M0_FOPH_AUTHENTICATE },
 	[M0_FOPH_AUTHENTICATE_WAIT] =      { &fom_authen_wait,
-				              M0_FOPH_RESOURCE_LOCAL,
+					     M0_FOPH_RESOURCE_LOCAL,
 					     "fom_authen_wait",
 					     1 << M0_FOPH_AUTHENTICATE_WAIT},
 	[M0_FOPH_RESOURCE_LOCAL] =	   { &fom_loc_resource,
@@ -463,7 +463,7 @@ static const struct fom_phase_desc fpd_table[] = {
 	[M0_FOPH_RESOURCE_LOCAL_WAIT] =	   { &fom_loc_resource_wait,
 					      M0_FOPH_RESOURCE_DISTRIBUTED,
 					     "fom_loc_resource_wait",
-				             1 << M0_FOPH_RESOURCE_LOCAL_WAIT },
+					     1 << M0_FOPH_RESOURCE_LOCAL_WAIT },
 	[M0_FOPH_RESOURCE_DISTRIBUTED] =   { &fom_dist_resource,
 					      M0_FOPH_OBJECT_CHECK,
 					     "fom_dist_resource",
@@ -658,10 +658,10 @@ static struct m0_sm_state_descr generic_phases[] = {
 	}
 };
 struct m0_sm_trans_descr m0_generic_phases_trans[] = {
-	{"FOM initialised",	M0_FOPH_INIT,	M0_FOPH_AUTHENTICATE},
-	{"FOM finished",	M0_FOPH_INIT,	M0_FOPH_FINISH},
-	{"FOM Success",	        M0_FOPH_INIT,	M0_FOPH_SUCCESS},
-	{"FOM init failed",	M0_FOPH_INIT,	M0_FOPH_FAILURE},
+	{"FOM initialised",     M0_FOPH_INIT,   M0_FOPH_AUTHENTICATE},
+	{"FOM finished",        M0_FOPH_INIT,   M0_FOPH_FINISH},
+	{"FOM Success",         M0_FOPH_INIT,   M0_FOPH_SUCCESS},
+	{"FOM init failed",	M0_FOPH_INIT,   M0_FOPH_FAILURE},
 	{"FOM initialised start specific phases",
 				M0_FOPH_INIT, M0_FOPH_TYPE_SPECIFIC},
 	{"FOM wait authentication",
@@ -673,7 +673,7 @@ struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 				M0_FOPH_AUTHENTICATE, M0_FOPH_FAILURE},
 	{"FOM wait authentication finished",
 				M0_FOPH_AUTHENTICATE_WAIT,
-			        M0_FOPH_RESOURCE_LOCAL},
+				M0_FOPH_RESOURCE_LOCAL},
 	{"FOM authentication failed",
 				M0_FOPH_AUTHENTICATE_WAIT, M0_FOPH_FAILURE},
 	{"Wait identify local resource",
@@ -681,7 +681,7 @@ struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 				M0_FOPH_RESOURCE_LOCAL_WAIT},
 	{"Local resource identified",
 				M0_FOPH_RESOURCE_LOCAL,
-			        M0_FOPH_RESOURCE_DISTRIBUTED},
+				M0_FOPH_RESOURCE_DISTRIBUTED},
 	{"Local resource identification init failed",
 				M0_FOPH_RESOURCE_LOCAL, M0_FOPH_FAILURE},
 	{"Wait local resource identify finished",
@@ -691,22 +691,22 @@ struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 				M0_FOPH_RESOURCE_LOCAL_WAIT, M0_FOPH_FAILURE},
 	{"Wait identify distributed resource",
 				M0_FOPH_RESOURCE_DISTRIBUTED,
-			        M0_FOPH_RESOURCE_DISTRIBUTED_WAIT},
+				M0_FOPH_RESOURCE_DISTRIBUTED_WAIT},
 	{"Distributed resource identified",
 				M0_FOPH_RESOURCE_DISTRIBUTED,
-			        M0_FOPH_OBJECT_CHECK},
+				M0_FOPH_OBJECT_CHECK},
 	{"Distributed resource identification init failed",
 				M0_FOPH_RESOURCE_DISTRIBUTED,
 				M0_FOPH_FAILURE},
 	{"Distributed resource identified",
 				M0_FOPH_RESOURCE_DISTRIBUTED_WAIT,
-			        M0_FOPH_OBJECT_CHECK},
+				M0_FOPH_OBJECT_CHECK},
 	{"Wait identify distributed resource failed",
 				M0_FOPH_RESOURCE_DISTRIBUTED_WAIT,
 				M0_FOPH_FAILURE},
 	{"Wait check for FS objects initiate",
 				M0_FOPH_OBJECT_CHECK,
-			        M0_FOPH_OBJECT_CHECK_WAIT},
+				M0_FOPH_OBJECT_CHECK_WAIT},
 	{"FS objects located",  M0_FOPH_OBJECT_CHECK, M0_FOPH_AUTHORISATION},
 	{"Check for FS objects init failed",
 				M0_FOPH_OBJECT_CHECK, M0_FOPH_FAILURE},
@@ -717,7 +717,7 @@ struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 				M0_FOPH_OBJECT_CHECK_WAIT, M0_FOPH_FAILURE},
 	{"Wait authorisation",
 				M0_FOPH_AUTHORISATION,
-			        M0_FOPH_AUTHORISATION_WAIT},
+				M0_FOPH_AUTHORISATION_WAIT},
 	{"Authorisation init finish",
 				M0_FOPH_AUTHORISATION, M0_FOPH_TXN_INIT},
 	{"Autorisation init failed",
