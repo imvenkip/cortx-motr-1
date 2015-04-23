@@ -199,12 +199,10 @@ static void rm_client(const int tid)
 	M0_UT_ASSERT(rc == 0);
 	m0_file_owner_fini(&owner);
 	m0_file_fini(&file2);
-	rm_utdata_fini(&rm_test_data, OBJ_RES);
-
 	m0_rm_remote_fini(creditor);
 	m0_free(resource);
 	m0_free(creditor);
-
+	rm_utdata_fini(&rm_test_data, OBJ_RES);
 	m0_clink_fini(&client_ctx->rc_clink);
 	m0_chan_fini_lock(&client_ctx->rc_chan);
 	m0_mutex_fini(&client_ctx->rc_mutex);
