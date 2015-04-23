@@ -167,6 +167,13 @@ static int fop_common_fill(struct rm_out         *outreq,
 		req = (struct m0_rm_fop_req *) (char *)*data + offset;
 		req->rrq_policy = in->rin_policy;
 		req->rrq_flags = in->rin_flags;
+		/*
+		 * Set RIF_LOCAL_WAIT for remote requests if none of the
+		 * RIF_LOCAL_WAIT, RIF_LOCAL_TRY is set, because only local
+		 * users may resolve conflicts by some other means.
+		 */
+		if (!(in->rin_flags & (RIF_LOCAL_TRY | RIF_LOCAL_WAIT)))
+			req->rrq_flags |= RIF_LOCAL_WAIT;
 		req->rrq_owner.ow_cookie = *cookie;
 		resource = in->rin_want.cr_owner->ro_resource;
 		rc = m0_rm_resource_encode(resource,

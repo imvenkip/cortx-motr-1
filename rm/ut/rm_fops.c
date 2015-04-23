@@ -52,11 +52,11 @@ static void revoke_reply_populate(struct m0_fop_generic_reply *rreply,
 /*
  * Prepare parameters (request) for testing RM-FOP-send functions.
  */
-static void request_param_init(enum m0_rm_incoming_type reqtype)
+static void request_param_init(enum m0_rm_incoming_flags flags)
 {
 	M0_SET0(&rm_test_data.rd_in);
-	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner, reqtype,
-			    RIP_NONE, RIF_LOCAL_WAIT);
+	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
+			    M0_RIT_LOCAL, RIP_NONE, flags);
 
 	m0_rm_credit_init(&rm_test_data.rd_in.rin_want, rm_test_data.rd_owner);
 	rm_test_data.rd_in.rin_want.cr_datum = NENYA;
@@ -97,6 +97,24 @@ static void request_param_fini(void)
 }
 
 /*
+ * Validate local wait/try flags for RM FOP
+ */
+static void wait_try_flags_validate(uint64_t orig_flags,
+				    uint64_t rm_fop_flags)
+{
+	if (orig_flags & RIF_LOCAL_WAIT) {
+		M0_UT_ASSERT(rm_fop_flags & RIF_LOCAL_WAIT);
+		M0_UT_ASSERT(!(rm_fop_flags & RIF_LOCAL_TRY));
+	} else if (orig_flags & RIF_LOCAL_TRY) {
+		M0_UT_ASSERT(!(rm_fop_flags & RIF_LOCAL_WAIT));
+		M0_UT_ASSERT(rm_fop_flags & RIF_LOCAL_TRY);
+	} else {
+		M0_UT_ASSERT(rm_fop_flags & RIF_LOCAL_WAIT);
+		M0_UT_ASSERT(!(rm_fop_flags & RIF_LOCAL_TRY));
+	}
+}
+
+/*
  * Validate FOP and other data structures after RM-FOP-send function is called.
  */
 static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
@@ -107,7 +125,7 @@ static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
 	struct m0_rm_loan	*loan;
 	struct m0_rm_outgoing	*og;
 	struct rm_out		*oreq;
-	uint32_t		 pins_nr = 0;
+	uint32_t                 pins_nr = 0;
 
 	m0_tl_for(pi, &rm_test_data.rd_in.rin_pins, pin) {
 
@@ -217,7 +235,7 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 	struct m0_rpc_item       *item;
 	struct m0_rm_remote      *other;
 
-	request_param_init(reqtype);
+	request_param_init(RIF_LOCAL_WAIT);
 
 	m0_fi_enable_once("m0_rm_outgoing_send", "no-rpc");
 	switch (reqtype) {
@@ -253,7 +271,7 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 		post_revoke_validate(err);
 		post_revoke_cleanup(item, err);
 		/*
-		 * When revoke succeeds, loan is de-allocted through
+		 * When revoke succeeds, loan is de-allocated through
 		 * revoke_reply(). If revoke fails, post_revoke_cleanup(),
 		 * de-allocates the loan. Set test_loan to NULL. Otherwise,
 		 * it will result in double free().
@@ -272,34 +290,40 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
  */
 static void request_test(enum m0_rm_incoming_type reqtype)
 {
-	struct m0_rm_credit rest;
-	int                 rc = 0;
+	struct m0_rm_credit       rest;
+	enum m0_rm_incoming_flags flags[] = {0, RIF_LOCAL_TRY, RIF_LOCAL_WAIT};
+	int                       rc = 0;
+	int                       i;
 
-	request_param_init(reqtype);
+	for (i = 0; i < ARRAY_SIZE(flags); i++) {
+		request_param_init(flags[i]);
 
-	m0_fi_enable_once("m0_rm_outgoing_send", "no-rpc");
-	m0_rm_credit_init(&rest, rm_test_data.rd_owner);
-	rc = rest.cr_ops->cro_copy(&rest, &rm_test_data.rd_credit);
-	M0_UT_ASSERT(rc == 0);
-	switch (reqtype) {
-	case M0_RIT_BORROW:
-		rm_test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
-		rc = m0_rm_request_out(M0_ROT_BORROW, &rm_test_data.rd_in, NULL,
-				       &rest, &remote);
-		break;
-	case M0_RIT_REVOKE:
-		rm_test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
-		rc = m0_rm_request_out(M0_ROT_REVOKE, &rm_test_data.rd_in,
-				       test_loan, &rest, &remote);
-		break;
-	default:
-		M0_IMPOSSIBLE("Invalid RM-FOM type");
+		m0_fi_enable_once("m0_rm_outgoing_send", "no-rpc");
+		m0_rm_credit_init(&rest, rm_test_data.rd_owner);
+		rc = rest.cr_ops->cro_copy(&rest, &rm_test_data.rd_credit);
+		M0_UT_ASSERT(rc == 0);
+		switch (reqtype) {
+		case M0_RIT_BORROW:
+			rm_test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
+			rc = m0_rm_request_out(M0_ROT_BORROW,
+					       &rm_test_data.rd_in, NULL,
+					       &rest, &remote);
+			break;
+		case M0_RIT_REVOKE:
+			rm_test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
+			rc = m0_rm_request_out(M0_ROT_REVOKE,
+					       &rm_test_data.rd_in,
+					       test_loan, &rest, &remote);
+			break;
+		default:
+			M0_IMPOSSIBLE("Invalid RM-FOM type");
+		}
+		M0_UT_ASSERT(rc == 0);
+		m0_rm_credit_fini(&rest);
+
+		rm_req_fop_validate(reqtype);
+		request_param_fini();
 	}
-	M0_UT_ASSERT(rc == 0);
-	m0_rm_credit_fini(&rest);
-
-	rm_req_fop_validate(reqtype);
-	request_param_fini();
 }
 
 /*
@@ -378,7 +402,7 @@ static void borrow_fop_validate(struct m0_rm_fop_borrow *bfop)
 {
 	struct m0_rm_owner  *owner;
 	struct m0_rm_credit  credit;
-	int		     rc;
+	int                  rc;
 
 	owner = m0_cookie_of(&bfop->bo_base.rrq_owner.ow_cookie,
 			     struct m0_rm_owner, ro_id);
@@ -394,8 +418,9 @@ static void borrow_fop_validate(struct m0_rm_fop_borrow *bfop)
 	m0_rm_credit_fini(&credit);
 
 	M0_UT_ASSERT(bfop->bo_base.rrq_policy == RIP_NONE);
-	M0_UT_ASSERT(bfop->bo_base.rrq_flags &
-			(RIF_LOCAL_WAIT | RIF_MAY_BORROW));
+	M0_UT_ASSERT(bfop->bo_base.rrq_flags & RIF_MAY_BORROW);
+	wait_try_flags_validate(rm_test_data.rd_in.rin_flags,
+				bfop->bo_base.rrq_flags);
 	m0_buf_free(&bfop->bo_base.rrq_credit.cr_opaque);
 }
 
@@ -440,7 +465,7 @@ static void post_revoke_validate(int err)
 
 	/* If revoke fails, credit remains in sublet list */
 	M0_UT_ASSERT(ergo(err, sublet && !owned));
-	/* If revoke succeds, credit will be the part of cached list*/
+	/* If revoke succeeds, credit will be the part of cached list*/
 	M0_UT_ASSERT(ergo(err == 0, owned && !sublet));
 }
 
@@ -452,7 +477,7 @@ static void revoke_fop_validate(struct m0_rm_fop_revoke *rfop)
 	struct m0_rm_owner *owner;
 	struct m0_rm_credit credit;
 	struct m0_rm_loan  *loan;
-	int		    rc;
+	int                 rc;
 
 	owner = m0_cookie_of(&rfop->fr_base.rrq_owner.ow_cookie,
 			     struct m0_rm_owner, ro_id);
@@ -472,8 +497,9 @@ static void revoke_fop_validate(struct m0_rm_fop_revoke *rfop)
 	m0_rm_credit_fini(&credit);
 
 	M0_UT_ASSERT(rfop->fr_base.rrq_policy == RIP_NONE);
-	M0_UT_ASSERT(rfop->fr_base.rrq_flags &
-		     (RIF_LOCAL_WAIT | RIF_MAY_REVOKE));
+	M0_UT_ASSERT(rfop->fr_base.rrq_flags & RIF_MAY_REVOKE);
+	wait_try_flags_validate(rm_test_data.rd_in.rin_flags,
+				rfop->fr_base.rrq_flags);
 	m0_buf_free(&rfop->fr_base.rrq_credit.cr_opaque);
 }
 

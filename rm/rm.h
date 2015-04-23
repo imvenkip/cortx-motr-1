@@ -1152,14 +1152,16 @@ enum m0_rm_incoming_flags {
 	 *       because local users resolve conflicts by some other means
 	 *       (usually some form of concurrency control, like locking);
 	 *
-	 *     - if RIF_LOCAL_WAIT is set, the request can be fulfilled only
-	 *       when there is no locally possessed credits conflicting with the
+	 *     - if RIF_LOCAL_WAIT is set, the request will wait until
+	 *       there is no locally possessed credits conflicting with the
 	 *       wanted credit. This is typical for a remote request
 	 *       (M0_RIT_BORROW or M0_RIT_REVOKE);
 	 *
 	 *     - if RIF_LOCAL_TRY is set, the request will be immediately
 	 *       denied, if there are conflicting local credits. This allows to
 	 *       implement a "try-lock" like functionality.
+	 *
+	 * RIF_LOCAL_WAIT and RIF_LOCAL_TRY flags are mutually exclusive.
 	 */
 	RIF_LOCAL_WAIT = (1 << 2),
 	/**

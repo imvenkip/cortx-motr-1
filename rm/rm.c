@@ -2154,7 +2154,6 @@ static int borrow_send(struct m0_rm_incoming *in, struct m0_rm_credit *credit)
 
 	M0_ENTRY("incoming: %p credit: %llu", in,
 		 (long long unsigned) credit->cr_datum);
-	//M0_LOG(M0_FATAL, "Sending borrow");
 	M0_PRE(other != NULL);
 
 	/*
@@ -2348,6 +2347,9 @@ static bool incoming_invariant(const struct m0_rm_incoming *in)
 		(in->rin_rc != 0) == (incoming_state(in) == RI_FAILURE) &&
 		!(in->rin_flags & ~(RIF_MAY_REVOKE|RIF_MAY_BORROW|
 				    RIF_LOCAL_WAIT|RIF_LOCAL_TRY)) &&
+		/* RIF_LOCAL_WAIT and RIF_LOCAL_TRY can't be set together */
+		(in->rin_flags & (RIF_LOCAL_WAIT | RIF_LOCAL_TRY)) !=
+		                 (RIF_LOCAL_WAIT | RIF_LOCAL_TRY) &&
 		IS_IN_ARRAY(in->rin_priority,
 			    in->rin_want.cr_owner->ro_incoming) &&
 		/* a request can be in "check" state only during owner_balance()
