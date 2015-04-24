@@ -759,7 +759,13 @@ static int sm_addb2_ctor(struct m0_sm_addb2_stats *stats,
 	stats->as_nr = c->scf_trans_nr;
 	for (i = 0; i < stats->as_nr; ++i) {
 		m0_addb2_counter_add(&stats->as_counter[i],
-				     c->scf_addb2_counter + i, 1);
+				     /*
+				      * index parameter (2) corresponds to
+				      * "standard" labels added to the context
+				      * of a locality addb2 machine: node, pid
+				      * and locality-id.
+				      */
+				     c->scf_addb2_counter + i, 2);
 	}
 	return 0;
 }
