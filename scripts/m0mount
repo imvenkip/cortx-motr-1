@@ -477,7 +477,6 @@ for dev in \$devs; do
 done
 exit 0
 EOF
-	gen_device_conf_ids
 	if [ $H != $THIS_HOST ]; then
 		l_do scp $SF $H:$DISKS_SH
 	else
@@ -576,6 +575,8 @@ function start_server ()
 
 	$DO "echo rotated > ${SLOG}$I.log"
 
+	# Generate configuration entries for devices.
+	gen_device_conf_ids
 	local SNAME
 	if [ $I -eq 0 ]; then
 		local DIR=$WORK_ARENA/confd
