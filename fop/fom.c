@@ -226,9 +226,9 @@ static bool thread_invariant(const struct m0_loc_thread *t)
 
 M0_INTERNAL bool m0_fom_domain_invariant(const struct m0_fom_domain *dom)
 {
-	size_t cpu_max = m0_processor_nr_max();
 	return dom != NULL && dom->fd_localities != NULL &&
-	       m0_forall(i, cpu_max, dom->fd_localities[i] != NULL) &&
+	       m0_forall(i, dom->fd_localities_nr,
+			 dom->fd_localities[i] != NULL) &&
 		dom->fd_ops != NULL;
 }
 
@@ -869,20 +869,20 @@ static void loc_fini(struct m0_fom_locality *loc)
  * @see loc_thr_init()
  *
  * @param loc     m0_fom_locality to be initialised
- * @param cpu     cpu assigned to the locality
- * @param cpu_max maximum number of cpus that can be present in a locality
+ * @param idx     index of locality within fom domain
  */
-static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+static int loc_init(struct m0_fom_locality *loc, struct m0_fom_domain *dom,
+		    size_t idx)
 {
 	int                   res;
 	struct m0_addb_mc    *addb_mc;
 	struct m0_addb2_mach *orig = m0_thread_tls()->tls_addb2_mach;
-	struct m0_fom_domain *dom  = loc->fl_dom;
 
 	M0_PRE(loc != NULL);
 
 	M0_ENTRY();
 
+	loc->fl_dom = dom;
 	/**
 	 * @todo Need a locality specific ADDB machine
 	 * with a caching event manager.
@@ -891,7 +891,7 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	if (!m0_addb_mc_is_configured(addb_mc)) /* happens in UTs */
 		addb_mc = &m0_addb_gmc;
 	M0_ADDB_CTX_INIT(addb_mc, &loc->fl_addb_ctx, &m0_addb_ct_fom_locality,
-			 &dom->fd_addb_ctx, cpu);
+			 &dom->fd_addb_ctx, idx);
 
 	loc->fl_addb2_mach = m0_addb2_sys_get(dom->fd_addb2_sys);
 	if (loc->fl_addb2_mach == NULL) {
@@ -903,7 +903,7 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	loc->fl_runq_nr = 0;
 	wail_tlist_init(&loc->fl_wail);
 	loc->fl_wail_nr = 0;
-	loc->fl_idx = cpu;
+	loc->fl_idx = idx;
 	m0_thread_tls()->tls_addb2_mach = loc->fl_addb2_mach;
 	m0_addb2_push(M0_AVI_NODE, M0_ADDB2_OBJ(&m0_node_uuid));
 	M0_ADDB2_PUSH(M0_AVI_PID, m0_process_id());
@@ -942,11 +942,11 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	m0_atomic64_set(&loc->fl_unblocking, 0);
 	m0_chan_init(&loc->fl_idle, &loc->fl_group.s_lock);
 
-	res = m0_bitmap_init(&loc->fl_processors, cpu_max);
+	res = m0_bitmap_init(&loc->fl_processors, dom->fd_localities_nr);
 	if (res == 0) {
 		int i;
 
-		m0_bitmap_set(&loc->fl_processors, cpu, true);
+		m0_bitmap_set(&loc->fl_processors, idx, true);
 		/* create a pool of idle threads plus the handler thread. */
 		group_lock(loc);
 		for (i = 0; i < LOC_IDLE_NR + 1; ++i) {
@@ -1006,99 +1006,82 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain **out)
 {
 	extern struct m0_addb_ctx_type m0_addb_ct_reqh_mod;
 
-	struct m0_fom_domain *dom;
-	int                   result;
-	size_t                cpu;
-	size_t                cpu_max;
-	struct m0_bitmap      onln_cpu_map;
-	int                   i;
+	struct m0_fom_domain   *dom;
+	struct m0_bitmap        cpu_map;
+	struct m0_fom_locality *loc;
+	int                     result;
+	size_t                  cpu_nr;
+	size_t                  i;
 
-	M0_PRE(out != NULL && *out == NULL);
+	cpu_nr = m0_processor_nr_max();
+	result = m0_bitmap_init(&cpu_map, cpu_nr + 1);
+	if (result != 0)
+		return M0_ERR(result);
 
 	M0_ALLOC_PTR(dom);
-	if (dom == NULL)
+	if (dom == NULL) {
+		m0_bitmap_fini(&cpu_map);
 		return M0_ERR(-ENOMEM);
+	}
 
-	cpu_max = m0_processor_nr_max();
-	dom->fd_ops = &m0_fom_dom_ops;
-	result = m0_bitmap_init(&onln_cpu_map, cpu_max);
-	if (result != 0)
-		return result;
-	m0_processors_online(&onln_cpu_map);
-	M0_LOG(M0_DEBUG, "sizeof struct m0_fom_locality = %d cpu_max = %d",
-			 (int)(sizeof **dom->fd_localities), (int)cpu_max);
-	FOP_ALLOC_ARR(dom->fd_localities, cpu_max, FOM_DOMAIN_INIT,
-			&m0_fop_addb_ctx);
-	if (dom->fd_localities == NULL) {
-		m0_bitmap_fini(&onln_cpu_map);
-		return M0_ERR(-ENOMEM);
-	}
-	for (i = 0; i < cpu_max; i++) {
-		FOP_ALLOC_PTR(dom->fd_localities[i], FOM_DOMAIN_INIT,
-			      &m0_fop_addb_ctx);
-		if (dom->fd_localities[i] == NULL) {
-			int j;
-			for (j = 0; j <= i; j++) {
-				m0_free(dom->fd_localities[j]);
-			}
-			m0_free(dom->fd_localities);
-			m0_bitmap_fini(&onln_cpu_map);
-			return M0_ERR(-ENOMEM);
-		}
-	}
+	m0_processors_online(&cpu_map);
+	cpu_nr = m0_bitmap_set_nr(&cpu_map);
 	m0_addb_mc_init(&dom->fd_addb_mc);
 	/* for UT specifically */
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &dom->fd_addb_ctx,
 			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
+	dom->fd_ops = &m0_fom_dom_ops;
 	result = m0_addb2_sys_init(&dom->fd_addb2_sys,
 				   &(struct m0_addb2_config) {
-		.co_queue_max = 1024 * 1024,
-		.co_pool_min  = m0_bitmap_set_nr(&onln_cpu_map),
-		.co_pool_max  = m0_bitmap_set_nr(&onln_cpu_map)
-	});
-	if (result != 0) {
-		m0_fom_domain_fini(dom);
-		return M0_ERR(result);
-	}
-	for (cpu = 0; cpu < cpu_max; ++cpu) {
-		struct m0_fom_locality *loc;
-
-		if (!m0_bitmap_get(&onln_cpu_map, cpu))
-			continue;
-		loc = dom->fd_localities[dom->fd_localities_nr];
-		loc->fl_dom = dom;
-		result = loc_init(loc, cpu, cpu_max);
-		if (result != 0) {
-			m0_fom_domain_fini(dom);
-			break;
-		}
-		M0_CNT_INC(dom->fd_localities_nr);
-	}
-	m0_bitmap_fini(&onln_cpu_map);
+					   .co_queue_max = 1024 * 1024,
+					   .co_pool_min  = cpu_nr,
+					   .co_pool_max  = cpu_nr
+				   });
 	if (result == 0) {
-		m0_locality_dom_set(dom);
-		/* Wake up handler threads. */
-		for (i = 0; i < dom->fd_localities_nr; ++i) {
-			struct m0_fom_locality *loc;
-
-			loc = dom->fd_localities[i];
-			group_lock(loc);
-			m0_chan_signal(&loc->fl_idle);
-			group_unlock(loc);
-		}
-		if (result != 0)
-			m0_fom_domain_fini(dom);
+		M0_ALLOC_ARR(dom->fd_localities, cpu_nr);
+		if (dom->fd_localities != NULL) {
+			dom->fd_localities_nr = cpu_nr;
+			for (i = 0; i < cpu_nr; ++i) {
+				/* Do not support holes in cpu mask. */
+				M0_ASSERT(m0_bitmap_get(&cpu_map, i));
+				M0_ALLOC_PTR(loc);
+				if (loc != NULL) {
+					result = loc_init(loc, dom, i);
+					if (result == 0)
+						dom->fd_localities[i] = loc;
+					else
+						m0_free(loc);
+				} else
+					result = M0_ERR(-ENOMEM);
+				if (result != 0)
+					break;
+			}
+			if (result == 0) {
+				m0_locality_dom_set(dom);
+				/* Wake up handler threads. */
+				for (i = 0; i < cpu_nr; ++i) {
+					loc = dom->fd_localities[i];
+					group_lock(loc);
+					m0_chan_signal(&loc->fl_idle);
+					group_unlock(loc);
+				}
+			}
+		} else
+			result = M0_ERR(-ENOMEM);
 	}
+	m0_bitmap_fini(&cpu_map);
 	if (result == 0)
 		*out = dom;
-	return M0_RC(result);
+	else {
+		*out = NULL;
+		m0_fom_domain_fini(dom);
+	}
+	return result;
 }
 
 M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 {
 	int i;
-
-	M0_ASSERT(m0_fom_domain_invariant(dom));
 
 	if (dom->fd_localities != NULL) {
 		i = dom->fd_localities_nr;
@@ -1107,9 +1090,9 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 				loc_fini(dom->fd_localities[i]);
 		}
 		m0_locality_dom_unset(dom);
-		for (i = 0; i < m0_processor_nr_max(); i++)
+		for (i = 0; i < dom->fd_localities_nr; i++)
 			m0_free(dom->fd_localities[i]);
-		m0_free0(&dom->fd_localities);
+		m0_free(dom->fd_localities);
 	}
 	m0_addb_ctx_fini(&dom->fd_addb_ctx);
 	m0_addb_mc_fini(&dom->fd_addb_mc);
