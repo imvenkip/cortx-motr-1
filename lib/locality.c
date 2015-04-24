@@ -37,6 +37,8 @@
 #include "module/instance.h"
 #include "fop/fom.h"
 #include "reqh/reqh.h"
+#include "addb2/addb2.h"
+#include "addb2/identifier.h"
 
 /**
  * @todo move m0_locality_lockers_type and ldata[] in locality_global, once
@@ -188,6 +190,7 @@ static void locs_ast_handler(void *__unused)
 	struct locality_global *glob = loc_glob();
 	struct m0_sm_group     *grp  = &glob->lg_grp;
 
+	M0_ADDB2_PUSH(M0_AVI_LOCALITY, ~0ULL);
 	while (!glob->lg_shutdown) {
 		m0_chan_wait(&grp->s_clink);
 		m0_sm_group_lock(grp);
@@ -196,6 +199,7 @@ static void locs_ast_handler(void *__unused)
 			m0_locality_chores_run(&glob->lg_fallback);
 		m0_sm_group_unlock(grp);
 	}
+	m0_addb2_pop(M0_AVI_LOCALITY);
 }
 
 static int ast_thread_init(void *__unused)
