@@ -67,7 +67,7 @@ BuildRequires:  perl-File-Find-Rule
 BuildRequires:  perl-IO-All
 BuildRequires:  perl-File-Slurp
 BuildRequires:  kernel-devel = %{kernel_ver_requires}
-BuildRequires:  lustre-devel
+BuildRequires:  lustre-client-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
 BuildRequires:  perl-autodie
@@ -79,6 +79,7 @@ Requires:       lustre-client-modules
 Requires:       libyaml
 Requires:       genders
 Requires:       sysvinit-tools
+Requires:       attr
 Requires:       perl
 Requires:       perl-YAML-LibYAML
 Requires:       perl-DateTime

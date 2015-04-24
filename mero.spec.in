@@ -13,6 +13,15 @@
 %define kernel_ver %( echo %{raw_kernel_ver} | tr - _ )
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.x86_64$//' )
 
+# distribution
+%if 0%{?el6}
+%define lustre_devel   lustre-devel
+%define lustre_modules lustre-modules
+%else
+%define lustre_devel   lustre-client-devel
+%define lustre_modules lustre-client-modules
+%endif
+
 %bcond_with ut
 %bcond_with systemd
 
@@ -53,7 +62,7 @@ BuildRequires:  perl-File-Find-Rule
 BuildRequires:  perl-IO-All
 BuildRequires:  perl-File-Slurp
 BuildRequires:  kernel-devel = %{kernel_ver_requires}
-BuildRequires:  lustre-devel
+BuildRequires:  %{lustre_devel}
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
 %if %{with systemd}
@@ -63,10 +72,11 @@ BuildRequires:  redhat-lsb-core
 %endif
 
 Requires:       kernel = %{kernel_ver_requires}
-Requires:       lustre-modules
+Requires:       %{lustre_modules}
 Requires:       libyaml
 Requires:       genders
 Requires:       sysvinit-tools
+Requires:       attr
 Requires:       perl
 Requires:       perl-YAML-LibYAML
 Requires:       perl-DateTime
