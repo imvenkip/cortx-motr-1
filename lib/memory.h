@@ -62,6 +62,8 @@ void m0_free(void *data);
 #define M0_ALLOC_ARR(arr, nr)  ((arr) = m0_alloc((nr) * sizeof ((arr)[0])))
 #define M0_ALLOC_PTR(ptr)      M0_ALLOC_ARR(ptr, 1)
 
+#define M0_ALLOC_ARR_ALIGNED(arr, nr, shift)		\
+	((arr) = m0_alloc_aligned((nr) * sizeof ((arr)[0])), shift)
 /**
    Macro to allocate a specified size of memory and assign it to a pointer.
    On failure, a standard ADDB record is posted.

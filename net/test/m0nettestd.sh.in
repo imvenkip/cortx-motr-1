@@ -15,12 +15,12 @@ NODE_UUID="abcdef01-2345-6789-0123-456789ABCDEF"
 
 unload_all() {
     modunload
-    modunload_galois
+    modunload_m0gf
 }
 trap unload_all EXIT
 
 modprobe_lnet
-modload_galois
+modload_m0gf
 modload || exit $?
 
 @abs_top_srcdir@/net/test/user_space/m0nettestd "$@"

@@ -22,12 +22,12 @@ SERVER_EP_ADDR='0@lo:12345:34:1'
 CLIENT_EP_ADDR='0@lo:12345:34:*'
 
 NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91   # required by `common.sh'
-. $M0_CORE_DIR/m0t1fs/linux_kernel/st/common.sh  # modload_galois
+. $M0_CORE_DIR/m0t1fs/linux_kernel/st/common.sh  # modload_m0gf
 
 start_server()
 {
 	modprobe lnet
-	modload_galois &>/dev/null
+	modload_m0gf &>/dev/null
 	echo 8 >/proc/sys/kernel/printk
 	modload
 
@@ -115,7 +115,7 @@ stop_server()
 {
 	killproc $SERVER_EXEC &>/dev/null && wait || true
 	modunload
-	modunload_galois
+	modunload_m0gf
 }
 
 check_reply()

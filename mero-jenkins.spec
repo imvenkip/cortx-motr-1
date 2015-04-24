@@ -123,10 +123,10 @@ rm -rf %{buildroot}
 make DESTDIR=%{buildroot} install-tests
 
 find %{buildroot} -name m0mero.ko -o -name m0ut.ko -o -name m0loop-ut.ko \
-    -o -name galois.ko | sed -e 's#^%{buildroot}##' > tests-ut.files
+    -o -name m0gf.ko | sed -e 's#^%{buildroot}##' > tests-ut.files
 
 find %{buildroot} -name m0ut -o -name m0ub -o -name m0run -o -name 'm0kut*' \
-    -o -name 'libmero*.so*' -o -name 'libgalois*.so*' |
+    -o -name 'libmero*.so*' -o -name 'libgf_complete*.so*' |
     sed -e 's#^%{buildroot}##' >> tests-ut.files
 
 sort -o tests-ut.files tests-ut.files

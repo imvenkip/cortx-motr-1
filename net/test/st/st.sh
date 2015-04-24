@@ -19,13 +19,13 @@ role_space()
 
 unload_all() {
 	modunload
-	modunload_galois
+	modunload_m0gf
 }
 trap unload_all EXIT
 
 modprobe_lnet
 lctl network up > /dev/null
-modload_galois
+modload_m0gf
 modload || exit $?
 
 export TEST_RUN_TIME=5

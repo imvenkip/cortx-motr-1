@@ -219,7 +219,7 @@ if [ $0 = "/usr/bin/m0mount" ]; then
 	M0LAYOUT="/usr/bin/m0layout"
 	SUMFILE=$M0D
 	MERO_KO_LOAD_CMD="modprobe m0mero"
-	GALOIS_KO_LOAD_CMD="modprobe galois"
+	GF_KO_LOAD_CMD="modprobe m0gf"
 else
 	BROOT=$PWD   # globally visible build root
 	M0D=$BROOT/mero/m0d
@@ -227,7 +227,7 @@ else
 	M0LAYOUT="$BROOT/utils/m0layout"
 	SUMFILE=$BROOT/mero/.libs/m0d
 	MERO_KO_LOAD_CMD="insmod $BROOT/mero/m0mero.ko"
-	GALOIS_KO_LOAD_CMD="insmod $BROOT/extra-libs/galois/src/linux_kernel/galois.ko"
+	GF_KO_LOAD_CMD="insmod $BROOT/extra-libs/gf-complete/src/linux_kernel/m0gf.ko"
 fi
 
 #
@@ -341,17 +341,17 @@ function setup_host ()
 		echo  ERROR: Unable to configure LNet
 		return 1
 	fi
-	$RUN rmmod m0mero galois 2>/dev/null
-	$RUN $GALOIS_KO_LOAD_CMD
+	$RUN rmmod m0mero m0gf 2>/dev/null
+	$RUN $GF_KO_LOAD_CMD
 	if [ $? -ne 0 ]; then
-		echo ERROR: Failed to load galois module on $H
+		echo ERROR: Failed to load m0gf module on $H
 		return 1
 	fi
 	$RUN $MERO_KO_LOAD_CMD local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS \
 		node_uuid=${NODE_UUID[$H]} trace_buf_size=$((128 * 1024 * 1024))
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to load m0mero module on $H
-		$RUN rmmod galois
+		$RUN rmmod m0gf
 		return 1
 	fi
 	return 0
@@ -386,7 +386,7 @@ function teardown_host ()
 	else
 		RUN=l_run
 	fi
-	$RUN rmmod m0mero galois
+	$RUN rmmod m0mero m0gf
 	return 0
 }
 
@@ -851,16 +851,16 @@ main()
 
 	LSUM=$(sum $SUMFILE)
 
-	rmmod m0loop m0mero galois &> /dev/null
+	rmmod m0loop m0mero m0gf &> /dev/null
 
 	# ldemo now needs kernel module loaded for some reason...
-	l_do $GALOIS_KO_LOAD_CMD || {
-		echo ERROR: Failed to load galois module
+	l_do $GF_KO_LOAD_CMD || {
+		echo ERROR: Failed to load m0gf module
 		exit 1
 	}
 	l_do $MERO_KO_LOAD_CMD || {
 		echo ERROR: Failed to load m0mero module
-		rmmod galois
+		rmmod m0gf
 		exit 1
 	}
 

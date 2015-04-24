@@ -157,7 +157,7 @@ prepare_testdir()
 prepare()
 {
 	prepare_testdir || return $?
-	modload_galois >& /dev/null
+	modload_m0gf >& /dev/null
 	echo 8 > /proc/sys/kernel/printk
 	load_kernel_module || return $?
 }
@@ -174,7 +174,7 @@ unprepare()
 	if lsmod | grep m0mero > /dev/null; then
 		unload_kernel_module
 	fi
-	modunload_galois
+	modunload_m0gf
 }
 
 

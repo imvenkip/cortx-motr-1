@@ -65,8 +65,8 @@ sandbox_fini() {
 }
 
 modules_insert() {
-    insmod $M0_CORE_DIR/extra-libs/galois/src/linux_kernel/galois.ko || \
-	die 'Inserting galois.ko failed'
+    insmod $M0_CORE_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko || \
+	die 'Inserting m0gf.ko failed'
 
     insmod $M0_CORE_DIR/mero/m0mero.ko \
 	local_addr=$M0T1FS_ENDPOINT \
@@ -76,14 +76,14 @@ modules_insert() {
 	${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
 	${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
 	|| {
-	rmmod galois
+	rmmod m0gf
 	die 'Inserting m0mero.ko failed'
     }
 }
 
 modules_remove() {
     rmmod m0mero
-    rmmod galois
+    rmmod m0gf
 }
 
 export_endpoints() {
@@ -228,7 +228,7 @@ Usage: ${0##*/} [COMMAND]
 
 Supported commands:
   run      run system tests (default command)
-  insmod   insert Mero kernel modules: m0mero.ko, galois.ko
+  insmod   insert Mero kernel modules: m0mero.ko, m0gf.ko
   rmmod    remove Mero kernel modules
   sstart   start Mero user-space services
   sstop    stop Mero user-space services

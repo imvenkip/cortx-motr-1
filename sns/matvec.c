@@ -27,6 +27,10 @@
 #include "lib/types.h"
 #include "sns/matvec.h"
 
+/* ============================================================================
+ GLOBAL @TODO: ALLOCATE AND FREE DATA WITH CORRESPONDING ALIGNMENT!!!
+ =========================================================================== */
+
 M0_INTERNAL int m0_vector_init(struct m0_vector *v, uint32_t sz)
 {
 	v->v_size = sz;

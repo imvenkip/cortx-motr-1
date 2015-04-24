@@ -609,19 +609,19 @@ OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
-# Check for galois
+# Check for gf_complete
 
-GALOIS_REL_PATH="extra-libs/galois"
-GALOIS_SRC="$SRCDIR/$GALOIS_REL_PATH"
-GALOIS_ABS_SRC="$ABS_SRCDIR/$GALOIS_REL_PATH"
-GALOIS_INCLUDES="-I$GALOIS_SRC/include"
-KGALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
-GALOIS_LIBS="$GALOIS_SRC/src/libgalois.la"
+GF_REL_PATH="extra-libs/gf-complete"
+GF_SRC="$SRCDIR/$GF_REL_PATH"
+GF_ABS_SRC="$ABS_SRCDIR/$GF_REL_PATH"
+GF_INCLUDES="-I$GF_SRC/include"
+KGF_INCLUDES="-I$GF_ABS_SRC/include"
+GF_LIBS="$GF_SRC/src/libgf_complete.la"
 
-AC_SUBST([GALOIS_SYMVERS], [$GALOIS_ABS_SRC/src/linux_kernel/Module.symvers])
+AC_SUBST([GF_SYMVERS], [$GF_ABS_SRC/src/linux_kernel/Module.symvers])
 
-AS_IF([! test -x $GALOIS_SRC/configure],
-      [ test -x $GALOIS_SRC/autogen.sh && ( cd $GALOIS_SRC; ./autogen.sh ) ]
+AS_IF([! test -x $GF_SRC/configure],
+      [ test -x $GF_SRC/autogen.sh && ( cd $GF_SRC; ./autogen.sh ) ]
 )
 
 # Check for yaml
@@ -649,8 +649,8 @@ AS_IF([test x$enable_system_libs = xyes],
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
-AC_SUBST([GALOIS_ABS_SRC])
-AC_SUBST([GALOIS_LIBS])
+AC_SUBST([GF_ABS_SRC])
+AC_SUBST([GF_LIBS])
 AC_SUBST([YAML_LIBS])
 
 #
@@ -705,7 +705,7 @@ AS_IF([test x$enable_mcheck = xyes],
 # Set up build variables
 #
 
-M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
+M0_CPPFLAGS="$GF_INCLUDES $YAML_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
@@ -728,7 +728,7 @@ M0_LDFLAGS="-rdynamic $M0_LDFLAGS"
 M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern \
               -include $ABS_BUILDDIR/config.h -iquote $ABS_BUILDDIR -iquote $ABS_SRCDIR \
               -I $LUSTRE/lnet/include -I$LUSTRE/libcfs/include -I$LUSTRE/lustre/include \
-              $KGALOIS_INCLUDES $M0_KCPPFLAGS"
+              $KGF_INCLUDES $M0_KCPPFLAGS"
 
 M0_KCFLAGS="-Wall -Werror -Wno-attributes $M0_KCFLAGS"
 
@@ -772,7 +772,7 @@ AC_CONFIG_FILES([net/test/st/st-config.sh], [chmod +x net/test/st/st-config.sh])
 AC_CONFIG_FILES([net/test/demo/demo-config.sh], [chmod +x net/test/demo/demo-config.sh])
 AC_CONFIG_FILES([utils/modload-all.sh], [chmod +x utils/modload-all.sh])
 
-AC_CONFIG_SUBDIRS([extra-libs/galois])
+AC_CONFIG_SUBDIRS([extra-libs/gf-complete])
 
 AC_OUTPUT
 
@@ -811,7 +811,7 @@ echo "PTHREAD_LIBS :  \"$PTHREAD_LIBS\""
 echo "AIO_LIBS     :  \"$AIO_LIBS\""
 echo "RT_LIBS      :  \"$RT_LIBS\""
 echo "PROFILER_LIBS:  \"$PROFILER_LIBS\""
-echo "GALOIS_LIBS  :  \"$GALOIS_LIBS\""
+echo "GF_LIBS      :  \"$GF_LIBS\""
 echo "YAML_LIBS    :  \"$YAML_LIBS\""
 echo "UUID_LIBS    :  \"$UUID_LIBS\""
 echo ""

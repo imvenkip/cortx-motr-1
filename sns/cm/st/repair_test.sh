@@ -32,7 +32,7 @@ cleanup()
 		sleep 2;
 	done
 
-	rmmod m0mero galois
+	rmmod m0mero m0gf
 }
 
 main()

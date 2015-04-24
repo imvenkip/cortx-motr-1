@@ -195,29 +195,29 @@ enum {
 };
 
 /* m0_parity_* are to much eclectic. just more simple names. */
-static int gadd(int x, int y)
+static m0_parity_elem_t gadd(m0_parity_elem_t x, m0_parity_elem_t y)
 {
 	return m0_parity_add(x, y);
 }
 
-static int gsub(int x, int y)
+static m0_parity_elem_t gsub(m0_parity_elem_t x, m0_parity_elem_t y)
 {
 	return m0_parity_sub(x, y);
 }
 
-static int gmul(int x, int y)
+static m0_parity_elem_t gmul(m0_parity_elem_t x, m0_parity_elem_t y)
 {
 	return m0_parity_mul(x, y);
 }
 
-static int gdiv(int x, int y)
+static m0_parity_elem_t gdiv(m0_parity_elem_t x, m0_parity_elem_t y)
 {
 	return m0_parity_div(x, y);
 }
 
-static int gpow(int x, int p)
+static m0_parity_elem_t gpow(m0_parity_elem_t x, m0_parity_elem_t p)
 {
-	int ret = x;
+	m0_parity_elem_t ret = x;
 	int i = 1;
 
 	if (p == 0)

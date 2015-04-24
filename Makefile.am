@@ -83,10 +83,8 @@ if HAVE_SYSTEMD
 RPMBUILD_FLAGS += --with systemd
 endif
 
-GALOIS_DIR   = extra-libs/galois
-
-SUBDIRS = $(GALOIS_DIR)
-
+GF_DIR       = extra-libs/gf-complete
+SUBDIRS      = $(GF_DIR)
 
 ################################################################################
 #                               Global variables
@@ -166,8 +164,7 @@ lib_LTLIBRARIES          += mero/libmero.la
 mero_libmero_la_CPPFLAGS  = -DM0_TARGET='libmero' $(AM_CPPFLAGS)
 mero_libmero_la_LDFLAGS   = -release @LT_RELEASE@ -pthread $(AM_LDFLAGS)
 mero_libmero_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
-                            @GALOIS_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@ \
-			    @UUID_LIBS@
+                            @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ @GF_LIBS@
 
 # install directory for public libmero headers
 mero_includedir             = $(includedir)/mero
@@ -976,17 +973,17 @@ libmero-ut: pre-all
 .PHONY: __libmero-ut
 __libmero-ut: config.h Makefile ut/libmero-ut.la $(HEADERS)
 
-# galois
+# gf-complete
 
-.PHONY: galois
-galois:
-	@echo 'Building galois'
-	@cd $(GALOIS_DIR) && $(MAKE) $(AM_MAKEFLAGS)
+.PHONY: gf-complete
+gf-complete:
+	@echo 'Building gf-complete'
+	@cd $(GF_DIR) && $(MAKE) $(AM_MAKEFLAGS)
 
 # quick
 
 .PHONY: quick
-quick: generate-files galois
+quick: generate-files gf-complete
 	@echo 'Building user-space Unit Tests'
 	@$(MAKE) $(AM_MAKEFLAGS) __quick
 
@@ -997,7 +994,7 @@ __quick: __libmero __libmero-ut ut/m0ut
 # kuick
 
 .PHONY: kuick
-kuick: generate-files galois
+kuick: generate-files gf-complete
 	@echo 'Building kernel-space Unit Tests'
 	@$(MAKE) $(AM_MAKEFLAGS) build-kernel-modules M0_BUILD_KERNEL_UT_ONLY=yes
 
@@ -1022,7 +1019,7 @@ clean-local: clean-kernel-modules clean-doc
 #   $(MAKE) -C $(KDIR) M=$(PWD) $(AM_MAKEFLAGS) clean
 # because it's a bit dummy - it uses `find` to recursively delete all *.o, *.a
 # and *.ko files, which will mess up our user-space build in .libs/ directories
-# and delete library files under extra-libs/ and galois.ko module;
+# and delete library files under extra-libs/ and m0gf.ko module;
 # instead we use our own `find` command, which excludes some paths we need to
 # keep, to clean up kernel build
 .PHONY: clean-kernel-modules
@@ -1064,7 +1061,7 @@ install-kernel-modules:
 install-exec-local: install-kernel-modules
 
 install-tests:
-	@$(MAKE) -C extra-libs/galois install
+	@$(MAKE) -C extra-libs/gf-complete install
 	@$(MAKE) INSTALL_MOD_DIR=kernel/fs/mero/tests install-kernel-modules \
 		 install-binPROGRAMS install-sbinPROGRAMS install-binSCRIPTS \
 		 install-sbinSCRIPTS
@@ -1193,7 +1190,7 @@ help:
 	@echo '  quick           - build only user-space UT'
 	@echo '  kuick           - build only kernel-space UT'
 	@echo ''
-	@echo '  galois          - build only libgalois.so and galois.ko'
+	@echo '  gf-complete     - build only libgf.so and gf.ko'
 	@echo '  libmero         - build only libmero library'
 	@echo '  libmero-ut      - build only libmero-ut library'
 	@echo '  libmero-altogether - build only libmero library'

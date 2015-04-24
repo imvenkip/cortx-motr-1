@@ -192,11 +192,11 @@ unload_all() {
     echo "Aborted! Unloading kernel modules..."
     rmmod $STMOD
     modunload
-    modunload_galois
+    modunload_m0gf
 }
 trap unload_all EXIT
 
-modload_galois || exit $?
+modload_m0gf || exit $?
 modload || exit $?
 
 insmod net/lnet/st/linux_kernel/$STMOD.ko $OPARM $SPARM $CPARM
@@ -212,7 +212,7 @@ if [ $? -eq 0 ] ; then
 fi
 
 modunload
-modunload_galois
+modunload_m0gf
 
 trap "" EXIT
 

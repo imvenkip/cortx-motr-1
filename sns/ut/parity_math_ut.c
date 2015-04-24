@@ -518,8 +518,8 @@ static void invert(int N, int K, enum ir_matrix_type mt,
 static void mat_fill(struct m0_matrix *mat, int N, int K,
 		     enum ir_matrix_type mt)
 {
-	m0_parity_elem_t  i;
-	m0_parity_elem_t  j;
+	int  i;
+	int  j;
 	m0_parity_elem_t *coeff_vec;
 
 	switch (mt) {

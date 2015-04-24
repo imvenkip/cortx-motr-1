@@ -37,19 +37,19 @@ modprobe_lnet()
 	modprobe lnet || abort "Error probing lnet."
 }
 
-modload_galois()
+modload_m0gf()
 {
-	BASE=@GALOIS_ABS_SRC@
+	BASE=@GF_ABS_SRC@
 	if test "x$BASE" = "x"; then
-		modprobe galois
+		modprobe m0gf
 	else
-		insmod $BASE/src/linux_kernel/galois.ko
+		insmod $BASE/src/linux_kernel/m0gf.ko
 	fi
 }
 
-modunload_galois()
+modunload_m0gf()
 {
-	rmmod galois &>> /dev/null
+	rmmod m0gf &>> /dev/null
 }
 
 modload()

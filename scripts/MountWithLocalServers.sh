@@ -76,8 +76,8 @@ modprobe lnet
 lctl network up
 
 # reload the m0mero module
-rmmod m0mero.ko galois.ko
-insmod ../galois/src/linux_kernel/galois.ko
+rmmod m0mero.ko m0gf.ko
+insmod ../gf-complete/src/linux_kernel/m0gf.ko
 
 # Immediate trace is heavy, use sparingly
 # KTRACE_FLAGS='trace_print_context=func trace_level=call+ trace_immediate_mask=8'
@@ -88,7 +88,7 @@ HERE=$PWD
 
 #if [ `ls -l $HERE/devices?.conf | wc -l` -ne ${#EP[*]} ]  ; then
 #	echo "Please generate device configuration files"
-#	rmmod m0mero galois
+#	rmmod m0mero m0gf
 #	exit 1
 #fi
 
