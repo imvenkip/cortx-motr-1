@@ -69,7 +69,7 @@ usage()
 	cat <<.
 Usage:
 
-$ sudo m0mount [-Laclsqv] [-d NUM] [-p NUM] [-n NUM] [-u NUM] [-m 1|0]
+$ sudo m0mount [-Laclsqv] [-d NUM] [-p NUM] [-n NUM] [-m 1|0]
 
 Where:
 -a: Use AD stobs
@@ -108,8 +108,6 @@ Where:
 -k NUM: Use NUM number of parity units. (default is $NR_PARITY)
 
 -p NUM: Use NUM as pool width. (default is $POOL_WIDTH)
-
--u NUM: Use NUM Unit size. (default is $UNIT_SIZE)
 
 -q: Dont wait after mounting m0t1fs, exit immediately. (default is wait)
 
@@ -157,7 +155,6 @@ THIS_HOST=$(hostname)
 DISKS_PATTERN="/dev/disk/by-id/scsi-35*"
 
 STOB=linux
-UNIT_SIZE=262144
 client_only=0
 run_mkfs=0
 use_loop_device=0
@@ -936,7 +933,11 @@ while getopts "$OPTIONS_STRING" OPTION; do
             POOL_WIDTH="$OPTARG"
             ;;
         u)
-            UNIT_SIZE="$OPTARG"
+            echo "
+Err: unit size is set per file with \`setfattr -n lid -v <N> <file>' cmd"
+            echo
+            usage
+            exit 1
             ;;
         q)
             wait_after_mount=0
