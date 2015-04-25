@@ -112,6 +112,7 @@ static void libbfd_init(const char *libpath);
 static void libbfd_fini(void);
 static void libbfd_resolve(uint64_t delta, char *buf);
 
+static void flate(void);
 static void deflate(void);
 
 #define DOM "./_addb2-dump"
@@ -143,6 +144,10 @@ int main(int argc, char **argv)
 		if (flatten || optind < argc)
 			err(EX_USAGE, "De-flattening is exclusive.");
 		deflate();
+		return EX_OK;
+	}
+	if (flatten && optind == argc) {
+		flate();
 		return EX_OK;
 	}
 	result = m0_stob_domain_init("linuxstob:"DOM, "directio=true", &dom);
@@ -754,6 +759,20 @@ static void deflate(void)
 			putchar('\n');
 		putchar(ch);
 	}
+}
+
+static void flate(void)
+{
+	int ch;
+	int prev = 0;
+
+	while ((ch = getchar()) != EOF) {
+		if ((prev != '\n' || ch != '|') && prev != 0)
+			putchar(prev);
+		prev = ch;
+	}
+	if (prev != 0)
+		putchar(prev);
 }
 
 /** @} end of addb2 group */
