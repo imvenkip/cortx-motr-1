@@ -40,6 +40,9 @@ M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx);
 M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
 				      enum m0_be_tx_state state);
 
+M0_INTERNAL int  m0_be_tx_mod_init(void);
+M0_INTERNAL void m0_be_tx_mod_fini(void);
+
 /** @} end of be group */
 
 #endif /* __MERO_BE_TX_INTERNAL_H__ */

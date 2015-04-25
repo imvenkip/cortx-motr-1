@@ -36,6 +36,7 @@
 #include "be/op.h"		/* m0_be_op */
 #include "be/domain.h"		/* m0_be_domain_engine */
 #include "be/engine.h"		/* m0_be_engine__tx_state_set */
+#include "be/addb2.h"           /* M0_AVI_BE_TX_STATE, M0_AVI_BE_TX_COUNTER */
 
 /**
  * @addtogroup be
@@ -157,10 +158,24 @@ static struct m0_sm_state_descr be_tx_states[M0_BTS_NR] = {
 	},
 };
 
-static const struct m0_sm_conf be_tx_sm_conf = {
+static struct m0_sm_trans_descr be_tx_sm_trans[] = {
+	{ "opening",        M0_BTS_PREPARE,  M0_BTS_OPENING },
+	{ "prepare-failed", M0_BTS_PREPARE,  M0_BTS_FAILED  },
+	{ "activated",      M0_BTS_OPENING,  M0_BTS_ACTIVE  },
+	{ "open-failed",    M0_BTS_OPENING,  M0_BTS_FAILED  },
+	{ "closed",         M0_BTS_ACTIVE,   M0_BTS_CLOSED  },
+	{ "grouped",        M0_BTS_CLOSED,   M0_BTS_GROUPED },
+	{ "logged",         M0_BTS_GROUPED,  M0_BTS_LOGGED  },
+	{ "placed",         M0_BTS_LOGGED,   M0_BTS_PLACED  },
+	{ "done",           M0_BTS_PLACED,   M0_BTS_DONE    }
+};
+
+struct m0_sm_conf be_tx_sm_conf = {
 	.scf_name      = "m0_be_tx::t_sm",
-	.scf_nr_states = M0_BTS_NR,
-	.scf_state     = be_tx_states
+	.scf_nr_states = ARRAY_SIZE(be_tx_states),
+	.scf_state     = be_tx_states,
+	.scf_trans_nr  = ARRAY_SIZE(be_tx_sm_trans),
+	.scf_trans     = be_tx_sm_trans
 };
 
 static void be_tx_state_move(struct m0_be_tx *tx,
@@ -191,6 +206,8 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 	};
 
 	m0_sm_init(&tx->t_sm, &be_tx_sm_conf, M0_BTS_PREPARE, sm_group);
+	tx->t_sm.sm_state_epoch = m0_time_now();
+	m0_sm_addb2_counter_init(&tx->t_sm);
 
 	for (state = 0; state < ARRAY_SIZE(be_tx_ast_offset); ++state) {
 		if (be_tx_ast_offset[state] != 0) {
@@ -589,6 +606,17 @@ M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
 	tx->t_gc_enabled = true;
 	tx->t_gc_free	 = gc_free;
 }
+
+M0_INTERNAL int m0_be_tx_mod_init(void)
+{
+	m0_sm_conf_init(&be_tx_sm_conf);
+	return m0_sm_addb2_init(&be_tx_sm_conf,
+				M0_AVI_BE_TX_STATE, M0_AVI_BE_TX_COUNTER);
+}
+
+M0_INTERNAL void m0_be_tx_mod_fini(void)
+{;}
+
 #undef BE_TX_LOCKED_AT_STATE
 
 /** @} end of be group */

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,36 +14,31 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
- * Original creation date: 3-Jun-2013
+ * Original author: Nikita Danilov <nikita.danilov@seagate.com>
+ * Original creation date: 25-Apr-2015
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
-#include "lib/trace.h"
+#pragma once
 
-#include "be/be.h"
-#include "be/tx_group_fom.h"
-#include "be/tx_internal.h"
+#ifndef __MERO_BE_ADDB2_H__
+#define __MERO_BE_ADDB2_H__
 
 /**
- * @addtogroup be
+ * @defgroup be
  *
  * @{
  */
 
-M0_INTERNAL int m0_backend_init(void)
-{
-	return m0_be_tx_mod_init() ?: (m0_be_tx_group_fom_mod_init(), 0);
-}
+#include "addb2/identifier.h"
 
-M0_INTERNAL void m0_backend_fini(void)
-{
-	m0_be_tx_group_fom_mod_fini();
-	m0_be_tx_mod_fini();
-}
+enum {
+	M0_AVI_BE_TX_STATE = M0_AVI_BE_RANGE_START + 1,
+	M0_AVI_BE_TX_COUNTER,
+	M0_AVI_BE_TX_COUNTER_END = M0_AVI_BE_TX_COUNTER + 0x100,
+};
 
 /** @} end of be group */
-#undef M0_TRACE_SUBSYSTEM
+#endif /* __MERO_BE_ADDB2_H__ */
 
 /*
  *  Local variables:

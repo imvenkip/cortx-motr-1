@@ -1,4 +1,6 @@
-nobase_mero_include_HEADERS += be/alloc.h           \
+nobase_mero_include_HEADERS += \
+                               be/addb2.h           \
+                               be/alloc.h           \
                                be/alloc_internal.h  \
                                be/be.h              \
                                be/btree.h           \

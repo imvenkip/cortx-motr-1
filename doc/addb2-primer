@@ -205,3 +205,38 @@ $ m0addb2dump -f $PWD/ios1/addb-stobs/o/*2 | grep '^\* alloc.*@0x7f5f980527d0' |
 2680,
 4096,
 Total: 17665
+
+BE stats
+........
+
+Meta-data back-end transtion state machines has addb2 instrumentation.
+
+State transition counters, sorted by maximal transition times:
+
+$ m0addb2dump $INPUT | grep 'tx/.*nr: [^0]' | sort -k12,12 -n
+...
+* tx/m0_be_tx::t_sm: active -[closed]-> closed 2015-04-25-05:32:18.506901233 nr: 12 min: 758628 max: 1229427 avg: 1081680.166667 dev: 18205574164.138916 datum: 0
+* tx/m0_be_tx::t_sm: active -[closed]-> closed 2015-04-25-05:32:04.350766914 nr: 12 min: 461926 max: 1233291 avg: 915499.750000 dev: 51210171038.854126 datum: 0
+* tx/m0_be_tx::t_sm: active -[closed]-> closed 2015-04-25-05:32:25.485491494 nr: 12 min: 703719 max: 1235524 avg: 1040529.416667 dev: 19977720390.909668 datum: 0
+* tx/m0_be_tx::t_sm: active -[closed]-> closed 2015-04-25-05:32:11.324305723 nr: 12 min: 516788 max: 1254129 avg: 1058146.416667 dev: 37896670448.576172 datum: 0
+* tx/m0_be_tx::t_sm: active -[closed]-> closed 2015-04-25-05:32:40.780703286 nr: 12 min: 364525 max: 1287840 avg: 932578.750000 dev: 65987624052.354126 datum: 0
+
+Ignore open->close transition:
+
+$ m0addb2dump $INPUT | grep 'tx/.*nr: [^0]' | \
+  grep -vF 'active -[closed]-> closed' | sort -k12,12 -n
+...
+* tx/m0_be_tx::t_sm: grouped -[logged]-> logged 2015-04-25-05:29:45.194460614 nr: 10 min: 3169 max: 546026 avg: 59068.100000 dev: 26350130603.489998 datum: 0
+* tx/m0_be_tx::t_sm: grouped -[logged]-> logged 2015-04-25-05:31:51.382959619 nr: 12 min: 8 max: 577974 avg: 51924.500000 dev: 25161338869.583332 datum: 0
+* tx/m0_be_tx::t_sm: logged -[placed]-> placed 2015-04-25-05:32:40.780703645 nr: 12 min: 5 max: 594235 avg: 49571.416667 dev: 26968951761.576389 datum: 0
+* tx/m0_be_tx::t_sm: grouped -[logged]-> logged 2015-04-25-05:32:11.324306002 nr: 12 min: 2197 max: 596630 avg: 54254.333333 dev: 26744635298.555557 datum: 0
+* tx/m0_be_tx::t_sm: grouped -[logged]-> logged 2015-04-25-05:33:59.814640695 nr: 10 min: 1909 max: 614836 avg: 172483.700000 dev: 66176101077.410004 datum: 0
+
+Statistics on individual state transitions by locality:
+
+m0addb2dump $INPUT -f | grep 'tx-state.*locality *[0-9]' |\
+    awk '{print $15}' | sort | uniq -c
+   6314 0
+  10907 1
+     14 2
+   6118 3

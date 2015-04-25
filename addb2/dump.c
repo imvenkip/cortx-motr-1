@@ -50,6 +50,7 @@
 #include "module/instance.h"
 #include "rpc/rpc_opcodes.h"           /* M0_OPCODES_NR */
 #include "rpc/addb2.h"
+#include "be/addb2.h"
 #include "addb/user_space/uctx.h"      /* m0_addb_node_uuid_string_set */
 
 #include "addb2/identifier.h"
@@ -432,6 +433,18 @@ static void rpc_out(struct context *ctx, const uint64_t *v, char *buf)
 	sm_state(&outgoing_item_sm_conf, ctx, v, buf);
 }
 
+extern struct m0_sm_conf be_tx_sm_conf;
+static void tx_state(struct context *ctx, const uint64_t *v, char *buf)
+{
+	sm_state(&be_tx_sm_conf, ctx, v, buf);
+}
+
+static void tx_state_counter(struct context *ctx, char *buf)
+{
+	sm_trans(&be_tx_sm_conf, "tx", ctx, buf);
+}
+
+
 #define COUNTER  &counter, &skip, &skip, &skip, &skip, &skip, &skip
 #define FID &fid, &skip
 #define TIMED &_clock, &duration, &sym
@@ -503,6 +516,11 @@ struct id_intrp ids[] = {
 						       &skip, &_clock } },
 	{ M0_AVI_ADDB2_SYS_LOCK_HOLD, "sys-lock-hold", { COUNTER } },
 	{ M0_AVI_ADDB2_SYS_LOCK_WAIT, "sys-lock-wait", { COUNTER } },
+	{ M0_AVI_BE_TX_STATE,     "tx-state",       { &tx_state, &skip,
+						       &_clock } },
+	{ M0_AVI_BE_TX_COUNTER,   "",
+	  .ii_repeat = M0_AVI_BE_TX_COUNTER_END - M0_AVI_BE_TX_COUNTER,
+	  .ii_spec   = &tx_state_counter },
 	{ M0_AVI_FOP_TYPES_RANGE_START,   "",
 	  .ii_repeat = M0_AVI_FOP_TYPES_RANGE_END-M0_AVI_FOP_TYPES_RANGE_START,
 	  .ii_spec   = &fop_counter },
