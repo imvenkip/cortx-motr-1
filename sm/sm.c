@@ -396,7 +396,8 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 						  delta);
 		if (stats != NULL) {
 			M0_ASSERT(stats->as_nr == 0 || trans < stats->as_nr);
-			M0_ADDB2_ADD(stats->as_id, trans, state, now);
+			if (stats->as_id != 0)
+				M0_ADDB2_ADD(stats->as_id, trans, state, now);
 			if (stats->as_nr > 0)
 				m0_addb2_counter_mod(&stats->as_counter[trans],
 						     delta);

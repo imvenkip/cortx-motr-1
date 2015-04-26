@@ -65,10 +65,18 @@ static struct m0_sm_state_descr op_states[M0_BOS_NR] = {
 	}
 };
 
-static const struct m0_sm_conf op_states_conf = {
+static struct m0_sm_trans_descr op_trans[] = {
+	{ "started",   M0_BOS_INIT,   M0_BOS_ACTIVE  },
+	{ "completed", M0_BOS_ACTIVE, M0_BOS_SUCCESS },
+	{ "failed",    M0_BOS_ACTIVE, M0_BOS_FAILURE }
+};
+
+M0_INTERNAL struct m0_sm_conf op_states_conf = {
 	.scf_name      = "m0_be_op::bo_sm",
-	.scf_nr_states = M0_BOS_NR,
-	.scf_state     = op_states
+	.scf_nr_states = ARRAY_SIZE(op_states),
+	.scf_state     = op_states,
+	.scf_trans_nr  = ARRAY_SIZE(op_trans),
+	.scf_trans     = op_trans
 };
 
 M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op)
@@ -78,9 +86,11 @@ M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op)
 
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op)
 {
-	M0_SET0(op);	/* XXX use M0_IS_ZEROED() */
+	M0_SET0(op);	/* XXX use M0_IS0() */
 	m0_sm_group_init(&op->bo_sm_group);
 	m0_sm_init(&op->bo_sm, &op_states_conf, M0_BOS_INIT, &op->bo_sm_group);
+	op->bo_sm.sm_state_epoch = m0_time_now();
+	m0_sm_addb2_counter_init(&op->bo_sm);
 }
 
 M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op)

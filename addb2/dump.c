@@ -449,6 +449,12 @@ static void tx_state_counter(struct context *ctx, char *buf)
 	sm_trans(&be_tx_sm_conf, "tx", ctx, buf);
 }
 
+extern struct m0_sm_conf op_states_conf;
+static void beop_state_counter(struct context *ctx, char *buf)
+{
+	sm_trans(&op_states_conf, "be-op", ctx, buf);
+}
+
 
 #define COUNTER  &counter, &skip, &skip, &skip, &skip, &skip, &skip
 #define FID &fid, &skip
@@ -526,6 +532,9 @@ struct id_intrp ids[] = {
 	{ M0_AVI_BE_TX_COUNTER,   "",
 	  .ii_repeat = M0_AVI_BE_TX_COUNTER_END - M0_AVI_BE_TX_COUNTER,
 	  .ii_spec   = &tx_state_counter },
+	{ M0_AVI_BE_OP_COUNTER,   "",
+	  .ii_repeat = M0_AVI_BE_OP_COUNTER_END - M0_AVI_BE_OP_COUNTER,
+	  .ii_spec   = &beop_state_counter },
 	{ M0_AVI_FOP_TYPES_RANGE_START,   "",
 	  .ii_repeat = M0_AVI_FOP_TYPES_RANGE_END-M0_AVI_FOP_TYPES_RANGE_START,
 	  .ii_spec   = &fop_counter },
@@ -764,12 +773,13 @@ static void deflate(void)
 static void flate(void)
 {
 	int ch;
-	int prev = 0;
+	int prev;
 
-	while ((ch = getchar()) != EOF) {
-		if ((prev != '\n' || ch != '|') && prev != 0)
+	for (prev = 0; (ch = getchar()) != EOF; prev = ch) {
+		if (prev == '\n' && ch == '|')
+			prev = ' ';
+		if (prev != 0)
 			putchar(prev);
-		prev = ch;
 	}
 	if (prev != 0)
 		putchar(prev);

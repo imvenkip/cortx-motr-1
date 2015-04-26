@@ -607,11 +607,14 @@ M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
 	tx->t_gc_free	 = gc_free;
 }
 
+M0_EXTERN struct m0_sm_conf op_states_conf;
 M0_INTERNAL int m0_be_tx_mod_init(void)
 {
 	m0_sm_conf_init(&be_tx_sm_conf);
-	return m0_sm_addb2_init(&be_tx_sm_conf,
-				M0_AVI_BE_TX_STATE, M0_AVI_BE_TX_COUNTER);
+	m0_sm_conf_init(&op_states_conf);
+	return  m0_sm_addb2_init(&be_tx_sm_conf,
+				 M0_AVI_BE_TX_STATE, M0_AVI_BE_TX_COUNTER) ?:
+		m0_sm_addb2_init(&op_states_conf, 0, M0_AVI_BE_OP_COUNTER);
 }
 
 M0_INTERNAL void m0_be_tx_mod_fini(void)
