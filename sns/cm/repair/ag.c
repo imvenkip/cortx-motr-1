@@ -445,7 +445,7 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 	struct m0_fid                           gfid;
 	uint64_t                                cp_data_seg_nr;
 	int                                     i;
-	int                                     rc;
+	int                                     rc = 0;
 
 	M0_PRE(sag != NULL);
 
