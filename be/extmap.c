@@ -455,7 +455,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	}
 	m0_rwlock_write_unlock(emap_rwlock(it->ec_map));
 
-	emap_dump(it);
+	/* emap_dump(it); */ /* expensive - use for debug only */
 
 	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));
 
