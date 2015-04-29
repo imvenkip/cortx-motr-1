@@ -28,6 +28,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADDB
 
 #include "lib/trace.h"
+#include "lib/locality.h"
 #include "lib/time.h"
 #include "lib/tlist.h"
 #include "lib/arith.h"        /* min64u, max64u, m0_addu64_will_overflow */
@@ -39,6 +40,8 @@ static const struct m0_addb2_sensor_ops list_sensor_ops;
 static const struct m0_addb2_sensor_ops clock_sensor_ops;
 static void counter_warn(struct m0_addb2_counter *c, uint64_t val);
 static void counter_data_init(struct m0_addb2_counter_data *d);
+static void counter_dtor(void *area, void *datum);
+static int  counter_ctor(void *area, void *datum);
 
 void m0_addb2_counter_add(struct m0_addb2_counter *counter, uint64_t label,
 			  int idx)
@@ -112,6 +115,22 @@ void m0_addb2_clock_del(struct m0_addb2_sensor *clock)
 	m0_addb2_sensor_del(clock);
 }
 
+int m0_addb2_local_counter_init(struct m0_addb2_local_counter *lc,
+				uint64_t id, uint64_t counter)
+{
+	lc->lc_id = id;
+	lc->lc_key = m0_locality_data_alloc(sizeof(struct m0_addb2_counter),
+					    &counter_ctor, &counter_dtor,
+					    (void *)&counter);
+	return lc->lc_key >= 0 ? 0 : M0_ERR(lc->lc_key);
+}
+
+void m0_addb2_local_counter_mod(struct m0_addb2_local_counter *lc,
+				uint64_t val, uint64_t datum)
+{
+	m0_addb2_counter_mod_with(m0_locality_data(lc->lc_key), val, datum);
+}
+
 static void counter_snapshot(struct m0_addb2_sensor *s, uint64_t *area)
 {
 	struct m0_addb2_counter      *counter = M0_AMB(counter, s, co_sensor);
@@ -170,6 +189,19 @@ static const struct m0_addb2_sensor_ops clock_sensor_ops = {
 	.so_snapshot = &clock_counter_snapshot,
 	.so_fini     = &counter_fini
 };
+
+static int counter_ctor(void *area, void *datum)
+{
+	/* See sm_addb2_ctor() for the explanation of 2. */
+	m0_addb2_counter_add(area, *(uint64_t *)datum, 2);
+	return 0;
+}
+
+static void counter_dtor(void *area, void *datum)
+{
+	m0_addb2_counter_del(area);
+}
+
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADDB
 

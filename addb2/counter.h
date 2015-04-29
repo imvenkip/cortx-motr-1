@@ -83,6 +83,16 @@ do {									\
 			  __duration, (datum));			\
 } while (0)
 
+struct m0_addb2_local_counter {
+	uint64_t lc_id;
+	int      lc_key;
+};
+
+int m0_addb2_local_counter_init(struct m0_addb2_local_counter *lc,
+				uint64_t id, uint64_t counter);
+void m0_addb2_local_counter_mod(struct m0_addb2_local_counter *lc,
+				uint64_t val, uint64_t datum);
+
 /** @} end of addb2 group */
 #endif /* __MERO_ADDB2_COUNTER_H__ */
 

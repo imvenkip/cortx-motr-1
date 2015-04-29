@@ -24,6 +24,8 @@ m0_addb2_cursor_source
 m0_addb2_force
 m0_addb2_list_counter_add
 m0_addb2_list_counter_del
+m0_addb2_local_counter_init
+m0_addb2_local_counter_mod
 m0_addb2_mach_cookie
 m0_addb2_mach_init
 m0_addb2_mach_fini
