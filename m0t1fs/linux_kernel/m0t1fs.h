@@ -787,7 +787,7 @@ struct m0t1fs_filedata {
  */
 struct m0t1fs_mdop {
 	struct m0_cob_attr    mo_attr;
-	enum m0_cob_op        mo_cob_type;
+	enum m0_cob_type      mo_cob_type;
 	struct m0_layout     *mo_layout;
 	bool                  mo_use_hint; /**< if true, mo_hash_hint is valid*/
 	uint32_t              mo_hash_hint;/**< hash hint for mdservice map   */
