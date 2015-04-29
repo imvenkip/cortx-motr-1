@@ -82,7 +82,7 @@ M0_INTERNAL int m0_ha_state_set_fom_create(struct m0_fop *fop,
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &m0_ha_state_set_fom_ops,
 		    fop, reply, reqh);
 
-	rep = m0_fop_data(fop);
+	rep = m0_fop_data(reply);
 	rep->gr_rc = 0;
 	rep->gr_msg.s_len = 0;
 	*m = fom;
