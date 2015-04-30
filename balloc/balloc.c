@@ -124,12 +124,7 @@ static void balloc_debug_dump_extent(const char *tag, struct m0_ext *ex)
 		return;
 
 	M0_LOG(M0_DEBUG, "dumping ex@%p:%s\n"
-	       "|----[%10llu, %10llu), [0x%08llx, 0x%08llx)",
-		ex, (char*) tag,
-		(unsigned long long) ex->e_start,
-		(unsigned long long) ex->e_end,
-		(unsigned long long) ex->e_start,
-		(unsigned long long) ex->e_end);
+	       "|----"EXT_F, ex, (char*) tag, EXT_P(ex));
 #endif
 }
 
@@ -165,9 +160,7 @@ M0_INTERNAL void m0_balloc_debug_dump_group_extent(const char *tag,
 		grp, (char*) tag, (unsigned long long) grp->bgi_groupno);
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		ex = &grp->bgi_extents[i];
-		M0_LOG(M0_DEBUG, "[0x%08llx, 0x%08llx)",
-			(unsigned long long) ex->e_start,
-			(unsigned long long) ex->e_end);
+		M0_LOG(M0_DEBUG, EXT_F, EXT_P(ex));
 	}
 #endif
 }
@@ -1004,7 +997,7 @@ repeat:
 			} while (fragment->e_start > start);
 			if (start >= end)
 				break;
-			/* we changed the 'start'. let's restart seaching. */
+			/* we changed the 'start'. let's restart searching. */
 			goto repeat;
 		}
 	}
@@ -1018,10 +1011,25 @@ repeat:
 
 static int balloc_use_best_found(struct m0_balloc_allocation_context *bac)
 {
-	bac->bac_final.e_start = bac->bac_best.e_start;
-	bac->bac_final.e_end   = bac->bac_final.e_start +
-				 min_check(m0_ext_length(&bac->bac_best),
-					   m0_ext_length(&bac->bac_goal));
+	m0_bindex_t grp = balloc_bn2gn(bac->bac_best.e_start, bac->bac_ctxt);
+	m0_bindex_t start = grp << bac->bac_ctxt->cb_sb.bsb_gsbits;
+	m0_bcount_t len = m0_ext_length(&bac->bac_goal);
+
+	M0_LOG(M0_DEBUG, "start=0x%"PRIx64, start);
+
+	while (start < bac->bac_best.e_start)
+		start += len;
+
+	M0_LOG(M0_DEBUG, "start=0x%"PRIx64, start);
+
+	if (start < bac->bac_best.e_end && len <= bac->bac_best.e_end - start)
+		bac->bac_final.e_start = start;
+	else
+		bac->bac_final.e_start = bac->bac_best.e_start;
+
+	bac->bac_final.e_end = bac->bac_final.e_start + len;
+	M0_LOG(M0_DEBUG, "final="EXT_F, EXT_P(&bac->bac_final));
+	M0_ASSERT(bac->bac_final.e_end <= bac->bac_best.e_end);
 	bac->bac_status = M0_BALLOC_AC_FOUND;
 
 	return 0;
@@ -1634,7 +1642,7 @@ static int balloc_wild_scan_group(struct m0_balloc_allocation_context *bac,
 
 /*
  * TRY to use the best result found in previous iteration.
- * The best result may be already used by others who are more lukcy.
+ * The best result may be already used by others who are more lucky.
  * Group lock should be taken again.
  */
 static int balloc_try_best_found(struct m0_balloc_allocation_context *bac)
