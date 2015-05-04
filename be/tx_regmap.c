@@ -25,7 +25,7 @@
 
 #include "lib/ext.h"    /* m0_ext */
 #include "lib/errno.h"  /* ENOMEM */
-#include "lib/memory.h"	/* m0_alloc */
+#include "lib/memory.h"	/* m0_alloc_nz */
 #include "lib/assert.h"	/* M0_POST */
 #include "lib/misc.h"	/* M0_SET0 */
 
@@ -109,10 +109,12 @@ static bool be_rdt_contains(const struct m0_be_reg_d_tree *rdt,
 	return &rdt->brt_r[0] <= rd && rd < &rdt->brt_r[rdt->brt_size];
 }
 
+#define ARRAY_ALLOC_NZ(arr, nr) ((arr) = m0_alloc_nz((nr) * sizeof ((arr)[0])))
+
 M0_INTERNAL int m0_be_rdt_init(struct m0_be_reg_d_tree *rdt, size_t size_max)
 {
 	rdt->brt_size_max = size_max;
-	M0_ALLOC_ARR(rdt->brt_r, rdt->brt_size_max);
+	ARRAY_ALLOC_NZ(rdt->brt_r, rdt->brt_size_max);
 	if (rdt->brt_r == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -431,7 +433,7 @@ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
 	rc = m0_be_regmap_init(&ra->bra_map, ops, ra,
 			       ra->bra_prepared.tc_reg_nr);
 	if (rc == 0 && data_copy) {
-		M0_ALLOC_ARR(ra->bra_area, ra->bra_prepared.tc_reg_size);
+		ARRAY_ALLOC_NZ(ra->bra_area, ra->bra_prepared.tc_reg_size);
 		if (ra->bra_area == NULL) {
 			m0_be_regmap_fini(&ra->bra_map);
 			rc = -ENOMEM;
@@ -445,6 +447,8 @@ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
 	M0_POST(ergo(rc == 0, m0_be_reg_area__invariant(ra)));
 	return M0_RC(rc);
 }
+
+#undef ARRAY_ALLOC_NZ
 
 M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra)
 {

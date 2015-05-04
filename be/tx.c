@@ -30,7 +30,7 @@
 #include "lib/errno.h"		/* ENOMEM */
 #include "lib/misc.h"		/* M0_BITS */
 #include "lib/arith.h"		/* M0_CNT_INC */
-#include "lib/memory.h"		/* m0_alloc */
+#include "lib/memory.h"		/* m0_alloc_nz */
 #include "fol/fol.h"		/* m0_fol_rec_encode() */
 
 #include "be/op.h"		/* m0_be_op */
@@ -380,7 +380,7 @@ static int be_tx_memory_allocate(struct m0_be_tx *tx)
 	int rc;
 
 	if (tx->t_payload.b_nob > 0)
-		tx->t_payload.b_addr = m0_alloc(tx->t_payload.b_nob);
+		tx->t_payload.b_addr = m0_alloc_nz(tx->t_payload.b_nob);
 	if (tx->t_payload.b_addr == NULL && tx->t_payload.b_nob != 0) {
 		rc = -ENOMEM;
 		M0_LOG(M0_INFO, "tx = %p: there is not enough memory "
