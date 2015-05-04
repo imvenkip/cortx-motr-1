@@ -28,6 +28,7 @@
 #include "lib/errno.h"        /* ENOMEM */
 
 #include "stob/stob.h"	      /* m0_stob */
+#include "stob/linux.h"       /* m0_stob_linux_container */
 
 #include "be/seg_internal.h"  /* m0_be_seg_hdr */
 #include "be/be.h"            /* m0_be_op */
@@ -48,8 +49,11 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 				 void *addr)
 {
 	struct m0_be_seg_hdr hdr;
+	unsigned char        last_byte;
+	int                  rc;
 
-	M0_ENTRY("seg=%p", seg);
+	M0_ENTRY("seg=%p size=%lu addr=%p", seg, size, addr);
+
 	M0_PRE(seg->bs_state == M0_BSS_INIT);
 	M0_PRE(seg->bs_stob->so_domain != NULL);
 	M0_PRE(addr != NULL);
@@ -59,8 +63,25 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 		.bh_addr = addr,
 		.bh_size = size,
 	};
-	return M0_RC(m0_be_io_single(seg->bs_stob, SIO_WRITE,
-				     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr));
+	rc = m0_be_io_single(seg->bs_stob, SIO_WRITE,
+			     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
+	if (rc == 0) {
+		/*
+		 * Write the last byte on the backing store.
+		 *
+		 * mmap() will have problem with regular file mapping otherwise.
+		 * Also checks that device (if used as backing storage) has
+		 * enough size to be used as segment backing store.
+		 */
+		last_byte = 0;
+		rc = m0_be_io_single(seg->bs_stob, SIO_WRITE,
+				     &last_byte, size - 1, sizeof last_byte);
+		if (rc != 0)
+			M0_LOG(M0_WARN, "can't write segment's last byte");
+	} else {
+		M0_LOG(M0_WARN, "can't write segment header");
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
@@ -114,11 +135,30 @@ bool m0_be_reg__invariant(const struct m0_be_reg *reg)
 				      reg->br_addr + reg->br_size - 1));
 }
 
+/* XXX temporary */
+/* static */ int be_seg_read_all(struct m0_be_seg     *seg,
+                                 struct m0_be_seg_hdr *hdr)
+{
+	m0_bindex_t pos;
+	m0_bcount_t size;
+	int         rc;
+
+	for (pos = 0; pos < hdr->bh_size; pos += M0_BE_SEG_READ_SIZE_MAX) {
+		size = min64(hdr->bh_size, M0_BE_SEG_READ_SIZE_MAX);
+		rc = m0_be_io_single(seg->bs_stob, SIO_READ,
+				     hdr->bh_addr + pos, pos, size);
+		if (rc != 0)
+			return M0_RC(rc);
+	}
+	return 0;
+}
+
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 {
 	struct m0_be_seg_hdr  hdr;
 	void                 *p;
 	int                   rc;
+	int                   fd;
 
 	M0_ENTRY("seg=%p", seg);
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
@@ -129,13 +169,14 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		return M0_RC(rc);
 	/* XXX check for magic */
 
-	p = mmap(hdr.bh_addr, hdr.bh_size, PROT_READ|PROT_WRITE,
-		 MAP_FIXED|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+	fd = m0_stob_linux_container(seg->bs_stob)->sl_fd;
+	p = mmap(hdr.bh_addr, hdr.bh_size, PROT_READ | PROT_WRITE,
+		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, fd, 0);
 	if (p != hdr.bh_addr)
 		return M0_RC(-errno);
 
-	rc = m0_be_io_single(seg->bs_stob, SIO_READ, hdr.bh_addr, 0,
-			     hdr.bh_size);
+	/* rc = be_seg_read_all(seg, &hdr); */
+	rc = 0;
 	if (rc == 0) {
 		seg->bs_size  = hdr.bh_size;
 		seg->bs_addr  = hdr.bh_addr;

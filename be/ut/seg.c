@@ -18,13 +18,18 @@
  * Original creation date: 29-May-2013
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "lib/trace.h"
+
 #include "be/seg.h"		/* m0_be_seg */
 
 #include "lib/thread.h"		/* M0_THREAD_INIT */
 #include "lib/semaphore.h"	/* m0_semaphore */
 #include "lib/misc.h"		/* m0_forall */
+#include "lib/memory.h"         /* M0_ALLOC_PTR */
 
 #include "ut/ut.h"		/* M0_UT_ASSERT */
+#include "ut/stob.h"            /* m0_ut_stob_linux_get */
 #include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
 
 #include <stdlib.h>		/* rand_r */
@@ -153,3 +158,172 @@ void m0_be_ut_seg_multiple(void)
 	m0_forall(i, ARRAY_SIZE(threads), m0_thread_fini(&threads[i]), true);
 	m0_semaphore_fini(&barrier);
 }
+
+/*
+ * How to test really large segment:
+ * 1. Select segment size you want to test:
+ * 1.a Set BE_UT_SEG_LARGE_SIZE to the needed value.
+ * 1.b Machine should have at least BE_UT_SEG_LARGE_SIZE virtual memory
+ *     available (RAM + swap). Use dd to some file (or just use disk or
+ *     partititon) + mkswap + swapon to add virtual memory if needed.
+ * 2. Change "stob = " at the beginning of m0_be_ut_seg_large() to point to
+ *    some large file that will be used as backing store. You can skip this
+ *    step if the filesystem with "ut-sandbox" has enough free space.
+ * 3. Run the test. It will take some time. Use iostat, vmstat, blktrace,
+ *    iotop or dstat to check if I/O actually happens.
+ */
+enum {
+	/*
+	 * It should be > 4GiB, but devvm with small memory will have
+	 * a problem with this UT. So it is set to a small value.
+	 * It may be increased after paged implemented.
+	 */
+	BE_UT_SEG_LARGE_SIZE = 1ULL << 27,        /* 128 MiB */
+	/* BE_UT_SEG_LARGE_SIZE = 1ULL << 34, */  /* 16 GiB */
+	/* Each step-th byte will be overwritten in the test. */
+	BE_UT_SEG_LARGE_STEP = 512,
+	/* Block size for stob I/O in the test */
+	BE_UT_SEG_LARGE_IO_BLOCK = 1ULL << 24,
+};
+
+static void be_ut_seg_large_mem(struct m0_be_seg *seg,
+                                char              byte,
+                                m0_bcount_t       size,
+                                bool              check)
+{
+	m0_bindex_t i;
+	char       *addr = seg->bs_addr;
+
+	for (i = 0; i < size; i += BE_UT_SEG_LARGE_STEP) {
+		if (i < seg->bs_reserved)
+			continue;
+		if (check)
+			M0_UT_ASSERT(addr[i] == byte);
+		else
+			addr[i] = byte;
+	}
+}
+
+static void be_ut_seg_large_block_io(struct m0_be_seg *seg,
+                                     m0_bindex_t       offset,
+                                     m0_bcount_t       block_size,
+                                     char             *block,
+                                     bool              read)
+{
+	struct m0_be_reg reg;
+
+	reg = M0_BE_REG(seg, block_size, seg->bs_addr + offset);
+	if (read)
+		m0_be_seg__read(&reg, block);
+	else
+		m0_be_seg__write(&reg, block);
+}
+
+/*
+ * Checks bytes of backing storage with step or writes bytes with some step
+ * to the backing storage.
+ *
+ * @note It does RMW in "write" case. UT with large (~16GB) segment will take
+ * a very long time (estimated ~1h on devvm with SSD).
+ */
+static void be_ut_seg_large_stob(struct m0_be_seg *seg,
+                                 char              byte,
+                                 m0_bcount_t       size,
+                                 bool              check)
+{
+	m0_bindex_t  i;
+	m0_bindex_t  block_begin = M0_BINDEX_MAX;
+	m0_bindex_t  block_begin_new;
+	m0_bcount_t  block_size = BE_UT_SEG_LARGE_IO_BLOCK;
+	m0_bcount_t  size_left = 0;
+	char        *block;
+
+	block = m0_alloc(block_size);
+	M0_UT_ASSERT(block != NULL);
+	for (i = 0; i < size; i += BE_UT_SEG_LARGE_STEP) {
+		if (i < seg->bs_reserved)
+			continue;
+		/* Do block I/O if block was changed after previous I/O. */
+		block_begin_new = m0_round_down(i, block_size);
+		size_left = min_check(block_size, size - block_begin_new);
+		if (block_begin_new != block_begin) {
+			if (!check && block_begin != M0_BINDEX_MAX) {
+				/* W from RMW is here */
+				be_ut_seg_large_block_io(seg, block_begin,
+				                         block_size, block,
+							 false);
+			}
+			be_ut_seg_large_block_io(seg, block_begin_new,
+			                         size_left, block, true);
+			block_begin = block_begin_new;
+		}
+		if (check) {
+			M0_UT_ASSERT(block[i - block_begin] == byte);
+		} else {
+			block[i - block_begin] = byte;
+		}
+	}
+	/* last W from RMW is here */
+	if (size_left > 0) {
+		be_ut_seg_large_block_io(seg, block_begin, size_left,
+		                         block, false);
+	}
+	m0_free(block);
+}
+
+void m0_be_ut_seg_large(void)
+{
+	struct m0_be_seg *seg;
+	struct m0_stob   *stob;
+	m0_bcount_t       size;
+	void             *addr;
+	int               rc;
+
+	M0_ALLOC_PTR(seg);
+	M0_UT_ASSERT(seg != NULL);
+	stob = m0_ut_stob_linux_get();
+	/* stob = m0_ut_stob_linux_create("/dev/sdc1"); */
+	M0_UT_ASSERT(stob != NULL);
+
+	size = BE_UT_SEG_LARGE_SIZE;
+	addr = m0_be_ut_seg_allocate_addr(size);
+
+	m0_be_seg_init(seg, stob, NULL);
+	rc = m0_be_seg_create(seg, size, addr);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_seg_open(seg);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_LOG(M0_DEBUG, "check if in-memory segment data is initially zeroed");
+	be_ut_seg_large_mem(seg, 0, size, true);
+	M0_LOG(M0_DEBUG, "check if backing store is initially zeroed");
+	be_ut_seg_large_stob(seg, 0, size, true);
+	M0_LOG(M0_DEBUG, "write 1 to in-memory segment data");
+	be_ut_seg_large_mem(seg, 1, size, false);
+	M0_LOG(M0_DEBUG, "check 1 in in-memory segment data");
+	be_ut_seg_large_mem(seg, 1, size, true);
+	M0_LOG(M0_DEBUG, "check if backing store is still zeroed");
+	be_ut_seg_large_stob(seg, 0, size, true);
+	M0_LOG(M0_DEBUG, "write 2 to the backing store");
+	be_ut_seg_large_stob(seg, 2, size, false);
+	M0_LOG(M0_DEBUG, "check 1 in in-memory segment data");
+	be_ut_seg_large_mem(seg, 1, size, true);
+	M0_LOG(M0_DEBUG, "check 2 in the backing store");
+	be_ut_seg_large_stob(seg, 2, size, true);
+	M0_LOG(M0_DEBUG, "write 3 to in-memory segment data");
+	be_ut_seg_large_mem(seg, 3, size, false);
+	M0_LOG(M0_DEBUG, "check 3 in in-memory segment data");
+	be_ut_seg_large_mem(seg, 3, size, true);
+	M0_LOG(M0_DEBUG, "check 2 in the backing store");
+	be_ut_seg_large_stob(seg, 2, size, true);
+
+	m0_be_seg_close(seg);
+	rc = m0_be_seg_destroy(seg);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_seg_fini(seg);
+
+	m0_ut_stob_put(stob, true);
+	m0_free(seg);
+}
+
+#undef M0_TRACE_SUBSYSTEM
