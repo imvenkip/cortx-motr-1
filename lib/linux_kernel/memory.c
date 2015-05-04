@@ -67,6 +67,17 @@ M0_INTERNAL void m0_arch_allocated_zero(void *data, size_t size)
 	/* do nothing already zeroed. */
 }
 
+M0_INTERNAL void *m0_arch_alloc_nz(size_t size)
+{
+	/** @see m0_arch_alloc() */
+	return kmalloc(size, GFP_NOFS);
+}
+
+M0_INTERNAL void m0_arch_memory_pagein(void *addr, size_t size)
+{
+	/* kernel memory is not swappable */
+}
+
 M0_INTERNAL size_t m0_arch_alloc_size(void *data)
 {
 	return ksize(data);

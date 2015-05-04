@@ -32,6 +32,7 @@
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
+#include "lib/misc.h"   /* m0_round_down */
 
 #include "addb2/addb2.h"
 #include "addb2/identifier.h"
@@ -57,6 +58,8 @@ static void poison_before_free(void *data, size_t size)
 M0_INTERNAL void  *m0_arch_alloc       (size_t size);
 M0_INTERNAL void   m0_arch_free        (void *data);
 M0_INTERNAL void   m0_arch_allocated_zero(void *data, size_t size);
+M0_INTERNAL void  *m0_arch_alloc_nz    (size_t size);
+M0_INTERNAL void   m0_arch_memory_pagein(void *addr, size_t size);
 M0_INTERNAL size_t m0_arch_alloc_size(void *data);
 M0_INTERNAL void  *m0_arch_alloc_wired(size_t size, unsigned shift);
 M0_INTERNAL void   m0_arch_free_wired(void *data, size_t size, unsigned shift);
@@ -70,6 +73,28 @@ static struct m0_atomic64 allocated;
 static struct m0_atomic64 cumulative_alloc;
 static struct m0_atomic64 cumulative_free;
 
+static void alloc_tail(void *area, size_t size)
+{
+	if (DEV_MODE && area != NULL) {
+		size_t asize = m0_arch_alloc_size(area);
+
+		m0_atomic64_add(&allocated, asize);
+		m0_atomic64_add(&cumulative_alloc, asize);
+	}
+	M0_ADDB2_ADD(M0_AVI_ALLOC, size, (uint64_t)area);
+}
+
+M0_INTERNAL void *m0_alloc_nz(size_t size)
+{
+	void *area;
+
+	M0_ENTRY("size=%zi", size);
+	area = m0_arch_alloc_nz(size);
+	alloc_tail(area, size);
+	M0_LEAVE("ptr=%p size=%zi", area, size);
+	return area;
+}
+
 void *m0_alloc(size_t size)
 {
 	void *area;
@@ -78,19 +103,13 @@ void *m0_alloc(size_t size)
 	if (M0_FI_ENABLED("fail_allocation"))
 		return NULL;
 	area = m0_arch_alloc(size);
+	alloc_tail(area, size);
 	if (area != NULL) {
 		m0_arch_allocated_zero(area, size);
-		if (DEV_MODE) {
-			size_t asize = m0_arch_alloc_size(area);
-
-			m0_atomic64_add(&allocated, asize);
-			m0_atomic64_add(&cumulative_alloc, asize);
-		}
 	} else if (!M0_FI_ENABLED("keep_quiet")) {
 		M0_LOG(M0_ERROR, "Failed to allocate %zi bytes.", size);
 		m0_backtrace();
 	}
-	M0_ADDB2_ADD(M0_AVI_ALLOC, size, (uint64_t)area);
 	M0_LEAVE("ptr=%p size=%zi", area, size);
 	return area;
 }
@@ -110,6 +129,11 @@ void m0_free(void *data)
 	}
 }
 M0_EXPORTED(m0_free);
+
+M0_INTERNAL void m0_memory_pagein(void *addr, size_t size)
+{
+	m0_arch_memory_pagein(addr, size);
+}
 
 M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 {

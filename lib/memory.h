@@ -43,6 +43,13 @@
 void *m0_alloc(size_t size);
 
 /**
+ * Allocates memory without explicit zeroing.
+ *
+ * Everything else is the same as in m0_alloc().
+ */
+M0_INTERNAL void *m0_alloc_nz(size_t size);
+
+/**
  * Frees memory block
  *
  * This function must be a no-op when called with NULL argument.
@@ -50,6 +57,19 @@ void *m0_alloc(size_t size);
  * @param data pointer to allocated block
  */
 void m0_free(void *data);
+
+/**
+ * Forces page faults for the memory block [addr, addr + size).
+ *
+ * Usually it is done with writing at least one byte on each page
+ * of the allocated block.
+ *
+ * It is intented to use in conjunction with m0_alloc_nz().
+ *
+ * @note It doesn't guarantee to preserve the data in the memory block.
+ * @note Kernel version of the function does nothing.
+ */
+M0_INTERNAL void m0_memory_pagein(void *addr, size_t size);
 
 /** Frees memory and unsets the pointer. */
 #define m0_free0(pptr)                        \

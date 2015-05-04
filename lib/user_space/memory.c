@@ -90,6 +90,11 @@ M0_INTERNAL void m0_arch_allocated_zero(void *data, size_t size)
 	memset(data, 0, size);
 }
 
+M0_INTERNAL void *m0_arch_alloc_nz(size_t size)
+{
+	return m0_arch_alloc(size);
+}
+
 M0_INTERNAL void m0_arch_free_aligned(void *data, size_t size, unsigned shift)
 {
 	free(data);
@@ -144,6 +149,26 @@ M0_INTERNAL void m0_arch_free_wired(void *data, size_t size, unsigned shift)
 		M0_LOG(M0_WARN, "madvise() failed: rc=%d", errno);
 	munlock(data, 1);
 	m0_free_aligned(data, size, shift);
+}
+
+M0_INTERNAL void m0_arch_memory_pagein(void *addr, size_t size)
+{
+	char *current_byte = addr;
+	char *end_byte     = (char *)addr + size;
+	int   page_size    = m0_pagesize_get();
+
+	if (addr == NULL || size == 0)
+		return;
+	/*
+	 * It reads and writes the first byte of the allocated block
+	 * and then the first byte of each page in the allocated block.
+	 */
+	M0_CASSERT(sizeof(current_byte) == sizeof(uint64_t));
+	*current_byte = 0xCC;
+	for (current_byte = (char *)m0_round_up((uint64_t)current_byte + 1,
+	                                        page_size);
+	     current_byte < end_byte; current_byte += page_size)
+		*current_byte = 0xCC;
 }
 
 M0_INTERNAL int m0_arch_memory_init(void)
