@@ -431,6 +431,11 @@ static void item_done(struct m0_rpc_packet *p,
 	if (item->ri_error != 0) {
 		M0_LOG(M0_ERROR, "p:i=%p:%p failed with %d",
 				  p, item, item->ri_error);
+		/* Resend items don't have extra reference, which is
+		   released in item_resend().
+		 */
+		if (item->ri_nr_sent > 1)
+			m0_rpc_item_get(item);
 		m0_rpc_item_failed(item, item->ri_error);
 	} else
 		item_sent(item);

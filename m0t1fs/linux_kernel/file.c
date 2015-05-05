@@ -5319,6 +5319,11 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	M0_ENTRY("rpc_item %p", item);
 	M0_PRE(item != NULL);
 
+	if (item->ri_error != 0) {
+		M0_LOG(M0_ERROR, "Item error %d", item->ri_error);
+		M0_LEAVE();
+		return;
+	}
 	fop    = m0_rpc_item_to_fop(item);
 	iofop  = container_of(fop, struct m0_io_fop, if_fop);
 	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);

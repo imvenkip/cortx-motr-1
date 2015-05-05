@@ -43,7 +43,6 @@
 #include "pool/pool.h"
 #include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob, m0_fid_cob_device_id */
 
-
 extern const struct m0_uint128 m0_rm_m0t1fs_group;
 /**
  * Cob create/delete fop send deadline (in ns).
@@ -81,6 +80,11 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 	cfop = container_of(fop, struct cob_fop, c_fop);
 	creq = cfop->c_req;
 
+	if (item->ri_error != 0) {
+		rc = item->ri_error;
+		goto out;
+	}
+
 	M0_ASSERT(m0_is_cob_create_fop(fop) || m0_is_cob_delete_fop(fop) ||
 		  m0_is_cob_truncate_fop(fop) || m0_is_cob_setattr_fop(fop));
 	reply = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
@@ -103,7 +107,7 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 		}
 	} else
 		rc = reply->cor_rc;
-
+out:
 	if (creq->cr_rc == 0)
 		creq->cr_rc = rc;
 
@@ -1202,9 +1206,9 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	   have to do getattr and can just use @inode cached data.
 	*/
 	rc = m0t1fs_mds_cob_getattr(csb, &mo, &rep_fop);
-	getattr_rep = m0_fop_data(rep_fop);
 	if (rc != 0)
 		goto out;
+	getattr_rep = m0_fop_data(rep_fop);
 	body = &getattr_rep->g_body;
 
 	/** Update inode fields with data from @getattr_rep or cached attrs. */
