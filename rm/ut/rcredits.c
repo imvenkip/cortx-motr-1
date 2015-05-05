@@ -187,6 +187,43 @@ static void test3_run(void)
 	m0_rm_incoming_fini(in);
 }
 
+static void test0_run(void)
+{
+	struct m0_rm_incoming *in1 = &rm_ctxs[SERVER_1].rc_test_data.rd_in;
+	struct m0_rm_incoming *in3 = &rm_ctxs[SERVER_3].rc_test_data.rd_in;
+
+	/*
+	 * Test case checks credit revoking through intermediate owner.
+	 */
+	/* ANGMAR is on SERVER_3, SERVER_1 borrows it through SERVER_2 */
+	creditor_cookie_setup(SERVER_1, SERVER_2);
+	creditor_cookie_setup(SERVER_2, SERVER_3);
+	credit_setup(SERVER_1, RIF_MAY_BORROW, ANGMAR);
+	m0_clink_add_lock(&rm_ctxs[SERVER_1].rc_chan,
+			  &rm_ctxs[SERVER_1].rc_clink);
+	m0_rm_credit_get(in1);
+	m0_chan_wait(&rm_ctxs[SERVER_1].rc_clink);
+	m0_clink_del_lock(&rm_ctxs[SERVER_1].rc_clink);
+	M0_UT_ASSERT(incoming_state(in1) == RI_SUCCESS);
+	M0_UT_ASSERT(in1->rin_rc == 0);
+	m0_rm_credit_put(in1);
+	m0_rm_incoming_fini(in1);
+
+	/* Revoke ANGMAR from SERVER_1, so test case doesn't
+	 * have side effects in terms of total credits
+	 * stored by each owner */
+	credit_setup(SERVER_3, RIF_MAY_REVOKE, ALLRINGS);
+	m0_clink_add_lock(&rm_ctxs[SERVER_3].rc_chan,
+			  &rm_ctxs[SERVER_3].rc_clink);
+	m0_rm_credit_get(in3);
+	m0_chan_wait(&rm_ctxs[SERVER_3].rc_clink);
+	m0_clink_del_lock(&rm_ctxs[SERVER_3].rc_clink);
+	M0_UT_ASSERT(incoming_state(in3) == RI_SUCCESS);
+	M0_UT_ASSERT(in3->rin_rc == 0);
+	m0_rm_credit_put(in3);
+	m0_rm_incoming_fini(in3);
+}
+
 static void test1_verify(void)
 {
 	struct m0_rm_owner *so3 = rm_ctxs[SERVER_3].rc_test_data.rd_owner;
@@ -235,6 +272,8 @@ static void server2_tests(void)
 	m0_chan_wait(&tests_clink[TEST1]);
 	m0_clink_add_lock(&rm_ctxs[SERVER_2].rc_chan,
 			  &rm_ctxs[SERVER_2].rc_clink);
+	test0_run();
+
 	test1_run();
 	test1_verify();
 

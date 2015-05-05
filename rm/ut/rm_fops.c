@@ -219,7 +219,7 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 
 	request_param_init(reqtype);
 
-	m0_fi_enable_once("outgoing_queue", "no-rpc");
+	m0_fi_enable_once("m0_rm_outgoing_send", "no-rpc");
 	switch (reqtype) {
 	case M0_RIT_BORROW:
 		rm_test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
@@ -277,7 +277,7 @@ static void request_test(enum m0_rm_incoming_type reqtype)
 
 	request_param_init(reqtype);
 
-	m0_fi_enable_once("outgoing_queue", "no-rpc");
+	m0_fi_enable_once("m0_rm_outgoing_send", "no-rpc");
 	m0_rm_credit_init(&rest, rm_test_data.rd_owner);
 	rc = rest.cr_ops->cro_copy(&rest, &rm_test_data.rd_credit);
 	M0_UT_ASSERT(rc == 0);

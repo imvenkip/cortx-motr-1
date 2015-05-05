@@ -152,7 +152,8 @@
  * None of these locks are ever held while waiting for a network communication
  * to complete.
  *
- * Lock ordering: these locks do not nest.
+ * Lock ordering: 1) m0_rm_owner::ro_lock
+ *                2) m0_rm_resource_type::rt_lock
  *
  * <b>A group of cooperating owners.</b>
  *
@@ -228,8 +229,7 @@ struct m0_rm_outgoing;
 struct m0_rm_lease;
 
 enum {
-	M0_RM_RESOURCE_TYPE_ID_MAX     = 64,
-	M0_RM_RESOURCE_TYPE_ID_INVALID = ~0
+	M0_RM_RESOURCE_TYPE_ID_MAX = 64,
 };
 
 /**
@@ -301,9 +301,13 @@ struct m0_rm_resource {
 	struct m0_tlink                  r_linkage;
 	/**
 	 * List of remote owners (linked through m0_rm_remote::rem_linkage) with
-	 * which local owner of credits to this resource communicates.
+	 * which local owners of credits to this resource communicates.
 	 */
 	struct m0_tl                     r_remote;
+	/**
+	 * List of local owners (linked through m0_rm_owner::ro_owner_linkage)
+	 */
+	struct m0_tl                     r_local;
 	/**
 	 * Active references to this resource from resource owners
 	 * (m0_rm_resource::r_type) and from remote resource owners
@@ -747,7 +751,7 @@ struct m0_rm_remote {
 	 * A resource for which the remote owner is represented.
 	 */
 	struct m0_rm_resource  *rem_resource;
-	/** Clink to wait till reverse session is established */
+	/** Clink to track reverse session establishing */
 	struct m0_clink         rem_rev_sess_clink;
 	struct m0_rpc_session  *rem_session;
 	/** A channel to signal state changes. */
@@ -1017,14 +1021,13 @@ struct m0_rm_owner {
 	 */
 	struct m0_tl           ro_outgoing[OQS_NR];
 	/**
-	 * Linkage of an owner to a list hanging off
-	 * m0_reqh_rm_service::rms_owners.
+	 * Linkage of an owner to a list m0_rm_resource::r_local
 	 */
 	struct m0_tlink        ro_owner_linkage;
 	/**
 	 * Generation count associated with an owner cookie.
 	 */
-	uint64_t	       ro_id;
+	uint64_t               ro_id;
 	uint64_t               ro_magix;
 };
 
@@ -1427,9 +1430,11 @@ struct m0_rm_outgoing {
 	/*
 	 * The error code (from reply or timeout) for this outgoing request.
 	 */
-	int32_t			 rog_rc;
+	int32_t                  rog_rc;
 	/** A credit that is to be transferred. */
 	struct m0_rm_loan        rog_want;
+	/** Flag indicating whether outgoing request is posted to RPC layer */
+	bool                     rog_sent;
 	uint64_t                 rog_magix;
 };
 
@@ -1549,8 +1554,7 @@ M0_INTERNAL void m0_rm_domain_fini(struct m0_rm_domain *dom);
 /**
  * Registers a resource type with a domain.
  *
- * @pre  rtype->rt_id == M0_RM_RESOURCE_TYPE_ID_INVALID &&
- *       rtype->rt_dom == NULL
+ * @pre  rtype->rt_dom == NULL
  * @post IS_IN_ARRAY(rtype->rt_id, dom->rd_types) && rtype->rt_dom == dom
  */
 M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain *dom,
@@ -1560,8 +1564,7 @@ M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain *dom,
  * Deregisters a resource type.
  *
  * @pre  IS_IN_ARRAY(rtype->rt_id, dom->rd_types) && rtype->rt_dom != NULL
- * @post rtype->rt_id == M0_RM_RESOURCE_TYPE_ID_INVALID &&
- *       rtype->rt_dom == NULL
+ * @post rtype->rt_dom == NULL
  */
 M0_INTERNAL void m0_rm_type_deregister(struct m0_rm_resource_type *rtype);
 

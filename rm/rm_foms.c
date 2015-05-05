@@ -370,7 +370,6 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 			m0_rpc_service_reverse_session_lookup(service,
 						&fom->fo_fop->f_item);
 		if (remote->rem_session == NULL) {
-			m0_clink_init(&remote->rem_rev_sess_clink, NULL);
 			remote->rem_rev_sess_clink.cl_is_oneshot = true;
 			rc = m0_rpc_service_reverse_session_get(
 				service, &fom->fo_fop->f_item,
@@ -589,8 +588,7 @@ static int cancel_process(struct m0_fom *fom)
 	struct m0_rm_fop_cancel  *cfop;
 	struct m0_rm_loan        *loan;
 	struct m0_rm_owner       *owner;
-	struct m0_clink          *clink;
-	int			  rc = 0;
+	int                       rc = 0;
 
 	cfop = m0_fop_data(fom->fo_fop);
 
@@ -600,11 +598,6 @@ static int cancel_process(struct m0_fom *fom)
 	M0_ASSERT(loan->rl_other != NULL);
 
 	owner = loan->rl_credit.cr_owner;
-	clink = &loan->rl_other->rem_rev_sess_clink;
-	if (m0_clink_is_armed(clink)) {
-		m0_clink_del_lock(clink);
-		m0_clink_fini(clink);
-	}
 	rc = m0_rm_loan_settle(owner, loan);
 
 	m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);

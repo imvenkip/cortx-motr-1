@@ -78,9 +78,6 @@ struct m0_reqh_rm_service {
 	/** Supported type: file lock */
 	struct m0_rm_resource_type rms_flock_rt;
 
-	/** Owners this service has created. */
-	struct m0_tl               rms_owners;
-
 	/** rms_magic == M0_RM_SERVICE_MAGIC */
 	uint64_t                   rms_magic;
 };

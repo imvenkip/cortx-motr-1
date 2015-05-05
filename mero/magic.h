@@ -720,10 +720,10 @@ enum m0_magic_satchel {
 	/* m0_reqh_rm_service::rms_magix (seidel afield) */
 	M0_RM_SERVICE_MAGIC = 0x335e1de1af1e1d77,
 
-	/* rmsvc_owner_tl::ro_owner_linkage (eiffel doodle) */
+	/* m0_owners_tl::ro_owner_linkage (eiffel doodle) */
 	M0_RM_OWNER_LIST_MAGIC = 0x33E1FFE1D00D1E77,
 
-	/* rmsvc_owner_tl::td_head_magic (scalic seabed) */
+	/* m0_owners_tl::td_head_magic (scalic seabed) */
 	M0_RM_OWNER_LIST_HEAD_MAGIC = 0x335CA11C5EABED77,
 
 /* RPC */

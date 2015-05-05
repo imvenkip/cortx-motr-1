@@ -27,6 +27,7 @@
 #include "lib/misc.h"   /* M0_SET_ARR0 */
 #include "lib/errno.h"  /* ETIMEDOUT */
 #include "lib/arith.h"  /* M0_CNT_{INC,DEC} */
+#include "lib/mutex.h"
 #include "lib/trace.h"
 #include "lib/bob.h"
 #include "addb2/addb2.h"
@@ -127,6 +128,12 @@ M0_TL_DESCR_DEFINE(m0_remotes, "remote owners", , struct m0_rm_remote,
 		   rem_res_linkage, rem_magix,
 		   M0_RM_REMOTE_MAGIC, M0_RM_REMOTE_OWNER_HEAD_MAGIC);
 M0_TL_DEFINE(m0_remotes, M0_INTERNAL, struct m0_rm_remote);
+
+M0_TL_DESCR_DEFINE(m0_owners, "local owners", , struct m0_rm_owner,
+		   ro_owner_linkage, ro_magix,
+		   M0_RM_OWNER_LIST_MAGIC, M0_RM_OWNER_LIST_HEAD_MAGIC);
+M0_TL_DEFINE(m0_owners, M0_INTERNAL, struct m0_rm_owner);
+
 
 static const struct m0_bob_type credit_bob = {
         .bt_name         = "credit",
@@ -352,6 +359,7 @@ M0_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
 	res->r_type = rtype;
 	res_tlink_init_at(res, &rtype->rt_resources);
 	m0_remotes_tlist_init(&res->r_remote);
+	m0_owners_tlist_init(&res->r_local);
 	m0_rm_resource_bob_init(res);
 	M0_CNT_INC(rtype->rt_nr_resources);
 	M0_POST(res_tlist_contains(&rtype->rt_resources, res));
@@ -370,6 +378,7 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res)
 	m0_mutex_lock(&rtype->rt_lock);
 	M0_PRE(res_tlist_contains(&rtype->rt_resources, res));
 	M0_PRE(m0_remotes_tlist_is_empty(&res->r_remote));
+	M0_PRE(m0_owners_tlist_is_empty(&res->r_local));
 	M0_PRE_EX(resource_type_invariant(rtype));
 
 	res_tlink_del_fini(res);
@@ -377,6 +386,8 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res)
 
 	M0_POST_EX(resource_type_invariant(rtype));
 	M0_POST(!res_tlist_contains(&rtype->rt_resources, res));
+	m0_remotes_tlist_fini(&res->r_remote);
+	m0_owners_tlist_fini(&res->r_local);
 	m0_rm_resource_bob_fini(res);
 	m0_mutex_unlock(&rtype->rt_lock);
 	M0_LEAVE();
@@ -434,7 +445,7 @@ M0_EXPORTED(m0_rm_resource_encode);
 static void resource_get(struct m0_rm_resource *res)
 {
 	struct m0_rm_resource_type *rtype = res->r_type;
-	uint32_t		    count;
+	uint32_t                    count;
 
 	M0_ENTRY("resource : %p", res);
 	m0_mutex_lock(&rtype->rt_lock);
@@ -448,7 +459,7 @@ static void resource_get(struct m0_rm_resource *res)
 static void resource_put(struct m0_rm_resource *res)
 {
 	struct m0_rm_resource_type *rtype = res->r_type;
-	uint32_t		    count = res->r_ref;
+	uint32_t                    count;
 
 	M0_ENTRY("resource : %p", res);
 	m0_mutex_lock(&rtype->rt_lock);
@@ -574,6 +585,11 @@ M0_INTERNAL void m0_rm_owner_lock(struct m0_rm_owner *owner)
 }
 M0_EXPORTED(m0_rm_owner_lock);
 
+static int m0_rm_owner_trylock(struct m0_rm_owner *owner)
+{
+	return m0_mutex_trylock(&owner_grp(owner)->s_lock);
+}
+
 M0_INTERNAL void m0_rm_owner_unlock(struct m0_rm_owner *owner)
 {
 	m0_sm_group_unlock(owner_grp(owner));
@@ -606,6 +622,9 @@ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner      *owner,
 	m0_rm_owner_unlock(owner);
 	owner->ro_creditor = creditor;
 	m0_cookie_new(&owner->ro_id);
+	m0_mutex_lock(&res->r_type->rt_lock);
+	m0_owners_tlink_init_at_tail(owner, &res->r_local);
+	m0_mutex_unlock(&res->r_type->rt_lock);
 
 	M0_POST(owner_invariant(owner));
 	M0_POST(owner->ro_resource == res);
@@ -774,6 +793,9 @@ M0_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner)
 	M0_PRE(owner_invariant(owner));
 	M0_PRE(M0_IN(owner_state(owner), (ROS_FINAL, ROS_INSOLVENT)));
 
+	m0_mutex_lock(&res->r_type->rt_lock);
+	m0_owners_tlink_del_fini(owner);
+	m0_mutex_unlock(&res->r_type->rt_lock);
 	RM_OWNER_LISTS_FOR(owner, m0_rm_ur_tlist_fini);
 	owner->ro_resource = NULL;
 	owner->ro_creditor = NULL;
@@ -949,6 +971,7 @@ M0_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing    *out,
 
 	out->rog_rc = 0;
 	out->rog_type = req_type;
+	out->rog_sent = false;
 	m0_rm_outgoing_bob_init(out);
 	M0_LEAVE();
 }
@@ -1054,6 +1077,65 @@ M0_INTERNAL void m0_rm_loan_fini(struct m0_rm_loan *loan)
 }
 M0_EXPORTED(m0_rm_loan_fini);
 
+static void pending_outgoing_send(struct m0_rm_owner *owner,
+				  struct m0_clink    *link)
+{
+	struct m0_rm_outgoing *outgoing;
+	struct m0_rm_credit   *credit;
+
+	M0_ENTRY("owner: %p link: %p", owner, link);
+	M0_PRE(owner != NULL);
+	M0_PRE(link != NULL);
+	M0_PRE(owner_smgrp_is_locked(owner));
+
+	m0_tl_for(m0_rm_ur, &owner->ro_outgoing[OQS_GROUND], credit) {
+		M0_ASSERT(m0_rm_credit_bob_check(credit));
+		outgoing = bob_of(credit, struct m0_rm_outgoing,
+				  rog_want.rl_credit, &outgoing_bob);
+		if (!outgoing->rog_sent &&
+		    &outgoing->rog_want.rl_other->rem_rev_sess_clink == link)
+			m0_rm_outgoing_send(outgoing);
+	} m0_tl_endfor;
+	M0_LEAVE();
+}
+
+static bool rev_session_clink_cb(struct m0_clink *link)
+{
+	struct m0_rm_remote   *remote;
+	struct m0_rm_resource *resource;
+	struct m0_rm_owner    *owner;
+	bool                   busy;
+
+	M0_ENTRY("link: %p", link);
+	remote = bob_of(link, struct m0_rm_remote,
+			rem_rev_sess_clink, &rem_bob);
+	resource = remote->rem_resource;
+
+	/*
+	 * Do not break RM lock ordering.
+	 * Use trylock-repeat cycle to avoid deadlocks.
+	 *
+	 * Problem with possible multiple sending of outgoing requests
+	 * for the same owner is solved by m0_rm_outgoing::rog_sent flag.
+	 */
+	do {
+		busy = false;
+		m0_mutex_lock(&resource->r_type->rt_lock);
+		m0_tl_for(m0_owners, &resource->r_local, owner) {
+			busy = m0_rm_owner_trylock(owner);
+			if (!busy) {
+				pending_outgoing_send(owner, link);
+				m0_rm_owner_unlock(owner);
+			} else
+				break;
+		} m0_tl_endfor;
+		m0_mutex_unlock(&resource->r_type->rt_lock);
+	} while (busy);
+
+	M0_LEAVE();
+	return true;
+}
+
 static int remote_find(struct m0_rm_remote          **rem,
 		       struct m0_rm_remote_incoming  *rem_in,
 		       struct m0_rm_resource         *res)
@@ -1098,6 +1180,7 @@ M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote   *rem,
 	rem->rem_state = REM_INITIALISED;
 	rem->rem_resource = res;
 	m0_chan_init(&rem->rem_signal, &res->r_type->rt_lock);
+	m0_clink_init(&rem->rem_rev_sess_clink, rev_session_clink_cb);
 	m0_remotes_tlink_init(rem);
 	m0_rm_remote_bob_init(rem);
 	resource_get(res);
@@ -1112,33 +1195,34 @@ M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem)
 	M0_PRE(M0_IN(rem->rem_state, (REM_INITIALISED,
 				      REM_SERVICE_LOCATED,
 				      REM_OWNER_LOCATED)));
+	/*
+	 * It is possible that reverse session is not yet established,
+	 * because no revoke requests were sent to remote owner.
+	 */
+	if (rem->rem_rev_sess_clink.cl_chan != NULL) {
+		m0_mutex_lock(rem->rem_rev_sess_clink.cl_chan->ch_guard);
+		if (m0_clink_is_armed(&rem->rem_rev_sess_clink)) {
+			m0_clink_del(&rem->rem_rev_sess_clink);
+		}
+		m0_mutex_unlock(rem->rem_rev_sess_clink.cl_chan->ch_guard);
+	}
+	m0_clink_fini(&rem->rem_rev_sess_clink);
+
 	rem->rem_state = REM_FREED;
 	m0_chan_fini_lock(&rem->rem_signal);
+	/*
+	 * Do nothing with rem->rem_session. If it was used to
+	 * borrow credits, then session is managed by user. If
+	 * it was used to revoke credits, then session is stored
+	 * in RPC service rps_rev_conns list and can be used by
+	 * other mero entities.
+	 */
 	m0_remotes_tlink_fini(rem);
 	resource_put(rem->rem_resource);
 	m0_rm_remote_bob_fini(rem);
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rm_remote_fini);
-
-M0_INTERNAL void m0_rm_rev_session_wait(struct m0_rm_remote *remote)
-{
-	struct m0_clink *clink;
-
-	M0_ASSERT(remote != NULL);
-
-	clink = &remote->rem_rev_sess_clink;
-	/*
-	 * Check whether remote session is established or not.
-	 * If a situation comes when we have to send revoke
-	 * request even before the session is established,
-	 * we need to wait till the session is established.
-	 */
-	if (m0_clink_is_armed(clink)) {
-		m0_chan_wait(clink);
-		m0_clink_fini(clink);
-	}
-}
 
 static void cached_credits_clear(struct m0_rm_owner *owner)
 {

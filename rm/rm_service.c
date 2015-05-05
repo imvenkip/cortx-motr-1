@@ -44,11 +44,6 @@
 #include "rm/rm_fops.h"
 #include "file/file.h"
 
-M0_TL_DESCR_DEFINE(rmsvc_owner, "RM Service Owners", static, struct m0_rm_owner,
-		   ro_owner_linkage, ro_magix,
-		   M0_RM_OWNER_LIST_MAGIC, M0_RM_OWNER_LIST_HEAD_MAGIC);
-M0_TL_DEFINE(rmsvc_owner, static, struct m0_rm_owner);
-
 static int rms_allocate(struct m0_reqh_service **service,
 			const struct m0_reqh_service_type *stype);
 static void rms_fini(struct m0_reqh_service *service);
@@ -144,7 +139,6 @@ static int rms_allocate(struct m0_reqh_service **service,
 		m0_reqh_rm_service_bob_init(rms);
 		*service = &rms->rms_svc;
 		(*service)->rs_ops = &rms_ops;
-		rmsvc_owner_tlist_init(&rms->rms_owners);
 		return M0_RC(0);
 	} else
 		return M0_ERR(-ENOMEM);
@@ -158,7 +152,6 @@ static void rms_fini(struct m0_reqh_service *service)
 	M0_PRE(service != NULL);
 
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
-	rmsvc_owner_tlist_fini(&rms->rms_owners);
 	m0_reqh_rm_service_bob_fini(rms);
 	m0_free(rms);
 
@@ -184,54 +177,53 @@ static int rms_start(struct m0_reqh_service *service)
 	return M0_RC(0);
 }
 
+static void rms_resources_free(struct m0_rm_resource_type *rtype)
+{
+	struct m0_rm_resource *resource;
+	struct m0_rm_remote   *rem;
+	struct m0_rm_owner    *owner;
+
+	M0_PRE(rtype != NULL);
+
+	m0_tl_for(res, &rtype->rt_resources, resource) {
+		m0_tl_for(m0_owners, &resource->r_local, owner) {
+			m0_rm_owner_windup(owner);
+			m0_rm_owner_timedwait(owner, ROS_FINAL, M0_TIME_NEVER);
+			m0_rm_owner_fini(owner);
+			m0_free(owner);
+		} m0_tl_endfor;
+
+		m0_tl_teardown(m0_remotes, &resource->r_remote, rem) {
+			m0_rm_remote_fini(rem);
+			m0_free(rem);
+		}
+		m0_rm_resource_del(resource);
+		m0_rm_resource_free(resource);
+	} m0_tl_endfor;
+}
+
 static void rms_stop(struct m0_reqh_service *service)
 {
 	struct m0_reqh_rm_service *rms;
-	struct m0_rm_owner        *owner;
-	struct m0_rm_remote       *remote;
 
 	M0_PRE(service != NULL);
 	M0_ENTRY();
 
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
 
-	m0_tl_for (rmsvc_owner, &rms->rms_owners, owner) {
-		struct m0_rm_resource *res = owner->ro_resource;
-
-		m0_rm_owner_windup(owner);
-		m0_rm_owner_timedwait(owner, ROS_FINAL, M0_TIME_NEVER);
-		m0_tl_teardown(m0_remotes,
-			       &owner->ro_resource->r_remote, remote) {
-			m0_rm_remote_fini(remote);
-			m0_free(remote);
-		}
-		m0_rm_resource_del(owner->ro_resource);
-		m0_rm_owner_fini(owner);
-		rmsvc_owner_tlink_del_fini(owner);
-		m0_rm_resource_free(res);
-		m0_free(owner);
-	} m0_tl_endfor;
-
+	rms_resources_free(&rms->rms_flock_rt);
 	m0_file_lock_type_deregister(&rms->rms_flock_rt);
 	m0_rm_domain_fini(&rms->rms_dom);
 
 	M0_LEAVE();
 }
 
-static struct m0_rm_owner *
-rmsvc_owner_lookup(const struct m0_reqh_rm_service *rms,
-		   const struct m0_rm_resource     *res)
+static struct m0_rm_owner *rmsvc_owner(const struct m0_rm_resource *res)
 {
-	struct m0_rm_resource_type *rt;
-
 	M0_PRE(res != NULL);
-	M0_PRE(rms != NULL);
+	M0_PRE(m0_owners_tlist_length(&res->r_local) <= 1);
 
-	rt = res->r_type;
-	M0_ASSERT(rt->rt_ops->rto_eq != NULL);
-
-	return m0_tl_find(rmsvc_owner, scan, &rms->rms_owners,
-			  rt->rt_ops->rto_eq(res, scan->ro_resource));
+	return m0_owners_tlist_head(&res->r_local);
 }
 
 M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
@@ -278,7 +270,7 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 			m0_rm_resource_free(resource);
 			resource = resadd;
 		}
-		owner = rmsvc_owner_lookup(rms, resource);
+		owner = rmsvc_owner(resource);
 		if (owner == NULL) {
 			M0_ADDB2_IN(M0_RM_ADDB2_RMSVC_OWNER_ALLOC,
 				    M0_ALLOC_PTR(owner));
@@ -300,8 +292,6 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 				m0_free(ow_cr);
 				if (rc != 0)
 					goto err_add;
-				rmsvc_owner_tlink_init_at_tail(owner,
-						&rms->rms_owners);
 			} else {
 				rc = M0_ERR(-ENOMEM);
 				goto err_alloc;

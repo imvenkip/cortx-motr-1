@@ -134,6 +134,8 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 				  struct m0_rm_credit *credit,
 				  struct m0_rm_remote *remote);
 
+M0_INTERNAL void m0_rm_outgoing_send(struct m0_rm_outgoing *outgoing);
+
 /**
  * Initialises the fields of for incoming structure.
  * This creates an incoming request with an empty m0_rm_incoming::rin_want
@@ -201,7 +203,6 @@ M0_INTERNAL int
 m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 			  struct m0_rm_remote          *remote);
 
-M0_INTERNAL void m0_rm_rev_session_wait(struct m0_rm_remote *remote);
 /** @} end of rm-fop interface. */
 
 /**
@@ -218,6 +219,9 @@ M0_TL_DECLARE(m0_rm_ur, M0_INTERNAL, struct m0_rm_credit);
 
 M0_TL_DESCR_DECLARE(m0_remotes, extern);
 M0_TL_DECLARE(m0_remotes, M0_INTERNAL, struct m0_rm_remote);
+
+M0_TL_DESCR_DECLARE(m0_owners, extern);
+M0_TL_DECLARE(m0_owners, M0_INTERNAL, struct m0_rm_owner);
 
 M0_TL_DESCR_DECLARE(pr, extern);
 M0_TL_DECLARE(pr, M0_INTERNAL, struct m0_rm_pin);

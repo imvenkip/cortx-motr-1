@@ -248,15 +248,18 @@ static int cancel_fop_fill(struct rm_out     *outreq,
 	return M0_RC(rc);
 }
 
-static void outgoing_queue(enum m0_rm_outgoing_type  otype,
-			   struct m0_rm_owner       *owner,
-			   struct rm_out            *outreq,
-			   struct m0_rm_incoming    *in,
-			   struct m0_rm_remote      *other)
+M0_INTERNAL void m0_rm_outgoing_send(struct m0_rm_outgoing *outgoing)
 {
-	M0_ASSERT(owner != NULL);
+	struct rm_out            *outreq;
 
-	switch (otype) {
+	M0_ENTRY("outgoing: %p", outgoing);
+	M0_PRE(outgoing->rog_sent == false);
+
+	outreq = container_of(outgoing, struct rm_out, ou_req);
+	M0_ASSERT(outreq->ou_ast.sa_cb == NULL);
+	M0_ASSERT(outreq->ou_fop.f_item.ri_session == NULL);
+
+	switch (outgoing->rog_type) {
 	case M0_ROT_BORROW:
 		outreq->ou_ast.sa_cb = &borrow_ast;
 		break;
@@ -269,22 +272,49 @@ static void outgoing_queue(enum m0_rm_outgoing_type  otype,
 	default:
 		break;
 	}
+
+	M0_LOG(M0_DEBUG, "sending request:%p over session: %p",
+			 outreq, outreq->ou_fop.f_item.ri_session);
+
+	outreq->ou_fop.f_item.ri_session =
+		outgoing->rog_want.rl_other->rem_session;
+	outreq->ou_fop.f_item.ri_ops     = &rm_request_rpc_ops;
+	if (M0_FI_ENABLED("no-rpc"))
+		return;
+	m0_rpc_post(&outreq->ou_fop.f_item);
+
+	outgoing->rog_sent = true;
+
+	M0_LEAVE();
+}
+
+static void outgoing_queue(enum m0_rm_outgoing_type  otype,
+			   struct m0_rm_owner       *owner,
+			   struct rm_out            *outreq,
+			   struct m0_rm_incoming    *in,
+			   struct m0_rm_remote      *other)
+{
+	M0_ASSERT(owner != NULL);
+
 	if (in != NULL)
 		pin_add(in, &outreq->ou_req.rog_want.rl_credit, M0_RPF_TRACK);
 
 	m0_rm_ur_tlist_add(&owner->ro_outgoing[OQS_GROUND],
 			   &outreq->ou_req.rog_want.rl_credit);
-	outreq->ou_fop.f_item.ri_session = other->rem_session;
-	outreq->ou_fop.f_item.ri_ops     = &rm_request_rpc_ops;
-
-	if (M0_FI_ENABLED("no-rpc"))
-		goto out;
-
-	M0_LOG(M0_DEBUG, "sending request:%p over session: %p",
-			 outreq, other->rem_session);
-	m0_rpc_post(&outreq->ou_fop.f_item);
-out:
-	return;
+	/*
+	 * It is possible that remote session is not yet established
+	 * when revoke request should be sent.
+	 * In this case let's wait till session is established and
+	 * send revoke request from rev_session_clink_cb callback.
+	 *
+	 * The race is possible if m0_clink_is_armed() return false, but
+	 * rev_session_clink_cb() call is not finished yet. In that case
+	 * outgoing request could be sent twice.
+	 * Flag m0_rm_outgoing::rog_sent is used to prevent that.
+	 */
+	if (otype != M0_ROT_REVOKE ||
+	    !m0_clink_is_armed(&other->rem_rev_sess_clink))
+		m0_rm_outgoing_send(&outreq->ou_req);
 }
 
 M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
@@ -314,7 +344,6 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 		rc = borrow_fop_fill(outreq, in, credit);
 		break;
 	case M0_ROT_REVOKE:
-		m0_rm_rev_session_wait(other);
 		rc = revoke_fop_fill(outreq, in, loan, other, credit);
 		break;
 	case M0_ROT_CANCEL:
@@ -414,6 +443,7 @@ out:
 	outreq_fini(outreq, rc);
 	M0_LEAVE();
 }
+
 static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_fop_generic_reply *revoke_reply;
