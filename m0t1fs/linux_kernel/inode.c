@@ -167,8 +167,8 @@ M0_INTERNAL void m0t1fs_file_lock_fini(struct m0t1fs_inode *ci)
 				   M0_TIME_NEVER);
 	M0_ASSERT(rc == 0);
 	m0_file_owner_fini(&ci->ci_fowner);
-	m0_file_fini(&ci->ci_flock);
 	m0_rm_remote_fini(&ci->ci_creditor);
+	m0_file_fini(&ci->ci_flock);
 	M0_LEAVE();
 }
 

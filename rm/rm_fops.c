@@ -126,6 +126,7 @@ out:
  */
 static void rm_out_release(struct rm_out *out)
 {
+	m0_rm_loan_fini(&out->ou_req.rog_want);
 	m0_rm_outgoing_fini(&out->ou_req);
 	m0_free(out);
 }
@@ -180,7 +181,10 @@ static int fop_common_fill(struct rm_out         *outreq,
 					   &req->rrq_owner.ow_resource) ?:
 			m0_rm_credit_encode(credit,
 					    &req->rrq_credit.cr_opaque);
+	} else {
+		m0_fop_fini(fop);
 	}
+
 	return M0_RC(rc);
 }
 
@@ -250,6 +254,8 @@ static int cancel_fop_fill(struct rm_out     *outreq,
 	if (rc == 0) {
 		cfop = m0_fop_data(fop);
 		cfop->fc_loan.lo_cookie = loan->rl_cookie;
+	} else {
+		m0_fop_fini(fop);
 	}
 
 	return M0_RC(rc);
@@ -364,6 +370,7 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "filling fop failed: rc [%d]\n", rc);
+		rm_out_release(outreq);
 		goto out;
 	}
 	outgoing_queue(otype, credit->cr_owner, outreq, in, other);

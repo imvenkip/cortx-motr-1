@@ -376,6 +376,7 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res)
 
 	M0_ENTRY("resource : %p", res);
 	m0_mutex_lock(&rtype->rt_lock);
+	M0_PRE(res->r_ref == 0);
 	M0_PRE(res_tlist_contains(&rtype->rt_resources, res));
 	M0_PRE(m0_remotes_tlist_is_empty(&res->r_remote));
 	M0_PRE(m0_owners_tlist_is_empty(&res->r_local));
@@ -1456,6 +1457,7 @@ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
 
 	if (rc == 0) {
 		m0_rm_ur_tlist_del(credit);
+		m0_rm_loan_fini(brwd_loan);
 		if (credit_is_empty(&remnant_loan->rl_credit))
 			remove_loan = remnant_loan;
 		else
