@@ -234,12 +234,12 @@ static void cp_reply_received(struct m0_rpc_item *req_item)
 
 static void cp_fop_release(struct m0_ref *ref)
 {
-	struct m0_cm_cp_fop  *cp_fop;
-        struct m0_fop        *fop = container_of(ref, struct m0_fop, f_ref);
+	struct m0_cm_cp_fop *cp_fop;
+	struct m0_fop       *fop = container_of(ref, struct m0_fop, f_ref);
 
 	cp_fop = container_of(fop, struct m0_cm_cp_fop, cf_fop);
 	M0_ASSERT(cp_fop != NULL);
-        m0_fop_fini(fop);
+	m0_fop_fini(fop);
 	m0_free(cp_fop);
 }
 
@@ -247,6 +247,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
 {
         struct m0_sns_cm_cp    *sns_cp;
         struct m0_sns_cpx      *sns_cpx;
+        struct m0_rpc_bulk     *rbulk = NULL;
         struct m0_rpc_bulk_buf *rbuf;
         struct m0_net_domain   *ndom;
         struct m0_net_buffer   *nbuf;
@@ -287,6 +288,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
         if (rc != 0)
                 goto out;
 
+        rbulk = &cp->c_bulk;
 	m0_mutex_lock(&cp->c_cm_proxy->px_mutex);
         session = &cp->c_cm_proxy->px_session;
         ndom = session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
@@ -297,7 +299,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
         m0_tl_for(cp_data_buf, &cp->c_buffers, nbuf) {
 		nbuf_seg_nr = min32(nbuf->nb_pool->nbp_seg_nr, tmp_seg_nr);
 		tmp_seg_nr -= nbuf_seg_nr;
-                rc = m0_rpc_bulk_buf_add(&cp->c_bulk,
+                rc = m0_rpc_bulk_buf_add(rbulk,
                                          nbuf_seg_nr,
                                          ndom, NULL, &rbuf);
                 if (rc != 0 || rbuf == NULL)
@@ -314,11 +316,11 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
                 }
         } m0_tl_endfor;
 
-        m0_mutex_lock(&cp->c_bulk.rb_mutex);
-        m0_rpc_bulk_qtype(&cp->c_bulk, M0_NET_QT_PASSIVE_BULK_SEND);
-        m0_mutex_unlock(&cp->c_bulk.rb_mutex);
+        m0_mutex_lock(&rbulk->rb_mutex);
+        m0_rpc_bulk_qtype(rbulk, M0_NET_QT_PASSIVE_BULK_SEND);
+        m0_mutex_unlock(&rbulk->rb_mutex);
 
-        rc = m0_rpc_bulk_store(&cp->c_bulk, session->s_conn,
+        rc = m0_rpc_bulk_store(rbulk, session->s_conn,
                                sns_cpx->scx_cp.cpx_desc.id_descs,
                                &m0_rpc__buf_bulk_cb);
         if (rc != 0)
@@ -335,8 +337,8 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
 out:
         if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_SEND);
-                if (&cp->c_bulk != NULL)
-                        m0_rpc_bulk_buflist_empty(&cp->c_bulk);
+                if (rbulk != NULL)
+                        m0_rpc_bulk_buflist_empty(rbulk);
                 m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FAIL);
 		return M0_FSO_AGAIN;
         }
@@ -345,13 +347,35 @@ out:
         return M0_FSO_WAIT;
 }
 
+M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
+M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
+
 M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 {
-	struct m0_rpc_bulk      *rbulk = &cp->c_bulk;
+	struct m0_rpc_bulk *rbulk = &cp->c_bulk;
 
 	M0_PRE(cp != NULL);
 
-	M0_LOG(M0_DEBUG, "rbulk rc: %d", rbulk->rb_rc);
+	M0_LOG(M0_DEBUG, "rbulk rc: %d reply rc: %d", rbulk->rb_rc, cp->c_rc);
+
+	if (cp->c_rc != 0) {
+		/**
+		 * @todo handle error case, e.g. cleanup rpc bulk if needed,
+		 * and halt the repair.
+		 */
+	}
+
+	/*
+	 * Wait on channel till all net buffers are deleted from
+	 * transfer machine.
+	 */
+	m0_mutex_lock(&rbulk->rb_mutex);
+	if (!rpcbulk_tlist_is_empty(&rbulk->rb_buflist)) {
+		m0_fom_wait_on(&cp->c_fom, &rbulk->rb_chan, &cp->c_fom.fo_cb);
+		m0_mutex_unlock(&rbulk->rb_mutex);
+		return M0_FSO_WAIT;
+	}
+	m0_mutex_unlock(&rbulk->rb_mutex);
 
 	return cp->c_ops->co_phase_next(cp);
 }
