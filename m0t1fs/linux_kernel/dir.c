@@ -36,6 +36,7 @@
 #include "ioservice/io_device.h"
 #include "mero/magic.h"
 #include "layout/layout.h"
+#include "layout/layout_internal.h" /* LID_NONE */
 #include "layout/pdclust.h"
 #include "m0t1fs/linux_kernel/m0t1fs.h"
 #include "m0t1fs/linux_kernel/fsync.h"
@@ -299,7 +300,7 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		memcpy(buf, value, size);
 		buf[size] = '\0';
 		ci->ci_layout_id = simple_strtoul(buf, &endp, 0);
-		if (endp - buf < size)
+		if (endp - buf < size || ci->ci_layout_id == LID_NONE)
 			goto out;
 		rc = m0t1fs_inode_layout_init(ci);
 		if (rc != 0)
@@ -1162,14 +1163,14 @@ M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
 M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 			       struct kstat *stat)
 {
-	struct m0_fop_getattr_rep       *getattr_rep;
-	struct m0t1fs_sb                *csb;
-	struct inode                    *inode;
-	struct m0_fop_cob               *body;
-	struct m0t1fs_inode             *ci;
-	struct m0t1fs_mdop               mo;
-	int                              rc;
-	struct m0_fop                   *rep_fop = NULL;
+	struct m0_fop_getattr_rep *getattr_rep;
+	struct m0t1fs_sb          *csb;
+	struct inode              *inode;
+	struct m0_fop_cob         *body;
+	struct m0t1fs_inode       *ci;
+	struct m0t1fs_mdop         mo;
+	int                        rc = 0;
+	struct m0_fop             *rep_fop = NULL;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
@@ -1183,6 +1184,8 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	m0t1fs_fs_lock(csb);
 
 	if (csb->csb_oostore) {
+		if (m0t1fs_inode_is_root(&ci->ci_inode))
+			goto update;
 		rc = m0t1fs_cob_getattr(inode);
 		goto update;
 	}
