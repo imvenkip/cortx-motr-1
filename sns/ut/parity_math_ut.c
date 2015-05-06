@@ -19,16 +19,15 @@
  * Revision date  : 06/21/2012
  */
 
-#include <stdlib.h>
 #include "lib/types.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/errno.h"	     /* EDOM */
+#include "lib/arith.h"	     /* m0_rnd64 */
 
 #include "lib/ub.h"
 #include "ut/ut.h"
 #include "sns/parity_math.h"
-#include "sns/parity_math.c" /* gpow() */
 
 enum {
 	MAX_NUM_ROWS = 20,
@@ -59,6 +58,7 @@ static int32_t puc = PARITY_UNIT_COUNT_MAX;
 static int32_t fuc = PARITY_UNIT_COUNT_MAX;
 static uint32_t UNIT_BUFF_SIZE = 256;
 static int32_t fail_index_xor;
+static uint64_t seed = 42;
 
 struct mat_collection {
 	struct m0_matrix mc_mat;
@@ -194,9 +194,9 @@ static bool config_generate(uint32_t *data_count,
 			    uint32_t *buff_size,
 			    const enum m0_parity_cal_algo algo)
 {
-	int32_t i;
-	int32_t j;
-	int32_t puc_max = PARITY_UNIT_COUNT_MAX;
+	int32_t  i;
+	int32_t  j;
+	int32_t  puc_max = PARITY_UNIT_COUNT_MAX;
 
 	if (algo == M0_PARITY_CAL_ALGO_XOR) {
 		fuc = 1;
@@ -226,7 +226,7 @@ static bool config_generate(uint32_t *data_count,
 
 	for (i = 0; i < duc; ++i) {
 		for (j = 0; j < UNIT_BUFF_SIZE; ++j) {
-			data[i][j] = (uint8_t) rand();
+			data[i][j] = (uint8_t) m0_rnd64(&seed);
 			expected[i][j] = data[i][j];
 		}
 	}
@@ -373,10 +373,10 @@ static void test_parity_math_diff(uint32_t parity_cnt)
 
 	for (i = 0; i < DATA_UNIT_COUNT; ++i) {
 		for (j = 0; j < UNIT_BUFF_SIZE; ++j) {
-			data[i][j] = (uint8_t) rand();
+			data[i][j] = (uint8_t) m0_rnd64(&seed);
 			if (i % 2)
 				data[i + DATA_UNIT_COUNT][j] =
-					(uint8_t) rand();
+					(uint8_t) m0_rnd64(&seed);
 			else
 				data[i + DATA_UNIT_COUNT][j] = data[i][j];
 		}
@@ -483,7 +483,7 @@ static int matrix_init(struct mat_collection *matrices)
 	int ret;
 
 	while (N == 0)
-		N = rand() % (MAX_NUM_ROWS + 1);
+		N = m0_rnd64(&seed) % (MAX_NUM_ROWS + 1);
 
 	ret = m0_matrix_init(&matrices->mc_mat, N, N);
 	M0_UT_ASSERT(ret == 0);
@@ -544,7 +544,7 @@ static void mat_fill(struct m0_matrix *mat, int N, int K,
 		M0_UT_ASSERT(coeff_vec != NULL);
 
 		for (i = 0; i < N - K; ++i) {
-			coeff_vec[i] = rand()%N;
+			coeff_vec[i] = m0_rnd64(&seed)%N;
 			vandermonde_row_set(mat, i);
 		}
 		for (; i < N; ++i) {
@@ -585,7 +585,7 @@ static void vandermonde_row_set(struct m0_matrix *mat, int row)
 	M0_UT_ASSERT(row < mat->m_height);
 
 	for (i = 0; i < mat->m_width; ++i) {
-		*m0_matrix_elem_get(mat, row, i) = gpow(row, i);
+		*m0_matrix_elem_get(mat, row, i) = m0_parity_pow(row, i);
 	}
 }
 
@@ -694,7 +694,7 @@ static void direct_recover(struct m0_parity_math *math,  struct m0_bufvec *x,
 
 	while (total_failures == 0)
 		total_failures =
-			rand() % (math->pmi_parity_count + 1);
+			m0_rnd64(&seed) % (math->pmi_parity_count + 1);
 
 	failed_arr = failure_setup(math, total_failures, MIXED_FAILURE);
 	ret = m0_sns_ir_init(math, 0, &ir);
@@ -766,9 +766,9 @@ static void array_randomly_fill(uint32_t *r_arr, uint32_t size,
 
 	interval = range/size;
 	for (i = 0; i < size; ++i)
-		r_arr[i] = rand() % interval + i * interval;
+		r_arr[i] = m0_rnd64(&seed) % interval + i * interval;
 	if (r_arr[size - 1] > range - 1)
-		r_arr[size - 1] = rand() % (range % interval) + (size - 1) *
+		r_arr[size - 1] = m0_rnd64(&seed) % (range % interval) + (size - 1) *
 			interval;
 }
 
@@ -802,7 +802,7 @@ static void reconstruct(const struct m0_sns_ir *ir, const struct m0_vector *b,
 	if (ir->si_failed_data_nr != 0) {
 		M0_UT_ASSERT(rm->m_width == ir->si_data_nr);
 		M0_UT_ASSERT(rm->m_height == ir->si_failed_data_nr);
-		m0_matrix_vec_multiply(rm, b, r, gmul, gadd);
+		m0_matrix_vec_multiply(rm, b, r, m0_parity_mul, m0_parity_add);
 	}
 }
 
@@ -871,7 +871,7 @@ static void incremental_recover(struct m0_parity_math *math,
 			M0_UT_ASSERT(node != NULL);
 			while (total_failures == 0)
 				total_failures =
-					rand() % (math->pmi_parity_count + 1);
+					m0_rnd64(&seed) % (math->pmi_parity_count + 1);
 			alive_nr = math->pmi_data_count +
 				math->pmi_parity_count - total_failures;
 			failed_arr = failure_setup(math, total_failures,
@@ -1031,12 +1031,14 @@ static void sns_ir_nodes_gather(struct sns_ir_node *node, uint32_t node_nr,
 	uint32_t	 i;
 	uint32_t	 j;
 	uint32_t	 k;
-	uint32_t	 total_failures = block_nr(&node[0].sin_ir) -
-				node[0].sin_ir.si_alive_nr;
+	uint32_t	 total_failures;
 	struct m0_bitmap alive_bitmap;
 	uint32_t	 alive_idx;
-	struct m0_sns_ir ir = node[0].sin_ir;;
+	struct m0_sns_ir ir;
 	int		 ret;
+
+	total_failures = block_nr(&node[0].sin_ir) - node[0].sin_ir.si_alive_nr;
+	ir = node[0].sin_ir;
 	ret = m0_bitmap_init(&alive_bitmap,
 			     node[0].sin_ir.si_data_nr +
 			     node[0].sin_ir.si_parity_nr);
@@ -1198,7 +1200,7 @@ static void bufvec_fill(struct m0_bufvec *x)
 	do {
 		x_buf  = m0_bufvec_cursor_addr(&x_cursor);
 		for (i = 0; i < x->ov_vec.v_count[0]; ++i)
-			x_buf[i] = (uint8_t)rand();
+			x_buf[i] = (uint8_t)m0_rnd64(&seed);
 		step = m0_bufvec_cursor_step(&x_cursor);
 	} while (!m0_bufvec_cursor_move(&x_cursor, step));
 }
@@ -1291,10 +1293,10 @@ struct m0_ut_suite parity_math_ut = {
                 { NULL, NULL }
         }
 };
+M0_EXPORTED(parity_math_ut);
 
 static int ub_init(const char *opts M0_UNUSED)
 {
-	srand(1285360231);
 	return 0;
 }
 

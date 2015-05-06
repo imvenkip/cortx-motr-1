@@ -217,16 +217,7 @@ static m0_parity_elem_t gdiv(m0_parity_elem_t x, m0_parity_elem_t y)
 
 static m0_parity_elem_t gpow(m0_parity_elem_t x, m0_parity_elem_t p)
 {
-	m0_parity_elem_t ret = x;
-	int i = 1;
-
-	if (p == 0)
-		return 1;
-
-	for (i = 1; i < p; ++i)
-		ret = gmul(ret, x);
-
-	return ret;
+	return m0_parity_pow(x, p);
 }
 
 /* Fills vandermonde matrix with initial values. */
@@ -458,11 +449,16 @@ static void reed_solomon_encode(struct m0_parity_math *math,
 				const struct m0_buf *data,
 				struct m0_buf *parity)
 {
-	uint32_t	 ei; /* block element index. */
-	uint32_t	 pi; /* parity unit index. */
-	uint32_t	 di; /* data unit index. */
-	m0_parity_elem_t mat_elem;
-	uint32_t	 block_size = data[0].b_nob;
+#define PARITY_MATH_REGION_ENABLE 1
+
+#if !PARITY_MATH_REGION_ENABLE
+	uint32_t	  ei; /* block element index. */
+#endif
+	uint32_t	  pi; /* parity unit index. */
+	uint32_t	  di; /* data unit index. */
+	m0_parity_elem_t  mat_elem;
+	uint32_t	  block_size = data[0].b_nob;
+
 
 	for (di = 1; di < math->pmi_data_count; ++di)
 		M0_ASSERT(block_size == data[di].b_nob);
@@ -477,6 +473,7 @@ static void reed_solomon_encode(struct m0_parity_math *math,
 					    di, pi);
 			if (mat_elem == 0)
 				continue;
+#if !PARITY_MATH_REGION_ENABLE
 			for (ei = 0; ei < block_size; ++ei) {
 				if (di == 0)
 					((uint8_t*)parity[pi].b_addr)[ei] =
@@ -488,8 +485,21 @@ static void reed_solomon_encode(struct m0_parity_math *math,
 						  ((uint8_t*)data[di].b_addr)
 						  [ei]));
 			}
+#else
+			if (di == 0)
+				memset((uint8_t*)parity[pi].b_addr,
+				       M0_PARITY_ZERO, block_size);
+
+			m0_parity_region_mac(
+				(m0_parity_elem_t*) parity[pi].b_addr,
+				(const m0_parity_elem_t*) data[di].b_addr,
+				block_size,
+				mat_elem);
+#endif
 		}
 	}
+
+#undef PARITY_MATH_REGION_ENABLE
 }
 
 M0_INTERNAL void m0_parity_math_calculate(struct m0_parity_math *math,

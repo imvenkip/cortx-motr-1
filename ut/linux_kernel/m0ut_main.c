@@ -61,6 +61,7 @@ extern struct m0_ut_suite file_io_ut;
 extern struct m0_ut_suite frm_ut;
 extern struct m0_ut_suite layout_ut;
 extern struct m0_ut_suite packet_encdec_ut;
+extern struct m0_ut_suite parity_math_ut;
 extern struct m0_ut_suite reqh_service_ut;
 extern struct m0_ut_suite rpc_mc_ut;
 extern struct m0_ut_suite rm_ut;
@@ -107,6 +108,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &frm_ut, true);
 	m0_ut_add(m, &layout_ut, true);
 	m0_ut_add(m, &packet_encdec_ut, true);
+	m0_ut_add(m, &parity_math_ut, true);
 	m0_ut_add(m, &reqh_service_ut, true);
 	m0_ut_add(m, &rm_ut, true);
 	m0_ut_add(m, &rpc_mc_ut, true);

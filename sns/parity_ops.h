@@ -33,6 +33,31 @@ M0_INTERNAL m0_parity_elem_t m0_parity_mul(m0_parity_elem_t x,
 					   m0_parity_elem_t y);
 M0_INTERNAL m0_parity_elem_t m0_parity_div(m0_parity_elem_t x,
 					   m0_parity_elem_t y);
+M0_INTERNAL m0_parity_elem_t m0_parity_pow(m0_parity_elem_t x,
+					   m0_parity_elem_t p);
+
+/**
+ * Region based multiplication over GF^W.
+ *
+ * dst[i] = src[i] (GF*) multiplier, for each i in [0, size), where (GF*) is a
+ * multiplication operator over GF^W.
+ */
+M0_INTERNAL void m0_parity_region_mul(m0_parity_elem_t       *dst,
+				      const m0_parity_elem_t *src,
+				      unsigned int	      size,
+				      m0_parity_elem_t        multiplier);
+
+/**
+ * Region based multiplication with accumulation over GF^W.
+ *
+ * dst[i] = dst[i] (GF+) (src[i] (GF*) multiplier), for each i in [0, size),
+ * where (GF*) is a multiplication operator and (GF+) is a addition operator
+ * over GF^W.
+ */
+M0_INTERNAL void m0_parity_region_mac(m0_parity_elem_t       *dst,
+				      const m0_parity_elem_t *src,
+				      unsigned int	      size,
+				      m0_parity_elem_t        multiplier);
 
 static inline m0_parity_elem_t m0_parity_add(m0_parity_elem_t x, m0_parity_elem_t y)
 {
