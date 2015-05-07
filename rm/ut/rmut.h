@@ -96,14 +96,14 @@ struct rm_ut_data_ops {
  * Resource manager class-collection.
  */
 struct rm_ut_data {
-	struct m0_rm_domain	     rd_dom;
+	struct m0_rm_domain          rd_dom;
 	struct m0_rm_resource_type  *rd_rt;
-	struct m0_rm_resource	    *rd_res;
-	struct m0_rm_owner	    *rd_owner;
-	struct m0_rm_incoming	     rd_in;
-	struct m0_rm_credit	     rd_credit;
+	struct m0_rm_resource       *rd_res;
+	struct m0_rm_owner          *rd_owner;
+	struct m0_rm_incoming        rd_in;
+	struct m0_rm_credit          rd_credit;
 	const struct rm_ut_data_ops *rd_ops;
-	struct m0_fid		     rd_fid;
+	struct m0_fid                rd_fid;
 };
 
 

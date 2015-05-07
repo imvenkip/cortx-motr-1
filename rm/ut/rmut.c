@@ -53,7 +53,6 @@ struct m0_mutex   rm_ut_tests_chan_mutex;
 
 extern void rm_api_test(void);
 extern void local_credits_test(void);
-extern void remote_credits_test(void);
 extern void rm_fom_funcs_test(void);
 extern void rm_fop_funcs_test(void);
 extern void flock_test(void);
@@ -174,10 +173,12 @@ void rm_ctx_init(struct rm_ctx *rmctx)
 	M0_UT_ASSERT(rc == 0);
 	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
 	m0_clink_init(&rmctx->rc_clink, NULL);
+	m0_clink_add_lock(&rmctx->rc_chan, &rmctx->rc_clink);
 }
 
 void rm_ctx_fini(struct rm_ctx *rmctx)
 {
+	m0_clink_del_lock(&rmctx->rc_clink);
 	m0_clink_fini(&rmctx->rc_clink);
 	m0_chan_fini_lock(&rmctx->rc_chan);
 	m0_mutex_fini(&rmctx->rc_mutex);
@@ -213,8 +214,8 @@ void rm_ctx_server_start(enum rm_server srv_id)
 	struct m0_rm_remote *creditor;
 	struct m0_rm_owner  *owner;
 	struct rm_ut_data   *data = &rm_ctxs[srv_id].rc_test_data;
-	enum rm_server	     cred_id = rm_ctxs[srv_id].creditor_id;
-	enum rm_server	     debtr_id;
+	enum rm_server       cred_id = rm_ctxs[srv_id].creditor_id;
+	enum rm_server       debtr_id;
 	uint32_t             debtors_nr = rm_ctxs[srv_id].rc_debtors_nr;
 	uint32_t             i;
 
@@ -311,7 +312,6 @@ struct m0_ut_suite rm_ut = {
 		{ "fop-funcs", rm_fop_funcs_test },
 #ifndef __KERNEL__
 		{ "fom-funcs", rm_fom_funcs_test },
-		{ "rcredits", remote_credits_test },
 		{ "rmsvc", rmsvc },
 		{ "flock", flock_test },
 		{ "group", rm_group_test },
