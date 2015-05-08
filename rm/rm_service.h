@@ -78,6 +78,9 @@ struct m0_reqh_rm_service {
 	/** Supported type: file lock */
 	struct m0_rm_resource_type rms_flock_rt;
 
+	/** Supported type: RW lockable resources */
+	struct m0_rm_resource_type rms_rwlockable_rt;
+
 	/** rms_magic == M0_RM_SERVICE_MAGIC */
 	uint64_t                   rms_magic;
 };

@@ -32,13 +32,6 @@ static enum rm_server      test_servers_nr;
 static struct m0_semaphore conflict1_sem;
 static struct m0_semaphore conflict2_sem;
 
-enum rm_ut_credits_list {
-	RCL_BORROWED,
-	RCL_SUBLET,
-	RCL_HELD,
-	RCL_CACHED
-};
-
 static void server1_in_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	M0_UT_ASSERT(in != NULL);
@@ -176,35 +169,6 @@ static void credit_setup(enum rm_server            srv_id,
 		M0_IMPOSSIBLE("Invalid server id");
 		break;
 	}
-}
-
-static void credits_are_equal(enum rm_server          srv_id,
-			      enum rm_ut_credits_list list_id,
-			      uint64_t                value)
-{
-	struct m0_rm_owner *owner = rm_ctxs[srv_id].rc_test_data.rd_owner;
-	uint64_t            sum;
-	struct m0_tl       *list;
-
-	switch (list_id) {
-	case RCL_CACHED:
-		list = &owner->ro_owned[OWOS_CACHED];
-		break;
-	case RCL_HELD:
-		list = &owner->ro_owned[OWOS_HELD];
-		break;
-	case RCL_BORROWED:
-		list = &owner->ro_borrowed;
-		break;
-	case RCL_SUBLET:
-		list = &owner->ro_sublet;
-		break;
-	default:
-		M0_IMPOSSIBLE("Invalid credits list");
-	}
-
-	sum = m0_tl_reduce(m0_rm_ur, credit, list, 0, + credit->cr_datum);
-	M0_UT_ASSERT(sum == value);
 }
 
 static void credit_get_and_hold_no_wait(enum rm_server            debtor_id,

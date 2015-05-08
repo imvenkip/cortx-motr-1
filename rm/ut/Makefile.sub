@@ -8,6 +8,7 @@ ut_libmero_ut_la_SOURCES += rm/ut/rings.c \
                             rm/ut/rmut.c \
                             rm/ut/rmut.h \
                             rm/ut/rm_service.c \
-                            rm/ut/group.c
+                            rm/ut/group.c \
+                            rm/ut/rm_rwlock.c
 
 EXTRA_DIST += rm/ut/rings.h rm/ut/rings.c rm/ut/rmut.h

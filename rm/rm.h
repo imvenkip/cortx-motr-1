@@ -356,7 +356,8 @@ struct m0_rm_resource_ops {
 };
 
 enum m0_res_type_id {
-	M0_RM_FLOCK_RT = 1
+	M0_RM_FLOCK_RT      = 1,
+	M0_RM_RWLOCKABLE_RT = 2
 };
 
 /**

@@ -29,6 +29,12 @@ enum m0_file_credit {
 	RM_FILE_LOCK = 1
 };
 
+/** Credit values for RW lock requests */
+enum m0_rwlock_credit {
+	RM_RW_READ_LOCK  = 1,
+	RM_RW_WRITE_LOCK = ~0ULL
+};
+
 /**
  * Created as a result of remote request which is either BORROW or REVOKE
  * (and CANCEL in future).

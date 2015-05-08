@@ -79,6 +79,13 @@ enum group_tests {
 	GROUP_TESTS_NR,
 };
 
+enum rm_ut_credits_list {
+	RCL_BORROWED,
+	RCL_SUBLET,
+	RCL_HELD,
+	RCL_CACHED
+};
+
 /* Forward declaration */
 struct rm_ut_data;
 
@@ -153,6 +160,10 @@ void rm_ctx_server_windup(enum rm_server srv_id);
 void rm_ctx_server_stop(enum rm_server srv_id);
 void creditor_cookie_setup(enum rm_server dsrv_id, enum rm_server csrv_id);
 void loan_session_set(enum rm_server csrv_id, enum rm_server dsrv_id);
+void credits_are_equal(enum rm_server          srv_id,
+		       enum rm_ut_credits_list list_id,
+		       uint64_t                value);
+
 
 /* __MERO_RM_UT_RMUT_H__ */
 #endif

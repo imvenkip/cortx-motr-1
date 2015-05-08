@@ -36,6 +36,7 @@
 #include "rm/rm_service.h"
 #include "rm/rm_internal.h"
 #include "rm/rm_fops.h"
+#include "rm/rm_rwlock.h"
 #include "file/file.h"
 
 static int rms_allocate(struct m0_reqh_service **service,
@@ -147,9 +148,11 @@ static int rms_start(struct m0_reqh_service *service)
 	m0_rm_domain_init(&rms->rms_dom);
 
 	rms->rms_flock_rt.rt_name = "File Lock Resource Type";
+	rms->rms_rwlockable_rt.rt_name = "Read-Write Lockable Resource Type";
 
 	/** Register various resource types */
 	m0_file_lock_type_register(&rms->rms_dom, &rms->rms_flock_rt);
+	m0_rw_lockable_type_register(&rms->rms_dom, &rms->rms_rwlockable_rt);
 
 	return M0_RC(0);
 }
@@ -190,6 +193,7 @@ static void rms_stop(struct m0_reqh_service *service)
 
 	rms_resources_free(&rms->rms_flock_rt);
 	m0_file_lock_type_deregister(&rms->rms_flock_rt);
+	m0_rw_lockable_type_deregister(&rms->rms_rwlockable_rt);
 	m0_rm_domain_fini(&rms->rms_dom);
 
 	M0_LEAVE();
