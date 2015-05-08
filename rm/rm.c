@@ -1635,13 +1635,13 @@ M0_EXPORTED(m0_rm_credit_put);
 static int cached_credits_hold(struct m0_rm_incoming *in)
 {
 	enum m0_rm_owner_owned_state  ltype;
-	struct m0_rm_pin	     *pin;
-	struct m0_rm_owner	     *owner = in->rin_want.cr_owner;
-	struct m0_rm_credit	     *credit;
-	struct m0_rm_credit	     *held_credit;
-	struct m0_rm_credit	      rest;
-	struct m0_tl		      transfers;
-	int			      rc;
+	struct m0_rm_pin             *pin;
+	struct m0_rm_owner           *owner = in->rin_want.cr_owner;
+	struct m0_rm_credit          *credit;
+	struct m0_rm_credit          *held_credit;
+	struct m0_rm_credit           rest;
+	struct m0_tl                  transfers;
+	int                           rc;
 
 	M0_ENTRY("owner: %p credit: %llu", owner,
 		 (long long unsigned) INCOMING_CREDIT(in));
@@ -1876,6 +1876,87 @@ static bool incoming_is_complete(const struct m0_rm_incoming *in)
 }
 
 /**
+ * Call @ref m0_rm_incoming_ops::rio_conflict()
+ * for all incoming requests which pinned the given credit.
+ * Function is called when a request arrives which conflicts
+ * with a held credit.
+ *
+ * @param credit Credit which conflicts with incoming request.
+ */
+static void conflict_notify(struct m0_rm_credit *credit)
+{
+	struct m0_rm_pin      *pin;
+	struct m0_rm_incoming *in;
+
+	M0_PRE(credit != NULL);
+	M0_PRE(credit_pin_nr(credit, M0_RPF_PROTECT) > 0);
+
+	m0_tl_for(pr, &credit->cr_pins, pin) {
+		M0_ASSERT(m0_rm_pin_bob_check(pin));
+		if (pin->rp_flags & M0_RPF_PROTECT) {
+			in = pin->rp_incoming;
+			in->rin_ops->rio_conflict(in);
+		}
+	} m0_tl_endfor;
+}
+
+/**
+ * Try to use held credit to satisfy incoming request.
+ * If held can be used, then "rest" will be reduced accordingly to it.
+ *
+ * @param in    Incoming request.
+ * @param rest  Not yet satisfied part of originally requested credit.
+ * @param held  Credit to check against incoming request.
+ * @param wait  Counter that is increased if held credit can't be used
+ *              immediately and incoming request has to wait until held
+ *              credit is released.
+ */
+static int incoming_check_held(struct m0_rm_incoming *in,
+			       struct m0_rm_credit   *rest,
+			       struct m0_rm_credit   *held,
+			       int                   *wait)
+{
+	int  rc;
+	bool conflict = credit_conflicts(held, rest);
+
+	M0_PRE(credit_intersects(held, rest));
+	/*
+	 * Ignore borrow requests for held non-conflicting credits.
+	 * If it is the only credit that can satisfy incoming request, then
+	 * eventually creditor will revoke it.
+	 *
+	 * Ideally, non-conflicting credits should be borrowed unconditionally.
+	 * But that means that copy of credit is borrowed, so the same credit
+	 * is held by two RM owners and the total number of credits in cluster
+	 * increases. Currently, there is no way in RM framework to link credit
+	 * and its borrowed copy.
+	 */
+	if (in->rin_type == M0_RIT_BORROW && !conflict) {
+		return M0_RC(0);
+	} else if (in->rin_type == M0_RIT_LOCAL && !conflict) {
+		rc = pin_add(in, held, M0_RPF_PROTECT);
+	} else if (in->rin_flags & RIF_LOCAL_WAIT) {
+		rc = pin_add(in, held, M0_RPF_TRACK);
+		if (rc == 0)
+			conflict_notify(held);
+		(*wait)++;
+	} else if (in->rin_flags & RIF_LOCAL_TRY) {
+		return M0_ERR(-EBUSY);
+	} else {
+		M0_ASSERT(in->rin_type == M0_RIT_LOCAL);
+		/*
+		 * This is the case of a LOCAL request, which conflicts with a
+		 * held credit, but does not have to wait until the credit is
+		 * released. PROTECT the conflicting credit, so that it can be
+		 * used by this request when all other conflicts are resolved.
+		 */
+		 rc = pin_add(in, held, M0_RPF_PROTECT);
+	}
+
+	return rc ?: credit_diff(rest, held);
+}
+
+/**
  * Main helper function to incoming_check(), which starts with "rest" set to the
  * wanted credit and goes though the sequence of checks, reducing "rest".
  *
@@ -1912,7 +1993,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 	bool                 group_mismatch;
 	int                  i;
 	int                  wait = 0;
-	int		     rc   = 0;
+	int                  rc   = 0;
 
 	M0_ENTRY("incoming: %p credit: %llu", in,
 		 (long long unsigned) rest->cr_datum);
@@ -1927,18 +2008,12 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			M0_ASSERT(m0_rm_credit_bob_check(r));
 			if (!credit_intersects(r, rest))
 				continue;
-			if (i == OWOS_HELD && credit_conflicts(r, rest)) {
-				if (in->rin_flags & RIF_LOCAL_WAIT) {
-					rc = pin_add(in, r, M0_RPF_TRACK);
-					if (rc == 0)
-						in->rin_ops->rio_conflict(in);
-					wait++;
-				} else if (in->rin_flags & RIF_LOCAL_TRY)
-					return M0_ERR(-EBUSY);
-			} else if (wait == 0) {
-				rc = pin_add(in, r, M0_RPF_PROTECT);
-			}
-			rc = rc ?: credit_diff(rest, r);
+
+			if (i == OWOS_HELD)
+				rc = incoming_check_held(in, rest, r, &wait);
+			else
+				rc = pin_add(in, r, M0_RPF_PROTECT) ?:
+				     credit_diff(rest, r);
 			if (rc != 0)
 				return M0_RC(rc);
 		} m0_tl_endfor;
@@ -2377,6 +2452,11 @@ static bool incoming_invariant(const struct m0_rm_incoming *in)
 		/* RIF_LOCAL_WAIT and RIF_LOCAL_TRY can't be set together */
 		(in->rin_flags & (RIF_LOCAL_WAIT | RIF_LOCAL_TRY)) !=
 		                 (RIF_LOCAL_WAIT | RIF_LOCAL_TRY) &&
+		/* M0_RIT_BORROW and M0_RIT_REVOKE should have exactly one of
+		 * RIF_LOCAL_WAIT, RIF_LOCAL_TRY flags set */
+		ergo(M0_IN(in->rin_type, (M0_RIT_BORROW, M0_RIT_REVOKE)),
+		     m0_is_po2(in->rin_flags &
+			     (RIF_LOCAL_WAIT | RIF_LOCAL_TRY))) &&
 		IS_IN_ARRAY(in->rin_priority,
 			    in->rin_want.cr_owner->ro_incoming) &&
 		/* a request can be in "check" state only during owner_balance()

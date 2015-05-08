@@ -1369,9 +1369,11 @@ struct m0_rm_incoming {
 };
 
 /**
- * Operations assigned by a resource manager user to an incoming
+ * Operation assigned by a resource manager user to an incoming
  * request. Resource manager calls methods in this operation vector when events
- * related to the request happen.
+ * related to the request happen. Therefore no RM functions should be called
+ * in methods of this operation vector since resource manager state is
+ * undefined.
  */
 struct m0_rm_incoming_ops {
 	/**

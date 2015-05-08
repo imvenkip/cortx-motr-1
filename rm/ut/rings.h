@@ -67,8 +67,14 @@ enum {
 	/* One for the Dark Lord on his dark throne */
 	THE_ONE = 1 << 19,
 
+	/*
+	 * Ring NOT in the story - ring that doesn't conflict with itself.
+	 * It can be granted to multiple incoming requests.
+	 */
+	SHARED_RING = 1 << 20,
+
 	/* Ring NOT in the story - to test failure cases */
-	INVALID_RING = 1 << 20,
+	INVALID_RING = 1 << 21,
 
 	/*
 	 * Special value for the ring denoting any ring.
@@ -83,13 +89,18 @@ enum {
 	 * ANY_RING is introduced to test requests for
 	 * non-conflicting credits.
 	 */
-	ANY_RING = 1 << 21,
+	ANY_RING = 1 << 22,
 
 	ALLRINGS = NARYA | NENYA | VILYA | DURIN | THROR | GR_2 |
 	GR_3 | GR_4 | GR_5 | GR_6 | ANGMAR | KHAMUL | MR_2 | MR_3 | MR_4 |
-	MR_5 | MR_6 | MR_7 | MR_8 | THE_ONE,
+	MR_5 | MR_6 | MR_7 | MR_8 | THE_ONE | SHARED_RING,
 
 	RINGS_RESOURCE_TYPE_ID = 0,
+
+	/*
+	 * Rings incoming policy.
+	 * Incoming policy affects only requests for ANY_RING.
+	 */
 	RINGS_RIP              = RIP_NR + 1
 };
 

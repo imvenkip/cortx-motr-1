@@ -147,7 +147,7 @@ static void cached_credits_test(enum m0_rm_incoming_flags flags)
 static void held_credits_test(enum m0_rm_incoming_flags flags)
 {
 	struct m0_rm_incoming next_in;
-	struct m0_clink	      clink;
+	struct m0_clink       clink;
 
 	M0_SET0(&rm_test_data.rd_in);
 	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
@@ -170,6 +170,9 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 	 * 1. Try to obtain conflicting held credit.
 	 */
 	m0_rm_credit_get(&next_in);
+	M0_UT_ASSERT(ergo(flags == 0,
+			  next_in.rin_sm.sm_state == RI_SUCCESS &&
+			  next_in.rin_rc == 0));
 	M0_UT_ASSERT(ergo(flags == RIF_LOCAL_WAIT,
 			  next_in.rin_sm.sm_state == RI_WAIT));
 	M0_UT_ASSERT(ergo(flags == RIF_LOCAL_TRY,
@@ -194,10 +197,48 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 		m0_rm_credit_put(&next_in);
 		m0_clink_del_lock(&clink);
 		m0_clink_fini(&clink);
+	} else if (flags == 0) {
+		m0_rm_credit_put(&next_in);
 	}
 
 	m0_rm_incoming_fini(&rm_test_data.rd_in);
 	m0_rm_incoming_fini(&next_in);
+}
+
+static void held_non_conflicting_test(enum m0_rm_incoming_flags flags)
+{
+	struct m0_rm_incoming any_in;
+
+	M0_SET0(&rm_test_data.rd_in);
+	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
+			    M0_RIT_LOCAL, RIP_NONE, flags);
+
+	rm_test_data.rd_in.rin_want.cr_datum = ALLRINGS;
+	rm_test_data.rd_in.rin_ops = &lcredits_incoming_ops;
+
+	m0_rm_credit_get(&rm_test_data.rd_in);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+
+	M0_SET0(&any_in);
+	m0_rm_incoming_init(&any_in, rm_test_data.rd_owner,
+			    M0_RIT_LOCAL, RINGS_RIP, flags);
+	any_in.rin_want.cr_datum = ANY_RING;
+	any_in.rin_ops = &lcredits_incoming_ops;
+
+	/*
+	 * Try to obtain non-conflicting held credit.
+	 */
+	m0_rm_credit_get(&any_in);
+	M0_UT_ASSERT(any_in.rin_rc == 0);
+	M0_UT_ASSERT(any_in.rin_sm.sm_state == RI_SUCCESS);
+
+	m0_rm_credit_put(&rm_test_data.rd_in);
+	m0_rm_credit_put(&any_in);
+
+	m0_rm_incoming_fini(&rm_test_data.rd_in);
+	m0_rm_incoming_fini(&any_in);
+
 }
 
 static void failures_test(void)
@@ -232,19 +273,25 @@ static void failures_test(void)
 void local_credits_test(void)
 {
 	/*
-	 * 1. Get cached credit - successful - WAIT, TRY
-	 * 2. Get two non-overlapping cached credits - successful - WAIT, TRY
-	 * 3. Get held non-conflicting credit - wait - WAIT, TRY
-	 * 4. Get held conflicting credits - WAIT, TRY
-	 * 5. Get credit when several owner credits are suitable - WAIT, TRY
+	 * 1. Get cached credit - successful
+	 * 2. Get two non-overlapping cached credits - successful
+	 * 3. Get held non-conflicting credit - successful
+	 * 4. Get held conflicting credits
+	 * 5. Get credit when several owner credits are suitable
 	 * 6. Get invalid credit - failure
 	 * 7. Owner in non-active state - failure
 	 */
 	local_credits_init();
+	cached_credits_test(0);
 	cached_credits_test(RIF_LOCAL_WAIT);
 	cached_credits_test(RIF_LOCAL_TRY);
+	held_credits_test(0);
 	held_credits_test(RIF_LOCAL_WAIT);
 	held_credits_test(RIF_LOCAL_TRY);
+	held_non_conflicting_test(0);
+	held_non_conflicting_test(RIF_LOCAL_WAIT);
+	held_non_conflicting_test(RIF_LOCAL_TRY);
+	credits_pinned_number_test(0);
 	credits_pinned_number_test(RIF_LOCAL_WAIT);
 	credits_pinned_number_test(RIF_LOCAL_TRY);
 	failures_test();

@@ -20,6 +20,7 @@
  */
 
 #include "lib/chan.h"
+#include "lib/semaphore.h"
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
 #include "ut/ut.h"
@@ -28,6 +29,7 @@
 
 /* Maximum test servers for all test cases */
 static enum rm_server      test_servers_nr;
+static struct m0_semaphore conflict_sem;
 
 enum rm_ut_credits_list {
 	RCL_BORROWED,
@@ -59,6 +61,7 @@ static void server2_in_complete(struct m0_rm_incoming *in, int32_t rc)
 
 static void server2_in_conflict(struct m0_rm_incoming *in)
 {
+	m0_semaphore_up(&conflict_sem);
 }
 
 static const struct m0_rm_incoming_ops server2_incoming_ops = {
@@ -152,10 +155,10 @@ static void credit_setup(enum rm_server            srv_id,
 			 enum m0_rm_incoming_flags flag,
 			 uint64_t                  value)
 {
-	struct m0_rm_incoming *in = &rm_ctxs[srv_id].rc_test_data.rd_in;
+	struct m0_rm_incoming *in    = &rm_ctxs[srv_id].rc_test_data.rd_in;
 	struct m0_rm_owner    *owner = rm_ctxs[srv_id].rc_test_data.rd_owner;
 
-	m0_rm_incoming_init(in, owner, M0_RIT_LOCAL, RIP_NONE, flag);
+	m0_rm_incoming_init(in, owner, M0_RIT_LOCAL, RINGS_RIP, flag);
 	in->rin_want.cr_datum = value;
 	switch (srv_id) {
 	case SERVER_1:
@@ -202,19 +205,49 @@ static void credits_are_equal(enum rm_server          srv_id,
 	M0_UT_ASSERT(sum == value);
 }
 
-static void credit_get_and_cache(enum rm_server            debtor_id,
-				 enum m0_rm_incoming_flags flags,
-				 uint64_t                  credit_value)
+static void credit_get_and_hold_no_wait(enum rm_server            debtor_id,
+					enum m0_rm_incoming_flags flags,
+					uint64_t                  credit_value)
 {
 	struct m0_rm_incoming *in = &rm_ctxs[debtor_id].rc_test_data.rd_in;
 
 	credit_setup(debtor_id, flags, credit_value);
 	m0_rm_credit_get(in);
-	m0_chan_wait(&rm_ctxs[debtor_id].rc_clink);
+}
+
+static void wait_for_credit(enum rm_server srv_id)
+{
+	struct m0_rm_incoming *in = &rm_ctxs[srv_id].rc_test_data.rd_in;
+
+	m0_chan_wait(&rm_ctxs[srv_id].rc_clink);
 	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
 	M0_UT_ASSERT(in->rin_rc == 0);
+}
+
+static void credit_get_and_hold(enum rm_server            debtor_id,
+				enum m0_rm_incoming_flags flags,
+				uint64_t                  credit_value)
+{
+	credit_get_and_hold_no_wait(debtor_id, flags, credit_value);
+	wait_for_credit(debtor_id);
+}
+
+static void held_credit_cache(enum rm_server srv_id)
+{
+	struct m0_rm_incoming *in = &rm_ctxs[srv_id].rc_test_data.rd_in;
+
+	M0_ASSERT(!m0_rm_ur_tlist_is_empty(
+		&rm_ctxs[srv_id].rc_test_data.rd_owner->ro_owned[OWOS_HELD]));
 	m0_rm_credit_put(in);
 	m0_rm_incoming_fini(in);
+}
+
+static void credit_get_and_cache(enum rm_server            debtor_id,
+				 enum m0_rm_incoming_flags flags,
+				 uint64_t                  credit_value)
+{
+	credit_get_and_hold(debtor_id, flags, credit_value);
+	held_credit_cache(debtor_id);
 }
 
 static void borrow_and_cache(enum rm_server debtor_id,
@@ -222,6 +255,13 @@ static void borrow_and_cache(enum rm_server debtor_id,
 {
 	return credit_get_and_cache(debtor_id, RIF_MAY_BORROW, credit_value);
 }
+
+static void borrow_and_hold(enum rm_server debtor_id,
+			    uint64_t       credit_value)
+{
+	return credit_get_and_hold(debtor_id, RIF_MAY_BORROW, credit_value);
+}
+
 
 static void test_two_borrows_single_req(void)
 {
@@ -322,6 +362,154 @@ static void test_simple_borrow(void)
 	remote_credits_utfini();
 }
 
+static void test_borrow_non_conflicting(void)
+{
+	remote_credits_utinit();
+
+	borrow_and_cache(SERVER_2, SHARED_RING);
+	credits_are_equal(SERVER_2, RCL_CACHED,   SHARED_RING);
+	credits_are_equal(SERVER_2, RCL_BORROWED, SHARED_RING);
+	credits_are_equal(SERVER_3, RCL_SUBLET,   SHARED_RING);
+
+	remote_credits_utfini();
+}
+
+static void test_revoke_conflicting_wait(void)
+{
+	remote_credits_utinit();
+	m0_semaphore_init(&conflict_sem, 0);
+
+	borrow_and_hold(SERVER_2, NENYA);
+	credits_are_equal(SERVER_2, RCL_HELD, NENYA);
+
+	credit_get_and_hold_no_wait(SERVER_3, RIF_MAY_REVOKE | RIF_LOCAL_WAIT,
+				    NENYA);
+	m0_semaphore_timeddown(&conflict_sem, m0_time_from_now(60, 0));
+	held_credit_cache(SERVER_2);
+	wait_for_credit(SERVER_3);
+	held_credit_cache(SERVER_3);
+
+	credits_are_equal(SERVER_2, RCL_HELD,     0);
+	credits_are_equal(SERVER_2, RCL_BORROWED, 0);
+	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS);
+
+	m0_semaphore_fini(&conflict_sem);
+	remote_credits_utfini();
+}
+
+static void test_revoke_conflicting_try(void)
+{
+	struct m0_rm_incoming *in3 = &rm_ctxs[SERVER_3].rc_test_data.rd_in;
+
+	remote_credits_utinit();
+
+	borrow_and_hold(SERVER_2, NENYA);
+	credits_are_equal(SERVER_2, RCL_HELD, NENYA);
+
+	credit_get_and_hold_no_wait(SERVER_3, RIF_MAY_REVOKE | RIF_LOCAL_TRY,
+				    NENYA);
+	m0_chan_wait(&rm_ctxs[SERVER_3].rc_clink);
+	M0_UT_ASSERT(incoming_state(in3) == RI_FAILURE);
+	M0_UT_ASSERT(in3->rin_rc == -EBUSY);
+
+	credits_are_equal(SERVER_2, RCL_HELD,     NENYA);
+	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS & ~NENYA);
+
+	held_credit_cache(SERVER_2);
+	remote_credits_utfini();
+}
+
+static void test_revoke_no_conflict_wait(void)
+{
+	remote_credits_utinit();
+	m0_semaphore_init(&conflict_sem, 0);
+
+	borrow_and_hold(SERVER_2, SHARED_RING);
+	credits_are_equal(SERVER_2, RCL_HELD, SHARED_RING);
+
+	credit_get_and_hold_no_wait(SERVER_3, RIF_MAY_REVOKE, SHARED_RING);
+	m0_semaphore_timeddown(&conflict_sem, m0_time_from_now(60, 0));
+	held_credit_cache(SERVER_2);
+	wait_for_credit(SERVER_3);
+
+	credits_are_equal(SERVER_2, RCL_CACHED,   0);
+	credits_are_equal(SERVER_2, RCL_BORROWED, 0);
+	credits_are_equal(SERVER_3, RCL_HELD,     SHARED_RING);
+	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS & ~SHARED_RING);
+
+	held_credit_cache(SERVER_3);
+	m0_semaphore_fini(&conflict_sem);
+	remote_credits_utfini();
+}
+
+static void test_revoke_no_conflict_try(void)
+{
+	struct m0_rm_incoming *in3 = &rm_ctxs[SERVER_3].rc_test_data.rd_in;
+
+	remote_credits_utinit();
+
+	borrow_and_hold(SERVER_2, SHARED_RING);
+	credits_are_equal(SERVER_2, RCL_HELD, SHARED_RING);
+
+	credit_get_and_hold_no_wait(SERVER_3, RIF_MAY_REVOKE | RIF_LOCAL_TRY,
+				    SHARED_RING);
+	m0_chan_wait(&rm_ctxs[SERVER_3].rc_clink);
+	M0_UT_ASSERT(incoming_state(in3) == RI_FAILURE);
+	M0_UT_ASSERT(in3->rin_rc == -EBUSY);
+
+	credits_are_equal(SERVER_2, RCL_HELD,     SHARED_RING);
+	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS & ~SHARED_RING);
+
+	held_credit_cache(SERVER_2);
+	remote_credits_utfini();
+}
+
+static void test_borrow_held_no_conflict(void)
+{
+	remote_credits_utinit();
+
+	borrow_and_hold(SERVER_2, NENYA);
+	credits_are_equal(SERVER_2, RCL_HELD, NENYA);
+
+	/*
+	 * Held non-conflicting credits shouldn't be borrowed.
+	 */
+	borrow_and_cache(SERVER_1, ANY_RING);
+
+	credits_are_equal(SERVER_2, RCL_HELD,     NENYA);
+	credits_are_equal(SERVER_2, RCL_BORROWED, NENYA | NARYA);
+	credits_are_equal(SERVER_1, RCL_BORROWED, NARYA);
+	credits_are_equal(SERVER_1, RCL_CACHED,   NARYA);
+	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS & ~NENYA & ~NARYA);
+
+	held_credit_cache(SERVER_2);
+	remote_credits_utfini();
+}
+
+static void test_borrow_held_conflicting(void)
+{
+	remote_credits_utinit();
+
+	m0_semaphore_init(&conflict_sem, 0);
+	borrow_and_hold(SERVER_2, NENYA);
+	credits_are_equal(SERVER_2, RCL_HELD, NENYA);
+
+	credit_get_and_hold_no_wait(SERVER_1, RIF_MAY_BORROW, NENYA);
+	m0_semaphore_timeddown(&conflict_sem, m0_time_from_now(60, 0));
+	held_credit_cache(SERVER_2);
+	wait_for_credit(SERVER_1);
+
+	credits_are_equal(SERVER_2, RCL_HELD,     0);
+	credits_are_equal(SERVER_2, RCL_BORROWED, NENYA);
+	credits_are_equal(SERVER_1, RCL_HELD,     NENYA);
+	credits_are_equal(SERVER_1, RCL_BORROWED, NENYA);
+	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS & ~NENYA);
+
+	held_credit_cache(SERVER_1);
+	m0_semaphore_fini(&conflict_sem);
+	remote_credits_utfini();
+}
+
 struct m0_ut_suite rm_rcredits_ut = {
 	.ts_name = "rm-rcredits-ut",
 	.ts_tests = {
@@ -330,6 +518,13 @@ struct m0_ut_suite rm_rcredits_ut = {
 		{ "two-borrows-single-req"  , test_two_borrows_single_req },
 		{ "borrow-revoke-single-req", test_borrow_revoke_single_req },
 		{ "revoke-with-hop"         , test_revoke_with_hop },
+		{ "revoke-conflicting-wait" , test_revoke_conflicting_wait },
+		{ "revoke-conflicting-try"  , test_revoke_conflicting_try },
+		{ "borrow-non-conflicting"  , test_borrow_non_conflicting },
+		{ "revoke-no-conflict-wait" , test_revoke_no_conflict_wait },
+		{ "revoke-no-conflict-try"  , test_revoke_no_conflict_try },
+		{ "borrow-held-no-conflict" , test_borrow_held_no_conflict },
+		{ "borrow-held-conflicting" , test_borrow_held_conflicting },
 		{ NULL, NULL }
 	}
 };

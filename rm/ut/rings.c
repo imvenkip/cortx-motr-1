@@ -84,7 +84,7 @@ void rings_resource_free(struct m0_rm_resource *resource)
 
 const struct m0_rm_resource_ops rings_ops = {
 	.rop_credit_decode  = NULL,
-	.rop_policy	    = rings_policy,
+	.rop_policy         = rings_policy,
 	.rop_credit_init    = rings_credit_init,
 	.rop_resource_free  = rings_resource_free,
 };
@@ -261,22 +261,24 @@ static bool rings_conflicts(const struct m0_rm_credit *c0,
 
 	if (c0->cr_datum == ANY_RING || c1->cr_datum == ANY_RING)
 		return false;
+	if (c0->cr_datum == SHARED_RING && c1->cr_datum == SHARED_RING)
+		return false;
 
 	return c0->cr_datum & c1->cr_datum;
 }
 
 const struct m0_rm_credit_ops rings_credit_ops = {
 	.cro_intersects      = rings_credit_intersects,
-	.cro_join	     = rings_credit_join,
-	.cro_diff	     = rings_credit_diff,
-	.cro_copy	     = rings_credit_copy,
-	.cro_free	     = rings_credit_free,
-	.cro_encode	     = rings_credit_encode,
-	.cro_decode	     = rings_credit_decode,
-	.cro_len	     = rings_credit_len,
-	.cro_is_subset	     = rings_is_subset,
-	.cro_disjoin	     = rings_disjoin,
-	.cro_conflicts	     = rings_conflicts,
+	.cro_join            = rings_credit_join,
+	.cro_diff            = rings_credit_diff,
+	.cro_copy            = rings_credit_copy,
+	.cro_free            = rings_credit_free,
+	.cro_encode          = rings_credit_encode,
+	.cro_decode          = rings_credit_decode,
+	.cro_len             = rings_credit_len,
+	.cro_is_subset       = rings_is_subset,
+	.cro_disjoin         = rings_disjoin,
+	.cro_conflicts       = rings_conflicts,
 	.cro_initial_capital = rings_initial_capital,
 };
 
@@ -297,7 +299,7 @@ const struct m0_rm_incoming_ops rings_incoming_ops = {
 static void rings_rtype_set(struct rm_ut_data *self)
 {
 	struct m0_rm_resource_type *rings_rtype;
-	int			    rc;
+	int                         rc;
 
 	M0_ALLOC_PTR(rings_rtype);
 	M0_ASSERT(rings_rtype != NULL);
