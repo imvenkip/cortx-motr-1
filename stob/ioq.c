@@ -461,7 +461,7 @@ static void ioq_io_error(struct m0_stob_ioq *ioq, struct ioq_qev *qev)
 	struct m0_sm_ast     *ast   = &lstob->sl_ast;
 
 	m0_mutex_lock(&ioq->ioq_lock);
-	if (ast->sa_cb != NULL) {
+	if (ast->sa_cb == NULL) {
 		ast->sa_cb = &io_err_callback;
 		/*
 		 * Acquire ref to stop the stob being freed before AST
