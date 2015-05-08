@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -27,7 +27,7 @@
 #include "mero/magic.h"     /* M0_CONF_OBJ_MAGIC, M0_CONF_CACHE_MAGIC */
 #include "lib/errno.h"      /* EEXIST */
 #include "conf/onwire.h"    /* m0_confx */
-#include "lib/memory.h"     /* M0_ALLOC_PTR */
+#include "lib/memory.h"     /* M0_ALLOC_PTR, M0_ALLOC_ARR */
 
 /**
  * @defgroup conf_dlspec_cache Configuration Cache (lspec)
@@ -74,6 +74,7 @@ m0_conf_cache_init(struct m0_conf_cache *cache, struct m0_mutex *lock)
 
 	m0_conf_cache_tlist_init(&cache->ca_registry);
 	cache->ca_lock = lock;
+	cache->ca_ver  = 0;
 
 	M0_LEAVE();
 }
@@ -100,6 +101,15 @@ m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 {
 	return m0_tl_find(m0_conf_cache, obj, &cache->ca_registry,
 			  m0_fid_eq(&obj->co_id, id));
+}
+
+M0_INTERNAL struct m0_conf_obj *
+m0_conf_cache_inquire(const struct m0_conf_cache *cache,
+		      enum m0_conf_status         status)
+{
+	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
+	return m0_tl_find(m0_conf_cache, obj, &cache->ca_registry,
+			  obj->co_status == status);
 }
 
 static void _obj_del(struct m0_conf_obj *obj)
@@ -261,6 +271,32 @@ M0_INTERNAL int m0_conf_version(struct m0_conf_cache *cache)
 	m0_conf_cache_unlock(cache);
 
 	return M0_RC(ver);
+}
+
+M0_INTERNAL struct m0_conf_obj *
+m0_conf_cache_pinned(const struct m0_conf_cache *cache)
+{
+	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
+	return m0_tl_find(m0_conf_cache, obj, &cache->ca_registry,
+			  obj->co_nrefs != 0);
+}
+
+M0_INTERNAL void m0_conf_cache_prune(struct m0_conf_cache *cache)
+{
+	struct m0_conf_obj *obj;
+
+	M0_ENTRY();
+	m0_tl_teardown(m0_conf_cache, &cache->ca_registry, obj) {
+		m0_conf_obj_delete(obj);
+	}
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_conf_cache_prune_lock(struct m0_conf_cache *cache)
+{
+	m0_mutex_lock(cache->ca_lock);
+	m0_conf_cache_prune(cache);
+	m0_mutex_unlock(cache->ca_lock);
 }
 
 /** @} conf_dlspec_cache */

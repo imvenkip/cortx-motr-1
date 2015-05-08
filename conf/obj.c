@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -174,6 +174,7 @@
  * - @subpage conf-fspec-preload
  * - @subpage conf-fspec-objops
  * - @subpage confd-fspec
+ * - @subpage rconfc-fspec
  *
  * <hr> <!------------------------------------------------------------>
  * @section conf-lspec Logical Specification
@@ -182,6 +183,7 @@
  * - @subpage confc-lspec
  * - @ref conf_dlspec_objops
  * - @ref conf_dlspec_cache
+ * - @subpage rconfc-lspec
  * - @subpage confd-lspec-page
  * - @ref conf-lspec-state
  * - @ref conf-lspec-thread

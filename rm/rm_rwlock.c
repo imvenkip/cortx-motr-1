@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -26,6 +26,7 @@
 #include "fid/fid_xc.h"
 #include "xcode/xcode.h"
 #include "rm/rm_rwlock.h"
+#include "addb2/addb2.h"
 
 /**
    @page ReadWrite Distributed Lock DLD
@@ -102,7 +103,6 @@
    there is writer holding the lock.
    - @b I.rm-rw-lock.livelock Livelock can be avoided by using M0_RPF_BARRIER
    pins, but not implemented yet.
-
 
    <hr>
    @section RWLockDLD-ut Unit Tests
@@ -250,6 +250,28 @@ const struct m0_rm_credit_ops rwlock_credit_ops = {
 #define R_RW(res) container_of(res, struct m0_rw_lockable, rwl_resource)
 #define RW_XO(rw) (&M0_XCODE_OBJ(m0_fid_xc, (void *)(rw)->rwl_fid))
 #define CR_XO(cr) (&M0_XCODE_OBJ(&M0_XT_U64, (void *)&(cr)->cr_datum))
+
+static struct m0_rm_domain        rwlockable_dom;
+static struct m0_rm_resource_type rwlockable_rt;
+
+M0_INTERNAL struct m0_rm_domain *m0_rwlockable_domain(void)
+{
+	return &rwlockable_dom;
+}
+
+M0_INTERNAL void m0_rwlockable_domain_init(void)
+{
+	M0_SET0(&rwlockable_dom);
+	M0_SET0(&rwlockable_rt);
+	m0_rm_domain_init(&rwlockable_dom);
+	m0_rw_lockable_type_register(&rwlockable_dom, &rwlockable_rt);
+}
+
+M0_INTERNAL void m0_rwlockable_domain_fini(void)
+{
+	m0_rw_lockable_type_deregister(&rwlockable_rt);
+	m0_rm_domain_fini(&rwlockable_dom);
+}
 
 /** Compare identifiers of two lockable resources */
 static bool rwlockable_equal(const struct m0_rm_resource *resource0,
@@ -570,6 +592,8 @@ void m0_rw_lockable_type_deregister(struct m0_rm_resource_type *rtype)
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rw_lockable_type_deregister);
+
+const struct m0_fid M0_RWLOCK_FID = M0_FID_TINIT('R', 'W', 'L');
 
 /** @} end of RWLock */
 

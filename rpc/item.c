@@ -424,6 +424,22 @@ void m0_rpc_item_put(struct m0_rpc_item *item)
 	item->ri_type->rit_ops->rito_item_put(item);
 }
 
+void m0_rpc_item_put_lock(struct m0_rpc_item *item)
+{
+	struct m0_rpc_machine *rmach;
+
+	M0_PRE(item->ri_rmachine != NULL);
+	/*
+	 * must store rpc machine pointer on stack before rpc item is put, and
+	 * has the pointer corrupted as the result
+	 */
+	rmach = item->ri_rmachine;
+
+	m0_rpc_machine_lock(rmach);
+	m0_rpc_item_put(item);
+	m0_rpc_machine_unlock(rmach);
+}
+
 m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item)
 {
 	if (item->ri_size == 0)

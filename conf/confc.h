@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -485,6 +485,8 @@ struct m0_conf_obj;
  * confc instance
  * ------------------------------------------------------------------ */
 
+struct m0_confc_gate_ops;
+
 /** Configuration client. */
 struct m0_confc {
 	/**
@@ -538,8 +540,71 @@ struct m0_confc {
 	 */
 	uint32_t                 cc_nr_ctx;
 
+	/**
+	 * Gating ops. Allowed to be NULL indicating in such case no gating in
+	 * effect. Set up by rconfc containing the confc. Any access to the ops,
+	 * reading or writing, must be protected by explicit obtaining
+	 * m0_confc::cc_lock.
+	 */
+	struct m0_confc_gate_ops *cc_gops;
+
+	/**
+	 * The link to fire m0_confc_gate_ops::go_check() event.
+	 * @see m0_rconfc::rc_gate
+	 */
+	struct m0_clink           cc_check;
+
+	/**
+	 * The link to fire m0_confc_gate_ops::go_drain() event on. Added to
+	 * m0_confc::cc_unattached channel explicitly by calling
+	 * m0_confc_gate_ops_set().
+	 */
+	struct m0_clink           cc_drain;
+
+	/**
+	 * The channel to signal on when mo more attached context
+	 * remains. Signaled inside m0_confc_ctx_fini().
+	 * i.e. m0_confc::cc_nr_ctx reached 0.
+	 */
+	struct m0_chan            cc_unattached;
+
+	/** Mutex guarding m0_confc::cc_unattached */
+	struct m0_mutex           cc_unatt_guard;
+
 	/** Magic number. */
 	uint64_t                 cc_magic;
+};
+
+/**
+ * Check-point operations. Intended to provide coupling with rconfc and gating
+ * any operation related to configuration read done with the confc instance.
+ */
+struct m0_confc_gate_ops {
+	/**
+	 * Main gating operation. Results in blocking m0_confc_ctx_init() until
+	 * rconfc allows reading through the controlled confc instance,
+	 * i.e. possesses read lock.
+	 */
+	bool (*go_check)(struct m0_confc *confc);
+	/**
+	 * The operation to be called when communication with current confd
+	 * found failed and the confd is to be skipped. The expected result
+	 * is rconfc to reconnect the confc to another confd of the same
+	 * configuration version, otherwise to report no more alive confd
+	 * remained.
+	 *
+	 * @ret       0 - successfully skipped
+	 * @ret -ENOENT - no more confd alive
+	 * @ret -Exxxxx - some other error
+	 */
+	int (*go_skip)(struct m0_confc *confc);
+	/**
+	 * The operation to be called when confc have all contexts
+	 * detached. This will instruct rconfc to drain confc cache.
+	 *
+	 * @see m0_confc::cc_unattached
+	 */
+	bool (*go_drain)(struct m0_clink *clink);
 };
 
 /**
@@ -574,6 +639,9 @@ M0_INTERNAL void m0_confc_fini(struct m0_confc *confc);
 /** Obtains the address of m0_confc that owns given configuration object. */
 M0_INTERNAL struct m0_confc *m0_confc_from_obj(const struct m0_conf_obj *obj);
 
+M0_INTERNAL void m0_confc_gate_ops_set(struct m0_confc          *confc,
+				       struct m0_confc_gate_ops *gops);
+
 /* ------------------------------------------------------------------
  * context
  * ------------------------------------------------------------------ */
@@ -583,6 +651,19 @@ enum { M0_CONF_PATH_MAX = 15 };
 
 /** Configuration retrieval context. */
 struct m0_confc_ctx {
+	/**
+	 * Reading allowed flag.
+	 *
+	 * The value is set up during m0_confc_ctx_init() and
+	 * tested during m0_confc_open(), m0_confc_open_sync(),
+	 * m0_confc_readdir(), m0_confc_readdir_sync() calls.
+	 *
+	 * @note Allowed by default. For a context initialised with confc
+	 * instance belonging to rconfc, the value is set up according to if
+	 * rconfc currently allows configuration reading or not.
+	 */
+	bool                 fc_allowed;
+
 	/** The confc instance this context belongs to. */
 	struct m0_confc     *fc_confc;
 
@@ -635,11 +716,28 @@ struct m0_confc_ctx {
 /**
  * Initialises configuration retrieval context.
  * @pre  confc is initialised
+ *
+ * @note The call may be blocked in case the confc instance belongs to rconfc
+ * currently not allowing configuration reading. The blocking is done inside
+ * m0_confc::cc_gops::go_check(). It unblocks when rconfc acquires read lock, or
+ * read lock request fails, and returns boolean value of reading allowed or
+ * not. The result is directly set as the value of m0_confc_ctx::fc_allowed.
  */
 M0_INTERNAL void m0_confc_ctx_init(struct m0_confc_ctx *ctx,
 				   struct m0_confc *confc);
 
 M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx);
+
+/**
+ * Lets rconfc to switch to another confd address on the fly without touching
+ * any confc internals including cache. Timely cache invalidation is a
+ * responsibility of rconfc internal routines.
+ *
+ * Relies on internal confc locking.
+ */
+M0_INTERNAL int m0_confc_reconnect(struct m0_confc       *confc,
+				   struct m0_rpc_machine *rpc_mach,
+				   const char            *confd_addr);
 
 /**
  * Returns true iff ctx->fc_mach has terminated or failed.
@@ -757,7 +855,7 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj);
  * @param[out] pptr  "Next" entry.
  *
  * Entries of a directory are usually present in the configuration
- * cache.  In this common case m0_confc_readdir() can fulfil the
+ * cache. In this common case m0_confc_readdir() can fulfill the
  * request immediately. Return values M0_CONF_DIREND and M0_CONF_DIRNEXT
  * inform the caller that it may proceed without waiting for
  * ctx->fc_mach.sm_chan channel to be signaled.

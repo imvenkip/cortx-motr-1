@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -138,9 +138,14 @@ M0_INTERNAL void m0_rm_rwlock_req_fini(struct m0_rm_incoming *req);
 
 M0_INTERNAL int m0_rw_lockable_type_register(struct m0_rm_domain        *dom,
 					     struct m0_rm_resource_type *rtype);
-
 M0_INTERNAL
 void m0_rw_lockable_type_deregister(struct m0_rm_resource_type *rtype);
+
+extern const struct m0_fid M0_RWLOCK_FID;
+
+M0_INTERNAL struct m0_rm_domain *m0_rwlockable_domain(void);
+M0_INTERNAL void m0_rwlockable_domain_init(void);
+M0_INTERNAL void m0_rwlockable_domain_fini(void);
 
 /** @} end of RWLock */
 

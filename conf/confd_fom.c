@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -31,7 +31,8 @@
 #include "lib/memory.h"       /* m0_free */
 #include "lib/misc.h"         /* M0_SET0 */
 #include "lib/errno.h"        /* ENOMEM, EOPNOTSUPP */
-
+#include "conf/confc.h"       /* required by conf/rconfc.h */
+#include "conf/rconfc.h"      /* CONF_VER_UNKNOWN */
 /**
  * @addtogroup confd_dlspec
  *
@@ -125,6 +126,7 @@ static int conf_fetch_tick(struct m0_fom *fom)
 	if (rc != 0)
 		M0_ASSERT(r->fr_data.cx_nr == 0 && r->fr_data.cx__objs == NULL);
 	r->fr_rc = rc;
+	r->fr_ver = confd->d_cache->ca_ver;
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	return M0_FSO_AGAIN;
 }
@@ -229,6 +231,19 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_fid *path,
 	return M0_RC(rc);
 }
 
+static void cache_ver_update(struct m0_conf_cache *cache)
+{
+	struct m0_conf_obj  *root_obj;
+	struct m0_conf_root *root;
+
+	M0_PRE(cache != NULL);
+	if (m0_conf_obj_find(cache, &M0_CONF_ROOT_FID, &root_obj) == 0) {
+		root = M0_CONF_CAST(root_obj, m0_conf_root);
+		cache->ca_ver = root->rt_verno;
+	}
+	M0_POST(cache->ca_ver != CONF_VER_UNKNOWN);
+}
+
 static int confx_populate(struct m0_confx      *dest,
 			  const struct m0_fid  *origin,
 			  const struct arr_fid *path,
@@ -241,6 +256,9 @@ static int confx_populate(struct m0_confx      *dest,
 
 	M0_ENTRY();
 	M0_PRE(m0_conf_cache_is_locked(cache));
+
+	if (cache->ca_ver == CONF_VER_UNKNOWN)
+		cache_ver_update(cache);
 
 	M0_SET0(dest);
 

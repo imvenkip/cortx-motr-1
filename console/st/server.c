@@ -35,13 +35,15 @@
 
 #include "console/console.h"
 #include "console/console_fop.h"
+#include "conf/ut/common.h"     /* SERVER_ENDPOINT_ADDR */
+#include "ut/file_helpers.h"    /* M0_UT_CONF_PROFILE */
 
 /**
    @addtogroup console
    @{
  */
 
-#define ENDPOINT  "lnet:0@lo:12345:34:1"
+#define ENDPOINT  "lnet:" SERVER_ENDPOINT_ADDR
 #define NAME(ext) "console_st_srv" ext
 
 static int signaled = 0;
@@ -65,6 +67,7 @@ int main(int argc, char **argv)
 		argv[0], "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
 		"-w", "10", "-e", ENDPOINT,
+		"-P", M0_UT_CONF_PROFILE, "-C", SERVER_ENDPOINT_ADDR,
 		"-s", "ds1", "-s", "ds2", "-s", "ioservice",
 		"-q", tm_len, "-m", rpc_size
 	};

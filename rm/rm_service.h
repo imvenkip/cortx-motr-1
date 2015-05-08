@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -25,6 +25,7 @@
 
 #include "reqh/reqh_service.h"
 #include "rm/rm.h"
+#include "rm/rm_rwlock.h"
 
 /**
    @defgroup rm_service Resource manager service (RMS)

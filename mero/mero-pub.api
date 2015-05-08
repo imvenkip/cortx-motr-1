@@ -194,6 +194,7 @@ m0_rpc_item_get
 m0_rpc_item_generic_reply_rc
 m0_rpc_item_is_generic_reply_fop
 m0_rpc_item_put
+m0_rpc_item_put_lock
 m0_rpc_item_payload_size
 m0_rpc_item_size
 m0_rpc_item_source_deregister

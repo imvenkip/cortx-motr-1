@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -78,6 +78,14 @@ struct m0_conf_cache {
 
 	/** Cache lock. */
 	struct m0_mutex *ca_lock;
+
+#if 0 /* XXX USEME */
+	/** Magic value. */
+	uint64_t         ca_magic;
+#endif
+
+	/** configuration version number */
+	uint64_t         ca_ver;
 };
 
 M0_TL_DECLARE(m0_conf_cache, M0_INTERNAL, struct m0_conf_obj);
@@ -152,6 +160,19 @@ M0_INTERNAL int m0_conf_cache_to_string(struct m0_conf_cache  *cache,
 					char                 **str);
 
 M0_INTERNAL int m0_conf_version(struct m0_conf_cache *cache);
+
+/** Searches object by status */
+M0_INTERNAL struct m0_conf_obj *
+m0_conf_cache_inquire(const struct m0_conf_cache *cache,
+		      enum m0_conf_status         status);
+
+/** Fetches the first pinned object, or NULL otherwise */
+M0_INTERNAL struct m0_conf_obj *
+m0_conf_cache_pinned(const struct m0_conf_cache *cache);
+
+/** Empties cache without destructing registry list */
+M0_INTERNAL void m0_conf_cache_prune(struct m0_conf_cache *cache);
+M0_INTERNAL void m0_conf_cache_prune_lock(struct m0_conf_cache *cache);
 
 /** @} conf_dfspec_cache */
 #endif /* __MERO_CONF_CACHE_H__ */

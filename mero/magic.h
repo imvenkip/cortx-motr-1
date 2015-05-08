@@ -240,6 +240,15 @@ enum m0_magic_satchel {
 	/* m0_confd::c_magic (isolable lasi) */
 	M0_CONFD_MAGIC = 0x331501ab1e1a5177,
 
+	/* m0_confc_link::rl_magic (bald billed de) */
+	M0_RCONFC_LINK_MAGIC = 0x33ba1db111edde77,
+
+	/* m0_confc_link::rl_magic (aeolic deface) */
+	M0_RCONFC_HERD_HEAD_MAGIC = 0x33ae011cdeface77,
+
+	/* m0_confc_link::rl_magic (addible faced) */
+	M0_RCONFC_ACTIVE_HEAD_MAGIC = 0x33add1b1efaced77,
+
 /* Mero Setup */
 	/* cs_buffer_pool::cs_bp_magic (felicia feliz) */
 	M0_CS_BUFFER_POOL_MAGIC = 0x33fe11c1afe11277,

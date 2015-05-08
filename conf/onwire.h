@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -262,6 +262,8 @@ struct m0_conf_fetch {
 struct m0_conf_fetch_resp {
 	/** Result of configuration retrieval (-Exxx = failure, 0 = success). */
 	int32_t         fr_rc;
+	/** configuration version number */
+	uint64_t        fr_ver;
 	/** A sequence of configuration object descriptors. */
 	struct m0_confx fr_data;
 } M0_XCA_RECORD;

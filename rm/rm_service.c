@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -153,7 +153,6 @@ static int rms_start(struct m0_reqh_service *service)
 	/** Register various resource types */
 	m0_file_lock_type_register(&rms->rms_dom, &rms->rms_flock_rt);
 	m0_rw_lockable_type_register(&rms->rms_dom, &rms->rms_rwlockable_rt);
-
 	return M0_RC(0);
 }
 
@@ -192,6 +191,7 @@ static void rms_stop(struct m0_reqh_service *service)
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
 
 	rms_resources_free(&rms->rms_flock_rt);
+	rms_resources_free(&rms->rms_rwlockable_rt);
 	m0_file_lock_type_deregister(&rms->rms_flock_rt);
 	m0_rw_lockable_type_deregister(&rms->rms_rwlockable_rt);
 	m0_rm_domain_fini(&rms->rms_dom);

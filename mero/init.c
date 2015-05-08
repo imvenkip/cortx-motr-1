@@ -67,6 +67,7 @@
 #include "mdservice/md_fops.h"
 #include "mdservice/md_service.h"
 #include "rm/rm_service.h"
+#include "rm/rm_rwlock.h"
 #include "stats/stats_srv.h"
 #include "sns/sns.h"
 #include "sns/parity_ops.h"
@@ -253,12 +254,16 @@ M0_INTERNAL void m0_fini_once(void)
 #if 1 /* XXX OBSOLETE */
 int m0_init(struct m0 *instance)
 {
+	int rc;
 	m0_instance_setup(instance);
-	return m0_module_init(&instance->i_self, M0_LEVEL_INST_READY);
+	rc = m0_module_init(&instance->i_self, M0_LEVEL_INST_READY);
+	m0_rwlockable_domain_init();
+	return rc;
 }
 
 void m0_fini(void)
 {
+	m0_rwlockable_domain_fini();
 	m0_module_fini(&m0_get()->i_self, M0_MODLEV_NONE);
 }
 
