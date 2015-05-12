@@ -73,14 +73,15 @@ do {									\
 	m0_time_t __start = m0_time_now();				\
 	m0_time_t __end;						\
 	m0_time_t __duration;						\
+	uint64_t  __datum = (datum);					\
 	__VA_ARGS__;							\
 	__end = m0_time_now();						\
 	__duration = (__end - __start) >> 10;				\
 	if ((id) != 0)							\
-		M0_ADDB2_ADD((id), __start, __duration, (datum));	\
+		M0_ADDB2_ADD((id), __start, __duration, __datum);	\
 	if ((counter) != NULL)						\
 		m0_addb2_counter_mod_with((counter),			\
-			  __duration, (datum));			\
+			  __duration, __datum);			\
 } while (0)
 
 struct m0_addb2_local_counter {
