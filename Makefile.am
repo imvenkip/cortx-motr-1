@@ -447,6 +447,23 @@ include $(top_srcdir)/utils/Makefile.sub
 ################################################################################
 
 #
+# ha/st/m0test
+#
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS       += ha/st/m0note ha/st/dummyha
+endif
+ha_st_m0note_CPPFLAGS  = -DM0_TARGET='m0note' $(AM_CPPFLAGS)
+ha_st_m0note_LDADD     = $(top_builddir)/mero/libmero.la \
+                         $(top_builddir)/ut/libmero-ut.la
+
+ha_st_dummyha_CPPFLAGS  = -DM0_TARGET='dummyha' $(AM_CPPFLAGS)
+ha_st_dummyha_LDADD     = $(top_builddir)/mero/libmero.la \
+                          $(top_builddir)/ut/libmero-ut.la
+
+include $(top_srcdir)/ha/st/Makefile.sub
+
+#
 # rpc/it/m0rpcping
 #
 

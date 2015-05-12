@@ -74,8 +74,7 @@ run_st() {
     "$SRC/rpc/it/st.sh"
 
     say console ST
-    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.console-st \
-    "$SRC/console/st/console-st.sh"
+    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.console-st "$SRC/console/st/console-st.sh"
 
     say start/stop service ST
     $SUDO SANDBOX_DIR=$RUNDIR/sandbox.sss-st "$SRC/sss/st"
@@ -90,7 +89,10 @@ run_st() {
     $SUDO $SRC/scripts/m0mount -alvvsL -n 1 -d 2 -k 1 -p 4 -o -m -q
 
     say spiel ST
-    $SUDO $SRC/spiel/st
+    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.spiel-st "$SRC/spiel/st"
+
+    say HA ST
+    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.ha-st "$SRC/ha/st/st"
 
     say assign pool-version ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_pool_version_assignment.sh"

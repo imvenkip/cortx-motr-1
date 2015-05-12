@@ -179,10 +179,13 @@ static void io_err_callback(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		nvec.nv_note  = &note;
 		m0_ha_state_set(rpc_ssn, &nvec);
 	}
-	/* Release stob reference and mutex, mark AST completed. */
 	ast->sa_cb = NULL;
 	m0_mutex_unlock(&ioq->ioq_lock);
 	m0_stob_put(&lstob->sl_stob);
+
+	m0_mutex_lock(&lstob->sl_wait_guard);
+	m0_sm_ast_wait_signal(&lstob->sl_wait);
+	m0_mutex_unlock(&lstob->sl_wait_guard);
 
 	M0_LEAVE();
 }
@@ -470,7 +473,10 @@ static void ioq_io_error(struct m0_stob_ioq *ioq, struct ioq_qev *qev)
 		 * execution.
 		 */
 		m0_stob_get(&lstob->sl_stob);
-		m0_sm_ast_post(m0_locality_here()->lo_grp, &lstob->sl_ast);
+		m0_mutex_lock(&lstob->sl_wait_guard);
+		m0_sm_ast_wait_post(&lstob->sl_wait,
+				    m0_locality_here()->lo_grp, &lstob->sl_ast);
+		m0_mutex_unlock(&lstob->sl_wait_guard);
 	} else {
 		M0_LOG(M0_WARN,
 		       "Repeated IO failures on "FID_F"; not reporting to HA.",
@@ -498,8 +504,21 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 	M0_ASSERT(m0_atomic64_get(&lio->si_done) < lio->si_nr);
 
 	/* Fault injection point for HA signaling. */
-	if (M0_FI_ENABLED("ioq_timeout"))
+	if (M0_FI_ENABLED("ioq_timeout")) {
+		struct m0_fid *conf_sdev =
+			&m0_stob_linux_container(io->si_obj)->sl_conf_sdev;
+		/*
+		 * 1. This FI is used by HA ST.
+		 * 2. HA ST does not call m0_storage_dev_attach_by_conf().
+		 * 3. m0_stob_linux::sl_conf_sdev is only set by
+		 *    m0_storage_dev_attach_by_conf().
+		 *
+		 * That is why we have to set dummy fid here.
+		 */
+		M0_ASSERT(!m0_fid_is_set(conf_sdev));
+		m0_fid_set(conf_sdev, 0x6400000000000001, 2);
 		ioq_io_error(ioq, qev);
+	}
 
 	M0_LOG(M0_DEBUG, "res=%lx nbytes=%lx", (unsigned long)res,
 	       (unsigned long)qev->iq_nbytes);

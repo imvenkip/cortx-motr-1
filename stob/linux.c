@@ -387,6 +387,9 @@ static int stob_linux_open(struct m0_stob *stob,
 	if (file_stob == NULL)
 		return M0_ERR(-ENOMEM);
 
+	m0_mutex_init(&lstob->sl_wait_guard);
+	m0_sm_ast_wait_init(&lstob->sl_wait, &lstob->sl_wait_guard);
+
 	rc = create && cfg != NULL ? symlink((char *)cfg, file_stob) : 0;
 	flags |= O_RDWR;
 	flags |= create && cfg == NULL                ? O_CREAT  : 0;
@@ -409,13 +412,17 @@ static int stob_linux_init(struct m0_stob *stob,
 static void stob_linux_fini(struct m0_stob *stob)
 {
 	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
-	int		      rc;
+	int                   rc;
 
 	if (lstob->sl_fd != -1) {
 		rc = close(lstob->sl_fd);
 		M0_ASSERT(rc == 0);
 		lstob->sl_fd = -1;
 	}
+	m0_mutex_lock(&lstob->sl_wait_guard);
+	m0_sm_ast_wait_fini(&lstob->sl_wait);
+	m0_mutex_unlock(&lstob->sl_wait_guard);
+	m0_mutex_fini(&lstob->sl_wait_guard);
 }
 
 static void stob_linux_create_credit(struct m0_stob_domain *dom,

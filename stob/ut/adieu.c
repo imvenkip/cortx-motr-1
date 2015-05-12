@@ -23,9 +23,10 @@
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 
-#include "lib/misc.h"   /* M0_SET0 */
-#include "lib/memory.h" /* m0_alloc_align */
+#include "lib/misc.h"    /* M0_SET0 */
+#include "lib/memory.h"  /* m0_alloc_align */
 #include "lib/errno.h"
+#include "lib/finject.h" /* M0_FI_ENABLED */
 #include "lib/ub.h"
 #include "ut/stob.h"
 #include "ut/ut.h"
@@ -34,6 +35,7 @@
 #include "stob/domain.h"
 #include "stob/io.h"
 #include "stob/stob.h"
+#include "stob/linux.h"  /* m0_stob_linux_container */
 #include "fol/fol.h"
 
 /**
@@ -246,11 +248,18 @@ static void test_adieu(void)
 
 void m0_stob_ut_adieu_linux(void)
 {
-	int rc;
+	struct m0_stob_linux *lstob;
+	int                   rc;
 
 	rc = test_adieu_init(linux_location, NULL, NULL);
 	M0_ASSERT(rc == 0);
 	test_adieu();
+
+	lstob = m0_stob_linux_container(obj);
+	m0_mutex_lock(&lstob->sl_wait_guard);
+	m0_sm_ast_wait(&lstob->sl_wait);
+	m0_mutex_unlock(&lstob->sl_wait_guard);
+
 	test_adieu_fini();
 }
 

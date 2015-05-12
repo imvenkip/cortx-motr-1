@@ -1,6 +1,7 @@
 *.pyc
 /modload-all.sh
 /chs_test
+/dummyha
 /m0ff2c
 /m0kut-helper
 /m0addb2dump
@@ -14,6 +15,7 @@
 /m0mkfs
 /m0nettest
 /m0nettestd
+/m0note
 /m0poolmach
 /m0protocol
 /m0repair
