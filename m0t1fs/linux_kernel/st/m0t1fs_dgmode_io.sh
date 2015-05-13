@@ -17,58 +17,13 @@ random_source_dd_count=650  # dd count used during random source file creation
 dd_count=0                 # Counter for the number of times dd is invoked
 st_dir=$MERO_CORE_ROOT/m0t1fs/linux_kernel/st
 blk_size=$((stride * 1024))
-cnt=0
-
-fmio_truncation_module()
-{
-	## XXX RESTOREME once MERO-852 gets fixed.
-	## Truncation ST is getting hung in the current master (as on 04/20/15).
-	## MERO-852 is supposed to fix this issue.
-	return 0
-
-	j=$((RANDOM%9))
-	i=$((10-$j))
-	let seek=$i\-1
-	echo "Test a call to fopen(..,O_TRUNC)"
-	fmio_files_write dd bs=$blk_size count=$i
-	rc=$?
-	if [ $rc -ne "0" ]
-	then
-		echo "File truncation failed while count=$i"
-		return $rc
-	fi
-	echo "Test a call to ftruncate(fd, 0)"
-	fmio_files_write dd bs=$blk_size count=100 seek=0
-	rc=$?
-	if [ $rc -ne "0" ]
-	then
-		echo "File truncation failed for count=100 and seek=0"
-		return $rc
-	fi
-	echo "Ensure that call to ftruncate(fd, <non-zero-size>) returns an error."
-	fmio_files_write dd bs=$blk_size count=50 seek=$seek
-	rc=$?
-	if [ $rc -ne "1" ]
-	then
-		echo "File truncation failed for count=50 and seek=$seek."
-		return $rc
-	fi
-	echo "Ensure that same data is present in both files"
-	fmio_files_write dd bs=$blk_size count=$i
-	rc=$?
-	if [ $rc -ne "0" ]
-	then
-		echo "File truncation failed."
-		return $rc
-	fi
-	return 0
-}
+half_blk=$((blk_size / 2))
 
 valid_count_get()
 {
-	j=$((RANDOM%9))
-	i=$((10-$j))
-	bs=$1
+	local j=$((RANDOM%9))
+	local i=$((10-$j))
+	local bs=$1
 	input_file_size=`expr $i \* $bs`
 	echo $input_file_size
 	echo $ABCD_SOURCE_SIZE
@@ -81,24 +36,67 @@ valid_count_get()
 	return $i
 }
 
-fmio_large_file_truncation_module()
+fmio_truncation_module()
 {
-	## XXX RESTOREME once MERO-852 gets fixed.
-	## Truncation ST is getting hung in the current master (as on 04/20/15).
-	## MERO-852 is supposed to fix this issue.
-	return 0
+	local j=$((RANDOM%10))
+	local seek
+	local rc
+	local cnt
+	valid_count_get $blk_size
+	cnt=$?
 
-	bs=1048576
-	valid_count_get $bs
-	fmio_files_write dd bs=$bs count=$cnt
+	echo "Test a call to fopen(..,O_TRUNC)"
+	fmio_files_write dd bs=$blk_size count=$cnt
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
-		echo "File truncation failed with bs=$bs and count=$cnt"
+		echo "File truncation failed while count=$cnt"
 		return $rc
 	fi
+	echo "Test a call to ftruncate(fd, 0)"
+	valid_count_get $blk_size
+	cnt=$?
+	fmio_files_write dd bs=$blk_size count=$cnt seek=0
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "File truncation failed for count=$cnt and seek=0"
+		return $rc
+	fi
+	echo "Ensure that an attempt to truncate a file to half of its
+	      current size fails. (ftruncate(fd, inode->size / 2))"
+	fmio_files_write dd bs=$half_blk count=1 seek=1
+	rc=$?
+	if [ $rc -ne "1" ]
+	then
+		echo "File truncation failed for count=1 and seek=$seek."
+		return 1
+	fi
+	echo "Ensure that same data is present in both files,
+	      as local file has passed the previous test"
+	valid_count_get $blk_size
+	cnt=$?
+	fmio_files_write dd bs=$blk_size count=$cnt
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "File truncation failed."
+		return $rc
+	fi
+	seek=`expr $cnt \+ 1`
+	echo "Ensure that truncating to a size larger than the
+	      current one succeeds"
+	fmio_files_write dd bs=$blk_size count=1 seek=$seek
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "File truncation failed for count=1 and seek=$seek."
+		return $rc
+	fi
+	echo "Test truncation of a large file"
 	bs=2097152
 	valid_count_get $bs
+	cnt=$?
 	fmio_files_write dd bs=$bs count=$cnt
 	rc=$?
 	if [ $rc -ne "0" ]
@@ -107,9 +105,17 @@ fmio_large_file_truncation_module()
 		return $rc
 	fi
 	return $rc
+	valid_count_get $blk_size
+	cnt=$?
+	fmio_files_write dd bs=$blk_size count=$cnt
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "File truncation failed."
+		return $rc
+	fi
 	return 0
 }
-
 
 fmio_source_files_create()
 {
@@ -191,9 +197,9 @@ fmio_files_write()
 		file_to_compare_sandbox="$fmio_sandbox/0:1000$dd_count"
 		file_to_compare_m0t1fs="$MERO_M0T1FS_MOUNT_DIR/0:1000$dd_count"
 	fi
-
 	echo -e "Write to the files from sandbox and m0t1fs (dd_count #$dd_count):"
 	echo -e "\t - $file_to_compare_sandbox \n\t - $file_to_compare_m0t1fs"
+
 
 	$@ \
 	   if=$source_sandbox of=$file_to_compare_sandbox >> $MERO_TEST_LOGFILE || {
@@ -229,7 +235,10 @@ fmio_files_write()
 
 fmio_files_compare()
 {
-	cmp $file_to_compare_sandbox $file_to_compare_m0t1fs
+	#Read file from m0t1fs with minimum possible count
+	local block_size=`expr $ABCD_SOURCE_SIZE \+ $random_source_size`
+	dd if=$file_to_compare_m0t1fs bs=$block_size count=1 of=$fmio_sandbox/local_m0t1fs_cp
+	cmp $file_to_compare_sandbox $fmio_sandbox/local_m0t1fs_cp
 	rc=$?
 	if [ $rc -ne 0 ]
 	then
@@ -254,7 +263,7 @@ fmio_files_compare()
 	then
 		fmio_if_to_continue_check
 	fi
-
+	rm -f $fmio_sandbox/local_m0t1fs_cp
 	return $rc
 }
 
@@ -435,42 +444,21 @@ fmio_io_test()
 		return 1
 	}
 
-	echo "Truncating files"
-	fmio_truncation_module
-	if [ $? -ne "0" ]
+	if [ $single_file_test -eq 1 ]
 	then
-		echo "File truncation failed."
-		return 1
-	fi
-
-	fmio_large_file_truncation_module
-	if [ $? -ne "0" ]
-	then
-		echo "Large file truncation failed."
-		return 1
+		echo "Truncating files"
+		fmio_truncation_module
+		if [ $? -ne "0" ]
+		then
+			echo "File truncation failed."
+			return 1
+		fi
 	fi
 
 	echo "Sending device1 failure"
 	fmio_pool_mach_set_failure $fail_device1 || {
 		return 1
 	}
-
-	echo "File truncation post first device failure"
-	fmio_truncation_module
-	if [ $? -ne "0" ]
-	then
-		echo "File truncation failed after first failure."
-		return 1
-	fi
-
-	fmio_large_file_truncation_module
-	if [ $? -ne "0" ]
-	then
-		echo "Large file truncation failed after the first failure."
-		return 1
-	fi
-
-
 
 	if [ $failed_dev_test -ne 1 ]
 	then
@@ -548,7 +536,7 @@ fmio_io_test()
 		return 1
 	}
 
-	if [ $failed_dev_test -ne 1 ]
+	if [ $single_file_test -eq 1 ]
 	then
 		echo "Truncation after two repairs and one failure"
 		fmio_truncation_module
@@ -557,19 +545,15 @@ fmio_io_test()
 			echo "File truncation failed."
 			return 1
 		fi
+	fi
 
-		fmio_large_file_truncation_module
-		if [ $? -ne "0" ]
-		then
-			echo "Large file truncation failed."
-			return 1
-		fi
-		echo "Repairing after device3 failure"
+	if [ $failed_dev_test -ne 1 ] 
+	then
+	echo "Repairing after device3 failure"
 		fmio_sns_repair || {
 		return 1
 		}
 	fi
-
 	echo -e "\n*** $test_name test 6: Read after third $step ***"
 	fmio_files_compare || {
 		echo "Failed: read after third $step..."
@@ -705,6 +689,15 @@ failure_modes_test()
 		file_to_compare_sandbox="$fmio_sandbox/0:10000"
 		file_to_compare_m0t1fs="$MERO_M0T1FS_MOUNT_DIR/0:10000"
 		str="single file"
+		# Set the unit size for the file on m0t1fs to 32K. This is
+		# necessary for large IO.
+		touch $file_to_compare_m0t1fs
+		setfattr -n lid -v 5 $file_to_compare_m0t1fs
+		if [ $? -ne "0" ]
+		then
+			echo "Setfattr failed."
+			return 1
+		fi
 	else
 		str="separate file"
 	fi
@@ -738,17 +731,6 @@ failure_modes_test()
 		echo "--------------------------------------------------------"
 		echo "Starting with the repaired device IO testing ($str)"
 		echo "--------------------------------------------------------"
-
-		# XXX MERO-638: Take out the following condition once
-		# MERO-638 is fixed
-#		if [ $single_file_test == 1 ]
-#		then
-#			echo -e "single file kind can not be tested with repaired device until MERO-638 is fixed...\nHence, exiting from repaired device testing..."
-#			echo "-------------------------------------------------"
-#			echo "Done with the repaired device IO testing ($str)"
-#			echo "-------------------------------------------------"
-#			return 0
-#		fi
 
 		failed_dev_test=0
 

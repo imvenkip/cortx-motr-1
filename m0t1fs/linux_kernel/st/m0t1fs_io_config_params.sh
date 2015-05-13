@@ -16,9 +16,6 @@ export failure_mode=$BOTH_DEVICES
 # File kind to be used during multiple 'dd' operations
 # - SINGLE_FILE
 #   - Same file name is used during every 'dd' operation
-#   - Until MERO-638 is resolved, SINGLE file kind does not work with the
-#     repaired devices. Hence, SINGLE file kind testing is skipped for
-#     repaired devices until MERO-638 is fixed. XXX MERO-638
 # - SEPARATE_FILE
 #   - Separate file name is used during every 'dd' operation
 # - BOTH_FILE_KINDS
