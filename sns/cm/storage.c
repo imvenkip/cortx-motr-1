@@ -28,6 +28,7 @@
 #include "sns/cm/ag.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
+#include "sns/cm/file.h"
 
 #include "stob/domain.h"    /* m0_stob_domain_find_by_stob_id */
 
@@ -36,12 +37,16 @@
  * @{
  */
 
-static int ivec_prepare(struct m0_indexvec *iv, m0_bindex_t idx,
-			uint32_t seg_nr, size_t seg_size,
+static int ivec_prepare(struct m0_cm_cp *cp, struct m0_indexvec *iv,
+			m0_bindex_t idx, size_t unit_size, size_t max_buf_size,
 			struct m0_addb_ctx *ctx, uint32_t bshift)
 {
-	int rc;
-	int i;
+	size_t   seg_size = unit_size < max_buf_size ?
+			    unit_size : max_buf_size;
+	uint32_t seg_nr = (unit_size / max_buf_size) +
+				(unit_size % max_buf_size > 0);
+	int      rc;
+	int      i;
 
 	M0_PRE(iv != NULL);
 
@@ -111,7 +116,10 @@ static int cp_prepare(struct m0_cm_cp *cp,
 {
 	struct m0_net_buffer *nbuf;
 	uint32_t              data_seg_nr;
+	size_t                unit_size;
+	size_t                max_buf_size;
 	size_t                seg_size;
+	uint32_t              seg_nr;
 	int                   rc;
 
 	M0_PRE(m0_cm_cp_invariant(cp));
@@ -120,12 +128,14 @@ static int cp_prepare(struct m0_cm_cp *cp,
 	nbuf = cp_data_buf_tlist_head(&cp->c_buffers);
 	data_seg_nr = cp->c_data_seg_nr;
 	seg_size = nbuf->nb_pool->nbp_seg_size;
+	seg_nr = nbuf->nb_pool->nbp_seg_nr;
+	unit_size = data_seg_nr * seg_size;
+	max_buf_size = seg_size * seg_nr;
 
-	rc = ivec_prepare(dst_ivec, start_idx, data_seg_nr, seg_size, ctx,
-			  bshift);
+	rc = ivec_prepare(cp, dst_ivec, start_idx, unit_size,
+			  max_buf_size, ctx, bshift);
 	if (rc != 0)
 		return M0_RC(rc);
-
 	rc = bufvec_prepare(dst_bvec, &cp->c_buffers, data_seg_nr, seg_size,
 			    bshift);
 	if (rc != 0)
@@ -199,8 +209,9 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 			goto out;
 		m0_dtx_init(&cp_fom->fo_tx, reqh->rh_beseg->bs_domain,
 			    &cp_fom->fo_loc->fl_group);
-		if (op == SIO_WRITE)
+		if (op == SIO_WRITE) {
 			m0_stob_io_credit(stio, dom, m0_fom_tx_credit(cp_fom));
+		}
 		m0_dtx_open(&cp_fom->fo_tx);
 	}
 	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_FAILED) {

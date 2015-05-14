@@ -184,14 +184,62 @@ sns_rebalance()
 _dd()
 {
 	local FILE=$1
-	local COUNT=$2
+	local BS=$2
+	local COUNT=$3
 
-	dd if=/dev/urandom bs=$unit_size count=$COUNT \
-	   of=$MERO_M0T1FS_MOUNT_DIR/$FILE >> $MERO_TEST_LOGFILE || {
+	dd if=$MERO_M0T1FS_TEST_DIR/srcfile bs=$BS count=$COUNT \
+	   of=$MERO_M0T1FS_MOUNT_DIR/$FILE &>> $MERO_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return 1
 	}
+}
+
+local_write()
+{
+	local BS=$1
+	local COUNT=$2
+
+	dd if=/dev/urandom bs=$BS count=$COUNT \
+		of=$MERO_M0T1FS_TEST_DIR/srcfile &>> $MERO_TEST_LOGFILE || {
+			echo "local write failed"
+			unmount_and_clean &>> $MERO_TEST_LOGFILE
+			return 1
+	}
+}
+
+local_read()
+{
+	local BS=$1
+	local COUNT=$2
+
+	dd if=$MERO_M0T1FS_TEST_DIR/srcfile of=$MERO_M0T1FS_TEST_DIR/file$BS$COUNT \
+		bs=$BS count=$COUNT &>> $MERO_TEST_LOGFILE || {
+                        echo "local read failed"
+                        unmount_and_clean &>> $MERO_TEST_LOGFILE
+                        return 1
+        }
+}
+
+read_and_verify()
+{
+	local FILE=$1
+	local BS=$2
+	local COUNT=$3
+
+	dd if=$MERO_M0T1FS_MOUNT_DIR/$FILE of=$MERO_M0T1FS_TEST_DIR/$FILE \
+		bs=$BS count=$COUNT &>> $MERO_TEST_LOGFILE || {
+                        echo "m0t1fs read failed"
+                        unmount_and_clean &>> $MERO_TEST_LOGFILE
+                        return 1
+        }
+
+	diff $MERO_M0T1FS_TEST_DIR/file$BS$COUNT $MERO_M0T1FS_TEST_DIR/$FILE &>> $MERO_TEST_LOGFILE || {
+		echo "files differ"
+		unmount_and_clean &>>$MERO_TEST_LOGFILE
+		return 1
+	}
+	rm -f $FILE
 }
 
 _md5sum()

@@ -369,8 +369,8 @@ enum {
 	 * Minimum number of buffers to provision m0_sns_cm::sc_ibp
 	 * and m0_sns_cm::sc_obp buffer pools.
 	 */
-	SNS_INCOMING_BUF_NR = 1 << 5,
-	SNS_OUTGOING_BUF_NR = 1 << 5,
+	SNS_INCOMING_BUF_NR = 1 << 6,
+	SNS_OUTGOING_BUF_NR = 1 << 6,
 
 	/**
 	 * Currently m0t1fs uses default fid_start = 4, where 0 - 3 are reserved

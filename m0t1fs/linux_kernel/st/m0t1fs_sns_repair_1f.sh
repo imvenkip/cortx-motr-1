@@ -13,9 +13,17 @@
 # because ios need to hash gfid to mds. In COPYTOOL
 # mode, filename is the string format of gfid.
 ###################################################
-file1=0:10000
-file2=0:10001
-file3=0:10002
+file=(
+	0:10000
+	0:10001
+	0:10002
+)
+
+file_size=(
+	50
+	70
+	30
+)
 
 N=2
 K=1
@@ -30,13 +38,10 @@ sns_repair_test()
 
 	echo "Starting SNS repair testing ..."
 
-	_dd $file1 50
-	_dd $file2 70
-	_dd $file3 30
-
-	_md5sum $file1
-	_md5sum $file2
-	_md5sum $file3
+	for ((i=0; i < ${#file[*]}; i++)) ; do
+		_dd ${file[$i]} $unit_size ${file_size[$i]}
+		_md5sum ${file[$i]}
+	done
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"

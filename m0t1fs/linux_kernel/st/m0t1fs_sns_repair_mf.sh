@@ -28,6 +28,21 @@ files=(
 	0:10011
 )
 
+unit_size=(
+	4
+	8
+	16
+	32
+	64
+	128
+	256
+	512
+	1024
+	2048
+	2048
+	2048
+)
+
 file_size=(
 	50
 	70
@@ -36,38 +51,46 @@ file_size=(
 	40
 	0
 	60
-	90
-	10
 	20
-	5
-	80
+	10
+	6
+	6
+	6
 )
+
 
 N=3
 K=3
 P=15
 stride=32
+src_bs=10M
+src_count=2
+
+verify()
+{
+	for ((i=0; i < ${#files[*]}; i++)) ; do
+		local_read $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
+		read_and_verify ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
+	done
+
+	echo "file verification sucess"
+}
 
 sns_repair_test()
 {
 	local fail_device1=1
 	local fail_device2=9
 	local fail_device3=3
-	local unit_size=$((stride * 1024))
+
+	local_write $src_bs $src_count || return $?
 
 	echo "Starting SNS repair testing ..."
 	for ((i=0; i < ${#files[*]}; i++)) ; do
-		touch_file $MERO_M0T1FS_MOUNT_DIR/${files[$i]} $stride
+		touch_file $MERO_M0T1FS_MOUNT_DIR/${files[$i]} ${unit_size[$i]}
+		_dd ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]}
 	done
 
-	for ((i=0; i < ${#files[*]}; i++)) ; do
-		_dd ${files[$i]} ${file_size[$i]}
-	done
-
-
-	for ((i=0; i < ${#files[*]}; i++)) ; do
-		_md5sum ${files[$i]}
-	done
+	verify || return $?
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
@@ -79,14 +102,14 @@ sns_repair_test()
 	pool_mach_set_failure $fail_device1 $fail_device2 || return $?
 
 	echo "Device $fail_device1 and $fail_device2 failed. Do dgmode read"
-	md5sum_check || return $?
+	verify || return $?
 
 	pool_mach_query $fail_device1 $fail_device2 || return $?
 
 	sns_repair || return $?
 
 	echo "SNS Repair done."
-	md5sum_check || return $?
+	verify || return $?
 
 ####### Query device state
 	pool_mach_query $fail_device1 $fail_device2 || return $?
@@ -95,14 +118,14 @@ sns_repair_test()
 	sns_rebalance || return $?
 
 	echo "SNS Rebalance done."
-	md5sum_check || return $?
+	verify || return $?
 
 	pool_mach_set_failure $fail_device3 || return $?
 
 	sns_repair || return $?
 
 	echo "SNS Repair done."
-	md5sum_check || return $?
+	verify || return $?
 
 	pool_mach_query $fail_device3 || return $?
 
@@ -110,7 +133,7 @@ sns_repair_test()
 	sns_rebalance || return $?
 
 	echo "SNS Rebalance done."
-	md5sum_check || return $?
+	verify || return $?
 
 	pool_mach_query $fail_device1 $fail_device2 $fail_device3
 

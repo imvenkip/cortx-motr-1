@@ -183,7 +183,7 @@ static int swu_update(struct m0_cm_sw_update *swu)
 	rc = m0_cm_sw_local_update(cm);
 	if (rc == M0_FSO_WAIT)
 		return M0_RC(rc);
-	if (rc == 0 || rc == -ENOSPC || rc == -ENOENT) {
+	if (M0_IN(rc, (0, -ENOSPC, -ENOENT))) {
 		if (rc == -ENOENT) {
 			swu->swu_is_complete = true;
 			m0_fom_phase_move(fom, 0, SWU_COMPLETE);
@@ -227,8 +227,8 @@ static int swu_store(struct m0_cm_sw_update *swu)
 	hi = m0_cm_ag_hi(cm);
 	lo = m0_cm_ag_lo(cm);
 	if (hi == NULL && lo == NULL)
-		return M0_ERR(-EINVAL);
-	m0_cm_sw_set(&sw, &lo->cag_id, &hi->cag_id);
+		return M0_ERR_INFO(-ENODATA, "Sliding window not updated."
+				   "Possibly not enough buffers !!");
 	m0_dtx_opened(tx);
 	rc = m0_cm_sw_store_update(cm, &tx->tx_betx, &sw);
 	if (rc != 0)

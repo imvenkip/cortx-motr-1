@@ -76,7 +76,7 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,
 
 M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm)
 {
-	int             rc = -ENOENT;
+	int rc = -ENOENT;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL);

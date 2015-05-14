@@ -43,6 +43,21 @@ new_files=(
 	0:10023
 )
 
+bs=(
+	32
+	32
+	32
+	32
+	32
+	32
+	32
+	32
+	32
+	10240
+	32
+	32
+)
+
 file_size=(
 	50
 	70
@@ -53,7 +68,7 @@ file_size=(
 	60
 	90
 	10
-	5000
+	15
 	5
 	80
 )
@@ -62,23 +77,43 @@ N=3
 K=3
 P=15
 stride=32
+src_bs=10M
+src_count=17
+
+verify()
+{
+	local FILE=$1
+	local BS=$2
+	local COUNT=$3
+
+	local_read $BS $COUNT || return $?
+	read_and_verify $FILE $BS $COUNT || return $?
+
+	echo "$FILE verification sucess"
+}
+
+verify_all()
+{
+	local fids=("${!1}")
+	local start=$2
+	local end=$3
+
+        for ((i=$start; i < $end; i++)) ; do
+		verify ${fids[$i]} $((${bs[$i]} * 1024))  ${file_size[$i]} || return ?
+        done
+}
 
 create_files_and_checksum()
 {
 	local fids=("${!1}")
 	local start=$2
 	local end=$3
+	local unit_size=$((stride * 1024))
 
 	for ((i=$start; i < $end; i++)) ; do
 		touch_file $MERO_M0T1FS_MOUNT_DIR/${fids[$i]} $stride
-	done
-
-	for ((i=$start; i < $end; i++)) ; do
-		_dd ${fids[$i]} ${file_size[$i]}
-	done
-
-	for ((i=$start; i < $end; i++)) ; do
-		_md5sum ${fids[$i]}
+		_dd ${fids[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
+		verify ${fids[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
 	done
 }
 
@@ -97,6 +132,9 @@ sns_repair_test()
 	local fail_device3=3
 	local unit_size=$((stride * 1024))
 
+	echo "Creating local source file"
+	local_write $src_bs $src_count  || return $?
+
 	echo "Starting SNS repair testing ..."
 
 	create_files_and_checksum files[@] 0 ${#files[*]}
@@ -111,7 +149,7 @@ sns_repair_test()
 	pool_mach_set_failure $fail_device1 $fail_device2 || return $?
 
 	echo "Device $fail_device1 and $fail_device2 failed. Do dgmode read"
-	md5sum_check || return $?
+	verify_all files[@] 0 ${#files[*]} || return $?
 
 	pool_mach_query $fail_device1 $fail_device2 || return $?
 
@@ -122,12 +160,14 @@ sns_repair_test()
 	create_files_and_checksum new_files[@] 0 4
 
 	echo **** Perform read during repair. ****
-	md5sum_check || return $?
+	verify_all files[@] 0 ${#files[*]} || return $?
+	verify_all new_files[@] 0 4 || return $?
 
 	wait4snsrepair || return $?
 	echo "SNS Repair done."
 
-	md5sum_check || return $?
+	verify_all files[@] 0 ${#files[*]} || return $?
+	verify_all new_files[@] 0 4 || return $?
 
 ####### Query device state
 	pool_mach_query $fail_device1 $fail_device2 || return $?
@@ -136,7 +176,8 @@ sns_repair_test()
 	sns_rebalance || return $?
 
 	echo "SNS Rebalance done."
-	md5sum_check || return $?
+	verify_all files[@] 0 ${#files[*]} || return $?
+	verify_all new_files[@] 0 4 || return $?
 
 	pool_mach_set_failure $fail_device3 || return $?
 
@@ -147,12 +188,14 @@ sns_repair_test()
 	create_files_and_checksum new_files[@] 4 8
 
 	echo **** Perform read during repair. ****
-	md5sum_check || return $?
+	verify_all files[@] 0 ${#files[*]} || return $?
+	verify_all new_files[@] 0 8 || return $?
 
 	wait4snsrepair || return $?
 
 	echo "SNS Repair done."
-	md5sum_check || return $?
+	verify_all files[@] 0 ${#files[*]} || return $?
+	verify_all new_files[@] 0 8 || return $?
 
 	pool_mach_query $fail_device3 || return $?
 
@@ -160,7 +203,8 @@ sns_repair_test()
 	sns_rebalance || return $?
 
 	echo "SNS Rebalance done."
-	md5sum_check || return $?
+	verify_all files[@] 0 ${#files[*]} || return $?
+	verify_all new_files[@] 0 8 || return $?
 
 	pool_mach_query $fail_device1 $fail_device2 $fail_device3
 
