@@ -22,7 +22,7 @@
 
 #include "lib/types.h"		/* m0_uint128_eq */
 #include "lib/misc.h"		/* M0_BITS */
-#include "lib/memory.h"         /* M0_BITS */
+#include "lib/memory.h"         /* M0_ALLOC_PTR */
 
 #include "ut/ut.h"
 
@@ -845,5 +845,143 @@ void m0_be_ut_tx_gc(void)
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }
+
+enum {
+	BE_UT_TX_PAYLOAD_SEG_SIZE = 0x10000,
+	BE_UT_TX_PAYLOAD_TEST_NR  = 0x100,
+	BE_UT_TX_PAYLOAD_SIZE_MAX = 0x10000,
+};
+
+struct be_ut_tx_payload_test {
+	/* tx to test */
+	struct m0_be_tx   tpt_tx;
+	/* tx payload credit */
+	m0_bcount_t       tpt_credit;
+	/* how many bytes to fill in the test */
+	m0_bcount_t       tpt_fill;
+	/* segment for capturing */
+	struct m0_be_seg *tpt_seg;
+	/* number of bytes to capture */
+	m0_bcount_t       tpt_capture;
+	/* offset for capturing in seg (starting with bs_reserved) */
+	m0_bcount_t       tpt_offset;
+};
+
+#define TX_PAYLOAD_TEST(credit, fill, capture, offset) {	\
+	.tpt_credit = (credit),                                 \
+	.tpt_fill = (fill),                                     \
+	.tpt_capture = (capture),                               \
+	.tpt_offset = (offset),                                 \
+}
+
+static uint64_t be_ut_tx_payload_seed;
+
+static void be_ut_tx_buf_fill_random(char *data, m0_bcount_t size)
+{
+	int i;
+
+	for (i = 0; i < size; ++i)
+		data[i] = m0_rnd64(&be_ut_tx_payload_seed) & 0xFF;
+}
+
+static void be_ut_tx_payload_test_nr(struct m0_be_ut_backend      *ut_be,
+                                     struct be_ut_tx_payload_test *test,
+                                     size_t                        nr)
+{
+	struct m0_be_tx_credit  cred;
+	struct m0_be_seg       *seg;
+	struct m0_be_reg        reg;
+	int                     rc;
+	int                     i;
+
+	for (i = 0; i < nr; ++i) {
+		m0_be_ut_tx_init(&test[i].tpt_tx, ut_be);
+		if (test[i].tpt_capture > 0) {
+			cred = M0_BE_TX_CREDIT(1, test[i].tpt_capture);
+			m0_be_tx_prep(&test[i].tpt_tx, &cred);
+		}
+		m0_be_tx_payload_prep(&test[i].tpt_tx, test[i].tpt_credit);
+		/*
+		 * If test hangs here - try to increase BE log size
+		 * or decrease BE_UT_TX_PAYLOAD_TX_NR.
+		 */
+		rc = m0_be_tx_open_sync(&test[i].tpt_tx);
+		M0_UT_ASSERT(rc == 0);
+	}
+	for (i = 0; i < nr; ++i) {
+		M0_ASSERT(test[i].tpt_fill <= test[i].tpt_credit);
+		be_ut_tx_buf_fill_random(test[i].tpt_tx.t_payload.b_addr,
+					 test[i].tpt_fill);
+		if (test[i].tpt_capture > 0) {
+			seg = test[i].tpt_seg;
+			reg = M0_BE_REG(seg, test[i].tpt_capture,
+			                seg->bs_addr + seg->bs_reserved +
+			                test[i].tpt_offset);
+			m0_be_tx_capture(&test[i].tpt_tx, &reg);
+		}
+	}
+	for (i = 0; i < nr; ++i) {
+		m0_be_tx_close_sync(&test[i].tpt_tx);
+		m0_be_tx_fini(&test[i].tpt_tx);
+	}
+}
+
+void m0_be_ut_tx_payload(void)
+{
+	enum {
+		PAYLOAD_SIZE = BE_UT_TX_PAYLOAD_SIZE_MAX,
+	};
+	struct be_ut_tx_payload_test *tests;
+	struct be_ut_tx_payload_test  special_cases[] = {
+		/* payload credit, payload fill, capture credit, capture fill */
+		TX_PAYLOAD_TEST(0, 0,     0,     0),
+		TX_PAYLOAD_TEST(0, 0, 0x100,     0),
+		TX_PAYLOAD_TEST(0, 0, 0x100, 0x100),
+		TX_PAYLOAD_TEST(1, 0,     0,     0),
+		TX_PAYLOAD_TEST(1, 1,     0,     0),
+		TX_PAYLOAD_TEST(PAYLOAD_SIZE,                0,     0,     0),
+		TX_PAYLOAD_TEST(PAYLOAD_SIZE,                0, 0x100,     0),
+		TX_PAYLOAD_TEST(PAYLOAD_SIZE,                0, 0x100, 0x100),
+		TX_PAYLOAD_TEST(PAYLOAD_SIZE,     PAYLOAD_SIZE, 0x100, 0x100),
+		TX_PAYLOAD_TEST(PAYLOAD_SIZE, PAYLOAD_SIZE / 2, 0x100,     0),
+	};
+	struct m0_be_ut_backend  ut_be = {};
+	struct m0_be_ut_seg      ut_seg = {};
+	struct m0_be_seg        *seg;
+	m0_bcount_t              size;
+	int                      i;
+
+	be_ut_tx_payload_seed = 42;     /* always works like magic */
+
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE);
+	seg = ut_seg.bus_seg;
+
+	for (i = 0; i < ARRAY_SIZE(special_cases); ++i)
+		special_cases[i].tpt_seg = seg;
+	be_ut_tx_payload_test_nr(&ut_be, &special_cases[0],
+				 ARRAY_SIZE(special_cases));
+
+	M0_ALLOC_ARR(tests, BE_UT_TX_PAYLOAD_TEST_NR);
+	for (i = 0; i < BE_UT_TX_PAYLOAD_TEST_NR; ++i) {
+		tests[i].tpt_seg = seg;
+		size = seg->bs_size - seg->bs_reserved;
+
+		tests[i].tpt_credit  = m0_rnd64(&be_ut_tx_payload_seed) %
+				       BE_UT_TX_PAYLOAD_TEST_NR + 1;
+		tests[i].tpt_fill    = m0_rnd64(&be_ut_tx_payload_seed) %
+				       tests[i].tpt_credit;
+		tests[i].tpt_capture = m0_rnd64(&be_ut_tx_payload_seed) % size;
+		tests[i].tpt_offset  = m0_rnd64(&be_ut_tx_payload_seed) %
+				       (size - tests[i].tpt_capture);
+	}
+	be_ut_tx_payload_test_nr(&ut_be, tests, BE_UT_TX_PAYLOAD_TEST_NR);
+	m0_free(tests);
+
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
+}
+
+#undef TX_PAYLOAD_TEST
 
 #undef M0_TRACE_SUBSYSTEM
