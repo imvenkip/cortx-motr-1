@@ -431,11 +431,6 @@ static void item_done(struct m0_rpc_packet *p,
 	if (item->ri_error != 0) {
 		M0_LOG(M0_ERROR, "p:i=%p:%p failed with %d",
 				  p, item, item->ri_error);
-		/* Resend items don't have extra reference, which is
-		   released in item_resend().
-		 */
-		if (item->ri_nr_sent > 1)
-			m0_rpc_item_get(item);
 		m0_rpc_item_failed(item, item->ri_error);
 	} else
 		item_sent(item);
@@ -467,18 +462,20 @@ static void item_sent(struct m0_rpc_item *item)
 				       (uint64_t)m0_rpc_item_size(item));
 		if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
 			item->ri_ops->rio_sent(item);
-		/*
-		 * Reference release done here is for the reference taken in
-		 * m0_rpc_item_send() and also for one-way items corresponding
-		 * reference taken in m0_rpc_oneway_item_post_locked().
-		 */
-		m0_rpc_item_put(item);
-	} else if (item->ri_nr_sent == 2)
+	} else if (item->ri_nr_sent == 2) {
 		/* item with ri_nr_sent >= 2 are counted as 1 in
 		   rs_nr_resent_items i.e. rs_nr_resent_items counts number
 		   of items that required resending.
 		 */
 		stats->rs_nr_resent_items++;
+	}
+
+	/*
+	 * Reference release done here is for the reference taken in
+	 * m0_rpc_item_send() and also for one-way items corresponding
+	 * reference taken in m0_rpc_oneway_item_post_locked().
+	 */
+	m0_rpc_item_put(item);
 
 	/*
 	 * Request and Reply items take hold on session until

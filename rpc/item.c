@@ -824,13 +824,6 @@ static void item_resend(struct m0_rpc_item *item)
 
 	case M0_RPC_ITEM_WAITING_FOR_REPLY:
 		m0_rpc_item_send(item);
-		/*
-		 * Drop reference the same was as we do
-		 * at m0_rpc_item_process_reply()
-		 * to avoid the leakage on resend.
-		 */
-		if (item->ri_error == 0)
-			m0_rpc_item_put(item);
 		break;
 
 	default:
