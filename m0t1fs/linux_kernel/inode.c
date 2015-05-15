@@ -163,7 +163,8 @@ M0_INTERNAL void m0t1fs_file_lock_fini(struct m0t1fs_inode *ci)
 	M0_ENTRY();
 
 	m0_rm_owner_windup(&ci->ci_fowner);
-	rc = m0_rm_owner_timedwait(&ci->ci_fowner, M0_BITS(ROS_FINAL),
+	rc = m0_rm_owner_timedwait(&ci->ci_fowner,
+				   M0_BITS(ROS_FINAL, ROS_INSOLVENT),
 				   M0_TIME_NEVER);
 	M0_ASSERT(rc == 0);
 	m0_file_owner_fini(&ci->ci_fowner);

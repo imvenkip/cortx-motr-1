@@ -540,12 +540,7 @@ static void reply_process(struct m0_rpc_item *item)
 	M0_ENTRY();
 	M0_PRE(item != NULL);
 
-	if (item->ri_error != 0) {
-		M0_LOG(M0_ERROR, "Item error %d", item->ri_error);
-		M0_LEAVE();
-		return;
-	}
-	M0_ASSERT(item->ri_reply != NULL);
+	M0_ASSERT(ergo(item->ri_error == 0, item->ri_reply != NULL));
 	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
 	owner = outreq->ou_req.rog_want.rl_credit.cr_owner;
 

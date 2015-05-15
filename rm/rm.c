@@ -107,6 +107,7 @@ static int remnant_loan_get	    (const struct m0_rm_loan *loan,
 static int loan_dup		    (const struct m0_rm_loan *src_loan,
 				     struct m0_rm_loan **dest_loan);
 static void owner_liquidate	    (struct m0_rm_owner *src_owner);
+static void owner_cleanup           (struct m0_rm_owner *owner);
 static void credit_processor        (struct m0_rm_resource_type *rt);
 
 #define INCOMING_CREDIT(in) in->rin_want.cr_datum
@@ -557,6 +558,8 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 			cached_credits_clear(owner);
 			owner_state_set(owner, owner_has_loans(owner) ?
 					       ROS_INSOLVENT : ROS_FINAL);
+			if (owner_state(owner) == ROS_INSOLVENT)
+				owner_cleanup(owner);
 		}
 		break;
 	case ROS_INSOLVENT:
@@ -614,8 +617,6 @@ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner      *owner,
 	m0_rm_owner_unlock(owner);
 	owner->ro_group_id = *group;
 
-	m0_rm_ur_tlist_init(&owner->ro_borrowed);
-	m0_rm_ur_tlist_init(&owner->ro_sublet);
 	RM_OWNER_LISTS_FOR(owner, m0_rm_ur_tlist_init);
 	resource_get(res);
 	m0_rm_owner_lock(owner);
@@ -757,6 +758,30 @@ static void owner_liquidate(struct m0_rm_owner *o)
 	} m0_tl_endfor;
 	owner_balance(o);
 	M0_LEAVE();
+}
+
+static void owner_cleanup(struct m0_rm_owner *o)
+{
+	struct m0_rm_credit *credit;
+	struct m0_rm_loan   *loan;
+
+	M0_PRE(owner_is_idle(o));
+
+	m0_tl_for (m0_rm_ur, &o->ro_sublet, credit) {
+		M0_ASSERT(m0_rm_credit_bob_check(credit));
+		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
+		m0_rm_ur_tlist_del(credit);
+		m0_rm_loan_fini(loan);
+		m0_free(loan);
+	} m0_tl_endfor;
+
+	m0_tl_for (m0_rm_ur, &o->ro_borrowed, credit) {
+		M0_ASSERT(m0_rm_credit_bob_check(credit));
+		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
+		m0_rm_ur_tlist_del(credit);
+		m0_rm_loan_fini(loan);
+		m0_free(loan);
+	} m0_tl_endfor;
 }
 
 M0_INTERNAL int m0_rm_owner_timedwait(struct m0_rm_owner *owner,
