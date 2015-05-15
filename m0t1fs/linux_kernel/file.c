@@ -5319,11 +5319,6 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	M0_ENTRY("rpc_item %p", item);
 	M0_PRE(item != NULL);
 
-	if (item->ri_error != 0) {
-		M0_LOG(M0_ERROR, "Item error %d", item->ri_error);
-		M0_LEAVE();
-		return;
-	}
 	fop    = m0_rpc_item_to_fop(item);
 	iofop  = container_of(fop, struct m0_io_fop, if_fop);
 	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
@@ -5334,9 +5329,10 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	 * are needed for policy decisions in io_bottom_half().
 	 * io_bottom_half() takes care of releasing the reference.
 	 */
-	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
-	m0_fop_get(rep_fop);
-
+	if (item->ri_reply != NULL) {
+		rep_fop = m0_rpc_item_to_fop(item->ri_reply);
+		m0_fop_get(rep_fop);
+	}
 	M0_LOG(M0_INFO, "io_req_fop %p, target_ioreq %p io_request %p",
 			reqfop, reqfop->irf_tioreq, ioreq);
 	m0_sm_ast_post(ioreq->ir_sm.sm_grp, &reqfop->irf_ast);
@@ -5433,12 +5429,16 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	req_item   = &irfop->irf_iofop.if_fop.f_item;
 	reply_item = req_item->ri_reply;
-	reply_fop = m0_rpc_item_to_fop(reply_item);
-	rc = req_item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
-	if (rc != 0) {
+	rc = req_item->ri_error;
+	if (reply_item != NULL) {
+		reply_fop = m0_rpc_item_to_fop(reply_item);
+		rc = rc ?: m0_rpc_item_generic_reply_rc(reply_item);
+	}
+	if (rc < 0) {
 		M0_LOG(M0_ERROR, "reply error: rc=%d", rc);
-		m0_atomic64_sub(&tioreq->ti_nwxfer->nxr_rdbulk_nr,
-				rpcbulk_tlist_length(
+		if (m0_is_read_fop(&irfop->irf_iofop.if_fop))
+			m0_atomic64_sub(&tioreq->ti_nwxfer->nxr_rdbulk_nr,
+					rpcbulk_tlist_length(
 					&irfop->irf_iofop.if_rbulk.rb_buflist));
 		goto ref_dec;
 	}
@@ -5493,7 +5493,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 ref_dec:
 	/* Drops reference on reply fop. */
-	m0_fop_put_lock(reply_fop);
+	m0_fop_put0_lock(reply_fop);
 	m0_atomic64_dec(&file_to_sb(req->ir_file)->csb_pending_io_nr);
 	M0_LOG(M0_DEBUG, "irfop=%p bulk=%p "FID_F" Pending fops = %llu bulk=%llu",
 			 irfop, &irfop->irf_iofop.if_rbulk,
