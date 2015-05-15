@@ -397,7 +397,7 @@ fmio_pre()
 	file_to_create3="$MERO_M0T1FS_MOUNT_DIR/0:11113"
 
 	rm -rf $fmio_sandbox
-	mkdir $fmio_sandbox
+	mkdir -p $fmio_sandbox
 	if [ $debug_level == $DEBUG_LEVEL_STTEST ]
 	then
 		mkdir $fmio_sandbox/tmp
@@ -775,7 +775,7 @@ failure_modes_test()
 main()
 {
 	NODE_UUID=`uuidgen`
-	fmio_sandbox="$st_dir/sandbox"
+	fmio_sandbox="$MERO_M0T1FS_TEST_DIR/sandbox"
 	rc=0
 
 	echo "*********************************************************"
@@ -806,11 +806,11 @@ main()
 	echo -e "MERO_STOB_DOMAIN \t $MERO_STOB_DOMAIN"
 
 	echo -e "\nPreprocessing for failure modes IO testing"
-	fmio_pre || {
+	fmio_mero_service_start || {
 		return 1
 	}
 
-	fmio_mero_service_start || {
+	fmio_pre || {
 		return 1
 	}
 
