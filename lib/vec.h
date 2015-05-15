@@ -383,7 +383,7 @@ struct m0_ivec_cursor {
    @param ivec Given index vector to be associated with cursor.
  */
 M0_INTERNAL void m0_ivec_cursor_init(struct m0_ivec_cursor *cur,
-				     struct m0_indexvec *ivec);
+				     const struct m0_indexvec *ivec);
 
 /**
    Moves the index vector cursor forward by @count.

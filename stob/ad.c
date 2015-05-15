@@ -54,24 +54,6 @@ enum {
 	STOB_TYPE_AD = 0x02,
 };
 
-/**
-   Types of allocation extents.
-
-   Values of this enum are stored as "physical extent start" in allocation
-   extents.
- */
-enum stob_ad_allocation_extent_type {
-	/**
-	    Minimal "special" extent type. All values less than this are valid
-	    start values of normal allocated extents.
-	 */
-	AET_MIN = M0_BINDEX_MAX - (1ULL << 32),
-	/**
-	   This value is used to tag a hole in the storage object.
-	 */
-	AET_HOLE
-};
-
 struct ad_domain_cfg {
 	struct m0_stob_id adg_id;
 	struct m0_be_seg *adg_seg;
@@ -113,11 +95,6 @@ M0_FOL_FRAG_TYPE_DECLARE(stob_ad_rec_frag, static,
 			 stob_ad_rec_frag_undo_redo_op,
 			 stob_ad_rec_frag_undo_redo_op_cred,
 			 stob_ad_rec_frag_undo_redo_op_cred);
-static int stob_ad_cursor(struct m0_stob_ad_domain *adom,
-			  struct m0_stob *obj,
-			  uint64_t offset,
-			  struct m0_be_emap_cursor *it);
-
 static int stob_ad_seg_free(struct m0_dtx *tx,
 			    struct m0_stob_ad_domain *adom,
 			    const struct m0_be_emap_seg *seg,
@@ -180,12 +157,6 @@ struct m0_be_0type m0_stob_ad_0type = {
 	.b0_init = stob_ad_0type_init,
 	.b0_fini = stob_ad_0type_fini
 };
-
-static struct m0_stob_ad_domain *
-stob_ad_domain2ad(const struct m0_stob_domain *dom)
-{
-	return container_of(dom, struct m0_stob_ad_domain, sad_base);
-}
 
 static struct m0_stob_ad *stob_ad_stob2ad(const struct m0_stob *stob)
 {
@@ -707,7 +678,7 @@ static int ext_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 		return M0_RC(rc);
 	astob = stob_ad_stob2ad(stob);
 	ext = &it.ec_seg.ee_ext;
-	M0_LOG(M0_DEBUG, "ext="EXT_F" val=%llu",
+	M0_LOG(M0_DEBUG, "ext="EXT_F" val=%llx",
 		EXT_P(ext), (unsigned long long)it.ec_seg.ee_val);
 	seg = &astob->ad_op_it.oc_seg_last;
 	M0_LOG(M0_DEBUG, "seg="EXT_F,
@@ -727,7 +698,7 @@ static int ext_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	m0_be_emap_paste(&it, &tx->tx_betx, &todo, AET_HOLE,
 		 LAMBDA(void, (struct m0_be_emap_seg *__seg) {
 				/* handle extent deletion. */
-				M0_LOG(M0_DEBUG, "del: val=%llu",
+				M0_LOG(M0_DEBUG, "del: val=%llx",
 					(unsigned long long)__seg->ee_val);
 				rc = rc ?: stob_ad_seg_free(tx, adom, __seg,
 							    &__seg->ee_ext,
@@ -737,6 +708,86 @@ static int ext_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	rc = m0_be_emap_op_rc(&it);
 	m0_be_op_fini(it_op);
 	rc = rc == 0 && !m0_be_emap_ext_is_last(&seg->ee_ext) ? -EAGAIN : rc;
+	return M0_RC(rc);
+}
+
+
+/**
+ * Punches ad stob ext map and releases underlying storage object's
+ * extents.
+ *
+ * @param @todo the target ext to delete, which will be marked as a hole.
+ */
+static int ext_punch(struct m0_stob *stob, struct m0_dtx *tx,
+		     struct m0_ext  *todo)
+{
+	struct m0_stob_ad_domain *adom;
+	struct m0_be_emap_seg    *seg;
+	struct m0_be_emap_cursor  it;
+	struct m0_stob_ad        *astob;
+	struct m0_be_op          *it_op;
+	struct m0_ext            *ext;
+	int                       rc;
+
+	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
+	rc = stob_ad_cursor(adom, stob, todo->e_start, &it);
+	if (rc != 0)
+		return M0_ERR(rc);
+	ext = &it.ec_seg.ee_ext;
+	M0_LOG(M0_DEBUG, "target ext="EXT_F" existing ext="EXT_F" val=0x%lx",
+			 EXT_P(todo), EXT_P(ext), it.ec_seg.ee_val);
+	astob = stob_ad_stob2ad(stob);
+	seg = &astob->ad_op_it.oc_seg_last;
+	M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
+		  !m0_ext_is_empty(&seg->ee_ext));
+	if (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
+		todo->e_end = seg->ee_ext.e_end;
+	}
+	it_op = &it.ec_op;
+	m0_be_op_init(it_op);
+	m0_be_emap_paste(&it, &tx->tx_betx, todo, AET_HOLE,
+		 LAMBDA(void, (struct m0_be_emap_seg *__seg) {
+			/* handle extent deletion. */
+			rc = rc ?: stob_ad_seg_free(tx, adom, __seg,
+						    &__seg->ee_ext,
+						    __seg->ee_val);
+		}),
+		 LAMBDA(void, (struct m0_be_emap_seg *__seg,
+			       struct m0_ext *__ext,
+			       uint64_t __val) {
+			/* cut left */
+			M0_ASSERT(__ext->e_start > __seg->ee_ext.e_start);
+
+			__seg->ee_val = __val;
+			rc = rc ?: stob_ad_seg_free(tx, adom, __seg,
+						    __ext, __val);
+		}),
+		 LAMBDA(void, (struct m0_be_emap_seg *__seg,
+			       struct m0_ext *__ext,
+			       uint64_t __val) {
+			/* cut right */
+			M0_ASSERT(__seg->ee_ext.e_end > __ext->e_end);
+			if (__val < AET_MIN) {
+				__seg->ee_val = __val +
+					(__ext->e_end - __seg->ee_ext.e_start);
+				/*
+				 * Free physical sub-extent, but only when
+				 * sub-extent starts at the left boundary of the
+				 * logical extent, because otherwise "cut left"
+				 * already freed it.
+				 */
+				if (__ext->e_start == __seg->ee_ext.e_start)
+					rc = rc ?: stob_ad_seg_free(tx, adom,
+								    __seg,
+								    __ext,
+								    __val);
+			} else
+				__seg->ee_val = __val;
+		}));
+
+	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	rc = m0_be_emap_op_rc(&it);
+	m0_be_op_fini(it_op);
 	return M0_RC(rc);
 }
 
@@ -759,16 +810,33 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	return M0_RC(rc);
 }
 
-/*
- * Truncates ad stob ext map and releases underlying storage object's
- * extents. Currently the argument 'range' is not being used. Ideally
- * stob should be punched at location spanned by the 'range'.
+/**
+ * Truncates ad stob ext map and releases underlying storage object's extents.
+ *
+ * Stob is punched at location spanned by the 'range'.
  */
 static int stob_ad_punch(struct m0_stob *stob, const struct m0_indexvec *range,
 			 struct m0_dtx *tx)
 {
-	M0_PRE(m0_indexvec_is_universal(range));
-	return M0_RC(ext_destroy(stob, tx));
+	struct m0_ext         todo;
+	m0_bcount_t	      count;
+	m0_bcount_t	      offset;
+	struct m0_ivec_cursor cur;
+	int                   rc = 0;
+
+	m0_ivec_cursor_init(&cur, range);
+	count = 0;
+	while (!m0_ivec_cursor_move(&cur, count)) {
+		offset = m0_ivec_cursor_index(&cur);
+		count  = m0_ivec_cursor_step(&cur);
+		todo.e_start = offset;
+		todo.e_end   = offset + count;
+		M0_LOG(M0_DEBUG, "punching "EXT_F, EXT_P(&todo));
+		rc = ext_punch(stob, tx, &todo);
+		if (rc != 0)
+			return M0_ERR(rc);
+	}
+	return M0_RC(0);
 }
 
 static uint32_t stob_ad_block_shift(struct m0_stob *stob)
@@ -910,10 +978,10 @@ static int stob_ad_bfree(struct m0_stob_ad_domain *adom, struct m0_dtx *tx,
 	return ballroom->ab_ops->bo_free(ballroom, tx, &tgt);
 }
 
-static int stob_ad_cursor(struct m0_stob_ad_domain *adom,
-			  struct m0_stob *obj,
-			  uint64_t offset,
-			  struct m0_be_emap_cursor *it)
+M0_INTERNAL int stob_ad_cursor(struct m0_stob_ad_domain *adom,
+			       struct m0_stob *obj,
+			       uint64_t offset,
+			       struct m0_be_emap_cursor *it)
 {
 	const struct m0_fid *fid = m0_stob_fid_get(obj);
 	struct m0_uint128    prefix;
@@ -1100,6 +1168,9 @@ static int stob_ad_vec_alloc(struct m0_stob *obj,
 
 		if (counts == NULL || back->si_user.ov_buf == NULL ||
 		    back->si_stob.iv_index == NULL) {
+			m0_free(counts);
+			m0_free(back->si_user.ov_buf);
+			m0_free(back->si_stob.iv_index);
 			M0_STOB_OOM(AD_VEC_ALLOC);
 			rc = M0_ERR(-ENOMEM);
 		}
@@ -1108,30 +1179,30 @@ static int stob_ad_vec_alloc(struct m0_stob *obj,
 }
 
 /**
-   Constructs back IO for read.
-
-   This is done in two passes:
-
-       - first, calculate number of fragments, taking holes into account. This
-         pass iterates over user buffers list (src), target extents list (dst)
-         and extents map (map). Once this pass is completed, back IO vectors can
-         be allocated;
-
-       - then, iterate over the same sequences again. For holes, call memset()
-         immediately, for other fragments, fill back IO vectors with the
-         fragment description.
-
-   @note assumes that allocation data can not change concurrently.
-
-   @note memset() could become a bottleneck here.
-
-   @note cursors and fragment sizes are measured in blocks.
+ * Constructs back IO for read.
+ *
+ * This is done in two passes:
+ *
+ *     - first, calculate number of fragments, taking holes into account. This
+ *       pass iterates over user buffers list (src), target extents list (dst)
+ *       and extents map (map). Once this pass is completed, back IO vectors can
+ *       be allocated;
+ *
+ *     - then, iterate over the same sequences again. For holes, call memset()
+ *       immediately, for other fragments, fill back IO vectors with the
+ *       fragment description.
+ *
+ * @note assumes that allocation data can not change concurrently.
+ *
+ * @note memset() could become a bottleneck here.
+ *
+ * @note cursors and fragment sizes are measured in blocks.
  */
-static int stob_ad_read_launch(struct m0_stob_io *io,
-			       struct m0_stob_ad_domain *adom,
-			       struct m0_vec_cursor *src,
-			       struct m0_vec_cursor *dst,
-			       struct m0_be_emap_caret *car)
+static int stob_ad_read_prepare(struct m0_stob_io        *io,
+				struct m0_stob_ad_domain *adom,
+				struct m0_vec_cursor     *src,
+				struct m0_vec_cursor     *dst,
+				struct m0_be_emap_caret  *car)
 {
 	struct m0_be_emap_cursor *it;
 	struct m0_be_emap_seg    *seg;
@@ -1413,24 +1484,29 @@ static int stob_ad_seg_free(struct m0_dtx *tx,
 			    const struct m0_ext *ext,
 			    uint64_t val)
 {
-	m0_bcount_t   delta = ext->e_start - seg->ee_ext.e_start;
+	m0_bcount_t delta = ext->e_start - seg->ee_ext.e_start;
 	struct m0_ext tocut = {
 		.e_start = val + delta,
 		.e_end   = val + delta + m0_ext_length(ext)
 	};
+	if (val < AET_MIN) {
+		M0_LOG(M0_DEBUG, "freeing "EXT_F"@"EXT_F,
+				 EXT_P(ext), EXT_P(&tocut));
+	}
+
 	return val < AET_MIN ? stob_ad_bfree(adom, tx, &tocut) : 0;
 }
 
 /**
-   Inserts allocated extent into AD storage object allocation map, possibly
-   overwriting a number of existing extents.
-
-   @param offset - an offset in AD stob name-space;
-   @param ext - an extent in the underlying object name-space.
-
-   This function updates extent mapping of AD storage to map an extent in its
-   logical name-space, starting with offset to an extent ext in the underlying
-   storage object name-space.
+ * Inserts allocated extent into AD storage object allocation map, possibly
+ * overwriting a number of existing extents.
+ *
+ * @param offset - an offset in AD stob name-space;
+ * @param ext - an extent in the underlying object name-space.
+ *
+ * This function updates extent mapping of AD storage to map an extent in its
+ * logical name-space, starting with offset to an extent ext in the underlying
+ * storage object name-space.
  */
 static int stob_ad_write_map_ext(struct m0_stob_io *io,
 				 struct m0_stob_ad_domain *adom,
@@ -1556,16 +1632,15 @@ static void stob_ad_fol_frag_free(struct m0_fol_frag *frag)
 }
 
 /**
-   Updates extent map, inserting newly allocated extents into it.
-
-   @param dst - target extents in AD storage object;
-   @param wc - allocated extents.
-
-   Total size of extents in dst and wc is the same, but their boundaries not
-   necessary match. Iterate over both sequences at the same time, mapping
-   contiguous chunks of AD stob name-space to contiguous chunks of the
-   underlying object name-space.
-
+ * Updates extent map, inserting newly allocated extents into it.
+ *
+ * @param dst - target extents in AD storage object;
+ * @param wc - allocated extents.
+ *
+ * Total size of extents in dst and wc is the same, but their boundaries not
+ * necessary match. Iterate over both sequences at the same time, mapping
+ * contiguous chunks of AD stob name-space to contiguous chunks of the
+ * underlying object name-space.
  */
 static int stob_ad_write_map(struct m0_stob_io *io,
 			     struct m0_stob_ad_domain *adom,
@@ -1644,22 +1719,21 @@ static void stob_ad_wext_fini(struct stob_ad_write_ext *wext)
 }
 
 /**
-   AD write.
-
-   - allocates space for data to be written (first loop);
-
-   - calculates number of fragments (ad_write_count());
-
-   - constructs back IO (ad_write_back_fill());
-
-   - updates extent map for this AD object with allocated extents
-     (ad_write_map()).
+ * Constructs back IO for write.
+ *
+ * - allocates space for data to be written (first loop);
+ *
+ * - calculates number of fragments (ad_write_count());
+ *
+ * - constructs back IO (ad_write_back_fill());
+ *
+ * - updates extent map for this AD object with allocated extents
+ *   (ad_write_map()).
  */
-static int stob_ad_write_launch(struct m0_stob_io *io,
-				struct m0_stob_ad_domain *adom,
-				struct m0_vec_cursor *src,
-				struct m0_ivec_cursor *dst,
-				struct m0_be_emap_caret *map)
+static int stob_ad_write_prepare(struct m0_stob_io        *io,
+				 struct m0_stob_ad_domain *adom,
+				 struct m0_vec_cursor     *src,
+				 struct m0_be_emap_caret  *map)
 {
 	m0_bcount_t                 todo;
 	uint32_t                    frags;
@@ -1687,6 +1761,7 @@ static int stob_ad_write_launch(struct m0_stob_io *io,
 			break;
 		got = m0_ext_length(&wext->we_ext);
 		M0_ASSERT(todo >= got);
+		M0_LOG(M0_DEBUG, "got=%lu: " EXT_F, got, EXT_P(&wext->we_ext));
 		todo -= got;
 		if (todo > 0) {
 			M0_ALLOC_PTR(next);
@@ -1707,16 +1782,17 @@ static int stob_ad_write_launch(struct m0_stob_io *io,
 		frags = stob_ad_write_count(src, &wc);
 		rc = stob_ad_vec_alloc(io->si_obj, back, frags);
 		if (rc == 0) {
-			struct m0_indexvec *ivec;
+			struct m0_ivec_cursor dst;
+			/* reset src */
 			m0_vec_cursor_init(src, &io->si_user.ov_vec);
+			/* reset wc */
 			stob_ad_wext_cursor_init(&wc, &head);
 			stob_ad_write_back_fill(io, back, src, &wc);
-			m0_ivec_cursor_init(dst, &io->si_stob);
+
+			m0_ivec_cursor_init(&dst, &io->si_stob);
 			stob_ad_wext_cursor_init(&wc, &head);
-			ivec = container_of(dst->ic_cur.vc_vec,
-					    struct m0_indexvec, iv_vec);
-			frags = stob_ad_write_map_count(adom, ivec, true);
-			rc = stob_ad_write_map(io, adom, dst, map, &wc, frags);
+			frags = stob_ad_write_map_count(adom, &io->si_stob, true);
+			rc = stob_ad_write_map(io, adom, &dst, map, &wc, frags);
 		}
 	}
 	stob_ad_wext_fini(&head);
@@ -1724,10 +1800,10 @@ static int stob_ad_write_launch(struct m0_stob_io *io,
 }
 
 /**
-   Launch asynchronous IO.
-
-   Call ad_write_launch() or ad_read_launch() to do the bulk of work, then
-   launch back IO just constructed.
+ * Launch asynchronous IO.
+ *
+ * Call ad_write_prepare() or ad_read_prepare() to do the bulk of work, then
+ * launch back IO just constructed.
  */
 static int stob_ad_io_launch(struct m0_stob_io *io)
 {
@@ -1735,7 +1811,7 @@ static int stob_ad_io_launch(struct m0_stob_io *io)
 	struct m0_stob_ad_io     *aio     = io->si_stob_private;
 	struct m0_be_emap_cursor  it;
 	struct m0_vec_cursor      src;
-	struct m0_ivec_cursor     dst;
+	struct m0_vec_cursor      dst;
 	struct m0_be_emap_caret   map;
 	struct m0_stob_io        *back    = &aio->ai_back;
 	int                       rc;
@@ -1752,7 +1828,7 @@ static int stob_ad_io_launch(struct m0_stob_io *io)
 	M0_ENTRY("op=%d", io->si_opcode);
 
 	adom = stob_ad_domain2ad(m0_stob_dom_get(io->si_obj));
-	rc = stob_ad_cursors_init(io, adom, &it, &src, &dst.ic_cur, &map);
+	rc = stob_ad_cursors_init(io, adom, &it, &src, &dst, &map);
 	if (rc != 0)
 		return M0_RC(rc);
 
@@ -1762,15 +1838,15 @@ static int stob_ad_io_launch(struct m0_stob_io *io)
 
 	switch (io->si_opcode) {
 	case SIO_READ:
-		rc = stob_ad_read_launch(io, adom, &src, &dst.ic_cur, &map);
+		rc = stob_ad_read_prepare(io, adom, &src, &dst, &map);
 		break;
 	case SIO_WRITE:
-		rc = stob_ad_write_launch(io, adom, &src, &dst, &map);
+		rc = stob_ad_write_prepare(io, adom, &src, &map);
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid io type.");
 	}
-	stob_ad_cursors_fini(&it, &src, &dst.ic_cur, &map);
+	stob_ad_cursors_fini(&it, &src, &dst, &map);
 	if (rc == 0) {
 		if (back->si_stob.iv_vec.v_nr > 0) {
 			/**

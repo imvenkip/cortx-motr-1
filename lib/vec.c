@@ -510,7 +510,7 @@ M0_INTERNAL m0_bcount_t m0_bufvec_cursor_copyfrom(struct m0_bufvec_cursor *scur,
 }
 
 M0_INTERNAL void m0_ivec_cursor_init(struct m0_ivec_cursor *cur,
-				     struct m0_indexvec *ivec)
+				     const struct m0_indexvec *ivec)
 {
         M0_PRE(cur  != NULL);
         M0_PRE(ivec != NULL);

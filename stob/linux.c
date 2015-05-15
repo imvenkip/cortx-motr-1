@@ -454,19 +454,40 @@ static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 	return M0_RC(rc);
 }
 
-/*
- * The argument 'range', which is currently unused, specifies the location to
- * to punch. The full implementation will be similar to fallocate(2)
+/**
+ * Punch holes in a stob.
+ *
+ * @param range, specifies the location to punch.
  */
 static int stob_linux_punch(struct m0_stob *stob,
 			    const struct m0_indexvec *range,
 			    struct m0_dtx *dtx)
 {
-	struct m0_stob_linux *lstob;
+	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
+#ifdef FALLOC_FL_PUNCH_HOLE
+	m0_bcount_t	      count;
+	m0_bcount_t	      offset;
+	struct m0_ivec_cursor cur;
+	int                   rc = 0;
+	uint32_t              bshift = m0_stob_block_shift(stob);
 
+	m0_ivec_cursor_init(&cur, range);
+	count = 0;
+	while (!m0_ivec_cursor_move(&cur, count)) {
+		count  = m0_ivec_cursor_step(&cur);
+		offset = m0_ivec_cursor_index(&cur) << bshift;
+		M0_LOG(M0_DEBUG, "lstob=%p, punching [%lu, +%lu)",
+				 lstob, offset, count);
+		rc = fallocate(lstob->sl_fd, FALLOC_FL_PUNCH_HOLE,
+			       offset, count<<bshift);
+		if (rc != 0)
+			return M0_ERR(rc);
+	}
+	return M0_RC(0);
+#else
 	M0_PRE(m0_indexvec_is_universal(range));
-	lstob = m0_stob_linux_container(stob);
 	return M0_RC(ftruncate(lstob->sl_fd, 0));
+#endif
 }
 
 static void stob_linux_write_credit(const struct m0_stob_domain *dom,

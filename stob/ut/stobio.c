@@ -531,10 +531,12 @@ void test_single_ivec()
 	m0_bcount_t        stob_size[1] = {OFFSET_OR_SIZE >> SHIFT};
 	m0_bcount_t        size[VEC_NR];
 
+	struct stobio_test *test = &tests[0];
+
 	m0_mutex_init(&lock);
 	result = stobio_storage_init();
 	M0_UT_ASSERT(result == 0);
-	WITH_LOCK(&lock, stobio_init, tests);
+	WITH_LOCK(&lock, stobio_init, test);
 
 	for (i = 0; i < VEC_NR; ++i) {
 		st_rdbuf[i] = m0_alloc_aligned(BLOCK_SIZE, SHIFT);
@@ -563,7 +565,7 @@ void test_single_ivec()
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
-	result = m0_stob_io_launch(&io, tests->st_obj, NULL, NULL);
+	result = m0_stob_io_launch(&io, test->st_obj, NULL, NULL);
 	M0_UT_ASSERT(result == 0);
 
 	m0_chan_wait(&clink);
@@ -587,7 +589,7 @@ void test_single_ivec()
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
-	result = m0_stob_io_launch(&io, tests->st_obj, NULL, NULL);
+	result = m0_stob_io_launch(&io, test->st_obj, NULL, NULL);
 	M0_UT_ASSERT(result == 0);
 
 	m0_chan_wait(&clink);
@@ -600,7 +602,7 @@ void test_single_ivec()
 	for (i = 0; i < VEC_NR; ++i)
 		M0_ASSERT(memcmp(st_wrbuf[i], st_rdbuf[i], BLOCK_SIZE) == 0);
 
-	WITH_LOCK(&lock, stobio_fini, tests);
+	WITH_LOCK(&lock, stobio_fini, test);
 	stobio_storage_fini();
 	m0_mutex_fini(&lock);
 

@@ -56,6 +56,7 @@ static m0_bcount_t user_vc[NR];
 static m0_bcount_t stob_vc[NR];
 static char *user_buf[NR];
 static char *read_buf[NR];
+static char *zero_buf[NR];
 static char *user_bufs[NR];
 static char *read_bufs[NR];
 static m0_bindex_t stob_vi[NR];
@@ -214,6 +215,11 @@ static int test_ad_init(void)
 		M0_ASSERT(read_buf[i] != NULL);
 	}
 
+	for (i = 0; i < ARRAY_SIZE(zero_buf); ++i) {
+		zero_buf[i] = m0_alloc_aligned(buf_size, block_shift);
+		M0_ASSERT(zero_buf[i] != NULL);
+	}
+
 	init_vecs();
 
 	return rc;
@@ -235,6 +241,9 @@ static int test_ad_fini(void)
 
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i)
 		m0_free(read_buf[i]);
+
+	for (i = 0; i < ARRAY_SIZE(zero_buf); ++i)
+		m0_free(zero_buf[i]);
 
 	return 0;
 }
@@ -298,7 +307,7 @@ static void test_write(int nr, struct m0_dtx *tx)
 	m0_stob_io_fini(&io);
 }
 
-static void test_read(int i)
+static void test_read(int nr)
 {
 	int rc;
 
@@ -306,11 +315,11 @@ static void test_read(int i)
 
 	io.si_opcode = SIO_READ;
 	io.si_flags  = 0;
-	io.si_user.ov_vec.v_nr = i;
+	io.si_user.ov_vec.v_nr = nr;
 	io.si_user.ov_vec.v_count = user_vc;
 	io.si_user.ov_buf = (void **)read_bufs;
 
-	io.si_stob.iv_vec.v_nr = i;
+	io.si_stob.iv_vec.v_nr = nr;
 	io.si_stob.iv_vec.v_count = stob_vc;
 	io.si_stob.iv_index = stob_vi;
 
@@ -323,12 +332,52 @@ static void test_read(int i)
 	m0_chan_wait(&clink);
 
 	M0_ASSERT(io.si_rc == 0);
-	M0_ASSERT(io.si_count == (buf_size * i) >> block_shift);
+	M0_ASSERT(io.si_count == (buf_size * nr) >> block_shift);
 
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 
 	m0_stob_io_fini(&io);
+}
+
+static void test_punch(int nr)
+{
+	struct m0_sm_group *grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+	struct m0_dtx      *tx;
+	int                 rc;
+	int                 i;
+
+	tx = &g_tx;
+	m0_dtx_init(tx, &ut_be.but_dom, grp);
+	rc = obj_fore->so_ops->sop_punch_credit(obj_fore, &tx->tx_betx_cred);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_dtx_open_sync(tx);
+	M0_ASSERT(rc == 0);
+
+	io.si_stob.iv_vec.v_nr = nr;
+	io.si_stob.iv_vec.v_count = stob_vc;
+	io.si_stob.iv_index = stob_vi;
+
+	rc = obj_fore->so_ops->sop_punch(obj_fore, &io.si_stob, &g_tx);
+	M0_ASSERT(rc == 0);
+	rc = m0_dtx_done_sync(tx);
+	M0_ASSERT(rc == 0);
+	m0_dtx_fini(tx);
+
+	for (i = 0 ; i < nr; i++) {
+		struct m0_stob_ad_domain *adom;
+		struct m0_be_emap_cursor  it;
+		struct m0_ext            *ext;
+		adom = stob_ad_domain2ad(m0_stob_dom_get(obj_fore));
+		rc = stob_ad_cursor(adom, obj_fore, stob_vi[i], &it);
+		M0_ASSERT(rc == 0);
+		ext = &it.ec_seg.ee_ext;
+		M0_ASSERT(ext->e_start <= stob_vi[i]);
+		M0_ASSERT(ext->e_end   >= stob_vi[i] + stob_vc[i]);
+		M0_ASSERT(it.ec_seg.ee_val == AET_HOLE);
+		m0_be_emap_close(&it);
+	}
 }
 
 static void test_ad_rw_unordered()
@@ -378,6 +427,14 @@ static void test_ad(void)
 		for (j = 0; j < i; ++j)
 			M0_ASSERT(memcmp(user_buf[j], read_buf[j], buf_size) == 0);
 	}
+	for (i = 1; i <= NR; ++i) {
+		int j;
+		test_punch(i);
+		test_read(i);
+		for (j = 0; j < i; ++j)
+			M0_ASSERT(memcmp(zero_buf[j], read_buf[j], buf_size) == 0);
+	}
+
 }
 
 static void test_ad_undo(void)

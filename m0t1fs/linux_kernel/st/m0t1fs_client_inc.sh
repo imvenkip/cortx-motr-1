@@ -320,6 +320,7 @@ file_creation_test()
 		for ((j=$START_FID; j<$nr_files; ++j)); do
 			touch $MERO_M0T1FS_MOUNT_DIR/$j:$i || break
 			cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/$j:$i || break
+			dd if=$SOURCE_TXT of=$MERO_M0T1FS_MOUNT_DIR/$j:$i bs=8k conv=notrunc 2>/dev/null || break
 			cp -v $MERO_M0T1FS_MOUNT_DIR/$j:$i /tmp/dest.txt || break
 			diff -C 0 $SOURCE_TXT /tmp/dest.txt || {
 				echo "file content differ!!!!!!!!!!!!!!!!! at $j:$i file. "

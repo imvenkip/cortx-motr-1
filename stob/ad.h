@@ -36,11 +36,11 @@
    <b>Storage object type based on Allocation Data (AD) stored in a
    data-base.</b>
 
-   AD storage object type (m0_ad_stob_type) manages collections of storage
+   AD storage object type (m0_stob_ad_type) manages collections of storage
    objects with in an underlying storage object. The underlying storage object
    is specified per-domain by a call to m0_ad_stob_setup() function.
 
-   m0_ad_stob_type uses data-base (also specified as a parameter to
+   m0_stob_ad_type uses data-base (also specified as a parameter to
    m0_ad_stob_setup()) to store extent map (m0_emap) which keeps track of
    mapping between logical offsets in AD stobs and physical offsets within
    underlying stob.
@@ -114,6 +114,24 @@ M0_BASSERT(sizeof(M0_FIELD_VALUE(struct m0_stob_ad_domain, sad_path)) % 8 == 0);
 M0_BASSERT(sizeof(bool) == 1);
 
 /**
+   Types of allocation extents.
+
+   Values of this enum are stored as "physical extent start" in allocation
+   extents.
+ */
+enum stob_ad_allocation_extent_type {
+	/**
+	    Minimal "special" extent type. All values less than this are valid
+	    start values of normal allocated extents.
+	 */
+	AET_MIN = M0_BINDEX_MAX - (1ULL << 32),
+	/**
+	   This value is used to tag a hole in the storage object.
+	 */
+	AET_HOLE
+};
+
+/**
  * Minimilistic ad stob iterator.
  * This saves the last segment that was accessed during the stob operation.
  * @note: Currently used only for stob delete operation.
@@ -135,11 +153,22 @@ struct m0_stob_ad_io {
 
 extern const struct m0_stob_type m0_stob_ad_type;
 
+static inline struct m0_stob_ad_domain *
+stob_ad_domain2ad(const struct m0_stob_domain *dom)
+{
+	return container_of(dom, struct m0_stob_ad_domain, sad_base);
+}
+
 M0_INTERNAL bool m0_stob_ad_domain__invariant(struct m0_stob_ad_domain *adom);
 
 M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 				     const struct m0_be_seg *seg,
 				     const struct m0_stob_id *bstore_id);
+M0_INTERNAL int stob_ad_cursor(struct m0_stob_ad_domain *adom,
+			       struct m0_stob *obj,
+			       uint64_t offset,
+			       struct m0_be_emap_cursor *it);
+
 
 /** @} end group stobad */
 
