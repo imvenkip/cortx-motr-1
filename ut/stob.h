@@ -51,6 +51,7 @@ extern struct m0_modlev m0_levels_ut_stob[];
 extern const unsigned m0_levels_ut_stob_nr;
 
 M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get(void);
+M0_INTERNAL struct m0_stob *m0_ut_stob_linux_create(char *stob_create_cfg);
 M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get_by_key(uint64_t stob_key);
 M0_INTERNAL void m0_ut_stob_put(struct m0_stob *stob, bool destroy);
 

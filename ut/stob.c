@@ -133,18 +133,8 @@ M0_INTERNAL void m0_ut_stob_fini(void)
 }
 M0_EXPORTED(m0_ut_stob_fini);
 
-M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get(void)
-{
-	struct ut_stob_module *usm = ut_stob_module_get(true);
-	uint64_t stob_key;
-
-	m0_mutex_lock(&usm->usm_lock);
-	stob_key = usm->usm_stob_key++;
-	m0_mutex_unlock(&usm->usm_lock);
-	return m0_ut_stob_linux_get_by_key(stob_key);
-}
-
-M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get_by_key(uint64_t stob_key)
+static struct m0_stob *
+ut_stob_linux_create_by_key(uint64_t stob_key, char *stob_create_cfg)
 {
 	struct ut_stob_module *usm = ut_stob_module_get(true);
 	struct m0_stob	      *stob;
@@ -159,12 +149,39 @@ M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get_by_key(uint64_t stob_key)
 	rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
 	rc = m0_stob_state_get(stob) == CSS_NOENT ?
-	     m0_stob_create(stob, NULL, NULL) : 0;
+	     m0_stob_create(stob, NULL, stob_create_cfg) : 0;
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
 	M0_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
 
 	m0_mutex_unlock(&usm->usm_lock);
 	return stob;
+}
+
+static uint64_t ut_stob_linux_key_alloc(void)
+{
+	struct ut_stob_module *usm = ut_stob_module_get(true);
+	uint64_t               stob_key;
+
+	m0_mutex_lock(&usm->usm_lock);
+	stob_key = usm->usm_stob_key++;
+	m0_mutex_unlock(&usm->usm_lock);
+	return stob_key;
+}
+
+M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get(void)
+{
+	return m0_ut_stob_linux_get_by_key(ut_stob_linux_key_alloc());
+}
+
+M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get_by_key(uint64_t stob_key)
+{
+	return ut_stob_linux_create_by_key(stob_key, NULL);
+}
+
+M0_INTERNAL struct m0_stob *m0_ut_stob_linux_create(char *stob_create_cfg)
+{
+	return ut_stob_linux_create_by_key(ut_stob_linux_key_alloc(),
+					   stob_create_cfg);
 }
 
 M0_INTERNAL void m0_ut_stob_put(struct m0_stob *stob, bool destroy)
