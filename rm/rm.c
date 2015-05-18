@@ -2003,7 +2003,13 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 	/*
 	 * 1. Scan owned lists first. Check for "local" wait/try conditions.
 	 */
-	for (i = 0; i < ARRAY_SIZE(o->ro_owned); ++i) {
+	for (i = ARRAY_SIZE(o->ro_owned) - 1; i >= 0; --i) {
+		/*
+		 * Make sure cached credits are checked first.
+		 * It is better to use cached credit than held
+		 * if there are suitable credits in both lists.
+		 */
+		M0_CASSERT(OWOS_CACHED > OWOS_HELD);
 		m0_tl_for (m0_rm_ur, &o->ro_owned[i], r) {
 			M0_ASSERT(m0_rm_credit_bob_check(r));
 			if (!credit_intersects(r, rest))
@@ -2515,6 +2521,14 @@ static bool credit_invariant(const struct m0_rm_credit *credit, void *data)
 						     rin_want)));
 }
 
+static bool conflict_exists(const struct m0_rm_credit *cr,
+			    const struct m0_rm_owner  *owner)
+{
+	return m0_exists(i, ARRAY_SIZE(owner->ro_owned),
+			m0_tl_exists(m0_rm_ur, c2, &owner->ro_owned[i],
+				cr != c2 && cr->cr_ops->cro_conflicts(cr, c2)));
+}
+
 /**
  * Checks internal consistency of a resource owner.
  */
@@ -2559,6 +2573,12 @@ static bool owner_invariant_state(const struct m0_rm_owner     *owner,
 		    return false;
 	}
 	is->is_phase = OIS_INCOMING;
+
+	/* No any pair of owned credits conflicts */
+	if (m0_exists(i, ARRAY_SIZE(owner->ro_owned),
+			m0_tl_exists(m0_rm_ur, cr, &owner->ro_owned[i],
+				conflict_exists(cr, owner))))
+		return false;
 
 	/* Calculate credit */
 	return m0_forall(i, ARRAY_SIZE(owner->ro_incoming),
