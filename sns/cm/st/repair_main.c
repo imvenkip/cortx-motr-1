@@ -59,12 +59,12 @@ extern struct m0_rpc_client_ctx cl_ctx;
 extern const char *cl_ep_addr;
 extern const char *srv_ep_addr[MAX_SERVERS];
 
-extern struct m0_fop_type repair_trigger_fopt;
-extern struct m0_fop_type repair_quiesce_trigger_fopt;
-extern struct m0_fop_type repair_status_fopt;
-extern struct m0_fop_type rebalance_trigger_fopt;
-extern struct m0_fop_type rebalance_quiesce_trigger_fopt;
-extern struct m0_fop_type rebalance_status_fopt;
+extern struct m0_fop_type m0_sns_repair_trigger_fopt;
+extern struct m0_fop_type m0_sns_repair_quiesce_trigger_fopt;
+extern struct m0_fop_type m0_sns_repair_status_fopt;
+extern struct m0_fop_type m0_sns_rebalance_trigger_fopt;
+extern struct m0_fop_type m0_sns_rebalance_quiesce_trigger_fopt;
+extern struct m0_fop_type m0_sns_rebalance_status_fopt;
 
 static void usage(void)
 {
@@ -151,35 +151,26 @@ int main(int argc, char *argv[])
 	m0_mutex_unlock(&repair_wait_mutex);
 	start = m0_time_now();
 	for (i = 0; i < srv_cnt; ++i) {
-		struct m0_fop              *fop = NULL;
-		struct m0_fop              *rep_fop;
-		struct trigger_rep_fop     *trep;
-		struct sns_status_rep_fop  *srep;
+		struct m0_rpc_machine         *mach;
+		struct m0_fop                 *fop = NULL;
+		struct m0_fop                 *rep_fop;
+		struct trigger_rep_fop        *trep;
+		struct m0_sns_status_rep_fop  *srep;
 
 		session = &ctxs[i].ctx_session;
-		if (op == SNS_REPAIR)
-			fop = m0_fop_alloc_at(session, &repair_trigger_fopt);
-		else if (op == SNS_REPAIR_QUIESCE)
-			fop = m0_fop_alloc_at(session,
-					      &repair_quiesce_trigger_fopt);
-		else if (op == SNS_REBALANCE)
-			fop = m0_fop_alloc_at(session, &rebalance_trigger_fopt);
-		else if (op == SNS_REBALANCE_QUIESCE)
-			fop = m0_fop_alloc_at(session,
-					      &rebalance_quiesce_trigger_fopt);
-		else if (op == SNS_REPAIR_STATUS)
-			fop = m0_fop_alloc_at(session, &repair_status_fopt);
-		else if (op == SNS_REBALANCE_STATUS)
-			fop = m0_fop_alloc_at(session, &rebalance_status_fopt);
-		else
-			M0_IMPOSSIBLE("Invalid operation");
+		mach = m0_fop_session_machine(session);
+
+		rc = m0_sns_cm_trigger_fop_alloc(mach, op, &fop);
+		if (rc != 0)
+			return M0_ERR(rc);
+
 		treq = m0_fop_data(fop);
 		treq->op = op;
 
 		rc = m0_rpc_post_sync(fop, session, NULL, 0);
 		if (rc != 0) {
 			m0_fop_put_lock(fop);
-			return M0_RC(rc);
+			return M0_ERR(rc);
 		}
 		printf("trigger fop sent to %s\n", srv_ep_addr[i]);
 		rep_fop = m0_rpc_item_to_fop(fop->f_item.ri_reply);
@@ -188,7 +179,8 @@ int main(int argc, char *argv[])
 			m0_rpc_item_remote_ep_addr(&fop->f_item), op, trep->rc);
 		if (op == SNS_REPAIR_STATUS || op == SNS_REBALANCE_STATUS) {
 			srep = m0_fop_data(rep_fop);
-			printf(" status=%d progress=%lu\n", srep->status, srep->progress);
+			printf(" status=%d progress=%lu\n", srep->ssr_state,
+			       srep->ssr_progress);
 		} else
 			printf("\n");
 		rc = rc ?: trep->rc;

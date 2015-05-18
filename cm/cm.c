@@ -694,7 +694,7 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	M0_PRE(m0_cm_state_get(cm) == M0_CMS_IDLE);
 
         cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
-        if (cm->cm_pm == NULL) {
+        if (cm->cm_pm == NULL || M0_FI_ENABLED("prepare_failure")) {
                 rc = -EINVAL;
 		goto out;
 	}

@@ -28,6 +28,7 @@
 #include "conf/confc.h"        /* m0_confc */
 #include "conf/rconfc.h"       /* m0_rconfc */
 #include "reqh/reqh_service.h" /* enum m0_service_health */
+#include "sns/cm/cm.h"         /* m0_sns_cm_status */
 
 /**
  * @page spiel-dld Spiel API DLD
@@ -197,6 +198,14 @@ struct m0_rpc_machine;
 struct m0_pdclust_attr;
 struct m0_reqh;
 
+struct m0_spiel_sns_status {
+	/* SNS service fid */
+	struct m0_fid         sss_fid;
+	/* State of current repair/rebalance, see @ref m0_sns_cm_status*/
+	enum m0_sns_cm_status sss_state;
+	/* Progress of current repair/rebalance in percent */
+	unsigned int          sss_progress;
+};
 /**
  * Spiel instance context
  */
@@ -784,40 +793,157 @@ int m0_spiel_process_list_services(struct m0_spiel              *spl,
 				   struct m0_spiel_running_svc **services);
 
 /**
- * Start pool repair
+ * Starts pool repair.
+ *
+ * The command is synchronous. it waits replies from all SNS services that each
+ * one receives fop and starts repair. 0 is returned if each service replies
+ * with success result code. Spiel client is able to check status of the current
+ * repair process by calling of m0_spiel_pool_repair_status command.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
+ * @return 0 if all services reply with success result code, otherwise an error
+ * code from the first failed service (it replies with error) or confc (an error
+ * occurred during read of the configuration database)
+ *
+ * @see m0_spiel_pool_repair_status
  */
 int m0_spiel_pool_repair_start(struct m0_spiel     *spl,
 			       const struct m0_fid *pool_fid);
 
 /**
- * Quiesce pool repair
+ * Continues pool repair.
+ *
+ * The command is synchronous. it waits replies from all SNS services that each
+ * one receives fop and resumes repair which was paused by
+ * m0_spiel_pool_repair_quiesce(). 0 is returned if each service replies
+ * with success result code. Spiel client is able to check status of the current
+ * repair process by calling of m0_spiel_pool_repair_status command.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
- */
-int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
-			         const struct m0_fid *pool_fid);
-/**
- * Start pool rebalance
+ * @return number of the services if all services reply with success result
+ * code, otherwise an error code from the first failed service (it replies with
+ * error) or confc (an error occurred during read of the configuration database)
  *
- * @param spl            spiel instance
- * @param pool_fid       pool fid from configuration DB
+ * @see m0_spiel_pool_repair_status
+ * @see m0_spiel_pool_repair_quiesce
  */
-int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
-			          const struct m0_fid *pool_fid);
+int m0_spiel_pool_repair_continue(struct m0_spiel     *spl,
+				  const struct m0_fid *pool_fid);
 
 /**
- * Quiesce pool rebalance
+ * Quiesce pool repair.
+ *
+ * The command is synchronous. it waits replies from all SNS services that each
+ * one receives fop and pauses repair. 0 is returned if each service replies
+ * with success result code (repair process is in PAUSED state). Spiel client is
+ * able to check status of the current repair process by calling of
+ * m0_spiel_pool_repair_status command.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
+ * @return 0 if all services reply with success result code, otherwise an error
+ * code from the first failed service (it replies with error) or confc (an error
+ * occurred during read of the configuration database)
+ *
+ * @see m0_spiel_pool_repair_status
+ */
+int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid);
+
+/**
+ * Gets status pool repair.
+ *
+ * The command is synchronous. it waits replies from all SNS services.
+ *
+ * @param spl            spiel instance
+ * @param pool_fid       pool fid from configuration DB
+ * @param statuses       pointer where statuses of services will be stored
+ * @return number of services if all services reply with success result code,
+ * otherwise an error code from the first failed service (it replies with error)
+ * or confc (an error occurred during read of the configuration database)
+ */
+int m0_spiel_pool_repair_status(struct m0_spiel             *spl,
+				const struct m0_fid         *pool_fid,
+				struct m0_spiel_sns_status **statuses);
+
+
+/**
+ * Starts pool rebalance.
+ *
+ * The command is synchronous. it waits replies from all SNS services that each
+ * one receives fop and starts rebalance. 0 is returned if each service replies
+ * with success result code. Spiel client is able to check status of the current
+ * rebalance process by calling of m0_spiel_pool_rebalance_status command.
+ *
+ * @param spl            spiel instance
+ * @param pool_fid       pool fid from configuration DB
+ * @return 0 if all services reply with success result code, otherwise an error
+ * code from the first failed service (it replies with error) or confc (an error
+ * occurred during read of the configuration database)
+ *
+ * @see m0_spiel_pool_rebalance_status
+ */
+int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
+				  const struct m0_fid *pool_fid);
+
+/**
+ * Continues pool rebalance.
+ *
+ * The command is synchronous. it waits replies from all SNS services that each
+ * one receives fop and resumes rebalance which was paused. 0 is returned if
+ * each service replies with success result code. Spiel client is able to check
+ * status of the current rebalance process by calling of
+ * m0_spiel_pool_rebalance_status command.
+ *
+ * @param spl            spiel instance
+ * @param pool_fid       pool fid from configuration DB
+ * @return 0 if all services reply with success result code, otherwise an error
+ * code from the first failed service (it replies with error) or confc (an error
+ * occurred during read of the configuration database)
+ *
+ * @see m0_spiel_pool_rebalance_status
+ * @see m0_spiel_pool_rebalance_quiesce
+ */
+int m0_spiel_pool_rebalance_continue(struct m0_spiel     *spl,
+				     const struct m0_fid *pool_fid);
+
+/**
+ * Quiesce pool rebalance.
+ *
+ * The command is synchronous. it waits replies from all SNS services that each
+ * one receives fop and pauses rebalance. 0 is returned if each service replies
+ * with success result code (rebalance process is in PAUSED state). Spiel client
+ * is able to check status of the current rebalance process by calling of
+ * m0_spiel_pool_rebalance_status command.
+ *
+ * @param spl            spiel instance
+ * @param pool_fid       pool fid from configuration DB
+ * @return 0 if all services reply with success result code, otherwise an error
+ * code from the first failed service (it replies with error) or confc (an error
+ * occurred during read of the configuration database)
+ *
+ * @see m0_spiel_pool_rebalance_status
  */
 int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
 				    const struct m0_fid *pool_fid);
 
+/**
+ * Gets status pool rebalance.
+ *
+ * The command is synchronous. it waits replies from all SNS services.
+ *
+ * @param spl            spiel instance
+ * @param pool_fid       pool fid from configuration DB
+ * @param statuses       pointer where statuses of services will be stored
+ * @return number of the servies if all services reply with success result code,
+ * otherwise an error code from the first failed service (it replies with error)
+ * or confc (an error occurred during read of the configuration database)
+ */
+int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
+				   const struct m0_fid         *pool_fid,
+				   struct m0_spiel_sns_status **statuses);
 
 /**
  * Mero filesystem stats. The stats are collected from all processes of the
@@ -853,7 +979,6 @@ struct m0_fs_stats {
 int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spiel,
 				    const struct m0_fid *fs_fid,
 				    struct m0_fs_stats  *stats);
-
 
 /** @} end of spiel group */
 #endif /* __MERO_SPIEL_SPIEL_H__ */

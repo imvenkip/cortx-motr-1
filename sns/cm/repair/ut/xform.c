@@ -424,8 +424,6 @@ static void test_multi_cp_multi_failures(void)
 	struct m0_net_buffer *nbuf;
 	struct m0_sns_cm_ag  *sag;
 
-	m0_fi_enable("m0_sns_cm_tgt_ep", "ut-case");
-
 	m0_semaphore_init(&sem, 0);
 	ag_prepare(&n_rag, MULTI_FAILURES, &group_multi_fail_multi_cp_ops,
 		   n_fc);
@@ -511,8 +509,6 @@ static void test_multi_cp_multi_failures(void)
 		     MULTI_FAIL_MULTI_CP_NR);
         M0_UT_ASSERT(sag->sag_base.cag_cp_local_nr == MULTI_FAIL_MULTI_CP_NR);
 	cp_buf_free(sag);
-
-	m0_fi_disable("m0_sns_cm_tgt_ep", "ut-case");
 }
 
 /*

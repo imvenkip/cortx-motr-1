@@ -29,6 +29,20 @@
 
 #include "cm/cm.h"
 
+extern struct m0_fop_type m0_sns_repair_trigger_fopt;
+extern struct m0_fop_type m0_sns_repair_quiesce_trigger_fopt;
+extern struct m0_fop_type m0_sns_repair_status_fopt;
+extern struct m0_fop_type m0_sns_rebalance_trigger_fopt;
+extern struct m0_fop_type m0_sns_rebalance_quiesce_trigger_fopt;
+extern struct m0_fop_type m0_sns_rebalance_status_fopt;
+
+extern struct m0_fop_type m0_sns_repair_trigger_rep_fopt;
+extern struct m0_fop_type m0_sns_repair_quiesce_trigger_rep_fopt;
+extern struct m0_fop_type m0_sns_repair_status_rep_fopt;
+extern struct m0_fop_type m0_sns_rebalance_trigger_rep_fopt;
+extern struct m0_fop_type m0_sns_rebalance_quiesce_trigger_rep_fopt;
+extern struct m0_fop_type m0_sns_rebalance_status_rep_fopt;
+
 struct failure_data {
 	uint32_t  fd_nr;
 	uint64_t *fd_index;
@@ -39,17 +53,17 @@ struct failure_data {
  * only.
  */
 struct trigger_fop {
-	uint32_t            op;
+	uint32_t op;
 } M0_XCA_RECORD;
 
 struct trigger_rep_fop {
 	int32_t rc;
 } M0_XCA_RECORD;
 
-struct sns_status_rep_fop {
-	int32_t  rc;
-	uint32_t status;
-	uint64_t progress;
+struct m0_sns_status_rep_fop {
+	int32_t  ssr_rc;
+	uint32_t ssr_state;
+	uint64_t ssr_progress;
 } M0_XCA_RECORD;
 
 M0_INTERNAL void m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,
@@ -61,6 +75,9 @@ M0_INTERNAL void m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,
 
 M0_INTERNAL void m0_sns_cm_trigger_fop_fini(struct m0_fop_type *ft);
 
+M0_INTERNAL int m0_sns_cm_trigger_fop_alloc(struct m0_rpc_machine  *mach,
+					    uint32_t                op,
+					    struct m0_fop         **fop);
 #endif
 /*
  *  Local variables:

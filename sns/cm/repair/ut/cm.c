@@ -454,29 +454,23 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 
 static void iter_repair_single_file(void)
 {
-	m0_fi_enable("m0_sns_cm_tgt_ep", "ut-case");
 	iter_setup(SNS_REPAIR, 2);
 	iter_run(10, 1);
 	iter_stop(10, 1, 2);
-	m0_fi_disable("m0_sns_cm_tgt_ep", "ut-case");
 }
 
 static void iter_repair_multi_file(void)
 {
-	m0_fi_enable("m0_sns_cm_tgt_ep", "ut-case");
 	iter_setup(SNS_REPAIR, 5);
 	iter_run(10, 2);
 	iter_stop(10, 2, 5);
-	m0_fi_disable("m0_sns_cm_tgt_ep", "ut-case");
 }
 
 static void iter_repair_large_file_with_large_unit_size(void)
 {
-	m0_fi_enable("m0_sns_cm_tgt_ep", "ut-case");
 	iter_setup(SNS_REPAIR, 9);
 	iter_run(10, 1);
 	iter_stop(10, 1, 9);
-	m0_fi_disable("m0_sns_cm_tgt_ep", "ut-case");
 }
 
 /*
@@ -513,11 +507,9 @@ static void iter_rebalance_large_file_with_large_unit_size(void)
 
 static void iter_invalid_nr_cobs(void)
 {
-	m0_fi_enable("m0_sns_cm_tgt_ep", "ut-case");
 	iter_setup(SNS_REPAIR, 7);
 	iter_run(3, 1);
 	iter_stop(3, 1, 7);
-	m0_fi_disable("m0_sns_cm_tgt_ep", "ut-case");
 }
 
 struct m0_ut_suite sns_cm_repair_ut = {

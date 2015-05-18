@@ -23,12 +23,40 @@
 #ifndef __MERO_SNS_CM_SERVICE_H__
 #define __MERO_SNS_CM_SERVICE_H__
 
+#include "cm/cm.h"
 /**
   @defgroup SNSCMSVC SNS copy machine service
   @ingroup SNSCM
 
   @{
 */
+
+/**
+   State of current running repair or rebalance process. It is used for
+   indicating. It is used to show the status of the operation to the Spiel
+   %client.
+
+   @dot
+   digraph sns_service_states {
+       node [shape=ellipse, fontsize=12];
+       INIT [shape=point];
+       IDLE [label="IDLE"];
+       STARTED [label="STARTED"];
+       PAUSED [label="PAUSED"];
+       FAILED [label="FAILED"];
+       INIT -> IDLE;
+       IDLE -> STARTED [label="Start"];
+       STARTED -> IDLE [label="Finish"];
+       STARTED -> PAUSED [label="Pause"];
+       PAUSED -> STARTED [label="Resume"];
+       STARTED -> FAILED [label="Fail"];
+       FAILED -> STARTED [label="Start again"];
+   }
+   @enddot
+
+   @see m0_spiel_pool_repair_status
+   @see m0_spiel_pool_rebalance_status
+ */
 
 /**
  * Allocates and initialises SNS copy machine.

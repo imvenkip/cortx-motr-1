@@ -37,6 +37,8 @@
 #include "rpc/link.h"
 #include "rpc/rpclib.h"         /* m0_rpc_post_sync */
 #include "sss/device_fops.h"
+#include "sns/cm/cm.h"          /* m0_sns_cm_op */
+#include "sns/cm/trigger_fop.h"
 #include "sss/ss_fops.h"
 #include "sss/process_fops.h"
 #include "spiel/spiel.h"
@@ -894,54 +896,405 @@ M0_EXPORTED(m0_spiel_process_list_services);
 /*                      Pools                       */
 /****************************************************/
 
-int m0_spiel_pool_repair_start(struct m0_spiel     *spl,
-			       const struct m0_fid *pool_fid)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_pool_repair_start);
-
-int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
-				 const struct m0_fid *pool_fid)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_pool_repair_quiesce);
-
-int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
-				  const struct m0_fid *pool_fid)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_pool_rebalance_start);
-
-int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
-				    const struct m0_fid *pool_fid)
-{
-	int rc = 0;
-	M0_ENTRY();
-
-	return M0_RC(rc);
-}
-M0_EXPORTED(m0_spiel_pool_rebalance_quiesce);
-
-/****************************************************/
-/*                    Filesystem                    */
-/****************************************************/
-
 M0_TL_DESCR_DEFINE(fs_items, "list of items fs operates on",
 		   static, struct _stats_item, i_link, i_magic,
 		   M0_STATS_MAGIC, M0_STATS_HEAD_MAGIC);
 M0_TL_DEFINE(fs_items, static, struct _stats_item);
+
+static int spiel_stats_item_add(struct m0_tl *tl, const struct m0_fid *fid)
+{
+	struct _stats_item *si;
+
+	M0_ALLOC_PTR(si);
+	if (si == NULL)
+		return M0_ERR(-ENOMEM);
+	si->i_fid = *fid;
+	fs_items_tlink_init_at(si, tl);
+	return M0_RC(0);
+}
+
+
+static bool _filter_pool(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_POOL_TYPE;
+}
+
+static int spiel_sns_fop_fill_and_send(struct m0_spiel        *spl,
+				       struct m0_fop          *fop,
+				       struct m0_conf_service *svc,
+				       enum m0_sns_cm_op       op)
+{
+	struct trigger_fop *treq = m0_fop_data(fop);
+
+	M0_ENTRY("fop %p conf_service %p", fop, svc);
+	treq->op = op;
+	return M0_RC(spiel_cmd_send(spl->spl_rmachine, svc->cs_endpoints[0],
+				    fop, M0_TIME_NEVER));
+}
+
+static int spiel_sns_status_reply(int                           rc,
+				  const struct m0_fop          *fop,
+				  const struct m0_conf_service *svc,
+				  struct m0_spiel_sns_status   *status)
+{
+	struct m0_sns_status_rep_fop *reply;
+
+	M0_ENTRY("fop %p", fop);
+	M0_PRE(status != NULL);
+	status->sss_fid = svc->cs_obj.co_id;
+	if (rc == 0) {
+		reply = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+		status->sss_state = reply->ssr_state;
+		status->sss_progress = reply->ssr_progress;
+	} else {
+		status->sss_state = rc;
+	}
+	return M0_RC(0);
+}
+
+/** pool stats collection context */
+struct _pool_cmd_ctx {
+	int              pl_rc;
+	struct m0_spiel *pl_spl;           /*< spiel instance           */
+	struct m0_confc *pl_confc;         /*< confc instance           */
+	struct m0_tl     pl_sdevs_fid;     /*< storage devices fid list */
+	struct m0_tl     pl_services_fid;  /*< services fid list        */
+};
+
+static int spiel_pool_device_collect(struct _pool_cmd_ctx *ctx,
+				     struct m0_conf_obj *obj_diskv)
+{
+	struct m0_conf_objv *diskv;
+	struct m0_conf_obj  *obj_disk;
+	struct m0_conf_disk *disk;
+	int                  rc;
+
+	diskv = M0_CONF_CAST(obj_diskv, m0_conf_objv);
+	if (diskv == NULL ||
+	    m0_conf_obj_type(diskv->cv_real) != &M0_CONF_DISK_TYPE)
+		return M0_ERR(-ENOENT);
+
+	rc = m0_confc_open_by_fid_sync(ctx->pl_confc,
+				       &diskv->cv_real->co_id, &obj_disk);
+	if (rc != 0)
+		return M0_RC(rc);
+
+	disk = M0_CONF_CAST(obj_disk, m0_conf_disk);
+	if (disk->ck_dev != NULL)
+		rc = spiel_stats_item_add(&ctx->pl_sdevs_fid,
+					  &disk->ck_dev->sd_obj.co_id);
+
+	m0_confc_close(obj_disk);
+	return M0_RC(rc);
+}
+
+static bool _filter_sdev(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE;
+}
+
+static bool spiel__pool_service_has_sdev(struct _pool_cmd_ctx *ctx,
+					 const struct m0_conf_obj *service)
+{
+	struct m0_conf_diter it;
+	struct m0_conf_obj  *obj;
+	int                  rc;
+	bool                 found = false;
+
+	rc = m0_conf_diter_init(&it, ctx->pl_confc,
+				(struct m0_conf_obj*)service,
+				M0_CONF_SERVICE_SDEVS_FID);
+
+	if (rc != 0)
+		goto done;
+
+	while ((rc = m0_conf_diter_next_sync(&it, _filter_sdev))
+						== M0_CONF_DIRNEXT && !found) {
+		obj = m0_conf_diter_result(&it);
+		if (m0_tl_find(fs_items, si, &ctx->pl_sdevs_fid,
+			      m0_fid_cmp(&si->i_fid, &obj->co_id) == 0) != NULL)
+			found = true;
+	}
+	m0_conf_diter_fini(&it);
+
+done:
+	return found;
+}
+
+#define LOG_LVL M0_FATAL
+
+static void spiel__pool_ctx_init(struct _pool_cmd_ctx *ctx,
+				 struct m0_spiel      *spl)
+{
+	M0_SET0(ctx);
+	ctx->pl_spl = spl;
+	ctx->pl_confc = &spl->spl_rconfc.rc_confc;
+	fs_items_tlist_init(&ctx->pl_sdevs_fid);
+	fs_items_tlist_init(&ctx->pl_services_fid);
+	M0_POST(fs_items_tlist_invariant(&ctx->pl_sdevs_fid));
+	M0_POST(fs_items_tlist_invariant(&ctx->pl_services_fid));
+}
+
+static void spiel__pool_ctx_fini(struct _pool_cmd_ctx *ctx)
+{
+	struct _stats_item *si;
+
+	if (!fs_items_tlist_is_empty(&ctx->pl_sdevs_fid))
+		m0_tl_teardown(fs_items, &ctx->pl_sdevs_fid, si) {
+			m0_free(si);
+		}
+	fs_items_tlist_fini(&ctx->pl_sdevs_fid);
+
+	if (!fs_items_tlist_is_empty(&ctx->pl_services_fid))
+		m0_tl_teardown(fs_items, &ctx->pl_services_fid, si) {
+			m0_free(si);
+		}
+	fs_items_tlist_fini(&ctx->pl_services_fid);
+}
+
+static bool spiel__pool_service_select(const struct m0_conf_obj *item,
+				       void                     *ctx)
+{
+	struct _pool_cmd_ctx   *pool_ctx = ctx;
+	struct m0_conf_service *service;
+
+	/* continue iterating only when no issue occurred previously */
+	if (pool_ctx->pl_rc != 0)
+		return false;
+	/* skip all but service objects */
+	if (m0_conf_fid_type(&item->co_id) != &M0_CONF_SERVICE_TYPE)
+		return true;
+
+	service = M0_CONF_CAST(item, m0_conf_service);
+
+	if (service->cs_type == M0_CST_IOS &&
+	    spiel__pool_service_has_sdev(pool_ctx, item) == true)
+		pool_ctx->pl_rc = spiel_stats_item_add(
+						&pool_ctx->pl_services_fid,
+						&item->co_id);
+	return true;
+}
+
+static int spiel__pool_cmd_send(struct _pool_cmd_ctx        *ctx,
+				 struct m0_fid              *service_fid,
+				 const enum m0_sns_cm_op     cmd,
+				 int                         index,
+				 struct m0_spiel_sns_status *statuses)
+{
+	struct m0_conf_obj     *svc_obj;
+	struct m0_conf_service *svc;
+	struct m0_fop          *fop = NULL;
+	int                     rc;
+
+	rc = m0_confc_open_by_fid_sync(ctx->pl_confc, service_fid, &svc_obj);
+	if(rc != 0)
+		return M0_ERR(rc);
+
+	svc = M0_CONF_CAST(svc_obj, m0_conf_service);
+	rc = m0_sns_cm_trigger_fop_alloc(ctx->pl_spl->spl_rmachine, cmd, &fop)?:
+	     spiel_sns_fop_fill_and_send(ctx->pl_spl, fop, svc, cmd);
+	if (M0_IN(cmd, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS)))
+		rc = spiel_sns_status_reply(rc, fop, svc, &statuses[index]);
+
+	m0_confc_close(svc_obj);
+
+	return M0_RC(rc);
+}
+
+static bool _filter_objv(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE;
+}
+
+static int spiel_pool__device_collection_fill(struct _pool_cmd_ctx *ctx,
+					      const struct m0_fid  *pool_fid)
+{
+	struct m0_confc      *confc = &ctx->pl_spl->spl_rconfc.rc_confc;
+	struct m0_conf_obj   *pool_obj = NULL;
+	struct m0_conf_obj   *obj;
+	struct m0_conf_diter  it;
+	int                   rc;
+	M0_ENTRY();
+
+	rc = SPIEL_CONF_OBJ_FIND(confc, &ctx->pl_spl->spl_profile, pool_fid,
+				 &pool_obj, _filter_pool,
+				 M0_CONF_FILESYSTEM_POOLS_FID) ?:
+	     m0_conf_diter_init(&it, confc, pool_obj,
+				M0_CONF_POOL_PVERS_FID,
+				M0_CONF_PVER_RACKVS_FID,
+				M0_CONF_RACKV_ENCLVS_FID,
+				M0_CONF_ENCLV_CTRLVS_FID,
+				M0_CONF_CTRLV_DISKVS_FID);
+
+	if (rc != 0)
+		goto leave;
+
+	while ((rc = m0_conf_diter_next_sync(&it, _filter_objv))
+							== M0_CONF_DIRNEXT) {
+		obj = m0_conf_diter_result(&it);
+		/* Pin obj to protect it from removal while being in use */
+		m0_mutex_lock(&confc->cc_lock);
+		m0_conf_obj_get(obj);
+		m0_mutex_unlock(&confc->cc_lock);
+		spiel_pool_device_collect(ctx, obj);
+		m0_mutex_lock(&confc->cc_lock);
+		m0_conf_obj_put(obj);
+		m0_mutex_unlock(&confc->cc_lock);
+	}
+	m0_conf_diter_fini(&it);
+
+leave:
+	m0_confc_close(pool_obj);
+	return M0_RC(rc);
+}
+
+static int spiel_pool_generic_handler(struct m0_spiel             *spl,
+				      const struct m0_fid         *pool_fid,
+				      const enum m0_sns_cm_op      cmd,
+				      struct m0_spiel_sns_status **statuses)
+{
+	int                   rc;
+	int                   service_count;
+	int                   index;
+	struct _pool_cmd_ctx  ctx;
+	struct _stats_item   *si;
+	bool                  cmd_status;
+
+	M0_ENTRY();
+	M0_PRE(pool_fid != NULL);
+
+	if (m0_conf_fid_type(pool_fid) != &M0_CONF_POOL_TYPE)
+		return M0_ERR(-EINVAL);
+
+	spiel__pool_ctx_init(&ctx, spl);
+
+	rc = spiel_pool__device_collection_fill(&ctx, pool_fid) ?:
+	     SPIEL_CONF_DIR_ITERATE(ctx.pl_confc, &spl->spl_profile, &ctx,
+				    spiel__pool_service_select, NULL,
+				    M0_CONF_FILESYSTEM_NODES_FID,
+				    M0_CONF_NODE_PROCESSES_FID,
+				    M0_CONF_PROCESS_SERVICES_FID);
+	if (rc != 0)
+		goto leave;
+	if (ctx.pl_rc != 0) {
+		rc = ctx.pl_rc;
+		goto leave;
+	}
+
+	cmd_status = M0_IN(cmd, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS));
+	service_count = fs_items_tlist_length(&ctx.pl_services_fid);
+
+	if (cmd_status) {
+		M0_ALLOC_ARR(*statuses, service_count);
+		if (*statuses == NULL) {
+			rc = -ENOMEM;
+			goto leave;
+		}
+	}
+
+	index = 0;
+	m0_tl_for(fs_items, &ctx.pl_services_fid, si) {
+		M0_ASSERT(index < service_count);
+		rc = spiel__pool_cmd_send(&ctx, &si->i_fid, cmd, index,
+					  cmd_status ? *statuses : NULL);
+		++index;
+		if (rc != 0)
+			break;
+	} m0_tl_endfor;
+
+	if (rc == 0 && cmd_status)
+		rc = index;
+
+leave:
+	spiel__pool_ctx_fini(&ctx);
+	return M0_RC(rc);
+}
+
+int m0_spiel_pool_repair_start(struct m0_spiel     *spl,
+			       const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(spl, pool_fid, SNS_REPAIR,
+						NULL));
+}
+M0_EXPORTED(m0_spiel_pool_repair_start);
+
+int m0_spiel_pool_repair_continue(struct m0_spiel     *spl,
+				  const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(spl, pool_fid,
+						SNS_REPAIR, NULL));
+}
+M0_EXPORTED(m0_spiel_pool_repair_continue);
+
+int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(spl, pool_fid,
+						SNS_REPAIR_QUIESCE, NULL));
+}
+M0_EXPORTED(m0_spiel_pool_repair_quiesce);
+
+int m0_spiel_pool_repair_status(struct m0_spiel             *spl,
+				const struct m0_fid         *pool_fid,
+				struct m0_spiel_sns_status **statuses)
+{
+	int rc;
+
+	M0_ENTRY();
+	M0_PRE(statuses != NULL);
+	rc = spiel_pool_generic_handler(spl, pool_fid, SNS_REPAIR_STATUS,
+					statuses);
+	return rc >= 0 ? M0_RC(rc) : M0_ERR(rc);
+}
+M0_EXPORTED(m0_spiel_pool_repair_status);
+
+int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
+				  const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(spl, pool_fid, SNS_REBALANCE,
+						NULL));
+}
+M0_EXPORTED(m0_spiel_pool_rebalance_start);
+
+int m0_spiel_pool_rebalance_continue(struct m0_spiel     *spl,
+				     const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(spl, pool_fid,
+						SNS_REBALANCE, NULL));
+}
+M0_EXPORTED(m0_spiel_pool_rebalance_continue);
+
+int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
+				    const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(spl, pool_fid,
+						SNS_REBALANCE_QUIESCE, NULL));
+}
+M0_EXPORTED(m0_spiel_pool_rebalance_quiesce);
+
+int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
+				   const struct m0_fid         *pool_fid,
+				   struct m0_spiel_sns_status **statuses)
+{
+	int rc;
+
+	M0_ENTRY();
+	M0_PRE(statuses != NULL);
+	rc = spiel_pool_generic_handler(spl, pool_fid, SNS_REPAIR_STATUS,
+					statuses);
+	return rc >= 0 ? M0_RC(rc) : M0_ERR(rc);
+}
+M0_EXPORTED(m0_spiel_pool_rebalance_status);
+
+/****************************************************/
+/*                    Filesystem                    */
+/****************************************************/
 
 static void spiel__fs_stats_ctx_init(struct _fs_stats_ctx *fsx,
 			      struct m0_spiel *spl,

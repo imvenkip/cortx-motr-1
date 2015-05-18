@@ -42,7 +42,7 @@ int spiel_ci_ut_init(void)
 {
 	int rc;
 
-	rc= m0_spiel__ut_init(&spiel, M0_UT_PATH("conf-str.txt"));
+	rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("conf-str.txt"));
 	M0_UT_ASSERT(rc == 0);
 	return 0;
 }
@@ -250,8 +250,178 @@ void test_spiel_fs_stats(void)
 	spiel_ci_ut_fini();
 }
 
+static void test_spiel_pool_repair(void)
+{
+	const struct m0_fid         pool_fid = M0_FID_TINIT(
+				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 4);
+	struct m0_fid               svc_fid = M0_FID_TINIT(
+				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 10);
+	struct m0_fid               pool_invalid_fid = M0_FID_TINIT(
+				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 3);
+	struct m0_fid               invalid_fid = M0_FID_TINIT(
+				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 4);
+	struct m0_spiel_sns_status *status;
+	enum m0_sns_cm_status       state;
+	int                         rc;
+
+	spiel_ci_ut_init();
+	rc = m0_spiel_pool_repair_start(&spiel, &invalid_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pool_repair_start(&spiel, &pool_invalid_fid);
+	M0_UT_ASSERT(rc == -ENOENT);
+
+	rc = m0_spiel_pool_repair_quiesce(&spiel, &invalid_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+	rc = m0_spiel_pool_repair_continue(&spiel, &invalid_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+	rc = m0_spiel_pool_repair_status(&spiel, &invalid_fid, &status);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pool_repair_status(&spiel, &pool_fid, &status);
+	M0_LOG(M0_DEBUG, "rc = %d", rc);
+	M0_UT_ASSERT(rc == 1);
+	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
+	M0_UT_ASSERT(status[0].sss_state == SNS_CM_STATUS_IDLE);
+	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	m0_free(status);
+
+	rc = m0_spiel_pool_repair_start(&spiel, &pool_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_pool_repair_status(&spiel, &pool_fid, &status);
+	M0_UT_ASSERT(rc == 1);
+	state = status[0].sss_state;
+	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
+	M0_UT_ASSERT(M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_STARTED,
+				   SNS_CM_STATUS_FAILED)));
+	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	m0_free(status);
+	if (M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_FAILED)))
+		goto done;
+
+	rc = m0_spiel_pool_repair_quiesce(&spiel, &pool_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_pool_repair_status(&spiel, &pool_fid, &status);
+	M0_UT_ASSERT(rc == 1);
+	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
+	M0_UT_ASSERT(status[0].sss_state = SNS_CM_STATUS_PAUSED);
+	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	m0_free(status);
+
+	rc = m0_spiel_pool_repair_continue(&spiel, &pool_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	while(1) {
+		rc = m0_spiel_pool_repair_status(&spiel, &pool_fid, &status);
+		M0_UT_ASSERT(rc == 1);
+		state = status[0].sss_state;
+		M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
+		M0_UT_ASSERT(M0_IN(state, (SNS_CM_STATUS_IDLE,
+					   SNS_CM_STATUS_STARTED,
+					   SNS_CM_STATUS_FAILED)));
+		M0_UT_ASSERT(status[0].sss_progress >= 0);
+		m0_free(status);
+
+		if (M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_FAILED)))
+			break;
+		m0_nanosleep(m0_time(5, 0), NULL);
+	}
+
+done:
+	spiel_ci_ut_fini();
+}
+
+static void test_spiel_pool_rebalance(void)
+{
+	const struct m0_fid         pool_fid = M0_FID_TINIT(
+				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 4);
+	struct m0_fid               svc_fid = M0_FID_TINIT(
+				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 10);
+	struct m0_fid               pool_invalid_fid = M0_FID_TINIT(
+				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 3);
+	struct m0_fid               invalid_fid = M0_FID_TINIT(
+				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 4);
+	struct m0_spiel_sns_status *status;
+	enum m0_sns_cm_status       state;
+	int                         rc;
+
+	spiel_ci_ut_init();
+	rc = m0_spiel_pool_rebalance_start(&spiel, &invalid_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pool_rebalance_start(&spiel, &pool_invalid_fid);
+	M0_UT_ASSERT(rc == -ENOENT);
+
+	rc = m0_spiel_pool_rebalance_quiesce(&spiel, &invalid_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+	rc = m0_spiel_pool_rebalance_continue(&spiel, &invalid_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+	rc = m0_spiel_pool_rebalance_status(&spiel, &invalid_fid, &status);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pool_rebalance_status(&spiel, &pool_fid, &status);
+	M0_UT_ASSERT(rc == 1);
+	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
+	M0_UT_ASSERT(status[0].sss_state == SNS_CM_STATUS_IDLE);
+	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	m0_free(status);
+
+	rc = m0_spiel_pool_rebalance_start(&spiel, &pool_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_pool_rebalance_status(&spiel, &pool_fid, &status);
+	M0_UT_ASSERT(rc == 1);
+	state = status[0].sss_state;
+	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
+	M0_UT_ASSERT(M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_STARTED,
+				   SNS_CM_STATUS_FAILED)));
+	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	m0_free(status);
+	if (M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_FAILED)))
+		goto done;
+
+	rc = m0_spiel_pool_rebalance_quiesce(&spiel, &pool_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_pool_rebalance_status(&spiel, &pool_fid, &status);
+	M0_UT_ASSERT(rc == 1);
+	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
+	M0_UT_ASSERT(status[0].sss_state = SNS_CM_STATUS_PAUSED);
+	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	m0_free(status);
+
+	rc = m0_spiel_pool_rebalance_continue(&spiel, &pool_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	while(1) {
+		rc = m0_spiel_pool_rebalance_status(&spiel, &pool_fid, &status);
+		M0_UT_ASSERT(rc == 1);
+		state = status[0].sss_state;
+		M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
+		M0_UT_ASSERT(M0_IN(state, (SNS_CM_STATUS_IDLE,
+					   SNS_CM_STATUS_STARTED,
+					   SNS_CM_STATUS_FAILED)));
+		M0_UT_ASSERT(status[0].sss_progress >= 0);
+		m0_free(status);
+
+		if (M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_FAILED)))
+			break;
+		m0_nanosleep(m0_time(5, 0), NULL);
+	}
+
+done:
+	spiel_ci_ut_fini();
+}
+
+static int spiel_db_fini() {
+	return system("rm -rf ut_spiel.db/");
+}
+
 struct m0_ut_suite spiel_ci_ut = {
 	.ts_name  = "spiel-ci-ut",
+	.ts_fini  = spiel_db_fini,
 	.ts_tests = {
 		{ "service-cmds", test_spiel_service_cmds },
 		{ "process-cmds", test_spiel_process_cmds },
@@ -259,6 +429,8 @@ struct m0_ut_suite spiel_ci_ut = {
 		{ "process-services-list", test_spiel_process_services_list },
 		{ "device-cmds", test_spiel_device_cmds },
 		{ "stats", test_spiel_fs_stats },
+		{ "pool-repair", test_spiel_pool_repair },
+		{ "pool-rebalance", test_spiel_pool_rebalance },
 		{ NULL, NULL }
 	}
 };

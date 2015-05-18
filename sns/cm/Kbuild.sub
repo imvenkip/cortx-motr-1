@@ -1,3 +1,4 @@
 m0mero_objects += sns/cm/sns_cp_onwire_xc.o \
                   sns/cm/sw_onwire_fop_xc.o \
+                  sns/cm/trigger_fop_common.o \
                   sns/cm/trigger_fop_xc.o

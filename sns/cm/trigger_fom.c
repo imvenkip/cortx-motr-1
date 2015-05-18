@@ -40,6 +40,7 @@
 #include "cm/cm.h"
 
 #include "sns/cm/trigger_fop.h"
+#include "sns/cm/trigger_fom.h"
 #include "sns/cm/cm.h"
 
 #include "pool/pool_machine.h"
@@ -58,127 +59,79 @@ static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 static void trigger_fom_fini(struct m0_fom *fom);
 static size_t trigger_fom_home_locality(const struct m0_fom *fom);
 
-extern struct m0_fop_type repair_trigger_fopt;
-extern struct m0_fop_type repair_quiesce_trigger_fopt;
-extern struct m0_fop_type repair_status_fopt;
-extern struct m0_fop_type rebalance_trigger_fopt;
-extern struct m0_fop_type rebalance_quiesce_trigger_fopt;
-extern struct m0_fop_type rebalance_status_fopt;
-
-extern struct m0_fop_type repair_trigger_rep_fopt;
-extern struct m0_fop_type repair_quiesce_trigger_rep_fopt;
-extern struct m0_fop_type repair_status_rep_fopt;
-extern struct m0_fop_type rebalance_trigger_rep_fopt;
-extern struct m0_fop_type rebalance_quiesce_trigger_rep_fopt;
-extern struct m0_fop_type rebalance_status_rep_fopt;
-
 static const struct m0_fom_ops trigger_fom_ops = {
 	.fo_fini          = trigger_fom_fini,
 	.fo_tick          = trigger_fom_tick,
 	.fo_home_locality = trigger_fom_home_locality
 };
 
-static const struct m0_fom_type_ops trigger_fom_type_ops = {
+const struct m0_fom_type_ops m0_sns_trigger_fom_type_ops = {
 	.fto_create = trigger_fom_create,
 };
 
-enum trigger_phases {
-	TPH_PREPARE = M0_FOPH_NR + 1,
-	TPH_READY,
-	TPH_START,
-	TPH_FINI = M0_FOM_PHASE_FINISH
-};
-
-static struct m0_sm_state_descr trigger_phases[] = {
-	[TPH_PREPARE] = {
+struct m0_sm_state_descr m0_sns_trigger_phases[] = {
+	[M0_SNS_TPH_PREPARE] = {
 		.sd_name      = "Prepare copy machine",
-		.sd_allowed   = M0_BITS(TPH_READY, M0_FOPH_FAILURE, M0_FOPH_SUCCESS)
+		.sd_allowed   = M0_BITS(M0_SNS_TPH_READY,
+					M0_FOPH_FAILURE, M0_FOPH_SUCCESS)
 	},
-	[TPH_READY] = {
+	[M0_SNS_TPH_READY] = {
 		.sd_name      = "Send ready fops",
-		.sd_allowed   = M0_BITS(TPH_START, M0_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(M0_SNS_TPH_START, M0_FOPH_FAILURE)
 	},
-	[TPH_START] = {
+	[M0_SNS_TPH_START] = {
 		.sd_name      = "Start sns repair/rebalance",
 		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE)
 	},
 };
 
-const struct m0_sm_conf trigger_conf = {
+const struct m0_sm_conf m0_sns_trigger_conf = {
 	.scf_name      = "SNS Trigger",
-	.scf_nr_states = ARRAY_SIZE(trigger_phases),
-	.scf_state     = trigger_phases
+	.scf_nr_states = ARRAY_SIZE(m0_sns_trigger_phases),
+	.scf_state     = m0_sns_trigger_phases
 };
-
-M0_INTERNAL void m0_sns_cm_trigger_fop_fini(struct m0_fop_type *ft)
-{
-	m0_fop_type_fini(ft);
-}
-
-M0_INTERNAL void m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,
-					    enum M0_RPC_OPCODES op,
-					    const char *name,
-					    const struct m0_xcode_type *xt,
-					    uint64_t rpc_flags,
-					    struct m0_cm_type *cmt)
-{
-	m0_sm_conf_extend(m0_generic_conf.scf_state, trigger_phases,
-			  m0_generic_conf.scf_nr_states);
-	M0_FOP_TYPE_INIT(ft,
-			 .name      = name,
-			 .opcode    = op,
-			 .xt        = xt,
-			 .rpc_flags = rpc_flags,
-			 .fom_ops   = &trigger_fom_type_ops,
-			 .svc_type  = &cmt->ct_stype,
-			 .sm        = &trigger_conf);
-}
 
 static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			      struct m0_reqh *reqh)
 {
-	struct m0_fom *fom;
-	struct m0_fop *rep_fop = NULL;
+	struct m0_fop_type *sns_fop_type[] = {
+		[M0_SNS_REPAIR_TRIGGER_OPCODE] =
+			&m0_sns_repair_trigger_rep_fopt,
+		[M0_SNS_REPAIR_QUIESCE_OPCODE] =
+			&m0_sns_repair_quiesce_trigger_rep_fopt,
+		[M0_SNS_REPAIR_STATUS_OPCODE] =
+			&m0_sns_repair_status_rep_fopt,
+		[M0_SNS_REBALANCE_TRIGGER_OPCODE] =
+			&m0_sns_rebalance_trigger_rep_fopt,
+		[M0_SNS_REBALANCE_QUIESCE_OPCODE] =
+			&m0_sns_rebalance_quiesce_trigger_rep_fopt,
+		[M0_SNS_REBALANCE_STATUS_OPCODE] =
+			&m0_sns_rebalance_status_rep_fopt,
+	};
+	struct m0_fom       *fom;
+	struct m0_fop       *rep_fop;
+	uint32_t             op;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(out != NULL);
 
+	op = m0_fop_opcode(fop);
+	M0_ASSERT(IS_IN_ARRAY(op, sns_fop_type));
 	M0_ALLOC_PTR(fom);
-	if (fom == NULL)
-		return M0_ERR(-ENOMEM);
+	rep_fop = m0_fop_reply_alloc(fop, sns_fop_type[op]);
+	if (fom == NULL || rep_fop == NULL)
+		goto err;
 
-	switch (m0_fop_opcode(fop)) {
-	case M0_SNS_REPAIR_TRIGGER_OPCODE:
-		rep_fop = m0_fop_reply_alloc(fop, &repair_trigger_rep_fopt);
-		break;
-	case M0_SNS_REPAIR_QUIESCE_OPCODE:
-		rep_fop = m0_fop_reply_alloc(fop,
-					&repair_quiesce_trigger_rep_fopt);
-		break;
-	case M0_SNS_REPAIR_STATUS_OPCODE:
-		rep_fop = m0_fop_reply_alloc(fop,
-					&repair_status_rep_fopt);
-		break;
-	case M0_SNS_REBALANCE_TRIGGER_OPCODE:
-		rep_fop = m0_fop_reply_alloc(fop, &rebalance_trigger_rep_fopt);
-		break;
-	case M0_SNS_REBALANCE_QUIESCE_OPCODE:
-		rep_fop = m0_fop_reply_alloc(fop,
-					&rebalance_quiesce_trigger_rep_fopt);
-		break;
-	case M0_SNS_REBALANCE_STATUS_OPCODE:
-		rep_fop = m0_fop_reply_alloc(fop,
-					&rebalance_status_rep_fopt);
-		break;
-	default:
-		M0_IMPOSSIBLE("Invalid fop, opcode=%d", m0_fop_opcode(fop));
-	}
-
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, &trigger_fom_ops, fop,
-		    rep_fop, reqh);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, &trigger_fom_ops,
+		    fop, rep_fop, reqh);
 
 	*out = fom;
-	return 0;
+	return M0_RC(0);
+
+err:
+	m0_free(fom);
+	m0_free(rep_fop);
+	return M0_ERR(-ENOMEM);
 }
 
 static void trigger_fom_fini(struct m0_fom *fom)
@@ -218,8 +171,7 @@ static int prepare(struct m0_fom *fom)
 	enum m0_pool_nd_state  state;
 	int                    rc;
 
-	if (treq->op == SNS_REPAIR_QUIESCE ||
-	    treq->op == SNS_REBALANCE_QUIESCE) {
+	if (M0_IN(treq->op, (SNS_REPAIR_QUIESCE, SNS_REBALANCE_QUIESCE))) {
 		/* setting quiesce flag to running copy machine and quit */
 		cm->cm_quiesce = true;
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
@@ -227,13 +179,12 @@ static int prepare(struct m0_fom *fom)
 		return M0_FSO_AGAIN;
 	}
 
-	if (treq->op == SNS_REPAIR_STATUS ||
-	    treq->op == SNS_REBALANCE_STATUS) {
-		struct m0_fop             *rfop = fom->fo_rep_fop;
-		struct sns_status_rep_fop *trep = m0_fop_data(rfop);
-		static uint64_t            progress;
-		enum m0_cm_state           cm_state;
-		enum m0_sns_cm_status      cm_status;
+	if (M0_IN(treq->op, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
+		struct m0_fop                *rfop = fom->fo_rep_fop;
+		struct m0_sns_status_rep_fop *trep = m0_fop_data(rfop);
+		static uint64_t               progress;
+		enum m0_cm_state              cm_state;
+		enum m0_sns_cm_status         cm_status;
 
 		m0_cm_lock(cm);
 		cm_state = m0_cm_state_get(cm);
@@ -266,9 +217,9 @@ static int prepare(struct m0_fom *fom)
 		}
 
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
-		trep->status = cm_status;
+		trep->ssr_state = cm_status;
 		/* TODO: what should be filled as 'progress'? */
-		trep->progress = progress++;
+		trep->ssr_progress = progress++;
 		trigger_rep_set(fom);
 		return M0_FSO_AGAIN;
 	}
@@ -286,7 +237,7 @@ static int prepare(struct m0_fom *fom)
 	m0_fom_wait_on(fom, &cm->cm_ready_wait,
 			&fom->fo_cb);
 	m0_mutex_unlock(&cm->cm_wait_mutex);
-	m0_fom_phase_set(fom, TPH_READY);
+	m0_fom_phase_set(fom, M0_SNS_TPH_READY);
 	M0_LOG(M0_DEBUG, "got trigger: prepare");
 
 	return M0_FSO_WAIT;
@@ -300,7 +251,7 @@ static int ready(struct m0_fom *fom)
 	rc = m0_cm_ready(cm);
 	if (rc != 0)
 		return M0_RC(rc);
-	m0_fom_phase_set(fom, TPH_START);
+	m0_fom_phase_set(fom, M0_SNS_TPH_START);
 	M0_LOG(M0_DEBUG, "trigger: ready");
 	return M0_FSO_AGAIN;
 }
@@ -320,9 +271,9 @@ static int start(struct m0_fom *fom)
 }
 
 static int (*trig_action[]) (struct m0_fom *) = {
-	[TPH_PREPARE] = prepare,
-	[TPH_READY]   = ready,
-	[TPH_START]   = start,
+	[M0_SNS_TPH_PREPARE] = prepare,
+	[M0_SNS_TPH_READY]   = ready,
+	[M0_SNS_TPH_START]   = start,
 };
 
 static int trigger_fom_tick(struct m0_fom *fom)
