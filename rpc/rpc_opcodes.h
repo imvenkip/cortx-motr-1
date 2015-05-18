@@ -243,6 +243,10 @@ enum M0_RPC_OPCODES {
 	M0_SSS_PROCESS_REP_OPCODE           = 202,
 	M0_SSS_PROCESS_SVC_LIST_REP_OPCODE  = 203,
 
+	/** SSS device fops */
+	M0_SSS_DEVICE_REQ_OPCODE            = 204,
+	M0_SSS_DEVICE_REP_OPCODE            = 205,
+
 	/*
 	 * Identifiers below are for fop-less foms, not fops.
 	 */

@@ -31,6 +31,7 @@
 #include "conf/diter.h"    /* m0_conf_diter_next_sync */
 #include "conf/obj_ops.h"  /* m0_conf_dirval */
 #include "conf/helpers.h"  /* m0_obj_is_pver */
+#include "ioservice/io_device.h"  /* m0_ios_poolmach_get */
 
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
@@ -199,6 +200,13 @@
 
    @{
  */
+
+enum {
+	/**
+	 * Status "Device not found in Pool machine"
+	 */
+	POOL_DEVICE_INDEX_INVALID = -1
+};
 
 /**
  * tlist descriptor for list of m0_reqh_service_ctx objects placed
@@ -919,6 +927,95 @@ M0_INTERNAL int m0_pool_device_reopen(struct m0_poolmach *pm,
 		}
 	}
 	return M0_RC(rc);
+}
+
+static int pool_device_index(struct m0_poolmach *pm, struct m0_fid *fid)
+{
+	int dev;
+
+	for (dev = 0; dev < pm->pm_state->pst_nr_devices; ++dev)
+		if (m0_fid_eq(&pm->pm_state->pst_devices_array[dev].pd_id, fid))
+			return dev;
+	return POOL_DEVICE_INDEX_INVALID;
+}
+
+
+static void pool_device_state_last_revert(struct m0_pools_common *pc,
+					  struct m0_fid          *dev_fid,
+					  struct m0_poolmach     *pm_stop)
+{
+	struct m0_pool         *pool;
+	struct m0_pool_version *pver;
+	struct m0_poolmach     *pm;
+	int                     dev_idx;
+
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		m0_tl_for(pool_version, &pool->po_vers, pver) {
+			pm = &pver->pv_mach;
+			if (pm == pm_stop)
+				return;
+			dev_idx = pool_device_index(pm, dev_fid);
+			if (dev_idx != POOL_DEVICE_INDEX_INVALID)
+				m0_poolmach_state_last_cancel(pm);
+		} m0_tl_endfor;
+	} m0_tl_endfor;
+}
+
+/**
+ * Iterate over all pool versions and update corresponding poolmachines
+ * containing provided disk.
+ */
+M0_INTERNAL int m0_pool_device_state_update(struct m0_reqh        *reqh,
+					    struct m0_be_tx       *tx,
+					    struct m0_fid         *dev_fid,
+					    enum m0_pool_nd_state  new_state)
+{
+	struct m0_pools_common   *pc = reqh->rh_pools;
+	struct m0_pool           *pool;
+	struct m0_pool_version   *pver;
+	struct m0_poolmach       *pm;
+	int                       rc;
+	int                       dev_idx;
+	struct m0_poolmach_event  pme;
+
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		m0_tl_for(pool_version, &pool->po_vers, pver) {
+			pm = &pver->pv_mach;
+			dev_idx = pool_device_index(pm, dev_fid);
+			if (dev_idx != POOL_DEVICE_INDEX_INVALID) {
+				pme.pe_type  = M0_POOL_DEVICE;
+				pme.pe_index = dev_idx;
+				pme.pe_state = new_state;
+				rc = m0_poolmach_state_transit(pm, &pme, NULL);
+				if (rc != 0) {
+					pool_device_state_last_revert(pc,
+								      dev_fid,
+								      pm);
+					return M0_ERR(rc);
+				}
+			}
+		} m0_tl_endfor;
+	} m0_tl_endfor;
+
+	/* update ios poolmachine */
+	if (rc == 0) {
+		pm = m0_ios_poolmach_get(reqh);
+		dev_idx = pool_device_index(pm, dev_fid);
+		if (dev_idx != POOL_DEVICE_INDEX_INVALID) {
+			pme.pe_type  = M0_POOL_DEVICE;
+			pme.pe_index = dev_idx;
+			pme.pe_state = new_state;
+			rc = m0_poolmach_state_transit(pm, &pme, tx);
+			if (rc != 0) {
+				/* Revert all changes in pc */
+				pool_device_state_last_revert(pc,
+							      dev_fid,
+							      NULL);
+				return M0_ERR(rc);
+			}
+		}
+	}
+	return M0_RC(0);
 }
 #endif /* !__KERNEL__ */
 

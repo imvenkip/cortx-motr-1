@@ -29,7 +29,11 @@
 #include "spiel/spiel.h"
 #include "ut/ut.h"
 #include "spiel/ut/spiel_ut_common.h"
-#include "ut/file_helpers.h"           /* M0_UT_PATH */
+#include "ut/file_helpers.h"           /* M0_UT_CONF_PATH */
+#include "rm/rm_rwlock.h"              /* m0_rwlockable_domain_init,
+					  m0_rwlockable_domain_fini */
+
+static struct m0_spiel_ut_reqh ut_reqh;
 
 M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 		                       const char              *ep_addr)
@@ -56,7 +60,7 @@ M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 			  .rhia_dtm     = (void *)1,
 			  .rhia_mdstore = (void *)1,
 			  .rhia_fid     = &g_process_fid,
-		);
+	);
 	if (rc != 0)
 		goto buf_pool;
 	m0_reqh_start(&spl_reqh->sur_reqh);
@@ -86,9 +90,9 @@ M0_INTERNAL void m0_spiel__ut_reqh_fini(struct m0_spiel_ut_reqh *spl_reqh)
 	m0_net_domain_fini(&spl_reqh->sur_net_dom);
 }
 
-M0_INTERNAL int m0_spiel__ut_confd_start(struct m0_rpc_server_ctx *rpc_srv,
-					 const char               *confd_ep,
-					 const char               *confdb_path)
+M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
+					      const char          *confd_ep,
+					      const char          *confdb_path)
 {
 	enum {
 		LOG_NAME_MAX_LEN     = 128,
@@ -106,33 +110,71 @@ M0_INTERNAL int m0_spiel__ut_confd_start(struct m0_rpc_server_ctx *rpc_srv,
 		 "%d", M0_RPC_DEF_MAX_RPC_MSG_SIZE);
 
 #define NAME(ext) "ut_spiel" ext
-	char                    *argv[] = {
-		NAME(""), "-T", "AD", "-D", NAME(".db"),
-		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb_stob"),
-		"-w", "10", "-e", full_ep,
-		"-f", "<0x7200000000000001:1>",
-		"-s", "confd:<0x7300000000000001:1>", "-m", max_rpc_size,
-		"-s", "rmservice:<0x7300000000000002:1>",
-		"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
+	char               *argv[] = {
+		NAME(""), "-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
+		"-A", "linuxstob:"NAME("-addb_stob"), "-w", "10", "-e", full_ep,
+		"-f", "<0x7200000000000002:1>",
+		"-s", "confd:<0x7300000000000002:1>", "-m", max_rpc_size,
+		"-G", full_ep,
+		"-s", "mdservice:<0x7300000000000001:22>",
+		"-s", "ioservice:<0x7300000000000001:23>",
+		"-s", "rmservice:<0x7300000000000001:9>",
+		"-s", "sns_repair:<0x7300000000000002:4>",
+		"-s", "sns_rebalance:<0x7300000000000002:5>",
+		"-c", (char *)confdb_path, "-P", M0_UT_CONF_PROFILE
 	};
 #undef NAME
 
 	M0_SET0(rpc_srv);
 
-	rpc_srv->rsx_xprts         = &xprt;
-	rpc_srv->rsx_xprts_nr      = 1;
-	rpc_srv->rsx_argv          = argv;
-	rpc_srv->rsx_argc          = ARRAY_SIZE(argv);
+	rpc_srv->rsx_xprts    = &xprt;
+	rpc_srv->rsx_xprts_nr = 1;
+	rpc_srv->rsx_argv     = argv;
+	rpc_srv->rsx_argc     = ARRAY_SIZE(argv);
 	snprintf(log_name, LOG_NAME_MAX_LEN, "confd_%s.log", confd_ep);
 	rpc_srv->rsx_log_file_name = log_name;
 
 	return m0_rpc_server_start(rpc_srv);
 }
 
-M0_INTERNAL void m0_spiel__ut_confd_stop(struct m0_rpc_server_ctx *rpc_srv)
+M0_INTERNAL void m0_spiel__ut_rpc_server_stop(struct m0_rpc_server_ctx *rpc_srv)
 {
 	m0_rpc_server_stop(rpc_srv);
 }
+
+M0_INTERNAL int m0_spiel__ut_init(struct m0_spiel *spiel, char *confd_path)
+{
+	int         rc;
+	const char *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
+	const char *rm_ep = ep[0];
+	const char *client_ep = CLIENT_ENDPOINT_ADDR;
+	const char *profile = M0_UT_CONF_PROFILE;
+
+	m0_rwlockable_domain_init();
+	rc = m0_spiel__ut_reqh_init(&ut_reqh, client_ep);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel__ut_rpc_server_start(&ut_reqh.sur_confd_srv, ep[0],
+					   confd_path);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_start(spiel, &ut_reqh.sur_reqh, ep, rm_ep);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_cmd_profile_set(spiel, profile);
+	M0_UT_ASSERT(rc == 0);
+	return 0;
+}
+
+M0_INTERNAL int m0_spiel__ut_fini(struct m0_spiel *spiel)
+{
+	m0_spiel_stop(spiel);
+	m0_spiel__ut_rpc_server_stop(&ut_reqh.sur_confd_srv);
+	m0_spiel__ut_reqh_fini(&ut_reqh);
+	m0_rwlockable_domain_fini();
+	return 0;
+}
+
 
 #undef M0_TRACE_SUBSYSTEM
 

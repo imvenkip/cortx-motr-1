@@ -404,6 +404,15 @@ M0_INTERNAL int m0_pool_device_reopen(struct m0_poolmach *pm,
 				      struct m0_reqh *rs_reqh);
 
 /**
+ * Iterate over all pool versions and update corresponding poolmachines
+ * containing provided disk. Also updates ios disk state in ios poolmachine.
+ */
+M0_INTERNAL int m0_pool_device_state_update(struct m0_reqh        *reqh,
+					    struct m0_be_tx       *tx,
+					    struct m0_fid         *dev_fid,
+					    enum m0_pool_nd_state  new_state);
+
+/**
  * State of SNS repair with respect to given global fid.
  * Used during degraded mode write IO.
  * During normal IO, the UNINITIALIZED enum value is used.

@@ -44,11 +44,11 @@ enum {
 };
 
 /**
-   Define Process attribute structure. , which contains information on
+   Define Process attribute structure, which contains information on
    core mask and memory limits. This attribute reply on reconfigure Mero.
 */
 struct m0_proc_attr {
-	/** Availability cores mask */
+	/** Available cores mask */
 	struct m0_bitmap pca_core_mask;
 	/** Memory limits */
 	uint64_t         pca_memlimit_as;

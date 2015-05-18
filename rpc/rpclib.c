@@ -207,10 +207,11 @@ int m0_rpc_client_stop_stats(struct m0_rpc_client_ctx *cctx,
 }
 M0_EXPORTED(m0_rpc_client_stop_stats);
 
-int m0_rpc_post_sync(struct m0_fop                *fop,
-		     struct m0_rpc_session        *session,
-		     const struct m0_rpc_item_ops *ri_ops,
-		     m0_time_t                     deadline)
+int m0_rpc_post_with_timeout_sync(struct m0_fop                *fop,
+				  struct m0_rpc_session        *session,
+				  const struct m0_rpc_item_ops *ri_ops,
+				  m0_time_t                     deadline,
+				  m0_time_t                     timeout)
 {
 	struct m0_rpc_item *item;
 
@@ -224,8 +225,21 @@ int m0_rpc_post_sync(struct m0_fop                *fop,
 	item->ri_deadline = deadline;
 
 	return M0_RC(m0_rpc_post(item) ?:
-		     m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER) ?:
+		     m0_rpc_item_wait_for_reply(item, timeout) ?:
 		     m0_rpc_item_generic_reply_rc(item->ri_reply));
+}
+M0_EXPORTED(m0_rpc_post_with_timeout_sync);
+
+int m0_rpc_post_sync(struct m0_fop                *fop,
+		     struct m0_rpc_session        *session,
+		     const struct m0_rpc_item_ops *ri_ops,
+		     m0_time_t                     deadline)
+{
+	M0_ENTRY("fop: %p, session: %p", fop, session);
+	M0_PRE(session != NULL);
+
+	return m0_rpc_post_with_timeout_sync(fop, session, ri_ops, deadline,
+					     M0_TIME_NEVER);
 }
 M0_EXPORTED(m0_rpc_post_sync);
 

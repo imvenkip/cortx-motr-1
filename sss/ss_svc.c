@@ -38,6 +38,7 @@
 #endif
 #include "spiel/spiel.h" /* m0_spiel_health */
 #include "sss/process_fops.h"
+#include "sss/device_fops.h"
 #include "sss/ss_fops.h"
 #include "sss/ss_svc.h"
 
@@ -129,23 +130,34 @@ M0_INTERNAL int m0_ss_svc_init(void)
 
 	rc = m0_ss_fops_init();
 	if (rc != 0)
-		m0_reqh_service_type_unregister(&m0_ss_svc_type);
+		goto err_ss;
 
 	rc = m0_ss_process_fops_init();
-	if (rc != 0){
-		m0_ss_fops_fini();
-		m0_reqh_service_type_unregister(&m0_ss_svc_type);
-	}
+	if (rc != 0)
+		goto err_process;
 
-	return M0_RC(rc);
+	rc = m0_sss_device_fops_init();
+	if (rc != 0)
+		goto err_device;
+
+	return M0_RC(0);
+
+err_device:
+	m0_ss_process_fops_fini();
+err_process:
+	m0_ss_fops_fini();
+err_ss:
+	m0_reqh_service_type_unregister(&m0_ss_svc_type);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL void m0_ss_svc_fini(void)
 {
 	M0_ENTRY();
-	m0_reqh_service_type_unregister(&m0_ss_svc_type);
-	m0_ss_fops_fini();
+	m0_sss_device_fops_fini();
 	m0_ss_process_fops_fini();
+	m0_ss_fops_fini();
+	m0_reqh_service_type_unregister(&m0_ss_svc_type);
 	M0_LEAVE();
 }
 

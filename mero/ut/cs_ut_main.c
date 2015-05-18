@@ -43,7 +43,7 @@ extern const struct m0_tl_descr ndoms_descr;
 /* Client context */
 struct cl_ctx {
 	/* Client network domain.*/
-	struct m0_net_domain	 cl_ndom;
+	struct m0_net_domain     cl_ndom;
 	/* Client rpc context.*/
 	struct m0_rpc_client_ctx cl_ctx;
 };

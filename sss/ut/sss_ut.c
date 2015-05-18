@@ -38,6 +38,8 @@
 #include "ut/file_helpers.h"   /* M0_UT_PATH */
 #include "sss/process_fops.h"
 #include "sss/ss_fops.h"
+#include "sss/device_foms.h"
+#include "sss/device_fops.h"
 
 #define SERVER_DB_NAME        "sss_ut_server.db"
 #define SERVER_STOB_NAME      "sss_ut_server.stob"
@@ -377,10 +379,48 @@ static void sss_process_fom_create_fail(void)
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_fop_fini(fop);
+	m0_free(fop);
 	m0_free(fom);
 	m0_free(reqh);
 }
 
+/**
+ * device-fom-fail
+ *
+ * Test fail create SNS Device FOM
+ */
+static void sss_device_fom_create_fail(void)
+{
+	int                       rc;
+	struct m0_fop            *fop;
+	struct m0_fom            *fom;
+	struct m0_sss_device_fop *req;
+	struct m0_reqh *reqh;
+
+	M0_ALLOC_PTR(fop);
+	M0_ALLOC_PTR(req);
+	M0_ALLOC_PTR(fom);
+	M0_ALLOC_PTR(reqh);
+
+	m0_fop_init(fop, &m0_sss_fop_device_fopt, req, m0_fop_release);
+	req->ssd_cmd = M0_DEVICE_ATTACH;
+
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	fop->f_item.ri_rmachine = &cctx.rcx_rpc_machine;
+	rc = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom, reqh);
+	M0_UT_ASSERT(rc == -ENOMEM);
+
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
+	fop->f_item.ri_rmachine = &cctx.rcx_rpc_machine;
+	rc = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom, reqh);
+	m0_fi_disable("m0_alloc", "fail_allocation");
+	M0_UT_ASSERT(rc == -ENOMEM);
+
+	m0_fop_fini(fop);
+	m0_free(fop);
+	m0_free(fom);
+	m0_free(reqh);
+}
 
 const struct m0_ut_suite sss_ut = {
 	.ts_name = "sss-ut",
@@ -391,6 +431,7 @@ const struct m0_ut_suite sss_ut = {
 		{ "process-commands", sss_process_commands_test },
 		{ "process-services-list", sss_process_svc_list_test },
 		{ "process-fom-create-fail", sss_process_fom_create_fail },
+		{ "device-fom-fail", sss_device_fom_create_fail },
 		{ NULL, NULL },
 	},
 };

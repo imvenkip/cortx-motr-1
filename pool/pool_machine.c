@@ -489,6 +489,26 @@ M0_INTERNAL int m0_poolmach_state_query(struct m0_poolmach *pm,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL void m0_poolmach_state_last_cancel(struct m0_poolmach *pm)
+{
+	struct m0_poolmach_state      *state;
+	struct m0_poolmach_event_link *link;
+
+	M0_PRE(pm != NULL);
+
+	state = pm->pm_state;
+
+	m0_rwlock_write_lock(&pm->pm_lock);
+
+	link = poolmach_events_tlist_tail(&state->pst_events_list);
+	if (link != NULL) {
+		poolmach_events_tlink_del_fini(link);
+		m0_free(link);
+	}
+
+	m0_rwlock_write_unlock(&pm->pm_lock);
+}
+
 M0_INTERNAL int
 m0_poolmach_current_version_get(struct m0_poolmach *pm,
 				struct m0_poolmach_versions *curr)

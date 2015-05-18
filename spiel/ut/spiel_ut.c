@@ -37,11 +37,16 @@ static void spiel_start_stop(void)
 {
 	int              rc;
 	struct m0_spiel  spiel;
-	const char      *confd_eps[] = { "0@lo:12345:34:1", NULL };
-	const char      *rm_ep       = confd_eps[0];
+	const char      *confd_eps[] = { SERVER_ENDPOINT_ADDR, NULL };
+	const char      *profile = M0_UT_CONF_PROFILE;
+	const char      *rm_ep = confd_eps[0];
 
 	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, confd_eps, rm_ep);
 	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_cmd_profile_set(&spiel, profile);
+	M0_UT_ASSERT(rc == 0);
+
 	M0_UT_ASSERT(m0_rconfc_quorum_is_reached_lock(&spiel.spl_rconfc));
 
 	m0_spiel_stop(&spiel);
@@ -51,8 +56,8 @@ static void spiel_start_stop(void)
 static int spiel_ut_init()
 {
 	int         rc;
-	const char *ep = "0@lo:12345:34:1";
-	const char *client_ep = "0@lo:12345:35:1";
+	const char *ep = SERVER_ENDPOINT_ADDR;
+	const char *client_ep = CLIENT_ENDPOINT_ADDR;
 
 	m0_rwlockable_domain_init();
 	M0_ALLOC_PTR(spl_reqh);
@@ -60,8 +65,8 @@ static int spiel_ut_init()
 	rc = m0_spiel__ut_reqh_init(spl_reqh, client_ep);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel__ut_confd_start(&spl_reqh->sur_confd_srv, ep,
-				      M0_UT_PATH("conf-str.txt"));
+	rc = m0_spiel__ut_rpc_server_start(&spl_reqh->sur_confd_srv, ep,
+					   M0_UT_PATH("conf-str.txt"));
 	M0_UT_ASSERT(rc == 0);
 
 	return 0;
@@ -69,7 +74,7 @@ static int spiel_ut_init()
 
 static int spiel_ut_fini()
 {
-	m0_spiel__ut_confd_stop(&spl_reqh->sur_confd_srv);
+	m0_spiel__ut_rpc_server_stop(&spl_reqh->sur_confd_srv);
 	m0_spiel__ut_reqh_fini(spl_reqh);
 
 	m0_free(spl_reqh);

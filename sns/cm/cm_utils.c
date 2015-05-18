@@ -347,7 +347,7 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
 	uint32_t                     dev_id;
 
 	if (M0_FI_ENABLED("ut-case")) {
-		M0_ASSERT(nr_ios == 0);
+		M0_ASSERT_INFO(nr_ios == 1, "error nr_ios = %d", nr_ios);
 		return local_ep(cm);
 	}
 	dev_id = m0_fid_cob_device_id(cfid);

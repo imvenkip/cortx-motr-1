@@ -239,6 +239,11 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach *pm,
 					  struct m0_be_tx *tx);
 
 /**
+ * Remove last pool machine event.
+ */
+M0_INTERNAL void m0_poolmach_state_last_cancel(struct m0_poolmach *pm);
+
+/**
  * Query the state changes between the "from" and "to" version.
  *
  * The caller can apply the returned events to its copy of pool state machine.

@@ -18,7 +18,7 @@
  */
 
 /**
- * @page DLD-ss_svc Process
+ * @page DLD-ss_process Process
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SSS
@@ -56,13 +56,15 @@ static size_t ss_process_fom_home_locality(const struct m0_fom *fom);
 enum ss_process_fom_phases {
 	SS_PROCESS_FOM_INIT = M0_FOPH_NR + 1,
 	SS_PROCESS_FOM_STOP,
+	SS_PROCESS_FOM_RECONFIG_GET_DATA,
+	SS_PROCESS_FOM_RECONFIG_DATA_WAIT,
 	SS_PROCESS_FOM_RECONFIG,
 	SS_PROCESS_FOM_HEALTH,
 	SS_PROCESS_FOM_QUIESCE,
 	SS_PROCESS_FOM_RUNNING_LIST,
 };
 
-const struct m0_fom_ops ss_process_fom_ops = {
+static struct m0_fom_ops ss_process_fom_ops = {
 	.fo_tick          = ss_process_fom_tick,
 	.fo_home_locality = ss_process_fom_home_locality,
 	.fo_fini          = ss_process_fom_fini
@@ -77,7 +79,7 @@ struct m0_sm_state_descr ss_process_fom_phases[] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "SS_FOM_INIT",
 		.sd_allowed = M0_BITS(SS_PROCESS_FOM_STOP,
-				      SS_PROCESS_FOM_RECONFIG,
+				      SS_PROCESS_FOM_RECONFIG_GET_DATA,
 				      SS_PROCESS_FOM_HEALTH,
 				      SS_PROCESS_FOM_QUIESCE,
 				      SS_PROCESS_FOM_RUNNING_LIST,
@@ -86,6 +88,15 @@ struct m0_sm_state_descr ss_process_fom_phases[] = {
 	[SS_PROCESS_FOM_STOP]= {
 		.sd_name    = "SS_PROCESS_FOM_STOP",
 		.sd_allowed = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE),
+	},
+	[SS_PROCESS_FOM_RECONFIG_GET_DATA]= {
+		.sd_name    = "SS_PROCESS_FOM_RECONFIG_GET_DATA",
+		.sd_allowed = M0_BITS(SS_PROCESS_FOM_RECONFIG_DATA_WAIT,
+				      M0_FOPH_FAILURE),
+	},
+	[SS_PROCESS_FOM_RECONFIG_DATA_WAIT] = {
+		.sd_name    = "SS_PROCESS_FOM_RECONFIG_DATA_WAIT",
+		.sd_allowed = M0_BITS(SS_PROCESS_FOM_RECONFIG),
 	},
 	[SS_PROCESS_FOM_RECONFIG]= {
 		.sd_name    = "SS_PROCESS_FOM_RECONFIG",
@@ -111,15 +122,20 @@ struct m0_sm_conf ss_process_fom_conf = {
 	.scf_state     = ss_process_fom_phases
 };
 
+struct m0_sss_process_fom {
+	struct m0_fom          spm_fom;
+	struct m0_confc_ctx    spm_confc_ctx;
+};
+
 static int ss_process_fom_create(struct m0_fop   *fop,
 				 struct m0_fom  **out,
 				 struct m0_reqh  *reqh)
 {
-	int                       rc;
-	struct m0_fom            *fom;
-	struct m0_ss_process_req *process_fop;
-	struct m0_fop            *rfop;
-	int                       cmd;
+	int                        rc;
+	struct m0_sss_process_fom *process_fom;
+	struct m0_ss_process_req  *process_fop;
+	struct m0_fop             *rfop;
+	int                        cmd;
 
 	M0_ENTRY();
 	M0_PRE(fop != NULL);
@@ -129,9 +145,9 @@ static int ss_process_fom_create(struct m0_fop   *fop,
 	process_fop = m0_ss_fop_process_req(fop);
 	cmd = process_fop->ssp_cmd;
 
-	M0_ALLOC_PTR(fom);
+	M0_ALLOC_PTR(process_fom);
 	M0_ALLOC_PTR(rfop);
-	if (fom == NULL || rfop == NULL)
+	if (process_fom == NULL || rfop == NULL)
 		goto err;
 
 	switch(cmd){
@@ -160,25 +176,29 @@ static int ss_process_fom_create(struct m0_fop   *fop,
 
 	rfop->f_item.ri_rmachine = m0_fop_rpc_machine(fop);
 
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, &ss_process_fom_ops,
-		    fop, rfop, reqh);
+	m0_fom_init(&process_fom->spm_fom, &fop->f_type->ft_fom_type,
+		    &ss_process_fom_ops, fop, rfop, reqh);
 
-	*out = fom;
-	M0_LOG(M0_DEBUG, "fom %p", fom);
+	*out = &process_fom->spm_fom;
+	M0_LOG(M0_DEBUG, "fom %p", process_fom);
 	return M0_RC(0);
 
 err:
-	m0_free(fom);
+	m0_free(process_fom);
 	m0_free(rfop);
 	return M0_RC(-ENOMEM);
 }
 
 static void ss_process_fom_fini(struct m0_fom *fom)
 {
+	struct m0_sss_process_fom *process_fom;
+
 	M0_ENTRY();
+
 	M0_LOG(M0_DEBUG, "fom %p", fom);
 	m0_fom_fini(fom);
-	m0_free(fom);
+	process_fom = container_of(fom, struct m0_sss_process_fom, spm_fom);
+	m0_free(process_fom);
 
 	M0_LEAVE();
 }
@@ -188,7 +208,7 @@ static int ss_process_fom_tick__init(struct m0_fom        *fom,
 {
 	static enum ss_fom_phases next_phase[] = {
 		[M0_PROCESS_STOP]         = SS_PROCESS_FOM_STOP,
-		[M0_PROCESS_RECONFIG]     = SS_PROCESS_FOM_RECONFIG,
+		[M0_PROCESS_RECONFIG]     = SS_PROCESS_FOM_RECONFIG_GET_DATA,
 		[M0_PROCESS_HEALTH]       = SS_PROCESS_FOM_HEALTH,
 		[M0_PROCESS_QUIESCE]      = SS_PROCESS_FOM_QUIESCE,
 		[M0_PROCESS_RUNNING_LIST] = SS_PROCESS_FOM_RUNNING_LIST,
@@ -305,22 +325,78 @@ ss_fop_process_svc_list_fill(struct m0_ss_process_svc_list_rep *fop,
 }
 #endif /* __KERNEL__ */
 
-static int ss_process_reconfig(struct m0_reqh *reqh, struct m0_fop *fop)
+static void ss_process_confc_ctx_arm(struct m0_sss_process_fom *pfom)
+{
+	struct m0_chan *chan;
+
+	chan = &pfom->spm_confc_ctx.fc_mach.sm_chan;
+	m0_mutex_lock(chan->ch_guard);
+	m0_fom_wait_on(&pfom->spm_fom, chan, &pfom->spm_fom.fo_cb);
+	m0_mutex_unlock(chan->ch_guard);
+}
+
+static bool ss_process_confc_ctx_completed(struct m0_fom *fom)
+{
+	struct m0_sss_process_fom *pfom;
+
+	pfom = container_of(fom, struct m0_sss_process_fom, spm_fom);
+	if (!m0_confc_ctx_is_completed(&pfom->spm_confc_ctx)) {
+		ss_process_confc_ctx_arm(pfom);
+		return false;
+	}
+	return true;
+}
+
+static int ss_process_reconfig_data_get(struct m0_fom *fom)
+{
+	struct m0_sss_process_fom *pfom;
+	struct m0_ss_process_req  *req;
+	struct m0_reqh            *reqh;
+
+	M0_ENTRY();
+
+	pfom = container_of(fom, struct m0_sss_process_fom, spm_fom);
+	req = m0_ss_fop_process_req(fom->fo_fop);
+	reqh = m0_fom_reqh(fom);
+
+	m0_confc_ctx_init(&pfom->spm_confc_ctx, &reqh->rh_confc);
+	if (!pfom->spm_confc_ctx.fc_allowed) {
+		m0_confc_ctx_fini(&pfom->spm_confc_ctx);
+		return M0_ERR(-ENODEV);
+	}
+
+	ss_process_confc_ctx_arm(pfom);
+	m0_confc_open_by_fid(&pfom->spm_confc_ctx, &req->ssp_id);
+
+	return M0_RC(0);
+}
+
+static int ss_process_reconfig(struct m0_fom *fom)
 {
 #ifndef __KERNEL__
-	int                       rc;
-	struct m0_ss_process_req *req;
-	struct m0_conf_process   *process;
-	int                       pid = getpid();
-	struct m0_proc_attr      *proc_attr;
+	int                        rc;
+	struct m0_sss_process_fom *pfom;
+	struct m0_conf_process    *process;
+	int                        pid = getpid();
+	struct m0_proc_attr       *proc_attr;
+	struct m0_confc_ctx       *confc_ctx;
 
 	M0_ENTRY();
 
 	proc_attr = &m0_get()->i_proc_attr;
-	req = m0_ss_fop_process_req(fop);
+	pfom = container_of(fom, struct m0_sss_process_fom, spm_fom);
+	confc_ctx = &pfom->spm_confc_ctx;
 
-	rc = m0_conf_process_get(&reqh->rh_confc, &req->ssp_id, &process);
-	if (rc == 0) {
+	rc = m0_confc_ctx_error(confc_ctx);
+	if (rc == 0)
+		process = M0_CONF_CAST(m0_confc_ctx_result(confc_ctx),
+				       m0_conf_process);
+	m0_confc_ctx_fini(&pfom->spm_confc_ctx);
+
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	if (process != NULL) {
 		*proc_attr = (struct m0_proc_attr){
 			.pca_memlimit_as = process->pc_memlimit_as,
 			.pca_memlimit_rss = process->pc_memlimit_rss,
@@ -329,18 +405,19 @@ static int ss_process_reconfig(struct m0_reqh *reqh, struct m0_fop *fop)
 		};
 		rc = m0_bitmap_init(&proc_attr->pca_core_mask,
 				    process->pc_cores.b_nr);
-		if (rc != 0)
+		if (rc == 0)
 			m0_bitmap_copy(&proc_attr->pca_core_mask,
 				       &process->pc_cores);
-		m0_confc_close(&process->pc_obj);
-	}
-	if (rc != 0)
+	} else {
 		M0_SET0(proc_attr);
+	}
+
+	m0_confc_close(&process->pc_obj);
 
 	if (!M0_FI_ENABLED("unit_test"))
 		kill(pid, SIGUSR1);
 
-	return M0_RC(0);
+	return M0_RC(rc);
 #else
 	return M0_ERR(-ENOENT);
 #endif
@@ -408,11 +485,26 @@ static int ss_process_fom_tick(struct m0_fom *fom)
 				    M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
 
+	case SS_PROCESS_FOM_RECONFIG_GET_DATA:
+		rep = m0_ss_fop_process_rep(fom->fo_rep_fop);
+		rep->sspr_rc = ss_process_reconfig_data_get(fom);
+		m0_fom_phase_moveif(fom, rep->sspr_rc,
+				    SS_PROCESS_FOM_RECONFIG_DATA_WAIT,
+				    M0_FOPH_FAILURE);
+		return rep->sspr_rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
+
+	case SS_PROCESS_FOM_RECONFIG_DATA_WAIT:
+		if (ss_process_confc_ctx_completed(fom)) {
+			m0_fom_phase_set(fom, SS_PROCESS_FOM_RECONFIG);
+			return M0_FSO_AGAIN;
+		}
+		return M0_FSO_WAIT;
+
 	case SS_PROCESS_FOM_RECONFIG:
 		rep = m0_ss_fop_process_rep(fom->fo_rep_fop);
-		rep->sspr_rc = ss_process_reconfig(reqh, fom->fo_fop);
-		m0_fom_phase_moveif(fom, rep->sspr_rc, M0_FOPH_SUCCESS,
-				    M0_FOPH_FAILURE);
+		rep->sspr_rc = ss_process_reconfig(fom);
+		m0_fom_phase_moveif(fom, rep->sspr_rc,
+				    M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
 
 	case SS_PROCESS_FOM_RUNNING_LIST:

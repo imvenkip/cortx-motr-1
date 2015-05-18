@@ -40,14 +40,13 @@
 #include "rpc/rpc_machine.h"   /* m0_rpc_machine */
 #include "sm/sm.h"
 #include "spiel/ut/spiel_ut_common.h"
+#include "ut/file_helpers.h"           /* M0_UT_CONF_PATH */
 
 /**
  * Returns absolute path to given file in conf/ut directory.
  * M0_CONF_UT_DIR is defined in conf/ut/Makefile.am.
  */
-#define M0_CONF_UT_PATH(name) M0_QUOTE(M0_CONF_UT_DIR) "/" name
 
-#define SERVER_ENDPOINT_ADDR  "0@lo:12345:35:1"
 
 #define STR_LEN 1000
 
@@ -246,7 +245,7 @@ static void conf_save_load_fail(void)
  * Init reqh, rpc_machine, etc for tests
  */
 static int conf_ut_reqh_init(struct m0_conf_ut_reqh *conf_reqh,
-		             const char             *ep_addr)
+			     const char             *ep_addr)
 {
 	struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 	enum { NR_TMS = 1 };

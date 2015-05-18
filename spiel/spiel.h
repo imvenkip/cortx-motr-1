@@ -29,7 +29,6 @@
 #include "conf/rconfc.h"       /* m0_rconfc */
 #include "reqh/reqh_service.h" /* enum m0_service_health */
 
-
 /**
  * @page spiel-dld Spiel API DLD
  *

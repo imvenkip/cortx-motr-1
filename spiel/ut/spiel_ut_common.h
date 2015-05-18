@@ -30,6 +30,12 @@
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx */
 
 
+#define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
+#define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
+
+struct m0_spiel;
+
 /**
  * Request handler context with all necessary structures.
  *
@@ -48,12 +54,16 @@ M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 
 M0_INTERNAL void m0_spiel__ut_reqh_fini(struct m0_spiel_ut_reqh *spl_reqh);
 
-M0_INTERNAL int m0_spiel__ut_confd_start(struct m0_rpc_server_ctx *rpc_srv,
-					 const char               *confd_ep,
-					 const char               *confdb_path);
+M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
+					const char               *confd_ep,
+					const char               *confdb_path);
 
+M0_INTERNAL void m0_spiel__ut_rpc_server_stop(
+					struct m0_rpc_server_ctx *rpc_srv);
 
-M0_INTERNAL void m0_spiel__ut_confd_stop(struct m0_rpc_server_ctx *rpc_srv);
+M0_INTERNAL int m0_spiel__ut_init(struct m0_spiel *spiel, char *confd_path);
+
+M0_INTERNAL int m0_spiel__ut_fini(struct m0_spiel *spiel);
 
 #endif /* __MERO_SPIEL_UT_SPIEL_UT_COMMON_H__ */
 /*

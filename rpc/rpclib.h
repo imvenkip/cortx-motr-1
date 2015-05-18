@@ -206,4 +206,10 @@ int m0_rpc_post_sync(struct m0_fop                *fop,
 		     const struct m0_rpc_item_ops *ri_ops,
 		     m0_time_t                     deadline);
 
+int m0_rpc_post_with_timeout_sync(struct m0_fop                *fop,
+				  struct m0_rpc_session        *session,
+				  const struct m0_rpc_item_ops *ri_ops,
+				  m0_time_t                     deadline,
+				  m0_time_t                     timeout);
+
 #endif /* __MERO_RPC_RPCLIB_H__ */

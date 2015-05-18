@@ -39,10 +39,12 @@
 #include "spiel/ut/spiel_ut_common.h"
 #include "ut/file_helpers.h"
 
-#define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+#include <sys/mman.h>
 
-
-extern struct m0_spiel_ut_reqh *spl_reqh;
+struct m0_spiel spiel;
 
 enum {
 	SPIEL_UT_OBJ_DIR,
@@ -88,6 +90,63 @@ static struct m0_fid spiel_obj_fid[] = {
 	M0_FID_TINIT('j', 17, 17),
 	M0_FID_TINIT(0, 00, 00),
 };
+
+static int spiel_copy_file(const char *source, const char* dest)
+{
+	char buf[1024];
+	int in_fd;
+	int out_fd;
+	size_t result;
+	int rc = 0;
+
+	in_fd = open(source, O_RDONLY);
+	if (in_fd < 0)
+		return -EINVAL;
+
+	out_fd = open(dest, O_WRONLY | O_CREAT, 0666);
+	if (in_fd < 0) {
+		close(in_fd);
+		return -EINVAL;
+	}
+
+	while (1) {
+		rc = (result = read(in_fd, &buf[0], sizeof(buf))) >= 0 ?
+		     0 : -EINVAL;
+		if (result == 0 || rc != 0)
+			break;
+		rc = write(out_fd, &buf[0], result) == result ? 0 : -EINVAL;
+		if (rc != 0)
+			break;
+	}
+	close(in_fd);
+	close(out_fd);
+
+	return rc;
+}
+
+static int spiel_conf_ut_init()
+{
+	spiel_copy_file(M0_UT_PATH("conf-str.txt"),
+			M0_UT_PATH("conf-str-tmp.txt"));
+
+	/* Use copy of conf-str file as confd path - file may be changed */
+	int rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("conf-str-tmp.txt"));
+	M0_UT_ASSERT(rc == 0);
+
+	return 0;
+}
+
+static int spiel_conf_ut_fini()
+{
+	int rc;
+
+	m0_spiel__ut_fini(&spiel);
+
+	rc = system("rm -rf "M0_UT_PATH("confd"));
+	M0_ASSERT(rc != -1);
+	unlink(M0_UT_PATH("conf-str-tmp.txt"));
+	return 0;
+}
 
 static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 					    struct m0_spiel_tx *tx)
@@ -220,17 +279,11 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 static void spiel_conf_create_ok(void)
 {
 	struct m0_spiel_tx tx;
-	int                rc;
-	const char        *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
-	const char        *rm_ep = ep[0];
-	struct m0_spiel    spiel;
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
-	M0_UT_ASSERT(rc == 0);
-
+	spiel_conf_ut_init();
 	spiel_conf_create_configuration(&spiel, &tx);
 	m0_spiel_tx_close(&tx);
-	m0_spiel_stop(&spiel);
+	spiel_conf_ut_fini();
 }
 
 /*
@@ -241,7 +294,6 @@ static void spiel_conf_create_fail(void)
 	struct m0_spiel_tx            tx;
 	struct m0_spiel_tx           *tmp;
 	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
-	const char                   *rm_ep = ep[0];
 	int                           rc;
 	struct m0_pdclust_attr        pdclust_attr = { .pa_N=0,
 						       .pa_K=0,
@@ -253,15 +305,12 @@ static void spiel_conf_create_fail(void)
 					spiel_obj_fid[SPIEL_UT_OBJ_NODE];
 	struct m0_fid                 fake_fid =
 					spiel_obj_fid[SPIEL_UT_OBJ_PROFILE];
-	struct m0_spiel               spiel;
 	struct m0_bitmap              bitmap;
 
+	spiel_conf_ut_init();
 	m0_bitmap_init(&bitmap, 32);
 	m0_bitmap_set(&bitmap, 0, true);
 	m0_bitmap_set(&bitmap, 1, true);
-
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
-	M0_UT_ASSERT(rc == 0);
 
 	tmp = m0_spiel_tx_open(&spiel, &tx);
 	M0_UT_ASSERT(tmp == &tx);
@@ -724,9 +773,10 @@ static void spiel_conf_create_fail(void)
 	M0_UT_ASSERT(rc == 0);
 
 	m0_spiel_tx_close(&tx);
-	m0_spiel_stop(&spiel);
 
 	m0_bitmap_fini(&bitmap);
+
+	spiel_conf_ut_fini();
 }
 
 /*
@@ -736,20 +786,15 @@ static void spiel_conf_delete(void)
 {
 	struct m0_spiel_tx tx;
 	int                rc;
-	const char        *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
-	const char        *rm_ep = ep[0];
-	struct m0_spiel    spiel;
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
-	M0_UT_ASSERT(rc == 0);
+	spiel_conf_ut_init();
 
 	spiel_conf_create_configuration(&spiel, &tx);
-
 	rc = m0_spiel_element_del(&tx, &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
 	M0_UT_ASSERT(rc == 0);
-
 	m0_spiel_tx_close(&tx);
-	m0_spiel_stop(&spiel);
+
+	spiel_conf_ut_fini();
 }
 
 
@@ -1044,18 +1089,13 @@ static void spiel_conf_file(void)
 	int                   rc;
 	struct m0_spiel_tx    tx;
 	struct m0_spiel_tx   *tmp;
-	const char	     *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
-	const char           *rm_ep = ep[0];
 	struct m0_confx      *confx;
 	char                 *str;
 	const char            filename[] = "/tmp/spiel_conf_file.txt";
-	struct m0_spiel       spiel;
 	struct m0_conf_cache  cache;
 	struct m0_mutex       lock;
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
-	M0_UT_ASSERT(rc == 0);
-
+	spiel_conf_ut_init();
 	tmp = m0_spiel_tx_open(&spiel, &tx);
 	M0_UT_ASSERT(tmp == &tx);
 	M0_UT_ASSERT(tx.spt_version != M0_CONF_VER_UNKNOWN);
@@ -1078,8 +1118,6 @@ static void spiel_conf_file(void)
 	m0_free_aligned(str, strlen(str) + 1, PAGE_SHIFT);
 	m0_spiel_tx_close(&tx);
 
-	m0_spiel_stop(&spiel);
-
 	/* Load file */
 	M0_ALLOC_ARR(str, M0_CONF_STR_MAXLEN);
 	rc = spiel_file_read(filename, str, M0_CONF_STR_MAXLEN);
@@ -1098,6 +1136,7 @@ static void spiel_conf_file(void)
 
 	m0_conf_cache_fini(&cache);
 	m0_mutex_fini(&lock);
+	spiel_conf_ut_fini();
 }
 
 /**
@@ -1109,17 +1148,11 @@ static void spiel_conf_file(void)
 static void spiel_conf_cancel(void)
 {
 	struct m0_spiel_tx  tx;
-	const char         *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
-	const char         *rm_ep = ep[0];
-	int                 rc;
-	struct m0_spiel     spiel;
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
-	M0_UT_ASSERT(rc == 0);
-
+	spiel_conf_ut_init();
 	spiel_conf_create_configuration(&spiel, &tx);
 	m0_spiel_tx_close(&tx);
-	m0_spiel_stop(&spiel);
+	spiel_conf_ut_fini();
 }
 
 /**
@@ -1129,20 +1162,15 @@ static void spiel_conf_cancel(void)
  */
 static void spiel_conf_load_send(void)
 {
-	struct m0_spiel_tx  tx;
-	const char         *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
-	const char         *rm_ep = ep[0];
-	int                 rc;
-	struct m0_spiel     spiel;
+	struct m0_spiel_tx tx;
+	int                rc;
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
-	M0_UT_ASSERT(rc == 0);
-
+	spiel_conf_ut_init();
 	spiel_conf_create_configuration(&spiel, &tx);
 	rc = m0_spiel_tx_commit(&tx);
 	M0_UT_ASSERT(rc == 0);
 	m0_spiel_tx_close(&tx);
-	m0_spiel_stop(&spiel);
+	spiel_conf_ut_fini();
 }
 
 /**
@@ -1153,18 +1181,13 @@ static void spiel_conf_load_send(void)
 static void spiel_conf_check_fail(void)
 {
 	struct m0_spiel_tx    tx;
-	const char           *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
-	const char           *rm_ep = ep[0];
 	int                   rc;
-	struct m0_spiel       spiel;
 	struct m0_conf_obj   *obj = NULL;
 	struct m0_conf_obj   *obj_parent;
 	struct m0_conf_cache *cache = &tx.spt_cache;
 	struct m0_fid         fake_fid = M0_FID_TINIT('n', 6, 600 );
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
-	M0_UT_ASSERT(rc == 0);
-
+	spiel_conf_ut_init();
 	spiel_conf_create_configuration(&spiel, &tx);
 
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
@@ -1209,7 +1232,7 @@ static void spiel_conf_check_fail(void)
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_spiel_tx_close(&tx);
-	m0_spiel_stop(&spiel);
+	spiel_conf_ut_fini();
 }
 
 /**
@@ -1220,14 +1243,9 @@ static void spiel_conf_check_fail(void)
 static void spiel_conf_load_fail(void)
 {
 	struct m0_spiel_tx  tx;
-	const char         *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
-	const char         *rm_ep = ep[0];
 	int                 rc;
-	struct m0_spiel     spiel;
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
-	M0_UT_ASSERT(rc == 0);
-
+	spiel_conf_ut_init();
 	spiel_conf_create_configuration(&spiel, &tx);
 	/* M0_ALLOC_PTR(spiel_cmd) */
 	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 21, 1);
@@ -1236,25 +1254,60 @@ static void spiel_conf_load_fail(void)
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_spiel_tx_close(&tx);
-	m0_spiel_stop(&spiel);
+	spiel_conf_ut_fini();
+}
+
+static void spiel_conf_force_ut_init(struct m0_spiel_ut_reqh *spl_reqh)
+{
+	int         rc;
+	const char *ep = SERVER_ENDPOINT_ADDR;
+	const char *client_ep = CLIENT_ENDPOINT_ADDR;
+
+	spiel_copy_file(M0_UT_PATH("conf-str.txt"),
+			M0_UT_PATH("conf-str-tmp.txt"));
+
+	m0_rwlockable_domain_init();
+
+	rc = m0_spiel__ut_reqh_init(spl_reqh, client_ep);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel__ut_rpc_server_start(&spl_reqh->sur_confd_srv, ep,
+					   M0_UT_PATH("conf-str-tmp.txt"));
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void spiel_conf_force_ut_fini(struct m0_spiel_ut_reqh *spl_reqh)
+{
+	int rc;
+
+	m0_spiel__ut_rpc_server_stop(&spl_reqh->sur_confd_srv);
+	m0_spiel__ut_reqh_fini(spl_reqh);
+
+	m0_rwlockable_domain_fini();
+
+	rc = system("rm -rf "M0_UT_PATH("confd"));
+	M0_ASSERT(rc != -1);
+	unlink(M0_UT_PATH("conf-str-tmp.txt"));
 }
 
 static void spiel_conf_force(void)
 {
-	struct m0_spiel_tx tx;
-	int                rc;
-	const char        *ep[] = { SERVER_ENDPOINT_ADDR,
-				    "127.0.0.1", /* bad address */
-				    NULL };
-	const char        *rm_ep = ep[0];
-	struct m0_spiel    spiel;
-	uint64_t           ver_org = M0_CONF_VER_UNKNOWN;
-	uint64_t           ver_new = M0_CONF_VER_UNKNOWN;
-	uint32_t           rquorum;
-	const char       **eps_orig;
+	struct m0_spiel_ut_reqh   spl_reqh;
+	struct m0_spiel_tx        tx;
+	int                       rc;
+	const char               *ep[] = { SERVER_ENDPOINT_ADDR,
+			                   "127.0.0.1", /* bad address */
+			                   NULL };
+	const char               *rm_ep = ep[0];
+	struct m0_spiel           spiel;
+	uint64_t                  ver_org = M0_CONF_VER_UNKNOWN;
+	uint64_t                  ver_new = M0_CONF_VER_UNKNOWN;
+	uint32_t                  rquorum;
+	const char              **eps_orig;
 
+	spiel_conf_force_ut_init(&spl_reqh);
 	/* start with quorum impossible due to second ep being invalid */
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
+	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spiel.spl_rconfc.rc_ver == M0_CONF_VER_UNKNOWN);
 	ver_org = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
@@ -1286,7 +1339,7 @@ static void spiel_conf_force(void)
 
 	/* make sure new version applied */
 	M0_SET0(&spiel);
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
+	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
 	ver_new = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
 	M0_UT_ASSERT(ver_new == ver_org + 1); /*
@@ -1306,61 +1359,16 @@ static void spiel_conf_force(void)
 
 	/* make sure new version applied */
 	M0_SET0(&spiel);
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
+	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
 	ver_new = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
 	M0_UT_ASSERT(ver_new == ver_org + 10); /* ver_forced confirmed */
 	m0_spiel_stop(&spiel);
-}
-
-/**
- * spiel-conf-init
- */
-static int spiel_conf_ut_init()
-{
-	int         rc;
-	const char *ep = SERVER_ENDPOINT_ADDR;
-	const char *client_ep = "0@lo:12345:35:1";
-
-	/* restore conf file name if modified */
-	rename(M0_UT_PATH("conf-str-orig.txt"), M0_UT_PATH("conf-str.txt"));
-
-	m0_rwlockable_domain_init();
-	M0_ALLOC_PTR(spl_reqh);
-	rc = m0_spiel__ut_reqh_init(spl_reqh, client_ep);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_spiel__ut_confd_start(&spl_reqh->sur_confd_srv, ep,
-				      M0_UT_PATH("conf-str.txt"));
-	M0_UT_ASSERT(rc == 0);
-
-	/* save conf file*/
-	rename( M0_UT_PATH("conf-str.txt"),
-		M0_UT_PATH("conf-str-orig.txt"));
-	return 0;
-}
-
-/**
- * spiel-conf-fini
- */
-static int spiel_conf_ut_fini()
-{
-	m0_spiel__ut_confd_stop(&spl_reqh->sur_confd_srv);
-	m0_spiel__ut_reqh_fini(spl_reqh);
-
-	m0_free(spl_reqh);
-	m0_rwlockable_domain_fini();
-
-	/* restore conf file*/
-	rename( M0_UT_PATH("conf-str-orig.txt"),
-		M0_UT_PATH("conf-str.txt"));
-	return 0;
+	spiel_conf_force_ut_fini(&spl_reqh);
 }
 
 const struct m0_ut_suite spiel_conf_ut = {
 	.ts_name = "spiel-conf-ut",
-	.ts_init = spiel_conf_ut_init,
-	.ts_fini = spiel_conf_ut_fini,
 	.ts_tests = {
 		{ "spiel-conf-create-ok",   spiel_conf_create_ok   },
 		{ "spiel-conf-create-fail", spiel_conf_create_fail },

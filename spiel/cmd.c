@@ -35,7 +35,8 @@
 #include "fop/fop.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/link.h"
-#include "rpc/rpclib.h"       /* m0_rpc_post_sync */
+#include "rpc/rpclib.h"         /* m0_rpc_post_sync */
+#include "sss/device_fops.h"
 #include "sss/ss_fops.h"
 #include "sss/process_fops.h"
 #include "spiel/spiel.h"
@@ -57,9 +58,134 @@ enum {
 	SPIEL_CONN_TIMEOUT       = 5, /* seconds */
 };
 
-static int spiel_send_cmd(struct m0_rpc_machine *rmachine,
+#define SPIEL_DEVICE_FORMAT_TIMEOUT   m0_time_from_now(10*60, 0)
+
+struct spiel_string_entry {
+	struct m0_list_link sse_linkage;
+	char               *sse_string;
+};
+
+static bool _filter_svc(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
+}
+
+static bool _filter_controller(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE;
+}
+
+static int spiel_node_svs_endpoint_add(struct m0_spiel    *spl,
+				       struct m0_conf_obj *node,
+				       struct m0_list     *list)
+{
+	struct spiel_string_entry *entry;
+	struct m0_confc           *confc = &spl->spl_rconfc.rc_confc;
+	struct m0_conf_diter       it;
+	struct m0_conf_service    *svc;
+	int                        rc;
+
+	M0_ENTRY("conf_node: %p", &node);
+
+	rc = m0_conf_diter_init(&it, confc, node,
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	while ((rc = m0_conf_diter_next_sync(&it, _filter_svc)) ==
+							M0_CONF_DIRNEXT) {
+		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
+		if (svc->cs_type == M0_CST_SSS) {
+			M0_ALLOC_PTR(entry);
+			if (entry == NULL) {
+				rc = M0_ERR(-ENOMEM);
+				goto done;
+			}
+			entry->sse_string = m0_strdup(svc->cs_endpoints[0]);
+			m0_list_add(list, &entry->sse_linkage);
+		}
+	}
+
+done:
+	m0_conf_diter_fini(&it);
+	return M0_RC(rc);
+}
+
+/**
+ * Finds mo_conf_node by m0_conf_disk and collect endpoints from its node.
+ *
+ * Disk -> Controller -> Node -> Processes -> SSS services.
+ */
+static int spiel_endpoints_for_device_generic(struct m0_spiel     *spl,
+					      const struct m0_fid *device_fid,
+					      struct m0_list      *list)
+{
+	struct m0_confc           *confc = &spl->spl_rconfc.rc_confc;
+	struct m0_conf_diter       it;
+	struct m0_conf_obj        *fs;
+	struct m0_conf_obj        *disk;
+	struct m0_conf_obj        *ctrl_obj;
+	struct m0_conf_controller *ctrl;
+	struct m0_conf_obj        *node_obj;
+	int                        rc;
+	bool                       found = false;
+
+	M0_ENTRY();
+	M0_PRE(device_fid != NULL);
+	M0_PRE(list != NULL);
+
+	if (m0_conf_fid_type(device_fid) != &M0_CONF_DISK_TYPE)
+		return M0_ERR(-EINVAL);
+
+	rc = m0_confc_open_sync(&fs, confc->cc_root,
+				M0_CONF_ROOT_PROFILES_FID,
+				spl->spl_profile,
+				M0_CONF_PROFILE_FILESYSTEM_FID);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0_conf_diter_init(&it, confc, fs,
+				M0_CONF_FILESYSTEM_RACKS_FID,
+				M0_CONF_RACK_ENCLS_FID,
+				M0_CONF_ENCLOSURE_CTRLS_FID);
+	if (rc != 0) {
+		m0_conf_diter_fini(&it);
+		return M0_ERR(rc);
+	}
+
+	while ((rc = m0_conf_diter_next_sync(&it, _filter_controller)) ==
+							M0_CONF_DIRNEXT) {
+		ctrl_obj = m0_conf_diter_result(&it);
+		rc = m0_confc_open_sync(&disk, ctrl_obj,
+					M0_CONF_CONTROLLER_DISKS_FID,
+					*device_fid);
+
+		if (rc == 0) {
+			ctrl = M0_CONF_CAST(ctrl_obj, m0_conf_controller);
+			rc = m0_confc_open_by_fid_sync(confc,
+					       &ctrl->cc_node->cn_obj.co_id,
+					       &node_obj);
+			if (rc == 0) {
+				spiel_node_svs_endpoint_add(spl, node_obj,
+							    list);
+				m0_confc_close(node_obj);
+			}
+			found = true;
+			m0_confc_close(disk);
+		}
+	}
+
+	m0_conf_diter_fini(&it);
+	m0_confc_close(fs);
+
+	return found ? M0_RC(rc) : M0_ERR(-ENOENT);
+}
+
+static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
 			  const char            *remote_ep,
-			  struct m0_fop         *cmd_fop)
+			  struct m0_fop         *cmd_fop,
+			  m0_time_t              timeout)
 {
 	struct m0_rpc_link     *rlink;
 	int                     rc;
@@ -80,10 +206,11 @@ static int spiel_send_cmd(struct m0_rpc_machine *rmachine,
 			SPIEL_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
 		rc = m0_rpc_link_connect_sync(rlink) ?:
-		     m0_rpc_post_sync(cmd_fop,
-				      &rlink->rlk_sess,
-				      NULL,
-				      M0_TIME_IMMEDIATELY);
+		     m0_rpc_post_with_timeout_sync(cmd_fop,
+						    &rlink->rlk_sess,
+						    NULL,
+						    M0_TIME_IMMEDIATELY,
+						    timeout);
 
 		/* disconnect should be called even if connect failed */
 		m0_rpc_link_disconnect_sync(rlink);
@@ -135,7 +262,8 @@ static int _spiel_conf_obj_find(struct m0_confc       *confc,
 	M0_PRE(obj_fid != NULL);
 	M0_PRE(path != NULL);
 	M0_PRE(nr_lvls > 0);
-	M0_PRE(m0_fid_eq(&path[0], &M0_CONF_FILESYSTEM_NODES_FID));
+	M0_PRE(m0_fid_eq(&path[0], &M0_CONF_FILESYSTEM_NODES_FID) ||
+	       m0_fid_eq(&path[0], &M0_CONF_FILESYSTEM_POOLS_FID));
 	M0_PRE(conf_obj != NULL);
 
 	*conf_obj = NULL;
@@ -236,11 +364,6 @@ static int spiel_ss_ep_for_svc(const struct m0_conf_service  *s,
 	return M0_RC(spiel_ss_ep_lookup(s->cs_obj.co_parent, ss_ep));
 }
 
-static bool _filter_svc(const struct m0_conf_obj *obj)
-{
-	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
-}
-
 static int spiel_svc_conf_obj_find(struct m0_spiel         *spl,
 				   const struct m0_fid     *svc_fid,
 				   struct m0_conf_service **svc_obj)
@@ -308,7 +431,8 @@ static int spiel_svc_fop_fill_and_send(struct m0_spiel     *spl,
 	rc = spiel_svc_fop_fill(fop, svc, cmd) ?:
 	     spiel_ss_ep_for_svc(svc, &ss_ep);
 	if (rc == 0) {
-		rc = spiel_send_cmd(spl->spl_rmachine, ss_ep, fop);
+		rc = spiel_cmd_send(spl->spl_rmachine, ss_ep, fop,
+				    M0_TIME_NEVER);
 		m0_free(ss_ep);
 	}
 
@@ -401,33 +525,88 @@ M0_EXPORTED(m0_spiel_service_quiesce);
 /*                     Devices                      */
 /****************************************************/
 
-int m0_spiel_device_attach(struct m0_spiel *spl, const struct m0_fid *dev_fid)
+static int spiel_device_command_fop_send(struct m0_spiel     *spl,
+					 const char          *endpoint,
+					 const struct m0_fid *dev_fid,
+					 int                  cmd)
 {
-	int rc = 0;
+	struct m0_fop                *fop;
+	struct m0_sss_device_fop_rep *rep;
+	int                           rc;
+
+	fop  = m0_sss_device_fop_create(spl->spl_rmachine, cmd, dev_fid);
+	if (fop == NULL)
+		return M0_RC(-ENOMEM);
+
+	rc = spiel_cmd_send(spl->spl_rmachine, endpoint, fop,
+			    cmd == M0_DEVICE_FORMAT ?
+				   SPIEL_DEVICE_FORMAT_TIMEOUT :
+				   M0_TIME_NEVER);
+	if (rc == 0) {
+		rep = m0_sss_fop_to_dev_rep(
+				m0_rpc_item_to_fop(fop->f_item.ri_reply));
+		rc = rep->ssdp_rc;
+		m0_fop_put_lock(fop);
+	} else {
+		m0_fop_fini(fop);
+		m0_free(fop);
+	}
+	return M0_RC(rc);
+}
+
+static int spiel_device_command_send(struct m0_spiel     *spl,
+				     const struct m0_fid *dev_fid,
+				     int                  cmd)
+{
+	struct m0_list  endpoints;
+	int             rc;
+
 	M0_ENTRY();
 
+	if (m0_conf_fid_type(dev_fid) != &M0_CONF_DISK_TYPE)
+		return M0_ERR(-EINVAL);
+
+	m0_list_init(&endpoints);
+
+	rc = spiel_endpoints_for_device_generic(spl, dev_fid, &endpoints);
+	if (rc == 0)
+		m0_list_entry_forall(e, &endpoints, struct spiel_string_entry,
+			     sse_linkage,
+			     rc = rc ?: spiel_device_command_fop_send(spl,
+						e->sse_string, dev_fid, cmd);
+			     m0_list_del(&e->sse_linkage);
+			     m0_free((char *)e->sse_string);
+			     m0_free(e);
+			     true;);
+
+	m0_list_fini(&endpoints);
+
 	return M0_RC(rc);
+}
+
+int m0_spiel_device_attach(struct m0_spiel *spl, const struct m0_fid *dev_fid)
+{
+	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(dev_fid));
+
+	return M0_RC(spiel_device_command_send(spl, dev_fid, M0_DEVICE_ATTACH));
 }
 M0_EXPORTED(m0_spiel_device_attach);
 
 int m0_spiel_device_detach(struct m0_spiel *spl, const struct m0_fid *dev_fid)
 {
-	int rc = 0;
-	M0_ENTRY();
+	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(dev_fid));
 
-	return M0_RC(rc);
+	return M0_RC(spiel_device_command_send(spl, dev_fid, M0_DEVICE_DETACH));
 }
 M0_EXPORTED(m0_spiel_device_detach);
 
 int m0_spiel_device_format(struct m0_spiel *spl, const struct m0_fid *dev_fid)
 {
-	int rc = 0;
-	M0_ENTRY();
+	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(dev_fid));
 
-	return M0_RC(rc);
+	return M0_RC(spiel_device_command_send(spl, dev_fid, M0_DEVICE_FORMAT));
 }
 M0_EXPORTED(m0_spiel_device_format);
-
 
 /****************************************************/
 /*                   Processes                      */
@@ -479,7 +658,7 @@ static int spiel_process_command_send(struct m0_spiel     *spl,
 	m0_confc_close(&process->pc_obj);
 
 	if (rc == 0)
-		rc = spiel_send_cmd(spl->spl_rmachine, ep, fop);
+		rc = spiel_cmd_send(spl->spl_rmachine, ep, fop, M0_TIME_NEVER);
 	m0_free(ep);
 
 	if (rc != 0) {
@@ -680,3 +859,13 @@ M0_EXPORTED(m0_spiel_pool_rebalance_quiesce);
 
 /** @} */
 #undef M0_TRACE_SUBSYSTEM
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
