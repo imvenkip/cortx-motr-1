@@ -447,7 +447,7 @@ m0_build_local_conf()
 [$(( $ios_count + 1 + $pool_width * 3 + 15 )):
   {0x74| (($root), 1, [1: $prof])},
   {0x70| (($prof), $fs)},
-  {0x66| (($fs), (11, 22), 41212,
+  {0x66| (($fs), (11, 22), 1,
           [1: "$pool_width $data_units $parity_units"],
           $poolid,
           [1: $node],
