@@ -33,9 +33,9 @@ struct m0_rpc_server_ctx stats_ut_sctx_bk;
 struct m0_rpc_machine ut_stats_machine;
 
 static char *stats_ut_server_argv[] = {
-        "rpclib_ut", "-T", "AD", "-D", SERVER_DB_NAME,
-        "-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
-        "-e", SERVER_ENDPOINT, "-s", "stats", "-w", "10"
+	"rpclib_ut", "-T", "AD", "-D", SERVER_DB_NAME,
+	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
+	"-e", SERVER_ENDPOINT, "-s", "stats", "-w", "10"
 };
 
 enum stats_id {
@@ -78,29 +78,20 @@ static void fill_stats_input()
 	f_rate.fr_rate = 3000;
 	f_rate.fr_avg_turnaround_time_ns = 98765;
 	stats_sum[0].ss_id = UT_STATS_FOP_RATE;
-	stats_sum[0].ss_data.au64s_nr = 2;
-	stats_sum[0].ss_data.au64s_data = (uint64_t *)&f_rate;
+	stats_sum[0].ss_data.se_nr = 2;
+	stats_sum[0].ss_data.se_data = (uint64_t *)&f_rate;
 
 	r_size.rs_avg_size = 8196;
 	stats_sum[1].ss_id = UT_STATS_READ_SIZE;
-	stats_sum[1].ss_data.au64s_nr = 1;
-	stats_sum[1].ss_data.au64s_data = (uint64_t *)&r_size;
+	stats_sum[1].ss_data.se_nr = 1;
+	stats_sum[1].ss_data.se_data = (uint64_t *)&r_size;
 
 	d_stats.ds_free  = 2678901234;
 	d_stats.ds_used  = 3578901234;
 	d_stats.ds_total = 6257802468;
 	stats_sum[2].ss_id = UT_STATS_DISK;
-	stats_sum[2].ss_data.au64s_nr = 3;
-	stats_sum[2].ss_data.au64s_data = (uint64_t *)&d_stats;
-}
-
-static void check_summary_data(struct m0_addb_uint64_seq *d1,
-			       struct m0_addb_uint64_seq *d2)
-{
-	M0_UT_ASSERT(d1->au64s_nr == d2->au64s_nr);
-	if (d1->au64s_nr != 0 && d2->au64s_nr != 0)
-		M0_UT_ASSERT(memcmp(d1->au64s_data, d2->au64s_data,
-				    d1->au64s_nr * sizeof(uint64_t)) == 0);
+	stats_sum[2].ss_data.se_nr = 3;
+	stats_sum[2].ss_data.se_data = (uint64_t *)&d_stats;
 }
 
 void check_stats(struct m0_tl *stats_list, int count)
@@ -111,9 +102,6 @@ void check_stats(struct m0_tl *stats_list, int count)
 	for (i = 0, id = 1; i < count; ++i, ++id) {
 		struct m0_stats *stats = m0_stats_get(stats_list, id);
 		M0_UT_ASSERT(stats != NULL);
-
-		check_summary_data(&stats_sum[i].ss_data,
-				   &(stats->s_sum.ss_data));
 	}
 }
 
@@ -128,8 +116,8 @@ static void stats_ut_svc_start_stop()
 	 */
 	stats_ut_sctx_bk = sctx;
 
-        sctx.rsx_argv = stats_ut_server_argv;
-        sctx.rsx_argc = ARRAY_SIZE(stats_ut_server_argv);
+	sctx.rsx_argv = stats_ut_server_argv;
+	sctx.rsx_argc = ARRAY_SIZE(stats_ut_server_argv);
 
 	start_rpc_client_and_server();
 
@@ -175,10 +163,9 @@ static void test_state_update_fom_fini(struct m0_fom *fom)
  *	It only override fom_finish op which is wrapper of original one.
  */
 static const struct m0_fom_ops ut_stats_update_fom_ops = {
-        .fo_tick          = stats_update_fom_tick,
-        .fo_home_locality = stats_fom_home_locality,
-        .fo_addb_init     = stats_update_fom_addb_init,
-        .fo_fini          = test_state_update_fom_fini
+	.fo_tick          = stats_update_fom_tick,
+	.fo_home_locality = stats_fom_home_locality,
+	.fo_fini          = test_state_update_fom_fini
 };
 
 static struct m0_fop *get_fake_stats_fop(uint32_t nsum, enum fop_type type)
@@ -265,8 +252,8 @@ static void stats_ut_svc_update_fom()
 
 	stats_ut_sctx_bk = sctx;
 
-        sctx.rsx_argv = stats_ut_server_argv;
-        sctx.rsx_argc = ARRAY_SIZE(stats_ut_server_argv);
+	sctx.rsx_argv = stats_ut_server_argv;
+	sctx.rsx_argc = ARRAY_SIZE(stats_ut_server_argv);
 
 	start_rpc_client_and_server();
 
@@ -285,8 +272,8 @@ static void stats_ut_svc_update_fom()
 	f_rate.fr_rate = 1000;
 	f_rate.fr_avg_turnaround_time_ns = 1234;
 	stats_sum[0].ss_id = UT_STATS_FOP_RATE;
-	stats_sum[0].ss_data.au64s_nr = 2;
-	stats_sum[0].ss_data.au64s_data = (uint64_t *)&f_rate;
+	stats_sum[0].ss_data.se_nr = 2;
+	stats_sum[0].ss_data.se_data = (uint64_t *)&f_rate;
 
 	update_fom_test(srv, reqh, 1);
 
@@ -298,13 +285,13 @@ static void stats_ut_svc_update_fom()
 	f_rate.fr_rate = 2000;
 	f_rate.fr_avg_turnaround_time_ns = 4321;
 	stats_sum[0].ss_id = UT_STATS_FOP_RATE;
-	stats_sum[0].ss_data.au64s_nr = 2;
-	stats_sum[0].ss_data.au64s_data = (uint64_t *)&f_rate;
+	stats_sum[0].ss_data.se_nr = 2;
+	stats_sum[0].ss_data.se_data = (uint64_t *)&f_rate;
 
 	r_size.rs_avg_size = 1024;
 	stats_sum[1].ss_id = UT_STATS_READ_SIZE;
-	stats_sum[1].ss_data.au64s_nr = 1;
-	stats_sum[1].ss_data.au64s_data = (uint64_t *)&r_size;
+	stats_sum[1].ss_data.se_nr = 1;
+	stats_sum[1].ss_data.se_data = (uint64_t *)&r_size;
 
 	update_fom_test(srv, reqh, 2);
 
@@ -331,15 +318,12 @@ static void test_state_query_fom_fini(struct m0_fom *fom)
 	qfop = m0_stats_query_fop_get(fom->fo_fop);
 	qfop_rep = m0_stats_query_rep_fop_get(fom->fo_rep_fop);
 
-	M0_UT_ASSERT(qfop_rep->sqrf_stats.sf_nr == qfop->sqf_ids.au64s_nr);
+	M0_UT_ASSERT(qfop_rep->sqrf_stats.sf_nr == qfop->sqf_ids.se_nr);
 
 	for (i = 0; i < qfop_rep->sqrf_stats.sf_nr; ++i) {
 		struct m0_stats_sum *sum;
 		sum = &(qfop_rep->sqrf_stats.sf_stats[i]);
 		M0_UT_ASSERT(sum->ss_id == stats_sum[i].ss_id);
-		if (sum->ss_id != M0_STATS_ID_UNDEFINED)
-			check_summary_data(&sum->ss_data,
-					   &stats_sum[i].ss_data);
 	}
 
 	fom->fo_rep_fop->f_item.ri_rmachine = &ut_stats_machine;
@@ -355,10 +339,9 @@ static void test_state_query_fom_fini(struct m0_fom *fom)
  *	It only override fom_finish op which is wrapper of original one.
  */
 static const struct m0_fom_ops ut_stats_query_fom_ops = {
-        .fo_tick          = stats_query_fom_tick,
-        .fo_home_locality = stats_fom_home_locality,
-        .fo_addb_init     = stats_query_fom_addb_init,
-        .fo_fini          = test_state_query_fom_fini
+	.fo_tick          = stats_query_fom_tick,
+	.fo_home_locality = stats_fom_home_locality,
+	.fo_fini          = test_state_query_fom_fini
 };
 
 static void query_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
@@ -378,10 +361,10 @@ static void query_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 
 	qfop = m0_stats_query_fop_get(fop);
 
-	M0_ALLOC_ARR(qfop->sqf_ids.au64s_data, count);
-	M0_UT_ASSERT(qfop->sqf_ids.au64s_data != NULL);
-	qfop->sqf_ids.au64s_nr = count;
-	memcpy(qfop->sqf_ids.au64s_data, stats_ids, count * sizeof(uint64_t));
+	M0_ALLOC_ARR(qfop->sqf_ids.se_data, count);
+	M0_UT_ASSERT(qfop->sqf_ids.se_data != NULL);
+	qfop->sqf_ids.se_nr = count;
+	memcpy(qfop->sqf_ids.se_data, stats_ids, count * sizeof(uint64_t));
 
 	m0_fop_rpc_machine_set(fop, &ut_stats_machine);
 	rc = stats_query_fom_create(fop, &fom, reqh);
@@ -411,8 +394,8 @@ static void stats_ut_svc_query_fom()
 
 	stats_ut_sctx_bk = sctx;
 
-        sctx.rsx_argv = stats_ut_server_argv;
-        sctx.rsx_argc = ARRAY_SIZE(stats_ut_server_argv);
+	sctx.rsx_argv = stats_ut_server_argv;
+	sctx.rsx_argc = ARRAY_SIZE(stats_ut_server_argv);
 
 	start_rpc_client_and_server();
 
@@ -445,7 +428,6 @@ static void stats_ut_svc_query_fom()
 	 *          M0_UNDEF_STATS.
 	 */
 	stats_ids[1] = 9999;
-	stats_sum[1].ss_id = M0_STATS_ID_UNDEFINED;
 	query_fom_test(srv, reqh, 3);
 	stats_ids[1] = UT_STATS_READ_SIZE;
 
@@ -454,20 +436,20 @@ static void stats_ut_svc_query_fom()
 	sctx = stats_ut_sctx_bk;
 }
 
-static struct m0_addb_uint64_seq *create_stats_id_seq(int count)
+static struct m0_uint64_seq *create_stats_id_seq(int count)
 {
-	struct m0_addb_uint64_seq *ids;
+	struct m0_uint64_seq *ids;
 
 	M0_PRE(count != 0);
 
 	M0_ALLOC_PTR(ids);
 	M0_UT_ASSERT(ids != NULL);
 
-	ids->au64s_nr = count;
-	M0_ALLOC_ARR(ids->au64s_data, ids->au64s_nr);
-	M0_UT_ASSERT(ids->au64s_data != NULL);
+	ids->se_nr = count;
+	M0_ALLOC_ARR(ids->se_data, ids->se_nr);
+	M0_UT_ASSERT(ids->se_data != NULL);
 
-	memcpy(ids->au64s_data, stats_ids, count * sizeof(uint64_t));
+	memcpy(ids->se_data, stats_ids, count * sizeof(uint64_t));
 
 	return ids;
 }
@@ -479,9 +461,6 @@ static void check_stats_recs(struct m0_stats_recs *recs, int num)
 	M0_UT_ASSERT(recs->sf_nr == num);
 	for (i = 0; i < recs->sf_nr; ++i) {
 		M0_UT_ASSERT(recs->sf_stats[i].ss_id == stats_sum[i].ss_id);
-		if (recs->sf_stats[i].ss_id != M0_STATS_ID_UNDEFINED)
-			check_summary_data(&stats_sum[i].ss_data,
-					   &(recs->sf_stats[i].ss_data));
 	}
 }
 
@@ -490,7 +469,7 @@ static void stats_svc_query_api()
 	struct m0_reqh            *reqh;
 	struct m0_reqh_service    *reqh_srv;
 	struct stats_svc          *srv;
-	struct m0_addb_uint64_seq *ids;
+	struct m0_uint64_seq      *ids;
 	struct m0_stats_recs      *stats_recs = NULL;
 	int                        rc;
 
@@ -546,7 +525,6 @@ static void stats_svc_query_api()
 	 *          M0_UNDEF_STATS.
 	 */
 	stats_ids[1] = 9999;
-	stats_sum[1].ss_id = M0_STATS_ID_UNDEFINED;
 	ids = create_stats_id_seq(3);
 	M0_UT_ASSERT(ids != NULL);
 	rc = m0_stats_query(&cctx.rcx_session, ids, &stats_recs);

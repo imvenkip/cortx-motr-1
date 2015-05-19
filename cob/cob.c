@@ -19,14 +19,6 @@
  * Mdstore changes: Yuriy Umanets <yuriy_umanets@xyratex.com>
  */
 
-/*
- * Define the ADDB types in this file.
- */
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-#undef M0_ADDB_RT_CREATE_DEFINITION
-#define M0_ADDB_RT_CREATE_DEFINITION
-#include "cob/cob_addb.h"
 #include "fid/fid.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
@@ -70,9 +62,6 @@ enum {
 	M0_COB_NAME_MAX = 256,
 	M0_COB_EA_MAX   = 4096
 };
-
-struct m0_addb_ctx m0_cob_mod_ctx;
-
 
 static int cob0_init(struct m0_be_domain *dom, const char *suffix,
 		     const struct m0_buf *data)
@@ -119,13 +108,6 @@ struct m0_be_0type m0_be_cob0 = {
 	.b0_fini = cob0_fini,
 };
 
-#define COB_FUNC_FAIL(loc, rc)						\
-do {									\
-	if (rc < 0)							\
-		M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_COB_ADDB_LOC_##loc,	\
-				  rc, &m0_cob_mod_ctx);			\
-} while (0)
-
 const struct m0_fid_type m0_cob_fid_type = {
 	.ft_id   = 'C',
 	.ft_name = "cob fid"
@@ -141,16 +123,12 @@ M0_INTERNAL const struct m0_fid *m0_cob_fid(const struct m0_cob *cob)
 M0_INTERNAL int m0_cob_mod_init(void)
 {
 	m0_fid_type_register(&m0_cob_fid_type);
-	m0_addb_ctx_type_register(&m0_addb_ct_cob_mod);
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_cob_mod_ctx,
-			 &m0_addb_ct_cob_mod, &m0_addb_proc_ctx);
 	return 0;
 }
 
 M0_INTERNAL void m0_cob_mod_fini(void)
 {
 	m0_fid_type_unregister(&m0_cob_fid_type);
-	m0_addb_ctx_fini(&m0_cob_mod_ctx);
 }
 
 #ifndef __KERNEL__
@@ -793,7 +771,6 @@ static void cob_fini(struct m0_cob *cob)
 		m0_free(cob->co_nskey);
 	if (cob->co_flags & M0_CA_FABREC)
 		m0_free(cob->co_fabrec);
-	m0_addb_ctx_fini(&cob->co_addb);
 }
 
 /**
@@ -822,10 +799,11 @@ M0_INTERNAL int m0_cob_alloc(struct m0_cob_domain *dom, struct m0_cob **out)
 {
 	struct m0_cob *cob;
 
-	M0_ALLOC_PTR_ADDB(cob, &m0_addb_gmc, M0_COB_ADDB_LOC_ALLOC,
-			  &m0_cob_mod_ctx);
-	if (cob == NULL)
+	M0_ALLOC_PTR(cob);
+	if (cob == NULL) {
+		*out = NULL;
 		return M0_ERR(-ENOMEM);
+	}
 
 	cob_init(dom, cob);
 	*out = cob;
@@ -1450,7 +1428,6 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	rc = 0;
 	cob->co_flags |= M0_CA_NSKEY_FREE | M0_CA_FABREC;
 out:
-	COB_FUNC_FAIL(CREATE, rc);
 	return M0_RC(rc);
 }
 
@@ -1515,7 +1492,6 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 		cob_table_delete(&cob->co_dom->cd_fileattr_omg, tx, &key);
 	}
 out:
-	COB_FUNC_FAIL(DELETE, rc);
 	return M0_RC(rc);
 }
 
@@ -1585,8 +1561,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 				      tx, &key, &val);
 	}
 
-        COB_FUNC_FAIL(UPDATE, rc);
-        return M0_RC(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
@@ -1662,7 +1637,6 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
 	rc = cob_table_delete(&cob->co_dom->cd_object_index, tx, &key);
 
 out:
-	COB_FUNC_FAIL(NAME_DEL, rc);
 	return M0_RC(rc);
 }
 
@@ -1717,7 +1691,6 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 			  m0_bitstring_len_get(&tgtkey->cnk_name));
 	cob->co_flags |= M0_CA_NSKEY_FREE;
 out:
-	COB_FUNC_FAIL(NAME_UPDATE, rc);
 	return M0_RC(rc);
 }
 
@@ -1845,7 +1818,6 @@ M0_INTERNAL int m0_cob_ea_del(struct m0_cob *cob,
 
 	m0_buf_init(&key, eakey, m0_cob_eakey_size(eakey));
 	rc = cob_table_delete(&cob->co_dom->cd_fileattr_ea, tx, &key);
-	COB_FUNC_FAIL(EA_DEL, rc);
 	return M0_RC(rc);
 }
 

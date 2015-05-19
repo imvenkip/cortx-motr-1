@@ -32,8 +32,7 @@
  *
  * @{
  */
-struct m0_addb_uint64_seq;
-struct m0_addb_stats;
+struct m0_uint64_seq;
 struct m0_stats_recs;
 struct m0_rpc_session;
 
@@ -47,9 +46,9 @@ struct m0_rpc_session;
  * @retval Pointer to stats return by stats service. This should be freed by
  *         caller after use. It can be freed using m0_stats_free().
  */
-int m0_stats_query(struct m0_rpc_session      *session,
-		   struct m0_addb_uint64_seq  *stats_ids,
-		   struct m0_stats_recs      **stats);
+int m0_stats_query(struct m0_rpc_session  *session,
+		   struct m0_uint64_seq   *stats_ids,
+		   struct m0_stats_recs  **stats);
 
 /**
  * Free stats sequence

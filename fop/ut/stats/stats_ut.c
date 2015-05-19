@@ -17,8 +17,6 @@
  * Original creation date: 04/01/2013
  */
 
-#define M0_ADDB_RT_CREATE_DEFINITION
-
 #include "ut/ut.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
@@ -84,18 +82,15 @@ static const struct m0_reqh_service_type_ops ut_stats_service_type_ops = {
 	.rsto_service_allocate = ut_stats_service_allocate
 };
 
-M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 M0_REQH_SERVICE_TYPE_DEFINE(ut_stats_service_type,
 			    &ut_stats_service_type_ops,
-			    "ut-stats-service",
-                            &m0_addb_ct_ut_service, 2, M0_CST_STS);
+			    "ut-stats-service", 2, M0_CST_STS);
 
 static int test_stats_init(void)
 {
 	int rc;
 
 	m0_sm_conf_init(&fom_phases_conf);
-	m0_addb_rec_type_register(&addb_rt_fom_phase_stats);
 	rc = m0_reqh_service_type_register(&ut_stats_service_type);
 	M0_ASSERT(rc == 0);
 	m0_fom_type_init(&stats_fom_type, M0_UT_STATS_OPCODE,

@@ -290,8 +290,7 @@ static int net_test_network_ctx_initfini(struct m0_net_test_network_ctx *ctx,
 	ctx->ntc_tm->ntm_state     = M0_NET_TM_UNDEFINED;
 	ctx->ntc_tm->ntm_callbacks = &ctx->ntc_cfg.ntncfg_tm_cb;
 	/** @todo replace gmc and ctx */
-	rc = m0_net_tm_init(ctx->ntc_tm, ctx->ntc_dom, &m0_addb_gmc,
-			    &m0_addb_proc_ctx);
+	rc = m0_net_tm_init(ctx->ntc_tm, ctx->ntc_dom);
 	if (rc != 0)
 		goto fini_dom;
 

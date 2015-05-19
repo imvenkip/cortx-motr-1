@@ -216,8 +216,7 @@ static int pdclust_allocate(struct m0_layout_domain *dom,
 err1_injected:
 	if (pl == NULL) {
 		m0_layout__log("pdclust_allocate", "M0_ALLOC_PTR() failed",
-			       M0_LAYOUT_ADDB_LOC_PDCLUST_ALLOC,
-			       NULL, lid, -ENOMEM);
+			       lid, -ENOMEM);
 		return M0_ERR(-ENOMEM);
 	}
 
@@ -658,9 +657,6 @@ static uint64_t permute_column(struct m0_pdclust_instance *pi,
 
 	/**
 	 * @todo Not sure if this should be replaced by an ADDB DP or a M0_LOG.
-	 *
-	 * M0_ADDB_ADD(&pl->pl_base.sl_base.l_addb_ctx, &layout_addb_loc,
-	 *	    pdclust_tile_cache_hit, tc->tc_tile_no == omega);
 	 */
 
 	M0_POST(tc->tc_permute[t] < attr.pa_P);
@@ -828,8 +824,7 @@ err3_injected:
 		if (rc == -ENOMEM)
 			m0_layout__log("pdclust_instance_build",
 				       "M0_ALLOC() failed",
-				       M0_LAYOUT_ADDB_LOC_PDCLUST_INST_BUILD,
-				       &l->l_addb_ctx, l->l_id, rc);
+				       l->l_id, rc);
 		if (pi != NULL) {
 			m0_free(tc->tc_inverse);
 			m0_free(tc->tc_permute);

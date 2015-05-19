@@ -38,7 +38,6 @@
 #include "lib/time.h"
 #include "lib/thread.h"
 #include "lib/vec.h"
-#include "addb/addb.h"
 #include "net/net_otw_types.h"
 #include "net/net_otw_types_xc.h"
 
@@ -375,9 +374,6 @@ struct m0_net_domain {
 
 	/** This domain's transport. */
 	struct m0_net_xprt *nd_xprt;
-
-	/** ADDB context for events related to this domain. */
-	struct m0_addb_ctx  nd_addb_ctx;
 
 	/** Linkage for invoking application. */
 	struct m0_tlink     nd_app_linkage;
@@ -826,24 +822,6 @@ struct m0_net_transfer_mc {
 	/** Statistics maintained per logical queue. */
 	struct m0_net_qstats        ntm_qstats[M0_NET_QT_NR];
 
-	/** ADDB machine used for non-exception posts. */
-	struct m0_addb_mc          *ntm_addb_mc;
-
-	/** ADDB context for events related to this transfer machine. */
-	struct m0_addb_ctx          ntm_addb_ctx;
-
-	/** Aggregate message size statistics (messages sent or received). */
-	struct m0_addb_counter      ntm_cntr_msg;
-
-	/**
-	   Aggregate data size statistics (bulk I/O, active or passive,
-	   sent or received).
-	 */
-	struct m0_addb_counter      ntm_cntr_data;
-
-	/** Counts the number of messages received in receive buffers. */
-	struct m0_addb_counter      ntm_cntr_rb;
-
 	/** Domain linkage (m0_net_domain::nd_tms). */
 	struct m0_list_link         ntm_dom_linkage;
 
@@ -913,20 +891,13 @@ struct m0_net_transfer_mc {
    appropriate initial values.
 
    @param dom     Network domain pointer.
-   @param addb_mc Pointer to the ADDB machine to use with this transfer machine
-   for non-exception related posts.  The global ADDB machine, ::m0_addb_gmc,
-   can be used here if desired.
-   @param ctx     Parent ADDB context.
-   A suitable default is ::m0_addb_proc_ctx.
 
    @post tm->ntm_bev_auto_deliver is set.
    @post (tm->ntm_pool_colour == M0_NET_BUFFER_POOL_ANY_COLOR &&
           tm->ntm_recv_pool_queue_min_length == M0_NET_TM_RECV_QUEUE_DEF_LEN)
  */
 M0_INTERNAL int m0_net_tm_init(struct m0_net_transfer_mc *tm,
-			       struct m0_net_domain      *dom,
-			       struct m0_addb_mc         *addb_mc,
-			       struct m0_addb_ctx        *ctx);
+			       struct m0_net_domain      *dom);
 
 /**
    Finalizes a transfer machine, releasing any associated
@@ -1037,18 +1008,6 @@ M0_INTERNAL int m0_net_tm_stop(struct m0_net_transfer_mc *tm, bool abort);
 M0_INTERNAL int m0_net_tm_stats_get(struct m0_net_transfer_mc *tm,
 				    enum m0_net_queue_type qtype,
 				    struct m0_net_qstats *qs, bool reset);
-
-/**
-   Posts ADDB records on transfer machine statistics. The statistical counters
-   are reset during this operation.
-
-   Posts are made only if the relevant source information is non-zero.
-   Thus, this call will result in no posts if there has been no network
-   activity since the previous invocation.
-
-   @pre tm->ntm_state >= M0_NET_TM_INITIALIZED
- */
-M0_INTERNAL void m0_net_tm_stats_post_addb(struct m0_net_transfer_mc *tm);
 
 /**
    A transfer machine is notified of non-buffer related events of interest

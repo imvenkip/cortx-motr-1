@@ -57,6 +57,15 @@ M0_INTERNAL void m0_uuid_format(const struct m0_uint128 *val,
 
 M0_INTERNAL void m0_uuid_generate(struct m0_uint128 *u);
 
+/**
+ * The UUID of a Mero node.
+ */
+M0_EXTERN struct m0_uint128 m0_node_uuid;
+
+void m0_kmod_uuid_file_set(const char *path);
+void m0_node_uuid_string_set(char *uuid);
+int  m0_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1]);
+
 /** @} end uuid group */
 
 #endif /* __MERO_LIB_UUID_H__ */
@@ -70,4 +79,3 @@ M0_INTERNAL void m0_uuid_generate(struct m0_uint128 *u);
  *  scroll-step: 1
  *  End:
  */
-

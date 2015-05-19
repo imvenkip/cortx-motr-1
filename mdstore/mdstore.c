@@ -17,15 +17,6 @@
  * Original creation date: 01/17/2011
  */
 
-/*
- * Define the ADDB types in this file.
- */
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-#undef M0_ADDB_RT_CREATE_DEFINITION
-#define M0_ADDB_RT_CREATE_DEFINITION
-#include "mdstore/mdstore_addb.h"
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
 #include "lib/trace.h"
 
@@ -40,32 +31,18 @@
 #include "lib/rwlock.h"
 
 #include "fid/fid.h"
-#include "addb/addb.h"
 #include "fop/fop.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"
 #include "mero/magic.h"
 
-struct m0_addb_ctx m0_mdstore_mod_ctx;
-
-#define MDSTORE_FUNC_FAIL(loc, rc)					\
-do {									\
-	if (rc < 0)							\
-		M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_MDSTORE_ADDB_LOC_##loc, \
-				  rc, &m0_mdstore_mod_ctx);		\
-} while (0)
-
 M0_INTERNAL int m0_mdstore_mod_init(void)
 {
-	m0_addb_ctx_type_register(&m0_addb_ct_mdstore_mod);
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_mdstore_mod_ctx,
-			 &m0_addb_ct_mdstore_mod, &m0_addb_proc_ctx);
 	return 0;
 }
 
 M0_INTERNAL void m0_mdstore_mod_fini(void)
 {
-	m0_addb_ctx_fini(&m0_mdstore_mod_ctx);
 }
 
 
@@ -116,16 +93,12 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
 		m0_buf_init(&name, (char*)M0_COB_ROOT_NAME,
 				   strlen(M0_COB_ROOT_NAME));
 		rc = m0_mdstore_lookup(md, NULL, &name, &md->md_root);
-		MDSTORE_FUNC_FAIL(INIT_1, rc);
-		if (rc == 0) {
-			/**
+		if (rc == 0)
+			/*
 			 * Check if omgid can be allocated.
 			 */
 			rc = m0_cob_alloc_omgid(md->md_dom, NULL);
-		}
 	}
-
-	MDSTORE_FUNC_FAIL(INIT_2, rc);
 	if (rc != 0)
 		m0_mdstore_fini(md);
 	return M0_RC(rc);
@@ -135,7 +108,6 @@ M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md)
 {
 	if (md->md_root != NULL)
 		m0_cob_put(md->md_root);
-	m0_addb_ctx_fini(&md->md_addb);
 	m0_cob_domain_fini(md->md_dom);
 }
 
@@ -282,7 +254,6 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 	}
 
 out:
-	MDSTORE_FUNC_FAIL(CREATE, rc);
 	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
 }
@@ -344,7 +315,6 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 	rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
 
 out:
-	MDSTORE_FUNC_FAIL(LINK, rc);
 	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
 }
@@ -530,8 +500,6 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 	}
 
 out:
-	MDSTORE_FUNC_FAIL(UNLINK, rc);
-	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
 }
 
@@ -540,16 +508,10 @@ M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
 				m0_mdstore_locate_flags_t flags,
 				struct m0_be_tx         *tx)
 {
-	int rc = 0;
-
-	M0_ASSERT(cob != NULL);
-
-	/*
+	/**
 	 * @todo: Place cob to open files table.
 	 */
-
-	MDSTORE_FUNC_FAIL(OPEN, rc);
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
@@ -560,13 +522,11 @@ M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
 
 	M0_ASSERT(cob != NULL);
 
-	/*
+	/**
 	 * @todo:
 	 *   - orphans handling?
 	 *   - quota handling?
 	 */
-
-	MDSTORE_FUNC_FAIL(CLOSE, rc);
 	return M0_RC(rc);
 }
 
@@ -629,15 +589,16 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 	/*
 	 * Prepare src and dst keys.
 	 */
-	m0_cob_nskey_make(&srckey, pfid_src, (char *)sname->b_addr, sname->b_nob);
-	m0_cob_nskey_make(&tgtkey, pfid_tgt, (char *)tname->b_addr, tname->b_nob);
+	m0_cob_nskey_make(&srckey, pfid_src,
+			  (char *)sname->b_addr, sname->b_nob);
+	m0_cob_nskey_make(&tgtkey, pfid_tgt,
+			  (char *)tname->b_addr, tname->b_nob);
 
 	rc = m0_cob_name_update(cob_src, srckey, tgtkey, tx);
 
 	m0_free(srckey);
 	m0_free(tgtkey);
 out:
-	MDSTORE_FUNC_FAIL(RENAME, rc);
 	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
 }
@@ -654,16 +615,9 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
 				   struct m0_cob_attr   *attr,
 				   struct m0_be_tx      *tx)
 {
-	int rc;
-
 	M0_ENTRY();
 	M0_ASSERT(cob != NULL);
-
-	rc = m0_cob_setattr(cob, attr, tx);
-
-	MDSTORE_FUNC_FAIL(SETATTR, rc);
-	M0_LEAVE("rc: %d", rc);
-	return M0_RC(rc);
+	return M0_RC(m0_cob_setattr(cob, attr, tx));
 }
 
 M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
@@ -726,8 +680,6 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 	 */
 	attr->ca_pver = cob->co_fabrec->cfb_pver;
 
-	MDSTORE_FUNC_FAIL(GETATTR, rc);
-	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
 }
 
@@ -839,7 +791,6 @@ out_end:
 	if (rc == -ENOENT)
 		rc = ENOENT;
 out:
-	MDSTORE_FUNC_FAIL(READDIR, rc);
 	return M0_RC(rc);
 }
 

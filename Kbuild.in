@@ -57,7 +57,6 @@ m0mero_objects :=
 include $(src)/mero/Kbuild.sub
 include $(src)/m0t1fs/Kbuild.sub
 
-include $(src)/addb/Kbuild.sub
 include $(src)/addb2/Kbuild.sub
 include $(src)/be/Kbuild.sub
 include $(src)/conf/Kbuild.sub
@@ -105,7 +104,7 @@ include $(src)/xcode/Kbuild.sub
 
 ut/linux_kernel/m0ut-y = ut/linux_kernel/m0ut_main.o \
                          $(m0ut_objects) \
-                         $(filter-out addb/addb.o \
+                         $(filter-out \
                                       file/di.o \
                                       m0t1fs/linux_kernel/file.o \
                                       net/bulk_emulation/mem_xprt_xo.o \
@@ -116,7 +115,6 @@ ut/linux_kernel/m0ut-y = ut/linux_kernel/m0ut_main.o \
 
 m0ut_objects :=
 
-include $(src)/addb/ut/Kbuild.sub
 include $(src)/addb2/ut/Kbuild.sub
 include $(src)/fop/ut/Kbuild.sub
 include $(src)/file/ut/Kbuild.sub

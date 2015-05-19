@@ -24,7 +24,6 @@
 #include "lib/bitstring.h"
 
 #include "fop/fop.h"
-#include "addb/addb.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"
 #include "mdservice/md_fops.h"

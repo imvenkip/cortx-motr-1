@@ -33,7 +33,6 @@
 #include "ioservice/io_service.h"
 
 #include "cm/proxy.h"
-#include "sns/sns_addb.h"
 #include "sns/parity_repair.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
@@ -451,11 +450,6 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	sa = &ifc->ifc_sa;
 	gfid = &ifc->ifc_gfid;
 	for (group = sa->sa_group; group < ifc->ifc_groups_nr; ++group) {
-		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_progress,
-			     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
-			     scm->sc_it.si_total_files, group + 1,
-			     ifc->ifc_groups_nr);
-
 		if (__group_skip(it, group))
 			continue;
 		has_incoming = __has_incoming(scm, pl, pi, gfid, group);
@@ -809,8 +803,7 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 	cm = &scm->sc_base;
         rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, &it->si_cob_dom);
         if (rc != 0) {
-		SNS_ADDB_FUNCFAIL(rc, &m0_sns_mod_addb_ctx, ITER_CDOM_GET);
-                return M0_RC(rc);
+                return M0_ERR(rc);
 	}
 	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_IDLE, &cm->cm_sm_group);
 	m0_sns_cm_iter_bob_init(it);

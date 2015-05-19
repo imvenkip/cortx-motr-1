@@ -25,18 +25,11 @@
 
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
-#include "addb/addb.h"
-#include "addb/addb_wire.h"
-#include "addb/addb_wire_xc.h"
 
 /**
  * @defgroup stats_fop Stats FOP
  * @{
  */
-enum {
-	/** Sine stats using same id as corresponding addb rec type id */
-	M0_STATS_ID_UNDEFINED = M0_ADDB_RECID_UNDEF
-};
 
 struct m0_fop;
 struct m0_ref;
@@ -50,14 +43,19 @@ extern struct m0_fop_type m0_fop_stats_query_rep_fopt;
  *       Please remove tis note after merge.
  */
 
+struct m0_uint64_seq {
+	uint32_t  se_nr;
+	/** Stats summary data */
+	uint64_t *se_data;
+} M0_XCA_SEQUENCE;
+
 /**
  * Mero nodes send sequence of m0_stats_sum.
  */
 struct m0_stats_sum {
-	/** Stats id, this is corresponding addb rec type id. */
-	uint32_t		  ss_id;
+	uint32_t             ss_id;
 	/** Stats summary data */
-	struct m0_addb_uint64_seq ss_data;
+	struct m0_uint64_seq ss_data;
 } M0_XCA_RECORD;
 
 struct m0_stats_recs {
@@ -69,20 +67,18 @@ struct m0_stats_recs {
 
 /** stats update fop */
 struct m0_stats_update_fop {
-	/** ADDB stats */
 	struct m0_stats_recs suf_stats;
 } M0_XCA_RECORD;
 
 /** stats query fop */
 struct m0_stats_query_fop {
 	/** Stats ids */
-	struct m0_addb_uint64_seq sqf_ids;
+	struct m0_uint64_seq sqf_ids;
 } M0_XCA_RECORD;
 
 /** stats query reply fop */
 struct m0_stats_query_rep_fop {
 	int32_t              sqrf_rc;
-	/** ADDB stats */
 	struct m0_stats_recs sqrf_stats;
 } M0_XCA_RECORD;
 

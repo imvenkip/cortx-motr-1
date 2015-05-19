@@ -22,10 +22,6 @@
    @{
  */
 
-#undef M0_ADDB_RT_CREATE_DEFINITION
-#define M0_ADDB_RT_CREATE_DEFINITION
-#include "ioservice/io_service_addb.h"
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
 #include "lib/trace.h"
 
@@ -86,7 +82,6 @@ static void ios_fini(struct m0_reqh_service *service);
 static int ios_start(struct m0_reqh_service *service);
 static void ios_prepare_to_stop(struct m0_reqh_service *service);
 static void ios_stop(struct m0_reqh_service *service);
-static void ios_stats_post_addb(struct m0_reqh_service *service);
 
 static void buffer_pool_not_empty(struct m0_net_buffer_pool *bp);
 static void buffer_pool_low(struct m0_net_buffer_pool *bp);
@@ -106,8 +101,7 @@ static const struct m0_reqh_service_ops ios_ops = {
 	.rso_start_async     = m0_reqh_service_async_start_simple,
 	.rso_prepare_to_stop = ios_prepare_to_stop,
 	.rso_stop            = ios_stop,
-	.rso_fini            = ios_fini,
-	.rso_stats_post_addb = ios_stats_post_addb
+	.rso_fini            = ios_fini
 };
 
 /**
@@ -119,7 +113,7 @@ struct m0_net_buffer_pool_ops buffer_pool_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_ios_type, &ios_type_ops, "ioservice",
-			     &m0_addb_ct_ios_serv, 2, M0_CST_IOS);
+			    2, M0_CST_IOS);
 
 /**
  * Buffer pool operation function. This function gets called when buffer pool
@@ -157,58 +151,24 @@ static void buffer_pool_low(struct m0_net_buffer_pool *bp)
 }
 
 /**
-   Array of ADDB record types corresponding to the fields of
-   struct m0_ios_rwfom_stats, times the number of elements in
-   the struct m0_reqh_io_service::rios_rwfom_stats array.
-
-   Must match the traversal order in ios_allocate().
- */
-static struct m0_addb_rec_type *ios_rwfom_cntr_rts[] = {
-	/* read[0] */
-	&m0_addb_rt_ios_rfom_sizes,
-	&m0_addb_rt_ios_rfom_times,
-	/* write[1] */
-	&m0_addb_rt_ios_wfom_sizes,
-	&m0_addb_rt_ios_wfom_times,
-};
-
-/**
  * Registers I/O service with mero node.
  * Mero setup calls this function.
  */
 M0_INTERNAL int m0_ios_register(void)
 {
-	int i;
 	int rc;
 
-	/* The onwire version-number structure is declared as a struct,
+	/*
+	 * The onwire version-number structure is declared as a struct,
 	 * not a sequence (which is more like an array.
 	 * This avoid dynamic memory for every request and reply fop.
 	 */
 	M0_CASSERT(sizeof (struct m0_poolmach_versions) ==
 		   sizeof (struct m0_fv_version));
 
-	m0_addb_ctx_type_register(&m0_addb_ct_ios_serv);
-	for (i = 0; i < ARRAY_SIZE(ios_rwfom_cntr_rts); ++i)
-		m0_addb_rec_type_register(ios_rwfom_cntr_rts[i]);
-
 	rc = m0_ioservice_fop_init();
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "Unable to initialize fops");
-
-	m0_addb_rec_type_register(&m0_addb_rt_ios_rwfom_finish);
-	m0_addb_rec_type_register(&m0_addb_rt_ios_ccfom_finish);
-	m0_addb_rec_type_register(&m0_addb_rt_ios_cdfom_finish);
-	m0_addb_rec_type_register(&m0_addb_rt_ios_io_finish);
-	m0_addb_rec_type_register(&m0_addb_rt_ios_desc_io_finish);
-	m0_addb_rec_type_register(&m0_addb_rt_ios_buffer_pool_low);
-	m0_addb_rec_type_register(&m0_addb_rt_ios_io_fom_phase_stats);
-
-	m0_addb_ctx_type_register(&m0_addb_ct_cob_create_fom);
-	m0_addb_ctx_type_register(&m0_addb_ct_cob_delete_fom);
-	m0_addb_ctx_type_register(&m0_addb_ct_cob_getattr_fom);
-	m0_addb_ctx_type_register(&m0_addb_ct_cob_setattr_fom);
-	m0_addb_ctx_type_register(&m0_addb_ct_cob_io_rw_fom);
 	m0_reqh_service_type_register(&m0_ios_type);
 	m0_get()->i_ios_cdom_key = m0_reqh_lockers_allot();
 	poolmach_key = m0_reqh_lockers_allot();
@@ -271,7 +231,7 @@ static int ios_create_buffer_pool(struct m0_reqh_service *service)
 			continue;
 
 		/* Buffer pool for network domain not found, create one */
-		IOS_ALLOC_PTR(newbp, &service->rs_addb_ctx, CREATE_BUF_POOL);
+		M0_ALLOC_PTR(newbp);
 		if (newbp == NULL)
 			return M0_ERR(-ENOMEM);
 
@@ -367,32 +327,18 @@ static void ios_delete_buffer_pool(struct m0_reqh_service *service)
 static int ios_allocate(struct m0_reqh_service **service,
 			const struct m0_reqh_service_type *stype)
 {
-	int                        i;
-	int                        j;
 	struct m0_reqh_io_service *ios;
 
 	M0_PRE(service != NULL && stype != NULL);
 
-	IOS_ALLOC_PTR(ios, &m0_ios_addb_ctx, SERVICE_ALLOC);
-	if (ios == NULL) {
+	M0_ALLOC_PTR(ios);
+	if (ios == NULL)
 		return M0_ERR(-ENOMEM);
-	}
 
-	for (i = 0, j = 0; i < ARRAY_SIZE(ios->rios_rwfom_stats); ++i) {
-#undef CNTR_INIT
-#define CNTR_INIT(_n)							\
-		m0_addb_counter_init(&ios->rios_rwfom_stats[i]		\
-				     .ais_##_n##_cntr, ios_rwfom_cntr_rts[j++])
-		CNTR_INIT(sizes);
-		CNTR_INIT(times);
-#undef CNTR_INIT
-	}
-	M0_ASSERT(j == ARRAY_SIZE(ios_rwfom_cntr_rts));
+	bufferpools_tlist_init(&ios->rios_buffer_pools);
+	ios->rios_magic = M0_IOS_REQH_SVC_MAGIC;
 
-        bufferpools_tlist_init(&ios->rios_buffer_pools);
-        ios->rios_magic = M0_IOS_REQH_SVC_MAGIC;
-
-        *service = &ios->rios_gen;
+	*service = &ios->rios_gen;
 	(*service)->rs_ops = &ios_ops;
 
 	return 0;
@@ -409,22 +355,12 @@ static int ios_allocate(struct m0_reqh_service **service,
 static void ios_fini(struct m0_reqh_service *service)
 {
 	struct m0_reqh_io_service *serv_obj;
-	int                        i;
 
 	M0_PRE(service != NULL);
 
 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
 	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
-	for (i = 0; i < ARRAY_SIZE(serv_obj->rios_rwfom_stats); ++i) {
-#undef CNTR_FINI
-#define CNTR_FINI(n)							\
-		m0_addb_counter_fini(&serv_obj->rios_rwfom_stats[i]	\
-				     .ais_##n##_cntr)
-		CNTR_FINI(sizes);
-		CNTR_FINI(times);
-#undef CNTR_FINI
-	}
 	m0_free(serv_obj);
 }
 
@@ -557,29 +493,6 @@ M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh)
 	cdom = m0_reqh_lockers_get(reqh, m0_get()->i_ios_cdom_key);
 	m0_cob_domain_fini(cdom);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-}
-
-/**
-   Posts ADDB statistics from an I/O service instance.
- */
-static void ios_stats_post_addb(struct m0_reqh_service *service)
-{
-	struct m0_reqh_io_service *serv_obj;
-	struct m0_addb_ctx        *cv[] = { &service->rs_addb_ctx, NULL };
-	struct m0_addb_mc         *mc   = m0_fom_addb_mc();
-	int                        i;
-
-	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
-	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
-
-	for (i = 0; i < ARRAY_SIZE(serv_obj->rios_rwfom_stats); ++i) {
-		struct m0_addb_io_stats *stats;
-
-		stats = &serv_obj->rios_rwfom_stats[i];
-
-		m0_addb_post_cntr(mc, cv, &stats->ais_sizes_cntr);
-		m0_addb_post_cntr(mc, cv, &stats->ais_times_cntr);
-	}
 }
 
 enum {

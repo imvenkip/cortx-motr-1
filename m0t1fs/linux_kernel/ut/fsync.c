@@ -662,8 +662,6 @@ void fsync_test(void)
 #else
 	call_m0t1fs_fsync(&file, &dentry, 0, ut_kernel_fsync_return, 1, 0, 0);
 #endif
-	/* TODO check some ADDB was generated for this event */
-
 	/* Check normal operation works */
 	ut_reset_stub_counters();
 	ut_kernel_fsync_return = 0;

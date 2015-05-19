@@ -26,8 +26,6 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 
-#include "fop/fop_addb.h"	/* m0_addb_ct_fop_mod */
-
 #include "fop/ut/stats/stats_fom.h"
 
 static struct m0_chan   chan;
@@ -64,19 +62,9 @@ static struct m0_sm_conf fom_phases_conf = {
 	.scf_trans     = trans
 };
 
-#if defined(GCC_VERSION) && GCC_VERSION >= 4006
-#pragma GCC diagnostic ignored "-Waddress"
-#endif
-M0_ADDB_RT_SM_CNTR(addb_rt_fom_phase_stats, ADDB_RECID_FOM_PHASE_STATS,
-		   &fom_phases_conf, M0_FOM_SM_STATS_HIST_ARGS);
-#if defined(GCC_VERSION) && GCC_VERSION >= 4006
-#pragma GCC diagnostic pop
-#endif
-
 static size_t fom_stats_home_locality(const struct m0_fom *fom);
 static void fop_stats_fom_fini(struct m0_fom *fom);
 static int fom_stats_tick(struct m0_fom *fom);
-static void fom_stats_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 
 extern struct m0_reqh_service_type ut_stats_service_type;
 
@@ -84,8 +72,7 @@ extern struct m0_reqh_service_type ut_stats_service_type;
 static const struct m0_fom_ops fom_stats_ops = {
 	.fo_fini           = fop_stats_fom_fini,
 	.fo_tick           = fom_stats_tick,
-	.fo_home_locality  = fom_stats_home_locality,
-	.fo_addb_init      = fom_stats_addb_init
+	.fo_home_locality  = fom_stats_home_locality
 };
 
 /** FOM type specific functions for stats FOP. */
@@ -104,29 +91,15 @@ static size_t fom_stats_home_locality(const struct m0_fom *fom)
 	return locality++;
 }
 
-static void fom_stats_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	uint8_t          *cntr_data;
-	int trans_size = m0_addb_sm_counter_data_size(&addb_rt_fom_phase_stats);
-
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &fom->fo_addb_ctx, &m0_addb_ct_fop_mod,
-			 &m0_addb_proc_ctx);
-
-	M0_ALLOC_ARR(cntr_data, trans_size);
-	m0_addb_sm_counter_init(&fom->fo_sm_phase_stats,
-				&addb_rt_fom_phase_stats,
-				cntr_data, trans_size);
-}
-
 static int stats_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
 {
-        struct m0_fom     *fom;
-        struct fom_stats  *fom_obj;
+	struct m0_fom     *fom;
+	struct fom_stats  *fom_obj;
 
-        M0_PRE(m != NULL);
+	M0_PRE(m != NULL);
 
-        M0_ALLOC_PTR(fom_obj);
-        M0_UT_ASSERT(fom_obj != NULL);
+	M0_ALLOC_PTR(fom_obj);
+	M0_UT_ASSERT(fom_obj != NULL);
 
 	fom = &fom_obj->fs_gen;
 	m0_fom_init(fom, &stats_fom_type, &fom_stats_ops, NULL, NULL, reqh);
@@ -137,41 +110,10 @@ static int stats_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
 
 static void fop_stats_fom_fini(struct m0_fom *fom)
 {
-#undef UT_SM_ADDB_CTR_PTR
-#define UT_SM_ADDB_CTR_PTR(idx)					\
-	((struct m0_addb_counter_data *)			\
-	 ((void *)sm->sm_addb_stats->asc_data +			\
-	  sm->sm_addb_stats->asc_cntr_data_sz * idx))		\
-
-	struct fom_stats *fom_obj;
-	struct m0_sm *sm;
-
-	fom_obj = container_of(fom, struct fom_stats, fs_gen);
-
-	sm = &fom->fo_sm_phase;
-
-	M0_UT_ASSERT(sm->sm_addb_stats != NULL);
-	M0_UT_ASSERT(sm->sm_addb_stats == &fom->fo_sm_phase_stats);
-
-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data != NULL);
-	/* init -> run */
-	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(0)->acd_nr == 1);
-	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(0)->acd_total >= 10);
-	/* init -> fail: we don't use this transition */
-	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(1)->acd_nr == 0);
-	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(1)->acd_total == 0);
-	/* run -> fini */
-	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(2)->acd_nr == 1);
-	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(2)->acd_total >= 10);
-
+	struct fom_stats *fom_obj = M0_AMB(fom_obj, fom, fs_gen);
 	m0_fom_fini(fom);
-	m0_addb_sm_counter_fini(&fom->fo_sm_phase_stats);
 	m0_free(fom_obj);
-
 	m0_chan_signal_lock(&chan);
-
-	return;
-#undef UT_SM_ADDB_CTR_PTR
 }
 
 static int fom_stats_tick(struct m0_fom *fom)

@@ -48,13 +48,11 @@
    - stats_update_fom_create()
    - stats_update_fom_tick()
    - stats_update_fom_home_locality()
-   - stats_update_fom_addb_init()
    - stats_update_fom_fini()
 
    - stats_query_fom_create()
    - stats_query_fom_tick()
    - stats_query_fom_home_locality()
-   - stats_query_fom_addb_init()
    - stats_query_fom_fini()
 
    @section DLD-stats-svc-fspecs-ext-if External Interfaces
@@ -138,10 +136,10 @@ M0_INTERNAL int m0_stats_svc_init(void);
  */
 M0_INTERNAL void m0_stats_svc_fini(void);
 
-M0_INTERNAL struct m0_stats *m0_stats_get(struct m0_tl *stats_list, uint64_t id);
+M0_INTERNAL struct m0_stats *
+m0_stats_get(struct m0_tl *stats_list, uint64_t id);
 
-#define STATS_SVC_ALLOC_PTR(ptr, loc, ctx)				      \
-	M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_STATS_SVC_ADDB_LOC_##loc, ctx)
+#define STATS_SVC_ALLOC_PTR(ptr) M0_ALLOC_PTR(ptr)
 
 /** @} end group stats_service */
 

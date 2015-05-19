@@ -132,7 +132,6 @@ enum {
 
 enum {
 	M0_AD_STOB_DOM_KEY_DEFAULT = 0x1,
-	M0_ADDB_STOB_KEY           = 1,
 	M0_ADDB2_STOB_KEY          = 2,
 	M0_BE_SEG_SIZE_DEFAULT	   = 128 * 1024 * 1024ULL,
 };
@@ -145,9 +144,6 @@ enum stob_type {
 
 /** String representations corresponding to the stob types. */
 M0_EXTERN const char *m0_cs_stypes[M0_STOB_TYPE_NR];
-
-/** Well-known stob ID for an addb stob. */
-M0_EXTERN const uint64_t m0_addb_stob_key;
 
 /**
  * Auxiliary structure used to pass command line arguments to cs_parse_args().
@@ -163,7 +159,6 @@ struct cs_args {
 struct cs_endpoint_and_xprt {
 	/**
 	   mero endpoint specified as argument.
-	   Used for ADDB purpose.
 	 */
 	const char      *ex_cep;
 	/**
@@ -397,9 +392,6 @@ struct m0_mero {
 	size_t                      cc_recv_queue_min_length;
 
 	size_t                      cc_max_rpc_msg_size;
-
-	/** Segment size for any ADDB stob. */
-	size_t                      cc_addb_stob_segment_size;
 
 	/** Number of retries in connecting to confd */
 	unsigned                    cc_confd_conn_retry;

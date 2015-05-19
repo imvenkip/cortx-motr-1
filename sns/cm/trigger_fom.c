@@ -52,7 +52,6 @@ static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			      struct m0_reqh *reqh);
 static void trigger_fom_fini(struct m0_fom *fom);
 static size_t trigger_fom_home_locality(const struct m0_fom *fom);
-static void trigger_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 
 extern struct m0_fop_type repair_trigger_fopt;
 extern struct m0_fop_type rebalance_trigger_fopt;
@@ -63,8 +62,7 @@ extern struct m0_fop_type rebalance_trigger_rep_fopt;
 static const struct m0_fom_ops trigger_fom_ops = {
 	.fo_fini          = trigger_fom_fini,
 	.fo_tick          = trigger_fom_tick,
-	.fo_home_locality = trigger_fom_home_locality,
-	.fo_addb_init     = trigger_fom_addb_init
+	.fo_home_locality = trigger_fom_home_locality
 };
 
 static const struct m0_fom_type_ops trigger_fom_type_ops = {
@@ -324,15 +322,6 @@ static int trigger_fom_tick(struct m0_fom *fom)
 	}
 
 	return M0_RC(rc);
-}
-
-static void trigger_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 #undef M0_TRACE_SUBSYSTEM

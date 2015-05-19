@@ -5,5 +5,4 @@ m0mero_objects += fop/fop.o \
                   fop/fom_generic.o \
                   fop/fom_simple.o \
                   fop/fom_generic_xc.o \
-                  fop/fom_long_lock.o \
-		  fop/fop_rate_monitor.o
+                  fop/fom_long_lock.o

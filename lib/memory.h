@@ -24,7 +24,6 @@
 
 #include "lib/types.h"
 #include "lib/assert.h" /* M0_CASSERT */
-#include "addb/addb.h"
 
 /**
    @defgroup memory Memory allocation handling functions
@@ -84,59 +83,6 @@ M0_INTERNAL void m0_memory_pagein(void *addr, size_t size);
 
 #define M0_ALLOC_ARR_ALIGNED(arr, nr, shift)		\
 	((arr) = m0_alloc_aligned((nr) * sizeof ((arr)[0])), shift)
-/**
-   Macro to allocate a specified size of memory and assign it to a pointer.
-   On failure, a standard ADDB record is posted.
-   The pointer value should be checked for NULL by the invoker.
-   @param ptr  Pointer to assign.
-   @param size Size of memory to be allocated.
-   @param mc   Pointer of an ADDB machine to use for posting.  The global ADDB
-   machine ::m0_addb_gmc can be used for this purpose.
-   @param loc  A context relative numeric location identifier.
-   @param ...  One or more ADDB context pointers.  It is recommended that
-   the first pointer be that of the module's static context.
-   @todo rename me
- */
-#define M0_ALLOC_ADDB(ptr, size, mc, loc, ...)				       \
-do {									       \
-	if ((ptr = m0_alloc(size)) == NULL) M0_ADDB_OOM(mc, loc, __VA_ARGS__); \
-} while (0)
-
-/**
-   Macro to allocate memory and assign it to a pointer.  The size of memory
-   to allocate is determined from the pointer data type.
-   On failure, a standard ADDB record is posted.
-   The pointer value should be checked for NULL by the invoker.
-   @param ptr  Pointer to assign.
-   @param mc   Pointer of an ADDB machine to use for posting.  The global ADDB
-   machine ::m0_addb_gmc can be used for this purpose.
-   @param loc  A context relative numeric location identifier.
-   @param ...  One or more ADDB context pointers.  It is recommended that
-   the first pointer be that of the module's static context.
-   @todo rename me
- */
-#define M0_ALLOC_PTR_ADDB(ptr, mc, loc, ...)				  \
-do {									  \
-	if (M0_ALLOC_PTR(ptr) == NULL) M0_ADDB_OOM(mc, loc, __VA_ARGS__); \
-} while (0)
-
-/**
-   Macro to allocate memory for an array.
-   On failure, a standard ADDB record is posted.
-   The pointer value should be checked for NULL by the invoker.
-   @param arr  Array pointer.
-   @param nr   Number of elements to allocate.
-   @param mc   Pointer of an ADDB machine to use for posting.  The global ADDB
-   machine ::m0_addb_gmc can be used for this purpose.
-   @param loc  A context relative numeric location identifier.
-   @param ...  One or more ADDB context pointers.  It is recommended that
-   the first pointer be that of the module's static context.
-   @todo rename me
- */
-#define M0_ALLOC_ARR_ADDB(arr, nr, mc, loc, ...)			      \
-do {									      \
-	if (M0_ALLOC_ARR(arr, nr) == NULL) M0_ADDB_OOM(mc, loc, __VA_ARGS__); \
-} while (0)
 
 /**
    Allocates zero-filled memory, aligned on (2^shift)-byte boundary.

@@ -67,9 +67,9 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
 
 	M0_ENTRY("fop: %p", fop);
 
-	RPC_ALLOC_PTR(fom, SESSION_GEN_FOM_CREATE, &m0_rpc_addb_ctx);
+	M0_ALLOC_PTR(fom);
 	if (fom == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		goto out;
 	}
 	if (fop->f_type == &m0_rpc_fop_conn_establish_fopt) {
@@ -129,8 +129,7 @@ out:
 const struct m0_fom_ops m0_rpc_fom_conn_establish_ops = {
 	.fo_fini          = session_gen_fom_fini,
 	.fo_tick          = m0_rpc_fom_conn_establish_tick,
-	.fo_home_locality = m0_rpc_session_default_home_locality,
-	.fo_addb_init     = m0_rpc_fom_conn_establish_addb_init
+	.fo_home_locality = m0_rpc_session_default_home_locality
 };
 
 struct m0_fom_type_ops m0_rpc_fom_conn_establish_type_ops = {
@@ -202,8 +201,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	M0_ASSERT(ctx != NULL &&
 		  ctx->cec_sender_ep != NULL);
 
-	RPC_ALLOC_PTR(conn, SESSION_FOM_CONN_ESTABLISH_TICK,
-		      &m0_rpc_addb_ctx);
+	M0_ALLOC_PTR(conn);
 	if (M0_FI_ENABLED("conn-alloc-failed"))
 		m0_free0(&conn);
 	if (conn == NULL) {
@@ -257,16 +255,6 @@ ret:
 	return M0_FSO_WAIT;
 }
 
-M0_INTERNAL void m0_rpc_fom_conn_establish_addb_init(struct m0_fom *fom,
-						struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 /*
  * FOM session create
  */
@@ -274,8 +262,7 @@ M0_INTERNAL void m0_rpc_fom_conn_establish_addb_init(struct m0_fom *fom,
 const struct m0_fom_ops m0_rpc_fom_session_establish_ops = {
 	.fo_fini          = session_gen_fom_fini,
 	.fo_tick          = m0_rpc_fom_session_establish_tick,
-	.fo_home_locality = m0_rpc_session_default_home_locality,
-	.fo_addb_init     = m0_rpc_fom_session_establish_addb_init
+	.fo_home_locality = m0_rpc_session_default_home_locality
 };
 
 struct m0_fom_type_ops m0_rpc_fom_session_establish_type_ops = {
@@ -312,12 +299,11 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 	M0_ASSERT(conn != NULL);
 	machine = conn->c_rpc_machine;
 
-	RPC_ALLOC_PTR(session, SESSION_FOM_SESSION_ESTABLISH_TICK,
-		      &m0_rpc_addb_ctx);
+	M0_ALLOC_PTR(session);
 	if (M0_FI_ENABLED("session-alloc-failed"))
 		m0_free0(&session);
 	if (session == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		goto out;
 	}
 	m0_rpc_machine_lock(machine);
@@ -347,16 +333,6 @@ out:
 	return M0_FSO_WAIT;
 }
 
-M0_INTERNAL void m0_rpc_fom_session_establish_addb_init(struct m0_fom *fom,
-							struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 /*
  * FOM session terminate
  */
@@ -364,8 +340,7 @@ M0_INTERNAL void m0_rpc_fom_session_establish_addb_init(struct m0_fom *fom,
 const struct m0_fom_ops m0_rpc_fom_session_terminate_ops = {
 	.fo_fini          = session_gen_fom_fini,
 	.fo_tick          = m0_rpc_fom_session_terminate_tick,
-	.fo_home_locality = m0_rpc_session_default_home_locality,
-	.fo_addb_init     = m0_rpc_fom_session_terminate_addb_init
+	.fo_home_locality = m0_rpc_session_default_home_locality
 };
 
 struct m0_fom_type_ops m0_rpc_fom_session_terminate_type_ops = {
@@ -448,24 +423,13 @@ out:
 	return M0_FSO_WAIT;
 }
 
-M0_INTERNAL void m0_rpc_fom_session_terminate_addb_init(struct m0_fom *fom,
-							struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 /*
  * FOM RPC connection terminate
  */
 const struct m0_fom_ops m0_rpc_fom_conn_terminate_ops = {
 	.fo_fini = session_gen_fom_fini,
 	.fo_tick = m0_rpc_fom_conn_terminate_tick,
-	.fo_home_locality = m0_rpc_session_default_home_locality,
-	.fo_addb_init = m0_rpc_fom_conn_terminate_addb_init
+	.fo_home_locality = m0_rpc_session_default_home_locality
 };
 
 struct m0_fom_type_ops m0_rpc_fom_conn_terminate_type_ops = {
@@ -517,16 +481,6 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	M0_LEAVE();
 	return M0_FSO_WAIT;
-}
-
-M0_INTERNAL void m0_rpc_fom_conn_terminate_addb_init(struct m0_fom *fom,
-						     struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 /** @} End of rpc_session group */

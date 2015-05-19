@@ -19,10 +19,6 @@
  * Original creation date: 05/19/2010
  */
 
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-#include "reqh/reqh_addb.h"
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 
@@ -41,7 +37,6 @@
 #include "net/net.h"
 #include "fop/fop.h"
 #include "fop/fom_generic.h"
-#include "fop/fop_rate_monitor.h"
 #include "dtm/dtm.h"
 #include "rpc/rpc.h"
 #include "rpc/item_internal.h"          /* m0_rpc_item_is_request */
@@ -183,36 +178,6 @@ M0_INTERNAL void m0_reqh_layouts_cleanup(struct m0_reqh *reqh)
 	reqh->rh_pools = NULL;
 }
 
-static void fop_rate_fini(struct m0_reqh *reqh, int idx)
-{
-	return;
-	while (idx >= 0)
-		m0_fop_rate_monitor_fini(m0_fom_dom()->fd_localities[idx--],
-					 reqh);
-}
-
-static int fop_rate_init(struct m0_reqh *reqh)
-{
-	struct m0_fom_domain *dom = m0_fom_dom();
-	int                   i;
-	int                   res;
-
-	/**
-	 * @todo: disable fop rate monitors for now.
-	 *
-	 * Reason: no clear separation between reqh and fom domain.
-	 */
-	return 0;
-	for (i = 0; i < dom->fd_localities_nr; ++i) {
-		res = m0_fop_rate_monitor_init(dom->fd_localities[i], reqh);
-		if (res < 0) {
-			fop_rate_fini(reqh, i);
-			return res;
-		}
-	}
-	return 0;
-}
-
 M0_INTERNAL struct m0_rpc_session *
 m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 				        const struct m0_fid *gob_fid,
@@ -257,7 +222,7 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 M0_INTERNAL int
 m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 {
-	int rc;
+	int rc = 0;
 
 	M0_ENTRY("%p", reqh);
 
@@ -270,13 +235,6 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	m0_rwlock_init(&reqh->rh_rwlock);
 	m0_reqh_lockers_init(reqh);
 
-	rc = m0_addb_monitors_init(reqh);
-	if (rc != 0)
-		goto monitors_init_failed;
-
-	rc = fop_rate_init(reqh);
-	if (rc != 0)
-		goto fop_rate_init_failed;
 	m0_reqh_svc_tlist_init(&reqh->rh_services);
 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
 	m0_sm_group_init(&reqh->rh_sm_grp);
@@ -288,14 +246,6 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 		if (rc != 0)
 			__reqh_fini(reqh);
 	}
-	return M0_RC(rc);
-
-fop_rate_init_failed:
-	m0_addb_monitors_fini(&reqh->rh_addb_monitoring_ctx);
-monitors_init_failed:
-	m0_rwlock_fini(&reqh->rh_rwlock);
-	m0_reqh_lockers_fini(reqh);
-	m0_ha_domain_fini(&reqh->rh_hadom);
 	return M0_RC(rc);
 }
 
@@ -335,8 +285,6 @@ static void __reqh_fini(struct m0_reqh *reqh)
 	m0_sm_fini(&reqh->rh_sm);
 	m0_sm_group_unlock(&reqh->rh_sm_grp);
 	m0_sm_group_fini(&reqh->rh_sm_grp);
-	fop_rate_fini(reqh, m0_fom_dom()->fd_localities_nr - 1);
-	m0_addb_monitors_fini(&reqh->rh_addb_monitoring_ctx);
 	m0_reqh_svc_tlist_fini(&reqh->rh_services);
 	m0_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
 	m0_reqh_lockers_fini(reqh);
@@ -364,36 +312,6 @@ M0_INTERNAL int m0_reqhs_init(void)
 }
 
 #ifndef __KERNEL__
-M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
-				       struct m0_stob *stob)
-{
-	/**
-	 * @todo Need to replace these 3 with conf parameters and
-	 * correct values, these are temporary
-	 */
-	m0_bcount_t addb_stob_seg_size =
-	    M0_RPC_DEF_MAX_RPC_MSG_SIZE * 2;
-	m0_bcount_t addb_stob_size    = addb_stob_seg_size * 1000;
-	m0_time_t   addb_stob_timeout = M0_MKTIME(300, 0); /* 5 mins */
-	struct m0_addb_mc *mc         = m0_fom_addb_mc();
-	int rc;
-
-	M0_ENTRY();
-
-	rc = m0_addb_mc_configure_stob_sink(mc, reqh, stob, addb_stob_seg_size,
-					    addb_stob_size, addb_stob_timeout);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	m0_addb_mc_configure_pt_evmgr(mc);
-	if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
-		m0_addb_mc_dup(mc, &m0_addb_gmc);
-	m0_addb_ctx_fini(m0_fom_addb_ctx());
-	M0_ADDB_CTX_INIT(mc, m0_fom_addb_ctx(),
-			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
-	return M0_RC(rc);
-}
-
 M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, struct m0_stob *stob,
 				   bool mkfs)
 {
@@ -418,12 +336,6 @@ M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, struct m0_stob *stob,
 }
 
 #else /* !__KERNEL__ */
-M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
-				       struct m0_stob *stob)
-{
-	return 0;
-}
-
 M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh, struct m0_stob *stob,
 				   bool mkfs)
 {
@@ -450,16 +362,6 @@ M0_INTERNAL void m0_reqh_addb2_fini(struct m0_reqh *reqh)
 	m0_addb2_sys_sm_stop(sys);
 	m0_addb2_sys_net_stop(sys);
 	m0_addb2_sys_stor_stop(sys);
-}
-
-M0_INTERNAL struct m0_addb_mc *m0_fom_addb_mc(void)
-{
-	return &m0_fom_dom()->fd_addb_mc;
-}
-
-M0_INTERNAL struct m0_addb_ctx *m0_fom_addb_ctx(void)
-{
-	return &m0_fom_dom()->fd_addb_ctx;
 }
 
 M0_INTERNAL int m0_reqh_state_get(struct m0_reqh *reqh)
@@ -554,15 +456,10 @@ static int disallowed_fop_tick(struct m0_fom *fom, void *data, int *phase)
 {
 	struct m0_fop               *fop;
 	struct disallowed_fop_reply *reply = data;
-	struct m0_addb_ctx          *ctx;
-	struct m0_reqh              *reqh = m0_fom_reqh(fom);
 	static const char            msg[] = "No service running.";
 
-	ctx = reqh != NULL ? m0_fom_addb_ctx() : &m0_addb_proc_ctx;
 	fop = m0_fop_reply_alloc(reply->ffr_fop, &m0_fop_generic_reply_fopt);
-	if (fop == NULL)
-		REQH_ADDB_OOM(FOP_FAILED_REPLY_TICK_1, ctx);
-	else {
+	if (fop != NULL) {
 		struct m0_fop_generic_reply *rep = m0_fop_data(fop);
 
 		rep->gr_rc = reply->ffr_rc;
@@ -594,7 +491,7 @@ static void fop_disallowed(struct m0_reqh *reqh,
 	M0_PRE(rc != 0);
 	M0_PRE(req_fop != NULL);
 
-	REQH_ALLOC_PTR(reply, m0_fom_addb_ctx(), FOP_FAILED_REPLY_1);
+	M0_ALLOC_PTR(reply);
 	if (reply == NULL)
 		return;
 
@@ -619,7 +516,6 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 
 	rc = m0_reqh_fop_allow(reqh, fop);
 	if (rc != 0) {
-		REQH_ADDB_FUNCFAIL(rc, FOP_HANDLE_2, m0_fom_addb_ctx());
 		m0_rwlock_read_unlock(&reqh->rh_rwlock);
 		M0_LOG(M0_WARN, "fop \"%s\"@%p disallowed: %i.",
 		       m0_fop_name(fop), fop, rc);
@@ -640,8 +536,6 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 	rc = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom, reqh);
 	if (rc == 0)
 		m0_fom_queue(fom, reqh);
-	else
-		REQH_ADDB_FUNCFAIL(rc, FOM_CREATE, m0_fom_addb_ctx());
 
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
 	return M0_RC(rc);
@@ -786,33 +680,6 @@ M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh)
 	reqh_state_set(reqh, M0_REQH_ST_NORMAL);
 
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-}
-
-M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)
-{
-	int                     i;
-	struct m0_reqh_service *service;
-	struct m0_rpc_machine  *rpcmach;
-
-	M0_PRE(reqh != NULL);
-
-	m0_rwlock_read_lock(&reqh->rh_rwlock);
-
-	m0_tl_for(m0_reqh_rpc_mach, &reqh->rh_rpc_machines, rpcmach) {
-		m0_rpc_machine_stats_post_addb(rpcmach);
-		m0_net_tm_stats_post_addb(&rpcmach->rm_tm);
-	} m0_tl_endfor;
-
-	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
-		M0_ASSERT(m0_reqh_service_invariant(service));
-		if (service->rs_ops->rso_stats_post_addb != NULL)
-			(*service->rs_ops->rso_stats_post_addb)(service);
-	} m0_tl_endfor;
-
-	m0_rwlock_read_unlock(&reqh->rh_rwlock);
-
-	for (i = 0; i < m0_reqh_nr_localities(reqh); i++)
-		m0_fom_locality_post_stats(m0_fom_dom()->fd_localities[i]);
 }
 
 M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh)

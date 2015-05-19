@@ -47,14 +47,12 @@
  *
  *  @{
  */
-#include "addb/addb.h"
 #include "net/buffer_pool.h"
 #include "reqh/reqh_service.h"
 #include "lib/chan.h"
 #include "lib/tlist.h"
 #include "cob/cob.h"
 #include "layout/layout.h"
-#include "ioservice/io_service_addb.h"
 #include "rpc/conn.h"
 #include "rpc/session.h"
 
@@ -86,8 +84,6 @@ struct m0_reqh_io_service {
 	struct m0_reqh_service       rios_gen;
 	/** Buffer pools belongs to this services */
 	struct m0_tl                 rios_buffer_pools;
-	/** Read[0] and write[1] I/O FOM statistics */
-	struct m0_addb_io_stats      rios_rwfom_stats[2];
 	/** Cob domain for ioservice. */
 	struct m0_cob_domain         *rios_cdom;
 

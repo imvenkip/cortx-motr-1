@@ -31,7 +31,6 @@
 #include "ioservice/io_service.h" /* m0_ios_cdom_get */
 #include "sns/parity_repair.h"
 
-#include "sns/sns_addb.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/cp.h"
@@ -369,23 +368,12 @@ M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag)
         M0_PRE(sag != NULL);
 
 	ag = &sag->sag_base;
-        M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
-                     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
-                     ag->cag_id.ai_hi.u_hi, ag->cag_id.ai_hi.u_lo,
-                     ag->cag_id.ai_lo.u_hi, ag->cag_id.ai_lo.u_lo);
         cm = ag->cag_cm;
         M0_ASSERT(cm != NULL);
 	scm = cm2sns(cm);
 	m0_bitmap_fini(&sag->sag_fmap);
 	m0_sns_cm_fctx_put(scm, &ag->cag_id);
 	m0_cm_aggr_group_fini_and_progress(ag);
-        M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_cm_buf_nr,
-                     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
-                     scm->sc_ibp.sb_bp.nbp_buf_nr,
-                     scm->sc_obp.sb_bp.nbp_buf_nr,
-                     scm->sc_ibp.sb_bp.nbp_free,
-                     scm->sc_obp.sb_bp.nbp_free);
-
         M0_LEAVE();
 }
 
@@ -431,11 +419,6 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming,
 			      ag_ops);
 	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(sag, pl);
-	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
-		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
-		     id->ai_hi.u_hi, id->ai_hi.u_lo,
-		     id->ai_lo.u_hi, id->ai_lo.u_lo);
-
 	M0_LEAVE("ag: %p", sag);
 	return M0_RC(rc);
 }

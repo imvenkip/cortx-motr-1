@@ -219,10 +219,10 @@
  *   -#
  *      object_enrich(): compares cached object with the descriptor
  *      received from the confd.  If a discrepancy is found
- *      (!m0_conf_obj_match()), the function reports it
- *      (M0_ADDB_ADD()) and returns an error code.  If there is no
- *      discrepancy, and the cached object is a stub, object_enrich()
- *      fills the cached object with configuration data
+ *      (!m0_conf_obj_match()), the function returns an error code.
+ *
+ *      If there is no discrepancy, and the cached object is a stub,
+ *      object_enrich() fills the cached object with configuration data
  *      (m0_conf_obj_fill()) and signals object's channel.
  *
  * <hr> <!------------------------------------------------------------>
@@ -1174,7 +1174,6 @@ static int object_enrich(struct m0_conf_obj *dest,
 	M0_PRE(dest->co_cache == &confc->cc_cache);
 
 	if (!m0_conf_obj_match(dest, src))
-		/* XXX TODO: ADDB */
 		return M0_ERR_INFO(-EPROTO,
 			       "Conflict of incoming and cached configuration "
 			       "data");

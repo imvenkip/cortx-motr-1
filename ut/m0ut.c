@@ -44,7 +44,6 @@
 
 /* Sort test suites in alphabetic order, please. */
 extern struct m0_ut_suite libm0_ut; /* test lib first */
-extern struct m0_ut_suite addb_ut;
 extern struct m0_ut_suite addb2_base_ut;
 extern struct m0_ut_suite addb2_consumer_ut;
 extern struct m0_ut_suite addb2_net_ut;
@@ -81,7 +80,6 @@ extern struct m0_ut_suite ios_bufferpool_ut;
 extern struct m0_ut_suite item_ut;
 extern struct m0_ut_suite item_source_ut;
 extern struct m0_ut_suite layout_ut;
-extern struct m0_ut_suite m0_addb_ut;
 extern struct m0_ut_suite m0_fop_lock_ut;
 extern struct m0_ut_suite m0_fom_stats_ut;
 extern struct m0_ut_suite m0_net_bulk_if_ut;
@@ -162,7 +160,6 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &item_ut, true);
 	m0_ut_add(m, &item_source_ut, true);
 	m0_ut_add(m, &layout_ut, true);
-	m0_ut_add(m, &m0_addb_ut, true);
 	m0_ut_add(m, &m0_fop_lock_ut, true);
 	m0_ut_add(m, &m0_fom_stats_ut, true);
 	m0_ut_add(m, &m0_net_bulk_if_ut, true);
@@ -195,7 +192,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &spiel_ut, true);
 	m0_ut_add(m, &spiel_ci_ut, true);
 	m0_ut_add(m, &sss_ut, true);
-	m0_ut_add(m, &stats_ut, true);
+	m0_ut_add(m, &stats_ut, false);
 	m0_ut_add(m, &stob_ut, true);
 	m0_ut_add(m, &udb_ut, true);
 	m0_ut_add(m, &xcode_bufvec_fop_ut, true);

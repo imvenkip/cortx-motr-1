@@ -101,9 +101,6 @@ Write FOP:
     ### m0_io_indexvec.ci_iosegs :: m0_ioseg
     ci_index : 17
     ci_count : 100
-    ## m0_fop_cob_rw.crw_addb_ctx_id :: m0_addb_uint64_seqo
-    au64s_nr : 1
-    au64s_data : 257
     crw_flags : 21
     ## m0_fop_cob_rw.crw_di_data :: m0_buf
     b_nob : 0

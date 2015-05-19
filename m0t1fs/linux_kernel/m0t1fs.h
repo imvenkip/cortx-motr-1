@@ -654,11 +654,6 @@ enum {
 	M0T1FS_COB_ID_STRLEN            = 34,
 };
 
-struct m0t1fs_addb_mon_sum_data_io_size {
-	uint64_t sd_rio;
-	uint64_t sd_wio;
-};
-
 /** Represents type of IO request. */
 enum io_req_type {
 	IRT_READ,
@@ -725,15 +720,6 @@ struct m0t1fs_sb {
 	/** Maximal allowed namelen (retrived from mdservice) */
 	int                                     csb_namelen;
 
-	/** Run-time addb context for each mount point */
-	struct m0_addb_ctx                      csb_addb_ctx;
-
-	/** Read[0] and write[1] I/O request statistics */
-	struct m0_addb_io_stats                 csb_io_stats[2];
-
-	/** Degraded mode Read[0] and write[1] I/O request statistics */
-	struct m0_addb_io_stats                 csb_dgio_stats[2];
-
 	struct m0_net_xprt                     *csb_xprt;
 	/** local endpoint address module parameter */
 	char                                   *csb_laddr;
@@ -742,8 +728,6 @@ struct m0t1fs_sb {
 	struct m0_reqh                          csb_reqh;
 	struct m0_net_buffer_pool               csb_buffer_pool;
 
-	struct m0_addb_monitor                  csb_addb_mon_rw_io_size;
-	struct m0t1fs_addb_mon_sum_data_io_size csb_addb_mon_sum_data_rw_io_size;
 	struct m0_be_ut_backend                 csb_ut_be;
 	struct m0_be_ut_seg                     csb_ut_seg;
 

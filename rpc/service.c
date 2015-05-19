@@ -99,7 +99,7 @@ static int rpc_service_allocate(struct m0_reqh_service **service,
 
 	M0_PRE(stype != NULL && service != NULL);
 
-	RPC_ALLOC_PTR(svc, SERVICE_ALLOC, NULL);
+	M0_ALLOC_PTR(svc);
 	if (svc == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -114,12 +114,11 @@ static const struct m0_reqh_service_type_ops rpc_service_type_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_rpc_service_type, &rpc_service_type_ops,
-			    "rpcservice", &m0_addb_ct_rpc_serv, 2, 0);
+			    "rpcservice", 2, 0);
 M0_EXPORTED(m0_rpc_service_type);
 
 M0_INTERNAL int m0_rpc_service_register(void)
 {
-	m0_addb_ctx_type_register(&m0_addb_ct_rpc_serv);
 	return m0_reqh_service_type_register(&m0_rpc_service_type);
 }
 

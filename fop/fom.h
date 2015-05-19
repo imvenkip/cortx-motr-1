@@ -211,7 +211,6 @@ Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
 #include "dtm/dtm.h"           /* m0_dtx */
 #include "stob/stob.h"
 #include "reqh/reqh_service.h"
-#include "addb/addb_monitor.h"
 #include "addb2/counter.h"
 #include "addb2/sys.h"
 
@@ -226,7 +225,6 @@ struct m0_fom_type_ops;
 struct m0_fom;
 struct m0_fom_ops;
 struct m0_long_lock;
-struct m0_fop_rate_monitor;
 
 /* defined in fom.c */
 struct m0_loc_thread;
@@ -287,24 +285,8 @@ struct m0_fom_locality {
 	struct m0_tl                   fl_threads;
 	struct m0_atomic64             fl_unblocking;
 	struct m0_chan                 fl_idle;
-
 	/** Resources allotted to the partition */
 	struct m0_bitmap	       fl_processors;
-
-	struct m0_addb_ctx             fl_addb_ctx;
-	/**
-	   Accumulated run time of all foms. Is is updated from fom_exec()
-	   along with m0_fom::fo_exec_time.
-	 */
-	struct m0_addb_counter         fl_stat_run_times;
-	/**
-	   Accumulated scheduling overhead of all foms. It is updated from
-	   fom_dequeue() counting by m0_fom::fo_sched_epoch.
-	 */
-	struct m0_addb_counter         fl_stat_sched_wait_times;
-
-	/** AST which triggers the posting of statistics */
-	struct m0_sm_ast               fl_post_stats_ast;
 	int                            fl_idx;
 	struct m0_addb2_mach          *fl_addb2_mach;
 	struct m0_addb2_counter        fl_fom_active;
@@ -345,15 +327,7 @@ struct m0_fom_domain {
 	size_t                          fd_localities_nr;
 	/** Domain operations. */
 	const struct m0_fom_domain_ops *fd_ops;
-	/** Addb context for fom */
-	struct m0_addb_ctx              fd_addb_ctx;
 	struct m0_addb2_sys            *fd_addb2_sys;
-	/**
-	   Private, fully configured, ADDB machine for the request handler.
-	   The first such machine created is used to configure the global
-	   machine, ::m0_addb_gmc.
-	 */
-	struct m0_addb_mc               fd_addb_mc;
 };
 
 /** Operations vector attached to a domain. */
@@ -386,26 +360,6 @@ enum m0_fom_state {
 
 /** The number of fom state transitions (see fom_trans[] at fom.c). */
 enum { M0_FOS_TRANS_NR = 8 };
-
-/**
- * Histogram arguments for m0_addb_rt_fom_[state|phase]_stats.
- * Define the macro with histogram arguments if desired.
- * e.g. #define M0_FOM_SM_STATS_HIST_ARGS 100, 200, 500
- * @note Histogtam may different for states & phases stats.
- *       May differentiate it later if required.
- */
-#undef M0_FOM_SM_STATS_HIST_ARGS
-#define M0_FOM_SM_STATS_HIST_ARGS 100
-#define M0_FOM_SM_STATS_HIST_ARGS2 0, M0_FOM_SM_STATS_HIST_ARGS
-
-#define M0_FOM_STATS_CNTR_DATA						\
-	(sizeof(struct m0_addb_counter_data) +				\
-	((M0_COUNT_PARAMS(M0_FOM_SM_STATS_HIST_ARGS2) > 0 ?		\
-	  M0_COUNT_PARAMS(M0_FOM_SM_STATS_HIST_ARGS2) + 1 : 0) *	\
-		sizeof(uint64_t)))
-enum {
-	FOM_STATE_STATS_DATA_SZ = M0_FOM_STATS_CNTR_DATA * M0_FOS_TRANS_NR
-};
 
 enum m0_fom_phase {
 	M0_FOM_PHASE_INIT,   /*< fom has been initialised. */
@@ -540,18 +494,6 @@ struct m0_fom {
 	bool			  fo_local;
 	/** Pointer to service instance. */
 	struct m0_reqh_service   *fo_service;
-	/** ADDB context for this fom */
-	struct m0_addb_ctx        fo_addb_ctx;
-	/** Imported operational ADDB context placeholder */
-	struct m0_addb_ctx        fo_imp_op_addb_ctx;
-	/**
-	 * Optional imported operational ADDB context pointer to
-	 * m0_fom::fo_imp_op_addb_ctx (NULL if not initialized).
-	 * Initialized via m0_fom_op_addb_ctx_import().
-	 * Use as the last element in a context vector when posting
-	 * ADDB records for the FOM.
-	 */
-	struct m0_addb_ctx       *fo_op_addb_ctx;
 	/**
 	 *  FOM linkage in the locality runq list or wait list
 	 *  Every access to the FOM via this linkage is
@@ -571,26 +513,13 @@ struct m0_fom {
 	struct m0_sm		  fo_sm_phase;
 	/** State machine for FOM states. */
 	struct m0_sm		  fo_sm_state;
-
-	/** addb sm counter for states statistics */
-	struct m0_addb_sm_counter fo_sm_state_stats;
-	/** counter data for states statistics */
-	uint8_t                   fo_fos_stats_data[FOM_STATE_STATS_DATA_SZ];
-
-	/** addb sm counter for phases statistics */
-	struct m0_addb_sm_counter fo_sm_phase_stats;
-
 	/** Thread executing current phase transition. */
 	struct m0_loc_thread     *fo_thread;
 	/**
 	 * Stack of pending call-backs.
 	 */
 	struct m0_fom_callback   *fo_pending;
-
-	/** Schedule start epoch (used to calculate scheduling overhead). */
-	m0_time_t		  fo_sched_epoch;
-
-	uint64_t		  fo_magic;
+	uint64_t                  fo_magic;
 };
 
 static inline struct m0_be_tx *m0_fom_tx(struct m0_fom *fom)
@@ -640,8 +569,6 @@ M0_INTERNAL struct m0_reqh *m0_fom_reqh(const struct m0_fom *fom);
  * @param fop Request fop object
  * @param reply Reply fop object
  * @param reqh Request handler that will execute this fom
- * @param stype Service type that is used to get the service,
- *        which is required to set parent addb ctx for this fom
  * @pre fom != NULL
  * @pre reqh != NULL
  */
@@ -729,8 +656,6 @@ struct m0_fom_ops {
 	 *  array.
 	 */
 	size_t  (*fo_home_locality) (const struct m0_fom *fom);
-	/** Initializes ADDB context of this fom, invoked by m0_fom_init() */
-	void (*fo_addb_init)(struct m0_fom *fom, struct m0_addb_mc *mc);
 	/**
 	 * Optional method to post additional fom description to addb2.
 	 */
@@ -922,31 +847,6 @@ M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type, uint64_t id,
 				  const struct m0_sm_conf *sm);
 
 M0_INTERNAL int m0_fom_addb2_init(struct m0_fom_type *type, uint64_t id);
-
-/**
- * Associate an operational context with the FOM.
- *
- * Such a context is usually provided by the entity that triggered
- * the creation of the FOM.
- *
- * @param fom The FOM object pointer.
- * @param id Pointer to the context identifier sequence representing
- * the operational context. The memory associated with this sequence
- * must remain stable until the FOM is destroyed.
- */
-M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
-					const struct m0_addb_uint64_seq *id);
-
-#define M0_FOM_ADDB_CTX_VEC(fom) ({					\
-	typeof(fom) __fom = fom;					\
-	M0_ADDB_CTX_VEC(&__fom->fo_addb_ctx, __fom->fo_op_addb_ctx);	\
-})
-
-/**
- * Helper macro for ADDB posting.
- */
-#define M0_FOM_ADDB_POST(fom, addb_mc, recid, ...) \
-	M0_ADDB_POST(addb_mc, recid, M0_FOM_ADDB_CTX_VEC(fom), ## __VA_ARGS__);
 
 /**
  * Adds the FOL record prepared from the list of FOL record fragments in

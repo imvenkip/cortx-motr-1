@@ -264,7 +264,7 @@ mero_service()
 			local mds=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 
-			SNAME="-s mdservice -s rmservice -s addb -s addb2 \
+			SNAME="-s mdservice -s rmservice -s addb2 \
                                -s stats"
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
@@ -281,7 +281,7 @@ mero_service()
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 
 			SNAME="-s ioservice -s sns_repair -s sns_rebalance \
-                               -s addb -s addb2"
+                               -s addb2"
 
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
@@ -297,7 +297,7 @@ mero_service()
 			local mds=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 
-			SNAME="-s mdservice -s rmservice -s addb -s addb2 \
+			SNAME="-s mdservice -s rmservice -s addb2 \
                                -s stats"
 			ulimit -c unlimited
 
@@ -323,7 +323,7 @@ mero_service()
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 
 			SNAME="-s ioservice -s sns_repair -s sns_rebalance \
-                               -s addb -s addb2"
+                               -s addb2"
 
 			ulimit -c unlimited
 
@@ -361,18 +361,7 @@ mero_service()
 	}
 
 	stop() {
-
 		servers_stop $prog_exec
-
-		# ADDB RPC sink ST usage ADDB client records generated
-		# by IO done by "m0t1fs_system_tests".
-		# It collects ADDB records from addb_stobs from all services
-		# to $ADDB_DUMP_FILE and later used by RPC sink ST.
-		if [ "$1" = "--collect-addb" ]
-		then
-			collect_addb_from_all_services
-		fi
-
 		unprepare
 	}
 
@@ -387,7 +376,7 @@ mero_service()
 		echo "Mero services stopped."
 		;;
 	    *)
-		echo "Usage: $0 {start|stop [--collect-addb]}"
+		echo "Usage: $0 {start|stop}"
 		return 2
 	esac
 	return $?

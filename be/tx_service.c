@@ -21,10 +21,6 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
 
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-#include "addb/addb.h"
-
 #include "be/be.h"
 #include "be/engine.h"
 #include "be/tx_service.h"
@@ -35,32 +31,6 @@
  * @addtogroup be
  * @{
  */
-
-/* ------------------------------------------------------------------
- * ADDB
- * ------------------------------------------------------------------ */
-
-enum { M0_ADDB_CTXID_TX_SERVICE = 1800 };
-
-M0_ADDB_CT(m0_addb_ct_tx_service, M0_ADDB_CTXID_TX_SERVICE, "hi", "low");
-
-static void _addb_init(void)
-{
-	const struct m0_addb_ctx_type *act;
-	/* static struct m0_addb_ctx tx_service_mod_ctx; */
-	/* XXX not thread-safe */
-	act = m0_addb_ctx_type_lookup(M0_ADDB_CTXID_TX_SERVICE);
-	if (act == NULL) {
-		 m0_addb_ctx_type_register(&m0_addb_ct_tx_service);
-		 /*M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_tx_service_mod_addb_ctx,*/
-		 /*		 &m0_addb_ct_tx_service, &m0_addb_proc_ctx);*/
-	}
-}
-
-static void _addb_fini(void)
-{
-        /* m0_addb_ctx_fini(&tx_service_mod_ctx); */
-}
 
 /* ------------------------------------------------------------------
  * TX service
@@ -79,7 +49,7 @@ static const struct m0_reqh_service_type_ops txs_stype_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_be_txs_stype, &txs_stype_ops, "be-tx-service",
-                            &m0_addb_ct_tx_service, 1, 0);
+			    1, 0);
 
 M0_INTERNAL int m0_be_txs_register(void)
 {
@@ -116,7 +86,6 @@ static int txs_allocate(struct m0_reqh_service **service,
 
 	*service = &s->ts_reqh;
 	(*service)->rs_ops = &txs_ops;
-	_addb_init();
 
 	return M0_RC(0);
 }
@@ -125,7 +94,6 @@ static int txs_allocate(struct m0_reqh_service **service,
 static void txs_fini(struct m0_reqh_service *service)
 {
 	M0_ENTRY();
-	_addb_fini();
 	m0_free(container_of(service, struct tx_service, ts_reqh));
 	M0_LEAVE();
 }
@@ -157,7 +125,7 @@ M0_INTERNAL void m0_be_tx_service_fini(struct m0_be_engine *en)
 }
 
 /** @} end of be group */
-#undef M0_ADDB_CT_CREATE_DEFINITION
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

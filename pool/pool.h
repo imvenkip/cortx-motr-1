@@ -144,7 +144,7 @@ struct m0_pools_common {
 	/** RM service context */
 	struct m0_reqh_service_ctx  *pc_rm_ctx;
 
-	/** ADDB stat service context. */
+	/** Stats service context. */
 	struct m0_reqh_service_ctx  *pc_ss_ctx;
 
 	/**

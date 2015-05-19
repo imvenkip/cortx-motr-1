@@ -153,7 +153,7 @@ m0d_start
 sss_check ioservice M0_SERVICE_STATUS "$SVC_ID" ssr_state M0_RST_STARTED
 sss_check ioservice M0_SERVICE_STATUS '(0, 0)'  ssr_rc    _EINVAL
 
-SVC_NAMES=(confd stats rmservice mdservice addb sns_repair sns_rebalance)
+SVC_NAMES=(confd stats rmservice mdservice addb2 sns_repair sns_rebalance)
 for ((i=0; i < ${#SVC_NAMES[*]}; i += 1)); do
 	SVC2_ID="(8286623314361712642, $i)"
 	echo "id=$SVC2_ID"

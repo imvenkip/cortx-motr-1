@@ -260,7 +260,7 @@ M0_INTERNAL void m0_sm_init(struct m0_sm *mach, const struct m0_sm_conf *conf,
 	mach->sm_conf        = conf;
 	mach->sm_grp         = grp;
 	mach->sm_rc          = 0;
-	mach->sm_state_epoch = 0;
+	mach->sm_state_epoch = m0_time_now();
 	mach->sm_addb2_stats = NULL;
 	m0_chan_init(&mach->sm_chan, &grp->s_lock);
 	M0_POST(sm_invariant0(mach));
@@ -311,27 +311,6 @@ M0_INTERNAL bool m0_sm_conf_is_initialized(const struct m0_sm_conf *conf)
 	return conf->scf_magic == M0_SM_CONF_MAGIC;
 }
 
-M0_INTERNAL void m0_sm_stats_enable(struct m0_sm *mach,
-				    struct m0_addb_sm_counter *c)
-{
-	M0_PRE(m0_sm_conf_is_initialized(mach->sm_conf));
-	M0_PRE(c->asc_magic == M0_ADDB_CNTR_MAGIC);
-
-	mach->sm_addb_stats = c;
-	mach->sm_state_epoch = m0_time_now();
-}
-
-M0_INTERNAL void m0_sm_stats_post(struct m0_sm *mach,
-				  struct m0_addb_mc *addb_mc,
-				  struct m0_addb_ctx **cv)
-{
-	M0_ASSERT(m0_sm_invariant(mach));
-
-	if (mach->sm_addb_stats != NULL &&
-	    m0_addb_sm_counter_nr(mach->sm_addb_stats) > 0)
-		M0_ADDB_POST_SM_CNTR(addb_mc, cv, mach->sm_addb_stats);
-}
-
 M0_INTERNAL int m0_sm_timedwait(struct m0_sm *mach, uint64_t states,
 				m0_time_t deadline)
 {
@@ -377,8 +356,6 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 	 */
 	do {
 		struct m0_sm_addb2_stats *stats = mach->sm_addb2_stats;
-		m0_time_t                 now   = m0_time_now();
-		m0_time_t                 delta;
 		uint32_t                  trans;
 
 		sd = sm_state(mach);
@@ -389,20 +366,20 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);
 
-		delta = m0_time_sub(now, mach->sm_state_epoch) >> 10;
 		/* Update statistics (if enabled). */
-		if (mach->sm_addb_stats != NULL)
-			m0_addb_sm_counter_update(mach->sm_addb_stats, trans,
-						  delta);
 		if (stats != NULL) {
+			m0_time_t now = m0_time_now();
+			m0_time_t delta;
+
+			delta = m0_time_sub(now, mach->sm_state_epoch) >> 10;
 			M0_ASSERT(stats->as_nr == 0 || trans < stats->as_nr);
 			if (stats->as_id != 0)
 				M0_ADDB2_ADD(stats->as_id, trans, state, now);
 			if (stats->as_nr > 0)
 				m0_addb2_counter_mod(&stats->as_counter[trans],
 						     delta);
+			mach->sm_state_epoch = now;
 		}
-		mach->sm_state_epoch = now;
 		mach->sm_state = state;
 		M0_ASSERT(m0_sm_invariant(mach));
 		sd = sm_state(mach);

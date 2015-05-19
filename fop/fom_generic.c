@@ -36,7 +36,6 @@
 #include "reqh/reqh.h"
 #include "fop/fom_generic.h"
 #include "fop/fom_generic_xc.h"
-#include "fop/fop_addb.h"
 
 /**
    @addtogroup fom
@@ -308,9 +307,7 @@ static void generic_reply_build(struct m0_fom *fom)
 		M0_PRE(rfop->f_type->ft_xt->xct_child[0].xf_type == &M0_XT_U32);
 		out_fop = m0_fop_data(rfop);
 		out_fop->gr_rc = m0_fom_rc(fom);
-	} else
-		FOP_ADDB_FUNCFAIL(-ENOMEM, GENERIC_REPLY_BUILD,
-				  &fom->fo_addb_ctx);
+	}
 }
 
 /**

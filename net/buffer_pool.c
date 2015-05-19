@@ -102,14 +102,10 @@ M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
 	if (colours == 0)
 		pool->nbp_colours = NULL;
 	else {
-		M0_ALLOC_ARR_ADDB(pool->nbp_colours, colours,
-				  &m0_addb_gmc, M0_NET_ADDB_LOC_BP_INIT,
-				  &m0_net_addb_ctx, &ndom->nd_addb_ctx);
+		M0_ALLOC_ARR(pool->nbp_colours, colours);
 		if (pool->nbp_colours == NULL)
 			return M0_ERR(-ENOMEM);
 	}
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &pool->nbp_addb_ctx,
-			 &m0_addb_ct_net_bp, &ndom->nd_addb_ctx);
 	m0_mutex_init(&pool->nbp_mutex);
 	m0_net_pool_tlist_init(&pool->nbp_lru);
 	for (i = 0; i < colours; ++i)
@@ -183,7 +179,6 @@ M0_INTERNAL void m0_net_buffer_pool_fini(struct m0_net_buffer_pool *pool)
 	if (pool->nbp_colours != NULL)
 		m0_free(pool->nbp_colours);
 	m0_mutex_fini(&pool->nbp_mutex);
-	m0_addb_ctx_fini(&pool->nbp_addb_ctx);
 }
 
 M0_INTERNAL void m0_net_buffer_pool_lock(struct m0_net_buffer_pool *pool)

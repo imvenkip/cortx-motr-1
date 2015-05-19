@@ -206,7 +206,6 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 	};
 
 	m0_sm_init(&tx->t_sm, &be_tx_sm_conf, M0_BTS_PREPARE, sm_group);
-	tx->t_sm.sm_state_epoch = m0_time_now();
 	m0_sm_addb2_counter_init(&tx->t_sm);
 
 	for (state = 0; state < ARRAY_SIZE(be_tx_ast_offset); ++state) {

@@ -21,15 +21,13 @@ static struct m0_semaphore sem;
 static int reqhut_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			     struct m0_reqh *reqh);
 static int reqhut_fom_tick(struct m0_fom *fom);
-static void reqhut_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 static void reqhut_fom_fini(struct m0_fom *fom);
 static size_t reqhut_find_fom_home_locality(const struct m0_fom *fom);
 
 static const struct m0_fom_ops reqhut_fom_ops = {
 	.fo_fini = reqhut_fom_fini,
 	.fo_tick = reqhut_fom_tick,
-	.fo_home_locality = reqhut_find_fom_home_locality,
-	.fo_addb_init = reqhut_fom_addb_init
+	.fo_home_locality = reqhut_find_fom_home_locality
 };
 
 static const struct m0_fom_type_ops reqhut_fom_type_ops = {
@@ -68,15 +66,6 @@ static int reqhut_fom_tick(struct m0_fom *fom)
 	m0_semaphore_up(&sem);
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	return M0_FSO_WAIT;
-}
-
-static void reqhut_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 static void reqhut_fom_fini(struct m0_fom *fom)

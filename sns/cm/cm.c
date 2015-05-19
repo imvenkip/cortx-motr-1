@@ -37,7 +37,6 @@
 #include "cob/ns_iter.h"
 #include "cm/proxy.h"
 
-#include "sns/sns_addb.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/iter.h"
 #include "sns/cm/cm.h"
@@ -411,7 +410,7 @@ M0_INTERNAL struct m0_cm_cp *m0_sns_cm_cp_alloc(struct m0_cm *cm)
 {
 	struct m0_sns_cm_cp *scp;
 
-	SNS_ALLOC_PTR(scp, &m0_sns_mod_addb_ctx, CP_ALLOC);
+	M0_ALLOC_PTR(scp);
 	if (scp == NULL)
 		return NULL;
 
@@ -536,8 +535,6 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 	}
 
 	if (rc == 0) {
-		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_cm_buf_nr,
-			     M0_ADDB_CTX_VEC(&m0_sns_cp_addb_ctx), 0, 0, 0, 0);
 		rc = m0_sns_cm_iter_init(&scm->sc_it);
 		if (rc != 0)
 			return M0_RC(rc);
@@ -649,12 +646,6 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 		 */
 		if (bufs_nr == 0)
 			return M0_ERR(-ENOMEM);
-                M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_cm_buf_nr,
-                             M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
-			     scm->sc_ibp.sb_bp.nbp_buf_nr,
-			     scm->sc_obp.sb_bp.nbp_buf_nr,
-			     scm->sc_ibp.sb_bp.nbp_free,
-			     scm->sc_obp.sb_bp.nbp_free);
 	}
 	scm->sc_ibp_reserved_nr = 0;
 
@@ -707,10 +698,6 @@ M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)
 
 	m0_sns_cm_iter_stop(&scm->sc_it);
 	scm->sc_stop_time = m0_time_now();
-	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_info,
-		     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
-		     m0_time_sub(scm->sc_stop_time,scm->sc_start_time),
-		     scm->sc_it.si_total_fsize);
 	M0_CNT_INC(scm->sc_repair_done);
 	m0_sns_cm_rm_fini(scm);
 	m0_sns_cm_ag_iter_fini(&scm->sc_ag_it);

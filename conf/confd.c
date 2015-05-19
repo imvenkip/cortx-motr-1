@@ -26,9 +26,8 @@
 #include "conf/obj_ops.h"  /* m0_conf_obj_find */
 #include "conf/onwire.h"   /* m0_confx, m0_confx_obj */
 #include "conf/preload.h"  /* m0_confx_free */
-#include "conf/addb.h"     /* m0_addb_ct_conf_serv */
 #include "lib/errno.h"     /* ENOMEM */
-#include "lib/memory.h"    /* M0_ALLOC_PTR_ADDB */
+#include "lib/memory.h"    /* M0_ALLOC_PTR */
 #include "mero/magic.h"    /* M0_CONFD_MAGIC */
 #include "mero/setup.h"
 
@@ -60,8 +59,6 @@
  * - @ref m0d <!-- mero/setup.h -->
  * - m0_reqh_service_type_register()  <!--reqh/reqh_service.h -->
  * - m0_reqh_service_type_unregister() <!--reqh/reqh_service.h -->
- * - m0_addb_ctx_init() <!-- addb/addb.h -->
- * - m0_addb_ctx_fini() <!-- addb/addb.h -->
  * - @ref m0_long_lock_API <!-- fop/fom_long_lock.h -->
  *
  * Most important functions, confd depends on, are listed above:
@@ -257,7 +254,7 @@
  *
  * - F_FAILURE:
  *   In this phase, statistics values are being updated in
- *   m0_confd::d_stat, ADDB records are being added.
+ *   m0_confd::d_stat.
  *   m0_conf_fetch_resp FOP with an empty configuration objects
  *   sequence and negative error code is sent with m0_rpc_reply_post().
  *   m0_confd::d_cache::ca_rwlock has to be unlocked.
@@ -307,7 +304,7 @@
  *
  * - U_FAILURE:
  *   In this phase, statistics values are being updated in
- *   m0_confd::d_stat, ADDB records are being added.
+ *   m0_confd::d_stat.
  *   m0_conf_update_resp FOP with an empty configuration objects
  *   sequence and negative error code is sent with m0_rpc_reply_post().
  *   m0_confd::d_cache::ca_rwlock has to be unlocked.
@@ -450,7 +447,7 @@ static const struct m0_reqh_service_type_ops confd_stype_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_confd_stype, &confd_stype_ops, "confd",
-			    &m0_addb_ct_conf_serv, 2, M0_CST_MGS);
+			    2, M0_CST_MGS);
 
 M0_INTERNAL int m0_confd_register(void)
 {
@@ -542,8 +539,7 @@ static int confd_allocate(struct m0_reqh_service **service,
 	M0_ENTRY();
 	M0_PRE(stype == &m0_confd_stype);
 
-	M0_ALLOC_PTR_ADDB(confd, &m0_addb_gmc, M0_CONF_ADDB_LOC_CONFD_ALLOCATE,
-			  &m0_conf_mod_ctx);
+	M0_ALLOC_PTR(confd);
 	if (confd == NULL)
 		return M0_RC(-ENOMEM);
 

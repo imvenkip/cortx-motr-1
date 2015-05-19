@@ -298,11 +298,7 @@ static const struct m0_reqh_service_type_ops _stype_ops = {
 	.rsto_service_allocate = dummy_service_allocate
 };
 
-/* XXX Shouldn't it be `m0_addb_ct_ub_service'? */
-M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
-
-M0_REQH_SERVICE_TYPE_DEFINE(ub_fom_stype, &_stype_ops, "ub-fom-service",
-			    &m0_addb_ct_ut_service, 2, 0);
+M0_REQH_SERVICE_TYPE_DEFINE(ub_fom_stype, &_stype_ops, "ub-fom-service", 2, 0);
 
 /* ----------------------------------------------------------------
  * FOM operations
@@ -333,16 +329,10 @@ static size_t ub_fom_home_locality(const struct m0_fom *fom)
 	return locality++;
 }
 
-static void ub_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static const struct m0_fom_ops ub_fom_ops = {
 	.fo_fini          = ub_fom_fini,
 	.fo_tick          = ub_fom_tick,
-	.fo_home_locality = ub_fom_home_locality,
-	.fo_addb_init     = ub_fom_addb_init
+	.fo_home_locality = ub_fom_home_locality
 };
 
 static struct m0_fom_type ub_fom_type;

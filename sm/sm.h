@@ -31,7 +31,6 @@
 #include "lib/chan.h"
 #include "lib/mutex.h"
 #include "lib/tlist.h"
-#include "addb/addb.h"
 #include "addb2/counter.h"
 
 /**
@@ -316,10 +315,6 @@ struct m0_sm {
 	 */
 	const struct m0_sm_conf   *sm_conf;
 	struct m0_sm_group        *sm_grp;
-	/**
-	   State machine transitions statistics
-	 */
-	struct m0_addb_sm_counter *sm_addb_stats;
 	/**
 	   The time entered to current state. Used to calculate how long
 	   we were in a state (counted at m0_sm_state_stats::smss_times).
@@ -765,14 +760,6 @@ M0_INTERNAL bool m0_sm_invariant(const struct m0_sm *mach);
  * transitions description array matches with the same at states
  * description array according to m0_sm_state_descr::sd_allowed flags.
  *
- * Note, the routine is designed to be called from Mero initialization
- * code (like m0_fops_init()). A state machine configuration should be
- * initialized before an ADDB state machine counter that references the
- * state machine configuration gets registered. That's why it asserts
- * rather than returning an error code.
- *
- * @see m0_addb_rec_type_register()
- *
  * @pre !m0_sm_conf_is_initialized(conf)
  * @pre conf->scf_trans_nr > 0
  */
@@ -782,47 +769,6 @@ M0_INTERNAL void m0_sm_conf_init(struct m0_sm_conf *conf);
  * Returns true if sm configuration was initialized already.
  */
 M0_INTERNAL bool m0_sm_conf_is_initialized(const struct m0_sm_conf *conf);
-
-/**
- * Enables time statistics for each of the state transitions.
- *
- * The subroutine returns an error if the state machine configuration
- * was not initialized with the m0_sm_conf_init() subroutine. The caller
- * provides the pointer to m0_addb_sm_counter.
- * It is caller's responsibility to:
- *
- *  - initialize the counter;
- *
- *  - serialize access to the counter between different state machines
- *    along with posting; for this reason it is encouraged that the counter
- *    is shared only among the state machines of the same group;
- *
- *  - finalize the counter.
- *
- * Statistics is calculated in "binary" usecs.
- * (Binary usec == nsec >> 10.)
- *
- * @param c m0_addb_sm_counter initialized by caller.
- *
- * @pre m0_sm_conf_is_initialized(mach->sm_conf)
- * @pre c->asc_magic == M0_ADDB_CNTR_MAGIC
- * @pre c->asc_rt->art_sm_conf == mach->sm_conf
- */
-M0_INTERNAL void m0_sm_stats_enable(struct m0_sm *mach,
-				    struct m0_addb_sm_counter *c);
-
-/**
- * Posts statistics for each state transition happened.
- *
- * This routine does nothing if m0_sm_stats_enable() was not
- * successfully invoked for the state machine.
- *
- * @param addb_mc addb machine to post statistics to.
- * @param cv addb context vector at which to post.
- */
-M0_INTERNAL void m0_sm_stats_post(struct m0_sm *mach,
-				  struct m0_addb_mc *addb_mc,
-				  struct m0_addb_ctx **cv);
 
 int m0_sm_group_call(struct m0_sm_group *group,
 		     int (*cb)(void *), void *data);

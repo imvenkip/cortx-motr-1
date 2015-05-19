@@ -285,7 +285,6 @@ static void ut_fsync_create_fom(void)
 
 	/* test fom's ops */
 	M0_UT_ASSERT(fsync_fom_locality_get(fom) == 1);
-	M0_UT_ASSERT(fom->fo_addb_ctx.ac_magic == M0_ADDB_CTX_MAGIC);
 
 	/* release (the kraken!) */
 	m0_free(fop);

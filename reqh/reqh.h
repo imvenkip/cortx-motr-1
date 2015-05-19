@@ -33,7 +33,6 @@
 #include "fop/fom.h"
 #include "layout/layout.h"
 #include "ha/epoch.h"
-#include "addb/addb_monitor.h"
 #include "rpc/session.h"
 
 /**
@@ -134,11 +133,6 @@ struct m0_reqh {
 	struct m0_semaphore           rh_addb2_net_idle;
 
 	/**
-	 * ADDB monitoring context maintained per request handler.
-	 */
-	struct m0_addb_monitoring_ctx rh_addb_monitoring_ctx;
-
-	/**
 	 * Layout domain for this request handler.
 	 */
 	struct m0_layout_domain       rh_ldom;
@@ -220,9 +214,6 @@ M0_INTERNAL int m0_reqh_layouts_setup(struct m0_reqh *reqh,
  */
 M0_INTERNAL void m0_reqh_layouts_cleanup(struct m0_reqh *reqh);
 
-M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
-				       struct m0_stob *stob);
-
 M0_INTERNAL int m0_reqh_addb2_init(struct m0_reqh *reqh,
 				   struct m0_stob *stob, bool mkfs);
 M0_INTERNAL void m0_reqh_addb2_fini(struct m0_reqh *reqh);
@@ -256,14 +247,6 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop);
    @pre fop != null
  */
 M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop);
-
-/**
-   Subroutine to generate ADDB statistics on resources consumed and managed
-   by a resource handler.
-   The subroutine is intended to be called from a FOM within the resource
-   handler.
- */
-M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh);
 
 /**
    Waits on the request handler channel (m0_reqh::rh_sd_signal) until the
@@ -336,8 +319,9 @@ M0_INTERNAL void m0_reqh_pre_storage_fini_svcs_stop(struct m0_reqh *reqh);
 M0_INTERNAL void m0_reqh_post_storage_fini_svcs_stop(struct m0_reqh *reqh);
 
 /**
-    Initialises global reqh objects like reqh fops and addb context,
-    invoked from m0_init().
+    Initialises global reqh objects like reqh fops.
+
+    Invoked from m0_init().
  */
 M0_INTERNAL int m0_reqhs_init(void);
 
@@ -357,9 +341,6 @@ M0_BOB_DECLARE(M0_EXTERN, m0_reqh_service);
 /** Descriptor for tlist of rpc machines. */
 M0_TL_DESCR_DECLARE(m0_reqh_rpc_mach, extern);
 M0_TL_DECLARE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
-
-M0_INTERNAL struct m0_addb_mc  *m0_fom_addb_mc(void);
-M0_INTERNAL struct m0_addb_ctx *m0_fom_addb_ctx(void);
 
 M0_INTERNAL int m0_reqh_mdpool_layout_build(struct m0_reqh *reqh);
 /**

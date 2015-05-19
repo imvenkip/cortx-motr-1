@@ -23,7 +23,6 @@
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/misc.h"    /* M0_BITS */
-#include "addb/addb.h"
 #include "fop/fop.h"
 #include "fop/fom_generic.h"
 #include "reqh/reqh_service.h"
@@ -179,11 +178,6 @@ static size_t poolmach_fom_home_locality(const struct m0_fom *fom)
 	return m0_fop_opcode(fom->fo_fop);
 }
 
-static void poolmach_fom_addb_init(struct m0_fom * fom, struct m0_addb_mc *mc)
-{
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static void poolmach_fom_fini(struct m0_fom *fom)
 {
 	m0_fom_fini(fom);
@@ -196,8 +190,7 @@ static void poolmach_fom_fini(struct m0_fom *fom)
 static const struct m0_fom_ops poolmach_ops = {
 	.fo_fini          = poolmach_fom_fini,
 	.fo_tick          = poolmach_fom_tick,
-	.fo_home_locality = poolmach_fom_home_locality,
-	.fo_addb_init     = poolmach_fom_addb_init
+	.fo_home_locality = poolmach_fom_home_locality
 };
 
 /**

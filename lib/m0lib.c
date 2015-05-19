@@ -29,7 +29,8 @@
 
 M0_INTERNAL int libm0_init(void)
 {
-	return 0;
+	extern int m0_node_uuid_init(void);
+	return m0_node_uuid_init();
 }
 M0_EXPORTED(libm0_init);
 

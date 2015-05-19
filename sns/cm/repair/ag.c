@@ -30,7 +30,6 @@
 #include "fid/fid.h"
 #include "sns/parity_repair.h"
 
-#include "sns/sns_addb.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/repair/ag.h"
 #include "sns/cm/cp.h"
@@ -167,12 +166,6 @@ static void repair_ag_fini(struct m0_cm_aggr_group *ag)
 
 	M0_ENTRY();
 	M0_PRE(ag != NULL);
-
-	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
-		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
-		     ag->cag_id.ai_hi.u_hi, ag->cag_id.ai_hi.u_lo,
-		     ag->cag_id.ai_lo.u_hi, ag->cag_id.ai_lo.u_lo);
-
 
 	sag = ag2snsag(ag);
 	fctx = sag->sag_fctx;
@@ -379,7 +372,7 @@ M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
 	M0_PRE(m0_cm_is_locked(cm));
 
 	/* Allocate new aggregation group. */
-	SNS_ALLOC_PTR(rag, &m0_sns_ag_addb_ctx, AG_ALLOC);
+	M0_ALLOC_PTR(rag);
 	if (rag == NULL)
 		return M0_ERR(-ENOMEM);
 	rc = m0_sns_cm_ag_init(&rag->rag_base, cm, id, &sns_cm_repair_ag_ops,
@@ -389,9 +382,9 @@ M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
 		return M0_RC(rc);
 	}
 	f_nr = rag->rag_base.sag_fnr;
-	SNS_ALLOC_ARR(rag->rag_fc, f_nr, &m0_sns_ag_addb_ctx, AG_FAIL_CTX);
+	M0_ALLOC_ARR(rag->rag_fc, f_nr);
 	if (rag->rag_fc == NULL) {
-		rc =  -ENOMEM;
+		rc =  M0_ERR(-ENOMEM);
 		goto cleanup_ag;
 	}
 	sag = &rag->rag_base;
@@ -413,12 +406,6 @@ M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
 	if (rc != 0 && rc != -ENOBUFS)
 		goto cleanup_acc;
 	*out = &sag->sag_base;
-
-	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
-		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
-		     id->ai_hi.u_hi, id->ai_hi.u_lo,
-		     id->ai_lo.u_hi, id->ai_lo.u_lo);
-
 	goto done;
 
 cleanup_acc:

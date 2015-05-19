@@ -19,10 +19,6 @@
  * Original creation date: 03/21/2011
  */
 
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-#include "ioservice/io_service_addb.h"
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/vec.h"	/* m0_0vec */
@@ -31,7 +27,6 @@
 #include "lib/trace.h"
 #include "lib/tlist.h"
 #include "reqh/reqh.h"
-#include "addb/addb.h"
 #include "mero/magic.h"
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
@@ -49,17 +44,8 @@
 #include "ioservice/io_fops_xc.h"
 #include "ioservice/cob_foms.h"
 #ifdef __KERNEL__
-  #undef M0_ADDB_CT_CREATE_DEFINITION
   #include "m0t1fs/linux_kernel/m0t1fs.h"
 #endif
-
-/**
- * This addb ctx would be used only to post for exception records
- * where io/cob foms ctx would not be available.
- * This happens mainly in case of service_allocation()'s memory allocation
- * & other memory allocation failures.
- */
-struct m0_addb_ctx m0_ios_addb_ctx;
 
 /* tlists and tlist APIs referred from rpc layer. */
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
@@ -263,8 +249,6 @@ M0_INTERNAL void m0_ioservice_fop_fini(void)
 	m0_fop_type_fini(&m0_fop_cob_writev_fopt);
 	m0_fop_type_fini(&m0_fop_cob_readv_fopt);
 	m0_fop_type_fini(&m0_fop_fsync_ios_fopt);
-
-	m0_addb_ctx_fini(&m0_ios_addb_ctx);
 }
 
 extern struct m0_reqh_service_type m0_ios_type;
@@ -281,13 +265,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	const struct m0_sm_conf *p_cob_ops_conf;
 #ifndef __KERNEL__
 	p_cob_ops_conf = &cob_ops_conf;
-#else
-	p_cob_ops_conf = &m0_generic_conf;
-#endif
-	m0_addb_ctx_type_register(&m0_addb_ct_ios_mod);
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_ios_addb_ctx, &m0_addb_ct_ios_mod,
-			 &m0_addb_proc_ctx);
-#ifndef __KERNEL__
 	m0_sm_conf_extend(m0_generic_conf.scf_state, io_phases,
 			  m0_generic_conf.scf_nr_states);
 	m0_sm_conf_extend(m0_generic_conf.scf_state, cob_ops_phases,
@@ -296,6 +273,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	m0_sm_conf_trans_extend(&m0_generic_conf, &io_conf);
 
 	m0_sm_conf_init(&io_conf);
+#else
+	p_cob_ops_conf = &m0_generic_conf;
 #endif
 	M0_FOP_TYPE_INIT(&m0_fop_cob_readv_fopt,
 			 .name      = "Read request",
@@ -894,8 +873,6 @@ M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
 		rw->crw_gfid = *gfid;
 
 		M0_POST(io_fop_invariant(iofop));
-	} else {
-		IOS_ADDB_FUNCFAIL(rc, IO_FOP_INIT, &m0_ios_addb_ctx);
 	}
 	return M0_RC(rc);
 }
@@ -1112,7 +1089,7 @@ static int io_fop_seg_init(struct ioseg **ns, const struct ioseg *cseg)
 	M0_PRE(ns != NULL);
 	M0_PRE(cseg != NULL);
 
-	IOS_ALLOC_PTR(new_seg, &m0_ios_addb_ctx, IO_FOP_SEG_INIT);
+	M0_ALLOC_PTR(new_seg);
 	if (new_seg == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -1374,8 +1351,7 @@ static int io_fop_ivec_prepare(struct m0_fop      *res_fop,
 	ivec        = &rw->crw_ivec;
 	ivec->ci_nr = iosegs_nr(rbulk);
 
-	IOS_ALLOC_ARR(ivec->ci_iosegs, ivec->ci_nr, &m0_ios_addb_ctx,
-		      IO_FOP_IVEC_ALLOC_1);
+	M0_ALLOC_ARR(ivec->ci_iosegs, ivec->ci_nr);
 	if (ivec->ci_iosegs == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -1420,10 +1396,7 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 	if (file->fi_di_ops->do_out_shift(file) == 0)
 		return 0;
 	bsize = M0_BITS(file->fi_di_ops->do_in_shift(file));
-	rc = m0_indexvec_wire2mem(io_info, io_info->ci_nr, 0,
-				  &m0_ios_addb_ctx,
-			          M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
-			          &io_vec);
+	rc = m0_indexvec_wire2mem(io_info, io_info->ci_nr, 0, &io_vec);
 	if (rc != 0)
 		return M0_RC(rc);
 	size = m0_di_size_get(file, m0_io_count(io_info));
@@ -1445,10 +1418,7 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 		buf = M0_BUF_INIT(di_size, rw->crw_di_data.b_addr + curr_pos);
 		cksum_data = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&buf.b_addr,
 								   &buf.b_nob);
-		rc = m0_indexvec_split(&io_vec, curr_size, todo, 0,
-				       &m0_ios_addb_ctx,
-				       M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
-				       &ivec);
+		rc = m0_indexvec_split(&io_vec, curr_size, todo, 0, &ivec);
 		if (rc != 0)
 			goto out;
 		file->fi_di_ops->do_sum(file, &ivec, &rbuf->bb_nbuf->nb_buffer,
@@ -1501,10 +1471,8 @@ static int io_fop_desc_alloc(struct m0_fop *fop, struct m0_rpc_bulk *rbulk)
 	rbulk = m0_fop_to_rpcbulk(fop);
 	rw = io_rw_get(fop);
 	rw->crw_desc.id_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
-	IOS_ALLOC_ARR(rw->crw_desc.id_descs, rw->crw_desc.id_nr,
-		      &m0_ios_addb_ctx, IO_FOP_DESC_ALLOC);
-
-	return rw->crw_desc.id_descs == NULL ? -ENOMEM : 0;
+	M0_ALLOC_ARR(rw->crw_desc.id_descs, rw->crw_desc.id_nr);
+	return rw->crw_desc.id_descs == NULL ? M0_ERR(-ENOMEM) : 0;
 }
 
 static void io_fop_desc_dealloc(struct m0_fop *fop)
@@ -1589,7 +1557,6 @@ static int io_fop_desc_ivec_prepare(struct m0_fop *fop,
 
 	rc = io_netbufs_prepare(fop, aggr_set);
 	if (rc != 0) {
-		IOS_ADDB_FUNCFAIL(rc, IO_FOP_DESC_IVEC_PREP, &m0_ios_addb_ctx);
 		return M0_RC(rc);
 	}
 
@@ -1657,7 +1624,7 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	M0_PRE(res_fop != NULL);
 	M0_PRE(m0_is_io_fop(res_fop));
 
-	IOS_ALLOC_PTR(cfop, &m0_ios_addb_ctx, IO_FOP_COALESCE_1);
+	M0_ALLOC_PTR(cfop);
 	if (cfop == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -1716,7 +1683,6 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	rc = m0_rpc_bulk_store(rbulk, res_fop->f_item.ri_session->s_conn,
 			       rw->crw_desc.id_descs, &m0_rpc__buf_bulk_cb);
 	if (rc != 0) {
-		IOS_ADDB_FUNCFAIL(rc, IO_FOP_COALESCE_2, &m0_ios_addb_ctx);
 		m0_io_fop_destroy(res_fop);
 		goto cleanup;
 	}
@@ -1726,8 +1692,6 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	 * provided as input.
 	 */
 	if (m0_io_fop_size_get(res_fop) > size) {
-		IOS_ADDB_FUNCFAIL(-EMSGSIZE, IO_FOP_COALESCE_3,
-				  &m0_ios_addb_ctx);
 		m0_mutex_lock(&rbulk->rb_mutex);
 		m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
 			m0_net_buffer_del(rbuf->bb_nbuf, tm);
@@ -1850,8 +1814,6 @@ static void io_item_replied(struct m0_rpc_item *item)
 	M0_PRE(item != NULL);
 
 	if (item->ri_error != 0) {
-		IOS_ADDB_FUNCFAIL(item->ri_error, IO_ITEM_REPLIED,
-				  &m0_ios_addb_ctx);
 		return;
 	}
 	fop = m0_rpc_item_to_fop(item);
@@ -1860,10 +1822,6 @@ static void io_item_replied(struct m0_rpc_item *item)
 	reply = io_rw_rep_get(rfop);
 
 	if (m0_rpc_item_is_generic_reply_fop(item)) {
-		IOS_ADDB_FUNCFAIL(
-		m0_rpc_item_generic_reply_rc(item->ri_reply),
-					     IO_ITEM_REPLIED,
-					     &m0_ios_addb_ctx);
 		return;
 	}
 	M0_ASSERT(ergo(reply->rwr_rc == 0,
@@ -1949,9 +1907,7 @@ if (0)
 	rc = bfop->f_type->ft_ops->fto_io_coalesce(bfop, size);
 	if (rc != 0) {
 		m0_tl_teardown(rpcitem, &head->ri_compound_items, item) {
-			(void)item; /* removing the "unused variable" wariing.*/
-			IOS_ADDB_FUNCFAIL(rc, ITEM_IO_COALESCE,
-					  &m0_ios_addb_ctx);
+			(void)item; /* remove the "unused variable" warning.*/
 		}
 	} else {
 		/*

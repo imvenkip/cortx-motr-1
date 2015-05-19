@@ -49,28 +49,28 @@ static struct m0_stats_recs *stats_recs_dup(struct m0_stats_recs *stats_recs)
 
 	for (i = 0; i < recs->sf_nr; ++i) {
 		/* if stats type not defined. */
-		if (stats_recs->sf_stats[i].ss_data.au64s_nr <= 0)
+		if (stats_recs->sf_stats[i].ss_data.se_nr <= 0)
 			continue;
 
 		recs->sf_stats[i].ss_id = stats_recs->sf_stats[i].ss_id;
-		recs->sf_stats[i].ss_data.au64s_nr =
-			stats_recs->sf_stats[i].ss_data.au64s_nr;
-		M0_ALLOC_ARR(recs->sf_stats[i].ss_data.au64s_data,
-			     recs->sf_stats[i].ss_data.au64s_nr);
-		if (recs->sf_stats[i].ss_data.au64s_data == NULL)
+		recs->sf_stats[i].ss_data.se_nr =
+			stats_recs->sf_stats[i].ss_data.se_nr;
+		M0_ALLOC_ARR(recs->sf_stats[i].ss_data.se_data,
+			     recs->sf_stats[i].ss_data.se_nr);
+		if (recs->sf_stats[i].ss_data.se_data == NULL)
 			goto free_stats;
 
-		memcpy(recs->sf_stats[i].ss_data.au64s_data,
-		       stats_recs->sf_stats[i].ss_data.au64s_data,
-		       recs->sf_stats[i].ss_data.au64s_nr * sizeof (uint64_t));
+		memcpy(recs->sf_stats[i].ss_data.se_data,
+		       stats_recs->sf_stats[i].ss_data.se_data,
+		       recs->sf_stats[i].ss_data.se_nr * sizeof (uint64_t));
 	}
 
 	return recs;
 
 free_stats:
 	for(; i >= 0; --i) {
-		if (recs->sf_stats[i].ss_data.au64s_data != NULL)
-			m0_free(recs->sf_stats[i].ss_data.au64s_data);
+		if (recs->sf_stats[i].ss_data.se_data != NULL)
+			m0_free(recs->sf_stats[i].ss_data.se_data);
 	}
 	m0_free(recs->sf_stats);
 free_recs:
@@ -79,7 +79,7 @@ error:
 	return NULL;
 }
 
-static struct m0_fop *query_fop_alloc(struct m0_addb_uint64_seq *stats_ids)
+static struct m0_fop *query_fop_alloc(void)
 {
 	struct m0_fop             *fop;
 	struct m0_stats_query_fop *qfop;
@@ -92,21 +92,10 @@ static struct m0_fop *query_fop_alloc(struct m0_addb_uint64_seq *stats_ids)
 	if (qfop == NULL)
 		goto free_fop;
 
-	qfop->sqf_ids.au64s_nr = stats_ids->au64s_nr;
-	M0_ALLOC_ARR(qfop->sqf_ids.au64s_data, qfop->sqf_ids.au64s_nr);
-	if (qfop->sqf_ids.au64s_data == NULL)
-		goto free_qfop;
-
-	memcpy(qfop->sqf_ids.au64s_data, stats_ids->au64s_data,
-	       stats_ids->au64s_nr * sizeof (uint64_t));
-
 	m0_fop_init(fop, &m0_fop_stats_query_fopt, (void *)qfop,
 		    m0_stats_query_fop_release);
 
 	return fop;
-
-free_qfop:
-	m0_free(qfop);
 free_fop:
 	m0_free(fop);
 error:
@@ -114,7 +103,6 @@ error:
 }
 
 int m0_stats_query(struct m0_rpc_session     *session,
-		   struct m0_addb_uint64_seq *stats_ids,
 		   struct m0_stats_recs     **stats)
 {
 	int                            rc;
@@ -124,10 +112,9 @@ int m0_stats_query(struct m0_rpc_session     *session,
 	struct m0_stats_query_rep_fop *qrfop;
 
 	M0_PRE(session != NULL);
-	M0_PRE(stats_ids != NULL && stats_ids->au64s_nr != 0);
 	M0_PRE(stats != NULL);
 
-	fop = query_fop_alloc(stats_ids);
+	fop = query_fop_alloc();
 	if (fop == NULL)
 		return M0_ERR(-ENOMEM);
 

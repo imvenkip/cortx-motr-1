@@ -25,7 +25,7 @@
 #include <stdlib.h> /* exit */
 #include <unistd.h> /* getuid, close, read, write, lseek */
 
-#include "addb/user_space/uctx.h" /* m0_addb_kmod_uuid_file_set */
+#include "lib/uuid.h"             /* m0_kmod_uuid_file_set */
 #include "mero/init.h"            /* m0_init */
 #include "module/instance.h"      /* m0 */
 #include "lib/arith.h"            /* m0_is_po2 */
@@ -337,7 +337,7 @@ int main(int argc, char *argv[])
 	off_t off = 0;
 	m0_time_t delay;
 
-	m0_addb_kmod_uuid_file_set("/sys/module/m0ut/parameters/node_uuid");
+	m0_kmod_uuid_file_set("/sys/module/m0ut/parameters/node_uuid");
 
 	rc = m0_init(&instance);
 	M0_ASSERT(rc == 0);

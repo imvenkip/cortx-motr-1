@@ -23,7 +23,6 @@
 #include "fop/fop.h"
 
 #include "cm/cm.h"
-#include "sns/sns_addb.h"
 #include "sns/cm/sw_onwire_fop.h"
 
 /**

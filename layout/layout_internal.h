@@ -23,8 +23,6 @@
 #ifndef __MERO_LAYOUT_LAYOUT_INTERNAL_H__
 #define __MERO_LAYOUT_LAYOUT_INTERNAL_H__
 
-#include "layout/layout_addb.h"
-
 /**
  * @addtogroup layout
  * @{
@@ -41,7 +39,6 @@ struct m0_layout_enum_type;
 struct m0_striped_layout;
 struct m0_layout_instance;
 struct m0_layout_instance_ops;
-enum m0_addb_event_id;
 struct m0_fid;
 
 enum {
@@ -95,11 +92,6 @@ enum {
 	L_TABLE_UPDATE_ERR         = -506
 };
 
-/**
-   ADDB context for the layout module.
- */
-extern struct m0_addb_ctx m0_layout_mod_ctx;
-
 M0_INTERNAL bool m0_layout__domain_invariant(const struct m0_layout_domain
 					     *dom);
 M0_INTERNAL bool m0_layout__allocated_invariant(const struct m0_layout *l);
@@ -143,8 +135,6 @@ M0_INTERNAL void m0_layout__enum_fini(struct m0_layout_enum *le);
 
 M0_INTERNAL void m0_layout__log(const char         *fn_name,
 				const char         *err_msg,
-				uint64_t            addb_loc,
-				struct m0_addb_ctx *addb_ctx,
 				uint64_t            lid,
 				int                 rc);
 

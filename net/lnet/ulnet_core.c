@@ -569,7 +569,7 @@ static unsigned nlx_ucore_nidstrs_thunk = 128;
 /**
    Routine to fetch the NID strings from the device driver.
    The subroutine does not modify the domain private structure.
-   @param ud Ucore domain. Only the fd and addb fields are required to
+   @param ud Ucore domain. Only the fd field is required to
    be set, as this subroutine could be used during domain initialization
    to cache the NID strings.
    @param nidary A NULL-terminated (like argv) array of NID strings is returned.
@@ -588,8 +588,7 @@ static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
 	/* Repeat until the buffer is large enough to hold all the strings. */
 	for (i = 0, dngp.dng_buf = NULL; dngp.dng_buf == NULL; ++i) {
 		dngp.dng_size = ++i * nlx_ucore_nidstrs_thunk;
-		NLX_ALLOC_ARR(dngp.dng_buf, dngp.dng_size,
-			      &ud->ud_addb_ctx, U_NID_GET1);
+		NLX_ALLOC_ARR(dngp.dng_buf, dngp.dng_size);
 		if (dngp.dng_buf == NULL)
 			return M0_ERR(-ENOMEM);
 		rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTRS_GET, &dngp);
@@ -602,7 +601,7 @@ static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
 	nidstrs_nr = rc;
 
 	/* Create a string array. */
-	NLX_ALLOC_ARR(nidstrs, nidstrs_nr + 1, &ud->ud_addb_ctx, U_NID_GET2);
+	NLX_ALLOC_ARR(nidstrs, nidstrs_nr + 1);
 	if (nidstrs == NULL) {
 		m0_free(dngp.dng_buf);
 		return M0_ERR(-ENOMEM);
@@ -640,12 +639,9 @@ M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
 
 	M0_PRE(dom != NULL && cd != NULL);
 	M0_PRE(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
-	NLX_ALLOC_PTR(ud, &dom->nd_addb_ctx, U_DOM_INIT);
+	NLX_ALLOC_PTR(ud);
 	if (ud == NULL)
 		return M0_ERR(-ENOMEM);
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &ud->ud_addb_ctx,
-			 &m0_addb_ct_net_lnet_dom, &dom->nd_addb_ctx);
-
 	ud->ud_fd = open(nlx_ucore_dev_name, O_RDWR|O_CLOEXEC);
 	if (ud->ud_fd == -1) {
 		M0_ASSERT(errno != 0);
@@ -681,9 +677,7 @@ M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
  fail_dom_init:
 	close(ud->ud_fd);
  fail_open:
-	m0_addb_ctx_fini(&ud->ud_addb_ctx);
 	m0_free(ud);
-	LNET_ADDB_FUNCFAIL(rc, U_DOM_INIT, &dom->nd_addb_ctx);
 	M0_POST(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
 	return M0_RC(rc);
 }
@@ -700,7 +694,6 @@ M0_INTERNAL void nlx_core_dom_fini(struct nlx_core_domain *cd)
 	nlx_ucore_nidstrs_put(ud, &ud->ud_nidstrs);
 
 	close(ud->ud_fd);
-	m0_addb_ctx_fini(&ud->ud_addb_ctx);
 	ud->ud_magic = 0;
 	m0_free0(&cd->cd_upvt);
 	cd->cd_kpvt = NULL;
@@ -759,7 +752,7 @@ M0_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
 	M0_PRE(cb != NULL);
 	M0_PRE(cb->cb_kpvt == NULL && cb->cb_upvt == NULL);
 
-	NLX_ALLOC_PTR(ub, &ud->ud_addb_ctx, U_BUF_REG);
+	NLX_ALLOC_PTR(ub);
 	if (ub == NULL)
 		return M0_ERR(-ENOMEM);
 	ub->ub_magic = M0_NET_LNET_UCORE_BUF_MAGIC;
@@ -772,7 +765,6 @@ M0_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
 		cb->cb_upvt = NULL;
 		ub->ub_magic = 0;
 		m0_free(ub);
-		LNET_ADDB_FUNCFAIL(rc, U_BUF_REG, &ud->ud_addb_ctx);
 		return M0_RC(rc);
 	}
 	M0_ASSERT(cb->cb_kpvt != NULL);
@@ -833,9 +825,7 @@ M0_INTERNAL void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 								\
 	dbqp.dbq_ktm = ctm->ctm_kpvt;				\
 	dbqp.dbq_kb  = cb->cb_kpvt;				\
-	rc = nlx_ucore_ioctl(ud->ud_fd, op, &dbqp);		\
-	if (rc < 0)						\
-		LNET_ADDB_FUNCFAIL(rc, loc, &ud->ud_addb_ctx)
+	rc = nlx_ucore_ioctl(ud->ud_fd, op, &dbqp)
 
 M0_INTERNAL int nlx_core_buf_msg_recv(struct nlx_core_domain *cd,
 				      struct nlx_core_transfer_mc *ctm,
@@ -973,13 +963,7 @@ int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
 	bewp.dbw_ktm = ctm->ctm_kpvt;
 	bewp.dbw_timeout = m0_time_to_realtime(timeout);
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BUF_EVENT_WAIT, &bewp);
-	if (rc < 0) {
-		if (rc != -ETIMEDOUT) /* valid return value */
-			LNET_ADDB_FUNCFAIL(rc, U_BUF_EV_WAIT,
-					   &utm->utm_addb_ctx);
-		return M0_RC(rc);
-	}
-	return M0_RC(0);
+	return rc < 0 ? rc : 0;
 }
 
 M0_INTERNAL int nlx_core_nidstr_decode(struct nlx_core_domain *cd,
@@ -998,10 +982,8 @@ M0_INTERNAL int nlx_core_nidstr_decode(struct nlx_core_domain *cd,
 	dnep.dn_nid = 0;
 
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTR_DECODE, &dnep);
-	if (rc < 0) {
-		LNET_ADDB_FUNCFAIL(rc, U_NID_DECODE, &ud->ud_addb_ctx);
+	if (rc < 0)
 		return M0_RC(rc);
-	}
 
 	*nid = dnep.dn_nid;
 	return 0;
@@ -1023,10 +1005,8 @@ M0_INTERNAL int nlx_core_nidstr_encode(struct nlx_core_domain *cd,
 	M0_SET_ARR0(dnep.dn_buf);
 
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTR_ENCODE, &dnep);
-	if (rc < 0) {
-		LNET_ADDB_FUNCFAIL(rc, U_NID_ENCODE, &ud->ud_addb_ctx);
-		return M0_RC(rc);
-	}
+	if (rc < 0)
+		return M0_ERR(rc);
 	M0_POST(dnep.dn_buf[0] != '\0');
 
 	strncpy(nidstr, dnep.dn_buf, M0_NET_LNET_NIDSTR_SIZE - 1);
@@ -1115,14 +1095,11 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 	M0_PRE(ctm->ctm_kpvt == NULL);
 	M0_PRE(ctm->ctm_magic == 0);
 
-	NLX_ALLOC_PTR(utm, &ud->ud_addb_ctx, U_TM_START);
+	NLX_ALLOC_PTR(utm);
 	if (utm == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		goto fail_utm;
 	}
-	utm->utm_addb_mc = tm->ntm_addb_mc;
-	M0_ADDB_CTX_INIT(utm->utm_addb_mc, &utm->utm_addb_ctx,
-			 &m0_addb_ct_net_lnet_tm, &tm->ntm_addb_ctx);
 	utm->utm_magic = M0_NET_LNET_UCORE_TM_MAGIC;
 	M0_POST(nlx_ucore_tm_invariant(utm));
 	ctm->ctm_upvt = utm;
@@ -1155,12 +1132,10 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 	nlx_ucore_tm_stop(cd, ctm);
  fail_start:
 	ctm->ctm_upvt = NULL;
-	m0_addb_ctx_fini(&utm->utm_addb_ctx);
 	utm->utm_magic = 0;
 	m0_free(utm);
  fail_utm:
-	LNET_ADDB_FUNCFAIL(rc, U_TM_START, &ud->ud_addb_ctx);
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL void nlx_core_tm_stop(struct nlx_core_domain *cd,
@@ -1173,7 +1148,6 @@ M0_INTERNAL void nlx_core_tm_stop(struct nlx_core_domain *cd,
 
 	nlx_ucore_tm_stop(cd, ctm); /* other invariants checked */
 	bev_cqueue_fini(&ctm->ctm_bevq, nlx_core_bev_free_cb);
-	m0_addb_ctx_fini(&utm->utm_addb_ctx);
 
 	ctm->ctm_upvt = NULL;
 	utm->utm_magic = 0;
@@ -1199,7 +1173,7 @@ M0_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 	utm = ctm->ctm_upvt;
 	M0_PRE(nlx_ucore_tm_invariant(utm));
 
-	NLX_ALLOC_ALIGNED_PTR_ADDB(bev, &utm->utm_addb_ctx, U_BEV_BLESS);
+	NLX_ALLOC_ALIGNED_PTR(bev);
 	if (bev == NULL) {
 		*bevp = NULL;
 		return M0_ERR(-ENOMEM);
@@ -1210,8 +1184,7 @@ M0_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BEV_BLESS, &bp);
 	if (rc < 0) {
 		NLX_FREE_ALIGNED_PTR(bev);
-		LNET_ADDB_FUNCFAIL(rc, U_BEV_BLESS, &utm->utm_addb_ctx);
-		return M0_RC(rc);
+		return M0_ERR(rc);
 	}
 	M0_ASSERT(bev->cbe_kpvt != NULL);
 

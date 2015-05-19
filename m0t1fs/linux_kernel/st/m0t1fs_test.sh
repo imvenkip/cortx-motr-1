@@ -6,7 +6,6 @@
 . `dirname $0`/m0t1fs_common_inc.sh
 . `dirname $0`/m0t1fs_client_inc.sh
 . `dirname $0`/m0t1fs_server_inc.sh
-. `dirname $0`/m0t1fs_rsink.sh
 
 m0t1fs_test()
 {
@@ -35,14 +34,6 @@ m0t1fs_test()
 		return 1
 	fi
 
-	# ADDB RPC sink ST usage ADDB client records generated
-	# from IO done by "m0t1fs_system_tests".
-	# ADDB dump file removed from rpcsink_addb_st after test.
-	# rpcsink_addb_st
-	# if [ $? -ne "0" ]
-	# then
-	# return 1
-	# fi
 	echo "System tests status: SUCCESS."
 }
 

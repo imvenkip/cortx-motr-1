@@ -109,8 +109,7 @@ static void test_ep(void)
 	const char *addr;
 
 	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_bulk_mem_xprt));
-	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1, &m0_addb_gmc,
-				     &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1));
 
 	m0_clink_init(&tmwait, NULL);
 	m0_clink_add_lock(&d1tm1.ntm_chan, &tmwait);
@@ -289,8 +288,7 @@ static void test_failure(void)
 
 	/* setup the first dom */
 	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_bulk_mem_xprt));
-	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1, &m0_addb_gmc,
-				     &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1));
 	m0_clink_init(&tmwait1, NULL);
 	m0_clink_add_lock(&d1tm1.ntm_chan, &tmwait1);
 	M0_UT_ASSERT(!m0_net_tm_start(&d1tm1, "127.0.0.1:10"));
@@ -309,11 +307,9 @@ static void test_failure(void)
 
 	/* setup the second dom */
 	M0_UT_ASSERT(!m0_net_domain_init(&dom2, &m0_net_bulk_mem_xprt));
-	M0_UT_ASSERT(!m0_net_tm_init(&d2tm1, &dom2, &m0_addb_gmc,
-				     &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_tm_init(&d2tm1, &dom2));
 	/* don't start the TM on port 20 yet */
-	M0_UT_ASSERT(!m0_net_tm_init(&d2tm2, &dom2, &m0_addb_gmc,
-				     &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_tm_init(&d2tm2, &dom2));
 	m0_clink_init(&tmwait2, NULL);
 	m0_clink_add_lock(&d2tm2.ntm_chan, &tmwait2);
 	M0_UT_ASSERT(!m0_net_tm_start(&d2tm2, "127.0.0.1:21"));
@@ -790,16 +786,14 @@ static void test_tm(void)
 	m0_net_domain_fini(&dom1);
 
 	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_bulk_mem_xprt));
-	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1, &m0_addb_gmc,
-				     &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1));
 
 	/* should be able to fini it immediately */
 	m0_net_tm_fini(&d1tm1);
 	M0_UT_ASSERT(d1tm1.ntm_state == M0_NET_TM_UNDEFINED);
 
 	/* should be able to init it again */
-	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1, &m0_addb_gmc,
-				     &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1));
 	M0_UT_ASSERT(d1tm1.ntm_state == M0_NET_TM_INITIALIZED);
 	M0_UT_ASSERT(m0_list_contains(&dom1.nd_tms, &d1tm1.ntm_dom_linkage));
 

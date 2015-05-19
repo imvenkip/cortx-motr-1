@@ -25,7 +25,6 @@
 #define __MERO_NET_NET_INTERNAL_H__
 
 #include "net/net.h"
-#include "net/net_addb.h"
 
 /**
    @defgroup net_pvt Network Module Internals
@@ -34,22 +33,7 @@
    @{
  */
 
-extern struct m0_addb_ctx m0_net_addb_ctx;
-
-/**
-   Network function failure macro using the global ADDB machine to post.
-   @param rc Return code
-   @param loc Location code - one of the NET_ADDB_LOC_ enumeration constants
-   suffixes from net/net_addb.h.
-   @param ctx Runtime context pointer
-   @pre rc < 0
- */
-#define NET_ADDB_FUNCFAIL(rc, loc, ctx)				\
-M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_NET_ADDB_LOC_##loc, rc,	\
-		  &m0_net_addb_ctx, ctx)
-
 extern struct m0_mutex m0_net_mutex;
-extern struct m0_addb_rec_type *m0_net__qstat_rts[M0_NET_QT_NR];
 
 /** Validates the value of buffer queue type. */
 M0_INTERNAL bool m0_net__qtype_is_valid(enum m0_net_queue_type qt);
@@ -115,14 +99,6 @@ M0_INTERNAL void m0_net__tm_provision_recv_q(struct m0_net_transfer_mc *tm);
 M0_INTERNAL int m0_net__tm_stats_get(struct m0_net_transfer_mc *tm,
 				     enum m0_net_queue_type qtype,
 				     struct m0_net_qstats *qs, bool reset);
-
-/**
-   Internal sub variant to post TM statistical ADDB records from within the
-   TM mutex.
-
-   @pre m0_mutex_is_locked(&tm->ntm_mutex)
- */
-M0_INTERNAL void m0_net__tm_stats_post_addb(struct m0_net_transfer_mc *tm);
 
 /**
  * Common part of post-callback processing for m0_net_tm_event_post() and

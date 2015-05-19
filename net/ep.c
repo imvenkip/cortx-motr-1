@@ -73,9 +73,6 @@ M0_INTERNAL int m0_net_end_point_create(struct m0_net_end_point **epp,
 	 * with reference count of at least 1.
 	 */
 	M0_POST(ergo(rc == 0, m0_net__ep_invariant(*epp, tm, true)));
-
-	if (rc != 0)
-		NET_ADDB_FUNCFAIL(rc, EP_CREATE, &tm->ntm_addb_ctx);
 	m0_mutex_unlock(&tm->ntm_mutex);
 	return M0_RC(rc);
 }

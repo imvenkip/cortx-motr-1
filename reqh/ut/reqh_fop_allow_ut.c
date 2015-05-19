@@ -54,8 +54,7 @@ static const struct m0_fid ut_fid = {
 static const struct m0_fom_ops ut_fom_ops = {
 	.fo_fini = reqhut_fom_fini,
 	.fo_tick = fom_tick,
-	.fo_home_locality = reqhut_find_fom_home_locality,
-	.fo_addb_init = reqhut_fom_addb_init
+	.fo_home_locality = reqhut_find_fom_home_locality
 };
 
 static int fom_create(struct m0_fop  *fop,

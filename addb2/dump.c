@@ -41,6 +41,7 @@
 #include "lib/tlist.h"
 #include "lib/varr.h"
 #include "lib/getopts.h"
+#include "lib/uuid.h"                  /* m0_node_uuid_string_set */
 
 #include "rpc/item.h"                  /* m0_rpc_item_type_lookup */
 #include "fop/fop.h"
@@ -51,7 +52,6 @@
 #include "rpc/rpc_opcodes.h"           /* M0_OPCODES_NR */
 #include "rpc/addb2.h"
 #include "be/addb2.h"
-#include "addb/user_space/uctx.h"      /* m0_addb_node_uuid_string_set */
 
 #include "addb2/identifier.h"
 #include "addb2/consumer.h"
@@ -81,6 +81,7 @@ struct id_intrp {
 struct fom {
 	struct m0_tlink           fo_linkage;
 	uint64_t                  fo_addr;
+	uint64_t                  fo_tid;
 	const struct m0_fom_type *fo_type;
 	m0_time_t                 fo_state_clock;
 	m0_time_t                 fo_phase_clock;
@@ -127,7 +128,7 @@ int main(int argc, char **argv)
 	int                     result;
 	int                     i;
 
-	m0_addb_node_uuid_string_set(NULL);
+	m0_node_uuid_string_set(NULL);
 	result = m0_init(&instance);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise mero: %d", result);
@@ -269,9 +270,15 @@ static void fom_type(struct context *ctx, const uint64_t *v, char *buf)
 	const struct m0_fom_type *ftype = ctx->c_fom.fo_type;
 	const struct m0_sm_conf  *conf  = &ftype->ft_conf;
 
-	M0_ASSERT(v[2] < conf->scf_nr_states);
-	sprintf(buf, "'%s' transitions: %"PRId64" phase: %s",
-		conf->scf_name, v[1], conf->scf_state[v[2]].sd_name);
+	if (ftype != NULL) {
+		M0_ASSERT(v[2] < conf->scf_nr_states);
+		sprintf(buf, "'%s' transitions: %"PRId64" phase: %s",
+			conf->scf_name, v[1], conf->scf_state[v[2]].sd_name);
+	} else {
+		sprintf(buf, "?'UNKNOWN-%"PRId64"' transitions: %"PRId64
+			" phase: %"PRId64,
+			ctx->c_fom.fo_tid, v[1], v[2]);
+	}
 }
 
 static void sm_state(const struct m0_sm_conf *conf,
@@ -670,6 +677,7 @@ static void context_fill(struct context *ctx, const struct m0_addb2_value *val)
 	switch (val->va_id) {
 	case M0_AVI_FOM:
 		ctx->c_fom.fo_addr = val->va_data[0];
+		ctx->c_fom.fo_tid  = val->va_data[1];
 		M0_ASSERT(val->va_data[1] < ARRAY_SIZE(m0_fom__types));
 		ctx->c_fom.fo_type = m0_fom__types[val->va_data[1]];
 		break;

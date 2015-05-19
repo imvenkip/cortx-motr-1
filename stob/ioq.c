@@ -38,7 +38,6 @@
 #include "addb2/addb2.h"
 
 #include "stob/addb2.h"
-#include "stob/stob_addb.h"		/* M0_STOB_OOM */
 #include "stob/linux.h"			/* m0_stob_linux_container */
 #include "stob/linux_getevents.h"	/* raw_io_getevents */
 #include "stob/io.h"			/* m0_stob_io */
@@ -201,10 +200,8 @@ M0_INTERNAL int m0_stob_linux_io_init(struct m0_stob *stob,
 		io->si_op = &stob_linux_io_op;
 		lio->si_ioq = &lstob->sl_dom->sld_ioq;
 		result = 0;
-	} else {
-		M0_STOB_OOM(LAD_STOB_IO_INIT);
+	} else
 		result = M0_ERR(-ENOMEM);
-	}
 	return result;
 }
 
@@ -282,7 +279,6 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 	M0_ALLOC_ARR(iov, frags);
 	qev = lio->si_qev;
 	if (qev == NULL || iov == NULL) {
-		M0_STOB_OOM(LAD_STOB_IO_LAUNCH_2);
 		stob_linux_io_release(lio);
 		m0_free(iov);
 		return M0_ERR(-ENOMEM);
@@ -320,8 +316,6 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 			frag_size = min_check(m0_vec_cursor_step(&src),
 					      m0_vec_cursor_step(&dst));
 			if (frag_size > (size_t)~0ULL) {
-				M0_STOB_FUNC_FAIL(LAD_STOB_IO_LAUNCH_1,
-						  -EOVERFLOW);
 				result = M0_ERR(-EOVERFLOW);
 				break;
 			}
@@ -444,12 +438,8 @@ static void ioq_queue_submit(struct m0_stob_ioq *ioq)
 
 		if (got > 0) {
 			put = io_submit(ioq->ioq_ctx, got, evin);
-
-			if (put < 0) {
-				M0_STOB_FUNC_FAIL(LAD_IOQ_SUBMIT, put);
+			if (put < 0)
 				put = 0;
-			}
-
 			ioq_queue_lock(ioq);
 			for (i = put; i < got; ++i)
 				ioq_queue_put(ioq, qev[i]);
@@ -532,10 +522,9 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 	}
 
 	if (res > 0) {
-		if ((res & m0_stob_ioq_bmask(ioq)) != 0) {
-			M0_STOB_FUNC_FAIL(LAD_IOQ_COMPLETE, -EIO);
+		if ((res & m0_stob_ioq_bmask(ioq)) != 0)
 			res = M0_ERR(-EIO);
-		} else
+		else
 			m0_atomic64_add(&lio->si_bdone, res);
 	}
 	if (res < 0 && io->si_rc == 0)
@@ -605,8 +594,6 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 			M0_ASSERT(!m0_queue_link_is_in(&qev->iq_linkage));
 			ioq_complete(ioq, qev, iev->res, iev->res2);
 		}
-		if (got < 0 && got != -EINTR)
-			M0_STOB_FUNC_FAIL(LAD_IOQ_THREAD, got);
 		ioq_queue_submit(ioq);
 		m0_addb2_counter_mod(&gotten, got);
 		m0_addb2_counter_mod(&queued, ioq->ioq_queued);
@@ -640,8 +627,7 @@ M0_INTERNAL int m0_stob_ioq_init(struct m0_stob_ioq *ioq)
 				break;
 			m0_stob_ioq_directio_setup(ioq, false);
 		}
-	} else
-		M0_STOB_FUNC_FAIL(LAD_DOM_IO_INIT, result);
+	}
 	if (result != 0)
 		m0_stob_ioq_fini(ioq);
 	return result;

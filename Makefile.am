@@ -174,7 +174,6 @@ mero_includedir             = $(includedir)/mero
 nobase_mero_include_HEADERS =
 mero_libmero_la_SOURCES  =
 
-include $(top_srcdir)/addb/Makefile.sub
 include $(top_srcdir)/addb2/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
@@ -233,7 +232,6 @@ ut_libmero_ut_la_LIBADD    = net/test/libmero-net-test.la xcode/ff2c/libmero-xco
 
 ut_libmero_ut_la_SOURCES   =
 
-include $(top_srcdir)/addb/ut/Makefile.sub
 include $(top_srcdir)/addb2/ut/Makefile.sub
 include $(top_srcdir)/balloc/ut/Makefile.sub
 include $(top_srcdir)/be/ut/Makefile.sub
@@ -305,9 +303,7 @@ mero_libmero_altogether_la_CPPFLAGS = $(AM_CPPFLAGS) \
                                       -UM0_INTERNAL \
                                       -DM0_INTERNAL=static \
                                       -UM0_EXTERN \
-                                      -DM0_EXTERN=static \
-                                      -DM0_ADDB_CT_CREATE_DEFINITION \
-                                      -DM0_ADDB_RT_CREATE_DEFINITION
+                                      -DM0_EXTERN=static
 
 if ENABLE_DEBUG
 mero_libmero_altogether_la_CFLAGS   = $(AM_CFLAGS) \
@@ -657,16 +653,6 @@ pool_m0poolmach_CPPFLAGS  = -DM0_TARGET='m0poolmach' $(AM_CPPFLAGS)
 pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
 
 #
-# addb/dump
-#
-
-sbin_PROGRAMS                 += addb/dump/m0addbdump
-addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
-addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
-
-include $(top_srcdir)/addb/dump/Makefile.sub
-
-#
 # addb2/dump
 #
 
@@ -681,16 +667,6 @@ addb2_m0addb2dump_LDADD     = $(top_builddir)/mero/libmero.la -lbfd -ldl
 sbin_PROGRAMS                 += xcode/m0protocol
 xcode_m0protocol_CPPFLAGS  = -DM0_TARGET='m0protocol' $(AM_CPPFLAGS)
 xcode_m0protocol_LDADD     = $(top_builddir)/mero/libmero.la
-
-#
-# stats/util/m0stats
-#
-
-bin_PROGRAMS               += stats/util/m0stats
-stats_util_m0stats_LDADD    = $(top_builddir)/mero/libmero.la
-
-include $(top_srcdir)/stats/util/Makefile.sub
-
 
 ################################################################################
 #                        Init scripts and config files
@@ -1230,8 +1206,7 @@ help:
 
 EXTRA_DIST += $(XC_LIST_FILE)
 
-EXTRA_DIST += addb/Kbuild.sub \
-              addb/ut/Kbuild.sub \
+EXTRA_DIST += \
               addb2/Kbuild.sub \
               addb2/ut/Kbuild.sub \
               be/Kbuild.sub \

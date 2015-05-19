@@ -24,9 +24,6 @@
  * @{
  */
 
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
 
 #include "lib/misc.h"                   /* M0_IN, M0_BITS */
@@ -35,7 +32,6 @@
 #include "lib/locality.h"
 #include "lib/trace.h"                  /* M0_ERR */
 #include "lib/finject.h"
-#include "addb/addb.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "fop/fom.h"
@@ -44,18 +40,9 @@
 static const struct m0_fom_type_ops fom_simple_ft_ops;
 static struct m0_reqh_service_type fom_simple_rstype;
 static const struct m0_fom_ops fom_simple_ops;
-struct m0_addb_ctx m0_fom_simple_addb_ctx;
 static struct m0_sm_conf fom_simple_conf;
 
 M0_EXTERN struct m0_sm_conf fom_states_conf;
-
-enum {
-	M0_ADDB_CTXID_FOM_SIMPLE  = 8000,
-	M0_ADDB_FOM_SIMPLE_HI     = 8001,
-	M0_ADDB_FOM_SIMPLE_LOW    = 8002
-};
-
-M0_ADDB_CT(m0_addb_ct_fom_simple, M0_ADDB_CTXID_FOM_SIMPLE, "hi", "low");
 
 M0_INTERNAL void m0_fom_simple_post(struct m0_fom_simple *simpleton,
 				    struct m0_reqh *reqh,
@@ -105,10 +92,6 @@ M0_INTERNAL void m0_fom_simple_hoard(struct m0_fom_simple *cat, size_t nr,
 
 M0_INTERNAL int m0_fom_simples_init(void)
 {
-	m0_addb_ctx_type_register(&m0_addb_ct_fom_simple);
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_fom_simple_addb_ctx,
-			 &m0_addb_ct_fom_simple, &m0_addb_proc_ctx,
-			 M0_ADDB_FOM_SIMPLE_HI, M0_ADDB_FOM_SIMPLE_LOW);
 	return m0_reqh_service_type_register(&fom_simple_rstype);
 }
 
@@ -150,17 +133,11 @@ static size_t fom_simple_locality_get(const struct m0_fom *fom)
 	return FOM_SIMPLE(fom)->si_locality;
 }
 
-static void fom_simple_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static void fom_simple_fini(struct m0_fom *fom)
 {
 	struct m0_fom_simple *simpleton = FOM_SIMPLE(fom);
 
 	m0_fom_fini(fom);
-	fom->fo_addb_ctx.ac_magic = 0;
 	if (simpleton->si_free != NULL)
 		simpleton->si_free(simpleton);
 }
@@ -168,8 +145,7 @@ static void fom_simple_fini(struct m0_fom *fom)
 static const struct m0_fom_ops fom_simple_ops = {
 	.fo_fini          = &fom_simple_fini,
 	.fo_tick          = &fom_simple_tick,
-	.fo_home_locality = &fom_simple_locality_get,
-	.fo_addb_init     = &fom_simple_addb_init
+	.fo_home_locality = &fom_simple_locality_get
 };
 
 /* fom state machine. */
@@ -242,7 +218,6 @@ static const struct m0_reqh_service_type_ops fom_simple_rsops = {
 static struct m0_reqh_service_type fom_simple_rstype = {
 	.rst_name    = "simple-fom-service",
 	.rst_ops     = &fom_simple_rsops,
-	.rst_addb_ct = &m0_addb_ct_fom_simple,
 	.rst_level   = 2
 };
 

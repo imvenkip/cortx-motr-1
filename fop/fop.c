@@ -18,12 +18,6 @@
  * Original creation date: 05/19/2010
  */
 
-#undef M0_ADDB_RT_CREATE_DEFINITION
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_RT_CREATE_DEFINITION
-#include "fop/fop_addb.h"
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
 #include "lib/trace.h"
 
@@ -40,7 +34,6 @@
 #include "fop/fom_generic.h"
 #include "fop/fom_generic_xc.h"
 #include "fop/fom_long_lock.h" /* m0_fom_ll_global_init */
-#include "addb/addb_monitor.h" /* stats register */
 #include "addb2/identifier.h"
 #include "reqh/reqh.h"
 
@@ -49,11 +42,8 @@
    @{
  */
 
-/** FOP module global ctx */
-struct m0_addb_ctx     m0_fop_addb_ctx;
 static struct m0_mutex fop_types_lock;
 static struct m0_tl    fop_types_list;
-uint32_t               fop_rate_monitor_key;
 
 M0_TL_DESCR_DEFINE(ft, "fop types", static, struct m0_fop_type,
 		   ft_linkage,	ft_magix,
@@ -309,19 +299,10 @@ M0_INTERNAL struct m0_fop_type *m0_fop_type_next(struct m0_fop_type *ftype)
 
 
 M0_FOL_FRAG_TYPE_DECLARE(m0_fop_fol_frag, , NULL, NULL, NULL, NULL);
+M0_EXTERN struct m0_sm_conf fom_states_conf;
 M0_INTERNAL int m0_fops_init(void)
 {
 	m0_sm_conf_init(&fom_states_conf);
-	m0_addb_ctx_type_register(&m0_addb_ct_fop_mod);
-	m0_addb_rec_type_register(&m0_addb_rt_fom_init);
-	m0_addb_rec_type_register(&m0_addb_rt_fom_fini);
-	m0_addb_rec_type_register(&m0_addb_rt_fom_state_stats);
-	m0_addb_rec_type_register(&m0_addb_rt_fl_runq_nr);
-	m0_addb_rec_type_register(&m0_addb_rt_fl_wail_nr);
-	m0_addb_rec_type_register(&m0_addb_rt_fop_rate_cntr);
-	M0_ADDB_MONITOR_STATS_TYPE_REGISTER(&m0_addb_rt_fop_rate, "fop_rate");
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_fop_addb_ctx, &m0_addb_ct_fop_mod,
-			 &m0_addb_proc_ctx);
 	ft_tlist_init(&fop_types_list);
 	m0_mutex_init(&fop_types_lock);
 	m0_fom_ll_global_init();
@@ -330,13 +311,11 @@ M0_INTERNAL int m0_fops_init(void)
 	m0_fop_fol_frag_type.rpt_ops = NULL;
 	M0_FOL_FRAG_TYPE_INIT(m0_fop_fol_frag,
 				  "fop generic record frag");
-	fop_rate_monitor_key = m0_reqh_lockers_allot();
 	return m0_fol_frag_type_register(&m0_fop_fol_frag_type);
 }
 
 M0_INTERNAL void m0_fops_fini(void)
 {
-	m0_addb_ctx_fini(&m0_fop_addb_ctx);
 	m0_mutex_fini(&fop_types_lock);
 	/* Do not finalise fop_types_list, it can be validly non-empty. */
 	m0_fol_frag_type_deregister(&m0_fop_fol_frag_type);

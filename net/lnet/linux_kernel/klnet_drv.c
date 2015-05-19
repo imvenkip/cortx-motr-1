@@ -109,8 +109,6 @@
    - @b r.m0.net.xprt.lnet.dev.minimal-mapping The implementation must avoid
      mapping many kernel pages for long periods of time, avoiding excessive
      use of kernel high memory page map.
-   - @b r.m0.net.xprt.lnet.dev.addb The implementation must log significant
-     events, such as device open, close and failures to ADDB.
 
    <hr>
    @section LNetDRVDLD-depends Dependencies
@@ -149,13 +147,6 @@
    - @ref KLNetCore "LNet Transport Core Kernel Private Interface" <!--
        ./lnet_core.h --> <br>
      Several modifications are required in this interface:
-     - The kernel core interfaces that initialize objects with @c m0_addb_ctx
-       members must be changed such that their parent is the
-       @c nlx_kcore_domain::kd_addb ADDB context.  The initialization of the
-       @c nlx_kcore_domain object must be changed such that its parent is the
-       @c ::m0_net_addb context.  The parent of an ADDB context must be in the
-       same address space, so kernel core objects cannot depend on m0_net layer
-       objects as parents, because such objects can be in user space.
      - The kernel core objects with back pointers to the corresponding
        core objects must be changed to remove these pointers and replace them
        with use of @c nlx_core_kmem_loc objects.  More details of this
@@ -362,7 +353,6 @@
    - It allocates a @c nlx_kcore_domain object, initializes it using
      @c nlx_kcore_kcore_dom_init() and assigns the object to the
      @c file->private_data field.
-   - It logs an ADDB record recording the occurrence of the open operation.
 
    The @c nlx_dev_ioctl() is described generally
    @ref LNetDRVDLD-lspec-ioctl "above".  It uses the helper function
@@ -411,7 +401,6 @@
      - All registered buffers must be deregistered.
      - Shared @c nlx_core_buffer objects must be unpinned.
      - Each corresponding @c nlx_kcore_buffer object is freed.
-     - The improper finalization is logged with ADDB.
    - It calls @c nlx_kcore_ops::ko_dom_fini() to finalize the core domain.
    - It unpins the shared @c nlx_core_domain object, resetting the
        the @c nlx_kcore_domain::kd_cd_loc.
@@ -419,7 +408,6 @@
    - It calls @c nlx_kcore_kcore_dom_fini() to finalize the @c nlx_kcore_domain
      object.
    - It frees the @c nlx_kcore_domain object.
-   - It logs an ADDB record recording the occurrence of the close operation.
 
    @subsection LNetDRVDLD-lspec-reg Buffer Registration and Deregistration
 
@@ -719,7 +707,6 @@
      @ref LNetDRVDLD-lspec require that objects remain mapped across ioctl
      calls.  The @ref LNetDRVDLD-lspec-ioctl calls for use of @c kmap_atomic()
      when possible.
-   - @b i.m0.net.xprt.lnet.dev.addb See @ref LNetDRVDLD-lspec-dominit,
      @ref LNetDRVDLD-lspec-domfini, @ref LNetDRVDLD-lspec-ioctl.
 
    <hr>
@@ -892,8 +879,6 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 		}
 		nlx_kcore_core_domain_unmap(kd);
 	}
-	if (rc < 0)
-		LNET_ADDB_FUNCFAIL(rc, KD_DOM_INIT, &kd->kd_addb_ctx);
 	m0_mutex_unlock(&kd->kd_drv_mutex);
 	return M0_RC(rc);
 }
@@ -920,30 +905,30 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 		return M0_ERR(-EBADR);
 	if (p->dbr_buffer_id == 0)
 		return M0_ERR(-EBADR);
-	NLX_ALLOC_ARR(buf, n, &kd->kd_addb_ctx, KD_BUF_REG1);
+	NLX_ALLOC_ARR(buf, n);
 	if (buf == NULL)
 		return M0_ERR(-ENOMEM);
-	NLX_ALLOC_ARR(count, n, &kd->kd_addb_ctx, KD_BUF_REG2);
+	NLX_ALLOC_ARR(count, n);
 	if (count == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		goto fail_count;
 	}
 
 	sz = n * sizeof *buf;
 	if (copy_from_user(buf, (void __user *) p->dbr_bvec.ov_buf, sz)) {
-		rc = -EFAULT;
+		rc = M0_ERR(-EFAULT);
 		goto fail_copy;
 	}
 	sz = n * sizeof *count;
 	if (copy_from_user(count,
 			   (void __user *) p->dbr_bvec.ov_vec.v_count, sz)) {
-		rc = -EFAULT;
+		rc = M0_ERR(-EFAULT);
 		goto fail_copy;
 	}
 
-	NLX_ALLOC_PTR(kb, &kd->kd_addb_ctx, KD_BUF_REG3);
+	NLX_ALLOC_PTR(kb);
 	if (kb == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		goto fail_copy;
 	}
 	kb->kb_magic = M0_NET_LNET_KCORE_BUF_MAGIC;
@@ -994,7 +979,6 @@ fail_copy:
 fail_count:
 	m0_free(buf);
 	M0_ASSERT(rc < 0);
-	LNET_ADDB_FUNCFAIL(rc, KD_BUF_REG, &kd->kd_addb_ctx);
 	return M0_RC(rc);
 }
 
@@ -1173,7 +1157,7 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
 		nlx_kcore_nidstrs_put(&nidstrs);
 		return M0_ERR(-EFBIG);
 	}
-	NLX_ALLOC(buf, sz, &kd->kd_addb_ctx, KD_NID_GET);
+	NLX_ALLOC(buf, sz);
 	if (buf == NULL) {
 		nlx_kcore_nidstrs_put(&nidstrs);
 		return M0_ERR(-ENOMEM);
@@ -1211,7 +1195,7 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 
 	if (off + sizeof *ctm > PAGE_SIZE)
 		return M0_ERR(-EBADR);
-	NLX_ALLOC_PTR(ktm, &kd->kd_addb_ctx, KD_TM_START);
+	NLX_ALLOC_PTR(ktm);
 	if (ktm == NULL)
 		return M0_ERR(-ENOMEM);
 	ktm->ktm_magic = M0_NET_LNET_KCORE_TM_MAGIC;
@@ -1228,9 +1212,7 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 		rc = -EBADR;
 		goto fail_ctm;
 	}
-	/** @todo Determine an appropriate parent ADDB context */
-	rc = kd->kd_drv_ops->ko_tm_start(kd, ctm, &m0_addb_gmc,
-					 &m0_net_lnet_addb_ctx, ktm);
+	rc = kd->kd_drv_ops->ko_tm_start(kd, ctm, ktm);
 	if (rc != 0)
 		goto fail_ctm;
 	nlx_kcore_core_tm_unmap(ktm);
@@ -1246,7 +1228,6 @@ fail_page:
 	ktm->ktm_magic = 0;
 	m0_free(ktm);
 	M0_ASSERT(rc != 0);
-	LNET_ADDB_FUNCFAIL(rc, KD_TM_START, &kd->kd_addb_ctx);
 	return M0_RC(rc);
 }
 
@@ -1330,7 +1311,7 @@ static int nlx_dev_ioctl_bev_bless(struct nlx_kcore_domain *kd,
 	if (off + sizeof *cbe > PAGE_SIZE)
 		return M0_ERR(-EBADR);
 
-	NLX_ALLOC_PTR(kbe, &kd->kd_addb_ctx, KD_BEV_BLESS);
+	NLX_ALLOC_PTR(kbe);
 	if (kbe == NULL)
 		return M0_ERR(-ENOMEM);
 	drv_bevs_tlink_init(kbe);
@@ -1363,7 +1344,6 @@ fail_page:
 	kbe->kbe_magic = 0;
 	m0_free(kbe);
 	M0_ASSERT(rc != 0);
-	LNET_ADDB_FUNCFAIL(rc, KD_BEV_BLESS, &kd->kd_addb_ctx);
 	return M0_RC(rc);
 }
 
@@ -1483,7 +1463,6 @@ static long nlx_dev_ioctl(struct file *file,
 done:
 	if (rc < 0 && ergo(cmd == M0_LNET_BUF_EVENT_WAIT, rc != -ETIMEDOUT)) {
 		M0_LOG(M0_ERROR, "cmd=%x rc=%d", cmd, rc);
-		LNET_ADDB_FUNCFAIL(rc, KD_IOCTL, &kd->kd_addb_ctx);
 	}
 	return M0_RC(rc);
 }
@@ -1509,14 +1488,12 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 	if (!(file->f_flags & O_RDWR))
 		return M0_ERR(-EACCES);
 
-	NLX_ALLOC_PTR(kd, &m0_net_lnet_addb_ctx, KD_OPEN);
+	NLX_ALLOC_PTR(kd);
 	if (kd == NULL)
 		return M0_ERR(-ENOMEM);
-	/** @todo Determine an appropriate ADDB parent ctx */
-	rc = nlx_kcore_kcore_dom_init(kd, &m0_net_lnet_addb_ctx);
+	rc = nlx_kcore_kcore_dom_init(kd);
 	if (rc != 0) {
 		m0_free(kd);
-		LNET_ADDB_FUNCFAIL(rc, KD_OPEN, &m0_net_lnet_addb_ctx);
 	} else {
 		file->private_data = kd;
 	}
@@ -1530,8 +1507,7 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
    1:1 correspondence between struct file objects and nlx_kcore_domain objects,
    so this operation will release all kernel resources for the domain.  That can
    be expensive if the user process failed to release all transfer machines
-   and buffers before closing the file.  This operation will not
-   assert in that case, but will clean up and log the error via ADDB.
+   and buffers before closing the file.
 
    @param inode Device inode object.
    @param file File object being released.
@@ -1654,10 +1630,8 @@ M0_INTERNAL int nlx_dev_init(void)
 	int rc;
 
 	rc = misc_register(&nlx_dev);
-	if (rc != 0) {
-		LNET_ADDB_FUNCFAIL(rc, KD_INIT, &m0_net_lnet_addb_ctx);
+	if (rc != 0)
 		return M0_RC(rc);
-	}
 	nlx_dev_registered = true;
 	printk("Mero %s registered with minor %d\n",
 	       nlx_dev.name, nlx_dev.minor);
@@ -1670,8 +1644,6 @@ M0_INTERNAL void nlx_dev_fini(void)
 
 	if (nlx_dev_registered) {
 		rc = misc_deregister(&nlx_dev);
-		if (rc != 0)
-			LNET_ADDB_FUNCFAIL(rc, KD_FINI, &m0_net_lnet_addb_ctx);
 		nlx_dev_registered = false;
 		printk("Mero %s deregistered\n", nlx_dev.name);
 	}

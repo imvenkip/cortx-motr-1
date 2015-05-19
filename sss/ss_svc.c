@@ -21,10 +21,6 @@
  * @page DLD-ss_svc Start_Stop Service
  */
 
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-#include "sss/ss_addb.h"
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SSS
 #include "lib/trace.h"
 
@@ -42,16 +38,12 @@
 #include "sss/ss_fops.h"
 #include "sss/ss_svc.h"
 
-struct m0_addb_ctx m0_ss_svc_addb_ctx;
-struct m0_addb_ctx m0_ss_fom_addb_ctx;
-
 static int ss_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			  struct m0_reqh *reqh);
 static int ss_fom_tick(struct m0_fom *fom);
 static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 			     const struct m0_reqh *reqh);
 static void ss_fom_fini(struct m0_fom *fom);
-static void ss_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 static size_t ss_fom_home_locality(const struct m0_fom *fom);
 
 static int ss_svc_rso_start(struct m0_reqh_service *service)
@@ -102,7 +94,7 @@ ss_svc_rsto_service_allocate(struct m0_reqh_service **service,
 	if (M0_FI_ENABLED("fail_allocation"))
 		svc = NULL;
 	else
-		SS_ALLOC_PTR(svc, &m0_ss_svc_addb_ctx, SERVICE_ALLOC);
+		M0_ALLOC_PTR(svc);
 
 	if (svc == NULL)
 		return M0_ERR(-ENOMEM);
@@ -118,8 +110,7 @@ static const struct m0_reqh_service_type_ops ss_svc_type_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_ss_svc_type, &ss_svc_type_ops,
-			    "sss", &m0_addb_ct_ss_svc, 1,
-			    M0_CST_SSS);
+			    "sss", 1, M0_CST_SSS);
 
 /*
  * Public interfaces.
@@ -129,8 +120,6 @@ M0_INTERNAL int m0_ss_svc_init(void)
 	int rc;
 
 	M0_ENTRY();
-	m0_addb_ctx_type_register(&m0_addb_ct_ss_svc);
-	m0_addb_ctx_type_register(&m0_addb_ct_ss_fom);
 	rc = m0_reqh_service_type_register(&m0_ss_svc_type);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -155,7 +144,6 @@ M0_INTERNAL void m0_ss_svc_fini(void)
 const struct m0_fom_ops ss_fom_ops = {
 	.fo_tick          = ss_fom_tick,
 	.fo_home_locality = ss_fom_home_locality,
-	.fo_addb_init     = ss_fom_addb_init,
 	.fo_fini          = ss_fom_fini
 };
 
@@ -219,11 +207,11 @@ ss_fom_create(struct m0_fop *fop, struct m0_fom **out, struct m0_reqh *reqh)
 	M0_PRE(fop != NULL);
 	M0_PRE(out != NULL);
 
-	SS_ALLOC_PTR(ssfom, &m0_ss_fom_addb_ctx, FOM_ALLOC);
+	M0_ALLOC_PTR(ssfom);
 	if (ssfom == NULL)
 		return M0_ERR(-ENOMEM);
 
-	SS_ALLOC_PTR(ssrep_fop, &m0_ss_fom_addb_ctx, REP_FOP_ALLOC);
+	M0_ALLOC_PTR(ssrep_fop);
 	if (ssrep_fop == NULL)
 		goto err;
 
@@ -503,12 +491,6 @@ static void ss_fom_fini(struct m0_fom *fom)
 	m0_free(m);
 
 	M0_LEAVE();
-}
-
-static void ss_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_ss_fom,
-			 &fom->fo_service->rs_addb_ctx);
 }
 
 static size_t ss_fom_home_locality(const struct m0_fom *fom)

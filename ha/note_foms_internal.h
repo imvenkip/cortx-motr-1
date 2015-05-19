@@ -27,7 +27,5 @@
 
 M0_INTERNAL void m0_ha_state_set_fom_fini(struct m0_fom *fom);
 M0_INTERNAL size_t m0_ha_state_set_fom_home_locality(const struct m0_fom *fom);
-M0_INTERNAL void m0_ha_state_set_fom_addb_init(struct m0_fom *fom,
-					       struct m0_addb_mc *mc);
 
 #endif /* __MERO___HA_NOTE_FOMS_INTERNAL_H__ */

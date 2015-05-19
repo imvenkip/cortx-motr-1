@@ -358,16 +358,10 @@ static void cm_swu_fom_fini(struct m0_fom *fom)
 	m0_fom_fini(fom);
 }
 
-static void cm_swu_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static const struct m0_fom_ops cm_sw_update_fom_ops = {
 	.fo_fini          = cm_swu_fom_fini,
 	.fo_tick          = cm_swu_fom_tick,
-	.fo_home_locality = cm_swu_fom_locality,
-	.fo_addb_init     = cm_swu_fom_addb_init
+	.fo_home_locality = cm_swu_fom_locality
 };
 
 M0_INTERNAL void m0_cm_sw_update_init(struct m0_cm_type *cmtype)

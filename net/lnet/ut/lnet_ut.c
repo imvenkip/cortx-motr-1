@@ -482,8 +482,7 @@ do {									\
 			NLXDBGnl(td, 2, ut_describe_buf(nb));		\
 		}							\
 									\
-		M0_UT_ASSERT(!m0_net_tm_init(tm, dom, &m0_addb_gmc,	\
-					     &m0_addb_proc_ctx));	\
+		M0_UT_ASSERT(!m0_net_tm_init(tm, dom));		\
 		if (ps_cb != NULL)					\
 			(*ps_cb)(td, which);				\
 									\
@@ -651,15 +650,6 @@ static void test_tm_initfini(void)
 	static char *n2t1 = "192.168.96.128@tcp1:12345:31:1";
 	static char *n2ts = "192.168.96.128@tcp1:12345:31:*";
 
-	M0_UT_ASSERT(m0_addb_ct_net_lnet_mod.act_id ==
-		     M0_ADDB_CTXID_NET_LNET_MOD);
-	M0_UT_ASSERT(m0_addb_ct_net_lnet_dom.act_id ==
-		     M0_ADDB_CTXID_NET_LNET_DOM);
-	M0_UT_ASSERT(m0_addb_ct_net_lnet_tm.act_id ==
-		     M0_ADDB_CTXID_NET_LNET_TM);
-	M0_UT_ASSERT(m0_net_lnet_addb_ctx.ac_type == &m0_addb_ct_net_lnet_mod);
-	M0_UT_ASSERT(m0_net_lnet_addb_ctx.ac_parent == &m0_net_addb_ctx);
-
 	/* TEST
 	   Network name comparsion.
 	*/
@@ -707,16 +697,14 @@ static void test_tm_initfini(void)
 	   Domain setup.
 	*/
 	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_lnet_xprt));
-	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1, &m0_addb_gmc,
-				     &m0_addb_node_ctx));
+	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1));
 
 	/* should be able to fini it immediately */
 	m0_net_tm_fini(&d1tm1);
 	M0_UT_ASSERT(d1tm1.ntm_state == M0_NET_TM_UNDEFINED);
 
 	/* should be able to init it again */
-	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1, &m0_addb_gmc,
-				     &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1));
 	M0_UT_ASSERT(d1tm1.ntm_state == M0_NET_TM_INITIALIZED);
 	M0_UT_ASSERT(m0_list_contains(&dom1.nd_tms, &d1tm1.ntm_dom_linkage));
 
@@ -734,11 +722,6 @@ static void test_tm_startstop(void)
 {
 	struct m0_net_domain *dom;
 	struct m0_net_transfer_mc *tm;
-	const struct m0_net_qstats fake_stats = {
-		.nqs_num_adds = STARTSTOP_STAT_BUF_NR,
-		.nqs_num_dels = STARTSTOP_STAT_BUF_NR,
-		.nqs_num_s_events = STARTSTOP_STAT_BUF_NR,
-	};
 	const struct m0_net_tm_callbacks cbs1 = {
 		.ntc_event_cb = ut_tm_ecb,
 	};
@@ -752,17 +735,6 @@ static void test_tm_startstop(void)
 	struct m0_bitmap procs;
 	unsigned thunk;
 	int i;
-	struct nlx_xo_domain *xd;
-	struct nlx_xo_transfer_mc *xtm;
-	struct nlx_core_domain *cd;
-	struct nlx_core_transfer_mc *ctm;
-#ifdef __KERNEL__
-	struct nlx_kcore_domain *kd;
-	struct nlx_kcore_transfer_mc *ktm;
-#else
-	struct nlx_ucore_domain *ud;
-	struct nlx_ucore_transfer_mc *utm;
-#endif
 
 	M0_ALLOC_PTR(dom);
 	M0_ALLOC_PTR(tm);
@@ -793,28 +765,12 @@ static void test_tm_startstop(void)
 	m0_net_lnet_ifaces_put(dom, &nidstrs);
 	M0_UT_ASSERT(nidstrs == NULL);
 
-	/* test domain ADDB setup */
-	xd = dom->nd_xprt_private;
-	cd = &xd->xd_core;
-	M0_UT_ASSERT(dom->nd_addb_ctx.ac_parent == &m0_addb_proc_ctx);
-#ifdef __KERNEL__
-	kd = cd->cd_kpvt;
-	M0_ASSERT(nlx_kcore_domain_invariant(kd));
-	M0_UT_ASSERT(kd->kd_addb_ctx.ac_type == &m0_addb_ct_net_lnet_dom);
-	M0_UT_ASSERT(kd->kd_addb_ctx.ac_parent == &dom->nd_addb_ctx);
-#else
-	ud = cd->cd_upvt;
-	M0_ASSERT(nlx_ucore_domain_invariant(ud));
-	M0_UT_ASSERT(ud->ud_addb_ctx.ac_type == &m0_addb_ct_net_lnet_dom);
-	M0_UT_ASSERT(ud->ud_addb_ctx.ac_parent == &dom->nd_addb_ctx);
-#endif
-
 	/* test a couple invalid cases first */
-	M0_UT_ASSERT(!m0_net_tm_init(tm, dom, &m0_addb_gmc, &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_tm_init(tm, dom));
 	M0_UT_ASSERT(m0_net_tm_start(tm, "invalid") == -EINVAL);
 	m0_net_tm_fini(tm);
 
-	M0_UT_ASSERT(!m0_net_tm_init(tm, dom, &m0_addb_gmc, &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_tm_init(tm, dom));
 	m0_clink_init(&tmwait1, NULL);
 	m0_clink_add_lock(&tm->ntm_chan, &tmwait1);
 	M0_UT_ASSERT(!m0_net_tm_start(tm, badportal_epstr));
@@ -826,8 +782,7 @@ static void test_tm_startstop(void)
 	m0_net_tm_fini(tm);
 	ecb_reset();
 
-	M0_UT_ASSERT(!m0_net_tm_init(tm, dom, &m0_addb_gmc, &m0_addb_node_ctx));
-	m0_net_lnet_tm_stat_interval_set(tm, STARTSTOP_STAT_SECS);
+	M0_UT_ASSERT(!m0_net_tm_init(tm, dom));
 
 	m0_clink_init(&tmwait1, NULL);
 	m0_clink_add_lock(&tm->ntm_chan, &tmwait1);
@@ -850,45 +805,19 @@ static void test_tm_startstop(void)
 	}
 	M0_UT_ASSERT(strcmp(tm->ntm_ep->nep_addr, epstr) == 0);
 
-	/* test tm ADDB setup */
-	xtm = tm->ntm_xprt_private;
-	ctm = &xtm->xtm_core;
-	M0_UT_ASSERT(tm->ntm_addb_ctx.ac_parent == &m0_addb_node_ctx);
-#ifdef __KERNEL__
-	ktm = ctm->ctm_kpvt;
-	M0_ASSERT(nlx_kcore_tm_invariant(ktm));
-	M0_UT_ASSERT(ktm->ktm_addb_ctx.ac_type == &m0_addb_ct_net_lnet_tm);
-	M0_UT_ASSERT(ktm->ktm_addb_ctx.ac_parent == &tm->ntm_addb_ctx);
-	M0_UT_ASSERT(ktm->ktm_addb_mc == &m0_addb_gmc);
-#else
-	utm = ctm->ctm_upvt;
-	M0_ASSERT(nlx_ucore_tm_invariant(utm));
-	M0_UT_ASSERT(utm->utm_addb_ctx.ac_type == &m0_addb_ct_net_lnet_tm);
-	M0_UT_ASSERT(utm->utm_addb_ctx.ac_parent == &tm->ntm_addb_ctx);
-	M0_UT_ASSERT(utm->utm_addb_mc == &m0_addb_gmc);
-#endif
-
-	/* also test periodic statistics */
-	M0_UT_ASSERT(m0_net_lnet_tm_stat_interval_get(tm) ==
-		     STARTSTOP_STAT_SECS);
-	tm->ntm_qstats[M0_NET_QT_MSG_RECV] = fake_stats;
-	ecb_reset();
 	m0_clink_add_lock(&tm->ntm_chan, &tmwait1);
 	M0_UT_ASSERT(!m0_net_tm_stop(tm, true));
 	m0_chan_wait(&tmwait1);
 	m0_clink_del_lock(&tmwait1);
-	M0_UT_ASSERT(ecb_count == 1);
-	M0_UT_ASSERT(ecb_evt == M0_NET_TEV_STATE_CHANGE);
-	M0_UT_ASSERT(ecb_tms == M0_NET_TM_STOPPED);
-	M0_UT_ASSERT(ecb_status == 0);
 	M0_UT_ASSERT(tm->ntm_state == M0_NET_TM_STOPPED);
 	m0_net_tm_fini(tm);
 	m0_net_domain_fini(dom);
 	m0_free(tm);
 	m0_free(dom);
 
-	/* test combination of dynamic endpoint, start with confine,
-	 * and multiple domains and TMs
+	/*
+	 * test combination of dynamic endpoint, start with confine, and
+	 * multiple domains and TMs
 	 */
 	M0_ALLOC_ARR(dom, STARTSTOP_DOM_NR);
 	M0_ALLOC_ARR(tm, STARTSTOP_DOM_NR);
@@ -897,8 +826,7 @@ static void test_tm_startstop(void)
 	for (i = 0; i < STARTSTOP_DOM_NR; ++i) {
 		tm[i].ntm_callbacks = &cbs1;
 		M0_UT_ASSERT(!m0_net_domain_init(&dom[i], &m0_net_lnet_xprt));
-		M0_UT_ASSERT(!m0_net_tm_init(&tm[i], &dom[i], &m0_addb_gmc,
-					     &m0_addb_proc_ctx));
+		M0_UT_ASSERT(!m0_net_tm_init(&tm[i], &dom[i]));
 		M0_UT_ASSERT(m0_bitmap_init(&procs, 1) == 0);
 		m0_bitmap_set(&procs, 0, true);
 		M0_UT_ASSERT(m0_net_tm_confine(&tm[i], &procs) == 0);
@@ -927,8 +855,7 @@ static void test_tm_startstop(void)
 	m0_clink_del_lock(&tmwait1);
 	M0_UT_ASSERT(tm[1].ntm_state == M0_NET_TM_STOPPED);
 	m0_net_tm_fini(&tm[1]);
-	M0_UT_ASSERT(!m0_net_tm_init(&tm[1], &dom[1], &m0_addb_gmc,
-				     &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_tm_init(&tm[1], &dom[1]));
 
 	m0_clink_add_lock(&tm[1].ntm_chan, &tmwait1);
 	M0_UT_ASSERT(!m0_net_tm_start(&tm[1], dyn_epstr));

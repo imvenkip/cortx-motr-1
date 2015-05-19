@@ -92,7 +92,7 @@ static const struct m0_reqh_service_type_ops ut_cp_service_type_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(ut_cp_service_type, &ut_cp_service_type_ops,
-			    "ut-cp", &m0_addb_ct_ut_service, 2, 0);
+			    "ut-cp", 2, 0);
 
 /* Multithreaded test vars. */
 static struct m0_sns_cm_cp m_sns_cp[THREADS_NR];
@@ -169,26 +169,15 @@ void dummy_cp_fom_fini(struct m0_fom *fom)
 	m0_cm_cp_fom_fini(bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob));
 }
 
-void dummy_cp_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-
-}
-
 /*
  * Over-ridden copy packet FOM ops.
  * This is done to bypass the sw_ag_fill call, which is to be tested
  * separately.
  */
 static struct m0_fom_ops dummy_cp_fom_ops = {
-        .fo_fini          = dummy_cp_fom_fini,
-        .fo_tick          = cp_fom_tick,
-        .fo_home_locality = cp_fom_locality,
-	.fo_addb_init     = dummy_cp_fom_addb_init
+	.fo_fini          = dummy_cp_fom_fini,
+	.fo_tick          = cp_fom_tick,
+	.fo_home_locality = cp_fom_locality
 };
 
 /*

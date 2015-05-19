@@ -45,13 +45,7 @@ static const struct m0_fom_type_ops ub_req_fom_type_ops = {
 	.fto_create = ub_req_fom_create
 };
 
-static void ub_req_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static const struct m0_fom_ops ub_req_fom_ops = {
-	.fo_addb_init     = ub_req_fom_addb_init,
 	.fo_fini          = ub_req_fom_fini,
 	.fo_tick          = ub_req_fom_tick,
 	.fo_home_locality = ub_req_fom_home_locality,

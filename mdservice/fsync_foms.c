@@ -38,16 +38,14 @@
 static void fsync_fom_fini(struct m0_fom *fom);
 static int fsync_fom_tick(struct m0_fom *fom);
 static size_t fsync_fom_locality_get(const struct m0_fom *fom);
-static void fsync_fom_addb_init(struct m0_fom     *fom,
-				struct m0_addb_mc *mc);
+
 /**
  * fsync fom operations
  */
 static const struct m0_fom_ops fsync_fom_ops = {
-	.fo_fini                = fsync_fom_fini,
-	.fo_tick                = fsync_fom_tick,
-	.fo_home_locality       = fsync_fom_locality_get,
-	.fo_addb_init           = fsync_fom_addb_init
+	.fo_fini          = fsync_fom_fini,
+	.fo_tick          = fsync_fom_tick,
+	.fo_home_locality = fsync_fom_locality_get
 };
 
 /**
@@ -265,20 +263,6 @@ static size_t fsync_fom_locality_get(const struct m0_fom *fom)
 
 	return ((struct m0_fop_fsync *)
 		m0_fop_data(fom->fo_fop))->ff_be_remid.tri_locality;
-}
-
-/**
- * Initializes the addb framework for an fsync fom.
- */
-static void fsync_fom_addb_init(struct m0_fom     *fom,
-				struct m0_addb_mc *mc)
-{
-	M0_PRE(fom != NULL);
-	M0_PRE(mc != NULL);
-	/*
-	 * XXX:Implement the right functionality(this was copied from md_foms.c)
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 /**

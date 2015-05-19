@@ -118,6 +118,31 @@ M0_INTERNAL void m0_uuid_format(const struct m0_uint128 *val,
 	sprintf(buf, fmt, h1, h2, h3, h4, h5);
 }
 
+M0_INTERNAL struct m0_uint128 m0_node_uuid;
+
+/**
+ * Initialize the node UUID.
+ */
+int m0_node_uuid_init(void)
+{
+	char               buf[M0_UUID_STRLEN + 1];
+	struct m0_uint128 *uuid = &m0_node_uuid;
+	int                rc;
+
+	M0_SET0(uuid);
+	rc = m0_node_uuid_string_get(buf);
+	if (rc == 0) {
+		rc = m0_uuid_parse(buf, uuid);
+		if (rc == 0) {
+			m0_uuid_format(uuid, buf, ARRAY_SIZE(buf));
+			M0_LOG(M0_NOTICE, "Node uuid: %s", (char *)buf);
+		} else
+			M0_LOG(M0_ERROR, "Unable to parse node UUID string");
+	} else
+		M0_LOG(M0_ERROR, "Unable to fetch node UUID string");
+	return M0_RC(rc);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

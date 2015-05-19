@@ -24,6 +24,7 @@
 #include "lib/arith.h"		/* m0_rnd() */
 #include "lib/ub.h"
 #include "ut/ut.h"
+#include "lib/time.h"
 #include "lib/varr.h"
 #include "lib/varr_private.h"   /* varr_cache */
 #include "lib/misc.h"		/* M0_BITS() */

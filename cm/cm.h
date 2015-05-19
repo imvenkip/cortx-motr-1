@@ -26,7 +26,6 @@
 
 #include "lib/tlist.h"         /* struct m0_tlink */
 
-#include "addb/addb.h"         /* struct m0_addb_ctx */
 #include "reqh/reqh_service.h" /* struct m0_reqh_service_type */
 #include "sm/sm.h"	       /* struct m0_sm */
 #include "fop/fom.h"           /* struct m0_fom */
@@ -133,7 +132,7 @@ enum m0_cm_state {
 
 /**
  * Various copy machine failures. m0_cm_fail() uses these to perform failure
- * specific processing like sending ADDB messages etc.
+ * specific processing.
  * @see m0_cm_fail()
  */
 enum m0_cm_failure {
@@ -419,12 +418,6 @@ M0_INTERNAL int m0_cm_configure(struct m0_cm *cm, struct m0_fop *fop);
 /**
  * Handles various type of copy machine failures based on the failure code and
  * errno.
- * Currently, all this function does is send failure specific addb events and
- * sets corresponding m0_sm->sm_rc. A better implementation would be creating
- * a failure descriptor table based on various failures which would contain
- * an ADDB event for each failure and an "failure_action" op.
- * However, due to limitations in the current ADDB infrastructure, this is not
- * feasible.
  *
  * @todo Rewrite this function when new ADDB infrastucture is in place.
  * @param cm Failed copy machine.
@@ -434,13 +427,12 @@ M0_INTERNAL int m0_cm_configure(struct m0_cm *cm, struct m0_fop *fop);
 M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 			    int rc);
 
-#define M0_CM_TYPE_DECLARE(cmtype, id, ops, name, ct)	\
+#define M0_CM_TYPE_DECLARE(cmtype, id, ops, name)	\
 struct m0_cm_type cmtype ## _cmt = {			\
 	.ct_fom_id = (id),				\
 	.ct_stype = {					\
 		.rst_name    = (name),			\
 		.rst_ops     = (ops),			\
-		.rst_addb_ct = (ct),			\
 		.rst_level   = 2,			\
 	}						\
 }

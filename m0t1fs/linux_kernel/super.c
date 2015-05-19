@@ -37,14 +37,11 @@
 #include "conf/confc.h"    /* m0_confc */
 #include "conf/helpers.h"  /* m0_conf_fs_get */
 #include "rpc/rpclib.h"    /* m0_rcp_client_connect */
-#include "addb/addb.h"
 #include "lib/uuid.h"   /* m0_uuid_generate */
 #include "net/lnet/lnet.h"
 #include "rpc/rpc_internal.h"
-#include "m0t1fs/m0t1fs_addb.h"
 #include "net/lnet/lnet_core_types.h"
 #include "rm/rm_service.h"                 /* m0_rms_type */
-#include "addb/addb_svc.h"                 /* m0_addb_svc_type */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
 #include "addb2/global.h"
@@ -53,7 +50,6 @@
 extern struct io_mem_stats iommstats;
 extern struct m0_bitmap    m0t1fs_client_ep_tmid;
 extern struct m0_mutex     m0t1fs_mutex;
-extern uint32_t            m0t1fs_addb_mon_rw_io_size_key;
 
 static char *local_addr = "0@lo:12345:45:";
 M0_INTERNAL const struct m0_fid M0_ROOT_FID = {
@@ -91,24 +87,6 @@ static const struct super_operations m0t1fs_super_operations = {
 	.sync_fs       = m0t1fs_sync_fs
 };
 
-
-static struct m0_addb_rec_type *m0t1fs_io_cntr_rts[] = {
-	/* read[0] */
-	&m0_addb_rt_m0t1fs_ior_sizes,
-	&m0_addb_rt_m0t1fs_ior_times,
-	/* write[1] */
-	&m0_addb_rt_m0t1fs_iow_sizes,
-	&m0_addb_rt_m0t1fs_iow_times
-};
-
-static struct m0_addb_rec_type *m0t1fs_dgio_cntr_rts[] = {
-	/* degraded read[0] */
-	&m0_addb_rt_m0t1fs_dgior_sizes,
-	&m0_addb_rt_m0t1fs_dgior_times,
-	/* degraded write[1] */
-	&m0_addb_rt_m0t1fs_dgiow_sizes,
-	&m0_addb_rt_m0t1fs_dgiow_times
-};
 
 M0_INTERNAL void m0t1fs_fs_lock(struct m0t1fs_sb *csb)
 {
@@ -373,27 +351,6 @@ out:
 }
 
 
-static int configure_addb_rpc_sink(struct m0t1fs_sb *csb,
-				   struct m0_addb_mc *addb_mc)
-{
-
-	if (!m0_addb_mc_has_rpc_sink(addb_mc)) {
-		int rc = m0_addb_mc_configure_rpc_sink(addb_mc,
-						&csb->csb_rpc_machine,
-						&csb->csb_reqh,
-						M0_ADDB_RPCSINK_TS_INIT_PAGES,
-						M0_ADDB_RPCSINK_TS_MAX_PAGES,
-						M0_ADDB_RPCSINK_TS_PAGE_SIZE);
-		if (rc != 0)
-			return M0_RC(rc);
-
-		m0_addb_mc_configure_pt_evmgr(addb_mc);
-	}
-
-	return 0;
-}
-
-
 /* ----------------------------------------------------------------
  * Superblock
  * ---------------------------------------------------------------- */
@@ -404,9 +361,6 @@ static void m0t1fs_obf_dealloc(struct m0t1fs_sb *csb);
 
 M0_INTERNAL void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 {
-	int i;
-	int j;
-
 	M0_ENTRY("csb = %p", csb);
 	M0_PRE(csb != NULL);
 
@@ -416,29 +370,6 @@ M0_INTERNAL void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 	csb->csb_active = true;
 	m0_chan_init(&csb->csb_iowait, &csb->csb_iogroup.s_lock);
 	m0_atomic64_set(&csb->csb_pending_io_nr, 0);
-
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &csb->csb_addb_ctx,
-			 &m0_addb_ct_m0t1fs_mountp, &m0t1fs_addb_ctx);
-
-#undef CNTR_INIT
-#define CNTR_INIT(_n) m0_addb_counter_init(&csb->csb_io_stats[i]	\
-				   .ais_##_n##_cntr, m0t1fs_io_cntr_rts[j++])
-
-	for (i = 0, j = 0; i < ARRAY_SIZE(csb->csb_io_stats); ++i) {
-		CNTR_INIT(sizes);
-		CNTR_INIT(times);
-	}
-#undef CNTR_INIT
-
-#define CNTR_INIT(_n) m0_addb_counter_init(&csb->csb_dgio_stats[i]	\
-				   .ais_##_n##_cntr, m0t1fs_dgio_cntr_rts[j++])
-
-	for (i = 0, j = 0; i < ARRAY_SIZE(csb->csb_dgio_stats); ++i) {
-		CNTR_INIT(sizes);
-		CNTR_INIT(times);
-	}
-#undef CNTR_INIT
-
 	csb->csb_oostore = false;
 	csb->csb_verify  = false;
 	M0_LEAVE();
@@ -446,30 +377,8 @@ M0_INTERNAL void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 
 M0_INTERNAL void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 {
-	int i;
-	int j;
-
 	M0_ENTRY();
 	M0_PRE(csb != NULL);
-
-#undef CNTR_FINI
-#define CNTR_FINI(_n) m0_addb_counter_fini(&csb->csb_io_stats[i]	\
-					   .ais_##_n##_cntr)
-	for (i = 0, j = 0; i < ARRAY_SIZE(csb->csb_io_stats); ++i) {
-		CNTR_FINI(sizes);
-		CNTR_FINI(times);
-	}
-#undef CNTR_FINI
-#define CNTR_FINI(_n) m0_addb_counter_fini(&csb->csb_dgio_stats[i]	\
-					   .ais_##_n##_cntr)
-	for (i = 0, j = 0; i < ARRAY_SIZE(csb->csb_dgio_stats); ++i) {
-		CNTR_FINI(sizes);
-		CNTR_FINI(times);
-	}
-#undef CNTR_FINI
-
-	m0_addb_ctx_fini(&csb->csb_addb_ctx);
-
 	m0_chan_fini_lock(&csb->csb_iowait);
 	m0_sm_group_fini(&csb->csb_iogroup);
 	m0_mutex_fini(&csb->csb_mutex);
@@ -517,9 +426,6 @@ int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb)
 	struct m0_reqh *reqh = &csb->csb_reqh;
 	int rc;
 
-	rc = m0t1fs_service_start(&m0_addb_svc_type, reqh);
-	if (rc)
-		goto err;
 	rc = m0t1fs_service_start(&m0_rms_type, reqh);
 	if (rc)
 		goto err;
@@ -638,98 +544,6 @@ struct m0t1fs_sb *reqh2sb(struct m0_reqh *reqh)
 	return container_of(reqh, struct m0t1fs_sb, csb_reqh);
 }
 
-static void m0t1fs_mon_rw_io_watch(struct m0_addb_monitor   *mon,
-				   const struct m0_addb_rec *rec,
-				   struct m0_reqh           *reqh)
-{
-	struct m0_addb_sum_rec                  *sum_rec;
-	struct m0t1fs_addb_mon_sum_data_io_size *sum_data =
-			&reqh2sb(reqh)->csb_addb_mon_sum_data_rw_io_size;
-
-	if (m0_addb_rec_rid_make(M0_ADDB_BRT_DP, M0T1FS_ADDB_RECID_IO_FINISH)
-	    == rec->ar_rid) {
-		sum_rec = mon->am_ops->amo_sum_rec(mon, reqh);
-		M0_ASSERT(sum_rec != NULL);
-
-		m0_mutex_lock(&sum_rec->asr_mutex);
-		if (rec->ar_data.au64s_data[0] == IRT_READ) {
-			sum_data->sd_rio += rec->ar_data.au64s_data[1];
-			sum_rec->asr_dirty = true;
-		} else if (rec->ar_data.au64s_data[0] == IRT_WRITE) {
-			sum_data->sd_wio += rec->ar_data.au64s_data[1];
-			sum_rec->asr_dirty = true;
-		}
-		else
-			M0_IMPOSSIBLE("Invalid IO state");
-		m0_mutex_unlock(&sum_rec->asr_mutex);
-
-	}
-}
-
-static struct m0_addb_sum_rec *
-m0t1fs_mon_rw_io_sum_rec(struct m0_addb_monitor *mon,
-			 struct m0_reqh         *reqh)
-{
-	struct m0_addb_sum_rec *sum_rec;
-
-	m0_rwlock_read_lock(&reqh->rh_rwlock);
-	sum_rec = m0_reqh_lockers_get(reqh, m0t1fs_addb_mon_rw_io_size_key);
-	m0_rwlock_read_unlock(&reqh->rh_rwlock);
-
-	return sum_rec;
-}
-
-const struct m0_addb_monitor_ops m0t1fs_addb_mon_rw_io_ops = {
-	.amo_watch   = &m0t1fs_mon_rw_io_watch,
-	.amo_sum_rec = &m0t1fs_mon_rw_io_sum_rec
-};
-
-int m0t1fs_addb_mon_total_io_size_init(struct m0t1fs_sb *csb)
-{
-	struct m0_addb_sum_rec *sum_rec;
-	struct m0_reqh         *reqh = &csb->csb_reqh;
-	uint64_t               *sum_data =
-		     (uint64_t *)&csb->csb_addb_mon_sum_data_rw_io_size;
-	uint32_t                sum_rec_nr =
-		     sizeof (csb->csb_addb_mon_sum_data_rw_io_size) /
-					     sizeof (uint64_t);
-	M0_ALLOC_PTR(sum_rec);
-	if (sum_rec == NULL)
-		return M0_RC(-ENOMEM);
-
-	m0_addb_monitor_init(&csb->csb_addb_mon_rw_io_size,
-			     &m0t1fs_addb_mon_rw_io_ops);
-
-	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_m0t1fs_mon_io_size,
-				     sum_data, sum_rec_nr);
-
-	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	m0_reqh_lockers_set(reqh, m0t1fs_addb_mon_rw_io_size_key, sum_rec);
-	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-
-	m0_addb_monitor_add(reqh, &csb->csb_addb_mon_rw_io_size);
-
-	return 0;
-}
-
-void m0t1fs_addb_mon_total_io_size_fini(struct m0t1fs_sb *csb)
-{
-	struct m0_addb_sum_rec *sum_rec;
-	struct m0_addb_monitor *mon = &csb->csb_addb_mon_rw_io_size;
-	struct m0_reqh         *reqh = &csb->csb_reqh;
-
-	sum_rec = mon->am_ops->amo_sum_rec(mon, &csb->csb_reqh);
-
-	m0_addb_monitor_del(reqh, mon);
-
-	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	m0_reqh_lockers_clear(reqh, m0t1fs_addb_mon_rw_io_size_key);
-	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-	m0_addb_monitor_sum_rec_fini(sum_rec);
-	m0_free(sum_rec);
-	m0_addb_monitor_fini(mon);
-}
-
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 {
 	M0_ENTRY();
@@ -782,17 +596,13 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_net_fini;
 
-	rc = m0t1fs_addb_mon_total_io_size_init(csb);
-	if (rc != 0)
-		goto err_rpc_fini;
-
 	csb->csb_next_key = mops->mo_fid_start;
 
 	rc = m0_conf_fs_get(mops->mo_profile, mops->mo_confd,
 			    &csb->csb_rpc_machine, &csb->csb_iogroup,
 			    &csb->csb_confc, &csb->csb_fs);
 	if (rc != 0)
-		goto err_addb_mon_fini;
+		goto err_rpc_fini;
 
 	rc = m0_pools_common_init(pools, &csb->csb_rpc_machine, csb->csb_fs);
 	if (rc != 0)
@@ -820,19 +630,14 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	ctx = pools->pc_ss_ctx;
 	if (ctx != NULL) {
 		ep_addr = ctx->sc_conn.c_rpcchan->rc_destep->nep_addr;
-		m0_addb_monitor_setup(&csb->csb_reqh, &ctx->sc_conn, ep_addr);
 		M0_LOG(M0_DEBUG, "Stats service connected");
 	} else
 		M0_LOG(M0_WARN, "Stats service not connected");
 
-	rc = configure_addb_rpc_sink(csb, &m0_addb_gmc);
-	if (rc != 0)
-		goto err_pools_common_fini;
-
 	/* Start resource manager service */
 	rc = m0t1fs_reqh_services_start(csb);
 	if (rc != 0)
-		goto err_addb_mc_unconf;
+		goto err_pools_common_fini;
 
 	rc = m0t1fs_sb_layouts_init(csb);
 	if (rc != 0)
@@ -848,10 +653,6 @@ err_sb_layout_fini:
 	m0t1fs_sb_layouts_fini(csb);
 err_services_terminate:
 	m0_reqh_services_terminate(&csb->csb_reqh);
-err_addb_mc_unconf:
-	/* @todo Make a separate unconfigure api and do this in that */
-	m0_addb_mc_fini(&m0_addb_gmc);
-	m0_addb_mc_init(&m0_addb_gmc);
 err_ha_fini:
 	m0_ha_state_fini();
 err_pools_common_fini:
@@ -860,8 +661,6 @@ err_conf_fini:
 	/* Close filesystem. */
 	m0_confc_close(&csb->csb_fs->cf_obj);
 	m0_confc_fini(&csb->csb_confc);
-err_addb_mon_fini:
-	m0t1fs_addb_mon_total_io_size_fini(csb);
 err_rpc_fini:
 	m0t1fs_rpc_fini(csb);
 err_net_fini:
@@ -876,14 +675,11 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0t1fs_sb_layouts_fini(csb);
 	m0_reqh_services_terminate(&csb->csb_reqh);
 	/* @todo Make a separate unconfigure api and do this in that */
-	m0_addb_mc_fini(&m0_addb_gmc);
-	m0_addb_mc_init(&m0_addb_gmc);
 	m0_ha_state_fini();
 	m0_pools_common_fini(&csb->csb_pools_common);
 	/* Close filesystem. */
 	m0_confc_close(&csb->csb_fs->cf_obj);
 	m0_confc_fini(&csb->csb_confc);
-	m0t1fs_addb_mon_total_io_size_fini(csb);
 	m0t1fs_rpc_fini(csb);
 	m0t1fs_net_fini(csb);
 }
@@ -1000,7 +796,6 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 	int                       rc = 0;
 	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
 	struct m0_fop_statfs_rep *rep = NULL;
-	struct m0_addb_ctx       *cv[] = { &csb->csb_addb_ctx, NULL };
 	struct m0_fop            *rep_fop = NULL;
 	M0_THREAD_ENTER;
 
@@ -1016,8 +811,6 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 
 		M0_LOG(M0_DEBUG, "Got mdservice root "FID_F,
 				FID_P(&rep->f_root));
-		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_root_cob, cv,
-			     rep->f_root.f_container, rep->f_root.f_key);
 	} else
 		csb->csb_namelen = M0T1FS_NAME_LEN;
 

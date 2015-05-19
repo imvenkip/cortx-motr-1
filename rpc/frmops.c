@@ -133,9 +133,9 @@ static int packet_ready(struct m0_rpc_packet *p)
 	M0_ENTRY("packet: %p", p);
 	M0_PRE(m0_rpc_packet_invariant(p));
 
-	RPC_ALLOC_PTR(rpcbuf, FRMOPS_PACKET_READY, &m0_rpc_addb_ctx);
+	M0_ALLOC_PTR(rpcbuf);
 	if (rpcbuf == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		M0_LOG(M0_ERROR, "Failed to allocate rpcbuf");
 		goto err;
 	}
@@ -232,8 +232,6 @@ static int net_buffer_allocate(struct m0_net_buffer *netbuf,
 	rc = m0_bufvec_alloc_aligned(&netbuf->nb_buffer, nr_segments,
 				     segment_size, M0_SEG_SHIFT);
 	if (rc != 0) {
-		RPC_ADDB_FUNCFAIL(rc, FRMOPS_NET_BUFFER_ALLOCATE,
-				  &m0_rpc_addb_ctx);
 		M0_LOG(M0_ERROR, "buffer allocation failed");
 		goto out;
 	}
@@ -440,7 +438,6 @@ static void item_done(struct m0_rpc_packet *p,
 
 static void item_sent(struct m0_rpc_item *item)
 {
-	struct m0_addb_counter *counter;
 	struct m0_rpc_stats    *stats;
 
 	M0_ENTRY("item: %p sent=%u max=%lx", item,
@@ -457,9 +454,6 @@ static void item_sent(struct m0_rpc_item *item)
 
 	if (item->ri_nr_sent == 1) { /* not resent. */
 		stats->rs_nr_sent_items_uniq++;
-		counter = &item->ri_rmachine->rm_cntr_sent_item_sizes;
-		m0_addb_counter_update(counter,
-				       (uint64_t)m0_rpc_item_size(item));
 		if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
 			item->ri_ops->rio_sent(item);
 	} else if (item->ri_nr_sent == 2) {

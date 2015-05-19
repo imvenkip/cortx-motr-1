@@ -89,7 +89,6 @@ M0_INTERNAL void m0_be_op_init(struct m0_be_op *op)
 	M0_SET0(op);	/* XXX use M0_IS0() */
 	m0_sm_group_init(&op->bo_sm_group);
 	m0_sm_init(&op->bo_sm, &op_states_conf, M0_BOS_INIT, &op->bo_sm_group);
-	op->bo_sm.sm_state_epoch = m0_time_now();
 	m0_sm_addb2_counter_init(&op->bo_sm);
 }
 

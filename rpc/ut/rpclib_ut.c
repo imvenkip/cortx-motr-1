@@ -23,7 +23,6 @@
 #include "lib/processor.h"
 #include "lib/trace.h"
 #include "lib/finject.h"
-#include "addb/addb.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 
@@ -152,9 +151,6 @@ server_fini:
 static int test_rpclib_init(void)
 {
 	int rc;
-
-	/* set ADDB leve to AEL_WARN to see ADDB messages on STDOUT */
-	/*m0_addb_choose_default_level(AEL_WARN);*/
 
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);

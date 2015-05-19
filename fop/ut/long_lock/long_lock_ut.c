@@ -24,7 +24,6 @@
 #include "rpc/rpc_opcodes.h"   /* M0_UT_RDWR_OPCODE */
 #include "net/lnet/lnet.h"
 #include "fop/fom_generic.h"  /* m0_generic_conf */
-#include "addb/addb.h"
 #include "ut/ut_rpc_machine.h"
 
 enum {
@@ -108,11 +107,9 @@ static const struct m0_reqh_service_type_ops ut_long_lock_service_type_ops = {
 	.rsto_service_allocate = ut_long_lock_service_allocate
 };
 
-M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 M0_REQH_SERVICE_TYPE_DEFINE(ut_long_lock_service_type,
 			    &ut_long_lock_service_type_ops,
-			    "ut-long-lock-service",
-                            &m0_addb_ct_ut_service, 2, 0);
+			    "ut-long-lock-service", 2, 0);
 
 static int test_long_lock_init(void)
 {

@@ -27,6 +27,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"         /* M0_SET0 */
+#include "lib/uuid.h"         /* m0_node_uuid_string_set */
 
 #include "mero/setup.h"
 #include "mero/init.h"
@@ -34,7 +35,6 @@
 #include "module/instance.h"  /* m0 */
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
-#include "addb/user_space/uctx.h"
 
 /**
    @addtogroup m0mkfs
@@ -119,7 +119,7 @@ M0_INTERNAL int main(int argc, char **argv)
 			uuid = argv[i + 1];
 			break;
 		}
-	m0_addb_node_uuid_string_set(uuid);
+	m0_node_uuid_string_set(uuid);
 
 	errno = 0;
 	M0_SET0(&mero_ctx);

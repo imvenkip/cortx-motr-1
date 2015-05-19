@@ -217,18 +217,10 @@ static size_t tx_group_fom_locality(const struct m0_fom *fom)
 	return 0; /* XXX TODO: reconsider */
 }
 
-static void
-tx_group_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc M0_UNUSED)
-{
-	/* XXX */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static const struct m0_fom_ops tx_group_fom_ops = {
 	.fo_fini          = tx_group_fom_fini,
 	.fo_tick          = tx_group_fom_tick,
-	.fo_home_locality = tx_group_fom_locality,
-	.fo_addb_init     = tx_group_fom_addb_init
+	.fo_home_locality = tx_group_fom_locality
 };
 
 static struct m0_fom_type tx_group_fom_type;

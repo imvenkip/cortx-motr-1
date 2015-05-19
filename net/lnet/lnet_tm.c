@@ -35,24 +35,6 @@ static inline bool all_tm_queues_are_empty(struct m0_net_transfer_mc *tm)
 }
 
 /**
-   Logs periodic statistical data using ADDB.
-   @param tm the transfer machine to report about
- */
-static void nlx_tm_stats_report(struct m0_net_transfer_mc *tm)
-{
-#if 0
-	/* Disabled hacky posting of network statistics from
-	 * within the transport.
-	 * On server side replaced by higher level scheduling
-	 * of ADDB statistical posting.
-	 * Code retained here for reference.
-	 */
-	M0_PRE(tm != NULL && nlx_tm_invariant(tm));
-	m0_net__tm_stats_post_addb(tm);
-#endif
-}
-
-/**
    Cancel buffer operations if they have timed out.
    @param tm The transfer machine concerned.
    @param now The current time.
@@ -115,8 +97,6 @@ static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
 		.nte_status             = 0
 	};
 	m0_time_t                    timeout;
-	m0_time_t                    last_stat_time;
-	m0_time_t                    next_stat_time;
 	m0_time_t                    next_buffer_timeout;
 	m0_time_t                    buffer_timeout_tick;
 	m0_time_t                    now;
@@ -154,7 +134,6 @@ static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
 	} else {
 		tmev.nte_next_state = M0_NET_TM_FAILED;
 		tmev.nte_status = rc;
-		LNET_ADDB_FUNCFAIL(rc, C_EV_WORKER, &tm->ntm_addb_ctx);
 	}
 	tmev.nte_time = m0_time_now();
 	tm->ntm_ep = NULL;
@@ -165,8 +144,6 @@ static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
 
 	m0_mutex_lock(&tm->ntm_mutex);
 	now = m0_time_now();
-	last_stat_time = now;
-	next_stat_time = m0_time_add(last_stat_time, tp->xtm_stat_interval);
 	m0_mutex_unlock(&tm->ntm_mutex);
 
 	buffer_timeout_tick = NLX_tm_get_buffer_timeout_tick(tm);
@@ -185,8 +162,6 @@ static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
 		else
 			timeout = m0_time_from_now(
 					    M0_NET_LNET_EVT_LONG_WAIT_SECS, 0);
-		if (timeout > next_stat_time)
-			timeout = next_stat_time;
 		if (timeout > next_buffer_timeout)
 			timeout = next_buffer_timeout;
 
@@ -222,14 +197,6 @@ static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
 		/* periodically record statistics and time out buffers */
 		now = m0_time_now();
 		m0_mutex_lock(&tm->ntm_mutex);
-		next_stat_time = m0_time_add(last_stat_time,
-					     tp->xtm_stat_interval);
-		if (now >= next_stat_time) {
-			nlx_tm_stats_report(tm);
-			last_stat_time = now;
-			next_stat_time = m0_time_add(last_stat_time,
-						     tp->xtm_stat_interval);
-		}
 		if (now >= next_buffer_timeout) {
 			NLX_tm_timeout_buffers(tm, now);
 			next_buffer_timeout = m0_time_add(now,
@@ -244,7 +211,6 @@ static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
 			if (all_tm_queues_are_empty(tm) &&
 			    tm->ntm_callback_counter == 0) {
 				nlx_core_tm_stop(cd, ctp);
-				nlx_tm_stats_report(tm);
 				must_stop = true;
 			}
 			m0_mutex_unlock(&tm->ntm_mutex);

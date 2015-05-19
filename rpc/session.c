@@ -373,9 +373,9 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 
 	machine = session_machine(session);
 
-	RPC_ALLOC_PTR(ctx, SESSION_ESTABLISH, &m0_rpc_addb_ctx);
+	M0_ALLOC_PTR(ctx);
 	if (ctx == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 	} else {
 		ctx->sec_session = session;
 		m0_fop_init(&ctx->sec_fop,

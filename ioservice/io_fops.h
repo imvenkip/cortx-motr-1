@@ -33,8 +33,6 @@
 #include "xcode/xcode_attr.h"
 #include "net/net_otw_types.h"
 #include "net/net_otw_types_xc.h"
-#include "addb/addb.h"
-#include "addb/addb_wire_xc.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
 #include "lib/buf.h"
@@ -436,16 +434,8 @@ struct m0_fop_cob_rw {
 	 * too, if it uses indexvecs.
 	 */
 	struct m0_io_indexvec     crw_ivec;
-
-	/**
-	 * ADDB context identifier of the operation
-	 * exported by client and imported by server
-	 */
-	struct m0_addb_uint64_seq crw_addb_ctx_id;
-
 	/** Miscellaneous flags. */
 	uint64_t                  crw_flags;
-
 	/** Checksum and tag values for the input data blocks. */
 	struct m0_buf		  crw_di_data;
 } M0_XCA_RECORD;
@@ -482,13 +472,6 @@ struct m0_test_ios_fop {
 	uint64_t               if_st;
 	struct m0_net_buf_desc if_nbd;
 } M0_XCA_RECORD;
-
-/* @todo : new ADDB interfaces implementation will replace this requirment.
- *struct m0_test_io_addb {
- *	uint64_t              if_st;
- *	struct m0_addb_record if_addb;
- *} M0_XCA_RECORD;
- */
 
 struct m0_fop_cob_common {
 	/** Client known failure vector version number */

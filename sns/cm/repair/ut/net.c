@@ -199,17 +199,11 @@ static int dummy_fom_tick(struct m0_fom *fom)
 	}
 }
 
-static void dummy_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 /* Over-ridden copy packet FOM ops. */
 static struct m0_fom_ops cp_fom_ops = {
 	.fo_fini          = dummy_fom_fini,
 	.fo_tick          = dummy_fom_tick,
 	.fo_home_locality = dummy_fom_locality,
-	.fo_addb_init     = dummy_fom_addb_init
 };
 
 /* Over-ridden copy packet init phase. */
@@ -271,7 +265,6 @@ static struct m0_fom_ops read_cp_fom_ops = {
 	.fo_fini          = dummy_read_fom_fini,
 	.fo_tick          = dummy_read_fom_tick,
 	.fo_home_locality = dummy_fom_locality,
-	.fo_addb_init     = dummy_fom_addb_init
 };
 
 /* Over-ridden copy packet init phase for read copy packet. */
@@ -630,8 +623,7 @@ static const struct m0_reqh_service_type_ops sender_cm_service_type_ops = {
 };
 
 M0_CM_TYPE_DECLARE(sender_cm, M0_CM_UT_SENDER_OPCODE,
-		   &sender_cm_service_type_ops, "sender_cm",
-		   &m0_addb_ct_ut_service);
+		   &sender_cm_service_type_ops, "sender_cm");
 
 void sender_service_alloc_init()
 {

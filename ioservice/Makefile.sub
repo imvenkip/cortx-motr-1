@@ -5,8 +5,7 @@ nobase_mero_include_HEADERS += ioservice/fid_convert.h \
                                ioservice/io_fops_xc.h \
                                ioservice/io_service.h \
                                ioservice/cob_foms.h \
-                               ioservice/io_device.h \
-                               ioservice/io_service_addb.h
+                               ioservice/io_device.h
 
 mero_libmero_la_SOURCES  += ioservice/fid_convert.c \
                             ioservice/io_foms.c \

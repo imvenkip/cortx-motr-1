@@ -139,8 +139,7 @@ static int list_allocate(struct m0_layout_domain *dom,
 err1_injected:
 	if (list_enum == NULL) {
 		m0_layout__log("list_allocate", "M0_ALLOC_PTR() failed",
-			       M0_LAYOUT_ADDB_LOC_LIST_ALLOC, NULL, LID_NONE,
-			       -ENOMEM);
+			       LID_NONE, -ENOMEM);
 		return M0_ERR(-ENOMEM);
 	}
 	m0_layout__enum_init(dom, &list_enum->lle_base,
@@ -204,7 +203,6 @@ M0_INTERNAL int m0_list_enum_build(struct m0_layout_domain *dom,
 		if (!m0_fid_is_valid(&cob_list[i])) {
 err1_injected:
 			m0_layout__log("m0_list_enum_build", "fid invalid",
-				       M0_LAYOUT_ADDB_LOC_LIST_ENUM_BUILD, NULL,
 				       LID_NONE, -EPROTO);
 			return M0_ERR(-EPROTO);
 		}
@@ -273,8 +271,7 @@ static int list_register(struct m0_layout_domain *dom,
 err1_injected:
 	if (lsd == NULL) {
 		m0_layout__log("list_register", "M0_ALLOC_PTR() failed",
-			       M0_LAYOUT_ADDB_LOC_LIST_REG_1, NULL, LID_NONE,
-			       -ENOMEM);
+			       LID_NONE, -ENOMEM);
 		return M0_ERR(-ENOMEM);
 	}
 
@@ -287,7 +284,6 @@ err2_injected:
 		dom->ld_type_data[et->let_id] = lsd;
 	else {
 		m0_layout__log("list_register", "m0_table_init() failed",
-			       M0_LAYOUT_ADDB_LOC_LIST_REG_2, NULL,
 			       LID_NONE, rc);
 		m0_free(lsd);
 	}
@@ -347,8 +343,7 @@ err1_injected:
 	if (rc != 0) {
 		m0_layout__log("noninline_read",
 			       "m0_db_cursor_init() failed",
-			       M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_1,
-			       &stl->sl_base.l_addb_ctx, stl->sl_base.l_id, rc);
+			       stl->sl_base.l_id, rc);
 		return M0_RC(rc);
 	}
 
@@ -367,8 +362,6 @@ err2_injected:
 		if (rc != 0) {
 			m0_layout__log("noninline_read",
 				       "m0_db_cursor_get() failed",
-				       M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_2,
-				       &stl->sl_base.l_addb_ctx,
 				       key.clk_lid, rc);
 			goto out;
 		}
@@ -378,10 +371,7 @@ err2_injected:
 err3_injected:
 			rc = -EPROTO;
 			m0_layout__log("noninline_read",
-				       "fid invalid",
-				       M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_3,
-				       &stl->sl_base.l_addb_ctx,
-				       key.clk_lid, rc);
+				       "fid invalid", key.clk_lid, rc);
 			goto out;
 		}
 		cob_list[i] = rec.clr_cob_id;
@@ -432,8 +422,7 @@ err1_injected:
 	if (cob_list == NULL) {
 		rc = -ENOMEM;
 		m0_layout__log("list_decode", "M0_ALLOC_ARR() failed",
-			       M0_LAYOUT_ADDB_LOC_LIST_DECODE,
-			       &stl->sl_base.l_addb_ctx, lid, rc);
+			       lid, rc);
 		goto out;
 	}
 	rc = 0;
@@ -518,8 +507,6 @@ err1_injected:
 	if (rc != 0) {
 		m0_layout__log("noninline_write",
 			       "m0_db_cursor_init() failed",
-			       M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_1,
-			       &e->le_sl->sl_base.l_addb_ctx,
 			       (unsigned long long)e->le_sl->sl_base.l_id, rc);
 		return M0_RC(rc);
 	}
@@ -541,8 +528,6 @@ err2_injected:
 			if (rc != 0) {
 				m0_layout__log("noninline_write",
 					       "m0_db_cursor_add() failed",
-					  M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_2,
-					       &e->le_sl->sl_base.l_addb_ctx,
 					       key.clk_lid, rc);
 				goto out;
 			}
@@ -557,8 +542,6 @@ err3_injected:
 			if (rc != 0) {
 				m0_layout__log("noninline_write",
 					       "m0_db_cursor_get() failed",
-					  M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_3,
-					       &e->le_sl->sl_base.l_addb_ctx,
 					       key.clk_lid, rc);
 				goto out;
 			}
@@ -571,8 +554,6 @@ err4_injected:
 			if (rc != 0) {
 				m0_layout__log("noninline_write",
 					       "m0_db_cursor_del() failed",
-				          M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_4,
-					       &e->le_sl->sl_base.l_addb_ctx,
 					       key.clk_lid, rc);
 				goto out;
 			}

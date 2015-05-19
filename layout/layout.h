@@ -129,11 +129,9 @@
 #include "lib/refs.h"   /* struct m0_ref */
 
 #include "fid/fid.h"    /* struct m0_fid */
-#include "addb/addb.h"
 #include "be/be.h"      /* struct m0_be_tx */
 #include "layout/layout_pver.h" /* m0_layout_init_by_pver() */
 
-struct m0_addb_ctx;
 struct m0_bufvec_cursor;
 
 /* export */
@@ -216,21 +214,15 @@ struct m0_layout {
 	 * user count is non-zero.
 	 */
 	uint32_t                     l_user_count;
-
 	/**
 	 * Lock to protect a m0_layout instance, including all its direct and
 	 * indirect members.
 	 */
 	struct m0_mutex              l_lock;
-
 	/** Layout operations vector. */
 	const struct m0_layout_ops  *l_ops;
-
-	struct m0_addb_ctx           l_addb_ctx;
-
 	/** Magic number set while m0_layout object is initialised. */
 	uint64_t                     l_magic;
-
 	/**
 	 * Linkage used for maintaining list of the layout objects stored in
 	 * the m0_layout_domain object.

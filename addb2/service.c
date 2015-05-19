@@ -24,8 +24,6 @@
  * @{
  */
 
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADDB
 
 #include "lib/trace.h"
@@ -35,7 +33,6 @@
 #include "lib/memory.h"
 #include "lib/errno.h"                  /* ENOMEM */
 #include "lib/misc.h"                   /* M0_AMB */
-#include "addb/addb.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "fop/fom.h"
@@ -70,18 +67,8 @@ static const struct m0_reqh_service_ops       addb2_service_ops;
 static const struct m0_reqh_service_type_ops  addb2_service_type_ops;
 static const struct m0_fom_ops                addb2_fom_ops;
 
-enum {
-	M0_ADDB_CTXID_ADDB2_SVC = 2000,
-	M0_ADDB_CTXID_ADDB2_FOM = 2001,
-};
-
-M0_ADDB_CT(m0_addb_ct_addb2_svc, M0_ADDB_CTXID_ADDB2_SVC, "hi", "low");
-M0_ADDB_CT(m0_addb_ct_addb2_fom, M0_ADDB_CTXID_ADDB2_FOM);
-
 M0_INTERNAL int m0_addb2_service_module_init(void)
 {
-	m0_addb_ctx_type_register(&m0_addb_ct_addb2_svc);
-	m0_addb_ctx_type_register(&m0_addb_ct_addb2_fom);
 	return m0_reqh_service_type_register(&m0_addb2_service_type);
 }
 
@@ -198,12 +185,6 @@ static void addb2_fom_fini(struct m0_fom *fom0)
 	m0_free(fom);
 }
 
-static void addb2_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_addb2_fom,
-			 &fom->fo_service->rs_addb_ctx);
-}
-
 static void addb2_done(struct m0_addb2_trace_obj *obj)
 {
 	m0_free(obj->o_tr.tr_body);
@@ -219,7 +200,6 @@ static size_t addb2_fom_home_locality(const struct m0_fom *fom)
 static const struct m0_fom_ops addb2_fom_ops = {
 	.fo_tick          = &addb2_fom_tick,
 	.fo_home_locality = &addb2_fom_home_locality,
-	.fo_addb_init     = &addb2_fom_addb_init,
 	.fo_fini          = &addb2_fom_fini
 };
 
@@ -254,15 +234,15 @@ static const struct m0_reqh_service_type_ops addb2_service_type_ops = {
 };
 
 static const struct m0_reqh_service_ops addb2_service_ops = {
-	.rso_start = &addb2_service_start,
-	.rso_stop  = &addb2_service_stop,
-	.rso_fini  = &addb2_service_fini
+	.rso_start_async = &m0_reqh_service_async_start_simple,
+	.rso_start       = &addb2_service_start,
+	.rso_stop        = &addb2_service_stop,
+	.rso_fini        = &addb2_service_fini
 };
 
 M0_INTERNAL struct m0_reqh_service_type m0_addb2_service_type = {
 	.rst_name     = "addb2",
 	.rst_ops      = &addb2_service_type_ops,
-	.rst_addb_ct  = &m0_addb_ct_addb2_svc,
 	.rst_level    = 2,
 	.rst_typecode = 0
 };

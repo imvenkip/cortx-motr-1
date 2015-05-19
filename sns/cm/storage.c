@@ -24,7 +24,6 @@
 #include "lib/memory.h"
 #include "mero/setup.h"
 
-#include "sns/sns_addb.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
@@ -39,7 +38,7 @@
 
 static int ivec_prepare(struct m0_cm_cp *cp, struct m0_indexvec *iv,
 			m0_bindex_t idx, size_t unit_size, size_t max_buf_size,
-			struct m0_addb_ctx *ctx, uint32_t bshift)
+			uint32_t bshift)
 {
 	size_t   seg_size = unit_size < max_buf_size ?
 			    unit_size : max_buf_size;
@@ -50,7 +49,7 @@ static int ivec_prepare(struct m0_cm_cp *cp, struct m0_indexvec *iv,
 
 	M0_PRE(iv != NULL);
 
-	rc = m0_indexvec_alloc(iv, seg_nr, ctx, M0_ADDB_CTXID_SNS_CM);
+	rc = m0_indexvec_alloc(iv, seg_nr);
 	if (rc != 0)
 		return M0_RC(rc);
 
@@ -75,13 +74,11 @@ static int bufvec_prepare(struct m0_bufvec *obuf, struct m0_tl *cp_buffers_head,
 	M0_PRE(!cp_data_buf_tlist_is_empty(cp_buffers_head));
 
 	obuf->ov_vec.v_nr = data_seg_nr;
-	SNS_ALLOC_ARR(obuf->ov_vec.v_count, data_seg_nr, &m0_sns_cp_addb_ctx,
-		      CP_STORAGE_OV_VEC);
+	M0_ALLOC_ARR(obuf->ov_vec.v_count, data_seg_nr);
 	if (obuf->ov_vec.v_count == NULL)
 		return M0_ERR(-ENOMEM);
 
-	SNS_ALLOC_ARR(obuf->ov_buf, data_seg_nr, &m0_sns_cp_addb_ctx,
-		      CP_STORAGE_OV_BUF);
+	M0_ALLOC_ARR(obuf->ov_buf, data_seg_nr);
 	if (obuf->ov_buf == NULL) {
 		m0_free(obuf->ov_vec.v_count);
 		return M0_ERR(-ENOMEM);
@@ -111,8 +108,7 @@ static void bufvec_free(struct m0_bufvec *bv)
 static int cp_prepare(struct m0_cm_cp *cp,
 		      struct m0_indexvec *dst_ivec,
 		      struct m0_bufvec *dst_bvec,
-		      m0_bindex_t start_idx,
-		      struct m0_addb_ctx *ctx, uint32_t bshift)
+		      m0_bindex_t start_idx, uint32_t bshift)
 {
 	struct m0_net_buffer *nbuf;
 	uint32_t              data_seg_nr;
@@ -131,9 +127,8 @@ static int cp_prepare(struct m0_cm_cp *cp,
 	seg_nr = nbuf->nb_pool->nbp_seg_nr;
 	unit_size = data_seg_nr * seg_size;
 	max_buf_size = seg_size * seg_nr;
-
 	rc = ivec_prepare(cp, dst_ivec, start_idx, unit_size,
-			  max_buf_size, ctx, bshift);
+			  max_buf_size, bshift);
 	if (rc != 0)
 		return M0_RC(rc);
 	rc = bufvec_prepare(dst_bvec, &cp->c_buffers, data_seg_nr, seg_size,
@@ -150,7 +145,6 @@ static int cp_stob_io_init(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	struct m0_sns_cm_cp   *sns_cp;
 	struct m0_stob        *stob;
 	struct m0_stob_io     *stio;
-	struct m0_addb_ctx    *addb_ctx;
 	uint32_t               bshift;
 	int                    rc;
 
@@ -159,8 +153,6 @@ static int cp_stob_io_init(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	sns_cp = cp2snscp(cp);
 	stio = &sns_cp->sc_stio;
 	dom = m0_stob_domain_find_by_stob_id(&sns_cp->sc_stob_id);
-	addb_ctx = &cp->c_ag->cag_cm->cm_service.rs_addb_ctx;
-	m0_sns_cm_cp_addb_log(cp);
 
 	if (dom == NULL)
 		return M0_ERR(-EINVAL);
@@ -181,7 +173,7 @@ static int cp_stob_io_init(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	stio->si_fol_frag = &sns_cp->sc_fol_frag;
 	bshift = m0_stob_block_shift(stob);
 	return cp_prepare(cp, &stio->si_stob, &stio->si_user, sns_cp->sc_index,
-			  addb_ctx, bshift);
+			  bshift);
 }
 
 static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
@@ -242,7 +234,6 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	}
 out:
 	if (rc != 0) {
-		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_IO);
 		m0_fom_phase_move(cp_fom, rc, M0_CCP_FAIL);
 		m0_dtx_done_sync(&cp_fom->fo_tx);
 		m0_dtx_fini(&cp->c_fom.fo_tx);
@@ -296,7 +287,6 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 
 	rc = sns_cp->sc_stio.si_rc;
 	if (rc != 0) {
-		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_STIO);
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FAIL);
 		return M0_FSO_AGAIN;
 	}

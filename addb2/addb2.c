@@ -1013,8 +1013,9 @@ M0_INTERNAL const struct m0_addb2_frame_header M0_ADDB2_HEADER_INIT = {
 M0_INTERNAL void m0_addb2__mach_print(const struct m0_addb2_mach *m)
 {
 #if DEBUG_OWNERSHIP
-	const char *name = m->ma_name;
-	M0_LOG(M0_FATAL, "mach: %p %s.", m, name);
+	const char *orig = m->ma_name;
+	const char *last = m->ma_last;
+	M0_LOG(M0_FATAL, "mach: %p \"%s\" \"%s\".", m, orig, last);
 #else
 	M0_LOG(M0_FATAL, "mach: %p.", m);
 #endif

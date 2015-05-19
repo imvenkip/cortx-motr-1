@@ -30,7 +30,6 @@
 #include "lib/mutex.h"
 #include "lib/types.h"
 #include "sm/sm.h"
-#include "addb/addb.h"
 #include "be/tx.h"       /* m0_be_tx_remid */
 #include "conf/schema.h" /* m0_conf_service_type */
 #include "rpc/rpc.h"     /* m0_rpc_conn, m0_rpc_session */
@@ -80,7 +79,6 @@ struct m0_fom;
         .rso_start = service_start,
         .rso_stop  = service_stop,
         .rso_fini  = service_fini,
-        .rso_stats_post_addb = optional_service_stats,
    };
    @endcode
 
@@ -104,7 +102,7 @@ struct m0_fom;
    - define service type using M0_REQH_SERVICE_TYPE_DEFINE macro,
    @code
    M0_REQH_SERVICE_TYPE_DEFINE(m0_ios_type, &ios_type_ops, "ioservice",
-                               &m0_addb_ct_ios_serv, 2);
+                               2, 0);
    @endcode
 
    - now, the above service type can be registered as below,
@@ -262,11 +260,6 @@ struct m0_reqh_service {
 	struct m0_tlink                    rs_linkage;
 
 	/**
-	   ADDB context for this service
-	 */
-	struct m0_addb_ctx                 rs_addb_ctx;
-
-	/**
 	 * service context
 	 */
 	struct m0_reqh_context            *rs_reqh_ctx;
@@ -400,15 +393,6 @@ struct m0_reqh_service_ops {
 	void (*rso_fini)(struct m0_reqh_service *service);
 
 	/**
-	   Method to periodically record ADDB statistics on the operation
-	   of the service.
-	   No statistics should be posted if there was no activity in the
-	   service since the last invocation of the method.
-	   The method is optional and need not be specified.
-	 */
-	void (*rso_stats_post_addb)(struct m0_reqh_service *service);
-
-	/**
 	   Method to determine if an incoming FOP for this service should
 	   be accepted when the service is stopping or will shortly be
 	   stopped.
@@ -465,11 +449,6 @@ struct m0_reqh_service_type {
 	 */
 	unsigned                               rst_key;
 	unsigned                               rst_level;
-	/**
-	   Pointer to ADDB context type for this service type
-	 */
-	struct m0_addb_ctx_type               *rst_addb_ct;
-
 	/**
 	 * Configuration service type
 	 * @see m0_conf_service::cs_type
@@ -619,16 +598,10 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
  */
 M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service);
 
-/** @todo Add NULL check for 'ct' the below comment
-    when each service type has addb_ctx_type defined
-    ADDB context type has to be registered before
-    invoking m0_reqh_service_type_register()
-*/
-#define M0_REQH_SERVICE_TYPE_DEFINE(stype, ops, name, ct, level, typecode)  \
+#define M0_REQH_SERVICE_TYPE_DEFINE(stype, ops, name, level, typecode)  \
 struct m0_reqh_service_type stype = {                                       \
-	.rst_name     = (name),	                                            \
+	.rst_name     = (name),                                            \
 	.rst_ops      = (ops),                                              \
-	.rst_addb_ct  = (ct),                                               \
 	.rst_level    = (level),                                            \
 	.rst_typecode = (typecode),                                         \
 }

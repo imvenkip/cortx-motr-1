@@ -36,7 +36,7 @@
 #include <sys/utsname.h>  /* uname */
 
 #include "mero/init.h"             /* m0_init */
-#include "addb/user_space/uctx.h"  /* m0_addb_node_uuid_string_set */
+#include "lib/uuid.h"              /* m0_node_uuid_string_set */
 #include "lib/misc.h"
 #include "lib/string.h"            /* m0_strdup */
 #include "lib/getopts.h"           /* M0_GETOPTS */
@@ -704,7 +704,7 @@ int main(int argc, char *argv[])
 
 	/* we don't need a real node uuid, so we force a default one to be useed
 	 * instead */
-	m0_addb_node_uuid_string_set(NULL);
+	m0_node_uuid_string_set(NULL);
 
 	rc = m0_init(&instance);
 	if (rc != 0) {

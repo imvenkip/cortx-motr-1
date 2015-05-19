@@ -27,7 +27,6 @@
 #include "lib/list.h"
 #include "lib/refs.h"
 #include "lib/errno.h"
-#include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
 #include "rpc/item.h"

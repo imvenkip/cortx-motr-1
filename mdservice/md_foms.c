@@ -299,16 +299,6 @@ out:
 	return md_tail(fom, &rep->l_body, &rep->l_mod_rep, rc);
 }
 
-static void m0_md_fom_addb_init(struct m0_fom *fom,
-				     struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static int m0_md_tick_unlink(struct m0_fom *fom)
 {
 	struct m0_mdstore        *md;
@@ -1343,107 +1333,92 @@ static size_t m0_md_req_fom_locality_get(const struct m0_fom *fom)
 
 static const struct m0_fom_ops m0_md_fom_create_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
-	.fo_tick   = m0_md_tick_create,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_tick          = m0_md_tick_create,
+	.fo_fini          = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_link_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
-	.fo_tick   = m0_md_tick_link,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_tick          = m0_md_tick_link,
+	.fo_fini          = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_unlink_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
-	.fo_tick   = m0_md_tick_unlink,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_tick          = m0_md_tick_unlink,
+	.fo_fini          = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_rename_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_rename,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini   = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_open_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_open,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini   = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_close_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick  = m0_md_tick_close,
-	.fo_fini  = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini  = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_setattr_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_setattr,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini   = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_getattr_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_getattr,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini   = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_setxattr_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_setxattr,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini   = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_getxattr_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_getxattr,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini   = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_delxattr_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_delxattr,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini   = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_listxattr_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_listxattr,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini   = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_lookup_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_lookup,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini   = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_statfs_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_statfs,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini   = m0_md_req_fom_fini
 };
 
 static const struct m0_fom_ops m0_md_fom_readdir_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_readdir,
-	.fo_fini   = m0_md_req_fom_fini,
-	.fo_addb_init = m0_md_fom_addb_init
+	.fo_fini   = m0_md_req_fom_fini
 };
 
 M0_INTERNAL int m0_md_rep_fom_create(struct m0_fop *fop, struct m0_fom **m,

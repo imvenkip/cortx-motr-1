@@ -129,16 +129,10 @@ static size_t sw_onwire_fom_home_locality(const struct m0_fom *fom)
 	return m0_fop_opcode(fom->fo_fop);
 }
 
-static void sw_onwire_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static const struct m0_fom_ops sw_onwire_fom_ops = {
 	.fo_fini          = sw_onwire_fom_fini,
 	.fo_tick          = sw_onwire_fom_tick,
 	.fo_home_locality = sw_onwire_fom_home_locality,
-	.fo_addb_init     = sw_onwire_fom_addb_init
 };
 
 static int sw_onwire_fom_create(struct m0_fop *fop, struct m0_fom **out,

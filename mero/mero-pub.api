@@ -3,8 +3,7 @@
 ### marked this way.
 ### See also scripts/check-public-api .
 
-m0_addb_kmod_uuid_file_set
-m0_addb_node_uuid_string_set
+m0_kmod_uuid_file_set
 m0_addb2_add
 m0_addb2_callback_add
 m0_addb2_callback_del
@@ -147,6 +146,9 @@ m0_nanosleep
 m0_net_domain_fini
 m0_net_domain_init
 m0_net_end_point_put
+m0_node_uuid_init
+m0_node_uuid_string_get
+m0_node_uuid_string_set
 m0_panic
 m0_ref_init
 m0_reqh_rpc_mach_tlink_del_fini

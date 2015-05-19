@@ -23,7 +23,6 @@
 #ifndef __MERO_RPC_INT_H__
 #define __MERO_RPC_INT_H__
 
-#include "addb/addb.h"
 #include "rpc/conn_internal.h"
 #include "rpc/session_internal.h"
 #include "rpc/item_internal.h"
@@ -36,35 +35,11 @@
 #include "rpc/rpc_onwire.h"
 #include "rpc/rpc_onwire_xc.h"
 #include "rpc/rpc.h"
-#include "rpc/rpc_addb.h"
-
-extern struct m0_addb_ctx m0_rpc_addb_ctx;
-
-/**
- *  RPC function failure macro using the global ADDB machine to post.
- *  @param rc Return code
- *  @param loc Location code - one of the M0_RPC_ADDB_LOC_ enumeration
- *             constants suffixes from rpc/rpc_addb.h.
- *  @param ctx Runtime context pointer
- *  @pre rc < 0
- */
-#define RPC_ADDB_FUNCFAIL(rc, loc, ctx)					\
-	M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_RPC_ADDB_LOC_##loc, rc, ctx)
-
-#define RPC_ALLOC(ptr, len, loc, ctx)					\
-	M0_ALLOC_ADDB(ptr, len, &m0_addb_gmc, M0_RPC_ADDB_LOC_##loc, ctx)
-#define RPC_ALLOC_PTR(ptr, loc, ctx)					\
-	M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_RPC_ADDB_LOC_##loc, ctx)
-#define RPC_ALLOC_ARR(ptr, nr, loc, ctx)				\
-	M0_ALLOC_ARR_ADDB(ptr, nr, &m0_addb_gmc, M0_RPC_ADDB_LOC_##loc, ctx)
 
 /**
  * @addtogroup rpc
  * @{
  */
-
-#define REQH_ADDB_MC_CONFIGURED(reqh)					\
-  (reqh != NULL && m0_addb_mc_is_fully_configured(m0_fom_addb_mc()))
 
 /**
    Initialises all the session related fop types

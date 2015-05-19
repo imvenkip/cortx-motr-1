@@ -83,7 +83,7 @@ static struct m0_rpc_client_ctx cctx = {
 static char *server_argv[] = {
 	"ha_ut", "-T", "AD", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
-	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2", "-s", "addb", "-w",
+	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2", "-s", "addb2", "-w",
 	"10", "-s", "confd", "-c", M0_HA_UT_PATH("conf-str.txt")
 };
 
@@ -177,8 +177,7 @@ static int ha_state_ut_fom_get_tick(struct m0_fom *fom)
 static const struct m0_fom_ops ha_state_ut_get_fom_ops = {
 	.fo_tick          = &ha_state_ut_fom_get_tick,
 	.fo_fini          = &m0_ha_state_set_fom_fini,
-	.fo_home_locality = &m0_ha_state_set_fom_home_locality,
-	.fo_addb_init     = &m0_ha_state_set_fom_addb_init
+	.fo_home_locality = &m0_ha_state_set_fom_home_locality
 };
 
 static int ha_state_ut_get_fom_create(struct m0_fop *fop, struct m0_fom **m,
@@ -220,8 +219,7 @@ static int ha_state_ut_fom_set_tick(struct m0_fom *fom)
 static const struct m0_fom_ops ha_state_ut_set_fom_ops = {
 	.fo_tick          = ha_state_ut_fom_set_tick,
 	.fo_fini          = m0_ha_state_set_fom_fini,
-	.fo_home_locality = m0_ha_state_set_fom_home_locality,
-	.fo_addb_init     = m0_ha_state_set_fom_addb_init
+	.fo_home_locality = m0_ha_state_set_fom_home_locality
 };
 
 static int ha_state_ut_set_fom_create(struct m0_fop *fop, struct m0_fom **m,

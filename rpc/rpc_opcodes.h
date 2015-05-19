@@ -35,10 +35,6 @@
 #define __MERO_RPC_CORE_OPCODES_H__
 
 enum M0_RPC_OPCODES {
-	/** ADDB */
-	M0_ADDB_REPLY_OPCODE                = 1, /* obsolete */
-	M0_ADDB_RPC_SINK_FOP_OPCODE         = 2,
-
 	/** Mero setup rpc */
 	M0_CS_DS1_REQ_OPCODE                = 3,
 	M0_CS_DS1_REP_OPCODE                = 4,
@@ -227,7 +223,7 @@ enum M0_RPC_OPCODES {
 	/*
 	 * Identifiers below are for fop-less foms, not fops.
 	 */
-	M0_ADDB_PFOM_OPCODE                 = 1024,
+	M0_FOM_OPCODE_START                 = 1024,
 	M0_BE_TX_GROUP_OPCODE               = 1025,
 	M0_CM_UT_OPCODE                     = 1026, /* CP, PUMP, SW_UPDATE */
 	M0_CM_REBALANCE_OPCODE              = 1029, /* CP, PUMP, SW_UPDATE */

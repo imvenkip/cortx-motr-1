@@ -61,8 +61,6 @@ static void test_init(void)
 				      M0_NET_BUFFER_POOL_THRESHOLD, seg_nr,
 				      seg_size, colours, shift);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(bp.nbp_addb_ctx.ac_type == &m0_addb_ct_net_bp);
-	M0_UT_ASSERT(bp.nbp_addb_ctx.ac_parent == &bp.nbp_ndom->nd_addb_ctx);
 	m0_net_buffer_pool_lock(&bp);
 	rc = m0_net_buffer_pool_provision(&bp, buf_nr);
 	m0_net_buffer_pool_unlock(&bp);
@@ -231,4 +229,3 @@ M0_EXPORTED(buffer_pool_ut);
  *  scroll-step: 1
  *  End:
  */
-

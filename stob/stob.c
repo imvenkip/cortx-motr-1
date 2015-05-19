@@ -17,15 +17,6 @@
  * Original creation date: 04/28/2010
  */
 
-/*
- * Define the ADDB types in this file.
- */
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-#undef M0_ADDB_RT_CREATE_DEFINITION
-#define M0_ADDB_RT_CREATE_DEFINITION
-#include "stob/stob_addb.h"
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
 #include "lib/trace.h"
 

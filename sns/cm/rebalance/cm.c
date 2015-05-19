@@ -28,7 +28,6 @@
 #include "pool/pool.h"
 #include "reqh/reqh.h"
 
-#include "sns/sns_addb.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/iter.h"
 #include "sns/cm/cm.h"
@@ -51,7 +50,7 @@ static struct m0_cm_cp *rebalance_cm_cp_alloc(struct m0_cm *cm)
 {
 	struct m0_sns_cm_cp *scp;
 
-	SNS_ALLOC_PTR(scp, &m0_sns_mod_addb_ctx, CP_ALLOC);
+	M0_ALLOC_PTR(scp);
 	if (scp == NULL)
 		return NULL;
 	scp->sc_base.c_ops = &m0_sns_cm_rebalance_cp_ops;

@@ -114,6 +114,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/user_space/uthread.c \
                            lib/user_space/utime.c \
                            lib/user_space/utrace.c \
+                           lib/user_space/uuuid.c \
                            lib/user_space/varr.c
 
 XC_FILES += lib/buf_xc.h \
@@ -133,6 +134,7 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/kthread.c \
               lib/linux_kernel/ktime.c \
               lib/linux_kernel/ktrace.c \
+              lib/linux_kernel/kuuid.c \
               lib/linux_kernel/kvec.c \
               lib/linux_kernel/memory.c \
               lib/linux_kernel/misc.h \

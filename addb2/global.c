@@ -27,6 +27,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADDB
 
 #include "lib/trace.h"
+#include "lib/uuid.h"                 /* m0_node_uuid */
 #include "lib/errno.h"                /* ENOMEM */
 #include "lib/thread.h"               /* m0_thread_tls */
 #include "lib/memory.h"

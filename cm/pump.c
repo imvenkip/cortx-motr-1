@@ -319,20 +319,10 @@ static void cm_cp_pump_fom_fini(struct m0_fom *fom)
 	m0_fom_fini(fom);
 }
 
-static void cm_cp_pump_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static const struct m0_fom_ops cm_cp_pump_fom_ops = {
 	.fo_fini          = cm_cp_pump_fom_fini,
 	.fo_tick          = cm_cp_pump_fom_tick,
-	.fo_home_locality = cm_cp_pump_fom_locality,
-	.fo_addb_init     = cm_cp_pump_fom_addb_init
+	.fo_home_locality = cm_cp_pump_fom_locality
 };
 
 bool m0_cm_cp_pump_is_complete(const struct m0_cm_cp_pump *cp_pump)

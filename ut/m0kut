@@ -13,7 +13,7 @@ readonly base_rundir='/var/mero'
 readonly top_srcdir=$(echo $(dirname $self) |
                       sed -r -e 's#/?(utils|ut)/?$##' -e 's#^/usr/s?bin##')
 
-# addb KUT expects particular predefined UUID
+# KUT expects particular predefined UUID
 readonly node_uuid="12345678-90ab-cdef-fedc-ba0987654321"
 
 # variables

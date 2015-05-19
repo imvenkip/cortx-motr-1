@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Assign a node uuid for addb.
+# Assign a node uuid.
 # See m0t1fs/linux_kernel/m0t1fs.c:m0t1fs_param_node_uuid_get()
 NODE_UUID="abcdef01-2345-6789-0123-456789ABCDEF"
 

@@ -604,13 +604,6 @@ static void test_net_bulk_if(void)
 	struct m0_bitmap *procmask = (void *) -1; /* fake not null UT value */
 	enum { NUM_REUSES = 2 };
 
-	M0_UT_ASSERT(m0_addb_ct_net_mod.act_id == M0_ADDB_CTXID_NET_MOD);
-	M0_UT_ASSERT(m0_addb_ct_net_dom.act_id == M0_ADDB_CTXID_NET_DOM);
-	M0_UT_ASSERT(m0_addb_ct_net_tm.act_id  == M0_ADDB_CTXID_NET_TM);
-	M0_UT_ASSERT(m0_addb_ct_net_bp.act_id  == M0_ADDB_CTXID_NET_BP);
-	M0_UT_ASSERT(m0_net_addb_ctx.ac_type == &m0_addb_ct_net_mod);
-	M0_UT_ASSERT(m0_net_addb_ctx.ac_parent == &m0_addb_proc_ctx);
-
 	M0_SET0(&d1);
 	M0_SET0(&d2);
 	make_desc(&d1);
@@ -635,8 +628,6 @@ static void test_net_bulk_if(void)
 	M0_UT_ASSERT(ut_dom_init_called);
 	M0_UT_ASSERT(dom->nd_xprt == &ut_xprt);
 	M0_UT_ASSERT(dom->nd_xprt_private == &ut_xprt_pvt);
-	M0_UT_ASSERT(dom->nd_addb_ctx.ac_type == &m0_addb_ct_net_dom);
-	M0_UT_ASSERT(dom->nd_addb_ctx.ac_parent == &m0_addb_proc_ctx);
 	M0_ASSERT(m0_mutex_is_not_locked(&dom->nd_mutex));
 
 	/* get max buffer size */
@@ -684,15 +675,11 @@ static void test_net_bulk_if(void)
 	m0tt_to_period = m0_time(120, 0); /* 2 min */
 
 	/* TM init with callbacks */
-	rc = m0_net_tm_init(tm, dom, &m0_addb_gmc, &m0_addb_proc_ctx);
+	rc = m0_net_tm_init(tm, dom);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ut_tm_init_called);
 	M0_UT_ASSERT(tm->ntm_state == M0_NET_TM_INITIALIZED);
 	M0_UT_ASSERT(m0_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
-	M0_UT_ASSERT(tm->ntm_addb_ctx.ac_type == &m0_addb_ct_net_tm);
-	M0_UT_ASSERT(tm->ntm_addb_ctx.ac_parent == &m0_addb_proc_ctx);
-	M0_UT_ASSERT(tm->ntm_addb_mc == &m0_addb_gmc);
-
 	/* should be able to fini it immediately */
 	ut_tm_fini_called = false;
 	m0_net_tm_fini(tm);
@@ -702,7 +689,7 @@ static void test_net_bulk_if(void)
 	/* should be able to init it again */
 	ut_tm_init_called = false;
 	ut_tm_fini_called = false;
-	rc = m0_net_tm_init(tm, dom, &m0_addb_gmc, &m0_addb_proc_ctx);
+	rc = m0_net_tm_init(tm, dom);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ut_tm_init_called);
 	M0_UT_ASSERT(tm->ntm_state == M0_NET_TM_INITIALIZED);
@@ -899,10 +886,6 @@ static void test_net_bulk_if(void)
 			M0_UT_ASSERT(nb->nb_msgs_received == 1);
 	}
 	M0_UT_ASSERT(m0_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
-	M0_UT_ASSERT(m0_addb_counter_nr(&tm->ntm_cntr_msg)  == 2);
-	M0_UT_ASSERT(m0_addb_counter_nr(&tm->ntm_cntr_data) == 4);
-	M0_UT_ASSERT(m0_addb_counter_nr(&tm->ntm_cntr_rb) == 1);
-
 	/* add a buffer and fake del - check callback */
 	nb = &nbs[M0_NET_QT_PASSIVE_BULK_SEND];
 	M0_UT_ASSERT(!(nb->nb_flags & M0_NET_BUF_QUEUED));
@@ -1033,12 +1016,6 @@ static void test_net_bulk_if(void)
 					     reuse_cnt + 1);
 		}
 	}
-	M0_UT_ASSERT(m0_addb_counter_nr(&tm->ntm_cntr_msg)
-		     == 2 + 2 * NUM_REUSES);
-	M0_UT_ASSERT(m0_addb_counter_nr(&tm->ntm_cntr_data)
-		     == 4 + 4 * NUM_REUSES);
-	M0_UT_ASSERT(m0_addb_counter_nr(&tm->ntm_cntr_rb) == NUM_REUSES);
-
 	/* free end point */
 	M0_UT_ASSERT(m0_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
 	m0_net_end_point_put(ep2);
@@ -1061,22 +1038,6 @@ static void test_net_bulk_if(void)
 
 	/* de-register channel waiter */
 	m0_clink_fini(&tmwait);
-
-	/* save stats and test that the post ADDB stats call resets
-	 * all stats.
-	 */
-	rc = m0_net_tm_stats_get(tm, M0_NET_QT_NR, qs, false);
-	M0_UT_ASSERT(rc == 0);
-	i = M0_NET_QT_PASSIVE_BULK_SEND;
-	M0_UT_ASSERT(qs[i].nqs_num_adds == num_adds[i]);
-	M0_UT_ASSERT(tm->ntm_qstats[i].nqs_num_adds == num_adds[i]);
-	m0_net_tm_stats_post_addb(tm);
-	M0_UT_ASSERT(tm->ntm_qstats[i].nqs_num_adds == 0);
-	M0_UT_ASSERT(m0_addb_counter_nr(&tm->ntm_cntr_msg) == 0);
-	M0_UT_ASSERT(m0_addb_counter_nr(&tm->ntm_cntr_data) == 0);
-	M0_UT_ASSERT(m0_addb_counter_nr(&tm->ntm_cntr_rb) == 0);
-	for (i = 0; i < M0_NET_QT_NR; ++i)
-		tm->ntm_qstats[i] = qs[i]; /* restore */
 
 	/* get stats (specific queue, then all queues) */
 	i = M0_NET_QT_PASSIVE_BULK_SEND;
@@ -1143,7 +1104,7 @@ static void test_net_bulk_if(void)
 	/* restart the TM */
 	ut_tm_init_called = false;
 	ut_tm_fini_called = false;
-	rc = m0_net_tm_init(tm, dom, &m0_addb_gmc, &m0_addb_proc_ctx);
+	rc = m0_net_tm_init(tm, dom);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ut_tm_init_called);
 	M0_UT_ASSERT(tm->ntm_state == M0_NET_TM_INITIALIZED);

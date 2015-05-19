@@ -2,7 +2,6 @@ nobase_mero_include_HEADERS += layout/layout.h \
                                   layout/pdclust.h \
                                   layout/composite.h \
                                   layout/linear_enum.h \
-                                  layout/layout_addb.h \
                                   layout/layout_pver.h
 
 mero_libmero_la_SOURCES  += layout/layout.c \

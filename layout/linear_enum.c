@@ -89,7 +89,6 @@ static int linear_allocate(struct m0_layout_domain *dom,
 err1_injected:
 	if (lin_enum == NULL) {
 		m0_layout__log("linear_allocate", "M0_ALLOC_PTR() failed",
-			       M0_LAYOUT_ADDB_LOC_LIN_ALLOC, NULL,
 			       LID_NONE, -ENOMEM);
 		return M0_ERR(-ENOMEM);
 	}

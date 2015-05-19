@@ -26,7 +26,6 @@
 #include "lib/arith.h"
 #include "fid/fid_xc.h"
 #include "xcode/xcode.h"
-#include "rm/rm_addb.h"
 #include "file/file.h"
 
 /**
@@ -299,7 +298,7 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
 	M0_ENTRY();
 	M0_PRE(resource != NULL);
 
-	M0_ADDB2_IN(M0_RM_ADDB2_FILE_ALLOC, M0_ALLOC_PTR(fl));
+	M0_ALLOC_PTR(fl);
 	if (fl == NULL)
 		return M0_ERR(-ENOMEM);
 	rc = file_lock_encdec(fl, cur, M0_XCODE_DECODE);

@@ -903,8 +903,6 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	M0_ENTRY("item=%p xid=%llu machine=%p", item,
 		 (unsigned long long)item->ri_header.osr_xid, machine);
 
-	m0_addb_counter_update(&machine->rm_cntr_rcvd_item_sizes,
-			       (uint64_t)m0_rpc_item_size(item));
 	++machine->rm_stats.rs_nr_rcvd_items;
 
 	if (m0_rpc_item_is_oneway(item)) {

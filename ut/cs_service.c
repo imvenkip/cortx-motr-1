@@ -18,8 +18,6 @@
  * Original creation date: 12/10/2011
  */
 
-#include "addb/addb.h"
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 
@@ -57,11 +55,10 @@ static const struct m0_reqh_service_ops ds2_service_ops = {
 	.rso_fini  = ds_service_fini
 };
 
-M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 M0_REQH_SERVICE_TYPE_DEFINE(ds1_service_type, &ds1_service_type_ops, "ds1",
-			     &m0_addb_ct_ut_service, 2, 0);
+			    2, 0);
 M0_REQH_SERVICE_TYPE_DEFINE(ds2_service_type, &ds2_service_type_ops, "ds2",
-			     &m0_addb_ct_ut_service, 2, 0);
+			    2, 0);
 
 struct m0_reqh_service_type *m0_cs_default_stypes[] = {
 	&ds1_service_type,

@@ -30,7 +30,6 @@
 #include "lib/rwlock.h"
 #include "lib/refs.h"
 #include "lib/bitstring.h"
-#include "addb/addb.h"
 #include "fid/fid.h"
 #include "mdservice/md_fid.h"
 #include "be/btree.h"
@@ -513,7 +512,6 @@ struct m0_cob {
 	struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
 	struct m0_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
 	struct m0_cob_omgrec   co_omgrec;   /**< permission data */
-	struct m0_addb_ctx     co_addb;     /**< cob private addb ctx */
 };
 
 /**

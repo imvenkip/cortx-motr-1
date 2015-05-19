@@ -164,15 +164,6 @@ static int dummy_acc_cp_fom_tick(struct m0_fom *fom)
 	}
 }
 
-static void dummy_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-        /**
-         * @todo: Do the actual impl, need to set MAGIC, so that
-         * m0_fom_init() can pass
-         */
-        fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static void single_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
@@ -191,24 +182,22 @@ static void multiple_cp_fom_fini(struct m0_fom *fom)
 static struct m0_fom_ops single_cp_fom_ops = {
 	.fo_fini          = single_cp_fom_fini,
 	.fo_tick          = dummy_fom_tick,
-	.fo_home_locality = dummy_fom_locality,
-	.fo_addb_init     = dummy_fom_addb_init
+	.fo_home_locality = dummy_fom_locality
 };
 
 static struct m0_fom_ops acc_cp_fom_ops = {
 	.fo_fini          = single_cp_fom_fini,
 	.fo_tick          = dummy_acc_cp_fom_tick,
-	.fo_home_locality = dummy_fom_locality,
-	.fo_addb_init     = dummy_fom_addb_init
+	.fo_home_locality = dummy_fom_locality
 };
 
 /* Over-ridden copy packet FOM ops. */
 static struct m0_fom_ops multiple_cp_fom_ops = {
 	.fo_fini          = multiple_cp_fom_fini,
 	.fo_tick          = dummy_fom_tick,
-	.fo_home_locality = dummy_fom_locality,
-	.fo_addb_init     = dummy_fom_addb_init
+	.fo_home_locality = dummy_fom_locality
 };
+
 /*
 static bool dummy_xform_ut_accumulator_is_full(const struct m0_sns_cm_ag *sag,
 					       int xform_cp_nr)

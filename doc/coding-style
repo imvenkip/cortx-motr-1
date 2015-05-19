@@ -364,9 +364,9 @@ try to adhere to some higher level idioms.
       describe important error conditions; preferably it should be
       done close to the place where the error is detected:
 
-        reply = m0_fop_alloc(&m0_addb_reply_fopt, NULL);
+        reply = m0_fop_alloc(&m0_reply_fopt, NULL);
         if (reply == NULL)
-                M0_LOG(M0_ERROR, "failed to allocate addb reply fop");
+                M0_LOG(M0_ERROR, "failed to allocate reply fop");
 
       try to describe error using current context, and not a low-level
       (which might be already logged by the other func), for example

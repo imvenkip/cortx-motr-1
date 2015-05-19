@@ -26,7 +26,6 @@
 #include "lib/misc.h"                     /* M0_IN */
 #include "lib/thread.h"
 
-#include "addb/addb.h"
 #include "sm/sm.h"
 
 static struct m0_sm_group G;

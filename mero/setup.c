@@ -46,7 +46,6 @@
 #include "mero/version.h"
 #include "rpc/rpclib.h"
 #include "rpc/rpc_internal.h"
-#include "addb/addb_monitor.h"
 #include "addb2/storage.h"
 #include "addb2/net.h"
 #include "module/instance.h"	/* m0_get */
@@ -84,7 +83,7 @@ M0_INTERNAL const char *m0_cs_stypes[M0_STOB_TYPE_NR] = {
 	[M0_AD_STOB]    = "AD"
 };
 
-M0_INTERNAL const uint64_t m0_addb_stob_key = M0_ADDB_STOB_KEY;
+M0_INTERNAL const uint64_t m0_addb_stob_key = M0_ADDB2_STOB_KEY - 1;
 M0_INTERNAL const uint64_t m0_addb2_stob_key = M0_ADDB2_STOB_KEY;
 
 static bool reqh_context_check(const void *bob);
@@ -120,7 +119,6 @@ static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
 				  m0_streq(rctx->rc_services[i], "confd")),
 			rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0')) &&
 		_0C(rctx->rc_stype != NULL) && _0C(rctx->rc_stpath != NULL) &&
-		_0C(rctx->rc_addb_stlocation != NULL) &&
 		_0C(rctx->rc_bepath != NULL) &&
 		_0C(ergo(rctx->rc_nr_services != 0, rctx->rc_services != NULL &&
 			 !cs_eps_tlist_is_empty(&rctx->rc_eps)));
@@ -1083,13 +1081,6 @@ static int cs_addb_stob_init(struct m0_reqh_context *rctx,
 	return rc;
 }
 
-/**
-   Initializes storage for ADDB depending on the type of specified
-   while running m0d. It also creates a hard-coded stob on
-   top of the stob(linux/AD), that is passed to
-   @see m0_addb_mc_configure_stob_sink() that is used by ADDB machine
-   to store the ADDB recs.
- */
 static int cs_addb_storage_init(struct m0_reqh_context *rctx,
 				struct cs_addb_stob *addb_stob,
 				uint64_t key, bool mkfs, bool force)
@@ -1131,12 +1122,6 @@ out:
 static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
 {
 	m0_stob_put(addb_stob->cas_stob);
-	/* cs_storage_fini fini's the dom, which is shared with gmc */
-	if (m0_addb_mc_is_initialized(&m0_addb_gmc) &&
-	    m0_addb_mc_has_recsink(&m0_addb_gmc)) {
-		m0_addb_mc_fini(&m0_addb_gmc);
-		m0_addb_mc_init(&m0_addb_gmc);
-	}
 	cs_storage_fini(&addb_stob->cas_stobs);
 }
 
@@ -1229,12 +1214,6 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
 
-	/** @todo Pass in a parent ADDB context for the be. Ideally should
-	    be same parent as that of the reqh.
-	    But, we'd also want the db to use the same addb m/c as the reqh.
-	    Needs work.
-	 */
-
 	rc = M0_REQH_INIT(&rctx->rc_reqh, .rhia_mdstore = &rctx->rc_mdstore);
 	if (rc != 0)
 		goto out;
@@ -1284,15 +1263,10 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 	if (rc != 0)
 		goto cleanup_addb_stob;
 
-	rc = m0_reqh_addb_mc_config(&rctx->rc_reqh,
-				    rctx->rc_addb_stob.cas_stob);
-	if (rc != 0)
-		goto cleanup_addb2_stob;
-
 	rc = m0_reqh_addb2_init(&rctx->rc_reqh, rctx->rc_addb2_stob.cas_stob,
 				mkfs);
 	if (rc != 0)
-		goto cleanup_addb_mc;
+		goto cleanup_addb2_stob;
 
 	rctx->rc_cdom_id.id = ++cdom_id;
 
@@ -1335,8 +1309,6 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 
 cleanup_addb2:
 	m0_reqh_addb2_fini(&rctx->rc_reqh);
-cleanup_addb_mc:
-	m0_addb_mc_unconfigure(m0_fom_addb_mc());
 cleanup_addb2_stob:
 	m0_stob_put(rctx->rc_addb2_stob.cas_stob);
 cleanup_addb_stob:
@@ -1372,9 +1344,6 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	M0_PRE(rctx->rc_state == RC_INITIALISED);
 	M0_PRE(reqh_context_invariant(rctx));
 
-	if (reqh->rh_addb_monitoring_ctx.amc_stats_conn != NULL)
-		m0_addb_monitor_stats_svc_conn_fini(reqh);
-
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown_wait(reqh);
 
@@ -1386,7 +1355,6 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	m0_mdstore_fini(&rctx->rc_mdstore);
 	m0_reqh_addb2_fini(reqh);
 	m0_stob_put(rctx->rc_addb2_stob.cas_stob);
-	m0_addb_mc_unconfigure(m0_fom_addb_mc());
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
 	cs_storage_fini(&rctx->rc_stob);
 	cs_be_fini(&rctx->rc_be);
@@ -1949,25 +1917,10 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 int m0_cs_start(struct m0_mero *cctx)
 {
 	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
-	int                     rc;
 
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
-
-	rc = reqh_services_start(rctx);
-
-	/**
-	 * @todo: stats connection initialization should be done
-	 * in addb pfom, currently not being done due to some initialization
-	 * ordering issues.
-	 *
-	 * @see http://reviewboard.clusterstor.com/r/1544
-	 */
-	if (cctx->cc_stats_svc_epx.ex_endpoint != NULL)
-		/** @todo Log ADDB message in case of non-zero return value. */
-		(void)m0_addb_monitor_stats_svc_conn_init(&rctx->rc_reqh);
-
-	return M0_RC(rc);
+	return M0_RC(reqh_services_start(rctx));
 }
 
 int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,

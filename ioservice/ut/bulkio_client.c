@@ -81,7 +81,7 @@ static void bulkio_msg_tm_init(struct bulkio_msg_tm *bmt,
 
 	tm->ntm_state = M0_NET_TM_UNDEFINED;
 	tm->ntm_callbacks = &bulkio_ut_tm_cb;
-	rc = m0_net_tm_init(tm, nd, &m0_addb_gmc, &m0_addb_proc_ctx);
+	rc = m0_net_tm_init(tm, nd);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_clink_init(&clink, NULL);

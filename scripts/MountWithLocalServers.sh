@@ -105,7 +105,7 @@ for ((i=0; i < ${#EP[*]}; i++)) ; do
 	(cd $WORK_ARENA/d$i
 	$HERE/mero/m0d -T ${STOB_TYPE} -D $WORK_ARENA/d$i/db \
 		       -S $WORK_ARENA/d$i/stobs -e $XPT:${EP[$i]} \
-		       -s addb -s addb2 -s ioservice \
+		       -s addb2 -s ioservice \
 	    -s sns_repair -m 163840 -q 16 &>>$WORK_ARENA/servers_started )&
 done
 

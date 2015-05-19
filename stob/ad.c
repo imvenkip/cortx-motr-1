@@ -46,7 +46,6 @@
 #include "stob/module.h"	/* m0_stob_ad_module */
 #include "stob/stob.h"
 #include "stob/stob_internal.h"	/* m0_stob__fid_set */
-#include "stob/stob_addb.h"	/* M0_STOB_OOM */
 #include "stob/type.h"		/* m0_stob_type */
 #include "be/domain.h"
 
@@ -458,10 +457,8 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	m0_be_tx_fini(&tx);
 	m0_sm_group_unlock(grp);
 
-	if (adom == NULL && rc == 0) {
-		M0_STOB_OOM(AD_DOM_LOCATE);
-		rc = -ENOMEM;
-	}
+	if (adom == NULL && rc == 0)
+		rc = M0_ERR(-ENOMEM);
 
 	return M0_RC(rc);
 }
@@ -915,8 +912,7 @@ static int stob_ad_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 		m0_clink_add_lock(&aio->ai_back.si_wait, &aio->ai_clink);
 		rc = 0;
 	} else {
-		M0_STOB_OOM(AD_IO_INIT);
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 	}
 	return M0_RC(rc);
 }
@@ -993,9 +989,6 @@ M0_INTERNAL int stob_ad_cursor(struct m0_stob_ad_domain *adom,
 		&it->ec_op,
 		m0_be_emap_lookup(&adom->sad_adata, &prefix, offset, it),
 		bo_u.u_emap.e_rc);
-	if (rc != 0 && rc != -ENOENT && rc != -ESRCH)
-		M0_STOB_FUNC_FAIL(AD_CURSOR, rc);
-
 	return M0_RC(rc);
 }
 
@@ -1171,7 +1164,6 @@ static int stob_ad_vec_alloc(struct m0_stob *obj,
 			m0_free(counts);
 			m0_free(back->si_user.ov_buf);
 			m0_free(back->si_stob.iv_index);
-			M0_STOB_OOM(AD_VEC_ALLOC);
 			rc = M0_ERR(-ENOMEM);
 		}
 	}
@@ -1257,21 +1249,17 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 		 */
 		M0_ASSERT(off >= car->ct_index);
 		eomap = m0_be_emap_caret_move_sync(car, off - car->ct_index);
-		if (eomap < 0) {
-			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_1, eomap);
+		if (eomap < 0)
 			return eomap;
-		}
-		M0_ASSERT(!eomap);
+		M0_ASSERT(eomap == 0);
 		M0_ASSERT(m0_ext_is_in(&seg->ee_ext, off));
 
 		frag_size = min3(m0_vec_cursor_step(src),
 				 m0_vec_cursor_step(dst),
 				 m0_be_emap_caret_step(car));
 		M0_ASSERT(frag_size > 0);
-		if (frag_size > (size_t)~0ULL) {
-			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_2, -EOVERFLOW);
+		if (frag_size > (size_t)~0ULL)
 			return M0_ERR(-EOVERFLOW);
-		}
 
 		frags++;
 		if (seg->ee_val < AET_MIN)
@@ -1280,10 +1268,8 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 		eosrc = m0_vec_cursor_move(src, frag_size);
 		eodst = m0_vec_cursor_move(dst, frag_size);
 		eomap = m0_be_emap_caret_move_sync(car, frag_size);
-		if (eomap < 0) {
-			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_3, eomap);
+		if (eomap < 0)
 			return eomap;
-		}
 
 		M0_ASSERT(eosrc == eodst);
 		M0_ASSERT(!eomap);
@@ -1311,11 +1297,9 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 
 		M0_ASSERT(off >= car->ct_index);
 		eomap = m0_be_emap_caret_move_sync(car, off - car->ct_index);
-		if (eomap < 0) {
-			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_4, eomap);
+		if (eomap < 0)
 			return eomap;
-		}
-		M0_ASSERT(!eomap);
+		M0_ASSERT(eomap == 0);
 		M0_ASSERT(m0_ext_is_in(&seg->ee_ext, off));
 
 		frag_size = min3(m0_vec_cursor_step(src),
@@ -1348,10 +1332,8 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 		m0_vec_cursor_move(src, frag_size);
 		m0_vec_cursor_move(dst, frag_size);
 		rc = m0_be_emap_caret_move_sync(car, frag_size);
-		if (rc < 0) {
-			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_5, eomap);
+		if (rc < 0)
 			break;
-		}
 		M0_ASSERT(rc == 0);
 	}
 	M0_ASSERT(ergo(rc == 0, idx == frags_not_empty));
@@ -1769,7 +1751,6 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 				wext->we_next = next;
 				wext = next;
 			} else {
-				M0_STOB_OOM(AD_WRITE_LAUNCH);
 				rc = M0_ERR(-ENOMEM);
 				break;
 			}

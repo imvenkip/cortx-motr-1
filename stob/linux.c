@@ -38,7 +38,6 @@
 #include "lib/fs.h"			/* m0_cleandir */
 
 #include "stob/type.h"			/* m0_stob_type_id_get */
-#include "stob/stob_addb.h"		/* M0_STOB_OOM */
 #include "stob/ioq.h"			/* m0_stob_ioq_init */
 
 /**
@@ -252,8 +251,6 @@ static int stob_linux_domain_init(struct m0_stob_type *type,
 		m0_stob_domain__dom_id_make(&dom_id, type_id, 0, dom_key);
 		m0_stob_domain__id_set(&ldom->sld_dom, &dom_id);
 	}
-	if (rc == -ENOMEM)
-		M0_STOB_OOM(LS_DOM_LOCATE);
 	if (rc != 0) {
 		m0_free(path);
 		m0_free(ldom);

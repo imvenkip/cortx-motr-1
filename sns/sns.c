@@ -17,7 +17,6 @@
  * Original creation date: 03/30/2010
  */
 
-#include "sns/sns_addb.h"
 #include "sns/sns.h"
 #include "sns/cm/trigger_fop_xc.h"
 #include "sns/cm/sw_onwire_fop_xc.h"
@@ -27,21 +26,6 @@
 
 M0_INTERNAL int m0_sns_init()
 {
-        m0_addb_ctx_type_register(&m0_addb_ct_sns_mod);
-        m0_addb_ctx_type_register(&m0_addb_ct_sns_cm);
-        m0_addb_ctx_type_register(&m0_addb_ct_sns_ag);
-        m0_addb_ctx_type_register(&m0_addb_ct_sns_cp);
-
-        m0_addb_rec_type_register(&m0_addb_rt_sns_cm_buf_nr);
-        m0_addb_rec_type_register(&m0_addb_rt_sns_ag_alloc);
-        m0_addb_rec_type_register(&m0_addb_rt_sns_ag_fini);
-        m0_addb_rec_type_register(&m0_addb_rt_sns_sw_update);
-        m0_addb_rec_type_register(&m0_addb_rt_sns_iter_next_gfid);
-        m0_addb_rec_type_register(&m0_addb_rt_sns_ag_info);
-        m0_addb_rec_type_register(&m0_addb_rt_sns_cp_info);
-	m0_addb_rec_type_register(&m0_addb_rt_sns_repair_info);
-	m0_addb_rec_type_register(&m0_addb_rt_sns_repair_progress);
-
 	return m0_sns_cm_type_register();
 }
 

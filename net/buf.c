@@ -35,10 +35,6 @@
    @{
  */
 
-const struct m0_addb_ctx_type m0_net_buffer_addb_ctx = {
-	.act_name = "net-buffer"
-};
-
 M0_INTERNAL bool m0_net__qtype_is_valid(enum m0_net_queue_type qt)
 {
 	return qt >= M0_NET_QT_MSG_RECV && qt < M0_NET_QT_NR;
@@ -95,8 +91,6 @@ M0_INTERNAL int m0_net_buffer_register(struct m0_net_buffer *buf,
 	if (rc == 0) {
 		buf->nb_flags |= M0_NET_BUF_REGISTERED;
 		m0_list_add_tail(&dom->nd_registered_bufs,&buf->nb_dom_linkage);
-	} else {
-		NET_ADDB_FUNCFAIL(rc, BUF_REG, &dom->nd_addb_ctx);
 	}
 
 	M0_POST(ergo(rc == 0, m0_net__buffer_invariant(buf)));
@@ -256,8 +250,6 @@ M0_INTERNAL int m0_net_buffer_add(struct m0_net_buffer *buf,
 	m0_mutex_lock(&tm->ntm_mutex);
 	rc = m0_net__buffer_add(buf, tm);
 	m0_mutex_unlock(&tm->ntm_mutex);
-	if (rc != 0)
-		NET_ADDB_FUNCFAIL(rc, BUF_ADD, &tm->ntm_addb_ctx);
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_net_buffer_add);
@@ -365,10 +357,6 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 			len = ev->nbe_length;
 		else
 			len = buf->nb_length;
-		if (M0_IN(qtype, (M0_NET_QT_MSG_RECV, M0_NET_QT_MSG_SEND)))
-			m0_addb_counter_update(&tm->ntm_cntr_msg, len);
-		else
-			m0_addb_counter_update(&tm->ntm_cntr_data, len);
 	}
 	if (!retain) {
 		tdiff = m0_time_sub(ev->nbe_time, buf->nb_add_time);
@@ -385,9 +373,6 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 			check_ep = true;
 			ep = ev->nbe_ep; /* from event */
 			++buf->nb_msgs_received;
-			if (!retain)
-				m0_addb_counter_update(&tm->ntm_cntr_rb,
-						       buf->nb_msgs_received);
 		}
 		if (!retain && tm->ntm_state == M0_NET_TM_STARTED &&
 		    tm->ntm_recv_pool != NULL)

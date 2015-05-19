@@ -366,18 +366,16 @@ M0_INTERNAL uint32_t m0_indexvec_pack(struct m0_indexvec *iv)
 }
 
 M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec,
-				  uint32_t len,
-				  struct m0_addb_ctx *ctx,
-				  const unsigned loc)
+				  uint32_t len)
 {
 	M0_PRE(ivec != NULL);
 	M0_PRE(len   > 0);
 
-	M0_ALLOC_ARR_ADDB(ivec->iv_index, len, &m0_addb_gmc, loc, ctx);
+	M0_ALLOC_ARR(ivec->iv_index, len);
 	if (ivec->iv_index == NULL)
 		return M0_ERR(-ENOMEM);
 
-	M0_ALLOC_ARR_ADDB(ivec->iv_vec.v_count, len, &m0_addb_gmc, loc, ctx);
+	M0_ALLOC_ARR(ivec->iv_vec.v_count, len);
 	if (ivec->iv_vec.v_count == NULL) {
 		m0_free(ivec->iv_index);
 		return M0_ERR(-ENOMEM);
@@ -797,8 +795,6 @@ M0_INTERNAL int m0_indexvec_split(struct m0_indexvec	*in,
 				  m0_bcount_t            curr_pos,
 				  m0_bcount_t            nb_len,
 				  uint32_t               bshift,
-				  struct m0_addb_ctx    *ctx,
-				  const unsigned	 loc,
 				  struct m0_indexvec    *out)
 {
 	int		    rc;
@@ -808,19 +804,16 @@ M0_INTERNAL int m0_indexvec_split(struct m0_indexvec	*in,
 	M0_PRE(out != NULL);
 
 	nr = ivec_nr_or_prepare(in, curr_pos, nb_len, bshift, NULL);
-	rc = m0_indexvec_alloc(out, nr, ctx, loc);
+	rc = m0_indexvec_alloc(out, nr);
 	if (rc == 0)
 		ivec_nr_or_prepare(in, curr_pos, nb_len, bshift, out);
-
-        return M0_RC(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
 				     int		    max_frags_nr,
 				     uint32_t               bshift,
-				     struct m0_addb_ctx    *ctx,
-				     const unsigned	    loc,
-				     struct m0_indexvec	   *mem_ivec)
+				     struct m0_indexvec    *mem_ivec)
 {
 	int	     rc;
 	int	     i;
@@ -830,7 +823,7 @@ M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
 	M0_PRE(wire_ivec != NULL);
 	M0_PRE(mem_ivec != NULL);
 
-	rc = m0_indexvec_alloc(mem_ivec, max_frags_nr, ctx, loc);
+	rc = m0_indexvec_alloc(mem_ivec, max_frags_nr);
 	if (rc != 0)
 		return M0_RC(rc);
 
@@ -846,14 +839,12 @@ M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
 	return 0;
 }
 
-M0_INTERNAL int m0_indexvec_universal_set(struct m0_indexvec *iv,
-					  struct m0_addb_ctx *ctx,
-					  const unsigned loc)
+M0_INTERNAL int m0_indexvec_universal_set(struct m0_indexvec *iv)
 {
 	int rc;
 
-	M0_PRE(iv != NULL && ctx != NULL);
-	rc = m0_indexvec_alloc(iv, 1, ctx, loc);
+	M0_PRE(iv != NULL);
+	rc = m0_indexvec_alloc(iv, 1);
 	if (rc != 0)
 		return rc;
 	iv->iv_index[0]       = 0;

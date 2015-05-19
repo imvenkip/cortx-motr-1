@@ -31,9 +31,6 @@
 #include "lib/linux_kernel/vec.h"
 #endif
 
-/* import */
-struct m0_addb_ctx;
-
 /**
    @defgroup vec Vectors
    @{
@@ -253,15 +250,11 @@ M0_INTERNAL uint32_t m0_bufvec_pack(struct m0_bufvec *bufvec);
 /**
  * Allocate memory for index array and counts array in index vector.
  * @param len Number of elements to allocate memory for.
- * @param ctx Addb context to log addb messages in case of failure.
- * @param loc Context relative addb location.
  * @pre   ivec != NULL && len > 0.
  * @post  ivec->iv_index != NULL && ivec->iv_vec.v_count != NULL &&
  *        ivec->iv_vec.v_nr == len.
  */
-M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec, uint32_t len,
-				  struct m0_addb_ctx *ctx,
-				  const unsigned loc);
+M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec, uint32_t len);
 
 /**
  * Deallocates the memory buffers pointed to by index array and counts array.
@@ -561,8 +554,6 @@ M0_INTERNAL m0_bcount_t m0_io_count(const struct m0_io_indexvec *io_info);
  * @param curr_pos Start position for new indexvec.
  * @param nb_len Size of the data for new indexvec.
  * @param bshift Shift value for the data to align index vecs.
- * @param ctc Addb context.
- * @param addb_loc Addb location.
  *
  * @pre in != NULL
  * @pre out != NULL
@@ -571,8 +562,6 @@ M0_INTERNAL int m0_indexvec_split(struct m0_indexvec    *in,
 				  m0_bcount_t            curr_pos,
 				  m0_bcount_t            nb_len,
 				  uint32_t               bshift,
-				  struct m0_addb_ctx    *ctx,
-				  const unsigned	 loc,
 				  struct m0_indexvec    *out);
 
 /**
@@ -583,30 +572,22 @@ M0_INTERNAL int m0_indexvec_split(struct m0_indexvec    *in,
  * @param wire_ivec Indexvec wire format.
  * @param mem_ivec Indexvec memory format.
  * @param max_frags_nr Number of fragments from the wire_ivec.
- * @param ctc Addb context.
- * @param addb_loc Addb location.
  *
  * @pre wire_ive != NULL
  * @pre mem_ivec != NULL
  */
 M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
-				     int		    max_frags_nr,
+				     int                    max_frags_nr,
 				     uint32_t               bshift,
-				     struct m0_addb_ctx    *ctx,
-				     const unsigned	    addb_loc,
-				     struct m0_indexvec	   *mem_ivec);
+				     struct m0_indexvec    *mem_ivec);
 
 /**
  * Creates an indexvec with a single extent, which spans the range [0. ~0).
  * Since the range spanned by this indexvec represents union of all possible
  * ranges that any indexvec can hold, it is referred as a universal indexvec.
  * @param iv  Input indexvec.
- * @param ctx Addb context required to log addb messages.
- * @param loc Addb location relative to the context.
  */
-M0_INTERNAL int m0_indexvec_universal_set(struct m0_indexvec *iv,
-					  struct m0_addb_ctx *ctx,
-					  const unsigned loc);
+M0_INTERNAL int m0_indexvec_universal_set(struct m0_indexvec *iv);
 
 /**
  * Returns true if the input indexvec is universal.

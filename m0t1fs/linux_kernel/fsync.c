@@ -40,7 +40,6 @@
 #include "m0t1fs/linux_kernel/file_internal.h"
 
 #include "m0t1fs/linux_kernel/fsync.h"  /* m0t1fs_fsync_interactions */
-#include "m0t1fs/m0t1fs_addb.h"         /* m0t1fs_addb_ctx */
 
 M0_TL_DESCR_DEFINE(fpf, "m0t1fs_fsync_fop_wrappers pending fsync-fops",
                    static, struct m0t1fs_fsync_fop_wrapper, ffw_tlink,
@@ -285,10 +284,9 @@ int m0t1fs_fsync_core(struct m0t1fs_inode *inode, enum m0_fsync_mode mode)
 		if (iter->stx_tri.tri_txid == 0)
 			continue;
 
-		M0_ALLOC_PTR_ADDB(ffw, &m0_addb_gmc,
-		                  M0T1FS_ADDB_FFW_ALLOC, &m0t1fs_addb_ctx);
+		M0_ALLOC_PTR(ffw);
 		if (ffw == NULL) {
-			saved_error = -ENOMEM;
+			saved_error = M0_ERR(-ENOMEM);
 			break;
 		}
 
@@ -412,9 +410,7 @@ void m0t1fs_fsync_record_update(struct m0_reqh_service_ctx *service,
 			/*
 			 * not found - add a new record
 			 */
-			M0_ALLOC_PTR_ADDB(stx, &m0_addb_gmc,
-			                  M0T1FS_ADDB_SPTR_ALLOC,
-					  &m0t1fs_addb_ctx);
+			M0_ALLOC_PTR(stx);
 			if (stx != NULL) {
 				stx->stx_service_ctx = service;
 				stx->stx_tri = *btr;
@@ -487,10 +483,9 @@ int m0t1fs_sync_fs(struct super_block *sb, int wait)
 			continue;
 		}
 
-		M0_ALLOC_PTR_ADDB(ffw, &m0_addb_gmc,
-		                  M0T1FS_ADDB_FFW_ALLOC, &m0t1fs_addb_ctx);
+		M0_ALLOC_PTR(ffw);
 		if (ffw == NULL) {
-			saved_error = -ENOMEM;
+			saved_error = M0_ERR(-ENOMEM);
 			m0_mutex_unlock(&iter->sc_max_pending_tx_lock);
 			break;
 		}

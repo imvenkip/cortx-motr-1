@@ -48,11 +48,6 @@
      Get a reference to the list of registered LNet interfaces, as strings.
    - m0_net_lnet_ifaces_put()
      Releases the reference to the list of registered LNet interfaces.
-   - m0_net_lnet_tm_stat_interval_set()
-     Sets the interval at which a started LNet transfer machine will generate
-     ADDB events with transfer machine statistics.
-   - m0_net_lnet_tm_stat_interval_get()
-     Gets the current statistics interval.
 
    The use of these subroutines is not mandatory.
 
@@ -155,27 +150,6 @@ M0_INTERNAL int m0_net_lnet_ifaces_get(struct m0_net_domain *dom,
  */
 M0_INTERNAL void m0_net_lnet_ifaces_put(struct m0_net_domain *dom,
 					char *const **addrs);
-
-/**
-   Sets the transfer machine statistics reporting interval.
-   By default, the interval is @c M0_NET_LNET_TM_STAT_INTERVAL_SECS seconds.
-   @param tm   Pointer to the transfer machine.
-   @param secs The interval in seconds. Must be greater than 0.
-   @pre tm->ntm_state >= M0_NET_TM_INITIALIZED &&
-   tm->ntm_state <= M0_NET_TM_STOPPING &&
-   secs > 0
- */
-M0_INTERNAL void m0_net_lnet_tm_stat_interval_set(struct m0_net_transfer_mc *tm,
-						  uint64_t secs);
-
-/**
-   Gets the transfer machine statistics reporting interval.
-   @param tm  Pointer to the transfer machine.
-   @pre tm->ntm_state >= M0_NET_TM_INITIALIZED &&
-   tm->ntm_state <= M0_NET_TM_STOPPING
- */
-M0_INTERNAL uint64_t m0_net_lnet_tm_stat_interval_get(struct m0_net_transfer_mc
-						      *tm);
 
 /* init and fini functions for mero init */
 M0_INTERNAL int m0_net_lnet_init(void);

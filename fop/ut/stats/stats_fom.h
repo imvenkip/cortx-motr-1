@@ -32,20 +32,13 @@ enum fom_stats_phase {
 	PH_RUN
 };
 
-enum {
-	ADDB_RECID_FOM_PHASE_STATS = 1777123,
-};
-
 /**
  * Object encompassing FOM for stats
  * operation and necessary context data
  */
 struct fom_stats {
 	/** Generic m0_fom object. */
-        struct m0_fom             fs_gen;
-
-	/** addb sm counter for states statistics */
-	struct m0_addb_sm_counter fs_phase_stats;
+	struct m0_fom fs_gen;
 };
 
 #endif /* __MERO_FOP_UT_STATS_FOM_H__ */

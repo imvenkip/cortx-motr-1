@@ -29,7 +29,6 @@
 #include "lib/tlist.h"
 #include "lib/thread.h"
 #include "sm/sm.h"     /* m0_sm_group */
-#include "addb/addb.h" /* m0_addb_ctx */
 #include "net/net.h"   /* m0_net_transfer_mc, m0_net_domain */
 
 /**
@@ -90,12 +89,7 @@ struct m0_rpc_machine {
 	 */
 	struct m0_tl			  rm_incoming_conns;
 	struct m0_tl			  rm_outgoing_conns;
-	/** ADDB context for this rpc_machine */
-	struct m0_addb_ctx		  rm_addb_ctx;
 	struct m0_rpc_stats		  rm_stats;
-	/* RPC Counters */
-	struct m0_addb_counter		  rm_cntr_sent_item_sizes;
-	struct m0_addb_counter		  rm_cntr_rcvd_item_sizes;
 	/**
 	    Request handler this rpc_machine belongs to.
 	    @todo There needs to be  generic mechanism to register a
@@ -182,13 +176,6 @@ void m0_rpc_machine_fini(struct m0_rpc_machine *machine);
 
 void m0_rpc_machine_get_stats(struct m0_rpc_machine *machine,
 			      struct m0_rpc_stats *stats, bool reset);
-
-/**
-   Subroutine to post ADDB statistics on the RPC machine.
-   Nothing should be posted if there was no activity since the last invocation
-   of this subroutine.
- */
-M0_INTERNAL void m0_rpc_machine_stats_post_addb(struct m0_rpc_machine *machine);
 
 M0_INTERNAL void
 m0_rpc_machine_drain_item_sources(struct m0_rpc_machine *machine);

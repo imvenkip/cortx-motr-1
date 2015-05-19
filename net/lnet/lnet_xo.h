@@ -89,9 +89,6 @@ struct nlx_xo_transfer_mc {
 	/** Transfer machine thread processor affinity */
 	struct m0_bitmap             xtm_processors;
 
-	/** statistics reporting interval, in nanoseconds */
-	m0_time_t                    xtm_stat_interval;
-
 	/** Event thread */
 	struct m0_thread             xtm_ev_thread;
 

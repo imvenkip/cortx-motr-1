@@ -60,7 +60,6 @@ static int    rpc_link_conn_fom_tick(struct m0_fom *fom);
 static void   rpc_link_conn_fom_fini(struct m0_fom *fom);
 static int    rpc_link_disc_fom_tick(struct m0_fom *fom);
 static void   rpc_link_disc_fom_fini(struct m0_fom *fom);
-static void   rpc_link_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 static size_t rpc_link_fom_locality(const struct m0_fom *fom);
 
 struct m0_fom_type rpc_link_conn_fom_type;
@@ -69,15 +68,13 @@ struct m0_fom_type rpc_link_disc_fom_type;
 const struct m0_fom_ops rpc_link_conn_fom_ops = {
 	.fo_fini          = rpc_link_conn_fom_fini,
 	.fo_tick          = rpc_link_conn_fom_tick,
-	.fo_home_locality = rpc_link_fom_locality,
-	.fo_addb_init     = rpc_link_fom_addb_init
+	.fo_home_locality = rpc_link_fom_locality
 };
 
 const struct m0_fom_ops rpc_link_disc_fom_ops = {
 	.fo_fini          = rpc_link_disc_fom_fini,
 	.fo_tick          = rpc_link_disc_fom_tick,
-	.fo_home_locality = rpc_link_fom_locality,
-	.fo_addb_init     = rpc_link_fom_addb_init
+	.fo_home_locality = rpc_link_fom_locality
 };
 
 static const struct m0_fom_type_ops rpc_link_conn_fom_type_ops = {
@@ -376,15 +373,6 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 	return M0_RC(rc);
 }
 
-
-static void rpc_link_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
 
 static void rpc_link_fom_fini_common(struct m0_fom *fom, bool connected)
 {

@@ -104,10 +104,10 @@ static int rpc_bulk_buf_init(struct m0_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 
 	rbuf->bb_flags = 0;
 	if (nb == NULL) {
-		RPC_ALLOC_PTR(rbuf->bb_nbuf, BULK_BUF_INIT, &m0_rpc_addb_ctx);
+		M0_ALLOC_PTR(rbuf->bb_nbuf);
 		if (rbuf->bb_nbuf == NULL) {
 			m0_0vec_fini(&rbuf->bb_zerovec);
-			return M0_RC(-ENOMEM);
+			return M0_ERR(-ENOMEM);
 		}
 		rbuf->bb_flags |= M0_RPC_BULK_NETBUF_ALLOCATED;
 		rbuf->bb_nbuf->nb_buffer = rbuf->bb_zerovec.z_bvec;
@@ -267,9 +267,9 @@ M0_INTERNAL int m0_rpc_bulk_buf_add(struct m0_rpc_bulk *rbulk,
 	if (segs_nr > m0_net_domain_get_max_buffer_segments(netdom))
 		return M0_ERR_INFO(-EMSGSIZE, "Cannot exceed net_max_buf_seg");
 
-	RPC_ALLOC_PTR(buf, BULK_BUF_ADD, &m0_rpc_addb_ctx);
+	M0_ALLOC_PTR(buf);
 	if (buf == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	rc = rpc_bulk_buf_init(buf, segs_nr, nb);
 	if (rc != 0) {
@@ -430,7 +430,6 @@ static int rpc_bulk_op(struct m0_rpc_bulk                   *rbulk,
 
 	return M0_RC(rc);
 cleanup:
-	RPC_ADDB_FUNCFAIL(rc, BULK_RPC_BULK_OP, &m0_rpc_addb_ctx);
 	M0_ASSERT(rc != 0);
 	rpcbulk_tlist_del(rbuf);
 	m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
@@ -438,7 +437,7 @@ cleanup:
 			m0_net_buffer_del(rbuf->bb_nbuf, tm);
 	} m0_tl_endfor;
 	m0_mutex_unlock(&rbulk->rb_mutex);
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL int

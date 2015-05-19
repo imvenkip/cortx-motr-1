@@ -109,7 +109,7 @@
    Stats service type definition :
 
    M0_REQH_SERVICE_TYPE_DEFINE(m0_stats_svc_type, &stats_service_type_ops,
-                            M0_STATS_SVC_NAME, &m0_addb_ct_stats_service, 2);
+                        M0_STATS_SVC_NAME, &m0_addb_ct_stats_service, 2, 0);
 
    Stats service type initialization/finalization :
 
@@ -165,12 +165,7 @@
    @section DLD-stats-svc-ref References
    - <a href="https://docs.google.com/a/xyratex.com/document/d/
 14uPeE0mNkRu3oF32Ys_EnpvSZtGWbf8hviPHTBTOXso/edit">
-   HLD of ADDB Monitoring</a>
-   - <a href="https://docs.google.com/a/seagate.com/document/d/1292NFNfJvSG8HRVs
-U3UrXRKcttGmvuJ_xlT9UE2pQek/edit">Mero Stats Service</a>
  */
-
-#include "stats/stats_addb.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STATS
 #include "lib/trace.h"
@@ -201,13 +196,12 @@ static const struct m0_bob_type stats_svc_bob = {
 
 M0_BOB_DEFINE(static, &stats_svc_bob, stats_svc);
 
-struct m0_addb_ctx stats_svc_addb_ctx;
 const struct m0_fom_type_ops stats_update_fom_type_ops;
 const struct m0_fom_type_ops stats_query_fom_type_ops;
 const struct m0_sm_conf stats_update_fom_sm_conf;
 const struct m0_sm_conf stats_query_fom_sm_conf;
 
-#define SUM_DATA_SIZE(sum_data) (sum_data->ss_data.au64s_nr * sizeof(uint64_t))
+#define SUM_DATA_SIZE(sum_data) (sum_data->ss_data.se_nr * sizeof(uint64_t))
 
 /*
  * Stats Service
@@ -250,7 +244,7 @@ static void stats_svc_rso_fini(struct m0_reqh_service *service)
 		M0_ASSERT(stats_obj != NULL);
 
 		stats_tlink_del_fini(stats_obj);
-		m0_free(stats_obj->s_sum.ss_data.au64s_data);
+		m0_free(stats_obj->s_sum.ss_data.se_data);
 		m0_free(stats_obj);
 	} m0_tl_endfor;
 
@@ -294,18 +288,13 @@ static const struct m0_reqh_service_type_ops stats_service_type_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_stats_svc_type, &stats_service_type_ops,
-			    M0_STATS_SVC_NAME, &m0_addb_ct_stats_svc, 2,
-			    M0_CST_STS);
+			    M0_STATS_SVC_NAME, 2, M0_CST_STS);
 
 /*
  * Public interfaces
  */
 M0_INTERNAL int m0_stats_svc_init(void)
 {
-	m0_addb_ctx_type_register(&m0_addb_ct_stats_svc);
-	m0_addb_ctx_type_register(&m0_addb_ct_stats_update_fom);
-	m0_addb_ctx_type_register(&m0_addb_ct_stats_query_fom);
-
 	return m0_reqh_service_type_register(&m0_stats_svc_type);
 
 }
@@ -323,18 +312,13 @@ static int stats_update_fom_create(struct m0_fop  *fop, struct m0_fom **out,
 static int stats_update_fom_tick(struct m0_fom *fom);
 void stats_update_fom_fini(struct m0_fom *fom);
 static size_t stats_fom_home_locality(const struct m0_fom *fom);
-static void stats_update_fom_addb_init(struct m0_fom     *fom,
-				       struct m0_addb_mc *mc);
 
 /**
  * Stats update FOM operation vector.
- *
- * @note addb_ut_mon_infra_test() patches this.
  */
 struct m0_fom_ops stats_update_fom_ops = {
 	.fo_tick          = stats_update_fom_tick,
 	.fo_home_locality = stats_fom_home_locality,
-	.fo_addb_init     = stats_update_fom_addb_init,
 	.fo_fini          = stats_update_fom_fini
 };
 
@@ -385,15 +369,14 @@ M0_INTERNAL struct m0_stats *m0_stats_get(struct m0_tl *stats_list, uint64_t id)
 static int stats_sum_copy(struct m0_stats_sum *s, struct m0_stats_sum *d)
 {
 	M0_PRE(s != NULL && d != NULL);
-	if (d->ss_data.au64s_nr == 0) {
-		M0_ALLOC_ARR(d->ss_data.au64s_data, s->ss_data.au64s_nr);
-		if (d->ss_data.au64s_data == NULL)
-			return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory.");
+	if (d->ss_data.se_data == 0) {
+		M0_ALLOC_ARR(d->ss_data.se_data, s->ss_data.se_nr);
+		if (d->ss_data.se_data == NULL)
+			return M0_ERR(-ENOMEM);
 	}
-
 	d->ss_id = s->ss_id;
-	d->ss_data.au64s_nr = s->ss_data.au64s_nr;
-	memcpy(d->ss_data.au64s_data, s->ss_data.au64s_data, SUM_DATA_SIZE(d));
+	d->ss_data.se_data = s->ss_data.se_data;
+	memcpy(d->ss_data.se_data, s->ss_data.se_data, SUM_DATA_SIZE(d));
 	return 0;
 }
 
@@ -534,16 +517,6 @@ static size_t stats_fom_home_locality(const struct m0_fom *fom)
 	return 1; /* all stats update FOM run in same locality */
 }
 
-/**
- * Initialize addb context of stats update FOM.
- */
-static void stats_update_fom_addb_init(struct m0_fom     *fom,
-				       struct m0_addb_mc *mc)
-{
-        M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_stats_update_fom,
-                         &fom->fo_service->rs_addb_ctx);
-}
-
 /*
  * Stats Query FOM
  */
@@ -551,15 +524,13 @@ static int    stats_query_fom_create(struct m0_fop  *fop, struct m0_fom **out,
 				     struct m0_reqh *reqh);
 static int    stats_query_fom_tick(struct m0_fom *fom);
 static void   stats_query_fom_fini(struct m0_fom *fom);
-static void   stats_query_fom_addb_init(struct m0_fom     *fom,
-				        struct m0_addb_mc *mc);
+
 /**
  * Stats update FOM operation vector.
  */
 static const struct m0_fom_ops stats_query_fom_ops = {
 	.fo_tick          = stats_query_fom_tick,
 	.fo_home_locality = stats_fom_home_locality,
-	.fo_addb_init     = stats_query_fom_addb_init,
 	.fo_fini          = stats_query_fom_fini
 };
 
@@ -594,24 +565,21 @@ static int read_stats(struct m0_fom *fom)
 	M0_PRE(fom != NULL);
 
 	qfop = m0_stats_query_fop_get(fom->fo_fop);
-	M0_ASSERT(qfop->sqf_ids.au64s_nr != 0);
+	M0_ASSERT(qfop->sqf_ids.se_nr != 0);
 
 	svc = container_of(fom->fo_service, struct stats_svc, ss_reqhs);
 	stats_svc_invariant(svc);
 
 	rep_fop = m0_stats_query_rep_fop_get(fom->fo_rep_fop);
-	rep_fop->sqrf_stats.sf_nr = qfop->sqf_ids.au64s_nr;
+	rep_fop->sqrf_stats.sf_nr = qfop->sqf_ids.se_nr;
 
-	for (i = 0; i < qfop->sqf_ids.au64s_nr; ++i) {
+	for (i = 0; i < qfop->sqf_ids.se_nr; ++i) {
 		struct m0_stats           *stats_obj =
-			m0_stats_get(&svc->ss_stats,
-				     qfop->sqf_ids.au64s_data[i]);
+			m0_stats_get(&svc->ss_stats, qfop->sqf_ids.se_data[i]);
 
 		/* Continue getting stats for next id */
 		if (stats_obj == NULL) {
-			rep_fop->sqrf_stats.sf_stats[i].ss_id =
-				M0_STATS_ID_UNDEFINED;
-			rep_fop->sqrf_stats.sf_stats[i].ss_data.au64s_nr = 0;
+			rep_fop->sqrf_stats.sf_stats[i].ss_data.se_nr = 0;
 			continue;
 		}
 
@@ -620,7 +588,7 @@ static int read_stats(struct m0_fom *fom)
 		if (rc != 0) {
 #undef REP_STATS_SUM_DATA
 #define REP_STATS_SUM_DATA(rep_fop, i) \
-	(rep_fop->sqrf_stats.sf_stats[i].ss_data.au64s_data)
+	(rep_fop->sqrf_stats.sf_stats[i].ss_data.se_data)
 
 			for (;i >= 0; --i)
 				m0_free(REP_STATS_SUM_DATA(rep_fop, i));
@@ -659,9 +627,9 @@ static int stats_query_fom_create(struct m0_fop  *fop, struct m0_fom **out,
 	}
 
 	q_fop = m0_stats_query_fop_get(fop);
-	qrep_fop->sqrf_stats.sf_nr = q_fop->sqf_ids.au64s_nr;
+	qrep_fop->sqrf_stats.sf_nr = q_fop->sqf_ids.se_nr;
 
-	M0_ALLOC_ARR(qrep_fop->sqrf_stats.sf_stats, q_fop->sqf_ids.au64s_nr);
+	M0_ALLOC_ARR(qrep_fop->sqrf_stats.sf_stats, q_fop->sqf_ids.se_nr);
 	if (qrep_fop->sqrf_stats.sf_stats == NULL) {
 		rc = -ENOMEM;
 		goto free_qrep_fop;
@@ -736,16 +704,6 @@ static void stats_query_fom_fini(struct m0_fom *fom)
 
 	m0_fom_fini(fom);
 	m0_free(qfom);
-}
-
-/**
- * Initialize addb context of stats query FOM.
- */
-static void stats_query_fom_addb_init(struct m0_fom     *fom,
-				      struct m0_addb_mc *mc)
-{
-        M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_stats_update_fom,
-                         &fom->fo_service->rs_addb_ctx);
 }
 
 #undef M0_TRACE_SUBSYSTEM

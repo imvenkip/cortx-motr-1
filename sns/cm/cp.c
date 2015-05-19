@@ -28,7 +28,6 @@
 #include "cob/cob.h"
 #include "fop/fom.h"
 #include "reqh/reqh.h"
-#include "sns/sns_addb.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/ag.h"
@@ -53,34 +52,6 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_send(struct m0_cm_cp *cp);
 
 M0_INTERNAL int m0_sns_cm_repair_cp_recv_wait(struct m0_cm_cp *cp);
 M0_INTERNAL int m0_sns_cm_rebalance_cp_recv_wait(struct m0_cm_cp *cp);
-
-M0_INTERNAL void m0_sns_cm_cp_addb_log(const struct m0_cm_cp *cp)
-{
-	struct m0_cm_aggr_group *ag;
-	struct m0_sns_cm_ag     *sns_ag;
-	struct m0_sns_cm_cp     *sns_cp;
-
-	sns_cp = cp2snscp(cp);
-	ag = cp->c_ag;
-	sns_ag = ag2snsag(ag);
-
-	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_info,
-		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
-		     ag->cag_id.ai_hi.u_hi, ag->cag_id.ai_hi.u_lo,
-		     ag->cag_id.ai_lo.u_hi, ag->cag_id.ai_lo.u_lo,
-		     ag->cag_cp_local_nr, ag->cag_cp_global_nr,
-		     ag->cag_transformed_cp_nr, ag->cag_has_incoming,
-		     sns_ag->sag_fnr);
-
-	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_cp_info,
-		     M0_ADDB_CTX_VEC(&m0_sns_cp_addb_ctx),
-		     ag->cag_id.ai_hi.u_hi, ag->cag_id.ai_hi.u_lo,
-                     ag->cag_id.ai_lo.u_hi, ag->cag_id.ai_lo.u_lo,
-		     m0_stob_id_dom_id_get(&sns_cp->sc_stob_id),
-		     sns_cp->sc_stob_id.si_fid.f_container,
-		     sns_cp->sc_stob_id.si_fid.f_key,
-		     sns_cp->sc_index, sns_cp->sc_is_local);
-}
 
 M0_INTERNAL struct m0_sns_cm_cp *cp2snscp(const struct m0_cm_cp *cp)
 {

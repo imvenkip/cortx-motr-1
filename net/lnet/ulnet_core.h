@@ -52,8 +52,6 @@ struct nlx_ucore_domain {
 	struct m0_atomic64              ud_nidstrs_refcount;
 	/** File descriptor to the kernel device. */
 	int                             ud_fd;
-	/** ADDB context for events related to this domain. */
-	struct m0_addb_ctx              ud_addb_ctx;
 };
 
 /**
@@ -61,11 +59,7 @@ struct nlx_ucore_domain {
    This structure is pointed to by nlx_core_transfer_mc::ctm_upvt.
  */
 struct nlx_ucore_transfer_mc {
-	uint64_t                        utm_magic;
-	/** ADDB machine for non-exception posts from this transfer machine. */
-	struct m0_addb_mc              *utm_addb_mc;
-	/** ADDB context for events related to this transfer machine. */
-	struct m0_addb_ctx              utm_addb_ctx;
+	uint64_t utm_magic;
 };
 
 /**

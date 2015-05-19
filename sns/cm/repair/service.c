@@ -32,8 +32,6 @@
 #include "sns/cm/sns_cp_onwire.h"
 #include "sns/cm/sw_onwire_fop.h"
 
-#include "sns/sns_addb.h"
-
 /**
   @defgroup SNSCMSVC SNS copy machine service
   @ingroup SNSCM
@@ -50,7 +48,7 @@ static const struct m0_reqh_service_type_ops repair_svc_type_ops = {
 };
 
 M0_CM_TYPE_DECLARE(sns_repair, M0_CM_REPAIR_OPCODE,
-		   &repair_svc_type_ops, "sns_repair", &m0_addb_ct_sns_cm);
+		   &repair_svc_type_ops, "sns_repair");
 
 /** Copy machine service operations.*/
 static int repair_svc_start(struct m0_reqh_service *service);

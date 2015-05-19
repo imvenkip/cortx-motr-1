@@ -6,7 +6,6 @@ m0mero_objects += rpc/bulk.o \
                  rpc/item_source.o \
                  rpc/link.o \
                  rpc/packet.o \
-                 rpc/rpc_addb.o \
                  rpc/rpclib.o \
                  rpc/rpc_machine.o \
                  rpc/rpc.o \

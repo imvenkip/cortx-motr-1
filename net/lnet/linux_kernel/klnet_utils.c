@@ -430,8 +430,6 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_kcore_transfer_mc *kctm,
 	M0_PRE(nlx_kcore_buffer_invariant(kcb));
 	rc = LNetMDUnlink(kcb->kb_mdh);
 	NLXDBG(kctm, 1, NLXP("LNetMDUnlink: %d\n", rc));
-	if (rc != 0)
-		LNET_ADDB_FUNCFAIL(rc, K_MD_UNLINK, &kctm->ktm_addb_ctx);
 	return M0_RC(rc);
 }
 

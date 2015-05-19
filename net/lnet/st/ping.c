@@ -1133,8 +1133,7 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 			 ctx->pc_pid, ctx->pc_portal);
 
 	/** @todo replace gmc and ctx */
-	rc = m0_net_tm_init(&ctx->pc_tm, &ctx->pc_dom, &m0_addb_gmc,
-			    &m0_addb_proc_ctx);
+	rc = m0_net_tm_init(&ctx->pc_tm, &ctx->pc_dom);
 	if (rc != 0) {
 		PING_ERR("transfer machine init failed: %d\n", rc);
 		goto fail;

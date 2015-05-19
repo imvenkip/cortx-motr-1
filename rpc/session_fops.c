@@ -68,9 +68,9 @@ static int conn_establish_item_decode(const struct m0_rpc_item_type *item_type,
 
 	*item = NULL;
 
-	RPC_ALLOC_PTR(ctx, SESSION_FOP_CONN_ESTABLISH_ITEM_DECODE, &m0_rpc_addb_ctx);
+	M0_ALLOC_PTR(ctx);
 	if (ctx == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	ctx->cec_sender_ep = NULL;
 	fop = &ctx->cec_fop;

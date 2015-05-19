@@ -32,7 +32,6 @@
 
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
-#include "rm/rm_addb.h"
 #include "rm/rm_service.h"
 
 /**
@@ -79,20 +78,10 @@ static struct m0_rm_incoming_ops remote_incoming_ops = {
 	.rio_conflict = remote_incoming_conflict,
 };
 
-static void rm_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 /*
  * Borrow FOM ops.
  */
 static struct m0_fom_ops rm_fom_borrow_ops = {
-	.fo_addb_init     = rm_fom_addb_init,
 	.fo_fini          = borrow_fom_fini,
 	.fo_tick          = borrow_fom_tick,
 	.fo_home_locality = locality,
@@ -106,7 +95,6 @@ const struct m0_fom_type_ops rm_borrow_fom_type_ops = {
  * Revoke FOM ops.
  */
 static struct m0_fom_ops rm_fom_revoke_ops = {
-	.fo_addb_init     = rm_fom_addb_init,
 	.fo_fini          = revoke_fom_fini,
 	.fo_tick          = revoke_fom_tick,
 	.fo_home_locality = locality,
@@ -120,7 +108,6 @@ const struct m0_fom_type_ops rm_revoke_fom_type_ops = {
  * Cancel FOM ops.
  */
 static struct m0_fom_ops rm_fom_cancel_ops = {
-	.fo_addb_init     = rm_fom_addb_init,
 	.fo_fini          = cancel_fom_fini,
 	.fo_tick          = cancel_fom_tick,
 	.fo_home_locality = locality,
@@ -216,7 +203,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	M0_PRE(fop->f_type != NULL);
 	M0_PRE(out != NULL);
 
-	M0_ADDB2_IN(M0_RM_ADDB2_REQ_FOM_ALLOC, M0_ALLOC_PTR(rqfom));
+	M0_ALLOC_PTR(rqfom);
 	if (M0_FI_ENABLED("fom_alloc_failure"))
 		m0_free0(&rqfom);
 	if (rqfom == NULL)

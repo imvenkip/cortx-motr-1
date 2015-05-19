@@ -11,7 +11,6 @@ nobase_mero_include_HEADERS += stob/ad.h \
                                   stob/linux.h \
                                   stob/module.h \
                                   stob/null.h \
-                                  stob/stob_addb.h \
                                   stob/stob.h \
                                   stob/stob_xc.h \
                                   stob/stob_internal.h \

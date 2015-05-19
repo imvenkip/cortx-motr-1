@@ -20,8 +20,6 @@
  * Original creation date: 04/28/2011
  */
 
-#include "rpc/rpc_addb.h"
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/memory.h"
@@ -42,25 +40,12 @@
 
 M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item);
 
-struct m0_addb_ctx m0_rpc_addb_ctx;
-
 M0_INTERNAL int m0_rpc_init(void)
 {
 	int rc;
 
 	M0_ENTRY();
 
-	m0_addb_ctx_type_register(&m0_addb_ct_rpc_mod);
-	m0_addb_ctx_type_register(&m0_addb_ct_rpc_machine);
-	m0_addb_ctx_type_register(&m0_addb_ct_rpc_frm);
-
-	m0_addb_rec_type_register(&m0_addb_rt_rpc_stats_items);
-	m0_addb_rec_type_register(&m0_addb_rt_rpc_stats_packets);
-	m0_addb_rec_type_register(&m0_addb_rt_rpc_stats_bytes);
-	m0_addb_rec_type_register(&m0_addb_rt_rpc_sent_item_sizes);
-	m0_addb_rec_type_register(&m0_addb_rt_rpc_rcvd_item_sizes);
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_rpc_addb_ctx,
-			 &m0_addb_ct_rpc_mod, &m0_addb_proc_ctx);
 	rc =  m0_rpc_item_module_init()
 	   ?: m0_rpc_service_register()
 	   ?: m0_rpc_session_module_init()
@@ -77,7 +62,6 @@ M0_INTERNAL void m0_rpc_fini(void)
 	m0_rpc_session_module_fini();
 	m0_rpc_service_unregister();
 	m0_rpc_item_module_fini();
-	m0_addb_ctx_fini(&m0_rpc_addb_ctx);
 
 	M0_LEAVE();
 }

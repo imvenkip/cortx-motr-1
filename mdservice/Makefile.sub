@@ -5,8 +5,7 @@ nobase_mero_include_HEADERS += mdservice/md_foms.h \
                                   mdservice/md_fid.h \
                                   mdservice/md_fops.h \
                                   mdservice/md_service.h \
-                                  mdservice/md_fops_xc.h \
-                                  mdservice/mdservice_addb.h
+                                  mdservice/md_fops_xc.h
 
 mero_libmero_la_SOURCES  += mdservice/md_service.c \
                                   mdservice/md_fid.c \

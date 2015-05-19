@@ -5,9 +5,7 @@ nobase_mero_include_HEADERS += fop/fop.h \
                                fop/fom_generic.h \
                                fop/fom_long_lock.h \
                                fop/fom_simple.h \
-                               fop/fom_generic_xc.h \
-			       fop/fop_addb.h \
-			       fop/fop_rate_monitor.h
+                               fop/fom_generic_xc.h
 
 mero_libmero_la_SOURCES  += fop/fop.c \
                             fop/fom.c \
@@ -16,7 +14,6 @@ mero_libmero_la_SOURCES  += fop/fop.c \
                             fop/fom_long_lock.c \
                             fop/fom_simple.c \
                             fop/fop_xc.c \
-                            fop/fom_generic_xc.c \
-			    fop/fop_rate_monitor.c
+                            fop/fom_generic_xc.c
 
 XC_FILES   += fop/fom_generic_xc.h fop/fop_xc.h

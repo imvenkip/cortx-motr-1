@@ -21,9 +21,6 @@
    @addtogroup mdservice
    @{
  */
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-#include "mdservice/mdservice_addb.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MDS
 #include "lib/trace.h"
@@ -45,8 +42,6 @@
 #include "mdservice/fsync_fops.h"
 #include "module/instance.h"	/* m0_get */
 
-
-static struct m0_addb_ctx m0_mds_mod_ctx;
 
 static int mds_allocate(struct m0_reqh_service **service,
 			const struct m0_reqh_service_type *stype);
@@ -73,22 +68,19 @@ static const struct m0_reqh_service_ops mds_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_mds_type, &mds_type_ops, "mdservice",
-			     &m0_addb_ct_mds_serv, 2, M0_CST_MDS);
+			    2, M0_CST_MDS);
 
 M0_INTERNAL int m0_mds_register(void)
 {
-	int     rc = 0;
+	int rc;
 
 	m0_get()->i_mds_cdom_key = m0_reqh_lockers_allot();
-	m0_addb_ctx_type_register(&m0_addb_ct_mds_mod);
-	m0_addb_ctx_type_register(&m0_addb_ct_mds_serv);
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_mds_mod_ctx,
-			 &m0_addb_ct_mds_mod, &m0_addb_proc_ctx);
-        m0_reqh_service_type_register(&m0_mds_type);
+	m0_reqh_service_type_register(&m0_mds_type);
 
 	rc = m0_mdservice_fsync_fop_init(&m0_mds_type);
 	if (rc != 0) {
-		return M0_ERR_INFO(rc, "Unable to initialize mdservice fsync fop");
+		return M0_ERR_INFO(rc,
+				   "Unable to initialize mdservice fsync fop");
 	}
 	rc = m0_mdservice_fop_init();
 	if (rc != 0) {
@@ -100,10 +92,9 @@ M0_INTERNAL int m0_mds_register(void)
 
 M0_INTERNAL void m0_mds_unregister(void)
 {
-        m0_reqh_service_type_unregister(&m0_mds_type);
-        m0_mdservice_fop_fini();
+	m0_reqh_service_type_unregister(&m0_mds_type);
+	m0_mdservice_fop_fini();
 	m0_mdservice_fsync_fop_fini();
-	m0_addb_ctx_fini(&m0_mds_mod_ctx);
 }
 
 /**
@@ -114,20 +105,19 @@ M0_INTERNAL void m0_mds_unregister(void)
 static int mds_allocate(struct m0_reqh_service **service,
 			const struct m0_reqh_service_type *stype)
 {
-        struct m0_reqh_md_service *mds;
+	struct m0_reqh_md_service *mds;
 
-        M0_PRE(service != NULL && stype != NULL);
+	M0_PRE(service != NULL && stype != NULL);
 
-        M0_ALLOC_PTR_ADDB(mds, &m0_addb_gmc, M0_MDS_ADDB_LOC_ALLOCATE,
-			  &m0_mds_mod_ctx);
-        if (mds == NULL)
-                return M0_ERR(-ENOMEM);
+	M0_ALLOC_PTR(mds);
+	if (mds == NULL)
+		return M0_ERR(-ENOMEM);
 
-        mds->rmds_magic = M0_MDS_REQH_SVC_MAGIC;
+	mds->rmds_magic = M0_MDS_REQH_SVC_MAGIC;
 
-        *service = &mds->rmds_gen;
-        (*service)->rs_ops = &mds_ops;
-        return 0;
+	*service = &mds->rmds_gen;
+	(*service)->rs_ops = &mds_ops;
+	return 0;
 }
 
 /**

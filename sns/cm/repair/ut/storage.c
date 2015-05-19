@@ -85,21 +85,11 @@ static int dummy_fom_tick(struct m0_fom *fom)
 	return M0_RC(rc);
 }
 
-static void dummy_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-        /**
-         * @todo: Do the actual impl, need to set MAGIC, so that
-         * m0_fom_init() can pass
-         */
-        fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 /* Over-ridden copy packet FOM ops. */
 static struct m0_fom_ops dummy_cp_fom_ops = {
 	.fo_fini          = dummy_fom_fini,
 	.fo_tick          = dummy_fom_tick,
-	.fo_home_locality = dummy_fom_locality,
-	.fo_addb_init     = dummy_addb_init
+	.fo_home_locality = dummy_fom_locality
 };
 
 /* Over-ridden copy packet init phase. */

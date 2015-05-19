@@ -92,11 +92,9 @@ static bool                          runast = false;
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 
-int m0t1fs_addb_mon_total_io_size_init(struct m0t1fs_sb *csb);
 int m0t1fs_rpc_init(struct m0t1fs_sb *csb);
 int m0t1fs_net_init(struct m0t1fs_sb *csb);
 int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb);
-void m0t1fs_addb_mon_total_io_size_fini(struct m0t1fs_sb *csb);
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
 void m0t1fs_net_fini(struct m0t1fs_sb *csb);
 
@@ -234,9 +232,6 @@ static int file_io_ut_init(void)
 	rc = m0t1fs_rpc_init(&csb);
 	M0_ASSERT(rc == 0);
 
-	rc = m0t1fs_addb_mon_total_io_size_init(&csb);
-	M0_ASSERT(rc == 0);
-
 	rc = m0t1fs_reqh_services_start(&csb);
 	M0_ASSERT(rc == 0);
 
@@ -301,7 +296,6 @@ static int file_io_ut_fini(void)
 	m0_layout_put(&pdlay->pl_base.sl_base);
 	m0_pools_common_fini(&csb.csb_pools_common);
 	m0_confc_fini(&confc);
-	m0t1fs_addb_mon_total_io_size_fini(&csb);
 	m0_reqh_services_terminate(&csb.csb_reqh);
 	m0t1fs_rpc_fini(&csb);
 	m0t1fs_net_fini(&csb);
@@ -330,8 +324,7 @@ static void ds_test(void)
 	struct m0_rpc_session       session;
 
 	M0_SET0(&req);
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr),
-			       &m0t1fs_addb_ctx, 0);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr));
 	M0_UT_ASSERT(rc == 0);
 
 	for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
@@ -531,8 +524,7 @@ static void pargrp_iomap_test(void)
 	struct pargrp_iomap     map;
 	struct pargrp_iomap_ops piops;
 
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr),
-			       &m0t1fs_addb_ctx, 0);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr));
 	M0_UT_ASSERT(rc == 0);
 
 	for (cnt = 0; cnt < ARRAY_SIZE(iovec_arr); ++cnt) {
@@ -625,7 +617,7 @@ static void pargrp_iomap_test(void)
 	req.ir_nwxfer.nxr_bytes = 1;
 	io_request_fini(&req);
 
-	rc = m0_indexvec_alloc(&ivec, IOVEC_NR, &m0t1fs_addb_ctx, 0);
+	rc = m0_indexvec_alloc(&ivec, IOVEC_NR);
 	M0_UT_ASSERT(rc == 0);
 
 	index = INDEXPG;
@@ -759,8 +751,7 @@ static void nw_xfer_ops_test(void)
 	M0_SET0(&req);
 	M0_SET0(&src);
 	M0_SET0(&tgt);
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr),
-			       &m0t1fs_addb_ctx, 0);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr));
 	M0_UT_ASSERT(rc == 0);
 
 	index = 0;
@@ -1016,7 +1007,7 @@ static void dgmode_readio_test(void)
 	M0_ALLOC_PTR(req);
 	M0_UT_ASSERT(req != NULL);
 
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, 0);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr));
 	M0_UT_ASSERT(rc == 0);
 
 	/* 8 segments covering a parity group each. */

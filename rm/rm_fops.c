@@ -33,7 +33,6 @@
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
 #include "rm/rm_fops_xc.h"
-#include "rm/rm_addb.h"
 #include "rm/rm_service.h"
 
 /*
@@ -104,7 +103,7 @@ static int rm_out_create(struct rm_out           **out,
 	M0_PRE (out != NULL);
 	M0_PRE(other != NULL);
 
-	M0_ADDB2_IN(M0_RM_ADDB2_RM_OUT_ALLOC, M0_ALLOC_PTR(outreq));
+	M0_ALLOC_PTR(outreq);
 	if (outreq == NULL) {
 		rc = M0_ERR(-ENOMEM);
 		goto out;

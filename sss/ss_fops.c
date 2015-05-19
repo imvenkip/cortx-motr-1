@@ -17,9 +17,6 @@
  * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
  * Original creation date: 04-Jun-2014
  */
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-#include "addb/addb.h"
 
 #include "lib/memory.h"
 #include "lib/misc.h"

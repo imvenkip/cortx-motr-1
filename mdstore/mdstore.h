@@ -54,12 +54,7 @@ struct m0_statfs {
 
 struct m0_mdstore {
 	struct m0_cob_domain *md_dom;
-        struct m0_cob        *md_root;
-
-        /**
-         * An ADDB context for events related to this store.
-         */
-        struct m0_addb_ctx    md_addb;
+	struct m0_cob        *md_root;
 };
 
 /**
@@ -251,14 +246,7 @@ M0_INTERNAL void
 m0_mdstore_setattr_credit(struct m0_mdstore *md,
 		          struct m0_be_tx_credit *accum);
 
-/**
-   ADDB module initializer.
- */
 M0_INTERNAL int m0_mdstore_mod_init(void);
-
-/**
-   ADDB module finalizer.
- */
 M0_INTERNAL void m0_mdstore_mod_fini(void);
 
 /** @} */ /* end of mdstore group */

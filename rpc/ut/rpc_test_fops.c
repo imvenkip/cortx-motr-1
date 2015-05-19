@@ -43,17 +43,7 @@ static const struct m0_fom_type_ops arrow_fom_type_ops = {
 	.fto_create = arrow_fom_create,
 };
 
-static void arrow_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static const struct m0_fom_ops arrow_fom_ops = {
-	.fo_addb_init     = arrow_fom_addb_init,
 	.fo_fini          = arrow_fom_fini,
 	.fo_tick          = arrow_fom_tick,
 	.fo_home_locality = arrow_fom_home_locality,

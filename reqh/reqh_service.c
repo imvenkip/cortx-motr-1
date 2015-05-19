@@ -369,21 +369,10 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 				      struct m0_reqh         *reqh,
 				      const struct m0_fid    *fid)
 {
-	struct m0_addb_ctx_type *serv_addb_ct;
-
 	M0_PRE(service != NULL && reqh != NULL &&
 		service->rs_sm.sm_state == M0_RST_INITIALISING);
 	/* Currently fid may be NULL */
 	M0_PRE(fid == NULL || m0_fid_is_valid(fid));
-
-	serv_addb_ct = service->rs_type->rst_addb_ct;
-	M0_ASSERT(m0_addb_ctx_type_lookup(serv_addb_ct->act_id) != NULL);
-
-	/**
-	    act_cf_nr is 2 for all service ctx types,
-	    1 for fid->f_container & 2 for fid->f_key
-	 */
-	M0_ASSERT(serv_addb_ct->act_cf_nr == 2);
 
 	m0_sm_init(&service->rs_sm, &service_states_conf, M0_RST_INITIALISING,
 		   &reqh->rh_sm_grp);
@@ -400,16 +389,6 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 	 * They will be left on the list until they get fini'd.
 	 */
 	m0_reqh_svc_tlink_init_at(service, &reqh->rh_services);
-
-	/** @todo: Need to pass the service fid "f_container" & "f_key"
-	   once available
-	*/
-	if (m0_addb_mc_is_fully_configured(m0_fom_addb_mc()))
-		M0_ADDB_CTX_INIT(m0_fom_addb_mc(), &service->rs_addb_ctx,
-				 serv_addb_ct, m0_fom_addb_ctx(), 0, 0);
-	else /** This happens in UT, where no ADDB stob is specified */
-		M0_ADDB_CTX_INIT(&m0_addb_gmc, &service->rs_addb_ctx,
-				 serv_addb_ct, m0_fom_addb_ctx(), 0, 0);
 	service->rs_fom_key = m0_locality_lockers_allot();
 	M0_POST(!m0_buf_is_set(&service->rs_ss_param));
 	M0_POST(m0_reqh_service_invariant(service));
@@ -422,7 +401,6 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 	M0_ASSERT(m0_fom_domain_is_idle_for(service));
 	m0_locality_lockers_free(service->rs_fom_key);
 	m0_reqh_svc_tlink_del_fini(service);
-	m0_addb_ctx_fini(&service->rs_addb_ctx);
 	m0_reqh_service_bob_fini(service);
 	m0_sm_group_lock(&service->rs_reqh->rh_sm_grp);
 	m0_sm_fini(&service->rs_sm);
@@ -436,7 +414,6 @@ int m0_reqh_service_type_register(struct m0_reqh_service_type *rstype)
 {
 	M0_PRE(rstype != NULL);
 	M0_PRE(!m0_reqh_service_is_registered(rstype->rst_name));
-	M0_PRE(rstype->rst_addb_ct != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
 		return M0_ERR(-EINVAL);

@@ -24,7 +24,6 @@
 
 #include "reqh/reqh.h"
 
-#include "sns/sns_addb.h"
 #include "sns/cm/repair/ag.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/cm_utils.h"
@@ -48,9 +47,9 @@ static int cp_bufvec_split(struct m0_cm_cp *cp)
 	struct m0_bufvec           *bufvec;
 	struct m0_sns_cm_ag        *sag = ag2snsag(cp->c_ag);
 	struct m0_sns_cm_repair_ag *rag;
-        uint32_t                    new_v_nr;
-        m0_bcount_t                *new_v_count;
-        uint32_t                    i;
+	uint32_t                    new_v_nr;
+	m0_bcount_t                *new_v_count;
+	uint32_t                    i;
 
 	rag = sag2repairag(sag);
 	if (cp->c_buf_nr == 1 ||
@@ -58,21 +57,20 @@ static int cp_bufvec_split(struct m0_cm_cp *cp)
 		return 0;
 
 	nbuf_head = cp_data_buf_tlist_head(&cp->c_buffers);
-        new_v_nr = nbuf_head->nb_pool->nbp_seg_nr;
-        SNS_ALLOC_ARR(new_v_count, new_v_nr, &m0_sns_cp_addb_ctx,
-		      CP_XFORM_BUFVEC);
-        if (new_v_count == NULL)
-                return M0_ERR(-ENOMEM);
+	new_v_nr = nbuf_head->nb_pool->nbp_seg_nr;
+	M0_ALLOC_ARR(new_v_count, new_v_nr);
+	if (new_v_count == NULL)
+		return M0_ERR(-ENOMEM);
 
 	bufvec = &nbuf_head->nb_buffer;
 	for (i = 0; i < new_v_nr; ++i)
 		new_v_count[i] = bufvec->ov_vec.v_count[i];
 
-        m0_free(bufvec->ov_vec.v_count);
-        bufvec->ov_vec.v_nr = new_v_nr;
-        bufvec->ov_vec.v_count = new_v_count;
+	m0_free(bufvec->ov_vec.v_count);
+	bufvec->ov_vec.v_nr = new_v_nr;
+	bufvec->ov_vec.v_count = new_v_count;
 
-        return 0;
+	return 0;
 }
 
 /**
@@ -87,33 +85,33 @@ static int cp_bufvec_split(struct m0_cm_cp *cp)
 static void bufvec_xor(struct m0_bufvec *dst, struct m0_bufvec *src,
 		       m0_bcount_t num_bytes)
 {
-        struct m0_bufvec_cursor s_cur;
-        struct m0_bufvec_cursor d_cur;
-        m0_bcount_t             frag_size = 0;
-        struct m0_buf           src_buf;
-        struct m0_buf           dst_buf;
+	struct m0_bufvec_cursor s_cur;
+	struct m0_bufvec_cursor d_cur;
+	m0_bcount_t             frag_size = 0;
+	struct m0_buf           src_buf;
+	struct m0_buf           dst_buf;
 
 	M0_PRE(dst != NULL);
 	M0_PRE(src != NULL);
 
-        m0_bufvec_cursor_init(&s_cur, src);
-        m0_bufvec_cursor_init(&d_cur, dst);
-        /*
+	m0_bufvec_cursor_init(&s_cur, src);
+	m0_bufvec_cursor_init(&d_cur, dst);
+	/*
 	 * bitwise OR used below to ensure both cursors get moved
-         * without short-circuit logic, also why cursor move is before
-         * simpler num_bytes check.
-         */
-        while (!(m0_bufvec_cursor_move(&d_cur, frag_size) |
-                 m0_bufvec_cursor_move(&s_cur, frag_size)) &&
-               num_bytes > 0) {
-                frag_size = min3(m0_bufvec_cursor_step(&d_cur),
-                                 m0_bufvec_cursor_step(&s_cur),
-                                 num_bytes);
-                m0_buf_init(&src_buf, m0_bufvec_cursor_addr(&s_cur), frag_size);
-                m0_buf_init(&dst_buf, m0_bufvec_cursor_addr(&d_cur), frag_size);
-                m0_parity_math_buffer_xor(&dst_buf, &src_buf);
-                num_bytes -= frag_size;
-        }
+	 * without short-circuit logic, also why cursor move is before
+	 * simpler num_bytes check.
+	 */
+	while (!(m0_bufvec_cursor_move(&d_cur, frag_size) |
+		 m0_bufvec_cursor_move(&s_cur, frag_size)) &&
+	       num_bytes > 0) {
+		frag_size = min3(m0_bufvec_cursor_step(&d_cur),
+				 m0_bufvec_cursor_step(&s_cur),
+				 num_bytes);
+		m0_buf_init(&src_buf, m0_bufvec_cursor_addr(&s_cur), frag_size);
+		m0_buf_init(&dst_buf, m0_bufvec_cursor_addr(&d_cur), frag_size);
+		m0_parity_math_buffer_xor(&dst_buf, &src_buf);
+		num_bytes -= frag_size;
+	}
 }
 
 static void cp_xor_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp)
@@ -179,15 +177,11 @@ static int res_cp_enqueue(struct m0_cm_cp *cp)
 	int rc;
 
 	rc = cp_bufvec_split(cp);
-	if (rc != 0) {
-		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx,
-				  CP_XFORM_BUFVEC_SPLIT);
+	if (rc != 0)
 		goto out;
-	}
 	m0_cm_cp_enqueue(cp->c_ag->cag_cm, cp);
 
 out:
-	m0_sns_cm_cp_addb_log(cp);
 	return M0_RC(rc);
 }
 
@@ -197,11 +191,11 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 	struct m0_sns_cm        *scm;
 	struct m0_cm_aggr_group *ag  = &rag->rag_base.sag_base;
 	struct m0_cm_cp         *acc = &fc->fc_tgt_acc_cp.sc_base;
-        struct m0_cob_domain    *cdom;
+	struct m0_cob_domain    *cdom;
 	int                      rc;
 
 	scm = cm2sns(ag->cag_cm);
-        cdom  = scm->sc_it.si_cob_dom;
+	cdom  = scm->sc_it.si_cob_dom;
 	/*
 	 * Check if all copy packets are processed at this stage,
 	 * For incoming path transformation can be marked as complete
@@ -266,7 +260,7 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 			 M0_PARITY_CAL_ALGO_REED_SOLOMON)));
 
 	m0_cm_ag_lock(ag);
-        M0_LOG(M0_DEBUG, "xform: id ["M0_AG_F"] local_cp_nr: [%lu]\
+	M0_LOG(M0_DEBUG, "xform: id ["M0_AG_F"] local_cp_nr: [%lu]\
 	       transformed_cp_nr: [%lu] global_cp_nr: [%lu] has_incoming: %d \
 	       c_ag_cp_idx: [%lu]\n", M0_AG_P(&id), ag->cag_cp_local_nr,
 	       ag->cag_transformed_cp_nr, ag->cag_cp_global_nr,
@@ -290,11 +284,8 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 
 	if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
 		rc = m0_cm_cp_bufvec_merge(cp);
-		if (rc != 0) {
-			SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx,
-					  CP_XFORM_BUFVEC_MERGE);
+		if (rc != 0)
 			goto out;
-		}
 		cp_rs_recover(cp, scp->sc_failed_idx);
 	}
 	for (i = 0; i < sns_ag->sag_fnr; ++i) {

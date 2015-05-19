@@ -869,7 +869,6 @@ do {							\
   Static functions should be declared in the private header file
   so that the order of their definition does not matter.
  */
-#include "net/lnet/lnet_addb.h"
 #include "net/lnet/bev_cqueue.c"
 #include "net/lnet/lnet_core.c"
 #include "net/lnet/lnet_ioctl.h"
@@ -902,29 +901,14 @@ M0_BASSERT(M0_NET_LNET_PID == LUSTRE_SRV_LNET_PID);
    @{
  */
 
-struct m0_addb_ctx m0_net_lnet_addb_ctx;
-
 M0_INTERNAL int m0_net_lnet_init(void)
 {
-	int rc;
-
-	m0_addb_ctx_type_register(&m0_addb_ct_net_lnet_mod);
-	m0_addb_ctx_type_register(&m0_addb_ct_net_lnet_dom);
-	m0_addb_ctx_type_register(&m0_addb_ct_net_lnet_tm);
-
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_net_lnet_addb_ctx,
-			 &m0_addb_ct_net_lnet_mod, &m0_net_addb_ctx);
-
-	rc = nlx_core_init();
-	if (rc < 0)
-		m0_addb_ctx_fini(&m0_net_lnet_addb_ctx);
-	return M0_RC(rc);
+	return M0_RC(nlx_core_init());
 }
 
 M0_INTERNAL void m0_net_lnet_fini(void)
 {
 	nlx_core_fini();
-	m0_addb_ctx_fini(&m0_net_lnet_addb_ctx);
 }
 
 M0_INTERNAL int m0_net_lnet_ep_addr_net_cmp(const char *addr1,
@@ -962,43 +946,6 @@ M0_INTERNAL void m0_net_lnet_ifaces_put(struct m0_net_domain *dom,
 	nlx_core_nidstrs_put(&dp->xd_core, addrs);
 }
 M0_EXPORTED(m0_net_lnet_ifaces_put);
-
-M0_INTERNAL void m0_net_lnet_tm_stat_interval_set(struct m0_net_transfer_mc *tm,
-						  uint64_t secs)
-{
-	struct nlx_xo_transfer_mc *tp;
-
-	M0_PRE(secs > 0);
-	M0_PRE(tm != NULL);
-	m0_mutex_lock(&tm->ntm_mutex);
-	M0_PRE(m0_net__tm_invariant(tm));
-	M0_PRE(tm->ntm_state <= M0_NET_TM_STOPPING);
-	M0_PRE(nlx_tm_invariant(tm));
-
-	tp = tm->ntm_xprt_private;
-	tp->xtm_stat_interval = m0_time(secs, 0);
-	m0_mutex_unlock(&tm->ntm_mutex);
-}
-M0_EXPORTED(m0_net_lnet_tm_stat_interval_set);
-
-M0_INTERNAL uint64_t m0_net_lnet_tm_stat_interval_get(struct m0_net_transfer_mc
-						      *tm)
-{
-	struct nlx_xo_transfer_mc *tp;
-	uint64_t ret;
-
-	M0_PRE(tm != NULL);
-	m0_mutex_lock(&tm->ntm_mutex);
-	M0_PRE(m0_net__tm_invariant(tm));
-	M0_PRE(tm->ntm_state <= M0_NET_TM_STOPPING);
-	M0_PRE(nlx_tm_invariant(tm));
-
-	tp = tm->ntm_xprt_private;
-	ret = m0_time_seconds(tp->xtm_stat_interval);
-	m0_mutex_unlock(&tm->ntm_mutex);
-	return ret;
-}
-M0_EXPORTED(m0_net_lnet_tm_stat_interval_get);
 
 M0_INTERNAL void m0_net_lnet_dom_set_debug(struct m0_net_domain *dom,
 					   unsigned dbg)

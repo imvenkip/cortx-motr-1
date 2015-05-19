@@ -34,7 +34,6 @@
 #include "cm/cm.h"
 #include "cm/cp.h"
 #include "cm/ag.h"
-#include "addb/addb.h"
 #include "cm/ut/common_service.h"
 
 #include <unistd.h>			/* usleep */

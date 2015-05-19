@@ -31,7 +31,6 @@
 #include "net/bulk_emulation/mem_xprt.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpc.h"
-#include "addb/addb.h"
 #include "addb2/addb2.h"
 #include "lib/finject.h"
 #include "lib/locality.h"
@@ -47,7 +46,6 @@
 #include "fid/fid.h"
 #include "fop/fom_simple.h"
 #include "fop/fom_generic.h"
-#include "fop/fop_rate_monitor.h"
 #include "graph/graph.h"
 #include "mero/init.h"
 #include "lib/cookie.h"
@@ -61,7 +59,6 @@
 #  include "be/tx_service.h"    /* m0_be_txs_register */
 #  include "be/be.h"            /* m0_backend_init */
 #  include "conf/confd.h"       /* m0_confd_register */
-#  include "conf/addb.h"        /* m0_conf_addb_init */
 #  include "mdstore/mdstore.h"  /* m0_mdstore_mod_init */
 #endif
 #include "cob/cob.h"
@@ -75,7 +72,6 @@
 #include "sns/parity_ops.h"
 #include "sss/ss_svc.h"
 #include "cm/cm.h"
-#include "addb/addb_fops.h"
 #include "stats/stats_fops.h"
 #include "ha/epoch.h"
 #include "xcode/init.h"
@@ -132,7 +128,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_cookie_global_init, &m0_cookie_global_fini, "cookie" },
 	{ &m0_processors_init,  &m0_processors_fini,  "processors" },
 	{ &m0_timers_init,      &m0_timers_fini,      "timer" },
-	{ &m0_addb_init,        &m0_addb_fini,        "addb" },
 	{ &m0_addb2_module_init, &m0_addb2_module_fini, "addb2" },
 	{ &m0_addb2_global_init, &m0_addb2_global_fini, "addb2-global" },
 	/* localities must be initialised after lib/processor.h */
@@ -143,7 +138,6 @@ struct init_fini_call subsystem[] = {
 	   type for network descriptors. */
 	{ &m0_fops_init,        &m0_fops_fini,        "fop" },
 	{ &m0_foms_init,        &m0_foms_fini,        "fom" },
-	{ &m0_fop_rate_monitor_module_init, NULL,     "fop_rate_monitor" },
 	{ &m0_net_init,         &m0_net_fini,         "net" },
 #ifdef __KERNEL__
 	{ &m0_net_test_init,    &m0_net_test_fini,    "net-test" },
@@ -171,12 +165,10 @@ struct init_fini_call subsystem[] = {
 	{ &m0_ut_stob_init,	&m0_ut_stob_fini,     "ut-stob" },
 	{ &sim_global_init,     &sim_global_fini,     "desim" },
 #endif
-	{ &m0_addb_svc_mod_init, &m0_addb_svc_mod_fini, "addbsvc" },
 	{ &m0_graph_mod_init,   &m0_graph_mod_fini,   "graph" },
 	{ &m0_conf_obj_init,    &m0_conf_obj_fini,    "conf-obj" },
 	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
 	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
-	{ &m0_addb_service_fop_init, &m0_addb_service_fop_fini, "addb_fops" },
 	{ &m0_stats_fops_init,  &m0_stats_fops_fini,  "stats_fops"},
 	{ &m0_rms_register,     &m0_rms_unregister,   "rmservice"},
 #ifdef __KERNEL__
@@ -194,7 +186,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
 	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
-	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
 	{ &m0_stats_svc_init,   &m0_stats_svc_fini,   "stats-service" },
 	{ &m0_ss_svc_init,      &m0_ss_svc_fini,      "sss" },

@@ -359,35 +359,6 @@ enum m0_res_type_id {
 	M0_RM_FLOCK_RT = 1
 };
 
-/* ADDB statistics for incoming requests */
-
-struct rm_addb_req_stats {
-	/**
-	 * Number of borrow/revoke requests till
-	 * rm_addb_update_interval expires.
-	 */
-	uint32_t               rs_count;
-	/**
-	 * Counter to maintain number of borrow/revoke requests
-	 * per unit time.
-	 */
-	struct m0_addb_counter rs_nr;
-	/**
-	 * Counter to maintain average time required for
-	 * each borrow/revoke.
-	 */
-	struct m0_addb_counter rs_time;
-};
-
-struct rm_addb_stats {
-	struct rm_addb_req_stats as_req[M0_RIT_NR];
-	/**
-	 * Time for which credit was held
-	 * (Time between credit_get and credit_put)
-	 */
-	struct m0_addb_counter   as_credit_time;
-};
-
 /**
  * Resources are classified into disjoint types.
  * Resource type determines how its instances interact with the resource
@@ -402,10 +373,6 @@ struct rm_addb_stats {
 struct m0_rm_resource_type {
 	const struct m0_rm_resource_type_ops *rt_ops;
 	const char                           *rt_name;
-	/**
-	 * ADDB statistics for resource type.
-	 */
-	struct rm_addb_stats                  rt_addb_stats;
 	/**
 	 * A resource type identifier, globally unique within a cluster, used
 	 * to identify resource types on wire and storage.

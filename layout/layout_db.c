@@ -410,8 +410,7 @@ static int pair_init(struct m0_db_pair *pair,
 		rc = m0_layout_encode(l, op, tx, &rec_cur);
 		if (rc != 0) {
 			m0_layout__log("pair_init", "m0_layout_encode() failed",
-				       M0_LAYOUT_ADDB_LOC_PAIR_INIT,
-				       &l->l_addb_ctx, l->l_id, rc);
+				       l->l_id, rc);
 			m0_db_pair_fini(pair);
 		}
 	}
@@ -450,7 +449,6 @@ M0_INTERNAL int m0_layout_lookup(struct m0_layout_domain *dom,
 	M0_ENTRY("lid %llu", (unsigned long long)lid);
 	if (dom->ld_type[lt->lt_id] != lt) {
 		m0_layout__log("m0_layout_lookup", "Unregistered layout type",
-			       M0_LAYOUT_ADDB_LOC_LOOKUP_1, NULL,
 			       lid, -EPROTO);
 		return M0_ERR(-EPROTO);
 	}
@@ -473,7 +471,6 @@ M0_INTERNAL int m0_layout_lookup(struct m0_layout_domain *dom,
 	rc = lt->lt_ops->lto_allocate(dom, lid, &l);
 	if (rc != 0) {
 		m0_layout__log("m0_layout_lookup", "lto_allocate() failed",
-			       M0_LAYOUT_ADDB_LOC_LOOKUP_2, NULL,
 			       lid, rc);
 		return M0_RC(rc);
 	}
@@ -517,7 +514,6 @@ M0_INTERNAL int m0_layout_lookup(struct m0_layout_domain *dom,
 		/* Error covered in UT. */
 		l->l_ops->lo_delete(l);
 		m0_layout__log("m0_layout_lookup", "m0_table_lookup() failed",
-			       M0_LAYOUT_ADDB_LOC_LOOKUP_3, NULL,
 			       lid, rc);
 		goto out;
 	}
@@ -530,7 +526,6 @@ M0_INTERNAL int m0_layout_lookup(struct m0_layout_domain *dom,
 		/* Error covered in UT. */
 		l->l_ops->lo_delete(l);
 		m0_layout__log("m0_layout_lookup", "m0_layout_decode() failed",
-			       M0_LAYOUT_ADDB_LOC_LOOKUP_4, NULL,
 			       lid, rc);
 		goto out;
 	}
@@ -561,15 +556,11 @@ M0_INTERNAL int m0_layout_add(struct m0_layout *l,
 		rc = m0_table_insert(tx, pair);
 		if (rc != 0)
 			m0_layout__log("m0_layout_add",
-				       "m0_table_insert() failed",
-				       M0_LAYOUT_ADDB_LOC_ADD_1,
-				       &l->l_addb_ctx, l->l_id, rc);
+				       "m0_table_insert() failed", l->l_id, rc);
 		m0_db_pair_fini(pair);
 	} else
-		m0_layout__log("m0_layout_add",
-			       "pair_init() failed",
-			       M0_LAYOUT_ADDB_LOC_ADD_2,
-			       &l->l_addb_ctx, l->l_id, rc);
+		m0_layout__log("m0_layout_add", "pair_init() failed",
+			       l->l_id, rc);
 	m0_mutex_unlock(&l->l_lock);
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return M0_RC(rc);
@@ -596,15 +587,11 @@ M0_INTERNAL int m0_layout_update(struct m0_layout *l,
 err1_injected:
 		if (rc != 0)
 			m0_layout__log("m0_layout_update",
-				       "m0_table_update() failed",
-				       M0_LAYOUT_ADDB_LOC_UPDATE_1,
-				       &l->l_addb_ctx, l->l_id, rc);
+				       "m0_table_update() failed", l->l_id, rc);
 		m0_db_pair_fini(pair);
 	} else
 		m0_layout__log("m0_layout_update",
-			       "pair_init() failed",
-			       M0_LAYOUT_ADDB_LOC_UPDATE_2,
-			       &l->l_addb_ctx, l->l_id, rc);
+			       "pair_init() failed", l->l_id, rc);
 	m0_mutex_unlock(&l->l_lock);
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return M0_RC(rc);
@@ -636,15 +623,11 @@ M0_INTERNAL int m0_layout_delete(struct m0_layout *l,
 		rc = m0_table_delete(tx, pair);
 		if (rc != 0)
 			m0_layout__log("m0_layout_delete",
-				       "m0_table_delete() failed",
-				       M0_LAYOUT_ADDB_LOC_DELETE_1,
-				       &l->l_addb_ctx, l->l_id, rc);
+				       "m0_table_delete() failed", l->l_id, rc);
 		m0_db_pair_fini(pair);
 	} else
 		m0_layout__log("m0_layout_delete",
-			       "pair_init() failed",
-			       M0_LAYOUT_ADDB_LOC_DELETE_2,
-			       &l->l_addb_ctx, l->l_id, rc);
+			       "pair_init() failed", l->l_id, rc);
 	m0_mutex_unlock(&l->l_lock);
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return M0_RC(rc);

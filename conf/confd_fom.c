@@ -38,15 +38,6 @@
  * @{
  */
 
-static void conf_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static int conf_fetch_tick(struct m0_fom *fom);
 static int conf_update_tick(struct m0_fom *fom);
 static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
@@ -65,17 +56,15 @@ static void confd_fom_fini(struct m0_fom *fom)
 }
 
 static const struct m0_fom_ops conf_fetch_fom_ops = {
-	.fo_addb_init     = conf_addb_init,
 	.fo_home_locality = confd_fom_locality,
-	.fo_tick = conf_fetch_tick,
-	.fo_fini = confd_fom_fini
+	.fo_tick          = conf_fetch_tick,
+	.fo_fini          = confd_fom_fini
 };
 
 static const struct m0_fom_ops conf_update_fom_ops = {
-	.fo_addb_init     = conf_addb_init,
 	.fo_home_locality = confd_fom_locality,
-	.fo_tick = conf_update_tick,
-	.fo_fini = confd_fom_fini
+	.fo_tick          = conf_update_tick,
+	.fo_fini          = confd_fom_fini
 };
 
 M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,

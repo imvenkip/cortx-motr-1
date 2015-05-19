@@ -29,7 +29,6 @@
 #include "lib/chan.h"
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
-#include "addb/addb.h"
 #include "fid/fid.h"
 #include "sm/sm.h"
 #include "stob/cache.h"		/* m0_stob_cache */

@@ -629,24 +629,13 @@ static void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
 #define NLX_ALLOC_ALIGNED_PTR(ptr) \
 	((ptr) = nlx_core_mem_alloc(sizeof ((ptr)[0]),                  \
 				    NLX_PO2_SHIFT(sizeof ((ptr)[0]))))
-#define NLX_ALLOC_ALIGNED_PTR_ADDB(ptr, ctx, loc)			\
-do {									\
-	if (NLX_ALLOC_ALIGNED_PTR(ptr) == NULL)				\
-		M0_ADDB_OOM(&m0_addb_gmc, M0_NET_LNET_ADDB_LOC_##loc, ctx); \
-} while (0)
 #define NLX_FREE_ALIGNED_PTR(ptr) \
 	nlx_core_mem_free((ptr), sizeof ((ptr)[0]), \
-                          NLX_PO2_SHIFT(sizeof ((ptr)[0])))
+			  NLX_PO2_SHIFT(sizeof ((ptr)[0])))
 
-#define NLX_ALLOC(ptr, len, ctx, loc)					\
-M0_ALLOC_ADDB(ptr, len, &m0_addb_gmc, M0_NET_LNET_ADDB_LOC_##loc,	\
-		  &m0_net_lnet_addb_ctx, ctx)
-#define NLX_ALLOC_PTR(ptr, ctx, loc)					\
-M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_NET_LNET_ADDB_LOC_##loc,	\
-		  &m0_net_lnet_addb_ctx, ctx)
-#define NLX_ALLOC_ARR(ptr, nr, ctx, loc)				\
-M0_ALLOC_ARR_ADDB(ptr, nr, &m0_addb_gmc, M0_NET_LNET_ADDB_LOC_##loc,	\
-		  &m0_net_lnet_addb_ctx, ctx)
+#define NLX_ALLOC(ptr, len) ({ ptr = m0_alloc(len); })
+#define NLX_ALLOC_PTR(ptr) M0_ALLOC_PTR(ptr)
+#define NLX_ALLOC_ARR(ptr, nr) M0_ALLOC_ARR(ptr, nr)
 
 /** @} */ /* LNetCore */
 

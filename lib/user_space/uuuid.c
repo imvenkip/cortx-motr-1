@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,42 +14,47 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <carl_braganza@xyratex.com>
- * Original creation: 10/08/2012
+ * Original author: Nikita Danilov <nikita.danilov@seagate.com>
+ * Original creation date: 19-May-2015
  */
 
-/* This file is designed to be included by addb/addb.c */
 
-#include "lib/types.h"
+/**
+ * @addtogroup uuid
+ *
+ * @{
+ */
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+#include "lib/uuid.h"
+#include "lib/errno.h"               /* EINVAL */
 
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 
-/**
-   @ingroup addb_pvt
-   @{
- */
-
 /** path to read kmod uuid parameter */
 static const char *kmod_uuid_file = "/sys/module/m0mero/parameters/node_uuid";
 
-/** default node uuid which can be used instead of a "real" one, which is
- *  obtained from kernel module; this can be handy for some utility applications
- *  which don't need full functionality of libmero.so, so they can trick ADDB by
- *  providing some fake uuid */
+/**
+ * Default node uuid which can be used instead of a "real" one, which is
+ * obtained from kernel module; this can be handy for some utility applications
+ * which don't need full functionality of libmero.so, so they can provide some
+ * fake uuid.
+*/
 static char default_node_uuid[M0_UUID_STRLEN + 1] =
 		"00000000-0000-0000-0000-000000000000"; /* nil UUID */
 
-/** flag, which specify whether to use a "real" node uuid or a default one */
+/** Flag, which specify whether to use a "real" node uuid or a default one. */
 static bool use_default_node_uuid = false;
 
-void m0_addb_kmod_uuid_file_set(const char *path)
+void m0_kmod_uuid_file_set(const char *path)
 {
 	kmod_uuid_file = path;
 }
 
-void m0_addb_node_uuid_string_set(char *uuid)
+void m0_node_uuid_string_set(char *uuid)
 {
 	use_default_node_uuid = true;
 	if (uuid != NULL) {
@@ -59,10 +64,10 @@ void m0_addb_node_uuid_string_set(char *uuid)
 }
 
 /**
-   Construct the node UUID in user space by reading our kernel module's
-   node_uuid parameter.
+ * Constructs the node UUID in user space by reading our kernel module's
+ * node_uuid parameter.
  */
-static int addb_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
+int m0_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 {
 	int fd;
 	int rc = 0;
@@ -78,34 +83,16 @@ static int addb_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 			rc = 0;
 			buf[M0_UUID_STRLEN] = '\0';
 		} else
-			rc = -EINVAL;
+			rc = M0_ERR(-EINVAL);
 		close(fd);
 	}
 
 	return M0_RC(rc);
 }
 
-enum { ADDB_PROC_CTX_MASK = 0xffffffUL };
+#undef M0_TRACE_SUBSYSTEM
 
-/**
-  Create the process container context.
- */
-static void addb_ctx_proc_ctx_create(void)
-{
-	pid_t pid = getpid();
-
-	addb_proc_ctx_fields[0] = (uint64_t)addb_init_time;
-	addb_proc_ctx_fields[1] = (uint64_t)pid;
-	m0_addb_proc_ctx.ac_type   = &m0_addb_ct_process;
-	m0_addb_proc_ctx.ac_id     = (addb_init_time & ~ADDB_PROC_CTX_MASK) |
-		(pid & ADDB_PROC_CTX_MASK);
-	m0_addb_proc_ctx.ac_parent = &m0_addb_node_ctx;
-	++m0_addb_node_ctx.ac_cntr;
-	m0_addb_proc_ctx.ac_depth  = m0_addb_node_ctx.ac_depth + 1;
-	m0_addb_proc_ctx.ac_magic  = M0_ADDB_CTX_MAGIC;
-}
-
-/** @} end group addb_pvt */
+/** @} end of uuid group */
 
 /*
  *  Local variables:
@@ -115,4 +102,7 @@ static void addb_ctx_proc_ctx_create(void)
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */

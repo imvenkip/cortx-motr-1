@@ -31,7 +31,6 @@
 #include "lib/trace.h"          /* M0_LOG and M0_ENTRY */
 #include "mero/magic.h"
 #include "rm/rm_service.h"      /* m0_rm_svc_domain_get */
-#include "m0t1fs/m0t1fs_addb.h" /* m0t1fs_addb_ctx */
 #include "lib/tlist.h"          /* M0_TL_DESCR_DECLARE() */
 
 /* ISPTI -> Inode's Service to Pending Transaction Id list */

@@ -156,35 +156,25 @@ static int stob_write_fom_tick(struct m0_fom *fom);
 static void stob_io_fom_fini(struct m0_fom *fom);
 static size_t stob_find_fom_home_locality(const struct m0_fom *fom);
 
-static void stob_create_fom_addb_init(struct m0_fom *fom,
-					struct m0_addb_mc *mc);
-static void stob_write_fom_addb_init(struct m0_fom *fom,
-					struct m0_addb_mc *mc);
-static void stob_read_fom_addb_init(struct m0_fom *fom,
-					struct m0_addb_mc *mc);
-
 /**
  * Operation structures for respective foms
  */
 static struct m0_fom_ops stob_create_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
 	.fo_tick = stob_create_fom_tick,
-	.fo_home_locality = stob_find_fom_home_locality,
-	.fo_addb_init = stob_create_fom_addb_init
+	.fo_home_locality = stob_find_fom_home_locality
 };
 
 static struct m0_fom_ops stob_write_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
 	.fo_tick = stob_write_fom_tick,
-	.fo_home_locality = stob_find_fom_home_locality,
-	.fo_addb_init = stob_write_fom_addb_init
+	.fo_home_locality = stob_find_fom_home_locality
 };
 
 static struct m0_fom_ops stob_read_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
 	.fo_tick = stob_read_fom_tick,
-	.fo_home_locality = stob_find_fom_home_locality,
-	.fo_addb_init = stob_read_fom_addb_init
+	.fo_home_locality = stob_find_fom_home_locality
 };
 
 /**
@@ -373,15 +363,6 @@ static int stob_create_fom_tick(struct m0_fom *fom)
 	return result;
 }
 
-static void stob_create_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 /**
  * A simple non blocking read fop specific fom
  * state method implemention.
@@ -491,15 +472,6 @@ static int stob_read_fom_tick(struct m0_fom *fom)
         }
 
         return result;
-}
-
-static void  stob_read_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 static void fom_stob_write_credit(struct m0_fom *fom)
@@ -627,15 +599,6 @@ static int stob_write_fom_tick(struct m0_fom *fom)
                 }
         }
         return result;
-}
-
-static void stob_write_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 /**

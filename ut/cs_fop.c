@@ -61,26 +61,23 @@ static int cs_ds2_req_fop_fom_create(struct m0_fop *fop, struct m0_fom **out,
 				     struct m0_reqh *reqh);
 static void cs_ut_fom_fini(struct m0_fom *fom);
 static size_t cs_ut_find_fom_home_locality(const struct m0_fom *fom);
-static void cs_req_fop_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 
 /*
   Operation structures for ds1 service foms.
  */
 static const struct m0_fom_ops cs_ds1_req_fop_fom_ops = {
-        .fo_fini = cs_ut_fom_fini,
-        .fo_tick = cs_req_fop_fom_tick,
-        .fo_home_locality = cs_ut_find_fom_home_locality,
-	.fo_addb_init = cs_req_fop_fom_addb_init
+	.fo_fini = cs_ut_fom_fini,
+	.fo_tick = cs_req_fop_fom_tick,
+	.fo_home_locality = cs_ut_find_fom_home_locality
 };
 
 /*
   Operation structures for ds2 service foms.
  */
 static const struct m0_fom_ops cs_ds2_req_fop_fom_ops = {
-        .fo_fini = cs_ut_fom_fini,
-        .fo_tick = cs_req_fop_fom_tick,
-        .fo_home_locality = cs_ut_find_fom_home_locality,
-	.fo_addb_init = cs_req_fop_fom_addb_init
+	.fo_fini = cs_ut_fom_fini,
+	.fo_tick = cs_req_fop_fom_tick,
+	.fo_home_locality = cs_ut_find_fom_home_locality
 };
 
 extern struct m0_reqh_service_type ds1_service_type;
@@ -319,15 +316,6 @@ static int cs_req_fop_fom_tick(struct m0_fom *fom)
 		m0_nanosleep(m0_time(M0_RPC_ITEM_RESEND_INTERVAL +1, 0), NULL);
 
 	return rc;
-}
-
-static void cs_req_fop_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 /*

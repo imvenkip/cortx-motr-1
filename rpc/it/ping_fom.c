@@ -32,8 +32,7 @@ static int ping_fop_fom_create(struct m0_fop *fop, struct m0_fom **m,
 struct m0_fom_ops m0_fom_ping_ops = {
 	.fo_fini          = m0_fop_ping_fom_fini,
 	.fo_tick          = m0_fom_ping_state,
-	.fo_home_locality = m0_fom_ping_home_locality,
-	.fo_addb_init     = m0_fom_ping_addb_init
+	.fo_home_locality = m0_fom_ping_home_locality
 };
 
 /** FOM type specific functions for ping FOP. */
@@ -48,16 +47,6 @@ M0_INTERNAL size_t m0_fom_ping_home_locality(const struct m0_fom *fom)
 	M0_PRE(fom != NULL);
 
 	return loc++;
-}
-
-M0_INTERNAL void m0_fom_ping_addb_init(struct m0_fom *fom,
-				       struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 /**

@@ -108,7 +108,7 @@ static int nlx_xo_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 
 	M0_PRE(dom->nd_xprt_private == NULL);
 	M0_PRE(xprt == &m0_net_lnet_xprt);
-	NLX_ALLOC_ALIGNED_PTR_ADDB(dp, &dom->nd_addb_ctx, C_DOM_INIT);
+	NLX_ALLOC_ALIGNED_PTR(dp);
 	if (dp == NULL)
 		return M0_RC(-ENOMEM);
 	dom->nd_xprt_private = dp;
@@ -172,9 +172,8 @@ static int nlx_xo_end_point_create(struct m0_net_end_point **epp,
 	dp = tm->ntm_dom->nd_xprt_private;
 	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr, &cepa);
 	if (rc == 0 && cepa.cepa_tmid == M0_NET_LNET_TMID_INVALID)
-		rc = -EINVAL;
+		rc = M0_ERR(-EINVAL);
 	if (rc != 0) {
-		LNET_ADDB_FUNCFAIL(rc, X_EP_CREATE, &tm->ntm_addb_ctx);
 		return M0_RC(rc);
 	}
 
@@ -210,7 +209,7 @@ static int nlx_xo_buf_register(struct m0_net_buffer *nb)
 	M0_PRE(nlx_xo_buffer_bufvec_invariant(nb));
 
 	dp = nb->nb_dom->nd_xprt_private;
-	NLX_ALLOC_ALIGNED_PTR_ADDB(bp, &nb->nb_dom->nd_addb_ctx, C_BUF_REG);
+	NLX_ALLOC_ALIGNED_PTR(bp);
 	if (bp == NULL)
 		return M0_ERR(-ENOMEM);
 	nb->nb_xprt_private = bp;
@@ -251,7 +250,7 @@ static int nlx_xo__nbd_allocate(struct m0_net_transfer_mc *tm,
 				struct m0_net_buf_desc *nbd)
 {
 	nbd->nbd_len = sizeof *cbd;
-	NLX_ALLOC(nbd->nbd_data, nbd->nbd_len, &tm->ntm_addb_ctx, X_NBD_ALLOC);
+	NLX_ALLOC(nbd->nbd_data, nbd->nbd_len);
 	if (nbd->nbd_data == NULL) {
 		nbd->nbd_len = 0; /* for m0_net_desc_free() safety */
 		return M0_ERR(-ENOMEM);
@@ -269,9 +268,7 @@ static int nlx_xo__nbd_recover(struct m0_net_transfer_mc *tm,
 			       struct nlx_core_buf_desc *cbd)
 {
 	if (nbd->nbd_len != sizeof *cbd) {
-		int rc = -EINVAL;
-		LNET_ADDB_FUNCFAIL(rc, X_NBD_RECOVER, &tm->ntm_addb_ctx);
-		return M0_RC(rc);
+		return M0_RC(M0_ERR(-EINVAL));
 	}
 	memcpy(cbd, nbd->nbd_data, nbd->nbd_len);
 
@@ -309,10 +306,8 @@ static int nlx_xo_buf_add(struct m0_net_buffer *nb)
 	*/
 	need = nb->nb_qtype == M0_NET_QT_MSG_RECV ? nb->nb_max_receive_msgs : 1;
 	rc = nlx_core_bevq_provision(cd, ctp, need);
-	if (rc != 0) {
-		LNET_ADDB_FUNCFAIL(rc, X_BUF_ADD1, &nb->nb_tm->ntm_addb_ctx);
+	if (rc != 0)
 		return M0_RC(rc);
-	}
 	cbp->cb_max_operations = need;
 
 	bufsize = m0_vec_count(&nb->nb_buffer.ov_vec);
@@ -374,12 +369,8 @@ static int nlx_xo_buf_add(struct m0_net_buffer *nb)
 		M0_IMPOSSIBLE("invalid queue type");
 		break;
 	}
-
-	if (rc != 0) {
+	if (rc != 0)
 		nlx_core_bevq_release(ctp, need);
-		LNET_ADDB_FUNCFAIL(rc, X_BUF_ADD2, &nb->nb_tm->ntm_addb_ctx);
-	}
-
 	return M0_RC(rc);
 }
 
@@ -404,14 +395,13 @@ static int nlx_xo_tm_init(struct m0_net_transfer_mc *tm)
 	M0_PRE(nlx_dom_invariant(tm->ntm_dom));
 	M0_PRE(tm->ntm_xprt_private == NULL);
 
-	NLX_ALLOC_ALIGNED_PTR_ADDB(tp, &tm->ntm_addb_ctx, C_TM_INIT);
+	NLX_ALLOC_ALIGNED_PTR(tp);
 	if (tp == NULL)
 		return M0_ERR(-ENOMEM);
 	tm->ntm_xprt_private = tp;
 
 	/* defer init of processors, thread and xtm_core to TM confine/start */
 	m0_cond_init(&tp->xtm_ev_cond, &tm->ntm_mutex);
-	tp->xtm_stat_interval = m0_time(M0_NET_LNET_TM_STAT_INTERVAL_SECS, 0);
 	tp->xtm_tm = tm;
 
 	M0_POST(nlx_tm_invariant(tm));
@@ -452,8 +442,6 @@ static int nlx_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 				     &tp->xtm_core.ctm_addr) ?:
 		M0_THREAD_INIT(&tp->xtm_ev_thread, struct m0_net_transfer_mc *,
 			       NULL, &nlx_tm_ev_worker, tm, "m0_nlx_tm");
-	if (rc != 0)
-		LNET_ADDB_FUNCFAIL(rc, X_TM_START, &tm->ntm_addb_ctx);
 	return M0_RC(rc);
 }
 
@@ -493,8 +481,6 @@ static int nlx_xo_tm_confine(struct m0_net_transfer_mc *tm,
 	rc = m0_bitmap_init(&tp->xtm_processors, processors->b_nr);
 	if (rc == 0)
 		m0_bitmap_copy(&tp->xtm_processors, processors);
-	else
-		LNET_ADDB_FUNCFAIL(rc, X_TM_CONFINE, &tm->ntm_addb_ctx);
 	return M0_RC(rc);
 }
 
@@ -533,8 +519,6 @@ static void nlx_xo_bev_deliver_all(struct m0_net_transfer_mc *tm)
 				struct m0_net_qstats *q;
 				q = &tm->ntm_qstats[nbev.nbe_buffer->nb_qtype];
 				q->nqs_num_f_events++;
-				LNET_ADDB_FUNCFAIL(rc, X_BEV_DELIVER,
-						   &tm->ntm_addb_ctx);
 				NLXDBGP(tp, 1, "%p: skipping event\n", tp);
 				continue;
 			}

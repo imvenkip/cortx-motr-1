@@ -1,2 +1,0 @@
-m0mero_objects += addb/addb.o \
-                  addb/addb_wire_xc.o

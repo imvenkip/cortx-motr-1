@@ -163,11 +163,9 @@ static int server_init(const char             *stob_path,
 		       const char             *srv_db_name,
 		       struct m0_net_domain   *net_dom,
 		       uint64_t		       back_key,
-		       struct m0_stob_domain **bdom,
-		       struct m0_stob        **reqh_addb_stob,
-		       uint64_t		       rh_addb_stob_key)
+		       struct m0_stob_domain **bdom)
 {
-        int                          rc;
+	int                          rc;
 	struct m0_sm_group          *grp;
 	struct m0_rpc_machine       *rpc_machine = &srv_rpc_mach;
 	struct m0_be_tx              tx;
@@ -225,20 +223,11 @@ static int server_init(const char             *stob_path,
 	m0_free(sdom_location);
 	m0_stob_put(bstore);
 
-	m0_stob_id_make(0, rh_addb_stob_key, &(*bdom)->sd_id, &stob_id);
-	/* Create or open a stob into which to store the record. */
-	rc = m0_stob_find(&stob_id, &*reqh_addb_stob);
-	M0_ASSERT(rc == 0);
-	rc = m0_stob_locate(*reqh_addb_stob);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_create(*reqh_addb_stob, NULL, NULL);
-	M0_UT_ASSERT(rc == 0);
-
-        /* Init mdstore without reading root cob. */
-        rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, seg, false);
-        M0_UT_ASSERT(rc == -ENOENT);
+	/* Init mdstore without reading root cob. */
+	rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, seg, false);
+	M0_UT_ASSERT(rc == -ENOENT);
 	rc = m0_mdstore_create(&srv_mdstore, grp, &srv_cob_dom_id, seg);
-        M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
 	/* Create root session cob and other structures */
 	m0_cob_tx_credit(srv_mdstore.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
@@ -275,8 +264,7 @@ static int server_init(const char             *stob_path,
 
 /* Fini the server */
 static void server_fini(struct m0_stob_domain *bdom,
-			uint64_t	       back_key,
-			struct m0_stob        *reqh_addb_stob)
+			uint64_t	       back_key)
 {
 	struct m0_sm_group *grp;
 	struct m0_stob	   *bstore;
@@ -304,9 +292,6 @@ static void server_fini(struct m0_stob_domain *bdom,
         /* Fini the rpc_machine */
         m0_rpc_machine_fini(&srv_rpc_mach);
 	m0_rpc_net_buffer_pool_cleanup(&app_pool);
-
-	rc = m0_stob_destroy(reqh_addb_stob, NULL);
-	M0_UT_ASSERT(rc == 0);
 
 	m0_stob_id_make(0, back_key, &bdom->sd_id, &stob_id);
 	rc = m0_stob_find(&stob_id, &bstore);
@@ -401,9 +386,6 @@ void test_reqh(void)
 	struct m0_net_domain   srv_net_dom = { };
 	struct m0_stob_domain *bdom;
 	uint64_t	       back_key = 0xdf11e;
-	struct m0_stob        *reqh_addb_stob;
-	uint64_t	       reqh_addb_stob_key = 12;
-
 	struct m0_rpc_client_ctx cctx = {
 		.rcx_net_dom            = &net_dom,
 		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
@@ -425,8 +407,7 @@ void test_reqh(void)
 	result = m0_net_domain_init(&srv_net_dom, xprt);
 	M0_UT_ASSERT(result == 0);
 
-	server_init(path, SERVER_DB_NAME, &srv_net_dom, back_key, &bdom,
-		    &reqh_addb_stob, reqh_addb_stob_key);
+	server_init(path, SERVER_DB_NAME, &srv_net_dom, back_key, &bdom);
 
 	result = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(result == 0);
@@ -439,7 +420,7 @@ void test_reqh(void)
 	result = m0_rpc_client_stop(&cctx);
 	M0_UT_ASSERT(result == 0);
 
-	server_fini(bdom, back_key, reqh_addb_stob);
+	server_fini(bdom, back_key);
 
 	m0_net_domain_fini(&net_dom);
 	m0_net_domain_fini(&srv_net_dom);

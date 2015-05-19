@@ -40,10 +40,6 @@ M0_TL_DESCR_DEFINE(m0_net_tm, "tm list", M0_INTERNAL,
 M0_TL_DEFINE(m0_net_tm, M0_INTERNAL, struct m0_net_buffer);
 M0_EXPORTED(m0_net_tm_tlist_is_empty);
 
-const struct m0_addb_ctx_type m0_net_tm_addb_ctx = {
-	.act_name = "net-tm"
-};
-
 M0_INTERNAL bool m0_net__tm_state_is_valid(enum m0_net_tm_state ts)
 {
 	return ts >= M0_NET_TM_UNDEFINED && ts <= M0_NET_TM_FAILED;
@@ -143,16 +139,10 @@ static void m0_net__tm_cleanup(struct m0_net_transfer_mc *tm)
 		m0_net_tm_tlist_fini(&tm->ntm_q[i]);
 	}
 	tm->ntm_xprt_private = NULL;
-	m0_addb_counter_fini(&tm->ntm_cntr_msg);
-	m0_addb_counter_fini(&tm->ntm_cntr_data);
-	m0_addb_counter_fini(&tm->ntm_cntr_rb);
-	m0_addb_ctx_fini(&tm->ntm_addb_ctx);
 }
 
 M0_INTERNAL int m0_net_tm_init(struct m0_net_transfer_mc *tm,
-			       struct m0_net_domain      *dom,
-			       struct m0_addb_mc         *addb_mc,
-			       struct m0_addb_ctx        *ctx)
+			       struct m0_net_domain      *dom)
 {
 	int rc;
 	int i;
@@ -183,28 +173,12 @@ M0_INTERNAL int m0_net_tm_init(struct m0_net_transfer_mc *tm,
 	tm->ntm_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	m0_atomic64_set(&tm->ntm_recv_queue_deficit, 0);
 	tm->ntm_pool_colour = M0_BUFFER_ANY_COLOUR;
-	tm->ntm_addb_mc = addb_mc;
-	M0_ADDB_CTX_INIT(tm->ntm_addb_mc, &tm->ntm_addb_ctx,
-			 &m0_addb_ct_net_tm, ctx);
-	M0_SET0(&tm->ntm_cntr_msg);
-	M0_SET0(&tm->ntm_cntr_data);
-	M0_SET0(&tm->ntm_cntr_rb);
-	rc = m0_addb_counter_init(&tm->ntm_cntr_msg, &m0_addb_rt_net_aggr_msg);
-	if (rc == 0)
-		rc = m0_addb_counter_init(&tm->ntm_cntr_data,
-					  &m0_addb_rt_net_aggr_data);
-	if (rc == 0)
-		rc = m0_addb_counter_init(&tm->ntm_cntr_rb,
-					  &m0_addb_rt_net_recv_buf);
-	if (rc == 0)
-		rc = dom->nd_xprt->nx_ops->xo_tm_init(tm);
+	rc = dom->nd_xprt->nx_ops->xo_tm_init(tm);
 	if (rc >= 0) {
 		m0_list_add_tail(&dom->nd_tms, &tm->ntm_dom_linkage);
 		tm->ntm_state = M0_NET_TM_INITIALIZED;
-	} else {
+	} else
 		m0_net__tm_cleanup(tm);
-		NET_ADDB_FUNCFAIL(rc, TM_INIT, ctx);
-	}
 	m0_mutex_unlock(&dom->nd_mutex);
 
 	return M0_RC(rc);
@@ -291,7 +265,6 @@ M0_INTERNAL int m0_net_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 		/* xprt did not start, no retry supported */
 		tm->ntm_state = M0_NET_TM_FAILED;
 		M0_ASSERT(tm->ntm_ep == NULL);
-		NET_ADDB_FUNCFAIL(rc, TM_START, &tm->ntm_addb_ctx);
 	}
 	M0_POST(m0_net__tm_invariant(tm));
 	m0_mutex_unlock(&tm->ntm_mutex);
@@ -316,7 +289,6 @@ M0_INTERNAL int m0_net_tm_stop(struct m0_net_transfer_mc *tm, bool abort)
 	rc = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_stop(tm, abort);
 	if (rc < 0) {
 		tm->ntm_state = oldstate;
-		NET_ADDB_FUNCFAIL(rc, TM_STOP, &tm->ntm_addb_ctx);
 	} else
 		m0_atomic64_set(&tm->ntm_recv_queue_deficit, 0);
 
@@ -363,45 +335,6 @@ M0_INTERNAL int m0_net_tm_stats_get(struct m0_net_transfer_mc *tm,
 }
 M0_EXPORTED(m0_net_tm_stats_get);
 
-M0_INTERNAL void m0_net__tm_stats_post_addb(struct m0_net_transfer_mc *tm)
-{
-	int i;
-	struct m0_addb_ctx *cv[2];
-
-	M0_PRE(m0_mutex_is_locked(&tm->ntm_mutex));
-	M0_PRE(m0_net__tm_invariant(tm));
-	M0_PRE(tm->ntm_state >= M0_NET_TM_INITIALIZED);
-
-	cv[0] = &tm->ntm_addb_ctx;
-	cv[1] = NULL;
-
-	m0_addb_post_cntr(tm->ntm_addb_mc, cv, &tm->ntm_cntr_msg);
-	m0_addb_post_cntr(tm->ntm_addb_mc, cv, &tm->ntm_cntr_data);
-	m0_addb_post_cntr(tm->ntm_addb_mc, cv, &tm->ntm_cntr_rb);
-
-	for (i = 0; i < M0_NET_QT_NR; ++i) {
-		struct m0_net_qstats qs;
-
-		m0_net__tm_stats_get(tm, i, &qs, true);
-		if (qs.nqs_num_adds + qs.nqs_num_dels +
-		    qs.nqs_num_s_events + qs.nqs_num_f_events == 0)
-			continue;
-		M0_ADDB_POST(tm->ntm_addb_mc, m0_net__qstat_rts[i], cv,
-			     qs.nqs_num_adds, qs.nqs_num_dels,
-			     qs.nqs_num_s_events, qs.nqs_num_f_events,
-			     qs.nqs_time_in_queue, qs.nqs_total_bytes,
-			     qs.nqs_max_bytes);
-	}
-}
-
-M0_INTERNAL void m0_net_tm_stats_post_addb(struct m0_net_transfer_mc *tm)
-{
-	m0_mutex_lock(&tm->ntm_mutex);
-	m0_net__tm_stats_post_addb(tm);
-	m0_mutex_unlock(&tm->ntm_mutex);
-}
-M0_EXPORTED(m0_net_tm_stats_post_addb);
-
 M0_INTERNAL int m0_net_tm_confine(struct m0_net_transfer_mc *tm,
 				  const struct m0_bitmap *processors)
 {
@@ -417,8 +350,6 @@ M0_INTERNAL int m0_net_tm_confine(struct m0_net_transfer_mc *tm,
 		rc = -ENOSYS;
 	M0_POST(m0_net__tm_invariant(tm));
 	M0_POST(tm->ntm_state == M0_NET_TM_INITIALIZED);
-	if (rc != 0)
-		NET_ADDB_FUNCFAIL(rc, TM_CONFINE, &tm->ntm_addb_ctx);
 	m0_mutex_unlock(&tm->ntm_mutex);
 	return M0_RC(rc);
 }
@@ -440,8 +371,6 @@ m0_net_buffer_event_deliver_synchronously(struct m0_net_transfer_mc *tm)
 		rc = -ENOSYS;
 	M0_POST(ergo(rc == 0, !tm->ntm_bev_auto_deliver));
 	M0_POST(m0_net__tm_invariant(tm));
-	if (rc != 0)
-		NET_ADDB_FUNCFAIL(rc, BUF_EVENT_DEL_SYNC, &tm->ntm_addb_ctx);
 	m0_mutex_unlock(&tm->ntm_mutex);
 	return M0_RC(rc);
 }

@@ -44,9 +44,6 @@
  * @{
  */
 
-/* XXX move somewhere else */
-M0_INTERNAL struct m0_addb_ctx m0_stob_mod_ctx;
-
 static const struct m0_stob_type *stob_types_reg[] = {
 	&m0_stob_null_type,
 #ifndef __KERNEL__

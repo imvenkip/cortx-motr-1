@@ -23,12 +23,6 @@
    @{
  */
 
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
-#undef M0_ADDB_RT_CREATE_DEFINITION
-#define M0_ADDB_RT_CREATE_DEFINITION
-#include "rm/rm_addb.h"
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
 #include "lib/trace.h"
 
@@ -50,7 +44,6 @@ static void rms_fini(struct m0_reqh_service *service);
 
 static int rms_start(struct m0_reqh_service *service);
 static void rms_stop(struct m0_reqh_service *service);
-static void rms_stats_post_addb(struct m0_reqh_service *service);
 
 /**
    RM Service type operations.
@@ -67,11 +60,10 @@ static const struct m0_reqh_service_ops rms_ops = {
 	.rso_start_async     = m0_reqh_service_async_start_simple,
 	.rso_stop            = rms_stop,
 	.rso_fini            = rms_fini,
-	.rso_stats_post_addb = rms_stats_post_addb
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_rms_type, &rms_type_ops, "rmservice",
-			    &m0_addb_ct_rms_serv, 2, M0_CST_RMS);
+			    2, M0_CST_RMS);
 
 static const struct m0_bob_type rms_bob = {
 	.bt_name = "rm service",
@@ -89,25 +81,11 @@ M0_INTERNAL int m0_rms_register(void)
 {
 	M0_ENTRY();
 
-	m0_addb_ctx_type_register(&m0_addb_ct_rm_mod);
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_rm_addb_ctx,
-			 &m0_addb_ct_rm_mod, &m0_addb_proc_ctx);
-	m0_addb_ctx_type_register(&m0_addb_ct_rms_serv);
-
-	m0_addb_rec_type_register(&m0_addb_rt_rm_local_rate);
-	m0_addb_rec_type_register(&m0_addb_rt_rm_borrow_rate);
-	m0_addb_rec_type_register(&m0_addb_rt_rm_revoke_rate);
-	m0_addb_rec_type_register(&m0_addb_rt_rm_local_times);
-	m0_addb_rec_type_register(&m0_addb_rt_rm_borrow_times);
-	m0_addb_rec_type_register(&m0_addb_rt_rm_revoke_times);
-	m0_addb_rec_type_register(&m0_addb_rt_rm_credit_times);
-
 	m0_reqh_service_type_register(&m0_rms_type);
 	/**
 	 * @todo Contact confd and take list of resource types for this resource
 	 * manager.
 	 */
-
 	return M0_RC(m0_rm_fop_init());
 }
 
@@ -120,7 +98,6 @@ M0_INTERNAL void m0_rms_unregister(void)
 
 	m0_rm_fop_fini();
 	m0_reqh_service_type_unregister(&m0_rms_type);
-	m0_addb_ctx_fini(&m0_rm_addb_ctx);
 
 	M0_LEAVE();
 }
@@ -134,7 +111,7 @@ static int rms_allocate(struct m0_reqh_service **service,
 
 	M0_PRE(service != NULL && stype != NULL);
 
-	M0_ADDB2_IN(M0_RM_ADDB2_SERVICE_ALLOC, M0_ALLOC_PTR(rms));
+	M0_ALLOC_PTR(rms);
 	if (rms != NULL) {
 		m0_reqh_rm_service_bob_init(rms);
 		*service = &rms->rms_svc;
@@ -272,10 +249,8 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 		}
 		owner = rmsvc_owner(resource);
 		if (owner == NULL) {
-			M0_ADDB2_IN(M0_RM_ADDB2_RMSVC_OWNER_ALLOC,
-				    M0_ALLOC_PTR(owner));
-			M0_ADDB2_IN(M0_RM_ADDB2_CREDIT_ALLOC,
-				    M0_ALLOC_PTR(ow_cr));
+			M0_ALLOC_PTR(owner);
+			M0_ALLOC_PTR(ow_cr);
 			if (owner != NULL && ow_cr != NULL) {
 				/*
 				 * RM service does not belong to any group at
@@ -308,42 +283,6 @@ err_alloc:
 	m0_free(owner);
 	m0_rm_resource_del(resource);
 	return M0_ERR(rc);
-}
-
-static void rms_stats_post_addb(struct m0_reqh_service *service)
-{
-	int                        i;
-	int                        j;
-	struct m0_reqh_rm_service *rms;
-	struct m0_rm_domain       *dom;
-
-	M0_PRE(service != NULL);
-	M0_ENTRY();
-
-	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
-	dom = &rms->rms_dom;
-
-#undef CNTR_POST
-#define CNTR_POST(counter)						\
-		m0_addb_post_cntr(&m0_addb_gmc,                         \
-				  M0_ADDB_CTX_VEC(&m0_rm_addb_ctx),	\
-				  &counter);
-
-	for (i = 0; i < ARRAY_SIZE(dom->rd_types); ++i) {
-		struct m0_rm_resource_type *rt = dom->rd_types[i];
-		struct rm_addb_stats       *as;
-
-		if (rt != NULL) {
-			as = &rt->rt_addb_stats;
-			for (j = 0; j < ARRAY_SIZE(as->as_req); ++j) {
-				CNTR_POST(as->as_req[j].rs_nr);
-				CNTR_POST(as->as_req[j].rs_time);
-				as->as_req[j].rs_count = 0;
-			}
-			CNTR_POST(as->as_credit_time);
-		}
-	}
-#undef CNTR_POST
 }
 
 M0_INTERNAL struct m0_rm_domain *

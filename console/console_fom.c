@@ -87,15 +87,6 @@ static size_t console_fom_home_locality(const struct m0_fom *fom)
         return m0_fop_opcode(fom->fo_fop);
 }
 
-static void console_fom_addb_init(struct m0_fom * fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 static void console_fom_fini(struct m0_fom *fom)
 {
 	m0_fom_fini(fom);
@@ -139,19 +130,18 @@ static int console_fom_tick(struct m0_fom *fom)
 	/* Reply item */
 	reply_item = &rfop->f_item;
 	m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
-        m0_rpc_reply_post(req_item, reply_item);
+	m0_rpc_reply_post(req_item, reply_item);
 	return M0_FSO_WAIT;
 }
 
 const struct m0_fom_ops m0_console_fom_device_ops = {
-        .fo_tick	  = console_fom_tick,
+	.fo_tick	  = console_fom_tick,
 	.fo_fini	  = console_fom_fini,
-	.fo_home_locality = console_fom_home_locality,
-	.fo_addb_init     = console_fom_addb_init
+	.fo_home_locality = console_fom_home_locality
 };
 
 const struct m0_fom_type_ops m0_console_fom_type_device_ops = {
-        .fto_create = console_device_fom_create
+	.fto_create = console_device_fom_create
 };
 
 static int console_test_fom_create(struct m0_fop  *fop,
@@ -168,8 +158,7 @@ static int console_test_fom_create(struct m0_fop  *fop,
 struct m0_fom_ops m0_console_fom_test_ops = {
 	.fo_fini          = console_fom_fini,
 	.fo_tick          = console_fom_tick,
-	.fo_home_locality = console_fom_home_locality,
-	.fo_addb_init     = console_fom_addb_init
+	.fo_home_locality = console_fom_home_locality
 };
 
 const struct m0_fom_type_ops m0_console_fom_type_test_ops = {

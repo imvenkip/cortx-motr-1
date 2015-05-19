@@ -1,4 +1,4 @@
-nobase_mero_include_HEADERS += sss/ss_addb.h \
+nobase_mero_include_HEADERS += \
 			       sss/ss_fops.h \
 			       sss/ss_svc.h
 

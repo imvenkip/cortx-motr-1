@@ -108,7 +108,7 @@
  *        corruption.
  *
  *   - @b r.cm.addb Copy packet should have its own addb context, (similar to
- *	  fop), although it uses different addb locations, this will trace the
+ *	  fom), although it uses different addb locations, this will trace the
  *	  entire path of the copy packet.
  *
  *   <hr>
@@ -464,21 +464,11 @@ static int cp_fom_tick(struct m0_fom *fom)
 	return M0_RC(rc);
 }
 
-static void cp_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 /** Copy packet FOM operations */
 static const struct m0_fom_ops cp_fom_ops = {
 	.fo_fini          = cp_fom_fini,
 	.fo_tick          = cp_fom_tick,
-	.fo_home_locality = cp_fom_locality,
-	.fo_addb_init     = cp_fom_addb_init
+	.fo_home_locality = cp_fom_locality
 };
 
 static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
@@ -501,7 +491,6 @@ static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
 		return M0_ERR(-ENOMEM);
 
 	m0_cm_cp_fom_init(cm, cp);
-	cp->c_fom.fo_addb_ctx.ac_magic = 0;
 	m0_fom_init(&cp->c_fom, &cm->cm_type->ct_fomt, &cp_fom_ops, fop,
 		    NULL, reqh);
 	*m = &cp->c_fom;

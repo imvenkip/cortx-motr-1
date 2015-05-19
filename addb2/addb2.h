@@ -150,7 +150,7 @@
  *
  * A call to m0_addb2_add() adds a one-time measurement in the current context.
  *
- * A call to m0_addb_sensor_add() adds sensor in the current context and
+ * A call to m0_addb2_sensor_add() adds sensor in the current context and
  * associates the sensor with the top label in the context. IMPLEMENTATION
  * periodically queries added sensors. A sensor is automatically de-activated
  * when the label the sensor is associated with is popped from the stack.

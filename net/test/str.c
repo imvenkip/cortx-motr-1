@@ -24,7 +24,8 @@
 #include <linux/string.h>	/* strlen */
 #endif
 
-#include "lib/memory.h"		/* m0_alloc */
+#include "lib/memory.h"	/* m0_alloc */
+#include "lib/misc.h"           /* ergo, ARRAY_SIZE */
 
 #include "mero/magic.h"	/* M0_NET_TEST_STR_MAGIC */
 

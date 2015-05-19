@@ -31,18 +31,11 @@
 #include "mero/setup.h"
 #include "sns/cm/sns_cp_onwire.h"
 
-#include "sns/sns_addb.h"
-
 /**
   @addtogroup SNSCMSVC
 
   @{
 */
-
-struct m0_addb_ctx m0_sns_mod_addb_ctx;
-struct m0_addb_ctx m0_sns_cm_addb_ctx;
-struct m0_addb_ctx m0_sns_ag_addb_ctx;
-struct m0_addb_ctx m0_sns_cp_addb_ctx;
 
 M0_INTERNAL int
 m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
@@ -74,16 +67,6 @@ m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
 	return M0_RC(rc);
 }
 
-static void addb_init()
-{
-        M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_sns_mod_addb_ctx,
-                         &m0_addb_ct_sns_mod, &m0_addb_proc_ctx);
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_sns_ag_addb_ctx,
-			 &m0_addb_ct_sns_ag, &m0_sns_mod_addb_ctx);
-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_sns_cp_addb_ctx,
-			 &m0_addb_ct_sns_cp, &m0_sns_ag_addb_ctx);
-}
-
 M0_INTERNAL int m0_sns_cm_svc_start(struct m0_reqh_service *service)
 {
 	struct m0_cm                *cm;
@@ -94,8 +77,6 @@ M0_INTERNAL int m0_sns_cm_svc_start(struct m0_reqh_service *service)
 
 	M0_ENTRY("service: %p", service);
 	M0_PRE(service != NULL);
-
-	addb_init();
 
 	cm = container_of(service, struct m0_cm, cm_service);
 	rc = m0_cm_setup(cm);

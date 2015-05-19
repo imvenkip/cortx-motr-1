@@ -43,16 +43,6 @@ M0_INTERNAL size_t m0_ha_state_set_fom_home_locality(const struct m0_fom *fom)
 	return ++seq;
 }
 
-M0_INTERNAL void m0_ha_state_set_fom_addb_init(struct m0_fom *fom,
-					       struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set
-	 *          MAGIC, so that m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
 M0_INTERNAL int m0_ha_state_set_fom_tick(struct m0_fom *fom)
 {
 	m0_fom_block_enter(fom);
@@ -67,8 +57,7 @@ M0_INTERNAL int m0_ha_state_set_fom_tick(struct m0_fom *fom)
 const struct m0_fom_ops m0_ha_state_set_fom_ops = {
 	.fo_tick          = &m0_ha_state_set_fom_tick,
 	.fo_fini          = &m0_ha_state_set_fom_fini,
-	.fo_home_locality = &m0_ha_state_set_fom_home_locality,
-	.fo_addb_init     = &m0_ha_state_set_fom_addb_init
+	.fo_home_locality = &m0_ha_state_set_fom_home_locality
 };
 
 M0_INTERNAL int m0_ha_state_set_fom_create(struct m0_fop *fop,

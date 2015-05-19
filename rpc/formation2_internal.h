@@ -75,7 +75,6 @@
 
 #include "lib/types.h"
 #include "lib/tlist.h"
-#include "addb/addb.h"
 
 /* Imports */
 struct m0_rpc_packet;
@@ -228,8 +227,6 @@ struct m0_rpc_frm {
 	struct m0_rpc_frm_constraints  f_constraints;
 
 	const struct m0_rpc_frm_ops   *f_ops;
-
-	struct m0_addb_ctx             f_addb_ctx;
 
 	/** FRM_MAGIC */
 	uint64_t                       f_magic;

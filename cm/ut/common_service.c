@@ -219,8 +219,7 @@ static const struct m0_reqh_service_type_ops cm_ut_service_type_ops = {
 	.rsto_service_allocate = cm_ut_service_allocate,
 };
 
-M0_CM_TYPE_DECLARE(cm_ut, M0_CM_UT_OPCODE, &cm_ut_service_type_ops, "cm_ut",
-		   &m0_addb_ct_ut_service);
+M0_CM_TYPE_DECLARE(cm_ut, M0_CM_UT_OPCODE, &cm_ut_service_type_ops, "cm_ut");
 
 struct m0_mero         mero = { .cc_pool_width = 10 };
 struct m0_reqh_context rctx = { .rc_mero = &mero };
@@ -231,19 +230,18 @@ void cm_ut_service_alloc_init()
 	/* Internally calls m0_cm_init(). */
 	M0_ASSERT(cm_ut_service == NULL);
 	rc = m0_reqh_service_allocate(&cm_ut_service, &cm_ut_cmt.ct_stype,
-	                              &rctx);
+				      &rctx);
 	M0_ASSERT(rc == 0);
 	m0_reqh_service_init(cm_ut_service, &cmut_rmach_ctx.rmc_reqh, NULL);
 }
 
 void cm_ut_service_cleanup()
 {
-        m0_reqh_service_prepare_to_stop(cm_ut_service);
-        m0_reqh_service_stop(cm_ut_service);
-        m0_reqh_service_fini(cm_ut_service);
+	m0_reqh_service_prepare_to_stop(cm_ut_service);
+	m0_reqh_service_stop(cm_ut_service);
+	m0_reqh_service_fini(cm_ut_service);
 }
 
-M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

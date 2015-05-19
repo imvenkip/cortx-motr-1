@@ -1401,9 +1401,6 @@ struct io_request {
 
 	struct nw_xfer_request       ir_nwxfer;
 
-	/** Run-time addb context of the operation */
-	struct m0_addb_ctx           ir_addb_ctx;
-
 	/** A request to borrow resource from creditor */
 	struct m0_rm_incoming        ir_in;
 
@@ -1733,11 +1730,6 @@ struct target_ioreq {
 
 	/** Target-object id. */
 	uint64_t                       ti_obj;
-	/**
-	 * Time of launch for target IO request
-	 * Used for ADDB posting.
-	 */
-	m0_time_t                      ti_start_time;
 
 	/** Status code for io operation done for this target_ioreq. */
 	int                            ti_rc;

@@ -29,20 +29,6 @@
    @{
  */
 
-extern struct m0_addb_ctx m0_net_lnet_addb_ctx;
-
-/**
-   LNet function failure macro using the global ADDB machine to post.
-   @param rc Return code
-   @param loc Location code - one of the M0_NET_LNET_ADDB_LOC_ enumeration
-   constants suffixes from net/lnet/lnet_addb.h.
-   @param ctx Runtime context pointer
-   @pre rc < 0
- */
-#define LNET_ADDB_FUNCFAIL(rc, loc, ctx)				\
-	M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_NET_LNET_ADDB_LOC_##loc, rc,	\
-			  &m0_net_lnet_addb_ctx, ctx)
-
 /* forward references to other static functions */
 static bool nlx_tm_invariant(const struct m0_net_transfer_mc *tm);
 static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm);

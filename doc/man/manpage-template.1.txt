@@ -145,7 +145,7 @@ this release. If not please contact a Xyratex representative.
 
 SEE ALSO
 --------
-*m0d*(1) *m0console*(8) *m0addbdump*(8)
+*m0d*(1) *m0console*(8) *m0addb2dump*(8)
 
 
 MERO
