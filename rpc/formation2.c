@@ -565,11 +565,12 @@ static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
 	struct m0_rpc_item_source *source;
 	struct m0_rpc_item        *item;
 	m0_bcount_t                available_space;
-	m0_bcount_t                header_size;
+	m0_bcount_t                header_footer_size;
 
 	M0_ENTRY();
 
-	header_size = m0_rpc_item_onwire_header_size;
+	header_footer_size = m0_rpc_item_onwire_header_size +
+			     m0_rpc_item_onwire_footer_size;
 	m0_tl_for(rpc_conn, &machine->rm_outgoing_conns, conn) {
 		M0_LOG(M0_DEBUG, "conn: %p", conn);
 		if (&conn->c_rpcchan->rc_frm != frm ||
@@ -580,10 +581,10 @@ static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
 			while (source->ris_ops->riso_has_item(source)) {
 				available_space = available_space_in_packet(p,
 									frm);
-				if (available_space <= header_size)
+				if (available_space <= header_footer_size)
 					goto out;
 				item = source->ris_ops->riso_get_item(source,
-						available_space - header_size);
+						available_space - header_footer_size);
 				if (item == NULL)
 					break; /* next item source */
 				M0_ASSERT(m0_rpc_item_is_oneway(item));

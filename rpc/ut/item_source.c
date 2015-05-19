@@ -36,6 +36,7 @@
 #include "rpc/ut/rpc_test_fops.h"  /* m0_rpc_arrow_fopt */
 #include "ut/cs_fop.h"             /* cs_ds2_req_fop_fopt */
 #include "ut/cs_fop_xc.h"          /* cs_ds2_req_fop */
+#include "rpc/formation2.c"        /* frm_fill_packet_from_item_sources */
 
 #include <stdio.h>
 
@@ -87,8 +88,15 @@ static struct m0_rpc_item *get_item(struct m0_rpc_item_source *ris,
 	 */
 	m0_rpc_item_get(item);
 
+	if (M0_FI_ENABLED("max"))
+		item->ri_size = m0_rpc_session_get_max_item_payload_size(
+					&cctx.rcx_session);
+
+	if (M0_FI_ENABLED("not_multiple_of_8bytes"))
+		item->ri_size = max_payload_size - 1;
+
 	M0_UT_ASSERT(m0_rpc_item_is_oneway(item) &&
-		     m0_rpc_item_payload_size(item) <= max_payload_size);
+		     m0_rpc_item_size(item) <= max_payload_size);
 	return item;
 }
 
@@ -114,6 +122,55 @@ static void item_source_basic_test(void)
 	m0_rpc_item_source_init(&ris, "test-item-source", &ris_ops);
 	M0_UT_ASSERT(ris.ris_ops == &ris_ops);
 	m0_rpc_item_source_register(conn, &ris);
+	m0_rpc_item_source_deregister(&ris);
+	m0_rpc_item_source_fini(&ris);
+}
+
+static void item_source_limits_test(void)
+{
+	struct m0_rpc_item_source ris;
+	struct m0_rpc_frm        *frm;
+	struct m0_rpc_packet     *p;
+	int                       cond;
+
+	m0_rpc_item_source_init(&ris, "test-item-source", &ris_ops);
+	M0_UT_ASSERT(ris.ris_ops == &ris_ops);
+	m0_rpc_item_source_register(conn, &ris);
+	frm = &conn->c_rpcchan->rc_frm;
+
+	for (cond = 0; cond < 3; cond++) {
+		M0_ALLOC_PTR(p);
+		M0_UT_ASSERT(p != NULL);
+		has_item_calls = get_item_calls = 0;
+		m0_fi_enable_once("has_item", "yes");
+		switch (cond) {
+		case 0:
+			/* For the minimum item size */
+			break;
+		case 1:
+			m0_fi_enable_once("get_item", "max");
+			break;
+		case 2:
+			m0_fi_enable_once("get_item", "not_multiple_of_8bytes");
+			break;
+		default:
+			M0_IMPOSSIBLE("not supported");
+		}
+
+		m0_rpc_machine_lock(conn->c_rpc_machine);
+		m0_rpc_packet_init(p, frm_rmachine(frm));
+		frm_fill_packet_from_item_sources(frm, p);
+		m0_rpc_machine_unlock(conn->c_rpc_machine);
+		M0_UT_ASSERT(has_item_calls > get_item_calls &&
+			     get_item_calls == 1);
+		M0_UT_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_SENDING);
+		m0_rpc_machine_lock(conn->c_rpc_machine);
+		m0_rpc_item_put(item);
+		m0_rpc_item_change_state(item, M0_RPC_ITEM_SENT);
+		m0_rpc_packet_discard(p);
+		m0_rpc_item_put(item);
+		m0_rpc_machine_unlock(conn->c_rpc_machine);
+	}
 	m0_rpc_item_source_deregister(&ris);
 	m0_rpc_item_source_fini(&ris);
 }
@@ -217,6 +274,7 @@ struct m0_ut_suite item_source_ut = {
 	.ts_fini = item_source_test_suite_fini,
 	.ts_tests = {
 		{ "basic",                    item_source_basic_test   },
+		{ "item_source_limits",       item_source_limits_test  },
 		{ "item_pull",                item_source_test         },
 		{ "conn_terminating_cb_test", conn_terminating_cb_test },
 		{ NULL,                       NULL                     },
