@@ -1393,6 +1393,8 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	setattr_copy(inode, attr);
+	if (attr->ia_valid & ATTR_SIZE)
+		i_size_write(inode, attr->ia_size);
 #else
 	rc = inode_setattr(inode, attr);
 	if (rc != 0)
