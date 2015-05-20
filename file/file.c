@@ -22,10 +22,10 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FILE
 
 #include "lib/trace.h"
-#include "file/file.h"
 #include "lib/arith.h"
 #include "fid/fid_xc.h"
 #include "xcode/xcode.h"
+#include "rm/rm.h"
 #include "file/file.h"
 
 /**
@@ -503,7 +503,7 @@ M0_INTERNAL void m0_file_owner_init(struct m0_rm_owner      *owner,
 				    struct m0_file          *file,
 				    struct m0_rm_remote     *creditor)
 {
-	m0_rm_owner_init(owner, grp_id, &file->fi_res, creditor);
+	m0_rm_owner_init_rfid(owner, grp_id, &file->fi_res, creditor);
 }
 M0_EXPORTED(m0_file_owner_init);
 

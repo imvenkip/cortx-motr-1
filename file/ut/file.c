@@ -453,7 +453,7 @@ static void flock_utinit(void)
 	uint32_t i;
 
 	/* Maximum 2 servers for this test */
-	test_servers_nr = SERVER_NR - 1;
+	test_servers_nr = 2;
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_init(&rm_ctxs[i]);
 

@@ -27,6 +27,7 @@
 #include "lib/tlist.h"
 #include "lib/types.h"
 #include "lib/cookie.h"
+#include "fid/fid.h"    /* m0_fid */
 #include "net/net.h"
 #include "sm/sm.h"
 
@@ -230,6 +231,13 @@ struct m0_rm_lease;
 
 enum {
 	M0_RM_RESOURCE_TYPE_ID_MAX = 64,
+};
+
+/**
+ * RM owner fid type id.
+ */
+enum {
+	M0_RM_OWNER_FT = 'O',
 };
 
 /**
@@ -473,12 +481,11 @@ struct m0_rm_credit {
 	 */
 	struct m0_uint128              cr_group_id;
 	/**
-	 * Time when request for this credit acquisition was raised
+	 * Time when request for this credit acquisition was raised.
 	 */
 	m0_time_t                      cr_get_time;
 	/**
-	 * resource type private field. By convention, 0 means "empty"
-	 * credit.
+	 * Resource type private field. By convention, 0 means "empty" credit.
 	 */
 	uint64_t                       cr_datum;
 	/**
@@ -942,6 +949,12 @@ enum m0_rm_owner_queue_state {
 struct m0_rm_owner {
 	struct m0_sm           ro_sm;
 	/**
+	 * Owner non-zero FID unique through the cluster.
+	 * Provided by user or generated randomly.
+	 * Used to avoid dead-locks for requests with RIF_RESERVE flag.
+	 */
+	struct m0_fid          ro_fid;
+	/**
 	 * Resource this owner possesses the credits on.
 	 */
 	struct m0_rm_resource *ro_resource;
@@ -989,13 +1002,19 @@ struct m0_rm_owner {
 	 */
 	struct m0_tl           ro_outgoing[OQS_NR];
 	/**
-	 * Linkage of an owner to a list m0_rm_resource::r_local
+	 * Linkage of an owner to a list m0_rm_resource::r_local.
 	 */
 	struct m0_tlink        ro_owner_linkage;
 	/**
 	 * Generation count associated with an owner cookie.
 	 */
 	uint64_t               ro_id;
+	/**
+	 * Sequence number of the next local incoming request.
+	 * Automatically increments inside @ref incoming_queue for local
+	 * requests.
+	 */
+	uint64_t               ro_seq;
 	uint64_t               ro_magix;
 };
 
@@ -1061,7 +1080,7 @@ enum m0_rm_incoming_state {
 	/** Request cannot be fulfilled. */
 	RI_FAILURE,
 	/** Has to wait for some future event, like outgoing request completion
-	 *  or release of a locally held usage credit.
+	 *  or release of a locally held or reserved usage credit.
 	 */
 	RI_WAIT,
 	/** Credit has been released (possibly by m0_rm_credit_put()). */
@@ -1139,7 +1158,53 @@ enum m0_rm_incoming_flags {
 	 * @see RIF_LOCAL_WAIT
 	 */
 	RIF_LOCAL_TRY  = (1 << 3),
+	/**
+	 * Reserve credits that fulfill incoming request by putting
+	 * M0_RPF_BARRIER pins. Reserved credit can't be granted to other
+	 * incoming request until request which made reservation is granted.
+	 * The only exception is when incoming request also has RIF_RESERVE flag
+	 * and has bigger reserve priority (see m0_rm_incoming documentation).
+	 */
+	RIF_RESERVE    = (1 << 4),
 };
+
+/**
+ * Structure that determines reserve priority of the request.
+ *
+ * If there are several requests willing to reserve the same credit,
+ * then following rules apply:
+ *
+ *     - request with smallest timestamp has highest priority;
+ *
+ *     - if timestamps are equal, then request with smaller owner FID
+ *       has higher priority.
+ *
+ *     - if timestamps and owner FIDs are equal, then request with smaller
+ *       sequence number has higher priority.
+ *
+ * @see m0_rm_incoming
+ */
+struct m0_rm_reserve_prio {
+	/**
+	 * Timestamp of the original request.
+	 */
+	m0_time_t     rrp_time;
+	/**
+	 * Owner of the original request.
+	 */
+	struct m0_fid rrp_owner;
+	/**
+	 * Sequence number of the original request.
+	 * It is a counter maintained by an owner and incremented
+	 * for every incoming local request.
+	 *
+	 * Normally all local request timestamps for one owner are different,
+	 * because requests are added under lock. They can be equal because of
+	 * HW clock inaccuracy and sequence number is used in this case.
+	 */
+	uint64_t      rrp_seq;
+};
+
 
 /**
  * Resource usage credit request.
@@ -1198,24 +1263,37 @@ enum m0_rm_incoming_flags {
  *                     - outgoing requests to borrow missing credits from remote
  *                       owners (when RIF_MAY_BORROW flag is set);
  *
+ *                     - reserved credits if current request has smaller reserve
+ *                       priority;
+ *
  *                 Outgoing requests mentioned above are created as necessary
  *                 in the ISSUE stage.
  *
  *     - [CYCLE]   When all the pins stuck in the ISSUE state are released
  *                 (either when a local credit is released or when an outgoing
- *                 request completes), go back to the CHECK state.
+ *                 request completes or when reserved credits are granted),
+ *                 go back to the CHECK state.
  *
- * Looping back to the CHECK state is necessary, because possessed credits are
- * not "pinned" during wait and can go away (be revoked or sub-let). The credits
- * are not pinned to avoid dependencies between credits that can lead to
- * dead-locks and "cascading evictions". The alternative is to pin credits and
- * issue outgoing requests synchronously one by one and in a strict order (to
- * avoid dead-locks). The rationale behind current decision is that probability
- * of a live-lock is low enough and the advantage of issuing concurrent
- * asynchronous outgoing requests is important.
+ * Looping back to the CHECK state is necessary, because possessed non-reserved
+ * credits are not "pinned" during wait and can go away (be revoked or sub-let).
+ * The credits are not pinned to avoid dependencies between credits that can
+ * lead to dead-locks and "cascading evictions". But in this case there is
+ * possibility of live-lock.
  *
- * @todo Should live-locks prove to be a practical issue, M0_RPF_BARRIER pins
- * can be used to reduce concurrency and assure state machine progress.
+ * The alternative is to use RIF_RESERVE flag that leads to pinning credits with
+ * M0_RPF_BARRIER. Dead-locks are avoided by determining global strict ordering
+ * between such requests using "reserve priority" (@ref m0_rm_reserve_prio).
+ * Reserve priority is assigned once to the local incoming request and then
+ * inherited by all remote requests created in sake of that local request
+ * fulfillment. Therefore reserve priorities are handled consistently through
+ * the whole cluster.
+ *
+ * Reserve priorities are used only to avoid possible dead-locks and live-locks.
+ * There is no guarantee that request with higher reserve priority will be fully
+ * fulfilled before request with lower reserve priority.
+ *
+ * If probability of a live-lock is low enough then using incoming requests
+ * without RIF_RESERVE flag is preferable.
  *
  * How many outgoing requests are sent out in ISSUE state is a matter of
  * policy. The fewer requests are sent, the more CHECK-ISSUE-WAIT loop
@@ -1294,7 +1372,7 @@ enum m0_rm_incoming_flags {
  * M0_ROT_TAKE could be added.
  */
 struct m0_rm_incoming {
-	enum m0_rm_incoming_type	 rin_type;
+	enum m0_rm_incoming_type         rin_type;
 	struct m0_sm                     rin_sm;
 	/**
 	 * Stores the error code for incoming request. A separate field is
@@ -1305,11 +1383,11 @@ struct m0_rm_incoming {
 	 * be put into RI_FAILURE. The state-machine model does not handle
 	 * this well.
 	 */
-	int32_t				 rin_rc;
-	enum m0_rm_incoming_policy	 rin_policy;
-	uint64_t			 rin_flags;
+	int32_t                          rin_rc;
+	enum m0_rm_incoming_policy       rin_policy;
+	uint64_t                         rin_flags;
 	/** The credit requested. */
-	struct m0_rm_credit		 rin_want;
+	struct m0_rm_credit              rin_want;
 	/**
 	 * List of pins, linked through m0_rm_pin::rp_incoming_linkage, for all
 	 * credits held to satisfy this request.
@@ -1325,14 +1403,16 @@ struct m0_rm_incoming {
 	 *
 	 *     - other states: empty.
 	 */
-	struct m0_tl			 rin_pins;
+	struct m0_tl                     rin_pins;
 	/**
 	 * Request priority from 0 to M0_RM_REQUEST_PRIORITY_MAX.
 	 */
-	int				 rin_priority;
+	int                              rin_priority;
 	const struct m0_rm_incoming_ops *rin_ops;
 	/** Start time for this request */
 	m0_time_t                        rin_req_time;
+	/** Determines reserve priority of the request. */
+	struct m0_rm_reserve_prio        rin_reserve;
 	uint64_t                         rin_magix;
 };
 
@@ -1423,8 +1503,7 @@ enum m0_rm_pin_flags {
  *
  *     - M0_RPF_PROTECT: to protect a credit from revocation;
  *
- *     - M0_RPF_BARRIER: to prohibit M0_RPF_PROTECT pins from being added to the
- *       credit.
+ *     - M0_RPF_BARRIER: to prohibit granting credit to another request.
  *
  * Fields of this struct are protected by the owner's lock.
  *
@@ -1445,14 +1524,21 @@ enum m0_rm_pin_flags {
  *
  * @b Tracking.
  *
- * An incoming request with a RIF_LOCAL_WAIT flag might need to wait until a
- * conflicting pinned credit becomes unpinned. To this end, an M0_RPF_TRACK pin
- * is added from the incoming request to the credit.
+ * M0_RPF_TRACK pin is added from the incoming request to the credit when
  *
- * When the last M0_RPF_PROTECT pin is removed from a credit, the credit becomes
- * "cached" and the list of pins to the credit is scanned. For each M0_RPF_TRACK
- * pin on the list, its incoming request is checked to see whether this was the
- * last tracking pin the request is waiting for.
+ *     - An incoming request with a RIF_LOCAL_WAIT flag need to wait until a
+ *       conflicting pinned credit becomes unpinned;
+ *
+ *     - An incoming request need to wait until reserved credit pinned
+ *       with M0_RPF_BARRIER is unpinned;
+ *
+ *     - An incoming request need to wait for outgoing request completion.
+ *
+ * When the last M0_RPF_PROTECT pin is removed from a credit (credit becomes
+ * "cached") or M0_RPF_BARRIER pin is removed, then the list of pins to the
+ * credit is scanned. For each M0_RPF_TRACK pin on the list, its incoming
+ * request is checked to see whether this was the last tracking pin the request
+ * is waiting for.
  *
  * An incoming request might also issue an outgoing request to borrow or revoke
  * some credits, necessary to fulfill the request. An M0_RPF_TRACK pin is added
@@ -1463,8 +1549,21 @@ enum m0_rm_pin_flags {
  *
  * @b Barrier.
  *
- * Not currently used. The idea is to avoid live-locks and guarantee progress of
+ * Barrier is necessary to avoid live-locks and guarantee progress of
  * incoming request processing by pinning the credits with a M0_RPF_BARRIER pin.
+ *
+ * Credit which is pinned with M0_RPF_BARRIER is called "reserved". Only one
+ * incoming request can reserve the credit at any given time, others should wait
+ * completion of this incoming request. It is possible that already reserved
+ * credit should be reassigned to another incoming request with higher reserve
+ * priority than the request currently reserving credit (@ref m0_rm_incoming).
+ * Such situation is called "barrier overcome".
+ *
+ * M0_RPF_BARRIER pins are not set for outgoing requests. Instead M0_RPF_BARRIER
+ * pin is set just after outgoing request is complete and credit is placing in
+ * owner->ro_owned[OWOS_CACHED] list. It is done to add M0_RPF_BARRIER before
+ * other waiting requests moved to CHECK state, therefore prohibiting granting
+ * credit for waiting requests.
  *
  * @verbatim
  *
@@ -1609,16 +1708,27 @@ m0_rm_resource_initial_credit(const struct m0_rm_resource *resource,
  *
  * The owner's credit lists are initially empty.
  *
- * @pre owner->ro_state == ROS_FINAL
  * @pre creditor->rem_state >= REM_SERVICE_LOCATED
+ * @pre fid != NULL && m0_fid_tget(fid) == M0_RM_OWNER_FT
  *
  * @post M0_IN(owner->ro_state, (ROS_INITIALISING, ROS_ACTIVE)) &&
  *       owner->ro_resource == res)
  */
 M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner      *owner,
+				  struct m0_fid           *fid,
 				  const struct m0_uint128 *group,
 				  struct m0_rm_resource   *res,
 				  struct m0_rm_remote     *creditor);
+
+/**
+ * The same as m0_rm_owner_init, but owner FID is generated randomly.
+ *
+ * @see m0_rm_owner_init
+ */
+M0_INTERNAL void m0_rm_owner_init_rfid(struct m0_rm_owner      *owner,
+				       const struct m0_uint128 *group,
+				       struct m0_rm_resource   *res,
+				       struct m0_rm_remote     *creditor);
 
 /**
  * Loans a credit to an owner from itself.

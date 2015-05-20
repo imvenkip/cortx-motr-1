@@ -21,6 +21,8 @@
 #include "lib/memory.h"
 #include "ut/ut.h"
 #include "lib/finject.h"
+#include "lib/time.h"            /* m0_time_now */
+#include "fid/fid.h"             /* M0_FID_TINIT */
 #include "net/lnet/lnet.h"
 #include "rpc/rpc.h"
 #include "reqh/reqh.h"
@@ -215,6 +217,8 @@ static void brw_fop_populate(struct m0_fom *fom, enum test_type test)
 
 	brw_fop->bo_base.rrq_policy = RIP_NONE;
 	brw_fop->bo_base.rrq_flags = RIF_LOCAL_WAIT;
+	brw_fop->bo_base.rrq_orig_owner = M0_FID_TINIT(M0_RM_OWNER_FT, 1, 0);
+	brw_fop->bo_base.rrq_orig_time = m0_time_now();
 
 	m0_cookie_init(&brw_fop->bo_creditor.ow_cookie,
 		       &rm_test_data.rd_owner->ro_id);
@@ -428,6 +432,9 @@ static void rvk_fop_populate(struct m0_fom *fom)
 
 	rvk_fop->fr_base.rrq_policy = RIP_NONE;
 	rvk_fop->fr_base.rrq_flags = RIF_LOCAL_WAIT;
+	rvk_fop->fr_base.rrq_orig_owner = M0_FID_TINIT(M0_RM_OWNER_FT, 1, 0);
+	rvk_fop->fr_base.rrq_orig_time = m0_time_now();
+
 
 	m0_rm_credit_init(&credit, rm_test_data.rd_owner);
 	credit.cr_datum = VILYA;

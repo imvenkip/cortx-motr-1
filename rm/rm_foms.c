@@ -445,6 +445,9 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 
 	m0_rm_incoming_init(in, owner, type, policy, flags);
 	in->rin_ops = &remote_incoming_ops;
+	in->rin_reserve.rrp_time = basefop->rrq_orig_time;
+	in->rin_reserve.rrp_owner = basefop->rrq_orig_owner;
+	in->rin_reserve.rrp_seq = basefop->rrq_orig_seq;
 	rc = m0_rm_credit_decode(&in->rin_want, buf);
 	if (rc != 0)
 		m0_rm_incoming_fini(in);

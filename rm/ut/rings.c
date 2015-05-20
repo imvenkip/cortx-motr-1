@@ -26,6 +26,7 @@
 #include "lib/misc.h"
 #include "lib/chan.h"
 #include "lib/vec.h"
+#include "fid/fid.h"      /* M0_FID_TINIT */
 #include "xcode/xcode.h"
 #include "ut/ut.h"
 
@@ -340,10 +341,12 @@ static void rings_res_unset(struct rm_ut_data *self)
 static void rings_owner_set(struct rm_ut_data *self)
 {
 	struct m0_rm_owner *owner;
+	struct m0_fid       fid = M0_FID_TINIT(M0_RM_OWNER_FT, 1,
+					       (uint64_t)self);
 
 	M0_ALLOC_PTR(owner);
 	M0_ASSERT(owner != NULL);
-	m0_rm_owner_init(owner, &m0_rm_no_group, self->rd_res, NULL);
+	m0_rm_owner_init(owner, &fid, &m0_rm_no_group, self->rd_res, NULL);
 	self->rd_owner = owner;
 }
 

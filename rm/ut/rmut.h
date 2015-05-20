@@ -137,7 +137,7 @@ struct rm_ctx {
  * Test variable(s)
  */
 extern struct rm_ut_data     rm_test_data;
-M0_EXTERN struct rm_ctx  rm_ctxs[];
+M0_EXTERN struct rm_ctx      rm_ctxs[];
 M0_EXTERN const char        *serv_addr[];
 M0_EXTERN const int          cob_ids[];
 M0_EXTERN const char        *db_name[];

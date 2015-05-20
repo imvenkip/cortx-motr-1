@@ -47,7 +47,7 @@ const int cob_ids[] = { 20, 30, 40 };
  * Test variable(s)
  */
 struct rm_ut_data rm_test_data;
-struct rm_ctx rm_ctxs[SERVER_NR];
+struct rm_ctx     rm_ctxs[SERVER_NR];
 struct m0_chan    rm_ut_tests_chan;
 struct m0_mutex   rm_ut_tests_chan_mutex;
 

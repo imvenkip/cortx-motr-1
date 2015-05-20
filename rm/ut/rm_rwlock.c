@@ -89,12 +89,14 @@ static void rwlock_owner_set(struct rm_ut_data *self)
 {
 	struct m0_rm_owner    *owner;
 	struct m0_rw_lockable *lockable;
+	struct m0_fid          fid = M0_FID_TINIT(M0_RM_OWNER_FT, 1,
+					          (uint64_t)self);
 
 	M0_ALLOC_PTR(owner);
 	M0_UT_ASSERT(owner != NULL);
 	lockable = container_of(self->rd_res, struct m0_rw_lockable,
 			        rwl_resource);
-	m0_rm_rwlock_owner_init(owner, lockable, NULL);
+	m0_rm_rwlock_owner_init(owner, &fid, lockable, NULL);
 	self->rd_owner = owner;
 }
 
@@ -158,7 +160,7 @@ static void rwlock_utinit(void)
 	uint32_t i;
 
 	/* Maximum 3 servers for this test */
-	test_servers_nr = SERVER_NR;
+	test_servers_nr = 3;
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_init(&rm_ctxs[i]);
 

@@ -217,7 +217,7 @@ static void rm_group_utinit(void)
 {
 	uint32_t i;
 
-	test_servers_nr = SERVER_NR;
+	test_servers_nr = 3;
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_init(&rm_ctxs[i]);
 

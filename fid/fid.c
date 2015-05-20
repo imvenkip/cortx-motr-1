@@ -24,6 +24,7 @@
 #include "lib/assert.h"        /* M0_PRE */
 #include "lib/hash.h"          /* m0_hash */
 #include "lib/arith.h"         /* m0_rnd */
+#include "lib/uuid.h"          /* m0_uuid_generate */
 #include "fid/fid_xc.h"
 #include "fid/fid.h"
 
@@ -146,6 +147,15 @@ M0_INTERNAL void m0_fid_tassume(struct m0_fid *fid,
 	M0_PRE(ft != NULL);
 
 	m0_fid_tchange(fid, ft->ft_id);
+}
+
+M0_INTERNAL void m0_fid_tgenerate(struct m0_fid *fid,
+				  const uint8_t  tid)
+{
+	M0_PRE(fid != NULL);
+
+	m0_uuid_generate((struct m0_uint128*)fid);
+	m0_fid_tchange(fid, tid);
 }
 
 M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0, const struct m0_fid *fid1)

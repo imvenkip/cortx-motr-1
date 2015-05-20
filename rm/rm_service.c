@@ -29,6 +29,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/bob.h"
+#include "fid/fid.h"
 #include "mero/magic.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
@@ -75,6 +76,11 @@ static const struct m0_bob_type rms_bob = {
 
 M0_BOB_DEFINE(M0_INTERNAL, &rms_bob, m0_reqh_rm_service);
 
+const static struct m0_fid_type owner_fid_type = {
+	.ft_id   = 'O',
+	.ft_name = "rm owner fid"
+};
+
 /**
    Register resource manager service
  */
@@ -83,6 +89,7 @@ M0_INTERNAL int m0_rms_register(void)
 	M0_ENTRY();
 
 	m0_reqh_service_type_register(&m0_rms_type);
+	m0_fid_type_register(&owner_fid_type);
 	/**
 	 * @todo Contact confd and take list of resource types for this resource
 	 * manager.
@@ -98,6 +105,7 @@ M0_INTERNAL void m0_rms_unregister(void)
 	M0_ENTRY();
 
 	m0_rm_fop_fini();
+	m0_fid_type_unregister(&owner_fid_type);
 	m0_reqh_service_type_unregister(&m0_rms_type);
 
 	M0_LEAVE();
@@ -262,7 +270,7 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 				 * we need to introduce function to source
 				 * the group id.
 				 */
-				m0_rm_owner_init(owner, &m0_rm_no_group,
+				m0_rm_owner_init_rfid(owner, &m0_rm_no_group,
 						 resource, NULL);
 				m0_rm_credit_init(ow_cr, owner);
 				ow_cr->cr_ops->cro_initial_capital(ow_cr);

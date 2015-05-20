@@ -23,13 +23,14 @@
 #undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
 
-#include "lib/memory.h" /* M0_ALLOC_PTR */
-#include "lib/misc.h"   /* M0_SET_ARR0 */
-#include "lib/errno.h"  /* ETIMEDOUT */
-#include "lib/arith.h"  /* M0_CNT_{INC,DEC} */
+#include "lib/memory.h"  /* M0_ALLOC_PTR */
+#include "lib/misc.h"    /* M0_SET_ARR0 */
+#include "lib/errno.h"   /* ETIMEDOUT */
+#include "lib/arith.h"   /* M0_CNT_{INC,DEC} */
 #include "lib/mutex.h"
 #include "lib/trace.h"
 #include "lib/bob.h"
+#include "fid/fid.h"
 #include "addb2/addb2.h"
 #include "mero/magic.h"
 #include "sm/sm.h"
@@ -153,11 +154,13 @@ M0_TL_DESCR_DEFINE(pi, "pins-of-incoming", , struct m0_rm_pin,
 		   M0_RM_PIN_MAGIC, M0_RM_INCOMING_PIN_HEAD_MAGIC);
 M0_TL_DEFINE(pi, M0_INTERNAL, struct m0_rm_pin);
 
+static bool pin_check(const void *bob);
+
 static const struct m0_bob_type pin_bob = {
 	.bt_name         = "pin",
 	.bt_magix_offset = offsetof(struct m0_rm_pin, rp_magix),
 	.bt_magix        = M0_RM_PIN_MAGIC,
-	.bt_check        = NULL
+	.bt_check        = pin_check
 };
 M0_BOB_DEFINE(static, &pin_bob, m0_rm_pin);
 
@@ -482,8 +485,9 @@ static const struct m0_sm_conf owner_conf = {
 static inline void owner_state_set(struct m0_rm_owner    *owner,
 				   enum m0_rm_owner_state state)
 {
-	M0_LOG(M0_INFO, "Owner: %p, state change:[%d -> %d]\n",
-	       owner, owner->ro_sm.sm_state, state);
+	M0_LOG(M0_INFO, "Owner: %p, state change:[%s -> %s]\n",
+	       owner, m0_sm_state_name(&owner->ro_sm, owner->ro_sm.sm_state),
+	       m0_sm_state_name(&owner->ro_sm, state));
 	m0_sm_state_set(&owner->ro_sm, state);
 }
 
@@ -567,12 +571,15 @@ M0_INTERNAL void m0_rm_owner_unlock(struct m0_rm_owner *owner)
 M0_EXPORTED(m0_rm_owner_unlock);
 
 M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner      *owner,
+				  struct m0_fid           *fid,
 				  const struct m0_uint128 *group,
 				  struct m0_rm_resource   *res,
 				  struct m0_rm_remote     *creditor)
 {
 	M0_PRE(ergo(creditor != NULL,
 		    creditor->rem_state >= REM_SERVICE_LOCATED));
+	M0_PRE(fid != NULL);
+	M0_PRE(m0_fid_tget(fid) == M0_RM_OWNER_FT);
 
 	M0_ENTRY("owner: %p resource: %p creditor: %p",
 		 owner, res, creditor);
@@ -582,6 +589,8 @@ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner      *owner,
 	owner_state_set(owner, ROS_INITIALISING);
 	m0_rm_owner_unlock(owner);
 	owner->ro_group_id = *group;
+	m0_fid_set(&owner->ro_fid, fid->f_container, fid->f_key);
+	owner->ro_seq = 0;
 
 	RM_OWNER_LISTS_FOR(owner, m0_rm_ur_tlist_init);
 	resource_get(res);
@@ -601,6 +610,18 @@ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner      *owner,
 }
 M0_EXPORTED(m0_rm_owner_init);
 
+M0_INTERNAL void m0_rm_owner_init_rfid(struct m0_rm_owner      *owner,
+				       const struct m0_uint128 *group,
+				       struct m0_rm_resource   *res,
+				       struct m0_rm_remote     *creditor)
+{
+	struct m0_fid fid;
+
+	m0_fid_tgenerate(&fid, M0_RM_OWNER_FT);
+	m0_rm_owner_init(owner, &fid, group, res, creditor);
+}
+M0_EXPORTED(m0_rm_owner_init_rfid);
+
 static void credit_processor(struct m0_rm_resource_type *rt)
 {
 	M0_ENTRY();
@@ -616,6 +637,23 @@ static void credit_processor(struct m0_rm_resource_type *rt)
 		m0_sm_group_unlock(&rt->rt_sm_grp);
 		m0_chan_wait(&rt->rt_sm_grp.s_clink);
 	}
+}
+
+static void reserve_prio_set(struct m0_rm_reserve_prio *prio,
+			     m0_time_t                  timestamp,
+			     struct m0_rm_owner        *owner)
+{
+	M0_ASSERT(prio != NULL);
+	M0_ASSERT(owner != NULL);
+
+	prio->rrp_time  = timestamp;
+	prio->rrp_owner = owner->ro_fid;
+	prio->rrp_seq   = owner->ro_seq++;
+}
+
+static bool reserve_prio_is_set(struct m0_rm_reserve_prio *prio)
+{
+	return m0_fid_is_set(&prio->rrp_owner) && prio->rrp_time != 0;
 }
 
 M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner  *owner,
@@ -693,6 +731,7 @@ static void owner_liquidate(struct m0_rm_owner *o)
 				    RIP_NONE, RIF_MAY_REVOKE);
 		in->rin_priority = 0;
 		in->rin_ops = &windup_incoming_ops;
+		reserve_prio_set(&in->rin_reserve, m0_time_now(), o);
 		/*
 		 * This is convoluted. Now that user incoming requests have
 		 * drained, we add our incoming requests for REVOKE and CANCEL
@@ -874,8 +913,9 @@ static inline void incoming_state_set(struct m0_rm_incoming     *in,
 				      enum m0_rm_incoming_state  state)
 {
 	M0_PRE(owner_smgrp_is_locked(in->rin_want.cr_owner));
-	M0_LOG(M0_INFO, "Incoming req: %p, state change:[%d -> %d]\n",
-	       in, in->rin_sm.sm_state, state);
+	M0_LOG(M0_INFO, "Incoming req: %p, state change:[%s -> %s]\n",
+	       in, m0_sm_state_name(&in->rin_sm, in->rin_sm.sm_state),
+	       m0_sm_state_name(&in->rin_sm, state));
 	m0_sm_state_set(&in->rin_sm, state);
 }
 
@@ -1508,6 +1548,12 @@ static void incoming_queue(struct m0_rm_owner *owner, struct m0_rm_incoming *in)
 	m0_rm_ur_tlist_add(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
 			   &in->rin_want);
 	in->rin_req_time = in->rin_want.cr_get_time = m0_time_now();
+
+	if (in->rin_type == M0_RIT_LOCAL) {
+		M0_ASSERT(!reserve_prio_is_set(&in->rin_reserve));
+		reserve_prio_set(&in->rin_reserve, in->rin_req_time, owner);
+	}
+	M0_ASSERT(reserve_prio_is_set(&in->rin_reserve));
 	owner_balance(owner);
 }
 
@@ -1535,8 +1581,10 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in)
 	if (owner_state(owner) == ROS_ACTIVE)
 		incoming_queue(owner, in);
 	else {
-		M0_LOG(M0_DEBUG, "Incoming req: %p, state change:[%d -> %d]",
-				 in, in->rin_sm.sm_state, RI_FAILURE);
+		M0_LOG(M0_DEBUG, "Incoming req: %p, state change:[%s -> %s]",
+				 in, m0_sm_state_name(&in->rin_sm,
+						      in->rin_sm.sm_state),
+				 m0_sm_state_name(&in->rin_sm, RI_FAILURE));
 		incoming_failure_set(in, -ENODEV);
 	}
 
@@ -1751,6 +1799,36 @@ static void owner_balance(struct m0_rm_owner *o)
 }
 
 /**
+ * Deletes all M0_RPF_BARRIER pins set by a given incoming request.
+ *
+ * In other words, function cancels all credit reservations made by incoming
+ * request. Also it deletes pins set to track reserved credits. It is guaranteed
+ * that if M0_RPF_TRACK pin exists for reserved credit, then it was stuck to
+ * track reservation cancel, because reserved credit is cached. In some rare
+ * cases credit can also be held (if M0_RIF_LOCAL_WAIT was not set for 'in'),
+ * but logic works fine in this case too.
+ */
+static void barrier_pins_del(struct m0_rm_incoming *in)
+{
+	struct m0_rm_pin    *in_pin;
+	struct m0_rm_pin    *cr_pin;
+	struct m0_rm_credit *cr;
+
+	m0_tl_for(pi, &in->rin_pins, in_pin) {
+		M0_ASSERT(m0_rm_pin_bob_check(in_pin));
+		if (in_pin->rp_flags & M0_RPF_BARRIER) {
+			cr = in_pin->rp_credit;
+			m0_tl_for(pr, &cr->cr_pins, cr_pin) {
+				if (cr_pin->rp_flags & M0_RPF_TRACK) {
+					pin_del(cr_pin);
+				}
+			} m0_tl_endfor;
+			pin_del(in_pin);
+		}
+	} m0_tl_endfor;
+}
+
+/**
  * Takes an incoming request in RI_CHECK state and attempts to perform a
  * non-blocking state transition.
  *
@@ -1780,16 +1858,30 @@ static void incoming_check(struct m0_rm_incoming *in)
 	} else
 		rc = in->rin_rc;
 
-	if (rc > 0) {
+	if (rc != 0) {
 		/*
 		 * Delete all PROTECT pins set by incoming request to
 		 * allow corresponding credits to be used for other incoming
 		 * requests. That prevents credit dependencies and possible
 		 * dead-locks.
+		 *
+		 * Also, request could protect some credits before failure.
 		 */
 		incoming_pins_del(in, M0_RPF_PROTECT);
+	}
+
+	if (rc > 0) {
 		incoming_state_set(in, RI_WAIT);
 	} else {
+		/**
+		 * @todo
+		 * Here we introduce "thundering herd" problem, potentially
+		 * waking up all requests waiting for reserved credit.
+		 * It is necessary, because rio_conflict() won't be called for
+		 * 'in' if waiting requests are not woken up.
+		 */
+		barrier_pins_del(in);
+
 		if (rc == 0) {
 			M0_ASSERT(incoming_pin_nr(in, M0_RPF_TRACK) == 0);
 			incoming_policy_apply(in);
@@ -1817,7 +1909,6 @@ static void incoming_check(struct m0_rm_incoming *in)
 			in->rin_rc = rc;
 			incoming_state_set(in, RI_WAIT);
 		}
-
 	}
 	M0_LEAVE();
 }
@@ -1829,6 +1920,11 @@ static void incoming_check(struct m0_rm_incoming *in)
 static bool incoming_is_complete(const struct m0_rm_incoming *in)
 {
 	return incoming_pin_nr(in, M0_RPF_TRACK) == 0;
+}
+
+static bool credit_is_reserved(const struct m0_rm_credit *cr)
+{
+	return credit_pin_nr(cr, M0_RPF_BARRIER) > 0;
 }
 
 /**
@@ -1857,22 +1953,48 @@ static void conflict_notify(struct m0_rm_credit *credit)
 }
 
 /**
+ * Add M0_RPF_TRACK pin from incoming request to credit
+ * if flag RIF_LOCAL_TRY is not set in request.
+ */
+static int credit_maybe_track(struct m0_rm_incoming *in,
+			      struct m0_rm_credit   *cr,
+			      bool                   notify,
+			      int                   *wait)
+{
+	int rc;
+
+	M0_PRE(credit_is_reserved(cr) || in->rin_flags & WAIT_TRY_FLAGS);
+
+	if (!(in->rin_flags & RIF_LOCAL_TRY)) {
+		rc = pin_add(in, cr, M0_RPF_TRACK);
+		if (rc == 0 && notify)
+			conflict_notify(cr);
+		(*wait)++;
+		return M0_RC(rc);
+	} else {
+		return M0_ERR(-EBUSY);
+	}
+}
+
+/**
  * Try to use held credit to satisfy incoming request.
- * If held can be used, then "rest" will be reduced accordingly to it.
+ * Function doesn't reduce 'rest'.
  *
- * @param in    Incoming request.
- * @param rest  Not yet satisfied part of originally requested credit.
- * @param held  Credit to check against incoming request.
- * @param wait  Counter that is increased if held credit can't be used
- *              immediately and incoming request has to wait until held
- *              credit is released.
+ * @param in       Incoming request.
+ * @param rest     Not yet satisfied part of originally requested credit.
+ * @param held     Credit to check against incoming request.
+ * @param wait     Counter that is increased if held credit can't be used
+ *                 immediately and incoming request has to wait until held
+ *                 credit is released.
+ * @param cr_used  Output parameter. Set to true if credit fulfills request.
  */
 static int incoming_check_held(struct m0_rm_incoming *in,
 			       struct m0_rm_credit   *rest,
 			       struct m0_rm_credit   *held,
-			       int                   *wait)
+			       int                   *wait,
+			       bool                  *cr_used)
 {
-	int  rc;
+	int  rc = 0;
 	/*
 	 * Note that second parameter is the whole credit, not 'rest'.
 	 * 'Rest' could be reduced the way that it doesn't conflict
@@ -1882,7 +2004,10 @@ static int incoming_check_held(struct m0_rm_incoming *in,
 	bool conflict = credit_conflicts(held, &in->rin_want);
 
 	M0_PRE(credit_intersects(held, rest));
-	/*
+
+	*cr_used = false;
+	/**
+	 * @todo
 	 * Ignore borrow requests for held non-conflicting credits.
 	 * If it is the only credit that can satisfy incoming request, then
 	 * eventually creditor will revoke it.
@@ -1895,26 +2020,76 @@ static int incoming_check_held(struct m0_rm_incoming *in,
 	 */
 	if (in->rin_type == M0_RIT_BORROW && !conflict) {
 		return M0_RC(0);
-	} else if (in->rin_type == M0_RIT_LOCAL && !conflict) {
-		rc = pin_add(in, held, M0_RPF_PROTECT);
-	} else if (in->rin_flags & RIF_LOCAL_WAIT) {
-		rc = pin_add(in, held, M0_RPF_TRACK);
-		if (rc == 0)
-			conflict_notify(held);
-		(*wait)++;
-	} else if (in->rin_flags & RIF_LOCAL_TRY) {
-		return M0_ERR(-EBUSY);
+	} else if (in->rin_type == M0_RIT_REVOKE ||
+		   (conflict && in->rin_flags & WAIT_TRY_FLAGS)) {
+		rc = credit_maybe_track(in, held, true, wait);
 	} else {
-		M0_ASSERT(in->rin_type == M0_RIT_LOCAL);
 		/*
-		 * This is the case of a LOCAL request, which conflicts with a
-		 * held credit, but does not have to wait until the credit is
-		 * released.
+		 * This is the case of a LOCAL request, when we
+		 * don't have to wait until the credit is released.
 		 */
-		 rc = pin_add(in, held, M0_RPF_PROTECT);
+		M0_ASSERT(in->rin_type == M0_RIT_LOCAL &&
+			  (!conflict || (in->rin_flags & WAIT_TRY_FLAGS) == 0));
 	}
 
-	return rc ?: credit_diff(rest, held);
+	*cr_used = (rc == 0);
+	return M0_RC(rc);
+}
+
+/**
+ * Checks whether 'in1' has higher reserve priority than 'in2'.
+ */
+static bool has_reserve_priority(struct m0_rm_incoming *in1,
+			         struct m0_rm_incoming *in2)
+{
+	struct m0_rm_reserve_prio *pr1 = &in1->rin_reserve;
+	struct m0_rm_reserve_prio *pr2 = &in2->rin_reserve;
+	int                        cmp;
+
+	M0_PRE(in1 != in2);
+	M0_PRE(reserve_prio_is_set(pr1));
+	M0_PRE(reserve_prio_is_set(pr2));
+	M0_PRE(in1->rin_flags & RIF_RESERVE);
+	M0_PRE(in2->rin_flags & RIF_RESERVE);
+
+	cmp = M0_3WAY(pr1->rrp_time, pr2->rrp_time) ?:
+	      m0_fid_cmp(&pr1->rrp_owner, &pr2->rrp_owner) ?:
+	      M0_3WAY(pr1->rrp_seq, pr2->rrp_seq);
+	M0_ASSERT(cmp != 0);
+	return cmp < 0;
+}
+
+/**
+ * Checks whether barrier currently set for credit (if any) is overcome
+ * by a given incoming request. If yes, then barrier is replaced, otherwise
+ * tracking pin is added.
+ */
+static int credit_reservation_check(struct m0_rm_incoming *in,
+				    struct m0_rm_credit   *cr,
+				    int                   *wait)
+{
+	struct m0_rm_pin *pin;
+	int               rc = 0;
+
+	pin = m0_tl_find(pr, p, &cr->cr_pins, p->rp_flags & M0_RPF_BARRIER);
+	if (pin != NULL){
+		if (in == pin->rp_incoming)
+			return M0_RC(0);
+
+		if (!(in->rin_flags & RIF_RESERVE) ||
+		    has_reserve_priority(pin->rp_incoming, in)) {
+			rc = credit_maybe_track(in, cr, false, wait);
+		} else {
+			/* That can be a second M0_RPF_TRACK pin added
+			 * to a credit from a single request */
+			pin->rp_flags &= ~M0_RPF_BARRIER;
+			pin->rp_flags |= M0_RPF_TRACK;
+			rc = pin_add(in, cr, M0_RPF_BARRIER);
+		}
+	} else if (in->rin_flags & RIF_RESERVE) {
+		rc = pin_add(in, cr, M0_RPF_BARRIER);
+	}
+	return M0_RC(rc);
 }
 
 /**
@@ -1952,6 +2127,11 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 	struct m0_rm_credit *r;
 	struct m0_rm_loan   *loan;
 	bool                 group_mismatch;
+	/**
+	 * @todo Will be deleted once borrowing held non-conflicting credits is
+	 * allowed.
+	 */
+	bool                 use_credit = false;
 	int                  i;
 	int                  wait = 0;
 	int                  rc   = 0;
@@ -1977,10 +2157,18 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 				continue;
 
 			if (i == OWOS_HELD)
-				rc = incoming_check_held(in, rest, r, &wait);
+				rc = incoming_check_held(in, rest, r, &wait,
+							 &use_credit);
 			else
-				rc = pin_add(in, r, M0_RPF_PROTECT) ?:
-				     credit_diff(rest, r);
+				use_credit = true;
+
+			if (rc == 0 && use_credit) {
+				rc = credit_reservation_check(in, r, &wait);
+				if (rc == 0 && wait == 0)
+					rc = pin_add(in, r, M0_RPF_PROTECT);
+				rc = rc ?: credit_diff(rest, r);
+			}
+
 			if (rc != 0)
 				return M0_RC(rc);
 		} m0_tl_endfor;
@@ -2083,9 +2271,10 @@ static void incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 	M0_PRE(rc <= 0);
 
 	in->rin_rc = rc;
-	M0_LOG(M0_DEBUG, "Incoming req: %p, state change:[%d -> %d]\n",
-			 in, in->rin_sm.sm_state,
-			 rc == 0 ? RI_SUCCESS : RI_FAILURE);
+	M0_LOG(M0_DEBUG, "Incoming req: %p, state change:[%s -> %s]\n",
+			 in, m0_sm_state_name(&in->rin_sm, in->rin_sm.sm_state),
+			 m0_sm_state_name(&in->rin_sm,
+				 rc == 0 ? RI_SUCCESS : RI_FAILURE));
 	/*
 	 * incoming_release() might have moved the request into excited
 	 * state when the last tracking pin was removed, shun it back
@@ -2292,7 +2481,7 @@ M0_INTERNAL int m0_rm_owner_loan_debit(struct m0_rm_owner *owner,
 	} m0_tl_endfor;
 	/*
 	 * On successful completion, remove the credits from the "remove-list"
-	 * and move the remnant credits to the OWOS_CACHED. Do the opposite
+	 * and move the remnant credits to the 'list'. Do the opposite
 	 * on failure.
 	 */
 	m0_tl_teardown(m0_rm_ur, rc ? &retain_list : &remove_list, cr) {
@@ -2310,6 +2499,45 @@ M0_INTERNAL int m0_rm_owner_loan_debit(struct m0_rm_owner *owner,
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rm_owner_loan_debit);
+
+M0_INTERNAL int granted_maybe_reserve(struct m0_rm_credit *granted,
+				      struct m0_rm_credit *to_cache)
+{
+	struct m0_rm_pin      *pin;
+	struct m0_rm_incoming *curr;
+	struct m0_rm_incoming *best = NULL;
+	int                    rc = 0;
+
+	M0_ENTRY("granted %p to_cache %p", granted, to_cache);
+	/*
+	 * First iteration: find request with highest reserve priority.
+	 */
+	m0_tl_for(pr, &granted->cr_pins, pin) {
+		M0_ASSERT(m0_rm_pin_bob_check(pin));
+		curr = pin->rp_incoming;
+		if (curr->rin_flags & RIF_RESERVE) {
+			if (best == NULL ||
+			    has_reserve_priority(curr, best))
+				best = curr;
+		}
+	} m0_tl_endfor;
+
+	if (best == NULL)
+		return M0_RC(0);
+	/*
+	 * Second iteration: add M0_RPF_BARRIER to 'best'
+	 * and M0_RPF_TRACK pins for others.
+	 */
+	m0_tl_for(pr, &granted->cr_pins, pin) {
+		curr = pin->rp_incoming;
+		rc = pin_add(curr, to_cache,
+			     (curr == best) ? M0_RPF_BARRIER : M0_RPF_TRACK);
+		if (rc != 0)
+			break;
+	} m0_tl_endfor;
+
+	return M0_RC(rc);
+}
 
 /* Checks if the loaned credit can be cached */
 static int loan_check(struct m0_rm_owner  *owner,
@@ -2340,7 +2568,8 @@ M0_INTERNAL int m0_rm_loan_settle(struct m0_rm_owner *owner,
 	M0_PRE(owner != NULL);
 	M0_PRE(loan != NULL);
 
-	rc = m0_rm_credit_dup(&loan->rl_credit, &cached);
+	rc = m0_rm_credit_dup(&loan->rl_credit, &cached) ?:
+	     granted_maybe_reserve(&loan->rl_credit, cached);
 	if (rc == 0) {
 		rc = m0_rm_owner_loan_debit(owner, loan, &owner->ro_sublet) ?:
 			loan_check(owner, &owner->ro_sublet, cached);
@@ -2399,47 +2628,55 @@ static bool resource_type_invariant(const struct m0_rm_resource_type *rt)
 		dom->rd_types[rt->rt_id] == rt;
 }
 
+static bool pin_check(const void *bob)
+{
+	const struct m0_rm_pin *pin = bob;
+
+	return pin->rp_credit != NULL &&
+	       pin->rp_incoming != NULL &&
+	       M0_IN(pin->rp_flags,
+			(M0_RPF_BARRIER, M0_RPF_TRACK, M0_RPF_PROTECT));
+}
+
 /**
  * Invariant for m0_rm_incoming.
  */
 static bool incoming_invariant(const struct m0_rm_incoming *in)
 {
 	return
-		(in->rin_rc != 0) == (incoming_state(in) == RI_FAILURE) &&
-		!(in->rin_flags & ~(RIF_MAY_REVOKE|RIF_MAY_BORROW|
-				    RIF_LOCAL_WAIT|RIF_LOCAL_TRY)) &&
+		_0C((in->rin_rc != 0) == (incoming_state(in) == RI_FAILURE)) &&
+		_0C(!(in->rin_flags & ~(RIF_MAY_REVOKE|RIF_MAY_BORROW|
+				RIF_LOCAL_WAIT|RIF_LOCAL_TRY|RIF_RESERVE))) &&
 		/* RIF_LOCAL_WAIT and RIF_LOCAL_TRY can't be set together */
-		(in->rin_flags & (RIF_LOCAL_WAIT | RIF_LOCAL_TRY)) !=
-		                 (RIF_LOCAL_WAIT | RIF_LOCAL_TRY) &&
+		_0C((in->rin_flags & WAIT_TRY_FLAGS) != WAIT_TRY_FLAGS) &&
 		/* M0_RIT_BORROW and M0_RIT_REVOKE should have exactly one of
 		 * RIF_LOCAL_WAIT, RIF_LOCAL_TRY flags set */
-		ergo(M0_IN(in->rin_type, (M0_RIT_BORROW, M0_RIT_REVOKE)),
-		     m0_is_po2(in->rin_flags &
-			     (RIF_LOCAL_WAIT | RIF_LOCAL_TRY))) &&
-		IS_IN_ARRAY(in->rin_priority,
-			    in->rin_want.cr_owner->ro_incoming) &&
+		_0C(ergo(M0_IN(in->rin_type, (M0_RIT_BORROW, M0_RIT_REVOKE)),
+		     m0_is_po2(in->rin_flags & WAIT_TRY_FLAGS))) &&
+		_0C(IS_IN_ARRAY(in->rin_priority,
+			    in->rin_want.cr_owner->ro_incoming)) &&
 		/* a request can be in "check" state only during owner_balance()
 		   execution. */
-		incoming_state(in) != RI_CHECK &&
-		pi_tlist_invariant(&in->rin_pins) &&
+		_0C(incoming_state(in) != RI_CHECK) &&
+		_0C(pi_tlist_invariant(&in->rin_pins)) &&
 		/* a request in the WAIT state... */
-		ergo(incoming_state(in) == RI_WAIT,
-		     /* waits on something... */
-		     incoming_pin_nr(in, M0_RPF_TRACK) > 0 &&
-		     /* and doesn't hold anything. */
-		     incoming_pin_nr(in, M0_RPF_PROTECT) == 0) &&
+		_0C(ergo(incoming_state(in) == RI_WAIT,
+		         /* waits on something... */
+		         incoming_pin_nr(in, M0_RPF_TRACK) > 0 &&
+		         /* and doesn't hold anything. */
+		         incoming_pin_nr(in, M0_RPF_PROTECT) == 0)) &&
 		/* a fulfilled request... */
-		ergo(incoming_state(in) == RI_SUCCESS,
+		_0C(ergo(incoming_state(in) == RI_SUCCESS,
 #if 0
-		     /* holds something... */
-		     incoming_pin_nr(in, M0_RPF_PROTECT) > 0 &&
+		         /* holds something... */
+		         incoming_pin_nr(in, M0_RPF_PROTECT) > 0 &&
 #endif
-		     /* and waits on nothing. */
-		     incoming_pin_nr(in, M0_RPF_TRACK) == 0) &&
-		ergo(incoming_state(in) == RI_FAILURE ||
-		     incoming_state(in) == RI_INITIALISED,
-		     incoming_pin_nr(in, ~0) == 0) &&
-		pr_tlist_is_empty(&in->rin_want.cr_pins);
+		         /* and waits on nothing. */
+		         incoming_pin_nr(in, M0_RPF_TRACK) == 0)) &&
+		_0C(ergo(incoming_state(in) == RI_FAILURE ||
+		         incoming_state(in) == RI_INITIALISED,
+		         incoming_pin_nr(in, ~0) == 0)) &&
+		_0C(pr_tlist_is_empty(&in->rin_want.cr_pins));
 }
 
 enum credit_queue {
@@ -2465,13 +2702,17 @@ static bool credit_invariant(const struct m0_rm_credit *credit, void *data)
 		(struct owner_invariant_state *) data;
 	return
 		/* only held credits have PROTECT pins */
-		ergo((is->is_phase == OIS_OWNED &&
-		     is->is_owned_idx == OWOS_HELD),
-		     credit_pin_nr(credit, M0_RPF_PROTECT) > 0) &&
-		ergo(is->is_phase == OIS_INCOMING,
-		     incoming_invariant(container_of(credit,
-						     struct m0_rm_incoming,
-						     rin_want)));
+		_0C(ergo((is->is_phase == OIS_OWNED &&
+			  is->is_owned_idx == OWOS_HELD),
+			  credit_pin_nr(credit, M0_RPF_PROTECT) > 0)) &&
+		/* only held/cached credits can be reserved */
+		_0C(ergo(credit_is_reserved(credit),
+			 (is->is_phase == OIS_OWNED))) &&
+		_0C(ergo(is->is_phase == OIS_INCOMING,
+			 incoming_invariant(container_of(credit,
+							 struct m0_rm_incoming,
+							 rin_want)))) &&
+		_0C(credit_pin_nr(credit, M0_RPF_BARRIER) <= 1);
 }
 
 static bool conflict_exists(const struct m0_rm_credit *cr,
@@ -2558,8 +2799,9 @@ static bool owner_invariant(struct m0_rm_owner *owner)
 	bool                         rc;
 	struct owner_invariant_state is;
 
+	M0_ASSERT(m0_fid_is_set(&owner->ro_fid));
+	M0_ASSERT(m0_fid_tget(&owner->ro_fid) == M0_RM_OWNER_FT);
 	M0_SET0(&is);
-
 	m0_rm_credit_init(&is.is_debit, owner);
 	m0_rm_credit_init(&is.is_credit, owner);
 
@@ -2584,7 +2826,7 @@ static bool owner_invariant(struct m0_rm_owner *owner)
  */
 static int credit_pin_nr(const struct m0_rm_credit *credit, uint32_t flags)
 {
-	int		  nr = 0;
+	int               nr = 0;
 	struct m0_rm_pin *pin;
 
 	m0_tl_for (pr, &credit->cr_pins, pin) {
@@ -2668,7 +2910,7 @@ static void pin_del(struct m0_rm_pin *pin)
 	struct m0_rm_incoming *in;
 	struct m0_rm_owner    *owner;
 
-	M0_ENTRY();
+	M0_ENTRY("pin %p", pin);
 	M0_ASSERT(pin != NULL);
 
 	in = pin->rp_incoming;
@@ -2702,20 +2944,7 @@ int pin_add(struct m0_rm_incoming *in,
 {
 	struct m0_rm_pin *pin;
 
-	M0_ENTRY();
-	/*
-	 * In some cases, an incoming may scan owner lists multiple times.
-	 * It may end up adding mutiple pins for the same credit. Hence, check
-	 * before adding the pin.
-	 */
-
-	pin = m0_tl_find(pi, pin, &in->rin_pins,
-			 (M0_ASSERT(pin->rp_incoming == in),
-			  pin->rp_credit == credit));
-	if (pin != NULL) {
-		M0_LOG(M0_DEBUG, "pins exists for credit: %p\n", credit);
-		return M0_RC(0);
-	}
+	M0_ENTRY("in %p credit %p flags %u", in, credit, flags);
 
 	M0_ALLOC_PTR(pin);
 	if (pin != NULL) {
@@ -2727,6 +2956,7 @@ int pin_add(struct m0_rm_incoming *in,
 		pr_tlist_add(&credit->cr_pins, pin);
 		pi_tlist_add(&in->rin_pins, pin);
 		m0_rm_pin_bob_init(pin);
+		M0_LEAVE("new pin %p", pin);
 		return M0_RC(0);
 	} else
 		return M0_ERR(-ENOMEM);

@@ -532,10 +532,11 @@ M0_INTERNAL void m0_rw_lockable_fini(struct m0_rw_lockable *lockable)
 M0_EXPORTED(m0_rw_lockable_fini);
 
 M0_INTERNAL void m0_rm_rwlock_owner_init(struct m0_rm_owner    *owner,
+				         struct m0_fid         *fid,
 				         struct m0_rw_lockable *lockable,
 				         struct m0_rm_remote   *creditor)
 {
-	m0_rm_owner_init(owner, &m0_rm_no_group,
+	m0_rm_owner_init(owner, fid, &m0_rm_no_group,
 		&lockable->rwl_resource, creditor);
 }
 M0_EXPORTED(m0_rm_rwlock_owner_init);

@@ -67,7 +67,8 @@
    Initialization and acquiring of RW lock for writing:
    @code
    m0_rw_lockable_init(lockable, fid, dom);
-   m0_rm_rwlock_owner_init(owner, lockable, creditor);
+   m0_fid_tgenerate(&owner_fid, M0_RM_OWNER_FT);
+   m0_rm_rwlock_owner_init(owner, &owner_fid, lockable, creditor);
 
    m0_rm_rwlock_req_init(req, owner, ops,
                          RIF_MAY_BORROW | RIF_MAY_REVOKE,
@@ -123,6 +124,7 @@ M0_INTERNAL void m0_rw_lockable_init(struct m0_rw_lockable *lockable,
 M0_INTERNAL void m0_rw_lockable_fini(struct m0_rw_lockable *lockable);
 
 M0_INTERNAL void m0_rm_rwlock_owner_init(struct m0_rm_owner    *owner,
+					 struct m0_fid         *fid,
 					 struct m0_rw_lockable *lockable,
 					 struct m0_rm_remote   *creditor);
 

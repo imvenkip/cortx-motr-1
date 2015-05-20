@@ -90,6 +90,12 @@ struct m0_rm_fop_req {
 	struct m0_rm_fop_credit rrq_credit;
 	uint64_t                rrq_policy;
 	uint64_t                rrq_flags;
+	/* Next three fields determine request reserve priority.
+	 * @see m0_rm_incoming, m0_rm_reserve_prio
+	 */
+	struct m0_fid           rrq_orig_owner;
+	m0_time_t               rrq_orig_time;
+	uint64_t                rrq_orig_seq;
 } M0_XCA_RECORD;
 
 struct m0_rm_fop_borrow {

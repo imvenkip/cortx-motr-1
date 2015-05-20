@@ -34,6 +34,7 @@
 #include "rm/rm_foms.h"
 #include "rm/rm_fops_xc.h"
 #include "rm/rm_service.h"
+#include "rm/rm_internal.h"
 
 /*
  * Data structures.
@@ -167,12 +168,15 @@ static int fop_common_fill(struct rm_out         *outreq,
 		req = (struct m0_rm_fop_req *) (char *)*data + offset;
 		req->rrq_policy = in->rin_policy;
 		req->rrq_flags = in->rin_flags;
+		req->rrq_orig_time = in->rin_reserve.rrp_time;
+		req->rrq_orig_owner = in->rin_reserve.rrp_owner;
+		req->rrq_orig_seq = in->rin_reserve.rrp_seq;
 		/*
 		 * Set RIF_LOCAL_WAIT for remote requests if none of the
 		 * RIF_LOCAL_WAIT, RIF_LOCAL_TRY is set, because only local
 		 * users may resolve conflicts by some other means.
 		 */
-		if (!(in->rin_flags & (RIF_LOCAL_TRY | RIF_LOCAL_WAIT)))
+		if (!(in->rin_flags & WAIT_TRY_FLAGS))
 			req->rrq_flags |= RIF_LOCAL_WAIT;
 		req->rrq_owner.ow_cookie = *cookie;
 		resource = in->rin_want.cr_owner->ro_resource;
@@ -429,7 +433,8 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 		rc = m0_rm_credit_dup(bcredit, &credit) ?:
 			m0_rm_loan_alloc(&brw_loan, bcredit,
-					 owner->ro_creditor);
+					 owner->ro_creditor) ?:
+			granted_maybe_reserve(bcredit, credit);
 		if (rc == 0) {
 			brw_loan->rl_cookie = borrow_reply->br_loan.lo_cookie;
 			/* Add loan to the borrowed list. */
@@ -486,7 +491,7 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 
 	owner = rvk_loan->rl_credit.cr_owner;
-	rc  = m0_rm_loan_settle(owner, rvk_loan);
+	rc = m0_rm_loan_settle(owner, rvk_loan);
 out:
 	outreq_fini(outreq, rc);
 	M0_LEAVE();

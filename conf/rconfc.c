@@ -454,6 +454,7 @@ static int rlock_ctx_init(struct rlock_ctx      *rlx,
 {
 	struct m0_rm_owner  *owner;
 	struct m0_rm_remote *creditor;
+	struct m0_fid       *owner_fid;
 
 	M0_ENTRY();
 	M0_PRE(rlx != NULL);
@@ -468,7 +469,9 @@ static int rlock_ctx_init(struct rlock_ctx      *rlx,
 	rlx->rlc_rm_addr = m0_strdup(rm_addr);
 	owner            = &rlx->rlc_owner;
 	creditor         = &rlx->rlc_creditor;
-	m0_rm_rwlock_owner_init(owner, &rlx->rlc_rwlock, NULL);
+	M0_ALLOC_PTR(owner_fid);
+	m0_fid_tgenerate(owner_fid, M0_RM_OWNER_FT);
+	m0_rm_rwlock_owner_init(owner, owner_fid, &rlx->rlc_rwlock, NULL);
 	m0_rm_remote_init(creditor, owner->ro_resource);
 	creditor->rem_session = &rlx->rlc_sess;
 	creditor->rem_cookie  = M0_COOKIE_NULL;

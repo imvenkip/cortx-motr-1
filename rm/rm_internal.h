@@ -24,6 +24,7 @@
 
 #include "lib/bob.h"
 #include "lib/cookie.h"
+#include "rm/rm.h"
 
 enum m0_file_credit {
 	RM_FILE_LOCK = 1
@@ -33,6 +34,10 @@ enum m0_file_credit {
 enum m0_rwlock_credit {
 	RM_RW_READ_LOCK  = 1,
 	RM_RW_WRITE_LOCK = ~0ULL
+};
+
+enum {
+	WAIT_TRY_FLAGS = RIF_LOCAL_WAIT | RIF_LOCAL_TRY,
 };
 
 /**
@@ -60,6 +65,15 @@ struct m0_rm_remote_incoming {
  */
 int pin_add(struct m0_rm_incoming *in, struct m0_rm_credit *credit,
 	    uint32_t flag);
+
+/**
+ * Check if credit that was granted by remote owner should be reserved by some
+ * incoming request that waits for outgoing request completion. If yes, then
+ * reserve 'to_cache' credit and force other requests to wait for reservation
+ * cancel.
+ */
+M0_INTERNAL int granted_maybe_reserve(struct m0_rm_credit *granted,
+				      struct m0_rm_credit *to_cache);
 
 /**
  * @name RM FOP interface.

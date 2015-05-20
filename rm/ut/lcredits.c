@@ -27,7 +27,9 @@
 #include "rm/rm_internal.h"      /* pi_tlist_length */
 #include "rm/ut/rings.h"
 
-static struct m0_chan lcredits_chan;
+static struct m0_chan  complete_chan;
+static struct m0_chan  conflict_chan;
+static struct m0_mutex conflict_mutex;
 
 extern bool res_tlist_contains(const struct m0_tl *list,
 			       const struct m0_rm_resource *res);
@@ -35,11 +37,13 @@ extern bool res_tlist_contains(const struct m0_tl *list,
 static void lcredits_in_complete(struct m0_rm_incoming *in, int32_t rc)
 {
         M0_UT_ASSERT(in != NULL);
-        m0_chan_broadcast_lock(&lcredits_chan);
+        m0_chan_broadcast_lock(&complete_chan);
 }
 
 static void lcredits_in_conflict(struct m0_rm_incoming *in)
 {
+	M0_UT_ASSERT(in != NULL);
+        m0_chan_broadcast_lock(&conflict_chan);
 }
 
 const struct m0_rm_incoming_ops lcredits_incoming_ops = {
@@ -54,12 +58,16 @@ static void local_credits_init(void)
 	rm_test_owner_capital_raise(rm_test_data.rd_owner,
 				    &rm_test_data.rd_credit);
 	M0_SET0(&rm_test_data.rd_in);
-	m0_chan_init(&lcredits_chan, &rm_test_data.rd_rt->rt_lock);
+	m0_chan_init(&complete_chan, &rm_test_data.rd_rt->rt_lock);
+	m0_mutex_init(&conflict_mutex);
+	m0_chan_init(&conflict_chan, &conflict_mutex);
 }
 
 static void local_credits_fini(void)
 {
-	m0_chan_fini_lock(&lcredits_chan);
+	m0_chan_fini_lock(&conflict_chan);
+	m0_mutex_fini(&conflict_mutex);
+	m0_chan_fini_lock(&complete_chan);
 	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
 }
 
@@ -173,14 +181,14 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 	M0_UT_ASSERT(ergo(flags == 0,
 			  next_in.rin_sm.sm_state == RI_SUCCESS &&
 			  next_in.rin_rc == 0));
-	M0_UT_ASSERT(ergo(flags == RIF_LOCAL_WAIT,
+	M0_UT_ASSERT(ergo(flags & RIF_LOCAL_WAIT,
 			  next_in.rin_sm.sm_state == RI_WAIT));
-	M0_UT_ASSERT(ergo(flags == RIF_LOCAL_TRY,
+	M0_UT_ASSERT(ergo(flags & RIF_LOCAL_TRY,
 			  next_in.rin_sm.sm_state == RI_FAILURE));
 
-	if (flags == RIF_LOCAL_WAIT) {
+	if (flags & RIF_LOCAL_WAIT) {
 		m0_clink_init(&clink, NULL);
-		m0_clink_add_lock(&lcredits_chan, &clink);
+		m0_clink_add_lock(&complete_chan, &clink);
 	}
 
 	/* First caller releases the credit */
@@ -190,14 +198,14 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 	 * 2. If the flag is RIF_LOCAL_WAIT, check if we get the credit
 	 *    after the first caller releases it.
 	 */
-	if (flags == RIF_LOCAL_WAIT) {
-		M0_UT_ASSERT(m0_chan_timedwait(&clink, !0));
+	if (flags & RIF_LOCAL_WAIT) {
+		M0_UT_ASSERT(m0_chan_timedwait(&clink, M0_TIME_NEVER));
 		M0_UT_ASSERT(next_in.rin_rc == 0);
 		M0_UT_ASSERT(next_in.rin_sm.sm_state == RI_SUCCESS);
 		m0_rm_credit_put(&next_in);
 		m0_clink_del_lock(&clink);
 		m0_clink_fini(&clink);
-	} else if (flags == 0) {
+	} else if (flags == 0 || !(flags & RIF_LOCAL_TRY)) {
 		m0_rm_credit_put(&next_in);
 	}
 
@@ -270,30 +278,178 @@ static void failures_test(void)
 	rm_test_data.rd_owner->ro_sm.sm_state = ROS_ACTIVE;
 }
 
+static void reserved_credit_get_test(enum m0_rm_incoming_flags    flags,
+				     enum m0_rm_owner_owned_state type)
+{
+	struct m0_rm_incoming in1;
+	struct m0_rm_incoming in2;
+	struct m0_clink       complete_clink;
+	struct m0_clink       conflict_clink;
+
+	/*
+	 * Test checks that if local credits pinned with M0_RPF_BARRIER are
+	 * suitable for incoming request, then incoming request is set to
+	 * RI_WAIT state until these credits are unpinned. The only exception is
+	 * incoming request with RIF_LOCAL_TRY flag. In that case -EBUSY is
+	 * returned immediately.
+	 */
+	m0_clink_init(&complete_clink, NULL);
+	m0_clink_add_lock(&complete_chan, &complete_clink);
+	m0_clink_init(&conflict_clink, NULL);
+	m0_clink_add_lock(&conflict_chan, &conflict_clink);
+
+	/* Hold NENYA */
+	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
+			    M0_RIT_LOCAL, RIP_NONE, 0);
+	rm_test_data.rd_in.rin_want.cr_datum = NENYA;
+	rm_test_data.rd_in.rin_ops = &lcredits_incoming_ops;
+	m0_rm_credit_get(&rm_test_data.rd_in);
+	m0_chan_wait(&complete_clink);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+
+	/*
+	 * Get credits with RIF_RESERVE flag. Since NENYA is already
+	 * held and RIF_LOCAL_WAIT is set, request is not satisfied immediately,
+	 * but requested credits are pinned with M0_RPF_BARRIER.
+	 */
+	M0_SET0(&in1);
+	m0_rm_incoming_init(&in1, rm_test_data.rd_owner, M0_RIT_LOCAL,
+			    RIP_NONE, RIF_RESERVE | RIF_LOCAL_WAIT);
+	in1.rin_want.cr_datum = NARYA | NENYA;
+	in1.rin_ops = &lcredits_incoming_ops;
+	m0_rm_credit_get(&in1);
+	M0_UT_ASSERT(in1.rin_rc == 0);
+	M0_UT_ASSERT(in1.rin_sm.sm_state == RI_WAIT);
+
+	/*
+	 * Get credit pinned with M0_RPF_BARRIER.
+	 * Request can't be satisfied immediately.
+	 */
+	M0_SET0(&in2);
+	m0_rm_incoming_init(&in2, rm_test_data.rd_owner,
+			    M0_RIT_LOCAL, RIP_NONE, flags);
+	in2.rin_want.cr_datum = (type == OWOS_CACHED) ? NARYA : NENYA;
+	in2.rin_ops = &lcredits_incoming_ops;
+	m0_rm_credit_get(&in2);
+	if (flags & RIF_LOCAL_TRY)
+		M0_UT_ASSERT(in2.rin_sm.sm_state == RI_FAILURE &&
+			     in2.rin_rc == -EBUSY);
+	else
+		M0_UT_ASSERT(in2.rin_sm.sm_state == RI_WAIT &&
+			     in2.rin_rc == 0);
+
+	/* Release NENYA credit, so in1 can be satisfied */
+	M0_UT_ASSERT(m0_chan_timedwait(&conflict_clink,
+				       m0_time_from_now(10, 0)));
+	m0_rm_credit_put(&rm_test_data.rd_in);
+	M0_UT_ASSERT(m0_chan_timedwait(&complete_clink,
+				       m0_time_from_now(10, 0)));
+
+	/* Release credits for in1, so in2 can be satisfied */
+	m0_rm_credit_put(&in1);
+	if (!(flags & RIF_LOCAL_TRY)) {
+		M0_UT_ASSERT(m0_chan_timedwait(&complete_clink,
+					       m0_time_from_now(10, 0)));
+		m0_rm_credit_put(&in2);
+	}
+
+	m0_rm_incoming_fini(&rm_test_data.rd_in);
+	m0_rm_incoming_fini(&in1);
+	m0_rm_incoming_fini(&in2);
+	m0_clink_del_lock(&complete_clink);
+	m0_clink_fini(&complete_clink);
+	m0_clink_del_lock(&conflict_clink);
+	m0_clink_fini(&conflict_clink);
+}
+
+void barrier_on_barrier_test(void)
+{
+	struct m0_rm_incoming in1;
+	struct m0_rm_incoming in2;
+	struct m0_clink       complete_clink;
+	struct m0_clink       conflict_clink;
+
+	/*
+	 * Test checks that incoming requests with RIF_RESERVE flag are
+	 * processed in order they are issued.
+	 */
+	m0_clink_init(&complete_clink, NULL);
+	m0_clink_add_lock(&complete_chan, &complete_clink);
+	m0_clink_init(&conflict_clink, NULL);
+	m0_clink_add_lock(&conflict_chan, &conflict_clink);
+
+	/* Hold NENYA */
+	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
+			    M0_RIT_LOCAL, RIP_NONE, 0);
+	rm_test_data.rd_in.rin_want.cr_datum = NENYA;
+	rm_test_data.rd_in.rin_ops = &lcredits_incoming_ops;
+	m0_rm_credit_get(&rm_test_data.rd_in);
+	m0_chan_wait(&complete_clink);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+
+	/* First request with RIF_RESERVE for NENYA */
+	M0_SET0(&in1);
+	m0_rm_incoming_init(&in1, rm_test_data.rd_owner, M0_RIT_LOCAL,
+				RIP_NONE, RIF_RESERVE | RIF_LOCAL_WAIT);
+	in1.rin_want.cr_datum = NENYA;
+	in1.rin_ops = &lcredits_incoming_ops;
+	m0_rm_credit_get(&in1);
+	M0_UT_ASSERT(in1.rin_rc == 0);
+	M0_UT_ASSERT(in1.rin_sm.sm_state == RI_WAIT);
+
+	/* Second request with RIF_RESERVE for NENYA */
+	M0_SET0(&in2);
+	m0_rm_incoming_init(&in2, rm_test_data.rd_owner,
+			    M0_RIT_LOCAL, RIP_NONE, RIF_RESERVE);
+	in2.rin_want.cr_datum = NENYA;
+	in2.rin_ops = &lcredits_incoming_ops;
+	m0_rm_credit_get(&in2);
+	M0_UT_ASSERT(in2.rin_sm.sm_state == RI_WAIT);
+	M0_UT_ASSERT(in2.rin_rc == 0);
+
+	/* Release NENYA */
+	M0_UT_ASSERT(m0_chan_timedwait(&conflict_clink,
+				       m0_time_from_now(10, 0)));
+	m0_rm_credit_put(&rm_test_data.rd_in);
+
+	/* First request with RIF_RESERVE is satisfied */
+	M0_UT_ASSERT(m0_chan_timedwait(&complete_clink,
+				       m0_time_from_now(10, 0)));
+	m0_rm_credit_put(&in1);
+
+	/* Second request with RIF_RESERVE is satisfied */
+	M0_UT_ASSERT(m0_chan_timedwait(&complete_clink,
+				       m0_time_from_now(10, 0)));
+	m0_rm_credit_put(&in2);
+
+	m0_rm_incoming_fini(&rm_test_data.rd_in);
+	m0_rm_incoming_fini(&in1);
+	m0_rm_incoming_fini(&in2);
+	m0_clink_del_lock(&complete_clink);
+	m0_clink_fini(&complete_clink);
+	m0_clink_del_lock(&conflict_clink);
+	m0_clink_fini(&conflict_clink);
+}
+
 void local_credits_test(void)
 {
-	/*
-	 * 1. Get cached credit - successful
-	 * 2. Get two non-overlapping cached credits - successful
-	 * 3. Get held non-conflicting credit - successful
-	 * 4. Get held conflicting credits
-	 * 5. Get credit when several owner credits are suitable
-	 * 6. Get invalid credit - failure
-	 * 7. Owner in non-active state - failure
-	 */
+	int      i;
+	uint64_t flags[] = {0, RIF_LOCAL_WAIT, RIF_LOCAL_TRY, RIF_RESERVE,
+	                    RIF_RESERVE | RIF_LOCAL_WAIT,
+			    RIF_RESERVE | RIF_LOCAL_TRY};
+
 	local_credits_init();
-	cached_credits_test(0);
-	cached_credits_test(RIF_LOCAL_WAIT);
-	cached_credits_test(RIF_LOCAL_TRY);
-	held_credits_test(0);
-	held_credits_test(RIF_LOCAL_WAIT);
-	held_credits_test(RIF_LOCAL_TRY);
-	held_non_conflicting_test(0);
-	held_non_conflicting_test(RIF_LOCAL_WAIT);
-	held_non_conflicting_test(RIF_LOCAL_TRY);
-	credits_pinned_number_test(0);
-	credits_pinned_number_test(RIF_LOCAL_WAIT);
-	credits_pinned_number_test(RIF_LOCAL_TRY);
+	for (i = 0; i < ARRAY_SIZE(flags); i++) {
+		cached_credits_test(flags[i]);
+		held_credits_test(flags[i]);
+		held_non_conflicting_test(flags[i]);
+		credits_pinned_number_test(flags[i]);
+		reserved_credit_get_test(flags[i], OWOS_CACHED);
+		reserved_credit_get_test(flags[i], OWOS_HELD);
+	}
+	barrier_on_barrier_test();
 	failures_test();
 	local_credits_fini();
 }
