@@ -85,6 +85,8 @@ Where:
 
 -c: Client only mode, don't start servers.
 
+-o: Mount client in oostore mode.
+
 -l: Use loop device for ad stob configuration
 
 -s: Setup loop devices
@@ -114,7 +116,7 @@ Where:
 .
 }
 
-OPTIONS_STRING="acln:d:k:p:u:qhLsvm"
+OPTIONS_STRING="acln:d:k:p:u:qhLsvmo"
 
 # This example puts 3 ioservices on 3 nodes
 # SERVICES and HOSTS are populated from this array for non-local configuration.
@@ -879,7 +881,7 @@ main()
 
 	# mount the file system
 	mkdir -p $MP
-	l_do "mount -t m0t1fs -o profile='$PROF_OPT',confd=$CONFD_EP 'm0t1' $MP" || {
+	l_do "mount -t m0t1fs -o profile='$PROF_OPT',confd=$CONFD_EP,$oostore_mode 'm0t1' $MP" || {
 		echo ERROR: Unable to mount the file system
 		exit 1
 	}
@@ -908,6 +910,9 @@ while getopts "$OPTIONS_STRING" OPTION; do
             ;;
         c)
             client_only=1
+            ;;
+        o)
+            oostore_mode=oostore
             ;;
         m)
             run_mkfs=1
