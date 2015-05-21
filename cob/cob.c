@@ -490,12 +490,13 @@ M0_UNUSED static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id 
 int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg,
 		       const struct m0_cob_domain_id *id)
 {
-	M0_ENTRY("dom=%p seg=%p id=%"PRIx64"", dom, seg, id->id);
+	M0_ENTRY("dom=%p seg=%p id=%"PRIx64"", dom, seg, id ? id->id : 0);
 
 	if (dom == NULL)
 		return M0_RC(-ENOENT);
 
-	dom->cd_id    = *id;
+	if (id != NULL)
+		dom->cd_id = *id;
 	dom->cd_seg = seg;
 
 	m0_be_btree_init(&dom->cd_object_index,   seg, &cob_oi_ops);

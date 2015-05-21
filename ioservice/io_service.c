@@ -532,6 +532,8 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 		m0_sm_group_unlock(grp);
 		if (rc != 0)
 			goto cdom_destroy;
+	} else {
+		m0_cob_domain_init(cdom, reqh->rh_beseg, NULL);
 	}
 	*out = cdom;
 	goto out;
