@@ -73,6 +73,9 @@ End the file bar.h with:
      *  End:
      */
 
+New source files (.c and .h) can be generated using scripts/gen-src-skel.
+The script adds copyright, include guards etc. according to the coding style.
+
 How headers should be included in C sources?
 --------------------------------------------
 
