@@ -1841,7 +1841,13 @@ static int incoming_check_held(struct m0_rm_incoming *in,
 			       int                   *wait)
 {
 	int  rc;
-	bool conflict = credit_conflicts(held, rest);
+	/*
+	 * Note that second parameter is the whole credit, not 'rest'.
+	 * 'Rest' could be reduced the way that it doesn't conflict
+	 * with a local credit anymore, but "try/wait" flags by design
+	 * are applied to the whole requested credit.
+	 */
+	bool conflict = credit_conflicts(held, &in->rin_want);
 
 	M0_PRE(credit_intersects(held, rest));
 	/*
