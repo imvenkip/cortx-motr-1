@@ -1421,6 +1421,7 @@ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
 	if (rc == 0) {
 		m0_rm_ur_tlist_del(credit);
 		m0_rm_loan_fini(brwd_loan);
+		m0_free(brwd_loan);
 		if (credit_is_empty(&remnant_loan->rl_credit))
 			remove_loan = remnant_loan;
 		else

@@ -186,7 +186,7 @@ static void file_encdec_test(struct rm_ut_data *utdata)
 
 	M0_UT_ASSERT(utdata->rd_rt->rt_ops->rto_eq(utdata->rd_res,
 						   &decfile->fi_res));
-	m0_free(decfile);
+	m0_rm_resource_free(dec_res);
 }
 
 static void wait_lock(enum rm_server srv_id)
