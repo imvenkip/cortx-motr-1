@@ -29,7 +29,8 @@
 
 /* Maximum test servers for all test cases */
 static enum rm_server      test_servers_nr;
-static struct m0_semaphore conflict_sem;
+static struct m0_semaphore conflict1_sem;
+static struct m0_semaphore conflict2_sem;
 
 enum rm_ut_credits_list {
 	RCL_BORROWED,
@@ -46,6 +47,7 @@ static void server1_in_complete(struct m0_rm_incoming *in, int32_t rc)
 
 static void server1_in_conflict(struct m0_rm_incoming *in)
 {
+	m0_semaphore_up(&conflict1_sem);
 }
 
 static const struct m0_rm_incoming_ops server1_incoming_ops = {
@@ -61,7 +63,7 @@ static void server2_in_complete(struct m0_rm_incoming *in, int32_t rc)
 
 static void server2_in_conflict(struct m0_rm_incoming *in)
 {
-	m0_semaphore_up(&conflict_sem);
+	m0_semaphore_up(&conflict2_sem);
 }
 
 static const struct m0_rm_incoming_ops server2_incoming_ops = {
@@ -109,7 +111,7 @@ static void remote_credits_utinit(void)
 {
 	uint32_t i;
 
-	test_servers_nr = SERVER_NR;
+	test_servers_nr = 3;
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_init(&rm_ctxs[i]);
 
@@ -377,14 +379,14 @@ static void test_borrow_non_conflicting(void)
 static void test_revoke_conflicting_wait(void)
 {
 	remote_credits_utinit();
-	m0_semaphore_init(&conflict_sem, 0);
+	m0_semaphore_init(&conflict2_sem, 0);
 
 	borrow_and_hold(SERVER_2, NENYA);
 	credits_are_equal(SERVER_2, RCL_HELD, NENYA);
 
 	credit_get_and_hold_no_wait(SERVER_3, RIF_MAY_REVOKE | RIF_LOCAL_WAIT,
 				    NENYA);
-	m0_semaphore_timeddown(&conflict_sem, m0_time_from_now(60, 0));
+	m0_semaphore_timeddown(&conflict2_sem, m0_time_from_now(60, 0));
 	held_credit_cache(SERVER_2);
 	wait_for_credit(SERVER_3);
 	held_credit_cache(SERVER_3);
@@ -393,7 +395,7 @@ static void test_revoke_conflicting_wait(void)
 	credits_are_equal(SERVER_2, RCL_BORROWED, 0);
 	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS);
 
-	m0_semaphore_fini(&conflict_sem);
+	m0_semaphore_fini(&conflict2_sem);
 	remote_credits_utfini();
 }
 
@@ -422,13 +424,13 @@ static void test_revoke_conflicting_try(void)
 static void test_revoke_no_conflict_wait(void)
 {
 	remote_credits_utinit();
-	m0_semaphore_init(&conflict_sem, 0);
+	m0_semaphore_init(&conflict2_sem, 0);
 
 	borrow_and_hold(SERVER_2, SHARED_RING);
 	credits_are_equal(SERVER_2, RCL_HELD, SHARED_RING);
 
 	credit_get_and_hold_no_wait(SERVER_3, RIF_MAY_REVOKE, SHARED_RING);
-	m0_semaphore_timeddown(&conflict_sem, m0_time_from_now(60, 0));
+	m0_semaphore_timeddown(&conflict2_sem, m0_time_from_now(60, 0));
 	held_credit_cache(SERVER_2);
 	wait_for_credit(SERVER_3);
 
@@ -438,7 +440,7 @@ static void test_revoke_no_conflict_wait(void)
 	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS & ~SHARED_RING);
 
 	held_credit_cache(SERVER_3);
-	m0_semaphore_fini(&conflict_sem);
+	m0_semaphore_fini(&conflict2_sem);
 	remote_credits_utfini();
 }
 
@@ -490,12 +492,12 @@ static void test_borrow_held_conflicting(void)
 {
 	remote_credits_utinit();
 
-	m0_semaphore_init(&conflict_sem, 0);
+	m0_semaphore_init(&conflict2_sem, 0);
 	borrow_and_hold(SERVER_2, NENYA);
 	credits_are_equal(SERVER_2, RCL_HELD, NENYA);
 
 	credit_get_and_hold_no_wait(SERVER_1, RIF_MAY_BORROW, NENYA);
-	m0_semaphore_timeddown(&conflict_sem, m0_time_from_now(60, 0));
+	m0_semaphore_timeddown(&conflict2_sem, m0_time_from_now(60, 0));
 	held_credit_cache(SERVER_2);
 	wait_for_credit(SERVER_1);
 
@@ -506,7 +508,66 @@ static void test_borrow_held_conflicting(void)
 	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS & ~NENYA);
 
 	held_credit_cache(SERVER_1);
-	m0_semaphore_fini(&conflict_sem);
+	m0_semaphore_fini(&conflict2_sem);
+	remote_credits_utfini();
+}
+
+void test_starvation(void)
+{
+	enum {
+		CREDIT_GET_LOOPS = 10,
+	};
+	int i;
+
+	/*
+	 * Test idea is to simulate starvation for incoming request, when
+	 * two credits satisfying this request are constantly borrowed/revoked,
+	 * but not owned together at any given time.
+	 */
+	remote_credits_utinit();
+	m0_semaphore_init(&conflict1_sem, 0);
+	m0_semaphore_init(&conflict2_sem, 0);
+
+	borrow_and_hold(SERVER_1, NARYA);
+	credits_are_equal(SERVER_1, RCL_HELD, NARYA);
+	borrow_and_hold(SERVER_2, NENYA);
+	credits_are_equal(SERVER_2, RCL_HELD, NENYA);
+
+	credit_get_and_hold_no_wait(SERVER_3, RIF_MAY_REVOKE, ALLRINGS);
+
+	for (i = 0; i < CREDIT_GET_LOOPS; i++) {
+		/*
+		 * Do cache/hold cycle for NARYA and NENYA, so SERVER_3 will
+		 * check incoming request for ALLRINGS constantly after each
+		 * successful revoke. But SERVER_3 owns either NARYA or NENYA at
+		 * a given time, not both.
+		 */
+		m0_semaphore_timeddown(&conflict1_sem, m0_time_from_now(10, 0));
+		held_credit_cache(SERVER_1);
+		credits_are_equal(SERVER_1, RCL_HELD,   0);
+		credits_are_equal(SERVER_1, RCL_CACHED, 0);
+		credit_get_and_hold(SERVER_1, RIF_MAY_BORROW | RIF_MAY_REVOKE,
+				    NARYA);
+		credits_are_equal(SERVER_1, RCL_HELD, NARYA);
+
+		m0_semaphore_timeddown(&conflict2_sem, m0_time_from_now(10, 0));
+		held_credit_cache(SERVER_2);
+		credits_are_equal(SERVER_2, RCL_HELD,   0);
+		credits_are_equal(SERVER_2, RCL_CACHED, 0);
+		credit_get_and_hold(SERVER_2, RIF_MAY_BORROW | RIF_MAY_REVOKE,
+				    NENYA);
+		credits_are_equal(SERVER_2, RCL_HELD, NENYA);
+	}
+	/* Request for all rings is not satisfied yet */
+	M0_UT_ASSERT(!m0_chan_trywait(&rm_ctxs[SERVER_3].rc_clink));
+	held_credit_cache(SERVER_1);
+	held_credit_cache(SERVER_2);
+	wait_for_credit(SERVER_3);
+	credits_are_equal(SERVER_3, RCL_HELD, ALLRINGS);
+	held_credit_cache(SERVER_3);
+
+	m0_semaphore_fini(&conflict1_sem);
+	m0_semaphore_fini(&conflict2_sem);
 	remote_credits_utfini();
 }
 
@@ -525,6 +586,7 @@ struct m0_ut_suite rm_rcredits_ut = {
 		{ "revoke-no-conflict-try"  , test_revoke_no_conflict_try },
 		{ "borrow-held-no-conflict" , test_borrow_held_no_conflict },
 		{ "borrow-held-conflicting" , test_borrow_held_conflicting },
+		{ "starvation"              , test_starvation },
 		{ NULL, NULL }
 	}
 };

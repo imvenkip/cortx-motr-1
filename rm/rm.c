@@ -1666,6 +1666,20 @@ out:
 }
 
 /**
+ * Deletes all pins set by a given incoming request with given pin flags.
+ */
+static void incoming_pins_del(struct m0_rm_incoming *in, uint32_t flags)
+{
+	struct m0_rm_pin *pin;
+
+	m0_tl_for (pi, &in->rin_pins, pin) {
+		M0_ASSERT(m0_rm_pin_bob_check(pin));
+		if (pin->rp_flags & flags)
+			pin_del(pin);
+	} m0_tl_endfor;
+}
+
+/**
  * Main owner state machine function.
  *
  * Goes through the lists of excited incoming and outgoing requests until all
@@ -1744,8 +1758,8 @@ static void owner_balance(struct m0_rm_owner *o)
  */
 static void incoming_check(struct m0_rm_incoming *in)
 {
-	struct m0_rm_credit rest;
-	int		    rc;
+	struct m0_rm_credit  rest;
+	int                  rc;
 
 	M0_ENTRY();
 	M0_PRE(m0_rm_incoming_bob_check(in));
@@ -1765,9 +1779,16 @@ static void incoming_check(struct m0_rm_incoming *in)
 	} else
 		rc = in->rin_rc;
 
-	if (rc > 0)
+	if (rc > 0) {
+		/*
+		 * Delete all PROTECT pins set by incoming request to
+		 * allow corresponding credits to be used for other incoming
+		 * requests. That prevents credit dependencies and possible
+		 * dead-locks.
+		 */
+		incoming_pins_del(in, M0_RPF_PROTECT);
 		incoming_state_set(in, RI_WAIT);
-	else {
+	} else {
 		if (rc == 0) {
 			M0_ASSERT(incoming_pin_nr(in, M0_RPF_TRACK) == 0);
 			incoming_policy_apply(in);
@@ -1784,9 +1805,9 @@ static void incoming_check(struct m0_rm_incoming *in)
 		/*
 		 * Check if incoming request is complete. When there is
 		 * partial failure (with part of the request failing)
-		 * of incoming request, it's necesary to check that it's
+		 * of incoming request, it's necessary to check that it's
 		 * complete (and there are no outstanding outgoing requests
-		 * pending againt it). On partial failure put the request in
+		 * pending against it). On partial failure put the request in
 		 * RI_WAIT state.
 		 */
 		if (incoming_is_complete(in))
@@ -1887,8 +1908,7 @@ static int incoming_check_held(struct m0_rm_incoming *in,
 		/*
 		 * This is the case of a LOCAL request, which conflicts with a
 		 * held credit, but does not have to wait until the credit is
-		 * released. PROTECT the conflicting credit, so that it can be
-		 * used by this request when all other conflicts are resolved.
+		 * released.
 		 */
 		 rc = pin_add(in, held, M0_RPF_PROTECT);
 	}
