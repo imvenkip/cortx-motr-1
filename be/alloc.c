@@ -578,7 +578,7 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
 	struct be_alloc_chunk *prev;
 	struct be_alloc_chunk *prev_free;
 	struct be_alloc_chunk *new;
-	const m0_bcount_t      chunk_size = sizeof *c;
+	const m0_bcount_t      hdr_size = sizeof *c;
 	uintptr_t	       start0;
 	uintptr_t	       start1;
 	uintptr_t	       start_next;
@@ -592,7 +592,7 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
 	prev_free = chunks_free_tlist_prev(&a->ba_h->bah_free.bl_list, c);
 
 	start0	    = be_alloc_chunk_after(a, prev);
-	start1	    = start_new + chunk_size + size;
+	start1	    = start_new + hdr_size + size;
 	start_next  = be_alloc_chunk_after(a, c);
 	chunk0_size = start_new - start0;
 	chunk1_size = start_next - start1;
@@ -603,7 +603,7 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
 	be_alloc_chunk_del_fini(a, tx, c);
 	/* c is not a valid chunk now */
 
-	if (chunk0_size <= chunk_size) {
+	if (chunk0_size <= hdr_size) {
 		/* no space for chunk0 */
 		if (prev != NULL)
 			prev->bac_size += chunk0_size;
@@ -618,10 +618,10 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
 	/* add the new chunk */
 	new = be_alloc_chunk_add_after(a, tx, prev, NULL,
 				       prev == NULL ? chunk0_size : 0,
-				       chunk_size + size, false);
+				       hdr_size + size, false);
 	M0_ASSERT(new != NULL);
 
-	if (chunk1_size <= chunk_size) {
+	if (chunk1_size <= hdr_size) {
 		/* no space for chunk1 */
 		new->bac_size += chunk1_size;
 	} else {
@@ -651,7 +651,7 @@ be_alloc_chunk_trysplit(struct m0_be_allocator *a,
 	uintptr_t	       addr_mem;
 	uintptr_t	       addr_start;
 	uintptr_t	       addr_end;
-	const uintptr_t	       chunk_size = sizeof *c;
+	const uintptr_t	       hdr_size = sizeof *c;
 
 	M0_PRE(be_alloc_chunk_invariant(a, c));
 	M0_PRE(alignment != 0);
@@ -659,11 +659,11 @@ be_alloc_chunk_trysplit(struct m0_be_allocator *a,
 		addr_start = (uintptr_t) c;
 		addr_end   = (uintptr_t) &c->bac_mem[c->bac_size];
 		/* find aligned address for memory block */
-		addr_mem   = addr_start + chunk_size + alignment - 1;
+		addr_mem   = addr_start + hdr_size + alignment - 1;
 		addr_mem  &= ~(alignment - 1);
 		/* if block fits inside free chunk */
 		result = addr_mem + size <= addr_end ?
-			 be_alloc_chunk_split(a, tx, c, addr_mem - chunk_size,
+			 be_alloc_chunk_split(a, tx, c, addr_mem - hdr_size,
 					      size) : NULL;
 	}
 	M0_POST(ergo(result != NULL, be_alloc_chunk_invariant(a, result)));
