@@ -67,7 +67,7 @@ static int ce_stob_edit(struct m0_fom *fom, struct m0_fom_cob_op *cd,
 static void   cob_fom_populate(struct m0_fom *fom);
 static int    cob_op_fom_create(struct m0_fom **out);
 static size_t cob_fom_locality_get(const struct m0_fom *fom);
-static inline struct m0_fom_cob_op *cob_fom_get(struct m0_fom *fom);
+static inline struct m0_fom_cob_op *cob_fom_get(const struct m0_fom *fom);
 static int  cob_getattr_fom_tick(struct m0_fom *fom);
 static void cob_getattr_fom_fini(struct m0_fom *fom);
 static int  cob_getattr(struct m0_fom        *fom,
@@ -236,7 +236,7 @@ static int cob_op_fom_create(struct m0_fom **out)
 	return 0;
 }
 
-static inline struct m0_fom_cob_op *cob_fom_get(struct m0_fom *fom)
+static inline struct m0_fom_cob_op *cob_fom_get(const struct m0_fom *fom)
 {
 	M0_PRE(fom != NULL);
 
@@ -258,7 +258,7 @@ static size_t cob_fom_locality_get(const struct m0_fom *fom)
 {
 	M0_PRE(fom != NULL);
 
-	return m0_fop_opcode(fom->fo_fop);
+	return m0_fid_cob_device_id(&cob_fom_get(fom)->fco_cfid);
 }
 
 static void cob_fom_populate(struct m0_fom *fom)

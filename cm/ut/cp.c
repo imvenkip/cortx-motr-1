@@ -29,6 +29,7 @@
 #include "cm/ag.h"
 #include "cm/ut/common_service.h"
 #include "lib/locality.h"
+#include "ioservice/fid_convert.h"
 
 /* import from pool/pool_store.c */
 M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
@@ -188,10 +189,13 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp, struct m0_cm_aggr_group *ag,
 		    struct m0_net_buffer *nb)
 {
 	struct m0_cm_cp *cp;
+	struct m0_fid    gfid;
 
+	m0_fid_gob_make(&gfid, 1, 1);
 	cp = &sns_cp->sc_base;
 	cp->c_ag = ag;
-	m0_stob_id_make(0, 1, &M0_FID_INIT(1, 1), &sns_cp->sc_stob_id);
+	m0_stob_id_make(0, 1, &gfid, &sns_cp->sc_stob_id);
+	m0_fid_convert_gob2cob(&gfid, &sns_cp->sc_cobfid, 1);
 	cp->c_ops = &m0_sns_cm_cp_dummy_ops;
 	m0_cm_cp_fom_init(ag->cag_cm, cp);
 	/* Over-ride the fom ops. */

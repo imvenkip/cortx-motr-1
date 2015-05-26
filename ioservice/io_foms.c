@@ -2000,7 +2000,9 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
  */
 static size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom)
 {
-	return m0_fid_hash(&io_rw_get(fom->fo_fop)->crw_fid) >> 1;
+	uint64_t hash = m0_fid_hash(&io_rw_get(fom->fo_fop)->crw_fid);
+
+	return m0_rnd(1 << 30, &hash) >> 1;
 }
 
 /**

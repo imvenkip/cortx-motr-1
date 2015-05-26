@@ -69,8 +69,7 @@ M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp)
 }
 
 /*
- * Uses GOB fid key and parity group number to generate a scalar to
- * help select a request handler locality for copy packet FOM.
+ * Use device id to select a request handler locality for copy packet FOM.
  */
 M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
 {
@@ -84,9 +83,9 @@ M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
          */
 	if (fop != NULL && (m0_fom_phase(&cp->c_fom) != M0_CCP_FINI)) {
 		sns_cpx = m0_fop_data(fop);
-		return m0_stob_id_dom_id_get(&sns_cpx->scx_stob_id);
+		return m0_fid__device_id_extract(&sns_cpx->scx_stob_id.si_fid);
 	} else
-		return sns_cp->sc_cobfid.f_container;
+		return m0_fid_cob_device_id(&sns_cp->sc_cobfid);
 }
 
 M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)
