@@ -60,12 +60,6 @@ extern const char *srv_ep_addr[MAX_SERVERS];
 extern struct m0_fop_type repair_trigger_fopt;
 extern struct m0_fop_type rebalance_trigger_fopt;
 
-M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void);
-M0_INTERNAL void m0_sns_cm_repair_trigger_fop_fini(void);
-
-M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_init(void);
-M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void);
-
 static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 {
 	struct m0_fop *rep_fop;

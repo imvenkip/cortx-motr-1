@@ -61,6 +61,7 @@
 #include "stob/addb2.h"
 #include "ioservice/io_addb2.h"
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
+#include "sns/cm/cm.h"                 /* m0_sns_cm_repair_trigger_fop_init */
 
 enum {
 	BUF_SIZE  = 256,
@@ -116,6 +117,9 @@ static void libbfd_resolve(uint64_t delta, char *buf);
 static void flate(void);
 static void deflate(void);
 
+static void misc_init(void);
+static void misc_fini(void);
+
 #define DOM "./_addb2-dump"
 extern int  optind;
 static bool flatten = false;
@@ -132,6 +136,9 @@ int main(int argc, char **argv)
 	result = m0_init(&instance);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise mero: %d", result);
+
+	misc_init();
+
 	result = M0_GETOPTS("m0addb2dump", argc, argv,
 			M0_STRINGARG('l', "Mero library path",
 				     LAMBDA(void, (const char *path) {
@@ -167,6 +174,7 @@ int main(int argc, char **argv)
 	id_fini();
 	m0_stob_domain_destroy(dom);
 	libbfd_fini();
+	misc_fini();
 	m0_fini();
 	return EX_OK;
 }
@@ -791,6 +799,22 @@ static void flate(void)
 	}
 	if (prev != 0)
 		putchar(prev);
+}
+
+static void misc_init(void)
+{
+	m0_sns_cm_repair_trigger_fop_init();
+	m0_sns_cm_rebalance_trigger_fop_init();
+	m0_sns_cm_repair_sw_onwire_fop_init();
+	m0_sns_cm_rebalance_sw_onwire_fop_init();
+}
+
+static void misc_fini(void)
+{
+	m0_sns_cm_repair_trigger_fop_fini();
+	m0_sns_cm_rebalance_trigger_fop_fini();
+	m0_sns_cm_repair_sw_onwire_fop_fini();
+	m0_sns_cm_rebalance_sw_onwire_fop_fini();
 }
 
 /** @} end of addb2 group */

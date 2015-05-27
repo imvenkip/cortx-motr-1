@@ -68,12 +68,6 @@ extern const struct m0_cm_ops sns_rebalance_ops;
 M0_INTERNAL void m0_sns_cm_rebalance_cpx_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_cpx_fini(void);
 
-M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_init(void);
-M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_fini(void);
-
-M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_init(void);
-M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void);
-
 /**
  * Allocates and initialises SNS copy machine.
  * This allocates struct m0_sns_cm and invokes m0_cm_init() to initialise

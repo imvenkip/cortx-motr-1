@@ -318,6 +318,18 @@ m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh);
 M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm);
 M0_INTERNAL void  m0_sns_cm_rm_fini(struct m0_sns_cm *scm);
 
+M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void);
+M0_INTERNAL void m0_sns_cm_repair_trigger_fop_fini(void);
+
+M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_init(void);
+M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void);
+
+M0_INTERNAL void m0_sns_cm_repair_sw_onwire_fop_init(void);
+M0_INTERNAL void m0_sns_cm_repair_sw_onwire_fop_fini(void);
+
+M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_init(void);
+M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_fini(void);
+
 /** @} SNSCM */
 #endif /* __MERO_SNS_CM_CM_H__ */
 /*
