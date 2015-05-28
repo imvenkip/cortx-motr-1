@@ -319,6 +319,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.bec_log_replay	    = false,
 			.bec_group_close_timeout = M0_TIME_ONE_MSEC,
 			.bec_group_fom_reqh = reqh,
+			.bec_reg_area_size_max = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
 		},
 		.bc_0types                 = zts,
 		.bc_0types_nr              = ARRAY_SIZE(zts),

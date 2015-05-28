@@ -26,6 +26,7 @@
 #include "lib/misc.h"         /* M0_IN */
 #include "lib/memory.h"       /* m0_alloc_aligned */
 #include "lib/errno.h"        /* ENOMEM */
+#include "lib/time.h"         /* m0_time_now */
 
 #include "stob/stob.h"	      /* m0_stob */
 #include "stob/linux.h"       /* m0_stob_linux_container */
@@ -279,6 +280,14 @@ M0_INTERNAL int m0_be_reg__read(struct m0_be_reg *reg)
 M0_INTERNAL int m0_be_reg__write(struct m0_be_reg *reg)
 {
 	return m0_be_seg__write(reg, reg->br_addr);
+}
+
+M0_INTERNAL unsigned long m0_be_reg_gen_idx(const struct m0_be_reg *reg)
+{
+	m0_time_t now = m0_time_now();
+
+	M0_CASSERT(sizeof now == sizeof(unsigned long));
+	return now;
 }
 
 /** @} end of be group */

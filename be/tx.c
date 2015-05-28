@@ -277,6 +277,7 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 		M0_LOG(M0_NOTICE, "tx = %p: tx credit is invalid", tx);
 		be_tx_state_move(tx, M0_BTS_FAILED, -EINVAL);
 	} else {
+		tx->t_prepared.tc_reg_nr *= 2;
 		be_tx_state_move(tx, M0_BTS_OPENING, 0);
 	}
 
@@ -287,10 +288,22 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 M0_INTERNAL void
 m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
 {
+	struct m0_be_tx_credit captured;
+	struct m0_be_reg_d     rd;
+	unsigned long          gen_idx;
+
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
 	M0_PRE(m0_be_reg__invariant(reg));
 
-	m0_be_reg_area_capture(&tx->t_reg_area, &M0_BE_REG_D(*reg, NULL));
+	m0_be_reg_area_captured(&tx->t_reg_area, &captured);
+
+	rd = M0_BE_REG_D(*reg, NULL);
+	rd.rd_gen_idx = m0_be_reg_gen_idx(reg);
+	gen_idx = rd.rd_gen_idx;
+	m0_be_reg_area_capture(&tx->t_reg_area, &rd);
+
+	if (captured.tc_reg_nr == 0)
+		m0_be_engine__tx_first_capture(tx->t_engine, tx, gen_idx);
 }
 
 M0_INTERNAL void
@@ -387,7 +400,7 @@ static int be_tx_memory_allocate(struct m0_be_tx *tx)
 		       tx, tx->t_payload.b_nob);
 	} else {
 		rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared,
-					 true);
+					 M0_BE_REG_AREA_DATA_COPY);
 		if (rc != 0) {
 			m0_free0(&tx->t_payload.b_addr);
 			M0_LOG(M0_DEBUG, "tx = %p: there is not enough memory "
@@ -604,6 +617,14 @@ M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
 
 	tx->t_gc_enabled = true;
 	tx->t_gc_free	 = gc_free;
+}
+
+M0_INTERNAL unsigned long m0_be_tx_gen_idx_min(struct m0_be_tx *tx)
+{
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE, M0_BTS_CLOSED,
+					  M0_BTS_GROUPED)));
+
+	return m0_be_reg_area_gen_idx_min(&tx->t_reg_area);
 }
 
 M0_EXTERN struct m0_sm_conf op_states_conf;

@@ -359,7 +359,7 @@ static void be_ut_regmap_init(void)
 
 	M0_SET0(&be_ut_rm_regmap);
 	rc = m0_be_regmap_init(&be_ut_rm_regmap, &be_ut_regmap_ops,
-			       be_ut_rm_ops_data, BE_UT_REGMAP_ITER);
+			       be_ut_rm_ops_data, BE_UT_REGMAP_ITER, true);
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < BE_UT_REGMAP_LEN; ++i) {
 		be_ut_rm_data[i] = be_ut_rm_unused;
@@ -480,9 +480,10 @@ static bool be_ut_regmap_nop(m0_bcount_t begin, m0_bcount_t end, bool do_insert)
 /* do operation with range [begin, end) */
 static void be_ut_regmap_do(m0_bcount_t begin, m0_bcount_t end, bool do_insert)
 {
-	struct m0_be_reg_d rd;
-	unsigned	   desired;
-	bool		   nop;
+	static unsigned long gen_idx = 0;
+	struct m0_be_reg_d   rd;
+	unsigned	     desired;
+	bool		     nop;
 
 	M0_PRE(0 <= begin && begin < BE_UT_REGMAP_LEN);
 	M0_PRE(0 <= end   && end   <= BE_UT_REGMAP_LEN);
@@ -495,7 +496,8 @@ static void be_ut_regmap_do(m0_bcount_t begin, m0_bcount_t end, bool do_insert)
 
 	/** XXX TODO check other fields of m0_be_reg_d */
 	rd = (struct m0_be_reg_d ) {
-		.rd_reg = M0_BE_REG(NULL, end - begin, (void *) begin),
+		.rd_reg     = M0_BE_REG(NULL, end - begin, (void *) begin),
+		.rd_gen_idx = ++gen_idx,
 	};
 
 	be_ut_regmap_data_copy();
@@ -597,8 +599,8 @@ static void be_ut_reg_area_init(m0_bindex_t nr)
 	int rc;
 
 	rc = m0_be_reg_area_init(&be_ut_ra_reg_area,
-				 &M0_BE_TX_CREDIT(nr, nr * BE_UT_RA_R_SIZE),
-				 true);
+				 &M0_BE_TX_CREDIT(nr * 2, nr * BE_UT_RA_R_SIZE),
+				 M0_BE_REG_AREA_DATA_COPY);
 	M0_UT_ASSERT(rc == 0);
 	be_ut_reg_area_reset(true);
 }
@@ -992,10 +994,13 @@ void m0_be_ut_reg_area_merge(void)
 				       BE_UT_RA_MERGE_SIZE_TOTAL);
 	m0_be_tx_credit_mac(&prepared_ra, &prepared_mra, BE_UT_RA_MERGE_NR);
 
-	rc = m0_be_reg_area_init(&ra, &prepared_ra, false);
+	prepared_ra.tc_reg_nr *= 2;
+	prepared_mra.tc_reg_nr *= 2;
+	rc = m0_be_reg_area_init(&ra, &prepared_ra, M0_BE_REG_AREA_DATA_NOCOPY);
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < ARRAY_SIZE(mra); ++i) {
-		m0_be_reg_area_init(&mra[i], &prepared_mra, true);
+		m0_be_reg_area_init(&mra[i], &prepared_mra,
+				    M0_BE_REG_AREA_DATA_COPY);
 		M0_UT_ASSERT(rc == 0);
 	}
 

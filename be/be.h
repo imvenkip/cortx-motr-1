@@ -27,6 +27,17 @@
 /**
  * @defgroup be Meta-data back-end
  *
+ * This file contains BE details visible to the user.
+ *
+ * Definitions
+ * - BE - metadata backend. Implemented as recoverable virtual memory (RVM) with
+ *   write-ahead logging without undo;
+ * - Segment - part of virtual memory backed (using BE) by stob;
+ * - Region - continuous part of segment. Is defined by address of the first
+ *   byte of the region and region size;
+ * - Transaction - recoverable set of segment changes;
+ * - Capturing - process of saving region contents into transaction's private
+ *   memory buffer;
  * @{
  */
 

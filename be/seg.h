@@ -166,5 +166,16 @@ M0_INTERNAL int m0_be_seg__write(struct m0_be_reg *reg, void *src);
 M0_INTERNAL int m0_be_reg__read(struct m0_be_reg *reg);
 M0_INTERNAL int m0_be_reg__write(struct m0_be_reg *reg);
 
+/**
+ * Returns generation index for a region.
+ *
+ * It is guaranteed that subsequent call to this function with the same region
+ * or region that intersects with the current region gives value greater
+ * than previous.
+ *
+ * @todo add UT similar to libm0-ut:time.
+ */
+M0_INTERNAL unsigned long m0_be_reg_gen_idx(const struct m0_be_reg *reg);
+
 /** @} end of be group */
 #endif /* __MERO_BE_SEG_H__ */

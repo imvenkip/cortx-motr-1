@@ -285,6 +285,18 @@ static bool be_tx_group_empty_handle(struct m0_be_tx_group *gr,
 	return false;
 }
 
+static void be_tx_group_reg_area_rebuild(struct m0_be_reg_area *ra,
+                                         struct m0_be_reg_area *ra_new,
+                                         void                  *param)
+{
+	struct m0_be_engine *en = param;
+
+	m0_be_engine__reg_area_lock(en);
+	m0_be_engine__reg_area_rebuild(en, ra, ra_new);
+	m0_be_engine__reg_area_prune(en);
+	m0_be_engine__reg_area_unlock(en);
+}
+
 M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr)
 {
 	/*
@@ -295,7 +307,9 @@ M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr)
 				       m0_be_log_stob(gr->tg_log),
 				       gr->tg_tx_nr_max,
 				       &gr->tg_size,
-				       gr->tg_seg_nr_max);
+				       gr->tg_seg_nr_max,
+				       &be_tx_group_reg_area_rebuild,
+				       gr->tg_engine);
 }
 
 M0_INTERNAL void m0_be_tx_group__deallocate(struct m0_be_tx_group *gr)

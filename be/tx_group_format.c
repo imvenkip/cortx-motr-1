@@ -26,6 +26,7 @@
 #include "be/tx_regmap.h"    /* m0_be_reg_area_used */
 #include "be/tx_internal.h"  /* m0_be_tx__reg_area */
 #include "be/tx_group.h"     /* M0_BE_TX_GROUP_TX_FORALL */
+#include "be/engine.h"       /* m0_be_engine__reg_area_tagged_remove */
 #include "lib/memory.h"      /* m0_alloc */
 #include "lib/misc.h"        /* M0_SET0 */
 #include "lib/errno.h"       /* ENOMEM */
@@ -89,11 +90,14 @@ static void be_group_format_free(struct m0_be_group_format *go)
 M0_INTERNAL int m0_be_group_format_init(struct m0_be_group_format *go,
 					struct m0_stob *log_stob,
 					size_t tx_nr_max,
-					const struct m0_be_tx_credit *size_max,
-					uint64_t seg_nr_max)
+					const struct m0_be_tx_credit *size_max_,
+					uint64_t seg_nr_max,
+		m0_be_group_format_reg_area_rebuild_t reg_area_rebuild,
+		void *reg_area_rebuild_param)
 {
 	struct m0_be_tx_credit cr_logrec;
 	struct m0_be_tx_credit cr_commit_block;
+	struct m0_be_tx_credit size_max = *size_max_;
 	int                    rc;
 
 	M0_ENTRY();
@@ -102,23 +106,35 @@ M0_INTERNAL int m0_be_group_format_init(struct m0_be_group_format *go,
 	if (go->go_entry == NULL)
 		goto err;
 
-	M0_ALLOC_ARR(go->go_reg, size_max->tc_reg_nr);
+	M0_ALLOC_ARR(go->go_reg, size_max.tc_reg_nr);
 	if (go->go_reg == NULL)
 		goto err_entry;
 
-	be_log_io_credit_group(&cr_logrec, tx_nr_max, size_max, 0);
+	be_log_io_credit_group(&cr_logrec, tx_nr_max, &size_max, 0);
 	m0_be_log_cblock_credit(&cr_commit_block,
 				sizeof(struct tx_group_commit_block));
 	m0_be_tx_credit_sub(&cr_logrec, &cr_commit_block);
 
 	rc = group_io_init(go, log_stob, &cr_logrec, &cr_commit_block,
-			   size_max, seg_nr_max);
+			   &size_max, seg_nr_max);
 	if (rc != 0)
 		goto err_reg;
 
-	rc = m0_be_reg_area_init(&go->go_area, size_max, false);
+	rc = m0_be_reg_area_init(&go->go_area, &size_max,
+				 M0_BE_REG_AREA_DATA_NOCOPY);
 	if (rc != 0)
 		goto err_io;
+	/*
+	 * Errors are not handled.
+	 * It will be fixed after recovery merge to master.
+	 */
+	rc = m0_be_reg_area_init(&go->go_area_copy, &size_max,
+				 M0_BE_REG_AREA_DATA_NOCOPY);
+	M0_ASSERT(rc == 0);     /* XXX */
+	rc = m0_be_reg_area_merger_init(&go->go_merger, tx_nr_max);
+	M0_ASSERT(rc == 0);     /* XXX */
+	go->go_reg_area_rebuild       = reg_area_rebuild;
+	go->go_reg_area_rebuild_param = reg_area_rebuild_param;
 
 	M0_POST(m0_be_group_format__invariant(go));
 	return M0_RC(0);
@@ -136,9 +152,12 @@ err:
 M0_INTERNAL void m0_be_group_format_fini(struct m0_be_group_format *go)
 {
 	M0_PRE(m0_be_group_format__invariant(go));
+
+	m0_be_reg_area_merger_fini(&go->go_merger);
 	m0_be_io_fini(&go->go_io_log);
 	m0_be_io_fini(&go->go_io_log_cblock);
 	m0_be_io_fini(&go->go_io_seg);
+	m0_be_reg_area_fini(&go->go_area_copy);
 	m0_be_reg_area_fini(&go->go_area);
 	be_group_format_free(go);
 }
@@ -154,6 +173,8 @@ M0_INTERNAL void m0_be_group_format_reset(struct m0_be_group_format *go)
 	m0_be_io_reset(&go->go_io_log_cblock);
 	m0_be_io_reset(&go->go_io_seg);
 	m0_be_reg_area_reset(&go->go_area);
+	m0_be_reg_area_reset(&go->go_area_copy);
+	m0_be_reg_area_merger_reset(&go->go_merger);
 }
 
 M0_INTERNAL void m0_be_group_format_reserved(struct m0_be_group_format *go,
@@ -190,6 +211,25 @@ M0_INTERNAL void m0_be_group_format_io_reserved(struct m0_be_group_format *go,
 	be_log_io_credit_group(io_reserved, tx_nr, &reserved, payload_size);
 }
 
+static void be_group_format_reg_area_merge(struct m0_be_group_format *go,
+                                           struct m0_be_tx_group     *group)
+{
+	struct m0_be_tx *tx;
+
+	M0_BE_TX_GROUP_TX_FORALL(group, tx) {
+		m0_be_reg_area_merger_add(&go->go_merger,
+					  m0_be_tx__reg_area(tx));
+	} M0_BE_TX_GROUP_TX_ENDFOR;
+	m0_be_reg_area_merger_merge_to(&go->go_merger, &go->go_area);
+}
+
+static void be_group_format_reg_area_rebuild(struct m0_be_group_format *go,
+                                             struct m0_be_tx_group     *group)
+{
+	go->go_reg_area_rebuild(&go->go_area, &go->go_area_copy,
+				go->go_reg_area_rebuild_param);
+}
+
 M0_INTERNAL void m0_be_group_format_serialize(struct m0_be_group_format *go,
 					      struct m0_be_tx_group *group,
 					      struct m0_be_log *log)
@@ -210,13 +250,17 @@ M0_INTERNAL void m0_be_group_format_serialize(struct m0_be_group_format *go,
 	m0_be_log_store_io_init(&lsi, &log->lg_store, &go->go_io_log,
 			       &go->go_io_log_cblock, io_cr.tc_reg_size);
 
-	/* merge transactions reg_area */
 	tx_nr = 0;
 	M0_BE_TX_GROUP_TX_FORALL(group, tx) {
-		m0_be_reg_area_merge_in(&go->go_area, m0_be_tx__reg_area(tx));
 		++tx_nr;
 	} M0_BE_TX_GROUP_TX_ENDFOR;
 
+	if (tx_nr > 0) {
+		be_group_format_reg_area_merge(go, group);
+		be_group_format_reg_area_rebuild(go, group);
+	}
+
+	/* it doesn't matter which reg_area is logged so just log something */
 	reg_nr = 0;
 	M0_BE_REG_AREA_FORALL(&go->go_area, rd) {
 		go->go_reg[reg_nr] = (struct tx_reg_header) {
@@ -256,7 +300,7 @@ M0_INTERNAL void m0_be_group_format_serialize(struct m0_be_group_format *go,
 	m0_be_log_store_io_fini(&lsi);
 
 	/* add to seg io */
-	m0_be_reg_area_io_add(&go->go_area, &go->go_io_seg);
+	m0_be_reg_area_io_add(&go->go_area_copy, &go->go_io_seg);
 
 	m0_be_io_configure(&go->go_io_log, SIO_WRITE);
 	m0_be_io_configure(&go->go_io_log_cblock, SIO_WRITE);

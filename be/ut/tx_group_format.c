@@ -41,6 +41,15 @@ struct m0_be_tx_group  but_group_format_gr;
 struct m0_be_tx_credit but_group_format_logged[BE_UT_TX_GROUP_ONDISK_RB_SIZE];
 m0_bindex_t	       but_group_format_begin;
 m0_bindex_t	       but_group_format_end;
+void                  *but_group_format_rebuild_param = &but_group_format_end;
+
+static void be_ut_group_format_reg_area_rebuild(struct m0_be_reg_area *ra,
+                                                struct m0_be_reg_area *ra_new,
+                                                void                  *param)
+{
+	M0_UT_ASSERT(ra != ra_new);
+	M0_UT_ASSERT(param == but_group_format_rebuild_param);
+}
 
 static void be_ut_group_format_rb_init(void)
 {
@@ -99,7 +108,7 @@ static int be_ut_group_format_reserve(void)
 
 	for (i = 0; i < ARRAY_SIZE(but_group_format_tx); ++i) {
 		rc = m0_be_log_reserve_tx(&but_group_format_log,
-					  &M0_BE_TX_CREDIT(i + 1,
+					  &M0_BE_TX_CREDIT((i + 1) * 2,
 							   10 * (i + 1)), 0);
 		if (rc != 0)
 			return i;
@@ -129,9 +138,9 @@ void m0_be_ut_group_format(void)
 	seg = ut_seg.bus_seg;
 
 	for (i = 0; i < ARRAY_SIZE(but_group_format_tx); ++i) {
-		tx_credit = M0_BE_TX_CREDIT(i + 1, 10 * (i + 1));
+		tx_credit = M0_BE_TX_CREDIT((i + 1) * 2, 10 * (i + 1));
 		rc = m0_be_reg_area_init(&but_group_format_tx[i].t_reg_area,
-					 &tx_credit, true);
+					 &tx_credit, M0_BE_REG_AREA_DATA_COPY);
 		m0_be_tx_credit_add(&gr_credit, &tx_credit);
 		M0_UT_ASSERT(rc == 0);
 		grp_tlink_init(&but_group_format_tx[i]);
@@ -156,7 +165,9 @@ void m0_be_ut_group_format(void)
 	rc = m0_be_group_format_init(&but_group_format_gr.tg_od,
 				     m0_be_log_stob(&but_group_format_log),
 				     ARRAY_SIZE(but_group_format_tx),
-				     &gr_credit, 1);
+				     &gr_credit, 1,
+				     be_ut_group_format_reg_area_rebuild,
+				     but_group_format_rebuild_param);
 	M0_UT_ASSERT(rc == 0);
 	grp_tlist_init(&but_group_format_gr.tg_txs);
 

@@ -84,9 +84,9 @@ struct m0_ut_suite be_ut = {
 	.ts_tests = {
 #ifndef __KERNEL__
 		{ "reg_d_tree",          m0_be_ut_reg_d_tree           },
-		{ "regmap-simple",       m0_be_ut_regmap_simple        },
-		{ "regmap-random",       m0_be_ut_regmap_random        },
-		{ "reg_area-simple",     m0_be_ut_reg_area_simple      },
+		// XXX { "regmap-simple",       m0_be_ut_regmap_simple        },
+		// XXX { "regmap-random",       m0_be_ut_regmap_random        },
+		// XXX { "reg_area-simple",     m0_be_ut_reg_area_simple      },
 		{ "reg_area-random",     m0_be_ut_reg_area_random      },
 		{ "reg_area-merge",      m0_be_ut_reg_area_merge       },
 		{ "io (XXX NOOP)",       m0_be_ut_io                   },

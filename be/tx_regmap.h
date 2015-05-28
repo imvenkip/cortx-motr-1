@@ -22,6 +22,8 @@
 #ifndef __MERO_BE_TX_REGMAP_H__
 #define __MERO_BE_TX_REGMAP_H__
 
+#include "lib/time.h"           /* m0_time_t */
+
 #include "be/seg.h"		/* m0_be_reg */
 #include "be/tx_credit.h"	/* m0_be_tx_credit */
 
@@ -52,6 +54,12 @@ struct m0_be_reg_d {
 	 * data is copied to.
 	 */
 	void            *rd_buf;
+	/**
+	 * Generation index for the region.
+	 *
+	 * @see m0_be_reg_gen_idx().
+	 */
+	unsigned long    rd_gen_idx;
 };
 
 #define M0_BE_REG_D(reg, buf) (struct m0_be_reg_d) \
@@ -72,12 +80,16 @@ struct m0_be_regmap_ops {
 			const struct m0_be_reg_d *rd);
 	void (*rmo_cut)(void *data, struct m0_be_reg_d *rd,
 			m0_bcount_t cut_at_start, m0_bcount_t cut_at_end);
+	void (*rmo_split)(void               *data,
+			  struct m0_be_reg_d *rd,
+			  struct m0_be_reg_d *rd_new);
 };
 
 struct m0_be_regmap {
 	struct m0_be_reg_d_tree        br_rdt;
 	const struct m0_be_regmap_ops *br_ops;
 	void                          *br_ops_data;
+	bool                           br_split_on_absorb;
 };
 
 M0_INTERNAL bool m0_be_reg_d__invariant(const struct m0_be_reg_d *rd);
@@ -152,15 +164,30 @@ M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree *rdt,
 
 M0_INTERNAL void m0_be_rdt_reset(struct m0_be_reg_d_tree *rdt);
 
-M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm,
-				  const struct m0_be_regmap_ops *ops,
-				  void *ops_data, size_t size_max);
+/*
+ * Initialises regmap.
+ *
+ * @param split_on_absorb controls regmap behavior when new region is added to
+ *                        regmap and an existing region in regmap completely
+ *                        contains the new.
+ *
+ * If split_on_absorb is true then existing region is splitted into 2 regions
+ * (if it is possible), and new region is inserted between them.
+ * If split_on_absorb is false then new region is "copied" into the old one,
+ * so no new regions are added to the reg_d tree.
+ */
+M0_INTERNAL int
+m0_be_regmap_init(struct m0_be_regmap           *rm,
+                  const struct m0_be_regmap_ops *ops,
+                  void                          *ops_data,
+                  size_t                         size_max,
+                  bool                           split_on_absorb);
 M0_INTERNAL void m0_be_regmap_fini(struct m0_be_regmap *rm);
 M0_INTERNAL bool m0_be_regmap__invariant(const struct m0_be_regmap *rm);
 
 /* XXX add const */
 M0_INTERNAL void m0_be_regmap_add(struct m0_be_regmap *rm,
-				  const struct m0_be_reg_d *rd);
+				  struct m0_be_reg_d *rd);
 M0_INTERNAL void m0_be_regmap_del(struct m0_be_regmap *rm,
 				  const struct m0_be_reg_d *rd);
 
@@ -171,24 +198,73 @@ M0_INTERNAL size_t m0_be_regmap_size(const struct m0_be_regmap *rm);
 
 M0_INTERNAL void m0_be_regmap_reset(struct m0_be_regmap *rm);
 
+/**
+ * reg_area type.
+ *
+ * @see m0_be_reg_area
+ */
+enum m0_be_reg_area_type {
+	/**
+	 * m0_be_reg_area copies entire regions passed to
+	 * m0_be_reg_area_capture() to it's internal memory buffer
+	 * (m0_be_reg_area::bra_area). m0_be_reg_area overwrites previously
+	 * written regions data if new region intersects with the reg_area.
+	 *
+	 * m0_be_reg_area saves pointer to the copy of the region data
+	 * to m0_be_reg_d::rd_buf.
+	 */
+	M0_BE_REG_AREA_DATA_COPY,
+	/**
+	 * The same as M0_BE_REG_AREA_DATA_COPY except it is assumed that
+	 * m0_be_reg_d already has the copy of the data in m0_be_reg_d::rd_buf,
+	 * so m0_be_reg_area doesn't copy data from m0_be_reg_d::rd_reg to
+	 * m0_be_reg_d::rd_buf.
+	 */
+	M0_BE_REG_AREA_DATA_NOCOPY,
+};
+
+/**
+ * reg_area is a container for disjoint regions (m0_be_reg_d).
+ *
+ * Additional information may be stored along with regions. The kind and amount
+ * of additional information depends on reg_area type.
+ *
+ * See m0_be_reg_area_type for the list of reg_area types.
+ */
 struct m0_be_reg_area {
-	struct m0_be_regmap    bra_map;
-	bool		       bra_data_copy;
-	char		      *bra_area;
-	m0_bcount_t	       bra_area_used;
-	struct m0_be_tx_credit bra_prepared;
+	struct m0_be_regmap       bra_map;
+	enum m0_be_reg_area_type  bra_type;
+	// bool		          bra_data_copy;
+	char		         *bra_area;
+	m0_bcount_t	          bra_area_used;
+	struct m0_be_tx_credit    bra_prepared;
 	/**
 	 * Sum of all regions that were submitted to m0_be_reg_area_capture().
 	 * Used to catch credit calculation errors.
 	 */
-	struct m0_be_tx_credit bra_captured;
+	struct m0_be_tx_credit    bra_captured;
 };
 
-M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
+/**
+ * Initialises reg_area of the given kind.
+ *
+ * @param ra reg_area
+ * @param prepared maximum size for reg_area.
+ * @param type type of m0_be_reg_area. @see m0_be_reg_area_type.
+ *
+ * Maximum size has the following meaning:
+ * - m0_be_tx_credit::tc_reg_nr is m0_be_reg_d_tree maximum size;
+ * - m0_be_tx_credit::tc_reg_size is used as maximum size for
+ *   m0_be_reg_area::bra_type for M0_BE_REG_AREA_DATA_COPY type and
+ *   it is used only for credit checking for M0_BE_REG_AREA_DATA_NOCOPY type.
+ *   It is ignored for all other types.
+ */
+M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area        *ra,
 				    const struct m0_be_tx_credit *prepared,
-				    bool data_copy);
+                                    enum m0_be_reg_area_type      type);
 M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra);
 M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra);
+
 M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area *ra,
 				     struct m0_be_tx_credit *used);
 M0_INTERNAL void m0_be_reg_area_prepared(struct m0_be_reg_area *ra,
@@ -197,7 +273,7 @@ M0_INTERNAL void m0_be_reg_area_captured(struct m0_be_reg_area *ra,
 					 struct m0_be_tx_credit *captured);
 
 M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
-					const struct m0_be_reg_d *rd);
+					struct m0_be_reg_d *rd);
 M0_INTERNAL void m0_be_reg_area_uncapture(struct m0_be_reg_area *ra,
 					  const struct m0_be_reg_d *rd);
 
@@ -215,8 +291,73 @@ m0_be_reg_area_next(struct m0_be_reg_area *ra, struct m0_be_reg_d *prev);
 	     (rd) != NULL;				\
 	     (rd) = m0_be_reg_area_next((ra), (rd)))
 
+/**
+ * Returns min generation index for all regions reg_area contains.
+ *
+ * Returns ULONG_MAX for the empty reg_area.
+ */
+M0_INTERNAL unsigned long m0_be_reg_area_gen_idx_min(struct m0_be_reg_area *ra);
+
+/**
+ * Removes all regions from reg_area with generation index less than
+ * gen_idx_min.
+ *
+ * Calling it with ULONG_MAX removes all regions from the reg_area.
+ */
+M0_INTERNAL void m0_be_reg_area_prune(struct m0_be_reg_area *ra,
+                                      unsigned long          gen_idx_min);
+
+/*
+ * Rebuilds global and local reg_area.
+ *
+ * It creates global_new and local_new reg_areas based on global and local with
+ * the following transformations:
+ * - each region and subregion from local that exists in global with greater
+ *   generation index is not copied to local_new;
+ * - each region and subregion from local that either doesn't exist in global or
+ *   exists in global with generation index less or equal to local is copied to
+ *   local_new;
+ * - merge of global and local is copied to global_new; regions and subregions
+ *   with greater generation index are always chosen;
+ *
+ * @pre global_new and local_new are empty
+ *
+ * @todo Don't use new reg_area, do it inplace in existing reg_areas.
+ */
+M0_INTERNAL void m0_be_reg_area_rebuild(struct m0_be_reg_area *global,
+                                        struct m0_be_reg_area *local,
+                                        struct m0_be_reg_area *global_new,
+                                        struct m0_be_reg_area *local_new);
+
 M0_INTERNAL void m0_be_reg_area_io_add(struct m0_be_reg_area *ra,
 				       struct m0_be_io *io);
+
+/*
+ * Merger merges multiple reg_areas (sources) into one (destination) by the
+ * following rules:
+ * - if a region is in some source reg_area then the region is in the
+ *   destination reg_area;
+ * - destination reg_area contains regions with largest generation index among
+ *   all source reg_areas.
+ */
+struct m0_be_reg_area_merger {
+	int                     brm_reg_area_nr_max;
+	int                     brm_reg_area_nr;
+	struct m0_be_reg_area **brm_reg_areas;
+	struct m0_be_reg_d    **brm_pos;
+};
+
+M0_INTERNAL int
+m0_be_reg_area_merger_init(struct m0_be_reg_area_merger *brm,
+                           int                           reg_area_nr_max);
+M0_INTERNAL void m0_be_reg_area_merger_fini(struct m0_be_reg_area_merger *brm);
+M0_INTERNAL void m0_be_reg_area_merger_reset(struct m0_be_reg_area_merger *brm);
+
+M0_INTERNAL void m0_be_reg_area_merger_add(struct m0_be_reg_area_merger *brm,
+                                           struct m0_be_reg_area        *ra);
+M0_INTERNAL void
+m0_be_reg_area_merger_merge_to(struct m0_be_reg_area_merger *brm,
+                               struct m0_be_reg_area        *ra);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_REGMAP_H__ */

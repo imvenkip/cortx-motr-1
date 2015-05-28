@@ -374,6 +374,14 @@ struct m0_be_tx {
 	bool		       t_gc_enabled;
 	void		     (*t_gc_free)(struct m0_be_tx *tx);
 	struct m0_chan	      *t_gc_chan;
+	/** @see m0_be_engine::eng_tx_first_capture */
+	struct m0_tlink        t_first_capture_linkage;
+	/**
+	 * Minimal generation index for all captured regions.
+	 *
+	 * This field is set and managed by engine.
+	 */
+	unsigned long          t_gen_idx_min;
 };
 
 /**
@@ -575,6 +583,9 @@ M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
 M0_INTERNAL bool m0_be_should_break(struct m0_be_engine *eng,
 				    const struct m0_be_tx_credit *accum,
 				    const struct m0_be_tx_credit *delta);
+
+M0_INTERNAL unsigned long m0_be_tx_gen_idx_min(struct m0_be_tx *tx);
+
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */
 

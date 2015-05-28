@@ -70,6 +70,11 @@ struct tx_group_commit_block {
 	uint64_t gc_magic;
 } M0_XCA_RECORD;
 
+typedef void (*m0_be_group_format_reg_area_rebuild_t)
+	(struct m0_be_reg_area *ra,
+	 struct m0_be_reg_area *ra_new,
+	 void                  *param);
+
 struct m0_be_group_format {
 	struct m0_be_io		      go_io_log;
 	struct m0_be_io		      go_io_log_cblock;
@@ -78,6 +83,7 @@ struct m0_be_group_format {
 	struct m0_be_tx_credit	      go_io_cr_log_cblock;
 	struct m0_be_tx_credit	      go_io_cr_seg;
 	struct m0_be_reg_area	      go_area;
+	struct m0_be_reg_area	      go_area_copy;
 
 	struct m0_be_tx_credit	      go_io_cr_log_reserved;
 
@@ -85,6 +91,11 @@ struct m0_be_group_format {
 	struct tx_group_entry	     *go_entry;
 	struct tx_reg_header	     *go_reg;
 	struct tx_group_commit_block  go_cblock;
+
+	struct m0_be_reg_area_merger  go_merger;
+
+	void                         *go_reg_area_rebuild_param;
+	m0_be_group_format_reg_area_rebuild_t go_reg_area_rebuild;
 };
 
 M0_INTERNAL void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
@@ -100,7 +111,9 @@ M0_INTERNAL int m0_be_group_format_init(struct m0_be_group_format *go,
 					struct m0_stob *log_stob,
 					size_t tx_nr_max,
 					const struct m0_be_tx_credit *size_max,
-					uint64_t seg_nr_max);
+					uint64_t seg_nr_max,
+		m0_be_group_format_reg_area_rebuild_t reg_area_rebuild,
+		void *reg_area_rebuild_param);
 M0_INTERNAL void m0_be_group_format_fini(struct m0_be_group_format *go);
 M0_INTERNAL bool m0_be_group_format__invariant(struct m0_be_group_format *go);
 

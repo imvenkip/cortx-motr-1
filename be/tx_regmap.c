@@ -18,6 +18,9 @@
  * Original creation date: 17-Jun-2013
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
+
 #include "be/tx_regmap.h"
 
 #include "be/tx.h"
@@ -28,9 +31,7 @@
 #include "lib/memory.h"	/* m0_alloc_nz */
 #include "lib/assert.h"	/* M0_POST */
 #include "lib/misc.h"	/* M0_SET0 */
-
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
-#include "lib/trace.h"
+#include "lib/arith.h"  /* max_check */
 
 /**
  * @addtogroup be
@@ -101,6 +102,96 @@ static void *be_reg_d_lb1(const struct m0_be_reg_d *rd)
 static m0_bcount_t be_reg_d_size(const struct m0_be_reg_d *rd)
 {
 	return rd->rd_reg.br_size;
+}
+
+static void be_reg_d_sub_make(struct m0_be_reg_d *super,
+                              struct m0_be_reg_d *sub)
+{
+	M0_ASSERT(be_reg_d_is_partof(super, sub));
+
+	/* sub->rd_reg.br_addr and sub->rd_reg.br_size are already set */
+	sub->rd_reg.br_seg = super->rd_reg.br_seg;
+	sub->rd_buf = super->rd_buf + (be_reg_d_fb(sub) - be_reg_d_fb(super));
+	sub->rd_gen_idx = super->rd_gen_idx;
+}
+
+static void be_reg_d_arr_insert2(void *arr[2], void *value)
+{
+	M0_PRE(arr[0] != NULL && arr[1] != NULL);
+
+	if (value < arr[0]) {
+		arr[1] = arr[0];
+		arr[0] = value;
+	} else if (arr[0] < value && value < arr[1]) {
+		arr[1] = value;
+	}
+}
+
+/*
+ * The function returns the first left-most non-crossing sub-region from the
+ * given @rd_arr array of (possibly crossing) regions which starts from @start
+ * (if its value is within that sub-region).
+ *
+ * Example:
+ *
+ * rd_arr has 2 regions: R1 = (1, 5) and R2 = (4, 7) (regions (addr, size)).
+ * Given regions:
+ *  | R1 |
+ *  +--+-+----+
+ *     |  R2  |
+ *  The function gives the following region depending on start:
+ *  +-------+----------------+
+ *  | start | (*addr, *size) |
+ *  +-------+----------------+
+ *  | 0 or 1|    (1, 3)      |
+ *  |   2   |    (2, 2)      |
+ *  |   3   |    (3, 1)      |
+ *  |   4   |    (4, 2)      |
+ *  |   5   |    (5, 1)      |
+ *  +-------+----------------+
+ *
+ *  @param[in]  rd_arr array of reg_d
+ *  @param[in]  nr     number of elements in rd_arr
+ *  @param[in]  start  result region addr can't be less than start.
+ *                     start address must be not greater than the end of
+ *                     left-most region in the given @rd_arr[]
+ *  @param[out] addr   result region addr
+ *  @param[out] size   result region size
+ */
+static void be_reg_d_arr_first_subreg(struct m0_be_reg_d **rd_arr,
+                                      int                  nr,
+                                      void                *start,
+                                      void               **addr,
+                                      m0_bcount_t         *size)
+{
+	struct m0_be_reg_d *rd;
+	void               *arr[2];
+	void               *fb;
+	void               *lb1;
+	int                 i;
+
+	arr[0] = NULL;
+	arr[1] = NULL;
+	for (i = 0; i < nr; ++i) {
+		rd = rd_arr[i];
+		if (rd != NULL) {
+			fb  = be_reg_d_fb(rd);
+			lb1 = be_reg_d_lb1(rd);
+			fb = max_check(fb, start);
+			M0_ASSERT(fb < lb1);
+			if (arr[0] == NULL && arr[1] == NULL) {
+				arr[0] = fb;
+				arr[1] = lb1;
+			} else {
+				be_reg_d_arr_insert2(arr, fb);
+				be_reg_d_arr_insert2(arr, lb1);
+			}
+		}
+	}
+	M0_ASSERT(arr[0] != NULL && arr[1] != NULL);
+	M0_ASSERT(arr[0] != arr[1]);
+	*addr = arr[0];
+	*size = arr[1] - arr[0];
 }
 
 static bool be_rdt_contains(const struct m0_be_reg_d_tree *rdt,
@@ -281,15 +372,19 @@ M0_INTERNAL void m0_be_rdt_reset(struct m0_be_reg_d_tree *rdt)
 	M0_POST(m0_be_rdt__invariant(rdt));
 }
 
-M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm,
-				  const struct m0_be_regmap_ops *ops,
-				  void *ops_data, size_t size_max)
+M0_INTERNAL int
+m0_be_regmap_init(struct m0_be_regmap           *rm,
+                  const struct m0_be_regmap_ops *ops,
+                  void                          *ops_data,
+                  size_t                         size_max,
+                  bool                           split_on_absorb)
 {
 	int rc;
 
 	rc = m0_be_rdt_init(&rm->br_rdt, size_max);
 	rm->br_ops = ops;
 	rm->br_ops_data = ops_data;
+	rm->br_split_on_absorb = split_on_absorb;
 
 	M0_POST(ergo(rc == 0, m0_be_regmap__invariant(rm)));
 	return M0_RC(rc);
@@ -332,21 +427,58 @@ static void be_regmap_reg_d_cut(struct m0_be_regmap *rm,
 	M0_POST(m0_be_reg_d__invariant(rd));
 }
 
+/* rdi is splitted in 2 parts (if possible). rd is inserted between them. */
+static void be_regmap_reg_d_split(struct m0_be_regmap *rm,
+                                  struct m0_be_reg_d  *rdi,
+                                  struct m0_be_reg_d  *rd,
+                                  struct m0_be_reg_d  *rd_new)
+{
+	/*
+	 * |                rdi                  |
+	 * +---------------+------+--------------+
+	 * | rdi_before_rd |  rd  | rdi_after_rd |
+	 */
+	m0_bcount_t rdi_before_rd = be_reg_d_fb(rd)   - be_reg_d_fb(rdi);
+	m0_bcount_t rdi_after_rd  = be_reg_d_lb1(rdi) - be_reg_d_lb1(rd);
+
+	M0_ASSERT(_0C(rdi_before_rd > 0) && _0C(rdi_after_rd > 0));
+
+	rd_new->rd_reg = M0_BE_REG(NULL, rdi_after_rd, be_reg_d_lb1(rd));
+	be_regmap_reg_d_cut(rm, rdi, 0, rdi_after_rd);
+	/*
+	 * |         rdi           |    |      rdi      | rd_new |
+	 * +-------+-------+-------+ -> +-------+-------+--------+
+	 * |       |  rd   |       |    |       |  rd   |        |
+	 */
+	rm->br_ops->rmo_split(rm->br_ops_data, rdi, rd_new);
+}
+
 M0_INTERNAL void m0_be_regmap_add(struct m0_be_regmap *rm,
-				  const struct m0_be_reg_d *rd)
+				  struct m0_be_reg_d *rd)
 {
 	struct m0_be_reg_d *rdi;
 	struct m0_be_reg_d  rd_copy;
+	struct m0_be_reg_d  rd_new;
+	bool                copied = false;
 
 	M0_PRE(m0_be_regmap__invariant(rm));
 	M0_PRE(rd != NULL);
 	M0_PRE(m0_be_reg_d__invariant(rd));
 
 	rdi = be_regmap_find_fb(rm, rd);
-	if (rdi != NULL && be_reg_d_is_partof(rdi, rd)) {
+	if (rdi != NULL &&
+	    be_reg_d_fb(rdi) < be_reg_d_fb(rd) &&
+	    be_reg_d_lb(rdi) > be_reg_d_lb(rd)) {
 		/* old region completely absorbs the new */
-		rm->br_ops->rmo_cpy(rm->br_ops_data, rdi, rd);
-	} else {
+		if (rm->br_split_on_absorb) {
+			be_regmap_reg_d_split(rm, rdi, rd, &rd_new);
+			m0_be_rdt_ins(&rm->br_rdt, &rd_new);
+		} else {
+			rm->br_ops->rmo_cpy(rm->br_ops_data, rdi, rd);
+			copied = true;
+		}
+	}
+	if (!copied) {
 		m0_be_regmap_del(rm, rd);
 		rd_copy = *rd;
 		rm->br_ops->rmo_add(rm->br_ops_data, &rd_copy);
@@ -414,25 +546,31 @@ M0_INTERNAL void m0_be_regmap_reset(struct m0_be_regmap *rm)
 
 #undef REGD_EXT
 
-static const struct m0_be_regmap_ops be_reg_area_copy_ops;
-static const struct m0_be_regmap_ops be_reg_area_ops;
+static const struct m0_be_regmap_ops be_reg_area_ops_data_copy;
+static const struct m0_be_regmap_ops be_reg_area_ops_data_nocopy;
 
-M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
+static const struct m0_be_regmap_ops *be_reg_area_ops[] = {
+	[M0_BE_REG_AREA_DATA_COPY] = &be_reg_area_ops_data_copy,
+	[M0_BE_REG_AREA_DATA_NOCOPY] = &be_reg_area_ops_data_nocopy,
+};
+
+M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area        *ra,
 				    const struct m0_be_tx_credit *prepared,
-				    bool data_copy)
+                                    enum m0_be_reg_area_type      type)
 {
-	const struct m0_be_regmap_ops *ops =
-		data_copy ? &be_reg_area_copy_ops : &be_reg_area_ops;
 	int rc;
 
-	*ra = (struct m0_be_reg_area) {
-		.bra_data_copy = data_copy,
-		.bra_prepared  = *prepared
+	M0_PRE(M0_IN(type, (M0_BE_REG_AREA_DATA_COPY,
+	                    M0_BE_REG_AREA_DATA_NOCOPY)));
+
+	*ra = (struct m0_be_reg_area){
+		.bra_type     = type,
+		.bra_prepared = *prepared,
 	};
 
-	rc = m0_be_regmap_init(&ra->bra_map, ops, ra,
-			       ra->bra_prepared.tc_reg_nr);
-	if (rc == 0 && data_copy) {
+	rc = m0_be_regmap_init(&ra->bra_map, be_reg_area_ops[type], ra,
+			       ra->bra_prepared.tc_reg_nr, true);
+	if (rc == 0 && type == M0_BE_REG_AREA_DATA_COPY) {
 		ARRAY_ALLOC_NZ(ra->bra_area, ra->bra_prepared.tc_reg_size);
 		if (ra->bra_area == NULL) {
 			m0_be_regmap_fini(&ra->bra_map);
@@ -440,7 +578,10 @@ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
 		}
 	}
 
-	/* invariant should work in each case */
+	/*
+	 * Invariant should work even if m0_be_reg_area_init()
+	 * was not successful.
+	 */
 	if (rc != 0)
 		M0_SET0(ra);
 
@@ -460,7 +601,6 @@ M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra)
 M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra)
 {
 	return m0_be_regmap__invariant(&ra->bra_map) &&
-	       _0C(ra->bra_data_copy == (ra->bra_area != NULL)) &&
 	       _0C(ra->bra_area_used <= ra->bra_prepared.tc_reg_size) &&
 	       _0C(m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared));
 }
@@ -565,22 +705,39 @@ static void be_reg_area_cut(void *data, struct m0_be_reg_d *rd,
 	rd->rd_buf += cut_at_start;
 }
 
-static const struct m0_be_regmap_ops be_reg_area_copy_ops = {
-	.rmo_add = be_reg_area_add_copy,
-	.rmo_del = be_reg_area_del,
-	.rmo_cpy = be_reg_area_cpy_copy,
-	.rmo_cut = be_reg_area_cut
+static void be_reg_area_split(void               *data,
+                              struct m0_be_reg_d *rd,
+                              struct m0_be_reg_d *rd_new)
+{
+	/*
+	 * |         rd          |
+	 * +---------+-----------+
+	 * |   rd    |   rd_new  |   <-- rd->rd_reg is already split
+	 *                               this function does the rest
+	 */
+	rd_new->rd_reg.br_seg = rd->rd_reg.br_seg;
+	rd_new->rd_buf        = rd->rd_buf + rd->rd_reg.br_size;
+	rd_new->rd_gen_idx    = rd->rd_gen_idx;
+}
+
+static const struct m0_be_regmap_ops be_reg_area_ops_data_copy = {
+	.rmo_add   = be_reg_area_add_copy,
+	.rmo_del   = be_reg_area_del,
+	.rmo_cpy   = be_reg_area_cpy_copy,
+	.rmo_cut   = be_reg_area_cut,
+	.rmo_split = be_reg_area_split,
 };
 
-static const struct m0_be_regmap_ops be_reg_area_ops = {
-	.rmo_add = be_reg_area_add,
-	.rmo_del = be_reg_area_del,
-	.rmo_cpy = be_reg_area_cpy,
-	.rmo_cut = be_reg_area_cut
+static const struct m0_be_regmap_ops be_reg_area_ops_data_nocopy = {
+	.rmo_add   = be_reg_area_add,
+	.rmo_del   = be_reg_area_del,
+	.rmo_cpy   = be_reg_area_cpy,
+	.rmo_cut   = be_reg_area_cut,
+	.rmo_split = be_reg_area_split,
 };
 
 M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
-					const struct m0_be_reg_d *rd)
+					struct m0_be_reg_d *rd)
 {
 	struct m0_be_tx_credit *captured = &ra->bra_captured;
 	struct m0_be_tx_credit *prepared = &ra->bra_prepared;
@@ -592,9 +749,10 @@ M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
 	m0_be_tx_credit_add(captured, &M0_BE_REG_D_CREDIT(rd));
 
 	M0_ASSERT_INFO(m0_be_tx_credit_le(captured, prepared),
-		       "There is not enough credits for capturing: captured="
-		       BETXCR_F" prepared="BETXCR_F" region_size=%lu",
-		       BETXCR_P(captured), BETXCR_P(prepared), reg_size);
+	               "There is not enough credits for capturing: "
+	               "captured="
+	               BETXCR_F" prepared="BETXCR_F" region_size=%lu",
+	               BETXCR_P(captured), BETXCR_P(prepared), reg_size);
 
 	m0_be_regmap_add(&ra->bra_map, rd);
 
@@ -647,6 +805,169 @@ m0_be_reg_area_next(struct m0_be_reg_area *ra, struct m0_be_reg_d *prev)
 	return m0_be_regmap_next(&ra->bra_map, prev);
 }
 
+M0_INTERNAL unsigned long m0_be_reg_area_gen_idx_min(struct m0_be_reg_area *ra)
+{
+	struct m0_be_reg_d *rd;
+	unsigned long       gen_idx = ULONG_MAX;
+
+	M0_BE_REG_AREA_FORALL(ra, rd) {
+		gen_idx = min_check(gen_idx, rd->rd_gen_idx);
+	}
+	return gen_idx;
+}
+
+/* optimize it if you see it in perf top */
+M0_INTERNAL void m0_be_reg_area_prune(struct m0_be_reg_area *ra,
+                                      unsigned long          gen_idx_min)
+{
+	struct m0_be_reg_d  rd_found;
+	struct m0_be_reg_d *rd;
+	int                 pruned = 0;
+	int                 scanned = 0;
+
+	do {
+		M0_BE_REG_AREA_FORALL(ra, rd) {
+			++scanned;
+			if (rd->rd_gen_idx < gen_idx_min)
+				break;
+		}
+		if (rd != NULL) {
+			rd_found = *rd;
+			m0_be_reg_area_uncapture(ra, &rd_found);
+			++pruned;
+		}
+	} while (rd != NULL);
+	/*
+	M0_LOG(M0_FATAL, "ra=%p gen_idx_min=%lu scanned=%d pruned=%d",
+	       ra, gen_idx_min, scanned, pruned);
+       */
+}
+
+/*
+ * This function determines if and in which form region (addr, size) should
+ * be copied to global_new and local_new reg_areas during rebuild.
+ */
+static void be_reg_area_rebuild_reg_d(void               *addr,
+                                      m0_bcount_t         size,
+                                      struct m0_be_reg_d *rd[2],
+                                      struct m0_be_reg_d  rd_new[2],
+                                      bool                rd_use[2])
+{
+	enum {
+		BE_REG_D_GLOBAL,
+		BE_REG_D_LOCAL,
+		BE_REG_D_NR,
+	};
+	int  i;
+	bool is_partof[BE_REG_D_NR];
+
+	M0_PRE(m0_exists(j, BE_REG_D_NR, rd[j] != NULL));
+	for (i = 0; i < BE_REG_D_NR; ++i) {
+		rd_new[i].rd_reg = M0_BE_REG(NULL, size, addr);
+		if (rd[i] != NULL &&
+		    be_reg_d_are_overlapping(rd[i], &rd_new[i])) {
+			be_reg_d_sub_make(rd[i], &rd_new[i]);
+			M0_ASSERT(be_reg_d_is_partof(rd[i], &rd_new[i]));
+			is_partof[i] = true;
+		} else {
+			is_partof[i] = false;
+		}
+	}
+	M0_ASSERT(m0_exists(j, BE_REG_D_NR, is_partof[j]));
+	if (is_partof[BE_REG_D_GLOBAL] && !is_partof[BE_REG_D_LOCAL]) {
+		rd_use[BE_REG_D_GLOBAL] = true;
+		rd_use[BE_REG_D_LOCAL]  = false;
+	} else if (!is_partof[BE_REG_D_GLOBAL] && is_partof[BE_REG_D_LOCAL]) {
+		rd_new[BE_REG_D_GLOBAL] = rd_new[BE_REG_D_LOCAL];
+		rd_use[BE_REG_D_GLOBAL] = true;
+		rd_use[BE_REG_D_LOCAL]  = true;
+	} else {
+		M0_ASSERT(m0_forall(j, BE_REG_D_NR, is_partof[j]));
+		M0_ASSERT(rd_new[BE_REG_D_GLOBAL].rd_gen_idx !=
+		          rd_new[BE_REG_D_LOCAL].rd_gen_idx);
+		rd_use[BE_REG_D_GLOBAL] = true;
+		if (rd_new[BE_REG_D_GLOBAL].rd_gen_idx <
+		    rd_new[BE_REG_D_LOCAL].rd_gen_idx) {
+			rd_use[BE_REG_D_LOCAL]  = true;
+			rd_new[BE_REG_D_GLOBAL] = rd_new[BE_REG_D_LOCAL];
+		} else {
+			rd_use[BE_REG_D_LOCAL]  = false;
+		}
+	}
+}
+
+/* Debug output is disabled. Change "if (0)" to "if (1)" to enable. */
+M0_INTERNAL void m0_be_reg_area_rebuild(struct m0_be_reg_area *global,
+                                        struct m0_be_reg_area *local,
+                                        struct m0_be_reg_area *global_new,
+                                        struct m0_be_reg_area *local_new)
+{
+	enum {
+		BE_REG_AREA_NR = 2,
+	};
+	struct m0_be_reg_area *ra[BE_REG_AREA_NR] = { global, local };
+	struct m0_be_reg_area *ra_new[BE_REG_AREA_NR] =
+						{ global_new, local_new };
+	struct m0_be_reg_d    *pos[BE_REG_AREA_NR];
+	struct m0_be_reg_d     rd_new[BE_REG_AREA_NR];
+	bool                   rd_use[BE_REG_AREA_NR];
+	m0_bcount_t            size;
+	void                  *addr;
+	int                    i;
+
+	if (0) {
+		struct m0_be_reg_d    *rd;
+
+		M0_LOG(M0_FATAL, "rebuild");
+		M0_BE_REG_AREA_FORALL(global, rd) {
+			M0_LOG(M0_FATAL, "    global addr=%p gen_idx=%lu "
+			       "size=%lx",
+			       rd->rd_reg.br_addr, rd->rd_gen_idx,
+			       rd->rd_reg.br_size);
+		}
+		M0_BE_REG_AREA_FORALL(local, rd) {
+			M0_LOG(M0_FATAL, "    local  addr=%p gen_idx=%lu "
+			       "size=%lx",
+			       rd->rd_reg.br_addr, rd->rd_gen_idx,
+			       rd->rd_reg.br_size);
+		}
+	}
+	for (i = 0; i < ARRAY_SIZE(pos); ++i)
+		pos[i] = m0_be_reg_area_first(ra[i]);
+	addr = NULL;
+	while (m0_exists(j, ARRAY_SIZE(pos), pos[j] != NULL)) {
+		be_reg_d_arr_first_subreg(pos, ARRAY_SIZE(pos),
+		                          addr, &addr, &size);
+		be_reg_area_rebuild_reg_d(addr, size, pos, rd_new, rd_use);
+		for (i = 0; i < ARRAY_SIZE(pos); ++i) {
+			if (rd_use[i])
+				m0_be_reg_area_capture(ra_new[i], &rd_new[i]);
+		}
+		addr += size;
+		for (i = 0; i < ARRAY_SIZE(pos); ++i) {
+			if (pos[i] != NULL &&
+			    be_reg_d_lb1(pos[i]) == addr)
+				pos[i] = m0_be_reg_area_next(ra[i], pos[i]);
+		}
+	}
+	if (0) {
+		struct m0_be_reg_d    *rd;
+
+		M0_BE_REG_AREA_FORALL(global_new, rd) {
+			M0_LOG(M0_FATAL, "new global addr=%p gen_idx=%lu "
+			       "size=%lx",
+			       rd->rd_reg.br_addr, rd->rd_gen_idx,
+			       rd->rd_reg.br_size);
+		}
+		M0_BE_REG_AREA_FORALL(local_new, rd) {
+			M0_LOG(M0_FATAL, "new local  addr=%p gen_idx=%lu "
+			       "size=%lx",
+			       rd->rd_reg.br_addr, rd->rd_gen_idx,
+			       rd->rd_reg.br_size);
+		}
+	}
+}
+
 M0_INTERNAL void m0_be_reg_area_io_add(struct m0_be_reg_area *ra,
 				       struct m0_be_io *io)
 {
@@ -660,6 +981,105 @@ M0_INTERNAL void m0_be_reg_area_io_add(struct m0_be_reg_area *ra,
 	}
 
 	M0_POST(m0_be_reg_area__invariant(ra));
+}
+
+M0_INTERNAL int
+m0_be_reg_area_merger_init(struct m0_be_reg_area_merger *brm,
+                           int                           reg_area_nr_max)
+{
+	int rc;
+
+	brm->brm_reg_area_nr_max = reg_area_nr_max;
+	brm->brm_reg_area_nr     = 0;
+
+	M0_ALLOC_ARR(brm->brm_reg_areas, brm->brm_reg_area_nr_max);
+	M0_ALLOC_ARR(brm->brm_pos,       brm->brm_reg_area_nr_max);
+	if (brm->brm_reg_areas == NULL || brm->brm_pos == NULL) {
+		m0_free(brm->brm_reg_areas);
+		m0_free(brm->brm_pos);
+		rc = -ENOMEM;
+	} else {
+		rc = 0;
+	}
+	return rc;
+}
+
+M0_INTERNAL void m0_be_reg_area_merger_fini(struct m0_be_reg_area_merger *brm)
+{
+	m0_free(brm->brm_pos);
+	m0_free(brm->brm_reg_areas);
+}
+
+M0_INTERNAL void m0_be_reg_area_merger_reset(struct m0_be_reg_area_merger *brm)
+{
+	brm->brm_reg_area_nr = 0;
+}
+
+M0_INTERNAL void m0_be_reg_area_merger_add(struct m0_be_reg_area_merger *brm,
+                                           struct m0_be_reg_area        *ra)
+{
+	M0_PRE(brm->brm_reg_area_nr < brm->brm_reg_area_nr_max);
+
+	brm->brm_reg_areas[brm->brm_reg_area_nr++] = ra;
+}
+
+static void be_reg_area_merger_max_gen_idx(struct m0_be_reg_area_merger *brm,
+                                           void                         *addr,
+                                           m0_bcount_t                   size,
+                                           struct m0_be_reg_d           *rd_new)
+{
+	struct m0_be_reg_d *rd;
+	int                 i;
+	int                 max_i;
+
+	*rd_new = M0_BE_REG_D(M0_BE_REG(NULL, size, addr), NULL);
+	max_i = -1;
+	for (i = 0; i < brm->brm_reg_area_nr; ++i) {
+		rd = brm->brm_pos[i];
+		M0_ASSERT(rd == NULL ||
+			  be_reg_d_is_partof(rd, rd_new) ||
+		          !be_reg_d_are_overlapping(rd, rd_new));
+		M0_ASSERT(ergo(rd != NULL && max_i != -1,
+		               rd->rd_gen_idx != rd_new->rd_gen_idx));
+		if (rd != NULL && be_reg_d_are_overlapping(rd, rd_new) &&
+		    (max_i == -1 || rd_new->rd_gen_idx < rd->rd_gen_idx)) {
+			max_i = i;
+			rd_new->rd_gen_idx = rd->rd_gen_idx;
+		}
+	}
+	M0_ASSERT(max_i != -1);
+	be_reg_d_sub_make(brm->brm_pos[max_i], rd_new);
+}
+
+M0_INTERNAL void
+m0_be_reg_area_merger_merge_to(struct m0_be_reg_area_merger *brm,
+                               struct m0_be_reg_area        *ra)
+{
+	struct m0_be_reg_d *rd;
+	struct m0_be_reg_d  rd_new;
+	m0_bcount_t         size;
+	void               *addr;
+	int                 i;
+
+	for (i = 0; i < brm->brm_reg_area_nr; ++i)
+		brm->brm_pos[i] = m0_be_reg_area_first(brm->brm_reg_areas[i]);
+	addr = NULL;
+	while (m0_exists(j, brm->brm_reg_area_nr, brm->brm_pos[j] != NULL)) {
+		be_reg_d_arr_first_subreg(brm->brm_pos, brm->brm_reg_area_nr,
+		                          addr, &addr, &size);
+		be_reg_area_merger_max_gen_idx(brm, addr, size, &rd_new);
+		m0_be_reg_area_capture(ra, &rd_new);
+		addr += size;
+		/* pass by all stale regions by @addr */
+		for (i = 0; i < brm->brm_reg_area_nr; ++i) {
+			rd = brm->brm_pos[i];
+			if (rd != NULL && be_reg_d_lb1(rd) == addr) {
+				rd = m0_be_reg_area_next(
+				        brm->brm_reg_areas[i], rd);
+				brm->brm_pos[i] = rd;
+			}
+		}
+	}
 }
 
 #undef M0_TRACE_SUBSYSTEM
