@@ -152,12 +152,11 @@ static void remote_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	struct m0_rm_remote_incoming *rem_in;
 	struct rm_request_fom	     *rqfom;
-	enum m0_rm_fom_phases	      phase;
 
 	rem_in = container_of(in, struct m0_rm_remote_incoming, ri_incoming);
 	rqfom = container_of(rem_in, struct rm_request_fom, rf_in);
-	phase = m0_fom_phase(&rqfom->rf_fom);
-	M0_ASSERT(M0_IN(phase, (FOPH_RM_REQ_START, FOPH_RM_REQ_WAIT)));
+	M0_ASSERT(M0_IN(m0_fom_phase(&rqfom->rf_fom),
+			(FOPH_RM_REQ_START, FOPH_RM_REQ_WAIT)));
 
 	switch (in->rin_type) {
 	case FRT_BORROW:
@@ -175,9 +174,11 @@ static void remote_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 	 * Override the rc.
 	 */
 	in->rin_rc = rc;
-
-	if (phase == FOPH_RM_REQ_WAIT)
-		m0_fom_wakeup(&rqfom->rf_fom);
+	/*
+	 * FOM may still executes, but for sure will be
+	 * in the waiting state when wakeup AST is called.
+	 */
+	m0_fom_wakeup(&rqfom->rf_fom);
 }
 
 static void remote_incoming_conflict(struct m0_rm_incoming *in)
@@ -482,8 +483,12 @@ static int request_pre_process(struct m0_fom *fom,
 	m0_rm_credit_get(in);
 
 	m0_fom_phase_set(fom, FOPH_RM_REQ_WAIT);
-	return M0_RC(incoming_state(in) == RI_WAIT ? M0_FSO_WAIT
-			: M0_FSO_AGAIN);
+	/*
+	 * Don't try to analyse incoming_state(in), because access to 'in' is
+	 * not synchronised here. Return always M0_FSO_WAIT, fom will wakeup
+	 * from remote_incoming_complete().
+	 */
+	return M0_RC(M0_FSO_WAIT);
 }
 
 static int request_post_process(struct m0_fom *fom)

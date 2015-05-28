@@ -259,6 +259,7 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
 				   enum test_type test)
 {
 	struct m0_rm_fop_borrow *brw_fop;
+	struct m0_sm_group      *grp = &dummy_loc.fl_group;
 
 	m0_rm_owner_lock(rm_test_data.rd_owner);
 	switch (test) {
@@ -291,6 +292,8 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
 	brw_fop = m0_fop_data(fom->fo_fop);
 	M0_UT_ASSERT(brw_fop != NULL);
 	m0_buf_free(&brw_fop->bo_base.rrq_credit.cr_opaque);
+	/* RM code posts AST to wakeup FOM, delete it. AST is already freed */
+	grp->s_forkq = grp->s_forkq->sa_next;
 }
 
 /*
@@ -326,7 +329,7 @@ static void brw_fom_state_test(enum test_type test)
 		m0_fi_enable_once("rings_credit_copy", "fail_copy");
 	rc = borrow_fom_tick(fom);
 	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_WAIT);
-	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+	M0_UT_ASSERT(rc == M0_FSO_WAIT);
 
 	/*
 	 * Call the second phase of FOM.
@@ -469,6 +472,7 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 				   enum test_type test)
 {
 	struct m0_rm_fop_revoke *rvk_fop;
+	struct m0_sm_group      *grp = &dummy_loc.fl_group;
 
 	m0_rm_owner_lock(rm_test_data.rd_owner);
 	switch (test) {
@@ -506,6 +510,8 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 	rvk_fop = m0_fop_data(fom->fo_fop);
 	M0_UT_ASSERT(rvk_fop != NULL);
 	m0_buf_free(&rvk_fop->fr_base.rrq_credit.cr_opaque);
+	/* RM code posts AST to wakeup FOM, delete it. AST is already freed */
+	grp->s_forkq = grp->s_forkq->sa_next;
 }
 
 /*
@@ -537,7 +543,7 @@ static void rvk_fom_state_test(enum test_type test)
 		m0_fi_enable_once("rings_credit_copy", "fail_copy");
 	rc = revoke_fom_tick(fom);
 	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_WAIT);
-	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+	M0_UT_ASSERT(rc == M0_FSO_WAIT);
 
 	/*
 	 * Call the second FOM phase.
