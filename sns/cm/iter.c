@@ -316,13 +316,21 @@ end:
 /** Fetches next GOB fid. */
 static int iter_fid_next(struct m0_sns_cm_iter *it)
 {
+	struct m0_sns_cm                 *scm = it2sns(it);
+	struct m0_cm                     *cm  = &scm->sc_base;
 	struct m0_sns_cm_iter_file_ctx   *ifc = &it->si_fc;
 	struct m0_fid                     fid_next;
 	int                               rc;
 	M0_ENTRY("it = %p", it);
 
 	m0_fid_gob_make(&fid_next, 0, 0);
-	it->si_fc.ifc_fctx = NULL;
+	ifc->ifc_fctx = NULL;
+	if (cm->cm_quiesce) {
+		M0_LOG(M0_WARN, "%lu: Got QUIESCE cmd: returning -ENODATA",
+				 cm->cm_id);
+		return M0_RC(-ENODATA);
+	}
+
 	/* Get current GOB fid saved in the iterator. */
 	do {
 		rc = __fid_next(it, &fid_next);
@@ -337,8 +345,10 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 		if (M0_FI_ENABLED("ut_fid_next"))
 			m0_layout_put(ifc->ifc_fctx->sf_layout);
 	}
-	if (rc == -ENOENT)
+	if (rc == -ENOENT) {
+		M0_LOG(M0_DEBUG, "no more data: returning -ENODATA");
 		return M0_RC(-ENODATA);
+	}
 
 	iter_phase_set(it, ITPH_FID_LOCK);
 	return M0_RC(rc);
@@ -514,7 +524,7 @@ static int iter_ag_setup(struct m0_sns_cm_iter *it)
 	struct m0_cm_ag_id              agid;
 	struct m0_fid                  *fid = &ifc->ifc_gfid;
 	struct m0_pdclust_layout       *pl;
-	bool                            has_incoming = false;
+	bool                            has_incoming;
 	int                             rc;
 
 	pl = m0_layout_to_pdl(ifc->ifc_fctx->sf_layout);
@@ -566,7 +576,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm_file_ctx      *fctx;
 	struct m0_sns_cm_cp            *scp;
 	struct m0_fid                  *gfid;
-	bool                            has_incoming = false;
+	bool                            has_incoming;
 	bool                            has_data;
 	uint64_t                        group;
 	uint64_t                        stob_offset;

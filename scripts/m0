@@ -113,6 +113,9 @@ EOF
     say Concurrent i/o with sns repair
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_cc_io_with_sns_repair.sh"
 
+    say sns repair/rebalance quiesce and resume
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_quiesce.sh"
+
     say fsync ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_fsync_test.sh"
 }

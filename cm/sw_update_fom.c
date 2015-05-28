@@ -65,7 +65,7 @@ static struct m0_sm_state_descr cm_sw_update_sd[SWU_NR] = {
 	[SWU_STORE_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "Sliding window store init",
-		.sd_allowed = M0_BITS(SWU_STORE_INIT_WAIT, SWU_FINI)
+		.sd_allowed = M0_BITS(SWU_STORE_INIT_WAIT, SWU_UPDATE, SWU_FINI)
 	},
 	[SWU_STORE_INIT_WAIT] = {
 		.sd_flags   = 0,
@@ -125,8 +125,12 @@ static int swu_store_init(struct m0_cm_sw_update *swu)
 
 	M0_SET0(&cm->cm_last_saved_sw_hi);
 	rc = m0_cm_sw_store_init(cm, &fom->fo_loc->fl_group,
-				 &fom->fo_tx.tx_betx) ?: M0_FSO_AGAIN;
+				 &fom->fo_tx.tx_betx);
 	if (rc == 0 || rc == -ENOENT) {
+		/*
+		 * If existing sliding window found, we are ready to do update.
+		 * If not, a new persistent sw is allocated and we need to wait.
+		 */
 		phase = rc == -ENOENT ? SWU_STORE_INIT_WAIT : SWU_UPDATE;
 		m0_fom_phase_set(fom, phase);
 		rc = M0_FSO_AGAIN;
@@ -140,7 +144,7 @@ static int swu_store_init_wait(struct m0_cm_sw_update *swu)
 	struct m0_cm    *cm = cm_swu2cm(swu);
 	struct m0_fom   *fom = &swu->swu_fom;
 	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
-	struct m0_cm_sw  sw = {};
+	struct m0_cm_sw *sw;
 	int              rc;
 
 	switch (m0_be_tx_state(tx)) {
@@ -149,7 +153,7 @@ static int swu_store_init_wait(struct m0_cm_sw_update *swu)
 	case M0_BTS_OPENING :
 		break;
 	case M0_BTS_ACTIVE :
-		rc = m0_cm_sw_store_commit(cm, tx);
+		rc = m0_cm_sw_store_alloc(cm, tx);
 		if (rc != 0)
 			return M0_RC(rc);
 		break;
@@ -159,11 +163,9 @@ static int swu_store_init_wait(struct m0_cm_sw_update *swu)
 		if (rc != 0)
 			return M0_RC(rc);
 		rc = m0_cm_sw_store_load(cm, &sw);
-		if (rc == -ENOENT)
-			rc = 0;
 		if (rc != 0)
 			return M0_RC(rc);
-		cm->cm_last_saved_sw_hi = sw.sw_lo;
+		cm->cm_last_saved_sw_hi = sw->sw_lo;
 		m0_fom_phase_move(fom, 0, SWU_UPDATE);
 		return M0_FSO_AGAIN;
 	default :
@@ -182,11 +184,20 @@ static int swu_update(struct m0_cm_sw_update *swu)
 	int            rc;
 
 	M0_PRE(m0_cm_is_locked(cm));
+
+	if (!m0_cm_has_more_data(cm)) {
+		/* pump is complete. */
+		M0_LOG(M0_DEBUG, "pump completed. No more data.");
+		rc = -ENOENT;
+		goto no_more_data;
+	}
+
 	rc = m0_cm_sw_local_update(cm);
 	if (rc == M0_FSO_WAIT)
 		return M0_RC(rc);
 	if (M0_IN(rc, (0, -ENOSPC, -ENOENT))) {
 		if (rc == -ENOENT) {
+no_more_data:
 			swu->swu_is_complete = true;
 			m0_fom_phase_move(fom, 0, SWU_COMPLETE);
 		} else
@@ -269,21 +280,33 @@ out:
 
 static int swu_complete(struct m0_cm_sw_update *swu)
 {
-	struct m0_cm             *cm = cm_swu2cm(swu);
-	struct m0_fom            *fom = &swu->swu_fom;
-	struct m0_dtx            *tx = &fom->fo_tx;
-	struct m0_be_seg         *seg  = cm->cm_service.rs_reqh->rh_beseg;
-	struct m0_cm_sw          *sw;
-	char                      cm_sw_name[80];
-	int                       rc;
+	struct m0_cm     *cm = cm_swu2cm(swu);
+	struct m0_fom    *fom = &swu->swu_fom;
+	struct m0_dtx    *tx = &fom->fo_tx;
+	struct m0_be_seg *seg = cm->cm_service.rs_reqh->rh_beseg;
+	struct m0_cm_sw  *sw;
+	char              cm_sw_name[80];
+	int               rc;
 
 	M0_PRE(m0_cm_is_locked(cm));
 
-	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
-	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
+	if (cm->cm_quiesce) {
+		/*
+		 * Copy machine got QUIESCE cmd. On-disk persistent sw is
+		 * kept. So it can continue from this point in next run.
+		 */
+		M0_LOG(M0_WARN, "%lu:Got QUIESCE cmd: sw is kept.", cm->cm_id);
+		swu->swu_is_complete = true;
+		m0_fom_phase_move(fom, 0, SWU_FINI);
+		return M0_FSO_WAIT;
+	}
+
+	rc = m0_cm_sw_store_load(cm, &sw);
 	if (rc != 0)
 		return M0_RC(rc);
 	M0_LOG(M0_DEBUG, "sw = %p", sw);
+
+	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
         if (tx->tx_state < M0_DTX_INIT) {
                 m0_dtx_init(tx, seg->bs_domain,
                                 &fom->fo_loc->fl_group);

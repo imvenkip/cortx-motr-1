@@ -571,7 +571,7 @@ static int sender_cm_prepare(struct m0_cm *cm)
 }
 
 static int sender_cm_ag_next(struct m0_cm *cm,
-			     const struct m0_cm_ag_id id_curr,
+			     const struct m0_cm_ag_id *id_curr,
 			     struct m0_cm_ag_id *id_next)
 {
 	return -ENOENT;

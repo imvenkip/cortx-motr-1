@@ -54,10 +54,14 @@ static void trigger_fom_fini(struct m0_fom *fom);
 static size_t trigger_fom_home_locality(const struct m0_fom *fom);
 
 extern struct m0_fop_type repair_trigger_fopt;
+extern struct m0_fop_type repair_quiesce_trigger_fopt;
 extern struct m0_fop_type rebalance_trigger_fopt;
+extern struct m0_fop_type rebalance_quiesce_trigger_fopt;
 
 extern struct m0_fop_type repair_trigger_rep_fopt;
+extern struct m0_fop_type repair_quiesce_trigger_rep_fopt;
 extern struct m0_fop_type rebalance_trigger_rep_fopt;
+extern struct m0_fop_type rebalance_quiesce_trigger_rep_fopt;
 
 static const struct m0_fom_ops trigger_fom_ops = {
 	.fo_fini          = trigger_fom_fini,
@@ -80,18 +84,18 @@ enum trigger_phases {
 static struct m0_sm_state_descr trigger_phases[] = {
 	[TPH_PREPARE] = {
 		.sd_name      = "Prepare copy machine",
-		.sd_allowed   = M0_BITS(TPH_READY, M0_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(TPH_READY, M0_FOPH_FAILURE, M0_FOPH_SUCCESS)
 	},
 	[TPH_READY] = {
 		.sd_name      = "Send ready fops",
 		.sd_allowed   = M0_BITS(TPH_START, M0_FOPH_FAILURE)
 	},
 	[TPH_START] = {
-		.sd_name      = "Start sns repair",
+		.sd_name      = "Start sns repair/rebalance",
 		.sd_allowed   = M0_BITS(TPH_STOP, M0_FOPH_FAILURE)
 	},
 	[TPH_STOP] = {
-		.sd_name      = "Stop sns repair",
+		.sd_name      = "Stop sns repair/rebalance",
 		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS)
 	}
 };
@@ -126,20 +130,6 @@ M0_INTERNAL void m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,
 			 .sm        = &trigger_conf);
 }
 
-static bool is_repair_trigger_fop(const struct m0_fop *fop)
-{
-	M0_PRE(fop != NULL);
-
-	return fop->f_type == &repair_trigger_fopt;
-}
-
-static bool is_rebalance_trigger_fop(const struct m0_fop *fop)
-{
-	M0_PRE(fop != NULL);
-
-	return fop->f_type == &rebalance_trigger_fopt;
-}
-
 static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			      struct m0_reqh *reqh)
 {
@@ -152,10 +142,26 @@ static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_ALLOC_PTR(fom);
 	if (fom == NULL)
 		return M0_ERR(-ENOMEM);
-	if (is_repair_trigger_fop(fop))
+
+	switch (m0_fop_opcode(fop)) {
+	case M0_SNS_REPAIR_TRIGGER_OPCODE:
 		rep_fop = m0_fop_reply_alloc(fop, &repair_trigger_rep_fopt);
-	else if (is_rebalance_trigger_fop(fop))
+		break;
+	case M0_SNS_REPAIR_QUIESCE_OPCODE:
+		rep_fop = m0_fop_reply_alloc(fop,
+					&repair_quiesce_trigger_rep_fopt);
+		break;
+	case M0_SNS_REBALANCE_TRIGGER_OPCODE:
 		rep_fop = m0_fop_reply_alloc(fop, &rebalance_trigger_rep_fopt);
+		break;
+	case M0_SNS_REBALANCE_QUIESCE_OPCODE:
+		rep_fop = m0_fop_reply_alloc(fop,
+					&rebalance_quiesce_trigger_rep_fopt);
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid fop, opcode=%d", m0_fop_opcode(fop));
+	}
+
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &trigger_fom_ops, fop,
 		    rep_fop, reqh);
 
@@ -185,6 +191,7 @@ static void trigger_rep_set(struct m0_fom *fom)
 
 	trep->rc = m0_fom_rc(fom);
 	fom->fo_rep_fop = rfop;
+	M0_LOG(M0_DEBUG, "sending back trigger reply:%d", trep->rc);
 }
 static struct m0_cm *trig2cm(const struct m0_fom *fom)
 {
@@ -198,6 +205,15 @@ static int prepare(struct m0_fom *fom)
 	struct trigger_fop    *treq = m0_fop_data(fom->fo_fop);
 	enum m0_pool_nd_state  state;
 	int                    rc;
+
+	if (treq->op == SNS_REPAIR_QUIESCE ||
+	    treq->op == SNS_REBALANCE_QUIESCE) {
+		/* setting quiesce flag to running copy machine and quit */
+		cm->cm_quiesce = true;
+		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+		trigger_rep_set(fom);
+		return M0_FSO_AGAIN;
+	}
 
 	scm->sc_op = treq->op;
 	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
@@ -258,12 +274,17 @@ static int stop(struct m0_fom *fom)
 	trigger_rep_set(fom);
 	m0_cm_stop(cm);
 	m0_fom_block_leave(fom);
-	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRED :
-					   M0_PNDS_ONLINE;
-	m0_sns_cm_pm_event_post(scm, &fom->fo_tx.tx_betx, M0_POOL_DEVICE, state);
+	if (cm->cm_quiesce) {
+		M0_LOG(M0_DEBUG, "stopped by QUIESCE cmd");
+	} else {
+		state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRED :
+						   M0_PNDS_ONLINE;
+		m0_sns_cm_pm_event_post(scm, &fom->fo_tx.tx_betx,
+					M0_POOL_DEVICE, state);
+		M0_LOG(M0_DEBUG, "stopped normally");
+	}
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 
-	M0_LOG(M0_DEBUG, "trigger: stop");
 	return M0_FSO_AGAIN;
 }
 
@@ -308,6 +329,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		rc = m0_fom_tick_generic(fom);
 	} else
 		rc = trig_action[m0_fom_phase(fom)](fom);
+
 
 	if (rc < 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);

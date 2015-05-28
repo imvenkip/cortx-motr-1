@@ -70,7 +70,7 @@ struct m0_sns_cm_ag_iter {
 };
 
 M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
-				   const struct m0_cm_ag_id id_curr,
+				   const struct m0_cm_ag_id *id_curr,
 				   struct m0_cm_ag_id *id_next);
 M0_INTERNAL int m0_sns_cm_ag_iter_init(struct m0_sns_cm_ag_iter *ai);
 M0_INTERNAL void m0_sns_cm_ag_iter_fini(struct m0_sns_cm_ag_iter *ai);

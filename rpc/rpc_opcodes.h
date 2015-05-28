@@ -226,6 +226,12 @@ enum M0_RPC_OPCODES {
 	/* reqh/ut/reqh_fop_allow_ut.c */
 	M0_REQH_UT_ALLOW_OPCODE             = 151,
 
+	/* SNS repair/rebalance quiesce */
+	M0_SNS_REPAIR_QUIESCE_OPCODE        = 152,
+	M0_SNS_REPAIR_QUIESCE_REP_OPCODE    = 153,
+	M0_SNS_REBALANCE_QUIESCE_OPCODE     = 154,
+	M0_SNS_REBALANCE_QUIESCE_REP_OPCODE = 155,
+
 	/** SSS process fops */
 	M0_SSS_PROCESS_REQ_OPCODE           = 200,
 	M0_SSS_PROCESS_REP_OPCODE           = 202,

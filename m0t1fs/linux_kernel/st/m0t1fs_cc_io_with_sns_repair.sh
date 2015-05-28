@@ -99,7 +99,7 @@ verify_all()
 	local end=$3
 
         for ((i=$start; i < $end; i++)) ; do
-		verify ${fids[$i]} $((${bs[$i]} * 1024))  ${file_size[$i]} || return ?
+		verify ${fids[$i]} $((${bs[$i]} * 1024))  ${file_size[$i]} || return $?
         done
 }
 
@@ -115,13 +115,6 @@ create_files_and_checksum()
 		_dd ${fids[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
 		verify ${fids[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
 	done
-}
-
-wait4snsrepair()
-{
-	echo "**** Wait for sns repair to complete ****"
-	while [ "`ps ax | grep -v grep | grep m0repair`" ];
-		do echo -n .; sleep 5; done
 }
 
 sns_repair_test()

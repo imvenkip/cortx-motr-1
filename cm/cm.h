@@ -262,6 +262,12 @@ struct m0_cm {
 	struct m0_cm_cp_pump             cm_cp_pump;
 
 	struct m0_cm_sw_update           cm_sw_update;
+
+        /**
+	 * Command to quiesce pumping new copy packet. This will
+	 * cause sns repair/rebalance to quiesce.
+	 */
+        bool                             cm_quiesce;
 };
 
 /** Operations supported by a copy machine. */
@@ -304,7 +310,7 @@ struct m0_cm_ops {
 	 * the "id_next".
 	 */
 	int (*cmo_ag_next)(struct m0_cm *cm,
-			   const struct m0_cm_ag_id id_curr,
+			   const struct m0_cm_ag_id *id_curr,
 			   struct m0_cm_ag_id *id_next);
 
 	/**

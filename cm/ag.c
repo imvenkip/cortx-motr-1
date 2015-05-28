@@ -170,10 +170,13 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	m0_cm_aggr_group_fini(ag);
 	has_data = m0_cm_has_more_data(cm);
 	if (!has_data && cm->cm_aggr_grps_in_nr == 0 &&
-	    cm->cm_aggr_grps_out_nr == 0)
+	    cm->cm_aggr_grps_out_nr == 0) {
+		M0_LOG(M0_DEBUG, "%lu: Complete the CM", cm->cm_id);
 		m0_cm_complete(cm);
+	}
 
-	M0_LOG(M0_DEBUG, "in=[%lu] %p out=[%lu] %p",
+	M0_LOG(M0_DEBUG, "%lu: has_data=%d in=[%lu] %p out=[%lu] %p",
+	       cm->cm_id, !!has_data,
 	       cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
 	       cm->cm_aggr_grps_out_nr, &cm->cm_aggr_grps_out);
 
@@ -330,7 +333,7 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 	id = cm->cm_last_saved_sw_hi;
 	do {
 		ID_LOG("id", &id);
-		rc = cm->cm_ops->cmo_ag_next(cm, id, &next);
+		rc = cm->cm_ops->cmo_ag_next(cm, &id, &next);
 		M0_LOG(M0_DEBUG,  "next ["M0_AG_F"] rc=%d", M0_AG_P(&next), rc);
 		if (rc == 0 && m0_cm_ag_id_is_set(&next)) {
 			ag = m0_cm_aggr_group_locate(cm, &next, true);

@@ -218,8 +218,8 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	if (hi != NULL)
 		id_hi = hi->cag_id;
 	m0_cm_sw_set(&sw, &id_lo, &id_hi);
-	M0_LOG(M0_DEBUG, "proxy ep: %s", proxy->px_endpoint);
-	M0_LOG(M0_DEBUG, "cm->cm_aggr_grps_in_nr %lu!", cm->cm_aggr_grps_in_nr);
+	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %lu",
+			 proxy->px_endpoint, cm->cm_aggr_grps_in_nr);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
 	if (cm->cm_aggr_grps_in_nr > 0 || cm->cm_aggr_grps_out_nr > 0) {

@@ -67,12 +67,12 @@ static struct m0_sm_state_descr ai_sd[AIS_NR] = {
 	[AIS_FID_ATTR] = {
 		.sd_flags   = 0,
 		.sd_name    = "ag iter fid attr",
-		.sd_allowed = M0_BITS(AIS_GROUP_NEXT, AIS_FID_LOCK)
+		.sd_allowed = M0_BITS(AIS_GROUP_NEXT, AIS_FID_LOCK, AIS_FINI)
 	},
 	[AIS_GROUP_NEXT] = {
 		.sd_flags   = 0,
 		.sd_name   = "ag iter group next",
-		.sd_allowed = M0_BITS(AIS_FID_NEXT, AIS_FID_LOCK)
+		.sd_allowed = M0_BITS(AIS_FID_NEXT, AIS_FID_LOCK, AIS_FINI)
 	},
 	[AIS_FINI] = {
 		.sd_flags   = M0_SDF_TERMINAL,
@@ -208,9 +208,16 @@ static int ai_fid_lock(struct m0_sns_cm_ag_iter *ai)
 
 static int ai_fid_next(struct m0_sns_cm_ag_iter *ai)
 {
-	struct m0_fid fid = {0, 0};
-	struct m0_fid fid_curr = ai->ai_fid;
-	int           rc;
+	struct m0_fid     fid = {0, 0};
+	struct m0_fid     fid_curr = ai->ai_fid;
+	int               rc;
+	struct m0_sns_cm *scm = ai2sns(ai);
+	struct m0_cm     *cm = &scm->sc_base;
+
+	if (!m0_cm_has_more_data(cm)) {
+		M0_LOG(M0_WARN, "%lu: Got QUIESCE cmd", cm->cm_id);
+		return M0_RC(-ENODATA);
+	}
 
 	do {
 		M0_CNT_INC(fid_curr.f_key);
@@ -237,7 +244,7 @@ static int (*ai_action[])(struct m0_sns_cm_ag_iter *ai) = {
 };
 
 M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
-				   const struct m0_cm_ag_id id_curr,
+				   const struct m0_cm_ag_id *id_curr,
 				   struct m0_cm_ag_id *id_next)
 {
 	struct m0_sns_cm_ag_iter  *ai = &scm->sc_ag_it;
@@ -245,7 +252,7 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 	struct m0_fid              fid;
 	int                        rc;
 
-	ai->ai_id_curr = id_curr;
+	ai->ai_id_curr = *id_curr;
 	agid2fid(&ai->ai_id_curr, &fid);
 	fctx = ai->ai_fctx;
 	/*

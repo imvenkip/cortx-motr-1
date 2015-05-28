@@ -126,6 +126,11 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 	return M0_RC(rc);
 }
 
+/**
+ * Lookup first.
+ * - If found, just return success.
+ * - If not found, return -ENOENT and prepare to allocate one.
+ */
 M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp,
 				    struct m0_be_tx *tx)
 {
@@ -134,10 +139,11 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp,
 	struct m0_cm_sw       *sw;
 	char                   cm_sw_name[80];
 	int                    rc;
+	M0_ENTRY();
 
 	M0_SET0(tx);
 	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
-	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
+	rc = m0_cm_sw_store_load(cm, &sw);
 	if (rc == 0)
 		return M0_RC(rc);
 
@@ -150,7 +156,7 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm, struct m0_be_tx *tx)
+M0_INTERNAL int m0_cm_sw_store_alloc(struct m0_cm *cm, struct m0_be_tx *tx)
 {
 	struct m0_be_seg   *seg  = cm->cm_service.rs_reqh->rh_beseg;
 	struct m0_cm_sw    *sw;
@@ -171,6 +177,7 @@ M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm, struct m0_be_tx *tx)
 			M0_SET0(&id_lo);
 			M0_SET0(&id_hi);
 			m0_cm_sw_set(sw, &id_lo, &id_hi);
+			M0_BE_TX_CAPTURE_PTR(seg, tx, sw);
 			M0_LOG(M0_DEBUG, "allocated sw = %p", sw);
 		} else
 			M0_BE_FREE_PTR_SYNC(sw, seg, tx);
@@ -179,18 +186,17 @@ M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm, struct m0_be_tx *tx)
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw *out)
+M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw **out)
 {
 	struct m0_be_seg *seg = cm->cm_service.rs_reqh->rh_beseg;
-	struct m0_cm_sw  *sw;
 	char              cm_sw_name[80];
 	int               rc;
 
 	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
-	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
+	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)out);
 	if (rc == 0)
-		m0_cm_sw_copy(out, sw);
-	M0_LOG(M0_DEBUG, "sw = %p", sw);
+		M0_LOG(M0_DEBUG, "sw = %p", *out);
+
 	return M0_RC(rc);
 }
 
@@ -198,15 +204,13 @@ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
 				      struct m0_be_tx *tx,
 				      const struct m0_cm_sw *last)
 {
-	struct m0_be_seg       *seg    = cm->cm_service.rs_reqh->rh_beseg;
-	struct m0_cm_sw        *sw;
-	char                    cm_sw_name[80];
-	int                     rc;
+	struct m0_be_seg *seg = cm->cm_service.rs_reqh->rh_beseg;
+	struct m0_cm_sw  *sw;
+	int               rc;
 
 	M0_PRE(m0_cm_is_locked(cm));
 
-	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
-	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
+	rc = m0_cm_sw_store_load(cm, &sw);
 	if (rc != 0)
 		return M0_RC(rc);
 

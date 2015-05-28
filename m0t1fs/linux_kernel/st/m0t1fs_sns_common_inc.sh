@@ -181,6 +181,43 @@ sns_rebalance()
 	return $rc
 }
 
+sns_repair_quiesce()
+{
+	local rc=0
+
+	repair_quiesce_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 8 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	echo $repair_quiesce_trigger
+	eval $repair_quiesce_trigger
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "SNS Repair quiesce failed"
+	fi
+
+	return $rc
+}
+
+sns_rebalance_quiesce()
+{
+	local rc=0
+
+	rebalance_quiesce_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 16 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	echo $rebalance_quiesce_trigger
+	eval $rebalance_quiesce_trigger
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "SNS Re-balance quiesce failed"
+	fi
+
+	return $rc
+}
+
+wait4snsrepair()
+{
+	echo "**** Wait for sns repair to complete ****"
+	while [ "`ps ax | grep -v grep | grep m0repair`" ];
+		do echo -n .; sleep 5; done
+}
+
 _dd()
 {
 	local FILE=$1
@@ -213,7 +250,7 @@ local_read()
 	local BS=$1
 	local COUNT=$2
 
-	dd if=$MERO_M0T1FS_TEST_DIR/srcfile of=$MERO_M0T1FS_TEST_DIR/file$BS$COUNT \
+	dd if=$MERO_M0T1FS_TEST_DIR/srcfile of=$MERO_M0T1FS_TEST_DIR/file-$BS-$COUNT \
 		bs=$BS count=$COUNT &>> $MERO_TEST_LOGFILE || {
                         echo "local read failed"
                         unmount_and_clean &>> $MERO_TEST_LOGFILE
@@ -234,7 +271,7 @@ read_and_verify()
                         return 1
         }
 
-	diff $MERO_M0T1FS_TEST_DIR/file$BS$COUNT $MERO_M0T1FS_TEST_DIR/$FILE &>> $MERO_TEST_LOGFILE || {
+	diff $MERO_M0T1FS_TEST_DIR/file-$BS-$COUNT $MERO_M0T1FS_TEST_DIR/$FILE &>> $MERO_TEST_LOGFILE || {
 		echo "files differ"
 		unmount_and_clean &>>$MERO_TEST_LOGFILE
 		return 1

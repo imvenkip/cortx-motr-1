@@ -703,6 +703,7 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	if (rc != 0)
 		goto out;
 	cm->cm_ready_fops_recvd = 0;
+	cm->cm_quiesce = false;
 	rmach = m0_cm_rpc_machine_find(reqh);
 	rc = cm_replicas_connect(cm, rmach, reqh);
 	if (rc == -ENOENT)

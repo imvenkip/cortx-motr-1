@@ -107,15 +107,14 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp,
  * Prepares sliding window persistent store for this copy machine.
  * Commits and closes the transaction asynchronously.
  */
-M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm, struct m0_be_tx *tx);
+M0_INTERNAL int m0_cm_sw_store_alloc(struct m0_cm *cm, struct m0_be_tx *tx);
 
 /**
  * Loads sliding window data from persistent storage.
  *
  * -ENOENT is returned if no sliding window data is found on storage.
- * The caller should call m0_cm_sw_store_init() to initialize the storage.
  */
-M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw *out);
+M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw **out);
 
 /**
  * Updates sliding window data to the last completed aggregation group.

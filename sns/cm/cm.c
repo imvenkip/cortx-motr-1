@@ -855,7 +855,7 @@ out:
 }
 
 M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
-				  const struct m0_cm_ag_id id_curr,
+				  const struct m0_cm_ag_id *id_curr,
 				  struct m0_cm_ag_id *id_next)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);

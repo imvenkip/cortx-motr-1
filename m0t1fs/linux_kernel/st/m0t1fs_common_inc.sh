@@ -78,6 +78,7 @@ MDSEP=(
 # utilities are run at the same time, e.g. concurrent i/o with sns repair.
 SNS_CLI_EP="12345:33:1000"
 POOL_MACHINE_CLI_EP="12345:33:1001"
+SNS_QUIESCE_CLI_EP="12345:33:1002"
 
 POOL_WIDTH=${#IOSEP[*]}
 NR_PARITY=1
