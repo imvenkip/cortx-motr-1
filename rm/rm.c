@@ -1117,7 +1117,17 @@ static bool rev_session_clink_cb(struct m0_clink *link)
 			busy = m0_rm_owner_trylock(owner);
 			if (!busy) {
 				pending_outgoing_send(owner, link);
-				m0_rm_owner_unlock(owner);
+				/*
+				 * Use m0_mutex_unlock() directly insted of
+				 * m0_rm_owner_unlock(). The latter causes asts
+				 * for owner sm group to run, which can lock
+				 * already held resource type lock.
+				 */
+				/**
+				 * @todo This would be fixed, when RM will be
+				 * using normal locality sm groups, rather than
+				 * per-resource-type groups */
+				m0_mutex_unlock(&owner_grp(owner)->s_lock);
 			} else
 				break;
 		} m0_tl_endfor;
