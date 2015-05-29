@@ -59,7 +59,7 @@
  * HLD explains why resulting layout mapping function possesses a number of
  * desirable properties.
  *
- * @see https://docs.google.com/a/horizontalscale.com/Doc?docid=0Aa9lcGbR4emcZGhxY2hqdmdfNjI0Y2pkajVraG4
+ * @see https://docs.google.com/document/d/1THpmQZig__zkfh6CdiMgAfbH5BUv7NfhW0ZpxRhvYEU
  *
  * @{
  */
