@@ -626,12 +626,9 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 				cob_is_md(cob_op) ? "MD" : "IO");
 		m0_md_cob_wire2mem(&attr, &common->c_body);
 		if (fop_type == COT_CREATE) {
-			if (cob_is_md(cob_op)) {
-				rc = cc_cob_create(fom, cob_op, &attr);
-			} else {
-				rc = cc_stob_create(fom, cob_op) ?:
-				     cc_cob_create(fom, cob_op, &attr);
-			}
+			if (!cob_is_md(cob_op))
+				rc = cc_stob_create(fom, cob_op);
+			rc = rc ?: cc_cob_create(fom, cob_op, &attr);
 		} else if (fop_type == COT_DELETE) {
 			if (cob_op->fco_is_done) {
 				rc = cd_cob_delete(fom, cob_op, &attr);
