@@ -1128,14 +1128,14 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
 static void be_seg_init(struct m0_be_ut_backend *be,
 			m0_bcount_t		 size,
 			bool		 	 preallocate,
-			bool		 	 mkfs,
+			bool		 	 format,
 			const char		*stob_create_cfg,
 			struct m0_be_seg       **out)
 {
 	struct m0_be_seg *seg;
 
 	seg = m0_be_domain_seg_first(&be->but_dom);
-	if (seg != NULL && mkfs) {
+	if (seg != NULL && format) {
 		m0_be_ut_backend_seg_del(be, seg);
 		seg = NULL;
 	}
@@ -1152,7 +1152,7 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		      struct m0_be_ut_backend *be,
 		      const char              *name,
 		      bool                     preallocate,
-		      bool                     mkfs,
+		      bool                     format,
 		      struct m0_be_seg	     **out)
 {
 	enum { len = 1024 };
@@ -1173,11 +1173,11 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		be->but_dom_cfg.bc_log_cfg.blc_size = rctx->rc_be_log_size;
 		be->but_dom_cfg.bc_engine.bec_log_size = rctx->rc_be_log_size;
 	}
-	rc = m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, mkfs);
+	rc = m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, format);
 	if (rc != 0)
 		goto err;
 
-	be_seg_init(be, rctx->rc_be_seg_size, preallocate, mkfs,
+	be_seg_init(be, rctx->rc_be_seg_size, preallocate, format,
 		    rctx->rc_be_seg_path, out);
 	if (*out != NULL)
 		return 0;
@@ -1221,7 +1221,8 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 	rctx->rc_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &rctx->rc_reqh;
 
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
-			rctx->rc_be_seg_preallocate, mkfs, &rctx->rc_beseg);
+			rctx->rc_be_seg_preallocate,
+			(mkfs && force), &rctx->rc_beseg);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "cs_be_init");
 		goto reqh_fini;
@@ -1270,6 +1271,14 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 
 	rctx->rc_cdom_id.id = ++cdom_id;
 
+	/*
+	  This MUST be initialized before m0_mdstore_init() is called.
+	  Otherwise it returns -ENOENT, which is used for detecting if
+	  fs is alive and should be preserved.
+	 */
+	rctx->rc_mdstore.md_dom = m0_reqh_lockers_get(&rctx->rc_reqh,
+						      m0_get()->i_mds_cdom_key);
+
 	if (mkfs) {
 		/*
 		 * Init mdstore without root cob first. Now we can use it
@@ -1284,7 +1293,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 
 		/* Prepare new metadata structure, erase old one if exists. */
 		if ((rc == 0 && force) || rc == -ENOENT)
-			rc = cs_storage_prepare(rctx, rc == 0);
+			rc = cs_storage_prepare(rctx, (rc == 0 && force));
 		m0_mdstore_fini(&rctx->rc_mdstore);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "cs_storage_prepare: rc=%d", rc);
@@ -1292,8 +1301,6 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 		}
 	}
 
-	rctx->rc_mdstore.md_dom = m0_reqh_lockers_get(&rctx->rc_reqh,
-						      m0_get()->i_mds_cdom_key);
 	M0_ASSERT(rctx->rc_mdstore.md_dom != NULL);
 	/* Init mdstore and root cob as it should be created by mkfs. */
 	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,

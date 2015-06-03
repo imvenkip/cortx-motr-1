@@ -381,9 +381,14 @@ M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 
 	c->bc_mkfs_mode = mkfs;
 
+check_mkfs:
 	m0_be_domain_module_setup(&ut_be->but_dom, c);
 	rc = m0_module_init(&ut_be->but_dom.bd_module,
 			    M0_LEVEL_BE_DOMAIN_READY);
+	if (!c->bc_mkfs_mode && rc == -ENOENT) {
+		c->bc_mkfs_mode = true;
+		goto check_mkfs;
+	}
 	if (rc != 0)
 		m0_mutex_fini(&ut_be->but_sgt_lock);
 	m0_get()->i_be_ut_backend = ut_be;
