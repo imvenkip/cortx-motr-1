@@ -74,9 +74,9 @@ struct m0_cm_proxy {
 
 	struct m0_mutex        px_mutex;
 
-	struct m0_rpc_conn     px_conn;
+	struct m0_rpc_conn    *px_conn;
 
-	struct m0_rpc_session  px_session;
+	struct m0_rpc_session *px_session;
 
 	const char            *px_endpoint;
 
@@ -126,8 +126,6 @@ M0_INTERNAL void m0_cm_proxy_cp_add(struct m0_cm_proxy *pxy,
 				    struct m0_cm_cp *cp);
 
 M0_INTERNAL uint64_t m0_cm_proxy_nr(struct m0_cm *cm);
-
-M0_INTERNAL void m0_cm_proxy_rpc_conn_close(struct m0_cm_proxy *pxy);
 
 M0_INTERNAL bool m0_cm_proxy_agid_is_in_sw(struct m0_cm_proxy *pxy,
 					   struct m0_cm_ag_id *id);

@@ -306,9 +306,9 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	if (sw_fop == NULL)
 		return M0_ERR(-ENOMEM);
 	fop = &sw_fop->pso_fop;
-	rmach = proxy->px_conn.c_rpc_machine;
+	rmach = proxy->px_conn->c_rpc_machine;
 	ep = rmach->rm_tm.ntm_ep->nep_addr;
-	conn = &proxy->px_conn;
+	conn = proxy->px_conn;
 	rc = cm->cm_ops->cmo_sw_onwire_fop_setup(cm, fop,
 						 proxy_sw_onwire_release,
 						 ep, sw);
@@ -329,23 +329,6 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 
 	M0_LEAVE("%d", rc);
 	return M0_RC(rc);
-}
-
-M0_INTERNAL void m0_cm_proxy_rpc_conn_close(struct m0_cm_proxy *pxy)
-{
-	int rc;
-
-	M0_ENTRY("%p", pxy);
-	rc = m0_rpc_session_destroy(&pxy->px_session,
-					m0_time_from_now(CM_RPC_TIMEOUT, 0));
-	if (rc != 0)
-		M0_LOG(M0_NOTICE, "Failed to terminate session %d", rc);
-
-	rc = m0_rpc_conn_destroy(&pxy->px_conn,
-					m0_time_from_now(CM_RPC_TIMEOUT, 0));
-	if (rc != 0)
-		M0_LOG(M0_NOTICE, "Failed to terminate connection %d", rc);
-	M0_LEAVE("%d", rc);
 }
 
 M0_INTERNAL void m0_cm_proxy_fini_wait(struct m0_cm_proxy *proxy)
@@ -374,7 +357,6 @@ M0_INTERNAL void m0_cm_proxy_fini(struct m0_cm_proxy *pxy)
 	M0_PRE(proxy_cp_tlist_is_empty(&pxy->px_pending_cps));
 	proxy_cp_tlist_fini(&pxy->px_pending_cps);
 	m0_cm_proxy_bob_fini(pxy);
-	m0_cm_proxy_rpc_conn_close(pxy);
 	m0_mutex_fini(&pxy->px_mutex);
 	M0_LEAVE();
 }

@@ -284,8 +284,8 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
 
 	rbulk = &cp->c_bulk;
 	m0_mutex_lock(&cp->c_cm_proxy->px_mutex);
-	session = &cp->c_cm_proxy->px_session;
-	ndom = session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
+        session = cp->c_cm_proxy->px_session;
+        ndom = session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
 	m0_mutex_unlock(&cp->c_cm_proxy->px_mutex);
 
 	offset = sns_cp->sc_index;

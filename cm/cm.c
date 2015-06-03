@@ -37,6 +37,7 @@
 #include "rpc/rpc_machine.h"
 #include "reqh/reqh.h"
 #include "fop/fop.h"
+#include "pool/pool.h" /* pools_common_svc */
 
 #include "cm/cm.h"
 #include "cm/ag.h"
@@ -647,45 +648,31 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm)
 static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 			       struct m0_reqh *reqh)
 {
-	struct m0_mero              *mero = m0_cs_ctx_get(reqh);
-	struct cs_endpoint_and_xprt *ex;
-	struct m0_cm_ag_id           ag_id0;
-	const char                  *lep;
-	int                          rc = -ENOENT;
+	struct m0_cm_ag_id          ag_id0;
+	const char                 *lep;
+	int                         rc = -ENOENT;
+	struct m0_pools_common     *pc = reqh->rh_pools;
+	struct m0_reqh_service_ctx *ctx;
 
 	M0_PRE(cm != NULL && rmach != NULL && reqh != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
 	M0_SET0(&ag_id0);
 	lep = rmach->rm_tm.ntm_ep->nep_addr;
-	m0_tl_for(cs_eps, &mero->cc_ios_eps, ex) {
+	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
 		struct m0_cm_proxy *pxy;
-		if (strcmp(ex->ex_endpoint, lep) == 0)
+		const char *dep = m0_rpc_conn_addr(&ctx->sc_conn);
+
+		M0_LOG(M0_DEBUG, "Connect %s dep %s type %d", lep, dep,
+				ctx->sc_type);
+		if (strcmp(lep, dep) == 0 || ctx->sc_type != M0_CST_IOS)
 			continue;
-		rc = m0_cm_proxy_alloc(0, &ag_id0, &ag_id0, ex->ex_endpoint,
-				       &pxy);
+		rc = m0_cm_proxy_alloc(0, &ag_id0, &ag_id0, dep, &pxy);
 		if (rc == 0) {
-			/*
-			 * m0_rpc_client_connect() is blocking operation,
-			 * release cm_lock to unblock other operations,
-			 * e.g. m0_sns_cm_fid_repair_done() invoked from io_fom,
-			 * acquires cm_lock to check cm status.
-			 */
-			m0_cm_unlock(cm);
-			rc = m0_rpc_client_connect(&pxy->px_conn,
-						   &pxy->px_session,
-						   rmach, ex->ex_endpoint,
-						   CM_MAX_NR_RPC_IN_FLIGHT);
-			m0_cm_lock(cm);
-			if (rc == 0) {
-				m0_cm_proxy_add(cm, pxy);
-				M0_LOG(M0_DEBUG, "Connected to %s",
-						 ex->ex_endpoint);
-			} else {
-				m0_cm_proxy_fini(pxy);
-				M0_LOG(M0_DEBUG, "Failed Connecting to %s",
-						 ex->ex_endpoint);
-			}
+			pxy->px_conn = &ctx->sc_conn;
+			pxy->px_session = &ctx->sc_session;
+			m0_cm_proxy_add(cm, pxy);
+			M0_LOG(M0_DEBUG, "Connected to %s", dep);
 		}
 	} m0_tl_endfor;
 	M0_LOG(M0_DEBUG, "Connected to its proxies from local ep %s", lep);

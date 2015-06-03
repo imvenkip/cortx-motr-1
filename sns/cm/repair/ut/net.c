@@ -111,6 +111,8 @@ static struct m0_net_buffer       s_buf[BUF_NR];
 static struct m0_net_buffer_pool  nbp;
 static struct m0_cm_proxy         sender_cm_proxy;
 static struct m0_cm_proxy         recv_cm_proxy;
+static struct m0_rpc_conn         conn;
+static struct m0_rpc_session      session;
 
 static struct m0_fid gob_fid;
 static struct m0_fid cob_fid;
@@ -685,14 +687,15 @@ static void sender_init()
 
 	rc = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rpc_client_connect(&sender_cm_proxy.px_conn,
-				   &sender_cm_proxy.px_session,
+	rc = m0_rpc_client_connect(&conn,
+				   &session,
 				   &cctx.rcx_rpc_machine,
 				   cctx.rcx_remote_addr,
 				   cctx.rcx_max_rpcs_in_flight);
 	M0_UT_ASSERT(rc == 0);
-	cp_cm_proxy_init(&sender_cm_proxy,
-		sender_cm_proxy.px_conn.c_rpcchan->rc_destep->nep_addr);
+	sender_cm_proxy.px_conn = &conn;
+	sender_cm_proxy.px_session = &session;
+	cp_cm_proxy_init(&sender_cm_proxy, m0_rpc_conn_addr(&conn));
 	m0_cm_lock(&sender_cm);
 	m0_cm_proxy_add(&sender_cm, &sender_cm_proxy);
 	m0_cm_unlock(&sender_cm);
@@ -746,7 +749,10 @@ static void sender_fini()
 	m0_cm_lock(&sender_cm);
 	m0_cm_proxy_del(&sender_cm, &sender_cm_proxy);
 	m0_cm_unlock(&sender_cm);
-	m0_cm_proxy_rpc_conn_close(&sender_cm_proxy);
+	rc = m0_rpc_session_destroy(&session, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_conn_destroy(&conn, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
         /* Fini the sender side. */
         cm_stop(&sender_cm);
         rc = m0_rpc_client_stop(&cctx);
