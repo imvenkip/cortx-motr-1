@@ -37,7 +37,8 @@ enum {
 	M0_AVI_FS_CREATE,
 	M0_AVI_FS_READ,
 	M0_AVI_FS_WRITE,
-	M0_AVI_FS_IO_DESCR
+	M0_AVI_FS_IO_DESCR,
+	M0_AVI_FS_IO_MAP
 };
 
 /** @} end of m0t1fs group */

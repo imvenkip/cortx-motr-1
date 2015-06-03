@@ -4122,6 +4122,13 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	if (rc != 0)
 		return M0_RC(rc);
 
+	M0_ADDB2_ADD(M0_AVI_FS_IO_MAP, ioreq_sm_state(req),
+		     tfid.f_container, tfid.f_key,
+		     m0_pdclust_unit_classify(play, src->sa_unit),
+		     device_state,
+		     tgt->ta_frame, tgt->ta_obj,
+		     src->sa_group, src->sa_unit);
+
 	if (M0_FI_ENABLED("poolmach_client_repaired_device1")) {
 		if (tfid.f_container == 1)
 			device_state = M0_PNDS_SNS_REPAIRED;
@@ -4237,6 +4244,12 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 		       FID_F,
 		       spare.sa_group, spare.sa_unit,
 		       tgt->ta_frame, tgt->ta_obj, FID_P(&tfid));
+		M0_ADDB2_ADD(M0_AVI_FS_IO_MAP, ioreq_sm_state(req),
+			     tfid.f_container, tfid.f_key,
+			     m0_pdclust_unit_classify(play, spare.sa_unit),
+			     device_state,
+			     tgt->ta_frame, tgt->ta_obj,
+			     spare.sa_group, spare.sa_unit);
 	}
 
 	session = target_session(req, tfid);
