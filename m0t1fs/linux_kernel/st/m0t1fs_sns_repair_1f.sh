@@ -29,6 +29,8 @@ N=2
 K=1
 P=4
 stride=32
+src_bs=10M
+src_count=2
 
 sns_repair_test()
 {
@@ -38,9 +40,11 @@ sns_repair_test()
 
 	echo "Starting SNS repair testing ..."
 
+	local_write $src_bs $src_count || return $?
+
 	for ((i=0; i < ${#file[*]}; i++)) ; do
-		_dd ${file[$i]} $unit_size ${file_size[$i]}
-		_md5sum ${file[$i]}
+		_dd ${file[$i]} $unit_size ${file_size[$i]} || return $?
+		_md5sum ${file[$i]} || return $?
 	done
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
@@ -89,6 +93,7 @@ main()
 
 	if [[ $rc -eq 0 ]] && ! sns_repair_test ; then
 		echo "Failed: SNS repair failed.."
+		rc=1
 	fi
 
 	echo "unmounting and cleaning.."
