@@ -444,15 +444,15 @@ M0_TL_DECLARE(cs_eps, M0_INTERNAL, struct cs_endpoint_and_xprt);
 
 M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 {
-	struct m0_reqh	            *reqh = scm->sc_base.cm_service.rs_reqh;
-	struct m0_mero              *mero = m0_cs_ctx_get(reqh);
-	int		             rc;
-	const char                  *rm_ep_addr;
-	struct cs_endpoint_and_xprt *ep;
+	struct m0_reqh         *reqh = scm->sc_base.cm_service.rs_reqh;
+	struct m0_mero         *mero = m0_cs_ctx_get(reqh);
+	struct m0_pools_common *pc = &mero->cc_pools_common;
+	int                     rc;
 
 	M0_ENTRY("scm: %p", scm);
 	M0_ASSERT(mero->cc_pool_width > 0);
 
+	scm->sc_rm_ctx.rc_rm_ctx = pc->pc_rm_ctx;
 	m0_rm_domain_init(&scm->sc_rm_ctx.rc_dom);
 	/*
 	 * XXX Init and register new resource type for file locks.
@@ -465,23 +465,6 @@ M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 	 **/
 	m0_sns_cm_flock_resource_set(scm);
 	m0_rm_type_register(&scm->sc_rm_ctx.rc_dom, &scm->sc_rm_ctx.rc_rt);
-
-	ep = cs_eps_tlist_head(&mero->cc_mds_eps);
-	rm_ep_addr = ep->ex_endpoint;
-
-	/*
-	 * XXX Currently the rm service and md service run on the same endpoint.
-	 * This will change in future once the conf integration with other
-	 * modules is completed.
-	 */
-	rc = m0_rpc_client_connect(&scm->sc_rm_ctx.rc_conn,
-				   &scm->sc_rm_ctx.rc_session,
-				   m0_cm_rpc_machine_find(reqh),
-				   rm_ep_addr,
-				   CM_MAX_NR_RPC_IN_FLIGHT);
-	M0_LOG(M0_DEBUG, "connected to rm @ep=%s, rc=%d", rm_ep_addr, rc);
-	if (rc != 0)
-		goto end;
 
 	rc = m0_scmfctx_htable_init(&scm->sc_file_ctx, mero->cc_pool_width);
 	if (rc != 0)
@@ -672,24 +655,11 @@ M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
 
 M0_INTERNAL void m0_sns_cm_rm_fini(struct m0_sns_cm *scm)
 {
-	int			   rc;
-
 	M0_ENTRY("scm: %p", scm);
 
 	m0_sns_cm_fctx_cleanup(scm);
 
-	rc = m0_rpc_session_destroy(&scm->sc_rm_ctx.rc_session,
-				    m0_time_from_now(CM_RPC_TIMEOUT, 0));
-	if (rc != 0)
-		M0_LOG(M0_NOTICE, "Failed to terminate sns-rm session %d", rc);
-
-	rc = m0_rpc_conn_destroy(&scm->sc_rm_ctx.rc_conn,
-				 m0_time_from_now(CM_RPC_TIMEOUT, 0));
-	if (rc != 0)
-		M0_LOG(M0_NOTICE, "Failed to terminate sns-rm rpc connection %d",
-		       rc);
 	m0_rm_type_deregister(&scm->sc_rm_ctx.rc_rt);
-	M0_LEAVE("%d", rc);
 }
 
 M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)

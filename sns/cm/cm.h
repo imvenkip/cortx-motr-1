@@ -161,15 +161,13 @@ struct m0_sns_cm_rm_ctx {
 	 * that would require modifications in the rm code.
 	 */
 	struct m0_rm_domain             rc_dom;
-	struct m0_rm_resource_type	rc_rt;
-
-	/** RPC objects  representing the the remote rm owner. */
-	struct m0_rpc_conn              rc_conn;
-	struct m0_rpc_session           rc_session;
+	struct m0_rm_resource_type      rc_rt;
+	/** RM service context representing the the remote rm owner. */
+	struct m0_reqh_service_ctx     *rc_rm_ctx;
 };
 
 struct m0_sns_cm {
-	struct m0_cm		        sc_base;
+	struct m0_cm                    sc_base;
 
 	/** Operation that sns copy machine is going to execute. */
 	enum m0_sns_cm_op               sc_op;
@@ -204,7 +202,7 @@ struct m0_sns_cm {
 	struct m0_sns_cm_buf_pool       sc_obp;
 
 	/** Tracks the number for which repair operation has been executed. */
-	uint32_t		        sc_repair_done;
+	uint32_t                        sc_repair_done;
 
 	/**
 	 * Start time for sns copy machine. This is recorded when the ready fop
@@ -229,10 +227,10 @@ struct m0_sns_cm {
 	struct m0_htable                sc_file_ctx;
 
 	/** Mutex to serialise the access to sc_file_ctx hash table. */
-	struct m0_mutex		        sc_file_ctx_mutex;
+	struct m0_mutex                 sc_file_ctx_mutex;
 
 	/** Resource manager context for this sns copy machine. */
-	struct m0_sns_cm_rm_ctx		sc_rm_ctx;
+	struct m0_sns_cm_rm_ctx         sc_rm_ctx;
 
 	/** Magic denoted by M0_SNS_CM_MAGIC. */
 	uint64_t                        sc_magic;

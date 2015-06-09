@@ -1944,7 +1944,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 		goto conf_destroy;
 
 	m0_pools_common_init(&cctx->cc_pools_common,
-			     cctx->cc_mkfs ? NULL : m0_mero_to_rmach(cctx),
+			     m0_mero_to_rmach(cctx),
 			     cctx->cc_fs);
 
 	rc = m0_pools_setup(&cctx->cc_pools_common, cctx->cc_fs,

@@ -202,16 +202,11 @@ static int prepare(struct m0_fom *fom)
 	scm->sc_op = treq->op;
 	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
 					   M0_PNDS_SNS_REBALANCING;
-	rc = m0_sns_cm_pm_event_post(scm, &fom->fo_tx.tx_betx, M0_POOL_DEVICE, state);
+	rc = m0_sns_cm_pm_event_post(scm, &fom->fo_tx.tx_betx, M0_POOL_DEVICE,
+				     state);
 	if (rc != 0)
 		return M0_RC(rc);
-	/*
-	 * To handle blocking operation of establishing rpc connections
-	 * between replicas.
-	 */
-	m0_fom_block_enter(fom);
 	rc = m0_cm_prepare(cm);
-	m0_fom_block_leave(fom);
 	if (rc != 0)
 		return M0_RC(rc);
 	m0_mutex_lock(&cm->cm_wait_mutex);

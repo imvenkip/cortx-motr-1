@@ -241,7 +241,7 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 			    RIF_MAY_BORROW | RIF_MAY_REVOKE);
 
 	fctx->sf_owner.ro_creditor = &fctx->sf_creditor;
-	fctx->sf_creditor.rem_session = &scm->sc_rm_ctx.rc_session;
+	fctx->sf_creditor.rem_session = &scm->sc_rm_ctx.rc_rm_ctx->sc_session;
 	fctx->sf_creditor.rem_cookie = M0_COOKIE_NULL;
 	fctx->sf_layout = NULL;
 	fctx->sf_pi = NULL;
