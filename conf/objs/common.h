@@ -120,8 +120,6 @@ M0_INTERNAL int conf_dirs_lookup(struct m0_conf_obj            **out,
 
 M0_INTERNAL bool arrays_eq(const char **cached, const struct m0_bufs *flat);
 
-M0_INTERNAL void strings_free(const char **arr);
-
 M0_INTERNAL int arrfid_from_dir(struct arr_fid *dest,
 				const struct m0_conf_dir *dir);
 M0_INTERNAL void arrfid_free(struct arr_fid *arr);

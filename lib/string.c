@@ -22,7 +22,6 @@
 #include "lib/memory.h"       /* M0_ALLOC_ARR */
 #include "lib/misc.h"         /* ARRAY_SIZE */
 #include "lib/finject.h"      /* M0_FI_ENABLED */
-#include "conf/objs/common.h" /* strings_free */
 #include "lib/string.h"
 
 
@@ -37,6 +36,16 @@ const char *m0_bcount_with_suffix(char *buf, size_t size, m0_bcount_t c)
 		;
 	snprintf(buf, size, "%3" PRId64 " %s", c, suffix[i]);
 	return buf;
+}
+
+M0_INTERNAL void m0_strings_free(const char **arr)
+{
+	if (arr != NULL) {
+		const char **p;
+		for (p = arr; *p != NULL; ++p)
+			m0_free((void *)*p);
+		m0_free0(&arr);
+	}
 }
 
 M0_INTERNAL const char **m0_strings_dup(const char **src)
@@ -58,7 +67,7 @@ M0_INTERNAL const char **m0_strings_dup(const char **src)
 		}
 
 		if (dest[i] == NULL) {
-			strings_free((const char **)dest);
+			m0_strings_free((const char **)dest);
 			return NULL;
 		}
 	}

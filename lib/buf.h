@@ -123,7 +123,7 @@ M0_INTERNAL int m0_bufs_from_strings(struct m0_bufs *dest, const char **src);
  * sequence of memory buffers.
  *
  * The elements of `*dest' should be freed eventually.
- * @see  strings_free()
+ * @see  m0_strings_free()
  */
 M0_INTERNAL int m0_bufs_to_strings(const char ***dest,
 				   const struct m0_bufs *src);

@@ -23,7 +23,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
-#include "lib/string.h"  /* m0_streq */
+#include "lib/string.h"  /* m0_streq, m0_strings_free */
 #include "lib/errno.h"   /* ENOENT */
 
 static void bufs_test(void);
@@ -125,12 +125,7 @@ static void bufs_test(void)
 	--*(char *)bufs.ab_elems[2].b_addr;
 	M0_UT_ASSERT(m0_bufs_streq(&bufs, strs));
 
-	{ /* see strings_free() */
-		const char **p;
-		for (p = strs_new; *p != NULL; ++p)
-			m0_free((void *)*p);
-		m0_free(strs_new);
-	}
+	m0_strings_free(strs_new);
 	m0_bufs_free(&bufs);
 	M0_UT_ASSERT(bufs.ab_count == 0 && bufs.ab_elems == NULL);
 }

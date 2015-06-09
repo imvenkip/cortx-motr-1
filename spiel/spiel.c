@@ -24,7 +24,7 @@
 
 #include "lib/tlist.h"
 #include "lib/memory.h"
-#include "lib/string.h"        /* m0_strdup, m0_strings_dup */
+#include "lib/string.h"        /* m0_strdup, m0_strings_dup, m0_strings_free */
 #include "lib/errno.h"
 #include "lib/finject.h"       /* M0_FI_ENABLED */
 #include "lib/locality.h"      /* m0_locality0_get */
@@ -37,7 +37,6 @@
 #include "conf/onwire.h"     /* arr_fid */
 
 #include "reqh/reqh.h"
-#include "conf/objs/common.h"  /* strings_free */
 #include "spiel/spiel.h"
 
 int m0_spiel_start(struct m0_spiel *spiel,
@@ -72,7 +71,7 @@ int m0_spiel_start(struct m0_spiel *spiel,
 			   spiel->spl_rmachine,
 			   NULL);
 	if (rc != 0)
-		strings_free(spiel->spl_confd_eps);
+		m0_strings_free(spiel->spl_confd_eps);
 
 	return M0_RC(rc);
 }
@@ -82,7 +81,7 @@ void m0_spiel_stop(struct m0_spiel *spiel)
 {
 	M0_ENTRY();
 
-	strings_free(spiel->spl_confd_eps);
+	m0_strings_free(spiel->spl_confd_eps);
 	m0_confc_fini(&spiel->spl_confc);
 
 	M0_LEAVE();

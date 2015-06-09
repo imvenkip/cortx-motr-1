@@ -19,7 +19,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
-
+#include "lib/string.h"      /* m0_strings_free */
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"  /* m0_confx_service_xc */
 #include "conf/schema.h"     /* M0_CONF_SVC_TYPE_IS_VALID */
@@ -107,7 +107,7 @@ static void service_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_service *x = M0_CONF_CAST(obj, m0_conf_service);
 
-	strings_free(x->cs_endpoints);
+	m0_strings_free(x->cs_endpoints);
 	m0_conf_service_bob_fini(x);
 	m0_free(x);
 }

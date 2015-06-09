@@ -172,16 +172,6 @@ M0_INTERNAL int conf_dirs_lookup(struct m0_conf_obj            **out,
 	return -ENOENT;
 }
 
-M0_INTERNAL void strings_free(const char **arr)
-{
-	if (arr != NULL) {
-		const char **p;
-		for (p = arr; *p != NULL; ++p)
-			m0_free((void *)*p);
-		m0_free0(&arr);
-	}
-}
-
 M0_INTERNAL int
 arrfid_from_dir(struct arr_fid *dest, const struct m0_conf_dir *dir)
 {

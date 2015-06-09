@@ -23,6 +23,7 @@
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"  /* m0_confx_filesystem_xc */
 #include "mero/magic.h"      /* M0_CONF_FILESYSTEM_MAGIC */
+#include "lib/string.h"      /* m0_strings_free */
 
 #define XCAST(xobj) ((struct m0_confx_filesystem *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_filesystem, xf_header) == 0);
@@ -80,7 +81,7 @@ static int filesystem_decode(struct m0_conf_obj        *dest,
 					  &M0_CONF_RACK_TYPE,
 					  &s->xf_racks), dest, cache);
 	if (rc != 0) {
-		strings_free(d->cf_params);
+		m0_strings_free(d->cf_params);
 		d->cf_params = NULL; /* make invariant happy */
 	}
 	return M0_RC(rc);
@@ -147,7 +148,7 @@ static void filesystem_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_filesystem *x = M0_CONF_CAST(obj, m0_conf_filesystem);
 
-	strings_free(x->cf_params);
+	m0_strings_free(x->cf_params);
 	m0_conf_filesystem_bob_fini(x);
 	m0_free(x);
 }
