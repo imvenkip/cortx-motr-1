@@ -262,7 +262,7 @@ int main(int argc, char **argv)
 	I = atoi(argv[5]);
 
 	id = 0x4A494E4E49455349; /* "jinniesi" */
-	m0_uint128_init(&seed, "upjumpandpumpim,");
+	m0_uint128_init(&seed, M0_PDCLUST_SEED);
 
 	rc = m0_init(&instance);
 	if (rc != 0)
@@ -281,7 +281,8 @@ int main(int argc, char **argv)
 			if (argc != 8)
 				m0_fid_gob_make(&gfid, 0, 999);
 			else
-				m0_fid_gob_make(&gfid, atoi(argv[6]), atoi(argv[7]));
+				m0_fid_gob_make(&gfid, atoi(argv[6]),
+						atoi(argv[7]));
 			rc = m0_layout_instance_build(m0_pdl_to_layout(play),
 						      &gfid, &li);
 			pi = m0_layout_instance_to_pdi(li);

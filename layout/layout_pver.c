@@ -41,6 +41,7 @@
 #include "pool/pool.h"
 #include "layout/linear_enum.h"
 #include "layout/pdclust.h"
+#include "layout/layout_internal.h" /* M0_PDCLUST_SEED */
 
 static int layout_enum_build(struct m0_layout_domain *dom,
                              const uint32_t pool_width,
@@ -124,6 +125,7 @@ M0_INTERNAL int m0_layout_init_by_pver(struct m0_layout_domain *dom,
 	for (i = M0_DEFAULT_LAYOUT_ID; i < ARRAY_SIZE(lid_to_unit_map); ++i) {
 		/* Use current unit size. */
 		pa->pa_unit_size = lid_to_unit_map[i];
+		m0_uint128_init(&pa->pa_seed, M0_PDCLUST_SEED);
 
 		/* XXX: In future, pver fid is to be used to generate layout id. */
 		layout_id = i;//m0_hash(pv->pv_id.f_container + pv->pv_id.f_key + i);

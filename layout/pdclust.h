@@ -69,6 +69,8 @@
 #include "sns/parity_math.h"
 #include "layout/layout.h"
 
+#define M0_PDCLUST_SEED "upjumpandpumpim,"
+
 struct m0_pool;
 struct m0_conf_filesystem;
 
