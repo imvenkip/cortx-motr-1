@@ -323,7 +323,7 @@ static void be_io_finished(struct m0_be_io *bio)
 			}
 		}
 		op->bo_sm.sm_rc = rc;
-		m0_be_op_state_set(op, M0_BOS_SUCCESS);
+		m0_be_op_done(op);
 	}
 }
 
@@ -366,7 +366,7 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 	M0_PRE(m0_be_io__invariant(bio));
 
 	bio->bio_op = op;
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+	m0_be_op_active(op);
 
 	rc = 0;
 	for (i = 0; i < bio->bio_stob_nr; ++i) {

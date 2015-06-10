@@ -42,33 +42,27 @@ static void grp_unlock(const struct m0_be_op *op)
 	m0_sm_group_unlock(op->bo_sm.sm_grp);
 }
 
-static struct m0_sm_state_descr op_states[M0_BOS_NR] = {
+static struct m0_sm_state_descr op_states[] = {
 	[M0_BOS_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "M0_SDF_INITIAL",
-		.sd_allowed = M0_BITS(M0_BOS_ACTIVE)
+		.sd_allowed = M0_BITS(M0_BOS_ACTIVE),
 	},
 	[M0_BOS_ACTIVE] = {
 		.sd_flags   = 0,
 		.sd_name    = "M0_BOS_ACTIVE",
-		.sd_allowed = M0_BITS(M0_BOS_SUCCESS, M0_BOS_FAILURE),
+		.sd_allowed = M0_BITS(M0_BOS_DONE),
 	},
-	[M0_BOS_SUCCESS] = {
+	[M0_BOS_DONE] = {
 		.sd_flags   = M0_SDF_TERMINAL,
-		.sd_name    = "M0_BOS_SUCCESS",
-		.sd_allowed = 0
+		.sd_name    = "M0_BOS_DONE",
+		.sd_allowed = 0,
 	},
-	[M0_BOS_FAILURE] = {
-		.sd_flags   = M0_SDF_FAILURE | M0_SDF_TERMINAL,
-		.sd_name    = "M0_BOS_FAILURE",
-		.sd_allowed = 0
-	}
 };
 
 static struct m0_sm_trans_descr op_trans[] = {
-	{ "started",   M0_BOS_INIT,   M0_BOS_ACTIVE  },
-	{ "completed", M0_BOS_ACTIVE, M0_BOS_SUCCESS },
-	{ "failed",    M0_BOS_ACTIVE, M0_BOS_FAILURE }
+	{ "started",   M0_BOS_INIT,   M0_BOS_ACTIVE },
+	{ "completed", M0_BOS_ACTIVE, M0_BOS_DONE   },
 };
 
 M0_INTERNAL struct m0_sm_conf op_states_conf = {
@@ -100,6 +94,21 @@ M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op)
 	m0_sm_group_fini(&op->bo_sm_group);
 }
 
+M0_INTERNAL void m0_be_op_active(struct m0_be_op *op)
+{
+	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+}
+
+M0_INTERNAL void m0_be_op_done(struct m0_be_op *op)
+{
+	m0_be_op_state_set(op, M0_BOS_DONE);
+}
+
+M0_INTERNAL bool m0_be_op_is_done(struct m0_be_op *op)
+{
+	return op->bo_sm.sm_state == M0_BOS_DONE;
+}
+
 M0_INTERNAL void
 m0_be_op_state_set(struct m0_be_op *op, enum m0_be_op_state state)
 {
@@ -114,8 +123,7 @@ m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom, int next_state)
 	enum m0_fom_phase_outcome ret = M0_FSO_AGAIN;
 
 	grp_lock(op);
-	M0_PRE(M0_IN(op->bo_sm.sm_state,
-		     (M0_BOS_ACTIVE, M0_BOS_SUCCESS, M0_BOS_FAILURE)));
+	M0_PRE(M0_IN(op->bo_sm.sm_state, (M0_BOS_ACTIVE, M0_BOS_DONE)));
 
 	if (op->bo_sm.sm_state == M0_BOS_ACTIVE) {
 		ret = M0_FSO_WAIT;
@@ -127,17 +135,13 @@ m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom, int next_state)
 	return ret;
 }
 
-M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op)
+M0_INTERNAL void m0_be_op_wait(struct m0_be_op *op)
 {
 	struct m0_sm *sm = &op->bo_sm;
 
 	grp_lock(op);
-	m0_sm_timedwait(sm, M0_BITS(M0_BOS_SUCCESS, M0_BOS_FAILURE),
-			M0_TIME_NEVER);
+	m0_sm_timedwait(sm, M0_BITS(M0_BOS_DONE), M0_TIME_NEVER);
 	grp_unlock(op);
-
-	M0_POST((sm->sm_rc == 0) == (sm->sm_state == M0_BOS_SUCCESS));
-	return sm->sm_rc;
 }
 
 /** @} end of be group */

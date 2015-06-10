@@ -171,8 +171,7 @@ static int be_emap_lookup(struct m0_be_emap        *map,
 
 	m0_be_op_init(&it->ec_op);
 	m0_be_emap_lookup(emap, prefix, offset, it);
-	rc = m0_be_op_wait(&it->ec_op);
-	M0_ASSERT(rc == 0);
+	m0_be_op_wait(&it->ec_op);
 	rc = it->ec_op.bo_u.u_emap.e_rc;
 	m0_be_op_fini(&it->ec_op);
 
@@ -239,8 +238,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 		len[ARRAY_SIZE(len) - 1] = seglen - total;
 		m0_be_op_init(it_op);
 		m0_be_emap_split(&it, &tx2, &vec);
-		rc = m0_be_op_wait(it_op);
-		M0_ASSERT(rc == 0);
+		m0_be_op_wait(it_op);
 		M0_UT_ASSERT(it.ec_op.bo_u.u_emap.e_rc == 0);
 		m0_be_op_fini(it_op);
 		M0_UT_ASSERT(m0_ext_length(&seg->ee_ext) ==
@@ -276,8 +274,7 @@ static void test_print(void)
 			break;
 		m0_be_op_init(it_op);
 		m0_be_emap_next(&it);
-		rc = m0_be_op_wait(it_op);
-		M0_ASSERT(rc == 0);
+		m0_be_op_wait(it_op);
 		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 		m0_be_op_fini(it_op);
 	}
@@ -295,8 +292,7 @@ static void test_merge(void)
 	while (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
 		m0_be_op_init(it_op);
 		m0_be_emap_merge(&it, &tx2, m0_ext_length(&seg->ee_ext));
-		rc = m0_be_op_wait(it_op);
-		M0_ASSERT(rc == 0);
+		m0_be_op_wait(it_op);
 		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 		m0_be_op_fini(it_op);
 	}
@@ -318,8 +314,7 @@ static void test_paste(void)
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 12, NULL, NULL, NULL);
-	rc = m0_be_op_wait(it_op);
-	M0_ASSERT(rc == 0);
+	m0_be_op_wait(it_op);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 	m0_be_op_fini(it_op);
 
@@ -356,8 +351,7 @@ static void test_paste(void)
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 11, NULL, NULL, NULL);
-	rc = m0_be_op_wait(it_op);
-	M0_ASSERT(rc == 0);
+	m0_be_op_wait(it_op);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 	m0_be_op_fini(it_op);
 
@@ -394,8 +388,7 @@ static void test_paste(void)
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 0, NULL, NULL, NULL);
-	rc = m0_be_op_wait(it_op);
-	M0_ASSERT(rc == 0);
+	m0_be_op_wait(it_op);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 	m0_be_op_fini(it_op);
 
@@ -464,7 +457,7 @@ struct m0_ut_suite m0_be_ut_emap = {
 //	p.u_lo -= i*i;
 //
 //	m0_be_emap_obj_insert(emap, &tx, &op, &p, 42);
-//	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+//	M0_ASSERT(m0_be_op_is_done(&op));
 //	checkpoint();
 //}
 //
@@ -476,7 +469,7 @@ struct m0_ut_suite m0_be_ut_emap = {
 //	p.u_lo -= i*i;
 //
 //	m0_be_emap_obj_delete(emap, &tx, &op, &p);
-//	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+//	M0_ASSERT(m0_be_op_is_done(&op));
 //	checkpoint();
 //}
 //
@@ -488,7 +481,7 @@ struct m0_ut_suite m0_be_ut_emap = {
 //	p.u_lo -= i*i;
 //
 //	m0_be_emap_obj_insert(emap, &tx, &op, &p, 42);
-//	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+//	M0_ASSERT(m0_be_op_is_done(&op));
 //}
 //
 //static void ub_obj_fini_same(int i)
@@ -499,7 +492,7 @@ struct m0_ut_suite m0_be_ut_emap = {
 //	p.u_lo -= i*i;
 //
 //	m0_be_emap_obj_delete(emap, &tx, &op, &p);
-//	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+//	M0_ASSERT(m0_be_op_is_done(&op));
 //}
 //
 //static void ub_split(int i)

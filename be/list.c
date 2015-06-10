@@ -105,7 +105,7 @@ M0_INTERNAL void m0_be_list_create(struct m0_be_list       **list,
 				   struct m0_be_op          *op,
 				   struct m0_be_tx          *tx)
 {
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+	m0_be_op_active(op);
 
 	M0_BE_ALLOC_PTR_SYNC(*list, seg, tx);
 	if (*list == NULL)
@@ -115,7 +115,7 @@ M0_INTERNAL void m0_be_list_create(struct m0_be_list       **list,
 	m0_tlist_init(desc, &(*list)->bl_list);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, *list);
 
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	m0_be_op_done(op);
 }
 
 M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
@@ -124,13 +124,13 @@ M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
 {
 	struct m0_be_seg *seg   = list->bl_seg;
 
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+	m0_be_op_active(op);
 
 	m0_be_list_fini(list);
 	M0_BE_FREE_PTR_SYNC(list, seg, tx);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, list);
 
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	m0_be_op_done(op);
 }
 
 /* XXX TODO: This function has to be reimplemented using m0_be_op */
@@ -138,10 +138,8 @@ static void *list_side(struct m0_be_list *list, struct m0_be_op *op,
 		       void *(*side)(const struct m0_tl_descr *d,
 				     const struct m0_tl *list))
 {
-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
-
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	m0_be_op_active(op);
+	m0_be_op_done(op);
 
 	return side(list->bl_descr, &list->bl_list);
 }
@@ -153,10 +151,8 @@ static void *list_iter(struct m0_be_list *list, struct m0_be_op *op,
 				     const struct m0_tl *list,
 				     const void *obj))
 {
-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
-
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	m0_be_op_active(op);
+	m0_be_op_done(op);
 
 	return iter(list->bl_descr, &list->bl_list, obj);
 }
@@ -229,12 +225,10 @@ static void be_list_add(struct m0_be_list *list,
 			void             (*add)(const struct m0_tl_descr *d,
 						struct m0_tl *list, void *obj))
 {
-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
-
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+	m0_be_op_active(op);
 	add(list->bl_descr, &list->bl_list, obj);
 	affected_capture(list, tx, obj);
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	m0_be_op_done(op);
 }
 
 M0_INTERNAL void m0_be_list_add(struct m0_be_list *list,
@@ -261,12 +255,10 @@ static void be_list_add_pos(struct m0_be_list *list,
 			    void             (*add)(const struct m0_tl_descr *d,
 						    void *obj, void *new))
 {
-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
-
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+	m0_be_op_active(op);
 	add(list->bl_descr, obj, new);
 	affected_capture(list, tx, obj);
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	m0_be_op_done(op);
 }
 
 M0_INTERNAL void m0_be_list_add_after(struct m0_be_list *list,
@@ -295,8 +287,7 @@ M0_INTERNAL void m0_be_list_del(struct m0_be_list *list,
 	struct m0_tlink *next;
 	struct m0_tlink *prev;
 
-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+	m0_be_op_active(op);
 
 	/* delete() is a special case for capturing, because while deletion
 	   link is finished(), so pointer to the left and right are overwritten.
@@ -310,7 +301,7 @@ M0_INTERNAL void m0_be_list_del(struct m0_be_list *list,
 	if (prev != NULL)
 		M0_BE_TX_CAPTURE_PTR(list->bl_seg, tx, &prev->t_link);
 
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	m0_be_op_done(op);
 }
 
 /** @} end of be group */

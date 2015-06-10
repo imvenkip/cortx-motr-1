@@ -38,7 +38,7 @@
 /**
    M0 Data Block Allocator.
    BALLOC is a multi-block allocator, with pre-allocation. All metadata about
-   block allocation is stored in database -- Oracle Berkeley DB.
+   block allocation is stored in BE segment.
 
  */
 
@@ -47,17 +47,8 @@ static inline int btree_lookup_sync(struct m0_be_btree  *tree,
 			       const struct m0_buf *key,
 			       struct m0_buf       *val)
 {
-	struct m0_be_op op;
-	int		rc;
-
-	m0_be_op_init(&op);
-	m0_be_btree_lookup(tree, &op, key, val);
-	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-	rc = op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&op);
-
-	return M0_RC(rc);
+	return M0_BE_OP_SYNC_RET(op, m0_be_btree_lookup(tree, &op, key, val),
+	                         bo_u.u_btree.t_rc);
 }
 
 static inline int btree_insert_sync(struct m0_be_btree  *tree,
@@ -65,17 +56,9 @@ static inline int btree_insert_sync(struct m0_be_btree  *tree,
 			       const struct m0_buf *key,
 			       const struct m0_buf *val)
 {
-	struct m0_be_op op;
-	int		rc;
-
-	m0_be_op_init(&op);
-	m0_be_btree_insert(tree, tx, &op, key, val);
-	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-	rc = op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&op);
-
-	return M0_RC(rc);
+	return M0_BE_OP_SYNC_RET(op,
+				 m0_be_btree_insert(tree, tx, &op, key, val),
+	                         bo_u.u_btree.t_rc);
 }
 
 static inline int btree_update_sync(struct m0_be_btree  *tree,
@@ -83,34 +66,17 @@ static inline int btree_update_sync(struct m0_be_btree  *tree,
 			       const struct m0_buf *key,
 			       const struct m0_buf *val)
 {
-	struct m0_be_op op;
-	int		rc;
-
-	m0_be_op_init(&op);
-	m0_be_btree_update(tree, tx, &op, key, val);
-	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-	rc = op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&op);
-
-	return M0_RC(rc);
+	return M0_BE_OP_SYNC_RET(op,
+				 m0_be_btree_update(tree, tx, &op, key, val),
+	                         bo_u.u_btree.t_rc);
 }
 
 static inline int btree_delete_sync(struct m0_be_btree  *tree,
 			       struct m0_be_tx     *tx,
 			       const struct m0_buf *key)
 {
-	struct m0_be_op op;
-	int		rc;
-
-	m0_be_op_init(&op);
-	m0_be_btree_delete(tree, tx, &op, key);
-	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-	rc = op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&op);
-
-	return M0_RC(rc);
+	return M0_BE_OP_SYNC_RET(op, m0_be_btree_delete(tree, tx, &op, key),
+	                         bo_u.u_btree.t_rc);
 }
 
 /* This macro is to control the debug verbose message */
@@ -896,7 +862,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		else
 			m0_be_btree_cursor_next(&cursor);
 		m0_be_op_wait(&cursor.bc_op);
-		M0_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
+		M0_ASSERT(m0_be_op_is_done(&cursor.bc_op));
 		rc = cursor.bc_op.bo_u.u_btree.t_rc;
 		m0_be_op_fini(&cursor.bc_op);
 		if (rc != 0)
@@ -2125,31 +2091,21 @@ static const struct m0_ad_balloc_ops balloc_ops = {
 static int balloc_trees_create(struct m0_balloc *bal,
 			       struct m0_be_tx  *tx)
 {
-	int		rc;
-	struct m0_be_op	op;
+	int rc;
 
-	m0_be_op_init(&op);
-	m0_be_btree_create(&bal->cb_db_group_extents, tx, &op);
-	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-	rc = op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&op);
+	rc = M0_BE_OP_SYNC_RET(op,
+		       m0_be_btree_create(&bal->cb_db_group_extents, tx, &op),
+		       bo_u.u_btree.t_rc);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
-	m0_be_op_init(&op);
-	m0_be_btree_create(&bal->cb_db_group_desc, tx, &op);
-	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-	rc = op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&op);
+	rc = M0_BE_OP_SYNC_RET(op,
+		       m0_be_btree_create(&bal->cb_db_group_desc, tx, &op),
+		       bo_u.u_btree.t_rc);
 
 	if (rc != 0) {
-		m0_be_op_init(&op);
-		m0_be_btree_destroy(&bal->cb_db_group_extents, tx, &op);
-		m0_be_op_wait(&op);
-		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
+		M0_BE_OP_SYNC(op,
+		      m0_be_btree_destroy(&bal->cb_db_group_extents, tx, &op));
 	}
 
 	return M0_RC(rc);

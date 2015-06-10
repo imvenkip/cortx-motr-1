@@ -625,9 +625,8 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 			if (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
 				m0_be_op_init(op);
 				m0_be_emap_next(&it);
-				rc = m0_be_op_wait(op);
-				if (rc == 0)
-					rc = m0_be_emap_op_rc(&it);
+				m0_be_op_wait(op);
+				rc = m0_be_emap_op_rc(&it);
 				m0_be_op_fini(op);
 				if (rc != 0)
 					break;
@@ -701,7 +700,7 @@ static int ext_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 							    &__seg->ee_ext,
 							    __seg->ee_val);
 		}), NULL, NULL);
-	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	M0_ASSERT(m0_be_op_is_done(it_op));
 	rc = m0_be_emap_op_rc(&it);
 	m0_be_op_fini(it_op);
 	rc = rc == 0 && !m0_be_emap_ext_is_last(&seg->ee_ext) ? -EAGAIN : rc;
@@ -782,7 +781,7 @@ static int ext_punch(struct m0_stob *stob, struct m0_dtx *tx,
 				__seg->ee_val = __val;
 		}));
 
-	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	M0_ASSERT(m0_be_op_is_done(it_op));
 	rc = m0_be_emap_op_rc(&it);
 	m0_be_op_fini(it_op);
 	return M0_RC(rc);
@@ -1511,7 +1510,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	m0_be_op_init(&it.ec_op);
 	m0_be_emap_lookup(orig->ec_map, &orig->ec_seg.ee_pre, off, &it);
 	m0_be_op_wait(&it.ec_op);
-	M0_ASSERT(m0_be_op_state(&it.ec_op) == M0_BOS_SUCCESS);
+	M0_ASSERT(m0_be_op_is_done(&it.ec_op));
 	result = it.ec_op.bo_u.u_emap.e_rc;
 	m0_be_op_fini(&it.ec_op);
 
@@ -1576,7 +1575,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 			} else
 				seg->ee_val = val;
 		}));
-	M0_ASSERT(m0_be_op_state(&it.ec_op) == M0_BOS_SUCCESS);
+	M0_ASSERT(m0_be_op_is_done(&it.ec_op));
 	result = it.ec_op.bo_u.u_emap.e_rc;
 	m0_be_op_fini(&it.ec_op);
 	m0_be_emap_close(&it);
@@ -1917,7 +1916,7 @@ static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
 				   old_data[i].ee_ext.e_start,
 				  &it);
 		m0_be_op_wait(&it.ec_op);
-		M0_ASSERT(m0_be_op_state(&it.ec_op) == M0_BOS_SUCCESS);
+		M0_ASSERT(m0_be_op_is_done(&it.ec_op));
 		rc = it.ec_op.bo_u.u_emap.e_rc;
 		m0_be_op_fini(&it.ec_op);
 

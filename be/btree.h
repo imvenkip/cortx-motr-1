@@ -130,8 +130,8 @@ M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree);
  * @code
  *         m0_be_btree_init(&tree, seg, kv_ops);
  *         m0_be_btree_create(&tree, tx, op);
- *         rc = m0_be_op_wait(op);
- *         if (rc == 0) {
+ *         m0_be_op_wait(op);
+ *         if (op->bo_u.u_btree.t_rc == 0) {
  *                 ... // work with newly created tree
  *         }
  * @endcode
@@ -216,17 +216,8 @@ M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree *tree,
  *
  * Note0: interface is asynchronous and relies on op::bo_sm.
  * Operation is considered to be finished after op::bo_sm transits to
- * M0_BOS_SUCCESS | M0_BOS_FAILURE: after that point other operations will see
- * the effect of this one.
- *
- * Note1: When op::bo_sm state transits from M0_BOS_INIT into M0_BOS_SUCCESS
- * then page where requested memory regions of the tree is loaded from the disk
- * into the mmaped segment.
- *
- * Note2: When tx::bt_sm state transits from M0_BTS_PREPARE to M0_BTS_PLACED
- * or M0_BTS_DONE then data passed to the function in @key and @value become
- * persistent.
- *
+ * M0_BOS_DONE - after that point other operations will see the effect
+ * of this one.
  */
 M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 				    struct m0_be_tx *tx,
@@ -328,8 +319,7 @@ struct m0_be_btree_anchor {
  *         anchor->ba_value.b_nob = new_value_size;
  *         m0_be_btree_update_inplace(tree, tx, op, key, anchor);
  *
- *         rc = m0_be_op_wait(op);
- *         M0_ASSERT(rc == 0);
+ *         m0_be_op_wait(op);
  *
  *         update(anchor->ba_value.b_addr);
  *         m0_be_btree_release(tree, anchor);
@@ -430,8 +420,7 @@ M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *it);
  * tree. Operation may cause IO depending on cursor::bc_op state
  *
  * Note: interface is asynchronous and relies on cursor::bc_op::bo_sm. When it
- * transits into M0_BOS_SUCCESS | M0_BOS_FAILURE operation is considered to be
- * finished.
+ * transits into M0_BOS_DONE, the operation is believed to be finished.
  *
  * Note: allowed sequence of cursor calls is:
  * m0_be_btree_cursor_init()

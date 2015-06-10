@@ -358,9 +358,13 @@ M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m,
 	m0_semaphore_init(&m->tgf_start_sem, 0);
 	m0_semaphore_init(&m->tgf_finish_sem, 0);
 	m0_be_op_init(&m->tgf_op);
-	/* XXX */
-	m0_be_op_state_set(&m->tgf_op, M0_BOS_ACTIVE);
-	m0_be_op_state_set(&m->tgf_op, M0_BOS_SUCCESS);
+	/*
+	 * m->tgf_op is reset before first use.
+	 * Move it to the DONE state before proper m0_be_op_reset() implemented.
+	 * XXX TODO: Replace with m0_be_op_reset().
+	 */
+	m0_be_op_active(&m->tgf_op);
+	m0_be_op_done(&m->tgf_op);
 
 	M0_LEAVE();
 }

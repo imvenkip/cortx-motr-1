@@ -620,7 +620,7 @@ static int cob_table_delete(struct m0_be_btree *tree, struct m0_be_tx *tx,
 	m0_be_op_init(&op);
 	m0_be_btree_delete(tree, tx, &op, key);
 	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	M0_ASSERT(m0_be_op_is_done(&op));
 	m0_be_op_fini(&op);
 
 	return op.bo_u.u_btree.t_rc;
@@ -635,7 +635,7 @@ static int cob_table_update(struct m0_be_btree *tree, struct m0_be_tx *tx,
 	m0_be_op_init(&op);
 	m0_be_btree_update(tree, tx, &op, key, val);
 	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	M0_ASSERT(m0_be_op_is_done(&op));
 	m0_be_op_fini(&op);
 
 	return op.bo_u.u_btree.t_rc;
@@ -649,7 +649,7 @@ static void cob_table_insert(struct m0_be_btree *tree, struct m0_be_tx *tx,
 	m0_be_op_init(&op);
 	m0_be_btree_insert(tree, tx, &op, key, val);
 	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	M0_ASSERT(m0_be_op_is_done(&op));
 	m0_be_op_fini(&op);
 }
 
@@ -661,7 +661,7 @@ static int cob_table_lookup(struct m0_be_btree *tree, struct m0_buf *key,
 	m0_be_op_init(&op);
 	m0_be_btree_lookup(tree, &op, key, out);
 	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	M0_ASSERT(m0_be_op_is_done(&op));
 	m0_be_op_fini(&op);
 
 	return op.bo_u.u_btree.t_rc;
@@ -838,7 +838,7 @@ static int cob_ns_lookup(struct m0_cob *cob)
 	m0_be_op_init(&op);
 	m0_be_btree_lookup(&cob->co_dom->cd_namespace, &op, &key, &val);
 	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	M0_ASSERT(m0_be_op_is_done(&op));
 	m0_be_op_fini(&op);
 
 	if (op.bo_u.u_btree.t_rc == 0) {
@@ -948,7 +948,7 @@ static int cob_fab_lookup(struct m0_cob *cob)
 	m0_be_op_init(&op);
 	m0_be_btree_lookup(&cob->co_dom->cd_fileattr_basic, &op, &key, &val);
 	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	M0_ASSERT(m0_be_op_is_done(&op));
 	m0_be_op_fini(&op);
 
 	if (op.bo_u.u_btree.t_rc == 0)
@@ -981,7 +981,7 @@ static int cob_omg_lookup(struct m0_cob *cob)
 	m0_be_op_init(&op);
 	m0_be_btree_lookup(&cob->co_dom->cd_fileattr_omg, &op, &key, &val);
 	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	M0_ASSERT(m0_be_op_is_done(&op));
 	m0_be_op_fini(&op);
 
 
@@ -1308,7 +1308,7 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
                 m0_be_op_init(&cursor.bc_op);
                 m0_be_btree_cursor_prev(&cursor);
                 m0_be_op_wait(&cursor.bc_op);
-                M0_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
+                M0_ASSERT(m0_be_op_is_done(&cursor.bc_op));
                 rc = cursor.bc_op.bo_u.u_btree.t_rc;
 
 		if (omgid != NULL) {

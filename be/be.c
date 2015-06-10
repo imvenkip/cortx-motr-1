@@ -32,6 +32,8 @@
  *
  * Table of contents
  * - Captured regions lifecycle: capturing, seg and log I/O
+ * - m0_be_op design highligts
+ *
  *
  * @section Captured regions lifecycle: capturing, seg and log I/O
  *
@@ -63,6 +65,15 @@
  *   have generation index less than corresponding region from the global
  *   reg_area are not placed - the new region data was or going to be placed
  *   (because the region is in the global reg_area).
+ *
+ *
+ * @section m0_be_op design highligts
+ *
+ * - explicit transition from INIT to ACTIVE state and from ACTIVE to DONE
+ *   state gives:
+ *   - clear documentation where requested operation starts (if you see just
+ *     m0_be_op_done() than operation was started somewhere else);
+ *   - possibility to gather statistics about operations execution time.
  * @{
  */
 

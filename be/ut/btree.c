@@ -396,8 +396,7 @@ static void cursor_test(struct m0_be_btree *tree)
 
 		m0_be_op_init(&cursor.bc_op);
 		m0_be_btree_cursor_next(&cursor);
-		rc = m0_be_op_wait(&cursor.bc_op);
-		M0_UT_ASSERT(rc == 0);
+		m0_be_op_wait(&cursor.bc_op);
 		rc = cursor.bc_op.bo_u.u_btree.t_rc;
 		m0_be_op_fini(&cursor.bc_op);
 		if (i < INSERT_COUNT/4 - 1)
@@ -422,8 +421,7 @@ static void cursor_test(struct m0_be_btree *tree)
 
 		m0_be_op_init(&cursor.bc_op);
 		m0_be_btree_cursor_prev(&cursor);
-		rc = m0_be_op_wait(&cursor.bc_op);
-		M0_UT_ASSERT(rc == 0);
+		m0_be_op_wait(&cursor.bc_op);
 		rc = cursor.bc_op.bo_u.u_btree.t_rc;
 		m0_be_op_fini(&cursor.bc_op);
 		if (i > 0)

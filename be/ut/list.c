@@ -107,8 +107,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	/* Perform some operations over the list. */
 	m0_be_op_init(&op);
 	m0_be_list_create(&list, &test_tl, seg, &op, &tx);
-	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
-						 M0_BOS_FAILURE)));
+	M0_UT_ASSERT(m0_be_op_is_done(&op));
 	m0_be_op_fini(&op);
 	M0_UT_ASSERT(list != NULL);
 
@@ -135,8 +134,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 				m0_be_list_add_before(list, &op, &tx,
 						      elem[i - 1], elem[i]);
 		}
-		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
-							 M0_BOS_FAILURE)));
+		M0_UT_ASSERT(m0_be_op_is_done(&op));
 		m0_be_op_fini(&op);
 	}
 
@@ -147,8 +145,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 
 		m0_be_op_init(&op);
 		m0_be_list_del(list, &op, &tx, elem[i]);
-		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
-							 M0_BOS_FAILURE)));
+		M0_UT_ASSERT(m0_be_op_is_done(&op));
 		m0_be_op_fini(&op);
 
 		M0_BE_FREE_PTR_SYNC(elem[i], seg, &tx);
@@ -182,7 +179,7 @@ static void *be_list_head(struct m0_be_list *list)
 
 	m0_be_op_init(&op);
 	p = m0_be_list_head(list, &op);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	M0_UT_ASSERT(m0_be_op_is_done(&op));
 	m0_be_op_fini(&op);
 
 	return p;
@@ -195,7 +192,7 @@ static void *be_list_next(struct m0_be_list *list, const void *obj)
 
 	m0_be_op_init(&op);
 	p = m0_be_list_next(list, &op, obj);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	M0_UT_ASSERT(m0_be_op_is_done(&op));
 	m0_be_op_fini(&op);
 
 	return p;

@@ -278,8 +278,8 @@ static bool be_tx_group_empty_handle(struct m0_be_tx_group *gr,
 
 	if (m0_be_tx_credit_eq(&gr->tg_used, &zero) &&
 	    ergo(check_payload, gr->tg_payload_prepared == 0)) {
-		m0_be_op_state_set(op, M0_BOS_ACTIVE);
-		m0_be_op_state_set(op, M0_BOS_SUCCESS);
+		m0_be_op_active(op);
+		m0_be_op_done(op);
 		return true;
 	}
 	return false;

@@ -148,10 +148,6 @@
  * Implementation notes:
  * - If tx parameter is NULL then allocator will not capture segment updates.
  *   It might be useful in the allocator UT.
- *
- * Know issues:
- * - op is unconditionally transitioned to state M0_BOS_SUCCESS in m0_be_alloc()
- *   and m0_be_free().
  */
 
 /*
@@ -882,8 +878,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	M0_PRE_EX(m0_be_allocator__invariant(a));
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
 
-	/* XXX */
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+	m0_be_op_active(op);
 
 	m0_mutex_lock(&a->ba_lock);
 	/* algorithm starts here */
@@ -924,7 +919,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	}
 
 	/* set op state after post-conditions because they are using op */
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	m0_be_op_done(op);
 }
 
 M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
@@ -949,7 +944,7 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 	M0_PRE_EX(m0_be_allocator__invariant(a));
 	M0_PRE(ergo(ptr != NULL, be_alloc_is_mem_in_allocator(a, 1, ptr)));
 
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+	m0_be_op_active(op);
 
 	if (ptr != NULL) {
 		m0_mutex_lock(&a->ba_lock);
@@ -973,7 +968,7 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 		m0_mutex_unlock(&a->ba_lock);
 	}
 
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	m0_be_op_done(op);
 
 	M0_POST_EX(m0_be_allocator__invariant(a));
 }

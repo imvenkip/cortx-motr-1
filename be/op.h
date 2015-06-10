@@ -41,9 +41,7 @@ struct m0_be_btree_anchor;
 enum m0_be_op_state {
 	M0_BOS_INIT,
 	M0_BOS_ACTIVE,
-	M0_BOS_SUCCESS,
-	M0_BOS_FAILURE,
-	M0_BOS_NR
+	M0_BOS_DONE,
 };
 
 enum m0_be_op_type {
@@ -110,12 +108,21 @@ struct m0_be_op {
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op);
 M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op);
 
+/** Moves op to M0_BOS_ACTIVE state. */
+M0_INTERNAL void m0_be_op_active(struct m0_be_op *op);
+
+/** Moves op to M0_BOS_DONE state. */
+M0_INTERNAL void m0_be_op_done(struct m0_be_op *op);
+
+/** Is op in M0_BOS_DONE state? */
+M0_INTERNAL bool m0_be_op_is_done(struct m0_be_op *op);
+
 /**
- * Waits for the operation to complete and returns its rc.
+ * Waits for the operation to complete.
  *
  * @see M0_BE_OP_SYNC(), M0_BE_OP_SYNC_RET()
  */
-M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op);
+M0_INTERNAL void m0_be_op_wait(struct m0_be_op *op);
 
 /**
  * Moves the fom to the "next_state" and arranges for state transitions to
@@ -147,12 +154,10 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
 #define M0_BE_OP_SYNC_WITH(op, action)		\
 	do {					\
 		struct m0_be_op *__opp = (op);	\
-		int              __rc;		\
 						\
 		m0_be_op_init(__opp);		\
 		action;				\
-		__rc = m0_be_op_wait(__opp);	\
-		M0_ASSERT(__rc == 0);		\
+		m0_be_op_wait(__opp);	        \
 		m0_be_op_fini(__opp);		\
 	} while (0)
 
@@ -182,13 +187,11 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
 #define M0_BE_OP_SYNC_RET_WITH(op, action, member)	\
 	({						\
 		struct m0_be_op	      *__opp = (op);	\
-		int		       __rc;		\
 		typeof(__opp->member)  __result;	\
 							\
 		m0_be_op_init(__opp);			\
 		action;					\
-		__rc = m0_be_op_wait(__opp);		\
-		M0_ASSERT(__rc == 0);			\
+		m0_be_op_wait(__opp);		        \
 		__result = __opp->member;		\
 		m0_be_op_fini(__opp);			\
 		__result;				\

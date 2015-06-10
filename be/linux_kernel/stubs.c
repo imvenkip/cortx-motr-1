@@ -95,15 +95,27 @@ M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op)
 	return op->bo_sm.sm_state;
 }
 
-M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op)
+M0_INTERNAL void m0_be_op_wait(struct m0_be_op *op)
 {
-	return 0;
 }
 
 M0_INTERNAL void
 m0_be_op_state_set(struct m0_be_op *op, enum m0_be_op_state state)
 {
 	op->bo_sm.sm_state = state;
+}
+
+M0_INTERNAL void m0_be_op_active(struct m0_be_op *op)
+{
+}
+
+M0_INTERNAL void m0_be_op_done(struct m0_be_op *op)
+{
+}
+
+M0_INTERNAL bool m0_be_op_is_done(struct m0_be_op *op)
+{
+	return true;
 }
 
 M0_INTERNAL struct m0_be_allocator *m0_be_seg_allocator(struct m0_be_seg *seg)

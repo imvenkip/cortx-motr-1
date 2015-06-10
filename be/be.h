@@ -38,6 +38,9 @@
  * - Transaction - recoverable set of segment changes;
  * - Capturing - process of saving region contents into transaction's private
  *   memory buffer;
+ * - Operation - some code that may or may not need to wait for I/O;
+ * - m0_be_op - synchronization primitive that delivers notification about
+ *   completion of asynchronous operation;
  * @{
  */
 
