@@ -31,7 +31,7 @@
 #include "stob/linux.h"		 /* m0_stob_linux_container */
 #include "stob/io.h"		 /* m0_stob_iovec_sort */
 
-#include "be/be.h"		 /* m0_be_op_state_set */
+#include "be/op.h"		 /* m0_be_op_active */
 
 /**
  * @addtogroup be

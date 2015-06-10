@@ -32,6 +32,8 @@
 #include "cm/sw.h"
 #include "cm/cm.h"
 
+#include "be/op.h"           /* M0_BE_OP_SYNC */
+
 /**
    @defgroup CMSWFOM sliding window update fom
    @ingroup CMSW

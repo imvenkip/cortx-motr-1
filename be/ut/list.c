@@ -24,6 +24,7 @@
 #include "ut/ut.h"
 #include "be/ut/helper.h"
 #include "be/list.h"
+#include "be/op.h"              /* m0_be_op */
 
 /* -------------------------------------------------------------------------
  * Descriptors and stuff

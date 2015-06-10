@@ -31,6 +31,7 @@
 #include "be/btree.h"
 #include "be/alloc.h"
 #include "be/seg.h"
+#include "be/tx.h"      /* m0_be_tx_capture */
 
 /* btree constants */
 enum {

@@ -26,7 +26,6 @@
 #include "format/format.h"     /* m0_format_header */
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
-#include "be/be.h"             /* struct m0_be_seg */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "conf/obj.h"
 #include "layout/pdclust.h"    /* m0_pdclust_attr */
@@ -43,6 +42,7 @@ M0_TL_DESCR_DECLARE(pool_version, M0_EXTERN);
 
 /* import */
 struct m0_io_req;
+struct m0_be_seg;
 
 /* export */
 struct m0_pool;

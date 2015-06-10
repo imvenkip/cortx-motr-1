@@ -30,7 +30,6 @@
 #include "lib/memory.h"
 #include "lib/thread.h"
 #include "lib/getopts.h"
-#include "be/be.h"
 #include "ut/ut.h"
 #include "balloc/balloc.h"
 #include "be/ut/helper.h"

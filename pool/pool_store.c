@@ -26,8 +26,8 @@
 #include "pool/pool.h"
 #include "lib/misc.h"
 #include "lib/uuid.h"
-#include "be/be.h"
 #include "be/seg0.h"
+#include "be/op.h"      /* M0_BE_OP_SYNC */
 #include "module/instance.h"
 
 /**

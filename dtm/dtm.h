@@ -25,12 +25,12 @@
 
 #include "lib/types.h"           /* m0_uint128 */
 
-#include "be/be.h"
 #include "fol/fol.h"
 #include "dtm/history.h"
 #include "dtm/nucleus.h"
 #include "dtm/catalogue.h"
 #include "dtm/fol.h"
+#include "be/tx.h"              /* m0_be_tx */
 
 /**
  * @page dtm Distributed transaction manager

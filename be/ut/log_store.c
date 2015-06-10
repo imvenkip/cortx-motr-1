@@ -19,11 +19,11 @@
  */
 
 #include "be/log_store.h"
-#include "be/be.h"
 
 #include "lib/misc.h"		/* M0_SET0 */
 #include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "ut/stob.h"		/* m0_ut_stob_linux_get */
+#include "be/op.h"              /* M0_BE_OP_SYNC */
 
 #include <stdlib.h>		/* rand_r */
 

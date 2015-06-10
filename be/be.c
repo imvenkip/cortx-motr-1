@@ -22,8 +22,9 @@
 #include "lib/trace.h"
 
 #include "be/be.h"
-#include "be/tx_group_fom.h"
-#include "be/tx_internal.h"
+
+#include "be/tx_group_fom.h"    /* m0_be_tx_group_fom_mod_init */
+#include "be/tx_internal.h"     /* m0_be_tx_mod_init */
 
 /**
  * @addtogroup be

@@ -21,7 +21,7 @@
 #ifndef __MERO_BE_BTREE_H__
 #define __MERO_BE_BTREE_H__
 
-#include "be/be.h"
+#include "be/op.h"              /* m0_be_op */
 #include "be/seg.h"
 #include "format/format.h"      /* m0_format_header */
 #include "lib/rwlock.h"

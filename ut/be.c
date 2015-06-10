@@ -31,8 +31,9 @@
 
 #include "ut/ut.h"         /* M0_UT_ASSERT */
 #include "be/ut/helper.h"  /* m0_be_ut_backend */
+#include "be/op.h"         /* M0_BE_OP_SYNC */
 #include "lib/misc.h"      /* M0_BITS */
-#include "lib/memory.h"	   /* M0_ALLOC_PTR */
+#include "lib/memory.h"    /* M0_ALLOC_PTR */
 
 #include "reqh/reqh.h"
 

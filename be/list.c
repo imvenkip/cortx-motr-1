@@ -25,7 +25,8 @@
 #include "be/alloc.h"
 #include "be/seg.h"
 #include "be/tx_credit.h"
-#include "be/be.h"  /* m0_be_op_state */
+#include "be/tx.h"              /* M0_BE_TX_CAPTURE_PTR */
+#include "be/op.h"              /* m0_be_op_active */
 
 /**
  * @addtogroup be

@@ -46,7 +46,6 @@
 #include "ioservice/io_fops.h"   /* m0_fop_cob_create_fopt */
 #include "mdservice/md_fops.h"   /* m0_fop_create_fopt */
 #include "file/file.h"		 /* m0_file */
-#include "be/be.h"
 #include "be/ut/helper.h"
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
 

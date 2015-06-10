@@ -21,7 +21,6 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
 
-#include "be/be.h"
 #include "be/engine.h"
 #include "be/tx_service.h"
 #include "lib/errno.h"

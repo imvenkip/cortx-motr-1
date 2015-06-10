@@ -28,6 +28,7 @@
 
 #include "be/seg.h"
 #include "be/seg_internal.h"  /* m0_be_seg_hdr */
+#include "be/tx.h"            /* m0_be_tx_init */
 
 /**
  * @addtogroup be

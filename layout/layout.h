@@ -129,10 +129,10 @@
 #include "lib/refs.h"   /* struct m0_ref */
 
 #include "fid/fid.h"    /* struct m0_fid */
-#include "be/be.h"      /* struct m0_be_tx */
 #include "layout/layout_pver.h" /* m0_layout_init_by_pver() */
 
 struct m0_bufvec_cursor;
+struct m0_be_tx;
 
 /* export */
 struct m0_layout_domain;

@@ -19,7 +19,6 @@
 
 #include "lib/memory.h"      /* m0_alloc() */
 #include "be/domain.h"       /* m0_be_domain_cfg */
-#include "be/op.h"           /* m0_be_op_state */
 #include "be/tx.h"           /* m0_be_tx_state */
 #include "be/seg_internal.h" /* m0_be_seg_hdr */
 
@@ -90,19 +89,8 @@ M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op)
 {
 }
 
-M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op)
-{
-	return op->bo_sm.sm_state;
-}
-
 M0_INTERNAL void m0_be_op_wait(struct m0_be_op *op)
 {
-}
-
-M0_INTERNAL void
-m0_be_op_state_set(struct m0_be_op *op, enum m0_be_op_state state)
-{
-	op->bo_sm.sm_state = state;
 }
 
 M0_INTERNAL void m0_be_op_active(struct m0_be_op *op)

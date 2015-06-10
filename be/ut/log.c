@@ -22,7 +22,6 @@
 #include "be/ut/helper.h"
 #include "be/tx.h"
 #include "ut/ut.h"
-#include "be/be.h"
 
 void m0_be_ut_log(void)
 {

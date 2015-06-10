@@ -73,11 +73,6 @@ M0_INTERNAL struct m0_sm_conf op_states_conf = {
 	.scf_trans     = op_trans
 };
 
-M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op)
-{
-	return op->bo_sm.sm_state;
-}
-
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op)
 {
 	M0_SET0(op);	/* XXX use M0_IS0() */
@@ -94,27 +89,26 @@ M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op)
 	m0_sm_group_fini(&op->bo_sm_group);
 }
 
+static void be_op_state_set(struct m0_be_op *op, enum m0_be_op_state state)
+{
+	grp_lock(op);
+	m0_sm_state_set(&op->bo_sm, state);
+	grp_unlock(op);
+}
+
 M0_INTERNAL void m0_be_op_active(struct m0_be_op *op)
 {
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+	be_op_state_set(op, M0_BOS_ACTIVE);
 }
 
 M0_INTERNAL void m0_be_op_done(struct m0_be_op *op)
 {
-	m0_be_op_state_set(op, M0_BOS_DONE);
+	be_op_state_set(op, M0_BOS_DONE);
 }
 
 M0_INTERNAL bool m0_be_op_is_done(struct m0_be_op *op)
 {
 	return op->bo_sm.sm_state == M0_BOS_DONE;
-}
-
-M0_INTERNAL void
-m0_be_op_state_set(struct m0_be_op *op, enum m0_be_op_state state)
-{
-	grp_lock(op);
-	m0_sm_state_set(&op->bo_sm, state);
-	grp_unlock(op);
 }
 
 M0_INTERNAL int

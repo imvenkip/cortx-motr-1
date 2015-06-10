@@ -32,7 +32,6 @@
 #include "stob/linux.h"       /* m0_stob_linux_container */
 
 #include "be/seg_internal.h"  /* m0_be_seg_hdr */
-#include "be/be.h"            /* m0_be_op */
 #include "be/tx_regmap.h"     /* m0_be_reg_area */
 #include "be/io.h"	      /* m0_be_io */
 

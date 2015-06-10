@@ -25,7 +25,7 @@
 #include "be/alloc_internal.h"
 #include "be/seg_internal.h"    /* m0_be_seg_hdr */
 #include "be/tx.h"              /* M0_BE_TX_CAPTURE_PTR */
-#include "be/be.h"              /* m0_be_op */
+#include "be/op.h"              /* m0_be_op */
 #include "lib/memory.h"         /* m0_addr_is_aligned */
 #include "lib/errno.h"          /* ENOSPC */
 #include "lib/misc.h"		/* memset */

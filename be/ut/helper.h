@@ -30,7 +30,6 @@
 #include "lib/buf.h"		/* m0_buf */
 #include "sm/sm.h"		/* m0_sm */
 
-#include "be/be.h"		/* m0_be */
 #include "be/domain.h"		/* m0_be_domain */
 #include "be/seg.h"		/* m0_be_seg */
 #include "be/seg0.h"		/* m0_be_0type */

@@ -22,8 +22,6 @@
 #ifndef __MERO_BE_BE_H__
 #define __MERO_BE_BE_H__
 
-#include "be/op.h"		/* XXX dirty hack. remove it ASAP */
-
 /**
  * @defgroup be Meta-data back-end
  *

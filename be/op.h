@@ -23,8 +23,8 @@
 #ifndef __MERO_BE_OP_H__
 #define __MERO_BE_OP_H__
 
-#include "be/tx.h"
-#include "be/seg.h"
+#include "lib/buf.h"    /* m0_buf */
+#include "sm/sm.h"      /* m0_sm */
 
 /**
  * @defgroup be Meta-data back-end
@@ -45,11 +45,8 @@ enum m0_be_op_state {
 };
 
 enum m0_be_op_type {
-	M0_BOP_REG,
-	M0_BOP_SEGIO,
 	M0_BOP_TREE,
 	M0_BOP_LIST,
-	M0_BOP_NR
 };
 
 struct m0_be_op {
@@ -77,16 +74,6 @@ struct m0_be_op {
 			/* XXX @todo refactor all _rc into m0_be_op.bo_rc */
 			int   a_rc;
 		} u_allocator;
-		/* Used by m0_be_reg_get(). */
-		struct m0_be_reg                   u_reg;
-
-		/* Used by m0_be_list_get() and its callback. */
-		struct {
-			const struct m0_be_list   *l_list;
-			void                      *l_lnode;
-			m0_bcount_t                l_nelems;
-		} u_list;
-
 		struct m0_be_op__btree {
 			struct m0_be_btree        *t_tree;
 			struct m0_be_tx           *t_tx;
@@ -196,11 +183,6 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
 		m0_be_op_fini(__opp);			\
 		__result;				\
 	})
-
-M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op);
-
-M0_INTERNAL void m0_be_op_state_set(struct m0_be_op *op,
-				    enum m0_be_op_state state);
 
 /** @} end of be group */
 #endif /* __MERO_BE_OP_H__ */
