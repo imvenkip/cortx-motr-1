@@ -1,0 +1,517 @@
+#!/bin/bash
+set -eu
+
+#set -x
+export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+
+## CAUTION: This path will be removed by superuser.
+SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.spiel-st}
+
+TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-!rpc,formation,fop,memory,conf}
+TRACE_LEVEL=${M0_TRACE_LEVEL:-call+}
+TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
+
+MAX_RPC_MSG_SIZE=163840
+TM_MIN_RECV_QUEUE_LEN=2
+
+die() { echo "$@" >&2; exit 1; }
+error() { echo "$@" >&2; stop 1; }
+
+M0_CORE_DIR=`readlink -f $0`
+M0_CORE_DIR=${M0_CORE_DIR%/*/*}
+
+. $M0_CORE_DIR/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
+
+## Path to the file with configuration string for confd.
+CONF_FILE=$SANDBOX_DIR/conf.txt
+
+PROC_FID_CNTR=0x7200000000000001
+PROC_FID_KEY=3
+PROC_FID_KEY2=4
+PROC_FID="<$PROC_FID_CNTR:$PROC_FID_KEY>"
+PROF_OPT="<0x7000000000000001:0>"
+
+start() {
+    _init
+    m0d_with_rms_start
+}
+
+stop() {
+    local rc=$?
+    if `mount | grep -q "m0t1fs"`; then umount $SANDBOX_DIR/mnt; fi
+    services_stop
+    _fini
+    if [ $? -ne 0 ] || [ $rc -ne 0 ]; then
+        echo "Spiel test FAILED"
+    fi
+}
+
+_init() {
+    lnet_up
+    modules_insert
+    sandbox_init
+}
+
+_fini() {
+    sandbox_fini
+    modules_remove
+}
+
+sandbox_init() {
+    rm -rf $SANDBOX_DIR
+    mkdir -p $SANDBOX_DIR/mnt
+}
+
+sandbox_fini() {
+    if [ -d $SANDBOX_DIR/mnt ]; then
+        rmdir $SANDBOX_DIR/mnt
+    fi
+    ## Note that the script does not delete $SANDBOX_DIR itself:
+    ## developers may want to analyze the logs contained there.
+}
+
+### XXX Code duplication!
+### There is an identical function in conf/st.
+### TODO: Move this code to `scripts/functions'
+modules_insert() {
+    insmod $M0_CORE_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko ||
+        die 'Inserting m0gf.ko failed'
+
+    insmod $M0_CORE_DIR/mero/m0mero.ko \
+    local_addr=$M0T1FS_ENDPOINT \
+    max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
+    tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
+    ${TRACE_MASK:+trace_immediate_mask=$TRACE_MASK} \
+    ${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
+    ${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
+    || {
+    rmmod m0gf
+    die 'Inserting m0mero.ko failed'
+    }
+}
+
+### XXX Code duplication!
+### There is an identical function in conf/st.
+### TODO: Move this code to `scripts/functions'.
+modules_remove() {
+    rmmod m0mero
+    rmmod m0gf
+}
+
+### XXX Code duplication!
+### There is an identical function in conf/st.
+### TODO: Move this code to `scripts/functions'.
+export_endpoints() {
+    local LNET_NID=`lctl list_nids | head -1`
+
+    ## LNet endpoint address format (see net/lnet/lnet.h):
+    ##     NID:PID:Portal:TMID
+    ##
+    ## The PID value of 12345 is used by Lustre in the kernel and is
+    ## the only value currently supported.
+    export M0T1FS_ENDPOINT="$LNET_NID:12345:34:"
+    export SERVER1_ENDPOINT="$LNET_NID:12345:34:1001"
+    export SERVER2_ENDPOINT="$LNET_NID:12345:34:1002"
+    export SPIEL_ENDPOINT="$LNET_NID:12345:34:2001"
+}
+
+### Starts LNET. (Note that the script never stops LNET.)
+### XXX Code duplication!
+### There is an identical function in conf/st.
+### TODO: Move this code to `scripts/functions'.
+lnet_up() {
+    modprobe lnet
+    lctl network up >/dev/null
+    export_endpoints
+}
+
+stub_confdb() {
+    cat <<EOF
+(root-0 verno=1 profiles=[profile-0])
+(profile-0 filesystem=filesystem-0)
+(filesystem-0 rootfid=(11, 22) redundancy=2
+    params=["pool_width=3", "nr_data_units=1", "nr_parity_units=1",
+            "unit_size=4096"]
+    mdpool=pool-0 nodes=[node-0] pools=[pool-0] racks=[])
+(node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
+    processes=[process-0])
+(process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
+    mem_limit_memlock=0 services=[service-0, service-1, service-2])
+(service-0 type=4 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
+(service-1 type=7 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
+(service-2 type=6 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
+(pool-0 order=0 pvers=[pver-0])
+(pver-0 ver=0 N=8 K=2 P=15 permutations=[1, 2, 4] nr_failures=[]
+    rackvs=[])
+EOF
+}
+
+### m0_spiel_start requires endpoint of RM service. This function starts the
+### first m0d instance with rmservice. All Spiel commands from command
+### interface part will affect to second m0d instance. Spiel commands from
+### configuration management part may affect to both m0d.
+m0d_with_rms_start() {
+    local CONFD_SPEC="-s confd:<$CONF_FID_CON:1> -c $CONF_FILE"
+    local OPTS="-F -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs\
+    -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER1_ENDPOINT $CONFD_SPEC\
+    -s addb2:<$ADD2_FID_CON:1> -s rmservice:<$RMS_FID_CON:1>
+    -s mdservice:<$MDS_FID_CON:2> -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN\
+    -w 3 -P $PROF_OPT -f $PROC_FID"
+
+    stub_confdb | $M0_CORE_DIR/utils/m0confgen >$CONF_FILE
+
+    echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
+    cd $SANDBOX_DIR
+
+    ## m0mkfs should be executed only once. It is usually executed
+    ## during cluster initial setup.
+    echo $M0_CORE_DIR/utils/mkfs/m0mkfs $OPTS
+    $M0_CORE_DIR/utils/mkfs/m0mkfs $OPTS >>$SANDBOX_DIR/mkfs.log || \
+        error 'm0mkfs failed'
+
+    echo $M0_CORE_DIR/mero/m0d $OPTS
+    $M0_CORE_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
+    local PID=$!
+    sleep 1
+    kill -0 $PID 2>/dev/null ||
+    error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
+}
+
+test_m0d_start() {
+    local CONFD_SPEC="-s confd:<$CONF_FID_CON:2> -c $CONF_FILE"
+    ### TODO: remove ioservice from command line arguments when the following issue
+    ### will be fixed https://jira.xyratex.com/browse/MERO-1048
+    local OPTS="-F -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs\
+    -A linuxstob:$SANDBOX_DIR/addb-stobs\
+    -e lnet:$SERVER2_ENDPOINT $CONFD_SPEC -s addb2:<$ADD2_FID_CON:2>\
+    -s ioservice:<$IOS_FID_CON:2>\
+    -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_OPT\
+    -f $PROC_FID"
+
+    cd $SANDBOX_DIR
+
+    echo $M0_CORE_DIR/mero/m0d $OPTS
+    $M0_CORE_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
+    local PID=$!
+    sleep 1
+    kill -0 $PID 2>/dev/null ||
+    error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
+}
+
+services_stop() { killall -q lt-m0d && wait || true; }
+
+export_vars() {
+    export M0_SPIEL_OPTS="
+    -l $M0_CORE_DIR/mero/.libs/libmero.so --server $SERVER1_ENDPOINT
+    --client $SPIEL_ENDPOINT --rmservice $SERVER1_ENDPOINT"
+
+    export FIDS_LIST="
+fids = {'profile': Fid(0x7000000000000001, 0), 'fs': Fid(0x6600000000000001, 1),
+'node': Fid(0x6e00000000000001, 2), 'pool': Fid(0x6f00000000000001, 9),
+'rack': Fid(0x6100000000000001, 6), 'encl': Fid(0x6500000000000001, 7),
+'ctrl': Fid(0x6300000000000001, 8), 'disk': Fid(0x6b00000000000001, 1),
+'pver': Fid(0x7600000000000001, 10), 'rackv': Fid(0x6a00000000000001, 2),
+'enclv': Fid(0x6a00000000000001, 3), 'ctrlv': Fid(0x6a00000000000001, 4),
+'diskv': Fid(0x6a00000000000001, 5), 'process': Fid($PROC_FID_CNTR, $PROC_FID_KEY),
+'process2': Fid($PROC_FID_CNTR, $PROC_FID_KEY2),'ios': Fid(0x7300000000000002, 0),
+'mds': Fid($MDS_FID_CON, 2), 'mds2': Fid($MDS_FID_CON, 3),
+'stats': Fid(0x7300000000000002, 4), 'addb2': Fid(0x7300000000000002, 5),
+'sns_repair': Fid(0x7300000000000002, 6), 'sns_rebalance': Fid(0x7300000000000002, 7),
+'sdev': Fid(0x6400000000000009, 9), 'rms': Fid(0x7300000000000004, 0),
+'sss': Fid(0x7300000000000004, 1), 'sss2': Fid(0x7300000000000004, 2),
+'ha': Fid(0x7300000000000004, 3)
+}
+"
+### TODO: Uncomment the first line and remove the second when the following issue
+### will be fixed https://jira.xyratex.com/browse/MERO-1048
+    export SERVICES="
+#services = ['ios', 'mds2', 'stats', 'sns_repair', 'sns_rebalance']
+services = ['mds2', 'stats', 'sns_repair', 'sns_rebalance']
+"
+### enum of service health statuses. see m0_service_health in reqh/reqh_service.h
+    export HEALTH="
+HEALTH_GOOD, HEALTH_BAB, HEALTH_INACTIVE, HEALTH_UNKNOWN = range(4)
+"
+}
+
+construct_db() {
+    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+$FIDS_LIST
+N = 4
+K = 1
+P = 6
+mask = c_uint64(3)
+cores = Bitmap(1, pointer(mask))
+
+from __future__ import print_function
+
+tx = SpielTx(spiel.spiel)
+spiel.tx_open(tx)
+
+conf_objs_add = [('profile_add', tx, fids['profile']),
+                 ('filesystem_add', tx, fids['fs'], fids['profile'], 10,
+                  fids['profile'], fids['pool'], ["{0} {1} {2}".format(P,N,K)]),
+                 ('pool_add', tx, fids['pool'], fids['fs'], 2),
+                 ('rack_add', tx, fids['rack'], fids['fs']),
+                 ('enclosure_add', tx, fids['encl'], fids['rack']),
+                 ('node_add', tx, fids['node'], fids['fs'], 256L, 2, 10L,
+                  0xff00ff00L, fids['pool']),
+                 ('controller_add', tx, fids['ctrl'], fids['encl'],
+                  fids['node']),
+                 ('disk_add', tx, fids['disk'], fids['ctrl']),
+                 ('pool_version_add', tx, fids['pver'], fids['pool'],
+                  PdclustAttr(N, K, P, 1024*1024, Fid(0x01, 0x02))),
+                 ('rack_v_add', tx, fids['rackv'], fids['pver'],
+                  fids['rack']),
+                 ('enclosure_v_add', tx, fids['enclv'], fids['rackv'],
+                  fids['encl']),
+                 ('controller_v_add', tx, fids['ctrlv'], fids['enclv'],
+                  fids['ctrl']),
+                 ('disk_v_add', tx, fids['diskv'], fids['ctrlv'],
+                  fids['disk']),
+                 ('process_add', tx, fids['process'], fids['node'], cores,
+                  0L, 0L, 0L, 0L),
+                 ('process_add', tx, fids['process2'], fids['node'],
+                  cores, 0L, 0L, 0L, 0L),
+                 ('service_add', tx, fids['sss'], fids['process'], M0_CST_SSS,
+                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters(svi_endpoints=["$SERVER1_ENDPOINT"])),
+                 ('service_add', tx, fids['sss2'], fids['process2'], M0_CST_SSS,
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(svi_endpoints=["$SERVER2_ENDPOINT"])),
+                 ('service_add', tx, fids['rms'], fids['process'], M0_CST_RMS,
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                 ('service_add', tx, fids['ha'], fids['process2'], M0_CST_HA,
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                 ('service_add', tx, fids['ios'], fids['process2'], M0_CST_IOS,
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                 ('service_add', tx, fids['sns_repair'], fids['process2'],
+                  M0_CST_SNS_REP, ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                 ('service_add', tx, fids['sns_rebalance'], fids['process2'],
+                  M0_CST_SNS_REB, ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                 ('service_add', tx, fids['mds'], fids['process'], M0_CST_MDS,
+                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                 ('service_add', tx, fids['mds2'], fids['process2'], M0_CST_MDS,
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                 ('service_add', tx, fids['stats'], fids['process2'], M0_CST_STS,
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                 ('device_add', tx, fids['sdev'], fids['ios'],
+                  fids['disk'], M0_CFG_DEVICE_INTERFACE_SCSI,
+                  M0_CFG_DEVICE_MEDIA_SSD, 1024, 512L, 123L, 0x55L,
+                  "fake_filename"),
+                 ('tx_commit', tx)
+]
+
+error = False
+for conf_obj_add in conf_objs_add:
+    try:
+        if getattr(spiel, conf_obj_add[0])(*conf_obj_add[1:]) != 0:
+            print("an error occurred while {0} executing".format(conf_obj_add[0]),
+                  file=sys.stderr)
+            error = True
+            break
+    except:
+        print("an error occurred while {0} executing".format(conf_obj_add[0]),
+              file=sys.stderr)
+        sys.exit(1)
+
+if spiel.tx_close(tx) != 0:
+    error = True
+    print('an error tx close', file=sys.stderr)
+
+## return error status if an error occurred during closing transaction or calling
+## one of spiel_*_add functions
+if error:
+    sys.exit(1)
+EOF
+}
+
+validate_health() {
+    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+$FIDS_LIST
+$SERVICES
+$HEALTH
+
+from __future__ import print_function
+
+if spiel.cmd_profile_set(str(fids['profile'])) != 0:
+    print('can not set profile ' + fids['profile'], file=std.stderr)
+
+for key in services:
+    rc = spiel.service_health(fids[key])
+    if rc not in [HEALTH_GOOD, HEALTH_UNKNOWN]:
+        sys.exit('an error occurred while checking health of {0} service with\
+              fid {1}, result code = {2}'.format(key, fids[key], rc))
+
+rc = spiel.process_health(fids['process'])
+if rc not in [HEALTH_GOOD, HEALTH_UNKNOWN]:
+    sys.exit('an error occurred while checking health of process wwith fid {0},\
+             result code {1}'.format(fids[process], rc))
+EOF
+}
+
+restart_services() {
+    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+$FIDS_LIST
+$SERVICES
+
+from __future__ import print_function
+from itertools import product
+
+if spiel.cmd_profile_set(str(fids['profile'])) != 0:
+    sys.exit('can not set profile ' + fids['profile'])
+
+service_commands = list(product(['service_quiesce', 'service_stop',
+                                 'service_init', 'service_start'],
+                                [fids[x] for x in services]))
+for command in service_commands:
+    try:
+        if getattr(spiel, command[0])(*command[1:]) != 0:
+            sys.exit("an error occurred while {0} executing, service fid\
+                     {1}".format(command[0], command[1]))
+    except:
+        sys.exit("an error occurred while {0} executing, service fid \
+                 {1}".format(command[0], command[1]))
+
+EOF
+}
+
+start_services() {
+    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+$FIDS_LIST
+$SERVICES
+
+from __future__ import print_function
+from itertools import product
+
+if spiel.cmd_profile_set(str(fids['profile'])) != 0:
+    sys.exit('can not set profile ' + fids['profile'])
+
+service_commands = list(product(['service_init', 'service_start'],
+                                [fids[x] for x in services]))
+for command in service_commands:
+    try:
+        if getattr(spiel, command[0])(*command[1:]) != 0:
+            sys.exit("an error occurred while {0} executing, service fid\
+                     {1}".format(command[0], command[1]))
+    except:
+            sys.exit("an error occurred while {0} executing, service fid\
+                     {1}".format(command[0], command[1]))
+
+EOF
+}
+
+reconfig_process() {
+    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+$FIDS_LIST
+
+from __future__ import print_function
+
+if spiel.cmd_profile_set(str(fids['profile'])) != 0:
+    sys.exit('can not set profile ' + fids['profile'])
+
+rc = spiel.process_reconfig(fids['process2'])
+if rc != 0:
+    sys.exit('an error process reconfig: fid=' + str(fids['process2']) + \
+             ' status=' + str(rc))
+EOF
+}
+
+perform_io() {
+    local TEST_STR="`head -c 512 /dev/urandom`"
+    local TEST_FILE=$SANDBOX_DIR/mnt/test.txt
+
+    trap "rm -f $TEST_FILE" 0
+    echo $TEST_STR > $TEST_FILE
+
+    [ "`cat $TEST_FILE`" = $TEST_STR ] || die "IO error"
+}
+
+_mount() {
+    mkdir -p $SANDBOX_DIR/mnt
+    local MOUNT_OPTS="-t m0t1fs -o profile=$PROF_OPT,confd=$SERVER1_ENDPOINT \
+none $SANDBOX_DIR/mnt"
+    echo "mount $MOUNT_OPTS"
+    mount $MOUNT_OPTS || return $?
+}
+
+## Keep the audience engaged.
+say() { echo "$@" | tee -a $SANDBOX_DIR/m0d.log; }
+
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [COMMAND]
+
+Supported commands:
+  run      run system tests (default command)
+  insmod   insert Mero kernel modules: m0mero.ko, m0gf.ko
+  rmmod    remove Mero kernel modules
+  sstart   start Mero user-space services
+  sstop    stop Mero user-space services
+  help     display this help and exit
+EOF
+}
+
+## -------------------------------------------------------------------
+## main()
+## -------------------------------------------------------------------
+
+[ `id -u` -eq 0 ] || die 'Must be run by superuser'
+
+case "${1:-}" in
+    run|'') ;;
+    insmod) lnet_up; modules_insert; exit;;
+    rmmod) modules_remove; exit;;
+    sstart) start; exit;;
+    sstop) services_stop; sleep 3; _fini; exit;;
+    help) usage; exit;;
+    *) usage >&2; die;;
+esac
+
+trap stop EXIT
+
+echo "Test start"
+start
+
+echo 8 >/proc/sys/kernel/printk  # Print kernel messages to the console.
+
+export_vars
+
+say "Construct confc db"
+construct_db
+
+test_m0d_start
+
+say "Start services"
+start_services
+
+say "Validate health"
+validate_health
+
+say "Restart services"
+restart_services
+
+say "Validate health"
+validate_health
+
+say "Reconfig Process"
+reconfig_process
+say "wait for reconfigure"
+sleep 10
+grep -q "Restarting" $SANDBOX_DIR/m0d.log || die "Reconfigure is not finished"
+
+say "Start services"
+start_services
+
+say "Validate health"
+validate_health
+
+_mount || stop $?
+
+#TODO uncomment the following lines when this issue is fixed
+#https://jira.xyratex.com/browse/MERO-1048
+#say "Perform IO"
+#perform_io
+
+#say "Validate health"
+#validate_health
+
+say "Spiel test SUCCESS"

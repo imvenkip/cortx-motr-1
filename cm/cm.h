@@ -433,14 +433,15 @@ M0_INTERNAL int m0_cm_configure(struct m0_cm *cm, struct m0_fop *fop);
 M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 			    int rc);
 
-#define M0_CM_TYPE_DECLARE(cmtype, id, ops, name)	\
-struct m0_cm_type cmtype ## _cmt = {			\
-	.ct_fom_id = (id),				\
-	.ct_stype = {					\
-		.rst_name    = (name),			\
-		.rst_ops     = (ops),			\
-		.rst_level   = M0_RS_LEVEL_NORMAL,	\
-	}						\
+#define M0_CM_TYPE_DECLARE(cmtype, id, ops, name, typecode)	\
+struct m0_cm_type cmtype ## _cmt = {				\
+	.ct_fom_id = (id),					\
+	.ct_stype = {						\
+		.rst_name    = (name),				\
+		.rst_ops     = (ops),				\
+		.rst_level   = M0_RS_LEVEL_NORMAL,		\
+		.rst_typecode = (typecode)			\
+	}							\
 }
 
 /** Checks consistency of copy machine. */

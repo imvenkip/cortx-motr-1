@@ -151,7 +151,6 @@ static int spiel_conf_ut_fini()
 static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 					    struct m0_spiel_tx *tx)
 {
-	struct m0_spiel_tx           *tmp;
 	int                           rc;
 	struct m0_pdclust_attr        pdclust_attr = { .pa_N=0,
 						       .pa_K=0,
@@ -164,8 +163,7 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 	m0_bitmap_set(&bitmap, 0, true);
 	m0_bitmap_set(&bitmap, 1, true);
 
-	tmp = m0_spiel_tx_open(spiel, tx);
-	M0_UT_ASSERT(tmp == tx);
+	m0_spiel_tx_open(spiel, tx);
 	M0_UT_ASSERT(tx->spt_version != M0_CONF_VER_UNKNOWN);
 
 	rc = m0_spiel_profile_add(tx, &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE]);
@@ -292,7 +290,6 @@ static void spiel_conf_create_ok(void)
 static void spiel_conf_create_fail(void)
 {
 	struct m0_spiel_tx            tx;
-	struct m0_spiel_tx           *tmp;
 	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
 	int                           rc;
 	struct m0_pdclust_attr        pdclust_attr = { .pa_N=0,
@@ -312,8 +309,7 @@ static void spiel_conf_create_fail(void)
 	m0_bitmap_set(&bitmap, 0, true);
 	m0_bitmap_set(&bitmap, 1, true);
 
-	tmp = m0_spiel_tx_open(&spiel, &tx);
-	M0_UT_ASSERT(tmp == &tx);
+	m0_spiel_tx_open(&spiel, &tx);
 	M0_UT_ASSERT(tx.spt_version != M0_CONF_VER_UNKNOWN);
 
 	/* Profile */
@@ -1088,7 +1084,6 @@ static void spiel_conf_file(void)
 {
 	int                   rc;
 	struct m0_spiel_tx    tx;
-	struct m0_spiel_tx   *tmp;
 	struct m0_confx      *confx;
 	char                 *str;
 	const char            filename[] = "/tmp/spiel_conf_file.txt";
@@ -1096,8 +1091,8 @@ static void spiel_conf_file(void)
 	struct m0_mutex       lock;
 
 	spiel_conf_ut_init();
-	tmp = m0_spiel_tx_open(&spiel, &tx);
-	M0_UT_ASSERT(tmp == &tx);
+
+	m0_spiel_tx_open(&spiel, &tx);
 	M0_UT_ASSERT(tx.spt_version != M0_CONF_VER_UNKNOWN);
 	spiel_conf_file_create_tree(&tx);
 

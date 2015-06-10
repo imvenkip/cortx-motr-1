@@ -117,8 +117,8 @@ static int spiel_root_ver_update(struct m0_spiel_tx *tx, uint64_t verno)
 	return M0_RC(rc);
 }
 
-struct m0_spiel_tx *m0_spiel_tx_open(struct m0_spiel    *spiel,
-				     struct m0_spiel_tx *tx)
+void m0_spiel_tx_open(struct m0_spiel    *spiel,
+		      struct m0_spiel_tx *tx)
 {
 	M0_ENTRY();
 
@@ -134,7 +134,6 @@ struct m0_spiel_tx *m0_spiel_tx_open(struct m0_spiel    *spiel,
 	spiel_root_add(tx);
 
 	M0_LEAVE();
-	return tx;
 }
 M0_EXPORTED(m0_spiel_tx_open);
 
@@ -920,6 +919,10 @@ int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 	struct m0_conf_obj     *obj_parent;
 	struct m0_conf_node    *node;
 
+	M0_PRE(tx != NULL);
+	M0_PRE(fid != NULL);
+	M0_PRE(parent != NULL);
+	M0_PRE(cores != NULL);
 	M0_ENTRY();
 
 	m0_mutex_lock(&tx->spt_lock);
@@ -976,8 +979,7 @@ M0_EXPORTED(m0_spiel_process_add);
 static int spiel_service_info_copy(struct m0_conf_service             *service,
 				   const struct m0_spiel_service_info *info)
 {
-	if (!M0_IN(info->svi_type, (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS,
-				    M0_CST_RMS, M0_CST_SSS, M0_CST_HA)))
+	if (!M0_CONF_SVC_TYPE_IS_VALID(info->svi_type))
 		return M0_ERR(-EINVAL);
 
 	if (info->svi_type == M0_CST_MGS && info->svi_u.confdb_path == NULL)

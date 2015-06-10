@@ -50,7 +50,7 @@ static const struct m0_reqh_service_type_ops rebalance_svc_type_ops = {
 };
 
 M0_CM_TYPE_DECLARE(sns_rebalance, M0_CM_REBALANCE_OPCODE,
-		   &rebalance_svc_type_ops, "sns_rebalance");
+		   &rebalance_svc_type_ops, "sns_rebalance", M0_CST_SNS_REB);
 
 /** Copy machine service operations.*/
 static int rebalance_svc_start(struct m0_reqh_service *service);

@@ -316,10 +316,9 @@ struct m0_spiel_tx {
  *
  * @param spiel spiel instance
  * @param tx spiel transaction
- * @return NULL on error, pointer to the opened transaction on success
  */
-struct m0_spiel_tx *m0_spiel_tx_open(struct m0_spiel    *spiel,
-				     struct m0_spiel_tx *tx);
+void m0_spiel_tx_open(struct m0_spiel    *spiel,
+		      struct m0_spiel_tx *tx);
 
 /**
  * Close spiel transaction

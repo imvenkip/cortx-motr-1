@@ -152,6 +152,8 @@ enum m0_conf_service_type {
 	M0_CST_STS,     /*< Stats service */
 	M0_CST_HA,      /*< HA service */
 	M0_CST_SSS,     /*< Start/stop service */
+	M0_CST_SNS_REP, /*< SNS repair */
+	M0_CST_SNS_REB, /*< SNS rebalance */
 	M0_CST_NR
 };
 

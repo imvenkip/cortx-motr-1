@@ -632,7 +632,7 @@ static const struct m0_reqh_service_type_ops sender_cm_service_type_ops = {
 };
 
 M0_CM_TYPE_DECLARE(sender_cm, M0_CM_UT_SENDER_OPCODE,
-		   &sender_cm_service_type_ops, "sender_cm");
+		   &sender_cm_service_type_ops, "sender_cm", 0);
 
 void sender_service_alloc_init()
 {

@@ -259,6 +259,7 @@ static int _spiel_conf_obj_find(struct m0_confc       *confc,
 	M0_ENTRY();
 
 	M0_PRE(confc != NULL);
+	M0_PRE(profile != NULL);
 	M0_PRE(obj_fid != NULL);
 	M0_PRE(path != NULL);
 	M0_PRE(nr_lvls > 0);
