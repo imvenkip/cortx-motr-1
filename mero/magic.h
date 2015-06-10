@@ -105,6 +105,12 @@ enum m0_magic_satchel {
 	/* m0_be_tx::t_magic (bee seg faded) */
 	M0_BE_SEG_MAGIC = 0x33bee5e9faded177,
 
+	/* m0_be_op::bo_children (befooled fifo) */
+	M0_BE_OP_SET_MAGIC = 0x33bef001edf1f077,
+
+	/* m0_be_op::bo_set_link_magic (offloaded bel) */
+	M0_BE_OP_SET_LINK_MAGIC = 0x330ff10adedbe177,
+
 /* m0t1fs */
 	/* m0t1fs_sb::s_magic (cozie filesis) */
 	M0_T1FS_SUPER_MAGIC = 0x33c021ef11e51577,

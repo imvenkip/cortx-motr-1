@@ -24,6 +24,10 @@
 #define __MERO_BE_OP_H__
 
 #include "lib/buf.h"    /* m0_buf */
+#include "lib/tlist.h"  /* m0_tl */
+#include "lib/types.h"  /* bool */
+#include "lib/mutex.h"  /* m0_mutex */
+
 #include "sm/sm.h"      /* m0_sm */
 
 /**
@@ -33,7 +37,6 @@
  */
 
 struct m0_fom;
-struct m0_buf;
 struct m0_be_tx;
 struct m0_be_btree;
 struct m0_be_btree_anchor;
@@ -62,8 +65,7 @@ struct m0_be_op {
 	 */
 	struct m0_sm_group  bo_sm_group;
 
-	enum m0_be_op_type bo_utype; /* bo_u type */
-	struct m0_be_op   *bo_parent_op;
+	enum m0_be_op_type  bo_utype; /* bo_u type */
 	union {
 		struct {
 			/**
@@ -90,6 +92,17 @@ struct m0_be_op {
 			int                        e_rc;
 		} u_emap;
 	} bo_u;
+
+	/** list of children */
+	struct m0_tl        bo_children;
+	/** link for parent's m0_be_op::bo_children */
+	struct m0_tlink     bo_set_link;
+	/** magic for m0_be_op::bo_set_link */
+	uint64_t            bo_set_link_magic;
+	/** parent op */
+	struct m0_be_op    *bo_parent;
+	/* is this op an op_set */
+	bool                bo_is_op_set;
 };
 
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op);
@@ -118,6 +131,12 @@ M0_INTERNAL void m0_be_op_wait(struct m0_be_op *op);
  */
 M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
 				  int next_state);
+
+/**
+ * Adds @child to @parent, making the latter an "op set".
+ */
+M0_INTERNAL void m0_be_op_set_add(struct m0_be_op *parent,
+				  struct m0_be_op *child);
 
 /**
  * Performs the action, waiting for its completion.

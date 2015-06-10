@@ -21,10 +21,21 @@
 #include "ut/ut.h"
 #include "be/ut/helper.h"
 
-/*
+/**
+ * BE UT types
+ * - usecase - shows typical component use case;
+ * - simple  - simple test that checks predefined patterns;
+ * - mt      - multithreaded test;
+ * - random  - test that uses RNG to test as much use cases as possible.
+ *
  * TODO
  * - XXX s/rand_r/m0_rnd/g in all BE UT.
  */
+
+extern void m0_be_ut_op_usecase(void);
+extern void m0_be_ut_op_mt(void);
+extern void m0_be_ut_op_set_usecase(void);
+extern void m0_be_ut_op_set_tree(void);
 
 extern void m0_be_ut_reg_d_tree(void);
 extern void m0_be_ut_regmap_simple(void);
@@ -83,6 +94,10 @@ struct m0_ut_suite be_ut = {
 	.ts_fini = NULL,
 	.ts_tests = {
 #ifndef __KERNEL__
+		{ "op-usecase",          m0_be_ut_op_usecase           },
+		{ "op-mt",               m0_be_ut_op_mt                },
+		{ "op_set-usecase",      m0_be_ut_op_set_usecase       },
+		{ "op_set-tree",         m0_be_ut_op_set_tree          },
 		{ "reg_d_tree",          m0_be_ut_reg_d_tree           },
 		// XXX { "regmap-simple",       m0_be_ut_regmap_simple        },
 		// XXX { "regmap-random",       m0_be_ut_regmap_random        },
