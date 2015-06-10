@@ -124,6 +124,7 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 	rpc_srv->rsx_xprts    = &xprt;
 	rpc_srv->rsx_xprts_nr = 1;
 	rpc_srv->rsx_argv     = argv;
+	/* if !run_io_srv then remove last row of argv array */
 	rpc_srv->rsx_argc     = ARRAY_SIZE(argv);
 	snprintf(log_name, LOG_NAME_MAX_LEN, "confd_%s.log", confd_ep);
 	rpc_srv->rsx_log_file_name = log_name;
@@ -136,7 +137,8 @@ M0_INTERNAL void m0_spiel__ut_rpc_server_stop(struct m0_rpc_server_ctx *rpc_srv)
 	m0_rpc_server_stop(rpc_srv);
 }
 
-M0_INTERNAL int m0_spiel__ut_init(struct m0_spiel *spiel, char *confd_path)
+M0_INTERNAL int m0_spiel__ut_init(struct m0_spiel *spiel,
+				  char            *confd_path)
 {
 	int         rc;
 	const char *ep[] = { SERVER_ENDPOINT_ADDR, NULL };

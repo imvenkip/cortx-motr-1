@@ -39,6 +39,7 @@
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
+#include "ioservice/ios_start_sm.h"
 #include "pool/pool.h"
 #include "net/lnet/lnet.h"
 #include "mdservice/md_fops.h"
@@ -80,6 +81,8 @@ static int ios_allocate(struct m0_reqh_service **service,
 static void ios_fini(struct m0_reqh_service *service);
 
 static int ios_start(struct m0_reqh_service *service);
+static int ios_start_async(struct m0_reqh_service_start_async_ctx *asc);
+static bool ios_start_async_cb(struct m0_clink *clink);
 static void ios_prepare_to_stop(struct m0_reqh_service *service);
 static void ios_stop(struct m0_reqh_service *service);
 
@@ -98,7 +101,7 @@ static const struct m0_reqh_service_type_ops ios_type_ops = {
  */
 static const struct m0_reqh_service_ops ios_ops = {
 	.rso_start           = ios_start,
-	.rso_start_async     = m0_reqh_service_async_start_simple,
+	.rso_start_async     = ios_start_async,
 	.rso_prepare_to_stop = ios_prepare_to_stop,
 	.rso_stop            = ios_stop,
 	.rso_fini            = ios_fini
@@ -208,7 +211,7 @@ M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service
  *
  * @pre service != NULL
  */
-static int ios_create_buffer_pool(struct m0_reqh_service *service)
+M0_INTERNAL int m0_ios_create_buffer_pool(struct m0_reqh_service *service)
 {
 	int                         nbuffs;
 	int                         colours;
@@ -294,7 +297,7 @@ static int ios_create_buffer_pool(struct m0_reqh_service *service)
  *
  * @pre service != NULL
  */
-static void ios_delete_buffer_pool(struct m0_reqh_service *service)
+M0_INTERNAL void m0_ios_delete_buffer_pool(struct m0_reqh_service *service)
 {
 	struct m0_reqh_io_service  *serv_obj;
 	struct m0_rios_buffer_pool *bp;
@@ -368,40 +371,78 @@ static void ios_fini(struct m0_reqh_service *service)
 	m0_free(serv_obj);
 }
 
-/**
- * Start I/O Service.
- * - Registers I/O FOP with service
- * - Initiates buffer pool
- * - Initialises channel for service to wait for buffer pool notEmpty event.
- */
 static int ios_start(struct m0_reqh_service *service)
 {
 	int                        rc;
-	struct m0_reqh_io_service *serv_obj;
+	struct m0_reqh_io_service *iosvc;
+	struct m0_sm_group        *sm_grp = m0_locality0_get()->lo_grp;
 
 	M0_PRE(service != NULL);
 
-	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
-	/** @todo what should be cob dom id? */
-	rc = m0_ios_cdom_get(service->rs_reqh, &serv_obj->rios_cdom);
+	iosvc = container_of(service, struct m0_reqh_io_service, rios_gen);
+	rc = m0_ios_start_sm_init(&iosvc->rios_sm, &iosvc->rios_gen, sm_grp);
 	if (rc != 0)
-		return M0_RC(rc);
-	M0_LOG(M0_DEBUG, "io cob domain %p", serv_obj->rios_cdom);
+		return M0_ERR(rc);
 
-	rc = ios_create_buffer_pool(service);
-	if (rc != 0) {
-		/* Cleanup required for already created buffer pools. */
-		ios_delete_buffer_pool(service);
-		m0_ios_cdom_fini(service->rs_reqh);
-		return M0_RC(rc);
-	}
-
-	rc = m0_ios_poolmach_init(service);
-	if (rc != 0) {
-		ios_delete_buffer_pool(service);
-		m0_ios_cdom_fini(service->rs_reqh);
-	}
+	m0_ios_start_sm_exec(&iosvc->rios_sm);
+	m0_ios_start_lock(&iosvc->rios_sm);
+	rc = m0_sm_timedwait(&iosvc->rios_sm.ism_sm,
+			     M0_BITS(M0_IOS_START_FINAL, M0_IOS_START_FAILURE),
+			     M0_TIME_NEVER);
+	m0_ios_start_unlock(&iosvc->rios_sm);
+	rc = rc ?: iosvc->rios_sm.ism_sm.sm_rc;
+	iosvc->rios_cdom = (rc == 0) ? iosvc->rios_sm.ism_dom : NULL;
+	m0_sm_group_lock(sm_grp);
+	m0_ios_start_sm_fini(&iosvc->rios_sm);
+	m0_sm_group_unlock(sm_grp);
+	M0_LOG(M0_DEBUG, "io cob domain %p", iosvc->rios_cdom);
 	return M0_RC(rc);
+}
+
+static int ios_start_async(struct m0_reqh_service_start_async_ctx *asc)
+{
+	struct m0_reqh_service    *service = asc->sac_service;
+	struct m0_reqh_io_service *serv_obj;
+	struct m0_sm_group        *grp = m0_locality0_get()->lo_grp;
+
+	M0_ENTRY();
+	M0_PRE(service != NULL);
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
+
+	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+
+	asc->sac_rc = m0_ios_start_sm_init(&serv_obj->rios_sm, service, grp);
+	if (asc->sac_rc != 0) {
+		m0_fom_wakeup(asc->sac_fom);
+		return M0_ERR(asc->sac_rc);
+	}
+
+	serv_obj->rios_fom = asc->sac_fom;
+	m0_clink_init(&serv_obj->rios_clink, ios_start_async_cb);
+	m0_clink_add_lock(&serv_obj->rios_sm.ism_sm.sm_chan,
+			  &serv_obj->rios_clink);
+	m0_ios_start_sm_exec(&serv_obj->rios_sm);
+	return M0_RC(0);
+}
+
+static bool ios_start_async_cb(struct m0_clink *clink)
+{
+	struct m0_reqh_io_service *iosvc;
+	struct m0_ios_start_sm    *ios_sm;
+	int                        rc;
+
+	iosvc = container_of(clink, struct m0_reqh_io_service, rios_clink);
+	ios_sm = &iosvc->rios_sm;
+	if (M0_IN(ios_sm->ism_sm.sm_state,
+		   (M0_IOS_START_FINAL, M0_IOS_START_FAILURE))) {
+		m0_clink_del(clink);
+		m0_clink_fini(clink);
+		rc = ios_sm->ism_sm.sm_rc;
+		iosvc->rios_cdom = (rc == 0) ? ios_sm->ism_dom : NULL;
+		m0_ios_start_sm_fini(ios_sm);
+		m0_fom_wakeup(iosvc->rios_fom);
+	}
+	return true;
 }
 
 static void ios_prepare_to_stop(struct m0_reqh_service *service)
@@ -411,26 +452,23 @@ static void ios_prepare_to_stop(struct m0_reqh_service *service)
 	M0_LOG(M0_DEBUG, "ioservice PREPARE STOPPED");
 }
 
-/**
- * Stops I/O Service.
- * - Frees buffer pool
- * - Un-registers I/O FOP with service
- *
- * @param service pointer to service instance.
- *
- * @pre service != NULL
- */
 static void ios_stop(struct m0_reqh_service *service)
 {
 	M0_PRE(service != NULL);
 
 	m0_ios_poolmach_fini(service);
-	ios_delete_buffer_pool(service);
+	m0_ios_delete_buffer_pool(service);
 	m0_ios_cdom_fini(service->rs_reqh);
 	m0_reqh_lockers_clear(service->rs_reqh, m0_get()->i_ios_cdom_key);
 	M0_LOG(M0_DEBUG, "ioservice STOPPED");
 }
 
+/**
+ * @todo: This function is used by copy machine module, but not used by IO
+ * service. Also it is code duplication with asynchronous code in
+ * ioservice/ios_start_sm.c.
+ * Corresponding ticket: MERO-1190.
+ */
 M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 				struct m0_cob_domain **out)
 {

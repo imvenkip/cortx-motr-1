@@ -495,37 +495,48 @@ void m0_cob_domain_fini(struct m0_cob_domain *dom)
 	m0_be_btree_fini(&dom->cd_namespace);
 }
 
-int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
-			 const struct m0_cob_domain_id *cdid,
-			 struct m0_be_seg *seg)
+static void cob_domain_id2str(char **s, const struct m0_cob_domain_id *cdid)
 {
-	struct m0_be_domain   *bedom = seg->bs_domain; /* XXX */
-	struct m0_be_btree     dummy = { .bb_seg = seg }; /* XXX */
-	struct m0_be_tx_credit cred  = {};
-	struct m0_buf          data = {}; /*XXX*/
-	char		       id[32];
-	struct m0_be_tx       *tx;
-	int rc;
+	return m0_asprintf(s, "%016lX", cdid->id);
+}
 
-	M0_PRE(cdid->id != 0);
+M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
+					 struct m0_be_tx               *tx,
+					 struct m0_be_seg              *seg,
+				         const struct m0_cob_domain_id *cdid,
+				         struct m0_be_tx_credit        *cred)
+{
+	char                *cdid_str;
+	struct m0_buf        data = {}; /*XXX*/
+	struct m0_be_btree   dummy = { .bb_seg = seg }; /* XXX */
+	struct m0_be_domain *bedom = seg->bs_domain; /* XXX */
 
-	M0_ALLOC_PTR(tx);
-	if (tx == NULL)
+	cob_domain_id2str(&cdid_str, cdid);
+	if (cdid_str == NULL)
 		return M0_ERR(-ENOMEM);
+	m0_be_0type_add_credit(bedom, &m0_be_cob0, cdid_str, &data, cred);
+	M0_BE_ALLOC_CREDIT_PTR(dom, seg, cred);
+	m0_be_btree_create_credit(&dummy, 5 /* XXX */, cred);
+	m0_free(cdid_str);
+	return M0_RC(0);
+}
 
-	snprintf(id, ARRAY_SIZE(id), "%016lX", cdid->id);
-	m0_be_0type_add_credit(bedom, &m0_be_cob0, id, &data, &cred);
-	M0_BE_ALLOC_CREDIT_PTR(*dom, seg, &cred);
-	m0_be_btree_create_credit(&dummy, 5 /* XXX */, &cred);
+M0_INTERNAL
+int m0_cob_domain_create_prepared(struct m0_cob_domain         **dom,
+				  struct m0_sm_group            *grp,
+				  const struct m0_cob_domain_id *cdid,
+				  struct m0_be_seg              *seg,
+				  struct m0_be_tx               *tx)
+{
+	char                *cdid_str;
+	struct m0_buf        data = {}; /*XXX*/
+	struct m0_be_domain *bedom = seg->bs_domain; /* XXX */
+	int                  rc;
 
-	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
-	m0_be_tx_prep(tx, &cred);
-	rc = m0_be_tx_exclusive_open_sync(tx);
-	if (rc != 0) {
-		m0_be_tx_fini(tx);
-		m0_free(tx);
-		return M0_RC(rc);
-	}
+	*dom = NULL;
+	cob_domain_id2str(&cdid_str, cdid);
+	if (cdid_str == NULL)
+		return M0_ERR(-ENOMEM);
 
 	M0_BE_ALLOC_PTR_SYNC(*dom, seg, tx);
 	m0_cob_domain_init(*dom, seg, cdid);
@@ -535,19 +546,45 @@ int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
 	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_fileattr_omg,   tx, &o));
 	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_fileattr_ea,    tx, &o));
 
-
 	M0_ASSERT(*dom != NULL);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, *dom);
 
 	data = M0_BUF_INIT_PTR(dom);
-	rc = m0_be_0type_add(&m0_be_cob0, bedom, tx, id, &data);
+	rc = m0_be_0type_add(&m0_be_cob0, bedom, tx, cdid_str, &data);
 	M0_ASSERT(rc == 0);
+	m0_free(cdid_str);
+	return M0_RC(0);
+}
 
+int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
+			 const struct m0_cob_domain_id *cdid,
+			 struct m0_be_seg *seg)
+{
+	struct m0_be_domain   *bedom = seg->bs_domain; /* XXX */
+	struct m0_be_tx_credit cred  = {};
+	struct m0_be_tx       *tx;
+	int                    rc, rc2;
+
+	M0_PRE(cdid->id != 0);
+
+	M0_ALLOC_PTR(tx);
+	if (tx == NULL)
+		return M0_ERR(-ENOMEM);
+
+	m0_cob_domain_credit_add(*dom, tx, seg, cdid, &cred);
+	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_exclusive_open_sync(tx);
+	if (rc != 0)
+		goto tx_fini;
+
+	rc = m0_cob_domain_create_prepared(dom, grp, cdid, seg, tx);
 	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	rc2 = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	rc = rc ?: rc2;
+tx_fini:
 	m0_be_tx_fini(tx);
 	m0_free(tx);
-
 	return M0_RC(rc);
 }
 

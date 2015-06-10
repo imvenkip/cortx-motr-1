@@ -725,13 +725,16 @@ static void sender_init()
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_reqh_service_start(sender_cm_service);
 	M0_UT_ASSERT(rc == 0);
+
 	sender_cm_service->rs_reqh_ctx->rc_mero->cc_profile =
 		M0_UT_CONF_PROFILE;
-        rc = m0_fid_sscanf(sender_cm_service->rs_reqh_ctx->rc_mero->cc_profile,
-                           &sender_cm_service->rs_reqh->rh_profile);
+	rc = m0_fid_sscanf(sender_cm_service->rs_reqh_ctx->rc_mero->cc_profile,
+			   &sender_cm_service->rs_reqh->rh_profile);
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_enable_once("m0_poolmach__store_init", "recreate_pm_store");
+
 	rc = m0_ios_poolmach_init(sender_cm_service);
+
 	M0_UT_ASSERT(rc == 0);
 	m0_cm_lock(&sender_cm);
 	M0_UT_ASSERT(sender_cm.cm_ops->cmo_prepare(&sender_cm) == 0);

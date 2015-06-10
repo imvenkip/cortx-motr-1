@@ -98,9 +98,10 @@ static void cm_setup_ut(void)
 	M0_UT_ASSERT(rc == 0);
 
 	cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile = M0_UT_CONF_PROFILE;
-        rc = m0_fid_sscanf(cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile,
-                           &cm_ut_service->rs_reqh->rh_profile);
+	rc = m0_fid_sscanf(cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile,
+			   &cm_ut_service->rs_reqh->rh_profile);
 	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_ios_poolmach_init(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
@@ -128,7 +129,7 @@ static void cm_setup_ut(void)
 	reqh = cm_ut_service->rs_reqh;
 	pm = m0_ios_poolmach_get(reqh);
 	m0_confc_fini(confc);
-	grp  = m0_locality0_get()->lo_grp;
+	grp = m0_locality0_get()->lo_grp;
 	m0_sm_group_lock(grp);
 	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
 	m0_sm_group_unlock(grp);

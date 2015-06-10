@@ -450,6 +450,13 @@ enum sns_repair_state {
 	SRS_NR,
 };
 
+M0_INTERNAL
+void m0_poolmach_store_init_creds_add(struct m0_be_seg       *be_seg,
+				      uint32_t                nr_nodes,
+				      uint32_t                nr_devices,
+				      uint32_t                max_dev_fails,
+				      struct m0_be_tx_credit *cred);
+
 /** @} end of servermachine group */
 #endif /* __MERO_POOL_POOL_H__ */
 

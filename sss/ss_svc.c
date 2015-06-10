@@ -42,6 +42,47 @@
 #include "sss/ss_fops.h"
 #include "sss/ss_svc.h"
 
+/**
+ * Stages of Start Stop fom.
+ *
+ * All custom phases of Start Stop  FOM are separated into two stages.
+ *
+ * One part of custom phases is executed outside of FOM local transaction
+ * context (before M0_FOPH_TXN_INIT phase), the other part is executed as usual
+ * for FOMs in context of local transaction.
+ *
+ * Separation is done to prevent dead-lock between two exclusively opened
+ * BE transactions: one is in FOM local transaction context and the other one
+ * created during start service, like IO service.
+ *
+ * @see ss_fom_phases.
+ */
+enum ss_fom_stage {
+	/**
+	 * Phases of this stage are executed before M0_FOPH_TXN_INIT phase.
+	 */
+	SS_FOM_STAGE_BEFORE_TX,
+	/**
+	 * Stage includes phases which works ordinary methods.
+	 */
+	SS_FOM_STAGE_AFTER_TX,
+};
+
+/** Start Stop Service */
+struct ss_svc {
+	struct m0_reqh_service sss_reqhs;
+};
+
+/** Start Stop fom */
+struct ss_fom {
+	uint64_t                               ssf_magic;
+	struct m0_fom                          ssf_fom;
+	struct m0_reqh_service_start_async_ctx ssf_ctx;
+	struct m0_reqh_service                *ssf_svc;
+	enum ss_fom_stage                      ssf_stage;
+};
+
+
 static int ss_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			  struct m0_reqh *reqh);
 static int ss_fom_tick(struct m0_fom *fom);
@@ -164,6 +205,7 @@ M0_INTERNAL void m0_ss_svc_fini(void)
 /*
  * Start Stop fom.
  */
+
 const struct m0_fom_ops ss_fom_ops = {
 	.fo_tick          = ss_fom_tick,
 	.fo_home_locality = ss_fom_home_locality,
@@ -175,12 +217,13 @@ const struct m0_fom_type_ops ss_fom_type_ops = {
 };
 
 struct m0_sm_state_descr ss_fom_phases[] = {
-	[SS_FOM_INIT]= {
+	[SS_FOM_SWITCH]= {
 		.sd_flags   = M0_SDF_INITIAL,
-		.sd_name    = "SS_FOM_INIT",
+		.sd_name    = "SS_FOM_SWITCH",
 		.sd_allowed = M0_BITS(SS_FOM_SVC_INIT, SS_FOM_QUIESCE,
 				      SS_FOM_START, SS_FOM_STOP, SS_FOM_STATUS,
-				      M0_FOPH_FAILURE, SS_FOM_HEALTH),
+				      SS_FOM_HEALTH, M0_FOPH_TXN_INIT,
+				      M0_FOPH_SUCCESS, M0_FOPH_FAILURE),
 	},
 	[SS_FOM_SVC_INIT]= {
 		.sd_name    = "SS_FOM_SVC_INIT",
@@ -283,16 +326,19 @@ exit:
 static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 			     const struct m0_reqh *reqh)
 {
-	static const enum ss_fom_phases next_phase[] = {
-		[M0_SERVICE_START]   = SS_FOM_START,
-		[M0_SERVICE_STOP]    = SS_FOM_STOP,
-		[M0_SERVICE_STATUS]  = SS_FOM_STATUS,
-		[M0_SERVICE_HEALTH]  = SS_FOM_HEALTH,
-		[M0_SERVICE_QUIESCE] = SS_FOM_QUIESCE,
-		[M0_SERVICE_INIT]    = SS_FOM_SVC_INIT
+	static const enum ss_fom_phases next_phase[][2] = {
+		[M0_SERVICE_START]   = { SS_FOM_START, M0_FOPH_SUCCESS },
+		[M0_SERVICE_STOP]    = { M0_FOPH_TXN_INIT, SS_FOM_STOP },
+		[M0_SERVICE_STATUS]  = { M0_FOPH_TXN_INIT, SS_FOM_STATUS },
+		[M0_SERVICE_HEALTH]  = { M0_FOPH_TXN_INIT, SS_FOM_HEALTH },
+		[M0_SERVICE_QUIESCE] = { M0_FOPH_TXN_INIT, SS_FOM_QUIESCE },
+		[M0_SERVICE_INIT]    = { M0_FOPH_TXN_INIT, SS_FOM_SVC_INIT },
 	};
 
 	M0_ENTRY("cmd=%d fid:"FID_F, fop->ss_cmd, FID_P(&fop->ss_id));
+
+	M0_PRE(M0_IN(m->ssf_stage,
+		     (SS_FOM_STAGE_BEFORE_TX, SS_FOM_STAGE_AFTER_TX)));
 
 	if (!IS_IN_ARRAY(fop->ss_cmd, next_phase) ||
 	    m0_fid_type_getfid(&fop->ss_id) != &M0_CONF_SERVICE_TYPE.cot_ftype)
@@ -303,7 +349,11 @@ static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 	if (m->ssf_svc == NULL && fop->ss_cmd != M0_SERVICE_INIT)
 		return M0_ERR(-ENOENT);
 
-	m0_fom_phase_set(&m->ssf_fom, next_phase[fop->ss_cmd]);
+	if (m->ssf_svc != NULL && fop->ss_cmd == M0_SERVICE_INIT)
+		return M0_ERR(-EEXIST);
+
+	m0_fom_phase_set(&m->ssf_fom, next_phase[fop->ss_cmd][m->ssf_stage]);
+	++m->ssf_stage;
 	return M0_RC(0);
 }
 
@@ -414,16 +464,25 @@ static int ss_fom_tick(struct m0_fom *fom)
 	M0_ENTRY("fom %p, state %d", fom, m0_fom_phase(fom));
 	M0_PRE(fom != NULL);
 
-	if (m0_fom_phase(fom) < M0_FOPH_NR)
-		return m0_fom_tick_generic(fom);
-
 	m = container_of(fom, struct ss_fom, ssf_fom);
+
+	/* first handle generic phase */
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_INIT) {
+			if (m->ssf_stage == SS_FOM_STAGE_BEFORE_TX) {
+				m0_fom_phase_move(fom, 0, SS_FOM_SWITCH);
+				return M0_FSO_AGAIN;
+			}
+		}
+		return m0_fom_tick_generic(fom);
+	}
+
 	fop = m0_fop_data(fom->fo_fop);
 	rep = m0_fop_data(fom->fo_rep_fop);
 	reqh = m0_fom_reqh(fom);
 
 	switch (m0_fom_phase(fom)) {
-	case SS_FOM_INIT:
+	case SS_FOM_SWITCH:
 		rep->ssr_rc = ss_fom_tick__init(m, fop, reqh);
 		if (rep->ssr_rc != 0)
 			m0_fom_phase_move(fom, rep->ssr_rc, M0_FOPH_FAILURE);

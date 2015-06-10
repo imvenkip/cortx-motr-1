@@ -55,6 +55,9 @@
 #include "layout/layout.h"
 #include "rpc/conn.h"
 #include "rpc/session.h"
+#include "ioservice/ios_start_sm.h" /* m0_ios_start_sm */
+
+struct m0_fom;
 
 M0_INTERNAL int m0_ios_register(void);
 M0_INTERNAL void m0_ios_unregister(void);
@@ -96,6 +99,13 @@ struct m0_reqh_io_service {
 	struct m0_rpc_client_ctx    *rios_mds_rpc_ctx;
 	struct m0_net_domain         rios_cl_ndom;
 
+	/** SM for start service */
+	struct m0_ios_start_sm       rios_sm;
+	/** Clink of SM for start service */
+	struct m0_clink              rios_clink;
+
+	/** FOM to be notified about asynchronous start completion */
+	struct m0_fom               *rios_fom;
 	/** magic to check io service object */
 	uint64_t                     rios_magic;
 };
@@ -103,7 +113,7 @@ struct m0_reqh_io_service {
 M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service
 					      *rios);
 
-M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
+M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh        *reqh,
 				struct m0_cob_domain **out);
 
 M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh);

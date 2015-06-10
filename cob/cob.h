@@ -276,7 +276,21 @@ void m0_cob_domain_fini(struct m0_cob_domain *dom);
 int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
 			 const struct m0_cob_domain_id *cdid,
 			 struct m0_be_seg *seg);
+
 int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp);
+
+M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
+					 struct m0_be_tx               *tx,
+					 struct m0_be_seg              *seg,
+				         const struct m0_cob_domain_id *cdid,
+				         struct m0_be_tx_credit        *cred);
+
+M0_INTERNAL
+int m0_cob_domain_create_prepared(struct m0_cob_domain         **dom,
+				  struct m0_sm_group            *grp,
+				  const struct m0_cob_domain_id *cdid,
+				  struct m0_be_seg              *seg,
+				  struct m0_be_tx               *tx);
 
 /**
  * Prepare storage before using. Create root cob for session objects

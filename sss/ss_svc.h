@@ -29,27 +29,92 @@
 /**
  * @defgroup ss_svc Start_Stop Service
  * @{
+
+  @section DLD_sss-svc-fom Service command FOM
+
+  - @ref DLD-sss-svc-fspec-ds
+
+  @section DLD-sss-svc-fspec Functional Specification
+  Service commands provides control of individual service like init, quiesce,
+  start, stop, status and health.
+
+   Generic TX fom phases start TX transaction. Its interfere to start some
+   services, like IO service. So Start service made a separate stage.
+   Both stages can to diagnose error and can go to Failure phase.
+   Fom phase SS_FOM_SWITCH switch to next dependence Service command ID and
+   current stage.
+
+   First stage - before TX generic fom phases:
+   - initiate fom - check service by fid
+   - start service if command ID equal Start command
+
+   Second stage - after TX generic fom phases:
+   - execute all command except Start command
+
+   State transition diagram for Start Service command
+
+   @verbatim
+
+              Standard fom generic phases
+     inits, authenticate, resources, authorization
+			 |
+			 v
+     +<---------SS_FOM_SWITCH
+     |			 |
+     |			 v
+     +<---------SS_FOM_START
+     |			 |
+     |			 v
+     +<--Standard fom generic phases TX context
+     |			 |
+     |			 v
+     +<---------SS_FOM_SWITCH
+     |			 |
+     |			 v
+ FOPH_FAILED        FOPH_SUCCESS
+     +------------------>|
+			 v
+            Standard fom generic phases
+               send reply and finish
+
+   @endverbatim
+
+   State transition diagram for Service non-start commands
+
+   @verbatim
+
+              Standard fom generic phases
+     inits, authenticate, resources, authorization
+			 |
+			 v
+     +<---------SS_FOM_SWITCH
+     |			 |
+     |			 v
+     +<--Standard fom generic phases TX context
+     |			 |
+     |			 v
+     +<---------SS_FOM_SWITCH
+     |			 |
+     |			 v
+     +<------execute Service command by FOP command ID
+     |			 |
+     |			 v
+ FOPH_FAILED        FOPH_SUCCESS
+     +------------------>|
+			 v
+            Standard fom generic phases
+               send reply and finish
+
+   @endverbatim
+
  */
 
 enum { MAX_SERVICE_NAME_LEN = 128 };
 
 extern struct m0_reqh_service_type m0_ss_svc_type;
 
-/** Start Stop Service */
-struct ss_svc {
-	struct m0_reqh_service sss_reqhs;
-};
-
-/** Start Stop fom */
-struct ss_fom {
-	uint64_t                               ssf_magic;
-	struct m0_fom                          ssf_fom;
-	struct m0_reqh_service_start_async_ctx ssf_ctx;
-	struct m0_reqh_service                *ssf_svc;
-};
-
 enum ss_fom_phases {
-	SS_FOM_INIT = M0_FOPH_NR + 1,
+	SS_FOM_SWITCH = M0_FOPH_NR + 1,
 	SS_FOM_SVC_INIT,
 	SS_FOM_START,
 	SS_FOM_START_WAIT,

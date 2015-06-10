@@ -51,6 +51,15 @@ M0_INTERNAL int m0_ss_fops_init(void)
 #ifndef __KERNEL__
 	m0_sm_conf_extend(m0_generic_conf.scf_state, ss_fom_phases,
 			  m0_generic_conf.scf_nr_states);
+
+	/*
+	 * Extend phases this FOM needs to open separate BE transaction.
+	 * Because extend phases execute before M0_FOPH_TXN_INIT phase.
+	 * FOM handler catch M0_FOPH_TXN_INIT phase. If it first time then
+	 * move to extended phase else simple way.
+	 */
+	ss_fom_phases[M0_FOPH_TXN_INIT].sd_allowed |= M0_BITS(SS_FOM_SWITCH);
+
 #endif
 	m0_fop_ss_rep_fopt.ft_magix = 0;
 	M0_FOP_TYPE_INIT(&m0_fop_ss_fopt,

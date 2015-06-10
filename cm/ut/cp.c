@@ -294,13 +294,13 @@ static int cm_cp_init(void)
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_ASSERT(rc == 0);
 	cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile = M0_UT_CONF_PROFILE;
-        rc = m0_fid_sscanf(cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile,
+	rc = m0_fid_sscanf(cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile,
 			   &cm_ut_service->rs_reqh->rh_profile);
 	M0_ASSERT(rc == 0);
 	rc = m0_ios_poolmach_init(cm_ut_service);
 	M0_ASSERT(rc == 0);
 
-        return 0;
+	return 0;
 }
 
 /* Finalises the request handler. */
