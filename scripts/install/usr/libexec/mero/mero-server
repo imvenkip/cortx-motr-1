@@ -67,7 +67,7 @@ m0_server()
             ;;
     esac
 
-    local confd_ep=${MERO_CONFD_EP:-$(m0_get_ep_of confd)}
+    local confd_ep=${MERO_CONFD_EP:-$(m0_get_global_ep_of confd)}
     local service_ep="lnet:$(m0_get_ep_of $service)"
 
     if [[ $service == confd ]]; then

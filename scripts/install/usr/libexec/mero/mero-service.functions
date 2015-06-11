@@ -10,6 +10,13 @@ m0_log()
     logger -p daemon.info -s -t mero -- "$*"
 }
 
+
+# Print message on STDERR
+m0_echo_err()
+{
+    echo "mero: ERROR: $*" >&2
+}
+
 # Report error and exit.
 #   @param  $*  error msg
 m0_exit()
@@ -219,6 +226,7 @@ m0_get_ep_of()
     local service=$1
     local node=$2
 
+    local found=false
     local lnid=$(m0_get_lnet_nid $node)
     local lpid=12345
     local confd_portal=41
@@ -246,15 +254,22 @@ m0_get_ep_of()
         esac
 
         if [[ $s == $service ]] ; then
+            found=true
             break
         fi
     done
 
+    if ! $found ; then
+        m0_echo_err "cannot find endpoint of '$service' on the" \
+                    " ${node:+current} node"
+        ep=''
+    fi
+
     echo $ep
 }
 
-# Return space-separated list of all IOS endpoints in the cluster, from genders
-# file
+# Return space-separated list of all endpoints in the cluster for particular
+# service type, from genders file
 #   @param  $1  service type (confd mds ios ha)
 m0_get_global_eps_of()
 {
@@ -275,6 +290,16 @@ m0_get_global_eps_of()
     done
 
     echo $global_eps
+}
+
+# Return first found endpoint of a particular service in the cluster, from
+# genders file
+#   @param  $1  service
+m0_get_global_ep_of()
+{
+    local stype=$1
+
+    echo $(m0_get_global_eps_of $stype) | awk '{print $1}'
 }
 
 #
@@ -392,10 +417,10 @@ _build_ios_devs()
 m0_build_local_conf()
 {
     local local_conf
-    local mds_ep=$(m0_get_ep_of mds)
+    local mds_ep=$(m0_get_global_ep_of mds)
     local rms_ep=$mds_ep # RM service is running on the same node as MDS
     local stats_ep=$mds_ep # STATS service is running on the same node as MDS
-    local ha_ep=$(m0_get_ep_of ha)
+    local ha_ep=$(m0_get_global_ep_of ha)
     local pool_width=$(m0_genders_value_of m0_pool_width)
     local data_units=$(m0_genders_value_of m0_data_units)
     local parity_units=$(m0_genders_value_of m0_parity_units)
