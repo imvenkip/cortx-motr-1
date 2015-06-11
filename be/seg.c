@@ -27,6 +27,7 @@
 #include "lib/memory.h"       /* m0_alloc_aligned */
 #include "lib/errno.h"        /* ENOMEM */
 #include "lib/time.h"         /* m0_time_now */
+#include "lib/atomic.h"       /* m0_atomic64 */
 
 #include "stob/stob.h"	      /* m0_stob */
 #include "stob/linux.h"       /* m0_stob_linux_container */
@@ -281,12 +282,21 @@ M0_INTERNAL int m0_be_reg__write(struct m0_be_reg *reg)
 	return m0_be_seg__write(reg, reg->br_addr);
 }
 
+/* #define USE_TIME_NOW_AS_GEN_IDX */
+
 M0_INTERNAL unsigned long m0_be_reg_gen_idx(const struct m0_be_reg *reg)
 {
+#ifdef USE_TIME_NOW_AS_GEN_IDX
 	m0_time_t now = m0_time_now();
 
 	M0_CASSERT(sizeof now == sizeof(unsigned long));
 	return now;
+#else
+	static struct m0_atomic64 global_gen_idx = {};
+
+	M0_CASSERT(sizeof global_gen_idx == sizeof(unsigned long));
+	return m0_atomic64_add_return(&global_gen_idx, 1);
+#endif
 }
 
 /** @} end of be group */
