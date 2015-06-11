@@ -1360,6 +1360,8 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	if (M0_IN(m0_reqh_state_get(reqh), (M0_REQH_ST_DRAIN, M0_REQH_ST_INIT)))
 		m0_reqh_pre_storage_fini_svcs_stop(reqh);
 
+	cs_rpc_machines_fini(reqh);
+
 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
 	m0_reqh_be_fini(reqh);
 	m0_mdstore_fini(&rctx->rc_mdstore);
@@ -1369,7 +1371,6 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	cs_storage_fini(&rctx->rc_stob);
 	cs_be_fini(&rctx->rc_be);
 	m0_reqh_post_storage_fini_svcs_stop(reqh);
-	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);
 
 	rctx->rc_state = RC_UNINITIALISED;
