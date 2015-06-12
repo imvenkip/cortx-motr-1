@@ -22,6 +22,7 @@
 #include "lib/misc.h"
 #include "lib/trace.h"
 #include "lib/finject.h"
+#include "lib/hash.h"
 
 #include "cob/cob.h"
 #include "mero/setup.h"
@@ -35,7 +36,6 @@
 #include "sns/cm/file.h"
 #include "ioservice/fid_convert.h" /* m0_fid_cob_device_id */
 #include "rpc/rpc_machine.h"       /* m0_rpc_machine_ep */
-
 /**
    @addtogroup SNSCM
 
@@ -47,25 +47,32 @@ enum {
 	SNS_DEFAULT_FILE_SIZE = 1 << 17,
 	SNS_DEFAULT_N = 3,
 	SNS_DEFAULT_K = 1,
-	SNS_DEFAULT_P = 10,
+	SNS_DEFAULT_P = 5,
 	SNS_DEFAULT_UNIT_SIZE = 4096,
-	SNS_DEFAULT_LAYOUT_ID = 0xAC1DF00D
+	SNS_DEFAULT_LAYOUT_ID = 1
 };
 
 M0_INTERNAL int
 m0_sns_cm_ut_file_size_layout(struct m0_sns_cm_file_ctx *fctx)
 {
-	struct m0_sns_cm                    *scm = fctx->sf_scm;
-	struct m0_layout_linear_attr         lattr;
-	struct m0_pdclust_attr               plattr;
-	struct m0_pdclust_layout            *pl;
-	struct m0_layout_linear_enum        *le;
-	struct m0_reqh                      *reqh;
-	uint64_t                             lid;
-	int                                  rc = 0;
+	struct m0_sns_cm             *scm    = fctx->sf_scm;
+	struct m0_layout_linear_attr  lattr;
+	struct m0_pdclust_attr        plattr;
+	struct m0_pdclust_layout     *pl;
+	struct m0_layout_linear_enum *le;
+	struct m0_pool               *p;
+	struct m0_pool_version       *pver;
+	struct m0_reqh               *reqh;
+	uint64_t                      lid;
+	int                           rc = 0;
 
 	reqh = scm->sc_base.cm_service.rs_reqh;
-	fctx->sf_layout = m0_layout_find(&reqh->rh_ldom, SNS_DEFAULT_LAYOUT_ID);
+	m0_tl_for(pools, &reqh->rh_pools->pc_pools, p) {
+		break;
+	} m0_tl_endfor;
+	pver = pool_version_tlist_head(&p->po_vers);
+	lid = m0_hash(m0_fid_hash(&pver->pv_id) + SNS_DEFAULT_LAYOUT_ID);
+	fctx->sf_layout = m0_layout_find(&reqh->rh_ldom, lid);
 	if (fctx->sf_layout != NULL)
 		goto out;
 	lattr.lla_nr = SNS_DEFAULT_P;
@@ -102,7 +109,7 @@ M0_INTERNAL void m0_sns_cm_unit2cobfid(struct m0_pdclust_layout *pl,
 				       const struct m0_fid *gfid,
 				       struct m0_fid *cfid_out)
 {
-	struct m0_layout_enum      *le;
+	struct m0_layout_enum *le;
 
 	m0_pdclust_instance_map(pi, sa, ta);
 	le = m0_layout_to_enum(m0_pdl_to_layout(pl));

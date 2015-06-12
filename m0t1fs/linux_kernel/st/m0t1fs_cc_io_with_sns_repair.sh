@@ -110,6 +110,8 @@ create_files_and_checksum()
 	local end=$3
 	local unit_size=$((stride * 1024))
 
+	# With unit size of 32K dd fails for the file "1009".
+	# It runs with unit size 64K. A jira MERO-1086 tracks this issue.
 	for ((i=$start; i < $end; i++)) ; do
 		touch_file $MERO_M0T1FS_MOUNT_DIR/${fids[$i]} $stride
 		_dd ${fids[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}

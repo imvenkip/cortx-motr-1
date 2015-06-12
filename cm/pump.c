@@ -35,6 +35,8 @@
 
 #include "pool/pool.h"
 #include "ioservice/io_device.h" /* m0_ios_poolmach_get */
+
+#include "mero/setup.h"          /* m0_cs_ctx_get */
 /**
    @addtogroup CM
    @{
@@ -209,6 +211,8 @@ static int cpp_wait(struct m0_cm_cp_pump *cp_pump)
 static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 {
 	struct m0_cm           *cm = pump2cm(cp_pump);
+	struct m0_confc        *confc;
+	struct m0_mero         *mero;
 	struct m0_fom          *p_fom;
 	struct m0_reqh         *reqh;
 	struct m0_dtx          *dtx;
@@ -233,6 +237,13 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 		m0_poolmach_store_credit(pm, acc);
 		m0_be_tx_credit_mul(acc, nr_fail);
 		m0_be_tx_credit_add(acc, acc);
+		confc = &cm->cm_service.rs_reqh->rh_confc;
+		mero = cm->cm_service.rs_reqh_ctx->rc_mero;
+		rc = m0_poolmach_credit_calc(pm, confc, &mero->cc_pools_common,
+					     acc);
+		if (rc != 0)
+			return rc;
+
 		m0_dtx_open(dtx);
 	}
 	if (m0_be_tx_state(&dtx->tx_betx) == M0_BTS_FAILED) {

@@ -230,6 +230,8 @@ ysXAXAgJ5lQoMcOkbBNBW9Nz9OM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
 #include "lib/lockers.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
+#include "conf/diter.h" /* m0_conf_diter */
+#include "conf/obj.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_fops.h"
@@ -247,12 +249,25 @@ ysXAXAgJ5lQoMcOkbBNBW9Nz9OM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
  */
 M0_EXTERN unsigned poolmach_key;
 
+static bool is_object_disk(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE;
+}
+
 M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 {
-	int                 rc;
-	struct m0_poolmach *poolmach;
-	struct m0_reqh     *reqh = service->rs_reqh;
-	struct m0_sm_group *grp  = m0_locality0_get()->lo_grp;
+	int                            rc;
+	struct m0_poolmach            *poolmach;
+	struct m0_conf_diter           it;
+	struct m0_reqh                *reqh = service->rs_reqh;
+	struct m0_confc               *confc = &reqh->rh_confc;
+	struct m0_conf_obj            *obj;
+	struct m0_sm_group            *grp = m0_locality0_get()->lo_grp;
+	struct m0_mero                *mero = service->rs_reqh_ctx->rc_mero;
+	struct m0_conf_filesystem     *fs;
+	const struct m0_conf_obj_type *t;
+	struct m0_conf_disk           *d;
+	uint32_t                       i;
 
 	M0_PRE(service != NULL);
 	M0_PRE(service->rs_reqh_ctx != NULL);
@@ -260,10 +275,17 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 	M0_PRE(reqh != NULL);
 	M0_PRE(m0_reqh_lockers_is_empty(reqh, poolmach_key));
 
+	/* We maintain two types of pool-machines on server-side.
+	 * The first one is the global pool machine that includes all the
+	 * available devices in a pool. Apart from this, each pool-version
+	 * includes its own pool machine that includes devices present in the
+	 * pool version. When state of a device changes, the poolmachine utility
+	 * updates the global pool machine as well as the other pool machines
+	 * associated with the failed device.
+	 */
 	poolmach = m0_alloc(sizeof *poolmach);
 	if (poolmach == NULL) {
-		rc = -ENOMEM;
-		goto out;
+		return M0_ERR(-ENOMEM);
 	}
 
 	/* TODO configuration information is needed here. */
@@ -273,19 +295,46 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 	rc = m0_poolmach_init(poolmach, reqh->rh_beseg, grp,
 			      reqh->rh_dtm,
 			      PM_DEFAULT_NR_NODES,
-			      service->rs_reqh_ctx->rc_mero->cc_pool_width,
+			      mero->cc_pool_width,
 			      PM_DEFAULT_MAX_NODE_FAILURES,
-			      PM_DEFAULT_MAX_DEV_FAILURES);
+			      mero->cc_pool_width);
 	m0_sm_group_unlock(grp);
 	if (rc != 0) {
 		m0_free(poolmach);
-		goto out;
+		return M0_RC(rc);
 	}
+	rc = m0_conf_fs_get(mero->cc_profile, confc, &fs);
+	if (rc != 0) {
+		m0_free(poolmach);
+		return M0_RC(rc);
+	}
+
+	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_RACKS_FID,
+				M0_CONF_RACK_ENCLS_FID,
+				M0_CONF_ENCLOSURE_CTRLS_FID,
+				M0_CONF_CONTROLLER_DISKS_FID);
+	if (rc != 0) {
+		m0_free(poolmach);
+		return M0_RC(rc);
+	}
+	i = 0;
+	while ((rc = m0_conf_diter_next_sync(&it, is_object_disk))) {
+		obj = m0_conf_diter_result(&it);
+		t = m0_conf_obj_type(obj);
+		if (t == &M0_CONF_DISK_TYPE) {
+			d = container_of(obj, struct m0_conf_disk, ck_obj);
+			poolmach->pm_state->pst_devices_array[i].pd_id =
+				d->ck_obj.co_id;
+			M0_CNT_INC(i);
+		}
+	}
+	m0_confc_close(&fs->cf_obj);
+	m0_conf_diter_fini(&it);
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	m0_reqh_lockers_set(reqh, poolmach_key, poolmach);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d", reqh, poolmach_key);
-out:
 	return M0_RC(rc);
 }
 

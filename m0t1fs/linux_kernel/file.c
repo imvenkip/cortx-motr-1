@@ -1886,6 +1886,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	struct inode		 *inode;
 	struct m0_ivec_cursor	  cur;
 	struct m0_pdclust_layout *play;
+	struct data_buf            *dbuf;
 	struct io_request	 *req = map->pi_ioreq;
 
 	M0_ENTRY();
@@ -1938,6 +1939,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 		if (rc != 0)
 			goto err;
 		map->pi_databufs[row][col]->db_flags = flags;
+		dbuf = map->pi_databufs[row][col];
 	}
 
 	return M0_RC(0);
@@ -2753,6 +2755,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	struct inode             *inode;
 	struct data_buf          *dbuf;
 	struct m0_pdclust_layout *play;
+	struct m0t1fs_sb         *csb;
 
 	/*
 	 * read_old: Reads unavailable data subject to condition that
@@ -2838,8 +2841,10 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 
 	if (rc != 0)
 		goto err;
+
+	csb = M0T1FS_SB(inode->i_sb);
 	/* If parity group is healthy, there is no need to read parity. */
-	if (map->pi_state != PI_DEGRADED)
+	if (map->pi_state != PI_DEGRADED && !csb->csb_verify)
 		return M0_RC(0);
 
 	/*
@@ -2862,7 +2867,6 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 					   PAGE_CACHE_SIZE);
 	SEG_NR(&map->pi_ivec)   = 1;
 	indexvec_dump(&map->pi_ivec);
-
 	/* parity matrix from parity group. */
 	for (row = 0; row < parity_row_nr(play); ++row) {
 		for (col = 0; col < parity_col_nr(play); ++col) {
@@ -3254,6 +3258,8 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	enum m0_pdclust_unit_type   unit_type;
 	struct m0_pdclust_src_addr  src;
 	struct m0_pdclust_tgt_addr  tgt;
+	uint32_t                    row_start;
+	uint32_t                    row_end;
 	uint32_t                    row;
 	uint32_t                    col;
 	struct data_buf            *dbuf;
@@ -3304,19 +3310,21 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			if (unit_type == M0_PUT_SPARE ||
 			    unit_type == M0_PUT_PARITY)
 				continue;
-
-			page_pos_get(iomap, r_ext.e_start, &row, &col);
-			dbuf = iomap->pi_databufs[row][col];
-			M0_ASSERT(dbuf != NULL);
-
-			if (ioreq_sm_state(req) == IRS_DEGRADED_WRITING &&
-			    dbuf->db_flags & PA_WRITE)
-				dbuf->db_flags |= PA_DGMODE_WRITE;
-
-			M0_LOG(M0_DEBUG, "data block: unit %llu, row %lu, "
-			       "col %lu", (unsigned long long)unit,
-			       (unsigned long)row, (unsigned long)col);
-
+			if (ioreq_sm_state(req) == IRS_DEGRADED_WRITING) {
+				page_pos_get(iomap, r_ext.e_start, &row_start,
+						&col);
+				page_pos_get(iomap, r_ext.e_end - 1, &row_end,
+						&col);
+				dbuf = iomap->pi_databufs[row_start][col];
+				M0_ASSERT(dbuf != NULL);
+				for (row = row_start; row <= row_end; ++row) {
+					dbuf = iomap->pi_databufs[row][col];
+					M0_ASSERT(dbuf != NULL);
+					if (dbuf->db_flags & PA_WRITE);
+						dbuf->db_flags |=
+							PA_DGMODE_WRITE;
+				}
+			}
 			src.sa_unit = unit;
 			rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src, &tgt,
 							   &ti);
@@ -5334,10 +5342,9 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	req->ir_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_INFO, "reply received = %d, sns state = %d", rc,
 			 req->ir_sns_state);
-
 	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		M0_ASSERT(rw_reply != NULL);
-		M0_LOG(M0_INFO, "VERSION_MISMATCH received on "FID_F,
+		M0_LOG(M0_DEBUG, "VERSION_MISMATCH received on "FID_F,
 		       FID_P(&tioreq->ti_fid));
 		failure_vector_mismatch(irfop);
 	}
@@ -5432,7 +5439,6 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			       FID_P(&ti->ti_fid));
 			continue;
 		}
-
 		M0_LOG(M0_DEBUG, "Before Submitting fops for device "FID_F
 				 "fops length of ti=%u, total fops nr=%llu",
 				 FID_P(&ti->ti_fid),
@@ -5442,7 +5448,6 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 		m0_tl_for (iofops, &ti->ti_iofops, irfop) {
 			rc = iofop_async_submit(&irfop->irf_iofop,
 						ti->ti_session);
-
 			M0_LOG(M0_DEBUG, "Submitted fops for device "FID_F"@%p"
 					 " nr=%llu rc=%d",
 					 FID_P(&ti->ti_fid), irfop,

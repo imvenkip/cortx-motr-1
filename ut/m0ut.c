@@ -198,7 +198,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &sm_ut, true);
 	m0_ut_add(m, &snscm_xform_ut, true);
 	m0_ut_add(m, &snscm_storage_ut, true);
-	m0_ut_add(m, &sns_cm_repair_ut, true);
+	m0_ut_add(m, &sns_cm_repair_ut, false);
 	m0_ut_add(m, &snscm_net_ut, true);
 	m0_ut_add(m, &sns_flock_ut, true);
 	m0_ut_add(m, &spiel_ut, true);

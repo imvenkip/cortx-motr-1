@@ -94,7 +94,7 @@ static void poolmach_state_update(struct m0_poolmach_state *st,
 	} else if (m0_conf_obj_type(objv_real) == &M0_CONF_DISK_TYPE) {
 		d = M0_CONF_CAST(objv_real, m0_conf_disk);
 		st->pst_devices_array[*idx_devices].pd_id =
-			d->ck_dev->sd_obj.co_id;
+			d->ck_obj.co_id;
 		st->pst_devices_array[*idx_devices].pd_node =
 			&st->pst_nodes_array[*idx_nodes];
 		M0_CNT_INC(*idx_devices);
@@ -240,6 +240,49 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 	m0_rwlock_fini(&pm->pm_lock);
 }
 
+M0_INTERNAL int m0_poolmach_event_post(struct m0_poolmach *pm, uint64_t dev_id,
+				       enum m0_poolmach_event_owner_type et,
+				       enum m0_pool_nd_state state,
+				       struct m0_be_tx *tx)
+{
+	struct m0_poolmach_event    pme;
+	struct m0_pooldev          *dev_array;
+	bool                        transit = false;
+	int                         rc = 0;
+
+	dev_array   = pm->pm_state->pst_devices_array;
+	switch (state) {
+	case M0_PNDS_SNS_REPAIRING:
+		if (dev_array[dev_id].pd_state == M0_PNDS_FAILED)
+			transit = true;
+		break;
+	case M0_PNDS_SNS_REPAIRED:
+		if (dev_array[dev_id].pd_state ==
+				M0_PNDS_SNS_REPAIRING)
+			transit = true;
+		break;
+	case M0_PNDS_SNS_REBALANCING:
+		if (dev_array[dev_id].pd_state ==
+				M0_PNDS_SNS_REPAIRED)
+			transit = true;
+		break;
+	case M0_PNDS_ONLINE:
+		if (dev_array[dev_id].pd_state != M0_PNDS_SNS_REPAIRED)
+			transit = true;
+		break;
+	default:
+		M0_IMPOSSIBLE("Bad state");
+		break;
+	}
+	if (transit) {
+		M0_SET0(&pme);
+		pme.pe_type  = et;
+		pme.pe_index = dev_id;
+		pme.pe_state = state;
+		rc = m0_poolmach_state_transit(pm, &pme, tx);
+	}
+	return rc;
+}
 /**
  * The state transition path:
  *
@@ -379,7 +422,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 				spare_array[i].psu_device_index =
 					event->pe_index;
 				spare_array[i].psu_device_state =
-					M0_PNDS_SNS_REPAIRING;
+					event->pe_state;
 				break;
 			}
 		}

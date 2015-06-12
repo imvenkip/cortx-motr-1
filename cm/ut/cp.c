@@ -28,8 +28,11 @@
 #include "sns/cm/cp.h"
 #include "cm/ag.h"
 #include "cm/ut/common_service.h"
+#include "conf/ut/common.h"
 #include "lib/locality.h"
 #include "ioservice/fid_convert.h"
+#include "ut/file_helpers.h"
+#include "conf/preload.h"
 
 /* import from pool/pool_store.c */
 M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
@@ -268,19 +271,29 @@ static void test_cp_multi_thread(void)
  */
 static int cm_cp_init(void)
 {
-	int rc;
+	int                 rc;
+	struct m0_confc    *confc;
+	struct m0_locality *locality;
+	char                local_conf[M0_CONF_STR_MAXLEN];
 
 	M0_SET0(&cmut_rmach_ctx);
 	cmut_rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
 	cmut_rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
 	cmut_rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
 	m0_ut_rpc_mach_init_and_add(&cmut_rmach_ctx);
-
 	rc = m0_cm_type_register(&cm_ut_cmt);
 	M0_ASSERT(rc == 0);
 	cm_ut_service_alloc_init();
+	confc = &cm_ut_service->rs_reqh->rh_confc;
+	rc = m0_ut_file_read(M0_UT_PATH("diter_xc.txt"), local_conf,
+			     sizeof local_conf);
+	M0_UT_ASSERT(rc == 0);
+	locality = m0_locality0_get();
+	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, local_conf);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_ASSERT(rc == 0);
+	cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile = M0_UT_CONF_PROFILE;
 	rc = m0_ios_poolmach_init(cm_ut_service);
 	M0_ASSERT(rc == 0);
 
@@ -293,6 +306,7 @@ static int cm_cp_fini(void)
 	struct m0_reqh     *reqh = cm_ut_service->rs_reqh;
 	struct m0_poolmach *pm = m0_ios_poolmach_get(reqh);
 	struct m0_sm_group *grp  = m0_locality0_get()->lo_grp;
+	struct m0_confc    *confc = &reqh->rh_confc;
 
 	m0_sm_group_lock(grp);
 	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
@@ -301,6 +315,7 @@ static int cm_cp_fini(void)
 	cm_ut_service_cleanup();
 	m0_cm_type_deregister(&cm_ut_cmt);
 	m0_ut_rpc_mach_fini(&cmut_rmach_ctx);
+	m0_confc_fini(confc);
 	return 0;
 }
 

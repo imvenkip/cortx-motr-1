@@ -24,6 +24,9 @@
 #include "lib/misc.h"           /* M0_IN() */
 #include  "lib/locality.h"
 
+#include "mero/setup.h"
+#include "conf/diter.h"
+#include "conf/obj_ops.h"
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
@@ -38,6 +41,8 @@
 
 #include "sns/cm/trigger_fop.h"
 #include "sns/cm/cm.h"
+
+#include "pool/pool_machine.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/trace.h"
 
@@ -323,12 +328,17 @@ static int (*trig_action[]) (struct m0_fom *) = {
 static int trigger_fom_tick(struct m0_fom *fom)
 {
 	struct m0_be_tx_credit *tx_cred;
+	struct m0_cm           *cm;
+	struct m0_sns_cm       *scm;
 	struct m0_poolmach     *pm;
+	struct m0_confc        *confc;
+	struct m0_mero         *mero;
 	uint64_t                nr_fail;
-	int                     rc;
+	int                     rc = 0;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN){
+			/* Calculate credits for global pool machine. */
 			pm = m0_ios_poolmach_get(m0_fom_reqh(fom));
 			M0_ASSERT(pm != NULL);
 			nr_fail = m0_poolmach_nr_dev_failures(pm);
@@ -336,11 +346,20 @@ static int trigger_fom_tick(struct m0_fom *fom)
 			m0_poolmach_store_credit(pm, tx_cred);
 			m0_be_tx_credit_mul(tx_cred, nr_fail);
 			m0_be_tx_credit_add(tx_cred, tx_cred);
+			cm = trig2cm(fom);
+			scm = cm2sns(cm);
+			confc = &scm->sc_base.cm_service.rs_reqh->rh_confc;
+			mero = m0_cs_ctx_get(scm->sc_base.cm_service.rs_reqh);
+			rc = m0_poolmach_credit_calc(pm, confc,
+						     &mero->cc_pools_common,
+						     tx_cred);
+			if (rc != 0)
+				goto out;
 		}
 		rc = m0_fom_tick_generic(fom);
 	} else
 		rc = trig_action[m0_fom_phase(fom)](fom);
-
+out:
 	if (rc < 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		trigger_rep_set(fom);

@@ -327,26 +327,23 @@ static int cob_tick_prepare(struct m0_fom *fom)
 	struct m0_fop               *fop;
 	struct m0_fop_cob_common    *common;
 	struct m0_fom_cob_op        *cob_op;
-	struct m0_poolmach          *poolmach;
-	struct m0_poolmach_versions *cliv;
-	int                          rc;
+	int                          rc = 0;
 
 	M0_PRE(fom != NULL);
 
 	fop = fom->fo_fop;
 	common = m0_cobfop_common_get(fop);
 	cob_op = cob_fom_get(fom);
-	if (cob_is_md(cob_op))
-		/* pool machine check for meta-data cobs is not needed. */
-		return 0;
+	/* pool machine check for meta-data cobs is not needed. */
+	rc = cob_is_md(cob_op) ? 0 : cob_fom_pool_version_get(fom) ?:
+	  ios__poolmach_check(&cob_op->fco_pver->pv_mach,
+			      (struct m0_poolmach_versions*)&common->c_version);
 
-	rc = cob_fom_pool_version_get(fom);
-	if (rc != 0)
-		return M0_ERR(rc);
-	poolmach = &cob_op->fco_pver->pv_mach;
-	cliv = (struct m0_poolmach_versions*)&common->c_version;
-
-	return ios__poolmach_check(poolmach, cliv);
+	if (rc == 0 || rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+		m0_fom_phase_set(fom, M0_FOPH_COB_OPS_EXECUTE);
+	} else
+		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+	return M0_RC(rc);
 }
 
 static void cob_tick_tail(struct m0_fom *fom,
@@ -406,8 +403,6 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 	case M0_FOPH_COB_OPS_PREPARE:
 		M0_LOG(M0_DEBUG, "Cob %s operation prepare", ops);
 		rc = cob_tick_prepare(fom);
-		m0_fom_phase_moveif(fom, rc, M0_FOPH_COB_OPS_EXECUTE,
-				    M0_FOPH_FAILURE);
 		reply->cgr_rc = rc;
 		return M0_FSO_AGAIN;
 	case M0_FOPH_COB_OPS_EXECUTE:
@@ -470,8 +465,6 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 	case M0_FOPH_COB_OPS_PREPARE:
 		M0_LOG(M0_DEBUG, "Cob %s operation prepare", ops);
 		rc = cob_tick_prepare(fom);
-		m0_fom_phase_moveif(fom, rc, M0_FOPH_COB_OPS_EXECUTE,
-				    M0_FOPH_FAILURE);
 		reply->csr_rc = rc;
 		return M0_FSO_AGAIN;
 	case M0_FOPH_COB_OPS_EXECUTE:
@@ -684,8 +677,6 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	switch (m0_fom_phase(fom)) {
 	case M0_FOPH_COB_OPS_PREPARE:
 		rc = cob_tick_prepare(fom);
-		m0_fom_phase_moveif(fom, rc, M0_FOPH_COB_OPS_EXECUTE,
-				    M0_FOPH_FAILURE);
 		reply->cor_rc = rc;
 		return M0_FSO_AGAIN;
 	case M0_FOPH_COB_OPS_EXECUTE:

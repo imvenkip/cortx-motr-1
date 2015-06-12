@@ -35,6 +35,9 @@
 #include "ut/ut_rpc_machine.h"
 #include "ut/stob.h"            /* m0_ut_stob_create_by_stob_id */
 #include <unistd.h>             /* usleep */
+#include "conf/ut/common.h"
+#include "conf/preload.h"
+#include "ut/file_helpers.h"
 
 /* import from pool/pool_store.c */
 M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
@@ -660,7 +663,10 @@ static void cp_cm_proxy_init(struct m0_cm_proxy *proxy, const char *endpoint)
 
 static void sender_init()
 {
-	int rc;
+	int              rc;
+	struct m0_confc *confc;
+	struct m0_locality *locality;
+	char             local_conf[M0_CONF_STR_MAXLEN];
 
 	M0_SET0(&rmach_ctx);
 	rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
@@ -668,9 +674,18 @@ static void sender_init()
 	rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
 	m0_ut_rpc_mach_init_and_add(&rmach_ctx);
 
+	locality = m0_locality0_get();
 	sender_service_alloc_init();
+	confc = &sender_cm_service->rs_reqh->rh_confc;
+	rc = m0_ut_file_read(M0_UT_PATH("diter_xc.txt"), local_conf,
+			     sizeof local_conf);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, local_conf);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_reqh_service_start(sender_cm_service);
 	M0_UT_ASSERT(rc == 0);
+	sender_cm_service->rs_reqh_ctx->rc_mero->cc_profile =
+		M0_UT_CONF_PROFILE;
 	rc = m0_ios_poolmach_init(sender_cm_service);
 	M0_UT_ASSERT(rc == 0);
 	m0_cm_lock(&sender_cm);
@@ -734,8 +749,9 @@ static void sender_fini()
 	struct m0_reqh     *reqh;
 	struct m0_poolmach *pm;
 	struct m0_sm_group *grp;
-	int rc;
-	int i;
+	struct m0_confc    *confc;
+	int                 rc;
+	int                 i;
 
 	m0_cm_lock(&sender_cm);
 	m0_cm_proxy_del(&sender_cm, &sender_cm_proxy);
@@ -756,6 +772,8 @@ static void sender_fini()
 	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
 	m0_sm_group_unlock(grp);
 	m0_ios_poolmach_fini(sender_cm_service);
+	confc = &sender_cm_service->rs_reqh->rh_confc;
+	m0_confc_fini(confc);
 	m0_reqh_service_prepare_to_stop(sender_cm_service);
 	m0_reqh_service_stop(sender_cm_service);
 	m0_reqh_service_fini(sender_cm_service);

@@ -267,6 +267,12 @@ m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
 				 enum m0_conf_service_type type);
 
 /**
+ * Returns an array of pool versions associated with the given device.
+ */
+M0_INTERNAL struct m0_conf_pver **m0_pool_dev_pver(struct m0_conf_disk *disk,
+						   struct m0_confc *confc);
+
+/**
  * A state that a pool node/device can be in.
  */
 enum m0_pool_nd_state {

@@ -28,6 +28,7 @@
 #include "lib/chan.h"
 
 #include "fop/fop.h"
+#include "pool/pool_machine.h"
 
 #include "mero/setup.h"
 #include "net/net.h"
@@ -48,6 +49,8 @@
 #include "rpc/rpclib.h" /* m0_rpc_client_connect. */
 #include "rm/rm_service.h"
 
+#include "conf/diter.h"
+#include "conf/obj_ops.h"
 /**
   @page SNSCMDLD SNS copy machine DLD
   - @ref SNSCMDLD-ovw
@@ -385,6 +388,9 @@ extern struct m0_cm_type  sns_rebalance_cmt;
 extern const struct m0_sns_cm_helpers repair_helpers;
 extern const struct m0_sns_cm_helpers rebalance_helpers;
 
+static int pv_pm_event_post(struct m0_poolmach *pm, struct m0_fid *dfid,
+			    enum m0_poolmach_event_owner_type et,
+			    enum m0_pool_nd_state state, struct m0_be_tx *tx);
 M0_INTERNAL struct m0_sns_cm *cm2sns(struct m0_cm *cm)
 {
 	return container_of(cm, struct m0_sns_cm, sc_base);
@@ -550,56 +556,77 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 					enum m0_pool_nd_state state)
 {
 	struct m0_poolmach         *pm;
+	struct m0_poolmach         *pv_pm;
 	struct m0_pool_spare_usage *spare_array;
 	struct m0_pooldev          *dev_array;
-	struct m0_poolmach_event    pme;
+	struct m0_confc            *confc;
+	struct m0_conf_disk        *disk;
+	struct m0_conf_pver       **conf_pver;
+	struct m0_pool_version     *pool_ver;
+	struct m0_mero             *mero;
+	struct m0_fid              *dev_fid;
 	uint32_t                    dev_id;
-	bool                        transit;
+	uint64_t                    max_failures;
 	int                         i;
+	int                         j;
 	int                         rc = 0;
 
+	confc = &scm->sc_base.cm_service.rs_reqh->rh_confc;
 	pm = m0_ios_poolmach_get(scm->sc_base.cm_service.rs_reqh);
 	spare_array = pm->pm_state->pst_spare_usage_array;
-	for (i = 0; spare_array[i].psu_device_index != POOL_PM_SPARE_SLOT_UNUSED; ++i) {
-		transit = false;
+	max_failures = pm->pm_state->pst_max_device_failures;
+	mero = m0_cs_ctx_get(scm->sc_base.cm_service.rs_reqh);
+	for (i = 0; i < max_failures; ++i) {
 		dev_id = spare_array[i].psu_device_index;
+		if (dev_id == POOL_PM_SPARE_SLOT_UNUSED)
+			continue;
 		dev_array = pm->pm_state->pst_devices_array;
-		switch (state) {
-		case M0_PNDS_SNS_REPAIRING:
-			if (dev_array[dev_id].pd_state == M0_PNDS_FAILED)
-				transit = true;
-			break;
-		case M0_PNDS_SNS_REPAIRED:
-			if (dev_array[dev_id].pd_state ==
-			    M0_PNDS_SNS_REPAIRING)
-				transit = true;
-			break;
-		case M0_PNDS_SNS_REBALANCING:
-			if (dev_array[dev_id].pd_state ==
-			    M0_PNDS_SNS_REPAIRED)
-				transit = true;
-			break;
-		case M0_PNDS_ONLINE:
-			if (dev_array[dev_id].pd_state != M0_PNDS_SNS_REPAIRED)
-				transit = true;
-			break;
-		default:
-			M0_IMPOSSIBLE("Bad state");
-			break;
+		dev_fid   = &dev_array[dev_id].pd_id;
+		rc = m0_conf_disk_get(confc, dev_fid, &disk);
+		if (rc != 0)
+			return M0_RC(rc);
+		conf_pver = m0_pool_dev_pver(disk, confc);
+		if (conf_pver == NULL)
+			return M0_ERR(-EINVAL);
+		for (j = 0; conf_pver[j] != NULL; ++j) {
+			pool_ver =
+			  m0_pool_version_find(&mero->cc_pools_common,
+					       &conf_pver[j]->pv_obj.co_id);
+			pv_pm = &pool_ver->pv_mach;
+			pv_pm_event_post(pv_pm, dev_fid, et, state, tx);
 		}
-		if (transit) {
-			M0_SET0(&pme);
-			pme.pe_type  = et;
-			pme.pe_index = dev_id;
-			pme.pe_state = state;
-			rc = m0_poolmach_state_transit(pm, &pme, tx);
-			if (rc != 0)
-				break;
-
-		}
+		/* Update global pm. */
+		rc = m0_poolmach_event_post(pm, dev_id, et, state, tx);
+		m0_confc_close(&disk->ck_obj);
 	}
-
 	return M0_RC(rc);
+}
+
+static int pv_pm_event_post(struct m0_poolmach *pm, struct m0_fid *dfid,
+			    enum m0_poolmach_event_owner_type et,
+			    enum m0_pool_nd_state state, struct m0_be_tx *tx)
+{
+	struct m0_pool_spare_usage *spare_array;
+	struct m0_pooldev          *dev_array;
+	uint64_t                    dev_id;
+	uint64_t                    max_failures;
+	uint64_t                    i;
+	int                         rc = 0;
+
+	spare_array  = pm->pm_state->pst_spare_usage_array;
+	dev_array    = pm->pm_state->pst_devices_array;
+	max_failures = pm->pm_state->pst_max_device_failures;
+	/* Locate the input device in poolmachine. */
+	for (i = 0; i < max_failures; ++i) {
+		dev_id = spare_array[i].psu_device_index;
+		if (dev_id == POOL_PM_SPARE_SLOT_UNUSED)
+			continue;
+		if (m0_fid_eq(&dev_array[dev_id].pd_id, dfid))
+			break;
+	}
+	if (i < max_failures)
+		rc = m0_poolmach_event_post(pm, dev_id, et, state, tx);
+	return rc;
 }
 
 M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)

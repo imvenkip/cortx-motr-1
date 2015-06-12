@@ -34,6 +34,8 @@ struct m0_conf_filesystem;
 struct m0_conf_pver;
 struct m0_conf_obj;
 struct m0_conf_sdev;
+struct m0_conf_process;
+struct m0_conf_disk;
 struct m0_conf_root;
 struct m0_conf_service;
 struct m0_rpc_session;
@@ -71,6 +73,14 @@ M0_INTERNAL int m0_conf_fs_get(const char                 *profile,
 M0_INTERNAL int m0_conf_device_get(struct m0_confc      *confc,
 				   struct m0_fid        *fid,
 				   struct m0_conf_sdev **sdev);
+
+/**
+ * Obtains disk object associated with given profile.
+ */
+M0_INTERNAL int m0_conf_disk_get(struct m0_confc      *confc,
+			         struct m0_fid        *fid,
+				 struct m0_conf_disk **disk);
+
 
 /** Finds pool version which does not intersect with the given failure set. */
 M0_INTERNAL int m0_conf_poolversion_get(struct m0_conf_filesystem *fs,

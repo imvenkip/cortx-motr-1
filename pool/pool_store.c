@@ -24,6 +24,7 @@
 #include "lib/memory.h"
 #include "stob/stob.h"
 #include "pool/pool.h"
+#include "conf/confc.h" /* m0_confc_close */
 #include "lib/misc.h"
 #include "lib/uuid.h"
 #include "be/seg0.h"
@@ -100,6 +101,7 @@ M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach     *pm,
 	struct m0_poolmach_event_link *event_link;
 	struct m0_poolmach_state      *state = pm->pm_state;
 
+	M0_PRE(state != NULL);
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(state));
 	m0_be_tx_credit_add(accum,
 			    &M0_BE_TX_CREDIT(state->pst_nr_nodes,
@@ -113,6 +115,7 @@ M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach     *pm,
 			&M0_BE_TX_CREDIT(state->pst_max_device_failures,
 				sizeof *state->pst_spare_usage_array *
 				state->pst_max_device_failures));
+
 	M0_BE_ALLOC_CREDIT_PTR(event_link, pm->pm_be_seg, accum);
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(*event_link));
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(struct m0_tlink));
@@ -405,6 +408,58 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
 
 	M0_ENTRY();
 	return M0_RC(poolmach_store_destroy(be_seg, sm_grp));
+}
+
+M0_INTERNAL int m0_poolmach_credit_calc(struct m0_poolmach *pm,
+					struct m0_confc *confc,
+					struct m0_pools_common *cc_pools,
+					struct m0_be_tx_credit *tx_cred)
+{
+
+	struct m0_pool_spare_usage  *spare_array;
+	struct m0_pooldev           *dev_array;
+	struct m0_conf_disk         *disk;
+	struct m0_pool_version      *pool_ver;
+	struct m0_conf_pver        **conf_pver;
+	struct m0_poolmach          *pv_pm;
+	struct m0_fid               *dev_fid;
+	uint32_t                     dev_id;
+	uint32_t                     i;
+	uint32_t                     j;
+	uint64_t                     max_failures;
+	int                          rc = 0;
+
+	/* Calculate credits for pool-machines in
+	 * different pool-versions.
+	 */
+	spare_array  = pm->pm_state->pst_spare_usage_array;
+	dev_array    = pm->pm_state->pst_devices_array;
+	max_failures = pm->pm_state->pst_max_device_failures;
+	for (i = 0; i < max_failures; ++i) {
+		dev_id    = spare_array[i].psu_device_index;
+		if (dev_id == POOL_PM_SPARE_SLOT_UNUSED)
+			continue;
+		dev_fid = &dev_array[dev_id].pd_id;
+		rc = m0_conf_disk_get(confc, dev_fid, &disk);
+		if (rc != 0)
+			return M0_RC(rc);
+		conf_pver =
+			m0_pool_dev_pver(disk, confc);
+		if (conf_pver == NULL) {
+			m0_confc_close(&disk->ck_obj);
+			return M0_ERR(-EINVAL);
+		}
+		for (j = 0; conf_pver[j] != NULL; ++j) {
+			pool_ver =
+				m0_pool_version_find(cc_pools,
+						&conf_pver[j]->pv_obj.co_id);
+			pv_pm = &pool_ver->pv_mach;
+			m0_poolmach_store_credit(pv_pm,
+					tx_cred);
+		}
+		m0_confc_close(&disk->ck_obj);
+	}
+	return M0_RC(rc);
 }
 
 #else /* __KERNEL__ */

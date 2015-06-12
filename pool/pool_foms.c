@@ -32,6 +32,10 @@
 #include "ioservice/io_device.h"
 #include "rpc/rpc_opcodes.h"
 
+#include "mero/setup.h"
+#include "conf/diter.h"
+#include "conf/obj_ops.h"
+#include <stdio.h>
 static const struct m0_fom_ops poolmach_ops;
 
 static int poolmach_fom_create(struct m0_fop *fop, struct m0_fom **out,
@@ -72,18 +76,83 @@ static int poolmach_fom_create(struct m0_fop *fop, struct m0_fom **out,
         return M0_RC(rc);
 }
 
+static void poolmach_fom_store_credit(struct m0_fom *fom)
+{
+
+	struct m0_fop_poolmach_set  *set_fop;
+	struct m0_fop               *req_fop;
+	struct m0_poolmach          *poolmach;
+	struct m0_conf_disk         *disk;
+	struct m0_confc             *confc;
+	struct m0_mero              *mero;
+	struct m0_conf_pver        **conf_pver;
+	struct m0_poolmach          *pv_pm = NULL;
+	struct m0_fid               *dev_fid;
+	struct m0_pool_version      *pool_ver;
+	struct m0_reqh              *reqh;
+	uint32_t                     dev_id;
+	uint32_t                     k;
+	int                          i;
+	int                          rc;
+	struct m0_pooldev           *dev_array;
+
+	reqh         = m0_fom_reqh(fom);
+	confc        = &reqh->rh_confc;
+	poolmach     = m0_ios_poolmach_get(reqh);
+	mero         = m0_cs_ctx_get(reqh);
+	req_fop      = fom->fo_fop;
+	dev_array    = poolmach->pm_state->pst_devices_array;
+	set_fop = m0_fop_data(req_fop);
+
+	for (i = 0; i < set_fop->fps_dev_info.fpi_nr; ++i) {
+		m0_poolmach_store_credit(poolmach,
+					 m0_fom_tx_credit(fom));
+		dev_id =
+		  set_fop->fps_dev_info.fpi_dev->fpd_index;
+		dev_fid = &dev_array[dev_id].pd_id;
+		rc = m0_conf_disk_get(confc, dev_fid,
+				      &disk);
+		if (rc != 0)
+			break;
+		conf_pver =
+			m0_pool_dev_pver(disk, confc);
+		for (k = 0; conf_pver[k] != NULL; ++k) {
+			pool_ver =
+				m0_pool_version_find(&mero->cc_pools_common,
+						&conf_pver[k]->pv_obj.co_id);
+			pv_pm = &pool_ver->pv_mach;
+			m0_poolmach_store_credit(pv_pm,
+					m0_fom_tx_credit(fom));
+		}
+		m0_confc_close(&disk->ck_obj);
+	}
+}
+
 static int poolmach_fom_tick(struct m0_fom *fom)
 {
-	struct m0_fop      *req_fop;
-	struct m0_fop      *rep_fop;
-	struct m0_poolmach *poolmach;
-	struct m0_reqh      *reqh;
+	struct m0_fop           *req_fop;
+	struct m0_fop           *rep_fop;
+	struct m0_poolmach      *poolmach;
+	struct m0_pooldev       *dev_array;
+	struct m0_reqh          *reqh;
+	struct m0_mero          *mero;
+	struct m0_confc         *confc;
+	struct m0_conf_disk     *disk;
+	struct m0_conf_pver    **conf_pver;
+	struct m0_pool_version  *pool_ver;
+	struct m0_poolmach      *pv_pm = NULL;
+	struct m0_fid           *dev_fid;
+	int                      i;
+	int                      j;
+	int                      k;
 
-	reqh = m0_fom_reqh(fom);
-	poolmach = m0_ios_poolmach_get(reqh);
 
-	req_fop = fom->fo_fop;
-	rep_fop = fom->fo_rep_fop;
+	reqh         = m0_fom_reqh(fom);
+	confc        = &reqh->rh_confc;
+	poolmach     = m0_ios_poolmach_get(reqh);
+	req_fop      = fom->fo_fop;
+	rep_fop      = fom->fo_rep_fop;
+	dev_array    = poolmach->pm_state->pst_devices_array;
 
 	/* first handle generic phase */
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
@@ -91,15 +160,7 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
 			switch (m0_fop_opcode(req_fop)) {
 			case M0_POOLMACHINE_SET_OPCODE: {
-				struct m0_fop_poolmach_set *set_fop;
-				int                         i;
-
-				set_fop = m0_fop_data(req_fop);
-
-				for (i = 0; i < set_fop->fps_dev_info.fpi_nr;
-				     ++i)
-					m0_poolmach_store_credit(poolmach,
-							m0_fom_tx_credit(fom));
+				poolmach_fom_store_credit(fom);
 				break;
 			}
 			default:
@@ -142,19 +203,57 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 		struct m0_fop_poolmach_set     *set_fop;
 		struct m0_fop_poolmach_set_rep *set_fop_rep;
 		struct m0_poolmach_event        pme;
+		struct m0_fid                  *tfid;
 		int                             rc = 0;
-		int                             i;
+
 
 		set_fop = m0_fop_data(req_fop);
 		set_fop_rep = m0_fop_data(rep_fop);
+		mero = m0_cs_ctx_get(reqh);
 
 		for (i = 0; i < set_fop->fps_dev_info.fpi_nr; ++i) {
 		     M0_SET0(&pme);
 		     pme.pe_type  = set_fop->fps_type;
 		     pme.pe_index = set_fop->fps_dev_info.fpi_dev[i].fpd_index;
 		     pme.pe_state = set_fop->fps_dev_info.fpi_dev[i].fpd_state;
+		     /* Update pool-machines per pool-version to which device
+		      * is associated.
+		      */
+		     dev_fid   = &dev_array[pme.pe_index].pd_id;
+		     rc = m0_conf_disk_get(confc, dev_fid, &disk);
+		     if (rc != 0)
+			     break;
+		     conf_pver = m0_pool_dev_pver(disk, confc);
+		     if (conf_pver == NULL)
+			     break;
+		     for (k = 0; conf_pver[k] != NULL; ++k) {
+			     pool_ver =
+				m0_pool_version_find(&mero->cc_pools_common,
+						     &conf_pver[k]->pv_obj.co_id);
+			     pv_pm = &pool_ver->pv_mach;
+			     /* Get the serial index of device within a local
+			      * pm.
+			      */
+			     for (j = 0; j < pv_pm->pm_state->pst_nr_devices;
+				  ++j) {
+				     tfid =
+				      &pv_pm->pm_state->pst_devices_array[j].pd_id;
+				     if (m0_fid_eq(dev_fid, tfid))
+					     break;
+			     }
+			     M0_ASSERT(j < pv_pm->pm_state->pst_nr_devices);
+			     pme.pe_index = j;
+			     rc =
+				m0_poolmach_state_transit(pv_pm, &pme,
+							  &fom->fo_tx.tx_betx);
+			     if (rc != 0)
+				     break;
+		     }
+		     m0_confc_close(&disk->ck_obj);
+		     /* Update the global pool-machine. */
+		     M0_ASSERT(pme.pe_index < pv_pm->pm_state->pst_nr_devices);
 		     rc = m0_poolmach_state_transit(poolmach, &pme,
-				     &fom->fo_tx.tx_betx);
+						    &fom->fo_tx.tx_betx);
 		     if (rc != 0)
 			     break;
 		}

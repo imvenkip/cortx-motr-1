@@ -36,6 +36,9 @@
 #include "cm/ag.h"
 #include "cm/ut/common_service.h"
 
+#include "conf/ut/common.h"
+#include "conf/preload.h"
+#include "ut/file_helpers.h"
 #include <unistd.h>			/* usleep */
 #include "lib/locality.h"
 
@@ -75,15 +78,26 @@ static void cm_setup_ut(void)
 	struct m0_reqh     *reqh;
 	struct m0_poolmach *pm;
 	struct m0_sm_group *grp;
+	struct m0_locality *locality;
 	struct m0_cm       *cm = &cm_ut[0].ut_cm;
+	struct m0_confc    *confc;
+	char                local_conf[M0_CONF_STR_MAXLEN];
 	int                 rc;
 
 	cm_ut_service_alloc_init();
+	confc = &cm_ut_service->rs_reqh->rh_confc;
+	rc = m0_ut_file_read(M0_UT_PATH("diter_xc.txt"), local_conf,
+			     sizeof local_conf);
+	M0_UT_ASSERT(rc == 0);
+	locality = m0_locality0_get();
 
+	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, local_conf);
+	M0_UT_ASSERT(rc == 0);
 	/* Internally calls m0_cm_setup(). */
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
+	cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile = M0_UT_CONF_PROFILE;
 	rc = m0_ios_poolmach_init(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
@@ -110,8 +124,8 @@ static void cm_setup_ut(void)
 	m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
 	reqh = cm_ut_service->rs_reqh;
 	pm = m0_ios_poolmach_get(reqh);
+	m0_confc_fini(confc);
 	grp  = m0_locality0_get()->lo_grp;
-
 	m0_sm_group_lock(grp);
 	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
 	m0_sm_group_unlock(grp);

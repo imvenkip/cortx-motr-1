@@ -24,6 +24,7 @@
 #define __MERO_POOL_MACHINE_H__
 
 #include "lib/tlist.h"
+#include "conf/helpers.h" /* m0_conf_fs_get() */
 
 /**
    @defgroup poolmach Pool machine
@@ -39,6 +40,9 @@ struct m0_pooldev;
 struct m0_pool_spare_usage;
 struct m0_poolmach_event;
 struct m0_poolmach_event_link;
+struct m0_conf_pver;
+struct m0_mero;
+enum m0_pool_nd_state;
 
 /** pool version numer type */
 enum m0_poolmach_version {
@@ -228,6 +232,23 @@ M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach *pm,
 					  struct m0_be_tx_credit *accum);
 
 /**
+ * Interates over all devices from the global pool-machine, that consume spare
+ * slot and calculates credits for each of the pool-machines to which the device
+ * belongs.
+ */
+M0_INTERNAL int m0_poolmach_credit_calc(struct m0_poolmach *pm,
+					struct m0_confc *confc,
+					struct m0_pools_common *cc_pools,
+					struct m0_be_tx_credit *tx_cred);
+/**
+ * Generates a pool machine event for the given device in poolmachine, and posts
+ * the same for poolmachine state transition.
+ */
+M0_INTERNAL int m0_poolmach_event_post(struct m0_poolmach *pm, uint64_t dev_id,
+				       enum m0_poolmach_event_owner_type et,
+				       enum m0_pool_nd_state state,
+				       struct m0_be_tx *tx);
+/**
  * Change the pool machine state according to this event.
  *
  * @param event the event to drive the state change. This event
@@ -338,6 +359,11 @@ M0_INTERNAL uint64_t m0_poolmach_nr_dev_failures(struct m0_poolmach *pm);
 
 M0_TL_DESCR_DECLARE(poolmach_events, M0_EXTERN);
 M0_TL_DECLARE(poolmach_events, M0_INTERNAL, struct m0_poolmach_event_link);
+
+struct m0_pool_version *m0_dev_pver_get(struct m0_fid dev_fid,
+					struct m0_confc confc, char *profile,
+					struct m0_pools_common *pools_common);
+
 /** @} end of poolmach group */
 #endif /* __MERO_POOL_PVER_MACHINE_H__ */
 

@@ -481,8 +481,8 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 M0_INTERNAL struct m0_pool_version *
 m0__pool_version_find(struct m0_pool *pool, const struct m0_fid *id)
 {
-	return m0_tl_find(pool_version, pv, &pool->po_vers,
-			  m0_fid_eq(&pv->pv_id, id));
+		return m0_tl_find(pool_version, pv, &pool->po_vers,
+				  m0_fid_eq(&pv->pv_id, id));
 }
 
 M0_INTERNAL struct m0_pool_version *
@@ -493,7 +493,6 @@ m0_pool_version_find(struct m0_pools_common *pc, const struct m0_fid *id)
 
 	M0_ENTRY();
 	M0_PRE(pc != NULL);
-
 	m0_tl_for(pools, &pc->pc_pools, p) {
 		pver = m0__pool_version_find(p, id);
 		if (pver != NULL)
@@ -927,6 +926,18 @@ M0_INTERNAL int m0_pool_device_reopen(struct m0_poolmach *pm,
 		}
 	}
 	return M0_RC(rc);
+}
+
+M0_INTERNAL struct m0_conf_pver **m0_pool_dev_pver(struct m0_conf_disk *disk,
+						   struct m0_confc *confc)
+{
+	struct m0_conf_dir        *dir;
+	struct m0_conf_controller *contr;
+
+	dir = M0_CONF_CAST(disk->ck_obj.co_parent, m0_conf_dir);
+	contr = M0_CONF_CAST(dir->cd_obj.co_parent,
+			     m0_conf_controller);
+	return contr->cc_pvers;
 }
 
 static int pool_device_index(struct m0_poolmach *pm, struct m0_fid *fid)

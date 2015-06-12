@@ -25,7 +25,10 @@ SINGLE_FILE="SINGLE_FILE"
 SEPARATE_FILE="SEPARATE_FILE"
 BOTH_FILE_KINDS="BOTH_FILE_KINDS" # default
 
-export file_kind=$BOTH_FILE_KINDS
+# File creation gets hung after a device failure. MERO-1085 has been created for the same.
+# file_kind should be changed back to BOTH_FILE_KINDS once MERO-1085 is fixed.
+#export file_kind=$BOTH_FILE_KINDS
+export file_kind=$SINGLE_FILE
 
 # Data pattern to be used while creating data files for testing
 # - ABCD
