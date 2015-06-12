@@ -1968,6 +1968,8 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	rc = m0_pools_setup(&cctx->cc_pools_common, fs, NULL, NULL, NULL);
 	if (rc != 0)
 		goto pools_common_fini;
+	if (cctx->cc_pools_common.pc_md_redundancy > 0)
+		cctx->cc_reqh_ctx.rc_reqh.rh_oostore = true;
 
 	m0_confc_close(&fs->cf_obj);
 	m0_free(confstr);

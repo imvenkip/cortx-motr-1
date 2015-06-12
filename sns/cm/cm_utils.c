@@ -436,6 +436,11 @@ M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_fid *fid)
                M0_MDSERVICE_START_FID.f_key;
 }
 
+M0_INTERNAL struct m0_reqh *m0_sns_cm2reqh(const struct m0_sns_cm *snscm)
+{
+	return snscm->sc_base.cm_service.rs_reqh;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} endgroup SNSCM */

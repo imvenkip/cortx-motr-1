@@ -150,6 +150,11 @@ struct m0_reqh {
 	 * Confc instance.
 	 */
 	struct m0_confc               rh_confc;
+
+	/**
+	 * Oostore mode
+	 */
+	bool                          rh_oostore;
 };
 
 /**

@@ -444,7 +444,7 @@ M0_TL_DECLARE(cs_eps, M0_INTERNAL, struct cs_endpoint_and_xprt);
 
 M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 {
-	struct m0_reqh         *reqh = scm->sc_base.cm_service.rs_reqh;
+	struct m0_reqh         *reqh = m0_sns_cm2reqh(scm);
 	struct m0_mero         *mero = m0_cs_ctx_get(reqh);
 	struct m0_pools_common *pc = &mero->cc_pools_common;
 	int                     rc;
@@ -452,8 +452,9 @@ M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 	M0_ENTRY("scm: %p", scm);
 	M0_ASSERT(mero->cc_pool_width > 0);
 
-	scm->sc_rm_ctx.rc_rm_ctx = pc->pc_rm_ctx;
-	m0_rm_domain_init(&scm->sc_rm_ctx.rc_dom);
+	if (!reqh->rh_oostore) {
+		scm->sc_rm_ctx.rc_rm_ctx = pc->pc_rm_ctx;
+		m0_rm_domain_init(&scm->sc_rm_ctx.rc_dom);
 	/*
 	 * XXX Init and register new resource type for file locks.
 	 * m0_rm_type_register() starts local credit processing thread for
@@ -463,8 +464,10 @@ M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 	 * separate mero instance on which no other service (except MDS) is
 	 * running.
 	 **/
-	m0_sns_cm_flock_resource_set(scm);
-	m0_rm_type_register(&scm->sc_rm_ctx.rc_dom, &scm->sc_rm_ctx.rc_rt);
+		m0_sns_cm_flock_resource_set(scm);
+		m0_rm_type_register(&scm->sc_rm_ctx.rc_dom,
+				    &scm->sc_rm_ctx.rc_rt);
+	}
 
 	rc = m0_scmfctx_htable_init(&scm->sc_file_ctx, mero->cc_pool_width);
 	if (rc != 0)
@@ -659,7 +662,8 @@ M0_INTERNAL void m0_sns_cm_rm_fini(struct m0_sns_cm *scm)
 
 	m0_sns_cm_fctx_cleanup(scm);
 
-	m0_rm_type_deregister(&scm->sc_rm_ctx.rc_rt);
+	if (!m0_sns_cm2reqh(scm)->rh_oostore)
+		m0_rm_type_deregister(&scm->sc_rm_ctx.rc_rt);
 }
 
 M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)

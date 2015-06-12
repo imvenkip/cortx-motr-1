@@ -43,11 +43,6 @@
 const struct m0_uint128 m0_rm_sns_cm_group = M0_UINT128(0, 2);
 extern const struct m0_rm_resource_type_ops file_lock_type_ops;
 
-static struct m0_reqh *sns_cm2reqh(const struct m0_sns_cm *snscm)
-{
-	return snscm->sc_base.cm_service.rs_reqh;
-}
-
 static uint64_t sns_cm_fctx_hash_func(const struct m0_htable *htable,
 				      const void *k)
 {
@@ -75,7 +70,7 @@ static struct m0_sm_state_descr fctx_sd[M0_SCFS_NR] = {
 	[M0_SCFS_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "file ctx init",
-		.sd_allowed = M0_BITS(M0_SCFS_LOCK_WAIT)
+		.sd_allowed = M0_BITS(M0_SCFS_LOCK_WAIT, M0_SCFS_LOCKED)
 	},
 	[M0_SCFS_LOCK_WAIT] = {
 		.sd_flags   = 0,
@@ -135,7 +130,6 @@ static void _fctx_status_set(struct m0_sns_cm_file_ctx *fctx, int state)
 static void __fctx_ast_post(struct m0_sns_cm_file_ctx *fctx,
 			    struct m0_sm_ast *ast)
 {
-
 	m0_sm_ast_post(fctx->sf_group, ast);
 }
 
@@ -145,13 +139,11 @@ static void _fctx_fini(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	_fctx_status_set(fctx, M0_SCFS_FINI);
 	m0_sm_fini(&fctx->sf_sm);
-	m0_be_tx_close(&fctx->sf_tx);
-	m0_clink_add(&fctx->sf_tx.t_sm.sm_chan, &fctx->sf_clink);
+	m0_free(fctx);
 }
 
 static void __sns_cm_fctx_cleanup(struct m0_sns_cm_file_ctx *fctx)
 {
-	m0_file_unlock(&fctx->sf_rin);
 	if (fctx->sf_pi != NULL)
 		m0_layout_instance_fini(&fctx->sf_pi->pi_base);
 	if (fctx->sf_layout != NULL)
@@ -160,28 +152,6 @@ static void __sns_cm_fctx_cleanup(struct m0_sns_cm_file_ctx *fctx)
 	m0_sns_cm_fctx_fini(fctx);
 	fctx->sf_fini_ast.sa_cb = _fctx_fini;
 	__fctx_ast_post(fctx, &fctx->sf_fini_ast);
-}
-
-static void _fctx_destroy(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_sns_cm_file_ctx *fctx =
-		container_of(ast, struct m0_sns_cm_file_ctx, sf_fini_ast);
-	m0_be_tx_fini(&fctx->sf_tx);
-	m0_free(fctx);
-}
-
-static bool fctx_clink_cb(struct m0_clink *link)
-{
-	struct m0_sns_cm_file_ctx *fctx =
-			container_of(link, struct m0_sns_cm_file_ctx, sf_clink);
-
-	if (m0_be_tx_state(&fctx->sf_tx) == M0_BTS_DONE) {
-		m0_clink_del(&fctx->sf_clink);
-		fctx->sf_fini_ast.sa_cb = _fctx_destroy;
-		__fctx_ast_post(fctx, &fctx->sf_fini_ast);
-	}
-
-	return true;
 }
 
 M0_INTERNAL void m0_sns_cm_fctx_cleanup(struct m0_sns_cm *scm)
@@ -212,13 +182,47 @@ M0_INTERNAL void m0_sns_cm_flock_resource_set(struct m0_sns_cm *scm)
         scm->sc_rm_ctx.rc_rt.rt_ops = &file_lock_type_ops;
 }
 
+static void sns_cm_fctx_rm_init(struct m0_sns_cm_file_ctx *fctx)
+{
+	struct m0_sns_cm *scm;
+
+	M0_PRE(fctx != NULL && fctx->sf_scm != NULL);
+
+	scm = fctx->sf_scm;
+	m0_file_init(&fctx->sf_file, &fctx->sf_fid, &scm->sc_rm_ctx.rc_dom,
+		     M0_DI_NONE);
+	m0_rm_remote_init(&fctx->sf_creditor, &fctx->sf_file.fi_res);
+	m0_file_owner_init(&fctx->sf_owner, &m0_rm_sns_cm_group, &fctx->sf_file,
+			   NULL);
+	m0_rm_incoming_init(&fctx->sf_rin, &fctx->sf_owner, M0_RIT_LOCAL,
+			    RIP_NONE,
+			    RIF_MAY_BORROW | RIF_MAY_REVOKE);
+
+	fctx->sf_owner.ro_creditor = &fctx->sf_creditor;
+	fctx->sf_creditor.rem_session = &scm->sc_rm_ctx.rc_rm_ctx->sc_session;
+	fctx->sf_creditor.rem_cookie = M0_COOKIE_NULL;
+}
+
+static void sns_cm_fctx_rm_fini(struct m0_sns_cm_file_ctx *fctx)
+{
+	int rc;
+
+	m0_file_unlock(&fctx->sf_rin);
+	m0_rm_owner_windup(&fctx->sf_owner);
+	rc = m0_rm_owner_timedwait(&fctx->sf_owner, M0_BITS(ROS_FINAL),
+				   M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+	m0_file_owner_fini(&fctx->sf_owner);
+	m0_rm_remote_fini(&fctx->sf_creditor);
+	m0_file_fini(&fctx->sf_file);
+}
+
 M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 				    const struct m0_fid *fid,
 				    struct m0_sm_group *grp,
 				    struct m0_sns_cm_file_ctx **sc_fctx)
 {
 	struct m0_sns_cm_file_ctx *fctx;
-	struct m0_be_seg          *seg = sns_cm2reqh(scm)->rh_beseg;
 
 	M0_ENTRY();
 	M0_PRE(sc_fctx != NULL || scm != NULL || fid!= NULL);
@@ -232,17 +236,7 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 	if (fctx == NULL)
 		return M0_ERR(-ENOMEM);
 	m0_fid_set(&fctx->sf_fid, fid->f_container, fid->f_key);
-	m0_file_init(&fctx->sf_file, &fctx->sf_fid, &scm->sc_rm_ctx.rc_dom, M0_DI_NONE);
-	m0_rm_remote_init(&fctx->sf_creditor, &fctx->sf_file.fi_res);
-	m0_file_owner_init(&fctx->sf_owner, &m0_rm_sns_cm_group, &fctx->sf_file,
-			   NULL);
-	m0_rm_incoming_init(&fctx->sf_rin, &fctx->sf_owner, M0_RIT_LOCAL,
-			    RIP_NONE,
-			    RIF_MAY_BORROW | RIF_MAY_REVOKE);
 
-	fctx->sf_owner.ro_creditor = &fctx->sf_creditor;
-	fctx->sf_creditor.rem_session = &scm->sc_rm_ctx.rc_rm_ctx->sc_session;
-	fctx->sf_creditor.rem_cookie = M0_COOKIE_NULL;
 	fctx->sf_layout = NULL;
 	fctx->sf_pi = NULL;
 	fctx->sf_nr_ios_visited = 0;
@@ -251,28 +245,20 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 	m0_sm_init(&fctx->sf_sm, &fctx_sm_conf, M0_SCFS_INIT, grp);
 	fctx->sf_group = grp;
 	fctx->sf_scm = scm;
+	if (!m0_sns_cm2reqh(scm)->rh_oostore)
+		sns_cm_fctx_rm_init(fctx);
 	*sc_fctx = fctx;
-	m0_clink_init(&fctx->sf_clink, fctx_clink_cb);
-	m0_be_tx_init(&fctx->sf_tx, 0, seg->bs_domain, grp, NULL, NULL,
-		      NULL, NULL);
 
 	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_sns_cm_fctx_fini(struct m0_sns_cm_file_ctx *fctx)
 {
-	int rc;
-
 	M0_PRE(fctx != NULL);
 
+	if (!m0_sns_cm2reqh(fctx->sf_scm)->rh_oostore)
+		sns_cm_fctx_rm_fini(fctx);
 	m0_scmfctx_tlink_fini(fctx);
-	m0_rm_owner_windup(&fctx->sf_owner);
-	rc = m0_rm_owner_timedwait(&fctx->sf_owner, M0_BITS(ROS_FINAL),
-				   M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
-	m0_file_owner_fini(&fctx->sf_owner);
-	m0_rm_remote_fini(&fctx->sf_creditor);
-	m0_file_fini(&fctx->sf_file);
 }
 
 extern const struct m0_rm_incoming_ops file_lock_incoming_ops;
@@ -303,39 +289,42 @@ static int __sns_cm_file_lock(struct m0_sns_cm_file_ctx *fctx)
 	fctx->sf_rin.rin_ops              = &file_lock_incoming_ops;
 
 	m0_rm_credit_get(&fctx->sf_rin);
-	/*
-	 * XXX TODO: Invoke layout type operation to calculate layout be
-	 * transaction credits.
-	 */
-	m0_be_tx_prep(&fctx->sf_tx, &M0_BE_TX_CREDIT(1, sizeof(uint64_t)));
-	m0_be_tx_open(&fctx->sf_tx);
 
 	M0_POST(m0_sns_cm_fctx_locate(scm, &fctx->sf_fid) == fctx);
 	return M0_RC(-EAGAIN);
+}
+
+static int __sns_cm_file_oo_lock(struct m0_sns_cm_file_ctx *fctx)
+{
+	struct m0_sns_cm *scm;
+	M0_ENTRY();
+
+	M0_PRE(fctx != NULL);
+	M0_PRE(m0_sns_cm_fid_is_valid(&fctx->sf_fid));
+
+	scm = fctx->sf_scm;
+	M0_ASSERT(scm != NULL);
+	M0_ASSERT(m0_sns_cm_fctx_locate(scm, &fctx->sf_fid) == NULL);
+	M0_ASSERT(m0_mutex_is_locked(&scm->sc_file_ctx_mutex));
+
+	M0_LOG(M0_DEBUG, "Lock file for FID : "FID_F, FID_P(&fctx->sf_fid));
+	m0_scmfctx_htable_add(&scm->sc_file_ctx, fctx);
+	_fctx_status_set(fctx, M0_SCFS_LOCKED);
+
+	M0_POST(m0_sns_cm_fctx_locate(scm, &fctx->sf_fid) == fctx);
+	return M0_RC(0);
 }
 
 static void __sns_cm_file_unlock(struct m0_sns_cm_file_ctx *fctx)
 {
 	M0_PRE(fctx != NULL);
 	M0_PRE(m0_sns_cm_fid_is_valid(&fctx->sf_fid));
-	M0_PRE(fctx->sf_owner.ro_resource == &fctx->sf_file.fi_res);
+	M0_PRE(ergo(!m0_sns_cm2reqh(fctx->sf_scm)->rh_oostore,
+		    fctx->sf_owner.ro_resource == &fctx->sf_file.fi_res));
 	M0_PRE(m0_mutex_is_locked(&fctx->sf_scm->sc_file_ctx_mutex));
 
 	m0_ref_put(&fctx->sf_ref);
 	M0_LOG(M0_DEBUG, "Unlock file for FID : "FID_F, FID_P(&fctx->sf_fid));
-}
-
-static int fctx_tx_check(struct m0_sns_cm_file_ctx *fctx, struct m0_fom *fom)
-{
-	struct m0_be_tx *tx = &fctx->sf_tx;
-	int              rc = 0;
-
-	if (m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
-		rc = -EAGAIN;
-		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
-	}
-
-	return M0_RC(rc);
 }
 
 M0_INTERNAL int
@@ -343,7 +332,6 @@ m0_sns_cm_file_lock_wait(struct m0_sns_cm_file_ctx *fctx, struct m0_fom *fom)
 {
 	struct m0_chan *rm_chan;
 	uint32_t        state;
-	int             rc;
 
 	M0_ENTRY();
 
@@ -363,12 +351,8 @@ m0_sns_cm_file_lock_wait(struct m0_sns_cm_file_ctx *fctx, struct m0_fom *fom)
 					   "Failed to lock file "FID_F,
 					   FID_P(&fctx->sf_fid));
 		} else {
-			if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LOCK_WAIT) {
-				rc = fctx_tx_check(fctx, fom);
-				if (rc == -EAGAIN)
-					return M0_RC(rc);
+			if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LOCK_WAIT)
 				_fctx_status_set(fctx, M0_SCFS_LOCKED);
-			}
 			return M0_RC(0);
 		}
 	}
@@ -407,7 +391,9 @@ M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm *scm,
 	}
 	rc = m0_sns_cm_fctx_init(scm, fid, grp, &fctx);
 	if (rc == 0) {
-		rc = __sns_cm_file_lock(fctx);
+		rc = !m0_sns_cm2reqh(scm)->rh_oostore ?
+			__sns_cm_file_lock(fctx) :
+			__sns_cm_file_oo_lock(fctx);
 		*out = fctx;
 	}
 	return M0_RC(rc);
@@ -501,7 +487,7 @@ static int _attr_fetch(struct m0_sns_cm_file_ctx *fctx);
 static void _attr_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_sns_cm_file_ctx *fctx = _AST2FCTX(ast, sf_attr_ast);
-	struct m0_reqh            *reqh = sns_cm2reqh(fctx->sf_scm);
+	struct m0_reqh            *reqh = m0_sns_cm2reqh(fctx->sf_scm);
 
 	/**
 	 * Use redundant next meta data service, if error is returned from
@@ -531,25 +517,18 @@ static inline void _attr_cb(void *arg, int rc)
 
 static int _attr_fetch(struct m0_sns_cm_file_ctx *fctx)
 {
-	struct m0_reqh *reqh = sns_cm2reqh(fctx->sf_scm);
+	struct m0_reqh *reqh = m0_sns_cm2reqh(fctx->sf_scm);
 	int             rc;
 
 	M0_PRE(m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_ATTR_FETCH);
 	if (fctx->sf_rc == 0 && fctx->sf_attr.ca_size > 0 &&
 	    fctx->sf_attr.ca_lid != 0)
 		return M0_RC(0);
-	M0_LOG(M0_DEBUG, "Redundancy:%d", reqh->rh_pools->pc_md_redundancy);
-	/** @todo When redundancy is zero SNS assumes it as non-oostore mode. */
-	if (reqh->rh_pools->pc_md_redundancy == 0) {
-		rc = m0_ios_mds_getattr_async(reqh, &fctx->sf_fid,
-					      &fctx->sf_attr,
-					      &_attr_cb, fctx);
-	} else {
-		rc = m0_ios_getattr_async(reqh, &fctx->sf_fid,
-					  &fctx->sf_attr,
-					  fctx->sf_nr_ios_visited,
-					  &_attr_cb, fctx);
-	}
+	rc = !reqh->rh_oostore ?
+		m0_ios_mds_getattr_async(reqh, &fctx->sf_fid, &fctx->sf_attr,
+					 &_attr_cb, fctx) :
+		m0_ios_getattr_async(reqh, &fctx->sf_fid, &fctx->sf_attr,
+				     fctx->sf_nr_ios_visited, &_attr_cb, fctx);
 	if (rc == 0 && fctx->sf_attr.ca_size == 0)
 		return M0_RC(-EAGAIN);
 

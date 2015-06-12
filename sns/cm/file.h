@@ -83,8 +83,6 @@ struct m0_sns_cm_file_ctx {
 	/** Back pointer to the sns copy machine. */
 	struct m0_sns_cm           *sf_scm;
 
-	struct m0_be_tx             sf_tx;
-
 	/**
 	 * Count of aggregation groups that would be processed for this fid.
 	 * When all the aggregagtion groups have been processed, the
@@ -108,8 +106,6 @@ struct m0_sns_cm_file_ctx {
 	struct m0_sm_ast            sf_attr_ast;
 
 	struct m0_sm_ast            sf_fini_ast;
-
-	struct m0_clink             sf_clink;
 
 	/** Index of the ioservice last visited to get file attributes. */
 	uint64_t                    sf_nr_ios_visited;

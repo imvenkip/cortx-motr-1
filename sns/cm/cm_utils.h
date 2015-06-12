@@ -172,6 +172,7 @@ m0_sns_cm_ag_relevant_is_done(const struct m0_cm_aggr_group *ag,
 
 M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_fid *fid);
 
+M0_INTERNAL struct m0_reqh *m0_sns_cm2reqh(const struct m0_sns_cm *snscm);
 /** @} endgroup SNSCM */
 
 /* __MERO_SNS_CM_UTILS_H__ */

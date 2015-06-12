@@ -231,6 +231,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	reqh->rh_dtm     = reqh_args->rhia_dtm;
 	reqh->rh_beseg   = reqh_args->rhia_db;
 	reqh->rh_mdstore = reqh_args->rhia_mdstore;
+	reqh->rh_oostore = false;
 
 	m0_fol_init(&reqh->rh_fol);
 	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);
