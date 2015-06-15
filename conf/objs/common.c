@@ -249,4 +249,49 @@ M0_INTERNAL void u32arr_free(struct arr_u32 *arr)
 	arr->au_count = 0;
 }
 
+M0_INTERNAL int conf_pvers_decode(struct m0_conf_cache   *cache,
+				  const struct arr_fid   *src,
+				  struct m0_conf_pver  ***pvers,
+				  int                    *nr)
+{
+	int rc = 0;
+	int i;
+	struct m0_conf_obj *obj;
+	struct m0_conf_pver **pv;
+
+	M0_ALLOC_ARR(pv, src->af_count);
+	if (pv == NULL)
+		return M0_ERR(-ENOMEM);
+
+	for (i = 0; i < src->af_count && rc == 0; ++i) {
+		rc = m0_conf_obj_find(cache, &src->af_elems[i], &obj);
+		pv[i] = M0_CONF_CAST(obj, m0_conf_pver);
+	}
+
+	if (rc == 0) {
+		*nr = src->af_count;
+		*pvers = pv;
+	} else
+		m0_free(pv);
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int conf_pvers_encode(struct m0_conf_pver **pvers,
+				  int                   nr,
+				  struct arr_fid       *dest)
+{
+	int i;
+
+	dest->af_count = nr;
+	M0_ALLOC_ARR(dest->af_elems, dest->af_count);
+	if (dest->af_elems == 0)
+		return M0_ERR(-ENOMEM);
+
+	for (i = 0; i < nr; ++i)
+		dest->af_elems[i] = pvers[i]->pv_obj.co_id;
+
+	return M0_RC(0);
+}
+
 #undef M0_TRACE_SUBSYSTEM

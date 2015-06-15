@@ -46,7 +46,7 @@ static bool name(const struct m0_conf_obj *obj)                  \
 }                                                                \
 struct __ ## type ## _semicolon_catcher
 
-#define M0_CONF__CTOR_DEFINE(name, type, ops) \
+#define M0_CONF__CTOR_DEFINE(name, type, ops, ha_cb) \
 static struct m0_conf_obj *name(void)         \
 {                                             \
 	struct type        *x;                \
@@ -59,6 +59,7 @@ static struct m0_conf_obj *name(void)         \
 	type ## _bob_init(x);                 \
 	ret = &x->type ## _cast_field;        \
 	ret->co_ops = ops;                    \
+	ret->co_ha_callback = ha_cb;          \
 	return ret;                           \
 }                                             \
 struct __ ## type ## _semicolon_catcher
@@ -133,5 +134,14 @@ M0_INTERNAL int u32arr_encode(struct arr_u32 *dest, const uint32_t *src,
 M0_INTERNAL bool u32arr_cmp(const struct arr_u32 *a1, const uint32_t *a2,
 			    uint32_t a2_nr);
 M0_INTERNAL void u32arr_free(struct arr_u32 *arr);
+
+M0_INTERNAL int conf_pvers_decode(struct m0_conf_cache  *cache,
+				  const struct arr_fid  *src,
+				  struct m0_conf_pver  ***pvers,
+				  int                   *nr);
+
+M0_INTERNAL int conf_pvers_encode(struct m0_conf_pver **pvers,
+				  int                   nr,
+				  struct arr_fid       *dest);
 
 #endif /* __MERO_CONF_OBJS_COMMON_H__ */

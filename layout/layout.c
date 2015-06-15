@@ -79,6 +79,7 @@
 #include "lib/vec.h"    /* m0_bufvec_cursor_step(), m0_bufvec_cursor_addr() */
 #include "lib/bob.h"
 #include "lib/finject.h"
+#include "lib/hash.h"   /* m0_hash */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"

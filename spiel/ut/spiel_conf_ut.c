@@ -37,7 +37,7 @@
 #include "spiel/ut/spiel_ut_common.h"
 #include "ut/file_helpers.h"
 
-#define SERVER_ENDPOINT_ADDR  "0@lo:12345:35:1"
+#define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
 
 
 extern struct m0_spiel_ut_reqh *spl_reqh;
@@ -1134,7 +1134,7 @@ static int spiel_conf_ut_init()
 {
 	int         rc;
 	const char *ep = SERVER_ENDPOINT_ADDR;
-	const char *client_ep = "0@lo:12345:34:1";
+	const char *client_ep = "0@lo:12345:35:1";
 
 	M0_ALLOC_PTR(spl_reqh);
 	rc = m0_spiel__ut_reqh_init(spl_reqh, client_ep);

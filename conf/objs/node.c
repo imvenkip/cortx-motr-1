@@ -126,7 +126,7 @@ static const struct m0_conf_obj_ops node_ops = {
 	.coo_delete    = node_delete
 };
 
-M0_CONF__CTOR_DEFINE(node_create, m0_conf_node, &node_ops);
+M0_CONF__CTOR_DEFINE(node_create, m0_conf_node, &node_ops, NULL);
 
 const struct m0_conf_obj_type M0_CONF_NODE_TYPE = {
 	.cot_ftype = {

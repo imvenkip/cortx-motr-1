@@ -51,7 +51,7 @@ static void test_spiel_service_cmds(void)
 	int                       rc;
 	const char               *confd_eps[] = { SERVER_ENDPOINT_ADDR, NULL };
 	const char               *profile = M0_UT_CONF_PROFILE;
-	const struct m0_fid       svc_fid = M0_FID_TINIT('s', 1,  10);
+	const struct m0_fid       svc_fid = M0_FID_TINIT('s', 1,  20);
 	const struct m0_fid       svc_invalid_fid = M0_FID_TINIT('s', 1,  13);
 	struct m0_spiel_ut_reqh   ut_reqh = {
 		.sur_net_dom  = g_net_dom,

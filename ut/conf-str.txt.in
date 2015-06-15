@@ -1,0 +1,52 @@
+(root-0 verno=1 profiles=[profile-0])
+(profile-0 filesystem=filesystem-1)
+(filesystem-1 rootfid=(11, 22) redundancy=0
+    params=["param-0", "param-1", "param-2"]
+    mdpool=pool-4
+    nodes=[node-2, node-48] pools=[pool-4, pool-56] racks=[rack-3, rack-52])
+(node-2 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-4
+    processes=[process-5, process-6])
+(process-5 mem_limit=4000 cores=2
+    services=[service-9, service-10, service-20, service-21])
+(process-6 mem_limit=4000 cores=1 services=[])
+(service-9 type=4 endpoints=["0@lo:12345:34:1"]
+    sdevs=[sdev-13, sdev-14])
+(service-10 type=6 endpoints=["0@lo:12345:34:1"] sdevs=[sdev-15])
+(service-20 type=5 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-21 type=7 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(sdev-13 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
+    filename="/dev/sdev0")
+(sdev-14 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
+    filename="/dev/sdev1")
+(sdev-15 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
+    filename="/dev/sdev2")
+(rack-3 encls=[enclosure-7] pvers=[pver-8])
+(enclosure-7 ctrls=[controller-11] pvers=[pver-8])
+(controller-11 node=node-2 disks=[disk-16] pvers=[pver-8])
+(disk-16 dev=sdev-15)
+(pool-4 order=0 pvers=[pver-8])
+(pver-8 ver=0 N=8 K=2 P=15 permutations=[1, 2, 4] nr_failures=[]
+    rackvs=[objv-12])
+(objv-12 real=rack-3 children=[objv-17])
+(objv-17 real=enclosure-7 children=[objv-18])
+(objv-18 real=controller-11 children=[objv-19])
+(objv-19 real=disk-16 children=[])
+
+(node-48 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-56
+    processes=[process-49])
+(process-49 mem_limit=4000 cores=1 services=[service-50])
+(service-50 type=1 endpoints=["0@lo:12345:34:1"]
+    sdevs=[sdev-51])
+(sdev-51 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
+    filename="/dev/sdev0")
+(rack-52 encls=[enclosure-53] pvers=[pver-57])
+(enclosure-53 ctrls=[controller-54] pvers=[pver-57])
+(controller-54 node=node-48 disks=[disk-55] pvers=[pver-57])
+(disk-55 dev=sdev-51)
+(pool-56 order=0 pvers=[pver-57])
+(pver-57 ver=0 N=8 K=2 P=15 permutations=[1, 2, 4] nr_failures=[]
+    rackvs=[objv-58])
+(objv-58 real=rack-52 children=[objv-59])
+(objv-59 real=enclosure-53 children=[objv-60])
+(objv-60 real=controller-54 children=[objv-61])
+(objv-61 real=disk-55 children=[])

@@ -1221,7 +1221,9 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
 
-	rc = M0_REQH_INIT(&rctx->rc_reqh, .rhia_mdstore = &rctx->rc_mdstore);
+	rc = M0_REQH_INIT(&rctx->rc_reqh,
+			  .rhia_mdstore = &rctx->rc_mdstore,
+			  .rhia_pc = &rctx->rc_mero->cc_pools_common);
 	if (rc != 0)
 		goto out;
 
@@ -2033,6 +2035,7 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 int m0_cs_start(struct m0_mero *cctx)
 {
 	struct m0_reqh_context     *rctx = &cctx->cc_reqh_ctx;
+	struct m0_reqh             *reqh = &cctx->cc_reqh_ctx.rc_reqh;
 	int                         rc;
 	struct m0_conf_filesystem  *fs;
 
@@ -2057,14 +2060,18 @@ int m0_cs_start(struct m0_mero *cctx)
         if (rc != 0)
 		goto error;
 
-	rc = cs_reqh_layouts_setup(cctx);
+	rc = m0_reqh_ha_setup(reqh);
         if (rc != 0)
 		goto error;
 
-	if (cctx->cc_pools_common.pc_ss_ctx != NULL)
-		M0_LOG(M0_DEBUG, "Stats service connected");
-	else
-		M0_LOG(M0_WARN, "Stats service not connected");
+        rc = m0_conf_failure_sets_build(&reqh->rh_pools->pc_ha_ctx->sc_session,
+					fs, &reqh->rh_failure_sets);
+	if (rc != 0)
+                return M0_ERR(rc);
+
+	rc = cs_reqh_layouts_setup(cctx);
+        if (rc != 0)
+		return M0_ERR(rc);
 
 	m0_confc_close(&fs->cf_obj);
 	return M0_RC(rc);
@@ -2096,11 +2103,15 @@ int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 void m0_cs_fini(struct m0_mero *cctx)
 {
 	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	struct m0_reqh         *reqh = &cctx->cc_reqh_ctx.rc_reqh;
 
 	M0_ENTRY();
 
 	if (rctx->rc_state == RC_INITIALISED)
-		m0_reqh_layouts_cleanup(&rctx->rc_reqh);
+		m0_reqh_layouts_cleanup(reqh);
+
+	if (cctx->cc_pools_common.pc_ha_ctx != NULL)
+		m0_conf_failure_sets_destroy(&reqh->rh_failure_sets);
 
 	cs_conf_destroy(cctx);
 	if (rctx->rc_state == RC_INITIALISED)

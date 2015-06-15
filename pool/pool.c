@@ -24,6 +24,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/assert.h"
+#include "lib/hash.h"      /* m0_hash */
 
 #include "conf/confc.h"    /* m0_confc_from_obj */
 #include "conf/schema.h"   /* M0_CST_IOS, M0_CST_MDS */
@@ -656,9 +657,9 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL struct m0_reqh_service_ctx *
-m0_pools_common_service_ctx_find_by_type(const struct m0_pools_common *pc,
-					 enum m0_conf_service_type type)
+static struct m0_reqh_service_ctx *
+service_ctx_find_by_type(const struct m0_pools_common *pc,
+			 enum m0_conf_service_type     type)
 {
 	return m0_tl_find(pools_common_svc_ctx, ctx, &pc->pc_svc_ctxs,
 			  ctx->sc_type == type);
@@ -671,22 +672,6 @@ m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
 {
 	return m0_tl_find(pools_common_svc_ctx, ctx, &pc->pc_svc_ctxs,
 			  m0_fid_eq(id, &ctx->sc_fid) && ctx->sc_type == type);
-}
-
-static int pc_service_find(struct m0_reqh_service_ctx **dest,
-			   const struct m0_tl          *svc_ctxs,
-			   enum m0_conf_service_type    type)
-{
-	M0_PRE(M0_IN(type, (M0_CST_RMS, M0_CST_STS)));
-
-	*dest = m0_tl_find(pools_common_svc_ctx, ctx, svc_ctxs,
-			   ctx->sc_type == type);
-	if (*dest != NULL)
-		return M0_RC(0);
-
-	return M0_ERR_INFO(-EPROTO, "The mandatory %s service is missing."
-			   " Make sure it is specified in the conf db.",
-			   type == M0_CST_STS ? "STS" : "RM");
 }
 
 M0_INTERNAL void m0_pools_common_init(struct m0_pools_common *pc,
@@ -725,10 +710,14 @@ M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 	if (rc != 0)
 		goto err;
 
-	rc = pc_service_find(&pc->pc_rm_ctx, &pc->pc_svc_ctxs, M0_CST_RMS) ?:
-	     pc_service_find(&pc->pc_ss_ctx, &pc->pc_svc_ctxs, M0_CST_STS);
-	if (rc != 0)
+	pc->pc_rm_ctx = service_ctx_find_by_type(pc, M0_CST_RMS);
+	pc->pc_ha_ctx = service_ctx_find_by_type(pc, M0_CST_HA);
+	if (pc->pc_rm_ctx == NULL || pc->pc_ha_ctx == NULL) {
+		rc = M0_ERR_INFO(-ENOENT, "The mandatory %s service is missing."
+				 "Make sure this is specified in the conf db.",
+				 pc->pc_rm_ctx == NULL ? "RM" : "HA");
 		goto err;
+	}
 
 	M0_POST(pools_common_invariant(pc));
 	return M0_RC(rc);
@@ -884,6 +873,12 @@ M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
 {
 	return m0_tl_find(pools, pool, &pc->pc_pools,
 			  m0_fid_eq(&pool->po_id, id));
+}
+
+M0_INTERNAL uint64_t
+m0_pool_version2layout_id(const struct m0_pool_version *pv, uint64_t lid)
+{
+        return m0_hash(m0_fid_hash(&pv->pv_id) + lid);
 }
 
 #undef M0_TRACE_SUBSYSTEM

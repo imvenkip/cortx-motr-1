@@ -112,7 +112,7 @@ static const struct m0_conf_obj_ops root_ops = {
 	.coo_delete    = root_delete
 };
 
-M0_CONF__CTOR_DEFINE(root_create, m0_conf_root, &root_ops);
+M0_CONF__CTOR_DEFINE(root_create, m0_conf_root, &root_ops, NULL);
 
 const struct m0_conf_obj_type M0_CONF_ROOT_TYPE = {
 	.cot_ftype = {

@@ -102,7 +102,7 @@ static const struct m0_conf_obj_ops disk_ops = {
 	.coo_delete    = disk_delete
 };
 
-M0_CONF__CTOR_DEFINE(disk_create, m0_conf_disk, &disk_ops);
+M0_CONF__CTOR_DEFINE(disk_create, m0_conf_disk, &disk_ops, NULL);
 
 const struct m0_conf_obj_type M0_CONF_DISK_TYPE = {
 	.cot_ftype = {

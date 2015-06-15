@@ -47,6 +47,7 @@ static void test_m0_rpc_server_start(void)
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc != 0);
 
+	M0_SET0(&sctx.rsx_mero_ctx);
 	m0_fi_enable_once("m0_cs_setup_env", "fake_error");
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc != 0);

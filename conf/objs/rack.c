@@ -23,6 +23,7 @@
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"  /* m0_confx_rack_xc */
 #include "mero/magic.h"      /* M0_CONF_RACK_MAGIC */
+#include "conf/helpers.h"    /* m0_conf_failure_set_update */
 
 #define XCAST(xobj) ((struct m0_confx_rack *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_rack, xr_header) == 0);
@@ -49,7 +50,9 @@ static int rack_decode(struct m0_conf_obj        *dest,
 			     &d->cr_encls,
 			     &CONF_DIR_ENTRIES(&M0_CONF_RACK_ENCLS_FID,
 					       &M0_CONF_ENCLOSURE_TYPE,
-					       &s->xr_encls), dest, cache));
+					       &s->xr_encls), dest, cache) ?:
+		     conf_pvers_decode(cache, &s->xr_pvers,
+				       &d->cr_pvers, &d->cr_pvers_nr));
 }
 
 static int
@@ -62,7 +65,9 @@ rack_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	};
 
 	confx_encode(dest, src);
-	return M0_RC(conf_dirs_encode(dirs, ARRAY_SIZE(dirs)));
+	return M0_RC(conf_dirs_encode(dirs, ARRAY_SIZE(dirs)) ?:
+		     conf_pvers_encode(s->cr_pvers, s->cr_pvers_nr,
+				       &d->xr_pvers));
 }
 
 static bool
@@ -103,7 +108,8 @@ static const struct m0_conf_obj_ops rack_ops = {
 	.coo_delete    = rack_delete
 };
 
-M0_CONF__CTOR_DEFINE(rack_create, m0_conf_rack, &rack_ops);
+M0_CONF__CTOR_DEFINE(rack_create, m0_conf_rack, &rack_ops,
+		     m0_conf_failure_sets_update);
 
 const struct m0_conf_obj_type M0_CONF_RACK_TYPE = {
 	.cot_ftype = {

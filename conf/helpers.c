@@ -25,6 +25,7 @@
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
 #include "lib/errno.h"     /* EINVAL */
 #include "lib/string.h"    /* m0_strdup */
+#include "reqh/reqh.h"     /* m0_reqh */
 #include "conf/obj.h"
 #include "conf/helpers.h"
 #include "conf/confc.h"
@@ -94,9 +95,11 @@ M0_INTERNAL int m0_conf_poolversion_get(struct m0_conf_filesystem *fs,
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE);
 		pv = M0_CONF_CAST(obj, m0_conf_pver);
-		*pver = pv;
-		rc = 0;
-		break;
+		if (pv->pv_state == M0_CONF_PVER_ONLINE) {
+			*pver = pv;
+			rc = 0;
+			break;
+		}
 	}
 
 	m0_conf_diter_fini(&it);
@@ -220,22 +223,8 @@ M0_INTERNAL int m0_conf_failure_sets_build(struct m0_rpc_session *session,
 					   struct m0_conf_filesystem *fs,
 					   struct m0_tl *failure_sets)
 {
-	struct m0_conf_cache *cache = fs->cf_obj.co_cache;
-	struct m0_conf_obj   *obj;
-	int                   rc;
-
-	rc = conf_ha_state_update(session, fs);
-	if (rc != 0)
-		return M0_ERR(rc);
-
 	m0_conf_failure_sets_tlist_init(failure_sets);
-	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
-		if (obj->co_ha_state == M0_NC_FAILED) {
-			m0_conf_failure_sets_tlist_add(failure_sets, obj);
-		}
-	} m0_tlist_endfor;
-
-	return M0_RC(0);
+	return M0_RC(conf_ha_state_update(session, fs));
 }
 
 M0_INTERNAL void m0_conf_failure_sets_destroy(struct m0_tl *failure_sets)
@@ -280,4 +269,68 @@ M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc)
 	return m0_strdup(service_name[svc->cs_type]);
 }
 
+static struct m0_confc *conf_obj2confc(struct m0_conf_obj *obj)
+{
+	M0_PRE(obj != NULL && obj->co_cache != NULL);
+	return container_of(obj->co_cache, struct m0_confc, cc_cache);
+}
+
+static struct m0_reqh *conf_obj2reqh(struct m0_conf_obj *obj)
+{
+	struct m0_confc *confc = conf_obj2confc(obj);
+
+	M0_PRE(confc != NULL);
+	return container_of(confc, struct m0_reqh, rh_confc);
+}
+
+static void pool_versions_state_set(struct m0_conf_obj *obj)
+{
+	struct m0_conf_pver **pvers = NULL;
+	int                   nr = 0;
+	int                   i;
+
+	if (m0_conf_obj_type(obj) == &M0_CONF_RACK_TYPE) {
+		pvers = (M0_CONF_CAST(obj, m0_conf_rack))->cr_pvers;
+		nr = (M0_CONF_CAST(obj, m0_conf_rack))->cr_pvers_nr;
+	} else if (m0_conf_obj_type(obj) == &M0_CONF_ENCLOSURE_TYPE) {
+		pvers = (M0_CONF_CAST(obj, m0_conf_enclosure))->ce_pvers;
+		nr = (M0_CONF_CAST(obj, m0_conf_enclosure))->ce_pvers_nr;
+	} else if (m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE) {
+		pvers = (M0_CONF_CAST(obj, m0_conf_controller))->cc_pvers;
+		nr = (M0_CONF_CAST(obj, m0_conf_controller))->cc_pvers_nr;
+	}
+
+	if (obj->co_ha_state == M0_NC_FAILED)
+		for (i = 0; i < nr; ++i)
+			pvers[i]->pv_state = M0_CONF_PVER_FAILED;
+
+	/**
+	 * @todo XXX:
+	 *           Need to make poolvesion again ONLINE if all
+	 *           components becomes online ?
+	 */
+}
+
+static void failure_sets_update(struct m0_tl       *failure_sets,
+				struct m0_conf_obj *obj)
+{
+	if ((obj->co_ha_state == M0_NC_ONLINE) &&
+	    m0_conf_failure_sets_tlist_contains(failure_sets, obj))
+		m0_conf_failure_sets_tlist_del(obj);
+	else if ((obj->co_ha_state == M0_NC_FAILED) &&
+		 !m0_conf_failure_sets_tlist_contains(failure_sets, obj))
+		m0_conf_failure_sets_tlist_add_tail(failure_sets, obj);
+}
+
+M0_INTERNAL void m0_conf_failure_sets_update(struct m0_conf_obj *obj)
+{
+	struct m0_tl *failure_sets = &(conf_obj2reqh(obj)->rh_failure_sets);
+
+	M0_PRE(M0_IN(m0_conf_obj_type(obj), (&M0_CONF_RACK_TYPE,
+					     &M0_CONF_ENCLOSURE_TYPE,
+					     &M0_CONF_CONTROLLER_TYPE)));
+
+	(void)failure_sets_update(failure_sets, obj);
+	(void)pool_versions_state_set(obj);
+}
 #undef M0_TRACE_SUBSYSTEM

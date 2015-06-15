@@ -167,7 +167,7 @@ static const struct m0_conf_obj_ops pver_ops = {
 	.coo_delete    = pver_delete
 };
 
-M0_CONF__CTOR_DEFINE(pver_create, m0_conf_pver, &pver_ops);
+M0_CONF__CTOR_DEFINE(pver_create, m0_conf_pver, &pver_ops, NULL);
 
 const struct m0_conf_obj_type M0_CONF_PVER_TYPE = {
 	.cot_ftype = {

@@ -42,7 +42,7 @@ static void spiel_start_stop(void)
 {
 	int              rc;
 	struct m0_spiel  spiel;
-	const char      *confd_eps[] = { "0@lo:12345:35:1", NULL };
+	const char      *confd_eps[] = { "0@lo:12345:34:1", NULL };
 	const char      *profile = M0_UT_CONF_PROFILE;
 
 	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, confd_eps, profile);
@@ -55,8 +55,8 @@ static void spiel_start_stop(void)
 static int spiel_ut_init()
 {
 	int         rc;
-	const char *ep = "0@lo:12345:35:1";
-	const char *client_ep = "0@lo:12345:34:1";
+	const char *ep = "0@lo:12345:34:1";
+	const char *client_ep = "0@lo:12345:35:1";
 
 	M0_ALLOC_PTR(spl_reqh);
 

@@ -116,7 +116,7 @@ static const struct m0_conf_obj_ops sdev_ops = {
 	.coo_delete    = sdev_delete
 };
 
-M0_CONF__CTOR_DEFINE(sdev_create, m0_conf_sdev, &sdev_ops);
+M0_CONF__CTOR_DEFINE(sdev_create, m0_conf_sdev, &sdev_ops, NULL);
 
 const struct m0_conf_obj_type M0_CONF_SDEV_TYPE = {
 	.cot_ftype = {

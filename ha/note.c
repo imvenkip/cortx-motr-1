@@ -219,6 +219,10 @@ M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
 		obj = m0_conf_cache_lookup(cache, &note->nv_note[i].no_id);
 		if (obj != NULL)
 			obj->co_ha_state = note->nv_note[i].no_state;
+
+		if (obj->co_ha_callback != NULL)
+			obj->co_ha_callback(obj);
+
 		m0_conf_cache_unlock(cache);
 	}
 	M0_LEAVE();

@@ -146,7 +146,6 @@ M0_INTERNAL int m0_reqh_layouts_setup(struct m0_reqh *reqh,
 	M0_PRE(pc != NULL);
 
 	M0_ENTRY("%p", reqh);
-	reqh->rh_pools   = pc;
 	rc = m0_layout_domain_setup_by_pools(&reqh->rh_ldom, pc) ?:
 		m0_reqh_mdpool_layout_build(reqh);
 	return M0_RC(rc);
@@ -158,10 +157,12 @@ M0_INTERNAL int m0_reqh_mdpool_layout_build(struct m0_reqh *reqh)
 	struct m0_pool_version *pv;
 	struct m0_layout       *layout;
 	int                     rc;
+	uint64_t                lid;
 
 	M0_ENTRY();
 	pv = pool_version_tlist_head(&pc->pc_md_pool->po_vers);
-	layout = m0_layout_find(&reqh->rh_ldom, M0_DEFAULT_LAYOUT_ID);
+	lid = m0_pool_version2layout_id(pv, M0_DEFAULT_LAYOUT_ID);
+	layout = m0_layout_find(&reqh->rh_ldom, lid);
 	if (layout == NULL)
 		return M0_RC(-EINVAL);
 
@@ -174,7 +175,7 @@ M0_INTERNAL int m0_reqh_mdpool_layout_build(struct m0_reqh *reqh)
 
 M0_INTERNAL void m0_reqh_layouts_cleanup(struct m0_reqh *reqh)
 {
-	if (reqh->rh_pools != NULL)
+	if (reqh->rh_pools->pc_md_pool_linst != NULL)
 		m0_layout_instance_fini(reqh->rh_pools->pc_md_pool_linst);
 	m0_layout_domain_cleanup(&reqh->rh_ldom);
 	reqh->rh_pools = NULL;
@@ -231,6 +232,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	reqh->rh_dtm     = reqh_args->rhia_dtm;
 	reqh->rh_beseg   = reqh_args->rhia_db;
 	reqh->rh_mdstore = reqh_args->rhia_mdstore;
+	reqh->rh_pools   = reqh_args->rhia_pc;
 	reqh->rh_oostore = false;
 
 	m0_fol_init(&reqh->rh_fol);
@@ -709,6 +711,13 @@ M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
 
 	return m0_confc_init(confc, args->ca_group, args->ca_confd,
 			     args->ca_rmach, args->ca_confstr);
+}
+
+M0_INTERNAL int m0_reqh_ha_setup(struct m0_reqh *reqh)
+{
+	M0_PRE(reqh->rh_pools->pc_ha_ctx != NULL);
+
+	return M0_RC(m0_ha_state_init(&reqh->rh_pools->pc_ha_ctx->sc_session));
 }
 
 #undef M0_TRACE_SUBSYSTEM

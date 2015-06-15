@@ -113,7 +113,7 @@ static const struct m0_conf_obj_ops process_ops = {
 	.coo_delete    = process_delete
 };
 
-M0_CONF__CTOR_DEFINE(process_create, m0_conf_process, &process_ops);
+M0_CONF__CTOR_DEFINE(process_create, m0_conf_process, &process_ops, NULL);
 
 const struct m0_conf_obj_type M0_CONF_PROCESS_TYPE = {
 	.cot_ftype = {

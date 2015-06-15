@@ -23,6 +23,7 @@
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"  /* m0_confx_enclosure_xc */
 #include "mero/magic.h"      /* M0_CONF_ENCLOSURE_MAGIC */
+#include "conf/helpers.h"    /* m0_conf_failure_set_update */
 
 #define XCAST(xobj) ((struct m0_confx_enclosure *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_enclosure, xe_header) == 0);
@@ -50,7 +51,9 @@ static int enclosure_decode(struct m0_conf_obj        *dest,
 			     &d->ce_ctrls,
 			     &CONF_DIR_ENTRIES(&M0_CONF_ENCLOSURE_CTRLS_FID,
 					       &M0_CONF_CONTROLLER_TYPE,
-					       &s->xe_ctrls), dest, cache));
+					       &s->xe_ctrls), dest, cache) ?:
+                     conf_pvers_decode(cache, &s->xe_pvers,
+				       &d->ce_pvers, &d->ce_pvers_nr));
 }
 
 static int
@@ -63,7 +66,9 @@ enclosure_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	};
 
 	confx_encode(dest, src);
-	return M0_RC(conf_dirs_encode(dirs, ARRAY_SIZE(dirs)));
+	return M0_RC(conf_dirs_encode(dirs, ARRAY_SIZE(dirs)) ?:
+		     conf_pvers_encode(s->ce_pvers, s->ce_pvers_nr,
+				       &d->xe_pvers));
 }
 
 static bool enclosure_match(const struct m0_conf_obj  *cached,
@@ -106,7 +111,8 @@ static const struct m0_conf_obj_ops enclosure_ops = {
 	.coo_delete    = enclosure_delete,
 };
 
-M0_CONF__CTOR_DEFINE(enclosure_create, m0_conf_enclosure, &enclosure_ops);
+M0_CONF__CTOR_DEFINE(enclosure_create, m0_conf_enclosure, &enclosure_ops,
+		     m0_conf_failure_sets_update);
 
 const struct m0_conf_obj_type M0_CONF_ENCLOSURE_TYPE = {
 	.cot_ftype = {

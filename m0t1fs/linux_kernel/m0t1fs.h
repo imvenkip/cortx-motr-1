@@ -744,12 +744,6 @@ struct m0t1fs_sb {
 
 	/** HA service context. */
 	struct m0_reqh_service_ctx             *csb_ha_rsctx;
-	/**
-	 * Failure set of resources.
-	 * @see m0t1fs_ha_setup(),
-	 * m0_conf_failure_sets_build()
-	 */
-	struct m0_tl                            csb_failure_sets;
 
 	/**
 	 * list of pending transactions, by service,

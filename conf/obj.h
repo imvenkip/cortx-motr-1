@@ -249,6 +249,9 @@ struct m0_conf_obj {
 
 	/** HA-related state of this configuration object. */
 	enum m0_ha_obj_state          co_ha_state;
+
+	/** Call-back function for HA event */
+	void                        (*co_ha_callback)(struct m0_conf_obj *obj);
 };
 
 struct m0_conf_obj_type {
@@ -352,24 +355,34 @@ struct m0_conf_pool {
 	uint32_t            pl_order;
 };
 
+/**
+ * Pool version state.
+ */
+enum m0_conf_pver_state {
+	M0_CONF_PVER_ONLINE,
+	M0_CONF_PVER_FAILED
+};
+
 /** Pool version. */
 struct m0_conf_pver {
-	struct m0_conf_obj     pv_obj;
-	struct m0_conf_dir    *pv_rackvs;
+	struct m0_conf_obj       pv_obj;
+	struct m0_conf_dir      *pv_rackvs;
 /* configuration data (for the application) */
 	/** Version number. */
-	uint32_t               pv_ver;
+	uint32_t                 pv_ver;
+	/** Pool version state. */
+	enum m0_conf_pver_state  pv_state;
 	/** Layout attributes. */
-	struct m0_pdclust_attr pv_attr;
+	struct m0_pdclust_attr   pv_attr;
 	/**
 	 * @todo MERO-457
 	 * Base permutation computed based on the failure domains.
 	 */
-	uint32_t              *pv_permutations;
-	uint32_t               pv_permutations_nr;
+	uint32_t                *pv_permutations;
+	uint32_t                 pv_permutations_nr;
 	/** Allowed failures for each failure domain. */
-	uint32_t              *pv_nr_failures;
-	uint32_t               pv_nr_failures_nr;
+	uint32_t                *pv_nr_failures;
+	uint32_t                 pv_nr_failures_nr;
 };
 
 /**
@@ -432,6 +445,7 @@ struct m0_conf_rack {
 	/** Enclosures on this rack. */
 	struct m0_conf_dir   *cr_encls;
 	/** Pool versions this rack is part of. */
+	int                   cr_pvers_nr;
 	struct m0_conf_pver **cr_pvers;
 };
 
@@ -441,6 +455,7 @@ struct m0_conf_enclosure {
 	/** Controllers in this enclosure. */
 	struct m0_conf_dir   *ce_ctrls;
 	/** Pool versions this enclosure is part of. */
+	int                   ce_pvers_nr;
 	struct m0_conf_pver **ce_pvers;
 };
 
@@ -452,6 +467,7 @@ struct m0_conf_controller {
 	/** Storage disks attached to this controller. */
 	struct m0_conf_dir   *cc_disks;
 	/** Pool versions this controller is part of. */
+	int                   cc_pvers_nr;
 	struct m0_conf_pver **cc_pvers;
 };
 

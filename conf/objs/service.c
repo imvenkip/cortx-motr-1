@@ -122,7 +122,7 @@ static const struct m0_conf_obj_ops service_ops = {
 	.coo_delete    = service_delete
 };
 
-M0_CONF__CTOR_DEFINE(service_create, m0_conf_service, &service_ops);
+M0_CONF__CTOR_DEFINE(service_create, m0_conf_service, &service_ops, NULL);
 
 static bool service_fid_is_valid(const struct m0_fid *fid)
 {

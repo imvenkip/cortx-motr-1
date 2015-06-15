@@ -144,8 +144,8 @@ struct m0_pools_common {
 	/** RM service context */
 	struct m0_reqh_service_ctx  *pc_rm_ctx;
 
-	/** Stats service context. */
-	struct m0_reqh_service_ctx  *pc_ss_ctx;
+	/** HA service context. */
+	struct m0_reqh_service_ctx  *pc_ha_ctx;
 
 	/**
 	 * Each ith element in the array gives the total number of services
@@ -243,6 +243,10 @@ M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc);
 M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
 					 const struct m0_fid *id);
 
+/** Generates layout id from pool version fid */
+M0_INTERNAL uint64_t
+m0_pool_version2layout_id(const struct m0_pool_version *pv, uint64_t lid);
+
 /**
  * Creates service contexts from given struct m0_conf_service.
  * Creates service context for each endpoint in m0_conf_service::cs_endpoints.
@@ -252,10 +256,6 @@ M0_INTERNAL struct m0_reqh_service_ctx *
 m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
 				 const struct m0_fid *id,
 				 enum m0_conf_service_type type);
-
-M0_INTERNAL struct m0_reqh_service_ctx *
-m0_pools_common_service_ctx_find_by_type(const struct m0_pools_common *pc,
-					 enum m0_conf_service_type type);
 
 /**
  * A state that a pool node/device can be in.

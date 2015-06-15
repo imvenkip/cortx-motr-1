@@ -92,4 +92,6 @@ M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
 M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc);
 M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj);
 
+M0_INTERNAL void m0_conf_failure_sets_update(struct m0_conf_obj *obj);
+
 #endif /* __MERO_CONF_HELPERS_H__ */

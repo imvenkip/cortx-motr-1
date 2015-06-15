@@ -155,6 +155,15 @@ struct m0_reqh {
 	 * Oostore mode
 	 */
 	bool                          rh_oostore;
+
+	/** HA service context. */
+	struct m0_reqh_service_ctx   *rh_ha_rsctx;
+
+	/**
+	 * Failure set of resources.
+	 * @see m0_conf_failure_sets_build().
+	 */
+	struct m0_tl                  rh_failure_sets;
 };
 
 /**
@@ -165,6 +174,7 @@ struct m0_reqh_init_args {
 	/** Database environment for this request handler */
 	struct m0_be_seg        *rhia_db;
 	struct m0_mdstore       *rhia_mdstore;
+	struct m0_pools_common  *rhia_pc;
 };
 
 /**
@@ -344,6 +354,7 @@ M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh);
  */
 M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
 				   struct m0_confc_args *args);
+M0_INTERNAL int m0_reqh_ha_setup(struct m0_reqh *reqh);
 
 /** Descriptor for tlist of request handler services. */
 M0_TL_DESCR_DECLARE(m0_reqh_svc, M0_EXTERN);

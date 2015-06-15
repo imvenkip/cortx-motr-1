@@ -62,6 +62,7 @@ static const struct m0_fid conf_obj_id_fs = M0_FID_TINIT('f', 2, 1);
 static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain   client_net_dom;
 static struct m0_rpc_session *session;
+struct m0_conf_filesystem    *fs;
 static char                   ut_ha_conf_str[M0_CONF_STR_MAXLEN];
 
 enum {
@@ -307,42 +308,90 @@ static void test_ha_state_accept(void)
 	m0_free(n);
 }
 
-static void test_failure_sets(void)
+static void failure_sets_build(struct m0_reqh *reqh, struct m0_ha_nvec *nvec)
 {
-	struct m0_confc            confc;
-	int                        rc;
-	struct m0_tl               failure_set;
-	struct m0_conf_filesystem *fs;
-	struct m0_conf_obj        *obj;
-	struct m0_ha_note n1[] = {
-		{ M0_FID_TINIT('n', 1, 2),  M0_NC_FAILED },
-		{ M0_FID_TINIT('s', 1, 9),  M0_NC_FAILED },
-		{ M0_FID_TINIT('s', 1, 10), M0_NC_FAILED },
-	};
-	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
+	int rc;
 
-	local_confc_init(&confc);
-	m0_ha_state_set(session, &nvec);
+	local_confc_init(&reqh->rh_confc);
+	m0_ha_state_set(session, nvec);
 
-	rc = m0_conf_fs_get(M0_UT_CONF_PROFILE, &confc, &fs);
+	rc = m0_conf_fs_get(M0_UT_CONF_PROFILE, &reqh->rh_confc, &fs);
 	M0_UT_ASSERT(rc == 0);
 
         rc = m0_conf_full_load(fs);
         M0_UT_ASSERT(rc == 0);
 
-	rc = m0_conf_failure_sets_build(session, fs, &failure_set);
+	rc = m0_conf_failure_sets_build(session, fs, &reqh->rh_failure_sets);
 	M0_UT_ASSERT(rc == 0);
+}
 
-	M0_UT_ASSERT(m0_conf_failure_sets_tlist_length(&failure_set) == 3);
+static void failure_sets_destroy(struct m0_reqh *reqh)
+{
+	m0_conf_failure_sets_destroy(&reqh->rh_failure_sets);
+	m0_confc_close(&fs->cf_obj);
+	m0_confc_fini(&reqh->rh_confc);
+}
 
-	m0_tl_for(m0_conf_failure_sets, &failure_set, obj) {
+static void test_failure_sets(void)
+{
+	struct m0_reqh             reqh;
+	struct m0_conf_obj        *obj;
+	struct m0_ha_note n1[] = {
+		{ M0_FID_TINIT('a', 1, 3),  M0_NC_FAILED },
+		{ M0_FID_TINIT('e', 1, 7),  M0_NC_FAILED },
+		{ M0_FID_TINIT('c', 1, 11), M0_NC_FAILED },
+	};
+	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
+
+	failure_sets_build(&reqh, &nvec);
+
+	M0_UT_ASSERT(m0_conf_failure_sets_tlist_length(&reqh.rh_failure_sets) ==
+ 			ARRAY_SIZE(n1));
+
+	m0_tl_for(m0_conf_failure_sets, &reqh.rh_failure_sets, obj) {
 		M0_UT_ASSERT(obj->co_ha_state == M0_NC_FAILED);
 	} m0_tlist_endfor;
 
-	m0_conf_failure_sets_destroy(&failure_set);
+	failure_sets_destroy(&reqh);
+}
 
-	m0_confc_close(&fs->cf_obj);
-	m0_confc_fini(&confc);
+static void test_poolversion_get(void)
+{
+	int                        rc;
+	struct m0_reqh             reqh;
+	struct m0_conf_pver       *pver = NULL;
+	struct m0_ha_note n1[] = {
+		{ M0_FID_TINIT('a', 1, 3),  M0_NC_ONLINE },
+		{ M0_FID_TINIT('e', 1, 7),  M0_NC_ONLINE },
+		{ M0_FID_TINIT('c', 1, 11), M0_NC_ONLINE },
+	};
+	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
+
+	failure_sets_build(&reqh, &nvec);
+
+	rc = m0_conf_poolversion_get(fs, &reqh.rh_failure_sets, &pver);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_fid_eq(&pver->pv_obj.co_id, &M0_FID_TINIT('v', 1, 8)));
+
+	/* Make rack from pool verison 0  FAILED */
+	n1[0].no_id   = M0_FID_TINIT('a', 1, 3);
+	n1[0].no_state = M0_NC_FAILED;
+	m0_ha_state_accept(&reqh.rh_confc, &nvec);
+
+	rc = m0_conf_poolversion_get(fs, &reqh.rh_failure_sets, &pver);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_fid_eq(&pver->pv_obj.co_id, &M0_FID_TINIT('v', 1, 57)));
+
+	/* Make rack from pool verison 1  FAILED */
+	n1[0].no_id   = M0_FID_TINIT('a', 1, 52);
+	n1[0].no_state = M0_NC_FAILED;
+	m0_ha_state_accept(&reqh.rh_confc, &nvec);
+
+	pver = NULL;
+	rc = m0_conf_poolversion_get(fs, &reqh.rh_failure_sets, &pver);
+	M0_UT_ASSERT(rc == -ENOENT);
+
+	failure_sets_destroy(&reqh);
 }
 
 /* -------------------------------------------------------------------
@@ -379,6 +428,7 @@ struct m0_ut_suite ha_state_ut = {
 		{ "ha_state_set_and_get", test_ha_state_set_and_get },
 		{ "ha_state_accept",      test_ha_state_accept },
 		{ "ha-failure-sets",      test_failure_sets },
+		{ "ha-poolversion_get",   test_poolversion_get },
 		{ NULL, NULL }
 	}
 };

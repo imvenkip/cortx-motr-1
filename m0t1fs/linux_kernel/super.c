@@ -514,7 +514,8 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 	rc = M0_REQH_INIT(reqh,
 			  .rhia_dtm = (void*)1,
 			  .rhia_db = csb->csb_ut_seg.bus_seg,
-			  .rhia_mdstore = (void*)1);
+			  .rhia_mdstore = (void*)1,
+			  .rhia_pc = &csb->csb_pools_common);
 	if (rc != 0)
 		goto pool_fini;
 	rc = m0_rpc_machine_init(rpc_machine, ndom, laddr, reqh,
@@ -573,26 +574,14 @@ int m0t1fs_pool_find(struct m0t1fs_sb *csb, struct m0_conf_filesystem *fs)
 	return M0_RC(rc);
 }
 
-static int m0t1fs_ha_setup(struct m0t1fs_sb *csb)
-{
-	csb->csb_ha_rsctx = m0_tl_find(pools_common_svc_ctx, ctx,
-				       &csb->csb_pools_common.pc_svc_ctxs,
-				       ctx->sc_type == M0_CST_HA);
-	if (csb->csb_ha_rsctx == NULL)
-		return M0_ERR(-ENOENT);
-
-	return M0_RC(m0_ha_state_init(&csb->csb_ha_rsctx->sc_session));
-}
-
 int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 {
-	struct m0_reqh_service_ctx *ctx;
-	const char                 *ep_addr;
-	struct m0_addb2_sys        *sys = m0_addb2_global_get();
-	struct m0_pools_common     *pools = &csb->csb_pools_common;
-	struct m0_confc_args       *confc_args;
-	struct m0_conf_filesystem  *fs;
-	int                         rc;
+	struct m0_addb2_sys       *sys = m0_addb2_global_get();
+	struct m0_pools_common    *pc = &csb->csb_pools_common;
+	struct m0_confc_args      *confc_args;
+	struct m0_reqh            *reqh = &csb->csb_reqh;
+	struct m0_conf_filesystem *fs;
+	int                        rc;
 
 	M0_ENTRY();
 	M0_PRE(csb->csb_astthread.t_state == TS_RUNNING);
@@ -614,12 +603,11 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		.ca_group   = &csb->csb_iogroup,
 	};
 
-	rc = m0_reqh_conf_setup(&csb->csb_reqh, confc_args);
+	rc = m0_reqh_conf_setup(reqh, confc_args);
 	if (rc != 0)
 		goto err_rpc_fini;
 
-	rc = m0_conf_fs_get(confc_args->ca_profile, &csb->csb_reqh.rh_confc,
-			    &fs);
+	rc = m0_conf_fs_get(confc_args->ca_profile, &reqh->rh_confc, &fs);
 	if (rc != 0)
 		goto err_conf_fini;
 
@@ -627,28 +615,27 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_conf_fs_close;
 
-	m0_pools_common_init(&csb->csb_pools_common,
-			     &csb->csb_rpc_machine, fs);
-	M0_ASSERT(ergo(csb->csb_oostore, pools->pc_md_redundancy > 0));
+	m0_pools_common_init(pc, &csb->csb_rpc_machine, fs);
+	M0_ASSERT(ergo(csb->csb_oostore, pc->pc_md_redundancy > 0));
 
-	rc = m0_pools_setup(pools, fs, NULL, NULL, NULL);
+	rc = m0_pools_setup(pc, fs, NULL, NULL, NULL);
 	if (rc != 0)
 		goto err_conf_fs_close;
 
-	rc = m0_pools_service_ctx_create(&csb->csb_pools_common, fs);
+	rc = m0_pools_service_ctx_create(pc, fs);
 	if (rc != 0)
 		goto err_pools_destroy;
 
-	rc = m0_pool_versions_setup(pools, fs, NULL, NULL, NULL);
+	rc = m0_pool_versions_setup(pc, fs, NULL, NULL, NULL);
 	if (rc != 0)
 		goto err_pools_service_ctx_destroy;
 
-	rc = m0t1fs_ha_setup(csb);
+	rc = m0_reqh_ha_setup(reqh);
 	if (rc != 0)
 		goto err_pool_versions_destroy;
 
-	rc = m0_conf_failure_sets_build(&csb->csb_ha_rsctx->sc_session,
-					fs, &csb->csb_failure_sets);
+	rc = m0_conf_failure_sets_build(&reqh->rh_pools->pc_ha_ctx->sc_session,
+					fs, &reqh->rh_failure_sets);
 	if (rc != 0)
 		goto err_ha_destroy;
 
@@ -656,13 +643,6 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0t1fs_pool_find(csb, fs);
 	if (rc != 0)
 		goto err_failure_set_destroy;
-
-	ctx = pools->pc_ss_ctx;
-	if (ctx != NULL) {
-		ep_addr = ctx->sc_conn.c_rpcchan->rc_destep->nep_addr;
-		M0_LOG(M0_DEBUG, "Stats service connected");
-	} else
-		M0_LOG(M0_WARN, "Stats service not connected");
 
 	/* Start resource manager service */
 	rc = m0t1fs_reqh_services_start(csb);
@@ -673,7 +653,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_services_terminate;
 
-	rc = m0_addb2_sys_net_start_with(sys, &pools->pc_svc_ctxs);
+	rc = m0_addb2_sys_net_start_with(sys, &pc->pc_svc_ctxs);
 	if (rc == 0) {
 		m0_confc_close(&fs->cf_obj);
 		return M0_RC(0);
@@ -681,9 +661,9 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	m0t1fs_sb_layouts_fini(csb);
 err_services_terminate:
-	m0_reqh_services_terminate(&csb->csb_reqh);
+	m0_reqh_services_terminate(reqh);
 err_failure_set_destroy:
-	m0_conf_failure_sets_destroy(&csb->csb_failure_sets);
+	m0_conf_failure_sets_destroy(&reqh->rh_failure_sets);
 err_ha_destroy:
 	m0_ha_state_fini();
 err_pool_versions_destroy:
@@ -696,7 +676,7 @@ err_pools_destroy:
 err_conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
 err_conf_fini:
-	m0_confc_fini(&csb->csb_reqh.rh_confc);
+	m0_confc_fini(&reqh->rh_confc);
 err_rpc_fini:
 	m0t1fs_rpc_fini(csb);
 err_net_fini:
@@ -710,7 +690,7 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0t1fs_sb_layouts_fini(csb);
 	m0_reqh_services_terminate(&csb->csb_reqh);
 	/* @todo Make a separate unconfigure api and do this in that */
-	m0_conf_failure_sets_destroy(&csb->csb_failure_sets);
+	m0_conf_failure_sets_destroy(&csb->csb_reqh.rh_failure_sets);
 	m0_ha_state_fini();
 	m0_pool_versions_destroy(&csb->csb_pools_common);
 	m0_pools_service_ctx_destroy(&csb->csb_pools_common);
@@ -751,6 +731,8 @@ static void m0t1fs_obf_dealloc(struct m0t1fs_sb *csb) {
 
 M0_INTERNAL void m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
 {
+	struct m0t1fs_sb *csb = container_of(body, struct m0t1fs_sb,
+					     csb_virt_body);
 	M0_PRE(body != NULL);
 
 	body->b_atime = body->b_ctime = body->b_mtime =
@@ -763,7 +745,8 @@ M0_INTERNAL void m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
         body->b_size = 4096;
         body->b_blksize = 4096;
         body->b_nlink = 2;
-        body->b_lid = M0_DEFAULT_LAYOUT_ID;
+        body->b_lid = m0_pool_version2layout_id(csb->csb_pool_version,
+						M0_DEFAULT_LAYOUT_ID);
         body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR |/*rwx for owner*/
                         S_IRGRP | S_IXGRP |                    /*r-x for group*/
                         S_IROTH | S_IXOTH);

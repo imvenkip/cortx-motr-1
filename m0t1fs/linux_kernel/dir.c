@@ -303,7 +303,9 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		}
 		memcpy(buf, value, size);
 		buf[size] = '\0';
-		ci->ci_layout_id = simple_strtoul(buf, &endp, 0);
+		ci->ci_layout_id =
+			m0_pool_version2layout_id(csb->csb_pool_version,
+						  simple_strtoul(buf, &endp, 0));
 		if (endp - buf < size || ci->ci_layout_id == LID_NONE)
 			goto out;
 		rc = m0t1fs_inode_layout_init(ci);
@@ -515,7 +517,10 @@ static int m0t1fs_create(struct inode     *dir,
 		inode->i_mapping->a_ops = &m0t1fs_aops;
 	}
 
-	ci->ci_layout_id = M0_DEFAULT_LAYOUT_ID; /* layout id for new file */
+	/* layout id for new file */
+        ci->ci_layout_id = m0_pool_version2layout_id(csb->csb_pool_version,
+						     M0_DEFAULT_LAYOUT_ID);
+
 	m0t1fs_file_lock_init(ci, csb);
 	rc = m0t1fs_inode_layout_init(ci);
 	if (rc != 0)
@@ -647,7 +652,8 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		}
 		m0_fid_gob_make(&gfid, new_fid.f_container, new_fid.f_key);
 		body.b_valid = (M0_COB_MODE | M0_COB_LID);
-		body.b_lid = M0_DEFAULT_LAYOUT_ID;
+		body.b_lid = m0_pool_version2layout_id(csb->csb_pool_version,
+						       M0_DEFAULT_LAYOUT_ID);
 		body.b_mode = S_IFREG;
 		inode = m0t1fs_iget(dir->i_sb, &gfid, &body);
 		if (IS_ERR(inode)) {
