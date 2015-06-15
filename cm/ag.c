@@ -173,7 +173,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	    cm->cm_aggr_grps_out_nr == 0)
 		m0_cm_complete(cm);
 
-	M0_LOG(M0_DEBUG, "in: [%lu] %p out: [%lu] %p",
+	M0_LOG(M0_DEBUG, "in=[%lu] %p out=[%lu] %p",
 	       cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
 	       cm->cm_aggr_grps_out_nr, &cm->cm_aggr_grps_out);
 
@@ -217,8 +217,8 @@ m0_cm_aggr_group_locate(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	 * We did not find the aggregation group for the given aggregation group
 	 * identifier in the m0_cm::cm_aggr_groups_in list. So now look into
 	 * m0_cm::cm_aggr_groups_out list, there's a possibility that the
-	 * aggregation group has out-coming copy packets and thus was created and
-	 * added to m0_cm::cm_aggr_groups_out list earlier.
+	 * aggregation group has out-coming copy packets and thus was created
+	 * and added to m0_cm::cm_aggr_groups_out list earlier.
 	 */
 	ag = __aggr_group_locate(id, &aggr_grps_out_tl, &cm->cm_aggr_grps_out);
 

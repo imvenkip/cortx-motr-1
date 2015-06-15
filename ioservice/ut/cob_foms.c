@@ -110,6 +110,7 @@ struct cobthread_arg {
 	struct m0_fop_type *ca_ftype;
 	int                 ca_index;
 	int                 ca_rc;
+	uint64_t            ca_flags;
 };
 
 static char *server_args[] = {
@@ -313,6 +314,7 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 		cut->cu_deletefops[i];
 
 	common = m0_cobfop_common_get(fop);
+	common->c_flags = arg->ca_flags;
 	common->c_pver = CONF_PVER_FID;
 	M0_LOG(M0_DEBUG, "gobfid="FID_F" cobfid="FID_F,
 		FID_P(&common->c_gobfid), FID_P(&common->c_cobfid));
@@ -326,7 +328,8 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 	M0_UT_ASSERT(rfop->cor_rc == arg->ca_rc);
 }
 
-static void cobfoms_fops_dispatch(struct m0_fop_type *ftype, int expected_rc)
+static void cobfoms_fops_dispatch(struct m0_fop_type *ftype, uint64_t flags,
+				  int expected_rc)
 {
 	int                   rc;
 	uint64_t              i;
@@ -345,6 +348,7 @@ static void cobfoms_fops_dispatch(struct m0_fop_type *ftype, int expected_rc)
 	for (i = 0; i < cut->cu_cobfop_nr; ++i) {
 		arg[i].ca_ftype = ftype;
 		arg[i].ca_index = i;
+		arg[i].ca_flags = flags;
 		arg[i].ca_rc = expected_rc;
 		M0_SET0(cut->cu_threads[i]);
 		rc = M0_THREAD_INIT(cut->cu_threads[i], struct cobthread_arg *,
@@ -380,15 +384,16 @@ static void cobfoms_fop_thread_fini(struct m0_fop_type *ftype1,
 
 static void cobfoms_send_internal(struct m0_fop_type *ftype1,
 				  struct m0_fop_type *ftype2,
+				  uint64_t flags,	
 				  int rc1, int rc2,
 				  uint64_t nr)
 {
 	cobfoms_fop_thread_init(nr, nr);
 
 	if (ftype1 != NULL)
-		cobfoms_fops_dispatch(ftype1, rc1);
+		cobfoms_fops_dispatch(ftype1, flags, rc1);
 	if (ftype2 != NULL)
-		cobfoms_fops_dispatch(ftype2, rc2);
+		cobfoms_fops_dispatch(ftype2, flags, rc2);
 
 	cobfoms_fop_thread_fini(ftype1, ftype2);
 }
@@ -396,7 +401,7 @@ static void cobfoms_send_internal(struct m0_fop_type *ftype1,
 static void cobfoms_single(void)
 {
 	cobfoms_send_internal(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt,
-			      0, 0, COB_FOP_SINGLE);
+			      0, 0, 0, COB_FOP_SINGLE);
 }
 
 /*
@@ -406,12 +411,12 @@ static void cobfoms_single(void)
 static void cobfoms_multiple(void)
 {
 	cobfoms_send_internal(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt,
-			      0, 0, COB_FOP_NR);
+			      0, 0, 0, COB_FOP_NR);
 }
 
 static void cobfoms_preexisting_cob(void)
 {
-	cobfoms_send_internal(&m0_fop_cob_create_fopt, NULL, 0, 0,
+	cobfoms_send_internal(&m0_fop_cob_create_fopt, NULL, 0, 0, 0,
 			      COB_FOP_SINGLE);
 
 	/*
@@ -419,13 +424,13 @@ static void cobfoms_preexisting_cob(void)
 	 * fop and subsequence cob_delete fop with same fid.
 	 */
 	--cut->cu_gobindex;
-	cobfoms_send_internal(&m0_fop_cob_create_fopt, NULL, -EEXIST, 0,
+	cobfoms_send_internal(&m0_fop_cob_create_fopt, NULL, 0, -EEXIST, 0,
 			      COB_FOP_SINGLE);
 
 	--cut->cu_gobindex;
 
 	/* Cleanup. */
-	cobfoms_send_internal(NULL, &m0_fop_cob_delete_fopt, 0, 0,
+	cobfoms_send_internal(NULL, &m0_fop_cob_delete_fopt, 0, 0, 0,
 			      COB_FOP_SINGLE);
 	cut->cu_gobindex++;
 	cut->cu_gobindex++;
@@ -433,8 +438,10 @@ static void cobfoms_preexisting_cob(void)
 
 static void cobfoms_del_nonexist_cob(void)
 {
-	cobfoms_send_internal(NULL, &m0_fop_cob_delete_fopt, 0, -ENOENT,
+	cobfoms_send_internal(NULL, &m0_fop_cob_delete_fopt, 0, 0, -ENOENT,
 			      COB_FOP_SINGLE);
+	cobfoms_send_internal(NULL, &m0_fop_cob_delete_fopt, M0_IO_FLAG_CROW,
+			      0, 0, COB_FOP_SINGLE);
 }
 
 /**
@@ -768,7 +775,7 @@ static void cc_fom_get_test()
 }
 
 /*
- * Test function for cc_stob_create().
+ * Test function for m0_cc_stob_create().
  */
 static void cc_stob_create_test()
 {
@@ -784,7 +791,7 @@ static void cc_stob_create_test()
 
 	fom_dtx_init(fom, grp, M0_COB_OP_CREATE);
 	fom_stob_tx_credit(fom, M0_COB_OP_CREATE);
-	rc = cc_stob_create(fom, cc);
+	rc = m0_cc_stob_create(fom, &cc->fco_stob_id);
 	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_COB_OPS_PREPARE);
 	fom_dtx_done(fom, grp);
 
@@ -861,7 +868,7 @@ static void cc_cob_create_test()
 	/*
 	 * Create STOB first.
 	 */
-	rc = cc_stob_create(fom, cc);
+	rc = m0_cc_stob_create(fom, &cc->fco_stob_id);
 	/* stob may be already created by another test */
 	M0_UT_ASSERT(M0_IN(rc, (0, -EEXIST)));
 
@@ -1106,7 +1113,7 @@ static void cd_stob_delete_test()
 	cc = cob_fom_get(cfom);
 	fom_dtx_init(cfom, grp, M0_COB_OP_CREATE);
 	fom_stob_tx_credit(cfom, M0_COB_OP_CREATE);
-	rc = cc_stob_create(cfom, cc);
+	rc = m0_cc_stob_create(cfom, &cc->fco_stob_id);
 	M0_UT_ASSERT(M0_IN(rc, (0, -EEXIST)));
 	fom_dtx_done(cfom, grp);
 
@@ -1247,7 +1254,7 @@ static void cob_create_api_test(void)
 	/* Test cc_fom_populate() */
 	cc_fom_populate_test();
 
-	/* Test cc_stob_create() */
+	/* Test m0_cc_stob_create() */
 	cc_stob_create_test();
 
 	/* Test cc_cob_create() */
@@ -1325,7 +1332,7 @@ static void cobfoms_fv_updates(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_sm_group_unlock(grp);
 
-	cobfoms_send_internal(&m0_fop_cob_create_fopt, NULL,
+	cobfoms_send_internal(&m0_fop_cob_create_fopt, NULL, 0,
 			      M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
 			      M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
 			      COB_FOP_SINGLE);
@@ -1434,7 +1441,8 @@ static void fom_stob_tx_credit(struct m0_fom *fom, enum m0_cob_op opcode)
 		M0_ASSERT(rc == 0);
 		rc = ce_stob_edit_credit(fom, co, m0_fom_tx_credit(fom), COT_DELETE);
 	} else
-		rc = cc_stob_create_credit(fom, co, m0_fom_tx_credit(fom));
+		rc = m0_cc_stob_cr_credit(&co->fco_stob_id,
+					  m0_fom_tx_credit(fom));
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_dtx_open_sync(&fom->fo_tx);
 	M0_UT_ASSERT(rc == 0);

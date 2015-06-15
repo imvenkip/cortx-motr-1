@@ -22,6 +22,7 @@
 #include "lib/trace.h"
 #include "lib/misc.h"
 #include "lib/locality.h"
+#include "lib/finject.h"
 #include "reqh/reqh.h"
 #include "mero/setup.h"
 #include "net/net.h"
@@ -268,6 +269,8 @@ static void test_cp_write_read(void)
 	rc = cs_init(&sctx);
 	M0_ASSERT(rc == 0);
 
+	m0_fi_enable("m0_sns_cm_tgt_ep", "ut-case");
+
 	m0_fid_gob_make(&gob_fid, 1, 1);
 	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, 1);
 	reqh = m0_cs_reqh_get(&sctx);
@@ -288,6 +291,9 @@ static void test_cp_write_read(void)
 
 	bv_free(&r_buf.nb_buffer);
 	bv_free(&w_buf.nb_buffer);
+
+	m0_fi_disable("m0_sns_cm_tgt_ep", "ut-case");
+
 	cs_fini(&sctx);
 }
 

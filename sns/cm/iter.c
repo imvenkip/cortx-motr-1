@@ -641,18 +641,17 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm_iter_file_ctx *ifc;
 	struct m0_fid                  *cob_fid;
 	struct m0_pdclust_src_addr     *sa;
-	uint32_t                        upg;
-	int                             rc = 0;
-	M0_ENTRY("it = %p", it);
+	int                             rc;
+
+	M0_ENTRY("it=%p", it);
 
 	ifc = &it->si_fc;
-	upg = ifc->ifc_upg;
 	sa = &ifc->ifc_sa;
 
 	cob_fid = &ifc->ifc_cob_fid;
 	do {
-		if (sa->sa_unit >= upg) {
-			++it->si_fc.ifc_sa.sa_group;
+		if (sa->sa_unit >= ifc->ifc_upg) {
+			++sa->sa_group;
 			iter_phase_set(it, ITPH_GROUP_NEXT);
 			return M0_RC(0);
 		}

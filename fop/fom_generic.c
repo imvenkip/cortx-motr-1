@@ -343,7 +343,9 @@ static int fom_success(struct m0_fom *fom)
  */
 static int fom_fol_rec_add(struct m0_fom *fom)
 {
-	if (!fom->fo_local) {
+	struct m0_dtx *dtx = &fom->fo_tx;
+
+	if (!fom->fo_local && dtx->tx_state == M0_DTX_OPEN) {
 		int rc = m0_fom_fol_rec_add(fom);
 		if (rc < 0)
 			return M0_RC(rc);

@@ -61,6 +61,8 @@ struct m0_fom_cob_op {
 	bool                     fco_is_done;
 	/** FOL rec fragment for create and delete operations. */
 	struct m0_fol_frag       fco_fol_frag;
+	/** The flags from m0_fop_cob_common::c_flags. */
+	uint64_t                 fco_flags;
 };
 
 
@@ -74,6 +76,15 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
 				struct m0_cob_domain     *cdom,
 				const struct m0_cob_attr *attr,
 				struct m0_be_tx	         *ctx);
+
+M0_INTERNAL int m0_cc_stob_cr_credit(struct m0_stob_id *sid,
+				     struct m0_be_tx_credit *accum);
+
+M0_INTERNAL int m0_cc_stob_create(struct m0_fom *fom, struct m0_stob_id *sid);
+
+M0_INTERNAL int m0_cc_cob_nskey_make(struct m0_cob_nskey **nskey,
+				     const struct m0_fid *gfid,
+				     uint32_t cob_idx);
 
 #endif    /* __MERO_IOSERVICE_COB_FOMS_H__ */
 

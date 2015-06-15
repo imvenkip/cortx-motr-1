@@ -551,7 +551,7 @@ static int m0t1fs_create(struct inode     *dir,
 		if (rc != 0)
 			goto out;
 	}
-	if (S_ISREG(mode)) {
+	if (S_ISREG(mode) && csb->csb_oostore) {
 		rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_create);
 		if (rc != 0)
 			goto out;
@@ -1382,6 +1382,8 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 			goto out;
 		}
 	}
+	mo.mo_attr.ca_nlink = inode->i_nlink;
+	mo.mo_attr.ca_valid |= M0_COB_NLINK;
 	rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_setattr);
 	if (rc != 0)
 		goto out;
@@ -1490,7 +1492,7 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 	M0_ENTRY();
 
 	op_name = (func == m0t1fs_ios_cob_create) ? "create" :
-		(func == m0t1fs_ios_cob_delete) ? "delete" :
+		  (func == m0t1fs_ios_cob_delete) ? "delete" :
 		  (func == m0t1fs_ios_cob_truncate) ? "truncate" : "setattr";
 
 	M0_LOG(M0_DEBUG, "Component object %s for "FID_F,
@@ -1512,7 +1514,8 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 	if (csb->csb_oostore && func != m0t1fs_ios_cob_truncate) {
 		M0_LOG(M0_DEBUG,"oostore mode");
 		mop->mo_cob_type = M0_COB_MD;
-		/** Create, delete and setattr operations on meta data cobs on
+		/*
+		 * Create, delete and setattr operations on meta data cobs on
 		 * ioservices are performed.
 		 */
 		for (i = 0; i < csb->csb_pools_common.pc_md_redundancy; i++) {
@@ -1523,7 +1526,8 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 				goto out;
 			}
 		}
-		if (func == m0t1fs_ios_cob_setattr)
+		if (func == m0t1fs_ios_cob_setattr ||
+		    func == m0t1fs_ios_cob_create)
 			goto out;
 		while (--i >= 0)
 			m0_semaphore_down(&cob_req.cr_sem);
@@ -1949,6 +1953,9 @@ static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb   *csb,
 	common->c_pver   = csb->csb_pool_version->pv_id;
 	common->c_cob_idx = cob_idx;
 	common->c_cob_type = mop->mo_cob_type;
+	
+	if (fop->f_type != &m0_fop_cob_getattr_fopt)
+		common->c_flags |= M0_IO_FLAG_CROW;
 
 	if (m0_is_cob_truncate_fop(fop)) {
 		ct = m0_fop_data(fop);

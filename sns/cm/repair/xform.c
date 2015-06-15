@@ -180,7 +180,6 @@ static int res_cp_enqueue(struct m0_cm_cp *cp)
 	if (rc != 0)
 		goto out;
 	m0_cm_cp_enqueue(cp->c_ag->cag_cm, cp);
-
 out:
 	return M0_RC(rc);
 }
@@ -188,14 +187,11 @@ out:
 static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 				 struct m0_sns_cm_repair_ag_failure_ctx *fc)
 {
-	struct m0_sns_cm        *scm;
 	struct m0_cm_aggr_group *ag  = &rag->rag_base.sag_base;
 	struct m0_cm_cp         *acc = &fc->fc_tgt_acc_cp.sc_base;
-	struct m0_cob_domain    *cdom;
-	int                      rc;
+	int                      rc = 0;
+	int                      is_local_cob;
 
-	scm = cm2sns(ag->cag_cm);
-	cdom  = scm->sc_it.si_cob_dom;
 	/*
 	 * Check if all copy packets are processed at this stage,
 	 * For incoming path transformation can be marked as complete
@@ -206,15 +202,12 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 	 * aggregation group are transformed, then transformation can
 	 * be marked complete.
 	 */
-	if ((rc = m0_sns_cm_cob_locate(cdom, &fc->fc_tgt_cobfid)) == 0 &&
-	    m0_sns_cm_ag_acc_is_full_with(acc, rag->rag_base.sag_incoming_nr +
-						ag->cag_cp_local_nr)) {
-			rc = res_cp_enqueue(acc);
-			if (rc != 0)
-				return M0_RC(rc);
-			fc->fc_is_active = true;
-	} else if (rc == -ENOENT &&
-		   (m0_sns_cm_ag_acc_is_full_with(acc, ag->cag_cp_local_nr))) {
+	is_local_cob = m0_sns_cm_is_local_cob(ag->cag_cm, &fc->fc_tgt_cobfid);
+	if ((is_local_cob &&
+	     m0_sns_cm_ag_acc_is_full_with(acc, rag->rag_base.sag_incoming_nr +
+						 ag->cag_cp_local_nr)) ||
+	    (!is_local_cob &&
+	     m0_sns_cm_ag_acc_is_full_with(acc, ag->cag_cp_local_nr))) {
 		rc = res_cp_enqueue(acc);
 		if (rc != 0)
 			return M0_RC(rc);
@@ -260,9 +253,9 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 			 M0_PARITY_CAL_ALGO_REED_SOLOMON)));
 
 	m0_cm_ag_lock(ag);
-	M0_LOG(M0_DEBUG, "xform: id ["M0_AG_F"] local_cp_nr: [%lu]\
-	       transformed_cp_nr: [%lu] global_cp_nr: [%lu] has_incoming: %d \
-	       c_ag_cp_idx: [%lu]\n", M0_AG_P(&id), ag->cag_cp_local_nr,
+	M0_LOG(M0_DEBUG, "xform: id=["M0_AG_F"] local_cp_nr=[%lu]"
+	       " transformed_cp_nr=[%lu] global_cp_nr=[%lu] has_incoming=%d"
+	       " c_ag_cp_idx=[%lu]", M0_AG_P(&id), ag->cag_cp_local_nr,
 	       ag->cag_transformed_cp_nr, ag->cag_cp_global_nr,
 	       ag->cag_has_incoming, cp->c_ag_cp_idx);
 	/* Increment number of transformed copy packets in the accumulator. */
@@ -310,7 +303,6 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 			}
 		}
 	}
-
 out:
 	/*
 	 * Once transformation is complete, transition copy packet fom to

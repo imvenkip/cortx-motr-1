@@ -47,9 +47,6 @@
 /* Forward Declarations. */
 static void cc_fom_fini(struct m0_fom *fom);
 static int  cob_ops_fom_tick(struct m0_fom *fom);
-static int  cc_stob_create_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
-				  struct m0_be_tx_credit *accum);
-static int  cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc);
 static void cob_op_credit(struct m0_fom *fom, enum m0_cob_op opcode,
 			  struct m0_be_tx_credit *accum);
 static int  cc_cob_create(struct m0_fom            *fom,
@@ -276,6 +273,7 @@ static void cob_fom_populate(struct m0_fom *fom)
 	m0_fid_convert_cob2stob(&cfom->fco_cfid, &cfom->fco_stob_id);
 	cfom->fco_cob_idx = common->c_cob_idx;
 	cfom->fco_cob_type = common->c_cob_type;
+	cfom->fco_flags = common->c_flags;
 }
 
 /* defined in io_foms.c */
@@ -426,6 +424,22 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 	return M0_FSO_AGAIN;
 }
 
+static void cob_crow_credit(struct m0_fom *fom)
+{
+	struct m0_fom_cob_op   *cob_op;
+	struct m0_be_tx_credit *tx_cred;
+
+	cob_op = cob_fom_get(fom);
+	tx_cred = m0_fom_tx_credit(fom);
+
+	if (cob_op->fco_cob_type == M0_COB_IO) {
+		m0_cc_stob_cr_credit(&cob_op->fco_stob_id, tx_cred);
+		cob_op_credit(fom, M0_COB_OP_CREATE, tx_cred);
+	} else if (cob_op->fco_cob_type == M0_COB_MD) {
+		cob_op_credit(fom, M0_COB_OP_CREATE, tx_cred);
+	}
+}
+
 static int cob_setattr_fom_tick(struct m0_fom *fom)
 {
 	struct m0_cob_attr               attr = { { 0, } };
@@ -454,6 +468,8 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 		case M0_FOPH_TXN_OPEN:
 			tx_cred = m0_fom_tx_credit(fom);
 			cob_op_credit(fom, M0_COB_OP_UPDATE, tx_cred);
+			if (cob_op->fco_flags & M0_IO_FLAG_CROW)
+				cob_crow_credit(fom);
 			break;
 		}
 		rc = m0_fom_tick_generic(fom);
@@ -539,8 +555,20 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			 */
 			rc = cob_ops_stob_find(cob_op);
 			if (rc != 0) {
+				if (rc == -ENOENT &&
+				    cob_op->fco_flags & M0_IO_FLAG_CROW) {
+					/* nothing to delete or truncate */
+					M0_ASSERT(M0_IN(fop_type,
+							(COT_DELETE,
+							 COT_TRUNCATE)));
+					rc = 0;
+					m0_fom_phase_move(fom, rc,
+							  M0_FOPH_SUCCESS);
+				} else {
+					m0_fom_phase_move(fom, rc,
+							  M0_FOPH_FAILURE);
+				}
 				cob_op->fco_is_done = true;
-				m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 				goto tail;
 			}
 			break;
@@ -549,14 +577,15 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			switch (fop_type) {
 			case COT_CREATE:
 				if (!cob_is_md(cob_op))
-					cc_stob_create_credit(fom, cob_op,
-							      tx_cred);
+				    m0_cc_stob_cr_credit(&cob_op->fco_stob_id,
+							 tx_cred);
 				cob_op_credit(fom, M0_COB_OP_CREATE,
 					      tx_cred);
 				break;
 			case COT_DELETE:
 				if (cob_is_md(cob_op)) {
-					cob_op_credit(fom, M0_COB_OP_DELETE, tx_cred);
+					cob_op_credit(fom, M0_COB_OP_DELETE,
+						      tx_cred);
 					cob_op->fco_is_done = true;
 					break;
 				}
@@ -627,7 +656,8 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 		m0_md_cob_wire2mem(&attr, &common->c_body);
 		if (fop_type == COT_CREATE) {
 			if (!cob_is_md(cob_op))
-				rc = cc_stob_create(fom, cob_op);
+				rc = m0_cc_stob_create(fom,
+						       &cob_op->fco_stob_id);
 			rc = rc ?: cc_cob_create(fom, cob_op, &attr);
 		} else if (fop_type == COT_DELETE) {
 			if (cob_op->fco_is_done) {
@@ -658,29 +688,29 @@ tail:
 	return M0_FSO_AGAIN;
 }
 
-static int cc_stob_create_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
-				 struct m0_be_tx_credit *accum)
+M0_INTERNAL int m0_cc_stob_cr_credit(struct m0_stob_id *sid,
+				     struct m0_be_tx_credit *accum)
 {
 	struct m0_stob_domain *sdom;
 
-	M0_ENTRY("stob_fid="FID_F, FID_P(&cc->fco_stob_id.si_fid));
+	M0_ENTRY("stob_fid="FID_F, FID_P(&sid->si_fid));
 
-	sdom = m0_stob_domain_find_by_stob_id(&cc->fco_stob_id);
+	sdom = m0_stob_domain_find_by_stob_id(sid);
 	if (sdom == NULL) {
 		return M0_ERR(-EINVAL);
 	}
 
-	m0_stob_create_credit(sdom, m0_fom_tx_credit(fom));
+	m0_stob_create_credit(sdom, accum);
 
 	return M0_RC(0);
 }
 
-static int cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
+M0_INTERNAL int m0_cc_stob_create(struct m0_fom *fom, struct m0_stob_id *sid)
 {
 	struct m0_stob        *stob;
 	int                    rc;
 
-	rc = m0_stob_find(&cc->fco_stob_id, &stob);
+	rc = m0_stob_find(sid, &stob);
 	rc = rc ?: m0_stob_state_get(stob) == CSS_UNKNOWN ?
 		   m0_stob_locate(stob) : 0;
 	rc = rc ?: m0_stob_state_get(stob) == CSS_NOENT ?
@@ -693,6 +723,7 @@ static int cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 	}
 	if (stob != NULL)
 		m0_stob_put(stob);
+
 	return M0_RC(rc);
 }
 
@@ -708,16 +739,15 @@ static struct m0_cob_domain *cdom_get(struct m0_fom *fom)
 	return ios->rios_cdom;
 }
 
-static int cc_cob_nskey_make(struct m0_cob_nskey **nskey,
-			     const struct m0_fid *gfid,
-			     uint32_t cob_idx)
+M0_INTERNAL int m0_cc_cob_nskey_make(struct m0_cob_nskey **nskey,
+				     const struct m0_fid *gfid,
+				     uint32_t cob_idx)
 {
-	char     nskey_name[M0_FID_STR_LEN];
+	char     nskey_name[M0_FID_STR_LEN] = { 0 };
 	uint32_t nskey_name_len;
 
 	M0_PRE(m0_fid_is_set(gfid));
 
-	M0_SET_ARR0(nskey_name);
 	nskey_name_len = sprintf(nskey_name, "%u", cob_idx);
 
 	return m0_cob_nskey_make(nskey, gfid, nskey_name, nskey_name_len);
@@ -812,7 +842,16 @@ static int cob_attr_op(struct m0_fom          *fom,
 	m0_cob_oikey_make(&oikey, &fid, 0);
 	rc = m0_cob_locate(cdom, &oikey, M0_CA_OMGREC, &cob);
 	if (rc != 0) {
-		return M0_RC(rc);
+		if (rc != -ENOENT || !(gop->fco_flags & M0_IO_FLAG_CROW))
+			return M0_RC(rc);
+		M0_ASSERT(op == COB_ATTR_SET);
+		rc = 0;
+		if (!cob_is_md(gop))
+			rc = m0_cc_stob_create(fom, &gop->fco_stob_id);
+		rc = rc ?: cc_cob_create(fom, gop, attr) ?:
+		      m0_cob_locate(cdom, &oikey, M0_CA_OMGREC, &cob);
+		if (rc != 0)
+			return M0_RC(rc);
 	}
 
 	M0_ASSERT(cob != NULL);
@@ -874,21 +913,20 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
 	int		      rc;
 	struct m0_cob	     *cob;
 	struct m0_cob_nskey  *nskey = NULL;
-	struct m0_cob_nsrec   nsrec;
-	struct m0_cob_fabrec *fabrec;
-	struct m0_cob_omgrec  omgrec;
+	struct m0_cob_nsrec   nsrec = {};
+	struct m0_cob_fabrec *fabrec = NULL;
+	struct m0_cob_omgrec  omgrec = {};
 
 	M0_PRE(cc != NULL);
 	M0_PRE(cdom != NULL);
 
-	M0_SET0(&nsrec);
-        rc = m0_cob_alloc(cdom, &cob);
-        if (rc)
-                return M0_RC(rc);
+	rc = m0_cob_alloc(cdom, &cob);
+	if (rc != 0)
+		return M0_RC(rc);
 
 	rc = cob_is_md(cc) ?
 		cc_md_cob_nskey_make(&nskey, &cc->fco_gfid) :
-		cc_cob_nskey_make(&nskey, &cc->fco_gfid, cc->fco_cob_idx);
+		m0_cc_cob_nskey_make(&nskey, &cc->fco_gfid, cc->fco_cob_idx);
 	if (rc != 0) {
 		m0_cob_put(cob);
 		return M0_RC(rc);
@@ -905,7 +943,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
 	nsrec.cnr_lid     = attr->ca_lid;
 
 	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
-	if (rc) {
+	if (rc != 0) {
 		m0_free(nskey);
 		m0_cob_put(cob);
 		return M0_RC(rc);
@@ -917,7 +955,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
 	omgrec.cor_mode = attr->ca_mode;
 
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, ctx);
-	if (rc) {
+	if (rc != 0) {
 	        /*
 	         * Cob does not free nskey and fab rec on errors. We need to do
 		 * so ourself. In case cob created successfully, it frees things

@@ -609,9 +609,9 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
  * This doesn't create a new storage object; just creates
  * metadata table entries for it to enable namespace and oi lookup.
  *
- * @param cob    cob instance allocted with m0_cob_alloc()
+ * @param cob    cob instance allocated with m0_cob_alloc()
  * @param nskey  namespace key made with m0_cob_nskey_make()
- * @param nsrec  namespace record with all attrbiutes set
+ * @param nsrec  namespace record with all attributes set
  * @param fabrec basic attributes record
  * @param omgrec owner/mode/group record
  * @param tx     transaction handle
@@ -908,7 +908,7 @@ M0_INTERNAL void m0_cob_mod_fini(void);
 extern const struct m0_fid_type m0_cob_fid_type;
 enum m0_cob_type {
 	M0_COB_IO,
-	M0_COB_MD
+	M0_COB_MD,
 };
 
 extern const struct m0_fid_type m0_cob_fid_type;

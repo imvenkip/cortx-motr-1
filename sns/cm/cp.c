@@ -41,9 +41,6 @@
   @{
 */
 
-M0_INTERNAL int m0_sns_cm_cob_is_local(struct m0_fid *cobfid,
-				       struct m0_cob_domain *cdom);
-
 M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp);
 M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp);
 
@@ -139,10 +136,9 @@ M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 
 M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 {
-        struct m0_sns_cm     *scm;
+	struct m0_sns_cm     *scm;
 	struct m0_sns_cm_cp  *scp = cp2snscp(cp);
-        struct m0_cob_domain *cdom;
-        int                   rc;
+	bool                  local_cob;
 
 	M0_PRE(phase >= M0_CCP_INIT && phase < M0_CCP_NR);
 
@@ -153,15 +149,14 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 
 	if ((phase == M0_CCP_INIT && scp->sc_is_acc) || phase == M0_CCP_XFORM) {
 		scm = cm2sns(cp->c_ag->cag_cm);
-		cdom  = scm->sc_it.si_cob_dom;
-		rc = m0_sns_cm_cob_locate(cdom, &scp->sc_cobfid);
-		M0_LOG(M0_DEBUG, FID_F"cob locate rc = %d", FID_P(&scp->sc_cobfid), rc);
-		if (rc == 0)
+		local_cob = m0_sns_cm_is_local_cob(&scm->sc_base,
+						   &scp->sc_cobfid);
+		M0_LOG(M0_DEBUG, "cob="FID_F" local=%d",
+		                  FID_P(&scp->sc_cobfid), local_cob);
+		if (local_cob)
 			return M0_CCP_WRITE;
-		else if (rc == -ENOENT)
-			return M0_CCP_SW_CHECK;
 		else
-			return M0_CCP_FINI;
+			return M0_CCP_SW_CHECK;
 	}
 
 	return next[phase];

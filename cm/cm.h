@@ -204,7 +204,7 @@ struct m0_cm {
 	 * machine replica.
 	 * Copy machine provides various interfaces over this list to implement
 	 * sliding window.
-	 * @see struct m0_cm_aggr_group::cag_cm_out_linkage
+	 * @see struct m0_cm_aggr_group::cag_cm_in_linkage
 	 */
 	struct m0_tl                     cm_aggr_grps_in;
 

@@ -243,7 +243,6 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 	struct m0_fid                           fid;
 	struct m0_fid                           cobfid;
 	struct m0_fid                          *tgt_cobfid;
-	struct m0_cob_domain                   *cdom;
 	struct m0_pdclust_instance             *pi = sag->sag_fctx->sf_pi;
 	enum m0_pool_nd_state                   state_out;
 	uint64_t                                tgt_unit;
@@ -258,7 +257,6 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 
 	agid2fid(&sag->sag_base.cag_id, &fid);
 	group = agid2group(&sag->sag_base.cag_id);
-	cdom = scm->sc_it.si_cob_dom;
 	for (i = 0; i < fmap->b_nr; ++i) {
 		if (!m0_bitmap_get(fmap, i))
 			continue;
@@ -338,7 +336,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 		 * (struct m0_sns_cm_repair_ag::rag_acc_inuse_nr). Use this
 		 * information to finalise an aggregation group.
 		 */
-		if (m0_sns_cm_cob_locate(cdom, tgt_cobfid) == 0 ||
+		if (m0_sns_cm_is_local_cob(cm, tgt_cobfid) ||
 		    sag->sag_base.cag_cp_local_nr != 0) {
 			rag_fc->fc_failed_idx = data_unit_id_out;
 			rag_fc->fc_tgt_idx = tgt_unit;

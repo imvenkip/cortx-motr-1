@@ -42,7 +42,6 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
         struct m0_poolmach         *pm = scm->sc_base.cm_pm;
         struct m0_fid               cobfid;
         struct m0_fid               gfid;
-        struct m0_cob_domain       *cdom;
         struct m0_pdclust_src_addr  sa;
         struct m0_pdclust_tgt_addr  ta;
         int32_t                     incoming_nr = 0;
@@ -52,7 +51,6 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	uint64_t                    dpupg;
         int                         rc;
 
-        cdom  = scm->sc_it.si_cob_dom;
         M0_SET0(&sa);
         agid2fid(id, &gfid);
         sa.sa_group = agid2group(id);
@@ -61,29 +59,21 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 		sa.sa_unit = unit;
 		M0_SET0(&ta);
 		M0_SET0(&cobfid);
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid,
-				      &cobfid);
+		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &cobfid);
 		if (!m0_sns_cm_is_cob_failed(scm, &cobfid))
 			continue;
-                rc = m0_sns_cm_cob_locate(cdom, &cobfid);
-                if (rc != 0)
+                if (!m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid))
                         continue;
-                rc = m0_sns_repair_spare_map(pm, &gfid, pl,
-                                             pi, sa.sa_group, unit, &tgt_unit,
-					     &tgt_unit_prev);
+                rc = m0_sns_repair_spare_map(pm, &gfid, pl, pi, sa.sa_group,
+					     unit, &tgt_unit, &tgt_unit_prev);
                 if (rc != 0)
                         return ~0;
 		M0_SET0(&ta);
 		M0_SET0(&cobfid);
                 sa.sa_unit = tgt_unit;
                 m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &cobfid);
-                rc = m0_sns_cm_cob_locate(cdom, &cobfid);
-                if (rc != 0) {
-                        if (rc == -ENOENT)
-                                M0_CNT_INC(incoming_nr);
-                        else
-                                return ~0;
-                }
+                if (!m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid))
+			M0_CNT_INC(incoming_nr);
 	}
 
         return incoming_nr;
@@ -135,7 +125,6 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 				     struct m0_pdclust_layout *pl,
 				     struct m0_pdclust_instance *pi)
 {
-	struct m0_sns_cm_iter      *it = &scm->sc_it;
 	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
 	uint32_t                    spare;
 	uint32_t                    spare_prev;
@@ -155,23 +144,22 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	for (i = 0; i < N + K; ++i) {
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		if (m0_sns_cm_is_cob_failed(scm, &cobfid)) {
-			rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);
-			if (rc == 0) {
-				do {
-					funit = sa.sa_unit;
-					rc = m0_sns_repair_spare_map(pm, gfid,
-							pl, pi, group, funit,
-							&spare, &spare_prev);
-					if (rc != 0)
-						return false;
-					sa.sa_unit = spare;
-					m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-				} while (m0_sns_cm_is_cob_failed(scm, &cobfid));
-				rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);
-				if (rc == -ENOENT)
-					result = true;
-			}
+		if (m0_sns_cm_is_cob_failed(scm, &cobfid) &&
+		    m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid)) {
+			do {
+				funit = sa.sa_unit;
+				rc = m0_sns_repair_spare_map(pm, gfid,
+						pl, pi, group, funit,
+						&spare, &spare_prev);
+				if (rc != 0)
+					return false;
+				sa.sa_unit = spare;
+				m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta,
+						      gfid, &cobfid);
+			} while (m0_sns_cm_is_cob_failed(scm, &cobfid));
+
+			if (!m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid))
+				result = true;
 		}
 	}
 

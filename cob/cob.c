@@ -678,10 +678,10 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 				   struct m0_be_tx *tx)
 {
 	struct m0_cob_nskey  *nskey = NULL;
-	struct m0_cob_nsrec   nsrec;
-	struct m0_cob_omgkey  omgkey;
-	struct m0_cob_omgrec  omgrec;
-	struct m0_cob_fabrec *fabrec;
+	struct m0_cob_nsrec   nsrec = {};
+	struct m0_cob_omgkey  omgkey = {};
+	struct m0_cob_omgrec  omgrec = {};
+	struct m0_cob_fabrec *fabrec = NULL;
 	struct m0_buf         key;
 	struct m0_buf         rec;
 	struct m0_cob        *cob;
@@ -692,8 +692,6 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	 */
 	omgkey.cok_omgid = ~0ULL;
 
-	M0_SET0(&omgrec);
-
 	m0_buf_init(&key, &omgkey, sizeof omgkey);
 	m0_buf_init(&rec, &omgrec, sizeof omgrec);
 	cob_table_insert(&dom->cd_fileattr_omg, tx, &key, &rec);
@@ -701,8 +699,6 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	/**
 	   Create root cob where all namespace is stored.
 	 */
-	M0_SET0(&nsrec);
-
 	rc = m0_cob_alloc(dom, &cob);
 	if (rc != 0)
 		return M0_RC(rc);
@@ -747,6 +743,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 		m0_free(fabrec);
 		return M0_RC(rc);
 	}
+
 	return 0;
 }
 

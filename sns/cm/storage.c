@@ -29,7 +29,11 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/file.h"
 
-#include "stob/domain.h"    /* m0_stob_domain_find_by_stob_id */
+#include "stob/domain.h"           /* m0_stob_domain_find_by_stob_id */
+#include "ioservice/cob_foms.h"    /* m0_cc_stob_cr_credit */
+#include "ioservice/io_foms.h"     /* m0_io_cob_create */
+#include "ioservice/fid_convert.h" /* m0_fid_convert_stob2cob */
+#include "cob/cob.h"               /* m0_cob_tx_credit */
 
 /**
  * @addtogroup SNSCMCP
@@ -172,8 +176,29 @@ static int cp_stob_io_init(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	stio->si_opcode = op;
 	stio->si_fol_frag = &sns_cp->sc_fol_frag;
 	bshift = m0_stob_block_shift(stob);
+
 	return cp_prepare(cp, &stio->si_stob, &stio->si_user, sns_cp->sc_index,
 			  bshift);
+}
+
+static int stob_check(struct m0_cm_cp *cp)
+{
+	struct m0_stob        *stob;
+	struct m0_sns_cm_cp   *sns_cp;
+	struct m0_cob_domain  *cdom;
+	struct m0_fid          fid;
+	int                    rc = 0;
+
+	sns_cp = cp2snscp(cp);
+	stob = sns_cp->sc_stob;
+	if (m0_stob_state_get(stob) != CSS_EXISTS) {
+		cdom = cm2sns(cp->c_ag->cag_cm)->sc_it.si_cob_dom;
+		m0_fid_convert_stob2cob(&sns_cp->sc_stob_id, &fid);
+		rc = m0_cc_stob_create(&cp->c_fom, &sns_cp->sc_stob_id) ?:
+		     m0_io_cob_create(cdom, &fid, m0_fom_tx(&cp->c_fom));
+	}
+
+	return rc;
 }
 
 static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
@@ -185,6 +210,8 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	struct m0_stob        *stob;
 	struct m0_stob_io     *stio;
 	struct m0_dtx         *tx;
+	struct m0_cob_domain  *cdom;
+	struct m0_be_tx_credit *acc;
 	int                    rc;
 
 	M0_ENTRY("cp=%p op=%d", cp, op);
@@ -202,7 +229,11 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 		m0_dtx_init(&cp_fom->fo_tx, reqh->rh_beseg->bs_domain,
 			    &cp_fom->fo_loc->fl_group);
 		if (op == SIO_WRITE) {
-			m0_stob_io_credit(stio, dom, m0_fom_tx_credit(cp_fom));
+			acc = m0_fom_tx_credit(cp_fom);
+			m0_cc_stob_cr_credit(&sns_cp->sc_stob_id, acc);
+			cdom  = cm2sns(cp->c_ag->cag_cm)->sc_it.si_cob_dom;
+			m0_cob_tx_credit(cdom, M0_COB_OP_CREATE, acc);
+			m0_stob_io_credit(stio, dom, acc);
 		}
 		m0_dtx_open(&cp_fom->fo_tx);
 	}
@@ -221,6 +252,11 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	m0_fom_wait_on(cp_fom, &stio->si_wait, &cp_fom->fo_cb);
 	m0_mutex_unlock(&stio->si_mutex);
 
+	if (op == SIO_WRITE) {
+		rc = stob_check(cp);
+		if (rc != 0)
+			goto out;
+	}
 	stob = sns_cp->sc_stob;
 	rc = m0_stob_io_launch(stio, stob, &cp_fom->fo_tx, NULL);
 	if (rc != 0) {

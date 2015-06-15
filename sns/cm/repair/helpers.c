@@ -38,7 +38,6 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
         struct m0_pdclust_tgt_addr  ta;
         struct m0_fid               cobfid;
 	struct m0_fid               gfid;
-	struct m0_cob_domain       *cdom;
 	uint32_t                    incoming = 0;
 	uint64_t                    upg;
 	uint64_t                    unit;
@@ -47,7 +46,6 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 
 	agid2fid(id,  &gfid);
 	sa.sa_group = agid2group(id);
-	cdom  = scm->sc_it.si_cob_dom;
 	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
 	for (unit = 0; unit < upg; ++unit) {
 		sa.sa_unit = unit;
@@ -56,7 +54,7 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 		if (!m0_sns_cm_unit_is_spare(scm, pl, pi, &gfid, sa.sa_group,
 					     unit) &&
 		    !m0_sns_cm_is_cob_failed(scm, &cobfid) &&
-		    m0_sns_cm_cob_locate(cdom, &cobfid) == -ENOENT)
+		    !m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid))
 			M0_CNT_INC(incoming);
 	}
 
@@ -80,7 +78,6 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 				  struct m0_pdclust_layout *pl,
 				  struct m0_pdclust_instance *pi)
 {
-	struct m0_sns_cm_iter      *it = &scm->sc_it;
 	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
@@ -114,9 +111,9 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 		if (!m0_sns_cm_unit_is_spare(scm, pl, pi, gfid, group, tgt_unit))
 			continue;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);
-		M0_LOG(M0_DEBUG, "cob locate rc = %d", rc);
-		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid)) {
+		rc = m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid);
+		M0_LOG(M0_DEBUG, FID_F" local=%d", FID_P(&cobfid), rc);
+		if (rc == true && !m0_sns_cm_is_cob_failed(scm, &cobfid)) {
 			result = true;
 			break;
 		}

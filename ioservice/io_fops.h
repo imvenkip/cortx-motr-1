@@ -391,6 +391,10 @@ struct m0_fop_cob_writev_rep {
 	struct m0_fop_cob_rw_reply c_rep;
 } M0_XCA_RECORD;
 
+enum m0_io_flags {
+	M0_IO_FLAG_CROW = (1 << 0), /* CReate cob On Write if not present */
+};
+
 /**
  * Common structure for read and write request fops.
  */
@@ -490,6 +494,9 @@ struct m0_fop_cob_common {
 
 	/** Cob type to identfiy whether it is of regular or md cob. */
 	uint32_t             c_cob_type;
+
+	/** Miscellaneous flags. */
+	uint64_t             c_flags;
 } M0_XCA_RECORD;
 
 /**

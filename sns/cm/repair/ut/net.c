@@ -20,6 +20,7 @@
 
 #include "lib/misc.h"
 #include "lib/locality.h"
+#include "lib/finject.h"
 #include "net/lnet/lnet.h"
 #include "reqh/reqh.h"
 #include "sns/cm/net.c"
@@ -806,6 +807,8 @@ static void test_cp_send_recv_verify()
 
 	test_init();
 
+	m0_fi_enable("m0_sns_cm_tgt_ep", "ut-case");
+
 	m0_semaphore_init(&sem, 0);
 	m0_semaphore_init(&cp_sem, 0);
 	sag = &s_rag.rag_base;
@@ -863,6 +866,9 @@ static void test_cp_send_recv_verify()
 
 	for (i = 0; i < BUF_NR; ++i)
 		m0_net_buffer_deregister(&s_buf[i], ndom);
+
+	m0_fi_disable("m0_sns_cm_tgt_ep", "ut-case");
+
 	test_fini();
 }
 

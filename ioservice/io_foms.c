@@ -40,6 +40,8 @@
 #include "ioservice/io_foms.h"
 #include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
+#include "ioservice/cob_foms.h"    /* m0_cc_stob_create */
+#include "cob/cob.h"               /* m0_cob_create */
 #include "mero/magic.h"
 #include "mero/setup.h"
 #include "pool/pool.h"
@@ -894,26 +896,86 @@ enum {
 	IO_FOM_STOB_KEY_MAX = 0x10000000ULL,
 };
 
+M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
+				 struct m0_fid *fid,
+				 struct m0_be_tx *tx)
+{
+	int		      rc;
+	struct m0_cob	     *cob;
+	struct m0_cob_nskey  *nskey = NULL;
+	struct m0_cob_nsrec   nsrec = {};
+	struct m0_cob_fabrec *fabrec = NULL;
+	struct m0_cob_omgrec  omgrec = {};
+	struct m0_fid         gfid;
+
+	rc = m0_cob_alloc(cdom, &cob);
+	if (rc != 0)
+		return M0_RC(rc);
+
+	m0_fid_convert_cob2gob(fid, &gfid);
+	rc = m0_cc_cob_nskey_make(&nskey, &gfid, m0_fid_cob_device_id(fid));
+	if (rc != 0) {
+		m0_cob_put(cob);
+		return M0_RC(rc);
+	}
+
+	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
+	if (rc != 0) {
+		m0_free(nskey);
+		m0_cob_put(cob);
+		return M0_RC(rc);
+	}
+
+	nsrec.cnr_fid   = *fid;
+	nsrec.cnr_nlink = 1;
+
+	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
+	if (rc != 0) {
+		m0_free(nskey);
+		m0_free(fabrec);
+	}
+	m0_cob_put(cob);
+
+	return M0_RC(rc);
+}
+
+static struct m0_cob_domain *fom_cdom(struct m0_fom *fom)
+{
+	struct m0_reqh_io_service *ios;
+
+	ios = container_of(fom->fo_service, struct m0_reqh_io_service,
+			   rios_gen);
+
+	return ios->rios_cdom;
+}
+
 static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
 			   struct m0_file **out)
 {
 	int			   rc;
+	struct m0_io_fom_cob_rw   *fom_obj;
 	struct m0_cob		  *cob;
 	struct m0_cob_oikey	   oikey;
-	struct m0_cob_domain	  *cob_dom;
-	struct m0_reqh_io_service *ios;
+	struct m0_cob_domain	  *cdom;
+	struct m0_stob_id          stob_id;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_fid_is_set(fid));
 
-	ios = container_of(fom->fo_service, struct m0_reqh_io_service,
-			   rios_gen);
-	cob_dom = ios->rios_cdom;
-	if (cob_dom == NULL)
+	cdom = fom_cdom(fom);
+	if (cdom == NULL)
 		return M0_ERR(-EINVAL);
 
 	m0_cob_oikey_make(&oikey, fid, 0);
-	rc = m0_cob_locate(cob_dom, &oikey, M0_CA_NSKEY_FREE, &cob);
+	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
+	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+	if (rc == -ENOENT && fom_obj->fcrw_flags & M0_IO_FLAG_CROW) {
+		m0_fid_convert_cob2stob(fid, &stob_id);
+		rc = m0_cc_stob_create(fom, &stob_id) ?:
+		     m0_io_cob_create(cdom, fid, m0_fom_tx(fom)) ?:
+		     m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
+	}
+
 	if (rc == 0)
 		*out = &cob->co_file;
 
@@ -991,6 +1053,7 @@ static int stob_object_find(struct m0_fom *fom)
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_stob_id        stob_id;
 	struct m0_fop_cob_rw    *rwfop;
+	enum m0_stob_state       stob_state;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1003,11 +1066,14 @@ static int stob_object_find(struct m0_fom *fom)
 	result = m0_stob_find(&stob_id, &fom_obj->fcrw_stob);
 	if (result != 0)
 		return result;
-	if (m0_stob_state_get(fom_obj->fcrw_stob) == CSS_UNKNOWN)
+	stob_state = m0_stob_state_get(fom_obj->fcrw_stob);
+	if (stob_state == CSS_UNKNOWN)
 		result = m0_stob_locate(fom_obj->fcrw_stob);
 	if (result != 0)
 		m0_stob_put(fom_obj->fcrw_stob);
-	M0_LOG(M0_DEBUG, "fid found " FID_F, FID_P(&stob_id.si_fid));
+	M0_LOG(M0_DEBUG, "fid="FID_F" state=%d rc=%d", FID_P(&stob_id.si_fid),
+	       stob_state, result);
+
 	return result;
 }
 
@@ -1065,6 +1131,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	fom_obj->fcrw_count               = 0;
 	fom_obj->fcrw_num_stobio_launched = 0;
 	fom_obj->fcrw_bp                  = NULL;
+	fom_obj->fcrw_flags               = rwfop->crw_flags;
 
 	netbufs_tlist_init(&fom_obj->fcrw_netbuf_list);
 	stobio_tlist_init(&fom_obj->fcrw_stio_list);
@@ -1218,9 +1285,9 @@ static int net_buffer_acquire(struct m0_fom *fom)
 		M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
 		/* Get network buffer pool for network domain */
-		bpdesc = m0_tl_find(bufferpools, bpdesc,
+		bpdesc = m0_tl_find(bufferpools, bpd,
 				    &serv_obj->rios_buffer_pools,
-				    bpdesc->rios_ndom == tm->ntm_dom);
+				    bpd->rios_ndom == tm->ntm_dom);
 		M0_ASSERT(bpdesc != NULL);
 		fom_obj->fcrw_bp = pool = &bpdesc->rios_bp;
 	}
@@ -1838,7 +1905,6 @@ static int indexvec_wire2mem(struct m0_fom *fom, uint32_t bshift)
  */
 static void stob_be_credit(struct m0_fom *fom, bool is_op_write)
 {
-
 	int			 rc;
 	struct m0_io_fom_cob_rw	*fom_obj;
 	struct m0_stob_domain	*fom_stdom;
@@ -1892,10 +1958,23 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
+	rwfop = io_rw_get(fom->fo_fop);
+
 	/* first handle generic phase */
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
-		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
 			stob_be_credit(fom, m0_is_write_fop(fom->fo_fop));
+			if (fom_obj->fcrw_flags & M0_IO_FLAG_CROW) {
+				struct m0_stob_id stob_id;
+				struct m0_be_tx_credit *accum;
+				m0_fid_convert_cob2stob(&rwfop->crw_fid,
+							&stob_id);
+				accum = m0_fom_tx_credit(fom);
+				m0_cc_stob_cr_credit(&stob_id, accum);
+				m0_cob_tx_credit(fom_cdom(fom),
+						 M0_COB_OP_CREATE, accum);
+			}
+		}
 		return m0_fom_tick_generic(fom);
 	}
 
@@ -1910,11 +1989,10 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	/* Set operation status in reply fop if FOM ends.*/
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
 	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
-		rwfop = io_rw_get(fom->fo_fop);
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
 		rwrep->rwr_count = fom_obj->fcrw_count << fom_obj->fcrw_bshift;
-		/* Information about the transaction for  this update op. */
+		/* Information about the transaction for this update op. */
 		m0_fom_mod_rep_fill(&rwrep->rwr_mod_rep, fom);
 		poolmach = &fom_obj->fcrw_pver->pv_mach;
 		M0_ASSERT(poolmach != NULL);

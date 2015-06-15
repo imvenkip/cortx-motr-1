@@ -871,6 +871,7 @@ M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
 		m0_rpc_bulk_init(&iofop->if_rbulk);
 		rw = io_rw_get(&iofop->if_fop);
 		rw->crw_gfid = *gfid;
+		rw->crw_flags |= M0_IO_FLAG_CROW;
 
 		M0_POST(io_fop_invariant(iofop));
 	}

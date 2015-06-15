@@ -224,6 +224,8 @@ struct m0_io_fom_cob_rw {
 	struct m0_fol_frag		 fcrw_fol_frag;
 	/** Time stamp when stob io request was launched */
 	m0_time_t                        fcrw_io_launch_time;
+	/** The flags from m0_fop_cob_rw::crw_flags */
+	uint64_t                         fcrw_flags;
 };
 
 /**
@@ -261,6 +263,10 @@ struct m0_io_fom_cob_rw_state_transition {
  * Returns string representing ioservice name given a fom.
  */
 M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom);
+
+M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
+				 struct m0_fid *fid,
+				 struct m0_be_tx *tx);
 
 /** @} end of io_foms */
 

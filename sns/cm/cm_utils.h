@@ -145,8 +145,8 @@ M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 M0_INTERNAL int
 m0_sns_cm_ut_file_size_layout(struct m0_sns_cm_file_ctx *fctx);
 
-M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
-					 struct m0_fid *gfid);
+M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
+					 const struct m0_fid *gfid);
 
 M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 					    const struct m0_fid *gfid,
@@ -173,6 +173,10 @@ m0_sns_cm_ag_relevant_is_done(const struct m0_cm_aggr_group *ag,
 M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_fid *fid);
 
 M0_INTERNAL struct m0_reqh *m0_sns_cm2reqh(const struct m0_sns_cm *snscm);
+
+M0_INTERNAL bool m0_sns_cm_is_local_cob(const struct m0_cm *cm,
+					const struct m0_fid *cobfid);
+
 /** @} endgroup SNSCM */
 
 /* __MERO_SNS_CM_UTILS_H__ */

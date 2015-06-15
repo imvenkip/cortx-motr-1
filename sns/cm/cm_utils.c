@@ -34,6 +34,7 @@
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/file.h"
 #include "ioservice/fid_convert.h" /* m0_fid_cob_device_id */
+#include "rpc/rpc_machine.h"       /* m0_rpc_machine_ep */
 
 /**
    @addtogroup SNSCM
@@ -129,9 +130,7 @@ M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
 
 	nr_data_bytes_per_group = m0_pdclust_N(pl) *
 				  m0_pdclust_unit_size(pl);
-	return fsize % nr_data_bytes_per_group ?
-	       fsize / nr_data_bytes_per_group + 1 :
-	       fsize / nr_data_bytes_per_group;
+	return (fsize + nr_data_bytes_per_group - 1) / nr_data_bytes_per_group;
 }
 
 M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
@@ -159,12 +158,10 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 						 struct m0_pdclust_instance *pi,
 						 uint64_t group)
 {
-	struct m0_sns_cm_iter         *it  = &scm->sc_it;
 	struct m0_pdclust_src_addr     sa;
 	struct m0_pdclust_tgt_addr     ta;
 	struct m0_fid                  cobfid;
 	uint64_t                       nrlu = 0;
-	int                            rc;
 	int                            i;
 	int                            start;
 	int                            end;
@@ -178,12 +175,13 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	for (i = start; i < end; ++i) {
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
-		rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);
-		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid) &&
+		if (m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid) &&
+		    !m0_sns_cm_is_cob_failed(scm, &cobfid) &&
 		    !m0_sns_cm_unit_is_spare(scm, pl, pi, fid, group, i))
 			M0_CNT_INC(nrlu);
 	}
 	M0_LEAVE("number of local units = %lu", nrlu);
+
 	return nrlu;
 }
 
@@ -328,34 +326,51 @@ M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 	return 0;
 }
 
-M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
-					 struct m0_fid *cfid)
+static const char* local_ep(const struct m0_cm *cm)
+{
+	struct m0_reqh        *rh = cm->cm_service.rs_reqh;
+	struct m0_rpc_machine *rm = m0_cm_rpc_machine_find(rh);
+
+	return m0_rpc_machine_ep(rm);
+}
+
+M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
+					 const struct m0_fid *cfid)
 {
 	struct m0_reqh              *reqh   = cm->cm_service.rs_reqh;
 	struct m0_mero              *mero   = m0_cs_ctx_get(reqh);
 	struct cs_endpoint_and_xprt *ex;
 	uint32_t                     nr_ios =
 					cs_eps_tlist_length(&mero->cc_ios_eps);
-	uint32_t                     nr_devs_unchecked = mero->cc_pool_width;
 	uint32_t                     nr_devs_in_ios;
 	uint64_t                     nr_devs_checked = 0;
+	uint32_t                     dev_id;
 
+	if (M0_FI_ENABLED("ut-case")) {
+		M0_ASSERT(nr_ios == 0);
+		return local_ep(cm);
+	}
+	dev_id = m0_fid_cob_device_id(cfid);
+	M0_ASSERT(dev_id <= mero->cc_pool_width);
+	nr_devs_in_ios = (mero->cc_pool_width + nr_ios - 1) / nr_ios;
 	m0_tl_for(cs_eps, &mero->cc_ios_eps, ex) {
-		nr_devs_in_ios = nr_devs_unchecked / nr_ios;
-		if (nr_devs_unchecked % nr_ios > 0)
-			M0_CNT_INC(nr_devs_in_ios);
 		nr_devs_checked += nr_devs_in_ios;
-		if (m0_fid_cob_device_id(cfid) > nr_devs_checked) {
-			M0_CNT_DEC(nr_ios);
-			nr_devs_unchecked -= nr_devs_in_ios;
-			continue;
+		if (dev_id <= nr_devs_checked) {
+			M0_LOG(M0_DEBUG, "Target endpoint for: "FID_F" %s",
+			       FID_P(cfid), ex->ex_endpoint);
+			return ex->ex_endpoint;
 		}
-		M0_LOG(M0_DEBUG, "Target endpoint for: "FID_F" %s",
-		       FID_P(cfid), ex->ex_endpoint);
-		return ex->ex_endpoint;
 	} m0_tl_endfor;
 
+	M0_IMPOSSIBLE("COB always must have its EP");
+
 	return NULL;
+}
+
+M0_INTERNAL bool m0_sns_cm_is_local_cob(const struct m0_cm *cm,
+					const struct m0_fid *cobfid)
+{
+	return m0_streq(local_ep(cm), m0_sns_cm_tgt_ep(cm, cobfid));
 }
 
 M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,

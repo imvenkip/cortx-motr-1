@@ -45,12 +45,12 @@ struct m0_cm_ag_id {
 	struct m0_uint128 ai_lo;
 } M0_XCA_RECORD;
 
-#define M0_AG_F U128D_F "::" U128D_F
+#define M0_AG_F U128X_F "::" U128D_F
 #define M0_AG_P(ag) U128_P(&((ag)->ai_hi)), U128_P(&((ag)->ai_lo))
 
-#define ID_LOG(prefix, id) M0_LOG(M0_DEBUG, prefix "["M0_AG_F"]", M0_AG_P(id))
+#define ID_LOG(prefix, id) M0_LOG(M0_DEBUG, prefix "=["M0_AG_F"]", M0_AG_P(id))
 #define ID_INCOMING_LOG(prefix, id, has_incoming)			\
-	M0_LOG(M0_DEBUG, prefix " ["M0_AG_F"] has incoming: %d",	\
+	M0_LOG(M0_DEBUG, prefix "=["M0_AG_F"] has incoming: %d",	\
 	       M0_AG_P(id), !!(has_incoming));
 
 
@@ -109,7 +109,7 @@ struct m0_cm_aggr_group {
 
 struct m0_cm_aggr_group_ops {
 	/**
-	 * Checks if aggregation group can be fianlised using members of the
+	 * Checks if aggregation group can be finalized using members of the
 	 * aggregation group and copy packet to be finalised.y
 	 * @pre ag != NULL && cp != NULL
 	 */

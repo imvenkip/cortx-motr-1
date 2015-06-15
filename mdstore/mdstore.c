@@ -186,9 +186,9 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 {
 	struct m0_cob         *cob;
 	struct m0_cob_nskey   *nskey = NULL;
-	struct m0_cob_nsrec    nsrec;
-	struct m0_cob_fabrec  *fabrec;
-	struct m0_cob_omgrec   omgrec;
+	struct m0_cob_nsrec    nsrec = {};
+	struct m0_cob_fabrec  *fabrec = NULL;
+	struct m0_cob_omgrec   omgrec = {};
 	int                    linklen;
 	int                    rc;
 
@@ -200,9 +200,6 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
                 rc = -EOPNOTSUPP;
                 goto out;
         }
-
-	M0_SET0(&nsrec);
-	M0_SET0(&omgrec);
 
 	rc = m0_cob_alloc(md->md_dom, &cob);
 	if (rc != 0)
