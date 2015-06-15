@@ -1875,25 +1875,42 @@ M0_INTERNAL const char *m0_cs_local_ep(struct m0_mero *cctx)
 	return epx->ex_endpoint;
 }
 
-static int file_read(const char *path, char *dest, size_t sz)
+static int file_read(const char *path, char **dest)
 {
 	FILE  *f;
+	long   size;
 	size_t n;
 	int    rc = 0;
 
 	M0_ENTRY("path=`%s'", path);
 
-	f = fopen(path, "r");
+	f = fopen(path, "rb");
 	if (f == NULL)
 		return M0_ERR_INFO(-errno, "path=`%s'", path);
 
-	n = fread(dest, 1, sz - 1, f);
-	if (ferror(f))
-		rc = -errno;
-	else if (!feof(f))
-		rc = -EFBIG;
-	else
-		dest[n] = '\0';
+	rc = fseek(f, 0, SEEK_END);
+	if (rc == 0) {
+		size = ftell(f);
+		rc = fseek(f, 0, SEEK_SET);
+	}
+	if (rc != 0) {
+		fclose(f);
+		return M0_ERR_INFO(-errno, "fseek() failed: path=`%s'", path);
+	}
+	/* it should be freed by the caller */
+	M0_ALLOC_ARR(*dest, size + 1);
+	if (*dest != NULL) {
+		n = fread(*dest, 1, size + 1, f);
+		M0_ASSERT_INFO(n == size, "n=%zu size=%ld", n, size);
+		if (ferror(f))
+			rc = -errno;
+		else if (!feof(f))
+			rc = -EFBIG;
+		else
+			(*dest)[n] = '\0';
+	} else {
+		rc = -ENOMEM;
+	}
 
 	fclose(f);
 	return M0_RC(rc);
@@ -1903,7 +1920,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 {
 	struct cs_args       *args = &cctx->cc_args;
 	struct m0_confc_args *conf_args;
-	static char           confstr[M0_CONF_STR_MAXLEN];
+	char                 *confstr = NULL;
 	struct m0_conf_filesystem *fs;
 	int                   rc;
 
@@ -1912,8 +1929,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
                (cctx->cc_confd_addr == NULL));
 
 	if (cctx->cc_reqh_ctx.rc_confdb != NULL) {
-		rc = file_read(cctx->cc_reqh_ctx.rc_confdb,
-			       confstr, sizeof confstr);
+		rc = file_read(cctx->cc_reqh_ctx.rc_confdb, &confstr);
 		if (rc != 0)
 			return M0_ERR(rc);
 	}
@@ -1927,8 +1943,10 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	};
 
 	rc = m0_reqh_conf_setup(&cctx->cc_reqh_ctx.rc_reqh, conf_args);
-	if (rc != 0)
+	if (rc != 0) {
+		m0_free(confstr);
 		return M0_ERR(rc);
+	}
 
         rc = m0_conf_fs_get(conf_args->ca_profile,
 			    &cctx->cc_reqh_ctx.rc_reqh.rh_confc, &fs);
@@ -1953,6 +1971,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 		goto pools_common_fini;
 
 	m0_confc_close(&fs->cf_obj);
+	m0_free(confstr);
 	return M0_RC(rc);
 
 pools_common_fini:
@@ -1961,6 +1980,7 @@ conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
 conf_destroy:
 	m0_confc_fini(&cctx->cc_reqh_ctx.rc_reqh.rh_confc);
+	m0_free(confstr);
 	return M0_ERR(rc);
 }
 
