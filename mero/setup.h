@@ -344,8 +344,6 @@ struct m0_reqh_context {
    network transports, network domains and a request handler.
  */
 struct m0_mero {
-	struct m0_conf_filesystem  *cc_fs;
-
 	/** Resources shared between multiple pools. */
 	struct m0_pools_common      cc_pools_common;
 

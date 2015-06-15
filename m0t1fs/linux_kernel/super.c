@@ -591,6 +591,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	struct m0_addb2_sys        *sys = m0_addb2_global_get();
 	struct m0_pools_common     *pools = &csb->csb_pools_common;
 	struct m0_confc_args       *confc_args;
+	struct m0_conf_filesystem  *fs;
 	int                         rc;
 
 	M0_ENTRY();
@@ -618,27 +619,27 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		goto err_rpc_fini;
 
 	rc = m0_conf_fs_get(confc_args->ca_profile, &csb->csb_reqh.rh_confc,
-			    &csb->csb_fs);
+			    &fs);
 	if (rc != 0)
 		goto err_conf_fini;
 
-	rc = m0_conf_full_load(csb->csb_fs);
+	rc = m0_conf_full_load(fs);
 	if (rc != 0)
-		goto err_conf_fini;
+		goto err_conf_fs_close;
 
 	m0_pools_common_init(&csb->csb_pools_common,
-			     &csb->csb_rpc_machine, csb->csb_fs);
+			     &csb->csb_rpc_machine, fs);
 	M0_ASSERT(ergo(csb->csb_oostore, pools->pc_md_redundancy > 0));
 
-	rc = m0_pools_setup(pools, csb->csb_fs, NULL, NULL, NULL);
+	rc = m0_pools_setup(pools, fs, NULL, NULL, NULL);
 	if (rc != 0)
-		goto err_conf_fini;
+		goto err_conf_fs_close;
 
-	rc = m0_pools_service_ctx_create(&csb->csb_pools_common, csb->csb_fs);
+	rc = m0_pools_service_ctx_create(&csb->csb_pools_common, fs);
 	if (rc != 0)
 		goto err_pools_destroy;
 
-	rc = m0_pool_versions_setup(pools, csb->csb_fs, NULL, NULL, NULL);
+	rc = m0_pool_versions_setup(pools, fs, NULL, NULL, NULL);
 	if (rc != 0)
 		goto err_pools_service_ctx_destroy;
 
@@ -647,12 +648,12 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		goto err_pool_versions_destroy;
 
 	rc = m0_conf_failure_sets_build(&csb->csb_ha_rsctx->sc_session,
-					csb->csb_fs, &csb->csb_failure_sets);
+					fs, &csb->csb_failure_sets);
 	if (rc != 0)
 		goto err_ha_destroy;
 
 	/* Find pool and pool version to use. */
-	rc = m0t1fs_pool_find(csb, csb->csb_fs);
+	rc = m0t1fs_pool_find(csb, fs);
 	if (rc != 0)
 		goto err_failure_set_destroy;
 
@@ -673,8 +674,10 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		goto err_services_terminate;
 
 	rc = m0_addb2_sys_net_start_with(sys, &pools->pc_svc_ctxs);
-	if (rc == 0)
+	if (rc == 0) {
+		m0_confc_close(&fs->cf_obj);
 		return M0_RC(0);
+	}
 
 	m0t1fs_sb_layouts_fini(csb);
 err_services_terminate:
@@ -690,9 +693,9 @@ err_pools_service_ctx_destroy:
 err_pools_destroy:
 	m0_pools_destroy(&csb->csb_pools_common);
 	m0_pools_common_fini(&csb->csb_pools_common);
+err_conf_fs_close:
+	m0_confc_close(&fs->cf_obj);
 err_conf_fini:
-	/* Close filesystem. */
-	m0_confc_close(&csb->csb_fs->cf_obj);
 	m0_confc_fini(&csb->csb_reqh.rh_confc);
 err_rpc_fini:
 	m0t1fs_rpc_fini(csb);
@@ -713,8 +716,6 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_pools_service_ctx_destroy(&csb->csb_pools_common);
 	m0_pools_destroy(&csb->csb_pools_common);
 	m0_pools_common_fini(&csb->csb_pools_common);
-	/* Close filesystem. */
-	m0_confc_close(&csb->csb_fs->cf_obj);
 	m0_confc_fini(&csb->csb_reqh.rh_confc);
 	m0t1fs_rpc_fini(csb);
 	m0t1fs_net_fini(csb);

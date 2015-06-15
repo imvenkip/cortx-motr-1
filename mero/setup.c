@@ -1904,6 +1904,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	struct cs_args       *args = &cctx->cc_args;
 	struct m0_confc_args *conf_args;
 	static char           confstr[M0_CONF_STR_MAXLEN];
+	struct m0_conf_filesystem *fs;
 	int                   rc;
 
         M0_PRE(cctx->cc_profile != NULL);
@@ -1930,49 +1931,47 @@ static int cs_conf_setup(struct m0_mero *cctx)
 		return M0_ERR(rc);
 
         rc = m0_conf_fs_get(conf_args->ca_profile,
-			    &cctx->cc_reqh_ctx.rc_reqh.rh_confc, &cctx->cc_fs);
+			    &cctx->cc_reqh_ctx.rc_reqh.rh_confc, &fs);
         if (rc != 0)
                 goto conf_destroy;
 
-	rc = m0_conf_full_load(cctx->cc_fs);
+	rc = m0_conf_full_load(fs);
 	if (rc != 0)
-                goto conf_destroy;
+                goto conf_fs_close;
 
-	M0_ASSERT(cctx->cc_fs != NULL);
-	rc = cs_conf_to_args(args, cctx->cc_fs) ?:
+	M0_ASSERT(fs != NULL);
+	rc = cs_conf_to_args(args, fs) ?:
 		_args_parse(cctx, args->ca_argc, args->ca_argv);
 	if (rc != 0)
-		goto conf_destroy;
+		goto conf_fs_close;
 
 	m0_pools_common_init(&cctx->cc_pools_common,
-			     m0_mero_to_rmach(cctx),
-			     cctx->cc_fs);
+			     m0_mero_to_rmach(cctx), fs);
 
-	rc = m0_pools_setup(&cctx->cc_pools_common, cctx->cc_fs,
-			    NULL, NULL, NULL);
+	rc = m0_pools_setup(&cctx->cc_pools_common, fs, NULL, NULL, NULL);
 	if (rc != 0)
 		goto pools_common_fini;
 
+	m0_confc_close(&fs->cf_obj);
 	return M0_RC(rc);
+
 pools_common_fini:
 	m0_pools_common_fini(&cctx->cc_pools_common);
+conf_fs_close:
+	m0_confc_close(&fs->cf_obj);
 conf_destroy:
-	m0_confc_close(&cctx->cc_fs->cf_obj);
 	m0_confc_fini(&cctx->cc_reqh_ctx.rc_reqh.rh_confc);
-	cctx->cc_fs = NULL;
 	return M0_ERR(rc);
 }
 
 static void cs_conf_destroy(struct m0_mero *cctx)
 {
-	if (cctx->cc_fs != NULL) {
+	if (m0_confc_is_initialised(&cctx->cc_reqh_ctx.rc_reqh.rh_confc)) {
 		m0_pool_versions_destroy(&cctx->cc_pools_common);
 		m0_pools_service_ctx_destroy(&cctx->cc_pools_common);
 		m0_pools_destroy(&cctx->cc_pools_common);
 		m0_pools_common_fini(&cctx->cc_pools_common);
-		m0_confc_close(&cctx->cc_fs->cf_obj);
 		m0_confc_fini(&cctx->cc_reqh_ctx.rc_reqh.rh_confc);
-		cctx->cc_fs = NULL;
 	}
 }
 
@@ -2009,6 +2008,7 @@ int m0_cs_start(struct m0_mero *cctx)
 {
 	struct m0_reqh_context     *rctx = &cctx->cc_reqh_ctx;
 	int                         rc;
+	struct m0_conf_filesystem  *fs;
 
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
@@ -2017,25 +2017,35 @@ int m0_cs_start(struct m0_mero *cctx)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_pools_service_ctx_create(&cctx->cc_pools_common, cctx->cc_fs);
-	if (rc != 0)
-		return M0_ERR(rc);
-
-	rc = m0_pool_versions_setup(&cctx->cc_pools_common, cctx->cc_fs,
-				    NULL, NULL, NULL);
+        rc = m0_conf_fs_get(cctx->cc_profile,
+                            &cctx->cc_reqh_ctx.rc_reqh.rh_confc, &fs);
         if (rc != 0)
 		return M0_ERR(rc);
+
+	rc = m0_pools_service_ctx_create(&cctx->cc_pools_common, fs);
+	if (rc != 0)
+		goto error;
+
+	rc = m0_pool_versions_setup(&cctx->cc_pools_common, fs,
+				    NULL, NULL, NULL);
+        if (rc != 0)
+		goto error;
 
 	rc = cs_reqh_layouts_setup(cctx);
         if (rc != 0)
-		return M0_ERR(rc);
+		goto error;
 
 	if (cctx->cc_pools_common.pc_ss_ctx != NULL)
 		M0_LOG(M0_DEBUG, "Stats service connected");
 	else
 		M0_LOG(M0_WARN, "Stats service not connected");
 
+	m0_confc_close(&fs->cf_obj);
 	return M0_RC(rc);
+
+error:
+	m0_confc_close(&fs->cf_obj);
+	return M0_ERR(rc);
 }
 
 int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,

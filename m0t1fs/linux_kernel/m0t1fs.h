@@ -668,8 +668,6 @@ struct m0t1fs_sb {
 
 	struct m0_pools_common                  csb_pools_common;
 
-	struct m0_conf_filesystem              *csb_fs;
-
 	/** Total number of containers. */
 	uint32_t                                csb_nr_containers;
 
