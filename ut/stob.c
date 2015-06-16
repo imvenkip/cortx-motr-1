@@ -18,6 +18,9 @@
  * Original creation date: 20-Mar-2014
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "lib/trace.h"
+
 #include "ut/stob.h"
 
 #include "lib/misc.h"		/* ARRAY_SIZE */
@@ -77,7 +80,28 @@ static void level_ut_stob_leave(struct m0_module *module)
 	m0_ut_stob_fini();
 }
 
-static struct ut_stob_module *ut_stob_init_on_demand(void)
+static struct ut_stob_module *ut_stob_module_get(void)
+{
+	struct ut_stob_module *usm = m0_get()->i_ut_stob_module.usm_private;
+	int                    rc;
+
+	m0_mutex_lock(&usm->usm_lock);
+	if (usm->usm_dom_linux == NULL) {
+		rc = m0_stob_domain_create_or_init(ut_stob_domain_location,
+						   ut_stob_domain_init_cfg,
+						   ut_stob_domain_key,
+						   ut_stob_domain_create_cfg,
+						   &usm->usm_dom_linux);
+		if (rc != 0)
+			M0_LOG(M0_WARN, "rc = %d", rc);
+	} else {
+		rc = 0;
+	}
+	m0_mutex_unlock(&usm->usm_lock);
+	return rc == 0 ? usm : NULL;
+}
+
+M0_INTERNAL int m0_ut_stob_init(void)
 {
 	struct ut_stob_module *usm;
 	int		       rc;
@@ -85,58 +109,30 @@ static struct ut_stob_module *ut_stob_init_on_demand(void)
 	M0_ALLOC_PTR(usm);
 	rc = usm == NULL ? -ENOMEM : 0;
 	if (usm != NULL) {
-		rc = m0_stob_domain_create_or_init(ut_stob_domain_location,
-						   ut_stob_domain_init_cfg,
-						   ut_stob_domain_key,
-						   ut_stob_domain_create_cfg,
-						   &usm->usm_dom_linux);
-		if (rc != 0)
-			m0_free(usm);
-	}
-	if (rc == 0) {
 		m0_mutex_init(&usm->usm_lock);
 		usm->usm_stob_key = UT_STOB_KEY_BEGIN;
+		usm->usm_dom_linux = NULL;
 		m0_get()->i_ut_stob_module.usm_private = usm;
 	}
-	return usm;
-}
-
-static struct ut_stob_module *ut_stob_module_get(bool create)
-{
-	struct ut_stob_module *usm = m0_get()->i_ut_stob_module.usm_private;
-
-	/*
-	 * This function in not supposed to be called from different threads.
-	 * At least the first time.
-	 */
-	if (usm == NULL && create)
-		usm = ut_stob_init_on_demand();
-	return usm;
-}
-
-M0_INTERNAL int m0_ut_stob_init(void)
-{
-	/* nothing to do here, @see ut_stob_init_on_demand() */
-	return 0;
+	return rc;
 }
 M0_EXPORTED(m0_ut_stob_init);
 
 M0_INTERNAL void m0_ut_stob_fini(void)
 {
-	struct ut_stob_module *usm = ut_stob_module_get(false);
+	struct ut_stob_module *usm = m0_get()->i_ut_stob_module.usm_private;
 
-	if (usm != NULL) {
+	if (usm->usm_dom_linux != NULL)
 		m0_stob_domain_fini(usm->usm_dom_linux);
-		m0_mutex_fini(&usm->usm_lock);
-		m0_free(usm);
-	}
+	m0_mutex_fini(&usm->usm_lock);
+	m0_free(usm);
 }
 M0_EXPORTED(m0_ut_stob_fini);
 
 static struct m0_stob *
 ut_stob_linux_create_by_key(uint64_t stob_key, char *stob_create_cfg)
 {
-	struct ut_stob_module *usm = ut_stob_module_get(true);
+	struct ut_stob_module *usm = ut_stob_module_get();
 	struct m0_stob	      *stob;
 	int		       rc;
 	struct m0_stob_id      stob_id;
@@ -159,7 +155,7 @@ ut_stob_linux_create_by_key(uint64_t stob_key, char *stob_create_cfg)
 
 static uint64_t ut_stob_linux_key_alloc(void)
 {
-	struct ut_stob_module *usm = ut_stob_module_get(true);
+	struct ut_stob_module *usm = ut_stob_module_get();
 	uint64_t               stob_key;
 
 	m0_mutex_lock(&usm->usm_lock);
@@ -186,7 +182,7 @@ M0_INTERNAL struct m0_stob *m0_ut_stob_linux_create(char *stob_create_cfg)
 
 M0_INTERNAL void m0_ut_stob_put(struct m0_stob *stob, bool destroy)
 {
-	struct ut_stob_module *usm = ut_stob_module_get(true);
+	struct ut_stob_module *usm = ut_stob_module_get();
 
 	m0_mutex_lock(&usm->usm_lock);
 	m0_ut_stob_close(stob, destroy);
@@ -333,6 +329,8 @@ M0_INTERNAL void m0_ut_dtx_close(struct m0_dtx *dtx)
 }
 
 /** @} end of utstob group */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
