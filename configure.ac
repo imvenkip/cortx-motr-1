@@ -363,7 +363,7 @@ AC_PROG_LN_S
 AC_PROG_INSTALL
 
 # gccxml is required by xcode/gccxml2xcode script
-AC_CHECK_PROG(GCCXML, gccxml, gccxml)
+AC_PATH_PROG(GCCXML, gccxml, gccxml, [/usr/bin$PATH_SEPARATOR$PATH])
 AS_IF([test -z $GCCXML],
       AC_MSG_ERROR([gccxml is not found: it can be installed from gccxml \
 package on Red Hat based systems])
