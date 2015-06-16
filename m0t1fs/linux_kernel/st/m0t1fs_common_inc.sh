@@ -56,6 +56,8 @@ HA_EP=12345:34:1
 CONFD_EP=12345:33:100
 STATSEP=12345:33:800    #stats service runs on a single node.
 
+MKFS_EP=12345:35:1  # MKFS EP
+
 # list of io server end points: e.g., tmid in [900, 999).
 IOSEP=(
     12345:33:900   # IOS1 EP

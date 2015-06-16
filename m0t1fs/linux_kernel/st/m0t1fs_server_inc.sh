@@ -237,13 +237,15 @@ mero_service()
 			     -q $TM_MIN_RECV_QUEUE_LEN -P '$PROF_OPT' "
 
 		# mkfs for confd server
-		opts="$common_opts -T linux -e $XPT:$CONFD_EP \
+		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$MKFS_EP \
 		      -s confd -c $DIR/conf.xc"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0d.log"
 		echo $cmd
 		(eval "$cmd")
 
 		# spawn confd
+		opts="$common_opts -T linux -e $XPT:$CONFD_EP \
+		      -s confd -c $DIR/conf.xc"
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		echo $cmd
 		(eval "$cmd") &
@@ -252,13 +254,15 @@ mero_service()
 		DIR=$MERO_M0T1FS_TEST_DIR/ha
 		rm -rf $DIR
 		mkdir -p $DIR
-		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
+		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$MKFS_EP \
 		      -C $CONFD_EP"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0d.log"
 		echo $cmd
 		(eval "$cmd")
 
 		# spawn ha agent
+		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
+		      -C $CONFD_EP"
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		echo $cmd
 		(eval "$cmd") &
@@ -273,7 +277,7 @@ mero_service()
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
-			$common_opts -e $XPT:${lnet_nid}:${MDSEP[$i]} \
+			$common_opts -e $XPT:${lnet_nid}:$MKFS_EP \
 			$SNAME -C $CONFD_EP |& tee -a m0d.log"
 			echo $cmd
 			eval "$cmd"
@@ -290,7 +294,7 @@ mero_service()
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
-			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]} \
+			$common_opts -e $XPT:${lnet_nid}:$MKFS_EP \
 			$SNAME -C $CONFD_EP |& tee -a m0d.log"
 			echo $cmd
 			eval "$cmd"
