@@ -2116,7 +2116,7 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 		session = m0_reqh_mdpool_service_index_to_session(
 				&csb->csb_reqh, gob_fid, i);
 		M0_ASSERT(session != NULL);
-		m0_fid_convert_gob2cob(gob_fid, &cob_fid, i);
+		m0_fid_convert_gob2cob(gob_fid, &cob_fid, 0);
 		cob_idx = i;
 
 		M0_LOG(M0_DEBUG, "Getattr for "FID_F "~" FID_F,
