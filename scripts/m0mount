@@ -267,6 +267,7 @@ l_do modprobe lnet
 l_do lctl network up &>> /dev/null
 LOCAL_NID=`lctl list_nids | head -1`
 LOCAL_EP=$LOCAL_NID:12345:41:10
+MKFS_EP=12345:35:1
 
 setup_local_params()
 {
@@ -502,6 +503,8 @@ function mkfs()
 {
 	local DIR="$1"
 	local STOB="$2"
+	local CONF="$3"
+	local lnet_nid=`sudo lctl list_nids | head -1`
 
 	echo Running mkfs...
 	$DO "rm -rf $DIR; mkdir $DIR"
@@ -510,7 +513,7 @@ M0_TRACE_IMMEDIATE_MASK=$M0MKFS_TRACE_MASK \
 M0_TRACE_LEVEL=$M0MKFS_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0MKFS_TRACE_CONTEXT \
 $M0MKFS $STOB -D $DIR/db -S $DIR/stobs \
--A linuxstob:$DIR/addb-stobs" || {
+-A linuxstob:$DIR/addb-stobs -e $XPT:$lnet_nid:$MKFS_EP -P '$PROF_OPT' $CONF" || {
 		echo "ERROR: Failed to m0mkfs for $(basename $DIR) on $H"
 		return 1
 	}
@@ -579,6 +582,9 @@ function start_server ()
 
 	# Generate configuration entries for devices.
 	gen_device_conf_ids
+	lnet_nid=`sudo lctl list_nids | head -1`
+	server_nid=${server_nid:-$lnet_nid}
+	#server_id is a global variable and is used inside build_conf() for HA.
 	local SNAME
 	if [ $I -eq 0 ]; then
 		local DIR=$WORK_ARENA/confd
@@ -590,7 +596,7 @@ function start_server ()
 					MDSERVICES[@] STATSERVICES[@]
 		fi
 		if [ $run_mkfs -eq 1 ]; then
-			mkfs $DIR "-T linux" || return 1
+			mkfs $DIR "-T linux" "-s confd -c $CONF_FILE" || return 1
 		fi
 		$RUN "cd $DIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
@@ -598,16 +604,34 @@ M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs \
 -A linuxstob:$DIR/addb-stobs \
--e $XPT:$CONFD_EP -s confd -c $CONF_FILE $XPT_SETUP" > ${SLOG}-confd.log &
+-e $XPT:$CONFD_EP -s confd -c $CONF_FILE -P '$PROF_OPT' $XPT_SETUP" > ${SLOG}-confd.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start confd server on $H
 			return 1
 		fi
 		sleep 2
 
+		DIR=$WORK_ARENA/ha
+		if [ $run_mkfs -eq 1 ]; then
+			mkfs $DIR "-T linux" "-C $CONFD_EP" || return 1
+		fi
+		echo Running m0d...
+		$RUN "cd $DIR && \
+M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
+M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
+M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
+$M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
+-w $POOL_WIDTH -e $XPT:$server_nid:$HA_EP -P '$PROF_OPT' -C $CONFD_EP \
+$XPT_SETUP -s addb2" >> ${SLOG}-ha.log &
+		if [ $? -ne 0 ]; then
+			echo ERROR: Failed to start m0d on $H
+			return 1
+		fi
+		sleep 2
+
 		DIR=$WORK_ARENA/mds
 		if [ $run_mkfs -eq 1 ]; then
-			mkfs "$DIR" "-T linux" || return 1
+			mkfs "$DIR" "-T linux" "-C $CONFD_EP" || return 1
 		fi
 		echo Running m0d...
 		$RUN "cd $DIR && \
@@ -628,7 +652,7 @@ $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
 	SNAME+=" -s addb2 -s ioservice -s sns_repair -s sns_rebalance"
 
 	if [ $run_mkfs -eq 1 ]; then
-		mkfs "$DDIR" "$STOB_PARAMS" || return 1
+		mkfs "$DDIR" "$STOB_PARAMS" "-C $CONFD_EP" || return 1
 	fi
 	echo Running m0d...
 	$RUN "cd $DDIR && \
