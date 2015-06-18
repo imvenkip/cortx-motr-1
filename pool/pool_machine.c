@@ -27,7 +27,7 @@
 #include "pool/pool.h"
 #include "conf/confc.h"
 #include "conf/obj_ops.h"  /* m0_conf_dirval */
-#include "conf/dir_iter.h" /* m0_conf_diter_init, m0_conf_diter_next_sync */
+#include "conf/diter.h"    /* m0_conf_diter_next_sync */
 
 /**
    @addtogroup poolmach

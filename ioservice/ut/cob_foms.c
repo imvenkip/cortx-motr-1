@@ -124,7 +124,7 @@ static char *server_args[] = {
 	"-s", "confd:<0x7300000000000001:5>",
 	"-f", "<0x7200000000000001:1>",
 	"-q", COB_FOP_NR_STR,
-	"-c", M0_UT_PATH("dir_iter_xc.txt"), "-P", M0_UT_CONF_PROFILE
+	"-c", M0_UT_PATH("diter_xc.txt"), "-P", M0_UT_CONF_PROFILE
 };
 
 static void cobfoms_utinit(void)

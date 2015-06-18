@@ -2,7 +2,7 @@ m0mero_objects += \
                   conf/cache.o \
                   conf/confc.o \
                   conf/db.o \
-                  conf/dir_iter.o \
+                  conf/diter.o \
                   conf/flip_fop.o \
                   conf/flip_fop_xc.o \
                   conf/fop.o \

@@ -23,7 +23,7 @@
 #include "lib/errno.h"
 
 #include "conf/obj_ops.h" /* m0_conf_dirval */
-#include "conf/dir_iter.h"
+#include "conf/diter.h"
 
 /**
  * @page confditer-dld DLD of configuration directory iterator

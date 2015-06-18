@@ -28,7 +28,7 @@
 
 #include "conf/confc.h"    /* m0_confc_from_obj */
 #include "conf/schema.h"   /* M0_CST_IOS, M0_CST_MDS */
-#include "conf/dir_iter.h" /* m0_conf_diter_init, m0_conf_diter_next_sync */
+#include "conf/diter.h"    /* m0_conf_diter_next_sync */
 #include "conf/obj_ops.h"  /* m0_conf_dirval */
 #include "conf/helpers.h"  /* m0_obj_is_pver */
 

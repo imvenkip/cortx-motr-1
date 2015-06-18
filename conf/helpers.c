@@ -30,7 +30,7 @@
 #include "conf/helpers.h"
 #include "conf/confc.h"
 #include "conf/obj_ops.h"  /* m0_conf_dirval */
-#include "conf/dir_iter.h" /* m0_conf_diter_init, m0_conf_diter_next_sync */
+#include "conf/diter.h"    /* m0_conf_diter_next_sync */
 
 M0_TL_DESCR_DEFINE(m0_conf_failure_sets, "failed resources", M0_INTERNAL,
 		   struct m0_conf_obj, co_fs_link, co_gen_magic,

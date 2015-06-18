@@ -12,7 +12,7 @@ Detailed designs, ordered alphabetically by title:
 - @subpage conf "DLD of configuration caching" <!-- conf/obj.c -->
 - @subpage DLD_conf_schema "DLD for configuration schema" <!-- conf/schema.h -->
 - @subpage DLD-pools-in-conf-schema "DLD of Pool in Configuration Schema" <! -- conf/objs/pool.c -->
-- @subpage conf-diter-dld "DLD of configuration directory iterator" <! -- conf/dir_iter.c -->
+- @subpage conf-diter-dld "DLD of configuration directory iterator" <! -- conf/diter.c -->
 - @subpage dtm "Distributed transaction manager" <!-- dtm/dtm.h -->
 - @subpage data_integrity "Data integrity using checksum" <!-- lib/checksum.h -->
 - @subpage m0_long_lock-dld "FOM Long lock DLD" <!-- fop/fom_long_lock.h -->

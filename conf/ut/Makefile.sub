@@ -4,7 +4,7 @@ ut_libmero_ut_la_SOURCES += \
     conf/ut/confc.h         \
     conf/ut/common.h        \
     conf/ut/common.c        \
-    conf/ut/dir_iter.c      \
+    conf/ut/diter.c         \
     conf/ut/db.c            \
     conf/ut/load.c          \
     conf/ut/rpc_helpers.c   \

@@ -55,7 +55,7 @@ static int ut_mero_start(struct m0_rpc_machine    *mach,
 		"-w", "10", "-e", SERVER_ENDPOINT,
 		"-s", "confd:<0x7300000000000001:6>",
 		"-s", "rmservice:<0x7300000000000001:3>",
-		"-c", M0_UT_PATH("dir_iter_xc.txt"), "-P", M0_UT_CONF_PROFILE
+		"-c", M0_UT_PATH("diter_xc.txt"), "-P", M0_UT_CONF_PROFILE
 	};
 	*rctx = (struct m0_rpc_server_ctx) {
 		.rsx_xprts         = &g_xprt,

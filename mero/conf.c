@@ -30,7 +30,7 @@
 #include "conf/confc.h"           /* m0_confc */
 #include "conf/schema.h"          /* m0_conf_service_type */
 #include "conf/obj_ops.h"         /* M0_CONF_DIRNEXT */
-#include "conf/dir_iter.h"        /* m0_conf_diter_init */
+#include "conf/diter.h"           /* m0_conf_diter_init */
 #include "reqh/reqh_service.h"    /* m0_reqh_service_ctx */
 
 /* ----------------------------------------------------------------

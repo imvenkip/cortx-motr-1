@@ -30,7 +30,7 @@
 #include "conf/obj.h"
 #include "conf/obj_ops.h"     /* M0_CONF_DIRNEXT, m0_conf_obj_get */
 #include "conf/confc.h"
-#include "conf/dir_iter.h"
+#include "conf/diter.h"
 #include "fop/fop.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/link.h"

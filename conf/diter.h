@@ -18,8 +18,8 @@
  * Original creation date: 12-Jan-2015
  */
 #pragma once
-#ifndef __MERO_CONF_DIR_ITER_H__
-#define __MERO_CONF_DIR_ITER_H__
+#ifndef __MERO_CONF_DITER_H__
+#define __MERO_CONF_DITER_H__
 
 #include "conf/confc.h"
 
@@ -269,4 +269,4 @@ M0_INTERNAL void m0_conf_diter_lvl_init(struct m0_conf_diter_lvl *l,
 M0_INTERNAL void m0_conf_diter_lvl_fini(struct m0_conf_diter_lvl *l);
 
 /** @} endgroup confditer */
-#endif /* __MERO_CONF_DIR_ITER_H__ */
+#endif /* __MERO_CONF_DITER_H__ */

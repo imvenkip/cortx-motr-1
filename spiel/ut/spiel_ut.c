@@ -15,10 +15,8 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Egor Nikulenkov <egor.nikulenkov@seagate.com>
-
  * Original creation date: 24-Feb-2015
  */
-
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
@@ -30,14 +28,10 @@
 #include "ut/ut.h"
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
-#include "rm/rm_rwlock.h"               /* m0_rwlockable_domain_init,
-					   m0_rwlockable_domain_fini */
+#include "rm/rm_rwlock.h"               /* m0_rwlockable_domain_init */
 #include "ut/file_helpers.h"            /* M0_UT_CONF_PROFILE */
 
-#include "net/lnet/lnet.h"              /* m0_net_lnet_xprt */
-
-struct m0_spiel_ut_reqh  *spl_reqh;
-
+struct m0_spiel_ut_reqh *spl_reqh;
 
 static void spiel_start_stop(void)
 {
@@ -84,7 +78,6 @@ static int spiel_ut_fini()
 	return 0;
 }
 
-
 const struct m0_ut_suite spiel_ut = {
 	.ts_name = "spiel-ut",
 	.ts_init = spiel_ut_init,
@@ -94,11 +87,9 @@ const struct m0_ut_suite spiel_ut = {
 		{ NULL, NULL },
 	},
 };
-M0_EXPORTED(spiel_conf_ut);
-
+M0_EXPORTED(spiel_ut);
 
 #undef M0_TRACE_SUBSYSTEM
-
 
 /*
  *  Local variables:
