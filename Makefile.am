@@ -1065,7 +1065,7 @@ __rpm_post:
 
 .PHONY: __rpm
 __rpm:
-	rpmbuild -bb mero.spec $(RPMBUILD_FLAGS)
+	rpmbuild -ba mero.spec $(RPMBUILD_FLAGS)
 
 .PHONY: __rpm_tests
 __rpm_tests:
