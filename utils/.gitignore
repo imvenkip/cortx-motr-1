@@ -1,3 +1,4 @@
+*.pyc
 /modload-all.sh
 /chs_test
 /ff2c
