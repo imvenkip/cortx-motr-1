@@ -11,7 +11,7 @@
 #MERO_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
 
 # Which Mero services to start on current node.
-#MERO_SERVICES='mds ios1 ios2 ios3 ios4'
+#MERO_SERVICES='mds1 mds2 ios1 ios2 ios3 ios4'
 
 # MD service endpoint (for example when it's running on a different node)
 #MERO_MDS_EP=

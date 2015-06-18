@@ -47,8 +47,6 @@ else
         if [[ -n $services ]] ; then
             systemctl start mero-server-confd.service
             confd_is_started=true
-            # hideous hack to workaround confd's long startup time
-            sleep 5
         fi
     fi
 

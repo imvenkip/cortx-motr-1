@@ -194,21 +194,32 @@ m0_get_services()
 }
 
 # Return space-separated list of all services in the cluster
+#   @param  $1  optional service type name, if ommited, the list of all services
+#               in cluster is returned
 m0_get_global_services()
 {
+    local service_type=$1
+
     local services
 
     for node in $(m0_get_nodes); do
         services="$services $(m0_get_services $node)"
     done
 
-    echo $services
-}
+    # RMS and STATS services run on MDS' endpoint
+    case $service_type in
+        rms|stats) service_type=mds ;;
+    esac
 
-# Return space-separated list of all services in the cluster
-m0_get_global_ios_services()
-{
-    echo $(m0_get_global_services) | grep -E -o 'ios([[:digit:]]+)?|singlenode'
+    case $service_type in
+        '') echo $services
+            ;;
+        ios|mds)
+            echo $services | grep -E -o "$service_type([[:digit:]]+)?|singlenode"
+            ;;
+        *)  echo $services | grep -E -o "$service_type"
+            ;;
+    esac
 }
 
 # Return m0mero.ko endpoint
@@ -275,15 +286,19 @@ m0_get_global_eps_of()
 {
     local stype=$1
 
-    local global_ios
+    local global_eps
     local n
     local s
 
     for n in $(m0_get_nodes); do
         for s in $(m0_get_services $n); do
             case $s in
-                ${stype}*|singlenode)
-                    global_eps="$global_ios_eps $(m0_get_ep_of $s $n)"
+                singlenode)
+                    [[ $stype == mds || $stype == ios || $stype == rms || $stype == stats ]] || continue
+                    global_eps="$global_eps $(m0_get_ep_of $s $n)"
+                    ;;
+                ${stype}*)
+                    global_eps="$global_eps $(m0_get_ep_of $s $n)"
                     ;;
             esac
         done
@@ -413,45 +428,93 @@ _build_ios_devs()
     echo -e "$devs"
 }
 
+_build_service_names_for()
+{
+    local service_type=$1
+
+    # check service type
+    case $service_type in
+        ios|mds|rms|stats|ha) # valid services
+            ;;
+        *) m0_exit "Internal error, unkonwn service type '$service_type' in"
+                   " _build_service_names_for()"
+           ;;
+    esac
+
+    local container
+    case $service_type in
+        mds)   container='0x7300000000000001' ;;
+        ios)   container='0x7300000000000002' ;;
+        rms)   container='0x7300000000000004' ;;
+        stats) container='0x7300000000000005' ;;
+        ha)    container='0x7300000000000006' ;;
+    esac
+
+    local idx=0
+    local names
+    local s
+
+    for s in $(m0_get_global_services $service_type); do
+        local name="($container, $((idx++)))"
+        names="$names${names:+, }$name"
+    done
+
+    echo "$names"
+}
+
+_build_service_objects_for()
+{
+    local service_type=$1
+
+    # check service type
+    case $service_type in
+        ios|mds|rms|stats|ha) # valid services
+            ;;
+        *) m0_exit "Internal error, unkonwn service type '$service_type' in"
+                   " _build_service_objects_for()"
+           ;;
+    esac
+
+    local container
+    local type_id
+    case $service_type in
+        mds)   container='0x7300000000000001' ; type_id=1 ;;
+        ios)   container='0x7300000000000002' ; type_id=2 ;;
+        rms)   container='0x7300000000000004' ; type_id=4 ;;
+        stats) container='0x7300000000000005' ; type_id=5 ;;
+        ha)    container='0x7300000000000006' ; type_id=6 ;;
+    esac
+
+    local idx=0
+    local objs
+    local ep
+
+    for ep in $(m0_get_global_eps_of $service_type); do
+        local disk_ids='[0]'
+        if [[ $service_type == ios ]] ; then
+            local count=$(m0_get_global_services $service_type | wc -w)
+            local disks_per_service=$(( $pool_width / $count ))
+            disk_ids=$(_build_disk_ids_str $(($idx * $disks_per_service + 1)) $disks_per_service)
+        fi
+        local name="($container, $((idx++)))"
+        objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: \"$ep\"], $disk_ids)}"
+    done
+
+    echo -e "$objs"
+}
+
 # Construct local_conf mount option from genders file
 m0_build_local_conf()
 {
-    local local_conf
-    local mds_ep=$(m0_get_global_ep_of mds)
-    local rms_ep=$mds_ep # RM service is running on the same node as MDS
-    local stats_ep=$mds_ep # STATS service is running on the same node as MDS
-    local ha_ep=$(m0_get_global_ep_of ha)
     local pool_width=$(m0_genders_value_of m0_pool_width)
     local data_units=$(m0_genders_value_of m0_data_units)
     local parity_units=$(m0_genders_value_of m0_parity_units)
-
-    # IOS objects
-    local ios_count=$(m0_get_global_ios_services | wc -w)
-    local disks_per_ios=$(( $pool_width / $ios_count ))
-    local ios_idx=0
-    local ios_names
-    local ios_objs
-    local ios_ep
-    for ios_ep in $(m0_get_global_eps_of ios); do
-        local disk_ids=$(_build_disk_ids_str $(($ios_idx * $disks_per_ios + 1)) $disks_per_ios)
-        local ios_name="(0x7300000000000002, $((ios_idx++)))"
-        ios_names="$ios_names${ios_names:+, }$ios_name"
-        ios_objs="$ios_objs${ios_objs:+, }{0x73| (($ios_name), 2, [1: \"$ios_ep\"], $disk_ids)}"
-    done
-
-    # MDS objects (current version of initscripts support only single MDS
-    # it will be eliminated completely in LA release
-    local mds_name="(0x7300000000000003, 0)"
-    local mds_obj="{0x73| (($mds_name), 1, [1: \"$mds_ep\"], [0])}"
 
     local  root='(0x7400000000000001, 0)'
     local  prof='(0x7000000000000001, 0)'
     local    fs='(0x6600000000000001, 1)'
     local  node='(0x6e00000000000001, 2)'
     local  proc='(0x7200000000000001, 3)'
-    local    rm='(0x7300000000000001, 4)'
-    local stats='(0x7300000000000001, 5)'
-    local    ha='(0x7300000000000001, 6)'
 
     local rackid='(0x6100000000000001, 6)'
     local enclid='(0x6500000000000001, 7)'
@@ -472,8 +535,28 @@ m0_build_local_conf()
     local enclv="{0x6a| (($enclvid), $enclid, [1: $ctrlvid])}"
     local ctrlv="{0x6a| (($ctrlvid), $ctrlid, $(_build_diskv_fids_str $pool_width))}"
 
-    local_conf=$(cat <<CONF_END
-[$(( $ios_count + 1 + $pool_width * 3 + 16 )):
+    local ios_count=$(m0_get_global_services ios | wc -w)
+    local ios_names=$(_build_service_names_for ios)
+    local ios_objs=$(_build_service_objects_for ios)
+
+    local mds_count=$(m0_get_global_services mds | wc -w)
+    local mds_names=$(_build_service_names_for mds)
+    local mds_objs=$(_build_service_objects_for mds)
+
+    local rms_count=$(m0_get_global_services rms | wc -w)
+    local rms_names=$(_build_service_names_for rms)
+    local rms_objs=$(_build_service_objects_for rms)
+
+    local stats_count=$(m0_get_global_services stats | wc -w)
+    local stats_names=$(_build_service_names_for stats)
+    local stats_objs=$(_build_service_objects_for stats)
+
+    local ha_count=$(m0_get_global_services ha | wc -w)
+    local ha_names=$(_build_service_names_for ha)
+    local ha_objs=$(_build_service_objects_for ha)
+
+    local local_conf=$(cat <<CONF_END
+[$(( $ios_count + $mds_count + $rms_count + $stats_count + $ha_count + $pool_width * 3 + 13 )):
   {0x74| (($root), 1, [1: $prof])},
   {0x70| (($prof), $fs)},
   {0x66| (($fs), (11, 22), 1,
@@ -484,12 +567,12 @@ m0_build_local_conf()
           [1: $rackid])},
   {0x6e| (($node), 16000, 2, 3, 2, $poolid, [1: $proc])},
   {0x72| (($proc), 4000, 2,
-               [$(($ios_count + 4)): $mds_name, $rm, $ios_names, $stats, $ha])},
-  {0x73| (($rm), 4, [1: "$rms_ep"], [0])},
-  {0x73| (($stats), 5, [1: "$stats_ep"], [0])},
-  {0x73| (($ha), 6, [1: "$ha_ep"], [0])},
-  $mds_obj,
+               [$(($mds_count + $ios_count + $rms_count + $stats_count + $ha_count)): $mds_names, $ios_names, $rms_names, $stats_names, $ha_names])},
+  $mds_objs,
   $ios_objs,
+  $rms_objs,
+  $stats_objs,
+  $ha_objs,
   $(_build_ios_devs $pool_width),
   $rack,
   $encl,

@@ -35,12 +35,12 @@ m0_server()
     cd $service_dir
 
     local MERO_M0D_OPTS+=$(m0_get_core_params)
-    local m0d_services='-s addb2 -s rmservice'
+    local m0d_services='-s addb2'
     local stob_type='-T ad'
     local stob_opts
 
     case "$service" in
-        mds*)  m0d_services+=' -s mdservice -s stats'
+        mds*)  m0d_services+=' -s mdservice -s rmservice -s stats'
             ;;
 
         ios*)  stob_opts+=" -d /etc/mero/disks-$service.conf"
@@ -63,7 +63,7 @@ m0_server()
             ;;
 
         *) m0_exit "Failed to start unknown service '$service'," \
-                   " available services are 'mds' and 'ios*'"
+                   " available services are 'mds*' and 'ios*'"
             ;;
     esac
 
