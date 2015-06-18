@@ -705,7 +705,7 @@ EXTRA_DIST         += $(etc_sysconfig_DATA)
 
 etc_merodir    = $(sysconfdir)/mero
 etc_mero_DATA  = scripts/install/etc/mero/genders \
-                 scripts/install/etc/mero/disks-singlenode.conf
+                 scripts/install/etc/mero/disks-ios.conf
 EXTRA_DIST    += $(etc_mero_DATA)
 
 

@@ -146,7 +146,7 @@ install_files()
 
     dir='/etc/mero'
     [[ ! -d $dir ]] && run "mkdir -vp $dir"
-    for file in 'scripts/install/etc/mero/disks-singlenode.conf' \
+    for file in 'scripts/install/etc/mero/disks-ios.conf' \
                 'scripts/install/etc/mero/genders' ;
     do
         run "$cmd $(pwd)/$file $dir"
@@ -180,7 +180,7 @@ install_files()
 uninstall_files()
 {
     file_list='/etc/sysconfig/mero
-               /etc/mero/disks-singlenode.conf
+               /etc/mero/disks-ios.conf
                /etc/mero/genders
                /usr/libexec/mero/mero-service.functions
                /usr/libexec/mero/mero-trace

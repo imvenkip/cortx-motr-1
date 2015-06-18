@@ -22,17 +22,9 @@ start()
 
     services=$(m0_get_services)
 
-    case $services in
-        *singlenode*)
-            [ "$services" != "confd ha singlenode" ] && \
-                m0_exit "Invalid services list: 'singlenode' can't be used" \
-                        " with other services"
-            ;;
-    esac
-
     for s in $services; do
         case $s in
-            singlenode|mds*|ios*) t='@' ;;
+            mds*|ios*) t='@' ;;
             confd|ha) t='-'  ;;
         esac
 

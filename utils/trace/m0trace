@@ -719,8 +719,8 @@ sub process_cli_options
         my $file_pattern;
 
         given ($ARGV[0]) {
-            when ('kernel')                   { $file_pattern = "trace-m0mero~*.bin" }
-            when (/confd|mds|ios|singlenode/) { $file_pattern = "trace-m0d-$ARGV[0]-*.bin" }
+            when ('kernel')        { $file_pattern = "trace-m0mero~*.bin" }
+            when (/confd|mds|ios/) { $file_pattern = "trace-m0d-$ARGV[0]-*.bin" }
             default {
                 die "Unknown type of requested trace log: '$ARGV[0]',"
                     . " supported values are 'kernel', 'confd', 'mds', 'ios*'";
@@ -807,7 +807,7 @@ m0trace - display Mero trace logs in human friendly form
 
 =head1 SYNOPSIS
 
-m0trace  [kernel|confd|iosX|mds|singlenode]  [-i|--input <ifile>]
+m0trace  [kernel|confd|iosX|mdsX]  [-i|--input <ifile>]
 [-o|--output <ofile>] [-S|--stream-mode] [--no-pager] [--no-relpath]
 [-c|-C|--color=MODE] [-d] [-k|--kdump] [-I|--module-image=<FILE>]
 [-L|--log-dir=DIR] [-H|--dump-header] [-F|--follow] [-M|--match-only]
@@ -825,9 +825,9 @@ see B<-i|--input> option.
 
 =head1 ARGUMENTS
 
-An optional argument can be provided, one of I<kernel>, I<confd>, I<mds>, I<ios>
-or I<singlenode>. If specified, C<m0trace> will automatically pick a latest
-trace file for that service.
+An optional argument can be provided, one of I<kernel>, I<confd>, I<mds> or
+I<ios>. If specified, C<m0trace> will automatically pick a latest trace file
+for that service.
 
 =head1 OPTIONS
 

@@ -188,7 +188,7 @@ systemctl daemon-reload
 #disk_cnt=$(/usr/sbin/m0gendisks -c) # use all available disks
 disk_cnt=8 # currently m0d not able to initialize more disks in a reasonable time
 if [ $? -eq 0 ] && [ $disk_cnt -ne 0 ] ; then
-    /usr/sbin/m0gendisks -d $disk_cnt -o /etc/mero/disks-singlenode.conf
+    /usr/sbin/m0gendisks -d $disk_cnt -o /etc/mero/disks-ios.conf
     /bin/sed -i -r -e "s/m0_pool_width=[[:digit:]]+/m0_pool_width=$disk_cnt/" /etc/mero/genders
 fi
 

@@ -56,12 +56,6 @@ m0_server()
                unset m0d_services
             ;;
 
-        singlenode)
-               stob_opts+=" -d /etc/mero/disks-$service.conf"
-               m0d_services+=' -s mdservice -s stats -s ioservice \
-                               -s sns_repair -s sns_rebalance'
-            ;;
-
         *) m0_exit "Failed to start unknown service '$service'," \
                    " available services are 'mds*' and 'ios*'"
             ;;

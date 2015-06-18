@@ -214,10 +214,8 @@ m0_get_global_services()
     case $service_type in
         '') echo $services
             ;;
-        ios|mds)
-            echo $services | grep -E -o "$service_type([[:digit:]]+)?|singlenode"
-            ;;
-        *)  echo $services | grep -E -o "$service_type"
+        *)
+            echo $services | grep -E -o "$service_type([[:digit:]]+)?"
             ;;
     esac
 }
@@ -253,9 +251,9 @@ m0_get_ep_of()
 
     for s in $(m0_get_services $node); do
         case $s in
-            confd) ep="$lnid:$lpid:$confd_portal:$((confd_tid++))"
+            confd*) ep="$lnid:$lpid:$confd_portal:$((confd_tid++))"
                 ;;
-            mds*|singlenode)
+            mds*)
                   ep="$lnid:$lpid:$mds_portal:$((mds_tid++))"
                 ;;
             ios*) ep="$lnid:$lpid:$ios_portal:$((ios_tid++))"
@@ -281,7 +279,7 @@ m0_get_ep_of()
 
 # Return space-separated list of all endpoints in the cluster for particular
 # service type, from genders file
-#   @param  $1  service type (confd mds ios ha)
+#   @param  $1  service type (confd mds ios ha rms stats)
 m0_get_global_eps_of()
 {
     local stype=$1
@@ -293,11 +291,11 @@ m0_get_global_eps_of()
     for n in $(m0_get_nodes); do
         for s in $(m0_get_services $n); do
             case $s in
-                singlenode)
-                    [[ $stype == mds || $stype == ios || $stype == rms || $stype == stats ]] || continue
+                ${stype}*)
                     global_eps="$global_eps $(m0_get_ep_of $s $n)"
                     ;;
-                ${stype}*)
+                mds*)
+                    [[ $stype == rms || $stype == stats ]] || continue
                     global_eps="$global_eps $(m0_get_ep_of $s $n)"
                     ;;
             esac
