@@ -25,11 +25,12 @@
 #include "lib/misc.h" /* M0_QUOTE */
 
 /**
- * Returns absolute path to given file in conf/ut directory.
- * M0_CONF_UT_DIR is defined in conf/ut/Makefile.sub.
+ * Returns absolute path to given file in ut/ directory.
+ * M0_UT_DIR is defined in ut/Makefile.sub.
  */
-#define M0_UT_CONF_PATH(name) M0_QUOTE(M0_UT_DIR) "/" name
-#define M0_UT_CONF_PROFILE    "<0x7000000000000001:0>"
+#define M0_UT_PATH(name) M0_QUOTE(M0_UT_DIR) "/" name
+
+#define M0_UT_CONF_PROFILE "<0x7000000000000001:0>"
 
 /**
  * Reads contents of file into a buffer.

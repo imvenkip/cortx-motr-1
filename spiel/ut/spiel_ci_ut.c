@@ -31,7 +31,7 @@
 #include "ut/ut.h"
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
-#include "ut/file_helpers.h"  /* M0_UT_CONF_PATH */
+#include "ut/file_helpers.h"  /* M0_UT_PATH */
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
@@ -62,7 +62,7 @@ static void test_spiel_service_cmds(void)
 	const char               *rm_ep = confd_eps[0];
 
 	rc = m0_spiel__ut_confd_start(&confd_srv, confd_eps[0],
-				      M0_UT_CONF_PATH("conf-str.txt"));
+				      M0_UT_PATH("conf-str.txt"));
 	M0_UT_ASSERT(rc == 0);
 
 	m0_spiel__ut_reqh_init(&ut_reqh, CLIENT_ENDPOINT_ADDR);
@@ -147,7 +147,7 @@ static void test_spiel_process_services_list(void)
 		.sur_reqh     = g_reqh,
 	};
 	rc = m0_spiel__ut_confd_start(&confd_srv, confd_eps[0],
-				      M0_UT_CONF_PATH("conf-str.txt"));
+				      M0_UT_PATH("conf-str.txt"));
 	M0_UT_ASSERT(rc == 0);
 
 	m0_spiel__ut_reqh_init(&ut_reqh, CLIENT_ENDPOINT_ADDR);
@@ -194,7 +194,7 @@ static void test_spiel_process_cmds(void)
 		.sur_reqh     = g_reqh,
 	};
 	rc = m0_spiel__ut_confd_start(&confd_srv, confd_eps[0],
-				      M0_UT_CONF_PATH("conf-str.txt"));
+				      M0_UT_PATH("conf-str.txt"));
 	M0_UT_ASSERT(rc == 0);
 
 	m0_spiel__ut_reqh_init(&ut_reqh, CLIENT_ENDPOINT_ADDR);
@@ -274,7 +274,7 @@ static void test_spiel_service_order(void)
 	};
 
 	rc = m0_spiel__ut_confd_start(&confd_srv, confd_eps[0],
-				      M0_UT_CONF_PATH("conf-str.txt"));
+				      M0_UT_PATH("conf-str.txt"));
 	M0_UT_ASSERT(rc == 0);
 
 	m0_spiel__ut_reqh_init(&ut_reqh, CLIENT_ENDPOINT_ADDR);

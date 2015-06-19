@@ -82,13 +82,12 @@ static struct m0_rpc_client_ctx cctx = {
 static char *server_argv[] = {
 	"ha_ut", "-T", "AD", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
-	"-e", SERVER_ENDPOINT, "-w", "10",
+	"-w", "10", "-e", SERVER_ENDPOINT,
 	"-s", "ds1:<0x7300000000000001:1>",
 	"-s", "ds2:<0x7300000000000001:2>",
 	"-s", "addb2:<0x7300000000000001:3>",
 	"-s", "confd:<0x7300000000000001:4>",
-	"-P", M0_UT_CONF_PROFILE,
-	"-c", M0_UT_CONF_PATH("conf-str.txt")
+	"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 };
 
 static struct m0_rpc_server_ctx sctx = {
@@ -185,7 +184,7 @@ static void local_confc_init(struct m0_confc *confc)
 {
 	int rc;
 
-	rc = m0_ut_file_read(M0_UT_CONF_PATH("conf-str.txt"),
+	rc = m0_ut_file_read(M0_UT_PATH("conf-str.txt"),
 			     ut_ha_conf_str, sizeof ut_ha_conf_str);
 	M0_UT_ASSERT(rc == 0);
 

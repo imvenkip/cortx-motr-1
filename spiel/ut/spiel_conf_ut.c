@@ -1157,8 +1157,7 @@ static int spiel_conf_ut_init()
 	const char *client_ep = "0@lo:12345:35:1";
 
 	/* restore conf file name if modified */
-	rename( M0_UT_CONF_PATH("conf-str-orig.txt"),
-		M0_UT_CONF_PATH("conf-str.txt"));
+	rename(M0_UT_PATH("conf-str-orig.txt"), M0_UT_PATH("conf-str.txt"));
 
 	m0_rwlockable_domain_init();
 	M0_ALLOC_PTR(spl_reqh);
@@ -1166,12 +1165,12 @@ static int spiel_conf_ut_init()
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel__ut_confd_start(&spl_reqh->sur_confd_srv, ep,
-				      M0_UT_CONF_PATH("conf-str.txt"));
+				      M0_UT_PATH("conf-str.txt"));
 	M0_UT_ASSERT(rc == 0);
 
 	/* save conf file*/
-	rename( M0_UT_CONF_PATH("conf-str.txt"),
-		M0_UT_CONF_PATH("conf-str-orig.txt"));
+	rename( M0_UT_PATH("conf-str.txt"),
+		M0_UT_PATH("conf-str-orig.txt"));
 	return 0;
 }
 
@@ -1187,8 +1186,8 @@ static int spiel_conf_ut_fini()
 	m0_rwlockable_domain_fini();
 
 	/* restore conf file*/
-	rename( M0_UT_CONF_PATH("conf-str-orig.txt"),
-		M0_UT_CONF_PATH("conf-str.txt"));
+	rename( M0_UT_PATH("conf-str-orig.txt"),
+		M0_UT_PATH("conf-str.txt"));
 	return 0;
 }
 

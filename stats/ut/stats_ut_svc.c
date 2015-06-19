@@ -38,7 +38,7 @@ static char *stats_ut_server_argv[] = {
 	"-f", "<0x7200000000000001:1>",
         "-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
         "-e", SERVER_ENDPOINT, "-s", "stats:<0x7300000000000001:1>",
-	"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
+	"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 };
 
 enum stats_id {

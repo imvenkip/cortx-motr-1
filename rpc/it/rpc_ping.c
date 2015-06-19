@@ -56,7 +56,7 @@
 #  include <arpa/inet.h>
 #  include <netdb.h>
 #  include "module/instance.h"  /* m0 */
-#  include "ut/file_helpers.h"  /* M0_UT_CONF_PATH */
+#  include "ut/file_helpers.h"  /* M0_UT_PATH */
 #endif
 
 #define TRANSPORT_NAME  "lnet"
@@ -390,7 +390,7 @@ static int run_server(void)
 		"-s", "ds2:<0x7300000000000001:2>",
 		"-s", "confd:<0x7300000000000001:3>",
 		"-q", tm_len, "-m", rpc_size,
-		"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
+		"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_PATH("conf-str.txt")
 	};
 	struct m0_rpc_server_ctx sctx = {
 		.rsx_xprts            = &xprt,

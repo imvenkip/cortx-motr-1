@@ -46,7 +46,7 @@
 #include "console/console_yaml.h"
 #include "console/console_mesg.h"
 #include "console/console.c"
-#include "ut/file_helpers.h"     /* M0_UT_CONF_PATH */
+#include "ut/file_helpers.h"     /* M0_UT_PATH */
 
 /**
    @addtogroup console
@@ -97,11 +97,11 @@ static struct m0_rpc_client_ctx cctx = {
 static char *server_argv[] = {
 	"console_ut", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 	"-S", SERVER_STOB_FILE_NAME, "-A", SERVER_ADDB_STOB_FILE_NAME,
-	"-e", SERVER_ENDPOINT, "-w", "10",
+	"-w", "10", "-e", SERVER_ENDPOINT,
 	"-s", "ds1:<0x7300000000000001:1>",
 	"-s", "ds2:<0x7300000000000001:2>",
 	"-s", "confd:<0x7300000000000001:3>",
-	"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
+	"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 };
 
 static struct m0_rpc_server_ctx sctx = {

@@ -307,7 +307,7 @@ static void test_diter_local(void)
 	char local_conf[M0_CONF_STR_MAXLEN];
 	int  rc;
 
-	rc = m0_ut_file_read(M0_UT_CONF_PATH("dir_iter_xc.txt"), local_conf,
+	rc = m0_ut_file_read(M0_UT_PATH("dir_iter_xc.txt"), local_conf,
 			     sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
 
@@ -324,7 +324,7 @@ static void test_diter_net(void)
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
 		"-w", "10", "-e", SERVER_ENDPOINT,
 		"-s", "confd:<0x7300000000000001:1>",
-		"-c", M0_UT_CONF_PATH("dir_iter_xc.txt"),
+		"-c", M0_UT_PATH("dir_iter_xc.txt"),
 		"-P", M0_UT_CONF_PROFILE
 	};
 	struct m0_rpc_server_ctx confd = {
@@ -357,7 +357,7 @@ static void test_diter_invalid_input(void)
 	static char           local_conf[M0_CONF_STR_MAXLEN];
 	int                   rc;
 
-	rc = m0_ut_file_read(M0_UT_CONF_PATH("dir_iter_xc.txt"), local_conf,
+	rc = m0_ut_file_read(M0_UT_PATH("dir_iter_xc.txt"), local_conf,
 			     sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, local_conf);

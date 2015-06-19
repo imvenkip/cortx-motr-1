@@ -34,7 +34,7 @@
 #include "lib/thread.h"         /* M0_THREAD_INIT */
 #include "lib/misc.h"           /* M0_SET_ARR0 */
 
-#include "ut/file_helpers.h"    /* M0_UT_CONF_PATH */
+#include "ut/file_helpers.h"    /* M0_UT_PATH */
 
 enum IO_UT_VALUES {
 	IO_FIDS_NR           = 2,

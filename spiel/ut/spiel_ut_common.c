@@ -29,7 +29,7 @@
 #include "spiel/spiel.h"
 #include "ut/ut.h"
 #include "spiel/ut/spiel_ut_common.h"
-#include "ut/file_helpers.h"           /* M0_UT_CONF_PATH */
+#include "ut/file_helpers.h"           /* M0_UT_PATH */
 
 M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 		                       const char              *ep_addr)
@@ -113,7 +113,7 @@ M0_INTERNAL int m0_spiel__ut_confd_start(struct m0_rpc_server_ctx *rpc_srv,
 		"-f", "<0x7200000000000001:1>",
 		"-s", "confd:<0x7300000000000001:1>", "-m", max_rpc_size,
 		"-s", "rmservice:<0x7300000000000002:1>",
-		"-c", M0_UT_CONF_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
+		"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 	};
 #undef NAME
 

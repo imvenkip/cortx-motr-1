@@ -45,7 +45,7 @@ static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-T", "AD",
 				"-s", "stats:<0x7300000000000001:2>",
 				"-s", "confd:<0x7300000000000001:3>",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_CONF_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf-str.txt")};
 
 static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-T", "AD",
 				"-D", "cs_sdb", "-S", "cs_stob",
@@ -57,7 +57,7 @@ static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-T", "AD",
 				"-s", "stats:<0x7300000000000001:2>",
 				"-s", "confd:<0x7300000000000001:3>",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_CONF_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf-str.txt")};
 
 static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-D", "cs_sdb", "-S", "cs_stob",
@@ -70,7 +70,7 @@ static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-s", "stats:<0x7300000000000001:2>",
 				"-s", "confd:<0x7300000000000001:3>",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_CONF_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf-str.txt")};
 
 static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-D", "cs_sdb", "-S", "cs_stob",
@@ -83,7 +83,7 @@ static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-s", "stats:<0x7300000000000001:2>",
 				"-s", "confd:<0x7300000000000001:3>",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_CONF_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf-str.txt")};
 
 /* Transports used in mero context. */
 static struct m0_net_xprt *cs_xprts[] = {
