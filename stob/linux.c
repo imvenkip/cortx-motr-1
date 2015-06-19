@@ -277,12 +277,10 @@ static int stob_linux_domain_create_destroy(struct m0_stob_type *type,
 	mode_t	mode	    = 0700;	/** @todo get mode from create cfg */
 	char   *dir_domain  = stob_linux_dir_domain(path);
 	char   *dir_stob    = stob_linux_dir_stob(path);
-	char   *file_dom_id = stob_linux_file_domain_id(path);
 	int	rc;
 	int	rc1;
 
-	rc = dir_domain == NULL || dir_stob == NULL || file_dom_id == NULL ?
-	     -ENOMEM : 0;
+	rc = dir_domain == NULL || dir_stob == NULL ? -ENOMEM : 0;
 	if (rc != 0)
 		goto out;
 	if (!create)
@@ -308,7 +306,6 @@ destroy:
 	if (rc == 0)
 		rc = rc1;
 out:
-	m0_free(file_dom_id);
 	m0_free(dir_stob);
 	m0_free(dir_domain);
 
