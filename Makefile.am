@@ -475,7 +475,8 @@ include $(top_srcdir)/rpc/it/Makefile.sub
 if ENABLE_UNIT_TESTS
 noinst_PROGRAMS            += console/st/server
 endif
-console_st_server_CPPFLAGS  = -DM0_TARGET='console-st-server' $(AM_CPPFLAGS)
+console_st_server_CPPFLAGS  = -DM0_TARGET='console-st-server' $(AM_CPPFLAGS)\
+			      -DM0_UT_DIR=$(abs_top_builddir)/ut
 console_st_server_LDADD     = $(top_builddir)/mero/libmero.la \
                               $(top_builddir)/ut/libmero-ut.la
 

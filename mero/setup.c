@@ -118,9 +118,14 @@ M0_BOB_DEFINE(static, &astob_bob, cs_ad_stob);
 
 static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
 {
-	return _0C(ergo(m0_exists(i, rctx->rc_nr_services,
-				  m0_streq(rctx->rc_services[i], "confd")),
-			rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0')) &&
+	struct m0_mero *cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
+
+	return _0C(m0_exists(i, rctx->rc_nr_services,
+			     m0_streq(rctx->rc_services[i], "confd")) ==
+		   (rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0')) &&
+		_0C(!m0_exists(i, rctx->rc_nr_services,
+			     m0_streq(rctx->rc_services[i], "confd")) ==
+		   (cctx->cc_confd_addr != NULL && *cctx->cc_confd_addr != '\0')) &&
 		_0C(rctx->rc_stype != NULL) && _0C(rctx->rc_stpath != NULL) &&
 		_0C(rctx->rc_bepath != NULL) &&
 		_0C(ergo(rctx->rc_nr_services != 0, rctx->rc_services != NULL &&
@@ -136,7 +141,6 @@ static bool reqh_context_check(const void *bob)
 		_0C(rctx->rc_max_services == m0_reqh_service_types_length()) &&
 		_0C(M0_CHECK_EX(m0_tlist_invariant(&cs_eps_tl,
 						   &rctx->rc_eps))) &&
-		_0C(rctx->rc_stype == NULL || reqh_ctx_args_are_valid(rctx)) &&
 		_0C(rctx->rc_mero != NULL) &&
 		_0C(ergo(rctx->rc_state == RC_INITIALISED,
 			 m0_reqh_invariant(&rctx->rc_reqh)));
@@ -1577,13 +1581,18 @@ static int reqh_ctx_validate(struct m0_mero *cctx)
 		const char *sname = rctx->rc_services[i];
 
 		if (!m0_reqh_service_is_registered(sname))
-			return M0_ERR_INFO(-ENOENT, "Service is not registered: %s",
-				      sname);
+			return M0_ERR_INFO(-ENOENT,
+					   "Service is not registered: %s",
+					   sname);
 
 		if (service_is_duplicate(rctx, sname))
 			return M0_ERR_INFO(-EEXIST, "Service is not unique: %s",
 				      sname);
 	}
+
+	if (cctx->cc_profile == NULL)
+		return M0_ERR_INFO(-EINVAL, "Configuration profile is missing");
+
 	return M0_RC(0);
 }
 
@@ -1923,10 +1932,6 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	char                 *confstr = NULL;
 	struct m0_conf_filesystem *fs;
 	int                   rc;
-
-        M0_PRE(cctx->cc_profile != NULL);
-        M0_PRE((cctx->cc_reqh_ctx.rc_confdb == NULL) !=
-               (cctx->cc_confd_addr == NULL));
 
 	if (cctx->cc_reqh_ctx.rc_confdb != NULL) {
 		rc = file_read(cctx->cc_reqh_ctx.rc_confdb, &confstr);

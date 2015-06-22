@@ -96,8 +96,8 @@ static struct m0_rpc_client_ctx cctx = {
 static char *server_argv[] = {
 	"console_ut", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 	"-S", SERVER_STOB_FILE_NAME, "-A", SERVER_ADDB_STOB_FILE_NAME,
-	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2", "-w", "10",
-	"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
+	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2", "-s","confd",
+	"-w", "10", "-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
 };
 
 static struct m0_rpc_server_ctx sctx = {

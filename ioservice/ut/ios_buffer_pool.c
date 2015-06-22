@@ -42,7 +42,7 @@ static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-T", "AD",
 				"-e", "lnet:0@lo:12345:34:1",
 				"-w", "10",
 				"-s", "ioservice",
-				"-s", "stats",
+				"-s", "stats", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -53,7 +53,7 @@ static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-T", "AD",
 				"-e", "lnet:0@lo:12345:34:1",
 				"-e", "bulk-mem:127.0.0.1:35678",
 				"-s", "ioservice",
-				"-s", "stats",
+				"-s", "stats", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -65,7 +65,7 @@ static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-e", "bulk-mem:127.0.0.1:35678",
 				"-e", "bulk-mem:127.0.0.1:35679",
 				"-s", "stats",
-				"-s", "ioservice",
+				"-s", "ioservice", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -77,7 +77,7 @@ static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-e", "bulk-mem:127.0.0.1:35678",
 				"-e", "bulk-mem:127.0.0.1:35679",
 				"-s", "ioservice",
-				"-s", "stats",
+				"-s", "stats", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 

@@ -54,7 +54,7 @@ static char *cs_ut_service_one_cmd[] = { "m0d", "-T", "linux",
                                 "-A", "linuxstob:cs_addb_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
 				"-w", "10",
-                                "-s", "ds1",
+                                "-s", "ds1", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -64,7 +64,7 @@ static char *cs_ut_services_many_cmd[] = { "m0d", "-T", "AD",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
-                                "-s", "ds1", "-s" "ds2",
+                                "-s", "ds1", "-s" "ds2", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -73,7 +73,7 @@ static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-D",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-S", "cs_stob", "-A", "linuxstob:cs_addb_stob",
-				"-P", M0_UT_CONF_PROFILE,
+				"-s", "confd", "-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
 static char *cs_ut_dev_stob_cmd[] = { "m0d", "-T", "AD",
@@ -82,7 +82,7 @@ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-T", "AD",
 				"-w", "10",
                                 "-d", "devices.conf",
                                 "-e", "lnet:0@lo:12345:34:1",
-                                "-s", "ds1",
+                                "-s", "ds1", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -91,7 +91,7 @@ static char *cs_ut_stype_bad_cmd[] = { "m0d", "-T", "asdadd",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
-                                "-s", "ds1",
+                                "-s", "ds1", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -100,7 +100,7 @@ static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
-                                "-s", "ds1",
+                                "-s", "ds1", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -109,7 +109,7 @@ static char *cs_ut_ep_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
-                                "-s", "ds1",
+                                "-s", "ds1", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -118,14 +118,15 @@ static char *cs_ut_service_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
-                                "-s", "dasdadasd",
+                                "-s", "dasdadasd", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
 static char *cs_ut_args_bad_cmd[] = { "m0d", "-D", "cs_sdb",
-                                "-S", "cs_stob", "-A", "linuxstob:cs_addb_sdb", "-w", "10",
+                                "-S", "cs_stob",
+				"-A", "linuxstob:cs_addb_sdb", "-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
-				"-P", M0_UT_CONF_PROFILE,
+				"-s", "confd", "-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
 static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-T", "linux",
@@ -134,6 +135,7 @@ static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-T", "linux",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1", "-q", "4", "-m", "4096",
+				"-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -142,7 +144,7 @@ static char *cs_ut_lnet_cmd[] = { "m0d", "-T", "linux",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
-                                "-s", "ds1",
+                                "-s", "ds1", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -152,7 +154,7 @@ static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-T", "linux",
 				"-w", "10",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
-                                "-s", "ioservice",
+                                "-s", "ioservice", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -164,17 +166,18 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
-                                "-s", "ioservice",
+                                "-s", "ioservice", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
+/* Duplicate tcp interfaces in a request handler context. */
 static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
-                                "-s", "ds1",
+                                "-s", "ds1", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
 
@@ -183,9 +186,34 @@ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
-                                "-s", "ds1",
+                                "-s", "ds1", "-s", "confd",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_CONF_PATH("conf-str.txt")};
+
+/* Missing configuration profile (-P) specification. */
+static char *cs_ut_no_profile_cmd[] = {
+	"m0d", "-T", "AD", "-D", "cs_sdb", "-S", "cs_stob",
+	"-A", "linuxstob:cs_addb.stob", "-w", "10",
+	"-e", "lnet:0@lo:12345:34:1",
+	"-s", "ds1", "-s", "ds2", "-s", "ioservice",
+	"-q", "4", "-m", "4096"
+};
+
+/* confd service missing configuration file. */
+static char *cs_ut_confd_no_confstr_cmd[] = {
+	"m0d", "-T", "AD", "-D", "cs_sdb", "-S", "cs_stob",
+	"-A", "linuxstob:cs_addb.stob", "-w", "10",
+	"-e", "lnet:0@lo:12345:34:1", "-q", "4", "-m", "4096",
+        "-s", "confd", "-P", M0_UT_CONF_PROFILE
+};
+
+/* mero server missing configuration service endpoint. */
+static char *cs_ut_no_confd_ep_cmd[] = {
+	"m0d", "-T", "AD", "-D", "cs_sdb", "-S", "cs_stob",
+	"-A", "linuxstob:cs_addb.stob", "-w", "10",
+	"-e", "lnet:0@lo:12345:34:1", "-q", "4", "-m", "4096",
+        "-s", "ds1", "-P", M0_UT_CONF_PROFILE
+};
 
 static const char *cdbnames[] = { "cdb1", "cdb2" };
 static const char *cl_ep_addrs[] = { "0@lo:12345:34:2", "127.0.0.1:34569" };
@@ -414,35 +442,21 @@ static void test_cs_ut_linux_stob_cleanup(void)
 				  ARRAY_SIZE(cs_ut_dev_stob_cmd));
 }
 
-static void test_cs_ut_stype_bad(void)
+static void test_cs_ut_failures(void)
 {
-	cs_ut_test_helper_failure(cs_ut_stype_bad_cmd,
-				  ARRAY_SIZE(cs_ut_stype_bad_cmd));
-}
+#define _TEST(cmd) cs_ut_test_helper_failure(cmd, ARRAY_SIZE(cmd))
 
-static void test_cs_ut_xprt_bad(void)
-{
-	cs_ut_test_helper_failure(cs_ut_xprt_bad_cmd,
-				  ARRAY_SIZE(cs_ut_xprt_bad_cmd));
-}
-
-static void test_cs_ut_ep_bad(void)
-{
-	cs_ut_test_helper_failure(cs_ut_ep_bad_cmd,
-				  ARRAY_SIZE(cs_ut_ep_bad_cmd));
-}
-
-static void test_cs_ut_lnet_ep_bad(void)
-{
-	cs_ut_test_helper_failure(cs_ut_lnet_ep_bad_cmd,
-				  ARRAY_SIZE(cs_ut_lnet_ep_bad_cmd));
-}
-
-static void test_cs_ut_lnet_ep_duplicate(void)
-{
-	/* Duplicate tcp interfaces in a request handler context. */
-	cs_ut_test_helper_failure(cs_ut_lnet_dup_tcp_if_cmd,
-				  ARRAY_SIZE(cs_ut_lnet_dup_tcp_if_cmd));
+	_TEST(cs_ut_stype_bad_cmd);
+	_TEST(cs_ut_xprt_bad_cmd);
+	_TEST(cs_ut_ep_bad_cmd);
+	_TEST(cs_ut_lnet_ep_bad_cmd);
+	_TEST(cs_ut_lnet_dup_tcp_if_cmd);
+	_TEST(cs_ut_service_bad_cmd);
+	_TEST(cs_ut_args_bad_cmd);
+	_TEST(cs_ut_no_profile_cmd);
+	_TEST(cs_ut_confd_no_confstr_cmd);
+	_TEST(cs_ut_no_confd_ep_cmd);
+#undef _TEST
 }
 
 static void test_cs_ut_lnet_multiple_if(void)
@@ -485,18 +499,6 @@ static void test_cs_ut_lnet_ep_mixed_dup(void)
 	fclose(out);
 }
 
-static void test_cs_ut_service_bad(void)
-{
-	cs_ut_test_helper_failure(cs_ut_service_bad_cmd,
-				  ARRAY_SIZE(cs_ut_service_bad_cmd));
-}
-
-static void test_cs_ut_args_bad(void)
-{
-	cs_ut_test_helper_failure(cs_ut_args_bad_cmd,
-				  ARRAY_SIZE(cs_ut_args_bad_cmd));
-}
-
 static void test_cs_ut_buffer_pool(void)
 {
 	struct cl_ctx cctx[1] = {};
@@ -521,17 +523,11 @@ struct m0_ut_suite m0d_ut = {
 		{ "cs-command-options-jumbled", test_cs_ut_opts_jumbled},
 		{ "cs-device-stob", test_cs_ut_dev_stob},
 		{ "cs-fail-linux-stob-cleanup", test_cs_ut_linux_stob_cleanup},
-		{ "cs-bad-storage-type", test_cs_ut_stype_bad},
-		{ "cs-bad-network-xprt", test_cs_ut_xprt_bad},
-		{ "cs-bad-network-ep", test_cs_ut_ep_bad},
-		{ "cs-bad-service", test_cs_ut_service_bad},
-		{ "cs-missing-options", test_cs_ut_args_bad},
 		{ "cs-buffer_pool-options", test_cs_ut_buffer_pool},
-		{ "cs-bad-lnet-ep", test_cs_ut_lnet_ep_bad},
-		{ "cs-duplicate-lnet-ep", test_cs_ut_lnet_ep_duplicate},
 		{ "cs-duplicate-lnet-mixed-ep", test_cs_ut_lnet_ep_mixed_dup},
 		{ "cs-lnet-multiple-interfaces", test_cs_ut_lnet_multiple_if},
 		{ "cs-lnet-options", test_cs_ut_lnet},
+		{ "cs-failures", test_cs_ut_failures},
                 { NULL, NULL },
         }
 };

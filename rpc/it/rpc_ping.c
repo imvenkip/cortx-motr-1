@@ -382,7 +382,7 @@ static int run_server(void)
 	char       *argv[] = {
 		"rpclib_ut", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
-		"-A", SERVER_ADDB_STOB_FILE_NAME, "-w", "5",
+		"-A", SERVER_ADDB_STOB_FILE_NAME, "-w", "5", "-s", "confd",
 		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
 		"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
 	};

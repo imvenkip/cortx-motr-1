@@ -32,6 +32,7 @@
 #include "rpc/rpclib.h"         /* m0_rpc_server_start */
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 #include "ut/ut.h"              /* m0_ut_init */
+#include "ut/file_helpers.h"    /* M0_UT_CONF_PROFILE */
 
 #include "console/console.h"
 #include "console/console_fop.h"
@@ -67,9 +68,9 @@ int main(int argc, char **argv)
 		argv[0], "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
 		"-w", "10", "-e", ENDPOINT,
-		"-P", M0_UT_CONF_PROFILE, "-C", SERVER_ENDPOINT_ADDR,
-		"-s", "ds1", "-s", "ds2", "-s", "ioservice",
-		"-q", tm_len, "-m", rpc_size
+		"-s", "ds1", "-s", "ds2", "-s", "ioservice", "-s", "confd",
+		"-q", tm_len, "-m", rpc_size,
+		"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
 	};
 	struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;
 	struct m0_rpc_server_ctx sctx = {

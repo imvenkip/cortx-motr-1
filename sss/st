@@ -103,8 +103,10 @@ endpoint() {
 }
 
 m0d_start() {
-	local MKFS_OPTS="-T linux -D sss_st.db -S sss_st.stob'\
-' -A linuxstob:sss_st-addb.stob -c $CONFDB_PATH -P $CONF_PROFILE"
+	local MKFS_OPTS="-T linux -D sss_st.db -S sss_st.stob \
+			 -A linuxstob:sss_st-addb.stob        \
+			 -e lnet:$(endpoint $SERVER_TMID) -s confd \
+			 -c $CONFDB_PATH -P $CONF_PROFILE"
 	local M0D_OPT='-w 4 -m 163840 -q 16'
 
 	echo -n 'Running m0mkfs... ' >&2
@@ -115,7 +117,7 @@ m0d_start() {
 	## "sns_repair" and "sns_rebalance" (see below)
 	## require "ioservice" running.
 	env ${TRACE_m0d:-} $M0_CORE_DIR/mero/m0d $MKFS_OPTS \
-		-e lnet:$(endpoint $SERVER_TMID) ${CONFDB_m0d:-} $M0D_OPT \
+		${CONFDB_m0d:-} $M0D_OPT \
 		-s "ioservice:$SVC_ID_ARG" &>$SANDBOX_DIR/m0d.log &
 	sleep 1
 	killall -q -0 lt-m0d || die 'Failed to start m0d'
@@ -154,7 +156,7 @@ m0d_start
 sss_check ioservice M0_SERVICE_STATUS "$SVC_ID" ssr_state M0_RST_STARTED
 sss_check ioservice M0_SERVICE_STATUS '(0, 0)'  ssr_rc    _EINVAL
 
-SVC_NAMES=(confd stats rmservice mdservice addb2 sns_repair sns_rebalance)
+SVC_NAMES=(stats rmservice mdservice addb2 sns_repair sns_rebalance)
 for ((i=0; i < ${#SVC_NAMES[*]}; i += 1)); do
 	SVC2_ID="(8286623314361712642, $i)"
 	echo "id=$SVC2_ID"

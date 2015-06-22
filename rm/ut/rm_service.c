@@ -37,7 +37,7 @@
 static char *server_argv[] = {
 	"rm-ut", "-T", "linux", "-D", SERVER_DB,
 	"-S", SERVER_STOB, "-A", SERVER_ADDB_STOB, "-e", SERVER_ENDPOINT,
-	"-w", "10", "-s", "rmservice",
+	"-w", "10", "-s", "rmservice", "-s", "confd",
 	"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
 };
 

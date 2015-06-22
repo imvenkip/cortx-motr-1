@@ -37,6 +37,7 @@ char      *sns_cm_ut_svc[] = { "m0d", "-T", "LINUX",
                                "-s", "ioservice",
 			       "-s", "sns_repair",
                                "-s", "rmservice",
+                               "-s", "confd",
 			       "-P", M0_UT_CONF_PROFILE,
 			       "-c", M0_UT_CONF_PATH("conf-str.txt")};
 

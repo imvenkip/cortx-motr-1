@@ -116,7 +116,7 @@ static char *server_args[] = {
 	"m0d", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-A", "linuxstob:cobfoms_ut_addb_stob",
 	"-e", SERVER_ENDP, "-s", "ioservice", "-s" "stats", "-w", "10",
-	"-s", "mdservice", "-s", "rmservice",
+	"-s", "mdservice", "-s", "rmservice", "-s", "confd",
 	"-q", COB_FOP_NR_STR, "-c", M0_UT_CONF_PATH("dir_iter_xc.txt"),
 	"-P", M0_UT_CONF_PROFILE
 };

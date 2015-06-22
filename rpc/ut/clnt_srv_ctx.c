@@ -55,7 +55,7 @@ static struct m0_rpc_client_ctx cctx = {
 
 static char *server_argv[] = {
 	"rpclib_ut", "-T", "AD", "-D", SERVER_DB_NAME,
-	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
+	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME, "-s", "confd",
 	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2", "-s", "addb2", "-w",
 	"10", "-P", M0_UT_CONF_PROFILE, "-c", M0_UT_CONF_PATH("conf-str.txt")
 };

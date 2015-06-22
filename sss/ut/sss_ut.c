@@ -70,7 +70,7 @@ static struct m0_net_xprt     *xprt = &m0_net_lnet_xprt;
 static char *server_argv[] = {
 	"sss_ut", "-T", "AD", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
-	"-e", SERVER_ENDPOINT, "-w", "10",
+	"-e", SERVER_ENDPOINT, "-w", "10", "-s", "confd",
 	"-c", M0_UT_CONF_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 };
 
