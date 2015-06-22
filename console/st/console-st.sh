@@ -35,6 +35,7 @@ start_server()
 	modload
 
 	set +eu
+	_use_systemctl=0
 	. /etc/rc.d/init.d/functions  # import `status' function definition
 	set -eu
 
