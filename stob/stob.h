@@ -135,10 +135,12 @@ struct m0_stob_id {
  *
  * Stob fid has the following structure:
  *
+ * @verbatim
  *           8 bits                            120 bits
  *   +----------------------+----------------------------------------------+
  *   |     stob type id     |                  stob key                    |
  *   +----------------------+----------------------------------------------+
+ * @endverbatim
  *
  * Note: stob type id is not the same as stob domain type id. It's made to make
  * possible to distinguish stob fids from stob domain fids.
