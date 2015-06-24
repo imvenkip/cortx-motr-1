@@ -26,6 +26,7 @@
 #include "format/format.h"     /* m0_format_header */
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
+#include "fd/fd.h"             /* struct m0_fd_tile M0_FTA_DEPTH_MAX */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "conf/obj.h"
 #include "layout/pdclust.h"    /* m0_pdclust_attr */
@@ -94,6 +95,12 @@ struct m0_pool_version {
 
 	/** Pool machine associated with this pool version. */
 	struct m0_poolmach           pv_mach;
+
+	/* The fault tolerant tile associated with the pool version. */
+	struct m0_fd_tile            pv_fd_tile;
+
+	/** The tolerance vector associated with the pool version. */
+	uint32_t                     pv_fd_tol_vec[M0_FTA_DEPTH_MAX];
 
 	/**
 	 * An array of size m0_poolversion::pv_attr:pa_P.

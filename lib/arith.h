@@ -174,6 +174,29 @@ static inline uint64_t m0_align(uint64_t val, uint64_t alignment)
 	return (val + mask) & ~mask;
 }
 
+/**
+ * "Encoding" function: returns the number that a (row, column) element of a
+ * matrix with "width" columns has when elements are counted row by row.
+ * @see m0_dec()
+ */
+static inline uint64_t m0_enc(uint64_t width, uint64_t row, uint64_t column)
+{
+	M0_PRE(column < width);
+	return row * width + column;
+}
+
+/**
+ * "Decoding" function: returns (row, column) coordinates of a pos-th element
+ *  in a matrix with "width" column when elements are counted row by row.
+ * @see m0_enc()
+ */
+static inline void m0_dec(uint64_t width, uint64_t pos, uint64_t *row,
+		        uint64_t *column)
+{
+	*row    = pos / width;
+	*column = pos % width;
+}
+
 /** True iff @val is a multiple of 8. This macro can be used to check that a
     pointer is aligned at a 64-bit boundary. */
 #define M0_IS_8ALIGNED(val) ((((uint64_t)(val)) & 07) == 0)

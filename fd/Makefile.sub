@@ -1,0 +1,4 @@
+nobase_mero_include_HEADERS += fd/fd.h \
+			       fd/fd_internal.h
+
+mero_libmero_la_SOURCES  += fd/fd.c

@@ -64,6 +64,7 @@ include $(src)/cob/Kbuild.sub
 include $(src)/console/Kbuild.sub
 include $(src)/cm/Kbuild.sub
 include $(src)/dtm/Kbuild.sub
+include $(src)/fd/Kbuild.sub
 include $(src)/fid/Kbuild.sub
 include $(src)/file/Kbuild.sub
 include $(src)/fol/Kbuild.sub
@@ -116,8 +117,10 @@ ut/linux_kernel/m0ut-y = ut/linux_kernel/m0ut_main.o \
 m0ut_objects :=
 
 include $(src)/addb2/ut/Kbuild.sub
+include $(src)/conf/ut/Kbuild.sub
 include $(src)/fop/ut/Kbuild.sub
 include $(src)/file/ut/Kbuild.sub
+include $(src)/fd/ut/Kbuild.sub
 include $(src)/dtm/ut/Kbuild.sub
 include $(src)/ioservice/ut/Kbuild.sub
 include $(src)/layout/ut/Kbuild.sub

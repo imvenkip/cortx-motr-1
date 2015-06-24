@@ -98,6 +98,7 @@ static void enclosure_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_enclosure *x = M0_CONF_CAST(obj, m0_conf_enclosure);
 	m0_conf_enclosure_bob_fini(x);
+	m0_free(x->ce_pvers);
 	m0_free(x);
 }
 

@@ -185,6 +185,7 @@ include $(top_srcdir)/conf/objs/Makefile.sub
 include $(top_srcdir)/console/Makefile.sub
 include $(top_srcdir)/desim/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
+include $(top_srcdir)/fd/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
 include $(top_srcdir)/file/Makefile.sub
 include $(top_srcdir)/fol/Makefile.sub
@@ -241,6 +242,7 @@ include $(top_srcdir)/cob/ut/Makefile.sub
 include $(top_srcdir)/conf/ut/Makefile.sub
 include $(top_srcdir)/console/ut/Makefile.sub
 include $(top_srcdir)/dtm/ut/Makefile.sub
+include $(top_srcdir)/fd/ut/Makefile.sub
 include $(top_srcdir)/file/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
 include $(top_srcdir)/fop/ub/Makefile.sub
@@ -1221,8 +1223,11 @@ EXTRA_DIST += \
               be/ut/Kbuild.sub \
               cob/Kbuild.sub \
               conf/Kbuild.sub \
+	      conf/ut/Kbuild.sub \
               dtm/Kbuild.sub \
               dtm/ut/Kbuild.sub \
+	      fd/Kbuild.sub \
+	      fd/ut/Kbuild.sub \
               fid/Kbuild.sub \
               fol/Kbuild.sub \
               fop/Kbuild.sub \

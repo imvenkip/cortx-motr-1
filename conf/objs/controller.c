@@ -108,6 +108,7 @@ static void controller_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_controller *x = M0_CONF_CAST(obj, m0_conf_controller);
 	m0_conf_controller_bob_fini(x);
+	m0_free(x->cc_pvers);
 	m0_free(x);
 }
 

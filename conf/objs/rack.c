@@ -95,6 +95,7 @@ static void rack_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_rack *x = M0_CONF_CAST(obj, m0_conf_rack);
 	m0_conf_rack_bob_fini(x);
+	m0_free(x->cr_pvers);
 	m0_free(x);
 }
 
