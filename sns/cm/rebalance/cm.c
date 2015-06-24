@@ -46,6 +46,8 @@ m0_sns_cm_rebalance_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
 					const struct m0_cm_sw *sw);
 
 
+M0_INTERNAL int m0_sns_reopen_stob_devices(struct m0_cm *cm);
+
 static struct m0_cm_cp *rebalance_cm_cp_alloc(struct m0_cm *cm)
 {
 	struct m0_sns_cm_cp *scp;
@@ -61,9 +63,13 @@ static struct m0_cm_cp *rebalance_cm_cp_alloc(struct m0_cm *cm)
 static int rebalance_cm_prepare(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
+	int    rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(scm->sc_op == SNS_REBALANCE);
+	rc = m0_sns_reopen_stob_devices(cm);
+	if (rc != 0)
+		return rc;
 
 	scm->sc_helpers = &rebalance_helpers;
 	return m0_sns_cm_prepare(cm);

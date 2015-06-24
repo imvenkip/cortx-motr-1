@@ -497,6 +497,52 @@ static uint32_t stob_linux_block_shift(struct m0_stob *stob)
 	return m0_stob_ioq_bshift(&lstob->sl_dom->sld_ioq);
 }
 
+/**
+ * Reopen the stob to update it's file descriptor.
+ * Find the stob from the provided stob_id and destroy it to get rid
+ * of the stale fd. Create the stob with provided path to reopen the
+ * underlying device, create will also update the stob with new fd.
+ */
+M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
+				     const char *f_path)
+{
+	struct m0_stob     *bstore;
+	enum m0_stob_state  st;
+	int                 rc;
+
+	rc = m0_stob_find(stob_id, &bstore);
+	st = m0_stob_state_get(bstore);
+	M0_ASSERT(st == CSS_EXISTS);
+	/*
+	 * We need to decrement the reference count on stob by 2.
+	 * First for m0_stob_find() above, and second for ad stob
+	 * created on this stob.
+	 */
+	m0_stob_put(bstore);
+	m0_stob_put(bstore);
+	rc = m0_stob_destroy(bstore, NULL);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "Failed to destroy stob");
+		return M0_ERR(rc);
+	}
+	M0_ASSERT(m0_stob_state_get(bstore) == CSS_NOENT);
+	rc = m0_stob_find(stob_id, &bstore);
+	if (rc != 0)
+		return M0_ERR(rc);
+	st = m0_stob_state_get(bstore);
+	M0_ASSERT(st == CSS_NOENT);
+	rc = m0_stob_create(bstore, NULL, f_path);
+	rc = rc ?: m0_stob_state_get(bstore) == CSS_EXISTS ? 0 : -ENOENT;
+	if (rc == 0) {
+		/* Take back the ad stob reference */
+		m0_stob_get(bstore);
+		return M0_RC(rc);
+	}
+	M0_LOG(M0_ERROR, "Failed to create stob:%s", f_path);
+	m0_stob_put(bstore);
+	return M0_ERR(rc);
+}
+
 static struct m0_stob_type_ops stob_linux_type_ops = {
 	.sto_register		     = &stob_linux_type_register,
 	.sto_deregister		     = &stob_linux_type_deregister,

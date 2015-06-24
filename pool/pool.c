@@ -38,6 +38,10 @@
 #include "pool/pool.h"
 #include "pool/pool_fops.h"
 
+#ifndef __KERNEL__
+#include "mero/setup.h"
+#endif
+
 /**
    @page pool_mach_store_replica DLD of Pool Machine store and replica
 
@@ -880,6 +884,35 @@ m0_pool_version2layout_id(const struct m0_pool_version *pv, uint64_t lid)
 {
         return m0_hash(m0_fid_hash(&pv->pv_id) + lid);
 }
+
+#ifndef __KERNEL__
+/**
+ * Find out device ids of the REPAIRED devices in the given pool machine
+ * and call m0_mero_stob_reopen() on each of them.
+ */
+M0_INTERNAL int m0_pool_device_reopen(struct m0_poolmach *pm,
+				      struct m0_reqh *reqh)
+{
+	struct m0_pool_spare_usage *spare_array;
+	struct m0_pooldev          *dev_array;
+	uint32_t                    dev_id;
+	int                         i;
+	int                         rc = 0;
+
+	dev_array = pm->pm_state->pst_devices_array;
+	spare_array = pm->pm_state->pst_spare_usage_array;
+	for (i = 0; spare_array[i].psu_device_index !=
+	     POOL_PM_SPARE_SLOT_UNUSED; ++i) {
+		dev_id = spare_array[i].psu_device_index;
+		if (dev_array[dev_id].pd_state == M0_PNDS_SNS_REPAIRED) {
+			rc = m0_mero_stob_reopen(reqh, dev_id);
+			if (rc != 0)
+				return M0_ERR(rc);
+		}
+	}
+	return M0_RC(rc);
+}
+#endif
 
 #undef M0_TRACE_SUBSYSTEM
 /** @} end group pool */

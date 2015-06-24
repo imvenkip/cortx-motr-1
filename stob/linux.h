@@ -66,6 +66,15 @@ M0_INTERNAL struct m0_stob_linux *m0_stob_linux_container(struct m0_stob *stob);
 M0_INTERNAL struct m0_stob_linux_domain *
 m0_stob_linux_domain_container(struct m0_stob_domain *dom);
 
+/**
+ * Reopen the stob to update it's file descriptor.
+ * Find the stob from the provided stob_id and destroy it to get rid
+ * of the stale fd. Create the stob with provided path to reopen the
+ * underlying device, create will also update the stob with new fd.
+ */
+M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
+				     const char *f_path);
+
 extern const struct m0_stob_type m0_stob_linux_type;
 
 /** @} end group stoblinux */

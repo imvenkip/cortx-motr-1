@@ -29,6 +29,8 @@
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/file.h"
+#include "pool/pool.h"
+#include "ioservice/io_device.h"
 
 M0_INTERNAL int m0_sns_cm_rebalance_ag_setup(struct m0_sns_cm_ag *sag,
 					     struct m0_pdclust_layout *pl);
@@ -164,6 +166,29 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	}
 
 	return result;
+}
+
+/**
+ * Reopen the REPAIRED stob devices.
+ * When the disk is powered OFF and ON the disk device file (under /dev) gets
+ * changed. Destroy & create the stob to reopen the underlying devices.
+ */
+M0_INTERNAL int m0_sns_reopen_stob_devices(struct m0_cm *cm)
+{
+	struct m0_poolmach    *pm;
+	struct m0_sns_cm      *scm = cm2sns(cm);
+	enum m0_pool_nd_state  state;
+	int                    rc;
+
+	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
+		M0_PNDS_SNS_REBALANCING;
+	M0_PRE(state == M0_PNDS_SNS_REBALANCING);
+	pm = m0_ios_poolmach_get(scm->sc_base.cm_service.rs_reqh);
+	rc = m0_pool_device_reopen(pm, scm->sc_base.cm_service.rs_reqh);
+	if (rc != 0) {
+		return M0_ERR(rc);
+	}
+	return M0_RC(rc);
 }
 
 const struct m0_sns_cm_helpers rebalance_helpers = {

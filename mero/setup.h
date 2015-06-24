@@ -522,6 +522,12 @@ M0_TL_DESCR_DECLARE(cs_eps, extern);
 M0_TL_DECLARE(cs_eps, M0_INTERNAL, struct cs_endpoint_and_xprt);
 M0_BOB_DECLARE(M0_INTERNAL, cs_endpoint_and_xprt);
 
+/**
+ * Extract the path of the provided dev_id from the config file, create stob id
+ * for it and call m0_stob_linux_reopen() to reopen the stob.
+ */
+M0_INTERNAL int m0_mero_stob_reopen(struct m0_reqh *reqh, uint32_t dev_id);
+
 /** @} endgroup m0d */
 
 #endif /* __MERO_MERO_MERO_SETUP_H__ */

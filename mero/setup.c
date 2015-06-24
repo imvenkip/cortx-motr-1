@@ -54,6 +54,7 @@
 
 #include "be/ut/helper.h"
 #include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */
+#include "stob/linux.h"
 
 /**
    @addtogroup m0d
@@ -2123,6 +2124,51 @@ void m0_cs_fini(struct m0_mero *cctx)
 	cs_mero_fini(cctx);
 
 	M0_LEAVE();
+}
+
+/**
+ * Extract the path of the provided dev_id from the config file, create stob id
+ * for it and call m0_stob_linux_reopen() to reopen the stob.
+ */
+M0_INTERNAL int m0_mero_stob_reopen(struct m0_reqh *reqh,
+				    uint32_t dev_id)
+{
+	struct m0_stob_id       stob_id;
+	struct m0_reqh_context *reqh_ctx;
+	struct cs_stobs        *stob;
+	yaml_document_t        *doc;
+	yaml_node_t            *node;
+	yaml_node_t            *s_node;
+	yaml_node_item_t       *item;
+	const char             *f_path;
+	uint64_t                cid;
+	int                     rc = 0;
+	int                     result;
+
+	reqh_ctx = container_of(reqh, struct m0_reqh_context, rc_reqh);
+	stob = &reqh_ctx->rc_stob;
+	doc = &stob->s_sfile.sf_document;
+	if (!stob->s_sfile.sf_is_initialised) {
+		return M0_ERR(-EINVAL);
+	}
+	for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
+		for (item = (node)->data.sequence.items.start;
+		     item < (node)->data.sequence.items.top; ++item) {
+			s_node = yaml_document_get_node(doc, *item);
+			result = stob_file_id_get(doc, s_node, &cid);
+			if (result != 0)
+				continue;
+			if (cid == dev_id) {
+				f_path = stob_file_path_get(doc, s_node);
+				m0_stob_id_make(0, cid, &stob->s_sdom->sd_id,
+						&stob_id);
+				rc = m0_stob_linux_reopen(&stob_id, f_path);
+				if (rc != 0)
+					return M0_ERR(rc);
+			}
+		}
+	}
+	return M0_RC(rc);
 }
 
 /** @} endgroup m0d */

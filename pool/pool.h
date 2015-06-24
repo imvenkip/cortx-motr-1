@@ -388,6 +388,13 @@ M0_INTERNAL int m0_poolserver_device_leave(struct m0_poolserver *srv,
 					   struct m0_pooldev *dev);
 
 /**
+ * Find out device ids of the REPAIRED devices in the given pool machine
+ * and call m0_mero_stob_reopen() on each of them.
+ */
+M0_INTERNAL int m0_pool_device_reopen(struct m0_poolmach *pm,
+				      struct m0_reqh *rs_reqh);
+
+/**
  * State of SNS repair with respect to given global fid.
  * Used during degraded mode write IO.
  * During normal IO, the UNINITIALIZED enum value is used.
