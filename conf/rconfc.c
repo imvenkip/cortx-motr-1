@@ -657,8 +657,9 @@ static void rconfc_herd_fini(struct m0_rconfc *rconfc)
 			m0_clink_del_lock(&lnk->rl_clink);
 			m0_clink_fini(&lnk->rl_clink);
 			m0_confc_ctx_fini(&lnk->rl_cctx);
+			m0_confc_fini(lnk->rl_confc);
 		}
-		m0_confc_fini(lnk->rl_confc);
+		/* dead confc has no internals to fini */
 	} m0_tl_endfor;
 }
 

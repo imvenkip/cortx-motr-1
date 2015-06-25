@@ -221,6 +221,7 @@ m0_rwlock_read_lock
 m0_rwlock_read_unlock
 m0_sm_group_call
 m0_sm_state_set
+m0_spiel_cmd_profile_set
 m0_spiel_controller_add
 m0_spiel_controller_v_add
 m0_spiel_device_add
@@ -255,6 +256,7 @@ m0_spiel_service_quiesce
 m0_spiel_service_start
 m0_spiel_service_stop
 m0_spiel_start
+m0_spiel_start_quorum
 m0_spiel_stop
 m0_spiel_tx_close
 m0_spiel_tx_commit

@@ -34,6 +34,7 @@
 #include "mero/setup.h"
 #endif
 #include "spiel/spiel.h"
+#include "rm/rm_service.h"        /* m0_rms_type */
 #include "sss/process_fops.h"
 #include "sss/process_foms.h"
 #include "sss/ss_svc.h"
@@ -275,6 +276,18 @@ static int ss_process_health(struct m0_reqh *reqh)
 	return M0_HEALTH_GOOD;
 }
 
+extern struct m0_reqh_service_type m0_rpc_service_type;
+
+/**
+ * Initiates process of stopping services found in M0_RST_STARTED state.
+ *
+ * Avoids stopping a number of vital services to sustain the ability to:
+ *
+ * - SSS - handle further incoming commands if any
+ * - RPC - communicate with cluster nodes, including local communication
+ * - RMS - handle resource requests, owner balancing, etc., that the controlled
+ *         services depend on
+ */
 static int ss_process_quiesce(struct m0_reqh *reqh)
 {
 	struct m0_reqh_service *svc;
@@ -285,7 +298,8 @@ static int ss_process_quiesce(struct m0_reqh *reqh)
 					       M0_REQH_ST_SVCS_STOP)));
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, svc) {
-		if (svc->rs_type != &m0_ss_svc_type &&
+		if (!M0_IN(svc->rs_type, (&m0_ss_svc_type, &m0_rpc_service_type,
+					  &m0_rms_type)) &&
 		    m0_reqh_service_state_get(svc) == M0_RST_STARTED)
 			m0_reqh_service_prepare_to_stop(svc);
 	} m0_tl_endfor;

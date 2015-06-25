@@ -97,8 +97,9 @@ struct m0_spiel_tx *m0_spiel_tx_open(struct m0_spiel    *spiel,
 	m0_mutex_init(&tx->spt_lock);
 	m0_conf_cache_init(&tx->spt_cache, &tx->spt_lock);
 
-	/* TODO Fill real version number from RConfc subsystem */
-	tx->spt_version = 2;
+	tx->spt_version = m0_rconfc_ver_max_read(&spiel->spl_rconfc);
+	if (tx->spt_version != CONF_VER_UNKNOWN)
+		++tx->spt_version;
 
 	spiel_root_add(tx);
 

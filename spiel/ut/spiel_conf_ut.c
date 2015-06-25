@@ -33,6 +33,8 @@
 #include "conf/onwire.h"                /* m0_confx */
 #include "conf/onwire_xc.h"             /* m0_confx_xc */
 #include "conf/preload.h"               /* m0_confx_free */
+#include "rm/rm_rwlock.h"               /* m0_rwlockable_domain_init,
+					   m0_rwlockable_domain_fini */
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
 #include "ut/file_helpers.h"
@@ -96,6 +98,7 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 
 	tmp = m0_spiel_tx_open(spiel, tx);
 	M0_UT_ASSERT(tmp == tx);
+	M0_UT_ASSERT(tx->spt_version != CONF_VER_UNKNOWN);
 
 	rc = m0_spiel_profile_add(tx, &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE]);
 	M0_UT_ASSERT(rc == 0);
@@ -194,13 +197,11 @@ static void spiel_conf_create_ok(void)
 {
 	struct m0_spiel_tx tx;
 	int                rc;
-	const char        *ep[] = { SERVER_ENDPOINT_ADDR,
-				    "127.0.0.1:35678",
-				    NULL };
+	const char        *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
+	const char        *rm_ep = ep[0];
 	struct m0_spiel    spiel;
-	const char        *profile = "<0x7000000000000001:0>";
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, profile);
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
 
 	spiel_conf_create_configuration(&spiel, &tx);
@@ -215,9 +216,8 @@ static void spiel_conf_create_fail(void)
 {
 	struct m0_spiel_tx            tx;
 	struct m0_spiel_tx           *tmp;
-	const char                   *ep[] = { SERVER_ENDPOINT_ADDR,
-					       "127.0.0.1:35678",
-					       NULL };
+	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
+	const char                   *rm_ep = ep[0];
 	int                           rc;
 	struct m0_pdclust_attr        pdclust_attr = { .pa_N=0,
 						       .pa_K=0,
@@ -230,13 +230,13 @@ static void spiel_conf_create_fail(void)
 	struct m0_fid                 fake_fid =
 					spiel_obj_fid[SPIEL_UT_OBJ_PROFILE];
 	struct m0_spiel               spiel;
-	const char                   *profile = "<0x7000000000000001:0>";
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, profile);
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
 
 	tmp = m0_spiel_tx_open(&spiel, &tx);
 	M0_UT_ASSERT(tmp == &tx);
+	M0_UT_ASSERT(tx.spt_version != CONF_VER_UNKNOWN);
 
 	/* Profile */
 	rc = m0_spiel_profile_add(&tx, &fake_profile_fid);
@@ -660,13 +660,11 @@ static void spiel_conf_delete(void)
 {
 	struct m0_spiel_tx tx;
 	int                rc;
-	const char        *ep[] = { SERVER_ENDPOINT_ADDR,
-				    "127.0.0.1:35678",
-				    NULL };
+	const char        *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
+	const char        *rm_ep = ep[0];
 	struct m0_spiel    spiel;
-	const char        *profile = "<0x7000000000000001:0>";
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, profile);
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
 
 	spiel_conf_create_configuration(&spiel, &tx);
@@ -934,19 +932,20 @@ static void spiel_conf_file(void)
 	struct m0_spiel_tx    tx;
 	struct m0_spiel_tx   *tmp;
 	const char	     *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
+	const char           *rm_ep = ep[0];
 	struct m0_confx      *confx;
 	char                 *str;
 	const char            filename[] = "/tmp/spiel_conf_file.txt";
 	struct m0_spiel       spiel;
-	const char           *profile = "<0x7000000000000001:0>";
 	struct m0_conf_cache  cache;
 	struct m0_mutex       lock;
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, profile);
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
 
 	tmp = m0_spiel_tx_open(&spiel, &tx);
 	M0_UT_ASSERT(tmp == &tx);
+	M0_UT_ASSERT(tx.spt_version != CONF_VER_UNKNOWN);
 	spiel_conf_file_create_tree(&tx);
 
 	/* Convert to file */
@@ -998,11 +997,11 @@ static void spiel_conf_cancel(void)
 {
 	struct m0_spiel_tx  tx;
 	const char         *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
+	const char         *rm_ep = ep[0];
 	int                 rc;
 	struct m0_spiel     spiel;
-	const char         *profile = "<0x7000000000000001:0>";
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, profile);
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
 
 	spiel_conf_create_configuration(&spiel, &tx);
@@ -1019,11 +1018,11 @@ static void spiel_conf_load_send(void)
 {
 	struct m0_spiel_tx  tx;
 	const char         *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
+	const char         *rm_ep = ep[0];
 	int                 rc;
 	struct m0_spiel     spiel;
-	const char         *profile = "<0x7000000000000001:0>";
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, profile);
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
 
 	spiel_conf_create_configuration(&spiel, &tx);
@@ -1042,15 +1041,15 @@ static void spiel_conf_check_fail(void)
 {
 	struct m0_spiel_tx    tx;
 	const char           *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
+	const char           *rm_ep = ep[0];
 	int                   rc;
 	struct m0_spiel       spiel;
-	const char           *profile = "<0x7000000000000001:0>";
 	struct m0_conf_obj   *obj = NULL;
 	struct m0_conf_obj   *obj_parent;
 	struct m0_conf_cache *cache = &tx.spt_cache;
 	struct m0_fid         fake_fid = M0_FID_TINIT('n', 6, 600 );
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, profile);
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
 
 	spiel_conf_create_configuration(&spiel, &tx);
@@ -1109,11 +1108,11 @@ static void spiel_conf_load_fail(void)
 {
 	struct m0_spiel_tx  tx;
 	const char         *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
+	const char         *rm_ep = ep[0];
 	int                 rc;
 	struct m0_spiel     spiel;
-	const char         *profile = "<0x7000000000000001:0>";
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, profile);
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
 
 	spiel_conf_create_configuration(&spiel, &tx);
@@ -1136,6 +1135,11 @@ static int spiel_conf_ut_init()
 	const char *ep = SERVER_ENDPOINT_ADDR;
 	const char *client_ep = "0@lo:12345:35:1";
 
+	/* restore conf file name if modified */
+	rename( M0_UT_CONF_PATH("conf-str-orig.txt"),
+		M0_UT_CONF_PATH("conf-str.txt"));
+
+	m0_rwlockable_domain_init();
 	M0_ALLOC_PTR(spl_reqh);
 	rc = m0_spiel__ut_reqh_init(spl_reqh, client_ep);
 	M0_UT_ASSERT(rc == 0);
@@ -1159,6 +1163,7 @@ static int spiel_conf_ut_fini()
 	m0_spiel__ut_reqh_fini(spl_reqh);
 
 	m0_free(spl_reqh);
+	m0_rwlockable_domain_fini();
 
 	/* restore conf file*/
 	rename( M0_UT_CONF_PATH("conf-str-orig.txt"),

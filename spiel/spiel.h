@@ -26,6 +26,7 @@
 #include "fid/fid.h"           /* m0_fid */
 #include "conf/schema.h"       /* m0_conf_service_type */
 #include "conf/confc.h"        /* m0_confc */
+#include "conf/rconfc.h"       /* m0_rconfc */
 #include "reqh/reqh_service.h" /* enum m0_service_health */
 
 
@@ -178,13 +179,15 @@ struct m0_reqh;
 struct m0_spiel {
 	/** RPC machine for network communication */
 	struct m0_rpc_machine *spl_rmachine;
-	/** Confd endpoints to communicate with.
-	 * Used both in configuration management and command interface */
+	/**
+	 * Confd endpoints to communicate with. Used both in configuration
+	 * management and command interface.
+	 */
 	const char           **spl_confd_eps;
-	/** Confc instance */
-	struct m0_confc        spl_confc;
 	/** Configuration profile for spiel command interface */
 	struct m0_fid          spl_profile;
+	/** Rconfc instance */
+	struct m0_rconfc       spl_rconfc;
 };
 
 /**
@@ -200,23 +203,40 @@ struct m0_spiel {
  * m0_cs_setup_env(&mero, ...);
  * m0_cs_start(&mero);
  *
- * m0_spiel_start(&spiel,
- *                m0_cs_reqh_get(&mero),
- *                confd_eps,
- *                m0_cs_profile_get(&mero));
+ * m0_spiel_start(&spiel, m0_cs_reqh_get(&mero), confd_eps, rm_ep,
+ *                m0_locality_get(1)->lo_grp);
  * @endcode
  *
  * @param spiel      Spiel instance
  * @param reqh       Request handler
  * @param confd_eps  Network endpoints of confd services. @n
  *                   Endpoints are deep-copied internally
- * @param profile    Configuration profile. It is used for cluster @n
- *                   configuration retrieval by command interface
+ * @param rm_ep      Network endpoint of Resource Manager service.
+ *
+ * @note The call implies automatic quorum value calculation as well as no
+ * expiration callback installed during spiel start. For more specific start
+ * conditioning see m0_spiel_start_quorum(). On the other hand, the expiration
+ * callback may be installed after successful start any time later by means of
+ * M0_RCONFC_CB_SET_LOCK() macro.
  */
-int m0_spiel_start(struct m0_spiel *spiel,
-		   struct m0_reqh  *reqh,
-		   const char     **confd_eps,
-		   const char      *profile);
+int m0_spiel_start(struct m0_spiel    *spiel,
+		   struct m0_reqh     *reqh,
+		   const char        **confd_eps,
+		   const char         *rm_ep);
+
+/**
+ * A more sophisticated spiel start version. Additionally allows to provide
+ * a specific quorum value to be reached. As well, it makes possible to install
+ * configuration expiration callback if required.
+ *
+ * @see m0_spiel_start()
+ */
+int m0_spiel_start_quorum(struct m0_spiel    *spiel,
+			  struct m0_reqh     *reqh,
+			  const char        **confd_eps,
+			  const char         *rm_ep,
+			  uint32_t            quorum,
+			  m0_rconfc_exp_cb_t  exp_cb);
 
 /**
  * Stop spiel instance.
@@ -246,7 +266,7 @@ struct m0_spiel_tx {
 	  */
 	char                 *spt_buffer;
 	/** New ConfD version */
-	int                   spt_version;
+	uint64_t              spt_version;
 };
 
 /**
@@ -520,6 +540,11 @@ int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid);
 /**********************************************************/
 /*                 Command interface                      */
 /**********************************************************/
+/**
+ * Set spiel command profile fid from string. Profile string pointer may be
+ * NULL, and this results in setting the fid to M0_FID0.
+ */
+int m0_spiel_cmd_profile_set(struct m0_spiel *spiel, const char *profile_str);
 
 /**
  * Initialize mero service

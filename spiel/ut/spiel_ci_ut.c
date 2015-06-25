@@ -26,6 +26,8 @@
 #include "conf/obj_ops.h"
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine */
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx */
+#include "rm/rm_rwlock.h"     /* m0_rwlockable_domain_init,
+				 m0_rwlockable_domain_fini */
 #include "ut/ut.h"
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
@@ -39,8 +41,7 @@ static struct m0_reqh            g_reqh;
 static struct m0_net_domain      g_net_dom;
 static struct m0_net_buffer_pool g_buf_pool;
 
-int spiel_proc_conf_obj_find(struct m0_confc         *confc,
-			     const struct m0_fid     *profile,
+int spiel_proc_conf_obj_find(struct m0_spiel         *spl,
 			     const struct m0_fid     *proc_fid,
 			     struct m0_conf_process **proc_obj);
 
@@ -58,6 +59,7 @@ static void test_spiel_service_cmds(void)
 		.sur_buf_pool = g_buf_pool,
 		.sur_reqh     = g_reqh,
 	};
+	const char               *rm_ep = confd_eps[0];
 
 	rc = m0_spiel__ut_confd_start(&confd_srv, confd_eps[0],
 				      M0_UT_CONF_PATH("conf-str.txt"));
@@ -66,7 +68,10 @@ static void test_spiel_service_cmds(void)
 	m0_spiel__ut_reqh_init(&ut_reqh, CLIENT_ENDPOINT_ADDR);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_start(&spiel, &ut_reqh.sur_reqh, confd_eps, profile);
+	rc = m0_spiel_start(&spiel, &ut_reqh.sur_reqh, confd_eps, rm_ep);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_cmd_profile_set(&spiel, profile);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_service_init(&spiel, &svc_fid);
@@ -97,17 +102,16 @@ static void test_spiel_service_cmds(void)
 static void test_spiel_process_prepare_fini(struct m0_spiel     *spl,
 					    const struct m0_fid *proc_fid)
 {
-	struct m0_mutex        *conf_cache_mutex = &spl->spl_confc.cc_lock;
+	struct m0_mutex        *conf_cache_mutex;
 	struct m0_conf_process *proc;
 	struct m0_conf_obj     *obj;
 	int                     rc = 0;
 
-	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
-		return;
-
-	rc = spiel_proc_conf_obj_find(&spl->spl_confc, &spl->spl_profile,
-				      proc_fid, &proc);
-
+	M0_PRE(spl != NULL);
+	M0_PRE(proc_fid != NULL);
+	M0_PRE(m0_conf_fid_type(proc_fid) == &M0_CONF_PROCESS_TYPE);
+	conf_cache_mutex = &spl->spl_rconfc.rc_confc.cc_lock;
+	rc = spiel_proc_conf_obj_find(spl, proc_fid, &proc);
 	if (rc != 0)
 		return;
 
@@ -133,6 +137,7 @@ static void test_spiel_process_services_list(void)
 		SERVER_ENDPOINT_ADDR,
 		NULL
 	};
+	const char *rm_ep = confd_eps[0];
 	const char *profile = M0_UT_CONF_PROFILE;
 	const struct m0_fid proc_fid = M0_FID_TINIT('r', 1,  5);
 
@@ -148,7 +153,10 @@ static void test_spiel_process_services_list(void)
 	m0_spiel__ut_reqh_init(&ut_reqh, CLIENT_ENDPOINT_ADDR);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_start(&spiel, &ut_reqh.sur_reqh, confd_eps, profile);
+	rc = m0_spiel_start(&spiel, &ut_reqh.sur_reqh, confd_eps, rm_ep);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_cmd_profile_set(&spiel, profile);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_process_list_services(&spiel, &proc_fid, &svcs);
@@ -174,6 +182,7 @@ static void test_spiel_process_cmds(void)
 		SERVER_ENDPOINT_ADDR,
 		NULL
 	};
+	const char *rm_ep   = confd_eps[0];
 	const char *profile = M0_UT_CONF_PROFILE;
 	const struct m0_fid profile_fid = M0_FID_TINIT('r', 1, 5);
 	const struct m0_fid profile_second_fid = M0_FID_TINIT('r', 1, 13);
@@ -191,7 +200,10 @@ static void test_spiel_process_cmds(void)
 	m0_spiel__ut_reqh_init(&ut_reqh, CLIENT_ENDPOINT_ADDR);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_start(&spiel, &ut_reqh.sur_reqh, confd_eps, profile);
+	rc = m0_spiel_start(&spiel, &ut_reqh.sur_reqh, confd_eps, rm_ep);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_cmd_profile_set(&spiel, profile);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Reconfig */
@@ -237,10 +249,22 @@ static void test_spiel_process_cmds(void)
 	m0_spiel__ut_confd_stop(&confd_srv);
 }
 
+int spiel_ci_ut_init(void)
+{
+	m0_rwlockable_domain_init();
+	return 0;
+}
+
+int spiel_ci_ut_fini(void)
+{
+	m0_rwlockable_domain_fini();
+	return 0;
+}
+
 struct m0_ut_suite spiel_ci_ut = {
 	.ts_name  = "spiel-ci-ut",
-	.ts_init  = NULL,
-	.ts_fini  = NULL,
+	.ts_init  = spiel_ci_ut_init,
+	.ts_fini  = spiel_ci_ut_fini,
 	.ts_tests = {
 		{ "service-cmds", test_spiel_service_cmds },
 		{ "process-services-list", test_spiel_process_services_list },

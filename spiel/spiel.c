@@ -39,55 +39,67 @@
 #include "reqh/reqh.h"
 #include "spiel/spiel.h"
 
-
 int m0_spiel_start(struct m0_spiel *spiel,
 		   struct m0_reqh  *reqh,
 		   const char     **confd_eps,
-		   const char      *profile)
+		   const char      *rm_ep)
+{
+	return m0_spiel_start_quorum(spiel, reqh, confd_eps, rm_ep, 0, NULL);
+}
+M0_EXPORTED(m0_spiel_start);
+
+int m0_spiel_start_quorum(struct m0_spiel   *spiel,
+			  struct m0_reqh    *reqh,
+			  const char       **confd_eps,
+			  const char        *rm_ep,
+			  uint32_t           quorum,
+			  m0_rconfc_exp_cb_t exp_cb)
 {
 	int rc;
 
 	M0_ENTRY();
-
-	if (reqh == NULL || confd_eps == NULL || profile == NULL)
-		return M0_ERR(-EINVAL);
-
+	M0_PRE(reqh != NULL && confd_eps != NULL && rm_ep != NULL);
 	M0_SET0(spiel);
-
 	spiel->spl_rmachine = m0_reqh_rpc_mach_tlist_head(
 			&reqh->rh_rpc_machines);
-
 	if (spiel->spl_rmachine == NULL)
 		return M0_ERR(-ENOENT);
-
 	spiel->spl_confd_eps = m0_strings_dup(confd_eps);
-
 	if (spiel->spl_confd_eps == NULL)
 		return M0_ERR(-ENOMEM);
-
-	rc = m0_fid_sscanf(profile, &spiel->spl_profile) ?:
-	     m0_confc_init(&spiel->spl_confc,
-			   m0_locality0_get()->lo_grp,
-			   spiel->spl_confd_eps[0],
-			   spiel->spl_rmachine,
-			   NULL);
-	if (rc != 0)
+	/**
+	 * @todo m0_locality0_get() used below must be replaced later with some
+	 * m0_locality_get(CONST) call when ut get fixed.
+	 */
+	rc = m0_rconfc_init(&spiel->spl_rconfc, spiel->spl_confd_eps, rm_ep,
+			    m0_locality0_get()->lo_grp, spiel->spl_rmachine,
+			    quorum, exp_cb);
+	if (rc != 0) {
 		m0_strings_free(spiel->spl_confd_eps);
-
-	return M0_RC(rc);
+		return M0_ERR(rc);
+	}
+	return M0_RC(0);
 }
-M0_EXPORTED(m0_spiel_start);
+M0_EXPORTED(m0_spiel_start_quorum);
 
 void m0_spiel_stop(struct m0_spiel *spiel)
 {
 	M0_ENTRY();
-
+	m0_rconfc_fini(&spiel->spl_rconfc);
 	m0_strings_free(spiel->spl_confd_eps);
-	m0_confc_fini(&spiel->spl_confc);
-
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_spiel_stop);
+
+int m0_spiel_cmd_profile_set(struct m0_spiel *spiel, const char *profile_str)
+{
+	M0_ENTRY("spiel = %p, profile = %s", spiel, profile_str);
+	M0_PRE(spiel != NULL);
+	if (profile_str == NULL)
+		profile_str = "<0:0>";
+	return M0_RC(m0_fid_sscanf(profile_str, &spiel->spl_profile));
+}
+M0_EXPORTED(m0_spiel_cmd_profile_set);
 
 #undef M0_TRACE_SUBSYSTEM
 

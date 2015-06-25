@@ -30,10 +30,11 @@
 #include "ut/ut.h"
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
+#include "rm/rm_rwlock.h"               /* m0_rwlockable_domain_init,
+					   m0_rwlockable_domain_fini */
 #include "ut/file_helpers.h"            /* M0_UT_CONF_PROFILE */
 
- #include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
-
+#include "net/lnet/lnet.h"              /* m0_net_lnet_xprt */
 
 struct m0_spiel_ut_reqh  *spl_reqh;
 
@@ -43,10 +44,11 @@ static void spiel_start_stop(void)
 	int              rc;
 	struct m0_spiel  spiel;
 	const char      *confd_eps[] = { "0@lo:12345:34:1", NULL };
-	const char      *profile = M0_UT_CONF_PROFILE;
+	const char      *rm_ep       = confd_eps[0];
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, confd_eps, profile);
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, confd_eps, rm_ep);
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_rconfc_quorum_is_reached_lock(&spiel.spl_rconfc));
 
 	m0_spiel_stop(&spiel);
 }
@@ -58,6 +60,7 @@ static int spiel_ut_init()
 	const char *ep = "0@lo:12345:34:1";
 	const char *client_ep = "0@lo:12345:35:1";
 
+	m0_rwlockable_domain_init();
 	M0_ALLOC_PTR(spl_reqh);
 
 	rc = m0_spiel__ut_reqh_init(spl_reqh, client_ep);
@@ -76,6 +79,7 @@ static int spiel_ut_fini()
 	m0_spiel__ut_reqh_fini(spl_reqh);
 
 	m0_free(spl_reqh);
+	m0_rwlockable_domain_fini();
 
 	return 0;
 }

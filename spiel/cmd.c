@@ -234,13 +234,14 @@ static bool _filter_svc(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
 }
 
-static int spiel_svc_conf_obj_find(struct m0_confc         *confc,
-				   const struct m0_fid     *profile,
+static int spiel_svc_conf_obj_find(struct m0_spiel         *spl,
 				   const struct m0_fid     *svc_fid,
 				   struct m0_conf_service **svc_obj)
 {
 	int                  rc;
 	struct m0_conf_obj  *obj;
+	struct m0_confc     *confc   = &spl->spl_rconfc.rc_confc;
+	struct m0_fid       *profile = &spl->spl_profile;
 
 	rc = SPIEL_CONF_OBJ_FIND(confc, profile, svc_fid, &obj, _filter_svc,
 				 M0_CONF_FILESYSTEM_NODES_FID,
@@ -292,9 +293,8 @@ static int spiel_svc_fop_fill_and_send(struct m0_spiel     *spl,
 			   M0_SERVICE_STOP, M0_SERVICE_QUIESCE,
 			   M0_SERVICE_HEALTH)));
 	M0_PRE(m0_conf_fid_type(svc_fid) == &M0_CONF_SERVICE_TYPE);
-
-	rc = spiel_svc_conf_obj_find(&spl->spl_confc, &spl->spl_profile,
-				     svc_fid, &svc);
+	M0_PRE(spl != NULL);
+	rc = spiel_svc_conf_obj_find(spl, svc_fid, &svc);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -431,12 +431,13 @@ static bool _filter_proc(const struct m0_conf_obj *obj)
 }
 
 /* Non static for use in UT only */
-int spiel_proc_conf_obj_find(struct m0_confc         *confc,
-			     const struct m0_fid     *profile,
+int spiel_proc_conf_obj_find(struct m0_spiel         *spl,
 			     const struct m0_fid     *proc_fid,
 			     struct m0_conf_process **proc_obj)
 {
 	struct m0_conf_obj *obj;
+	struct m0_confc    *confc   = &spl->spl_rconfc.rc_confc;
+	struct m0_fid      *profile = &spl->spl_profile;
 	int                 rc;
 
 	rc = SPIEL_CONF_OBJ_FIND(confc, profile, proc_fid, &obj, _filter_proc,
@@ -462,9 +463,8 @@ static int spiel_process_command_send(struct m0_spiel     *spl,
 	M0_PRE(proc_fid != NULL);
 	M0_PRE(fop != NULL);
 	M0_PRE(m0_conf_fid_type(proc_fid) == &M0_CONF_PROCESS_TYPE);
-
-	rc = spiel_proc_conf_obj_find(&spl->spl_confc, &spl->spl_profile,
-				      proc_fid, &process);
+	M0_PRE(spl != NULL);
+	rc = spiel_proc_conf_obj_find(spl, proc_fid, &process);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -535,12 +535,13 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
 	int                     rc;
 
 	M0_ENTRY();
+	M0_PRE(spl != NULL);
+	M0_PRE(proc_fid != NULL);
 
 	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
 		return M0_ERR(-EINVAL);
 
-	rc = spiel_proc_conf_obj_find(&spl->spl_confc, &spl->spl_profile,
-				      proc_fid, &process);
+	rc = spiel_proc_conf_obj_find(spl, proc_fid, &process);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -550,11 +551,9 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
 	m0_confc_close(&process->pc_obj);
 	if (fop == NULL)
 		return M0_RC(-ENOMEM);
-	rc = spiel_process_command_send(spl, proc_fid, fop);
-	if (rc == 0) {
-		rc = spiel_process_reply_status(fop);
-		m0_fop_put_lock(fop);
-	}
+	rc = spiel_process_command_send(spl, proc_fid, fop) ?:
+		spiel_process_reply_status(fop);
+	m0_fop_put_lock(fop);
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_process_reconfig);
