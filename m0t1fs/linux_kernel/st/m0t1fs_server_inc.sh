@@ -250,6 +250,9 @@ mero_service()
 		echo $cmd
 		(eval "$cmd") &
 
+                # Wait until confd service starts.
+                # This will be handeled by MERO-988.
+                sleep 5
 		# mkfs for ha agent
 		DIR=$MERO_M0T1FS_TEST_DIR/ha
 		rm -rf $DIR
@@ -259,13 +262,6 @@ mero_service()
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0d.log"
 		echo $cmd
 		(eval "$cmd")
-
-		# spawn ha agent
-		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
-		      -C $CONFD_EP"
-		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
-		echo $cmd
-		(eval "$cmd") &
 
 		#mds mkfs
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
@@ -299,6 +295,14 @@ mero_service()
 			echo $cmd
 			eval "$cmd"
 		done
+
+		# spawn ha agent
+		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
+		      -C $CONFD_EP"
+		DIR=$MERO_M0T1FS_TEST_DIR/ha
+		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
+		echo $cmd
+		(eval "$cmd") &
 
 		# spawn mds
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
