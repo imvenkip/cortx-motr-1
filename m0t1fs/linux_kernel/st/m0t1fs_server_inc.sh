@@ -322,6 +322,10 @@ mero_service()
 		echo $cmd
 		(eval "$cmd") &
 
+                # Wait until HA initialisation done.
+		# Will be resolved by MERO-1000
+                sleep 5
+
 		# spawn mds
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
 			local mds=`expr $i + 1`

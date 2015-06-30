@@ -53,6 +53,7 @@ static struct m0_sns_cm          *scm;
 static struct m0_reqh_service    *scm_service;
 static struct m0_cm_aggr_group   *ag_cpy;
 static struct m0_sns_cm_repair_ag rag;
+static struct m0_sns_cm_file_ctx  fctx;
 
 /*
  * Global structures for read copy packet used for verification.
@@ -357,6 +358,7 @@ const struct m0_cm_cp_ops read_cp_ops = {
 
 static void ag_setup(struct m0_sns_cm_ag *sag)
 {
+	sag->sag_fctx = &fctx;
 	sag->sag_base.cag_transformed_cp_nr = 0;
 	sag->sag_fnr = FAIL_NR;
 	sag->sag_base.cag_ops = &group_ops;

@@ -75,17 +75,16 @@ static void cob_setattr_fom_fini(struct m0_fom *fom);
 static int  cob_setattr(struct m0_fom        *fom,
 			struct m0_fom_cob_op *gop,
 			struct m0_cob_attr   *attr);
+static int cob_locate(const struct m0_fom *fom, struct m0_cob **cob);
+static int cob_attr_get(struct m0_cob      *cob,
+			struct m0_cob_attr *attr);
+static void cob_stob_create_credit(struct m0_fom *fom);
+static int cob_stob_delete_credit(struct m0_fom *fom);
 
 enum {
 	CC_COB_VERSION_INIT	= 0,
 	CC_COB_HARDLINK_NR	= 1,
 	CD_FOM_STOBIO_LAST_REFS = 1,
-};
-
-enum cob_op_type {
-	COT_CREATE,
-	COT_DELETE,
-	COT_TRUNCATE,
 };
 
 struct m0_sm_state_descr cob_ops_phases[] = {
@@ -262,10 +261,12 @@ static void cob_fom_populate(struct m0_fom *fom)
 {
 	struct m0_fom_cob_op     *cfom;
 	struct m0_fop_cob_common *common;
+	struct m0_fop            *fop;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_fop != NULL);
 
+	fop = fom->fo_fop;
 	common = m0_cobfop_common_get(fom->fo_fop);
 	cfom = cob_fom_get(fom);
 	cfom->fco_gfid = common->c_gobfid;
@@ -274,6 +275,11 @@ static void cob_fom_populate(struct m0_fom *fom)
 	cfom->fco_cob_idx = common->c_cob_idx;
 	cfom->fco_cob_type = common->c_cob_type;
 	cfom->fco_flags = common->c_flags;
+	cfom->fco_fop_type = m0_is_cob_create_fop(fop) ? M0_COB_OP_CREATE :
+				m0_is_cob_delete_fop(fop) ?
+				M0_COB_OP_DELETE : M0_COB_OP_TRUNCATE;
+	cfom->fco_recreate = false;
+	cfom->fco_is_done = false;
 }
 
 /* defined in io_foms.c */
@@ -301,7 +307,7 @@ static int cob_fom_pool_version_get(struct m0_fom *fom)
 
 static int cob_ops_stob_find(struct m0_fom_cob_op *co)
 {
-	int                       rc = 0;
+	int rc;
 
 	rc = m0_stob_find(&co->fco_stob_id, &co->fco_stob);
 	if (rc != 0)
@@ -424,22 +430,6 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 	return M0_FSO_AGAIN;
 }
 
-static void cob_crow_credit(struct m0_fom *fom)
-{
-	struct m0_fom_cob_op   *cob_op;
-	struct m0_be_tx_credit *tx_cred;
-
-	cob_op = cob_fom_get(fom);
-	tx_cred = m0_fom_tx_credit(fom);
-
-	if (cob_op->fco_cob_type == M0_COB_IO) {
-		m0_cc_stob_cr_credit(&cob_op->fco_stob_id, tx_cred);
-		cob_op_credit(fom, M0_COB_OP_CREATE, tx_cred);
-	} else if (cob_op->fco_cob_type == M0_COB_MD) {
-		cob_op_credit(fom, M0_COB_OP_CREATE, tx_cred);
-	}
-}
-
 static int cob_setattr_fom_tick(struct m0_fom *fom)
 {
 	struct m0_cob_attr               attr = { { 0, } };
@@ -469,7 +459,7 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 			tx_cred = m0_fom_tx_credit(fom);
 			cob_op_credit(fom, M0_COB_OP_UPDATE, tx_cred);
 			if (cob_op->fco_flags & M0_IO_FLAG_CROW)
-				cob_crow_credit(fom);
+				cob_stob_create_credit(fom);
 			break;
 		}
 		rc = m0_fom_tick_generic(fom);
@@ -504,14 +494,81 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 	return M0_FSO_AGAIN;
 }
 
+static bool cob_pool_version_mismatch(const struct m0_fom *fom)
+{
+	int                       rc;
+	struct m0_cob            *cob;
+	struct m0_fop_cob_common *common;
+
+	common = m0_cobfop_common_get(fom->fo_fop);
+	rc = cob_locate(fom, &cob);
+	if (rc == 0 && cob != NULL)
+		return !m0_fid_eq(&cob->co_nsrec.cnr_pver,
+				  &common->c_body.b_pver);
+	return false;
+}
+
+static void cob_stob_create_credit(struct m0_fom *fom)
+{
+	struct m0_fom_cob_op   *cob_op;
+	struct m0_be_tx_credit *tx_cred;
+
+	cob_op = cob_fom_get(fom);
+	tx_cred = m0_fom_tx_credit(fom);
+	if (!cob_is_md(cob_op))
+		m0_cc_stob_cr_credit(&cob_op->fco_stob_id, tx_cred);
+	cob_op_credit(fom, M0_COB_OP_CREATE, tx_cred);
+	cob_op->fco_is_done = true;
+}
+
+static int cob_stob_create(struct m0_fom *fom, struct m0_cob_attr *attr)
+{
+	int                   rc = 0;
+	struct m0_fom_cob_op *cob_op;
+
+	cob_op = cob_fom_get(fom);
+	if (!cob_is_md(cob_op))
+		rc = m0_cc_stob_create(fom, &cob_op->fco_stob_id);
+	return rc ?: cc_cob_create(fom, cob_op, attr);
+}
+
+static int cob_stob_delete_credit(struct m0_fom *fom)
+{
+	int                    rc = 0;
+	struct m0_fom_cob_op  *cob_op;
+	uint32_t               fop_type;
+	struct m0_be_tx_credit *tx_cred;
+	struct m0_be_tx_credit cob_op_tx_credit = {};
+
+	cob_op = cob_fom_get(fom);
+	tx_cred = m0_fom_tx_credit(fom);
+	fop_type = cob_op->fco_fop_type;
+	if (cob_is_md(cob_op)) {
+		cob_op_credit(fom, M0_COB_OP_DELETE, tx_cred);
+		cob_op->fco_is_done = true;
+		return M0_RC(rc);
+	}
+	rc = ce_stob_edit_credit(fom, cob_op, tx_cred, fop_type);
+	if (rc == 0) {
+		M0_SET0(&cob_op_tx_credit);
+		cob_op_credit(fom, fop_type, &cob_op_tx_credit);
+		if (cob_op->fco_recreate)
+			cob_stob_create_credit(fom);
+		if (!m0_be_should_break(m0_fom_tx(fom)->t_engine, tx_cred,
+					&cob_op_tx_credit)) {
+			m0_be_tx_credit_add(tx_cred, &cob_op_tx_credit);
+			cob_op->fco_is_done = true;
+		}
+	}
+	return M0_RC(rc);
+}
+
 static int cob_ops_fom_tick(struct m0_fom *fom)
 {
 	struct m0_fom_cob_op            *cob_op;
 	struct m0_fop_cob_common        *common;
 	struct m0_fop_cob_truncate      *ct;
 	struct m0_cob_attr               attr = { { 0, } };
-	struct m0_be_tx_credit           cob_op_tx_credit = {};
-	struct m0_be_tx_credit          *tx_cred;
 	int                              rc = 0;
 	uint32_t                         fop_type;
 	const char                      *ops;
@@ -527,17 +584,24 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	common = m0_cobfop_common_get(fop);
 	reply = m0_fop_data(fom->fo_rep_fop);
 	r_common = &reply->cor_common;
-	fop_type = fom->fo_fop->f_type == &m0_fop_cob_create_fopt ?
-		COT_CREATE : fom->fo_fop->f_type == &m0_fop_cob_delete_fopt ?
-			COT_DELETE : COT_TRUNCATE;
+	cob_op = cob_fom_get(fom);
+	fop_type = cob_op->fco_fop_type;
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
-		cob_op = cob_fom_get(fom);
 		switch (m0_fom_phase(fom)) {
 		case M0_FOPH_INIT:
-			if (fop_type == COT_CREATE || cob_is_md(cob_op))
+			/* Check if cob with different pool version exists. */
+			if (fop_type == M0_COB_OP_CREATE &&
+			    cob_pool_version_mismatch(fom)) {
+				M0_CNT_DEC(common->c_body.b_nlink);
+				fop_type = cob_op->fco_fop_type =
+					M0_COB_OP_DELETE;
+				cob_op->fco_recreate = true;
+			}
+
+			if (fop_type == M0_COB_OP_CREATE)
 				break;
 			/* Check if the truncation size is valid. */
-			if (fop_type == COT_TRUNCATE) {
+			if (fop_type == M0_COB_OP_TRUNCATE) {
 				ct = m0_fop_data(fom->fo_fop);
 				if (ct->ct_size != 0) {
 					cob_op->fco_is_done = true;
@@ -553,14 +617,14 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			 * This avoids complications in handling transaction
 			 * cleanup.
 			 */
-			rc = cob_ops_stob_find(cob_op);
+			rc = cob_is_md(cob_op) ? 0 : cob_ops_stob_find(cob_op);
 			if (rc != 0) {
 				if (rc == -ENOENT &&
 				    cob_op->fco_flags & M0_IO_FLAG_CROW) {
 					/* nothing to delete or truncate */
 					M0_ASSERT(M0_IN(fop_type,
-							(COT_DELETE,
-							 COT_TRUNCATE)));
+							(M0_COB_OP_DELETE,
+							 M0_COB_OP_TRUNCATE)));
 					rc = 0;
 					m0_fom_phase_move(fom, rc,
 							  M0_FOPH_SUCCESS);
@@ -573,66 +637,44 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			}
 			break;
 		case M0_FOPH_TXN_OPEN:
-			tx_cred       = m0_fom_tx_credit(fom);
 			switch (fop_type) {
-			case COT_CREATE:
-				if (!cob_is_md(cob_op))
-				    m0_cc_stob_cr_credit(&cob_op->fco_stob_id,
-							 tx_cred);
-				cob_op_credit(fom, M0_COB_OP_CREATE,
-					      tx_cred);
+			case M0_COB_OP_CREATE:
+				cob_stob_create_credit(fom);
 				break;
-			case COT_DELETE:
-				if (cob_is_md(cob_op)) {
-					cob_op_credit(fom, M0_COB_OP_DELETE,
-						      tx_cred);
-					cob_op->fco_is_done = true;
-					break;
-				}
-			case COT_TRUNCATE:
-				rc = ce_stob_edit_credit(fom, cob_op, tx_cred,
-							 fop_type);
-				if (rc == 0) {
-					M0_SET0(&cob_op_tx_credit);
-					fop_type == COT_DELETE ?
-					 cob_op_credit(fom, M0_COB_OP_DELETE,
-						       &cob_op_tx_credit) :
-					 cob_op_credit(fom, M0_COB_OP_TRUNCATE,
-						       &cob_op_tx_credit);
-					if (!m0_be_should_break(m0_fom_tx(fom)->t_engine,
-							        tx_cred,
-							        &cob_op_tx_credit)) {
-						m0_be_tx_credit_add(tx_cred,
-								    &cob_op_tx_credit);
-						cob_op->fco_is_done = true;
-					}
-				}
+			case M0_COB_OP_DELETE:
+			case M0_COB_OP_TRUNCATE:
+				rc = cob_stob_delete_credit(fom);
 				rc = rc == -EAGAIN ? 0 : rc;
 				break;
+			default:
+				M0_IMPOSSIBLE("Invalid fop type!");
+				break;
 			}
-		}
-		if (rc == 0 && fop_type != COT_CREATE && !cob_op->fco_is_done &&
-		    m0_fom_rc(fom) == 0) {
-			if (m0_fom_phase(fom) == M0_FOPH_QUEUE_REPLY) {
-				/*
-				 * We have come here from M0_FOPH_TXN_COMMIT but
-				 * we have not completed the operation yet.
-				 * Move to M0_FOPH_TXN_COMMIT_WAIT.
-				 */
+			break;
+		case M0_FOPH_QUEUE_REPLY:
+			/*
+			 * When an operation can't be done in a single
+			 * transaction due to insufficient credits, it is split
+			 * into multiple trasactions.
+			 * As the the operation is incomplete, skip the sending
+			 * of reply and reinitialise the trasaction.
+			 * i.e move fom phase to M0_FOPH_TXN_COMMIT_WAIT and
+			 * then to M0_FOPH_TXN_INIT.
+			 */
+			if (!cob_op->fco_is_done && m0_fom_rc(fom) == 0) {
 				m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
 				return M0_FSO_AGAIN;
-			} else if (m0_fom_phase(fom) == M0_FOPH_TXN_COMMIT_WAIT) {
+			}
+			break;
+		case M0_FOPH_TXN_COMMIT_WAIT:
+			if (!cob_op->fco_is_done && m0_fom_rc(fom) == 0) {
 				rc = m0_fom_tx_commit_wait(fom);
-				/*
-				 * We have come here from M0_FOPH_TXN_COMMIT_WAIT
-				 * but have not completed the operation so go
-				 * back to M0_FOPH_TXN_INIT.
-				 */
 				if (rc == M0_FSO_AGAIN)
 					m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
 				else
 					return M0_RC(rc);
 			}
+			break;
 		}
 		rc = m0_fom_tick_generic(fom);
 		return M0_RC(rc);
@@ -647,31 +689,35 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 		reply->cor_rc = rc;
 		return M0_FSO_AGAIN;
 	case M0_FOPH_COB_OPS_EXECUTE:
-		cob_op = cob_fom_get(fom);
+		fop_type = cob_op->fco_fop_type;
 		M0_LOG(M0_DEBUG, "Cob %s operation for "FID_F"/%x "FID_F" for %s",
 				ops, FID_P(&cob_op->fco_cfid),
 				cob_op->fco_cob_idx,
 				FID_P(&cob_op->fco_gfid),
 				cob_is_md(cob_op) ? "MD" : "IO");
 		m0_md_cob_wire2mem(&attr, &common->c_body);
-		if (fop_type == COT_CREATE) {
-			if (!cob_is_md(cob_op))
-				rc = m0_cc_stob_create(fom,
-						       &cob_op->fco_stob_id);
-			rc = rc ?: cc_cob_create(fom, cob_op, &attr);
-		} else if (fop_type == COT_DELETE) {
+		if (fop_type == M0_COB_OP_CREATE) {
+			rc = cob_stob_create(fom, &attr);
+		} else if (fop_type == M0_COB_OP_DELETE) {
 			if (cob_op->fco_is_done) {
-				rc = cd_cob_delete(fom, cob_op, &attr);
-				if (rc == 0 && !cob_is_md(cob_op))
-					rc = ce_stob_edit(fom, cob_op,
-							  COT_DELETE);
+				rc = cob_is_md(cob_op) ? 0 :
+					ce_stob_edit(fom, cob_op,
+						     M0_COB_OP_DELETE);
+				rc = rc ?: cd_cob_delete(fom, cob_op, &attr);
+				if (rc == 0 && cob_op->fco_recreate) {
+					cob_op->fco_fop_type = M0_COB_OP_CREATE;
+					M0_CNT_INC(attr.ca_nlink);
+					rc = cob_stob_create(fom, &attr);
+				}
 			} else
-				rc = ce_stob_edit(fom, cob_op, COT_TRUNCATE);
+				rc = ce_stob_edit(fom, cob_op,
+						  M0_COB_OP_TRUNCATE);
 		} else {
-			rc = ce_stob_edit(fom, cob_op, COT_TRUNCATE);
+			rc = ce_stob_edit(fom, cob_op, M0_COB_OP_TRUNCATE);
 			if (cob_op->fco_is_done)
 				m0_stob_put(cob_op->fco_stob);
 		}
+
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	        M0_LOG(M0_DEBUG, "Cob %s operation finished with %d", ops, rc);
 		break;
@@ -707,8 +753,8 @@ M0_INTERNAL int m0_cc_stob_cr_credit(struct m0_stob_id *sid,
 
 M0_INTERNAL int m0_cc_stob_create(struct m0_fom *fom, struct m0_stob_id *sid)
 {
-	struct m0_stob        *stob;
-	int                    rc;
+	struct m0_stob *stob;
+	int             rc;
 
 	rc = m0_stob_find(sid, &stob);
 	rc = rc ?: m0_stob_state_get(stob) == CSS_UNKNOWN ?
@@ -727,7 +773,7 @@ M0_INTERNAL int m0_cc_stob_create(struct m0_fom *fom, struct m0_stob_id *sid)
 	return M0_RC(rc);
 }
 
-static struct m0_cob_domain *cdom_get(struct m0_fom *fom)
+static struct m0_cob_domain *cdom_get(const struct m0_fom *fom)
 {
 	struct m0_reqh_io_service *ios;
 
@@ -811,8 +857,30 @@ static int cob_attr_get(struct m0_cob        *cob,
 		attr->ca_nlink   = cob->co_nsrec.cnr_nlink;
 		attr->ca_size    = cob->co_nsrec.cnr_size;
 		attr->ca_lid     = cob->co_nsrec.cnr_lid;
+		attr->ca_pver    = cob->co_nsrec.cnr_pver;
 	}
 	return 0;
+}
+
+static int cob_locate(const struct m0_fom *fom, struct m0_cob **cob_out)
+{
+	struct m0_cob_oikey   oikey;
+	struct m0_cob_domain *cdom;
+	struct m0_fid         fid;
+	struct m0_fom_cob_op *cob_op;
+	struct m0_cob        *cob;
+	int                   rc;
+
+	cob_op = cob_fom_get(fom);
+	M0_ASSERT(cob_op != NULL);
+	cdom = cdom_get(fom);
+	M0_ASSERT(cdom != NULL);
+	cob_fom_stob2fid_map(cob_op, &fid);
+	m0_cob_oikey_make(&oikey, &fid, 0);
+	rc = m0_cob_locate(cdom, &oikey, M0_CA_OMGREC, &cob);
+	if (rc == 0)
+		*cob_out = cob;
+	return rc;
 }
 
 static int cob_attr_op(struct m0_fom          *fom,
@@ -820,36 +888,25 @@ static int cob_attr_op(struct m0_fom          *fom,
 		       struct m0_cob_attr     *attr,
 		       enum cob_attr_operation op)
 {
-	int                   rc;
-	struct m0_cob_oikey   oikey;
-	struct m0_cob        *cob;
-	struct m0_cob_domain *cdom;
-	struct m0_fid         fid;
-	struct m0_be_tx      *tx;
+	int              rc;
+	struct m0_cob   *cob;
+	struct m0_be_tx *tx;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(gop != NULL);
 	M0_PRE(op == COB_ATTR_GET || op == COB_ATTR_SET);
 
-	cdom = cdom_get(fom);
-	M0_ASSERT(cdom != NULL);
 	M0_LOG(M0_DEBUG, "cob attr for "FID_F"/%x "FID_F" %s",
 			 FID_P(&gop->fco_cfid), gop->fco_cob_idx,
 			 FID_P(&gop->fco_gfid),
 			 cob_is_md(gop) ? "MD" : "IO");
 
-	cob_fom_stob2fid_map(gop, &fid);
-	m0_cob_oikey_make(&oikey, &fid, 0);
-	rc = m0_cob_locate(cdom, &oikey, M0_CA_OMGREC, &cob);
+	rc = cob_locate(fom, &cob);
 	if (rc != 0) {
 		if (rc != -ENOENT || !(gop->fco_flags & M0_IO_FLAG_CROW))
 			return M0_RC(rc);
 		M0_ASSERT(op == COB_ATTR_SET);
-		rc = 0;
-		if (!cob_is_md(gop))
-			rc = m0_cc_stob_create(fom, &gop->fco_stob_id);
-		rc = rc ?: cc_cob_create(fom, gop, attr) ?:
-		      m0_cob_locate(cdom, &oikey, M0_CA_OMGREC, &cob);
+		rc = cob_stob_create(fom, attr) ?: cob_locate(fom, &cob);
 		if (rc != 0)
 			return M0_RC(rc);
 	}
@@ -899,7 +956,6 @@ static int cc_cob_create(struct m0_fom            *fom,
 	cdom = cdom_get(fom);
 	M0_ASSERT(cdom != NULL);
 	tx = m0_fom_tx(fom);
-
 	rc = m0_cc_cob_setup(cc, cdom, attr, tx);
 
 	return M0_RC(rc);
@@ -941,6 +997,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
 	nsrec.cnr_mtime   = attr->ca_mtime;
 	nsrec.cnr_ctime   = attr->ca_ctime;
 	nsrec.cnr_lid     = attr->ca_lid;
+	nsrec.cnr_pver    = attr->ca_pver;
 
 	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
 	if (rc != 0) {
@@ -1005,26 +1062,17 @@ static int cd_cob_delete(struct m0_fom            *fom,
 			 const struct m0_cob_attr *attr)
 {
 	int                   rc;
-	struct m0_cob_oikey   oikey;
 	struct m0_cob        *cob;
-	struct m0_cob_domain *cdom;
-	struct m0_fid         fid;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(cd != NULL);
 
-	cdom = cdom_get(fom);
-	M0_ASSERT(cdom != NULL);
-
         M0_LOG(M0_DEBUG, "Deleting cob for "FID_F"/%x",
 	       FID_P(&cd->fco_cfid), cd->fco_cob_idx);
 
-	cob_fom_stob2fid_map(cd, &fid);
-        m0_cob_oikey_make(&oikey, &fid, 0);
-	rc = m0_cob_locate(cdom, &oikey, 0, &cob);
-	if (rc != 0) {
+	rc = cob_locate(fom, &cob);
+	if (rc != 0)
 		return M0_RC(rc);
-	}
 
 	M0_ASSERT(cob != NULL);
 	M0_CNT_DEC(cob->co_nsrec.cnr_nlink);
@@ -1044,35 +1092,28 @@ static int ce_stob_edit_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 	struct m0_stob *stob;
 	int             rc;
 
-	M0_PRE(M0_IN(cot, (COT_DELETE, COT_TRUNCATE)));
+	M0_PRE(M0_IN(cot, (M0_COB_OP_DELETE, M0_COB_OP_TRUNCATE)));
 
 	stob = cc->fco_stob;
 	M0_ASSERT(stob != NULL);
 	M0_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
-	if (cot == COT_TRUNCATE)
-		rc = m0_stob_punch_credit(stob, accum);
-	else
-		rc = m0_stob_destroy_credit(stob, accum);
+	rc = cot == M0_COB_OP_TRUNCATE ? m0_stob_punch_credit(stob, accum) :
+					 m0_stob_destroy_credit(stob, accum);
 	return M0_RC(rc);
 }
 
 static int ce_stob_edit(struct m0_fom *fom, struct m0_fom_cob_op *cd,
 			uint32_t cot)
 {
-	struct m0_stob        *stob = NULL;
-	struct m0_indexvec     range;
-	int                    rc;
-
+	struct m0_stob     *stob = NULL;
+	struct m0_indexvec  range;
+	int                 rc;
 
 	stob = cd->fco_stob;
 	M0_ASSERT(stob != NULL);
-	if (cot == COT_DELETE)
-		rc = m0_stob_destroy(stob, &fom->fo_tx);
-	else {
-		rc = m0_indexvec_universal_set(&range);
-		if (rc == 0)
-			rc = m0_stob_punch(stob, &range, &fom->fo_tx);
-	}
+	rc = cot == M0_COB_OP_DELETE ? m0_stob_destroy(stob, &fom->fo_tx) :
+			m0_indexvec_universal_set(&range) ?:
+			m0_stob_punch(stob, &range, &fom->fo_tx);
 	return M0_RC(rc);
 }
 

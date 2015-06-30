@@ -185,13 +185,10 @@ static void cobfoms_utfini(void)
 static void cobfops_populate_internal(struct m0_fop *fop, uint64_t gob_fid_key)
 {
 	struct m0_fop_cob_common *common;
-	struct m0_cob_attr    attr = { { 0, } };
+	struct m0_cob_attr        attr = { { 0, } };
 
 	cob_attr_default_fill(&attr);
-	if (fop->f_type == &m0_fop_cob_create_fopt)
-		attr.ca_nlink = 1;
-	else
-		attr.ca_nlink = 0;
+	attr.ca_nlink = fop->f_type == &m0_fop_cob_create_fopt ? 1 : 0;
 
 	M0_UT_ASSERT(fop != NULL);
 	M0_UT_ASSERT(fop->f_type != NULL);
@@ -201,7 +198,7 @@ static void cobfops_populate_internal(struct m0_fop *fop, uint64_t gob_fid_key)
 		        GOB_FID_KEY_ID + gob_fid_key);
 	m0_fid_convert_gob2cob(&common->c_gobfid, &common->c_cobfid,
 			       M0_AD_STOB_DOM_KEY_DEFAULT);
-	common->c_pver = CONF_PVER_FID;
+	attr.ca_pver = common->c_pver = CONF_PVER_FID;
 	m0_md_cob_mem2wire(&common->c_body, &attr);
 }
 
@@ -661,10 +658,7 @@ static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
 			       M0_AD_STOB_DOM_KEY_DEFAULT);
 
 	cob_attr_default_fill(&attr);
-	if (base_fop->f_type == &m0_fop_cob_create_fopt)
-		attr.ca_nlink = 1;
-	else
-		attr.ca_nlink = 0;
+	attr.ca_nlink = base_fop->f_type == &m0_fop_cob_create_fopt ? 1 : 0;
 
 	m0_md_cob_mem2wire(&c->c_body, &attr);
 
@@ -1130,7 +1124,7 @@ static void cd_stob_delete_test()
 	cd = cob_fom_get(dfom);
 	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
 	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
-	rc = ce_stob_edit(dfom, cd, COT_DELETE);
+	rc = ce_stob_edit(dfom, cd, M0_COB_OP_DELETE);
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_COB_OPS_PREPARE);
 	M0_ASSERT(rc == 0);
 	fom_dtx_done(dfom, grp);
@@ -1195,7 +1189,7 @@ static void cd_cob_delete_test()
 	/*
 	 * Now do the cleanup.
 	 */
-	rc = ce_stob_edit(dfom, cd, COT_DELETE);
+	rc = ce_stob_edit(dfom, cd, M0_COB_OP_DELETE);
 	M0_UT_ASSERT(rc == 0);
 	fom_dtx_done(dfom, grp);
 
@@ -1445,7 +1439,8 @@ static void fom_stob_tx_credit(struct m0_fom *fom, enum m0_cob_op opcode)
 	if (opcode == M0_COB_OP_DELETE) {
 		rc = cob_ops_stob_find(co);
 		M0_ASSERT(rc == 0);
-		rc = ce_stob_edit_credit(fom, co, m0_fom_tx_credit(fom), COT_DELETE);
+		rc = ce_stob_edit_credit(fom, co, m0_fom_tx_credit(fom),
+					 opcode);
 	} else
 		rc = m0_cc_stob_cr_credit(&co->fco_stob_id,
 					  m0_fom_tx_credit(fom));

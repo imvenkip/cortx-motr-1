@@ -59,6 +59,8 @@ struct m0_fom_cob_op {
 	enum m0_cob_type         fco_cob_type;
 	struct m0_stob          *fco_stob;
 	bool                     fco_is_done;
+	enum m0_cob_op           fco_fop_type;
+	bool                     fco_recreate;
 	/** FOL rec fragment for create and delete operations. */
 	struct m0_fol_frag       fco_fol_frag;
 	/** The flags from m0_fop_cob_common::c_flags. */

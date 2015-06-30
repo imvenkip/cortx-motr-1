@@ -23,18 +23,24 @@
 #include "lib/misc.h"
 #include "lib/locality.h"
 #include "lib/finject.h"
+#include "lib/hash.h"
 #include "reqh/reqh.h"
 #include "mero/setup.h"
 #include "net/net.h"
 #include "sns/cm/repair/ut/cp_common.h"
+#include "sns/cm/file.h"
 #include "ioservice/fid_convert.h"	/* m0_fid_convert_cob2stob */
+#include "ioservice/io_service.h"
 #include "ut/stob.h"			/* m0_ut_stob_create_by_stob_id */
 #include "module/instance.h"            /* m0_get */
 
+M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
+			    uint64_t cont, const struct m0_fid *gfid);
 struct m0_reqh_service          *service;
 static struct m0_reqh           *reqh;
 static struct m0_semaphore       sem;
 static struct m0_net_buffer_pool nbp;
+static struct m0_cob_domain     *cdom;
 
 /* Global structures for write copy packet. */
 static struct m0_sns_cm_ag  w_sag;
@@ -189,11 +195,11 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 
 void write_post(void)
 {
-	struct m0_stob_id stob_id;
-	int	          rc;
+	struct m0_sns_cm_file_ctx fctx;
 
 	m0_semaphore_init(&sem, 0);
 	w_buf.nb_pool = &nbp;
+	w_sag.sag_fctx = &fctx;
 	cp_prepare(&w_sns_cp.sc_base, &w_buf, SEG_NR, SEG_SIZE,
 		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false, NULL);
 	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
@@ -201,14 +207,6 @@ void write_post(void)
 	w_sns_cp.sc_cobfid = M0_MDSERVICE_SLASH_FID;
 	w_sag.sag_base.cag_cp_local_nr = 1;
 	w_sag.sag_fnr = 1;
-
-        /*
-         * Create a stob. In actual repair scenario, this will already be
-         * created by the IO path.
-         */
-	m0_fid_convert_cob2stob(&cob_fid, &stob_id);
-	rc = m0_ut_stob_create_by_stob_id(&stob_id, NULL);
-	M0_UT_ASSERT(rc == 0);
 
 	m0_fom_queue(&w_sns_cp.sc_base.c_fom, reqh);
 
@@ -271,7 +269,7 @@ static void test_cp_write_read(void)
 
 	m0_fi_enable("m0_sns_cm_tgt_ep", "ut-case");
 
-	m0_fid_gob_make(&gob_fid, 1, 1);
+	m0_fid_gob_make(&gob_fid, 1, M0_MDSERVICE_START_FID.f_key);
 	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, 1);
 	reqh = m0_cs_reqh_get(&sctx);
 	/*
@@ -292,6 +290,9 @@ static void test_cp_write_read(void)
 	bv_free(&r_buf.nb_buffer);
 	bv_free(&w_buf.nb_buffer);
 
+	rc = m0_ios_cdom_get(reqh, &cdom);
+	M0_UT_ASSERT(rc == 0);
+	cob_delete(cdom, 1, &gob_fid);
 	m0_fi_disable("m0_sns_cm_tgt_ep", "ut-case");
 
 	cs_fini(&sctx);

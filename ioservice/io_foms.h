@@ -140,6 +140,7 @@
 #include "net/net.h"
 #include "fop/fom.h"
 #include "stob/io.h"       /* m0_stob_io */
+#include "cob/cob.h"       /* m0_cob */
 
 struct m0_fid;
 struct m0_fop_file_fid;
@@ -266,7 +267,19 @@ M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom);
 
 M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
 				 struct m0_fid *fid,
+				 struct m0_fid *pver,
 				 struct m0_be_tx *tx);
+/**
+ * If cob of different version exists, it will delete it and recreate the
+ * cob with pool version pver.
+ * If crow is true, it will create the cob if it does not exist.
+ */
+M0_INTERNAL int m0_io_cob_stob_create(struct m0_fom *fom,
+				      struct m0_cob_domain *ios_cdom,
+				      struct m0_fid *fid,
+				      struct m0_fid *pver,
+				      bool crow,
+				      struct m0_cob **out);
 
 /** @} end of io_foms */
 

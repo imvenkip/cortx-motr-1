@@ -383,6 +383,7 @@ struct m0_cob_nsrec {
 	uint64_t                cnr_mtime;   /**< time of last modification */
 	uint64_t                cnr_ctime;   /**< time of last status change */
 	uint64_t                cnr_lid;     /**< layout id */
+	struct m0_fid           cnr_pver;    /**< cob pool version */
 	struct m0_format_footer cnr_footer;
 };
 

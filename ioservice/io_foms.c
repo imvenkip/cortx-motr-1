@@ -898,6 +898,7 @@ enum {
 
 M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
 				 struct m0_fid *fid,
+				 struct m0_fid *pver,
 				 struct m0_be_tx *tx)
 {
 	int		      rc;
@@ -928,6 +929,7 @@ M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
 
 	nsrec.cnr_fid   = *fid;
 	nsrec.cnr_nlink = 1;
+	nsrec.cnr_pver  = *pver;
 
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
 	if (rc != 0) {
@@ -949,33 +951,61 @@ static struct m0_cob_domain *fom_cdom(struct m0_fom *fom)
 	return ios->rios_cdom;
 }
 
+M0_INTERNAL int m0_io_cob_stob_create(struct m0_fom *fom,
+				      struct m0_cob_domain *cdom,
+				      struct m0_fid *fid,
+				      struct m0_fid *pver,
+				      bool crow,
+				      struct m0_cob **out)
+{
+	struct m0_cob_oikey  oikey;
+	struct m0_cob       *cob;
+	struct m0_stob_id    stob_id;
+	bool                 cob_recreate = false;
+	int                  rc;
+
+	m0_cob_oikey_make(&oikey, fid, 0);
+	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
+	if (rc == 0 && cob != NULL &&
+	    !m0_fid_eq(&cob->co_nsrec.cnr_pver, pver)) {
+		rc = m0_cob_delete(cob, m0_fom_tx(fom));
+		/** @todo delete stob too. */
+		cob_recreate = true;
+		M0_LOG(M0_DEBUG, "Cob pool version mismatch" FID_F FID_F,
+			FID_P(&cob->co_nsrec.cnr_pver), FID_P(pver));
+	} else if (rc == -ENOENT && crow) {
+		m0_fid_convert_cob2stob(fid, &stob_id);
+		rc = m0_cc_stob_create(fom, &stob_id);
+		cob_recreate = true;
+		M0_LOG(M0_INFO, "Create on write if cob doesn't exists");
+	}
+
+	if (rc == 0 && cob_recreate)
+		rc = m0_io_cob_create(cdom, fid, pver, m0_fom_tx(fom)) ?:
+		     m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
+
+	if (rc == 0)
+		*out = cob;
+
+	return M0_RC(rc);
+}
+
 static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
 			   struct m0_file **out)
 {
-	int			   rc;
-	struct m0_io_fom_cob_rw   *fom_obj;
-	struct m0_cob		  *cob;
-	struct m0_cob_oikey	   oikey;
-	struct m0_cob_domain	  *cdom;
-	struct m0_stob_id          stob_id;
+	int			 rc;
+	struct m0_io_fom_cob_rw *fom_obj;
+	struct m0_cob		*cob;
+	struct m0_fid           *pver;
+	bool                     crow;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_fid_is_set(fid));
 
-	cdom = fom_cdom(fom);
-	if (cdom == NULL)
-		return M0_ERR(-EINVAL);
-
-	m0_cob_oikey_make(&oikey, fid, 0);
-	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
-	if (rc == -ENOENT && fom_obj->fcrw_flags & M0_IO_FLAG_CROW) {
-		m0_fid_convert_cob2stob(fid, &stob_id);
-		rc = m0_cc_stob_create(fom, &stob_id) ?:
-		     m0_io_cob_create(cdom, fid, m0_fom_tx(fom)) ?:
-		     m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
-	}
-
+	pver = &fom_obj->fcrw_pver->pv_id;
+	crow = fom_obj->fcrw_flags & M0_IO_FLAG_CROW;
+	rc = m0_io_cob_stob_create(fom, fom_cdom(fom), fid, pver, crow, &cob);
 	if (rc == 0)
 		*out = &cob->co_file;
 
@@ -1609,7 +1639,7 @@ static int io_launch(struct m0_fom *fom)
 	struct m0_io_fom_cob_rw	*fom_obj;
 	struct m0_net_buffer    *nb;
 	struct m0_fop_cob_rw	*rwfop;
-	struct m0_file		*file;
+	struct m0_file		*file = NULL;
 	uint32_t                 index;
 
 	M0_PRE(fom != NULL);
@@ -1973,6 +2003,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 				m0_cc_stob_cr_credit(&stob_id, accum);
 				m0_cob_tx_credit(fom_cdom(fom),
 						 M0_COB_OP_CREATE, accum);
+				m0_cob_tx_credit(fom_cdom(fom),
+						 M0_COB_OP_DELETE, accum);
 			}
 		}
 		return m0_fom_tick_generic(fom);
