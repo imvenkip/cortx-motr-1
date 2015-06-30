@@ -218,7 +218,7 @@ static const struct m0_reqh_service_type_ops fom_simple_rsops = {
 static struct m0_reqh_service_type fom_simple_rstype = {
 	.rst_name    = "simple-fom-service",
 	.rst_ops     = &fom_simple_rsops,
-	.rst_level   = 2
+	.rst_level   = M0_RS_LEVEL_NORMAL
 };
 
 #undef M0_TRACE_SUBSYSTEM

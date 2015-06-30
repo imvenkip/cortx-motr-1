@@ -305,6 +305,12 @@ M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh);
 M0_INTERNAL int m0_reqh_services_state_count(struct m0_reqh *reqh, int state);
 
 /**
+   Initiates stopping services of the given level and below it
+ */
+M0_INTERNAL void m0_reqh_services_prepare_to_stop(struct m0_reqh *reqh,
+						  unsigned        level);
+
+/**
    Initiates the termination of services.
 
    @param reqh request handler to be shutdown

@@ -102,7 +102,7 @@ struct m0_fom;
    - define service type using M0_REQH_SERVICE_TYPE_DEFINE macro,
    @code
    M0_REQH_SERVICE_TYPE_DEFINE(m0_ios_type, &ios_type_ops, "ioservice",
-                               2, 0);
+                               M0_RS_LEVEL_NORMAL, 0);
    @endcode
 
    - now, the above service type can be registered as below,
@@ -605,6 +605,27 @@ struct m0_reqh_service_type stype = {                                       \
 	.rst_level    = (level),                                            \
 	.rst_typecode = (typecode),                                         \
 }
+
+/**
+   Fine-grained REQH service level definitions.
+ */
+enum m0_reqh_service_level {
+	/* General levels */
+	M0_RS_LEVEL_UNKNOWN       =  0,
+	M0_RS_LEVEL_EARIEST       =  5,
+	M0_RS_LEVEL_EARLY         = 10,
+	M0_RS_LEVEL_BEFORE_NORMAL = 20,
+	M0_RS_LEVEL_NORMAL        = 30,
+	M0_RS_LEVEL_AFTER_NORMAL  = 40,
+	M0_RS_LEVEL_LATE          = 50,
+
+	/* Special levels */
+	M0_BE_TX_SVC_LEVEL = M0_RS_LEVEL_EARLY,
+	M0_SS_SVC_LEVEL    = M0_RS_LEVEL_EARLY,
+	M0_RPC_SVC_LEVEL   = M0_RS_LEVEL_BEFORE_NORMAL,
+	M0_RM_SVC_LEVEL    = M0_RPC_SVC_LEVEL + 1,
+	M0_MD_SVC_LEVEL    = M0_RS_LEVEL_NORMAL,
+};
 
 /**
    Registers a service type in a global service types list,

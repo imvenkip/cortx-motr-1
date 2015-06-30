@@ -250,6 +250,71 @@ static void test_spiel_process_cmds(void)
 	m0_spiel__ut_confd_stop(&confd_srv);
 }
 
+static void test_spiel_service_order(void)
+{
+	struct m0_rpc_server_ctx     confd_srv;
+	struct m0_spiel              spiel;
+	int                          rc;
+	int                          i;
+	struct m0_spiel_running_svc *svcs;
+	const char               *confd_eps[] = {
+		SERVER_ENDPOINT_ADDR,
+		NULL
+	};
+	const char                  *rm_ep   = confd_eps[0];
+	const char                  *profile = M0_UT_CONF_PROFILE;
+	const struct m0_fid          profile_fid = M0_FID_TINIT('r', 1, 5);
+	const struct m0_fid          svc_fid = M0_FID_TINIT('s', 1, 20);
+	bool                         found = false;
+
+	struct m0_spiel_ut_reqh ut_reqh = {
+		.sur_net_dom  = g_net_dom,
+		.sur_buf_pool = g_buf_pool,
+		.sur_reqh     = g_reqh,
+	};
+
+	rc = m0_spiel__ut_confd_start(&confd_srv, confd_eps[0],
+				      M0_UT_CONF_PATH("conf-str.txt"));
+	M0_UT_ASSERT(rc == 0);
+
+	m0_spiel__ut_reqh_init(&ut_reqh, CLIENT_ENDPOINT_ADDR);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_start(&spiel, &ut_reqh.sur_reqh, confd_eps, rm_ep);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_cmd_profile_set(&spiel, profile);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Doing process quiesce */
+	rc = m0_spiel_process_quiesce(&spiel, &profile_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Doing `service start` after process quiesce. */
+	rc = m0_spiel_service_init(&spiel, &svc_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_service_start(&spiel, &svc_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Read Service list - rmservice must startted */
+	rc = m0_spiel_process_list_services(&spiel, &profile_fid, &svcs);
+	M0_UT_ASSERT(rc > 0);
+	M0_UT_ASSERT(svcs != NULL);
+	for (i = 0; i < rc; ++i) {
+		found |= strcmp(svcs[i].spls_name, "rmservice") == 0;
+		m0_free(svcs[i].spls_name);
+	}
+	m0_free(svcs);
+	M0_UT_ASSERT(found);
+
+	/* Finish test */
+	m0_spiel_stop(&spiel);
+
+	m0_spiel__ut_reqh_fini(&ut_reqh);
+	m0_spiel__ut_confd_stop(&confd_srv);
+}
+
 int spiel_ci_ut_init(void)
 {
 	m0_rwlockable_domain_init();
@@ -270,6 +335,7 @@ struct m0_ut_suite spiel_ci_ut = {
 		{ "service-cmds", test_spiel_service_cmds },
 		{ "process-services-list", test_spiel_process_services_list },
 		{ "process-cmds", test_spiel_process_cmds },
+		{ "service-order", test_spiel_service_order },
 		{ NULL, NULL }
 	}
 };

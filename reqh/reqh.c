@@ -582,53 +582,37 @@ M0_INTERNAL void m0_reqh_idle_wait(struct m0_reqh *reqh)
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
-		if (service->rs_level < 2)
+		if (service->rs_level < M0_RS_LEVEL_BEFORE_NORMAL)
 			continue;
 		m0_reqh_idle_wait_for(reqh, service);
 	} m0_tl_endfor;
 }
 
-M0_INTERNAL void m0_reqh_shutdown(struct m0_reqh *reqh)
+M0_INTERNAL void m0_reqh_services_prepare_to_stop(struct m0_reqh *reqh,
+						  unsigned        level)
 {
 	struct m0_reqh_service *service;
-	struct m0_reqh_service *mdservice = NULL;
-	struct m0_reqh_service *rpcservice = NULL;
 
+	M0_LOG(M0_DEBUG, "-- Preparing to stop at level [%d] --", level);
+	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
+		M0_ASSERT(m0_reqh_service_invariant(service));
+		if (service->rs_level < level ||
+		    !M0_IN(m0_reqh_service_state_get(service),
+			   (M0_RST_STARTED, M0_RST_STOPPING)))
+			continue;
+		m0_reqh_service_prepare_to_stop(service);
+	} m0_tl_endfor;
+}
+
+M0_INTERNAL void m0_reqh_shutdown(struct m0_reqh *reqh)
+{
 	M0_PRE(reqh != NULL);
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	M0_PRE(m0_reqh_invariant(reqh));
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
 	reqh_state_set(reqh, M0_REQH_ST_DRAIN);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-
-	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
-		M0_ASSERT(m0_reqh_service_invariant(service));
-		if (!M0_IN(m0_reqh_service_state_get(service),
-			   (M0_RST_STARTED, M0_RST_STOPPING)))
-			continue;
-		/* skip mdservice in first loop */
-		if ((strcmp(service->rs_type->rst_name, "mdservice") == 0)) {
-			mdservice = service;
-			continue;
-		}
-		/* skip rpcservice in first loop */
-		if ((strcmp(service->rs_type->rst_name, "rpcservice") == 0)) {
-			rpcservice = service;
-			continue;
-		}
-		m0_reqh_service_prepare_to_stop(service);
-	} m0_tl_endfor;
-
-	/* notify mdservice */
-	if (mdservice != NULL &&
-	    M0_IN(m0_reqh_service_state_get(mdservice),
-		  (M0_RST_STARTED, M0_RST_STOPPING)))
-		m0_reqh_service_prepare_to_stop(mdservice);
-	/* notify rpcservice */
-	if (rpcservice != NULL &&
-	    M0_IN(m0_reqh_service_state_get(rpcservice),
-		  (M0_RST_STARTED, M0_RST_STOPPING)))
-		m0_reqh_service_prepare_to_stop(rpcservice);
+	m0_reqh_services_prepare_to_stop(reqh, M0_RS_LEVEL_EARLY);
 }
 
 M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
@@ -675,7 +659,8 @@ M0_INTERNAL void m0_reqh_pre_storage_fini_svcs_stop(struct m0_reqh *reqh)
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_SVCS_STOP);
 
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-	__reqh_svcs_stop(reqh, 2);
+	__reqh_svcs_stop(reqh, M0_RS_LEVEL_NORMAL);
+	__reqh_svcs_stop(reqh, M0_RS_LEVEL_BEFORE_NORMAL);
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	reqh_state_set(reqh, M0_REQH_ST_STOPPED);
@@ -685,7 +670,7 @@ M0_INTERNAL void m0_reqh_pre_storage_fini_svcs_stop(struct m0_reqh *reqh)
 M0_INTERNAL void m0_reqh_post_storage_fini_svcs_stop(struct m0_reqh *reqh)
 {
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
-	__reqh_svcs_stop(reqh, 1);
+	__reqh_svcs_stop(reqh, M0_RS_LEVEL_EARLY);
 }
 
 M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh)

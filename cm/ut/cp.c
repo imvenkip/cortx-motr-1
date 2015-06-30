@@ -93,7 +93,7 @@ static const struct m0_reqh_service_type_ops ut_cp_service_type_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(ut_cp_service_type, &ut_cp_service_type_ops,
-			    "ut-cp", 2, 0);
+			    "ut-cp", M0_RS_LEVEL_NORMAL, 0);
 
 /* Multithreaded test vars. */
 static struct m0_sns_cm_cp m_sns_cp[THREADS_NR];

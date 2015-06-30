@@ -253,7 +253,8 @@ static const struct m0_reqh_service_type_ops stype_ops = {
 	.rsto_service_allocate = &service_allocate
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(test_stype, &stype_ops, "dtm-ub-service", 2, 0);
+M0_REQH_SERVICE_TYPE_DEFINE(test_stype, &stype_ops, "dtm-ub-service",
+			    M0_RS_LEVEL_NORMAL, 0);
 
 static void test_fom_fini(struct m0_fom *fom)
 {

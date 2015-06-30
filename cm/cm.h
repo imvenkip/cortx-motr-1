@@ -439,7 +439,7 @@ struct m0_cm_type cmtype ## _cmt = {			\
 	.ct_stype = {					\
 		.rst_name    = (name),			\
 		.rst_ops     = (ops),			\
-		.rst_level   = 2,			\
+		.rst_level   = M0_RS_LEVEL_NORMAL,	\
 	}						\
 }
 

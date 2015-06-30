@@ -134,7 +134,7 @@ M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service *svc)
 	ergo(svc->rs_reqh != NULL,
 	     M0_IN(m0_reqh_lockers_get(svc->rs_reqh, svc->rs_type->rst_key),
 		   (NULL, svc))) &&
-	svc->rs_level > 0;
+	svc->rs_level > M0_RS_LEVEL_UNKNOWN;
 }
 M0_EXPORTED(m0_reqh_service_invariant);
 
@@ -171,7 +171,7 @@ m0_reqh_service_allocate(struct m0_reqh_service **out,
 		service->rs_type = stype;
 		service->rs_reqh_ctx = rctx;
 		m0_reqh_service_bob_init(service);
-		if (service->rs_level == 0)
+		if (service->rs_level == M0_RS_LEVEL_UNKNOWN)
 			service->rs_level = stype->rst_level;
 		M0_POST(m0_reqh_service_invariant(service));
 	}
@@ -323,6 +323,10 @@ m0_reqh_service_prepare_to_stop(struct m0_reqh_service *service)
 
 	M0_PRE(m0_reqh_service_bob_check(service));
 	reqh = service->rs_reqh;
+
+	M0_LOG(M0_DEBUG, "Preparing to stop %s [%d] (%d)",
+	       service->rs_type->rst_name,
+	       service->rs_level, service->rs_sm.sm_state);
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	M0_PRE(m0_reqh_service_invariant(service));

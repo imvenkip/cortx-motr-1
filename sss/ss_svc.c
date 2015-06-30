@@ -113,7 +113,7 @@ static const struct m0_reqh_service_type_ops ss_svc_type_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_ss_svc_type, &ss_svc_type_ops,
-			    "sss", 1, M0_CST_SSS);
+			    "sss", M0_SS_SVC_LEVEL, M0_CST_SSS);
 
 /*
  * Public interfaces.

@@ -115,7 +115,7 @@ static const struct m0_reqh_service_type_ops rpc_service_type_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_rpc_service_type, &rpc_service_type_ops,
-			    "rpcservice", 2, 0);
+			    "rpcservice", M0_RPC_SVC_LEVEL, 0);
 M0_EXPORTED(m0_rpc_service_type);
 
 M0_INTERNAL int m0_rpc_service_register(void)

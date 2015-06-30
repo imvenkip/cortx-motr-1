@@ -298,7 +298,8 @@ static const struct m0_reqh_service_type_ops _stype_ops = {
 	.rsto_service_allocate = dummy_service_allocate
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(ub_fom_stype, &_stype_ops, "ub-fom-service", 2, 0);
+M0_REQH_SERVICE_TYPE_DEFINE(ub_fom_stype, &_stype_ops, "ub-fom-service",
+			    M0_RS_LEVEL_NORMAL, 0);
 
 /* ----------------------------------------------------------------
  * FOM operations

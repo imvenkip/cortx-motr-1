@@ -109,7 +109,7 @@ static const struct m0_reqh_service_type_ops ut_long_lock_service_type_ops = {
 
 M0_REQH_SERVICE_TYPE_DEFINE(ut_long_lock_service_type,
 			    &ut_long_lock_service_type_ops,
-			    "ut-long-lock-service", 2, 0);
+			    "ut-long-lock-service", M0_RS_LEVEL_NORMAL, 0);
 
 static int test_long_lock_init(void)
 {

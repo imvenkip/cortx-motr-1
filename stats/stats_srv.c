@@ -109,7 +109,8 @@
    Stats service type definition :
 
    M0_REQH_SERVICE_TYPE_DEFINE(m0_stats_svc_type, &stats_service_type_ops,
-                        M0_STATS_SVC_NAME, &m0_addb_ct_stats_service, 2, 0);
+                        M0_STATS_SVC_NAME, &m0_addb_ct_stats_service,
+			M0_RS_LEVEL_NORMAL, 0);
 
    Stats service type initialization/finalization :
 
@@ -288,7 +289,7 @@ static const struct m0_reqh_service_type_ops stats_service_type_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_stats_svc_type, &stats_service_type_ops,
-			    M0_STATS_SVC_NAME, 2, M0_CST_STS);
+			    M0_STATS_SVC_NAME, M0_RS_LEVEL_NORMAL, M0_CST_STS);
 
 /*
  * Public interfaces
