@@ -353,10 +353,9 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
 	uint64_t                     nr_devs_checked = 0;
 	uint32_t                     dev_id;
 
-	if (M0_FI_ENABLED("ut-case")) {
-		M0_ASSERT_INFO(nr_ios == 1, "error nr_ios = %d", nr_ios);
+	if (M0_FI_ENABLED("ut-case"))
 		return local_ep(cm);
-	}
+
 	dev_id = m0_fid_cob_device_id(cfid);
 	M0_ASSERT(dev_id <= mero->cc_pool_width);
 	nr_devs_in_ios = (mero->cc_pool_width + nr_ios - 1) / nr_ios;

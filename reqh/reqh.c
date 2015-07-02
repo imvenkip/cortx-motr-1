@@ -163,7 +163,7 @@ M0_INTERNAL int m0_reqh_mdpool_layout_build(struct m0_reqh *reqh)
 
 	M0_ENTRY();
 	pv = pool_version_tlist_head(&pc->pc_md_pool->po_vers);
-	lid = m0_pool_version2layout_id(pv, M0_DEFAULT_LAYOUT_ID);
+	lid = m0_pool_version2layout_id(&pv->pv_id, M0_DEFAULT_LAYOUT_ID);
 	layout = m0_layout_find(&reqh->rh_ldom, lid);
 	if (layout == NULL)
 		return M0_RC(-EINVAL);
@@ -697,9 +697,15 @@ M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
 				   struct m0_confc_args *args)
 {
 	struct m0_confc *confc = &reqh->rh_confc;
+        int                      rc;
 
 	M0_PRE(ergo(args->ca_confd != NULL,
 		    (args->ca_group != NULL && args->ca_rmach != NULL)));
+
+        rc = m0_fid_sscanf(args->ca_profile, &reqh->rh_profile);
+        if (rc != 0)
+                return M0_ERR_INFO(rc, "Cannot parse profile `%s'",
+				   args->ca_profile);
 
 	return m0_confc_init(confc, args->ca_group, args->ca_confd,
 			     args->ca_rmach, args->ca_confstr);

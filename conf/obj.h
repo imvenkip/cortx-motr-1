@@ -368,21 +368,21 @@ enum m0_conf_pver_state {
  * Pool versions are used to track changes in pool membership.
  */
 struct m0_conf_pver {
-	struct m0_conf_obj       pv_obj;
-	struct m0_conf_dir      *pv_rackvs;
+	struct m0_conf_obj      pv_obj;
+	struct m0_conf_dir     *pv_rackvs;
 /* configuration data (for the application) */
 	/** Version number. */
-	uint32_t                 pv_ver;
-	/** Pool version state. */
-	enum m0_conf_pver_state  pv_state;
+	uint32_t                pv_ver;
+	/** Pool version failed devices. */
+	uint32_t                pv_nfailed;
 	/** Layout attributes. */
 	struct m0_pdclust_attr   pv_attr;
 	/** Base permutation computed based on the failure domains. */
 	uint32_t                *pv_permutations;
 	uint32_t                 pv_permutations_nr;
 	/** Allowed failures for each failure domain. */
-	uint32_t                *pv_nr_failures;
-	uint32_t                 pv_nr_failures_nr;
+	uint32_t               *pv_nr_failures;
+	uint32_t                pv_nr_failures_nr;
 };
 
 /**

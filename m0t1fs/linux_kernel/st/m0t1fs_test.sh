@@ -10,7 +10,8 @@
 m0t1fs_test()
 {
 	NODE_UUID=`uuidgen`
-	mero_service start
+	local multiple_pools=0
+	mero_service start $multiple_pools
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to start Mero Service."

@@ -582,8 +582,9 @@ function start_server ()
 	local SNAME
 	if [ $I -eq 0 ]; then
 		local DIR=$WORK_ARENA/confd
-		build_conf $NR_DATA $NR_PARITY $POOL_WIDTH SERVICES[@] \
-				MDSERVICES[@] STATSERVICES[@] > $CONF_FILE
+		local multiple_pools=0
+		build_conf $NR_DATA $NR_PARITY $POOL_WIDTH $multiple_pools \
+			SERVICES[@]  MDSERVICES[@] STATSERVICES[@] > $CONF_FILE
 		if [ $verbosity -gt 0 ] ;then
 			# Just show conf
 			build_conf $NR_DATA $NR_PARITY $POOL_WIDTH SERVICES[@] \

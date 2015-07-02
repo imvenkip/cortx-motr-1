@@ -30,6 +30,7 @@
 #include "sns/cm/cm.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/file.h"
+#include "pool/pool.h"
 
 /**
    @addtogroup SNSCMFILE
@@ -541,10 +542,13 @@ static int _layout_fetch(struct m0_sns_cm_file_ctx *fctx)
 	struct m0_reqh          *reqh = cm->cm_service.rs_reqh;
 	struct m0_layout_domain *ldom = &reqh->rh_ldom;
 	struct m0_layout        *l;
+	uint64_t                 layout_id;
 
 	M0_PRE(m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LAYOUT_FETCH);
 
-	l = fctx->sf_layout ?: m0_layout_find(ldom, fctx->sf_attr.ca_lid);
+	layout_id = m0_pool_version2layout_id(&fctx->sf_attr.ca_pver,
+					      fctx->sf_attr.ca_lid);
+	l = fctx->sf_layout ?: m0_layout_find(ldom, layout_id);
 	if (l == NULL)
 		return M0_RC(-ENOENT);
 	fctx->sf_layout = l;

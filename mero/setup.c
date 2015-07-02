@@ -1916,6 +1916,7 @@ static int file_read(const char *path, char **dest)
 static int cs_conf_setup(struct m0_mero *cctx)
 {
 	struct cs_args       *args = &cctx->cc_args;
+	struct m0_reqh       *reqh = &cctx->cc_reqh_ctx.rc_reqh;
 	struct m0_confc_args *conf_args;
 	char                 *confstr = NULL;
 	struct m0_conf_filesystem *fs;
@@ -1941,7 +1942,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 		return M0_ERR(rc);
 	}
 
-	rc = m0_conf_fs_get(conf_args->ca_profile, m0_mero2confc(cctx), &fs);
+	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
 	if (rc != 0)
 		goto conf_destroy;
 
@@ -2035,7 +2036,7 @@ int m0_cs_start(struct m0_mero *cctx)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-        rc = m0_conf_fs_get(cctx->cc_profile, m0_mero2confc(cctx), &fs);
+        rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
         if (rc != 0)
 		return M0_ERR(rc);
 

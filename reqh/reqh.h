@@ -147,6 +147,11 @@ struct m0_reqh {
 	struct m0_reqh_lockers        rh_lockers;
 
 	/**
+	 * Configuration profile.
+	 */
+	struct m0_fid                 rh_profile;
+
+	/**
 	 * Confc instance.
 	 */
 	struct m0_confc               rh_confc;

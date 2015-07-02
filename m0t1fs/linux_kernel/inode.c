@@ -291,7 +291,9 @@ M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
 		body = &rep->g_body;
 	} else {
 		body = &csb->csb_virt_body;
-		m0t1fs_fill_cob_attr(body);
+		rc = m0t1fs_fill_cob_attr(body);
+		if (rc != 0)
+			return ERR_PTR(rc);
 	}
 
 	inode = m0t1fs_iget(sb, root_fid, body);
@@ -429,6 +431,7 @@ static int m0t1fs_inode_read(struct inode      *inode,
 	}
 	if (!m0t1fs_inode_is_root(inode)) {
 		ci->ci_layout_id = body->b_lid;
+		ci->ci_pver = body->b_pver;
 		rc = m0t1fs_inode_layout_init(ci);
 		if (rc != 0)
 			M0_LOG(M0_WARN, "m0t1fs_inode_layout_init() failed, rc=%d", rc);
@@ -519,13 +522,15 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 	struct m0t1fs_sb          *csb;
 	struct m0_layout_instance *linst;
 	int                        rc;
+	uint64_t                  layout_id;
 
 	M0_ENTRY();
 	M0_LOG(M0_DEBUG, FID_F, FID_P(m0t1fs_inode_fid(ci)));
 
 	csb = M0T1FS_SB(ci->ci_inode.i_sb);
 
-	rc = m0t1fs_build_layout_instance(csb, ci->ci_layout_id,
+	layout_id = m0_pool_version2layout_id(&ci->ci_pver, ci->ci_layout_id);
+	rc = m0t1fs_build_layout_instance(csb, layout_id,
 					  m0t1fs_inode_fid(ci), &linst);
 	if (rc == 0) {
 		if (ci->ci_layout_instance != NULL)

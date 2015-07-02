@@ -203,9 +203,15 @@ function build_conf()
 	local nr_data_units=$1
 	local nr_parity_units=$2
 	local pool_width=$3
-	local ioservices=("${!4}")
-	local mdservices=("${!5}")
-	local statservices=("${!6}")
+	local multiple_pools=$4
+	local ioservices=("${!5}")
+	local mdservices=("${!6}")
+	local statservices=("${!7}")
+	local PVER1_OBJ_COUNT=0
+	local PVER1_OBJS=
+	local node_count=1
+	local pool_count=1
+	local rack_count=1
 
 	if [ -z "$ioservices" ]; then
 		ioservices=("${IOSEP[@]}")
@@ -250,6 +256,11 @@ function build_conf()
 	local  ENCLVID="(0x6a00000000000001, $(($pool_width + 2)))"
 	local  CTRLVID="(0x6a00000000000001, $(($pool_width + 3)))"
 
+	local NODES="$NODE"
+	local POOLS="$POOLID"
+	local RACKS="$RACKID"
+
+
 	local i
 
 	for ((i=0; i < ${#ioservices[*]}; i++)); do
@@ -290,18 +301,76 @@ function build_conf()
 	local ENCLV="{0x6a| (($ENCLVID), $ENCLID, [1: $CTRLVID])}"
 	local CTRLV="{0x6a| (($CTRLVID), $CTRLID, [$NR_DISKV_FIDS: $DISKV_FIDS])}"
 
+	if ((multiple_pools == 1)); then
+		# IDs for anther pool version to test assignment
+		# of pools to new objects.
+		local  NODEID1='(0x6e00000000000010, 1)'
+		local  PROCID1='(0x7200000000000010, 1)'
+		local  IO_SVCID1='(0x7300000000000010, 1)'
+		local  SDEVID1='(0x6400000000000010, 1)'
+		local  SDEVID2='(0x6400000000000010, 2)'
+		local  SDEVID3='(0x6400000000000010, 3)'
+		local  RACKID1='(0x6100000000000010, 1)'
+		local  ENCLID1='(0x6500000000000010, 1)'
+		local  CTRLID1='(0x6300000000000010, 1)'
+		local  DISKID1='(0x6b00000000000010, 1)'
+		local  DISKID2='(0x6b00000000000010, 2)'
+		local  DISKID3='(0x6b00000000000010, 3)'
+		local  POOLID1='(0x6f00000000000010, 1)'
+		local  PVERID1='(0x7600000000000010, 1)'
+		local  RACKVID1='(0x6a00000000000010, 1)'
+		local  ENCLVID1='(0x6a00000000000010, 2)'
+		local  CTRLVID1='(0x6a00000000000010, 3)'
+		local  DISKVID1='(0x6a00000000000010, 4)'
+		local  DISKVID2='(0x6a00000000000010, 5)'
+		local  DISKVID3='(0x6a00000000000010, 6)'
+		# conf objects for anther pool version to test assignment
+		# of pools to new objects.
+		local NODE1="{0x6e| (($NODEID1), 16000, 2, 3, 2, $POOLID1, [1: $PROCID1])}"
+		local PROC1="{0x72| (($PROCID1), [1:3], 0, 0, 0, 0, [1: $IO_SVCID1])}"
+		local IO_SVC1="{0x73| (($IO_SVCID1), 2, [1: "\"${ioservices[0]}\""], [3: $SDEVID1, $SDEVID2, $SDEVID3])}"
+		local SDEV1="{0x64| (($SDEVID1), 4, 1, 4096, 596000000000, 3, 4, \"$MERO_M0T1FS_TEST_DIR/ios1/1000data-disk.img\")}"
+		local SDEV2="{0x64| (($SDEVID2), 4, 1, 4096, 596000000000, 3, 4, \"$MERO_M0T1FS_TEST_DIR/ios1/1001data-disk.img\")}"
+		local SDEV3="{0x64| (($SDEVID3), 4, 1, 4096, 596000000000, 3, 4, \"$MERO_M0T1FS_TEST_DIR/ios1/1002data-disk.img\")}"
+		local RACK1="{0x61| (($RACKID1), [1: $ENCLID1], [1: $PVERID1])}"
+		local ENCL1="{0x65| (($ENCLID1), [1: $CTRLID1], [1: $PVERID1])}"
+		local CTRL1="{0x63| (($CTRLID1), $NODEID1, [3: $DISKID1, $DISKID2, $DISKID3], [1: $PVERID1])}"
+		local  DISK1="{0x6b| (($DISKID1), $SDEVID1)}"
+		local  DISK2="{0x6b| (($DISKID2), $SDEVID2)}"
+		local  DISK3="{0x6b| (($DISKID3), $SDEVID3)}"
+
+		local POOL1="{0x6f| (($POOLID1), 0, [1: $PVERID1])}"
+		local PVER1="{0x76| (($PVERID1), 0, 1, 1, 3, [3: 1, 2, 3], [5: 1, 0, 0, 0, 1], [1: $RACKVID1])}"
+		local RACKV1="{0x6a| (($RACKVID1), $RACKID1, [1: $ENCLVID1])}"
+		local ENCLV1="{0x6a| (($ENCLVID1), $ENCLID1, [1: $CTRLVID1])}"
+		local CTRLV1="{0x6a| (($CTRLVID1), $CTRLID1, [3: $DISKVID1, $DISKVID2, $DISKVID3])}"
+		local  DISKV1="{0x6a| (($DISKVID1), $DISKID1, [0])}"
+		local  DISKV2="{0x6a| (($DISKVID2), $DISKID2, [0])}"
+		local  DISKV3="{0x6a| (($DISKVID3), $DISKID3, [0])}"
+		PVER1_OBJS=", \n$NODE1, \n$PROC1, \n$IO_SVC1, \n$SDEV1, \n$SDEV2, \n$SDEV3, \n$RACK1, \n$ENCL1, \n$CTRL1, \n$DISK1, \n$DISK2, \n$DISK3, \n$POOL1, \n$PVER1, \n$RACKV1, \n$ENCLV1, \n$CTRLV1, \n$DISKV1, \n$DISKV2, \n$DISKV3"
+		PVER1_OBJ_COUNT=20
+		node_count=2
+		rack_count=2
+		pool_count=2
+
+		NODES="$NODES, $NODEID1"
+		POOLS="$POOLS, $POOLID1"
+		RACKS="$RACKS, $RACKID1"
+		# Total 20 objects for this anther pool version
+	fi
+
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
- [$((${#ioservices[*]} + ${#mdservices[*]} + $NR_IOS_DEVS + 16)):
+ [$((${#ioservices[*]} + ${#mdservices[*]} + $NR_IOS_DEVS + 16 + $PVER1_OBJ_COUNT)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
 	      [1: \"$pool_width $nr_data_units $nr_parity_units\"],
 	      $POOLID,
-	      [1: $NODE],
-	      [1: $POOLID],
-	      [1: $RACKID])},
+	      [$node_count: $NODES],
+	      [$pool_count: $POOLS],
+	      [$rack_count: $RACKS])},
   {0x6e| (($NODE), 16000, 2, 3, 2, $POOLID, [1: $PROC])},
   {0x72| (($PROC), [1:3], 0, 0, 0, 0,
 	           [$((${#ioservices[*]} + ${#mdservices[*]} + 3)): $MDS_NAMES, $RM, $IOS_NAMES, $STATS, $HA_SVC_ID])},
@@ -318,7 +387,8 @@ function build_conf()
   $PVER,
   $RACKV,
   $ENCLV,
-  $CTRLV]"
+  $CTRLV
+  $PVER1_OBJS]"
 }
 
 function run()

@@ -94,7 +94,8 @@ main()
 	local rc=0
 
 	NODE_UUID=`uuidgen`
-	mero_service start $stride $N $K $P || {
+	local multiple_pools=0
+	mero_service start $multiple_pools $stride $N $K $P || {
 		echo "Failed to start Mero Service."
 		return 1
 	}

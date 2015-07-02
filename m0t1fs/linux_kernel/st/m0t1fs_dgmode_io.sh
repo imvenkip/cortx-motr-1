@@ -633,8 +633,9 @@ fmio_mero_service_start()
 {
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
+		local multiple_pools=0
 		echo "About to start Mero service"
-		mero_service start $stride $N $K $P
+		mero_service start $multiple_pools $stride $N $K $P
 		if [ $? -ne 0 ]
 		then
 			echo "Failed to start Mero Service..."

@@ -129,7 +129,7 @@ M0_INTERNAL int m0_layout_init_by_pver(struct m0_layout_domain *dom,
 		pa->pa_unit_size = lid_to_unit_map[i];
 		m0_uint128_init(&pa->pa_seed, M0_PDCLUST_SEED);
 
-		layout_id = m0_pool_version2layout_id(pv, i);
+		layout_id = m0_pool_version2layout_id(&pv->pv_id, i);
 
 		rc = layout_enum_build(dom, pa->pa_P, &layout_enum);
 		if (rc != 0) {

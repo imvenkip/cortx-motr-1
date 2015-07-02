@@ -98,6 +98,9 @@ static void cm_setup_ut(void)
 	M0_UT_ASSERT(rc == 0);
 
 	cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile = M0_UT_CONF_PROFILE;
+        rc = m0_fid_sscanf(cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile,
+                           &cm_ut_service->rs_reqh->rh_profile);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_ios_poolmach_init(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 

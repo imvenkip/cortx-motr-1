@@ -37,29 +37,21 @@ M0_TL_DESCR_DEFINE(m0_conf_failure_sets, "failed resources", M0_INTERNAL,
 		   M0_CONF_OBJ_MAGIC, M0_CONF_FAILURE_SETS_MAGIC);
 M0_TL_DEFINE(m0_conf_failure_sets, M0_INTERNAL, struct m0_conf_obj);
 
-M0_INTERNAL int m0_conf_fs_get(const char *profile,
-			       struct m0_confc *confc,
-			       struct m0_conf_filesystem **fs)
+M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
+			       struct m0_confc            *confc,
+			       struct m0_conf_filesystem **result)
 {
-	struct m0_conf_obj *fs_obj = NULL;
-	struct m0_fid       prof_fid;
+	struct m0_conf_obj *obj = NULL;
 	int                 rc;
 
-	rc = m0_fid_sscanf(profile, &prof_fid);
-	if (rc != 0)
-		return M0_ERR_INFO(rc, "Cannot parse profile `%s'", profile);
-
-	rc = m0_confc_open_sync(&fs_obj, confc->cc_root,
-				M0_CONF_ROOT_PROFILES_FID, prof_fid,
+	rc = m0_confc_open_sync(&obj, confc->cc_root,
+				M0_CONF_ROOT_PROFILES_FID, *profile,
 				M0_CONF_PROFILE_FILESYSTEM_FID);
-	if (rc != 0) {
-		M0_LOG(M0_FATAL, "m0_confc_open_sync() failed: rc=%d", rc);
+	if (rc == 0)
+		*result = M0_CONF_CAST(obj, m0_conf_filesystem);
+	else
 		m0_confc_fini(confc);
-		return M0_ERR(rc);
-	}
-	*fs = M0_CONF_CAST(fs_obj, m0_conf_filesystem);
-
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_conf_device_get(struct m0_confc      *confc,
@@ -72,7 +64,6 @@ M0_INTERNAL int m0_conf_device_get(struct m0_confc      *confc,
 	M0_PRE(confc != NULL);
 	M0_PRE(fid != NULL);
 
-	M0_LOG(M0_DEBUG, FID_F, FID_P(fid));
 	m0_conf_cache_lock(&confc->cc_cache);
 	rc = m0_conf_obj_find(&confc->cc_cache, fid, &obj);
 	m0_conf_cache_unlock(&confc->cc_cache);
@@ -107,49 +98,81 @@ M0_INTERNAL int m0_conf_disk_get(struct m0_confc      *confc,
 	return M0_RC(rc);
 }
 
+static struct m0_conf_pver **conf_pvers(const struct m0_conf_obj *obj)
+{
+	const struct m0_conf_obj_type *obj_type = m0_conf_obj_type(obj);
+
+	if (obj_type == &M0_CONF_RACK_TYPE)
+		return (M0_CONF_CAST(obj, m0_conf_rack))->cr_pvers;
+	else if (obj_type == &M0_CONF_ENCLOSURE_TYPE)
+		return (M0_CONF_CAST(obj, m0_conf_enclosure))->ce_pvers;
+	else if (obj_type == &M0_CONF_CONTROLLER_TYPE)
+		return (M0_CONF_CAST(obj, m0_conf_controller))->cc_pvers;
+	else
+		M0_IMPOSSIBLE("");
+}
+
+static bool pver_contains_failed_device(struct m0_tl        *failure_sets,
+					struct m0_conf_pver *pver)
+{
+	struct m0_conf_pver **pvers;
+	struct m0_conf_obj   *obj;
+	int                   i;
+
+	m0_tl_for(m0_conf_failure_sets, failure_sets, obj) {
+		pvers = conf_pvers(obj);
+		for (i = 0; pvers[i] != NULL; ++i) {
+			if (m0_fid_eq(&pver->pv_obj.co_id,
+				      &pvers[i]->pv_obj.co_id))
+				return true;
+		}
+	} m0_tlist_endfor;
+	return false;
+}
+
 M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE;
 }
 
-/*
- * Simplistic implementation to make progress.
- * XXX TODO : Use failure set to find a valid pool version which does not
- * contain any device from the @failure_set.
- * This will be done as part of MERO-617
- */
-M0_INTERNAL int m0_conf_poolversion_get(struct m0_conf_filesystem *fs,
-					struct m0_tl              *failure_set,
-					struct m0_conf_pver      **pver)
+M0_INTERNAL int m0_conf_poolversion_get(const struct m0_fid  *profile,
+					struct m0_confc      *confc,
+					struct m0_tl         *failure_sets,
+					struct m0_conf_pver **result)
 {
-	struct m0_conf_diter  it;
-	struct m0_conf_pver  *pv;
-	struct m0_confc      *confc;
-	struct m0_conf_obj   *obj;
-	int                   rc;
+	struct m0_conf_diter       it;
+	struct m0_conf_filesystem *fs;
+	struct m0_conf_pver       *pver;
+	struct m0_conf_obj        *obj;
+	int                        rc;
 
-	confc = m0_confc_from_obj(&fs->cf_obj);
+	rc = m0_conf_fs_get(profile, confc, &fs);
+	if (rc != 0)
+		return M0_ERR(rc);
+
 	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
 				M0_CONF_FILESYSTEM_POOLS_FID,
 				M0_CONF_POOL_PVERS_FID);
-	if (rc != 0)
+	if (rc != 0) {
+		m0_confc_close(&fs->cf_obj);
 		return M0_ERR(rc);
+	}
 
 	while ((rc = m0_conf_diter_next_sync(&it, m0_obj_is_pver)) ==
 		M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE);
-		pv = M0_CONF_CAST(obj, m0_conf_pver);
-		if (pv->pv_state == M0_CONF_PVER_ONLINE) {
-			*pver = pv;
+		pver = M0_CONF_CAST(obj, m0_conf_pver);
+		if (!pver_contains_failed_device(failure_sets, pver)) {
+			*result = pver;
 			rc = 0;
 			break;
 		}
 	}
-
 	m0_conf_diter_fini(&it);
+	m0_confc_close(&fs->cf_obj);
 
-	return M0_RC(*pver == NULL ? -ENOENT : rc);
+	return M0_RC(*result == NULL ? -ENOENT : rc);
 }
 
 static int _conf_load(struct m0_conf_filesystem *fs,
@@ -197,7 +220,7 @@ M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs)
 					      M0_CONF_ENCLV_CTRLVS_FID,
 					      M0_CONF_CTRLV_DISKVS_FID};
 
-        return M0_RC(_conf_load(fs, fs_to_sdevs, ARRAY_SIZE(fs_to_sdevs)) ?:
+	return M0_RC(_conf_load(fs, fs_to_sdevs, ARRAY_SIZE(fs_to_sdevs)) ?:
 		     _conf_load(fs, fs_to_disks, ARRAY_SIZE(fs_to_disks)) ?:
 		     _conf_load(fs, fs_to_diskvs, ARRAY_SIZE(fs_to_diskvs)));
 }
@@ -332,39 +355,33 @@ M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj)
 	return container_of(confc, struct m0_reqh, rh_confc);
 }
 
-static void pool_versions_state_set(struct m0_conf_obj *obj)
+static void pver_failed_devs_count_update(struct m0_conf_obj *obj)
 {
 	struct m0_conf_pver **pvers;
-	uint32_t              i;
+	int                   i;
 
-	if (m0_conf_obj_type(obj) == &M0_CONF_RACK_TYPE)
-		pvers = M0_CONF_CAST(obj, m0_conf_rack)->cr_pvers;
-	else if (m0_conf_obj_type(obj) == &M0_CONF_ENCLOSURE_TYPE)
-		pvers = M0_CONF_CAST(obj, m0_conf_enclosure)->ce_pvers;
-	else if (m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE)
-		pvers = M0_CONF_CAST(obj, m0_conf_controller)->cc_pvers;
-	else
-		M0_IMPOSSIBLE("");
+	pvers = conf_pvers(obj);
 
-	if (obj->co_ha_state == M0_NC_FAILED)
+	if (obj->co_ha_state == M0_NC_ONLINE)
 		for (i = 0; pvers[i] != NULL; ++i)
-			pvers[i]->pv_state = M0_CONF_PVER_FAILED;
-	/**
-	 * @todo XXX:
-	 *           Need to make poolvesion again ONLINE if all
-	 *           components becomes online ?
-	 */
+			M0_CNT_DEC(pvers[i]->pv_nfailed);
+	else if (obj->co_ha_state == M0_NC_FAILED)
+		for (i = 0; pvers[i] != NULL; ++i)
+			M0_CNT_INC(pvers[i]->pv_nfailed);
 }
 
 static void
 failure_sets_update(struct m0_tl *failure_sets, struct m0_conf_obj *obj)
 {
 	if (obj->co_ha_state == M0_NC_ONLINE &&
-	    m0_conf_failure_sets_tlist_contains(failure_sets, obj))
+	    m0_conf_failure_sets_tlist_contains(failure_sets, obj)) {
 		m0_conf_failure_sets_tlist_del(obj);
-	else if (obj->co_ha_state == M0_NC_FAILED &&
-		 !m0_conf_failure_sets_tlist_contains(failure_sets, obj))
+		pver_failed_devs_count_update(obj);
+	} else if (obj->co_ha_state == M0_NC_FAILED &&
+		   !m0_conf_failure_sets_tlist_contains(failure_sets, obj)) {
 		m0_conf_failure_sets_tlist_add_tail(failure_sets, obj);
+		pver_failed_devs_count_update(obj);
+	}
 }
 
 M0_INTERNAL void m0_conf_failure_sets_update(struct m0_conf_obj *obj)
@@ -374,8 +391,25 @@ M0_INTERNAL void m0_conf_failure_sets_update(struct m0_conf_obj *obj)
 	M0_PRE(M0_IN(m0_conf_obj_type(obj), (&M0_CONF_RACK_TYPE,
 					     &M0_CONF_ENCLOSURE_TYPE,
 					     &M0_CONF_CONTROLLER_TYPE)));
-
 	failure_sets_update(failure_sets, obj);
-	pool_versions_state_set(obj);
 }
+
+M0_INTERNAL bool m0_conf_is_pool_version_dirty(struct m0_confc     *confc,
+					       const struct m0_fid *pver_fid)
+{
+	struct m0_conf_obj *obj;
+	bool                dirty;
+
+	m0_conf_cache_lock(&confc->cc_cache);
+	if (m0_conf_obj_find(&confc->cc_cache, pver_fid, &obj) != 0 ||
+	    m0_conf_obj_is_stub(obj)) {
+		m0_conf_cache_unlock(&confc->cc_cache);
+		return true;
+	}
+	dirty = (M0_CONF_CAST(obj, m0_conf_pver))->pv_nfailed > 0;
+	m0_conf_cache_unlock(&confc->cc_cache);
+
+	return dirty;
+}
+
 #undef M0_TRACE_SUBSYSTEM

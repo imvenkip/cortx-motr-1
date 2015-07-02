@@ -24,20 +24,16 @@
 
 #include "lib/tlist.h"
 
-/* import */
-struct m0_rpc_machine;
-struct m0_sm_group;
-struct m0_tl;
-struct m0_fid;
 struct m0_confc;
+struct m0_conf_obj;
+struct m0_conf_root;
 struct m0_conf_filesystem;
 struct m0_conf_pver;
-struct m0_conf_obj;
-struct m0_conf_sdev;
 struct m0_conf_process;
 struct m0_conf_disk;
-struct m0_conf_root;
 struct m0_conf_service;
+struct m0_conf_sdev;
+struct m0_fid;
 struct m0_rpc_session;
 
 M0_TL_DESCR_DECLARE(m0_conf_failure_sets, M0_EXTERN);
@@ -62,14 +58,12 @@ struct m0_confc_args {
  * @note m0_conf_fs_get() initialises @confc. It is user's responsibility
  *       to finalise it.
  */
-M0_INTERNAL int m0_conf_fs_get(const char                 *profile,
+M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 			       struct m0_confc            *confc,
 			       struct m0_conf_filesystem **result);
 
 
-/**
- * Obtains device object associated with given fid..
- */
+/** Obtains device object associated with given fid. */
 M0_INTERNAL int m0_conf_device_get(struct m0_confc      *confc,
 				   struct m0_fid        *fid,
 				   struct m0_conf_sdev **sdev);
@@ -83,18 +77,15 @@ M0_INTERNAL int m0_conf_disk_get(struct m0_confc      *confc,
 
 
 /** Finds pool version which does not intersect with the given failure set. */
-M0_INTERNAL int m0_conf_poolversion_get(struct m0_conf_filesystem *fs,
-					struct m0_tl *failure_set,
+M0_INTERNAL int m0_conf_poolversion_get(const struct m0_fid  *profile,
+					struct m0_confc      *confc,
+					struct m0_tl         *failure_sets,
 					struct m0_conf_pver **result);
 
-/**
- * Load full configuration tree.
- */
+/** Loads full configuration tree. */
 M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs);
 
-/**
- * Build failure set of resources by scanning ha state.
- */
+/** Builds failure set of resources by scanning ha state. */
 M0_INTERNAL int
 m0_conf_failure_sets_build(struct m0_rpc_session     *session,
 			   struct m0_conf_filesystem *fs,
@@ -103,12 +94,12 @@ m0_conf_failure_sets_build(struct m0_rpc_session     *session,
 M0_INTERNAL void m0_conf_failure_sets_destroy(struct m0_tl *failure_sets);
 
 /**
- * Open root configuration object.
+ * Opens root configuration object.
  * @param confc already initialised confc instance
  * @param root  output parameter. Should be closed by user.
  */
 M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
-			          struct m0_conf_root **root);
+				  struct m0_conf_root **root);
 
 /** Get service name by service configuration object */
 M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc);
@@ -118,5 +109,8 @@ M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj);
 M0_INTERNAL void m0_conf_failure_sets_update(struct m0_conf_obj *obj);
 
 M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj);
+
+M0_INTERNAL bool m0_conf_is_pool_version_dirty(struct m0_confc     *confc,
+					       const struct m0_fid *pver_fid);
 
 #endif /* __MERO_CONF_HELPERS_H__ */

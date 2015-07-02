@@ -795,6 +795,8 @@ struct m0t1fs_inode {
 	struct m0_rm_owner         ci_fowner;
 	/** Remote portal for requesting resource from creditor */
 	struct m0_rm_remote        ci_creditor;
+	/** Pool version fid */
+	struct m0_fid              ci_pver;
 	/** File layout ID */
 	uint64_t                   ci_layout_id;
 
@@ -860,7 +862,7 @@ M0_INTERNAL void m0t1fs_inode_update(struct inode *inode,
 				     struct m0_fop_cob *body);
 
 M0_INTERNAL struct m0_rpc_session *
-m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
+m0t1fs_container_id_to_session(const struct m0_pool_version *pver,
 			       uint64_t container_id);
 
 M0_INTERNAL struct m0_rpc_session *
@@ -996,7 +998,7 @@ M0_INTERNAL const struct m0_fid *
 		m0t1fs_inode_fid(const struct m0t1fs_inode *ci);
 
 void m0t1fs_fid_alloc(struct m0t1fs_sb *csb, struct m0_fid *out);
-int m0t1fs_pool_find(struct m0t1fs_sb *csb, struct m0_conf_filesystem *fs);
+int m0t1fs_pool_find(struct m0t1fs_sb *csb);
 
 /**
  * Given a fid of an existing file, update "fid allocator" so that this fid is
@@ -1010,7 +1012,7 @@ M0_INTERNAL struct m0_file *m0_fop_to_file(struct m0_fop *fop);
 
 M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode);
 M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo);
-M0_INTERNAL void m0t1fs_fill_cob_attr(struct m0_fop_cob *cob);
+M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *cob);
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 
 /*

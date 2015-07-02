@@ -1832,4 +1832,10 @@ m0t1fs_inode_to_m0inode(const struct inode *inode);
 
 M0_INTERNAL struct m0t1fs_sb *m0inode_to_sb(const struct m0t1fs_inode *m0inode);
 
+M0_INTERNAL struct m0_poolmach *
+m0t1fs_file_to_poolmach(const struct file *file);
+
+M0_INTERNAL struct m0_pool_version *
+m0t1fs_file_to_pver(const struct file *file);
+
 #endif /* __MERO_M0T1FS_FILE_INTERNAL_H__ */

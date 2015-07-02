@@ -289,7 +289,7 @@ static bool pool_version_invariant(const struct m0_pool_version *pv)
 	return _0C(pv != NULL) && _0C(m0_pool_version_bob_check(pv)) &&
 	       _0C(m0_fid_is_set(&pv->pv_id)) && _0C(pv->pv_pool != NULL) &&
 	       _0C(ergo(pv->pv_dev_to_ios_map != NULL && pv->pv_pc != NULL,
-		   m0_forall(i, pv->pv_pc->pc_nr_svcs[M0_CST_IOS],
+		   m0_forall(i, pv->pv_attr.pa_P,
 		pools_common_svc_ctx_tlist_contains(&pv->pv_pc->pc_svc_ctxs,
 						pv->pv_dev_to_ios_map[i]))));
 }
@@ -441,7 +441,7 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 
 	m0_conf_diter_fini(&it);
 
-	M0_POST(dev_idx <= pv->pv_attr.pa_P);
+	M0_POST(dev_idx == pv->pv_attr.pa_P);
 	return M0_RC(rc);
 }
 
@@ -487,7 +487,7 @@ m0__pool_version_find(struct m0_pool *pool, const struct m0_fid *id)
 }
 
 M0_INTERNAL struct m0_pool_version *
-m0_pool_version_find(struct m0_pools_common *pc, const struct m0_fid *id)
+m0_pool_version_find(const struct m0_pools_common *pc, const struct m0_fid *id)
 {
 	struct m0_pool         *p;
 	struct m0_pool_version *pver;
@@ -900,9 +900,9 @@ M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
 }
 
 M0_INTERNAL uint64_t
-m0_pool_version2layout_id(const struct m0_pool_version *pv, uint64_t lid)
+m0_pool_version2layout_id(const struct m0_fid *pv_fid, uint64_t lid)
 {
-        return m0_hash(m0_fid_hash(&pv->pv_id) + lid);
+        return m0_hash(m0_fid_hash(pv_fid) + lid);
 }
 
 #ifndef __KERNEL__

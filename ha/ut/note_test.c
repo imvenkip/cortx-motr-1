@@ -62,8 +62,8 @@ static const struct m0_fid conf_obj_id_fs = M0_FID_TINIT('f', 2, 1);
 static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain   client_net_dom;
 static struct m0_rpc_session *session;
-struct m0_conf_filesystem    *fs;
 static char                   ut_ha_conf_str[M0_CONF_STR_MAXLEN];
+struct m0_conf_filesystem    *fs;
 
 enum {
 	CLIENT_COB_DOM_ID  = 16,
@@ -314,12 +314,14 @@ static void test_ha_state_accept(void)
 
 static void failure_sets_build(struct m0_reqh *reqh, struct m0_ha_nvec *nvec)
 {
-	int rc;
+	int                        rc;
 
+	rc = m0_fid_sscanf(M0_UT_CONF_PROFILE, &reqh->rh_profile);
+	M0_UT_ASSERT(rc == 0);
 	local_confc_init(&reqh->rh_confc);
 	m0_ha_state_set(session, nvec);
 
-	rc = m0_conf_fs_get(M0_UT_CONF_PROFILE, &reqh->rh_confc, &fs);
+	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
 	M0_UT_ASSERT(rc == 0);
 
         rc = m0_conf_full_load(fs);
@@ -363,37 +365,77 @@ static void test_poolversion_get(void)
 {
 	int                        rc;
 	struct m0_reqh             reqh;
-	struct m0_conf_pver       *pver = NULL;
+	struct m0_conf_pver       *pver0 = NULL;
+	struct m0_conf_pver       *pver1 = NULL;
+	struct m0_conf_pver       *pver2 = NULL;
 	struct m0_ha_note n1[] = {
 		{ M0_FID_TINIT('a', 1, 3),  M0_NC_ONLINE },
 		{ M0_FID_TINIT('e', 1, 7),  M0_NC_ONLINE },
 		{ M0_FID_TINIT('c', 1, 11), M0_NC_ONLINE },
 	};
 	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
+	struct m0_ha_nvec nvec1 = { 1, n1 };
 
 	failure_sets_build(&reqh, &nvec);
 
-	rc = m0_conf_poolversion_get(fs, &reqh.rh_failure_sets, &pver);
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+				     &reqh.rh_failure_sets, &pver0);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_fid_eq(&pver->pv_obj.co_id, &M0_FID_TINIT('v', 1, 8)));
+	M0_UT_ASSERT(m0_fid_eq(&pver0->pv_obj.co_id, &M0_FID_TINIT('v', 1, 8)));
 
 	/* Make rack from pool verison 0  FAILED */
 	n1[0].no_id   = M0_FID_TINIT('a', 1, 3);
 	n1[0].no_state = M0_NC_FAILED;
-	m0_ha_state_accept(&reqh.rh_confc, &nvec);
+	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
 
-	rc = m0_conf_poolversion_get(fs, &reqh.rh_failure_sets, &pver);
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+				     &reqh.rh_failure_sets, &pver1);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_fid_eq(&pver->pv_obj.co_id, &M0_FID_TINIT('v', 1, 57)));
+	M0_UT_ASSERT(pver0->pv_nfailed == 1);
+	M0_UT_ASSERT(m0_fid_eq(&pver1->pv_obj.co_id,
+		     &M0_FID_TINIT('v', 1, 57)));
 
 	/* Make rack from pool verison 1  FAILED */
 	n1[0].no_id   = M0_FID_TINIT('a', 1, 52);
 	n1[0].no_state = M0_NC_FAILED;
-	m0_ha_state_accept(&reqh.rh_confc, &nvec);
+	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
 
-	pver = NULL;
-	rc = m0_conf_poolversion_get(fs, &reqh.rh_failure_sets, &pver);
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+				     &reqh.rh_failure_sets, &pver2);
 	M0_UT_ASSERT(rc == -ENOENT);
+	M0_UT_ASSERT(pver1->pv_nfailed == 1);
+
+	/* Make encl from  pool verison 0  FAILED */
+	n1[0].no_id   = M0_FID_TINIT('e', 1, 7);
+	n1[0].no_state = M0_NC_FAILED;
+	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
+
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+				     &reqh.rh_failure_sets, &pver2);
+	M0_UT_ASSERT(rc == -ENOENT);
+	M0_UT_ASSERT(pver0->pv_nfailed == 2);
+
+	/* Make rack from pool verison 0 ONLINE */
+	n1[0].no_id   = M0_FID_TINIT('a', 1, 3);
+	n1[0].no_state = M0_NC_ONLINE;
+	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
+
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+				     &reqh.rh_failure_sets, &pver2);
+	M0_UT_ASSERT(rc == -ENOENT);
+	M0_UT_ASSERT(pver0->pv_nfailed == 1);
+
+	/* Make encl from pool verison 0 ONLINE */
+	n1[0].no_id   = M0_FID_TINIT('e', 1, 7);
+	n1[0].no_state = M0_NC_ONLINE;
+	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
+
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+				     &reqh.rh_failure_sets, &pver2);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(pver2 != NULL);
+	M0_UT_ASSERT(pver0->pv_nfailed == 0);
+	M0_UT_ASSERT(m0_fid_eq(&pver0->pv_obj.co_id, &pver2->pv_obj.co_id));
 
 	failure_sets_destroy(&reqh);
 }

@@ -44,6 +44,8 @@
 #include <linux/dcache.h>       /* struct dentry */
 #include "m0t1fs/linux_kernel/file_internal.h" /* io_request */
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
+#include "conf/helpers.h"
+#include "reqh/reqh.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
 #include "lib/trace.h"
@@ -86,7 +88,7 @@ static struct m0_layout_linear_attr  llattr;
 static struct m0t1fs_inode           ci;
 static struct m0_layout_linear_attr  llattr;
 static struct file                   lfile;
-static struct m0_confc               confc;
+static struct m0_confc              *confc = &csb.csb_reqh.rh_confc;
 static struct m0_rm_remote           creditor;
 static bool                          runast = false;
 
@@ -184,29 +186,45 @@ static void ast_thread_stop(struct m0t1fs_sb *csb)
 
 static int file_io_ut_init(void)
 {
-	struct m0_conf_obj        *fs_obj;
 	struct m0_conf_filesystem *fs;
 	struct m0_pool_version    *pver;
 	struct m0_layout          *lay;
 	int                        rc;
 	struct m0_fid              fid;
+	struct m0_confc_args      *confc_args;
+	struct m0_reqh            *reqh = &csb.csb_reqh;
 
 	M0_SET0(&sb);
 	M0_SET0(&creditor);
-	M0_SET0(&confc);
+	M0_SET0(confc);
 	m0t1fs_sb_init(&csb);
 	runast = true;
 	rc = M0_THREAD_INIT(&csb.csb_astthread, struct m0t1fs_sb *, NULL,
 			    &ast_thread, &csb, "m0_ast_thread");
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(&confc, &csb.csb_iogroup, NULL, NULL, local_conf);
+
+	rc = m0t1fs_net_init(&csb);
+	M0_ASSERT(rc == 0);
+
+	rc = m0t1fs_rpc_init(&csb);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_confc_init(confc, &csb.csb_iogroup, NULL, NULL, local_conf);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,
-				M0_CONF_ROOT_PROFILES_FID,
-				M0_FID_TINIT('p', 1, 0),
-				M0_CONF_PROFILE_FILESYSTEM_FID);
+
+	confc_args = &(struct m0_confc_args){
+		.ca_profile = "<0x7000000000000001:0>",
+		.ca_confstr = (char *)local_conf,
+		.ca_rmach   = NULL,
+		.ca_group   = &csb.csb_iogroup,
+	};
+
+	rc = m0_reqh_conf_setup(reqh, confc_args);
+        M0_UT_ASSERT(rc == 0);
+
+	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
 	M0_UT_ASSERT(rc == 0);
-	fs = M0_CONF_CAST(fs_obj, m0_conf_filesystem);
+
 	m0_pools_common_init(&csb.csb_pools_common, NULL, fs);
 
 	rc = m0_pools_setup(&csb.csb_pools_common, fs, NULL, NULL, NULL);
@@ -218,8 +236,12 @@ static int file_io_ut_init(void)
 	rc = m0_pool_versions_setup(&csb.csb_pools_common, fs,
 				    NULL, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
+        rc = m0_reqh_ha_setup(reqh);
+	M0_UT_ASSERT(rc == 0);
 
-	rc = m0t1fs_pool_find(&csb, fs);
+	m0_conf_failure_sets_tlist_init(&reqh->rh_failure_sets);
+
+	rc = m0t1fs_pool_find(&csb);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(csb.csb_pool != NULL);
 	M0_UT_ASSERT(csb.csb_pool_version != NULL);
@@ -232,12 +254,6 @@ static int file_io_ut_init(void)
 	io_bob_tlists_init();
 
 	m0t1fs_fs_lock(&csb);
-
-	rc = m0t1fs_net_init(&csb);
-	M0_ASSERT(rc == 0);
-
-	rc = m0t1fs_rpc_init(&csb);
-	M0_ASSERT(rc == 0);
 
 	rc = m0t1fs_reqh_services_start(&csb);
 	M0_ASSERT(rc == 0);
@@ -289,7 +305,9 @@ static int file_io_ut_init(void)
 
 	/* Sets the file size in inode. */
 	ci.ci_inode.i_size = DATA_SIZE;
-	m0_confc_close(fs_obj);
+	ci.ci_pver = pver->pv_id;
+	m0_conf_failure_sets_tlist_fini(&reqh->rh_failure_sets);
+	m0_confc_close(&fs->cf_obj);
 
 	return 0;
 }
@@ -306,7 +324,7 @@ static int file_io_ut_fini(void)
 	m0_pools_service_ctx_destroy(&csb.csb_pools_common);
 	m0_pools_destroy(&csb.csb_pools_common);
 	m0_pools_common_fini(&csb.csb_pools_common);
-	m0_confc_fini(&confc);
+	m0_confc_fini(confc);
 	m0_reqh_services_terminate(&csb.csb_reqh);
 	m0t1fs_rpc_fini(&csb);
 	m0t1fs_net_fini(&csb);

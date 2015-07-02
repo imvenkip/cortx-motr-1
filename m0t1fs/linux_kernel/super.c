@@ -145,7 +145,7 @@ m0t1fs_filename_to_mds_session(const struct m0t1fs_sb *csb,
  * container_id 0 is not valid.
  */
 M0_INTERNAL struct m0_rpc_session *
-m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
+m0t1fs_container_id_to_session(const struct m0_pool_version *pver,
 			       uint64_t container_id)
 {
 	struct m0_reqh_service_ctx *ctx;
@@ -155,7 +155,7 @@ m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
 
 	M0_LOG(M0_DEBUG, "container_id=%llu", container_id);
 
-	ctx = csb->csb_pool_version->pv_dev_to_ios_map[container_id - 1];
+	ctx = pver->pv_dev_to_ios_map[container_id - 1];
 	M0_ASSERT(ctx != NULL);
 
 	M0_LOG(M0_DEBUG, "id %llu -> ctx=%p session=%p", container_id, ctx,
@@ -558,21 +558,23 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
-int m0t1fs_pool_find(struct m0t1fs_sb *csb, struct m0_conf_filesystem *fs)
+int m0t1fs_pool_find(struct m0t1fs_sb *csb)
 {
 	struct m0_conf_pool *cp;
-	struct m0_conf_pver *pver;
+	struct m0_conf_pver *pver = NULL;
+	struct m0_reqh      *reqh = &csb->csb_reqh;
 	int                  rc;
 
-	rc = m0_conf_poolversion_get(fs, NULL, &pver);
+	rc = m0_conf_poolversion_get(&reqh->rh_profile, &reqh->rh_confc,
+				     &reqh->rh_failure_sets, &pver);
 	if (rc != 0)
 		return M0_RC(rc);
 	cp = M0_CONF_CAST(pver->pv_obj.co_parent->co_parent, m0_conf_pool);
 	csb->csb_pool = m0_pool_find(&csb->csb_pools_common, &cp->pl_obj.co_id);
 	M0_ASSERT(csb->csb_pool != NULL);
+
 	csb->csb_pool_version = m0__pool_version_find(csb->csb_pool,
-						      &pver->pv_obj.co_id);
-	M0_ASSERT(csb->csb_pool_version != NULL);
+						     &pver->pv_obj.co_id);
 
 	return M0_RC(rc);
 }
@@ -610,7 +612,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_rpc_fini;
 
-	rc = m0_conf_fs_get(confc_args->ca_profile, &reqh->rh_confc, &fs);
+	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
 	if (rc != 0)
 		goto err_conf_fini;
 
@@ -643,7 +645,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		goto err_ha_destroy;
 
 	/* Find pool and pool version to use. */
-	rc = m0t1fs_pool_find(csb, fs);
+	rc = m0t1fs_pool_find(csb);
 	if (rc != 0)
 		goto err_failure_set_destroy;
 
@@ -732,10 +734,12 @@ static void m0t1fs_obf_dealloc(struct m0t1fs_sb *csb) {
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
+M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
 {
-	struct m0t1fs_sb *csb = container_of(body, struct m0t1fs_sb,
+	struct m0t1fs_sb    *csb = container_of(body, struct m0t1fs_sb,
 					     csb_virt_body);
+	int                  rc = 0;
+
 	M0_PRE(body != NULL);
 
 	body->b_atime = body->b_ctime = body->b_mtime =
@@ -748,11 +752,19 @@ M0_INTERNAL void m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
         body->b_size = 4096;
         body->b_blksize = 4096;
         body->b_nlink = 2;
-        body->b_lid = m0_pool_version2layout_id(csb->csb_pool_version,
-						M0_DEFAULT_LAYOUT_ID);
+        body->b_lid = M0_DEFAULT_LAYOUT_ID;
         body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR |/*rwx for owner*/
                         S_IRGRP | S_IXGRP |                    /*r-x for group*/
                         S_IROTH | S_IXOTH);
+
+	if (m0_conf_is_pool_version_dirty(&csb->csb_reqh.rh_confc,
+					  &csb->csb_pool_version->pv_id))
+		rc = m0t1fs_pool_find(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
+	body->b_pver = csb->csb_pool_version->pv_id;
+
+	return M0_RC(0);
 }
 
 static int m0t1fs_obf_alloc(struct super_block *sb)
@@ -763,10 +775,14 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
         struct dentry            *fid_dentry;
         struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
 	struct m0_fop_cob        *body = &csb->csb_virt_body;
+	int                       rc;
 
 	M0_ENTRY();
 
-	m0t1fs_fill_cob_attr(body);
+	rc = m0t1fs_fill_cob_attr(body);
+	if (rc != 0)
+		return M0_ERR(rc);
+
         /* Init virtual .mero directory */
         mero_dentry = d_alloc_name(sb->s_root, M0_DOT_MERO_NAME);
         if (mero_dentry == NULL)

@@ -303,7 +303,7 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 		m0_free(poolmach);
 		return M0_RC(rc);
 	}
-	rc = m0_conf_fs_get(mero->cc_profile, confc, &fs);
+	rc = m0_conf_fs_get(&reqh->rh_profile, confc, &fs);
 	if (rc != 0) {
 		m0_free(poolmach);
 		return M0_RC(rc);

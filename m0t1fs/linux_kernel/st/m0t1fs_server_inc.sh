@@ -63,6 +63,7 @@ mkiosloopdevs()
 
 	cd $dir || return 1
 
+	ADEV_ID=`expr $ADEV_ID + 1`
 	dd if=/dev/zero of=$ADEV_ID$adisk bs=1M seek=1M count=1 || return 1
 	cat > disks.conf << EOF
 Device:
@@ -70,7 +71,6 @@ Device:
      filename: `pwd`/$ADEV_ID$adisk
 EOF
 
-	ADEV_ID=`expr $ADEV_ID + 1`
 	dev_end=$(($DDEV_ID + $nr_devs))
 	for (( ; DDEV_ID < $dev_end; DDEV_ID++)) ; do
 		conf_ios_device_setup $DDEV_ID $id_count id_count "$ids" ids
@@ -130,12 +130,13 @@ mero_service()
 	local N=$NR_DATA
 	local K=$NR_PARITY
 	local P=$POOL_WIDTH
-	if [ $# -eq 5 ]
+	local multiple_pools=$2
+	if [ $# -eq 6 ]
 	then
-		stride=$2
-		N=$3
-		K=$4
-		P=$5
+		stride=$3
+		N=$4
+		K=$5
+		P=$6
 		unit_size=$((stride * 1024))
 	fi
 
@@ -186,8 +187,26 @@ mero_service()
 			mkiosloopdevs $ios $nr_dev $DIR || return 1
 		done
 
+                #create devs for backup pool
+                DIR=$MERO_M0T1FS_TEST_DIR/ios1
+                cd $DIR
+                dd if=/dev/zero of=data-disk300.img bs=1M seek=1M count=1 ||
+                        return 1
+                dd if=/dev/zero of=data-disk301.img bs=1M seek=1M count=1 ||
+                        return 1
+                dd if=/dev/zero of=data-disk302.img bs=1M seek=1M count=1 ||
+                        return 1
+                cat >> disks.conf << EOF
+   - id: 300
+     filename: `pwd`/data-disk300.img
+   - id: 301
+     filename: `pwd`/data-disk301.img
+   - id: 302
+     filename: `pwd`/data-disk302.img
+EOF
+
 		DIR=$MERO_M0T1FS_TEST_DIR/confd
-		build_conf $N $K $P | tee $DIR/conf.xc
+		build_conf $N $K $P $multiple_pools | tee $DIR/conf.xc
 
 		common_opts="-D db -S stobs -A linuxstob:addb-stobs \
 			     -w $P -m $MAX_RPC_MSG_SIZE \
@@ -196,7 +215,7 @@ mero_service()
 		# mkfs for confd server
 		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$MKFS_EP \
 		      -s 'confd:<$CONF_FID_CON:1>' -c $DIR/conf.xc"
-		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0d.log"
+		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0mkfs.log"
 
 		echo $cmd
 		(eval "$cmd")
@@ -217,7 +236,7 @@ mero_service()
 		mkdir -p $DIR
 		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$MKFS_EP \
 		      -C $CONFD_EP"
-		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0d.log"
+		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0mkfs.log"
 		echo $cmd
 		(eval "$cmd")
 
@@ -237,7 +256,7 @@ mero_service()
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T ad \
 			$common_opts -e $XPT:${lnet_nid}:$MKFS_EP \
-			$SNAME -C $CONFD_EP |& tee -a m0d.log"
+			$SNAME -C $CONFD_EP |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
 		done
@@ -256,7 +275,7 @@ mero_service()
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:$MKFS_EP \
-			$SNAME -C $CONFD_EP |& tee -a m0d.log"
+			$SNAME -C $CONFD_EP |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
 		done

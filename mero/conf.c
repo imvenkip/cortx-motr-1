@@ -262,7 +262,7 @@ M0_INTERNAL int cs_conf_storage_init(struct cs_stobs        *stob,
 	cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
 	M0_ASSERT(m0_strcaseeq(rctx->rc_stype, m0_cs_stypes[M0_AD_STOB]));
 	confc = m0_mero2confc(cctx);
-	rc = m0_conf_fs_get(cctx->cc_profile, confc, &fs);
+	rc = m0_conf_fs_get(&rctx->rc_reqh.rh_profile, confc, &fs);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "conf fs fail");;
 	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,

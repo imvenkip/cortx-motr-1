@@ -416,6 +416,19 @@ M0_INTERNAL struct m0t1fs_inode *m0t1fs_file_to_m0inode(const struct file *file)
 	return M0T1FS_I(m0t1fs_file_to_inode(file));
 }
 
+M0_INTERNAL struct m0_pool_version *m0t1fs_file_to_pver(const struct file *file)
+{
+	struct m0t1fs_inode *inode = M0T1FS_I(m0t1fs_file_to_inode(file));
+	struct m0t1fs_sb    *csb = M0T1FS_SB(m0t1fs_file_to_inode(file)->i_sb);
+
+	return m0_pool_version_find(&csb->csb_pools_common, &inode->ci_pver);
+}
+
+M0_INTERNAL struct m0_poolmach *m0t1fs_file_to_poolmach(const struct file *file)
+{
+	return &m0t1fs_file_to_pver(file)->pv_mach;
+}
+
 M0_INTERNAL struct m0t1fs_inode *m0t1fs_inode_to_m0inode(const struct inode *inode)
 {
 	return M0T1FS_I(inode);
@@ -613,7 +626,7 @@ static inline struct m0_fid target_fid(const struct io_request	  *req,
 static inline struct m0_rpc_session *target_session(struct io_request *req,
 						    struct m0_fid      tfid)
 {
-	return m0t1fs_container_id_to_session(file_to_sb(req->ir_file),
+	return m0t1fs_container_id_to_session(m0t1fs_file_to_pver(req->ir_file),
 					      m0_fid_cob_device_id(&tfid));
 }
 
@@ -2610,9 +2623,9 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	struct m0_pdclust_layout  *play;
 	struct m0_pdclust_src_addr src;
 	enum m0_pool_nd_state	   dev_state;
-	struct m0t1fs_sb	  *msb;
 	uint32_t		   spare_slot;
 	uint32_t		   spare_slot_prev;
+	struct m0_poolmach        *pm;
 
 	M0_PRE_EX(pargrp_iomap_invariant(map));
 	M0_ENTRY("grpid = %llu, count = %u\n", map->pi_grpid, count);
@@ -2620,9 +2633,9 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	M0_PRE(index != NULL);
 	M0_PRE(count >  0);
 
-	msb = file_to_sb(map->pi_ioreq->ir_file);
-	rc = m0_poolmach_device_state(&msb->csb_pool_version->pv_mach,
-				      m0_fid_cob_device_id(&tio->ti_fid),
+	pm = m0t1fs_file_to_poolmach(map->pi_ioreq->ir_file);
+	M0_ASSERT(pm != NULL);
+	rc = m0_poolmach_device_state(pm, m0_fid_cob_device_id(&tio->ti_fid),
 				      &dev_state);
 	play = pdlayout_get(map->pi_ioreq);
 	pargrp_src_addr(index[0], map->pi_ioreq, tio, &src);
@@ -2700,15 +2713,16 @@ static int io_spare_map(const struct pargrp_iomap *map,
 	struct m0_pdclust_instance *play_instance;
 	const struct m0_fid	   *gfid;
 	struct m0_pdclust_src_addr  spare;
-	struct m0t1fs_sb	   *msb;
 	int			    rc;
+	struct m0_poolmach         *pm;
 
 	play = pdlayout_get(map->pi_ioreq);
 	play_instance = pdlayout_instance(layout_instance(map->pi_ioreq));
 	gfid = file_to_fid(map->pi_ioreq->ir_file);
-	msb = file_to_sb(map->pi_ioreq->ir_file);
-	rc = m0_sns_repair_spare_map(&msb->csb_pool_version->pv_mach,
-				     gfid, play, play_instance,
+
+	pm = m0t1fs_file_to_poolmach(map->pi_ioreq->ir_file);
+	M0_ASSERT(pm != NULL);
+	rc = m0_sns_repair_spare_map(pm, gfid, play, play_instance,
 				     src->sa_group, src->sa_unit,
 				     spare_slot, spare_slot_prev);
 	if (rc != 0) {
@@ -2729,16 +2743,16 @@ static int unit_state(const struct m0_pdclust_src_addr *src,
 	struct m0_pdclust_tgt_addr  tgt;
 	struct m0_fid		    tfid;
 	int			    rc;
-	struct m0t1fs_sb	   *msb;
+	struct m0_poolmach         *pm;
 	M0_ENTRY();
 
-	msb = file_to_sb(req->ir_file);
 	play_instance = pdlayout_instance(layout_instance(req));
 	m0_fd_fwd_map(play_instance, src, &tgt);
 	tfid = target_fid(req, &tgt);
-	rc = m0_poolmach_device_state(&msb->csb_pool_version->pv_mach,
-				      m0_fid_cob_device_id(&tfid),
-				      state);
+
+	pm = m0t1fs_file_to_poolmach(req->ir_file);
+	M0_ASSERT(pm != NULL);
+	rc = m0_poolmach_device_state(pm, m0_fid_cob_device_id(&tfid), state);
 	if (rc != 0)
 		return M0_RC(rc);
 	return M0_RC(rc);
@@ -3443,19 +3457,19 @@ static int device_check(struct io_request *req)
 {
 	int                       rc = 0;
 	uint32_t                  st_cnt = 0;
-	struct m0t1fs_sb         *csb;
 	struct target_ioreq      *ti;
 	enum m0_pool_nd_state     state;
 	struct m0_pdclust_layout *play;
+	struct m0_poolmach       *pm;
 
 	M0_ENTRY();
 	M0_PRE(req != NULL);
 	M0_PRE(M0_IN(ioreq_sm_state(req), (IRS_READ_COMPLETE,
 					   IRS_WRITE_COMPLETE)));
-	csb = file_to_sb(req->ir_file);
-
+	pm = m0t1fs_file_to_poolmach(req->ir_file);
+	M0_ASSERT(pm != NULL);
 	m0_htable_for (tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
-		rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
+		rc = m0_poolmach_device_state(pm,
 				              m0_fid_cob_device_id(&ti->ti_fid),
 					      &state);
 		if (rc != 0)
@@ -3574,11 +3588,11 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 {
 	int                      rc            = 0;
 	uint64_t                 id;
-	struct m0t1fs_sb        *csb;
 	struct io_req_fop       *irfop;
 	struct target_ioreq     *ti;
 	m0_time_t                start;
 	enum m0_pool_nd_state    state;
+	struct m0_poolmach      *pm;
 
 	M0_ENTRY();
 	M0_PRE_EX(io_request_invariant(req));
@@ -3597,13 +3611,14 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	if (rc < 0)
 		return M0_RC(rc);
 
-	csb = file_to_sb(req->ir_file);
 	start = m0_time_now();
+	pm = m0t1fs_file_to_poolmach(req->ir_file);
+	M0_ASSERT(pm != NULL);
 	m0_htable_for(tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
 		/* state is already queried in device_check() and stored
 		 * in ti->ti_state. Why do we do this again?
 		 */
-		rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
+		rc = m0_poolmach_device_state(pm,
 					      m0_fid_cob_device_id(&ti->ti_fid),
 					      &state);
 		if (rc != 0)
@@ -4102,9 +4117,10 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	struct m0_rpc_session	   *session;
 	struct m0_pdclust_layout   *play;
 	struct m0_pdclust_instance *play_instance;
-	struct m0t1fs_sb           *csb;
 	enum m0_pool_nd_state       device_state;
 	int			    rc;
+	struct m0_poolmach         *pm;
+
 
 	M0_ENTRY("nw_xfer_request %p", xfer);
 	M0_PRE_EX(nw_xfer_request_invariant(xfer));
@@ -4122,9 +4138,9 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	       src->sa_group, src->sa_unit, tgt->ta_frame, tgt->ta_obj,
 	       FID_P(&tfid));
 
-	csb = file_to_sb(req->ir_file);
-	rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
-				      m0_fid_cob_device_id(&tfid),
+	pm = m0t1fs_file_to_poolmach(req->ir_file);
+	M0_ASSERT(pm != NULL);
+	rc = m0_poolmach_device_state(pm, m0_fid_cob_device_id(&tfid),
 				      &device_state);
 	if (rc != 0)
 		return M0_RC(rc);
@@ -4215,7 +4231,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 		enum m0_pool_nd_state       device_state_prev;
 
 		gfid = file_to_fid(req->ir_file);
-		rc = m0_sns_repair_spare_map(&csb->csb_pool_version->pv_mach, gfid, play,
+		rc = m0_sns_repair_spare_map(pm, gfid, play,
 					     play_instance, src->sa_group,
 					     src->sa_unit, &spare_slot,
 					     &spare_slot_prev);
@@ -4233,7 +4249,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 			spare.sa_unit = spare_slot_prev;
 			m0_fd_fwd_map(play_instance, &spare, tgt);
 			tfid = target_fid(req, tgt);
-			rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
+			rc = m0_poolmach_device_state(pm,
 						      m0_fid_cob_device_id(&tfid),
 						      &device_state_prev);
 			if (rc != 0)
@@ -5013,17 +5029,22 @@ int m0t1fs_flush(struct file *file, fl_owner_t id)
 	struct inode        *inode = m0t1fs_file_to_inode(file);
 	struct m0t1fs_inode *ci = M0T1FS_I(inode);
 	struct m0t1fs_mdop   mo;
+	struct m0t1fs_sb    *csb = m0inode_to_sb(ci);
 	int                  rc;
 
 	M0_THREAD_ENTER;
 	M0_LOG(M0_INFO, "close size %d", (unsigned int)inode->i_size);
+
+	if (!csb->csb_oostore)
+		return M0_RC(0);
+
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid   = *m0t1fs_inode_fid(ci);
 	mo.mo_attr.ca_size   = inode->i_size;
 	mo.mo_attr.ca_valid |= M0_COB_SIZE;
 	mo.mo_attr.ca_nlink  = inode->i_nlink;
 	mo.mo_attr.ca_valid |= M0_COB_NLINK;
-	mo.mo_attr.ca_pver = m0inode_to_sb(ci)->csb_pool_version->pv_id;
+	mo.mo_attr.ca_pver = m0t1fs_file_to_pver(file)->pv_id;
 
 	rc = m0t1fs_cob_setattr(inode, &mo);
 	return M0_RC(rc);
@@ -5216,7 +5237,6 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 {
 	struct m0_poolmach_versions *cli;
 	struct m0_poolmach_versions *srv;
-	struct m0t1fs_sb            *csb;
 	struct m0_fop               *reply;
 	struct m0_rpc_item          *reply_item;
 	struct m0_fop_cob_rw_reply  *rw_reply;
@@ -5225,12 +5245,14 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	struct m0_poolmach_event    *event;
 	struct io_request           *req;
 	uint32_t                     i = 0;
+        struct m0_poolmach          *pm;
 
 	M0_PRE(irfop != NULL);
 
 	req = bob_of(irfop->irf_tioreq->ti_nwxfer, struct io_request, ir_nwxfer,
 		     &ioreq_bobtype);
-	csb = file_to_sb(req->ir_file);
+        pm = m0t1fs_file_to_poolmach(req->ir_file);
+        M0_ASSERT(pm != NULL);
 
 	reply_item = irfop->irf_iofop.if_fop.f_item.ri_reply;
 	reply      = m0_rpc_item_to_fop(reply_item);
@@ -5238,7 +5260,7 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	reply_version = &rw_reply->rwr_fv_version;
 	reply_updates = &rw_reply->rwr_fv_updates;
 	srv = (struct m0_poolmach_versions *)reply_version;
-	cli = &csb->csb_pool_version->pv_mach.pm_state->pst_version;
+	cli = &pm->pm_state->pst_version;
 	M0_LOG(M0_DEBUG, ">>>VERSION MISMATCH!");
 	m0_poolmach_version_dump(cli);
 	m0_poolmach_version_dump(srv);
@@ -5251,7 +5273,7 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	while (i < reply_updates->fvu_count) {
 		event = (struct m0_poolmach_event*)&reply_updates->fvu_events[i];
 		m0_poolmach_event_dump(event);
-		m0_poolmach_state_transit(&csb->csb_pool_version->pv_mach, event, NULL);
+		m0_poolmach_state_transit(pm, event, NULL);
 		i++;
 	}
 	M0_LOG(M0_DEBUG, "<<<VERSION MISMATCH!");
@@ -5688,8 +5710,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	struct m0_rpc_bulk_buf      *rbuf;
 	struct m0_poolmach_versions  curr;
 	struct m0_poolmach_versions *cli;
-	struct m0t1fs_sb            *csb;
 	struct m0_fop_cob_rw        *rw_fop;
+        struct m0_poolmach          *pm;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -5698,7 +5720,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 	req = bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
 		     &ioreq_bobtype);
-	csb = file_to_sb(req->ir_file);
 
 	M0_ASSERT(M0_IN(ioreq_sm_state(req),
 		  (IRS_READING, IRS_DEGRADED_READING,
@@ -5749,8 +5770,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		}
 		++iommstats.a_io_req_fop_nr;
 
-		m0_poolmach_current_version_get(&csb->csb_pool_version->pv_mach,
-						&curr);
+		pm = m0t1fs_file_to_poolmach(req->ir_file);
+		M0_ASSERT(pm != NULL);
+		m0_poolmach_current_version_get(pm, &curr);
 		rw_fop = io_rw_get(&irfop->irf_iofop.if_fop);
 		cli = (struct m0_poolmach_versions *)&rw_fop->crw_version;
 		*cli = curr;
@@ -5830,7 +5852,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rbuf->bb_zerovec.z_bvec.ov_vec.v_nr = bbsegs;
 
 		rw_fop->crw_fid = ti->ti_fid;
-		rw_fop->crw_pver = csb->csb_pool_version->pv_id;
+		rw_fop->crw_pver =
+			m0t1fs_file_to_m0inode(req->ir_file)->ci_pver;
 
 		rc = m0_io_fop_prepare(&irfop->irf_iofop.if_fop);
 		if (rc != 0)
