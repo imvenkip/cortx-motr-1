@@ -158,6 +158,11 @@ M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero)
 		&mero->cc_reqh_ctx.rc_reqh.rh_rpc_machines);
 }
 
+static inline struct m0_confc *m0_mero2confc(struct m0_mero *mero)
+{
+	return &mero->cc_reqh_ctx.rc_reqh.rh_confc;
+}
+
 /**
    Looks up an xprt by the name.
 
@@ -1956,8 +1961,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 		return M0_ERR(rc);
 	}
 
-	rc = m0_conf_fs_get(conf_args->ca_profile,
-			    &cctx->cc_reqh_ctx.rc_reqh.rh_confc, &fs);
+	rc = m0_conf_fs_get(conf_args->ca_profile, m0_mero2confc(cctx), &fs);
 	if (rc != 0)
 		goto conf_destroy;
 
@@ -1988,19 +1992,21 @@ pools_common_fini:
 conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
 conf_destroy:
-	m0_confc_fini(&cctx->cc_reqh_ctx.rc_reqh.rh_confc);
+	m0_confc_fini(m0_mero2confc(cctx));
 	m0_free(confstr);
 	return M0_ERR(rc);
 }
 
 static void cs_conf_destroy(struct m0_mero *cctx)
 {
-	if (m0_confc_is_initialised(&cctx->cc_reqh_ctx.rc_reqh.rh_confc)) {
+	struct m0_confc *confc = m0_mero2confc(cctx);
+
+	if (confc->cc_group != NULL) {
 		m0_pool_versions_destroy(&cctx->cc_pools_common);
 		m0_pools_service_ctx_destroy(&cctx->cc_pools_common);
 		m0_pools_destroy(&cctx->cc_pools_common);
 		m0_pools_common_fini(&cctx->cc_pools_common);
-		m0_confc_fini(&cctx->cc_reqh_ctx.rc_reqh.rh_confc);
+		m0_confc_fini(m0_mero2confc(cctx));
 	}
 }
 
@@ -2047,8 +2053,7 @@ int m0_cs_start(struct m0_mero *cctx)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-        rc = m0_conf_fs_get(cctx->cc_profile,
-                            &cctx->cc_reqh_ctx.rc_reqh.rh_confc, &fs);
+        rc = m0_conf_fs_get(cctx->cc_profile, m0_mero2confc(cctx), &fs);
         if (rc != 0)
 		return M0_ERR(rc);
 

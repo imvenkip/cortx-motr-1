@@ -920,7 +920,5 @@ M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 
 M0_INTERNAL bool m0_confc_invariant(const struct m0_confc *confc);
 
-M0_INTERNAL bool m0_confc_is_initialised(const struct m0_confc *confc);
-
 /** @} confc_dfspec */
 #endif /* __MERO_CONF_CONFC_H__ */

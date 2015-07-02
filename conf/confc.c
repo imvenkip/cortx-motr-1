@@ -401,11 +401,6 @@ M0_INTERNAL bool m0_confc_invariant(const struct m0_confc *confc)
 	return m0_confc_bob_check(confc);
 }
 
-M0_INTERNAL bool m0_confc_is_initialised(const struct m0_confc *confc)
-{
-	return m0_confc_invariant(confc);
-}
-
 static bool ctx_invariant(const struct m0_confc_ctx *ctx)
 {
 	M0_PRE(ctx != NULL);
