@@ -135,6 +135,7 @@ M0_INTERNAL void m0_conf_cache_clean(struct m0_conf_cache *cache)
 	struct m0_conf_obj *obj;
 
 	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
 
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
 		_obj_del(obj);
@@ -279,24 +280,6 @@ m0_conf_cache_pinned(const struct m0_conf_cache *cache)
 	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
 	return m0_tl_find(m0_conf_cache, obj, &cache->ca_registry,
 			  obj->co_nrefs != 0);
-}
-
-M0_INTERNAL void m0_conf_cache_prune(struct m0_conf_cache *cache)
-{
-	struct m0_conf_obj *obj;
-
-	M0_ENTRY();
-	m0_tl_teardown(m0_conf_cache, &cache->ca_registry, obj) {
-		m0_conf_obj_delete(obj);
-	}
-	M0_LEAVE();
-}
-
-M0_INTERNAL void m0_conf_cache_prune_lock(struct m0_conf_cache *cache)
-{
-	m0_mutex_lock(cache->ca_lock);
-	m0_conf_cache_prune(cache);
-	m0_mutex_unlock(cache->ca_lock);
 }
 
 /** @} conf_dlspec_cache */

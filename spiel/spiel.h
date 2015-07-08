@@ -328,7 +328,8 @@ void m0_spiel_tx_close(struct m0_spiel_tx *tx);
  * m0_spiel_tx_commit_forced(), specifying non-forced committing as follows:
  @code
     uint32_t rquorum = 0;
-    int rc = m0_spiel_tx_commit_forced(tx, false, CONF_VER_UNKNOWN, &rquorum);
+    int rc = m0_spiel_tx_commit_forced(tx, false, M0_CONF_VER_UNKNOWN,
+                                       &rquorum);
  @endcode
  */
 int m0_spiel_tx_commit(struct m0_spiel_tx *tx);
@@ -337,7 +338,7 @@ int m0_spiel_tx_commit(struct m0_spiel_tx *tx);
  * Commits filled-in spiel transaction forcing as many loads and flips as
  * possible, no matter if quorum reached or not. The call allows version number
  * be overridden compared to the version number obtained at m0_spiel_start(). In
- * this case @b ver_forced must be of the value other than CONF_VER_UNKNOWN,
+ * this case @b ver_forced must be of the value other than M0_CONF_VER_UNKNOWN,
  * otherwise the version number value remains what it initially was.
  *
  * The spiel transaction may be forcibly committed as many times as required

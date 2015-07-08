@@ -103,7 +103,7 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 
 	tmp = m0_spiel_tx_open(spiel, tx);
 	M0_UT_ASSERT(tmp == tx);
-	M0_UT_ASSERT(tx->spt_version != CONF_VER_UNKNOWN);
+	M0_UT_ASSERT(tx->spt_version != M0_CONF_VER_UNKNOWN);
 
 	rc = m0_spiel_profile_add(tx, &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE]);
 	M0_UT_ASSERT(rc == 0);
@@ -248,7 +248,7 @@ static void spiel_conf_create_fail(void)
 
 	tmp = m0_spiel_tx_open(&spiel, &tx);
 	M0_UT_ASSERT(tmp == &tx);
-	M0_UT_ASSERT(tx.spt_version != CONF_VER_UNKNOWN);
+	M0_UT_ASSERT(tx.spt_version != M0_CONF_VER_UNKNOWN);
 
 	/* Profile */
 	rc = m0_spiel_profile_add(&tx, &fake_profile_fid);
@@ -966,7 +966,7 @@ static void spiel_conf_file(void)
 
 	tmp = m0_spiel_tx_open(&spiel, &tx);
 	M0_UT_ASSERT(tmp == &tx);
-	M0_UT_ASSERT(tx.spt_version != CONF_VER_UNKNOWN);
+	M0_UT_ASSERT(tx.spt_version != M0_CONF_VER_UNKNOWN);
 	spiel_conf_file_create_tree(&tx);
 
 	/* Convert to file */
@@ -1156,17 +1156,17 @@ static void spiel_conf_force(void)
 				    NULL };
 	const char        *rm_ep = ep[0];
 	struct m0_spiel    spiel;
-	uint64_t           ver_org = CONF_VER_UNKNOWN;
-	uint64_t           ver_new = CONF_VER_UNKNOWN;
+	uint64_t           ver_org = M0_CONF_VER_UNKNOWN;
+	uint64_t           ver_new = M0_CONF_VER_UNKNOWN;
 	uint32_t           rquorum;
 	const char       **eps_orig;
 
 	/* start with quorum impossible due to second ep being invalid */
 	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(spiel.spl_rconfc.rc_ver == CONF_VER_UNKNOWN);
+	M0_UT_ASSERT(spiel.spl_rconfc.rc_ver == M0_CONF_VER_UNKNOWN);
 	ver_org = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
-	M0_UT_ASSERT(ver_org != CONF_VER_UNKNOWN);
+	M0_UT_ASSERT(ver_org != M0_CONF_VER_UNKNOWN);
 
 	/* imitate correct rconfc init to let transaction to fill in */
 	spiel.spl_rconfc.rc_ver = ver_org;
@@ -1178,13 +1178,15 @@ static void spiel_conf_force(void)
 	/* try forced commit with all invalid addresses */
 	eps_orig = spiel.spl_confd_eps;
 	spiel.spl_confd_eps = (const char*[]) { "127.0.0.2", "127.0.0.1", NULL};
-	rc = m0_spiel_tx_commit_forced(&tx, true, CONF_VER_UNKNOWN, &rquorum);
+	rc = m0_spiel_tx_commit_forced(&tx, true, M0_CONF_VER_UNKNOWN,
+				       &rquorum);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rquorum < spiel.spl_rconfc.rc_quorum);
 	M0_UT_ASSERT(rquorum == 0);
 	/* try to repeat the forced commit with the original set */
 	spiel.spl_confd_eps = eps_orig;
-	rc = m0_spiel_tx_commit_forced(&tx, true, CONF_VER_UNKNOWN, &rquorum);
+	rc = m0_spiel_tx_commit_forced(&tx, true, M0_CONF_VER_UNKNOWN,
+				       &rquorum);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rquorum < spiel.spl_rconfc.rc_quorum);
 	M0_UT_ASSERT(rquorum == 1);

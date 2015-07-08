@@ -28,7 +28,6 @@
 #include "conf/obj_ops.h"  /* m0_conf_obj_find */
 #include "conf/onwire.h"   /* m0_confx, m0_confx_obj */
 #include "conf/preload.h"  /* m0_confx_free */
-#include "conf/rconfc.h"   /* CONF_VER_UNKNOWN */
 #include "lib/errno.h"     /* ENOMEM */
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
 #include "mero/magic.h"    /* M0_CONFD_MAGIC */
@@ -549,11 +548,11 @@ M0_INTERNAL int m0_confd_cache_preload_string(struct m0_conf_cache *cache,
 			m0_conf_obj_fill(obj, xobj, cache);
 	}
 	/*
-	 * Now having cache updated, reset version number to CONF_VER_UNKNOWN
+	 * Now having cache updated, reset version number to M0_CONF_VER_UNKNOWN
 	 * to let confd update it properly somewhat later when processing next
 	 * configuration read request. See confx_populate().
 	 */
-	cache->ca_ver = CONF_VER_UNKNOWN;
+	cache->ca_ver = M0_CONF_VER_UNKNOWN;
 	m0_confx_free(enc);
 	return M0_RC(rc);
 }

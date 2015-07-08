@@ -26,13 +26,12 @@
 #include "conf/obj_ops.h"     /* m0_conf_obj_invariant */
 #include "conf/onwire.h"      /* arr_fid */
 #include "conf/preload.h"     /* m0_confx_free */
+#include "conf/cache.h"
 #include "rpc/rpc_opcodes.h"  /* M0_CONF_FETCH_OPCODE */
 #include "fop/fom_generic.h"  /* M0_FOPH_NR */
 #include "lib/memory.h"       /* m0_free */
 #include "lib/misc.h"         /* M0_SET0 */
 #include "lib/errno.h"        /* ENOMEM, EOPNOTSUPP */
-#include "conf/confc.h"       /* required by conf/rconfc.h */
-#include "conf/rconfc.h"      /* CONF_VER_UNKNOWN */
 /**
  * @addtogroup confd_dlspec
  *
@@ -241,7 +240,7 @@ static void cache_ver_update(struct m0_conf_cache *cache)
 		root = M0_CONF_CAST(root_obj, m0_conf_root);
 		cache->ca_ver = root->rt_verno;
 	}
-	M0_POST(cache->ca_ver != CONF_VER_UNKNOWN);
+	M0_POST(cache->ca_ver != M0_CONF_VER_UNKNOWN);
 }
 
 static int confx_populate(struct m0_confx      *dest,
@@ -257,7 +256,7 @@ static int confx_populate(struct m0_confx      *dest,
 	M0_ENTRY();
 	M0_PRE(m0_conf_cache_is_locked(cache));
 
-	if (cache->ca_ver == CONF_VER_UNKNOWN)
+	if (cache->ca_ver == M0_CONF_VER_UNKNOWN)
 		cache_ver_update(cache);
 
 	M0_SET0(dest);

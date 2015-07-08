@@ -159,14 +159,6 @@ struct m0_rconfc;
  * @{
  */
 
-enum m0_conf_version {
-	/**
-	 * Reserved version number indicating that rconfc version election has
-	 * never been carried out, or has failed.
-	 */
-	CONF_VER_UNKNOWN = 0,
-};
-
 /**
  * Rconfc expiration callback is called when rconfc election happens. On the
  * event came in the consumer must close all configuration objects currently
@@ -223,8 +215,8 @@ struct m0_rconfc {
 	m0_rconfc_drained_cb_t    rc_drained_cb;
 	/**
 	 * Version number the quorum was reached for. Read-only. Value
-	 * CONF_VER_UNKNOWN indicates that the latest version election failed or
-	 * never was carried out.
+	 * M0_CONF_VER_UNKNOWN indicates that the latest version election failed
+	 * or never was carried out.
 	 */
 	uint64_t                  rc_ver;
 	/**

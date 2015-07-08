@@ -128,8 +128,8 @@ struct m0_spiel_tx *m0_spiel_tx_open(struct m0_spiel    *spiel,
 	m0_conf_cache_init(&tx->spt_cache, &tx->spt_lock);
 
 	tx->spt_version = m0_rconfc_ver_max_read(&spiel->spl_rconfc);
-	if (tx->spt_version != CONF_VER_UNKNOWN)
-		++tx->spt_version;
+	M0_ASSERT(tx->spt_version != M0_CONF_VER_UNKNOWN);
+	++tx->spt_version;
 
 	spiel_root_add(tx);
 
@@ -401,11 +401,11 @@ int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx, bool forced,
 	M0_ENTRY();
 
 	/*
-	 * in case ver_forced value is other than CONF_VER_UNKNOWN, override
+	 * in case ver_forced value is other than M0_CONF_VER_UNKNOWN, override
 	 * transaction version number with ver_forced, otherwise leave the one
 	 * intact
 	 */
-	if (ver_forced != CONF_VER_UNKNOWN) {
+	if (ver_forced != M0_CONF_VER_UNKNOWN) {
 		rc = spiel_root_ver_update(tx, ver_forced);
 		M0_ASSERT(rc == 0);
 	}
@@ -491,7 +491,7 @@ M0_EXPORTED(m0_spiel_tx_commit_forced);
 
 int m0_spiel_tx_commit(struct m0_spiel_tx *tx)
 {
-	return m0_spiel_tx_commit_forced(tx, false, CONF_VER_UNKNOWN, NULL);
+	return m0_spiel_tx_commit_forced(tx, false, M0_CONF_VER_UNKNOWN, NULL);
 }
 M0_EXPORTED(m0_spiel_tx_commit);
 

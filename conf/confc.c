@@ -22,8 +22,8 @@
 #include "lib/trace.h"
 
 #include "conf/confc.h"
+#include "conf/cache.h"
 #include "conf/obj_ops.h"
-#include "conf/rconfc.h"      /* CONF_VER_UNKNOWN */
 #include "conf/preload.h"     /* m0_confstr_parse */
 #include "conf/fop.h"         /* m0_conf_fetch_fopt */
 #include "mero/magic.h"       /* M0_CONFC_MAGIC, M0_CONFC_CTX_MAGIC */
@@ -586,17 +586,14 @@ m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 	M0_SET0(ctx);
 	ctx->fc_confc = confc;
 
-	confc_group_lock(confc); /* needed for m0_sm_init() */
-	m0_sm_init(&ctx->fc_mach, &confc_ctx_states_conf, S_INITIAL,
-		   confc->cc_group);
-
 	confc_lock(confc);
 	ctx->fc_allowed = confc->cc_gops == NULL ? true :
 		confc->cc_gops->go_check(confc);
 	M0_CNT_INC(confc->cc_nr_ctx); /* attach to m0_confc */
 	confc_unlock(confc);
 
-	confc_group_unlock(confc);
+	m0_sm_init(&ctx->fc_mach, &confc_ctx_states_conf, S_INITIAL,
+		   confc->cc_group);
 
 	ctx->fc_ast.sa_datum = &ctx->fc_ast_datum;
 	m0_clink_init(&ctx->fc_clink, on_object_updated);
@@ -1017,7 +1014,7 @@ static int grow_cache_st_in(struct m0_sm *mach)
 
 	resp = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 	rc = resp->fr_rc;
-	if (*confc_cache_ver(ctx) == CONF_VER_UNKNOWN)
+	if (*confc_cache_ver(ctx) == M0_CONF_VER_UNKNOWN)
 		/* the very first fetch occurred */
 		*confc_cache_ver(ctx) = resp->fr_ver;
 	else if (*confc_cache_ver(ctx) != resp->fr_ver)

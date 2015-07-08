@@ -68,6 +68,16 @@ M0_TL_DESCR_DECLARE(m0_conf_cache, extern);
  * @{
  */
 
+enum m0_conf_version {
+	/**
+	 * Reserved version number indicating that version election has
+	 * never been carried out, or has failed.
+	 *
+	 * @see m0_rconfc
+	 */
+	M0_CONF_VER_UNKNOWN = 0,
+};
+
 /** Configuration cache. */
 struct m0_conf_cache {
 	/**
@@ -169,10 +179,6 @@ m0_conf_cache_inquire(const struct m0_conf_cache *cache,
 /** Fetches the first pinned object, or NULL otherwise */
 M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_pinned(const struct m0_conf_cache *cache);
-
-/** Empties cache without destructing registry list */
-M0_INTERNAL void m0_conf_cache_prune(struct m0_conf_cache *cache);
-M0_INTERNAL void m0_conf_cache_prune_lock(struct m0_conf_cache *cache);
 
 /** @} conf_dfspec_cache */
 #endif /* __MERO_CONF_CACHE_H__ */
