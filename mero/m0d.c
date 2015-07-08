@@ -153,21 +153,26 @@ start_m0d:
 	if (rc != 0)
 		goto cleanup1;
 
-	rc = m0_cs_start(&mero_ctx);
-
-	if (rc == 0) {
 #ifdef HAVE_SYSTEMD
-		rc = sd_notify(0, "READY=1");
-		if (rc < 0)
-			warnx("systemd READY notification failed, rc=%d\n", rc);
-		else if (rc == 0)
-			warnx("systemd notifications not allowed\n");
-		else
-			warnx("systemd READY notification successfull\n");
+	/*
+	 * From the systemd's point of view, service can be considered as
+	 * started when it can handle incoming connections, which is already
+	 * true before m0_cs_start() is called. otherwise, if sd_notify() is
+	 * called after m0_cs_start() it leads to a deadlock, because different
+	 * m0d instances will wait for each other forever.
+	 */
+	rc = sd_notify(0, "READY=1");
+	if (rc < 0)
+		warnx("systemd READY notification failed, rc=%d\n", rc);
+	else if (rc == 0)
+		warnx("systemd notifications not allowed\n");
+	else
+		warnx("systemd READY notification successfull\n");
 #endif
+	rc = m0_cs_start(&mero_ctx);
+	if (rc == 0) {
 		result = cs_wait_for_termination();
 	}
-
 	if (rc == 0 && result == M0_RESULT_STATUS_RESTART) {
 		/*
 		 * Note! A very common cause of failure restart is

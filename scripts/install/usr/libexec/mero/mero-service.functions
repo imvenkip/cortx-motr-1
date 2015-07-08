@@ -557,13 +557,13 @@ _build_service_names_for()
     local s
 
     for node in $(m0_get_nodes) ; do
-        for s in $(m0_get_services $n) ; do
+        for s in $(m0_get_services $node) ; do
             if [[ $s == $genders_stype* ]] ; then
                 local name="(0x$(m0_build_service_fid ${s/$genders_stype/$service_type} $node_idx))"
                 names="$names${names:+, }${name/:/,}"
             fi
         done
-        $((node_idx++))
+        ((node_idx++))
     done
 
     echo "$names"
@@ -572,6 +572,8 @@ _build_service_names_for()
 _build_service_objects_for()
 {
     local service_type=$1
+    local genders_stype
+    local eps=($(m0_get_global_eps_of $service_type));
 
     # check service type
     case $service_type in
@@ -582,29 +584,36 @@ _build_service_objects_for()
            ;;
     esac
 
-    local container
     local type_id
     case $service_type in
-        mds)   container='0x7300000000000001' ; type_id=1 ;;
-        ios)   container='0x7300000000000002' ; type_id=2 ;;
-        rms)   container='0x7300000000000004' ; type_id=4 ;;
-        stats) container='0x7300000000000005' ; type_id=5 ;;
-        ha)    container='0x7300000000000006' ; type_id=6 ;;
+        mds)   genders_stype=$service_type ; type_id=1 ;;
+        ios)   genders_stype=$service_type ; type_id=2 ;;
+        rms)   genders_stype=mds ; type_id=4 ;;
+        stats) genders_stype=mds ; type_id=5 ;;
+        ha)    genders_stype=$service_type ; type_id=6 ;;
     esac
 
     local idx=0
+    local node_idx=0
+    local node
     local objs
-    local ep
 
-    for ep in $(m0_get_global_eps_of $service_type); do
-        local disk_ids='[0]'
-        if [[ $service_type == ios ]] ; then
-            local count=$(m0_get_global_services $service_type | wc -w)
-            local disks_per_service=$(( $pool_width / $count ))
-            disk_ids=$(_build_disk_ids_str $(($idx * $disks_per_service + 1)) $disks_per_service)
-        fi
-        local name="($container, $((idx++)))"
-        objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: \"$ep\"], $disk_ids)}"
+    for node in $(m0_get_nodes) ; do
+        for s in $(m0_get_services $node) ; do
+            if [[ $s == $genders_stype* ]] ; then
+                local disk_ids='[0]'
+                if [[ $service_type == ios ]] ; then
+                    local count=$(m0_get_global_services $service_type | wc -w)
+                    local disks_per_service=$(( $pool_width / $count ))
+                    disk_ids=$(_build_disk_ids_str $(($idx * $disks_per_service + 1)) $disks_per_service)
+                fi
+                local name="(0x$(m0_build_service_fid ${s/$genders_stype/$service_type} $node_idx))"
+                name=${name/:/, }
+                objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: \"${eps[$idx]}\"], $disk_ids)}"
+                ((idx++))
+            fi
+        done
+        ((node_idx++))
     done
 
     echo -e "$objs"
