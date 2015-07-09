@@ -599,7 +599,6 @@ m0t1fs_basic()
 	return $rc
 }
 
-
 ###############################################################
 # The following readdir() test will send two readdir requests
 # to mdservice 0, and then EOF is returned; So client readdir()

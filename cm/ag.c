@@ -171,7 +171,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	has_data = m0_cm_has_more_data(cm);
 	if (!has_data && cm->cm_aggr_grps_in_nr == 0 &&
 	    cm->cm_aggr_grps_out_nr == 0) {
-		M0_LOG(M0_DEBUG, "%lu: Complete the CM", cm->cm_id);
+		M0_LOG(M0_DEBUG, "%lu: Complete the CM from AG", cm->cm_id);
 		m0_cm_complete(cm);
 	}
 

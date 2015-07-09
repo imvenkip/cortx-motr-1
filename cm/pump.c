@@ -31,7 +31,10 @@
 #include "cm/pump.h"
 #include "cm/cm.h"
 #include "cm/cp.h"
+#include "reqh/reqh.h"
 
+#include "pool/pool.h"
+#include "ioservice/io_device.h" /* m0_ios_poolmach_get */
 /**
    @addtogroup CM
    @{
@@ -67,6 +70,7 @@ enum cm_cp_pump_fom_phase {
 	 * process for the iterator).
 	 */
 	CPP_COMPLETE,
+	CPP_STOP,
 	/**
 	 * Copy machine is notified about the failure, and m0_cm_cp_pump::p_fom
 	 * remains in CPP_FAIL state. Once copy machine handles the failure
@@ -146,16 +150,18 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 	rc = m0_cm_data_next(cm, cp);
 	if (rc == M0_FSO_WAIT) {
 		pump_move(cp_pump, 0, CPP_WAIT);
-		goto wait;
+		goto out;
 	}
 
 	if (rc < 0) {
 		if (rc == -ENOBUFS) {
+			rc = M0_FSO_WAIT;
 			pump_move(cp_pump, 0, CPP_WAIT);
-			goto wait;
+			goto out;
 		}
 
 		if (rc == -ENODATA) {
+			rc = M0_FSO_WAIT;
 			/*
 			 * No more data available. Free the already
 			 * allocated cp_pump->p_cp.
@@ -166,11 +172,14 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 			 * No local data found corresponding to the
 			 * failure. So mark the operation as complete.
 			 */
-			if (m0_cm_aggr_group_tlists_are_empty(cm))
+			if (m0_cm_aggr_group_tlists_are_empty(cm)) {
+				M0_LOG(M0_DEBUG, "COMPLETE from pump");
 				m0_cm_complete(cm);
+				rc = M0_FSO_AGAIN;
+			}
 			pump_move(cp_pump, 0, CPP_COMPLETE);
 			M0_LOG(M0_DEBUG, "pump moves to COMPLETE");
-			goto wait;
+			goto out;
 		}
 		goto fail;
 	}
@@ -179,18 +188,14 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 		pump_move(cp_pump, 0, CPP_ALLOC);
 	}
 	goto out;
+
 fail:
 	/* Destroy copy packet allocated in CPP_ALLOC phase. */
 	cp->c_ops->co_free(cp);
 	pump_move(cp_pump, rc, CPP_FAIL);
 	rc = M0_FSO_AGAIN;
-	goto out;
-
-wait:
-	rc = M0_FSO_WAIT;
-	M0_LOG(M0_DEBUG, "Now pump is idle. WAIT");
-
 out:
+	M0_LOG(M0_DEBUG, "pump in phase = %d", m0_fom_phase(&cp_pump->p_fom));
 	m0_cm_unlock(cm);
 	return M0_RC(rc);
 }
@@ -203,6 +208,74 @@ static int cpp_wait(struct m0_cm_cp_pump *cp_pump)
 
 static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 {
+	struct m0_cm           *cm = pump2cm(cp_pump);
+	struct m0_fom          *p_fom;
+	struct m0_reqh         *reqh;
+	struct m0_dtx          *dtx;
+	struct m0_be_tx_credit *acc;
+	struct m0_poolmach     *pm;
+	uint64_t                nr_fail;
+	struct m0_sm_group     *grp;
+	int                     rc;
+
+	M0_LOG(M0_DEBUG, "pump completed. Start dtx");
+	p_fom = &cp_pump->p_fom;
+	pm = m0_ios_poolmach_get(m0_fom_reqh(p_fom));
+	M0_ASSERT(pm != NULL);
+	nr_fail = m0_poolmach_nr_dev_failures(pm);
+	dtx = &p_fom->fo_tx;
+	reqh = m0_fom_reqh(p_fom);
+	grp = &p_fom->fo_loc->fl_group;
+
+	if (dtx->tx_state < M0_DTX_INIT) {
+		m0_dtx_init(dtx, reqh->rh_beseg->bs_domain, grp);
+		acc = m0_fom_tx_credit(p_fom);
+		m0_poolmach_store_credit(pm, acc);
+		m0_be_tx_credit_mul(acc, nr_fail);
+		m0_be_tx_credit_add(acc, acc);
+		m0_dtx_open(dtx);
+	}
+	if (m0_be_tx_state(&dtx->tx_betx) == M0_BTS_FAILED) {
+		rc = dtx->tx_betx.t_sm.sm_rc;
+		pump_move(cp_pump, rc, CPP_FAIL);
+		return rc;
+	}
+	if (m0_be_tx_state(&dtx->tx_betx) == M0_BTS_OPENING) {
+		m0_fom_wait_on(p_fom, &dtx->tx_betx.t_sm.sm_chan,
+				&p_fom->fo_cb);
+		return M0_FSO_WAIT;
+	} else
+		m0_dtx_opened(dtx);
+
+	M0_LOG(M0_DEBUG, "pump completed. Stopping the CM");
+	m0_cm_stop(cm);
+	pump_move(cp_pump, 0, CPP_STOP);
+	return M0_FSO_AGAIN;
+}
+
+static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
+{
+	struct m0_fom *p_fom;
+	struct m0_dtx *dtx;
+
+	p_fom = &cp_pump->p_fom;
+	dtx = &p_fom->fo_tx;
+
+	if (dtx->tx_state != M0_DTX_DONE) {
+		m0_fom_wait_on(p_fom, &dtx->tx_betx.t_sm.sm_chan, &p_fom->fo_cb);
+		m0_dtx_done(dtx);
+		return M0_FSO_WAIT;
+	} else {
+		if (m0_be_tx_state(&dtx->tx_betx) != M0_BTS_DONE) {
+			m0_fom_wait_on(p_fom, &dtx->tx_betx.t_sm.sm_chan,
+				       &p_fom->fo_cb);
+			return M0_FSO_WAIT;
+		}
+		m0_dtx_fini(dtx);
+	}
+	M0_SET0(dtx);
+
+	M0_LOG(M0_DEBUG, "pump stopped.");
 	if (cp_pump->p_shutdown)
 		pump_move(cp_pump, 0, CPP_FINI);
 
@@ -242,7 +315,12 @@ static struct m0_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
 	},
 	[CPP_COMPLETE] = {
 		.sd_flags   = 0,
-		.sd_name    = "copy packet data next",
+		.sd_name    = "pump cp complete",
+		.sd_allowed = M0_BITS(CPP_STOP, CPP_FINI)
+	},
+	[CPP_STOP] = {
+		.sd_flags   = 0,
+		.sd_name    = "pump cp stop",
 		.sd_allowed = M0_BITS(CPP_ALLOC, CPP_FINI)
 	},
 	[CPP_FAIL] = {
@@ -268,6 +346,7 @@ static int (*pump_action[]) (struct m0_cm_cp_pump *cp_pump) = {
 	[CPP_DATA_NEXT] = cpp_data_next,
 	[CPP_WAIT]      = cpp_wait,
 	[CPP_COMPLETE]  = cpp_complete,
+	[CPP_STOP]      = cpp_stop,
 	[CPP_FAIL]      = cpp_fail,
 };
 
@@ -298,7 +377,7 @@ M0_INTERNAL void m0_cm_cp_pump_wakeup(struct m0_cm *cm)
 static int cm_cp_pump_fom_tick(struct m0_fom *fom)
 {
 	struct m0_cm_cp_pump *cp_pump;
-        int                   phase = m0_fom_phase(fom);
+	int                   phase = m0_fom_phase(fom);
 	int                   rc;
 
 	cp_pump = bob_of(fom, struct m0_cm_cp_pump, p_fom, &pump_bob);
@@ -327,7 +406,8 @@ static const struct m0_fom_ops cm_cp_pump_fom_ops = {
 
 bool m0_cm_cp_pump_is_complete(const struct m0_cm_cp_pump *cp_pump)
 {
-	return m0_fom_phase(&cp_pump->p_fom) == CPP_COMPLETE;
+	return m0_fom_phase(&cp_pump->p_fom) == CPP_COMPLETE ||
+	       m0_fom_phase(&cp_pump->p_fom) == CPP_STOP;
 }
 
 M0_INTERNAL void m0_cm_cp_pump_init(struct m0_cm_type *cmtype)
@@ -374,6 +454,8 @@ M0_INTERNAL void m0_cm_cp_pump_stop(struct m0_cm *cm)
 
 	cp_pump = &cm->cm_cp_pump;
 	cp_pump->p_shutdown = true;
+	M0_LOG(M0_DEBUG, "Sending stop command to pump: pump in phase=%d",
+			 m0_fom_phase(&cp_pump->p_fom));
 	m0_cm_cp_pump_wakeup(cm);
 	M0_LEAVE();
 }

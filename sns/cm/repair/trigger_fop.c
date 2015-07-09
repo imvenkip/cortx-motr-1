@@ -38,6 +38,9 @@ struct m0_fop_type repair_trigger_fopt;
 struct m0_fop_type repair_trigger_rep_fopt;
 struct m0_fop_type repair_quiesce_trigger_fopt;
 struct m0_fop_type repair_quiesce_trigger_rep_fopt;
+struct m0_fop_type repair_status_fopt;
+struct m0_fop_type repair_status_rep_fopt;
+
 extern struct m0_cm_type sns_repair_cmt;
 
 M0_INTERNAL void m0_sns_cm_repair_trigger_fop_fini(void)
@@ -46,6 +49,8 @@ M0_INTERNAL void m0_sns_cm_repair_trigger_fop_fini(void)
 	m0_sns_cm_trigger_fop_fini(&repair_trigger_rep_fopt);
 	m0_sns_cm_trigger_fop_fini(&repair_quiesce_trigger_fopt);
 	m0_sns_cm_trigger_fop_fini(&repair_quiesce_trigger_rep_fopt);
+	m0_sns_cm_trigger_fop_fini(&repair_status_fopt);
+	m0_sns_cm_trigger_fop_fini(&repair_status_rep_fopt);
 }
 
 M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void)
@@ -78,6 +83,19 @@ M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void)
 				   M0_RPC_ITEM_TYPE_REPLY,
 				   &sns_repair_cmt);
 
+	m0_sns_cm_trigger_fop_init(&repair_status_fopt,
+				   M0_SNS_REPAIR_STATUS_OPCODE,
+				   "sns repair status",
+				   trigger_fop_xc,
+				   M0_RPC_ITEM_TYPE_REQUEST |
+				   M0_RPC_ITEM_TYPE_MUTABO,
+				   &sns_repair_cmt);
+	m0_sns_cm_trigger_fop_init(&repair_status_rep_fopt,
+				   M0_SNS_REPAIR_STATUS_REP_OPCODE,
+				   "sns repair status reply",
+				   sns_status_rep_fop_xc,
+				   M0_RPC_ITEM_TYPE_REPLY,
+				   &sns_repair_cmt);
 }
 
 #undef M0_TRACE_SUBSYSTEM

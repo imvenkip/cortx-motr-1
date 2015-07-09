@@ -82,6 +82,16 @@ static int rebalance_cm_stop(struct m0_cm *cm)
 
 	M0_ASSERT(scm->sc_op == SNS_REBALANCE);
 
+	if (cm->cm_quiesce) {
+		M0_LOG(M0_DEBUG, "rebalance stopped by QUIESCE cmd");
+	} else {
+		enum m0_pool_nd_state state;
+		state = M0_PNDS_ONLINE;
+		m0_sns_cm_pm_event_post(scm, &cm->cm_cp_pump.p_fom.fo_tx.tx_betx,
+					M0_POOL_DEVICE, state);
+		M0_LOG(M0_DEBUG, "rebalance stopped normally");
+	}
+
 	return m0_sns_cm_stop(cm);
 }
 

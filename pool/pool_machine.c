@@ -684,6 +684,22 @@ M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm)
 	M0_LOG(dump_level, "=====");
 }
 
+M0_INTERNAL uint64_t m0_poolmach_nr_dev_failures(struct m0_poolmach *pm)
+{
+	struct m0_pool_spare_usage *spare_array;
+	uint64_t                    nr_failures = 0;
+	int                         i;
+
+	spare_array = pm->pm_state->pst_spare_usage_array;
+	for (i = 0;
+	     spare_array[i].psu_device_index != POOL_PM_SPARE_SLOT_UNUSED &&
+             i < pm->pm_state->pst_max_device_failures;
+	     ++i)
+		M0_CNT_INC(nr_failures);
+
+	return nr_failures;
+}
+
 #undef dump_level
 #undef M0_TRACE_SUBSYSTEM
 /** @} end group pool */

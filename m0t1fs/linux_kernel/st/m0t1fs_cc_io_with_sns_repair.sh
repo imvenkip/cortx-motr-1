@@ -146,8 +146,8 @@ sns_repair_test()
 
 	pool_mach_query $fail_device1 $fail_device2 || return $?
 
-	echo "**** Start sns repair in background ****"
-	sns_repair &
+	echo "*** Start sns repair and it will run in background ****"
+	sns_repair
 	sleep 5
 	echo "**** Create files while sns repair is in-progress ****"
 	create_files_and_checksum new_files[@] 0 4
@@ -156,7 +156,8 @@ sns_repair_test()
 	verify_all files[@] 0 ${#files[*]} || return $?
 	verify_all new_files[@] 0 4 || return $?
 
-	wait4snsrepair || return $?
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "repair" || return $?
 	echo "SNS Repair done."
 
 	verify_all files[@] 0 ${#files[*]} || return $?
@@ -174,8 +175,8 @@ sns_repair_test()
 
 	pool_mach_set_failure $fail_device3 || return $?
 
-	echo "**** Start sns repair in background ****"
-	sns_repair &
+	echo "**** Start sns repair and it will run in background ****"
+	sns_repair
 	sleep 5
 	echo "**** Create files while sns repair is in-progress ****"
 	create_files_and_checksum new_files[@] 4 8
@@ -184,7 +185,8 @@ sns_repair_test()
 	verify_all files[@] 0 ${#files[*]} || return $?
 	verify_all new_files[@] 0 8 || return $?
 
-	wait4snsrepair || return $?
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "repair" || return $?
 
 	echo "SNS Repair done."
 	verify_all files[@] 0 ${#files[*]} || return $?

@@ -50,6 +50,7 @@ struct m0_mutex                 repair_wait_mutex;
 struct m0_chan                  repair_wait;
 int32_t                         srv_cnt = 0;
 struct m0_atomic64              srv_rep_cnt;
+uint32_t                        op;
 enum {
 	MAX_FAILURES_NR = 10,
 };
@@ -60,42 +61,17 @@ extern const char *srv_ep_addr[MAX_SERVERS];
 
 extern struct m0_fop_type repair_trigger_fopt;
 extern struct m0_fop_type repair_quiesce_trigger_fopt;
+extern struct m0_fop_type repair_status_fopt;
 extern struct m0_fop_type rebalance_trigger_fopt;
 extern struct m0_fop_type rebalance_quiesce_trigger_fopt;
-
-static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
-{
-	struct m0_fop *rep_fop;
-
-	M0_PRE(item != NULL);
-
-	if (item->ri_error == 0) {
-		rep_fop = m0_rpc_item_to_fop(item->ri_reply);
-		M0_ASSERT(M0_IN(m0_fop_opcode(rep_fop),
-				(M0_SNS_REPAIR_TRIGGER_REP_OPCODE,
-				 M0_SNS_REPAIR_QUIESCE_REP_OPCODE,
-				 M0_SNS_REBALANCE_TRIGGER_REP_OPCODE,
-				 M0_SNS_REBALANCE_QUIESCE_REP_OPCODE)));
-	}
-	printf("reply got from: %s\n", m0_rpc_item_remote_ep_addr(item));
-
-	m0_atomic64_inc(&srv_rep_cnt);
-	if (m0_atomic64_get(&srv_rep_cnt) == srv_cnt) {
-		m0_mutex_lock(&repair_wait_mutex);
-		m0_chan_signal(&repair_wait);
-		m0_mutex_unlock(&repair_wait_mutex);
-	}
-}
-
-const struct m0_rpc_item_ops trigger_fop_rpc_item_ops = {
-	.rio_replied = trigger_rpc_item_reply_cb
-};
+extern struct m0_fop_type rebalance_status_fopt;
 
 static void usage(void)
 {
 	fprintf(stdout,
 "-O Operation: SNS_REPAIR = 2 or SNS_REBALANCE = 4\n"
 "              SNS_REPAIR_QUIESCE = 8 or SNS_REBALANCE_QUIESCE = 16\n"
+"              SNS_REPAIR_STATUS = 32 or SNS_REBALANCE_STATUS = 64\n"
 "-C Client_end_point\n"
 "-S Server_end_point [-S Server_end_point ]: max number is %d\n", MAX_SERVERS);
 }
@@ -109,7 +85,6 @@ int main(int argc, char *argv[])
 	struct rpc_ctx        *ctxs;
 	struct m0_rpc_session *session;
 	struct m0_clink        repair_clink;
-	uint32_t               op;
 	m0_time_t              start;
 	m0_time_t              delta;
 	int                    rc;
@@ -145,7 +120,8 @@ int main(int argc, char *argv[])
 		return M0_ERR(rc);
 
 	if (!M0_IN(op, (SNS_REPAIR, SNS_REBALANCE,
-		        SNS_REPAIR_QUIESCE, SNS_REBALANCE_QUIESCE))) {
+		        SNS_REPAIR_QUIESCE, SNS_REBALANCE_QUIESCE,
+		        SNS_REPAIR_STATUS,  SNS_REBALANCE_STATUS))) {
 		usage();
 		return M0_ERR(-EINVAL);
 	}
@@ -169,7 +145,10 @@ int main(int argc, char *argv[])
 	m0_mutex_unlock(&repair_wait_mutex);
 	start = m0_time_now();
 	for (i = 0; i < srv_cnt; ++i) {
-		struct m0_fop *fop = NULL;
+		struct m0_fop              *fop = NULL;
+		struct m0_fop              *rep_fop;
+		struct trigger_rep_fop     *trep;
+		struct sns_status_rep_fop  *srep;
 
 		session = &ctxs[i].ctx_session;
 		if (op == SNS_REPAIR)
@@ -182,25 +161,32 @@ int main(int argc, char *argv[])
 		else if (op == SNS_REBALANCE_QUIESCE)
 			fop = m0_fop_alloc_at(session,
 					      &rebalance_quiesce_trigger_fopt);
+		else if (op == SNS_REPAIR_STATUS)
+			fop = m0_fop_alloc_at(session, &repair_status_fopt);
+		else if (op == SNS_REBALANCE_STATUS)
+			fop = m0_fop_alloc_at(session, &rebalance_status_fopt);
 		else
 			M0_IMPOSSIBLE("Invalid operation");
 		treq = m0_fop_data(fop);
 		treq->op = op;
-		rc = repair_rpc_post(fop, session,
-				&trigger_fop_rpc_item_ops,
-				0 /* deadline */);
-		M0_ASSERT(rc == 0);
-		printf("trigger fop sent to %s\n", srv_ep_addr[i]);
-		m0_fop_put_lock(fop);
-	}
 
-retry:
-	delta = m0_time_from_now(150, 0);
-	rc = m0_chan_timedwait(&repair_clink, delta);
-	if (!rc) {
-		printf("%d trigger fops sent, %d replied. Still waiting...\n",
-			srv_cnt, (int)m0_atomic64_get(&srv_rep_cnt));
-		goto retry;
+		rc = m0_rpc_post_sync(fop, session, NULL, 0);
+		if (rc != 0) {
+			m0_fop_put_lock(fop);
+			return M0_RC(rc);
+		}
+		printf("trigger fop sent to %s\n", srv_ep_addr[i]);
+		rep_fop = m0_rpc_item_to_fop(fop->f_item.ri_reply);
+		trep = m0_fop_data(rep_fop);
+		printf("reply got from: %s: op=%d rc=%d",
+			m0_rpc_item_remote_ep_addr(&fop->f_item), op, trep->rc);
+		if (op == SNS_REPAIR_STATUS || op == SNS_REBALANCE_STATUS) {
+			srep = m0_fop_data(rep_fop);
+			printf(" status=%d progress=%lu\n", srep->status, srep->progress);
+		} else
+			printf("\n");
+
+		m0_fop_put_lock(fop);
 	}
 
 	delta = m0_time_sub(m0_time_now(), start);

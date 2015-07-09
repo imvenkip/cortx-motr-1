@@ -508,7 +508,10 @@ static void receiver_init()
 	m0_cm_unlock(cm);
 
 	cm_ready(cm);
-	M0_UT_ASSERT(m0_cm_start(cm) == 0);
+	cm->cm_sw_update.swu_is_complete = true;
+	rc = m0_cm_start(cm);
+	M0_UT_ASSERT(rc == 0);
+
 	while (m0_fom_domain_is_idle_for(scm_service) ||
 	       !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
 		usleep(200);
@@ -679,6 +682,7 @@ static void sender_init()
 	m0_cm_unlock(&sender_cm);
 
 	cm_ready(&sender_cm);
+	sender_cm.cm_sw_update.swu_is_complete = true;
 	rc = m0_cm_start(&sender_cm);
 	M0_UT_ASSERT(rc == 0);
 
@@ -705,22 +709,6 @@ static void sender_init()
 	m0_cm_unlock(&sender_cm);
 }
 
-/* Stripped version of m0_cm_stop. */
-static void cm_stop(struct m0_cm *cm)
-{
-	M0_PRE(cm != NULL);
-	m0_cm_lock(cm);
-	M0_PRE(m0_cm_state_get(cm) == M0_CMS_ACTIVE);
-	M0_PRE(m0_cm_invariant(cm));
-	m0_cm_state_set(cm, M0_CMS_STOP);
-	M0_UT_ASSERT(cm->cm_ops->cmo_stop(cm) == 0);
-	m0_cm_cp_pump_stop(cm);
-	m0_cm_proxies_fini(cm);
-	m0_cm_ast_run_fom_wakeup(cm);
-	m0_cm_state_set(cm, M0_CMS_IDLE);
-	m0_cm_unlock(cm);
-}
-
 static void receiver_fini()
 {
 	struct m0_cob_domain *cdom;
@@ -736,7 +724,6 @@ static void receiver_fini()
 	rc = m0_ios_cdom_get(s0_reqh, &cdom);
 	M0_UT_ASSERT(rc == 0);
 	cob_delete(cdom, 0, &gob_fid);
-	cm_stop(cm);
 	m0_free(r_rag.rag_fc);
 	cs_fini(&sctx);
 	m0_cm_type_deregister(&sender_cm_cmt);
@@ -757,8 +744,6 @@ static void sender_fini()
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_conn_destroy(&conn, M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
-        /* Fini the sender side. */
-        cm_stop(&sender_cm);
         rc = m0_rpc_client_stop(&cctx);
         M0_UT_ASSERT(rc == 0);
         m0_net_domain_fini(&client_net_dom);

@@ -108,6 +108,12 @@ sns_repair_test()
 
 	sns_repair || return $?
 
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "repair" || return $?
+
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status "repair" || return $?
+
 	echo "SNS Repair done."
 	verify || return $?
 
@@ -117,12 +123,25 @@ sns_repair_test()
         echo "Starting SNS Re-balance.."
 	sns_rebalance || return $?
 
+	echo "wait for sns rebalance"
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status "rebalance" || return $?
+
+
 	echo "SNS Rebalance done."
 	verify || return $?
 
 	pool_mach_set_failure $fail_device3 || return $?
 
 	sns_repair || return $?
+
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "repair" || return $?
+
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status "repair" || return $?
 
 	echo "SNS Repair done."
 	verify || return $?
@@ -131,6 +150,12 @@ sns_repair_test()
 
         echo "Starting SNS Re-balance.."
 	sns_rebalance || return $?
+
+	echo "wait for sns rebalance"
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status "rebalance" || return $?
 
 	echo "SNS Rebalance done."
 	verify || return $?

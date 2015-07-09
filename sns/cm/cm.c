@@ -668,7 +668,7 @@ M0_INTERNAL void m0_sns_cm_rm_fini(struct m0_sns_cm *scm)
 
 M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)
 {
-	struct m0_sns_cm      *scm = cm2sns(cm);
+	struct m0_sns_cm *scm = cm2sns(cm);
 
 	m0_sns_cm_iter_stop(&scm->sc_it);
 	scm->sc_stop_time = m0_time_now();

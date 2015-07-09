@@ -293,6 +293,9 @@ fmio_sns_repair()
 			echo "Failed: SNS repair..."
 			return 1
 		}
+		echo "wait for sns repair"
+		wait_for_sns_repair_or_rebalance "repair" || return $?
+
 		pool_mach_query $fail_devices
 	fi
 
@@ -313,6 +316,8 @@ fmio_sns_rebalance()
 			echo "Failed: SNS rebalance..."
 			return 1
 		}
+		echo "wait for sns rebalance"
+		wait_for_sns_repair_or_rebalance "rebalance" || return $?
 		pool_mach_query $fail_devices
 	fi
 	return 0

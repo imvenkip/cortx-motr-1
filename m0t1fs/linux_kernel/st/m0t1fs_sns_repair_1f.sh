@@ -59,14 +59,26 @@ sns_repair_test()
 
 	sns_repair || return $?
 
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "repair" || return $?
+
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status "repair" || return $?
+
 	echo "SNS Repair done."
 	md5sum_check || return $?
 
-####### Query device state
+	echo "Query device state"
 	pool_mach_query $fail_device || return $?
 
 	echo "Starting SNS Re-balance.."
 	sns_rebalance || return $?
+
+	echo "wait for sns rebalance"
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status "rebalance" || return $?
 
 	echo "SNS Re-balance done."
 	echo "Verifying checksums.."

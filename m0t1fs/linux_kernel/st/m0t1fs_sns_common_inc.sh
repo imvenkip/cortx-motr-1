@@ -211,11 +211,45 @@ sns_rebalance_quiesce()
 	return $rc
 }
 
-wait4snsrepair()
+sns_repair_or_rebalance_status()
 {
-	echo "**** Wait for sns repair to complete ****"
-	while [ "`ps ax | grep -v grep | grep m0repair`" ];
-		do echo -n .; sleep 5; done
+	local rc=0
+	local op=32
+	[ "$1" == "repair" ] && op=32
+	[ "$1" == "rebalance" ] && op=64
+
+	repair_quiesce_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	echo $repair_quiesce_trigger
+	eval $repair_quiesce_trigger
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "SNS Repair status query failed"
+	fi
+
+	return $rc
+}
+
+wait_for_sns_repair_or_rebalance()
+{
+	local rc=0
+	local op=32
+	[ "$1" == "repair" ] && op=32
+	[ "$1" == "rebalance" ] && op=64
+	while true ; do
+		sleep 5
+		repair_quiesce_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+		echo $repair_quiesce_trigger
+		status=`eval $repair_quiesce_trigger`
+		rc=$?
+		if [ $rc != 0 ]; then
+			echo "SNS Repair status query failed"
+			return $rc
+		fi
+
+		echo $status | grep status=2 && continue #sns repair is active, continue waiting
+		break;
+	done
+	return 0
 }
 
 _dd()

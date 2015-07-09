@@ -46,6 +46,12 @@ struct trigger_rep_fop {
 	int32_t rc;
 } M0_XCA_RECORD;
 
+struct sns_status_rep_fop {
+	int32_t  rc;
+	uint32_t status;
+	uint64_t progress;
+} M0_XCA_RECORD;
+
 M0_INTERNAL void m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,
 					    enum M0_RPC_OPCODES op,
 					    const char *name,

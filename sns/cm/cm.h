@@ -97,10 +97,25 @@
  * Operation that sns copy machine is carrying out.
  */
 enum m0_sns_cm_op {
+	SNS_INVALID           = 0,
 	SNS_REPAIR            = 1 << 1,
 	SNS_REBALANCE         = 1 << 2,
 	SNS_REPAIR_QUIESCE    = 1 << 3,
 	SNS_REBALANCE_QUIESCE = 1 << 4,
+	SNS_REPAIR_STATUS     = 1 << 5,
+	SNS_REBALANCE_STATUS  = 1 << 6,
+};
+
+/**
+ * sns copy machine status
+ */
+enum m0_sns_cm_status {
+	SNS_CM_STATUS_INVALID = 0,
+	SNS_CM_STATUS_IDLE    = 1,
+	SNS_CM_STATUS_STARTED = 2,
+	SNS_CM_STATUS_FAILED  = 3,
+	SNS_CM_STATUS_PAUSED  = 4,
+	SNS_CM_STATUS_NR,
 };
 
 struct m0_sns_cm_buf_pool {
@@ -322,11 +337,15 @@ M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void);
 M0_INTERNAL void m0_sns_cm_repair_trigger_fop_fini(void);
 M0_INTERNAL void m0_sns_cm_repair_quiesce_trigger_fop_init(void);
 M0_INTERNAL void m0_sns_cm_repair_quiesce_trigger_fop_fini(void);
+M0_INTERNAL void m0_sns_cm_repair_status_trigger_fop_init(void);
+M0_INTERNAL void m0_sns_cm_repair_status_trigger_fop_fini(void);
 
 M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void);
 M0_INTERNAL void m0_sns_cm_rebalance_quiesce_trigger_fop_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_quiesce_trigger_fop_fini(void);
+M0_INTERNAL void m0_sns_cm_rebalance_status_trigger_fop_init(void);
+M0_INTERNAL void m0_sns_cm_rebalance_status_trigger_fop_fini(void);
 
 M0_INTERNAL void m0_sns_cm_repair_sw_onwire_fop_init(void);
 M0_INTERNAL void m0_sns_cm_repair_sw_onwire_fop_fini(void);

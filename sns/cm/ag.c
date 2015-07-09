@@ -272,6 +272,9 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 		if (ai_state(ai) != AIS_FID_LOCK)
 			ai_state_set(ai, AIS_FID_LOCK);
 	}
+	if (ai_state(ai) > AIS_GROUP_NEXT)
+		return -ENOENT;
+
 	do {
 		rc = ai_action[ai_state(ai)](ai);
 	} while (rc == 0);

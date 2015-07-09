@@ -810,7 +810,6 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	m0_cm_unlock(cm);
 	m0_cm_lock(cm);
 	rc = cm->cm_ops->cmo_stop(cm);
-	m0_cm_cp_pump_stop(cm);
 	m0_cm_proxies_fini(cm);
 	m0_cm_ast_run_fom_wakeup(cm);
 	m0_cm_sw_update_stop(cm);
@@ -1053,6 +1052,7 @@ M0_INTERNAL void m0_cm_ready_done(struct m0_cm *cm)
 M0_INTERNAL void m0_cm_complete(struct m0_cm *cm)
 {
 	m0_chan_signal_lock(&cm->cm_complete_wait);
+	m0_cm_cp_pump_stop(cm);
 }
 
 #undef M0_TRACE_SUBSYSTEM

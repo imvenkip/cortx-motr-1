@@ -37,6 +37,9 @@ struct m0_fop_type rebalance_trigger_fopt;
 struct m0_fop_type rebalance_trigger_rep_fopt;
 struct m0_fop_type rebalance_quiesce_trigger_fopt;
 struct m0_fop_type rebalance_quiesce_trigger_rep_fopt;
+struct m0_fop_type rebalance_status_fopt;
+struct m0_fop_type rebalance_status_rep_fopt;
+
 extern struct m0_cm_type sns_rebalance_cmt;
 
 M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void)
@@ -45,6 +48,8 @@ M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void)
 	m0_sns_cm_trigger_fop_fini(&rebalance_trigger_rep_fopt);
 	m0_sns_cm_trigger_fop_fini(&rebalance_quiesce_trigger_fopt);
 	m0_sns_cm_trigger_fop_fini(&rebalance_quiesce_trigger_rep_fopt);
+	m0_sns_cm_trigger_fop_fini(&rebalance_status_fopt);
+	m0_sns_cm_trigger_fop_fini(&rebalance_status_rep_fopt);
 }
 
 M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_init(void)
@@ -77,7 +82,19 @@ M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_init(void)
 				   M0_RPC_ITEM_TYPE_REPLY,
 				   &sns_rebalance_cmt);
 
-
+	m0_sns_cm_trigger_fop_init(&rebalance_status_fopt,
+				   M0_SNS_REBALANCE_STATUS_OPCODE,
+				   "sns rebalance status",
+				   trigger_fop_xc,
+				   M0_RPC_ITEM_TYPE_REQUEST |
+				   M0_RPC_ITEM_TYPE_MUTABO,
+				   &sns_rebalance_cmt);
+	m0_sns_cm_trigger_fop_init(&rebalance_status_rep_fopt,
+				   M0_SNS_REBALANCE_STATUS_REP_OPCODE,
+				   "sns rebalance status reply",
+				   sns_status_rep_fop_xc,
+				   M0_RPC_ITEM_TYPE_REPLY,
+				   &sns_rebalance_cmt);
 }
 
 #undef M0_TRACE_SUBSYSTEM

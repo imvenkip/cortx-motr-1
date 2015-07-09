@@ -102,14 +102,11 @@ static void cm_setup_ut(void)
 	/* Checks if the restructuring process is started successfully. */
 	rc = m0_cm_start(cm);
 	M0_UT_ASSERT(rc == 0);
-
+	cm->cm_sw_update.swu_is_complete = true;
 	while (m0_fom_domain_is_idle_for(&cm->cm_service) ||
 	       !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
 		usleep(200);
 
-	cm->cm_sw_update.swu_is_complete = true;
-	rc = m0_cm_stop(cm);
-	M0_UT_ASSERT(rc == 0);
 	m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
 	reqh = cm_ut_service->rs_reqh;
 	pm = m0_ios_poolmach_get(reqh);

@@ -58,15 +58,16 @@ sns_repair_rebalance_quiesce_test()
 	md5sum_check || return $?
 
 	echo "SNS repair, and this will be quiesecd"
-	sns_repair &
+	sns_repair
 	sleep 5
 
 	# sending out QUIESCE cmd
 	sns_repair_quiesce
 
-	wait4snsrepair
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "repair" || return $?
 
-####### Query device state
+	echo "Query device state"
 	pool_mach_query $fail_device || return $?
 
 	echo "Continue SNS repair..."
@@ -75,17 +76,18 @@ sns_repair_rebalance_quiesce_test()
 	echo "SNS Repair done."
 	md5sum_check || return $?
 
-####### Query device state
+	echo "Query device state"
 	pool_mach_query $fail_device || return $?
 
 	echo "Starting SNS Re-balance, and this will be quiesced"
-	sns_rebalance &
+	sns_rebalance
 	sleep 5
 
 	# sending out QUIESCE cmd
 	sns_rebalance_quiesce
 
-	wait4snsrepair
+	echo "wait for sns rebalance"
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
 
 	echo "Continue SNS Re-balance..."
 	sns_rebalance || return $?
