@@ -92,6 +92,9 @@ EOF
 	} >&2
     fi
 
+    say m0mount ST
+    $SUDO $SRC/scripts/m0mount -alvvsL -n 1 -d 2 -k 1 -p 4 -o -m -q
+
     say IO ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
 

@@ -186,7 +186,7 @@ unprepare()
 
 PROF_OPT='<0x7000000000000001:0>'
 
-. `dirname $0`/common_service_fids_inc.sh
+. `dirname ${BASH_SOURCE[0]}`/common_service_fids_inc.sh
 
 ###############################
 # globals: MDSEP[], IOSEP[], server_nid

@@ -165,6 +165,7 @@ loop_used=-1
 setup_local_server_config=0
 wait_after_mount=1
 verbosity=0
+proc_fid="'<$PROC_FID_CNTR:$PROC_FID_KEY>'"
 
 M0MKFS_TRACE_MASK=m0d,fop,cob,ioservice,stob,adstob,extmap,conf
 M0MKFS_TRACE_LEVEL=warn+
@@ -596,7 +597,7 @@ function start_server ()
 					MDSERVICES[@] STATSERVICES[@]
 		fi
 		if [ $run_mkfs -eq 1 ]; then
-			mkfs $DIR "-T linux" "-s confd -c $CONF_FILE" || return 1
+			mkfs $DIR "-T linux" "-s 'confd:<$CONF_FID_CON:1>' -c $CONF_FILE" || return 1
 		fi
 		$RUN "cd $DIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
@@ -604,7 +605,8 @@ M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs \
 -A linuxstob:$DIR/addb-stobs \
--e $XPT:$CONFD_EP -s confd -c $CONF_FILE -P '$PROF_OPT' $XPT_SETUP" > ${SLOG}-confd.log &
+-e $XPT:$CONFD_EP -s 'confd:<$CONF_FID_CON:2>' -c $CONF_FILE -P '$PROF_OPT' \
+$XPT_SETUP -f $proc_fid" > ${SLOG}-confd.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start confd server on $H
 			return 1
@@ -622,7 +624,7 @@ M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
 -w $POOL_WIDTH -e $XPT:$server_nid:$HA_EP -P '$PROF_OPT' -C $CONFD_EP \
-$XPT_SETUP -s addb2" >> ${SLOG}-ha.log &
+$XPT_SETUP -s 'addb2:<$ADD2_FID_CON:3>' -f $proc_fid" >> ${SLOG}-ha.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start m0d on $H
 			return 1
@@ -640,8 +642,9 @@ M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
 -w $POOL_WIDTH -e $XPT:$MDS_EP -P '$PROF_OPT' -C $CONFD_EP \
--s mdservice -s rmservice \
--s stats -s addb2 $XPT_SETUP" >> ${SLOG}-mds.log &
+-s 'mdservice:<$MDS_FID_CON:4>' -s 'rmservice:<$RMS_FID_CON:4>' \
+-s 'stats:<$STS_FID_CON:4>' -s 'addb2:<$ADD2_FID_CON:4>' \
+$XPT_SETUP -f $proc_fid" >> ${SLOG}-mds.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start m0d on $H
 			return 1
@@ -649,7 +652,8 @@ $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
 		sleep 2
 	fi
 	SNAME+=" -P '$PROF_OPT' -C $CONFD_EP"
-	SNAME+=" -s addb2 -s ioservice -s sns_repair -s sns_rebalance"
+	SNAME+=" -s 'addb2:<$ADD2_FID_CON:5>' -s 'ioservice:<$IOS_FID_CON:5>' \
+-s 'sns_repair:<$SNSR_FID_CON:5>' -s'sns_rebalance:<$SNSB_FID_CON:5>' -f $proc_fid"
 
 	if [ $run_mkfs -eq 1 ]; then
 		mkfs "$DDIR" "$STOB_PARAMS" "-C $CONFD_EP" || return 1
