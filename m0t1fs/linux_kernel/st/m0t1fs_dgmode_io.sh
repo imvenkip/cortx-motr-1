@@ -13,8 +13,14 @@ N=3
 K=3
 P=15
 stride=32
-random_source_dd_count=650  # dd count used during random source file creation
-dd_count=0                 # Counter for the number of times dd is invoked
+# dd count used during random source file creation
+random_source_dd_count=650
+# Counter for the number of times dd is invoked
+dd_count=0
+# Counter to track the no of times dd was invoked for separate file io testing.
+# The counter is required to generate file names while cleaning up the files
+# created in the mount directory for separate file io testing.
+separate_file_dd_count_start=0
 st_dir=$MERO_CORE_ROOT/m0t1fs/linux_kernel/st
 blk_size=$((stride * 1024))
 half_blk=$((blk_size / 2))
@@ -104,7 +110,6 @@ fmio_truncation_module()
 		echo "File truncation failed with bs=$bs and count=$cnt"
 		return $rc
 	fi
-	return $rc
 	valid_count_get $blk_size
 	cnt=$?
 	fmio_files_write dd bs=$blk_size count=$cnt
@@ -474,15 +479,14 @@ fmio_io_test()
 		return 1
 	}
 
-	# XXX Enable once MERO-705, MERO-706 are fixed
-	#echo "Create a file after first $step: $file_to_create1"
-	#touch $file_to_create1
-	#rc=$?
-	#if [ $rc -ne 0 ]
-	#then
-	#	echo "Failed: create after first $step, rc $rc..."
-	#	return 1
-	#fi
+	echo "Create a file after first $step: $file_to_create1"
+	touch $file_to_create1
+	rc=$?
+	if [ $rc -ne 0 ]
+	then
+		echo "Failed: create after first $step, rc $rc..."
+		return 1
+	fi
 
 	echo -e "\n*** $test_name test 2: IO and read after first $step ***"
 	fmio_files_write dd bs=8821 count=5 seek=23 conv=notrunc || {
@@ -503,15 +507,14 @@ fmio_io_test()
 		}
 	fi
 
-	# XXX Enable once MERO-705, MERO-706 are fixed
-	#echo "Create a file after second $step: $file_to_create2"
-	#touch $file_to_create2
-	#rc=$?
-	#if [ $rc -ne 0 ]
-	#then
-	#	echo "Failed: create after second $step, rc $rc..."
-	#	return 1
-	#fi
+	echo "Create a file after second $step: $file_to_create2"
+	touch $file_to_create2
+	rc=$?
+	if [ $rc -ne 0 ]
+	then
+		echo "Failed: create after second $step, rc $rc..."
+		return 1
+	fi
 
 	echo -e "\n*** $test_name test 3: Read after second $step ***"
 	fmio_files_compare || {
@@ -560,15 +563,14 @@ fmio_io_test()
 		return 1
 	}
 
-	# XXX Enable once MERO-705, MERO-706 are fixed
-	#echo "Create a file after third $step: $file_to_create3"
-	#touch $file_to_create3
-	#rc=$?
-	#if [ $rc -ne 0 ]
-	#then
-	#	echo "Failed: create after third $step, rc $rc..."
-	#	return 1
-	#fi
+	echo "Create a file after third $step: $file_to_create3"
+	touch $file_to_create3
+	rc=$?
+	if [ $rc -ne 0 ]
+	then
+		echo "Failed: create after third $step, rc $rc..."
+		return 1
+	fi
 
 	echo -e "\n*** $test_name test 7: IO and read after third $step ***"
 	fmio_files_write dd bs=$block_size count=50 || {
@@ -680,6 +682,20 @@ fmio_m0t1fs_unmount()
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 	fi
 	return 0
+}
+
+fmio_m0t1fs_clean()
+{
+        echo "cleaning Mero mountpoint.."
+        rm -f $file_to_create1
+        rm -f $file_to_create2
+        rm -f $file_to_create3
+        # Delete file created for single file io testing.
+        rm -f "$MERO_M0T1FS_MOUNT_DIR/0:10000"
+        # Delete files created for separate file io testing.
+        for ((i=separate_file_dd_count_start; i <= $dd_count; i++)) ; do
+                rm -f "$MERO_M0T1FS_MOUNT_DIR/0:1000$i"
+        done
 }
 
 failure_modes_test()
@@ -824,6 +840,9 @@ main()
 		echo "Start with the separate file IO testing"
 		echo "========================================================"
 		single_file_test=0
+                # Save current dd_count to track number of files created for
+                # separate file IO testing.
+	        separate_file_dd_count_start=`expr $dd_count + 1`
 		failure_modes_test || {
 			fmio_m0t1fs_unmount
 			fmio_mero_service_stop
@@ -833,6 +852,10 @@ main()
 		echo "Done with the separate file IO testing"
 		echo "========================================================"
 	fi
+
+        fmio_m0t1fs_clean || {
+                rc=1
+        }
 
 	fmio_m0t1fs_unmount || {
 		rc=1
