@@ -98,10 +98,10 @@ static int rm_out_create(struct rm_out           **out,
 			 struct m0_rm_credit      *credit)
 {
 	struct rm_out *outreq;
-	int	       rc;
+	int            rc;
 
 	M0_ENTRY();
-	M0_PRE (out != NULL);
+	M0_PRE(out != NULL);
 	M0_PRE(other != NULL);
 
 	M0_ALLOC_PTR(outreq);
@@ -109,25 +109,19 @@ static int rm_out_create(struct rm_out           **out,
 		rc = M0_ERR(-ENOMEM);
 		goto out;
 	}
-
-	m0_rm_outgoing_init(&outreq->ou_req, otype);
-	rc = m0_rm_loan_init(&outreq->ou_req.rog_want, credit, other);
-	if (rc != 0) {
+	rc = m0_rm_outgoing_init(&outreq->ou_req, otype, other, credit);
+	if (rc != 0)
 		m0_free(outreq);
-		goto out;
-	}
 	*out = outreq;
 out:
 	return M0_RC(rc);
 }
 
 /*
- * Finalises and de-allocates the remote request tracking structure.
+ * De-allocates the remote request tracking structure.
  */
 static void rm_out_release(struct rm_out *out)
 {
-	m0_rm_loan_fini(&out->ou_req.rog_want);
-	m0_rm_outgoing_fini(&out->ou_req);
 	m0_free(out);
 }
 
@@ -142,6 +136,14 @@ static void rm_fop_release(struct m0_ref *ref)
 	out = container_of(fop, struct rm_out, ou_fop);
 
 	m0_fop_fini(fop);
+	rm_out_release(out);
+	M0_LEAVE();
+}
+
+static void rm_out_destroy(struct rm_out *out)
+{
+	M0_ENTRY();
+	m0_rm_outgoing_fini(&out->ou_req);
 	rm_out_release(out);
 	M0_LEAVE();
 }
@@ -373,7 +375,7 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "filling fop failed: rc [%d]\n", rc);
-		rm_out_release(outreq);
+		rm_out_destroy(outreq);
 		goto out;
 	}
 	outgoing_queue(otype, credit->cr_owner, outreq, in, other);

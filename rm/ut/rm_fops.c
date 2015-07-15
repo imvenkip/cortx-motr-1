@@ -26,6 +26,7 @@
 #include "rm/rm_fops.h"
 #include "rm/ut/rmut.h"
 #include "rm/ut/rings.h"
+#include "rm/rm_internal.h"      /* m0_rm_outgoing_fini */
 #include "rm/rm_fops.c"          /* To access static APIs. */
 
 static struct m0_rm_loan *test_loan;
@@ -151,6 +152,7 @@ static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
 		pi_tlink_del_fini(pin);
 		pr_tlink_del_fini(pin);
 		m0_free(pin);
+		m0_rm_outgoing_fini(&oreq->ou_req);
 		rm_fop_release(&oreq->ou_fop.f_ref);
 		++pins_nr;
 	} m0_tl_endfor;

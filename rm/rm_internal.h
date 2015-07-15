@@ -165,8 +165,10 @@ M0_INTERNAL void m0_rm_outgoing_send(struct m0_rm_outgoing *outgoing);
  * @param req_type - outgoing request type
  * @see m0_rm_outgoing_fini
  */
-M0_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing *out,
-				     enum m0_rm_outgoing_type req_type);
+M0_INTERNAL int m0_rm_outgoing_init(struct m0_rm_outgoing    *out,
+				    enum m0_rm_outgoing_type  req_type,
+				    struct m0_rm_remote      *other,
+				    struct m0_rm_credit      *credit);
 
 /**
  * Finalises the fields of

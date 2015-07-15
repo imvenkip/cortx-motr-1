@@ -995,8 +995,10 @@ static void windup_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing    *out,
-				     enum m0_rm_outgoing_type  req_type)
+M0_INTERNAL int m0_rm_outgoing_init(struct m0_rm_outgoing    *out,
+				    enum m0_rm_outgoing_type  req_type,
+				    struct m0_rm_remote      *other,
+				    struct m0_rm_credit      *credit)
 {
 	M0_ENTRY("outgoing: %p", out);
 	M0_PRE(out != NULL);
@@ -1005,7 +1007,7 @@ M0_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing    *out,
 	out->rog_type = req_type;
 	out->rog_sent = false;
 	m0_rm_outgoing_bob_init(out);
-	M0_LEAVE();
+	return M0_RC(m0_rm_loan_init(&out->rog_want, credit, other));
 }
 M0_EXPORTED(m0_rm_outgoing_init);
 
@@ -1013,6 +1015,7 @@ M0_INTERNAL void m0_rm_outgoing_fini(struct m0_rm_outgoing *out)
 {
 	M0_ENTRY("outgoing: %p", out);
 	M0_PRE(out != NULL);
+	m0_rm_loan_fini(&out->rog_want);
 	m0_rm_outgoing_bob_fini(out);
 	M0_LEAVE();
 }
@@ -1772,7 +1775,8 @@ static void owner_balance(struct m0_rm_owner *o)
 					pin->rp_incoming->rin_rc ?: out->rog_rc;
 				pin_del(pin);
 			} m0_tl_endfor;
-			m0_rm_ur_tlink_del_fini(credit);
+			m0_rm_ur_tlist_del(credit);
+			m0_rm_outgoing_fini(out);
 		} m0_tl_endfor;
 		for (prio = ARRAY_SIZE(o->ro_incoming) - 1; prio >= 0; --prio) {
 			m0_tl_for (m0_rm_ur,
