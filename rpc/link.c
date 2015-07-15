@@ -24,6 +24,7 @@
 #include "lib/string.h"               /* m0_strdup */
 #include "lib/trace.h"
 #include "lib/chan.h"
+#include "lib/time.h"
 #include "lib/misc.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
@@ -106,7 +107,7 @@ static int rpc_link_conn_establish(struct m0_rpc_link *rlink)
 	}
 	if (rc == 0) {
 		rc = m0_rpc_conn_establish(&rlink->rlk_conn,
-					m0_time_from_now(rlink->rlk_timeout, 0));
+					    rlink->rlk_timeout);
 		if (rc != 0)
 			m0_rpc_conn_fini(&rlink->rlk_conn);
 	}
@@ -124,7 +125,7 @@ static int rpc_link_sess_establish(struct m0_rpc_link *rlink)
 	rc = m0_rpc_session_init(&rlink->rlk_sess, &rlink->rlk_conn);
 	if (rc == 0) {
 		rc = m0_rpc_session_establish(&rlink->rlk_sess,
-					m0_time_from_now(rlink->rlk_timeout, 0));
+					       rlink->rlk_timeout);
 		if (rc != 0)
 			m0_rpc_session_fini(&rlink->rlk_sess);
 	}
@@ -156,8 +157,7 @@ static int rpc_link_conn_terminate(struct m0_rpc_link *rlink)
 	int rc;
 
 	m0_rpc_session_fini(&rlink->rlk_sess);
-	rc = m0_rpc_conn_terminate(&rlink->rlk_conn,
-				   m0_time_from_now(rlink->rlk_timeout, 0));
+	rc = m0_rpc_conn_terminate(&rlink->rlk_conn, rlink->rlk_timeout);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Connection termination failed (rlink=%p)",
 		       rlink);
@@ -177,8 +177,7 @@ static int rpc_link_sess_terminate(struct m0_rpc_link *rlink)
 
 	M0_PRE(SESS_STATE(&rlink->rlk_sess) == M0_RPC_SESSION_IDLE);
 
-	rc = m0_rpc_session_terminate(&rlink->rlk_sess,
-				      m0_time_from_now(rlink->rlk_timeout, 0));
+	rc = m0_rpc_session_terminate(&rlink->rlk_sess, rlink->rlk_timeout);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Session termination failed (rlink=%p)",
 		       rlink);
@@ -500,7 +499,7 @@ M0_INTERNAL void m0_rpc_link_module_fini(void)
 M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 				 struct m0_rpc_machine *mach,
 				 const char *ep,
-				 uint64_t timeout,
+				 m0_time_t timeout,
 				 uint64_t max_rpcs_in_flight)
 {
 	int rc;

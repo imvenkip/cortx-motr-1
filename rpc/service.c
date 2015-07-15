@@ -23,6 +23,7 @@
 #include "lib/errno.h"
 #include "lib/trace.h"
 #include "lib/tlist.h"
+#include "lib/time.h"     /* m0_time_from_now */
 #include "lib/bob.h"
 #include "lib/memory.h"   /* m0_alloc() */
 #include "rpc/link.h"
@@ -170,7 +171,7 @@ m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 	rc = revc == NULL ? -ENOMEM : 0;
 	rc = rc ?: m0_rpc_link_init(&revc->rcf_rlink,
 				    item->ri_rmachine, rem_ep,
-				    M0_REV_CONN_TIMEOUT,
+				    m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
 				    M0_REV_CONN_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
 		m0_rpc_link_connect_async(&revc->rcf_rlink, clink);

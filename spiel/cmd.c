@@ -26,6 +26,7 @@
 #include "lib/buf.h"          /* m0_buf_init */
 #include "lib/finject.h"      /* M0_FI_ENABLED */
 #include "lib/mutex.h"        /* m0_mutex_lock, m0_mutex_unlock */
+#include "lib/time.h"         /* M0_TIME_IMMEDIATELY, m0_time_from_now */
 #include "conf/helpers.h"     /* service_name_dup */
 #include "conf/obj.h"
 #include "conf/obj_ops.h"     /* M0_CONF_DIRNEXT, m0_conf_obj_get */
@@ -70,7 +71,8 @@ static int spiel_send_cmd(struct m0_rpc_machine *rmachine,
 		return M0_ERR(-ENOMEM);
 
 	rc = m0_rpc_link_init(rlink, rmachine, remote_ep,
-			SPIEL_CONN_TIMEOUT, SPIEL_MAX_RPCS_IN_FLIGHT);
+			m0_time_from_now(SPIEL_CONN_TIMEOUT, 0),
+			SPIEL_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
 		rc = m0_rpc_link_connect_sync(rlink) ?:
 		     m0_rpc_post_sync(cmd_fop,

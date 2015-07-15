@@ -27,6 +27,7 @@
 #include "fop/fom.h"
 #include "lib/chan.h"
 #include "lib/mutex.h"
+#include "lib/time.h"     /* m0_time_t */
 #include "lib/tlist.h"
 #include "rpc/conn.h"
 #include "rpc/session.h"
@@ -51,7 +52,7 @@ struct m0_rpc_link {
 	struct m0_chan           rlk_wait;
 	struct m0_mutex          rlk_wait_mutex;
 	uint64_t                 rlk_max_rpcs_in_flight;
-	uint64_t                 rlk_timeout;
+	m0_time_t                rlk_timeout;
 	bool                     rlk_connected;
 };
 
@@ -82,7 +83,7 @@ M0_INTERNAL void m0_rpc_link_module_fini(void);
 M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 				 struct m0_rpc_machine *mach,
 				 const char *ep,
-				 uint64_t timeout,
+				 m0_time_t timeout,
 				 uint64_t max_rpcs_in_flight);
 M0_INTERNAL void m0_rpc_link_fini(struct m0_rpc_link *rlink);
 
