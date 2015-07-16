@@ -52,3 +52,9 @@ main()
 
 trap unprepare EXIT
 main
+
+# this msg is used by Jenkins as a test success criteria;
+# it should appear on STDOUT
+if [ $? -eq 0 ] ; then
+    echo "fsync: test status: SUCCESS"
+fi
