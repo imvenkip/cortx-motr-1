@@ -414,6 +414,11 @@ struct m0_conf_node {
 	struct m0_conf_pool *cn_pool;
 };
 
+/**
+ * Process configuration.
+ *
+ * @see m0_processors_online(), m0_proc_attr
+ */
 struct m0_conf_process {
 	struct m0_conf_obj  pc_obj;
 	struct m0_conf_dir *pc_services;

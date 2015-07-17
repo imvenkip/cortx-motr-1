@@ -65,7 +65,7 @@ sandbox_fini() {
 }
 
 modules_insert() {
-    insmod $M0_CORE_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko || \
+    insmod $M0_CORE_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko ||
 	die 'Inserting m0gf.ko failed'
 
     insmod $M0_CORE_DIR/mero/m0mero.ko \
@@ -120,10 +120,14 @@ confdb() {
     mdpool=pool-0 nodes=[node-0] pools=[pool-0] racks=[rack-0])
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0, process-1, process-2, process-3])
-(process-0 mem_limit=4000 cores=2 services=[service-0])
-(process-1 mem_limit=4000 cores=2 services=[service-1])
-(process-2 mem_limit=4000 cores=1 services=[service-2])
-(process-3 mem_limit=4000 cores=2 services=[service-3, service-4])
+(process-0 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
+    mem_limit_memlock=0 services=[service-0])
+(process-1 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
+    mem_limit_memlock=0 services=[service-1])
+(process-2 cores=[1] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
+    mem_limit_memlock=0 services=[service-2])
+(process-3 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
+     mem_limit_memlock=0 services=[service-3, service-4])
 (service-0 type=5 endpoints=["$SSS_ENDPOINT"] sdevs=[])
 (service-1 type=4 endpoints=["$RMS_ENDPOINT"] sdevs=[])
 (service-2 type=1 endpoints=["$MDS_ENDPOINT"] sdevs=[sdev-0])
@@ -154,7 +158,8 @@ confdb() {
     mdpool=pool-10 nodes=[node-10] pools=[pool-10] racks=[])
 (node-10 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-10
     processes=[process-10])
-(process-10 mem_limit=4000 cores=2 services=[service-10])
+(process-10 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
+    mem_limit_memlock=0 services=[service-10])
 (service-10 type=2 endpoints=["$IOS1_ENDPOINT"] sdevs=[sdev-10])
 (sdev-10 iface=4 media=2 bsize=8192 size=0 last_state=2 flags=4
     filename="/dev/null")
@@ -198,7 +203,8 @@ services_start() {
 
     OPTS="$OPTS -f <0x7200000000000001:1>"
 
-    confdb | $M0_CORE_DIR/utils/m0confgen >$CONF_FILE
+    confdb | $M0_CORE_DIR/utils/m0confgen >$CONF_FILE ||
+	error 'm0confgen failed'
 
     echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
     cd $SANDBOX_DIR
@@ -206,14 +212,14 @@ services_start() {
     [ "$MODE" = autoconf ] || {
 	## m0mkfs should be executed only once. It is usually executed
 	## during cluster initial setup.
-	$M0_CORE_DIR/utils/mkfs/m0mkfs $OPTS >>$SANDBOX_DIR/mkfs.log || \
+	$M0_CORE_DIR/utils/mkfs/m0mkfs $OPTS >>$SANDBOX_DIR/mkfs.log ||
 	    error 'm0mkfs failed'
     }
 
     $M0_CORE_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
     local PID=$!
     sleep 1
-    kill -0 $PID 2>/dev/null || \
+    kill -0 $PID 2>/dev/null ||
 	error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
 }
 

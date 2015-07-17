@@ -79,14 +79,17 @@ run_st() {
     say start/stop service ST
     $SUDO SANDBOX_DIR=$RUNDIR/sandbox.sss-st "$SRC/sss/st"
 
-    say conf ST
     if python -c 'import ply' 2>/dev/null; then
+	say m0confgen
+	cd $SRC; utils/m0confgen --self-check; cd -
+
+	say conf ST
 	$SUDO SANDBOX_DIR=$RUNDIR/sandbox.conf-st "$SRC/conf/st"
-    else # XXX `ply' may become mandatory, if utils/m0confgen gains popularity.
+    else
 	{
 	    cat <<"EOF"
-*WARNING* Unable to run the test due to unmet dependency.
-`ply' Python module is missing. Try to install it:
+*WARNING* Unable to run some of the tests due to unmet dependency.
+`ply' Python module is missing. Please install it:
     sudo yum install python-ply
 EOF
 	} >&2
