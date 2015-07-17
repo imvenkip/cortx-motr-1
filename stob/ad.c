@@ -1249,7 +1249,7 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 		M0_ASSERT(off >= car->ct_index);
 		eomap = m0_be_emap_caret_move_sync(car, off - car->ct_index);
 		if (eomap < 0)
-			return eomap;
+			return M0_RC(eomap);
 		M0_ASSERT(eomap == 0);
 		M0_ASSERT(m0_ext_is_in(&seg->ee_ext, off));
 
@@ -1268,8 +1268,7 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 		eodst = m0_vec_cursor_move(dst, frag_size);
 		eomap = m0_be_emap_caret_move_sync(car, frag_size);
 		if (eomap < 0)
-			return eomap;
-
+			return M0_RC(eomap);
 		M0_ASSERT(eosrc == eodst);
 		M0_ASSERT(!eomap);
 	} while (!eosrc);
@@ -1297,7 +1296,7 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 		M0_ASSERT(off >= car->ct_index);
 		eomap = m0_be_emap_caret_move_sync(car, off - car->ct_index);
 		if (eomap < 0)
-			return eomap;
+			return M0_RC(eomap);
 		M0_ASSERT(eomap == 0);
 		M0_ASSERT(m0_ext_is_in(&seg->ee_ext, off));
 
@@ -1507,13 +1506,11 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	M0_ENTRY("ext="EXT_F" val=0x%llx", EXT_P(&todo),
 		 (unsigned long long)ext->e_start);
 
-	m0_be_op_init(&it.ec_op);
-	m0_be_emap_lookup(orig->ec_map, &orig->ec_seg.ee_pre, off, &it);
-	m0_be_op_wait(&it.ec_op);
-	M0_ASSERT(m0_be_op_is_done(&it.ec_op));
-	result = it.ec_op.bo_u.u_emap.e_rc;
-	m0_be_op_fini(&it.ec_op);
-
+	result = M0_BE_OP_SYNC_RET_WITH(
+			&it.ec_op,
+			m0_be_emap_lookup(orig->ec_map, &orig->ec_seg.ee_pre,
+					  off, &it),
+			bo_u.u_emap.e_rc);
 	if (result != 0)
 		return M0_RC(result);
 	/*
@@ -1910,16 +1907,13 @@ static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
 	M0_PRE(dom != NULL);
 
 	for (i = 0; rc == 0 && i < arp->arp_seg.ps_segments; ++i) {
-		m0_be_op_init(&it.ec_op);
-		m0_be_emap_lookup(&adom->sad_adata,
-				  &old_data[i].ee_pre,
-				   old_data[i].ee_ext.e_start,
-				  &it);
-		m0_be_op_wait(&it.ec_op);
-		M0_ASSERT(m0_be_op_is_done(&it.ec_op));
-		rc = it.ec_op.bo_u.u_emap.e_rc;
-		m0_be_op_fini(&it.ec_op);
-
+		rc = M0_BE_OP_SYNC_RET_WITH(
+			&it.ec_op,
+			m0_be_emap_lookup(&adom->sad_adata,
+					  &old_data[i].ee_pre,
+					  old_data[i].ee_ext.e_start,
+					  &it),
+			bo_u.u_emap.e_rc);
 		if (rc == 0) {
 			M0_LOG(M0_DEBUG, "%3d: ext="EXT_F" val=0x%llx",
 				i, EXT_P(&old_data[i].ee_ext),

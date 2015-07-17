@@ -91,6 +91,7 @@ struct m0_be_emap_rec {
  */
 struct m0_be_emap {
 	struct m0_format_header em_header;
+	uint64_t                em_version;
 	struct m0_be_rwlock     em_lock;
 	struct m0_be_btree      em_mapping;
 	struct m0_buf           em_key_buf;
@@ -110,6 +111,8 @@ struct m0_be_emap_cursor {
 	struct m0_be_emap        *ec_map;
 	/** Segment currently reached. */
 	struct m0_be_emap_seg     ec_seg;
+	/** Emap current version. */
+	uint64_t                  ec_version;
 	/** Data-base cursor. */
 	struct m0_be_btree_cursor ec_cursor;
 	struct m0_be_emap_key     ec_key;

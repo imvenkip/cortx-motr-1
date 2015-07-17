@@ -151,6 +151,13 @@ static void emap_dump(struct m0_be_emap_cursor *it)
 	m0_rwlock_read_unlock(emap_rwlock(it->ec_map));
 }
 
+static void delete_wrapper(struct m0_be_btree *btree, struct m0_be_tx *tx,
+			   struct m0_be_op *op, const struct m0_buf *key,
+			   const struct m0_buf *val)
+{
+	m0_be_btree_delete(btree, tx, op, key);
+}
+
 M0_INTERNAL void
 m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 {
@@ -159,10 +166,12 @@ m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 	m0_buf_init(&map->em_val_buf, &map->em_rec, sizeof map->em_rec);
 	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
 	map->em_seg = db;
+	map->em_version = 0;
 }
 
 M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map)
 {
+	map->em_version = 0;
 	m0_be_btree_fini(&map->em_mapping);
 	m0_rwlock_fini(emap_rwlock(map));
 }
@@ -302,11 +311,7 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 	m0_be_op_active(&it->ec_op);
 
 	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
-	rc = M0_BE_OP_SYNC_RET(
-		local_op,
-		m0_be_btree_delete(&it->ec_map->em_mapping, tx, &local_op,
-				   &it->ec_keybuf),
-		bo_u.u_btree.t_rc);
+	rc = emap_it_pack(it, delete_wrapper, tx);
 
 	if (rc == 0 && delta < m0_ext_length(&it->ec_seg.ee_ext)) {
 		it->ec_seg.ee_ext.e_end -= delta;
@@ -544,6 +549,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	map->em_rec.er_start = 0;
 	map->em_rec.er_value = val;
 
+	++map->em_version;
 	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		local_op,
 		m0_be_btree_insert(&map->em_mapping, tx, &local_op,
@@ -569,11 +575,7 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 	if (rc == 0) {
 		M0_ASSERT(m0_be_emap_ext_is_first(&it.ec_seg.ee_ext) &&
 			  m0_be_emap_ext_is_last(&it.ec_seg.ee_ext));
-		rc = M0_BE_OP_SYNC_RET(
-			local_op,
-			m0_be_btree_delete(&map->em_mapping, tx, &local_op,
-					   &it.ec_keybuf),
-			bo_u.u_btree.t_rc);
+		rc = emap_it_pack(&it, delete_wrapper, tx);
 		be_emap_close(&it);
 	}
 	op->bo_u.u_emap.e_rc = rc;
@@ -619,7 +621,17 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
 
 		step = m0_be_emap_caret_step(car);
 		if (count >= step) {
-			rc = be_emap_next(car->ct_it);
+			struct m0_be_emap_cursor *it = car->ct_it;
+			if (it->ec_version != it->ec_map->em_version) {
+				M0_LOG(M0_DEBUG, "caret version:%d "
+						 "emap version :%d ",
+						(int)it->ec_version,
+						(int)it->ec_map->em_version);
+				rc = be_emap_lookup(it->ec_map,
+						    &it->ec_key.ek_prefix,
+						    car->ct_index, it);
+			}
+			rc = rc ?: be_emap_next(it);
 			if (rc < 0)
 				break;
 		} else
@@ -741,7 +753,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	key->ek_offset = ext->ee_ext.e_end;
 	rec->er_start  = ext->ee_ext.e_start;
 	rec->er_value  = ext->ee_val;
-
+	++it->ec_map->em_version;
 	it->ec_op.bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		op,
 		btree_func(&it->ec_map->em_mapping, tx, &op, &it->ec_keybuf,
@@ -797,6 +809,7 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
 	it->ec_map = map;
+	it->ec_version = map->em_version;
 	m0_be_btree_cursor_init(&it->ec_cursor, &map->em_mapping);
 }
 
@@ -932,13 +945,6 @@ emap_extent_update(struct m0_be_emap_cursor *it,
 	return emap_it_pack(it, m0_be_btree_update, tx);
 }
 
-static void delete_wrapper(struct m0_be_btree *btree, struct m0_be_tx *tx,
-			   struct m0_be_op *op, const struct m0_buf *key,
-			   const struct m0_buf *val)
-{
-	m0_be_btree_delete(btree, tx, op, key);
-}
-
 static int
 be_emap_split(struct m0_be_emap_cursor *it,
 	      struct m0_be_tx          *tx,
@@ -993,9 +999,9 @@ be_emap_split(struct m0_be_emap_cursor *it,
 static bool
 be_emap_caret_invariant(const struct m0_be_emap_caret *car)
 {
-	return m0_ext_is_in(&car->ct_it->ec_seg.ee_ext, car->ct_index) ||
-		(m0_be_emap_ext_is_last(&car->ct_it->ec_seg.ee_ext) &&
-		 car->ct_index == M0_BINDEX_MAX + 1);
+	return _0C(m0_ext_is_in(&car->ct_it->ec_seg.ee_ext, car->ct_index) ||
+		   (m0_be_emap_ext_is_last(&car->ct_it->ec_seg.ee_ext) &&
+		    car->ct_index == M0_BINDEX_MAX + 1));
 }
 
 /** @} end group extmap */
