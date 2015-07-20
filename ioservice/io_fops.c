@@ -55,8 +55,6 @@ M0_TL_DECLARE(rpcitem, M0_INTERNAL, struct m0_rpc_item);
 
 static struct m0_fid *io_fop_fid_get(struct m0_fop *fop);
 
-static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
-			     uint64_t size);
 static void io_item_replied (struct m0_rpc_item *item);
 static void io_fop_replied  (struct m0_fop *fop, struct m0_fop *bkpfop);
 static void io_fop_desc_get (struct m0_fop *fop,
@@ -878,7 +876,8 @@ M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
 		m0_rpc_bulk_init(&iofop->if_rbulk);
 		rw = io_rw_get(&iofop->if_fop);
 		rw->crw_gfid = *gfid;
-		rw->crw_flags |= M0_IO_FLAG_CROW;
+		if (ftype == &m0_fop_cob_writev_fopt)
+			rw->crw_flags |= M0_IO_FLAG_CROW;
 
 		M0_POST(io_fop_invariant(iofop));
 	}
