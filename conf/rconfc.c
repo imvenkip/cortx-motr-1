@@ -1394,7 +1394,7 @@ M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc)
 	M0_ENTRY("rconfc = %p", rconfc);
 	rconfc_lock(rconfc);
 	ver_max = m0_tl_fold(rcnf_herd, lnk, acc, &rconfc->rc_herd, ver_max,
-			     max64(ver_max, _confc_ver_read(lnk->rl_confc)));
+			     max64(acc, _confc_ver_read(lnk->rl_confc)));
 	rconfc_unlock(rconfc);
 	M0_LEAVE("ver_max = %"PRIu64, ver_max);
 	return ver_max;

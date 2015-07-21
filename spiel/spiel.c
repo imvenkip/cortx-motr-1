@@ -39,6 +39,11 @@
 #include "reqh/reqh.h"
 #include "spiel/spiel.h"
 
+/**
+ * @defgroup spiel-api-fspec-intr Spiel API Internals
+ * @{
+ */
+
 int m0_spiel_start(struct m0_spiel *spiel,
 		   struct m0_reqh  *reqh,
 		   const char     **confd_eps,
@@ -101,6 +106,7 @@ int m0_spiel_cmd_profile_set(struct m0_spiel *spiel, const char *profile_str)
 }
 M0_EXPORTED(m0_spiel_cmd_profile_set);
 
+/** @} */
 #undef M0_TRACE_SUBSYSTEM
 
 /*

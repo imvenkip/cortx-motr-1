@@ -35,14 +35,9 @@
 #include "rpc/bulk.h"           /* m0_rpc_bulk */
 #include "net/net_otw_types.h"  /* m0_net_buf_desc_data */
 
-
-struct m0_spiel_tx;
-
-extern struct m0_fop_type m0_fop_spiel_load_fopt;
-extern struct m0_fop_type m0_fop_spiel_load_rep_fopt;
-
 /**
-   @section bulkclientDFSspielfop Generic io fop.
+ * @addtogroup spiel-api-fspec-intr
+ * @{
  */
 
 /**
@@ -69,6 +64,7 @@ struct m0_spiel_load_command {
 	int                   slc_version;
 };
 
+/** @} */
 /* __MERO_SPIEL_FOPS_H__ */
 #endif
 

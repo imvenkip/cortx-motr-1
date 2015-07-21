@@ -31,23 +31,32 @@
 
 
 /**
- * @defgroup sspl Spiel
+ * @page spiel-dld Spiel API DLD
+ *
+ *  - @ref spiel-dld-ovw
+ *  - @ref spiel-dld-def
+ *  - @ref spiel-dld-conf
+ *    - @ref spiel-dld-conf-schema
+ *    - @ref spiel-dld-conf-iface
+ *    - @ref spiel-dld-conf-invoc
+ *  - @ref spiel-api-fspec
+ *  - @ref spiel-api-fspec-intr
  *
  * Definition of Seagate Software Platform Library for Mero (SPIEL, SSPL).
  *
- * Overview
- * --------
+ * <hr>
+ * @section spiel-dld-ovw Overview
  *
  * Spiel library is used by a "management application" to control Mero:
  *
- *     - to inform Mero about hardware resources it should use, their roles and
- *       arrangement;
+ *  - to inform Mero about hardware resources it should use, their roles and
+ *    arrangement;
  *
- *     - to specify operational characteristics of Mero, such as fault-tolerance
- *       parameters;
+ *  - to specify operational characteristics of Mero, such as fault-tolerance
+ *    parameters;
  *
- *     - to issue commands to modify the cluster state: start and stop
- *       operation, format storage, etc.
+ *  - to issue commands to modify the cluster state: start and stop
+ *    operation, format storage, etc.
  *
  * Mero stores information about cluster elements (hardware and software), their
  * arrangement, functions and operational characteristics in an internal
@@ -58,8 +67,25 @@
  * a mininal Mero process, which is started on node bootup and can be then
  * remotely commanded to start more services, as necessary.
  *
- * Configuration data-base
- * -----------------------
+ * <hr>
+ * @section spiel-dld-def Definitions
+ *
+ * - @b Configuration: Data-base describing Mero cluster in details required and
+ *   sufficient for cluster components operation. See @ref spiel-dld-conf.
+ *
+ * - @b Version: A @b Configuration data-base snapshot reflecting the changes
+ *   introduced by "managements application". A @b Version is intended for being
+ *   uploaded to confd servers.
+ *
+ * - @b Transaction: A standard mechanism of spreading @b Version among confd
+ *   servers and putting it into effect. @b Transaction guarantees @b Version
+ *   being consistently distributed among confd servers and reached a quorum
+ *   enough for non-conflicting configuration reading. A @b Transaction needs to
+ *   be open explicitly. Later it may be either closed or committed. A @b
+ *   Version appliance occurs in case of successful committing only.
+ *
+ * <hr>
+ * @section spiel-dld-conf Configuration data-base
  *
  * Mero configuration data-base contains all the meta-data that is manipulated
  * by a system administrator, as opposed to meta-data manipulated in the course
@@ -72,49 +98,46 @@
  * The following configuration elements are currently supported (see conf/obj.h
  * for details):
  *
- *     - a profile is an access path to the cluster. Profiles are used to serve
- *       different storage services from the same hardware. Currently only a
- *       single profile is supported. Profile is the root of configuration
- *       graph;
+ *  - a profile is an access path to the cluster. Profiles are used to serve
+ *    different storage services from the same hardware. Currently only a single
+ *    profile is supported. Profile is the root of configuration graph;
  *
- *     - a filesystem represents a top-level name space (filesystem-like or
- *       objectstore-like);
+ *  - a filesystem represents a top-level name space (filesystem-like or
+ *    objectstore-like);
  *
- *     - a pool is a collection of hardware resources. Cluster hardware is
- *       divided into pools for administrative purposes (for example, for
- *       security reasons) and to encode fault-tolerance properties;
+ *  - a pool is a collection of hardware resources. Cluster hardware is divided
+ *    into pools for administrative purposes (for example, for security reasons)
+ *    and to encode fault-tolerance properties;
  *
- *     - a pool version is a list of elements that belonged to a pool at a
- *       certain moment in time. As system evolves, new hardware is added and
- *       old hardware retired, contents of a pool might change (this change is
- *       reflected by creation of a new pool version), but pool identity remains
- *       unchanged;
+ *  - a pool version is a list of elements that belonged to a pool at a certain
+ *    moment in time. As system evolves, new hardware is added and old hardware
+ *    retired, contents of a pool might change (this change is reflected by
+ *    creation of a new pool version), but pool identity remains unchanged;
  *
- *     - a rack of enclosures (cf. "a knot of toads",
- *       http://www.oxforddictionaries.com/words/what-do-you-call-a-group-of);
+ *  - a rack of enclosures (cf. "a knot of toads",
+ *    http://www.oxforddictionaries.com/words/what-do-you-call-a-group-of);
  *
- *     - an enclosure;
+ *  - an enclosure;
  *
- *     - a controller;
+ *  - a controller;
  *
- *     - a storage device: a rotational or solid-state drive;
+ *  - a storage device: a rotational or solid-state drive;
  *
- *     - a node is something capable or running processes. Controllers are one
- *       type of node, but a cluster can contain other nodes;
+ *  - a node is something capable or running processes. Controllers are one type
+ *    of node, but a cluster can contain other nodes;
  *
- *     - a process is a user-space process or kernel executing services;
+ *  - a process is a user-space process or kernel executing services;
  *
- *     - a service is an executable entity that can accept and execute requests;
+ *  - a service is an executable entity that can accept and execute requests;
  *
- *     - in addition, off each pool version hangs off a tree of "v-objects"
- *       (rack-v, enclosure-v and controller-v) that specify which hardware
- *       elements belong to the pool version. A v-object contains a pointer to
- *       the "real object" (rack, enclosure or controller) and the list of
- *       children. Such indirect arrangement makes it possible to have pool
- *       versions sharing hardware.
+ *  - in addition, off each pool version hangs off a tree of "v-objects"
+ *    (rack-v, enclosure-v and controller-v) that specify which hardware
+ *    elements belong to the pool version. A v-object contains a pointer to the
+ *    "real object" (rack, enclosure or controller) and the list of
+ *    children. Such indirect arrangement makes it possible to have pool
+ *    versions sharing hardware.
  *
- * Schema
- * ------
+ * @subsection spiel-dld-conf-schema Schema
  *
  * @note from http://es-gerrit.xyus.xyratex.com:8080/#/c/4676/4/conf/obj.h
  *
@@ -146,8 +169,7 @@
  * }
  * @enddot
  *
- * Interface
- * ---------
+ * @subsection spiel-dld-conf-iface Interface
  *
  * Each configuration element has a unique identifier, which is assigned by the
  * management application. An identifier is 128 bits (m0_fid), with 8 most
@@ -159,13 +181,13 @@
  * Configuration management interface is designed in transactional manner.
  * Command interface defines individual, separate calls.
  *
- * Invocation
- * ----------
+ * @subsection spiel-dld-conf-invoc Invocation
  *
  * Spiel interface is exported from the standard Mero library, which uses Mero
  * networking for communication. As a result, spiel entry points can be invoked
  * on any node in the cluster.
  *
+ * @defgroup spiel-api-fspec Spiel API public interface
  * @{
  */
 
@@ -291,13 +313,47 @@ struct m0_spiel_tx *m0_spiel_tx_open(struct m0_spiel    *spiel,
 void m0_spiel_tx_close(struct m0_spiel_tx *tx);
 
 /**
- * Commit filled spiel transaction
+ * Commits filled-in spiel transaction. The call performs normal committing when
+ * reaching quorum is mandatory for uploading new configuration to confd servers
+ * and putting it in effect.
  *
- * Once function is called spiel transaction can't be used anymore.
+ * Once function succeeded, the spiel transaction must not be committed
+ * anymore. When failed, forced committing with m0_spiel_tx_commit_forced()
+ * still remains as an option.
  *
  * @param tx spiel transaction
+ *
+ * @note In case normal transaction committing is required, but resultant quorum
+ * number reached is to be controlled as well, the action has to be done using
+ * m0_spiel_tx_commit_forced(), specifying non-forced committing as follows:
+ @code
+    uint32_t rquorum = 0;
+    int rc = m0_spiel_tx_commit_forced(tx, false, CONF_VER_UNKNOWN, &rquorum);
+ @endcode
  */
 int m0_spiel_tx_commit(struct m0_spiel_tx *tx);
+
+/**
+ * Commits filled-in spiel transaction forcing as many loads and flips as
+ * possible, no matter if quorum reached or not. The call allows version number
+ * be overridden compared to the version number obtained at m0_spiel_start(). In
+ * this case @b ver_forced must be of the value other than CONF_VER_UNKNOWN,
+ * otherwise the version number value remains what it initially was.
+ *
+ * The spiel transaction may be forcibly committed as many times as required
+ * completing previously failed uploads to confd servers.
+ *
+ * @param tx         spiel transaction
+ * @param forced     committing with forcing any possible LOAD/FLIP enabled
+ * @param ver_forced version number the initial value to be overridden with
+ * @param rquorum    resultant quorum value reached, NULL value allowed
+ *
+ * @note Parameters @b forced and @b ver_forced may be used independent of each
+ * other, i.e. forced committing with unchanged version number is possible as
+ * well as non-forced committing with version number overridden.
+ */
+int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx, bool forced,
+			      uint64_t ver_forced, uint32_t *rquorum);
 
 /**
  * Add profile to the configuration tree of the transaction

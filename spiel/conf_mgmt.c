@@ -41,6 +41,10 @@
 #include "spiel/spiel.h"
 #include "spiel/conf_mgmt.h"
 
+/**
+ * @addtogroup spiel-api-fspec-intr
+ * @{
+ */
 
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 
@@ -81,6 +85,32 @@ static int spiel_root_add(struct m0_spiel_tx *tx)
 			     &EMPTY_ARR_FID_PTR,
 			     &root->rt_profiles);
 		obj->co_status = M0_CS_READY;
+	}
+	m0_mutex_unlock(&tx->spt_lock);
+
+	return M0_RC(rc);
+}
+
+/**
+ * Overrides configuration version number originally set during
+ * m0_spiel_tx_open() and stored in root object.
+ */
+static int spiel_root_ver_update(struct m0_spiel_tx *tx, uint64_t verno)
+{
+	int                  rc;
+	struct m0_conf_obj  *obj;
+	struct m0_conf_root *root;
+
+	M0_ENTRY();
+
+	m0_mutex_lock(&tx->spt_lock);
+	rc = m0_conf_obj_find(&tx->spt_cache, &M0_CONF_ROOT_FID, &obj);
+	if (obj == NULL || obj->co_status == M0_CS_MISSING)
+		rc = M0_ERR(-ENOENT);
+	if (rc == 0) {
+		root = M0_CONF_CAST(obj, m0_conf_root);
+		root->rt_verno = verno;
+		tx->spt_version = verno;
 	}
 	m0_mutex_unlock(&tx->spt_lock);
 
@@ -355,14 +385,14 @@ static int spiel_flip_fop_send(struct m0_spiel_tx           *tx,
 	return M0_RC(rc);
 }
 
-int m0_spiel_tx_commit(struct m0_spiel_tx *tx)
+int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx, bool forced,
+			      uint64_t ver_forced, uint32_t *rquorum)
 {
 	int                           rc;
-	struct m0_spiel_load_command *spiel_cmd = NULL;
-	int                           n = 0;
-	int                           i;
-	int                           quorum;
-	int                           success;
+	struct m0_spiel_load_command *spiel_cmd   = NULL;
+	uint32_t                      confd_count = 0;
+	uint32_t                      quorum      = 0;
+	uint32_t                      idx;
 
 	enum {
 		MAX_RPCS_IN_FLIGHT = 2
@@ -370,45 +400,62 @@ int m0_spiel_tx_commit(struct m0_spiel_tx *tx)
 
 	M0_ENTRY();
 
+	/*
+	 * in case ver_forced value is other than CONF_VER_UNKNOWN, override
+	 * transaction version number with ver_forced, otherwise leave the one
+	 * intact
+	 */
+	if (ver_forced != CONF_VER_UNKNOWN) {
+		rc = spiel_root_ver_update(tx, ver_forced);
+		M0_ASSERT(rc == 0);
+	}
+
 	rc = spiel_cache_check(tx) ?:
 	     m0_conf_cache_to_string(&tx->spt_cache, &tx->spt_buffer);
 	if (rc != 0)
 		goto tx_fini;
 
-	for (n = 0; tx->spt_spiel->spl_confd_eps[n] != NULL; ++n)
-		; /* number */
+	for (confd_count = 0; tx->spt_spiel->spl_confd_eps[confd_count] != NULL;
+	     ++confd_count)
+		; /* collect the number of confd addresses */
 
-	M0_ALLOC_ARR(spiel_cmd, n);
+	M0_ALLOC_ARR(spiel_cmd, confd_count);
 	if (spiel_cmd == NULL) {
 		rc = M0_ERR(-ENOMEM);
 		goto tx_fini;
 	}
 
-	for (i = 0; i < n; ++i) {
-		spiel_cmd[i].slc_status =
-			m0_rpc_client_connect(&spiel_cmd[i].slc_connect,
+	for (idx = 0; idx < confd_count; ++idx) {
+		spiel_cmd[idx].slc_status =
+			m0_rpc_client_connect(&spiel_cmd[idx].slc_connect,
 					      &spiel_cmd->slc_session,
 					      tx->spt_spiel->spl_rmachine,
-					      tx->spt_spiel->spl_confd_eps[i],
+					      tx->spt_spiel->spl_confd_eps[idx],
 					      MAX_RPCS_IN_FLIGHT) ?:
-			spiel_load_fop_send(tx, &spiel_cmd[i]);
+			spiel_load_fop_send(tx, &spiel_cmd[idx]);
 	}
 
-	quorum = m0_count(i, n, (spiel_cmd[i].slc_status == 0));
-	if (quorum < n/2+1) {
+	quorum = m0_count(idx, confd_count, (spiel_cmd[idx].slc_status == 0));
+	/*
+	 * Unless forced transaction committing requested, make sure the quorum
+	 * at least reached the value specified at m0_spiel_start_quorum(), or
+	 * better went beyond it.
+	 */
+	if (!forced && quorum < tx->spt_spiel->spl_rconfc.rc_quorum) {
 		rc = M0_ERR(-ENOENT);
 		goto tx_fini;
 	}
 
-	success = 0;
-	for (i = 0; i < n; ++i) {
-		if (spiel_cmd[i].slc_status == 0) {
-			rc = spiel_flip_fop_send(tx, &spiel_cmd[i]);
+	quorum = 0;
+	for (idx = 0; idx < confd_count; ++idx) {
+		if (spiel_cmd[idx].slc_status == 0) {
+			rc = spiel_flip_fop_send(tx, &spiel_cmd[idx]);
 			if (rc == 0)
-				++success;
+				++quorum;
 		}
 	}
-	rc = (success < n / 2 + 1) ? M0_ERR(-ENOENT) : 0;
+	rc = !forced && quorum < tx->spt_spiel->spl_rconfc.rc_quorum ?
+		M0_ERR(-ENOENT) : 0;
 
 tx_fini:
 	if (tx->spt_buffer != NULL) {
@@ -418,16 +465,33 @@ tx_fini:
 	}
 
 	if (spiel_cmd != NULL) {
-		for (i = 0; i < n; ++i) {
-			m0_rpc_session_destroy(&spiel_cmd[i].slc_session,
-					       M0_TIME_NEVER);
-			m0_rpc_conn_destroy(&spiel_cmd[i].slc_connect,
-					    M0_TIME_NEVER);
+		for (idx = 0; idx < confd_count; ++idx) {
+			struct m0_rpc_session *ss = &spiel_cmd[idx].slc_session;
+			struct m0_rpc_conn    *sc = &spiel_cmd[idx].slc_connect;
+
+			if (!M0_IN(ss->s_sm.sm_state,
+				   (M0_RPC_SESSION_FAILED,
+				    M0_RPC_SESSION_INITIALISED)))
+				m0_rpc_session_destroy(ss, M0_TIME_NEVER);
+			if (!M0_IN(sc->c_sm.sm_state,
+				   (M0_RPC_CONN_FAILED,
+				    M0_RPC_CONN_INITIALISED)))
+			    m0_rpc_conn_destroy(sc, M0_TIME_NEVER);
 		}
 		m0_free(spiel_cmd);
 	}
 
+	/* report resultant quorum value reached during committing */
+	if (rquorum != NULL)
+		*rquorum = quorum;
+
 	return M0_RC(rc);
+}
+M0_EXPORTED(m0_spiel_tx_commit_forced);
+
+int m0_spiel_tx_commit(struct m0_spiel_tx *tx)
+{
+	return m0_spiel_tx_commit_forced(tx, false, CONF_VER_UNKNOWN, NULL);
 }
 M0_EXPORTED(m0_spiel_tx_commit);
 
@@ -1527,6 +1591,8 @@ int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid)
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_element_del);
+
+/** @} */
 
 #undef M0_TRACE_SUBSYSTEM
 

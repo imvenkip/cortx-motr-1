@@ -1147,6 +1147,78 @@ static void spiel_conf_load_fail(void)
 	m0_spiel_stop(&spiel);
 }
 
+static void spiel_conf_force(void)
+{
+	struct m0_spiel_tx tx;
+	int                rc;
+	const char        *ep[] = { SERVER_ENDPOINT_ADDR,
+				    "127.0.0.1", /* bad address */
+				    NULL };
+	const char        *rm_ep = ep[0];
+	struct m0_spiel    spiel;
+	uint64_t           ver_org = CONF_VER_UNKNOWN;
+	uint64_t           ver_new = CONF_VER_UNKNOWN;
+	uint32_t           rquorum;
+	const char       **eps_orig;
+
+	/* start with quorum impossible due to second ep being invalid */
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(spiel.spl_rconfc.rc_ver == CONF_VER_UNKNOWN);
+	ver_org = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
+	M0_UT_ASSERT(ver_org != CONF_VER_UNKNOWN);
+
+	/* imitate correct rconfc init to let transaction to fill in */
+	spiel.spl_rconfc.rc_ver = ver_org;
+	/* fill transaction normal way */
+	spiel_conf_create_configuration(&spiel, &tx);
+	/* make sure normal commit impossible */
+	rc = m0_spiel_tx_commit(&tx);
+	M0_UT_ASSERT(rc == -ENOENT); /* no quorum reached */
+	/* try forced commit with all invalid addresses */
+	eps_orig = spiel.spl_confd_eps;
+	spiel.spl_confd_eps = (const char*[]) { "127.0.0.2", "127.0.0.1", NULL};
+	rc = m0_spiel_tx_commit_forced(&tx, true, CONF_VER_UNKNOWN, &rquorum);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rquorum < spiel.spl_rconfc.rc_quorum);
+	M0_UT_ASSERT(rquorum == 0);
+	/* try to repeat the forced commit with the original set */
+	spiel.spl_confd_eps = eps_orig;
+	rc = m0_spiel_tx_commit_forced(&tx, true, CONF_VER_UNKNOWN, &rquorum);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rquorum < spiel.spl_rconfc.rc_quorum);
+	M0_UT_ASSERT(rquorum == 1);
+	m0_spiel_stop(&spiel);
+
+	/* make sure new version applied */
+	M0_SET0(&spiel);
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
+	M0_UT_ASSERT(rc == 0);
+	ver_new = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
+	M0_UT_ASSERT(ver_new == ver_org + 1); /*
+					       * default increment done by
+					       * m0_spiel_tx_open() proved
+					       */
+
+	/* try to repeat the forced commit with a new version number */
+	rc = m0_spiel_tx_commit_forced(&tx, true, ver_org + 10, &rquorum);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rquorum < spiel.spl_rconfc.rc_quorum);
+	M0_UT_ASSERT(rquorum == 1);
+	m0_spiel_stop(&spiel);
+
+	/* dismiss transaction dataset */
+	m0_spiel_tx_close(&tx);
+
+	/* make sure new version applied */
+	M0_SET0(&spiel);
+	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, ep, rm_ep);
+	M0_UT_ASSERT(rc == 0);
+	ver_new = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
+	M0_UT_ASSERT(ver_new == ver_org + 10); /* ver_forced confirmed */
+	m0_spiel_stop(&spiel);
+}
+
 /**
  * spiel-conf-init
  */
@@ -1204,6 +1276,7 @@ const struct m0_ut_suite spiel_conf_ut = {
 		{ "spiel-conf-load-send",   spiel_conf_load_send   },
 		{ "spiel-conf-check-fail",  spiel_conf_check_fail  },
 		{ "spiel-conf-load-fail",   spiel_conf_load_fail   },
+		{ "spiel-conf-force",       spiel_conf_force       },
 		{ NULL, NULL },
 	},
 };

@@ -40,6 +40,11 @@
 #include "sss/process_fops.h"
 #include "spiel/spiel.h"
 
+/**
+ * @addtogroup spiel-api-fspec-intr
+ * @{
+ */
+
 #define SPIEL_CONF_OBJ_FIND(confc, profile, fid, conf_obj, filter, ...) \
 	_spiel_conf_obj_find(confc, profile, fid, filter,               \
 			     M0_COUNT_PARAMS(__VA_ARGS__) + 1,          \
@@ -673,5 +678,5 @@ int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
 }
 M0_EXPORTED(m0_spiel_pool_rebalance_quiesce);
 
-
+/** @} */
 #undef M0_TRACE_SUBSYSTEM
