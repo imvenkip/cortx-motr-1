@@ -116,10 +116,10 @@ M0_INTERNAL int m0_cookie_dereference(const struct m0_cookie *cookie,
 		return -EPROTO;
 }
 
-M0_INTERNAL bool m0_cookie_is_null(const struct m0_cookie cookie)
+M0_INTERNAL bool m0_cookie_is_null(const struct m0_cookie *cookie)
 {
-	return cookie.co_generation == M0_COOKIE_NULL.co_generation &&
-		cookie.co_addr == M0_COOKIE_NULL.co_addr;
+	return cookie->co_generation == M0_COOKIE_NULL.co_generation &&
+		cookie->co_addr == M0_COOKIE_NULL.co_addr;
 }
 
 M0_INTERNAL bool m0_cookie_is_eq(const struct m0_cookie *cookie1,

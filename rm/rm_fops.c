@@ -420,7 +420,7 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		M0_ASSERT(borrow_reply != NULL);
 		bcredit = &outreq->ou_req.rog_want.rl_credit;
 		owner   = bcredit->cr_owner;
-		if (m0_cookie_is_null(owner->ro_creditor->rem_cookie))
+		if (m0_cookie_is_null(&owner->ro_creditor->rem_cookie))
 			owner->ro_creditor->rem_cookie =
 				borrow_reply->br_creditor_cookie;
 		/* Get the data for a credit from the FOP */

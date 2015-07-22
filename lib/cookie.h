@@ -85,19 +85,19 @@ M0_INTERNAL void m0_cookie_init(struct m0_cookie *cookie, const uint64_t *obj);
  *                      address
  */
 M0_INTERNAL int m0_cookie_dereference(const struct m0_cookie *cookie,
-				      uint64_t ** addr);
+				      uint64_t **addr);
 
 /**
  * Checks if address is aligned to 8-byte address and is pointing to a valid
  * memory location.
  */
-M0_INTERNAL bool m0_addr_is_sane(const uint64_t * addr);
+M0_INTERNAL bool m0_addr_is_sane(const uint64_t *addr);
 
 
 /**
  * Returns 'true' when cookie is NULL.
  */
-M0_INTERNAL bool m0_cookie_is_null(const struct m0_cookie cookie);
+M0_INTERNAL bool m0_cookie_is_null(const struct m0_cookie *cookie);
 
 /**
  * Compares two cookies.
