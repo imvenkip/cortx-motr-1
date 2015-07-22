@@ -80,10 +80,10 @@ void m0_net_test_stats_add(struct m0_net_test_stats *stats,
 		stats->nts_max = max_check(stats->nts_max, value);
 	}
 	M0_CASSERT(sizeof value <= sizeof stats->nts_sum.u_hi);
-	m0_uint128_add(&stats->nts_sum, stats->nts_sum,
-		       M0_UINT128(0, value));
+	m0_uint128_add(&stats->nts_sum, &stats->nts_sum,
+		       &M0_UINT128(0, value));
 	m0_uint128_mul64(&v128, value, value);
-	m0_uint128_add(&stats->nts_sum_sqr, stats->nts_sum_sqr, v128);
+	m0_uint128_add(&stats->nts_sum_sqr, &stats->nts_sum_sqr, &v128);
 }
 
 void m0_net_test_stats_add_stats(struct m0_net_test_stats *stats,
@@ -100,9 +100,9 @@ void m0_net_test_stats_add_stats(struct m0_net_test_stats *stats,
 		stats->nts_max = max_check(stats->nts_max, stats2->nts_max);
 	}
 	stats->nts_count += stats2->nts_count;
-	m0_uint128_add(&stats->nts_sum, stats->nts_sum, stats2->nts_sum);
-	m0_uint128_add(&stats->nts_sum_sqr, stats->nts_sum_sqr,
-		       stats2->nts_sum_sqr);
+	m0_uint128_add(&stats->nts_sum, &stats->nts_sum, &stats2->nts_sum);
+	m0_uint128_add(&stats->nts_sum_sqr, &stats->nts_sum_sqr,
+		       &stats2->nts_sum_sqr);
 }
 
 unsigned long m0_net_test_stats_min(const struct m0_net_test_stats *stats)

@@ -51,11 +51,17 @@ M0_INTERNAL int m0_uint128_sscanf(const char *s, struct m0_uint128 *u128)
 }
 
 M0_INTERNAL void m0_uint128_add(struct m0_uint128 *res,
-				const struct m0_uint128 a,
-				const struct m0_uint128 b)
+				const struct m0_uint128 *a,
+				const struct m0_uint128 *b)
 {
-	res->u_lo = a.u_lo + b.u_lo;
-	res->u_hi = a.u_hi + b.u_hi + (res->u_lo < a.u_lo);
+	/*
+	 * If res == a, we need to store the original value of a->u_lo
+	 * in order for the function to work correctly.
+	 */
+	uint64_t a_lo = a->u_lo;
+
+	res->u_lo = a->u_lo + b->u_lo;
+	res->u_hi = a->u_hi + b->u_hi + (res->u_lo < a_lo);
 }
 
 M0_INTERNAL void m0_uint128_mul64(struct m0_uint128 *res, uint64_t a,
@@ -77,9 +83,9 @@ M0_INTERNAL void m0_uint128_mul64(struct m0_uint128 *res, uint64_t a,
 	 */
 	*res = M0_UINT128(a_hi * b_hi, a_lo * b_lo);
 	c = a_lo * b_hi;
-	m0_uint128_add(res, *res, M0_UINT128(c >> 32, (c & UINT32_MAX) << 32));
+	m0_uint128_add(res, res, &M0_UINT128(c >> 32, (c & UINT32_MAX) << 32));
 	c = a_hi * b_lo;
-	m0_uint128_add(res, *res, M0_UINT128(c >> 32, (c & UINT32_MAX) << 32));
+	m0_uint128_add(res, res, &M0_UINT128(c >> 32, (c & UINT32_MAX) << 32));
 }
 
 uint64_t m0_rnd64(uint64_t *prev)

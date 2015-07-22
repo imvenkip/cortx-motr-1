@@ -49,8 +49,8 @@ M0_INTERNAL int m0_uint128_cmp(const struct m0_uint128 *u0,
 M0_INTERNAL void m0_uint128_init(struct m0_uint128 *u128, const char *magic);
 /** res = a + b; */
 M0_INTERNAL void m0_uint128_add(struct m0_uint128 *res,
-				const struct m0_uint128 a,
-				const struct m0_uint128 b);
+				const struct m0_uint128 *a,
+				const struct m0_uint128 *b);
 /** res = a * b; */
 M0_INTERNAL void m0_uint128_mul64(struct m0_uint128 *res, uint64_t a,
 				  uint64_t b);
