@@ -560,41 +560,6 @@ void m0_file_lock_type_deregister(struct m0_rm_resource_type *flock_rt)
 }
 M0_EXPORTED(m0_file_lock_type_deregister);
 
-M0_INTERNAL
-bool m0_file_lock_resource_is_added(const struct m0_fid *fid,
-				    struct m0_rm_resource_type *flock_rt)
-{
-	struct m0_file file;
-
-	M0_PRE(fid != NULL);
-
-	file.fi_fid = fid;
-	return m0_rm_resource_find(flock_rt, &file.fi_res) == NULL ?
-		false : true;
-}
-
-M0_INTERNAL
-struct m0_file *m0_resource_to_file(const struct m0_fid *fid,
-				    struct m0_rm_resource_type *flock_rt)
-{
-	struct m0_file	      *file = NULL;
-	struct m0_file	       lfile;
-	struct m0_rm_resource *res;
-
-	M0_PRE(fid != NULL);
-	M0_PRE(m0_fid_is_set(fid));
-
-	M0_LOG(M0_DEBUG, FID_F, FID_P(fid));
-
-	lfile.fi_fid = fid;
-	res = m0_rm_resource_find(flock_rt, &lfile.fi_res);
-	if (res != NULL)
-		file = R_F(res);
-
-	return file;
-}
-M0_EXPORTED(m0_resource_to_file);
-
 const struct m0_fid_type m0_file_fid_type = {
 	.ft_id   = 'G',
 	.ft_name = "file fid"

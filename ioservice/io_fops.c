@@ -1376,7 +1376,6 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 	struct m0_file		  *file;
 	m0_bcount_t		   bsize;
 	struct m0t1fs_sb          *sb;
-	struct m0_rm_domain       *rdom;
 	uint64_t		   curr_size = 0;
 	uint64_t		   todo = 0;
 	int			   rc;
@@ -1392,9 +1391,7 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 	rw      = io_rw_get(fop);
 	io_info = &rw->crw_ivec;
 	sb      = m0_fop_to_sb(fop);
-	rdom    = m0t1fs_rm_domain_get(sb);
-	file    = m0_resource_to_file(&rw->crw_gfid,
-				   rdom->rd_types[M0_RM_FLOCK_RT]);
+	file    = m0_fop_to_file(fop);
 	if (file->fi_di_ops->do_out_shift(file) == 0)
 		return 0;
 	bsize = M0_BITS(file->fi_di_ops->do_in_shift(file));

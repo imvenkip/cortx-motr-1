@@ -1006,6 +1006,7 @@ void m0t1fs_fid_accept(struct m0t1fs_sb *csb, const struct m0_fid *fid);
 
 unsigned long fid_hash(const struct m0_fid *fid);
 M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop);
+M0_INTERNAL struct m0_file *m0_fop_to_file(struct m0_fop *fop);
 
 M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode);
 M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo);

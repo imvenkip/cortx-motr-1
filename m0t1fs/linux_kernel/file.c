@@ -5249,6 +5249,20 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	M0_LOG(M0_DEBUG, "<<<VERSION MISMATCH!");
 }
 
+M0_INTERNAL struct m0_file *m0_fop_to_file(struct m0_fop *fop)
+{
+	struct m0_io_fop  *iofop;
+	struct io_req_fop *irfop;
+	struct io_request *ioreq;
+
+	iofop = container_of(fop, struct m0_io_fop, if_fop);
+	irfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
+	ioreq = bob_of(irfop->irf_tioreq->ti_nwxfer, struct io_request,
+			ir_nwxfer, &ioreq_bobtype);
+
+	return &m0t1fs_file_to_m0inode(ioreq->ir_file)->ci_flock;
+}
+
 M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop)
 {
 	struct m0_io_fop  *iofop;
@@ -5596,13 +5610,9 @@ static inline uint32_t io_seg_size(void)
 
 static uint32_t io_di_size(const struct io_request *req)
 {
-	struct m0_file      *file;
-	struct m0t1fs_sb    *sb;
-	struct m0_rm_domain *rdom;
+	struct m0_file *file;
 
-	sb = file_to_sb(req->ir_file);
-	rdom = m0t1fs_rm_domain_get(sb);
-	file = m0_resource_to_file(file_to_fid(req->ir_file), rdom->rd_types[M0_RM_FLOCK_RT]);
+	file = &m0t1fs_file_to_m0inode(req->ir_file)->ci_flock;
 	if (file->fi_di_ops->do_out_shift(file) == 0)
 		return 0;
 	return file->fi_di_ops->do_out_shift(file) * M0_DI_ELEMENT_SIZE;

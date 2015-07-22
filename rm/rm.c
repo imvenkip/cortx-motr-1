@@ -326,7 +326,7 @@ M0_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
 	m0_mutex_lock(&rtype->rt_lock);
 	M0_PRE_EX(resource_type_invariant(rtype));
 	M0_PRE(res->r_ref == 0);
-	M0_PRE(m0_rm_resource_find(rtype, res) == NULL);
+	M0_PRE_EX(m0_rm_resource_find(rtype, res) == NULL);
 	res->r_type = rtype;
 	res_tlink_init_at(res, &rtype->rt_resources);
 	m0_remotes_tlist_init(&res->r_remote);
