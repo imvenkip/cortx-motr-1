@@ -195,7 +195,7 @@ static void fop_allow_test(void)
 	ut_sss_req(ds1_service_type.rst_name, M0_SERVICE_STATUS, -ENOENT, 0);
 
 	rc = send_fop();
-	M0_UT_ASSERT(rc == -ESHUTDOWN);
+	M0_UT_ASSERT(rc == -ECONNREFUSED);
 
 	ut_sss_req(ds1_service_type.rst_name,
 		   M0_SERVICE_INIT, 0,  M0_RST_INITIALISED);

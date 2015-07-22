@@ -420,9 +420,11 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	stype = fop->f_type->ft_fom_type.ft_rstype;
 	if (stype == NULL)
 		return M0_ERR(-ENOSYS);
+
 	svc = m0_reqh_service_find(stype, reqh);
 	if (svc == NULL)
 		return M0_ERR(-ECONNREFUSED);
+
 	rh_st = m0_reqh_state_get(reqh);
 	if (rh_st == M0_REQH_ST_INIT) {
 		/*
@@ -430,7 +432,7 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 		 * startup.
 		 */
 		if (svc != NULL && stype == &m0_rpc_service_type)
-			return 0;
+			return M0_RC(0);
 		return M0_ERR(-EAGAIN);
 	}
 	if (rh_st == M0_REQH_ST_STOPPED)
@@ -442,11 +444,11 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	switch (rh_st) {
 	case M0_REQH_ST_NORMAL:
 		if (svc_st == M0_RST_STARTED)
-			return 0;
+			return M0_RC(0);
 		if (svc_st == M0_RST_STARTING)
-			return M0_ERR(-EBUSY);
-		else if (svc_st == M0_RST_STOPPING &&
-			 svc->rs_ops->rso_fop_accept != NULL)
+			return M0_ERR(-EAGAIN);
+		if (svc_st == M0_RST_STOPPING &&
+		    svc->rs_ops->rso_fop_accept != NULL)
 			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
 		return M0_ERR(-ESHUTDOWN);
 	case M0_REQH_ST_DRAIN:
@@ -455,12 +457,11 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
 		return M0_ERR(-ESHUTDOWN);
 	case M0_REQH_ST_SVCS_STOP:
-		return rh_st == -ESHUTDOWN;
+		return M0_ERR(-ESHUTDOWN);
 	default:
 		return M0_ERR(-ENOSYS);
-	};
+	}
 }
-
 
 static int disallowed_fop_tick(struct m0_fom *fom, void *data, int *phase)
 {
@@ -480,7 +481,6 @@ static int disallowed_fop_tick(struct m0_fom *fom, void *data, int *phase)
 		}
 		m0_rpc_reply_post(&reply->ffr_fop->f_item, &fop->f_item);
 	}
-
 	return -1;
 }
 
@@ -536,8 +536,7 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 			    m0_reqh_service_find(rst, reqh) == NULL)
 				return M0_ERR_INFO(-ESHUTDOWN,
 						   "Service shutdown.");
-
-			fop_disallowed(reqh, fop, M0_ERR(-ESHUTDOWN));
+			fop_disallowed(reqh, fop, M0_ERR(rc));
 		}
 		/*
 		 * Note :
