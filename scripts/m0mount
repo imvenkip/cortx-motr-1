@@ -60,8 +60,12 @@
 # (the code depends on this).
 #
 
-. $PWD/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
-. $PWD/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
+# Globally visible build root.
+BROOT="$(readlink -f $0)"
+BROOT="${BROOT%/*/*}"
+
+. $BROOT/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh  # build_conf
+. $BROOT/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh  # conf_ios_device_setup
 
 usage()
 {
@@ -126,22 +130,14 @@ HOSTS_SERVICES=(
         #sjt00-c1 172.18.50.161@o2ib:12345:41:101
 )
 
-SERVICES=(
-
-)
+SERVICES=()
 
 # HOSTS should match the SERVICES endpoints above with 1 <-> 1 relationship.
-HOSTS=(
+HOSTS=()
 
-)
+MDSERVICES=()
 
-MDSERVICES=(
-
-)
-
-STATSERVICES=(
-
-)
+STATSERVICES=()
 
 declare -A NODE_UUID
 NODE_UUID[sjt02-c1]=30ab1a00-8085-40d1-a557-8996e2369a7a
@@ -224,7 +220,6 @@ if [ $0 = "/usr/bin/m0mount" ]; then
 	MERO_KO_LOAD_CMD="modprobe m0mero"
 	GF_KO_LOAD_CMD="modprobe m0gf"
 else
-	BROOT=$PWD   # globally visible build root
 	M0D=$BROOT/mero/m0d
 	M0MKFS="$BROOT/utils/mkfs/m0mkfs"
 	M0LAYOUT="$BROOT/utils/m0layout"
@@ -377,7 +372,6 @@ function setup_hosts ()
 		setup_host $THIS_HOST $LOCAL_EP || return 1
 		SETUP[$THIS_HOST]=$THIS_HOST
 	fi
-
 	return 0
 }
 
