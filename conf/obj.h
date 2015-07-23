@@ -347,6 +347,7 @@ struct m0_conf_filesystem {
 	const char        **cf_params;
 };
 
+/** Pools are used to partition hardware resources (devices, services, etc.). */
 struct m0_conf_pool {
 	struct m0_conf_obj  pl_obj;
 	struct m0_conf_dir *pl_pvers;
@@ -355,15 +356,17 @@ struct m0_conf_pool {
 	uint32_t            pl_order;
 };
 
-/**
- * Pool version state.
- */
+/** Pool version state. */
 enum m0_conf_pver_state {
 	M0_CONF_PVER_ONLINE,
 	M0_CONF_PVER_FAILED
 };
 
-/** Pool version. */
+/**
+ * Pool version.
+ *
+ * Pool versions are used to track changes in pool membership.
+ */
 struct m0_conf_pver {
 	struct m0_conf_obj       pv_obj;
 	struct m0_conf_dir      *pv_rackvs;
