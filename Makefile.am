@@ -177,6 +177,7 @@ mero_libmero_la_SOURCES  =
 include $(top_srcdir)/addb2/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
+include $(top_srcdir)/be/tool/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
@@ -670,6 +671,14 @@ addb2_m0addb2dump_LDADD     = $(top_builddir)/mero/libmero.la -lbfd -ldl
 sbin_PROGRAMS                 += xcode/m0protocol
 xcode_m0protocol_CPPFLAGS  = -DM0_TARGET='m0protocol' $(AM_CPPFLAGS)
 xcode_m0protocol_LDADD     = $(top_builddir)/mero/libmero.la
+
+#
+# be/tool/m0betool
+#
+
+bin_PROGRAMS              += be/tool/m0betool
+be_tool_m0betool_CPPFLAGS  = -DM0_TARGET='m0betool' $(AM_CPPFLAGS)
+be_tool_m0betool_LDADD     = $(top_builddir)/mero/libmero.la
 
 ################################################################################
 #                        Init scripts and config files

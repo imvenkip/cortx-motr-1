@@ -38,7 +38,7 @@ enum {
 	BE_UT_ALLOC_NR	     = 0x1000,
 	BE_UT_ALLOC_MT_NR    = 0x100,
 	BE_UT_ALLOC_THR_NR   = 0x10,
-	BE_UT_ALLOC_TX_NR    = 0x400,
+	BE_UT_ALLOC_TX_NR    = 0x100,
 };
 
 struct be_ut_alloc_thread_state {

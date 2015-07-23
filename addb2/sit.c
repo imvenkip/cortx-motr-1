@@ -406,7 +406,7 @@ static int it_read(const struct m0_addb2_sit *it, void *buf,
 	offset >>= it->s_bshift;
 
 	result = m0_stob_io_bufvec_launch(it->s_stob,
-			  &(struct m0_bufvec)M0_BUFVEC_INIT_BUF(&buf, &count),
+			  &M0_BUFVEC_INIT_BUF(&buf, &count),
 			  SIO_READ, offset);
 
 	return M0_RC(result);

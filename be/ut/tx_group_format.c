@@ -18,194 +18,483 @@
  * Original creation date: 4-Jul-2013
  */
 
+#include <string.h>
+
 #include "be/tx_group_format.h"
 
+#include "ut/stob.h"
 #include "ut/ut.h"
-#include "ut/stob.h"		/* m0_ut_stob_linux_get */
 #include "be/ut/helper.h"
+#include "be/seg.h"
+#include "lib/arith.h"
+#include "lib/memory.h"
+#include "stob/stob.h"
+#include "stob/domain.h"
 
-#include "be/tx_group.h"	/* grp_tlist_init */
-
-enum {
-	BE_UT_TX_GROUP_ONDISK_SEG_SIZE = 0x10000,
-	BE_UT_TX_GROUP_ONDISK_ITER     = 0x100,
-	BE_UT_TX_GROUP_ONDISK_LOG_SIZE = 1 << 11,
-	BE_UT_TX_GROUP_ONDISK_RB_SIZE  = 0x1000
+struct be_ut_tgf_tx {
+	m0_bcount_t   tgft_payload_size;
+	struct m0_buf tgft_payload;
+	uint64_t      tgft_id;
 };
 
-/* XXX rename */
-struct m0_be_tx        but_group_format_tx[3];
-struct m0_be_log       but_group_format_log;
-struct m0_be_tx_group  but_group_format_gr;
+struct be_ut_tgf_reg {
+	m0_bcount_t tgfr_size;
+	void       *tgfr_seg_addr;
+	void       *tgfr_buf;
+};
 
-struct m0_be_tx_credit but_group_format_logged[BE_UT_TX_GROUP_ONDISK_RB_SIZE];
-m0_bindex_t	       but_group_format_begin;
-m0_bindex_t	       but_group_format_end;
-void                  *but_group_format_rebuild_param = &but_group_format_end;
+struct be_ut_tgf_group {
+	struct m0_be_group_format_cfg tgfg_cfg;
+	struct m0_be_group_format     tgfg_gft;
+	int                           tgfg_tx_nr;
+	struct be_ut_tgf_tx          *tgfg_txs;
+	int                           tgfg_reg_nr;
+	struct be_ut_tgf_reg         *tgfg_regs;
+};
 
-static void be_ut_group_format_reg_area_rebuild(struct m0_be_reg_area *ra,
-                                                struct m0_be_reg_area *ra_new,
-                                                void                  *param)
+struct be_ut_tgf_ctx {
+	struct m0_be_log         tgfc_log;
+	struct m0_mutex          tgfc_lock;
+	struct m0_be_recovery    tgfc_rvr;
+	struct m0_stob_domain   *tgfc_sdom;
+	struct m0_stob          *tgfc_seg_stob;
+	struct m0_be_seg         tgfc_seg;
+	void                    *tgfc_seg_addr;
+	int                      tgfc_group_nr;
+	struct be_ut_tgf_group  *tgfc_groups;
+};
+
+/* TODO move initialisation of log to be ut helper */
+enum {
+	BE_UT_TGF_SEG_ADDR            = 0x300000000000ULL,
+	BE_UT_TGF_SEG_SIZE            = 1024 * 1024,
+
+	BE_UT_TGF_LOG_SIZE            = 1024 * 1024,
+	BE_UT_TGF_LOG_STOB_DOMAIN_KEY = 100,
+	BE_UT_TGF_LOG_STOB_KEY        = 42,
+	BE_UT_TGF_LOG_RBUF_NR         = 8,
+
+	BE_UT_TGF_SEG_NR_MAX          = 256,
+
+	BE_UT_TGF_MAGIC               = 0xfffe,
+};
+
+const char *be_ut_tgf_log_sdom_location   = "linuxstob:./log";
+const char *be_ut_tgf_log_sdom_init_cfg   = "directio=true";
+const char *be_ut_tgf_log_sdom_create_cfg = "";
+
+static void be_ut_tgf_log_got_space_cb(struct m0_be_log *log)
 {
-	M0_UT_ASSERT(ra != ra_new);
-	M0_UT_ASSERT(param == but_group_format_rebuild_param);
 }
 
-static void be_ut_group_format_rb_init(void)
+static void be_ut_tgf_log_cfg_set(struct m0_be_log_cfg  *log_cfg,
+				  struct m0_stob_domain *sdom,
+				  struct m0_mutex       *lock)
 {
-	but_group_format_begin = 0;
-	but_group_format_end = 0;
+	*log_cfg = (struct m0_be_log_cfg){
+		.lc_store_cfg = {
+			/* temporary solution BEGIN */
+			.lsc_stob_domain_location   = "linuxstob:./log_store-tmp",
+			.lsc_stob_domain_init_cfg   = "directio=true",
+			.lsc_stob_domain_key        = 0x1000,
+			.lsc_stob_domain_create_cfg = NULL,
+			/* temporary solution END */
+			.lsc_size            = BE_UT_TGF_LOG_SIZE,
+			.lsc_stob_create_cfg = NULL,
+			.lsc_rbuf_nr         = BE_UT_TGF_LOG_RBUF_NR,
+		},
+		.lc_got_space_cb = &be_ut_tgf_log_got_space_cb,
+		.lc_lock         = lock,
+	};
+	m0_stob_id_make(0, BE_UT_TGF_LOG_STOB_KEY,
+	                m0_stob_domain_id_get(sdom),
+			&log_cfg->lc_store_cfg.lsc_stob_id);
 }
 
-static void be_ut_group_format_rb_fini(void)
+static void be_ut_tgf_log_init(struct be_ut_tgf_ctx *ctx)
 {
-	M0_UT_ASSERT(but_group_format_begin == but_group_format_end);
+	struct m0_be_log_cfg log_cfg;
+	int                  rc;
+
+	m0_mutex_init(&ctx->tgfc_lock);
+	rc = m0_stob_domain_create(be_ut_tgf_log_sdom_location,
+				   be_ut_tgf_log_sdom_init_cfg,
+				   BE_UT_TGF_LOG_STOB_DOMAIN_KEY,
+				   be_ut_tgf_log_sdom_create_cfg,
+				   &ctx->tgfc_sdom);
+	M0_UT_ASSERT(rc == 0);
+	be_ut_tgf_log_cfg_set(&log_cfg, ctx->tgfc_sdom, &ctx->tgfc_lock);
+	rc = m0_be_log_create(&ctx->tgfc_log, &log_cfg);
+	M0_UT_ASSERT(rc == 0);
 }
 
-static bool be_ut_group_format_rb__invariant(void)
+static void be_ut_tgf_log_fini(struct be_ut_tgf_ctx *ctx)
 {
-	return but_group_format_end <= but_group_format_begin &&
-		(but_group_format_begin - but_group_format_end) <=
-		ARRAY_SIZE(but_group_format_logged);
-}
-
-static void be_ut_group_format_push(struct m0_be_tx_credit *credit)
-{
-	M0_PRE(be_ut_group_format_rb__invariant());
-	but_group_format_logged[but_group_format_begin++ %
-		ARRAY_SIZE(but_group_format_logged)] = *credit;
-	M0_POST(be_ut_group_format_rb__invariant());
-}
-
-static void be_ut_group_format_pop(struct m0_be_tx_credit *credit)
-{
-	M0_PRE(be_ut_group_format_rb__invariant());
-	*credit = but_group_format_logged[but_group_format_end++ %
-		ARRAY_SIZE(but_group_format_logged)];
-	M0_POST(be_ut_group_format_rb__invariant());
-}
-
-static void be_ut_group_format_log(void)
-{
-	M0_BE_OP_SYNC(op, m0_be_log_submit(&but_group_format_log, &op,
-					   &but_group_format_gr));
-	M0_BE_OP_SYNC(op, m0_be_log_commit(&but_group_format_log, &op,
-					   &but_group_format_gr));
-}
-
-static void be_ut_group_format_log_discard(void)
-{
-	struct m0_be_tx_credit reserved;
-
-	be_ut_group_format_pop(&reserved);
-	m0_be_log_discard(&but_group_format_log, &reserved);
-}
-
-static int be_ut_group_format_reserve(void)
-{
-	int i;
 	int rc;
 
-	for (i = 0; i < ARRAY_SIZE(but_group_format_tx); ++i) {
-		rc = m0_be_log_reserve_tx(&but_group_format_log,
-					  &M0_BE_TX_CREDIT((i + 1) * 2,
-							   10 * (i + 1)), 0);
-		if (rc != 0)
-			return i;
-		grp_tlist_add(&but_group_format_gr.tg_txs,
-			      &but_group_format_tx[i]);
-	}
-	return i;
+	m0_be_log_destroy(&ctx->tgfc_log);
+	rc = m0_stob_domain_destroy(ctx->tgfc_sdom);
+	M0_UT_ASSERT(rc == 0);
+	m0_mutex_fini(&ctx->tgfc_lock);
 }
+
+static void be_ut_tgf_log_open(struct be_ut_tgf_ctx *ctx)
+{
+	struct m0_be_log_cfg log_cfg;
+	int                  rc;
+
+	M0_SET0(&ctx->tgfc_log);
+	be_ut_tgf_log_cfg_set(&log_cfg, ctx->tgfc_sdom, &ctx->tgfc_lock);
+	rc = m0_be_log_open(&ctx->tgfc_log, &log_cfg);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void be_ut_tgf_log_close(struct be_ut_tgf_ctx *ctx)
+{
+	m0_be_log_close(&ctx->tgfc_log);
+}
+
+static void be_ut_tgf_seg_init(struct be_ut_tgf_ctx *ctx)
+{
+	struct m0_be_seg *seg = &ctx->tgfc_seg;
+	int               rc;
+
+	ctx->tgfc_seg_stob = m0_ut_stob_linux_get();
+	M0_UT_ASSERT(ctx->tgfc_seg_stob != NULL);
+	m0_be_seg_init(seg, ctx->tgfc_seg_stob, NULL);
+	rc = m0_be_seg_create(seg, BE_UT_TGF_SEG_SIZE,
+			      (void *)BE_UT_TGF_SEG_ADDR);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_seg_open(seg);
+	M0_UT_ASSERT(rc == 0);
+	ctx->tgfc_seg_addr = (char*)seg->bs_addr + seg->bs_reserved;
+}
+
+static void be_ut_tgf_seg_fini(struct be_ut_tgf_ctx *ctx)
+{
+	int rc;
+
+	m0_be_seg_close(&ctx->tgfc_seg);
+	rc = m0_be_seg_destroy(&ctx->tgfc_seg);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_seg_fini(&ctx->tgfc_seg);
+	m0_ut_stob_put(ctx->tgfc_seg_stob, true);
+}
+
+static void be_ut_tgf_rnd_fill(void *buf, size_t size)
+{
+	static uint64_t seed;
+	size_t          i;
+
+	for (i = 0; i < size; ++i) {
+		((unsigned char *)buf)[i] = (m0_rnd64(&seed) >> 16) & 0xffULL;
+	}
+}
+
+static void be_ut_tgf_buf_init(struct be_ut_tgf_ctx   *ctx,
+			       struct be_ut_tgf_group *group)
+{
+	struct be_ut_tgf_reg *reg;
+	struct be_ut_tgf_tx  *tx;
+	struct m0_be_seg     *seg         = &ctx->tgfc_seg;
+	void                 *addr        = ctx->tgfc_seg_addr;
+	m0_bcount_t           payload_max = 0;
+	m0_bcount_t           ra_size_max = 0;
+	int                   rc;
+	int                   i;
+
+	for (i = 0; i < group->tgfg_tx_nr; ++i) {
+		tx = &group->tgfg_txs[i];
+		rc = m0_buf_alloc(&tx->tgft_payload, tx->tgft_payload_size);
+		M0_UT_ASSERT(rc == 0);
+		payload_max = max_check(payload_max, tx->tgft_payload_size);
+		be_ut_tgf_rnd_fill(tx->tgft_payload.b_addr,
+				   tx->tgft_payload.b_nob);
+	}
+	for (i = 0; i < group->tgfg_reg_nr; ++i) {
+		reg = &group->tgfg_regs[i];
+		reg->tgfr_buf = m0_alloc(reg->tgfr_size);
+		M0_UT_ASSERT(reg->tgfr_buf != NULL);
+		reg->tgfr_seg_addr = addr;
+		addr               = (char *)addr + reg->tgfr_size;
+		ra_size_max       += reg->tgfr_size;
+		be_ut_tgf_rnd_fill(reg->tgfr_buf, reg->tgfr_size);
+	}
+	M0_UT_ASSERT((char*)addr - (char*)seg->bs_addr <= seg->bs_size);
+	ctx->tgfc_seg_addr = addr;
+
+	group->tgfg_cfg = (struct m0_be_group_format_cfg) {
+		.gfc_fmt_cfg = {
+			.fgc_tx_nr_max         = group->tgfg_tx_nr,
+			.fgc_reg_nr_max        = group->tgfg_reg_nr,
+			.fgc_payload_size_max  = payload_max,
+			.fgc_reg_area_size_max = ra_size_max,
+			.fgc_seg_nr_max        = BE_UT_TGF_SEG_NR_MAX,
+		},
+	};
+}
+
+static void be_ut_tgf_buf_fini(struct be_ut_tgf_ctx   *ctx,
+			       struct be_ut_tgf_group *group)
+{
+	int i;
+
+	for (i = 0; i < group->tgfg_tx_nr; ++i) {
+		m0_buf_free(&group->tgfg_txs[i].tgft_payload);
+	}
+	for (i = 0; i < group->tgfg_reg_nr; ++i) {
+		m0_free(group->tgfg_regs[i].tgfr_buf);
+	}
+}
+
+static void be_ut_tgf_group_init(struct be_ut_tgf_ctx   *ctx,
+				 struct be_ut_tgf_group *group)
+{
+	int rc;
+
+	M0_SET0(&group->tgfg_gft);
+	rc = m0_be_group_format_init(&group->tgfg_gft, &group->tgfg_cfg, NULL,
+				     &ctx->tgfc_log);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_group_format_allocate(&group->tgfg_gft);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void be_ut_tgf_group_fini(struct be_ut_tgf_ctx   *ctx,
+				 struct be_ut_tgf_group *group)
+{
+	m0_be_group_format_deallocate(&group->tgfg_gft);
+	m0_be_group_format_fini(&group->tgfg_gft);
+}
+
+static void be_ut_tgf_group_write(struct be_ut_tgf_ctx   *ctx,
+				  struct be_ut_tgf_group *group,
+				  bool                    seg_write)
+{
+	struct be_ut_tgf_tx         *tx;
+	struct m0_be_fmt_tx          ftx;
+	struct be_ut_tgf_reg        *reg;
+	struct m0_be_reg_d           regd;
+	struct m0_be_fmt_group_info *info;
+	struct m0_be_seg            *seg = &ctx->tgfc_seg;
+	struct m0_be_group_format   *gft = &group->tgfg_gft;
+	struct m0_be_fmt_group_cfg  *cfg = &group->tgfg_cfg.gfc_fmt_cfg;
+	m0_bcount_t                  reserved_size;
+	int                          rc;
+	int                          i;
+
+	reserved_size  = m0_be_group_format_log_reserved_size(&ctx->tgfc_log,
+				&M0_BE_TX_CREDIT(group->tgfg_reg_nr,
+						 cfg->fgc_reg_area_size_max),
+				cfg->fgc_payload_size_max);
+	reserved_size *= group->tgfg_tx_nr;
+	m0_mutex_lock(&ctx->tgfc_lock);
+	rc = m0_be_log_reserve(&ctx->tgfc_log, reserved_size);
+	M0_UT_ASSERT(rc == 0);
+	m0_mutex_unlock(&ctx->tgfc_lock);
+
+	m0_be_group_format_reset(gft);
+	for (i = 0; i < group->tgfg_tx_nr; ++i) {
+		tx  = &group->tgfg_txs[i];
+		ftx = M0_BE_FMT_TX(tx->tgft_payload, tx->tgft_id);
+		m0_be_group_format_tx_add(gft, &ftx);
+	}
+	for (i = 0; i < group->tgfg_reg_nr; ++i) {
+		reg  = &group->tgfg_regs[i];
+		regd = M0_BE_REG_D(M0_BE_REG(seg, reg->tgfr_size,
+					     reg->tgfr_seg_addr),
+				   reg->tgfr_buf);
+		m0_be_group_format_reg_log_add(gft, &regd);
+		m0_be_group_format_reg_seg_add(gft, &regd);
+	}
+	info = m0_be_group_format_group_info(gft);
+	info->gi_unknown = BE_UT_TGF_MAGIC;
+
+	m0_mutex_lock(&ctx->tgfc_lock);
+	m0_be_group_format_log_use(gft, reserved_size);
+	m0_mutex_unlock(&ctx->tgfc_lock);
+	m0_be_group_format_encode(gft);
+	rc = M0_BE_OP_SYNC_RET(op,
+			       m0_be_group_format_log_write(gft, &op),
+			       bo_sm.sm_rc);
+	M0_UT_ASSERT(rc == 0);
+
+	if (seg_write) {
+		m0_be_group_format_seg_place_prepare(gft);
+		rc = M0_BE_OP_SYNC_RET(op,
+				       m0_be_group_format_seg_place(gft, &op),
+				       bo_sm.sm_rc);
+		M0_UT_ASSERT(rc == 0);
+	}
+}
+
+static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
+				       struct be_ut_tgf_group *group,
+				       bool                    seg_check)
+{
+	struct be_ut_tgf_tx         *tx;
+	struct m0_be_fmt_tx          ftx;
+	struct be_ut_tgf_reg        *reg;
+	struct m0_be_reg_d           regd;
+	struct m0_be_fmt_group_info *info;
+	struct m0_be_group_format   *gft = &group->tgfg_gft;
+	bool                         available;
+	int                          rc;
+	int                          nr;
+	int                          i;
+
+	m0_mutex_lock(&ctx->tgfc_lock);
+	m0_be_group_format_reset(gft);
+	m0_mutex_unlock(&ctx->tgfc_lock);
+	available = m0_be_recovery_log_record_available(&ctx->tgfc_rvr);
+	M0_UT_ASSERT(available);
+	m0_mutex_lock(&ctx->tgfc_lock);
+	m0_be_group_format_recovery_prepare(gft, &ctx->tgfc_rvr);
+	m0_mutex_unlock(&ctx->tgfc_lock);
+	rc = M0_BE_OP_SYNC_RET(op,
+			       m0_be_group_format_log_read(gft, &op),
+			       bo_sm.sm_rc);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_group_format_decode(gft);
+	M0_UT_ASSERT(rc == 0);
+	info = m0_be_group_format_group_info(gft);
+	M0_UT_ASSERT(info->gi_unknown == BE_UT_TGF_MAGIC);
+	nr = m0_be_group_format_tx_nr(gft);
+	M0_UT_ASSERT(nr == group->tgfg_tx_nr);
+	for (i = 0; i < nr; ++i) {
+		tx  = &group->tgfg_txs[i];
+		ftx = (struct m0_be_fmt_tx){};
+		m0_be_group_format_tx_get(gft, i, &ftx);
+		M0_UT_ASSERT(ftx.bft_id == tx->tgft_id);
+		M0_UT_ASSERT(ftx.bft_payload.b_nob == tx->tgft_payload_size);
+		M0_UT_ASSERT(memcmp(ftx.bft_payload.b_addr,
+				    tx->tgft_payload.b_addr,
+				    tx->tgft_payload_size) == 0);
+	}
+	nr = m0_be_group_format_reg_nr(gft);
+	M0_UT_ASSERT(nr == group->tgfg_reg_nr);
+	for (i = 0; i < nr; ++i) {
+		reg  = &group->tgfg_regs[i];
+		regd = (struct m0_be_reg_d){};
+		m0_be_group_format_reg_get(gft, i, &regd);
+		M0_UT_ASSERT(regd.rd_reg.br_size == reg->tgfr_size);
+		M0_UT_ASSERT(regd.rd_reg.br_addr == reg->tgfr_seg_addr);
+		M0_UT_ASSERT(memcmp(regd.rd_buf, reg->tgfr_buf,
+				    reg->tgfr_size) == 0);
+	}
+
+	m0_mutex_lock(&ctx->tgfc_lock);
+	m0_be_group_format_log_discard(gft);
+	m0_mutex_unlock(&ctx->tgfc_lock);
+
+	if (seg_check) {
+		m0_be_seg_close(&ctx->tgfc_seg);
+		m0_be_seg_fini(&ctx->tgfc_seg);
+		M0_SET0(&ctx->tgfc_seg);
+		m0_be_seg_init(&ctx->tgfc_seg, ctx->tgfc_seg_stob, NULL);
+		rc = m0_be_seg_open(&ctx->tgfc_seg);
+		M0_UT_ASSERT(rc == 0);
+		nr = m0_be_group_format_reg_nr(gft);
+		for (i = 0; i < nr; ++i) {
+			reg = &group->tgfg_regs[i];
+			M0_UT_ASSERT(memcmp(reg->tgfr_seg_addr, reg->tgfr_buf,
+					    reg->tgfr_size) == 0);
+		}
+	}
+}
+
+static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
+{
+	struct be_ut_tgf_ctx ctx;
+	int                  i;
+
+	ctx = (struct be_ut_tgf_ctx) {
+		.tgfc_group_nr = group_nr,
+		.tgfc_groups   = groups,
+	};
+
+	be_ut_tgf_log_init(&ctx);
+	be_ut_tgf_seg_init(&ctx);
+	m0_be_recovery_init(&ctx.tgfc_rvr);
+
+	for (i = 0; i < group_nr; ++i) {
+		be_ut_tgf_buf_init(&ctx, &groups[i]);
+		be_ut_tgf_group_init(&ctx, &groups[i]);
+		be_ut_tgf_group_write(&ctx, &groups[i], true);
+		m0_mutex_lock(&ctx.tgfc_lock);
+		be_ut_tgf_group_fini(&ctx, &groups[i]);
+		m0_mutex_unlock(&ctx.tgfc_lock);
+	}
+	be_ut_tgf_log_close(&ctx);
+
+	be_ut_tgf_log_open(&ctx);
+	for (i = 0; i < group_nr; ++i) {
+		be_ut_tgf_group_init(&ctx, &groups[i]);
+	}
+	m0_be_recovery_run(&ctx.tgfc_rvr, &ctx.tgfc_log);
+	for (i = 0; i < group_nr; ++i) {
+		be_ut_tgf_group_read_check(&ctx, &groups[i], true);
+		be_ut_tgf_group_fini(&ctx, &groups[i]);
+	}
+
+	for (i = 0; i < group_nr; ++i)
+		be_ut_tgf_buf_fini(&ctx, &groups[i]);
+	m0_be_recovery_fini(&ctx.tgfc_rvr);
+	be_ut_tgf_log_fini(&ctx);
+	be_ut_tgf_seg_fini(&ctx);
+}
+
+static struct be_ut_tgf_tx be_ut_tgf_txs0[] = {
+	{ .tgft_payload_size = 1024, .tgft_id = 1, },
+};
+static struct be_ut_tgf_reg be_ut_tgf_regs0[] = {
+	{ .tgfr_size = 1024, },
+	{ .tgfr_size = 1024, },
+	{ .tgfr_size = 1024, },
+};
+static struct be_ut_tgf_tx be_ut_tgf_txs1[] = {
+	{ .tgft_payload_size = 1024, .tgft_id = 1, },
+	{ .tgft_payload_size = 513,  .tgft_id = 2, },
+	{ .tgft_payload_size = 100,  .tgft_id = 3, },
+};
+static struct be_ut_tgf_reg be_ut_tgf_regs1[] = {
+	{ .tgfr_size = 1024, },
+	{ .tgfr_size = 1023, },
+};
+static struct be_ut_tgf_tx be_ut_tgf_txs2[] = {
+	{ .tgft_payload_size = 1000, .tgft_id = 1ULL << 63, },
+	{ .tgft_payload_size = 500,  .tgft_id = 1ULL << 62, },
+};
+static struct be_ut_tgf_reg be_ut_tgf_regs2[] = {
+	{ .tgfr_size = 512,  },
+	{ .tgfr_size = 100,  },
+	{ .tgfr_size = 1000, },
+};
+
+static struct be_ut_tgf_group be_ut_tgf_groups[] = {
+	{
+		.tgfg_tx_nr  = ARRAY_SIZE(be_ut_tgf_txs0),
+		.tgfg_txs    = be_ut_tgf_txs0,
+		.tgfg_reg_nr = ARRAY_SIZE(be_ut_tgf_regs0),
+		.tgfg_regs   = be_ut_tgf_regs0,
+	},
+	{
+		.tgfg_tx_nr  = ARRAY_SIZE(be_ut_tgf_txs1),
+		.tgfg_txs    = be_ut_tgf_txs1,
+		.tgfg_reg_nr = ARRAY_SIZE(be_ut_tgf_regs1),
+		.tgfg_regs   = be_ut_tgf_regs1,
+	},
+	{
+		.tgfg_tx_nr  = ARRAY_SIZE(be_ut_tgf_txs2),
+		.tgfg_txs    = be_ut_tgf_txs2,
+		.tgfg_reg_nr = ARRAY_SIZE(be_ut_tgf_regs2),
+		.tgfg_regs   = be_ut_tgf_regs2,
+	},
+};
 
 void m0_be_ut_group_format(void)
 {
-	struct m0_be_tx_credit gr_credit = {};
-	struct m0_be_tx_credit tx_credit;
-	struct m0_be_tx_credit reserved;
-	struct m0_be_reg_d     rd[1+2+3];
-	struct m0_be_ut_seg    ut_seg;
-	struct m0_be_seg      *seg;
-	struct m0_stob	      *stob;
-	int                    i;
-	int                    j;
-	int                    rc;
-	int                    groups_logged;
-	int                    tx_reserved;
-
-	be_ut_group_format_rb_init();
-	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_GROUP_ONDISK_SEG_SIZE);
-	seg = ut_seg.bus_seg;
-
-	for (i = 0; i < ARRAY_SIZE(but_group_format_tx); ++i) {
-		tx_credit = M0_BE_TX_CREDIT((i + 1) * 2, 10 * (i + 1));
-		rc = m0_be_reg_area_init(&but_group_format_tx[i].t_reg_area,
-					 &tx_credit, M0_BE_REG_AREA_DATA_COPY);
-		m0_be_tx_credit_add(&gr_credit, &tx_credit);
-		M0_UT_ASSERT(rc == 0);
-		grp_tlink_init(&but_group_format_tx[i]);
-
-		for (j = 0; j < i+1; ++j) {
-			M0_UT_ASSERT(j < ARRAY_SIZE(rd));
-			rd[j] = (struct m0_be_reg_d) {
-				.rd_reg = M0_BE_REG(seg, i+2,
-						    seg->bs_addr + i*100 + j*10)
-			};
-			m0_be_reg_area_capture(&but_group_format_tx[i].
-						t_reg_area, &rd[j]);
-		}
-	}
-
-	stob = m0_ut_stob_linux_get();
-	m0_be_log_init(&but_group_format_log, stob, /* XXX */ NULL);
-	rc = m0_be_log_create(&but_group_format_log,
-			      BE_UT_TX_GROUP_ONDISK_LOG_SIZE);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_be_group_format_init(&but_group_format_gr.tg_od,
-				     m0_be_log_stob(&but_group_format_log),
-				     ARRAY_SIZE(but_group_format_tx),
-				     &gr_credit, 1,
-				     be_ut_group_format_reg_area_rebuild,
-				     but_group_format_rebuild_param);
-	M0_UT_ASSERT(rc == 0);
-	grp_tlist_init(&but_group_format_gr.tg_txs);
-
-	groups_logged = 0;
-	for (i = 0; i < BE_UT_TX_GROUP_ONDISK_ITER; ++i) {
-		tx_reserved = be_ut_group_format_reserve();
-		if (tx_reserved != 0) {
-			m0_be_group_format_io_reserved(
-				&but_group_format_gr.tg_od,
-				&but_group_format_gr, &reserved);
-			be_ut_group_format_push(&reserved);
-			be_ut_group_format_log();
-			++groups_logged;
-		} else {
-			be_ut_group_format_log_discard();
-			--groups_logged;
-		}
-		for (j = 0; j < tx_reserved; ++j)
-			grp_tlist_del(&but_group_format_tx[j]);
-		m0_be_group_format_reset(&but_group_format_gr.tg_od);
-	}
-	for (i = 0; i < groups_logged; ++i)
-		be_ut_group_format_log_discard();
-
-	for (i = 0; i < ARRAY_SIZE(but_group_format_tx); ++i) {
-		grp_tlink_fini(&but_group_format_tx[i]);
-		m0_be_reg_area_fini(&but_group_format_tx[i].t_reg_area);
-	}
-	grp_tlist_fini(&but_group_format_gr.tg_txs);
-
-	m0_be_group_format_fini(&but_group_format_gr.tg_od);
-
-	m0_be_log_destroy(&but_group_format_log);
-	m0_be_log_fini(&but_group_format_log);
-	m0_ut_stob_put(stob, true);
-
-	m0_be_ut_seg_fini(&ut_seg);
-	be_ut_group_format_rb_fini();
+	be_ut_tgf_test(ARRAY_SIZE(be_ut_tgf_groups), be_ut_tgf_groups);
 }
 
 /*

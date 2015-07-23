@@ -83,7 +83,7 @@ void m0_be_0type_unregister(struct m0_be_domain *dom, struct m0_be_0type *zt);
  */
 void m0_be_0type_del_credit(struct m0_be_domain *dom,
 			    const struct m0_be_0type  *zt,
-			    const char		      *suffix,
+			    const char                *suffix,
 			    struct m0_be_tx_credit    *credit);
 
 /**
@@ -91,26 +91,26 @@ void m0_be_0type_del_credit(struct m0_be_domain *dom,
  */
 void m0_be_0type_add_credit(struct m0_be_domain *dom,
 			    const struct m0_be_0type  *zt,
-			    const char		      *suffix,
+			    const char                *suffix,
 			    const struct m0_buf       *data,
 			    struct m0_be_tx_credit    *credit);
 
 /**
  * Adds a record about 0type instance to the seg0 dictionary.
  */
-int m0_be_0type_add(struct m0_be_0type	*zt,
+int m0_be_0type_add(struct m0_be_0type  *zt,
 		    struct m0_be_domain *dom,
-		    struct m0_be_tx	*tx,
-		    const char		*suffix,
+		    struct m0_be_tx     *tx,
+		    const char          *suffix,
 		    const struct m0_buf *data);
 
 /**
  * Deletes a record about 0type instance from the seg0 dictionary.
  */
-int m0_be_0type_del(struct m0_be_0type	*zt,
+int m0_be_0type_del(struct m0_be_0type  *zt,
 		    struct m0_be_domain *dom,
-		    struct m0_be_tx	*tx,
-		    const char		*suffix);
+		    struct m0_be_tx     *tx,
+		    const char          *suffix);
 
 /**
  * <hr> <!------------------------------------------------------------>

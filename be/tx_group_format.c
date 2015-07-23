@@ -31,135 +31,265 @@
 #include "lib/misc.h"        /* M0_SET0 */
 #include "lib/errno.h"       /* ENOMEM */
 
+#include "module/instance.h" /* m0_get */
+
 /**
  * @addtogroup be
  *
  * @{
  */
 
-static int group_io_init(struct m0_be_group_format *g,
-			 struct m0_stob *stob,
-			 const struct m0_be_tx_credit *cr_logrec,
-			 const struct m0_be_tx_credit *cr_commit_block,
-			 const struct m0_be_tx_credit *cr_group_maxsize,
-			 uint64_t seg_nr_max);
-static void group_io_fini(struct m0_be_group_format *g);
+#define gft_fmt_group_choose(gft) (gft->gft_fmt_group_decoded != NULL ? \
+				   gft->gft_fmt_group_decoded :         \
+				   &gft->gft_fmt_group)
 
-M0_INTERNAL void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
-				     const struct m0_be_tx_credit *prepared,
-				     m0_bcount_t payload_size)
+enum {
+	GFT_GROUP_IO    = 0,
+	GFT_GROUP_CB_IO = 1,
+};
+
+static struct m0_be_group_format *
+be_group_format_module2gft(struct m0_module *module)
 {
-	*io_tx = *prepared;
-
-	/* for log wrap case */
-	m0_be_tx_credit_add(io_tx, &M0_BE_TX_CREDIT(1, 0));
-	m0_be_tx_credit_add(io_tx,
-			    &M0_BE_TX_CREDIT_TYPE(struct tx_group_header));
-	m0_be_tx_credit_add(io_tx,
-			    &M0_BE_TX_CREDIT_TYPE(struct tx_group_entry));
-	m0_be_tx_credit_mac(io_tx, &M0_BE_TX_CREDIT_TYPE(struct tx_reg_header),
-			    prepared->tc_reg_nr);
-	m0_be_tx_credit_add(io_tx,
-		    &M0_BE_TX_CREDIT_TYPE(struct tx_group_commit_block));
-	m0_be_tx_credit_add(io_tx, &M0_BE_TX_CREDIT(1, payload_size));
+	/* XXX bob_of */
+	return container_of(module, struct m0_be_group_format, gft_module);
 }
 
-M0_INTERNAL void be_log_io_credit_group(struct m0_be_tx_credit *io_group,
-					size_t tx_nr_max,
-					const struct m0_be_tx_credit *prepared,
-					m0_bcount_t payload_size)
+static int be_group_format_level_enter(struct m0_module *module)
 {
-	struct m0_be_tx_credit io_tx;
-	M0_PRE(tx_nr_max > 0);
+	struct m0_be_group_format  *gft = be_group_format_module2gft(module);
+	struct m0_be_fmt_group_cfg *fmt_group_cfg;
+	struct m0_be_io_credit      seg_io_credit;
+	m0_bcount_t                 size_group;
+	m0_bcount_t                 size_cblock;
+	int                         level = module->m_cur + 1;
 
-	M0_SET0(io_group);
-
-	be_log_io_credit_tx(&io_tx, prepared, payload_size);
-	m0_be_tx_credit_add(io_group, &io_tx);
-
-	be_log_io_credit_tx(&io_tx, &M0_BE_TX_CREDIT(0, 0), 0);
-	m0_be_tx_credit_mac(io_group, &io_tx, tx_nr_max - 1);
+	switch (level) {
+	case M0_BE_GROUP_FORMAT_LEVEL_ASSIGNS:
+		gft->gft_group              = gft->gft_cfg.gfc_group;
+		gft->gft_log                = gft->gft_cfg.gfc_log;
+		gft->gft_fmt_group_decoded  = NULL;
+		gft->gft_fmt_cblock_decoded = NULL;
+		return 0;
+	case M0_BE_GROUP_FORMAT_LEVEL_FMT_GROUP_INIT:
+		return m0_be_fmt_group_init(&gft->gft_fmt_group,
+					    &gft->gft_cfg.gfc_fmt_cfg);
+	case M0_BE_GROUP_FORMAT_LEVEL_FMT_CBLOCK_INIT:
+		return m0_be_fmt_cblock_init(&gft->gft_fmt_cblock, NULL);
+	case M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_INIT:
+		m0_be_log_record_init(&gft->gft_log_record, gft->gft_log);
+		return 0;
+	case M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_GROUP:
+		size_group = m0_be_fmt_group_size_max(&gft->gft_cfg.gfc_fmt_cfg);
+		return m0_be_log_record_io_create(&gft->gft_log_record,
+						  size_group);
+	case M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_CBLOCK:
+		size_cblock = m0_be_fmt_cblock_size_max(NULL);
+		return m0_be_log_record_io_create(&gft->gft_log_record,
+						  size_cblock);
+	case M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ITER_INIT:
+		return m0_be_log_record_iter_init(&gft->gft_log_record_iter);
+	case M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_INIT:
+		return m0_be_io_init(&gft->gft_seg_io);
+	case M0_BE_GROUP_FORMAT_LEVEL_INITED:
+		return 0;
+	case M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ALLOCATE:
+		return m0_be_log_record_allocate(&gft->gft_log_record);
+	case M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_ALLOCATE:
+		fmt_group_cfg = &gft->gft_cfg.gfc_fmt_cfg;
+		seg_io_credit =
+			M0_BE_IO_CREDIT(fmt_group_cfg->fgc_reg_nr_max,
+					fmt_group_cfg->fgc_reg_area_size_max,
+					fmt_group_cfg->fgc_seg_nr_max);
+		return m0_be_io_allocate(&gft->gft_seg_io, &seg_io_credit);
+	case M0_BE_GROUP_FORMAT_LEVEL_ALLOCATED:
+		return 0;
+	default:
+		return M0_ERR(-ENOSYS);
+	}
 }
 
-static void be_group_format_free(struct m0_be_group_format *go)
+static void be_group_format_level_leave(struct m0_module *module)
 {
-	m0_free(go->go_entry);
-	m0_free(go->go_reg);
+	struct m0_be_group_format *gft = be_group_format_module2gft(module);
+	int                        level = module->m_cur;
+
+	switch (level) {
+	case M0_BE_GROUP_FORMAT_LEVEL_ASSIGNS:
+		break;
+	case M0_BE_GROUP_FORMAT_LEVEL_FMT_GROUP_INIT:
+		m0_be_fmt_group_fini(&gft->gft_fmt_group);
+		break;
+	case M0_BE_GROUP_FORMAT_LEVEL_FMT_CBLOCK_INIT:
+		m0_be_fmt_cblock_fini(&gft->gft_fmt_cblock);
+		break;
+	case M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_INIT:
+		m0_be_log_record_fini(&gft->gft_log_record);
+		break;
+	case M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_GROUP:
+		break;
+	case M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_CBLOCK:
+		break;
+	case M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ITER_INIT:
+		m0_be_log_record_iter_fini(&gft->gft_log_record_iter);
+		break;
+	case M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_INIT:
+		m0_be_io_fini(&gft->gft_seg_io);
+		break;
+	case M0_BE_GROUP_FORMAT_LEVEL_INITED:
+		break;
+	case M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ALLOCATE:
+		m0_be_log_record_deallocate(&gft->gft_log_record);
+		break;
+	case M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_ALLOCATE:
+		m0_be_io_deallocate(&gft->gft_seg_io);
+		break;
+	case M0_BE_GROUP_FORMAT_LEVEL_ALLOCATED:
+		if (gft->gft_fmt_group_decoded != NULL) {
+			m0_be_fmt_group_decoded_free(gft->gft_fmt_group_decoded);
+		}
+		if (gft->gft_fmt_cblock_decoded != NULL) {
+			m0_be_fmt_cblock_decoded_free(
+						gft->gft_fmt_cblock_decoded);
+		}
+		break;
+	default:
+		M0_IMPOSSIBLE("Unexpected m0_module level");
+	}
 }
 
-M0_INTERNAL int m0_be_group_format_init(struct m0_be_group_format *go,
-					struct m0_stob *log_stob,
-					size_t tx_nr_max,
-					const struct m0_be_tx_credit *size_max_,
-					uint64_t seg_nr_max,
-		m0_be_group_format_reg_area_rebuild_t reg_area_rebuild,
-		void *reg_area_rebuild_param)
+M0_INTERNAL void m0_be_group_format_reset(struct m0_be_group_format *gft)
 {
-	struct m0_be_tx_credit cr_logrec;
-	struct m0_be_tx_credit cr_commit_block;
-	struct m0_be_tx_credit size_max = *size_max_;
-	int                    rc;
+	m0_be_fmt_group_reset(&gft->gft_fmt_group);
+	m0_be_fmt_cblock_reset(&gft->gft_fmt_cblock);
+	m0_be_log_record_reset(&gft->gft_log_record);
+	m0_be_io_reset(&gft->gft_seg_io);
 
-	M0_ENTRY();
+	if (gft->gft_fmt_group_decoded != NULL) {
+		m0_time_t time = m0_time_now();
+		m0_be_fmt_group_decoded_free(gft->gft_fmt_group_decoded);
+		M0_LOG(M0_DEBUG, "time=%lu",
+		       (unsigned long)m0_time_now() - time);
+		gft->gft_fmt_group_decoded = NULL;
+	}
+	if (gft->gft_fmt_cblock_decoded != NULL) {
+		m0_be_fmt_cblock_decoded_free(
+				gft->gft_fmt_cblock_decoded);
+		gft->gft_fmt_cblock_decoded = NULL;
+	}
+}
 
-	M0_ALLOC_ARR(go->go_entry, tx_nr_max);
-	if (go->go_entry == NULL)
-		goto err;
+static const struct m0_modlev be_group_format_levels[] = {
+	[M0_BE_GROUP_FORMAT_LEVEL_ASSIGNS] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_ASSIGNS",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+	[M0_BE_GROUP_FORMAT_LEVEL_FMT_GROUP_INIT] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_FMT_GROUP_INIT",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+	[M0_BE_GROUP_FORMAT_LEVEL_FMT_CBLOCK_INIT] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_FMT_CBLOCK_INIT",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+	[M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_INIT] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_INIT",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+	[M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_GROUP] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_GROUP",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+	[M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_CBLOCK] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_CBLOCK",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+	[M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ITER_INIT] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ITER_INIT",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+	[M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_INIT] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_INIT",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+	[M0_BE_GROUP_FORMAT_LEVEL_INITED] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_INITED",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+	[M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ALLOCATE] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ALLOCATE",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+	[M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_ALLOCATE] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_ALLOCATE",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+	[M0_BE_GROUP_FORMAT_LEVEL_ALLOCATED] = {
+		.ml_name  = "M0_BE_GROUP_FORMAT_LEVEL_ALLOCATED",
+		.ml_enter = be_group_format_level_enter,
+		.ml_leave = be_group_format_level_leave,
+	},
+};
 
-	M0_ALLOC_ARR(go->go_reg, size_max.tc_reg_nr);
-	if (go->go_reg == NULL)
-		goto err_entry;
+M0_INTERNAL void
+m0_be_group_format_module_setup(struct m0_be_group_format     *gft,
+				struct m0_be_group_format_cfg *gft_cfg)
+{
+	gft->gft_cfg = *gft_cfg;
+	m0_module_setup(&gft->gft_module, "m0_be_group_format",
+			be_group_format_levels,
+			ARRAY_SIZE(be_group_format_levels),
+			m0_get());
+}
 
-	be_log_io_credit_group(&cr_logrec, tx_nr_max, &size_max, 0);
-	m0_be_log_cblock_credit(&cr_commit_block,
-				sizeof(struct tx_group_commit_block));
-	m0_be_tx_credit_sub(&cr_logrec, &cr_commit_block);
+static void be_group_format_module_fini(struct m0_be_group_format *gft,
+					bool                       deallocate)
+{
+	m0_module_fini(&gft->gft_module,
+		       deallocate ? M0_BE_GROUP_FORMAT_LEVEL_INITED :
+				    M0_MODLEV_NONE);
+}
 
-	rc = group_io_init(go, log_stob, &cr_logrec, &cr_commit_block,
-			   &size_max, seg_nr_max);
+static int be_group_format_module_init(struct m0_be_group_format     *gft,
+				       struct m0_be_group_format_cfg *gft_cfg,
+				       bool                           allocate)
+{
+	int rc;
+
+	if (!allocate)
+		m0_be_group_format_module_setup(gft, gft_cfg);
+	rc = m0_module_init(&gft->gft_module,
+			    allocate ? M0_BE_GROUP_FORMAT_LEVEL_ALLOCATED :
+				       M0_BE_GROUP_FORMAT_LEVEL_INITED);
 	if (rc != 0)
-		goto err_reg;
-
-	rc = m0_be_reg_area_init(&go->go_area, &size_max,
-				 M0_BE_REG_AREA_DATA_NOCOPY);
-	if (rc != 0)
-		goto err_io;
-	/*
-	 * Errors are not handled.
-	 * It will be fixed after recovery merge to master.
-	 */
-	rc = m0_be_reg_area_init(&go->go_area_copy, &size_max,
-				 M0_BE_REG_AREA_DATA_NOCOPY);
-	M0_ASSERT(rc == 0);     /* XXX */
-	rc = m0_be_reg_area_merger_init(&go->go_merger, tx_nr_max);
-	M0_ASSERT(rc == 0);     /* XXX */
-	go->go_reg_area_rebuild       = reg_area_rebuild;
-	go->go_reg_area_rebuild_param = reg_area_rebuild_param;
-
-	M0_POST(m0_be_group_format__invariant(go));
-	return M0_RC(0);
-
-err_io:
-	group_io_fini(go);
-err_reg:
-	m0_free(go->go_reg);
-err_entry:
-	m0_free(go->go_entry);
-err:
-	return M0_RC(-ENOMEM);
+		be_group_format_module_fini(gft, allocate);
+	return rc;
 }
 
-M0_INTERNAL void m0_be_group_format_fini(struct m0_be_group_format *go)
+M0_INTERNAL int m0_be_group_format_init(struct m0_be_group_format     *gft,
+					struct m0_be_group_format_cfg *gft_cfg,
+					struct m0_be_tx_group         *group,
+					struct m0_be_log              *log)
 {
-	M0_PRE(m0_be_group_format__invariant(go));
+	gft_cfg->gfc_group = group;
+	gft_cfg->gfc_log = log;
+	return be_group_format_module_init(gft, gft_cfg, false);
+}
 
-	m0_be_reg_area_merger_fini(&go->go_merger);
-	m0_be_io_fini(&go->go_io_log);
-	m0_be_io_fini(&go->go_io_log_cblock);
-	m0_be_io_fini(&go->go_io_seg);
-	m0_be_reg_area_fini(&go->go_area_copy);
-	m0_be_reg_area_fini(&go->go_area);
-	be_group_format_free(go);
+M0_INTERNAL void m0_be_group_format_fini(struct m0_be_group_format *gft)
+{
+	 be_group_format_module_fini(gft, false);
 }
 
 M0_INTERNAL bool m0_be_group_format__invariant(struct m0_be_group_format *go)
@@ -167,185 +297,203 @@ M0_INTERNAL bool m0_be_group_format__invariant(struct m0_be_group_format *go)
 	return true; /* XXX TODO */
 }
 
-M0_INTERNAL void m0_be_group_format_reset(struct m0_be_group_format *go)
+M0_INTERNAL int  m0_be_group_format_allocate(struct m0_be_group_format *gft)
 {
-	m0_be_io_reset(&go->go_io_log);
-	m0_be_io_reset(&go->go_io_log_cblock);
-	m0_be_io_reset(&go->go_io_seg);
-	m0_be_reg_area_reset(&go->go_area);
-	m0_be_reg_area_reset(&go->go_area_copy);
-	m0_be_reg_area_merger_reset(&go->go_merger);
+	return be_group_format_module_init(gft, NULL, true);
 }
 
-M0_INTERNAL void m0_be_group_format_reserved(struct m0_be_group_format *go,
-					     struct m0_be_tx_group *group,
-					     struct m0_be_tx_credit *reserved,
-					     m0_bcount_t *payload_size,
-					     size_t *tx_nr)
+M0_INTERNAL void m0_be_group_format_deallocate(struct m0_be_group_format *gft)
 {
-	struct m0_be_tx_credit tx_prepared;
-	struct m0_be_tx       *tx;
-
-	*payload_size = 0;
-	*tx_nr = 0;
-	M0_SET0(reserved);
-	M0_BE_TX_GROUP_TX_FORALL(group, tx) {
-		m0_be_reg_area_prepared(m0_be_tx__reg_area(tx), &tx_prepared);
-		m0_be_tx_credit_add(reserved, &tx_prepared);
-		*payload_size += tx->t_payload.b_nob;
-		++*tx_nr;
-	} M0_BE_TX_GROUP_TX_ENDFOR;
+	 be_group_format_module_fini(gft, true);
 }
 
-M0_INTERNAL void m0_be_group_format_io_reserved(struct m0_be_group_format *go,
-						struct m0_be_tx_group *group,
-						struct m0_be_tx_credit
-						*io_reserved)
+M0_INTERNAL void m0_be_group_format_encode(struct m0_be_group_format *gft)
 {
-	struct m0_be_tx_credit reserved = {};
-	m0_bcount_t	       payload_size;
-	size_t		       tx_nr;
+	struct m0_bufvec_cursor  cur;
+	struct m0_bufvec        *bvec;
+	int                      rc;
 
-	m0_be_group_format_reserved(go, group, &reserved,
-				    &payload_size, &tx_nr);
-	be_log_io_credit_group(io_reserved, tx_nr, &reserved, payload_size);
+	bvec = m0_be_log_record_io_bufvec(&gft->gft_log_record, GFT_GROUP_IO);
+	m0_bufvec_cursor_init(&cur, bvec);
+	rc = m0_be_fmt_group_encode(&gft->gft_fmt_group, &cur);
+	M0_ASSERT_INFO(rc == 0, "due to preallocated buffers "
+		       "encode can't fail here: rc = %d", rc);
+	bvec = m0_be_log_record_io_bufvec(&gft->gft_log_record, GFT_GROUP_CB_IO);
+	m0_bufvec_cursor_init(&cur, bvec);
+	rc = m0_be_fmt_cblock_encode(&gft->gft_fmt_cblock, &cur);
+	M0_ASSERT_INFO(rc == 0, "due to preallocated buffers "
+		       "encode can't fail here: rc = %d", rc);
 }
 
-static void be_group_format_reg_area_merge(struct m0_be_group_format *go,
-                                           struct m0_be_tx_group     *group)
+M0_INTERNAL int m0_be_group_format_decode(struct m0_be_group_format *gft)
 {
-	struct m0_be_tx *tx;
+	struct m0_bufvec_cursor  cur;
+	struct m0_bufvec        *bvec;
+	int                      rc;
 
-	M0_BE_TX_GROUP_TX_FORALL(group, tx) {
-		m0_be_reg_area_merger_add(&go->go_merger,
-					  m0_be_tx__reg_area(tx));
-	} M0_BE_TX_GROUP_TX_ENDFOR;
-	m0_be_reg_area_merger_merge_to(&go->go_merger, &go->go_area);
+	M0_PRE(gft->gft_fmt_group_decoded == NULL);
+	M0_PRE(gft->gft_fmt_cblock_decoded == NULL);
+
+	bvec = m0_be_log_record_io_bufvec(&gft->gft_log_record, GFT_GROUP_IO);
+	m0_bufvec_cursor_init(&cur, bvec);
+	rc = m0_be_fmt_group_decode(&gft->gft_fmt_group_decoded, &cur,
+				    M0_BE_FMT_DECODE_CFG_DEFAULT);
+
+	bvec = m0_be_log_record_io_bufvec(&gft->gft_log_record, GFT_GROUP_CB_IO);
+	m0_bufvec_cursor_init(&cur, bvec);
+	rc = rc ?: m0_be_fmt_cblock_decode(&gft->gft_fmt_cblock_decoded,
+					   &cur, M0_BE_FMT_DECODE_CFG_DEFAULT);
+	return rc;
 }
 
-static void be_group_format_reg_area_rebuild(struct m0_be_group_format *go,
-                                             struct m0_be_tx_group     *group)
+M0_INTERNAL void m0_be_group_format_reg_log_add(struct m0_be_group_format *gft,
+						const struct m0_be_reg_d  *rd)
 {
-	go->go_reg_area_rebuild(&go->go_area, &go->go_area_copy,
-				go->go_reg_area_rebuild_param);
+	struct m0_be_fmt_reg freg;
+
+	freg = M0_BE_FMT_REG(rd->rd_reg.br_size, rd->rd_reg.br_addr,
+			     rd->rd_buf);
+	m0_be_fmt_group_reg_add(&gft->gft_fmt_group, &freg);
 }
 
-M0_INTERNAL void m0_be_group_format_serialize(struct m0_be_group_format *go,
-					      struct m0_be_tx_group *group,
-					      struct m0_be_log *log)
+M0_INTERNAL void m0_be_group_format_reg_seg_add(struct m0_be_group_format *gft,
+						const struct m0_be_reg_d  *rd)
 {
-	struct m0_be_log_store_io lsi;
-	struct m0_be_tx_credit   reg_cr;
-	struct m0_be_tx_credit   io_cr;
-	struct m0_be_reg_d      *rd;
-	struct m0_be_tx         *tx;
-	m0_bcount_t		 payload_size;
-	int                      i;
-	uint64_t                 tx_nr;
-	uint64_t                 reg_nr;
-
-
-	m0_be_group_format_reserved(go, group, &reg_cr, &payload_size, &tx_nr);
-	m0_be_group_format_io_reserved(go, group, &io_cr);
-	m0_be_log_store_io_init(&lsi, &log->lg_store, &go->go_io_log,
-			       &go->go_io_log_cblock, io_cr.tc_reg_size);
-
-	tx_nr = 0;
-	M0_BE_TX_GROUP_TX_FORALL(group, tx) {
-		++tx_nr;
-	} M0_BE_TX_GROUP_TX_ENDFOR;
-
-	if (tx_nr > 0) {
-		be_group_format_reg_area_merge(go, group);
-		be_group_format_reg_area_rebuild(go, group);
-	}
-
-	/* it doesn't matter which reg_area is logged so just log something */
-	reg_nr = 0;
-	M0_BE_REG_AREA_FORALL(&go->go_area, rd) {
-		go->go_reg[reg_nr] = (struct tx_reg_header) {
-			.rh_lsn    = 0xABC,	/* XXX */
-			.rh_offset = (uintptr_t) rd->rd_reg.br_addr,
-			.rh_size   = rd->rd_reg.br_size,
-			.rh_seg_id = 0xDEF,	/* XXX */
-		};
-		++reg_nr;
-		M0_ASSERT(reg_nr <= reg_cr.tc_reg_nr);
-	}
-
-	go->go_header.gh_tx_nr	= tx_nr;
-	go->go_header.gh_reg_nr = reg_nr;
-
-	/* add to log io */
-	M0_BE_LOG_STOR_IO_ADD_PTR(&lsi, &go->go_header);
-	for (i = 0; i < go->go_header.gh_tx_nr; ++i)
-		M0_BE_LOG_STOR_IO_ADD_PTR(&lsi, &go->go_entry[i]);
-	for (i = 0; i < go->go_header.gh_reg_nr; ++i)
-		M0_BE_LOG_STOR_IO_ADD_PTR(&lsi, &go->go_reg[i]);
-	M0_BE_REG_AREA_FORALL(&go->go_area, rd) {
-		m0_be_log_store_io_add(&lsi, rd->rd_buf, rd->rd_reg.br_size);
-	}
-	/* add payload */
-	M0_BE_TX_GROUP_TX_FORALL(group, tx) {
-		payload_size = tx->t_payload.b_nob;
-		if (payload_size > 0) {
-			m0_be_log_store_io_add(&lsi, tx->t_payload.b_addr,
-					       payload_size);
-		}
-	} M0_BE_TX_GROUP_TX_ENDFOR;
-
-	m0_be_log_store_io_add_cblock(&lsi, &go->go_cblock,
-				     sizeof(go->go_cblock));
-	m0_be_log_store_io_sort(&lsi);
-	m0_be_log_store_io_fini(&lsi);
-
-	/* add to seg io */
-	m0_be_reg_area_io_add(&go->go_area_copy, &go->go_io_seg);
-
-	m0_be_io_configure(&go->go_io_log, SIO_WRITE);
-	m0_be_io_configure(&go->go_io_log_cblock, SIO_WRITE);
-	m0_be_io_configure(&go->go_io_seg, SIO_WRITE);
-
-	/* m0_be_io_sync_enable(&go->go_io_log_cblock); */
-	/* m0_be_io_sync_enable(&go->go_io_seg); */
+	m0_be_io_add(&gft->gft_seg_io, rd->rd_reg.br_seg->bs_stob, rd->rd_buf,
+		     m0_be_reg_offset(&rd->rd_reg), rd->rd_reg.br_size);
 }
 
-static int group_io_init(struct m0_be_group_format *g,
-			 struct m0_stob *stob,
-			 const struct m0_be_tx_credit *cr_logrec,
-			 const struct m0_be_tx_credit *cr_commit_block,
-			 const struct m0_be_tx_credit *cr_group_maxsize,
-			 uint64_t seg_nr_max)
+M0_INTERNAL uint32_t
+m0_be_group_format_reg_nr(const struct m0_be_group_format *gft)
 {
-	int rc;
+	return m0_be_fmt_group_reg_nr(gft_fmt_group_choose(gft));
+}
+
+M0_INTERNAL void
+m0_be_group_format_reg_get(const struct m0_be_group_format *gft,
+			   uint32_t			    index,
+			   struct m0_be_reg_d		   *rd)
+{
+	struct m0_be_fmt_reg freg;
+
+	M0_PRE(gft->gft_fmt_group_decoded != NULL);
+
+	m0_be_fmt_group_reg_by_id(gft->gft_fmt_group_decoded, index, &freg);
 	/*
-	 * XXX TODO: Write a small library module for dealing with chains
-	 * of init/fini statements. The implementation will be pretty much
-	 * similar to mero/init.c.
+	 * XXX currently segment field in region is always NULL
+	 * after group reconstruct. It may be changed in the future.
 	 */
-	rc = m0_be_io_init(&g->go_io_log, cr_logrec, 1);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	rc = m0_be_io_init(&g->go_io_log_cblock, cr_commit_block, 1);
-	if (rc != 0)
-		goto err;
-
-	rc = m0_be_io_init(&g->go_io_seg, cr_group_maxsize, seg_nr_max);
-	if (rc == 0)
-		return 0;
-
-	m0_be_io_fini(&g->go_io_log_cblock);
-err:
-	m0_be_io_fini(&g->go_io_log);
-	return M0_RC(rc);
+	*rd = M0_BE_REG_D(M0_BE_REG(NULL, freg.fr_size, freg.fr_addr),
+			  freg.fr_buf);
 }
 
-static void group_io_fini(struct m0_be_group_format *g)
+M0_INTERNAL void m0_be_group_format_tx_add(struct m0_be_group_format *gft,
+					   struct m0_be_fmt_tx       *ftx)
 {
-	m0_be_io_fini(&g->go_io_seg);
-	m0_be_io_fini(&g->go_io_log_cblock);
-	m0_be_io_fini(&g->go_io_log);
+	m0_be_fmt_group_tx_add(&gft->gft_fmt_group, ftx);
+}
+
+M0_INTERNAL uint32_t
+m0_be_group_format_tx_nr(const struct m0_be_group_format *gft)
+{
+	return m0_be_fmt_group_tx_nr(gft_fmt_group_choose(gft));
+}
+
+M0_INTERNAL void
+m0_be_group_format_tx_get(const struct m0_be_group_format *gft,
+			  uint32_t                         index,
+			  struct m0_be_fmt_tx             *ftx)
+{
+	M0_PRE(gft->gft_fmt_group_decoded != NULL);
+
+	m0_be_fmt_group_tx_by_id(gft->gft_fmt_group_decoded, index, ftx);
+}
+
+M0_INTERNAL struct m0_be_fmt_group_info *
+m0_be_group_format_group_info(struct m0_be_group_format *gft)
+{
+	return m0_be_fmt_group_info_get(gft_fmt_group_choose(gft));
+}
+
+M0_INTERNAL m0_bcount_t
+m0_be_group_format_log_reserved_size(struct m0_be_log       *log,
+				     struct m0_be_tx_credit *cred,
+				     m0_bcount_t             cred_payload)
+{
+	m0_bcount_t                lio_size[2];
+	struct m0_be_fmt_group_cfg cfg = {
+		.fgc_tx_nr_max = 1,
+		.fgc_reg_nr_max = cred->tc_reg_nr,
+		.fgc_payload_size_max = cred_payload,
+		.fgc_reg_area_size_max = cred->tc_reg_size,
+	};
+
+	lio_size[0] = m0_be_fmt_group_size_max(&cfg);
+	lio_size[1] = m0_be_fmt_cblock_size_max(NULL);
+	return m0_be_log_reserved_size(log, lio_size, 2);
+}
+
+M0_INTERNAL void
+m0_be_group_format_log_use(struct m0_be_group_format *gft,
+			   m0_bcount_t                size_reserved)
+{
+	struct m0_be_log_record *record = &gft->gft_log_record;
+	m0_bcount_t              size_group;
+	m0_bcount_t              size_cblock;
+
+	size_group  = m0_be_fmt_group_size(&gft->gft_fmt_group);
+	size_cblock = m0_be_fmt_cblock_size(&gft->gft_fmt_cblock);
+
+	m0_be_log_record_io_size_set(record, GFT_GROUP_IO, size_group);
+	m0_be_log_record_io_size_set(record, GFT_GROUP_CB_IO, size_cblock);
+	m0_be_log_record_io_prepare(record, SIO_WRITE, size_reserved);
+}
+
+M0_INTERNAL void m0_be_group_format_log_discard(struct m0_be_group_format *gft)
+{
+	m0_be_log_record_discard(&gft->gft_log_record);
+}
+
+M0_INTERNAL void
+m0_be_group_format_recovery_prepare(struct m0_be_group_format *gft,
+				    struct m0_be_recovery     *rvr)
+{
+	struct m0_be_log_record *record = &gft->gft_log_record;
+
+	m0_be_recovery_log_record_get(rvr, &gft->gft_log_record_iter);
+	m0_be_log_record_assign(record, &gft->gft_log_record_iter, true);
+	m0_be_log_record_io_prepare(record, SIO_READ, 0);
+}
+
+M0_INTERNAL void m0_be_group_format_log_write(struct m0_be_group_format *gft,
+					      struct m0_be_op           *op)
+{
+	/* XXX @pre SIO_WRITE is set */
+	m0_be_log_record_io_launch(&gft->gft_log_record, op);
+}
+
+M0_INTERNAL void m0_be_group_format_log_read(struct m0_be_group_format *gft,
+					     struct m0_be_op           *op)
+{
+	m0_be_log_record_io_launch(&gft->gft_log_record, op);
+}
+
+M0_INTERNAL void
+m0_be_group_format_seg_place_prepare(struct m0_be_group_format *gft)
+{
+	/*
+	 * Regions are added to m0_be_io for seg I/O in
+	 * m0_be_group_format_reg_seg_add().
+	 */
+	m0_be_io_configure(&gft->gft_seg_io, SIO_WRITE);
+	if (gft->gft_cfg.gfc_seg_io_fdatasync)
+		m0_be_io_sync_enable(&gft->gft_seg_io);
+}
+
+M0_INTERNAL void m0_be_group_format_seg_place(struct m0_be_group_format *gft,
+					      struct m0_be_op           *op)
+{
+	m0_be_io_launch(&gft->gft_seg_io, op);
 }
 
 /** @} end of be group */

@@ -22,12 +22,11 @@
 #ifndef __MERO_BE_SEG_H__
 #define __MERO_BE_SEG_H__
 
-#include "be/alloc.h"		/* m0_be_allocator */
-#include "be/seg_dict.h"	/* m0_be_seg_dict_init */	/* XXX */
+#include "be/alloc.h"           /* m0_be_allocator */
+#include "be/seg_dict.h"        /* m0_be_seg_dict_init */       /* XXX */
 
-#include "lib/tlist.h"		/* m0_tlink */
+#include "lib/tlist.h"          /* m0_tlink */
 
-struct m0_be;
 struct m0_be_op;
 struct m0_be_reg_d;
 struct m0_be_reg_area;
@@ -61,7 +60,7 @@ struct m0_be_seg {
 	void                  *bs_addr;
 	/** Size at the start of segment which is used by segment internals. */
 	/** XXX use it in all UTs */
-	m0_bcount_t	       bs_reserved;
+	m0_bcount_t            bs_reserved;
 	/**
 	 * Segment allocator.
 	 * m0_be_seg_allocator() should be used to access segment allocator.
@@ -111,7 +110,7 @@ struct m0_be_reg {
 		.br_size = (size), \
 		.br_addr = (addr) })
 
-#define M0_BE_REG_PTR(seg, ptr)	M0_BE_REG((seg), sizeof *(ptr), (ptr))
+#define M0_BE_REG_PTR(seg, ptr)         M0_BE_REG((seg), sizeof *(ptr), (ptr))
 #define M0_BE_REG_SEG(seg) M0_BE_REG((seg), (seg)->bs_size, (seg)->bs_addr)
 
 M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg);

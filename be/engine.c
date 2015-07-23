@@ -23,13 +23,14 @@
 
 #include "be/engine.h"
 
-#include "lib/memory.h"		/* m0_free */
-#include "lib/errno.h"		/* ENOMEM */
-#include "lib/misc.h"		/* m0_forall */
+#include "lib/memory.h"         /* m0_free */
+#include "lib/errno.h"          /* ENOMEM */
+#include "lib/misc.h"           /* m0_forall */
+#include "lib/time.h"           /* m0_time_now */
 
-#include "be/tx_service.h"	/* m0_be_tx_service_init */
-#include "be/tx_group.h"	/* m0_be_tx_group */
-#include "be/tx_internal.h"	/* m0_be_tx__state_post */
+#include "be/tx_service.h"      /* m0_be_tx_service_init */
+#include "be/tx_group.h"        /* m0_be_tx_group */
+#include "be/tx_internal.h"     /* m0_be_tx__state_post */
 
 /**
  * @addtogroup be
@@ -53,8 +54,9 @@ M0_TL_DESCR_DEFINE(efc, "m0_be_engine::eng_tx_first_capture[]", M0_INTERNAL,
 		   M0_BE_TX_MAGIC, M0_BE_TX_ENGINE_MAGIC);
 M0_TL_DEFINE(efc, M0_INTERNAL, struct m0_be_tx);
 
-M0_INTERNAL int
-m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
+M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
+				  struct m0_be_domain     *dom,
+				  struct m0_be_engine_cfg *en_cfg)
 {
 	int rc;
 	int i;
@@ -63,6 +65,8 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 
 	en->eng_cfg      = en_cfg;
 	en->eng_group_nr = en_cfg->bec_group_nr;
+	en->eng_domain   = dom;
+	en->eng_recovery = en_cfg->bec_recovery;
 
 	M0_ASSERT_INFO(m0_be_tx_credit_le(&en_cfg->bec_tx_size_max,
 					  &en_cfg->bec_group_size_max),
@@ -80,7 +84,6 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 		       "log_size = %lu, group_size_max = %lu",
 		       en_cfg->bec_log_size,
 		       en_cfg->bec_group_size_max.tc_reg_size);
-	M0_ASSERT_INFO(!en_cfg->bec_log_replay, "Recovery is not implemented");
 
 	M0_ALLOC_ARR(en->eng_group, en_cfg->bec_group_nr);
 	if (en->eng_group == NULL) {
@@ -93,17 +96,21 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 	rc = m0_be_tx_service_init(en, en_cfg->bec_group_fom_reqh);
 	if (rc != 0)
 		goto err_free;
+	rc = m0_be_recovery_run(en->eng_recovery, &en->eng_log);
+	if (rc != 0)
+		goto err_service_fini;
 	for (i = 0; i < en->eng_group_nr; ++i) {
 		m0_be_tx_group_init(&en->eng_group[0],
+				    &en_cfg->bec_group_cfg,
 				    &en_cfg->bec_group_size_max,
 				    en_cfg->bec_group_seg_nr_max,
 				    en_cfg->bec_group_tx_max,
+				    en->eng_domain,
 				    en,
 				    &en->eng_log,
 				    en_cfg->bec_group_fom_reqh);
 		egr_tlink_init(&en->eng_group[0]);
 	}
-	en->eng_group_closed = false;
 	en->eng_tx_id_next = 0;
 
 	m0_forall(i, ARRAY_SIZE(en->eng_txs),
@@ -114,8 +121,8 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 	for (i = 0; i < ARRAY_SIZE(en->eng_reg_area); ++i) {
 		en_cfg->bec_reg_area_size_max.tc_reg_nr *= 2;
 		rc = m0_be_reg_area_init(&en->eng_reg_area[i],
-		                         &en_cfg->bec_reg_area_size_max,
-		                         M0_BE_REG_AREA_DATA_NOCOPY);
+					 &en_cfg->bec_reg_area_size_max,
+					 M0_BE_REG_AREA_DATA_NOCOPY);
 		/*
 		 * Assertion is enough here before m0_module is used
 		 * for error handling.
@@ -126,8 +133,13 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 	en->eng_reg_area_prune_gen_idx_min = ULONG_MAX;
 	efc_tlist_init(&en->eng_tx_first_capture);
 
+	m0_semaphore_init(&en->eng_recovery_wait_sem, 0);
+	en->eng_recovery_finished = false;
+
 	M0_POST(m0_be_engine__invariant(en));
 	return M0_RC(0);
+ err_service_fini:
+	m0_be_tx_service_fini(en);
  err_free:
 	m0_free(en->eng_group);
  err:
@@ -137,17 +149,22 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 {
 	struct m0_be_tx_credit used;
-	m0_bcount_t log_size = m0_be_log_size(&en->eng_log);
-	m0_bcount_t log_free = m0_be_log_free(&en->eng_log);
-	int	    i;
+	m0_bcount_t log_size = 0; /* XXX */
+	m0_bcount_t log_free = 0; /* XXX */
+	int         i;
 
 	M0_ENTRY();
 	M0_PRE(m0_be_engine__invariant(en));
 
+	/*
+	 * TODO this check should be implemented.
+	 */
 	M0_ASSERT_INFO(log_size == log_free,
 		       "There is at least one transaction which didn't become "
 		       "stable yet. log_size = %lu, log_free = %lu",
 		       log_size, log_free);
+
+	m0_semaphore_fini(&en->eng_recovery_wait_sem);
 
 	m0_be_engine__reg_area_lock(en);
 	m0_be_engine__reg_area_prune(en);
@@ -201,7 +218,7 @@ static uint64_t be_engine_tx_id_allocate(struct m0_be_engine *en)
 }
 
 static struct m0_be_tx *be_engine_tx_peek(struct m0_be_engine *en,
-					  enum m0_be_tx_state state)
+					  enum m0_be_tx_state  state)
 {
 	M0_PRE(be_engine_is_locked(en));
 
@@ -209,8 +226,8 @@ static struct m0_be_tx *be_engine_tx_peek(struct m0_be_engine *en,
 }
 
 static void be_engine_tx_state_post(struct m0_be_engine *en,
-				    struct m0_be_tx *tx,
-				    enum m0_be_tx_state state)
+				    struct m0_be_tx     *tx,
+				    enum m0_be_tx_state  state)
 {
 	M0_PRE(be_engine_is_locked(en));
 
@@ -223,7 +240,7 @@ static void be_engine_tx_state_post(struct m0_be_engine *en,
  * exclusive transaction is at M0_BTS_DONE state.
  */
 static bool is_engine_at_stopped_or_done(const struct m0_be_engine *en,
-					 bool stopped)
+					 bool                       stopped)
 {
 	M0_PRE(be_engine_is_locked(en));
 
@@ -256,13 +273,19 @@ static struct m0_be_tx *be_engine_tx_opening_peek(struct m0_be_engine *en)
 }
 
 /* XXX RENAME IT */
-static void be_engine_got_tx_open(struct m0_be_engine *en)
+static void be_engine_got_tx_open(struct m0_be_engine *en,
+				  struct m0_be_tx     *tx)
 {
-	struct m0_be_tx        *tx;
 	struct m0_be_tx_credit  tx_size_max = en->eng_cfg->bec_tx_size_max;
 	int                     rc;
 
 	M0_PRE(be_engine_is_locked(en));
+
+	if (tx != NULL && tx->t_group != NULL) {
+		/* XXX this is copypaste */
+		tx->t_log_reserved = true;
+		be_engine_tx_state_post(en, tx, M0_BTS_ACTIVE);
+	}
 
 	while ((tx = be_engine_tx_opening_peek(en)) != NULL) {
 		if (!m0_be_tx_credit_le(&tx->t_prepared, &tx_size_max)) {
@@ -272,8 +295,12 @@ static void be_engine_got_tx_open(struct m0_be_engine *en)
 			       BETXCR_P(&tx_size_max));
 			be_engine_tx_state_post(en, tx, M0_BTS_FAILED);
 		} else {
-			rc = m0_be_log_reserve_tx(&en->eng_log, &tx->t_prepared,
-						  tx->t_payload.b_nob);
+			tx->t_log_reserved_size =
+				m0_be_group_format_log_reserved_size(
+					&en->eng_log, &tx->t_prepared,
+					tx->t_payload.b_nob);
+			rc = m0_be_log_reserve(&en->eng_log,
+					       tx->t_log_reserved_size);
 			if (rc == 0) {
 				tx->t_log_reserved = true;
 				be_engine_tx_state_post(en, tx, M0_BTS_ACTIVE);
@@ -288,14 +315,18 @@ static void be_engine_got_tx_open(struct m0_be_engine *en)
 	}
 }
 
-static void be_engine_group_close(struct m0_be_engine *en,
+static void be_engine_group_close(struct m0_be_engine   *en,
 				  struct m0_be_tx_group *gr,
-				  bool immediately)
+				  bool                   immediately)
 {
 	m0_time_t abs_timeout;
 
 	M0_PRE(be_engine_is_locked(en));
 
+	/*
+	 * Timeout handling should be moved to the engine.
+	 */
+	immediately = true; /* XXX */
 	if (immediately) {
 		abs_timeout = M0_TIME_IMMEDIATELY;
 		egr_tlist_move(&en->eng_groups[M0_BEG_CLOSED], gr);
@@ -311,18 +342,35 @@ static struct m0_be_tx_group *be_engine_group_find(struct m0_be_engine *en)
 	return egr_tlist_head(&en->eng_groups[M0_BEG_OPEN]);
 }
 
+/* naming? */
+static int be_engine_tx_group(struct m0_be_engine   *en,
+			      struct m0_be_tx       *tx,
+			      struct m0_be_tx_group *gr)
+{
+	int rc;
+
+	if (tx->t_group == NULL) {
+		rc = m0_be_tx_group_tx_add(gr, tx);
+		if (rc == 0)
+			m0_be_tx__group_assign(tx, gr);
+	} else {
+		rc = m0_be_tx_group_tx_add(tx->t_group, tx);
+	}
+	be_engine_tx_state_post(en, tx, M0_BTS_GROUPED);
+	return rc;
+}
+
 static int be_engine_tx_trygroup(struct m0_be_engine *en,
-				 struct m0_be_tx *tx)
+				 struct m0_be_tx     *tx)
 {
 	struct m0_be_tx_group *gr;
-	int		       rc = -EBUSY;
+	int                    rc = -EBUSY;
 
 	M0_PRE(be_engine_is_locked(en));
 
 	while ((gr = be_engine_group_find(en)) != NULL) {
-		rc = m0_be_tx_group_tx_add(gr, tx);
+		rc = be_engine_tx_group(en, tx, gr);
 		if (rc == 0) {
-			tx->t_group = gr;
 			if (m0_be_tx__is_fast(tx))
 				be_engine_group_close(en, gr, true);
 			else if (m0_be_tx_group_size(gr) == 1)
@@ -334,6 +382,40 @@ static int be_engine_tx_trygroup(struct m0_be_engine *en,
 	return M0_RC(rc);
 }
 
+static void be_engine_try_recovery(struct m0_be_engine *en)
+{
+	struct m0_be_tx_group *gr;
+	bool                   group_closed = false;
+
+	M0_ENTRY();
+
+	while (m0_be_recovery_log_record_available(en->eng_recovery)) {
+		gr = be_engine_group_find(en);
+		if (gr == NULL)
+			break;
+		m0_be_tx_group_recovery_prepare(gr, en->eng_recovery);
+		be_engine_group_close(en, gr, true);
+		group_closed = true;
+	}
+	/* XXX it will work only with one tx group */
+	M0_ASSERT(en->eng_cfg->bec_group_nr == 1);
+	if (!group_closed &&
+	    !m0_be_recovery_log_record_available(en->eng_recovery) &&
+	    !en->eng_recovery_finished) {
+		m0_semaphore_up(&en->eng_recovery_wait_sem);
+		en->eng_recovery_finished = true;
+	}
+	M0_LEAVE("group_closed=%d eng_recovery_finished=%d",
+		 (int)group_closed, (int)en->eng_recovery_finished);
+}
+
+static struct m0_be_tx *be_engine_recovery_tx_find(struct m0_be_engine *en,
+						   enum m0_be_tx_state  state)
+{
+	return m0_tl_find(etx, tx, &en->eng_txs[state],
+			  m0_be_tx__is_recovering(tx));
+}
+
 /* XXX RENAME IT */
 static void be_engine_got_tx_close(struct m0_be_engine *en)
 {
@@ -342,11 +424,19 @@ static void be_engine_got_tx_close(struct m0_be_engine *en)
 
 	M0_PRE(be_engine_is_locked(en));
 
+	/* Close recovering transactions */
+	while ((tx = be_engine_recovery_tx_find(en, M0_BTS_CLOSED)) != NULL) {
+		/*
+		 * Group is already closed, we just need to add tx to the group.
+		 */
+		rc = be_engine_tx_group(en, tx, NULL);
+		M0_ASSERT_INFO(rc == 0, "rc == %d", rc);
+	}
+	/* Close regular transactions */
 	while ((tx = be_engine_tx_peek(en, M0_BTS_CLOSED)) != NULL) {
 		rc = be_engine_tx_trygroup(en, tx);
 		if (rc != 0)
 			break;
-		be_engine_tx_state_post(en, tx, M0_BTS_GROUPED);
 	}
 }
 
@@ -394,7 +484,7 @@ static void be_engine_gen_idx_min_update(struct m0_be_engine *en)
 }
 
 static void be_engine_tx_first_capture_add(struct m0_be_engine *en,
-                                           struct m0_be_tx     *tx)
+					   struct m0_be_tx     *tx)
 {
 	struct m0_be_tx *tx_before;
 
@@ -424,7 +514,7 @@ static void be_engine_tx_first_capture_add(struct m0_be_engine *en,
 }
 
 static void be_engine_tx_first_capture_del(struct m0_be_engine *en,
-                                           struct m0_be_tx     *tx)
+					   struct m0_be_tx     *tx)
 {
 	M0_PRE(be_engine_is_locked(en));
 
@@ -434,8 +524,8 @@ static void be_engine_tx_first_capture_del(struct m0_be_engine *en,
 }
 
 M0_INTERNAL void m0_be_engine__tx_init(struct m0_be_engine *en,
-				       struct m0_be_tx *tx,
-				       enum m0_be_tx_state state)
+				       struct m0_be_tx     *tx,
+				       enum m0_be_tx_state  state)
 {
 	etx_tlink_init(tx);
 	efc_tlink_init(tx);
@@ -443,7 +533,7 @@ M0_INTERNAL void m0_be_engine__tx_init(struct m0_be_engine *en,
 }
 
 M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
-				       struct m0_be_tx *tx)
+				       struct m0_be_tx     *tx)
 {
 	be_engine_lock(en);
 	etx_tlink_del_fini(tx);
@@ -454,8 +544,8 @@ M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
 }
 
 M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
-					    struct m0_be_tx *tx,
-					    enum m0_be_tx_state state)
+					    struct m0_be_tx     *tx,
+					    enum m0_be_tx_state  state)
 {
 	be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
@@ -468,10 +558,11 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 
 	switch (state) {
 	case M0_BTS_PREPARE:
+		/* TODO don't assign id for recovering tx */
 		tx->t_id = be_engine_tx_id_allocate(en);
 		break;
 	case M0_BTS_OPENING:
-		be_engine_got_tx_open(en);
+		be_engine_got_tx_open(en, tx);
 		break;
 	case M0_BTS_CLOSED:
 		be_engine_got_tx_close(en);
@@ -481,7 +572,8 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 		break;
 	case M0_BTS_FAILED:
 		if (tx->t_log_reserved)
-			m0_be_log_discard(&en->eng_log, &tx->t_prepared);
+			m0_be_log_unreserve(&en->eng_log,
+					    tx->t_log_reserved_size);
 		break;
 	default:
 		break;
@@ -492,16 +584,16 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 }
 
 M0_INTERNAL void m0_be_engine__tx_force(struct m0_be_engine *en,
-					struct m0_be_tx *tx)
+					struct m0_be_tx     *tx)
 {
-	struct m0_be_tx_group   *grp;
+	struct m0_be_tx_group *grp;
 
 
 	/*
-	* Note: as multiple txs may try to move tx group's fom (for example,
-	* a new tx is added to the tx group or multiple txs call
-	* m0_be_tx_force()), we use be engine's lock here
-	*/
+	 * Note: as multiple txs may try to move tx group's fom (for example,
+	 * a new tx is added to the tx group or multiple txs call
+	 * m0_be_tx_force()), we use be engine's lock here
+	 */
 	be_engine_lock(en);
 
 	grp = tx->t_group;
@@ -511,11 +603,12 @@ M0_INTERNAL void m0_be_engine__tx_force(struct m0_be_engine *en,
 	}
 
 	/*
-	* Is it possible that the tx has been committed to disk while
-	* we were waiting for the lock?
-	*/
-	if (m0_be_tx_state(tx) < M0_BTS_LOGGED)
-		be_engine_group_close(en, grp, true);
+	 * Is it possible that the tx has been committed to disk while
+	 * we were waiting for the lock?
+	 */
+	/* XXX race here. Let's disable this completely. */
+	// if (m0_be_tx_state(tx) < M0_BTS_LOGGED)
+	// 	be_engine_group_close(en, grp, true);
 
 	be_engine_unlock(en);
 }
@@ -528,6 +621,7 @@ M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine *en,
 
 	/* TODO check if group is in M0_BEG_CLOSED list */
 	egr_tlist_move(&en->eng_groups[M0_BEG_OPEN], gr);
+	be_engine_try_recovery(en);
 	be_engine_got_tx_close(en);
 
 	M0_POST(be_engine_invariant(en));
@@ -545,6 +639,18 @@ M0_INTERNAL void m0_be_engine__tx_group_close(struct m0_be_engine *en,
 	 * handle this situation correctly
 	 */
 	egr_tlist_move(&en->eng_groups[M0_BEG_CLOSED], gr);
+
+	M0_POST(be_engine_invariant(en));
+	be_engine_unlock(en);
+}
+
+M0_INTERNAL void m0_be_engine__tx_group_discard(struct m0_be_engine   *en,
+						struct m0_be_tx_group *gr)
+{
+	be_engine_lock(en);
+	M0_PRE(be_engine_invariant(en));
+
+	m0_be_tx_group_discard(gr);
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);
@@ -570,8 +676,9 @@ static void be_engine_group_stop_nr(struct m0_be_engine *en, size_t nr)
 
 M0_INTERNAL int m0_be_engine_start(struct m0_be_engine *en)
 {
-	int    rc = 0;
-	size_t i;
+	m0_time_t recovery_time = 0;
+	int       rc = 0;
+	size_t    i;
 
 	M0_ENTRY();
 	be_engine_lock(en);
@@ -584,11 +691,22 @@ M0_INTERNAL int m0_be_engine_start(struct m0_be_engine *en)
 		egr_tlist_add_tail(&en->eng_groups[M0_BEG_OPEN],
 				   &en->eng_group[i]);
 	}
-	if (i != en->eng_group_nr)
+	if (rc == 0) {
+		recovery_time = m0_time_now();
+		be_engine_try_recovery(en);
+	} else {
 		be_engine_group_stop_nr(en, i);
+	}
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);
+
+	if (rc == 0 && en->eng_cfg->bec_wait_for_recovery) {
+		m0_semaphore_down(&en->eng_recovery_wait_sem);
+		recovery_time = m0_time_now() - recovery_time;
+		M0_LOG(M0_INFO, "BE recovery execution time: %lu",
+		       recovery_time);
+	}
 	return M0_RC(rc);
 }
 
@@ -610,17 +728,17 @@ M0_INTERNAL void m0_be_engine_got_log_space_cb(struct m0_be_log *log)
 	struct m0_be_engine *en =
 		container_of(log, struct m0_be_engine, eng_log);
 
-	be_engine_lock(en);
+	// be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
 
-	be_engine_got_tx_open(en);
+	be_engine_got_tx_open(en, NULL);
 
 	M0_POST(be_engine_invariant(en));
-	be_engine_unlock(en);
+	// be_engine_unlock(en);
 }
 
 M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
-						   uint64_t id)
+						   uint64_t             id)
 {
 	struct m0_be_tx *tx = NULL;
 	size_t		 i;
@@ -648,8 +766,9 @@ M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
 	return tx;
 }
 
-M0_INTERNAL int m0_be_engine__exclusive_open_invariant(struct m0_be_engine *en,
-						       struct m0_be_tx *excl)
+M0_INTERNAL int
+m0_be_engine__exclusive_open_invariant(struct m0_be_engine *en,
+				       struct m0_be_tx     *excl)
 {
 	bool ret;
 
@@ -671,8 +790,8 @@ m0_be_engine_tx_size_max(struct m0_be_engine *en)
 }
 
 M0_INTERNAL void m0_be_engine__tx_first_capture(struct m0_be_engine *en,
-                                                struct m0_be_tx     *tx,
-                                                unsigned long        gen_idx)
+						struct m0_be_tx     *tx,
+						unsigned long        gen_idx)
 {
 	tx->t_gen_idx_min = gen_idx;
 
@@ -706,15 +825,15 @@ M0_INTERNAL void m0_be_engine__reg_area_prune(struct m0_be_engine *en)
 
 M0_INTERNAL void
 m0_be_engine__reg_area_rebuild(struct m0_be_engine   *en,
-                               struct m0_be_reg_area *group,
-                               struct m0_be_reg_area *group_new)
+			       struct m0_be_reg_area *group,
+			       struct m0_be_reg_area *group_new)
 {
 	M0_PRE(be_engine_reg_area_is_locked(en));
 
 	m0_be_reg_area_rebuild(&en->eng_reg_area[en->eng_reg_area_index],
-	                       group,
-	                       &en->eng_reg_area[1 - en->eng_reg_area_index],
-	                       group_new);
+			       group,
+			       &en->eng_reg_area[1 - en->eng_reg_area_index],
+			       group_new);
 	m0_be_reg_area_reset(&en->eng_reg_area[en->eng_reg_area_index]);
 	/* switch between two global reg_areas */
 	en->eng_reg_area_index = 1 - en->eng_reg_area_index;

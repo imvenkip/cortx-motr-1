@@ -29,12 +29,12 @@
 #include "lib/time.h"         /* m0_time_now */
 #include "lib/atomic.h"       /* m0_atomic64 */
 
-#include "stob/stob.h"	      /* m0_stob */
+#include "stob/stob.h"        /* m0_stob */
 #include "stob/linux.h"       /* m0_stob_linux_container */
 
 #include "be/seg_internal.h"  /* m0_be_seg_hdr */
 #include "be/tx_regmap.h"     /* m0_be_reg_area */
-#include "be/io.h"	      /* m0_be_io */
+#include "be/io.h"            /* m0_be_io */
 
 #include <sys/mman.h>         /* mmap */
 #include <search.h>           /* twalk */
@@ -95,8 +95,8 @@ M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
 	return M0_RC(0);
 }
 
-M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
-				struct m0_stob *stob,
+M0_INTERNAL void m0_be_seg_init(struct m0_be_seg    *seg,
+				struct m0_stob      *stob,
 				struct m0_be_domain *dom)
 {
 	M0_ENTRY("seg=%p", seg);
@@ -138,7 +138,7 @@ bool m0_be_reg__invariant(const struct m0_be_reg *reg)
 
 /* XXX temporary */
 /* static */ int be_seg_read_all(struct m0_be_seg     *seg,
-                                 struct m0_be_seg_hdr *hdr)
+				 struct m0_be_seg_hdr *hdr)
 {
 	m0_bindex_t pos;
 	m0_bcount_t size;
@@ -174,7 +174,8 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	p = mmap(hdr.bh_addr, hdr.bh_size, PROT_READ | PROT_WRITE,
 		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, fd, 0);
 	if (p != hdr.bh_addr)
-		return M0_RC(-errno);
+		return M0_ERR_INFO(-errno, "p=%p hdr.bh_addr=%p",
+				   p, hdr.bh_addr);
 
 	/* rc = be_seg_read_all(seg, &hdr); */
 	rc = 0;

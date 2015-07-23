@@ -24,16 +24,21 @@
 #ifndef __MERO_BE_ENGINE_H__
 #define __MERO_BE_ENGINE_H__
 
-#include "lib/types.h"		/* bool */
-#include "lib/mutex.h"		/* m0_mutex */
-#include "lib/tlist.h"		/* m0_tl */
+#include "lib/types.h"          /* bool */
+#include "lib/mutex.h"          /* m0_mutex */
+#include "lib/tlist.h"          /* m0_tl */
+#include "lib/semaphore.h"      /* m0_semaphore */
 
-#include "be/log.h"		/* m0_be_log */
-#include "be/tx.h"		/* m0_be_tx */
-#include "be/tx_credit.h"	/* m0_be_tx_credit */
+#include "be/log.h"             /* m0_be_log */
+#include "be/tx.h"              /* m0_be_tx */
+#include "be/tx_credit.h"       /* m0_be_tx_credit */
+#include "be/tx_group.h"        /* m0_be_tx_group_cfg */
 
 struct m0_reqh_service;
 struct m0_be_tx_group;
+struct m0_be_domain;
+struct m0_be_engine;
+struct m0_be_recovery;
 struct m0_reqh;
 struct m0_stob;
 
@@ -51,40 +56,43 @@ enum {
 };
 
 struct m0_be_engine_cfg {
-	size_t		       bec_group_nr;
-	size_t		       bec_log_size;
+	struct m0_be_tx_group_cfg bec_group_cfg;
+	size_t                 bec_group_nr;
+	size_t                 bec_log_size;
 	struct m0_be_tx_credit bec_tx_size_max;
 	struct m0_be_tx_credit bec_group_size_max;
-	size_t		       bec_group_seg_nr_max;
-	size_t		       bec_group_tx_max;
-	m0_time_t	       bec_group_close_timeout;
-	struct m0_reqh	      *bec_group_fom_reqh;
-	bool		       bec_log_replay;
+	size_t                 bec_group_seg_nr_max;
+	size_t                 bec_group_tx_max;
+	m0_time_t              bec_group_close_timeout;
+	struct m0_reqh        *bec_group_fom_reqh;
 	struct m0_be_tx_credit bec_reg_area_size_max;
+	/* wait in m0_be_engine_start() until recovery is finished */
+	bool                   bec_wait_for_recovery;
+	struct m0_be_recovery *bec_recovery;
+	/**
+	 * Recovery should be executed in each case, so this parameters
+	 * should be removed before recovery landed to master.
+	 */
+	bool                   bec_run_recovery; /* XXX remove it */
 };
 
 struct m0_be_engine {
-	struct m0_be_engine_cfg	  *eng_cfg;
+	struct m0_be_engine_cfg   *eng_cfg;
 	/** Protects all fields of this struct. */
-	struct m0_mutex		   eng_lock;
+	struct m0_mutex            eng_lock;
 	/**
 	 * Per-state lists of transaction. Each non-failed transaction is in one
 	 * of these lists.
 	 */
-	struct m0_tl		   eng_txs[M0_BTS_NR + 1];
-	struct m0_tl		   eng_groups[M0_BEG_NR];
+	struct m0_tl               eng_txs[M0_BTS_NR + 1];
+	struct m0_tl               eng_groups[M0_BEG_NR];
 	/** Transactional log. */
-	struct m0_be_log	   eng_log;
+	struct m0_be_log           eng_log;
 	/** Transactional group. */
-	struct m0_be_tx_group	  *eng_group;
-	size_t			   eng_group_nr;
+	struct m0_be_tx_group     *eng_group;
+	size_t                     eng_group_nr;
 	struct m0_reqh_service    *eng_service;
-	/**
-	 * XXX Indicator for one group.
-	 * Remove it when add multiple groups support.
-	 */
-	bool			   eng_group_closed;
-	uint64_t		   eng_tx_id_next;
+	uint64_t                   eng_tx_id_next;
 	/**
 	 * Indicates BE-engine has a transaction opened with
 	 * m0_be_tx_exclusive_open() and run under exclusive conditions: no
@@ -102,11 +110,16 @@ struct m0_be_engine {
 	 * Used in eng_reg_area pruning.
 	 */
 	struct m0_tl               eng_tx_first_capture;
+	struct m0_be_domain       *eng_domain;
+	struct m0_be_recovery     *eng_recovery;
+	struct m0_semaphore        eng_recovery_wait_sem;
+	bool                       eng_recovery_finished;
 };
 
 M0_INTERNAL bool m0_be_engine__invariant(struct m0_be_engine *en);
 
-M0_INTERNAL int m0_be_engine_init(struct m0_be_engine *en,
+M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
+				  struct m0_be_domain     *dom,
 				  struct m0_be_engine_cfg *en_cfg);
 M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en);
 
@@ -115,33 +128,36 @@ M0_INTERNAL void m0_be_engine_stop(struct m0_be_engine *en);
 
 /* next functions should be called from m0_be_tx implementation */
 M0_INTERNAL void m0_be_engine__tx_init(struct m0_be_engine *en,
-				       struct m0_be_tx *tx,
-				       enum m0_be_tx_state state);
+				       struct m0_be_tx     *tx,
+				       enum m0_be_tx_state  state);
 
 M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
-				       struct m0_be_tx *tx);
+				       struct m0_be_tx     *tx);
 
 M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
-					    struct m0_be_tx *tx,
-					    enum m0_be_tx_state state);
+					    struct m0_be_tx     *tx,
+					    enum m0_be_tx_state  state);
 /**
  * Forces the tx group fom to move to LOGGING state and  eventually
  * commits all txs to disk.
  */
 M0_INTERNAL void m0_be_engine__tx_force(struct m0_be_engine *en,
-					struct m0_be_tx *tx);
+					struct m0_be_tx     *tx);
 
-M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine *en,
+M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine   *en,
 					     struct m0_be_tx_group *gr);
-M0_INTERNAL void m0_be_engine__tx_group_close(struct m0_be_engine *en,
+M0_INTERNAL void m0_be_engine__tx_group_close(struct m0_be_engine   *en,
 					      struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_engine__tx_group_discard(struct m0_be_engine   *en,
+						struct m0_be_tx_group *gr);
 
 M0_INTERNAL void m0_be_engine_got_log_space_cb(struct m0_be_log *log);
 
 M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
-						   uint64_t id);
-M0_INTERNAL int m0_be_engine__exclusive_open_invariant(struct m0_be_engine *en,
-						       struct m0_be_tx *excl);
+						   uint64_t             id);
+M0_INTERNAL int
+m0_be_engine__exclusive_open_invariant(struct m0_be_engine *en,
+				       struct m0_be_tx     *excl);
 M0_INTERNAL struct m0_be_tx_credit
 m0_be_engine_tx_size_max(struct m0_be_engine *en);
 

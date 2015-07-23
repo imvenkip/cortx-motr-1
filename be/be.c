@@ -32,8 +32,45 @@
  * This file contains implementation details of BE features.
  *
  * Table of contents
+ * - BE components
+ * - Interfaces implemented by BE implementation
  * - Captured regions lifecycle: capturing, seg and log I/O
  * - m0_be_op design highligts
+ *
+ *
+ * @section BE components
+ * - domain
+ * - engine
+ * - tx
+ * - tx_group
+ * - tx_group_format
+ * - tx_group_fom
+ * - fmt
+ * - log
+ * - log_sched
+ * - log_store
+ * - regd_tree
+ * - regmap
+ * - reg_area
+ * - op
+ * - recovery
+ * - seg0
+ * - seg_dict
+ * - tx_credit
+ * - tx_service
+ * - btree
+ * - list
+ * - emap
+ * - io
+ *
+ *
+ * @section Interfaces implemented by BE implementation
+ * - for persistent objects: open()/close()/create()/destroy()
+ * - for preallocated in-memory objects:
+ *   init()/fini()/allocate()/deallocate()/reset()
+ * - module_setup() for objects initialised using m0_module
+ *
+ * @todo Interface tester
  *
  *
  * @section Captured regions lifecycle: capturing, seg and log I/O
@@ -75,6 +112,7 @@
  *   - clear documentation where requested operation starts (if you see just
  *     m0_be_op_done() than operation was started somewhere else);
  *   - possibility to gather statistics about operations execution time.
+ *
  * @{
  */
 

@@ -37,6 +37,18 @@ M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob)
 	buf->b_nob  = nob;
 }
 
+M0_INTERNAL int m0_buf_alloc(struct m0_buf *buf, size_t size)
+{
+	M0_PRE(!m0_buf_is_set(buf));
+
+	M0_ALLOC_ARR(buf->b_addr, size);
+	if (buf->b_addr == NULL)
+		return -ENOMEM;
+
+	buf->b_nob = size;
+	return 0;
+}
+
 M0_INTERNAL void m0_buf_free(struct m0_buf *buf)
 {
 	m0_free0(&buf->b_addr);

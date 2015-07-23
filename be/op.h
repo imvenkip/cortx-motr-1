@@ -33,6 +33,9 @@
 /**
  * @defgroup be Meta-data back-end
  *
+ * Known bugs
+ * - it is not possible to finalise m0_be_op in callback for M0_BOS_DONE state.
+ *
  * @{
  */
 
@@ -40,6 +43,7 @@ struct m0_fom;
 struct m0_be_tx;
 struct m0_be_btree;
 struct m0_be_btree_anchor;
+struct m0_be_op;
 
 enum m0_be_op_state {
 	M0_BOS_INIT,
@@ -52,9 +56,11 @@ enum m0_be_op_type {
 	M0_BOP_LIST,
 };
 
+typedef void (*m0_be_op_cb_t)(struct m0_be_op *op, void *param);
+
 struct m0_be_op {
 	struct m0_sm        bo_sm;
-	struct m0_fom	   *bo_fom;
+	struct m0_fom      *bo_fom;
 	/*
 	 * Hack.
 	 *
@@ -103,10 +109,19 @@ struct m0_be_op {
 	struct m0_be_op    *bo_parent;
 	/* is this op an op_set */
 	bool                bo_is_op_set;
+	m0_be_op_cb_t       bo_cb_active;
+	void               *bo_cb_active_param;
+	m0_be_op_cb_t       bo_cb_done;
+	void               *bo_cb_done_param;
 };
 
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op);
 M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op);
+/*
+ * Moves internal sm to M0_BOS_INIT state and resets
+ * parent-child op_set relationship.
+ */
+M0_INTERNAL void m0_be_op_reset(struct m0_be_op *op);
 
 /** Moves op to M0_BOS_ACTIVE state. */
 M0_INTERNAL void m0_be_op_active(struct m0_be_op *op);
@@ -116,6 +131,11 @@ M0_INTERNAL void m0_be_op_done(struct m0_be_op *op);
 
 /** Is op in M0_BOS_DONE state? */
 M0_INTERNAL bool m0_be_op_is_done(struct m0_be_op *op);
+
+M0_INTERNAL void m0_be_op_callback_set(struct m0_be_op     *op,
+				       m0_be_op_cb_t        cb,
+				       void                *param,
+				       enum m0_be_op_state  state);
 
 /**
  * Waits for the operation to complete.
@@ -129,8 +149,9 @@ M0_INTERNAL void m0_be_op_wait(struct m0_be_op *op);
  * continue when "op" completes. Returns value suitable to be returned from
  * m0_fom_ops::fo_tick() implementation.
  */
-M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
-				  int next_state);
+M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op,
+				  struct m0_fom   *fom,
+				  int              next_state);
 
 /**
  * Adds @child to @parent, making the latter an "op set".
@@ -147,24 +168,24 @@ M0_INTERNAL void m0_be_op_set_add(struct m0_be_op *parent,
  *         M0_BE_OP_SYNC(op, rc = m0_fol_init(fol, seg, tx, &op));
  * @endcode
  */
-#define M0_BE_OP_SYNC(op_obj, action)			\
-	do {						\
-		struct m0_be_op op_obj;			\
-		M0_BE_OP_SYNC_WITH(&op_obj, action);	\
+#define M0_BE_OP_SYNC(op_obj, action)                   \
+	do {                                            \
+		struct m0_be_op op_obj;                 \
+		M0_BE_OP_SYNC_WITH(&op_obj, action);    \
 	} while (0)
 
 /**
  * Similar to #M0_BE_OP_SYNC, but works with a caller-supplied operation
  * structure.
  */
-#define M0_BE_OP_SYNC_WITH(op, action)		\
-	do {					\
-		struct m0_be_op *__opp = (op);	\
+#define M0_BE_OP_SYNC_WITH(op, action)          \
+	do {                                    \
+		struct m0_be_op *__opp = (op);  \
 						\
-		m0_be_op_init(__opp);		\
-		action;				\
-		m0_be_op_wait(__opp);	        \
-		m0_be_op_fini(__opp);		\
+		m0_be_op_init(__opp);           \
+		action;                         \
+		m0_be_op_wait(__opp);           \
+		m0_be_op_fini(__opp);           \
 	} while (0)
 
 
@@ -180,9 +201,9 @@ M0_INTERNAL void m0_be_op_set_add(struct m0_be_op *parent,
  *                                bo_u.u_btree.t_rc);
  * @endcode
  */
-#define M0_BE_OP_SYNC_RET(op_obj, action, member)		 \
-	({							 \
-		struct m0_be_op	op_obj;				 \
+#define M0_BE_OP_SYNC_RET(op_obj, action, member)                \
+	({                                                       \
+		struct m0_be_op op_obj;                          \
 		M0_BE_OP_SYNC_RET_WITH(&op_obj, action, member); \
 	})
 
@@ -190,17 +211,17 @@ M0_INTERNAL void m0_be_op_set_add(struct m0_be_op *parent,
  * Similar to #M0_BE_OP_SYNC_RET, but works with a caller-supplied operation
  * structure.
  */
-#define M0_BE_OP_SYNC_RET_WITH(op, action, member)	\
-	({						\
-		struct m0_be_op	      *__opp = (op);	\
-		typeof(__opp->member)  __result;	\
+#define M0_BE_OP_SYNC_RET_WITH(op, action, member)      \
+	({                                              \
+		struct m0_be_op       *__opp = (op);    \
+		typeof(__opp->member)  __result;        \
 							\
-		m0_be_op_init(__opp);			\
-		action;					\
-		m0_be_op_wait(__opp);		        \
-		__result = __opp->member;		\
-		m0_be_op_fini(__opp);			\
-		__result;				\
+		m0_be_op_init(__opp);                   \
+		action;                                 \
+		m0_be_op_wait(__opp);                   \
+		__result = __opp->member;               \
+		m0_be_op_fini(__opp);                   \
+		__result;                               \
 	})
 
 /** @} end of be group */

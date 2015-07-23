@@ -23,10 +23,13 @@
 #ifndef __MERO_BE_DOMAIN_H__
 #define __MERO_BE_DOMAIN_H__
 
-#include "be/engine.h"		/* m0_be_engine */
-#include "be/seg0.h"		/* m0_be_0type */
+#include "be/engine.h"          /* m0_be_engine */
+#include "be/recovery.h"        /* m0_be_recovery */
+#include "be/seg0.h"            /* m0_be_0type */
+#include "be/log.h"             /* m0_be_log_cfg */
+
+#include "lib/tlist.h"          /* m0_tl */
 #include "module/module.h"
-#include "lib/tlist.h"		/* m0_tl */
 
 /**
  * @defgroup be Meta-data back-end
@@ -60,9 +63,7 @@ struct m0_be_0type;
 struct m0_be_log;
 
 struct m0_be_0type_log_cfg {
-	uint64_t     blc_stob_key;
-	m0_bcount_t  blc_size;
-	const char  *blc_stob_create_cfg;
+	struct m0_stob_id blc_stob_id;
 };
 
 struct m0_be_0type_seg_cfg {
@@ -75,7 +76,7 @@ struct m0_be_0type_seg_cfg {
 
 struct m0_be_domain_cfg {
 	/** BE engine configuration. */
-	struct m0_be_engine_cfg	     bc_engine;
+	struct m0_be_engine_cfg      bc_engine;
 	/** 0types supported by this domain. */
 	const struct m0_be_0type   **bc_0types;
 	unsigned                     bc_0types_nr;
@@ -83,18 +84,18 @@ struct m0_be_domain_cfg {
 	 * Stob domain location.
 	 * Stobs for log and segments are in this domain.
 	 */
-	const char		    *bc_stob_domain_location;
+	const char                  *bc_stob_domain_location;
 	/**
 	 * str_cfg_init parameter for m0_stob_domain_init() (in normal mode)
 	 * and m0_stob_domain_create() (in mkfs mode).
 	 */
-	const char		    *bc_stob_domain_cfg_init;
+	const char                  *bc_stob_domain_cfg_init;
 	/**
 	 * seg0 stob key.
 	 * This field is ignored in mkfs mode.
 	 */
-	uint64_t		     bc_seg0_stob_key;
-	bool			     bc_mkfs_mode;
+	uint64_t                     bc_seg0_stob_key;
+	bool                         bc_mkfs_mode;
 
 	/*
 	 * Next fields are for mkfs mode only.
@@ -102,14 +103,14 @@ struct m0_be_domain_cfg {
 	 */
 
 	/** str_cfg_create parameter for m0_stob_domain_create(). */
-	const char		    *bc_stob_domain_cfg_create;
+	const char                  *bc_stob_domain_cfg_create;
 	/**
 	 * Stob domain key for BE stobs. Stob domain with this key is
 	 * created at m0_be_domain_cfg::bc_stob_domain_location.
 	 */
-	uint64_t		     bc_stob_domain_key;
+	uint64_t                     bc_stob_domain_key;
 	/** BE log configuration. */
-	struct m0_be_0type_log_cfg   bc_log_cfg;
+	struct m0_be_log_cfg         bc_log;
 	/** BE seg0 configuration. */
 	struct m0_be_0type_seg_cfg   bc_seg0_cfg;
 	/**
@@ -119,61 +120,68 @@ struct m0_be_domain_cfg {
 	 * */
 	struct m0_be_0type_seg_cfg  *bc_seg_cfg;
 	/** Size of m0_be_domain_cfg::bc_seg_cfg array. */
-	unsigned		     bc_seg_nr;
+	unsigned                     bc_seg_nr;
 	/**
 	 * mkfs progress callback. Can be NULL.
 	 * @param stage_index Current stage index. It's value is in range
-	 *		      [0, stage_nr).
+	 *                    [0, stage_nr).
 	 * @param stage_nr    Total number of stages. It is constant across
-	 *		      It is constant for each callback call.
-	 * @param msg	      Text message with stage description. Can be NULL.
+	 *                    It is constant for each callback call.
+	 * @param msg         Text message with stage description. Can be NULL.
 	 *
 	 * This callback is called exactly stage_nr times in case of mkfs
 	 * success and <= stage_nr times in case of failure.
 	 */
-	void			   (*bc_mkfs_progress_cb)
-				     (unsigned	  stage_index,
-				      unsigned	  stage_nr,
+	void                       (*bc_mkfs_progress_cb)
+				     (unsigned    stage_index,
+				      unsigned    stage_nr,
 				      const char *msg);
 };
 
 struct m0_be_domain {
 	struct m0_module        bd_module;
-	struct m0_be_domain_cfg	bd_cfg;
-	struct m0_be_engine	bd_engine;
-	struct m0_mutex		bd_lock;
+	struct m0_be_domain_cfg bd_cfg;
+	struct m0_be_engine     bd_engine;
+	struct m0_be_recovery   bd_recovery;
+	struct m0_mutex         bd_lock;
 	struct m0_tl            bd_0types;
 	struct m0_be_0type     *bd_0types_allocated;
 	/** List of segments in this domain. First segment in which is seg0. */
 	struct m0_tl            bd_segs;
-	struct m0_be_seg	bd_seg0;
+	struct m0_be_seg        bd_seg0;
 	struct m0_stob         *bd_seg0_stob;
 	struct m0_stob_domain  *bd_stob_domain;
-	struct m0_be_0type	bd_0type_log;
-	struct m0_be_0type	bd_0type_seg;
-	unsigned		bd_mkfs_stage;
-	unsigned		bd_mkfs_stage_nr;
+	struct m0_be_0type      bd_0type_log;
+	struct m0_be_0type      bd_0type_seg;
+	unsigned                bd_mkfs_stage;
+	unsigned                bd_mkfs_stage_nr;
 };
 
 /** Levels of m0_be_domain module. */
 enum {
-	M0_LEVEL_BE_DOMAIN_INIT,
-	M0_LEVEL_BE_DOMAIN_0TYPES,
-	M0_LEVEL_BE_DOMAIN_READY
+	M0_BE_DOMAIN_LEVEL_INIT,
+	M0_BE_DOMAIN_LEVEL_0TYPES,
+	M0_BE_DOMAIN_LEVEL_READY
 };
 
 /*
  *  m0_be_domain                       m0_be_engine
  * +---------------------------+      +--------------------------+
- * | M0_LEVEL_BE_DOMAIN_READY  |----->| M0_LEVEL_BE_ENGINE_READY |
+ * | M0_BE_DOMAIN_LEVEL_READY  |----->| M0_BE_ENGINE_LEVEL_READY |
  * +---------------------------+      +--------------------------+
- * | M0_LEVEL_BE_DOMAIN_0TYPES |
+ * | M0_BE_DOMAIN_LEVEL_0TYPES |
  * +---------------------------+
- * | M0_LEVEL_BE_DOMAIN_INIT   |
+ * | M0_BE_DOMAIN_LEVEL_INIT   |
  * +---------------------------+
  */
 M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
 					   const struct m0_be_domain_cfg *cfg);
+
+/*
+ * Temporary solution until segment I/O is implemented using direct I/O.
+ */
+M0_INTERNAL void
+m0_be_domain_cleanup_by_location(const char *stob_domain_location);
 
 M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
 						  uint64_t id);
@@ -188,7 +196,7 @@ M0_INTERNAL bool m0_be_domain_is_locked(const struct m0_be_domain *dom);
  * Returns existing BE segment if @addr is inside it. Returns NULL otherwise.
  */
 M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
-					       const void		 *addr);
+					       const void                *addr);
 /**
  * Returns existing be-segment by its @id. If no segments found return NULL.
  */
@@ -202,18 +210,18 @@ M0_INTERNAL struct m0_be_seg *
 m0_be_domain_seg_first(const struct m0_be_domain *dom);
 
 M0_INTERNAL void
-m0_be_domain_seg_create_credit(struct m0_be_domain		*dom,
+m0_be_domain_seg_create_credit(struct m0_be_domain              *dom,
 			       const struct m0_be_0type_seg_cfg *seg_cfg,
-			       struct m0_be_tx_credit		*cred);
-M0_INTERNAL void m0_be_domain_seg_destroy_credit(struct m0_be_domain	*dom,
-						 struct m0_be_seg	*seg,
+			       struct m0_be_tx_credit           *cred);
+M0_INTERNAL void m0_be_domain_seg_destroy_credit(struct m0_be_domain    *dom,
+						 struct m0_be_seg       *seg,
 						 struct m0_be_tx_credit *cred);
 
 M0_INTERNAL int
-m0_be_domain_seg_create(struct m0_be_domain		  *dom,
-			struct m0_be_tx			  *tx,
+m0_be_domain_seg_create(struct m0_be_domain               *dom,
+			struct m0_be_tx                   *tx,
 			const struct m0_be_0type_seg_cfg  *seg_cfg,
-			struct m0_be_seg		 **out);
+			struct m0_be_seg                 **out);
 /**
  * Destroy functions for the segment dictionary and for the segment allocator
  * are not called.
@@ -233,9 +241,9 @@ M0_INTERNAL int m0_be_domain_seg_destroy(struct m0_be_domain *dom,
 
 /* for internal be-usage only */
 M0_INTERNAL void m0_be_domain__0type_register(struct m0_be_domain *dom,
-					      struct m0_be_0type *type);
+					      struct m0_be_0type  *type);
 M0_INTERNAL void m0_be_domain__0type_unregister(struct m0_be_domain *dom,
-						struct m0_be_0type *type);
+						struct m0_be_0type  *type);
 
 /** @} end of be group */
 #endif /* __MERO_BE_DOMAIN_H__ */

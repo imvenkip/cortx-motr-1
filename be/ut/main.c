@@ -44,11 +44,31 @@ extern void m0_be_ut_reg_area_simple(void);
 extern void m0_be_ut_reg_area_random(void);
 extern void m0_be_ut_reg_area_merge(void);
 
-extern void m0_be_ut_io(void);
-extern void m0_be_ut_log_store_reserve(void);
-extern void m0_be_ut_log_store_io(void);
-extern void m0_be_ut_log(void);
+extern void m0_be_ut_fmt_log_header(void);
+extern void m0_be_ut_fmt_cblock(void);
+extern void m0_be_ut_fmt_group(void);
+extern void m0_be_ut_fmt_group_size_max(void);
 
+extern void m0_be_ut_io(void);
+
+extern void m0_be_ut_log_store_create_simple(void);
+extern void m0_be_ut_log_store_create_random(void);
+extern void m0_be_ut_log_store_io_window(void);
+extern void m0_be_ut_log_store_io_discard(void);
+extern void m0_be_ut_log_store_io_translate(void);
+extern void m0_be_ut_log_store_rbuf(void);
+
+extern void m0_be_ut_log_sched(void);
+
+extern void m0_be_ut_log_user(void);
+extern void m0_be_ut_log_api(void);
+extern void m0_be_ut_log_header(void);
+extern void m0_be_ut_log_unplaced(void);
+extern void m0_be_ut_log_multi(void);
+
+extern void m0_be_ut_recovery(void);
+
+extern void m0_be_ut_seg_create_destroy(void);
 extern void m0_be_ut_seg_open_close(void);
 extern void m0_be_ut_seg_io(void);
 extern void m0_be_ut_seg_multiple(void);
@@ -86,7 +106,9 @@ extern void m0_be_ut_emap(void);
 extern void m0_be_ut_seg_dict(void);
 extern void m0_be_ut_fake_mkfs(void);
 extern void m0_be_ut_seg0_test(void);
+
 extern void m0_be_ut_obj_test(void);
+extern void m0_be_ut_fmt(void);
 
 struct m0_ut_suite be_ut = {
 	.ts_name = "be-ut",
@@ -94,54 +116,68 @@ struct m0_ut_suite be_ut = {
 	.ts_fini = NULL,
 	.ts_tests = {
 #ifndef __KERNEL__
-		{ "op-usecase",          m0_be_ut_op_usecase           },
-		{ "op-mt",               m0_be_ut_op_mt                },
-		{ "op_set-usecase",      m0_be_ut_op_set_usecase       },
-		{ "op_set-tree",         m0_be_ut_op_set_tree          },
-		{ "reg_d_tree",          m0_be_ut_reg_d_tree           },
-		// XXX { "regmap-simple",       m0_be_ut_regmap_simple        },
-		// XXX { "regmap-random",       m0_be_ut_regmap_random        },
-		// XXX { "reg_area-simple",     m0_be_ut_reg_area_simple      },
-		{ "reg_area-random",     m0_be_ut_reg_area_random      },
-		{ "reg_area-merge",      m0_be_ut_reg_area_merge       },
-		{ "io (XXX NOOP)",       m0_be_ut_io                   },
-		{ "log_store-reserve",   m0_be_ut_log_store_reserve    },
-		{ "log_store-io",        m0_be_ut_log_store_io         },
-		{ "log (XXX NOOP)",      m0_be_ut_log                  },
-		{ "seg-open",            m0_be_ut_seg_open_close       },
-		{ "seg-io",              m0_be_ut_seg_io               },
-		{ "seg-multiple",        m0_be_ut_seg_multiple         },
-		{ "seg-large",           m0_be_ut_seg_large            },
-		{ "group_format",        m0_be_ut_group_format         },
-		{ "mkfs",		 m0_be_ut_mkfs		       },
-		{ "domain",              m0_be_ut_domain               },
-		{ "tx-states",           m0_be_ut_tx_states            },
-		{ "tx-empty",            m0_be_ut_tx_empty             },
-		{ "tx-usecase_success",  m0_be_ut_tx_usecase_success   },
-		{ "tx-usecase_failure",  m0_be_ut_tx_usecase_failure   },
-		{ "tx-capturing",        m0_be_ut_tx_capturing         },
-		{ "tx-single",           m0_be_ut_tx_single            },
-		{ "tx-several",          m0_be_ut_tx_several           },
-		{ "tx-persistence",      m0_be_ut_tx_persistence       },
-		{ "tx-fast",             m0_be_ut_tx_fast              },
-		{ "tx-payload",          m0_be_ut_tx_payload           },
-		{ "tx-concurrent",	 m0_be_ut_tx_concurrent	       },
-		{ "tx-concurrent-excl",	 m0_be_ut_tx_concurrent_excl   },
-		{ "tx-force",            m0_be_ut_tx_force             },
-		{ "tx-gc",               m0_be_ut_tx_gc                },
-		{ "alloc-init",          m0_be_ut_alloc_init_fini      },
-		{ "alloc-create",        m0_be_ut_alloc_create_destroy },
-		{ "alloc-multiple",      m0_be_ut_alloc_multiple       },
-		{ "alloc-concurrent",    m0_be_ut_alloc_concurrent     },
-		{ "alloc-transactional", m0_be_ut_alloc_transactional  },
-		{ "obj",                 m0_be_ut_obj_test             },
+		{ "op-usecase",              m0_be_ut_op_usecase              },
+		{ "op-mt",                   m0_be_ut_op_mt                   },
+		{ "op_set-usecase",          m0_be_ut_op_set_usecase          },
+		{ "op_set-tree",             m0_be_ut_op_set_tree             },
+		{ "reg_d_tree",              m0_be_ut_reg_d_tree              },
+// XXX		{ "regmap-simple",           m0_be_ut_regmap_simple           },
+// XXX		{ "regmap-random",           m0_be_ut_regmap_random           },
+// XXX		{ "reg_area-simple",         m0_be_ut_reg_area_simple         },
+		{ "reg_area-random",         m0_be_ut_reg_area_random         },
+		{ "reg_area-merge",          m0_be_ut_reg_area_merge          },
+		{ "fmt-log_header",          m0_be_ut_fmt_log_header          },
+/* XXX */	{ "fmt-group_cb",            m0_be_ut_fmt_cblock              },
+		{ "fmt-group",               m0_be_ut_fmt_group               },
+		{ "fmt-group_size_max",      m0_be_ut_fmt_group_size_max      },
+		{ "io (XXX NOOP)",           m0_be_ut_io                      },
+		{ "log_store-create_simple", m0_be_ut_log_store_create_simple },
+		{ "log_store-create_random", m0_be_ut_log_store_create_random },
+		{ "log_store-io_window",     m0_be_ut_log_store_io_window     },
+		{ "log_store-io_discard",    m0_be_ut_log_store_io_discard    },
+		{ "log_store-io_translate",  m0_be_ut_log_store_io_translate  },
+		{ "log_store-rbuf",          m0_be_ut_log_store_rbuf          },
+		{ "log_sched",               m0_be_ut_log_sched               },
+		{ "log-user",                m0_be_ut_log_user                },
+		{ "log-api",                 m0_be_ut_log_api                 },
+		{ "log-header",              m0_be_ut_log_header              },
+		{ "log-unplaced",            m0_be_ut_log_unplaced            },
+		{ "log-multi",               m0_be_ut_log_multi               },
+		{ "recovery",                m0_be_ut_recovery                },
+		{ "seg-open",                m0_be_ut_seg_open_close          },
+		{ "seg-io",                  m0_be_ut_seg_io                  },
+		{ "seg-multiple",            m0_be_ut_seg_multiple            },
+		{ "seg-large",               m0_be_ut_seg_large               },
+		{ "group_format",            m0_be_ut_group_format            },
+		{ "mkfs",                    m0_be_ut_mkfs                    },
+		{ "domain",                  m0_be_ut_domain                  },
+		{ "tx-states",               m0_be_ut_tx_states               },
+		{ "tx-empty",                m0_be_ut_tx_empty                },
+		{ "tx-usecase_success",      m0_be_ut_tx_usecase_success      },
+		{ "tx-usecase_failure",      m0_be_ut_tx_usecase_failure      },
+		{ "tx-capturing",            m0_be_ut_tx_capturing            },
+		{ "tx-single",               m0_be_ut_tx_single               },
+		{ "tx-several",              m0_be_ut_tx_several              },
+		{ "tx-persistence",          m0_be_ut_tx_persistence          },
+// XXX		{ "tx-force",                m0_be_ut_tx_force                },
+		{ "tx-fast",                 m0_be_ut_tx_fast                 },
+		{ "tx-gc",                   m0_be_ut_tx_gc                   },
+		{ "tx-payload",              m0_be_ut_tx_payload              },
+		{ "tx-concurrent",           m0_be_ut_tx_concurrent           },
+		{ "tx-concurrent-excl",      m0_be_ut_tx_concurrent_excl      },
+		{ "alloc-init",              m0_be_ut_alloc_init_fini         },
+		{ "alloc-create",            m0_be_ut_alloc_create_destroy    },
+		{ "alloc-multiple",          m0_be_ut_alloc_multiple          },
+		{ "alloc-concurrent",        m0_be_ut_alloc_concurrent        },
+		{ "alloc-transactional",     m0_be_ut_alloc_transactional     },
+		{ "obj",                     m0_be_ut_obj_test                },
 #endif
-		{ "list",                m0_be_ut_list_api             },
-		{ "btree",               m0_be_ut_btree_simple         },
-		{ "seg_dict",            m0_be_ut_seg_dict             },
-		{ "fake_mkfs",           m0_be_ut_fake_mkfs            },
-		{ "seg0",                m0_be_ut_seg0_test            },
-		{ "emap",                m0_be_ut_emap                 },
+		{ "list",                    m0_be_ut_list_api                },
+		{ "btree",                   m0_be_ut_btree_simple            },
+		{ "seg_dict",                m0_be_ut_seg_dict                },
+		{ "fake_mkfs",               m0_be_ut_fake_mkfs               },
+		{ "seg0",                    m0_be_ut_seg0_test               },
+		{ "emap",                    m0_be_ut_emap                    },
 		{ NULL, NULL }
 	}
 };

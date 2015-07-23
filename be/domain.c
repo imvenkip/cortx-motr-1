@@ -22,15 +22,15 @@
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/locality.h"	/* m0_locality0_get */
-#include "lib/string.h"		/* m0_streq */
-#include "module/instance.h"	/* m0_get */
+#include "lib/locality.h"       /* m0_locality0_get */
+#include "lib/string.h"         /* m0_streq */
+#include "module/instance.h"    /* m0_get */
 #include "be/domain.h"
 #include "be/seg0.h"
 #include "be/seg.h"
-#include "be/seg_internal.h"	/* m0_be_seg_hdr */
-#include "stob/stob.h"		/* m0_stob_find_by_key */
-#include "stob/domain.h"	/* m0_stob_domain_init */
+#include "be/seg_internal.h"    /* m0_be_seg_hdr */
+#include "stob/stob.h"          /* m0_stob_find_by_key */
+#include "stob/domain.h"        /* m0_stob_domain_init */
 
 M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0types", M0_INTERNAL,
 			   struct m0_be_0type, b0_linkage, b0_magic,
@@ -65,7 +65,7 @@ static int segobj_opt_iterate(struct m0_be_seg         *dict,
 			      bool                      begin)
 {
 	struct m0_buf *buf;
-	int	       rc;
+	int            rc;
 
 	rc = begin ?
 		m0_be_seg_dict_begin(dict, objtype->b0_name,
@@ -116,7 +116,7 @@ static const char *id_cut(const char *prefix, const char *key)
 
 static int _0types_visit(struct m0_be_domain *dom, bool init)
 {
-	int		    rc = 0;
+	int                 rc = 0;
 	int                 left;
 	char               *suffix;
 	const char         *id;
@@ -126,7 +126,7 @@ static int _0types_visit(struct m0_be_domain *dom, bool init)
 
 	dict = m0_be_domain_seg0_get(dom);
 
-        m0_tl_for(zt, &dom->bd_0types, objtype) {
+	m0_tl_for(zt, &dom->bd_0types, objtype) {
 		for (left = segobj_opt_begin(dict, objtype, &opt, &suffix);
 		     left > 0 && rc == 0;
 		     left = segobj_opt_next(dict, objtype, &opt, &suffix)) {
@@ -141,10 +141,10 @@ static int _0types_visit(struct m0_be_domain *dom, bool init)
 }
 
 static int be_domain_stob_open(struct m0_be_domain  *dom,
-			       uint64_t		     stob_key,
-			       const char	    *stob_create_cfg,
-			       struct m0_stob	   **out,
-			       bool		     create)
+			       uint64_t              stob_key,
+			       const char           *stob_create_cfg,
+			       struct m0_stob      **out,
+			       bool                  create)
 {
 	int               rc;
 	struct m0_stob_id stob_id;
@@ -165,15 +165,15 @@ static int be_domain_stob_open(struct m0_be_domain  *dom,
 }
 
 static int be_domain_seg_structs_create(struct m0_be_domain *dom,
-					struct m0_be_tx	    *tx,
+					struct m0_be_tx     *tx,
 					struct m0_be_seg    *seg)
 {
-	struct m0_be_tx_credit	cred = {};
-	struct m0_be_tx		tx_ = {};
+	struct m0_be_tx_credit  cred = {};
+	struct m0_be_tx         tx_ = {};
 	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
-	bool			use_local_tx = tx == NULL;
-	bool			tx_is_open;
-	int			rc;
+	bool                    use_local_tx = tx == NULL;
+	bool                    tx_is_open;
+	int                     rc;
 
 	if (use_local_tx) {
 		tx = &tx_;
@@ -205,8 +205,8 @@ static int be_domain_seg_structs_create(struct m0_be_domain *dom,
  * @post ergo(!destroy, rc == 0)
  */
 static int be_domain_seg_close(struct m0_be_domain *dom,
-			       struct m0_be_seg	   *seg,
-			       bool		    destroy)
+			       struct m0_be_seg    *seg,
+			       bool                 destroy)
 {
 	int rc;
 
@@ -223,11 +223,11 @@ static int be_domain_seg_close(struct m0_be_domain *dom,
 }
 
 static int be_domain_seg_open(struct m0_be_domain *dom,
-			      struct m0_be_seg	  *seg,
-			      uint64_t		   stob_key)
+			      struct m0_be_seg    *seg,
+			      uint64_t             stob_key)
 {
 	struct m0_stob *stob;
-	int		rc;
+	int             rc;
 
 	rc = be_domain_stob_open(dom, stob_key, NULL, &stob, false);
 	if (rc == 0) {
@@ -250,7 +250,7 @@ static int be_domain_seg_open(struct m0_be_domain *dom,
 }
 
 static int be_domain_seg_destroy(struct m0_be_domain *dom,
-				 uint64_t	      seg_id)
+				 uint64_t             seg_id)
 {
 	struct m0_be_seg seg;
 
@@ -258,14 +258,14 @@ static int be_domain_seg_destroy(struct m0_be_domain *dom,
 	       be_domain_seg_close(dom, &seg, true);
 }
 
-static int be_domain_seg_create(struct m0_be_domain		 *dom,
-				struct m0_be_tx			 *tx,
-				struct m0_be_seg		 *seg,
+static int be_domain_seg_create(struct m0_be_domain              *dom,
+				struct m0_be_tx                  *tx,
+				struct m0_be_seg                 *seg,
 				const struct m0_be_0type_seg_cfg *seg_cfg)
 {
 	struct m0_stob *stob;
-	int		rc;
-	int		rc1;
+	int             rc;
+	int             rc1;
 
 	rc = be_domain_stob_open(dom, seg_cfg->bsc_stob_key,
 				 seg_cfg->bsc_stob_create_cfg, &stob, true);
@@ -301,13 +301,13 @@ out:
 }
 
 static int be_0type_seg_init(struct m0_be_domain *dom,
-			     const char		 *suffix,
+			     const char          *suffix,
 			     const struct m0_buf *data)
 {
 	struct m0_be_0type_seg_cfg *cfg =
 			(struct m0_be_0type_seg_cfg *)data->b_addr;
-	struct m0_be_seg	   *seg;
-	int			    rc;
+	struct m0_be_seg           *seg;
+	int                         rc;
 
 	M0_ENTRY("suffix='%s', stob_key=%"PRIu64, suffix, cfg->bsc_stob_key);
 
@@ -326,7 +326,7 @@ static int be_0type_seg_init(struct m0_be_domain *dom,
 }
 
 static void be_0type_seg_fini(struct m0_be_domain *dom,
-			      const char	  *suffix,
+			      const char          *suffix,
 			      const struct m0_buf *data)
 {
 	struct m0_be_seg *seg;
@@ -355,24 +355,58 @@ static const struct m0_be_0type m0_be_0type_seg = {
 	.b0_fini = be_0type_seg_fini,
 };
 
-static int be_domain_log_init(struct m0_be_domain *dom,
-			      const struct m0_be_0type_log_cfg *log_cfg,
-			      bool create)
+static void be_domain_log_cleanup(const char           *stob_domain_location,
+				  struct m0_be_log_cfg *log_cfg,
+				  bool                  create)
+{
+	const char *location_add = "-log";
+	char       *location;
+	size_t      size;
+	int         rc;
+
+	size  = strlen(stob_domain_location);
+	size += strlen(location_add) + 1;
+	location = m0_alloc(size);
+	strncpy(location, stob_domain_location, size);
+	strncat(location, location_add, size);
+	M0_ASSERT(location[size - 1] == '\0');
+	if (create) {
+		m0_stob_domain__dom_id_make(
+			&log_cfg->lc_store_cfg.lsc_stob_id.si_domain_fid,
+			m0_stob_type_id_by_name("linuxstob"),
+			0, log_cfg->lc_store_cfg.lsc_stob_domain_key);
+	}
+	log_cfg->lc_store_cfg.lsc_stob_domain_location = location;
+	log_cfg->lc_store_cfg.lsc_stob_domain_init_cfg = "directio=true";
+	if (create) {
+		rc = m0_stob_domain_destroy_location(
+			log_cfg->lc_store_cfg.lsc_stob_domain_location);
+		/* copy-paste from be_domain_start_mkfs_pre() */
+		if (M0_IN(rc, (-ENOENT, 0))) {
+			M0_LOG(M0_DEBUG, "rc = %d", rc);
+		} else {
+			M0_LOG(M0_WARN, "rc = %d", rc);
+		}
+	}
+}
+
+static int be_domain_log_init(struct m0_be_domain  *dom,
+			      struct m0_be_log_cfg *log_cfg,
+			      bool                  create)
 {
 	struct m0_be_log *log = m0_be_domain_log(dom);
-	struct m0_stob	 *log_stob;
-	int		  rc;
+	int               rc;
 
-	M0_ENTRY("BE dom = %p, log stob key = %"PRIu64,
-		 dom, log_cfg->blc_stob_key);
-
-	rc = be_domain_stob_open(dom, log_cfg->blc_stob_key,
-				 log_cfg->blc_stob_create_cfg,
-				 &log_stob, create);
-	if (rc == 0) {
-		m0_be_log_init(log, log_stob, m0_be_engine_got_log_space_cb);
-		m0_stob_put(log_stob);
-		rc = m0_be_log_create(log, log_cfg->blc_size);
+	log_cfg->lc_got_space_cb = m0_be_engine_got_log_space_cb;
+	log_cfg->lc_lock         = &m0_be_domain_engine(dom)->eng_lock;
+	/* temporary solution BEGIN */
+	be_domain_log_cleanup(dom->bd_cfg.bc_stob_domain_location,
+			      log_cfg, create);
+	/* temporary solution END */
+	if (create) {
+		rc = m0_be_log_create(log, log_cfg);
+	} else {
+		rc = m0_be_log_open(log, log_cfg);
 	}
 	return M0_RC(rc);
 }
@@ -381,29 +415,33 @@ static void be_domain_log_fini(struct m0_be_domain *dom)
 {
 	struct m0_be_engine *en = m0_be_domain_engine(dom);
 
-	m0_be_log_fini(&en->eng_log);
+	m0_be_log_close(&en->eng_log);
+	m0_free(dom->bd_cfg.bc_log.lc_store_cfg.lsc_stob_domain_location);
 }
 
 static int be_0type_log_init(struct m0_be_domain *dom,
-			     const char *suffix,
+			     const char          *suffix,
 			     const struct m0_buf *data)
 {
-	const struct m0_be_0type_log_cfg *log_cfg;
+	const struct m0_be_0type_log_cfg *log_0cfg;
+	struct m0_be_log_cfg              log_cfg;
 
-	M0_ASSERT_INFO(data->b_nob == sizeof(*log_cfg),
-		       "data->b_nob = %lu, sizeof(*log_cfg) = %zu",
-		       data->b_nob, sizeof(*log_cfg));
+	M0_ASSERT_INFO(data->b_nob == sizeof(*log_0cfg),
+		       "data->b_nob = %lu, sizeof(*log_0cfg) = %zu",
+		       data->b_nob, sizeof(*log_0cfg));
 
 	/* Log is already initalized in mkfs mode */
 	if (dom->bd_cfg.bc_mkfs_mode)
 		return 0;
 
-	log_cfg = (const struct m0_be_0type_log_cfg *)data->b_addr;
-	return M0_RC(be_domain_log_init(dom, log_cfg, false));
+	log_0cfg = (const struct m0_be_0type_log_cfg *)data->b_addr;
+	log_cfg.lc_store_cfg.lsc_stob_id = log_0cfg->blc_stob_id;
+
+	return M0_RC(be_domain_log_init(dom, &log_cfg, false));
 }
 
 static void be_0type_log_fini(struct m0_be_domain *dom,
-			      const char *suffix,
+			      const char          *suffix,
 			      const struct m0_buf *data)
 {
 	M0_ENTRY();
@@ -418,14 +456,14 @@ static const struct m0_be_0type m0_be_0type_log = {
 };
 
 static void be_domain_mkfs_progress(struct m0_be_domain *dom,
-				    const char		*fmt,
+				    const char          *fmt,
 				    ...)
 {
 	unsigned stage_nr = dom->bd_mkfs_stage_nr;
-	unsigned stage	  = dom->bd_mkfs_stage;
-	va_list	 ap;
-	char	 msg[256];
-	int	 len;
+	unsigned stage    = dom->bd_mkfs_stage;
+	va_list  ap;
+	char     msg[256];
+	int      len;
 
 	va_start(ap, fmt);
 	len = vsnprintf(msg, ARRAY_SIZE(msg), fmt, ap);
@@ -441,16 +479,16 @@ static void be_domain_mkfs_progress(struct m0_be_domain *dom,
 	++dom->bd_mkfs_stage;
 }
 
-static int be_domain_mkfs_seg0_log(struct m0_be_domain		    *dom,
+static int be_domain_mkfs_seg0_log(struct m0_be_domain              *dom,
 				   const struct m0_be_0type_seg_cfg *seg0_cfg,
 				   const struct m0_be_0type_log_cfg *log_cfg)
 {
-	struct m0_be_tx_credit	cred	     = {};
-	const struct m0_buf	seg0_cfg_buf = M0_BUF_INIT_PTR_CONST(seg0_cfg);
-	const struct m0_buf	log_cfg_buf  = M0_BUF_INIT_PTR_CONST(log_cfg);
-	struct m0_sm_group     *grp	     = m0_locality0_get()->lo_grp;
-	struct m0_be_tx		tx	     = {};
-	int			rc;
+	struct m0_be_tx_credit  cred         = {};
+	const struct m0_buf     seg0_cfg_buf = M0_BUF_INIT_PTR_CONST(seg0_cfg);
+	const struct m0_buf     log_cfg_buf  = M0_BUF_INIT_PTR_CONST(log_cfg);
+	struct m0_sm_group     *grp          = m0_locality0_get()->lo_grp;
+	struct m0_be_tx         tx           = {};
+	int                     rc;
 
 	M0_ENTRY();
 
@@ -480,7 +518,7 @@ static int be_domain_start_normal_pre(struct m0_be_domain     *dom,
 				      struct m0_be_domain_cfg *cfg)
 {
 	struct m0_be_seg *seg0 = m0_be_domain_seg0_get(dom);
-	int		  rc;
+	int               rc;
 
 	rc = m0_stob_domain_init(cfg->bc_stob_domain_location,
 				 cfg->bc_stob_domain_cfg_init,
@@ -503,7 +541,7 @@ static void be_domain_stop_normal_pre(struct m0_be_domain *dom)
 	be_domain_seg_close(dom, m0_be_domain_seg0_get(dom), false);
 }
 
-static int be_domain_start_mkfs_pre(struct m0_be_domain	    *dom,
+static int be_domain_start_mkfs_pre(struct m0_be_domain     *dom,
 				    struct m0_be_domain_cfg *cfg)
 {
 	int rc;
@@ -516,7 +554,7 @@ static int be_domain_start_mkfs_pre(struct m0_be_domain	    *dom,
 	be_domain_mkfs_progress(dom, "destroying stob domain: location = %s",
 				cfg->bc_stob_domain_location);
 	rc = m0_stob_domain_destroy_location(cfg->bc_stob_domain_location);
-	/* can't use ?: here because first argument should be constant */
+	/* can't use ?: here because first M0_LOG argument should be constant */
 	if (M0_IN(rc, (-ENOENT, 0))) {
 		M0_LOG(M0_DEBUG, "rc = %d", rc);
 	} else {
@@ -535,7 +573,7 @@ static int be_domain_start_mkfs_pre(struct m0_be_domain	    *dom,
 	 */
 	if (rc == 0) {
 		be_domain_mkfs_progress(dom, "initializing BE log");
-		rc = be_domain_log_init(dom, &cfg->bc_log_cfg, true);
+		rc = be_domain_log_init(dom, &cfg->bc_log, true);
 		if (rc != 0) {
 			rc1 = m0_stob_domain_destroy(dom->bd_stob_domain);
 			if (rc1 == 0) {
@@ -559,9 +597,10 @@ static void be_domain_stop_mkfs_pre(struct m0_be_domain *dom)
 static int be_domain_start_mkfs_post(struct m0_be_domain     *dom,
 				     struct m0_be_domain_cfg *cfg)
 {
-	struct m0_be_seg *seg;
-	int		  rc;
-	unsigned	  i;
+	struct m0_be_0type_log_cfg  log_0cfg;
+	struct m0_be_seg           *seg;
+	int                         rc;
+	unsigned                    i;
 
 	/*
 	 * seg0 can only be created after BE engine started because
@@ -580,8 +619,8 @@ static int be_domain_start_mkfs_post(struct m0_be_domain     *dom,
 	if (rc == 0) {
 		be_domain_mkfs_progress(dom, "saving seg0 and log "
 					"0type records in seg0");
-		rc = be_domain_mkfs_seg0_log(dom, &cfg->bc_seg0_cfg,
-					     &cfg->bc_log_cfg);
+		log_0cfg.blc_stob_id = cfg->bc_log.lc_store_cfg.lsc_stob_id;
+		rc = be_domain_mkfs_seg0_log(dom, &cfg->bc_seg0_cfg, &log_0cfg);
 	}
 	if (rc == 0) {
 		be_domain_mkfs_progress(dom, "creating %u segments",
@@ -608,14 +647,14 @@ static int be_domain_start_mkfs_post(struct m0_be_domain     *dom,
 }
 
 /* XXX REFACTORME: Split into be_domain_start() and be_domain_stop(). */
-static int be_domain_start_stop(struct m0_be_domain	*dom,
+static int be_domain_start_stop(struct m0_be_domain     *dom,
 				struct m0_be_domain_cfg *cfg)
 {
 	struct m0_be_engine *en = &dom->bd_engine;
-	bool		     mkfs_mode;
-	int		     rc;
+	bool                 mkfs_mode;
+	int                  rc;
 
-	/* stop is always in the normal mode */
+	/* mkfs is always in the normal mode */
 	mkfs_mode = cfg == NULL ? false : cfg->bc_mkfs_mode;
 	if (cfg == NULL)
 		goto stop;
@@ -631,7 +670,10 @@ static int be_domain_start_stop(struct m0_be_domain	*dom,
 	if (rc != 0)
 		goto out;
 
-	rc = m0_be_engine_init(en, &dom->bd_cfg.bc_engine);
+	m0_be_recovery_init(&dom->bd_recovery);
+	dom->bd_cfg.bc_engine.bec_recovery = &dom->bd_recovery;
+	dom->bd_cfg.bc_engine.bec_run_recovery = false; /* XXX */
+	rc = m0_be_engine_init(en, dom, &dom->bd_cfg.bc_engine);
 	if (rc != 0)
 		goto stop_pre;
 	rc = m0_be_engine_start(en);
@@ -664,6 +706,7 @@ engine_stop:
 engine_fini:
 	m0_be_engine_fini(en);
 stop_pre:
+	m0_be_recovery_fini(&dom->bd_recovery);
 	if (mkfs_mode) {
 		be_domain_stop_mkfs_pre(dom);
 	} else {
@@ -671,6 +714,14 @@ stop_pre:
 	}
 out:
 	return M0_RC(rc);
+}
+
+M0_INTERNAL void
+m0_be_domain_cleanup_by_location(const char *stob_domain_location)
+{
+	struct m0_be_log_cfg log_cfg;
+
+	be_domain_log_cleanup(stob_domain_location, &log_cfg, true);
 }
 
 M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
@@ -695,7 +746,7 @@ M0_INTERNAL struct m0_be_log *m0_be_domain_log(struct m0_be_domain *dom)
 }
 
 M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
-					       const void		 *addr)
+					       const void                *addr)
 {
 	return m0_be_seg_contains(&dom->bd_seg0, addr) ?
 		(struct m0_be_seg *) &dom->bd_seg0 :
@@ -718,9 +769,9 @@ m0_be_domain_seg_by_id(const struct m0_be_domain *dom, uint64_t id)
 }
 
 static void be_domain_seg_suffix_make(const struct m0_be_domain *dom,
-				      uint64_t seg_id,
-				      char *str,
-				      size_t str_size)
+				      uint64_t                   seg_id,
+				      char                      *str,
+				      size_t                     str_size)
 {
 	int nr = snprintf(str, str_size, "%"PRIu64, seg_id);
 
@@ -728,16 +779,16 @@ static void be_domain_seg_suffix_make(const struct m0_be_domain *dom,
 }
 
 M0_INTERNAL void
-m0_be_domain_seg_create_credit(struct m0_be_domain		*dom,
+m0_be_domain_seg_create_credit(struct m0_be_domain              *dom,
 			       const struct m0_be_0type_seg_cfg *seg_cfg,
-			       struct m0_be_tx_credit		*cred)
+			       struct m0_be_tx_credit           *cred)
 {
 	struct m0_be_seg_hdr fake_seg_header;
 	struct m0_be_seg     fake_seg = {
 		.bs_addr = &fake_seg_header,
 		.bs_size = 1,
 	};
-	char		     suffix[64];
+	char                 suffix[64];
 
 	be_domain_seg_suffix_make(dom, seg_cfg->bsc_stob_key,
 				  suffix, ARRAY_SIZE(suffix));
@@ -751,14 +802,14 @@ m0_be_domain_seg_create_credit(struct m0_be_domain		*dom,
 	 * allocator. First parameter should be changed to someting after proper
 	 * interfaces introduced.
 	 */
-	m0_be_seg_dict_create_credit(&fake_seg, cred);	/* XXX */
+	m0_be_seg_dict_create_credit(&fake_seg, cred); /* XXX */
 	m0_be_0type_add_credit(dom, &dom->bd_0type_seg, suffix,
 			       &M0_BUF_INIT_PTR_CONST(seg_cfg), cred);
 	m0_be_0type_del_credit(dom, &dom->bd_0type_seg, suffix, cred);
 }
 
-M0_INTERNAL void m0_be_domain_seg_destroy_credit(struct m0_be_domain	*dom,
-						 struct m0_be_seg	*seg,
+M0_INTERNAL void m0_be_domain_seg_destroy_credit(struct m0_be_domain    *dom,
+						 struct m0_be_seg       *seg,
 						 struct m0_be_tx_credit *cred)
 {
 	char suffix[64];
@@ -768,21 +819,21 @@ M0_INTERNAL void m0_be_domain_seg_destroy_credit(struct m0_be_domain	*dom,
 }
 
 M0_INTERNAL int
-m0_be_domain_seg_create(struct m0_be_domain		  *dom,
-			struct m0_be_tx			  *tx,
+m0_be_domain_seg_create(struct m0_be_domain               *dom,
+			struct m0_be_tx                   *tx,
 			const struct m0_be_0type_seg_cfg  *seg_cfg,
-			struct m0_be_seg		 **out)
+			struct m0_be_seg                 **out)
 {
-	struct m0_be_tx_credit	cred = {};
-	struct m0_be_tx		tx_ = {};
+	struct m0_be_tx_credit  cred = {};
+	struct m0_be_tx         tx_ = {};
 	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
 	struct m0_be_seg       *seg;
-	struct m0_be_seg	seg1 = {};
-	bool			use_local_tx = tx == NULL;
-	bool			tx_is_open;
-	char			suffix[64];
-	int			rc;
-	int			rc1;
+	struct m0_be_seg        seg1 = {};
+	bool                    use_local_tx = tx == NULL;
+	bool                    tx_is_open;
+	char                    suffix[64];
+	int                     rc;
+	int                     rc1;
 
 	M0_PRE(ergo(tx != NULL, m0_be_tx__is_exclusive(tx)));
 	M0_ASSERT_INFO(!seg_tlist_is_empty(&dom->bd_segs),
@@ -841,8 +892,8 @@ M0_INTERNAL int m0_be_domain_seg_destroy(struct m0_be_domain *dom,
 					 struct m0_be_seg    *seg)
 {
 	uint64_t seg_id = seg->bs_id;
-	char	 suffix[64];
-	int	 rc;
+	char     suffix[64];
+	int      rc;
 
 	M0_PRE(m0_be_tx__is_exclusive(tx));
 
@@ -863,7 +914,7 @@ M0_INTERNAL bool m0_be_domain_is_locked(const struct m0_be_domain *dom)
 }
 
 M0_INTERNAL void m0_be_domain__0type_register(struct m0_be_domain *dom,
-					      struct m0_be_0type *type)
+					      struct m0_be_0type  *type)
 {
 	be_domain_lock(dom);
 	zt_tlink_init_at_tail(type, &dom->bd_0types);
@@ -871,7 +922,7 @@ M0_INTERNAL void m0_be_domain__0type_register(struct m0_be_domain *dom,
 }
 
 M0_INTERNAL void m0_be_domain__0type_unregister(struct m0_be_domain *dom,
-						struct m0_be_0type *type)
+						struct m0_be_0type  *type)
 {
 	be_domain_lock(dom);
 	zt_tlink_del_fini(type);
@@ -885,14 +936,14 @@ static int level_be_domain_enter(struct m0_module *module)
 	unsigned                 i;
 
 	switch (module->m_cur + 1) {
-	case M0_LEVEL_BE_DOMAIN_INIT:
+	case M0_BE_DOMAIN_LEVEL_INIT:
 		zt_tlist_init(&dom->bd_0types);
 		seg_tlist_init(&dom->bd_segs);
 		m0_mutex_init(&dom->bd_lock);
 		return 0;
 
 
-	case M0_LEVEL_BE_DOMAIN_0TYPES:
+	case M0_BE_DOMAIN_LEVEL_0TYPES:
 		M0_ASSERT(cfg->bc_0types_nr > 0 && cfg->bc_0types != NULL);
 		M0_ALLOC_ARR(dom->bd_0types_allocated, cfg->bc_0types_nr);
 		if (dom->bd_0types_allocated == NULL)
@@ -909,7 +960,7 @@ static int level_be_domain_enter(struct m0_module *module)
 		}
 		return 0;
 
-	case M0_LEVEL_BE_DOMAIN_READY:
+	case M0_BE_DOMAIN_LEVEL_READY:
 		return be_domain_start_stop(dom, cfg);
 	}
 	M0_IMPOSSIBLE("Unexpected level: %d", module->m_cur + 1);
@@ -922,11 +973,11 @@ static void level_be_domain_leave(struct m0_module *module)
 	unsigned             i;
 
 	switch (module->m_cur) {
-	case M0_LEVEL_BE_DOMAIN_READY:
+	case M0_BE_DOMAIN_LEVEL_READY:
 		(void)be_domain_start_stop(dom, NULL);
 		return;
 
-	case M0_LEVEL_BE_DOMAIN_0TYPES:
+	case M0_BE_DOMAIN_LEVEL_0TYPES:
 		for (i = 0; i < dom->bd_cfg.bc_0types_nr; ++i)
 			m0_be_0type_unregister(dom,
 					       &dom->bd_0types_allocated[i]);
@@ -937,7 +988,7 @@ static void level_be_domain_leave(struct m0_module *module)
 		m0_free0(&dom->bd_0types_allocated);
 		return;
 
-	case M0_LEVEL_BE_DOMAIN_INIT:
+	case M0_BE_DOMAIN_LEVEL_INIT:
 		/* XXX level_be_domain_enter() did not call
 		 * m0_stob_domain_init(). */
 		if (dom->bd_stob_domain != NULL)
@@ -952,24 +1003,24 @@ static void level_be_domain_leave(struct m0_module *module)
 }
 
 static const struct m0_modlev levels_be_domain[] = {
-	[M0_LEVEL_BE_DOMAIN_INIT] = {
-		.ml_name  = "M0_LEVEL_BE_DOMAIN_INIT",
+	[M0_BE_DOMAIN_LEVEL_INIT] = {
+		.ml_name  = "M0_BE_DOMAIN_LEVEL_INIT",
 		.ml_enter = level_be_domain_enter,
 		.ml_leave = level_be_domain_leave
 	},
-	[M0_LEVEL_BE_DOMAIN_0TYPES] = {
-		.ml_name  = "M0_LEVEL_BE_DOMAIN_0TYPES",
+	[M0_BE_DOMAIN_LEVEL_0TYPES] = {
+		.ml_name  = "M0_BE_DOMAIN_LEVEL_0TYPES",
 		.ml_enter = level_be_domain_enter,
 		.ml_leave = level_be_domain_leave
 	},
-	[M0_LEVEL_BE_DOMAIN_READY] = {
-		.ml_name  = "M0_LEVEL_BE_DOMAIN_READY",
+	[M0_BE_DOMAIN_LEVEL_READY] = {
+		.ml_name  = "M0_BE_DOMAIN_LEVEL_READY",
 		.ml_enter = level_be_domain_enter,
 		.ml_leave = level_be_domain_leave
 	}
 };
 
-M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
+M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain           *dom,
 					   const struct m0_be_domain_cfg *cfg)
 {
 	m0_module_setup(&dom->bd_module, "m0_be_domain module",

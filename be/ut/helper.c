@@ -314,16 +314,39 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 
 	*cfg = (struct m0_be_domain_cfg) {
 		.bc_engine = {
+			.bec_group_cfg = {
+			},
 			.bec_group_nr	    = 1,
 			.bec_log_size	    = 1 << 27,
 			.bec_tx_size_max    = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
 			.bec_group_size_max = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
 			.bec_group_seg_nr_max = 256,
 			.bec_group_tx_max   = 20,
-			.bec_log_replay	    = false,
 			.bec_group_close_timeout = M0_TIME_ONE_MSEC,
 			.bec_group_fom_reqh = reqh,
 			.bec_reg_area_size_max = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
+			.bec_wait_for_recovery = true,
+		},
+		.bc_log = {
+			.lc_store_cfg = {
+				.lsc_stob_id = {
+					/* .si_domain_fid is set by domain */
+					.si_fid = {
+					    .f_container = 0,
+					    .f_key = m0_be_ut_seg_allocate_id(),
+					}
+				},
+				.lsc_stob_domain_key =
+					m0_atomic64_add_return(&dom_key, 1),
+				.lsc_size = 1 << 27,
+				.lsc_stob_create_cfg = NULL,
+				.lsc_rbuf_nr = 3,
+				/* other fields are filled by domain and log */
+			},
+			.lc_sched_cfg = {
+				.lsch_unused = 0xbe5ced,
+			},
+			/* other fields are filled by the domain */
 		},
 		.bc_0types                 = zts,
 		.bc_0types_nr              = ARRAY_SIZE(zts),
@@ -333,11 +356,6 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_mkfs_mode		   = false,
 		.bc_stob_domain_cfg_create = NULL,
 		.bc_stob_domain_key	= m0_atomic64_add_return(&dom_key, 1),
-		.bc_log_cfg = {
-			.blc_stob_key	     = m0_be_ut_seg_allocate_id(),
-			.blc_size	     = 1 << 27,
-			.blc_stob_create_cfg = NULL,
-		},
 		.bc_seg0_cfg = {
 			.bsc_stob_key	     = BE_UT_SEG_START_ID - 1,
 			.bsc_size	     = 1 << 20,
@@ -389,7 +407,7 @@ M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 check_mkfs:
 	m0_be_domain_module_setup(&ut_be->but_dom, c);
 	rc = m0_module_init(&ut_be->but_dom.bd_module,
-			    M0_LEVEL_BE_DOMAIN_READY);
+			    M0_BE_DOMAIN_LEVEL_READY);
 	if (!c->bc_mkfs_mode && rc == -ENOENT) {
 		m0_module_fini(&ut_be->but_dom.bd_module, M0_MODLEV_NONE);
 		M0_SET0(&ut_be->but_dom);
@@ -404,7 +422,7 @@ check_mkfs:
 
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
-	int rc = m0_be_ut_backend_init_cfg(ut_be, NULL, false);
+	int rc = m0_be_ut_backend_init_cfg(ut_be, NULL, true);
 	M0_ASSERT(rc == 0);
 }
 

@@ -21,21 +21,21 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
-#include "be/seg.h"		/* m0_be_seg */
+#include "be/seg.h"             /* m0_be_seg */
 
-#include "lib/thread.h"		/* M0_THREAD_INIT */
-#include "lib/semaphore.h"	/* m0_semaphore */
-#include "lib/misc.h"		/* m0_forall */
+#include "lib/thread.h"         /* M0_THREAD_INIT */
+#include "lib/semaphore.h"      /* m0_semaphore */
+#include "lib/misc.h"           /* m0_forall */
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
 
-#include "ut/ut.h"		/* M0_UT_ASSERT */
+#include "ut/ut.h"              /* M0_UT_ASSERT */
 #include "ut/stob.h"            /* m0_ut_stob_linux_get */
-#include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
+#include "be/ut/helper.h"       /* m0_be_ut_seg_helper */
 
-#include <stdlib.h>		/* rand_r */
+#include <stdlib.h>             /* rand_r */
 
 enum {
-	BE_UT_SEG_SIZE	  = 0x20000,
+	BE_UT_SEG_SIZE    = 0x20000,
 	BE_UT_SEG_IO_ITER = 0x400,
 	BE_UT_SEG_IO_OFFS = 0x10000,
 	BE_UT_SEG_IO_SIZE = 0x10000,
@@ -56,7 +56,7 @@ static void be_ut_seg_rand_reg(struct m0_be_reg *reg,
 			       m0_bcount_t *size,
 			       unsigned *seed)
 {
-	*size	= rand_r(seed) % (BE_UT_SEG_IO_SIZE / 2) + 1;
+	*size   = rand_r(seed) % (BE_UT_SEG_IO_SIZE / 2) + 1;
 	*offset = rand_r(seed) % (BE_UT_SEG_IO_SIZE / 2 - 1);
 	reg->br_addr = seg_addr + BE_UT_SEG_IO_OFFS + *offset;
 	reg->br_size = *size;
@@ -68,16 +68,16 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 	struct m0_be_seg   *seg;
 	struct m0_be_reg    reg;
 	struct m0_be_reg    reg_check;
-	m0_bindex_t	    offset;
-	m0_bcount_t	    size;
-	static char	    pre[BE_UT_SEG_IO_SIZE];
-	static char	    post[BE_UT_SEG_IO_SIZE];
-	static char	    rand[BE_UT_SEG_IO_SIZE];
-	unsigned	    seed;
-	int		    rc;
-	int		    i;
-	int		    j;
-	int		    cmp;
+	m0_bindex_t         offset;
+	m0_bcount_t         size;
+	static char         pre[BE_UT_SEG_IO_SIZE];
+	static char         post[BE_UT_SEG_IO_SIZE];
+	static char         rand[BE_UT_SEG_IO_SIZE];
+	unsigned            seed;
+	int                 rc;
+	int                 i;
+	int                 j;
+	int                 cmp;
 
 	seed = 0;
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_SEG_SIZE);
@@ -122,15 +122,15 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 }
 
 enum {
-	BE_UT_SEG_THREAD_NR	= 0x10,
-	BE_UT_SEG_PER_THREAD	= 0x10,
+	BE_UT_SEG_THREAD_NR     = 0x10,
+	BE_UT_SEG_PER_THREAD    = 0x10,
 	BE_UT_SEG_MULTIPLE_SIZE = 0x10000,
 };
 
 static void be_ut_seg_thread_func(struct m0_semaphore *barrier)
 {
 	struct m0_be_ut_seg ut_seg;
-	int		    i;
+	int                 i;
 
 	m0_semaphore_down(barrier);
 	for (i = 0; i < BE_UT_SEG_PER_THREAD; ++i) {
@@ -142,8 +142,8 @@ static void be_ut_seg_thread_func(struct m0_semaphore *barrier)
 void m0_be_ut_seg_multiple(void)
 {
 	static struct m0_thread threads[BE_UT_SEG_THREAD_NR];
-	struct m0_semaphore	barrier;
-	bool			rc_bool;
+	struct m0_semaphore     barrier;
+	bool                    rc_bool;
 
 	m0_semaphore_init(&barrier, 0);
 	rc_bool = m0_forall(i, ARRAY_SIZE(threads),

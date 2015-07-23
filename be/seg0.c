@@ -74,16 +74,16 @@ void m0_be_0type_unregister(struct m0_be_domain *dom, struct m0_be_0type *zt)
 	m0_be_domain__0type_unregister(dom, zt);
 }
 
-int m0_be_0type_add(struct m0_be_0type	*zt,
+int m0_be_0type_add(struct m0_be_0type  *zt,
 		    struct m0_be_domain *dom,
-		    struct m0_be_tx	*tx,
-		    const char		*suffix,
+		    struct m0_be_tx     *tx,
+		    const char          *suffix,
 		    const struct m0_buf *data)
 {
 	struct m0_be_seg *seg;
 	struct m0_buf    *opt;
 	char              keyname[256] = {};
-	int		  rc;
+	int               rc;
 
 	M0_PRE(dom_is_locked(dom));
 	M0_PRE(be_0type_invariant(zt));
@@ -107,10 +107,10 @@ int m0_be_0type_add(struct m0_be_0type	*zt,
 	return zt->b0_init(dom, suffix, opt);
 }
 
-int m0_be_0type_del(struct m0_be_0type	*zt,
+int m0_be_0type_del(struct m0_be_0type  *zt,
 		    struct m0_be_domain *dom,
-		    struct m0_be_tx	*tx,
-		    const char		*suffix)
+		    struct m0_be_tx     *tx,
+		    const char          *suffix)
 {
 	struct m0_be_seg *seg;
 	struct m0_buf    *opt;
@@ -134,9 +134,9 @@ int m0_be_0type_del(struct m0_be_0type	*zt,
 	return m0_be_seg_dict_delete(seg, tx, keyname);
 }
 
-void m0_be_0type_add_credit(struct m0_be_domain	      *dom,
+void m0_be_0type_add_credit(struct m0_be_domain       *dom,
 			    const struct m0_be_0type  *zt,
-			    const char		      *suffix,
+			    const char                *suffix,
 			    const struct m0_buf       *data,
 			    struct m0_be_tx_credit    *credit)
 {
@@ -151,13 +151,13 @@ void m0_be_0type_add_credit(struct m0_be_domain	      *dom,
 	m0_be_seg_dict_insert_credit(seg, keyname, credit);
 }
 
-void m0_be_0type_del_credit(struct m0_be_domain	      *dom,
+void m0_be_0type_del_credit(struct m0_be_domain       *dom,
 			    const struct m0_be_0type  *zt,
-			    const char		      *suffix,
+			    const char                *suffix,
 			    struct m0_be_tx_credit    *credit)
 {
 	struct m0_be_seg *seg = be_0type_seg0_get(dom);
-	char		  keyname[256] = {};
+	char              keyname[256] = {};
 
 	keyname_format(zt, suffix, keyname, ARRAY_SIZE(keyname));
 	/* to free data */

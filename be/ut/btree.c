@@ -55,7 +55,7 @@ static const struct m0_be_btree_kv_ops kv_ops = {
 };
 
 enum {
-	INSERT_COUNT = 200,
+	INSERT_COUNT = 100,
 	INSERT_SIZE  = 4
 };
 

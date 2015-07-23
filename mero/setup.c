@@ -1181,12 +1181,14 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 	snprintf(*loc, len, "linuxstob:%s%s", name[0] == '/' ? "" : "./", name);
 
 	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
-	be->but_dom_cfg.bc_log_cfg.blc_stob_create_cfg = rctx->rc_be_log_path;
+	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_create_cfg =
+		rctx->rc_be_log_path;
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
 	if (!m0_is_po2(rctx->rc_be_log_size))
 		return M0_ERR(-EINVAL);
 	if (rctx->rc_be_log_size > 0) {
-		be->but_dom_cfg.bc_log_cfg.blc_size = rctx->rc_be_log_size;
+		be->but_dom_cfg.bc_log.lc_store_cfg.lsc_size =
+			rctx->rc_be_log_size;
 		be->but_dom_cfg.bc_engine.bec_log_size = rctx->rc_be_log_size;
 	}
 	rc = m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, format);

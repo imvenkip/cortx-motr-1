@@ -563,7 +563,7 @@ enum m0_xcode_what {
 
 /**
     Initializes xcode context and encodes or decodes the xcode
-    object in the cursor based on what value.
+    object in the cursor based on @what value.
  */
 M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_obj *obj,
 				struct m0_bufvec_cursor *cur,

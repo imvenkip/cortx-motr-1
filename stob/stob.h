@@ -147,7 +147,8 @@ struct m0_stob_id {
  *
  * <b>Reference counting semantics</b>.
  *
- * m0_stob_find() always acquires reference to a m0_stob implicity.
+ * m0_stob_find(), m0_stob_find_by_key(), m0_stob_lookup() and
+ * m0_stob_lookup_by_key() always acquire reference to a m0_stob implicitly.
  * m0_stob_get() and m0_stob_put() work with references explicity. The rest
  * interface functions don't change reference count of an m0_stob.
  */

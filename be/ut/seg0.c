@@ -20,29 +20,29 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
-#include "lib/types.h"		/* m0_uint128_eq */
-#include "lib/misc.h"		/* M0_BITS */
+#include "lib/types.h"          /* m0_uint128_eq */
+#include "lib/misc.h"           /* M0_BITS */
 #include "lib/memory.h"         /* M0_ALLOC_PTR, m0_free */
 #include "lib/errno.h"          /* program_invocation_name */
-#include "lib/buf.h"		/* m0_buf */
-#include "lib/string.h"		/* m0_streq */
-#include "be/ut/helper.h"	/* m0_be_ut_backend */
+#include "lib/buf.h"            /* m0_buf */
+#include "lib/string.h"         /* m0_streq */
+#include "be/ut/helper.h"       /* m0_be_ut_backend */
 #include "be/seg.h"
 #include "be/seg0.h"
 #include "format/format.h"      /* m0_format_header */
 #include "stob/stob.h"
 #include "stob/linux.h"
 #include "ut/ut.h"
-#include "ut/stob.h"		/* m0_ut_stob_linux_get_by_key */
+#include "ut/stob.h"            /* m0_ut_stob_linux_get_by_key */
 
-static const char	   *be_ut_0type_suffix = "some test suffix";
-static char		    be_ut_0type_data[10000];
+static const char          *be_ut_0type_suffix = "some test suffix";
+static char                 be_ut_0type_data[10000];
 static const struct m0_buf  be_ut_0type_data_buf =
 				M0_BUF_INIT(sizeof(be_ut_0type_data),
 					    &be_ut_0type_data);
 
 static int be_ut_0type_test_init(struct m0_be_domain *dom,
-				 const char	     *suffix,
+				 const char          *suffix,
 				 const struct m0_buf *data)
 {
 	M0_UT_ASSERT(m0_streq(suffix, be_ut_0type_suffix));
@@ -51,7 +51,7 @@ static int be_ut_0type_test_init(struct m0_be_domain *dom,
 }
 
 static void be_ut_0type_test_fini(struct m0_be_domain *dom,
-				  const char	      *suffix,
+				  const char          *suffix,
 				  const struct m0_buf *data)
 {
 	M0_UT_ASSERT(m0_streq(suffix, be_ut_0type_suffix));
@@ -64,20 +64,19 @@ static struct m0_be_0type be_ut_0type_test = {
 	.b0_fini = &be_ut_0type_test_fini,
 };
 
-static void be_ut_0type_op_test(struct m0_be_0type  *zt,
-				const char	    *suffix,
-				const struct m0_buf *data,
-				bool		     add)
+static void be_ut_0type_op_test(struct m0_be_ut_backend  *ut_be,
+				struct m0_be_0type       *zt,
+				const char               *suffix,
+				const struct m0_buf      *data,
+				bool                      add)
 {
-	struct m0_be_ut_backend  ut_be	= {};
 	struct m0_be_tx_credit   credit = {};
-	struct m0_be_domain	*dom	= &ut_be.but_dom;
-	struct m0_be_tx          tx	= {};
-	int			 rc;
+	struct m0_be_domain     *dom    = &ut_be->but_dom;
+	struct m0_be_tx          tx     = {};
+	int                      rc;
 
-	m0_be_ut_backend_init(&ut_be);
 	m0_be_0type_register(dom, &be_ut_0type_test);
-	m0_be_ut_tx_init(&tx, &ut_be);
+	m0_be_ut_tx_init(&tx, ut_be);
 	if (add) {
 		m0_be_0type_add_credit(dom, zt, suffix, data, &credit);
 	} else {
@@ -94,15 +93,20 @@ static void be_ut_0type_op_test(struct m0_be_0type  *zt,
 	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
 	m0_be_0type_unregister(dom, &be_ut_0type_test);
-	m0_be_ut_backend_fini(&ut_be);
 }
 
 void m0_be_ut_seg0_test(void)
 {
+	struct m0_be_ut_backend  ut_be = {};
+
 	m0_be_ut_fake_mkfs();
-	be_ut_0type_op_test(&be_ut_0type_test, be_ut_0type_suffix,
+
+	m0_be_ut_backend_init(&ut_be);
+	be_ut_0type_op_test(&ut_be, &be_ut_0type_test, be_ut_0type_suffix,
 			    &be_ut_0type_data_buf, true);
-	be_ut_0type_op_test(&be_ut_0type_test, be_ut_0type_suffix, NULL, false);
+	be_ut_0type_op_test(&ut_be, &be_ut_0type_test, be_ut_0type_suffix,
+			    NULL, false);
+	m0_be_ut_backend_fini(&ut_be);
 }
 
 void m0_be_ut_obj_test(void)

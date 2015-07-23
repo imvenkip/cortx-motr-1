@@ -14,9 +14,9 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>,
- *                  Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>,
- *                  Maxim Medved <maxim_medved@xyratex.com>
+ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+ *                  Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ *                  Maxim Medved <max_medved@xyratex.com>
  * Original creation date: 17-Jun-2013
  */
 
@@ -51,6 +51,7 @@ static void be_op_reset(struct m0_be_op *op);
 /**
  * Phases of tx_group fom.
  *
+ * XXX update.
  * @verbatim
  *  ,-------- INIT
  *  |   [0]    |              [0] Initialisation failed: at this point only
@@ -93,8 +94,12 @@ enum tx_group_fom_state {
 	 */
 	TGS_OPEN   = M0_FOM_PHASE_NR,
 	/** Log stobio is in progress. */
-	TGS_LOGGING1,
-	TGS_LOGGING2,
+	TGS_LOGGING,            /* XXX rename it */
+	/** Group is reconstructing */
+	TGS_RECONSTRUCT,        /* XXX rename it? */
+	TGS_TX_OPEN,            /* XXX rename it? */
+	TGS_TX_CLOSE,           /* XXX rename it? */
+	TGS_REAPPLY,            /* XXX rename it? */
 	/** In-place (segment) stobio is in progress. */
 	TGS_PLACING,
 	TGS_PLACED,
@@ -122,9 +127,12 @@ static struct m0_sm_state_descr tx_group_fom_states[TGS_NR] = {
 	_S(TGS_FINISH, M0_SDF_TERMINAL, 0),
 	_S(TGS_FAILED, M0_SDF_FAILURE, M0_BITS(TGS_FINISH)),
 	_S(TGS_STOPPING,    0, M0_BITS(TGS_FINISH)),
-	_S(TGS_OPEN,        0, M0_BITS(TGS_LOGGING1, TGS_STOPPING)),
-	_S(TGS_LOGGING1,    0, M0_BITS(TGS_LOGGING2)),
-	_S(TGS_LOGGING2,    0, M0_BITS(TGS_PLACING)),
+	_S(TGS_OPEN,        0, M0_BITS(TGS_LOGGING, TGS_STOPPING)),
+	_S(TGS_LOGGING,     0, M0_BITS(TGS_PLACING, TGS_RECONSTRUCT)),
+	_S(TGS_RECONSTRUCT, 0, M0_BITS(TGS_TX_OPEN)),
+	_S(TGS_TX_OPEN,     0, M0_BITS(TGS_TX_CLOSE)),
+	_S(TGS_TX_CLOSE,    0, M0_BITS(TGS_REAPPLY)),
+	_S(TGS_REAPPLY,     0, M0_BITS(TGS_PLACING)),
 	_S(TGS_PLACING,     0, M0_BITS(TGS_PLACED)),
 	_S(TGS_PLACED,      0, M0_BITS(TGS_STABILIZING)),
 	_S(TGS_STABILIZING, 0, M0_BITS(TGS_STABLE)),
@@ -140,13 +148,14 @@ const static struct m0_sm_conf tx_group_fom_conf = {
 
 static int tx_group_fom_tick(struct m0_fom *fom)
 {
-	enum tx_group_fom_state	   phase = m0_fom_phase(fom);
-	struct m0_be_tx_group_fom *m	 = fom2tx_group_fom(fom);
-	struct m0_be_tx_group     *gr	 = m->tgf_group;
-	struct m0_be_op           *op	 = &m->tgf_op;
+	enum tx_group_fom_state    phase = m0_fom_phase(fom);
+	struct m0_be_tx_group_fom *m     = fom2tx_group_fom(fom);
+	struct m0_be_tx_group     *gr    = m->tgf_group;
+	struct m0_be_op           *op    = &m->tgf_op;
 	int                        rc;
 
-	M0_ENTRY("m0_be_tx_group_fom phase %s", m0_fom_phase_name(fom, phase));
+	M0_ENTRY("tx_group_fom=%p group=%p phase=%s", m, gr,
+		 m0_fom_phase_name(fom, phase));
 
 	switch (phase) {
 	case TGS_INIT:
@@ -160,18 +169,40 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 			return M0_FSO_AGAIN;
 		}
 		return M0_FSO_WAIT;
-	case TGS_LOGGING1:
+	case TGS_LOGGING:
 		be_op_reset(op);
-		m0_be_tx_group__log1(gr, op);
-		return m0_be_op_tick_ret(op, fom, TGS_LOGGING2);
-	case TGS_LOGGING2:
+		if (m->tgf_recovery_mode) {
+			m0_be_tx_group_log_read(gr, op);
+			return m0_be_op_tick_ret(op, fom, TGS_RECONSTRUCT);
+		} else {
+			m0_be_tx_group_encode(gr);
+			m0_be_tx_group_log_write(gr, op);
+			return m0_be_op_tick_ret(op, fom, TGS_PLACING);
+		}
+	case TGS_RECONSTRUCT:
+		rc = m0_be_tx_group_decode(gr);
+		M0_ASSERT_INFO(rc == 0, "rc = %d", rc); /* XXX notify engine */
+		rc = m0_be_tx_group_reconstruct(gr,
+						&m->tgf_gen.fo_loc->fl_group);
+		M0_ASSERT_INFO(rc == 0, "rc = %d", rc); /* XXX notify engine */
+		m0_fom_phase_set(fom, TGS_TX_OPEN);
+		return M0_FSO_AGAIN;
+	case TGS_TX_OPEN:
+		m0_fom_phase_set(fom, TGS_TX_CLOSE);
+		return M0_FSO_AGAIN;
+	case TGS_TX_CLOSE:
+		m0_fom_phase_set(fom, TGS_REAPPLY);
+		return M0_FSO_AGAIN;
+	case TGS_REAPPLY:
 		be_op_reset(op);
-		m0_be_tx_group__log2(gr, op);
+		rc = m0_be_tx_group_reapply(gr, op);
+		M0_ASSERT_INFO(rc == 0, "rc = %d", rc); /* XXX notify engine */
 		return m0_be_op_tick_ret(op, fom, TGS_PLACING);
 	case TGS_PLACING:
 		m0_be_tx_group__tx_state_post(gr, M0_BTS_LOGGED, false);
 		be_op_reset(op);
-		m0_be_tx_group__place(gr, op);
+		m0_be_tx_group_seg_place_prepare(gr);
+		m0_be_tx_group_seg_place(gr, op);
 		return m0_be_op_tick_ret(op, fom, TGS_PLACED);
 	case TGS_PLACED:
 		m0_be_tx_group__tx_state_post(gr, M0_BTS_PLACED, true);
@@ -184,7 +215,7 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 		}
 		return M0_FSO_WAIT;
 	case TGS_STABLE:
-		m0_be_tx_group_discard(gr);
+		m0_be_tx_group_engine_discard(gr);
 		m0_be_tx_group_reset(gr);
 		m0_be_tx_group_open(gr);
 		m0_fom_phase_set(fom, TGS_OPEN);
@@ -244,8 +275,8 @@ static void be_tx_group_fom_log(struct m0_be_tx_group_fom *m)
 	 * The callback invoking this function might have kicked in after the
 	 * phase of the fom has been modified by the regular tick() function.
 	 */
-	if (m0_fom_phase(&m->tgf_gen) < TGS_LOGGING1) {
-		m0_fom_phase_set(&m->tgf_gen, TGS_LOGGING1);
+	if (m0_fom_phase(&m->tgf_gen) < TGS_LOGGING) {
+		m0_fom_phase_set(&m->tgf_gen, TGS_LOGGING);
 		m0_fom_ready(&m->tgf_gen);
 	}
 }
@@ -332,17 +363,17 @@ static void be_tx_group_fom_handle_delayed(struct m0_sm_group *gr,
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m,
-					 struct m0_be_tx_group *gr,
-					 struct m0_reqh *reqh)
+					 struct m0_be_tx_group     *gr,
+					 struct m0_reqh            *reqh)
 {
 	M0_ENTRY();
 
 	m0_fom_init(&m->tgf_gen, &tx_group_fom_type,
 		    &tx_group_fom_ops, NULL, NULL, reqh);
 
-	m->tgf_group	= gr;
-	m->tgf_reqh	= reqh;
-	m->tgf_stable	= false;
+	m->tgf_group    = gr;
+	m->tgf_reqh     = reqh;
+	m->tgf_stable   = false;
 	m->tgf_stopping = false;
 
 	m0_fom_timeout_init(&m->tgf_to);
@@ -381,6 +412,7 @@ M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *m)
 
 M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m)
 {
+	m->tgf_recovery_mode     = false;
 	m->tgf_stable            = false;
 	m->tgf_close_abs_timeout = M0_TIME_NEVER;
 	m0_fom_timeout_fini(&m->tgf_to);
@@ -388,7 +420,7 @@ M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m)
 }
 
 static void be_tx_group_fom_ast_post(struct m0_be_tx_group_fom *gf,
-				     struct m0_sm_ast *ast)
+				     struct m0_sm_ast          *ast)
 {
 	m0_sm_ast_post(&gf->tgf_gen.fo_loc->fl_group, ast);
 }
@@ -417,8 +449,9 @@ M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)
 	m0_semaphore_down(&gf->tgf_finish_sem);
 }
 
-M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,
-					   m0_time_t abs_timeout)
+M0_INTERNAL void
+m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,
+			  m0_time_t                  abs_timeout)
 {
 	M0_PRE(ergo(abs_timeout != M0_TIME_IMMEDIATELY,
 		    m->tgf_close_abs_timeout == M0_TIME_NEVER));
@@ -434,6 +467,13 @@ M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,
 M0_INTERNAL void m0_be_tx_group_fom_stable(struct m0_be_tx_group_fom *gf)
 {
 	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stable);
+}
+
+M0_INTERNAL void
+m0_be_tx_group_fom_recovery_prepare(struct m0_be_tx_group_fom *m,
+				    struct m0_be_recovery     *rvr)
+{
+	m->tgf_recovery_mode = true;
 }
 
 static void be_op_reset(struct m0_be_op *op)

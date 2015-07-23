@@ -20,15 +20,15 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
-#include "lib/types.h"		/* m0_uint128_eq */
-#include "lib/misc.h"		/* M0_BITS */
+#include "lib/types.h"          /* m0_uint128_eq */
+#include "lib/misc.h"           /* M0_BITS */
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
 
 #include "ut/ut.h"
 
-#include "be/ut/helper.h"	/* m0_be_ut_backend */
+#include "be/ut/helper.h"       /* m0_be_ut_backend */
 
-#include <stdlib.h>		/* rand_r */
+#include <stdlib.h>             /* rand_r */
 
 void m0_be_ut_tx_usecase_success(void)
 {
@@ -188,7 +188,7 @@ void m0_be_ut_tx_empty(void)
 	struct m0_be_ut_backend ut_be;
 	struct m0_be_tx         tx;
 	int                     rc;
-	int			i;
+	int                     i;
 	struct m0_be_tx_credit  credit[] = {
 		M0_BE_TX_CREDIT(0, 0),
 		M0_BE_TX_CREDIT(1, sizeof(void *)),
@@ -450,9 +450,9 @@ void m0_be_ut_tx_force(void)
 
 /** constants for backend UT for transaction persistence */
 enum {
-	BE_UT_TX_P_SEG_SIZE	= 0x4000,
-	BE_UT_TX_P_TX_NR	= 0x400,
-	BE_UT_TX_P_REG_NR	= 0x10,
+	BE_UT_TX_P_SEG_SIZE     = 0x4000,
+	BE_UT_TX_P_TX_NR        = 0x100,
+	BE_UT_TX_P_REG_NR       = 0x10,
 	BE_UT_TX_P_REG_SIZE_MAX = 0x100,
 };
 
@@ -537,8 +537,8 @@ void m0_be_ut_tx_persistence(void)
 
 enum {
 	BE_UT_TX_F_SEG_SIZE  = 0x20000,
-	BE_UT_TX_F_TX_NR     = 0x800,
-	BE_UT_TX_F_TX_CONCUR = 0x100,
+	BE_UT_TX_F_TX_NR     = 0x100,
+	BE_UT_TX_F_TX_CONCUR = 0x80,
 };
 
 void m0_be_ut_tx_fast(void)
@@ -585,14 +585,14 @@ enum {
 };
 
 struct be_ut_tx_thread_state {
-	struct m0_thread	 tts_thread;
+	struct m0_thread         tts_thread;
 	struct m0_be_ut_backend *tts_ut_be;
 	bool                     tts_exclusive;
 };
 
 static void be_ut_tx_run_tx_helper(struct be_ut_tx_thread_state *state,
-				   struct m0_be_tx *tx,
-				   bool exclusive)
+				   struct m0_be_tx              *tx,
+				   bool                          exclusive)
 {
 	M0_SET0(tx);
 	m0_be_ut_tx_init(tx, state->tts_ut_be);
@@ -609,7 +609,7 @@ static void be_ut_tx_run_tx_helper(struct be_ut_tx_thread_state *state,
 static void be_ut_tx_thread(struct be_ut_tx_thread_state *state)
 {
 	struct m0_be_tx tx;
-	int		i;
+	int             i;
 
 	if (state->tts_exclusive)
 		be_ut_tx_run_tx_helper(state, &tx, true);
@@ -664,7 +664,7 @@ void m0_be_ut_tx_concurrent_excl(void)
 enum {
 	BE_UT_TX_CAPTURING_SEG_SIZE = 0x10000,
 	BE_UT_TX_CAPTURING_TX_NR    = 0x10,
-	BE_UT_TX_CAPTURING_NR	    = 0x100,
+	BE_UT_TX_CAPTURING_NR       = 0x100,
 	BE_UT_TX_CAPTURING_RANGE    = 0x20,
 };
 
@@ -673,16 +673,16 @@ M0_BASSERT(BE_UT_TX_CAPTURING_RANGE >= sizeof(uint64_t));
 void m0_be_ut_tx_capturing(void)
 {
 	struct m0_be_ut_backend  ut_be;
-	struct m0_be_tx_credit	 cred = M0_BE_TX_CREDIT_TYPE(uint64_t);
-	struct m0_be_ut_txc	 tc = {};
-	struct m0_be_ut_seg	 ut_seg;
-	struct m0_be_seg	*seg;
-	struct m0_be_tx		 tx;
-	unsigned int		 seed = 0;
-	uint64_t		*ptr;
-	int			 i;
-	int			 j;
-	int			 rc;
+	struct m0_be_tx_credit   cred = M0_BE_TX_CREDIT_TYPE(uint64_t);
+	struct m0_be_ut_txc      tc = {};
+	struct m0_be_ut_seg      ut_seg;
+	struct m0_be_seg        *seg;
+	struct m0_be_tx          tx;
+	unsigned int             seed = 0;
+	uint64_t                *ptr;
+	int                      i;
+	int                      j;
+	int                      rc;
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
@@ -718,19 +718,19 @@ void m0_be_ut_tx_capturing(void)
 }
 
 enum {
-	BE_UT_TX_GC_SEG_SIZE	     = 0x10000,
-	BE_UT_TX_GC_TX_NR	     = 0x100,
+	BE_UT_TX_GC_SEG_SIZE         = 0x10000,
+	BE_UT_TX_GC_TX_NR            = 0x100,
 	BE_UT_TX_GC_RAND_DENOMINATOR = 0x5,
 };
 
 struct be_ut_gc_test {
 	struct m0_be_tx *bugc_tx;
-	bool		 bugc_gc_enabled;
+	bool             bugc_gc_enabled;
 };
 
 static struct be_ut_gc_test be_ut_gc_tests[BE_UT_TX_GC_TX_NR];
 
-static void be_ut_tx_gc_free(struct m0_be_tx *tx)
+static void be_ut_tx_gc_free(struct m0_be_tx *tx, void *param)
 {
 	int i;
 	int index = -1;
@@ -741,13 +741,14 @@ static void be_ut_tx_gc_free(struct m0_be_tx *tx)
 			index = i;
 		}
 	}
+	M0_UT_ASSERT(&be_ut_gc_tests[index] == param);
 	M0_UT_ASSERT(be_ut_gc_tests[index].bugc_gc_enabled);
 	M0_UT_ASSERT(be_ut_gc_tests[index].bugc_tx != NULL);
 	m0_free(tx);
 	be_ut_gc_tests[index].bugc_tx = NULL;
 }
 
-static void be_ut_tx_gc_free_tx_failed(struct m0_be_tx *tx)
+static void be_ut_tx_gc_free_tx_failed(struct m0_be_tx *tx, void *param)
 {
 	M0_UT_ASSERT(false);
 }
@@ -784,7 +785,7 @@ void m0_be_ut_tx_gc(void)
 			m0_be_tx_capture(tx, &M0_BE_REG_PTR(seg, &array[i]));
 
 		be_ut_gc_tests[i] = (struct be_ut_gc_test){
-			.bugc_tx	 = tx,
+			.bugc_tx         = tx,
 			.bugc_gc_enabled = false,
 		};
 	}
@@ -792,8 +793,10 @@ void m0_be_ut_tx_gc(void)
 		gc_enabled = m0_rnd64(&seed) % BE_UT_TX_GC_RAND_DENOMINATOR;
 		be_ut_gc_tests[i].bugc_gc_enabled = gc_enabled;
 		tx = be_ut_gc_tests[i].bugc_tx;
-		if (gc_enabled)
-			m0_be_tx_gc_enable(tx, &be_ut_tx_gc_free);
+		if (gc_enabled) {
+			m0_be_tx_gc_enable(tx, &be_ut_tx_gc_free,
+					   &be_ut_gc_tests[i]);
+		}
 		/*
 		 * Wait for last closed transaction.
 		 * All previous transactions will be done after the waiting.
@@ -836,7 +839,7 @@ void m0_be_ut_tx_gc(void)
 	M0_UT_ASSERT(tx != NULL);
 	m0_be_ut_tx_init(tx, &ut_be);
 	m0_be_tx_prep(tx, &m0_be_tx_credit_invalid);
-	m0_be_tx_gc_enable(tx, &be_ut_tx_gc_free_tx_failed);
+	m0_be_tx_gc_enable(tx, &be_ut_tx_gc_free_tx_failed, tx);
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc != 0);
 	m0_be_tx_fini(tx);
@@ -867,7 +870,7 @@ struct be_ut_tx_payload_test {
 	m0_bcount_t       tpt_offset;
 };
 
-#define TX_PAYLOAD_TEST(credit, fill, capture, offset) {	\
+#define TX_PAYLOAD_TEST(credit, fill, capture, offset) {        \
 	.tpt_credit = (credit),                                 \
 	.tpt_fill = (fill),                                     \
 	.tpt_capture = (capture),                               \

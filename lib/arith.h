@@ -174,27 +174,11 @@ static inline uint64_t m0_align(uint64_t val, uint64_t alignment)
 	return (val + mask) & ~mask;
 }
 
-/**
- * "Encoding" function: returns the number that a (row, column) element of a
- * matrix with "width" columns has when elements are counted row by row.
- * @see m0_dec()
- */
-static inline uint64_t m0_enc(uint64_t width, uint64_t row, uint64_t column)
+static inline bool m0_is_aligned(uint64_t val, uint64_t alignment)
 {
-	M0_PRE(column < width);
-	return row * width + column;
-}
+	M0_PRE(m0_is_po2(alignment));
 
-/**
- * "Decoding" function: returns (row, column) coordinates of a pos-th element
- *  in a matrix with "width" column when elements are counted row by row.
- * @see m0_enc()
- */
-static inline void m0_dec(uint64_t width, uint64_t pos, uint64_t *row,
-		        uint64_t *column)
-{
-	*row    = pos / width;
-	*column = pos % width;
+	return (val & (alignment - 1)) == 0;
 }
 
 /** True iff @val is a multiple of 8. This macro can be used to check that a
@@ -247,6 +231,29 @@ static inline void m0_dec(uint64_t width, uint64_t pos, uint64_t *row,
 static bool inline m0_addu64_will_overflow(uint64_t a, uint64_t b)
 {
 	return a + b < a;
+}
+
+/**
+ * "Encoding" function: returns the number that a (row, column) element of a
+ * matrix with "width" columns has when elements are counted row by row.
+ * @see m0_dec()
+ */
+static inline uint64_t m0_enc(uint64_t width, uint64_t row, uint64_t column)
+{
+	M0_PRE(column < width);
+	return row * width + column;
+}
+
+/**
+ * "Decoding" function: returns (row, column) coordinates of a pos-th element
+ *  in a matrix with "width" column when elements are counted row by row.
+ * @see m0_enc()
+ */
+static inline void m0_dec(uint64_t width, uint64_t pos, uint64_t *row,
+			  uint64_t *column)
+{
+	*row    = pos / width;
+	*column = pos % width;
 }
 
 /** @} end of arith group */

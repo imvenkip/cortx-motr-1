@@ -18,7 +18,7 @@
  * Original creation date: 29-May-2013
  */
 
-#include <stddef.h>		/* ptrdiff_t */
+#include <stddef.h>             /* ptrdiff_t */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
@@ -27,16 +27,17 @@
 #include "be/tx_group.h"
 #include "be/tx_internal.h"
 
-#include "lib/errno.h"		/* ENOMEM */
-#include "lib/misc.h"		/* M0_BITS */
-#include "lib/arith.h"		/* M0_CNT_INC */
-#include "lib/memory.h"		/* m0_alloc_nz */
-#include "fol/fol.h"		/* m0_fol_rec_encode() */
+#include "lib/errno.h"          /* ENOMEM */
+#include "lib/misc.h"           /* M0_BITS */
+#include "lib/arith.h"          /* M0_CNT_INC */
+#include "lib/memory.h"                 /* m0_alloc_nz */
+#include "fol/fol.h"            /* m0_fol_rec_encode() */
 
-#include "be/op.h"		/* m0_be_op */
-#include "be/domain.h"		/* m0_be_domain_engine */
-#include "be/engine.h"		/* m0_be_engine__tx_state_set */
+#include "be/op.h"              /* m0_be_op */
+#include "be/domain.h"          /* m0_be_domain_engine */
+#include "be/engine.h"          /* m0_be_engine__tx_state_set */
 #include "be/addb2.h"           /* M0_AVI_BE_TX_STATE, M0_AVI_BE_TX_COUNTER */
+#include "be/fmt.h"             /* m0_be_fmt_tx */
 
 /**
  * @addtogroup be
@@ -52,12 +53,12 @@ static bool be_tx_state_invariant(const struct m0_sm *mach)
 
 static bool be_tx_is_locked(const struct m0_be_tx *tx);
 
-#define BE_TX_LOCKED_AT_STATE(tx, states)				\
-({									\
-	const struct m0_be_tx *__tx = (tx);				\
+#define BE_TX_LOCKED_AT_STATE(tx, states)                               \
+({                                                                      \
+	const struct m0_be_tx *__tx = (tx);                             \
 									\
-	_0C(be_tx_is_locked(__tx)) && m0_be_tx__invariant(__tx) &&	\
-		_0C(M0_IN(m0_be_tx_state(__tx), states));		\
+	_0C(be_tx_is_locked(__tx)) && m0_be_tx__invariant(__tx) &&      \
+		_0C(M0_IN(m0_be_tx_state(__tx), states));               \
 })
 
 /**
@@ -178,9 +179,9 @@ struct m0_sm_conf be_tx_sm_conf = {
 	.scf_trans     = be_tx_sm_trans
 };
 
-static void be_tx_state_move(struct m0_be_tx *tx,
-			     enum m0_be_tx_state state,
-			     int rc);
+static void be_tx_state_move(struct m0_be_tx     *tx,
+			     enum m0_be_tx_state  state,
+			     int                  rc);
 
 M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 			       uint64_t             tid,
@@ -201,8 +202,12 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 		.t_discarded    = discarded,
 		.t_filler       = filler,
 		.t_datum        = datum,
+		.t_fast         = false,
 		.t_gc_enabled   = false,
 		.t_gc_free      = NULL,
+		.t_gc_param     = NULL,
+		.t_exclusive    = false,
+		.t_recovering   = false,
 	};
 
 	m0_sm_init(&tx->t_sm, &be_tx_sm_conf, M0_BTS_PREPARE, sm_group);
@@ -211,7 +216,7 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 	for (state = 0; state < ARRAY_SIZE(be_tx_ast_offset); ++state) {
 		if (be_tx_ast_offset[state] != 0) {
 			*be_tx_ast(tx, state) = (struct m0_sm_ast) {
-				.sa_cb	  = be_tx_ast_cb,
+				.sa_cb    = be_tx_ast_cb,
 				.sa_datum = (void *) state,
 			};
 		}
@@ -245,8 +250,8 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 	m0_free(tx->t_payload.b_addr);
 }
 
-M0_INTERNAL void
-m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
+M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx              *tx,
+			       const struct m0_be_tx_credit *credit)
 {
 	M0_ENTRY();
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
@@ -285,8 +290,8 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void
-m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
+				  const struct m0_be_reg *reg)
 {
 	struct m0_be_tx_credit captured;
 	struct m0_be_reg_d     rd;
@@ -344,8 +349,9 @@ M0_INTERNAL void m0_be_tx_put(struct m0_be_tx *tx)
 		m0_be_tx__state_post(tx, M0_BTS_DONE);
 }
 
-M0_INTERNAL int
-m0_be_tx_timedwait(struct m0_be_tx *tx, uint64_t states, m0_time_t deadline)
+M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx,
+				   uint64_t         states,
+				   m0_time_t        deadline)
 {
 	M0_ENTRY();
 	M0_PRE(be_tx_is_locked(tx));
@@ -413,19 +419,21 @@ static int be_tx_memory_allocate(struct m0_be_tx *tx)
 
 static void be_tx_gc(struct m0_be_tx *tx)
 {
-	void (*gc_free)(struct m0_be_tx *);
+	void (*gc_free)(struct m0_be_tx *, void *param);
+	void  *gc_param;
 
-	gc_free = tx->t_gc_free;
+	gc_free  = tx->t_gc_free;
+	gc_param = tx->t_gc_param;
 	m0_be_tx_fini(tx);
 	if (gc_free != NULL)
-		gc_free(tx);
+		gc_free(tx, gc_param);
 	else
 		m0_free(tx);
 }
 
-static void be_tx_state_move(struct m0_be_tx *tx,
-			     enum m0_be_tx_state state,
-			     int rc)
+static void be_tx_state_move(struct m0_be_tx     *tx,
+			     enum m0_be_tx_state  state,
+			     int                  rc)
 {
 	bool tx_is_freed = false;
 
@@ -471,8 +479,8 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
-				      enum m0_be_tx_state state)
+M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx     *tx,
+				      enum m0_be_tx_state  state)
 {
 	/* XXX move to group_fom doc */
 	/*
@@ -600,7 +608,39 @@ M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx)
 	return tx->t_exclusive;
 }
 
-M0_INTERNAL bool m0_be_should_break(struct m0_be_engine *eng,
+M0_INTERNAL void m0_be_tx__recovering(struct m0_be_tx *tx)
+{
+	tx->t_recovering = true;
+}
+
+M0_INTERNAL bool m0_be_tx__is_recovering(struct m0_be_tx *tx)
+{
+	return tx->t_recovering;
+}
+
+M0_INTERNAL void m0_be_tx_deconstruct(struct m0_be_tx     *tx,
+				      struct m0_be_fmt_tx *ftx)
+{
+	*ftx = M0_BE_FMT_TX(tx->t_payload, tx->t_id);
+}
+
+M0_INTERNAL void m0_be_tx_reconstruct(struct m0_be_tx           *tx,
+				      const struct m0_be_fmt_tx *ftx)
+{
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
+
+	tx->t_payload = ftx->bft_payload;
+	tx->t_id      = ftx->bft_id;
+}
+
+M0_INTERNAL void m0_be_tx__group_assign(struct m0_be_tx       *tx,
+					struct m0_be_tx_group *gr)
+{
+	if (!m0_be_tx__is_recovering(tx))
+		tx->t_group = gr;
+}
+
+M0_INTERNAL bool m0_be_should_break(struct m0_be_engine          *eng,
 				    const struct m0_be_tx_credit *accum,
 				    const struct m0_be_tx_credit *delta)
 {
@@ -610,13 +650,16 @@ M0_INTERNAL bool m0_be_should_break(struct m0_be_engine *eng,
 }
 
 M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
-				    void (*gc_free)(struct m0_be_tx *tx))
+				    void           (*gc_free)(struct m0_be_tx *,
+							      void *param),
+				    void            *param)
 {
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE, M0_BTS_OPENING,
 					  M0_BTS_ACTIVE)));
 
 	tx->t_gc_enabled = true;
-	tx->t_gc_free	 = gc_free;
+	tx->t_gc_free    = gc_free;
+	tx->t_gc_param   = param;
 }
 
 M0_INTERNAL unsigned long m0_be_tx_gen_idx_min(struct m0_be_tx *tx)

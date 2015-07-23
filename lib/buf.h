@@ -76,6 +76,9 @@ struct m0_bufs {
 /** Initialises struct m0_buf. */
 M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob);
 
+/** Allocates memory pointed to by @buf->b_addr of size @size. */
+M0_INTERNAL int m0_buf_alloc(struct m0_buf *buf, size_t size);
+
 /** Frees memory pointed to by buf->b_addr and zeroes buffer's fields. */
 M0_INTERNAL void m0_buf_free(struct m0_buf *buf);
 

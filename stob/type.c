@@ -47,8 +47,8 @@
 static const struct m0_stob_type *stob_types_reg[] = {
 	&m0_stob_null_type,
 #ifndef __KERNEL__
-	&m0_stob_ad_type,
 	&m0_stob_linux_type,
+	&m0_stob_ad_type,
 #endif
 };
 

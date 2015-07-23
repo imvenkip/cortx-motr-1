@@ -25,12 +25,12 @@
 
 void m0_be_ut_mkfs(void)
 {
-	struct m0_be_ut_backend	 ut_be = {};
-	struct m0_be_domain_cfg	 cfg = {};
-	struct m0_be_domain	*dom = &ut_be.but_dom;
-	struct m0_be_seg	*seg;
-	void			*addr;
-	void			*addr2;
+	struct m0_be_ut_backend  ut_be = {};
+	struct m0_be_domain_cfg  cfg = {};
+	struct m0_be_domain     *dom = &ut_be.but_dom;
+	struct m0_be_seg        *seg;
+	void                    *addr;
+	void                    *addr2;
 	int                      rc;
 
 	m0_be_ut_backend_cfg_default(&cfg);

@@ -8,13 +8,17 @@ nobase_mero_include_HEADERS += \
 			       be/engine.h          \
                                be/extmap.h          \
                                be/extmap_internal.h \
+			       be/fmt.h		    \
+			       be/fmt_xc.h	    \
                                be/io.h              \
                                be/list.h            \
                                be/log.h             \
+			       be/log_sched.h       \
 			       be/log_store.h       \
 			       be/op.h              \
+			       be/recovery.h        \
                                be/seg.h             \
-                               be/seg0.h             \
+                               be/seg0.h            \
                                be/seg_dict.h        \
                                be/seg_internal.h    \
                                be/tx.h              \
@@ -31,15 +35,19 @@ nobase_mero_include_HEADERS += \
 mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/be.c              \
 			   be/btree.c           \
-			   be/extmap.c          \
-			   be/extmap_xc.c       \
 			   be/domain.c          \
 			   be/engine.c          \
+			   be/extmap.c          \
+			   be/extmap_xc.c       \
+			   be/fmt.c		\
+			   be/fmt_xc.c		\
 			   be/io.c              \
 			   be/list.c            \
 			   be/log.c             \
+			   be/log_sched.c       \
 			   be/log_store.c       \
 			   be/op.c              \
+			   be/recovery.c        \
 			   be/seg.c             \
 			   be/seg0.c            \
 			   be/seg_dict.c        \
@@ -54,6 +62,7 @@ mero_libmero_la_SOURCES += be/alloc.c           \
                            be/ut/helper.c
 
 XC_FILES += be/extmap_xc.h \
-            be/tx_xc.h
+	    be/fmt_xc.h	   \
+	    be/tx_xc.h
 
 EXTRA_DIST += be/linux_kernel/stubs.c

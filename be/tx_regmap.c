@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Maxim Medved <maxim_medved@xyratex.com>
+ * Original author: Maxim Medved <max_medved@xyratex.com>
  * Original creation date: 17-Jun-2013
  */
 
@@ -28,9 +28,9 @@
 
 #include "lib/ext.h"    /* m0_ext */
 #include "lib/errno.h"  /* ENOMEM */
-#include "lib/memory.h"	/* m0_alloc_nz */
-#include "lib/assert.h"	/* M0_POST */
-#include "lib/misc.h"	/* M0_SET0 */
+#include "lib/memory.h" /* m0_alloc_nz */
+#include "lib/assert.h" /* M0_POST */
+#include "lib/misc.h"   /* M0_SET0 */
 #include "lib/arith.h"  /* max_check */
 
 /**
@@ -40,8 +40,8 @@
  */
 
 /** @note don't forget to undefine this at the end of the file */
-#define REGD_EXT(rd) (struct m0_ext) {					    \
-	.e_start = (m0_bindex_t)(rd)->rd_reg.br_addr,			    \
+#define REGD_EXT(rd) (struct m0_ext) {                                      \
+	.e_start = (m0_bindex_t)(rd)->rd_reg.br_addr,                       \
 	.e_end   = (m0_bindex_t)(rd)->rd_reg.br_addr + (rd)->rd_reg.br_size \
 }
 
@@ -195,7 +195,7 @@ static void be_reg_d_arr_first_subreg(struct m0_be_reg_d **rd_arr,
 }
 
 static bool be_rdt_contains(const struct m0_be_reg_d_tree *rdt,
-			    const struct m0_be_reg_d *rd)
+			    const struct m0_be_reg_d      *rd)
 {
 	return &rdt->brt_r[0] <= rd && rd < &rdt->brt_r[rdt->brt_size];
 }
@@ -243,11 +243,11 @@ M0_INTERNAL size_t m0_be_rdt_size(const struct m0_be_reg_d_tree *rdt)
 
 /** Time complexity is O(1) */
 static bool be_rdt_check_i(const struct m0_be_reg_d_tree *rdt,
-			   void *addr,
-			   size_t index)
+			   void                          *addr,
+			   size_t                         index)
 {
-	struct m0_be_reg_d *r	 = rdt->brt_r;
-	size_t		    size = m0_be_rdt_size(rdt);
+	struct m0_be_reg_d *r    = rdt->brt_r;
+	size_t              size = m0_be_rdt_size(rdt);
 
 	return  (size == 0 && index == 0) ||
 		(size != 0 &&
@@ -323,7 +323,7 @@ m0_be_rdt_next(const struct m0_be_reg_d_tree *rdt, struct m0_be_reg_d *prev)
 	return rd;
 }
 
-M0_INTERNAL void m0_be_rdt_ins(struct m0_be_reg_d_tree *rdt,
+M0_INTERNAL void m0_be_rdt_ins(struct m0_be_reg_d_tree  *rdt,
 			       const struct m0_be_reg_d *rd)
 {
 	size_t index;
@@ -342,7 +342,7 @@ M0_INTERNAL void m0_be_rdt_ins(struct m0_be_reg_d_tree *rdt,
 	M0_POST(m0_be_rdt__invariant(rdt));
 }
 
-M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree *rdt,
+M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree  *rdt,
 					      const struct m0_be_reg_d *rd)
 {
 	size_t index;
@@ -454,7 +454,7 @@ static void be_regmap_reg_d_split(struct m0_be_regmap *rm,
 }
 
 M0_INTERNAL void m0_be_regmap_add(struct m0_be_regmap *rm,
-				  struct m0_be_reg_d *rd)
+				  struct m0_be_reg_d  *rd)
 {
 	struct m0_be_reg_d *rdi;
 	struct m0_be_reg_d  rd_copy;
@@ -488,11 +488,11 @@ M0_INTERNAL void m0_be_regmap_add(struct m0_be_regmap *rm,
 	M0_POST(m0_be_regmap__invariant(rm));
 }
 
-M0_INTERNAL void m0_be_regmap_del(struct m0_be_regmap *rm,
+M0_INTERNAL void m0_be_regmap_del(struct m0_be_regmap      *rm,
 				  const struct m0_be_reg_d *rd)
 {
 	struct m0_be_reg_d *rdi;
-	m0_bcount_t	    cut;
+	m0_bcount_t         cut;
 
 	M0_PRE(m0_be_regmap__invariant(rm));
 	M0_PRE(rd != NULL);
@@ -528,7 +528,7 @@ M0_INTERNAL struct m0_be_reg_d *m0_be_regmap_first(struct m0_be_regmap *rm)
 }
 
 M0_INTERNAL struct m0_be_reg_d *m0_be_regmap_next(struct m0_be_regmap *rm,
-						  struct m0_be_reg_d *prev)
+						  struct m0_be_reg_d  *prev)
 {
 	return m0_be_rdt_next(&rm->br_rdt, prev);
 }
@@ -605,7 +605,7 @@ M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra)
 	       _0C(m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared));
 }
 
-M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area *ra,
+M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area  *ra,
 				     struct m0_be_tx_credit *used)
 {
 	struct m0_be_reg_d *rd;
@@ -618,7 +618,7 @@ M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area *ra,
 		m0_be_tx_credit_add(used, &M0_BE_REG_D_CREDIT(rd));
 }
 
-M0_INTERNAL void m0_be_reg_area_prepared(struct m0_be_reg_area *ra,
+M0_INTERNAL void m0_be_reg_area_prepared(struct m0_be_reg_area  *ra,
 					 struct m0_be_tx_credit *prepared)
 {
 	M0_PRE(m0_be_reg_area__invariant(ra));
@@ -626,7 +626,7 @@ M0_INTERNAL void m0_be_reg_area_prepared(struct m0_be_reg_area *ra,
 	*prepared = ra->bra_prepared;
 }
 
-M0_INTERNAL void m0_be_reg_area_captured(struct m0_be_reg_area *ra,
+M0_INTERNAL void m0_be_reg_area_captured(struct m0_be_reg_area  *ra,
 					 struct m0_be_tx_credit *captured)
 {
 	M0_PRE(m0_be_reg_area__invariant(ra));
@@ -670,7 +670,8 @@ static void be_reg_area_del(void *data, const struct m0_be_reg_d *rd)
 	/* do nothing */
 }
 
-static void be_reg_area_cpy_copy(void *data, const struct m0_be_reg_d *super,
+static void be_reg_area_cpy_copy(void                     *data,
+				 const struct m0_be_reg_d *super,
 				 const struct m0_be_reg_d *rd)
 {
 	m0_bcount_t rd_offset;
@@ -685,7 +686,8 @@ static void be_reg_area_cpy_copy(void *data, const struct m0_be_reg_d *super,
 }
 
 /* XXX copy-paste from be_reg_area_cpy_copy() */
-static void be_reg_area_cpy(void *data, const struct m0_be_reg_d *super,
+static void be_reg_area_cpy(void                     *data,
+			    const struct m0_be_reg_d *super,
 			    const struct m0_be_reg_d *rd)
 {
 	m0_bcount_t rd_offset;
@@ -699,8 +701,10 @@ static void be_reg_area_cpy(void *data, const struct m0_be_reg_d *super,
 	memcpy(super->rd_buf + rd_offset, rd->rd_buf, rd->rd_reg.br_size);
 }
 
-static void be_reg_area_cut(void *data, struct m0_be_reg_d *rd,
-			    m0_bcount_t cut_at_start, m0_bcount_t cut_at_end)
+static void be_reg_area_cut(void               *data,
+			    struct m0_be_reg_d *rd,
+			    m0_bcount_t         cut_at_start,
+			    m0_bcount_t         cut_at_end)
 {
 	rd->rd_buf += cut_at_start;
 }
@@ -737,11 +741,11 @@ static const struct m0_be_regmap_ops be_reg_area_ops_data_nocopy = {
 };
 
 M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
-					struct m0_be_reg_d *rd)
+					struct m0_be_reg_d    *rd)
 {
 	struct m0_be_tx_credit *captured = &ra->bra_captured;
 	struct m0_be_tx_credit *prepared = &ra->bra_prepared;
-	m0_bcount_t	        reg_size = rd->rd_reg.br_size;
+	m0_bcount_t             reg_size = rd->rd_reg.br_size;
 
 	M0_PRE(m0_be_reg_area__invariant(ra));
 	M0_PRE(m0_be_reg_d__invariant(rd));
@@ -760,7 +764,7 @@ M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
 	M0_POST(m0_be_reg_area__invariant(ra));
 }
 
-M0_INTERNAL void m0_be_reg_area_uncapture(struct m0_be_reg_area *ra,
+M0_INTERNAL void m0_be_reg_area_uncapture(struct m0_be_reg_area    *ra,
 					  const struct m0_be_reg_d *rd)
 {
 	M0_PRE(m0_be_reg_area__invariant(ra));
@@ -791,6 +795,11 @@ M0_INTERNAL void m0_be_reg_area_reset(struct m0_be_reg_area *ra)
 	M0_SET0(&ra->bra_captured);
 
 	M0_POST(m0_be_reg_area__invariant(ra));
+}
+
+M0_INTERNAL void m0_be_reg_area_optimize(struct m0_be_reg_area *ra)
+{
+	/* to be implemented. */
 }
 
 M0_INTERNAL struct m0_be_reg_d *
@@ -969,7 +978,7 @@ M0_INTERNAL void m0_be_reg_area_rebuild(struct m0_be_reg_area *global,
 }
 
 M0_INTERNAL void m0_be_reg_area_io_add(struct m0_be_reg_area *ra,
-				       struct m0_be_io *io)
+				       struct m0_be_io       *io)
 {
 	struct m0_be_reg_d *rd;
 

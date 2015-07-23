@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Maxim Medved <maxim_medved@xyratex.com>
+ * Original author: Maxim Medved <max_medved@xyratex.com>
  * Original creation date: 17-Jun-2013
  */
 
@@ -24,8 +24,8 @@
 
 #include "lib/time.h"           /* m0_time_t */
 
-#include "be/seg.h"		/* m0_be_reg */
-#include "be/tx_credit.h"	/* m0_be_tx_credit */
+#include "be/seg.h"             /* m0_be_reg */
+#include "be/tx_credit.h"       /* m0_be_tx_credit */
 
 struct m0_ext;
 struct m0_be_op;
@@ -148,7 +148,7 @@ m0_be_rdt_next(const struct m0_be_reg_d_tree *rdt, struct m0_be_reg_d *prev);
  * @note rd will be copied to the tree.
  * @see m0_be_rdt_init().
  */
-M0_INTERNAL void m0_be_rdt_ins(struct m0_be_reg_d_tree *rdt,
+M0_INTERNAL void m0_be_rdt_ins(struct m0_be_reg_d_tree  *rdt,
 			       const struct m0_be_reg_d *rd);
 /**
  * Delete a region from the tree.
@@ -159,7 +159,7 @@ M0_INTERNAL void m0_be_rdt_ins(struct m0_be_reg_d_tree *rdt,
  * @return NULL if the last item was deleted
  * @see m0_be_rdt_init().
  */
-M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree *rdt,
+M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree  *rdt,
 					      const struct m0_be_reg_d *rd);
 
 M0_INTERNAL void m0_be_rdt_reset(struct m0_be_reg_d_tree *rdt);
@@ -187,13 +187,13 @@ M0_INTERNAL bool m0_be_regmap__invariant(const struct m0_be_regmap *rm);
 
 /* XXX add const */
 M0_INTERNAL void m0_be_regmap_add(struct m0_be_regmap *rm,
-				  struct m0_be_reg_d *rd);
-M0_INTERNAL void m0_be_regmap_del(struct m0_be_regmap *rm,
+				  struct m0_be_reg_d  *rd);
+M0_INTERNAL void m0_be_regmap_del(struct m0_be_regmap      *rm,
 				  const struct m0_be_reg_d *rd);
 
 M0_INTERNAL struct m0_be_reg_d *m0_be_regmap_first(struct m0_be_regmap *rm);
 M0_INTERNAL struct m0_be_reg_d *m0_be_regmap_next(struct m0_be_regmap *rm,
-						  struct m0_be_reg_d *prev);
+						  struct m0_be_reg_d  *prev);
 M0_INTERNAL size_t m0_be_regmap_size(const struct m0_be_regmap *rm);
 
 M0_INTERNAL void m0_be_regmap_reset(struct m0_be_regmap *rm);
@@ -234,9 +234,9 @@ enum m0_be_reg_area_type {
 struct m0_be_reg_area {
 	struct m0_be_regmap       bra_map;
 	enum m0_be_reg_area_type  bra_type;
-	// bool		          bra_data_copy;
-	char		         *bra_area;
-	m0_bcount_t	          bra_area_used;
+	// bool                   bra_data_copy;
+	char                     *bra_area;
+	m0_bcount_t               bra_area_used;
 	struct m0_be_tx_credit    bra_prepared;
 	/**
 	 * Sum of all regions that were submitted to m0_be_reg_area_capture().
@@ -265,16 +265,16 @@ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area        *ra,
 M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra);
 M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra);
 
-M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area *ra,
+M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area  *ra,
 				     struct m0_be_tx_credit *used);
-M0_INTERNAL void m0_be_reg_area_prepared(struct m0_be_reg_area *ra,
+M0_INTERNAL void m0_be_reg_area_prepared(struct m0_be_reg_area  *ra,
 					 struct m0_be_tx_credit *prepared);
-M0_INTERNAL void m0_be_reg_area_captured(struct m0_be_reg_area *ra,
+M0_INTERNAL void m0_be_reg_area_captured(struct m0_be_reg_area  *ra,
 					 struct m0_be_tx_credit *captured);
 
 M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
-					struct m0_be_reg_d *rd);
-M0_INTERNAL void m0_be_reg_area_uncapture(struct m0_be_reg_area *ra,
+					struct m0_be_reg_d    *rd);
+M0_INTERNAL void m0_be_reg_area_uncapture(struct m0_be_reg_area    *ra,
 					  const struct m0_be_reg_d *rd);
 
 M0_INTERNAL void m0_be_reg_area_merge_in(struct m0_be_reg_area *ra,
@@ -282,13 +282,21 @@ M0_INTERNAL void m0_be_reg_area_merge_in(struct m0_be_reg_area *ra,
 
 M0_INTERNAL void m0_be_reg_area_reset(struct m0_be_reg_area *ra);
 
+/*
+ * Try to reduce used space of reg_area by removing unused space
+ * between captured regions and/or regions reordering/merging inside reg_area.
+ *
+ * @note XXX not implemented yet.
+ */
+M0_INTERNAL void m0_be_reg_area_optimize(struct m0_be_reg_area *ra);
+
 M0_INTERNAL struct m0_be_reg_d *m0_be_reg_area_first(struct m0_be_reg_area *ra);
 M0_INTERNAL struct m0_be_reg_d *
 m0_be_reg_area_next(struct m0_be_reg_area *ra, struct m0_be_reg_d *prev);
 
-#define M0_BE_REG_AREA_FORALL(ra, rd)			\
-	for ((rd) = m0_be_reg_area_first(ra);		\
-	     (rd) != NULL;				\
+#define M0_BE_REG_AREA_FORALL(ra, rd)                   \
+	for ((rd) = m0_be_reg_area_first(ra);           \
+	     (rd) != NULL;                              \
 	     (rd) = m0_be_reg_area_next((ra), (rd)))
 
 /**
@@ -330,7 +338,7 @@ M0_INTERNAL void m0_be_reg_area_rebuild(struct m0_be_reg_area *global,
                                         struct m0_be_reg_area *local_new);
 
 M0_INTERNAL void m0_be_reg_area_io_add(struct m0_be_reg_area *ra,
-				       struct m0_be_io *io);
+				       struct m0_be_io       *io);
 
 /*
  * Merger merges multiple reg_areas (sources) into one (destination) by the

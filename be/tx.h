@@ -22,16 +22,16 @@
 #ifndef __MERO_BE_TX_H__
 #define __MERO_BE_TX_H__
 
-#include "lib/misc.h"		/* M0_BITS */
-#include "lib/buf.h"		/* m0_buf */
+#include "lib/misc.h"           /* M0_BITS */
+#include "lib/buf.h"            /* m0_buf */
 
-#include "sm/sm.h"		/* m0_sm */
+#include "sm/sm.h"              /* m0_sm */
 
-#include "be/tx_regmap.h"	/* m0_be_reg_area */
+#include "be/tx_regmap.h"       /* m0_be_reg_area */
 
-struct m0_ref;
 struct m0_be_domain;
 struct m0_be_tx_group;
+struct m0_be_fmt_tx;
 struct m0_fol_rec;
 
 /**
@@ -43,7 +43,7 @@ struct m0_fol_rec;
  *
  *     - transaction m0_be_tx: is a group of updates to BE segment memory,
  *       atomic w.r.t. BE failures. A transaction can update memory within
- *       multiple segments in the same m0_be instance. A BE user creates a
+ *       multiple segments in the same m0_be_domain. A BE user creates a
  *       transaction and then updates segment memory. After each update, the
  *       updated memory is "captured" in the transaction by calling
  *       m0_be_tx_capture();
@@ -55,8 +55,8 @@ struct m0_fol_rec;
  *       reserves internal transaction resources (log space and memory) to avoid
  *       dead-locks;
  *
- *     - transaction engine m0_be_tx_engine: is a part of BE instance (m0_be)
- *       that contains all transaction related state.
+ *     - transaction engine m0_be_tx_engine: is a part of BE domain that
+ *       contains all transaction related state.
  *
  * Overview of operation.
  *
@@ -110,7 +110,7 @@ struct m0_fol_rec;
  *                        |
  *        m0_be_tx_open() |   no free memory or engine thinks that
  *                        |   the transaction can't be opened
- *                        V	    V
+ *                        V                V
  *                     OPENING---------->FAILED
  *                        |
  *                        | log space reserved for the transaction
@@ -343,10 +343,10 @@ struct m0_be_tx {
 	 *   to accumulate payload area size.
 	 *
 	 * @todo Don't allocate m0_be_tx::t_payload separately.
-	 *	 Use m0_be_tx_group preallocated payload area.
+	 *       Use m0_be_tx_group preallocated payload area.
 	 * @todo Use m0_be_tx::t_filler callback to fill m0_be_tx::t_payload.
 	 */
-	struct m0_buf	       t_payload;
+	struct m0_buf          t_payload;
 	struct m0_sm_ast       t_ast_active;
 	struct m0_sm_ast       t_ast_failed;
 	struct m0_sm_ast       t_ast_grouped;
@@ -355,14 +355,16 @@ struct m0_be_tx {
 	struct m0_sm_ast       t_ast_done;
 	struct m0_be_tx_group *t_group;
 	/** Reference counter. */
-	uint32_t	       t_ref;
+	uint32_t               t_ref;
 	/** Set when space in log is reserved by engine. */
 	bool                   t_log_reserved;
+	/* XXX TODO merge with t_log_reserved. */
+	m0_bcount_t            t_log_reserved_size;
 	/**
 	 * Flag indicates that tx_group should be closed immediately
 	 * @todo Remove when m0_be_tx_close_sync() is removed
 	 */
-	bool		       t_fast;
+	bool                   t_fast;
 	/**
 	 * Flag indicates that this transaction was opened with
 	 * m0_be_tx_exclusive_open().
@@ -371,9 +373,9 @@ struct m0_be_tx {
 	/**
 	 * @see m0_be_tx_gc_enable().
 	 */
-	bool		       t_gc_enabled;
-	void		     (*t_gc_free)(struct m0_be_tx *tx);
-	struct m0_chan	      *t_gc_chan;
+	bool                   t_gc_enabled;
+	void                 (*t_gc_free)(struct m0_be_tx *tx, void *param);
+	void                  *t_gc_param;
 	/** @see m0_be_engine::eng_tx_first_capture */
 	struct m0_tlink        t_first_capture_linkage;
 	/**
@@ -382,6 +384,7 @@ struct m0_be_tx {
 	 * This field is set and managed by engine.
 	 */
 	unsigned long          t_gen_idx_min;
+	bool                   t_recovering;
 };
 
 /**
@@ -438,7 +441,7 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 
 M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx);
 
-M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
+M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx              *tx,
 			       const struct m0_be_tx_credit *credit);
 
 /**
@@ -454,9 +457,9 @@ M0_INTERNAL void m0_be_tx_payload_prep(struct m0_be_tx *tx, m0_bcount_t size);
 M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx);
 M0_INTERNAL void m0_be_tx_exclusive_open(struct m0_be_tx *tx);
 
-M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx *tx,
+M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 				  const struct m0_be_reg *reg);
-M0_INTERNAL void m0_be_tx_uncapture(struct m0_be_tx *tx,
+M0_INTERNAL void m0_be_tx_uncapture(struct m0_be_tx        *tx,
 				    const struct m0_be_reg *reg);
 
 /* XXX change to (tx, seg, ptr) */
@@ -501,8 +504,8 @@ M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx);
  * transaction are not in M0_BTS_DONE state, e.g., by calling m0_be_tx_get().
  */
 M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx,
-				   uint64_t states,
-				   m0_time_t deadline);
+				   uint64_t         states,
+				   m0_time_t        deadline);
 
 M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx);
 M0_INTERNAL const char *m0_be_tx_state_name(enum m0_be_tx_state state);
@@ -543,6 +546,40 @@ M0_INTERNAL void m0_be_tx_force (struct m0_be_tx *tx);
  */
 M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx);
 
+/**
+ * Mark tx as a tx that is recovering from log.
+ *
+ * Such transaction has the following properties:
+ * - it is already in log, so:
+ *   - log space is not reserved;
+ *   - it isn't going to log;
+ * - reg_area and payload buf are not allocated;
+ * - it can't fail on m0_be_tx_open();
+ * - it doesn't have new tx id allocated - it uses the old one from the log.
+ *
+ * @note This function is used by recovery only.
+ */
+M0_INTERNAL void m0_be_tx__recovering(struct m0_be_tx *tx);
+M0_INTERNAL bool m0_be_tx__is_recovering(struct m0_be_tx *tx);
+
+M0_INTERNAL void m0_be_tx_deconstruct(struct m0_be_tx     *tx,
+				      struct m0_be_fmt_tx *ftx);
+/*
+ * @pre m0_be_tx_state(tx) == M0_BTS_PREPARE
+ */
+M0_INTERNAL void m0_be_tx_reconstruct(struct m0_be_tx           *tx,
+				      const struct m0_be_fmt_tx *ftx);
+
+/*
+ * Assign tx to a group.
+ *
+ * Does nothing if m0_be_tx__is_recovering(tx).
+ */
+M0_INTERNAL void m0_be_tx__group_assign(struct m0_be_tx       *tx,
+					struct m0_be_tx_group *gr);
+
+M0_INTERNAL bool m0_be_tx_should_break(struct m0_be_tx *tx,
+				       const struct m0_be_tx_credit *c);
 
 /**
  * Calls @gc_free function after tx reaches M0_BTS_DONE state.
@@ -556,18 +593,18 @@ M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx);
  *
  * M0_ALLOC_PTR(tx);
  * if (tx == NULL)
- *	...;
+ *      ...;
  * m0_be_tx_init(tx, <...>);
- * m0_be_tx_gc_enable(tx, NULL);
+ * m0_be_tx_gc_enable(tx, NULL, NULL);
  * < prepare credits >
  * m0_be_tx_open(tx);
  * < wait until tx reaches M0_BTS_ACTIVE or M0_BTS_FAILED state >;
  * if (m0_be_tx_state(tx) == M0_BTS_FAILED) {
- *	m0_be_tx_fini(tx);
- *	m0_free(tx);
+ *      m0_be_tx_fini(tx);
+ *      m0_free(tx);
  * } else {
- *	< capture >;
- *	m0_be_tx_close(tx);
+ *      < capture >;
+ *      m0_be_tx_close(tx);
  * }
  * < tx pointer should be considered invalid after this point >
  * // m0_free() will be automatically called when tx reaches M0_BTS_DONE state.
@@ -578,9 +615,11 @@ M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx);
  * @note @gc_free can be NULL. m0_free() is called in this case to free tx.
  */
 M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
-				    void (*gc_free)(struct m0_be_tx *));
+				    void           (*gc_free)(struct m0_be_tx *,
+							      void *param),
+				    void            *param);
 
-M0_INTERNAL bool m0_be_should_break(struct m0_be_engine *eng,
+M0_INTERNAL bool m0_be_should_break(struct m0_be_engine          *eng,
 				    const struct m0_be_tx_credit *accum,
 				    const struct m0_be_tx_credit *delta);
 

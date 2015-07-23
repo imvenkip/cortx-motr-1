@@ -111,6 +111,24 @@ enum m0_magic_satchel {
 	/* m0_be_op::bo_set_link_magic (offloaded bel) */
 	M0_BE_OP_SET_LINK_MAGIC = 0x330ff10adedbe177,
 
+	/* m0_be_log_record::lgr_linkage (be lossless) */
+	M0_BE_LOG_RECORD_MAGIC = 0x33be10551e5577,
+
+	/* be/log.c::record_tl (be loss head) */
+	M0_BE_LOG_RECORD_HEAD_MAGIC = 0x33be10554ead77,
+
+	/* m0_be_log_record_iter::lri_linkage (be safe heal) */
+	M0_BE_RECOVERY_MAGIC = 0x33be5afe4ea177,
+
+	/* be/recovery.c::log_record_iter_tl (be safe head) */
+	M0_BE_RECOVERY_HEAD_MAGIC = 0x33be5afe4ead77,
+
+	/* m0_be_log_io::lio_magic (bad be io base) */
+	M0_BE_LOG_IO_MAGIC = 0x33badbe10ba5e77,
+
+	/* be/log.c::log_io_tl (bad be io head) */
+	M0_BE_LOG_IO_HEAD_MAGIC = 0x33badbe104ead77,
+
 /* m0t1fs */
 	/* m0t1fs_sb::s_magic (cozie filesis) */
 	M0_T1FS_SUPER_MAGIC = 0x33c021ef11e51577,

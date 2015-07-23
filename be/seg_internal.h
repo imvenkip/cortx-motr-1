@@ -22,8 +22,8 @@
 #ifndef __MERO_BE_SEG_INTERNAL_H__
 #define __MERO_BE_SEG_INTERNAL_H__
 
-#include "be/alloc_internal.h"	/* m0_be_allocator_header */
-#include "be/btree.h"		/* m0_be_btree */
+#include "be/alloc_internal.h"  /* m0_be_allocator_header */
+#include "be/btree.h"           /* m0_be_btree */
 
 /**
  * @addtogroup be

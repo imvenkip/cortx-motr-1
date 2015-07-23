@@ -158,12 +158,12 @@ struct m0_bufvec {
    addr = ...;
    @endcode
  */
-#define M0_BUFVEC_INIT_BUF(addr_ptr, count_ptr)	{	\
-	.ov_vec = {					\
-		.v_nr = 1,				\
-		.v_count = (count_ptr),			\
-	},						\
-	.ov_buf = (addr_ptr)				\
+#define M0_BUFVEC_INIT_BUF(addr_ptr, count_ptr)	(struct m0_bufvec){	\
+	.ov_vec = {							\
+		.v_nr = 1,						\
+		.v_count = (count_ptr),					\
+	},								\
+	.ov_buf = (addr_ptr)						\
 }
 
 /**

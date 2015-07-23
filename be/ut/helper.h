@@ -33,7 +33,6 @@
 #include "be/domain.h"		/* m0_be_domain */
 #include "be/seg.h"		/* m0_be_seg */
 #include "be/seg0.h"		/* m0_be_0type */
-#include "fid/fid.h"		/* m0_fid */
 
 enum {
 	BE_UT_SEG_START_ADDR = 0x400000000000ULL,

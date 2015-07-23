@@ -40,7 +40,7 @@ struct tx_service {
 	struct m0_reqh_service ts_reqh;
 };
 
-static int txs_allocate(struct m0_reqh_service **out,
+static int txs_allocate(struct m0_reqh_service           **out,
 			const struct m0_reqh_service_type *stype);
 
 static const struct m0_reqh_service_type_ops txs_stype_ops = {
@@ -71,7 +71,7 @@ static const struct m0_reqh_service_ops txs_ops = {
 };
 
 /** Allocates and initialises transaction service. */
-static int txs_allocate(struct m0_reqh_service **service,
+static int txs_allocate(struct m0_reqh_service           **service,
 			const struct m0_reqh_service_type *stype)
 {
 	struct tx_service *s;
@@ -110,7 +110,7 @@ static void txs_stop(struct m0_reqh_service *service)
 }
 
 M0_INTERNAL int m0_be_tx_service_init(struct m0_be_engine *en,
-				      struct m0_reqh *reqh)
+				      struct m0_reqh      *reqh)
 {
 	M0_PRE(en->eng_service == NULL);
 	return m0_reqh_service_setup(&en->eng_service, &m0_be_txs_stype,
