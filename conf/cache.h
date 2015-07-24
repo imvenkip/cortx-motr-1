@@ -84,7 +84,7 @@ struct m0_conf_cache {
 	uint64_t         ca_magic;
 #endif
 
-	/** configuration version number */
+	/** Configuration version number. */
 	uint64_t         ca_ver;
 };
 

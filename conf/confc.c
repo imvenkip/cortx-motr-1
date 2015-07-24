@@ -638,16 +638,6 @@ M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx)
 	M0_LEAVE();
 }
 
-static uint64_t confc_ctx_ver_read(const struct m0_confc_ctx *ctx)
-{
-	return ctx->fc_confc->cc_cache.ca_ver;
-}
-
-static void confc_ctx_ver_set(struct m0_confc_ctx *ctx, uint64_t ver)
-{
-	ctx->fc_confc->cc_cache.ca_ver = ver;
-}
-
 static bool _ctx_check(const void *bob)
 {
 	const struct m0_confc_ctx *ctx = bob;
@@ -922,6 +912,7 @@ static int cache_grow(struct m0_confc *confc,
 		      const struct m0_conf_fetch_resp *resp);
 static void ast_fail(struct m0_sm_ast *ast, int rc);
 static struct m0_confc_ctx *item_to_ctx(const struct m0_rpc_item *item);
+static uint64_t *confc_cache_ver(struct m0_confc_ctx *ctx);
 
 /** Actions to perform on entering S_CHECK state. */
 static int check_st_in(struct m0_sm *mach)
@@ -1025,18 +1016,16 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	M0_PRE(item != NULL && item->ri_error == 0 && item->ri_reply != NULL);
 
 	resp = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
-
-	if (confc_ctx_ver_read(ctx) == CONF_VER_UNKNOWN) {
+	rc = resp->fr_rc;
+	if (*confc_cache_ver(ctx) == CONF_VER_UNKNOWN)
 		/* the very first fetch occurred */
-		confc_ctx_ver_set(ctx, resp->fr_ver);
-	} else if (confc_ctx_ver_read(ctx) != resp->fr_ver) {
+		*confc_cache_ver(ctx) = resp->fr_ver;
+	else if (*confc_cache_ver(ctx) != resp->fr_ver)
 		rc = M0_ERR(-EPROTO);
-		goto abnormal;
-	}
 
-	rc = resp->fr_rc ?: cache_grow(ctx->fc_confc, resp);
+	if (rc == 0)
+		cache_grow(ctx->fc_confc, resp);
 
-abnormal:
 	grp = &item->ri_rmachine->rm_sm_grp;
 	m0_sm_group_lock(grp);
 	/* Let the rpc layer free memory allocated for response. */
@@ -1142,6 +1131,11 @@ static bool terminal_st_invariant(const struct m0_sm *mach)
 	/* We do not check m0_confc_ctx::fc_result, because it may
 	 * have been unset by m0_confc_ctx_result(). */
 	return mach->sm_rc == 0;
+}
+
+static uint64_t *confc_cache_ver(struct m0_confc_ctx *ctx)
+{
+	return &ctx->fc_confc->cc_cache.ca_ver;
 }
 
 /* ------------------------------------------------------------------
