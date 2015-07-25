@@ -275,6 +275,44 @@ M0_INTERNAL const void *m0_ptr_unwrap(uint64_t val)
 	return val != 0 ? val + (void *)&m0_ptr_wrap : NULL;
 }
 
+
+M0_INTERNAL void m0_permute(uint64_t n, uint64_t *k, uint64_t *s, uint64_t *r)
+{
+	uint64_t i;
+	uint64_t j;
+	uint64_t t;
+	uint64_t x;
+
+	/*
+	 * k[0] is an index of one of the n elements that permutation moves to
+	 * the 0-th position in s[];
+	 *
+	 * k[1] is an index of one of the (n - 1) remaining elements that
+	 * permutation moves to the 1-st position in s[], etc.
+	 *
+	 * To produce i-th element of s[], pick one of remaining elements, say
+	 * s[t], as specified by k[i], shift elements s[i] ... s[t] to the right
+	 * by one and place s[t] in s[i]. This guarantees that at beginning of
+	 * the loop elements s[0] ... s[i - 1] are already selected and elements
+	 * s[i] ... s[n - 1] are "remaining".
+	 */
+
+	for (i = 0; i < n - 1; ++i) {
+		t = k[i] + i;
+		M0_ASSERT(t < n);
+		x = s[t];
+		for (j = t; j > i; --j)
+			s[j] = s[j - 1];
+		s[i] = x;
+		r[x] = i;
+	}
+	/*
+	 * The loop above iterates n-1 times, because the last element finds its
+	 * place automatically. Complete inverse permutation.
+	 */
+	r[s[n - 1]] = n - 1;
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

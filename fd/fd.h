@@ -20,11 +20,13 @@
 
 #pragma once
 
-#ifndef __MERO_LAYOUT_FD_H__
-#define __MERO_LAYOUT_FD_H__
+#ifndef __MERO_FD_H__
+#define __MERO_FD_H__
 
 #include "layout/pdclust.h"
 #include "ha/note.h"
+#include "lib/tlist.h"
+
 
 
 /**
@@ -141,6 +143,78 @@ struct m0_fd_tile {
 	struct m0_fd_tile_cell *ft_cell;
 };
 
+struct m0_fd_perm_cache {
+	/** Holds M0_FD_PRMCACHE_MAGIC. */
+	uint64_t        fpc_magic;
+	/**
+	 * Index of a tile for which the members of this permutation group
+	 * were last permuted.
+	 */
+	uint64_t        fpc_omega;
+	/* Length of a permutation. */
+	uint32_t        fpc_len;
+	/**
+	 * Lehmer code of permutation.
+	 * This array of m0_fd_permgrp_cache::fpc_count elements is used to
+	 * generate fpc_permute[] and fpc_inverse[] arrays. Strictly
+	 * speaking, it is not needed after above arrays are built, but
+	 * it is kept for completeness.
+	 *
+	 * Technically speaking, this array is a lexicographic number
+	 * of permutation written in factorial number system (see HLD
+	 * of parity declustered layout for references).
+	 *
+	 * @see http://en.wikipedia.org/wiki/Lehmer_code
+	 */
+	uint64_t       *fpc_lcode;
+	/**
+	 * Column permutation for failure domains.
+	 * This is an array of m0_fd_permgrp_cache::fpc_count elements,
+	 * without duplicates.
+	 */
+	uint64_t       *fpc_permute;
+	/**
+	 * Inverse column permutation.
+	 *
+	 * @invariant fpc_permute[fpc_inverse[x]] == x
+	 * @invariant fpc_inverse[fpc_permute[x]] == x
+	 */
+	uint64_t       *fpc_inverse;
+	/**
+	 * Link through which permutation cache is anchored on list of
+	 * m0_fd_tree:ft_perm_cache.
+	 */
+	struct m0_tlink fpc_link;
+};
+
+struct m0_fd_tree {
+	/* Depth of the failure domains tree. */
+	uint16_t                ft_depth;
+	/* Root node associated with the tree. */
+	struct m0_fd_tree_node *ft_root;
+	/** List of struct m0_perm_cache objects associated with the tree */
+	struct m0_tl            ft_perm_cache;
+	/* Total nodes present in a tree. This field is required for testing */
+	uint64_t                ft_cnt;
+};
+
+struct m0_fd_tree_node {
+	/* A pointer to parent of a node. */
+	struct m0_fd_tree_node  *ftn_parent;
+	/* Level at which node resides in a tree. */
+	uint16_t                 ftn_depth;
+	/* Number of children a node has. */
+	uint32_t                 ftn_child_nr;
+	/* Index within siblings of a node. */
+	uint32_t                 ftn_rel_idx;
+	/* Index, when all nodes of the level ftn_depth are enumerated. */
+	uint32_t                 ftn_abs_idx;
+	/* An array of pointers to children. */
+	struct m0_fd_tree_node **ftn_children;
+	/* Permutation cache associated with the node. */
+	struct m0_fd_perm_cache *ftn_cache;
+};
+
 /**
  * Checks the feasibility of required tolerance for various failure domains.
  * @param[in]  pv            The pool version in configuration, for which the
@@ -151,7 +225,7 @@ struct m0_fd_tile {
  *                           can not be supported, when returned value by the
  *                           function is -EINVAL. In all other cases its value
  *                           is undefined.
- * @retval     0            On success.
+ * @retval     0             On success.
  * @retval     -EINVAL       When tolerance can not be met.
  * @retval     -ENOMEM       When system is out of memory.
  */
@@ -200,6 +274,45 @@ M0_INTERNAL void m0_fd_src_to_tgt(const struct m0_fd_tile *tile,
 M0_INTERNAL void m0_fd_tgt_to_src(const struct m0_fd_tile *tile,
 				  const struct m0_pdclust_tgt_addr *tgt,
 				  struct m0_pdclust_src_addr *src);
+
+/**
+ * Bulds a failure domains tree using input pool version object from the
+ * configuration schema. The levels for which no failure can be tolerated
+ * are not present in this tree.
+ * @param[in]  pv   Configuration object corresponding to the pool version.
+ * @param[out] tree Holds the failure domains tree created using the pool
+ *                  version.
+ */
+M0_INTERNAL int m0_fd_tree_build(const struct m0_conf_pver *pv,
+			         struct m0_fd_tree *tree);
+
+/**
+ * Deallocates all the nodes from the tree.
+ */
+M0_INTERNAL void m0_fd_tree_destroy(struct m0_fd_tree *tree);
+
+
+/**
+ * Maps the source parity group and parity unit to appropriate target
+ * and a frame from the pool version.
+ * @param[in]  pver  In memory representation of the pool version.
+ * @param[in]  src   Parity group and unit to be mapped.
+ * @param[out] tgt   Target to which src maps.
+ */
+M0_INTERNAL void m0_fd_fwd_map(struct m0_pool_version *pver,
+			       const struct m0_pdclust_src_addr *src,
+			       struct m0_pdclust_tgt_addr *tgt);
+
+/**
+ * Maps a target and frame from the pool version, to appropriate
+ * parity group and its unit.
+ * @param[in] pver In memory representation of pool version.
+ * @param[in] tgt  Target and frame to be maped.
+ * @param[out src  Parity group adn unit to which tgt maps.
+ */
+M0_INTERNAL void m0_fd_bwd_map(struct m0_pool_version *pver,
+			       const struct m0_pdclust_tgt_addr *tgt,
+			       struct m0_pdclust_src_addr *src);
 
 /** @} end group Failure_Domains */
 /* __MERO_LAYOUT_FD_H__ */

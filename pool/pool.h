@@ -99,6 +99,8 @@ struct m0_pool_version {
 	/* The fault tolerant tile associated with the pool version. */
 	struct m0_fd_tile            pv_fd_tile;
 
+	/* Failure domains tree associated with the pool version. */
+	struct m0_fd_tree            pv_fd_tree;
 	/** The tolerance vector associated with the pool version. */
 	uint32_t                     pv_fd_tol_vec[M0_FTA_DEPTH_MAX];
 

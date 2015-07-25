@@ -371,6 +371,12 @@ enum m0_magic_satchel {
 	/* m0_dtm::d_excited::t_magic (flooded baboo) */
 	M0_DTM_EXC_MAGIX = 0x33f100dedbab0077,
 
+/* Failure Domains */
+	/* m0_fd_perm_cache::fpc_magic (fascia doodia) */
+	M0_FD_PRMCACHE_MAGIC = 0x33FA5C1AD00D1A77,
+	/* m0_fd_tree::ft_perm_cache::td_head_magic (ecesis filial)*/
+	M0_FD_PRMCACHE_HEAD_MAGIC = 0x33ECE515F111A177,
+
 /* Fault Injection */
 	/* fi_dynamic_id::fdi_magic (diabolic dill) */
 	M0_FI_DYNAMIC_ID_MAGIC = 0x33d1ab011cd11177,

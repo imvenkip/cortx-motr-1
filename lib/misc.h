@@ -398,6 +398,22 @@ enum {
 	UINT32_STR_LEN = 64
 };
 
+/**
+ * Apply a permutation given by its Lehmer code in k[] to a set s[] of n
+ * elements and build inverse permutation in r[].
+ *
+ * @param n - number of elements in k[], s[] and r[]
+ * @param k - Lehmer code of the permutation
+ * @param s - an array to permute
+ * @param r - an array to build inverse permutation in
+ *
+ * @pre  m0_forall(i, n, k[i] + i < n)
+ * @pre  m0_forall(i, n, s[i] < n && ergo(s[i] == s[j], i == j))
+ * @post m0_forall(i, n, s[i] < n && ergo(s[i] == s[j], i == j))
+ * @post m0_forall(i, n, s[r[i]] == i && r[s[i]] == i)
+ */
+M0_INTERNAL void m0_permute(uint64_t n, uint64_t *k, uint64_t *s, uint64_t *r);
+
 #endif /* __MERO_LIB_MISC_H__ */
 
 /*
