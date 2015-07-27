@@ -940,7 +940,8 @@ static void level_be_domain_leave(struct m0_module *module)
 	case M0_LEVEL_BE_DOMAIN_INIT:
 		/* XXX level_be_domain_enter() did not call
 		 * m0_stob_domain_init(). */
-		m0_stob_domain_fini(dom->bd_stob_domain);
+		if (dom->bd_stob_domain != NULL)
+			m0_stob_domain_fini(dom->bd_stob_domain);
 		m0_tl_teardown(zt, &dom->bd_0types, zt);
 		m0_mutex_fini(&dom->bd_lock);
 		seg_tlist_fini(&dom->bd_segs);

@@ -391,6 +391,8 @@ check_mkfs:
 	rc = m0_module_init(&ut_be->but_dom.bd_module,
 			    M0_LEVEL_BE_DOMAIN_READY);
 	if (!c->bc_mkfs_mode && rc == -ENOENT) {
+		m0_module_fini(&ut_be->but_dom.bd_module, M0_MODLEV_NONE);
+		M0_SET0(&ut_be->but_dom);
 		c->bc_mkfs_mode = true;
 		goto check_mkfs;
 	}
