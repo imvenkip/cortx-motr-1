@@ -45,13 +45,38 @@ enum {
 	M0_BE_ALLOC_SHIFT_MIN  = 3,
 };
 
+struct m0_be_allocator_call_stat {
+	unsigned long bcs_nr;
+	m0_bcount_t   bcs_size;
+};
+
+struct m0_be_allocator_call_stats {
+	struct m0_be_allocator_call_stat bacs_alloc_success;
+	struct m0_be_allocator_call_stat bacs_alloc_failure;
+	struct m0_be_allocator_call_stat bacs_free;
+};
+
+enum {
+	M0_BE_ALLOCATOR_STATS_BOUNDARY       = 1024,
+	M0_BE_ALLOCATOR_STATS_PRINT_INTERVAL = 100,
+};
+
 /**
  * @brief Allocator statistics
  *
  * It is embedded into m0_be_allocator_header.
  */
 struct m0_be_allocator_stats {
-	m0_bcount_t bas_free_space;
+	m0_bcount_t                       bas_chunk_overhead;
+	m0_bcount_t                       bas_space_total;
+	m0_bcount_t                       bas_space_used;
+	m0_bcount_t                       bas_space_free;
+	m0_bcount_t                       bas_stat0_boundary;
+	struct m0_be_allocator_call_stats bas_total;
+	struct m0_be_allocator_call_stats bas_stat0;
+	struct m0_be_allocator_call_stats bas_stat1;
+	unsigned long                     bas_print_interval;
+	unsigned long                     bas_print_index;
 };
 
 struct m0_be_allocator_header;
@@ -231,6 +256,11 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
  */
 M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
 				   struct m0_be_allocator_stats *out);
+
+M0_INTERNAL void m0_be_alloc_stats_credit(struct m0_be_allocator *a,
+                                          struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_be_alloc_stats_capture(struct m0_be_allocator *a,
+                                           struct m0_be_tx        *tx);
 
 
 /**

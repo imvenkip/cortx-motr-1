@@ -107,6 +107,7 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 		m0_be_ut_tx_init(tx, ut_be);
 
 		m0_be_allocator_credit(a, optype, size, shift, &credit);
+		m0_be_alloc_stats_credit(a, &credit);
 		m0_be_tx_prep(tx, &credit);
 
 		rc = m0_be_tx_open_sync(tx);
@@ -121,6 +122,7 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 		m0_be_op_wait(&op);
 		M0_UT_ASSERT(*p != NULL);
 		M0_UT_ASSERT(m0_addr_is_aligned(*p, shift));
+		m0_be_alloc_stats_capture(a, tx);
 	} else {
 		m0_be_free_aligned(a, tx, &op, *p);
 		m0_be_op_wait(&op);
