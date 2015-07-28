@@ -123,6 +123,7 @@ void test_confdb(void)
 	struct m0_confx        *dec;
 	struct m0_be_tx_credit  accum = {};
 	struct m0_be_tx         tx = {};
+	bool                    error_desired;
 	int                     i;
 	int                     j;
 	int                     hit;
@@ -151,28 +152,49 @@ void test_confdb(void)
 
 	conf_ut_db_init();
 
-	rc = m0_confdb_create_credit(seg, enc, &accum);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_confdb_create_credit(seg, enc, &accum);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_confdb_create_credit(seg, enc, &accum);
-	M0_UT_ASSERT(rc == 0);
-	rc = conf_ut_be_tx_create(&tx, &ut_be, &accum);
-	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < 3; ++i) {
+		M0_SET0(&accum);
+		rc = m0_confdb_create_credit(seg, enc, &accum);
+		M0_UT_ASSERT(rc == 0);
+		M0_SET0(&tx);
+		rc = conf_ut_be_tx_create(&tx, &ut_be, &accum);
+		M0_UT_ASSERT(rc == 0);
 
-	m0_fi_enable("confdb_table_init", "ut_confdb_create_failure");
-	rc = m0_confdb_create(seg, &tx, enc);
-	M0_UT_ASSERT(rc < 0);
-	m0_fi_disable("confdb_table_init", "ut_confdb_create_failure");
+		switch (i) {
+		case 0:
+			m0_fi_enable("confdb_table_init",
+				     "ut_confdb_create_failure");
+			error_desired = true;
+			break;
+		case 1:
+			m0_fi_enable("confx_obj_dup",
+				     "ut_confx_obj_dup_failure");
+			error_desired = true;
+			break;
+		case 2:
+			/* Usual case. Should complete without errors. */
+			error_desired = false;
+			break;
+		}
+		rc = m0_confdb_create(seg, &tx, enc);
+		M0_UT_ASSERT(ergo(error_desired, rc < 0));
+		M0_UT_ASSERT(ergo(!error_desired, rc == 0));
 
-	m0_fi_enable("confx_obj_dup", "ut_confx_obj_dup_failure");
-	rc = m0_confdb_create(seg, &tx, enc);
-	M0_UT_ASSERT(rc < 0);
-	m0_fi_disable("confx_obj_dup", "ut_confx_obj_dup_failure");
-
-	rc = m0_confdb_create(seg, &tx, enc);
-	M0_UT_ASSERT(rc == 0);
-	conf_ut_be_tx_fini(&tx);
+		switch (i) {
+		case 0:
+			m0_fi_disable("confdb_table_init",
+				      "ut_confdb_create_failure");
+			break;
+		case 1:
+			m0_fi_disable("confx_obj_dup",
+				      "ut_confx_obj_dup_failure");
+			error_desired = true;
+			break;
+		case 2:
+			break;
+		}
+		conf_ut_be_tx_fini(&tx);
+	}
 
 	rc = m0_confdb_read(seg, &dec);
 	M0_UT_ASSERT(rc == 0);
