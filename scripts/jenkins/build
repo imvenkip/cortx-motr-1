@@ -36,5 +36,6 @@ pushd workdir/src/
         make -j |& tee $ARTIFACTS/make.log
         make -j rpms |& tee $ARTIFACTS/rpm.log
         cp -av $HOME/rpmbuild/RPMS/x86_64/mero*.rpm $ARTIFACTS/
+        cp -av $HOME/rpmbuild/SRPMS/mero*.rpm $ARTIFACTS/
     fi
 popd
