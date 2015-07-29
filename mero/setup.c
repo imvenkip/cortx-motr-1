@@ -324,6 +324,15 @@ err:
 	return M0_ERR(-EINVAL);
 }
 
+M0_INTERNAL void m0_ep_and_xprt_fini(struct cs_endpoint_and_xprt *epx)
+{
+	M0_PRE(cs_endpoint_and_xprt_bob_check(epx));
+	M0_PRE(epx->ex_scrbuf != NULL);
+	m0_free(epx->ex_scrbuf);
+	cs_eps_tlink_fini(epx);
+	cs_endpoint_and_xprt_bob_fini(epx);
+}
+
 /**
    Extracts network transport name and network endpoint address from given
    mero endpoint.
@@ -407,14 +416,10 @@ static void cs_reqh_ctx_fini(struct m0_reqh_context *rctx)
 
 	m0_reqh_context_bob_fini(rctx);
 
-	m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
-		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
-		M0_ASSERT(ep->ex_scrbuf != NULL);
-		m0_free(ep->ex_scrbuf);
-		cs_eps_tlink_del_fini(ep);
-		cs_endpoint_and_xprt_bob_fini(ep);
+	m0_tl_teardown(cs_eps, &rctx->rc_eps, ep) {
+		m0_ep_and_xprt_fini(ep);
 		m0_free(ep);
-	} m0_tl_endfor;
+	};
 	cs_eps_tlist_fini(&rctx->rc_eps);
 
 	for (i = 0; i < rctx->rc_max_services; ++i)
@@ -1430,6 +1435,7 @@ static void cs_mero_init(struct m0_mero *cctx)
 
 	cs_eps_tlist_init(&cctx->cc_ios_eps);
 	cs_eps_tlist_init(&cctx->cc_mds_eps);
+	M0_SET0(&cctx->cc_stats_svc_epx);
 	cctx->cc_args.ca_argc = 0;
 	cctx->cc_profile = NULL;
 	cctx->cc_confd_addr = NULL;
@@ -1442,26 +1448,20 @@ static void cs_mero_fini(struct m0_mero *cctx)
 	m0_free(cctx->cc_confd_addr);
 	m0_free(cctx->cc_profile);
 
-	m0_tl_for(cs_eps, &cctx->cc_ios_eps, ep) {
-		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
-		M0_ASSERT(ep->ex_scrbuf != NULL);
-		m0_free(ep->ex_scrbuf);
-		cs_eps_tlink_del_fini(ep);
-		cs_endpoint_and_xprt_bob_fini(ep);
+	m0_tl_teardown(cs_eps, &cctx->cc_ios_eps, ep) {
+		m0_ep_and_xprt_fini(ep);
 		m0_free(ep);
-	} m0_tl_endfor;
+	};
 	cs_eps_tlist_fini(&cctx->cc_ios_eps);
 
-	m0_tl_for(cs_eps, &cctx->cc_mds_eps, ep) {
-		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
-		M0_ASSERT(ep->ex_scrbuf != NULL);
-		m0_free(ep->ex_scrbuf);
-		cs_eps_tlink_del_fini(ep);
-		cs_endpoint_and_xprt_bob_fini(ep);
+	m0_tl_teardown(cs_eps, &cctx->cc_mds_eps, ep) {
+		m0_ep_and_xprt_fini(ep);
 		m0_free(ep);
-	} m0_tl_endfor;
+	};
 	cs_eps_tlist_fini(&cctx->cc_mds_eps);
 
+	if (cctx->cc_stats_svc_epx.ex_endpoint != NULL)
+		m0_ep_and_xprt_fini(&cctx->cc_stats_svc_epx);
 	cs_buffer_pools_tlist_fini(&cctx->cc_buffer_pools);
 	ndom_tlist_fini(&cctx->cc_ndoms);
 	m0_rwlock_fini(&cctx->cc_rwlock);

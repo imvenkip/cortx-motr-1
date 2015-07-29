@@ -518,6 +518,12 @@ M0_INTERNAL struct m0_net_domain *m0_cs_net_domain_locate(struct m0_mero *cctx,
 M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
 				       const char *ep);
 
+/**
+ * Finalise previously extracted endpoint and network transport in
+ * m0_ep_and_xprt_extract.
+ */
+M0_INTERNAL void m0_ep_and_xprt_fini(struct cs_endpoint_and_xprt *epx);
+
 /** get local end point */
 M0_INTERNAL const char *m0_cs_local_ep(struct m0_mero *cctx);
 
