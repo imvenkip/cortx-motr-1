@@ -905,8 +905,6 @@ M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
 	struct m0_cob	     *cob;
 	struct m0_cob_nskey  *nskey = NULL;
 	struct m0_cob_nsrec   nsrec = {};
-	struct m0_cob_fabrec *fabrec = NULL;
-	struct m0_cob_omgrec  omgrec = {};
 	struct m0_fid         gfid;
 
 	rc = m0_cob_alloc(cdom, &cob);
@@ -920,22 +918,13 @@ M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
 		return M0_RC(rc);
 	}
 
-	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
-	if (rc != 0) {
-		m0_free(nskey);
-		m0_cob_put(cob);
-		return M0_RC(rc);
-	}
-
 	nsrec.cnr_fid   = *fid;
 	nsrec.cnr_nlink = 1;
 	nsrec.cnr_pver  = *pver;
 
-	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
-	if (rc != 0) {
+	rc = m0_cob_create(cob, nskey, &nsrec, NULL, NULL, tx);
+	if (rc != 0)
 		m0_free(nskey);
-		m0_free(fabrec);
-	}
 	m0_cob_put(cob);
 
 	return M0_RC(rc);

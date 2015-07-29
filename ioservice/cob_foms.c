@@ -877,7 +877,7 @@ static int cob_locate(const struct m0_fom *fom, struct m0_cob **cob_out)
 	M0_ASSERT(cdom != NULL);
 	cob_fom_stob2fid_map(cob_op, &fid);
 	m0_cob_oikey_make(&oikey, &fid, 0);
-	rc = m0_cob_locate(cdom, &oikey, M0_CA_OMGREC, &cob);
+	rc = m0_cob_locate(cdom, &oikey, 0, &cob);
 	if (rc == 0)
 		*cob_out = cob;
 	return rc;
@@ -970,8 +970,6 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
 	struct m0_cob	     *cob;
 	struct m0_cob_nskey  *nskey = NULL;
 	struct m0_cob_nsrec   nsrec = {};
-	struct m0_cob_fabrec *fabrec = NULL;
-	struct m0_cob_omgrec  omgrec = {};
 
 	M0_PRE(cc != NULL);
 	M0_PRE(cdom != NULL);
@@ -999,19 +997,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
 	nsrec.cnr_lid     = attr->ca_lid;
 	nsrec.cnr_pver    = attr->ca_pver;
 
-	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
-	if (rc != 0) {
-		m0_free(nskey);
-		m0_cob_put(cob);
-		return M0_RC(rc);
-	}
-	fabrec->cfb_version = ctx->t_id;
-
-	omgrec.cor_uid  = attr->ca_uid;
-	omgrec.cor_gid  = attr->ca_gid;
-	omgrec.cor_mode = attr->ca_mode;
-
-	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, ctx);
+	rc = m0_cob_create(cob, nskey, &nsrec, NULL, NULL, ctx);
 	if (rc != 0) {
 	        /*
 	         * Cob does not free nskey and fab rec on errors. We need to do
@@ -1019,7 +1005,6 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
 		 * on last put.
 	         */
 		m0_free(nskey);
-		m0_free(fabrec);
 	}
 	m0_cob_put(cob);
 
