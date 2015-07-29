@@ -965,7 +965,7 @@ M0_INTERNAL int m0_io_cob_stob_create(struct m0_fom *fom,
 	int                  rc;
 
 	m0_cob_oikey_make(&oikey, fid, 0);
-	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
+	rc = m0_cob_locate(cdom, &oikey, 0, &cob);
 	if (rc == 0 && cob != NULL &&
 	    !m0_fid_eq(&cob->co_nsrec.cnr_pver, pver)) {
 		rc = m0_cob_delete(cob, m0_fom_tx(fom));
@@ -980,9 +980,12 @@ M0_INTERNAL int m0_io_cob_stob_create(struct m0_fom *fom,
 		M0_LOG(M0_INFO, "Create on write if cob doesn't exists");
 	}
 
-	if (rc == 0 && cob_recreate)
+	if (rc == 0 && cob_recreate) {
+		if (cob != NULL)
+			m0_cob_put(cob);
 		rc = m0_io_cob_create(cdom, fid, pver, m0_fom_tx(fom)) ?:
-		     m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
+		     m0_cob_locate(cdom, &oikey, 0, &cob);
+	}
 
 	if (rc == 0)
 		*out = cob;
@@ -1808,6 +1811,8 @@ static int io_launch(struct m0_fom *fom)
 		stobio_tlink_init(stio_desc);
 		stobio_tlist_add(&fom_obj->fcrw_stio_list, stio_desc);
 	} m0_tl_endfor;
+
+	m0_cob_put(container_of(file, struct m0_cob, co_file));
 
 	M0_LOG(M0_DEBUG, "total  fom: %lu, expect: %lx",
 	       fom_obj->fcrw_fom_start_time,
