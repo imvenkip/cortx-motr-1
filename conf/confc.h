@@ -842,6 +842,21 @@ M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
  */
 M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj);
 
+/**
+ * Opens configuration object by its fid.
+ *
+ * The operation is asynchronous.
+ * If object fid is known, it is often easier to use m0_confc_open_by_fid()
+ * instead of traversing the DAG of conf objects.
+ */
+M0_INTERNAL void m0_confc_open_by_fid(struct m0_confc_ctx *ctx,
+				      const struct m0_fid *fid);
+
+/** Synchronous version of m0_confc_open_by_fid(). */
+M0_INTERNAL int m0_confc_open_by_fid_sync(struct m0_confc      *confc,
+					  const struct m0_fid  *fid,
+					  struct m0_conf_obj  **result);
+
 /* ------------------------------------------------------------------
  * readdir
  * ------------------------------------------------------------------ */

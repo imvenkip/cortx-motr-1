@@ -265,6 +265,31 @@ static void misc_test(struct m0_confc *confc)
 	conf_ut_waiter_fini(&w);
 }
 
+static void open_by_fid_test(struct m0_confc *confc)
+{
+	struct conf_ut_waiter w;
+	struct m0_conf_obj   *obj;
+	struct m0_conf_node  *node;
+	int                   rc;
+
+	conf_ut_waiter_init(&w, confc);
+	m0_confc_open_by_fid(&w.w_ctx, &m0_ut_conf_fids[M0_UT_CONF_NODE]);
+	rc = conf_ut_waiter_wait(&w, &obj);
+	M0_UT_ASSERT(rc == 0);
+	node = M0_CONF_CAST(obj, m0_conf_node);
+	M0_UT_ASSERT(node->cn_memsize == 16000);
+	M0_UT_ASSERT(node->cn_nr_cpu == 2);
+	m0_confc_close(obj);
+	conf_ut_waiter_fini(&w);
+
+	obj = NULL;
+	rc = m0_confc_open_by_fid_sync(confc, &m0_ut_conf_fids[M0_UT_CONF_NODE],
+				       &obj);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(obj != NULL);
+	m0_confc_close(obj);
+}
+
 static void confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
 		       const char *conf_str)
 {
@@ -280,6 +305,7 @@ static void confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
 	misc_test(&confc);
 	nodes_open(&nodes_dir, &confc); /* tests asynchronous interface */
 	sync_open_test(nodes_dir);
+	open_by_fid_test(&confc);
 
 	m0_confc_close(nodes_dir);
 	m0_confc_fini(&confc);

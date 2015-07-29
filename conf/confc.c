@@ -788,6 +788,48 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj)
 	M0_LEAVE();
 }
 
+M0_INTERNAL void m0_confc_open_by_fid(struct m0_confc_ctx *ctx,
+				      const struct m0_fid *fid)
+{
+	struct m0_conf_obj *obj;
+	int                 rc;
+
+	M0_PRE(ctx != NULL);
+	M0_PRE(fid != NULL);
+
+	m0_conf_cache_lock(&ctx->fc_confc->cc_cache);
+	rc = m0_conf_obj_find(&ctx->fc_confc->cc_cache, fid, &obj);
+	m0_conf_cache_unlock(&ctx->fc_confc->cc_cache);
+
+	if (rc != 0)
+		ast_fail(&ctx->fc_ast, rc);
+	else
+		m0_confc_open(ctx, obj, M0_FID0);
+}
+
+M0_INTERNAL int m0_confc_open_by_fid_sync(struct m0_confc      *confc,
+					  const struct m0_fid  *fid,
+					  struct m0_conf_obj  **result)
+{
+	struct sm_waiter w;
+	int              rc;
+
+	M0_ENTRY();
+
+	sm_waiter_init(&w, confc);
+	if (!w.w_ctx.fc_allowed) {
+		sm_waiter_fini(&w);
+		M0_LOG(M0_ERROR, "Reading not allowed");
+		return M0_ERR(-EINVAL);
+	}
+	m0_confc_open_by_fid(&w.w_ctx, fid);
+	rc = sm_waiter_wait(&w, result);
+	sm_waiter_fini(&w);
+
+	M0_POST(ergo(rc == 0, (*result)->co_status == M0_CS_READY));
+	return M0_RC(rc);
+}
+
 /**
  * Copies path from `src' to `dest'.
  *
