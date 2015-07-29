@@ -1345,8 +1345,6 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	M0_PRE(cob != NULL);
 	M0_PRE(nskey != NULL);
 	M0_PRE(nsrec != NULL);
-	M0_PRE(fabrec != NULL);
-	M0_PRE(omgrec != NULL);
 	M0_PRE(m0_fid_is_set(&nsrec->cnr_fid));
 	M0_PRE(m0_fid_is_set(&nskey->cnk_pfid));
 
@@ -1354,9 +1352,11 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 		 FID_P(&nskey->cnk_pfid), (char*)nskey->cnk_name.b_data,
 		 FID_P(&nsrec->cnr_fid), (int)nsrec->cnr_linkno);
 
-	rc = m0_cob_alloc_omgid(cob->co_dom, &nsrec->cnr_omgid);
-	if (rc != 0)
-		goto out;
+	if (omgrec != NULL) {
+		rc = m0_cob_alloc_omgid(cob->co_dom, &nsrec->cnr_omgid);
+		if (rc != 0)
+			goto out;
+	}
 
 	cob->co_nskey = nskey;
 	cob->co_flags |= M0_CA_NSKEY;
@@ -1382,48 +1382,57 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	rc = m0_cob_name_add(cob, nskey, nsrec, tx);
 	if (rc != 0)
 		goto out;
+	cob->co_flags |= M0_CA_NSKEY_FREE;
 
-	/*
-	 * Prepare key for attribute tables.
-	 */
-	fabkey.cfb_fid = *m0_cob_fid(cob);
+	if (fabrec != NULL) {
+		/*
+		 * Prepare key for attribute tables.
+		 */
+		fabkey.cfb_fid = *m0_cob_fid(cob);
 
-	/*
-	 * Now let's update file attributes. Cache the fabrec.
-	 */
-	cob->co_fabrec = fabrec;
+		/*
+		 * Now let's update file attributes. Cache the fabrec.
+		 */
+		cob->co_fabrec = fabrec;
 
-	/*
-	 * Add to fileattr-basic table.
-	 */
-	m0_buf_init(&key, &fabkey, sizeof fabkey);
-	m0_buf_init(&val, cob->co_fabrec, m0_cob_fabrec_size(cob->co_fabrec));
-	cob_table_insert(&cob->co_dom->cd_fileattr_basic, tx, &key, &val);
+		/*
+		 * Add to fileattr-basic table.
+		 */
+		m0_buf_init(&key, &fabkey, sizeof fabkey);
+		m0_buf_init(&val, cob->co_fabrec,
+			    m0_cob_fabrec_size(cob->co_fabrec));
+		cob_table_insert(&cob->co_dom->cd_fileattr_basic, tx, &key,
+		                                                      &val);
+		cob->co_flags |= M0_CA_FABREC;
+	}
 
-	/*
-	 * Prepare omg key.
-	 */
-	omgkey.cok_omgid = nsrec->cnr_omgid;
+	if (omgrec != NULL) {
+		/*
+		 * Prepare omg key.
+		 */
+		omgkey.cok_omgid = nsrec->cnr_omgid;
 
-	/*
-	 * Now let's update omg attributes. Cache the omgrec.
-	 */
-	cob->co_omgrec = *omgrec;
-	cob->co_flags |= M0_CA_OMGREC;
+		/*
+		 * Now let's update omg attributes. Cache the omgrec.
+		 */
+		cob->co_omgrec = *omgrec;
+		cob->co_flags |= M0_CA_OMGREC;
 
-	/*
-	 * Add to fileattr-omg table.
-	 */
-	m0_buf_init(&key, &omgkey, sizeof omgkey);
-	m0_buf_init(&val, &cob->co_omgrec, sizeof cob->co_omgrec);
-	rc = cob_table_lookup(&cob->co_dom->cd_fileattr_omg, &key, &val);
-	if (rc == -ENOENT)
-		cob_table_insert(&cob->co_dom->cd_fileattr_omg, tx, &key, &val);
-	else
-		M0_LOG(M0_DEBUG, "the same omgkey: %"PRIx64" is being added "
-		       "multiple times", omgkey.cok_omgid);
-	rc = 0;
-	cob->co_flags |= M0_CA_NSKEY_FREE | M0_CA_FABREC;
+		/*
+		 * Add to fileattr-omg table.
+		 */
+		m0_buf_init(&key, &omgkey, sizeof omgkey);
+		m0_buf_init(&val, &cob->co_omgrec, sizeof cob->co_omgrec);
+		rc = cob_table_lookup(&cob->co_dom->cd_fileattr_omg, &key,
+		                                                     &val);
+		if (rc == -ENOENT)
+			cob_table_insert(&cob->co_dom->cd_fileattr_omg, tx,
+					 &key, &val);
+		else
+			M0_LOG(M0_DEBUG, "the same omgkey: %"PRIx64" is being "
+			       "added multiple times", omgkey.cok_omgid);
+		rc = 0;
+	}
 out:
 	return M0_RC(rc);
 }
