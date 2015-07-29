@@ -57,9 +57,11 @@ enum {
 	SPIEL_UT_OBJ_RACK,
 	SPIEL_UT_OBJ_ENCLOSURE,
 	SPIEL_UT_OBJ_CONTROLLER,
+	SPIEL_UT_OBJ_DISK,
 	SPIEL_UT_OBJ_RACK_V,
 	SPIEL_UT_OBJ_ENCLOSURE_V,
 	SPIEL_UT_OBJ_CONTROLLER_V,
+	SPIEL_UT_OBJ_DISK_V,
 	SPIEL_UT_OBJ_COUNT,
 };
 
@@ -79,9 +81,11 @@ static struct m0_fid spiel_obj_fid[] = {
 	M0_FID_TINIT('a', 10, 10),
 	M0_FID_TINIT('e', 11, 11),
 	M0_FID_TINIT('c', 12, 12),
-	M0_FID_TINIT('j', 13, 13),
+	M0_FID_TINIT('k', 13, 13),
 	M0_FID_TINIT('j', 14, 14),
 	M0_FID_TINIT('j', 15, 15),
+	M0_FID_TINIT('j', 16, 16),
+	M0_FID_TINIT('j', 17, 17),
 	M0_FID_TINIT(0, 00, 00),
 };
 
@@ -148,6 +152,11 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
 	M0_UT_ASSERT(rc == 0);
 
+	rc = m0_spiel_disk_add(tx,
+			       &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
+			       &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_spiel_pool_version_add(tx,
 				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
 				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
@@ -172,6 +181,12 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
 	M0_UT_ASSERT(rc == 0);
 
+	rc = m0_spiel_disk_v_add(tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK]);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_spiel_process_add(tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
@@ -189,6 +204,7 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 	rc = m0_spiel_device_add(tx,
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
 				 M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, "fake_filename");
@@ -408,7 +424,23 @@ static void spiel_conf_create_fail(void)
 				     &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
 	M0_UT_ASSERT(rc == 0);
 
-	/* Pool version*/
+	/* Disk */
+	rc = m0_spiel_disk_add(&tx,
+			       &fake_fid,
+			       &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_disk_add(&tx,
+			       &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
+			       &fake_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_disk_add(&tx,
+			       &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
+			       &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Pool version */
 	rc = m0_spiel_pool_version_add(&tx,
 				       &fake_fid,
 				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
@@ -508,6 +540,31 @@ static void spiel_conf_create_fail(void)
 				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
 				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
 				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Disk version */
+	rc = m0_spiel_disk_v_add(&tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
+				 &fake_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_disk_v_add(&tx,
+				 &fake_fid,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_disk_v_add(&tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK_V],
+				 &fake_fid,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_disk_v_add(&tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK]);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Process */
@@ -637,6 +694,7 @@ static void spiel_conf_create_fail(void)
 	rc = m0_spiel_device_add(&tx,
 				 &fake_fid,
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
 				 M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, "fake_filename");
@@ -644,6 +702,7 @@ static void spiel_conf_create_fail(void)
 
 	rc = m0_spiel_device_add(&tx,
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
+				 &fake_fid,
 				 &fake_fid,
 				 M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_SSD,
@@ -653,6 +712,7 @@ static void spiel_conf_create_fail(void)
 	rc = m0_spiel_device_add(&tx,
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
 				 M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, "fake_filename");
@@ -822,12 +882,18 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	struct m0_fid                 fid_service1  = M0_FID_TINIT( 0x73,1, 9 );
 	struct m0_fid                 fid_service2  = M0_FID_TINIT( 0x73,1,10 );
 	struct m0_fid                 fid_controller= M0_FID_TINIT( 0x63,1,11 );
-	struct m0_fid                 fid_rack_v    = M0_FID_TINIT( 0x6a,1,12 );
-	struct m0_fid                 fid_sdev1     = M0_FID_TINIT( 0x64,1,13 );
-	struct m0_fid                 fid_sdev2     = M0_FID_TINIT( 0x64,1,14 );
-	struct m0_fid                 fid_sdev3     = M0_FID_TINIT( 0x64,1,15 );
-	struct m0_fid                 fid_enclosure_v=M0_FID_TINIT( 0x6a,1,17 );
-	struct m0_fid                 fid_controller_v=M0_FID_TINIT(0x6a,1,18 );
+	struct m0_fid                 fid_disk1     = M0_FID_TINIT( 0x6b,1,12 );
+	struct m0_fid                 fid_disk2     = M0_FID_TINIT( 0x6b,1,13 );
+	struct m0_fid                 fid_disk3     = M0_FID_TINIT( 0x6b,1,14 );
+	struct m0_fid                 fid_rack_v    = M0_FID_TINIT( 0x6a,1,15 );
+	struct m0_fid                 fid_sdev1     = M0_FID_TINIT( 0x64,1,16 );
+	struct m0_fid                 fid_sdev2     = M0_FID_TINIT( 0x64,1,17 );
+	struct m0_fid                 fid_sdev3     = M0_FID_TINIT( 0x64,1,18 );
+	struct m0_fid                 fid_enclosure_v=M0_FID_TINIT( 0x6a,1,19 );
+	struct m0_fid                 fid_controller_v=M0_FID_TINIT(0x6a,1,20 );
+	struct m0_fid                 fid_disk_v1     =M0_FID_TINIT(0x6a,1,21 );
+	struct m0_fid                 fid_disk_v2     =M0_FID_TINIT(0x6a,1,22 );
+	struct m0_fid                 fid_disk_v3     =M0_FID_TINIT(0x6a,1,23 );
 	struct m0_bitmap              bitmap;
 
 	m0_bitmap_init(&bitmap, 32);
@@ -859,6 +925,15 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 				     &fid_node);
 	M0_UT_ASSERT(rc == 0);
 
+	rc = m0_spiel_disk_add(tx, &fid_disk1, &fid_controller);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_disk_add(tx, &fid_disk2, &fid_controller);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_disk_add(tx, &fid_disk3, &fid_controller);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_spiel_pool_version_add(tx, &fid_pver, &fid_pool, &pdclust_attr);
 	M0_UT_ASSERT(rc == 0);
 
@@ -871,6 +946,18 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 
 	rc = m0_spiel_controller_v_add(tx, &fid_controller_v, &fid_enclosure_v,
 				       &fid_controller);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_disk_v_add(tx, &fid_disk_v1, &fid_controller_v,
+				 &fid_disk1);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_disk_v_add(tx, &fid_disk_v2, &fid_controller_v,
+				 &fid_disk2);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_disk_v_add(tx, &fid_disk_v3, &fid_controller_v,
+				 &fid_disk3);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_process_add(tx, &fid_process1, &fid_node,
@@ -893,15 +980,15 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 				  &service_info2);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_device_add(tx, &fid_sdev1, &fid_service1,
+	rc = m0_spiel_device_add(tx, &fid_sdev1, &fid_service1, &fid_disk1,
 				 4, 1, 4096, 596000000000, 3, 4, "/dev/sdev0");
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_device_add(tx, &fid_sdev2, &fid_service1,
+	rc = m0_spiel_device_add(tx, &fid_sdev2, &fid_service1, &fid_disk2,
 				 4, 1, 4096, 596000000000, 3, 4, "/dev/sdev1");
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_device_add(tx, &fid_sdev3, &fid_service2,
+	rc = m0_spiel_device_add(tx, &fid_sdev3, &fid_service2, &fid_disk3,
 				 7, 2, 8192, 320000000000, 2, 4, "/dev/sdev2");
 	M0_UT_ASSERT(rc == 0);
 

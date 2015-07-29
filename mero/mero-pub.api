@@ -232,6 +232,8 @@ m0_spiel_device_add
 m0_spiel_device_attach
 m0_spiel_device_detach
 m0_spiel_device_format
+m0_spiel_disk_add
+m0_spiel_disk_v_add
 m0_spiel_element_del
 m0_spiel_enclosure_add
 m0_spiel_enclosure_v_add

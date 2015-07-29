@@ -1063,7 +1063,8 @@ M0_EXPORTED(m0_spiel_service_add);
 
 int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 			const struct m0_fid                       *fid,
-			const struct m0_fid                       *parent,
+			const struct m0_fid                       *svc_parent,
+			const struct m0_fid                       *disk_parent,
 			enum m0_cfg_storage_device_interface_type  iface,
 			enum m0_cfg_storage_device_media_type      media,
 			uint32_t                                   bsize,
@@ -1075,8 +1076,10 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 	int                     rc;
 	struct m0_conf_obj     *obj = NULL;
 	struct m0_conf_sdev    *device;
-	struct m0_conf_obj     *obj_parent;
+	struct m0_conf_obj     *svc_obj;
+	struct m0_conf_obj     *disk_obj;
 	struct m0_conf_service *service;
+	struct m0_conf_disk    *disk;
 
 	M0_ENTRY();
 
@@ -1084,7 +1087,8 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_SDEV_TYPE, &obj },
-			      {parent, &M0_CONF_SERVICE_TYPE, &obj_parent});
+			      {svc_parent, &M0_CONF_SERVICE_TYPE, &svc_obj},
+			      {disk_parent, &M0_CONF_DISK_TYPE, &disk_obj});
 	if (rc != 0)
 		goto fail;
 
@@ -1101,7 +1105,7 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 		goto fail;
 	}
 
-	service = M0_CONF_CAST(obj_parent, m0_conf_service);
+	service = M0_CONF_CAST(svc_obj, m0_conf_service);
 	if (service->cs_sdevs == NULL)
 		rc = spiel_service_dirs_create(&tx->spt_cache, service);
 	if (rc != 0)
@@ -1109,7 +1113,14 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 
 	m0_conf_dir_tlist_add_tail(&service->cs_sdevs->cd_items, obj);
 
+	disk = M0_CONF_CAST(disk_obj, m0_conf_disk);
+
 	child_adopt(&service->cs_sdevs->cd_obj, obj);
+	if (disk->ck_dev != NULL) {
+		rc = M0_ERR(-EINVAL);
+		goto fail;
+	}
+	disk->ck_dev = device;
 	obj->co_status = M0_CS_READY;
 
 	if (!m0_conf_obj_invariant(obj)) {
@@ -1344,6 +1355,47 @@ fail:
 }
 M0_EXPORTED(m0_spiel_controller_add);
 
+int m0_spiel_disk_add(struct m0_spiel_tx  *tx,
+		      const struct m0_fid *fid,
+		      const struct m0_fid *parent)
+{
+	int                        rc;
+	struct m0_conf_obj        *obj = NULL;
+	struct m0_conf_obj        *obj_parent;
+	struct m0_conf_controller *controller;
+
+	M0_ENTRY();
+
+	m0_mutex_lock(&tx->spt_lock);
+
+	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
+			      {fid, &M0_CONF_DISK_TYPE, &obj },
+			      {parent, &M0_CONF_CONTROLLER_TYPE, &obj_parent});
+	if (rc != 0)
+		goto fail;
+
+	controller = M0_CONF_CAST(obj_parent, m0_conf_controller);
+	if (controller->cc_disks == NULL)
+		rc = spiel_controller_dirs_create(&tx->spt_cache, controller);
+	if (rc != 0)
+		goto fail;
+
+	m0_conf_dir_tlist_add_tail(&controller->cc_disks->cd_items, obj);
+
+	child_adopt(&controller->cc_disks->cd_obj, obj);
+	obj->co_status = M0_CS_READY;
+
+	m0_mutex_unlock(&tx->spt_lock);
+	return M0_RC(rc);
+
+fail:
+	if (obj != NULL && rc != -EEXIST)
+		m0_conf_cache_del(&tx->spt_cache, obj);
+	m0_mutex_unlock(&tx->spt_lock);
+	return M0_ERR(rc);
+}
+M0_EXPORTED(m0_spiel_disk_add);
+
 int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
 			      const struct m0_fid    *fid,
 			      const struct m0_fid    *parent,
@@ -1558,6 +1610,54 @@ fail:
 	return M0_ERR(rc);
 }
 M0_EXPORTED(m0_spiel_controller_v_add);
+
+int m0_spiel_disk_v_add(struct m0_spiel_tx  *tx,
+			const struct m0_fid *fid,
+			const struct m0_fid *parent,
+			const struct m0_fid *real)
+{
+	int                  rc;
+	struct m0_conf_obj  *obj = NULL;
+	struct m0_conf_objv *objv;
+	struct m0_conf_obj  *obj_parent;
+	struct m0_conf_objv *objv_parent;
+	struct m0_conf_obj  *real_obj;
+
+	M0_ENTRY();
+
+	m0_mutex_lock(&tx->spt_lock);
+
+	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
+			      {fid, &M0_CONF_OBJV_TYPE, &obj },
+			      {parent, &M0_CONF_OBJV_TYPE, &obj_parent},
+			      {real, &M0_CONF_DISK_TYPE, &real_obj});
+	if (rc != 0)
+		goto fail;
+
+	objv = M0_CONF_CAST(obj, m0_conf_objv);
+	objv->cv_real = real_obj;
+
+	objv_parent = M0_CONF_CAST(obj_parent, m0_conf_objv);
+	if (objv_parent->cv_children == NULL)
+		rc = spiel_controllerv_dirs_create(&tx->spt_cache, objv_parent);
+	if (rc != 0)
+		goto fail;
+
+	m0_conf_dir_tlist_add_tail(&objv_parent->cv_children->cd_items, obj);
+
+	child_adopt(&objv_parent->cv_children->cd_obj, obj);
+	obj->co_status = M0_CS_READY;
+
+	m0_mutex_unlock(&tx->spt_lock);
+	return M0_RC(rc);
+
+fail:
+	if (obj != NULL && rc != -EEXIST)
+		m0_conf_cache_del(&tx->spt_cache, obj);
+	m0_mutex_unlock(&tx->spt_lock);
+	return M0_ERR(rc);
+}
+M0_EXPORTED(m0_spiel_disk_v_add);
 
 int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
 			       const struct m0_fid *fid)

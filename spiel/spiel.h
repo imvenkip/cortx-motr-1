@@ -139,33 +139,36 @@
  *
  * @subsection spiel-dld-conf-schema Schema
  *
- * @note from http://es-gerrit.xyus.xyratex.com:8080/#/c/4676/4/conf/obj.h
+ * @note from conf/obj.h
  *
  * @dot
  * digraph x {
- *      edge [arrowhead=open, fontsize=10];
+ *   edge [arrowhead=open, fontsize=11];
  *
- *      "root" [height=0.15, width=0.15, label=""];
- *      "root" -> "prof";
- *      "prof" -> "fs" [label="filesystem"];
- *      "fs" -> "node" [label="nodes"];
- *      "fs" -> "rack" [label="racks"];
- *      "fs" -> "pool" [label="pools"];
- *      "node" -> "process" [label="processes"];
- *      "process" -> "service" [label="services"];
- *      "service" -> "device" [label="devices"];
- *      "rack" -> "enclosure" [label="enclosures"];
- *      "enclosure" -> "controller" [label="controllers"];
- *      "controller" -> "device" [label="devices"];
- *      "node" -> "controller" [arrowhead=none, arrowtail=none,
- *                              style=dashed, weight=0.0];
- *      "pool" -> "pool version" [label="versions"];
- *      "pool version" -> "rack-v";
- *      "rack-v" -> "rack" [style=dashed];
- *      "rack-v" -> "enclosure-v";
- *      "enclosure-v" -> "enclosure" [style=dashed];
- *      "enclosure-v" -> "controller-v";
- *      "controller-v" -> "controller" [style=dashed];
+ *   root -> profile [label=profiles];
+ *   profile -> filesystem;
+ *
+ *   filesystem -> "node" [label=nodes];
+ *   filesystem -> rack [label=racks];
+ *   filesystem -> pool [label=pools];
+ *   "node" -> process [label=processes];
+ *   process -> service [label=services];
+ *   service -> sdev [label=sdevs];
+ *   rack -> enclosure [label=encls];
+ *   enclosure -> controller [label=ctrls];
+ *   controller -> disk [label=disks];
+ *   "node" -> controller [dir=back, weight=0, style=dashed];
+ *
+ *   pool -> "pool version" [label=pvers];
+ *   "pool version" -> "rack-v" [label=rackvs];
+ *   "rack-v" -> "enclosure-v" [label=children];
+ *   "enclosure-v" -> "controller-v" [label=children];
+ *   "controller-v" -> "disk-v" [label=children];
+ *   rack -> "rack-v" [dir=back, weight=0, style=dashed];
+ *   enclosure -> "enclosure-v" [dir=back, weight=0, style=dashed];
+ *   controller -> "controller-v" [dir=back, style=dashed, weight=0];
+ *   disk -> "disk-v" [dir=back, style=dashed, weight=0];
+ *   sdev -> disk [dir=back, style=dashed, weight=0];
  * }
  * @enddot
  *
@@ -271,6 +274,24 @@ void m0_spiel_stop(struct m0_spiel *spiel);
 /*              Configuration management                  */
 /**********************************************************/
 
+/**
+ * The following example shows how to use configuration management commands.
+ * Note * that if one of *_add commands returns result code other than 0,
+ * -EEXIST, -EINVAL further calling of *_add commands or tx_commit doesn't make
+ * sense.
+ *
+ * @code
+ *     m0_spiel_tx tx;
+ *     int         rc;
+ *
+ *     m0_spiel_tx_open(tx);
+ *     rc = m0_spiel_profile_add(tx, prof_id) ?:
+ *          m0_spiel_filesystem_add(tx, fs_id, prof_id, 10, root_id, params) ?:
+ *          ...Adding other objects to construct full configuration database. ?:
+ *          m0_tx_commit(tx);
+ *     m0_tx_close(tx);
+ * @endcode
+ */
 /**
  * Spiel transaction
  */
@@ -467,7 +488,8 @@ int m0_spiel_service_add(struct m0_spiel_tx                 *tx,
  */
 int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 		        const struct m0_fid                       *fid,
-		        const struct m0_fid                       *parent,
+		        const struct m0_fid                       *svc_parent,
+		        const struct m0_fid                       *disk_parent,
 		        enum m0_cfg_storage_device_interface_type  iface,
 		        enum m0_cfg_storage_device_media_type      media,
 		        uint32_t                                   bsize,
@@ -523,6 +545,17 @@ int m0_spiel_controller_add(struct m0_spiel_tx  *tx,
 			    const struct m0_fid *fid,
 			    const struct m0_fid *parent,
 			    const struct m0_fid *node);
+
+/**
+ * Add disk to the configuration tree of the transcation
+ *
+ * @param tx          spiel transaction
+ * @param fid         fid of the disk
+ * @param parent      fid of the parent controller
+ */
+int m0_spiel_disk_add(struct m0_spiel_tx  *tx,
+		      const struct m0_fid *fid,
+		      const struct m0_fid *parent);
 
 /**
  * Add pool version to the configuration tree of the transaction
@@ -582,6 +615,18 @@ int m0_spiel_controller_v_add(struct m0_spiel_tx  *tx,
 			      const struct m0_fid *parent,
 			      const struct m0_fid *real);
 
+/**
+ * Add disk "v-object"
+ *
+ * @param tx           spiel transaction
+ * @param fid          fid of the disk "v-object"
+ * @param parent       fid of the parent controller "v-object"
+ * @param real         fid of the disk this object points to
+ */
+int m0_spiel_disk_v_add(struct m0_spiel_tx  *tx,
+			const struct m0_fid *fid,
+			const struct m0_fid *parent,
+			const struct m0_fid *real);
 /**
  * Signal that constructing pool version tree is finished
  *
