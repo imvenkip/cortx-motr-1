@@ -420,7 +420,6 @@ M0_INTERNAL int diter_lvl_open(struct m0_conf_diter *it)
 	struct m0_confc_ctx      *ctx;
 	struct m0_conf_obj       *origin;
 	struct m0_conf_diter_lvl *lvl;
-	int                       rc;
 
 	M0_ENTRY();
 
@@ -433,13 +432,10 @@ M0_INTERNAL int diter_lvl_open(struct m0_conf_diter *it)
 	origin = diter_lvl_origin(it);
 	m0_confc_ctx_init(diter_lvl_ctx(lvl), it->di_confc);
 	diter_wait_arm(it, ctx);
-	rc = m0_confc_open(ctx, origin, lvl->dl_rel_fid);
-	if (rc == 0) {
-		rc = M0_CONF_DIRMISS;
-		it->di_phase = DPH_LVL_WAIT;
-	}
+	m0_confc_open(ctx, origin, lvl->dl_rel_fid);
+	it->di_phase = DPH_LVL_WAIT;
 
-	return M0_RC(rc);
+	return M0_RC(M0_CONF_DIRMISS);
 }
 
 static int diter_lvl_read(struct m0_conf_diter *it)

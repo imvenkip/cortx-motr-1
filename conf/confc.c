@@ -74,6 +74,7 @@
  *     S_GROW_CACHE [label="{ grow_cache_st_in() }\nS_GROW_CACHE"];
  *
  *     S_INITIAL -> S_CHECK;
+ *     S_INITIAL -> S_FAILURE [label="invalid confc_open() args"];
  *     S_CHECK -> S_TERMINAL [label=
  *   "path target is reached\nand it is M0_CS_READY"];
  *     S_CHECK -> S_FAILURE [label="error"];
@@ -306,7 +307,7 @@ static struct m0_sm_state_descr confc_ctx_states[S_NR] = {
 		.sd_in        = NULL,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
-		.sd_allowed   = M0_BITS(S_CHECK)
+		.sd_allowed   = M0_BITS(S_CHECK, S_FAILURE)
 	},
 	[S_CHECK] = {
 		.sd_flags     = 0,
@@ -726,12 +727,13 @@ static int sm_waiter_wait(struct sm_waiter *w, struct m0_conf_obj **result)
  * ------------------------------------------------------------------ */
 
 static void ast_state_set(struct m0_sm_ast *ast, enum confc_ctx_state state);
+static void ast_fail(struct m0_sm_ast *ast, int rc);
 static int path_copy(const struct m0_fid *src, struct m0_fid *dest,
 		     size_t dest_sz);
 
-M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
-			       struct m0_conf_obj  *origin,
-			       const struct m0_fid *path)
+M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
+				struct m0_conf_obj  *origin,
+				const struct m0_fid *path)
 {
 	int rc;
 
@@ -742,13 +744,13 @@ M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
 		    origin->co_cache == &ctx->fc_confc->cc_cache));
 	M0_PRE(ctx->fc_allowed);
 
-	rc = path_copy(path, ctx->fc_path, ARRAY_SIZE(ctx->fc_path));
-	if (rc != 0)
-		return M0_ERR(rc);
 	ctx->fc_origin = origin == NULL ? ctx->fc_confc->cc_root : origin;
 
-	ast_state_set(&ctx->fc_ast, S_CHECK);
-	return M0_RC(0);
+	rc = path_copy(path, ctx->fc_path, ARRAY_SIZE(ctx->fc_path));
+	if (rc == 0)
+		ast_state_set(&ctx->fc_ast, S_CHECK);
+	else
+		ast_fail(&ctx->fc_ast, rc);
 }
 
 M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
@@ -767,8 +769,8 @@ M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
 		M0_LOG(M0_ERROR, "Reading not allowed");
 		return M0_ERR(-EINVAL);
 	}
-	rc = m0_confc__open(&w.w_ctx, origin, path) ?:
-		sm_waiter_wait(&w, result);
+	m0_confc__open(&w.w_ctx, origin, path);
+	rc = sm_waiter_wait(&w, result);
 	sm_waiter_fini(&w);
 
 	M0_POST(ergo(rc == 0, (*result)->co_status == M0_CS_READY));
@@ -791,7 +793,6 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj)
  *
  * @retval 0        Success.
  * @retval -E2BIG   `src' path is too long.
- * @retval -ENOMEM  Memory allocation failure.
  */
 static int
 path_copy(const struct m0_fid *src, struct m0_fid *dest, size_t dest_sz)
@@ -804,7 +805,7 @@ path_copy(const struct m0_fid *src, struct m0_fid *dest, size_t dest_sz)
 		dest[i] = src[i];
 
 	if (i == dest_sz)
-		return M0_RC(-E2BIG);
+		return M0_ERR(-E2BIG);
 	dest[i] = (struct m0_fid)M0_FID0; /* terminate the path */
 
 	return M0_RC(0);
@@ -840,8 +841,7 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 			M0_FID0
 		};
 
-		rc = m0_confc__open(ctx, dir->co_parent, path) ?:
-			M0_CONF_DIRMISS;
+		m0_confc__open(ctx, dir->co_parent, path);
 	}
 	confc_unlock(m0_confc_from_obj(dir));
 
@@ -907,7 +907,6 @@ static struct m0_confc_ctx *ast_to_ctx(struct m0_sm_ast *ast)
 static int path_walk(struct m0_confc_ctx *ctx);
 static int cache_grow(struct m0_confc *confc,
 		      const struct m0_conf_fetch_resp *resp);
-static void ast_fail(struct m0_sm_ast *ast, int rc);
 static struct m0_confc_ctx *item_to_ctx(const struct m0_rpc_item *item);
 static uint64_t *confc_cache_ver(struct m0_confc_ctx *ctx);
 

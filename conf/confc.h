@@ -800,9 +800,9 @@ M0_INTERNAL struct m0_conf_obj *m0_confc_ctx_result(struct m0_confc_ctx *ctx);
 #define m0_confc_open(ctx, origin, ...)                           \
 	m0_confc__open((ctx), (origin), (const struct m0_fid []){ \
 			__VA_ARGS__, M0_FID0 })
-M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
-			       struct m0_conf_obj *origin,
-			       const struct m0_fid *path);
+M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
+				struct m0_conf_obj *origin,
+				const struct m0_fid *path);
 
 /**
  * Opens configuration object synchronously.

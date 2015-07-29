@@ -1127,12 +1127,8 @@ static int rconfc_version_elect(struct m0_rconfc *rconfc)
 			m0_clink_add_lock(&lnk->rl_cctx.fc_mach.sm_chan,
 					  &lnk->rl_clink);
 			lnk->rl_state = CONFC_ARMED;
-			lnk->rl_rc =
-				m0_confc_open(&lnk->rl_cctx, NULL,
+			m0_confc_open(&lnk->rl_cctx, NULL,
 					      M0_CONF_ROOT_PROFILES_FID);
-			if (lnk->rl_rc != 0)
-				lnk->rl_state = CONFC_FAILED;
-
 		}
 	} m0_tl_endfor;
 

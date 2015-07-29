@@ -21,7 +21,8 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
-#include "conf/confc.h"     /* m0_confc__open */
+#include "fid/fid.h"
+#include "conf/confc.h"
 #include "conf/helpers.h"
 #include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
 #include "conf/obj_ops.h"   /* M0_CONF_DIREND */
@@ -92,12 +93,11 @@ static void nodes_open(struct m0_conf_obj **result,
 	int                   rc;
 
 	conf_ut_waiter_init(&w, confc);
-	rc = m0_confc_open(&w.w_ctx, NULL,
-			   M0_CONF_ROOT_PROFILES_FID,
-			   m0_ut_conf_fids[M0_UT_CONF_PROF],
-			   M0_CONF_PROFILE_FILESYSTEM_FID,
-			   M0_CONF_FILESYSTEM_NODES_FID);
-	M0_UT_ASSERT(rc == 0);
+	m0_confc_open(&w.w_ctx, NULL,
+			M0_CONF_ROOT_PROFILES_FID,
+			m0_ut_conf_fids[M0_UT_CONF_PROF],
+			M0_CONF_PROFILE_FILESYSTEM_FID,
+			M0_CONF_FILESYSTEM_NODES_FID);
 	rc = conf_ut_waiter_wait(&w, result);
 	M0_UT_ASSERT(rc == 0);
 	conf_ut_waiter_fini(&w);
@@ -204,23 +204,24 @@ static void dir_test(struct m0_confc *confc)
  */
 static void _retrieval_initiate(struct m0_confc_ctx *ctx)
 {
-	int rc;
-
-	rc = m0_confc_open(ctx, NULL,
-			   M0_CONF_ROOT_PROFILES_FID,
-			   m0_ut_conf_fids[M0_UT_CONF_PROF],
-			   M0_CONF_PROFILE_FILESYSTEM_FID,
-			   M0_CONF_FILESYSTEM_NODES_FID,
-			   m0_ut_conf_fids[M0_UT_CONF_NODE],
-			   M0_CONF_NODE_PROCESSES_FID,
-			   m0_ut_conf_fids[M0_UT_CONF_PROCESS0]);
-	M0_UT_ASSERT(rc == 0);
+	m0_confc_open(ctx, NULL,
+		      M0_CONF_ROOT_PROFILES_FID,
+		      m0_ut_conf_fids[M0_UT_CONF_PROF],
+		      M0_CONF_PROFILE_FILESYSTEM_FID,
+		      M0_CONF_FILESYSTEM_NODES_FID,
+		      m0_ut_conf_fids[M0_UT_CONF_NODE],
+		      M0_CONF_NODE_PROCESSES_FID,
+		      m0_ut_conf_fids[M0_UT_CONF_PROCESS0]);
 }
 
 static void misc_test(struct m0_confc *confc)
 {
 	struct m0_conf_obj    *obj;
 	struct conf_ut_waiter  w;
+	struct m0_fid          fids[M0_CONF_PATH_MAX + 2];
+	int                    i;
+	int                    rc;
+	struct m0_conf_obj    *result;
 
 	/*
 	 * We should be able to call m0_confc_ctx_fini() right after
@@ -246,6 +247,21 @@ static void misc_test(struct m0_confc *confc)
 	_retrieval_initiate(&w.w_ctx);
 	(void)conf_ut_waiter_wait(&w, &obj);
 	m0_confc_close(obj);
+	conf_ut_waiter_fini(&w);
+
+	/*
+	 * Check for too long path requested by user.
+	 */
+	for (i = 0; i < ARRAY_SIZE(fids) - 1; i++)
+		fids[i] = M0_FID_INIT(1, 1);
+
+	/* Terminate array with M0_FID0 */
+	fids[ARRAY_SIZE(fids) - 1] = M0_FID_INIT(0, 0);
+
+	conf_ut_waiter_init(&w, confc);
+	m0_confc__open(&w.w_ctx, NULL, fids);
+	rc = conf_ut_waiter_wait(&w, &result);
+	M0_UT_ASSERT(rc == -E2BIG);
 	conf_ut_waiter_fini(&w);
 }
 
