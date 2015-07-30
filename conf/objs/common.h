@@ -135,13 +135,11 @@ M0_INTERNAL bool u32arr_cmp(const struct arr_u32 *a1, const uint32_t *a2,
 			    uint32_t a2_nr);
 M0_INTERNAL void u32arr_free(struct arr_u32 *arr);
 
-M0_INTERNAL int conf_pvers_decode(struct m0_conf_cache  *cache,
+M0_INTERNAL int conf_pvers_decode(struct m0_conf_pver ***dest,
 				  const struct arr_fid  *src,
-				  struct m0_conf_pver  ***pvers,
-				  int                   *nr);
+				  struct m0_conf_cache  *cache);
 
-M0_INTERNAL int conf_pvers_encode(struct m0_conf_pver **pvers,
-				  int                   nr,
-				  struct arr_fid       *dest);
+M0_INTERNAL int conf_pvers_encode(struct arr_fid             *dest,
+				  const struct m0_conf_pver **src);
 
 #endif /* __MERO_CONF_OBJS_COMMON_H__ */

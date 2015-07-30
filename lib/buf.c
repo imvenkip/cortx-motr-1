@@ -116,9 +116,8 @@ M0_INTERNAL int m0_bufs_from_strings(struct m0_bufs *dest, const char **src)
 	if (src == NULL)
 		return 0;
 
-	for (; src[dest->ab_count] != NULL; ++dest->ab_count)
-		; /* measuring */
-
+	while (src[dest->ab_count] != NULL)
+		++dest->ab_count;
 	if (dest->ab_count == 0)
 		return 0;
 

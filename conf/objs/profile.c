@@ -32,7 +32,9 @@ static bool profile_check(const void *bob)
 	const struct m0_conf_profile *self = bob;
 	const struct m0_conf_obj     *self_obj = &self->cp_obj;
 
-	return m0_conf_obj_type(self_obj) == &M0_CONF_PROFILE_TYPE;
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_PROFILE_TYPE);
+
+	return true;
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_profile, M0_CONF_PROFILE_MAGIC, profile_check);

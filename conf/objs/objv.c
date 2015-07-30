@@ -33,7 +33,9 @@ static bool objv_check(const void *bob)
 	const struct m0_conf_objv *self = bob;
 	const struct m0_conf_obj  *self_obj = &self->cv_obj;
 
-	return m0_conf_obj_type(self_obj) == &M0_CONF_OBJV_TYPE;
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_OBJV_TYPE);
+
+	return true;
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_objv, M0_CONF_OBJV_MAGIC, objv_check);

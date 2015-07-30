@@ -33,7 +33,9 @@ static bool enclosure_check(const void *bob)
 	const struct m0_conf_enclosure *self = bob;
 	const struct m0_conf_obj       *self_obj = &self->ce_obj;
 
-	return m0_conf_obj_type(self_obj) == &M0_CONF_ENCLOSURE_TYPE;
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_ENCLOSURE_TYPE);
+
+	return _0C(ergo(m0_conf_obj_is_stub(self_obj), self->ce_pvers == NULL));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_enclosure, M0_CONF_ENCLOSURE_MAGIC,
@@ -52,8 +54,7 @@ static int enclosure_decode(struct m0_conf_obj        *dest,
 			     &CONF_DIR_ENTRIES(&M0_CONF_ENCLOSURE_CTRLS_FID,
 					       &M0_CONF_CONTROLLER_TYPE,
 					       &s->xe_ctrls), dest, cache) ?:
-                     conf_pvers_decode(cache, &s->xe_pvers,
-				       &d->ce_pvers, &d->ce_pvers_nr));
+                     conf_pvers_decode(&d->ce_pvers, &s->xe_pvers, cache));
 }
 
 static int
@@ -67,8 +68,9 @@ enclosure_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 
 	confx_encode(dest, src);
 	return M0_RC(conf_dirs_encode(dirs, ARRAY_SIZE(dirs)) ?:
-		     conf_pvers_encode(s->ce_pvers, s->ce_pvers_nr,
-				       &d->xe_pvers));
+		     conf_pvers_encode(
+			     &d->xe_pvers,
+			     (const struct m0_conf_pver**)s->ce_pvers));
 }
 
 static bool enclosure_match(const struct m0_conf_obj  *cached,

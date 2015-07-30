@@ -33,7 +33,9 @@ static bool rack_check(const void *bob)
 	const struct m0_conf_rack *self = bob;
 	const struct m0_conf_obj  *self_obj = &self->cr_obj;
 
-	return m0_conf_obj_type(self_obj) == &M0_CONF_RACK_TYPE;
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_RACK_TYPE);
+
+	return _0C(ergo(m0_conf_obj_is_stub(self_obj), self->cr_pvers == NULL));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_rack, M0_CONF_RACK_MAGIC, rack_check);
@@ -51,8 +53,7 @@ static int rack_decode(struct m0_conf_obj        *dest,
 			     &CONF_DIR_ENTRIES(&M0_CONF_RACK_ENCLS_FID,
 					       &M0_CONF_ENCLOSURE_TYPE,
 					       &s->xr_encls), dest, cache) ?:
-		     conf_pvers_decode(cache, &s->xr_pvers,
-				       &d->cr_pvers, &d->cr_pvers_nr));
+		     conf_pvers_decode(&d->cr_pvers, &s->xr_pvers, cache));
 }
 
 static int
@@ -66,8 +67,9 @@ rack_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 
 	confx_encode(dest, src);
 	return M0_RC(conf_dirs_encode(dirs, ARRAY_SIZE(dirs)) ?:
-		     conf_pvers_encode(s->cr_pvers, s->cr_pvers_nr,
-				       &d->xr_pvers));
+		     conf_pvers_encode(
+			     &d->xr_pvers,
+			     (const struct m0_conf_pver**)s->cr_pvers));
 }
 
 static bool

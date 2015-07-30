@@ -341,7 +341,7 @@ struct m0_conf_filesystem {
 	uint32_t             cf_redundancy;
 	/**
 	 * Filesystem parameters.
-	 * NULL terminated array of C strings.
+	 * NULL-terminated array of C strings.
 	 * XXX @todo Make it an array of name-value pairs (attributes).
 	 */
 	const char        **cf_params;
@@ -377,10 +377,7 @@ struct m0_conf_pver {
 	enum m0_conf_pver_state  pv_state;
 	/** Layout attributes. */
 	struct m0_pdclust_attr   pv_attr;
-	/**
-	 * @todo MERO-457
-	 * Base permutation computed based on the failure domains.
-	 */
+	/** Base permutation computed based on the failure domains. */
 	uint32_t                *pv_permutations;
 	uint32_t                 pv_permutations_nr;
 	/** Allowed failures for each failure domain. */
@@ -405,6 +402,7 @@ struct m0_conf_objv {
 struct m0_conf_node {
 	struct m0_conf_obj   cn_obj;
 	struct m0_conf_dir  *cn_processes;
+	struct m0_conf_pool *cn_pool;
 /* configuration data (for the application) */
 	/** Memory size in MB. */
 	uint32_t             cn_memsize;
@@ -414,7 +412,6 @@ struct m0_conf_node {
 	uint64_t             cn_last_state;
 	/** Property flags. See m0_cfg_flag_bit. */
 	uint64_t             cn_flags;
-	struct m0_conf_pool *cn_pool;
 };
 
 /**
@@ -426,15 +423,10 @@ struct m0_conf_process {
 	struct m0_conf_obj  pc_obj;
 	struct m0_conf_dir *pc_services;
 /* configuration data (for the application) */
-	/** Core mask  */
-	struct m0_bitmap    pc_cores;
-	/** Memory limits - AS */
+	struct m0_bitmap    pc_cores; /**< Available cores (mask). */
 	uint64_t            pc_memlimit_as;
-	/** Memory limits - RSS */
 	uint64_t            pc_memlimit_rss;
-	/** Memory limits - Stack */
 	uint64_t            pc_memlimit_stack;
-	/** Memory limits - Memory Lock */
 	uint64_t            pc_memlimit_memlock;
 };
 
@@ -445,7 +437,7 @@ struct m0_conf_service {
 	enum m0_conf_service_type cs_type;
 	/**
 	 * End-points from which this service is reachable.
-	 * NULL terminated array of C strings.
+	 * NULL-terminated array of C strings.
 	 */
 	const char              **cs_endpoints;
 	union {
@@ -460,8 +452,11 @@ struct m0_conf_rack {
 	struct m0_conf_obj    cr_obj;
 	/** Enclosures on this rack. */
 	struct m0_conf_dir   *cr_encls;
-	/** Pool versions this rack is part of. */
-	int                   cr_pvers_nr;
+/* configuration data (for the application) */
+	/**
+	 * Pool versions this rack is part of.
+	 * NULL-terminated array.
+	 */
 	struct m0_conf_pver **cr_pvers;
 };
 
@@ -470,8 +465,11 @@ struct m0_conf_enclosure {
 	struct m0_conf_obj    ce_obj;
 	/** Controllers in this enclosure. */
 	struct m0_conf_dir   *ce_ctrls;
-	/** Pool versions this enclosure is part of. */
-	int                   ce_pvers_nr;
+/* configuration data (for the application) */
+	/**
+	 * Pool versions this enclosure is part of.
+	 * NULL-terminated array.
+	 */
 	struct m0_conf_pver **ce_pvers;
 };
 
@@ -482,14 +480,18 @@ struct m0_conf_controller {
 	struct m0_conf_node  *cc_node;
 	/** Storage disks attached to this controller. */
 	struct m0_conf_dir   *cc_disks;
-	/** Pool versions this controller is part of. */
-	int                   cc_pvers_nr;
+/* configuration data (for the application) */
+	/**
+	 * Pool versions this controller is part of.
+	 * NULL-terminated array.
+	 */
 	struct m0_conf_pver **cc_pvers;
 };
 
 /** Hardware resource - storage device. */
 struct m0_conf_sdev {
 	struct m0_conf_obj sd_obj;
+/* configuration data (for the application) */
 	/** Interface type. See m0_cfg_storage_device_interface_type. */
 	uint32_t           sd_iface;
 	/** Media type. See m0_cfg_storage_device_media_type. */

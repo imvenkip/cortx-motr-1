@@ -249,48 +249,57 @@ M0_INTERNAL void u32arr_free(struct arr_u32 *arr)
 	arr->au_count = 0;
 }
 
-M0_INTERNAL int conf_pvers_decode(struct m0_conf_cache   *cache,
-				  const struct arr_fid   *src,
-				  struct m0_conf_pver  ***pvers,
-				  int                    *nr)
+/** @note This code resembles m0_bufs_to_strings(). */
+M0_INTERNAL int conf_pvers_decode(struct m0_conf_pver ***dest,
+				  const struct arr_fid  *src,
+				  struct m0_conf_cache  *cache)
 {
-	int rc = 0;
-	int i;
+	uint32_t            i;
 	struct m0_conf_obj *obj;
-	struct m0_conf_pver **pv;
 
-	M0_ALLOC_ARR(pv, src->af_count);
-	if (pv == NULL)
+	M0_PRE(*dest == NULL);
+	M0_PRE((src->af_count == 0) == (src->af_elems == NULL));
+
+	if (src->af_count == 0)
+		return M0_RC(0);
+
+	M0_ALLOC_ARR(*dest, src->af_count + 1);
+	if (*dest == NULL)
 		return M0_ERR(-ENOMEM);
 
-	for (i = 0; i < src->af_count && rc == 0; ++i) {
-		rc = m0_conf_obj_find(cache, &src->af_elems[i], &obj);
-		pv[i] = M0_CONF_CAST(obj, m0_conf_pver);
+	for (i = 0; i < src->af_count; ++i) {
+		int rc = m0_conf_obj_find(cache, &src->af_elems[i], &obj);
+		if (rc != 0) {
+			m0_free(*dest);
+			return M0_ERR(rc);
+		}
+		(*dest)[i] = M0_CONF_CAST(obj, m0_conf_pver);
 	}
-
-	if (rc == 0) {
-		*nr = src->af_count;
-		*pvers = pv;
-	} else
-		m0_free(pv);
-
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
-M0_INTERNAL int conf_pvers_encode(struct m0_conf_pver **pvers,
-				  int                   nr,
-				  struct arr_fid       *dest)
+/** @note This code resembles m0_bufs_from_strings(). */
+M0_INTERNAL int
+conf_pvers_encode(struct arr_fid *dest, const struct m0_conf_pver **src)
 {
-	int i;
+	uint32_t i;
 
-	dest->af_count = nr;
+	M0_SET0(dest);
+
+	if (src == NULL)
+		return M0_RC(0);
+
+	while (src[dest->af_count] != NULL)
+		++dest->af_count;
+	if (dest->af_count == 0)
+		return M0_RC(0);
+
 	M0_ALLOC_ARR(dest->af_elems, dest->af_count);
-	if (dest->af_elems == 0)
+	if (dest->af_elems == NULL)
 		return M0_ERR(-ENOMEM);
 
-	for (i = 0; i < nr; ++i)
-		dest->af_elems[i] = pvers[i]->pv_obj.co_id;
-
+	for (i = 0; i < dest->af_count; ++i)
+		dest->af_elems[i] = src[i]->pv_obj.co_id;
 	return M0_RC(0);
 }
 

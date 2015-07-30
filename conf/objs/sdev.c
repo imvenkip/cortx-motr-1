@@ -34,7 +34,8 @@ static bool sdev_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_SDEV_TYPE);
 
-	return  m0_conf_obj_is_stub(self_obj) == (self->sd_filename == NULL);
+	return _0C(m0_conf_obj_is_stub(self_obj) ==
+		   (self->sd_filename == NULL));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_sdev, M0_CONF_SDEV_MAGIC, sdev_check);

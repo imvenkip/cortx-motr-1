@@ -32,8 +32,9 @@ static bool root_check(const void *bob)
 	const struct m0_conf_root *self = bob;
 	const struct m0_conf_obj  *self_obj = &self->rt_obj;
 
-	return _0C(m0_conf_obj_type(self_obj) == &M0_CONF_ROOT_TYPE) &&
-	       _0C(m0_fid_eq(&self->rt_obj.co_id, &M0_CONF_ROOT_FID)) &&
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_ROOT_TYPE);
+
+	return _0C(m0_fid_eq(&self->rt_obj.co_id, &M0_CONF_ROOT_FID)) &&
 	       _0C(self_obj->co_parent == NULL) &&
 	       _0C(m0_conf_obj_is_stub(self_obj) || self->rt_verno > 0);
 }

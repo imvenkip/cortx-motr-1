@@ -33,7 +33,9 @@ static bool controller_check(const void *bob)
 	const struct m0_conf_controller *self = bob;
 	const struct m0_conf_obj        *self_obj = &self->cc_obj;
 
-	return m0_conf_obj_type(self_obj) == &M0_CONF_CONTROLLER_TYPE;
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_CONTROLLER_TYPE);
+
+	return _0C(ergo(m0_conf_obj_is_stub(self_obj), self->cc_pvers == NULL));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_controller, M0_CONF_CONTROLLER_MAGIC,
@@ -60,8 +62,7 @@ static int controller_decode(struct m0_conf_obj        *dest,
 			     &CONF_DIR_ENTRIES(&M0_CONF_CONTROLLER_DISKS_FID,
 					       &M0_CONF_DISK_TYPE,
 					       &s->xc_disks), dest, cache) ?:
-		    conf_pvers_decode(cache, &s->xc_pvers,
-				      &d->cc_pvers, &d->cc_pvers_nr));
+		     conf_pvers_decode(&d->cc_pvers, &s->xc_pvers, cache));
 }
 
 static int
@@ -76,8 +77,9 @@ controller_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	confx_encode(dest, src);
 	d->xc_node = s->cc_node->cn_obj.co_id;
 	return M0_RC(conf_dirs_encode(dirs, ARRAY_SIZE(dirs)) ?:
-		     conf_pvers_encode(s->cc_pvers, s->cc_pvers_nr,
-				       &d->xc_pvers));
+		     conf_pvers_encode(
+			     &d->xc_pvers,
+			     (const struct m0_conf_pver**)s->cc_pvers));
 }
 
 static bool controller_match(const struct m0_conf_obj   *cached,
@@ -122,8 +124,8 @@ static const struct m0_conf_obj_ops controller_ops = {
 	.coo_delete    = controller_delete
 };
 
-M0_CONF__CTOR_DEFINE(controller_create, m0_conf_controller,
-		     &controller_ops, m0_conf_failure_sets_update);
+M0_CONF__CTOR_DEFINE(controller_create, m0_conf_controller, &controller_ops,
+		     m0_conf_failure_sets_update);
 
 const struct m0_conf_obj_type M0_CONF_CONTROLLER_TYPE = {
 	.cot_ftype = {

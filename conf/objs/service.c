@@ -32,8 +32,8 @@ static bool service_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_SERVICE_TYPE);
 
-	return ergo(self_obj->co_status == M0_CS_READY,
-		    M0_CONF_SVC_TYPE_IS_VALID(self->cs_type));
+	return _0C(ergo(self_obj->co_status == M0_CS_READY,
+			M0_CONF_SVC_TYPE_IS_VALID(self->cs_type)));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_service, M0_CONF_SERVICE_MAGIC, service_check);

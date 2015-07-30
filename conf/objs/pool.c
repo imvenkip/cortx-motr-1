@@ -163,7 +163,9 @@ static bool pool_check(const void *bob)
 	const struct m0_conf_pool *self = bob;
 	const struct m0_conf_obj  *self_obj = &self->pl_obj;
 
-	return m0_conf_obj_type(self_obj) == &M0_CONF_POOL_TYPE;
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_POOL_TYPE);
+
+	return true;
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_pool, M0_CONF_POOL_MAGIC, pool_check);

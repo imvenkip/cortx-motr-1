@@ -291,13 +291,13 @@ M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc)
 	return m0_strdup(service_name[svc->cs_type]);
 }
 
-static struct m0_confc *conf_obj2confc(struct m0_conf_obj *obj)
+static struct m0_confc *conf_obj2confc(const struct m0_conf_obj *obj)
 {
 	M0_PRE(obj != NULL && obj->co_cache != NULL);
 	return container_of(obj->co_cache, struct m0_confc, cc_cache);
 }
 
-static struct m0_reqh *conf_obj2reqh(struct m0_conf_obj *obj)
+static struct m0_reqh *conf_obj2reqh(const struct m0_conf_obj *obj)
 {
 	struct m0_confc *confc = conf_obj2confc(obj);
 
@@ -307,25 +307,21 @@ static struct m0_reqh *conf_obj2reqh(struct m0_conf_obj *obj)
 
 static void pool_versions_state_set(struct m0_conf_obj *obj)
 {
-	struct m0_conf_pver **pvers = NULL;
-	int                   nr = 0;
-	int                   i;
+	struct m0_conf_pver **pvers;
+	uint32_t              i;
 
-	if (m0_conf_obj_type(obj) == &M0_CONF_RACK_TYPE) {
-		pvers = (M0_CONF_CAST(obj, m0_conf_rack))->cr_pvers;
-		nr = (M0_CONF_CAST(obj, m0_conf_rack))->cr_pvers_nr;
-	} else if (m0_conf_obj_type(obj) == &M0_CONF_ENCLOSURE_TYPE) {
-		pvers = (M0_CONF_CAST(obj, m0_conf_enclosure))->ce_pvers;
-		nr = (M0_CONF_CAST(obj, m0_conf_enclosure))->ce_pvers_nr;
-	} else if (m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE) {
-		pvers = (M0_CONF_CAST(obj, m0_conf_controller))->cc_pvers;
-		nr = (M0_CONF_CAST(obj, m0_conf_controller))->cc_pvers_nr;
-	}
+	if (m0_conf_obj_type(obj) == &M0_CONF_RACK_TYPE)
+		pvers = M0_CONF_CAST(obj, m0_conf_rack)->cr_pvers;
+	else if (m0_conf_obj_type(obj) == &M0_CONF_ENCLOSURE_TYPE)
+		pvers = M0_CONF_CAST(obj, m0_conf_enclosure)->ce_pvers;
+	else if (m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE)
+		pvers = M0_CONF_CAST(obj, m0_conf_controller)->cc_pvers;
+	else
+		M0_IMPOSSIBLE("");
 
 	if (obj->co_ha_state == M0_NC_FAILED)
-		for (i = 0; i < nr; ++i)
+		for (i = 0; pvers[i] != NULL; ++i)
 			pvers[i]->pv_state = M0_CONF_PVER_FAILED;
-
 	/**
 	 * @todo XXX:
 	 *           Need to make poolvesion again ONLINE if all
@@ -333,26 +329,26 @@ static void pool_versions_state_set(struct m0_conf_obj *obj)
 	 */
 }
 
-static void failure_sets_update(struct m0_tl       *failure_sets,
-				struct m0_conf_obj *obj)
+static void
+failure_sets_update(struct m0_tl *failure_sets, struct m0_conf_obj *obj)
 {
-	if ((obj->co_ha_state == M0_NC_ONLINE) &&
+	if (obj->co_ha_state == M0_NC_ONLINE &&
 	    m0_conf_failure_sets_tlist_contains(failure_sets, obj))
 		m0_conf_failure_sets_tlist_del(obj);
-	else if ((obj->co_ha_state == M0_NC_FAILED) &&
+	else if (obj->co_ha_state == M0_NC_FAILED &&
 		 !m0_conf_failure_sets_tlist_contains(failure_sets, obj))
 		m0_conf_failure_sets_tlist_add_tail(failure_sets, obj);
 }
 
 M0_INTERNAL void m0_conf_failure_sets_update(struct m0_conf_obj *obj)
 {
-	struct m0_tl *failure_sets = &(conf_obj2reqh(obj)->rh_failure_sets);
+	struct m0_tl *failure_sets = &conf_obj2reqh(obj)->rh_failure_sets;
 
 	M0_PRE(M0_IN(m0_conf_obj_type(obj), (&M0_CONF_RACK_TYPE,
 					     &M0_CONF_ENCLOSURE_TYPE,
 					     &M0_CONF_CONTROLLER_TYPE)));
 
-	(void)failure_sets_update(failure_sets, obj);
-	(void)pool_versions_state_set(obj);
+	failure_sets_update(failure_sets, obj);
+	pool_versions_state_set(obj);
 }
 #undef M0_TRACE_SUBSYSTEM
