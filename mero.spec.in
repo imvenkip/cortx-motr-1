@@ -24,6 +24,14 @@
 
 %bcond_with ut
 %bcond_with systemd
+%bcond_with debuginfo
+
+%if !%{with debuginfo}
+%global debug_package %{nil}
+%global __debug_install_post %{nil}
+%define debug_package %{nil}
+%define __debug_install_post %{nil}
+%endif
 
 %if %{with ut}
 %define  configure_opts  --enable-dev-mode --disable-altogether-mode
@@ -229,6 +237,3 @@ systemctl daemon-reload
 /sbin/depmod -a
 
 %endif # with ut
-
-# always build debuginfo package
-#%%debug_package

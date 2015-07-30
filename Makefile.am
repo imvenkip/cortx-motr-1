@@ -78,9 +78,10 @@ AM_CPPFLAGS  = @M0_CPPFLAGS@
 AM_CFLAGS    = @M0_CFLAGS@
 AM_LDFLAGS   = @M0_LDFLAGS@
 
-RPMBUILD_FLAGS  =
 if HAVE_SYSTEMD
-RPMBUILD_FLAGS += --with systemd
+# override is needed to allow user to provide some additional options in
+# RPMBUILD_FLAGS variable in command line
+override RPMBUILD_FLAGS += --with systemd
 endif
 
 GF_DIR       = extra-libs/gf-complete
