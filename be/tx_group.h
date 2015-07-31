@@ -102,6 +102,14 @@ struct m0_be_tx_group {
 
 	void                         *tg_reg_area_rebuild_param;
 	m0_be_group_format_reg_area_rebuild_t go_reg_area_rebuild;
+
+	/**
+	 * Fields for BE engine
+	 */
+	struct m0_sm_timer         tg_close_timer;
+	struct m0_sm_ast           tg_close_timer_arm_ast;
+	struct m0_sm_ast           tg_close_ast;
+	m0_time_t                  tg_close_deadline;
 };
 
 M0_INTERNAL void m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
@@ -131,14 +139,16 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 				      struct m0_be_tx       *tx);
 M0_INTERNAL size_t m0_be_tx_group_tx_nr(struct m0_be_tx_group *gr);
 
-M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr,
-				      m0_time_t              abs_timeout);
+M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr);
 
 /**
  * Notifies the group that all of its transactions have reached M0_BTS_DONE
  * state.
  */
 M0_INTERNAL void m0_be_tx_group_stable(struct m0_be_tx_group *gr);
+
+M0_INTERNAL struct m0_sm_group *
+m0_be_tx_group__sm_group(struct m0_be_tx_group *gr);
 
 /* ------------------------------------------------------------------
  *              Interfaces used by m0_be_tx_group_fom
@@ -151,7 +161,6 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group_tx_del(struct m0_be_tx_group *gr,
 				       struct m0_be_tx       *tx);
 M0_INTERNAL void m0_be_tx_group_open(struct m0_be_tx_group *gr);
-M0_INTERNAL void m0_be_tx_group_postclose(struct m0_be_tx_group *gr);
 
 /**
  * m0_be_tx__state_post()s each transaction of the group.

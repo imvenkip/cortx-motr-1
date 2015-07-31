@@ -177,6 +177,12 @@ M0_INTERNAL void m0_be_tx_group_stable(struct m0_be_tx_group *gr)
 	M0_LEAVE();
 }
 
+M0_INTERNAL struct m0_sm_group *
+m0_be_tx_group__sm_group(struct m0_be_tx_group *gr)
+{
+	return m0_be_tx_group_fom__sm_group(&gr->tg_fom);
+}
+
 static void be_tx_group_reg_area_rebuild(struct m0_be_reg_area *ra,
 					 struct m0_be_reg_area *ra_new,
 					 void                  *param)
@@ -247,13 +253,13 @@ static void be_tx_group_deconstruct(struct m0_be_tx_group *gr)
 	};
 }
 
-M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr,
-				      m0_time_t              abs_timeout)
+M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr)
 {
 	struct m0_be_tx *tx;
 	m0_bcount_t      size_reserved = 0;
 
 	M0_ENTRY("gr=%p recovering=%d", gr, (int)gr->tg_recovering);
+
 	if (!gr->tg_recovering) {
 		be_tx_group_reg_area_gather(gr);
 		be_tx_group_payload_gather(gr);
@@ -263,7 +269,8 @@ M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr,
 		} M0_BE_TX_GROUP_TX_ENDFOR;
 		m0_be_group_format_log_use(&gr->tg_od, size_reserved);
 	}
-	m0_be_tx_group_fom_handle(&gr->tg_fom, abs_timeout);
+	m0_be_tx_group_fom_handle(&gr->tg_fom);
+
 	M0_LEAVE();
 }
 
@@ -404,11 +411,6 @@ M0_INTERNAL size_t m0_be_tx_group_tx_nr(struct m0_be_tx_group *gr)
 M0_INTERNAL void m0_be_tx_group_open(struct m0_be_tx_group *gr)
 {
 	m0_be_engine__tx_group_open(gr->tg_engine, gr);
-}
-
-M0_INTERNAL void m0_be_tx_group_postclose(struct m0_be_tx_group *gr)
-{
-	m0_be_engine__tx_group_close(gr->tg_engine, gr);
 }
 
 M0_INTERNAL int m0_be_tx_group_start(struct m0_be_tx_group *gr)

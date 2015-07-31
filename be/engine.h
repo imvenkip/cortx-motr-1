@@ -146,8 +146,6 @@ M0_INTERNAL void m0_be_engine__tx_force(struct m0_be_engine *en,
 
 M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine   *en,
 					     struct m0_be_tx_group *gr);
-M0_INTERNAL void m0_be_engine__tx_group_close(struct m0_be_engine   *en,
-					      struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_engine__tx_group_discard(struct m0_be_engine   *en,
 						struct m0_be_tx_group *gr);
 

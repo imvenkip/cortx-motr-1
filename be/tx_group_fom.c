@@ -288,13 +288,6 @@ static void be_tx_group_fom_handle(struct m0_sm_group *gr,
 
 	M0_ENTRY("m=%p", m);
 
-	/*
-	 * There are 2 possible scenarios when this function is called:
-	 *  - tgf_ast_timeout only enqueued
-	 *  - tgf_to is armed; therefore, tgf_ast_timeout isn't enqueued
-	 */
-	m0_fom_timeout_cancel(&m->tgf_to);
-	m0_sm_ast_cancel(gr, &m->tgf_ast_timeout);
 	be_tx_group_fom_log(m);
 
 	M0_LEAVE();
@@ -327,41 +320,6 @@ static void be_tx_group_fom_stop(struct m0_sm_group *gr, struct m0_sm_ast *ast)
 	be_tx_group_fom_iff_waiting_wakeup(&m->tgf_gen);
 }
 
-static void be_tx_group_fom_timeout_cb(struct m0_fom_callback *cb)
-{
-	struct m0_be_tx_group_fom *m  = M0_AMB(m, cb->fc_fom, tgf_gen);
-	struct m0_be_tx_group     *gr = m->tgf_group;
-
-	M0_ENTRY("m=%p", m);
-
-	m0_be_tx_group_postclose(gr);
-	be_tx_group_fom_log(m);
-
-	m0_sm_ast_cancel(&m->tgf_gen.fo_loc->fl_group, &m->tgf_ast_handle);
-
-	M0_LEAVE();
-}
-
-static void be_tx_group_fom_handle_delayed(struct m0_sm_group *gr,
-					   struct m0_sm_ast   *ast)
-{
-	int                        rc;
-	struct m0_be_tx_group_fom *m = M0_AMB(m, ast, tgf_ast_timeout);
-
-	M0_ENTRY();
-
-	rc = m0_fom_timeout_arm(&m->tgf_to, &m->tgf_gen,
-				be_tx_group_fom_timeout_cb,
-				m->tgf_close_abs_timeout);
-	/*
-	 * XXX tx_group_fom shouldn't fail at this point. It would mean that
-	 *     all txs are failed too.
-	 */
-	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
-
-	M0_LEAVE();
-}
-
 M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m,
 					 struct m0_be_tx_group     *gr,
 					 struct m0_reqh            *reqh)
@@ -376,14 +334,10 @@ M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m,
 	m->tgf_stable   = false;
 	m->tgf_stopping = false;
 
-	m0_fom_timeout_init(&m->tgf_to);
-	m->tgf_close_abs_timeout = M0_TIME_NEVER;
-
 #define _AST(handler) (struct m0_sm_ast){ .sa_cb = (handler) }
 	m->tgf_ast_handle  = _AST(be_tx_group_fom_handle);
 	m->tgf_ast_stable  = _AST(be_tx_group_fom_stable);
 	m->tgf_ast_stop    = _AST(be_tx_group_fom_stop);
-	m->tgf_ast_timeout = _AST(be_tx_group_fom_handle_delayed);
 #undef _AST
 
 	m0_semaphore_init(&m->tgf_start_sem, 0);
@@ -407,16 +361,12 @@ M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *m)
 	m0_be_op_fini(&m->tgf_op);
 	m0_semaphore_fini(&m->tgf_start_sem);
 	m0_semaphore_fini(&m->tgf_finish_sem);
-	m0_fom_timeout_fini(&m->tgf_to);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m)
 {
-	m->tgf_recovery_mode     = false;
-	m->tgf_stable            = false;
-	m->tgf_close_abs_timeout = M0_TIME_NEVER;
-	m0_fom_timeout_fini(&m->tgf_to);
-	m0_fom_timeout_init(&m->tgf_to);
+	m->tgf_recovery_mode = false;
+	m->tgf_stable        = false;
 }
 
 static void be_tx_group_fom_ast_post(struct m0_be_tx_group_fom *gf,
@@ -449,24 +399,20 @@ M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)
 	m0_semaphore_down(&gf->tgf_finish_sem);
 }
 
-M0_INTERNAL void
-m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,
-			  m0_time_t                  abs_timeout)
+M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m)
 {
-	M0_PRE(ergo(abs_timeout != M0_TIME_IMMEDIATELY,
-		    m->tgf_close_abs_timeout == M0_TIME_NEVER));
-
-	if (abs_timeout == M0_TIME_IMMEDIATELY) {
-		be_tx_group_fom_ast_post(m, &m->tgf_ast_handle);
-	} else {
-		m->tgf_close_abs_timeout = abs_timeout;
-		be_tx_group_fom_ast_post(m, &m->tgf_ast_timeout);
-	}
+	be_tx_group_fom_ast_post(m, &m->tgf_ast_handle);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_stable(struct m0_be_tx_group_fom *gf)
 {
 	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stable);
+}
+
+M0_INTERNAL struct m0_sm_group *
+m0_be_tx_group_fom__sm_group(struct m0_be_tx_group_fom *m)
+{
+	return &m->tgf_gen.fo_loc->fl_group;
 }
 
 M0_INTERNAL void
