@@ -5016,6 +5016,7 @@ int m0t1fs_flush(struct file *file, fl_owner_t id)
 	mo.mo_attr.ca_valid |= M0_COB_SIZE;
 	mo.mo_attr.ca_nlink  = inode->i_nlink;
 	mo.mo_attr.ca_valid |= M0_COB_NLINK;
+	mo.mo_attr.ca_pver = m0inode_to_sb(ci)->csb_pool_version->pv_id;
 
 	rc = m0t1fs_cob_setattr(inode, &mo);
 	return M0_RC(rc);

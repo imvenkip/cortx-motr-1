@@ -579,6 +579,9 @@ m0t1fs_crud()
 	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname2 2>/dev/null && rc=1
 	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname3 2>/dev/null && rc=1
 
+	# Test for CROW
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname1 bs=4K   count=1 || rc=1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname1 || rc=1
 	return $rc
 }
 

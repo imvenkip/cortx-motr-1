@@ -131,6 +131,7 @@ M0_INTERNAL void m0_dump_cob_attr(const struct m0_cob_attr *attr)
 #define	level M0_DEBUG
 	M0_LOG(level, "pfid = "FID_F, FID_P(&attr->ca_pfid));
 	M0_LOG(level, "tfid = "FID_F, FID_P(&attr->ca_tfid));
+	M0_LOG(level, "pver = "FID_F, FID_P(&attr->ca_pver));
 	if (valid & M0_COB_MODE)
 		M0_LOG(level, "mode = %o", attr->ca_mode);
 	if (valid & M0_COB_UID)

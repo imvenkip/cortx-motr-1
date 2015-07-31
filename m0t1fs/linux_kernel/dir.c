@@ -314,6 +314,7 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 
 		mo.mo_attr.ca_lid = ci->ci_layout_id;
 		mo.mo_attr.ca_valid |= M0_COB_LID;
+		mo.mo_attr.ca_pver = csb->csb_pool_version->pv_id;
 
 		if (!csb->csb_oostore)
 			rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
@@ -1390,6 +1391,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	}
 	mo.mo_attr.ca_nlink = inode->i_nlink;
 	mo.mo_attr.ca_valid |= M0_COB_NLINK;
+	mo.mo_attr.ca_pver = csb->csb_pool_version->pv_id;
 	rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_setattr);
 	if (rc != 0)
 		goto out;
@@ -2017,7 +2019,7 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 		cob_idx = idx;
 	} else {
 		cob_fid = m0t1fs_ios_cob_fid(ci, idx);
-		cob_idx = m0t1fs_ios_cob_idx(ci, gob_fid, &cob_fid);
+		cob_idx = m0_fid_cob_device_id(&cob_fid);
 		session = m0t1fs_container_id_to_session(csb,
 				m0_fid_cob_device_id(&cob_fid));
 	}
@@ -2110,7 +2112,6 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 	struct m0_fop                   *fop = NULL;
 	struct m0_fop_cob               *body;
 	struct m0_fid                    cob_fid;
-	uint32_t                         cob_idx;
 	int                              rc = 0;
 	struct m0_cob_attr               attr;
 	struct m0_rpc_session           *session;
@@ -2130,7 +2131,6 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 				&csb->csb_reqh, gob_fid, i);
 		M0_ASSERT(session != NULL);
 		m0_fid_convert_gob2cob(gob_fid, &cob_fid, 0);
-		cob_idx = i;
 
 		M0_LOG(M0_DEBUG, "Getattr for "FID_F "~" FID_F,
 			 FID_P(gob_fid), FID_P(&cob_fid));
@@ -2146,8 +2146,7 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 		mo.mo_attr.ca_pfid = *gob_fid;
 		mo.mo_attr.ca_tfid = *gob_fid;
 		mo.mo_cob_type = M0_COB_MD;
-		m0t1fs_ios_cob_fop_populate(csb, &mo, fop, &cob_fid, gob_fid,
-					    cob_idx);
+		m0t1fs_ios_cob_fop_populate(csb, &mo, fop, &cob_fid, gob_fid, i);
 
 		M0_LOG(M0_DEBUG, "Send cob operation %u %s to session %p"
 				"(sid=%lu)", m0_fop_opcode(fop),
