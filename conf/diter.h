@@ -175,9 +175,7 @@ struct m0_conf_diter_lvl {
 	enum m0_diter_lvl_mode        dl_mode;
 	/** Directory level. */
 	uint32_t                      dl_lvl;
-	/**
-	 * Number of times this directory level is m0_confc_open()ed.
-	 */
+	/** Number of times this directory level is m0_confc_open()ed. */
 	uint32_t                      dl_nr_open;
 	/**
 	 * Number of times this directory level is read using
@@ -194,9 +192,7 @@ struct m0_conf_diter_lvl {
  */
 struct m0_conf_diter {
 	struct m0_confc          *di_confc;
-	/**
-	 * Configuration object of a m0_conf_dir from which the iterator begins.
-	 */
+	/** Configuration object from which the iterator begins. */
 	struct m0_conf_obj       *di_origin;
 	/** Configuration directory levels on which the iterator iterates. */
 	struct m0_conf_diter_lvl *di_lvls;
@@ -220,7 +216,8 @@ struct m0_conf_diter {
 /**
  * Initialises configuration directory iterator with the given configuration
  * path.
- * @pre m0_conf_obj_type(origin) != &M0_CONF_PROFILE_TYPE
+ *
+ * @pre  origin->co_status == M0_CS_READY
  */
 #define m0_conf_diter_init(iter, confc, origin, ...)          \
 	m0_conf__diter_init(iter, confc, origin,              \
@@ -233,7 +230,6 @@ M0_INTERNAL int m0_conf__diter_init(struct m0_conf_diter *it,
 				    struct m0_conf_obj *origin,
 				    uint32_t nr_lvls,
 				    const struct m0_fid *path);
-
 M0_INTERNAL void m0_conf_diter_fini(struct m0_conf_diter *it);
 
 /**

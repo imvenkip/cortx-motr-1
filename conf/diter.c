@@ -273,9 +273,9 @@ M0_INTERNAL int m0_conf__diter_init(struct m0_conf_diter *it,
 {
 	int lvl;
 
-	M0_ENTRY("it=%p confc=%p origin=%p nr_lvls=%u path=" FID_F, it,
-		 confc, origin, nr_lvls, FID_P(path));
-	M0_PRE(m0_conf_obj_type(origin) != &M0_CONF_PROFILE_TYPE);
+	M0_ENTRY("it=%p confc=%p origin=" FID_F " nr_lvls=%u path=" FID_F,
+		 it, confc, FID_P(&origin->co_id), nr_lvls, FID_P(path));
+	M0_PRE(origin->co_status == M0_CS_READY);
 
 	*it = (struct m0_conf_diter){ .di_confc = confc,
 				      .di_nr_lvls = nr_lvls,
@@ -285,11 +285,9 @@ M0_INTERNAL int m0_conf__diter_init(struct m0_conf_diter *it,
 	M0_ALLOC_ARR(it->di_lvls, it->di_nr_lvls);
 	if (it->di_lvls == NULL)
 		return M0_ERR(-ENOMEM);
-	it->di_lvl = 0;
-	for (lvl = 0; lvl < nr_lvls; ++lvl) {
+	for (lvl = 0; lvl < nr_lvls; ++lvl)
 		m0_conf_diter_lvl_init(&it->di_lvls[lvl], it, confc, lvl,
 				       &path[lvl]);
-	}
 	m0_clink_init(&it->di_clink, diter_chan_cb);
 	m0_mutex_init(&it->di_wait_mutex);
 	m0_chan_init(&it->di_wait, &it->di_wait_mutex);
