@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Igor Vartanov
+ * Original author: Egor Nikulenkov
  * Original creation date: 03-Mar-2015
  */
 
@@ -23,7 +24,14 @@
 #ifndef __MERO_CONF_RCONFC_H__
 #define __MERO_CONF_RCONFC_H__
 
+#include "lib/mutex.h"
+#include "lib/chan.h"
+#include "lib/tlist.h"
+#include "sm/sm.h"
+#include "conf/confc.h"
+
 struct m0_rconfc;
+struct m0_rpc_machine;
 
 /**
  * @page rconfc-fspec Redundant Configuration Client (rconfc)
@@ -32,9 +40,9 @@ struct m0_rconfc;
  * Mero applications working in cluster with multiple configuration servers
  * (confd).
  *
- * Rconfc supplements confc functionality and, transparently for confc
- * consumers, processes situations when cluster dynamically changes
- * configuration or loses connection to some of confd servers.
+ * Rconfc supplements confc functionality and processes situations when cluster
+ * dynamically changes configuration or loses connection to some of confd
+ * servers.
  *
  * - @ref rconfc-fspec-data
  * - @ref rconfc-fspec-sub
@@ -58,20 +66,23 @@ struct m0_rconfc;
  * <hr> <!------------------------------------------------------------>
  * @section rconfc-fspec-sub Subroutines
  *
- * - m0_rconfc_init() initialises rconfc internals, including the two confc
- *   lists, and carries out configuration version election. During election all
- *   known confd servers are polled for a number of version they run. The
- *   elected version, i.e. the version having the quorum, is used in further
- *   configuration reading operation. In case quorum is reached, m0_rconfc
- *   connects the dedicated m0_rconfc::rc_confc to one of the confd servers from
- *   active list.
+ * - m0_rconfc_init() initialises rconfc internals.
  *
- * - m0_rconfc_fini() finalises rconfc instance resulting in finalisation of
- *   the dedicated confc as well as dismantling internal structures served for
- *    proper reaction to outer events from cluster environment.
+ * - m0_rconfc_start() carries out configuration version election. During
+ *   election all known confd servers are polled for a number of version they
+ *   run. The elected version, i.e. the version having the quorum, is used in
+ *   further configuration reading operation. In case quorum is reached,
+ *   m0_rconfc connects the dedicated m0_rconfc::rc_confc to one of the confd
+ *   servers from active list.
  *
- * - m0_rconfc_quorum_is_reached() and m0_rconfc_quorum_is_reached_lock()
- *   provide information whether quorum was successfully reached, or it failed.
+ * - m0_rconfc_start_sync() is synchronous version of m0_rconfc_start().
+ *
+ * - m0_rconfc_stop() disconnects dedicated confc and release other internal
+ *   resources.
+ *
+ * - m0_rconfc_stop_sync() is synchronous version of m0_rconfc_stop().
+ *
+ * - m0_rconfc_fini() finalises rconfc instance.
  *
  * - m0_rconfc_ver_max_read() reports the maximum configuration version number
  *   the confd servers responded with during the most recent version election.
@@ -96,8 +107,9 @@ struct m0_rconfc;
  * transparently for the consumer sufficiently strengthens the reading
  * reliability, and due to this, cluster robustness in whole.
  *
- * In the latter case the consumer initialises m0_rconfc instance instead of
- * m0_confc, and performs all further reading via m0_rconfc::rc_confc.
+ * In the latter case the consumer initialises and starts m0_rconfc instance
+ * instead of m0_confc, and performs all further reading via
+ * m0_rconfc::rc_confc.
  *
  * Example:
  *
@@ -121,6 +133,11 @@ struct m0_rconfc;
  *         rc = m0_rconfc_init(&rconfc, confd-ep-addr,
  *                             res-mgr-addr, grp, profile,
  *                             rpcm, 0, conf_exp_cb, NULL);
+ *         if (rc == 0) {
+ *              rc = m0_rconfc_start_sync(&rconfc);
+ *              if (rc != 0)
+ *                      m0_rconfc_stop_sync(&rconfc);
+ *         }
  *         ...
  * }
  *
@@ -138,9 +155,14 @@ struct m0_rconfc;
  *
  * shutdown(...)
  * {
+ *         m0_rconfc_stop_sync(&rconfc);
  *         m0_rconfc_fini(&rconfc);
  * }
  * @endcode
+ *
+ * For asynchronous rconfc start/stop please see details of @ref
+ * m0_rconfc_start_sync, @ref m0_rconfc_stop_sync implementation or
+ * documentation for @ref m0_rconfc_start, @ref m0_rconfc_stop.
  *
  * @note Consumer is allowed to use any standard approach for opening
  * configuration and traversing directories in accordance with confc
@@ -159,6 +181,19 @@ struct m0_rconfc;
  * @{
  */
 
+enum m0_rconfc_state {
+	RCS_INIT,
+	RCS_FINAL,
+	RCS_STARTING,
+	RCS_GET_RLOCK,
+	RCS_VERSION_ELECT,
+	RCS_IDLE,
+	RCS_RLOCK_CONFLICT,
+	RCS_CONDUCTOR_DRAIN,
+	RCS_STOPPING,
+	RCS_FAILURE,
+};
+
 /**
  * Rconfc expiration callback is called when rconfc election happens. On the
  * event came in the consumer must close all configuration objects currently
@@ -170,8 +205,9 @@ struct m0_rconfc;
  *
  * @note The callback is called as well in the situation when reaching quorum
  * appeared impossible. Consumer is able to find out this particular detail by
- * calling m0_rconfc_quorum_is_reached(). Please notice the use of non-locking
- * version of the API due to rconfc being already in locked state as said above.
+ * checking rconfc->rc_ver against M0_CONF_VER_UNKNOWN.
+ *
+ * @see m0_rconfc_exp_cb_set
  */
 typedef void (*m0_rconfc_exp_cb_t)(struct m0_rconfc *rconfc);
 
@@ -181,6 +217,8 @@ typedef void (*m0_rconfc_exp_cb_t)(struct m0_rconfc *rconfc);
  * respectively drained due to this reason.
  *
  * @note The callback is called from rconfc instance being in locked state.
+ *
+ * @see m0_rconfc_drain_cb_set
  */
 typedef void (*m0_rconfc_drained_cb_t)(struct m0_rconfc *rconfc);
 
@@ -189,7 +227,7 @@ typedef void (*m0_rconfc_drained_cb_t)(struct m0_rconfc *rconfc);
  */
 struct m0_rconfc {
 	/**
-	 * A dedicated confc instance initialised during m0_rconfc_init() in
+	 * A dedicated confc instance initialised during m0_rconfc_start() in
 	 * case the read lock is successfully acquired. Initially connected to a
 	 * confd of the elected version, an element of m0_rconfc::rc_active
 	 * list. Later, it may be reconnected on the fly to another confd server
@@ -203,16 +241,8 @@ struct m0_rconfc {
 	 * for that part.
 	 */
 	struct m0_confc           rc_confc;
-	/**
-	 * Rconfc expiration callback. Installed during m0_rconfc_init(), but is
-	 * allowed to be re-set later if required, on a locked rconfc instance.
-	 */
-	m0_rconfc_exp_cb_t        rc_exp_cb;
-	/**
-	 * Rconfc cache drained callback. Initially unset. Allowed to be
-	 * installed later if required, on a locked rconfc instance.
-	 */
-	m0_rconfc_drained_cb_t    rc_drained_cb;
+	/** Rconfc state machine */
+	struct m0_sm              rc_sm;
 	/**
 	 * Version number the quorum was reached for. Read-only. Value
 	 * M0_CONF_VER_UNKNOWN indicates that the latest version election failed
@@ -227,6 +257,17 @@ struct m0_rconfc {
 
 	/* Private part. Consumer is not welcomed to access the data below. */
 
+	/**
+	 * Rconfc expiration callback. Installed during m0_rconfc_init(), but is
+	 * allowed to be re-set later if required, on a locked rconfc instance.
+	 */
+	m0_rconfc_exp_cb_t        rc_exp_cb;
+	/**
+	 * Rconfc cache drained callback. Initially unset. Allowed to be
+	 * installed later if required, on a locked rconfc instance.
+	 */
+	m0_rconfc_drained_cb_t    rc_drained_cb;
+
 	/** RPC machine the rconfc to work on. */
 	struct m0_rpc_machine    *rc_rmach;
 	/**
@@ -234,54 +275,50 @@ struct m0_rconfc {
 	 * perform configuration reading operations.
 	 */
 	struct m0_confc_gate_ops  rc_gops;
-	/** Channel used to wait on in m0_confc_gate_ops::go_check operation. */
-	struct m0_chan            rc_gate;
-	/** Lock protecting rc_gate. */
-	struct m0_mutex           rc_gate_guard;
-	/** Asynchronous system trap for deferred cache draining. */
-	struct m0_sm_ast          rc_drain_ast;
-	/** Lock protecting rconfc internals during modifications. */
-	struct m0_mutex           rc_lock;
-	/** Group to perform asynchronous operations. */
-	struct m0_sm_group       *rc_sm_group;
+	/** AST to set rconfc SM state. */
+	struct m0_sm_ast          rc_state_ast;
+	/** Data for AST to set SM state (next state or error code). */
+	int                       rc_datum;
+	/** AST to be called on read lock conflict. */
+	struct m0_sm_ast          rc_stop_ast;
 	/** A list of confc instances used during election. */
 	struct m0_tl              rc_herd;
 	/** A list of confd servers running the elected version. */
 	struct m0_tl              rc_active;
-	/** Wait semaphore. Signals when version election ends. */
-	struct m0_semaphore       rc_ver_done;
+	/** Clink to track unpinned conf objects during confc cache drop */
+	struct m0_clink           rc_unpinned_cl;
 	/** Quorum calculation context. */
 	void                     *rc_qctx;
 	/** Read lock context. */
 	void                     *rc_rlock_ctx;
+	/** Indicates whether user requests rconfc stopping. */
+	bool                      rc_stopping;
+	/**
+	 * Indicates whether read lock conflict was observed and
+	 * should be processed once rconfc is idle. */
+	bool                      rc_rlock_conflict;
 };
 
 /**
  * Rconfc client must supply a list of confd addresses the federated conf client
  * to work on.
  *
- * Initialisation starts with election, where allocated confc instances poll
- * corresponding confd for configuration version number they currently run. At
- * the same time confd availability is tested.
- *
- * Election ends when some version has a quorum. At the same time the active
- * list is populated with rconfc_link instances which confc points to confd of
- * the newly elected version.
- *
  * When quorum value Q == 0, the real Q is calculated based on the number of
  * confd_addr elements passed in: Q = Qdefault = Nconfd / 2 + 1;
  *
  * Otherwise, the value is accepted as is, under condition Q >= Qdefault
  *
- * @note Even with unsuccessful initialisation rconfc instance requires for
- * explicit m0_rconfc_fini(). The behavior is to provide an ability to call
- * m0_rconfc_ver_max_read() even after unsuccessful version election.
+ * If initialisation fails, then finalisation is done internally. No explicit
+ * m0_rconfc_fini() is needed.
  *
  * @param rconfc     - rconfc instance
  * @param confd_addr - NULL-terminated array of net addresses of confd servers
  * @param rm_addr    - address of node running Resource Manager to talk to
- * @param sm_group   - state machine group to be used with confc. The group
- *                     is used when posting m0_rconfc::rc_drain_ast as well.
+ * @param sm_group   - state machine group to be used with confc.
+ *                     Opening conf objects later in context of this SM group is
+ *                     prohibited, so providing locality SM group is a
+ *                     bad choice. Use locality0 (@ref m0_locality0_get) or
+ *                     some dedicated SM group.
  * @param rmach      - RPC machine to be used to communicate with confd
  * @param quorum     - the quorum to be reached
  * @param exp_cb     - callback, a "configuration just expired" event
@@ -295,26 +332,53 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 			       m0_rconfc_exp_cb_t     exp_cb);
 
 /**
- * @todo A potential problem here is possible late herd confc responses coming
- * after m0_rconfc_init() already returned. Finalisation in this situation is
- * potentially to cause an issue. Maybe it's worth to signal somehow all replies
- * being gathered and finalise strictly not before.
+ * Rconfc starts with election, where allocated confc instances poll
+ * corresponding confd for configuration version number they currently run. At
+ * the same time confd availability is tested.
+ *
+ * Election ends when some version has a quorum. At the same time the active
+ * list is populated with rconfc_link instances which confc points to confd of
+ * the newly elected version.
+ *
+ * Function is asynchronous, user can wait on rconfc->rc_sm.sm_chan until
+ * rconfc->rc_sm.sm_state in (RCS_IDLE, RCS_FAILURE). RCS_FAILURE state means
+ * that start failed, return code can be obtained from rconfc->rc_sm.sm_rc.
+ *
+ * @note Even with unsuccessful startup rconfc instance requires for
+ * explicit m0_rconfc_stop(). The behavior is to provide an ability to call
+ * m0_rconfc_ver_max_read() even after unsuccessful version election.
+ */
+M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc);
+
+/**
+ * Synchronous version of @ref m0_rconfc_start.
+ */
+M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc);
+
+/**
+ * Finalises dedicated rconfc->rc_rconfc instance and put all resources in use.
+ *
+ * Function is asynchronous, user should wait on rconfc->rc_sm.sm_chan until
+ * rconfc->rc_sm.sm_state is RCS_FINAL.
+ *
+ * @note The user is not allowed to call @ref m0_rconfc_start again on stopped
+ * rconfc instance as well as other API. The only call allowed is @ref
+ * m0_rconfc_fini.
+ */
+M0_INTERNAL void m0_rconfc_stop(struct m0_rconfc *rconfc);
+
+/**
+ * Synchronous version of @ref m0_rconfc_stop.
+ */
+M0_INTERNAL void m0_rconfc_stop_sync(struct m0_rconfc *rconfc);
+
+/**
+ * Finalises rconfc instance.
  */
 M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc);
 
-/**
- * Inquiry regarding if quorum reached to the moment. The call is unprotected
- * with the regular rconfc lock, and therefore is to be called in expiration
- * callback only.
- *
- * @see m0_rconfc_exp_cb_t
- */
-M0_INTERNAL bool m0_rconfc_quorum_is_reached(struct m0_rconfc *rconfc);
-
-/**
- * Inquiry regarding if quorum reached. A locked version.
- */
-M0_INTERNAL bool m0_rconfc_quorum_is_reached_lock(struct m0_rconfc *rconfc);
+M0_INTERNAL void m0_rconfc_lock(struct m0_rconfc *rconfc);
+M0_INTERNAL void m0_rconfc_unlock(struct m0_rconfc *rconfc);
 
 /**
  * Maximum version number the herd confc elements gathered from their confd
@@ -326,32 +390,20 @@ M0_INTERNAL bool m0_rconfc_quorum_is_reached_lock(struct m0_rconfc *rconfc);
 M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc);
 
 /**
- * Helper macro for installing a callback function onto surely locked rconfc
- * instance. Intended to be used with m0_rconfc::rc_exp_cb and
- * m0_rconfc::rc_drained_cb.
+ * Set expiration callback.
  *
- * Example:
- * @code
- * void drained_cb(struct m0_rconfc *rconfc)
- * {
- *     _my_local_conf_data_fini();
- * }
- *
- * start_something(struct m0_rconfc *rconfc)
- * {
- *     M0_RCONFC_CB_SET_LOCK(rconfc, rc_drained_cb, drained_cb);
- * ...
- * }
- * @endcode
- *
- * @note The macro cannot be used in the callbacks themselves because of their
- * execution with already locked rconfc instance.
+ * @pre rconfc is locked.
  */
-#define M0_RCONFC_CB_SET_LOCK(obj_ptr, fn_ptr, cb) \
-	({ typeof((obj_ptr)->fn_ptr) _cb = cb; \
-	m0_mutex_lock(&(obj_ptr)->rc_lock);    \
-	(obj_ptr)->fn_ptr = _cb;               \
-	m0_mutex_unlock(&(obj_ptr)->rc_lock); })
+M0_INTERNAL void m0_rconfc_exp_cb_set(struct m0_rconfc   *rconfc,
+				      m0_rconfc_exp_cb_t  cb);
+
+/**
+ * Set drain callback.
+ *
+ * @pre rconfc is locked.
+ */
+M0_INTERNAL void m0_rconfc_drained_cb_set(struct m0_rconfc       *rconfc,
+					  m0_rconfc_drained_cb_t  cb);
 
 /** @} rconfc_dfspec */
 #endif /* __MERO_CONF_RCONFC_H__ */

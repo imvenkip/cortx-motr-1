@@ -240,8 +240,8 @@ struct m0_spiel {
  * @note The call implies automatic quorum value calculation as well as no
  * expiration callback installed during spiel start. For more specific start
  * conditioning see m0_spiel_start_quorum(). On the other hand, the expiration
- * callback may be installed after successful start any time later by means of
- * M0_RCONFC_CB_SET_LOCK() macro.
+ * callback may be installed after successful start any time later by
+ * m0_rconfc_exp_cb_set().
  */
 int m0_spiel_start(struct m0_spiel    *spiel,
 		   struct m0_reqh     *reqh,

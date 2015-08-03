@@ -499,7 +499,6 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 		m0_confc_bob_init(confc);
 		m0_mutex_init(&confc->cc_unatt_guard);
 		m0_chan_init(&confc->cc_unattached, &confc->cc_unatt_guard);
-		m0_clink_init(&confc->cc_check, NULL);
 		confc->cc_gops = NULL;
 		m0_clink_init(&confc->cc_drain, NULL);
 
@@ -524,7 +523,6 @@ M0_INTERNAL void m0_confc_fini(struct m0_confc *confc)
 		m0_clink_del(&confc->cc_drain);
 		m0_clink_fini(&confc->cc_drain);
 	}
-	m0_clink_fini(&confc->cc_check);
 	m0_chan_fini_lock(&confc->cc_unattached);
 	m0_mutex_fini(&confc->cc_unatt_guard);
 	confc->cc_gops = NULL;
@@ -577,6 +575,7 @@ static bool request_check(const struct m0_confc_ctx *ctx);
 static bool eop(const struct m0_fid *buf);
 static void confc_group_lock(const struct m0_confc *confc);
 static void confc_group_unlock(const struct m0_confc *confc);
+static bool confc_group_is_locked(const struct m0_confc *confc);
 
 M0_INTERNAL void
 m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
@@ -604,16 +603,17 @@ m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx)
+M0_INTERNAL void m0_confc_ctx_fini_locked(struct m0_confc_ctx *ctx)
 {
 	struct m0_confc *confc = ctx->fc_confc;
 
 	M0_ENTRY("ctx=%p", ctx);
 	M0_PRE(ctx_invariant(ctx));
+	M0_PRE(confc_group_is_locked(confc));
 
 	m0_clink_fini(&ctx->fc_clink);
 	ctx->fc_origin = NULL;
-	confc_group_lock(confc); /* needed for m0_sm_fini() */
+
 	confc_lock(confc);
 	if (ctx->fc_mach.sm_state == S_TERMINAL && ctx->fc_result != NULL)
 		m0_conf_obj_put(ctx->fc_result);
@@ -623,7 +623,6 @@ M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx)
 	confc_unlock(confc);
 
 	m0_sm_fini(&ctx->fc_mach);
-	confc_group_unlock(confc);
 
 	if (ctx->fc_rpc_item != NULL) {
 		m0_rpc_item_put_lock(ctx->fc_rpc_item);
@@ -633,6 +632,17 @@ M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx)
 	m0_confc_ctx_bob_fini(ctx);
 	ctx->fc_confc = NULL;
 
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx)
+{
+	struct m0_confc *confc = ctx->fc_confc;
+
+	M0_ENTRY();
+	confc_group_lock(confc); /* needed for m0_sm_fini() */
+	m0_confc_ctx_fini_locked(ctx);
+	confc_group_unlock(confc);
 	M0_LEAVE();
 }
 
@@ -1125,12 +1135,10 @@ static void on_replied(struct m0_rpc_item *item)
 		 * it is, try to switch to other confd running the same version.
 		 */
 		if (ctx->fc_confc->cc_gops != NULL &&
-		    ctx->fc_confc->cc_gops->go_skip != NULL) {
-			m0_rpc_item_get(reply);
+		    ctx->fc_confc->cc_gops->go_skip != NULL)
 			ast_state_set(&ctx->fc_ast, S_SKIP_CONFD);
-		} else {
+		else
 			ast_fail(&ctx->fc_ast, rc);
-		}
 	}
 	M0_LEAVE();
 }

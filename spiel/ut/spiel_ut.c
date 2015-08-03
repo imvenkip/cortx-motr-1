@@ -47,8 +47,6 @@ static void spiel_start_stop(void)
 	rc = m0_spiel_cmd_profile_set(&spiel, profile);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_UT_ASSERT(m0_rconfc_quorum_is_reached_lock(&spiel.spl_rconfc));
-
 	m0_spiel_stop(&spiel);
 }
 

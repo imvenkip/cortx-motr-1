@@ -549,12 +549,6 @@ struct m0_confc {
 	struct m0_confc_gate_ops *cc_gops;
 
 	/**
-	 * The link to fire m0_confc_gate_ops::go_check() event.
-	 * @see m0_rconfc::rc_gate
-	 */
-	struct m0_clink           cc_check;
-
-	/**
 	 * The link to fire m0_confc_gate_ops::go_drain() event on. Added to
 	 * m0_confc::cc_unattached channel explicitly by calling
 	 * m0_confc_gate_ops_set().
@@ -727,6 +721,12 @@ M0_INTERNAL void m0_confc_ctx_init(struct m0_confc_ctx *ctx,
 				   struct m0_confc *confc);
 
 M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx);
+
+/**
+ * Same as m0_confc_ctx_fini, but doesn't take sm group lock internally.
+ * Lock is needed to finalise ctx->fc_mach.
+ */
+M0_INTERNAL void m0_confc_ctx_fini_locked(struct m0_confc_ctx *ctx);
 
 /**
  * Lets rconfc to switch to another confd address on the fly without touching

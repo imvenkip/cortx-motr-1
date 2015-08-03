@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Igor Vartanov
+ * Original author: Egor Nikulenkov
  * Original creation date: 03-Mar-2015
  */
 
@@ -35,6 +36,7 @@
 #include "rm/rm_rwlock.h"
 #include "rpc/rpclib.h"    /* m0_rpc_client_connect */
 #include "conf/cache.h"
+#include "conf/obj_ops.h"  /* m0_conf_obj_find */
 #include "conf/confc.h"
 #include "conf/rconfc.h"
 #include "conf/rconfc_internal.h"
@@ -42,8 +44,10 @@
 /**
  * @page rconfc-lspec rconfc Internals
  *
- * - @ref rconfc-lspec-elect
+ * - @ref rconfc-lspec-sm
  * - @ref rconfc-lspec-rlock
+ * - @ref rconfc-lspec-elect
+ * - @ref rconfc-lspec-confc
  * - @ref rconfc-lspec-gate
  *   - @ref rconfc-lspec-gate-check
  *   - @ref rconfc-lspec-gate-drain
@@ -51,31 +55,82 @@
  * - @ref rconfc_dlspec "Detailed Logical Specification"
  *
  * <hr> <!------------------------------------------------------------>
+ * @section rconfc-lspec-sm Rconfc state machine
+ *
+ * @dot
+ *  digraph rconfc_sm {
+ *      node [fontsize=9];
+ *      edge [fontsize=9];
+ *      "RCS_INIT"              [shape=rect, style=filled, fillcolor=lightgrey];
+ *      "RCS_STARTING"          [shape=rect, style=filled, fillcolor=lightgrey];
+ *      "RCS_GET_RLOCK"         [shape=rect, style=filled, fillcolor=green];
+ *      "RCS_VERSION_ELECT"     [shape=rect, style=filled, fillcolor=green];
+ *      "RCS_IDLE"              [shape=rect, style=filled, fillcolor=cyan];
+ *      "RCS_RLOCK_CONFLICT"    [shape=rect, style=filled, fillcolor=pink];
+ *      "RCS_CONDUCTOR_DRAIN"   [shape=rect, style=filled, fillcolor=pink];
+ *      "RCS_STOPPING"          [shape=rect, style=filled, fillcolor=dimgray];
+ *      "RCS_FAILURE"           [shape=rect, style=filled, fillcolor=tomato];
+ *      "RCS_FINAL"             [shape=rect, style=filled, fillcolor=red];
+ *
+ *      "RCS_INIT" -> "RCS_STARTING"
+ *      "RCS_STARTING" -> "RCS_GET_RLOCK"
+ *      "RCS_STARTING" -> "RCS_FAILURE"
+ *      "RCS_GET_RLOCK" -> "RCS_VERSION_ELECT"
+ *      "RCS_GET_RLOCK" -> "RCS_FAILURE"
+ *      "RCS_VERSION_ELECT" -> "RCS_IDLE"
+ *      "RCS_VERSION_ELECT" -> "RCS_FAILURE"
+ *      "RCS_IDLE" -> "RCS_RLOCK_CONFLICT"
+ *      "RCS_IDLE" -> "RCS_STOPPING"
+ *      "RCS_RLOCK_CONFLICT" -> "RCS_CONDUCTOR_DRAIN"
+ *      "RCS_CONDUCTOR_DRAIN" -> "RCS_GET_RLOCK"
+ *      "RCS_CONDUCTOR_DRAIN" -> "RCS_FAILURE"
+ *      "RCS_STOPPING" -> "RCS_FINAL"
+ *      "RCS_FAILURE" -> "RCS_STOPPING"
+ *  }
+ * @enddot
+ *
+ * Color agenda:                                          @n
+ * @b light @b grey - Initialisation and startup states   @n
+ * @b green         - States during startup or reelection @n
+ * @b pink          - Reelection-only states              @n
+ * @b dark @b grey  - Stopping states                     @n
+ *
+ * After successful start rconfc is in RCS_IDLE state, waiting for one of two
+ * events: read lock conflict or user request for stopping. These two events
+ * are handled only when rconfc is in RCS_IDLE state. If rconfc was in other
+ * state, then a fact of the happened event is stored, but its handling is
+ * delayed until rconfc state is RCS_IDLE.
+ *
+ * If failure is occured that prevents rconfc from functioning properly, then
+ * rconfc goes to RCS_FAILURE state. SM in this state do nothing until user
+ * requests for stopping.
+ *
+ * Rconfc internal state is protected by SM group lock. SM group is provided by
+ * user on rconfc initialisation.
+ *
+ * <hr> <!------------------------------------------------------------>
  * @section rconfc-lspec-rlock Read Lock Acquisition and Revocation
  *
- * During m0_rconfc_init() execution after rconfc internal structures are
- * successfully allocated, m0_rconfc_init() continues execution requesting read
- * lock from Resource Manager (RM) by calling rconfc_read_lock_wait(). On
- * request completion rconfc_read_lock_complete() is called. Successful lock
- * acquisition indicates no configuration change is in progress and
- * configuration reading is allowed.
+ * During m0_rconfc_start() execution rconfc requesting read lock from Resource
+ * Manager (RM) by calling read_lock_get_st_in(). On request completion
+ * rconfc_read_lock_complete() is called. Successful lock acquisition indicates
+ * no configuration change is in progress and configuration reading is allowed.
  *
  * The read lock is retained by rconfc instance until finalisation. But the lock
  * can be revoked by RM in case a conflicting lock is requested. On the lock
  * revocation rconfc_read_lock_conflict() is called. The call installs
  * m0_confc_gate_ops::go_drain() callback to be notified when the last reading
  * context is detached from m0_rconfc::rc_confc instance. The callback ends in
- * calling rconfc_gate_drain() where m0_rconfc::rc_drain_ast is queued. The AST
- * executes rconfc_ast_drain(), where rconfc eventually puts the read lock back
- * to RM.
+ * calling rconfc_gate_drain() where rconfc starts conductor cache drain.
+ * In conductor_drained_st_in() rconfc eventually puts the read lock back to RM.
  *
  * Being informed about the conflict, rconfc disallows configuration reading
- * done via m0_rconfc::rc_confc until the next read lock acquisition. Besides,
- * in rconfc_ast_drain() the mentioned confc's cache is drained to prevent
- * consumer from reading cached-but-outdated configuration values. However, the
- * cache data remains untouched and readable to the very moment when there is no
- * cache object pinned anymore, and the last reading context detaches from the
- * confc being in use.
+ * done via m0_rconfc::rc_confc until the next read lock acquisition is
+ * complete. Besides, in conductor_drain_check_st_in() the mentioned confc's
+ * cache is drained to prevent consumer from reading cached-but-outdated
+ * configuration values. However, the cache data remains untouched and readable
+ * to the very moment when there is no cache object pinned anymore, and the last
+ * reading context detaches from the confc being in use.
  *
  * When done with the cache, m0_rconfc::rc_confc is disconnected from confd
  * server to prevent unauthorized read operations. Then the conflicting lock is
@@ -88,26 +143,24 @@
  * @section rconfc-lspec-elect Version Election and Quorum
  *
  * In the course of rconfc_read_lock_complete() under condition of successful
- * read lock acquisition rconfc_version_elect() is called. The call initialises
+ * read lock acquisition version_elect_st_in() is called. The call initialises
  * every confc instance of the m0_rconfc::rc_herd list, attaches
  * rconfc__cb_quorum_test() to its context and initiates asynchronous reading
- * from the corresponding confd server. Then rconfc_version_elect() is put in
- * waiting on m0_rconfc::rc_ver_done semaphore until version quorum is either
- * reached or found impossible.
+ * from the corresponding confd server. When version quorum is either
+ * reached or found impossible rconfc_version_elected() is called.
  *
  * On every reading event rconfc__cb_quorum_test() is called. In case the
  * reading context is not completed, the function returns zero value indicating
  * the process to go on. Otherwise rconfc_quorum_test() is called to see if
  * quorum is reached with the last reply. If quorum is reached or impossible,
- * the m0_rconfc::rc_ver_done semaphore is signaled letting
- * rconfc_version_elect() wake up and return.
+ * then rconfc_version_elected() is called.
  *
  * Quorum is considered reached when the number of confd servers reported the
  * same version number is greater or equal to the value provided to
  * m0_rconfc_init(). In case zero value was provided, the required quorum number
  * is automatically calculated as a half of confd server count plus one.
  *
- * When quorum reached, rconfc_conductor_engage() is called connecting
+ * When quorum is reached, rconfc_conductor_engage() is called connecting
  * m0_rconfc::rc_confc with a confd server from active list. Starting from this
  * moment configuration reading is allowed until read lock is revoked.
  *
@@ -130,7 +183,7 @@
  *
 
    @msc
-   wordwraparcs="1", hscale="1.5";
+   wordwraparcs="1", hscale="2.0";
    rm[ label = RM ],
    rc[ label = rconfc, linecolor="#0000ff", textcolor="#0000ff" ],
    c [ label = "rconfc->rc_confc", linecolor="#0000ff", textcolor="#0000ff" ],
@@ -140,17 +193,20 @@
    ||| ;
    rm note rm [ label = "grant read lock", textcolor="#00aa00" ];
    rm=>>rc [ label = "rconfc_read_lock_complete(rc = 0)", textcolor="#00aa00"];
-   rc=>rc  [ label = "rconfc_version_elect" ];
+   rc=>rc  [ label = "state = RCS_VERSION_ELECT" ];
+   ---     [ label = "waiting until version is elected", linecolor="#0000ff",
+   textcolor="#0000ff"];
    rc=>rc  [ label = "rconfc_conductor_engage" ];
+   rc=>rc  [ label = "state = RCS_IDLE" ];
    rc note rc [ label = "reading allowed = true" ];
    ... ;
    m=>x   [ label = "m0_confc_ctx_init"];
    x=>c   [ label = "get .go_check"];
    x<<c   [ label = ".go_check"];
    ---    [ label = "if (.go_check != NULL)" ];
-   x=>>rc [ label = "rconfc_gate_check"];
+   x=>>rc [ label = "rconfc_gate_check" ];
    rc>>x  [ label = "allowed = true" ];
-   ---    [ label = "else // reading allowed by default"];
+   ---    [ label = "else // reading allowed by default" ];
    x note x [ label = "fc_allowed = true" ];
    x>>m   [ label = "return from init" ];
    m=>x   [ label = "m0_confc_open_sync(...)" ];
@@ -166,9 +222,8 @@
  * </center><br/>
 
    @msc
-   wordwraparcs="1", hscale="1.5";
+   wordwraparcs="1", hscale="2.0";
    rm[ label = RM ],
-   at[ label = AST_thread ],
    rc[ label = rconfc, linecolor="#0000ff", textcolor="#0000ff" ],
    c [ label = "rconfc->rc_confc", linecolor="#0000ff", textcolor="#0000ff" ],
    x [ label = confc_ctx ],
@@ -181,28 +236,29 @@
    rc=>rc  [ label = ".go_drain = rconfc_gate_drain" ];
    x<=m    [ label = "m0_confc_ctx_fini" ];
    rc<<=x  [ label = "rconfc_gate_drain" ];
-   at<<=rc [ label = "post rconfc_ast_drain" ];
-   at=>at  [ label = "_confc_cache_drain" ];
-   at=>c   [ label = "m0_confc_reconnect(NULL)" ];
-   at=>>rm [ label = "rconfc_read_lock_put" ];
-   at=>>rm [ label = "rconfc_read_lock_get" ];
+   rc=>rc  [ label = "wait till all conf objects unpinned" ];
+   rc=>c   [ label = "m0_confc_reconnect(NULL)" ];
+   rm<=rc  [ label = "rconfc_read_lock_put" ];
+   rm<=rc  [ label = "get read lock" ];
+   rc=>rc  [ label = "state = RCS_GET_RLOCK" ];
    ... ;
    m=>x   [ label = "m0_confc_ctx_init"];
    x=>c   [ label = "get .go_check"];
    x<<c   [ label = ".go_check"];
    ---    [ label = "if (.go_check != NULL)" ];
    x=>>rc [ label = "rconfc_gate_check"];
-   rc=>rc [ label = "add m0_confc::cc_check clink to m0_rconfc::rc_gate chan" ];
-   rc=>rc [ label = "wait on m0_rconfc::rc_gate channel" ];
+   rc=>rc [ label = "wait until rconfc in (RCS_IDLE, RCS_FAILURE)" ];
    ---    [ label = "waiting in rconfc_gate_check", linecolor="#0000ff",
    textcolor="#0000ff"];
    ... ;
    rm note rm [ label = "grant read lock", textcolor="#00aa00" ];
    rm=>>rc [ label = "rconfc_read_lock_complete(rc = 0)", textcolor="#00aa00"];
-   rc=>rc  [ label = "rconfc_version_elect" ];
+   rc=>rc  [ label = "state = RCS_VERSION_ELECT" ];
+   ---     [ label = "waiting until version is elected", linecolor="#00aa00",
+   textcolor="#00aa00"];
    rc=>rc  [ label = "rconfc_conductor_engage" ];
+   rc=>rc  [ label = "state = RCS_IDLE" ];
    rc note rc [ label = "reading allowed = true" ];
-   rc=>rc [ label = "broadcast on m0_rconfc::rc_gate" ];
    ---    [ label = "waking up in rconfc_gate_check", linecolor="#0000ff",
    textcolor="#0000ff"];
    rc>>x  [ label = "reading allowed = true" ];
@@ -221,9 +277,8 @@
  * </center><br/>
 
    @msc
-   wordwraparcs="1", hscale="1.5";
+   wordwraparcs="1", hscale="2.0";
    rm[ label = RM ],
-   at[ label = AST_thread ],
    rc[ label = rconfc, linecolor="#0000ff", textcolor="#0000ff" ],
    c [ label = "rconfc->rc_confc", linecolor="#0000ff", textcolor="#0000ff" ],
    x [ label = confc_ctx ],
@@ -233,29 +288,28 @@
    rm note rm [ label = "revoke read lock", textcolor="#cc0000" ];
    rm=>>rc [ label = "rconfc_read_lock_conflict", textcolor="#cc0000"];
    rc note rc [ label = "reading allowed = false" ];
-   rc=>rc  [ label = ".go_drain = rconfc_gate_drain" ];
-   x<=m    [ label = "m0_confc_ctx_fini" ];
-   rc<<=x  [ label = "rconfc_gate_drain" ];
-   at<<=rc [ label = "post rconfc_ast_drain" ];
-   at=>at  [ label = "_confc_cache_drain" ];
-   at=>c   [ label = "m0_confc_reconnect(NULL)" ];
-   at=>>rm [ label = "rconfc_read_lock_put" ];
-   at=>>rm [ label = "rconfc_read_lock_get" ];
+   rc=>rc [ label = ".go_drain = rconfc_gate_drain" ];
+   x<=m   [ label = "m0_confc_ctx_fini" ];
+   rc<<=x [ label = "rconfc_gate_drain" ];
+   rc=>rc [ label = "drain cache" ];
+   rc=>c  [ label = "m0_confc_reconnect(NULL)" ];
+   rm<=rc [ label = "rconfc_read_lock_put" ];
+   rm<=rc [ label = "get read lock" ];
+   rc=>rc [ label = "state = RCS_GET_RLOCK" ];
    ... ;
    m=>x   [ label = "m0_confc_ctx_init"];
    x=>c   [ label = "get .go_check"];
    x<<c   [ label = ".go_check"];
    ---    [ label = "if (.go_check != NULL)" ];
    x=>>rc [ label = "rconfc_gate_check"];
-   rc=>rc [ label = "add m0_confc::cc_check clink to m0_rconfc::rc_gate chan" ];
-   rc=>rc [ label = "wait on m0_rconfc::rc_gate channel" ];
+   rc=>rc [ label = "wait until rconfc in (RCS_IDLE, RCS_FAILURE)" ];
    ---    [ label = "waiting in rconfc_gate_check", linecolor="#0000ff",
    textcolor="#0000ff"];
    ... ;
    rm note rc [ label = "communication failed", textcolor="#cc0000" ];
    rm=>>rc [ label = "rconfc_read_lock_complete(rc != 0)", textcolor="#cc0000"];
+   rc=>rc  [ label = "state = RCS_FAILURE"];
    rc note rc [ label = "reading allowed = false" ];
-   rc=>rc [ label = "broadcast on m0_rconfc::rc_gate" ];
    ---    [ label = "waking up in rconfc_gate_check", linecolor="#0000ff",
    textcolor="#0000ff"];
    rc>>x  [ label = "reading allowed = false" ];
@@ -270,7 +324,8 @@
    @endmsc
 
  * <br/><center>
- * @b Diag.3: @b "Reading remains disallowed because of RM communication failure"
+ * @b Diag.3: @b "Reading remains disallowed because of
+ *                RM communication failure"
  * </center><br/>
  *
  * @subsection rconfc-lspec-gate-drain Cleaning confc cache data
@@ -282,15 +337,15 @@
  * m0_confc_ctx_fini() anyhow. But with the callback set up, at the moment of
  * the very last detach m0_confc_ctx_fini() calls m0_confc::cc_gops::go_drain()
  * callback, that in fact is rconfc_gate_drain(), where cache cleanup is finally
- * invoked by posting m0_rconfc::rc_drain_ast. The AST internally calls
- * _confc_cache_drop() where cache is waited for having all objects unpinned,
- * and only then it gets emptied.
+ * invoked by setting RCS_CONDUCTOR_DRAIN state. Rconfc SM remains in
+ * RCS_CONDUCTOR_DRAIN_CHECK state until all conf objects are unpinned. Once
+ * there are no pinned objects, rconfc cleans cache, put read lock and starts
+ * reelection process.
  *
 
    @msc
-   wordwraparcs="1", hscale="1.5";
+   wordwraparcs="1", hscale="2.0";
    rm[ label = RM ],
-   at[ label = AST_thread ],
    rc[ label = rconfc, linecolor="#0000ff", textcolor="#0000ff" ],
    c [ label = "rconfc->rc_confc", linecolor="#0000ff", textcolor="#0000ff" ],
    h [ label = confc_cache ],
@@ -304,9 +359,8 @@
    rc<<c   [ label = " number of contexts attached" ];
    ---     [ label = " if no context attached ", linecolor="#0000ff",
    textcolor="#0000ff" ];
-   rc=>>rc [ label = "rconfc_gate_drain" ];
-   at<-rc  [ label = "post m0_rconfc::rc_drain_ast", linecolor="#0000ff",
-   textcolor="#0000ff" ];
+   rc=>rc  [ label = "rconfc_gate_drain" ];
+   rc=>rc  [ label = "state = RCS_CONDUCTOR_DRAIN" ];
    ---     [ label = " else if any context(s) attached ", linecolor="#0000ff",
    textcolor="#0000ff" ];
    rc=>rc  [ label = " .go_drain = rconfc_gate_drain" ];
@@ -318,25 +372,22 @@
    c>>x    [ label = " .go_drain " ];
    rc<<=x  [ label = "rconfc_gate_drain" ];
    rc=>rc  [ label = " .go_drain = NULL" ];
-   at<-rc  [ label = "post m0_rconfc::rc_drain_ast", linecolor="#0000ff",
-   textcolor="#0000ff" ];
    rc>>x   [ label = "return" ];
-   at->at  [ label = "rconfc_ast_drain ==> _confc_cache_drop" ];
-   ---     [ label = " loop until no pinned object remains ", linecolor="#00aaaa",
-   textcolor="#00aaaa" ];
-   at=>h   [ label = "find first pinned object" ];
-   h>>at   [ label = "return m0_conf_obj" ];
-   at=>at  [ label = "wait for object closure" ];
-   ---     [ label = "waiting in _confc_cache_drop" ];
+   rc=>rc  [ label = "state = RCS_CONDUCTOR_DRAIN" ];
+   ---     [ label = " loop until no pinned object remains ",
+   linecolor="#00aaaa", textcolor="#00aaaa" ];
+   rc=>h   [ label = "find first pinned object" ];
+   h>>rc   [ label = "return m0_conf_obj" ];
+   rc=>rc  [ label = "wait for object closure" ];
    ... ;
    m=>h    [ label = "m0_confc_close(waited conf object)" ];
-   h->at   [ label = "broadcast obj->co_chan" ];
+   h->rc   [ label = "broadcast obj->co_chan" ];
    h>>m    [ label = "return" ];
-   ---     [ label = " wake up in _confc_cache_drop and loop back to finding a
+   ---     [ label = "set RCS_CONDUCTOR_DRAIN and search for a
    pinned object ", linecolor="#00aaaa", textcolor="#00aaaa" ];
-   at=>h   [ label = "m0_conf_cache_empty" ];
+   rc=>h   [ label = "m0_conf_cache_clean" ];
    h=>h    [ label = "delete all cached objects" ];
-   h>>at   [ label = "return" ];
+   h>>rc   [ label = "return" ];
    ... ;
    ||| ;
 
@@ -389,6 +440,57 @@ static void rconfc_read_lock_conflict(struct m0_rm_incoming *in);
 struct m0_rm_incoming_ops m0_rconfc_ri_ops = {
 	.rio_complete = rconfc_read_lock_complete,
 	.rio_conflict = rconfc_read_lock_conflict,
+};
+
+static struct m0_sm_state_descr rconfc_states[] = {
+	[RCS_INIT] = {
+		.sd_flags     = M0_SDF_INITIAL,
+		.sd_name      = "RCS_INIT",
+		.sd_allowed   = M0_BITS(RCS_STARTING)
+	},
+	[RCS_STARTING] = {
+		.sd_name      = "RCS_STARTING",
+		.sd_allowed   = M0_BITS(RCS_GET_RLOCK, RCS_FAILURE),
+	},
+	[RCS_GET_RLOCK] = {
+		.sd_name      = "RCS_GET_RLOCK",
+		.sd_allowed   = M0_BITS(RCS_VERSION_ELECT, RCS_FAILURE),
+	},
+	[RCS_VERSION_ELECT] = {
+		.sd_name      = "RCS_VERSION_ELECT",
+		.sd_allowed   = M0_BITS(RCS_IDLE, RCS_FAILURE),
+	},
+	[RCS_IDLE] = {
+		.sd_name      = "RCS_IDLE",
+		.sd_allowed   = M0_BITS(RCS_STOPPING, RCS_RLOCK_CONFLICT),
+	},
+	[RCS_RLOCK_CONFLICT] = {
+		.sd_name      = "RCS_RLOCK_CONFLICT",
+		.sd_allowed   = M0_BITS(RCS_CONDUCTOR_DRAIN),
+	},
+	[RCS_CONDUCTOR_DRAIN] = {
+		.sd_name      = "RCS_CONDUCTOR_DRAIN",
+		.sd_allowed   = M0_BITS(RCS_GET_RLOCK, RCS_FAILURE),
+	},
+	[RCS_STOPPING] = {
+		.sd_name      = "RCS_STOPPING",
+		.sd_allowed   = M0_BITS(RCS_FINAL),
+	},
+	[RCS_FAILURE] = {
+		.sd_flags     = M0_SDF_FAILURE,
+		.sd_name      = "RCS_FAILURE",
+		.sd_allowed   = M0_BITS(RCS_STOPPING)
+	},
+	[RCS_FINAL] = {
+		.sd_flags     = M0_SDF_TERMINAL,
+		.sd_name      = "RCS_FINAL"
+	}
+};
+
+static const struct m0_sm_conf rconfc_sm_conf = {
+	.scf_name      = "Rconfc",
+	.scf_nr_states = ARRAY_SIZE(rconfc_states),
+	.scf_state     = rconfc_states
 };
 
 /***************************************
@@ -463,9 +565,6 @@ static int rlock_ctx_init(struct rlock_ctx      *rlx,
 			  struct m0_rpc_machine *rmach,
 			  const char            *rm_addr)
 {
-	struct m0_rm_owner  *owner;
-	struct m0_rm_remote *creditor;
-
 	M0_ENTRY();
 	M0_PRE(rlx != NULL);
 	M0_PRE(rmach != NULL);
@@ -477,6 +576,15 @@ static int rlock_ctx_init(struct rlock_ctx      *rlx,
 	rlx->rlc_rm_addr = m0_strdup(rm_addr);
 	if (rlx->rlc_rm_addr == NULL)
 		return M0_ERR(-ENOMEM);
+
+	return M0_RC(0);
+}
+
+static void rlock_ctx_owner_setup(struct rlock_ctx *rlx)
+{
+	struct m0_rm_owner  *owner;
+	struct m0_rm_remote *creditor;
+
 	m0_rw_lockable_init(&rlx->rlc_rwlock, &M0_RWLOCK_FID,
 			    m0_rwlockable_domain());
 	owner            = &rlx->rlc_owner;
@@ -488,38 +596,28 @@ static int rlock_ctx_init(struct rlock_ctx      *rlx,
 	creditor->rem_session = &rlx->rlc_sess;
 	creditor->rem_cookie  = M0_COOKIE_NULL;
 	owner->ro_creditor    = creditor;
-	m0_semaphore_init(&rlx->rlc_completion, 0);
+}
 
-	return M0_RC(rlock_ctx_connect(rlx));
+static void rlock_ctx_owner_windup(struct rlock_ctx *rlx)
+{
+	int rc;
+
+	if (rlx->rlc_creditor.rem_session != NULL) {
+		m0_rm_owner_windup(&rlx->rlc_owner);
+		rc = m0_rm_owner_timedwait(&rlx->rlc_owner,
+					   M0_BITS(ROS_FINAL, ROS_INSOLVENT),
+					   M0_TIME_NEVER);
+		M0_ASSERT(rc == 0);
+		m0_rm_remote_fini(&rlx->rlc_creditor);
+		m0_rm_rwlock_owner_fini(&rlx->rlc_owner);
+		m0_rw_lockable_fini(&rlx->rlc_rwlock);
+	}
 }
 
 static void rlock_ctx_fini(struct rlock_ctx *rlx)
 {
-	int rc;
-
-	m0_rm_owner_windup(&rlx->rlc_owner);
-	rc = m0_rm_owner_timedwait(&rlx->rlc_owner,
-				   M0_BITS(ROS_FINAL, ROS_INSOLVENT),
-				   M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
-	m0_rm_remote_fini(&rlx->rlc_creditor);
-	m0_rm_rwlock_owner_fini(&rlx->rlc_owner);
-	if (rlx->rlc_online)
-		rlock_ctx_disconnect(rlx);
 	m0_free0(&rlx->rlc_rm_addr);
-	m0_rw_lockable_fini(&rlx->rlc_rwlock);
-	m0_semaphore_fini(&rlx->rlc_completion);
 	M0_SET0(rlx);
-}
-
-static void rlock_ctx_reading_set(struct rlock_ctx *rlx, bool allowed)
-{
-	rlx->rlc_allowed = allowed;
-}
-
-static bool rlock_ctx_reading_is_allowed(const struct rlock_ctx *rlx)
-{
-	return rlx->rlc_allowed;
 }
 
 /* -------------- Quorum calculation context ----------------- */
@@ -554,36 +652,27 @@ static const char *_confc_remote_addr_read(const struct m0_confc *confc)
 		m0_rpc_conn_addr(&confc->cc_rpc_conn) : NULL;
 }
 
-/**
- * Waits for cache objects being entirely unpinned. This is done by just waiting
- * on a first pinned object met in cache. When the one appears unpinned, the
- * checking for other objects is repeated until no more pinned object
- * remains. Finally makes the cache empty.
- */
-static void _confc_cache_drop(struct m0_confc *confc)
-{
-	struct m0_conf_obj *obj;
-	struct m0_clink     clink;
-
-	M0_ENTRY();
-	m0_clink_init(&clink, NULL);
-	m0_conf_cache_lock(&confc->cc_cache);
-	while ((obj = m0_conf_cache_pinned(&confc->cc_cache)) != NULL) {
-		m0_clink_add(&obj->co_chan, &clink);
-		m0_conf_cache_unlock(&confc->cc_cache);
-		m0_chan_wait(&clink);
-		m0_conf_cache_lock(&confc->cc_cache);
-		m0_clink_del(&clink);
-	}
-	m0_clink_fini(&clink);
-	m0_conf_cache_clean(&confc->cc_cache);
-	m0_conf_cache_unlock(&confc->cc_cache);
-	M0_LEAVE();
-}
-
 static bool _confc_is_inited(struct m0_confc *confc)
 {
 	return confc->cc_group != NULL;
+}
+
+static int _confc_cache_clean(struct m0_confc *confc)
+{
+	struct m0_conf_cache *cache = &confc->cc_cache;
+
+	M0_ENTRY();
+	m0_conf_cache_clean(cache);
+	/* Clear version to prevent version mismatch error after reelection */
+	cache->ca_ver = M0_CONF_VER_UNKNOWN;
+	/**
+	 * @todo Confc root pointer is not valid anymore after cache cleanup, so
+	 * it should be reinitialised. The easiest way would be to reinitialise
+	 * confc completely, but user can create confc contexts during
+	 * reelection, so let's reinitialise root object the hackish way.
+	 */
+	return M0_RC(m0_conf_obj_find(cache, &M0_CONF_ROOT_FID,
+				      &confc->cc_root));
 }
 
 /* -------------- Rconfc Helpers -------------- */
@@ -614,25 +703,89 @@ static bool rconfc_confd_are_all_unique(const char **confd_addr)
 					     confd_addr[j])));
 }
 
-static void rconfc_lock(struct m0_rconfc *rconfc)
+/***************************************
+ * Rconfc private part
+ ***************************************/
+
+static bool rconfc_is_locked(struct m0_rconfc *rconfc)
 {
-	m0_mutex_lock(&rconfc->rc_lock);
+	return m0_sm_group_is_locked(rconfc->rc_sm.sm_grp);
 }
 
-static void rconfc_unlock(struct m0_rconfc *rconfc)
+/** Read Lock cancellation */
+static void rconfc_read_lock_put(struct m0_rconfc *rconfc)
 {
-	m0_mutex_unlock(&rconfc->rc_lock);
+	struct rlock_ctx *rlx;
+
+	M0_ENTRY("rconfc = %p", rconfc);
+	rlx = rconfc->rc_rlock_ctx;
+	if (!M0_IS0(&rlx->rlc_req)) {
+	    if (!M0_IN(rlx->rlc_req.rin_sm.sm_state,
+		       (RI_INITIALISED, RI_FAILURE, RI_RELEASED)))
+			m0_rm_credit_put(&rlx->rlc_req);
+		m0_rm_rwlock_req_fini(&rlx->rlc_req);
+	}
+	M0_SET0(&rlx->rlc_req);
+	M0_LEAVE();
+}
+
+static void rconfc_ast_post(struct m0_rconfc  *rconfc,
+			    void             (*cb)(struct m0_sm_group *,
+				                   struct m0_sm_ast *))
+{
+	struct m0_sm_ast *ast = &rconfc->rc_state_ast;
+
+	ast->sa_cb = cb;
+	ast->sa_datum = rconfc;
+	m0_sm_ast_post(rconfc->rc_sm.sm_grp, ast);
+}
+
+static void rconfc_state_set(struct m0_rconfc *rconfc, int state)
+{
+        M0_LOG(M0_DEBUG, "rconfc: %p, state change:[%s -> %s]",
+	       rconfc, m0_sm_state_name(&rconfc->rc_sm, rconfc->rc_sm.sm_state),
+	       m0_sm_state_name(&rconfc->rc_sm, state));
+
+	m0_sm_state_set(&rconfc->rc_sm, state);
+}
+
+static void rconfc_fail(struct m0_rconfc *rconfc, int rc)
+{
+        M0_LOG(M0_ERROR, "rconfc: %p, state %s failed with %d", rconfc,
+	       m0_sm_state_name(&rconfc->rc_sm, rconfc->rc_sm.sm_state), rc);
+	/*
+	 * Put read lock on failure, because this rconfc can prevent remote
+	 * write lock requests from completion.
+	 */
+	rconfc_read_lock_put(rconfc);
+	m0_sm_fail(&rconfc->rc_sm, RCS_FAILURE, rc);
+}
+
+static void _failure_ast_cb(struct m0_sm_group *grp M0_UNUSED,
+			    struct m0_sm_ast   *ast)
+{
+	struct m0_rconfc *rconfc = ast->sa_datum;
+
+	rconfc_fail(rconfc, rconfc->rc_datum);
+}
+
+static void rconfc_fail_ast(struct m0_rconfc *rconfc, int rc)
+{
+	rconfc->rc_datum = rc;
+	rconfc_ast_post(rconfc, _failure_ast_cb);
 }
 
 static bool rconfc_reading_is_allowed(const struct m0_rconfc *rconfc)
 {
-	M0_PRE(rconfc != NULL && rconfc->rc_rlock_ctx != NULL);
-	return rlock_ctx_reading_is_allowed(rconfc->rc_rlock_ctx);
+	M0_PRE(rconfc != NULL);
+	return rconfc->rc_sm.sm_state == RCS_IDLE;
 }
 
-/***************************************
- * Rconfc private part
- ***************************************/
+static bool rconfc_quorum_is_reached(struct m0_rconfc *rconfc)
+{
+	M0_PRE(rconfc_is_locked(rconfc));
+	return rconfc->rc_ver != M0_CONF_VER_UNKNOWN;
+}
 
 static void rconfc_active_all_unlink(struct m0_rconfc *rconfc)
 {
@@ -649,7 +802,7 @@ static void rconfc_herd_init(struct m0_rconfc *rconfc)
 	struct rconfc_link *lnk;
 
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
-		lnk->rl_rc = m0_confc_init(lnk->rl_confc, rconfc->rc_sm_group,
+		lnk->rl_rc = m0_confc_init(lnk->rl_confc, rconfc->rc_sm.sm_grp,
 					   lnk->rl_confd_addr, rconfc->rc_rmach,
 					   NULL);
 		if (lnk->rl_rc == 0)
@@ -663,9 +816,9 @@ static void rconfc_herd_fini(struct m0_rconfc *rconfc)
 
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		if (lnk->rl_state != CONFC_DEAD) {
-			m0_clink_del_lock(&lnk->rl_clink);
+			m0_clink_del(&lnk->rl_clink);
 			m0_clink_fini(&lnk->rl_clink);
-			m0_confc_ctx_fini(&lnk->rl_cctx);
+			m0_confc_ctx_fini_locked(&lnk->rl_cctx);
 			m0_confc_fini(lnk->rl_confc);
 		}
 		/* dead confc has no internals to fini */
@@ -698,9 +851,7 @@ static void rconfc_active_populate(struct m0_rconfc *rconfc)
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		if (lnk->rl_state == CONFC_OPEN &&
 		    _confc_ver_read(lnk->rl_confc) == rconfc->rc_ver)
-			rcnf_active_tlink_init_at_tail(lnk,
-						       &rconfc->
-						       rc_active);
+			rcnf_active_tlink_init_at_tail(lnk, &rconfc->rc_active);
 	} m0_tl_endfor;
 }
 
@@ -720,7 +871,7 @@ static int rconfc_conductor_connect(struct m0_rconfc   *rconfc,
 		/* first use, initialization required */
 		M0_PRE(_confc_ver_read(&rconfc->rc_confc) ==
 		       M0_CONF_VER_UNKNOWN);
-		rc = m0_confc_init(&rconfc->rc_confc, rconfc->rc_sm_group,
+		rc = m0_confc_init(&rconfc->rc_confc, rconfc->rc_sm.sm_grp,
 				   lnk->rl_confd_addr, rconfc->rc_rmach, NULL);
 		if (rc != 0)
 			return M0_ERR(rc);
@@ -790,24 +941,6 @@ static int rconfc_conductor_iterate(struct m0_rconfc *rconfc)
 	}
 }
 
-/** Read Lock cancellation */
-static void rconfc_read_lock_put(struct m0_rconfc *rconfc)
-{
-	struct rlock_ctx *rlx;
-
-	M0_ENTRY("rconfc = %p", rconfc);
-	rlx = rconfc->rc_rlock_ctx;
-	if (!M0_IS0(&rlx->rlc_req)) {
-	    if (!M0_IN(rlx->rlc_req.rin_sm.sm_state,
-		       (RI_INITIALISED, RI_FAILURE, RI_RELEASED)))
-			m0_rm_credit_put(&rlx->rlc_req);
-		m0_rm_rwlock_req_fini(&rlx->rlc_req);
-	}
-	M0_SET0(&rlx->rlc_req);
-	M0_LEAVE();
-}
-
-/** Read Lock request */
 static void rconfc_read_lock_get(struct m0_rconfc *rconfc)
 {
 	struct rlock_ctx      *rlx;
@@ -819,22 +952,29 @@ static void rconfc_read_lock_get(struct m0_rconfc *rconfc)
 	m0_rm_rwlock_req_init(req, &rlx->rlc_owner, &m0_rconfc_ri_ops,
 			      RIF_MAY_BORROW | RIF_MAY_REVOKE, RM_RWLOCK_READ);
 	m0_rm_credit_get(req);
+}
+
+static void rconfc_start_ast_cb(struct m0_sm_group *grp M0_UNUSED,
+			       struct m0_sm_ast   *ast)
+{
+	struct m0_rconfc *rconfc = ast->sa_datum;
+	struct rlock_ctx *rlx = rconfc->rc_rlock_ctx;
+	int               rc;
+
+	M0_ENTRY();
+	rc = rlock_ctx_connect(rlx);
+	if (rc != 0) {
+		rconfc_fail(rconfc, rc);
+	} else {
+		rlock_ctx_owner_setup(rconfc->rc_rlock_ctx);
+		rconfc_state_set(rconfc, RCS_GET_RLOCK);
+		rconfc_read_lock_get(rconfc);
+	}
 	M0_LEAVE();
 }
 
-/**
- * Asynchronous system trap for draining confc cache because of read lock
- * conflict. When done with cache, it cancels read lock rconfc currently owns,
- * and initiates another read lock borrowing procedure. Invoked from
- * rconfc_gate_drain().
- */
-static void rconfc_ast_drain(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+static void rconfc_conductor_drained(struct m0_rconfc *rconfc)
 {
-	struct m0_rconfc *rconfc;
-
-	M0_ENTRY();
-	rconfc = ast->sa_datum;
-	_confc_cache_drop(&rconfc->rc_confc);
 	/* disconnect confc until read lock being granted */
 	m0_confc_reconnect(&rconfc->rc_confc, NULL, NULL);
 	/* return read lock back to RM */
@@ -843,23 +983,65 @@ static void rconfc_ast_drain(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rconfc_active_all_unlink(rconfc);
 	rconfc_herd_fini(rconfc);
 	rconfc->rc_ver = M0_CONF_VER_UNKNOWN;
-	/*
-	 * request for a new read lock. Rconfc gate remains locked for reading
-	 * until the read lock is granted, i.e. rconfc_read_lock_complete() is
-	 * called unlocking rconfc for reading
-	 */
-	rconfc_read_lock_get(rconfc);
 	/* let consumer know the cache has been drained */
-	rconfc_lock(rconfc);
 	if (rconfc->rc_drained_cb != NULL)
 		rconfc->rc_drained_cb(rconfc);
-	rconfc_unlock(rconfc);
+	rconfc_state_set(rconfc, RCS_GET_RLOCK);
+	rconfc_read_lock_get(rconfc);
+}
+
+/**
+ * Drain confc cache because of read lock conflict.
+ *
+ * Waits for cache objects being entirely unpinned. This is done by just waiting
+ * on a first pinned object met in cache. When the one appears unpinned, the
+ * checking for other objects is repeated until no more pinned object
+ * remains. Finally makes the cache empty.
+ */
+static void rconfc_conductor_drain(struct m0_sm_group *grp,
+				   struct m0_sm_ast   *ast)
+{
+	struct m0_rconfc     *rconfc = ast->sa_datum;
+	struct m0_conf_cache *cache = &rconfc->rc_confc.cc_cache;
+	struct m0_conf_obj   *obj;
+	int                   rc = 1;
+
+	M0_ENTRY();
+	m0_conf_cache_lock(cache);
+	if ((obj = m0_conf_cache_pinned(cache)) != NULL) {
+		m0_clink_add(&obj->co_chan, &rconfc->rc_unpinned_cl);
+	} else {
+		rc = _confc_cache_clean(&rconfc->rc_confc);
+		if (rc != 0)
+			rconfc_fail(rconfc, rc);
+	}
+	m0_conf_cache_unlock(cache);
+
+	if (rc == 0)
+		rconfc_conductor_drained(rconfc);
+}
+
+static bool rconfc_unpinned_cb(struct m0_clink *link)
+{
+	struct m0_rconfc *rconfc = container_of(
+				link, struct m0_rconfc, rc_unpinned_cl);
+
+	M0_ENTRY();
+	M0_ASSERT(rconfc->rc_sm.sm_state == RCS_CONDUCTOR_DRAIN);
+	m0_clink_del(link);
+	rconfc_ast_post(rconfc, rconfc_conductor_drain);
 	M0_LEAVE();
+	return false;
 }
 
 /**
  * Called during m0_confc_ctx_init(). Confc context initialisation appears
  * blocked until rconfc allows read operations.
+ *
+ * @note Caller is blocked until rconfc reelection is finished. In order to
+ * ensure rconfc reelection progress, caller should be in other sm group than
+ * rconfc->rc_sm.sm_grp. It is responsibility of user to provide such a group
+ * in m0_rconfc_init().
  *
  * @see m0_confc_gate_ops::go_check
  */
@@ -874,9 +1056,11 @@ static bool rconfc_gate_check(struct m0_confc *confc)
 	rconfc = container_of(confc, struct m0_rconfc, rc_confc);
 	if (!rconfc_reading_is_allowed(rconfc)) {
 		m0_mutex_unlock(&confc->cc_lock);
-		m0_clink_add_lock(&rconfc->rc_gate, &confc->cc_check);
-		m0_chan_wait(&confc->cc_check);
-		m0_clink_del_lock(&confc->cc_check);
+		m0_rconfc_lock(rconfc);
+		m0_sm_timedwait(&rconfc->rc_sm,
+				M0_BITS(RCS_IDLE, RCS_FAILURE),
+				M0_TIME_NEVER);
+		m0_rconfc_unlock(rconfc);
 		m0_mutex_lock(&confc->cc_lock);
 	}
 	return M0_RC(rconfc_reading_is_allowed(rconfc));
@@ -890,6 +1074,7 @@ static bool rconfc_gate_check(struct m0_confc *confc)
 static int rconfc_gate_skip(struct m0_confc *confc)
 {
 	struct m0_rconfc *rconfc;
+
 	M0_ENTRY("confc = %p", confc);
 	M0_PRE(confc != NULL);
 	rconfc = container_of(confc, struct m0_rconfc, rc_confc);
@@ -897,9 +1082,8 @@ static int rconfc_gate_skip(struct m0_confc *confc)
 }
 
 /**
- * Called when read lock is revoked, and therefore cache cleanup is
- * required. Inside the call the asynchronous callback rconfc_ast_drain() is
- * posted in m0_rconfc::rc_drain_ast.
+ * Called when all confc contexts are detached from conductor confc,
+ * and therefore its cache can be cleaned.
  *
  * @see m0_confc_gate_ops::go_drain
  */
@@ -907,16 +1091,22 @@ static bool rconfc_gate_drain(struct m0_clink *clink)
 {
 	struct m0_rconfc *rconfc;
 	struct m0_confc  *confc;
+
 	M0_ENTRY("clink = %p", clink);
 	confc = container_of(clink, struct m0_confc, cc_drain);
 	rconfc = container_of(confc, struct m0_rconfc, rc_confc);
-	M0_RCONFC_CB_SET_LOCK(rconfc, rc_gops.go_drain, NULL);
+	rconfc->rc_gops.go_drain = NULL;
 	m0_confc_gate_ops_set(&rconfc->rc_confc, &rconfc->rc_gops);
-	rconfc->rc_drain_ast = (struct m0_sm_ast) {
-		.sa_datum = rconfc,
-		.sa_cb    = rconfc_ast_drain,
-	};
-	m0_sm_ast_post(m0_locality0_get()->lo_grp, &rconfc->rc_drain_ast);
+	/*
+	 * Conductor confc has no active confc contexts at this moment,
+	 * so it's safe to call rconfc_ast_drain() in this sm group.
+	 *
+	 * If several rconfc operate in one sm group, then processing
+	 * 'foreign' confc contexts is stopped for some time, but let's live
+	 * with that for now, because no dead-locks are possible.
+	 */
+	rconfc_state_set(rconfc, RCS_CONDUCTOR_DRAIN);
+	rconfc_ast_post(rconfc, rconfc_conductor_drain);
 	return M0_RC(false);
 }
 
@@ -961,11 +1151,114 @@ static int rconfc_allocate(struct m0_rconfc *rconfc,
 		lnk->rl_confc      = confc;
 		lnk->rl_confd_addr = m0_strdup(*confd_addr);
 		lnk->rl_state      = CONFC_DEAD;
-		rconfc_lock(rconfc);
 		rcnf_herd_tlink_init_at_tail(lnk, &rconfc->rc_herd);
-		rconfc_unlock(rconfc);
 	}
 	return M0_RC(rc);
+}
+
+static void rlock_conflict_handle(struct m0_sm_group *grp,
+				  struct m0_sm_ast   *ast)
+{
+	struct m0_rconfc *rconfc = ast->sa_datum;
+
+	/* prepare for emptying conductor's cache */
+	if (rconfc->rc_exp_cb != NULL)
+		rconfc->rc_exp_cb(rconfc);
+
+	/*
+	 * if no context attached, call it directly, otherwise it is
+	 * going to be called during the very last context finalisation
+	 */
+	m0_mutex_lock(&rconfc->rc_confc.cc_lock);
+	if (rconfc->rc_confc.cc_nr_ctx == 0) {
+		rconfc_state_set(rconfc, RCS_CONDUCTOR_DRAIN);
+		rconfc_ast_post(rconfc, rconfc_conductor_drain);
+	} else {
+		rconfc->rc_gops.go_drain = m0_rconfc_gate_ops.go_drain;
+		m0_confc_gate_ops_set(&rconfc->rc_confc,
+				      &rconfc->rc_gops);
+	}
+	m0_mutex_unlock(&rconfc->rc_confc.cc_lock);
+}
+
+static void rconfc_rlock_windup(struct m0_rconfc *rconfc)
+{
+	/**
+	 * Release sm group lock to prevent dead-lock with
+	 * rconfc_read_lock_conflict. In worst case rlock_windup_st_in acquires
+	 * locks in "rconfc sm group lock"->"rm owner lock" order and
+	 * rconfc_read_lock_conflict in reverse order.
+	 */
+	m0_rconfc_unlock(rconfc);
+	rconfc_read_lock_put(rconfc);
+	m0_rconfc_lock(rconfc);
+	rlock_ctx_owner_windup(rconfc->rc_rlock_ctx);
+}
+
+static void rconfc_stop_internal(struct m0_rconfc *rconfc)
+{
+	struct rlock_ctx *rlx = rconfc->rc_rlock_ctx;
+
+	rconfc_herd_fini(rconfc);
+	rconfc_rlock_windup(rconfc);
+	if (rlx->rlc_online)
+		rlock_ctx_disconnect(rlx);
+	rconfc_state_set(rconfc, RCS_FINAL);
+}
+
+static void rconfc_stop_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_rconfc *rconfc = ast->sa_datum;
+
+	if (M0_IN(rconfc->rc_sm.sm_state, (RCS_IDLE, RCS_FAILURE))) {
+		rconfc_state_set(rconfc, RCS_STOPPING);
+		rconfc_stop_internal(rconfc);
+	}
+	else {
+		rconfc->rc_stopping = true;
+	}
+}
+
+/**
+ * Called when a conflicting lock acquisition is initiated somewhere in the
+ * cluster. All conflicting read locks get revoked as the result firing
+ * m0_rm_incoming_ops::rio_conflict() events for resource borrowers. Deprived of
+ * read lock, rconfc disallows any configuration reading. As well, the cached
+ * data appears outdated, and has to be dropped.
+ */
+static void rconfc_read_lock_conflict(struct m0_rm_incoming *in)
+{
+	struct m0_rconfc *rconfc;
+
+	M0_ENTRY("in = %p", in);
+	rconfc = rlock_ctx_incoming_to_rconfc(in);
+	m0_rconfc_lock(rconfc);
+	if (rconfc->rc_sm.sm_state == RCS_IDLE) {
+		rconfc_state_set(rconfc, RCS_RLOCK_CONFLICT);
+		rconfc_ast_post(rconfc, rlock_conflict_handle);
+	} else {
+		rconfc->rc_rlock_conflict = true;
+	}
+	m0_rconfc_unlock(rconfc);
+	M0_LEAVE();
+}
+
+static void rconfc_idle(struct m0_rconfc *rconfc)
+{
+	rconfc_state_set(rconfc, RCS_IDLE);
+	if (rconfc->rc_stopping) {
+		rconfc_state_set(rconfc, RCS_STOPPING);
+		rconfc_stop_internal(rconfc);
+	} else if (rconfc->rc_rlock_conflict) {
+		rconfc->rc_rlock_conflict = false;
+		rconfc_state_set(rconfc, RCS_RLOCK_CONFLICT);
+		rconfc_ast_post(rconfc, rlock_conflict_handle);
+	}
+	/*
+	 * If both rc_stopping and rc_rlock_conflict flags aren't set, then
+	 * SM will be idle until read lock conflict is observed provoking
+	 * reelection or user requests stopping rconfc.
+	 */
 }
 
 static bool rconfc_quorum_is_possible(struct m0_rconfc *rconfc)
@@ -981,8 +1274,6 @@ static bool rconfc_quorum_is_possible(struct m0_rconfc *rconfc)
 	if (ver_count_max + armed_count < rconfc->rc_quorum) {
 		M0_LOG(M0_WARN, "No chance left to reach the quorum");
 		rconfc->rc_ver = M0_CONF_VER_UNKNOWN;
-		if (_confc_is_inited(&rconfc->rc_confc))
-			m0_confc_fini(&rconfc->rc_confc);
 		/* Notify consumer about conf expired */
 		if (rconfc->rc_exp_cb != NULL)
 			rconfc->rc_exp_cb(rconfc);
@@ -1038,127 +1329,6 @@ static bool rconfc_quorum_test(struct m0_rconfc *rconfc,
 }
 
 /**
- * Callback attached to confc context clink. Fires when reading from one of
- * confd instances is done, and therefore, the confd version is known to the
- * moment of context completion. When context is complete, the entire herd is
- * tested for quorum.
- *
- * Note that even after initialisation completion late confc replies yet still
- * possible and to be done in background filling in the active list.
- */
-static bool rconfc__cb_quorum_test(struct m0_clink *clink)
-{
-	struct rconfc_link *lnk;
-	struct m0_rconfc   *rconfc;
-	bool                res;
-	bool                quorum_before   = false;
-	bool                quorum_now      = false;
-
-	M0_ENTRY("clink = %p", clink);
-	M0_PRE(clink != NULL);
-	lnk = container_of(clink, struct rconfc_link, rl_clink);
-	M0_ASSERT(lnk->rl_state == CONFC_ARMED);
-	rconfc = lnk->rl_rconfc;
-
-	rconfc_lock(rconfc);
-	res = m0_confc_ctx_is_completed(&lnk->rl_cctx);
-
-	if (res) {
-		lnk->rl_rc = m0_confc_ctx_error(&lnk->rl_cctx);
-		if (M0_FI_ENABLED("read_ver_failed")) {
-			lnk->rl_confc->cc_cache.ca_ver = M0_CONF_VER_UNKNOWN;
-			lnk->rl_rc = -ENODATA;
-		}
-		lnk->rl_state = lnk->rl_rc == 0 ? CONFC_OPEN : CONFC_FAILED;
-
-		if (lnk->rl_rc == 0) {
-			/*
-			 * The code may be called after quorum was already
-			 * reached, so we need to see if it was
-			 */
-			quorum_before = m0_rconfc_quorum_is_reached(rconfc);
-
-			quorum_now = quorum_before ||
-				     rconfc_quorum_test(rconfc, lnk->rl_confc);
-			if (quorum_now)
-				/* Maybe add replied confc to active list */
-				rconfc_active_populate(rconfc);
-		}
-
-		/*
-		 * signal only when there was no quorum before the test
-		 * began, or quorum is not possible anymore, to provide
-		 * single semaphore thrust
-		 */
-		if ((!quorum_before && quorum_now) ||
-		     !rconfc_quorum_is_possible(rconfc))
-			m0_semaphore_up(&rconfc->rc_ver_done);
-	}
-	rconfc_unlock(rconfc);
-	M0_LEAVE("return = %d", !res);
-	return !res;
-}
-
-/**
- * Version election start. Iterates through confc herd and makes every entry to
- * start asynchronous reading from corresponding confd. Waits for conclusion on
- * quorum until being reached or found impossible.
- */
-static int rconfc_version_elect(struct m0_rconfc *rconfc)
-{
-	struct ver_accm    *va;
-	struct rconfc_link *lnk;
-	int                 rc;
-
-	M0_ENTRY("rconfc = %p", rconfc);
-	M0_PRE(rconfc != NULL && rconfc->rc_qctx != NULL);
-	va = rconfc->rc_qctx;
-	M0_PRE(va->va_total != 0);
-	va->va_count = 0;
-	m0_forall(idx, va->va_total, M0_SET0(&va->va_items[idx]));
-	rconfc_herd_init(rconfc);
-	rc = m0_semaphore_init(&rconfc->rc_ver_done, 0);
-
-	/* query confd instances */
-	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
-		if (lnk->rl_rc == 0) {
-			m0_confc_ctx_init(&lnk->rl_cctx, lnk->rl_confc);
-			m0_clink_init(&lnk->rl_clink, rconfc__cb_quorum_test);
-			m0_clink_add_lock(&lnk->rl_cctx.fc_mach.sm_chan,
-					  &lnk->rl_clink);
-			lnk->rl_state = CONFC_ARMED;
-			m0_confc_open(&lnk->rl_cctx, NULL,
-					      M0_CONF_ROOT_PROFILES_FID);
-		}
-	} m0_tl_endfor;
-
-	/* wait until quorum reached */
-	m0_semaphore_down(&rconfc->rc_ver_done);
-	m0_semaphore_fini(&rconfc->rc_ver_done);
-
-	return M0_RC(rc);
-}
-
-static void rconfc_cleanup(struct m0_rconfc *rconfc)
-{
-	M0_ENTRY("rconfc = %p", rconfc);
-	rconfc_lock(rconfc);
-	m0_free(rconfc->rc_qctx);
-	if (rlock_ctx_is_initialised(rconfc->rc_rlock_ctx)) {
-		rconfc_read_lock_put(rconfc);
-		rlock_ctx_fini(rconfc->rc_rlock_ctx);
-	}
-	m0_free(rconfc->rc_rlock_ctx);
-	rconfc_active_all_unlink(rconfc);
-	if (_confc_is_inited(&rconfc->rc_confc))
-		m0_confc_fini(&rconfc->rc_confc);
-	rconfc_herd_fini(rconfc);
-	rconfc_herd_prune(rconfc);
-	rconfc_unlock(rconfc);
-	M0_LEAVE();
-}
-
-/**
  * Puts "conductor" confc in effect. In case the confc is not initialised yet,
  * the initialisation happens first inside rconfc_conductor_connect(). Then
  * connection to the very first responsive confd from active list is
@@ -1172,7 +1342,6 @@ static int rconfc_conductor_engage(struct m0_rconfc *rconfc)
 	M0_ENTRY("rconfc = %p", rconfc);
 	M0_PRE(rconfc != NULL);
 	M0_PRE(rconfc->rc_ver != M0_CONF_VER_UNKNOWN);
-	rconfc_lock(rconfc);
 	/*
 	 * See if the confc not initialized yet, or having different
 	 * version compared to the newly elected one
@@ -1182,24 +1351,115 @@ static int rconfc_conductor_engage(struct m0_rconfc *rconfc)
 		/* need to connect conductor to a new version confd */
 		rc = rconfc_conductor_iterate(rconfc);
 	}
-	rconfc_unlock(rconfc);
 	return M0_RC(rc);
 }
 
-/**
- * Read Lock request, blocking.
- *
- * @see rconfc_read_lock_get()
- */
-static int rconfc_read_lock_wait(struct m0_rconfc *rconfc)
+static void rconfc_version_elected(struct m0_sm_group *grp,
+				   struct m0_sm_ast   *ast)
 {
-	struct rlock_ctx *rlx;
+	struct m0_rconfc *rconfc = ast->sa_datum;
+	int               rc;
+
+	M0_ENTRY();
+	rc = rconfc_quorum_is_reached(rconfc) ?
+		rconfc_conductor_engage(rconfc) : -EPROTO;
+	if (rc != 0)
+		rconfc_fail(rconfc, rc);
+	else
+		rconfc_idle(rconfc);
+	M0_LEAVE();
+}
+
+/**
+ * Callback attached to confc context clink. Fires when reading from one of
+ * confd instances is done, and therefore, the confd version is known to the
+ * moment of context completion. When context is complete, the entire herd is
+ * tested for quorum.
+ *
+ * @note Even after initialisation completion late confc replies yet still
+ * possible and to be done in background filling in the active list.
+ *
+ * @note Callback is executed in context of rconfc sm group, because
+ * corresponding confc was inited with rconfc sm group. And this group
+ * is used for all confc contexts attached to confc later.
+ */
+static bool rconfc__cb_quorum_test(struct m0_clink *clink)
+{
+	struct rconfc_link *lnk;
+	struct m0_rconfc   *rconfc;
+	bool                quorum_before   = false;
+	bool                quorum_now      = false;
+
+	M0_ENTRY("clink = %p", clink);
+	M0_PRE(clink != NULL);
+	lnk = container_of(clink, struct rconfc_link, rl_clink);
+	M0_ASSERT(lnk->rl_state == CONFC_ARMED);
+	rconfc = lnk->rl_rconfc;
+	M0_ASSERT(rconfc_is_locked(rconfc));
+
+	if (m0_confc_ctx_is_completed(&lnk->rl_cctx)) {
+		lnk->rl_rc = m0_confc_ctx_error(&lnk->rl_cctx);
+		if (M0_FI_ENABLED("read_ver_failed")) {
+			lnk->rl_confc->cc_cache.ca_ver = M0_CONF_VER_UNKNOWN;
+			lnk->rl_rc = -ENODATA;
+		}
+		lnk->rl_state = lnk->rl_rc == 0 ? CONFC_OPEN : CONFC_FAILED;
+
+		if (lnk->rl_rc == 0) {
+			/*
+			 * The code may be called after quorum was already
+			 * reached, so we need to see if it was
+			 */
+			quorum_before = rconfc_quorum_is_reached(rconfc);
+
+			quorum_now = quorum_before ||
+				     rconfc_quorum_test(rconfc, lnk->rl_confc);
+			if (quorum_now)
+				/* Maybe add replied confc to active list */
+				rconfc_active_populate(rconfc);
+		}
+
+		if ((!quorum_before && quorum_now) ||
+		     !rconfc_quorum_is_possible(rconfc)) {
+			rconfc_ast_post(rconfc, rconfc_version_elected);
+		}
+	}
+	M0_LEAVE();
+	return true;
+}
+
+/**
+ * Version election start. Iterates through confc herd and makes every entry to
+ * start asynchronous reading from corresponding confd.
+ */
+static void rconfc_version_elect(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_rconfc   *rconfc = ast->sa_datum;
+	struct ver_accm    *va;
+	struct rconfc_link *lnk;
 
 	M0_ENTRY("rconfc = %p", rconfc);
-	rlx = rconfc->rc_rlock_ctx;
-	rconfc_read_lock_get(rconfc);
-	m0_semaphore_down(&rlx->rlc_completion);
-	return M0_RC(rlx->rlc_rc);
+	M0_PRE(rconfc != NULL && rconfc->rc_qctx != NULL);
+
+	rconfc_state_set(rconfc, RCS_VERSION_ELECT);
+	va = rconfc->rc_qctx;
+	M0_PRE(va->va_total != 0);
+	va->va_count = 0;
+	m0_forall(idx, va->va_total, M0_SET0(&va->va_items[idx]));
+	rconfc_herd_init(rconfc);
+	/* query confd instances */
+	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
+		if (lnk->rl_rc == 0) {
+			m0_confc_ctx_init(&lnk->rl_cctx, lnk->rl_confc);
+
+			m0_clink_init(&lnk->rl_clink, rconfc__cb_quorum_test);
+			m0_clink_add(&lnk->rl_cctx.fc_mach.sm_chan,
+				     &lnk->rl_clink);
+			lnk->rl_state = CONFC_ARMED;
+			m0_confc_open(&lnk->rl_cctx, NULL,
+					      M0_CONF_ROOT_PROFILES_FID);
+		}
+	} m0_tl_endfor;
 }
 
 /**
@@ -1211,7 +1471,6 @@ static int rconfc_read_lock_wait(struct m0_rconfc *rconfc)
 static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	struct m0_rconfc *rconfc;
-	struct rlock_ctx *rlx;
 
 	M0_ENTRY("in = %p, rc = %d", in, rc);
 	if (rc != 0)
@@ -1220,70 +1479,27 @@ static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 	if (M0_FI_ENABLED("rlock_req_failed"))
 		rc = M0_ERR(-ESRCH);
 	rconfc = rlock_ctx_incoming_to_rconfc(in);
-	rlx = rconfc->rc_rlock_ctx;
-	rlx->rlc_rc = rc;
-	/* now it's time to start version election */
+	M0_ASSERT(rconfc->rc_sm.sm_state == RCS_GET_RLOCK);
 	if (rc == 0)
-		rlx->rlc_rc = rconfc_version_elect(rconfc) ?:
-			m0_rconfc_quorum_is_reached_lock(rconfc) ?
-			rconfc_conductor_engage(rconfc) : 0;
-	rlock_ctx_reading_set(rlx, rc == 0);
-	/**
-	 * @todo There's a potential problem here. When rc != 0 the reading is
-	 * disallowed, so any following m0_confc_ctx_init() is going to hang on
-	 * waiting for m0_rconfc::rc_gate channel being signaled.
-	 */
-	/* Allow reading through conductor for all blocked contexts */
-	m0_chan_broadcast_lock(&rconfc->rc_gate);
-	m0_semaphore_up(&rlx->rlc_completion);
-	M0_LEAVE();
-}
-
-/**
- * Called when a conflicting lock acquisition is initiated somewhere in the
- * cluster. All conflicting read locks get revoked as the result firing
- * m0_rm_incoming_ops::rio_conflict() events for resource borrowers. Deprived of
- * read lock, rconfc disallows any configuration reading. As well, the cached
- * data appears outdated, and has to be dropped. The asynchronous confc cache
- * dropping is initiated during the call, or scheduled until the very last
- * reading context detach. Ultimately, rconfc re-initiates read lock request.
- *
- * @note The request is going to be completed only after write lock is canceled
- * by spiel.
- */
-static void rconfc_read_lock_conflict(struct m0_rm_incoming *in)
-{
-	struct m0_rconfc *rconfc;
-
-	M0_ENTRY("in = %p", in);
-	/* forbid any reading via conductor */
-	rconfc = rlock_ctx_incoming_to_rconfc(in);
-	rlock_ctx_reading_set(rconfc->rc_rlock_ctx, false);
-	/* prepare for emptying conductor's cache */
-	rconfc_lock(rconfc);
-	if (rconfc->rc_exp_cb != NULL)
-		rconfc->rc_exp_cb(rconfc);
-	rconfc_unlock(rconfc);
-
-	/*
-	 * if no context attached, call it directly, otherwise it is going to be
-	 * called during the very last context finalisation
-	 */
-	m0_mutex_lock(&rconfc->rc_confc.cc_lock);
-	if (rconfc->rc_confc.cc_nr_ctx == 0) {
-		m0_rconfc_gate_ops.go_drain(&rconfc->rc_confc.cc_drain);
-	} else {
-		M0_RCONFC_CB_SET_LOCK(rconfc, rc_gops.go_drain,
-				      m0_rconfc_gate_ops.go_drain);
-		m0_confc_gate_ops_set(&rconfc->rc_confc, &rconfc->rc_gops);
-	}
-	m0_mutex_unlock(&rconfc->rc_confc.cc_lock);
+		rconfc_ast_post(rconfc, rconfc_version_elect);
+	else
+		rconfc_fail_ast(rconfc, rc);
 	M0_LEAVE();
 }
 
 /**************************************
  * Rconfc public interface
  **************************************/
+
+M0_INTERNAL void m0_rconfc_lock(struct m0_rconfc *rconfc)
+{
+	m0_sm_group_lock(rconfc->rc_sm.sm_grp);
+}
+
+M0_INTERNAL void m0_rconfc_unlock(struct m0_rconfc *rconfc)
+{
+	m0_sm_group_unlock(rconfc->rc_sm.sm_grp);
+}
 
 M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 			       const char           **confd_addr,
@@ -1305,6 +1521,7 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 	M0_PRE(sm_group != NULL);
 	M0_PRE(rconfc_confd_are_all_unique(confd_addr));
 
+	M0_SET0(rconfc);
 	/* validate against minimal (default) quorum value */
 	q = rconfc_quorum_default_calc(count);
 	M0_ASSERT(quorum == 0 || quorum >= q);
@@ -1319,27 +1536,66 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 		.go_skip  = m0_rconfc_gate_ops.go_skip,
 		.go_drain = NULL,
 	};
-	rconfc->rc_sm_group = sm_group;
 	rconfc->rc_drained_cb = NULL;
 
-	m0_mutex_init(&rconfc->rc_lock);
-	m0_chan_init(&rconfc->rc_gate, &rconfc->rc_lock);
 	rcnf_herd_tlist_init(&rconfc->rc_herd);
 	rcnf_active_tlist_init(&rconfc->rc_active);
+	m0_clink_init(&rconfc->rc_unpinned_cl, rconfc_unpinned_cb);
+	m0_sm_init(&rconfc->rc_sm, &rconfc_sm_conf, RCS_INIT, sm_group);
 
-	rc = rconfc_allocate(rconfc, confd_addr);
-	if (rc == 0) {
-		rc = rlock_ctx_init(rconfc->rc_rlock_ctx, rconfc,
-				    rconfc->rc_rmach, rm_addr) ?:
-			rconfc_read_lock_wait(rconfc);
-		/*
-		 * Warning: do not dismantle quorum context rconfc->rc_qctx here
-		 * as some confc instances still may reply after quorum reached
-		 * already, and therefore, still need it to refresh active list
-		 */
+	rc = rconfc_allocate(rconfc, confd_addr) ?:
+	     rlock_ctx_init(rconfc->rc_rlock_ctx, rconfc,
+			    rconfc->rc_rmach, rm_addr);
+	if (rc != 0) {
+		m0_rconfc_fini(rconfc);
+		return M0_ERR(rc);
 	}
-
 	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc)
+{
+	M0_ENTRY("rconfc %p", rconfc);
+	m0_rconfc_lock(rconfc);
+	rconfc_state_set(rconfc, RCS_STARTING);
+	rconfc_ast_post(rconfc, rconfc_start_ast_cb);
+	m0_rconfc_unlock(rconfc);
+	M0_LEAVE();
+}
+
+M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc)
+{
+	struct m0_clink clink;
+
+	m0_clink_init(&clink, NULL);
+	clink.cl_is_oneshot = true;
+	m0_rconfc_start(rconfc);
+	m0_rconfc_lock(rconfc);
+	m0_sm_timedwait(&rconfc->rc_sm,
+			M0_BITS(RCS_IDLE, RCS_FAILURE),
+			M0_TIME_NEVER);
+	m0_rconfc_unlock(rconfc);
+	m0_clink_fini(&clink);
+	return M0_RC(rconfc->rc_sm.sm_rc);
+}
+
+M0_INTERNAL void m0_rconfc_stop(struct m0_rconfc *rconfc)
+{
+	M0_ENTRY("rconfc %p", rconfc);
+	rconfc->rc_stop_ast.sa_cb    = rconfc_stop_ast_cb;
+	rconfc->rc_stop_ast.sa_datum = rconfc;
+	m0_sm_ast_post(rconfc->rc_sm.sm_grp, &rconfc->rc_stop_ast);
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_rconfc_stop_sync(struct m0_rconfc *rconfc)
+{
+	M0_ENTRY();
+	m0_rconfc_stop(rconfc);
+	m0_rconfc_lock(rconfc);
+	m0_sm_timedwait(&rconfc->rc_sm, M0_BITS(RCS_FINAL), M0_TIME_NEVER);
+	m0_rconfc_unlock(rconfc);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc)
@@ -1347,44 +1603,49 @@ M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc)
 	M0_ENTRY("rconfc = %p", rconfc);
 	M0_PRE(rconfc != NULL);
 
-	rconfc_cleanup(rconfc);
+	m0_free(rconfc->rc_qctx);
+	if (rlock_ctx_is_initialised(rconfc->rc_rlock_ctx))
+		rlock_ctx_fini(rconfc->rc_rlock_ctx);
+	m0_free(rconfc->rc_rlock_ctx);
+	if (_confc_is_inited(&rconfc->rc_confc))
+		m0_confc_fini(&rconfc->rc_confc);
+	rconfc_active_all_unlink(rconfc);
 	rcnf_active_tlist_fini(&rconfc->rc_active);
+	rconfc_herd_prune(rconfc);
 	rcnf_herd_tlist_fini(&rconfc->rc_herd);
-	rconfc_lock(rconfc);
-	m0_chan_fini(&rconfc->rc_gate);
-	rconfc_unlock(rconfc);
-	m0_mutex_fini(&rconfc->rc_lock);
+	m0_rconfc_lock(rconfc);
+	m0_sm_fini(&rconfc->rc_sm);
+	m0_rconfc_unlock(rconfc);
 
 	M0_LEAVE();
 }
 
-M0_INTERNAL bool m0_rconfc_quorum_is_reached(struct m0_rconfc *rconfc)
-{
-	M0_PRE(m0_mutex_is_locked(&rconfc->rc_lock));
-	return rconfc->rc_ver != M0_CONF_VER_UNKNOWN;
-}
-
-M0_INTERNAL bool m0_rconfc_quorum_is_reached_lock(struct m0_rconfc *rconfc)
-{
-	bool q;
-
-	rconfc_lock(rconfc);
-	q = m0_rconfc_quorum_is_reached(rconfc);
-	rconfc_unlock(rconfc);
-	return q;
-}
-
 M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc)
 {
-	uint64_t ver_max = M0_CONF_VER_UNKNOWN;
+	uint64_t ver_max;
 
 	M0_ENTRY("rconfc = %p", rconfc);
-	rconfc_lock(rconfc);
-	ver_max = m0_tl_fold(rcnf_herd, lnk, acc, &rconfc->rc_herd, ver_max,
+	m0_rconfc_lock(rconfc);
+	ver_max = m0_tl_fold(rcnf_herd, lnk, acc, &rconfc->rc_herd,
+			     M0_CONF_VER_UNKNOWN,
 			     max64(acc, _confc_ver_read(lnk->rl_confc)));
-	rconfc_unlock(rconfc);
+	m0_rconfc_unlock(rconfc);
 	M0_LEAVE("ver_max = %"PRIu64, ver_max);
 	return ver_max;
+}
+
+M0_INTERNAL void m0_rconfc_exp_cb_set(struct m0_rconfc   *rconfc,
+				      m0_rconfc_exp_cb_t  cb)
+{
+	M0_PRE(rconfc_is_locked(rconfc));
+	rconfc->rc_exp_cb = cb;
+}
+
+M0_INTERNAL void m0_rconfc_drained_cb_set(struct m0_rconfc       *rconfc,
+					  m0_rconfc_drained_cb_t  cb)
+{
+	M0_PRE(rconfc_is_locked(rconfc));
+	rconfc->rc_drained_cb = cb;
 }
 
 /** @} rconfc_dlspec */

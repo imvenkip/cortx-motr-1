@@ -60,7 +60,8 @@ int m0_spiel_start_quorum(struct m0_spiel   *spiel,
 			  uint32_t           quorum,
 			  m0_rconfc_exp_cb_t exp_cb)
 {
-	int rc;
+	int               rc;
+	struct m0_rconfc *rconfc = &spiel->spl_rconfc;
 
 	M0_ENTRY();
 	M0_PRE(reqh != NULL && confd_eps != NULL && rm_ep != NULL);
@@ -72,13 +73,17 @@ int m0_spiel_start_quorum(struct m0_spiel   *spiel,
 	spiel->spl_confd_eps = m0_strings_dup(confd_eps);
 	if (spiel->spl_confd_eps == NULL)
 		return M0_ERR(-ENOMEM);
-	/**
-	 * @todo m0_locality0_get() used below must be replaced later with some
-	 * m0_locality_get(CONST) call when ut get fixed.
-	 */
-	rc = m0_rconfc_init(&spiel->spl_rconfc, spiel->spl_confd_eps, rm_ep,
+
+	rc = m0_rconfc_init(rconfc, spiel->spl_confd_eps, rm_ep,
 			    m0_locality0_get()->lo_grp, spiel->spl_rmachine,
 			    quorum, exp_cb);
+	if (rc == 0) {
+		rc = m0_rconfc_start_sync(rconfc);
+		if (rc != 0) {
+			m0_rconfc_stop_sync(rconfc);
+			m0_rconfc_fini(rconfc);
+		}
+	}
 	if (rc != 0) {
 		m0_strings_free(spiel->spl_confd_eps);
 		return M0_ERR(rc);
@@ -90,6 +95,7 @@ M0_EXPORTED(m0_spiel_start_quorum);
 void m0_spiel_stop(struct m0_spiel *spiel)
 {
 	M0_ENTRY();
+	m0_rconfc_stop_sync(&spiel->spl_rconfc);
 	m0_rconfc_fini(&spiel->spl_rconfc);
 	m0_strings_free(spiel->spl_confd_eps);
 	M0_LEAVE();
