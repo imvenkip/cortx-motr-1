@@ -34,12 +34,13 @@ static bool pver_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_PVER_TYPE);
 
-	return _0C((self->pv_attr.pa_P >=
-		    self->pv_attr.pa_N + 2 * self->pv_attr.pa_K)) &&
-	       _0C((self->pv_permutations_nr == 0) ==
-		   (self->pv_permutations == NULL)) &&
-	       _0C((self->pv_nr_failures_nr == 0) ==
-		   (self->pv_nr_failures == NULL));
+	return ergo(!m0_conf_obj_is_stub(self_obj),
+		    _0C((self->pv_attr.pa_P >=
+			 self->pv_attr.pa_N + 2 * self->pv_attr.pa_K)) &&
+		    _0C((self->pv_permutations_nr == 0) ==
+			(self->pv_permutations == NULL)) &&
+		    _0C((self->pv_nr_failures_nr == 0) ==
+			(self->pv_nr_failures == NULL)));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_pver, M0_CONF_PVER_MAGIC, pver_check);

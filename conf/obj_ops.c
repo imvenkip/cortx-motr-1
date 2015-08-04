@@ -123,7 +123,7 @@ static int stub_create(struct m0_conf_cache *cache,
 
 	*out = m0_conf_obj_create(cache, id);
 	if (*out == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	rc = m0_conf_cache_add(cache, *out);
 	if (rc != 0) {
