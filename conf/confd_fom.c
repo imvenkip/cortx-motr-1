@@ -79,7 +79,7 @@ M0_INTERNAL int m0_confd_fom_create(struct m0_fop   *fop,
 
 	M0_ALLOC_PTR(m);
 	if (m == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	switch (m0_fop_opcode(fop)) {
 	case M0_CONF_FETCH_OPCODE:
@@ -90,12 +90,12 @@ M0_INTERNAL int m0_confd_fom_create(struct m0_fop   *fop,
 		break;
 	default:
 		m0_free(m);
-		return M0_RC(-EOPNOTSUPP);
+		return M0_ERR(-EOPNOTSUPP);
 	}
 	rep_fop = m0_fop_reply_alloc(fop, &m0_conf_fetch_resp_fopt);
 	if (rep_fop == NULL) {
 		m0_free(m);
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	}
 	m0_fom_init(&m->dm_fom, &fop->f_type->ft_fom_type, ops, fop, rep_fop,
 	            reqh);
@@ -197,49 +197,60 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_fid *path,
 		if (m0_conf_obj_type(cur) != &M0_CONF_DIR_TYPE) {
 			rc = apply(n, enc, cur);
 			if (rc != 0)
-				return M0_RC(rc);
+				return M0_ERR(rc);
 		}
 
 		rc = cur->co_ops->coo_lookup(cur, &path->af_elems[i], &cur) ?:
 			readiness_check(cur);
 		if (rc != 0)
-			return M0_RC(rc);
+			return M0_ERR(rc);
 	}
 
 	/* Handle final object. */
+
 	if (cur->co_parent != NULL && cur->co_parent != cur &&
 	    m0_conf_obj_type(cur->co_parent) == &M0_CONF_DIR_TYPE)
 		/* Include siblings into the resulting set. */
 		cur = cur->co_parent;
-	if (m0_conf_obj_type(cur) == &M0_CONF_DIR_TYPE) {
-		m0_conf_obj_get(cur); /* as expected by ->coo_readdir() */
-		for (entry = NULL;
-		     (rc = cur->co_ops->coo_readdir(cur, &entry)) > 0; ) {
-			/* All configuration is expected to be available. */
-			M0_ASSERT(rc != M0_CONF_DIRMISS);
 
-			rc = apply(n, enc, entry);
-			if (rc != 0)
-				return M0_RC(rc);
-		}
-		m0_conf_obj_put(cur);
-	} else {
-		rc = apply(n, enc, cur);
+	if (m0_conf_obj_type(cur) != &M0_CONF_DIR_TYPE)
+		return M0_RC(apply(n, enc, cur));
+
+	m0_conf_obj_get(cur); /* required by ->coo_readdir() */
+	for (entry = NULL; (rc = cur->co_ops->coo_readdir(cur, &entry)) > 0; ) {
+		/* All configuration is expected to be available. */
+		M0_ASSERT(rc != M0_CONF_DIRMISS);
+
+		rc = apply(n, enc, entry);
+		if (rc != 0)
+			return M0_ERR(rc);
 	}
-
+	m0_conf_obj_put(cur);
 	return M0_RC(rc);
+}
+
+static struct m0_conf_obj *
+confd_cache_lookup(const struct m0_conf_cache *cache, const struct m0_fid *fid)
+{
+	struct m0_conf_obj *obj;
+
+	obj = m0_conf_cache_lookup(cache, fid);
+	if (obj == NULL)
+		M0_LOG(M0_NOTICE, "fid=" FID_F " not found", FID_P(fid));
+	else
+		M0_POST(m0_conf_obj_invariant(obj) && obj->co_cache == cache &&
+			obj->co_status == M0_CS_READY);
+	return obj;
 }
 
 static void cache_ver_update(struct m0_conf_cache *cache)
 {
-	struct m0_conf_obj  *root_obj;
-	struct m0_conf_root *root;
+	struct m0_conf_obj *root;
 
-	M0_PRE(cache != NULL);
-	if (m0_conf_obj_find(cache, &M0_CONF_ROOT_FID, &root_obj) == 0) {
-		root = M0_CONF_CAST(root_obj, m0_conf_root);
-		cache->ca_ver = root->rt_verno;
-	}
+	root = confd_cache_lookup(cache, &M0_CONF_ROOT_FID);
+	M0_ASSERT(root != NULL); /* conf data must be cached already */
+
+	cache->ca_ver = M0_CONF_CAST(root, m0_conf_root)->rt_verno;
 	M0_POST(cache->ca_ver != M0_CONF_VER_UNKNOWN);
 }
 
@@ -261,9 +272,9 @@ static int confx_populate(struct m0_confx      *dest,
 
 	M0_SET0(dest);
 
-	rc = m0_conf_obj_find(cache, origin, &org) ?: readiness_check(org);
-	if (rc != 0)
-		return M0_RC(rc);
+	org = confd_cache_lookup(cache, origin);
+	if (org == NULL)
+		return M0_ERR(-ENOENT);
 
 	rc = confd_path_walk(org, path, _count, &nr, NULL);
 	if (rc != 0 || nr == 0)
@@ -271,7 +282,7 @@ static int confx_populate(struct m0_confx      *dest,
 
 	M0_ALLOC_ARR(data, nr * m0_confx_sizeof());
 	if (data == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	/* "data" is freed by m0_confx_free(dest). */
 	dest->cx__objs = (void *)data;
 
