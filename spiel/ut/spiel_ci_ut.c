@@ -130,10 +130,10 @@ static void test_spiel_process_cmds(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* Health */
-	rc = m0_spiel_process_health(&spiel, &process_invalid_fid);
+	rc = m0_spiel_process_health(&spiel, &process_invalid_fid, NULL);
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	rc = m0_spiel_process_health(&spiel, &process_fid);
+	rc = m0_spiel_process_health(&spiel, &process_fid, NULL);
 	M0_UT_ASSERT(rc == M0_HEALTH_GOOD);
 
 	/* Stop */
@@ -226,6 +226,30 @@ static void test_spiel_service_order(void)
 	spiel_ci_ut_fini();
 }
 
+void test_spiel_fs_stats(void)
+{
+	int                 rc;
+	const struct m0_fid fs_fid = M0_FID_TINIT('f', 1,  1);
+	const struct m0_fid fs_bad = M0_FID_TINIT('f', 1,  200);
+	struct m0_fs_stats  fs_stats = {0};
+
+	spiel_ci_ut_init();
+	/* test non-existent fs */
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_bad, &fs_stats);
+	M0_UT_ASSERT(rc == -ENOENT);
+
+	/* test the existent one */
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(fs_stats.fs_free > 0);
+	M0_UT_ASSERT(fs_stats.fs_total > 0);
+
+	m0_console_printf("\n\tfree : %20"PRId64"\n", fs_stats.fs_free);
+	m0_console_printf("\ttotal: %20"PRId64"\n", fs_stats.fs_total);
+
+	spiel_ci_ut_fini();
+}
+
 struct m0_ut_suite spiel_ci_ut = {
 	.ts_name  = "spiel-ci-ut",
 	.ts_tests = {
@@ -234,6 +258,7 @@ struct m0_ut_suite spiel_ci_ut = {
 		{ "service-order", test_spiel_service_order },
 		{ "process-services-list", test_spiel_process_services_list },
 		{ "device-cmds", test_spiel_device_cmds },
+		{ "stats", test_spiel_fs_stats },
 		{ NULL, NULL }
 	}
 };

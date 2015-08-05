@@ -73,6 +73,20 @@ struct m0_ss_process_rep {
 	 * (-Exxx = failure, 0 = success).
 	 */
 	int32_t sspr_rc;
+	/**
+	 * Process health. Valid for M0_PROCESS_HEALTH only.
+	 */
+	int32_t sspr_health;
+	/**
+	 * Filesystem stats - free space. The field is meaningful only in case
+	 * of M0_PROCESS_HEALTH command, and must be ignored in any other case.
+	 */
+	m0_bcount_t sspr_free;
+	/**
+	 * Filesystem stats - total space. The field is meaningful only in case
+	 * of M0_PROCESS_HEALTH command, and must be ignored in any other case.
+	 */
+	m0_bcount_t sspr_total;
 } M0_XCA_RECORD;
 
 struct m0_ss_process_svc_item {

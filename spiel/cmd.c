@@ -40,30 +40,12 @@
 #include "sss/ss_fops.h"
 #include "sss/process_fops.h"
 #include "spiel/spiel.h"
+#include "spiel/cmd_internal.h"
 
 /**
  * @addtogroup spiel-api-fspec-intr
  * @{
  */
-
-#define SPIEL_CONF_OBJ_FIND(confc, profile, fid, conf_obj, filter, ...) \
-	_spiel_conf_obj_find(confc, profile, fid, filter,               \
-			     M0_COUNT_PARAMS(__VA_ARGS__) + 1,          \
-			     (const struct m0_fid []){                  \
-			     __VA_ARGS__, M0_FID0 },                    \
-			     conf_obj)
-
-enum {
-	SPIEL_MAX_RPCS_IN_FLIGHT = 1,
-	SPIEL_CONN_TIMEOUT       = 5, /* seconds */
-};
-
-#define SPIEL_DEVICE_FORMAT_TIMEOUT   m0_time_from_now(10*60, 0)
-
-struct spiel_string_entry {
-	struct m0_list_link sse_linkage;
-	char               *sse_string;
-};
 
 static bool _filter_svc(const struct m0_conf_obj *obj)
 {
@@ -311,6 +293,81 @@ static int _spiel_conf_obj_find(struct m0_confc       *confc,
 	return M0_RC(rc);
 }
 
+static bool _all_stop(const struct m0_conf_obj *obj M0_UNUSED)
+{
+	return true;
+}
+
+/**
+ * Iterates through directory specified by the path and calls iterator callback
+ * on every directory item having the object pinned during callback
+ * execution. In the course of execution, provides ability to test filesystem
+ * object for correctness, e.g. the required filesystem really exists in the
+ * profile.
+ */
+static int _spiel_conf_dir_iterate(struct m0_confc     *confc,
+				   const struct m0_fid *profile,
+				   void                *ctx,
+				   bool (*iter_cb)
+				   (const struct m0_conf_obj *item, void *ctx),
+				   bool (*fs_test_cb)
+				   (const struct m0_conf_obj *item, void *ctx),
+				   uint32_t             nr_lvls,
+				   const struct m0_fid *path)
+{
+	int                  rc;
+	bool                 loop;
+	struct m0_conf_obj  *fs_obj = NULL;
+	struct m0_conf_obj  *obj;
+	struct m0_conf_diter it;
+
+	M0_ENTRY();
+
+	M0_PRE(confc != NULL);
+	M0_PRE(path != NULL);
+	M0_PRE(nr_lvls > 0);
+	M0_PRE(m0_fid_eq(&path[0], &M0_CONF_FILESYSTEM_NODES_FID));
+
+	rc = m0_confc_open_sync(&fs_obj, confc->cc_root,
+				M0_CONF_ROOT_PROFILES_FID,
+				*profile,
+				M0_CONF_PROFILE_FILESYSTEM_FID);
+
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	if (fs_test_cb != NULL && !fs_test_cb(fs_obj, ctx)) {
+		m0_confc_close(fs_obj);
+		return M0_ERR(-ENOENT);
+	}
+
+	rc = m0_conf__diter_init(&it, confc, fs_obj, nr_lvls, path);
+
+	if (rc != 0) {
+		m0_confc_close(fs_obj);
+		return M0_ERR(rc);
+	}
+
+	loop = true;
+	while (loop &&
+	       (m0_conf_diter_next_sync(&it, _all_stop)) == M0_CONF_DIRNEXT) {
+		obj = m0_conf_diter_result(&it);
+		/* Pin obj to protect it from removal while being in use */
+		m0_mutex_lock(&confc->cc_lock);
+		m0_conf_obj_get(obj);
+		m0_mutex_unlock(&confc->cc_lock);
+		loop = iter_cb(obj, ctx);
+		m0_mutex_lock(&confc->cc_lock);
+		m0_conf_obj_put(obj);
+		m0_mutex_unlock(&confc->cc_lock);
+	}
+
+	m0_conf_diter_fini(&it);
+	m0_confc_close(fs_obj);
+
+	return M0_RC(rc);
+}
+
 static int spiel_ss_ep_lookup(struct m0_conf_obj  *svc_dir,
 			      char               **ss_ep)
 {
@@ -446,12 +503,12 @@ static struct m0_fop *spiel_svc_fop_alloc(struct m0_rpc_machine *mach)
 	return m0_fop_alloc(&m0_fop_ss_fopt, NULL, mach);
 }
 
-static int spiel_sss_reply_rc(struct m0_fop *fop)
+static struct m0_sss_rep *spiel_sss_reply_data(struct m0_fop *fop)
 {
 	struct m0_rpc_item *item    = fop->f_item.ri_reply;
 	struct m0_fop      *rep_fop = m0_rpc_item_to_fop(item);
 
-	return ((struct m0_sss_rep *)m0_fop_data(rep_fop))->ssr_rc;
+	return (struct m0_sss_rep *)m0_fop_data(rep_fop);
 }
 
 static int spiel_svc_generic_handler(struct m0_spiel     *spl,
@@ -472,7 +529,7 @@ static int spiel_svc_generic_handler(struct m0_spiel     *spl,
 		return M0_ERR(-ENOMEM);
 
 	rc = spiel_svc_fop_fill_and_send(spl, fop, svc_fid, cmd) ?:
-	     spiel_sss_reply_rc(fop);
+	     spiel_sss_reply_data(fop)->ssr_rc;
 
 	m0_fop_put_lock(fop);
 	return M0_RC(rc);
@@ -506,8 +563,7 @@ int m0_spiel_service_health(struct m0_spiel *spl, const struct m0_fid *svc_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(
-				spl, svc_fid, M0_SERVICE_HEALTH));
+	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_HEALTH));
 }
 M0_EXPORTED(m0_spiel_service_health);
 
@@ -516,8 +572,7 @@ int m0_spiel_service_quiesce(struct m0_spiel     *spl,
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(
-				spl, svc_fid, M0_SERVICE_QUIESCE));
+	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_QUIESCE));
 }
 M0_EXPORTED(m0_spiel_service_quiesce);
 
@@ -670,17 +725,19 @@ static int spiel_process_command_send(struct m0_spiel     *spl,
 	return M0_RC(rc);
 }
 
-static int spiel_process_reply_status(struct m0_fop *fop)
+static struct m0_ss_process_rep *spiel_process_reply_data(struct m0_fop *fop)
 {
-	struct m0_ss_process_rep *rep;
-
-	rep = m0_ss_fop_process_rep(m0_rpc_item_to_fop(fop->f_item.ri_reply));
-	return rep->sspr_rc;
+	return m0_ss_fop_process_rep(m0_rpc_item_to_fop(fop->f_item.ri_reply));
 }
 
+/**
+ * When reply is not NULL, reply fop remains alive and gets passed to caller for
+ * further reply data processing. Otherwise it immediately appears released.
+ */
 static int spiel_process_command_execute(struct m0_spiel     *spl,
 					 const struct m0_fid *proc_fid,
-					 int                  cmd)
+					 int                  cmd,
+					 struct m0_fop      **reply)
 {
 	struct m0_fop *fop;
 	int            rc;
@@ -696,8 +753,11 @@ static int spiel_process_command_execute(struct m0_spiel     *spl,
 		return M0_RC(-ENOMEM);
 	rc = spiel_process_command_send(spl, proc_fid, fop);
 	if (rc == 0) {
-		rc = spiel_process_reply_status(fop);
-		m0_fop_put_lock(fop);
+		rc = spiel_process_reply_data(fop)->sspr_rc;
+		if (reply != NULL)
+			*reply = fop;
+		else
+			m0_fop_put_lock(fop);
 	}
 	return M0_RC(rc);
 }
@@ -710,7 +770,7 @@ int m0_spiel_process_stop(struct m0_spiel *spl, const struct m0_fid *proc_fid)
 		return M0_ERR(-EINVAL);
 
 	return M0_RC(spiel_process_command_execute(spl, proc_fid,
-						   M0_PROCESS_STOP));
+						   M0_PROCESS_STOP, NULL));
 }
 M0_EXPORTED(m0_spiel_process_stop);
 
@@ -723,20 +783,36 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
 		return M0_ERR(-EINVAL);
 
 	return M0_RC(spiel_process_command_execute(spl, proc_fid,
-						   M0_PROCESS_RECONFIG));
+						   M0_PROCESS_RECONFIG, NULL));
 }
 M0_EXPORTED(m0_spiel_process_reconfig);
 
 int m0_spiel_process_health(struct m0_spiel     *spl,
-			    const struct m0_fid *proc_fid)
+			    const struct m0_fid *proc_fid,
+			    struct m0_fop      **reply)
 {
+	struct m0_fop *reply_fop;
+	int            rc;
+	int            health;
+
 	M0_ENTRY();
 
 	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
 		return M0_ERR(-EINVAL);
-
-	return M0_RC(spiel_process_command_execute(spl, proc_fid,
-						   M0_PROCESS_HEALTH));
+	reply_fop = NULL;
+	health = M0_HEALTH_UNKNOWN;
+	rc = spiel_process_command_execute(spl, proc_fid,
+					   M0_PROCESS_HEALTH,
+					   &reply_fop);
+	if (reply_fop != NULL) {
+		M0_ASSERT(rc == 0);
+		health = spiel_process_reply_data(reply_fop)->sspr_health;
+		if (reply != NULL)
+			*reply = reply_fop;
+		else
+			m0_fop_put_lock(reply_fop);
+	}
+	return rc < 0 ? M0_ERR(rc) : M0_RC(health);
 }
 M0_EXPORTED(m0_spiel_process_health);
 
@@ -749,7 +825,7 @@ int m0_spiel_process_quiesce(struct m0_spiel     *spl,
 		return M0_ERR(-EINVAL);
 
 	return M0_RC(spiel_process_command_execute(spl, proc_fid,
-						   M0_PROCESS_QUIESCE));
+						   M0_PROCESS_QUIESCE, NULL));
 }
 M0_EXPORTED(m0_spiel_process_quiesce);
 
@@ -857,6 +933,183 @@ int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_pool_rebalance_quiesce);
+
+/****************************************************/
+/*                    Filesystem                    */
+/****************************************************/
+
+M0_TL_DESCR_DEFINE(fs_items, "list of items fs operates on",
+		   static, struct _stats_item, i_link, i_magic,
+		   M0_STATS_MAGIC, M0_STATS_HEAD_MAGIC);
+M0_TL_DEFINE(fs_items, static, struct _stats_item);
+
+static void spiel__fs_stats_ctx_init(struct _fs_stats_ctx *fsx,
+			      struct m0_spiel *spl,
+			      const struct m0_fid *fs_fid,
+			      const struct m0_conf_obj_type *item_type)
+{
+	M0_PRE(fs_fid != NULL);
+	M0_SET0(fsx);
+	fsx->fx_spl = spl;
+	fsx->fx_fid = *fs_fid;
+	fsx->fx_type = item_type;
+	fs_items_tlist_init(&fsx->fx_items);
+	M0_POST(fs_items_tlist_invariant(&fsx->fx_items));
+}
+
+static void spiel__fs_stats_ctx_fini(struct _fs_stats_ctx *fsx)
+{
+	struct _stats_item *si;
+
+	m0_tl_teardown(fs_items, &fsx->fx_items, si) {
+		m0_free(si);
+	}
+	fs_items_tlist_fini(&fsx->fx_items);
+}
+
+/**
+ * Callback provided to SPIEL_CONF_DIR_ITERATE. Intended for collecting fids
+ * from configuration objects which type matches to the type specified in
+ * collection context, i.e. process objects in this particular case. See
+ * m0_spiel_filesystem_stats_fetch() where spiel__fs_stats_ctx_init() is done.
+ */
+static bool spiel__item_enlist(const struct m0_conf_obj *item, void *ctx)
+{
+	struct _fs_stats_ctx *fsx = ctx;
+	struct _stats_item   *si;
+
+	M0_LOG(SPIEL_LOGLVL, "arrived: " FID_F " (%s)", FID_P(&item->co_id),
+	       m0_fid_type_getfid(&item->co_id)->ft_name);
+	/* continue iterating only when no issue occurred previously */
+	if (fsx->fx_rc != 0)
+		return false;
+	/* skip all but requested object types */
+	if (m0_conf_fid_type(&item->co_id) != fsx->fx_type)
+		return true;
+	M0_ALLOC_PTR(si);
+	if (si == NULL) {
+		fsx->fx_rc = M0_ERR(-ENOMEM);
+		return false;
+	}
+	si->i_fid = item->co_id;
+	fs_items_tlink_init_at(si, &fsx->fx_items);
+	M0_LOG(SPIEL_LOGLVL, "* booked: " FID_F " (%s)", FID_P(&item->co_id),
+	       m0_fid_type_getfid(&item->co_id)->ft_name);
+	return true;
+}
+
+/** Tests if filesystem object is exactly the one requested for stats. */
+static bool spiel__fs_test(const struct m0_conf_obj *fs_obj, void *ctx)
+{
+	struct _fs_stats_ctx *fsx = ctx;
+	return m0_fid_eq(&fs_obj->co_id, &fsx->fx_fid);
+}
+
+/**
+ * Updates filesystem stats by list item.
+ */
+static void spiel__fs_stats_ctx_update(struct _stats_item *si,
+				       struct _fs_stats_ctx *fsx)
+{
+	struct m0_fop            *reply_fop = NULL;
+	struct m0_ss_process_rep *reply_data;
+	int                       rc;
+
+	M0_PRE(fsx->fx_rc == 0);
+	rc = m0_spiel_process_health(fsx->fx_spl, &si->i_fid, &reply_fop);
+	M0_LOG(SPIEL_LOGLVL, "* next:  rc = %d " FID_F " (%s)",
+	       rc, FID_P(&si->i_fid),
+	       m0_fid_type_getfid(&si->i_fid)->ft_name);
+	if (rc >= M0_HEALTH_GOOD) {
+		/* some real health returned, not error code */
+		reply_data = spiel_process_reply_data(reply_fop);
+		if (m0_addu64_will_overflow(reply_data->sspr_free,
+					    fsx->fx_free)) {
+			fsx->fx_rc = M0_ERR(-EOVERFLOW);
+			goto leave;
+		}
+		fsx->fx_free  += reply_data->sspr_free;
+		if (m0_addu64_will_overflow(reply_data->sspr_total,
+					    fsx->fx_total)) {
+			fsx->fx_rc = M0_ERR(-EOVERFLOW);
+			goto leave;
+		}
+		fsx->fx_total += reply_data->sspr_total;
+	} else {
+		/* error occurred */
+		fsx->fx_rc = M0_ERR(rc);
+	}
+leave:
+	if (reply_fop != NULL)
+		m0_fop_put_lock(reply_fop);
+}
+
+int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
+				    const struct m0_fid *fs_fid,
+				    struct m0_fs_stats  *stats)
+{
+	struct m0_confc      *confc;
+	struct m0_fid        *profile;
+	struct _fs_stats_ctx  fsx;
+	struct _stats_item   *si;
+	int                   rc;
+
+	M0_ENTRY();
+	M0_PRE(spl != NULL);
+	M0_PRE(stats != NULL);
+	M0_PRE(fs_fid != NULL);
+	M0_PRE(m0_conf_fid_type(fs_fid) == &M0_CONF_FILESYSTEM_TYPE);
+	M0_PRE(m0_conf_fid_type(&spl->spl_profile) == &M0_CONF_PROFILE_TYPE);
+
+	confc   = &spl->spl_rconfc.rc_confc;
+	profile = &spl->spl_profile;
+
+	spiel__fs_stats_ctx_init(&fsx, spl, fs_fid, &M0_CONF_PROCESS_TYPE);
+	/* walk along the filesystem nodes and get to process level */
+	rc = SPIEL_CONF_DIR_ITERATE(confc, profile, &fsx,
+				    spiel__item_enlist, spiel__fs_test,
+				    M0_CONF_FILESYSTEM_NODES_FID,
+				    M0_CONF_NODE_PROCESSES_FID);
+	if (rc != 0)
+		goto leave;
+	/* see if there were issues during conf iteration */
+	if (fsx.fx_rc != 0) {
+		rc = fsx.fx_rc;
+		goto leave;
+	}
+	/* update stats by the list of found items */
+	m0_tl_for(fs_items, &fsx.fx_items, si) {
+		spiel__fs_stats_ctx_update(si, &fsx);
+		if (fsx.fx_rc != 0) {
+			if (fsx.fx_rc == -EOVERFLOW) {
+				rc = fsx.fx_rc;
+				goto leave;
+			}
+			M0_LOG(SPIEL_LOGLVL, "* fsx.fx_rc = %d with "FID_F,
+			       fsx.fx_rc, FID_P(&si->i_fid));
+			/* unset error code for letting further processing */
+			fsx.fx_rc = 0;
+		}
+		/**
+		 * @todo Need to understand if it would make sense from
+		 * consumer's standpoint to interrupt stats collection here on
+		 * a network error got from m0_spiel_process_health().
+		 */
+	} m0_tl_endfor;
+	/* report stats to consumer */
+	*stats = (struct m0_fs_stats) {
+		.fs_free = fsx.fx_free,
+		.fs_total = fsx.fx_total,
+	};
+
+	spiel__fs_stats_ctx_fini(&fsx);
+	return M0_RC(rc);
+
+leave:
+	spiel__fs_stats_ctx_fini(&fsx);
+	return M0_ERR(rc);
+}
+M0_EXPORTED(m0_spiel_filesystem_stats_fetch);
 
 /** @} */
 #undef M0_TRACE_SUBSYSTEM

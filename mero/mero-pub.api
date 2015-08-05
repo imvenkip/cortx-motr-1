@@ -239,6 +239,7 @@ m0_spiel_element_del
 m0_spiel_enclosure_add
 m0_spiel_enclosure_v_add
 m0_spiel_filesystem_add
+m0_spiel_filesystem_stats_fetch
 m0_spiel_node_add
 m0_spiel_pool_add
 m0_spiel_pool_rebalance_quiesce

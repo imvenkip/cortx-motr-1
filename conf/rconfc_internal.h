@@ -40,19 +40,19 @@ enum confc_state {
 struct m0_rconfc;
 
 struct rlock_ctx {
-	struct m0_rconfc      *rlc_parent;    /*< back link to parent  */
-	struct m0_rpc_machine *rlc_rmach;     /*< rpc machine          */
-	bool                   rlc_allowed;   /*< reading allowed      */
-	struct m0_rpc_conn     rlc_conn;      /*< rpc connection       */
-	struct m0_rpc_session  rlc_sess;      /*< rpc session          */
-	char                  *rlc_rm_addr;   /*< remote RM address    */
-	bool                   rlc_online;    /*< is RM connected      */
-	struct m0_rw_lockable  rlc_rwlock;    /*< lockable resource    */
-	struct m0_rm_owner     rlc_owner;     /*< local owner-borrower */
-	struct m0_fid          rlc_owner_fid; /*< owner fid            */
-	struct m0_rm_remote    rlc_creditor;  /*< remote creditor      */
-	struct m0_rm_incoming  rlc_req;       /*< request to wait on   */
-	int                    rlc_rc;        /*< last return code     */
+	struct m0_rconfc      *rlc_parent;    /**< back link to parent  */
+	struct m0_rpc_machine *rlc_rmach;     /**< rpc machine          */
+	bool                   rlc_allowed;   /**< reading allowed      */
+	struct m0_rpc_conn     rlc_conn;      /**< rpc connection       */
+	struct m0_rpc_session  rlc_sess;      /**< rpc session          */
+	char                  *rlc_rm_addr;   /**< remote RM address    */
+	bool                   rlc_online;    /**< is RM connected      */
+	struct m0_rw_lockable  rlc_rwlock;    /**< lockable resource    */
+	struct m0_rm_owner     rlc_owner;     /**< local owner-borrower */
+	struct m0_fid          rlc_owner_fid; /**< owner fid            */
+	struct m0_rm_remote    rlc_creditor;  /**< remote creditor      */
+	struct m0_rm_incoming  rlc_req;       /**< request to wait on   */
+	int                    rlc_rc;        /**< last return code     */
 	/**
 	 * Read lock request completion event. Unhooks m0_rconfc_init() waiting
 	 * in rconfc_read_lock_wait().
@@ -88,16 +88,16 @@ struct ver_accm {
  * lists
  */
 struct rconfc_link {
-	struct m0_confc     *rl_confc;         /*< confc instance      */
-	struct m0_rconfc    *rl_rconfc;        /*< back link to owner  */
-	struct m0_confc_ctx  rl_cctx;          /*< wait context        */
-	struct m0_clink      rl_clink;         /*< wait clink          */
-	struct m0_tlink      rl_herd;          /*< link to herd list   */
-	struct m0_tlink      rl_active;        /*< link to active list */
-	uint64_t             rl_magic;         /*< confc link magic    */
-	char                *rl_confd_addr;    /*< confd peer address  */
-	int                  rl_rc;            /*< confc result        */
-	int                  rl_state;         /*< current state       */
+	struct m0_confc     *rl_confc;         /**< confc instance      */
+	struct m0_rconfc    *rl_rconfc;        /**< back link to owner  */
+	struct m0_confc_ctx  rl_cctx;          /**< wait context        */
+	struct m0_clink      rl_clink;         /**< wait clink          */
+	struct m0_tlink      rl_herd;          /**< link to herd list   */
+	struct m0_tlink      rl_active;        /**< link to active list */
+	uint64_t             rl_magic;         /**< confc link magic    */
+	char                *rl_confd_addr;    /**< confd peer address  */
+	int                  rl_rc;            /**< confc result        */
+	int                  rl_state;         /**< current state       */
 };
 
 /**

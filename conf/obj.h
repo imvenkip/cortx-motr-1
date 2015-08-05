@@ -172,9 +172,9 @@ struct m0_xcode_type;
  * @see m0_conf_obj_is_stub()
  */
 enum m0_conf_status {
-	M0_CS_MISSING, /*< Configuration is absent; no retrieval in progress. */
-	M0_CS_LOADING, /*< Retrieval of configuration is in progress. */
-	M0_CS_READY    /*< Configuration is available. */
+	M0_CS_MISSING, /**< Configuration is absent; no retrieval in progress.*/
+	M0_CS_LOADING, /**< Retrieval of configuration is in progress. */
+	M0_CS_READY    /**< Configuration is available. */
 };
 
 /**

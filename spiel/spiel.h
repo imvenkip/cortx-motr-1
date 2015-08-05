@@ -748,7 +748,8 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
  *         negative value if error occurred
  */
 int m0_spiel_process_health(struct m0_spiel     *spl,
-			    const struct m0_fid *proc_fid);
+			    const struct m0_fid *proc_fid,
+			    struct m0_fop      **reply);
 
 /**
  * Prepare mero process for stopping
@@ -816,6 +817,43 @@ int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
  */
 int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
 				    const struct m0_fid *pool_fid);
+
+
+/**
+ * Mero filesystem stats. The stats are collected from all processes of the
+ * nodes the filesystem builds on. Space counters include respective counts from
+ * all BE segments mdservice operates on, including seg0, as well as spaces from
+ * all storage devices ioservice operates on. Total space includes all total
+ * spaces no matter what state the storage device is in. Unlike to total, free
+ * space includes counts only from storage devices currently known as on-line
+ * devices.
+ */
+struct m0_fs_stats {
+	m0_bcount_t fs_free;
+	m0_bcount_t fs_total;
+};
+
+/**
+ * Fetches stats for filesyetm object identified by provided fid. Spiel API
+ * internally polls all process instances registered in configuration database
+ * under the specified filesystem object.
+ *
+ * @param spiel          spiel instance, must have profile fid set up to the
+ *                       moment of the call
+ * @param fs_fid         filesystem fid
+ * @param stats          instance of m0_fs_stats to be filled with resultant
+ *                       values. The instance counter values are written only
+ *                       in case of success, and must be ignored otherwise.
+ *
+ * @note Filesystem object is looked up only under configuration profile the
+ * spiel object is set up with to the moment of the call. In case filesystem
+ * object cannot be found there, no additional search is done, even in case some
+ * other profiles exist in the Mero configuration.
+ */
+int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spiel,
+				    const struct m0_fid *fs_fid,
+				    struct m0_fs_stats  *stats);
+
 
 /** @} end of spiel group */
 #endif /* __MERO_SPIEL_SPIEL_H__ */

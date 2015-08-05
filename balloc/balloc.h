@@ -99,15 +99,15 @@ struct m0_balloc_super_block {
 	uint64_t	bsb_version;
 	uint8_t		bsb_uuid[128];
 
-        m0_bcount_t	bsb_totalsize;        /*< total size in bytes */
-        m0_bcount_t	bsb_freeblocks;       /*< nr of free blocks */
-        m0_bcount_t	bsb_blocksize;        /*< block size in bytes */
-        m0_bcount_t	bsb_groupsize;        /*< group size in blocks */
-	uint32_t	bsb_bsbits;           /*< block size bits: power of 2 */
-	uint32_t	bsb_gsbits;           /*< group size bits: power of 2 */
-        m0_bcount_t	bsb_groupcount;       /*< # of group */
-        m0_bcount_t	bsb_reserved_groups;  /*< nr of reserved groups */
-        m0_bcount_t	bsb_prealloc_count;   /*< nr of pre-alloc blocks */
+        m0_bcount_t	bsb_totalsize;        /**< total size in bytes */
+        m0_bcount_t	bsb_freeblocks;       /**< nr of free blocks */
+        m0_bcount_t	bsb_blocksize;        /**< block size in bytes */
+        m0_bcount_t	bsb_groupsize;        /**< group size in blocks */
+	uint32_t	bsb_bsbits;           /**< block size bits: power of 2*/
+	uint32_t	bsb_gsbits;           /**< group size bits: power of 2*/
+        m0_bcount_t	bsb_groupcount;       /**< # of group */
+        m0_bcount_t	bsb_reserved_groups;  /**< nr of reserved groups */
+        m0_bcount_t	bsb_prealloc_count;   /**< nr of pre-alloc blocks */
 
 	uint64_t	bsb_format_time;
 	uint64_t	bsb_write_time;
@@ -117,7 +117,7 @@ struct m0_balloc_super_block {
 	uint64_t	bsb_mnt_count;
 	uint64_t	bsb_max_mnt_count;
 
-        m0_bcount_t	bsb_stripe_size;      /*< stripe size in blocks */
+        m0_bcount_t	bsb_stripe_size;      /**< stripe size in blocks */
 };
 
 enum m0_balloc_super_block_state {

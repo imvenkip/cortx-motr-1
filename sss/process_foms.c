@@ -28,6 +28,8 @@
 #include "lib/finject.h" /* M0_FI_ENABLED */
 #include "lib/misc.h"
 #include "lib/memory.h"
+#include "be/domain.h"            /* m0_be_domain */
+#include "module/instance.h"      /* m0_get */
 #include "conf/helpers.h"
 #include "fop/fop.h"
 #include "fop/fom_generic.h"
@@ -41,6 +43,9 @@
  #include "module/instance.h"
  #include <unistd.h>
  #include "mero/process_attr.h"
+ #include "pool/pool_machine.h"     /* m0_pool_machine_state */
+ #include "pool/pool.h"             /* m0_pooldev */
+ #include "ioservice/storage_dev.h" /* m0_storage_dev_space */
 #endif
 
 static int ss_process_fom_create(struct m0_fop   *fop,
@@ -225,13 +230,119 @@ static int ss_process_fom_tick__init(struct m0_fom        *fom,
 	return M0_RC(0);
 }
 
-static int ss_process_health(struct m0_reqh *reqh)
+static int ss_process_health(struct m0_reqh *reqh, int32_t *h)
 {
 	/* Do nothing special here for now.
 	 * Maybe in future some checks will be added */
 
-	return M0_HEALTH_GOOD;
+	M0_PRE(h != NULL);
+	*h = M0_HEALTH_GOOD;
+	return 0;
 }
+
+#ifdef __KERNEL__
+static int ss_process_stats(struct m0_reqh *reqh M0_UNUSED,
+			     struct m0_ss_process_rep *rep M0_UNUSED)
+{
+	return M0_ERR(-ENOSYS);
+}
+#else
+extern struct m0_reqh_service_type m0_ios_type;
+
+static struct m0_reqh_service *ss_ioservice_find(struct m0_reqh *reqh)
+{
+	struct m0_reqh_service_type *iot;
+
+	M0_PRE(reqh != NULL);
+	iot = m0_reqh_service_type_find(m0_ios_type.rst_name);
+	if (iot != NULL)
+		return m0_reqh_service_find(iot, reqh);
+	return NULL;
+}
+
+M0_TL_DESCR_DECLARE(seg, M0_EXTERN);
+
+static int ss_be_segs_stats_ingest(struct m0_ss_process_rep *rep)
+{
+	struct m0_tl     *segs = &m0_get()->i_be_dom->bd_segs;
+	struct m0_be_seg *bs;
+
+	/* collect be segments stats */
+	m0_tl_for(seg, segs, bs) {
+		struct m0_be_allocator_stats stats = {0};
+
+		m0_be_alloc_stats(&bs->bs_allocator, &stats);
+		if (m0_addu64_will_overflow(rep->sspr_total,
+					    stats.bas_space_total))
+			return M0_ERR(-EOVERFLOW);
+		rep->sspr_total += stats.bas_space_total;
+		if (m0_addu64_will_overflow(rep->sspr_free,
+					    stats.bas_space_free))
+			return M0_ERR(-EOVERFLOW);
+		rep->sspr_free  += stats.bas_space_free;
+	} m0_tl_endfor;
+
+	return M0_RC(0);
+}
+
+static int ss_ios_stats_ingest(struct m0_ss_process_rep *rep)
+{
+	struct m0_pooldev        *pda;
+	struct m0_pooldev        *pdev;
+	struct m0_poolmach_state *pms = m0_get()->i_pool_module;
+	struct m0_storage_devs   *sds = &m0_get()->i_storage_devs;
+	struct m0_storage_dev    *dev;
+	struct m0_storage_space   sp;
+
+	M0_PRE(pms != NULL);
+	pda = pms->pst_devices_array;
+	/* collect sdevs stats */
+	m0_tl_for(storage_dev, &sds->sds_devices, dev) {
+		M0_SET0(&sp);
+		m0_storage_dev_space(dev, &sp);
+		/* any storage device must update total stats */
+		if (m0_addu64_will_overflow(rep->sspr_total,
+					    sp.sds_total_size))
+			return M0_ERR(-EOVERFLOW);
+		rep->sspr_total += sp.sds_total_size;
+		/*
+		 * see if device is in the pool, and is online, and update free
+		 * space stats then
+		 */
+		pdev = NULL;
+		m0_forall(idx, pms->pst_nr_devices, NULL ==
+			  (pdev = (pda[idx].pd_id.f_key == dev->isd_cid ?
+				   &pda[idx] : NULL)));
+		if (pdev != NULL && pdev->pd_state == M0_PNDS_ONLINE) {
+			m0_bcount_t free_space;
+
+			M0_ASSERT(pdev->pd_node->pn_state == M0_PNDS_ONLINE);
+			if (~((m0_bcount_t)0) / sp.sds_block_size <
+			    sp.sds_free_blocks)
+				return M0_ERR(-EOVERFLOW);
+			free_space = sp.sds_free_blocks * sp.sds_block_size;
+			if (m0_addu64_will_overflow(rep->sspr_free, free_space))
+				return M0_ERR(-EOVERFLOW);
+			rep->sspr_free += free_space;
+		}
+	} m0_tl_endfor;
+
+	return M0_RC(0);
+}
+
+static int ss_process_stats(struct m0_reqh *reqh,
+			     struct m0_ss_process_rep *rep)
+{
+	int rc;
+
+	M0_ENTRY();
+	rc = ss_be_segs_stats_ingest(rep);
+	/* see if ioservice is up and running */
+	if (rc == 0 && ss_ioservice_find(reqh) != NULL)
+		rc = ss_ios_stats_ingest(rep);
+	return M0_RC(rc);
+}
+#endif
 
 extern struct m0_reqh_service_type m0_rpc_service_type;
 
@@ -473,7 +584,8 @@ static int ss_process_fom_tick(struct m0_fom *fom)
 
 	case SS_PROCESS_FOM_HEALTH:
 		rep = m0_ss_fop_process_rep(fom->fo_rep_fop);
-		rep->sspr_rc = ss_process_health(reqh);
+		rep->sspr_rc = ss_process_health(reqh, &rep->sspr_health) ?:
+			ss_process_stats(reqh, rep);
 		m0_fom_phase_moveif(fom, rep->sspr_rc, M0_FOPH_SUCCESS,
 				    M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
