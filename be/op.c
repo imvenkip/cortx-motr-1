@@ -92,9 +92,9 @@ static void be_op_sm_init(struct m0_be_op *op)
 
 static void be_op_sm_fini(struct m0_be_op *op)
 {
+	be_op_lock(op);
 	M0_PRE(M0_IN(op->bo_sm.sm_state, (M0_BOS_INIT, M0_BOS_DONE)));
 
-	be_op_lock(op);
 	if (op->bo_sm.sm_state == M0_BOS_INIT) {
 		m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
 		m0_sm_state_set(&op->bo_sm, M0_BOS_DONE);
