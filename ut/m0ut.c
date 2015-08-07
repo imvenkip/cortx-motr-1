@@ -119,6 +119,7 @@ extern struct m0_ut_suite sss_ut;
 extern struct m0_ut_suite spiel_conf_ut;
 extern struct m0_ut_suite stats_ut;
 extern struct m0_ut_suite stob_ut;
+extern struct m0_ut_suite storage_dev_ut;
 extern struct m0_ut_suite udb_ut;
 extern struct m0_ut_suite xcode_bufvec_fop_ut;
 extern struct m0_ut_suite xcode_ff2c_ut;
@@ -206,6 +207,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &stats_ut, false);
 	m0_ut_add(m, &spiel_conf_ut, true);
 	m0_ut_add(m, &stob_ut, true);
+	m0_ut_add(m, &storage_dev_ut, true);
 	m0_ut_add(m, &udb_ut, true);
 	m0_ut_add(m, &xcode_bufvec_fop_ut, true);
 	m0_ut_add(m, &xcode_ff2c_ut, true);

@@ -283,12 +283,6 @@ enum m0_magic_satchel {
 	/* cs_eps_tl::td_head_magic (felic felicis) */
 	M0_CS_EPS_HEAD_MAGIC = 0x33fe11cfe11c1577,
 
-	/* cs_ad_stob::as_magix (ecobabble elf) */
-	M0_CS_AD_STOB_MAGIC = 0x33ec0babb1ee1f77,
-
-	/* astob::td_head_magic (foodless flee) */
-	M0_CS_AD_STOB_HEAD_MAGIC = 0x33f00d1e55f1ee77,
-
 	/* ndom_tl::td_head_magic (baffled basis) */
 	M0_CS_NET_DOMAIN_HEAD_MAGIC = 0x33baff1edba51577,
 
@@ -806,6 +800,13 @@ enum m0_magic_satchel {
 
 	/* stob/null.c:null_domains_tl::td_head_magic (discoid head) */
 	M0_STOB_DOM_NULL_HEAD_MAGIC = 0x33d15c01d4ead77,
+
+/* Storage device */
+	/* m0_storage_dev::isd_magic (defaced code) */
+	M0_STORAGE_DEV_MAGIC = 0x33defacedc0de77,
+
+	/* storage_dev_tl::td_head_magic (defaced head) */
+	M0_STORAGE_DEV_HEAD_MAGIC = 0x335defaced4ead77,
 
 /* Stats */
 	/* m0_stats::s_magic (slab slab) */

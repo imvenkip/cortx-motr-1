@@ -194,18 +194,14 @@ struct cs_stob_file {
 };
 
 /**
-   Structure which encapsulates stob type and
-   stob domain references for linux and ad stobs respectively.
+ * Structure which encapsulates backing store domain for IO storage devices
+ * and structure for IO storage devices configuration file.
  */
 struct cs_stobs {
-	/** Type of storage domain to be initialise (e.g. Linux or AD) */
-	enum stob_type         s_stype;
 	/** Linux storage domain. */
 	struct m0_stob_domain *s_sdom;
 	/** Devices configuration. */
 	struct cs_stob_file    s_sfile;
-	/** List of AD stobs */
-	struct m0_tl           s_adstobs;
 	/** Initialise AD disk storage. */
 	bool                   s_ad_disks_init;
 };

@@ -20,12 +20,13 @@
 #ifndef __MERO_MODULE_INSTANCE_H__
 #define __MERO_MODULE_INSTANCE_H__
 
-#include "module/module.h"  /* m0_module */
-#include "lib/bitmap.h"     /* m0_bitmap */
-#include "lib/lockers.h"    /* M0_LOCKERS__DECLARE */
-#include "stob/module.h"    /* m0_stob_module */
-#include "ut/stob.h"        /* m0_ut_stob_module */
-#include "mero/process_attr.h"    /* m0_proc_attr */
+#include "module/module.h"         /* m0_module */
+#include "lib/bitmap.h"            /* m0_bitmap */
+#include "lib/lockers.h"           /* M0_LOCKERS__DECLARE */
+#include "stob/module.h"           /* m0_stob_module */
+#include "ioservice/storage_dev.h" /* m0_storage_devs */
+#include "ut/stob.h"               /* m0_ut_stob_module */
+#include "mero/process_attr.h"     /* m0_proc_attr */
 
 struct m0_be_domain;
 
@@ -104,7 +105,7 @@ struct m0 {
 	struct m0_be_domain      *i_be_dom_save;
 	struct m0_be_ut_backend  *i_be_ut_backend;
 	struct m0_poolmach_state *i_pool_module;
-	bool                      i_reqh_has_multiple_ad_domains;
+	struct m0_storage_devs    i_storage_devs;
 	bool                      i_reqh_uses_ad_stob;
 	/** Key for ioservice cob domain */
 	unsigned                  i_ios_cdom_key;

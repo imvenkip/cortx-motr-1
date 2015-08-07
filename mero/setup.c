@@ -57,6 +57,7 @@
 
 #include "be/ut/helper.h"
 #include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */
+#include "ioservice/storage_dev.h"
 #include "stob/linux.h"
 
 /**
@@ -111,14 +112,6 @@ M0_TL_DEFINE(ndom, static, struct m0_net_domain);
 
 static struct m0_bob_type ndom_bob;
 M0_BOB_DEFINE(static, &ndom_bob, m0_net_domain);
-
-M0_TL_DESCR_DEFINE(astob, "ad stob domains", static, struct cs_ad_stob,
-		   as_linkage, as_magix, M0_CS_AD_STOB_MAGIC,
-		   M0_CS_AD_STOB_HEAD_MAGIC);
-M0_TL_DEFINE(astob, static, struct cs_ad_stob);
-
-static struct m0_bob_type astob_bob;
-M0_BOB_DEFINE(static, &astob_bob, cs_ad_stob);
 
 static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
 {
@@ -688,109 +681,38 @@ static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob)
 	return 0;
 }
 
-/* XXX DESCRIBEME cid is linux_stob_key and ad_dom_key */
-M0_INTERNAL int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
-				  struct m0_be_seg *seg, const char *f_path,
-				  m0_bcount_t size)
+static void cs_storage_devs_fini()
 {
-	int                rc;
-	char               location[64];
-	char              *dom_cfg;
-	struct m0_stob    *bstore;
-	struct cs_ad_stob *adstob;
-	struct m0_stob_id  stob_id;
+	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
 
-	M0_ENTRY("cid=%llu path=%s", (unsigned long long)cid, f_path);
-
-	M0_ALLOC_PTR(adstob);
-	if (adstob == NULL)
-		return M0_ERR_INFO(-ENOMEM, "adstob object allocation failed");
-
-	m0_stob_id_make(0, cid, &stob->s_sdom->sd_id, &stob_id);
-	rc = m0_stob_find(&stob_id, &bstore);
-	if (rc == 0 && m0_stob_state_get(bstore) == CSS_UNKNOWN) {
-		rc = m0_stob_locate(bstore);
-		adstob->as_stob_back = bstore;
-	}
-
-	if (rc == 0 && m0_stob_state_get(bstore) == CSS_NOENT) {
-		/* XXX assume that whole cfg_str is a symlink if != NULL */
-		rc = m0_stob_create(bstore, NULL, f_path);
-	}
-
-	if (rc == 0) {
-		rc = snprintf(location, sizeof(location),
-			      "adstob:%llu", (unsigned long long)cid);
-		M0_ASSERT(rc < sizeof(location));
-		m0_stob_ad_cfg_make(&dom_cfg, seg, m0_stob_id_get(bstore), size);
-		if (dom_cfg == NULL) {
-			rc = -ENOMEM;
-		} else {
-			rc = m0_stob_domain_create_or_init(location, NULL,
-							   cid, dom_cfg,
-							   &adstob->as_dom);
-		}
-		m0_free(dom_cfg);
-
-		if (rc == 0 && M0_FI_ENABLED("ad_domain_locate_fail")) {
-			m0_stob_domain_fini(adstob->as_dom);
-			rc = -EINVAL;
-		}
-
-		if (rc == 0) {
-			cs_ad_stob_bob_init(adstob);
-			astob_tlink_init_at_tail(adstob, &stob->s_adstobs);
-		}
-	}
-
-	if (rc != 0) {
-		if (bstore != NULL)
-			m0_stob_put(bstore);
-		m0_free(adstob);
-	}
-	return M0_RC(rc);
-}
-
-static void cs_ad_stob_fini(struct cs_stobs *stob)
-{
-	struct cs_ad_stob *adstob;
-
-	M0_PRE(stob != NULL);
-
-	m0_tl_for(astob, &stob->s_adstobs, adstob) {
-		M0_ASSERT(cs_ad_stob_bob_check(adstob));
-		M0_ASSERT(adstob->as_dom != NULL);
-		m0_stob_domain_fini(adstob->as_dom);
-		m0_stob_put(adstob->as_stob_back);
-		astob_tlink_del_fini(adstob);
-		cs_ad_stob_bob_fini(adstob);
-		m0_free(adstob);
-	} m0_tl_endfor;
-	astob_tlist_fini(&stob->s_adstobs);
+	m0_storage_devs_detach_all(devs);
+	m0_storage_devs_fini(devs);
 }
 
 /**
-   Initialises AD type stob.
+ * Initialise storage devices used by IO service.
  */
-static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *seg)
+static int cs_storage_devs_init(struct cs_stobs       *stob,
+				struct m0_be_seg      *seg,
+				struct m0_stob_domain *bstore_dom)
 {
-	int		  rc = 0;
-	int		  result;
-	uint64_t	  cid;
-	const char       *f_path;
-	yaml_document_t  *doc;
-	yaml_node_t      *node;
-	yaml_node_t      *s_node;
-	yaml_node_item_t *item;
-	m0_bcount_t       size = 0; /* Uses BALLOC_DEF_CONTAINER_SIZE; */
+	int                     rc;
+	int                     result;
+	uint64_t                cid;
+	const char             *f_path;
+	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
+	yaml_document_t        *doc;
+	yaml_node_t            *node;
+	yaml_node_t            *s_node;
+	yaml_node_item_t       *item;
+	m0_bcount_t       	size = 0; /* Uses BALLOC_DEF_CONTAINER_SIZE; */
 
 	M0_ENTRY();
 
-	astob_tlist_init(&stob->s_adstobs);
-	/**
-	 * @todo Remove Yaml based stob create once disks.conf usage is
-	 * eliminated.
-	 */
+	rc = m0_storage_devs_init(devs, seg, bstore_dom);
+	if (rc != 0)
+		return M0_ERR(rc);
+
 	if (stob->s_sfile.sf_is_initialised) {
 		doc = &stob->s_sfile.sf_document;
 		for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
@@ -801,25 +723,66 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *seg)
 				if (result != 0)
 					continue;
 				f_path = stob_file_path_get(doc, s_node);
-				rc = cs_ad_stob_create(stob, cid, seg, f_path,
-						       size);
+				rc = m0_storage_dev_attach(devs, cid,
+							   f_path, size);
 				if (rc != 0)
 					break;
 			}
 		}
-		m0_get()->i_reqh_has_multiple_ad_domains = true;
 	} else if (stob->s_ad_disks_init) {
-		rc = cs_conf_storage_init(stob);
-		m0_get()->i_reqh_has_multiple_ad_domains = true;
+		rc = cs_conf_storage_init(stob, devs);
 	} else {
-		rc = cs_ad_stob_create(stob, M0_AD_STOB_DOM_KEY_DEFAULT,
-				       seg, NULL, size);
-		m0_get()->i_reqh_has_multiple_ad_domains = false;
+		rc = m0_storage_dev_attach(devs, M0_AD_STOB_DOM_KEY_DEFAULT,
+					   NULL, size);
 	}
 
 	if (rc != 0)
-		cs_ad_stob_fini(stob);
+		cs_storage_devs_fini(stob);
+	return M0_RC(rc);
+}
 
+static int cs_storage_bstore_prepare(const char             *stob_path,
+				     const char             *str_cfg_init,
+				     uint64_t                dom_key,
+				     bool                    mkfs,
+				     bool                    force,
+				     struct m0_stob_domain **out)
+{
+	int                rc;
+	char              *location;
+	static const char  prefix[] = "linuxstob:";
+
+	M0_ENTRY();
+	M0_PRE(stob_path != NULL);
+
+	M0_ALLOC_ARR(location, strlen(stob_path) + ARRAY_SIZE(prefix));
+	if (location == NULL)
+		return M0_RC(-ENOMEM);
+
+	sprintf(location, "%s%s", prefix, stob_path);
+	rc = m0_stob_domain_init(location, str_cfg_init, out);
+	if (mkfs) {
+		/* Found existing stob domain, kill it. */
+		if (rc == 0 && force) {
+			rc = m0_stob_domain_destroy(*out);
+			if (rc != 0)
+				goto out;
+		}
+		if (force || rc != 0) {
+			rc = m0_stob_domain_create(location, str_cfg_init,
+						   dom_key, NULL, out);
+			if (rc != 0)
+				M0_LOG(M0_ERROR,
+				       "m0_stob_domain_create: rc=%d", rc);
+		} else {
+			M0_LOG(M0_INFO, "Found alive filesystem, do nothing.");
+		}
+	} else {
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "m0_stob_domain_init: rc=%d", rc);
+	}
+out:
+	m0_free(location);
 	return M0_RC(rc);
 }
 
@@ -830,7 +793,6 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *seg)
 
    @todo Use generic mechanism to generate stob ids
  */
-/* XXX rewrite stob_type */
 static int cs_storage_init(const char *stob_type,
 			   const char *stob_path,
 			   uint64_t dom_key,
@@ -839,58 +801,25 @@ static int cs_storage_init(const char *stob_type,
 			   bool mkfs, bool force)
 {
 	int                rc;
-	char              *location;
-	static const char  prefix[] = "linuxstob:";
 
 	M0_ENTRY();
+	M0_PRE(stob_type != NULL);
+	M0_PRE(stob_path != NULL);
+	M0_PRE(stob != NULL);
+	M0_PRE(stype_is_valid(stob_type));
 
-	M0_PRE(stob_type != NULL && stob_path != NULL && stob != NULL);
+	rc = cs_storage_bstore_prepare(stob_path, "directio=true",
+				       dom_key, mkfs, force, &stob->s_sdom);
+	if (rc != 0)
+		return M0_ERR(rc);
 
-	if (m0_strcaseeq(stob_type, m0_cs_stypes[M0_LINUX_STOB])) {
-		stob->s_stype = M0_LINUX_STOB;
+	if (strcasecmp(stob_type, m0_cs_stypes[M0_LINUX_STOB]) == 0) {
 		m0_get()->i_reqh_uses_ad_stob = false;
-	} else if (m0_strcaseeq(stob_type, m0_cs_stypes[M0_AD_STOB])) {
-		stob->s_stype = M0_AD_STOB;
-		m0_get()->i_reqh_uses_ad_stob = true;
-	} else
-		return M0_RC(-EINVAL);
-
-	M0_ALLOC_ARR(location, strlen(stob_path) + ARRAY_SIZE(prefix));
-	if (location == NULL)
-		return M0_RC(-ENOMEM);
-
-	sprintf(location, "%s%s", prefix, stob_path);
-	rc = m0_stob_domain_init(location, "directio=true", &stob->s_sdom);
-	if (mkfs) {
-		/* Found existing stob domain, kill it. */
-		if (rc == 0 && force) {
-			rc = m0_stob_domain_destroy(stob->s_sdom);
-			if (rc != 0)
-				goto out;
-		}
-		if (force || rc != 0) {
-			rc = m0_stob_domain_create_or_init(location,
-							   "directio=true",
-							   dom_key, NULL,
-							   &stob->s_sdom);
-			if (rc != 0)
-				M0_LOG(M0_ERROR,
-				       "m0_stob_domain_create_or_init: rc=%d",
-				       rc);
-		} else {
-			M0_LOG(M0_INFO, "Found alive filesystem, do nothing.");
-		}
 	} else {
-		if (rc != 0)
-			M0_LOG(M0_ERROR, "m0_stob_domain_init: rc=%d", rc);
-	}
-out:
-	m0_free(location);
-
-	if (rc == 0 && m0_strcaseeq(stob_type, m0_cs_stypes[M0_AD_STOB])) {
-		rc = cs_ad_stob_init(stob, seg);
+		m0_get()->i_reqh_uses_ad_stob = true;
+		rc = cs_storage_devs_init(stob, seg, stob->s_sdom);
 		if (rc != 0) {
-			M0_LOG(M0_ERROR, "cs_ad_stob_init: rc=%d", rc);
+			M0_LOG(M0_ERROR, "cs_storage_devs_init: rc=%d", rc);
 			m0_stob_domain_fini(stob->s_sdom);
 		}
 	}
@@ -902,8 +831,8 @@ out:
  */
 static void cs_storage_fini(struct cs_stobs *stob)
 {
-	if (stob->s_stype == M0_AD_STOB)
-		cs_ad_stob_fini(stob);
+	if (m0_get()->i_reqh_uses_ad_stob)
+		cs_storage_devs_fini(stob);
 	if (stob->s_sdom != NULL)
 		m0_stob_domain_fini(stob->s_sdom);
 	if (stob->s_sfile.sf_is_initialised)
@@ -1188,7 +1117,7 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		      const char              *name,
 		      bool                     preallocate,
 		      bool                     format,
-		      struct m0_be_seg	     **out)
+		      struct m0_be_seg       **out)
 {
 	enum { len = 1024 };
 	char **loc = &be->but_stob_domain_location;
@@ -1275,10 +1204,8 @@ static int cs_storage_setup(struct m0_mero *cctx)
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
 			rctx->rc_be_seg_preallocate,
 			(mkfs && force), &rctx->rc_beseg);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "cs_be_init");
-		return M0_RC(rc);
-	}
+	if (rc != 0)
+		return M0_ERR_INFO(rc, "cs_be_init");
 
 	rc = m0_reqh_be_init(&rctx->rc_reqh, rctx->rc_beseg);
 	if (rc != 0) {
@@ -1458,7 +1385,6 @@ static void cs_mero_init(struct m0_mero *cctx)
 
 	m0_bob_type_tlist_init(&cs_eps_bob, &cs_eps_tl);
 
-	m0_bob_type_tlist_init(&astob_bob, &astob_tl);
 	m0_rwlock_init(&cctx->cc_rwlock);
 
 	cs_eps_tlist_init(&cctx->cc_ios_eps);

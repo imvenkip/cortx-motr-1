@@ -25,6 +25,9 @@
 
 #include "mero/setup.h"
 
+/* import */
+struct m0_storage_devs;
+
 /**
    @addtogroup m0d
    @{
@@ -48,14 +51,10 @@ struct cs_buffer_pool {
 M0_INTERNAL int cs_conf_to_args(struct cs_args *args,
 				struct m0_conf_filesystem *fs);
 
-M0_INTERNAL int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
-				  struct m0_be_seg *seg, const char *f_path,
-				  m0_bcount_t size);
-M0_INTERNAL int cs_conf_storage_init(struct cs_stobs *stob);
+M0_INTERNAL int cs_conf_storage_init(struct cs_stobs        *stob,
+				     struct m0_storage_devs *devs);
 M0_INTERNAL int cs_conf_device_reopen(struct cs_stobs *stob, uint32_t dev_id);
 
-M0_INTERNAL int cs_ad_sdev_stob_create(struct cs_stobs *stob,
-				       struct m0_conf_sdev *sdev);
 /** @} endgroup m0d */
 #endif /* __MERO_SETUP_INTERNAL_H__ */
 

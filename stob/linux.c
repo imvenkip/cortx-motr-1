@@ -514,11 +514,9 @@ M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
 	st = m0_stob_state_get(bstore);
 	M0_ASSERT(st == CSS_EXISTS);
 	/*
-	 * We need to decrement the reference count on stob by 2.
-	 * First for m0_stob_find() above, and second for ad stob
+	 * We need to release the reference for AD stob domain
 	 * created on this stob.
 	 */
-	m0_stob_put(bstore);
 	m0_stob_put(bstore);
 	rc = m0_stob_destroy(bstore, NULL);
 	if (rc != 0) {
@@ -533,14 +531,12 @@ M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
 	M0_ASSERT(st == CSS_NOENT);
 	rc = m0_stob_create(bstore, NULL, f_path);
 	rc = rc ?: m0_stob_state_get(bstore) == CSS_EXISTS ? 0 : -ENOENT;
-	if (rc == 0) {
-		/* Take back the ad stob reference */
-		m0_stob_get(bstore);
-		return M0_RC(rc);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "Failed to create stob:%s", f_path);
+		m0_stob_put(bstore);
+		return M0_ERR(rc);
 	}
-	M0_LOG(M0_ERROR, "Failed to create stob:%s", f_path);
-	m0_stob_put(bstore);
-	return M0_ERR(rc);
+	return M0_RC(0);
 }
 
 static struct m0_stob_type_ops stob_linux_type_ops = {
