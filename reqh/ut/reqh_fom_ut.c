@@ -215,7 +215,7 @@ static int server_init(const char             *stob_path,
 	/*
 	 * Create AD domain over backing store object.
 	 */
-	m0_stob_ad_cfg_make(&sdom_cfg, seg, m0_stob_id_get(bstore));
+	m0_stob_ad_cfg_make(&sdom_cfg, seg, m0_stob_id_get(bstore), 0);
 	sdom_location = m0_alloc(0x1000);
 	snprintf(sdom_location, 0x1000, "adstob:seg=%p,1234", seg);
 	rc = m0_stob_domain_create(sdom_location, NULL, 2, sdom_cfg, &sdom);

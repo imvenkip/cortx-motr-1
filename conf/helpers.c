@@ -62,6 +62,29 @@ M0_INTERNAL int m0_conf_fs_get(const char *profile,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL int m0_conf_device_get(struct m0_confc      *confc,
+				   struct m0_fid        *fid,
+				   struct m0_conf_sdev **sdev)
+{
+	struct m0_conf_obj *obj;
+	int                 rc;
+
+	M0_PRE(confc != NULL);
+	M0_PRE(fid != NULL);
+
+	M0_LOG(M0_DEBUG, FID_F, FID_P(fid));
+	m0_conf_cache_lock(&confc->cc_cache);
+	rc = m0_conf_obj_find(&confc->cc_cache, fid, &obj);
+	m0_conf_cache_unlock(&confc->cc_cache);
+
+	if (rc == 0 && m0_conf_obj_is_stub(obj))
+		rc = m0_confc_open_sync(&obj, obj, M0_FID0);
+	if (rc == 0)
+		*sdev = M0_CONF_CAST(obj, m0_conf_sdev);
+
+	return M0_RC(rc);
+}
+
 M0_INTERNAL int m0_conf_process_get(struct m0_confc         *confc,
 				    struct m0_fid           *fid,
 				    struct m0_conf_process **process)
@@ -72,6 +95,7 @@ M0_INTERNAL int m0_conf_process_get(struct m0_confc         *confc,
 	M0_PRE(confc != NULL);
 	M0_PRE(fid != NULL);
 
+	M0_LOG(M0_DEBUG, FID_F, FID_P(fid));
 	m0_conf_cache_lock(&confc->cc_cache);
 	rc = m0_conf_obj_find(&confc->cc_cache, fid, &obj);
 	m0_conf_cache_unlock(&confc->cc_cache);
@@ -297,7 +321,7 @@ static struct m0_confc *conf_obj2confc(const struct m0_conf_obj *obj)
 	return container_of(obj->co_cache, struct m0_confc, cc_cache);
 }
 
-static struct m0_reqh *conf_obj2reqh(const struct m0_conf_obj *obj)
+M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj)
 {
 	struct m0_confc *confc = conf_obj2confc(obj);
 
@@ -342,7 +366,7 @@ failure_sets_update(struct m0_tl *failure_sets, struct m0_conf_obj *obj)
 
 M0_INTERNAL void m0_conf_failure_sets_update(struct m0_conf_obj *obj)
 {
-	struct m0_tl *failure_sets = &conf_obj2reqh(obj)->rh_failure_sets;
+	struct m0_tl *failure_sets = &m0_conf_obj2reqh(obj)->rh_failure_sets;
 
 	M0_PRE(M0_IN(m0_conf_obj_type(obj), (&M0_CONF_RACK_TYPE,
 					     &M0_CONF_ENCLOSURE_TYPE,

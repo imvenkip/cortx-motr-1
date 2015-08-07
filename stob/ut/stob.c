@@ -260,7 +260,7 @@ void m0_stob_ut_stob_ad(void)
 	stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(stob != NULL);
 
-	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg, m0_stob_id_get(stob));
+	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg, m0_stob_id_get(stob), 0);
 	M0_UT_ASSERT(dom_cfg != NULL);
 
 	stob_ut_stob_single("adstob:some_suffix", dom_cfg, NULL);

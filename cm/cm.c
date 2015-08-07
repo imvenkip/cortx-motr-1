@@ -658,7 +658,7 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 	M0_PRE(m0_cm_is_locked(cm));
 
 	M0_SET0(&ag_id0);
-	lep = rmach->rm_tm.ntm_ep->nep_addr;
+	lep = m0_rpc_machine_ep(rmach);
 	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
 		struct m0_cm_proxy *pxy;
 		const char *dep = m0_rpc_conn_addr(&ctx->sc_conn);

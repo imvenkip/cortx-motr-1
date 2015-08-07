@@ -35,10 +35,6 @@ export M0_TRACE_PRINT_CONTEXT=short
 # Hence, do not rename it.
 MERO_STOB_DOMAIN="ad -d disks.conf"
 
-MDS_DEVS=""
-NR_MDS_DEVS=0
-MDS_DEV_IDS=
-
 IOS_DEVS=""
 NR_IOS_DEVS=0
 IOS_DEV_IDS=
@@ -188,6 +184,17 @@ PROF_OPT='<0x7000000000000001:0>'
 
 . `dirname ${BASH_SOURCE[0]}`/common_service_fids_inc.sh
 
+# On cent OS 7 loop device is created during losetup, so need to call
+# create_loop_device().
+create_loop_device ()
+{
+	local dev_id=$1
+
+	mknod -m660 /dev/loop$dev_id b 7 $dev_id
+	chown root.disk /dev/loop$dev_id
+	chmod 666 /dev/loop$dev_id
+}
+
 ###############################
 # globals: MDSEP[], IOSEP[], server_nid
 ###############################
@@ -262,7 +269,7 @@ function build_conf()
 	for ((i=0; i < ${#mdservices[*]}; i++)); do
 	    local MDS_NAME="($MDS_FID_CON, $i)"
 	    local mdsep="\"${mdservices[$i]}\""
-	    local MDS_OBJ="{0x73| (($MDS_NAME), 1, [1: $mdsep], ${MDS_DEV_IDS[$i]})}"
+	    local MDS_OBJ="{0x73| (($MDS_NAME), 1, [1: $mdsep], [0])}"
 
 	    if ((i == 0)); then
 	        MDS_NAMES="$MDS_NAME"
@@ -286,7 +293,7 @@ function build_conf()
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
- [$((${#ioservices[*]} + ${#mdservices[*]} + $NR_IOS_DEVS+ $NR_MDS_DEVS + 16)):
+ [$((${#ioservices[*]} + ${#mdservices[*]} + $NR_IOS_DEVS + 16)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
@@ -304,7 +311,6 @@ function build_conf()
   $MDS_OBJS,
   $IOS_OBJS,
   $IOS_DEVS,
-  $MDS_DEVS,
   $RACK,
   $ENCL,
   $CTRL,

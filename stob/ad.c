@@ -185,13 +185,15 @@ static void stob_ad_type_deregister(struct m0_stob_type *type)
 
 M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 				     const struct m0_be_seg *seg,
-				     const struct m0_stob_id *bstore_id)
+				     const struct m0_stob_id *bstore_id,
+				     const m0_bcount_t size)
 {
 	char buf[0x400];
 
-	snprintf(buf, ARRAY_SIZE(buf), "%p:"FID_F":"FID_F, seg,
+	snprintf(buf, ARRAY_SIZE(buf), "%p:"FID_F":"FID_F":%lu", seg,
 			FID_P(&bstore_id->si_domain_fid),
-			FID_P(&bstore_id->si_fid));
+			FID_P(&bstore_id->si_fid),
+			size);
 	*str = m0_strdup(buf);
 }
 
@@ -223,16 +225,21 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 			.adg_res_groups       = BALLOC_DEF_RESERVED_GROUPS,
 		};
 		/* format = seg:domain_fid:fid */
-		rc = sscanf(str_cfg_create, "%p:"FID_SF":"FID_SF,
+		rc = sscanf(str_cfg_create, "%p:"FID_SF":"FID_SF":%lu",
 			    (void **)&cfg->adg_seg,
 			    FID_S(&cfg->adg_id.si_domain_fid),
-			    FID_S(&cfg->adg_id.si_fid));
-		rc = rc == 5 ? 0 : -EINVAL;
+			    FID_S(&cfg->adg_id.si_fid),
+			    &cfg->adg_container_size);
+		rc = rc == 6 ? 0 : -EINVAL;
 	} else
 		rc = -ENOMEM;
 
-	if (rc == 0)
+	if (rc == 0) {
+		if (cfg->adg_container_size == 0)
+			cfg->adg_container_size = BALLOC_DEF_CONTAINER_SIZE;
+		M0_LOG(M0_DEBUG, "device size %lu", cfg->adg_container_size);
 		*cfg_create = cfg;
+	}
 
 	return M0_RC(rc);
 }

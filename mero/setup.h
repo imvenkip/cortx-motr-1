@@ -206,6 +206,8 @@ struct cs_stobs {
 	struct cs_stob_file    s_sfile;
 	/** List of AD stobs */
 	struct m0_tl           s_adstobs;
+	/** Initialise AD disk storage. */
+	bool                   s_ad_disks_init;
 };
 
 /**
@@ -222,6 +224,7 @@ struct cs_addb_stob {
 /** States of m0_mero::cc_reqh_ctx. */
 enum cs_reqh_ctx_states {
 	RC_UNINITIALISED,
+	RC_REQH_INITIALISED,
 	RC_INITIALISED
 };
 
@@ -479,6 +482,8 @@ int m0_cs_start(struct m0_mero *cs_mero);
 
 M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero);
 
+M0_INTERNAL struct m0_confc *m0_mero2confc(struct m0_mero *mero);
+
 /**
  * Accesses the request handler.
  *
@@ -523,9 +528,6 @@ M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
  * m0_ep_and_xprt_extract.
  */
 M0_INTERNAL void m0_ep_and_xprt_fini(struct cs_endpoint_and_xprt *epx);
-
-/** get local end point */
-M0_INTERNAL const char *m0_cs_local_ep(struct m0_mero *cctx);
 
 M0_TL_DESCR_DECLARE(cs_eps, extern);
 M0_TL_DECLARE(cs_eps, M0_INTERNAL, struct cs_endpoint_and_xprt);

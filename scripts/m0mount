@@ -415,7 +415,6 @@ function gen_device_conf_ids()
 			id_count=0
 		fi
 	done
-	conf_mds_devices_setup 1
 }
 
 function gen_disks_conf_files()
@@ -650,7 +649,7 @@ $XPT_SETUP -f $proc_fid" >> ${SLOG}-mds.log &
 -s 'sns_repair:<$SNSR_FID_CON:5>' -s'sns_rebalance:<$SNSB_FID_CON:5>' -f $proc_fid"
 
 	if [ $run_mkfs -eq 1 ]; then
-		mkfs "$DDIR" "$STOB_PARAMS" "-C $CONFD_EP" || return 1
+		mkfs "$DDIR" "$STOB_PARAMS" "-C $CONFD_EP -s 'ioservice:<$IOS_FID_CON:0>'" || return 1
 	fi
 	echo Running m0d...
 	$RUN "cd $DDIR && \
@@ -780,15 +779,6 @@ function stop_servers()
 	pstop_servers m0d
 }
 
-create_loop_device ()
-{
-	local dev_id=$1
-
-	l_do mknod -m660 /dev/loop$dev_id b 7 $dev_id
-	l_do chown root.disk /dev/loop$dev_id
-	l_do chmod 666 /dev/loop$dev_id
-}
-
 function setup_loops ()
 {
 	echo Setting up loop devices ...
@@ -802,6 +792,7 @@ function setup_loops ()
 		if [ ! -e /dev/loop$i ]; then
 			create_loop_device $i
 		fi
+		losetup -d /dev/loop$i &> /dev/null
 		l_do losetup /dev/loop$i $WORK_ARENA/disk-image-$i
 		loop_used=$i
 	done

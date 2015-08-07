@@ -132,11 +132,11 @@ static const struct m0_sm_conf m0_reqh_sm_conf = {
 
 M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 {
-	return	reqh != NULL &&
-		ergo(M0_IN(reqh->rh_sm.sm_state,(M0_REQH_ST_INIT,
+	return	_0C(reqh != NULL) &&
+		_0C(ergo(M0_IN(reqh->rh_sm.sm_state,(M0_REQH_ST_INIT,
 						 M0_REQH_ST_NORMAL)),
-		     reqh->rh_mdstore != NULL) &&
-		     m0_fom_domain_invariant(m0_fom_dom());
+		     reqh->rh_mdstore != NULL)) &&
+		_0C(m0_fom_domain_invariant(m0_fom_dom()));
 }
 
 M0_INTERNAL int m0_reqh_layouts_setup(struct m0_reqh *reqh,
@@ -305,8 +305,10 @@ static void __reqh_fini(struct m0_reqh *reqh)
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 {
+	M0_ENTRY();
 	m0_reqh_be_fini(reqh);
 	__reqh_fini(reqh);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_reqhs_fini(void)

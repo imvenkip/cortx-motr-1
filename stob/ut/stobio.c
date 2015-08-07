@@ -164,6 +164,8 @@ static void stob_dev_init(const struct stobio_test *test)
 	result = system(sysbuf);
 	M0_UT_ASSERT(result == 0);
 
+	sprintf(sysbuf, "losetup -d %s &>> /dev/null", test->st_dev_path);
+	result = system(sysbuf);
 	sprintf(sysbuf, "losetup %s %s", test->st_dev_path, backingfile);
 	result = system(sysbuf);
 	M0_UT_ASSERT(result == 0);

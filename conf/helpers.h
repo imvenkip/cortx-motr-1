@@ -34,6 +34,7 @@ struct m0_conf_filesystem;
 struct m0_conf_pver;
 struct m0_conf_obj;
 struct m0_conf_process;
+struct m0_conf_sdev;
 struct m0_conf_root;
 struct m0_conf_service;
 struct m0_rpc_session;
@@ -71,6 +72,13 @@ M0_INTERNAL int m0_conf_process_get(struct m0_confc         *confc,
 				    struct m0_fid           *fid,
 				    struct m0_conf_process **process);
 
+/**
+ * Obtains device object associated with given fid..
+ */
+M0_INTERNAL int m0_conf_device_get(struct m0_confc      *confc,
+				   struct m0_fid        *fid,
+				   struct m0_conf_sdev **sdev);
+
 /** Finds pool version which does not intersect with the given failure set. */
 M0_INTERNAL int m0_conf_poolversion_get(struct m0_conf_filesystem *fs,
 					struct m0_tl *failure_set,
@@ -105,5 +113,7 @@ M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc);
 M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj);
 
 M0_INTERNAL void m0_conf_failure_sets_update(struct m0_conf_obj *obj);
+
+M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj);
 
 #endif /* __MERO_CONF_HELPERS_H__ */

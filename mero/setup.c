@@ -140,8 +140,9 @@ static bool reqh_context_check(const void *bob)
 {
 	const struct m0_reqh_context *rctx = bob;
 	return
-		_0C(M0_IN(rctx->rc_state,
-			  (RC_UNINITIALISED, RC_INITIALISED))) &&
+		_0C(M0_IN(rctx->rc_state, (RC_UNINITIALISED,
+					   RC_REQH_INITIALISED,
+					   RC_INITIALISED))) &&
 		_0C(rctx->rc_max_services == m0_reqh_service_types_length()) &&
 		_0C(M0_CHECK_EX(m0_tlist_invariant(&cs_eps_tl,
 						   &rctx->rc_eps))) &&
@@ -161,7 +162,7 @@ M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero)
 		&mero->cc_reqh_ctx.rc_reqh.rh_rpc_machines);
 }
 
-static inline struct m0_confc *m0_mero2confc(struct m0_mero *mero)
+M0_INTERNAL struct m0_confc *m0_mero2confc(struct m0_mero *mero)
 {
 	return &mero->cc_reqh_ctx.rc_reqh.rh_confc;
 }
@@ -220,8 +221,8 @@ static bool stype_is_valid(const char *stype)
 {
 	M0_PRE(stype != NULL);
 
-	return  strcasecmp(stype, m0_cs_stypes[M0_AD_STOB]) == 0 ||
-		strcasecmp(stype, m0_cs_stypes[M0_LINUX_STOB]) == 0;
+	return  m0_strcaseeq(stype, m0_cs_stypes[M0_AD_STOB]) ||
+		m0_strcaseeq(stype, m0_cs_stypes[M0_LINUX_STOB]);
 }
 
 /**
@@ -374,7 +375,7 @@ static bool service_is_duplicate(const struct m0_reqh_context *rctx,
 	M0_PRE(reqh_context_invariant(rctx));
 
 	for (i = 0, n = 0; i < rctx->rc_nr_services; ++i) {
-		if (strcasecmp(rctx->rc_services[i], sname) == 0)
+		if (m0_strcaseeq(rctx->rc_services[i], sname))
 			++n;
 		if (n > 1)
 			return true;
@@ -406,6 +407,8 @@ static int cs_reqh_ctx_init(struct m0_mero *cctx)
 	cs_eps_tlist_init(&rctx->rc_eps);
 	m0_reqh_context_bob_init(rctx);
 
+	rctx->rc_stob.s_sfile.sf_is_initialised = false;
+	rctx->rc_stob.s_ad_disks_init = false;
 	return M0_RC(0);
 }
 
@@ -426,6 +429,8 @@ static void cs_reqh_ctx_fini(struct m0_reqh_context *rctx)
 		m0_free(rctx->rc_services[i]);
 	m0_free(rctx->rc_services);
 	m0_free(rctx->rc_service_fids);
+	rctx->rc_stob.s_sfile.sf_is_initialised = false;
+	rctx->rc_stob.s_ad_disks_init = false;
 }
 
 M0_INTERNAL struct m0_net_domain *
@@ -628,7 +633,7 @@ static int stob_file_id_get(yaml_document_t *doc, yaml_node_t *node,
 	     pair < node->data.mapping.pairs.top; ++pair) {
 		key_str = (const char *)yaml_document_get_node(doc,
 					pair->key)->data.scalar.value;
-		if (strcasecmp(key_str, "id") == 0) {
+		if (m0_strcaseeq(key_str, "id")) {
 			*id = atoll((const char *)yaml_document_get_node(doc,
 				     pair->value)->data.scalar.value);
 			return 0;
@@ -647,7 +652,7 @@ static const char *stob_file_path_get(yaml_document_t *doc, yaml_node_t *node)
 	     pair < node->data.mapping.pairs.top; ++pair) {
 		key_str = (const char *)yaml_document_get_node(doc,
 					pair->key)->data.scalar.value;
-		if (strcasecmp(key_str, "filename") == 0)
+		if (m0_strcaseeq(key_str, "filename"))
 			return (const char *)yaml_document_get_node(doc,
 					     pair->value)->data.scalar.value;
 	}
@@ -684,8 +689,9 @@ static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob)
 }
 
 /* XXX DESCRIBEME cid is linux_stob_key and ad_dom_key */
-static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
-			     struct m0_be_seg *seg, const char *f_path)
+M0_INTERNAL int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
+				  struct m0_be_seg *seg, const char *f_path,
+				  m0_bcount_t size)
 {
 	int                rc;
 	char               location[64];
@@ -716,7 +722,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 		rc = snprintf(location, sizeof(location),
 			      "adstob:%llu", (unsigned long long)cid);
 		M0_ASSERT(rc < sizeof(location));
-		m0_stob_ad_cfg_make(&dom_cfg, seg, m0_stob_id_get(bstore));
+		m0_stob_ad_cfg_make(&dom_cfg, seg, m0_stob_id_get(bstore), size);
 		if (dom_cfg == NULL) {
 			rc = -ENOMEM;
 		} else {
@@ -768,7 +774,7 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
  */
 static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *seg)
 {
-	int		  rc;
+	int		  rc = 0;
 	int		  result;
 	uint64_t	  cid;
 	const char       *f_path;
@@ -776,13 +782,17 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *seg)
 	yaml_node_t      *node;
 	yaml_node_t      *s_node;
 	yaml_node_item_t *item;
+	m0_bcount_t       size = 0; /* Uses BALLOC_DEF_CONTAINER_SIZE; */
 
 	M0_ENTRY();
 
 	astob_tlist_init(&stob->s_adstobs);
+	/**
+	 * @todo Remove Yaml based stob create once disks.conf usage is
+	 * eliminated.
+	 */
 	if (stob->s_sfile.sf_is_initialised) {
 		doc = &stob->s_sfile.sf_document;
-		rc = 0;
 		for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
 			for (item = (node)->data.sequence.items.start;
 			     item < (node)->data.sequence.items.top; ++item) {
@@ -791,15 +801,19 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *seg)
 				if (result != 0)
 					continue;
 				f_path = stob_file_path_get(doc, s_node);
-				rc = cs_ad_stob_create(stob, cid, seg, f_path);
+				rc = cs_ad_stob_create(stob, cid, seg, f_path,
+						       size);
 				if (rc != 0)
 					break;
 			}
 		}
 		m0_get()->i_reqh_has_multiple_ad_domains = true;
+	} else if (stob->s_ad_disks_init) {
+		rc = cs_conf_storage_init(stob);
+		m0_get()->i_reqh_has_multiple_ad_domains = true;
 	} else {
 		rc = cs_ad_stob_create(stob, M0_AD_STOB_DOM_KEY_DEFAULT,
-				       seg, NULL);
+				       seg, NULL, size);
 		m0_get()->i_reqh_has_multiple_ad_domains = false;
 	}
 
@@ -832,10 +846,10 @@ static int cs_storage_init(const char *stob_type,
 
 	M0_PRE(stob_type != NULL && stob_path != NULL && stob != NULL);
 
-	if (strcasecmp(stob_type, m0_cs_stypes[M0_LINUX_STOB]) == 0) {
+	if (m0_strcaseeq(stob_type, m0_cs_stypes[M0_LINUX_STOB])) {
 		stob->s_stype = M0_LINUX_STOB;
 		m0_get()->i_reqh_uses_ad_stob = false;
-	} else if (strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0) {
+	} else if (m0_strcaseeq(stob_type, m0_cs_stypes[M0_AD_STOB])) {
 		stob->s_stype = M0_AD_STOB;
 		m0_get()->i_reqh_uses_ad_stob = true;
 	} else
@@ -873,7 +887,7 @@ static int cs_storage_init(const char *stob_type,
 out:
 	m0_free(location);
 
-	if (rc == 0 && strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0) {
+	if (rc == 0 && m0_strcaseeq(stob_type, m0_cs_stypes[M0_AD_STOB])) {
 		rc = cs_ad_stob_init(stob, seg);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "cs_ad_stob_init: rc=%d", rc);
@@ -1227,12 +1241,9 @@ M0_INTERNAL void cs_be_fini(struct m0_be_ut_backend *be)
 
    @param rctx Request handler context to be initialised
  */
-static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
+static int cs_reqh_start(struct m0_reqh_context *rctx)
 {
-	/* @todo Have a generic mechanism to generate unique cob domain id.
-	   @todo Handle error messages properly */
-	static int cdom_id = M0_MDS_COB_ID_START;
-	int        rc;
+	int rc;
 
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
@@ -1241,9 +1252,24 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 			  .rhia_mdstore = &rctx->rc_mdstore,
 			  .rhia_pc = &rctx->rc_mero->cc_pools_common,
 			  .rhia_fid = &rctx->rc_fid);
-	if (rc != 0)
-		goto out;
+	rctx->rc_state = RC_REQH_INITIALISED;
+	return M0_RC(rc);
+}
 
+static int cs_storage_setup(struct m0_mero *cctx)
+{
+	/**
+	 * @todo Have a generic mechanism to generate unique cob domain id.
+	 * Handle error messages properly.
+	 */
+	static int              cdom_id = M0_MDS_COB_ID_START;
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	bool                    mkfs = cctx->cc_mkfs;
+	bool                    force = cctx->cc_force;
+	int                     rc;
+
+	M0_ENTRY();
+	M0_PRE(reqh_context_invariant(rctx));
 	rctx->rc_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &rctx->rc_reqh;
 
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
@@ -1251,7 +1277,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 			(mkfs && force), &rctx->rc_beseg);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "cs_be_init");
-		goto reqh_fini;
+		return M0_RC(rc);
 	}
 
 	rc = m0_reqh_be_init(&rctx->rc_reqh, rctx->rc_beseg);
@@ -1352,9 +1378,6 @@ reqh_be_fini:
 	m0_reqh_be_fini(&rctx->rc_reqh);
 be_fini:
 	cs_be_fini(&rctx->rc_be);
-reqh_fini:
-	m0_reqh_fini(&rctx->rc_reqh);
-out:
 	return M0_ERR(rc);
 }
 
@@ -1374,7 +1397,6 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	struct m0_reqh *reqh = &rctx->rc_reqh;
 
 	M0_ENTRY();
-	M0_PRE(rctx->rc_state == RC_INITIALISED);
 	M0_PRE(reqh_context_invariant(rctx));
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
@@ -1385,7 +1407,14 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 
 	cs_rpc_machines_fini(reqh);
 
-	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
+	M0_POST(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
+	M0_LEAVE();
+}
+
+static void cs_reqh_storage_fini(struct m0_reqh_context *rctx)
+{
+	struct m0_reqh *reqh = &rctx->rc_reqh;
+
 	m0_reqh_be_fini(reqh);
 	m0_mdstore_fini(&rctx->rc_mdstore);
 	m0_reqh_addb2_fini(reqh);
@@ -1395,7 +1424,6 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	cs_be_fini(&rctx->rc_be);
 	m0_reqh_post_storage_fini_svcs_stop(reqh);
 	m0_reqh_fini(reqh);
-
 	rctx->rc_state = RC_UNINITIALISED;
 	M0_LEAVE();
 }
@@ -1845,6 +1873,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				LAMBDA(void, (const char *s)
 				{
 					rctx->rc_dfilepath = s;
+					rctx->rc_stob.s_ad_disks_init = true;
 				})),
 			M0_NUMBERARG('q', "Minimum TM recv queue length",
 				LAMBDA(void, (int64_t length)
@@ -1915,14 +1944,6 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 {
 	M0_ENTRY();
 	return _args_parse(cctx, argc, argv);
-}
-
-M0_INTERNAL const char *m0_cs_local_ep(struct m0_mero *cctx)
-{
-	struct cs_endpoint_and_xprt *epx;
-
-	epx = cs_eps_tlist_head(&cctx->cc_reqh_ctx.rc_eps);
-	return epx->ex_endpoint;
 }
 
 static int file_read(const char *path, char **dest)
@@ -2065,9 +2086,11 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	     cs_daemonize(cctx) ?:
 	     cs_net_domains_init(cctx) ?:
 	     cs_buffer_pool_setup(cctx) ?:
-	     cs_reqh_start(&cctx->cc_reqh_ctx, cctx->cc_mkfs, cctx->cc_force) ?:
+	     cs_reqh_start(&cctx->cc_reqh_ctx) ?:
 	     cs_rpc_machines_init(cctx) ?:
-	     cs_conf_setup(cctx);
+	     cs_conf_setup(cctx) ?:
+	     cs_storage_setup(cctx);
+
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 	return M0_RC(rc);
 }
@@ -2142,7 +2165,7 @@ int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 void m0_cs_fini(struct m0_mero *cctx)
 {
 	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
-	struct m0_reqh         *reqh = &cctx->cc_reqh_ctx.rc_reqh;
+	struct m0_reqh         *reqh = &rctx->rc_reqh;
 
 	M0_ENTRY();
 
@@ -2153,8 +2176,10 @@ void m0_cs_fini(struct m0_mero *cctx)
 		m0_conf_failure_sets_destroy(&reqh->rh_failure_sets);
 
 	cs_conf_destroy(cctx);
-	if (rctx->rc_state == RC_INITIALISED)
+	if (rctx->rc_state >= RC_REQH_INITIALISED)
 		cs_reqh_stop(rctx);
+	if (rctx->rc_state == RC_INITIALISED)
+		cs_reqh_storage_fini(rctx);
 	cs_reqh_ctx_fini(rctx);
 
 	cs_buffer_pool_fini(cctx);
@@ -2206,6 +2231,12 @@ M0_INTERNAL int m0_mero_stob_reopen(struct m0_reqh *reqh,
 			}
 		}
 	}
+	return M0_RC(rc);
+	/**
+	 * @todo Use cs_conf_device_reopen() after disks.conf usage
+	 * is eliminated.
+	 */
+	rc = cs_conf_device_reopen(stob, dev_id);
 	return M0_RC(rc);
 }
 

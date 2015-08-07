@@ -214,6 +214,7 @@ m0_net_buffer_pool_get(struct m0_net_buffer_pool *pool, uint32_t colour)
 {
 	struct m0_net_buffer *nb;
 
+	M0_ENTRY();
 	M0_PRE(m0_net_buffer_pool_invariant(pool));
 	M0_PRE(colour_is_valid(pool, colour));
 
@@ -233,6 +234,7 @@ m0_net_buffer_pool_get(struct m0_net_buffer_pool *pool, uint32_t colour)
 	nb->nb_pool = pool;
 	M0_POST(m0_net_buffer_pool_invariant(pool));
 	M0_POST(nb->nb_ep == NULL);
+	M0_LEAVE();
 	return nb;
 }
 
@@ -248,6 +250,7 @@ M0_INTERNAL void m0_net_buffer_pool_put(struct m0_net_buffer_pool *pool,
 	M0_PRE(buf->nb_flags & M0_NET_BUF_REGISTERED);
 	M0_PRE(pool->nbp_ndom == buf->nb_dom);
 
+	M0_ENTRY();
 	M0_ASSERT(buf->nb_magic == M0_NET_BUFFER_LINK_MAGIC);
 	M0_ASSERT(!m0_net_pool_tlink_is_in(buf));
 	if (colour != M0_BUFFER_ANY_COLOUR) {
@@ -259,6 +262,7 @@ M0_INTERNAL void m0_net_buffer_pool_put(struct m0_net_buffer_pool *pool,
 	if (pool->nbp_free == 1)
 		pool->nbp_ops->nbpo_not_empty(pool);
 	M0_POST(m0_net_buffer_pool_invariant(pool));
+	M0_LEAVE();
 }
 
 static bool net_buffer_pool_grow(struct m0_net_buffer_pool *pool)

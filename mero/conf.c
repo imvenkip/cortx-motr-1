@@ -25,13 +25,16 @@
 #include "lib/memory.h"
 #include "lib/string.h"           /* m0_strdup */
 #include "mero/setup.h"           /* cs_args */
+#include "mero/setup_internal.h"  /* cs_ad_stob_create */
 #include "rpc/rpclib.h"           /* m0_rpc_client_ctx */
 #include "conf/obj.h"             /* m0_conf_filesystem */
 #include "conf/confc.h"           /* m0_confc */
 #include "conf/schema.h"          /* m0_conf_service_type */
 #include "conf/obj_ops.h"         /* M0_CONF_DIRNEXT */
 #include "conf/diter.h"           /* m0_conf_diter_init */
+#include "conf/helpers.h"         /* m0_conf_fs_get */
 #include "reqh/reqh_service.h"    /* m0_reqh_service_ctx */
+#include "stob/linux.h"           /* m0_stob_linux_reopen */
 
 /* ----------------------------------------------------------------
  * Mero options
@@ -167,13 +170,160 @@ cleanup:
 /*
  * Read configuration from confd, fills CLI arguments (`args').
  */
-M0_INTERNAL int cs_conf_to_args(struct cs_args *args, struct m0_conf_filesystem *fs)
+M0_INTERNAL int cs_conf_to_args(struct cs_args *args,
+				struct m0_conf_filesystem *fs)
 {
 	M0_ENTRY();
 	M0_PRE(args != NULL && fs != NULL);
 
 	return conf_to_args(args, fs);
 }
+
+static bool is_local_ios(struct m0_mero *cctx,
+			 struct m0_conf_service *svc)
+{
+	int                     i;
+	const char             *lep;
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+
+	for (i = 0; i < rctx->rc_nr_services; i++) {
+		if (m0_fid_eq(&rctx->rc_service_fids[i], &svc->cs_obj.co_id))
+			break;
+	}
+	lep = m0_rpc_machine_ep(m0_mero_to_rmach(cctx));
+	/* Assumes only one endpoint per service. */
+	if (m0_streq(lep, svc->cs_endpoints[0]))
+		return true;
+	return false;
+}
+
+static bool ioservice(const struct m0_conf_obj *obj)
+{
+	struct m0_mero *cctx = m0_cs_ctx_get(m0_conf_obj2reqh(obj));
+
+	if (m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE) {
+		struct m0_conf_service *svc = M0_CONF_CAST(obj,
+							   m0_conf_service);
+		if (svc->cs_type == M0_CST_IOS)
+			return is_local_ios(cctx, svc);
+	}
+	return false;
+}
+
+static bool device(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE;
+}
+
+M0_INTERNAL int cs_ad_sdev_stob_create(struct cs_stobs *stob,
+				       struct m0_conf_sdev *sdev)
+{
+	struct m0_reqh_context *rctx;
+
+	rctx = container_of(stob, struct m0_reqh_context, rc_stob);
+	return cs_ad_stob_create(stob, sdev->sd_obj.co_id.f_key,
+				 rctx->rc_beseg, sdev->sd_filename,
+				 sdev->sd_size);
+}
+
+static int cs_conf_device_storage_init(struct cs_stobs *stob,
+				       struct m0_confc *confc,
+				       struct m0_conf_service *svc)
+{
+	int                  rc;
+	struct m0_conf_diter dev_it;
+
+	M0_ENTRY();
+	M0_LOG(M0_DEBUG, "service FID:"FID_F" ep:%s", FID_P(&svc->cs_obj.co_id),
+			svc->cs_endpoints[0]);
+	rc = m0_conf_diter_init(&dev_it, confc, &svc->cs_obj,
+				M0_CONF_SERVICE_SDEVS_FID);
+	while ((rc = m0_conf_diter_next_sync(&dev_it, device)) ==
+		M0_CONF_DIRNEXT) {
+		struct m0_conf_obj  *obj = m0_conf_diter_result(&dev_it);
+		struct m0_conf_sdev *sdev= M0_CONF_CAST(obj, m0_conf_sdev);
+
+		M0_LOG(M0_DEBUG, "sdev size:%ld path:%s FID:"FID_F,
+				sdev->sd_size, sdev->sd_filename,
+				FID_P(&sdev->sd_obj.co_id));
+		rc = cs_ad_sdev_stob_create(stob, sdev);
+		if (rc != 0)
+			break;
+	}
+	m0_conf_diter_fini(&dev_it);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int cs_conf_storage_init(struct cs_stobs *stob)
+{
+	int                        rc;
+	struct m0_conf_diter       it;
+	struct m0_conf_filesystem *fs;
+	struct m0_mero            *cctx;
+	struct m0_reqh_context    *rctx;
+	struct m0_confc           *confc;
+
+	M0_ENTRY();
+
+	rctx = container_of(stob, struct m0_reqh_context, rc_stob);
+	cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
+	M0_ASSERT(m0_strcaseeq(rctx->rc_stype, m0_cs_stypes[M0_AD_STOB]));
+	confc = m0_mero2confc(cctx);
+	rc = m0_conf_fs_get(cctx->cc_profile, confc, &fs);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "conf fs fail");
+		return M0_RC(rc);
+	}
+	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_NODES_FID,
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID);
+	while ((rc = m0_conf_diter_next_sync(&it, ioservice)) ==
+		M0_CONF_DIRNEXT) {
+		struct m0_conf_obj     *obj = m0_conf_diter_result(&it);
+		struct m0_conf_service *svc = M0_CONF_CAST(obj,
+							   m0_conf_service);
+		rc = cs_conf_device_storage_init(stob, confc, svc);
+		if (rc != 0)
+			break;
+	}
+	m0_conf_diter_fini(&it);
+	m0_confc_close(&fs->cf_obj);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int cs_conf_device_reopen(struct cs_stobs *stob, uint32_t dev_id)
+{
+	struct m0_mero         *cctx;
+	struct m0_reqh_context *rctx;
+	struct m0_confc        *confc;
+	int                     rc;
+	struct m0_fid	        fid;
+	struct m0_conf_sdev    *sdev;
+	struct m0_stob_id       stob_id;
+
+	M0_ENTRY();
+	rctx = container_of(stob, struct m0_reqh_context, rc_stob);
+	cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
+	confc = m0_mero2confc(cctx);
+	fid = M0_FID_TINIT(M0_CONF_SDEV_TYPE.cot_ftype.ft_id, 1, dev_id);
+	rc = m0_conf_device_get(confc, &fid, &sdev);
+	if (rc == 0) {
+		struct m0_conf_service *svc = M0_CONF_CAST(
+					sdev->sd_obj.co_parent->co_parent,
+					m0_conf_service);
+		if (is_local_ios(cctx, svc)) {
+			M0_LOG(M0_DEBUG, "sdev size:%ld path:%s FID:"FID_F,
+					sdev->sd_size, sdev->sd_filename,
+					FID_P(&sdev->sd_obj.co_id));
+			m0_stob_id_make(0, dev_id, &stob->s_sdom->sd_id,
+					&stob_id);
+			rc = m0_stob_linux_reopen(&stob_id, sdev->sd_filename);
+		}
+	}
+	return M0_RC(rc);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

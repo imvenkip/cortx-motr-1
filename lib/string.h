@@ -30,6 +30,7 @@
  */
 
 #define m0_streq(a, b) (strcmp((a), (b)) == 0)
+#define m0_strcaseeq(a, b) (strcasecmp((a), (b)) == 0)
 
 #ifndef __KERNEL__
 # include <ctype.h>

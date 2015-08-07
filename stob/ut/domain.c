@@ -100,7 +100,7 @@ void m0_stob_ut_stob_domain_ad(void)
 	m0_stob_ut_ad_init(&ut_be, &ut_seg);
 	stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(stob != NULL);
-	m0_stob_ad_cfg_make(&cfg, ut_seg.bus_seg, m0_stob_id_get(stob));
+	m0_stob_ad_cfg_make(&cfg, ut_seg.bus_seg, m0_stob_id_get(stob), 0);
 	M0_UT_ASSERT(cfg != NULL);
 
 	stob_ut_stob_domain("adstob:some_suffix", cfg);

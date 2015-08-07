@@ -19,7 +19,7 @@ conf_ios_device_setup()
 	eval $id_count_out=`expr $_id_count + 1`
 
 	#dev conf obj
-	local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"`pwd`/$_DDEV_ID$ddisk\")}"
+	local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$_DDEV_ID\")}" 
 	#disk conf obj
 	local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id)}"
 	if (($NR_DISK_FIDS == 0))
@@ -77,57 +77,19 @@ EOF
 
 		dd if=/dev/zero of=$DDEV_ID$ddisk bs=1M seek=1M count=1 ||
 			return 1
+		if [ ! -e /dev/loop$DDEV_ID ]; then
+			create_loop_device $DDEV_ID
+		fi
+		losetup -d /dev/loop$DDEV_ID &> /dev/null
+		losetup /dev/loop$DDEV_ID $DDEV_ID$ddisk
 		cat >> disks.conf << EOF
    - id: $DDEV_ID
-     filename: `pwd`/$DDEV_ID$ddisk
+     filename: /dev/loop$DDEV_ID
 EOF
 	done
 
 	IOS_DEV_IDS[`expr $ios - 1`]="[$id_count: $ids]"
 
-	cd - >/dev/null
-	return $?
-}
-
-conf_mds_devices_setup()
-{
-	local mds=$1
-	local adev_id="(0x6400000000000001, $ADEV_ID)"
-	local ddev_id="(0x6400000000000001, $MDEV_ID)"
-	local adev_obj="{0x64| (($adev_id), 4, 1, 4096, 596000000000, 3, 4, \"`pwd`/$ADEV_ID$adisk\")}"
-	local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"`pwd`/$MDEV_ID$ddisk\")}"
-
-	MDS_DEV_IDS[`expr $mds - 1`]="[2: $adev_id, $ddev_id]"
-	if (($NR_MDS_DEVS == 0))
-	then
-		MDS_DEVS="$adev_obj, \n $ddev_obj"
-	else
-		MDS_DEVS="$MDS_DEVS, \n $adev_obj, \n $ddev_obj"
-	fi
-	NR_MDS_DEVS=`expr $NR_MDS_DEVS + 2`
-	ADEV_ID=`expr $ADEV_ID + 1`
-	MDEV_ID=`expr $MDEV_ID + 1`
-}
-
-mkmdsloopdevs()
-{
-	local mds=$1
-	local dir=$2
-	local adisk=addb-disk.img
-	local ddisk=data-disk.img
-
-	cd $dir || return 1
-	conf_mds_devices_setup $mds
-
-	dd if=/dev/zero of=$ADEV_ID$adisk bs=1M seek=1M count=1 || return 1
-	dd if=/dev/zero of=$MDEV_ID$ddisk bs=1M seek=1M count=1 || return 1
-	cat > disks.conf << EOF
-Device:
-   - id: $ADEV_ID
-     filename: `pwd`/$ADEV_ID$adisk
-   - id: $MDEV_ID
-     filename: `pwd`/$MDEV_ID$ddisk
-EOF
 	cd - >/dev/null
 	return $?
 }
@@ -208,16 +170,6 @@ mero_service()
 		local nr_dev_per_ios=$(($P / $nr_ios))
 		local remainder=$(($P % $nr_ios))
 
-		#create mds devices
-		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
-			local mds=`expr $i + 1`
-			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
-			rm -rf $DIR
-			mkdir -p $DIR
-
-			mkmdsloopdevs $mds $DIR || return 1
-		done
-
 		#create ios devices
 		for ((i=0; i < $nr_ios; i++)) ; do
 			local ios=`expr $i + 1`
@@ -269,17 +221,12 @@ mero_service()
 		echo $cmd
 		(eval "$cmd")
 
-		# spawn ha agent
-		opts="$common_opts -f $proc_fid -T linux \
-		      -e $XPT:${lnet_nid}:$HA_EP -C $CONFD_EP"
-		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
-		echo $cmd
-		(eval "$cmd") &
-
 		#mds mkfs
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
 			local mds=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
+			rm -rf $DIR
+			mkdir -p $DIR
 
 			SNAME="-s 'mdservice:<$MDS_FID_CON:$i>' \
                                -s 'rmservice:<$RMS_FID_CON:$i>' \
@@ -288,7 +235,7 @@ mero_service()
 
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
-			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
+			$prog_mkfs -F -T ad \
 			$common_opts -e $XPT:${lnet_nid}:$MKFS_EP \
 			$SNAME -C $CONFD_EP |& tee -a m0d.log"
 			echo $cmd
@@ -322,9 +269,9 @@ mero_service()
 		echo $cmd
 		(eval "$cmd") &
 
-                # Wait until HA initialisation done.
+		# Wait until HA initialisation done.
 		# Will be resolved by MERO-1000
-                sleep 5
+		sleep 5
 
 		# spawn mds
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
@@ -339,7 +286,7 @@ mero_service()
 			ulimit -c unlimited
 
 			cmd="cd $DIR && exec \
-			$prog_start -T $MERO_STOB_DOMAIN \
+			$prog_start -T ad \
 			$common_opts -e $XPT:${lnet_nid}:${MDSEP[$i]} \
                         -f $proc_fid \
 			-C $CONFD_EP $SNAME |& tee -a m0d.log"

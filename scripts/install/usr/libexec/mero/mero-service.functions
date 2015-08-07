@@ -522,7 +522,7 @@ _build_ios_devs()
         local ddev_id="(0x6400000000000001, $id)"
         local ddisk_id="(0x6b00000000000001, $id)"
         local ddiskv_id="(0x6a00000000000001, $id)"
-        local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"/disk/path/is/not/used/yet\")}"
+        local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$id\")}"
         local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id)}"
         local ddiskv_obj="{0x6a| (($ddiskv_id), $ddisk_id, [0])}"
         local dev="$ddev_obj,\n  $ddisk_obj,\n  $ddiskv_obj"

@@ -183,7 +183,7 @@ static int test_ad_init(void)
 	m0_stob_ut_ad_init(&ut_be, &ut_seg);
 
 	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg,
-			    m0_stob_id_get(obj_back));
+			    m0_stob_id_get(obj_back), 0);
 	M0_UT_ASSERT(dom_cfg != NULL);
 
 	rc = m0_stob_domain_create("adstob:ad", NULL, 0xad, dom_cfg, &dom_fore);
