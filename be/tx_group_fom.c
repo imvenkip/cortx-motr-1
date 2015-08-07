@@ -51,38 +51,34 @@ static void be_op_reset(struct m0_be_op *op);
 /**
  * Phases of tx_group fom.
  *
- * XXX update.
  * @verbatim
- *  ,-------- INIT
- *  |   [0]    |              [0] Initialisation failed: at this point only
- *  |          |                  m0_be_group_format_init() can fail.
- *  |          v [1]          [1] Engine adds tx group to list of opened
- *  | ,------ OPEN <------.       groups.
- *  | |        |          |
- *  | |        v [2]      |   [2] Gets awoken by tx_group_close() or tx_group
- *  | |      LOGGING      |       timeout is reached.
- *  | |        | [3]      |   [3] Initiate log IO
- *  | |        v [4]      |   [4] Log IO completes.
- *  | |      PLACING      |
- *  | |        | [5]      |   [5] Initiate in-place IO.
- *  | |        v [6]      |   [6] In-place IO completes.
- *  | |      PLACED       |
- *  | |        | [7]      |   [7] Removes all tx from the tx_group.
- *  | |        v          |
- *  | |    STABILIZING    |
- *  | |        | [8]      |   [8] Gets awoken by m0_be_tx_group_stable().
- *  | |        v          |
- *  | |      STABLE ------'
- *  | |
- *  | | [9]                   [9] tgf_stopping flag is set by
- *  | `----> STOPPING ----.       m0_be_tx_group_stop().
- *  |                     |
- *  |                     v
- *  `----> FAILED ----> FINISH
  *
- * [0], [3], [5], [7] -- internal actions;
- * [1], [2], [8], [9] -- external engine events;
- * [4], [6]           -- external IO events.
+ *       INIT ----> FAILED ----------.
+ *        |                          |
+ *        v                          v
+ * ,---> OPEN ----> STOPPING ----> FINISH
+ * |      |
+ * |      v
+ * |    LOGGING ----> RECONSTRUCT
+ * |      |                |
+ * |      |                v
+ * |      |             TX_OPEN
+ * |      |                |
+ * |      |                v
+ * |      |             TX_CLOSE
+ * |      |                |
+ * |      v                v
+ * |    PLACING <------ REAPPLY
+ * |      |
+ * |      v
+ * |    PLACED
+ * |      |
+ * |      v
+ * |  STABILIZING
+ * |      |
+ * |      v
+ * `--- STABLE
+ *
  * @endverbatim
  */
 enum tx_group_fom_state {
@@ -116,7 +112,7 @@ enum tx_group_fom_state {
 };
 
 static struct m0_sm_state_descr tx_group_fom_states[TGS_NR] = {
-#define _S(name, flags, allowed)  \
+#define _S(name, flags, allowed)      \
 	[name] = {                    \
 		.sd_flags   = flags,  \
 		.sd_name    = #name,  \
@@ -228,7 +224,7 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 		m0_fom_phase_set(fom, TGS_FINISH);
 		return M0_FSO_WAIT;
 	default:
-		M0_IMPOSSIBLE("XXX");
+		M0_IMPOSSIBLE("Invalid phase: %d", phase);
 	}
 
 	M0_LEAVE();

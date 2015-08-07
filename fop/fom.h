@@ -244,7 +244,7 @@ struct m0_loc_thread;
  * Once the locality is initialised, the locality invariant,
  * should hold true until locality is finalised.
  *
- * @see m0_locality_invaraint()
+ * @see m0_locality_invariant()
  */
 struct m0_fom_locality {
 	struct m0_fom_domain          *fl_dom;

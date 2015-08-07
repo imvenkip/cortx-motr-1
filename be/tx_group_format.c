@@ -297,7 +297,7 @@ M0_INTERNAL bool m0_be_group_format__invariant(struct m0_be_group_format *go)
 	return true; /* XXX TODO */
 }
 
-M0_INTERNAL int  m0_be_group_format_allocate(struct m0_be_group_format *gft)
+M0_INTERNAL int m0_be_group_format_allocate(struct m0_be_group_format *gft)
 {
 	return be_group_format_module_init(gft, NULL, true);
 }
