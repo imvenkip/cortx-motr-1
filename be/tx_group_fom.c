@@ -42,7 +42,6 @@
 
 static struct m0_be_tx_group_fom *fom2tx_group_fom(const struct m0_fom *fom);
 static void tx_group_fom_fini(struct m0_fom *fom);
-static void be_op_reset(struct m0_be_op *op);
 
 /* ------------------------------------------------------------------
  * State definitions
@@ -106,6 +105,8 @@ enum tx_group_fom_state {
 	 * tx_group.
 	 */
 	TGS_STABLE,
+	TGS_TX_GC_WAIT,
+	TGS_RESET,
 	TGS_STOPPING,
 	TGS_FAILED,
 	TGS_NR
@@ -132,7 +133,9 @@ static struct m0_sm_state_descr tx_group_fom_states[TGS_NR] = {
 	_S(TGS_PLACING,     0, M0_BITS(TGS_PLACED)),
 	_S(TGS_PLACED,      0, M0_BITS(TGS_STABILIZING)),
 	_S(TGS_STABILIZING, 0, M0_BITS(TGS_STABLE)),
-	_S(TGS_STABLE,      0, M0_BITS(TGS_OPEN)),
+	_S(TGS_STABLE,      0, M0_BITS(TGS_RESET, TGS_TX_GC_WAIT)),
+	_S(TGS_TX_GC_WAIT,  0, M0_BITS(TGS_RESET)),
+	_S(TGS_RESET,       0, M0_BITS(TGS_OPEN)),
 #undef _S
 };
 
@@ -166,7 +169,7 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 		}
 		return M0_FSO_WAIT;
 	case TGS_LOGGING:
-		be_op_reset(op);
+		m0_be_op_reset(op);
 		if (m->tgf_recovery_mode) {
 			m0_be_tx_group_log_read(gr, op);
 			return m0_be_op_tick_ret(op, fom, TGS_RECONSTRUCT);
@@ -184,19 +187,23 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 		m0_fom_phase_set(fom, TGS_TX_OPEN);
 		return M0_FSO_AGAIN;
 	case TGS_TX_OPEN:
-		m0_fom_phase_set(fom, TGS_TX_CLOSE);
-		return M0_FSO_AGAIN;
+		m0_be_op_reset(op);
+		m0_be_tx_group_reconstruct_tx_open(gr, op);
+		return m0_be_op_tick_ret(op, fom, TGS_TX_CLOSE);
 	case TGS_TX_CLOSE:
+		m0_be_op_reset(&m->tgf_op_gc);
+		/* m0_be_op_tick_ret() for the op is in TGS_TX_GC_WAIT phase */
+		m0_be_tx_group_reconstruct_tx_close(gr, &m->tgf_op_gc);
 		m0_fom_phase_set(fom, TGS_REAPPLY);
 		return M0_FSO_AGAIN;
 	case TGS_REAPPLY:
-		be_op_reset(op);
+		m0_be_op_reset(op);
 		rc = m0_be_tx_group_reapply(gr, op);
 		M0_ASSERT_INFO(rc == 0, "rc = %d", rc); /* XXX notify engine */
 		return m0_be_op_tick_ret(op, fom, TGS_PLACING);
 	case TGS_PLACING:
 		m0_be_tx_group__tx_state_post(gr, M0_BTS_LOGGED, false);
-		be_op_reset(op);
+		m0_be_op_reset(op);
 		m0_be_tx_group_seg_place_prepare(gr);
 		m0_be_tx_group_seg_place(gr, op);
 		return m0_be_op_tick_ret(op, fom, TGS_PLACED);
@@ -211,6 +218,12 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 		}
 		return M0_FSO_WAIT;
 	case TGS_STABLE:
+		m0_fom_phase_set(fom, m->tgf_recovery_mode ?
+				 TGS_TX_GC_WAIT : TGS_RESET);
+		return M0_FSO_AGAIN;
+	case TGS_TX_GC_WAIT:
+		return m0_be_op_tick_ret(&m->tgf_op_gc, fom, TGS_RESET);
+	case TGS_RESET:
 		m0_be_tx_group_engine_discard(gr);
 		m0_be_tx_group_reset(gr);
 		m0_be_tx_group_open(gr);
@@ -339,13 +352,7 @@ M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m,
 	m0_semaphore_init(&m->tgf_start_sem, 0);
 	m0_semaphore_init(&m->tgf_finish_sem, 0);
 	m0_be_op_init(&m->tgf_op);
-	/*
-	 * m->tgf_op is reset before first use.
-	 * Move it to the DONE state before proper m0_be_op_reset() implemented.
-	 * XXX TODO: Replace with m0_be_op_reset().
-	 */
-	m0_be_op_active(&m->tgf_op);
-	m0_be_op_done(&m->tgf_op);
+	m0_be_op_init(&m->tgf_op_gc);
 
 	M0_LEAVE();
 }
@@ -354,6 +361,7 @@ M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *m)
 {
 	M0_PRE(m0_fom_phase(&m->tgf_gen) == TGS_FINISH);
 
+	m0_be_op_fini(&m->tgf_op_gc);
 	m0_be_op_fini(&m->tgf_op);
 	m0_semaphore_fini(&m->tgf_start_sem);
 	m0_semaphore_fini(&m->tgf_finish_sem);
@@ -416,12 +424,6 @@ m0_be_tx_group_fom_recovery_prepare(struct m0_be_tx_group_fom *m,
 				    struct m0_be_recovery     *rvr)
 {
 	m->tgf_recovery_mode = true;
-}
-
-static void be_op_reset(struct m0_be_op *op)
-{
-	m0_be_op_fini(op);
-	m0_be_op_init(op);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_mod_init(void)

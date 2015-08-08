@@ -34,6 +34,7 @@
 struct m0_be_engine;
 struct m0_be_domain;
 struct m0_be_tx;
+struct be_recovering_tx;
 
 /**
  * @defgroup be Meta-data back-end
@@ -85,9 +86,13 @@ struct m0_be_tx_group {
 	uint32_t                   tg_nr_unstable;
 	/** List of transactions in the group. */
 	struct m0_tl               tg_txs;
-	/* XXX DOCUMENTME */
+	/** List of recovering transactions in the group. */
+	struct m0_tl               tg_txs_recovering;
+	/** Preallocated array of recovering transactions. */
+	struct be_recovering_tx   *tg_rtxs;
+	/* Linkage for engine lists (m0_be_engine::eng_txs). */
 	struct m0_tlink            tg_engine_linkage;
-	/* XXX DOCUMENTME */
+	/* Magic for tg_engine_linkage. */
 	uint64_t                   tg_magic;
 	/** XXX DOCUMENTME */
 	struct m0_be_group_format  tg_od;               /* XXX rename */
@@ -203,6 +208,12 @@ M0_INTERNAL void m0_be_tx_group_log_read(struct m0_be_tx_group *gr,
 M0_INTERNAL int m0_be_tx_group_decode(struct m0_be_tx_group *gr);
 M0_INTERNAL int m0_be_tx_group_reconstruct(struct m0_be_tx_group *gr,
 					   struct m0_sm_group    *sm_grp);
+M0_INTERNAL void m0_be_tx_group_reconstruct_tx_open(struct m0_be_tx_group *gr,
+						    struct m0_be_op       *op);
+/** @note Don't wait on op after the function call. */
+M0_INTERNAL void
+m0_be_tx_group_reconstruct_tx_close(struct m0_be_tx_group *gr,
+                                    struct m0_be_op       *op_gc);
 M0_INTERNAL int m0_be_tx_group_reapply(struct m0_be_tx_group *gr,
 				       struct m0_be_op       *op);
 

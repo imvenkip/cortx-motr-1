@@ -38,10 +38,26 @@
  * @{
  */
 
+/** A wrapper for a transaction that is being recovered. */
+struct be_recovering_tx {
+	struct m0_be_tx rtx_tx;
+	/** This clink is notified when rtx_tx state is changed. */
+	struct m0_clink rtx_open_wait;
+	struct m0_be_op rtx_op_open;
+	struct m0_be_op rtx_op_gc;
+	struct m0_tlink rtx_link;
+	uint64_t        rtx_magic;
+};
+
+/** A list of transactions that are currently being recovered. */
+M0_TL_DESCR_DEFINE(rtxs, "m0_be_tx_group::tg_txs_recovering", static,
+		   struct be_recovering_tx, rtx_link, rtx_magic,
+		   M0_BE_TX_MAGIC, M0_BE_TX_GROUP_MAGIC);
+M0_TL_DEFINE(rtxs, static, struct be_recovering_tx);
+
 M0_TL_DESCR_DEFINE(grp, "m0_be_tx_group::tg_txs", M0_INTERNAL,
 		   struct m0_be_tx, t_group_linkage, t_magic,
 		   M0_BE_TX_MAGIC, M0_BE_TX_GROUP_MAGIC);
-
 M0_TL_DEFINE(grp, M0_INTERNAL, struct m0_be_tx);
 
 /* TODO move comments to be/log.[ch] */
@@ -277,6 +293,7 @@ M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr)
 M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 {
 	M0_PRE(grp_tlist_is_empty(&gr->tg_txs));
+	M0_PRE(rtxs_tlist_is_empty(&gr->tg_txs_recovering));
 	M0_PRE(gr->tg_nr_unstable == 0);
 
 	M0_SET0(&gr->tg_used);
@@ -302,6 +319,7 @@ M0_INTERNAL void m0_be_tx_group_init(struct m0_be_tx_group     *gr,
 				     struct m0_reqh            *reqh)
 {
 	int rc;
+	int i;
 
 	*gr = (struct m0_be_tx_group) {
 		.tg_cfg = {
@@ -326,6 +344,7 @@ M0_INTERNAL void m0_be_tx_group_init(struct m0_be_tx_group     *gr,
 		.tg_engine           = en,
 	};
 	grp_tlist_init(&gr->tg_txs);
+	rtxs_tlist_init(&gr->tg_txs_recovering);
 	m0_be_tx_group_fom_init(&gr->tg_fom, gr, reqh);
 	rc = m0_be_group_format_init(&gr->tg_od, &gr->tg_cfg.tgc_format,
 				     gr, gr->tg_log);
@@ -338,14 +357,28 @@ M0_INTERNAL void m0_be_tx_group_init(struct m0_be_tx_group     *gr,
 	M0_ASSERT(rc == 0);     /* XXX */
 	rc = m0_be_reg_area_merger_init(&gr->tg_merger, tx_nr_max);
 	M0_ASSERT(rc == 0);     /* XXX */
+	M0_ALLOC_ARR(gr->tg_rtxs, tx_nr_max);
+	M0_ASSERT(gr->tg_rtxs != NULL); /* XXX */
+	for (i = 0; i < gr->tg_tx_nr_max; ++i) {
+		m0_be_op_init(&gr->tg_rtxs[i].rtx_op_open);
+		m0_be_op_init(&gr->tg_rtxs[i].rtx_op_gc);
+	}
 }
 
 M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr)
 {
+	int i;
+
+	for (i = 0; i < gr->tg_tx_nr_max; ++i) {
+		m0_be_op_fini(&gr->tg_rtxs[i].rtx_op_gc);
+		m0_be_op_fini(&gr->tg_rtxs[i].rtx_op_open);
+	}
+	m0_free(gr->tg_rtxs);
 	m0_be_reg_area_merger_fini(&gr->tg_merger);
 	m0_be_reg_area_fini(&gr->tg_area_copy);
 	m0_be_reg_area_fini(&gr->tg_reg_area);
 	m0_be_tx_group_fom_fini(&gr->tg_fom);
+	rtxs_tlist_fini(&gr->tg_txs_recovering);
 	grp_tlist_fini(&gr->tg_txs);
 }
 
@@ -527,6 +560,34 @@ static void be_tx_group_reconstruct_reg_area(struct m0_be_tx_group *gr)
 	}
 }
 
+static struct be_recovering_tx *
+tx2tx_group_recovering_tx(struct m0_be_tx *tx)
+{
+	return container_of(tx, struct be_recovering_tx, rtx_tx);
+}
+
+static bool be_tx_group_recovering_tx_open(struct m0_clink *clink)
+{
+	struct be_recovering_tx *rtx;
+
+	rtx = container_of(clink, struct be_recovering_tx, rtx_open_wait);
+	if (m0_be_tx_state(&rtx->rtx_tx) == M0_BTS_ACTIVE) {
+		m0_clink_del(clink);
+		m0_be_op_done(&rtx->rtx_op_open);
+	}
+	return false;
+}
+
+static void be_tx_group_recovering_gc(struct m0_be_tx *tx, void *param)
+{
+	struct be_recovering_tx *rtx;
+
+	rtx = tx2tx_group_recovering_tx(tx);
+	rtxs_tlink_del_fini(rtx);
+	m0_clink_fini(&rtx->rtx_open_wait);
+	m0_be_op_done(&rtx->rtx_op_gc);
+}
+
 /**
  * Highlighs:
  * - transactions are reconstructed in the given sm group;
@@ -536,37 +597,36 @@ static void be_tx_group_reconstruct_reg_area(struct m0_be_tx_group *gr)
 static void be_tx_group_reconstruct_transactions(struct m0_be_tx_group *gr,
 						 struct m0_sm_group    *sm_grp)
 {
+	struct be_recovering_tx   *rtx;
 	struct m0_be_group_format *gft = &gr->tg_od;
 	struct m0_be_fmt_tx        ftx;
 	struct m0_be_tx           *tx;
 	uint32_t                   tx_nr;
 	uint32_t                   i;
-	int                        rc;
 
 	tx_nr = m0_be_group_format_tx_nr(gft);
 	for (i = 0; i < tx_nr; ++i) {
-		M0_ALLOC_PTR(tx);
-		M0_ASSERT(tx != NULL); /* XXX */
+		rtx = &gr->tg_rtxs[i];
+		/*
+		 * rtx->rtx_op_open and rtx->rtx_op_gc are initialised in
+		 * m0_be_tx_group_init().
+		 */
+		M0_SET0(&rtx->rtx_tx);
+		M0_SET0(&rtx->rtx_open_wait);
+		rtxs_tlink_init_at_tail(rtx, &gr->tg_txs_recovering);
 		m0_be_group_format_tx_get(gft, i, &ftx);
+		tx = &rtx->rtx_tx;
 		m0_be_tx_init(tx, 0, gr->tg_domain,
 			      sm_grp, NULL, NULL, NULL, NULL);
-		/*
-		 * XXX move this and tx open/close to the group fom
-		 * XXX wait in group fom until all tx from group are GCed
-		 */
-		m0_be_tx_gc_enable(tx, NULL, NULL);
 		m0_be_tx__group_assign(tx, gr);
 		m0_be_tx__recovering(tx);
 		m0_be_tx_reconstruct(tx, &ftx);
-		/*
-		 * XXX it is possible to be stuck here.
-		 * TODO ask @nikita about how this can be avoided.
-		 * temporary solution: use sm group from locality0.
-		 */
-		rc = m0_be_tx_open_sync(tx);
-		M0_ASSERT_INFO(rc == 0,
-			       "tx can't fail in recovery mode: rc = %d", rc);
-		m0_be_tx_close(tx);
+		m0_be_op_reset(&rtx->rtx_op_open);
+		m0_be_op_reset(&rtx->rtx_op_gc);
+		m0_clink_init(&rtx->rtx_open_wait,
+			      &be_tx_group_recovering_tx_open);
+		m0_clink_add(&tx->t_sm.sm_chan, &rtx->rtx_open_wait);
+		m0_be_tx_gc_enable(tx, &be_tx_group_recovering_gc, NULL);
 	}
 }
 
@@ -576,6 +636,37 @@ M0_INTERNAL int m0_be_tx_group_reconstruct(struct m0_be_tx_group *gr,
 	be_tx_group_reconstruct_reg_area(gr);
 	be_tx_group_reconstruct_transactions(gr, sm_grp);
 	return 0; /* XXX no error handling yet. It will be fixed. */
+}
+
+M0_INTERNAL void m0_be_tx_group_reconstruct_tx_open(struct m0_be_tx_group *gr,
+						    struct m0_be_op       *op)
+{
+	struct be_recovering_tx *rtx;
+
+	m0_tl_for(rtxs, &gr->tg_txs_recovering, rtx) {
+		m0_be_op_set_add(op, &rtx->rtx_op_open);
+	} m0_tl_endfor;
+
+	m0_tl_for(rtxs, &gr->tg_txs_recovering, rtx) {
+		m0_be_op_active(&rtx->rtx_op_open);
+		m0_be_tx_open(&rtx->rtx_tx);
+	} m0_tl_endfor;
+}
+
+M0_INTERNAL void
+m0_be_tx_group_reconstruct_tx_close(struct m0_be_tx_group *gr,
+                                    struct m0_be_op       *op_gc)
+{
+	struct be_recovering_tx *rtx;
+
+	m0_tl_for(rtxs, &gr->tg_txs_recovering, rtx) {
+		m0_be_op_set_add(op_gc, &rtx->rtx_op_gc);
+	} m0_tl_endfor;
+
+	m0_tl_for(rtxs, &gr->tg_txs_recovering, rtx) {
+		m0_be_op_active(&rtx->rtx_op_gc);
+		m0_be_tx_close(&rtx->rtx_tx);
+	} m0_tl_endfor;
 }
 
 /*

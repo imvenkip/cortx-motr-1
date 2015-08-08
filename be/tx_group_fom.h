@@ -49,6 +49,8 @@ struct m0_be_tx_group_fom {
 	struct m0_be_tx_group *tgf_group;
 	/** m0_be_op for I/O operations */
 	struct m0_be_op        tgf_op;
+	/** m0_be_op for tx GC after recovery */
+	struct m0_be_op        tgf_op_gc;
 	/**
 	 * The number of transactions that have been added to the tx_group
 	 * but have not switched to M0_BTS_GROUPED state yet.

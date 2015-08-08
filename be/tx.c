@@ -628,6 +628,7 @@ M0_INTERNAL void m0_be_tx_reconstruct(struct m0_be_tx           *tx,
 				      const struct m0_be_fmt_tx *ftx)
 {
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
+	M0_PRE(m0_be_tx__is_recovering(tx));
 
 	tx->t_payload = ftx->bft_payload;
 	tx->t_id      = ftx->bft_id;
