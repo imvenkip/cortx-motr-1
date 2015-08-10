@@ -330,15 +330,15 @@ struct m0_conf_profile {
 };
 
 struct m0_conf_filesystem {
-	struct m0_conf_obj   cf_obj;
-	struct m0_conf_dir  *cf_nodes;
-	struct m0_conf_dir  *cf_pools;
-	struct m0_conf_dir  *cf_racks;
-	/** Pointer to pool configuration object used to locate meta-data. */
-	struct m0_conf_pool *cf_md_pool;
+	struct m0_conf_obj  cf_obj;
+	struct m0_conf_dir *cf_nodes;
+	struct m0_conf_dir *cf_pools;
+	struct m0_conf_dir *cf_racks;
 /* configuration data (for the application) */
-	struct m0_fid        cf_rootfid;
-	uint32_t             cf_redundancy;
+	struct m0_fid       cf_rootfid;
+	/** Meta-data pool. */
+	struct m0_fid       cf_mdpool;
+	uint32_t            cf_redundancy;
 	/**
 	 * Filesystem parameters.
 	 * NULL-terminated array of C strings.
@@ -402,6 +402,10 @@ struct m0_conf_objv {
 struct m0_conf_node {
 	struct m0_conf_obj   cn_obj;
 	struct m0_conf_dir  *cn_processes;
+	/*
+	 * XXX OBSOLETE DELETEME
+	 * ->cn_pool is a remnant of old configuration schema.
+	 */
 	struct m0_conf_pool *cn_pool;
 /* configuration data (for the application) */
 	/** Memory size in MB. */

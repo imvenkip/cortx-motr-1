@@ -785,6 +785,7 @@ int m0_spiel_filesystem_add(struct m0_spiel_tx   *tx,
 			    const struct m0_fid  *parent,
 			    unsigned              redundancy,
 			    const struct m0_fid  *rootfid,
+			    const struct m0_fid  *mdpool,
 			    const char          **fs_params)
 {
 	int                        rc;
@@ -803,13 +804,14 @@ int m0_spiel_filesystem_add(struct m0_spiel_tx   *tx,
 		goto fail;
 
 	fs = M0_CONF_CAST(obj, m0_conf_filesystem);
-	fs->cf_rootfid = *rootfid;
-	fs->cf_redundancy = redundancy;
 	fs->cf_params = m0_strings_dup(fs_params);
 	if (fs->cf_params == NULL) {
 		rc = M0_ERR(-ENOMEM);
 		goto fail;
 	}
+	fs->cf_rootfid = *rootfid;
+	fs->cf_mdpool = *mdpool;
+	fs->cf_redundancy = redundancy;
 
 	if (fs->cf_racks == NULL)
 		rc = spiel_filesystem_dirs_create(&tx->spt_cache, fs);
@@ -1139,7 +1141,6 @@ fail:
 }
 M0_EXPORTED(m0_spiel_device_add);
 
-
 int m0_spiel_pool_add(struct m0_spiel_tx  *tx,
 		      const struct m0_fid *fid,
 		      const struct m0_fid *parent,
@@ -1164,7 +1165,7 @@ int m0_spiel_pool_add(struct m0_spiel_tx  *tx,
 	pool = M0_CONF_CAST(obj, m0_conf_pool);
 	pool->pl_order = order;
 
-	if(pool->pl_pvers == NULL)
+	if (pool->pl_pvers == NULL)
 		rc = spiel_pool_dirs_create(&tx->spt_cache, pool);
 	if (rc != 0)
 		goto fail;
@@ -1176,8 +1177,6 @@ int m0_spiel_pool_add(struct m0_spiel_tx  *tx,
 		goto fail;
 
 	m0_conf_dir_tlist_add_tail(&fs->cf_pools->cd_items, obj);
-
-	fs->cf_md_pool = pool;
 
 	child_adopt(&fs->cf_pools->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
@@ -1197,7 +1196,6 @@ fail:
 	return M0_ERR(rc);
 }
 M0_EXPORTED(m0_spiel_pool_add);
-
 
 int m0_spiel_rack_add(struct m0_spiel_tx  *tx,
 		      const struct m0_fid *fid,

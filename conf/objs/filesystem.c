@@ -34,9 +34,11 @@ static bool filesystem_check(const void *bob)
 	const struct m0_conf_obj        *self_obj = &self->cf_obj;
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_FILESYSTEM_TYPE);
-
-	return _0C(ergo(m0_conf_obj_is_stub(self_obj),
-			self->cf_params == NULL));
+	return
+		m0_conf_obj_is_stub(self_obj) ?
+		_0C(self->cf_params == NULL) &&
+		_0C(!m0_fid_is_set(&self->cf_mdpool)) :
+		_0C(m0_conf_fid_type(&self->cf_mdpool) == &M0_CONF_POOL_TYPE);
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_filesystem, M0_CONF_FILESYSTEM_MAGIC,
@@ -50,16 +52,14 @@ static int filesystem_decode(struct m0_conf_obj        *dest,
 	struct m0_conf_filesystem        *d =
 		M0_CONF_CAST(dest, m0_conf_filesystem);
 	const struct m0_confx_filesystem *s = XCAST(src);
-	struct m0_conf_obj               *obj;
 	int                               rc;
 
-	d->cf_rootfid = s->xf_rootfid;
+	if (!m0_conf_fid_is_valid(&s->xf_mdpool) ||
+	    m0_conf_fid_type(&s->xf_mdpool) != &M0_CONF_POOL_TYPE)
+		return M0_ERR(-EINVAL);
+	d->cf_mdpool     = s->xf_mdpool;
+	d->cf_rootfid    = s->xf_rootfid;
 	d->cf_redundancy = s->xf_redundancy;
-
-        rc = m0_conf_obj_find(cache, &s->xf_mdpool, &obj);
-        if (rc != 0)
-                return M0_ERR(rc);
-        d->cf_md_pool = M0_CONF_CAST(obj, m0_conf_pool);
 
 	rc = m0_bufs_to_strings(&d->cf_params, &s->xf_params);
 	if (rc != 0)
@@ -101,8 +101,8 @@ filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 
 	confx_encode(dest, src);
 	d->xf_rootfid    = s->cf_rootfid;
+	d->xf_mdpool     = s->cf_mdpool;
 	d->xf_redundancy = s->cf_redundancy;
-	d->xf_mdpool     = s->cf_md_pool->pl_obj.co_id;
 	rc = m0_bufs_from_strings(&d->xf_params, s->cf_params);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -120,13 +120,14 @@ static bool filesystem_match(const struct m0_conf_obj  *cached,
 		M0_CONF_CAST(cached, m0_conf_filesystem);
 
 	M0_PRE(xobj->xf_params.ab_count != 0);
-
-	return m0_bufs_streq(&xobj->xf_params, obj->cf_params) &&
-	       obj->cf_rootfid.f_container == xobj->xf_rootfid.f_container &&
-	       obj->cf_rootfid.f_key == xobj->xf_rootfid.f_key &&
-	       m0_conf_dir_elems_match(obj->cf_nodes, &xobj->xf_nodes) &&
-	       m0_conf_dir_elems_match(obj->cf_pools, &xobj->xf_pools) &&
-	       m0_conf_dir_elems_match(obj->cf_racks, &xobj->xf_racks);
+	return
+		m0_fid_eq(&obj->cf_rootfid, &xobj->xf_rootfid) &&
+		m0_fid_eq(&obj->cf_mdpool, &xobj->xf_mdpool) &&
+		obj->cf_redundancy == xobj->xf_redundancy &&
+		m0_bufs_streq(&xobj->xf_params, obj->cf_params) &&
+		m0_conf_dir_elems_match(obj->cf_nodes, &xobj->xf_nodes) &&
+		m0_conf_dir_elems_match(obj->cf_pools, &xobj->xf_pools) &&
+		m0_conf_dir_elems_match(obj->cf_racks, &xobj->xf_racks);
 }
 
 static int filesystem_lookup(struct m0_conf_obj  *parent,

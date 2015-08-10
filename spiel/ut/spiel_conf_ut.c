@@ -117,6 +117,7 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 				     fs_param);
 	M0_UT_ASSERT(rc == 0);
 
@@ -286,6 +287,7 @@ static void spiel_conf_create_fail(void)
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 				     fs_param);
 	M0_UT_ASSERT(rc == -EINVAL);
 
@@ -296,6 +298,7 @@ static void spiel_conf_create_fail(void)
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 				     fs_param);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
@@ -307,6 +310,7 @@ static void spiel_conf_create_fail(void)
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 				     fs_param);
 	m0_fi_disable("m0_strings_dup", "strdup_failed");
 	M0_UT_ASSERT(rc == -ENOMEM);
@@ -316,6 +320,7 @@ static void spiel_conf_create_fail(void)
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 				     fs_param);
 	M0_UT_ASSERT(rc == 0);
 
@@ -905,7 +910,7 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_filesystem_add(tx, &fid_filesystem, &fid_profile, 41212,
-				     &fid_profile, fs_param);
+				     &fid_profile, &fid_pool, fs_param);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_pool_add(tx, &fid_pool, &fid_filesystem, 0);

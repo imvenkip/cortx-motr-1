@@ -118,7 +118,7 @@
  *				M0_CONF_XXX_XXX_FID,
  *				M0_CONF_XXX_XXX_FID);
  *	if (rc != 0)
- *		return M0_RC(rc);
+ *		return M0_ERR(rc);
  *
  *	while ((rc = m0_conf_diter_next_sync(&it, _filter_xxx)) ==
  *							M0_CONF_DIRNEXT) {

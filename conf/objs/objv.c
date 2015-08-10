@@ -54,7 +54,7 @@ static int objv_decode(struct m0_conf_obj        *dest,
 
 	rc = m0_conf_obj_find(cache, &XCAST(src)->xj_real, &child);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	d->cv_real = child;
 
@@ -68,7 +68,7 @@ static int objv_decode(struct m0_conf_obj        *dest,
 	else if (obj_type == &M0_CONF_DISK_TYPE)
 		return 0;
 	else
-		return M0_RC(-EINVAL);
+		return M0_ERR(-EINVAL);
 
 	rc = dir_new(cache, &dest->co_id, relfid, &M0_CONF_OBJV_TYPE,
 		     &s->xj_children, &d->cv_children);

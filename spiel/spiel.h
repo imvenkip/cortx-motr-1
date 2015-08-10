@@ -393,6 +393,7 @@ int m0_spiel_profile_add(struct m0_spiel_tx *tx, const struct m0_fid *fid);
  * @param parent     fid of the parent profile
  * @param redundancy metadata redundancy count
  * @param rootfid    root's fid of filesystem
+ * @param mdpool     meta-data pool
  * @param fs_params  NULL-terminated array of command-line like parameters @n
  *                   Parameters are copied, so caller can safely free them.
  */
@@ -401,6 +402,7 @@ int m0_spiel_filesystem_add(struct m0_spiel_tx    *tx,
 			    const struct m0_fid   *parent,
 			    unsigned               redundancy,
 			    const struct m0_fid   *rootfid,
+			    const struct m0_fid   *mdpool,
 			    const char           **fs_params);
 
 /**
