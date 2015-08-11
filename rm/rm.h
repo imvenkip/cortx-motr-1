@@ -204,7 +204,7 @@
  *
  * <b> Network protocol. </b>
  *
- * @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfN2NiNXM1dHF3&hl=en
+ * @see https://docs.google.com/document/d/1WYw8MmItpp0KuBbYfuQQxJaw9UN8OuHKnlICszB8-Zs
  *
  * @{
  */
