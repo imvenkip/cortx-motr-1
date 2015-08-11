@@ -43,6 +43,7 @@
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "layout/pdclust.h"
+#include "fd/fd.h"             /* m0_fd_fwd_map */
 #include "fop/fom_simple.h"
 #include "pool/pool.h"
 #include "conf/obj.h"          /* M0_CONF_PROCESS_TYPE, m0_conf_fid_type */
@@ -212,7 +213,7 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 	src.sa_group = m0_fid_hash(gob_fid);
 	src.sa_unit = index;
 
-	m0_pdclust_instance_map(pi, &src, &tgt);
+	m0_fd_fwd_map(pi, &src, &tgt);
 	M0_ASSERT(tgt.ta_obj < mds_nr);
 	ctx = md_pv->pv_dev_to_ios_map[tgt.ta_obj];
 	M0_ASSERT(ctx != NULL);

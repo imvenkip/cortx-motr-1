@@ -73,7 +73,7 @@ static int layout_enum_build(struct m0_layout_domain *dom,
 
 static int __layout_build(struct m0_layout_domain *dom,
                           const uint64_t layout_id,
-                          struct m0_pdclust_attr *pa,
+                          struct m0_pool_version *pv,
                           struct m0_layout_enum *le,
                           struct m0_layout **layout)
 {
@@ -81,13 +81,15 @@ static int __layout_build(struct m0_layout_domain *dom,
         int                       rc;
 
         M0_ENTRY();
-        M0_PRE(pa->pa_P > 0);
+        M0_PRE(pv->pv_attr.pa_P > 0);
         M0_PRE(le != NULL && layout != NULL);
 
         *layout = NULL;
-        rc = m0_pdclust_build(dom, layout_id, pa, le, &pdlayout);
-        if (rc == 0)
+        rc = m0_pdclust_build(dom, layout_id, &pv->pv_attr, le, &pdlayout);
+        if (rc == 0) {
                 *layout = m0_pdl_to_layout(pdlayout);
+		(*layout)->l_pver = pv;
+	}
 
         return M0_RC(rc);
 }
@@ -139,7 +141,7 @@ M0_INTERNAL int m0_layout_init_by_pver(struct m0_layout_domain *dom,
 		/**
 		   At this point layout has also added to the list in domain.
 		 */
-		rc = __layout_build(dom, layout_id, pa, layout_enum, &layout);
+		rc = __layout_build(dom, layout_id, pv, layout_enum, &layout);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "layout %"PRIu64" build failed: rc=%d",
 			       layout_id, rc);

@@ -38,8 +38,7 @@
 #include "lib/ext.h"        /* m0_ext */
 #include "lib/arith.h"      /* min_type */
 #include "lib/finject.h"    /* M0_FI_ENABLED */
-#include "layout/pdclust.h" /* M0_PUT_*, m0_layout_to_pdl,
-			     * m0_pdclust_instance_map */
+#include "layout/pdclust.h" /* M0_PUT_*, m0_layout_to_pdl, */
 #include "lib/bob.h"        /* m0_bob_type */
 #include "lib/tlist.h"
 #include "rpc/rpc_machine_internal.h"	/* m0_rpc_machine_lock */
@@ -48,6 +47,7 @@
 #include "mero/magic.h"  /* M0_T1FS_IOREQ_MAGIC */
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
 #include "file/file.h"
+#include "fd/fd.h"          /* m0_fd_fwd_map m0_fd_bwd_map */
 #include "lib/hash.h"	    /* m0_htable */
 #include "sns/parity_repair.h"  /*m0_sns_repair_spare_map() */
 #include "addb2/addb2.h"
@@ -570,8 +570,7 @@ static void pargrp_src_addr(m0_bindex_t                 index,
 	play = pdlayout_get(req);
 	tgt.ta_obj = tio_req->ti_obj;
 	tgt.ta_frame = index / layout_unit_size(play);
-	m0_pdclust_instance_inv(pdlayout_instance(layout_instance(req)), &tgt,
-						  src);
+	m0_fd_bwd_map(pdlayout_instance(layout_instance(req)), &tgt, src);
 }
 
 static inline uint64_t pargrp_id_find(m0_bindex_t	       index,
@@ -2735,7 +2734,7 @@ static int unit_state(const struct m0_pdclust_src_addr *src,
 
 	msb = file_to_sb(req->ir_file);
 	play_instance = pdlayout_instance(layout_instance(req));
-	m0_pdclust_instance_map(play_instance, src, &tgt);
+	m0_fd_fwd_map(play_instance, src, &tgt);
 	tfid = target_fid(req, &tgt);
 	rc = m0_poolmach_device_state(&msb->csb_pool_version->pv_mach,
 				      m0_fid_cob_device_id(&tfid),
@@ -4116,7 +4115,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	play = pdlayout_get(req);
 	play_instance = pdlayout_instance(layout_instance(req));
 
-	m0_pdclust_instance_map(play_instance, src, tgt);
+	m0_fd_fwd_map(play_instance, src, tgt);
 	tfid = target_fid(req, tgt);
 
 	M0_LOG(M0_DEBUG, "src_id[%llu:%llu] -> dest_id[%llu:%llu] @ tfid "FID_F,
@@ -4232,7 +4231,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 		/* Check if there is an effective-failure. */
 		if (spare_slot_prev != src->sa_unit) {
 			spare.sa_unit = spare_slot_prev;
-			m0_pdclust_instance_map(play_instance, &spare, tgt);
+			m0_fd_fwd_map(play_instance, &spare, tgt);
 			tfid = target_fid(req, tgt);
 			rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
 						      m0_fid_cob_device_id(&tfid),
@@ -4244,7 +4243,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 
 		if (device_state_prev == M0_PNDS_SNS_REPAIRED) {
 			spare.sa_unit = spare_slot;
-			m0_pdclust_instance_map(play_instance, &spare, tgt);
+			m0_fd_fwd_map(play_instance, &spare, tgt);
 			tfid = target_fid(req, tgt);
 		}
 		device_state = device_state_prev;

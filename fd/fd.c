@@ -28,6 +28,7 @@
 #include "fd/fd.h"
 #include "fd/fd_internal.h"
 
+#include "fid/fid.h"           /* m0_fid_eq m0_fid_set */
 #include "lib/errno.h"         /* EINVAL */
 #include "lib/memory.h"        /* M0_ALLOC_ARR M0_ALLOC_PTR m0_free */
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FD
@@ -83,25 +84,26 @@ static int cache_init(struct m0_fd_perm_cache *cache, uint64_t child_nr);
 static void cache_fini(struct m0_fd_perm_cache *cache);
 
 /** Returns an index of permuted target. **/
-static void permuted_tgt_get(struct m0_pool_version *pver, uint64_t omega,
+
+static void permuted_tgt_get(struct m0_pdclust_instance *pi, uint64_t omega,
 			     uint64_t *rel_vidx, uint64_t *tgt_idx);
 
 /** Returns relative indices from a symmetric tree. **/
-static void inverse_permuted_idx_get(struct m0_pool_version *pver,
+static void inverse_permuted_idx_get(struct m0_pdclust_instance *pi,
 				     uint64_t omega, uint64_t perm_idx,
 				     uint64_t *rel_idx);
 
 /** Permutes the permutation cache. **/
 static void fd_permute(struct m0_fd_perm_cache *cache,
-                       struct m0_pdclust_attr *attr, uint64_t omega);
+		       struct m0_uint128 *seed, struct m0_fid *gfid,
+		       uint64_t omega);
 
-static inline uint64_t tree2pv_level_conv(uint64_t level,
-					  uint64_t tree_depth);
+static bool is_cache_valid(const struct m0_fd_perm_cache *cache,
+			   uint64_t omega, const struct m0_fid *gfid);
 
-static inline uint64_t pv2tree_level_conv(uint64_t level,
-					  uint64_t tree_depth);
+static uint64_t tree2pv_level_conv(uint64_t level, uint64_t tree_depth);
 
-static inline uint64_t ceil_of(uint64_t a, uint64_t b);
+static uint64_t ceil_of(uint64_t a, uint64_t b);
 
 static bool obj_check(const struct m0_conf_obj *obj,
 		      const struct m0_conf_obj_type *type)
@@ -233,22 +235,23 @@ static int min_children_cnt(const struct m0_conf_pver *pv, uint64_t pv_level,
 
 M0_INTERNAL int m0_fd__tile_init(struct m0_fd_tile *tile,
 				 const struct m0_pdclust_attr *la_attr,
-				 uint64_t *children_nr, uint64_t depth)
+				 uint64_t *children, uint64_t depth)
 {
-	M0_PRE(tile != NULL && la_attr != NULL && children_nr != NULL);
+	M0_PRE(tile != NULL && la_attr != NULL && children != NULL);
 	M0_PRE(depth > 0);
 
 	tile->ft_G     = parity_group_size(la_attr);
-	tile->ft_cols  = pool_width_calc(children_nr, depth);
+	tile->ft_cols  = pool_width_calc(children, depth);
 	tile->ft_rows  = tile->ft_G / m0_gcd64(tile->ft_G, tile->ft_cols);
 	tile->ft_depth = depth;
 	M0_ALLOC_ARR(tile->ft_cell, tile->ft_rows * tile->ft_cols);
 	if (tile->ft_cell == NULL)
 		return M0_ERR(-ENOMEM);
-	memcpy(tile->ft_children_nr, children_nr, M0_FTA_DEPTH_MAX);
+	memcpy(tile->ft_child, children,
+	       M0_FTA_DEPTH_MAX * sizeof tile->ft_child[0]);
 
 	M0_POST(parity_group_size(la_attr) <= tile->ft_cols);
-	return M0_RC(0);;
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_fd_tolerance_check(struct m0_conf_pver *pv,
@@ -290,15 +293,7 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 	return M0_RC(rc);
 }
 
-static inline uint64_t pv2tree_level_conv(uint64_t level,
-					  uint64_t tree_depth)
-{
-	M0_PRE(tree_depth < M0_FTA_DEPTH_MAX &&
-	       level > ((M0_FTA_DEPTH_MAX - 1) - tree_depth));
-	return level - ((M0_FTA_DEPTH_MAX - 1) - tree_depth);
-}
-
-static inline uint64_t tree2pv_level_conv(uint64_t level,
+static  uint64_t tree2pv_level_conv(uint64_t level,
 					  uint64_t tree_depth)
 {
 	M0_PRE(tree_depth < M0_FTA_DEPTH_MAX);
@@ -351,7 +346,7 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
 	return M0_RC(rc);
 }
 
-static inline uint64_t ceil_of(uint64_t a, uint64_t b)
+static uint64_t ceil_of(uint64_t a, uint64_t b)
 {
 	return (a + b - 1) / b;
 }
@@ -453,7 +448,7 @@ M0_INTERNAL void m0_fd__tile_populate(struct m0_fd_tile *tile)
 
 	M0_PRE(fd_tile_invariant(tile));
 
-	children_nr = tile->ft_children_nr;
+	children_nr = tile->ft_child;
 	for (row = 0; row < tile->ft_rows; ++row) {
 		for (col = 0; col < tile->ft_cols; ++col) {
 			idx = m0_enc(tile->ft_cols, row, col);
@@ -680,29 +675,39 @@ M0_INTERNAL int m0_fd__perm_cache_build(struct m0_fd_tree *tree)
 
 static int cache_init(struct m0_fd_perm_cache *cache, uint64_t child_nr)
 {
-	uint64_t *ptr;
+	struct m0_uint128 seed;
+	struct m0_fid     gfid;
+	uint64_t         *permute;
+	uint64_t         *inverse;
+	uint64_t         *lcode;
+
 
 	M0_PRE(cache != NULL);
 
 	M0_SET0(cache);
-	cache->fpc_len   = child_nr;
-	cache->fpc_omega = ~(uint64_t)0;
-	M0_ALLOC_ARR(ptr, child_nr);
-	if (ptr == NULL)
+	cache->fpc_len = child_nr;
+	M0_ALLOC_ARR(permute, child_nr);
+	if (permute == NULL)
 		goto err;
 
-	cache->fpc_permute = ptr;
-	M0_ALLOC_ARR(ptr, child_nr);
-	if (ptr == NULL)
+	cache->fpc_permute = permute;
+	M0_ALLOC_ARR(inverse, child_nr);
+	if (inverse == NULL)
 		goto err;
 
-	cache->fpc_inverse = ptr;
-	M0_ALLOC_ARR(ptr, child_nr);
-	if (ptr == NULL)
+	cache->fpc_inverse = inverse;
+	M0_ALLOC_ARR(lcode, child_nr);
+	if (lcode == NULL)
 		goto err;
 
-	cache->fpc_lcode = ptr;
+	cache->fpc_lcode = lcode;
 	perm_cache_tlink_init(cache);
+	/* Initialize the permutation present in the cache. */
+	cache->fpc_omega = ~(uint64_t)0;
+	m0_fid_set(&cache->fpc_gfid, ~(uint64_t)0, ~(uint64_t)0);
+	m0_uint128_init(&seed, M0_PDCLUST_SEED);
+	m0_fid_set(&gfid, 0, 0);
+	fd_permute(cache, &seed, &gfid, 0);
 	return M0_RC(0);
 err:
 	m0_free0(&cache->fpc_permute);
@@ -765,11 +770,18 @@ static void cache_fini(struct m0_fd_perm_cache *cache)
 	m0_free0(&cache->fpc_inverse);
 }
 
-M0_INTERNAL void m0_fd_fwd_map(struct m0_pool_version *pver,
+static struct m0_pool_version *
+pool_ver_get(const struct m0_pdclust_instance *pd_instance)
+{
+        return pd_instance->pi_base.li_l->l_pver;
+}
+
+M0_INTERNAL void m0_fd_fwd_map(struct m0_pdclust_instance *pi,
 			       const struct m0_pdclust_src_addr *src,
 			       struct m0_pdclust_tgt_addr *tgt)
 {
 	struct m0_fd_tile          *tile;
+	struct m0_pool_version     *pver;
 	struct m0_pdclust_src_addr  src_base;
 	uint64_t                    rel_vidx[M0_FTA_DEPTH_MAX];
 	uint64_t                    omega;
@@ -779,44 +791,52 @@ M0_INTERNAL void m0_fd_fwd_map(struct m0_pool_version *pver,
 	uint64_t                    i;
 	uint64_t                    vidx;
 
-	M0_PRE(pver != NULL);
+	M0_PRE(pi != NULL);
 	M0_PRE(src != NULL && tgt != NULL);
 
+	pver = pool_ver_get(pi);
 	tile = &pver->pv_fd_tile;
-
+	M0_ASSERT(tile != NULL);
 	/* Get location in fault-tolerant permutation. */
 	m0_fd_src_to_tgt(tile, src, tgt);
 	tree_depth = pver->pv_fd_tile.ft_depth;
 	for (i = 1, children = 1; i < tree_depth; ++i) {
-		children *= tile->ft_children_nr[i];
+		children *= tile->ft_child[i];
 	}
 	for (i = 1, vidx = tgt->ta_obj; i <= tree_depth; ++i) {
 		rel_vidx[i]  = vidx / children;
 		vidx        %= children;
-		children    /= tile->ft_children_nr[i];
+		children    /= tile->ft_child[i];
 	}
+	M0_ASSERT(tile->ft_G != 0);
 	C = tile->ft_rows * tile->ft_cols / tile->ft_G;
 	m0_dec(C, src->sa_group, &omega, &src_base.sa_group);
-	permuted_tgt_get(pver, omega, rel_vidx, &tgt->ta_obj);
+	permuted_tgt_get(pi, omega, rel_vidx, &tgt->ta_obj);
 }
 
-static void permuted_tgt_get(struct m0_pool_version *pver, uint64_t omega,
+static void permuted_tgt_get(struct m0_pdclust_instance *pi, uint64_t omega,
 			     uint64_t *rel_vidx, uint64_t *tgt_idx)
 {
 	struct m0_fd_tree         *tree;
+	struct m0_pool_version    *pver;
 	struct m0_fd_tree_node    *node;
 	struct m0_fd__tree_cursor  cursor;
+	struct m0_pdclust_attr    *attr;
+	struct m0_fid             *gfid;
 	uint64_t                   depth;
 	uint64_t                   perm_idx;
 	uint64_t                   rel_idx;
 	int                        rc;
 
+	pver = pool_ver_get(pi);
 	tree = &pver->pv_fd_tree;
 	node = tree->ft_root;
+	gfid = &pi->pi_base.li_gfid;
+	attr = &pool_ver_get(pi)->pv_attr;
 
 	for (depth = 1; depth <= tree->ft_depth; ++depth) {
 		rel_idx = rel_vidx[depth];
-		fd_permute(node->ftn_cache, &pver->pv_attr, omega);
+		fd_permute(node->ftn_cache, &attr->pa_seed, gfid, omega);
 		M0_ASSERT(rel_idx < node->ftn_cache->fpc_len);
 		perm_idx = node->ftn_cache->fpc_permute[rel_idx];
 		rc = m0_fd__tree_cursor_init_at(&cursor, tree, node, perm_idx);
@@ -828,36 +848,46 @@ static void permuted_tgt_get(struct m0_pool_version *pver, uint64_t omega,
 }
 
 static void fd_permute(struct m0_fd_perm_cache *cache,
-                       struct m0_pdclust_attr *attr, uint64_t omega)
+                       struct m0_uint128 *seed, struct m0_fid *gfid,
+		       uint64_t omega)
 {
-        uint32_t i;
-        uint64_t rstate;
+	uint32_t i;
+	uint64_t rstate;
 
-	if (cache->fpc_omega != omega) {
+
+	if (!is_cache_valid(cache, omega, gfid)) {
 		/* Initialise columns array that will be permuted. */
 		for (i = 0; i < cache->fpc_len; ++i)
 			cache->fpc_permute[i] = i;
 
 		/* Initialise PRNG. */
-		rstate = m0_hash(attr->pa_seed.u_hi) ^
-			m0_hash(attr->pa_seed.u_lo + omega);
+		rstate = m0_hash(seed->u_hi + gfid->f_key) ^
+			m0_hash(seed->u_lo + omega + gfid->f_container);
 
 		/* Generate permutation number in lexicographic ordering. */
 		for (i = 0; i < cache->fpc_len - 1; ++i)
 			cache->fpc_lcode[i] = m0_rnd(cache->fpc_len - i,
 					&rstate);
-
 		/* Apply the permutation. */
 		m0_permute(cache->fpc_len, cache->fpc_lcode,
 			   cache->fpc_permute, cache->fpc_inverse);
+		cache->fpc_omega = omega;
+		cache->fpc_gfid  = *gfid;
 	}
 }
 
-M0_INTERNAL void m0_fd_bwd_map(struct m0_pool_version *pver,
+static  bool is_cache_valid(const struct m0_fd_perm_cache *cache,
+			    uint64_t omega, const struct m0_fid *gfid)
+{
+	return cache->fpc_omega == omega && m0_fid_eq(&cache->fpc_gfid, gfid);
+}
+
+M0_INTERNAL void m0_fd_bwd_map(struct m0_pdclust_instance *pi,
 			       const struct m0_pdclust_tgt_addr *tgt,
 			       struct m0_pdclust_src_addr *src)
 {
 	struct m0_pdclust_tgt_addr tgt_ft;
+	struct m0_pool_version    *pver;
 	struct m0_fd_tile         *tile;
 	uint64_t                   omega;
 	uint64_t                   children;
@@ -866,19 +896,23 @@ M0_INTERNAL void m0_fd_bwd_map(struct m0_pool_version *pver,
 	uint64_t                   tree_depth;
 	uint64_t                   rel_idx[M0_FTA_DEPTH_MAX];
 
+	M0_PRE(pi != NULL);
+	M0_PRE(tgt != NULL && src != NULL);
+
+	pver = pool_ver_get(pi);
 	tile = &pver->pv_fd_tile;
 	m0_dec(pver->pv_fd_tile.ft_rows, tgt->ta_frame, &omega,
 	       &tgt_ft.ta_frame);
-	inverse_permuted_idx_get(pver, omega, tgt->ta_obj, rel_idx);
+	inverse_permuted_idx_get(pi, omega, tgt->ta_obj, rel_idx);
 	tree_depth = pver->pv_fd_tree.ft_depth;
 	for (i = 1, children = 1; i < tree_depth; ++i) {
-		children *= tile->ft_children_nr[i];
+		children *= tile->ft_child[i];
 	}
 	for (i = 1, vidx = 0; i <= tree_depth; ++i) {
 		vidx     += rel_idx[i] * children;
-		if (rel_idx[i] >= tile->ft_children_nr[i - 1])
+		if (rel_idx[i] >= tile->ft_child[i - 1])
 			break;
-		children /= tile->ft_children_nr[i];
+		children /= tile->ft_child[i];
 	}
 	if (i > tree_depth) {
 		tgt_ft.ta_frame = tgt->ta_frame;
@@ -891,17 +925,23 @@ M0_INTERNAL void m0_fd_bwd_map(struct m0_pool_version *pver,
 	}
 }
 
-static void inverse_permuted_idx_get(struct m0_pool_version *pver,
+static void inverse_permuted_idx_get(struct m0_pdclust_instance *pi,
 				     uint64_t omega, uint64_t perm_idx,
 				     uint64_t *rel_idx)
 {
 	struct m0_fd_tree         *tree;
+	struct m0_pool_version    *pver;
 	struct m0_fd__tree_cursor  cursor;
 	struct m0_fd_tree_node    *node;
+	struct m0_pdclust_attr    *attr;
+	struct m0_fid             *gfid;
 	int                        rc;
 	int                        depth;
 
+	pver = pool_ver_get(pi);
 	tree = &pver->pv_fd_tree;
+	gfid = &pi->pi_base.li_gfid;
+	attr = &pool_ver_get(pi)->pv_attr;
 
 	rc = m0_fd__tree_cursor_init(&cursor, tree, tree->ft_depth);
 	M0_ASSERT(rc == 0);
@@ -912,7 +952,7 @@ static void inverse_permuted_idx_get(struct m0_pool_version *pver,
 	node = cursor.ftc_node;
 	M0_ASSERT(node != NULL);
 	for (depth = tree->ft_depth; depth > 0; --depth) {
-		fd_permute(node->ftn_cache, &pver->pv_attr, omega);
+		fd_permute(node->ftn_cache, &attr->pa_seed, gfid, omega);
 		rel_idx[depth] = node->ftn_cache->fpc_inverse[perm_idx];
 		perm_idx = node->ftn_rel_idx;
 		node = node->ftn_parent;

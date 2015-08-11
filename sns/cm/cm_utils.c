@@ -36,6 +36,8 @@
 #include "sns/cm/file.h"
 #include "ioservice/fid_convert.h" /* m0_fid_cob_device_id */
 #include "rpc/rpc_machine.h"       /* m0_rpc_machine_ep */
+#include "fd/fd.h"                 /* m0_fd_fwd_map */
+
 /**
    @addtogroup SNSCM
 
@@ -67,9 +69,7 @@ m0_sns_cm_ut_file_size_layout(struct m0_sns_cm_file_ctx *fctx)
 	int                           rc = 0;
 
 	reqh = scm->sc_base.cm_service.rs_reqh;
-	m0_tl_for(pools, &reqh->rh_pools->pc_pools, p) {
-		break;
-	} m0_tl_endfor;
+	p = pools_tlist_head(&reqh->rh_pools->pc_pools);
 	pver = pool_version_tlist_head(&p->po_vers);
 	lid = m0_hash(m0_fid_hash(&pver->pv_id) + SNS_DEFAULT_LAYOUT_ID);
 	fctx->sf_layout = m0_layout_find(&reqh->rh_ldom, lid);
@@ -111,7 +111,7 @@ M0_INTERNAL void m0_sns_cm_unit2cobfid(struct m0_pdclust_layout *pl,
 {
 	struct m0_layout_enum *le;
 
-	m0_pdclust_instance_map(pi, sa, ta);
+	m0_fd_fwd_map(pi, sa, ta);
 	le = m0_layout_to_enum(m0_pdl_to_layout(pl));
 	m0_layout_enum_get(le, ta->ta_obj, gfid, cfid_out);
 }
@@ -126,7 +126,7 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = unit;
-	m0_pdclust_instance_map(pi, &sa, &ta);
+	m0_fd_fwd_map(pi, &sa, &ta);
 	return ta.ta_frame * m0_pdclust_unit_size(pl);
 }
 

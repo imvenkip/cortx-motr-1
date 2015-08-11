@@ -24,7 +24,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/assert.h"
-#include "lib/hash.h"      /* m0_hash */
+#include "lib/hash.h"          /* m0_hash */
 
 #include "conf/confc.h"    /* m0_confc_from_obj */
 #include "conf/schema.h"   /* M0_CST_IOS, M0_CST_MDS */
@@ -39,10 +39,11 @@
 #include "pool/pool.h"
 #include "pool/pool_fops.h"
 
+#include "fd/fd.h"             /* m0_fd_tile_build m0_fd_tree_build */
+
 #ifndef __KERNEL__
 #include "mero/setup.h"
 #endif
-
 /**
    @page pool_mach_store_replica DLD of Pool Machine store and replica
 
@@ -543,6 +544,7 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 					     struct m0_dtm *dtm)
 {
 	uint32_t nodes = 0;
+	uint64_t failure_level;
 	int      rc;
 
 	M0_ENTRY();
@@ -563,6 +565,9 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 	if (rc == 0) {
 		pool_version_tlist_add_tail(&pool->po_vers, pv);
 		pv->pv_pc = pc;
+		rc = m0_fd_tile_build(pver, pv, &failure_level);
+		if (rc == 0)
+			rc = m0_fd_tree_build(pver, &pv->pv_fd_tree);
 	}
 
 	M0_POST(pool_version_invariant(pv));
@@ -578,6 +583,8 @@ M0_INTERNAL void m0_pool_version_fini(struct m0_pool_version *pv)
 	m0_pool_version_bob_fini(pv);
 	m0_free(pv->pv_dev_to_ios_map);
 	m0_poolmach_fini(&pv->pv_mach);
+	m0_fd_tile_destroy(&pv->pv_fd_tile);
+	m0_fd_tree_destroy(&pv->pv_fd_tree);
 
 	M0_LEAVE();
 }
@@ -847,10 +854,8 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 			break;
 		}
 		rc = m0_pool_init(pool, &m0_conf_diter_result(&it)->co_id);
-		if (rc != 0) {
-			m0_free(pool);
+		if (rc != 0)
 			break;
-		}
 		pools_tlink_init_at_tail(pool, &pc->pc_pools);
 	}
 
@@ -869,9 +874,9 @@ M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc)
         struct m0_pool *p;
 
 	M0_ENTRY();
-        m0_tl_for(pools, &pc->pc_pools, p) {
+        m0_tl_teardown(pools, &pc->pc_pools, p) {
                 m0_pool_versions_fini(p);
-        } m0_tl_endfor;
+        }
 	M0_LEAVE();
 }
 

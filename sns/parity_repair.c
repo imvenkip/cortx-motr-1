@@ -44,7 +44,7 @@ static void device_index_get(const struct m0_fid *fid,
 
         sa.sa_group = group_number;
         sa.sa_unit = unit_number;
-        m0_pdclust_instance_map(pi, &sa, &ta);
+        m0_fd_fwd_map(pi, &sa, &ta);
 	m0_layout_enum_get(le, ta.ta_obj, fid, &cob_fid);
 	*device_index_out = m0_fid_cob_device_id(&cob_fid);
 }
@@ -116,7 +116,7 @@ static bool frame_eq(struct m0_pdclust_instance *pi, uint64_t group_number,
         ta.ta_frame = frame;
         ta.ta_obj = device_index - 1;
 
-        m0_pdclust_instance_inv(pi, &ta, &sa);
+        m0_fd_bwd_map(pi, &ta, &sa);
         return sa.sa_group == group_number;
 }
 
@@ -190,7 +190,7 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 		M0_SET0(&ta);
 		sa.sa_group = group_number;
 		sa.sa_unit  = spare_in;
-		m0_pdclust_instance_map(pi, &sa, &ta);
+		m0_fd_fwd_map(pi, &sa, &ta);
 		/*
 		 * Find the data/parity unit frame for the @group_number on the
 		 * given device represented by @device_index.
@@ -217,7 +217,7 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 		 * Doing inverse mapping from the frame in the device to the
 		 * corresponding unit in parity group @group_number.
 		 */
-		m0_pdclust_instance_inv(pi, &ta, &sa);
+		m0_fd_bwd_map(pi, &ta, &sa);
 
 		*data_unit_id_out = sa.sa_unit;
 

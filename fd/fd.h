@@ -110,12 +110,12 @@ enum m0_fd_tree_attr {
 struct m0_fd_tile_cell {
 	/**
 	 * Target and frame to which this base tile element maps. This will be
-	 * used by m0_pdclust_instance_map().
+	 * used by m0_fd_fwd__map().
 	 */
 	struct m0_pdclust_tgt_addr ftc_tgt;
 	/**
 	 * Parity group and unit mapped to this cell. This will be
-	 * used by m0_pdclust_instance_inv().
+	 * used by m0_fd_bwd_map().
 	 */
 	struct m0_pdclust_src_addr ftc_src;
 	/**
@@ -138,7 +138,7 @@ struct m0_fd_tile {
 	/** Depth of the symmetric tree associated with the tile. */
 	uint64_t                ft_depth;
 	/** Children per level for the symmetric tree. */
-	uint64_t                ft_children_nr[M0_FTA_DEPTH_MAX];
+	uint64_t                ft_child[M0_FTA_DEPTH_MAX];
 	/** An array of tile cells. */
 	struct m0_fd_tile_cell *ft_cell;
 };
@@ -151,6 +151,10 @@ struct m0_fd_perm_cache {
 	 * were last permuted.
 	 */
 	uint64_t        fpc_omega;
+	/** gfid of the last file that used the layout using the relevant
+	 *  failure domains tree.
+	 */
+	struct m0_fid   fpc_gfid;
 	/* Length of a permutation. */
 	uint32_t        fpc_len;
 	/**
@@ -295,22 +299,22 @@ M0_INTERNAL void m0_fd_tree_destroy(struct m0_fd_tree *tree);
 /**
  * Maps the source parity group and parity unit to appropriate target
  * and a frame from the pool version.
- * @param[in]  pver  In memory representation of the pool version.
- * @param[in]  src   Parity group and unit to be mapped.
- * @param[out] tgt   Target to which src maps.
+ * @param[in]  pi  Parity declustered layout instance for a particular file.
+ * @param[in]  src Parity group and unit to be mapped.
+ * @param[out] tgt Target to which src maps.
  */
-M0_INTERNAL void m0_fd_fwd_map(struct m0_pool_version *pver,
+M0_INTERNAL void m0_fd_fwd_map(struct m0_pdclust_instance *pi,
 			       const struct m0_pdclust_src_addr *src,
 			       struct m0_pdclust_tgt_addr *tgt);
 
 /**
  * Maps a target and frame from the pool version, to appropriate
  * parity group and its unit.
- * @param[in] pver In memory representation of pool version.
- * @param[in] tgt  Target and frame to be maped.
- * @param[out src  Parity group adn unit to which tgt maps.
+ * @param[in]  pi  Parity declustered layout instance for a particular file.
+ * @param[in]  tgt Target and frame to be maped.
+ * @param[out] src Parity group adn unit to which tgt maps.
  */
-M0_INTERNAL void m0_fd_bwd_map(struct m0_pool_version *pver,
+M0_INTERNAL void m0_fd_bwd_map(struct m0_pdclust_instance *pi,
 			       const struct m0_pdclust_tgt_addr *tgt,
 			       struct m0_pdclust_src_addr *src);
 

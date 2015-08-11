@@ -27,6 +27,7 @@
 #include "pool/pool.h"      /* m0_pool_version */
 #include "lib/misc.h"       /* M0_SET0 and uint32_t uint64_t etc. */
 #include "lib/arith.h"      /* m0_rnd */
+#include "lib/memory.h"     /* m0_alloc m0_free */
 #include "ut/ut.h"          /* M0_UT_ASSERT */
 
 /* Conf parameters. */
@@ -190,6 +191,7 @@ static uint64_t pool_width_calc(struct m0_fd_tree *tree);
 
 static void test_fd_mapping_sanity(enum tree_attr ta)
 {
+	struct m0_pdclust_instance pi;
 	struct m0_pool_version     pv;
 	struct m0_pdclust_src_addr src;
 	struct m0_pdclust_src_addr src_new;
@@ -208,6 +210,9 @@ static void test_fd_mapping_sanity(enum tree_attr ta)
 
 	/* Construct a failure domains tree. */
 	M0_SET0(&pv);
+	M0_SET0(&pi);
+	pi.pi_base.li_l = m0_alloc(sizeof pi.pi_base.li_l[0]);
+	M0_UT_ASSERT(pi.pi_base.li_l != NULL);
 	P = 1;
 	G = parity_group_size(&pd_attr);
 	while (G > P) {
@@ -232,9 +237,9 @@ static void test_fd_mapping_sanity(enum tree_attr ta)
 			m0_fd_tree_destroy(&pv.pv_fd_tree);
 	}
 	/* Get the attributes of symmetric tree. */
-	fd_ut_symm_tree_get(&pv.pv_fd_tree, pv.pv_fd_tile.ft_children_nr);
+	fd_ut_symm_tree_get(&pv.pv_fd_tree, pv.pv_fd_tile.ft_child);
 	rc = m0_fd__tile_init(&pv.pv_fd_tile, &pd_attr,
-			pv.pv_fd_tile.ft_children_nr,
+			pv.pv_fd_tile.ft_child,
 			pv.pv_fd_tree.ft_depth);
 	M0_UT_ASSERT(rc == 0);
 	m0_fd__tile_populate(&pv.pv_fd_tile);
@@ -242,13 +247,14 @@ static void test_fd_mapping_sanity(enum tree_attr ta)
 		pv.pv_fd_tile.ft_G;
 	seed = m0_time_now();
 	omega = m0_rnd(123456, &seed);
+	pi.pi_base.li_l->l_pver = &pv;
 	for (row = omega * C; row < (omega + 1) * C; ++row) {
 		src.sa_group = row;
 		for (col = 0; col < pv.pv_fd_tile.ft_G; ++col) {
 			src.sa_unit = col;
 			M0_SET0(&src_new);
-			m0_fd_fwd_map(&pv, &src, &tgt);
-			m0_fd_bwd_map(&pv, &tgt, &src_new);
+			m0_fd_fwd_map(&pi, &src, &tgt);
+			m0_fd_bwd_map(&pi, &tgt, &src_new);
 			M0_UT_ASSERT(src.sa_group == src_new.sa_group);
 			M0_UT_ASSERT(src.sa_unit == src_new.sa_unit);
 		}
@@ -257,7 +263,7 @@ static void test_fd_mapping_sanity(enum tree_attr ta)
 	unmapped = 0;
 	tgt.ta_frame = omega * pv.pv_fd_tile.ft_rows;
 	for (tgt.ta_obj = 0; tgt.ta_obj < P; ++tgt.ta_obj) {
-		m0_fd_bwd_map(&pv, &tgt, &src_new);
+		m0_fd_bwd_map(&pi, &tgt, &src_new);
 		if (src_new.sa_group == ~(uint64_t)0 &&
 		    src_new.sa_unit == ~(uint64_t)0)
 			++unmapped;
@@ -265,6 +271,7 @@ static void test_fd_mapping_sanity(enum tree_attr ta)
 	M0_UT_ASSERT(unmapped + pv.pv_fd_tile.ft_cols == P);
 	m0_fd_tree_destroy(&pv.pv_fd_tree);
 	m0_fd_tile_destroy(&pv.pv_fd_tile);
+	m0_free(pi.pi_base.li_l);
 }
 
 static uint64_t pool_width_calc(struct m0_fd_tree *tree)
@@ -320,14 +327,14 @@ static void test_ft_mapping(void)
 
 	G           = parity_group_size(&pd_attr);
 	P           = pd_attr.pa_K;
-	children_nr = pool_ver.pv_fd_tile.ft_children_nr;
+	children_nr = pool_ver.pv_fd_tile.ft_child;
 	for (depth = 1; depth < M0_FTA_DEPTH_MAX; ++depth) {
 		while (G > P) {
 			fd_ut_children_populate(children_nr, depth);
 			P = pool_width_count(children_nr, depth);
 		}
 		rc = m0_fd__tile_init(&pool_ver.pv_fd_tile, &pd_attr,
-				      pool_ver.pv_fd_tile.ft_children_nr,
+				      pool_ver.pv_fd_tile.ft_child,
 				      depth);
 		M0_UT_ASSERT(rc == 0);
 		m0_fd__tile_populate(&pool_ver.pv_fd_tile);

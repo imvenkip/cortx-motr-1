@@ -26,14 +26,12 @@
 #include "format/format.h"     /* m0_format_header */
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
-#include "fd/fd.h"             /* struct m0_fd_tile M0_FTA_DEPTH_MAX */
+#include "fd/fd.h"             /* m0_fd_tile m0_fd_tree M0_FTA_DEPTH_MAX */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "conf/obj.h"
 #include "layout/pdclust.h"    /* m0_pdclust_attr */
 #include "pool/pool_machine.h"
 
-M0_TL_DESCR_DECLARE(pools, M0_EXTERN);
-M0_TL_DESCR_DECLARE(pool_version, M0_EXTERN);
 
 /**
    @defgroup pool Storage pools.
@@ -176,6 +174,9 @@ M0_TL_DECLARE(pools_common_svc_ctx, M0_EXTERN, struct m0_reqh_service_ctx);
 
 M0_TL_DESCR_DECLARE(pool_version, M0_EXTERN);
 M0_TL_DECLARE(pool_version, M0_EXTERN, struct m0_pool_version);
+
+M0_TL_DESCR_DECLARE(pools, M0_EXTERN);
+M0_TL_DECLARE(pools, M0_EXTERN, struct m0_pool);
 
 M0_INTERNAL void m0_pools_common_init(struct m0_pools_common *pc,
 				      struct m0_rpc_machine *rmach,

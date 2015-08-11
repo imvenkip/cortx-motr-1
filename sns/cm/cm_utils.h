@@ -40,7 +40,7 @@ struct m0_sns_cm_ag;
 
 /**
  * Returns cob fid for the sa->sa_unit.
- * @see m0_pdclust_instance_map
+ * @see m0_fd_fwd_map
  */
 M0_INTERNAL void
 m0_sns_cm_unit2cobfid(struct m0_pdclust_layout *pl,

@@ -228,6 +228,11 @@ struct m0_layout {
 	 * the m0_layout_domain object.
 	 */
 	struct m0_tlink              l_list_linkage;
+	/**
+	 * A link to the in-memory copy of the pool version associated with
+	 * this layout.
+	 */
+	struct m0_pool_version      *l_pver;
 };
 
 struct m0_layout_ops {

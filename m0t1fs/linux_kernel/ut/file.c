@@ -39,6 +39,7 @@
 #include "lib/finject.h"
 #include "layout/layout.h"      /* m0_layout_domain_init */
 #include "layout/linear_enum.h" /* m0_layout_linear_enum */
+#include "fd/fd.h"              /* m0_fd_fwd_map */
 #include "conf/obj_ops.h"       /* m0_conf_obj_find */
 #include <linux/dcache.h>       /* struct dentry */
 #include "m0t1fs/linux_kernel/file_internal.h" /* io_request */
@@ -147,7 +148,7 @@ char local_conf[] = "[34:\
    {0x6b| (((0x6b00000000000001, 21)), (0x6400000000000001, 13))},\
    {0x6b| (((0x6b00000000000001, 22)), (0x6400000000000001, 14))},\
    {0x6f| (((0x6f00000000000001, 23)), 0, [1: (0x7600000000000001, 24)])},\
-   {0x76| (((0x7600000000000001, 24)), 0, 3, 1, 5, [3: 1,2,4], [0],\
+   {0x76| (((0x7600000000000001, 24)), 0, 3, 1, 5, [3: 1,2,4], [5: 0, 0, 0, 0, 1],\
            [1: (0x6a00000000000001, 25)])},\
    {0x6a| (((0x6a00000000000001, 25)), (0x6100000000000001, 15),\
            [1: (0x6a00000000000001, 26)])},\
@@ -280,6 +281,7 @@ static int file_io_ut_init(void)
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(ci.ci_layout_instance != NULL);
 
+	lay->l_pver = pver;
 	M0_ALLOC_PTR(lfile.f_dentry);
 	M0_ASSERT(lfile.f_dentry != NULL);
 	lfile.f_dentry->d_inode = &ci.ci_inode;
@@ -417,7 +419,7 @@ static void ds_test(void)
 	src.sa_group = 0;
 	src.sa_unit  = 0;
 	play_instance = pdlayout_instance(layout_instance(&req));
-	m0_pdclust_instance_map(play_instance, &src, &tgt);
+	m0_fd_fwd_map(play_instance, &src, &tgt);
 	cfid = target_fid(&req, &tgt);
 
 	/* target_ioreq attributes test. */
@@ -864,7 +866,7 @@ static void target_ioreq_test(void)
 	src.sa_group = 0;
 	src.sa_unit  = 0;
 	play_instance = pdlayout_instance(layout_instance(&req));
-	m0_pdclust_instance_map(play_instance, &src, &tgt);
+	m0_fd_fwd_map(play_instance, &src, &tgt);
 	cfid = target_fid(&req, &tgt);
 	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, tgt.ta_obj, &session,
 			       size);
@@ -1116,8 +1118,8 @@ static void dgmode_readio_test(void)
 		tgt.ta_obj   = m0_layout_enum_find(le,
 				file_to_fid(req->ir_file), &ti->ti_fid);
 
-		m0_pdclust_instance_inv(pdlayout_instance(layout_instance(req)),
-					&tgt, &src);
+		m0_fd_bwd_map(pdlayout_instance(layout_instance(req)), &tgt,
+			      &src);
 		M0_UT_ASSERT(src.sa_unit < layout_n(play));
 
 		/*

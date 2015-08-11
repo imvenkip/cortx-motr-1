@@ -27,7 +27,7 @@
 #include "pool/pool.h"
 #include "conf/confc.h"
 #include "conf/obj_ops.h"  /* m0_conf_dirval */
-#include "conf/diter.h"    /* m0_conf_diter_next_sync */
+#include "conf/diter.h"    /* m0_conf_diter_init m0_conf_diter_next_sync */
 
 /**
    @addtogroup poolmach
@@ -750,17 +750,11 @@ M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm)
 M0_INTERNAL uint64_t m0_poolmach_nr_dev_failures(struct m0_poolmach *pm)
 {
 	struct m0_pool_spare_usage *spare_array;
-	uint64_t                    nr_failures = 0;
-	int                         i;
 
 	spare_array = pm->pm_state->pst_spare_usage_array;
-	for (i = 0;
-	     spare_array[i].psu_device_index != POOL_PM_SPARE_SLOT_UNUSED &&
-             i < pm->pm_state->pst_max_device_failures;
-	     ++i)
-		M0_CNT_INC(nr_failures);
-
-	return nr_failures;
+	return m0_count(i, pm->pm_state->pst_max_device_failures,
+			spare_array[i].psu_device_index !=
+			POOL_PM_SPARE_SLOT_UNUSED);
 }
 
 #undef dump_level
