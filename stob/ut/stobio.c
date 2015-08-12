@@ -139,21 +139,17 @@ static char *stob_backingfile_get(const struct stobio_test *test)
  */
 static void stob_dev_init(const struct stobio_test *test)
 {
-	struct stat  statbuf;
-	int	     result;
-	m0_bcount_t  dev_sz;
-	char	     sysbuf[PATH_MAX];
-	char	    *backingfile;
+	int         result;
+	m0_bcount_t dev_sz;
+	char        sysbuf[PATH_MAX];
+	char       *backingfile;
 
-	result = stat(test->st_dev_path, &statbuf);
-	M0_UT_ASSERT(result == 0);
-
-	if (strcmp(test->st_dev_path, test_blkdev))
+	if (!m0_streq(test->st_dev_path, test_blkdev))
 		return;
 
 	/* Device size in KB */
-	dev_sz = MIN_BUFF_SIZE/1024 * MIN_BUFF_SIZE_IN_BLOCKS * RW_BUFF_NR * \
-		 TEST_NR * TEST_NR;
+	dev_sz = MIN_BUFF_SIZE/1024 * MIN_BUFF_SIZE_IN_BLOCKS * RW_BUFF_NR *
+		TEST_NR * TEST_NR;
 
 	/* Device size in MB */
 	dev_sz = dev_sz/1024 + 1;
@@ -179,10 +175,8 @@ static void stob_dev_fini(const struct stobio_test *test)
 	char  sysbuf[PATH_MAX];
 	char *backingfile;
 
-	if(test->st_dev_path == NULL)
-		return;
-
-	if(strcmp(test->st_dev_path, test_blkdev))
+	if (test->st_dev_path == NULL ||
+	    !m0_streq(test->st_dev_path, test_blkdev))
 		return;
 
 	result = system("sleep 5");
