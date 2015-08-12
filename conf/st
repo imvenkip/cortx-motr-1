@@ -37,7 +37,15 @@ start() {
 stop() {
    services_stop
    _fini
-   exit ${1:-$?}
+   local rc=${1:-$?}
+
+   # this msg is used by Jenkins as a test success criteria;
+   # it should appear on STDOUT
+   if [[ $rc -eq 0 ]] ; then
+       echo "conf-st: test status: SUCCESS"
+   fi
+
+   exit $rc
 }
 
 _init() {

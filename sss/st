@@ -243,3 +243,9 @@ sss_check ioservice       M0_SERVICE_STATUS  "$SVC_ID" ssr_rc    _ENOENT
 m0d_stop
 sandbox_fini
 $M0_CORE_DIR/conf/st rmmod
+
+# this msg is used by Jenkins as a test success criteria;
+# it should appear on STDOUT
+if [ $? -eq 0 ] ; then
+    echo "sss: test status: SUCCESS"
+fi
