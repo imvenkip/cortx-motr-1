@@ -403,6 +403,7 @@ m0_build_service_fid()
 {
     local service=$1
     local node_idx=$2
+    local sidx_param=${3:-0}
 
     local stype
     local sidx
@@ -414,7 +415,7 @@ m0_build_service_fid()
     else
        stype=${service//[0-9]}
        sidx=${service//[^0-9]}
-       sidx=${sidx:-0}
+       sidx=${sidx:-$sidx_param}
     fi
 
     case $stype in
@@ -427,6 +428,7 @@ m0_build_service_fid()
         repair)    container='0x7300000000000007' ;;
         rebalance) container='0x7300000000000008' ;;
         addb2)     container='0x7300000000000009' ;;
+        sss)       container='0x730000000000000a' ;;
     esac
 
     printf %x:%d $(( $container + $node_idx * 16 )) $sidx
@@ -540,7 +542,7 @@ _build_service_names_for()
 
     # check service type
     case $service_type in
-        ios|mds|ha)
+        ios|mds|ha|sss)
             genders_stype=$service_type
            ;;
         rms|stats)
@@ -552,6 +554,7 @@ _build_service_names_for()
     esac
 
     local node_idx=0
+    local idx=0
     local names
     local node
     local s
@@ -561,7 +564,11 @@ _build_service_names_for()
             if [[ $s == $genders_stype* ]] ; then
                 local name="(0x$(m0_build_service_fid ${s/$genders_stype/$service_type} $node_idx))"
                 names="$names${names:+, }${name/:/,}"
+            elif [[ $genders_stype == sss ]] ; then
+                local name="(0x$(m0_build_service_fid sss $node_idx $idx))"
+                names="$names${names:+, }${name/:/,}"
             fi
+            ((idx++))
         done
         ((node_idx++))
     done
@@ -577,7 +584,7 @@ _build_service_objects_for()
 
     # check service type
     case $service_type in
-        ios|mds|rms|stats|ha) # valid services
+        ios|mds|rms|stats|ha|sss) # valid services
             ;;
         *) m0_exit "Internal error, unkonwn service type '$service_type' in"
                    " _build_service_objects_for()"
@@ -591,6 +598,7 @@ _build_service_objects_for()
         rms)   genders_stype=mds ; type_id=4 ;;
         stats) genders_stype=mds ; type_id=5 ;;
         ha)    genders_stype=$service_type ; type_id=6 ;;
+        sss)   genders_stype=$service_type ; type_id=7 ;;
     esac
 
     local idx=0
@@ -610,6 +618,12 @@ _build_service_objects_for()
                 local name="(0x$(m0_build_service_fid ${s/$genders_stype/$service_type} $node_idx))"
                 name=${name/:/, }
                 objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: \"${eps[$idx]}\"], $disk_ids)}"
+                ((idx++))
+            elif [[ $service_type == sss ]] ; then
+                local ep=$(m0_get_ep_of $s $node)
+                local name="(0x$(m0_build_service_fid sss $node_idx $idx))"
+                name=${name/:/, }
+                objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: \"$ep\"], [0])}"
                 ((idx++))
             fi
         done
@@ -671,8 +685,12 @@ m0_build_local_conf()
     local ha_names=$(_build_service_names_for ha)
     local ha_objs=$(_build_service_objects_for ha)
 
+    local sss_count=$(m0_get_global_services | wc -w)
+    local sss_names=$(_build_service_names_for sss)
+    local sss_objs=$(_build_service_objects_for sss)
+
     local local_conf=$(cat <<CONF_END
-[$(( $ios_count + $mds_count + $rms_count + $stats_count + $ha_count + $pool_width * 3 + 13 )):
+[$(( $ios_count + $mds_count + $rms_count + $stats_count + $ha_count + $sss_count + $pool_width * 3 + 13 )):
   {0x74| (($root), 1, [1: $prof])},
   {0x70| (($prof), $fs)},
   {0x66| (($fs), (11, 22), 1,
@@ -683,12 +701,13 @@ m0_build_local_conf()
           [1: $rackid])},
   {0x6e| (($node), 16000, 2, 3, 2, $poolid, [1: $proc])},
   {0x72| (($proc), [1:3], 0, 0, 0, 0,
-               [$(($mds_count + $ios_count + $rms_count + $stats_count + $ha_count)): $mds_names, $ios_names, $rms_names, $stats_names, $ha_names])},
+               [$(($mds_count + $ios_count + $rms_count + $stats_count + $ha_count + $sss_count)): $mds_names, $ios_names, $rms_names, $stats_names, $ha_names, $sss_names])},
   $mds_objs,
   $ios_objs,
   $rms_objs,
   $stats_objs,
   $ha_objs,
+  $sss_objs,
   $(_build_ios_devs $pool_width),
   $rack,
   $encl,
