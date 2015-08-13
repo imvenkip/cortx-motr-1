@@ -1441,17 +1441,18 @@ struct m0_rm_incoming_ops {
  */
 enum m0_rm_outgoing_type {
 	/**
-	 * A request to borrow a credit from an upward resource owner. This
-	 * translates into a M0_RIT_BORROW incoming request.
+	 * A request to borrow a credit from an upward resource owner.
+	 * This translates into a M0_RIT_BORROW incoming request.
 	 */
 	M0_ROT_BORROW = 1,
 	/**
 	 * A request returning a previously borrowed credit.
+	 * Cancel is voluntary.
 	 */
 	M0_ROT_CANCEL,
 	/**
-	 * A request to return previously borrowed credit. This translates into
-	 * a M0_RIT_REVOKE incoming request on the remote owner.
+	 * A request to return previously granted credit. This translates
+	 * into a M0_RIT_REVOKE incoming request on the remote owner.
 	 */
 	M0_ROT_REVOKE
 };
@@ -1549,21 +1550,27 @@ enum m0_rm_pin_flags {
  *
  * @b Barrier.
  *
- * Barrier is necessary to avoid live-locks and guarantee progress of
- * incoming request processing by pinning the credits with a M0_RPF_BARRIER pin.
+ * Barrier is necessary to avoid live-locks and guarantee progress
+ * of incoming request processing by pinning the credits with a
+ * M0_RPF_BARRIER pin. Only RIF_RESERVE requests pin credits with
+ * a M0_RPF_BARRIER.
  *
- * Credit which is pinned with M0_RPF_BARRIER is called "reserved". Only one
- * incoming request can reserve the credit at any given time, others should wait
- * completion of this incoming request. It is possible that already reserved
- * credit should be reassigned to another incoming request with higher reserve
- * priority than the request currently reserving credit (@ref m0_rm_incoming).
- * Such situation is called "barrier overcome".
+ * Credit which is pinned with M0_RPF_BARRIER is called "reserved". Only
+ * one incoming request can reserve the credit at any given time, others
+ * should wait completion of this incoming request (by placing M0_RPF_TRACK
+ * pin, as usual). It is possible that already reserved credit should be
+ * reassigned to another incoming request with higher reserve priority
+ * than the current one reserving the credit (@ref m0_rm_incoming). Such
+ * situation is called "barrier overcome".
  *
- * M0_RPF_BARRIER pins are not set for outgoing requests. Instead M0_RPF_BARRIER
- * pin is set just after outgoing request is complete and credit is placing in
- * owner->ro_owned[OWOS_CACHED] list. It is done to add M0_RPF_BARRIER before
- * other waiting requests moved to CHECK state, therefore prohibiting granting
- * credit for waiting requests.
+ * M0_RPF_BARRIER pins are not set for outgoing requests, but they set on
+ * outgoing requests replies in the following way. When the request is
+ * complete and credit is placed at owner->ro_owned[OWOS_CACHED] list, we
+ * check if there are any correspondent RIF_RESERVE incoming requests who
+ * pinned it with M0_RPF_TRACK. If there are, the highest priority one is
+ * selected and the credit is pinned for it with M0_RPF_BARRIER. It is done
+ * this way to add M0_RPF_BARRIER before any other waiting for the same
+ * credit request could be excited and possibly grab the credit.
  *
  * @verbatim
  *
@@ -1791,15 +1798,6 @@ M0_INTERNAL void m0_rm_owner_lock(struct m0_rm_owner *owner);
 M0_INTERNAL void m0_rm_owner_unlock(struct m0_rm_owner *owner);
 
 /**
- * Locks state machine group of an owner
- */
-void m0_rm_owner_lock(struct m0_rm_owner *owner);
-/**
- * Unlocks state machine group of an owner
- */
-void m0_rm_owner_unlock(struct m0_rm_owner *owner);
-
-/**
  * Initialises generic fields in struct m0_rm_credit.
  *
  * This is called by generic RM code to initialise an empty credit of any
@@ -1809,7 +1807,7 @@ void m0_rm_owner_unlock(struct m0_rm_owner *owner);
  * This function calls m0_rm_resource_ops::rop_credit_init().
  */
 M0_INTERNAL void m0_rm_credit_init(struct m0_rm_credit *credit,
-				  struct m0_rm_owner *owner);
+				   struct m0_rm_owner *owner);
 
 /**
  * Finalised generic fields in struct m0_rm_credit. Dual to m0_rm_credit_init().

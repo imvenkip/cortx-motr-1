@@ -1530,8 +1530,7 @@ bool same_group(struct m0_rm_owner    *o,
 		m0_uint128_eq(&o->ro_group_id, &in->rin_want.cr_group_id);
 }
 
-static bool credit_group_conflict(struct m0_uint128 *g1,
-			   struct m0_uint128 *g2)
+static bool credit_group_cmp(struct m0_uint128 *g1, struct m0_uint128 *g2)
 {
 	return (m0_uint128_eq(g1, g2) &&
 		m0_uint128_eq(g1, &m0_rm_no_group)) || !m0_uint128_eq(g1, g2);
@@ -2130,7 +2129,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 	struct m0_rm_owner  *o    = want->cr_owner;
 	struct m0_rm_credit *r;
 	struct m0_rm_loan   *loan;
-	bool                 group_mismatch;
+	bool                 group_matches;
 	/**
 	 * @todo Will be deleted once borrowing held non-conflicting credits is
 	 * allowed.
@@ -2188,9 +2187,10 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			M0_ASSERT(!credit_is_empty(r));
 			if (!credit_intersects(r, rest))
 				continue;
-			group_mismatch = credit_group_conflict(&r->cr_group_id,
-						&rest->cr_group_id);
-			if (!group_mismatch) {
+
+			group_matches = !credit_group_cmp(&r->cr_group_id,
+			                               &rest->cr_group_id);
+			if (group_matches) {
 				rc = credit_diff(rest, r);
 				if (rc != 0)
 					return M0_RC(rc);
@@ -2198,8 +2198,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 					continue;
 				else
 					break;
-			} else if (group_mismatch &&
-				   !(in->rin_flags & RIF_MAY_REVOKE))
+			} else if (!(in->rin_flags & RIF_MAY_REVOKE))
 				return M0_RC(-EREMOTE);
 
 			loan = bob_of(r, struct m0_rm_loan, rl_credit,
@@ -2217,7 +2216,8 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			 * subset of r.
 			 */
 			wait++;
-			rc = revoke_send(in, loan, r) ?: credit_diff(rest, r);
+			rc = revoke_send(in, loan, r) ?:
+			     credit_diff(rest, r);
 			if (rc != 0)
 				return M0_ERR(rc);
 		} m0_tl_endfor;
@@ -2422,7 +2422,7 @@ static int borrow_send(struct m0_rm_incoming *in, struct m0_rm_credit *credit)
 	if (!credit_is_empty(credit) && rc == 0)
 		rc = m0_rm_request_out(M0_ROT_BORROW, in,
 				       NULL, credit, other) ?:
-			credit_diff(credit, credit);
+		     credit_diff(credit, credit);
 	return M0_RC(rc);
 }
 
