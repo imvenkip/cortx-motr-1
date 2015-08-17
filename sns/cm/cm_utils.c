@@ -452,10 +452,12 @@ m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	return scm->sc_helpers->sch_ag_max_incoming_units(scm, id, pl, pi);
 }
 
-M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_fid *fid)
+M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_sns_cm *snscm,
+				        const struct m0_fid *fid)
 {
-        return fid->f_container >= 0 && fid->f_key >=
-               M0_MDSERVICE_START_FID.f_key;
+        return m0_fid_is_set(fid) && m0_fid_is_valid(fid) &&
+	       m0_sns_cm2reqh(snscm)->rh_oostore ? true:
+		fid->f_key >= M0_MDSERVICE_START_FID.f_key;
 }
 
 M0_INTERNAL struct m0_reqh *m0_sns_cm2reqh(const struct m0_sns_cm *snscm)

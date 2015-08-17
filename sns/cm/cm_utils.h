@@ -170,7 +170,8 @@ M0_INTERNAL bool
 m0_sns_cm_ag_relevant_is_done(const struct m0_cm_aggr_group *ag,
 			      uint64_t nr_cps_fini);
 
-M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_fid *fid);
+M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_sns_cm *snscm,
+				        const struct m0_fid *fid);
 
 M0_INTERNAL struct m0_reqh *m0_sns_cm2reqh(const struct m0_sns_cm *snscm);
 

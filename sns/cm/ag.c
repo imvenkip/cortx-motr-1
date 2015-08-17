@@ -29,6 +29,7 @@
 
 #include "fid/fid.h"
 #include "ioservice/io_service.h" /* m0_ios_cdom_get */
+#include "reqh/reqh.h"
 #include "sns/parity_repair.h"
 
 #include "sns/cm/cm_utils.h"
@@ -106,9 +107,10 @@ static bool _is_fid_valid(struct m0_sns_cm_ag_iter *ai, struct m0_fid *fid)
 {
 	struct m0_fid         fid_out = {0, 0};
 	struct m0_cob_domain *cdom = ai->ai_cdom;
+	struct m0_sns_cm     *scm = ai2sns(ai);
 	int                   rc;
 
-	if (!m0_sns_cm_fid_is_valid(fid))
+	if (!m0_sns_cm_fid_is_valid(scm, fid))
 		return false;
 	rc = m0_cob_ns_next_of(&cdom->cd_namespace, fid, &fid_out);
 	if (rc == 0 && m0_fid_eq(fid, &fid_out))
@@ -296,7 +298,7 @@ M0_INTERNAL int m0_sns_cm_ag_iter_init(struct m0_sns_cm_ag_iter *ai)
 
 	M0_SET0(ai);
 	ai->ai_cdom = NULL;
-	rc = m0_ios_cdom_get(scm->sc_base.cm_service.rs_reqh, &ai->ai_cdom);
+	rc = m0_ios_cdom_get(m0_sns_cm2reqh(scm), &ai->ai_cdom);
 	if (rc == 0)
 	     m0_sm_init(&ai->ai_sm, &ai_sm_conf, AIS_FID_LOCK,
 			&scm->sc_base.cm_sm_group);

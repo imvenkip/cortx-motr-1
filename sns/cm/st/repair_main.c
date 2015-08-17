@@ -103,7 +103,13 @@ int main(int argc, char *argv[])
 
 	rc = M0_GETOPTS("repair", argc, argv,
 			M0_FORMATARG('O',
-				     "Operation, i.e. SNS_REPAIR = 2 or SNS_REBALANCE = 4",
+				     "-O Operation: \n"
+				     "              SNS_REPAIR = 2 or\n"
+				     "              SNS_REBALANCE = 4 or\n"
+				     "              SNS_REPAIR_QUIESCE = 8 or\n"
+				     "              SNS_REBALANCE_QUIESCE = 16 or\n"
+				     "              SNS_REPAIR_STATUS = 32 or\n"
+				     "              SNS_REBALANCE_STATUS = 64 or\n",
 				     "%u", &op),
 			M0_STRINGARG('C', "Client endpoint",
 				LAMBDA(void, (const char *str){
@@ -185,7 +191,7 @@ int main(int argc, char *argv[])
 			printf(" status=%d progress=%lu\n", srep->status, srep->progress);
 		} else
 			printf("\n");
-
+		rc = rc ?: trep->rc;
 		m0_fop_put_lock(fop);
 	}
 
@@ -200,7 +206,7 @@ int main(int argc, char *argv[])
 	m0_sns_cm_rebalance_trigger_fop_fini();
 	m0_fini();
 
-	return 0;
+	return rc;
 }
 
 #undef M0_TRACE_SUBSYSTEM
