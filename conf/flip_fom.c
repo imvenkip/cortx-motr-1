@@ -25,7 +25,8 @@
 #include "lib/string.h"      /* strlen, m0_strdup */
 #include "lib/tlist.h"
 #include "lib/assert.h"
-#include "conf/confd.h"      /* m0_confd, m0_confd_bob */
+#include "lib/finject.h"    /* M0_FI_ENABLED */
+#include "conf/confd.h"
 #include "conf/confd_stob.h"
 #include "conf/flip_fop.h"
 #include "conf/flip_fom.h"
@@ -165,6 +166,8 @@ static int conf_flip_confd_config_save(char *filename,
 
 	M0_ENTRY();
 
+	if(M0_FI_ENABLED("fcreate_failed"))
+		return M0_ERR(-EACCES);
 	fd = open(filename, O_TRUNC | O_CREAT | O_WRONLY, 0700);
 
 	if (fd == -1)
@@ -174,7 +177,7 @@ static int conf_flip_confd_config_save(char *filename,
 	rc = write(fd, buffer, length) == length ? 0 : M0_ERR(-EINVAL);
 
 	close(fd);
-#endif 	/* __KERNEL__ */
+#endif	/* __KERNEL__ */
 	return M0_RC(rc);
 }
 
@@ -202,7 +205,7 @@ static int conf_flip_apply(struct m0_fom *fom)
 	char                    *conf_filename = NULL;
 	struct m0_confd         *confd;
 	char                    *confd_buffer = NULL;
-	char                    *old_confd = NULL;
+	struct m0_conf_cache    *new_cache;
 
 	M0_ENTRY("fom=%p", fom);
 
@@ -227,29 +230,22 @@ static int conf_flip_apply(struct m0_fom *fom)
 
 	confd = bob_of(fom->fo_service, struct m0_confd, d_reqh, &m0_confd_bob);
 
-	/* Confd DB filename */
+	/*
+	 * Create new cache and use it in confd instead of a current cache.
+	 * Save new cache in a file used by confd on startup, so confd will use
+	 * new configuration db after restart.
+	 * If something fails, then don't touch current cache at all.
+	 */
 	rc = m0_confd_service_to_filename(fom->fo_service, &conf_filename) ?:
-	     m0_conf_cache_to_string(confd->d_cache, &old_confd);
-	if (rc != 0)
-		goto done;
-
-	m0_conf_cache_lock(confd->d_cache);
-
-	m0_conf_cache_clean(confd->d_cache);
-	rc = m0_confd_cache_preload_string(confd->d_cache, confd_buffer);
-
+	     m0_confd_cache_create(&new_cache, &confd->d_cache_lock,
+				   confd_buffer) ?:
+	     conf_flip_confd_config_save(conf_filename, confd_buffer);
 	if (rc == 0) {
-		conf_flip_confd_config_save(conf_filename, confd_buffer);
-	} else {
-		m0_conf_cache_clean(confd->d_cache);
-		rc = m0_confd_cache_preload_string(confd->d_cache, old_confd);
-	}
-
-	m0_conf_cache_unlock(confd->d_cache);
-
+		m0_confd_cache_destroy(confd->d_cache);
+		confd->d_cache = new_cache;
+	} else if (new_cache != NULL)
+		m0_confd_cache_destroy(new_cache);
 done:
-	if (old_confd != NULL)
-		m0_free_aligned(old_confd, strlen(old_confd) + 1, PAGE_SHIFT);
 	if (confd_buffer != NULL)
 		m0_free_aligned(confd_buffer, strlen(confd_buffer) + 1,
 			        m0_stob_block_shift(stob));
@@ -257,7 +253,6 @@ done:
 	m0_free(location);
 	m0_free(conf_filename);
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-
 	return M0_RC(M0_FSO_AGAIN);
 }
 

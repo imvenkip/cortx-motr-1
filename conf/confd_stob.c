@@ -162,7 +162,7 @@ M0_INTERNAL int m0_conf_stob_location_generate(struct m0_fom  *fom,
 					       char          **location)
 {
 	int         rc;
-	char       *confd_name;
+	char       *conf_path;
 	char       *name;
 	const char  stob_prefix[] = "linuxstob:";
 	const char  stob_suffix[] = "confd";
@@ -172,18 +172,25 @@ M0_INTERNAL int m0_conf_stob_location_generate(struct m0_fom  *fom,
 
 	M0_ENTRY();
 
-	rc = m0_confd_service_to_filename(fom->fo_service, &confd_name);
+	rc = m0_confd_service_to_filename(fom->fo_service, &conf_path);
 	if (rc != 0) {
 		*location = NULL;
 		return M0_ERR(rc);
 	}
 
-	/* Get path to confd configure file */
-	name = strrchr(confd_name, '/');
+	/*
+	 * Generate location to store configuration databases loaded using
+	 * load FOP. The idea is that this a same folder as folder of
+	 * configuration file provided to confd at startup.
+	 */
+	name = strrchr(conf_path, '/');
 	if (name != NULL)
-		*name = 0;
-	m0_asprintf(location, "%s%s/%s", stob_prefix, confd_name, stob_suffix);
-	m0_free(confd_name);
+		*name = '\0';
+	m0_asprintf(location, "%s%s/%s",
+		    stob_prefix,
+		    name == NULL ? "." : conf_path,
+		    stob_suffix);
+	m0_free(conf_path);
 
 	return *location == NULL ? M0_ERR(-ENOMEM) : M0_RC(rc);
 }

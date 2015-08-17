@@ -1125,7 +1125,6 @@ static void spiel_conf_file(void)
 
 	rc = m0_conf_cache_from_string(&cache, str);
 	m0_free(str);
-	/*  TODO wait XCode fix decimal-hex */
 	M0_UT_ASSERT(rc == 0);
 	m0_mutex_unlock(&lock);
 
@@ -1139,7 +1138,6 @@ static void spiel_conf_file(void)
  *
  * send Load command to confd
  */
-
 static void spiel_conf_cancel(void)
 {
 	struct m0_spiel_tx  tx;
@@ -1164,6 +1162,69 @@ static void spiel_conf_load_send(void)
 	spiel_conf_create_configuration(&spiel, &tx);
 	rc = m0_spiel_tx_commit(&tx);
 	M0_UT_ASSERT(rc == 0);
+	m0_spiel_tx_close(&tx);
+	spiel_conf_ut_fini();
+}
+
+static void spiel_conf_big_db(void)
+{
+	struct m0_spiel_tx  tx;
+	int                 rc;
+	int                 i;
+	int                 svc_nr;
+	struct m0_fid       fid = spiel_obj_fid[SPIEL_UT_OBJ_SERVICE];
+	const char         *svc_ep[] = {"192.168.252.132@tcp:12345:41:201",
+					NULL};
+	struct m0_spiel_service_info svc_info = {
+			.svi_type = M0_CST_IOS,
+			.svi_endpoints = svc_ep
+			};
+	m0_bcount_t         seg_size;
+	char               *cache_str;
+	uint32_t            svc_str_size = sizeof(
+			"{0x73|(((0x7300000000000001,0)),0x1,"
+			"[0x1:[0x20:0x31,0x39,0x32,0x2e,0x31,0x36,0x38,0x2e,"
+			"0x32,0x35,0x32,0x2e,0x31,0x33,0x32,0x40,0x74,0x63,"
+			"0x70,0x3a,0x31,0x32,0x33,0x34,0x35,0x3a,0x34,0x31,"
+			"0x3a,0x32,0x30,0x31]],[0])},") - 1;
+
+	spiel_conf_ut_init();
+	spiel_conf_create_configuration(&spiel, &tx);
+	/**
+	 * Add sufficient number of services, so resulting conf db string
+	 * after encoding doesn't fit into one RPC bulk segment.
+	 */
+	m0_fi_enable("m0_conf_segment_size", "const_size");
+	seg_size = m0_conf_segment_size(NULL);
+	svc_nr = seg_size/svc_str_size + 1;
+	for (i = 0; i < svc_nr; i++) {
+		fid.f_key++;
+		rc = m0_spiel_service_add(&tx, &fid,
+					  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
+					  &svc_info);
+		M0_UT_ASSERT(rc == 0);
+	}
+	rc = m0_conf_cache_to_string(&tx.spt_cache, &cache_str);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(strlen(cache_str) > seg_size);
+	rc = m0_spiel_tx_commit(&tx);
+	M0_UT_ASSERT(rc == 0);
+	m0_fi_disable("m0_conf_segment_size", "const_size");
+	m0_free_aligned(cache_str, strlen(cache_str)+1, PAGE_SHIFT);
+	m0_spiel_tx_close(&tx);
+	spiel_conf_ut_fini();
+}
+
+static void spiel_conf_flip_fail(void)
+{
+	struct m0_spiel_tx  tx;
+	int                 rc;
+
+	spiel_conf_ut_init();
+	spiel_conf_create_configuration(&spiel, &tx);
+	m0_fi_enable_once("conf_flip_confd_config_save", "fcreate_failed");
+	rc = m0_spiel_tx_commit(&tx);
+	M0_UT_ASSERT(rc == -ENOENT);
 	m0_spiel_tx_close(&tx);
 	spiel_conf_ut_fini();
 }
@@ -1376,6 +1437,8 @@ const struct m0_ut_suite spiel_conf_ut = {
 		{ "spiel-conf-file",        spiel_conf_file        },
 		{ "spiel-conf-cancel",      spiel_conf_cancel      },
 		{ "spiel-conf-load-send",   spiel_conf_load_send   },
+		{ "spiel-conf-big-db",      spiel_conf_big_db      },
+		{ "spiel-conf-flip-fail",   spiel_conf_flip_fail   },
 		{ "spiel-conf-check-fail",  spiel_conf_check_fail  },
 		{ "spiel-conf-load-fail",   spiel_conf_load_fail   },
 		/**

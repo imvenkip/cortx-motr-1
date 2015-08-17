@@ -277,14 +277,13 @@ static int spiel_load_fop_create(struct m0_spiel_tx           *tx,
 	/* Fill RPC Bulk part of Spiel FOM */
 	nd = tx->spt_spiel->spl_rmachine->rm_tm.ntm_dom;
 	seg_size = m0_net_domain_get_max_buffer_segment_size(nd);
-	rc = m0_rpc_bulk_buf_add(&spiel_cmd->slc_rbulk, 1, nd, NULL, &rbuf);
-
 	/*
-	 * Calculate number of segments by length of data
-	 * Segment number Round up
+	 * Calculate number of segments for given data size.
+	 * Segments number is rounded up.
 	 */
 	segs_nr = (size + seg_size - 1) / seg_size;
-
+	rc = m0_rpc_bulk_buf_add(&spiel_cmd->slc_rbulk, segs_nr, nd,
+				 NULL, &rbuf);
 	for (i = 0; i < segs_nr; ++i) {
 		m0_rpc_bulk_buf_databuf_add(rbuf,
 				    tx->spt_buffer + i*seg_size,
