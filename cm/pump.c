@@ -251,7 +251,8 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 		pump_move(cp_pump, rc, CPP_FAIL);
 		return rc;
 	}
-	if (m0_be_tx_state(&dtx->tx_betx) == M0_BTS_OPENING) {
+	if (M0_IN(m0_be_tx_state(&dtx->tx_betx),
+		  (M0_BTS_GROUPING, M0_BTS_OPENING))) {
 		m0_fom_wait_on(p_fom, &dtx->tx_betx.t_sm.sm_chan,
 				&p_fom->fo_cb);
 		return M0_FSO_WAIT;

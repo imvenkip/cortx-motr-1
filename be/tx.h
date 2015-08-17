@@ -240,17 +240,17 @@ enum m0_be_tx_state {
 	 */
 	M0_BTS_OPENING,
 	/**
+	 * XXX Transaction is a member of transaction group.
+	 */
+	M0_BTS_GROUPING,
+	/**
 	 * In this state transaction is used to capture updates.
 	 */
 	M0_BTS_ACTIVE,
 	/**
-	 * Transaction is closed, but not yet grouped.
+	 * Transaction is closed.
 	 */
 	M0_BTS_CLOSED,
-	/**
-	 * Transaction is a member of transaction group.
-	 */
-	M0_BTS_GROUPED,
 	/*
 	 * All transaction updates made it to the log.
 	 */
@@ -348,9 +348,9 @@ struct m0_be_tx {
 	 * @todo Use m0_be_tx::t_filler callback to fill m0_be_tx::t_payload.
 	 */
 	struct m0_buf          t_payload;
+	struct m0_sm_ast       t_ast_grouping;
 	struct m0_sm_ast       t_ast_active;
 	struct m0_sm_ast       t_ast_failed;
-	struct m0_sm_ast       t_ast_grouped;
 	struct m0_sm_ast       t_ast_logged;
 	struct m0_sm_ast       t_ast_placed;
 	struct m0_sm_ast       t_ast_done;

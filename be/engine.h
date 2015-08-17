@@ -48,13 +48,6 @@ struct m0_stob;
  * @{
  */
 
-/* m0_be_engine group state */
-enum {
-	M0_BEG_OPEN,
-	M0_BEG_CLOSED,
-	M0_BEG_NR,
-};
-
 struct m0_be_engine_cfg {
 	/** Number of groups. */
 	size_t			   bec_group_nr;
@@ -101,7 +94,7 @@ struct m0_be_engine {
 	 * of these lists.
 	 */
 	struct m0_tl               eng_txs[M0_BTS_NR + 1];
-	struct m0_tl               eng_groups[M0_BEG_NR];
+	struct m0_tl               eng_groups[M0_BGS_NR];
 	/** Transactional log. */
 	struct m0_be_log           eng_log;
 	/** Transactional group. */
@@ -154,7 +147,7 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 					    struct m0_be_tx     *tx,
 					    enum m0_be_tx_state  state);
 /**
- * Forces the tx group fom to move to LOGGING state and  eventually
+ * Forces the tx group fom to move to LOGGING state and eventually
  * commits all txs to disk.
  */
 M0_INTERNAL void m0_be_engine__tx_force(struct m0_be_engine *en,

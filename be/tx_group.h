@@ -42,6 +42,13 @@ struct be_recovering_tx;
  * @{
  */
 
+enum m0_be_tx_group_state {
+	M0_BGS_OPEN,
+	M0_BGS_FROZEN,
+	M0_BGS_CLOSED,
+	M0_BGS_NR,
+};
+
 struct m0_be_tx_group_cfg {
 	/** Maximum number of transactions in the group */
 	unsigned long		       tgc_tx_nr_max;
@@ -96,9 +103,10 @@ struct m0_be_tx_group {
 	struct m0_be_tx_credit     tg_size;
 	struct m0_be_tx_credit     tg_log_reserved;
 	m0_bcount_t                tg_payload_prepared;
-	/** Maximum acceptable number of transactions in the group. */
-	size_t                     tg_tx_nr_max;
-	size_t                     tg_tx_nr;
+	/**
+	 * The number of transactions that have not reached M0_BTS_CLOSED state.
+	 */
+	uint32_t                   tg_nr_unclosed;
 	/**
 	 * The number of transactions that have not reached M0_BTS_DONE state.
 	 */
@@ -131,12 +139,14 @@ struct m0_be_tx_group {
 	 * Fields for BE engine
 	 */
 	struct m0_sm_timer         tg_close_timer;
-	struct m0_sm_ast           tg_close_timer_arm_ast;
-	struct m0_sm_ast           tg_close_ast;
+	struct m0_sm_ast           tg_close_timer_arm;
+	struct m0_sm_ast           tg_close_timer_disarm;
 	m0_time_t                  tg_close_deadline;
+	/** Group state. Is used and set by the engine. */
+	enum m0_be_tx_group_state  tg_state;
 };
 
-M0_INTERNAL void m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
+M0_INTERNAL bool m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
 
 /* ------------------------------------------------------------------
  *                  Interfaces used by m0_be_engine
@@ -152,6 +162,7 @@ M0_INTERNAL void m0_be_tx_group_stop(struct m0_be_tx_group *gr);
 /** Adds the transaction to m0_be_tx_group::tg_txs. */
 M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 				      struct m0_be_tx       *tx);
+/** Number of transactions in the group. */
 M0_INTERNAL size_t m0_be_tx_group_tx_nr(struct m0_be_tx_group *gr);
 
 M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr);
@@ -164,6 +175,7 @@ M0_INTERNAL void m0_be_tx_group_stable(struct m0_be_tx_group *gr);
 
 M0_INTERNAL struct m0_sm_group *
 m0_be_tx_group__sm_group(struct m0_be_tx_group *gr);
+M0_INTERNAL bool m0_be_tx_group_is_recovering(struct m0_be_tx_group *gr);
 
 /* ------------------------------------------------------------------
  *              Interfaces used by m0_be_tx_group_fom
@@ -192,9 +204,6 @@ m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
  */
 M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group_engine_discard(struct m0_be_tx_group *gr);
-
-/** Number of transactions in the group. */
-M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr);
 
 M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group__deallocate(struct m0_be_tx_group *gr);

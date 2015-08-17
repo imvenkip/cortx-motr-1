@@ -78,9 +78,9 @@ static bool be_tx_is_locked(const struct m0_be_tx *tx);
  * @todo Find out why M0_BTS_NR + 1 is enough and M0_BTS_NR isn't.
  */
 static const ptrdiff_t be_tx_ast_offset[M0_BTS_NR + 1] = {
+	[M0_BTS_GROUPING] = offsetof(struct m0_be_tx, t_ast_grouping),
 	[M0_BTS_ACTIVE]  = offsetof(struct m0_be_tx, t_ast_active),
 	[M0_BTS_FAILED]  = offsetof(struct m0_be_tx, t_ast_failed),
-	[M0_BTS_GROUPED] = offsetof(struct m0_be_tx, t_ast_grouped),
 	[M0_BTS_LOGGED]  = offsetof(struct m0_be_tx, t_ast_logged),
 	[M0_BTS_PLACED]  = offsetof(struct m0_be_tx, t_ast_placed),
 	[M0_BTS_DONE]    = offsetof(struct m0_be_tx, t_ast_done)
@@ -118,7 +118,12 @@ static struct m0_sm_state_descr be_tx_states[M0_BTS_NR] = {
 	[M0_BTS_OPENING] = {
 		.sd_name = "opening",
 		.sd_invariant = be_tx_state_invariant,
-		.sd_allowed = M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+		.sd_allowed = M0_BITS(M0_BTS_GROUPING, M0_BTS_FAILED),
+	},
+	[M0_BTS_GROUPING] = {
+		.sd_name = "grouping",
+		.sd_invariant = be_tx_state_invariant,
+		.sd_allowed = M0_BITS(M0_BTS_ACTIVE),
 	},
 	[M0_BTS_FAILED] = {
 		.sd_flags =  M0_SDF_TERMINAL | M0_SDF_FAILURE,
@@ -133,11 +138,6 @@ static struct m0_sm_state_descr be_tx_states[M0_BTS_NR] = {
 	},
 	[M0_BTS_CLOSED] = {
 		.sd_name = "closed",
-		.sd_invariant = be_tx_state_invariant,
-		.sd_allowed = M0_BITS(M0_BTS_GROUPED),
-	},
-	[M0_BTS_GROUPED] = {
-		.sd_name = "grouped",
 		.sd_invariant = be_tx_state_invariant,
 		.sd_allowed = M0_BITS(M0_BTS_LOGGED),
 	},
@@ -160,15 +160,15 @@ static struct m0_sm_state_descr be_tx_states[M0_BTS_NR] = {
 };
 
 static struct m0_sm_trans_descr be_tx_sm_trans[] = {
-	{ "opening",        M0_BTS_PREPARE,  M0_BTS_OPENING },
-	{ "prepare-failed", M0_BTS_PREPARE,  M0_BTS_FAILED  },
-	{ "activated",      M0_BTS_OPENING,  M0_BTS_ACTIVE  },
-	{ "open-failed",    M0_BTS_OPENING,  M0_BTS_FAILED  },
-	{ "closed",         M0_BTS_ACTIVE,   M0_BTS_CLOSED  },
-	{ "grouped",        M0_BTS_CLOSED,   M0_BTS_GROUPED },
-	{ "logged",         M0_BTS_GROUPED,  M0_BTS_LOGGED  },
-	{ "placed",         M0_BTS_LOGGED,   M0_BTS_PLACED  },
-	{ "done",           M0_BTS_PLACED,   M0_BTS_DONE    }
+	{ "opening",        M0_BTS_PREPARE,  M0_BTS_OPENING  },
+	{ "prepare-failed", M0_BTS_PREPARE,  M0_BTS_FAILED   },
+	{ "grouping",       M0_BTS_OPENING,  M0_BTS_GROUPING },
+	{ "open-failed",    M0_BTS_OPENING,  M0_BTS_FAILED   },
+	{ "activated",      M0_BTS_GROUPING, M0_BTS_ACTIVE   },
+	{ "closed",         M0_BTS_ACTIVE,   M0_BTS_CLOSED   },
+	{ "logged",         M0_BTS_CLOSED,   M0_BTS_LOGGED   },
+	{ "placed",         M0_BTS_LOGGED,   M0_BTS_PLACED   },
+	{ "done",           M0_BTS_PLACED,   M0_BTS_DONE     }
 };
 
 struct m0_sm_conf be_tx_sm_conf = {
@@ -444,8 +444,8 @@ static void be_tx_state_move(struct m0_be_tx     *tx,
 	M0_PRE(m0_be_tx__invariant(tx));
 	M0_PRE(be_tx_is_locked(tx));
 	M0_PRE(ergo(rc != 0, state == M0_BTS_FAILED));
-	M0_PRE(ergo(M0_IN(state, (M0_BTS_PREPARE, M0_BTS_OPENING, M0_BTS_ACTIVE,
-				  M0_BTS_CLOSED, M0_BTS_GROUPED, M0_BTS_LOGGED,
+	M0_PRE(ergo(M0_IN(state, (M0_BTS_PREPARE, M0_BTS_OPENING, M0_BTS_GROUPING,
+				  M0_BTS_ACTIVE, M0_BTS_CLOSED, M0_BTS_LOGGED,
 				  M0_BTS_PLACED, M0_BTS_DONE)), rc == 0));
 
 	if (state == M0_BTS_ACTIVE) {
@@ -503,7 +503,7 @@ M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx     *tx,
 	 * tx's sm is locked. In order to advance tx's sm, ->fo_tick()
 	 * implementation should post an AST to tx's sm_group.
 	 */
-	M0_PRE(M0_IN(state, (M0_BTS_ACTIVE, M0_BTS_FAILED, M0_BTS_GROUPED,
+	M0_PRE(M0_IN(state, (M0_BTS_GROUPING, M0_BTS_ACTIVE, M0_BTS_FAILED,
 			     M0_BTS_LOGGED, M0_BTS_PLACED, M0_BTS_DONE)));
 	M0_LOG(M0_DEBUG, "tx = %p, state = %s",
 	       tx, m0_be_tx_state_name(state));
@@ -665,8 +665,7 @@ M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
 
 M0_INTERNAL unsigned long m0_be_tx_gen_idx_min(struct m0_be_tx *tx)
 {
-	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE, M0_BTS_CLOSED,
-					  M0_BTS_GROUPED)));
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE, M0_BTS_CLOSED)));
 
 	return m0_be_reg_area_gen_idx_min(&tx->t_reg_area);
 }

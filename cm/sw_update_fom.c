@@ -150,6 +150,7 @@ static int swu_store_init_wait(struct m0_cm_sw_update *swu)
 	switch (m0_be_tx_state(tx)) {
 	case M0_BTS_FAILED :
 		return tx->t_sm.sm_rc;
+	case M0_BTS_GROUPING :
 	case M0_BTS_OPENING :
 		break;
 	case M0_BTS_ACTIVE :
@@ -231,7 +232,9 @@ static int swu_store(struct m0_cm_sw_update *swu)
 	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE) {
 		m0_dtx_open(tx);
 		return M0_FSO_AGAIN;
-	} else if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_OPENING) {
+	}
+        else if (M0_IN(m0_be_tx_state(&tx->tx_betx), (M0_BTS_OPENING,
+						      M0_BTS_GROUPING))) {
 		m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
 		return M0_FSO_WAIT;
 	}
@@ -319,7 +322,8 @@ static int swu_complete(struct m0_cm_sw_update *swu)
                 m0_dtx_open(tx);
 	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_FAILED)
 		return M0_RC(tx->tx_betx.t_sm.sm_rc);
-        if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_OPENING) {
+        if (M0_IN(m0_be_tx_state(&tx->tx_betx), (M0_BTS_OPENING,
+						 M0_BTS_GROUPING))) {
                 m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
                 return M0_FSO_WAIT;
         } else

@@ -238,7 +238,8 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 		rc = tx->tx_betx.t_sm.sm_rc;
 		goto out;
 	}
-	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_OPENING) {
+	if (M0_IN(m0_be_tx_state(&tx->tx_betx),(M0_BTS_OPENING,
+						M0_BTS_GROUPING))) {
 		m0_fom_wait_on(cp_fom, &tx->tx_betx.t_sm.sm_chan,
 				&cp_fom->fo_cb);
 		return M0_FSO_WAIT;

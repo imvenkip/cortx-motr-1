@@ -73,6 +73,11 @@ m0_be_tx_group__sm_group(struct m0_be_tx_group *gr)
 	return m0_be_tx_group_fom__sm_group(&gr->tg_fom);
 }
 
+M0_INTERNAL bool m0_be_tx_group_is_recovering(struct m0_be_tx_group *gr)
+{
+	return gr->tg_recovering;
+}
+
 static void be_tx_group_reg_area_rebuild(struct m0_be_reg_area *ra,
 					 struct m0_be_reg_area *ra_new,
 					 void                  *param)
@@ -89,13 +94,8 @@ static void be_tx_group_reg_area_gather(struct m0_be_tx_group *gr)
 {
 	struct m0_be_tx *tx;
 
-	/* Merge transactions reg_area */
-	M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
-		++gr->tg_tx_nr;
-	} M0_BE_TX_GROUP_TX_ENDFOR;
-
 	/* XXX check if it's the right place */
-	if (gr->tg_tx_nr > 0) {
+	if (m0_be_tx_group_tx_nr(gr) > 0) {
 		M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
 			m0_be_reg_area_merger_add(&gr->tg_merger,
 						  m0_be_tx__reg_area(tx));
@@ -168,12 +168,12 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 {
 	M0_PRE(grp_tlist_is_empty(&gr->tg_txs));
 	M0_PRE(rtxs_tlist_is_empty(&gr->tg_txs_recovering));
+	M0_PRE(gr->tg_nr_unclosed == 0);
 	M0_PRE(gr->tg_nr_unstable == 0);
 
 	M0_SET0(&gr->tg_used);
 	M0_SET0(&gr->tg_log_reserved);
 	gr->tg_payload_prepared = 0;
-	gr->tg_tx_nr            = 0;
 	gr->tg_recovering       = false;
 	m0_be_reg_area_reset(&gr->tg_reg_area);
 	m0_be_reg_area_reset(&gr->tg_area_copy);
@@ -194,7 +194,7 @@ M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group     *gr,
 			.fgc_tx_nr_max	      = gr_cfg->tgc_tx_nr_max,
 			.fgc_reg_nr_max	      = gr_cfg->tgc_size_max.tc_reg_nr,
 			.fgc_payload_size_max = gr_cfg->tgc_payload_max,
-			.fgc_reg_size_max    = gr_cfg->tgc_size_max.tc_reg_size,
+			.fgc_reg_size_max     = gr_cfg->tgc_size_max.tc_reg_size,
 			.fgc_seg_nr_max	      = gr_cfg->tgc_seg_nr_max,
 		},
 		.gfc_seg_io_fdatasync = true,
@@ -202,7 +202,6 @@ M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group     *gr,
 	/* XXX temporary block begin */
 	gr->tg_size             = gr_cfg->tgc_size_max;
 	gr->tg_payload_prepared = 0;
-	gr->tg_tx_nr_max        = gr_cfg->tgc_tx_nr_max;
 	gr->tg_log              = gr_cfg->tgc_log;
 	gr->tg_domain           = gr_cfg->tgc_domain;
 	gr->tg_engine           = gr_cfg->tgc_engine;
@@ -223,18 +222,23 @@ M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group     *gr,
 	M0_ASSERT(rc == 0);     /* XXX */
 	M0_ALLOC_ARR(gr->tg_rtxs, gr->tg_cfg.tgc_tx_nr_max);
 	M0_ASSERT(gr->tg_rtxs != NULL); /* XXX */
-	for (i = 0; i < gr->tg_tx_nr_max; ++i) {
+	for (i = 0; i < gr->tg_cfg.tgc_tx_nr_max; ++i) {
 		m0_be_op_init(&gr->tg_rtxs[i].rtx_op_open);
 		m0_be_op_init(&gr->tg_rtxs[i].rtx_op_gc);
 	}
 	return 0;
 }
 
+M0_INTERNAL bool m0_be_tx_group__invariant(struct m0_be_tx_group *gr)
+{
+	return m0_be_tx_group_tx_nr(gr) <= gr->tg_cfg.tgc_tx_nr_max;
+}
+
 M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr)
 {
 	int i;
 
-	for (i = 0; i < gr->tg_tx_nr_max; ++i) {
+	for (i = 0; i < gr->tg_cfg.tgc_tx_nr_max; ++i) {
 		m0_be_op_fini(&gr->tg_rtxs[i].rtx_op_gc);
 		m0_be_op_fini(&gr->tg_rtxs[i].rtx_op_open);
 	}
@@ -251,6 +255,7 @@ static void be_tx_group_tx_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 {
 	M0_LOG(M0_DEBUG, "tx=%p group=%p", tx, gr);
 	grp_tlink_init_at_tail(tx, &gr->tg_txs);
+	M0_CNT_INC(gr->tg_nr_unclosed);
 	M0_CNT_INC(gr->tg_nr_unstable);
 }
 
@@ -265,7 +270,9 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 	int                     rc;
 
 	M0_ENTRY();
-	M0_PRE(equi(m0_be_tx__is_recovering(tx), gr->tg_recovering));
+	M0_PRE(m0_be_tx_group__invariant(gr));
+	M0_PRE(equi(m0_be_tx__is_recovering(tx),
+		    m0_be_tx_group_is_recovering(gr)));
 
 	if (m0_be_tx__is_recovering(tx)) {
 		be_tx_group_tx_add(gr, tx);
@@ -284,7 +291,7 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 		       tx->t_payload.b_nob);
 
 		if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
-		    m0_be_tx_group_size(gr) < gr->tg_tx_nr_max) {
+		    m0_be_tx_group_tx_nr(gr) < gr->tg_cfg.tgc_tx_nr_max) {
 			be_tx_group_tx_add(gr, tx);
 			gr->tg_used              = group_used;
 			gr->tg_payload_prepared += tx->t_payload.b_nob;
@@ -293,6 +300,7 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 			rc = -ENOSPC;
 		}
 	}
+	M0_POST(m0_be_tx_group__invariant(gr));
 	return M0_RC(rc);
 }
 
@@ -331,11 +339,6 @@ M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_tx_group *gr)
 M0_INTERNAL void m0_be_tx_group_engine_discard(struct m0_be_tx_group *gr)
 {
 	m0_be_engine__tx_group_discard(gr->tg_engine, gr);
-}
-
-M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)
-{
-	return grp_tlist_length(&gr->tg_txs);
 }
 
 M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr)
@@ -377,10 +380,10 @@ m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
 {
 	struct m0_be_tx *tx;
 
-	M0_ENTRY("gr=%p state=%s group_size=%zd",
-		 gr, m0_be_tx_state_name(state), m0_be_tx_group_size(gr));
+	M0_ENTRY("gr=%p state=%s group_tx_nr=%zd",
+		 gr, m0_be_tx_state_name(state), m0_be_tx_group_tx_nr(gr));
 
-	M0_ASSERT(m0_be_tx_group_size(gr) > 0);
+	M0_ASSERT(m0_be_tx_group_tx_nr(gr) > 0);
 
 	M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
 		if (del_tx_from_group)

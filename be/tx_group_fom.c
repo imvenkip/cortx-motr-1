@@ -275,31 +275,16 @@ static struct m0_be_tx_group_fom *fom2tx_group_fom(const struct m0_fom *fom)
 	return container_of(fom, struct m0_be_tx_group_fom, tgf_gen);
 }
 
-static void be_tx_group_fom_log(struct m0_be_tx_group_fom *m)
-{
-	M0_LOG(M0_DEBUG, "m=%p, tx_nr=%zu", m,
-	       m0_be_tx_group_size(m->tgf_group));
-
-	/*
-	 * The callback invoking this function might have kicked in after the
-	 * phase of the fom has been modified by the regular tick() function.
-	 */
-	if (m0_fom_phase(&m->tgf_gen) < TGS_LOGGING) {
-		m0_fom_phase_set(&m->tgf_gen, TGS_LOGGING);
-		m0_fom_ready(&m->tgf_gen);
-	}
-}
-
 static void be_tx_group_fom_handle(struct m0_sm_group *gr,
 				   struct m0_sm_ast   *ast)
 {
 	struct m0_be_tx_group_fom *m = M0_AMB(m, ast, tgf_ast_handle);
 
-	M0_ENTRY("m=%p", m);
+	M0_LOG(M0_DEBUG, "m=%p, tx_nr=%zu", m,
+	       m0_be_tx_group_tx_nr(m->tgf_group));
 
-	be_tx_group_fom_log(m);
-
-	M0_LEAVE();
+	m0_fom_phase_set(&m->tgf_gen, TGS_LOGGING);
+	m0_fom_ready(&m->tgf_gen);
 }
 
 /*

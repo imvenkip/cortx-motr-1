@@ -409,12 +409,14 @@ static void be_ut_tx_force(size_t nr)
 	for (x = xs; x->size != 0; ++x)
 		be_ut_transact(x, ut_seg.bus_seg, &alloc);
 
+#if 0 /* XXX */
 	/* Wait for transactions to become GROUPED. */
 	for (x = xs; x->size != 0; ++x) {
 		int rc = m0_be_tx_timedwait(&x->tx, M0_BITS(M0_BTS_GROUPED),
 					    M0_TIME_NEVER);
 		M0_UT_ASSERT(rc == 0);
 	}
+#endif
 
 	/* Force all txs to be persistent */
 	be_ut_tx_do_force(xs, nr);
@@ -539,42 +541,119 @@ enum {
 	BE_UT_TX_F_SEG_SIZE  = 0x20000,
 	BE_UT_TX_F_TX_NR     = 0x100,
 	BE_UT_TX_F_TX_CONCUR = 0x80,
+	BE_UT_TX_F_INIT      = 1,
+	BE_UT_TX_F_CAPTURE   = 2,
 };
+
+struct be_ut_tx_fast {
+	struct m0_be_tx      txf_tx;
+	struct m0_clink      txf_clink;
+	struct m0_semaphore  txf_sem;
+	struct m0_semaphore *txf_global_sem;
+	int                  txf_state;
+};
+
+static bool be_ut_tx_fast_cb(struct m0_clink *clink)
+{
+	struct be_ut_tx_fast *txf;
+
+	txf = container_of(clink, struct be_ut_tx_fast, txf_clink);
+	M0_ASSERT(m0_be_tx_state(&txf->txf_tx) != M0_BTS_FAILED);
+	if (m0_be_tx_state(&txf->txf_tx) == M0_BTS_ACTIVE) {
+		m0_clink_del(clink);
+		txf->txf_state = BE_UT_TX_F_CAPTURE;
+		m0_semaphore_up(&txf->txf_sem);
+		m0_semaphore_up(txf->txf_global_sem);
+	}
+	return false;
+}
+
+static void be_ut_tx_fast_gc_free(struct m0_be_tx *tx, void *param)
+{
+	struct be_ut_tx_fast *txf = param;
+
+	txf->txf_state = BE_UT_TX_F_INIT;
+	m0_semaphore_up(&txf->txf_sem);
+	m0_semaphore_up(txf->txf_global_sem);
+}
 
 void m0_be_ut_tx_fast(void)
 {
-	struct m0_be_ut_backend ut_be;
-	static struct m0_be_tx  txs[BE_UT_TX_F_TX_CONCUR];
-	struct m0_be_ut_seg     ut_seg;
-	struct m0_be_seg       *seg;
-	struct m0_be_reg        reg;
-	int                     i;
-	int                     rc;
+	struct m0_be_ut_backend  ut_be;
+	struct be_ut_tx_fast    *txf;
+	struct m0_semaphore      global_sem;
+	struct m0_be_ut_seg      ut_seg;
+	struct m0_sm_group      *grp = NULL;
+	struct m0_be_seg        *seg;
+	struct m0_be_reg         reg;
+	struct m0_be_tx         *tx;
+	bool                     finished;
+	int                      nr_init;
+	int                      nr_closed;
+	int                      i;
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_F_SEG_SIZE);
 	seg = ut_seg.bus_seg;
-
+	M0_ALLOC_ARR(txf, BE_UT_TX_F_TX_CONCUR);
+	m0_semaphore_init(&global_sem, BE_UT_TX_F_TX_CONCUR);
+	for (i = 0; i < BE_UT_TX_F_TX_CONCUR; ++i) {
+		m0_semaphore_init(&txf[i].txf_sem, 1);
+		m0_clink_init(&txf[i].txf_clink, &be_ut_tx_fast_cb);
+		txf[i].txf_state = BE_UT_TX_F_INIT;
+		txf[i].txf_global_sem = &global_sem;
+	}
 	reg = M0_BE_REG(seg, 1, seg->bs_addr + seg->bs_reserved);
-	for (i = 0; i < BE_UT_TX_F_TX_NR + ARRAY_SIZE(txs); ++i) {
-		struct m0_be_tx *tx = &txs[i % ARRAY_SIZE(txs)];
-
-		if (i >= ARRAY_SIZE(txs)) {
-			m0_be_tx_close_sync(tx);
-			m0_be_tx_fini(tx);
+	nr_init = 0;
+	nr_closed = 0;
+	for (finished = false; !finished; ) {
+		if (grp != NULL)
+			m0_sm_group_unlock(grp);
+		m0_semaphore_down(&global_sem);
+		if (grp != NULL)
+			m0_sm_group_lock(grp);
+		for (i = 0; i < BE_UT_TX_F_TX_CONCUR; ++i) {
+			if (m0_semaphore_trydown(&txf[i].txf_sem))
+				break;
 		}
-
-		if (i < BE_UT_TX_F_TX_NR) {
+		M0_UT_ASSERT(i != BE_UT_TX_F_TX_CONCUR);
+		tx = &txf[i].txf_tx;
+		switch (txf[i].txf_state) {
+		case BE_UT_TX_F_INIT:
+			if (nr_init >= BE_UT_TX_F_TX_NR)
+				break;
+			++nr_init;
+			M0_SET0(tx);
 			m0_be_ut_tx_init(tx, &ut_be);
+			grp = tx->t_sm.sm_grp;
+			m0_be_tx_gc_enable(tx, &be_ut_tx_fast_gc_free, &txf[i]);
+			m0_clink_add(&tx->t_sm.sm_chan, &txf[i].txf_clink);
 			m0_be_tx_prep(tx, &M0_BE_TX_CREDIT(1, reg.br_size));
-			rc = m0_be_tx_open_sync(tx);
-			M0_UT_ASSERT(rc == 0);
+			m0_be_tx_open(tx);
+			break;
+		case BE_UT_TX_F_CAPTURE:
 			m0_be_tx_capture(tx, &reg);
 			++reg.br_addr;
+			m0_be_tx_close(tx);
+			++nr_closed;
+			if (nr_closed == BE_UT_TX_F_TX_NR) {
+				m0_sm_group_unlock(grp);
+				m0_semaphore_down(&txf[i].txf_sem);
+				m0_sm_group_lock(grp);
+				finished = true;
+			}
+			break;
+		default:
+			M0_IMPOSSIBLE("invalid state %d", txf[i].txf_state);
 		}
 	}
-
+	for (i = 0; i < BE_UT_TX_F_TX_CONCUR; ++i) {
+		m0_clink_fini(&txf[i].txf_clink);
+		m0_semaphore_fini(&txf[i].txf_sem);
+	}
+	m0_semaphore_fini(&global_sem);
+	m0_free(txf);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }
@@ -724,11 +803,35 @@ enum {
 };
 
 struct be_ut_gc_test {
-	struct m0_be_tx *bugc_tx;
-	bool             bugc_gc_enabled;
+	struct m0_be_tx     *bugc_tx;
+	bool                 bugc_gc_enabled;
+	struct m0_clink      bugc_clink;
+	long                *bugc_ringbuf;
+	int                 *bugc_rb_pos;
+	struct m0_semaphore *bugc_rb_ready;
+	struct m0_mutex     *bugc_rb_lock;
+	long                 bugc_index;
+	struct m0_semaphore *bugc_gc_done;
 };
 
 static struct be_ut_gc_test be_ut_gc_tests[BE_UT_TX_GC_TX_NR];
+
+static bool be_ut_tx_gc_cb(struct m0_clink *clink)
+{
+	struct be_ut_gc_test *test;
+
+	test = container_of(clink, struct be_ut_gc_test, bugc_clink);
+	M0_ASSERT(m0_be_tx_state(test->bugc_tx) != M0_BTS_FAILED);
+	if (m0_be_tx_state(test->bugc_tx) == M0_BTS_ACTIVE) {
+		m0_clink_del(clink);
+		m0_mutex_lock(test->bugc_rb_lock);
+		test->bugc_ringbuf[*test->bugc_rb_pos] = test->bugc_index;
+		++*test->bugc_rb_pos;
+		m0_semaphore_up(test->bugc_rb_ready);
+		m0_mutex_unlock(test->bugc_rb_lock);
+	}
+	return false;
+}
 
 static void be_ut_tx_gc_free(struct m0_be_tx *tx, void *param)
 {
@@ -746,6 +849,7 @@ static void be_ut_tx_gc_free(struct m0_be_tx *tx, void *param)
 	M0_UT_ASSERT(be_ut_gc_tests[index].bugc_tx != NULL);
 	m0_free(tx);
 	be_ut_gc_tests[index].bugc_tx = NULL;
+	m0_semaphore_up(be_ut_gc_tests[index].bugc_gc_done);
 }
 
 static void be_ut_tx_gc_free_tx_failed(struct m0_be_tx *tx, void *param)
@@ -757,13 +861,19 @@ void m0_be_ut_tx_gc(void)
 {
 	struct m0_be_ut_backend  ut_be;
 	struct be_ut_gc_test    *test;
+	struct m0_semaphore      rb_ready;
+	struct m0_semaphore      gc_done;
 	struct m0_be_ut_seg      ut_seg;
+	struct m0_sm_group      *grp;
 	struct m0_be_seg        *seg;
+	struct m0_mutex          rb_lock;
 	struct m0_be_tx         *tx;
 	uint64_t                 seed = 0;
 	long                    *array;
+	long                    *ringbuf;
 	bool                     gc_enabled;
 	int                      gc_enabled_nr = 0;
+	int                      rb_pos = 0;
 	int                      i;
 	int                      rc;
 
@@ -772,47 +882,43 @@ void m0_be_ut_tx_gc(void)
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 	array = seg->bs_addr + m0_be_seg_reserved(seg);
+	M0_ALLOC_ARR(ringbuf, BE_UT_TX_GC_TX_NR);
+	M0_UT_ASSERT(ringbuf != NULL);
+	m0_semaphore_init(&rb_ready, 0);
+	m0_semaphore_init(&gc_done, 0);
+	m0_mutex_init(&rb_lock);
 
 	for (i = 0; i < BE_UT_TX_GC_TX_NR; ++i) {
 		M0_ALLOC_PTR(tx);
 		M0_UT_ASSERT(tx != NULL);
 
-		m0_be_ut_tx_init(tx, &ut_be);
-		m0_be_tx_prep(tx, &M0_BE_TX_CREDIT_PTR(&array[i]));
-		rc = m0_be_tx_open_sync(tx);
-		M0_UT_ASSERT(rc == 0);
-		if (m0_rnd64(&seed) % BE_UT_TX_GC_RAND_DENOMINATOR)
-			m0_be_tx_capture(tx, &M0_BE_REG_PTR(seg, &array[i]));
-
 		be_ut_gc_tests[i] = (struct be_ut_gc_test){
 			.bugc_tx         = tx,
 			.bugc_gc_enabled = false,
+			.bugc_ringbuf    = ringbuf,
+			.bugc_rb_pos     = &rb_pos,
+			.bugc_rb_ready   = &rb_ready,
+			.bugc_rb_lock    = &rb_lock,
+			.bugc_index      = i,
+			.bugc_gc_done    = &gc_done,
 		};
-	}
-	for (i = 0; i < BE_UT_TX_GC_TX_NR; ++i) {
+		m0_clink_init(&be_ut_gc_tests[i].bugc_clink, &be_ut_tx_gc_cb);
+
 		gc_enabled = m0_rnd64(&seed) % BE_UT_TX_GC_RAND_DENOMINATOR;
 		be_ut_gc_tests[i].bugc_gc_enabled = gc_enabled;
 		tx = be_ut_gc_tests[i].bugc_tx;
+		gc_enabled_nr += gc_enabled;
+
+		m0_be_ut_tx_init(tx, &ut_be);
+		m0_be_tx_prep(tx, &M0_BE_TX_CREDIT_PTR(&array[i]));
+		m0_clink_add(&tx->t_sm.sm_chan, &be_ut_gc_tests[i].bugc_clink);
+		m0_be_tx_open(tx);
+		grp = tx->t_sm.sm_grp;
+
 		if (gc_enabled) {
 			m0_be_tx_gc_enable(tx, &be_ut_tx_gc_free,
 					   &be_ut_gc_tests[i]);
 		}
-		/*
-		 * Wait for last closed transaction.
-		 * All previous transactions will be done after the waiting.
-		 */
-		if (i == BE_UT_TX_GC_TX_NR - 1) {
-			m0_be_tx_close_sync(tx);
-			/*
-			 * Run asts for all transactions, so all transactions
-			 * reach final state.
-			 */
-			m0_be_ut_backend_sm_group_asts_run(&ut_be);
-		} else {
-			m0_be_tx_close(tx);
-		}
-		if (gc_enabled)
-			++gc_enabled_nr;
 	}
 	/*
 	 * Check that at least one transaction has gc enabled
@@ -820,6 +926,25 @@ void m0_be_ut_tx_gc(void)
 	 */
 	M0_UT_ASSERT(gc_enabled_nr > 0);
 	M0_UT_ASSERT(gc_enabled_nr < BE_UT_TX_GC_TX_NR);
+
+	for (i = 0; i < BE_UT_TX_GC_TX_NR; ++i) {
+		m0_sm_group_unlock(grp);
+		m0_semaphore_down(&rb_ready);
+		m0_sm_group_lock(grp);
+
+		m0_mutex_lock(&rb_lock);
+		test = &be_ut_gc_tests[ringbuf[i]];
+		tx   = test->bugc_tx;
+		m0_mutex_unlock(&rb_lock);
+
+		if (m0_rnd64(&seed) % BE_UT_TX_GC_RAND_DENOMINATOR)
+			m0_be_tx_capture(tx, &M0_BE_REG_PTR(seg, &array[i]));
+		m0_be_tx_close(tx);
+	}
+	m0_sm_group_unlock(grp);
+	for (i = 0; i < gc_enabled_nr; ++i)
+		m0_semaphore_down(&gc_done);
+	m0_sm_group_lock(grp);
 	/*
 	 * Finalise and free all tx that weren't GCed.
 	 */
@@ -828,10 +953,14 @@ void m0_be_ut_tx_gc(void)
 		tx   = test->bugc_tx;
 		M0_UT_ASSERT(equi(test->bugc_gc_enabled, tx == NULL));
 		if (tx != NULL) {
+			m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE),
+					   M0_TIME_NEVER);
 			m0_be_tx_fini(tx);
 			m0_free(tx);
 		}
 	}
+	M0_UT_ASSERT(!m0_semaphore_trydown(&rb_ready));
+	M0_UT_ASSERT(!m0_semaphore_trydown(&gc_done));
 	/*
 	 * Check "m0_be_tx_open() failed with gc enabled" case.
 	 */
@@ -845,6 +974,10 @@ void m0_be_ut_tx_gc(void)
 	m0_be_tx_fini(tx);
 	m0_free(tx);
 
+	m0_mutex_fini(&rb_lock);
+	m0_semaphore_fini(&gc_done);
+	m0_semaphore_fini(&rb_ready);
+	m0_free(ringbuf);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }
@@ -910,8 +1043,6 @@ static void be_ut_tx_payload_test_nr(struct m0_be_ut_backend      *ut_be,
 		 */
 		rc = m0_be_tx_open_sync(&test[i].tpt_tx);
 		M0_UT_ASSERT(rc == 0);
-	}
-	for (i = 0; i < nr; ++i) {
 		M0_ASSERT(test[i].tpt_fill <= test[i].tpt_credit);
 		be_ut_tx_buf_fill_random(test[i].tpt_tx.t_payload.b_addr,
 					 test[i].tpt_fill);
@@ -922,8 +1053,6 @@ static void be_ut_tx_payload_test_nr(struct m0_be_ut_backend      *ut_be,
 			                test[i].tpt_offset);
 			m0_be_tx_capture(&test[i].tpt_tx, &reg);
 		}
-	}
-	for (i = 0; i < nr; ++i) {
 		m0_be_tx_close_sync(&test[i].tpt_tx);
 		m0_be_tx_fini(&test[i].tpt_tx);
 	}

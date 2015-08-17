@@ -274,12 +274,12 @@ static int fom_tx_wait(struct m0_fom *fom)
 	struct m0_be_tx *tx = m0_fom_tx(fom);
 
 	M0_ENTRY("fom=%p", fom);
-	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_OPENING,
+	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_OPENING, M0_BTS_GROUPING,
 					  M0_BTS_ACTIVE, M0_BTS_FAILED)));
 
 	if (m0_be_tx_state(tx) == M0_BTS_FAILED)
 		return M0_RC(tx->t_sm.sm_rc);
-	else if (m0_be_tx_state(tx) == M0_BTS_OPENING) {
+	else if (M0_IN(m0_be_tx_state(tx), (M0_BTS_OPENING, M0_BTS_GROUPING))) {
 		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
 		M0_LEAVE();
 		return M0_FSO_WAIT;
