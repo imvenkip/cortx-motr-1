@@ -92,5 +92,7 @@ M0_INTERNAL void m0_confx_free(struct m0_confx *enc);
 M0_INTERNAL int m0_confx_to_string(struct m0_confx  *confx,
 				   char            **str);
 
+M0_INTERNAL int m0_conf_file_read(const char *path, char **dest);
+
 /** @} conf_dfspec_preload */
 #endif /* __MERO_CONF_PRELOAD_H__ */

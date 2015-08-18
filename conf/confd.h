@@ -151,6 +151,8 @@ struct m0_confd {
 	/** Generic service. */
 	struct m0_reqh_service d_reqh;
 
+	/** Lock to protect configuration cache. */
+	struct m0_mutex        d_cache_lock;
 	/**
 	 * Configuration cache.
 	 * This configuration cache is used from m0_reqh::rh_confc::cc_cache.
@@ -174,6 +176,17 @@ M0_INTERNAL int m0_confd_cache_preload(struct m0_conf_cache *cache,
 
 M0_INTERNAL int m0_confd_service_to_filename(struct m0_reqh_service *service,
 					     char                  **filename);
+/**
+ * Allocates cache and populates it using provided configuration string.
+ */
+M0_INTERNAL int m0_confd_cache_create(struct m0_conf_cache **cache,
+				      struct m0_mutex       *cache_lock,
+				      const char            *confstr);
+
+/**
+ * Finalises cache and deallocates cache memory.
+ */
+M0_INTERNAL void m0_confd_cache_destroy(struct m0_conf_cache *cache);
 
 /** @} confd_dfspec */
 #endif /* __MERO_CONF_CONFD_H__ */

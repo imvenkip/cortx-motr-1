@@ -505,24 +505,73 @@ static void confd_fini(struct m0_reqh_service *service)
 	M0_LEAVE();
 }
 
-static int confd_start(struct m0_reqh_service *service)
+M0_INTERNAL int m0_confd_cache_create(struct m0_conf_cache **cache,
+				      struct m0_mutex       *cache_lock,
+				      const char            *confstr)
 {
-	struct m0_confd *confd = bob_of(service, struct m0_confd, d_reqh,
-					&m0_confd_bob);
-	struct m0_confc *confc = &service->rs_reqh->rh_confc;
+	struct m0_conf_cache *new_cache;
+	int                   rc;
 
 	M0_ENTRY();
+	M0_PRE(confstr != NULL);
 
-	M0_PRE(m0_confc_invariant(confc));
-	M0_PRE(m0_conf_cache_invariant(&confc->cc_cache));
+	*cache = NULL;
+	M0_ALLOC_PTR(new_cache);
+	if (new_cache == NULL) {
+		return M0_ERR(-ENOMEM);
+	}
+	m0_conf_cache_init(new_cache, cache_lock);
+	m0_conf_cache_lock(new_cache);
+	rc = m0_confd_cache_preload_string(new_cache, confstr);
+	m0_conf_cache_unlock(new_cache);
+	if (rc != 0) {
+		m0_conf_cache_fini(new_cache);
+		m0_free(new_cache);
+		return M0_ERR(rc);
+	}
+	*cache = new_cache;
+	return M0_RC(0);
+}
 
-	confd->d_cache = &confc->cc_cache;
+M0_INTERNAL void m0_confd_cache_destroy(struct m0_conf_cache *cache)
+{
+	M0_ENTRY();
+	m0_conf_cache_fini(cache);
+	m0_free(cache);
+	M0_LEAVE();
+}
+
+static int confd_start(struct m0_reqh_service *service)
+{
+	struct m0_confd      *confd = bob_of(service, struct m0_confd, d_reqh,
+					&m0_confd_bob);
+	char                 *confstr = NULL;
+	char                 *conf_fname = NULL;
+	int                   rc;
+
+	M0_ENTRY();
+	m0_mutex_init(&confd->d_cache_lock);
+	rc = m0_confd_service_to_filename(service, &conf_fname) ?:
+	     m0_conf_file_read(conf_fname, &confstr) ?:
+	     m0_confd_cache_create(&confd->d_cache, &confd->d_cache_lock,
+				   confstr);
+	m0_free(confstr);
+	m0_free(conf_fname);
+	if (rc != 0) {
+		m0_mutex_fini(&confd->d_cache_lock);
+		return M0_ERR(rc);
+	}
 	return M0_RC(0);
 }
 
 static void confd_stop(struct m0_reqh_service *service)
 {
+	struct m0_confd *confd = bob_of(service, struct m0_confd, d_reqh,
+					&m0_confd_bob);
 	M0_ENTRY();
+	M0_PRE(confd->d_cache != NULL);
+	m0_confd_cache_destroy(confd->d_cache);
+	m0_mutex_fini(&confd->d_cache_lock);
 	M0_LEAVE();
 }
 

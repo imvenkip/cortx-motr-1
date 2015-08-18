@@ -1872,47 +1872,6 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	return _args_parse(cctx, argc, argv);
 }
 
-static int file_read(const char *path, char **dest)
-{
-	FILE  *f;
-	long   size;
-	size_t n;
-	int    rc = 0;
-
-	M0_ENTRY("path=`%s'", path);
-
-	f = fopen(path, "rb");
-	if (f == NULL)
-		return M0_ERR_INFO(-errno, "path=`%s'", path);
-
-	rc = fseek(f, 0, SEEK_END);
-	if (rc == 0) {
-		size = ftell(f);
-		rc = fseek(f, 0, SEEK_SET);
-	}
-	if (rc != 0) {
-		fclose(f);
-		return M0_ERR_INFO(-errno, "fseek() failed: path=`%s'", path);
-	}
-	/* it should be freed by the caller */
-	M0_ALLOC_ARR(*dest, size + 1);
-	if (*dest != NULL) {
-		n = fread(*dest, 1, size + 1, f);
-		M0_ASSERT_INFO(n == size, "n=%zu size=%ld", n, size);
-		if (ferror(f))
-			rc = -errno;
-		else if (!feof(f))
-			rc = -EFBIG;
-		else
-			(*dest)[n] = '\0';
-	} else {
-		rc = -ENOMEM;
-	}
-
-	fclose(f);
-	return M0_RC(rc);
-}
-
 static int cs_conf_setup(struct m0_mero *cctx)
 {
 	struct cs_args       *args = &cctx->cc_args;
@@ -1923,7 +1882,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	int                   rc;
 
 	if (cctx->cc_reqh_ctx.rc_confdb != NULL) {
-		rc = file_read(cctx->cc_reqh_ctx.rc_confdb, &confstr);
+		rc = m0_conf_file_read(cctx->cc_reqh_ctx.rc_confdb, &confstr);
 		if (rc != 0)
 			return M0_ERR(rc);
 	}
