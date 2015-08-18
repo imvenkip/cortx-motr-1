@@ -53,7 +53,7 @@ static uint64_t fault_tolerant_idx_get(uint64_t idx, uint64_t *children_nr,
  * pool version.
  */
 static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
-			      uint64_t *P, uint64_t *children_nr);
+			      uint64_t *children_nr);
 
 static inline bool fd_tile_invariant(const struct m0_fd_tile *tile);
 
@@ -170,8 +170,9 @@ bool (*obj_filter[M0_FTA_DEPTH_MAX]) (const struct m0_conf_obj *obj) = {
 	       (rc = m0_conf_diter_next_sync(&__it,                        \
 					     obj_filter[__level])) !=      \
 		M0_CONF_DIRNEXT) {;}                                       \
-	for (obj = m0_conf_diter_result(&__it); rc > 0;                    \
-	     rc = m0_conf_diter_next_sync(&__it, obj_filter[level])) {     \
+	for (obj = m0_conf_diter_result(&__it);                            \
+	     rc > 0 && (obj = m0_conf_diter_result(&__it));                \
+	     rc = m0_conf_diter_next_sync(&__it, obj_filter[__level])) {   \
 
 #define pv_endfor } if (rc >= 0) m0_conf_diter_fini(&__it); })
 
@@ -217,7 +218,7 @@ static int min_children_cnt(const struct m0_conf_pver *pv, uint64_t pv_level,
 
 	obj_id = 0;
 	*children_nr = 0;
-	pv_for(pv, pv_level - 1, obj, rc) {
+	pv_for(pv, pv_level, obj, rc) {
 		M0_ASSERT(m0_conf_obj_type(obj) ==  &M0_CONF_OBJV_TYPE);
 		objv = M0_CONF_CAST(obj, m0_conf_objv);
 		*children_nr =
@@ -227,9 +228,9 @@ static int min_children_cnt(const struct m0_conf_pver *pv, uint64_t pv_level,
 		else {
 			min = min_type(uint64_t, min, *children_nr);
 		}
-		*children_nr = min;
 		++obj_id;
 	} pv_endfor;
+	*children_nr = min;
 	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
 }
 
@@ -258,13 +259,12 @@ M0_INTERNAL int m0_fd_tolerance_check(struct m0_conf_pver *pv,
 				      uint64_t *failure_level)
 {
 	uint64_t children_nr[M0_FTA_DEPTH_MAX];
-	uint64_t P;
 	uint64_t depth;
 	int      rc;
 
 	M0_PRE(pv != NULL && failure_level != NULL);
 
-	rc = symm_tree_attr_get(pv, &depth, &P, children_nr);
+	rc = symm_tree_attr_get(pv, &depth, children_nr);
 	if (rc != 0)
 		*failure_level = depth;
 	return M0_RC(rc);
@@ -275,13 +275,12 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 				 uint64_t *failure_level)
 {
 	uint64_t children_nr[M0_FTA_DEPTH_MAX];
-	uint64_t P;
 	int      rc;
 
 	M0_PRE(pv != NULL && pool_ver != NULL && failure_level != NULL);
 	M0_PRE(m0_exists(i, pv->pv_nr_failures_nr,
 			 pv->pv_nr_failures[i] != 0));
-	rc = symm_tree_attr_get(pv, failure_level, &P, children_nr);
+	rc = symm_tree_attr_get(pv, failure_level, children_nr);
 	if (rc != 0) {
 		return M0_RC(rc);
 	}
@@ -293,15 +292,14 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 	return M0_RC(rc);
 }
 
-static  uint64_t tree2pv_level_conv(uint64_t level,
-					  uint64_t tree_depth)
+static  uint64_t tree2pv_level_conv(uint64_t level, uint64_t tree_depth)
 {
 	M0_PRE(tree_depth < M0_FTA_DEPTH_MAX);
 	return level + ((M0_FTA_DEPTH_MAX - 1)  - tree_depth);
 }
 
 static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
-			      uint64_t *P, uint64_t *children_nr)
+			      uint64_t *children_nr)
 {
 	int      rc;
 	uint64_t max_units;
@@ -335,14 +333,12 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
 			*depth = pv_level;
 			return M0_RC(rc);
 		}
-		children_nr[pv_level - (M0_FTA_DEPTH_MAX - *depth)] =
-		  min_children;
+		children_nr[pv_level - level + 1] = min_children;
 	}
 	children_nr[*depth] = 1;
 	rc = tolerance_check(pv, children_nr, level, depth);
 	if (rc != 0)
 		return M0_RC(rc);
-	*P = pool_width_calc(children_nr, *depth);
 	return M0_RC(rc);
 }
 
@@ -410,7 +406,7 @@ static int tolerance_check(const struct m0_conf_pver *pv,
 			}
 		}
 		if (sum > K) {
-			*failure_level = i;
+			*failure_level = level;
 			rc = -EINVAL;
 			goto out;
 		}
@@ -555,13 +551,12 @@ M0_INTERNAL int m0_fd_tree_build(const struct m0_conf_pver *pv,
 	int      rc;
 	uint64_t children_nr[M0_FTA_DEPTH_MAX];
 	uint64_t depth;
-	uint64_t P;
 	uint32_t level;
 
 	M0_PRE(pv != NULL && tree != NULL);
 	M0_PRE(pv->pv_nr_failures_nr == M0_FTA_DEPTH_MAX);
 
-	rc = symm_tree_attr_get(pv, &depth, &P, children_nr);
+	rc = symm_tree_attr_get(pv, &depth, children_nr);
 	if (rc != 0)
 		return M0_RC(rc);
 	tree->ft_depth = depth;
@@ -654,7 +649,7 @@ M0_INTERNAL int m0_fd__perm_cache_build(struct m0_fd_tree *tree)
 		rc = m0_fd__tree_cursor_init(&cursor, tree, level);
 		if (rc != 0) {
 			m0_fd__perm_cache_destroy(tree);
-			return M0_ERR(-ENOMEM);
+			return M0_RC(rc);
 		}
 		do {
 			node = *(m0_fd__tree_cursor_get(&cursor));

@@ -30,6 +30,8 @@
 #include "lib/arith.h"      /* m0_rnd */
 #include "lib/memory.h"     /* m0_alloc m0_free */
 #include "ut/ut.h"          /* M0_UT_ASSERT */
+#include "ut/file_helpers.h"
+#include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
 
 /* Conf parameters. */
 enum {
@@ -183,98 +185,76 @@ struct m0_pdclust_attr pd_attr  = {
 	}
 };
 
+struct m0_pdclust_instance pi;
+struct m0_pdclust_src_addr src;
+struct m0_pdclust_src_addr src_new;
+struct m0_pdclust_tgt_addr tgt;
+struct m0_pool_version     pool_ver;
+
 static uint32_t parity_group_size(struct m0_pdclust_attr *la_attr);
 static uint32_t pool_width_count(uint64_t *children, uint32_t depth);
 static bool __filter_pv(const struct m0_conf_obj *obj);
 static uint64_t real_child_cnt_get(uint64_t level);
 static uint64_t pool_width_calc(struct m0_fd_tree *tree);
+static void tree_generate(struct m0_pool_version *pv, enum tree_attr ta);
+static void fd_mapping_check(struct m0_pool_version *pv);
+static bool is_tgt_failed(struct m0_pool_version *pv,
+			  struct m0_pdclust_tgt_addr *tgt,
+			  uint64_t *failed_domains);
+static void failed_nodes_mark(struct m0_fd_tree *tree, uint32_t level,
+			      uint64_t tol, uint64_t *failed_domains);
+static void fd_tolerance_check(struct m0_pool_version *pv);
 
 
 static void test_fd_mapping_sanity(enum tree_attr ta)
 {
-	struct m0_pdclust_instance pi;
-	struct m0_pool_version     pv;
-	struct m0_pdclust_src_addr src;
-	struct m0_pdclust_src_addr src_new;
-	struct m0_pdclust_tgt_addr tgt;
-	int                        i;
-	int                        rc;
-	m0_time_t                  seed;
-	uint64_t                   children_cnt;
-	uint64_t                   C;
-	uint64_t                   G;
-	uint64_t                   row;
-	uint64_t                   col;
-	uint64_t                   omega;
-	uint64_t                   P;
-	uint64_t                   unmapped;
 
 	/* Construct a failure domains tree. */
-	M0_SET0(&pv);
-	M0_SET0(&pi);
-	pi.pi_base.li_l = m0_alloc(sizeof pi.pi_base.li_l[0]);
-	M0_UT_ASSERT(pi.pi_base.li_l != NULL);
+	M0_SET0(&pool_ver);
+	tree_generate(&pool_ver, ta);
+	fd_mapping_check(&pool_ver);
+	m0_fd_tree_destroy(&pool_ver.pv_fd_tree);
+	m0_fd_tile_destroy(&pool_ver.pv_fd_tile);
+}
+
+static void tree_generate(struct m0_pool_version *pv, enum tree_attr ta)
+{
+	uint64_t G;
+	uint64_t P;
+	int      rc;
+	uint64_t children_cnt;
+	int      i;
+
 	P = 1;
 	G = parity_group_size(&pd_attr);
 	while (G > P) {
-		rc = fd_ut_tree_init(&pv.pv_fd_tree, M0_FTA_DEPTH_MAX - 1);
+		rc = fd_ut_tree_init(&pv->pv_fd_tree, M0_FTA_DEPTH_MAX - 1);
 		M0_UT_ASSERT(rc == 0);
 		children_cnt = fd_ut_random_cnt_get(TUA_RACKS);
-		rc = m0_fd__tree_root_create(&pv.pv_fd_tree, children_cnt);
+		rc = m0_fd__tree_root_create(&pv->pv_fd_tree, children_cnt);
 		M0_UT_ASSERT(rc == 0);
 		for (i = 1; i <= M0_FTA_DEPTH_MAX - 1; ++i) {
 			children_cnt = real_child_cnt_get(i);
-			children_cnt = i == pv.pv_fd_tree.ft_depth ? 0 :
+			children_cnt = i == pv->pv_fd_tree.ft_depth ? 0 :
 				children_cnt;
-			rc = fd_ut_tree_level_populate(&pv.pv_fd_tree,
-							children_cnt, i,
-							ta);
+			rc = fd_ut_tree_level_populate(&pv->pv_fd_tree,
+						       children_cnt, i,
+						       ta);
 			M0_UT_ASSERT(rc == 0);
 		}
-		rc = m0_fd__perm_cache_build(&pv.pv_fd_tree);
+		rc = m0_fd__perm_cache_build(&pv->pv_fd_tree);
 		M0_UT_ASSERT(rc == 0);
-		P = pool_width_calc(&pv.pv_fd_tree);
+		P = pool_width_calc(&pv->pv_fd_tree);
 		if (G > P)
-			m0_fd_tree_destroy(&pv.pv_fd_tree);
+			m0_fd_tree_destroy(&pv->pv_fd_tree);
 	}
 	/* Get the attributes of symmetric tree. */
-	fd_ut_symm_tree_get(&pv.pv_fd_tree, pv.pv_fd_tile.ft_child);
-	rc = m0_fd__tile_init(&pv.pv_fd_tile, &pd_attr,
-			pv.pv_fd_tile.ft_child,
-			pv.pv_fd_tree.ft_depth);
+	fd_ut_symm_tree_get(&pv->pv_fd_tree, pv->pv_fd_tile.ft_child);
+	rc = m0_fd__tile_init(&pv->pv_fd_tile, &pd_attr,
+			      pv->pv_fd_tile.ft_child,
+			      pv->pv_fd_tree.ft_depth);
 	M0_UT_ASSERT(rc == 0);
-	m0_fd__tile_populate(&pv.pv_fd_tile);
-	C = (pv.pv_fd_tile.ft_rows * pv.pv_fd_tile.ft_cols) /
-		pv.pv_fd_tile.ft_G;
-	seed = m0_time_now();
-	omega = m0_rnd(123456, &seed);
-	pi.pi_base.li_l->l_pver = &pv;
-	m0_pdclust_perm_cache_build(pi.pi_base.li_l, &pi);
-	for (row = omega * C; row < (omega + 1) * C; ++row) {
-		src.sa_group = row;
-		for (col = 0; col < pv.pv_fd_tile.ft_G; ++col) {
-			src.sa_unit = col;
-			M0_SET0(&src_new);
-			m0_fd_fwd_map(&pi, &src, &tgt);
-			m0_fd_bwd_map(&pi, &tgt, &src_new);
-			M0_UT_ASSERT(src.sa_group == src_new.sa_group);
-			M0_UT_ASSERT(src.sa_unit == src_new.sa_unit);
-		}
-	}
-	/* Sanity check for unmapped targets. */
-	unmapped = 0;
-	tgt.ta_frame = omega * pv.pv_fd_tile.ft_rows;
-	for (tgt.ta_obj = 0; tgt.ta_obj < P; ++tgt.ta_obj) {
-		m0_fd_bwd_map(&pi, &tgt, &src_new);
-		if (src_new.sa_group == ~(uint64_t)0 &&
-		    src_new.sa_unit == ~(uint64_t)0)
-			++unmapped;
-	}
-	M0_UT_ASSERT(unmapped + pv.pv_fd_tile.ft_cols == P);
-	m0_pdclust_perm_cache_destroy(pi.pi_base.li_l, &pi);
-	m0_fd_tree_destroy(&pv.pv_fd_tree);
-	m0_fd_tile_destroy(&pv.pv_fd_tile);
-	m0_free(pi.pi_base.li_l);
+	m0_fd__tile_populate(&pv->pv_fd_tile);
 }
 
 static uint64_t pool_width_calc(struct m0_fd_tree *tree)
@@ -289,6 +269,54 @@ static uint64_t pool_width_calc(struct m0_fd_tree *tree)
 	while (m0_fd__tree_cursor_next(&cursor))
 		++P;
 	return P;
+}
+
+static void fd_mapping_check(struct m0_pool_version *pv)
+{
+	struct m0_pdclust_instance pi;
+	uint64_t                   C;
+	m0_time_t                  seed;
+	uint64_t                   omega;
+	uint64_t                   row;
+	uint64_t                   col;
+	uint64_t                   unmapped;
+	uint64_t                   P;
+
+	M0_SET0(&src);
+	M0_SET0(&src_new);
+	M0_SET0(&tgt);
+	pi.pi_base.li_l = m0_alloc(sizeof pi.pi_base.li_l[0]);
+	M0_UT_ASSERT(pi.pi_base.li_l != NULL);
+	C = (pv->pv_fd_tile.ft_rows * pv->pv_fd_tile.ft_cols) /
+		pv->pv_fd_tile.ft_G;
+	seed = m0_time_now();
+	omega = m0_rnd(123456, &seed);
+	pi.pi_base.li_l->l_pver = pv;
+	m0_pdclust_perm_cache_build(pi.pi_base.li_l, &pi);
+	for (row = omega * C; row < (omega + 1) * C; ++row) {
+		src.sa_group = row;
+		for (col = 0; col < pv->pv_fd_tile.ft_G; ++col) {
+			src.sa_unit = col;
+			M0_SET0(&src_new);
+			m0_fd_fwd_map(&pi, &src, &tgt);
+			m0_fd_bwd_map(&pi, &tgt, &src_new);
+			M0_UT_ASSERT(src.sa_group == src_new.sa_group);
+			M0_UT_ASSERT(src.sa_unit == src_new.sa_unit);
+		}
+	}
+	/* Sanity check for unmapped targets. */
+	unmapped = 0;
+	tgt.ta_frame = omega * pv->pv_fd_tile.ft_rows;
+	P = pool_width_calc(&pv->pv_fd_tree);
+	for (tgt.ta_obj = 0; tgt.ta_obj < P; ++tgt.ta_obj) {
+		m0_fd_bwd_map(&pi, &tgt, &src_new);
+		if (src_new.sa_group == ~(uint64_t)0 &&
+		    src_new.sa_unit == ~(uint64_t)0)
+			++unmapped;
+	}
+	M0_UT_ASSERT(unmapped + pv->pv_fd_tile.ft_cols == P);
+	m0_pdclust_perm_cache_destroy(pi.pi_base.li_l, &pi);
+	m0_free(pi.pi_base.li_l);
 }
 
 static uint64_t real_child_cnt_get(uint64_t level)
@@ -312,25 +340,25 @@ static uint64_t real_child_cnt_get(uint64_t level)
 
 static void test_ft_mapping(void)
 {
-	struct m0_pool_version      pool_ver;
-	struct m0_pdclust_src_addr  src;
-	struct m0_pdclust_src_addr  src_new;
-	struct m0_pdclust_tgt_addr  tgt;
-	uint64_t                    row;
-	uint64_t                    col;
-	uint64_t                    G;
-	uint64_t                    C;
-	uint64_t                    P;
-	uint64_t                   *children_nr;
-	uint64_t                    omega;
-	m0_time_t                   seed;
-	uint32_t                    depth;
-	int                         rc;
+	uint64_t  row;
+	uint64_t  col;
+	uint64_t  G;
+	uint64_t  C;
+	uint64_t  P;
+	uint64_t *children_nr;
+	uint64_t  omega;
+	m0_time_t seed;
+	uint32_t  depth;
+	int       rc;
 
 
+	M0_SET0(&pool_ver);
 	G           = parity_group_size(&pd_attr);
 	P           = pd_attr.pa_K;
 	children_nr = pool_ver.pv_fd_tile.ft_child;
+	M0_SET0(&src);
+	M0_SET0(&src_new);
+	M0_SET0(&tgt);
 	for (depth = 1; depth < M0_FTA_DEPTH_MAX; ++depth) {
 		while (G > P) {
 			fd_ut_children_populate(children_nr, depth);
@@ -384,19 +412,30 @@ static uint32_t pool_width_count(uint64_t *children, uint32_t depth)
 
 static void test_pv2fd_conv(void)
 {
-	struct m0_confc         confc;
-	struct m0_conf_obj     *fs_obj = NULL;
-	struct m0_conf_diter    it;
-	struct m0_conf_obj     *pv_obj;
-	struct m0_conf_pver    *pv;
-	struct m0_pool_version  pool_ver;
-	uint64_t                failure_level;
-	int                     i;
-	int                     rc;
+	struct m0_confc      confc;
+	struct m0_conf_obj  *fs_obj = NULL;
+	struct m0_conf_diter it;
+	struct m0_conf_obj  *pv_obj;
+	struct m0_conf_pver *pv;
+#ifndef __KERNEL__
+	static char          local_conf[M0_CONF_STR_MAXLEN];
+#endif
+	uint64_t             failure_level;
+	int                  i;
+	int                  rc;
 
 	M0_SET0(&confc);
+	M0_SET0(&pool_ver);
+#ifndef __KERNEL__
+	rc = m0_ut_file_read(M0_UT_PATH("failure-domains-str.txt"), local_conf,
+			     sizeof local_conf);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, local_conf);
+	M0_UT_ASSERT(rc == 0);
+#else
 	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, local_conf_str);
 	M0_UT_ASSERT(rc == 0);
+#endif
 	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,
 			M0_CONF_ROOT_PROFILES_FID,
 			M0_FID_TINIT('p', 1, 0),
@@ -425,6 +464,10 @@ static void test_pv2fd_conv(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_fd_tree_build(pv, &pool_ver.pv_fd_tree);
 	M0_UT_ASSERT(rc == 0);
+	memcpy(pool_ver.pv_fd_tol_vec, pv->pv_nr_failures,
+	       M0_FTA_DEPTH_MAX *sizeof pool_ver.pv_fd_tol_vec[0]);
+	fd_mapping_check(&pool_ver);
+	fd_tolerance_check(&pool_ver);
 	m0_fd_tree_destroy(&pool_ver.pv_fd_tree);
 	m0_fd_tile_destroy(&pool_ver.pv_fd_tile);
 	m0_conf_diter_fini(&it);
@@ -435,6 +478,110 @@ static void test_pv2fd_conv(void)
 static bool __filter_pv(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE;
+}
+
+static  uint64_t pv2tree_level_conv(uint64_t level, uint64_t tree_depth)
+{
+	M0_PRE(tree_depth < M0_FTA_DEPTH_MAX);
+	return level - ((M0_FTA_DEPTH_MAX - 1)  - tree_depth);
+}
+
+static void fd_tolerance_check(struct m0_pool_version *pv)
+{
+	struct m0_pdclust_instance  pi;
+	uint64_t                    C;
+	uint64_t                    omega;
+	uint64_t                    row;
+	uint64_t                    col;
+	m0_time_t                   seed;
+	uint32_t                    i;
+	uint32_t                    fail_cnt;
+	uint32_t                    tol;
+	uint64_t                   *failed_domains;
+
+	for (i = M0_FTA_DEPTH_RACK; i < M0_FTA_DEPTH_MAX; ++i) {
+		tol = pv->pv_fd_tol_vec[i];
+		if (tol == 0)
+			continue;
+		failed_domains = m0_alloc(tol * sizeof failed_domains[0]);
+		failed_nodes_mark(&pv->pv_fd_tree, i, tol, failed_domains);
+		pi.pi_base.li_l = m0_alloc(sizeof pi.pi_base.li_l[0]);
+		M0_UT_ASSERT(pi.pi_base.li_l != NULL);
+		C = (pv->pv_fd_tile.ft_rows * pv->pv_fd_tile.ft_cols) /
+			pv->pv_fd_tile.ft_G;
+		seed = m0_time_now();
+		omega = m0_rnd(123456, &seed);
+		pi.pi_base.li_l->l_pver = pv;
+		m0_pdclust_perm_cache_build(pi.pi_base.li_l, &pi);
+		fail_cnt = 0;
+		for (row = omega * C; row < (omega + 1) * C; ++row) {
+			src.sa_group = row;
+			for (col = 0; col < pv->pv_fd_tile.ft_G; ++col) {
+				src.sa_unit = col;
+				m0_fd_fwd_map(&pi, &src, &tgt);
+				if (is_tgt_failed(pv, &tgt, failed_domains))
+					++fail_cnt;
+				M0_UT_ASSERT(fail_cnt <=
+					     pv->pv_fd_tol_vec[M0_FTA_DEPTH_DISK]);
+			}
+			fail_cnt = 0;
+		}
+		m0_free(failed_domains);
+		m0_pdclust_perm_cache_destroy(pi.pi_base.li_l, &pi);
+	}
+}
+
+static void failed_nodes_mark(struct m0_fd_tree *tree, uint32_t level,
+			      uint64_t tol, uint64_t *failed_domains)
+{
+	struct m0_fd__tree_cursor cursor;
+	struct m0_fd_tree_node *node;
+	uint32_t  toss;
+	uint32_t  cnt;
+	uint32_t tree_level;
+	int rc;
+	m0_time_t seed;
+
+	cnt = 0;
+	tree_level = pv2tree_level_conv(level, tree->ft_depth);
+	while (cnt < tol) {
+		rc = m0_fd__tree_cursor_init(&cursor, tree, tree_level);
+		M0_UT_ASSERT(rc == 0);
+		toss = 0;
+		seed = m0_time_now();
+		do {
+			toss = m0_rnd(2, &seed);
+			node = *(m0_fd__tree_cursor_get(&cursor));
+		} while (toss == 0 && m0_fd__tree_cursor_next(&cursor));
+
+		if (node->ftn_ha_state != M0_NC_FAILED) {
+			node->ftn_ha_state = M0_NC_FAILED;
+			failed_domains[cnt] = node->ftn_abs_idx;
+			++cnt;
+		}
+	}
+}
+
+static bool is_tgt_failed(struct m0_pool_version *pv,
+			  struct m0_pdclust_tgt_addr *tgt,
+			  uint64_t *failed_domains)
+{
+	struct m0_fd__tree_cursor cursor;
+	uint64_t                  i;
+	uint64_t                  P;
+	int                       rc;
+
+	P = pool_width_calc(&pv->pv_fd_tree);
+	M0_UT_ASSERT(tgt->ta_obj < P);
+	rc = m0_fd__tree_cursor_init(&cursor, &pv->pv_fd_tree,
+				     pv->pv_fd_tree.ft_depth);
+	M0_UT_ASSERT(rc == 0);
+	i = 0;
+	while (i < tgt->ta_obj) {
+		 m0_fd__tree_cursor_next(&cursor);
+		++i;
+	}
+	return (*(m0_fd__tree_cursor_get(&cursor)))->ftn_ha_state != M0_NC_ONLINE;
 }
 
 void test_fd_mapping(void)

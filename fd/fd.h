@@ -95,6 +95,11 @@ struct m0_pool_version;
  * Maximum allowable depth of pool version tree.
  */
 enum m0_fd_tree_attr {
+	M0_FTA_DEPTH_PVER,
+	M0_FTA_DEPTH_RACK,
+	M0_FTA_DEPTH_ENCL,
+	M0_FTA_DEPTH_CONT,
+	M0_FTA_DEPTH_DISK,
 	M0_FTA_DEPTH_MAX = 5,
 };
 
@@ -118,12 +123,6 @@ struct m0_fd_tile_cell {
 	 * used by m0_fd_bwd_map().
 	 */
 	struct m0_pdclust_src_addr ftc_src;
-	/**
-	 * HA state for the cell. The cell is in active state iff all of its
-	 * parents have the state M0_NC_ACTIVE. This field is helpful in
-	 * unit-testing, and it does not play any role in the production code.
-	 */
-	enum m0_ha_obj_state       ftc_ha_state;
 };
 
 struct m0_fd_tile {
@@ -225,6 +224,12 @@ struct m0_fd_tree_node {
 	uint32_t                 ftn_abs_idx;
 	/* An array of pointers to children. */
 	struct m0_fd_tree_node **ftn_children;
+	/**
+	 * HA state for the cell. The cell is in active state iff all of its
+	 * parents have the state M0_NC_ACTIVE. This field is helpful in
+	 * unit-testing, and it does not play any role in the production code.
+	 */
+	enum m0_ha_obj_state     ftn_ha_state;
 };
 
 /**

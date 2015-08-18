@@ -98,7 +98,7 @@ run_st() {
     say multi-clients support ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_multi_clients.sh"
 
-    say degraded-mode IO ST
+    say degraded-mode IO ST in oostore mode
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh"
 
     say pool machine query/set testing

@@ -29,7 +29,7 @@ export file_kind=$BOTH_FILE_KINDS
 #export file_kind=$SEPARATE_FILE
 # Data pattern to be used while creating data files for testing
 # - ABCD
-#   - Each alphabet from 'a' to 'z' is written 4096 times each serailly
+#   - Each alphabet from 'a' to 'z' is written 4096 times each serially
 #   - Above sequence unit is repeated until EOF
 # - RANDOM1
 #   - (RANDOM is not used since it is a special variable)

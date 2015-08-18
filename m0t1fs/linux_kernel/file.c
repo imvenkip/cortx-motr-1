@@ -3457,68 +3457,124 @@ static int ioreq_dgmode_recover(struct io_request *req)
 }
 
 /**
+ * @todo This code is not required once MERO-899 lands into master.
+ * Tolerance for the given level.
+ */
+static uint64_t tolerance_of_level(struct io_request *req, uint64_t lv)
+{
+	struct m0_pdclust_instance *play_instance;
+	struct m0_pool_version     *pver;
+
+	M0_PRE(lv < M0_FTA_DEPTH_MAX);
+
+	play_instance = pdlayout_instance(layout_instance(req));
+	pver = play_instance->pi_base.li_l->l_pver;
+	return pver->pv_fd_tol_vec[lv];
+}
+
+/**
+ * @todo  This code is not required once MERO-899 lands into master.
+ * Returns true if a given session is already marked as failed. In case
+ * a session is not already marked for failure, the functions marks it
+ * and returns false.
+ */
+static bool is_session_marked(struct io_request *req,
+			      struct m0_rpc_session *session)
+{
+	uint64_t i;
+	uint64_t max_failures;
+	uint64_t session_id;
+
+	session_id = session->s_session_id;
+	max_failures = tolerance_of_level(req, M0_FTA_DEPTH_CONT);
+	for (i = 0; i < max_failures; ++i) {
+		if (req->ir_failed_session[i] == session_id)
+			return true;
+		else if (req->ir_failed_session[i] == ~(uint64_t)0) {
+			req->ir_failed_session[i] = session_id;
+			return false;
+		}
+	}
+	return false;
+}
+
+/**
  * Returns number of failed devices or -EIO if number of failed devices exceeds
- * the value of K (number of spare devices in parity group).
+ * the value of K (number of spare devices in parity group). Once MERO-899 lands
+ * into master the code for this function will change. In that case it will only
+ * check if a given pool is dud.
  */
 static int device_check(struct io_request *req)
 {
 	int                       rc = 0;
-	uint32_t                  st_cnt = 0;
+	uint32_t                  fdev_nr = 0;
+	uint32_t                  fsvc_nr = 0;
+	struct m0t1fs_sb         *csb;
 	struct target_ioreq      *ti;
-	enum m0_pool_nd_state     state;
 	struct m0_pdclust_layout *play;
-	struct m0_poolmach       *pm;
+	enum m0_pool_nd_state     state;
+	uint64_t                  max_failures;
 
-	M0_ENTRY();
+	max_failures = tolerance_of_level(req, M0_FTA_DEPTH_CONT);
+
+	M0_ENTRY("[%p]", req);
 	M0_PRE(req != NULL);
 	M0_PRE(M0_IN(ioreq_sm_state(req), (IRS_READ_COMPLETE,
 					   IRS_WRITE_COMPLETE)));
-	pm = m0t1fs_file_to_poolmach(req->ir_file);
-	M0_ASSERT(pm != NULL);
+	csb = file_to_sb(req->ir_file);
+	play = pdlayout_get(req);
 	m0_htable_for (tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
-		rc = m0_poolmach_device_state(pm,
+		rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
 				              m0_fid_cob_device_id(&ti->ti_fid),
 					      &state);
 		if (rc != 0)
-			return M0_ERR_INFO(rc, "Failed to retrieve target device"
-				       " state");
+			return M0_ERR_INFO(rc, "Failed to retrieve target "
+					   "device state");
 		ti->ti_state = state;
-		if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
-				  M0_PNDS_SNS_REPAIRING,
-				  M0_PNDS_SNS_REBALANCING)))
-			st_cnt++;
+		/* The case when a particular service is down. */
+		if (ti->ti_rc == -ECANCELED) {
+			if (!is_session_marked(req, ti->ti_session)) {
+				M0_CNT_INC(fsvc_nr);
+				M0_CNT_INC(fdev_nr);
+			}
+		/* The case when multiple devices under the same service are
+		 * unavailable. */
+		} else if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
+			   M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED)) &&
+			   !is_session_marked(req, ti->ti_session)) {
+			M0_CNT_INC(fdev_nr);
+		}
+		if (fdev_nr > layout_k(play) || fsvc_nr > max_failures)
+			return M0_ERR_INFO(-EIO, "Failed to recover data since number "
+					   "of failed data units exceeds number "
+					   "of parity units in parity group");
 	} m0_htable_endfor;
-
-	/*
-	 * Since m0t1fs IO only supports XOR at the moment, max number of
-	 * failed units could be 1.
-	 */
-	play = pdlayout_get(req);
-	if (st_cnt > layout_k(play))
-		return M0_ERR_INFO(-EIO, "Failed to recover data since number "
-					 "of failed data units exceeds number "
-					 "of parity units in parity group");
-	return M0_RC(st_cnt);
+	return M0_RC(fdev_nr);
 }
 
 static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 {
-	int                      rc;
-	struct target_ioreq     *ti;
-	m0_time_t                start;
-	struct m0t1fs_sb        *csb;
+	int                  rc;
+	struct target_ioreq *ti;
+	m0_time_t            start;
+	struct m0t1fs_sb    *csb;
 
 	M0_ENTRY();
 	M0_PRE_EX(io_request_invariant(req));
 
-	if (req->ir_nwxfer.nxr_rc == 0 || req->ir_nwxfer.nxr_rc == -E2BIG)
+	csb = file_to_sb(req->ir_file);
+	/* In oostore we do not enter the degraded mode write. */
+	if (req->ir_nwxfer.nxr_rc == 0 ||
+	    req->ir_nwxfer.nxr_rc == -E2BIG)
 		return M0_RC(req->ir_nwxfer.nxr_rc);
 
 	rc = device_check(req);
-	if (rc < 0)
+	if (rc < 0 ) {
 		return M0_RC(rc);
-
-	csb = file_to_sb(req->ir_file);
+	}
+	if (csb->csb_oostore && rc > 0) {
+		return -EIO;
+	}
 	ioreq_sm_state_set(req, IRS_DEGRADED_WRITING);
 	start = m0_time_now();
 	/*
@@ -3594,13 +3650,14 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 
 static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 {
-	int                      rc            = 0;
+	int                      rc = 0;
 	uint64_t                 id;
 	struct io_req_fop       *irfop;
 	struct target_ioreq     *ti;
 	m0_time_t                start;
 	enum m0_pool_nd_state    state;
 	struct m0_poolmach      *pm;
+	struct m0t1fs_sb        *csb;
 
 	M0_ENTRY();
 	M0_PRE_EX(io_request_invariant(req));
@@ -3616,10 +3673,11 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	 * could complete if IO request did not send any pages to
 	 * failed device(s) at all.
 	 */
-	if (rc < 0)
+	if (rc < 0 )
 		return M0_RC(rc);
-
+	M0_LOG(M0_FATAL, "Proceeding with the degraded read");
 	start = m0_time_now();
+	csb = file_to_sb(req->ir_file);
 	pm = m0t1fs_file_to_poolmach(req->ir_file);
 	M0_ASSERT(pm != NULL);
 	m0_htable_for(tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
@@ -3661,6 +3719,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	 * spanned by input IO-request is in degraded mode.
 	 */
 	if (req->ir_dgmap_nr > 0) {
+		M0_LOG(M0_FATAL, " processing the failed parity groups");
 		if (ioreq_sm_state(req) == IRS_READ_COMPLETE)
 			ioreq_sm_state_set(req, IRS_DEGRADED_READING);
 
@@ -4031,8 +4090,13 @@ static int io_request_init(struct io_request        *req,
 			   const struct m0_indexvec *ivec,
 			   enum io_req_type          rw)
 {
-	int                  rc;
-	uint32_t             seg;
+	int                         rc;
+	uint32_t                    seg;
+	uint32_t                    i;
+	uint32_t                    max_failures;
+	struct m0_pdclust_layout   *play;
+	struct m0_pdclust_instance *play_instance;
+	struct m0_pool_version     *pver;
 
 	M0_ENTRY("io_request %p, rw %d", req, rw);
 	M0_PRE(req  != NULL);
@@ -4058,6 +4122,16 @@ static int io_request_init(struct io_request        *req,
 	if (req->ir_nwxfer.nxr_rc != 0)
 		return M0_ERR_INFO(req->ir_nwxfer.nxr_rc, "nw_xfer_req_init()"
 			       " failed");
+	play = pdlayout_get(req);
+	play_instance = pdlayout_instance(layout_instance(req));
+	pver = play_instance->pi_base.li_l->l_pver;
+	max_failures = tolerance_of_level(req, M0_FTA_DEPTH_CONT);
+	M0_ALLOC_ARR(req->ir_failed_session, max_failures + 1);
+	if (req->ir_failed_session == NULL)
+		return M0_ERR_INFO(-ENOMEM, "Allocation of an array of failed sessions.");
+	for (i = 0; i < max_failures; ++i) {
+		req->ir_failed_session[i] = ~(uint64_t)0;
+	}
 
 	m0_sm_init(&req->ir_sm, &io_sm_conf, IRS_INITIALIZED,
 		   file_to_smgroup(req->ir_file));
@@ -4113,6 +4187,7 @@ static void io_request_fini(struct io_request *req)
 
 	nw_xfer_request_fini(&req->ir_nwxfer);
 
+	m0_free(req->ir_failed_session);
 	m0_sm_group_unlock(grp);
 	M0_LEAVE();
 }

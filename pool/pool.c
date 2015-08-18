@@ -447,7 +447,7 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 
 	m0_conf_diter_fini(&it);
 
-	M0_POST(dev_idx == pv->pv_attr.pa_P);
+	M0_POST(dev_idx <= pv->pv_attr.pa_P);
 	return M0_RC(rc);
 }
 
@@ -561,10 +561,6 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 	M0_ENTRY();
 	M0_PRE(pv != NULL && pver != NULL && pool != NULL && pc != NULL);
 
-	/*
-	 * XXX TODO: Remove this once pool width is encoded to
-	 * struct m0_conf_pver.
-	 */
 	rc = _nodes_count(pver, &nodes);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -576,9 +572,12 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 	if (rc == 0) {
 		pool_version_tlist_add_tail(&pool->po_vers, pv);
 		pv->pv_pc = pc;
+		memcpy(pv->pv_fd_tol_vec, pver->pv_nr_failures,
+		       M0_FTA_DEPTH_MAX * sizeof pver->pv_nr_failures[0]);
 		rc = m0_fd_tile_build(pver, pv, &failure_level);
-		if (rc == 0)
+		if (rc == 0) {
 			rc = m0_fd_tree_build(pver, &pv->pv_fd_tree);
+		}
 	}
 
 	M0_POST(pool_version_invariant(pv));
@@ -920,7 +919,7 @@ M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
 M0_INTERNAL uint64_t
 m0_pool_version2layout_id(const struct m0_fid *pv_fid, uint64_t lid)
 {
-        return m0_hash(m0_fid_hash(pv_fid) + lid);
+	        return m0_hash(m0_fid_hash(pv_fid) + lid);
 }
 
 #ifndef __KERNEL__

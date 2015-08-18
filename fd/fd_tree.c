@@ -39,6 +39,7 @@ M0_INTERNAL int m0_fd__tree_node_init(struct m0_fd_tree *tree,
 	node->ftn_depth     = cursor->ftc_depth;
 	node->ftn_rel_idx   = cursor->ftc_child_idx;
 	node->ftn_abs_idx   = cursor->ftc_child_abs_idx;
+	node->ftn_ha_state  = M0_NC_ONLINE;
 	++tree->ft_cnt;
 	node->ftn_child_nr  = child_nr;
 	node->ftn_children  = m0_alloc(child_nr * sizeof node->ftn_children[0]);

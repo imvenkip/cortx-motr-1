@@ -24,6 +24,7 @@ separate_file_dd_count_start=0
 st_dir=$MERO_CORE_ROOT/m0t1fs/linux_kernel/st
 blk_size=$((stride * 1024))
 half_blk=$((blk_size / 2))
+OOSTORE=${1-1}
 
 valid_count_get()
 {
@@ -40,6 +41,12 @@ valid_count_get()
 		input_file_size=`expr $i \* $bs`
 	done
 	return $i
+}
+
+largest_count_get()
+{
+	cnt=`expr $ABCD_SOURCE_SIZE \/ $1`
+	return $cnt
 }
 
 fmio_truncation_module()
@@ -101,8 +108,9 @@ fmio_truncation_module()
 	fi
 	echo "Test truncation of a large file"
 	bs=2097152
-	valid_count_get $bs
+	largest_count_get $bs
 	cnt=$?
+	echo "count for a large file = $cnt"
 	fmio_files_write dd bs=$bs count=$cnt
 	rc=$?
 	if [ $rc -ne "0" ]
@@ -110,8 +118,9 @@ fmio_truncation_module()
 		echo "File truncation failed with bs=$bs and count=$cnt"
 		return $rc
 	fi
-	valid_count_get $blk_size
+	largest_count_get $bs
 	cnt=$?
+	echo "count for a large file = $cnt"
 	fmio_files_write dd bs=$blk_size count=$cnt
 	rc=$?
 	if [ $rc -ne "0" ]
@@ -497,19 +506,38 @@ fmio_io_test()
 		echo "Failed: create after first $step, rc $rc..."
 		return 1
 	fi
-
 	echo -e "\n*** $test_name test 2: IO and read after first $step ***"
-	fmio_files_write dd bs=$block_size count=60 || {
-		echo "Failed: IO or read after first $step..."
+	fmio_files_write dd bs=$block_size count=60
+	rc=$?
+	# Currently we do not switch to a newer pool-version on disk failure.
+	# Till then file write post device failure should fail in oostore mode.
+	# This should be changed once MERO-1166 lands into master.
+	if [[ $OOSTORE -eq 1 && $rc -eq 0 ]] || [[ $OOSTORE -eq 0 && $rc -ne 0 ]]
+	then
+		echo "Failed: IO or read after first $step, rc=$rc OOSTORE=$OOSTORE"
 		return 1
-	}
+	fi
 	if [ $single_file_test -eq 1 ]
 	then
 		echo -e "\n*** $test_name test 2.1: Another IO and read after first $step ***"
-		fmio_files_write dd bs=8821 count=5 seek=23 conv=notrunc || {
-			echo "Failed: IO or read after first $step..."
+		fmio_files_write dd bs=8821 count=5 seek=23 conv=notrunc
+		if [[ $OOSTORE -eq 1 && $rc -eq 0 ]] || [[ $OOSTORE -eq 0 && $rc -ne 0 ]]
+		then
+			echo "Failed: IO or read after first $step, rc=$rc OOSTORE=$OOSTORE"
 			return 1
-		}
+		fi
+	fi
+	if [ $OOSTORE -eq 1 ]
+	then
+		rm -rf $file_to_create1
+		rc=$?
+		if [ $rc -ne 0 ]
+		then
+			echo "File deletion failed"
+			return 1
+		fi
+		echo "Deleted the file"
+		return 0
 	fi
 	echo "Sending device2 failure"
 	fmio_pool_mach_set_failure $fail_device2 || {
@@ -520,10 +548,8 @@ fmio_io_test()
 	then
 		echo "Repairing after device2 failure"
 		fmio_sns_repair || {
-			return 1
-		}
-	fi
-
+		return 1
+	} fi
 	echo "Create a file after second $step: $file_to_create2"
 	touch $file_to_create2
 	rc=$?
@@ -551,11 +577,11 @@ fmio_io_test()
 	}
 
 	echo "Sending device3 failure"
-	fmio_pool_mach_set_failure $fail_device3 || {
+		fmio_pool_mach_set_failure $fail_device3 || {
 		return 1
 	}
 
-	# Code gets hung during large file truncation.
+# Code gets hung during large file truncation.
 #	if [ $single_file_test -eq 1 ]
 #	then
 #		echo "Truncation after two repairs and one failure"
@@ -569,10 +595,10 @@ fmio_io_test()
 
 	if [ $failed_dev_test -ne 1 ] 
 	then
-	echo "Repairing after device3 failure"
+		echo "Repairing after device3 failure"
 		fmio_sns_repair || {
 		return 1
-		}
+	}
 	fi
 	echo -e "\n*** $test_name test 6: Read after third $step ***"
 	fmio_files_compare || {
@@ -600,7 +626,6 @@ fmio_io_test()
 		echo "Failed: IO or read after third $step..."
 		return 1
 	}
-
 	return 0
 }
 
@@ -613,12 +638,12 @@ fmio_failed_dev_test()
 
 	echo "Starting failed device IO testing"
 	fmio_io_test || {
-		echo "Failed: fmio_io_test for failed device..."
-		return 1
-	}
+	echo "Failed: fmio_io_test for failed device..."
+	return 1
+}
 
-	echo -e "failed device IO test succeeded"
-	return 0
+echo -e "failed device IO test succeeded"
+return 0
 }
 
 fmio_repaired_dev_test()
@@ -630,12 +655,12 @@ fmio_repaired_dev_test()
 
 	echo "Starting repaired device IO testing"
 	fmio_io_test || {
-		echo "Failed: fmio_io_test for repaired device..."
-		return 1
-	}
+	echo "Failed: fmio_io_test for repaired device..."
+	return 1
+}
 
-	echo -e "repaired device IO test succeeded"
-	return 0
+echo -e "repaired device IO test succeeded"
+return 0
 }
 
 fmio_mero_service_start()
@@ -679,17 +704,22 @@ fmio_m0t1fs_mount()
 {
 	# XXX MERO-704: Perform testing with non-oostore mode once MERO-678 is
 	# fixed
-	local mountopt="oostore,verify"
-
+	if [ $1 -eq 0 ]
+	then
+		local mountopt="verify"
+	else
+		local mountopt="oostore,verify"
+	fi
+	echo "Mount options are $mountopt"
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
 		mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P $mountopt &>> $MERO_TEST_LOGFILE || {
-			cat $MERO_TEST_LOGFILE
-			return 1
-		}
-		mount
-	fi
-	return 0
+		cat $MERO_TEST_LOGFILE
+		return 1
+	}
+	mount
+fi
+return 0
 }
 
 fmio_m0t1fs_unmount()
@@ -704,16 +734,16 @@ fmio_m0t1fs_unmount()
 
 fmio_m0t1fs_clean()
 {
-        echo "cleaning Mero mountpoint.."
-        rm -f $file_to_create1
-        rm -f $file_to_create2
-        rm -f $file_to_create3
-        # Delete file created for single file io testing.
-        rm -f "$MERO_M0T1FS_MOUNT_DIR/0:10000"
-        # Delete files created for separate file io testing.
-        for ((i=separate_file_dd_count_start; i <= $dd_count; i++)) ; do
-                rm -f "$MERO_M0T1FS_MOUNT_DIR/0:1000$i"
-        done
+	echo "cleaning Mero mountpoint.."
+	rm -f $file_to_create1
+	rm -f $file_to_create2
+	rm -f $file_to_create3
+	# Delete file created for single file io testing.
+	rm -f "$MERO_M0T1FS_MOUNT_DIR/0:10000"
+	# Delete files created for separate file io testing.
+	for ((i=separate_file_dd_count_start; i <= $dd_count; i++)) ; do
+		rm -f "$MERO_M0T1FS_MOUNT_DIR/0:1000$i"
+	done
 }
 
 failure_modes_test()
@@ -752,16 +782,25 @@ failure_modes_test()
 			echo "Failed: failed device IO test..."
 			return 1
 		}
-
-		echo "--------------------------------------------------------"
-		echo "Done with the failed device IO testing ($str)"
-		echo "--------------------------------------------------------"
-
-		echo -e "Mark the devices online again before the next test"
-		fmio_repair_n_rebalance || {
-			return 1
-		}
+	echo "--------------------------------------------------------"
+	echo "Done with the failed device IO testing ($str)"
+	echo "--------------------------------------------------------"
+	# @todo- Can not run repair in non-oostore mode till MERO-678 gets
+	# fixed.
+	if [ $OOSTORE -ne 1 ]
+	then
+		return 0
 	fi
+	echo -e "Mark the devices online again before the next test"
+	fmio_repair_n_rebalance || {
+		return 1
+	}
+	fi
+	#@todo Run sns_repair and rebalance tests in oostore mode only when MERO-1166 lands.
+	# This is so because till then new pool version won't get created for
+	# disk failure and hence tests won't be different than the failed device
+	# case.
+	return 0
 
 	if [ $failure_mode == $REPAIRED_DEVICES ] || [ $failure_mode == $BOTH_DEVICES ]
 	then
@@ -774,15 +813,15 @@ failure_modes_test()
 		# Perform repaired device IO test by 'marking some devices as
 		# failed followed by performing repair' in between
 		fmio_repaired_dev_test || {
-			echo "Failed: repaired device IO test..."
-			return 1
-		}
+		echo "Failed: repaired device IO test..."
+		return 1
+	}
 
-		echo "--------------------------------------------------------"
-		echo "Done with the repaired device IO testing ($str)"
-		echo "--------------------------------------------------------"
+	echo "--------------------------------------------------------"
+	echo "Done with the repaired device IO testing ($str)"
+	echo "--------------------------------------------------------"
 
-		echo -e "Mark the devices online again before the next test"
+	echo -e "Mark the devices online again before the next test"
 		fmio_sns_rebalance || {
 			echo "Failed: sns rebalance..."
 			return 1
@@ -793,6 +832,17 @@ failure_modes_test()
 
 main()
 {
+	if [ $OOSTORE -eq 0 ]
+	then
+		echo "*********************************************************"
+		echo "Running non-oostore test."
+		echo "*********************************************************"
+
+	else
+		echo "*********************************************************"
+		echo "Running oostore test."
+		echo "*********************************************************"
+	fi
 	NODE_UUID=`uuidgen`
 	fmio_sandbox="$MERO_M0T1FS_TEST_DIR/sandbox"
 	rc=0
@@ -826,14 +876,13 @@ main()
 
 	echo -e "\nPreprocessing for failure modes IO testing"
 	fmio_mero_service_start || {
-		return 1
+	return 1
 	}
 
 	fmio_pre || {
 		return 1
 	}
-
-	fmio_m0t1fs_mount || {
+	fmio_m0t1fs_mount $OOSTORE || {
 		fmio_mero_service_stop
 		return 1
 	}
@@ -846,13 +895,13 @@ main()
 		echo "========================================================"
 		single_file_test=1
 		failure_modes_test || {
-			fmio_m0t1fs_unmount
-			fmio_mero_service_stop
-			return 1
-		}
-		echo "========================================================"
-		echo "Done with the single file IO testing"
-		echo "========================================================"
+		fmio_m0t1fs_unmount
+		fmio_mero_service_stop
+		return 1
+	}
+	echo "========================================================"
+	echo "Done with the single file IO testing"
+	echo "========================================================"
 	fi
 
 	if [ $file_kind == $SEPARATE_FILE ] || [ $file_kind == $BOTH_FILE_KINDS ]
@@ -861,22 +910,21 @@ main()
 		echo "Start with the separate file IO testing"
 		echo "========================================================"
 		single_file_test=0
-                # Save current dd_count to track number of files created for
-                # separate file IO testing.
-	        separate_file_dd_count_start=`expr $dd_count + 1`
+		# Save current dd_count to track number of files created for
+		# separate file IO testing.
+		separate_file_dd_count_start=`expr $dd_count + 1`
 		failure_modes_test || {
-			fmio_m0t1fs_unmount
-			fmio_mero_service_stop
-			return 1
+		fmio_m0t1fs_unmount
+		fmio_mero_service_stop
+		return 1
 		}
 		echo "========================================================"
 		echo "Done with the separate file IO testing"
 		echo "========================================================"
 	fi
-
-        fmio_m0t1fs_clean || {
-                rc=1
-        }
+	fmio_m0t1fs_clean || {
+		rc=1
+	}
 
 	fmio_m0t1fs_unmount || {
 		rc=1
@@ -885,7 +933,6 @@ main()
 	fmio_mero_service_stop || {
 		rc=1
 	}
-
 	echo "********************************************************"
 	echo "Done with the failure modes IO testing"
 	echo "********************************************************"
@@ -896,9 +943,8 @@ main()
 
 trap unprepare EXIT
 main
-
 # this msg is used by Jenkins as a test success criteria;
 # it should appear on STDOUT
 if [ $? -eq 0 ] ; then
-    echo "degraded-mode: test status: SUCCESS"
+    echo "degraded-mode-IO: test status: SUCCESS"
 fi
