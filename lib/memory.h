@@ -82,7 +82,7 @@ M0_INTERNAL void m0_memory_pagein(void *addr, size_t size);
 #define M0_ALLOC_PTR(ptr)      M0_ALLOC_ARR(ptr, 1)
 
 #define M0_ALLOC_ARR_ALIGNED(arr, nr, shift)		\
-	((arr) = m0_alloc_aligned((nr) * sizeof ((arr)[0])), shift)
+	((arr) = m0_alloc_aligned((nr) * sizeof ((arr)[0]), (shift)))
 
 /**
    Allocates zero-filled memory, aligned on (2^shift)-byte boundary.

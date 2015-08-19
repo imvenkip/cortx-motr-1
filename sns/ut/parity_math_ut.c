@@ -1232,13 +1232,19 @@ static void bufvec_buf(struct m0_bufvec *bvec, struct m0_buf *buf,
 	}
 }
 
+static void _buf_free(struct m0_buf *buf)
+{
+	m0_free_aligned(buf->b_addr, buf->b_nob, 12);
+	buf->b_nob = 0;
+}
+
 static void buf_initialize(struct m0_buf *buf, uint32_t size, uint32_t len)
 {
 	uint32_t j;
 	uint8_t	*arr;
 
 	for (j = 0; j < size; ++j) {
-		M0_ALLOC_ARR(arr, len);
+		M0_ALLOC_ARR_ALIGNED(arr, len, 12);
 		M0_UT_ASSERT(arr != NULL);
 		m0_buf_init(&buf[j], arr, len);
 	}
@@ -1249,7 +1255,7 @@ static void buf_free(struct m0_buf *buf, uint32_t count)
 	uint32_t i;
 
 	for (i = 0; i < count; ++i) {
-		m0_buf_free(&buf[i]);
+		_buf_free(&buf[i]);
 	}
 }
 
