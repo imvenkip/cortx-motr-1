@@ -379,8 +379,41 @@ try to adhere to some higher level idioms.
       documentation of m0_trace_level enum.
 
     * consider using M0_ENTRY()/M0_LEAVE() at function's entry and exit points,
-      as well as M0_RC() and M0_ERR_INFO() to explicitly return from function, which
-      conforms to the standard return code convention.
+      as well as M0_RC() and M0_ERR_INFO() to explicitly return from function,
+      which conforms to the standard return code convention.
+
+    * When a function is about to return a "leaf level" error (i.e., an
+      error initially produced by this function, rather than returned
+      from a lower level Mero function), it should wrap the error code in
+      M0_ERR():
+
+              result = M0_ERR(-EFAULT);
+              ...
+              return M0_RC(result);
+
+      or
+
+              return M0_ERR(-EIO);
+
+      (an error, returned by a non-Mero function, is considered leaf).
+
+      A non-leaf errors should be reported optionally, when this
+      doesn't lead to artificial code complication for reporting
+      sake. For example,
+
+              result = m0_foo(bar);
+              if (result != 0)
+                      return M0_ERR(result);
+
+      but usually not
+
+              result = m0_foo(bar);
+              ...
+              return result == 0 ? M0_RC(0) : M0_ERR(result);
+
+      Rationale: error reporting through M0_ERR() is important for log
+      analysis. Reporting leaf errors is more important, because
+      call-chain can usually be traced upward easily.
 
 Things to look after:
 
