@@ -8,4 +8,7 @@ PartOf=mero.service
 
 [Service]
 Type=notify
+Restart=on-abort
+StartLimitInterval=5
+StartLimitBurst=1
 ExecStart=/usr/libexec/mero/mero-server confd
