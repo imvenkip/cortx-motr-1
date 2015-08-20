@@ -187,9 +187,9 @@ find_available_disks()
     local pattern=$1
     local disk
 
-    info "Checking available disks"
+    info "Checking available disks, matching pattern '$pattern'"
 
-    for disk in $(ls $pattern 2>/dev/null | grep -v -E -e '-part[0-9]+') ; do
+    for disk in $(bash -c "ls $pattern" 2>/dev/null | grep -v -E -e '-part[0-9]+') ; do
         local rotational=$(cat /sys/block/$(real_device_name $disk)/queue/rotational 2>/dev/null)
         local size=$(blockdev --getsize64 $disk)
         local have_valid_mbr=1

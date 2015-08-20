@@ -1,0 +1,255 @@
+#!/bin/bash
+
+### set up loop devices and generate genders and disks-*.conf files for given
+### N K P configuration on a single node
+
+#
+# Global vars
+#
+
+# constants
+readonly PROG_NAME=$(basename $0)
+readonly self=$(readlink -f $0)
+readonly top_srcdir=$(dirname $self | sed -r -e 's#/?utils/?$##' -e 's#^/usr/s?bin##')
+readonly etc_mero_dir='/etc/mero'
+
+# variables
+verbose=false
+do_cleanup=false
+pool_width=8
+data_units=2
+parity_units=1
+ios_num=1
+loop_img_dir='/var/mero'
+loop_img_size_gb=64
+
+#
+# Usage
+#
+
+help()
+{
+    [[ $1 == stdout ]] && usage || usage >&2
+    exit 1
+}
+
+usage()
+{
+    cat <<USAGE_END
+Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
+               [-P|--pool-width num] [-N|--data-units num] [-K|--parity-units num]
+               [-i|--ios-number num] [-d|--disk-img-dir path] [-s|--disk-size GiBs]
+
+   -P|--pool-width num     Total number of disks in the pool. So many loop
+                           devices will be provisioned. Default is ${pool_width}.
+
+   -N|--data-units num     Number of data units in parity group.
+                           Default is ${data_units}.
+
+   -K|--parity-units num   Number of parity units in parity group.
+                           Default is ${parity_units}.
+
+   -i|--ios-number num     Number of ioservices to start. Default is ${ios_num}.
+
+   -d|--loop-img-dir path  Directory, where to create image files for loop
+                           devices. Default is '$loop_img_dir'.
+
+   -s|--disk-size GiBs     Size of image files for loop devices in GiB.
+                           Default is ${loop_img_size_gb}.
+
+   -c                      Detach connected loop devices and remove image files.
+                           Number of loop devices is taken from '-P|--pool-width'
+                           and image files location from '-d|--loop-img-dir'
+                           options.
+
+   -v|--verbose            Enable verbose output.
+
+   -h|--help               Print this help screen.
+USAGE_END
+}
+
+#
+# Parse CLI options
+#
+
+parse_cli_options()
+{
+    # Note that we use `"$@"' to let each command-line parameter expand to a
+    # separate word. The quotes around `$@' are essential!
+    # We need TEMP as the `eval set --' would nuke the return value of getopt.
+    TEMP=$( getopt --options hvcP:N:K:i:d:s: \
+                   --longoptions help,verbose,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,disk-size: \
+                   --name "$PROG_NAME" -- "$@" )
+
+    [[ $? -ne 0 ]] && help
+
+    # Note the quotes around `$TEMP': they are essential!
+    eval set -- "$TEMP"
+
+    while true ; do
+        case "$1" in
+            -h|--help)          help stdout ;;
+            -c)                 do_cleanup=true;      shift   ;;
+            -P|--pool-width)    pool_width=$2;        shift 2 ;;
+            -N|--data-units)    data_units=$2;        shift 2 ;;
+            -K|--parity-units)  parity_units=$2;      shift 2 ;;
+            -i|--ios-number)    ios_num=$2;           shift 2 ;;
+            -d|--loop-img-dir)  loop_img_dir=$2;      shift 2 ;;
+            -s|--disk-size)     loop_img_size_gb=$2;  shift 2 ;;
+            -v)                 verbose=true;         shift   ;;
+            --)                 shift; break ;;
+            *)                  echo 'getopt: internal error...'; exit 1 ;;
+        esac
+    done
+}
+
+#
+# Utility functions
+#
+
+log()
+{
+    echo "--->  $*"
+}
+
+debug()
+{
+    ! $verbose || echo -e "$PROG_NAME:  DEBUG:  $*"
+}
+
+warn()
+{
+    echo "$PROG_NAME: WARNING: $*"
+}
+
+die()
+{
+    echo "$PROG_NAME:  ERROR:  $*" >&2
+    exit 1
+}
+
+path_of()
+{
+    if [[ -z $top_srcdir ]] ; then
+        echo "$1"
+    else
+        echo "$top_srcdir/utils/$1"
+    fi
+}
+
+init_loop_devices()
+{
+    if [[ ! -d $loop_img_dir ]] ; then
+        warn "'$loop_img_dir' doesn't exist, creating.."
+        mkdir -p "$loop_img_dir"
+    fi
+
+    log "Creating $pool_width file images, ${loop_img_size_gb}GiB each, in '$loop_img_dir'"
+    for i in $(seq $pool_width) ; do
+        local img_file="$loop_img_dir/disk$i.img"
+        debug "$img_file"
+        dd if=/dev/zero of="$img_file" \
+           bs=1M seek=$(( $loop_img_size_gb * 1024 - 1 )) count=1 &>/dev/null
+    done
+
+    log "Setting up loop devices"
+    for i in $(seq $pool_width) ; do
+        local img_file="$loop_img_dir/disk$i.img"
+        debug "/dev/loop$i => $img_file"
+        losetup /dev/loop$i "$img_file"
+    done
+}
+
+cleanup_loop_devices()
+{
+    log "Removing loop devices"
+    losetup -D
+
+    log "Removing file images"
+    for i in $(seq $pool_width) ; do
+        local img_file="$loop_img_dir/disk$i.img"
+        debug "$img_file"
+        rm -f "$img_file"
+    done
+}
+
+generate_genders_config()
+{
+    local genders_file=$etc_mero_dir/genders
+    log "Generating genders file '$genders_file'"
+
+    local ios
+    for i in $(seq $ios_num) ; do
+        ios="$ios${ios:+;}ios$i"
+    done
+
+    local hostname=$(hostname -s)
+    cat <<GENDERS_END > $genders_file
+$hostname  m0_datadir=/var/mero
+$hostname  m0_t1fs_mountpoint=/mnt/m0t1fs
+$hostname  m0_data_units=$data_units
+$hostname  m0_parity_units=$parity_units
+$hostname  m0_pool_width=$pool_width
+$hostname  m0_services=confd;ha;mds;$ios
+$hostname  m0_max_rpc_msg_size=65536
+$hostname  m0_uuid=$(uuidgen)
+$hostname  m0_min_rpc_recvq_len=16
+$hostname  m0_lnet_nid=auto
+$hostname  m0_be_segment_size=536870912
+$hostname  m0_node_type=singlenode
+GENDERS_END
+
+    debug "genders:\n-----BEGIN GENDERS-----\n$(cat $genders_file)\n-----END GENDERS-----"
+}
+
+generate_disk_configs()
+{
+    local m0gendisks=$(path_of m0gendisks)
+    local disks_per_ios=$(( $pool_width / $ios_num ))
+    local start_id=1
+
+    log "Generating disks-*.conf files"
+    for i in $(seq $ios_num) ; do
+        local vopt=$( $verbose && echo '-v' )
+        local disks_conf="$etc_mero_dir/disks-ios${i}.conf"
+        local disk_pattern="/dev/loop{${start_id}..$(( $start_id + $disks_per_ios - 1 ))}"
+        debug "$disks_conf $disk_pattern"
+        $m0gendisks -d $disks_per_ios -S $start_id -p "$disk_pattern" \
+                    -o "$disks_conf" $vopt
+        start_id=$(( $start_id + $disks_per_ios ))
+    done
+}
+
+#
+# Main
+#
+
+# exit immediately if one the commands exits with a non-zero status
+set -e
+
+parse_cli_options "$@"
+
+[[ $UID -eq 0 ]] ||
+    die 'Please, run this script with "root" privileges.'
+
+if $do_cleanup ; then
+    cleanup_loop_devices
+    exit 0
+fi
+
+[[ $(( $pool_width % $ios_num )) -eq 0 ]] ||
+    die "Requested configuration with pool-width=$pool_width and" \
+        "ios-number=$ios_num is not supported, pool-width should be a multiple" \
+        "of ios-number"
+
+log "Requested configuration: [P=$pool_width N=$data_units K=$parity_units]" \
+    "with $ios_num ioservice(s), ${loop_img_size_gb}GiB disks in '$loop_img_dir'"
+
+[[ -d $etc_mero_dir ]] || {
+    warn "'$etc_mero_dir' doesn't exits, creating.." ;
+    mkdir -p "$etc_mero_dir" ;
+}
+
+generate_genders_config
+init_loop_devices
+generate_disk_configs
