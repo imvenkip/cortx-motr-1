@@ -209,8 +209,11 @@ struct m0_conf_obj {
 	uint64_t                      co_nrefs;
 
 	/**
-	 * Channel on which "configuration loading completed" and
-	 * "object unpinned" events are announced.
+	 * Channel on which following events are announced:
+	 * - configuration loading completed;
+	 * - object unpinned;
+	 * - HA state changed (only if co_status == M0_CS_READY).
+	 * Protected by configuration cache lock (co_cache->ca_lock).
 	 */
 	struct m0_chan                co_chan;
 
@@ -223,7 +226,7 @@ struct m0_conf_obj {
 	/** Linkage to m0_conf_dir::cd_items. */
 	struct m0_tlink               co_dir_link;
 
-	/** Linkage to m0t1fs_sb::csb_failure_set . */
+	/** Linkage to m0t1fs_sb::csb_failure_set. */
 	struct m0_tlink               co_fs_link;
 
 	/**
@@ -249,9 +252,6 @@ struct m0_conf_obj {
 
 	/** HA-related state of this configuration object. */
 	enum m0_ha_obj_state          co_ha_state;
-
-	/** Call-back function for HA event */
-	void                        (*co_ha_callback)(struct m0_conf_obj *obj);
 };
 
 struct m0_conf_obj_type {

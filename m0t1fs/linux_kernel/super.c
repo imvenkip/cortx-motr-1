@@ -46,6 +46,7 @@
 #include "reqh/reqh.h"
 #include "addb2/global.h"
 #include "addb2/sys.h"
+#include "pool/flset.h"        /* m0_flset_build, m0_flset_destroy */
 
 extern struct io_mem_stats iommstats;
 extern struct m0_bitmap    m0t1fs_client_ep_tmid;
@@ -566,7 +567,7 @@ int m0t1fs_pool_find(struct m0t1fs_sb *csb)
 	int                  rc;
 
 	rc = m0_conf_poolversion_get(&reqh->rh_profile, &reqh->rh_confc,
-				     &reqh->rh_failure_sets, &pver);
+				     &reqh->rh_failure_set, &pver);
 	if (rc != 0)
 		return M0_RC(rc);
 	cp = M0_CONF_CAST(pver->pv_obj.co_parent->co_parent, m0_conf_pool);
@@ -639,8 +640,8 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_pool_versions_destroy;
 
-	rc = m0_conf_failure_sets_build(&reqh->rh_pools->pc_ha_ctx->sc_session,
-					fs, &reqh->rh_failure_sets);
+	rc = m0_flset_build(&reqh->rh_failure_set,
+			    &reqh->rh_pools->pc_ha_ctx->sc_session, fs);
 	if (rc != 0)
 		goto err_ha_destroy;
 
@@ -668,7 +669,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 err_services_terminate:
 	m0_reqh_services_terminate(reqh);
 err_failure_set_destroy:
-	m0_conf_failure_sets_destroy(&reqh->rh_failure_sets);
+	m0_flset_destroy(&reqh->rh_failure_set);
 err_ha_destroy:
 	m0_ha_state_fini();
 err_pool_versions_destroy:
@@ -695,7 +696,7 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0t1fs_sb_layouts_fini(csb);
 	m0_reqh_services_terminate(&csb->csb_reqh);
 	/* @todo Make a separate unconfigure api and do this in that */
-	m0_conf_failure_sets_destroy(&csb->csb_reqh.rh_failure_sets);
+	m0_flset_destroy(&csb->csb_reqh.rh_failure_set);
 	m0_ha_state_fini();
 	m0_pool_versions_destroy(&csb->csb_pools_common);
 	m0_pools_service_ctx_destroy(&csb->csb_pools_common);

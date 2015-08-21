@@ -107,7 +107,7 @@ static const struct m0_conf_obj_ops profile_ops = {
 	.coo_delete    = profile_delete
 };
 
-M0_CONF__CTOR_DEFINE(profile_create, m0_conf_profile, &profile_ops, NULL);
+M0_CONF__CTOR_DEFINE(profile_create, m0_conf_profile, &profile_ops);
 
 const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE = {
 	.cot_ftype = {

@@ -59,6 +59,7 @@
 #include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */
 #include "ioservice/storage_dev.h"
 #include "stob/linux.h"
+#include "pool/flset.h"         /* m0_flset_build, m0_flset_destroy */
 
 /**
    @addtogroup m0d
@@ -2011,8 +2012,8 @@ int m0_cs_start(struct m0_mero *cctx)
         if (rc != 0)
 		goto error;
 
-        rc = m0_conf_failure_sets_build(&reqh->rh_pools->pc_ha_ctx->sc_session,
-					fs, &reqh->rh_failure_sets);
+        rc = m0_flset_build(&reqh->rh_failure_set,
+			    &reqh->rh_pools->pc_ha_ctx->sc_session, fs);
 	if (rc != 0)
                 return M0_ERR(rc);
 
@@ -2058,7 +2059,7 @@ void m0_cs_fini(struct m0_mero *cctx)
 		m0_reqh_layouts_cleanup(reqh);
 
 	if (cctx->cc_pools_common.pc_ha_ctx != NULL)
-		m0_conf_failure_sets_destroy(&reqh->rh_failure_sets);
+		m0_flset_destroy(&reqh->rh_failure_set);
 
 	cs_conf_destroy(cctx);
 	if (rctx->rc_state >= RC_REQH_INITIALISED)

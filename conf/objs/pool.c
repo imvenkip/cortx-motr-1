@@ -239,7 +239,7 @@ static const struct m0_conf_obj_ops pool_ops = {
 	.coo_delete    = pool_delete
 };
 
-M0_CONF__CTOR_DEFINE(pool_create, m0_conf_pool, &pool_ops, NULL);
+M0_CONF__CTOR_DEFINE(pool_create, m0_conf_pool, &pool_ops);
 
 const struct m0_conf_obj_type M0_CONF_POOL_TYPE = {
 	.cot_ftype = {

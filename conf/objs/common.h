@@ -46,7 +46,7 @@ static bool name(const struct m0_conf_obj *obj)                  \
 }                                                                \
 struct __ ## type ## _semicolon_catcher
 
-#define M0_CONF__CTOR_DEFINE(name, type, ops, ha_cb) \
+#define M0_CONF__CTOR_DEFINE(name, type, ops) \
 static struct m0_conf_obj *name(void)         \
 {                                             \
 	struct type        *x;                \
@@ -59,7 +59,6 @@ static struct m0_conf_obj *name(void)         \
 	type ## _bob_init(x);                 \
 	ret = &x->type ## _cast_field;        \
 	ret->co_ops = ops;                    \
-	ret->co_ha_callback = ha_cb;          \
 	return ret;                           \
 }                                             \
 struct __ ## type ## _semicolon_catcher

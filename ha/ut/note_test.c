@@ -42,6 +42,7 @@
 #include "ha/note_fops_xc.h"
 #include "ha/note_xc.h"
 #include "conf/helpers.h"  /* m0_conf_fs_get */
+#include "pool/flset.h"
 
 /* See "ha/ut/Makefile.sub" for M0_HA_UT_DIR */
 #define M0_HA_UT_PATH(name)   M0_QUOTE(M0_CONF_UT_DIR) "/" name
@@ -327,13 +328,13 @@ static void failure_sets_build(struct m0_reqh *reqh, struct m0_ha_nvec *nvec)
         rc = m0_conf_full_load(fs);
         M0_UT_ASSERT(rc == 0);
 
-	rc = m0_conf_failure_sets_build(session, fs, &reqh->rh_failure_sets);
+	rc = m0_flset_build(&reqh->rh_failure_set, session, fs);
 	M0_UT_ASSERT(rc == 0);
 }
 
 static void failure_sets_destroy(struct m0_reqh *reqh)
 {
-	m0_conf_failure_sets_destroy(&reqh->rh_failure_sets);
+	m0_flset_destroy(&reqh->rh_failure_set);
 	m0_confc_close(&fs->cf_obj);
 	m0_confc_fini(&reqh->rh_confc);
 }
@@ -341,7 +342,6 @@ static void failure_sets_destroy(struct m0_reqh *reqh)
 static void test_failure_sets(void)
 {
 	struct m0_reqh             reqh;
-	struct m0_conf_obj        *obj;
 	struct m0_ha_note n1[] = {
 		{ M0_FID_TINIT('a', 1, 3),  M0_NC_FAILED },
 		{ M0_FID_TINIT('e', 1, 7),  M0_NC_FAILED },
@@ -351,12 +351,11 @@ static void test_failure_sets(void)
 
 	failure_sets_build(&reqh, &nvec);
 
-	M0_UT_ASSERT(m0_conf_failure_sets_tlist_length(&reqh.rh_failure_sets) ==
- 			ARRAY_SIZE(n1));
+	M0_UT_ASSERT(m0_flset_tlist_length(&reqh.rh_failure_set.fls_objs) ==
+				ARRAY_SIZE(n1));
 
-	m0_tl_for(m0_conf_failure_sets, &reqh.rh_failure_sets, obj) {
-		M0_UT_ASSERT(obj->co_ha_state == M0_NC_FAILED);
-	} m0_tlist_endfor;
+	M0_UT_ASSERT(m0_tl_forall(m0_flset, obj, &reqh.rh_failure_set.fls_objs,
+				  obj->co_ha_state == M0_NC_FAILED));
 
 	failure_sets_destroy(&reqh);
 }
@@ -379,7 +378,7 @@ static void test_poolversion_get(void)
 	failure_sets_build(&reqh, &nvec);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
-				     &reqh.rh_failure_sets, &pver0);
+				     &reqh.rh_failure_set, &pver0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_fid_eq(&pver0->pv_obj.co_id, &M0_FID_TINIT('v', 1, 8)));
 
@@ -389,7 +388,7 @@ static void test_poolversion_get(void)
 	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
-				     &reqh.rh_failure_sets, &pver1);
+				     &reqh.rh_failure_set, &pver1);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver0->pv_nfailed == 1);
 	M0_UT_ASSERT(m0_fid_eq(&pver1->pv_obj.co_id,
@@ -401,7 +400,7 @@ static void test_poolversion_get(void)
 	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
-				     &reqh.rh_failure_sets, &pver2);
+				     &reqh.rh_failure_set, &pver2);
 	M0_UT_ASSERT(rc == -ENOENT);
 	M0_UT_ASSERT(pver1->pv_nfailed == 1);
 
@@ -411,7 +410,7 @@ static void test_poolversion_get(void)
 	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
-				     &reqh.rh_failure_sets, &pver2);
+				     &reqh.rh_failure_set, &pver2);
 	M0_UT_ASSERT(rc == -ENOENT);
 	M0_UT_ASSERT(pver0->pv_nfailed == 2);
 
@@ -421,7 +420,7 @@ static void test_poolversion_get(void)
 	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
-				     &reqh.rh_failure_sets, &pver2);
+				     &reqh.rh_failure_set, &pver2);
 	M0_UT_ASSERT(rc == -ENOENT);
 	M0_UT_ASSERT(pver0->pv_nfailed == 1);
 
@@ -431,7 +430,7 @@ static void test_poolversion_get(void)
 	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
-				     &reqh.rh_failure_sets, &pver2);
+				     &reqh.rh_failure_set, &pver2);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver2 != NULL);
 	M0_UT_ASSERT(pver0->pv_nfailed == 0);
@@ -467,14 +466,14 @@ static int ha_state_ut_fini(void)
 }
 
 struct m0_ut_suite ha_state_ut = {
-	.ts_name = "ha_state-ut",
+	.ts_name = "ha-state-ut",
 	.ts_init = ha_state_ut_init,
 	.ts_fini = ha_state_ut_fini,
 	.ts_tests = {
-		{ "ha_state_set_and_get", test_ha_state_set_and_get },
-		{ "ha_state_accept",      test_ha_state_accept },
+		{ "ha-state-set-and-get", test_ha_state_set_and_get },
+		{ "ha-state-accept",      test_ha_state_accept },
 		{ "ha-failure-sets",      test_failure_sets },
-		{ "ha-poolversion_get",   test_poolversion_get },
+		{ "ha-poolversion-get",   test_poolversion_get },
 		{ NULL, NULL }
 	}
 };

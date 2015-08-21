@@ -140,7 +140,7 @@ static const struct m0_conf_obj_ops objv_ops = {
 	.coo_delete    = objv_delete
 };
 
-M0_CONF__CTOR_DEFINE(objv_create, m0_conf_objv, &objv_ops, NULL);
+M0_CONF__CTOR_DEFINE(objv_create, m0_conf_objv, &objv_ops);
 
 const struct m0_conf_obj_type M0_CONF_OBJV_TYPE = {
 	.cot_ftype = {

@@ -22,20 +22,19 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
 
-#include "lib/memory.h"    /* M0_ALLOC_PTR */
+#include "lib/memory.h"    /* M0_ALLOC_PTR, M0_ALLOC_ARR, m0_free */
 #include "lib/errno.h"     /* EINVAL */
 #include "lib/string.h"    /* m0_strdup */
+#include "lib/mutex.h"     /* m0_mutex */
+#include "lib/chan.h"      /* m0_chan, m0_clink */
 #include "reqh/reqh.h"     /* m0_reqh */
 #include "conf/obj.h"
 #include "conf/helpers.h"
 #include "conf/confc.h"
 #include "conf/obj_ops.h"  /* m0_conf_dirval */
 #include "conf/diter.h"    /* m0_conf_diter_next_sync */
-
-M0_TL_DESCR_DEFINE(m0_conf_failure_sets, "failed resources", M0_INTERNAL,
-		   struct m0_conf_obj, co_fs_link, co_gen_magic,
-		   M0_CONF_OBJ_MAGIC, M0_CONF_FAILURE_SETS_MAGIC);
-M0_TL_DEFINE(m0_conf_failure_sets, M0_INTERNAL, struct m0_conf_obj);
+#include "ha/note.h"       /* m0_ha_nvec, m0_ha_state_accept, m0_ha_state_get */
+#include "pool/flset.h"    /* m0_flset_pver_has_failed_dev */
 
 M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 			       struct m0_confc            *confc,
@@ -98,38 +97,6 @@ M0_INTERNAL int m0_conf_disk_get(struct m0_confc      *confc,
 	return M0_RC(rc);
 }
 
-static struct m0_conf_pver **conf_pvers(const struct m0_conf_obj *obj)
-{
-	const struct m0_conf_obj_type *obj_type = m0_conf_obj_type(obj);
-
-	if (obj_type == &M0_CONF_RACK_TYPE)
-		return (M0_CONF_CAST(obj, m0_conf_rack))->cr_pvers;
-	else if (obj_type == &M0_CONF_ENCLOSURE_TYPE)
-		return (M0_CONF_CAST(obj, m0_conf_enclosure))->ce_pvers;
-	else if (obj_type == &M0_CONF_CONTROLLER_TYPE)
-		return (M0_CONF_CAST(obj, m0_conf_controller))->cc_pvers;
-	else
-		M0_IMPOSSIBLE("");
-}
-
-static bool pver_contains_failed_device(struct m0_tl        *failure_sets,
-					struct m0_conf_pver *pver)
-{
-	struct m0_conf_pver **pvers;
-	struct m0_conf_obj   *obj;
-	int                   i;
-
-	m0_tl_for(m0_conf_failure_sets, failure_sets, obj) {
-		pvers = conf_pvers(obj);
-		for (i = 0; pvers[i] != NULL; ++i) {
-			if (m0_fid_eq(&pver->pv_obj.co_id,
-				      &pvers[i]->pv_obj.co_id))
-				return true;
-		}
-	} m0_tlist_endfor;
-	return false;
-}
-
 M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE;
@@ -137,7 +104,7 @@ M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj)
 
 M0_INTERNAL int m0_conf_poolversion_get(const struct m0_fid  *profile,
 					struct m0_confc      *confc,
-					struct m0_tl         *failure_sets,
+					struct m0_flset      *failure_set,
 					struct m0_conf_pver **result)
 {
 	struct m0_conf_diter       it;
@@ -163,7 +130,7 @@ M0_INTERNAL int m0_conf_poolversion_get(const struct m0_fid  *profile,
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE);
 		pver = M0_CONF_CAST(obj, m0_conf_pver);
-		if (!pver_contains_failed_device(failure_sets, pver)) {
+		if (!m0_flset_pver_has_failed_dev(failure_set, pver)) {
 			*result = pver;
 			rc = 0;
 			break;
@@ -225,15 +192,9 @@ M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs)
 		     _conf_load(fs, fs_to_diskvs, ARRAY_SIZE(fs_to_diskvs)));
 }
 
-/**
- * Update configuration objects hs state from ha service.
- * Fetches HA state of configuration objects from HA service and
- * updates local configuration cache.
- */
-static int conf_ha_state_update(struct m0_rpc_session     *session,
-				struct m0_conf_filesystem *fs)
+M0_INTERNAL int m0_conf_ha_state_update(struct m0_rpc_session *ha_sess,
+					struct m0_confc       *confc)
 {
-	struct m0_confc      *confc = m0_confc_from_obj(&fs->cf_obj);
 	struct m0_conf_cache *cache = &confc->cc_cache;
 	struct m0_conf_obj   *obj;
 	struct m0_ha_nvec    *nvec;
@@ -250,7 +211,7 @@ static int conf_ha_state_update(struct m0_rpc_session     *session,
 	nvec->nv_nr = m0_conf_cache_tlist_length(&cache->ca_registry);
 	M0_ALLOC_ARR(nvec->nv_note, nvec->nv_nr);
 	if (nvec->nv_note == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		goto end;
 	}
 
@@ -264,7 +225,7 @@ static int conf_ha_state_update(struct m0_rpc_session     *session,
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&chan, &clink);
 
-	rc = m0_ha_state_get(session, nvec, &chan);
+	rc = m0_ha_state_get(ha_sess, nvec, &chan);
 	if (rc == 0) {
 		/*
 		 * m0_ha_state_get() sends a fop to HA service caller.
@@ -285,24 +246,6 @@ static int conf_ha_state_update(struct m0_rpc_session     *session,
 end:
 	m0_free(nvec);
 	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_conf_failure_sets_build(struct m0_rpc_session *session,
-					   struct m0_conf_filesystem *fs,
-					   struct m0_tl *failure_sets)
-{
-	m0_conf_failure_sets_tlist_init(failure_sets);
-	return M0_RC(conf_ha_state_update(session, fs));
-}
-
-M0_INTERNAL void m0_conf_failure_sets_destroy(struct m0_tl *failure_sets)
-{
-	struct m0_conf_obj *obj;
-
-	m0_tl_for(m0_conf_failure_sets, failure_sets, obj) {
-		m0_conf_failure_sets_tlist_del(obj);
-	} m0_tlist_endfor;
-	m0_conf_failure_sets_tlist_fini(failure_sets);
 }
 
 M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
@@ -353,45 +296,6 @@ M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj)
 
 	M0_PRE(confc != NULL);
 	return container_of(confc, struct m0_reqh, rh_confc);
-}
-
-static void pver_failed_devs_count_update(struct m0_conf_obj *obj)
-{
-	struct m0_conf_pver **pvers;
-	int                   i;
-
-	pvers = conf_pvers(obj);
-
-	if (obj->co_ha_state == M0_NC_ONLINE)
-		for (i = 0; pvers[i] != NULL; ++i)
-			M0_CNT_DEC(pvers[i]->pv_nfailed);
-	else if (obj->co_ha_state == M0_NC_FAILED)
-		for (i = 0; pvers[i] != NULL; ++i)
-			M0_CNT_INC(pvers[i]->pv_nfailed);
-}
-
-static void
-failure_sets_update(struct m0_tl *failure_sets, struct m0_conf_obj *obj)
-{
-	if (obj->co_ha_state == M0_NC_ONLINE &&
-	    m0_conf_failure_sets_tlist_contains(failure_sets, obj)) {
-		m0_conf_failure_sets_tlist_del(obj);
-		pver_failed_devs_count_update(obj);
-	} else if (obj->co_ha_state == M0_NC_FAILED &&
-		   !m0_conf_failure_sets_tlist_contains(failure_sets, obj)) {
-		m0_conf_failure_sets_tlist_add_tail(failure_sets, obj);
-		pver_failed_devs_count_update(obj);
-	}
-}
-
-M0_INTERNAL void m0_conf_failure_sets_update(struct m0_conf_obj *obj)
-{
-	struct m0_tl *failure_sets = &m0_conf_obj2reqh(obj)->rh_failure_sets;
-
-	M0_PRE(M0_IN(m0_conf_obj_type(obj), (&M0_CONF_RACK_TYPE,
-					     &M0_CONF_ENCLOSURE_TYPE,
-					     &M0_CONF_CONTROLLER_TYPE)));
-	failure_sets_update(failure_sets, obj);
 }
 
 M0_INTERNAL bool m0_conf_is_pool_version_dirty(struct m0_confc     *confc,

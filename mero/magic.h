@@ -246,9 +246,6 @@ enum m0_magic_satchel {
 	 * Let's hope we won't be sued by Symantec for this name. */
 	M0_CONF_PARTITION_MAGIC = 0x33bacca15a100f77,
 
-	/* m0t1fs_sb::csb_failure_sets (doss dose doze) */
-	M0_CONF_FAILURE_SETS_MAGIC = 0x33d055d05ed02e77,
-
 	/* m0_confc::cc_magic (zodiac doable) */
 	M0_CONFC_MAGIC = 0x3320d1acd0ab1e77,
 
@@ -596,6 +593,9 @@ enum m0_magic_satchel {
 
 	/* pool_version_tl::td_head_magic (feasible code) */
 	M0_POOL_VERSION_HEAD_MAGIC = 0x33fea51b1ec0de77,
+
+	/* m0_flset_tl::td_head_magic (doss dose doze) */
+	M0_FLSET_MAGIC = 0x33d055d05ed02e77,
 
 /* Request handler */
 	/* m0_reqh_service::rs_magix (bacilli babel) */

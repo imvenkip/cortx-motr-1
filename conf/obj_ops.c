@@ -30,6 +30,7 @@
 #include "lib/arith.h"     /* M0_CNT_INC, M0_CNT_DEC */
 #include "lib/errno.h"     /* ENOMEM */
 #include "mero/magic.h"    /* M0_CONF_OBJ_MAGIC */
+#include "pool/flset.h"    /* m0_flset_tl */
 
 /**
  * @defgroup conf_dlspec_objops Configuration Object Operations (lspec)
@@ -105,7 +106,7 @@ m0_conf_obj_create(struct m0_conf_cache *cache, const struct m0_fid *id)
 
 	m0_conf_cache_tlink_init(obj);
 	m0_conf_dir_tlink_init(obj);
-	m0_conf_failure_sets_tlink_init(obj);
+	m0_flset_tlink_init(obj);
 	m0_conf_obj_bob_init(obj);
 	M0_ASSERT(obj->co_gen_magic == M0_CONF_OBJ_MAGIC);
 	M0_ASSERT(obj->co_con_magic == type->cot_magic);
@@ -159,7 +160,7 @@ M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 
 	/* Finalise generic fields. */
 	m0_conf_obj_bob_fini(obj);
-	m0_conf_failure_sets_tlink_fini(obj);
+	m0_flset_tlink_fini(obj);
 	m0_conf_dir_tlink_fini(obj);
 	m0_conf_cache_tlink_fini(obj);
 	m0_chan_fini(&obj->co_chan);

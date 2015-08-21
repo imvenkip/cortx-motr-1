@@ -34,6 +34,7 @@
 #include "layout/layout.h"
 #include "ha/epoch.h"
 #include "rpc/session.h"
+#include "pool/flset.h"      /* m0_flset */
 
 /**
    @defgroup reqh Request handler
@@ -166,9 +167,9 @@ struct m0_reqh {
 
 	/**
 	 * Failure set of resources.
-	 * @see m0_conf_failure_sets_build().
+	 * @see m0_flset_build().
 	 */
-	struct m0_tl                  rh_failure_sets;
+	struct m0_flset               rh_failure_set;
 
 	/** Process FID. */
 	struct m0_fid                 rh_fid;

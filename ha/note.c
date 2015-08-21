@@ -213,17 +213,15 @@ M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
 	M0_PRE(note_invariant(note, true));
 
 	cache = &confc->cc_cache;
+	m0_conf_cache_lock(cache);
 	for (i = 0; i < note->nv_nr; ++i) {
-		m0_conf_cache_lock(cache);
 		obj = m0_conf_cache_lookup(cache, &note->nv_note[i].no_id);
-		if (obj != NULL)
+		if (obj != NULL && obj->co_status == M0_CS_READY) {
 			obj->co_ha_state = note->nv_note[i].no_state;
-
-		if (obj->co_ha_callback != NULL)
-			obj->co_ha_callback(obj);
-
-		m0_conf_cache_unlock(cache);
+			m0_chan_broadcast(&obj->co_chan);
+		}
 	}
+	m0_conf_cache_unlock(cache);
 	M0_LEAVE();
 }
 

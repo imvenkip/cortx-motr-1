@@ -66,8 +66,6 @@ struct arr_fid;
 /* defined in conf/objs/dir.c */
 M0_TL_DESCR_DECLARE(m0_conf_dir, M0_EXTERN);
 M0_TL_DECLARE(m0_conf_dir, M0_INTERNAL, struct m0_conf_obj);
-M0_TL_DESCR_DECLARE(m0_conf_failure_sets, M0_EXTERN);
-M0_TL_DECLARE(m0_conf_failure_sets, M0_INTERNAL, struct m0_conf_obj);
 
 /** Symbolic names for m0_conf_obj_ops::coo_readdir() return values. */
 enum m0_conf_dirval {

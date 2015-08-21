@@ -46,6 +46,7 @@
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
 #include "conf/helpers.h"
 #include "reqh/reqh.h"
+#include "pool/flset.h"         /* m0_flset_tl */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
 #include "lib/trace.h"
@@ -239,7 +240,7 @@ static int file_io_ut_init(void)
         rc = m0_reqh_ha_setup(reqh);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_conf_failure_sets_tlist_init(&reqh->rh_failure_sets);
+	m0_flset_tlist_init(&reqh->rh_failure_set.fls_objs);
 
 	rc = m0t1fs_pool_find(&csb);
 	M0_UT_ASSERT(rc == 0);
@@ -306,7 +307,7 @@ static int file_io_ut_init(void)
 	/* Sets the file size in inode. */
 	ci.ci_inode.i_size = DATA_SIZE;
 	ci.ci_pver = pver->pv_id;
-	m0_conf_failure_sets_tlist_fini(&reqh->rh_failure_sets);
+	m0_flset_tlist_fini(&reqh->rh_failure_set.fls_objs);
 	m0_confc_close(&fs->cf_obj);
 
 	return 0;

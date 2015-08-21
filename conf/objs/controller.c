@@ -23,7 +23,6 @@
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"  /* m0_confx_controller_xc */
 #include "mero/magic.h"      /* M0_CONF_CONTROLLER_MAGIC */
-#include "conf/helpers.h"    /* m0_conf_failure_set_update */
 
 #define XCAST(xobj) ((struct m0_confx_controller *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_controller, xc_header) == 0);
@@ -124,8 +123,7 @@ static const struct m0_conf_obj_ops controller_ops = {
 	.coo_delete    = controller_delete
 };
 
-M0_CONF__CTOR_DEFINE(controller_create, m0_conf_controller, &controller_ops,
-		     m0_conf_failure_sets_update);
+M0_CONF__CTOR_DEFINE(controller_create, m0_conf_controller, &controller_ops);
 
 const struct m0_conf_obj_type M0_CONF_CONTROLLER_TYPE = {
 	.cot_ftype = {
