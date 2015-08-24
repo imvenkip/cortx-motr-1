@@ -296,7 +296,7 @@ function build_conf()
 	local CTRL="{0x63| (($CTRLID), $NODE, [$NR_DISK_FIDS: $DISK_FIDS], [1: $PVERID])}"
 
 	local POOL="{0x6f| (($POOLID), 0, [1: $PVERID])}"
-	local PVER="{0x76| (($PVERID), 0, $nr_data_units, $nr_parity_units, $pool_width, [3: 1, 2, 3], [5: 1, 0, 0, 0, $nr_parity_units], [1: $RACKVID])}"
+	local PVER="{0x76| (($PVERID), 0, $nr_data_units, $nr_parity_units, $pool_width, [5: 1, 0, 0, 0, $nr_parity_units], [1: $RACKVID])}"
 	local RACKV="{0x6a| (($RACKVID), $RACKID, [1: $ENCLVID])}"
 	local ENCLV="{0x6a| (($ENCLVID), $ENCLID, [1: $CTRLVID])}"
 	local CTRLV="{0x6a| (($CTRLVID), $CTRLID, [$NR_DISKV_FIDS: $DISKV_FIDS])}"

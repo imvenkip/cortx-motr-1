@@ -35,7 +35,6 @@
 #include "conf/onwire.h"       /* arr_fid */
 #include "conf/onwire_xc.h"    /* m0_confx_xc */
 #include "conf/preload.h"      /* m0_confx_free, m0_confx_to_string */
-#include "net/lnet/lnet.h"     /* m0_net_lnet_xprt */
 #include "rpc/link.h"
 #include "rpc/rpclib.h"        /* m0_rpc_client_connect */
 #include "spiel/spiel.h"
@@ -1398,15 +1397,20 @@ M0_EXPORTED(m0_spiel_disk_add);
 int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
 			      const struct m0_fid    *fid,
 			      const struct m0_fid    *parent,
+			      uint32_t               *nr_failures,
+			      uint32_t                nr_failures_cnt,
 			      struct m0_pdclust_attr *attrs)
 {
 	int                  rc;
 	struct m0_conf_obj  *obj = NULL;
-	struct m0_conf_pver *pver;
+	struct m0_conf_pver *pver = NULL;
 	struct m0_conf_obj  *obj_parent;
 	struct m0_conf_pool *pool;
 
 	M0_ENTRY();
+
+	if (nr_failures_cnt == 0)
+		return M0_ERR(-EINVAL);
 
 	m0_mutex_lock(&tx->spt_lock);
 
@@ -1417,6 +1421,15 @@ int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
 		goto fail;
 
 	pver = M0_CONF_CAST(obj, m0_conf_pver);
+
+	pver->pv_nr_failures_nr = nr_failures_cnt;
+	M0_ALLOC_ARR(pver->pv_nr_failures, nr_failures_cnt);
+	if (pver->pv_nr_failures == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto fail;
+	}
+	memcpy(pver->pv_nr_failures, nr_failures,
+	       nr_failures_cnt * sizeof *nr_failures);
 	pver->pv_attr = *attrs;
 
 	if (pver->pv_rackvs == NULL)
@@ -1439,6 +1452,8 @@ int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
 	return M0_RC(rc);
 
 fail:
+	if (pver != NULL)
+		m0_free(pver->pv_nr_failures);
 	if (obj != NULL && rc != -EEXIST)
 		m0_conf_cache_del(&tx->spt_cache, obj);
 	m0_mutex_unlock(&tx->spt_lock);

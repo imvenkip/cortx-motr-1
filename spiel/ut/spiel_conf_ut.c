@@ -154,6 +154,7 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 						       .pa_P=0};
 	const char                   *fs_param[] = { "11111", "22222", NULL };
 	struct m0_spiel_service_info  service_info = {.svi_endpoints=fs_param };
+	uint32_t                      nr_failures[] = {0, 0, 0, 0, 1};
 	struct m0_bitmap              bitmap;
 
 	m0_bitmap_init(&bitmap, 32);
@@ -215,6 +216,8 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 	rc = m0_spiel_pool_version_add(tx,
 				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
 				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				       nr_failures,
+				       ARRAY_SIZE(nr_failures),
 				       &pdclust_attr);
 	M0_UT_ASSERT(rc == 0);
 
@@ -300,6 +303,7 @@ static void spiel_conf_create_fail(void)
 	struct m0_fid                 fake_fid =
 					spiel_obj_fid[SPIEL_UT_OBJ_PROFILE];
 	struct m0_bitmap              bitmap;
+	uint32_t                      nr_failures[] = {0, 0, 0, 0, 1};
 
 	spiel_conf_ut_init();
 	m0_bitmap_init(&bitmap, 32);
@@ -491,26 +495,32 @@ static void spiel_conf_create_fail(void)
 	rc = m0_spiel_pool_version_add(&tx,
 				       &fake_fid,
 				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				       nr_failures,
+				       ARRAY_SIZE(nr_failures),
 				       &pdclust_attr);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	rc = m0_spiel_pool_version_add(&tx,
 				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
 				       &fake_fid,
+				       nr_failures,
+				       ARRAY_SIZE(nr_failures),
 				       &pdclust_attr);
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	pdclust_attr.pa_K = 10;
-	rc = m0_spiel_pool_version_add(&tx,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				       &fake_fid,
-				       &pdclust_attr);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	pdclust_attr.pa_K = 0;
 	rc = m0_spiel_pool_version_add(&tx,
 				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
 				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				       NULL,
+				       0,
+				       &pdclust_attr);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pool_version_add(&tx,
+				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				       nr_failures,
+				       ARRAY_SIZE(nr_failures),
 				       &pdclust_attr);
 	M0_UT_ASSERT(rc == 0);
 
@@ -937,6 +947,7 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	struct m0_fid                 fid_disk_v1     =M0_FID_TINIT(0x6a,1,21 );
 	struct m0_fid                 fid_disk_v2     =M0_FID_TINIT(0x6a,1,22 );
 	struct m0_fid                 fid_disk_v3     =M0_FID_TINIT(0x6a,1,23 );
+	uint32_t                      nr_failures[] = {0, 0, 0, 0, 1};
 	struct m0_bitmap              bitmap;
 
 	m0_bitmap_init(&bitmap, 32);
@@ -977,7 +988,8 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	rc = m0_spiel_disk_add(tx, &fid_disk3, &fid_controller);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_pool_version_add(tx, &fid_pver, &fid_pool, &pdclust_attr);
+	rc = m0_spiel_pool_version_add(tx, &fid_pver, &fid_pool, nr_failures,
+				       ARRAY_SIZE(nr_failures), &pdclust_attr);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_rack_v_add(tx, &fid_rack_v, &fid_pver, &fid_rack);

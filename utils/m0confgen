@@ -64,8 +64,8 @@ conf_obj_types = {
                    ' mdpool=objid nodes=[objid] pools=[objid] racks=[objid]'),
     'pool': ('o', 'order=NUMBER pvers=[objid]'),
     'pver': ('v',
-             'ver=NUMBER N=NUMBER K=NUMBER P=NUMBER permutations=[NUMBER]'
-             ' nr_failures=[NUMBER] rackvs=[objid]'),
+             'ver=NUMBER N=NUMBER K=NUMBER P=NUMBER nr_failures=[NUMBER]'
+             ' rackvs=[objid]'),
     'objv': ('j', 'real=objid children=[objid]'),
     'node': ('n', 'memsize=NUMBER nr_cpu=NUMBER last_state=NUMBER flags=NUMBER'
              ' pool_id=objid processes=[objid]'),

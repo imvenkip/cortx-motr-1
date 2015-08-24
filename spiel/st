@@ -37,13 +37,13 @@ start() {
 }
 
 stop() {
-    local rc=$?
+    local rc=${1:-$?}
     if `mount | grep -q "m0t1fs"`; then umount $SANDBOX_DIR/mnt; fi
     services_stop
+    sleep 3
     _fini
-    if [ $? -ne 0 ] || [ $rc -ne 0 ]; then
-        echo "Spiel test FAILED"
-    fi
+    [ $rc -eq 0 ] || echo "Spiel test FAILED"
+    exit $rc
 }
 
 _init() {
@@ -139,10 +139,35 @@ stub_confdb() {
     mem_limit_memlock=0 services=[service-0, service-1, service-2])
 (service-0 type=4 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (service-1 type=7 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
-(service-2 type=6 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
+(service-2 type=6 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
+    sdev-4])
+(service-3 type=1 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-0])
 (pool-0 order=0 pvers=[pver-0])
-(pver-0 ver=0 N=8 K=2 P=15 permutations=[1, 2, 4] nr_failures=[]
-    rackvs=[])
+(pver-0 ver=0 N=2 K=1 P=4 nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-0])
+(objv-0 real=rack-0 children=[objv-1])
+(objv-1 real=enclosure-0 children=[objv-2])
+(objv-2 real=controller-0 children=[objv-3, objv-4, objv-5, objv-6])
+(objv-3 real=disk-0 children=[])
+(objv-4 real=disk-1 children=[])
+(objv-5 real=disk-2 children=[])
+(objv-6 real=disk-3 children=[])
+(rack-0 encls=[enclosure-0] pvers=[pver-0])
+(enclosure-0 ctrls=[controller-0] pvers=[pver-0])
+(controller-0 node=node-0 disks=[disk-0, disk-1, disk-2, disk-3] pvers=[pver-0])
+(disk-0 dev=sdev-1)
+(disk-1 dev=sdev-2)
+(disk-2 dev=sdev-3)
+(disk-3 dev=sdev-4)
+(sdev-0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
+    filename="/dev/sdev0")
+(sdev-1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
+    filename="/dev/sdev1")
+(sdev-2 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
+    filename="/dev/sdev2")
+(sdev-3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
+    filename="/dev/sdev3")
+(sdev-4 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
+    filename="/dev/sdev4")
 EOF
 }
 
@@ -166,8 +191,8 @@ m0d_with_rms_start() {
     ## m0mkfs should be executed only once. It is usually executed
     ## during cluster initial setup.
     echo $M0_CORE_DIR/utils/mkfs/m0mkfs $OPTS
-    $M0_CORE_DIR/utils/mkfs/m0mkfs $OPTS >>$SANDBOX_DIR/mkfs.log || \
-        error 'm0mkfs failed'
+    $M0_CORE_DIR/utils/mkfs/m0mkfs $OPTS >>$SANDBOX_DIR/mkfs.log ||
+    error 'm0mkfs failed'
 
     echo $M0_CORE_DIR/mero/m0d $OPTS
     $M0_CORE_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
@@ -206,20 +231,42 @@ export_vars() {
     --client $SPIEL_ENDPOINT --rmservice $SERVER1_ENDPOINT"
 
     export FIDS_LIST="
-fids = {'profile': Fid(0x7000000000000001, 0), 'fs': Fid(0x6600000000000001, 1),
-'node': Fid(0x6e00000000000001, 2), 'pool': Fid(0x6f00000000000001, 9),
-'rack': Fid(0x6100000000000001, 6), 'encl': Fid(0x6500000000000001, 7),
-'ctrl': Fid(0x6300000000000001, 8), 'disk': Fid(0x6b00000000000001, 1),
-'pver': Fid(0x7600000000000001, 10), 'rackv': Fid(0x6a00000000000001, 2),
-'enclv': Fid(0x6a00000000000001, 3), 'ctrlv': Fid(0x6a00000000000001, 4),
-'diskv': Fid(0x6a00000000000001, 5), 'process': Fid($PROC_FID_CNTR, $PROC_FID_KEY),
-'process2': Fid($PROC_FID_CNTR, $PROC_FID_KEY2),'ios': Fid(0x7300000000000002, 0),
-'mds': Fid($MDS_FID_CON, 2), 'mds2': Fid($MDS_FID_CON, 3),
-'stats': Fid(0x7300000000000002, 4), 'addb2': Fid(0x7300000000000002, 5),
-'sns_repair': Fid(0x7300000000000002, 6), 'sns_rebalance': Fid(0x7300000000000002, 7),
-'sdev': Fid(0x6400000000000009, 9), 'rms': Fid(0x7300000000000004, 0),
-'sss': Fid(0x7300000000000004, 1), 'sss2': Fid(0x7300000000000004, 2),
-'ha': Fid(0x7300000000000004, 3)
+fids = {'profile'       : Fid(0x7000000000000001, 0),
+        'fs'            : Fid(0x6600000000000001, 1),
+        'node'          : Fid(0x6e00000000000001, 2),
+        'pool'          : Fid(0x6f00000000000001, 9),
+        'rack'          : Fid(0x6100000000000001, 6),
+        'encl'          : Fid(0x6500000000000001, 7),
+        'ctrl'          : Fid(0x6300000000000001, 8),
+        'disk0'         : Fid(0x6b00000000000001, 1),
+        'disk1'         : Fid(0x6b00000000000001, 2),
+        'disk2'         : Fid(0x6b00000000000001, 3),
+        'disk3'         : Fid(0x6b00000000000001, 4),
+        'pver'          : Fid(0x7600000000000001, 10),
+        'rackv'         : Fid(0x6a00000000000001, 2),
+        'enclv'         : Fid(0x6a00000000000001, 3),
+        'ctrlv'         : Fid(0x6a00000000000001, 4),
+        'diskv0'        : Fid(0x6a00000000000001, 5),
+        'diskv1'        : Fid(0x6a00000000000001, 6),
+        'diskv2'        : Fid(0x6a00000000000001, 7),
+        'diskv3'        : Fid(0x6a00000000000001, 8),
+        'process'       : Fid($PROC_FID_CNTR, $PROC_FID_KEY),
+        'process2'      : Fid($PROC_FID_CNTR, $PROC_FID_KEY2),
+        'ios'           : Fid(0x7300000000000002, 0),
+        'mds'           : Fid($MDS_FID_CON, 2),
+        'mds2'          : Fid($MDS_FID_CON, 3),
+        'stats'         : Fid(0x7300000000000002, 4),
+        'addb2'         : Fid(0x7300000000000002, 5),
+        'sns_repair'    : Fid(0x7300000000000002, 6),
+        'sns_rebalance' : Fid(0x7300000000000002, 7),
+        'sdev0'         : Fid(0x6400000000000009, 9),
+        'sdev1'         : Fid(0x6400000000000009, 10),
+        'sdev2'         : Fid(0x6400000000000009, 11),
+        'sdev3'         : Fid(0x6400000000000009, 12),
+        'rms'           : Fid(0x7300000000000004, 0),
+        'sss'           : Fid(0x7300000000000004, 1),
+        'sss2'          : Fid(0x7300000000000004, 2),
+        'ha'            : Fid(0x7300000000000004, 3)
 }
 "
 ### TODO: Uncomment the first line and remove the second when the following issue
@@ -237,9 +284,9 @@ HEALTH_GOOD, HEALTH_BAB, HEALTH_INACTIVE, HEALTH_UNKNOWN = range(4)
 construct_db() {
     $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
-N = 4
+N = 2
 K = 1
-P = 6
+P = 4
 mask = c_uint64(3)
 cores = Bitmap(1, pointer(mask))
 
@@ -258,8 +305,12 @@ conf_objs_add = [('profile_add', tx, fids['profile']),
                   0xff00ff00L, fids['pool']),
                  ('controller_add', tx, fids['ctrl'], fids['encl'],
                   fids['node']),
-                 ('disk_add', tx, fids['disk'], fids['ctrl']),
+                 ('disk_add', tx, fids['disk0'], fids['ctrl']),
+                 ('disk_add', tx, fids['disk1'], fids['ctrl']),
+                 ('disk_add', tx, fids['disk2'], fids['ctrl']),
+                 ('disk_add', tx, fids['disk3'], fids['ctrl']),
                  ('pool_version_add', tx, fids['pver'], fids['pool'],
+                  [0, 0, 0, 0, 1],
                   PdclustAttr(N, K, P, 1024*1024, Fid(0x01, 0x02))),
                  ('rack_v_add', tx, fids['rackv'], fids['pver'],
                   fids['rack']),
@@ -267,57 +318,75 @@ conf_objs_add = [('profile_add', tx, fids['profile']),
                   fids['encl']),
                  ('controller_v_add', tx, fids['ctrlv'], fids['enclv'],
                   fids['ctrl']),
-                 ('disk_v_add', tx, fids['diskv'], fids['ctrlv'],
-                  fids['disk']),
+                 ('disk_v_add', tx, fids['diskv0'], fids['ctrlv'],
+                  fids['disk0']),
+                 ('disk_v_add', tx, fids['diskv1'], fids['ctrlv'],
+                  fids['disk1']),
+                 ('disk_v_add', tx, fids['diskv2'], fids['ctrlv'],
+                  fids['disk2']),
+                 ('disk_v_add', tx, fids['diskv3'], fids['ctrlv'],
+                  fids['disk3']),
                  ('process_add', tx, fids['process'], fids['node'], cores,
                   0L, 0L, 0L, 0L),
                  ('process_add', tx, fids['process2'], fids['node'],
                   cores, 0L, 0L, 0L, 0L),
                  ('service_add', tx, fids['sss'], fids['process'], M0_CST_SSS,
-                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters(svi_endpoints=["$SERVER1_ENDPOINT"])),
+                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['sss2'], fids['process2'], M0_CST_SSS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(svi_endpoints=["$SERVER2_ENDPOINT"])),
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['rms'], fids['process'], M0_CST_RMS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['ha'], fids['process2'], M0_CST_HA,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['ios'], fids['process2'], M0_CST_IOS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['sns_repair'], fids['process2'],
-                  M0_CST_SNS_REP, ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                  M0_CST_SNS_REP, ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['sns_rebalance'], fids['process2'],
-                  M0_CST_SNS_REB, ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                  M0_CST_SNS_REB, ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['mds'], fids['process'], M0_CST_MDS,
-                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['mds2'], fids['process2'], M0_CST_MDS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['stats'], fids['process2'], M0_CST_STS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(repair_limits=10)),
-                 ('device_add', tx, fids['sdev'], fids['ios'],
-                  fids['disk'], M0_CFG_DEVICE_INTERFACE_SCSI,
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                 ('device_add', tx, fids['sdev0'], fids['ios'],
+                  fids['disk0'], M0_CFG_DEVICE_INTERFACE_SCSI,
                   M0_CFG_DEVICE_MEDIA_SSD, 1024, 512L, 123L, 0x55L,
-                  "fake_filename"),
+                  "fake_filename0"),
+                 ('device_add', tx, fids['sdev1'], fids['ios'],
+                  fids['disk1'], M0_CFG_DEVICE_INTERFACE_SCSI,
+                  M0_CFG_DEVICE_MEDIA_SSD, 1024, 512L, 123L, 0x55L,
+                  "fake_filename1"),
+                 ('device_add', tx, fids['sdev2'], fids['ios'],
+                  fids['disk2'], M0_CFG_DEVICE_INTERFACE_SCSI,
+                  M0_CFG_DEVICE_MEDIA_SSD, 1024, 512L, 123L, 0x55L,
+                  "fake_filename2"),
+                 ('device_add', tx, fids['sdev3'], fids['ios'],
+                  fids['disk3'], M0_CFG_DEVICE_INTERFACE_SCSI,
+                  M0_CFG_DEVICE_MEDIA_SSD, 1024, 512L, 123L, 0x55L,
+                  "fake_filename3"),
                  ('tx_commit', tx)
 ]
 
 error = False
 for conf_obj_add in conf_objs_add:
     try:
-        if getattr(spiel, conf_obj_add[0])(*conf_obj_add[1:]) != 0:
-            print("an error occurred while {0} executing".format(conf_obj_add[0]),
+        rc = getattr(spiel, conf_obj_add[0])(*conf_obj_add[1:])
+        if rc != 0:
+            print("error {0} while {1} executing".format(rc, conf_obj_add[0]),
                   file=sys.stderr)
             error = True
             break
     except:
-        print("an error occurred while {0} executing".format(conf_obj_add[0]),
+        print("an error occurred while {0} executing: {1}".format(
+                                conf_obj_add[0], sys.exc_info()[0]),
               file=sys.stderr)
         sys.exit(1)
 
-if spiel.tx_close(tx) != 0:
-    error = True
-    print('an error tx close', file=sys.stderr)
+spiel.tx_close(tx)
 
-## return error status if an error occurred during closing transaction or calling
+## return error status if an error occurred during calling
 ## one of spiel_*_add functions
 if error:
     sys.exit(1)
@@ -461,7 +530,7 @@ case "${1:-}" in
     insmod) lnet_up; modules_insert; exit;;
     rmmod) modules_remove; exit;;
     sstart) start; exit;;
-    sstop) services_stop; sleep 3; _fini; exit;;
+    sstop) stop; exit;;
     help) usage; exit;;
     *) usage >&2; die;;
 esac

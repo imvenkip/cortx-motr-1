@@ -37,8 +37,6 @@ static bool pver_check(const void *bob)
 	return ergo(!m0_conf_obj_is_stub(self_obj),
 		    _0C((self->pv_attr.pa_P >=
 			 self->pv_attr.pa_N + 2 * self->pv_attr.pa_K)) &&
-		    _0C((self->pv_permutations_nr == 0) ==
-			(self->pv_permutations == NULL)) &&
 		    _0C((self->pv_nr_failures_nr == 0) ==
 			(self->pv_nr_failures == NULL)));
 }
@@ -59,29 +57,19 @@ static int pver_decode(struct m0_conf_obj        *dest,
 	d->pv_attr.pa_K = s->xv_K;
 	d->pv_attr.pa_P = s->xv_P;
 
-	d->pv_permutations_nr = s->xv_permutations.au_count;
-	rc = d->pv_permutations_nr == 0 ? 0 :
-		u32arr_decode(&s->xv_permutations, &d->pv_permutations);
-	if (rc != 0)
-		return M0_ERR(rc);
-
 	d->pv_nr_failures_nr = s->xv_nr_failures.au_count;
 	rc = d->pv_nr_failures_nr == 0 ? 0 :
 		u32arr_decode(&s->xv_nr_failures, &d->pv_nr_failures);
 	if (rc != 0)
-		goto free_permutations;
+		return M0_ERR(rc);
 
 	rc = dir_new(cache, &dest->co_id, &M0_CONF_PVER_RACKVS_FID,
 		     &M0_CONF_OBJV_TYPE, &s->xv_rackvs, &d->pv_rackvs);
-	if (rc == 0) {
+	if (rc == 0)
 		child_adopt(dest, &d->pv_rackvs->cd_obj);
-		return 0;
-	}
-
-	m0_free0(&d->pv_nr_failures);
-free_permutations:
-	m0_free0(&d->pv_permutations);
-	return M0_ERR(rc);
+	else
+		m0_free0(&d->pv_nr_failures);
+	return M0_RC(rc);
 }
 
 static int
@@ -98,24 +86,15 @@ pver_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	d->xv_K   = s->pv_attr.pa_K;
 	d->xv_P   = s->pv_attr.pa_P;
 
-	rc = u32arr_encode(&d->xv_permutations,
-			   s->pv_permutations, s->pv_permutations_nr);
-	if (rc != 0)
-		return M0_ERR(rc);
-
 	rc = u32arr_encode(&d->xv_nr_failures,
 			   s->pv_nr_failures, s->pv_nr_failures_nr);
 	if (rc != 0)
-		goto free_permutations;
+		return M0_ERR(rc);
 
 	rc = arrfid_from_dir(&d->xv_rackvs, s->pv_rackvs);
-	if (rc == 0)
-		return 0;
-
-	u32arr_free(&d->xv_nr_failures);
-free_permutations:
-	u32arr_free(&d->xv_permutations);
-	return M0_ERR(rc);
+	if (rc != 0)
+		u32arr_free(&d->xv_nr_failures);
+	return M0_RC(rc);
 }
 
 static bool
@@ -128,8 +107,6 @@ pver_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	       obj->pv_attr.pa_N == xobj->xv_N &&
 	       obj->pv_attr.pa_K == xobj->xv_K &&
 	       obj->pv_attr.pa_P == xobj->xv_P &&
-	       u32arr_cmp(&xobj->xv_permutations,
-			  obj->pv_permutations, obj->pv_permutations_nr) &&
 	       u32arr_cmp(&xobj->xv_nr_failures,
 			  obj->pv_nr_failures, obj->pv_nr_failures_nr) &&
 	       m0_conf_dir_elems_match(obj->pv_rackvs, &xobj->xv_rackvs);
@@ -152,7 +129,6 @@ static void pver_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_pver *x = M0_CONF_CAST(obj, m0_conf_pver);
 
-	m0_free(x->pv_permutations);
 	m0_free(x->pv_nr_failures);
 	m0_conf_pver_bob_fini(x);
 	m0_free(x);

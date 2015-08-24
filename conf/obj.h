@@ -376,10 +376,7 @@ struct m0_conf_pver {
 	/** Pool version failed devices. */
 	uint32_t                pv_nfailed;
 	/** Layout attributes. */
-	struct m0_pdclust_attr   pv_attr;
-	/** Base permutation computed based on the failure domains. */
-	uint32_t                *pv_permutations;
-	uint32_t                 pv_permutations_nr;
+	struct m0_pdclust_attr  pv_attr;
 	/** Allowed failures for each failure domain. */
 	uint32_t               *pv_nr_failures;
 	uint32_t                pv_nr_failures_nr;

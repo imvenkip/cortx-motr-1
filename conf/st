@@ -163,8 +163,7 @@ confdb() {
 (disk-1 dev=sdev-3)
 (disk-2 dev=sdev-4)
 (pool-0 order=0 pvers=[pver-0])
-(pver-0 ver=0 N=1 K=1 P=3 permutations=[1, 2, 4] nr_failures=[0, 0, 0, 0, 1]
-    rackvs=[objv-0])
+(pver-0 ver=0 N=1 K=1 P=3 nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
 (objv-1 real=enclosure-0 children=[objv-2])
 (objv-2 real=controller-0 children=[objv-3, objv-4, objv-5])

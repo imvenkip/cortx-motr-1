@@ -330,8 +330,6 @@ void m0_spiel_tx_open(struct m0_spiel    *spiel,
 		      struct m0_spiel_tx *tx);
 
 /**
- * Close spiel transaction
- *
  * Close spiel transaction.
  *
  * Once function is called spiel transaction can't be used anymore.
@@ -575,14 +573,27 @@ int m0_spiel_disk_add(struct m0_spiel_tx  *tx,
  * After all "V-objects" are added, function @ref m0_spiel_pool_version_done()
  * should be called.
  *
- * @param tx           spiel transaction
- * @param fid          fid of the pool version
- * @param parent       fid of the parent pool
- * @param attrs        attributes specific to layout type
+ * Parameter nr_failures is number of allowed HW failures in each failure
+ * domain. Currently there are 5 failure domains: pools, racks,
+ * enclosures, controllers, disks. So nr_failures_cnt should be 5.
+ * nr_failures[0] - number of allowed pool failures. Should be zero.
+ * nr_failures[1] - number of allowed rack failures.
+ * nr_failures[2] - number of allowed enclosure failures.
+ * nr_failures[3] - number of allowed controller failures.
+ * nr_failures[4] - number of allowed disk failures.
+ *
+ * @param tx              spiel transaction
+ * @param fid             fid of the pool version
+ * @param parent          fid of the parent pool
+ * @param nr_failures     allowed failures for each failure domain
+ * @param nr_failures_cnt number of elements in nr_failures array
+ * @param attrs           attributes specific to layout type
  */
 int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
 			      const struct m0_fid    *fid,
 			      const struct m0_fid    *parent,
+			      uint32_t               *nr_failures,
+			      uint32_t                nr_failures_cnt,
 			      struct m0_pdclust_attr *attrs);
 
 /**

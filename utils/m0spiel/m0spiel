@@ -2,7 +2,6 @@
 
 from __future__ import print_function  # print to sys.stderr
 import code
-import readline
 import optparse
 import unittest
 import sys
@@ -198,9 +197,8 @@ class SpielWrapper:
 
     @require(spiel_tx=SpielTx)
     def tx_close(self, spiel_tx):
-        rc = self.mero.m0_spiel_tx_close(spiel_tx.data)
+        self.mero.m0_spiel_tx_close(spiel_tx.data)
         self.__free(spiel_tx.data)
-        return rc
 
     @require(spiel_tx=SpielTx, fid=Fid)
     def profile_add(self, spiel_tx, fid):
@@ -303,10 +301,16 @@ class SpielWrapper:
         return self.mero.m0_spiel_disk_add(spiel_tx.data, byref(fid),
                                            byref(parent))
 
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, attrs=PdclustAttr)
-    def pool_version_add(self, spiel_tx, fid, parent, attrs):
+    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, nr_failures=list,
+             attrs=PdclustAttr)
+    def pool_version_add(self, spiel_tx, fid, parent, nr_failures, attrs):
+        nr_failures_p = (c_uint32 * len(nr_failures))()
+        nr_failures_p[:] = nr_failures
         return self.mero.m0_spiel_pool_version_add(spiel_tx.data, byref(fid),
-                                                   byref(parent), byref(attrs))
+                                                   byref(parent),
+                                                   nr_failures_p,
+                                                   c_uint32(len(nr_failures)),
+                                                   byref(attrs))
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, real=Fid)
     def rack_v_add(self, spiel_tx, fid, parent, real):
@@ -389,9 +393,9 @@ class SpielWrapper:
         return self.mero.m0_spiel_process_quiesce(self.spiel, byref(fid))
 
     @require(fid=Fid)
-    def process_list_services(self, fid, svc_list=RunningServices):
+    def process_list_services(self, fid, svc_list=POINTER(RunningServices)):
         return self.mero.m0_spiel_process_list_services(self.spiel, byref(fid),
-                                                        byref(svc_list))
+                                                byref(svc_list))
 
     @require(fid=Fid)
     def pool_repair_start(self, fid):
@@ -495,18 +499,8 @@ class SpielWrapper:
 class SpielTool:
     def __init__(self, mero, server, client, rm_ep):
         self.spiel = SpielWrapper(mero)
-        #self.spiel.spiel_start(server, client, profile)
-
-    #def __del__(self):
-        #self.spiel.spiel_stop()
 
     def interactive_console_create(self):
-        #vars = globals()
-        #vars.update({'spiel': tool.spiel})
-        #readline.set_completer(rlcompleter.Completer(vars).complete)
-        #readline.parse_and_bind("tab: complete")
-        #self.shell = code.InteractiveConsole(vars)
-        #self.shell.interact()
         vars = globals()
         vars.update({'spiel': tool.spiel})
         return code.InteractiveConsole(vars)
@@ -516,71 +510,91 @@ class SpielToolTest(unittest.TestCase):
     def setUp(self):
         self.spiel = tool.spiel
         self.spielTx = SpielTx(self.spiel.spiel)
-        self.svc_fid = Fid(0x7300000000000001, 1)
-        self.fid = Fid(1, 1)
-        self.parent = Fid(2, 2)
-        self.real = Fid(1, 2)
-        self.Bitmap = Bitmap(32, 0)
-        self.Bitmap.b_words = allocate_memory(32)
+        self.Bitmap = Bitmap(1, pointer(c_uint64(3)))
 
     def test_typed_parameters(self):
         self.assertRaises(TypeError, self.spiel.tx_open, "Wrong type")
 
     def test_spiel_functions(self):
-        tests = [('tx_open', self.spielTx),
-                 ('tx_commit', self.spielTx),
-                 ('tx_close', self.spielTx),
-                 ('profile_add', self.spielTx, self.fid),
-                 ('filesystem_add', self.spielTx, self.fid, self.parent, 1,
-                  Fid(3, 3), [b'param1', b'param2']),
-                 ('node_add', self.spielTx, self.fid, self.parent, 1L, 1, 1L,
-                  1L, Fid(4, 4)),
-                 ('process_add', self.spielTx, self.fid, self.parent,
-                  self.Bitmap, 1L, 2, 3, 4),
-                 ('service_add', self.spielTx, self.fid, self.parent,
-                  ServiceInfo()),
-                 ('device_add', self.spielTx, self.fid, self.parent, 1, 1, 1,
-                  1L, 1L, 1L, "device"),
-                 ('pool_add', self.spielTx, self.fid, self.parent, 1),
-                 ('rack_add', self.spielTx, self.fid, self.parent),
-                 ('enclosure_add', self.spielTx, self.fid, self.parent),
-                 ('controller_add', self.spielTx, self.fid, Fid(5, 5),
-                  self.parent),
-                 ('disk_add', self.spielTx, self.fid, self.parent),
-                 ('pool_version_add', self.spielTx, self.fid, self.parent,
-                  PdclustAttr()),
-                 ('rack_v_add', self.spielTx, self.fid, self.parent,
-                  self.real),
-                 ('enclosure_v_add', self.spielTx, self.fid, self.parent,
-                  self.real),
-                 ('controller_v_add', self.spielTx, self.fid, self.parent,
-                  self.real),
-                 ('disk_v_add', self.spielTx, self.fid, self.parent,
-                  self.real),
-                 ('pool_version_done', self.spielTx, self.fid),
-                 ('element_del', self.spielTx, self.fid),
-                 ('service_init', self.svc_fid),
-                 ('service_start', self.svc_fid),
-                 ('service_quiesce', self.svc_fid),
-                 ('service_stop', self.svc_fid),
-                 ('service_health', self.svc_fid),
-                 ('device_attach', self.fid),
-                 ('device_detach', self.fid),
-                 ('device_format', self.fid),
-                 ('process_stop', self.fid),
-                 ('process_reconfig', self.fid),
-                 ('process_health', self.fid),
-                 ('process_quiesce', self.fid),
-                 ('process_list_services', self.fid, None),
-                 ('pool_repair_start', self.fid),
-                 ('pool_repair_quiesce', self.fid),
-                 ('pool_repair_continue', self.fid),
-                 ('pool_rebalance_start', self.fid),
-                 ('pool_rebalance_quiesce', self.fid),
-                 ('pool_rebalance_continue', self.fid)]
+        # Self check is intended to reveal errors caused by python dynamic
+        # type system. It has no goal to check the functionality of spiel.
+        # Tests tuple format:
+        # 1st element - method name
+        # 2nd element - True if method return some value
+        # 3rd element - method arguments
+        tests = [('tx_open', False, self.spielTx),
+                 ('profile_add', True, self.spielTx,
+                  Fid(0x7000000000000001, 0)),
+                 ('filesystem_add', True, self.spielTx,
+                  Fid(0x6600000000000001, 1), Fid(0x7000000000000001, 0),
+                  1, Fid(3, 3), Fid(0x6f00000000000001, 9),
+                  [b'param1', b'param2']),
+                 ('node_add', True, self.spielTx, Fid(0x6e00000000000001, 2),
+                  Fid(0x6600000000000001, 1), 1L, 1, 1L, 1L,
+                  Fid(0x6f00000000000001, 9)),
+                 ('process_add', True, self.spielTx, Fid(0x7200000000000001, 3),
+                  Fid(0x6e00000000000001, 2), self.Bitmap, 1L, 2L, 3L, 4L),
+                 ('service_add', True, self.spielTx, Fid(0x7300000000000002, 0),
+                  Fid(0x7200000000000001, 3), M0_CST_IOS,
+                  ["10.0.2.2@tcp:12345:12:12"], ServiceInfoParameters()),
+                 ('device_add', True, self.spielTx, Fid(0x6400000000000009, 9),
+                  Fid(0x7300000000000002, 0), Fid(0x6b00000000000001, 1),
+                  1, 1, 1, 1L, 1L, 1L, "device"),
+                 ('pool_add', True, self.spielTx, Fid(0x6f00000000000001, 9),
+                  Fid(0x6600000000000001, 1), 1),
+                 ('rack_add', True, self.spielTx, Fid(0x6100000000000001, 6),
+                  Fid(0x6600000000000001, 1)),
+                 ('enclosure_add', True, self.spielTx,
+                  Fid(0x6500000000000001, 7), Fid(0x6100000000000001, 6)),
+                 ('controller_add', True, self.spielTx,
+                  Fid(0x6300000000000001, 8), Fid(0x6500000000000001, 7),
+                  Fid(0x6e00000000000001, 2)),
+                 ('disk_add', True, self.spielTx, Fid(0x6b00000000000001, 1),
+                  Fid(0x6300000000000001, 8)),
+                 ('pool_version_add', True, self.spielTx,
+                  Fid(0x7600000000000001, 10), Fid(0x6f00000000000001, 9),
+                  [0, 0, 0, 0, 1], PdclustAttr()),
+                 ('rack_v_add', True, self.spielTx, Fid(0x6a00000000000001, 2),
+                  Fid(0x7600000000000001, 10), Fid(0x6100000000000001, 6)),
+                 ('enclosure_v_add', True, self.spielTx,
+                  Fid(0x6a00000000000001, 3), Fid(0x6a00000000000001, 2),
+                  Fid(0x6500000000000001, 7)),
+                 ('controller_v_add', True, self.spielTx,
+                  Fid(0x6a00000000000001, 4), Fid(0x6a00000000000001, 3),
+                  Fid(0x6300000000000001, 8)),
+                 ('disk_v_add', True, self.spielTx, Fid(0x6a00000000000001, 5),
+                  Fid(0x6a00000000000001, 4), Fid(0x6b00000000000001, 1)),
+                 ('pool_version_done', True, self.spielTx,
+                  Fid(0x7600000000000001, 10)),
+                 ('element_del', True, self.spielTx,
+                  Fid(0x7300000000000002, 10001)),
+                 ('tx_close', False, self.spielTx),
+                 ('service_init', True, Fid(0x7300000000000002, 156)),
+                 ('service_start', True, Fid(0x7300000000000002, 156)),
+                 ('service_quiesce', True, Fid(0x7300000000000002, 156)),
+                 ('service_stop', True, Fid(0x7300000000000002, 156)),
+                 ('service_health', True, Fid(0x7300000000000002, 156)),
+                 ('device_attach', True, Fid(0x6b00000000000001, 166)),
+                 ('device_detach', True, Fid(0x6b00000000000001, 166)),
+                 ('device_format', True, Fid(0x6b00000000000001, 166)),
+                 ('process_stop', True, Fid(0x7200000000000001, 145)),
+                 ('process_reconfig', True, Fid(0x7200000000000001, 145)),
+                 ('process_health', True, Fid(0x7200000000000001, 145)),
+                 ('process_quiesce', True, Fid(0x7200000000000001, 145)),
+                 ('process_list_services', True, Fid(0x7200000000000001, 145),
+                  pointer(RunningServices())),
+                 ('pool_repair_start', True, Fid(0x6f00000000000001, 199)),
+                 ('pool_repair_quiesce', True, Fid(0x6f00000000000001, 199)),
+                 ('pool_rebalance_start', True, Fid(0x6f00000000000001, 199)),
+                 ('pool_rebalance_quiesce', True, Fid(0x6f00000000000001, 199)),
+        ]
         try:
             for t in tests:
-                self.assertNotEqual(getattr(self.spiel, t[0])(*t[1:]), None)
+                print('{0}...'.format(t[0]))
+                if t[1] == True:
+                    self.assertNotEqual(getattr(self.spiel, t[0])(*t[2:]), None)
+                else:
+                    getattr(self.spiel, t[0])(*t[2:])
         except AssertionError:
             print('Failed test: ' + t[0])
             raise

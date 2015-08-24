@@ -27,8 +27,7 @@
 (controller-11 node=node-2 disks=[disk-16] pvers=[pver-8])
 (disk-16 dev=sdev-15)
 (pool-4 order=0 pvers=[pver-8])
-(pver-8 ver=0 N=8 K=2 P=15 permutations=[1, 2, 4] nr_failures=[]
-    rackvs=[objv-12])
+(pver-8 ver=0 N=8 K=2 P=15 nr_failures=[] rackvs=[objv-12])
 (objv-12 real=rack-3 children=[objv-17])
 (objv-17 real=enclosure-7 children=[objv-18])
 (objv-18 real=controller-11 children=[objv-19])
@@ -47,8 +46,7 @@
 (controller-54 node=node-48 disks=[disk-55] pvers=[pver-57])
 (disk-55 dev=sdev-51)
 (pool-56 order=0 pvers=[pver-57])
-(pver-57 ver=0 N=8 K=2 P=15 permutations=[1, 2, 4] nr_failures=[]
-    rackvs=[objv-58])
+(pver-57 ver=0 N=8 K=2 P=15 nr_failures=[] rackvs=[objv-58])
 (objv-58 real=rack-52 children=[objv-59])
 (objv-59 real=enclosure-53 children=[objv-60])
 (objv-60 real=controller-54 children=[objv-61])

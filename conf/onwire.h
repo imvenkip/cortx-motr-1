@@ -107,7 +107,6 @@ struct m0_confx_pver {
 	uint32_t               xv_K;
 	/* Pool width. */
 	uint32_t               xv_P;
-	struct arr_u32         xv_permutations;
 	/* The number of allowed failures for each failure domain. */
 	struct arr_u32         xv_nr_failures;
 	/* Rack versions associated with this pool version. */
