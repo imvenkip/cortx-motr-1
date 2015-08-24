@@ -707,6 +707,10 @@ m0t1fs_oostore_mode_basic()
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname1               || rc=1
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname2               || rc=1
 
+	# Recreate and remove the file
+	touch $MERO_M0T1FS_MOUNT_DIR/$fsname1               || rc=1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname1               || rc=1
+
 	cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/$file                   || rc=1
 	cp -v $MERO_M0T1FS_MOUNT_DIR/$file $MERO_M0T1FS_MOUNT_DIR/$file1 || rc=1
 	cp -v $MERO_M0T1FS_MOUNT_DIR/$file $MERO_M0T1FS_MOUNT_DIR/$file2 || rc=1

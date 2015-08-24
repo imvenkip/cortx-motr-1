@@ -1071,14 +1071,12 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	mo.mo_attr.ca_pver = ci->ci_pver;
 
 	if (csb->csb_oostore) {
-		if (ci->ci_inode.i_size > 0) {
-			rc = m0t1fs_component_objects_op(ci, &mo,
-							 m0t1fs_ios_cob_delete);
-			if (rc != 0)
-				M0_LOG(M0_ERROR,
-				       "ioservice delete fop failed: %d, size=%lld",
-				       rc, ci->ci_inode.i_size);
-		}
+		rc = m0t1fs_component_objects_op(ci, &mo,
+						 m0t1fs_ios_cob_delete);
+		if (rc != 0)
+			M0_LOG(M0_ERROR,
+			       "ioservice delete fop failed: %d, size=%lld",
+			       rc, ci->ci_inode.i_size);
 		m0t1fs_fs_unlock(csb);
 		return M0_RC(rc);
 	}
@@ -1576,7 +1574,9 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 			}
 		}
 		if (func == m0t1fs_ios_cob_setattr ||
-		    func == m0t1fs_ios_cob_create)
+		    func == m0t1fs_ios_cob_create ||
+		    /*  Data cobs are not createed until first write (CROW). */
+		    ci->ci_inode.i_size <= 0)
 			goto out;
 		while (--i >= 0)
 			m0_semaphore_down(&cob_req.cr_sem);
