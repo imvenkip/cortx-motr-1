@@ -31,9 +31,7 @@
 #include "lib/finject.h"   /* M0_FI_ENABLED */
 #include "mero/magic.h"
 #include "rm/rm.h"
-#include "rm/rm_rwlock.h"  /* m0_rm_rw_lock */
 #include "rm/rm_service.h" /* m0_rm_svc_rwlock_get */
-#include "rm/rm_rwlock.h"
 #include "rpc/rpclib.h"    /* m0_rpc_client_connect */
 #include "conf/cache.h"
 #include "conf/obj_ops.h"  /* m0_conf_obj_find */

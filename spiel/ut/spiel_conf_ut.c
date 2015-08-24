@@ -18,7 +18,6 @@
  * Original creation date: 24-Feb-2015
  */
 
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
 
@@ -33,8 +32,6 @@
 #include "conf/onwire.h"                /* m0_confx */
 #include "conf/onwire_xc.h"             /* m0_confx_xc */
 #include "conf/preload.h"               /* m0_confx_free */
-#include "rm/rm_rwlock.h"               /* m0_rwlockable_domain_init,
-					   m0_rwlockable_domain_fini */
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
 #include "ut/file_helpers.h"
@@ -1326,8 +1323,6 @@ static void spiel_conf_force_ut_init(struct m0_spiel_ut_reqh *spl_reqh)
 	spiel_copy_file(M0_UT_PATH("conf-str.txt"),
 			M0_UT_PATH("conf-str-tmp.txt"));
 
-	m0_rwlockable_domain_init();
-
 	rc = m0_spiel__ut_reqh_init(spl_reqh, client_ep);
 	M0_UT_ASSERT(rc == 0);
 
@@ -1342,8 +1337,6 @@ static void spiel_conf_force_ut_fini(struct m0_spiel_ut_reqh *spl_reqh)
 
 	m0_spiel__ut_rpc_server_stop(&spl_reqh->sur_confd_srv);
 	m0_spiel__ut_reqh_fini(spl_reqh);
-
-	m0_rwlockable_domain_fini();
 
 	rc = system("rm -rf "M0_UT_PATH("confd"));
 	M0_ASSERT(rc != -1);
@@ -1451,9 +1444,7 @@ const struct m0_ut_suite spiel_conf_ut = {
 };
 M0_EXPORTED(spiel_conf_ut);
 
-
 #undef M0_TRACE_SUBSYSTEM
-
 
 /*
  *  Local variables:

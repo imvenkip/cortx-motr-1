@@ -28,13 +28,10 @@
 #include "conf/obj_ops.h"
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine */
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx */
-#include "rm/rm_rwlock.h"     /* m0_rwlockable_domain_init,
-				 m0_rwlockable_domain_fini */
 #include "ut/ut.h"
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
 #include "ut/file_helpers.h"  /* M0_UT_PATH */
-
 
 static struct m0_spiel spiel;
 

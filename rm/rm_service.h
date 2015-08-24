@@ -25,7 +25,6 @@
 
 #include "reqh/reqh_service.h"
 #include "rm/rm.h"
-#include "rm/rm_rwlock.h"
 
 /**
    @defgroup rm_service Resource manager service (RMS)
@@ -106,7 +105,6 @@ m0_rm_svc_domain_get(const struct m0_reqh_service *svc);
 extern struct m0_reqh_service_type m0_rms_type;
 
 /** @} end of rm_service group */
-
 #endif /* __MERO_RM_RM_SERVICE_H__ */
 
 /*

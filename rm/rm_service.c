@@ -37,7 +37,7 @@
 #include "rm/rm_service.h"
 #include "rm/rm_internal.h"
 #include "rm/rm_fops.h"
-#include "rm/rm_rwlock.h"
+#include "rm/rm_rwlock.h"  /* m0_rw_lockable_type_register */
 #include "file/file.h"
 
 static int rms_allocate(struct m0_reqh_service **service,

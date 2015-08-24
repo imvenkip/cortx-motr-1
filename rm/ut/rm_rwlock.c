@@ -17,7 +17,9 @@
  * Original author: Egor Nikulenkov <egor.nikulenkov@seagate.com>
  * Original creation date: 03/27/2013
  */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "lib/trace.h"
 
 #include "lib/types.h"
 #include "lib/chan.h"
@@ -25,14 +27,13 @@
 #include "lib/memory.h"
 #include "lib/time.h"
 #include "lib/vec.h"
-#include "lib/trace.h"
 #include "fop/fom_generic.h"
 #include "fid/fid.h"
 #include "ut/ut.h"
 
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
-#include "rm/rm_rwlock.h"
+#include "rm/rm_rwlock.h"  /* m0_rw_lockable */
 #include "rm/ut/rmut.h"
 
 #define OWNER(srv_id) rm_ctxs[srv_id].rc_test_data.rd_owner
@@ -452,6 +453,8 @@ struct m0_ut_suite rm_rwlock_ut = {
 		{ NULL, NULL }
 	}
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

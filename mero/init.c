@@ -199,7 +199,9 @@ struct init_fini_call subsystem[] = {
 	{ &m0_ss_svc_init,      &m0_ss_svc_fini,      "sss" },
 #endif /* __KERNEL__ */
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
-	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" }
+	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" },
+	{ &m0_rwlockable_domain_init, &m0_rwlockable_domain_fini,
+	  "rw-lockable" }
 };
 
 static void fini_nr(struct init_fini_call *arr, int nr)
@@ -266,30 +268,22 @@ M0_INTERNAL void m0_fini_once(void)
 #if 1 /* XXX OBSOLETE */
 int m0_init(struct m0 *instance)
 {
-	int rc;
 	m0_instance_setup(instance);
-	rc = m0_module_init(&instance->i_self, M0_LEVEL_INST_READY);
-	m0_rwlockable_domain_init();
-	return rc;
+	return m0_module_init(&instance->i_self, M0_LEVEL_INST_READY);
 }
 
 void m0_fini(void)
 {
-	m0_rwlockable_domain_fini();
 	m0_module_fini(&m0_get()->i_self, M0_MODLEV_NONE);
 }
 
 int m0_resume(struct m0 *instance)
 {
-	int rc;
-	rc = m0_module_init(&instance->i_self, M0_LEVEL_INST_READY);
-	m0_rwlockable_domain_init();
-	return rc;
+	return m0_module_init(&instance->i_self, M0_LEVEL_INST_READY);
 }
 
 void m0_quiesce(void)
 {
-	m0_rwlockable_domain_fini();
 	m0_module_fini(&m0_get()->i_self, M0_LEVEL_INST_QUIESCE_SYSTEM);
 }
 

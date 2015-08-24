@@ -28,7 +28,6 @@
 #include "ut/ut.h"
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
-#include "rm/rm_rwlock.h"               /* m0_rwlockable_domain_init */
 #include "ut/file_helpers.h"            /* M0_UT_CONF_PROFILE */
 
 struct m0_spiel_ut_reqh *spl_reqh;
@@ -57,8 +56,8 @@ static int spiel_ut_init()
 	const char *ep = SERVER_ENDPOINT_ADDR;
 	const char *client_ep = CLIENT_ENDPOINT_ADDR;
 
-	m0_rwlockable_domain_init();
 	M0_ALLOC_PTR(spl_reqh);
+	M0_UT_ASSERT(spl_reqh != NULL);
 
 	rc = m0_spiel__ut_reqh_init(spl_reqh, client_ep);
 	M0_UT_ASSERT(rc == 0);
@@ -76,7 +75,6 @@ static int spiel_ut_fini()
 	m0_spiel__ut_reqh_fini(spl_reqh);
 
 	m0_free(spl_reqh);
-	m0_rwlockable_domain_fini();
 
 	return 0;
 }

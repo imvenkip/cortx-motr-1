@@ -29,6 +29,7 @@
 #include "fid/fid.h"
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
+
 /**
    @page ReadWrite Distributed Lock DLD
 
@@ -146,7 +147,7 @@ void m0_rw_lockable_type_deregister(struct m0_rm_resource_type *rtype);
 extern const struct m0_fid M0_RWLOCK_FID;
 
 M0_INTERNAL struct m0_rm_domain *m0_rwlockable_domain(void);
-M0_INTERNAL void m0_rwlockable_domain_init(void);
+M0_INTERNAL int  m0_rwlockable_domain_init(void);
 M0_INTERNAL void m0_rwlockable_domain_fini(void);
 
 /** @} end of RWLock */

@@ -30,13 +30,12 @@
 #include "rpc/rpclib.h"                /* m0_rpc_server_ctx */
 #include "ut/file_helpers.h"
 #include "conf/ut/rpc_helpers.h"
-#include "conf/ut/confc.h"             /* m0_ut_conf_fids[] */
+#include "conf/ut/confc.h"             /* m0_ut_conf_fids */
 #include "conf/ut/common.h"
 #include "lib/finject.h"
 #include "lib/locality.h"              /* m0_locality0_get */
 #include "lib/mutex.h"
 #include "ut/ut.h"
-#include "rm/rm_rwlock.h"
 #include "conf/rconfc_internal.h"
 
 static struct m0_semaphore  g_expired_sem;
@@ -547,13 +546,11 @@ static void test_reconnect_success(void)
 
 static int rconfc_ut_init(void)
 {
-	m0_rwlockable_domain_init();
 	return conf_ut_ast_thread_init();
 }
 
 static int rconfc_ut_fini(void)
 {
-	m0_rwlockable_domain_fini();
 	return conf_ut_ast_thread_fini();
 }
 

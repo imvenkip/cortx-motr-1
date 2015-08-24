@@ -17,6 +17,7 @@
  * Original author: Mikhail Antropov <mikhail.v.antropov@seagate.com>
  * Original creation date: 02/24/2015
  */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
 
@@ -30,8 +31,6 @@
 #include "ut/ut.h"
 #include "spiel/ut/spiel_ut_common.h"
 #include "ut/file_helpers.h"           /* M0_UT_CONF_PATH */
-#include "rm/rm_rwlock.h"              /* m0_rwlockable_domain_init,
-					  m0_rwlockable_domain_fini */
 
 static struct m0_spiel_ut_reqh ut_reqh;
 
@@ -150,7 +149,6 @@ M0_INTERNAL int m0_spiel__ut_init(struct m0_spiel *spiel, char *confd_path)
 	const char *client_ep = CLIENT_ENDPOINT_ADDR;
 	const char *profile = M0_UT_CONF_PROFILE;
 
-	m0_rwlockable_domain_init();
 	rc = m0_spiel__ut_reqh_init(&ut_reqh, client_ep);
 	M0_UT_ASSERT(rc == 0);
 
@@ -171,10 +169,8 @@ M0_INTERNAL int m0_spiel__ut_fini(struct m0_spiel *spiel)
 	m0_spiel_stop(spiel);
 	m0_spiel__ut_rpc_server_stop(&ut_reqh.sur_confd_srv);
 	m0_spiel__ut_reqh_fini(&ut_reqh);
-	m0_rwlockable_domain_fini();
 	return 0;
 }
-
 
 #undef M0_TRACE_SUBSYSTEM
 

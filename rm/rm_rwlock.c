@@ -18,10 +18,9 @@
  * Original creation date: 02/17/2015
  */
 
-#undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
-
 #include "lib/trace.h"
+
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
 #include "fid/fid_xc.h"
 #include "xcode/xcode.h"
@@ -259,12 +258,13 @@ M0_INTERNAL struct m0_rm_domain *m0_rwlockable_domain(void)
 	return &rwlockable_dom;
 }
 
-M0_INTERNAL void m0_rwlockable_domain_init(void)
+M0_INTERNAL int m0_rwlockable_domain_init(void)
 {
 	M0_SET0(&rwlockable_dom);
 	M0_SET0(&rwlockable_rt);
 	m0_rm_domain_init(&rwlockable_dom);
 	m0_rw_lockable_type_register(&rwlockable_dom, &rwlockable_rt);
+	return 0;
 }
 
 M0_INTERNAL void m0_rwlockable_domain_fini(void)
@@ -580,6 +580,7 @@ M0_INTERNAL int m0_rw_lockable_type_register(struct m0_rm_domain        *dom,
 	M0_ENTRY();
 
 	rtype->rt_id = M0_RM_RWLOCKABLE_RT;
+	rtype->rt_name = "rw-lockable";
 	rtype->rt_ops = &rwlockable_type_ops;
 	return M0_RC(m0_rm_type_register(dom, rtype));
 }
@@ -597,7 +598,6 @@ M0_EXPORTED(m0_rw_lockable_type_deregister);
 const struct m0_fid M0_RWLOCK_FID = M0_FID_TINIT('R', 'W', 'L');
 
 /** @} end of RWLock */
-
 #undef M0_TRACE_SUBSYSTEM
 
 /*

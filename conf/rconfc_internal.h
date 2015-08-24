@@ -23,6 +23,8 @@
 #ifndef __MERO_CONF_RCONFC_INTERNAL_H__
 #define __MERO_CONF_RCONFC_INTERNAL_H__
 
+#include "rm/rm_rwlock.h"  /* m0_rm_rw_lock */
+
 /**
    @addtogroup rconfc_dlspec
    @{
