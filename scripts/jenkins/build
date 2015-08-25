@@ -21,21 +21,25 @@ else
     mkdir $ARTIFACTS
 fi
 
-pushd workdir/src/
-    sudo git clean -dfx
-    sudo git submodule foreach git clean -dfx
-    git submodule update
+# for backward compatibility with old Jenkins environment we need to `cd` into
+# 'workdir/src' directory if it exists, that is where old Jenkins jobs stored
+# mero sources
+src_dir=workdir/src
+[[ ! -d $src_dir ]] || cd $src_dir
 
-    ./autogen.sh |& tee $ARTIFACTS/configure.log
-    ./configure --enable-detailed-backtrace |& tee -a $ARTIFACTS/configure.log
+sudo git clean -dfx
+sudo git submodule foreach git clean -dfx
+git submodule update
 
-    if [[ $1 = docs ]] ; then
-        make -j doc |& tee $ARTIFACTS/make.log
-    else
-        [[ -d $HOME/rpmbuild ]] && rm -rf $HOME/rpmbuild/*
-        make -j |& tee $ARTIFACTS/make.log
-        make -j rpms |& tee $ARTIFACTS/rpm.log
-        cp -av $HOME/rpmbuild/RPMS/x86_64/mero*.rpm $ARTIFACTS/
-        cp -av $HOME/rpmbuild/SRPMS/mero*.rpm $ARTIFACTS/
-    fi
-popd
+./autogen.sh |& tee $ARTIFACTS/configure.log
+./configure --enable-detailed-backtrace |& tee -a $ARTIFACTS/configure.log
+
+if [[ $1 = docs ]] ; then
+make -j doc |& tee $ARTIFACTS/make.log
+else
+[[ -d $HOME/rpmbuild ]] && rm -rf $HOME/rpmbuild/*
+make -j |& tee $ARTIFACTS/make.log
+make -j rpms |& tee $ARTIFACTS/rpm.log
+cp -av $HOME/rpmbuild/RPMS/x86_64/mero*.rpm $ARTIFACTS/
+cp -av $HOME/rpmbuild/SRPMS/mero*.rpm $ARTIFACTS/
+fi
