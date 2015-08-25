@@ -45,6 +45,8 @@ enum {
 	SERVICE3,
 	SERVICE4,
 	SERVICE5,
+	SERVICE6,
+	SERVICE7,
 	SDEV0,
 	SDEV1,
 	SDEV2,
@@ -76,12 +78,14 @@ static const struct m0_fid fids[] = {
 	[FS]          = M0_FID_TINIT('f', 1, 1),
 	[NODE]        = M0_FID_TINIT('n', 1, 2),
 	[PROCESS0]    = M0_FID_TINIT('r', 1, 3),
-	[SERVICE0]    = M0_FID_TINIT('s', 1, 4),
-	[SERVICE1]    = M0_FID_TINIT('s', 1, 5),
-	[SERVICE2]    = M0_FID_TINIT('s', 1, 6),
-	[SERVICE3]    = M0_FID_TINIT('s', 1, 7),
-	[SERVICE4]    = M0_FID_TINIT('s', 1, 8),
-	[SERVICE5]    = M0_FID_TINIT('s', 1, 9),
+	[SERVICE0]    = M0_FID_TINIT('s', 1, 0),
+	[SERVICE1]    = M0_FID_TINIT('s', 1, 1),
+	[SERVICE2]    = M0_FID_TINIT('s', 1, 2),
+	[SERVICE3]    = M0_FID_TINIT('s', 1, 3),
+	[SERVICE4]    = M0_FID_TINIT('s', 1, 4),
+	[SERVICE5]    = M0_FID_TINIT('s', 1, 5),
+	[SERVICE6]    = M0_FID_TINIT('s', 1, 6),
+	[SERVICE7]    = M0_FID_TINIT('s', 1, 7),
 	[SDEV0]       = M0_FID_TINIT('d', 1, 10),
 	[SDEV1]       = M0_FID_TINIT('d', 1, 11),
 	[SDEV2]       = M0_FID_TINIT('d', 1, 12),
@@ -174,7 +178,8 @@ static void check_obj(const struct m0_conf_obj *obj)
 		static const struct m0_fid *a[] = {
 			&fids[SERVICE0], &fids[SERVICE1],
 			&fids[SERVICE2], &fids[SERVICE3],
-			&fids[SERVICE4], &fids[SERVICE5]
+			&fids[SERVICE4], &fids[SERVICE5],
+			&fids[SERVICE6], &fids[SERVICE7]
 		};
 		M0_UT_ASSERT(m0_exists(i, ARRAY_SIZE(a),
 				       m0_fid_eq(&obj->co_id, a[i])));
@@ -323,7 +328,6 @@ static void test_diter_net(void)
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
 		"-w", "10", "-e", SERVER_ENDPOINT,
-		"-s", "confd:<0x7300000000000001:1>",
 		"-c", M0_UT_PATH("diter_xc.txt"), "-P", M0_UT_CONF_PROFILE
 	};
 	struct m0_rpc_server_ctx confd = {

@@ -67,10 +67,7 @@ int main(int argc, char **argv)
 		argv[0], "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
 		"-w", "10", "-e", ENDPOINT,
-		"-P", M0_UT_CONF_PROFILE, "-C", SERVER_ENDPOINT_ADDR,
-		"-s", "ds1:<0x7300000000000001:1>",
-		"-s", "ds2:<0x7300000000000001:2>",
-		"-s", "ioservice:<0x7300000000000001:3>",
+		"-c", M0_UT_PATH("diter_xc.txt"), "-P", M0_UT_CONF_PROFILE
 		"-q", tm_len, "-m", rpc_size
 	};
 	struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;

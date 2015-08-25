@@ -41,9 +41,6 @@ static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-T", "AD",
 				"-A", "linuxstob:cs_addb_stob",
 				"-e", "lnet:0@lo:12345:34:1",
 				"-w", "10",
-				"-s", "ioservice:<0x7300000000000001:1>",
-				"-s", "stats:<0x7300000000000001:2>",
-				"-s", "confd:<0x7300000000000001:3>",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf-str.txt")};
 
@@ -53,9 +50,6 @@ static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-T", "AD",
 				"-w", "10",
 				"-e", "lnet:0@lo:12345:34:1",
 				"-e", "bulk-mem:127.0.0.1:35678",
-				"-s", "ioservice:<0x7300000000000001:1>",
-				"-s", "stats:<0x7300000000000001:2>",
-				"-s", "confd:<0x7300000000000001:3>",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf-str.txt")};
 
@@ -66,9 +60,6 @@ static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-e", "lnet:0@lo:12345:34:1",
 				"-e", "bulk-mem:127.0.0.1:35678",
 				"-e", "bulk-mem:127.0.0.1:35679",
-				"-s", "ioservice:<0x7300000000000001:1>",
-				"-s", "stats:<0x7300000000000001:2>",
-				"-s", "confd:<0x7300000000000001:3>",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf-str.txt")};
 
@@ -79,9 +70,6 @@ static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-e", "lnet:0@lo:12345:34:1",
 				"-e", "bulk-mem:127.0.0.1:35678",
 				"-e", "bulk-mem:127.0.0.1:35679",
-				"-s", "ioservice:<0x7300000000000001:1>",
-				"-s", "stats:<0x7300000000000001:2>",
-				"-s", "confd:<0x7300000000000001:3>",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf-str.txt")};
 

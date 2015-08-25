@@ -148,7 +148,7 @@ sns_repair_mount()
 		echo "mount failed"
 		return 1
 	}
-	mount
+	mount | grep m0t1fs
 }
 
 sns_repair()

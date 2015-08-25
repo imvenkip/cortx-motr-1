@@ -12,7 +12,6 @@ mero_exec_dir=/usr/libexec/mero
 user_config=/etc/sysconfig/mero
 service_funcs=$mero_exec_dir/mero-service.functions
 
-
 m0_mkfs()
 {
     local service=$1

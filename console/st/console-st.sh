@@ -20,7 +20,7 @@ YAML_FILE9=$SANDBOX_DIR/req-9.yaml
 YAML_FILE41=$SANDBOX_DIR/req-41.yaml
 SERVER_EP_ADDR='0@lo:12345:34:1'
 CLIENT_EP_ADDR='0@lo:12345:34:*'
-CONF_FILE_PATH=$M0_CORE_DIR/ut/conf-str.txt
+CONF_FILE_PATH=$M0_CORE_DIR/ut/diter_xc.txt
 CONF_PROFILE='<0x7000000000000001:0>'
 
 
@@ -43,15 +43,14 @@ start_server()
 	##
 	## NOTE: The list of options passed to m0mkfs command should
 	## correspond to the content of `server_argv' array in
-	## console/st/server.c, but not in `-s' parameters department:
+	## console/st/server.c.
 	## m0mkfs does not call m0_cs_default_stypes_init(), which
 	## registers "ds1" and "ds2" service types, so we do not pass
 	## these services to m0mkfs.
 	##
 	$M0_CORE_DIR/utils/mkfs/m0mkfs -T AD -D console_st_srv.db \
 	    -S console_st_srv.stob -A linuxstob:console_st_srv-addb.stob \
-	    -w 10 -e lnet:$SERVER_EP_ADDR -s 'ioservice:<0x7300000000000001:1>'\
-	    -s 'confd:<0x7300000000000001:2>' -q 2 -m $((1 << 17)) \
+	    -w 10 -e lnet:$SERVER_EP_ADDR -q 2 -m $((1 << 17)) \
 	    -c  $CONF_FILE_PATH -P $CONF_PROFILE \
 	    &>$SANDBOX_DIR/mkfs.log || die 'm0mkfs failed'
 	echo 'OK' >&2

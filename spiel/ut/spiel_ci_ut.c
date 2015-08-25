@@ -41,11 +41,13 @@ int spiel_ci_ut_init(void)
 
 	rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("conf-str.txt"));
 	M0_UT_ASSERT(rc == 0);
+	m0_fi_enable("ss_process_quiesce", "keep_confd_rmservice");
 	return 0;
 }
 
 int spiel_ci_ut_fini(void)
 {
+	m0_fi_disable("ss_process_quiesce", "keep_confd_rmservice");
 	m0_spiel__ut_fini(&spiel);
 	return 0;
 }
@@ -54,12 +56,19 @@ int spiel_ci_ut_fini(void)
 static void test_spiel_service_cmds(void)
 {
 	const struct m0_fid svc_fid = M0_FID_TINIT(
-			M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 20);
+			M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 10);
 	const struct m0_fid svc_invalid_fid = M0_FID_TINIT(
 			M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 13);
 	int                 rc;
 
 	spiel_ci_ut_init();
+
+	/* Doing `service stop` intialised during startup. */
+	rc = m0_spiel_service_quiesce(&spiel, &svc_fid);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_spiel_service_stop(&spiel, &svc_fid);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_spiel_service_init(&spiel, &svc_fid);
 	M0_UT_ASSERT(rc == 0);
 
@@ -195,12 +204,16 @@ static void test_spiel_service_order(void)
 	const struct m0_fid          process_fid = M0_FID_TINIT(
 				M0_CONF_PROCESS_TYPE.cot_ftype.ft_id, 1, 5);
 	const struct m0_fid          svc_fid = M0_FID_TINIT(
-				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 20);
+				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 10);
 	bool                         found = false;
 
 	spiel_ci_ut_init();
 	/* Doing process quiesce */
 	rc = m0_spiel_process_quiesce(&spiel, &process_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Doing `service stop` intialised during startup. */
+	rc = m0_spiel_service_stop(&spiel, &svc_fid);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Doing `service start` after process quiesce. */
@@ -248,7 +261,7 @@ static void test_spiel_pool_repair(void)
 	const struct m0_fid         pool_fid = M0_FID_TINIT(
 				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 4);
 	struct m0_fid               svc_fid = M0_FID_TINIT(
-				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 10);
+				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 9);
 	struct m0_fid               pool_invalid_fid = M0_FID_TINIT(
 				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 3);
 	struct m0_fid               invalid_fid = M0_FID_TINIT(
@@ -331,7 +344,7 @@ static void test_spiel_pool_rebalance(void)
 	const struct m0_fid         pool_fid = M0_FID_TINIT(
 				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 4);
 	struct m0_fid               svc_fid = M0_FID_TINIT(
-				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 10);
+				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 9);
 	struct m0_fid               pool_invalid_fid = M0_FID_TINIT(
 				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 3);
 	struct m0_fid               invalid_fid = M0_FID_TINIT(

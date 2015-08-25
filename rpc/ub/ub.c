@@ -169,7 +169,6 @@ static char *g_argv[] = {
 	NAME(""), "-Q", "200" /* MIN_RECV_QUEUE_LEN */, "-w", "10",
 	"-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
 	"-A", "linuxstob:"NAME(".addb-stob"), "-e", SERVER_ENDPOINT,
-	"-s", "ds1:<0x7300000000000001:1>",
 	"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 };
 

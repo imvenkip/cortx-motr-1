@@ -42,7 +42,6 @@ static char *ut_server_argv[] = {
 	"-f", "<0x7200000000000001:1>",
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
 	"-w", "10", "-e", SERVER_ENDPOINT,
-	"-s", "confd:<0x7300000000000001:1>",
 	"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 };
 
@@ -51,8 +50,8 @@ struct m0_reqh_service_type *ut_stypes[] = {
 };
 
 static const struct m0_fid ut_fid = {
-	.f_container = 8286623314361712755,
-	.f_key       = 1
+	.f_container = 0x7300000000000001,
+	.f_key       = 26
 };
 
 static const struct m0_fom_ops ut_fom_ops = {
@@ -192,7 +191,12 @@ static void fop_allow_test(void)
 	M0_UT_ASSERT(rc == 0);
 
 	start_rpc_client_and_server();
-	ut_sss_req(ds1_service_type.rst_name, M0_SERVICE_STATUS, -ENOENT, 0);
+	ut_sss_req(ds1_service_type.rst_name, M0_SERVICE_STATUS, 0,
+		   M0_RST_STARTED);
+	ut_sss_req(ds1_service_type.rst_name, M0_SERVICE_QUIESCE, 0,
+		   M0_RST_STOPPING);
+	ut_sss_req(ds1_service_type.rst_name, M0_SERVICE_STOP, 0,
+		   M0_RST_STOPPED);
 
 	rc = send_fop();
 	M0_UT_ASSERT(rc == -ECONNREFUSED);

@@ -386,9 +386,6 @@ static int run_server(void)
 		"-f", "<0x7200000000000002:1>",
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
 		"-A", SERVER_ADDB_STOB_FILE_NAME, "-w", "5",
-		"-s", "ds1:<0x7300000000000001:1>",
-		"-s", "ds2:<0x7300000000000001:2>",
-		"-s", "confd:<0x7300000000000001:3>",
 		"-q", tm_len, "-m", rpc_size,
 		"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_PATH("conf-str.txt")
 	};

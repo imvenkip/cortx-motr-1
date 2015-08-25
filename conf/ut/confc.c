@@ -352,7 +352,6 @@ static void test_confc_net(void)
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb_stob"),
 		"-w", "10", "-e", SERVER_ENDPOINT,
-		"-s", "confd:<0x7300000000000001:1>",
 		"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 	};
 	struct m0_rpc_server_ctx confd = {

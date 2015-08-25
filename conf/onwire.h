@@ -141,6 +141,7 @@ struct m0_confx_process {
 	uint64_t                xr_mem_limit_rss;
 	uint64_t                xr_mem_limit_stack;
 	uint64_t                xr_mem_limit_memlock;
+	struct m0_buf           xr_endpoint;
 	/* Services being run by this process. */
 	struct arr_fid          xr_services;
 } M0_XCA_RECORD;

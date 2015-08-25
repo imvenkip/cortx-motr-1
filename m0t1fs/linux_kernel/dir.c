@@ -430,6 +430,8 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 	M0_ENTRY("Deleting %.*s's xattr %s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name);
 
+	if (csb->csb_oostore)
+		return M0_ERR(-EOPNOTSUPP);
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);

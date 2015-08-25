@@ -439,6 +439,7 @@ int m0_spiel_node_add(struct m0_spiel_tx  *tx,
  * @param parent     fid of the parent node
  * @param cores      limit on the number of used cores
  * @param memlimit   memory limit for process
+ * @param endpoint   process endpoint
  */
 int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 			 const struct m0_fid *fid,
@@ -447,7 +448,8 @@ int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 			 uint64_t             memlimit_as,
 			 uint64_t             memlimit_rss,
 			 uint64_t             memlimit_stack,
-			 uint64_t             memlimit_memlock);
+			 uint64_t             memlimit_memlock,
+			 const char          *endpoint);
 
 /** Spiel service information */
 struct m0_spiel_service_info {

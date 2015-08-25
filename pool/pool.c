@@ -299,6 +299,12 @@ static bool obj_is_service(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
 }
 
+static bool is_mds(const struct m0_conf_obj *obj)
+{
+	return obj_is_service(obj) &&
+	       M0_CONF_CAST(obj, m0_conf_service)->cs_type == M0_CST_MDS;
+}
+
 static int __mds_map(struct m0_conf_controller *c, struct m0_pools_common *pc)
 {
 	struct m0_conf_diter        it;
@@ -315,17 +321,17 @@ static int __mds_map(struct m0_conf_controller *c, struct m0_pools_common *pc)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	while ((rc = m0_conf_diter_next_sync(&it, obj_is_service)) ==
-							M0_CONF_DIRNEXT) {
+	while ((rc = m0_conf_diter_next_sync(&it, is_mds)) == M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
-		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE);
 		s = M0_CONF_CAST(obj, m0_conf_service);
 		ctx = m0_tl_find(pools_common_svc_ctx, ctx,
 				 &pc->pc_svc_ctxs,
 				 m0_fid_eq(&s->cs_obj.co_id,
-					   &ctx->sc_fid) &&
-				 ctx->sc_type == s->cs_type);
+					   &ctx->sc_fid));
 		pc->pc_mds_map[idx++] = ctx;
+		M0_LOG(M0_DEBUG, "mds index:%d, no. of mds:%d", (int)idx,
+			(int)pc->pc_nr_svcs[M0_CST_MDS]);
+		M0_ASSERT(idx <= pc->pc_nr_svcs[M0_CST_MDS]);
 	}
 
 	m0_conf_diter_fini(&it);
@@ -668,6 +674,13 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE);
 		s = M0_CONF_CAST(obj, m0_conf_service);
+		/*
+		 * Connection to confd is managed by configuration client.
+		 * confd is already connected in m0_confc_init() to the
+		 * endpoint provided by the command line argument -C.
+		 */
+		if (s->cs_type == M0_CST_MGS)
+			continue;
 		rc = __service_ctx_create(pc, s, service_connect);
 		if (rc != 0)
 			break;

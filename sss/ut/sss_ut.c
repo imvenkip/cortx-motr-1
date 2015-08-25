@@ -58,12 +58,12 @@ enum {
 };
 
 static const struct m0_fid ut_fid = {
-	.f_container = 8286623314361712755,
-	.f_key       = 1
+	.f_container = 0x7300000000000001,
+	.f_key       = 10
 };
 
 static const struct m0_fid ut_process_fid = {
-	.f_container = 8286623314361712755,
+	.f_container = 0x7200000000000001,
 	.f_key       = 1
 };
 
@@ -74,7 +74,6 @@ static char *server_argv[] = {
 	"sss_ut", "-T", "AD", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
 	"-e", SERVER_ENDPOINT, "-w", "10",
-	"-s", "confd:<0x7300000000000001:1>",
 	"-f", "<0x7200000000000001:1>",
 	"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 };
@@ -194,6 +193,11 @@ static int sss_ut_fini(void)
 
 static void sss_commands_test(void)
 {
+	/* quiesce and stop */
+	sss_ut_req(M0_SERVICE_STATUS, 0, M0_RST_STARTED);
+	sss_ut_req(M0_SERVICE_QUIESCE, 0, M0_RST_STOPPING);
+	sss_ut_req(M0_SERVICE_STOP, 0, M0_RST_STOPPED);
+
 	/* init */
 	sss_ut_req(M0_SERVICE_STATUS, -ENOENT, 0);
 	sss_ut_req(M0_SERVICE_INIT, 0, M0_RST_INITIALISED);

@@ -429,6 +429,7 @@ struct m0_conf_process {
 	uint64_t            pc_memlimit_rss;
 	uint64_t            pc_memlimit_stack;
 	uint64_t            pc_memlimit_memlock;
+	const char         *pc_endpoint;
 };
 
 struct m0_conf_service {

@@ -2,7 +2,6 @@
 # variable in m0_build_local_conf()
 m0_prof_opt='<0x7000000000000001:0>'
 
-
 # Print message on console (STDERR) and write it into system log
 #   @param  $1  msg
 m0_log()
@@ -206,11 +205,6 @@ m0_get_global_services()
         services="$services $(m0_get_services $node)"
     done
 
-    # RMS and STATS services run on MDS' endpoint
-    case $service_type in
-        rms|stats) service_type=mds ;;
-    esac
-
     case $service_type in
         '') echo $services
             ;;
@@ -226,6 +220,32 @@ m0_get_kmod_ep()
     echo "$(m0_get_lnet_nid):12345:41:301"
 }
 
+_portal_id()
+{
+    local s=$1
+    local portal_id;
+
+    case $s in
+        mkfs)   portal_id=35;;
+        mds*)   portal_id=41;;
+        ios*)   portal_id=42;;
+        rms*)   portal_id=43;;
+        confd)  portal_id=44;;
+        ha)     portal_id=45;;
+    esac
+    echo $portal_id
+}
+
+m0_get_mkfs_ep_of()
+{
+    local service=$1
+    local service_ep=$(m0_get_ep_of $1)
+    local svc_tmid=$(echo $service_ep | cut -d: -f4)
+    local portal_id=$(_portal_id mkfs)
+
+    echo "${service_ep%:*:*}:$portal_id:$svc_tmid"
+}
+
 # Return endpoint of a particular service
 #   @param  $1  service name
 #   @param  $2  optional name of a node, for which the query is performed, if
@@ -238,28 +258,28 @@ m0_get_ep_of()
     local found=false
     local lnid=$(m0_get_lnet_nid $node)
     local lpid=12345
-    local confd_portal=41
-    local mds_portal=41
-    local ha_portal=34
-    local ios_portal=41
     local confd_tid=101
     local mds_tid=201
+    local rms_tid=301
     local ha_tid=1
     local ios_tid=401
+    local portal=$(_portal_id $1)
     local ep
     local s
 
     for s in $(m0_get_services $node); do
         case $s in
             confd*)
-                local global_confd_ep="$lnid:$lpid:$confd_portal:$((confd_tid++))"
+                local global_confd_ep="$lnid:$lpid:$portal:$((confd_tid++))"
                 ep="${MERO_CONFD_LOCAL_EP:-$global_confd_ep}"
                 ;;
-            mds*) ep="$lnid:$lpid:$mds_portal:$((mds_tid++))"
+            mds*) ep="$lnid:$lpid:$portal:$((mds_tid++))"
                 ;;
-            ios*) ep="$lnid:$lpid:$ios_portal:$((ios_tid++))"
+            ios*) ep="$lnid:$lpid:$portal:$((ios_tid++))"
                 ;;
-            ha*)  ep="$lnid:$lpid:$ha_portal:$((ha_tid++))"
+            rms*) ep="$lnid:$lpid:$portal:$((rms_tid++))"
+                ;;
+            ha*)  ep="$lnid:$lpid:$portal:$((ha_tid++))"
                 ;;
         esac
 
@@ -313,26 +333,16 @@ m0_get_proc_fid_for()
 
 # Return space-separated list of all endpoints in the cluster for particular
 # service type, from genders file
-#   @param  $1  service type (confd mds ios ha rms stats)
+#   @param  $1  service type (confd mds ios ha rms)
 m0_get_global_eps_of()
 {
-    local stype=$1
-
     local global_eps
     local n
     local s
 
     for n in $(m0_get_nodes); do
         for s in $(m0_get_services $n); do
-            case $s in
-                ${stype}*)
-                    global_eps="$global_eps $(m0_get_ep_of $s $n)"
-                    ;;
-                mds*)
-                    [[ $stype == rms || $stype == stats ]] || continue
-                    global_eps="$global_eps $(m0_get_ep_of $s $n)"
-                    ;;
-            esac
+            global_eps="$global_eps $(m0_get_ep_of $s $n)"
         done
     done
 
@@ -405,71 +415,28 @@ m0_build_service_fid()
     local service=$1
     local node_idx=$2
     local sidx_param=${3:-0}
+    local cid=0
 
     local stype
     local sidx
-    local container
 
-    if [[ $service == "addb2" ]] ; then
-       stype="addb2"
-       sidx=0
-    else
-       stype=${service//[0-9]}
-       sidx=${service//[^0-9]}
-       sidx=${sidx:-$sidx_param}
-    fi
+    stype=${service//[0-9]}
+    sidx=${service//[^0-9]}
+    sidx=${sidx:-$sidx_param}
 
     case $stype in
-        mds)       container='0x7300000000000001' ;;
-        ios)       container='0x7300000000000002' ;;
-        confd)     container='0x7300000000000003' ;;
-        rms)       container='0x7300000000000004' ;;
-        stats)     container='0x7300000000000005' ;;
-        ha)        container='0x7300000000000006' ;;
-        repair)    container='0x7300000000000007' ;;
-        rebalance) container='0x7300000000000008' ;;
-        addb2)     container='0x7300000000000009' ;;
-        sss)       container='0x730000000000000a' ;;
+        mds)       cid=1 ;;
+        ios)       cid=2 ;;
+        confd)     cid=3 ;;
+        rms)       cid=4 ;;
+        ha)        cid=5 ;;
+        repair)    cid=6 ;;
+        rebalance) cid=7 ;;
+        addb)      cid=8 ;;
+        sss)       cid=9 ;;
     esac
 
-    printf %x:%d $(( $container + $node_idx * 16 )) $sidx
-}
-
-# Return well formed -s command line options ready to be inserted in m0d command
-# line. Command line options are formed for one particular service.
-#   @param  $1  name of a service, e.g. 'mds', 'ios1'
-#   @param  $2  node index in global nodes array where service is located
-m0_get_m0d_services_for()
-{
-    local service=$1
-    local node=$2
-
-    local nidx
-    local res=''
-
-    nidx=$(_word_index "$(m0_get_nodes)" ${node:-$(hostname -s)})
-
-    if [[ -n $nidx ]] ; then
-        case "$service" in
-            mds*)
-               res+=" -s mdservice:<$(m0_build_service_fid $service $nidx)>"
-               res+=" -s rmservice:<$(m0_build_service_fid ${service/mds/rms} $nidx)>"
-               res+=" -s stats:<$(m0_build_service_fid ${service/mds/stats} $nidx)>"
-               ;;
-            ios*)
-               res+=" -s ioservice:<$(m0_build_service_fid $service $nidx)>"
-               res+=" -s sns_repair:<$(m0_build_service_fid ${service/ios/repair} $nidx)>"
-               res+=" -s sns_rebalance:<$(m0_build_service_fid ${service/ios/rebalance} $nidx)>"
-               ;;
-            confd|addb2)
-               res+=" -s $service:<$(m0_build_service_fid $service $nidx)>"
-               ;;
-        esac
-    else
-        m0_exit "cannot find node $node"
-    fi
-
-    echo $res
+    printf %s:%d "^s|$(( $cid + $node_idx * 16 ))" $sidx
 }
 
 _build_disk_ids_str()
@@ -480,7 +447,7 @@ _build_disk_ids_str()
     local dev_ids
     local id
     for id in $(seq $start_id $(($start_id + $count - 1))) ; do
-        local dev_id="(0x6400000000000001, $id)"
+        local dev_id="^d|1:$id"
         dev_ids="$dev_ids${dev_ids:+, }$dev_id"
     done
 
@@ -494,7 +461,7 @@ _build_disk_fids_str()
     local disk_fids
     local id
     for id in $(seq 1 $count) ; do
-        local ddisk_id="(0x6b00000000000001, $id)"
+        local ddisk_id="^k|1:$id"
         disk_fids="$disk_fids${disk_fids:+, }$ddisk_id"
     done
 
@@ -508,7 +475,7 @@ _build_diskv_fids_str()
     local disk_fids
     local id
     for id in $(seq 1 $count) ; do
-        local ddiskv_id="(0x6a00000000000001, $id)"
+        local ddiskv_id="^j|1:$id"
         disk_fids="$disk_fids${disk_fids:+, }$ddiskv_id"
     done
 
@@ -522,9 +489,9 @@ _build_ios_devs()
     local devs
     local id
     for id in $(seq 1 $count) ; do
-        local ddev_id="(0x6400000000000001, $id)"
-        local ddisk_id="(0x6b00000000000001, $id)"
-        local ddiskv_id="(0x6a00000000000001, $id)"
+        local ddev_id="^d|1:$id"
+        local ddisk_id="^k|1:$id"
+        local ddiskv_id="^j|1:$id"
         local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$id\")}"
         local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id)}"
         local ddiskv_obj="{0x6a| (($ddiskv_id), $ddisk_id, [0])}"
@@ -535,98 +502,130 @@ _build_ios_devs()
     echo -e "$devs"
 }
 
-_build_service_names_for()
+_build_process_names()
 {
-    local service_type=$1
-
-    local genders_stype
-
-    # check service type
-    case $service_type in
-        ios|mds|ha|sss)
-            genders_stype=$service_type
-           ;;
-        rms|stats)
-            genders_stype=mds
-           ;;
-        *) m0_exit "Internal error, unkonwn service type '$service_type' in"
-                   " _build_service_names_for()"
-           ;;
-    esac
-
-    local node_idx=0
-    local idx=0
-    local names
+    local proc_fid_con=$1
     local node
-    local s
+    local names=""
+    local key=0
 
     for node in $(m0_get_nodes) ; do
         for s in $(m0_get_services $node) ; do
-            if [[ $s == $genders_stype* ]] ; then
-                local name="(0x$(m0_build_service_fid ${s/$genders_stype/$service_type} $node_idx))"
-                names="$names${names:+, }${name/:/,}"
-            elif [[ $genders_stype == sss ]] ; then
-                local name="(0x$(m0_build_service_fid sss $node_idx $idx))"
-                names="$names${names:+, }${name/:/,}"
+            local name="$proc_fid_con:$key"
+            names="$names${names:+, }$name"
+            ((key++))
+        done
+    done
+
+    echo -e "$names"
+}
+
+_build_process_objects()
+{
+    local proc_fid_con=$1
+    local idx=0
+    local node_idx=0
+    local node
+    local objs=""
+    local rms_nr=$(m0_get_global_services rms | wc -w)
+
+    for node in $(m0_get_nodes) ; do
+        for s in $(m0_get_services $node) ; do
+            local ep=$(m0_get_ep_of $s $node)
+            local sname="$(m0_build_service_fid $s $node_idx)"
+            local addb="$(m0_build_service_fid "addb2$idx" $node_idx)"
+
+            proc_name="$proc_fid_con:$idx"
+
+            if [[ $s == ios* ]] ; then
+                local repair="$(m0_build_service_fid ${s/ios/repair} $node_idx)"
+                local rebalance="$(m0_build_service_fid ${s/ios/rebalance} $node_idx)"
+
+                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [4: $sname, $repair, $rebalance, $addb])}"
+            elif [[ $s == mds* && $rms_nr -eq 0 ]] ; then
+                local rms="$(m0_build_service_fid ${s/mds/rms} $node_idx)"
+
+                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [3: $sname, $rms, $addb])}"
+            else
+                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [2: $sname, $addb])}"
             fi
+
+            objs="$objs${objs:+, \n} $obj"
             ((idx++))
         done
         ((node_idx++))
     done
 
-    echo "$names"
+    echo -e "$objs"
 }
 
-_build_service_objects_for()
+_type_id()
 {
-    local service_type=$1
-    local genders_stype
-    local eps=($(m0_get_global_eps_of $service_type));
+    local s=$1
+    local type_id;
 
-    # check service type
-    case $service_type in
-        ios|mds|rms|stats|ha|sss) # valid services
-            ;;
-        *) m0_exit "Internal error, unkonwn service type '$service_type' in"
-                   " _build_service_objects_for()"
-           ;;
+    case $s in
+        mds*)      type_id=1 ;;
+        ios*)      type_id=2 ;;
+        rms*)      type_id=4 ;;
+        ha)        type_id=6 ;;
+        confd)     type_id=3 ;;
+        sss)       type_id=7 ;;
+        repair)    type_id=8 ;;
+        rebalance) type_id=9 ;;
+        sss)       type_id=7 ;;
+        addb*)     type_id=10 ;;
     esac
+    echo $type_id
+}
 
-    local type_id
-    case $service_type in
-        mds)   genders_stype=$service_type ; type_id=1 ;;
-        ios)   genders_stype=$service_type ; type_id=2 ;;
-        rms)   genders_stype=mds ; type_id=4 ;;
-        stats) genders_stype=mds ; type_id=5 ;;
-        ha)    genders_stype=$service_type ; type_id=6 ;;
-        sss)   genders_stype=$service_type ; type_id=7 ;;
-    esac
-
+_build_service_objects()
+{
     local idx=0
     local node_idx=0
     local node
     local objs
+    local ios_nr=0
+    local rms_nr=$(m0_get_global_services rms | wc -w)
 
     for node in $(m0_get_nodes) ; do
         for s in $(m0_get_services $node) ; do
-            if [[ $s == $genders_stype* ]] ; then
-                local disk_ids='[0]'
-                if [[ $service_type == ios ]] ; then
-                    local count=$(m0_get_global_services $service_type | wc -w)
-                    local disks_per_service=$(( $pool_width / $count ))
-                    disk_ids=$(_build_disk_ids_str $(($idx * $disks_per_service + 1)) $disks_per_service)
-                fi
-                local name="(0x$(m0_build_service_fid ${s/$genders_stype/$service_type} $node_idx))"
-                name=${name/:/, }
-                objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: \"${eps[$idx]}\"], $disk_ids)}"
-                ((idx++))
-            elif [[ $service_type == sss ]] ; then
-                local ep=$(m0_get_ep_of $s $node)
-                local name="(0x$(m0_build_service_fid sss $node_idx $idx))"
-                name=${name/:/, }
-                objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: \"$ep\"], [0])}"
-                ((idx++))
+            local ep=$(m0_get_ep_of $s $node)
+            local type_id=$(_type_id $s)
+            local disk_ids='[0]'
+            local name="$(m0_build_service_fid $s $node_idx)"
+
+            if [[ $s == ios* ]] ; then
+                local count=$(m0_get_global_services ios | wc -w)
+                local disks_per_service=$(( $pool_width / $count ))
+
+                disk_ids=$(_build_disk_ids_str $(($ios_nr * $disks_per_service + 1)) $disks_per_service)
+                ((ios_nr++))
             fi
+
+            objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: "\"$ep\""], $disk_ids)}"
+
+	        addb="$(m0_build_service_fid "addb2$idx" $node_idx)"
+            type_id=$(_type_id "addb")
+            objs="$objs${objs:+,\n  }{0x73| (($addb), $type_id, [1: "\"$ep\""], [0])}"
+
+            if [[ $s == ios* ]] ; then
+                local repair="$(m0_build_service_fid ${s/ios/repair} $node_idx)"
+                local rebalance="$(m0_build_service_fid ${s/ios/rebalance} $node_idx)"
+
+                type_id=$(_type_id "repair")
+                objs="$objs${objs:+,\n  }{0x73| (($repair), $type_id, [1: "\"$ep\""], [0])}"
+
+                type_id=$(_type_id "rebalance")
+                objs="$objs${objs:+,\n  }{0x73| (($rebalance), $type_id, [1: "\"$ep\""], [0])}"
+            elif [[ $s == mds* && $rms_nr -eq 0 ]] ; then
+                local rms="$(m0_build_service_fid ${s/mds/rms} $node_idx)"
+
+                type_id=$(_type_id "rms")
+                objs="$objs${objs:+,\n  }{0x73| (($rms), $type_id, [1: "\"$ep\""], [0])}"
+            fi
+
+            ((idx++))
         done
         ((node_idx++))
     done
@@ -653,9 +652,9 @@ m0_build_local_conf()
     local poolid='^o|1:9'
     local pverid='^v|1:10'
 
-    local rackvid="(0x6a00000000000001, $(($pool_width + 1)))"
-    local enclvid="(0x6a00000000000001, $(($pool_width + 2)))"
-    local ctrlvid="(0x6a00000000000001, $(($pool_width + 3)))"
+    local rackvid="^j|1:$(($pool_width + 1))"
+    local enclvid="^j|1:$(($pool_width + 2))"
+    local ctrlvid="^j|1:$(($pool_width + 3))"
 
     local rack="{0x61| (($rackid), [1: $enclid], [1: $pverid])}"
     local encl="{0x65| (($enclid), [1: $ctrlid], [1: $pverid])}"
@@ -665,33 +664,14 @@ m0_build_local_conf()
     local rackv="{0x6a| (($rackvid), $rackid, [1: $enclvid])}"
     local enclv="{0x6a| (($enclvid), $enclid, [1: $ctrlvid])}"
     local ctrlv="{0x6a| (($ctrlvid), $ctrlid, $(_build_diskv_fids_str $pool_width))}"
-
-    local ios_count=$(m0_get_global_services ios | wc -w)
-    local ios_names=$(_build_service_names_for ios)
-    local ios_objs=$(_build_service_objects_for ios)
-
-    local mds_count=$(m0_get_global_services mds | wc -w)
-    local mds_names=$(_build_service_names_for mds)
-    local mds_objs=$(_build_service_objects_for mds)
-
-    local rms_count=$(m0_get_global_services rms | wc -w)
-    local rms_names=$(_build_service_names_for rms)
-    local rms_objs=$(_build_service_objects_for rms)
-
-    local stats_count=$(m0_get_global_services stats | wc -w)
-    local stats_names=$(_build_service_names_for stats)
-    local stats_objs=$(_build_service_objects_for stats)
-
-    local ha_count=$(m0_get_global_services ha | wc -w)
-    local ha_names=$(_build_service_names_for ha)
-    local ha_objs=$(_build_service_objects_for ha)
-
-    local sss_count=$(m0_get_global_services | wc -w)
-    local sss_names=$(_build_service_names_for sss)
-    local sss_objs=$(_build_service_objects_for sss)
-
+    local proc_fid_con='^r|1'
+    local proc_names=$(_build_process_names $proc_fid_con)
+    local proc_objs=$(_build_process_objects $proc_fid_con)
+    local procs=$(m0_get_global_services | wc -w)
+    local service_objs=$(_build_service_objects)
+    local services=$(echo "$service_objs" | wc -l)
     local local_conf=$(cat <<CONF_END
-[$(( $ios_count + $mds_count + $rms_count + $stats_count + $ha_count + $sss_count + $pool_width * 3 + 13 )):
+[$(( $procs + $services + $pool_width * 3 + 12 )):
   {0x74| (($root), 1, [1: $prof])},
   {0x70| (($prof), $fs)},
   {0x66| (($fs), (11, 22), 1,
@@ -700,15 +680,9 @@ m0_build_local_conf()
           [1: $node],
           [1: $poolid],
           [1: $rackid])},
-  {0x6e| (($node), 16000, 2, 3, 2, $poolid, [1: $proc])},
-  {0x72| (($proc), [1:3], 0, 0, 0, 0,
-               [$(($mds_count + $ios_count + $rms_count + $stats_count + $ha_count + $sss_count)): $mds_names, $ios_names, $rms_names, $stats_names, $ha_names, $sss_names])},
-  $mds_objs,
-  $ios_objs,
-  $rms_objs,
-  $stats_objs,
-  $ha_objs,
-  $sss_objs,
+  {0x6e| (($node), 16000, 2, 3, 2, $poolid, [$procs: $proc_names])},
+  $proc_objs,
+  $service_objs,
   $(_build_ios_devs $pool_width),
   $rack,
   $encl,

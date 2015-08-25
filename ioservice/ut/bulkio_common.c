@@ -59,14 +59,8 @@ static char **server_argv_alloc(const char *server_ep_addr, int *argc)
 	const char *argv[] = {
 		"bulkio_st", "-T", "AD", "-D", S_DBFILE,
 		"-S", S_STOBFILE, "-A", S_ADDB_STOBFILE, "-e", ep,
-		"-s", "ioservice:<0x7300000000000001:1>",
-		"-s", "sns_repair:<0x7300000000000001:2>",
-		"-s", "rmservice:<0x7300000000000001:3>",
-		"-s", "mdservice:<0x7300000000000001:4>",
-		"-s", "stats:<0x7300000000000001:5>",
-		"-s", "confd:<0x7300000000000001:6>",
 		"-q", tm_len, "-m", rpc_size, "-w", "10", "-G", ep,
-		"-f", "<0x7200000000000001:1>",
+		"-f", "<0x7200000000000001:3>",
 		"-c", M0_UT_PATH("diter_xc.txt"), "-P", M0_UT_CONF_PROFILE
 	};
 

@@ -366,8 +366,14 @@ static int ss_process_quiesce(struct m0_reqh *reqh)
 					       M0_REQH_ST_SVCS_STOP)));
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, svc) {
-		if (!M0_IN(svc->rs_type, (&m0_ss_svc_type, &m0_rpc_service_type,
-					  &m0_rms_type)) &&
+		if (M0_FI_ENABLED("keep_confd_rmservice"))
+			if (M0_IN(svc->rs_type->rst_typecode, (M0_CST_MGS,
+							       M0_CST_RMS)))
+				continue;
+		M0_LOG(M0_DEBUG, "type:%d name:%s", svc->rs_type->rst_typecode,
+						    svc->rs_type->rst_name);
+		if (svc->rs_type->rst_typecode != M0_CST_SSS &&
+		    svc->rs_type != &m0_rpc_service_type &&
 		    m0_reqh_service_state_get(svc) == M0_RST_STARTED)
 			m0_reqh_service_prepare_to_stop(svc);
 	} m0_tl_endfor;

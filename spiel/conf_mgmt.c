@@ -909,7 +909,8 @@ int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 			 uint64_t             memlimit_as,
 			 uint64_t             memlimit_rss,
 			 uint64_t             memlimit_stack,
-			 uint64_t             memlimit_memlock)
+			 uint64_t             memlimit_memlock,
+			 const char          *endpoint)
 {
 	int                     rc;
 	struct m0_conf_obj     *obj = NULL;
@@ -941,6 +942,11 @@ int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 	process->pc_memlimit_rss     = memlimit_rss;
 	process->pc_memlimit_stack   = memlimit_stack;
 	process->pc_memlimit_memlock = memlimit_memlock;
+	process->pc_endpoint         = m0_strdup(endpoint);
+	if (process->pc_endpoint == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto fail;
+	}
 
 	if (process->pc_services == NULL)
 		rc = spiel_process_dirs_create(&tx->spt_cache, process);

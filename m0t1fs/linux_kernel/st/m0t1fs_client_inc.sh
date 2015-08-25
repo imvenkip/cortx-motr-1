@@ -406,22 +406,21 @@ multi_client_test()
 
 	local rc
 
-	mount_m0t1fs ${mount_dir_1} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" || {
+	mount_m0t1fs ${mount_dir_1} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" ||
 		return 1
-	}
-	df
+	mount | grep m0t1fs
 	mount_m0t1fs ${mount_dir_2} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=66536" || {
 		unmount_m0t1fs ${mount_dir_1}
 		return 1
 	}
-	df
+	mount | grep m0t1fs
 	mount_m0t1fs ${mount_dir_3} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=67536" || {
 		unmount_m0t1fs ${mount_dir_1}
 		unmount_m0t1fs ${mount_dir_2}
 		return 1
 	}
 	echo "Three clients mounted:"
-	mount
+	mount | grep m0t1fs
 	cp -av /bin/ls ${mount_dir_1}/obj1 || rc=1
 	cp -av /bin/ls ${mount_dir_2}/obj2 || rc=1
 	cp -av /bin/ls ${mount_dir_3}/obj3 || rc=1
@@ -454,7 +453,7 @@ multi_client_test()
 		return 1
 	}
 	echo "Three clients mounted:"
-	mount
+	mount | grep m0t1fs
 	ls -liR ${mount_dir_1} || rc=1
 	ls -liR ${mount_dir_2} || rc=1
 	ls -liR ${mount_dir_3} || rc=1
@@ -467,7 +466,7 @@ multi_client_test()
 	unmount_m0t1fs ${mount_dir_2}
 	unmount_m0t1fs ${mount_dir_3}
 	echo "Second round done"
-	df
+	mount | grep m0t1fs
 	return $rc
 }
 
@@ -593,7 +592,7 @@ m0t1fs_basic()
 	local fsname3="xyz0"
 	echo "Test: basic..."
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH || rc=1
-	df
+	mount | grep m0t1fs
 	m0t1fs_crud $fsname1 $fsname2 $fsname3 || rc=1
 	unmount_and_clean
 	return $rc
@@ -615,7 +614,7 @@ m0t1fs_large_dir()
 
 	echo "Test: larde_dir: mode=$1 fsname_prefix=$2..."
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$mode" || rc=1
-	df
+	mount | grep m0t1fs                                 || rc=1
 	for i in `seq 1 $count`; do
 		touch $MERO_M0T1FS_MOUNT_DIR/$fsname_prex$i || rc=1
 		stat  $MERO_M0T1FS_MOUNT_DIR/$fsname_prex$i -c "%n: %a %s" || rc=1

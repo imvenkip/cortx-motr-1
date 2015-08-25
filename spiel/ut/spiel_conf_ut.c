@@ -153,7 +153,8 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 						       .pa_K=0,
 						       .pa_P=0};
 	const char                   *fs_param[] = { "11111", "22222", NULL };
-	struct m0_spiel_service_info  service_info = {.svi_endpoints=fs_param };
+	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
+	struct m0_spiel_service_info  service_info = {.svi_endpoints=ep};
 	uint32_t                      nr_failures[] = {0, 0, 0, 0, 1};
 	struct m0_bitmap              bitmap;
 
@@ -248,7 +249,7 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 	rc = m0_spiel_process_add(tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
-				  &bitmap, 4000, 1, 2, 3);
+				  &bitmap, 4000, 1, 2, 3, ep[0]);
 	M0_UT_ASSERT(rc == 0);
 
 	service_info.svi_type = M0_CST_IOS;
@@ -628,19 +629,19 @@ static void spiel_conf_create_fail(void)
 	rc = m0_spiel_process_add(&tx,
 				  &fake_fid,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
-				  &bitmap, 4000, 1, 2, 3);
+				  &bitmap, 4000, 1, 2, 3, ep[0]);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	rc = m0_spiel_process_add(&tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
 				  &fake_fid,
-				  &bitmap, 4000, 1, 2, 3);
+				  &bitmap, 4000, 1, 2, 3, ep[0]);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	rc = m0_spiel_process_add(&tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
-				  &bitmap, 4000, 1, 2, 3);
+				  &bitmap, 4000, 1, 2, 3, ep[0]);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Service */
@@ -1016,11 +1017,11 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_process_add(tx, &fid_process1, &fid_node,
-				  &bitmap, 4000, 1, 2, 3);
+				  &bitmap, 4000, 1, 2, 3, ep[0]);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_process_add(tx, &fid_process2, &fid_node,
-				  &bitmap, 4000, 1, 2, 3);
+				  &bitmap, 4000, 1, 2, 3, ep[0]);
 	M0_UT_ASSERT(rc == 0);
 
 	service_info1.svi_type = 3;

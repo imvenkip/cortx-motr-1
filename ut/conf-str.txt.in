@@ -7,15 +7,21 @@
 (node-2 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-4
     processes=[process-5, process-6])
 (process-5 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0
+    mem_limit_memlock=0 endpoint="0@lo:12345:34:1"
     services=[service-9, service-10, service-20, service-21])
 (process-6 cores=[1] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 services=[])
-(service-9 type=4 endpoints=["0@lo:12345:34:1"]
+    mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[])
+(service-8 type=7 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-9 type=2 endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-13, sdev-14])
-(service-10 type=6 endpoints=["0@lo:12345:34:1"] sdevs=[sdev-15])
-(service-20 type=5 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-21 type=7 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-10 type=1 endpoints=["0@lo:12345:34:1"] sdevs=[sdev-15])
+(service-20 type=3 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-21 type=4 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-22 type=6 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-23 type=10 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-24 type=8 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-25 type=9 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-26 type=11 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (sdev-13 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
     filename="/dev/sdev0")
 (sdev-14 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
@@ -36,8 +42,8 @@
 (node-48 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-56
     processes=[process-49])
 (process-49 cores=[1] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 services=[service-50])
-(service-50 type=1 endpoints=["0@lo:12345:34:1"]
+    mem_limit_memlock=0 endpoint="0@lo:12345:34:3" services=[service-50])
+(service-50 type=12 endpoints=["0@lo:12345:34:3"]
     sdevs=[sdev-51])
 (sdev-51 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
     filename="/dev/sdev0")

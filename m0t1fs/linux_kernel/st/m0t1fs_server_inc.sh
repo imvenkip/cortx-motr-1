@@ -5,9 +5,9 @@ conf_ios_device_setup()
 	local id_count_out=$3
 	local _ids="$4"
 	local ids_out=$5
-	local ddev_id="(0x6400000000000001, $_DDEV_ID)"
-	local ddisk_id="(0x6b00000000000001, $_DDEV_ID)"
-	local ddiskv_id="(0x6a00000000000001, $_DDEV_ID)"
+	local ddev_id="^d|1:$_DDEV_ID"
+	local ddisk_id="^k|1:$_DDEV_ID"
+	local ddiskv_id="^j|1:$_DDEV_ID"
 
 	if (($_id_count == 0))
 	then
@@ -57,7 +57,7 @@ mkiosloopdevs()
 	local adisk=addb-disk.img
 	local ddisk=data-disk.img
 	local dev_end=0
-	local adev_id="(0x6400000000000001, $ADEV_ID)"
+	local adev_id="^d|1:$ADEV_ID"
 	local ids=""
 	local id_count=0
 
@@ -131,6 +131,7 @@ mero_service()
 	local K=$NR_PARITY
 	local P=$POOL_WIDTH
 	local multiple_pools=$2
+	local PROC_FID_CNTR=0x7200000000000001
 	if [ $# -eq 6 ]
 	then
 		stride=$3
@@ -154,10 +155,8 @@ mero_service()
 	start() {
 		local i
 		# Use one process fid for all processes for now.
-		# Confd database contains only one process, too.
-		# Actually, every process should have its own entry
-		# in confd database.
-		local proc_fid=\''<'$PROC_FID_CNTR:$PROC_FID_KEY'>'\'
+		#@todo Eliminate this after using the proc fid from the configuration.
+		local proc_fid=\''<'$PROC_FID_CNTR:1'>'\'
 
 		prepare
 
@@ -213,8 +212,8 @@ EOF
 			     -q $TM_MIN_RECV_QUEUE_LEN -P '$PROF_OPT' "
 
 		# mkfs for confd server
-		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$MKFS_EP \
-		      -s 'confd:<$CONF_FID_CON:1>' -c $DIR/conf.xc"
+		opts="$common_opts -T linux -e $XPT:${CONFD_EP%:*:*}:$MKFS_PORTAL:1\
+		      -c $DIR/conf.xc"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0mkfs.log"
 
 		echo $cmd
@@ -222,7 +221,7 @@ EOF
 
 		# spawn confd
 		opts="$common_opts -f $proc_fid -T linux -e $XPT:$CONFD_EP \
-		      -s 'confd:<$CONF_FID_CON:2>' -c $DIR/conf.xc"
+		      -c $DIR/conf.xc"
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		echo $cmd
 		(eval "$cmd") &
@@ -234,7 +233,7 @@ EOF
 		DIR=$MERO_M0T1FS_TEST_DIR/ha
 		rm -rf $DIR
 		mkdir -p $DIR
-		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$MKFS_EP \
+		opts="$common_opts -T linux -e $XPT:${lnet_nid}:${HA_EP%:*:*}:$MKFS_PORTAL:1 \
 		      -C $CONFD_EP"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0mkfs.log"
 		echo $cmd
@@ -247,16 +246,12 @@ EOF
 			rm -rf $DIR
 			mkdir -p $DIR
 
-			SNAME="-s 'mdservice:<$MDS_FID_CON:$i>' \
-                               -s 'rmservice:<$RMS_FID_CON:$i>' \
-                               -s 'addb2:<$ADD2_FID_CON:$i>' \
-                               -s 'stats:<$STS_FID_CON:$i>'"
-
+			tmid=$(echo ${MDSEP[$i]} | cut -d: -f3)
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T ad \
-			$common_opts -e $XPT:${lnet_nid}:$MKFS_EP \
-			$SNAME -C $CONFD_EP |& tee -a m0mkfs.log"
+			$common_opts -e $XPT:${lnet_nid}:${MDSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid \
+			-C $CONFD_EP |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
 		done
@@ -266,16 +261,12 @@ EOF
 			local ios=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 
-			SNAME="-s 'ioservice:<$IOS_FID_CON:$i>' \
-                               -s 'sns_repair:<$SNSR_FID_CON:$i>' \
-                               -s 'sns_rebalance:<$SNSB_FID_CON:$i>' \
-                               -s 'addb2:<$ADD2_FID_CON:$i>'"
-
+			tmid=$(echo ${IOSEP[$i]} | cut -d: -f3)
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
-			$common_opts -e $XPT:${lnet_nid}:$MKFS_EP \
-			$SNAME -C $CONFD_EP |& tee -a m0mkfs.log"
+			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid \
+			-C $CONFD_EP -E |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
 		done
@@ -297,18 +288,13 @@ EOF
 			local mds=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 
-			SNAME="-s 'mdservice:<$MDS_FID_CON:$i>' \
-                               -s 'rmservice:<$RMS_FID_CON:$i>' \
-                               -s 'addb2:<$ADD2_FID_CON:$i>' \
-                               -s 'stats:<$STS_FID_CON:$i>'"
-
 			ulimit -c unlimited
 
 			cmd="cd $DIR && exec \
 			$prog_start -T ad \
 			$common_opts -e $XPT:${lnet_nid}:${MDSEP[$i]} \
                         -f $proc_fid \
-			-C $CONFD_EP $SNAME |& tee -a m0d.log"
+			-C $CONFD_EP |& tee -a m0d.log"
 			echo $cmd
 
 			local m0d_log=$DIR/m0d.log
@@ -322,18 +308,13 @@ EOF
 			local ios=`expr $i + 1`
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 
-			SNAME="-s 'ioservice:<$IOS_FID_CON:$i>' \
-                               -s 'sns_repair:<$SNSR_FID_CON:$i>' \
-                               -s 'sns_rebalance:<$SNSB_FID_CON:$i>' \
-                               -s 'addb2:<$ADD2_FID_CON:$i>'"
-
 			ulimit -c unlimited
 
 			cmd="cd $DIR && exec \
 			$prog_start -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]} \
                         -f $proc_fid \
-			-C $CONFD_EP $SNAME |& tee -a m0d.log"
+			-C $CONFD_EP |& tee -a m0d.log"
 			echo $cmd
 
 			local m0d_log=$DIR/m0d.log

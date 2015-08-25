@@ -58,10 +58,6 @@ static char *server_argv[] = {
 	"rpclib_ut", "-T", "AD", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
 	"-w", "10", "-e", SERVER_ENDPOINT,
-	"-s", "ds1:<0x7300000000000001:1>",
-	"-s", "ds2:<0x7300000000000001:2>",
-	"-s", "addb2:<0x7300000000000001:3>",
-	"-s", "confd:<0x7300000000000001:4>",
 	"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 };
 

@@ -62,8 +62,7 @@ static int rpc_start(struct m0_rpc_server_ctx *rpc_srv)
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME(""),
 		"-w", "10", "-e", full_ep,
 		"-f", "<0x7200000000000001:1>",
-		"-s", "confd:<0x7300000000000001:1>", "-m", max_rpc_size,
-		"-s", "rmservice:<0x7300000000000002:1>",
+		"-m", max_rpc_size,
 		"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
 	};
 #undef NAME

@@ -113,13 +113,8 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 		NAME(""), "-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
 		"-A", "linuxstob:"NAME("-addb_stob"), "-w", "10", "-e", full_ep,
 		"-f", "<0x7200000000000002:1>",
-		"-s", "confd:<0x7300000000000002:1>", "-m", max_rpc_size,
+		"-m", max_rpc_size,
 		"-G", full_ep,
-		"-s", "mdservice:<0x7300000000000001:22>",
-		"-s", "ioservice:<0x7300000000000001:10>",
-		"-s", "rmservice:<0x7300000000000001:9>",
-		"-s", "sns_repair:<0x7300000000000002:4>",
-		"-s", "sns_rebalance:<0x7300000000000002:5>",
 		"-c", (char *)confdb_path, "-P", M0_UT_CONF_PROFILE
 	};
 #undef NAME

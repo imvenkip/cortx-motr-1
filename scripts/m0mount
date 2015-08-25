@@ -137,8 +137,6 @@ HOSTS=()
 
 MDSERVICES=()
 
-STATSERVICES=()
-
 declare -A NODE_UUID
 NODE_UUID[sjt02-c1]=30ab1a00-8085-40d1-a557-8996e2369a7a
 NODE_UUID[sjt02-c2]=6485c5f9-fbde-4e39-8c6a-bb9d46b3bf8a
@@ -161,7 +159,8 @@ loop_used=-1
 setup_local_server_config=0
 wait_after_mount=1
 verbosity=0
-proc_fid="'<$PROC_FID_CNTR:$PROC_FID_KEY>'"
+#@todo Eliminate this after using the proc fid from the configuration.
+proc_fid="'<0x7200000000000001:1>'"
 
 M0MKFS_TRACE_MASK=m0d,fop,cob,ioservice,stob,adstob,extmap,conf
 M0MKFS_TRACE_LEVEL=warn+
@@ -263,7 +262,6 @@ l_do modprobe lnet
 l_do lctl network up &>> /dev/null
 LOCAL_NID=`lctl list_nids | head -1`
 LOCAL_EP=$LOCAL_NID:12345:41:10
-MKFS_EP=12345:35:1
 
 setup_local_params()
 {
@@ -498,7 +496,9 @@ function mkfs()
 	local DIR="$1"
 	local STOB="$2"
 	local CONF="$3"
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local EP="$4"
+	local tm_id=$(echo $EP | cut -d: -f5)
+	local MKFS_EP=${EP%:*:*}:35:$tm_id
 
 	echo Running mkfs...
 	$DO "rm -rf $DIR; mkdir $DIR"
@@ -507,7 +507,7 @@ M0_TRACE_IMMEDIATE_MASK=$M0MKFS_TRACE_MASK \
 M0_TRACE_LEVEL=$M0MKFS_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0MKFS_TRACE_CONTEXT \
 $M0MKFS $STOB -D $DIR/db -S $DIR/stobs \
--A linuxstob:$DIR/addb-stobs -e $XPT:$lnet_nid:$MKFS_EP -P '$PROF_OPT' $CONF" || {
+-A linuxstob:$DIR/addb-stobs $MKFS_EP -P '$PROF_OPT' $CONF" || {
 		echo "ERROR: Failed to m0mkfs for $(basename $DIR) on $H"
 		return 1
 	}
@@ -584,14 +584,13 @@ function start_server ()
 		local DIR=$WORK_ARENA/confd
 		local multiple_pools=0
 		build_conf $NR_DATA $NR_PARITY $POOL_WIDTH $multiple_pools \
-			SERVICES[@]  MDSERVICES[@] STATSERVICES[@] > $CONF_FILE
+			SERVICES[@]  MDSERVICES[@] > $CONF_FILE
 		if [ $verbosity -gt 0 ] ;then
 			# Just show conf
-			build_conf $NR_DATA $NR_PARITY $POOL_WIDTH SERVICES[@] \
-					MDSERVICES[@] STATSERVICES[@]
+			cat $CONF_FILE
 		fi
 		if [ $run_mkfs -eq 1 ]; then
-			mkfs $DIR "-T linux" "-s 'confd:<$CONF_FID_CON:1>' -c $CONF_FILE" || return 1
+			mkfs $DIR "-T linux" "-c $CONF_FILE" "-e $XPT:$CONFD_EP" || return 1
 		fi
 		$RUN "cd $DIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
@@ -599,7 +598,7 @@ M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs \
 -A linuxstob:$DIR/addb-stobs \
--e $XPT:$CONFD_EP -s 'confd:<$CONF_FID_CON:2>' -c $CONF_FILE -P '$PROF_OPT' \
+-e $XPT:$CONFD_EP -c $CONF_FILE -P '$PROF_OPT' \
 $XPT_SETUP -f $proc_fid" > ${SLOG}-confd.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start confd server on $H
@@ -609,7 +608,7 @@ $XPT_SETUP -f $proc_fid" > ${SLOG}-confd.log &
 
 		DIR=$WORK_ARENA/ha
 		if [ $run_mkfs -eq 1 ]; then
-			mkfs $DIR "-T linux" "-C $CONFD_EP" || return 1
+			mkfs $DIR "-T linux" "-C $CONFD_EP" "-e $XPT:$HA_EP" || return 1
 		fi
 		echo Running m0d...
 		$RUN "cd $DIR && \
@@ -617,8 +616,8 @@ M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
 M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
--w $POOL_WIDTH -e $XPT:$server_nid:$HA_EP -P '$PROF_OPT' -C $CONFD_EP \
-$XPT_SETUP -s 'addb2:<$ADD2_FID_CON:3>' -f $proc_fid" >> ${SLOG}-ha.log &
+-w $POOL_WIDTH -e $XPT:$HA_EP -P '$PROF_OPT' -C $CONFD_EP \
+$XPT_SETUP -f $proc_fid" >> ${SLOG}-ha.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start m0d on $H
 			return 1
@@ -627,7 +626,7 @@ $XPT_SETUP -s 'addb2:<$ADD2_FID_CON:3>' -f $proc_fid" >> ${SLOG}-ha.log &
 
 		DIR=$WORK_ARENA/mds
 		if [ $run_mkfs -eq 1 ]; then
-			mkfs "$DIR" "-T linux" "-C $CONFD_EP" || return 1
+			mkfs "$DIR" "-T linux" "-C $CONFD_EP" "-e $XPT:$MDS_EP" || return 1
 		fi
 		echo Running m0d...
 		$RUN "cd $DIR && \
@@ -636,8 +635,6 @@ M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
 -w $POOL_WIDTH -e $XPT:$MDS_EP -P '$PROF_OPT' -C $CONFD_EP \
--s 'mdservice:<$MDS_FID_CON:4>' -s 'rmservice:<$RMS_FID_CON:4>' \
--s 'stats:<$STS_FID_CON:4>' -s 'addb2:<$ADD2_FID_CON:4>' \
 $XPT_SETUP -f $proc_fid" >> ${SLOG}-mds.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start m0d on $H
@@ -645,12 +642,10 @@ $XPT_SETUP -f $proc_fid" >> ${SLOG}-mds.log &
 		fi
 		sleep 2
 	fi
-	SNAME+=" -P '$PROF_OPT' -C $CONFD_EP"
-	SNAME+=" -s 'addb2:<$ADD2_FID_CON:5>' -s 'ioservice:<$IOS_FID_CON:5>' \
--s 'sns_repair:<$SNSR_FID_CON:5>' -s'sns_rebalance:<$SNSB_FID_CON:5>' -f $proc_fid"
+	SNAME+=" -P '$PROF_OPT' -C $CONFD_EP -f $proc_fid"
 
 	if [ $run_mkfs -eq 1 ]; then
-		mkfs "$DDIR" "$STOB_PARAMS" "-C $CONFD_EP -s 'ioservice:<$IOS_FID_CON:0>'" || return 1
+		mkfs "$DDIR" "$STOB_PARAMS" "-C $CONFD_EP" "-e $XPT:$EP" || return 1
 	fi
 	echo Running m0d...
 	$RUN "cd $DDIR && \
@@ -682,8 +677,8 @@ function start_servers ()
 
 	MDS_EP=${SERVICES[0]%:*}:99
 	MDSERVICES[0]=$MDS_EP
-	STATSERVICES[0]=$MDS_EP
-	CONFD_EP=${SERVICES[0]%:*}:100
+	CONFD_EP=${SERVICES[0]%:*:*}:33:100
+	HA_EP=${SERVICES[0]%:*:*}:34:1
 
 	SLOG=$WORK_ARENA/server
 	rm -f ${SLOG}*.log
@@ -776,7 +771,8 @@ function pstop_servers()
 
 function stop_servers()
 {
-	pstop_servers "m0d.*-s [^c][^o][^n][^f][^d]"
+	pstop_servers "m0d.*-C"
+	pstop_servers "m0d.*-c"
 	pstop_servers m0d
 }
 

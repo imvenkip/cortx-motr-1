@@ -34,7 +34,8 @@ static bool process_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_PROCESS_TYPE);
 
-	return true;
+	return _0C(m0_conf_obj_is_stub(self_obj) ==
+		   (self->pc_endpoint == NULL));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_process, M0_CONF_PROCESS_MAGIC, process_check);
@@ -58,6 +59,11 @@ static int process_decode(struct m0_conf_obj        *dest,
 	d->pc_memlimit_stack   = s->xr_mem_limit_stack;
 	d->pc_memlimit_memlock = s->xr_mem_limit_memlock;
 
+	d->pc_endpoint = m0_buf_strdup(&s->xr_endpoint);
+	if (d->pc_endpoint == NULL) {
+		m0_bitmap_fini(&d->pc_cores);
+		return M0_ERR(-ENOMEM);
+	}
 	rc = dir_new(cache, &dest->co_id, &M0_CONF_PROCESS_SERVICES_FID,
 		     &M0_CONF_SERVICE_TYPE, &s->xr_services, &d->pc_services);
 	if (rc == 0)
@@ -85,7 +91,9 @@ process_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	d->xr_mem_limit_rss     = s->pc_memlimit_rss;
 	d->xr_mem_limit_stack   = s->pc_memlimit_stack;
 	d->xr_mem_limit_memlock = s->pc_memlimit_memlock;
-	return M0_RC(arrfid_from_dir(&d->xr_services, s->pc_services));
+	return M0_RC(m0_buf_copy(&d->xr_endpoint,
+			   &M0_BUF_INITS((char *)s->pc_endpoint)) ?:
+		     arrfid_from_dir(&d->xr_services, s->pc_services));
 }
 
 static bool
@@ -99,6 +107,7 @@ process_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 		obj->pc_memlimit_rss     == xobj->xr_mem_limit_rss &&
 		obj->pc_memlimit_stack   == xobj->xr_mem_limit_stack &&
 		obj->pc_memlimit_memlock == xobj->xr_mem_limit_memlock &&
+		m0_buf_streq(&xobj->xr_endpoint, obj->pc_endpoint) &&
 		m0_conf_dir_elems_match(obj->pc_services, &xobj->xr_services);
 }
 
@@ -120,6 +129,8 @@ static int process_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 static void process_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_process *x = M0_CONF_CAST(obj, m0_conf_process);
+
+	m0_free((void *)x->pc_endpoint);
 	m0_conf_process_bob_fini(x);
 	if (x->pc_cores.b_nr != 0)
 		m0_bitmap_fini(&x->pc_cores);

@@ -80,7 +80,10 @@ service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
 		[M0_CST_HA]      = "",
 		[M0_CST_SSS]     = "",
 		[M0_CST_SNS_REP] = "",
-		[M0_CST_SNS_REB] = ""
+		[M0_CST_SNS_REB] = "",
+		[M0_CST_ADDB2]   = "",
+		[M0_CST_DS1]     = "",
+		[M0_CST_DS2]     = ""
 	};
 	int         i;
 	const char *opt;
@@ -105,7 +108,7 @@ service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
 M0_UNUSED static void
 node_options_add(struct cs_args *args, const struct m0_conf_node *node)
 {
-/*
+/**
  * @todo Node parameters cn_memsize and cn_flags options are not used currently.
  * Options '-m' and '-q' options are used for maximum RPC message size and
  * minimum length of TM receive queue.
@@ -152,7 +155,8 @@ static int conf_to_args(struct cs_args *dest, struct m0_conf_filesystem *fs)
 	if (rc != 0)
 		goto cleanup;
 
-	while ((rc = m0_conf_diter_next_sync(&it, service_and_node)) == M0_CONF_DIRNEXT) {
+	while ((rc = m0_conf_diter_next_sync(&it, service_and_node)) ==
+		M0_CONF_DIRNEXT) {
 		struct m0_conf_obj *obj = m0_conf_diter_result(&it);
 		if (m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE) {
 			struct m0_conf_service *svc =
@@ -182,35 +186,33 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args,
 	return conf_to_args(args, fs);
 }
 
-static bool is_local_ios(struct m0_mero *cctx,
-			 struct m0_conf_service *svc)
+static bool is_local_service(const struct m0_conf_obj *obj)
 {
-	int                     i;
-	const char             *lep;
-	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	const char                   *lep;
+	struct m0_mero               *cctx;
+	const struct m0_conf_service *svc;
+	const struct m0_conf_process *p;
 
-	for (i = 0; i < rctx->rc_nr_services; i++) {
-		if (m0_fid_eq(&rctx->rc_service_fids[i], &svc->cs_obj.co_id))
-			break;
-	}
+	if (m0_conf_obj_type(obj) != &M0_CONF_SERVICE_TYPE)
+		return false;
+	svc = M0_CONF_CAST(obj, m0_conf_service);
+	p = M0_CONF_CAST(svc->cs_obj.co_parent->co_parent,
+			 m0_conf_process);
+	cctx = m0_cs_ctx_get(m0_conf_obj2reqh(obj));
 	lep = m0_rpc_machine_ep(m0_mero_to_rmach(cctx));
-	/* Assumes only one endpoint per service. */
-	if (m0_streq(lep, svc->cs_endpoints[0]))
-		return true;
-	return false;
+	M0_LOG(M0_DEBUG, "lep: %s svc ep: %s type:%d process:"FID_F"service:"
+			 FID_F, lep,
+			 p->pc_endpoint, svc->cs_type,
+			 FID_P(&p->pc_obj.co_id),
+			 FID_P(&svc->cs_obj.co_id));
+	return m0_streq(lep, p->pc_endpoint);
 }
 
-static bool is_ioservice(const struct m0_conf_obj *obj)
+static bool is_local_ios(const struct m0_conf_obj *obj)
 {
-	struct m0_mero *cctx = m0_cs_ctx_get(m0_conf_obj2reqh(obj));
-
-	if (m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE) {
-		struct m0_conf_service *svc = M0_CONF_CAST(obj,
-							   m0_conf_service);
-		if (svc->cs_type == M0_CST_IOS)
-			return is_local_ios(cctx, svc);
-	}
-	return false;
+	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE &&
+	       M0_CONF_CAST(obj, m0_conf_service)->cs_type == M0_CST_IOS &&
+	       is_local_service(obj);
 }
 
 static bool is_device(const struct m0_conf_obj *obj)
@@ -269,7 +271,7 @@ M0_INTERNAL int cs_conf_storage_init(struct cs_stobs        *stob,
 				M0_CONF_FILESYSTEM_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
-	while ((rc = m0_conf_diter_next_sync(&it, is_ioservice)) ==
+	while ((rc = m0_conf_diter_next_sync(&it, is_local_ios)) ==
 		M0_CONF_DIRNEXT) {
 		struct m0_conf_obj     *obj = m0_conf_diter_result(&it);
 		struct m0_conf_service *svc = M0_CONF_CAST(obj,
@@ -277,6 +279,55 @@ M0_INTERNAL int cs_conf_storage_init(struct cs_stobs        *stob,
 		rc = cs_conf_device_storage_init(devs, confc, svc);
 		if (rc != 0)
 			break;
+	}
+	m0_conf_diter_fini(&it);
+	m0_confc_close(&fs->cf_obj);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
+{
+	int                        rc;
+	struct m0_conf_diter       it;
+	struct m0_conf_filesystem *fs;
+	struct m0_reqh_context    *rctx;
+	struct m0_confc           *confc;
+
+	M0_ENTRY();
+
+	rctx = &cctx->cc_reqh_ctx;
+	rctx->rc_nr_services = 0;
+	confc = m0_mero2confc(cctx);
+	rc = m0_conf_fs_get(&rctx->rc_reqh.rh_profile, confc, &fs);
+	if (rc != 0)
+		return M0_ERR_INFO(rc, "conf fs fail");;
+	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_NODES_FID,
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID);
+	while ((rc = m0_conf_diter_next_sync(&it, is_local_service)) ==
+		M0_CONF_DIRNEXT) {
+		struct m0_conf_obj     *obj = m0_conf_diter_result(&it);
+		struct m0_conf_service *svc = M0_CONF_CAST(obj,
+							   m0_conf_service);
+		M0_LOG(M0_DEBUG, "service:%s fid:" FID_F,
+				m0_conf_service_name_dup(svc),
+				FID_P(&svc->cs_obj.co_id));
+		M0_ASSERT(rctx->rc_nr_services < rctx->rc_max_services);
+		/** @todo Check only one service of each service type is present
+			  per endpoint in the configuration.
+		    M0_ASSERT(rctx->rc_services[svc->cs_type] == NULL);
+		*/
+		rctx->rc_services[svc->cs_type] = m0_conf_service_name_dup(svc);
+		if (rctx->rc_services[svc->cs_type] == NULL) {
+			int i;
+			rc = -ENOMEM;
+			for (i = 0; i < rctx->rc_nr_services; ++i)
+				m0_free(rctx->rc_services[i]);
+			break;
+		}
+		rctx->rc_service_fids[svc->cs_type] = svc->cs_obj.co_id;
+		M0_CNT_INC(rctx->rc_nr_services);
 	}
 	m0_conf_diter_fini(&it);
 	m0_confc_close(&fs->cf_obj);
@@ -303,7 +354,7 @@ M0_INTERNAL int cs_conf_device_reopen(struct cs_stobs *stob, uint32_t dev_id)
 		struct m0_conf_service *svc = M0_CONF_CAST(
 					sdev->sd_obj.co_parent->co_parent,
 					m0_conf_service);
-		if (is_local_ios(cctx, svc)) {
+		if (is_local_ios(&svc->cs_obj)) {
 			M0_LOG(M0_DEBUG, "sdev size:%ld path:%s FID:"FID_F,
 					sdev->sd_size, sdev->sd_filename,
 					FID_P(&sdev->sd_obj.co_id));

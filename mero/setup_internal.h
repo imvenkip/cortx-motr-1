@@ -55,6 +55,8 @@ M0_INTERNAL int cs_conf_storage_init(struct cs_stobs        *stob,
 				     struct m0_storage_devs *devs);
 M0_INTERNAL int cs_conf_device_reopen(struct cs_stobs *stob, uint32_t dev_id);
 
+M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx);
+
 /** @} endgroup m0d */
 #endif /* __MERO_SETUP_INTERNAL_H__ */
 

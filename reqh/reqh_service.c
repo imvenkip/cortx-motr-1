@@ -116,25 +116,25 @@ const struct m0_sm_conf service_states_conf = {
 
 M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service *svc)
 {
-	return m0_reqh_service_bob_check(svc) &&
-	M0_IN(svc->rs_sm.sm_state, (M0_RST_INITIALISING, M0_RST_INITIALISED,
-				    M0_RST_STARTING, M0_RST_STARTED,
-				    M0_RST_STOPPING, M0_RST_STOPPED,
-				    M0_RST_FAILED)) &&
-	svc->rs_type != NULL && svc->rs_ops != NULL &&
+	return _0C(m0_reqh_service_bob_check(svc)) &&
+	_0C(M0_IN(svc->rs_sm.sm_state, (M0_RST_INITIALISING, M0_RST_INITIALISED,
+				        M0_RST_STARTING, M0_RST_STARTED,
+				        M0_RST_STOPPING, M0_RST_STOPPED,
+				        M0_RST_FAILED))) &&
+	_0C(svc->rs_type != NULL && svc->rs_ops != NULL &&
 		(svc->rs_ops->rso_start_async != NULL ||
-		 svc->rs_ops->rso_start != NULL) &&
-	ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_INITIALISED, M0_RST_STARTING,
-					 M0_RST_STARTED, M0_RST_STOPPING,
+		 svc->rs_ops->rso_start != NULL)) &&
+	_0C(ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_INITIALISED,
+		       M0_RST_STARTING, M0_RST_STARTED, M0_RST_STOPPING,
+		       M0_RST_STOPPED, M0_RST_FAILED)),
+	     svc->rs_reqh != NULL)) &&
+	_0C(ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_STARTED, M0_RST_STOPPING,
 					 M0_RST_STOPPED, M0_RST_FAILED)),
-	     svc->rs_reqh != NULL) &&
-	ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_STARTED, M0_RST_STOPPING,
-					 M0_RST_STOPPED, M0_RST_FAILED)),
-	     m0_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc)) &&
-	ergo(svc->rs_reqh != NULL,
+	     m0_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc))) &&
+	_0C(ergo(svc->rs_reqh != NULL,
 	     M0_IN(m0_reqh_lockers_get(svc->rs_reqh, svc->rs_type->rst_key),
-		   (NULL, svc))) &&
-	svc->rs_level > M0_RS_LEVEL_UNKNOWN;
+		   (NULL, svc)))) &&
+	_0C(svc->rs_level > M0_RS_LEVEL_UNKNOWN);
 }
 M0_EXPORTED(m0_reqh_service_invariant);
 
@@ -588,15 +588,18 @@ static int reqh_service_connect(struct m0_reqh_service_ctx *ctx,
 {
 	int rc;
 
+	M0_ENTRY("'%s' Connect to service '%s'", m0_rpc_machine_ep(rmach),
+						 addr);
 	M0_PRE(reqh_service_context_invariant(ctx));
 
 	rc = m0_rpc_client_connect(&ctx->sc_conn, &ctx->sc_session, rmach,
 				   addr, max_rpc_nr_in_flight);
 	if (rc == 0) {
 		ctx->sc_is_active = true;
-		M0_LOG(M0_INFO, "Connected to service `%s'", addr);
+		M0_LOG(M0_INFO, "'%s' Connected to service '%s'",
+				m0_rpc_machine_ep(rmach), addr);
 	} else
-		M0_LOG(M0_DEBUG, "Failed to Connect to service `%s'", addr);
+		M0_LOG(M0_WARN, "Failed to Connect to service `%s'", addr);
 
 	return M0_RC(rc);
 }
@@ -643,6 +646,7 @@ M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_fid *id,
 	M0_PRE(m0_fid_is_set(id));
 	M0_PRE(service_type_is_valid(stype));
 
+	M0_ENTRY(FID_F "stype:%d", FID_P(id), stype);
 	M0_ALLOC_PTR(*ctx);
 	if (*ctx == NULL)
 		return M0_ERR(-ENOMEM);

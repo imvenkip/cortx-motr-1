@@ -278,7 +278,10 @@ static const char *service_name[] = {
 	[M0_CST_HA]      = "haservice",    /* HA service */
 	[M0_CST_SSS]     = "sss",          /* Start/stop service */
 	[M0_CST_SNS_REP] = "sns_repair",   /* SNS repair */
-	[M0_CST_SNS_REB] = "sns_rebalance" /* SNS repair */
+	[M0_CST_SNS_REB] = "sns_rebalance",/* SNS repair */
+	[M0_CST_ADDB2]   = "addb2",        /* Addb */
+	[M0_CST_DS1]     = "ds1",          /* Dummy service 1*/
+	[M0_CST_DS2]     = "ds2"           /* Dummy service 2 */
 };
 
 M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc)

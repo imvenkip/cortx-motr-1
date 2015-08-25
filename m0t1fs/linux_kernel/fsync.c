@@ -104,7 +104,8 @@ int m0t1fs_fsync_request_create(struct m0_reqh_service_txid        *stx,
 	else if (stx->stx_service_ctx->sc_type == M0_CST_IOS)
 		fopt = &m0_fop_fsync_ios_fopt;
 	else
-		M0_IMPOSSIBLE("invalid service type");
+		M0_IMPOSSIBLE("invalid service type:%d",
+			      stx->stx_service_ctx->sc_type);
 
 	/* store the pending txid reference with the fop */
 	ffw->ffw_stx = stx;
@@ -477,8 +478,14 @@ int m0t1fs_sync_fs(struct super_block *sb, int wait)
 		m0_mutex_lock(&iter->sc_max_pending_tx_lock);
 		stx = &iter->sc_max_pending_tx;
 
-		/* Check if this service has any pending transactions. */
-		if (stx->stx_tri.tri_txid == 0) {
+		/*
+		 * Check if this service has any pending transactions.
+		 * Currently for fsync operations are supported only for
+		 * ioservice and mdservice.
+		 */
+		if (stx->stx_tri.tri_txid == 0 ||
+		    !M0_IN(stx->stx_service_ctx->sc_type,
+			  (M0_CST_MDS, M0_CST_IOS))) {
 			m0_mutex_unlock(&iter->sc_max_pending_tx_lock);
 			continue;
 		}

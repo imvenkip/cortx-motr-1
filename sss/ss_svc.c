@@ -292,19 +292,12 @@ static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 		[M0_SERVICE_INIT]    = SS_FOM_SVC_INIT
 	};
 
-	M0_ENTRY("cmd=%d", fop->ss_cmd);
+	M0_ENTRY("cmd=%d fid:"FID_F, fop->ss_cmd, FID_P(&fop->ss_id));
 
 	if (!IS_IN_ARRAY(fop->ss_cmd, next_phase) ||
 	    m0_fid_type_getfid(&fop->ss_id) != &M0_CONF_SERVICE_TYPE.cot_ftype)
 		return M0_ERR(-EINVAL);
 
-	/*
-	 * TODO: FID can be NULL for services started at mero setup via
-	 * '-s' CLI argument. In that case service won't be found by
-	 * m0_reqh_service_lookup().
-	 *
-	 * In future FID for service provided by command-line will be mandatory.
-	 */
 	m->ssf_svc = m0_reqh_service_lookup(reqh, &fop->ss_id);
 
 	if (m->ssf_svc == NULL && fop->ss_cmd != M0_SERVICE_INIT)
@@ -364,7 +357,8 @@ static int ss_fom_tick__start(struct m0_reqh_service                 *svc,
 	M0_PRE(svc != NULL);
 
 	if (m0_reqh_service_state_get(svc) != M0_RST_INITIALISED)
-		return M0_ERR(-EPROTO);
+		return M0_ERR_INFO(-EPROTO, "%d",
+				   m0_reqh_service_state_get(svc));
 
 	ctx->sac_service = svc;
 	ctx->sac_fom = fom;
@@ -382,7 +376,8 @@ static int ss_fom_tick__stop(struct m0_reqh_service *svc,
 	M0_PRE(reqh != NULL);
 
 	if (m0_reqh_service_state_get(svc) != M0_RST_STOPPING)
-		return M0_ERR(-EPROTO);
+		return M0_ERR_INFO(-EPROTO, "%d",
+				   m0_reqh_service_state_get(svc));
 
 	if (m0_fom_domain_is_idle_for(svc)) {
 		m0_reqh_service_stop(svc);
@@ -403,7 +398,8 @@ static int ss_fom_tick__quiesce(struct m0_reqh_service *svc)
 	M0_PRE(svc != NULL);
 
 	if (m0_reqh_service_state_get(svc) != M0_RST_STARTED)
-		return M0_ERR(-EPROTO);
+		return M0_ERR_INFO(-EPROTO, "%d",
+				   m0_reqh_service_state_get(svc));
 	m0_reqh_service_prepare_to_stop(svc);
 	return M0_RC(0);
 }

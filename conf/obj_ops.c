@@ -60,13 +60,13 @@ static bool _generic_obj_invariant(const void *bob)
 {
 	const struct m0_conf_obj *obj = bob;
 
-	return m0_fid_is_set(&obj->co_id) && obj->co_ops != NULL &&
-	       m0_conf_fid_is_valid(&obj->co_id) &&
-	       obj->co_ha_state >= M0_NC_UNKNOWN &&
-	       obj->co_ha_state < M0_NC_NR &&
-	       M0_IN(obj->co_status,
-		     (M0_CS_MISSING, M0_CS_LOADING, M0_CS_READY)) &&
-	       ergo(m0_conf_obj_is_stub(obj), obj->co_nrefs == 0);
+	return _0C(m0_fid_is_set(&obj->co_id) && obj->co_ops != NULL) &&
+	       _0C(m0_conf_fid_is_valid(&obj->co_id)) &&
+	       _0C(obj->co_ha_state >= M0_NC_UNKNOWN) &&
+	       _0C(obj->co_ha_state < M0_NC_NR &&
+			M0_IN(obj->co_status, (M0_CS_MISSING, M0_CS_LOADING,
+					       M0_CS_READY))) &&
+	       _0C(ergo(m0_conf_obj_is_stub(obj), obj->co_nrefs == 0));
 }
 
 static bool _concrete_obj_invariant(const struct m0_conf_obj *obj)

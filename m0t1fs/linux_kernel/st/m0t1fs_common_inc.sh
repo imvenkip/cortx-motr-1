@@ -50,9 +50,7 @@ MDEV_ID=200        #meta-data devices
 
 HA_EP=12345:34:1
 CONFD_EP=12345:33:100
-STATSEP=12345:33:800    #stats service runs on a single node.
-
-MKFS_EP=12345:35:1  # MKFS EP
+MKFS_PORTAL=35
 
 # list of io server end points: e.g., tmid in [900, 999).
 IOSEP=(
@@ -87,8 +85,6 @@ TM_MIN_RECV_QUEUE_LEN=16
 MAX_RPC_MSG_SIZE=65536
 XPT=lnet
 MD_REDUNDANCY=1  # Meta-data redundancy, use greater than 1 after failure domain is available.
-PROC_FID_CNTR=0x7200000000000001
-PROC_FID_KEY=3
 
 unload_kernel_module()
 {
@@ -206,12 +202,12 @@ function build_conf()
 	local multiple_pools=$4
 	local ioservices=("${!5}")
 	local mdservices=("${!6}")
-	local statservices=("${!7}")
 	local PVER1_OBJ_COUNT=0
 	local PVER1_OBJS=
 	local node_count=1
 	local pool_count=1
 	local rack_count=1
+	local PROC_FID_CONT='^r|1'
 
 	if [ -z "$ioservices" ]; then
 		ioservices=("${IOSEP[@]}")
@@ -227,24 +223,16 @@ function build_conf()
 		done
 	fi
 
-	if [ -z "$statservices" ]; then
-		statservices=("${STATSEP[@]}")
-		for ((i = 0; i < ${#statservices[*]}; i++)); do
-			statservices[$i]=${server_nid}:${statservices[$i]}
-		done
-	fi
-
 	# prepare configuration data
 	local RMS_ENDPOINT="\"${mdservices[0]}\""
-	local STATS_ENDPOINT="\"${statservices[0]}\""
-	local HA_ENDPOINT="\"${server_nid}:${HA_EP}\""
+	local CONFD_ENDPOINT="\"${mdservices[0]%:*:*}:33:100\""
+	local HA_ENDPOINT="\"${mdservices[0]%:*:*}:34:1\""
 	local  ROOT='^t|1:0'
 	local  PROF='^p|1:0'
 	local    FS='^f|1:1'
 	local  NODE='^n|1:2'
-	local  PROC="($PROC_FID_CNTR, $PROC_FID_KEY)"
-	local    RM="($RMS_FID_CON, 0)"
-	local STATS="($STS_FID_CON, 0)"
+	local CONFD="$CONF_FID_CON:0"
+	local    RM="$RMS_FID_CON:0"
 	local HA_SVC_ID='^s|1:6'
 	local  RACKID='^a|1:6'
 	local  ENCLID='^e|1:7'
@@ -259,38 +247,60 @@ function build_conf()
 	local NODES="$NODE"
 	local POOLS="$POOLID"
 	local RACKS="$RACKID"
-
+	local PROC_NAMES
+	local PROC_OBJS
+	local M0D=0
 
 	local i
 
-	for ((i=0; i < ${#ioservices[*]}; i++)); do
-	    local IOS_NAME="($IOS_FID_CON, $i)"
+	for ((i=0; i < ${#ioservices[*]}; i++, M0D++)); do
+	    local IOS_NAME="$IOS_FID_CON:$i"
+	    local ADDB_NAME="$ADDB_IO_FID_CON:$i"
+	    local SNS_REP_NAME="$SNSR_FID_CON:$i"
+	    local SNS_REB_NAME="$SNSB_FID_CON:$i"
 	    local iosep="\"${ioservices[$i]}\""
 	    local IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: $iosep], ${IOS_DEV_IDS[$i]})}"
+	    local ADDB_OBJ="{0x73| (($ADDB_NAME), 10, [1: $iosep], [0])}"
+	    local SNS_REP_OBJ="{0x73| (($SNS_REP_NAME), 8, [1: $iosep], [0])}"
+	    local SNS_REB_OBJ="{0x73| (($SNS_REB_NAME), 9, [1: $iosep], [0])}"
 
-	    if ((i == 0)); then
-	        IOS_NAMES="$IOS_NAME"
-	        IOS_OBJS="$IOS_OBJ"
-	    else
-	        IOS_NAMES="$IOS_NAMES, $IOS_NAME"
-		IOS_OBJS="$IOS_OBJS, \n  $IOS_OBJ"
-	    fi
+	    PROC_NAME="$PROC_FID_CONT:$M0D"
+	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME"
+	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $iosep, [4: ${IOS_NAMES[$i]}])}"
+	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ"
+	    PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $PROC_OBJ"
+	    PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$PROC_NAME"
 	done
 
-	for ((i=0; i < ${#mdservices[*]}; i++)); do
-	    local MDS_NAME="($MDS_FID_CON, $i)"
+	for ((i=0; i < ${#mdservices[*]}; i++, M0D++)); do
+	    local MDS_NAME="$MDS_FID_CON:$i"
+	    local ADDB_NAME="$ADDB_MD_FID_CON:$i"
 	    local mdsep="\"${mdservices[$i]}\""
 	    local MDS_OBJ="{0x73| (($MDS_NAME), 1, [1: $mdsep], [0])}"
+	    local ADDB_OBJ="{0x73| (($ADDB_NAME), 10, [1: $mdsep], [0])}"
 
+	    PROC_NAME="$PROC_FID_CONT:$M0D"
+	    MDS_NAMES[$i]="$MDS_NAME, $ADDB_NAME"
 	    if ((i == 0)); then
-	        MDS_NAMES="$MDS_NAME"
-	        MDS_OBJS="$MDS_OBJ"
+		local RM_OBJ="{0x73| (($RM), 4, [1: $RMS_ENDPOINT], [0])}"
+		MDS_OBJS="$MDS_OBJ, \n  $ADDB_OBJ, \n  $RM_OBJ"
+		PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $mdsep, [3: ${MDS_NAMES[$i]}, $RM])}"
 	    else
-	        MDS_NAMES="$MDS_NAMES, $MDS_NAME"
-		MDS_OBJS="$MDS_OBJS, \n  $MDS_OBJ"
+		MDS_OBJS="$MDS_OBJS, \n  $MDS_OBJ, \n  $ADDB_OBJ"
+		PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $mdsep, [2: ${MDS_NAMES[$i]}])}"
 	    fi
+	    PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
+	    PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	done
 
+	PROC_NAME="$PROC_FID_CONT:$((M0D++))"
+	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${HA_ENDPOINT}", [1: $HA_SVC_ID])}"
+	PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
+	PROC_NAMES="$PROC_NAMES, $PROC_NAME"
+	PROC_NAME="$PROC_FID_CONT:$((M0D++))"
+	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${CONFD_ENDPOINT}", [1: $CONFD])}"
+	PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
+	PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	local RACK="{0x61| (($RACKID), [1: $ENCLID], [1: $PVERID])}"
 	local ENCL="{0x65| (($ENCLID), [1: $CTRLID], [1: $PVERID])}"
 	local CTRL="{0x63| (($CTRLID), $NODE, [$NR_DISK_FIDS: $DISK_FIDS], [1: $PVERID])}"
@@ -327,7 +337,7 @@ function build_conf()
 		# conf objects for anther pool version to test assignment
 		# of pools to new objects.
 		local NODE1="{0x6e| (($NODEID1), 16000, 2, 3, 2, $POOLID1, [1: $PROCID1])}"
-		local PROC1="{0x72| (($PROCID1), [1:3], 0, 0, 0, 0, [1: $IO_SVCID1])}"
+		local PROC1="{0x72| (($PROCID1), [1:3], 0, 0, 0, 0, "\"${ioservices[0]}\"", [1: $IO_SVCID1])}"
 		local IO_SVC1="{0x73| (($IO_SVCID1), 2, [1: "\"${ioservices[0]}\""], [3: $SDEVID1, $SDEVID2, $SDEVID3])}"
 		local SDEV1="{0x64| (($SDEVID1), 4, 1, 4096, 596000000000, 3, 4, \"$MERO_M0T1FS_TEST_DIR/ios1/1000data-disk.img\")}"
 		local SDEV2="{0x64| (($SDEVID2), 4, 1, 4096, 596000000000, 3, 4, \"$MERO_M0T1FS_TEST_DIR/ios1/1001data-disk.img\")}"
@@ -362,7 +372,7 @@ function build_conf()
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
- [$((${#ioservices[*]} + ${#mdservices[*]} + $NR_IOS_DEVS + 16 + $PVER1_OBJ_COUNT)):
+ [$(($((${#ioservices[*]} * 5)) + $((${#mdservices[*]} * 3)) + $NR_IOS_DEVS + 17 + $PVER1_OBJ_COUNT)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
@@ -371,11 +381,10 @@ function build_conf()
 	      [$node_count: $NODES],
 	      [$pool_count: $POOLS],
 	      [$rack_count: $RACKS])},
-  {0x6e| (($NODE), 16000, 2, 3, 2, $POOLID, [1: $PROC])},
-  {0x72| (($PROC), [1:3], 0, 0, 0, 0,
-	           [$((${#ioservices[*]} + ${#mdservices[*]} + 3)): $MDS_NAMES, $RM, $IOS_NAMES, $STATS, $HA_SVC_ID])},
-  {0x73| (($RM), 4, [1: $RMS_ENDPOINT], [0])},
-  {0x73| (($STATS), 5, [1: $STATS_ENDPOINT], [0])},
+  {0x6e| (($NODE), 16000, 2, 3, 2, $POOLID,
+	[$M0D: ${PROC_NAMES[@]}])},
+  $PROC_OBJS,
+  {0x73| (($CONFD), 3, [1: $CONFD_ENDPOINT], [0])},
   {0x73| (($HA_SVC_ID), 6, [1: $HA_ENDPOINT], [0])},
   $MDS_OBJS,
   $IOS_OBJS,
@@ -387,8 +396,7 @@ function build_conf()
   $PVER,
   $RACKV,
   $ENCLV,
-  $CTRLV
-  $PVER1_OBJS]"
+  $CTRLV $PVER1_OBJS]"
 }
 
 function run()

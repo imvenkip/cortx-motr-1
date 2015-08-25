@@ -12,7 +12,6 @@ MERO_M0D_OPTS=''
 user_config=/etc/sysconfig/mero
 service_funcs=/usr/libexec/mero/mero-service.functions
 
-
 m0_server()
 {
     local service=$1
@@ -35,13 +34,15 @@ m0_server()
     cd $service_dir
 
     local MERO_M0D_OPTS+=$(m0_get_core_params)
-    local m0d_services="$(m0_get_m0d_services_for addb2) $(m0_get_m0d_services_for $service)"
     local stob_type='-T ad'
     local stob_opts
     local proc_fid="<$(m0_get_proc_fid_for $service)>"
 
     case "$service" in
         mds*)
+            ;;
+
+	rms*)
             ;;
 
         ios*)  stob_opts+=" -d /etc/mero/disks-$service.conf"
@@ -70,7 +71,9 @@ m0_server()
     fi
 
     local binary=$(m0_path_to $cmd)
-
+    if [[ $binary == m0mkfs ]]; then
+	service_ep="lnet:$(m0_get_mkfs_ep_of $service)"
+    fi
     # enable core dumps
     ulimit -c unlimited
 
@@ -78,7 +81,7 @@ m0_server()
     set -x
 
     exec $binary -e $service_ep -f $proc_fid $stob_type $MERO_M0D_OPTS \
-                    $m0d_services $stob_opts $MERO_M0D_EXTRA_OPTS $cmd_opts
+                    $stob_opts $MERO_M0D_EXTRA_OPTS $cmd_opts
 }
 
 

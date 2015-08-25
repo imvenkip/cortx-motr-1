@@ -70,7 +70,7 @@ conf_obj_types = {
     'node': ('n', 'memsize=NUMBER nr_cpu=NUMBER last_state=NUMBER flags=NUMBER'
              ' pool_id=objid processes=[objid]'),
     'process': ('r', 'cores=[NUMBER] mem_limit_as=NUMBER mem_limit_rss=NUMBER'
-                ' mem_limit_stack=NUMBER mem_limit_memlock=NUMBER'
+                ' mem_limit_stack=NUMBER mem_limit_memlock=NUMBER endpoint=STRING'
                 ' services=[objid]'),
     'service': ('s', 'type=NUMBER endpoints=[STRING] sdevs=[objid]'),
     'sdev': ('d', 'iface=NUMBER media=NUMBER bsize=NUMBER size=NUMBER'
@@ -292,7 +292,7 @@ class TestParser(unittest.TestCase):
                               nodes=[('node', 2)],
                               pools=[('pool', 4)],
                               racks=[('rack', 3)]))])
-        self.assertEqual(37,
+        self.assertEqual(43,
                          len(parser.parse(file('ut/conf-str.txt.in').read())))
 
 class TestEncoders(unittest.TestCase):

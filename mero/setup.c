@@ -116,16 +116,19 @@ M0_BOB_DEFINE(static, &ndom_bob, m0_net_domain);
 
 static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
 {
+	return _0C(rctx->rc_stype != NULL) && _0C(rctx->rc_stpath != NULL) &&
+	       _0C(rctx->rc_bepath != NULL);
+}
+
+static bool reqh_ctx_services_are_valid(const struct m0_reqh_context *rctx)
+{
 	struct m0_mero *cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
 
-	return _0C(m0_exists(i, rctx->rc_nr_services,
-			     m0_streq(rctx->rc_services[i], "confd")) ==
-		   (rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0')) &&
-		_0C(!m0_exists(i, rctx->rc_nr_services,
-			     m0_streq(rctx->rc_services[i], "confd")) ==
-		   (cctx->cc_confd_addr != NULL && *cctx->cc_confd_addr != '\0')) &&
-		_0C(rctx->rc_stype != NULL) && _0C(rctx->rc_stpath != NULL) &&
-		_0C(rctx->rc_bepath != NULL) &&
+	return _0C(ergo(rctx->rc_services[M0_CST_MGS] != NULL &&
+			m0_streq(rctx->rc_services[M0_CST_MGS], "confd"),
+			rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0')) &&
+		_0C(ergo(rctx->rc_services[M0_CST_MGS] == NULL,
+			cctx->cc_confd_addr != NULL && *cctx->cc_confd_addr != '\0')) &&
 		_0C(ergo(rctx->rc_nr_services != 0, rctx->rc_services != NULL &&
 			 !cs_eps_tlist_is_empty(&rctx->rc_eps)));
 }
@@ -878,13 +881,18 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx)
 {
 	const char *name;
 	uint32_t    i;
-	int         rc;
+	int         rc = 0;
 
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
 
-	for (i = 0, rc = 0; i < rctx->rc_nr_services && rc == 0; ++i) {
+	for (i = 0; i < rctx->rc_max_services && rc == 0; ++i) {
+		if (rctx->rc_services[i] == NULL ||
+		    M0_IN(i, (M0_CST_HA, M0_CST_SSS)))
+			continue;
 		name = rctx->rc_services[i];
+		M0_LOG(M0_DEBUG, "service: %s" FID_F, name,
+			FID_P(&rctx->rc_service_fids[i]));
 		rc = cs_service_init(name, rctx, &rctx->rc_reqh,
 				     &rctx->rc_service_fids[i]);
 	}
@@ -1468,7 +1476,8 @@ static void cs_help(FILE *out, const char *progname)
 "\n"
 "Request handler options:\n"
 "  -D str   Database environment path.\n"
-"  -c str   [optional] Path to the configuration database.\n"
+"  -c str   [optional] Path to the configuration database."
+"           Must be given for confd service. \n"
 "  -T str   Type of storage. Supported types: linux, ad.\n"
 "  -S str   Stob file.\n"
 "  -A str   ADDB Stob file.\n"
@@ -1490,12 +1499,6 @@ static void cs_help(FILE *out, const char *progname)
 "           will have several endpoints, distinguished by transfer machine id\n"
 "           (the 4th component of 4-tuple endpoint address in lnet).\n"
 "  -f fid   FID of the process, in case of m0d is a mandatory parameter\n"
-"  -s str   Service (type) to be started.\n"
-"           The string is of the following form:\n"
-"              ServiceTypeName:ServiceFID\n"
-"              e.g. -s 'ioservice:<0x7300000000000001:1>'"
-"           Multiple '-s' options are allowed, but the values must be unique.\n"
-"           Use '-l' to get a list of registered service types.\n"
 "  -q num   [optional] Minimum length of TM receive queue.\n"
 "           Defaults to the value set with '-Q' option.\n"
 "  -m num   [optional] Maximum RPC message size.\n"
@@ -1504,16 +1507,15 @@ static void cs_help(FILE *out, const char *progname)
 "Example:\n"
 "    %s -Q 4 -M 4096 -T linux -D bepath -S stobfile \\\n"
 "        -e lnet:172.18.50.40@o2ib1:12345:34:1 \\\n"
-"        -s 'mds:<0x7300000000000002:1>'-q 8 -m 65536 \\\n"
+"        -q 8 -m 65536 \\\n"
 "        -f '<0x7200000000000001:1>'\n",
 CONFD_CONN_TIMEOUT, CONFD_CONN_RETRY, progname);
 }
 
-static int reqh_ctx_validate(struct m0_mero *cctx)
+static int cs_reqh_ctx_validate(struct m0_mero *cctx)
 {
 	struct m0_reqh_context      *rctx = &cctx->cc_reqh_ctx;
 	struct cs_endpoint_and_xprt *ep;
-	int                          i;
 	M0_ENTRY();
 
 	if (!reqh_ctx_args_are_valid(rctx))
@@ -1550,7 +1552,22 @@ static int reqh_ctx_validate(struct m0_mero *cctx)
 				      ep->ex_endpoint);
 	} m0_tl_endfor;
 
-	for (i = 0; i < rctx->rc_nr_services; ++i) {
+	if (cctx->cc_profile == NULL)
+		return M0_ERR_INFO(-EINVAL, "Configuration profile is missing");
+
+	return M0_RC(0);
+}
+
+static int cs_reqh_ctx_services_validate(struct m0_mero *cctx)
+{
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	int                     i;
+	M0_ENTRY();
+
+	M0_PRE(reqh_ctx_services_are_valid(rctx));
+
+	for (i = 0; i < rctx->rc_max_services && rctx->rc_services[i] != NULL;
+	     ++i) {
 		const char *sname = rctx->rc_services[i];
 
 		if (!m0_reqh_service_is_registered(sname))
@@ -1560,11 +1577,8 @@ static int reqh_ctx_validate(struct m0_mero *cctx)
 
 		if (service_is_duplicate(rctx, sname))
 			return M0_ERR_INFO(-EEXIST, "Service is not unique: %s",
-				      sname);
+				           sname);
 	}
-
-	if (cctx->cc_profile == NULL)
-		return M0_ERR_INFO(-EINVAL, "Configuration profile is missing");
 
 	return M0_RC(0);
 }
@@ -1587,48 +1601,6 @@ static int cs_daemonize(struct m0_mero *cctx)
 		return daemon(1, 0) ?: sigaction(SIGHUP, &hup_act, NULL);
 	}
 	return 0;
-}
-
-/**
-   Parses a service string of the following form:
-   - service-type:fid
-
-   It isolates and parses the fid string, and returns it in the fid parameter.
-
-   @param str Input string
-   @param svc Allocated service type name
-   @param fid Numerical service fid value, mandatory and valid.
- */
-static int
-service_string_parse(const char *str, char **svc, struct m0_fid *fid)
-{
-	const char *colon;
-	size_t      len;
-	int         rc;
-
-	fid->f_key = fid->f_container = 0;
-	colon = strchr(str, ':');
-	if (colon == NULL) {
-		/* Service FID is mandatory */
-		return M0_ERR(-EINVAL);
-	}
-
-	/* isolate and copy the service type */
-	len = colon - str;
-	*svc = m0_alloc(len + 1);
-	if (*svc == NULL)
-		return M0_ERR(-ENOMEM);
-	strncpy(*svc, str, len);
-	*(*svc + len) = '\0';
-
-	/* parse the FID */
-	rc = m0_fid_sscanf(++colon, fid);
-	if (rc != 0)
-		m0_free0(svc);
-	if (!m0_fid_is_valid(fid) ||
-	    !M0_CONF_SERVICE_TYPE.cot_ftype.ft_is_valid(fid))
-		return M0_ERR(-EINVAL);
-	return M0_RC(rc);
 }
 
 static int process_fid_parse(const char *str, struct m0_fid *fid)
@@ -1827,28 +1799,10 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				      rc = ep_and_xprt_append(&rctx->rc_eps, s);
 				})),
 		       M0_STRINGARG('f', "Process FID string",
+			/** @todo Use process fid from the configuration. */
 				LAMBDA(void, (const char *s)
 				{
 				      rc = process_fid_parse(s, &rctx->rc_fid);
-				})),
-			M0_STRINGARG('s', "Services to be configured",
-				LAMBDA(void, (const char *s)
-				{
-					int i;
-					if (rctx->rc_nr_services >=
-					    rctx->rc_max_services) {
-						rc = M0_ERR(-E2BIG);
-						M0_LOG(M0_ERROR,
-						       "Too many services");
-						return;
-					}
-					i = rctx->rc_nr_services;
-					rc = service_string_parse(s,
-						   &rctx->rc_services[i],
-						   &rctx->rc_service_fids[i]);
-					if (rc == 0)
-						M0_CNT_INC(
-							rctx->rc_nr_services);
 				})),
 			M0_FLAGARG('a', "Preallocate BE seg",
 				   &rctx->rc_be_seg_preallocate),
@@ -1874,10 +1828,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 	 * -e lnet:172.16.1.212@tcp:12345:41:401 -f '<0x7200000000000001:4>'
 	 *  -T ad -D db -S stobs -A linuxstob:addb-stobs
 	 *  -P '<0x7000000000000001:0>' -w 12 -m 65536 -q 16
-	 *  -C 172.16.1.212@tcp:12345:36:174 -s 'addb2:<7300000000000019:0>'
-	 *  -s 'ioservice:<7300000000000012:1>'
-	 *  -s 'sns_repair:<7300000000000017:1>'
-	 *  -s 'sns_rebalance:<7300000000000018:1>'
+	 *  -C 172.16.1.212@tcp:12345:36:174
 	 *  -d /etc/mero/disks-ios1.conf -E -F
 	 *  -u aa89f587-d3b2-4435-a972-559903aa523a -z 536870912
 	 *
@@ -1935,7 +1886,8 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	if (rc != 0)
 		goto conf_fs_close;
 
-	rc = cs_conf_to_args(args, fs) ?:
+	rc = cs_conf_services_init(cctx) ?:
+		cs_conf_to_args(args, fs) ?:
 		_args_parse(cctx, args->ca_argc, args->ca_argv);
 	if (rc != 0)
 		goto conf_fs_close;
@@ -1949,6 +1901,8 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	if (cctx->cc_pools_common.pc_md_redundancy > 0)
 		cctx->cc_reqh_ctx.rc_reqh.rh_oostore = true;
 
+	if (!cctx->cc_mkfs)
+		rc = cs_reqh_ctx_services_validate(cctx);
 	m0_confc_close(&fs->cf_obj);
 	m0_free(confstr);
 	return M0_RC(rc);
@@ -1994,7 +1948,7 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 
 	m0_rwlock_write_lock(&cctx->cc_rwlock);
 	rc = cs_args_parse(cctx, argc, argv) ?:
-	     reqh_ctx_validate(cctx) ?:
+	     cs_reqh_ctx_validate(cctx) ?:
 	     cs_daemonize(cctx) ?:
 	     cs_net_domains_init(cctx) ?:
 	     cs_buffer_pool_setup(cctx) ?:

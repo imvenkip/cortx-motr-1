@@ -24,7 +24,7 @@ start()
 
     for s in $services; do
         case $s in
-            mds*|ios*) t='@' ;;
+            rms*|mds*|ios*) t='@' ;;
             confd|ha) t='-'  ;;
         esac
 

@@ -34,11 +34,6 @@ char      *sns_cm_ut_svc[] = { "m0d", "-T", "LINUX",
 			       "-w", "10",
 			       "-G", "lnet:0@lo:12345:34:1",
                                "-e", "lnet:0@lo:12345:34:1",
-			       "-s", "mdservice:<0x7300000000000001:1>",
-                               "-s", "ioservice:<0x7300000000000001:2>",
-			       "-s", "sns_repair:<0x7300000000000001:3>",
-                               "-s", "rmservice:<0x7300000000000001:4>",
-                               "-s", "confd:<0x7300000000000001:5>",
 			       "-P", M0_UT_CONF_PROFILE,
 			       "-c", M0_UT_PATH("conf-str.txt")};
 
