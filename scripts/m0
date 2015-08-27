@@ -79,21 +79,11 @@ run_st() {
     say start/stop service ST
     $SUDO SANDBOX_DIR=$RUNDIR/sandbox.sss-st "$SRC/sss/st"
 
-    if python -c 'import ply' 2>/dev/null; then
-	say m0confgen
-	cd $SRC; utils/m0confgen --self-check; cd -
+    say m0confgen
+    cd $SRC; utils/m0confgen --self-check; cd -
 
-	say conf ST
-	$SUDO SANDBOX_DIR=$RUNDIR/sandbox.conf-st "$SRC/conf/st"
-    else
-	{
-	    cat <<"EOF"
-*WARNING* Unable to run some of the tests due to unmet dependency.
-`ply' Python module is missing. Please install it:
-    sudo yum install python-ply
-EOF
-	} >&2
-    fi
+    say conf ST
+    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.conf-st "$SRC/conf/st"
 
     say m0mount ST
     $SUDO $SRC/scripts/m0mount -alvvsL -n 1 -d 2 -k 1 -p 4 -o -m -q

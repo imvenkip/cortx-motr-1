@@ -1,6 +1,9 @@
 #!/bin/bash
 set -eu
 
+# set -x
+# export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+
 ### XXX TODO:
 ### 0. Add failure tests. They are very useful in finding deficiencies
 ###    of Mero error-handling code.
@@ -9,6 +12,7 @@ set -eu
 ###    - Add a failure test corresponding to MERO-322.
 ###    - Add a scenario that will guard against MERO-804 regressions.
 ### 1. Restore "autoconf" test case.
+### 2. Start m0d via Expect wrapper.
 
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-~/_sandbox.conf-st}
@@ -139,7 +143,8 @@ confdb() {
 (service-0 type=5 endpoints=["$SSS_ENDPOINT"] sdevs=[])
 (service-1 type=4 endpoints=["$RMS_ENDPOINT"] sdevs=[])
 (service-2 type=1 endpoints=["$MDS_ENDPOINT"] sdevs=[sdev-0])
-(service-3 type=2 endpoints=["$IOS0_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3, sdev-4])
+(service-3 type=2 endpoints=["$IOS0_ENDPOINT"]
+    sdevs=[sdev-1, sdev-2, sdev-3, sdev-4])
 (service-4 type=6 endpoints=["$IOS0_ENDPOINT"] sdevs=[])
 (sdev-0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
     filename="/dev/sdev0")
@@ -232,9 +237,10 @@ services_start() {
 	    error 'm0mkfs failed'
     }
 
+    ## XXX TODO: Start m0d via Expect wrapper. You never know how long to sleep.
     $M0_CORE_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
     local PID=$!
-    sleep 1
+    sleep 2
     kill -0 $PID 2>/dev/null ||
 	error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
 }
