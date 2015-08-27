@@ -203,18 +203,19 @@ use List::MoreUtils qw( any none );
 
 # global variables
 my %cli_option = (
-    input_file  => '-', # STDIN by default
-    output_file => '-', # STDOUT by default
-    stream_mode => 1,
-    use_pager   => 1,
-    log_dir     => '/var/log/mero',
-    mero_dir    => '/var/mero',
-    color       => 'auto',
-    format      => 'short',
-    level       => 'call+',
-    subsys      => 'all',
-    relpath     => 1,
-    func        => undef, # all funcs
+    input_file   => '-', # STDIN by default
+    output_file  => '-', # STDOUT by default
+    stream_mode  => 1,
+    use_pager    => 1,
+    log_dir      => '/var/log/mero',
+    mero_dir     => '/var/mero',
+    color        => 'auto',
+    format       => 'med',
+    level        => 'call+',
+    subsys       => 'all',
+    relpath      => 1,
+    column_width => 50,
+    func         => undef, # all funcs
 );
 
 my %level = (
@@ -472,6 +473,22 @@ sub file_of
     return $cli_option{relpath} ? $relpath : $trace_record->{file};
 }
 
+sub file_line_func_of
+{
+    my $trace_record = shift;
+
+    my $flf = file_of($trace_record) . ':' . $trace_record->{line} . ':'
+              . $trace_record->{func};
+    return $flf . ' ' x ($cli_option{column_width} - length $flf)
+}
+
+sub func_of
+{
+    my $trace_record = shift;
+
+    return $trace_record->{func} . ' ' x (30 - length $trace_record->{func})
+}
+
 sub print_trace_record
 {
     my $output_file = shift;
@@ -483,7 +500,7 @@ sub print_trace_record
 
         when ('short') {
             $buf = color( level_color($tr) )
-                   . sprintf('%6s  ', $tr->{level})
+                   . sprintf('%6s  ',       $tr->{level})
                    . "[" . file_of($tr) . ":$tr->{line}:$tr->{func}]  "
                    . "$tr->{msg}"
                    . color('reset')
@@ -492,23 +509,23 @@ sub print_trace_record
 
         when ('med') {
             $buf = color( level_color($tr) )
-                   . sprintf('%-18s  ', time_of($tr))
-                   . sprintf('%-7u  ', $tr->{record_num})
-                   . sprintf('%-6s  ', $tr->{level})
-                   . sprintf('%-10s  ', $tr->{subsystem})
-                   . sprintf('%-30s  ', $tr->{func})
-                   . "$tr->{msg}"
+                   . sprintf('%-4u  ',  $tr->{record_num})
+                   . sprintf('%-8s  ',  time_of($tr))
+                   . sprintf('%-6s  ',  stack_addr_of($tr))
+                   . sprintf('%-6s  ',  $tr->{level})
+                   . sprintf('%s  ',    file_line_func_of($tr))
+                   . color('bright_white') . "$tr->{msg}"
                    . color('reset')
                    . "\n";
         }
 
         when ('full') {
             $buf = color( level_color($tr) )
-                   . sprintf('%-7u  ', $tr->{record_num})
+                   . sprintf('%-7u  ',  $tr->{record_num})
                    . sprintf('%-18s  ', time_of($tr))
-                   . sprintf('%-6s  ', $tr->{level})
+                   . sprintf('%-6s  ',  $tr->{level})
                    . sprintf('%-10s  ', $tr->{subsystem})
-                   . sprintf('%-6s  ', $tr->{pid})
+                   . sprintf('%-6s  ',  $tr->{pid})
                    . "$tr->{stack_addr}  "
                    . "$tr->{func}  "
                    . file_of($tr) . ":$tr->{line}"
@@ -676,7 +693,7 @@ sub man
 
 sub process_cli_options
 {
-    help() if !GetOptions(
+    usage() if !GetOptions(
         'i|input=s'        =>  \$cli_option{input_file},
         'o|output=s'       =>  \$cli_option{output_file},
         'S|stream-mode!'   =>  \$cli_option{stream_mode},
@@ -692,6 +709,7 @@ sub process_cli_options
         'F|follow'         =>  sub { $cli_option{follow} = $cli_option{stream_mode} = 1 },
         'M|match-only'     =>  \$cli_option{match_only},
         'r|relpath!'       =>  \$cli_option{relpath},
+        'w|column-width=i' =>  \$cli_option{column_width},
         'f|format=s'       =>  \$cli_option{format},
         'l|level=s'        =>  \$cli_option{level},
         's|subsys=s'       =>  \$cli_option{subsys},
@@ -819,8 +837,8 @@ m0trace - display Mero trace logs in human friendly form
 
 =head1 SYNOPSIS
 
-m0trace  [kernel|confd|iosX|mdsX]  [-i|--input <ifile>]
-[-o|--output <ofile>] [-S|--stream-mode] [--no-pager] [--no-relpath]
+m0trace  [kernel|confd|iosX|mdsX]  [-i|--input <ifile>] [-o|--output <ofile>]
+[-S|--stream-mode] [--no-pager] [--no-relpath] [-w|--column-width <num>]
 [-c|-C|--color=MODE] [-d] [-k|--kdump] [-I|--module-image=<FILE>]
 [-L|--log-dir=DIR] [-H|--dump-header] [-F|--follow] [-M|--match-only]
 [-f|--format=FMT] [-l|--level=LVL] [-s|--subsys=SBS] [-e|--file=FL]
@@ -882,6 +900,12 @@ Don't use pager (less) to display results.
 Use full path when displaying name of a source file to which a trace record
 belongs.
 
+=item B<-w|--column-width <num>>
+
+Set column width for columns which support it (so far there is only one -
+file/line/func from 'med' format). Use C<-w0> for minimal width. By default it's
+set to 30.
+
 =item B<--color=I<MODE>|-c|-C>
 
 Controls, whether to colorize output, depending on trace level of each record.
@@ -939,7 +963,7 @@ they have.
 =item B<-f|--format=I<FMT>>
 
 Controls amount of information, which is displayed for each trace record, and
-how it looks. Possible values for FMT are: I<short> (default one), I<med>,
+how it looks. Possible values for FMT are: I<short>, I<med> (default one),
 I<full> and I<custom:STR>. I<custom> format is special, it accepts a format
 string, which goes after a colon, and it may have the following placeholders:
 
