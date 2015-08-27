@@ -413,6 +413,12 @@ enum m0_trace_level {
 	 * function calls, should _not_ be used directly with M0_LOG();
 	 */
 	M0_CALL   = 1 << 6,
+
+	/**
+	 * special level, it's always displayed on console, intended for
+	 * printf-style debugging, should be removed from code before committing
+	 */
+	M0_ALWAYS = 1 << 7,
 };
 
 enum m0_trace_print_context {

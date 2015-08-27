@@ -113,6 +113,7 @@ static struct {
 	[5] = { .name = "INFO",   .level = M0_INFO   },
 	[6] = { .name = "DEBUG",  .level = M0_DEBUG  },
 	[7] = { .name = "CALL",   .level = M0_CALL   },
+	[8] = { .name = "ALWAYS", .level = M0_ALWAYS },
 };
 
 /** Array of trace print context names */
@@ -280,9 +281,10 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	header->trh_magic = M0_TRACE_MAGIC;
 
 #ifdef ENABLE_IMMEDIATE_TRACE
-	if ((td->td_subsys & m0_trace_immediate_mask ||
-	     td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
-	    td->td_level & m0_trace_level)
+	if (((td->td_subsys & m0_trace_immediate_mask ||
+	      td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
+	    td->td_level & m0_trace_level) ||
+	    td->td_level & M0_ALWAYS)
 		m0_trace_record_print(header, body_in_buf);
 #endif
 }
