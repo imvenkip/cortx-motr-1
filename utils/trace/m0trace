@@ -464,6 +464,35 @@ sub expand_format_placeholder
     return;
 }
 
+my %stack_addr_color;
+my $next_stack_addr_color = 0;
+my @color_map = qw(
+    red         green        yellow        blue        magenta        cyan white
+    bright_red  bright_green bright_yellow bright_blue bright_magenta
+    bright_cyan bright_white
+);
+
+sub stack_addr_of
+{
+    my $trace_record = shift;
+
+    if (defined $ENV{ANSI_COLORS_DISABLED} and $ENV{ANSI_COLORS_DISABLED} == 1) {
+        return $trace_record->{stack_addr};
+    }
+    else {
+        my $addr = $trace_record->{stack_addr};
+        my ($base, $offset) = ( substr($addr, 0, 2), substr($addr, 2) );
+        if (! exists $stack_addr_color{$base}) {
+            $stack_addr_color{$base} = $next_stack_addr_color++;
+            if ($next_stack_addr_color > scalar @color_map) {
+                $next_stack_addr_color = 0;
+            }
+        }
+        return colored( $base, $color_map[$stack_addr_color{$base}] )
+               . color( level_color($trace_record) ) . $offset;
+    }
+}
+
 sub file_of
 {
     my $trace_record = shift;
