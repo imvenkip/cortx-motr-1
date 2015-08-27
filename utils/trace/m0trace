@@ -207,6 +207,7 @@ my %cli_option = (
     output_file => '-', # STDOUT by default
     use_pager   => 1,
     log_dir     => '/var/log/mero',
+    mero_dir    => '/var/mero',
     color       => 'auto',
     format      => 'short',
     level       => 'call+',
@@ -719,11 +720,22 @@ sub process_cli_options
         my $file_pattern;
 
         given ($ARGV[0]) {
-            when ('kernel')        { $file_pattern = "trace-m0mero~*.bin" }
-            when (/confd|mds|ios/) { $file_pattern = "trace-m0d-$ARGV[0]-*.bin" }
+            when ('kernel') {
+                $file_pattern = "trace-m0mero~*.bin";
+            }
+            when (/^(?:confd|ha|(?:mds|ios)\d*)$/)   {
+                $file_pattern = "trace-m0d-$ARGV[0]-*.bin";
+            }
+            when (/^(?:confd|ha|(?:mds|ios)\d*)-buf$/) {
+                $file_pattern = "m0trace.*";
+                $ARGV[0] =~ m/^(?<sname>.*)-buf$/xms;
+                $cli_option{log_dir} = "$cli_option{mero_dir}/$+{sname}";
+            }
             default {
                 die "Unknown type of requested trace log: '$ARGV[0]',"
-                    . " supported values are 'kernel', 'confd', 'mds', 'ios*'";
+                    . " supported values should match pattern:"
+                    . " '<kernel|confd|mds*|ios*>[-buf]', for example 'confd',"
+                    . " 'mds-buf', 'ios2', 'ios2-buf'";
             }
         }
 
