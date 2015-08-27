@@ -59,7 +59,7 @@
 #define DEFAULT_IN_FILE_NAME          "/sys/kernel/debug/mero/trace/buffer"
 #define DEFAULT_OUT_FILE_NAME         "/var/log/mero/m0trace.bin"
 #define M0MERO_KO_CORE_IN_FILE_NAME   "/sys/kernel/debug/mero/core"
-#define M0MERO_KO_CORE_OUT_FILE_NAME  "/var/log/mero/m0mero.ko.img"
+#define M0MERO_KO_CORE_OUT_FILE_NAME  "/var/log/mero/m0mero_ko.img"
 
 static const char *progname;
 static const char *input_file_name  = DEFAULT_IN_FILE_NAME;
