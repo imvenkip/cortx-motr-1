@@ -68,7 +68,7 @@ static const char *output_kore_file_name = M0MERO_KO_CORE_OUT_FILE_NAME;
 
 static bool     daemon_mode = false;
 static bool     use_syslog = false;
-static bool     save_kore = false;
+static bool     save_kore = true;
 static int      log_level = LOG_INFO;
 static uint32_t log_rotation_dealy = 5; /* in seconds */
 static uint32_t max_log_size = 1024;    /* in MB */
@@ -743,9 +743,19 @@ int main(int argc, char *argv[])
 		  " into syslog)",
 		  &daemon_mode
 	  ),
-	  M0_FLAGARG('K',
-		  "save m0mero.ko core image into a file, specified by -O option",
-		  &save_kore
+	  M0_VOIDARG('K',
+		  "save m0mero.ko core image into a file, specified by -O option"
+		  " (this option has no effect as it's 'on' by default, it has"
+		  " been kept for backward compatibility, it's superseded by"
+		  " '-S' option)",
+		  LAMBDA(void, (void) { })
+	  ),
+	  M0_VOIDARG('S',
+		  "discards action of '-K' option, i.e. don't save m0mero.ko"
+		  " core image into a file",
+		  LAMBDA(void, (void) {
+			  save_kore = false;
+		  })
 	  ),
 	  M0_NUMBERARG('l', "log level number (from syslog.h)",
 		LAMBDA(void, (int64_t lvl) {

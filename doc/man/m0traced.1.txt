@@ -40,7 +40,13 @@ OPTIONS
     Daemon mode (run in the background, log errors into syslog).
 
 *-K*::
-    Save m0mero.ko core image into a file, specified by `-O` option.
+    Save m0mero.ko core image into a file, specified by `-O` option. This option
+    has no effect, as it's 'on' by default. It has been kept for backward
+    compatibility. It's superseded by `-S` option.
+
+*-S*::
+    Discards action of `-K` option, i.e. don't save m0mero.ko core image into a
+    file.
 
 *-l*::
     Log level number (from syslog.h).
