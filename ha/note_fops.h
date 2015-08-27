@@ -18,7 +18,6 @@
  * Original creation date: 02-Sep-2013
  */
 
-
 #pragma once
 
 #ifndef __MERO___HA_NOTE_FOPS_H__
@@ -30,15 +29,14 @@
 #include "ha/note.h"
 #include "ha/note_xc.h"
 
-
 /**
  * @addtogroup ha-note
  * @{
  */
 
 /**
- * FOP sent between Mero and Halon to exchange object state changes. See
- * ha/note.h.
+ * FOP sent between Mero and Halon to exchange object state changes.
+ * See ha/note.h.
  */
 struct m0_ha_state_fop {
 	/** Error code for reply, ignored in request. */
@@ -47,24 +45,18 @@ struct m0_ha_state_fop {
 	struct m0_ha_nvec hs_note;
 } M0_XCA_RECORD;
 
-/**
- * Init ha state FOP
- */
 M0_INTERNAL int m0_ha_state_fop_init(void);
-
-/**
- * Fini ha state FOP
- */
 M0_INTERNAL void m0_ha_state_fop_fini(void);
 
 extern struct m0_fop_type m0_ha_state_get_fopt;
 extern struct m0_fop_type m0_ha_state_get_rep_fopt;
 extern struct m0_fop_type m0_ha_state_set_fopt;
 
+extern const struct m0_fom_type_ops *m0_ha_state_get_fom_type_ops;
+extern const struct m0_fom_type_ops *m0_ha_state_set_fom_type_ops;
+
 /** @} END of ha-note */
-
 #endif /* __MERO___HA_NOTE_FOPS_H__ */
-
 
 /*
  *  Local variables:

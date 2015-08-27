@@ -60,7 +60,6 @@ struct get_fop_context {
 
 M0_EXTERN void m0_ha__session_set(struct m0_rpc_session *session);
 
-
 M0_INTERNAL int m0_ha_state_init(struct m0_rpc_session *session)
 {
 	m0_ha__session_set(session);

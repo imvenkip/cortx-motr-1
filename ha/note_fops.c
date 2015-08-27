@@ -27,8 +27,6 @@
 #include "ha/note_xc.h"
 
 extern struct m0_reqh_service_type m0_rpc_service_type;
-extern const struct m0_fom_type_ops m0_ha_state_set_fom_type_ops;
-extern const struct m0_fom_type_ops m0_ha_state_get_fom_type_ops;
 
 struct m0_fop_type m0_ha_state_get_fopt;
 struct m0_fop_type m0_ha_state_get_rep_fopt;
@@ -47,7 +45,7 @@ M0_INTERNAL int m0_ha_state_fop_init(void)
 			 .name      = "HA State Get",
 			 .opcode    = M0_HA_NOTE_GET_OPCODE,
 			 .xt        = m0_ha_nvec_xc,
-			 .fom_ops   = &m0_ha_state_get_fom_type_ops,
+			 .fom_ops   = m0_ha_state_get_fom_type_ops,
 			 .sm        = &m0_generic_conf,
 			 .svc_type  = &m0_rpc_service_type,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
@@ -61,7 +59,7 @@ M0_INTERNAL int m0_ha_state_fop_init(void)
 			 .name      = "HA State Set",
 			 .opcode    = M0_HA_NOTE_SET_OPCODE,
 			 .xt        = m0_ha_nvec_xc,
-			 .fom_ops   = &m0_ha_state_set_fom_type_ops,
+			 .fom_ops   = m0_ha_state_set_fom_type_ops,
 			 .sm        = &m0_generic_conf,
 			 .svc_type  = &m0_rpc_service_type,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);

@@ -20,6 +20,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_HA
 #include "lib/trace.h"
+
 #include "fop/fom_generic.h"
 #include "fop/fop.h"
 #include "fop/fom.h"
@@ -87,11 +88,7 @@ M0_INTERNAL int m0_ha_state_set_fom_create(struct m0_fop *fop,
 	return 0;
 }
 
-const struct m0_fom_type_ops m0_ha_state_set_fom_type_ops = {
-	.fto_create = &m0_ha_state_set_fom_create
-};
-
-static void ha_state_get(struct m0_conf_cache   *cache,
+static void ha_state_get(struct m0_conf_cache  *cache,
 			struct m0_ha_nvec      *req_fop,
 			struct m0_ha_state_fop *rep_fop)
 {
@@ -180,9 +177,16 @@ static int m0_ha_state_get_fom_create(struct m0_fop  *fop,
 	return M0_RC(0);
 }
 
-const struct m0_fom_type_ops m0_ha_state_get_fom_type_ops = {
-	.fto_create = m0_ha_state_get_fom_create
+static const struct m0_fom_type_ops ha_get_fomt_ops = {
+	.fto_create = &m0_ha_state_get_fom_create
 };
+
+static const struct m0_fom_type_ops ha_set_fomt_ops = {
+	.fto_create = &m0_ha_state_set_fom_create
+};
+
+const struct m0_fom_type_ops *m0_ha_state_get_fom_type_ops = &ha_get_fomt_ops;
+const struct m0_fom_type_ops *m0_ha_state_set_fom_type_ops = &ha_set_fomt_ops;
 
 #undef M0_TRACE_SUBSYSTEM
 
