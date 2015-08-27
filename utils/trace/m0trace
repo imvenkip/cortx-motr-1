@@ -205,6 +205,7 @@ use List::MoreUtils qw( any none );
 my %cli_option = (
     input_file  => '-', # STDIN by default
     output_file => '-', # STDOUT by default
+    stream_mode => 1,
     use_pager   => 1,
     log_dir     => '/var/log/mero',
     mero_dir    => '/var/mero',
@@ -215,7 +216,6 @@ my %cli_option = (
     relpath     => 1,
     func        => undef, # all funcs
 );
-#my %default_option = %cli_option;
 
 my %level = (
     'call'    => qr/ ^ CALL $ /xms,
@@ -679,7 +679,7 @@ sub process_cli_options
     help() if !GetOptions(
         'i|input=s'        =>  \$cli_option{input_file},
         'o|output=s'       =>  \$cli_option{output_file},
-        'S|stream-mode'    =>  \$cli_option{stream_mode},
+        'S|stream-mode!'   =>  \$cli_option{stream_mode},
         'pager!'           =>  \$cli_option{use_pager},
         'color=s'          =>  \$cli_option{color},
         'c'                =>  sub { $cli_option{color} = 'always' },
