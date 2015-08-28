@@ -72,7 +72,7 @@ const struct m0_fom_type_ops m0_sns_trigger_fom_type_ops = {
 struct m0_sm_state_descr m0_sns_trigger_phases[] = {
 	[M0_SNS_TPH_PREPARE] = {
 		.sd_name      = "Prepare copy machine",
-		.sd_allowed   = M0_BITS(M0_SNS_TPH_READY,
+		.sd_allowed   = M0_BITS(M0_SNS_TPH_READY, M0_FOPH_INIT,
 					M0_FOPH_FAILURE, M0_FOPH_SUCCESS)
 	},
 	[M0_SNS_TPH_READY] = {
@@ -169,6 +169,7 @@ static int prepare(struct m0_fom *fom)
 	struct m0_sns_cm      *scm = cm2sns(cm);
 	struct trigger_fop    *treq = m0_fop_data(fom->fo_fop);
 	enum m0_pool_nd_state  state;
+	enum m0_cm_state       cm_state;
 	int                    rc;
 
 	if (M0_IN(treq->op, (SNS_REPAIR_QUIESCE, SNS_REBALANCE_QUIESCE))) {
@@ -179,16 +180,16 @@ static int prepare(struct m0_fom *fom)
 		return M0_FSO_AGAIN;
 	}
 
+	m0_cm_lock(cm);
+	cm_state = m0_cm_state_get(cm);
+	m0_cm_unlock(cm);
+
 	if (M0_IN(treq->op, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
 		struct m0_fop                *rfop = fom->fo_rep_fop;
 		struct m0_sns_status_rep_fop *trep = m0_fop_data(rfop);
 		static uint64_t               progress;
-		enum m0_cm_state              cm_state;
 		enum m0_sns_cm_status         cm_status;
 
-		m0_cm_lock(cm);
-		cm_state = m0_cm_state_get(cm);
-		m0_cm_unlock(cm);
 		/* sending back status and progress */
 		M0_LOG(M0_DEBUG, "sending back status for %d: cm state=%d",
 				 treq->op, cm_state);
@@ -227,20 +228,27 @@ static int prepare(struct m0_fom *fom)
 	scm->sc_op = treq->op;
 	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
 					   M0_PNDS_SNS_REBALANCING;
-	rc = m0_cm_prepare(cm)?: m0_sns_cm_pm_event_post(scm,
-							 &fom->fo_tx.tx_betx,
-							 M0_POOL_DEVICE,
-							 state);
-	if (rc != 0)
-		return M0_RC(rc);
-	m0_mutex_lock(&cm->cm_wait_mutex);
-	m0_fom_wait_on(fom, &cm->cm_ready_wait,
-			&fom->fo_cb);
-	m0_mutex_unlock(&cm->cm_wait_mutex);
-	m0_fom_phase_set(fom, M0_SNS_TPH_READY);
+	if (cm_state == M0_CMS_IDLE) {
+		rc = m0_cm_prepare(cm);
+		if (rc == 0) {
+			m0_fom_phase_set(fom, M0_FOPH_INIT);
+			m0_mutex_lock(&cm->cm_wait_mutex);
+			m0_fom_wait_on(fom, &cm->cm_ready_wait, &fom->fo_cb);
+			m0_mutex_unlock(&cm->cm_wait_mutex);
+			rc = M0_FSO_WAIT;
+		}
+	} else {
+		M0_ASSERT(fom->fo_tx.tx_state == M0_DTX_OPEN);
+		rc = m0_sns_cm_pm_event_post(scm, &fom->fo_tx.tx_betx,
+					     M0_POOL_DEVICE, state);
+		if (rc == 0) {
+			m0_fom_phase_set(fom, M0_SNS_TPH_READY);
+			rc = M0_FSO_AGAIN;
+		}
+	}
 	M0_LOG(M0_DEBUG, "got trigger: prepare");
 
-	return M0_FSO_WAIT;
+	return M0_RC(rc);
 }
 
 static int ready(struct m0_fom *fom)
@@ -278,17 +286,21 @@ static int (*trig_action[]) (struct m0_fom *) = {
 
 static int trigger_fom_tick(struct m0_fom *fom)
 {
+	struct trigger_fop     *treq = m0_fop_data(fom->fo_fop);
 	struct m0_be_tx_credit *tx_cred;
 	struct m0_cm           *cm;
 	struct m0_sns_cm       *scm;
 	struct m0_poolmach     *pm;
 	struct m0_confc        *confc;
 	struct m0_mero         *mero;
+	enum m0_cm_state        cm_state;
 	uint64_t                nr_fail;
 	int                     rc = 0;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
-		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN){
+		cm = trig2cm(fom);
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN &&
+		    M0_IN(treq->op, (SNS_REPAIR, SNS_REBALANCE))){
 			/* Calculate credits for global pool machine. */
 			pm = m0_ios_poolmach_get(m0_fom_reqh(fom));
 			M0_ASSERT(pm != NULL);
@@ -297,7 +309,6 @@ static int trigger_fom_tick(struct m0_fom *fom)
 			m0_poolmach_store_credit(pm, tx_cred);
 			m0_be_tx_credit_mul(tx_cred, nr_fail);
 			m0_be_tx_credit_add(tx_cred, tx_cred);
-			cm = trig2cm(fom);
 			scm = cm2sns(cm);
 			confc = &scm->sc_base.cm_service.rs_reqh->rh_confc;
 			mero = m0_cs_ctx_get(scm->sc_base.cm_service.rs_reqh);
@@ -306,6 +317,20 @@ static int trigger_fom_tick(struct m0_fom *fom)
 						     tx_cred);
 			if (rc != 0)
 				goto out;
+		} else if (m0_fom_phase(fom) == M0_FOPH_INIT &&
+			   M0_IN(treq->op, (SNS_REPAIR, SNS_REBALANCE))) {
+			m0_cm_lock(cm);
+			cm_state = m0_cm_state_get(cm);
+			m0_cm_unlock(cm);
+			/*
+			 * Run TPH_PREPARE phase before generic phases. This is
+			 * required to prevent dependency between trigger_fom's
+			 * and m0_cm_sw_update fom's transactions.
+			 */
+			if (cm_state == M0_CMS_IDLE) {
+				m0_fom_phase_set(fom, M0_SNS_TPH_PREPARE);
+				return M0_FSO_AGAIN;
+			}
 		}
 		rc = m0_fom_tick_generic(fom);
 	} else
