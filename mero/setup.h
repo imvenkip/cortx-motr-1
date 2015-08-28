@@ -150,7 +150,7 @@ M0_EXTERN const char *m0_cs_stypes[M0_STOB_TYPE_NR];
  */
 struct cs_args {
 	int   ca_argc;
-	char *ca_argv[64];
+	char *ca_argv[6400];
 };
 
 /**
