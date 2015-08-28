@@ -44,7 +44,20 @@
 /* Note: `s' is believed to be heap-allocated. */
 static void option_add(struct cs_args *args, char *s)
 {
-	M0_PRE(0 <= args->ca_argc && args->ca_argc < ARRAY_SIZE(args->ca_argv));
+	char **argv;
+
+	M0_PRE(0 <= args->ca_argc && args->ca_argc <= args->ca_argc_max);
+	if (args->ca_argc == args->ca_argc_max) {
+		args->ca_argc_max = args->ca_argc_max == 0 ? 64 :
+				    args->ca_argc_max * 2;
+		argv = m0_alloc(sizeof(args->ca_argv[0]) * args->ca_argc_max);
+		if (args->ca_argv != NULL) {
+			memcpy(argv, args->ca_argv,
+			       sizeof(args->ca_argv[0]) * args->ca_argc);
+			m0_free(args->ca_argv);
+		}
+		args->ca_argv = argv;
+	}
 	args->ca_argv[args->ca_argc++] = s;
 	M0_LOG(M0_DEBUG, "%02d %s", args->ca_argc, s);
 }

@@ -439,7 +439,7 @@ static void test_cs_ut_lnet_ep_duplicate(void)
 
 static void test_cs_ut_lnet_multiple_if(void)
 {
-	struct m0_mero mero_ctx;
+	struct m0_mero mero_ctx = {};
 	int            rc;
 
 	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, true);
@@ -457,7 +457,7 @@ static void test_cs_ut_lnet_multiple_if(void)
 
 static void test_cs_ut_lnet_ep_mixed_dup(void)
 {
-	struct m0_mero mero_ctx;
+	struct m0_mero mero_ctx = {};
 	FILE          *out;
 	int            rc;
 

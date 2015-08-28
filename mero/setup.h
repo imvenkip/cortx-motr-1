@@ -149,8 +149,9 @@ M0_EXTERN const char *m0_cs_stypes[M0_STOB_TYPE_NR];
  * Auxiliary structure used to pass command line arguments to cs_parse_args().
  */
 struct cs_args {
-	int   ca_argc;
-	char *ca_argv[6400];
+	int    ca_argc;
+	int    ca_argc_max;
+	char **ca_argv;
 };
 
 /**

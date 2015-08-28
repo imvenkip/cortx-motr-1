@@ -1432,6 +1432,8 @@ static void cs_mero_init(struct m0_mero *cctx)
 	cs_eps_tlist_init(&cctx->cc_mds_eps);
 	M0_SET0(&cctx->cc_stats_svc_epx);
 	cctx->cc_args.ca_argc = 0;
+	cctx->cc_args.ca_argc_max = 0;
+	cctx->cc_args.ca_argv = NULL;
 	cctx->cc_profile = NULL;
 	cctx->cc_confd_addr = NULL;
 }
@@ -1463,6 +1465,7 @@ static void cs_mero_fini(struct m0_mero *cctx)
 
 	while (cctx->cc_args.ca_argc > 0)
 		m0_free(cctx->cc_args.ca_argv[--cctx->cc_args.ca_argc]);
+	m0_free(cctx->cc_args.ca_argv);
 }
 
 static void cs_usage(FILE *out, const char *progname)
