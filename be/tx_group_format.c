@@ -444,6 +444,9 @@ m0_be_group_format_log_use(struct m0_be_group_format *gft,
 	size_group  = m0_be_fmt_group_size(&gft->gft_fmt_group);
 	size_cblock = m0_be_fmt_cblock_size(&gft->gft_fmt_cblock);
 
+	M0_LOG(M0_DEBUG, "size_reserved=%lu size_group=%lu size_cblock=%lu",
+	       size_reserved, size_group, size_cblock);
+
 	m0_be_log_record_io_size_set(record, GFT_GROUP_IO, size_group);
 	m0_be_log_record_io_size_set(record, GFT_GROUP_CB_IO, size_cblock);
 	m0_be_log_record_io_prepare(record, SIO_WRITE, size_reserved);

@@ -99,6 +99,8 @@ static void be_log_sched_cb(struct m0_be_op *op, void *param)
 	struct m0_be_log_io    *lio   = param;
 	struct m0_be_log_sched *sched = lio->lio_sched;
 
+	M0_LOG(M0_DEBUG, "sched=%p lio=%p", sched, lio);
+
 	m0_mutex_lock(&sched->lsh_lock);
 	sched_lio_tlink_del_fini(lio);
 	sched->lsh_io_in_progress = false;
@@ -111,6 +113,11 @@ M0_INTERNAL void m0_be_log_sched_add(struct m0_be_log_sched *sched,
 				     struct m0_be_log_io    *lio,
 				     struct m0_be_op        *op)
 {
+	M0_LOG(M0_DEBUG, "sched=%p lio=%p lio_record=%p op=%p "
+	       "m0_be_io_size(&lio->lio_be_io)=%"PRIu64,
+	       sched, lio, lio->lio_record, op,
+	       m0_be_io_size(&lio->lio_be_io));
+
 	M0_PRE(m0_mutex_is_locked(&sched->lsh_lock));
 	M0_PRE(!m0_be_log_io_is_empty(lio));
 
@@ -150,6 +157,8 @@ M0_INTERNAL int m0_be_log_io_allocate(struct m0_be_log_io    *lio,
 	void       *addr;
 	int         rc;
 
+	M0_ENTRY("lio=%p iocred="BE_IOCRED_F" log_bshift=%"PRIu32,
+		 lio, BE_IOCRED_P(iocred), log_bshift);
 	M0_PRE(m0_is_aligned(size, 1 << log_bshift));
 
 	addr = m0_alloc_aligned(size, log_bshift);
@@ -173,7 +182,7 @@ err_lio_fini:
 err_free:
 	m0_free_aligned(addr, size, log_bshift);
 err:
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_log_io_deallocate(struct m0_be_log_io *lio)

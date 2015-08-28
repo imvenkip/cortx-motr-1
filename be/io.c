@@ -98,12 +98,16 @@ static int be_io_part_launch(struct m0_be_io_part *bip)
 
 	m0_clink_add_lock(&sio->si_wait, &bip->bip_clink);
 
-	M0_LOG(M0_DEBUG, "sio = %p, sio->si_user count = %"PRIu32" size = %lu",
-	       sio, sio->si_user.ov_vec.v_nr,
-	       (unsigned long)m0_vec_count(&sio->si_user.ov_vec));
-	M0_LOG(M0_DEBUG, "sio = %p, sio->si_stob count = %"PRIu32" size = %lu",
-	       sio, sio->si_stob.iv_vec.v_nr,
-	       (unsigned long)m0_vec_count(&sio->si_stob.iv_vec));
+	M0_ENTRY("sio=%p stob=%p stob_fid="FID_F" "
+		 "si_user=(count=%"PRIu32" size=%llu) "
+		 "si_stob=(count=%"PRIu32" size=%llu)",
+		 sio, bip->bip_stob, FID_P(m0_stob_fid_get(bip->bip_stob)),
+		 sio->si_user.ov_vec.v_nr,
+		 (1ULL << bip->bip_bshift) *
+		 (unsigned long long)m0_vec_count(&sio->si_user.ov_vec),
+		 sio->si_stob.iv_vec.v_nr,
+		 (1ULL << bip->bip_bshift) *
+		 (unsigned long long)m0_vec_count(&sio->si_stob.iv_vec));
 
 	rc = m0_stob_io_launch(sio, bip->bip_stob, NULL, NULL);
 	if (rc != 0)
@@ -179,6 +183,8 @@ M0_INTERNAL int m0_be_io_allocate(struct m0_be_io        *bio,
 	struct m0_indexvec *iv = &bio->bio_iv_stob;
 	int                 rc;
 	size_t              i;
+
+	M0_ENTRY("bio=%p iocred="BE_IOCRED_F, bio, BE_IOCRED_P(iocred));
 
 	bio->bio_iocred = *iocred;
 
@@ -512,6 +518,7 @@ M0_INTERNAL void m0_be_io_configure(struct m0_be_io        *bio,
 	struct m0_stob_io *sio;
 	unsigned           i;
 
+	bio->bio_opcode = opcode;
 	for (i = 0; i < bio->bio_stob_nr; ++i) {
 		sio = &bio->bio_part[i].bip_sio;
 		sio->si_opcode   = opcode;
@@ -582,6 +589,10 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 {
 	unsigned i;
 	int      rc;
+
+	M0_LOG(M0_DEBUG, "bio=%p op=%p sync=%d opcode=%d "
+	       "m0_be_io_size(bio)=%"PRIu64,
+	       bio, op, !!bio->bio_sync, bio->bio_opcode, m0_be_io_size(bio));
 
 	M0_PRE(m0_be_io__invariant(bio));
 

@@ -285,10 +285,12 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 
 		m0_be_reg_area_prepared(ra, &tx_prepared);
 		m0_be_reg_area_captured(ra, &tx_captured);
-		M0_LOG(M0_DEBUG, "tx = %p, prepared = "BETXCR_F", "
-		       "captured = "BETXCR_F", "
-		       "used = "BETXCR_F, tx, BETXCR_P(&tx_prepared),
-		       BETXCR_P(&tx_captured), BETXCR_P(&tx_used));
+		M0_LOG(M0_DEBUG, "tx=%p prepared="BETXCR_F" "
+		       "captured="BETXCR_F" used="BETXCR_F" "
+		       "payload_size=%"PRIu64,
+		       tx, BETXCR_P(&tx_prepared),
+		       BETXCR_P(&tx_captured), BETXCR_P(&tx_used),
+		       tx->t_payload.b_nob);
 
 		if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
 		    m0_be_tx_group_size(gr) < gr->tg_tx_nr_max) {
