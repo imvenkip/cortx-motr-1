@@ -11,6 +11,7 @@ set -eu
 ### --------------------------------------------------------------------
 
 umask 0002
+ulimit -c unlimited
 
 ## CAUTION! This directory will be removed by superuser.
 RUNDIR=${RUNDIR:-/var/mero/$USER}
