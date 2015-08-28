@@ -1556,7 +1556,8 @@ static int test_bulk_passive_send(struct ut_data *td)
 	nb2->nb_length = td->buf_size2;
 	nb2->nb_qtype = M0_NET_QT_ACTIVE_BULK_RECV;
 	zUT(m0_net_buffer_add(nb2, TM2));
-	M0_UT_ASSERT(nb2->nb_flags & M0_NET_BUF_QUEUED);
+	ut_chan_timedwait(&td->tmwait2, 10);
+	M0_UT_ASSERT(!(nb2->nb_flags & M0_NET_BUF_QUEUED));
 
 	ut_chan_timedwait(&td->tmwait2, 10);
 	M0_UT_ASSERT(cb_called2 == 1);
