@@ -303,6 +303,7 @@ static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 		if (rc != 0)
 			return M0_RC(rc);
 	} m0_tl_endfor;
+	buf->b_nob = m0_bufvec_cursor_addr(&cur) - buf->b_addr;
 
 	return M0_RC(rc);
 }
