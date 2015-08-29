@@ -291,7 +291,9 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 		       tx->t_payload.b_nob);
 
 		if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
-		    m0_be_tx_group_tx_nr(gr) < gr->tg_cfg.tgc_tx_nr_max) {
+		    m0_be_tx_group_tx_nr(gr) < gr->tg_cfg.tgc_tx_nr_max &&
+		    gr->tg_payload_prepared + tx->t_payload.b_nob <
+		    gr->tg_cfg.tgc_payload_max) {
 			be_tx_group_tx_add(gr, tx);
 			gr->tg_used              = group_used;
 			gr->tg_payload_prepared += tx->t_payload.b_nob;
