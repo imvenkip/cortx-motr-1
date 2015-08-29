@@ -310,23 +310,26 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		&m0_be_pool0,
 		&m0_be_cob0
 	};
-	struct m0_reqh *reqh = cfg->bc_engine.bec_group_fom_reqh;
+	struct m0_reqh *reqh = cfg->bc_engine.bec_reqh;
 
 	*cfg = (struct m0_be_domain_cfg) {
-		.bc_engine = {
-			.bec_group_cfg = {
-			},
-			.bec_group_nr	    = 1,
-			.bec_log_size	    = 1 << 27,
-			.bec_tx_size_max    = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
-			.bec_group_size_max = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
-			.bec_group_seg_nr_max = 256,
-			.bec_group_tx_max   = 20,
-			.bec_group_close_timeout = M0_TIME_ONE_MSEC,
-			.bec_group_fom_reqh = reqh,
-			.bec_reg_area_size_max = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
-			.bec_wait_for_recovery = true,
+	    .bc_engine = {
+		.bec_group_nr		  = 1,
+		.bec_group_cfg = {
+			.tgc_tx_nr_max	  = 20,
+			.tgc_seg_nr_max	  = 256,
+			.tgc_size_max	  = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
+			.tgc_payload_max  = 1 << 24,
 		},
+		.bec_tx_size_max	  = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
+		.bec_tx_payload_max	  = 1 << 21,
+		.bec_group_freeze_timeout = M0_TIME_ONE_MSEC,
+		.bec_reqh		  = reqh,
+		.bec_wait_for_recovery	  = true,
+		.bec_recovery_disable	  = false,
+		/** ALMOST DEAD FIELDS */
+		.bec_reg_area_size_max = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
+	    },
 		.bc_log = {
 			.lc_store_cfg = {
 				.lsc_stob_id = {
@@ -395,8 +398,8 @@ M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 	c = &ut_be->but_dom_cfg;
 
 	/* Create reqh, if necessary. */
-	if (c->bc_engine.bec_group_fom_reqh == NULL)
-		m0_be_ut_reqh_create(&c->bc_engine.bec_group_fom_reqh);
+	if (c->bc_engine.bec_reqh == NULL)
+		m0_be_ut_reqh_create(&c->bc_engine.bec_reqh);
 
 	/* Use m0_be_ut_backend's stob domain location, if possible. */
 	if (ut_be->but_stob_domain_location != NULL)

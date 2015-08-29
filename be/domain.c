@@ -672,7 +672,6 @@ static int be_domain_start_stop(struct m0_be_domain     *dom,
 
 	m0_be_recovery_init(&dom->bd_recovery);
 	dom->bd_cfg.bc_engine.bec_recovery = &dom->bd_recovery;
-	dom->bd_cfg.bc_engine.bec_run_recovery = false; /* XXX */
 	rc = m0_be_engine_init(en, dom, &dom->bd_cfg.bc_engine);
 	if (rc != 0)
 		goto stop_pre;

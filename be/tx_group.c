@@ -182,61 +182,52 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 	m0_be_tx_group_fom_reset(&gr->tg_fom);
 }
 
-M0_INTERNAL void m0_be_tx_group_init(struct m0_be_tx_group     *gr,
-				     struct m0_be_tx_group_cfg *gr_cfg,
-				     struct m0_be_tx_credit    *size_max,
-				     size_t                     seg_nr_max,
-				     size_t                     tx_nr_max,
-				     struct m0_be_domain       *dom,
-				     struct m0_be_engine       *en,
-				     struct m0_be_log          *log,
-				     struct m0_reqh            *reqh)
+M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group     *gr,
+				    struct m0_be_tx_group_cfg *gr_cfg)
 {
 	int rc;
 	int i;
 
-	*gr = (struct m0_be_tx_group) {
-		.tg_cfg = {
-			.tgc_format = {
-				.gfc_fmt_cfg = {
-					.fgc_tx_nr_max = tx_nr_max,
-					.fgc_reg_nr_max = size_max->tc_reg_nr,
-			/* XXX */	.fgc_payload_size_max = 0x200000,
-					.fgc_reg_area_size_max =
-						size_max->tc_reg_size,
-					.fgc_seg_nr_max = seg_nr_max,
-				},
-				.gfc_seg_io_fdatasync = true,
-			},
+	gr->tg_cfg = *gr_cfg;
+	gr->tg_cfg.tgc_format = (struct m0_be_group_format_cfg){
+		.gfc_fmt_cfg = {
+			.fgc_tx_nr_max	      = gr_cfg->tgc_tx_nr_max,
+			.fgc_reg_nr_max	      = gr_cfg->tgc_size_max.tc_reg_nr,
+			.fgc_payload_size_max = gr_cfg->tgc_payload_max,
+			.fgc_reg_size_max    = gr_cfg->tgc_size_max.tc_reg_size,
+			.fgc_seg_nr_max	      = gr_cfg->tgc_seg_nr_max,
 		},
-		.tg_size             = *size_max,
-		.tg_seg_nr_max       = seg_nr_max,
-		.tg_payload_prepared = 0,
-		.tg_tx_nr_max        = tx_nr_max,
-		.tg_log              = log,
-		.tg_domain           = dom,
-		.tg_engine           = en,
+		.gfc_seg_io_fdatasync = true,
 	};
+	/* XXX temporary block begin */
+	gr->tg_size             = gr_cfg->tgc_size_max;
+	gr->tg_payload_prepared = 0;
+	gr->tg_tx_nr_max        = gr_cfg->tgc_tx_nr_max;
+	gr->tg_log              = gr_cfg->tgc_log;
+	gr->tg_domain           = gr_cfg->tgc_domain;
+	gr->tg_engine           = gr_cfg->tgc_engine;
+	/* XXX temporary block end */
 	grp_tlist_init(&gr->tg_txs);
 	rtxs_tlist_init(&gr->tg_txs_recovering);
-	m0_be_tx_group_fom_init(&gr->tg_fom, gr, reqh);
+	m0_be_tx_group_fom_init(&gr->tg_fom, gr, gr->tg_cfg.tgc_reqh);
 	rc = m0_be_group_format_init(&gr->tg_od, &gr->tg_cfg.tgc_format,
 				     gr, gr->tg_log);
 	M0_ASSERT(rc == 0);	/* XXX */
-	rc = m0_be_reg_area_init(&gr->tg_reg_area, size_max,
+	rc = m0_be_reg_area_init(&gr->tg_reg_area, &gr->tg_cfg.tgc_size_max,
 				 M0_BE_REG_AREA_DATA_NOCOPY);
 	M0_ASSERT(rc == 0);	/* XXX */
-	rc = m0_be_reg_area_init(&gr->tg_area_copy, size_max,
+	rc = m0_be_reg_area_init(&gr->tg_area_copy, &gr->tg_cfg.tgc_size_max,
 				 M0_BE_REG_AREA_DATA_NOCOPY);
 	M0_ASSERT(rc == 0);     /* XXX */
-	rc = m0_be_reg_area_merger_init(&gr->tg_merger, tx_nr_max);
+	rc = m0_be_reg_area_merger_init(&gr->tg_merger, gr_cfg->tgc_tx_nr_max);
 	M0_ASSERT(rc == 0);     /* XXX */
-	M0_ALLOC_ARR(gr->tg_rtxs, tx_nr_max);
+	M0_ALLOC_ARR(gr->tg_rtxs, gr->tg_cfg.tgc_tx_nr_max);
 	M0_ASSERT(gr->tg_rtxs != NULL); /* XXX */
 	for (i = 0; i < gr->tg_tx_nr_max; ++i) {
 		m0_be_op_init(&gr->tg_rtxs[i].rtx_op_open);
 		m0_be_op_init(&gr->tg_rtxs[i].rtx_op_gc);
 	}
+	return 0;
 }
 
 M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr)

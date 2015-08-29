@@ -61,7 +61,7 @@ M0_INTERNAL void m0_be_ut_fake_mkfs(void);
 
 /*
  * Fill cfg with default configuration.
- * @note bec_group_fom_reqh is not set here
+ * @note bec_reqh is not set here
  */
 void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg);
 

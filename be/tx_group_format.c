@@ -99,7 +99,7 @@ static int be_group_format_level_enter(struct m0_module *module)
 		fmt_group_cfg = &gft->gft_cfg.gfc_fmt_cfg;
 		seg_io_credit =
 			M0_BE_IO_CREDIT(fmt_group_cfg->fgc_reg_nr_max,
-					fmt_group_cfg->fgc_reg_area_size_max,
+					fmt_group_cfg->fgc_reg_size_max,
 					fmt_group_cfg->fgc_seg_nr_max);
 		return m0_be_io_allocate(&gft->gft_seg_io, &seg_io_credit);
 	case M0_BE_GROUP_FORMAT_LEVEL_ALLOCATED:
@@ -425,7 +425,7 @@ m0_be_group_format_log_reserved_size(struct m0_be_log       *log,
 		.fgc_tx_nr_max = 1,
 		.fgc_reg_nr_max = cred->tc_reg_nr,
 		.fgc_payload_size_max = cred_payload,
-		.fgc_reg_area_size_max = cred->tc_reg_size,
+		.fgc_reg_size_max = cred->tc_reg_size,
 	};
 
 	lio_size[0] = m0_be_fmt_group_size_max(&cfg);

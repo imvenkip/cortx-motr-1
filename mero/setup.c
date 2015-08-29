@@ -1137,7 +1137,6 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 	if (rctx->rc_be_log_size > 0) {
 		be->but_dom_cfg.bc_log.lc_store_cfg.lsc_size =
 			rctx->rc_be_log_size;
-		be->but_dom_cfg.bc_engine.bec_log_size = rctx->rc_be_log_size;
 	}
 	rc = m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, format);
 	if (rc != 0)
@@ -1199,7 +1198,7 @@ static int cs_storage_setup(struct m0_mero *cctx)
 
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
-	rctx->rc_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &rctx->rc_reqh;
+	rctx->rc_be.but_dom_cfg.bc_engine.bec_reqh = &rctx->rc_reqh;
 
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
 			rctx->rc_be_seg_preallocate,

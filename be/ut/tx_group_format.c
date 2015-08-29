@@ -228,7 +228,7 @@ static void be_ut_tgf_buf_init(struct be_ut_tgf_ctx   *ctx,
 			.fgc_tx_nr_max         = group->tgfg_tx_nr,
 			.fgc_reg_nr_max        = group->tgfg_reg_nr,
 			.fgc_payload_size_max  = payload_max,
-			.fgc_reg_area_size_max = ra_size_max,
+			.fgc_reg_size_max = ra_size_max,
 			.fgc_seg_nr_max        = BE_UT_TGF_SEG_NR_MAX,
 		},
 	};
@@ -285,7 +285,7 @@ static void be_ut_tgf_group_write(struct be_ut_tgf_ctx   *ctx,
 
 	reserved_size  = m0_be_group_format_log_reserved_size(&ctx->tgfc_log,
 				&M0_BE_TX_CREDIT(group->tgfg_reg_nr,
-						 cfg->fgc_reg_area_size_max),
+						 cfg->fgc_reg_size_max),
 				cfg->fgc_payload_size_max);
 	reserved_size *= group->tgfg_tx_nr;
 	m0_mutex_lock(&ctx->tgfc_lock);

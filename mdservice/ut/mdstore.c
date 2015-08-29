@@ -107,7 +107,7 @@ static void test_mkfs(void)
 			  .rhia_fid     = &g_process_fid,
 		);
         M0_UT_ASSERT(rc == 0);
-	ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &reqh;
+	ut_be.but_dom_cfg.bc_engine.bec_reqh = &reqh;
 	m0_be_ut_backend_init(&ut_be);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);

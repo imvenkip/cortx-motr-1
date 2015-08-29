@@ -196,7 +196,7 @@ static void be_fmt_content_bufs_init(struct m0_be_fmt_group *fg)
 
 	for (i = 0; i < reg_area->cra_nr; ++i)
 		m0_buf_init(&reg_area->cra_reg[i], NULL,
-			    cfg->fgc_reg_area_size_max);
+			    cfg->fgc_reg_size_max);
 }
 
 M0_INTERNAL int m0_be_fmt_group_init(struct m0_be_fmt_group            *fg,
@@ -300,7 +300,7 @@ m0_be_fmt_group_size_max(const struct m0_be_fmt_group_cfg *cfg)
 					cfg->fgc_tx_nr_max +
 	       sizeof(uint32_t) +
 	       sizeof(uint64_t) * cfg->fgc_reg_nr_max +
-	       cfg->fgc_reg_area_size_max +
+	       cfg->fgc_reg_size_max +
 	       /* void* is encoded as M0_XT_U8 */
 	       sizeof(uint8_t);
 }
@@ -340,7 +340,7 @@ M0_INTERNAL void m0_be_fmt_group_reg_add(struct m0_be_fmt_group     *fg,
 	M0_ASSERT(fg->fg_header.fgh_reg_nr < cfg->fgc_reg_nr_max);
 	M0_ASSERT(hra->chr_nr == ra->cra_nr);
 	M0_ASSERT(hra->chr_nr == fg->fg_header.fgh_reg_nr);
-	M0_ASSERT(freg->fr_size <= cfg->fgc_reg_area_size_max);
+	M0_ASSERT(freg->fr_size <= cfg->fgc_reg_size_max);
 
 	ra->cra_reg[ra->cra_nr++] = M0_BUF_INIT(freg->fr_size, freg->fr_buf);
 	hra->chr_reg[hra->chr_nr++] = (struct m0_be_fmt_content_header_reg) {

@@ -61,46 +61,53 @@ static void be_engine_group_close_immediately(struct m0_sm_group *sm_grp,
 static void be_engine__tx_group_close(struct m0_be_engine *en,
 				      struct m0_be_tx_group *gr);
 
+static int be_engine_cfg_validate(struct m0_be_engine_cfg *en_cfg)
+{
+	M0_ASSERT_INFO(m0_be_tx_credit_le(&en_cfg->bec_tx_size_max,
+					  &en_cfg->bec_group_cfg.tgc_size_max),
+		       "Maximum transaction size shouldn't be greater than "
+		       "maximum group size: "
+		       "tx_size_max = " BETXCR_F ", group_size_max = " BETXCR_F,
+		       BETXCR_P(&en_cfg->bec_tx_size_max),
+		       BETXCR_P(&en_cfg->bec_group_cfg.tgc_size_max));
+	M0_ASSERT(en_cfg->bec_tx_payload_max <=
+		  en_cfg->bec_group_cfg.tgc_payload_max);
+	M0_ASSERT_INFO(en_cfg->bec_group_nr == 1,
+		       "Only one group is supported at the moment, "
+		       "but group_nr = %zu", en_cfg->bec_group_nr);
+	return 0;
+}
+
 M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
 				  struct m0_be_domain     *dom,
 				  struct m0_be_engine_cfg *en_cfg)
 {
-	int rc;
-	int i;
+	struct m0_be_tx_group_cfg *gr_cfg;
+	struct m0_be_tx_group	  *gr;
+	int			   rc;
+	int			   i;
 
 	M0_ENTRY();
+
+	rc = be_engine_cfg_validate(en_cfg);
+	M0_ASSERT(rc == 0);
 
 	en->eng_cfg      = en_cfg;
 	en->eng_group_nr = en_cfg->bec_group_nr;
 	en->eng_domain   = dom;
 	en->eng_recovery = en_cfg->bec_recovery;
 
-	M0_ASSERT_INFO(m0_be_tx_credit_le(&en_cfg->bec_tx_size_max,
-					  &en_cfg->bec_group_size_max),
-		       "Maximum transaction size shouldn't be greater than "
-		       "maximum group size: "
-		       "tx_size_max = " BETXCR_F ", group_size_max = " BETXCR_F,
-		       BETXCR_P(&en_cfg->bec_tx_size_max),
-		       BETXCR_P(&en_cfg->bec_group_size_max));
-	M0_ASSERT_INFO(en_cfg->bec_group_nr == 1,
-		       "Only one group is supported at the moment, "
-		       "but group_nr = %zu", en_cfg->bec_group_nr);
-	M0_ASSERT_INFO(en_cfg->bec_log_size >=
-		       en_cfg->bec_group_size_max.tc_reg_size,
-		       "Log size shouldn't be less than maximum group size: "
-		       "log_size = %lu, group_size_max = %lu",
-		       en_cfg->bec_log_size,
-		       en_cfg->bec_group_size_max.tc_reg_size);
-
 	M0_ALLOC_ARR(en->eng_group, en_cfg->bec_group_nr);
 	if (en->eng_group == NULL) {
 		rc = -ENOMEM;
 		goto err;
 	}
+	M0_ALLOC_ARR(en_cfg->bec_groups_cfg, en_cfg->bec_group_nr);
+	M0_ASSERT(en_cfg->bec_groups_cfg != NULL);
 
 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
 		  (egr_tlist_init(&en->eng_groups[i]), true));
-	rc = m0_be_tx_service_init(en, en_cfg->bec_group_fom_reqh);
+	rc = m0_be_tx_service_init(en, en_cfg->bec_reqh);
 	if (rc != 0)
 		goto err_free;
 	/**
@@ -112,23 +119,25 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
 	if (rc != 0)
 		goto err_service_fini;
 	for (i = 0; i < en->eng_group_nr; ++i) {
-		m0_be_tx_group_init(&en->eng_group[0],
-				    &en_cfg->bec_group_cfg,
-				    &en_cfg->bec_group_size_max,
-				    en_cfg->bec_group_seg_nr_max,
-				    en_cfg->bec_group_tx_max,
-				    en->eng_domain,
-				    en,
-				    &en->eng_log,
-				    en_cfg->bec_group_fom_reqh);
-		en->eng_group[0].tg_close_ast           = (struct m0_sm_ast) {
+		gr	= &en->eng_group[i];
+		gr_cfg  = &en_cfg->bec_groups_cfg[i];
+
+		*gr_cfg		   = en_cfg->bec_group_cfg;
+		gr_cfg->tgc_domain = en_cfg->bec_domain;
+		gr_cfg->tgc_engine = en;
+		gr_cfg->tgc_log	   = &en->eng_log;
+		gr_cfg->tgc_reqh   = en_cfg->bec_reqh;
+
+		rc = m0_be_tx_group_init(gr, gr_cfg);
+		M0_ASSERT(rc == 0);
+		gr->tg_close_ast           = (struct m0_sm_ast) {
 			.sa_cb = be_engine_group_close_immediately,
 		};
-		en->eng_group[0].tg_close_timer_arm_ast = (struct m0_sm_ast) {
+		gr->tg_close_timer_arm_ast = (struct m0_sm_ast) {
 			.sa_cb = be_engine_group_close_timer_arm,
 		};
-		m0_sm_timer_init(&en->eng_group[0].tg_close_timer);
-		egr_tlink_init(&en->eng_group[0]);
+		m0_sm_timer_init(&gr->tg_close_timer);
+		egr_tlink_init(gr);
 	}
 	en->eng_tx_id_next = 0;
 
@@ -207,6 +216,7 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
 		  (egr_tlist_fini(&en->eng_groups[i]), true));
 	m0_free(en->eng_group);
+	m0_free(en->eng_cfg->bec_groups_cfg);
 
 	M0_LEAVE();
 }
@@ -296,8 +306,7 @@ static struct m0_be_tx *be_engine_tx_opening_peek(struct m0_be_engine *en)
 static void be_engine_got_tx_open(struct m0_be_engine *en,
 				  struct m0_be_tx     *tx)
 {
-	struct m0_be_tx_credit  tx_size_max = en->eng_cfg->bec_tx_size_max;
-	int                     rc;
+	int rc;
 
 	M0_PRE(be_engine_is_locked(en));
 
@@ -308,11 +317,16 @@ static void be_engine_got_tx_open(struct m0_be_engine *en,
 	}
 
 	while ((tx = be_engine_tx_opening_peek(en)) != NULL) {
-		if (!m0_be_tx_credit_le(&tx->t_prepared, &tx_size_max)) {
-			M0_LOG(M0_DEBUG, "tx %p, engine %p: size of prepared "
-			       "credit "BETXCR_F" exceeded maximum tx size "
-			       BETXCR_F, tx, en, BETXCR_P(&tx->t_prepared),
-			       BETXCR_P(&tx_size_max));
+		if (!m0_be_tx_credit_le(&tx->t_prepared,
+					&en->eng_cfg->bec_tx_size_max) ||
+		    tx->t_payload.b_nob > en->eng_cfg->bec_tx_payload_max) {
+			M0_LOG(M0_INFO, "tx=%p engine=%p t_prepared="BETXCR_F" "
+			       "t_payload.b_nob=%lu bec_tx_size_max="BETXCR_F" "
+			       "bec_tx_payload_max=%lu",
+			       tx, en, BETXCR_P(&tx->t_prepared),
+			       tx->t_payload.b_nob,
+			       BETXCR_P(&en->eng_cfg->bec_tx_size_max),
+			       en->eng_cfg->bec_tx_payload_max);
 			be_engine_tx_state_post(en, tx, M0_BTS_FAILED);
 		} else {
 			tx->t_log_reserved_size =
@@ -395,7 +409,7 @@ static void be_engine_group_close(struct m0_be_engine   *en,
 		m0_sm_ast_post(sm_grp, &gr->tg_close_ast);
 	} else {
 		gr->tg_close_deadline = m0_time_now() +
-					en->eng_cfg->bec_group_close_timeout;
+					en->eng_cfg->bec_group_freeze_timeout;
 		m0_sm_ast_post(sm_grp, &gr->tg_close_timer_arm_ast);
 	}
 }

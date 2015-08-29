@@ -56,24 +56,40 @@ enum {
 };
 
 struct m0_be_engine_cfg {
-	struct m0_be_tx_group_cfg bec_group_cfg;
-	size_t                 bec_group_nr;
-	size_t                 bec_log_size;
-	struct m0_be_tx_credit bec_tx_size_max;
-	struct m0_be_tx_credit bec_group_size_max;
-	size_t                 bec_group_seg_nr_max;
-	size_t                 bec_group_tx_max;
-	m0_time_t              bec_group_close_timeout;
-	struct m0_reqh        *bec_group_fom_reqh;
-	struct m0_be_tx_credit bec_reg_area_size_max;
-	/* wait in m0_be_engine_start() until recovery is finished */
-	bool                   bec_wait_for_recovery;
-	struct m0_be_recovery *bec_recovery;
+	/** Number of groups. */
+	size_t			   bec_group_nr;
 	/**
-	 * Recovery should be executed in each case, so this parameters
-	 * should be removed before recovery landed to master.
+	 * Group configuration.
+	 *
+	 * The following fields should be set by the user:
+	 * - m0_be_tx_group_cfg::tgc_tx_nr_max;
+	 * - m0_be_tx_group_cfg::tgc_seg_nr_max;
+	 * - m0_be_tx_group_cfg::tgc_size_max;
+	 * - m0_be_tx_group_cfg::tgc_payload_max.
 	 */
-	bool                   bec_run_recovery; /* XXX remove it */
+	struct m0_be_tx_group_cfg  bec_group_cfg;
+	/** Maximum transaction size. */
+	struct m0_be_tx_credit	   bec_tx_size_max;
+	/** Maximum transaction payload size. */
+	m0_bcount_t		   bec_tx_payload_max;
+	/**
+	 * Time from "first tx is added to the group" to "group is not accepting
+	 * new transactions".
+	 */
+	m0_time_t		   bec_group_freeze_timeout;
+	/** Request handler for group foms and engine timeouts */
+	struct m0_reqh		  *bec_reqh;
+	/** Wait in m0_be_engine_start() until recovery is finished. */
+	bool			   bec_wait_for_recovery;
+	/** Disable recovery. This field should be set to false. XXX implement*/
+	bool			   bec_recovery_disable;
+	/** BE domain the engine belongs to. */
+	struct m0_be_domain	  *bec_domain;
+	struct m0_be_recovery	  *bec_recovery;
+	/** Configuration for each group. It is set by the engine. */
+	struct m0_be_tx_group_cfg *bec_groups_cfg;
+	/** ALMOST DEAD FIELDS */
+	struct m0_be_tx_credit	   bec_reg_area_size_max;
 };
 
 struct m0_be_engine {

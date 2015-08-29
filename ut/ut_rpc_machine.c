@@ -91,8 +91,7 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 		);
 	M0_ASSERT(rc == 0);
 
-	ctx->rmc_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh =
-		&ctx->rmc_reqh;
+	ctx->rmc_ut_be.but_dom_cfg.bc_engine.bec_reqh = &ctx->rmc_reqh;
 	location = ut_reqh_location_get();
 	ctx->rmc_ut_be.but_stob_domain_location = location;
 	rc = m0_be_ut_backend_init_cfg(&ctx->rmc_ut_be, NULL, true);

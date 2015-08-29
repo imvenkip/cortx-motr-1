@@ -230,7 +230,7 @@ struct m0_be_fmt_group_cfg {
 	uint64_t fgc_tx_nr_max;
 	uint64_t fgc_reg_nr_max;
 	uint64_t fgc_payload_size_max;
-	uint64_t fgc_reg_area_size_max;
+	uint64_t fgc_reg_size_max;
 	uint64_t fgc_seg_nr_max;
 };
 

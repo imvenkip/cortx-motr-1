@@ -67,7 +67,7 @@ static int cob0_init(struct m0_be_domain *dom, const char *suffix,
 		     const struct m0_buf *data)
 {
 	struct m0_cob_domain  *cdom = *(struct m0_cob_domain**)data->b_addr;
-	struct m0_reqh        *reqh = dom->bd_cfg.bc_engine.bec_group_fom_reqh;
+	struct m0_reqh        *reqh = dom->bd_cfg.bc_engine.bec_reqh;
 	unsigned               key;
 
 	M0_ENTRY("suffix: %s, data: %p, cdom: %p", suffix, data->b_addr, cdom);

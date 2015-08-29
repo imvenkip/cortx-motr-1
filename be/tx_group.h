@@ -43,7 +43,27 @@ struct be_recovering_tx;
  */
 
 struct m0_be_tx_group_cfg {
-	struct m0_be_group_format_cfg tgc_format;
+	/** Maximum number of transactions in the group */
+	unsigned long		       tgc_tx_nr_max;
+	/** Maximum number of segments regions of captured tx belongs to. */
+	unsigned long		       tgc_seg_nr_max;
+	/** Maximum size of the group reg_area. */
+	struct m0_be_tx_credit	       tgc_size_max;
+	/**
+	 * Maximum total size of tx payload from the group.
+	 * Total size is calculated as sum of tx payload size.
+	 */
+	m0_bcount_t		       tgc_payload_max;
+	/** domain contains tgc_engine. */
+	struct m0_be_domain	      *tgc_domain;
+	/** engine the group belongs to. */
+	struct m0_be_engine	      *tgc_engine;
+	/** log to write to for the group_format. */
+	struct m0_be_log	      *tgc_log;
+	/** reqh for the group fom. */
+	struct m0_reqh		      *tgc_reqh;
+	/** Group format configuration. Is set by the group. */
+	struct m0_be_group_format_cfg  tgc_format;
 };
 
 /**
@@ -74,7 +94,6 @@ struct m0_be_tx_group {
 	/** Total size of all updates in all transactions in this group. */
 	struct m0_be_tx_credit     tg_used;
 	struct m0_be_tx_credit     tg_size;
-	size_t                     tg_seg_nr_max;
 	struct m0_be_tx_credit     tg_log_reserved;
 	m0_bcount_t                tg_payload_prepared;
 	/** Maximum acceptable number of transactions in the group. */
@@ -123,17 +142,8 @@ M0_INTERNAL void m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
  *                  Interfaces used by m0_be_engine
  * ------------------------------------------------------------------ */
 
-/* XXX make m0_be_tx_group_cfg */
-M0_INTERNAL void m0_be_tx_group_init(struct m0_be_tx_group     *gr,
-				     struct m0_be_tx_group_cfg *gr_cfg,
-				     struct m0_be_tx_credit    *size_max,
-				     size_t                     seg_nr_max,
-				     size_t                     tx_nr_max,
-				     struct m0_be_domain       *dom,
-				     struct m0_be_engine       *en,
-				     struct m0_be_log          *log,
-				     struct m0_reqh            *reqh);
-
+M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group     *gr,
+				    struct m0_be_tx_group_cfg *gr_cfg);
 M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr);
 
 M0_INTERNAL int m0_be_tx_group_start(struct m0_be_tx_group *gr);

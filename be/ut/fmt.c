@@ -251,7 +251,7 @@ static bool fmt_group_eq(struct m0_be_fmt_group *left,
 		.fgc_tx_nr_max         = tx_nr_max,             \
 		.fgc_reg_nr_max        = reg_nr_max,            \
 		.fgc_payload_size_max  = payload_sz_max,        \
-		.fgc_reg_area_size_max = ra_sz_max,             \
+		.fgc_reg_size_max = ra_sz_max,			\
 	}
 #define REG(size, addr, buf)                    \
 	(const struct m0_be_fmt_reg) {          \
@@ -500,7 +500,7 @@ Mero panic reason: signo: 11
 		M0_LOG(M0_DEBUG, "test: %i, cfg:(%lu, %lu, %lu, %lu)", i,
 		       test[i].cfg.fgc_tx_nr_max,
 		       test[i].cfg.fgc_reg_nr_max,
-		       test[i].cfg.fgc_reg_area_size_max,
+		       test[i].cfg.fgc_reg_size_max,
 		       test[i].cfg.fgc_payload_size_max);
 		bvec_encoded = M0_BUFVEC_INIT_BUF(&encoded.b_addr,
 						  &encoded.b_nob);
