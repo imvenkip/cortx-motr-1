@@ -424,7 +424,6 @@ static int be_0type_log_init(struct m0_be_domain *dom,
 			     const struct m0_buf *data)
 {
 	const struct m0_be_0type_log_cfg *log_0cfg;
-	struct m0_be_log_cfg              log_cfg;
 
 	M0_ASSERT_INFO(data->b_nob == sizeof(*log_0cfg),
 		       "data->b_nob = %lu, sizeof(*log_0cfg) = %zu",
@@ -435,9 +434,9 @@ static int be_0type_log_init(struct m0_be_domain *dom,
 		return 0;
 
 	log_0cfg = (const struct m0_be_0type_log_cfg *)data->b_addr;
-	log_cfg.lc_store_cfg.lsc_stob_id = log_0cfg->blc_stob_id;
+	dom->bd_cfg.bc_log.lc_store_cfg.lsc_stob_id = log_0cfg->blc_stob_id;
 
-	return M0_RC(be_domain_log_init(dom, &log_cfg, false));
+	return M0_RC(be_domain_log_init(dom, &dom->bd_cfg.bc_log, false));
 }
 
 static void be_0type_log_fini(struct m0_be_domain *dom,
