@@ -160,8 +160,10 @@ static void be_op_state_change(struct m0_be_op     *op,
 	bool             state_changed = false;
 	bool             last_child    = false;
 
+	/*
 	M0_ENTRY("op=%p state=%s is_op_set=%d",
 		 op, m0_sm_state_name(&op->bo_sm, state), !!op->bo_is_op_set);
+	*/
 
 	M0_PRE(M0_IN(state, (M0_BOS_ACTIVE, M0_BOS_DONE)));
 
@@ -174,9 +176,11 @@ static void be_op_state_change(struct m0_be_op     *op,
 	     ((op->bo_sm.sm_state == M0_BOS_INIT && state == M0_BOS_ACTIVE) ||
 	      (op->bo_sm.sm_state == M0_BOS_ACTIVE && state == M0_BOS_DONE &&
 	       bos_tlist_is_empty(&op->bo_children))))) {
+		/*
 		M0_LOG(M0_DEBUG, "op=%p parent=%p %s -> %s", op, parent,
 		       m0_sm_state_name(&op->bo_sm, op->bo_sm.sm_state),
 		       m0_sm_state_name(&op->bo_sm, state));
+		*/
 		if (parent != NULL && state == M0_BOS_DONE) {
 			/* see m0_be_op_set_add() for the lock order */
 			be_op_lock(parent);
@@ -191,7 +195,7 @@ static void be_op_state_change(struct m0_be_op     *op,
 		state_changed = true;
 	}
 	be_op_unlock(op);
-	/* don't touch op after the unlock */
+	/* don't touch the op after the unlock */
 
 	if (parent != NULL && state_changed &&
 	    (state == M0_BOS_ACTIVE || last_child))

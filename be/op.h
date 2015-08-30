@@ -33,6 +33,10 @@
 /**
  * @defgroup be Meta-data back-end
  *
+ * Highlights
+ * - if you need to debug m0_be_op - just enable logging in
+ *   be_op_state_change().
+ *
  * Known bugs
  * - it is not possible to finalise m0_be_op in callback for M0_BOS_DONE state.
  *
