@@ -32,13 +32,13 @@ enum {
 static struct m0_net_test_service svc;
 static struct m0_net_test_cmd	  service_cmd;
 static struct m0_net_test_cmd	  service_reply;
-static bool			  service_init_called;
-static bool			  service_fini_called;
-static bool			  service_step_called;
-static bool			  service_cmd_called[M0_NET_TEST_CMD_NR];
+static int                        service_init_called;
+static int                        service_fini_called;
+static int                        service_step_called;
+static int                        service_cmd_called[M0_NET_TEST_CMD_NR];
 static int			  service_cmd_errno;
 
-static bool *service_func_called[] = {
+static int *service_func_called[] = {
 	&service_init_called,
 	&service_fini_called,
 	&service_step_called
@@ -148,24 +148,22 @@ static void service_ut_check_reset(void)
 	M0_SET_ARR0(service_cmd_called);
 }
 
-static void service_ut_check_called(bool *func_bool)
+static void service_ut_check_called(int *func_bool)
 {
 	size_t func_nr = ARRAY_SIZE(service_func_called);
 	size_t cmd_nr  = ARRAY_SIZE(service_cmd_called);
-	bool   called;
-	bool  *called_i;
 	int    called_nr = 0;
 	int    i;
 
 	M0_PRE(func_bool != NULL);
 
-	for (i = 0; i < func_nr + cmd_nr; ++i) {
-		called_i = i < func_nr ? service_func_called[i] :
-					 &service_cmd_called[i - func_nr];
-		called = func_bool == called_i;
-		M0_UT_ASSERT(equi(called, *called_i));
-		called_nr += *called_i;
+	for (i = 0; i < func_nr; ++i) {
+		M0_UT_ASSERT(equi(func_bool == service_func_called[i],
+				  *service_func_called[i]));
+		called_nr += *service_func_called[i];
 	}
+	for (i = 0; i < cmd_nr; ++i)
+		called_nr += service_cmd_called[i];
 	M0_UT_ASSERT(called_nr == 1);
 }
 
