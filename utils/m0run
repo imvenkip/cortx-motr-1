@@ -169,7 +169,7 @@ run_cgdb()
     cgdb $gdbinit --args $binary "$@"
 }
 
-run_valgrind()
+run_valgrind_memcheck()
 {
     log "valgrind" \
             "--tool=memcheck" \
@@ -181,30 +181,71 @@ run_valgrind()
         --trace-children=yes --track-fds=yes \
         --leak-check=full --track-origins=yes \
         $binary "$@"
-    echo
+}
 
+run_valgrind_cachegrind()
+{
     log "valgrind --tool=cachegrind $binary $@"
     valgrind --tool=cachegrind $binary "$@"
-    echo
+}
 
+run_valgrind_callgrind()
+{
     log "valgrind --tool=callgrind $binary $@"
     valgrind --tool=callgrind $binary "$@"
-    echo
+}
 
+run_valgrind_helgrind()
+{
     log "valgrind --tool=helgrind $binary $@"
     valgrind --tool=helgrind $binary "$@"
-    echo
+}
 
-    #log "valgrind --tool=drd --free-is-write=yes $binary $@"
-    #valgrind --tool=drd --free-is-write=yes $binary "$@"
-    #echo
+run_valgrind_drd()
+{
+    log "valgrind --tool=drd --free-is-write=yes $binary $@"
+    valgrind --tool=drd --free-is-write=yes $binary "$@"
+}
 
+run_valgrind_massif()
+{
     log "valgrind --tool=massif $binary $@"
     valgrind --tool=massif $binary "$@"
-    echo
+}
 
-    #log "valgrind --tool=ptrcheck $binary $@"
-    #valgrind --tool=ptrcheck $binary "$@"
+run_valgrind_exp_sgcheck()
+{
+    log "valgrind --tool=exp-sgcheck $binary $@"
+    valgrind --tool=exp-sgcheck $binary "$@"
+}
+
+run_valgrind_exp_dhat()
+{
+    log "valgrind --tool=exp-dhat $binary $@"
+    valgrind --tool=exp-dhat $binary "$@"
+}
+
+run_valgrind_exp_bbv()
+{
+    log "valgrind --tool=exp-bbv $binary $@"
+    valgrind --tool=exp-bbv $binary "$@"
+}
+
+run_valgrind()
+{
+    run_valgrind_memcheck "$@"
+    echo
+    run_valgrind_cachegrind "$@"
+    echo
+    run_valgrind_callgrind "$@"
+    echo
+    run_valgrind_helgrind "$@"
+    echo
+    #run_valgrind_drd "$@"
+    #echo
+    run_valgrind_massif "$@"
+    echo
+    #run_valgrind_exp_sgcheck "$@"
 }
 
 # Loads Mero modules either from source tree or system-wide, if source tree is
@@ -319,9 +360,18 @@ if [[ -n $debugger ]] ; then
     fi
 
     case $debugger in
-        gdb)      run_gdb "$@" ;;
-        cgdb)     run_cgdb "$@" ;;
-        valgrind) run_valgrind "$@" ;;
+        gdb)                  run_gdb "$@" ;;
+        cgdb)                 run_cgdb "$@" ;;
+        valgrind)             run_valgrind "$@" ;;
+        valgrind-memcheck)    run_valgrind_memcheck "$@" ;;
+        valgrind-cachegrind)  run_valgrind_cachegrind "$@" ;;
+        valgrind-callgrind)   run_valgrind_callgrind "$@" ;;
+        valgrind-helgrind)    run_valgrind_helgrind "$@" ;;
+        valgrind-drd)         run_valgrind_drd "$@" ;;
+        valgrind-massif)      run_valgrind_massif "$@" ;;
+        valgrind-exp-sgcheck) run_valgrind_exp_sgcheck "$@" ;;
+        valgrind-exp-dhat)    run_valgrind_exp_dhat "$@" ;;
+        valgrind-exp-bbv)     run_valgrind_exp_bbv "$@" ;;
         *)        die "unsupported debugger '$debugger'." ;;
     esac
 else
