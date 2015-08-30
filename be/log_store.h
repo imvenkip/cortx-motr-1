@@ -264,7 +264,6 @@ M0_INTERNAL void m0_be_log_store_io_discard(struct m0_be_log_store *ls,
 					    m0_bindex_t		    offset,
 					    struct m0_be_op	   *op);
 
-/* @todo remove this function */
 M0_INTERNAL bool m0_be_log_store_overwrites(struct m0_be_log_store *ls,
 					    m0_bindex_t             index,
 					    m0_bcount_t             size,

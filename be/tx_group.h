@@ -90,7 +90,7 @@ struct m0_be_tx_group_cfg {
  * it is written to the log in one or multiple asynchronous IOs. Before group
  * commit block is written, all other IOs for the group must complete. After
  * that, the commit block is written. Once commit block IO completes, it is
- engine_* guaranteed that the entire group is on the log. Waiting for IO completion can
+ * guaranteed that the entire group is on the log. Waiting for IO completion can
  * be eliminated by using (currently unimplemented) barrier interface provided
  * by m0_stob, or by placing in the commit block a strong checksum of group
  * representation (the latter approach allows to check whether the entire group

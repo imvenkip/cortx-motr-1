@@ -26,6 +26,7 @@
 
 #include "lib/types.h"          /* m0_bcount_t */
 #include "lib/buf_xc.h"         /* m0_buf_xc */
+#include "lib/assert.h"		/* M0_BASSERT */
 
 /**
  * @defgroup be
@@ -33,6 +34,7 @@
  * Interface
  *
  * * Overview
+ * be/fmt is an abstraction on top of xcode. It makes xcoding in BE simpler.
  *
  * ** There are 3 top-level objects in this file:
  * - m0_be_fmt_log_header
@@ -50,13 +52,10 @@
  * - decoded_free()
  *
  * * Design highlighs
- * - uint32_t is used as number of objects in API because xcode uses uint32_t
- *   as a number of objects in M0_XCA_SEQUENCE;
  * - intermediate structures like m0_be_fmt_tx and m0_be_fmt_reg are used
  *   in accessors to hide actual object placement inside xcoded structures;
  * - m0_be_fmt_<object_name>_{init,fini,...}() may be empty, but they are added
- *   to unify interface. It is possible that in the future they will be
- *   generated with macros like m0_tl.
+ *   to unify interface.
  *
  * * Typical use cases
  *
@@ -151,7 +150,7 @@ struct m0_be_fmt_content_header_txs {
 
 struct m0_be_fmt_content_header_reg {
 	m0_bcount_t  chg_size;
-	uint64_t     chg_addr; /* have to be (void *) */
+	uint64_t     chg_addr; /* has to be (void *) */
 } M0_XCA_RECORD;
 
 struct m0_be_fmt_content_header_reg_area {
@@ -211,13 +210,16 @@ struct m0_be_fmt_group {
 	struct m0_be_fmt_content_header    fg_content_header;
 	struct m0_be_fmt_content           fg_content;
 	/**
-	 * void pointer is used here to prevent xcoding of this field.
+	 * uint64_t is used here to prevent xcoding of this field.
 	 *
 	 * It is a pointer to m0_be_fmt_group_cfg and it is set in
 	 * m0_be_fmt_group_init().
 	 */
-	void                              *fg_cfg;
+	uint64_t                           fg_cfg;
 } M0_XCA_RECORD;
+
+M0_BASSERT(sizeof(((struct m0_be_fmt_group *)NULL)->fg_cfg) ==
+	   sizeof(struct m0_be_fmt_group_cfg *));
 
 struct m0_be_fmt_cblock {
 	uint64_t gcb_lsn;

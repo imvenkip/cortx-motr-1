@@ -34,41 +34,10 @@
 /**
  * @defgroup be Meta-data back-end
  *
- * @{
- */
-
-struct m0_be_tx_group;
-struct m0_be_log;
-
-typedef void (*m0_be_group_format_reg_area_rebuild_t)
-	(struct m0_be_reg_area *ra,
-	 struct m0_be_reg_area *ra_new,
-	 void                  *param);
-
-enum {
-	M0_BE_GROUP_FORMAT_LEVEL_ASSIGNS,
-	M0_BE_GROUP_FORMAT_LEVEL_FMT_GROUP_INIT,
-	M0_BE_GROUP_FORMAT_LEVEL_FMT_CBLOCK_INIT,
-	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_INIT,
-	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_GROUP,
-	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_CBLOCK,
-	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ITER_INIT,
-	M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_INIT,
-	M0_BE_GROUP_FORMAT_LEVEL_INITED,
-	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ALLOCATE,
-	M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_ALLOCATE,
-	M0_BE_GROUP_FORMAT_LEVEL_ALLOCATED,
-};
-
-struct m0_be_group_format_cfg {
-	struct m0_be_fmt_group_cfg  gfc_fmt_cfg;
-	bool                        gfc_seg_io_fdatasync;
-	struct m0_be_tx_group      *gfc_group;
-	struct m0_be_log           *gfc_log;
-};
-
-/**
- * XXX move before declarations
+ * * Overview
+ * m0_be_tx_group_format is responsible for group encoding/decoding for log I/O
+ * and for group log I/O and seg I/O.
+ *
  * * Typical use cases
  *
  * ** Initialisation phase
@@ -102,7 +71,40 @@ struct m0_be_group_format_cfg {
  * ** Finalisation phase
  * - deallocate
  * - fini
+ *
+ * @{
  */
+
+struct m0_be_tx_group;
+struct m0_be_log;
+
+typedef void (*m0_be_group_format_reg_area_rebuild_t)
+	(struct m0_be_reg_area *ra,
+	 struct m0_be_reg_area *ra_new,
+	 void                  *param);
+
+enum {
+	M0_BE_GROUP_FORMAT_LEVEL_ASSIGNS,
+	M0_BE_GROUP_FORMAT_LEVEL_FMT_GROUP_INIT,
+	M0_BE_GROUP_FORMAT_LEVEL_FMT_CBLOCK_INIT,
+	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_INIT,
+	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_GROUP,
+	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_CBLOCK,
+	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ITER_INIT,
+	M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_INIT,
+	M0_BE_GROUP_FORMAT_LEVEL_INITED,
+	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ALLOCATE,
+	M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_ALLOCATE,
+	M0_BE_GROUP_FORMAT_LEVEL_ALLOCATED,
+};
+
+struct m0_be_group_format_cfg {
+	struct m0_be_fmt_group_cfg  gfc_fmt_cfg;
+	bool                        gfc_seg_io_fdatasync;
+	struct m0_be_tx_group      *gfc_group;
+	struct m0_be_log           *gfc_log;
+};
+
 struct m0_be_group_format {
 	struct m0_be_group_format_cfg gft_cfg;
 	struct m0_module              gft_module;

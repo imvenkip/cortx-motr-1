@@ -560,7 +560,7 @@ M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx);
  *
  * @note This function is used by recovery only.
  */
-M0_INTERNAL void m0_be_tx__recovering(struct m0_be_tx *tx);
+M0_INTERNAL void m0_be_tx__recovering_set(struct m0_be_tx *tx);
 M0_INTERNAL bool m0_be_tx__is_recovering(struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_tx_deconstruct(struct m0_be_tx     *tx,

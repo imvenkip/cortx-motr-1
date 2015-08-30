@@ -250,6 +250,9 @@ M0_INTERNAL int m0_stob_domain_destroy_location(const char *location)
 	rc = rc ?: location_data == NULL ? -ENOMEM : 0;
 	rc = rc ?: type->st_ops->sto_domain_destroy(type, location_data);
 	m0_free(location_data);
+
+	if (!M0_IN(rc, (0, -ENOENT)))
+		return M0_ERR(rc);
 	return M0_RC(rc);
 }
 

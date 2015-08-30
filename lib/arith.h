@@ -176,9 +176,11 @@ static inline uint64_t m0_align(uint64_t val, uint64_t alignment)
 
 static inline bool m0_is_aligned(uint64_t val, uint64_t alignment)
 {
-	M0_PRE(m0_is_po2(alignment));
+	uint64_t mask;
 
-	return (val & (alignment - 1)) == 0;
+	M0_PRE(m0_is_po2(alignment));
+	mask = alignment - 1;
+	return (val & mask) == 0;
 }
 
 /** True iff @val is a multiple of 8. This macro can be used to check that a

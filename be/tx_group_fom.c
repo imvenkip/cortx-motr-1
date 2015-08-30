@@ -76,7 +76,10 @@ static void tx_group_fom_fini(struct m0_fom *fom);
  * |  STABILIZING
  * |      |
  * |      v
- * `--- STABLE
+ * |    STABLE ----- TX_GC_WAIT
+ * |      |             |
+ * |      v             |
+ * `--- RESET <---------/
  *
  * @endverbatim
  */

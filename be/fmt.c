@@ -172,7 +172,7 @@ static bool m0_be_fmt_group__invariant(struct m0_be_fmt_group *fg)
 		&fg->fg_content_header.fch_txs;
 	const struct m0_be_fmt_content_payloads   *cp =
 		&fg->fg_content.fmc_payloads;
-	const struct m0_be_fmt_group_cfg          *cfg = fg->fg_cfg;
+	const struct m0_be_fmt_group_cfg          *cfg = (void *)fg->fg_cfg;
 
 	return _0C(ht->cht_nr  < cfg->fgc_tx_nr_max) &&
 		_0C(cp->fcp_nr < cfg->fgc_tx_nr_max) &&
@@ -183,7 +183,7 @@ static bool m0_be_fmt_group__invariant(struct m0_be_fmt_group *fg)
 
 static void be_fmt_content_bufs_init(struct m0_be_fmt_group *fg)
 {
-	const struct m0_be_fmt_group_cfg  *cfg = fg->fg_cfg;
+	const struct m0_be_fmt_group_cfg  *cfg = (void *)fg->fg_cfg;
 	struct m0_be_fmt_content_payloads *payloads =
 		&fg->fg_content.fmc_payloads;
 	struct m0_be_fmt_content_reg_area *reg_area =
@@ -205,7 +205,7 @@ M0_INTERNAL int m0_be_fmt_group_init(struct m0_be_fmt_group            *fg,
 	struct m0_be_fmt_content_header *cheader = &fg->fg_content_header;
 	struct m0_be_fmt_content        *content = &fg->fg_content;
 
-	fg->fg_cfg = (void *)cfg;
+	fg->fg_cfg = (uint64_t)cfg;
 
 	cheader->fch_txs.cht_nr      = cfg->fgc_tx_nr_max;
 	cheader->fch_reg_area.chr_nr = cfg->fgc_reg_nr_max;
@@ -301,8 +301,7 @@ m0_be_fmt_group_size_max(const struct m0_be_fmt_group_cfg *cfg)
 	       sizeof(uint32_t) +
 	       sizeof(uint64_t) * cfg->fgc_reg_nr_max +
 	       cfg->fgc_reg_size_max +
-	       /* void* is encoded as M0_XT_U8 */
-	       sizeof(uint8_t);
+	       sizeof(uint64_t);
 }
 
 M0_INTERNAL int m0_be_fmt_group_encode(struct m0_be_fmt_group  *fg,
@@ -330,7 +329,7 @@ M0_INTERNAL void m0_be_fmt_group_reg_add(struct m0_be_fmt_group     *fg,
 {
 	struct m0_be_fmt_content_header_reg_area *hra;
 	struct m0_be_fmt_content_reg_area        *ra;
-	const struct m0_be_fmt_group_cfg         *cfg = fg->fg_cfg;
+	const struct m0_be_fmt_group_cfg         *cfg = (void *)fg->fg_cfg;
 
 	ra  = &fg->fg_content.fmc_reg_area;
 	hra = &fg->fg_content_header.fch_reg_area;
@@ -377,7 +376,7 @@ M0_INTERNAL void m0_be_fmt_group_tx_add(struct m0_be_fmt_group    *fg,
 {
 	struct m0_be_fmt_content_header_txs *ht;
 	struct m0_be_fmt_content_payloads   *cp;
-	const struct m0_be_fmt_group_cfg    *cfg = fg->fg_cfg;
+	const struct m0_be_fmt_group_cfg    *cfg = (void *)fg->fg_cfg;
 
 	ht = &fg->fg_content_header.fch_txs;
 	cp = &fg->fg_content.fmc_payloads;
@@ -423,13 +422,13 @@ m0_be_fmt_group_info_get(struct m0_be_fmt_group *fg)
 
 M0_INTERNAL bool m0_be_fmt_group_sanity_check(struct m0_be_fmt_group *fg)
 {
-	const struct m0_be_fmt_group_cfg                *cfg = fg->fg_cfg;
-	const struct m0_be_fmt_content_header_txs       *ht;
-	const struct m0_be_fmt_content_payloads         *cp;
-	const struct m0_be_fmt_content_reg_area         *ra;
-	const struct m0_be_fmt_content_header_reg_area  *hra;
-	const struct m0_be_fmt_content_header           *cheader;
-	const struct m0_be_fmt_content                  *content;
+	const struct m0_be_fmt_group_cfg              *cfg = (void *)fg->fg_cfg;
+	const struct m0_be_fmt_content_header_txs      *ht;
+	const struct m0_be_fmt_content_payloads        *cp;
+	const struct m0_be_fmt_content_reg_area        *ra;
+	const struct m0_be_fmt_content_header_reg_area *hra;
+	const struct m0_be_fmt_content_header          *cheader;
+	const struct m0_be_fmt_content                 *content;
 
 
 	cheader = &fg->fg_content_header;

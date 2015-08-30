@@ -34,6 +34,10 @@
 /**
  * @defgroup be Meta-data back-end
  *
+ * * Overview
+ * m0_be_io is an abstraction on top of m0_stob_io. It makes all kinds
+ * of stob I/O inside BE easier.
+ *
  * @{
  */
 

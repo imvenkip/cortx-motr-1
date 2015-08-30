@@ -50,7 +50,7 @@ struct m0_be_log_sched_cfg {
  * Log scheduler maintains m0_be_log_io queue. Each m0_be_log_io is written
  * one after another in the order they are added to the scheduler queue
  * using m0_be_log_sched_add(). Additional ordering system will be added
- * in the future.
+ * in the future to make it possible to write m0_be_log_io out-of-order.
  */
 struct m0_be_log_sched {
 	struct m0_be_log_sched_cfg lsh_cfg;

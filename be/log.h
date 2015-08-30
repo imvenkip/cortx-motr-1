@@ -44,6 +44,9 @@
  */
 
 /**
+ * BE uses write-ahead logging. Log is used as a place to write information
+ * about transactions to make transactions recoverable.
+ *
  * Logically, log is an infinite sequence of log records. Physical
  * representation is implemented by log_store.
  *

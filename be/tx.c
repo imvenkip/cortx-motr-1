@@ -608,7 +608,7 @@ M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx)
 	return tx->t_exclusive;
 }
 
-M0_INTERNAL void m0_be_tx__recovering(struct m0_be_tx *tx)
+M0_INTERNAL void m0_be_tx__recovering_set(struct m0_be_tx *tx)
 {
 	tx->t_recovering = true;
 }

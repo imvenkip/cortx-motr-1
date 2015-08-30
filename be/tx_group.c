@@ -491,7 +491,7 @@ static void be_tx_group_reconstruct_transactions(struct m0_be_tx_group *gr,
 		m0_be_tx_init(tx, 0, gr->tg_domain,
 			      sm_grp, NULL, NULL, NULL, NULL);
 		m0_be_tx__group_assign(tx, gr);
-		m0_be_tx__recovering(tx);
+		m0_be_tx__recovering_set(tx);
 		m0_be_tx_reconstruct(tx, &ftx);
 		m0_be_op_reset(&rtx->rtx_op_open);
 		m0_be_op_reset(&rtx->rtx_op_gc);

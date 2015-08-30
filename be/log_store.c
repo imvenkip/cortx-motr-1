@@ -220,6 +220,15 @@ static int be_log_store_rbuf_init(struct m0_be_log_store *ls)
 	return rc;
 }
 
+static void be_log_store_rbuf_arr_free(struct m0_be_log_store *ls)
+{
+	m0_free(ls->ls_rbuf_write_lio);
+	m0_free(ls->ls_rbuf_write_op);
+	m0_free(ls->ls_rbuf_read_lio);
+	m0_free(ls->ls_rbuf_read_op);
+	m0_free(ls->ls_rbuf_read_buf);
+}
+
 static int level_be_log_store_enter(struct m0_module *module)
 {
 	struct m0_be_fmt_log_store_header *header;
@@ -246,9 +255,10 @@ static int level_be_log_store_enter(struct m0_module *module)
 					ls->ls_cfg.lsc_stob_domain_location,
 					ls->ls_cfg.lsc_stob_domain_init_cfg,
 					&ls->ls_stob_domain);
-			rc = rc == -ENOENT ? 0 :
-			     rc != 0 ? rc :
-				     m0_stob_domain_destroy(ls->ls_stob_domain);
+			if (rc == 0)
+				rc = m0_stob_domain_destroy(ls->ls_stob_domain);
+			else if (rc == -ENOENT)
+				rc = 0;
 			return rc ?: m0_stob_domain_create(
 					ls->ls_cfg.lsc_stob_domain_location,
 					ls->ls_cfg.lsc_stob_domain_init_cfg,
@@ -346,11 +356,7 @@ static int level_be_log_store_enter(struct m0_module *module)
 		    ls->ls_rbuf_read_lio  == NULL ||
 		    ls->ls_rbuf_read_op   == NULL ||
 		    ls->ls_rbuf_read_buf  == NULL) {
-			m0_free(ls->ls_rbuf_write_lio);
-			m0_free(ls->ls_rbuf_write_op);
-			m0_free(ls->ls_rbuf_read_lio);
-			m0_free(ls->ls_rbuf_read_op);
-			m0_free(ls->ls_rbuf_read_buf);
+			be_log_store_rbuf_arr_free(ls);
 			return M0_ERR(-ENOMEM);
 		}
 		return 0;
@@ -409,11 +415,7 @@ static void level_be_log_store_leave(struct m0_module *module)
 	case M0_BE_LOG_STORE_LEVEL_HEADER_DECODE:
 		break;
 	case M0_BE_LOG_STORE_LEVEL_RBUF_ARR_ALLOC:
-		m0_free(ls->ls_rbuf_read_buf);
-		m0_free(ls->ls_rbuf_read_op);
-		m0_free(ls->ls_rbuf_read_lio);
-		m0_free(ls->ls_rbuf_write_op);
-		m0_free(ls->ls_rbuf_write_lio);
+		be_log_store_rbuf_arr_free(ls);
 		break;
 	case M0_BE_LOG_STORE_LEVEL_RBUF_INIT:
 		be_log_store_rbuf_fini(ls);
@@ -608,8 +610,8 @@ M0_INTERNAL void m0_be_log_store_io_discard(struct m0_be_log_store *ls,
 static m0_bindex_t be_log_store_phys_addr(struct m0_be_log_store *ls,
 					  m0_bindex_t             position)
 {
-	return position % ls->ls_header.fsh_cbuf_size +
-			  ls->ls_header.fsh_cbuf_offset;
+	return ls->ls_header.fsh_cbuf_offset +
+	       position % ls->ls_header.fsh_cbuf_size;
 }
 
 M0_INTERNAL void m0_be_log_store_io_translate(struct m0_be_log_store *ls,
