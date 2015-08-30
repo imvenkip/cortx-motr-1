@@ -70,7 +70,7 @@ static int logbuf_map()
 
 	sprintf(buf, "m0trace.%u", (unsigned)getpid());
 
-	if ((logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700)) == -1) {
+	if ((logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC|O_CLOEXEC, 0700)) == -1) {
 		warn("open(\"%s\")", buf);
 	} else if ((errno = posix_fallocate(logfd, 0, trace_area_size)) != 0) {
 		warn("fallocate(\"%s\", %u)", buf, trace_area_size);
