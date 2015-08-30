@@ -65,7 +65,7 @@ static struct m0_be_log *be_log_module2log(struct m0_module *module)
 	return container_of(module, struct m0_be_log, lg_module);
 }
 
-static int level_be_log_enter(struct m0_module *module)
+static int be_log_level_enter(struct m0_module *module)
 {
 	struct m0_be_fmt_log_header *header;
 	struct m0_be_log            *log   = be_log_module2log(module);
@@ -126,7 +126,7 @@ static int level_be_log_enter(struct m0_module *module)
 	}
 }
 
-static void level_be_log_leave(struct m0_module *module)
+static void be_log_level_leave(struct m0_module *module)
 {
 	struct m0_be_log *log   = be_log_module2log(module);
 	int               level = module->m_cur;
@@ -166,28 +166,28 @@ static void level_be_log_leave(struct m0_module *module)
 static const struct m0_modlev be_log_levels[] = {
 	[M0_BE_LOG_LEVEL_INIT] = {
 		.ml_name  = "M0_BE_LOG_LEVEL_INIT",
-		.ml_enter = level_be_log_enter,
-		.ml_leave = level_be_log_leave,
+		.ml_enter = be_log_level_enter,
+		.ml_leave = be_log_level_leave,
 	},
 	[M0_BE_LOG_LEVEL_LOG_STORE] = {
 		.ml_name  = "M0_BE_LOG_LEVEL_LOG_STORE",
-		.ml_enter = level_be_log_enter,
-		.ml_leave = level_be_log_leave,
+		.ml_enter = be_log_level_enter,
+		.ml_leave = be_log_level_leave,
 	},
 	[M0_BE_LOG_LEVEL_HEADER_PREINIT] = {
 		.ml_name  = "M0_BE_LOG_LEVEL_HEADER_PREINIT",
-		.ml_enter = level_be_log_enter,
-		.ml_leave = level_be_log_leave,
+		.ml_enter = be_log_level_enter,
+		.ml_leave = be_log_level_leave,
 	},
 	[M0_BE_LOG_LEVEL_HEADER] = {
 		.ml_name  = "M0_BE_LOG_LEVEL_HEADER",
-		.ml_enter = level_be_log_enter,
-		.ml_leave = level_be_log_leave,
+		.ml_enter = be_log_level_enter,
+		.ml_leave = be_log_level_leave,
 	},
 	[M0_BE_LOG_LEVEL_ASSIGNS] = {
 		.ml_name  = "M0_BE_LOG_LEVEL_ASSIGNS",
-		.ml_enter = level_be_log_enter,
-		.ml_leave = level_be_log_leave,
+		.ml_enter = be_log_level_enter,
+		.ml_leave = be_log_level_leave,
 	},
 	[M0_BE_LOG_LEVEL_READY] = {
 		.ml_name = "fully initialized",

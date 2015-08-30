@@ -927,7 +927,7 @@ M0_INTERNAL void m0_be_domain__0type_unregister(struct m0_be_domain *dom,
 	be_domain_unlock(dom);
 }
 
-static int level_be_domain_enter(struct m0_module *module)
+static int be_domain_level_enter(struct m0_module *module)
 {
 	struct m0_be_domain     *dom = M0_AMB(dom, module, bd_module);
 	struct m0_be_domain_cfg *cfg = &dom->bd_cfg;
@@ -964,7 +964,7 @@ static int level_be_domain_enter(struct m0_module *module)
 	M0_IMPOSSIBLE("Unexpected level: %d", module->m_cur + 1);
 }
 
-static void level_be_domain_leave(struct m0_module *module)
+static void be_domain_level_leave(struct m0_module *module)
 {
 	struct m0_be_domain *dom = M0_AMB(dom, module, bd_module);
 	struct m0_be_0type  *zt;
@@ -987,7 +987,7 @@ static void level_be_domain_leave(struct m0_module *module)
 		return;
 
 	case M0_BE_DOMAIN_LEVEL_INIT:
-		/* XXX level_be_domain_enter() did not call
+		/* XXX be_domain_level_enter() did not call
 		 * m0_stob_domain_init(). */
 		if (dom->bd_stob_domain != NULL)
 			m0_stob_domain_fini(dom->bd_stob_domain);
@@ -1003,18 +1003,18 @@ static void level_be_domain_leave(struct m0_module *module)
 static const struct m0_modlev levels_be_domain[] = {
 	[M0_BE_DOMAIN_LEVEL_INIT] = {
 		.ml_name  = "M0_BE_DOMAIN_LEVEL_INIT",
-		.ml_enter = level_be_domain_enter,
-		.ml_leave = level_be_domain_leave
+		.ml_enter = be_domain_level_enter,
+		.ml_leave = be_domain_level_leave
 	},
 	[M0_BE_DOMAIN_LEVEL_0TYPES] = {
 		.ml_name  = "M0_BE_DOMAIN_LEVEL_0TYPES",
-		.ml_enter = level_be_domain_enter,
-		.ml_leave = level_be_domain_leave
+		.ml_enter = be_domain_level_enter,
+		.ml_leave = be_domain_level_leave
 	},
 	[M0_BE_DOMAIN_LEVEL_READY] = {
 		.ml_name  = "M0_BE_DOMAIN_LEVEL_READY",
-		.ml_enter = level_be_domain_enter,
-		.ml_leave = level_be_domain_leave
+		.ml_enter = be_domain_level_enter,
+		.ml_leave = be_domain_level_leave
 	}
 };
 

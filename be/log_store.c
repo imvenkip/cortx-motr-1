@@ -229,7 +229,7 @@ static void be_log_store_rbuf_arr_free(struct m0_be_log_store *ls)
 	m0_free(ls->ls_rbuf_read_buf);
 }
 
-static int level_be_log_store_enter(struct m0_module *module)
+static int be_log_store_level_enter(struct m0_module *module)
 {
 	struct m0_be_fmt_log_store_header *header;
 	struct m0_buf          *buf;
@@ -371,7 +371,7 @@ static int level_be_log_store_enter(struct m0_module *module)
 	}
 }
 
-static void level_be_log_store_leave(struct m0_module *module)
+static void be_log_store_level_leave(struct m0_module *module)
 {
 	struct m0_be_log_store *ls = be_log_store_module2store(module);
 	int                     level = module->m_cur;
@@ -430,78 +430,78 @@ static void level_be_log_store_leave(struct m0_module *module)
 static const struct m0_modlev be_log_store_levels[] = {
 	[M0_BE_LOG_STORE_LEVEL_ASSIGNS] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_ASSIGNS",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_STOB_DOMAIN] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_STOB_DOMAIN",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_STOB_FIND] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_STOB_FIND",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_STOB_LOCATE] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_STOB_LOCATE",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_STOB_CREATE] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_STOB_CREATE",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_ZERO] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_ZERO",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_LS_HEADER_INIT] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_LS_HEADER_INIT",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_LS_HEADER_BUF_ALLOC] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_LS_HEADER_BUF_ALLOC",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_HEADER_CREATE] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_HEADER_CREATE",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_HEADER_ENCODE] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_HEADER_ENCODE",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_HEADER_IO] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_HEADER_IO",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_HEADER_DECODE] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_HEADER_DECODE",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_RBUF_ARR_ALLOC] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_RBUF_ARR_ALLOC",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_RBUF_INIT] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_RBUF_INIT",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_RBUF_ASSIGN] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_RBUF_ASSIGN",
-		.ml_enter = level_be_log_store_enter,
-		.ml_leave = level_be_log_store_leave,
+		.ml_enter = be_log_store_level_enter,
+		.ml_leave = be_log_store_level_leave,
 	},
 	[M0_BE_LOG_STORE_LEVEL_READY] = {
 		.ml_name = "fully initialized",
