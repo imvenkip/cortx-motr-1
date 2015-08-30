@@ -256,7 +256,8 @@ M0_INTERNAL void m0_localities_fini(void)
 	m0_sm_group_fini(&glob->lg_grp);
 	chores_g_tlist_fini(&glob->lg_chore);
 	m0_mutex_fini(&glob->lg_lock);
-	M0_SET0(glob);
+	m0_free(glob);
+	m0_get()->i_moddata[M0_MODULE_LOCALITY] = NULL;
 }
 
 /*
