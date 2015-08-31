@@ -66,6 +66,11 @@ MODULE_PARM_DESC(trace_buf_size, "size of trace buffer in bytes");
 static struct m0_trace_stats stats;
 
 
+M0_INTERNAL const char *m0_trace_file_path_get(void)
+{
+	return "";
+}
+
 M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask_str)
 {
 	int            rc;

@@ -22,8 +22,9 @@
 #include "lib/trace.h"
 
 #include "lib/assert.h"
-#include "lib/misc.h"      /* M0_CAT */
-#include "mero/version.h"  /* m0_build_info */
+#include "lib/misc.h"            /* M0_CAT */
+#include "lib/trace_internal.h"  /* m0_trace_file_path_get */
+#include "mero/version.h"        /* m0_build_info */
 
 /**
    @addtogroup assert
@@ -41,9 +42,10 @@ void m0_panic(const struct m0_panic_ctx *ctx, ...)
 	const struct m0_build_info *bi = m0_build_info_get();
 
 	if (repanic++ == 0) {
-		M0_LOG(M0_FATAL, "panic: %s at %s() (%s:%i) %s [git: %s]",
+		M0_LOG(M0_FATAL, "panic: %s at %s() (%s:%i) %s [git: %s] %s",
 		       ctx->pc_expr, ctx->pc_func, ctx->pc_file, ctx->pc_lineno,
-		       m0_failed_condition ?: "", bi->bi_git_describe);
+		       m0_failed_condition ?: "", bi->bi_git_describe,
+		       m0_trace_file_path_get());
 		va_start(ap, ctx);
 		m0_arch_panic(ctx, ap);
 		va_end(ap);

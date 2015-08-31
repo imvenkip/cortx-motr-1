@@ -32,6 +32,7 @@
 #include <unistd.h>		/* fork, sleep */
 #include "lib/errno.h"
 #include "lib/assert.h"
+#include "lib/trace_internal.h" /* m0_trace_file_path_get */
 #include "lib/misc.h"		/* ARRAY_SIZE */
 #include "mero/version.h"	/* m0_build_info */
 
@@ -111,10 +112,10 @@ M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c, va_list ap)
 
 	fprintf(stderr,
 		"Mero panic: %s at %s() %s:%i (errno: %i) (last failed: %s)"
-		" [git: %s] pid: %u\n",
+		" [git: %s] pid: %u  %s\n",
 		c->pc_expr, c->pc_func, c->pc_file, c->pc_lineno, errno,
 		m0_failed_condition ?: "none", bi->bi_git_describe,
-		(unsigned)getpid());
+		(unsigned)getpid(), m0_trace_file_path_get());
 	if (c->pc_fmt != NULL) {
 		fprintf(stderr, "Mero panic reason: ");
 		vfprintf(stderr, c->pc_fmt, ap);

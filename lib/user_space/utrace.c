@@ -59,6 +59,8 @@ static const char sys_kern_randvspace_fname[] =
 
 static bool use_mmaped_buffer = true;
 
+static char trace_file_path[PATH_MAX];
+
 static int logbuf_map()
 {
 	char     buf[80];
@@ -85,9 +87,21 @@ static int logbuf_map()
 		m0_trace_buf_header_init(&trace_area->ta_header,
 					 M0_TRACE_UBUF_SIZE);
 		m0_trace_logbuf_size_set(M0_TRACE_UBUF_SIZE);
+
+		if (getcwd(trace_file_path, sizeof trace_file_path) != NULL ) {
+			strncat(trace_file_path, "/",
+				sizeof trace_file_path - strlen(trace_file_path));
+			strncat(trace_file_path, buf,
+				sizeof trace_file_path - strlen(trace_file_path));
+		}
 	}
 
 	return -errno;
+}
+
+M0_INTERNAL const char *m0_trace_file_path_get(void)
+{
+	return trace_file_path;
 }
 
 M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask)
