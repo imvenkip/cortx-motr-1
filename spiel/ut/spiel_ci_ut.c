@@ -240,10 +240,6 @@ void test_spiel_fs_stats(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(fs_stats.fs_free > 0);
 	M0_UT_ASSERT(fs_stats.fs_total > 0);
-
-	m0_console_printf("\n\tfree : %20"PRId64"\n", fs_stats.fs_free);
-	m0_console_printf("\ttotal: %20"PRId64"\n", fs_stats.fs_total);
-
 	spiel_ci_ut_fini();
 }
 

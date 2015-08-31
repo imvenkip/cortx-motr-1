@@ -177,7 +177,7 @@ EOF
 ### configuration management part may affect to both m0d.
 m0d_with_rms_start() {
     local CONFD_SPEC="-s confd:<$CONF_FID_CON:1> -c $CONF_FILE"
-    local OPTS="-F -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs\
+    local OPTS="-F -D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
     -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER1_ENDPOINT $CONFD_SPEC\
     -s addb2:<$ADD2_FID_CON:1> -s rmservice:<$RMS_FID_CON:1>
     -s mdservice:<$MDS_FID_CON:2> -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN\
@@ -206,7 +206,8 @@ test_m0d_start() {
     local CONFD_SPEC="-s confd:<$CONF_FID_CON:2> -c $CONF_FILE"
     ### TODO: remove ioservice from command line arguments when the following issue
     ### will be fixed https://jira.xyratex.com/browse/MERO-1048
-    local OPTS="-F -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs\
+    local OPTS="-F -D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
+
     -A linuxstob:$SANDBOX_DIR/addb-stobs\
     -e lnet:$SERVER2_ENDPOINT $CONFD_SPEC -s addb2:<$ADD2_FID_CON:2>\
     -s ioservice:<$IOS_FID_CON:2>\
@@ -238,10 +239,10 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'rack'          : Fid(0x6100000000000001, 6),
         'encl'          : Fid(0x6500000000000001, 7),
         'ctrl'          : Fid(0x6300000000000001, 8),
-        'disk0'         : Fid(0x6b00000000000001, 1),
-        'disk1'         : Fid(0x6b00000000000001, 2),
-        'disk2'         : Fid(0x6b00000000000001, 3),
-        'disk3'         : Fid(0x6b00000000000001, 4),
+        'disk0'         : Fid(0x6b00000000000001, 2),
+        'disk1'         : Fid(0x6b00000000000001, 3),
+        'disk2'         : Fid(0x6b00000000000001, 4),
+        'disk3'         : Fid(0x6b00000000000001, 5),
         'pver'          : Fid(0x7600000000000001, 10),
         'rackv'         : Fid(0x6a00000000000001, 2),
         'enclv'         : Fid(0x6a00000000000001, 3),
@@ -289,8 +290,6 @@ K = 1
 P = 4
 mask = c_uint64(3)
 cores = Bitmap(1, pointer(mask))
-
-from __future__ import print_function
 
 tx = SpielTx(spiel.spiel)
 spiel.tx_open(tx)
@@ -374,22 +373,12 @@ for conf_obj_add in conf_objs_add:
     try:
         rc = getattr(spiel, conf_obj_add[0])(*conf_obj_add[1:])
         if rc != 0:
-            print("error {0} while {1} executing".format(rc, conf_obj_add[0]),
-                  file=sys.stderr)
-            error = True
-            break
+            sys.exit("error {0} while {1} executing".format(rc, conf_obj_add[0]))
     except:
-        print("an error occurred while {0} executing: {1}".format(
-                                conf_obj_add[0], sys.exc_info()[0]),
-              file=sys.stderr)
-        sys.exit(1)
+        sys.exit("an error occurred while {0} executing: {1}".format(
+                 conf_obj_add[0], sys.exc_info()[0]))
 
 spiel.tx_close(tx)
-
-## return error status if an error occurred during calling
-## one of spiel_*_add functions
-if error:
-    sys.exit(1)
 EOF
 }
 
@@ -399,10 +388,8 @@ $FIDS_LIST
 $SERVICES
 $HEALTH
 
-from __future__ import print_function
-
 if spiel.cmd_profile_set(str(fids['profile'])) != 0:
-    print('can not set profile ' + fids['profile'], file=std.stderr)
+    sys.exit('can not set profile {0}'.format(fids['profile']))
 
 for key in services:
     rc = spiel.service_health(fids[key])
@@ -422,11 +409,10 @@ restart_services() {
 $FIDS_LIST
 $SERVICES
 
-from __future__ import print_function
 from itertools import product
 
 if spiel.cmd_profile_set(str(fids['profile'])) != 0:
-    sys.exit('can not set profile ' + fids['profile'])
+    sys.exit('can not set profile {0}'.format(fids['profile']))
 
 service_commands = list(product(['service_quiesce', 'service_stop',
                                  'service_init', 'service_start'],
@@ -448,11 +434,10 @@ start_services() {
 $FIDS_LIST
 $SERVICES
 
-from __future__ import print_function
 from itertools import product
 
 if spiel.cmd_profile_set(str(fids['profile'])) != 0:
-    sys.exit('can not set profile ' + fids['profile'])
+    sys.exit('can not set profile {0}'.format(fids['profile']))
 
 service_commands = list(product(['service_init', 'service_start'],
                                 [fids[x] for x in services]))
@@ -472,15 +457,13 @@ reconfig_process() {
     $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 
-from __future__ import print_function
-
 if spiel.cmd_profile_set(str(fids['profile'])) != 0:
-    sys.exit('can not set profile ' + fids['profile'])
+    sys.exit('can not set profile {0}'.format(fids['profile']))
 
 rc = spiel.process_reconfig(fids['process2'])
 if rc != 0:
-    sys.exit('an error process reconfig: fid=' + str(fids['process2']) + \
-             ' status=' + str(rc))
+    sys.exit('Error: process reconfig for process {0}\
+             (status {1})'.format(fids['process2'], rc))
 EOF
 }
 
@@ -492,6 +475,24 @@ perform_io() {
     echo $TEST_STR > $TEST_FILE
 
     [ "`cat $TEST_FILE`" = $TEST_STR ] || die "IO error"
+}
+
+fs_stats_fetch() {
+    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+$FIDS_LIST
+
+if spiel.cmd_profile_set(str(fids['profile'])) != 0:
+    sys.exit('can not set profile {0}'.format(fids['profile']))
+
+fs_stats = FsStats()
+rc = spiel.filesystem_stats_fetch(fids['fs'], fs_stats)
+if rc != 0:
+	sys.exit('Error: filesystem stats fetch for fs {0}\
+                 (status {1})'.format(fids['fs'], rc))
+
+print("free space  {0:>20}".format(fs_stats.fs_free))
+print("total space {0:>20}".format(fs_stats.fs_total))
+EOF
 }
 
 _mount() {
@@ -555,6 +556,9 @@ start_services
 say "Validate health"
 validate_health
 
+say "Fetch filesystem stats"
+fs_stats_fetch
+
 say "Restart services"
 restart_services
 
@@ -574,7 +578,6 @@ say "Validate health"
 validate_health
 
 _mount || stop $?
-
 #TODO uncomment the following lines when this issue is fixed
 #https://jira.xyratex.com/browse/MERO-1048
 #say "Perform IO"
