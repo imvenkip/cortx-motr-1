@@ -88,6 +88,7 @@ BUILD_HOST=$(
 AC_SUBST([BUILD_HOST])
 AC_SUBST([BUILD_USER],["$(whoami)"])
 AC_SUBST([BUILD_TIME],["$(date -u)"])
+AC_SUBST([BUILD_GCC],["$(gcc -v 2>&1 | grep '^gcc version' | sed -e 's/(GCC)//')"])
 
 #
 # Checking for OS support
@@ -814,6 +815,7 @@ echo "GF_LIBS      :  \"$GF_LIBS\""
 echo "YAML_LIBS    :  \"$YAML_LIBS\""
 echo "UUID_LIBS    :  \"$UUID_LIBS\""
 echo ""
+echo "Gcc          :  \"$BUILD_GCC\""
 echo "Linux kernel :  \"$LINUX_OBJ\""
 echo "Lustre       :  \"$LUSTRE\""
 echo ""

@@ -39,6 +39,7 @@ static const struct m0_build_info build_info = {
 	.bi_host           = M0_VERSION_BUILD_HOST,
 	.bi_user           = M0_VERSION_BUILD_USER,
 	.bi_time           = M0_VERSION_BUILD_TIME,
+	.bi_toolchain      = M0_VERSION_BUILD_GCC,
 	.bi_kernel         = M0_VERSION_BUILD_KERNEL,
 	.bi_cflags         = M0_VERSION_BUILD_CFLAGS,
 	.bi_kcflags        = M0_VERSION_BUILD_KCFLAGS,
@@ -75,6 +76,7 @@ void m0_build_info_print(void)
 
 	m0_console_printf(BI_PREFIX "\n");
 
+	m0_console_printf(BI_PREFIX "toolchain: %s\n", bi->bi_toolchain);
 	m0_console_printf(BI_PREFIX "CONFIGURE OPTS: %s\n", bi->bi_configure_opts);
 #ifdef __KERNEL__
 	m0_console_printf(BI_PREFIX "KCFLAGS: %s\n", bi->bi_kcflags);

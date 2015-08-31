@@ -35,6 +35,7 @@ struct m0_build_info {
 	const char  *bi_host;
 	const char  *bi_user;
 	const char  *bi_time;
+	const char  *bi_toolchain;
 	const char  *bi_kernel;
 	const char  *bi_cflags;
 	const char  *bi_kcflags;
