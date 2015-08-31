@@ -338,6 +338,8 @@ void m0_addb2_sensor_del(struct m0_addb2_sensor *s);
  */
 void m0_addb2_force(m0_time_t delay);
 
+void m0_addb2_force_all(void);
+
 /**
  * Machine operations vector provided by SYSTEM.
  *

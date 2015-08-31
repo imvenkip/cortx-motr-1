@@ -131,6 +131,7 @@
 #include "lib/memory.h"
 #include "lib/mutex.h"
 #include "lib/mutex.h"
+#include "lib/locality.h"
 #include "fid/fid.h"
 
 #include "addb2/addb2.h"
@@ -576,6 +577,34 @@ void m0_addb2_force(m0_time_t delay)
 		}
 		mach_put(m);
 	}
+}
+
+static int addb2_force_loc_cb(void *unused)
+{
+	m0_addb2_force(M0_TIME_IMMEDIATELY);
+	return 0;
+}
+
+static void addb2_force_loc(struct m0_locality *loc)
+{
+	m0_locality_call(loc, &addb2_force_loc_cb, NULL);
+}
+
+void m0_addb2_force_all(void)
+{
+	struct m0_locality *loc;
+	struct m0_locality *loc_first;
+	uint64_t            i;
+
+	m0_addb2_force(M0_TIME_IMMEDIATELY);
+	addb2_force_loc(m0_locality0_get());
+	i = 0;
+	loc = m0_locality_get(0);
+	loc_first = loc;
+	do {
+		addb2_force_loc(loc);
+		loc = m0_locality_get(++i);
+	} while (loc != loc_first);
 }
 
 void m0_addb2_mach_stop(struct m0_addb2_mach *mach)
