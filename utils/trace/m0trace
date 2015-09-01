@@ -884,9 +884,11 @@ see B<-i|--input> option.
 
 =head1 ARGUMENTS
 
-An optional argument can be provided, one of I<kernel>, I<confd>, I<mds> or
-I<ios>. If specified, C<m0trace> will automatically pick a latest trace file
-for that service.
+A mero service name can be provided as an optional argument, like I<kernel>,
+I<confd>, I<ha>, I<mds> or I<ios>. If specified, C<m0trace> will automatically
+pick a latest trace file for that service. Additionally to that, a service name
+can be followed by C<-buf> suffix, in that case C<m0trace> will use the
+I<mmaped> trace buffer of C<m0d> process directly.
 
 =head1 OPTIONS
 
