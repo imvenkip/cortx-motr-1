@@ -989,6 +989,9 @@ static int be_log_record_iter_read(struct m0_be_log             *log,
 	rc   = be_log_read_plain(log, pos, size, data);
 	rc   = rc ?: m0_be_fmt_log_record_header_decode(&header, &cur,
 						M0_BE_FMT_DECODE_CFG_DEFAULT);
+	if (rc == -EPROTO)
+		rc = -ENOENT;
+
 	m0_free_aligned(data, size, bshift);
 	if (rc != 0)
 		return rc;

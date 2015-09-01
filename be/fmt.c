@@ -86,6 +86,7 @@ static int be_fmt_encode(struct m0_xcode_type    *type,
 struct m0_fmt_xcode_ctx {
 	struct m0_xcode_ctx                 ctx;
 	const struct m0_be_fmt_decode_cfg  *cfg;
+	int                                 err;
 };
 
 static void *be_fmt_alloc(struct m0_xcode_cursor *it, size_t nob)
@@ -99,6 +100,8 @@ static void *be_fmt_alloc(struct m0_xcode_cursor *it, size_t nob)
 
 	struct m0_xcode_cursor_frame *top = m0_xcode_cursor_top(it);
 	bool err;
+
+	fctx->err = 0;
 
 	if (M0_IN(top->s_obj.xo_type, (m0_be_fmt_content_header_reg_xc,
 				       m0_be_fmt_content_header_tx_xc,
@@ -114,8 +117,10 @@ static void *be_fmt_alloc(struct m0_xcode_cursor *it, size_t nob)
 		err = nob != top->s_obj.xo_type->xct_sizeof ||
 		      nob >= group_size_max ||
 		      top->s_obj.xo_type->xct_sizeof >= group_size_max;
-	else
-		err = false;
+	else {
+		err = nob >= group_size_max;
+		fctx->err = EPROTO;
+	}
 
 	if (err)
 		M0_LOG(M0_WARN, "type: %s, sizeof: %lu, nob: %lu",
@@ -148,6 +153,10 @@ static int be_fmt_decode(struct m0_xcode_type               *type,
 
 	ctx->xcx_buf = *cur;
 	rc = m0_xcode_decode(ctx);
+
+	if (rc == -ENOMEM)
+		rc = -fctx.err;
+
 	if (rc == 0)
 		*cur = ctx->xcx_buf;
 
