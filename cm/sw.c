@@ -40,6 +40,18 @@
    @{
  */
 
+M0_INTERNAL bool m0_cm_sw_is_set(const struct m0_cm_sw *sw)
+{
+	return m0_cm_ag_id_is_set(&sw->sw_lo) ||
+		m0_cm_ag_id_is_set(&sw->sw_hi);
+}
+
+M0_INTERNAL bool m0_cm_sw_cmp(const struct m0_cm_sw *sw0, const struct m0_cm_sw *sw1)
+{
+	return m0_cm_ag_id_cmp(&sw0->sw_lo, &sw1->sw_lo) ?:
+		m0_cm_ag_id_cmp(&sw0->sw_hi, &sw1->sw_hi);
+}
+
 M0_INTERNAL void m0_cm_sw_set(struct m0_cm_sw *dst,
 			      const struct m0_cm_ag_id *lo,
 			      const struct m0_cm_ag_id *hi)
@@ -76,15 +88,12 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,
 
 M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm)
 {
-	int rc = -ENOENT;
+	int rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	if (m0_cm_is_active(cm) &&
-	    !m0_cm_ag_id_is_set(&cm->cm_last_saved_sw_hi))
-		return M0_RC(rc);
 	rc = m0_cm_ag_advance(cm);
 
 	return M0_RC(rc);
@@ -112,7 +121,7 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 	 */
         if (lo != NULL) {
                 id_lo = lo->cag_id;
-                id_hi = cm->cm_last_saved_sw_hi;
+                id_hi = cm->cm_sw_last_updated_hi;
         }
 	m0_cm_sw_set(&sw, &id_lo, &id_hi);
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
@@ -194,8 +203,10 @@ M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw **out)
 
 	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
 	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)out);
-	if (rc == 0)
-		M0_LOG(M0_DEBUG, "sw = %p", *out);
+	if (rc == 0) {
+		M0_LOG(M0_DEBUG, "sw_lo=["M0_AG_F"] sw_hi=["M0_AG_F"]",
+			M0_AG_P(&(*out)->sw_lo), M0_AG_P(&(*out)->sw_hi));
+	}
 
 	return M0_RC(rc);
 }
@@ -207,8 +218,6 @@ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
 	struct m0_be_seg *seg = cm->cm_service.rs_reqh->rh_beseg;
 	struct m0_cm_sw  *sw;
 	int               rc;
-
-	M0_PRE(m0_cm_is_locked(cm));
 
 	rc = m0_cm_sw_store_load(cm, &sw);
 	if (rc != 0)

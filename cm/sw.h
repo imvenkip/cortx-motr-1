@@ -64,7 +64,7 @@ struct m0_cm_sw_onwire {
 
 struct m0_cm_sw_update {
 	struct m0_fom    swu_fom;
-	struct m0_chan   swu_signal;
+	struct m0_cm_sw  swu_sw;
 	bool             swu_is_complete;
 };
 
@@ -78,6 +78,9 @@ M0_INTERNAL void m0_cm_sw_set(struct m0_cm_sw *dst,
 M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
 			       const struct m0_cm_sw *src);
 
+M0_INTERNAL bool m0_cm_sw_is_set(const struct m0_cm_sw *sw);
+M0_INTERNAL bool m0_cm_sw_cmp(const struct m0_cm_sw *sw0,
+			      const struct m0_cm_sw *sw1);
 /**
  * Updates local sliding window, creates new aggregation groups as many as
  * possible and adds them to the sliding window.
@@ -138,12 +141,6 @@ M0_INTERNAL void m0_cm_sw_store_fini(struct m0_cm *cm);
  * request handler.
  */
 M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm);
-
-/**
- * Wakes up the FOM iff it is idle.
- */
-M0_INTERNAL void m0_cm_sw_update_continue(struct m0_cm *cm);
-M0_INTERNAL void m0_cm_sw_update_stop(struct m0_cm *cm);
 
 /** @} CMSW */
 

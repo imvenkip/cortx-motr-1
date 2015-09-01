@@ -170,7 +170,7 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_dummy_ops = {
  */
 void dummy_cp_fom_fini(struct m0_fom *fom)
 {
-	m0_cm_cp_fom_fini(bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob));
+	m0_cm_cp_fini(bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob));
 }
 
 /*

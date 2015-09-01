@@ -50,6 +50,8 @@ struct m0_sns_cm_cp {
 	 */
 	bool                   sc_is_local;
 
+	bool                   sc_has_no_cob;
+
 	uint64_t               sc_failed_idx;
 
 	bool                   sc_is_acc;
@@ -74,6 +76,7 @@ M0_INTERNAL struct m0_sns_cm_cp *cp2snscp(const struct m0_cm_cp *cp);
  * help select a request handler locality for copy packet FOM.
  */
 M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp);
+M0_INTERNAL struct m0_cm *cpfom2cm(struct m0_fom *fom);
 
 M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp);
 
@@ -122,11 +125,11 @@ M0_INTERNAL void m0_sns_cm_cp_tgt_info_fill(struct m0_sns_cm_cp *scp,
 					    uint64_t ag_cp_idx);
 
 M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
-				   const struct m0_fid *cob_fid,
-				   uint64_t stob_offset,
-				   uint64_t data_seg_nr,
-				   uint64_t failed_unit_index,
-				   uint64_t ag_cp_idx);
+				    const struct m0_fid *cob_fid,
+				    uint64_t stob_offset,
+				    uint64_t data_seg_nr,
+				    uint64_t failed_unit_index,
+				    uint64_t ag_cp_idx);
 
 M0_INTERNAL int m0_sns_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest);
 

@@ -239,7 +239,6 @@ static void cm_ag_ut(void)
 	M0_UT_ASSERT(rc == 0);
 
 	m0_cm_lock(cm);
-	m0_chan_init(&cm->cm_sw_update.swu_signal, &cm->cm_sm_group.s_lock);
 	/* Populate ag & ag ids with test values. */
 	for(i = AG_ID_NR - 1, j = 0; i >= 0 ; --i, ++j) {
 		ag_id_assign(&ag_ids[j], i, i, i, i);
@@ -260,7 +259,6 @@ static void cm_ag_ut(void)
 	/* Cleanup. */
 	for(i = 0; i < AG_ID_NR; i++)
 		m0_cm_aggr_group_fini_and_progress(&ags[i]);
-	m0_chan_fini(&cm->cm_sw_update.swu_signal);
 	m0_cm_unlock(cm);
 
 	cm_ut_service_cleanup();

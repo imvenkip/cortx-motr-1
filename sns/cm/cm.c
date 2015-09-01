@@ -26,6 +26,7 @@
 #include "lib/misc.h"
 #include "lib/finject.h"
 #include "lib/chan.h"
+#include "lib/locality.h"
 
 #include "fop/fop.h"
 #include "pool/pool_machine.h"
@@ -428,21 +429,26 @@ static void bp_below_threshold(struct m0_net_buffer_pool *bp)
 	/* Buffer pool is below threshold.  */
 }
 
+static void buf_available(struct m0_net_buffer_pool *pool)
+{
+	struct m0_sns_cm_buf_pool *bp = container_of(pool, struct m0_sns_cm_buf_pool,
+						     sb_bp);
+	m0_chan_signal(&bp->sb_wait);
+}
+
 const struct m0_net_buffer_pool_ops bp_ops = {
-	.nbpo_not_empty       = m0_sns_cm_buf_available,
+	.nbpo_not_empty       = buf_available,
 	.nbpo_below_threshold = bp_below_threshold
 };
 
 static void sns_cm_bp_init(struct m0_sns_cm_buf_pool *sbp)
 {
-	m0_mutex_init(&sbp->sb_wait_mutex);
-	m0_chan_init(&sbp->sb_wait, &sbp->sb_wait_mutex);
+	m0_chan_init(&sbp->sb_wait, &sbp->sb_bp.nbp_mutex);
 }
 
 static void sns_cm_bp_fini(struct m0_sns_cm_buf_pool *sbp)
 {
 	m0_chan_fini_lock(&sbp->sb_wait);
-	m0_mutex_fini(&sbp->sb_wait_mutex);
 }
 
 M0_TL_DESCR_DECLARE(cs_eps, extern);
@@ -515,12 +521,11 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 	segment_size = m0_rpc_max_seg_size(ndom);
 	segments_nr  = m0_rpc_max_segs_nr(ndom);
 	rc = m0_net_buffer_pool_init(&scm->sc_ibp.sb_bp, ndom,
-				     M0_NET_BUFFER_POOL_THRESHOLD, segments_nr,
-				     segment_size, colours, M0_0VEC_SHIFT);
+				     0, segments_nr, segment_size,
+				     colours, M0_0VEC_SHIFT);
 	if (rc == 0) {
 		rc = m0_net_buffer_pool_init(&scm->sc_obp.sb_bp, ndom,
-					     M0_NET_BUFFER_POOL_THRESHOLD,
-					     segments_nr, segment_size,
+					     0, segments_nr, segment_size,
 					     colours, M0_0VEC_SHIFT);
 		if (rc != 0)
 			m0_net_buffer_pool_fini(&scm->sc_ibp.sb_bp);
@@ -670,12 +675,19 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 
 M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
 {
-	struct m0_sns_cm      *scm = cm2sns(cm);
-	int                    rc;
+	struct m0_sns_cm *scm = cm2sns(cm);
+	size_t            loc_nr = m0_fom_dom()->fd_localities_nr;
+	int               rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 
+	M0_ALLOC_ARR(scm->sc_total_read_size, loc_nr);
+	if (scm->sc_total_read_size == NULL)
+		return M0_ERR(-ENOMEM);
+	M0_ALLOC_ARR(scm->sc_total_write_size, loc_nr);
+	if (scm->sc_total_write_size == NULL)
+		return M0_ERR(-ENOMEM);
 	rc = m0_sns_cm_iter_start(&scm->sc_it);
 	if (rc == 0)
 		scm->sc_start_time = m0_time_now();
@@ -693,15 +705,46 @@ M0_INTERNAL void m0_sns_cm_rm_fini(struct m0_sns_cm *scm)
 		m0_rm_type_deregister(&scm->sc_rm_ctx.rc_rt);
 }
 
+static void buffer_pool_prune(struct m0_net_buffer_pool *bp)
+{
+	m0_net_buffer_pool_lock(bp);
+	while (m0_net_buffer_pool_prune(bp))
+	{;}
+	m0_net_buffer_pool_unlock(bp);
+}
+
+static void sns_cm_buffer_pools_prune(struct m0_sns_cm *scm)
+{
+	buffer_pool_prune(&scm->sc_obp.sb_bp);
+	buffer_pool_prune(&scm->sc_ibp.sb_bp);
+	M0_ASSERT(scm->sc_obp.sb_bp.nbp_buf_nr == 0 &&
+		  scm->sc_ibp.sb_bp.nbp_buf_nr == 0);
+}
+
 M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
+	size_t            twrite = 0;
+	size_t            tread = 0;
+	size_t            loc_nr = m0_fom_dom()->fd_localities_nr;
+	int               i;
 
 	m0_sns_cm_iter_stop(&scm->sc_it);
 	scm->sc_stop_time = m0_time_now();
+	for (i = 0; i < loc_nr; ++i) {
+		tread += scm->sc_total_read_size[i];
+		twrite += scm->sc_total_write_size[i];
+	}
+	M0_LOG(M0_INFO, "Time: %llu Read Size: %llu Write size: %llu",
+	       (unsigned long long)m0_time_sub(scm->sc_stop_time,
+					       scm->sc_start_time),
+	       (unsigned long long)tread, (unsigned long long)twrite);
 	M0_CNT_INC(scm->sc_repair_done);
 	m0_sns_cm_rm_fini(scm);
 	m0_sns_cm_ag_iter_fini(&scm->sc_ag_it);
+	m0_free(scm->sc_total_read_size);
+	m0_free(scm->sc_total_write_size);
+	sns_cm_buffer_pools_prune(scm);
 
 	return 0;
 }
@@ -719,7 +762,6 @@ M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm)
 
 	sns_cm_bp_fini(&scm->sc_obp);
 	sns_cm_bp_fini(&scm->sc_ibp);
-
 	M0_LEAVE();
 }
 
@@ -731,6 +773,13 @@ M0_INTERNAL uint64_t m0_sns_cm_cp_buf_nr(struct m0_net_buffer_pool *bp,
 	       data_seg_nr / bp->nbp_seg_nr;
 }
 
+M0_INTERNAL void m0_sns_cm_buf_wait(struct m0_sns_cm_buf_pool *sbp, struct m0_fom *fom)
+{
+	m0_net_buffer_pool_lock(&sbp->sb_bp);
+	m0_fom_wait_on(fom, &sbp->sb_wait, &fom->fo_cb);
+	m0_net_buffer_pool_unlock(&sbp->sb_bp);
+}
+
 M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 				     struct m0_cm_cp *cp)
 {
@@ -740,16 +789,18 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 	size_t                colour;
 	uint32_t              seg_nr = 0;
 	uint32_t              rem_bufs;
-
-	M0_PRE(m0_cm_is_locked(&scm->sc_base));
+	int                   rc = 0;
 
 	colour =  cp_home_loc_helper(cp) % bp->nbp_colours_nr;
 	rem_bufs = m0_sns_cm_cp_buf_nr(bp, cp->c_data_seg_nr);
 	rem_bufs -= cp->c_buf_nr;
+	m0_net_buffer_pool_lock(bp);
 	while (rem_bufs > 0) {
 		buf = m0_cm_buffer_get(bp, colour);
-		if (buf == NULL)
-			return -ENOBUFS;
+		if (buf == NULL) {
+			rc = -ENOBUFS;
+			goto out;
+		}
 		m0_cm_cp_buf_add(cp, buf);
 		if (cp->c_data_seg_nr > (cp->c_buf_nr * bp->nbp_seg_nr))
 			seg_nr = bp->nbp_seg_nr;
@@ -758,41 +809,18 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 				 ((cp->c_buf_nr - 1) * bp->nbp_seg_nr);
 		buf->nb_buffer.ov_vec.v_nr = seg_nr;
 		M0_CNT_DEC(rem_bufs);
+
 		if (!scp->sc_is_local) {
 			if (scm->sc_ibp_reserved_nr > 0)
 				M0_CNT_DEC(scm->sc_ibp_reserved_nr);
 		}
+
 	}
-
-	return 0;
-}
-
-static void __buffer_pools_prune(struct m0_net_buffer_pool *bp, uint32_t buf_nr)
-{
-	M0_PRE(bp != NULL && buf_nr < bp->nbp_buf_nr);
-
-	m0_net_buffer_pool_lock(bp);
-	while (buf_nr > 0) {
-		m0_net_buffer_pool_prune(bp);
-		M0_CNT_DEC(buf_nr);
-	}
+	if (bp->nbp_free > 0)
+		bp->nbp_ops->nbpo_not_empty(bp);
+out:
 	m0_net_buffer_pool_unlock(bp);
-
-}
-
-M0_INTERNAL void m0_sns_cm_buffer_pools_prune(struct m0_cm *cm)
-{
-	struct m0_sns_cm *scm;
-	uint32_t buf_nr;
-
-	M0_PRE(cm != NULL);
-
-	scm = cm2sns(cm);
-	if (scm->sc_ibp.sb_bp.nbp_buf_nr > SNS_INCOMING_BUF_NR &&
-		scm->sc_ibp.sb_bp.nbp_free > scm->sc_ibp_reserved_nr) {
-		buf_nr = scm->sc_ibp.sb_bp.nbp_free - (scm->sc_ibp_reserved_nr / 2);
-		__buffer_pools_prune(&scm->sc_ibp.sb_bp, buf_nr);
-	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
@@ -867,13 +895,11 @@ M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 	M0_PRE(scm != NULL && pl != NULL);
 	M0_PRE(m0_cm_is_locked(&scm->sc_base));
 
-	m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
 	if (nr_bufs + scm->sc_ibp_reserved_nr > scm->sc_ibp.sb_bp.nbp_free)
 		goto out;
 	scm->sc_ibp_reserved_nr += nr_bufs;
 	result = true;
 out:
-	m0_net_buffer_pool_unlock(&scm->sc_ibp.sb_bp);
 	M0_LOG(M0_DEBUG, "nr_bufs: [%lu] free buffers in: [%u] out: [%u] \
 	       sc_ibp_reserved_nr: [%lu]", nr_bufs, scm->sc_ibp.sb_bp.nbp_free,
 	       scm->sc_obp.sb_bp.nbp_free, scm->sc_ibp_reserved_nr);

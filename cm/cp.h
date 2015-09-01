@@ -261,6 +261,8 @@ M0_INTERNAL void m0_cm_cp_only_init(struct m0_cm *cm, struct m0_cm_cp *cp);
  */
 M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp);
 
+M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_fom *fom);
+
 /**
  * Finalises generic copy packet only.
  */
@@ -271,7 +273,7 @@ M0_INTERNAL void m0_cm_cp_only_fini(struct m0_cm_cp *cp);
  *
  * @pre cp->c_fom.fo_phase == M0_FOPH_FINISH
  */
-M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_cm_cp *cp);
+M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp);
 
 /** Submits copy packet FOM to request handler for processing.*/
 M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp);
@@ -291,6 +293,7 @@ M0_INTERNAL uint64_t m0_cm_cp_nr(struct m0_cm_cp *cp);
  * This is required in order to use RS code APIs.
  */
 M0_INTERNAL int m0_cm_cp_bufvec_merge(struct m0_cm_cp *cp);
+M0_INTERNAL void m0_cm_cp_buf_move(struct m0_cm_cp *src, struct m0_cm_cp *dest);
 /**
  * The meta-data of the @src is copied to @dest and the data buffers are
  * detached from @src and attached to @dest to avoid data copy. After

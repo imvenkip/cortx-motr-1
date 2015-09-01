@@ -58,9 +58,7 @@ struct m0_cm_cp_pump {
 	struct m0_cm_cp       *p_cp;
 	uint64_t               p_magix;
 	/** Set true by m0_cm_cp_pump_stop() */
-	bool		       p_shutdown;
-	struct m0_chan         p_signal;
-	struct m0_mutex        p_signal_mutex;
+	struct m0_sm_ast       p_wakeup;
 };
 
 M0_INTERNAL void m0_cm_cp_pump_init(struct m0_cm_type *cmtype);

@@ -201,7 +201,6 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 						      px_sw_onwire_ast);
 	struct m0_cm            *cm    = proxy->px_cm;
 	struct m0_cm_aggr_group *lo;
-	struct m0_cm_aggr_group *hi;
 	struct m0_cm_ag_id       id_lo;
 	struct m0_cm_ag_id       id_hi;
 	struct m0_cm_sw          sw;
@@ -214,15 +213,13 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	lo = m0_cm_ag_lo(cm);
 	if (lo != NULL)
 		id_lo = lo->cag_id;
-	hi = m0_cm_ag_hi(cm);
-	if (hi != NULL)
-		id_hi = hi->cag_id;
+	id_hi = cm->cm_sw_last_updated_hi;
 	m0_cm_sw_set(&sw, &id_lo, &id_hi);
 	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %lu",
 			 proxy->px_endpoint, cm->cm_aggr_grps_in_nr);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
-	if (cm->cm_aggr_grps_in_nr > 0 || cm->cm_aggr_grps_out_nr > 0) {
+	if (m0_cm_has_more_data(cm) || !m0_cm_aggr_group_tlists_are_empty(cm)) {
 		rc = m0_cm_proxy_remote_update(proxy, &sw);
 		M0_ASSERT(rc == 0);
 	} else {

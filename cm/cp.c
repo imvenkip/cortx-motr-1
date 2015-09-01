@@ -26,6 +26,7 @@
 #include "lib/misc.h"   /* m0_forall */
 #include "lib/memory.h"
 #include "lib/errno.h"
+
 #include "mero/magic.h"
 #include "reqh/reqh.h"
 #include "net/buffer_pool.h"
@@ -416,31 +417,24 @@ M0_INTERNAL const struct m0_fom_type_ops cp_fom_type_ops = {
 	.fto_create = cp_fom_create
 };
 
-static void cp_fom_fini(struct m0_fom *fom)
+M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp         *cp = bob_of(fom, struct m0_cm_cp, c_fom,
 					     &cp_bob);
 	struct m0_cm_aggr_group *ag = cp->c_ag;
-	struct m0_cm            *cm = ag->cag_cm;
-	int                      cp_rc;
+	bool                     can_fini;
+
 	M0_ENTRY();
 
-	m0_cm_lock(cm);
-	cp_rc = cp->c_rc;
-	m0_cm_cp_fom_fini(cp);
+	m0_cm_cp_fini(cp);
 	cp->c_ops->co_free(cp);
-	if (cp_rc == 0) {
-		M0_CNT_INC(ag->cag_freed_cp_nr);
-		if (ag->cag_ops->cago_ag_can_fini(ag))
-			ag->cag_ops->cago_fini(ag);
-	}
-	/*
-	 * Try to create a new copy packet since this copy packet is
-	 * making way for new copy packets in sliding window.
-	 */
-	if (m0_cm_has_more_data(cm))
-		m0_cm_continue(cm);
-	m0_cm_unlock(cm);
+	m0_cm_ag_lock(ag);
+	M0_CNT_INC(ag->cag_freed_cp_nr);
+	can_fini = ag->cag_ops->cago_ag_can_fini(ag);
+	m0_cm_ag_unlock(ag);
+	if (can_fini)
+		m0_sm_ast_post(&ag->cag_cm->cm_sm_group, &ag->cag_fini_ast);
+
 	M0_LEAVE();
 }
 
@@ -466,7 +460,7 @@ static int cp_fom_tick(struct m0_fom *fom)
 
 /** Copy packet FOM operations */
 static const struct m0_fom_ops cp_fom_ops = {
-	.fo_fini          = cp_fom_fini,
+	.fo_fini          = m0_cm_cp_fom_fini,
 	.fo_tick          = cp_fom_tick,
 	.fo_home_locality = cp_fom_locality
 };
@@ -588,7 +582,7 @@ M0_INTERNAL bool m0_cm_cp_invariant(const struct m0_cm_cp *cp)
 {
 	const struct m0_cm_cp_ops *ops = cp->c_ops;
 
-	return m0_cm_cp_bob_check(cp) && ops != NULL && cp->c_buf_nr > 0 &&
+	return m0_cm_cp_bob_check(cp) && ops != NULL &&
 	       cp->c_ag != NULL &&
 	       m0_fom_phase(&cp->c_fom) < ops->co_action_nr &&
 	       cp->c_ops->co_invariant(cp) &&
@@ -633,7 +627,7 @@ M0_INTERNAL void m0_cm_cp_only_fini(struct m0_cm_cp *cp)
 	m0_cm_cp_bob_fini(cp);
 }
 
-M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_cm_cp *cp)
+M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
 {
 	m0_fom_fini(&cp->c_fom);
 	m0_cm_cp_only_fini(cp);
@@ -665,15 +659,23 @@ M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp)
 {
 	struct m0_net_buffer_pool *nbp;
 	struct m0_net_buffer      *nbuf;
+	struct m0_net_buffer      *nbuf_head;
 	uint64_t                   colour;
 
-	m0_tl_for(cp_data_buf, &cp->c_buffers, nbuf) {
-		nbp = nbuf->nb_pool;
+	nbuf_head = cp_data_buf_tlist_head(&cp->c_buffers);
+	if (nbuf_head != NULL) {
+		nbp = nbuf_head->nb_pool;
 		M0_ASSERT(nbp != NULL);
-		colour = cp->c_ops->co_home_loc_helper(cp) % nbp->nbp_colours_nr;
-		cp_data_buf_tlink_del_fini(nbuf);
-		m0_cm_buffer_put(nbp, nbuf, colour);
-	} m0_tl_endfor;
+		m0_net_buffer_pool_lock(nbp);
+		m0_tl_for(cp_data_buf, &cp->c_buffers, nbuf) {
+			colour = cp->c_ops->co_home_loc_helper(cp) %
+						nbp->nbp_colours_nr;
+			cp_data_buf_tlink_del_fini(nbuf);
+			m0_cm_buffer_put(nbp, nbuf, colour);
+		} m0_tl_endfor;
+		nbp->nbp_ops->nbpo_not_empty(nbp);
+		m0_net_buffer_pool_unlock(nbp);
+	}
 	cp_data_buf_tlist_fini(&cp->c_buffers);
 }
 
@@ -707,11 +709,21 @@ M0_INTERNAL int m0_cm_cp_bufvec_merge(struct m0_cm_cp *cp)
 	return 0;
 }
 
+M0_INTERNAL void m0_cm_cp_buf_move(struct m0_cm_cp *src, struct m0_cm_cp *dest)
+{
+	struct m0_net_buffer *nbuf;
+	M0_PRE(src->c_data_seg_nr == dest->c_data_seg_nr);
+
+	m0_tl_for(cp_data_buf, &src->c_buffers, nbuf) {
+		cp_data_buf_tlink_del_fini(nbuf);
+		m0_cm_cp_buf_add(dest, nbuf);
+	} m0_tl_endfor;
+}
+
 M0_INTERNAL int m0_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest)
 {
 	struct m0_cm         *cm;
 	struct m0_cm_cp      *cp;
-	struct m0_net_buffer *nbuf;
 
 	cm = src->c_ag->cag_cm;
 	cp = cm->cm_ops->cmo_cp_alloc(cm);
@@ -723,10 +735,7 @@ M0_INTERNAL int m0_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest)
 	m0_cm_cp_fom_init(cm, cp);
 	m0_bitmap_init(&cp->c_xform_cp_indices,
 		       src->c_xform_cp_indices.b_nr);
-	m0_tl_for(cp_data_buf, &src->c_buffers, nbuf) {
-		cp_data_buf_tlink_del_fini(nbuf);
-		m0_cm_cp_buf_add(cp, nbuf);
-	} m0_tl_endfor;
+	m0_cm_cp_buf_move(src, cp);
 	if (src->c_xform_cp_indices.b_nr > 0)
 		m0_bitmap_copy(&cp->c_xform_cp_indices, &src->c_xform_cp_indices);
 	*dest = cp;

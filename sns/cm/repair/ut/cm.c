@@ -172,7 +172,6 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_SNS_REPAIRING);
 	rc = cm->cm_ops->cmo_start(cm);
 	M0_UT_ASSERT(rc == 0);
-	m0_chan_init(&cm->cm_sw_update.swu_signal, &cm->cm_sm_group.s_lock);
         service = m0_reqh_service_find(&m0_rms_type, reqh),
         M0_ASSERT(service != NULL);
 }
@@ -440,7 +439,6 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	M0_UT_ASSERT(rc == 0);
 	_cpp_tx_close(cm);
 
-	m0_chan_fini(&cm->cm_sw_update.swu_signal);
 	m0_cm_unlock(cm);
 	cobs_delete(nr_files, pool_width);
 	/* Transition the failed device M0_PNDS_SNS_REBALANCING->M0_PNDS_ONLINE,

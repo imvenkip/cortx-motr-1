@@ -32,6 +32,8 @@ extern struct m0_mero sctx;
 /* Populates the bufvec with a character value. */
 void bv_populate(struct m0_bufvec *b, char data, uint32_t seg_nr,
 		 uint32_t seg_size);
+void bv_alloc_populate(struct m0_bufvec *b, char data, uint32_t seg_nr,
+		       uint32_t seg_size);
 
 /* Compares 2 bufvecs and asserts if not equal. */
 void bv_compare(struct m0_bufvec *b1, struct m0_bufvec *b2, uint32_t seg_nr,
@@ -44,6 +46,7 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
                 struct m0_sns_cm_ag *sns_ag, char data,
 		struct m0_fom_ops *cp_fom_ops, struct m0_reqh *reqh,
 		uint64_t cp_ag_idx, bool is_acc_cp, struct m0_cm *scm);
+struct m0_sns_cm *reqh2snscm(struct m0_reqh *reqh);
 
 int cs_init(struct m0_mero *sctx);
 void cs_fini(struct m0_mero *sctx);

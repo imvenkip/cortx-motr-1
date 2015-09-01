@@ -67,7 +67,7 @@ enum {
 /* Over-ridden copy packet FOM fini. */
 static void dummy_fom_fini(struct m0_fom *fom)
 {
-	m0_cm_cp_fom_fini(container_of(fom, struct m0_cm_cp, c_fom));
+	m0_cm_cp_fini(container_of(fom, struct m0_cm_cp, c_fom));
 }
 
 /* Over-ridden copy packet FOM locality (using single locality). */

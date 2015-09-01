@@ -125,7 +125,10 @@ static int ai_group_next(struct m0_sns_cm_ag_iter *ai)
 	struct m0_pdclust_layout *pl = m0_layout_to_pdl(l);
 	struct m0_sns_cm         *scm = ai2sns(ai);
 	struct m0_cm             *cm = &scm->sc_base;
-	uint64_t                  fsize = ai->ai_fctx->sf_attr.ca_size;
+	struct m0_cm_aggr_group  *ag;
+	struct m0_fom            *fom;
+	struct m0_sns_cm_file_ctx *fctx = ai->ai_fctx;
+	uint64_t                  fsize = fctx->sf_attr.ca_size;
 	uint64_t                  nr_groups = m0_sns_cm_nr_groups(pl, fsize);
 	uint64_t                  group = agid2group(&ai->ai_id_curr);
 	uint64_t                  i;
@@ -133,15 +136,27 @@ static int ai_group_next(struct m0_sns_cm_ag_iter *ai)
 
 	if (m0_cm_ag_id_is_set(&ai->ai_id_curr))
 		++group;
+	fom = &fctx->sf_scm->sc_base.cm_sw_update.swu_fom;
 	for (i = group; i < nr_groups; ++i) {
 		m0_sns_cm_ag_agid_setup(&ai->ai_fid, i, &ag_id);
 		if (!m0_sns_cm_ag_is_relevant(scm, pl, ai->ai_fctx->sf_pi,
 					      &ag_id))
 			continue;
-		if (!cm->cm_ops->cmo_has_space(cm, &ag_id, l))
-			rc = -ENOSPC;
+		m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
+		if (!cm->cm_ops->cmo_has_space(cm, &ag_id, l)) {
+			m0_fom_wait_on(fom, &scm->sc_ibp.sb_wait, &fom->fo_cb);
+			rc = -ENOBUFS;
+		}
+		m0_net_buffer_pool_unlock(&scm->sc_ibp.sb_bp);
 		if (rc == 0) {
 			ai->ai_id_next = ag_id;
+			ag = m0_cm_aggr_group_locate(cm, &ag_id, true);
+			if (ag == NULL) {
+				rc = m0_cm_aggr_group_alloc(cm, &ag_id,
+							    true, &ag);
+				if (rc != 0)
+					return M0_ERR(rc);
+			}
 			rc = M0_FSO_AGAIN;
 		}
 		return M0_RC(rc);
@@ -216,7 +231,7 @@ static int ai_fid_next(struct m0_sns_cm_ag_iter *ai)
 	struct m0_sns_cm *scm = ai2sns(ai);
 	struct m0_cm     *cm = &scm->sc_base;
 
-	if (!m0_cm_has_more_data(cm)) {
+	if (cm->cm_quiesce) {
 		M0_LOG(M0_WARN, "%lu: Got QUIESCE cmd", cm->cm_id);
 		return M0_RC(-ENODATA);
 	}
@@ -254,6 +269,9 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 	struct m0_fid              fid;
 	int                        rc;
 
+	if (ai_state(ai) > AIS_GROUP_NEXT)
+		return -ENOENT;
+
 	ai->ai_id_curr = *id_curr;
 	agid2fid(&ai->ai_id_curr, &fid);
 	fctx = ai->ai_fctx;
@@ -274,8 +292,6 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 		if (ai_state(ai) != AIS_FID_LOCK)
 			ai_state_set(ai, AIS_FID_LOCK);
 	}
-	if (ai_state(ai) > AIS_GROUP_NEXT)
-		return -ENOENT;
 
 	do {
 		rc = ai_action[ai_state(ai)](ai);

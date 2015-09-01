@@ -49,21 +49,27 @@ struct m0_net_xprt *sr_xprts[] = {
 FILE           *lfile;
 struct m0_mero  sctx;
 
-/* Populates the bufvec with a character value. */
 void bv_populate(struct m0_bufvec *b, char data, uint32_t seg_nr,
 		 uint32_t seg_size)
 {
         int i;
 
-        M0_UT_ASSERT(b != NULL);
-        M0_UT_ASSERT(m0_bufvec_alloc_aligned(b, seg_nr, seg_size,
-					     M0_0VEC_SHIFT) == 0);
-        M0_UT_ASSERT(b->ov_vec.v_nr == seg_nr);
         for (i = 0; i < seg_nr; ++i) {
                 M0_UT_ASSERT(b->ov_vec.v_count[i] == seg_size);
                 M0_UT_ASSERT(b->ov_buf[i] != NULL);
                 memset(b->ov_buf[i], data, seg_size);
         }
+}
+
+/* Populates the bufvec with a character value. */
+void bv_alloc_populate(struct m0_bufvec *b, char data, uint32_t seg_nr,
+		 uint32_t seg_size)
+{
+        M0_UT_ASSERT(b != NULL);
+        M0_UT_ASSERT(m0_bufvec_alloc_aligned(b, seg_nr, seg_size,
+					     M0_0VEC_SHIFT) == 0);
+        M0_UT_ASSERT(b->ov_vec.v_nr == seg_nr);
+	bv_populate(b, data, seg_nr, seg_size);
 }
 
 /* Compares 2 bufvecs and asserts if not equal. */
@@ -102,15 +108,17 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 	struct m0_reqh_service *service;
 	struct m0_cm           *cm;
 
-        M0_UT_ASSERT(cp != NULL);
-        M0_UT_ASSERT(buf != NULL);
-        M0_UT_ASSERT(sns_ag != NULL);
+	M0_UT_ASSERT(cp != NULL);
+	M0_UT_ASSERT(buf != NULL);
+	M0_UT_ASSERT(sns_ag != NULL);
 
-        bv_populate(&buf->nb_buffer, data, bv_seg_nr, bv_seg_size);
-        cp->c_ag = &sns_ag->sag_base;
+	if (buf->nb_buffer.ov_buf == NULL)
+		bv_alloc_populate(&buf->nb_buffer, data, bv_seg_nr, bv_seg_size);
+	else
+		bv_populate(&buf->nb_buffer, data, bv_seg_nr, bv_seg_size);
+	cp->c_ag = &sns_ag->sag_base;
 	if (scm == NULL) {
-		service = m0_reqh_service_find(&sns_repair_cmt.ct_stype,
-					       reqh);
+		service = m0_reqh_service_find(&sns_repair_cmt.ct_stype, reqh);
 		M0_UT_ASSERT(service != NULL);
 		cm = container_of(service, struct m0_cm, cm_service);
 		M0_UT_ASSERT(cm != NULL);
@@ -125,9 +133,21 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 	cp->c_data_seg_nr = bv_seg_nr;
 	buf->nb_pool->nbp_seg_nr = bv_seg_nr;
 	buf->nb_pool->nbp_seg_size = bv_seg_size;
-	buf->nb_pool->nbp_buf_nr = 1;
 	cp->c_fom.fo_ops = cp_fom_ops;
 	cp->c_ag_cp_idx = cp_ag_idx;
+}
+
+struct m0_sns_cm *reqh2snscm(struct m0_reqh *reqh)
+{
+	struct m0_reqh_service *service;
+	struct m0_cm           *cm;
+
+	service = m0_reqh_service_find(&sns_repair_cmt.ct_stype,
+				       reqh);
+	M0_UT_ASSERT(service != NULL);
+	cm = container_of(service, struct m0_cm, cm_service);
+	M0_UT_ASSERT(cm != NULL);
+	return cm2sns(cm);
 }
 
 /*

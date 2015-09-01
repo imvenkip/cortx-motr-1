@@ -169,14 +169,14 @@ static void single_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
 
-	m0_cm_cp_fom_fini(cp);
+	m0_cm_cp_fini(cp);
 }
 
 static void multiple_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
 
-	m0_cm_cp_fom_fini(cp);
+	m0_cm_cp_fini(cp);
 }
 
 /* Over-ridden copy packet FOM ops. */
@@ -265,14 +265,14 @@ static void ag_prepare(struct m0_sns_cm_repair_ag *rag, int failure_nr,
 /* Tests the correctness of the bufvec_xor function. */
 static void test_bufvec_xor()
 {
-	bv_populate(&src, '4', SEG_NR, SEG_SIZE);
-	bv_populate(&dst, 'D', SEG_NR, SEG_SIZE);
+	bv_alloc_populate(&src, '4', SEG_NR, SEG_SIZE);
+	bv_alloc_populate(&dst, 'D', SEG_NR, SEG_SIZE);
 	/*
 	 * Actual result is anticipated and stored in new bufvec, which is
 	 * used for comparison with xor'ed output.
 	 * 4 XOR D = p
 	 */
-	bv_populate(&xor, 'p', SEG_NR, SEG_SIZE);
+	bv_alloc_populate(&xor, 'p', SEG_NR, SEG_SIZE);
 	bufvec_xor(&dst, &src, SEG_SIZE * SEG_NR);
 	bv_compare(&dst, &xor, SEG_NR, SEG_SIZE);
 	bv_free(&src);
@@ -379,7 +379,7 @@ static void buffers_attach(struct m0_net_buffer *nb, struct m0_cm_cp *cp,
 	int i;
 
         for (i = 1; i < BUF_NR; ++i) {
-                bv_populate(&nb[i].nb_buffer, data, SEG_NR, SEG_SIZE);
+                bv_alloc_populate(&nb[i].nb_buffer, data, SEG_NR, SEG_SIZE);
                 m0_cm_cp_buf_add(cp, &nb[i]);
                 nb[i].nb_pool = &nbp;
                 nb[i].nb_pool->nbp_seg_nr = SEG_NR;
@@ -478,7 +478,7 @@ static void test_multi_cp_multi_failures(void)
 	m0_reqh_idle_wait(reqh);
 
 	/* Verify that first accumulator contains recovered data for D1. */
-	bv_populate(&src, 's', SEG_NR, SEG_SIZE);
+	bv_alloc_populate(&src, 's', SEG_NR, SEG_SIZE);
 	m0_tl_for(cp_data_buf, &n_rag.rag_fc[0].fc_tgt_acc_cp.sc_base.c_buffers,
 		  nbuf) {
 		bv_compare(&src, &nbuf->nb_buffer, SEG_NR, SEG_SIZE);
@@ -486,7 +486,7 @@ static void test_multi_cp_multi_failures(void)
 	bv_free(&src);
 
 	/* Verify that first accumulator contains recovered data for P2. */
-	bv_populate(&src, 'p', SEG_NR, SEG_SIZE);
+	bv_alloc_populate(&src, 'p', SEG_NR, SEG_SIZE);
 	m0_tl_for(cp_data_buf, &n_rag.rag_fc[1].fc_tgt_acc_cp.sc_base.c_buffers,
 		  nbuf) {
 		bv_compare(&src, &nbuf->nb_buffer, SEG_NR, SEG_SIZE);

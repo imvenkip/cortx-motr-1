@@ -126,7 +126,6 @@ struct m0_sns_cm_buf_pool {
 	 * buffer pool is released back to the buffer pool
 	 */
 	struct m0_chan            sb_wait;
-	struct m0_mutex           sb_wait_mutex;
 };
 
 /**
@@ -167,6 +166,9 @@ struct m0_sns_cm_helpers {
 
 	int      (*sch_ag_setup)(struct m0_sns_cm_ag *sag,
 				 struct m0_pdclust_layout *pl);
+
+	int      (*sch_cob_locate)(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
+				   const struct m0_fid *cob_fid);
 
 };
 
@@ -233,7 +235,8 @@ struct m0_sns_cm {
 	 */
 	m0_time_t                       sc_stop_time;
 
-	struct m0_fom_simple            sc_file_lock_fom;
+	size_t                          *sc_total_read_size;
+	size_t                          *sc_total_write_size;
 
 	/**
 	 * The hash table of file contexts of the fids being
@@ -266,8 +269,8 @@ M0_INTERNAL void m0_sns_cm_buffer_put(struct m0_net_buffer_pool *bp,
 					  struct m0_net_buffer *buf,
 					  uint64_t colour);
 
-M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
-				     struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp, struct m0_cm_cp *cp);
+M0_INTERNAL void m0_sns_cm_buf_wait(struct m0_sns_cm_buf_pool *sbp, struct m0_fom *fom);
 
 M0_INTERNAL struct m0_sns_cm *cm2sns(struct m0_cm *cm);
 
@@ -298,8 +301,6 @@ m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 					   struct m0_pdclust_layout *pl);
 
-M0_INTERNAL void m0_sns_cm_buf_available(struct m0_net_buffer_pool *pool);
-
 M0_INTERNAL uint64_t m0_sns_cm_cp_buf_nr(struct m0_net_buffer_pool *bp,
                                          uint64_t data_seg_nr);
 
@@ -328,7 +329,8 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
  *        3 if SNS repair has started and completed for @gfid.
  */
 M0_INTERNAL enum sns_repair_state
-m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh);
+m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh,
+			  enum m0_pool_nd_state device_state);
 
 M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm);
 M0_INTERNAL void  m0_sns_cm_rm_fini(struct m0_sns_cm *scm);

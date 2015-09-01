@@ -259,8 +259,6 @@
    See @ref CMSWFOM "Sliding window update fom".
    @see struct m0_cm_sw_update
    @see m0_cm_sw_update_start()
-   @see m0_cm_sw_update_continue()
-   @see m0_cm_sw_update_stop()
 
    @subsection CMDLD-lspec-cm-sliding-window-persistence Copy machine sliding \
  window persistence
@@ -572,8 +570,6 @@ M0_INTERNAL bool m0_cm_is_locked(const struct m0_cm *cm)
 
 M0_INTERNAL enum m0_cm_state m0_cm_state_get(const struct m0_cm *cm)
 {
-	M0_PRE(m0_cm_is_locked(cm));
-
 	return (enum m0_cm_state)cm->cm_mach.sm_state;
 }
 
@@ -699,11 +695,11 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 		goto out;
 	}
 
+	cm->cm_quiesce = false;
 	rc = cm->cm_ops->cmo_prepare(cm);
 	if (rc != 0)
 		goto out;
 	cm->cm_ready_fops_recvd = 0;
-	cm->cm_quiesce = false;
 	rmach = m0_cm_rpc_machine_find(reqh);
 	rc = cm_replicas_connect(cm, rmach, reqh);
 	if (rc == -ENOENT)
@@ -807,13 +803,11 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	 * before starting new restructuring operation.
 	 */
 	m0_cm_state_set(cm, M0_CMS_STOP);
-	m0_cm_unlock(cm);
-	m0_cm_lock(cm);
-	rc = cm->cm_ops->cmo_stop(cm);
 	m0_cm_proxies_fini(cm);
 	m0_cm_ast_run_fom_wakeup(cm);
-	m0_cm_sw_update_stop(cm);
+	rc = cm->cm_ops->cmo_stop(cm);
 	cm_move(cm, rc, M0_CMS_IDLE, M0_CM_ERR_STOP);
+	M0_SET0(&cm->cm_sw_last_updated_hi);
 
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -953,15 +947,6 @@ M0_INTERNAL void m0_cm_type_deregister(struct m0_cm_type *cmtype)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_cm_continue(struct m0_cm *cm)
-{
-	M0_ENTRY("cm: %p", cm);
-
-	m0_cm_cp_pump_wakeup(cm);
-
-	M0_LEAVE();
-}
-
 M0_INTERNAL int m0_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 {
 	int rc;
@@ -991,14 +976,13 @@ M0_INTERNAL struct m0_net_buffer *m0_cm_buffer_get(struct m0_net_buffer_pool
 	struct m0_net_buffer *buf;
 	int                   i;
 
-	m0_net_buffer_pool_lock(bp);
 	M0_ASSERT(m0_net_buffer_pool_invariant(bp));
 	buf = m0_net_buffer_pool_get(bp, colour);
+
 	if (buf != NULL) {
 		for (i = 0; i < bp->nbp_seg_nr; ++i)
 			memset(buf->nb_buffer.ov_buf[i], 0, bp->nbp_seg_size);
 	}
-	m0_net_buffer_pool_unlock(bp);
 
 	return buf;
 }
@@ -1007,9 +991,7 @@ M0_INTERNAL void m0_cm_buffer_put(struct m0_net_buffer_pool *bp,
 				  struct m0_net_buffer *buf,
 				  uint64_t colour)
 {
-	m0_net_buffer_pool_lock(bp);
 	m0_net_buffer_pool_put(bp, buf, colour);
-	m0_net_buffer_pool_unlock(bp);
 }
 
 static int cm_ast_run_fom_tick(struct m0_fom *fom, struct m0_cm *cm, int *phase)
@@ -1036,7 +1018,7 @@ static int cm_ast_run_fom_tick(struct m0_fom *fom, struct m0_cm *cm, int *phase)
 static void cm_ast_run_fom_init(struct m0_cm *cm)
 {
 	M0_FOM_SIMPLE_POST(&cm->cm_ast_run_fom, cm->cm_service.rs_reqh, NULL,
-			   cm_ast_run_fom_tick, NULL, cm, 2);
+			   cm_ast_run_fom_tick, NULL, cm, 1);
 }
 
 M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm)
@@ -1046,7 +1028,8 @@ M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm)
 
 M0_INTERNAL void m0_cm_ready_done(struct m0_cm *cm)
 {
-	m0_chan_signal_lock(&cm->cm_ready_wait);
+	if (m0_chan_has_waiters(&cm->cm_ready_wait))
+		m0_chan_signal_lock(&cm->cm_ready_wait);
 }
 
 M0_INTERNAL void m0_cm_complete(struct m0_cm *cm)

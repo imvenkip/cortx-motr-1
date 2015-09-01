@@ -94,6 +94,12 @@ M0_INTERNAL bool m0_cm_ag_id_is_set(const struct m0_cm_ag_id *id)
 	return m0_cm_ag_id_cmp(id, &id0) != 0;
 }
 
+static void _fini_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_cm_aggr_group *ag = M0_AMB(ag, ast, cag_fini_ast);
+	ag->cag_ops->cago_fini(ag);
+}
+
 M0_INTERNAL void m0_cm_aggr_group_init(struct m0_cm_aggr_group *ag,
 				       struct m0_cm *cm,
 				       const struct m0_cm_ag_id *id,
@@ -116,6 +122,7 @@ M0_INTERNAL void m0_cm_aggr_group_init(struct m0_cm_aggr_group *ag,
 	aggr_grps_out_tlink_init(ag);
 	ag->cag_ops = ag_ops;
 	ag->cag_cp_local_nr = ag->cag_ops->cago_local_cp_nr(ag);
+	ag->cag_fini_ast.sa_cb = _fini_ast_cb;
 	M0_LEAVE();
 }
 
@@ -150,7 +157,6 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	struct m0_cm_ag_id        id;
 	struct m0_cm_aggr_group  *hi;
 	struct m0_cm_aggr_group  *lo;
-	bool                      has_data;
 
 	M0_ENTRY("ag: %p", ag);
 	M0_ASSERT(ag != NULL);
@@ -166,18 +172,10 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 		ID_LOG("lo", &lo->cag_id);
 		ID_LOG("hi", &hi->cag_id);
 	}
-	m0_cm_sw_update_continue(cm);
 	m0_cm_aggr_group_fini(ag);
-	has_data = m0_cm_has_more_data(cm);
-	if (!has_data && cm->cm_aggr_grps_in_nr == 0 &&
-	    cm->cm_aggr_grps_out_nr == 0) {
-		M0_LOG(M0_DEBUG, "%lu: Complete the CM from AG", cm->cm_id);
-		m0_cm_complete(cm);
-	}
 
-	M0_LOG(M0_DEBUG, "%lu: has_data=%d in=[%lu] %p out=[%lu] %p",
-	       cm->cm_id, !!has_data,
-	       cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
+	M0_LOG(M0_DEBUG, "%lu: in=[%lu] %p out=[%lu] %p ",
+	       cm->cm_id, cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
 	       cm->cm_aggr_grps_out_nr, &cm->cm_aggr_grps_out);
 
 	M0_LEAVE();
@@ -290,7 +288,7 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	M0_PRE(m0_cm_is_locked(cm));
 
 	ID_INCOMING_LOG("id", id, has_incoming);
-	ID_LOG("last_saved_id", &cm->cm_last_saved_sw_hi);
+	ID_LOG("last_saved_id", &cm->cm_sw_last_updated_hi);
 
 	rc = cm->cm_ops->cmo_ag_alloc(cm, id, has_incoming, out);
 	M0_ASSERT(rc <= 0);
@@ -305,8 +303,9 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	 * window starting from the highest processed incoming aggregation
 	 * group identifier.
 	 */
-	if (has_incoming && m0_cm_ag_id_cmp(&cm->cm_last_saved_sw_hi, id) < 0)
-		cm->cm_last_saved_sw_hi = *id;
+	if (has_incoming && m0_cm_ag_id_cmp(&cm->cm_sw_last_updated_hi, id) < 0) {
+		cm->cm_sw_last_updated_hi = *id;
+	}
 
 	M0_ASSERT(rc <= 0);
 	return M0_RC(rc);
@@ -314,8 +313,7 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 
 M0_INTERNAL bool m0_cm_aggr_group_tlists_are_empty(struct m0_cm *cm)
 {
-	return aggr_grps_in_tlist_is_empty(&cm->cm_aggr_grps_in) &&
-	       aggr_grps_out_tlist_is_empty(&cm->cm_aggr_grps_out);
+	 return cm->cm_aggr_grps_in_nr == 0 && cm->cm_aggr_grps_out_nr == 0;
 }
 
 M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
@@ -323,26 +321,19 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 	int                      rc;
 	struct m0_cm_ag_id       next;
 	struct m0_cm_ag_id       id;
-	struct m0_cm_aggr_group *ag;
+
 	M0_ENTRY();
 
 	M0_PRE(m0_cm_is_locked(cm));
 
 	M0_SET0(&id);
 	M0_SET0(&next);
-	id = cm->cm_last_saved_sw_hi;
+	id = cm->cm_sw_last_updated_hi;
 	do {
 		ID_LOG("id", &id);
 		rc = cm->cm_ops->cmo_ag_next(cm, &id, &next);
 		M0_LOG(M0_DEBUG,  "next ["M0_AG_F"] rc=%d", M0_AG_P(&next), rc);
 		if (rc == 0 && m0_cm_ag_id_is_set(&next)) {
-			ag = m0_cm_aggr_group_locate(cm, &next, true);
-			if (ag == NULL) {
-				rc = m0_cm_aggr_group_alloc(cm, &next,
-							    true, &ag);
-				if (rc != 0)
-					break;
-			}
 			id = next;
 			M0_SET0(&next);
 		}

@@ -21,6 +21,7 @@
 #ifndef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #endif
+#include "lib/trace.h"
 #include "lib/memory.h" /* m0_free() */
 #include "lib/misc.h"
 

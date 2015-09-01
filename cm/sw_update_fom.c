@@ -64,46 +64,49 @@ static const struct m0_fom_type_ops cm_sw_update_fom_type_ops = {
 static struct m0_sm_state_descr cm_sw_update_sd[SWU_NR] = {
 	[SWU_STORE_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
-		.sd_name    = "Sliding window store init",
+		.sd_name    = "Store init",
 		.sd_allowed = M0_BITS(SWU_STORE_INIT_WAIT, SWU_UPDATE, SWU_FINI)
 	},
 	[SWU_STORE_INIT_WAIT] = {
 		.sd_flags   = 0,
-		.sd_name    = "Sliding window store init wait",
+		.sd_name    = "Store init wait",
 		.sd_allowed = M0_BITS(SWU_STORE_INIT_WAIT, SWU_UPDATE, SWU_FINI)
 	},
+
+
 	[SWU_UPDATE] = {
 		.sd_flags   = 0,
-		.sd_name    = "Sliding window update",
+		.sd_name    = "Update",
 		.sd_allowed = M0_BITS(SWU_STORE, SWU_UPDATE, SWU_COMPLETE,
 				      SWU_FINI)
 	},
+
 	[SWU_STORE] = {
 		.sd_flags   = 0,
-		.sd_name    = "sliding window persistent store",
+		.sd_name    = "Store",
 		.sd_allowed = M0_BITS(SWU_STORE_WAIT, SWU_FINI)
 	},
 	[SWU_STORE_WAIT] = {
 		.sd_flags   = 0,
-		.sd_name    = "sliding window update fom wait",
+		.sd_name    = "Update wait",
 		.sd_allowed = M0_BITS(SWU_UPDATE, SWU_FINI)
 	},
 	[SWU_COMPLETE] = {
 		.sd_flags   = 0,
-		.sd_name    = "sliding window update complete",
+		.sd_name    = "Update complete",
 		.sd_allowed = M0_BITS(SWU_STORE_WAIT, SWU_FINI)
 	},
 	[SWU_FINI] = {
 		.sd_flags   = M0_SDF_TERMINAL,
-		.sd_name    = "sliding fom fini",
+		.sd_name    = "Fini",
 		.sd_allowed = 0
 	},
 };
 
-const static struct m0_sm_conf cm_sw_update_conf = {
+struct m0_sm_conf cm_sw_update_conf = {
 	.scf_name      = "sm: sw update conf",
 	.scf_nr_states = ARRAY_SIZE(cm_sw_update_sd),
-	.scf_state     = cm_sw_update_sd
+	.scf_state     = cm_sw_update_sd,
 };
 
 static struct m0_cm *cm_swu2cm(struct m0_cm_sw_update *swu)
@@ -123,7 +126,6 @@ static int swu_store_init(struct m0_cm_sw_update *swu)
 	int            phase;
 	int            rc;
 
-	M0_SET0(&cm->cm_last_saved_sw_hi);
 	rc = m0_cm_sw_store_init(cm, &fom->fo_loc->fl_group,
 				 &fom->fo_tx.tx_betx);
 	if (rc == 0 || rc == -ENOENT) {
@@ -166,7 +168,7 @@ static int swu_store_init_wait(struct m0_cm_sw_update *swu)
 		rc = m0_cm_sw_store_load(cm, &sw);
 		if (rc != 0)
 			return M0_RC(rc);
-		cm->cm_last_saved_sw_hi = sw->sw_lo;
+		cm->cm_sw_last_updated_hi = sw->sw_lo;
 		m0_fom_phase_move(fom, 0, SWU_UPDATE);
 		return M0_FSO_AGAIN;
 	default :
@@ -180,33 +182,40 @@ static int swu_store_init_wait(struct m0_cm_sw_update *swu)
 
 static int swu_update(struct m0_cm_sw_update *swu)
 {
-	struct m0_cm  *cm = cm_swu2cm(swu);
-	struct m0_fom *fom = &swu->swu_fom;
-	int            rc;
+	struct m0_cm            *cm = cm_swu2cm(swu);
+	struct m0_fom           *fom = &swu->swu_fom;
+	struct m0_cm_aggr_group *hi;
+	struct m0_cm_aggr_group *lo;
+	int                      rc;
 
-	M0_PRE(m0_cm_is_locked(cm));
-
-	if (!m0_cm_has_more_data(cm)) {
-		/* pump is complete. */
-		M0_LOG(M0_DEBUG, "pump completed. No more data.");
-		rc = -ENOENT;
-		goto no_more_data;
-	}
-
+	m0_cm_lock(cm);
 	rc = m0_cm_sw_local_update(cm);
 	if (rc == M0_FSO_WAIT)
-		return M0_RC(rc);
-	if (M0_IN(rc, (0, -ENOSPC, -ENOENT))) {
-		if (rc == -ENOENT) {
-no_more_data:
+		goto out;
+	if (M0_IN(rc, (0, -ENOBUFS, -ENOENT, -ENODATA))) {
+		M0_SET0(&swu->swu_sw);
+		hi = m0_cm_ag_hi(cm);
+		lo = m0_cm_ag_lo(cm);
+		if (hi == NULL || lo == NULL) {
 			swu->swu_is_complete = true;
-			m0_fom_phase_move(fom, 0, SWU_COMPLETE);
-		} else
-			m0_fom_phase_move(fom, 0, SWU_STORE);
-		m0_cm_ready_done(cm);
-		rc = M0_FSO_AGAIN;
+			rc = M0_FSO_AGAIN;
+		} else {
+			m0_cm_sw_set(&swu->swu_sw, &lo->cag_id,
+				     &hi->cag_id);
+		}
+		rc = rc == -ENOBUFS ? M0_FSO_WAIT : M0_FSO_AGAIN;
 	}
 
+	if (rc < 0) {
+		swu->swu_is_complete = true;
+		M0_LOG(M0_DEBUG, "SWU COMPLETE!! rc: %d", rc);
+		m0_fom_phase_move(fom, 0, SWU_COMPLETE);
+		rc = M0_FSO_AGAIN;
+	} else
+		m0_fom_phase_move(fom, 0, SWU_STORE);
+out:
+	m0_cm_ready_done(cm);
+	m0_cm_unlock(cm);
 	return M0_RC(rc);
 }
 
@@ -216,12 +225,7 @@ static int swu_store(struct m0_cm_sw_update *swu)
 	struct m0_fom            *fom = &swu->swu_fom;
 	struct m0_dtx            *tx = &fom->fo_tx;
 	struct m0_be_seg         *seg  = cm->cm_service.rs_reqh->rh_beseg;
-	struct m0_cm_aggr_group  *hi;
-	struct m0_cm_aggr_group  *lo;
-	struct m0_cm_sw           sw;
 	int                       rc;
-
-	M0_PRE(m0_cm_is_locked(cm));
 
 	if (tx->tx_state < M0_DTX_INIT) {
 		m0_dtx_init(tx, seg->bs_domain,
@@ -239,14 +243,8 @@ static int swu_store(struct m0_cm_sw_update *swu)
 		return M0_FSO_WAIT;
 	}
 
-	M0_SET0(&sw);
-	hi = m0_cm_ag_hi(cm);
-	lo = m0_cm_ag_lo(cm);
-	if (hi == NULL && lo == NULL)
-		return M0_ERR_INFO(-ENODATA, "Sliding window not updated."
-				   "Possibly not enough buffers !!");
 	m0_dtx_opened(tx);
-	rc = m0_cm_sw_store_update(cm, &tx->tx_betx, &sw);
+	rc = m0_cm_sw_store_update(cm, &tx->tx_betx, &swu->swu_sw);
 	if (rc != 0)
 		return M0_RC(rc);
 	m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
@@ -261,24 +259,26 @@ static int swu_store_wait(struct m0_cm_sw_update *swu)
 	struct m0_cm   *cm = cm_swu2cm(swu);
 	struct m0_fom  *fom = &swu->swu_fom;
 	struct m0_dtx  *tx = &fom->fo_tx;
-
-	M0_PRE(m0_cm_is_locked(cm));
+	int             rc = M0_FSO_WAIT;
 
 	if (tx->tx_state == M0_DTX_DONE) {
 		if (m0_be_tx_state(&tx->tx_betx) != M0_BTS_DONE) {
 			m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan,
 				       &fom->fo_cb);
-			goto out;
+		} else {
+			m0_dtx_fini(tx);
+			cm->cm_sw_last_persisted = swu->swu_sw;
+			M0_SET0(tx);
+			if (swu->swu_is_complete) {
+				m0_fom_phase_move(fom, 0, SWU_FINI);
+			} else {
+				m0_fom_phase_move(fom, 0, SWU_UPDATE);
+				rc = M0_FSO_AGAIN;
+			}
 		}
-		m0_dtx_fini(tx);
-		M0_SET0(tx);
-		if (swu->swu_is_complete)
-			m0_fom_phase_move(fom, 0, SWU_FINI);
-		else
-			m0_fom_phase_move(fom, 0, SWU_UPDATE);
 	}
-out:
-	return M0_FSO_WAIT;
+
+	return rc;
 }
 
 static int swu_complete(struct m0_cm_sw_update *swu)
@@ -290,19 +290,6 @@ static int swu_complete(struct m0_cm_sw_update *swu)
 	struct m0_cm_sw  *sw;
 	char              cm_sw_name[80];
 	int               rc;
-
-	M0_PRE(m0_cm_is_locked(cm));
-
-	if (cm->cm_quiesce) {
-		/*
-		 * Copy machine got QUIESCE cmd. On-disk persistent sw is
-		 * kept. So it can continue from this point in next run.
-		 */
-		M0_LOG(M0_WARN, "%lu:Got QUIESCE cmd: sw is kept.", cm->cm_id);
-		swu->swu_is_complete = true;
-		m0_fom_phase_move(fom, 0, SWU_FINI);
-		return M0_FSO_WAIT;
-	}
 
 	rc = m0_cm_sw_store_load(cm, &sw);
 	if (rc != 0)
@@ -348,32 +335,16 @@ static int (*swu_action[]) (struct m0_cm_sw_update *swu) = {
 
 static uint64_t cm_swu_fom_locality(const struct m0_fom *fom)
 {
-	return 0;
+	return fom->fo_type->ft_id;
 }
-
-static void _swu_wait(struct m0_cm_sw_update *swu)
-{
-	M0_ENTRY("swu = %p", swu);
-
-	m0_fom_wait_on(&swu->swu_fom, &swu->swu_signal,
-		       &swu->swu_fom.fo_cb);
-}
-
 static int cm_swu_fom_tick(struct m0_fom *fom)
 {
-	struct m0_cm           *cm;
 	struct m0_cm_sw_update *swu;
 	int                     phase = m0_fom_phase(fom);
 	int                     rc;
 
 	swu = cm_fom2swu(fom);
-	cm = cm_swu2cm(swu);
-	m0_cm_lock(cm);
 	rc = swu_action[phase](swu);
-	if (rc == M0_FSO_WAIT && m0_fom_phase(fom) != SWU_FINI &&
-	    !m0_fom_is_waiting_on(fom))
-		_swu_wait(swu);
-	m0_cm_unlock(cm);
 	if (rc < 0) {
 		m0_fom_phase_move(fom, 0, SWU_FINI);
 		rc = M0_FSO_WAIT;
@@ -406,28 +377,11 @@ M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm)
 	struct m0_fom          *fom = &swu->swu_fom;
 
 	swu->swu_is_complete = false;
-	m0_chan_init(&swu->swu_signal, &cm->cm_sm_group.s_lock);
-	m0_fom_init(fom, &cm->cm_type->ct_swu_fomt, &cm_sw_update_fom_ops, NULL,
-		    NULL, cm->cm_service.rs_reqh);
+	m0_fom_init(&cm->cm_sw_update.swu_fom, &cm->cm_type->ct_swu_fomt,
+		    &cm_sw_update_fom_ops, NULL, NULL, cm->cm_service.rs_reqh);
 	m0_fom_queue(fom, cm->cm_service.rs_reqh);
 
 	M0_LEAVE();
-}
-
-M0_INTERNAL void m0_cm_sw_update_continue(struct m0_cm *cm)
-{
-	M0_PRE(m0_cm_is_locked(cm));
-
-	m0_chan_signal(&cm->cm_sw_update.swu_signal);
-}
-
-M0_INTERNAL void m0_cm_sw_update_stop(struct m0_cm *cm)
-{
-	struct m0_cm_sw_update *swu = &cm->cm_sw_update;
-
-	M0_PRE(m0_cm_is_locked(cm));
-	M0_PRE(swu->swu_is_complete);
-	m0_chan_fini(&swu->swu_signal);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -223,7 +223,9 @@ struct m0_cm {
 	 * processed aggregation group identifier from the sliding window
 	 * avoids this situation.
 	 */
-	struct m0_cm_ag_id               cm_last_saved_sw_hi;
+	struct m0_cm_ag_id               cm_sw_last_updated_hi;
+
+	struct m0_cm_sw                  cm_sw_last_persisted;
 
 	/**
 	 * List of aggregation groups having outgoing copy packets from this

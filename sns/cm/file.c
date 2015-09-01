@@ -138,8 +138,10 @@ static void _fctx_fini(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_sns_cm_file_ctx *fctx = _AST2FCTX(ast, sf_fini_ast);
 
+	m0_cm_lock(&fctx->sf_scm->sc_base);
 	_fctx_status_set(fctx, M0_SCFS_FINI);
 	m0_sm_fini(&fctx->sf_sm);
+	m0_cm_unlock(&fctx->sf_scm->sc_base);
 	m0_free(fctx);
 }
 
@@ -243,7 +245,7 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 	fctx->sf_nr_ios_visited = 0;
 	m0_scmfctx_tlink_init(fctx);
 	m0_ref_init(&fctx->sf_ref, 1, sns_cm_fctx_release);
-	m0_sm_init(&fctx->sf_sm, &fctx_sm_conf, M0_SCFS_INIT, grp);
+	m0_sm_init(&fctx->sf_sm, &fctx_sm_conf, M0_SCFS_INIT, &scm->sc_base.cm_sm_group);
 	fctx->sf_group = grp;
 	fctx->sf_scm = scm;
 	if (!m0_sns_cm2reqh(scm)->rh_oostore)
@@ -501,8 +503,11 @@ static void _attr_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		fctx->sf_rc = _attr_fetch(fctx);
 		return;
 	}
-	if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_ATTR_FETCH)
+	if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_ATTR_FETCH) {
+		m0_cm_lock(&fctx->sf_scm->sc_base);
 		_fctx_status_set(fctx, M0_SCFS_ATTR_FETCHED);
+		m0_cm_unlock(&fctx->sf_scm->sc_base);
+	}
 }
 
 static inline void _attr_cb(void *arg, int rc)

@@ -1715,6 +1715,8 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	struct m0_rpc_session      *sess = &bp->bp_cctx->rcx_session;
 	struct m0_mero             *mero;
 	struct m0_pool_version     *pver;
+	struct m0_fid               tgfid;
+	struct m0_fid               tcfid;
 	int			    rc;
 
 	event.pe_type  = M0_POOL_DEVICE;
@@ -1753,7 +1755,9 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	wfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 	rw = io_rw_get(wfop);
 
-	rw->crw_fid = bp->bp_fids[0];
+	m0_fid_gob_make(&tgfid, 0, 1);
+	m0_fid_convert_gob2cob(&tgfid, &tcfid, 1);
+	rw->crw_fid = tcfid;
 	rw->crw_pver = CONF_PVER_FID;
 
 	m0_fi_enable_once("stob_be_credit", "no_write_credit");
@@ -1770,6 +1774,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	rfop->f_type->ft_ops = &io_fop_rwv_ops;
 	rfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 	rw = io_rw_get(rfop);
+	rw->crw_fid = tcfid;
 	rw->crw_pver = CONF_PVER_FID;
 
 	m0_fi_enable_once("stob_be_credit", "no_write_credit");

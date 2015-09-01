@@ -180,9 +180,7 @@ static int prepare(struct m0_fom *fom)
 		return M0_FSO_AGAIN;
 	}
 
-	m0_cm_lock(cm);
 	cm_state = m0_cm_state_get(cm);
-	m0_cm_unlock(cm);
 
 	if (M0_IN(treq->op, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
 		struct m0_fop                *rfop = fom->fo_rep_fop;

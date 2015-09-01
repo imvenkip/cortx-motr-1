@@ -117,13 +117,13 @@ static bool repair_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 }
 
 M0_INTERNAL enum sns_repair_state
-m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh)
+m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh,
+			  enum m0_pool_nd_state device_state)
 {
 	struct m0_sns_cm       *scm;
 	struct m0_cm	       *cm;
 	struct m0_reqh_service *service;
 	struct m0_fid           curr_gfid;
-	int			state;
 
 	M0_PRE(gfid != NULL && m0_fid_is_valid(gfid));
 	M0_PRE(reqh != NULL);
@@ -135,11 +135,13 @@ m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh)
 	scm = cm2sns(cm);
 
 	M0_SET0(&curr_gfid);
-	m0_cm_lock(cm);
-	state = m0_cm_state_get(cm);
-	if (state == M0_CMS_ACTIVE)
+	if (device_state == M0_PNDS_SNS_REPAIRED)
+		return SRS_REPAIR_DONE;
+	if (M0_IN(device_state, (M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REBALANCING))) {
+		m0_cm_lock(cm);
 		curr_gfid = scm->sc_it.si_fc.ifc_gfid;
-	m0_cm_unlock(cm);
+		m0_cm_unlock(cm);
+	}
 	if (curr_gfid.f_container == 0 && curr_gfid.f_key == 0)
 		return SRS_UNINITIALIZED;
 	return m0_fid_cmp(gfid, &curr_gfid) > 0 ? SRS_REPAIR_NOTDONE :

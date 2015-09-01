@@ -213,10 +213,14 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 
 	M0_ENTRY("cp=%p op=%d", cp, op);
 
+	sns_cp = cp2snscp(cp);
+	if (op == SIO_READ && sns_cp->sc_has_no_cob) {
+		cp->c_ops->co_phase_next(cp);
+		return M0_FSO_AGAIN;
+	}
 	cp_fom = &cp->c_fom;
 	tx = &cp_fom->fo_tx;
 	reqh = m0_fom_reqh(cp_fom);
-	sns_cp = cp2snscp(cp);
 	stio = &sns_cp->sc_stio;
 	dom = m0_stob_domain_find_by_stob_id(&sns_cp->sc_stob_id);
 	if (tx->tx_state < M0_DTX_INIT) {
@@ -296,6 +300,9 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 	int                  rc;
 
 	M0_ENTRY("cp=%p", cp);
+
+	if (sns_cp->sc_has_no_cob)
+		return cp->c_ops->co_phase_next(cp);
 
         if (tx->tx_state != M0_DTX_DONE) {
                 m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);

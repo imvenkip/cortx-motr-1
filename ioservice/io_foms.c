@@ -1232,16 +1232,15 @@ static int io_prepare(struct m0_fom *fom)
 	 * The IO request has already acquired file level lock on
 	 * given global fid.
 	 */
-	rwrep->rwr_repair_done = m0_sns_cm_fid_repair_done(&rwfop->crw_gfid,
-							   reqh);
-	rc = ios__poolmach_check(poolmach, cliv);
+	rc = m0_poolmach_device_state(poolmach,
+				      m0_fid_cob_device_id(&rwfop->crw_fid),
+				      &device_state);
+	if (rc == 0)
+		rc = ios__poolmach_check(poolmach, cliv);
 	if (rc != 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		goto out;
 	}
-	rc = m0_poolmach_device_state(poolmach,
-				      m0_fid_cob_device_id(&rwfop->crw_fid),
-				      &device_state);
 	if (rc == 0 && device_state != M0_PNDS_ONLINE) {
 		M0_LOG(M0_DEBUG, "IO @"FID_F" on failed device: "
 				 "state = %d",
@@ -1251,6 +1250,8 @@ static int io_prepare(struct m0_fom *fom)
 	if (rc != 0)
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 out:
+	rwrep->rwr_repair_done = m0_sns_cm_fid_repair_done(&rwfop->crw_gfid,
+							   reqh, device_state);
 	M0_LEAVE();
 	return M0_FSO_AGAIN;
 }

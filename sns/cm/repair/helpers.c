@@ -122,12 +122,27 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	return M0_RC(result);
 }
 
+int repair_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
+                     const struct m0_fid *cob_fid)
+{
+	int rc;
+
+	rc = m0_sns_cm_cob_locate(cdom, cob_fid);
+	if (rc == -ENOENT) {
+		if (m0_sns_cm_is_local_cob(&scm->sc_base, cob_fid))
+			rc = -ENODEV;
+	}
+
+	return rc;
+}
+
 const struct m0_sns_cm_helpers repair_helpers = {
 	.sch_ag_max_incoming_units  = repair_ag_max_incoming_units,
 	.sch_ag_unit_start          = repair_ag_unit_start,
 	.sch_ag_unit_end            = repair_ag_unit_end,
 	.sch_ag_is_relevant         = repair_ag_is_relevant,
 	.sch_ag_setup               = m0_sns_cm_repair_ag_setup,
+	.sch_cob_locate             = repair_cob_locate
 };
 
 #undef M0_TRACE_SUBSYSTEM

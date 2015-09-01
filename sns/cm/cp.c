@@ -65,6 +65,11 @@ M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp)
 		    m0_fid_is_valid(&sns_cp->sc_stob_id.si_domain_fid));
 }
 
+M0_INTERNAL struct m0_cm *cpfom2cm(struct m0_fom *fom)
+{
+	return container_of(fom->fo_service, struct m0_cm, cm_service);
+}
+
 /*
  * Use device id to select a request handler locality for copy packet FOM.
  */
@@ -85,6 +90,60 @@ M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
 		return m0_fid_cob_device_id(&sns_cp->sc_cobfid);
 }
 
+/* Returns total number of segments in onwire copy packet structure. */
+static uint32_t seg_nr_get(const struct m0_sns_cpx *sns_cpx, uint32_t ivec_nr)
+{
+	int      i;
+	uint32_t seg_nr = 0;
+
+	M0_PRE(sns_cpx != NULL);
+
+	for (i = 0; i < ivec_nr; ++i)
+		seg_nr += sns_cpx->scx_ivecs.cis_ivecs[i].ci_nr;
+
+	return seg_nr;
+}
+
+/* Converts onwire copy packet structure to in-memory copy packet structure. */
+static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
+			    struct m0_sns_cm_cp *sns_cp)
+{
+	struct m0_cm_ag_id       ag_id;
+	struct m0_cm            *cm;
+	struct m0_cm_aggr_group *ag;
+
+	M0_PRE(sns_cp != NULL);
+	M0_PRE(sns_cpx != NULL);
+
+	sns_cp->sc_stob_id = sns_cpx->scx_stob_id;
+	m0_fid_convert_stob2cob(&sns_cpx->scx_stob_id, &sns_cp->sc_cobfid);
+	sns_cp->sc_failed_idx = sns_cpx->scx_failed_idx;
+
+	sns_cp->sc_index =
+		sns_cpx->scx_ivecs.cis_ivecs[0].ci_iosegs[0].ci_index;
+
+	sns_cp->sc_base.c_prio = sns_cpx->scx_cp.cpx_prio;
+
+	m0_cm_ag_id_copy(&ag_id, &sns_cpx->scx_cp.cpx_ag_id);
+
+	cm = cpfom2cm(&sns_cp->sc_base.c_fom);
+	m0_cm_lock(cm);
+	ag = m0_cm_aggr_group_locate(cm, &ag_id, true);
+	M0_ASSERT(ag != NULL);
+	m0_cm_unlock(cm);
+	sns_cp->sc_base.c_ag = ag;
+
+	sns_cp->sc_base.c_ag_cp_idx = sns_cpx->scx_cp.cpx_ag_cp_idx;
+	m0_bitmap_init(&sns_cp->sc_base.c_xform_cp_indices,
+		       ag->cag_cp_global_nr);
+	m0_bitmap_load(&sns_cpx->scx_cp.cpx_bm,
+			&sns_cp->sc_base.c_xform_cp_indices);
+
+	sns_cp->sc_base.c_buf_nr = 0;
+	sns_cp->sc_base.c_data_seg_nr = seg_nr_get(sns_cpx,
+						   sns_cpx->scx_ivecs.cis_nr);
+}
+
 M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)
 {
 	struct m0_sns_cpx *sns_cpx;
@@ -93,6 +152,7 @@ M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)
 
 	if (cp->c_fom.fo_fop != NULL) {
 		sns_cpx = m0_fop_data(cp->c_fom.fo_fop);
+		snscpx_to_snscp(sns_cpx, cp2snscp(cp));
 		m0_fom_phase_set(&cp->c_fom, sns_cpx->scx_phase);
 	}
 	return cp->c_ops->co_phase_next(cp);
@@ -164,12 +224,26 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 
 M0_INTERNAL void m0_sns_cm_cp_complete(struct m0_cm_cp *cp)
 {
+	struct m0_sns_cm     *scm;
+	struct m0_net_buffer *nbuf;
+	size_t                loc_id = cp->c_fom.fo_loc->fl_idx;
+	size_t                unit_size;
+
+	M0_PRE(m0_cm_cp_invariant(cp));
+	M0_PRE(!cp_data_buf_tlist_is_empty(&cp->c_buffers));
+
+	nbuf = cp_data_buf_tlist_head(&cp->c_buffers);
+	unit_size = cp->c_data_seg_nr * nbuf->nb_pool->nbp_seg_size;
+	scm = cm2sns(cp->c_ag->cag_cm);
+	if (cp->c_io_op == M0_CM_CP_READ)
+		scm->sc_total_read_size[loc_id] += unit_size;
+	else
+		scm->sc_total_write_size[loc_id] += unit_size;
 }
 
 M0_INTERNAL void m0_sns_cm_cp_free(struct m0_cm_cp *cp)
 {
 	M0_PRE(cp != NULL);
-
 	m0_cm_cp_buf_release(cp);
 	m0_free(cp2snscp(cp));
 }

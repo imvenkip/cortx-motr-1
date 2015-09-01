@@ -73,6 +73,9 @@ sns_repair_rebalance_quiesce_test()
 	echo "Continue SNS repair..."
 	sns_repair || return $?
 
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "repair" || return $?
+
 	echo "SNS Repair done."
 	md5sum_check || return $?
 
@@ -91,6 +94,9 @@ sns_repair_rebalance_quiesce_test()
 
 	echo "Continue SNS Re-balance..."
 	sns_rebalance || return $?
+
+	echo "wait for sns rebalance"
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
 
 	echo "SNS Re-balance done."
 ####### Query device state

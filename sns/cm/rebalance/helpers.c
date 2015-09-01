@@ -191,12 +191,19 @@ M0_INTERNAL int m0_sns_reopen_stob_devices(struct m0_cm *cm)
 	return M0_RC(rc);
 }
 
+int rebalance_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
+                        const struct m0_fid *cob_fid)
+{
+	return m0_sns_cm_cob_locate(cdom, cob_fid);
+}
+
 const struct m0_sns_cm_helpers rebalance_helpers = {
 	.sch_ag_max_incoming_units  = rebalance_ag_max_incoming_units,
 	.sch_ag_unit_start          = rebalance_ag_unit_start,
 	.sch_ag_unit_end            = rebalance_ag_unit_end,
 	.sch_ag_is_relevant         = rebalance_ag_is_relevant,
 	.sch_ag_setup               = m0_sns_cm_rebalance_ag_setup,
+	.sch_cob_locate             = rebalance_cob_locate
 };
 
 #undef M0_TRACE_SUBSYSTEM
