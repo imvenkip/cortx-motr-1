@@ -305,13 +305,11 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 
 	/* We are not using reqh->rh_sm_grp here, otherwise deadlock */
 	m0_sm_group_lock(grp);
-	rc = m0_poolmach_init(poolmach, reqh->rh_beseg, grp,
-			      reqh->rh_dtm,
-			      PM_DEFAULT_NR_NODES,
-			      nr_devices,
-			      PM_DEFAULT_MAX_NODE_FAILURES,
-			      /* @todo need to find max devices failure. */
-			      nr_devices);
+	rc = m0_poolmach_backed_init2(poolmach, reqh->rh_beseg, grp,
+				      PM_DEFAULT_NR_NODES,
+				      nr_devices,
+				      PM_DEFAULT_MAX_NODE_FAILURES,
+				      nr_devices);
 	m0_sm_group_unlock(grp);
 	if (rc != 0) {
 		m0_free(poolmach);

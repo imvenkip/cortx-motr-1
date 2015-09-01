@@ -70,11 +70,11 @@ static void pm_test_init_fini(void)
 	int                rc = 0;
 
 	M0_SET0(&pm);
-	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
-					 PM_TEST_DEFAULT_NODE_NUMBER,
-					 PM_TEST_DEFAULT_DEVICE_NUMBER,
-					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-					 PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
+	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
+				      PM_TEST_DEFAULT_NODE_NUMBER,
+				      PM_TEST_DEFAULT_DEVICE_NUMBER,
+				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+				      PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
 	M0_UT_ASSERT(rc == 0);
 	m0_poolmach_fini(&pm);
 }
@@ -98,11 +98,11 @@ static void pm_test_transit(void)
 	struct m0_be_tx                tx;
 
 	M0_SET0(&pm);
-	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
-					 PM_TEST_DEFAULT_NODE_NUMBER,
-					 PM_TEST_DEFAULT_DEVICE_NUMBER,
-					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-					 PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
+	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
+				      PM_TEST_DEFAULT_NODE_NUMBER,
+				      PM_TEST_DEFAULT_DEVICE_NUMBER,
+				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+				      PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
 	M0_UT_ASSERT(rc == 0);
 	m0_poolmach_store_credit(&pm, &cred);
 
@@ -419,11 +419,11 @@ static void pm_test_spare_slot(void)
 	struct m0_be_tx_credit cred = {};
 
 	M0_SET0(&pm);
-	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
-					 PM_TEST_DEFAULT_NODE_NUMBER,
-					 PM_TEST_DEFAULT_DEVICE_NUMBER,
-					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-					 2 /* two spare device */);
+	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
+				      PM_TEST_DEFAULT_NODE_NUMBER,
+				      PM_TEST_DEFAULT_DEVICE_NUMBER,
+				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+				      2 /* two spare device */);
 	M0_UT_ASSERT(rc == 0);
 	m0_poolmach_store_credit(&pm, &cred);
 
@@ -584,11 +584,11 @@ static void pm_test_multi_fail(void)
 	int                      rc;
 
 	M0_SET0(&pm);
-	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
-					 PM_TEST_DEFAULT_NODE_NUMBER,
-					 PM_TEST_DEFAULT_DEVICE_NUMBER,
-					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-					 3 /*three spare device */);
+	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
+				      PM_TEST_DEFAULT_NODE_NUMBER,
+				      PM_TEST_DEFAULT_DEVICE_NUMBER,
+				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+				      3 /*three spare device */);
 	M0_UT_ASSERT(rc == 0);
 	m0_poolmach_store_credit(&pm, &cred);
 
@@ -771,28 +771,28 @@ static void pm_test_load_from_persistent_storage(void)
 	int                rc = 0;
 
 	M0_SET0(&pm);
-	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
-					 PM_TEST_DEFAULT_NODE_NUMBER,
-					 PM_TEST_DEFAULT_DEVICE_NUMBER,
-					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-					 3);
+	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
+				      PM_TEST_DEFAULT_NODE_NUMBER,
+				      PM_TEST_DEFAULT_DEVICE_NUMBER,
+				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+				      3 /* three spare device */);
 	M0_UT_ASSERT(rc == 0);
 	m0_poolmach_fini(&pm);
 
 	/* Use some different parameters. Error should be returned. */
-	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
-					 PM_TEST_DEFAULT_NODE_NUMBER + 1,
-					 PM_TEST_DEFAULT_DEVICE_NUMBER,
-					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-					 3);
+	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
+				      PM_TEST_DEFAULT_NODE_NUMBER + 1,
+				      PM_TEST_DEFAULT_DEVICE_NUMBER,
+				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+				      3 /* three spare device */);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	/* Now with proper parameters, it should work again. */
-	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
-					 PM_TEST_DEFAULT_NODE_NUMBER,
-					 PM_TEST_DEFAULT_DEVICE_NUMBER,
-					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-					 3);
+	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
+				      PM_TEST_DEFAULT_NODE_NUMBER,
+				      PM_TEST_DEFAULT_DEVICE_NUMBER,
+				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+				      3 /* three spare device */);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Destroy poolmach persistent storage.

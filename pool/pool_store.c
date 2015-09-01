@@ -22,6 +22,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/finject.h" /* M0_FI_ENABLED */
 #include "stob/stob.h"
 #include "pool/pool.h"
 #include "conf/confc.h" /* m0_confc_close */
@@ -30,6 +31,7 @@
 #include "be/seg0.h"
 #include "be/op.h"      /* M0_BE_OP_SYNC */
 #include "module/instance.h"
+#include "pool/pm_internal.h" /* m0_poolmach__state_init */
 
 /**
    @addtogroup pool
@@ -94,6 +96,7 @@ struct m0_be_0type m0_be_pool0 = {
 };
 
 #ifndef __KERNEL__
+static const char *s_suffix = "000000001";
 
 M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach     *pm,
 					  struct m0_be_tx_credit *accum)
@@ -122,14 +125,27 @@ M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach     *pm,
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(struct m0_tlink));
 }
 
+static void poolmach_state_capture(struct m0_be_seg         *seg,
+				   struct m0_be_tx          *tx,
+				   struct m0_poolmach_state *state)
+{
+	M0_BE_TX_CAPTURE_PTR(seg, tx, state);
+	M0_BE_TX_CAPTURE_ARR(seg, tx, state->pst_nodes_array,
+			     state->pst_nr_nodes);
+	M0_BE_TX_CAPTURE_ARR(seg, tx, state->pst_devices_array,
+			     state->pst_nr_devices);
+	M0_BE_TX_CAPTURE_ARR(seg, tx, state->pst_spare_usage_array,
+			     state->pst_max_device_failures);
+}
+
 /**
  * Store all pool machine state and events into db.
  *
  * Existing records are overwritten.
  */
-M0_INTERNAL int m0_poolmach_store(struct m0_poolmach        *pm,
-				  struct m0_be_tx           *tx,
-				  struct m0_poolmach_event_link *event_link)
+M0_INTERNAL int m0_poolmach__store(struct m0_poolmach            *pm,
+				   struct m0_be_tx               *tx,
+				   struct m0_poolmach_event_link *event_link)
 {
 	struct m0_poolmach_state      *dest = pm->pm_state;
 	struct m0_poolmach_event_link *new_link;
@@ -143,14 +159,7 @@ M0_INTERNAL int m0_poolmach_store(struct m0_poolmach        *pm,
 	*new_link = *event_link;
 	poolmach_events_tlink_init_at_tail(new_link, &dest->pst_events_list);
 
-
-	M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx, dest);
-	M0_BE_TX_CAPTURE_ARR(pm->pm_be_seg, tx, dest->pst_nodes_array,
-			     dest->pst_nr_nodes);
-	M0_BE_TX_CAPTURE_ARR(pm->pm_be_seg, tx, dest->pst_devices_array,
-			     dest->pst_nr_devices);
-	M0_BE_TX_CAPTURE_ARR(pm->pm_be_seg, tx, dest->pst_spare_usage_array,
-			     dest->pst_max_device_failures);
+	poolmach_state_capture(pm->pm_be_seg, tx, dest);
 	M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx, new_link);
 	M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx,
 			     new_link->pel_linkage.t_link.ll_prev);
@@ -159,17 +168,14 @@ M0_INTERNAL int m0_poolmach_store(struct m0_poolmach        *pm,
 	return M0_RC(0);
 }
 
-static int m0_poolmach_load(struct m0_poolmach       *pm,
-			    struct m0_poolmach_state *pm_state_on_disk,
-			    uint32_t                  nr_nodes,
-			    uint32_t                  nr_devices,
-			    uint32_t                  max_node_failures,
-			    uint32_t                  max_device_failures)
+static bool poolmach_check(struct m0_poolmach_state *pm_state_on_disk,
+			   uint32_t                  nr_nodes,
+			   uint32_t                  nr_devices,
+			   uint32_t                  max_node_failures,
+			   uint32_t                  max_device_failures)
 {
-	int rc = 0;
-
 	if (pm_state_on_disk->pst_nr_nodes != nr_nodes ||
-	    pm_state_on_disk->pst_nr_devices != nr_devices + 1 ||
+	    pm_state_on_disk->pst_nr_devices != m0_pm_devices_nr(nr_devices) ||
 	    pm_state_on_disk->pst_max_node_failures != max_node_failures ||
 	    pm_state_on_disk->pst_max_device_failures != max_device_failures) {
 		M0_LOG(M0_ERROR, "Invalid pool configuration. Using stale pool "
@@ -183,134 +189,114 @@ static int m0_poolmach_load(struct m0_poolmach       *pm,
 				 nr_devices,
 				 max_node_failures,
 				 max_device_failures);
-		return M0_ERR(-EINVAL);
+		return false;
 	}
 
-	return M0_RC(rc);
+	return true;
+}
+
+M0_INTERNAL
+void m0_poolmach_store_init_creds_add(struct m0_be_seg       *be_seg,
+				      uint32_t                nr_nodes,
+				      uint32_t                nr_devices,
+				      uint32_t                max_dev_fails,
+				      struct m0_be_tx_credit *cred)
+{
+	struct m0_be_allocator *be_alloc = m0_be_seg_allocator(be_seg);
+	struct m0_buf           data = {};
+
+	M0_ENTRY();
+	m0_be_allocator_credit(be_alloc, M0_BAO_ALLOC,
+		       sizeof(struct m0_poolmach_state), 0, cred);
+	m0_be_allocator_credit(be_alloc, M0_BAO_ALLOC,
+		       nr_nodes * sizeof(struct m0_poolnode), 0, cred);
+	m0_be_allocator_credit(be_alloc, M0_BAO_ALLOC,
+		       nr_devices * sizeof(struct m0_pooldev), 0, cred);
+	m0_be_allocator_credit(be_alloc, M0_BAO_ALLOC,
+		       max_dev_fails * sizeof(struct m0_pool_spare_usage), 0,
+		       cred);
+	m0_be_0type_add_credit(be_seg->bs_domain, &m0_be_pool0, s_suffix, &data,
+		       cred);
+	M0_LEAVE("cred = "BETXCR_F, BETXCR_P(cred));
 }
 
 static int poolmach_store_create(struct m0_be_seg   *be_seg,
-				 struct m0_sm_group *sm_grp,
+				 struct m0_be_tx    *be_tx,
 				 uint32_t            nr_nodes,
 				 uint32_t            nr_devices,
 				 uint32_t            max_node_failures,
 				 uint32_t            max_device_failures)
 {
-	struct m0_be_tx_credit      cred = {};
-	struct m0_be_tx            *tx;
 	struct m0_poolmach_state   *state;
 	struct m0_poolnode         *nodes_array;
 	struct m0_pooldev          *devices_array;
 	struct m0_pool_spare_usage *spare_usage_array;
 	struct m0_be_domain        *bedom = be_seg->bs_domain;
 	struct m0_buf               data = {};
-	const char                 *id = "000000001";
-	int                         i;
 	int                         rc;
 
-	M0_ALLOC_PTR(tx);
-	if (tx == NULL)
-		return M0_ERR(-ENOMEM);
+	M0_BE_ALLOC_PTR_SYNC(state, be_seg, be_tx);
+	M0_BE_ALLOC_ARR_SYNC(nodes_array, nr_nodes, be_seg, be_tx);
+	M0_BE_ALLOC_ARR_SYNC(devices_array, m0_pm_devices_nr(nr_devices),
+			     be_seg, be_tx);
+	M0_BE_ALLOC_ARR_SYNC(spare_usage_array, max_device_failures,
+			     be_seg, be_tx);
+	M0_ASSERT(state != NULL);
+	M0_ASSERT(nodes_array != NULL);
+	M0_ASSERT(devices_array != NULL);
+	M0_ASSERT(spare_usage_array != NULL);
 
-	/* Not found from disk. Let's allocate and insert it */
-	m0_be_tx_init(tx, 0, bedom, sm_grp, NULL, NULL, NULL, NULL);
-	M0_BE_ALLOC_CREDIT_PTR(state, be_seg, &cred);
-	M0_BE_ALLOC_CREDIT_ARR(nodes_array, nr_nodes, be_seg, &cred);
-	M0_BE_ALLOC_CREDIT_ARR(devices_array, nr_devices + 1, be_seg, &cred);
-	M0_BE_ALLOC_CREDIT_ARR(spare_usage_array, max_device_failures, be_seg,
-			       &cred);
-	m0_be_0type_add_credit(bedom, &m0_be_pool0, id, &data, &cred);
-	m0_be_tx_prep(tx, &cred);
-	rc = m0_be_tx_exclusive_open_sync(tx);
-	if (rc == 0) {
-		M0_BE_ALLOC_PTR_SYNC(state, be_seg, tx);
-		M0_BE_ALLOC_ARR_SYNC(nodes_array, nr_nodes, be_seg, tx);
-		M0_BE_ALLOC_ARR_SYNC(devices_array, nr_devices + 1, be_seg, tx);
-		M0_BE_ALLOC_ARR_SYNC(spare_usage_array, max_device_failures,
-				     be_seg, tx);
-		M0_ASSERT(state != NULL);
-		M0_ASSERT(nodes_array != NULL);
-		M0_ASSERT(devices_array != NULL);
-		M0_ASSERT(spare_usage_array != NULL);
+	m0_poolmach__state_init(state, nodes_array, nr_nodes, devices_array,
+				nr_devices, spare_usage_array,
+				max_node_failures, max_device_failures);
+	poolmach_state_capture(be_seg, be_tx, state);
 
-		state->pst_nodes_array         = nodes_array;
-		state->pst_devices_array       = devices_array;
-		state->pst_spare_usage_array   = spare_usage_array;
-		state->pst_nr_nodes            = nr_nodes;
-		state->pst_nr_devices          = nr_devices + 1;
-		state->pst_max_node_failures   = max_node_failures;
-		state->pst_max_device_failures = max_device_failures;
-		for (i = 0; i < state->pst_nr_nodes; i++) {
-			state->pst_nodes_array[i].pn_state = M0_PNDS_ONLINE;
-			M0_SET0(&state->pst_nodes_array[i].pn_id);
-		}
+	data = M0_BUF_INIT_PTR(&state);
+	rc = m0_be_0type_add(&m0_be_pool0, bedom, be_tx, s_suffix, &data);
+	M0_ASSERT(rc == 0);
 
-		for (i = 0; i < state->pst_nr_devices; i++) {
-			state->pst_devices_array[i].pd_state = M0_PNDS_ONLINE;
-			M0_SET0(&state->pst_devices_array[i].pd_id);
-			state->pst_devices_array[i].pd_node  = NULL;
-		}
+	M0_LOG(M0_DEBUG, "On-disk pool param: %u:%u:%u:%u",
+			 state->pst_nr_nodes,
+			 state->pst_nr_devices,
+			 state->pst_max_node_failures,
+			 state->pst_max_device_failures);
 
-		for (i = 0; i < state->pst_max_device_failures; i++) {
-			state->pst_spare_usage_array[i].psu_device_index =
-						POOL_PM_SPARE_SLOT_UNUSED;
-		}
-		poolmach_events_tlist_init(&state->pst_events_list);
-
-		M0_BE_TX_CAPTURE_PTR(be_seg, tx, state);
-		M0_BE_TX_CAPTURE_ARR(be_seg, tx, nodes_array, nr_nodes);
-		M0_BE_TX_CAPTURE_ARR(be_seg, tx, devices_array, nr_devices);
-		M0_BE_TX_CAPTURE_ARR(be_seg, tx, spare_usage_array,
-				     max_device_failures);
-
-		data = M0_BUF_INIT_PTR(&state);
-		rc = m0_be_0type_add(&m0_be_pool0, bedom, tx, id, &data);
-		M0_ASSERT(rc == 0);
-
-		m0_be_tx_close_sync(tx);
-		M0_LOG(M0_DEBUG, "On-disk pool param: %u:%u:%u:%u",
-				 state->pst_nr_nodes,
-				 state->pst_nr_devices,
-				 state->pst_max_node_failures,
-				 state->pst_max_device_failures);
-	}
-
-	m0_be_tx_fini(tx);
-	m0_free(tx);
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
-
-M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
-				       struct m0_be_seg   *be_seg,
-				       struct m0_sm_group *sm_grp,
-				       struct m0_dtm      *dtm,
-				       uint32_t            nr_nodes,
-				       uint32_t            nr_devices,
-				       uint32_t            max_node_failures,
-				       uint32_t            max_device_failures)
+M0_INTERNAL
+int m0_poolmach__store_init(struct m0_be_seg          *be_seg,
+			    struct m0_be_tx           *be_tx,
+		            uint32_t                   nr_nodes,
+			    uint32_t                   nr_devices,
+			    uint32_t                   max_node_failures,
+			    uint32_t                   max_device_failures,
+			    struct m0_poolmach_state **state)
 {
 	int rc;
 
-	M0_PRE(!pm->pm_is_initialised);
 	M0_PRE(be_seg != NULL);
-
 	M0_ENTRY("sid: %"PRIu64, be_seg->bs_id);
 
-	/* XXX: Workaround over serveral pms. In real system has to be only one. */
-	if (!m0_be_seg_contains(be_seg, m0_get()->i_pool_module))
+	if (M0_FI_ENABLED("recreate_pm_store"))
+		/**
+		 * Workaround over several pms for UTs.
+		 * In real systems there is only one pm with backing store.
+		 */
 		m0_get()->i_pool_module = NULL;
 
-	rc = m0_get()->i_pool_module != NULL ?
-		m0_poolmach_load(pm, m0_get()->i_pool_module, nr_nodes,
-				 nr_devices, max_node_failures,
-				 max_device_failures) :
-		poolmach_store_create(be_seg, sm_grp, nr_nodes, nr_devices,
-				      max_node_failures, max_device_failures);
-
+	if (m0_get()->i_pool_module != NULL)
+		rc = poolmach_check(m0_get()->i_pool_module, nr_nodes,
+			            nr_devices, max_node_failures,
+			            max_device_failures) &&
+	             m0_be_seg_contains(be_seg, m0_get()->i_pool_module) ?
+		     0 : -EINVAL;
+	else
+		rc = poolmach_store_create(be_seg, be_tx, nr_nodes, nr_devices,
+					   max_node_failures,
+					   max_device_failures);
 	if (rc == 0)
-		pm->pm_state = m0_get()->i_pool_module;
-
+		*state = m0_get()->i_pool_module;
 	return M0_RC(rc);
 }
 
@@ -471,19 +457,21 @@ M0_INTERNAL int m0_poolmach_event_store(struct m0_poolmach *pm,
 	return 0;
 }
 
-M0_INTERNAL int m0_poolmach_store(struct m0_poolmach *pm, struct m0_be_tx *tx)
+M0_INTERNAL int m0_poolmach__store(struct m0_poolmach            *pm,
+				   struct m0_be_tx               *tx,
+				   struct m0_poolmach_event_link *event_link)
 {
 	return 0;
 }
 
-M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
-				       struct m0_be_seg   *be_seg,
-				       struct m0_sm_group *sm_grp,
-				       struct m0_dtm      *dtm,
-				       uint32_t            nr_nodes,
-				       uint32_t            nr_devices,
-				       uint32_t            max_node_failures,
-				       uint32_t            max_device_failures)
+M0_INTERNAL
+int m0_poolmach__store_init(struct m0_be_seg          *be_seg,
+			    struct m0_be_tx           *be_tx,
+		            uint32_t                   nr_nodes,
+			    uint32_t                   nr_devices,
+			    uint32_t                   max_node_failures,
+			    uint32_t                   max_device_failures,
+			    struct m0_poolmach_state **state)
 {
 	return 0;
 }

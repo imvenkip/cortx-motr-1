@@ -135,8 +135,6 @@ struct m0_poolmach {
 	/** The be_seg. If this is NULL, the poolmach is on client. */
 	struct m0_be_seg          *pm_be_seg;
 
-	struct m0_sm_group        *pm_sm_grp;
-
 	/** Current pool version associated with this pool machine. */
 	struct m0_pool_version    *pm_pver;
 
@@ -203,19 +201,40 @@ M0_INTERNAL bool
 m0_poolmach_version_before(const struct m0_poolmach_versions *v1,
 			   const struct m0_poolmach_versions *v2);
 /**
- * Initialises the pool machine.
+ * Initialises the pool machine that stores its state in volatile memory.
+ */
+M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
+				 uint32_t            nr_nodes,
+				 uint32_t            nr_devices,
+				 uint32_t            max_node_failures,
+				 uint32_t            max_device_failures);
+
+/**
+ * Initialises the pool machine that stores its state on persistent storage.
  *
  * Pool machine will load its data from persistent storage. If this is the first
  * call, it will initialise the persistent data.
  */
-M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
-				 struct m0_be_seg *be_seg,
-				 struct m0_sm_group *sm_grp,
-				 struct m0_dtm *dtm,
-				 uint32_t nr_nodes,
-				 uint32_t nr_devices,
-				 uint32_t max_node_failures,
-				 uint32_t max_device_failures);
+M0_INTERNAL
+int m0_poolmach_backed_init(struct m0_poolmach *pm,
+			    struct m0_be_seg   *be_seg,
+			    struct m0_be_tx    *be_tx,
+			    uint32_t            nr_nodes,
+			    uint32_t            nr_devices,
+			    uint32_t            max_node_failures,
+			    uint32_t            max_device_failures);
+
+/**
+ * The same as m0_poolmach_backed_init(), but create be transaction internally.
+ */
+M0_INTERNAL
+int m0_poolmach_backed_init2(struct m0_poolmach *pm,
+			     struct m0_be_seg   *be_seg,
+			     struct m0_sm_group *sm_grp,
+			     uint32_t            nr_nodes,
+			     uint32_t            nr_devices,
+			     uint32_t            max_node_failures,
+			     uint32_t            max_device_failures);
 
 M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 					 struct m0_conf_pver *pver);
@@ -224,6 +243,16 @@ M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
  * Finalises the pool machine.
  */
 M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm);
+
+/**
+ * Add credits necessary for poolmachine backing store initialisation.
+ */
+M0_INTERNAL
+void m0_poolmach_store_init_creds_add(struct m0_be_seg       *be_seg,
+				      uint32_t                nr_nodes,
+				      uint32_t                nr_devices,
+				      uint32_t                max_dev_fails,
+				      struct m0_be_tx_credit *cred);
 
 /**
  * Calculate poolmach credit.

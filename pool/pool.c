@@ -473,9 +473,14 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 	M0_ALLOC_ARR(pv->pv_dev_to_ios_map, pool_width);
 	if (pv->pv_dev_to_ios_map == NULL)
 		return M0_ERR(-ENOMEM);
-	m0_poolmach_init(&pv->pv_mach, be_seg, sm_grp, dtm,
-			 pv->pv_nr_nodes, pv->pv_attr.pa_P, pv->pv_nr_nodes,
-			 pv->pv_attr.pa_K);
+	if (be_seg != NULL)
+		m0_poolmach_backed_init2(&pv->pv_mach, be_seg, sm_grp,
+					 pv->pv_nr_nodes, pv->pv_attr.pa_P,
+					 pv->pv_nr_nodes, pv->pv_attr.pa_K);
+	else
+		m0_poolmach_init(&pv->pv_mach, pv->pv_nr_nodes,
+				 pv->pv_attr.pa_P, pv->pv_nr_nodes,
+				 pv->pv_attr.pa_K);
 	m0_pool_version_bob_init(pv);
 	pool_version_tlink_init(pv);
 
