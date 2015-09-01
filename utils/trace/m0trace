@@ -235,6 +235,8 @@ my %level = (
     'fatal+'  => qr/ ^ FATAL $ /xms,
 );
 
+my $kernel_trace_records_file = '/sys/kernel/debug/mero/trace/records';
+
 sub validate_trace_record
 {
     my $tr = shift;
@@ -489,7 +491,8 @@ sub stack_addr_of
             }
         }
         return colored( $base, $color_map[$stack_addr_color{$base}] )
-               . color( level_color($trace_record) ) . $offset;
+               . color( level_color($trace_record) ) . $offset
+               . ' ' x (5 - length $addr);
     }
 }
 
@@ -540,7 +543,7 @@ sub print_trace_record
             $buf = color( level_color($tr) )
                    . sprintf('%-4u  ',  $tr->{record_num})
                    . sprintf('%-8s  ',  time_of($tr))
-                   . sprintf('%-6s  ',  stack_addr_of($tr))
+                   . sprintf('%s  ',    stack_addr_of($tr))
                    . sprintf('%-6s  ',  $tr->{level})
                    . sprintf('%s  ',    file_line_func_of($tr))
                    . color('bright_white') . "$tr->{msg}"
@@ -647,6 +650,7 @@ sub prepare_input_file
 
     if ( $cli_option{input_file} eq '-' # assume that STDIN is always ASCII
          or $cli_option{input_file} =~ m/ \. (?: yml | yaml | log ) $ /xms
+         or $cli_option{input_file} eq $kernel_trace_records_file
          or -T $cli_option{input_file} )
     {
         $input_file = "<$cli_option{input_file}";
@@ -769,6 +773,11 @@ sub process_cli_options
         given ($ARGV[0]) {
             when ('kernel') {
                 $file_pattern = "trace-m0mero~*.bin";
+            }
+            when ('kernel-buf') {
+                $cli_option{input_file} = $kernel_trace_records_file;
+                $cli_option{use_pager}  = 0;
+                return;
             }
             when (/^(?:confd|ha|(?:mds|ios)\d*)$/)   {
                 $file_pattern = "trace-m0d-$ARGV[0]-*.bin";
