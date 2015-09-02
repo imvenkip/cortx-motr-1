@@ -92,20 +92,33 @@ static void be_tx_group_reg_area_rebuild(struct m0_be_reg_area *ra,
 
 static void be_tx_group_reg_area_gather(struct m0_be_tx_group *gr)
 {
-	struct m0_be_tx *tx;
+	struct m0_be_reg_area  *ra;
+	struct m0_be_tx_credit  used;
+	struct m0_be_tx_credit  prepared;
+	struct m0_be_tx_credit  captured;
+	struct m0_be_tx        *tx;
 
+	M0_LOG(M0_DEBUG, "gr=%p tx_nr=%zu", gr, m0_be_tx_group_tx_nr(gr));
 	/* XXX check if it's the right place */
 	if (m0_be_tx_group_tx_nr(gr) > 0) {
 		M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
-			m0_be_reg_area_merger_add(&gr->tg_merger,
-						  m0_be_tx__reg_area(tx));
+			ra = m0_be_tx__reg_area(tx);
+			m0_be_reg_area_merger_add(&gr->tg_merger, ra);
+
+			m0_be_reg_area_prepared(ra, &prepared);
+			m0_be_reg_area_captured(ra, &captured);
+			m0_be_reg_area_used(ra, &used);
+			M0_LOG(M0_DEBUG, "tx=%p prepared="BETXCR_F" "
+			       "captured="BETXCR_F" used="BETXCR_F" "
+			       "payload_size=%"PRIu64, tx, BETXCR_P(&prepared),
+			       BETXCR_P(&captured), BETXCR_P(&used),
+			       tx->t_payload.b_nob);
 		} M0_BE_TX_GROUP_TX_ENDFOR;
 		m0_be_reg_area_merger_merge_to(&gr->tg_merger, &gr->tg_reg_area);
 
 		be_tx_group_reg_area_rebuild(&gr->tg_reg_area, &gr->tg_area_copy,
 					     gr->tg_engine);
 	}
-
 	m0_be_reg_area_optimize(&gr->tg_reg_area);
 }
 
@@ -262,14 +275,13 @@ static void be_tx_group_tx_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 				      struct m0_be_tx       *tx)
 {
-	struct m0_be_tx_credit  group_used = gr->tg_used;
-	struct m0_be_tx_credit  tx_used;
-	struct m0_be_tx_credit  tx_prepared;
-	struct m0_be_tx_credit  tx_captured;
-	struct m0_be_reg_area  *ra = m0_be_tx__reg_area(tx);
-	int                     rc;
+	struct m0_be_tx_credit group_used = gr->tg_used;
+	int                    rc;
 
-	M0_ENTRY();
+	M0_ENTRY("gr=%p tx=%p tx->t_prepared="BETXCR_F" payload_size=%lu "
+	         "group_used="BETXCR_F" group_tx_nr=%zu",
+	         gr, tx, BETXCR_P(&tx->t_prepared), tx->t_payload.b_nob,
+	         BETXCR_P(&gr->tg_used), m0_be_tx_group_tx_nr(gr));
 	M0_PRE(m0_be_tx_group__invariant(gr));
 	M0_PRE(equi(m0_be_tx__is_recovering(tx),
 		    m0_be_tx_group_is_recovering(gr)));
@@ -278,17 +290,7 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 		be_tx_group_tx_add(gr, tx);
 		rc = 0; /* XXX check for ENOSPC */
 	} else {
-		m0_be_reg_area_used(ra, &tx_used);
-		m0_be_tx_credit_add(&group_used, &tx_used);
-
-		m0_be_reg_area_prepared(ra, &tx_prepared);
-		m0_be_reg_area_captured(ra, &tx_captured);
-		M0_LOG(M0_DEBUG, "tx=%p prepared="BETXCR_F" "
-		       "captured="BETXCR_F" used="BETXCR_F" "
-		       "payload_size=%"PRIu64,
-		       tx, BETXCR_P(&tx_prepared),
-		       BETXCR_P(&tx_captured), BETXCR_P(&tx_used),
-		       tx->t_payload.b_nob);
+		m0_be_tx_credit_add(&group_used, &tx->t_prepared);
 
 		if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
 		    m0_be_tx_group_tx_nr(gr) < gr->tg_cfg.tgc_tx_nr_max &&
