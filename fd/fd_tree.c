@@ -209,3 +209,5 @@ M0_INTERNAL bool m0_fd__tree_node_invariant(const struct m0_fd_tree *tree,
 				             node->ftn_child_nr > 0 &&
 				             node->ftn_children != NULL));
 }
+
+#undef M0_TRACE_SUBSYSTEM
