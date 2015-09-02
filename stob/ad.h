@@ -73,7 +73,6 @@ struct m0_ad_balloc_ops {
 	    @param res_groups # of reserved groups
 	 */
 	int  (*bo_init)(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
-			struct m0_sm_group *grp,
 			uint32_t bshift, m0_bcount_t container_size,
 			m0_bcount_t blocks_per_group, m0_bcount_t res_groups);
 	/** Finalises and destroys struct m0_balloc instance. */

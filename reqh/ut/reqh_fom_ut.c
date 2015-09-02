@@ -97,7 +97,6 @@ static struct reqh_ut_balloc *getballoc(struct m0_ad_balloc *ballroom)
 
 static int reqh_ut_balloc_init(struct m0_ad_balloc *ballroom,
 			       struct m0_be_seg *db,
-			       struct m0_sm_group *grp,
 			       uint32_t bshift,
 			       m0_bindex_t container_size,
 			       m0_bcount_t groupsize,

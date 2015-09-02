@@ -96,7 +96,6 @@ static struct mock_balloc *b2mock(struct m0_ad_balloc *ballroom)
 
 static int mock_balloc_init(struct m0_ad_balloc *ballroom,
 			    struct m0_be_seg *seg,
-			    struct m0_sm_group *grp,
 			    uint32_t bshift,
 			    m0_bindex_t container_size,
 			    m0_bcount_t groupsize,

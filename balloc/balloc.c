@@ -28,10 +28,13 @@
 #include <sys/time.h>
 
 #include "dtm/dtm.h"	  /* m0_dtx */
+#include "be/tx_bulk.h"   /* m0_be_tx_bulk */
+#include "be/op.h"        /* m0_be_op_active */
 #include "lib/misc.h"	  /* M0_SET0 */
 #include "lib/errno.h"
 #include "lib/arith.h"	  /* min_check, m0_is_po2 */
 #include "lib/memory.h"
+#include "lib/locality.h" /* m0_locality0_get */
 #include "balloc.h"
 #include "mero/magic.h"
 
@@ -385,37 +388,82 @@ static int balloc_sb_write(struct m0_balloc            *bal,
 	return M0_RC(rc);
 }
 
-static int balloc_group_write(struct m0_balloc            *bal,
-			      m0_bcount_t                  i,
-			      struct m0_sm_group          *sm_grp)
+struct balloc_group_write_cfg {
+	struct m0_balloc *bgc_bal;
+	m0_bcount_t       bgc_i;
+};
+
+struct balloc_groups_write_cfg {
+	struct balloc_group_write_cfg *bgs_bgc;
+	struct m0_balloc              *bgs_bal;
+	m0_bcount_t                    bgs_current;
+	m0_bcount_t                    bgs_max;
+	int                            bgs_rc;
+	struct m0_mutex                bgs_lock;
+};
+
+static void balloc_group_write_next(struct m0_be_tx_bulk  *tb,
+                                    struct m0_be_op       *op,
+                                    void                  *datum,
+                                    void                 **user)
 {
-	int				 rc;
-	struct m0_balloc_group_info	*grp;
-	struct m0_ext			 ext;
-	struct m0_balloc_group_desc	 gd = {};
-	struct m0_balloc_super_block	*sb = &bal->cb_sb;
-	struct m0_buf                    key;
-	struct m0_buf                    val;
-	struct m0_be_tx                  tx = {};
-	struct m0_be_tx_credit           cred = {};
+	struct balloc_groups_write_cfg *bgs = datum;
+	struct balloc_group_write_cfg  *bgc;
 
-	M0_ENTRY();
+	m0_be_op_active(op);
+	m0_mutex_lock(&bgs->bgs_lock);
+	if (bgs->bgs_rc == 0 && bgs->bgs_current < bgs->bgs_max) {
+		bgc  = &bgs->bgs_bgc[bgs->bgs_current];
+		*bgc = (struct balloc_group_write_cfg){
+			.bgc_bal = bgs->bgs_bal,
+			.bgc_i   = bgs->bgs_current,
+		};
+		*user = bgc;
+		++bgs->bgs_current;
+		m0_be_op_rc_set(op, 0);
+	} else {
+		m0_be_op_rc_set(op, -ENOENT);
+	}
+	m0_mutex_unlock(&bgs->bgs_lock);
+	m0_be_op_done(op);
+}
 
-	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain,
-		      sm_grp, NULL, NULL, NULL, NULL);
+static void balloc_group_write_credit(struct m0_be_tx_bulk   *tb,
+                                      struct m0_be_tx_credit *accum,
+                                      m0_bcount_t            *accum_payload,
+                                      void                   *datum,
+                                      void                   *user)
+{
+	struct balloc_groups_write_cfg *bgs = datum;
+	struct m0_balloc               *bal = bgs->bgs_bal;
+
 	m0_be_btree_insert_credit(&bal->cb_db_group_extents, 2,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
-		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
+		M0_MEMBER_SIZE(struct m0_ext, e_end), accum);
 	m0_be_btree_insert_credit(&bal->cb_db_group_desc, 2,
 		M0_MEMBER_SIZE(struct m0_balloc_group_desc, bgd_groupno),
-		sizeof(struct m0_balloc_group_desc), &cred);
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
-	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "transaction open failed: rc=%d", rc);
-		goto out;
-	}
+		sizeof(struct m0_balloc_group_desc), accum);
+}
 
+static void balloc_group_write_do(struct m0_be_tx_bulk   *tb,
+                                  struct m0_be_tx        *tx,
+                                  struct m0_be_op        *op,
+                                  void                   *datum,
+                                  void                   *user)
+{
+	struct balloc_groups_write_cfg *bgs = datum;
+	struct balloc_group_write_cfg  *bgc = user;
+	struct m0_balloc               *bal = bgc->bgc_bal;
+	struct m0_balloc_group_info    *grp;
+	struct m0_balloc_group_desc     gd;
+	struct m0_balloc_super_block   *sb = &bal->cb_sb;
+	struct m0_ext                   ext;
+	struct m0_buf                   key;
+	struct m0_buf                   val;
+	m0_bcount_t                     i = bgc->bgc_i;
+	int                             rc;
+
+	m0_be_op_active(op);
 	grp = &bal->cb_group_info[i];
 
 	M0_LOG(M0_DEBUG, "creating group_extents for group %llu",
@@ -429,7 +477,7 @@ static int balloc_group_write(struct m0_balloc            *bal,
 
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
-	rc = btree_insert_sync(&bal->cb_db_group_extents, &tx, &key, &val);
+	rc = btree_insert_sync(&bal->cb_db_group_extents, tx, &key, &val);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "insert extent failed: group=%llu "
 				 "rc=%d", (unsigned long long)i, rc);
@@ -442,11 +490,11 @@ static int balloc_group_write(struct m0_balloc            *bal,
 	if (i < sb->bsb_reserved_groups) {
 		gd.bgd_freeblocks = 0;
 		gd.bgd_fragments  = 0;
-		gd.bgd_maxchunk	  = 0;
+		gd.bgd_maxchunk   = 0;
 	} else {
 		gd.bgd_freeblocks = sb->bsb_groupsize;
 		gd.bgd_fragments  = 1;
-		gd.bgd_maxchunk	  = sb->bsb_groupsize;
+		gd.bgd_maxchunk   = sb->bsb_groupsize;
 	}
 
 	grp->bgi_groupno = i;
@@ -457,34 +505,64 @@ static int balloc_group_write(struct m0_balloc            *bal,
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&gd.bgd_groupno);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&gd);
 
-	rc = btree_insert_sync(&bal->cb_db_group_desc, &tx, &key, &val);
-	if (rc != 0)
+	rc = btree_insert_sync(&bal->cb_db_group_desc, tx, &key, &val);
+	if (rc != 0) {
 		M0_LOG(M0_ERROR, "insert gd failed: group=%llu rc=%d",
 			(unsigned long long)i, rc);
-	m0_be_tx_close_sync(&tx);
+	}
 out:
-	m0_be_tx_fini(&tx);
-
-	return M0_RC(rc);
+	if (rc != 0) {
+		m0_mutex_lock(&bgs->bgs_lock);
+		bgs->bgs_rc = rc;
+		m0_mutex_unlock(&bgs->bgs_lock);
+	}
+	m0_be_op_done(op);
 }
 
-static int balloc_groups_write(struct m0_balloc *bal, struct m0_sm_group *grp)
+static int balloc_groups_write(struct m0_balloc *bal)
 {
-	int				 rc = 0;
-	m0_bcount_t			 i;
-	struct m0_balloc_super_block	*sb = &bal->cb_sb;
+	struct balloc_groups_write_cfg  bgs;
+	struct m0_balloc_super_block   *sb = &bal->cb_sb;
+	struct m0_be_tx_bulk_cfg        tb_cfg;
+	struct m0_be_tx_bulk            tb;
+	int                             rc;
 
 	M0_ENTRY();
 
-	bal->cb_group_info = m0_alloc(sizeof(struct m0_balloc_group_info) *
-					sb->bsb_groupcount);
+	M0_ALLOC_ARR(bal->cb_group_info, sb->bsb_groupcount);
 	if (bal->cb_group_info == NULL) {
 		M0_LOG(M0_ERROR, "create allocate memory for group info");
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	}
-
-	for (i = 0; rc == 0 && i < sb->bsb_groupcount; i++)
-		rc = balloc_group_write(bal, i, grp);
+	bgs = (struct balloc_groups_write_cfg){
+		.bgs_bal     = bal,
+		.bgs_current = 0,
+		.bgs_max     = sb->bsb_groupcount,
+		.bgs_rc      = 0,
+	};
+	M0_ALLOC_ARR(bgs.bgs_bgc, bgs.bgs_max);
+	if (bgs.bgs_bgc == NULL) {
+		m0_free(bal->cb_group_info);
+		return M0_ERR(-ENOMEM);
+	}
+	m0_mutex_init(&bgs.bgs_lock);
+	tb_cfg = (struct m0_be_tx_bulk_cfg){
+		.tbc_dom    = bal->cb_be_seg->bs_domain,
+		.tbc_datum  = &bgs,
+		.tbc_next   = &balloc_group_write_next,
+		.tbc_credit = &balloc_group_write_credit,
+		.tbc_do     = &balloc_group_write_do,
+	};
+	rc = m0_be_tx_bulk_init(&tb, &tb_cfg);
+	if (rc == 0) {
+		M0_BE_OP_SYNC(op, m0_be_tx_bulk_run(&tb, &op));
+		rc = m0_be_tx_bulk_status(&tb);
+		m0_be_tx_bulk_fini(&tb);
+	}
+	m0_mutex_fini(&bgs.bgs_lock);
+	m0_free(bgs.bgs_bgc);
+	if (bgs.bgs_rc != 0)
+		rc = bgs.bgs_rc;
 
 	return M0_RC(rc);
 }
@@ -514,7 +592,20 @@ static int balloc_format(struct m0_balloc *bal,
 	if (rc != 0)
 		return M0_RC(rc);
 
-	rc = balloc_groups_write(bal, grp);
+	/**
+	 * XXX Kludge.
+	 *
+	 * It should be removed after either fdatasync() for stobs is moved to
+	 * ioq thread or direct I/O is used for seg I/O.
+	 *
+	 * The problem is that currently fdatasync() for seg stob is done
+	 * in locality0 thread. If it's locked then it's possible that
+	 * engine will wait for fdatasync() and ast that does fdatasync()
+	 * can't be executed because locality0 is locked.
+	 */
+	m0_sm_group_unlock(grp);
+	rc = balloc_groups_write(bal);
+	m0_sm_group_lock(grp);
 
 	return M0_RC(rc);
 }
@@ -2052,25 +2143,27 @@ static int balloc_free(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 }
 
 static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
-		       struct m0_sm_group *grp,
 		       uint32_t bshift, m0_bcount_t container_size,
 		       m0_bcount_t blocks_per_group, m0_bcount_t res_groups)
 {
-	struct m0_balloc	*mero;
-	int			 rc;
+	struct m0_balloc   *mero;
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;   /* XXX */
+	int                 rc;
 	M0_ENTRY();
 
 	mero = b2m0(ballroom);
 
+	m0_sm_group_lock(grp);
 	rc = balloc_init_internal(mero, db, grp, bshift, container_size,
 				     blocks_per_group, res_groups);
+	m0_sm_group_unlock(grp);
 
 	return M0_RC(rc);
 }
 
 static void balloc_fini(struct m0_ad_balloc *ballroom)
 {
-	struct m0_balloc	*mero = b2m0(ballroom);
+	struct m0_balloc *mero = b2m0(ballroom);
 
 	M0_ENTRY();
 

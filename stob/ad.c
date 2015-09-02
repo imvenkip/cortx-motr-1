@@ -299,7 +299,6 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 	struct m0_stob_domain    *dom;
 	struct m0_be_seg         *seg;
 	struct m0_ad_balloc      *ballroom;
-	struct m0_sm_group       *grp = stob_ad_sm_group();
 	bool                      balloc_inited;
 	int                       rc = 0;
 
@@ -323,13 +322,11 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 
 		ballroom = adom->sad_ballroom;
 		m0_balloc_init(b2m0(ballroom));
-		m0_sm_group_lock(grp);
-		rc = ballroom->ab_ops->bo_init(ballroom, seg, grp,
+		rc = ballroom->ab_ops->bo_init(ballroom, seg,
 					       adom->sad_bshift,
 					       adom->sad_container_size,
 					       adom->sad_blocks_per_group,
 					       adom->sad_res_groups);
-		m0_sm_group_unlock(grp);
 		balloc_inited = rc == 0;
 
 		rc = rc ?: stob_ad_bstore(&adom->sad_bstore_id,

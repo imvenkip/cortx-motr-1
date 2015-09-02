@@ -109,7 +109,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 	M0_UT_ASSERT(result == 0);
 
 	result = mero_balloc->cb_ballroom.ab_ops->bo_init
-		(&mero_balloc->cb_ballroom, seg, grp, BALLOC_DEF_BLOCK_SHIFT,
+		(&mero_balloc->cb_ballroom, seg, BALLOC_DEF_BLOCK_SHIFT,
 		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
