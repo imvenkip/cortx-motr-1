@@ -238,23 +238,23 @@ function build_conf()
 	local RMS_ENDPOINT="\"${mdservices[0]}\""
 	local STATS_ENDPOINT="\"${statservices[0]}\""
 	local HA_ENDPOINT="\"${server_nid}:${HA_EP}\""
-	local  ROOT='(0x7400000000000001, 0)'
-	local  PROF='(0x7000000000000001, 0)'
-	local    FS='(0x6600000000000001, 1)'
-	local  NODE='(0x6e00000000000001, 2)'
+	local  ROOT='^t|1:0'
+	local  PROF='^p|1:0'
+	local    FS='^f|1:1'
+	local  NODE='^n|1:2'
 	local  PROC="($PROC_FID_CNTR, $PROC_FID_KEY)"
 	local    RM="($RMS_FID_CON, 0)"
 	local STATS="($STS_FID_CON, 0)"
-	local HA_SVC_ID='(0x7300000000000001, 6)'
-	local  RACKID='(0x6100000000000001, 6)'
-	local  ENCLID='(0x6500000000000001, 7)'
-	local  CTRLID='(0x6300000000000001, 8)'
-	local  POOLID='(0x6f00000000000001, 9)'
-	local  PVERID='(0x7600000000000001, 10)'
+	local HA_SVC_ID='^s|1:6'
+	local  RACKID='^a|1:6'
+	local  ENCLID='^e|1:7'
+	local  CTRLID='^c|1:8'
+	local  POOLID='^o|1:9'
+	local  PVERID='^v|1:10'
 	#"pool_width" number of objv created for devv conf objects
-	local  RACKVID="(0x6a00000000000001, $(($pool_width + 1)))"
-	local  ENCLVID="(0x6a00000000000001, $(($pool_width + 2)))"
-	local  CTRLVID="(0x6a00000000000001, $(($pool_width + 3)))"
+	local  RACKVID="^j|1:$(($pool_width + 1))"
+	local  ENCLVID="^j|1:$(($pool_width + 2))"
+	local  CTRLVID="^j|1:$(($pool_width + 3))"
 
 	local NODES="$NODE"
 	local POOLS="$POOLID"
@@ -304,26 +304,26 @@ function build_conf()
 	if ((multiple_pools == 1)); then
 		# IDs for anther pool version to test assignment
 		# of pools to new objects.
-		local  NODEID1='(0x6e00000000000010, 1)'
-		local  PROCID1='(0x7200000000000010, 1)'
-		local  IO_SVCID1='(0x7300000000000010, 1)'
-		local  SDEVID1='(0x6400000000000010, 1)'
-		local  SDEVID2='(0x6400000000000010, 2)'
-		local  SDEVID3='(0x6400000000000010, 3)'
-		local  RACKID1='(0x6100000000000010, 1)'
-		local  ENCLID1='(0x6500000000000010, 1)'
-		local  CTRLID1='(0x6300000000000010, 1)'
-		local  DISKID1='(0x6b00000000000010, 1)'
-		local  DISKID2='(0x6b00000000000010, 2)'
-		local  DISKID3='(0x6b00000000000010, 3)'
-		local  POOLID1='(0x6f00000000000010, 1)'
-		local  PVERID1='(0x7600000000000010, 1)'
-		local  RACKVID1='(0x6a00000000000010, 1)'
-		local  ENCLVID1='(0x6a00000000000010, 2)'
-		local  CTRLVID1='(0x6a00000000000010, 3)'
-		local  DISKVID1='(0x6a00000000000010, 4)'
-		local  DISKVID2='(0x6a00000000000010, 5)'
-		local  DISKVID3='(0x6a00000000000010, 6)'
+		local  NODEID1='^n|10:1'
+		local  PROCID1='^r|10:1'
+		local  IO_SVCID1='^s|10:1'
+		local  SDEVID1='^d|10:1'
+		local  SDEVID2='^d|10:2'
+		local  SDEVID3='^d|10:3'
+		local  RACKID1='^a|10:1'
+		local  ENCLID1='^e|10:1'
+		local  CTRLID1='^c|10:1'
+		local  DISKID1='^k|10:1'
+		local  DISKID2='^k|10:2'
+		local  DISKID3='^k|10:3'
+		local  POOLID1='^o|10:1'
+		local  PVERID1='^v|10:1'
+		local  RACKVID1='^j|10:1'
+		local  ENCLVID1='^j|10:2'
+		local  CTRLVID1='^j|10:3'
+		local  DISKVID1='^j|10:4'
+		local  DISKVID2='^j|10:5'
+		local  DISKVID3='^j|10:6'
 		# conf objects for anther pool version to test assignment
 		# of pools to new objects.
 		local NODE1="{0x6e| (($NODEID1), 16000, 2, 3, 2, $POOLID1, [1: $PROCID1])}"

@@ -34,8 +34,8 @@ pool_version_assignment()
 	local file4="0:4000"
 	# m0t1fs rpc end point, multiple mount on same
 	# node have different endpoint
-	local rack_from_pver0="(0x6100000000000001, 6)"
-	local encl_from_pver1="(0x6500000000000010, 1)"
+	local rack_from_pver0="^a|1:6"
+	local encl_from_pver1="^e|10:1"
 	# Got these states from "$MERO_CORE_DIR/ha/note.h"
 	local M0_NC_ONLINE=1
 	local M0_NC_FAILED=2
