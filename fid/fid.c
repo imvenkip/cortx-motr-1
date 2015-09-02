@@ -18,6 +18,8 @@
  * Original creation date: 09-Sep-2010
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
+#include "lib/trace.h"
 #include "lib/errno.h"         /* EINVAL */
 #include "lib/misc.h"          /* memcmp, strcmp */
 #include "lib/string.h"        /* sscanf */
@@ -186,10 +188,43 @@ M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid)
 	return rc == 2 ? 0 : -EINVAL;
 }
 
+/**
+ * Parses fid string representation.
+ *
+ * Two formats are supported:
+ *
+ *     * CONT:KEY, where CONT and KEY are in sexadecimal.
+ *
+ *     * TYPE|CONT:KEY, where TYPE is a 1-character fid type
+ *       (m0_fid_type::ft_id), CONT is the container sans type and KEY is the
+ *       key (key and container are in %*i format: decimal by default,
+ *       sexadecimal when start with 0x, octal when start with 0).
+ */
+static int fid_sscanf(const char *s, struct m0_fid *fid, int *nob)
+{
+	int rc;
+
+	rc = sscanf(s, " %"SCNx64" : %"SCNx64" %n", FID_S(fid), nob);
+	/* See a comment in m0_xcode_read() on the effects of %n. */
+	if (rc != 2) {
+		uint8_t ft;
+
+		rc = sscanf(s, " %c | %"SCNi64" : %"SCNi64" %n",
+			    &ft, FID_S(fid), nob);
+		if (rc == 3 && m0_fid_tget(fid) == 0) {
+			m0_fid_tchange(fid, ft);
+			rc = 0;
+		} else
+			rc = -EINVAL; /* No M0_ERR() here. */
+	} else
+		rc = 0;
+	return M0_RC(rc);
+}
+
 M0_INTERNAL int m0_fid_sscanf_simple(const char *s, struct m0_fid *fid)
 {
-	int rc = sscanf(s, " %"SCNx64" : %"SCNx64" ", FID_S(fid));
-	return rc == 2 ? 0 : -EINVAL;
+	int nob;
+	return fid_sscanf(s, fid, &nob);
 }
 
 /**
@@ -200,9 +235,34 @@ static const struct m0_fid_type misc = {
 	.ft_name = "miscellaneous"
 };
 
+/**
+ * m0_xcode_type_ops::xto_read() implementation for fids.
+ *
+ * Parses fids in xcode-readable strings.
+ *
+ * @see xt_ops, m0_xcode_read().
+ */
+static int xt_read(struct m0_xcode_obj *obj, const char *str)
+{
+	int result;
+	int nr;
+
+	M0_ASSERT(obj->xo_type == m0_fid_xc);
+	result = fid_sscanf(str, obj->xo_ptr, &nr);
+	return result == 0 ? nr : M0_ERR(result);
+}
+
+/**
+ * xcode operations for fids.
+ */
+static const struct m0_xcode_type_ops xt_ops = {
+	.xto_read = &xt_read
+};
+
 M0_INTERNAL int m0_fid_init(void)
 {
 	m0_fid_type_register(&misc);
+	m0_fid_xc->xct_ops = &xt_ops;
 	return 0;
 }
 M0_EXPORTED(m0_fid_init);
@@ -220,6 +280,8 @@ M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid)
 		       M0_CIRCULAR_SHIFT_LEFT(fid->f_key, 17));
 
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of fid group */
 
