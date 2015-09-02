@@ -1035,6 +1035,13 @@ M0_INTERNAL void m0_be_domain_tx_size_max(struct m0_be_domain    *dom,
 	m0_be_engine_tx_size_max(&dom->bd_engine, cred, payload_size);
 }
 
+M0_INTERNAL void m0_be_domain__group_limits(struct m0_be_domain *dom,
+                                            uint32_t            *group_nr,
+                                            uint32_t            *tx_per_group)
+{
+	m0_be_engine__group_limits(&dom->bd_engine, group_nr, tx_per_group);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 /** @} end of be group */
 

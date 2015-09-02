@@ -283,7 +283,6 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 		M0_LOG(M0_NOTICE, "tx = %p: tx credit is invalid", tx);
 		be_tx_state_move(tx, M0_BTS_FAILED, -EINVAL);
 	} else {
-		tx->t_prepared.tc_reg_nr *= 2;
 		be_tx_state_move(tx, M0_BTS_OPENING, 0);
 	}
 

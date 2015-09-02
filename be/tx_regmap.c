@@ -568,8 +568,14 @@ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area        *ra,
 		.bra_prepared = *prepared,
 	};
 
+	/*
+	 * ra->bra_prepared.tc_reg_nr is multiplied by 2 because
+	 * it's possible to have number of used regions greater than
+	 * a number of captured regions due to generation index accounting.
+	 */
 	rc = m0_be_regmap_init(&ra->bra_map, be_reg_area_ops[type], ra,
-			       ra->bra_prepared.tc_reg_nr, true);
+			       ra->bra_prepared.tc_reg_nr == 0 ? 0 :
+			       ra->bra_prepared.tc_reg_nr * 2 - 1, true);
 	if (rc == 0 && type == M0_BE_REG_AREA_DATA_COPY) {
 		ARRAY_ALLOC_NZ(ra->bra_area, ra->bra_prepared.tc_reg_size);
 		if (ra->bra_area == NULL) {

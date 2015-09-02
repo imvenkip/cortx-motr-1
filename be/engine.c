@@ -811,6 +811,16 @@ M0_INTERNAL void m0_be_engine_tx_size_max(struct m0_be_engine    *en,
 		*payload_size = en->eng_cfg->bec_tx_payload_max;
 }
 
+M0_INTERNAL void m0_be_engine__group_limits(struct m0_be_engine *en,
+                                            uint32_t            *group_nr,
+                                            uint32_t            *tx_per_group)
+{
+	if (group_nr != NULL)
+		*group_nr = en->eng_cfg->bec_group_nr;
+	if (tx_per_group != NULL)
+		*tx_per_group = en->eng_cfg->bec_group_cfg.tgc_tx_nr_max;
+}
+
 /** @} end of be group */
 #undef M0_TRACE_SUBSYSTEM
 

@@ -96,6 +96,18 @@ extern void m0_be_ut_tx_force(void);
 extern void m0_be_ut_tx_gc(void);
 extern void m0_be_ut_tx_payload(void);
 
+extern void m0_be_ut_tx_bulk_usecase(void);
+extern void m0_be_ut_tx_bulk_empty(void);
+extern void m0_be_ut_tx_bulk_error_reg(void);
+extern void m0_be_ut_tx_bulk_error_payload(void);
+extern void m0_be_ut_tx_bulk_large_tx(void);
+extern void m0_be_ut_tx_bulk_large_payload(void);
+extern void m0_be_ut_tx_bulk_large_all(void);
+extern void m0_be_ut_tx_bulk_small_tx(void);
+extern void m0_be_ut_tx_bulk_medium_tx(void);
+extern void m0_be_ut_tx_bulk_medium_cred(void);
+extern void m0_be_ut_tx_bulk_large_cred(void);
+
 extern void m0_be_ut_alloc_init_fini(void);
 extern void m0_be_ut_alloc_create_destroy(void);
 extern void m0_be_ut_alloc_multiple(void);
@@ -169,6 +181,17 @@ struct m0_ut_suite be_ut = {
 		{ "tx-payload",              m0_be_ut_tx_payload              },
 		{ "tx-concurrent",           m0_be_ut_tx_concurrent           },
 		{ "tx-concurrent-excl",      m0_be_ut_tx_concurrent_excl      },
+		{ "tx_bulk-usecase",         m0_be_ut_tx_bulk_usecase         },
+		{ "tx_bulk-empty",           m0_be_ut_tx_bulk_empty           },
+		{ "tx_bulk-error_reg",       m0_be_ut_tx_bulk_error_reg       },
+		{ "tx_bulk-error_payload",   m0_be_ut_tx_bulk_error_payload   },
+		{ "tx_bulk-large_tx",        m0_be_ut_tx_bulk_large_tx        },
+		{ "tx_bulk-large_payload",   m0_be_ut_tx_bulk_large_payload   },
+		{ "tx_bulk-large_all",       m0_be_ut_tx_bulk_large_all       },
+		{ "tx_bulk-small_tx",        m0_be_ut_tx_bulk_small_tx        },
+		{ "tx_bulk-medium_tx",       m0_be_ut_tx_bulk_medium_tx       },
+		{ "tx_bulk-medium_cred",     m0_be_ut_tx_bulk_medium_cred     },
+		{ "tx_bulk-large_cred",      m0_be_ut_tx_bulk_large_cred      },
 		{ "alloc-init",              m0_be_ut_alloc_init_fini         },
 		{ "alloc-create",            m0_be_ut_alloc_create_destroy    },
 		{ "alloc-multiple",          m0_be_ut_alloc_multiple          },

@@ -23,6 +23,7 @@ nobase_mero_include_HEADERS += \
                                be/seg_dict.h        \
                                be/seg_internal.h    \
                                be/tx.h              \
+                               be/tx_bulk.h         \
                                be/tx_credit.h       \
 			       be/tx_group_fom.h    \
                                be/tx_group.h        \
@@ -54,6 +55,7 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/seg0.c            \
 			   be/seg_dict.c        \
 			   be/tx.c              \
+			   be/tx_bulk.c         \
 			   be/tx_xc.c           \
 			   be/tx_credit.c       \
 			   be/tx_group_fom.c    \

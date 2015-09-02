@@ -128,6 +128,12 @@ M0_INTERNAL void m0_be_tx_credit_sub(struct m0_be_tx_credit *c0,
 M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k);
 
 /**
+ * c *= bp / 10000.0
+ * @note bp is basis point.
+ */
+M0_INTERNAL void m0_be_tx_credit_mul_bp(struct m0_be_tx_credit *c, unsigned bp);
+
+/**
  * c += c1 * k
  * Multiply-accumulate operation.
  */

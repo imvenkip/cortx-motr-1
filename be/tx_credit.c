@@ -70,6 +70,12 @@ M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k)
 #endif
 }
 
+M0_INTERNAL void m0_be_tx_credit_mul_bp(struct m0_be_tx_credit *c, unsigned bp)
+{
+	c->tc_reg_nr   = c->tc_reg_nr   * bp / 10000;
+	c->tc_reg_size = c->tc_reg_size * bp / 10000;
+}
+
 M0_INTERNAL void m0_be_tx_credit_mac(struct m0_be_tx_credit *c,
 				     const struct m0_be_tx_credit *c1,
 				     m0_bcount_t k)

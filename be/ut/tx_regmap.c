@@ -994,8 +994,6 @@ void m0_be_ut_reg_area_merge(void)
 				       BE_UT_RA_MERGE_SIZE_TOTAL);
 	m0_be_tx_credit_mac(&prepared_ra, &prepared_mra, BE_UT_RA_MERGE_NR);
 
-	prepared_ra.tc_reg_nr *= 2;
-	prepared_mra.tc_reg_nr *= 2;
 	rc = m0_be_reg_area_init(&ra, &prepared_ra, M0_BE_REG_AREA_DATA_NOCOPY);
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < ARRAY_SIZE(mra); ++i) {
