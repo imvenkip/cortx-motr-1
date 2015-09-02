@@ -69,6 +69,11 @@ struct m0_be_tx_group_cfg {
 	struct m0_be_log	      *tgc_log;
 	/** reqh for the group fom. */
 	struct m0_reqh		      *tgc_reqh;
+	/**
+	 * Disable seg I/O fdatasync().
+	 * The flag will be removed after seg I/O uses direct I/O.
+	 */
+	bool                           tgc_disable_seg_io_fdatasync;
 	/** Group format configuration. Is set by the group. */
 	struct m0_be_group_format_cfg  tgc_format;
 };

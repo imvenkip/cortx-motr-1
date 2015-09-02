@@ -194,10 +194,10 @@ M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group     *gr,
 			.fgc_tx_nr_max	      = gr_cfg->tgc_tx_nr_max,
 			.fgc_reg_nr_max	      = gr_cfg->tgc_size_max.tc_reg_nr,
 			.fgc_payload_size_max = gr_cfg->tgc_payload_max,
-			.fgc_reg_size_max     = gr_cfg->tgc_size_max.tc_reg_size,
+			.fgc_reg_size_max    = gr_cfg->tgc_size_max.tc_reg_size,
 			.fgc_seg_nr_max	      = gr_cfg->tgc_seg_nr_max,
 		},
-		.gfc_seg_io_fdatasync = true,
+		.gfc_seg_io_fdatasync = !gr_cfg->tgc_disable_seg_io_fdatasync,
 	};
 	/* XXX temporary block begin */
 	gr->tg_size             = gr_cfg->tgc_size_max;

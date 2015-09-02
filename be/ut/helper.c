@@ -320,6 +320,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.tgc_seg_nr_max	  = 256,
 			.tgc_size_max	  = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
 			.tgc_payload_max  = 1 << 24,
+			.tgc_disable_seg_io_fdatasync = false,
 		},
 		.bec_tx_size_max	  = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
 		.bec_tx_payload_max	  = 1 << 21,

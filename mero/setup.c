@@ -1117,6 +1117,7 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		      struct m0_be_ut_backend *be,
 		      const char              *name,
 		      bool                     preallocate,
+		      bool                     disable_seg_io_fdatasync,
 		      bool                     format,
 		      struct m0_be_seg       **out)
 {
@@ -1133,6 +1134,8 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_create_cfg =
 		rctx->rc_be_log_path;
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
+	be->but_dom_cfg.bc_engine.bec_group_cfg.tgc_disable_seg_io_fdatasync =
+		disable_seg_io_fdatasync;
 	if (!m0_is_po2(rctx->rc_be_log_size))
 		return M0_ERR(-EINVAL);
 	if (rctx->rc_be_log_size > 0) {
@@ -1203,6 +1206,7 @@ static int cs_storage_setup(struct m0_mero *cctx)
 
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
 			rctx->rc_be_seg_preallocate,
+			rctx->rc_be_disable_seg_io_fdatasync,
 			(mkfs && force), &rctx->rc_beseg);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "cs_be_init");
@@ -1848,6 +1852,8 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				})),
 			M0_FLAGARG('a', "Preallocate BE seg",
 				   &rctx->rc_be_seg_preallocate),
+			M0_FLAGARG('E', "Disable seg I/O fdatasync()",
+				   &rctx->rc_be_disable_seg_io_fdatasync),
 			M0_VOIDARG('v', "Print version and exit",
 				LAMBDA(void, (void)
 				{

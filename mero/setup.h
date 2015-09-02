@@ -337,6 +337,9 @@ struct m0_reqh_context {
 	/** Preallocate an entire stob for db5 emulation BE segment */
 	bool                         rc_be_seg_preallocate;
 
+	/** Disable seg I/O fdatasync() in BE. It can improve performance. */
+	bool                         rc_be_disable_seg_io_fdatasync;
+
 	/** Process FID */
 	struct m0_fid                rc_fid;
 };
