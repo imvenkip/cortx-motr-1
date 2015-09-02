@@ -133,13 +133,8 @@ struct m0_be_tx_group {
 	struct m0_be_engine       *tg_engine;
 	struct m0_be_tx_group_fom  tg_fom;
 	struct m0_be_reg_area      tg_reg_area;
-	struct m0_be_reg_area      tg_area_copy;
 	bool                       tg_recovering;
 	struct m0_be_reg_area_merger  tg_merger;
-
-	void                         *tg_reg_area_rebuild_param;
-	m0_be_group_format_reg_area_rebuild_t go_reg_area_rebuild;
-
 	/**
 	 * Fields for BE engine
 	 */

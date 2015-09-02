@@ -293,22 +293,14 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 				  const struct m0_be_reg *reg)
 {
-	struct m0_be_tx_credit captured;
-	struct m0_be_reg_d     rd;
-	unsigned long          gen_idx;
+	struct m0_be_reg_d rd;
 
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
 	M0_PRE(m0_be_reg__invariant(reg));
 
-	m0_be_reg_area_captured(&tx->t_reg_area, &captured);
-
 	rd = M0_BE_REG_D(*reg, NULL);
 	rd.rd_gen_idx = m0_be_reg_gen_idx(reg);
-	gen_idx = rd.rd_gen_idx;
 	m0_be_reg_area_capture(&tx->t_reg_area, &rd);
-
-	if (captured.tc_reg_nr == 0)
-		m0_be_engine__tx_first_capture(tx->t_engine, tx, gen_idx);
 }
 
 M0_INTERNAL void

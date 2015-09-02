@@ -48,12 +48,6 @@ M0_TL_DESCR_DEFINE(egr, "m0_be_engine::eng_groups[]", static,
 		   M0_BE_TX_MAGIC /* XXX */, M0_BE_TX_ENGINE_MAGIC /* XXX */);
 M0_TL_DEFINE(egr, static, struct m0_be_tx_group);
 
-/* engine first capture */
-M0_TL_DESCR_DEFINE(efc, "m0_be_engine::eng_tx_first_capture[]", M0_INTERNAL,
-		   struct m0_be_tx, t_first_capture_linkage, t_magic,
-		   M0_BE_TX_MAGIC, M0_BE_TX_ENGINE_MAGIC);
-M0_TL_DEFINE(efc, M0_INTERNAL, struct m0_be_tx);
-
 static bool be_engine_is_locked(const struct m0_be_engine *en);
 static void be_engine_group_freeze(struct m0_be_engine   *en,
                                    struct m0_be_tx_group *gr);
@@ -155,22 +149,6 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
 		  (etx_tlist_init(&en->eng_txs[i]), true));
 	m0_mutex_init(&en->eng_lock);
 
-	m0_mutex_init(&en->eng_reg_area_lock);
-	for (i = 0; i < ARRAY_SIZE(en->eng_reg_area); ++i) {
-		en_cfg->bec_reg_area_size_max.tc_reg_nr *= 2;
-		rc = m0_be_reg_area_init(&en->eng_reg_area[i],
-					 &en_cfg->bec_reg_area_size_max,
-					 M0_BE_REG_AREA_DATA_NOCOPY);
-		/*
-		 * Assertion is enough here before m0_module is used
-		 * for error handling.
-		 */
-		M0_ASSERT_INFO(rc == 0, "rc = %d", rc); /* XXX */
-	}
-	en->eng_reg_area_index = 0;
-	en->eng_reg_area_prune_gen_idx_min = ULONG_MAX;
-	efc_tlist_init(&en->eng_tx_first_capture);
-
 	m0_semaphore_init(&en->eng_recovery_wait_sem, 0);
 	en->eng_recovery_finished = false;
 
@@ -186,7 +164,6 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
 
 M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 {
-	struct m0_be_tx_credit used;
 	m0_bcount_t log_size = 0; /* XXX */
 	m0_bcount_t log_free = 0; /* XXX */
 	int         i;
@@ -204,16 +181,6 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 
 	m0_semaphore_fini(&en->eng_recovery_wait_sem);
 
-	m0_be_engine__reg_area_lock(en);
-	m0_be_engine__reg_area_prune(en);
-	m0_be_engine__reg_area_unlock(en);
-
-	efc_tlist_fini(&en->eng_tx_first_capture);
-	m0_be_reg_area_used(&en->eng_reg_area[en->eng_reg_area_index], &used);
-	M0_PRE(m0_be_tx_credit_eq(&used, &M0_BE_TX_CREDIT(0, 0)));
-	for (i = 0; i < ARRAY_SIZE(en->eng_reg_area); ++i)
-	     m0_be_reg_area_fini(&en->eng_reg_area[i]);
-	m0_mutex_fini(&en->eng_reg_area_lock);
 	m0_mutex_fini(&en->eng_lock);
 	m0_forall(i, ARRAY_SIZE(en->eng_txs),
 		  (etx_tlist_fini(&en->eng_txs[i]), true));
@@ -588,67 +555,11 @@ M0_INTERNAL bool m0_be_engine__invariant(struct m0_be_engine *en)
 	return M0_RC(rc_bool);
 }
 
-static void be_engine_gen_idx_min_update(struct m0_be_engine *en)
-{
-	struct m0_be_tx *tx;
-	unsigned long    tx_gen_idx_min;
-	unsigned long    en_gen_idx_min;
-
-	M0_PRE(be_engine_is_locked(en));
-
-	tx = efc_tlist_head(&en->eng_tx_first_capture);
-	tx_gen_idx_min = tx == NULL ? ULONG_MAX : tx->t_gen_idx_min;
-	en_gen_idx_min = en->eng_reg_area_prune_gen_idx_min;
-	en->eng_reg_area_prune_gen_idx_min = en_gen_idx_min == ULONG_MAX ?
-		tx_gen_idx_min : max_check(en_gen_idx_min, tx_gen_idx_min);
-}
-
-static void be_engine_tx_first_capture_add(struct m0_be_engine *en,
-					   struct m0_be_tx     *tx)
-{
-	struct m0_be_tx *tx_before;
-
-	M0_PRE(be_engine_is_locked(en));
-
-	tx_before = efc_tlist_tail(&en->eng_tx_first_capture);
-	while (tx_before != NULL &&
-	       tx_before->t_gen_idx_min > tx->t_gen_idx_min) {
-		tx_before = efc_tlist_prev(&en->eng_tx_first_capture,
-					   tx_before);
-	}
-	if (tx_before == NULL)
-		efc_tlist_add(&en->eng_tx_first_capture, tx);
-	else
-		efc_tlist_add_after(tx_before, tx);
-
-	/*
-	 * Check if eng_tx_first_capture is ordered.
-	 * This check can be made expensive if it appears in perf top.
-	 */
-	M0_ASSERT(m0_tl_forall(efc, tx, &en->eng_tx_first_capture,
-	       efc_tlist_next(&en->eng_tx_first_capture, tx) == NULL ||
-	       tx->t_gen_idx_min <=
-	       efc_tlist_next(&en->eng_tx_first_capture, tx)->t_gen_idx_min));
-
-	be_engine_gen_idx_min_update(en);
-}
-
-static void be_engine_tx_first_capture_del(struct m0_be_engine *en,
-					   struct m0_be_tx     *tx)
-{
-	M0_PRE(be_engine_is_locked(en));
-
-	if (efc_tlink_is_in(tx))
-		efc_tlist_del(tx);
-	be_engine_gen_idx_min_update(en);
-}
-
 M0_INTERNAL void m0_be_engine__tx_init(struct m0_be_engine *en,
 				       struct m0_be_tx     *tx,
 				       enum m0_be_tx_state  state)
 {
 	etx_tlink_init(tx);
-	efc_tlink_init(tx);
 	m0_be_engine__tx_state_set(en, tx, state);
 }
 
@@ -657,10 +568,7 @@ M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
 {
 	be_engine_lock(en);
 	etx_tlink_del_fini(tx);
-	be_engine_tx_first_capture_del(en, tx);
 	be_engine_unlock(en);
-
-	efc_tlink_fini(tx);
 }
 
 M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
@@ -896,57 +804,6 @@ M0_INTERNAL struct m0_be_tx_credit
 m0_be_engine_tx_size_max(struct m0_be_engine *en)
 {
 	return en->eng_cfg->bec_tx_size_max;
-}
-
-M0_INTERNAL void m0_be_engine__tx_first_capture(struct m0_be_engine *en,
-						struct m0_be_tx     *tx,
-						unsigned long        gen_idx)
-{
-	tx->t_gen_idx_min = gen_idx;
-
-	be_engine_lock(en);
-	be_engine_tx_first_capture_add(en, tx);
-	be_engine_unlock(en);
-}
-
-M0_INTERNAL void m0_be_engine__reg_area_lock(struct m0_be_engine *en)
-{
-	m0_mutex_lock(&en->eng_reg_area_lock);
-}
-
-M0_INTERNAL void m0_be_engine__reg_area_unlock(struct m0_be_engine *en)
-{
-	m0_mutex_unlock(&en->eng_reg_area_lock);
-}
-
-static bool be_engine_reg_area_is_locked(struct m0_be_engine *en)
-{
-	return m0_mutex_is_locked(&en->eng_reg_area_lock);
-}
-
-M0_INTERNAL void m0_be_engine__reg_area_prune(struct m0_be_engine *en)
-{
-	M0_PRE(be_engine_reg_area_is_locked(en));
-
-	m0_be_reg_area_prune(&en->eng_reg_area[en->eng_reg_area_index],
-	                     en->eng_reg_area_prune_gen_idx_min);
-}
-
-M0_INTERNAL void
-m0_be_engine__reg_area_rebuild(struct m0_be_engine   *en,
-			       struct m0_be_reg_area *group,
-			       struct m0_be_reg_area *group_new)
-{
-	M0_PRE(be_engine_reg_area_is_locked(en));
-
-	m0_be_reg_area_rebuild(&en->eng_reg_area[en->eng_reg_area_index],
-			       group,
-			       &en->eng_reg_area[1 - en->eng_reg_area_index],
-			       group_new);
-	m0_be_reg_area_reset(&en->eng_reg_area[en->eng_reg_area_index]);
-	/* switch between two global reg_areas */
-	en->eng_reg_area_index = 1 - en->eng_reg_area_index;
-
 }
 
 /** @} end of be group */

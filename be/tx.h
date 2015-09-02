@@ -384,7 +384,6 @@ struct m0_be_tx {
 	 *
 	 * This field is set and managed by engine.
 	 */
-	unsigned long          t_gen_idx_min;
 	bool                   t_recovering;
 };
 

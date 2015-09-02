@@ -78,18 +78,6 @@ M0_INTERNAL bool m0_be_tx_group_is_recovering(struct m0_be_tx_group *gr)
 	return gr->tg_recovering;
 }
 
-static void be_tx_group_reg_area_rebuild(struct m0_be_reg_area *ra,
-					 struct m0_be_reg_area *ra_new,
-					 void                  *param)
-{
-	struct m0_be_engine *en = param;
-
-	m0_be_engine__reg_area_lock(en);
-	m0_be_engine__reg_area_rebuild(en, ra, ra_new);
-	m0_be_engine__reg_area_prune(en);
-	m0_be_engine__reg_area_unlock(en);
-}
-
 static void be_tx_group_reg_area_gather(struct m0_be_tx_group *gr)
 {
 	struct m0_be_reg_area  *ra;
@@ -115,9 +103,6 @@ static void be_tx_group_reg_area_gather(struct m0_be_tx_group *gr)
 			       tx->t_payload.b_nob);
 		} M0_BE_TX_GROUP_TX_ENDFOR;
 		m0_be_reg_area_merger_merge_to(&gr->tg_merger, &gr->tg_reg_area);
-
-		be_tx_group_reg_area_rebuild(&gr->tg_reg_area, &gr->tg_area_copy,
-					     gr->tg_engine);
 	}
 	m0_be_reg_area_optimize(&gr->tg_reg_area);
 }
@@ -189,7 +174,6 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 	gr->tg_payload_prepared = 0;
 	gr->tg_recovering       = false;
 	m0_be_reg_area_reset(&gr->tg_reg_area);
-	m0_be_reg_area_reset(&gr->tg_area_copy);
 	m0_be_reg_area_merger_reset(&gr->tg_merger);
 	m0_be_group_format_reset(&gr->tg_od);
 	m0_be_tx_group_fom_reset(&gr->tg_fom);
@@ -228,9 +212,6 @@ M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group     *gr,
 	rc = m0_be_reg_area_init(&gr->tg_reg_area, &gr->tg_cfg.tgc_size_max,
 				 M0_BE_REG_AREA_DATA_NOCOPY);
 	M0_ASSERT(rc == 0);	/* XXX */
-	rc = m0_be_reg_area_init(&gr->tg_area_copy, &gr->tg_cfg.tgc_size_max,
-				 M0_BE_REG_AREA_DATA_NOCOPY);
-	M0_ASSERT(rc == 0);     /* XXX */
 	rc = m0_be_reg_area_merger_init(&gr->tg_merger, gr_cfg->tgc_tx_nr_max);
 	M0_ASSERT(rc == 0);     /* XXX */
 	M0_ALLOC_ARR(gr->tg_rtxs, gr->tg_cfg.tgc_tx_nr_max);
@@ -257,7 +238,6 @@ M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr)
 	}
 	m0_free(gr->tg_rtxs);
 	m0_be_reg_area_merger_fini(&gr->tg_merger);
-	m0_be_reg_area_fini(&gr->tg_area_copy);
 	m0_be_reg_area_fini(&gr->tg_reg_area);
 	m0_be_tx_group_fom_fini(&gr->tg_fom);
 	rtxs_tlist_fini(&gr->tg_txs_recovering);

@@ -108,17 +108,6 @@ struct m0_be_engine {
 	 * other transactions are running while @eng_exclusive_mode is set.
 	 */
 	bool                       eng_exclusive_mode;
-	struct m0_mutex            eng_reg_area_lock;
-	struct m0_be_reg_area      eng_reg_area[2];
-	int                        eng_reg_area_index;
-	unsigned long              eng_reg_area_prune_gen_idx_min;
-	/**
-	 * List of transactions ordered by generation index of first captured
-	 * region.
-	 *
-	 * Used in eng_reg_area pruning.
-	 */
-	struct m0_tl               eng_tx_first_capture;
 	struct m0_be_domain       *eng_domain;
 	struct m0_be_recovery     *eng_recovery;
 	struct m0_semaphore        eng_recovery_wait_sem;
@@ -167,18 +156,6 @@ m0_be_engine__exclusive_open_invariant(struct m0_be_engine *en,
 				       struct m0_be_tx     *excl);
 M0_INTERNAL struct m0_be_tx_credit
 m0_be_engine_tx_size_max(struct m0_be_engine *en);
-
-M0_INTERNAL void m0_be_engine__tx_first_capture(struct m0_be_engine *en,
-                                                struct m0_be_tx     *tx,
-                                                unsigned long        gen_idx);
-
-M0_INTERNAL void m0_be_engine__reg_area_lock(struct m0_be_engine *en);
-M0_INTERNAL void m0_be_engine__reg_area_unlock(struct m0_be_engine *en);
-M0_INTERNAL void m0_be_engine__reg_area_prune(struct m0_be_engine *en);
-M0_INTERNAL void
-m0_be_engine__reg_area_rebuild(struct m0_be_engine   *en,
-                               struct m0_be_reg_area *group,
-                               struct m0_be_reg_area *group_new);
 
 /** @} end of be group */
 #endif /* __MERO_BE_ENGINE_H__ */
