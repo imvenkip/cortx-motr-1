@@ -669,6 +669,32 @@ void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 	}
 }
 
+M0_INTERNAL void m0_be_ut_alloc(struct m0_be_ut_backend *ut_be,
+				struct m0_be_ut_seg *ut_seg,
+				void **ptr,
+				m0_bcount_t size)
+{
+	struct m0_be_allocator *a = m0_be_seg_allocator(ut_seg->bus_seg);
+
+	/* don't use capturing checkers here */
+	M0_BE_UT_TRANSACT(ut_be, NULL, tx, cred,
+		  m0_be_allocator_credit(a, M0_BAO_ALLOC, size, 0, &cred),
+		  M0_BE_OP_SYNC(op, m0_be_alloc(a, tx, &op, ptr, size)));
+	M0_ASSERT(*ptr != NULL);
+}
+
+M0_INTERNAL void m0_be_ut_free(struct m0_be_ut_backend *ut_be,
+			       struct m0_be_ut_seg *ut_seg,
+			       void *ptr)
+{
+	struct m0_be_allocator *a = m0_be_seg_allocator(ut_seg->bus_seg);
+
+	/* don't use capturing checkers here */
+	M0_BE_UT_TRANSACT(ut_be, NULL, tx, cred,
+			  m0_be_allocator_credit(a, M0_BAO_FREE, 0, 0, &cred),
+			  M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op, ptr)));
+}
+
 static void be_ut_data_save(const char *filename, m0_bcount_t size, void *addr)
 {
 	size_t	written;

@@ -199,11 +199,68 @@ void m0_be_ut__seg_allocator_init(struct m0_be_seg *seg,
 void m0_be_ut__seg_allocator_fini(struct m0_be_seg *seg,
 				  struct m0_be_ut_backend *ut_be);
 
+M0_INTERNAL void m0_be_ut_alloc(struct m0_be_ut_backend  *ut_be,
+				struct m0_be_ut_seg      *ut_seg,
+				void                    **ptr,
+				m0_bcount_t               size);
+M0_INTERNAL void m0_be_ut_free(struct m0_be_ut_backend *ut_be,
+			       struct m0_be_ut_seg     *ut_seg,
+			       void                    *ptr);
+
+#define M0_BE_UT_ALLOC_PTR(ut_be, ut_seg, ptr)                          \
+		m0_be_ut_alloc((ut_be), (ut_seg),                       \
+			       (void **) &(ptr), sizeof(*(ptr)))
+
+#define M0_BE_UT_FREE_PTR(ut_be, ut_seg, ptr)                           \
+		m0_be_ut_free((ut_be), (ut_seg), (ptr))
+
 M0_INTERNAL int m0_be_ut__seg_dict_create(struct m0_be_seg   *seg,
 					  struct m0_sm_group *grp);
 
 M0_INTERNAL int m0_be_ut__seg_dict_destroy(struct m0_be_seg   *seg,
 					   struct m0_sm_group *grp);
+
+/**
+ * Executes __action_func in a single transaction.
+ * Uses __credit_func to get transaction credit.
+ * @see m0_be_ut_alloc()/m0_be_ut_free() source code for examples.
+ *
+ * @note If __ut_seg set to non-NULL value then
+ * m0_be_ut_txc is used to check capturing.
+ */
+#define M0_BE_UT_TRANSACT(__ut_be, __ut_seg_,                           \
+			  __tx, __cred, __credit_func, __action_func)   \
+	do {                                                            \
+		struct m0_be_tx_credit  __cred   = {};                  \
+		struct m0_be_ut_seg    *__ut_seg = (__ut_seg_);         \
+		struct m0_be_ut_txc     __tc     = {};                  \
+		struct m0_be_tx        *__tx;                           \
+		int                     __rc;                           \
+									\
+		M0_ALLOC_PTR(__tx);                                     \
+		M0_ASSERT(__tx != NULL);                                \
+		m0_be_ut_tx_init(__tx, (__ut_be));                      \
+		__credit_func;                                          \
+		m0_be_tx_prep(__tx, &__cred);                           \
+		__rc = m0_be_tx_open_sync(__tx);                        \
+		M0_ASSERT_INFO(__rc == 0, "__rc = %d", __rc);           \
+		if (__rc == 0) {                                        \
+			if (__ut_seg != NULL) {                         \
+				m0_be_ut_txc_init(&__tc);               \
+				m0_be_ut_txc_start(&__tc, __tx,         \
+						   __ut_seg->bus_seg);  \
+			}                                               \
+			__action_func;                                  \
+			if (__ut_seg != NULL) {                         \
+				m0_be_ut_txc_check(&__tc, __tx);        \
+				m0_be_ut_txc_fini(&__tc);               \
+			}                                               \
+			m0_be_tx_close_sync(__tx);                      \
+		}                                                       \
+		m0_be_tx_fini(__tx);                                    \
+		m0_free(__tx);                                          \
+	} while (0)
+
 
 /**
    Load/save segments using lambda functions to a file with name @filename.
