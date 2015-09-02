@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -320,6 +320,18 @@ struct m0_xcode_type_ops {
 	int (*xto_length)(struct m0_xcode_ctx *ctx, const void *obj);
 	int (*xto_encode)(struct m0_xcode_ctx *ctx, const void *obj);
 	int (*xto_decode)(struct m0_xcode_ctx *ctx, void *obj);
+	/**
+	 * Call-back invoked by m0_xcode_read() to read custom object
+	 * representation.
+	 *
+	 * Returns number of bytes consumed from the string, or negative error
+	 * code. obj->xo_ptr of suitable size is allocated by m0_xcode_read(),
+	 * obj->xo_type is assigned. The call-back should fill obj->xo_ptr
+	 * fields.
+	 *
+	 * @see string_literal().
+	 */
+	int (*xto_read)(struct m0_xcode_obj *obj, const char *str);
 };
 
 enum { M0_XCODE_DEPTH_MAX = 10 };
@@ -600,7 +612,7 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
  *
  * String has the following EBNF grammar:
  *
- *     S           ::= RECORD | UNION | SEQUENCE | ATOM
+ *     S           ::= RECORD | UNION | SEQUENCE | ATOM | CUSTOM
  *     RECORD      ::= '(' [S-LIST] ')'
  *     S-LIST      ::= S | S-LIST ',' S
  *     UNION       ::= '{' TAG '|' [S] '}'
@@ -610,11 +622,15 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
  *     ATOM        ::= EMPTY | NUMBER
  *     TAG         ::= ATOM
  *     COUNT       ::= ATOM
+ *     CUSTOM      ::= '^' CHAR*
  *
  * Where CHAR is any non-NUL character, NUMBER is anything recognizable by
  * sscanf(3) as a number and EMPTY is the empty string. White-spaces (\n, \t,
  * \v, \r, space and comments) between tokens are ignored. Comments start with a
  * hash symbol and run to the end of line.
+ *
+ * Custom representations start with a caret (^) and are recognised by
+ * m0_xcode_type_ops::xto_read() call-backs.
  *
  * Examples:
  * @verbatim

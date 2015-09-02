@@ -289,19 +289,19 @@ static int ctx_walk(struct m0_xcode_ctx *ctx, enum xcode_op op)
 		ptr = cur->xo_ptr;
 		ops = xt->xct_ops;
 
-		if (ops != NULL) {
+		if (ops != NULL &&
+		    ((op == XO_ENC && ops->xto_encode != NULL) ||
+		     (op == XO_DEC && ops->xto_decode != NULL) ||
+		     (op == XO_LEN && ops->xto_length != NULL))) {
 			switch (op) {
 			case XO_ENC:
-				if (ops->xto_encode != NULL)
-					result = ops->xto_encode(ctx, ptr);
+				result = ops->xto_encode(ctx, ptr);
 				break;
 			case XO_DEC:
-				if (ops->xto_decode != NULL)
-					result = ops->xto_decode(ctx, ptr);
+				result = ops->xto_decode(ctx, ptr);
 				break;
 			case XO_LEN:
-				if (ops->xto_length != NULL)
-					length += ops->xto_length(ctx, ptr);
+				length += ops->xto_length(ctx, ptr);
 				break;
 			default:
 				M0_IMPOSSIBLE("op");

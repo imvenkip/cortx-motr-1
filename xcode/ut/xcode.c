@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -580,6 +580,19 @@ static void xcode_cmp_test(void)
 	m0_xcode_free_obj(&obj1);
 }
 
+static int custom_read(struct m0_xcode_obj *obj, const char *str)
+{
+	static const char pattern[] = "!EXPECTED!";
+
+	M0_UT_ASSERT(obj->xo_type == &xut_v.xt);
+	return strncmp(str, pattern, ARRAY_SIZE(pattern) - 1) == 0 ?
+		ARRAY_SIZE(pattern) - 1 : -EPERM;
+}
+
+static const struct m0_xcode_type_ops read_ops = {
+	.xto_read = &custom_read
+};
+
 #define OBJ(xt, ptr) (&(struct m0_xcode_obj){ .xo_type = (xt), .xo_ptr = (ptr) })
 
 static void xcode_read_test(void)
@@ -698,13 +711,8 @@ static void xcode_read_test(void)
 	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
 
 	M0_ALLOC_PTR(_T);
-	result = m0_xcode_read(OBJ(&xut_top.xt, _T), ""
-"((1, 2),"
-" 8,"
-" [4: 1, 2, 3, 4],"
-" 4,"
-" {1| 42},"
-" 7)");
+	result = m0_xcode_read(OBJ(&xut_top.xt, _T),
+			       "((1, 2), 8, [4: 1, 2, 3, 4], 4, {1| 42}, 7)");
 	M0_UT_ASSERT(result == 0);
 	M0_SET0(&_Tmp);
 	_Tmp.t_foo.f_x = 1;
@@ -718,6 +726,26 @@ static void xcode_read_test(void)
 	_Tmp.t_opaq.o_32 = _T->t_opaq.o_32;
 	M0_UT_ASSERT(memcmp(_T, &_Tmp, sizeof(struct top)) == 0);
 	m0_xcode_free_obj(OBJ(&xut_top.xt, _T));
+
+	/* Test custom reader. */
+	M0_ALLOC_PTR(_T);
+	xut_v.xt.xct_ops = &read_ops;
+	result = m0_xcode_read(OBJ(&xut_top.xt, _T),
+			       "((1, 2), 8, ^!EXPECTED!, 4, {1| 42}, 7)");
+	M0_UT_ASSERT(result == 0);
+	m0_xcode_free_obj(OBJ(&xut_top.xt, _T));
+
+	M0_ALLOC_PTR(_T);
+	result = m0_xcode_read(OBJ(&xut_top.xt, _T), "((1, 2), 8, ^WRONG ...");
+	M0_UT_ASSERT(result == -EPERM);
+	m0_xcode_free_obj(OBJ(&xut_top.xt, _T));
+
+	M0_ALLOC_PTR(_T);
+	result = m0_xcode_read(OBJ(&xut_top.xt, _T),
+			       "((1, 2), 8, [4: 1, 2, 3, 4], 4, {1| 42}, 7)");
+	M0_UT_ASSERT(result == 0);
+	m0_xcode_free_obj(OBJ(&xut_top.xt, _T));
+	xut_v.xt.xct_ops = NULL;
 }
 
 #ifndef __KERNEL__
@@ -808,24 +836,24 @@ int m0_package_cred_get(const struct m0_xcode_obj *par,
 }
 
 struct m0_ut_suite xcode_ut = {
-        .ts_name = "xcode-ut",
-        .ts_init = xcode_init,
-        .ts_fini = NULL,
-        .ts_tests = {
-                { "xcode-cursor", xcode_cursor_test },
-                { "xcode-length", xcode_length_test },
-                { "xcode-encode", xcode_encode_test },
-                { "xcode-opaque", xcode_opaque_test },
-                { "xcode-decode", xcode_decode_test },
-                { "xcode-nonstandard", xcode_nonstandard_test },
-                { "xcode-cmp",    xcode_cmp_test },
+	.ts_name = "xcode-ut",
+	.ts_init = xcode_init,
+	.ts_fini = NULL,
+	.ts_tests = {
+		{ "xcode-cursor", xcode_cursor_test },
+		{ "xcode-length", xcode_length_test },
+		{ "xcode-encode", xcode_encode_test },
+		{ "xcode-opaque", xcode_opaque_test },
+		{ "xcode-decode", xcode_decode_test },
+		{ "xcode-nonstandard", xcode_nonstandard_test },
+		{ "xcode-cmp",    xcode_cmp_test },
 		{ "xcode-read",   xcode_read_test },
 #ifndef __KERNEL__
 		{ "xcode-print",  xcode_print_test },
 #endif
 		{ "xcode-find",   xcode_find_test },
-                { NULL, NULL }
-        }
+		{ NULL, NULL }
+	}
 };
 M0_EXPORTED(xcode_ut);
 

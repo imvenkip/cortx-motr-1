@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -109,7 +109,7 @@ static int char_check(const char **str, char ch)
 }
 
 static const char structure[M0_XA_NR][M0_XCODE_CURSOR_NR] = {
-	               /* NONE  PRE   IN POST */
+		       /* NONE  PRE   IN POST */
 	[M0_XA_RECORD]   = { 0, '(',   0, ')' },
 	[M0_XA_UNION]    = { 0, '{',   0, '}' },
 	[M0_XA_SEQUENCE] = { 0, '[',   0, ']' },
@@ -119,7 +119,7 @@ static const char structure[M0_XA_NR][M0_XCODE_CURSOR_NR] = {
 };
 
 static const char punctuation[M0_XA_NR][3] = {
-    	                /* 1st  2nd later */
+			/* 1st  2nd later */
 	[M0_XA_RECORD]   = { 0, ',', ',' },
 	[M0_XA_UNION]    = { 0, '|',  0  },
 	[M0_XA_SEQUENCE] = { 0, ':', ',' },
@@ -170,18 +170,29 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 
 		str = space_skip(str);
 		if (flag == M0_XCODE_CURSOR_PRE) {
+			bool  slit;
+			int (*custom)(struct m0_xcode_obj *, const char *);
+
 			result = m0_xcode_alloc_obj(&it, m0_xcode_alloc);
 			if (result != 0)
 				return result;
 			result = char_check(&str, punctchar(&it));
 			if (result != 0)
 				return result;
-			if (m0_xcode_is_byte_array(xt) && *str == '"') {
-				/* string literal */
-				result = string_literal(cur, ++str);
+			slit = m0_xcode_is_byte_array(xt) && *str == '"';
+			custom = *str == '^' && xt->xct_ops != NULL ?
+				xt->xct_ops->xto_read : NULL;
+			if (slit || custom != NULL) {
+				/*
+				 * String literal (skip opening '"') or custom
+				 * reader (skip opening '^').
+				 */
+				++str;
+				result = slit ? string_literal(cur, str) :
+					custom(cur, str);
 				if (result < 0)
 					return result;
-				str += result + 1;
+				str += result + !!slit; /* skip closing '"' */
 				m0_xcode_skip(&it);
 				continue;
 			}
