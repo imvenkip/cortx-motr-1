@@ -232,7 +232,10 @@ M0_INTERNAL int m0_conf_ha_state_update(struct m0_rpc_session *ha_sess,
 		 * We need to wait for reply fop.
 		 */
 		m0_chan_wait(&clink);
-		m0_ha_state_accept(confc, nvec);
+		if ((int32_t)nvec->nv_nr >= 0)
+			m0_ha_state_accept(confc, nvec);
+		else
+			rc = M0_ERR(nvec->nv_nr);
 	}
 
 	m0_clink_del_lock(&clink);

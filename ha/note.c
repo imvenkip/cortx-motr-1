@@ -77,31 +77,33 @@ M0_INTERNAL void ha_state_get_replied(struct m0_rpc_item *item)
 	struct m0_ha_state_fop *rep;
 	struct get_fop_context *ctx;
 	int                     rc;
+	struct m0_ha_nvec      *usr_nvec;
+	struct m0_ha_nvec      *rep_nvec;
 
 	M0_ENTRY();
 	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(item->ri_reply);
 	fop = m0_rpc_item_to_fop(item->ri_reply);
 	ctx = M0_AMB(ctx, m0_rpc_item_to_fop(item), gf_fop);
 	rep = m0_fop_data(fop);
+	usr_nvec = m0_fop_data(m0_rpc_item_to_fop(item));
+	rep_nvec = &rep->hs_note;
 
 	if (rc == 0) {
-		struct m0_ha_nvec *usr_nvec =
-			m0_fop_data(m0_rpc_item_to_fop(item));
-		struct m0_ha_nvec *rep_nvec = &rep->hs_note;
-
 		if (rep->hs_rc != 0)
-			M0_LOG(M0_NOTICE, "Error: %u.", rep->hs_rc);
+			rc = M0_ERR(rep->hs_rc);
 		else if (usr_nvec->nv_nr != rep_nvec->nv_nr)
-			M0_LOG(M0_NOTICE, "Wrong size: %u != %u.",
-			       usr_nvec->nv_nr, rep_nvec->nv_nr);
+			rc = M0_ERR_INFO(-EPROTO, "Wrong size: %u != %u.",
+					 usr_nvec->nv_nr, rep_nvec->nv_nr);
 		else if (m0_forall(i, rep_nvec->nv_nr,
 				   m0_fid_eq(&usr_nvec->nv_note[i].no_id,
 					     &rep_nvec->nv_note[i].no_id)))
 			memcpy(usr_nvec->nv_note, rep_nvec->nv_note,
 			       rep_nvec->nv_nr * sizeof rep_nvec->nv_note[0]);
 		else
-			M0_LOG(M0_NOTICE, "Fid mismatch.");
+			rc = M0_ERR_INFO(-EPROTO, "Fid mismatch.");
 	}
+	if (rc != 0)
+		usr_nvec->nv_nr = rc;
 	m0_chan_signal_lock(ctx->gf_chan);
 	m0_fop_put(&ctx->gf_fop);
 	M0_LEAVE();
@@ -165,7 +167,7 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 	item->ri_session         = session;
 	item->ri_prio            = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline        = m0_time_from_now(DEADLINE_S, DEADLINE_NS);
-	// wait 2 minutes for the reply
+	/* Wait 2 minutes for the reply. */
 	item->ri_resend_interval = m0_time(RESEND_INTERVAL_GET_S,
 					   RESEND_INTERVAL_GET_NS);
 	return M0_RC(m0_rpc_post(item));
