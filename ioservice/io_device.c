@@ -232,6 +232,7 @@ ysXAXAgJ5lQoMcOkbBNBW9Nz9OM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
 #include "pool/pool.h"
 #include "conf/diter.h" /* m0_conf_diter */
 #include "conf/obj.h"
+#include "conf/obj_ops.h" /* M0_CONF_DIRNEXT */
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_fops.h"
@@ -249,6 +250,16 @@ ysXAXAgJ5lQoMcOkbBNBW9Nz9OM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
  */
 M0_EXTERN unsigned poolmach_key;
 
+struct m0_ios_poolmach_args {
+	uint32_t nr_sdevs;
+	uint32_t nr_nodes;
+};
+
+static bool is_conf_controller(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE;
+}
+
 static struct m0_conf_obj *disk2sdev(const struct m0_conf_obj *obj)
 {
 	return &M0_CONF_CAST(obj, m0_conf_disk)->ck_dev->sd_obj;
@@ -261,18 +272,136 @@ static bool is_ios_disk(const struct m0_conf_obj *obj)
 				&M0_CONF_SERVICE_TYPE;
 }
 
+static int ios_poolmach_devices_add(struct m0_poolmach        *poolmach,
+				    struct m0_poolnode        *poolnode,
+				    struct m0_conf_controller *ctrl,
+				    const int                  count)
+{
+	struct m0_conf_disk *disk;
+	struct m0_pooldev   *pooldev;
+	struct m0_conf_obj  *obj = NULL;
+	struct m0_conf_obj  *disks_dir = &ctrl->cc_disks->cd_obj;
+	int                  i = count;
+	int                  rc;
+
+	M0_PRE(poolmach != NULL);
+	M0_PRE(disks_dir != NULL);
+
+	M0_ENTRY();
+	rc = m0_confc_open_sync(&disks_dir, disks_dir, M0_FID0);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	for (obj = NULL; (rc = m0_confc_readdir_sync(disks_dir, &obj)) > 0; ) {
+		if (is_ios_disk(obj)) {
+			disk = M0_CONF_CAST(obj, m0_conf_disk);
+			pooldev = &poolmach->pm_state->pst_devices_array[i];
+			pooldev->pd_sdev_fid = disk->ck_dev->sd_obj.co_id;
+			pooldev->pd_id = disk->ck_obj.co_id;
+			pooldev->pd_node = poolnode;
+			M0_CNT_INC(i);
+		}
+	}
+
+	m0_confc_close(obj);
+	m0_confc_close(disks_dir);
+	return M0_RC(i);
+}
+
+static int ios_poolmach_devices_count(struct m0_conf_controller *ctrl)
+{
+	struct m0_conf_obj  *obj = NULL;
+	struct m0_conf_obj  *disks_dir = &ctrl->cc_disks->cd_obj;
+	unsigned int         nr_sdevs = 0;
+	int                  rc;
+
+	M0_PRE(disks_dir != NULL);
+
+	M0_ENTRY();
+	rc = m0_confc_open_sync(&disks_dir, disks_dir, M0_FID0);
+	if (rc != 0)
+		return M0_ERR(rc);
+	for (obj = NULL; (rc = m0_confc_readdir_sync(disks_dir, &obj)) > 0;)
+		if (is_ios_disk(obj))
+			M0_CNT_INC(nr_sdevs);
+	m0_confc_close(obj);
+	m0_confc_close(disks_dir);
+	return M0_RC(nr_sdevs);
+}
+
+static int m0_ios_poolmach_args_init(struct m0_confc             *confc,
+				     struct m0_conf_filesystem   *fs,
+				     struct m0_ios_poolmach_args *args)
+{
+	struct m0_conf_diter       it;
+	struct m0_conf_controller *ctrl;
+	unsigned int               nr_nodes;
+	unsigned int               nr_sdevs;
+	int                        rc;
+
+	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_RACKS_FID,
+				M0_CONF_RACK_ENCLS_FID,
+				M0_CONF_ENCLOSURE_CTRLS_FID);
+	if (rc != 0)
+		return M0_ERR(rc);
+	nr_nodes = nr_sdevs = 0;
+	while ((rc = m0_conf_diter_next_sync(&it, is_conf_controller)) ==
+		M0_CONF_DIRNEXT) {
+		ctrl = M0_CONF_CAST(m0_conf_diter_result(&it),
+				    m0_conf_controller);
+		nr_sdevs += ios_poolmach_devices_count(ctrl);
+		M0_CNT_INC(nr_nodes);
+	}
+	m0_conf_diter_fini(&it);
+	args->nr_nodes = nr_nodes;
+	args->nr_sdevs = nr_sdevs;
+	return 0;
+}
+
+static int m0_ios_poolmach_objs_fill(struct m0_confc           *confc,
+				     struct m0_conf_filesystem *fs,
+				     struct m0_poolmach        *poolmach)
+{
+	struct m0_conf_diter       it;
+	struct m0_poolnode        *poolnode;
+	struct m0_conf_controller *ctrl;
+	unsigned int               i = 0;
+	unsigned int               j = 0;
+	int                        rc;
+
+	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_RACKS_FID,
+				M0_CONF_RACK_ENCLS_FID,
+				M0_CONF_ENCLOSURE_CTRLS_FID);
+	if (rc != 0)
+		goto fail;
+	i = j = 0;
+	while ((rc = m0_conf_diter_next_sync(&it, is_conf_controller)) ==
+		M0_CONF_DIRNEXT) {
+		ctrl = M0_CONF_CAST(m0_conf_diter_result(&it),
+				    m0_conf_controller);
+		poolnode = &poolmach->pm_state->pst_nodes_array[i];
+		poolnode->pn_id = ctrl->cc_obj.co_id;
+		j = ios_poolmach_devices_add(poolmach, poolnode,
+					     ctrl, j);
+		M0_CNT_INC(i);
+	}
+	m0_conf_diter_fini(&it);
+	return M0_RC(rc);
+fail:
+	return M0_ERR(rc);
+}
+
 M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 {
-	int                            rc;
 	struct m0_poolmach            *poolmach;
-	struct m0_conf_diter           it;
 	struct m0_reqh                *reqh = service->rs_reqh;
 	struct m0_confc               *confc = &reqh->rh_confc;
-	struct m0_conf_obj            *obj;
 	struct m0_sm_group            *grp = m0_locality0_get()->lo_grp;
-	struct m0_conf_filesystem     *fs = NULL;
-	int                            nr_devices = 0;
-	uint32_t                       i;
+	struct m0_ios_poolmach_args    ios_poolmach_args;
+	struct m0_conf_filesystem     *fs;
+	int                            rc;
 
 	M0_PRE(service != NULL);
 	M0_PRE(service->rs_reqh_ctx != NULL);
@@ -290,59 +419,39 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 	 */
 	poolmach = m0_alloc(sizeof *poolmach);
 	if (poolmach == NULL) {
-		return M0_ERR(-ENOMEM);
+		rc = M0_ERR(-ENOMEM);
+		goto exit;
 	}
+	rc = m0_conf_fs_get(&reqh->rh_profile, confc, &fs);
+	if (rc != 0)
+		goto poolmach_free;
 
-	rc = m0_conf_obj_count(&reqh->rh_profile, confc, is_ios_disk,
-				&nr_devices, M0_CONF_FILESYSTEM_RACKS_FID,
-				M0_CONF_RACK_ENCLS_FID,
-				M0_CONF_ENCLOSURE_CTRLS_FID,
-				M0_CONF_CONTROLLER_DISKS_FID);
-	if (rc != 0) {
-		m0_free(poolmach);
-		return M0_RC(rc);
-	}
-
+	rc = m0_ios_poolmach_args_init(confc, fs, &ios_poolmach_args);
+	if (rc != 0)
+		goto fs_close;
 	/* We are not using reqh->rh_sm_grp here, otherwise deadlock */
 	m0_sm_group_lock(grp);
 	rc = m0_poolmach_backed_init2(poolmach, reqh->rh_beseg, grp,
-				      PM_DEFAULT_NR_NODES,
-				      nr_devices,
+				      ios_poolmach_args.nr_nodes,
+				      ios_poolmach_args.nr_sdevs,
 				      PM_DEFAULT_MAX_NODE_FAILURES,
-				      nr_devices);
+				      ios_poolmach_args.nr_sdevs);
 	m0_sm_group_unlock(grp);
-	if (rc != 0) {
-		m0_free(poolmach);
-		return M0_RC(rc);
-	}
-	rc = m0_conf_fs_get(&reqh->rh_profile, confc, &fs);
-	if (rc != 0) {
-		m0_free(poolmach);
-		return M0_RC(rc);
-	}
-
-	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_RACKS_FID,
-				M0_CONF_RACK_ENCLS_FID,
-				M0_CONF_ENCLOSURE_CTRLS_FID,
-				M0_CONF_CONTROLLER_DISKS_FID);
-	if (rc != 0) {
-		m0_free(poolmach);
-		return M0_RC(rc);
-	}
-	i = 0;
-	while ((rc = m0_conf_diter_next_sync(&it, is_ios_disk))) {
-		obj = m0_conf_diter_result(&it);
-		poolmach->pm_state->pst_devices_array[i].pd_id = obj->co_id;
-		M0_CNT_INC(i);
-	}
+	if (rc != 0)
+		goto fs_close;
+	rc = m0_ios_poolmach_objs_fill(confc, fs, poolmach);
 	m0_confc_close(&fs->cf_obj);
-	m0_conf_diter_fini(&it);
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	m0_reqh_lockers_set(reqh, poolmach_key, poolmach);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d", reqh, poolmach_key);
 	return M0_RC(rc);
+fs_close:
+	m0_confc_close(&fs->cf_obj);
+poolmach_free:
+	m0_free(poolmach);
+exit:
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh)

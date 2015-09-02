@@ -734,7 +734,7 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 					break;
 			}
 		}
-	} else if (stob->s_ad_disks_init) {
+	} else if (stob->s_ad_disks_init || M0_FI_ENABLED("init_via_conf")) {
 		rc = cs_conf_storage_init(stob, devs);
 	} else {
 		rc = m0_storage_dev_attach(devs, M0_AD_STOB_DOM_KEY_DEFAULT,

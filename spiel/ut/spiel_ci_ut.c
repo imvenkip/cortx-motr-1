@@ -23,9 +23,13 @@
 #include "lib/finject.h"
 
 #include "net/lnet/lnet.h"    /* m0_net_lnet_xprt */
-#include "lib/finject.h"      /* m0_fi_enable_once */
+#include "lib/finject.h"
+#include "lib/misc.h"         /* M0_SET0 */
+#include "conf/diter.h"       /* m0_conf_diter */
 #include "conf/obj.h"
 #include "conf/obj_ops.h"
+#include "conf/preload.h"     /* M0_CONF_STR_MAXLEN */
+#include "conf/ut/common.h"   /* g_grp */
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine */
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx */
 #include "ut/ut.h"
@@ -34,6 +38,7 @@
 #include "ut/file_helpers.h"  /* M0_UT_PATH */
 
 static struct m0_spiel spiel;
+static char local_conf[M0_CONF_STR_MAXLEN];
 
 int spiel_ci_ut_init(void)
 {
@@ -179,7 +184,7 @@ static void test_spiel_device_cmds(void)
 	rc = m0_spiel_device_detach(&spiel, &disk_fid);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_fi_enable_once("sss_device_stob_attach", "no_real_dev");
+	m0_fi_enable_once("m0_storage_dev_attach_by_conf", "no_real_dev");
 	rc = m0_spiel_device_attach(&spiel, &disk_fid);
 	M0_UT_ASSERT(rc == 0);
 
@@ -236,14 +241,86 @@ static void test_spiel_service_order(void)
 	spiel_ci_ut_fini();
 }
 
+static uint64_t test_spiel_fs_stats_sdevs_total(struct m0_confc        *confc,
+						struct m0_conf_service *ios)
+{
+	struct m0_conf_obj  *sdevs_dir = &ios->cs_sdevs->cd_obj;
+	struct m0_conf_obj  *obj;
+	struct m0_conf_sdev *sdev;
+	uint64_t             total = 0;
+	int                  rc;
+
+	rc = m0_confc_open_sync(&sdevs_dir, sdevs_dir, M0_FID0);
+	M0_UT_ASSERT(rc == 0);
+	for (obj = NULL; (rc = m0_confc_readdir_sync(sdevs_dir, &obj)) > 0; ) {
+		sdev = M0_CONF_CAST(obj, m0_conf_sdev);
+		M0_UT_ASSERT(!m0_addu64_will_overflow(total, sdev->sd_size));
+		total += sdev->sd_size;
+	}
+
+	m0_confc_close(obj);
+	m0_confc_close(sdevs_dir);
+	return total;
+}
+
+static bool test_spiel_filter_service(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
+}
+
+static uint64_t test_spiel_fs_stats_ios_total(const struct m0_fid *fs_fid)
+{
+	struct m0_confc         confc;
+	struct m0_conf_diter    it;
+	struct m0_conf_obj     *fs_obj;
+	struct m0_conf_service *svc;
+	int                     rc;
+	uint64_t                svc_total = 0;
+	uint64_t                total = 0;
+
+	rc = m0_ut_file_read(M0_UT_PATH("conf-str.txt"), local_conf,
+			     sizeof local_conf);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_confc_init(&confc, m0_locality0_get()->lo_grp, NULL, NULL,
+			   local_conf);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_confc_open_by_fid_sync(&confc, fs_fid, &fs_obj);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_conf_diter_init(&it, &confc, fs_obj,
+				M0_CONF_FILESYSTEM_NODES_FID,
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID);
+	M0_UT_ASSERT(rc == 0);
+	while ((rc = m0_conf_diter_next_sync(&it, test_spiel_filter_service)) ==
+	       M0_CONF_DIRNEXT) {
+		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
+		if(svc->cs_type == M0_CST_IOS) {
+			svc_total = test_spiel_fs_stats_sdevs_total(&confc,
+								    svc);
+			M0_UT_ASSERT(!m0_addu64_will_overflow(total,
+							      svc_total));
+			total += svc_total;
+		}
+	}
+	m0_conf_diter_fini(&it);
+	m0_confc_close(fs_obj);
+	m0_confc_fini(&confc);
+	return total;
+}
+
 void test_spiel_fs_stats(void)
 {
 	int                 rc;
 	const struct m0_fid fs_fid = M0_FID_TINIT('f', 1,  1);
 	const struct m0_fid fs_bad = M0_FID_TINIT('f', 1,  200);
 	struct m0_fs_stats  fs_stats = {0};
+	uint64_t            ios_total = test_spiel_fs_stats_ios_total(&fs_fid);
 
+	m0_fi_enable_once("cs_storage_devs_init", "init_via_conf");
+	m0_fi_enable("m0_storage_dev_attach_by_conf", "no_real_dev");
 	spiel_ci_ut_init();
+	m0_fi_disable("m0_storage_dev_attach_by_conf", "no_real_dev");
 	/* test non-existent fs */
 	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_bad, &fs_stats);
 	M0_UT_ASSERT(rc == -ENOENT);
@@ -251,8 +328,12 @@ void test_spiel_fs_stats(void)
 	/* test the existent one */
 	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(fs_stats.fs_free > 0);
-	M0_UT_ASSERT(fs_stats.fs_total > 0);
+	/*
+	 * fs_stats.fs_total contains sum of ios total space and be total space
+	 */
+	M0_UT_ASSERT(fs_stats.fs_total > ios_total);
+	M0_UT_ASSERT(fs_stats.fs_free > 0 && fs_stats.fs_free <=
+		     fs_stats.fs_total);
 	spiel_ci_ut_fini();
 }
 
@@ -421,13 +502,18 @@ done:
 	spiel_ci_ut_fini();
 }
 
-static int spiel_db_fini() {
-	return system("rm -rf ut_spiel.db/");
+static int spiel_ci_tests_fini() {
+	int rc;
+
+	rc = conf_ut_ast_thread_fini() ?:
+	     system("rm -rf ut_spiel.db/");
+	return rc;
 }
 
 struct m0_ut_suite spiel_ci_ut = {
 	.ts_name  = "spiel-ci-ut",
-	.ts_fini  = spiel_db_fini,
+	.ts_init  = conf_ut_ast_thread_init,
+	.ts_fini  = spiel_ci_tests_fini,
 	.ts_tests = {
 		{ "service-cmds", test_spiel_service_cmds },
 		{ "process-cmds", test_spiel_process_cmds },

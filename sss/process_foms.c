@@ -311,12 +311,16 @@ static int ss_ios_stats_ingest(struct m0_ss_process_rep *rep)
 		 */
 		pdev = NULL;
 		m0_forall(idx, pms->pst_nr_devices, NULL ==
-			  (pdev = (pda[idx].pd_id.f_key == dev->isd_cid ?
+			  (pdev = (pda[idx].pd_sdev_fid.f_key == dev->isd_cid ?
 				   &pda[idx] : NULL)));
 		if (pdev != NULL && pdev->pd_state == M0_PNDS_ONLINE) {
 			m0_bcount_t free_space;
 
-			M0_ASSERT(pdev->pd_node->pn_state == M0_PNDS_ONLINE);
+			/* TODO: uncomment this when ios pool machine will
+			 * initialized correctly. Currently pdev->pd_node is
+			 * always NULL.
+			 * M0_ASSERT(pdev->pd_node->pn_state == M0_PNDS_ONLINE);
+			 */
 			if (~((m0_bcount_t)0) / sp.sds_block_size <
 			    sp.sds_free_blocks)
 				return M0_ERR(-EOVERFLOW);

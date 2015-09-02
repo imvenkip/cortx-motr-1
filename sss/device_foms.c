@@ -346,16 +346,7 @@ static int sss_device_stob_attach(struct m0_fom *fom)
 		 * block since it is possibly long operation.
 		 */
 		m0_fom_block_enter(fom);
-		if (M0_FI_ENABLED("no_real_dev")) {
-			const char *dev_fname;
-
-			dev_fname = sdev->sd_filename;
-			sdev->sd_filename = NULL;
-			rc = m0_storage_dev_attach_by_conf(devs, sdev);
-			sdev->sd_filename = dev_fname;
-		} else {
-			rc = m0_storage_dev_attach_by_conf(devs, sdev);
-		}
+		rc = m0_storage_dev_attach_by_conf(devs, sdev);
 		m0_fom_block_leave(fom);
 	} else  {
 		rc = M0_ERR(-EEXIST);

@@ -87,9 +87,20 @@ m0_storage_devs_find_by_cid(struct m0_storage_devs *devs,
 M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs *devs,
 					      struct m0_conf_sdev    *sdev)
 {
+	const char *dev_fname = NULL;
+	int         rc;
+
 	M0_PRE(sdev != NULL);
-	return m0_storage_dev_attach(devs, sdev->sd_obj.co_id.f_key,
-				     sdev->sd_filename, sdev->sd_size);
+	if (M0_FI_ENABLED("no_real_dev")) {
+		dev_fname = sdev->sd_filename;
+		sdev->sd_filename = NULL;
+	}
+	rc = m0_storage_dev_attach(devs, sdev->sd_obj.co_id.f_key,
+				   sdev->sd_filename, sdev->sd_size);
+	if (dev_fname != NULL)
+		/* Fault injection enabled */
+		sdev->sd_filename = dev_fname;
+	return M0_RC(rc);
 
 }
 
