@@ -553,7 +553,7 @@ static int process_trace_buffer(int ofd,
 			if (rc != 0) {
 				log_warn("trace data processing interrupted by"
 					 " a signal, exiting\n");
-				return -errno;
+				return 0;
 			}
 
 			continue;
