@@ -96,9 +96,9 @@ static void test_fol_frag_encdec(void)
 {
 	struct m0_fid      *rec;
 	struct m0_fol_rec   dec_rec;
-	struct m0_fol_frag  ut_rec_frag;
 	struct m0_fol_frag *dec_frag;
-	struct m0_buf       buf;
+	struct m0_fol_frag  ut_rec_frag = {};
+	struct m0_buf      *buf         = &g_tx.t_payload;
 	int                 rc;
 
 	m0_fol_rec_init(&g_rec, &g_fol);
@@ -110,14 +110,14 @@ static void test_fol_frag_encdec(void)
 	m0_fol_frag_init(&ut_rec_frag, rec, &ut_frag_type);
 	m0_fol_frag_add(&g_rec, &ut_rec_frag);
 
-	buf = g_tx.t_payload;
-	rc = m0_fol_rec_encode(&g_rec, &buf);
+	/* Note, this function sets actual tx payload size for the buf. */
+	rc = m0_fol_rec_encode(&g_rec, buf);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_fol_rec_fini(&g_rec);
 
 	m0_fol_rec_init(&dec_rec, &g_fol);
-	rc = m0_fol_rec_decode(&dec_rec, &buf);
+	rc = m0_fol_rec_decode(&dec_rec, buf);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_tl_for(m0_rec_frag, &dec_rec.fr_frags, dec_frag) {

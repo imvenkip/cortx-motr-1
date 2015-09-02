@@ -30,9 +30,9 @@ void m0_be_ut_seg_dict(void)
 {
 	static struct m0_be_ut_backend ut_be;
 	struct m0_be_tx_credit  credit = {};
+	struct m0_be_tx         tx     = {};
 	struct m0_be_ut_seg     ut_seg;
 	struct m0_be_seg       *seg;
-	struct m0_be_tx         tx;
 	const char             *nk; /*next key */
 	void                   *p;
 	int                     i;

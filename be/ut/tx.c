@@ -1044,8 +1044,10 @@ static void be_ut_tx_payload_test_nr(struct m0_be_ut_backend      *ut_be,
 		rc = m0_be_tx_open_sync(&test[i].tpt_tx);
 		M0_UT_ASSERT(rc == 0);
 		M0_ASSERT(test[i].tpt_fill <= test[i].tpt_credit);
+		M0_ASSERT(test[i].tpt_fill <= test[i].tpt_tx.t_payload.b_nob);
 		be_ut_tx_buf_fill_random(test[i].tpt_tx.t_payload.b_addr,
 					 test[i].tpt_fill);
+		test[i].tpt_tx.t_payload.b_nob = test[i].tpt_fill;
 		if (test[i].tpt_capture > 0) {
 			seg = test[i].tpt_seg;
 			reg = M0_BE_REG(seg, test[i].tpt_capture,
