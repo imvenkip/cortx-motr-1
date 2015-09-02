@@ -306,10 +306,6 @@ M0_INTERNAL void m0_pdclust_instance_inv(struct m0_pdclust_instance *pi,
 					 const struct m0_pdclust_tgt_addr *tgt,
 					 struct m0_pdclust_src_addr *src);
 
-/** Convenient helper to get @fs_params from @fs configuration object. */
-M0_INTERNAL int m0_pdclust_attr_read(const struct m0_conf_filesystem *fs,
-				     struct m0_pdclust_attr *pa);
-
 extern struct m0_layout_type m0_pdclust_layout_type;
 
 /** @} end group pdclust */
