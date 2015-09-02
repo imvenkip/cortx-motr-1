@@ -39,12 +39,14 @@ if [[ -n $1 ]] ; then
 else
     confd_is_started=false
     services=$(m0_get_services | sed 's/confd//')
+    env_file='/var/mero/env.sh'
 
     # check if there is a 'confd' service, we need to start it first,
     # but only if there are other services on this node which require mkfs
     if [[ $services != $(m0_get_services) ]] ; then
         systemctl start mero-mkfs@confd.service
         if [[ -n $services ]] ; then
+            echo "MERO_CONFD_LOCAL_EP=$(m0_get_lnet_nid):12345:36:174" > $env_file
             systemctl start mero-server-confd.service
             confd_is_started=true
         fi
@@ -56,6 +58,7 @@ else
 
     if $confd_is_started ; then
         systemctl stop mero-server-confd.service
+        rm $env_file
         if systemctl -q is-active mero-trace@confd.service ; then
             systemctl stop mero-trace@confd.service
         fi

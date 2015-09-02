@@ -11,4 +11,5 @@ Type=notify
 Restart=on-abort
 StartLimitInterval=5
 StartLimitBurst=1
+EnvironmentFile=-/var/mero/env.sh
 ExecStart=/usr/libexec/mero/mero-server confd
