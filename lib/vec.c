@@ -423,7 +423,7 @@ M0_EXPORTED(m0_bufvec_cursor_step);
 M0_INTERNAL void *bufvec_cursor_addr(struct m0_bufvec_cursor *cur)
 {
 	struct m0_vec_cursor *vc = &cur->bc_vc;
-	struct m0_bufvec *bv = container_of(vc->vc_vec,struct m0_bufvec,ov_vec);
+	struct m0_bufvec     *bv = M0_AMB(bv, vc->vc_vec, ov_vec);
 
 	M0_PRE(!m0_bufvec_cursor_move(cur, 0));
 	return bv->ov_buf[vc->vc_seg] + vc->vc_offset;
