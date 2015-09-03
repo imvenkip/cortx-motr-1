@@ -500,7 +500,8 @@ sub file_of
 {
     my $trace_record = shift;
 
-    my ($relpath) = $trace_record->{file} =~ m#^.*/?mero(?:-\d\.\d\.\d)?/(.*)#xms;
+    my ($relpath) = $trace_record->{file}
+        =~ m#^.*/?mero(?:-(?:\d|\w)(?:\.(?:\d|\w)){2,5})?/(.*)#xms;
     $relpath = defined $relpath ? $relpath : $trace_record->{file};
     return $cli_option{relpath} ? $relpath : $trace_record->{file};
 }
