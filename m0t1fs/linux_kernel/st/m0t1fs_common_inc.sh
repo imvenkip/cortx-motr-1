@@ -340,7 +340,7 @@ function build_conf()
 		local  DISK3="{0x6b| (($DISKID3), $SDEVID3)}"
 
 		local POOL1="{0x6f| (($POOLID1), 0, [1: $PVERID1])}"
-		local PVER1="{0x76| (($PVERID1), 0, 1, 1, 3, [3: 1, 2, 3], [5: 1, 0, 0, 0, 1], [1: $RACKVID1])}"
+		local PVER1="{0x76| (($PVERID1), 0, 1, 1, 3, [5: 1, 0, 0, 0, 1], [1: $RACKVID1])}"
 		local RACKV1="{0x6a| (($RACKVID1), $RACKID1, [1: $ENCLVID1])}"
 		local ENCLV1="{0x6a| (($ENCLVID1), $ENCLID1, [1: $CTRLVID1])}"
 		local CTRLV1="{0x6a| (($CTRLVID1), $CTRLID1, [3: $DISKVID1, $DISKVID2, $DISKVID3])}"
