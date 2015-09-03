@@ -130,12 +130,8 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
 	rc = m0_be_tx_service_init(en, en_cfg->bec_reqh);
 	if (rc != 0)
 		goto err_free;
-	/**
-	 * @todo Recovery is disabled because of bug MERO-1109.
-	 * Once bug is fixed, enable it again.
-	 */
-	/*rc = m0_be_recovery_run(en->eng_recovery, &en->eng_log);*/
-	rc = 0;
+	rc = en_cfg->bec_recovery_disable ? 0 :
+	     m0_be_recovery_run(en->eng_recovery, &en->eng_log);
 	if (rc != 0)
 		goto err_service_fini;
 	for (i = 0; i < en->eng_group_nr; ++i) {
