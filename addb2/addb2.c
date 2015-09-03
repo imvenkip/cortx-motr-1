@@ -126,6 +126,7 @@
 #include "lib/finject.h"
 #include "lib/errno.h"                       /* ENOMEM, EPROTO */
 #include "lib/thread.h"                      /* m0_thread_tls */
+#include "lib/arith.h"                       /* M0_CNT_DEC, M0_CNT_INC */
 #include "lib/tlist.h"
 #include "lib/trace.h"
 #include "lib/memory.h"
@@ -243,6 +244,10 @@ struct m0_addb2_mach {
 	 */
 	struct m0_tl                    ma_idle;
 	/**
+	 * Length of the idle list.
+	 */
+	m0_bcount_t                     ma_idle_nr;
+	/**
 	 * The list of buffers submitted for processing (by calling
 	 * m0_addb2_mach_ops::apo_submit()).
 	 *
@@ -252,6 +257,10 @@ struct m0_addb2_mach {
 	 * against it.
 	 */
 	struct m0_tl                    ma_busy;
+	/**
+	 * Length of the busy list.
+	 */
+	m0_bcount_t                     ma_busy_nr;
 	/**
 	 * Greater than 0 iff an operation (add, push, pop, sensor) is currently
 	 * underway for the machine.
@@ -637,11 +646,12 @@ void m0_addb2_trace_done(const struct m0_addb2_trace *ctrace)
 
 	if (mach != NULL) { /* mach == NULL for a trace from network. */
 		m0_mutex_lock(&mach->ma_lock);
-		M0_PRE(buf_tlist_contains(&mach->ma_busy, buf));
-		if (buf_tlist_length(&mach->ma_busy) +
-		    buf_tlist_length(&mach->ma_idle) +
+		M0_PRE_EX(buf_tlist_contains(&mach->ma_busy, buf));
+		M0_CNT_DEC(mach->ma_busy_nr);
+		if (mach->ma_busy_nr + mach->ma_idle_nr +
 		    !!(mach->ma_cur != NULL) <= BUFFER_MIN) {
 			buf_tlist_move(&mach->ma_idle, buf);
+			M0_CNT_INC(mach->ma_idle_nr);
 			buf->b_trace.o_tr.tr_nr = 0;
 		} else {
 			buf_tlist_del(buf);
@@ -767,8 +777,8 @@ static struct buffer *mach_buffer(struct m0_addb2_mach *mach)
 {
 	if (mach->ma_cur == NULL) {
 		m0_mutex_lock(&mach->ma_lock);
-		if (buf_tlist_is_empty(&mach->ma_idle)) {
-			if (buf_tlist_length(&mach->ma_busy) <= BUFFER_MAX)
+		if (mach->ma_idle_nr == 0) {
+			if (mach->ma_busy_nr <= BUFFER_MAX)
 				buffer_alloc(mach);
 			else
 				M0_LOG(M0_NOTICE, "Too many ADDB2 buffers.");
@@ -782,6 +792,7 @@ static struct buffer *mach_buffer(struct m0_addb2_mach *mach)
 		if (mach->ma_cur != NULL) {
 			int i;
 
+			M0_CNT_DEC(mach->ma_idle_nr);
 			for (i = 0; i < MACH_DEPTH(mach); ++i) {
 				struct tentry          *e = &mach->ma_label[i];
 				struct m0_addb2_value  *v = e->e_recval;
@@ -852,7 +863,7 @@ static void mach_put(struct m0_addb2_mach *m)
  */
 static void mach_idle(struct m0_addb2_mach *m)
 {
-	if (buf_tlist_is_empty(&m->ma_busy)) {
+	if (m->ma_busy_nr == 0) {
 		if (m->ma_ops->apo_idle != NULL)
 			m->ma_ops->apo_idle(m);
 		m0_semaphore_up(&m->ma_idlewait);
@@ -906,6 +917,7 @@ static void pack(struct m0_addb2_mach *m)
 		 * called.
 		 */
 		buf_tlist_add_tail(&m->ma_busy, m->ma_cur);
+		M0_CNT_INC(m->ma_busy_nr);
 		m0_mutex_unlock(&m->ma_lock);
 		wait = m->ma_ops->apo_submit(m, o) > 0;
 		m0_mutex_lock(&m->ma_lock);
@@ -915,6 +927,8 @@ static void pack(struct m0_addb2_mach *m)
 			 * outright.
 			 */
 			buf_tlist_move(&m->ma_idle, m->ma_cur);
+			M0_CNT_DEC(m->ma_busy_nr);
+			M0_CNT_INC(m->ma_idle_nr);
 			o->o_tr.tr_nr = 0;
 		}
 		m->ma_cur = NULL;
@@ -948,6 +962,7 @@ static int buffer_alloc(struct m0_addb2_mach *mach)
 		buf->b_trace.o_tr.tr_body = area;
 		buf->b_trace.o_mach = mach;
 		buf_tlink_init_at_tail(buf, &mach->ma_idle);
+		M0_CNT_INC(mach->ma_idle_nr);
 		return 0;
 	} else {
 		M0_LOG(M0_NOTICE, "Cannot allocate ADDB2 buffer.");
