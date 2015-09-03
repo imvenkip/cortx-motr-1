@@ -66,6 +66,7 @@ struct m0_addb2_sys {
 	unsigned                 sy_nesting;
 	struct m0_mutex_addb2    sy_lock_stats;
 	struct m0_list           sy_counters;
+	struct m0_addb2_mach    *sy_stash;
 };
 
 static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
@@ -454,9 +455,22 @@ static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 static void sys_lock(struct m0_addb2_sys *sys)
 {
 	if (sys->sy_owner != m0_thread_self()) {
+		struct m0_addb2_mach *cur = m0_thread_tls()->tls_addb2_mach;
+
+		/*
+		 * Clear the addb2 machine, associated with the current
+		 * thread. This avoids addb2 re-entrancy and dead-locks. Do this
+		 * outside of the lock, just in case m0_mutex_lock() makes addb2
+		 * calls.
+		 *
+		 * The machine is restored in sys_unlock().
+		 */
+		m0_thread_tls()->tls_addb2_mach = NULL;
 		m0_mutex_lock(&sys->sy_lock);
 		sys->sy_owner = m0_thread_self();
 		M0_ASSERT(sys->sy_nesting == 0);
+		M0_ASSERT(sys->sy_stash == NULL);
+		sys->sy_stash = cur;
 	}
 	++sys->sy_nesting;
 	M0_ASSERT(sys_invariant(sys));
@@ -466,8 +480,12 @@ static void sys_unlock(struct m0_addb2_sys *sys)
 {
 	M0_ASSERT(sys_invariant(sys));
 	if (--sys->sy_nesting == 0) {
+		struct m0_addb2_mach *cur = sys->sy_stash;
+
+		sys->sy_stash = NULL;
 		sys->sy_owner = 0;
 		m0_mutex_unlock(&sys->sy_lock);
+		m0_thread_tls()->tls_addb2_mach = cur;
 	}
 }
 
