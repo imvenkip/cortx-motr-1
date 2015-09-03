@@ -587,7 +587,6 @@ void m0_be_ut_tx_fast(void)
 	struct m0_be_seg        *seg;
 	struct m0_be_reg         reg;
 	struct m0_be_tx         *tx;
-	bool                     finished;
 	int                      nr_init;
 	int                      nr_closed;
 	int                      i;
@@ -607,7 +606,8 @@ void m0_be_ut_tx_fast(void)
 	reg = M0_BE_REG(seg, 1, seg->bs_addr + seg->bs_reserved);
 	nr_init = 0;
 	nr_closed = 0;
-	for (finished = false; !finished; ) {
+	while (!(nr_closed == BE_UT_TX_F_TX_NR &&
+	         nr_init   == BE_UT_TX_F_TX_NR + BE_UT_TX_F_TX_CONCUR)) {
 		if (grp != NULL)
 			m0_sm_group_unlock(grp);
 		m0_semaphore_down(&global_sem);
@@ -621,9 +621,8 @@ void m0_be_ut_tx_fast(void)
 		tx = &txf[i].txf_tx;
 		switch (txf[i].txf_state) {
 		case BE_UT_TX_F_INIT:
-			if (nr_init >= BE_UT_TX_F_TX_NR)
+			if (nr_init++ >= BE_UT_TX_F_TX_NR)
 				break;
-			++nr_init;
 			M0_SET0(tx);
 			m0_be_ut_tx_init(tx, &ut_be);
 			grp = tx->t_sm.sm_grp;
@@ -637,12 +636,6 @@ void m0_be_ut_tx_fast(void)
 			++reg.br_addr;
 			m0_be_tx_close(tx);
 			++nr_closed;
-			if (nr_closed == BE_UT_TX_F_TX_NR) {
-				m0_sm_group_unlock(grp);
-				m0_semaphore_down(&txf[i].txf_sem);
-				m0_sm_group_lock(grp);
-				finished = true;
-			}
 			break;
 		default:
 			M0_IMPOSSIBLE("invalid state %d", txf[i].txf_state);
