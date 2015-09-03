@@ -335,7 +335,8 @@ static void be_engine_got_tx_open(struct m0_be_engine *en,
 		if (!m0_be_tx_credit_le(&tx->t_prepared,
 					&en->eng_cfg->bec_tx_size_max) ||
 		    tx->t_payload.b_nob > en->eng_cfg->bec_tx_payload_max) {
-			M0_LOG(M0_INFO, "tx=%p engine=%p t_prepared="BETXCR_F" "
+			M0_LOG(M0_ERROR,
+			       "tx=%p engine=%p t_prepared="BETXCR_F" "
 			       "t_payload.b_nob=%lu bec_tx_size_max="BETXCR_F" "
 			       "bec_tx_payload_max=%lu",
 			       tx, en, BETXCR_P(&tx->t_prepared),
