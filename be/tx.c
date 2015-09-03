@@ -638,8 +638,11 @@ M0_INTERNAL bool m0_be_should_break(struct m0_be_engine          *eng,
 				    const struct m0_be_tx_credit *delta)
 {
 	struct m0_be_tx_credit total = *accum;
+	struct m0_be_tx_credit max;
+
 	m0_be_tx_credit_add(&total, delta);
-	return !m0_be_tx_credit_le(&total, &eng->eng_cfg->bec_tx_size_max);
+	m0_be_engine_tx_size_max(eng, &max, NULL);
+	return !m0_be_tx_credit_le(&total, &max);
 }
 
 M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,

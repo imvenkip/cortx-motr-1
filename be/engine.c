@@ -800,10 +800,14 @@ m0_be_engine__exclusive_open_invariant(struct m0_be_engine *en,
 	return ret;
 }
 
-M0_INTERNAL struct m0_be_tx_credit
-m0_be_engine_tx_size_max(struct m0_be_engine *en)
+M0_INTERNAL void m0_be_engine_tx_size_max(struct m0_be_engine    *en,
+                                          struct m0_be_tx_credit *cred,
+                                          m0_bcount_t            *payload_size)
 {
-	return en->eng_cfg->bec_tx_size_max;
+	if (cred != NULL)
+		*cred = en->eng_cfg->bec_tx_size_max;
+	if (payload_size != NULL)
+		*payload_size = en->eng_cfg->bec_tx_payload_max;
 }
 
 /** @} end of be group */

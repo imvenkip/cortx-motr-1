@@ -245,6 +245,10 @@ M0_INTERNAL void m0_be_domain__0type_register(struct m0_be_domain *dom,
 M0_INTERNAL void m0_be_domain__0type_unregister(struct m0_be_domain *dom,
 						struct m0_be_0type  *type);
 
+M0_INTERNAL void m0_be_domain_tx_size_max(struct m0_be_domain    *dom,
+                                          struct m0_be_tx_credit *cred,
+                                          m0_bcount_t            *payload_size);
+
 /** @} end of be group */
 #endif /* __MERO_BE_DOMAIN_H__ */
 

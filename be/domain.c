@@ -1028,6 +1028,13 @@ M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain           *dom,
 	dom->bd_cfg = *cfg;
 }
 
+M0_INTERNAL void m0_be_domain_tx_size_max(struct m0_be_domain    *dom,
+                                          struct m0_be_tx_credit *cred,
+                                          m0_bcount_t            *payload_size)
+{
+	m0_be_engine_tx_size_max(&dom->bd_engine, cred, payload_size);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 /** @} end of be group */
 
