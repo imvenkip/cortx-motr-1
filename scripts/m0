@@ -110,10 +110,10 @@ run_st() {
     say SNS multi failure repair
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh"
 
+if false; then # XXX ENABLEME after MERO-1086 is fixed
     say Concurrent i/o with sns repair
-    # MERO-1086 hits and fails the ST. Please enable the following ST once
-    # MERO-1086 is fixed.
-    # $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_cc_io_with_sns_repair.sh"
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_cc_io_with_sns_repair.sh"
+fi
 
     say sns repair/rebalance quiesce and resume
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_quiesce.sh"
