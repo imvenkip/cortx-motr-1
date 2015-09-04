@@ -339,6 +339,8 @@ struct m0_reqh_context {
 
 	/** Disable seg I/O fdatasync() in BE. It can improve performance. */
 	bool                         rc_be_disable_seg_io_fdatasync;
+	/** XXX workaround for a problem with m0mkfs arguments pass */
+	bool                         rc_be_disable_seg_io_fdatasync2;
 
 	/** Process FID */
 	struct m0_fid                rc_fid;

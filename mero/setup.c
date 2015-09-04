@@ -1206,7 +1206,7 @@ static int cs_storage_setup(struct m0_mero *cctx)
 
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
 			rctx->rc_be_seg_preallocate,
-			rctx->rc_be_disable_seg_io_fdatasync,
+			rctx->rc_be_disable_seg_io_fdatasync2,
 			(mkfs && force), &rctx->rc_beseg);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "cs_be_init");
@@ -1866,6 +1866,26 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 					/* not used here, it's a placeholder */
 				})),
 			);
+	/*
+	 * XXX max: If `-E' is added as parameter to m0mkfs
+	 *
+	 * Sep 04 02:43:08 devvm mero-mkfs[5029]:
+	 * + exec /work/mero/utils/mkfs/m0mkfs
+	 * -e lnet:172.16.1.212@tcp:12345:41:401 -f '<0x7200000000000001:4>'
+	 *  -T ad -D db -S stobs -A linuxstob:addb-stobs
+	 *  -P '<0x7000000000000001:0>' -w 12 -m 65536 -q 16
+	 *  -C 172.16.1.212@tcp:12345:36:174 -s 'addb2:<7300000000000019:0>'
+	 *  -s 'ioservice:<7300000000000012:1>'
+	 *  -s 'sns_repair:<7300000000000017:1>'
+	 *  -s 'sns_rebalance:<7300000000000018:1>'
+	 *  -d /etc/mero/disks-ios1.conf -E -F
+	 *  -u aa89f587-d3b2-4435-a972-559903aa523a -z 536870912
+	 *
+	 * then the flag is reset on the second function call.
+	 * So a workaround is added until the issue is resolved.
+	 */
+	rctx->rc_be_disable_seg_io_fdatasync2 |=
+		rctx->rc_be_disable_seg_io_fdatasync;
 	/* generate reqh fid in case it is all-zero */
 	process_fid_generate_conditional(rctx);
 
