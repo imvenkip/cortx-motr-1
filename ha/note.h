@@ -161,7 +161,14 @@ struct m0_ha_note {
  * "Note vector" describes changes in system state.
  */
 struct m0_ha_nvec {
-	uint32_t           nv_nr;
+	/**
+	 * @note Since this field is used for returning error code
+	 *       to note interface users @see m0_conf_ha_state_update(),
+	 *       changing this to int32_t.
+	 *       Anyway nvec will not request status for 2^16 object
+	 *       because of RPC mesg size constrains.
+	 */
+	int32_t            nv_nr;
 	struct m0_ha_note *nv_note;
 } M0_XCA_SEQUENCE;
 

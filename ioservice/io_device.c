@@ -249,9 +249,16 @@ ysXAXAgJ5lQoMcOkbBNBW9Nz9OM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
  */
 M0_EXTERN unsigned poolmach_key;
 
-static bool is_object_disk(const struct m0_conf_obj *obj)
+static struct m0_conf_obj *disk2sdev(const struct m0_conf_obj *obj)
 {
-	return m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE;
+	return &M0_CONF_CAST(obj, m0_conf_disk)->ck_dev->sd_obj;
+}
+
+static bool is_ios_disk(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE &&
+	       m0_conf_obj_type(disk2sdev(obj)->co_parent->co_parent) ==
+				&M0_CONF_SERVICE_TYPE;
 }
 
 M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
@@ -263,10 +270,8 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 	struct m0_confc               *confc = &reqh->rh_confc;
 	struct m0_conf_obj            *obj;
 	struct m0_sm_group            *grp = m0_locality0_get()->lo_grp;
-	struct m0_mero                *mero = service->rs_reqh_ctx->rc_mero;
-	struct m0_conf_filesystem     *fs;
-	const struct m0_conf_obj_type *t;
-	struct m0_conf_disk           *d;
+	struct m0_conf_filesystem     *fs = NULL;
+	int                            nr_devices = 0;
 	uint32_t                       i;
 
 	M0_PRE(service != NULL);
@@ -288,16 +293,25 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 		return M0_ERR(-ENOMEM);
 	}
 
-	/* TODO configuration information is needed here. */
+	rc = m0_conf_obj_count(&reqh->rh_profile, confc, is_ios_disk,
+				&nr_devices, M0_CONF_FILESYSTEM_RACKS_FID,
+				M0_CONF_RACK_ENCLS_FID,
+				M0_CONF_ENCLOSURE_CTRLS_FID,
+				M0_CONF_CONTROLLER_DISKS_FID);
+	if (rc != 0) {
+		m0_free(poolmach);
+		return M0_RC(rc);
+	}
 
 	/* We are not using reqh->rh_sm_grp here, otherwise deadlock */
 	m0_sm_group_lock(grp);
 	rc = m0_poolmach_init(poolmach, reqh->rh_beseg, grp,
 			      reqh->rh_dtm,
 			      PM_DEFAULT_NR_NODES,
-			      mero->cc_pool_width,
+			      nr_devices,
 			      PM_DEFAULT_MAX_NODE_FAILURES,
-			      mero->cc_pool_width);
+			      /* @todo need to find max devices failure. */
+			      nr_devices);
 	m0_sm_group_unlock(grp);
 	if (rc != 0) {
 		m0_free(poolmach);
@@ -319,15 +333,10 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 		return M0_RC(rc);
 	}
 	i = 0;
-	while ((rc = m0_conf_diter_next_sync(&it, is_object_disk))) {
+	while ((rc = m0_conf_diter_next_sync(&it, is_ios_disk))) {
 		obj = m0_conf_diter_result(&it);
-		t = m0_conf_obj_type(obj);
-		if (t == &M0_CONF_DISK_TYPE) {
-			d = container_of(obj, struct m0_conf_disk, ck_obj);
-			poolmach->pm_state->pst_devices_array[i].pd_id =
-				d->ck_obj.co_id;
-			M0_CNT_INC(i);
-		}
+		poolmach->pm_state->pst_devices_array[i].pd_id = obj->co_id;
+		M0_CNT_INC(i);
 	}
 	m0_confc_close(&fs->cf_obj);
 	m0_conf_diter_fini(&it);

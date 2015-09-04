@@ -232,7 +232,7 @@ M0_INTERNAL int m0_conf_ha_state_update(struct m0_rpc_session *ha_sess,
 		 * We need to wait for reply fop.
 		 */
 		m0_chan_wait(&clink);
-		if ((int32_t)nvec->nv_nr >= 0)
+		if (nvec->nv_nr >= 0)
 			m0_ha_state_accept(confc, nvec);
 		else
 			rc = M0_ERR(nvec->nv_nr);
@@ -320,6 +320,33 @@ M0_INTERNAL bool m0_conf_is_pool_version_dirty(struct m0_confc     *confc,
 	m0_conf_cache_unlock(&confc->cc_cache);
 
 	return dirty;
+}
+
+M0_INTERNAL int m0_conf__obj_count(const struct m0_fid *profile,
+				   struct m0_confc     *confc,
+				   bool (*filter)(const struct m0_conf_obj *obj),
+				   int                  *count,
+				   int                   level,
+				   const struct m0_fid  *path)
+{
+	struct m0_conf_diter       it;
+	struct m0_conf_filesystem *fs = NULL;
+	int                        rc;
+
+	rc = m0_conf_fs_get(profile, confc, &fs);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0_conf__diter_init(&it, confc, &fs->cf_obj, level, path);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	while ((rc = m0_conf_diter_next_sync(&it, filter)) == M0_CONF_DIRNEXT)
+			M0_CNT_INC(*count);
+
+	m0_conf_diter_fini(&it);
+	m0_confc_close(&fs->cf_obj);
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

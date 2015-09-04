@@ -111,7 +111,7 @@ m0t1fs_pool_version_assignment()
 		return 1
 	fi
 
-	pool_version_assignment
+	pool_version_assignment && pool_version_assignment "oostore"
 	rc=$?
 
 	mero_service stop

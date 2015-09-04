@@ -36,6 +36,22 @@ struct m0_conf_sdev;
 struct m0_fid;
 struct m0_rpc_session;
 struct m0_flset;
+struct m0_conf_obj_type;
+
+/**
+ * Count number of objects of type "type" from specified path.
+ *
+ * @param profile profile to be used from configuration.
+ * @param confc   already initialised confc instance.
+ * @param filter  filter for objects to be count.
+ * @param count   return value for count.
+ * @param path    path from which objects to be counted.
+ */
+#define m0_conf_obj_count(profile, confc, filter, count, ...)       \
+	m0_conf__obj_count(profile, confc, filter, count,           \
+			   M0_COUNT_PARAMS(__VA_ARGS__) + 1,        \
+			   (const struct m0_fid []){                \
+			   __VA_ARGS__, M0_FID0 })
 
 struct m0_confc_args {
 	/** Cofiguration profile. */
@@ -107,5 +123,16 @@ M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj);
 
 M0_INTERNAL bool m0_conf_is_pool_version_dirty(struct m0_confc     *confc,
 					       const struct m0_fid *pver_fid);
+
+/**
+ * Internal function to get number of objects of type "type" from specified path.
+ * @note this function is called from m0_conf_obj_count().
+ */
+M0_INTERNAL int m0_conf__obj_count(const struct m0_fid *profile,
+				   struct m0_confc     *confc,
+				   bool (*filter)(const struct m0_conf_obj *obj),
+				   int                 *count,
+				   int                  level,
+				   const struct m0_fid *path);
 
 #endif /* __MERO_CONF_HELPERS_H__ */
