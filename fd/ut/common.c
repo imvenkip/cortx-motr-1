@@ -83,8 +83,10 @@ M0_INTERNAL int fd_ut_tree_level_populate(struct m0_fd_tree *tree,
 	do {
 		node = m0_fd__tree_cursor_get(&cursor);
 		*node = m0_alloc(sizeof node[0][0]);
-		if (*node == NULL)
+		if (*node == NULL) {
+			rc = -ENOMEM;
 			goto err;
+		}
 		children = ta == TA_SYMM ? max_children :
 			fd_ut_random_cnt_get(max_children);
 		/* To ensure better randomization for asymmetric tree */
@@ -114,7 +116,6 @@ M0_INTERNAL int fd_ut_tree_init(struct m0_fd_tree *tree, uint64_t tree_depth)
 
 	tree->ft_depth = tree_depth;
 	tree->ft_cnt   = 0;
-	perm_cache_tlist_init(&tree->ft_perm_cache);
 	tree->ft_root  = m0_alloc(sizeof tree->ft_root[0]);
 	if (tree->ft_root == NULL)
 		goto err;

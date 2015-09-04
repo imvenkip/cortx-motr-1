@@ -25,9 +25,6 @@
 #include "lib/memory.h"      /* m0_alloc() */
 #include "lib/finject.h"     /* m0_fi_enable() */
 #include "lib/misc.h"        /* M0_SET0() */
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
-#include "lib/trace.h"         /* M0_ERR() */
-
 
 static int tree_populate(struct m0_fd_tree *tree, enum tree_type param_type);
 static uint32_t geometric_sum(uint16_t r, uint16_t k);
@@ -36,11 +33,11 @@ static uint32_t int_pow(uint32_t num, uint32_t exp);
 static void test_cache_init_fini(void)
 {
 	struct m0_fd_tree        tree;
-	struct m0_fd_perm_cache *cache;
 	uint32_t                 children_nr;
 	uint32_t                 i;
 	uint32_t                 unique_chld_nr[TP_NR];
 	uint32_t                 list_chld_nr[TP_NR];
+	uint64_t                 cache_len;
 	m0_time_t                seed;
 	int                      rc;
 
@@ -64,10 +61,11 @@ static void test_cache_init_fini(void)
 			unique_chld_nr[children_nr] = 1;
 	}
 	m0_fd__perm_cache_build(&tree);
-	m0_tl_for(perm_cache, &tree.ft_perm_cache, cache) {
-		M0_UT_ASSERT(unique_chld_nr[cache->fpc_len] == 1);
-		list_chld_nr[cache->fpc_len] = 1;
-	} m0_tl_endfor;
+	for (i = 0; i < tree.ft_cache_info.fci_nr; ++i) {
+		cache_len = tree.ft_cache_info.fci_info[i];
+		M0_UT_ASSERT(unique_chld_nr[cache_len] == 1);
+		list_chld_nr[cache_len] = 1;
+	}
 	M0_UT_ASSERT(!memcmp(unique_chld_nr, list_chld_nr,
 			     sizeof unique_chld_nr));
 	m0_fd_tree_destroy(&tree);
@@ -158,8 +156,8 @@ static int tree_populate(struct m0_fd_tree *tree, enum tree_type param_type)
 		if (rc != 0)
 			return rc;
 	}
-	m0_fd__perm_cache_build(tree);
-	return 0;
+	rc = m0_fd__perm_cache_build(tree);
+	return rc;
 }
 
 static void test_perm_cache(void)

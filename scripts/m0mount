@@ -869,7 +869,7 @@ main()
 
 	rmmod m0loop m0mero m0gf &> /dev/null
 
-	# ldemo now needs kernel module loaded for some reason...
+	#ldemo now needs kernel module loaded for some reason...
 	l_do $GF_KO_LOAD_CMD || {
 		echo ERROR: Failed to load m0gf module
 		exit 1

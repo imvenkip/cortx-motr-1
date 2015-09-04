@@ -79,9 +79,6 @@ static int min_children_cnt(const struct m0_conf_pver *pver, uint64_t pv_level,
 /** Calculates the pool-width associated with the symmetric tree. */
 static uint64_t pool_width_calc(uint64_t *children_nr, uint64_t depth);
 
-static int cache_init(struct m0_fd_perm_cache *cache, uint64_t child_nr);
-
-static void cache_fini(struct m0_fd_perm_cache *cache);
 
 /** Returns an index of permuted target. **/
 
@@ -92,12 +89,21 @@ static void permuted_tgt_get(struct m0_pdclust_instance *pi, uint64_t omega,
 static void inverse_permuted_idx_get(struct m0_pdclust_instance *pi,
 				     uint64_t omega, uint64_t perm_idx,
 				     uint64_t *rel_idx);
-
+/** Returns the permutation cache associated with a node from the pdclust
+ *  instance.
+ */
+static struct m0_fd_perm_cache *cache_get(struct m0_pdclust_instance *pi,
+					  struct m0_fd_tree_node *node);
 /** Permutes the permutation cache. **/
 static void fd_permute(struct m0_fd_perm_cache *cache,
 		       struct m0_uint128 *seed, struct m0_fid *gfid,
 		       uint64_t omega);
-
+/**
+ *  Checks if a given count is present in cache_info, and adds it in case
+ *  it is absent.
+ */
+static void cache_info_update(struct m0_fd_cache_info *cache_info,
+			      uint64_t cnt);
 static bool is_cache_valid(const struct m0_fd_perm_cache *cache,
 			   uint64_t omega, const struct m0_fid *gfid);
 
@@ -140,12 +146,6 @@ bool (*obj_filter[M0_FTA_DEPTH_MAX]) (const struct m0_conf_obj *obj) = {
 	is_obj_contr,
 	is_obj_disk
 };
-
-M0_TL_DESCR_DEFINE(perm_cache, "failure domains cache", M0_INTERNAL,
-		   struct m0_fd_perm_cache, fpc_link, fpc_magic,
-		   M0_FD_PRMCACHE_MAGIC, M0_FD_PRMCACHE_HEAD_MAGIC);
-
-M0_TL_DEFINE(perm_cache, M0_INTERNAL, struct m0_fd_perm_cache);
 
 #define pv_for(pv, level, obj, rc)                                         \
 ({                                                                         \
@@ -569,7 +569,6 @@ M0_INTERNAL int m0_fd_tree_build(const struct m0_conf_pver *pv,
 	tree->ft_root  = m0_alloc(sizeof tree->ft_root[0]);
 	if (tree->ft_root == NULL)
 		return M0_ERR(-ENOMEM);
-	perm_cache_tlist_init(&tree->ft_perm_cache);
 	rc = m0_fd__tree_root_create(tree, children_nr[0]);
 	if (rc != 0)
 		return M0_RC(rc);
@@ -638,13 +637,19 @@ rewind:
 
 M0_INTERNAL int m0_fd__perm_cache_build(struct m0_fd_tree *tree)
 {
-	struct m0_fd__tree_cursor cursor;
-	struct m0_fd_perm_cache  *cache;
-	struct m0_fd_tree_node   *node;
-	uint64_t                  children_nr;
-	uint64_t                  level;
-	int                       rc;
+	struct m0_fd__tree_cursor  cursor;
+	struct m0_fd_tree_node    *node;
+	uint64_t                   children_nr;
+	uint64_t                  *cache_len;
+	uint64_t                  *cache_info;
+	uint64_t                   level;
+	int                        rc;
 
+	M0_ALLOC_ARR(cache_info, tree->ft_cnt);
+	if (cache_info == NULL)
+		return M0_ERR(-ENOMEM);
+	tree->ft_cache_info.fci_info = cache_info;
+	tree->ft_cache_info.fci_nr = 0;
 	for (level = 0; level < tree->ft_depth; ++level) {
 		rc = m0_fd__tree_cursor_init(&cursor, tree, level);
 		if (rc != 0) {
@@ -654,26 +659,41 @@ M0_INTERNAL int m0_fd__perm_cache_build(struct m0_fd_tree *tree)
 		do {
 			node = *(m0_fd__tree_cursor_get(&cursor));
 			children_nr = node->ftn_child_nr;
-			cache = m0_tl_find(perm_cache, cache,
-					   &tree->ft_perm_cache,
-					   cache->fpc_len == children_nr);
-			if (cache == NULL) {
-				cache = m0_alloc(sizeof cache[0]);
-				if (cache == NULL) {
-					m0_fd__perm_cache_destroy(tree);
-					return M0_ERR(-ENOMEM);
-				}
-				cache_init(cache, children_nr);
-				perm_cache_tlist_add(&tree->ft_perm_cache,
-						     cache);
-			}
-			node->ftn_cache = cache;
+			cache_info_update(&tree->ft_cache_info, children_nr);
 		} while (m0_fd__tree_cursor_next(&cursor));
 	}
+	m0_array_sort(cache_info, tree->ft_cache_info.fci_nr);
+	/* Since tree->ft_cnt is likely to be much greater than actual length
+	 * of tree->ft_cache_info.fci_info, we reallocate
+	 * tree->ft_cache_info.fci_info once the actual length is obtained.
+	 */
+	M0_ALLOC_ARR(cache_len, tree->ft_cache_info.fci_nr);
+	if (cache_len == NULL) {
+		m0_free(tree->ft_cache_info.fci_info);
+		return M0_ERR(-ENOMEM);
+	}
+	memcpy(cache_len, tree->ft_cache_info.fci_info,
+	       tree->ft_cache_info.fci_nr * sizeof cache_len[0]);
+	m0_free(tree->ft_cache_info.fci_info);
+	tree->ft_cache_info.fci_info = cache_len;
 	return M0_RC(0);
 }
 
-static int cache_init(struct m0_fd_perm_cache *cache, uint64_t child_nr)
+static void cache_info_update(struct m0_fd_cache_info *cache_info, uint64_t cnt)
+{
+	uint64_t i;
+
+	for (i = 0; i < cache_info->fci_nr; ++i)
+		if (cache_info->fci_info[i] == cnt)
+			break;
+	if (i == cache_info->fci_nr) {
+		cache_info->fci_info[i] = cnt;
+		++cache_info->fci_nr;
+	}
+}
+
+M0_INTERNAL int m0_fd_perm_cache_init(struct m0_fd_perm_cache *cache,
+				      uint64_t len)
 {
 	struct m0_uint128 seed;
 	struct m0_fid     gfid;
@@ -685,23 +705,22 @@ static int cache_init(struct m0_fd_perm_cache *cache, uint64_t child_nr)
 	M0_PRE(cache != NULL);
 
 	M0_SET0(cache);
-	cache->fpc_len = child_nr;
-	M0_ALLOC_ARR(permute, child_nr);
+	cache->fpc_len = len;
+	M0_ALLOC_ARR(permute, len);
 	if (permute == NULL)
 		goto err;
 
 	cache->fpc_permute = permute;
-	M0_ALLOC_ARR(inverse, child_nr);
+	M0_ALLOC_ARR(inverse, len);
 	if (inverse == NULL)
 		goto err;
 
 	cache->fpc_inverse = inverse;
-	M0_ALLOC_ARR(lcode, child_nr);
+	M0_ALLOC_ARR(lcode, len);
 	if (lcode == NULL)
 		goto err;
 
 	cache->fpc_lcode = lcode;
-	perm_cache_tlink_init(cache);
 	/* Initialize the permutation present in the cache. */
 	cache->fpc_omega = ~(uint64_t)0;
 	m0_fid_set(&cache->fpc_gfid, ~(uint64_t)0, ~(uint64_t)0);
@@ -745,25 +764,18 @@ M0_INTERNAL void m0_fd_tree_destroy(struct m0_fd_tree *tree)
 		m0_fd__tree_node_fini(tree, tree->ft_root);
 	m0_fd__perm_cache_destroy(tree);
 	m0_free0(&tree->ft_root);
-	perm_cache_tlist_fini(&tree->ft_perm_cache);
 	M0_POST(tree->ft_cnt == 0);
 	M0_SET0(tree);
 }
 
 M0_INTERNAL void m0_fd__perm_cache_destroy(struct m0_fd_tree *tree)
 {
-	struct m0_fd_perm_cache *cache;
-
 	M0_PRE(tree != NULL);
-
-	m0_tlist_for(&perm_cache_tl, &tree->ft_perm_cache, cache) {
-		cache_fini(cache);
-		perm_cache_tlink_del_fini(cache);
-		m0_free0(&cache);
-	}m0_tlist_endfor;
+	m0_free(tree->ft_cache_info.fci_info);
+	tree->ft_cache_info.fci_nr = 0;
 }
 
-static void cache_fini(struct m0_fd_perm_cache *cache)
+M0_INTERNAL void m0_fd_perm_cache_fini(struct m0_fd_perm_cache *cache)
 {
 	m0_free0(&cache->fpc_lcode);
 	m0_free0(&cache->fpc_permute);
@@ -818,6 +830,7 @@ static void permuted_tgt_get(struct m0_pdclust_instance *pi, uint64_t omega,
 			     uint64_t *rel_vidx, uint64_t *tgt_idx)
 {
 	struct m0_fd_tree         *tree;
+	struct m0_fd_perm_cache   *cache;
 	struct m0_pool_version    *pver;
 	struct m0_fd_tree_node    *node;
 	struct m0_fd__tree_cursor  cursor;
@@ -836,15 +849,29 @@ static void permuted_tgt_get(struct m0_pdclust_instance *pi, uint64_t omega,
 
 	for (depth = 1; depth <= tree->ft_depth; ++depth) {
 		rel_idx = rel_vidx[depth];
-		fd_permute(node->ftn_cache, &attr->pa_seed, gfid, omega);
-		M0_ASSERT(rel_idx < node->ftn_cache->fpc_len);
-		perm_idx = node->ftn_cache->fpc_permute[rel_idx];
+		cache = cache_get(pi, node);
+		fd_permute(cache, &attr->pa_seed, gfid, omega);
+		M0_ASSERT(rel_idx < cache->fpc_len);
+		perm_idx = cache->fpc_permute[rel_idx];
 		rc = m0_fd__tree_cursor_init_at(&cursor, tree, node, perm_idx);
 		M0_ASSERT(rc == 0);
 		node = *(m0_fd__tree_cursor_get(&cursor));
 		M0_ASSERT(node != NULL);
 	}
 	*tgt_idx = node->ftn_abs_idx;
+}
+
+static struct m0_fd_perm_cache *cache_get(struct m0_pdclust_instance *pi,
+					  struct m0_fd_tree_node *node)
+{
+	uint64_t i;
+	uint64_t cache_len;
+
+	cache_len = node->ftn_child_nr;
+	for (i = 0; i < pi->pi_cache_nr; ++i)
+		if (pi->pi_perm_cache[i].fpc_len == cache_len)
+			return &pi->pi_perm_cache[i];
+		return NULL;
 }
 
 static void fd_permute(struct m0_fd_perm_cache *cache,
@@ -932,6 +959,7 @@ static void inverse_permuted_idx_get(struct m0_pdclust_instance *pi,
 	struct m0_fd_tree         *tree;
 	struct m0_pool_version    *pver;
 	struct m0_fd__tree_cursor  cursor;
+	struct m0_fd_perm_cache   *cache;
 	struct m0_fd_tree_node    *node;
 	struct m0_pdclust_attr    *attr;
 	struct m0_fid             *gfid;
@@ -952,8 +980,9 @@ static void inverse_permuted_idx_get(struct m0_pdclust_instance *pi,
 	node = cursor.ftc_node;
 	M0_ASSERT(node != NULL);
 	for (depth = tree->ft_depth; depth > 0; --depth) {
-		fd_permute(node->ftn_cache, &attr->pa_seed, gfid, omega);
-		rel_idx[depth] = node->ftn_cache->fpc_inverse[perm_idx];
+		cache = cache_get(pi, node);
+		fd_permute(cache, &attr->pa_seed, gfid, omega);
+		rel_idx[depth] = cache->fpc_inverse[perm_idx];
 		perm_idx = node->ftn_rel_idx;
 		node = node->ftn_parent;
 	}

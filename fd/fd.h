@@ -184,22 +184,32 @@ struct m0_fd_perm_cache {
 	 * @invariant fpc_inverse[fpc_permute[x]] == x
 	 */
 	uint64_t       *fpc_inverse;
+};
+
+struct m0_fd_cache_info {
+	/** Total number of permutation caches required. */
+	uint64_t  fci_nr;
 	/**
-	 * Link through which permutation cache is anchored on list of
-	 * m0_fd_tree:ft_perm_cache.
+	 * A sorted  array holding lengths of various permutation caches.
+	 * There are as many caches as total number of nodes
+	 * with distinct degree in a failure domains tree. All nodes of the
+	 * same degree use the same permutation cache in the context of a given
+	 * pdclust layout instance.
 	 */
-	struct m0_tlink fpc_link;
+	uint64_t *fci_info;
 };
 
 struct m0_fd_tree {
-	/* Depth of the failure domains tree. */
+	/** Depth of the failure domains tree. */
 	uint16_t                ft_depth;
-	/* Root node associated with the tree. */
+	/** Root node associated with the tree. */
 	struct m0_fd_tree_node *ft_root;
 	/** List of struct m0_perm_cache objects associated with the tree */
 	struct m0_tl            ft_perm_cache;
-	/* Total nodes present in a tree. This field is required for testing */
+	/** Total nodes present in a tree. */
 	uint64_t                ft_cnt;
+	/** Holds the information relevant to build a permutation cache.  */
+	struct m0_fd_cache_info ft_cache_info;
 };
 
 struct m0_fd_tree_node {
@@ -215,8 +225,6 @@ struct m0_fd_tree_node {
 	uint32_t                 ftn_abs_idx;
 	/* An array of pointers to children. */
 	struct m0_fd_tree_node **ftn_children;
-	/* Permutation cache associated with the node. */
-	struct m0_fd_perm_cache *ftn_cache;
 };
 
 /**
@@ -317,6 +325,16 @@ M0_INTERNAL void m0_fd_fwd_map(struct m0_pdclust_instance *pi,
 M0_INTERNAL void m0_fd_bwd_map(struct m0_pdclust_instance *pi,
 			       const struct m0_pdclust_tgt_addr *tgt,
 			       struct m0_pdclust_src_addr *src);
+
+/**
+ * Initializes the permutation cache to consistent values.
+ * @param[in] len Total elements present in the cache.
+ */
+M0_INTERNAL int m0_fd_perm_cache_init(struct m0_fd_perm_cache *cache,
+				      uint64_t len);
+
+/** Frees the internal arrays from the permutation cache. */
+M0_INTERNAL void m0_fd_perm_cache_fini(struct m0_fd_perm_cache *cache);
 
 /** @} end group Failure_Domains */
 /* __MERO_LAYOUT_FD_H__ */

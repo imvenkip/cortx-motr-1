@@ -26,6 +26,7 @@
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/arith.h"
+#include "lib/errno.h"  /* ENOMEM */
 #include "mero/init.h"
 #include "module/instance.h"
 
@@ -220,7 +221,11 @@ int main(int argc, char **argv)
 	int                         R;
 	int                         I;
 	int                         rc;
+	uint32_t                    cache_nr;
+	uint64_t                   *cache_len;
 	uint64_t                    unitsize = 4096;
+	struct m0_pool_version      pool_ver;
+	struct m0_layout           *l;
 	struct m0_pdclust_layout   *play;
 	struct m0_pdclust_attr      attr;
 	struct m0_pool              pool;
@@ -284,13 +289,29 @@ int main(int argc, char **argv)
 				m0_fid_gob_make(&gfid,
 						strtol(argv[6], NULL, 0),
 						strtol(argv[7], NULL, 0));
-			rc = m0_layout_instance_build(m0_pdl_to_layout(play),
-						      &gfid, &li);
+			/*TODO: Currently in this utility we assume that no
+			 * tolerance is supported for levels higher than disks.
+			 * Hence only single cache is sufficient. In future we
+			 * need to read configuration string.
+			 */
+			cache_nr  = 1;
+			pool_ver.pv_fd_tree.ft_cache_info.fci_nr = cache_nr;
+			M0_ALLOC_ARR(cache_len, cache_nr);
+			if (cache_len == NULL) {
+				rc = -ENOMEM;
+				goto out;
+			}
+			pool_ver.pv_fd_tree.ft_cache_info.fci_info = cache_len;
+			cache_len[0] = P;
+			l = m0_pdl_to_layout(play);
+			l->l_pver = &pool_ver;
+			rc = m0_layout_instance_build(l, &gfid, &li);
 			pi = m0_layout_instance_to_pdi(li);
 			if (rc == 0) {
 				layout_demo(pi, play, R, I, true);
 				pi->pi_base.li_ops->lio_fini(&pi->pi_base);
 			}
+out:
 			m0_layout_put(m0_pdl_to_layout(play));
 			m0_layout_standard_types_unregister(&domain);
 			m0_layout_domain_fini(&domain);

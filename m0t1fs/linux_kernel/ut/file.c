@@ -293,12 +293,12 @@ static int file_io_ut_init(void)
 	lay = m0_pdl_to_layout(pdlay);
 	M0_ASSERT(lay != NULL);
 
+	lay->l_pver = pver;
 	rc = m0_layout_instance_build(lay, m0t1fs_inode_fid(&ci),
 				      &ci.ci_layout_instance);
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(ci.ci_layout_instance != NULL);
 
-	lay->l_pver = pver;
 	M0_ALLOC_PTR(lfile.f_dentry);
 	M0_ASSERT(lfile.f_dentry != NULL);
 	lfile.f_dentry->d_inode = &ci.ci_inode;

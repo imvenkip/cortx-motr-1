@@ -98,6 +98,9 @@
 #include "conf/obj.h"   /* m0_conf_filesystem */
 #include "layout/layout_internal.h"
 #include "layout/pdclust.h"
+#include "pool/pool.h"  /* m0_pool_version */
+#include "fd/fd_internal.h"
+#include "fd/fd.h"      /* m0_fd_perm_cache_init m0_fd_perm_cache_fini */
 
 static const struct m0_bob_type pdclust_bob = {
 	.bt_name         = "pdclust",
@@ -751,6 +754,46 @@ M0_INTERNAL void m0_pdclust_instance_inv(struct m0_pdclust_instance *pi,
 static const struct m0_layout_instance_ops pdclust_instance_ops;
 M0_INTERNAL void pdclust_instance_fini(struct m0_layout_instance *li);
 
+M0_INTERNAL void m0_pdclust_perm_cache_destroy(struct m0_layout *layout,
+				               struct m0_pdclust_instance *pi)
+{
+	struct m0_pool_version *pool_ver;
+	uint64_t                cache_cnt;
+	uint64_t                i;
+
+	pool_ver = layout->l_pver;
+	M0_ASSERT(pool_ver != NULL);
+	cache_cnt = layout->l_pver->pv_fd_tree.ft_cache_info.fci_nr;
+	for (i = 0; i < cache_cnt; ++i)
+		m0_fd_perm_cache_fini(&pi->pi_perm_cache[i]);
+	m0_free(pi->pi_perm_cache);
+	pi->pi_cache_nr = 0;
+}
+
+M0_INTERNAL int m0_pdclust_perm_cache_build(struct m0_layout *layout,
+				            struct m0_pdclust_instance *pi)
+{
+	struct m0_fd_cache_info *cache_info;
+	uint64_t                 i;
+	int                      rc = 0;
+
+	M0_PRE(layout != NULL && layout->l_pver != NULL);
+	cache_info = &layout->l_pver->pv_fd_tree.ft_cache_info;
+	M0_ALLOC_ARR(pi->pi_perm_cache, cache_info->fci_nr);
+	if (pi->pi_perm_cache == NULL)
+		return M0_ERR(-ENOMEM);
+	for (i = 0; i < cache_info->fci_nr; ++i) {
+		rc = m0_fd_perm_cache_init(&pi->pi_perm_cache[i],
+				           cache_info->fci_info[i]);
+		if (rc != 0)
+			break;
+	}
+	if (rc != 0)
+		m0_pdclust_perm_cache_destroy(layout, pi);
+	pi->pi_cache_nr = cache_info->fci_nr;
+	return M0_RC(rc);
+}
+
 /**
  * Implementation of lo_instance_build().
  *
@@ -787,6 +830,10 @@ static int pdclust_instance_build(struct m0_layout           *l,
 	M0_ALLOC_PTR(pi);
 err1_injected:
 	if (pi != NULL) {
+		rc = m0_pdclust_perm_cache_build(l, pi);
+		if (rc != 0)
+		return M0_RC(rc);
+
 		tc = &pi->pi_tile_cache;
 
 		if (M0_FI_ENABLED("mem_err2"))
@@ -843,9 +890,12 @@ err3_injected:
 M0_INTERNAL void pdclust_instance_fini(struct m0_layout_instance *li)
 {
 	struct m0_pdclust_instance *pi;
+	struct m0_layout           *layout;
 
 	pi = m0_layout_instance_to_pdi(li);
 	M0_ENTRY("pi %p", pi);
+	layout = li->li_l;
+	m0_pdclust_perm_cache_destroy(layout, pi);
 	m0_layout__instance_fini(&pi->pi_base);
 	m0_pdclust_instance_bob_fini(pi);
 	m0_parity_math_fini(&pi->pi_math);

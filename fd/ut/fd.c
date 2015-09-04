@@ -25,6 +25,7 @@
 #include "conf/ut/common.h" /* g_grp */
 #include "conf/obj_ops.h"   /* M0_CONF_DIRNEXT */
 #include "pool/pool.h"      /* m0_pool_version */
+#include "layout/pdclust.h" /* m0_pdclust_perm_cache_build */
 #include "lib/misc.h"       /* M0_SET0 and uint32_t uint64_t etc. */
 #include "lib/arith.h"      /* m0_rnd */
 #include "lib/memory.h"     /* m0_alloc m0_free */
@@ -248,6 +249,7 @@ static void test_fd_mapping_sanity(enum tree_attr ta)
 	seed = m0_time_now();
 	omega = m0_rnd(123456, &seed);
 	pi.pi_base.li_l->l_pver = &pv;
+	m0_pdclust_perm_cache_build(pi.pi_base.li_l, &pi);
 	for (row = omega * C; row < (omega + 1) * C; ++row) {
 		src.sa_group = row;
 		for (col = 0; col < pv.pv_fd_tile.ft_G; ++col) {
@@ -269,6 +271,7 @@ static void test_fd_mapping_sanity(enum tree_attr ta)
 			++unmapped;
 	}
 	M0_UT_ASSERT(unmapped + pv.pv_fd_tile.ft_cols == P);
+	m0_pdclust_perm_cache_destroy(pi.pi_base.li_l, &pi);
 	m0_fd_tree_destroy(&pv.pv_fd_tree);
 	m0_fd_tile_destroy(&pv.pv_fd_tile);
 	m0_free(pi.pi_base.li_l);

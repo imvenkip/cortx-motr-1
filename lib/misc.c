@@ -313,6 +313,21 @@ M0_INTERNAL void m0_permute(uint64_t n, uint64_t *k, uint64_t *s, uint64_t *r)
 	r[s[n - 1]] = n - 1;
 }
 
+M0_INTERNAL void m0_array_sort(uint64_t *arr, uint64_t arr_len)
+{
+	uint64_t i;
+	uint64_t j;
+
+	M0_PRE(arr_len > 0);
+	for (i = 0; i < arr_len - 1; ++i) {
+		for (j = i + 1; j < arr_len - 1; ++j) {
+			if (arr[i] > arr[j])
+				M0_SWAP(arr[i], arr[j]);
+		}
+	}
+
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

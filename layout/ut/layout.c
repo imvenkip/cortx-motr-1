@@ -2460,8 +2460,12 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 	uint32_t                      N;
 	uint32_t                      K;
 	uint32_t                      P;
+	uint32_t                      i;
+	uint32_t                      cache_nr;
+	uint64_t                     *cache_len;
 	struct m0_layout             *l;
 	struct m0_pdclust_layout     *pl;
+	struct m0_pool_version        pool_ver;
 	//struct m0_layout_list_enum   *list_enum;
 	struct m0_layout_linear_enum *lin_enum;
 	struct m0_pdclust_instance   *pi;
@@ -2497,6 +2501,15 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 	m0_fid_set(&gfid, 0, 999);
 	l = m0_pdl_to_layout(pl);
 	M0_UT_ASSERT(m0_ref_read(&l->l_ref) == 1);
+	cache_nr = 4;
+	pool_ver.pv_fd_tree.ft_cache_info.fci_nr = cache_nr;
+	M0_ALLOC_ARR(cache_len, cache_nr);
+	M0_UT_ASSERT(cache_len != NULL);
+	pool_ver.pv_fd_tree.ft_cache_info.fci_info = cache_len;
+	for (i = 0; i < cache_nr; ++i) {
+		pool_ver.pv_fd_tree.ft_cache_info.fci_info[i] = i + 1;
+	}
+	l->l_pver = &pool_ver;
 	rc = m0_layout_instance_build(l, &gfid, &li);
 	if (failure_test) {
 		M0_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
@@ -2530,6 +2543,7 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 	m0_layout_put(m0_pdl_to_layout(pl));
 	M0_UT_ASSERT(list_lookup(lid) == NULL);
 	m0_pool_fini(&pool);
+	m0_free(cache_len);
 	return rc;
 }
 

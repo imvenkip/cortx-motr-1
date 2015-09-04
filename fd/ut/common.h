@@ -82,8 +82,6 @@ M0_INTERNAL int fd_ut_tree_level_populate(struct m0_fd_tree *tree,
 
 M0_INTERNAL void fd_ut_symm_tree_get(struct m0_fd_tree *tree, uint64_t *children_nr);
 M0_INTERNAL uint64_t fd_ut_random_cnt_get(uint64_t max_cnt);
-M0_TL_DESCR_DECLARE(perm_cache, M0_EXTERN);
-M0_TL_DECLARE(perm_cache, M0_INTERNAL, struct m0_fd_perm_cache);
 
 #endif
 /*
