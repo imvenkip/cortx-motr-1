@@ -157,6 +157,8 @@ static void be_op_state_change(struct m0_be_op     *op,
                                enum m0_be_op_state  state)
 {
 	struct m0_be_op *parent;
+	m0_be_op_cb_t    cb_gc = NULL;
+	void            *cb_gc_param;
 	bool             state_changed = false;
 	bool             last_child    = false;
 
@@ -192,10 +194,17 @@ static void be_op_state_change(struct m0_be_op     *op,
 		m0_sm_state_set(&op->bo_sm, state);
 		if (state == M0_BOS_DONE && op->bo_cb_done != NULL)
 			op->bo_cb_done(op, op->bo_cb_done_param);
+		if (state == M0_BOS_DONE) {
+			cb_gc       = op->bo_cb_gc;
+			cb_gc_param = op->bo_cb_gc_param;
+		}
 		state_changed = true;
 	}
 	be_op_unlock(op);
 	/* don't touch the op after the unlock */
+	/* if someone set bo_cb_gc then it's safe to call GC function here */
+	if (cb_gc != NULL)
+		cb_gc(op, cb_gc_param);
 
 	if (parent != NULL && state_changed &&
 	    (state == M0_BOS_ACTIVE || last_child))
@@ -226,7 +235,7 @@ M0_INTERNAL void m0_be_op_callback_set(struct m0_be_op     *op,
 				       void                *param,
 				       enum m0_be_op_state  state)
 {
-	M0_PRE(M0_IN(state, (M0_BOS_ACTIVE, M0_BOS_DONE)));
+	M0_PRE(M0_IN(state, (M0_BOS_ACTIVE, M0_BOS_DONE, M0_BOS_GC)));
 
 	switch (state) {
 	case M0_BOS_ACTIVE:
@@ -238,6 +247,11 @@ M0_INTERNAL void m0_be_op_callback_set(struct m0_be_op     *op,
 		M0_ASSERT(op->bo_cb_done == NULL);
 		op->bo_cb_done = cb;
 		op->bo_cb_done_param = param;
+		break;
+	case M0_BOS_GC:
+		M0_ASSERT(op->bo_cb_gc == NULL);
+		op->bo_cb_gc = cb;
+		op->bo_cb_gc_param = param;
 		break;
 	default:
 		M0_IMPOSSIBLE("invalid state");

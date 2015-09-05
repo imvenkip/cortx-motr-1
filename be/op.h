@@ -53,6 +53,11 @@ enum m0_be_op_state {
 	M0_BOS_INIT,
 	M0_BOS_ACTIVE,
 	M0_BOS_DONE,
+	/**
+	 * It's not a state. It's used to set garbage collector callbak.
+	 * @see m0_be_op::bo_cb_gc, m0_be_op_callback_set().
+	 */
+	M0_BOS_GC,
 };
 
 enum m0_be_op_type {
@@ -117,6 +122,8 @@ struct m0_be_op {
 	void               *bo_cb_active_param;
 	m0_be_op_cb_t       bo_cb_done;
 	void               *bo_cb_done_param;
+	m0_be_op_cb_t       bo_cb_gc;
+	void               *bo_cb_gc_param;
 };
 
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op);
