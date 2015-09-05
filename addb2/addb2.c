@@ -716,6 +716,7 @@ int m0_addb2_cursor_next(struct m0_addb2_cursor *cur)
 				continue;
 			} else
 				M0_LOG(M0_NOTICE, "Too many labels.");
+			break;
 		case POP:
 			if (r->ar_label_nr > 0) {
 				-- r->ar_label_nr;
@@ -723,6 +724,7 @@ int m0_addb2_cursor_next(struct m0_addb2_cursor *cur)
 				continue;
 			} else
 				M0_LOG(M0_NOTICE, "Underflow.");
+			break;
 		case DATA ... DATA + VALUE_MAX_NR:
 		case SENSOR ... SENSOR + VALUE_MAX_NR:
 			r->ar_val = (struct m0_addb2_value) {
