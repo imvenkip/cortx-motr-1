@@ -50,6 +50,7 @@ extern void m0_be_ut_fmt_group(void);
 extern void m0_be_ut_fmt_group_size_max(void);
 
 extern void m0_be_ut_io(void);
+extern void m0_be_ut_io_sched(void);
 
 extern void m0_be_ut_log_store_create_simple(void);
 extern void m0_be_ut_log_store_create_random(void);
@@ -130,14 +131,15 @@ struct m0_ut_suite be_ut = {
 /* XXX */	{ "fmt-group_cb",            m0_be_ut_fmt_cblock              },
 		{ "fmt-group",               m0_be_ut_fmt_group               },
 		{ "fmt-group_size_max",      m0_be_ut_fmt_group_size_max      },
-		{ "io (XXX NOOP)",           m0_be_ut_io                      },
+		{ "io-noop",                 m0_be_ut_io                      },
+		{ "io_sched",                m0_be_ut_io_sched                },
 		{ "log_store-create_simple", m0_be_ut_log_store_create_simple },
 		{ "log_store-create_random", m0_be_ut_log_store_create_random },
 		{ "log_store-io_window",     m0_be_ut_log_store_io_window     },
 		{ "log_store-io_discard",    m0_be_ut_log_store_io_discard    },
 		{ "log_store-io_translate",  m0_be_ut_log_store_io_translate  },
 		{ "log_store-rbuf",          m0_be_ut_log_store_rbuf          },
-		{ "log_sched",               m0_be_ut_log_sched               },
+		{ "log_sched-noop",          m0_be_ut_log_sched               },
 		{ "log-user",                m0_be_ut_log_user                },
 		{ "log-api",                 m0_be_ut_log_api                 },
 		{ "log-header",              m0_be_ut_log_header              },
