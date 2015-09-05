@@ -123,11 +123,11 @@ enum m0_magic_satchel {
 	/* be/recovery.c::log_record_iter_tl (be safe head) */
 	M0_BE_RECOVERY_HEAD_MAGIC = 0x33be5afe4ead77,
 
-	/* m0_be_log_io::lio_magic (bad be io base) */
-	M0_BE_LOG_IO_MAGIC = 0x33badbe10ba5e77,
+	/* m0_be_io::bio_sched_magic (bad be io base) */
+	M0_BE_IO_SCHED_MAGIC = 0x33badbe10ba5e77,
 
-	/* be/log.c::log_io_tl (bad be io head) */
-	M0_BE_LOG_IO_HEAD_MAGIC = 0x33badbe104ead77,
+	/* m0_be_io_sched::bis_ios (bad be io head) */
+	M0_BE_IO_SCHED_HEAD_MAGIC = 0x33badbe104ead77,
 
 /* m0t1fs */
 	/* m0t1fs_sb::s_magic (cozie filesis) */

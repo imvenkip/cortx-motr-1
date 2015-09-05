@@ -11,6 +11,7 @@ nobase_mero_include_HEADERS += \
 			       be/fmt.h		    \
 			       be/fmt_xc.h	    \
                                be/io.h              \
+                               be/io_sched.h        \
                                be/list.h            \
                                be/log.h             \
 			       be/log_sched.h       \
@@ -42,6 +43,7 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/fmt.c		\
 			   be/fmt_xc.c		\
 			   be/io.c              \
+			   be/io_sched.c        \
 			   be/list.c            \
 			   be/log.c             \
 			   be/log_sched.c       \

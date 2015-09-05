@@ -29,6 +29,7 @@
 #include "lib/types.h"          /* m0_bcount_t */
 #include "lib/atomic.h"         /* m0_atomic64 */
 #include "lib/ext.h"            /* m0_ext */
+#include "lib/tlist.h"          /* m0_tlink */
 
 #include "be/op.h"              /* m0_be_op */
 
@@ -108,6 +109,12 @@ struct m0_be_io {
 	struct m0_sm_ast        bio_ast;
 
 	void                   *bio_user_data;
+
+	/* m0_be_io_sched fields */
+	struct m0_be_io_sched  *bio_sched;
+	struct m0_tlink         bio_sched_link;
+	uint64_t                bio_sched_magic;
+	struct m0_be_op         bio_sched_op;
 };
 
 M0_INTERNAL int m0_be_io_init(struct m0_be_io *bio);

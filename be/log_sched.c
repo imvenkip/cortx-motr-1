@@ -23,8 +23,9 @@
 
 #include "be/log_sched.h"
 
-#include "lib/memory.h" /* m0_alloc_aligned */
-#include "lib/errno.h"  /* ENOMEM */
+#include "be/io_sched.h" /* m0_be_io_sched */
+#include "lib/memory.h"  /* m0_alloc_aligned */
+#include "lib/errno.h"   /* ENOMEM */
 
 /**
  * @addtogroup be
@@ -32,81 +33,31 @@
  * @{
  */
 
-/* m0_be_log_sched::lsh_lios */
-M0_TL_DESCR_DEFINE(sched_lio, "be log scheduler log IOs", static,
-		   struct m0_be_log_io, lio_sched_linkage, lio_magic,
-		   M0_BE_LOG_IO_MAGIC, M0_BE_LOG_IO_HEAD_MAGIC);
-M0_TL_DEFINE(sched_lio, static, struct m0_be_log_io);
-
-
 M0_INTERNAL int m0_be_log_sched_init(struct m0_be_log_sched     *sched,
 				     struct m0_be_log_sched_cfg *cfg)
 {
-	if (cfg != NULL)
-		sched->lsh_cfg = *cfg;
-	m0_mutex_init(&sched->lsh_lock);
-	sched_lio_tlist_init(&sched->lsh_lios);
-	sched->lsh_io_in_progress = false;
-
-	return 0;
+	return m0_be_io_sched_init(&sched->lsh_io_sched,
+	                           &cfg->lsch_io_sched_cfg);
 }
 
 M0_INTERNAL void m0_be_log_sched_fini(struct m0_be_log_sched *sched)
 {
-	sched_lio_tlist_fini(&sched->lsh_lios);
-	m0_mutex_fini(&sched->lsh_lock);
+	m0_be_io_sched_fini(&sched->lsh_io_sched);
 }
 
 M0_INTERNAL void m0_be_log_sched_lock(struct m0_be_log_sched *sched)
 {
-	m0_mutex_lock(&sched->lsh_lock);
+	m0_be_io_sched_lock(&sched->lsh_io_sched);
 }
 
 M0_INTERNAL void m0_be_log_sched_unlock(struct m0_be_log_sched *sched)
 {
-	m0_mutex_unlock(&sched->lsh_lock);
+	m0_be_io_sched_unlock(&sched->lsh_io_sched);
 }
 
 M0_INTERNAL bool m0_be_log_sched_is_locked(struct m0_be_log_sched *sched)
 {
-	return m0_mutex_is_locked(&sched->lsh_lock);
-}
-
-static void be_log_sched_launch_next(struct m0_be_log_sched *sched)
-{
-	struct m0_be_log_io *lio;
-
-	M0_PRE(m0_mutex_is_locked(&sched->lsh_lock));
-
-	if (!sched->lsh_io_in_progress) {
-		lio = sched_lio_tlist_head(&sched->lsh_lios);
-		if (lio != NULL) {
-			sched->lsh_io_in_progress = true;
-			m0_be_io_launch(&lio->lio_be_io, &lio->lio_op);
-		}
-	}
-}
-
-static void be_log_sched_launch_next_locked(struct m0_be_log_sched *sched)
-{
-	m0_mutex_lock(&sched->lsh_lock);
-	be_log_sched_launch_next(sched);
-	m0_mutex_unlock(&sched->lsh_lock);
-}
-
-static void be_log_sched_cb(struct m0_be_op *op, void *param)
-{
-	struct m0_be_log_io    *lio   = param;
-	struct m0_be_log_sched *sched = lio->lio_sched;
-
-	M0_LOG(M0_DEBUG, "sched=%p lio=%p", sched, lio);
-
-	m0_mutex_lock(&sched->lsh_lock);
-	sched_lio_tlink_del_fini(lio);
-	sched->lsh_io_in_progress = false;
-	m0_mutex_unlock(&sched->lsh_lock);
-
-	be_log_sched_launch_next_locked(sched);
+	return m0_be_io_sched_is_locked(&sched->lsh_io_sched);
 }
 
 M0_INTERNAL void m0_be_log_sched_add(struct m0_be_log_sched *sched,
@@ -118,26 +69,20 @@ M0_INTERNAL void m0_be_log_sched_add(struct m0_be_log_sched *sched,
 	       sched, lio, lio->lio_record, op,
 	       m0_be_io_size(&lio->lio_be_io));
 
-	M0_PRE(m0_mutex_is_locked(&sched->lsh_lock));
+	M0_PRE(m0_be_log_sched_is_locked(sched));
 	M0_PRE(!m0_be_log_io_is_empty(lio));
 
 	lio->lio_sched = sched;
-	sched_lio_tlink_init_at_tail(lio, &sched->lsh_lios);
-	m0_be_op_set_add(op, &lio->lio_op);
-	be_log_sched_launch_next(sched);
+	m0_be_io_sched_add(&sched->lsh_io_sched, &lio->lio_be_io, op);
 }
 
 M0_INTERNAL int m0_be_log_io_init(struct m0_be_log_io *lio)
 {
-	m0_be_op_init(&lio->lio_op);
-	m0_be_op_callback_set(&lio->lio_op, &be_log_sched_cb, lio, M0_BOS_DONE);
-
 	return 0;
 }
 
 M0_INTERNAL void m0_be_log_io_fini(struct m0_be_log_io *lio)
 {
-	m0_be_op_fini(&lio->lio_op);
 }
 
 M0_INTERNAL void m0_be_log_io_reset(struct m0_be_log_io *lio)
@@ -145,7 +90,6 @@ M0_INTERNAL void m0_be_log_io_reset(struct m0_be_log_io *lio)
 	lio->lio_buf_addr = NULL;
 	lio->lio_buf_size = 0;
 	lio->lio_bufvec   = M0_BUFVEC_INIT_BUF(NULL, NULL);
-	m0_be_op_reset(&lio->lio_op);
 	m0_be_io_reset(&lio->lio_be_io);
 }
 

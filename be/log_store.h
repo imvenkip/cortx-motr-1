@@ -30,7 +30,6 @@
 #include "stob/stob.h"          /* m0_stob_id */
 
 #include "be/fmt.h"             /* m0_be_fmt_log_store_header */
-#include "be/log_sched.h"       /* m0_be_log_io_start_cb_t */
 
 /**
  * @defgroup be Meta-data back-end

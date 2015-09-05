@@ -23,12 +23,8 @@
 #ifndef __MERO_BE_LOG_SCHED_H__
 #define __MERO_BE_LOG_SCHED_H__
 
-#include "lib/tlist.h"          /* m0_tl */
-#include "lib/mutex.h"          /* m0_mutex */
-#include "lib/chan.h"           /* m0_clink */
-#include "lib/semaphore.h"      /* m0_semaphore */
-
 #include "be/io.h"              /* m0_be_io */
+#include "be/io_sched.h"        /* m0_be_io_sched */
 #include "be/op.h"              /* m0_be_op */
 
 /**
@@ -37,8 +33,10 @@
  * @{
  */
 
+struct m0_be_log_record;
+
 struct m0_be_log_sched_cfg {
-	int lsch_unused;
+	struct m0_be_io_sched_cfg lsch_io_sched_cfg;
 };
 
 /*
@@ -47,25 +45,13 @@ struct m0_be_log_sched_cfg {
  * Log scheduler is used when log records and log header are read or
  * written to the log. Log store header doesn't use log scheduler for I/O.
  *
- * Log scheduler maintains m0_be_log_io queue. Each m0_be_log_io is written
- * one after another in the order they are added to the scheduler queue
- * using m0_be_log_sched_add(). Additional ordering system will be added
- * in the future to make it possible to write m0_be_log_io out-of-order.
+ * @see m0_be_io_sched
  */
 struct m0_be_log_sched {
-	struct m0_be_log_sched_cfg lsh_cfg;
-	/** List of records under scheduler's control */
-	struct m0_tl               lsh_lios;
-	/** Synchronization of user's thread and asynchronous be_io callback */
-	struct m0_mutex            lsh_lock;
-	bool                       lsh_io_in_progress;
+	struct m0_be_io_sched lsh_io_sched;
 };
 
-struct m0_be_log_io;
-typedef void (*m0_be_log_io_completion_cb_t)(struct m0_be_log_io *lio, int rc);
-typedef void (*m0_be_log_io_start_cb_t)(struct m0_be_log_io *lio);
-struct m0_be_log_record;
-
+/** @todo document fields owned by m0_be_log and move fields reset there */
 struct m0_be_log_io {
 	uint32_t                 lio_log_bshift;
 	struct m0_buf            lio_buf;
@@ -73,11 +59,7 @@ struct m0_be_log_io {
 	m0_bcount_t              lio_buf_size;
 	struct m0_bufvec         lio_bufvec;
 	struct m0_be_io          lio_be_io;
-	struct m0_tlink          lio_sched_linkage;
-	uint64_t                 lio_magic;
 	struct m0_be_log_sched  *lio_sched;
-	struct m0_clink          lio_clink;
-	struct m0_be_op          lio_op;
 	struct m0_be_log_record *lio_record;
 	void                    *lio_user_data;
 };

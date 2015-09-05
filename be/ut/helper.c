@@ -348,7 +348,9 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 				/* other fields are filled by domain and log */
 			},
 			.lc_sched_cfg = {
-				.lsch_unused = 0xbe5ced,
+				.lsch_io_sched_cfg = {
+					.bisc_unused = 0xbe5ced,
+				},
 			},
 			/* other fields are filled by the domain */
 		},
