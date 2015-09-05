@@ -98,6 +98,8 @@ struct m0_be_io {
 	/** @see m0_be_io_sync_enable */
 	bool                    bio_sync;
 	enum m0_stob_io_opcode  bio_opcode;
+
+	void                   *bio_user_data;
 };
 
 M0_INTERNAL int m0_be_io_init(struct m0_be_io *bio);
@@ -152,6 +154,9 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op);
 M0_INTERNAL bool m0_be_io_is_empty(struct m0_be_io *bio);
 M0_INTERNAL void m0_be_io_reset(struct m0_be_io *bio);
 M0_INTERNAL void m0_be_io_sort(struct m0_be_io *bio);
+
+M0_INTERNAL void m0_be_io_user_data_set(struct m0_be_io *bio, void *data);
+M0_INTERNAL void *m0_be_io_user_data(struct m0_be_io *bio);
 
 M0_INTERNAL int m0_be_io_single(struct m0_stob         *stob,
 				enum m0_stob_io_opcode  opcode,

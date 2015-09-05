@@ -644,6 +644,16 @@ M0_INTERNAL void m0_be_io_sort(struct m0_be_io *bio)
 		m0_stob_iovec_sort(&bio->bio_part[i].bip_sio);
 }
 
+M0_INTERNAL void m0_be_io_user_data_set(struct m0_be_io *bio, void *data)
+{
+	bio->bio_user_data = data;
+}
+
+M0_INTERNAL void *m0_be_io_user_data(struct m0_be_io *bio)
+{
+	return bio->bio_user_data;
+}
+
 M0_INTERNAL int m0_be_io_single(struct m0_stob         *stob,
 				enum m0_stob_io_opcode  opcode,
 				void                   *ptr_user,
