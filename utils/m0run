@@ -175,11 +175,13 @@ run_valgrind_memcheck()
             "--tool=memcheck" \
             "--trace-children=yes --track-fds=yes" \
             "--leak-check=full --track-origins=yes" \
+            "--show-leak-kinds=all" "--num-callers=32" \
             "$binary $@"
     valgrind \
         --tool=memcheck \
         --trace-children=yes --track-fds=yes \
         --leak-check=full --track-origins=yes \
+        --show-leak-kinds=all --num-callers=32 \
         $binary "$@"
 }
 
