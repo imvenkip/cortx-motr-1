@@ -22,6 +22,34 @@
 /**
  * @addtogroup addb2
  *
+ * SYSTEM interface (implementation)
+ * ---------------------------------
+ *
+ * A sys object (m0_addb2_sys) has 2 functions:
+ *
+ *     - it is a factory and a cache of addb2 machines and
+ *
+ *     - it binds addb2 machines that it creates to network and storage
+ *       back-ends.
+ *
+ * Cached addb2 machines are stored in m0_addb2_sys::sy_pool, machines handed to
+ * the users are remembered in m0_addb2_sys::sy_granted.
+ *
+ * If the pool is about to overflow (grow larger than
+ * m0_addb2_sys::sy_conf::co_pool_max) when a machine is returned to it (by a
+ * call to m0_addb2_sys_put()), the machine is finalised. Because machine
+ * finalisation is asynchronous, additional lists are used for this:
+ *
+ *     - m0_addb2_sys::sy_moribund: m0_addb2_mach_stop() has been on called on a
+ *       machine, but the machine is not yet stopped;
+ *
+ *     - m0_addb2_sys::sy_deathrow: the machine is completely stopped,
+ *       m0_addb2_mach_ops::apo_idle (set to sys_idle()) has been called. The
+ *       machine will be finalised on the next sys AST (see sys_balance()).
+ *
+ * All back-end processing is done in the AST context. The AST is posted to the
+ * current locality by sys_post().
+ *
  * @{
  */
 
@@ -45,27 +73,100 @@
 #include "addb2/internal.h"
 #include "addb2/sys.h"
 
+/**
+ * Sys object.
+ */
 struct m0_addb2_sys {
+	/**
+	 * Configuration for the machines created by this sys object.
+	 */
 	struct m0_addb2_config   sy_conf;
+	/**
+	 * Lock for all fields of this structure.
+	 */
 	struct m0_mutex          sy_lock;
+	/**
+	 * Storage back-end.
+	 */
 	struct m0_addb2_storage *sy_stor;
+	/**
+	 * Network back-end.
+	 */
 	struct m0_addb2_net     *sy_net;
+	/**
+	 * Addb2 trace queue.
+	 *
+	 * Addb2 traces are queued on this list (via
+	 * m0_addb2_trace_obj::o_linkage, tr_tlist) by m0_addb2_sys_submit() and
+	 * de-qeued in the AST context by sys_balance().
+	 */
 	struct m0_tl             sy_queue;
+	/**
+	 * Length of ->sy_queue.
+	 */
 	m0_bcount_t              sy_queued;
 	struct m0_sm_ast         sy_ast;
+	/**
+	 * Cached machines.
+	 */
 	struct m0_tl             sy_pool;
+	/**
+	 * Machines handed off to users.
+	 */
 	struct m0_tl             sy_granted;
+	/**
+	 * Machines being stopped.
+	 */
 	struct m0_tl             sy_moribund;
+	/**
+	 * Stopped machines, waiting for finalisation.
+	 */
 	struct m0_tl             sy_deathrow;
+	/**
+	 * Total number of machines: pooled, granted, moribund and deathrowed.
+	 */
 	m0_bcount_t              sy_total;
+	/**
+	 * Is AST posting enabled.
+	 */
 	bool                     sy_astenabled;
+	/**
+	 * Number of posted, still not completed ASTs.
+	 *
+	 * Used to synchronise with ASTs during finalisation
+	 * (m0_addb2_sys_fini()).
+	 */
 	unsigned                 sy_outstanding;
+	/**
+	 * Semaphore to wait until back-end stops.
+	 */
 	struct m0_semaphore      sy_wait;
+	/**
+	 * Channel on which AST completion is signalled.
+	 */
 	struct m0_chan           sy_astwait;
+	/**
+	 * A thread that holds ->sy_lock.
+	 *
+	 * Used to implement recursive locking in sys_lock().
+	 */
 	struct m0_thread        *sy_owner;
+	/**
+	 * Level of recursive locking in sy_lock().
+	 */
 	unsigned                 sy_nesting;
+	/**
+	 * addb2 stats on ->sy_lock mutex.
+	 */
 	struct m0_mutex_addb2    sy_lock_stats;
+	/**
+	 * List of counters registered via m0_addb2_sys_counter_add().
+	 */
 	struct m0_list           sy_counters;
+	/**
+	 * Addb2 machine that was associated with the current thread before
+	 * sys_lock() call, which see for the explanation.
+	 */
 	struct m0_addb2_mach    *sy_stash;
 };
 
@@ -125,6 +226,12 @@ void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
 {
 	struct m0_addb2_mach      *m;
 	struct m0_addb2_trace_obj *to;
+
+	/*
+	 * sys object finalisation is a delicate job, because we have to deal
+	 * with various asynchronous activities: concurrent ASTs and back-end
+	 * finalisations.
+	 */
 
 	m0_addb2_sys_sm_stop(sys);
 	m0_tl_for(mach, &sys->sy_pool, m) {
@@ -343,6 +450,13 @@ void m0_addb2_sys_counter_add(struct m0_addb2_sys *sys,
 	sys_unlock(sys);
 }
 
+/**
+ * Main back-end processing function.
+ *
+ * This is called in the AST context (but also directly by m0_addb2_sys_fini()).
+ *
+ * Submits queued traces and finalises stopped machines.
+ */
 static void sys_balance(struct m0_addb2_sys *sys)
 {
 	struct m0_addb2_trace_obj *obj;
@@ -386,6 +500,14 @@ static void sys_post(struct m0_addb2_sys *sys)
 	}
 }
 
+/**
+ * Implementation of m0_addb2_mach_ops::apo_idle().
+ *
+ * Called by IMPLEMENTATION when the machine is stopped. Moves the machine from
+ * moribund and deathrow lists and post an AST to finalise the machine.
+ *
+ * @see sys_mach_ops
+ */
 static void sys_idle(struct m0_addb2_mach *m)
 {
 	struct m0_addb2_sys *sys = m0_addb2_mach_cookie(m);
@@ -425,6 +547,9 @@ static void stor_stop(struct m0_addb2_sys *sys)
 
 void (*m0_addb2__sys_ast_trap)(struct m0_addb2_sys *sys) = NULL;
 
+/**
+ * Sys AST call-back.
+ */
 static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_addb2_sys *sys = M0_AMB(sys, ast, sy_ast);
@@ -452,6 +577,13 @@ static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	sys_unlock(sys);
 }
 
+/**
+ * Locks the sys object.
+ *
+ * Due to re-entrancy, recursive locking is needed.
+ *
+ * @see sys_unlock.
+ */
 static void sys_lock(struct m0_addb2_sys *sys)
 {
 	if (sys->sy_owner != m0_thread_self()) {
