@@ -231,8 +231,9 @@ static int ai_fid_next(struct m0_sns_cm_ag_iter *ai)
 	struct m0_sns_cm *scm = ai2sns(ai);
 	struct m0_cm     *cm = &scm->sc_base;
 
-	if (cm->cm_quiesce) {
-		M0_LOG(M0_WARN, "%lu: Got QUIESCE cmd", cm->cm_id);
+ 	if (cm->cm_quiesce || cm->cm_abort) {
+ 		M0_LOG(M0_DEBUG, "%lu: Got %s cmd", cm->cm_id,
+ 				 cm->cm_quiesce ? "QUIESCE" : "ABORT");
 		return M0_RC(-ENODATA);
 	}
 

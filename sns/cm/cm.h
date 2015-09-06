@@ -104,6 +104,7 @@ enum m0_sns_cm_op {
 	SNS_REBALANCE_QUIESCE = 1 << 4,
 	SNS_REPAIR_STATUS     = 1 << 5,
 	SNS_REBALANCE_STATUS  = 1 << 6,
+	SNS_REPAIR_ABORT      = 1 << 7,
 };
 
 /**
@@ -337,17 +338,9 @@ M0_INTERNAL void  m0_sns_cm_rm_fini(struct m0_sns_cm *scm);
 
 M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void);
 M0_INTERNAL void m0_sns_cm_repair_trigger_fop_fini(void);
-M0_INTERNAL void m0_sns_cm_repair_quiesce_trigger_fop_init(void);
-M0_INTERNAL void m0_sns_cm_repair_quiesce_trigger_fop_fini(void);
-M0_INTERNAL void m0_sns_cm_repair_status_trigger_fop_init(void);
-M0_INTERNAL void m0_sns_cm_repair_status_trigger_fop_fini(void);
 
 M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void);
-M0_INTERNAL void m0_sns_cm_rebalance_quiesce_trigger_fop_init(void);
-M0_INTERNAL void m0_sns_cm_rebalance_quiesce_trigger_fop_fini(void);
-M0_INTERNAL void m0_sns_cm_rebalance_status_trigger_fop_init(void);
-M0_INTERNAL void m0_sns_cm_rebalance_status_trigger_fop_fini(void);
 
 M0_INTERNAL void m0_sns_cm_repair_sw_onwire_fop_init(void);
 M0_INTERNAL void m0_sns_cm_repair_sw_onwire_fop_fini(void);

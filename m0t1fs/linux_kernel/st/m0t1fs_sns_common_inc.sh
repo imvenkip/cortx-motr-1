@@ -211,6 +211,21 @@ sns_rebalance_quiesce()
 	return $rc
 }
 
+sns_repair_abort()
+{
+	local rc=0
+
+	repair_abort_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 128 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	echo $repair_abort_trigger
+	eval $repair_abort_trigger
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "SNS Repair abort failed"
+	fi
+
+	return $rc
+}
+
 sns_repair_or_rebalance_status()
 {
 	local rc=0
@@ -218,9 +233,9 @@ sns_repair_or_rebalance_status()
 	[ "$1" == "repair" ] && op=32
 	[ "$1" == "rebalance" ] && op=64
 
-	repair_quiesce_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
-	echo $repair_quiesce_trigger
-	eval $repair_quiesce_trigger
+	repair_status="$MERO_CORE_ROOT/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	echo $repair_status
+	eval $repair_status
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "SNS Repair status query failed"
@@ -237,9 +252,9 @@ wait_for_sns_repair_or_rebalance()
 	[ "$1" == "rebalance" ] && op=64
 	while true ; do
 		sleep 5
-		repair_quiesce_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
-		echo $repair_quiesce_trigger
-		status=`eval $repair_quiesce_trigger`
+		repair_status="$MERO_CORE_ROOT/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+		echo $repair_status
+		status=`eval $repair_status`
 		rc=$?
 		if [ $rc != 0 ]; then
 			echo "SNS Repair status query failed"

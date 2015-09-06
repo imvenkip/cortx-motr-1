@@ -319,9 +319,10 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 
 	m0_fid_gob_make(&fid_next, 0, 0);
 	ifc->ifc_fctx = NULL;
-	if (cm->cm_quiesce) {
-		M0_LOG(M0_WARN, "%lu: Got QUIESCE cmd: returning -ENODATA",
-				 cm->cm_id);
+	if (cm->cm_quiesce || cm->cm_abort) {
+		M0_LOG(M0_WARN, "%lu: Got %s cmd: returning -ENODATA",
+				 cm->cm_id,
+				 cm->cm_quiesce ? "QUIESCE" : "ABORT");
 		return M0_RC(-ENODATA);
 	}
 

@@ -696,6 +696,7 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	}
 
 	cm->cm_quiesce = false;
+	cm->cm_abort   = false;
 	rc = cm->cm_ops->cmo_prepare(cm);
 	if (rc != 0)
 		goto out;

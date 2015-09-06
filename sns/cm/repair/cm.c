@@ -73,8 +73,9 @@ static int repair_cm_stop(struct m0_cm *cm)
 
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
-	if (cm->cm_quiesce) {
-		M0_LOG(M0_DEBUG, "repair stopped by QUIESCE cmd");
+	if (cm->cm_quiesce || cm->cm_abort) {
+		M0_LOG(M0_DEBUG, "repair stopped by %s cmd",
+				 cm->cm_quiesce ? "QUIESCE" : "ABORT");
 	} else {
 		enum m0_pool_nd_state state;
 		state = M0_PNDS_SNS_REPAIRED;

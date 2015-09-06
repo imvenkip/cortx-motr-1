@@ -107,6 +107,8 @@ static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			&m0_sns_rebalance_quiesce_trigger_rep_fopt,
 		[M0_SNS_REBALANCE_STATUS_OPCODE] =
 			&m0_sns_rebalance_status_rep_fopt,
+		[M0_SNS_REPAIR_ABORT_OPCODE] =
+			&m0_sns_repair_abort_rep_fopt,
 	};
 	struct m0_fom       *fom;
 	struct m0_fop       *rep_fop;
@@ -181,6 +183,15 @@ static int prepare(struct m0_fom *fom)
 	}
 
 	cm_state = m0_cm_state_get(cm);
+
+	if (treq->op == SNS_REPAIR_ABORT) {
+		/* setting abort flag */
+		cm->cm_abort = true;
+		M0_LOG(M0_DEBUG, "GOT ABORT cmd");
+		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+		trigger_rep_set(fom);
+		return M0_FSO_AGAIN;
+	}
 
 	if (M0_IN(treq->op, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
 		struct m0_fop                *rfop = fom->fo_rep_fop;

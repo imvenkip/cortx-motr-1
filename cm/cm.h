@@ -265,11 +265,16 @@ struct m0_cm {
 
 	struct m0_cm_sw_update           cm_sw_update;
 
-        /**
+	/**
 	 * Command to quiesce pumping new copy packet. This will
 	 * cause sns repair/rebalance to quiesce.
 	 */
         bool                             cm_quiesce;
+
+	/**
+	 * Command to abort current cm operation.
+	 */
+        bool                             cm_abort;
 };
 
 /** Operations supported by a copy machine. */

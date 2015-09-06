@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	if (!M0_IN(op, (SNS_REPAIR, SNS_REBALANCE,
+	if (!M0_IN(op, (SNS_REPAIR, SNS_REBALANCE, SNS_REPAIR_ABORT,
 		        SNS_REPAIR_QUIESCE, SNS_REBALANCE_QUIESCE,
 		        SNS_REPAIR_STATUS,  SNS_REBALANCE_STATUS))) {
 		usage();
