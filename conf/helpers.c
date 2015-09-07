@@ -40,7 +40,7 @@ M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 			       struct m0_confc            *confc,
 			       struct m0_conf_filesystem **result)
 {
-	struct m0_conf_obj *obj = NULL;
+	struct m0_conf_obj *obj;
 	int                 rc;
 
 	rc = m0_confc_open_sync(&obj, confc->cc_root,
@@ -48,9 +48,7 @@ M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 				M0_CONF_PROFILE_FILESYSTEM_FID);
 	if (rc == 0)
 		*result = M0_CONF_CAST(obj, m0_conf_filesystem);
-	else
-		m0_confc_fini(confc);
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_conf_device_get(struct m0_confc      *confc,
