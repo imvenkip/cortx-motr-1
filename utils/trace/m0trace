@@ -788,6 +788,10 @@ sub process_cli_options
                 $ARGV[0] =~ m/^(?<sname>.*)-buf$/xms;
                 $cli_option{log_dir} = "$cli_option{mero_dir}/$+{sname}";
             }
+            when ('ut') {
+                $file_pattern = "m0trace.*";
+                $cli_option{log_dir} = '/var/mero/m0ut';
+            }
             default {
                 die "Unknown type of requested trace log: '$ARGV[0]',"
                     . " supported values should match pattern:"
