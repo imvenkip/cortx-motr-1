@@ -642,7 +642,7 @@ m0_build_local_conf()
     local parity_units=$(m0_genders_value_of m0_parity_units)
 
     local  root='^t|1:0'
-    local  prof='p|1:0'
+    local  prof='^p|1:0'
     local    fs='^f|1:1'
     local  node='^n|1:2'
     local  proc='^r|1:3'
