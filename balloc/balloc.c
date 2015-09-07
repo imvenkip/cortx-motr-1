@@ -392,7 +392,7 @@ static int balloc_group_write(struct m0_balloc            *bal,
 	int				 rc;
 	struct m0_balloc_group_info	*grp;
 	struct m0_ext			 ext;
-	struct m0_balloc_group_desc	 gd;
+	struct m0_balloc_group_desc	 gd = {};
 	struct m0_balloc_super_block	*sb = &bal->cb_sb;
 	struct m0_buf                    key;
 	struct m0_buf                    val;
@@ -530,7 +530,7 @@ static int balloc_gi_sync(struct m0_balloc *cb,
 				  struct m0_be_tx  *tx,
 				  struct m0_balloc_group_info *gi)
 {
-	struct m0_balloc_group_desc	gd;
+	struct m0_balloc_group_desc	gd = {};
 	struct m0_buf			key;
 	struct m0_buf			val;
 	int				rc;

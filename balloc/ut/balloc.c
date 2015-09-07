@@ -89,17 +89,17 @@ bool balloc_ut_invariant(struct m0_balloc *mero_balloc,
 
 int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 {
-	struct m0_balloc *mero_balloc;
-	struct m0_dtx	  dtx;
-	struct m0_sm_group *grp;
-	struct m0_be_tx_credit cred;
-	struct m0_be_tx  *tx = &dtx.tx_betx;
-	int		  result;
-	struct m0_ext	  ext[MAX];
-	struct m0_ext	  tmp   = {};
-	m0_bcount_t	  count = 539;
-	int		  i     = 0;
-	time_t		  now;
+	struct m0_sm_group     *grp;
+	struct m0_balloc       *mero_balloc;
+	struct m0_dtx           dtx = {};
+	struct m0_be_tx        *tx  = &dtx.tx_betx;
+	struct m0_be_tx_credit  cred;
+	struct m0_ext           ext[MAX];
+	struct m0_ext           tmp   = {};
+	m0_bcount_t             count = 539;
+	int                     i     = 0;
+	int                     result;
+	time_t                  now;
 
 	time(&now);
 	srand(now);
