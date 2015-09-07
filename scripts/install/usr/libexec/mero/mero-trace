@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# exit immediately if one the commands exits with a non-zero status
 set -e
 
 # constants

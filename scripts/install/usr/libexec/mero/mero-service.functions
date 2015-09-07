@@ -1,12 +1,46 @@
+#
+# Error handling
+#
+
+# By default, bash doesn't propagate error exit code from a subshell process to
+# the parent shell. Especially, if a subshell is called in double quotes as an
+# assignment to a local variable:
+#
+#   local nodes="$current_node $(get_sibling_nodes)"
+#
+# In order to enable proper error handling, additional options and traps need to
+# be enabled.
+
+set -e
+set -E
+
+_error_handler()
+{
+    kill -TERM $$
+    echo 'propagating error to parent shell' >&2
+}
+trap _error_handler ERR
+
+_term_handler()
+{
+    echo 'got sub-shell error, terminating..' >&2
+    exit 42
+}
+trap _term_handler TERM
+
+#
+# Library functions
+#
+
 # Profile fid in the format suitable for 'prof=' mount option. Must match $prof
 # variable in m0_build_local_conf()
 m0_prof_opt='<0x7000000000000001:0>'
 
-# Print message on console (STDERR) and write it into system log
+# Print message on console (STDERR)
 #   @param  $1  msg
 m0_log()
 {
-    logger -p daemon.info -s -t mero -- "$*"
+    echo "$@" >&2
 }
 
 

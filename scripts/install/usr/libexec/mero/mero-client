@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# exit immediately if one the commands exits with a non-zero status
+set -e
 
 # global variables, which can be overriden in /etc/sysconfig/mero
 MERO_GENDERS_CONF=/etc/mero/genders
@@ -35,6 +37,7 @@ stop()
 
     umount $mountpoint
 }
+
 
 case $1 in
     start)  start ;;

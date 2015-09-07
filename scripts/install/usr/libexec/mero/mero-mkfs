@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# exit immediately if one the commands exits with a non-zero status
+set -e
 
 # constants
 readonly PROG_NAME=$(basename $0)
@@ -11,6 +13,7 @@ MERO_GENDERS_CONF=/etc/mero/genders
 mero_exec_dir=/usr/libexec/mero
 user_config=/etc/sysconfig/mero
 service_funcs=$mero_exec_dir/mero-service.functions
+
 
 m0_mkfs()
 {
@@ -25,13 +28,9 @@ m0_mkfs()
     $mero_exec_dir/mero-server $service m0mkfs "-E -F -u $node_uuid $be_opts"
 }
 
-
 source $service_funcs
 
 [[ -r $user_config ]] && source $user_config
-
-# exit immediately if one the commands exits with a non-zero status
-set -e
 
 if [[ -n $1 ]] ; then
     m0_mkfs $1
