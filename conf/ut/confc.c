@@ -86,6 +86,73 @@ static void sync_open_test(struct m0_conf_obj *nodes_dir)
 	m0_confc_close(obj);
 }
 
+static void sdev_disk_check(struct m0_confc *confc)
+{
+	struct m0_conf_obj  *sdev_obj;
+	struct m0_conf_obj  *disk_obj;
+	struct m0_conf_sdev *sdev;
+	int                  rc;
+
+	/* Verify disk fid from sdev object, if disk object defined. */
+	rc = m0_confc_open_sync(&sdev_obj, confc->cc_root,
+				M0_CONF_ROOT_PROFILES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_PROF],
+				M0_CONF_PROFILE_FILESYSTEM_FID,
+				M0_CONF_FILESYSTEM_NODES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_NODE],
+				M0_CONF_NODE_PROCESSES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_PROCESS0],
+				M0_CONF_PROCESS_SERVICES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_SERVICE0],
+				M0_CONF_SERVICE_SDEVS_FID,
+				m0_ut_conf_fids[M0_UT_CONF_SDEV2]);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(sdev_obj->co_status == M0_CS_READY);
+	sdev = M0_CONF_CAST(sdev_obj, m0_conf_sdev);
+
+	rc = m0_confc_open_sync(&disk_obj, confc->cc_root,
+				M0_CONF_ROOT_PROFILES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_PROF],
+				M0_CONF_PROFILE_FILESYSTEM_FID,
+				M0_CONF_FILESYSTEM_RACKS_FID,
+				m0_ut_conf_fids[M0_UT_CONF_RACK],
+				M0_CONF_RACK_ENCLS_FID,
+				m0_ut_conf_fids[M0_UT_CONF_ENCLOSURE],
+				M0_CONF_ENCLOSURE_CTRLS_FID,
+				m0_ut_conf_fids[M0_UT_CONF_CONTROLLER],
+				M0_CONF_CONTROLLER_DISKS_FID,
+				m0_ut_conf_fids[M0_UT_CONF_DISK]);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(disk_obj->co_status == M0_CS_READY);
+
+	M0_UT_ASSERT(sdev->sd_disk != NULL);
+	M0_UT_ASSERT(m0_fid_eq(sdev->sd_disk, &disk_obj->co_id));
+
+	m0_confc_close(sdev_obj);
+	m0_confc_close(disk_obj);
+
+	/* Verify disk fid from sdev object, if disk object not defined. */
+	rc = m0_confc_open_sync(&sdev_obj, confc->cc_root,
+				M0_CONF_ROOT_PROFILES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_PROF],
+				M0_CONF_PROFILE_FILESYSTEM_FID,
+				M0_CONF_FILESYSTEM_NODES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_NODE],
+				M0_CONF_NODE_PROCESSES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_PROCESS0],
+				M0_CONF_PROCESS_SERVICES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_SERVICE1],
+				M0_CONF_SERVICE_SDEVS_FID,
+				m0_ut_conf_fids[M0_UT_CONF_SDEV0]);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(sdev_obj->co_status == M0_CS_READY);
+	sdev = M0_CONF_CAST(sdev_obj, m0_conf_sdev);
+	M0_UT_ASSERT(sdev->sd_disk == NULL);
+
+	m0_confc_close(sdev_obj);
+
+}
+
 static void nodes_open(struct m0_conf_obj **result,
 		       struct m0_confc     *confc)
 {
@@ -306,6 +373,7 @@ static void confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
 	nodes_open(&nodes_dir, &confc); /* tests asynchronous interface */
 	sync_open_test(nodes_dir);
 	open_by_fid_test(&confc);
+	sdev_disk_check(&confc);
 
 	m0_confc_close(nodes_dir);
 	m0_confc_fini(&confc);

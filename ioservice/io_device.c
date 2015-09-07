@@ -260,16 +260,19 @@ static bool is_conf_controller(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE;
 }
 
-static struct m0_conf_obj *disk2sdev(const struct m0_conf_obj *obj)
+static struct m0_conf_service *disk2service(const struct m0_conf_obj *disk_obj)
 {
-	return &M0_CONF_CAST(obj, m0_conf_disk)->ck_dev->sd_obj;
+	struct m0_conf_obj *sdev_obj =
+		&M0_CONF_CAST(disk_obj, m0_conf_disk)->ck_dev->sd_obj;
+	struct m0_conf_obj *svc_obj = sdev_obj->co_parent->co_parent;
+
+	return M0_CONF_CAST(svc_obj, m0_conf_service);
 }
 
 static bool is_ios_disk(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE &&
-	       m0_conf_obj_type(disk2sdev(obj)->co_parent->co_parent) ==
-				&M0_CONF_SERVICE_TYPE;
+	       disk2service(obj)->cs_type == M0_CST_IOS;
 }
 
 static int ios_poolmach_devices_add(struct m0_poolmach        *poolmach,

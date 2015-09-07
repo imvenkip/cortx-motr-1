@@ -50,6 +50,8 @@ static int disk_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 	rc = m0_conf_obj_find(cache, &XCAST(src)->xk_dev, &child);
 	if (rc == 0) {
 		d->ck_dev = M0_CONF_CAST(child, m0_conf_sdev);
+		/* back pointer to disk objects */
+		d->ck_dev->sd_disk = &dest->co_id;
 	}
 	return M0_RC(rc);
 }

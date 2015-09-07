@@ -494,6 +494,12 @@ struct m0_conf_controller {
 struct m0_conf_sdev {
 	struct m0_conf_obj sd_obj;
 /* configuration data (for the application) */
+	/**
+	 * Pointer to fid of corresponding disk object.
+	 * @note This can ne NULL if no disk object defined
+	 *       for this object.
+	 */
+	struct m0_fid     *sd_disk;
 	/** Interface type. See m0_cfg_storage_device_interface_type. */
 	uint32_t           sd_iface;
 	/** Media type. See m0_cfg_storage_device_media_type. */
