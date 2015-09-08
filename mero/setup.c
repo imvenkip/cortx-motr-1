@@ -128,7 +128,8 @@ static bool reqh_ctx_services_are_valid(const struct m0_reqh_context *rctx)
 			m0_streq(rctx->rc_services[M0_CST_MGS], "confd"),
 			rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0')) &&
 		_0C(ergo(rctx->rc_services[M0_CST_MGS] == NULL,
-			cctx->cc_confd_addr != NULL && *cctx->cc_confd_addr != '\0')) &&
+			 cctx->cc_confd_addr != NULL &&
+			 *cctx->cc_confd_addr != '\0')) &&
 		_0C(ergo(rctx->rc_nr_services != 0, rctx->rc_services != NULL &&
 			 !cs_eps_tlist_is_empty(&rctx->rc_eps)));
 }
@@ -1214,7 +1215,7 @@ static int cs_storage_setup(struct m0_mero *cctx)
 
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
 			rctx->rc_be_seg_preallocate,
-			rctx->rc_be_disable_seg_io_fdatasync2,
+			rctx->rc_be_disable_seg_io_fdatasync,
 			(mkfs && force), &rctx->rc_beseg);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "cs_be_init");
@@ -1661,7 +1662,8 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 					m0_reqh_service_list_print();
 					rc = 1;
 				})),
-			M0_VOIDARG('F', "Force mkfs to override found filesystem",
+			M0_VOIDARG('F',
+				   "Force mkfs to override found filesystem",
 				LAMBDA(void, (void)
 				{
 					cctx->cc_force = true;
@@ -1716,7 +1718,11 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				{
 					cctx->cc_confd_timeout = val;
 				})),
-			M0_FLAGARG('Z', "Run as a daemon", &cctx->cc_daemon),
+			M0_VOIDARG('Z', "Run as a daemon",
+				LAMBDA(void, (void)
+				{
+					cctx->cc_daemon = true;
+				})),
 
 			/* -------------------------------------------
 			 * Request handler options
@@ -1798,16 +1804,22 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				{
 				      rc = ep_and_xprt_append(&rctx->rc_eps, s);
 				})),
-		       M0_STRINGARG('f', "Process FID string",
-			/** @todo Use process fid from the configuration. */
+			M0_STRINGARG('f', "Process FID string",
 				LAMBDA(void, (const char *s)
 				{
 				      rc = process_fid_parse(s, &rctx->rc_fid);
 				})),
-			M0_FLAGARG('a', "Preallocate BE seg",
-				   &rctx->rc_be_seg_preallocate),
-			M0_FLAGARG('E', "Disable seg I/O fdatasync()",
-				   &rctx->rc_be_disable_seg_io_fdatasync),
+			M0_VOIDARG('a', "Preallocate BE seg",
+				LAMBDA(void, (void)
+				{
+					rctx->rc_be_seg_preallocate = true;
+				})),
+			M0_VOIDARG('E', "Disable seg I/O fdatasync()",
+				LAMBDA(void, (void)
+				{
+					rctx->rc_be_disable_seg_io_fdatasync =
+						true;
+				})),
 			M0_VOIDARG('v', "Print version and exit",
 				LAMBDA(void, (void)
 				{
@@ -1820,23 +1832,6 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 					/* not used here, it's a placeholder */
 				})),
 			);
-	/*
-	 * XXX max: If `-E' is added as parameter to m0mkfs
-	 *
-	 * Sep 04 02:43:08 devvm mero-mkfs[5029]:
-	 * + exec /work/mero/utils/mkfs/m0mkfs
-	 * -e lnet:172.16.1.212@tcp:12345:41:401 -f '<0x7200000000000001:4>'
-	 *  -T ad -D db -S stobs -A linuxstob:addb-stobs
-	 *  -P '<0x7000000000000001:0>' -w 12 -m 65536 -q 16
-	 *  -C 172.16.1.212@tcp:12345:36:174
-	 *  -d /etc/mero/disks-ios1.conf -E -F
-	 *  -u aa89f587-d3b2-4435-a972-559903aa523a -z 536870912
-	 *
-	 * then the flag is reset on the second function call.
-	 * So a workaround is added until the issue is resolved.
-	 */
-	rctx->rc_be_disable_seg_io_fdatasync2 |=
-		rctx->rc_be_disable_seg_io_fdatasync;
 	/* generate reqh fid in case it is all-zero */
 	process_fid_generate_conditional(rctx);
 
