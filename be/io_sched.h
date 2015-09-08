@@ -35,17 +35,29 @@
 
 struct m0_be_op;
 struct m0_be_io;
-
+struct m0_ext;
 
 struct m0_be_io_sched_cfg {
-	int bisc_unused;
+	/** start position for m0_be_io_sched::bis_pos */
+	m0_bcount_t bisc_pos_start;
 };
 
 /*
- * IO scheduler maintains m0_be_io queue. Each m0_be_io is written
- * one after another in the order they are added to the scheduler queue
- * using m0_be_io_sched_add(). Additional ordering system will be added
- * in the future to make it possible to write m0_be_io out-of-order.
+ * IO scheduler.
+ *
+ * It launches m0_be_io in m0_ext-based ordered queue.
+ *
+ * Highlighs:
+ * - write I/O:
+ *   - each one should have m0_ext;
+ *   - m0_ext for one I/O should not intersect with m0_ext for another I/O;
+ *   - I/Os are launched in the m0_ext increasing order, without gaps. If there
+ *     is no such I/O in the queue at the scheduler's current position then I/O
+ *     after the gap is not launched until another I/O is added to fill the gap;
+ * - read I/O:
+ *   - doesn't have m0_ext assigned (subject to change);
+ *   - is launched after the last write I/O (at the time the read I/O is added
+ *     to the scheduler's queue) from the queue is finished.
  */
 struct m0_be_io_sched {
 	struct m0_be_io_sched_cfg bis_cfg;
@@ -53,6 +65,8 @@ struct m0_be_io_sched {
 	struct m0_tl              bis_ios;
 	struct m0_mutex           bis_lock;
 	bool                      bis_io_in_progress;
+	/** position for the next I/O */
+	m0_bcount_t               bis_pos;
 };
 
 M0_INTERNAL int m0_be_io_sched_init(struct m0_be_io_sched     *sched,
@@ -63,6 +77,7 @@ M0_INTERNAL void m0_be_io_sched_unlock(struct m0_be_io_sched *sched);
 M0_INTERNAL bool m0_be_io_sched_is_locked(struct m0_be_io_sched *sched);
 M0_INTERNAL void m0_be_io_sched_add(struct m0_be_io_sched *sched,
                                     struct m0_be_io       *io,
+                                    struct m0_ext         *ext,
                                     struct m0_be_op       *op);
 
 /** @} end of be group */

@@ -23,6 +23,7 @@
 #ifndef __MERO_BE_LOG_SCHED_H__
 #define __MERO_BE_LOG_SCHED_H__
 
+#include "lib/types.h"          /* m0_bindex_t */
 #include "be/io.h"              /* m0_be_io */
 #include "be/io_sched.h"        /* m0_be_io_sched */
 #include "be/op.h"              /* m0_be_op */
@@ -49,6 +50,7 @@ struct m0_be_log_sched_cfg {
  */
 struct m0_be_log_sched {
 	struct m0_be_io_sched lsh_io_sched;
+	m0_bindex_t           lsh_pos;
 };
 
 /** @todo document fields owned by m0_be_log and move fields reset there */

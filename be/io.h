@@ -30,6 +30,7 @@
 #include "lib/atomic.h"         /* m0_atomic64 */
 #include "lib/ext.h"            /* m0_ext */
 #include "lib/tlist.h"          /* m0_tlink */
+#include "lib/ext.h"            /* m0_ext */
 
 #include "be/op.h"              /* m0_be_op */
 
@@ -115,6 +116,7 @@ struct m0_be_io {
 	struct m0_tlink         bio_sched_link;
 	uint64_t                bio_sched_magic;
 	struct m0_be_op         bio_sched_op;
+	struct m0_ext           bio_ext;
 };
 
 M0_INTERNAL int m0_be_io_init(struct m0_be_io *bio);

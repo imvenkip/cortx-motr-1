@@ -30,10 +30,13 @@
 
 #include "be/io_sched.h"
 
+#include "lib/ext.h"            /* m0_ext */
+
 #include "be/op.h"              /* m0_be_op */
 #include "be/io.h"              /* m0_be_io_launch */
 
 #include "mero/magic.h"         /* M0_BE_LOG_IO_MAGIC */
+#include "stob/io.h"            /* SIO_WRITE */
 
 
 /* m0_be_io_sched::bis_ios */
@@ -51,6 +54,7 @@ M0_INTERNAL int m0_be_io_sched_init(struct m0_be_io_sched     *sched,
 	m0_mutex_init(&sched->bis_lock);
 	sched_io_tlist_init(&sched->bis_ios);
 	sched->bis_io_in_progress = false;
+	sched->bis_pos = sched->bis_cfg.bisc_pos_start;
 
 	return 0;
 }
@@ -76,6 +80,14 @@ M0_INTERNAL bool m0_be_io_sched_is_locked(struct m0_be_io_sched *sched)
 	return m0_mutex_is_locked(&sched->bis_lock);
 }
 
+static bool be_io_sched_invariant(struct m0_be_io_sched *sched)
+{
+	return m0_tl_forall(sched_io, io, &sched->bis_ios,
+		    sched_io_tlist_next(&sched->bis_ios, io) == NULL ||
+		    io->bio_ext.e_end <=
+		    sched_io_tlist_next(&sched->bis_ios, io)->bio_ext.e_start);
+}
+
 static void be_io_sched_launch_next(struct m0_be_io_sched *sched)
 {
 	struct m0_be_io *io;
@@ -84,8 +96,12 @@ static void be_io_sched_launch_next(struct m0_be_io_sched *sched)
 
 	if (!sched->bis_io_in_progress) {
 		io = sched_io_tlist_head(&sched->bis_ios);
-		if (io != NULL) {
+		M0_ASSERT(ergo(io != NULL,
+			       sched->bis_pos <= io->bio_ext.e_start));
+		if (io != NULL && io->bio_ext.e_start == sched->bis_pos) {
 			sched->bis_io_in_progress = true;
+			M0_LOG(M0_DEBUG, "sched=%p io=%p pos=%lu",
+			       sched, io, sched->bis_pos);
 			m0_be_io_launch(io, &io->bio_sched_op);
 		}
 	}
@@ -105,28 +121,74 @@ static void be_io_sched_cb(struct m0_be_op *op, void *param)
 
 	M0_LOG(M0_DEBUG, "sched=%p io=%p", sched, io);
 
+	M0_PRE(io->bio_ext.e_start == sched->bis_pos);
+
 	m0_be_io_sched_lock(sched);
 	sched_io_tlink_del_fini(io);
 	m0_be_op_fini(&io->bio_sched_op);
 	sched->bis_io_in_progress = false;
+	sched->bis_pos = io->bio_ext.e_end;
 	m0_be_io_sched_unlock(sched);
 
 	be_io_sched_launch_next_locked(sched);
 }
 
+static void be_io_sched_insert(struct m0_be_io_sched *sched,
+                               struct m0_be_io       *io)
+{
+	struct m0_be_io *io_prev;
+	struct m0_be_io *io_next;
+
+	M0_PRE(m0_be_io_sched_is_locked(sched));
+	M0_PRE(be_io_sched_invariant(sched));
+
+	for (io_prev = sched_io_tlist_tail(&sched->bis_ios);
+	     io_prev != NULL;
+	     io_prev = sched_io_tlist_prev(&sched->bis_ios, io_prev)) {
+		if (io_prev->bio_ext.e_end <= io->bio_ext.e_start)
+			break;
+	}
+	if (io_prev != NULL && m0_ext_is_empty(&io->bio_ext)) {
+		io_next = sched_io_tlist_next(&sched->bis_ios, io_prev);
+		while (io_next != NULL && m0_ext_is_empty(&io_next->bio_ext)) {
+			io_prev = io_next;
+			io_next = sched_io_tlist_next(&sched->bis_ios, io_prev);
+		}
+	}
+	sched_io_tlink_init(io);
+	if (io_prev == NULL)
+		sched_io_tlist_add(&sched->bis_ios, io);
+	else
+		sched_io_tlist_add_after(io_prev, io);
+
+	M0_POST(be_io_sched_invariant(sched));
+}
+
 M0_INTERNAL void m0_be_io_sched_add(struct m0_be_io_sched *sched,
 				    struct m0_be_io       *io,
+                                    struct m0_ext         *ext,
 				    struct m0_be_op       *op)
 {
+	struct m0_be_io *io_last;
+
 	M0_LOG(M0_DEBUG, "sched=%p io=%p op=%p "
 	       "m0_be_io_size(io)=%"PRIu64,
 	       sched, io, op, m0_be_io_size(io));
 
 	M0_PRE(m0_be_io_sched_is_locked(sched));
-	M0_PRE(!m0_be_io_is_empty(io));
+	M0_PRE(equi(!m0_be_io_is_empty(io) && m0_be_io_opcode(io) == SIO_READ,
+		    ext == NULL));
 
 	io->bio_sched = sched;
-	sched_io_tlink_init_at_tail(io, &sched->bis_ios);
+	if (!m0_be_io_is_empty(io) && m0_be_io_opcode(io) == SIO_READ) {
+		io_last = sched_io_tlist_tail(&sched->bis_ios);
+		io->bio_ext.e_start = io_last == NULL ? sched->bis_pos :
+				      io_last->bio_ext.e_end;
+		io->bio_ext.e_end = io->bio_ext.e_start;
+	} else {
+		io->bio_ext = *ext;
+	}
+	be_io_sched_insert(sched, io);
 	m0_be_op_init(&io->bio_sched_op);
 	m0_be_op_callback_set(&io->bio_sched_op, &be_io_sched_cb,
 			      io, M0_BOS_GC);

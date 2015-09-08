@@ -291,7 +291,7 @@ static void be_log_header_io(struct m0_be_log             *log,
 	do {
 		/*
 		 * It is safe to add io_op to op set here.
-		 * log_sched can't start I/O when it's locked.
+		 * log_sched can't finish I/O when it's locked.
 		 */
 		m0_be_op_set_add(op, io_op);
 		m0_be_log_sched_add(&log->lg_sched, lio, io_op);

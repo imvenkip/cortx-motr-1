@@ -36,6 +36,8 @@
 M0_INTERNAL int m0_be_log_sched_init(struct m0_be_log_sched     *sched,
 				     struct m0_be_log_sched_cfg *cfg)
 {
+	sched->lsh_pos = 0;
+	cfg->lsch_io_sched_cfg.bisc_pos_start = 0;
 	return m0_be_io_sched_init(&sched->lsh_io_sched,
 	                           &cfg->lsch_io_sched_cfg);
 }
@@ -64,6 +66,9 @@ M0_INTERNAL void m0_be_log_sched_add(struct m0_be_log_sched *sched,
 				     struct m0_be_log_io    *lio,
 				     struct m0_be_op        *op)
 {
+	struct m0_ext *ext = NULL;
+	struct m0_ext  ext2;
+
 	M0_LOG(M0_DEBUG, "sched=%p lio=%p lio_record=%p op=%p "
 	       "m0_be_io_size(&lio->lio_be_io)=%"PRIu64,
 	       sched, lio, lio->lio_record, op,
@@ -73,7 +78,17 @@ M0_INTERNAL void m0_be_log_sched_add(struct m0_be_log_sched *sched,
 	M0_PRE(!m0_be_log_io_is_empty(lio));
 
 	lio->lio_sched = sched;
-	m0_be_io_sched_add(&sched->lsh_io_sched, &lio->lio_be_io, op);
+	if (m0_be_io_opcode(m0_be_log_io_be_io(lio)) != SIO_READ) {
+		/*
+		 * Note: it makes a simple queue from an ext-based queue.
+		 * In the future m0_be_log_sched_add() is going to have
+		 * m0_ext parameter.
+		 */
+		ext2.e_start = sched->lsh_pos;
+		ext2.e_end = ++sched->lsh_pos;
+		ext = &ext2;
+	}
+	m0_be_io_sched_add(&sched->lsh_io_sched, &lio->lio_be_io, ext, op);
 }
 
 M0_INTERNAL int m0_be_log_io_init(struct m0_be_log_io *lio)

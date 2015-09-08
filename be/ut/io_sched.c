@@ -22,6 +22,10 @@
 /**
  * @addtogroup be
  *
+ * Tests to add:
+ * - ordering for SIO_READ be IOs;
+ * - sync-enabled be IOs.
+ *
  * @{
  */
 
@@ -48,6 +52,7 @@ enum {
 	BE_UT_IO_SCHED_IO_NR         = 0x10,
 	BE_UT_IO_SCHED_ADD_NR        = 0x400,
 	BE_UT_IO_SCHED_IO_OFFSET_MAX = 0x10000,
+	BE_UT_IO_SCHED_EXT_SIZE_MAX  = 0xdf3,
 };
 
 enum be_ut_io_sched_io_op {
@@ -99,6 +104,7 @@ struct be_ut_io_sched_test {
 	/* The same for del() operation. */
 	struct m0_atomic64                st_io_ready_pos_del;
 	struct m0_semaphore               st_io_ready_sem;
+	struct m0_atomic64               *st_ext_index;
 };
 
 static struct m0_be_io_sched  be_ut_io_sched_scheduler;
@@ -182,6 +188,8 @@ static void be_ut_io_sched_thread(void *param)
 	struct m0_be_io            *bio;
 	struct m0_be_op            *op;
 	struct m0_stob             *stob = test->st_stob;
+	struct m0_ext               ext;
+	m0_bcount_t                 len;
 	m0_bindex_t                 offset;
 	int                         rc;
 	int                         i;
@@ -223,8 +231,12 @@ static void be_ut_io_sched_thread(void *param)
 		m0_be_io_add(bio, stob, &test->st_data, offset,
 			     sizeof(test->st_data));
 		m0_be_io_configure(bio, SIO_WRITE);
+		len = m0_rnd64(&test->st_seed) % BE_UT_IO_SCHED_EXT_SIZE_MAX +
+		      (m0_rnd64(&test->st_seed) & 0xff) + 1;
+		ext.e_end   = m0_atomic64_add_return(test->st_ext_index, len);
+		ext.e_start = ext.e_end - len;
 		m0_be_io_sched_lock(sched);
-		m0_be_io_sched_add(sched, bio, op);
+		m0_be_io_sched_add(sched, bio, &ext, op);
 		m0_be_io_sched_unlock(sched);
 	}
 	for (i = 0; i < test->st_io_nr; ++i) {
@@ -271,9 +283,12 @@ void m0_be_ut_io_sched(void)
 {
 	struct be_ut_io_sched_io_state *states;
 	struct be_ut_io_sched_test     *tests;
-	struct m0_be_io_sched_cfg       cfg = {};
+	struct m0_be_io_sched_cfg       cfg = {
+		.bisc_pos_start = 0x1234,
+	};
 	struct m0_be_io_sched          *sched = &be_ut_io_sched_scheduler;
 	struct m0_atomic64              states_pos;
+	struct m0_atomic64              ext_index;
 	struct m0_stob                 *stob;
 	uint64_t                        seed = 0;
 	int                             states_nr;
@@ -288,6 +303,7 @@ void m0_be_ut_io_sched(void)
 	stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(stob != NULL);
 	m0_atomic64_set(&states_pos, 0);
+	m0_atomic64_set(&ext_index, cfg.bisc_pos_start);
 	for (i = 0; i < BE_UT_IO_SCHED_THREAD_NR; ++i) {
 		tests[i] = (struct be_ut_io_sched_test){
 			.st_io_nr        = BE_UT_IO_SCHED_IO_NR,
@@ -298,6 +314,7 @@ void m0_be_ut_io_sched(void)
 			.st_states       = states,
 			.st_states_nr    = states_nr,
 			.st_states_pos   = &states_pos,
+			.st_ext_index    = &ext_index,
 		};
 	}
 
