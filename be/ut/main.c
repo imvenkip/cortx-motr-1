@@ -72,7 +72,8 @@ extern void m0_be_ut_log_multi(void);
 
 extern void m0_be_ut_recovery(void);
 
-extern void m0_be_ut_seg_create_destroy(void);
+extern void m0_be_ut_pd_usecase(void);
+
 extern void m0_be_ut_seg_open_close(void);
 extern void m0_be_ut_seg_io(void);
 extern void m0_be_ut_seg_multiple(void);
@@ -163,6 +164,7 @@ struct m0_ut_suite be_ut = {
 		{ "log-unplaced",            m0_be_ut_log_unplaced            },
 		{ "log-multi",               m0_be_ut_log_multi               },
 		{ "recovery",                m0_be_ut_recovery                },
+		{ "pd-usecase",              m0_be_ut_pd_usecase              },
 		{ "seg-open",                m0_be_ut_seg_open_close          },
 		{ "seg-io",                  m0_be_ut_seg_io                  },
 		{ "seg-multiple",            m0_be_ut_seg_multiple            },

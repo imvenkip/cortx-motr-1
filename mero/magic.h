@@ -141,6 +141,10 @@ enum m0_magic_satchel {
 	/* m0_be_io_sched::bis_ios (bad be io head) */
 	M0_BE_IO_SCHED_HEAD_MAGIC = 0x33badbe104ead77,
 
+	/* m0_be_pd::bpd_io_pool (be dead cache) */
+	M0_BE_PD_IO_MAGIC = 0x33bedeadcac4e77,
+
+
 /* m0t1fs */
 	/* m0t1fs_sb::s_magic (cozie filesis) */
 	M0_T1FS_SUPER_MAGIC = 0x33c021ef11e51577,
