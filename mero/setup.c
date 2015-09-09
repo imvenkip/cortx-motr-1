@@ -1226,7 +1226,7 @@ static int cs_storage_setup(struct m0_mero *cctx)
 		goto be_fini;
 	}
 
-	if (rctx->rc_dfilepath != NULL) {
+	if (!rctx->rc_stob.s_ad_disks_init && rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR,
@@ -1482,9 +1482,11 @@ static void cs_help(FILE *out, const char *progname)
 "  -T str   Type of storage. Supported types: linux, ad.\n"
 "  -S str   Stob file.\n"
 "  -A str   ADDB Stob file.\n"
+"  -U       Use configuration file created by the user. \n"
 "  -d str   [optional] Path to device configuration file.\n"
 "           Device configuration file should contain device id and the\n"
 "           corresponding device path.\n"
+"           if -U option is specified, disks.conf file is not used.\n"
 "           E.g. id: 0,\n"
 "                filename: /dev/sda\n"
 "           Note that only AD type stob domain can be configured over device.\n"
@@ -1781,6 +1783,10 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				LAMBDA(void, (const char *s)
 				{
 					rctx->rc_dfilepath = s;
+				})),
+			M0_VOIDARG('U', "User configuration file",
+				LAMBDA(void, (void)
+				{
 					rctx->rc_stob.s_ad_disks_init = true;
 				})),
 			M0_NUMBERARG('q', "Minimum TM recv queue length",
@@ -2058,7 +2064,7 @@ M0_INTERNAL int m0_mero_stob_reopen(struct m0_reqh *reqh,
 				    uint32_t dev_id)
 {
 	struct m0_stob_id       stob_id;
-	struct m0_reqh_context *reqh_ctx;
+	struct m0_reqh_context *rctx;
 	struct cs_stobs        *stob;
 	yaml_document_t        *doc;
 	yaml_node_t            *node;
@@ -2069,12 +2075,13 @@ M0_INTERNAL int m0_mero_stob_reopen(struct m0_reqh *reqh,
 	int                     rc = 0;
 	int                     result;
 
-	reqh_ctx = container_of(reqh, struct m0_reqh_context, rc_reqh);
-	stob = &reqh_ctx->rc_stob;
+	rctx = container_of(reqh, struct m0_reqh_context, rc_reqh);
+	stob = &rctx->rc_stob;
 	doc = &stob->s_sfile.sf_document;
-	if (!stob->s_sfile.sf_is_initialised) {
+	if (rctx->rc_stob.s_ad_disks_init)
+		return M0_RC(cs_conf_device_reopen(stob, dev_id));
+	if (!stob->s_sfile.sf_is_initialised)
 		return M0_ERR(-EINVAL);
-	}
 	for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
 		for (item = (node)->data.sequence.items.start;
 		     item < (node)->data.sequence.items.top; ++item) {
@@ -2092,12 +2099,6 @@ M0_INTERNAL int m0_mero_stob_reopen(struct m0_reqh *reqh,
 			}
 		}
 	}
-	return M0_RC(rc);
-	/**
-	 * @todo Use cs_conf_device_reopen() after disks.conf usage
-	 * is eliminated.
-	 */
-	rc = cs_conf_device_reopen(stob, dev_id);
 	return M0_RC(rc);
 }
 

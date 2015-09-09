@@ -17,7 +17,7 @@
  * Original creation date: 22-Dec-2014
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0D
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 
 #include "format/format.h"

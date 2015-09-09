@@ -336,13 +336,16 @@ m0_get_proc_fid_for()
 #   @param  $1  service type (confd mds ios ha rms)
 m0_get_global_eps_of()
 {
+    local stype=$1
     local global_eps
     local n
     local s
 
     for n in $(m0_get_nodes); do
         for s in $(m0_get_services $n); do
-            global_eps="$global_eps $(m0_get_ep_of $s $n)"
+            if [[ $s == ${stype}* ]]; then
+                global_eps="$global_eps $(m0_get_ep_of $s $n)"
+            fi
         done
     done
 
@@ -357,6 +360,24 @@ m0_get_global_ep_of()
     local stype=$1
 
     echo $(m0_get_global_eps_of $stype) | awk '{print $1}'
+}
+
+m0_get_conf()
+{
+    local conf
+    local n
+    local s
+
+    for n in $(m0_get_nodes); do
+        for s in $(m0_get_services $n); do
+	   if [[ $s == "confd" ]]; then
+              conf=$(m0_genders_value_of m0_conf_path $n)
+              break
+           fi
+	done
+    done
+
+    echo $conf
 }
 
 #

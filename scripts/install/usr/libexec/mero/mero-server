@@ -20,7 +20,9 @@ m0_server()
 
     source $service_funcs
 
+    local conf=$(m0_get_conf)
     [[ -n $service ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
+    [[ -z $conf || -r $conf ]] || m0_exit "usage: $conf file is not readable or exists"
 
     [ -r $user_config ] && source $user_config
 
@@ -45,11 +47,20 @@ m0_server()
 	rms*)
             ;;
 
-        ios*)  stob_opts+=" -d /etc/mero/disks-$service.conf"
+        ios*)  if [[ -r $conf ]]; then
+                   stob_opts+=' -U '
+               else
+                   stob_opts+=" -d /etc/mero/disks-$service.conf"
+               fi
             ;;
 
         confd) stob_type='-T linux'
-               MERO_M0D_OPTS+=' -c conf.xc'
+               if [[ -r $conf ]]; then
+                   MERO_M0D_OPTS+=" -c $conf"
+               else
+                   m0_build_local_conf > $service_dir/conf.xc
+                   MERO_M0D_OPTS+=' -c conf.xc'
+               fi
             ;;
 
         ha*)   stob_type='-T linux'
@@ -60,18 +71,15 @@ m0_server()
                    " available services are 'mds*' and 'ios*'"
             ;;
     esac
-
     local confd_ep=${MERO_CONFD_EP:-$(m0_get_global_ep_of confd)}
     local service_ep="lnet:$(m0_get_ep_of $service)"
 
-    if [[ $service == confd ]]; then
-        m0_build_local_conf > $service_dir/conf.xc
-    else
+    if [[ $service != confd ]]; then
         MERO_M0D_OPTS+=" -C $confd_ep"
     fi
 
     local binary=$(m0_path_to $cmd)
-    if [[ $binary == m0mkfs ]]; then
+    if [[ $cmd == m0mkfs ]]; then
 	service_ep="lnet:$(m0_get_mkfs_ep_of $service)"
     fi
     # enable core dumps
