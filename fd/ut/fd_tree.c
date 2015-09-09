@@ -18,13 +18,17 @@
  * Original creation date: 25th June'15.
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"       /* M0_ERR() */
+
+#include "lib/finject.h"     /* m0_fi_enable() */
+#include "lib/memory.h"      /* m0_alloc() */
+#include "lib/misc.h"        /* M0_SET0() */
 #include "fd/fd_internal.h"
 #include "fd/fd.h"
 #include "fd/ut/common.h"
 #include "ut/ut.h"           /* M0_UT_ASSERT() */
-#include "lib/memory.h"      /* m0_alloc() */
-#include "lib/finject.h"     /* m0_fi_enable() */
-#include "lib/misc.h"        /* M0_SET0() */
+
 
 static int tree_populate(struct m0_fd_tree *tree, enum tree_type param_type);
 static uint32_t geometric_sum(uint16_t r, uint16_t k);
@@ -116,14 +120,16 @@ static void test_fault_inj(void)
 		      &seed);
 	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", n, 1);
 	M0_SET0(&tree);
-	rc = fd_ut_tree_init(&tree, M0_FTA_DEPTH_MAX - 1);
-	if (rc == 0) {
-		rc = m0_fd__tree_root_create(&tree, TP_BINARY);
-		if (rc == 0)
-			rc = tree_populate(&tree, TP_BINARY);
-	}
+	rc = fd_ut_tree_init(&tree, M0_FTA_DEPTH_MAX - 1) ?:
+	     m0_fd__tree_root_create(&tree, TP_BINARY) ?:
+	     tree_populate(&tree, TP_BINARY);
 	m0_fi_disable("m0_alloc","fail_allocation");
-	M0_UT_ASSERT((n >> 1) == tree.ft_cnt);
+	/*
+	 * NOTE: m0_fd__tree_root_create and tree_populate call
+	 * m0_alloc two times per node, but m0_alloc may be recursively:
+	 * m0_alloc call alloc_tail, but alloc_tail may call m0_alloc
+	 */
+	M0_UT_ASSERT((n >> 1) >= tree.ft_cnt);
 	m0_fd_tree_destroy(&tree);
 	M0_UT_ASSERT(tree.ft_cnt == 0);
 }
@@ -177,6 +183,6 @@ struct m0_ut_suite failure_domains_tree_ut = {
 	.ts_tests = {
 		{"test_fd_tree", test_fd_tree},
 		{"test_perm_cache", test_perm_cache},
-                { NULL, NULL }
+		{ NULL, NULL }
 	}
 };
