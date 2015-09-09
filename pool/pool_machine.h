@@ -107,6 +107,11 @@ struct m0_poolmach_state {
 	uint32_t                    pst_max_device_failures;
 
 	/**
+	 * Number of failures in pool.
+	 */
+	uint32_t                    pst_nr_failures;
+
+	/**
 	 * Spare slot usage array.
 	 * The size of this array is pst_max_device_failures.
 	 */

@@ -506,6 +506,8 @@ static void _attr_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	 * Use redundant next meta data service, if error is returned from
 	 * current service, until pc_md_redundancy.
 	 **/
+
+	m0_ref_put(&fctx->sf_ref);
 	if (fctx->sf_rc != 0 &&
 	    ++fctx->sf_nr_ios_visited < reqh->rh_pools->pc_md_redundancy) {
 		M0_LOG(M0_DEBUG, "getattr from service %d"FID_F,
@@ -540,6 +542,8 @@ static int _attr_fetch(struct m0_sns_cm_file_ctx *fctx)
 	if (fctx->sf_rc == 0 && fctx->sf_attr.ca_size > 0 &&
 	    fctx->sf_attr.ca_lid != 0)
 		return M0_RC(0);
+
+	m0_ref_get(&fctx->sf_ref);
 	rc = !reqh->rh_oostore ?
 		m0_ios_mds_getattr_async(reqh, &fctx->sf_fid, &fctx->sf_attr,
 					 &_attr_cb, fctx) :

@@ -531,7 +531,7 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
 	[M0_CCP_SW_CHECK] = {
 		.sd_flags       = 0,
 		.sd_name        = "Sliding window check",
-		.sd_allowed     = M0_BITS(M0_CCP_SEND, M0_CCP_FAIL)
+		.sd_allowed     = M0_BITS(M0_CCP_SEND, M0_CCP_FINI, M0_CCP_FAIL)
 	},
 	[M0_CCP_SEND] = {
 		.sd_flags       = 0,

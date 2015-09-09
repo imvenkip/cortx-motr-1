@@ -23,6 +23,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"           /* M0_IN() */
 #include  "lib/locality.h"
+#include "lib/finject.h"
 
 #include "mero/setup.h"
 #include "conf/diter.h"
@@ -238,13 +239,13 @@ static int prepare(struct m0_fom *fom)
 	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
 					   M0_PNDS_SNS_REBALANCING;
 	if (cm_state == M0_CMS_IDLE) {
+		m0_cm_wait(cm, fom);
 		rc = m0_cm_prepare(cm);
 		if (rc == 0) {
 			m0_fom_phase_set(fom, M0_FOPH_INIT);
-			m0_mutex_lock(&cm->cm_wait_mutex);
-			m0_fom_wait_on(fom, &cm->cm_ready_wait, &fom->fo_cb);
-			m0_mutex_unlock(&cm->cm_wait_mutex);
 			rc = M0_FSO_WAIT;
+		} else {
+			m0_cm_wait_cancel(cm, fom);
 		}
 	} else {
 		M0_ASSERT(fom->fo_tx.tx_state == M0_DTX_OPEN);
@@ -265,12 +266,23 @@ static int ready(struct m0_fom *fom)
 	struct m0_cm *cm = trig2cm(fom);
 	int           rc;
 
-	rc = m0_cm_ready(cm);
-	if (rc != 0)
+	if (M0_FI_ENABLED("no_wait")) {
+		rc = m0_cm_ready(cm);
+		if (rc == 0) {
+			m0_fom_phase_set(fom, M0_SNS_TPH_START);
+			rc = M0_FSO_AGAIN;
+		}
 		return M0_RC(rc);
+	}
+	m0_cm_proxies_init_wait(cm, fom);
+	rc = m0_cm_ready(cm);
+	if (rc != 0) {
+		m0_cm_wait_cancel(cm, fom);
+		return M0_ERR(rc);
+	}
 	m0_fom_phase_set(fom, M0_SNS_TPH_START);
 	M0_LOG(M0_DEBUG, "trigger: ready");
-	return M0_FSO_AGAIN;
+	return M0_FSO_WAIT;
 }
 
 static int start(struct m0_fom *fom)

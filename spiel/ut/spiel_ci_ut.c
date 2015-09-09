@@ -420,6 +420,7 @@ static void test_spiel_pool_repair(void)
 	int                         rc;
 
 	spiel_ci_ut_init();
+	m0_fi_enable("ready", "no_wait");
 	rc = m0_spiel_pool_repair_start(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
 
@@ -485,6 +486,7 @@ static void test_spiel_pool_repair(void)
 	}
 
 done:
+	m0_fi_disable("ready", "no_wait");
 	spiel_ci_ut_fini();
 }
 
@@ -503,6 +505,7 @@ static void test_spiel_pool_rebalance(void)
 	int                         rc;
 
 	spiel_ci_ut_init();
+	m0_fi_enable("ready", "no_wait");
 	rc = m0_spiel_pool_rebalance_start(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
 
@@ -567,6 +570,7 @@ static void test_spiel_pool_rebalance(void)
 	}
 
 done:
+	m0_fi_disable("ready", "no_wait");
 	spiel_ci_ut_fini();
 }
 

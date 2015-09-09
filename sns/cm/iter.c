@@ -208,6 +208,8 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 
 static int __file_context_init(struct m0_sns_cm_iter *it)
 {
+	struct m0_sns_cm         *scm = it2sns(it);
+	struct m0_cm             *cm = &scm->sc_base;
 	struct m0_pdclust_layout *pl;
 
 	pl = m0_layout_to_pdl(it->si_fc.ifc_fctx->sf_layout);
@@ -221,8 +223,12 @@ static int __file_context_init(struct m0_sns_cm_iter *it)
 	it->si_fc.ifc_dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
 	it->si_fc.ifc_upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
 	M0_CNT_INC(it->si_total_files);
-	it->si_fc.ifc_sa.sa_group = 0;
+	if (m0_cm_ag_id_is_set(&cm->cm_last_processed_out))
+		it->si_fc.ifc_sa.sa_group = agid2group(&cm->cm_last_processed_out) + 1;
+	else
+		it->si_fc.ifc_sa.sa_group = 0;
 	it->si_fc.ifc_sa.sa_unit = 0;
+	M0_SET0(&cm->cm_last_processed_out);
 
 	return M0_RC(0);
 }
@@ -287,12 +293,13 @@ static int iter_fid_lock_wait(struct m0_sns_cm_iter *it)
 {
 	struct m0_sns_cm          *scm;
 	int		           rc = 0;
-	struct m0_sns_cm_file_ctx *fctx = it->si_fc.ifc_fctx;
+	struct m0_sns_cm_file_ctx *fctx;
 
 	M0_ENTRY();
 	M0_PRE(it != NULL);
 
 	scm = it2sns(it);
+	fctx = it->si_fc.ifc_fctx;
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
 	rc = m0_sns_cm_file_lock_wait(fctx, it->si_fom);
 	if (rc == -EAGAIN) {
@@ -824,13 +831,17 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 
 M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 {
-	struct m0_fid gfid;
+	struct m0_fid     gfid;
+	struct m0_fid     gfid_start;
+	struct m0_sns_cm *scm = it2sns(it);
+	struct m0_cm     *cm = &scm->sc_base;
 	int           rc;
 
 	M0_PRE(it != NULL);
 	M0_PRE(iter_phase(it) == ITPH_IDLE);
 
-	m0_fid_gob_make(&gfid, it->si_fc.ifc_gfid.f_container, it->si_fc.ifc_gfid.f_key + 1);
+	agid2fid(&cm->cm_last_processed_out, &gfid_start);
+	m0_fid_gob_make(&gfid, gfid_start.f_container, gfid_start.f_key);
 	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, it->si_cob_dom);
 
 	return M0_RC(rc);
@@ -838,10 +849,15 @@ M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 
 M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it)
 {
+	struct m0_sns_cm *scm = it2sns(it);
+	struct m0_cm     *cm;
+
 	M0_PRE(iter_phase(it) == ITPH_IDLE);
 
+	cm = &scm->sc_base;
 	m0_cob_ns_iter_fini(&it->si_cns_it);
-	M0_SET0(&it->si_fc);
+	if (!cm->cm_quiesce)
+		M0_SET0(&it->si_fc);
 }
 
 M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm_iter *it)

@@ -71,7 +71,7 @@ M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
 	m0_cm_ag_id_copy(&dst->sw_hi, &src->sw_hi);
 }
 
-M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,
+M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *sw_onwire,
                                      const char *ep, const struct m0_cm_sw *sw)
 {
 	M0_PRE(sw_onwire != NULL && ep != NULL && sw != NULL);
@@ -82,6 +82,12 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,
 	if (sw_onwire->swo_cm_ep.ep == NULL )
 		return M0_ERR(-ENOMEM);
 	strncpy(sw_onwire->swo_cm_ep.ep, ep, CS_MAX_EP_ADDR_LEN);
+	if (cm->cm_done)
+		sw_onwire->swo_cm_status = M0_CMS_STOP;
+	else if (!m0_cm_aggr_group_tlists_are_empty(cm))
+		sw_onwire->swo_cm_status = M0_CMS_ACTIVE;
+	else
+		sw_onwire->swo_cm_status = M0_CMS_READY;
 
 	return 0;
 }
@@ -119,115 +125,17 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 	 * lo can be NULL mainly if the copy machine operation is just started
 	 * and sliding window is empty.
 	 */
-        if (lo != NULL) {
-                id_lo = lo->cag_id;
-                id_hi = cm->cm_sw_last_updated_hi;
-        }
+	if (lo != NULL)
+		id_lo = lo->cag_id;
+	id_hi = cm->cm_sw_last_updated_hi;
 	m0_cm_sw_set(&sw, &id_lo, &id_hi);
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		ID_LOG("proxy last updated",
 		       &pxy->px_last_sw_onwire_sent.sw_hi);
-		rc = m0_cm_proxy_remote_update(pxy, &sw);
+		rc = m0_cm_proxy_remote_update(pxy, &sw, true);
 		if (rc != 0)
 			break;
 	} m0_tl_endfor;
-
-	return M0_RC(rc);
-}
-
-/**
- * Lookup first.
- * - If found, just return success.
- * - If not found, return -ENOENT and prepare to allocate one.
- */
-M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp,
-				    struct m0_be_tx *tx)
-{
-	struct m0_be_seg      *seg  = cm->cm_service.rs_reqh->rh_beseg;
-	struct m0_be_tx_credit cred = {};
-	struct m0_cm_sw       *sw;
-	char                   cm_sw_name[80];
-	int                    rc;
-	M0_ENTRY();
-
-	M0_SET0(tx);
-	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
-	rc = m0_cm_sw_store_load(cm, &sw);
-	if (rc == 0)
-		return M0_RC(rc);
-
-	m0_be_tx_init(tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
-	M0_BE_ALLOC_CREDIT_PTR(sw, seg, &cred);
-	m0_be_seg_dict_insert_credit(seg, cm_sw_name, &cred);
-	m0_be_tx_prep(tx, &cred);
-	m0_be_tx_open(tx);
-	M0_POST(tx->t_sm.sm_rc == 0);
-	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_cm_sw_store_alloc(struct m0_cm *cm, struct m0_be_tx *tx)
-{
-	struct m0_be_seg   *seg  = cm->cm_service.rs_reqh->rh_beseg;
-	struct m0_cm_sw    *sw;
-	char                cm_sw_name[80];
-	int                 rc;
-
-	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
-
-	M0_BE_ALLOC_PTR_SYNC(sw, seg, tx);
-	if (sw == NULL) {
-		rc = -ENOMEM;
-	} else {
-		struct m0_cm_ag_id id_lo;
-		struct m0_cm_ag_id id_hi;
-
-		rc = m0_be_seg_dict_insert(seg, tx, cm_sw_name, sw);
-		if (rc == 0) {
-			M0_SET0(&id_lo);
-			M0_SET0(&id_hi);
-			m0_cm_sw_set(sw, &id_lo, &id_hi);
-			M0_BE_TX_CAPTURE_PTR(seg, tx, sw);
-			M0_LOG(M0_DEBUG, "allocated sw = %p", sw);
-		} else
-			M0_BE_FREE_PTR_SYNC(sw, seg, tx);
-	}
-	m0_be_tx_close(tx);
-	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw **out)
-{
-	struct m0_be_seg *seg = cm->cm_service.rs_reqh->rh_beseg;
-	char              cm_sw_name[80];
-	int               rc;
-
-	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
-	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)out);
-	if (rc == 0) {
-		M0_LOG(M0_DEBUG, "sw_lo=["M0_AG_F"] sw_hi=["M0_AG_F"]",
-			M0_AG_P(&(*out)->sw_lo), M0_AG_P(&(*out)->sw_hi));
-	}
-
-	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
-				      struct m0_be_tx *tx,
-				      const struct m0_cm_sw *last)
-{
-	struct m0_be_seg *seg = cm->cm_service.rs_reqh->rh_beseg;
-	struct m0_cm_sw  *sw;
-	int               rc;
-
-	rc = m0_cm_sw_store_load(cm, &sw);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	M0_LOG(M0_DEBUG, "sw = %p", sw);
-	if (rc == 0) {
-		m0_cm_sw_copy(sw, last);
-		M0_BE_TX_CAPTURE_PTR(seg, tx, sw);
-	}
 
 	return M0_RC(rc);
 }

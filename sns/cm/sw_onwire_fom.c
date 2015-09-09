@@ -88,25 +88,17 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		       cm->cm_ready_fops_recvd,
 		       cm->cm_proxy_nr);
 
-		/*
-		 * Here we check for aggregation groups with incoming as well as
-		 * outgoing copy packets as there can be aggregation groups with
-		 * both type of copy packets but present only in copy machine's
-		 * list of aggregation groups with incoming copy packets
-		 * (m0_cm::cm_aggr_grps_in).
-		 */
-		if (cm->cm_aggr_grps_out_nr > 0 || cm->cm_aggr_grps_in_nr > 0) {
-			ep = swo_fop->swo_base.swo_cm_ep.ep;
-			m0_cm_lock(cm);
-			cm_proxy = m0_cm_proxy_locate(cm, ep);
-			if (cm_proxy != NULL) {
-				ID_LOG("proxy hi", &cm_proxy->px_sw.sw_hi);
-				m0_cm_proxy_update(cm_proxy,
-						   &swo_fop->swo_base.swo_sw.sw_lo,
-						   &swo_fop->swo_base.swo_sw.sw_hi);
-			}
-			m0_cm_unlock(cm);
+		ep = swo_fop->swo_base.swo_cm_ep.ep;
+		m0_cm_lock(cm);
+		cm_proxy = m0_cm_proxy_locate(cm, ep);
+		if (cm_proxy != NULL) {
+			ID_LOG("proxy hi", &cm_proxy->px_sw.sw_hi);
+			m0_cm_proxy_update(cm_proxy,
+					   &swo_fop->swo_base.swo_sw.sw_lo,
+					   &swo_fop->swo_base.swo_sw.sw_hi,
+					   swo_fop->swo_base.swo_cm_status);
 		}
+		m0_cm_unlock(cm);
 		m0_fom_phase_set(fom, SWOPH_FINI);
 		break;
 	default:

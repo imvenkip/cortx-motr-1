@@ -76,8 +76,8 @@ static bool cm_proxy_invariant(const struct m0_cm_proxy *pxy)
 	 */
 	return _0C(pxy != NULL) &&  _0C(m0_cm_proxy_bob_check(pxy)) &&
 	       _0C(m0_cm_is_locked(pxy->px_cm)) &&
-	       _0C(pxy->px_endpoint != NULL) &&
-	       _0C(m0_cm_ag_id_cmp(&pxy->px_sw.sw_hi, &pxy->px_sw.sw_lo) >= 0);
+	       _0C(pxy->px_endpoint != NULL); //&&
+	       //_0C(m0_cm_ag_id_cmp(&pxy->px_sw.sw_hi, &pxy->px_sw.sw_lo) >= 0);
 }
 
 M0_INTERNAL int m0_cm_proxy_alloc(uint64_t px_id,
@@ -177,20 +177,71 @@ static void __wake_up_pending_cps(struct m0_cm_proxy *pxy)
 
 M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 				    struct m0_cm_ag_id *lo,
-				    struct m0_cm_ag_id *hi)
+				    struct m0_cm_ag_id *hi,
+				    uint32_t px_status)
 {
+	struct m0_cm    *cm;
+	struct m0_cm_sw  sw;
+
 	M0_ENTRY("proxy: %p lo: %p hi: %p ep: %s", pxy, lo, hi,
 		 pxy->px_endpoint);
 	M0_PRE(pxy != NULL && lo != NULL && hi != NULL);
 
-	m0_mutex_lock(&pxy->px_mutex);
-	pxy->px_sw.sw_lo = *lo;
-	pxy->px_sw.sw_hi = *hi;
-	ID_LOG("proxy lo", &pxy->px_sw.sw_lo);
-	ID_LOG("proxy hi", &pxy->px_sw.sw_hi);
-	__wake_up_pending_cps(pxy);
-	M0_ASSERT(cm_proxy_invariant(pxy));
-	m0_mutex_unlock(&pxy->px_mutex);
+	cm = pxy->px_cm;
+	switch (pxy->px_status) {
+	case M0_CMS_INIT :
+		if (px_status == M0_CMS_READY) {
+			/*
+			 * Here we select the minimum of the sliding window
+			 * starting point provided by each remote copy machine,
+			 * from which this copy machine will start in-order to
+			 * keep all the copy machines in sync.
+			 */
+			if (m0_cm_ag_id_is_set(hi) &&
+			    ((m0_cm_ag_id_cmp(hi, &cm->cm_sw_last_updated_hi) < 0) ||
+			    !m0_cm_ag_id_is_set(&cm->cm_sw_last_updated_hi))) {
+				cm->cm_sw_last_updated_hi = *hi;
+			}
+			M0_CNT_INC(cm->cm_proxy_init_updated);
+			/*
+			 * Notify copy machine on receiving initial updates
+			 * from all the remote replicas.
+			 */
+			if (cm->cm_proxy_init_updated == cm->cm_proxy_nr)
+				m0_cm_notify(cm);
+			M0_SET0(&sw);
+			sw.sw_hi = cm->cm_sw_last_persisted_hi;
+			/*
+			 * It is possible that the corresponding copy machine to
+			 * this proxy started later and thus might have missed
+			 * an update from other respective replicas.
+			 * Send another sliding window update to the replica on
+			 * receiving one from the same, this makes sure that the
+			 * replica is up and will not miss this update.
+			 */
+			m0_cm_proxy_remote_update(pxy, &sw, false);
+			pxy->px_status = px_status;
+		}
+		break;
+	case M0_CMS_READY :
+	case M0_CMS_ACTIVE:
+	case M0_CMS_STOP:
+		if (M0_IN(px_status, (M0_CMS_ACTIVE, M0_CMS_STOP))) {
+			m0_mutex_lock(&pxy->px_mutex);
+			pxy->px_sw.sw_lo = *lo;
+			pxy->px_sw.sw_hi = *hi;
+			ID_LOG("proxy lo", &pxy->px_sw.sw_lo);
+			ID_LOG("proxy hi", &pxy->px_sw.sw_hi);
+			__wake_up_pending_cps(pxy);
+			M0_ASSERT(cm_proxy_invariant(pxy));
+			m0_mutex_unlock(&pxy->px_mutex);
+		}
+		pxy->px_status = px_status;
+		break;
+	default:
+		return;
+	}
+
 	M0_LEAVE();
 }
 
@@ -220,10 +271,11 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
 	if (m0_cm_has_more_data(cm) || !m0_cm_aggr_group_tlists_are_empty(cm)) {
-		rc = m0_cm_proxy_remote_update(proxy, &sw);
+		rc = m0_cm_proxy_remote_update(proxy, &sw, false);
 		M0_ASSERT(rc == 0);
 	} else {
 		proxy->px_is_done = true;
+		m0_cm_proxy_remote_update(proxy, &sw, true);
 		m0_chan_signal(&cm->cm_mach.sm_chan);
 	}
 }
@@ -254,7 +306,8 @@ const struct m0_rpc_item_ops proxy_sw_onwire_item_ops = {
 
 M0_INTERNAL int m0_cm_proxy_sw_onwire_post(struct m0_fop *fop,
 				           const struct m0_rpc_conn *conn,
-				           m0_time_t deadline)
+				           m0_time_t deadline,
+					   bool onetime)
 {
 	struct m0_rpc_item *item;
 
@@ -262,7 +315,7 @@ M0_INTERNAL int m0_cm_proxy_sw_onwire_post(struct m0_fop *fop,
 	M0_PRE(fop != NULL && conn != NULL);
 
 	item              = m0_fop_to_rpc_item(fop);
-	item->ri_ops      = &proxy_sw_onwire_item_ops;
+	item->ri_ops      = onetime ? NULL : &proxy_sw_onwire_item_ops;
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = deadline;
 
@@ -283,7 +336,7 @@ static void proxy_sw_onwire_release(struct m0_ref *ref)
 }
 
 M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
-					  struct m0_cm_sw *sw)
+					  struct m0_cm_sw *sw, bool onetime)
 {
 	struct m0_cm                 *cm;
 	struct m0_rpc_machine        *rmach;
@@ -318,7 +371,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	deadline = m0_time_from_now(1, 0);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
-	rc = m0_cm_proxy_sw_onwire_post(fop, conn, deadline);
+	rc = m0_cm_proxy_sw_onwire_post(fop, conn, deadline, onetime);
 	m0_fop_put_lock(fop);
 	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, sw);
 	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"]",
@@ -376,6 +429,15 @@ M0_INTERNAL bool m0_cm_proxy_agid_is_in_sw(struct m0_cm_proxy *pxy,
 	m0_mutex_unlock(&pxy->px_mutex);
 
 	return result;
+}
+
+M0_INTERNAL void m0_cm_proxy_pending_cps_wakeup(struct m0_cm *cm)
+{
+	struct m0_cm_proxy *pxy;
+
+	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
+		__wake_up_pending_cps(pxy);
+	} m0_tl_endfor;
 }
 
 #undef M0_TRACE_SUBSYSTEM

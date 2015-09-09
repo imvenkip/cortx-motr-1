@@ -60,6 +60,8 @@ struct m0_cm_sw_onwire {
 	struct m0_cm_local_ep swo_cm_ep;
 	/** Replica's sliding window. */
 	struct m0_cm_sw       swo_sw;
+
+	uint32_t              swo_cm_status;
 }M0_XCA_RECORD;
 
 struct m0_cm_sw_update {
@@ -68,7 +70,7 @@ struct m0_cm_sw_update {
 	bool             swu_is_complete;
 };
 
-M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,
+M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *sw_onwire,
 				     const char *ep, const struct m0_cm_sw *sw);
 
 M0_INTERNAL void m0_cm_sw_set(struct m0_cm_sw *dst,
@@ -97,44 +99,7 @@ M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm);
  */
 M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm);
 
-
-/**
- * Initializes sliding window persistent store for this copy machine.
- * Opens the transaction asynchronously.
- * @param grp This group is used for sliding window BE transactions.
- */
-M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp,
-				    struct m0_be_tx *tx);
-
-/**
- * Prepares sliding window persistent store for this copy machine.
- * Commits and closes the transaction asynchronously.
- */
-M0_INTERNAL int m0_cm_sw_store_alloc(struct m0_cm *cm, struct m0_be_tx *tx);
-
-/**
- * Loads sliding window data from persistent storage.
- *
- * -ENOENT is returned if no sliding window data is found on storage.
- */
-M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw **out);
-
-/**
- * Updates sliding window data to the last completed aggregation group.
- */
-M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
-				      struct m0_be_tx *tx,
-				      const struct m0_cm_sw *last);
-
 M0_INTERNAL void m0_cm_sw_update_init(struct m0_cm_type *cmtype);
-
-/**
- * Marks the cm operation as done by deleting sliding window data from storage.
- */
-M0_INTERNAL int m0_cm_sw_store_complete(struct m0_cm *cm);
-
-/** Finalises the transaction used for sw store. */
-M0_INTERNAL void m0_cm_sw_store_fini(struct m0_cm *cm);
 
 /**
  * Starts sliding window update FOM by submitting the corresponding FOM to

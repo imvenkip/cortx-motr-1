@@ -440,6 +440,16 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 	} else
 		cm_proxy = cp->c_cm_proxy;
 
+	/*
+	 * If remote replica has already stopped due to some reason, all the
+	 * pending copy packets addressed to that copy machine must be
+	 * finalised.
+	 */
+	if (cm_proxy->px_status == M0_CMS_STOP) {
+		m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
+		return M0_FSO_WAIT;
+	}
+
 	if (m0_cm_ag_id_cmp(&cp->c_ag->cag_id, &cm_proxy->px_sw.sw_hi) <= 0) {
 		rc = cp->c_ops->co_phase_next(cp);
 	} else {

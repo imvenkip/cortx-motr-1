@@ -624,8 +624,7 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm)
 	if (rc == 0) {
 		m0_mutex_init(&cm->cm_wait_mutex);
 		m0_mutex_init(&cm->cm_ast_run_fom_wait_mutex);
-		m0_chan_init(&cm->cm_ready_wait, &cm->cm_wait_mutex);
-		m0_chan_init(&cm->cm_complete_wait, &cm->cm_wait_mutex);
+		m0_chan_init(&cm->cm_wait, &cm->cm_wait_mutex);
 		m0_chan_init(&cm->cm_ast_run_fom_wait, &cm->cm_ast_run_fom_wait_mutex);
 	}
 	cm_move(cm, rc, M0_CMS_IDLE, M0_CM_ERR_SETUP);
@@ -647,12 +646,13 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 	struct m0_cm_ag_id          ag_id0;
 	const char                 *lep;
 	int                         rc = -ENOENT;
-	struct m0_pools_common     *pc = reqh->rh_pools;
+	struct m0_pools_common     *pc;
 	struct m0_reqh_service_ctx *ctx;
 
 	M0_PRE(cm != NULL && rmach != NULL && reqh != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
+	pc = reqh->rh_pools;
 	M0_SET0(&ag_id0);
 	lep = m0_rpc_machine_ep(rmach);
 	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
@@ -682,9 +682,7 @@ M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh)
 
 M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 {
-	struct m0_reqh         *reqh = cm->cm_service.rs_reqh;
-	struct m0_rpc_machine  *rmach;
-	int                     rc;
+	int rc;
 
 	m0_cm_lock(cm);
 	M0_PRE(m0_cm_state_get(cm) == M0_CMS_IDLE);
@@ -695,22 +693,19 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 		goto out;
 	}
 
+	cm->cm_done = false;
+	cm->cm_proxy_init_updated = 0;
 	cm->cm_quiesce = false;
 	cm->cm_abort   = false;
+	cm->cm_reset = false;
 	rc = cm->cm_ops->cmo_prepare(cm);
 	if (rc != 0)
 		goto out;
 	cm->cm_ready_fops_recvd = 0;
-	rmach = m0_cm_rpc_machine_find(reqh);
-	rc = cm_replicas_connect(cm, rmach, reqh);
-	if (rc == -ENOENT)
-		rc = 0;
-	if (rc == 0) {
-		cm_ast_run_fom_init(cm);
-		m0_cm_sw_update_start(cm);
-		m0_cm_cp_pump_prepare(cm);
-		cm_move(cm, rc, M0_CMS_PREPARE, M0_CM_ERR_PREPARE);
-	}
+	cm_ast_run_fom_init(cm);
+	m0_cm_ag_store_fom_start(cm);
+	m0_cm_cp_pump_prepare(cm);
+	cm_move(cm, rc, M0_CMS_PREPARE, M0_CM_ERR_PREPARE);
 out:
 	m0_cm_unlock(cm);
 	return M0_RC(rc);
@@ -718,6 +713,8 @@ out:
 
 M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 {
+	struct m0_reqh         *reqh = cm->cm_service.rs_reqh;
+	struct m0_rpc_machine  *rmach;
 	int                     rc;
 
 	M0_ENTRY("cm: %p", cm);
@@ -728,7 +725,12 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_PREPARE)));
 	M0_PRE(m0_cm_invariant(cm));
 
-	rc = m0_cm_sw_remote_update(cm);
+	rmach = m0_cm_rpc_machine_find(reqh);
+	rc = cm_replicas_connect(cm, rmach, reqh);
+	if (rc == -ENOENT)
+		rc = 0;
+	if (rc == 0)
+		rc = m0_cm_sw_remote_update(cm);
 	cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
 	m0_cm_unlock(cm);
 
@@ -803,13 +805,15 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	 * M0_CMS_IDLE state as m0_cm_start() expects copy machine to be idle
 	 * before starting new restructuring operation.
 	 */
-	m0_cm_state_set(cm, M0_CMS_STOP);
 	m0_cm_proxies_fini(cm);
 	m0_cm_ast_run_fom_wakeup(cm);
 	rc = cm->cm_ops->cmo_stop(cm);
+	if (!cm->cm_quiesce) {
+		M0_SET0(&cm->cm_sw_last_updated_hi);
+		M0_SET0(&cm->cm_last_processed_out);
+	}
+	m0_cm_state_set(cm, M0_CMS_STOP);
 	cm_move(cm, rc, M0_CMS_IDLE, M0_CM_ERR_STOP);
-	M0_SET0(&cm->cm_sw_last_updated_hi);
-
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
 
@@ -897,8 +901,7 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 	      cm->cm_id, cm->cm_mach.sm_state);
 	m0_cm_state_set(cm, M0_CMS_FINI);
 	m0_sm_fini(&cm->cm_mach);
-	m0_chan_fini_lock(&cm->cm_ready_wait);
-	m0_chan_fini_lock(&cm->cm_complete_wait);
+	m0_chan_fini_lock(&cm->cm_wait);
 	m0_chan_fini_lock(&cm->cm_ast_run_fom_wait);
 	m0_mutex_fini(&cm->cm_wait_mutex);
 	m0_mutex_fini(&cm->cm_ast_run_fom_wait_mutex);
@@ -922,6 +925,7 @@ M0_INTERNAL int m0_cm_type_register(struct m0_cm_type *cmtype)
 		m0_cm_type_bob_init(cmtype);
 		m0_cm_cp_init(cmtype);
 		m0_cm_sw_update_init(cmtype);
+		m0_cm_ag_store_init(cmtype);
 		m0_cm_cp_pump_init(cmtype);
 		m0_mutex_lock(&cmtypes_mutex);
 		cmtypes_tlink_init_at_tail(cmtype, &cmtypes);
@@ -1004,8 +1008,8 @@ static int cm_ast_run_fom_tick(struct m0_fom *fom, struct m0_cm *cm, int *phase)
 		m0_cm_unlock(cm);
 	}
 
-	if (cm->cm_proxy_nr == 0 && cm->cm_aggr_grps_out_nr == 0 &&
-	    cm->cm_aggr_grps_in_nr == 0)
+	if (M0_IN(m0_cm_state_get(cm), (M0_CMS_ACTIVE, M0_CMS_STOP)) && cm->cm_proxy_nr == 0 &&
+		cm->cm_aggr_grps_out_nr == 0 && cm->cm_aggr_grps_in_nr == 0)
 		result = -ESHUTDOWN;
 	else {
 		m0_mutex_lock(&cm->cm_ast_run_fom_wait_mutex);
@@ -1027,16 +1031,40 @@ M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm)
 	m0_chan_signal_lock(&cm->cm_ast_run_fom_wait);
 }
 
-M0_INTERNAL void m0_cm_ready_done(struct m0_cm *cm)
+M0_INTERNAL void m0_cm_notify(struct m0_cm *cm)
 {
-	if (m0_chan_has_waiters(&cm->cm_ready_wait))
-		m0_chan_signal_lock(&cm->cm_ready_wait);
+	if (m0_chan_has_waiters(&cm->cm_wait))
+		m0_chan_signal_lock(&cm->cm_wait);
+}
+
+M0_INTERNAL void m0_cm_wait(struct m0_cm *cm, struct m0_fom *fom)
+{
+	m0_mutex_lock(&cm->cm_wait_mutex);
+        m0_fom_wait_on(fom, &cm->cm_wait, &fom->fo_cb);
+        m0_mutex_unlock(&cm->cm_wait_mutex);
+}
+
+M0_INTERNAL void m0_cm_wait_cancel(struct m0_cm *cm, struct m0_fom *fom)
+{
+	m0_mutex_lock(&cm->cm_wait_mutex);
+	m0_fom_callback_cancel(&fom->fo_cb);
+	m0_mutex_unlock(&cm->cm_wait_mutex);
 }
 
 M0_INTERNAL void m0_cm_complete(struct m0_cm *cm)
 {
-	m0_chan_signal_lock(&cm->cm_complete_wait);
+	if (cm->cm_quiesce)
+		m0_cm_ag_store_fini(&cm->cm_ag_store);
+	else
+		m0_cm_ag_store_complete(&cm->cm_ag_store);
+	m0_cm_notify(cm);
 	m0_cm_cp_pump_stop(cm);
+	cm->cm_done = true;
+}
+
+M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom)
+{
+	m0_cm_wait(cm, fom);
 }
 
 #undef M0_TRACE_SUBSYSTEM

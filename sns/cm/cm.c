@@ -637,11 +637,21 @@ static int pv_pm_event_post(struct m0_poolmach *pm, struct m0_fid *dfid,
 M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
+	struct m0_poolmach    *pm;
+	uint32_t               nr_failures;
 	int                    bufs_nr;
 	int		       rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
+
+	pm = m0_ios_poolmach_get(m0_sns_cm2reqh(scm));
+	M0_ASSERT(pm != NULL);
+	nr_failures = m0_poolmach_nr_dev_failures(pm);
+	if (pm->pm_state->pst_nr_failures < nr_failures) {
+		cm->cm_reset = true;
+		pm->pm_state->pst_nr_failures = nr_failures;
+	}
 
 	rc = m0_sns_cm_rm_init(scm);
 	if(rc != 0)

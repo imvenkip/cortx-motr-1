@@ -48,13 +48,9 @@
 */
 
 enum cm_sw_update_fom_phase {
-	SWU_STORE_INIT       = M0_FOM_PHASE_INIT,
-	SWU_FINI	     = M0_FOM_PHASE_FINISH,
-	SWU_STORE_INIT_WAIT,
+	SWU_START  = M0_FOM_PHASE_INIT,
+	SWU_FINI   = M0_FOM_PHASE_FINISH,
 	SWU_UPDATE,
-	SWU_STORE,
-	SWU_STORE_WAIT,
-	SWU_COMPLETE,
 	SWU_NR
 };
 
@@ -62,39 +58,15 @@ static const struct m0_fom_type_ops cm_sw_update_fom_type_ops = {
 };
 
 static struct m0_sm_state_descr cm_sw_update_sd[SWU_NR] = {
-	[SWU_STORE_INIT] = {
+	[SWU_START] = {
 		.sd_flags   = M0_SDF_INITIAL,
-		.sd_name    = "Store init",
-		.sd_allowed = M0_BITS(SWU_STORE_INIT_WAIT, SWU_UPDATE, SWU_FINI)
+		.sd_name    = "Update",
+		.sd_allowed = M0_BITS(SWU_UPDATE, SWU_FINI)
 	},
-	[SWU_STORE_INIT_WAIT] = {
-		.sd_flags   = 0,
-		.sd_name    = "Store init wait",
-		.sd_allowed = M0_BITS(SWU_STORE_INIT_WAIT, SWU_UPDATE, SWU_FINI)
-	},
-
-
 	[SWU_UPDATE] = {
 		.sd_flags   = 0,
 		.sd_name    = "Update",
-		.sd_allowed = M0_BITS(SWU_STORE, SWU_UPDATE, SWU_COMPLETE,
-				      SWU_FINI)
-	},
-
-	[SWU_STORE] = {
-		.sd_flags   = 0,
-		.sd_name    = "Store",
-		.sd_allowed = M0_BITS(SWU_STORE_WAIT, SWU_FINI)
-	},
-	[SWU_STORE_WAIT] = {
-		.sd_flags   = 0,
-		.sd_name    = "Update wait",
-		.sd_allowed = M0_BITS(SWU_UPDATE, SWU_FINI)
-	},
-	[SWU_COMPLETE] = {
-		.sd_flags   = 0,
-		.sd_name    = "Update complete",
-		.sd_allowed = M0_BITS(SWU_STORE_WAIT, SWU_FINI)
+		.sd_allowed = M0_BITS(SWU_FINI)
 	},
 	[SWU_FINI] = {
 		.sd_flags   = M0_SDF_TERMINAL,
@@ -119,218 +91,48 @@ static struct m0_cm_sw_update *cm_fom2swu(struct m0_fom *fom)
 	return container_of(fom, struct m0_cm_sw_update, swu_fom);
 }
 
-static int swu_store_init(struct m0_cm_sw_update *swu)
+static int swu_start(struct m0_cm_sw_update *swu)
 {
-	struct m0_cm  *cm = cm_swu2cm(swu);
-	struct m0_fom *fom = &swu->swu_fom;
-	int            phase;
-	int            rc;
+	struct m0_cm   *cm = cm_swu2cm(swu);
+	struct m0_fom  *fom = &swu->swu_fom;
+	int             rc;
 
-	rc = m0_cm_sw_store_init(cm, &fom->fo_loc->fl_group,
-				 &fom->fo_tx.tx_betx);
-	if (rc == 0 || rc == -ENOENT) {
-		/*
-		 * If existing sliding window found, we are ready to do update.
-		 * If not, a new persistent sw is allocated and we need to wait.
-		 */
-		phase = rc == -ENOENT ? SWU_STORE_INIT_WAIT : SWU_UPDATE;
-		m0_fom_phase_set(fom, phase);
-		rc = M0_FSO_AGAIN;
-	}
-
-	return M0_RC(rc);
-}
-
-static int swu_store_init_wait(struct m0_cm_sw_update *swu)
-{
-	struct m0_cm    *cm = cm_swu2cm(swu);
-	struct m0_fom   *fom = &swu->swu_fom;
-	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
-	struct m0_cm_sw *sw;
-	int              rc;
-
-	switch (m0_be_tx_state(tx)) {
-	case M0_BTS_FAILED :
-		return tx->t_sm.sm_rc;
-	case M0_BTS_GROUPING :
-	case M0_BTS_OPENING :
-		break;
-	case M0_BTS_ACTIVE :
-		rc = m0_cm_sw_store_alloc(cm, tx);
-		if (rc != 0)
-			return M0_RC(rc);
-		break;
-	case M0_BTS_DONE :
-		rc = tx->t_sm.sm_rc;
-		m0_be_tx_fini(tx);
-		if (rc != 0)
-			return M0_RC(rc);
-		rc = m0_cm_sw_store_load(cm, &sw);
-		if (rc != 0)
-			return M0_RC(rc);
-		cm->cm_sw_last_updated_hi = sw->sw_lo;
+	m0_cm_lock(cm);
+	rc = m0_cm_sw_local_update(cm);
+	if (M0_IN(rc, (-ENOBUFS, -ENOENT, -ENODATA))) {
 		m0_fom_phase_move(fom, 0, SWU_UPDATE);
-		return M0_FSO_AGAIN;
-	default :
-		break;
+		rc = rc == -ENOBUFS ? M0_FSO_WAIT : M0_FSO_AGAIN;
 	}
-	m0_fom_wait_on(fom, &tx->t_sm.sm_chan,
-			&fom->fo_cb);
+	m0_cm_notify(cm);
+	m0_cm_unlock(cm);
 
-	return M0_FSO_WAIT;
+	return rc;
 }
 
 static int swu_update(struct m0_cm_sw_update *swu)
 {
-	struct m0_cm            *cm = cm_swu2cm(swu);
-	struct m0_fom           *fom = &swu->swu_fom;
-	struct m0_cm_aggr_group *hi;
-	struct m0_cm_aggr_group *lo;
-	int                      rc;
+	struct m0_cm   *cm = cm_swu2cm(swu);
+	struct m0_fom  *fom = &swu->swu_fom;
+	int             rc;
 
 	m0_cm_lock(cm);
 	rc = m0_cm_sw_local_update(cm);
 	if (rc == M0_FSO_WAIT)
 		goto out;
-	if (M0_IN(rc, (0, -ENOBUFS, -ENOENT, -ENODATA))) {
-		M0_SET0(&swu->swu_sw);
-		hi = m0_cm_ag_hi(cm);
-		lo = m0_cm_ag_lo(cm);
-		if (hi == NULL || lo == NULL) {
-			swu->swu_is_complete = true;
-			rc = M0_FSO_AGAIN;
-		} else {
-			m0_cm_sw_set(&swu->swu_sw, &lo->cag_id,
-				     &hi->cag_id);
-		}
-		rc = rc == -ENOBUFS ? M0_FSO_WAIT : M0_FSO_AGAIN;
+	if (M0_IN(rc, (-ENOENT, -ENODATA))) {
+		swu->swu_is_complete = true;
+		m0_fom_phase_move(fom, 0, SWU_FINI);
 	}
 
-	if (rc < 0) {
-		swu->swu_is_complete = true;
-		M0_LOG(M0_DEBUG, "SWU COMPLETE!! rc: %d", rc);
-		m0_fom_phase_move(fom, 0, SWU_COMPLETE);
-		rc = M0_FSO_AGAIN;
-	} else
-		m0_fom_phase_move(fom, 0, SWU_STORE);
+	rc = rc == 0 ? M0_FSO_AGAIN : M0_FSO_WAIT;
 out:
-	m0_cm_ready_done(cm);
 	m0_cm_unlock(cm);
 	return M0_RC(rc);
 }
 
-static int swu_store(struct m0_cm_sw_update *swu)
-{
-	struct m0_cm             *cm = cm_swu2cm(swu);
-	struct m0_fom            *fom = &swu->swu_fom;
-	struct m0_dtx            *tx = &fom->fo_tx;
-	struct m0_be_seg         *seg  = cm->cm_service.rs_reqh->rh_beseg;
-	int                       rc;
-
-	if (tx->tx_state < M0_DTX_INIT) {
-		m0_dtx_init(tx, seg->bs_domain,
-				&fom->fo_loc->fl_group);
-		tx->tx_betx_cred = M0_BE_TX_CREDIT_TYPE(struct m0_cm_sw);
-	}
-
-	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE) {
-		m0_dtx_open(tx);
-		return M0_FSO_AGAIN;
-	}
-        else if (M0_IN(m0_be_tx_state(&tx->tx_betx), (M0_BTS_OPENING,
-						      M0_BTS_GROUPING))) {
-		m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
-		return M0_FSO_WAIT;
-	}
-
-	m0_dtx_opened(tx);
-	rc = m0_cm_sw_store_update(cm, &tx->tx_betx, &swu->swu_sw);
-	if (rc != 0)
-		return M0_RC(rc);
-	m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
-	m0_dtx_done(tx);
-	m0_fom_phase_move(fom, rc, SWU_STORE_WAIT);
-
-	return M0_FSO_WAIT;
-}
-
-static int swu_store_wait(struct m0_cm_sw_update *swu)
-{
-	struct m0_cm   *cm = cm_swu2cm(swu);
-	struct m0_fom  *fom = &swu->swu_fom;
-	struct m0_dtx  *tx = &fom->fo_tx;
-	int             rc = M0_FSO_WAIT;
-
-	if (tx->tx_state == M0_DTX_DONE) {
-		if (m0_be_tx_state(&tx->tx_betx) != M0_BTS_DONE) {
-			m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan,
-				       &fom->fo_cb);
-		} else {
-			m0_dtx_fini(tx);
-			cm->cm_sw_last_persisted = swu->swu_sw;
-			M0_SET0(tx);
-			if (swu->swu_is_complete) {
-				m0_fom_phase_move(fom, 0, SWU_FINI);
-			} else {
-				m0_fom_phase_move(fom, 0, SWU_UPDATE);
-				rc = M0_FSO_AGAIN;
-			}
-		}
-	}
-
-	return rc;
-}
-
-static int swu_complete(struct m0_cm_sw_update *swu)
-{
-	struct m0_cm     *cm = cm_swu2cm(swu);
-	struct m0_fom    *fom = &swu->swu_fom;
-	struct m0_dtx    *tx = &fom->fo_tx;
-	struct m0_be_seg *seg = cm->cm_service.rs_reqh->rh_beseg;
-	struct m0_cm_sw  *sw;
-	char              cm_sw_name[80];
-	int               rc;
-
-	rc = m0_cm_sw_store_load(cm, &sw);
-	if (rc != 0)
-		return M0_RC(rc);
-	M0_LOG(M0_DEBUG, "sw = %p", sw);
-
-	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
-        if (tx->tx_state < M0_DTX_INIT) {
-                m0_dtx_init(tx, seg->bs_domain,
-                                &fom->fo_loc->fl_group);
-		M0_BE_FREE_CREDIT_PTR(sw, seg, &tx->tx_betx_cred);
-		m0_be_seg_dict_delete_credit(seg, cm_sw_name,
-					     &tx->tx_betx_cred);
-        }
-
-        if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE)
-                m0_dtx_open(tx);
-	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_FAILED)
-		return M0_RC(tx->tx_betx.t_sm.sm_rc);
-        if (M0_IN(m0_be_tx_state(&tx->tx_betx), (M0_BTS_OPENING,
-						 M0_BTS_GROUPING))) {
-                m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
-                return M0_FSO_WAIT;
-        } else
-		m0_dtx_opened(tx);
-
-	M0_BE_FREE_PTR_SYNC(sw, seg, &tx->tx_betx);
-	m0_be_seg_dict_delete(seg, &tx->tx_betx, cm_sw_name);
-	m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
-	m0_dtx_done(tx);
-	m0_fom_phase_move(fom, rc, SWU_STORE_WAIT);
-	return M0_FSO_WAIT;
-}
-
 static int (*swu_action[]) (struct m0_cm_sw_update *swu) = {
-	[SWU_STORE_INIT]      = swu_store_init,
-	[SWU_STORE_INIT_WAIT] = swu_store_init_wait,
-	[SWU_UPDATE]          = swu_update,
-	[SWU_STORE]           = swu_store,
-	[SWU_STORE_WAIT]      = swu_store_wait,
-	[SWU_COMPLETE]        = swu_complete,
+	[SWU_START]  = swu_start,
+	[SWU_UPDATE] = swu_update,
 };
 
 static uint64_t cm_swu_fom_locality(const struct m0_fom *fom)

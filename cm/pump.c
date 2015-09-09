@@ -407,8 +407,8 @@ static const struct m0_fom_ops cm_cp_pump_fom_ops = {
 
 bool m0_cm_cp_pump_is_complete(const struct m0_cm_cp_pump *cp_pump)
 {
-	return m0_fom_phase(&cp_pump->p_fom) == CPP_COMPLETE ||
-	       m0_fom_phase(&cp_pump->p_fom) == CPP_STOP;
+	return M0_IN(m0_fom_phase(&cp_pump->p_fom), (CPP_COMPLETE,
+						     CPP_STOP));
 }
 
 M0_INTERNAL void m0_cm_cp_pump_init(struct m0_cm_type *cmtype)

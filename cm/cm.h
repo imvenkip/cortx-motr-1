@@ -34,6 +34,7 @@
 #include "cm/sw.h"
 #include "cm/ag.h"
 #include "cm/pump.h"
+#include "cm/ag_store.h"
 
 /**
    @page CMDLD-fspec Copy Machine Functional Specification
@@ -165,6 +166,8 @@ struct m0_cm_type {
 	struct m0_fom_type            ct_swu_fomt;
 	/** Pump fom type. */
 	struct m0_fom_type            ct_pump_fomt;
+	/** Store fom type. */
+	struct m0_fom_type            ct_ag_store_fomt;
 	uint64_t                      ct_magix;
 };
 
@@ -210,6 +213,7 @@ struct m0_cm {
 
 	uint64_t                         cm_aggr_grps_in_nr;
 
+	struct m0_cm_ag_id               cm_sw_last_persisted_hi;
 	/**
 	 * Saved aggregation group identifier for the last processed
 	 * aggregation group with the highest identifier in the sliding window.
@@ -225,7 +229,7 @@ struct m0_cm {
 	 */
 	struct m0_cm_ag_id               cm_sw_last_updated_hi;
 
-	struct m0_cm_sw                  cm_sw_last_persisted;
+	struct m0_cm_ag_id               cm_last_processed_out;
 
 	/**
 	 * List of aggregation groups having outgoing copy packets from this
@@ -236,8 +240,7 @@ struct m0_cm {
 
 	uint64_t                         cm_aggr_grps_out_nr;
 
-	struct m0_chan                   cm_ready_wait;
-	struct m0_chan                   cm_complete_wait;
+	struct m0_chan                   cm_wait;
 	struct m0_mutex                  cm_wait_mutex;
 
 	struct m0_fom_simple             cm_ast_run_fom;
@@ -260,12 +263,21 @@ struct m0_cm {
 
 	uint64_t                         cm_proxy_nr;
 
+	uint64_t                         cm_proxy_init_updated;
+
 	/** Copy packet pump FOM for this copy machine. */
 	struct m0_cm_cp_pump             cm_cp_pump;
 
 	struct m0_cm_sw_update           cm_sw_update;
 
-	/**
+	struct m0_cm_ag_store            cm_ag_store;
+
+	bool                             cm_done;
+
+	/** True if cm should start fresh. */
+	bool                             cm_reset;
+
+        /**
 	 * Command to quiesce pumping new copy packet. This will
 	 * cause sns repair/rebalance to quiesce.
 	 */
@@ -497,8 +509,11 @@ M0_INTERNAL void m0_cm_proxies_fini(struct m0_cm *cm);
 M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh);
 
 M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm);
-M0_INTERNAL void m0_cm_ready_done(struct m0_cm *cm);
+M0_INTERNAL void m0_cm_notify(struct m0_cm *cm);
+M0_INTERNAL void m0_cm_wait(struct m0_cm *cm, struct m0_fom *fom);
+M0_INTERNAL void m0_cm_wait_cancel(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL void m0_cm_complete(struct m0_cm *cm);
+M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom);
 
 /** @} endgroup CM */
 

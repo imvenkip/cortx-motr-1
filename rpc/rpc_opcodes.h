@@ -254,16 +254,16 @@ enum M0_RPC_OPCODES {
 	 */
 	M0_FOM_OPCODE_START                 = 1024,
 	M0_BE_TX_GROUP_OPCODE               = 1025,
-	M0_CM_UT_OPCODE                     = 1026, /* CP, PUMP, SW_UPDATE */
-	M0_CM_REBALANCE_OPCODE              = 1029, /* CP, PUMP, SW_UPDATE */
-	M0_CM_REPAIR_OPCODE                 = 1032, /* CP, PUMP, SW_UPDATE */
-	M0_CM_UT_SENDER_OPCODE              = 1035, /* CP, PUMP, SW_UPDATE */
-	M0_UB_FOM_OPCODE                    = 1038,
-	M0_UT_RDWR_OPCODE                   = 1039,
-	M0_UT_STATS_OPCODE                  = 1040,
-	M0_UT_IOS_OPCODE                    = 1041,
-	M0_RPC_LINK_CONN_OPCODE             = 1042,
-	M0_RPC_LINK_DISC_OPCODE             = 1043,
+	M0_CM_UT_OPCODE                     = 1026, /* CP, PUMP, SW_UPDATE, STORE */
+	M0_CM_REBALANCE_OPCODE              = 1030, /* CP, PUMP, SW_UPDATE, STORE */
+	M0_CM_REPAIR_OPCODE                 = 1034, /* CP, PUMP, SW_UPDATE, STORE */
+	M0_CM_UT_SENDER_OPCODE              = 1038, /* CP, PUMP, SW_UPDATE, STORE */
+	M0_UB_FOM_OPCODE                    = 1042,
+	M0_UT_RDWR_OPCODE                   = 1043,
+	M0_UT_STATS_OPCODE                  = 1044,
+	M0_UT_IOS_OPCODE                    = 1045,
+	M0_RPC_LINK_CONN_OPCODE             = 1046,
+	M0_RPC_LINK_DISC_OPCODE             = 1047,
 
 	M0_OPCODES_NR                       = 2048
 };
