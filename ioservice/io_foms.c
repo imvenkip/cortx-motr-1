@@ -1179,16 +1179,14 @@ int ios__poolmach_check(struct m0_poolmach *poolmach,
 	m0_poolmach_current_version_get(poolmach, &curr);
 
 	/* Check the client version and server version before any processing */
-	if (m0_poolmach_version_before(cliv, &curr)) {
+	if (!m0_poolmach_version_equal(cliv, &curr)) {
 		M0_LOG(M0_DEBUG, "VERSION MISMATCH! poolmach = %p", poolmach);
-
 		m0_poolmach_version_dump(cliv);
 		m0_poolmach_version_dump(&curr);
 		m0_poolmach_event_list_dump(poolmach);
 		m0_poolmach_device_state_dump(poolmach);
 		return M0_RC(M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
 	}
-	M0_ASSERT(m0_poolmach_version_equal(cliv, &curr));
 	return M0_RC(0);
 }
 

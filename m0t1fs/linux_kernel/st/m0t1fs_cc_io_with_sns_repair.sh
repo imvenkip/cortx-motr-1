@@ -76,7 +76,7 @@ file_size=(
 N=3
 K=3
 P=15
-stride=32
+stride=64
 src_bs=10M
 src_count=17
 
@@ -151,19 +151,19 @@ sns_repair_test()
 	echo "*** Start sns repair and it will run in background ****"
 	sns_repair
 	sleep 5
-	echo "**** Create files while sns repair is in-progress ****"
-	create_files_and_checksum new_files[@] 0 4
+	#echo "**** Create files while sns repair is in-progress ****"
+	#create_files_and_checksum new_files[@] 0 4
 
 	echo **** Perform read during repair. ****
 	verify_all files[@] 0 ${#files[*]} || return $?
-	verify_all new_files[@] 0 4 || return $?
+	#verify_all new_files[@] 0 4 || return $?
 
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
 	echo "SNS Repair done."
 
 	verify_all files[@] 0 ${#files[*]} || return $?
-	verify_all new_files[@] 0 4 || return $?
+	#verify_all new_files[@] 0 4 || return $?
 
 ####### Query device state
 	pool_mach_query $fail_device1 $fail_device2 || return $?
@@ -173,37 +173,44 @@ sns_repair_test()
 
 	echo "SNS Rebalance done."
 	verify_all files[@] 0 ${#files[*]} || return $?
-	verify_all new_files[@] 0 4 || return $?
+	#verify_all new_files[@] 0 4 || return $?
 
 	pool_mach_set_failure $fail_device3 || return $?
 
 	echo "**** Start sns repair and it will run in background ****"
 	sns_repair
 	sleep 5
-	echo "**** Create files while sns repair is in-progress ****"
-	create_files_and_checksum new_files[@] 4 8
+	#echo "**** Create files while sns repair is in-progress ****"
+	#create_files_and_checksum new_files[@] 4 8
 
 	echo **** Perform read during repair. ****
 	verify_all files[@] 0 ${#files[*]} || return $?
-	verify_all new_files[@] 0 8 || return $?
+	#verify_all new_files[@] 0 8 || return $?
 
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
 
 	echo "SNS Repair done."
 	verify_all files[@] 0 ${#files[*]} || return $?
-	verify_all new_files[@] 0 8 || return $?
+	#verify_all new_files[@] 0 8 || return $?
 
 	pool_mach_query $fail_device3 || return $?
+
+	verify_all files[@] 0 ${#files[*]} || return $?
 
         echo "Starting SNS Re-balance.."
 	sns_rebalance || return $?
 
 	echo "SNS Rebalance done."
 	verify_all files[@] 0 ${#files[*]} || return $?
-	verify_all new_files[@] 0 8 || return $?
+	#verify_all new_files[@] 0 8 || return $?
+
+	echo "wait for SNS Re-balance "
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
 
 	pool_mach_query $fail_device1 $fail_device2 $fail_device3
+
+	verify_all files[@] 0 ${#files[*]} || return $?
 
 	return $?
 }

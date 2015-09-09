@@ -2593,8 +2593,15 @@ static void mark_page_as_read_failed(struct pargrp_iomap *map, uint32_t row,
 				  &state);
 		M0_ASSERT(rc == 0);
 	}
+	/*
+	 * Checking state M0_PNDS_SNS_REBALANCING allows concurrent read during
+	 * sns rebalancing in oostore mode, this works similar to M0_PNDS_FAILED.
+	 * To handle concurrent i/o in non-oostore mode, some more changes are
+	 * required to write data to live unit (on earlier failed device) if the
+	 * device state is M0_PNDS_SNS_REBALANCING.
+	 */
 	if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
-			  M0_PNDS_SNS_REPAIRING))) {
+			  M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REBALANCING))) {
 		if (page_type == PA_DATA)
 			map->pi_databufs[row][col]->db_flags |=
 				PA_READ_FAILED;
@@ -3477,7 +3484,8 @@ static int device_check(struct io_request *req)
 				       " state");
 		ti->ti_state = state;
 		if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
-				  M0_PNDS_SNS_REPAIRING)))
+				  M0_PNDS_SNS_REPAIRING,
+				  M0_PNDS_SNS_REBALANCING)))
 			st_cnt++;
 	} m0_htable_endfor;
 
@@ -3626,7 +3634,8 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		M0_LOG(M0_INFO, "device state for "FID_F" is %d",
 		       FID_P(&ti->ti_fid), state);
 		if (!M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
-			   M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED)))
+			   M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED,
+			   M0_PNDS_SNS_REBALANCING)))
 			continue;
 		/*
 		 * Finds out parity groups for which read IO failed and marks
@@ -3835,6 +3844,8 @@ static int ioreq_iosm_handle(struct io_request *req)
 			 */
 			rc = req->ir_ops->iro_dgmode_read(req, rmw);
 			if (rc != 0) {
+				if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
+					rc = -EAGAIN;
 				M0_LOG(M0_ERROR, "iro_dgmode_read() failed: rc=%d", rc);
 				goto fail_locked;
 			}

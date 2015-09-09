@@ -136,17 +136,24 @@ m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh,
 	scm = cm2sns(cm);
 
 	M0_SET0(&curr_gfid);
-	if (device_state == M0_PNDS_SNS_REPAIRED)
+	switch (device_state) {
+	case M0_PNDS_SNS_REPAIRED:
 		return SRS_REPAIR_DONE;
-	if (M0_IN(device_state, (M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REBALANCING))) {
+	case M0_PNDS_SNS_REPAIRING:
 		m0_cm_lock(cm);
 		curr_gfid = scm->sc_it.si_fc.ifc_gfid;
 		m0_cm_unlock(cm);
-	}
-	if (curr_gfid.f_container == 0 && curr_gfid.f_key == 0)
+		if (curr_gfid.f_container == 0 && curr_gfid.f_key == 0)
+			break;
+		return m0_fid_cmp(gfid, &curr_gfid) > 0 ? SRS_REPAIR_NOTDONE :
+				  SRS_REPAIR_DONE;
+	case M0_PNDS_SNS_REBALANCING :
+		return SRS_REPAIR_NOTDONE;
+	default:
 		return SRS_UNINITIALIZED;
-	return m0_fid_cmp(gfid, &curr_gfid) > 0 ? SRS_REPAIR_NOTDONE :
-			  SRS_REPAIR_DONE;
+	}
+
+	return SRS_UNINITIALIZED;
 }
 
 /** Copy machine operations. */
