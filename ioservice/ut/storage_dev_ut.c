@@ -136,7 +136,7 @@ static void storage_dev_test(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* attach */
-	/**
+	/*
 	 * Total size accounts space for reserved groups and one non-reserved
 	 * group.
 	 */

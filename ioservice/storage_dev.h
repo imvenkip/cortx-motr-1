@@ -121,8 +121,8 @@ m0_storage_devs_find_by_cid(struct m0_storage_devs *devs,
  *
  * Extracts device parameters and executes m0_storage_dev_attach.
  */
-M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs *devs,
-					      struct m0_conf_sdev    *sdev);
+M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs    *devs,
+					      const struct m0_conf_sdev *sdev);
 
 /**
  * Attaches storage device.

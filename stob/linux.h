@@ -58,6 +58,8 @@ struct m0_stob_linux {
 	int			     sl_fd;
 	/** file mode as returned by stat(2) */
 	mode_t			     sl_mode;
+	/** fid of the corresponding m0_conf_sdev object */
+	struct m0_fid                sl_conf_sdev;
 	/** AST for stob exceptions. */
 	struct m0_sm_ast             sl_ast;
 };

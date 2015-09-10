@@ -100,6 +100,9 @@ struct m0_stob_id {
 	struct m0_fid si_fid;
 } M0_XCA_RECORD;
 
+#define STOB_ID_F  "{" FID_F "," FID_F "}"
+#define STOB_ID_P(si)  FID_P(&(si)->si_domain_fid), FID_P(&(si)->si_fid)
+
 /**
  * In-memory representation of a storage object.
  *

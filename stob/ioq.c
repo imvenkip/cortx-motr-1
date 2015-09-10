@@ -166,12 +166,14 @@ static void io_err_callback(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ENTRY();
 
 	lstob = M0_AMB(lstob, ast, sl_ast);
+	M0_LOG(M0_WARN, "IO error: stob_id=" STOB_ID_F " conf_sdev=" FID_F,
+	       STOB_ID_P(&lstob->sl_stob.so_id), FID_P(&lstob->sl_conf_sdev));
 	ioq = &container_of(&lstob->sl_stob.so_domain,
 			    struct m0_stob_linux_domain, sld_dom)->sld_ioq;
 	rpc_ssn = m0_ha_session_get();
 	m0_mutex_lock(&ioq->ioq_lock);
 	if (rpc_ssn != NULL) {
-		note.no_id    = *m0_stob_fid_get(&lstob->sl_stob);
+		note.no_id    = lstob->sl_conf_sdev;
 		note.no_state = M0_NC_FAILED;
 		nvec.nv_nr    = 1;
 		nvec.nv_note  = &note;
@@ -500,7 +502,7 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 		ioq_io_error(ioq, qev);
 
 	M0_LOG(M0_DEBUG, "res=%lx nbytes=%lx", (unsigned long)res,
-					(unsigned long)qev->iq_nbytes);
+	       (unsigned long)qev->iq_nbytes);
 	/* short read. */
 	if (io->si_opcode == SIO_READ && res >= 0 && res < qev->iq_nbytes) {
 		/* fill the rest of the user buffer with zeroes. */
@@ -508,13 +510,11 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 		int i;
 
 		for (i = 0; i < iocb->u.v.nr; ++i) {
-			if (iov->iov_len < res)
+			if (iov->iov_len < res) {
 				res -= iov->iov_len;
-			else if (res == 0)
-				memset(iov->iov_base, 0, iov->iov_len);
-			else {
+			} else {
 				memset(iov->iov_base + res, 0,
-							iov->iov_len - res);
+				       iov->iov_len - res);
 				res = 0;
 			}
 		}

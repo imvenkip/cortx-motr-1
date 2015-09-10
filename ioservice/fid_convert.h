@@ -112,6 +112,7 @@ M0_INTERNAL bool m0_fid_validate_gob(const struct m0_fid *gob_fid);
 M0_INTERNAL bool m0_fid_validate_cob(const struct m0_fid *cob_fid);
 M0_INTERNAL bool m0_fid_validate_adstob(const struct m0_stob_id *stob_id);
 M0_INTERNAL bool m0_fid_validate_bstore(const struct m0_fid *bstore_fid);
+M0_INTERNAL bool m0_fid_validate_linuxstob(const struct m0_stob_id *stob_id);
 
 M0_INTERNAL uint32_t m0_fid__device_id_extract(const struct m0_fid *fid);
 

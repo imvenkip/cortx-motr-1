@@ -513,10 +513,8 @@ m0_be_log_store_module_setup(struct m0_be_log_store     *ls,
 			     struct m0_be_log_store_cfg *ls_cfg,
 			     bool                        create_mode)
 {
-	M0_ENTRY("lsc_stob_id.si_domain_fid="FID_F" "
-	         "lsc_stob_id.si_fid="FID_F" lsc_size=%"PRIu64,
-		 FID_P(&ls_cfg->lsc_stob_id.si_domain_fid),
-		 FID_P(&ls_cfg->lsc_stob_id.si_fid), ls_cfg->lsc_size);
+	M0_ENTRY("lsc_stob_id="STOB_ID_F" lsc_size=%"PRIu64,
+		 STOB_ID_P(&ls_cfg->lsc_stob_id), ls_cfg->lsc_size);
 
 	ls->ls_cfg = *ls_cfg;
 	ls->ls_create_mode = create_mode;

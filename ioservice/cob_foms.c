@@ -748,19 +748,12 @@ M0_INTERNAL int m0_cc_stob_create(struct m0_fom *fom, struct m0_stob_id *sid)
 	int             rc;
 
 	rc = m0_stob_find(sid, &stob);
-	rc = rc ?: m0_stob_state_get(stob) == CSS_UNKNOWN ?
+	rc = rc ?: stob->so_state == CSS_UNKNOWN ?
 		   m0_stob_locate(stob) : 0;
-	rc = rc ?: m0_stob_state_get(stob) == CSS_NOENT ?
+	rc = rc ?: stob->so_state == CSS_NOENT ?
 		   m0_stob_create(stob, &fom->fo_tx, NULL) : 0;
-	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "m0_stob_create() failed with %d", rc);
-	} else {
-		M0_LOG(M0_DEBUG, "Stob created successfully." FID_F,
-				  FID_P(&stob->so_id.si_fid));
-	}
 	if (stob != NULL)
 		m0_stob_put(stob);
-
 	return M0_RC(rc);
 }
 

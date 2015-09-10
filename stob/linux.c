@@ -22,23 +22,23 @@
 
 #include "stob/linux.h"
 
-#include <stdio.h>			/* fopen */
-#include <stdarg.h>			/* va_list */
-#include <string.h>			/* strncpy */
+#include <stdio.h>       /* fopen */
+#include <stdarg.h>      /* va_list */
+#include <string.h>      /* strncpy */
 
-#include <sys/types.h>			/* lstat */
-#include <sys/stat.h>			/* lstat */
-#include <unistd.h>			/* lstat */
-#include <fcntl.h>			/* open */
-#include <limits.h>			/* PATH_MAX */
+#include <sys/types.h>   /* lstat */
+#include <sys/stat.h>    /* lstat */
+#include <unistd.h>      /* lstat */
+#include <fcntl.h>       /* open */
+#include <limits.h>      /* PATH_MAX */
 
-#include "lib/errno.h"			/* ENOENT */
-#include "lib/memory.h"			/* M0_ALLOC_PTR */
-#include "lib/string.h"			/* m0_strdup */
-#include "lib/fs.h"			/* m0_cleandir */
-
-#include "stob/type.h"			/* m0_stob_type_id_get */
-#include "stob/ioq.h"			/* m0_stob_ioq_init */
+#include "lib/errno.h"   /* ENOENT */
+#include "lib/memory.h"  /* M0_ALLOC_PTR */
+#include "lib/string.h"  /* m0_strdup */
+#include "lib/fs.h"      /* m0_cleandir */
+#include "conf/obj.h"    /* m0_conf_fid_is_valid */
+#include "stob/type.h"   /* m0_stob_type_id_get */
+#include "stob/ioq.h"    /* m0_stob_ioq_init */
 
 /**
    @addtogroup stoblinux
@@ -116,8 +116,8 @@ m0_stob_linux_domain_container(struct m0_stob_domain *dom)
 static char *stob_linux_vsnprintf(const char *format, ...)
 {
 	va_list ap;
-	char	str[MAXPATHLEN];
-	size_t	len;
+	char    str[MAXPATHLEN];
+	size_t  len;
 
 	va_start(ap, format);
 	len = vsnprintf(str, ARRAY_SIZE(str), format, ap);
@@ -182,7 +182,7 @@ static int stob_linux_domain_cfg_init_parse(const char *str_cfg_init,
 					    void **cfg_init)
 {
 	struct m0_stob_linux_domain_cfg *cfg;
-	int				 rc;
+	int                              rc;
 
 	M0_ALLOC_PTR(cfg);
 	rc = cfg == NULL ? -ENOMEM : 0;
@@ -274,11 +274,11 @@ static int stob_linux_domain_create_destroy(struct m0_stob_type *type,
 					    void *cfg,
 					    bool create)
 {
-	mode_t	mode	    = 0700;	/** @todo get mode from create cfg */
-	char   *dir_domain  = stob_linux_dir_domain(path);
-	char   *dir_stob    = stob_linux_dir_stob(path);
-	int	rc;
-	int	rc1;
+	mode_t mode       = 0700; /** @todo get mode from create cfg */
+	char  *dir_domain = stob_linux_dir_domain(path);
+	char  *dir_stob   = stob_linux_dir_stob(path);
+	int    rc;
+	int    rc1;
 
 	rc = dir_domain == NULL || dir_stob == NULL ? -ENOMEM : 0;
 	if (rc != 0)
@@ -441,13 +441,13 @@ static int stob_linux_destroy_credit(struct m0_stob *stob,
 static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 {
 	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
-	char		     *file_stob;
-	int		      rc;
+	char                 *file_stob;
+	int                   rc;
 
 	stob_linux_fini(stob);
 	file_stob = stob_linux_file_stob(lstob->sl_dom->sld_path,
 					 m0_stob_fid_get(stob));
-	rc	  = file_stob == NULL ? -ENOMEM : unlink(file_stob);
+	rc = file_stob == NULL ? -ENOMEM : unlink(file_stob);
 	m0_free(file_stob);
 	return M0_RC(rc);
 }
@@ -544,37 +544,37 @@ M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
 }
 
 static struct m0_stob_type_ops stob_linux_type_ops = {
-	.sto_register		     = &stob_linux_type_register,
-	.sto_deregister		     = &stob_linux_type_deregister,
+	.sto_register                = &stob_linux_type_register,
+	.sto_deregister              = &stob_linux_type_deregister,
 	.sto_domain_cfg_init_parse   = &stob_linux_domain_cfg_init_parse,
 	.sto_domain_cfg_init_free    = &stob_linux_domain_cfg_init_free,
 	.sto_domain_cfg_create_parse = &stob_linux_domain_cfg_create_parse,
 	.sto_domain_cfg_create_free  = &stob_linux_domain_cfg_create_free,
-	.sto_domain_init	     = &stob_linux_domain_init,
-	.sto_domain_create	     = &stob_linux_domain_create,
-	.sto_domain_destroy	     = &stob_linux_domain_destroy,
+	.sto_domain_init             = &stob_linux_domain_init,
+	.sto_domain_create           = &stob_linux_domain_create,
+	.sto_domain_destroy          = &stob_linux_domain_destroy,
 };
 
 static struct m0_stob_domain_ops stob_linux_domain_ops = {
-	.sdo_fini		= &stob_linux_domain_fini,
-	.sdo_stob_alloc		= &stob_linux_alloc,
-	.sdo_stob_free		= &stob_linux_free,
-	.sdo_stob_cfg_parse	= &stob_linux_cfg_parse,
-	.sdo_stob_cfg_free	= &stob_linux_cfg_free,
-	.sdo_stob_init		= &stob_linux_init,
+	.sdo_fini               = &stob_linux_domain_fini,
+	.sdo_stob_alloc         = &stob_linux_alloc,
+	.sdo_stob_free          = &stob_linux_free,
+	.sdo_stob_cfg_parse     = &stob_linux_cfg_parse,
+	.sdo_stob_cfg_free      = &stob_linux_cfg_free,
+	.sdo_stob_init          = &stob_linux_init,
 	.sdo_stob_create_credit = &stob_linux_create_credit,
-	.sdo_stob_create	= &stob_linux_create,
-	.sdo_stob_write_credit	= &stob_linux_write_credit,
+	.sdo_stob_create        = &stob_linux_create,
+	.sdo_stob_write_credit  = &stob_linux_write_credit,
 };
 
 static struct m0_stob_ops stob_linux_ops = {
-	.sop_fini	     = &stob_linux_fini,
-	.sop_destroy_credit  = &stob_linux_destroy_credit,
-	.sop_destroy	     = &stob_linux_destroy,
-	.sop_punch_credit    = &stob_linux_destroy_credit,
-	.sop_punch           = &stob_linux_punch,
-	.sop_io_init	     = &m0_stob_linux_io_init,
-	.sop_block_shift     = &stob_linux_block_shift,
+	.sop_fini           = &stob_linux_fini,
+	.sop_destroy_credit = &stob_linux_destroy_credit,
+	.sop_destroy        = &stob_linux_destroy,
+	.sop_punch_credit   = &stob_linux_destroy_credit,
+	.sop_punch          = &stob_linux_punch,
+	.sop_io_init        = &m0_stob_linux_io_init,
+	.sop_block_shift    = &stob_linux_block_shift,
 };
 
 const struct m0_stob_type m0_stob_linux_type = {

@@ -22,13 +22,12 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/assert.h"
-#include "lib/mutex.h"
-#include "lib/finject.h"     /* M0_FI_ENABLED */
-#include "balloc/balloc.h"
-#include "conf/obj.h"        /* m0_conf_sdev */
-#include "stob/ad.h"         /* m0_stob_ad_type */
-#include "stob/type.h"       /* m0_stob_type */
+#include "lib/finject.h"            /* M0_FI_ENABLED */
+#include "balloc/balloc.h"          /* b2m0 */
+#include "conf/obj.h"               /* m0_conf_sdev */
+#include "stob/ad.h"                /* m0_stob_ad_type */
+#include "stob/linux.h"             /* m0_stob_linux */
+#include "ioservice/fid_convert.h"  /* m0_fid_validate_linuxstob */
 #include "ioservice/storage_dev.h"
 
 /**
@@ -84,35 +83,50 @@ m0_storage_devs_find_by_cid(struct m0_storage_devs *devs,
 			  dev->isd_cid == cid);
 }
 
-M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs *devs,
-					      struct m0_conf_sdev    *sdev)
+static int stob_domain_create_or_init(uint64_t                 cid,
+				      const struct m0_be_seg  *be_seg,
+				      const struct m0_stob_id *bstore_id,
+				      m0_bcount_t              size,
+				      struct m0_stob_domain  **out)
 {
-	const char *dev_fname = NULL;
-	int         rc;
+	char  location[64];
+	char *cfg;
+	int   rc;
 
-	M0_PRE(sdev != NULL);
-	if (M0_FI_ENABLED("no_real_dev")) {
-		dev_fname = sdev->sd_filename;
-		sdev->sd_filename = NULL;
-	}
-	rc = m0_storage_dev_attach(devs, sdev->sd_obj.co_id.f_key,
-				   sdev->sd_filename, sdev->sd_size);
-	if (dev_fname != NULL)
-		/* Fault injection enabled */
-		sdev->sd_filename = dev_fname;
+	rc = snprintf(location, sizeof(location),
+		      "adstob:%llu", (unsigned long long)cid);
+	if (rc < 0)
+		return M0_ERR(rc);
+	M0_ASSERT(rc < sizeof(location));
+
+	m0_stob_ad_cfg_make(&cfg, be_seg, bstore_id, size);
+	if (cfg == NULL)
+		return M0_ERR(-ENOMEM);
+	rc = m0_stob_domain_create_or_init(location, NULL, cid, cfg, out);
+	m0_free(cfg);
 	return M0_RC(rc);
-
 }
 
-M0_INTERNAL int m0_storage_dev_attach(struct m0_storage_devs *devs,
-				      uint64_t                cid,
-				      const char             *path,
-				      uint64_t                size)
+static void
+conf_sdev_associate(struct m0_stob_linux *lstob, const struct m0_fid *conf_sdev)
+{
+	M0_PRE(_0C(m0_conf_fid_is_valid(conf_sdev)) &&
+	       _0C(m0_conf_fid_type(conf_sdev) == &M0_CONF_SDEV_TYPE));
+	M0_PRE(ergo(m0_fid_is_set(&lstob->sl_conf_sdev),
+		    m0_fid_eq(&lstob->sl_conf_sdev, conf_sdev)));
+
+	lstob->sl_conf_sdev = *conf_sdev;
+}
+
+static int storage_dev_attach(struct m0_storage_devs    *devs,
+			      uint64_t                   cid,
+			      const char                *path,
+			      uint64_t                   size,
+			      const struct m0_conf_sdev *conf_sdev)
 {
 	struct m0_storage_dev *device;
-	char                   location[64];
-	char                  *dom_cfg;
 	struct m0_stob_id      stob_id;
+	struct m0_stob        *stob;
 	int                    rc;
 
 	M0_ENTRY("cid=%llu", (unsigned long long)cid);
@@ -127,47 +141,59 @@ M0_INTERNAL int m0_storage_dev_attach(struct m0_storage_devs *devs,
 	m0_stob_id_make(0, cid, &devs->sds_back_domain->sd_id, &stob_id);
 	rc = m0_stob_find(&stob_id, &device->isd_stob);
 	if (rc != 0)
-		goto find_fail;
+		goto end;
+	stob = device->isd_stob;
 
-	if (m0_stob_state_get(device->isd_stob) == CSS_UNKNOWN) {
-		rc = m0_stob_locate(device->isd_stob);
+	if (m0_stob_state_get(stob) == CSS_UNKNOWN) {
+		rc = m0_stob_locate(stob);
 		if (rc != 0)
-			goto locate_fail;
+			goto stob_put;
 	}
-
-	if (m0_stob_state_get(device->isd_stob) == CSS_NOENT) {
-		rc = m0_stob_create(device->isd_stob, NULL, path);
+	if (m0_stob_state_get(stob) == CSS_NOENT) {
+		rc = m0_stob_create(stob, NULL, path);
 		if (rc != 0)
-			goto locate_fail;
+			goto stob_put;
 	}
 
-	rc = snprintf(location, sizeof(location),
-		      "adstob:%llu", (unsigned long long)cid);
-	if (rc < 0)
-		goto locate_fail;
-	M0_ASSERT(rc < sizeof(location));
-	m0_stob_ad_cfg_make(&dom_cfg, devs->sds_be_seg, &stob_id, size);
-	if (dom_cfg == NULL)
-		rc = -ENOMEM;
-	else
-		rc = m0_stob_domain_create_or_init(location, NULL,
-						   cid, dom_cfg,
-						   &device->isd_domain);
-	if (rc == 0 && M0_FI_ENABLED("ad_domain_locate_fail")) {
-		m0_stob_domain_fini(device->isd_domain);
-		rc = -EINVAL;
+	rc = stob_domain_create_or_init(cid, devs->sds_be_seg, &stob_id, size,
+					&device->isd_domain);
+	if (rc == 0) {
+		if (M0_FI_ENABLED("ad_domain_locate_fail")) {
+			m0_stob_domain_fini(device->isd_domain);
+			rc = -EINVAL;
+		} else if (conf_sdev != NULL) {
+			/* Ensure that we are dealing with a linux stob. */
+			M0_ASSERT(m0_fid_validate_linuxstob(&stob_id));
+			conf_sdev_associate(m0_stob_linux_container(stob),
+					    &conf_sdev->sd_obj.co_id);
+		}
 	}
-	m0_free(dom_cfg);
-
-locate_fail:
+stob_put:
 	/* Decrement stob reference counter, incremented by m0_stob_find() */
-	m0_stob_put(device->isd_stob);
-find_fail:
+	m0_stob_put(stob);
+end:
 	if (rc == 0)
 		storage_dev_tlink_init_at_tail(device, &devs->sds_devices);
 	else
 		m0_free(device);
 	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_storage_dev_attach(struct m0_storage_devs *devs,
+				      uint64_t                cid,
+				      const char             *path,
+				      uint64_t                size)
+{
+	return storage_dev_attach(devs, cid, path, size, NULL);
+}
+
+M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs    *devs,
+					      const struct m0_conf_sdev *sdev)
+{
+	return storage_dev_attach(
+		devs, sdev->sd_obj.co_id.f_key,
+		M0_FI_ENABLED("no_real_dev") ? NULL : sdev->sd_filename,
+		sdev->sd_size, sdev);
 }
 
 M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev)

@@ -401,7 +401,7 @@ static void test_cs_ut_opts_jumbled(void)
 static void test_cs_ut_linux_stob_cleanup(void)
 {
 	dev_conf_file_create();
-	m0_fi_enable_once("m0_storage_dev_attach", "ad_domain_locate_fail");
+	m0_fi_enable_once("storage_dev_attach", "ad_domain_locate_fail");
 	cs_ut_test_helper_failure(cs_ut_dev_stob_cmd,
 				  ARRAY_SIZE(cs_ut_dev_stob_cmd));
 }

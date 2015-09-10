@@ -74,9 +74,6 @@ M0_INTERNAL int m0_stob_find_by_key(struct m0_stob_domain *dom,
 	} else {
 		stob = m0_stob_domain__stob_alloc(dom, stob_fid);
 		if (stob != NULL) {
-			/* XXX M0_PRE(M0_IS_ZEROED(stob)); */
-			/* so_ops is set by domain */
-			/* so_private is set by domain */
 			stob->so_domain = dom;
 			m0_stob__id_set(stob, stob_fid);
 			stob->so_state = CSS_UNKNOWN;
@@ -162,8 +159,8 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
 	rc = dom_ops->sdo_stob_cfg_parse(str_cfg, &cfg);
 	if (rc == 0) {
 		rc = m0_stob_state_get(stob) == CSS_EXISTS ? -EEXIST :
-		     dom->sd_ops->sdo_stob_create(stob, dom, dtx,
-						  m0_stob_fid_get(stob), cfg);
+		     dom_ops->sdo_stob_create(stob, dom, dtx,
+					      m0_stob_fid_get(stob), cfg);
 		dom_ops->sdo_stob_cfg_free(cfg);
 	}
 	m0_stob__state_set(stob,
