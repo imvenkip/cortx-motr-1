@@ -552,6 +552,7 @@ static void be_io_finished(struct m0_be_io *bio)
 			}
 		}
 		M0_ASSERT_INFO(rc == 0, "m0_be_op can't fail, rc = %d", rc);
+		m0_be_op_rc_set(op, rc);
 		m0_be_op_done(op);
 	}
 }

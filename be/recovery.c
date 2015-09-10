@@ -18,6 +18,9 @@
  * Original creation date: 8-Dec-2014
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
+
 #include "be/recovery.h"
 
 #include "lib/arith.h"          /* max_check */
@@ -245,6 +248,10 @@ M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr,
 	head_pos  = prev->lri_header.lrh_pos;
 	tail_pos  = iter->lri_header.lrh_pos;
 	tail_size = iter->lri_header.lrh_size;
+
+	rvr->brec_pos_start = head_pos;
+	rvr->brec_pos_end   = tail_pos + tail_size;
+
 	m0_be_log_pointers_set(log, tail_pos + tail_size, head_pos,
 			       tail_pos, tail_size);
 	return 0;
@@ -257,9 +264,21 @@ err:
 	return rc;
 
 empty:
+	rvr->brec_pos_start = log_discarded;
+	rvr->brec_pos_end   = log_discarded;
 	/* Correct log pointers should be set during log open. */
 	M0_POST(log_record_iter_tlist_is_empty(&rvr->brec_iters));
 	return 0;
+}
+
+M0_INTERNAL m0_bindex_t m0_be_recovery_pos_start(struct m0_be_recovery *rvr)
+{
+	return rvr->brec_pos_start;
+}
+
+M0_INTERNAL m0_bindex_t m0_be_recovery_pos_end(struct m0_be_recovery *rvr)
+{
+	return rvr->brec_pos_end;
 }
 
 M0_INTERNAL bool
@@ -287,6 +306,10 @@ m0_be_recovery_log_record_get(struct m0_be_recovery        *rvr,
 	m0_be_log_record_iter_copy(iter, next);
 	log_record_iter_tlink_fini(next);
 	be_recovery_log_record_iter_destroy(next);
+	M0_LOG(M0_DEBUG, "iter pos=%lu size=%lu discarded=%lu",
+	       iter->lri_header.lrh_pos,
+	       iter->lri_header.lrh_size,
+	       iter->lri_header.lrh_discarded);
 }
 
 /*

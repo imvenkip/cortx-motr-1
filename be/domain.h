@@ -27,6 +27,8 @@
 #include "be/recovery.h"        /* m0_be_recovery */
 #include "be/seg0.h"            /* m0_be_0type */
 #include "be/log.h"             /* m0_be_log_cfg */
+#include "be/pd.h"              /* m0_be_pd */
+#include "be/log_discard.h"     /* m0_be_log_discard */
 
 #include "lib/tlist.h"          /* m0_tl */
 #include "module/module.h"
@@ -136,25 +138,29 @@ struct m0_be_domain_cfg {
 				     (unsigned    stage_index,
 				      unsigned    stage_nr,
 				      const char *msg);
+	struct m0_be_pd_cfg          bc_pd_cfg;
+	struct m0_be_log_discard_cfg bc_log_discard_cfg;
 };
 
 struct m0_be_domain {
-	struct m0_module        bd_module;
-	struct m0_be_domain_cfg bd_cfg;
-	struct m0_be_engine     bd_engine;
-	struct m0_be_recovery   bd_recovery;
-	struct m0_mutex         bd_lock;
-	struct m0_tl            bd_0types;
-	struct m0_be_0type     *bd_0types_allocated;
+	struct m0_module          bd_module;
+	struct m0_be_domain_cfg   bd_cfg;
+	struct m0_be_engine       bd_engine;
+	struct m0_be_recovery     bd_recovery;
+	struct m0_mutex           bd_lock;
+	struct m0_tl              bd_0types;
+	struct m0_be_0type       *bd_0types_allocated;
 	/** List of segments in this domain. First segment in which is seg0. */
-	struct m0_tl            bd_segs;
-	struct m0_be_seg        bd_seg0;
-	struct m0_stob         *bd_seg0_stob;
-	struct m0_stob_domain  *bd_stob_domain;
-	struct m0_be_0type      bd_0type_log;
-	struct m0_be_0type      bd_0type_seg;
-	unsigned                bd_mkfs_stage;
-	unsigned                bd_mkfs_stage_nr;
+	struct m0_tl              bd_segs;
+	struct m0_be_seg          bd_seg0;
+	struct m0_stob           *bd_seg0_stob;
+	struct m0_stob_domain    *bd_stob_domain;
+	struct m0_be_0type        bd_0type_log;
+	struct m0_be_0type        bd_0type_seg;
+	unsigned                  bd_mkfs_stage;
+	unsigned                  bd_mkfs_stage_nr;
+	struct m0_be_pd           bd_pd;
+	struct m0_be_log_discard  bd_log_discard;
 };
 
 /** Levels of m0_be_domain module. */

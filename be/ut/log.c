@@ -159,11 +159,12 @@ static void be_ut_log_multi_thread(struct be_ut_log_thread_ctx *ctx)
 	m0_be_log_record_io_launch(record, op);
 	m0_be_op_wait(op);
 
-	if (ctx->bult_discard) {
-		m0_mutex_lock(lock);
-		m0_be_log_record_discard(record);
-		m0_mutex_unlock(lock);
-	}
+	m0_mutex_lock(lock);
+	if (ctx->bult_discard)
+		m0_be_log_record_discard(record->lgr_log, record->lgr_size);
+	else
+		m0_be_log_record_skip_discard(record);
+	m0_mutex_unlock(lock);
 }
 
 M0_UT_THREADS_DEFINE(be_ut_log, be_ut_log_multi_thread);
@@ -233,6 +234,21 @@ static void be_ut_log_multi_ut(int thread_nr, bool discard,
 	M0_UT_THREADS_START(be_ut_log, thread_nr, ctxs);
 	M0_UT_THREADS_STOP(be_ut_log);
 
+	/* With delayed discard all records must be discarded in order
+	 * of writing to log. Therefore, discard all records here.
+	 */
+	m0_mutex_lock(&lock);
+	for (i = 0; i < thread_nr; ++i) {
+		record = &ctxs[i].bult_record;
+		if (discard) {
+			m0_be_log_record_discard(record->lgr_log,
+						  record->lgr_size);
+		} else {
+			m0_be_log_record_skip_discard(record);
+		}
+	}
+	m0_mutex_unlock(&lock);
+
 	/* Check written records */
 
 	M0_ALLOC_ARR(iters, thread_nr + 1);
@@ -277,16 +293,6 @@ static void be_ut_log_multi_ut(int thread_nr, bool discard,
 	/* log must contain exactly thread_nr records */
 	rc = m0_be_log_record_next(&log, &iters[thread_nr-1], &iters[thread_nr]);
 	M0_UT_ASSERT(rc != 0);
-
-	if (!discard) {
-		/* make fake discard at the end, because log finalisation fails
-		 * otherwise.
-		 */
-		m0_mutex_lock(&lock);
-		for (i = 0; i < thread_nr; ++i)
-			m0_be_log_record_discard(&ctxs[i].bult_record);
-		m0_mutex_unlock(&lock);
-	}
 
 	/* Finalisation */
 
@@ -338,11 +344,12 @@ static void be_ut_log_record_wait_fini_one(struct m0_be_log_record *record,
 					   bool                     discard)
 {
 	m0_be_op_wait(op);
-	if (discard) {
-		m0_mutex_lock(lock);
-		m0_be_log_record_discard(record);
-		m0_mutex_unlock(lock);
-	}
+	m0_mutex_lock(lock);
+	if (discard)
+		m0_be_log_record_discard(record->lgr_log, record->lgr_size);
+	else
+		m0_be_log_record_skip_discard(record);
+	m0_mutex_unlock(lock);
 	m0_be_log_record_deallocate(record);
 	/* record can be non-discarded here, in this case finalisation must be
 	 * protected with external lock.
@@ -463,10 +470,10 @@ void m0_be_ut_log_unplaced(void)
 						&lock, &ops[i]);
 	}
 	pos = records[1].lgr_position;
-	be_ut_log_record_wait_fini_one(&records[3], &lock, &ops[3], false);
-	be_ut_log_record_wait_fini_one(&records[2], &lock, &ops[2], true);
-	be_ut_log_record_wait_fini_one(&records[1], &lock, &ops[1], false);
 	be_ut_log_record_wait_fini_one(&records[0], &lock, &ops[0], true);
+	be_ut_log_record_wait_fini_one(&records[1], &lock, &ops[1], false);
+	be_ut_log_record_wait_fini_one(&records[2], &lock, &ops[2], true);
+	be_ut_log_record_wait_fini_one(&records[3], &lock, &ops[3], false);
 
 	m0_be_log_close(&log);
 	be_ut_log_open(&log, &lock);
@@ -481,9 +488,9 @@ void m0_be_ut_log_unplaced(void)
 						&lock, &ops[i]);
 	}
 	pos = records[0].lgr_position;
-	be_ut_log_record_wait_fini_one(&records[2], &lock, &ops[2], false);
-	be_ut_log_record_wait_fini_one(&records[1], &lock, &ops[1], true);
 	be_ut_log_record_wait_fini_one(&records[0], &lock, &ops[0], false);
+	be_ut_log_record_wait_fini_one(&records[1], &lock, &ops[1], true);
+	be_ut_log_record_wait_fini_one(&records[2], &lock, &ops[2], false);
 
 	m0_be_log_close(&log);
 	be_ut_log_open(&log, &lock);
@@ -498,9 +505,9 @@ void m0_be_ut_log_unplaced(void)
 						&lock, &ops[i]);
 	}
 	pos = records[0].lgr_position;
-	be_ut_log_record_wait_fini_one(&records[2], &lock, &ops[2], false);
-	be_ut_log_record_wait_fini_one(&records[1], &lock, &ops[1], false);
 	be_ut_log_record_wait_fini_one(&records[0], &lock, &ops[0], false);
+	be_ut_log_record_wait_fini_one(&records[1], &lock, &ops[1], false);
+	be_ut_log_record_wait_fini_one(&records[2], &lock, &ops[2], false);
 
 	m0_be_log_close(&log);
 	be_ut_log_open(&log, &lock);
@@ -670,7 +677,7 @@ void m0_be_ut_log_user(void)
 	M0_UT_ASSERT(rc == 0);
 
 	m0_mutex_lock(&lock);
-	m0_be_log_record_discard(&record);
+	m0_be_log_record_discard(&log, record.lgr_size);
 	m0_mutex_unlock(&lock);
 	m0_be_log_record_deallocate(&record);
 	m0_be_log_record_fini(&record);

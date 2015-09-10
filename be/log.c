@@ -30,6 +30,7 @@
 #include "lib/errno.h"          /* ENOENT */
 #include "lib/memory.h"
 #include "lib/tlist.h"
+#include "lib/ext.h"            /* M0_EXT */
 #include "mero/magic.h"
 #include "module/instance.h"    /* m0_get */
 
@@ -236,7 +237,9 @@ static int be_log_module_init(struct m0_be_log     *log,
 M0_INTERNAL bool m0_be_log__invariant(struct m0_be_log *log)
 {
 	return _0C(m0_mutex_is_locked(log->lg_external_lock)) &&
-	       _0C(log->lg_discarded <= log->lg_current);
+	       _0C(log->lg_discarded <= log->lg_current) &&
+	       _0C(ergo(log->lg_unplaced_exists,
+			log->lg_discarded <= log->lg_unplaced_pos));
 }
 
 M0_INTERNAL int m0_be_log_open(struct m0_be_log     *log,
@@ -357,22 +360,6 @@ M0_INTERNAL m0_bcount_t m0_be_log_reserved_size(struct m0_be_log *log,
 	return size;
 }
 
-static void be_log_record_unplaced_check(struct m0_be_log_record *record)
-{
-	struct m0_be_log *log = record->lgr_log;
-
-	if (record->lgr_need_discard && record->lgr_state == LGR_DONE) {
-		M0_PRE(m0_mutex_is_locked(log->lg_external_lock));
-		if (!log->lg_unplaced_exists ||
-		    record->lgr_position < log->lg_unplaced_pos) {
-			log->lg_unplaced_exists = true;
-			log->lg_unplaced_pos    = record->lgr_position;
-			log->lg_unplaced_size   = record->lgr_size;
-		}
-		record_tlink_del_fini(record);
-	}
-}
-
 static void be_log_record_io_done_cb(struct m0_be_op *op, void *param)
 {
 	struct m0_be_log_record *record = param;
@@ -407,9 +394,10 @@ M0_INTERNAL void m0_be_log_record_fini(struct m0_be_log_record *record)
 {
 	int i;
 
-	M0_PRE(!M0_IN(record->lgr_state, (LGR_SCHEDULED, LGR_FINI)));
+	M0_PRE(M0_IN(record->lgr_state, (LGR_NEW, LGR_DONE)));
 
-	be_log_record_unplaced_check(record);
+	if (record->lgr_need_discard && record->lgr_state == LGR_DONE)
+		record_tlink_del_fini(record);
 
 	m0_be_op_fini(&record->lgr_record_op);
 	for (i = 0; i < record->lgr_io_nr; ++i) {
@@ -429,9 +417,14 @@ M0_INTERNAL void m0_be_log_record_reset(struct m0_be_log_record *record)
 {
 	int i;
 
-	M0_PRE(!M0_IN(record->lgr_state, (LGR_SCHEDULED, LGR_FINI)));
+	M0_PRE(M0_IN(record->lgr_state, (LGR_NEW, LGR_DONE)));
 
-	be_log_record_unplaced_check(record);
+	/*
+	 * With delayed discard records can't be removed from the list
+	 * in m0_be_log_record_discard().
+	 */
+	if (record->lgr_need_discard && record->lgr_state == LGR_DONE)
+		record_tlink_del_fini(record);
 
 	m0_be_fmt_log_record_header_reset(&record->lgr_header);
 	m0_be_fmt_log_record_footer_reset(&record->lgr_footer);
@@ -473,25 +466,52 @@ m0_be_log_record_assign(struct m0_be_log_record      *record,
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_be_log_record_discard(struct m0_be_log_record *record)
+M0_INTERNAL void m0_be_log_record_ext(struct m0_be_log_record *record,
+                                      struct m0_ext           *ext)
 {
-	struct m0_be_log        *log = record->lgr_log;
-	struct m0_be_log_record *next;
-	m0_bindex_t              next_pos;
+	M0_ASSERT(M0_IN(record->lgr_state,
+			(LGR_USED, LGR_SCHEDULED, LGR_DONE)));
+	*ext = M0_EXT(record->lgr_position,
+	              record->lgr_position + record->lgr_size);
+}
 
+M0_INTERNAL void m0_be_log_record_skip_discard(struct m0_be_log_record *record)
+{
+	struct m0_be_log *log = record->lgr_log;
+
+	M0_PRE(record->lgr_need_discard);
 	M0_PRE(m0_mutex_is_locked(log->lg_external_lock));
-	M0_PRE(!record_tlist_is_empty(&log->lg_records));
-	M0_PRE(record->lgr_state == LGR_DONE);
 
-	record_tlink_del_fini(record);
-	next     = record_tlist_head(&log->lg_records);
-	next_pos = next == NULL ? log->lg_current : next->lgr_position;
-	if (log->lg_unplaced_exists && log->lg_unplaced_pos < next_pos)
-		next_pos = log->lg_unplaced_pos;
-	M0_ASSERT(next_pos >= log->lg_discarded);
-	log->lg_free     += next_pos - log->lg_discarded;
-	log->lg_discarded = next_pos;
-	record->lgr_state = LGR_DISCARDED;
+	if (!log->lg_unplaced_exists ||
+	    record->lgr_position < log->lg_unplaced_pos) {
+		log->lg_unplaced_exists = true;
+		log->lg_unplaced_pos    = record->lgr_position;
+		log->lg_unplaced_size   = record->lgr_size;
+	}
+	M0_POST(m0_be_log__invariant(log));
+}
+
+M0_INTERNAL void m0_be_log_record_discard(struct m0_be_log *log,
+					  m0_bcount_t       size)
+{
+	M0_PRE(m0_mutex_is_locked(log->lg_external_lock));
+	M0_PRE(log->lg_discarded + size <= log->lg_current);
+	M0_PRE(ergo(log->lg_unplaced_exists,
+		    log->lg_discarded == log->lg_unplaced_pos ||
+		    log->lg_discarded + size <= log->lg_unplaced_pos));
+
+	/*
+	 * User must guarantee discarding of records in the same order as
+	 * they are prepared for I/O.
+	 */
+
+	if (log->lg_unplaced_exists &&
+	    log->lg_discarded == log->lg_unplaced_pos) {
+		size = 0;
+	}
+	M0_LOG(M0_DEBUG, "%lu", size);
+	log->lg_free      += size;
+	log->lg_discarded += size;
 
 	M0_POST(m0_be_log__invariant(log));
 
@@ -722,6 +742,16 @@ m0_be_log_record_io_prepare(struct m0_be_log_record *record,
 		M0_ASSERT_INFO(rc == 0, "rc = %d", rc); /* XXX */
 		record->lgr_write_header = true;
 	}
+
+	/*
+	 * Size is part of the log that is not held by records. Notify user
+	 * if it less than threshold.
+	 */
+	size = m0_be_log_store_buf_size(&log->lg_store) -
+	       (log->lg_current - log->lg_discarded);
+	if (size <= log->lg_cfg.lc_full_threshold &&
+	    log->lg_cfg.lc_full_cb != NULL)
+		log->lg_cfg.lc_full_cb(log);
 }
 
 M0_INTERNAL void m0_be_log_record_io_launch(struct m0_be_log_record *record,

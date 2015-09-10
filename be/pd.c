@@ -35,6 +35,7 @@
 
 #include "lib/assert.h"         /* M0_ASSERT */
 #include "lib/memory.h"         /* M0_ALLOC_ARR */
+#include "lib/locality.h"       /* m0_locality0_get */
 
 #include "be/op.h"              /* m0_be_op */
 #include "be/pool.h"            /* m0_be_pool_item */
@@ -111,6 +112,12 @@ M0_INTERNAL int m0_be_pd_init(struct m0_be_pd     *pd,
 		                      pdio, M0_BOS_DONE);
 		pdio_be_pool_add(&pd->bpd_io_pool, pdio);
 	}
+	rc = m0_be_io_init(&pd->bpd_sync_io);
+	M0_ASSERT(rc == 0);
+	rc = m0_be_io_allocate(&pd->bpd_sync_io, &M0_BE_IO_CREDIT(2, 2, 2));
+	M0_ASSERT(rc == 0);
+	pd->bpd_sync_in_progress = false;
+	pd->bpd_sync_prev = m0_time_now();
 	return 0;
 }
 
@@ -119,6 +126,8 @@ M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd)
 	struct m0_be_pd_io *pdio;
 	uint32_t            nr = 0;
 
+	m0_be_io_deallocate(&pd->bpd_sync_io);
+	m0_be_io_fini(&pd->bpd_sync_io);
 	pdio = pdio_be_pool_del(&pd->bpd_io_pool);
 	while (pdio != NULL) {
 		M0_ASSERT(pdio->bpi_state == M0_BPD_IO_IDLE);
@@ -173,6 +182,59 @@ M0_INTERNAL void m0_be_pd_io_put(struct m0_be_pd    *pd,
 M0_INTERNAL struct m0_be_io *m0_be_pd_io_be_io(struct m0_be_pd_io *pdio)
 {
 	return &pdio->bpi_be_io;
+}
+
+static void be_pd_sync_run(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_be_pd  *pd = ast->sa_datum;
+	struct m0_be_op   op = {};
+	m0_time_t         now;
+
+	m0_be_op_active(pd->bpd_sync_op);
+	now = m0_time_now();
+	pd->bpd_sync_runtime = now;
+	pd->bpd_sync_delay   = now - pd->bpd_sync_delay;
+	pd->bpd_sync_prev    = now - pd->bpd_sync_prev;
+
+	M0_BE_OP_SYNC_WITH(&op, m0_be_io_launch(&pd->bpd_sync_io, &op));
+
+	now = m0_time_now();
+	pd->bpd_sync_runtime = now - pd->bpd_sync_runtime;
+	M0_LOG(M0_DEBUG, "runtime=%lu delay=%lu prev=%lu rc=%d",
+	       pd->bpd_sync_runtime, pd->bpd_sync_delay, pd->bpd_sync_prev,
+	       m0_be_op_rc(&op));
+	pd->bpd_sync_prev        = now;
+	pd->bpd_sync_in_progress = false;
+	m0_be_op_done(pd->bpd_sync_op);
+}
+
+M0_INTERNAL void m0_be_pd_sync(struct m0_be_pd  *pd,
+                               m0_bindex_t       pos,
+                               struct m0_stob  **stobs,
+                               int               nr,
+                               struct m0_be_op  *op)
+{
+	struct m0_be_io *bio;
+	int i;
+
+	M0_ENTRY("pd=%p pos=%lu nr=%d op=%p", pd, pos, nr, op);
+	M0_PRE(nr <= 2);
+	M0_PRE(!pd->bpd_sync_in_progress);
+
+	pd->bpd_sync_in_progress = true;
+	bio = &pd->bpd_sync_io;
+	m0_be_io_reset(bio);
+	for (i = 0; i < nr; ++i)
+		m0_be_io_add(bio, stobs[i], &pd->bpd_sync_read_to[i], 0, 1);
+	m0_be_io_sync_enable(bio);
+	m0_be_io_configure(bio, SIO_READ);
+	pd->bpd_sync_ast = (struct m0_sm_ast){
+		.sa_cb    = &be_pd_sync_run,
+		.sa_datum = pd,
+	};
+	pd->bpd_sync_op    = op;
+	pd->bpd_sync_delay = m0_time_now();
+	m0_sm_ast_post(m0_locality0_get()->lo_grp, &pd->bpd_sync_ast);
 }
 
 #undef M0_TRACE_SUBSYSTEM

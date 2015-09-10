@@ -22,8 +22,8 @@
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/locality.h"       /* m0_locality0_get */
 #include "lib/string.h"         /* m0_streq */
+#include "lib/locality.h"       /* m0_locality0_get */
 #include "module/instance.h"    /* m0_get */
 #include "be/domain.h"
 #include "be/seg0.h"
@@ -398,6 +398,7 @@ static int be_domain_log_init(struct m0_be_domain  *dom,
 	int               rc;
 
 	log_cfg->lc_got_space_cb = m0_be_engine_got_log_space_cb;
+	log_cfg->lc_full_cb      = m0_be_engine_full_log_cb;
 	log_cfg->lc_lock         = &m0_be_domain_engine(dom)->eng_lock;
 	/* temporary solution BEGIN */
 	be_domain_log_cleanup(dom->bd_cfg.bc_stob_domain_location,
@@ -645,6 +646,21 @@ static int be_domain_start_mkfs_post(struct m0_be_domain     *dom,
 	return M0_RC(rc);
 }
 
+static void be_domain_ldsc_sync(struct m0_be_log_discard      *ld,
+                                struct m0_be_op               *op,
+                                struct m0_be_log_discard_item *ldi)
+{
+	struct m0_be_domain *dom;
+	struct m0_be_seg    *seg;
+	struct m0_stob      *stobs[2];
+
+	dom = container_of(ld, struct m0_be_domain, bd_log_discard);
+	stobs[0] = m0_be_domain_seg0_get(dom)->bs_stob;
+	seg = m0_be_domain_seg_first(dom);
+	stobs[1] = seg != NULL ? seg->bs_stob : NULL;
+	m0_be_pd_sync(&dom->bd_pd, 0, stobs, seg == NULL ? 1 : 2, op);
+}
+
 /* XXX REFACTORME: Split into be_domain_start() and be_domain_stop(). */
 static int be_domain_start_stop(struct m0_be_domain     *dom,
 				struct m0_be_domain_cfg *cfg)
@@ -670,8 +686,25 @@ static int be_domain_start_stop(struct m0_be_domain     *dom,
 		goto out;
 
 	m0_be_recovery_init(&dom->bd_recovery);
+	rc = m0_be_recovery_run(&dom->bd_recovery, &dom->bd_engine.eng_log);
+	M0_ASSERT(rc == 0);
+	dom->bd_engine.eng_log.lg_cfg.lc_sched_cfg.lsch_io_sched_cfg.
+		bisc_pos_start = m0_be_recovery_pos_end(&dom->bd_recovery);
+	dom->bd_cfg.bc_pd_cfg.bpdc_sched.bisc_pos_start =
+			m0_be_recovery_pos_start(&dom->bd_recovery);
+	m0_be_tx_group_seg_io_credit(&dom->bd_cfg.bc_engine.bec_group_cfg,
+	                             &dom->bd_cfg.bc_pd_cfg.bpdc_io_credit);
+	rc = m0_be_pd_init(&dom->bd_pd, &dom->bd_cfg.bc_pd_cfg);
+	M0_ASSERT(rc == 0);
+	dom->bd_cfg.bc_log_discard_cfg.ldsc_sync    = &be_domain_ldsc_sync;
+	dom->bd_cfg.bc_log_discard_cfg.ldsc_discard = &m0_be_tx_group_discard;
+	rc = m0_be_log_discard_init(&dom->bd_log_discard,
+				    &dom->bd_cfg.bc_log_discard_cfg);
+	M0_ASSERT(rc == 0);
 	dom->bd_cfg.bc_engine.bec_domain   = dom;
 	dom->bd_cfg.bc_engine.bec_recovery = &dom->bd_recovery;
+	dom->bd_cfg.bc_engine.bec_log_discard = &dom->bd_log_discard;
+	dom->bd_cfg.bc_engine.bec_pd = &dom->bd_pd;
 	rc = m0_be_engine_init(en, dom, &dom->bd_cfg.bc_engine);
 	if (rc != 0)
 		goto stop_pre;
@@ -705,6 +738,9 @@ engine_stop:
 engine_fini:
 	m0_be_engine_fini(en);
 stop_pre:
+	M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&dom->bd_log_discard, &op));
+	m0_be_log_discard_fini(&dom->bd_log_discard);
+	m0_be_pd_fini(&dom->bd_pd);
 	m0_be_recovery_fini(&dom->bd_recovery);
 	if (mkfs_mode) {
 		be_domain_stop_mkfs_pre(dom);

@@ -41,6 +41,8 @@ struct m0_be_engine;
 struct m0_be_recovery;
 struct m0_reqh;
 struct m0_stob;
+struct m0_be_log_discard;
+struct m0_be_pd;
 
 /**
  * @defgroup be Meta-data back-end
@@ -80,6 +82,8 @@ struct m0_be_engine_cfg {
 	/** BE domain the engine belongs to. */
 	struct m0_be_domain	  *bec_domain;
 	struct m0_be_recovery	  *bec_recovery;
+	struct m0_be_log_discard  *bec_log_discard;
+	struct m0_be_pd           *bec_pd;
 	/** Configuration for each group. It is set by the engine. */
 	struct m0_be_tx_group_cfg *bec_groups_cfg;
 	/** ALMOST DEAD FIELDS */
@@ -149,6 +153,7 @@ M0_INTERNAL void m0_be_engine__tx_group_discard(struct m0_be_engine   *en,
 						struct m0_be_tx_group *gr);
 
 M0_INTERNAL void m0_be_engine_got_log_space_cb(struct m0_be_log *log);
+M0_INTERNAL void m0_be_engine_full_log_cb(struct m0_be_log *log);
 
 M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
 						   uint64_t             id);

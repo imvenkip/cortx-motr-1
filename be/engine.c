@@ -31,6 +31,8 @@
 #include "be/tx_service.h"      /* m0_be_tx_service_init */
 #include "be/tx_group.h"        /* m0_be_tx_group */
 #include "be/tx_internal.h"     /* m0_be_tx__state_post */
+#include "be/seg_dict.h"        /* XXX remove it */
+#include "be/domain.h"          /* XXX remove it */
 
 /**
  * @addtogroup be
@@ -124,8 +126,8 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
 	rc = m0_be_tx_service_init(en, en_cfg->bec_reqh);
 	if (rc != 0)
 		goto err_free;
-	rc = en_cfg->bec_recovery_disable ? 0 :
-	     m0_be_recovery_run(en->eng_recovery, &en->eng_log);
+	rc = en_cfg->bec_recovery_disable ? 0 : 0;
+	     /* m0_be_recovery_run(en->eng_recovery, &en->eng_log); */
 	if (rc != 0)
 		goto err_service_fini;
 	for (i = 0; i < en->eng_group_nr; ++i) {
@@ -136,6 +138,8 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
 		gr_cfg->tgc_domain = en_cfg->bec_domain;
 		gr_cfg->tgc_engine = en;
 		gr_cfg->tgc_log	   = &en->eng_log;
+		gr_cfg->tgc_log_discard = en_cfg->bec_log_discard;
+		gr_cfg->tgc_pd = en_cfg->bec_pd;
 		gr_cfg->tgc_reqh   = en_cfg->bec_reqh;
 
 		rc = m0_be_tx_group_init(gr, gr_cfg);
@@ -672,18 +676,6 @@ M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine   *en,
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_be_engine__tx_group_discard(struct m0_be_engine   *en,
-						struct m0_be_tx_group *gr)
-{
-	be_engine_lock(en);
-	M0_PRE(be_engine_invariant(en));
-
-	m0_be_tx_group_discard(gr);
-
-	M0_POST(be_engine_invariant(en));
-	be_engine_unlock(en);
-}
-
 static void be_engine_group_stop_nr(struct m0_be_engine *en, size_t nr)
 {
 	size_t i;
@@ -735,6 +727,12 @@ M0_INTERNAL int m0_be_engine_start(struct m0_be_engine *en)
 		recovery_time = m0_time_now() - recovery_time;
 		M0_LOG(M0_INFO, "BE recovery execution time: %lu",
 		       recovery_time);
+		/* XXX workaround BEGIN */
+		if (!en->eng_cfg->bec_domain->bd_cfg.bc_mkfs_mode) {
+			m0_be_seg_dict_init(m0_be_domain_seg0_get(
+						  en->eng_cfg->bec_domain));
+		}
+		/* XXX workaround END */
 	}
 	return M0_RC(rc);
 }
@@ -764,6 +762,15 @@ M0_INTERNAL void m0_be_engine_got_log_space_cb(struct m0_be_log *log)
 
 	M0_POST(be_engine_invariant(en));
 	// be_engine_unlock(en);
+}
+
+M0_INTERNAL void m0_be_engine_full_log_cb(struct m0_be_log *log)
+{
+	struct m0_be_engine *en =
+		container_of(log, struct m0_be_engine, eng_log);
+	struct m0_be_domain *dom = en->eng_domain;
+
+	m0_be_log_discard_sync(&dom->bd_log_discard);
 }
 
 M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,

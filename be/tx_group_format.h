@@ -46,6 +46,7 @@
  *
  * ** Common begin of the loop
  * - reset()
+ * - prepare()
  *
  * ** Normal operation (middle of the loop)
  * - tx_add()
@@ -85,43 +86,49 @@ typedef void (*m0_be_group_format_reg_area_rebuild_t)
 
 enum {
 	M0_BE_GROUP_FORMAT_LEVEL_ASSIGNS,
+	M0_BE_GROUP_FORMAT_LEVEL_OP_INIT,
 	M0_BE_GROUP_FORMAT_LEVEL_FMT_GROUP_INIT,
 	M0_BE_GROUP_FORMAT_LEVEL_FMT_CBLOCK_INIT,
 	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_INIT,
 	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_GROUP,
 	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_IO_CREATE_CBLOCK,
 	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ITER_INIT,
-	M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_INIT,
 	M0_BE_GROUP_FORMAT_LEVEL_INITED,
 	M0_BE_GROUP_FORMAT_LEVEL_LOG_RECORD_ALLOCATE,
-	M0_BE_GROUP_FORMAT_LEVEL_SEG_IO_ALLOCATE,
 	M0_BE_GROUP_FORMAT_LEVEL_ALLOCATED,
 };
 
 struct m0_be_group_format_cfg {
 	struct m0_be_fmt_group_cfg  gfc_fmt_cfg;
-	bool                        gfc_seg_io_fdatasync;
-	struct m0_be_tx_group      *gfc_group;
 	struct m0_be_log           *gfc_log;
+	struct m0_be_log_discard   *gfc_log_discard;
+	struct m0_be_pd            *gfc_pd;
 };
 
 struct m0_be_group_format {
-	struct m0_be_group_format_cfg gft_cfg;
-	struct m0_module              gft_module;
+	struct m0_be_group_format_cfg  gft_cfg;
+	struct m0_module               gft_module;
 
-	struct m0_be_tx_group        *gft_group;
+	struct m0_be_fmt_group         gft_fmt_group;
+	struct m0_be_fmt_cblock        gft_fmt_cblock;
+	struct m0_be_fmt_group        *gft_fmt_group_decoded;
+	struct m0_be_fmt_cblock       *gft_fmt_cblock_decoded;
 
-	struct m0_be_fmt_group        gft_fmt_group;
-	struct m0_be_fmt_cblock       gft_fmt_cblock;
-	struct m0_be_fmt_group       *gft_fmt_group_decoded;
-	struct m0_be_fmt_cblock      *gft_fmt_cblock_decoded;
+	struct m0_be_log              *gft_log;
+	struct m0_be_log_record_iter   gft_log_record_iter;
+	struct m0_be_log_record        gft_log_record;
 
-	struct m0_be_log             *gft_log;
-	struct m0_be_log_record_iter  gft_log_record_iter;
-	struct m0_be_log_record       gft_log_record;
-
-	/* temporary solution before paged implemented */
-	struct m0_be_io               gft_seg_io;
+	struct m0_be_pd_io            *gft_pd_io;
+	struct m0_be_log_discard_item *gft_log_discard_item;
+	struct m0_ext                  gft_ext;
+	struct m0_be_op                gft_pd_io_op;
+	struct m0_be_op                gft_tmp_op;
+	/** is used in m0_be_group_format_prepare() */
+	struct m0_be_op                gft_pd_io_get;
+	/** is used in m0_be_group_format_prepare() */
+	struct m0_be_op                gft_log_discard_get;
+	/** hack because m0_be_op_tick_ret() needs M0_BOS_ACTIVE state */
+	struct m0_be_op                gft_all_get;
 };
 
 M0_INTERNAL int m0_be_group_format_init(struct m0_be_group_format     *gft,
@@ -140,6 +147,8 @@ M0_INTERNAL void
 m0_be_group_format_module_setup(struct m0_be_group_format     *gft,
 				struct m0_be_group_format_cfg *gft_cfg);
 
+M0_INTERNAL void m0_be_group_format_prepare(struct m0_be_group_format *gft,
+                                            struct m0_be_op           *op);
 M0_INTERNAL void m0_be_group_format_encode(struct m0_be_group_format *gft);
 M0_INTERNAL int  m0_be_group_format_decode(struct m0_be_group_format *gft);
 
@@ -174,7 +183,6 @@ m0_be_group_format_log_reserved_size(struct m0_be_log       *log,
 M0_INTERNAL void
 m0_be_group_format_log_use(struct m0_be_group_format *gft,
 			   m0_bcount_t                size_reserved);
-M0_INTERNAL void m0_be_group_format_log_discard(struct m0_be_group_format *gft);
 M0_INTERNAL void
 m0_be_group_format_recovery_prepare(struct m0_be_group_format *gft,
 				    struct m0_be_recovery     *rvr);
@@ -189,6 +197,14 @@ m0_be_group_format_seg_place_prepare(struct m0_be_group_format *gft);
 M0_INTERNAL void m0_be_group_format_seg_place(struct m0_be_group_format *gft,
 					      struct m0_be_op           *op);
 
+/* move to engine? */
+M0_INTERNAL void m0_be_group_format_discard(struct m0_be_log_discard      *ld,
+                                            struct m0_be_log_discard_item *ldi);
+
+
+M0_INTERNAL void
+m0_be_group_format_seg_io_credit(struct m0_be_group_format_cfg *gft_cfg,
+                                 struct m0_be_io_credit        *io_cred);
 
 /** @} end of be group */
 

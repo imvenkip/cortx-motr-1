@@ -25,11 +25,12 @@
 #define __MERO_BE_TX_GROUP_FOM_H__
 
 #include "lib/types.h"          /* bool */
-#include "lib/refs.h"           /* m0_ref */
+#include "lib/semaphore.h"      /* m0_semaphore */
 
 #include "fop/fom.h"            /* m0_fom */
+#include "sm/sm.h"              /* m0_sm_ast */
 
-#include "be/op.h"
+#include "be/op.h"              /* m0_be_op */
 
 struct m0_be_engine;
 struct m0_be_recovery;
@@ -51,11 +52,6 @@ struct m0_be_tx_group_fom {
 	struct m0_be_op        tgf_op;
 	/** m0_be_op for tx GC after recovery */
 	struct m0_be_op        tgf_op_gc;
-	/**
-	 * The number of transactions that have been added to the tx_group
-	 * but have not switched to M0_BTS_GROUPED state yet.
-	 */
-	struct m0_ref          tgf_nr_ungrouped;
 	/**
 	 * True iff all transactions of the group have reached M0_BTS_DONE
 	 * state.

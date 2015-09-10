@@ -210,8 +210,13 @@
  *   10. If log record is reusable then m0_be_log_record_reset and jump to 6.
  *   11. m0_be_log_record_deallocate
  *   12. m0_be_log_record_fini
+ *
+ * @todo BE log's positions grow to infinity, but have uint64_t type.
+ *       Better solution will be usage of blocks instead of bytes for the
+ *       positions.
  */
 
+struct m0_ext;
 struct m0_be_io;
 struct m0_be_log_io;
 struct m0_be_log_record_iter;
@@ -221,6 +226,7 @@ struct m0_be_log;
 struct m0_be_log_record;
 typedef void (*m0_be_log_got_space_cb_t)(struct m0_be_log *log);
 typedef void (*m0_be_log_record_cb_t)(struct m0_be_log_record *record);
+typedef void (*m0_be_log_full_cb_t)(struct m0_be_log *log);
 
 enum {
 	M0_BE_LOG_RECORD_IO_NR_MAX = 2,
@@ -239,6 +245,8 @@ struct m0_be_log_cfg {
 	struct m0_be_log_store_cfg  lc_store_cfg;
 	struct m0_be_log_sched_cfg  lc_sched_cfg;
 	m0_be_log_got_space_cb_t    lc_got_space_cb;
+	m0_be_log_full_cb_t         lc_full_cb;
+	m0_bcount_t                 lc_full_threshold;
 	struct m0_mutex            *lc_lock;
 };
 
@@ -390,8 +398,14 @@ m0_be_log_record_assign(struct m0_be_log_record      *record,
 			struct m0_be_log_record_iter *iter,
 			bool                          need_discard);
 
-/** Discards log record. */
-M0_INTERNAL void m0_be_log_record_discard(struct m0_be_log_record *record);
+M0_INTERNAL void m0_be_log_record_ext(struct m0_be_log_record *record,
+                                      struct m0_ext           *ext);
+
+/** Skips discarding of a record. The record will remain non-discarded. */
+M0_INTERNAL void m0_be_log_record_skip_discard(struct m0_be_log_record *record);
+/** Discards used space withing log. */
+M0_INTERNAL void m0_be_log_record_discard(struct m0_be_log *log,
+					  m0_bcount_t       size);
 
 M0_INTERNAL int m0_be_log_record_io_create(struct m0_be_log_record *record,
 					   m0_bcount_t              size_max);

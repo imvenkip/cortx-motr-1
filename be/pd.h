@@ -64,6 +64,15 @@ struct m0_be_pd {
 	struct m0_be_io_sched  bpd_sched;
 	struct m0_be_pd_io    *bpd_io;
 	struct m0_be_pool      bpd_io_pool;
+
+	struct m0_be_op       *bpd_sync_op;
+	m0_time_t              bpd_sync_delay;
+	m0_time_t              bpd_sync_runtime;
+	m0_time_t              bpd_sync_prev;
+	struct m0_be_io        bpd_sync_io;
+	bool                   bpd_sync_in_progress;
+	char                   bpd_sync_read_to[2];
+	struct m0_sm_ast       bpd_sync_ast;
 };
 
 M0_INTERNAL int m0_be_pd_init(struct m0_be_pd *pd, struct m0_be_pd_cfg *pd_cfg);
@@ -82,6 +91,16 @@ M0_INTERNAL void m0_be_pd_io_put(struct m0_be_pd    *pd,
 
 M0_INTERNAL struct m0_be_io *m0_be_pd_io_be_io(struct m0_be_pd_io *pdio);
 
+/**
+ * Run fdatasync() for the given set of stobs.
+ *
+ * @note pos parameter is ignored for now.
+ */
+M0_INTERNAL void m0_be_pd_sync(struct m0_be_pd  *pd,
+                               m0_bindex_t       pos,
+                               struct m0_stob  **stobs,
+                               int               nr,
+                               struct m0_be_op  *op);
 
 /** @} end of be group */
 #endif /* __MERO_BE_PD_H__ */

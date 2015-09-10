@@ -174,7 +174,8 @@ static void be_ut_recovery_log_fill(struct be_ut_recovery_ctx *ctx,
 
 		if (i < discard_nr) {
 			m0_mutex_lock(lock);
-			m0_be_log_record_discard(record);
+			m0_be_log_record_discard(record->lgr_log,
+						  record->lgr_size);
 			m0_mutex_unlock(lock);
 		}
 	}
@@ -183,7 +184,8 @@ static void be_ut_recovery_log_fill(struct be_ut_recovery_ctx *ctx,
 		record = &ctx->burc_records[i];
 		if (i >= discard_nr) {
 			m0_mutex_lock(lock);
-			m0_be_log_record_discard(record);
+			m0_be_log_record_discard(record->lgr_log,
+						  record->lgr_size);
 			m0_mutex_unlock(lock);
 		}
 		be_ut_recovery_log_record_fini_one(record);
@@ -221,7 +223,7 @@ static int be_ut_recovery_iter_count(struct be_ut_recovery_ctx *ctx)
 				       bo_sm.sm_rc);
 		M0_UT_ASSERT(rc == 0);
 		m0_mutex_lock(lock);
-		m0_be_log_record_discard(&record);
+		m0_be_log_record_discard(record.lgr_log, record.lgr_size);
 		m0_mutex_unlock(lock);
 		m0_be_log_record_reset(&record);
 	}

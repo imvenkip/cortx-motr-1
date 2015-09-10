@@ -67,13 +67,10 @@ struct m0_be_tx_group_cfg {
 	struct m0_be_engine	      *tgc_engine;
 	/** log to write to for the group_format. */
 	struct m0_be_log	      *tgc_log;
+	struct m0_be_log_discard      *tgc_log_discard;
+	struct m0_be_pd               *tgc_pd;
 	/** reqh for the group fom. */
 	struct m0_reqh		      *tgc_reqh;
-	/**
-	 * Disable seg I/O fdatasync().
-	 * The flag will be removed after seg I/O uses direct I/O.
-	 */
-	bool                           tgc_disable_seg_io_fdatasync;
 	/** Group format configuration. Is set by the group. */
 	struct m0_be_group_format_cfg  tgc_format;
 };
@@ -187,6 +184,9 @@ M0_INTERNAL bool m0_be_tx_group_is_recovering(struct m0_be_tx_group *gr);
 /** Makes the tx_group ready for reuse. */
 M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr);
 
+M0_INTERNAL void m0_be_tx_group_prepare(struct m0_be_tx_group *gr,
+                                        struct m0_be_op       *op);
+
 /** Deletes the transaction from m0_be_tx_group::tg_txs. */
 M0_INTERNAL void m0_be_tx_group_tx_del(struct m0_be_tx_group *gr,
 				       struct m0_be_tx       *tx);
@@ -200,14 +200,6 @@ M0_INTERNAL void
 m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
 			      enum m0_be_tx_state    state,
 			      bool                   del_tx_from_group);
-/**
- * Notifies the log that record of this group can be discarded.
- *
- * @see m0_be_tx_group_tx_discard()
- */
-M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_tx_group *gr);
-M0_INTERNAL void m0_be_tx_group_engine_discard(struct m0_be_tx_group *gr);
-
 M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group__deallocate(struct m0_be_tx_group *gr);
 
@@ -239,6 +231,16 @@ m0_be_tx_group_reconstruct_tx_close(struct m0_be_tx_group *gr,
 M0_INTERNAL int m0_be_tx_group_reapply(struct m0_be_tx_group *gr,
 				       struct m0_be_op       *op);
 
+/* ------------------------------------------------------------------
+ *                      Interfaces used by domain.
+ * ------------------------------------------------------------------ */
+
+M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_log_discard      *ld,
+                                        struct m0_be_log_discard_item *ldi);
+
+M0_INTERNAL void
+m0_be_tx_group_seg_io_credit(struct m0_be_tx_group_cfg *gr_cfg,
+                             struct m0_be_io_credit    *io_cred);
 
 /* XXX see comment in be/tx_group.c */
 #if 0

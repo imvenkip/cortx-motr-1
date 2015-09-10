@@ -26,6 +26,9 @@
 #include "ut/ut.h"
 #include "be/ut/helper.h"
 #include "be/seg.h"
+#include "be/op.h"              /* M0_BE_OP_SYNC */
+#include "be/log_discard.h"     /* m0_be_log_discard */
+#include "be/pd.h"              /* m0_be_pd */
 #include "lib/arith.h"
 #include "lib/memory.h"
 #include "stob/stob.h"
@@ -56,6 +59,10 @@ struct be_ut_tgf_ctx {
 	struct m0_be_log         tgfc_log;
 	struct m0_mutex          tgfc_lock;
 	struct m0_be_recovery    tgfc_rvr;
+	struct m0_be_log_discard tgfc_log_discard;
+	struct m0_be_log_discard_cfg tgfc_log_discard_cfg;
+	struct m0_be_pd          tgfc_pd;
+	struct m0_be_pd_cfg      tgfc_pd_cfg;
 	struct m0_stob_domain   *tgfc_sdom;
 	struct m0_stob          *tgfc_seg_stob;
 	struct m0_be_seg         tgfc_seg;
@@ -79,9 +86,10 @@ enum {
 	BE_UT_TGF_MAGIC               = 0xfffe,
 };
 
-const char *be_ut_tgf_log_sdom_location   = "linuxstob:./log";
-const char *be_ut_tgf_log_sdom_init_cfg   = "directio=true";
-const char *be_ut_tgf_log_sdom_create_cfg = "";
+static const char *be_ut_tgf_log_sdom_location   = "linuxstob:./log";
+static const char *be_ut_tgf_log_sdom_init_cfg   = "directio=true";
+static const char *be_ut_tgf_log_sdom_create_cfg = "";
+static bool        be_ut_tgf_do_discard;
 
 static void be_ut_tgf_log_got_space_cb(struct m0_be_log *log)
 {
@@ -228,9 +236,12 @@ static void be_ut_tgf_buf_init(struct be_ut_tgf_ctx   *ctx,
 			.fgc_tx_nr_max         = group->tgfg_tx_nr,
 			.fgc_reg_nr_max        = group->tgfg_reg_nr,
 			.fgc_payload_size_max  = payload_max,
-			.fgc_reg_size_max = ra_size_max,
+			.fgc_reg_size_max      = ra_size_max,
 			.fgc_seg_nr_max        = BE_UT_TGF_SEG_NR_MAX,
 		},
+		.gfc_log         = &ctx->tgfc_log,
+		.gfc_log_discard = &ctx->tgfc_log_discard,
+		.gfc_pd          = &ctx->tgfc_pd,
 	};
 }
 
@@ -294,6 +305,7 @@ static void be_ut_tgf_group_write(struct be_ut_tgf_ctx   *ctx,
 	m0_mutex_unlock(&ctx->tgfc_lock);
 
 	m0_be_group_format_reset(gft);
+	M0_BE_OP_SYNC(op, m0_be_group_format_prepare(gft, &op));
 	for (i = 0; i < group->tgfg_tx_nr; ++i) {
 		tx  = &group->tgfg_txs[i];
 		ftx = M0_BE_FMT_TX(tx->tgft_payload, tx->tgft_id);
@@ -319,6 +331,10 @@ static void be_ut_tgf_group_write(struct be_ut_tgf_ctx   *ctx,
 			       bo_sm.sm_rc);
 	M0_UT_ASSERT(rc == 0);
 
+	m0_mutex_lock(&ctx->tgfc_lock);
+	m0_be_log_record_skip_discard(&gft->gft_log_record);
+	m0_mutex_unlock(&ctx->tgfc_lock);
+
 	if (seg_write) {
 		m0_be_group_format_seg_place_prepare(gft);
 		rc = M0_BE_OP_SYNC_RET(op,
@@ -343,9 +359,8 @@ static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
 	int                          nr;
 	int                          i;
 
-	m0_mutex_lock(&ctx->tgfc_lock);
 	m0_be_group_format_reset(gft);
-	m0_mutex_unlock(&ctx->tgfc_lock);
+	M0_BE_OP_SYNC(op, m0_be_group_format_prepare(gft, &op));
 	available = m0_be_recovery_log_record_available(&ctx->tgfc_rvr);
 	M0_UT_ASSERT(available);
 	m0_mutex_lock(&ctx->tgfc_lock);
@@ -384,7 +399,7 @@ static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
 	}
 
 	m0_mutex_lock(&ctx->tgfc_lock);
-	m0_be_group_format_log_discard(gft);
+	// XXX m0_be_group_format_log_discard(gft);
 	m0_mutex_unlock(&ctx->tgfc_lock);
 
 	if (seg_check) {
@@ -401,24 +416,85 @@ static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
 					    reg->tgfr_size) == 0);
 		}
 	}
+	m0_be_group_format_seg_place_prepare(gft);
+	rc = M0_BE_OP_SYNC_RET(op,
+	                       m0_be_group_format_seg_place(gft, &op),
+	                       bo_sm.sm_rc);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void be_ut_tgf_ldsc_sync(struct m0_be_log_discard      *ld,
+                                struct m0_be_op               *op,
+                                struct m0_be_log_discard_item *ldi)
+{
+	m0_be_op_active(op);
+	m0_be_op_done(op);
+}
+
+static void be_ut_tgf_ldsc_discard(struct m0_be_log_discard      *ld,
+                                   struct m0_be_log_discard_item *ldi)
+{
+	if (be_ut_tgf_do_discard)
+		m0_be_group_format_discard(ld, ldi);
 }
 
 static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 {
-	struct be_ut_tgf_ctx ctx;
-	int                  i;
+	struct m0_be_group_format_cfg gfc_cfg;
+	struct be_ut_tgf_ctx          ctx;
+	int                           rc;
+	int                           i;
 
 	ctx = (struct be_ut_tgf_ctx) {
 		.tgfc_group_nr = group_nr,
 		.tgfc_groups   = groups,
+		.tgfc_log_discard_cfg = {
+			.ldsc_items_max         = group_nr,
+			.ldsc_items_threshold   = group_nr,
+			.ldsc_items_pending_max = group_nr,
+			.ldsc_loc               = m0_locality0_get(),
+			.ldsc_sync_timeout      = M0_TIME_ONE_SECOND,
+			.ldsc_sync              = &be_ut_tgf_ldsc_sync,
+			.ldsc_discard           = &be_ut_tgf_ldsc_discard,
+		},
+		.tgfc_pd_cfg = {
+			.bpdc_seg_io_nr = group_nr,
+			.bpdc_sched = {
+				.bisc_pos_start = 0,
+			}
+		},
 	};
 
 	be_ut_tgf_log_init(&ctx);
 	be_ut_tgf_seg_init(&ctx);
-	m0_be_recovery_init(&ctx.tgfc_rvr);
 
-	for (i = 0; i < group_nr; ++i) {
+	for (i = 0; i < group_nr; ++i)
 		be_ut_tgf_buf_init(&ctx, &groups[i]);
+
+	gfc_cfg = groups[0].tgfg_cfg;
+	for (i = 1; i < group_nr; ++i) {
+		gfc_cfg.gfc_fmt_cfg.fgc_reg_nr_max =
+		     max_check(gfc_cfg.gfc_fmt_cfg.fgc_reg_nr_max,
+		               groups[i].tgfg_cfg.gfc_fmt_cfg.fgc_reg_nr_max);
+		gfc_cfg.gfc_fmt_cfg.fgc_reg_size_max =
+		     max_check(gfc_cfg.gfc_fmt_cfg.fgc_reg_size_max,
+		               groups[i].tgfg_cfg.gfc_fmt_cfg.fgc_reg_size_max);
+		gfc_cfg.gfc_fmt_cfg.fgc_seg_nr_max =
+		     max_check(gfc_cfg.gfc_fmt_cfg.fgc_seg_nr_max,
+		               groups[i].tgfg_cfg.gfc_fmt_cfg.fgc_seg_nr_max);
+	}
+
+	m0_be_recovery_init(&ctx.tgfc_rvr);
+	m0_be_group_format_seg_io_credit(&gfc_cfg,
+					 &ctx.tgfc_pd_cfg.bpdc_io_credit);
+	rc = m0_be_log_discard_init(&ctx.tgfc_log_discard,
+	                            &ctx.tgfc_log_discard_cfg);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_pd_init(&ctx.tgfc_pd, &ctx.tgfc_pd_cfg);
+	M0_UT_ASSERT(rc == 0);
+
+	be_ut_tgf_do_discard = false;
+	for (i = 0; i < group_nr; ++i) {
 		be_ut_tgf_group_init(&ctx, &groups[i]);
 		be_ut_tgf_group_write(&ctx, &groups[i], true);
 		m0_mutex_lock(&ctx.tgfc_lock);
@@ -427,11 +503,21 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 	}
 	be_ut_tgf_log_close(&ctx);
 
+	M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&ctx.tgfc_log_discard, &op));
+	m0_be_pd_fini(&ctx.tgfc_pd);
+	m0_be_log_discard_fini(&ctx.tgfc_log_discard);
+	rc = m0_be_log_discard_init(&ctx.tgfc_log_discard,
+	                            &ctx.tgfc_log_discard_cfg);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_pd_init(&ctx.tgfc_pd, &ctx.tgfc_pd_cfg);
+	M0_UT_ASSERT(rc == 0);
+
 	be_ut_tgf_log_open(&ctx);
 	for (i = 0; i < group_nr; ++i) {
 		be_ut_tgf_group_init(&ctx, &groups[i]);
 	}
 	m0_be_recovery_run(&ctx.tgfc_rvr, &ctx.tgfc_log);
+	be_ut_tgf_do_discard = true;
 	for (i = 0; i < group_nr; ++i) {
 		be_ut_tgf_group_read_check(&ctx, &groups[i], true);
 		be_ut_tgf_group_fini(&ctx, &groups[i]);
@@ -439,6 +525,9 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 
 	for (i = 0; i < group_nr; ++i)
 		be_ut_tgf_buf_fini(&ctx, &groups[i]);
+	M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&ctx.tgfc_log_discard, &op));
+	m0_be_pd_fini(&ctx.tgfc_pd);
+	m0_be_log_discard_fini(&ctx.tgfc_log_discard);
 	m0_be_recovery_fini(&ctx.tgfc_rvr);
 	be_ut_tgf_log_fini(&ctx);
 	be_ut_tgf_seg_fini(&ctx);

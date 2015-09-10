@@ -1130,6 +1130,7 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		      struct m0_be_ut_backend *be,
 		      const char              *name,
 		      bool                     preallocate,
+		      /* XXX the flag is ignored */
 		      bool                     disable_seg_io_fdatasync,
 		      bool                     format,
 		      struct m0_be_seg       **out)
@@ -1147,8 +1148,6 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_create_cfg =
 		rctx->rc_be_log_path;
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
-	be->but_dom_cfg.bc_engine.bec_group_cfg.tgc_disable_seg_io_fdatasync =
-		disable_seg_io_fdatasync;
 	if (!m0_is_po2(rctx->rc_be_log_size))
 		return M0_ERR(-EINVAL);
 	if (rctx->rc_be_log_size > 0) {
@@ -1834,6 +1833,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 			M0_VOIDARG('E', "Disable seg I/O fdatasync()",
 				LAMBDA(void, (void)
 				{
+					/* XXX the flag is completely ignored */
 					rctx->rc_be_disable_seg_io_fdatasync =
 						true;
 				})),

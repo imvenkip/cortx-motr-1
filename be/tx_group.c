@@ -138,7 +138,6 @@ static void be_tx_group_deconstruct(struct m0_be_tx_group *gr)
 
 	M0_BE_REG_AREA_FORALL(&gr->tg_reg_area, rd) {
 		m0_be_group_format_reg_log_add(&gr->tg_od, rd);
-		m0_be_group_format_reg_seg_add(&gr->tg_od, rd);
 	};
 }
 
@@ -180,6 +179,12 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 	m0_be_tx_group_fom_reset(&gr->tg_fom);
 }
 
+M0_INTERNAL void m0_be_tx_group_prepare(struct m0_be_tx_group *gr,
+                                        struct m0_be_op       *op)
+{
+	m0_be_group_format_prepare(&gr->tg_od, op);
+}
+
 M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group     *gr,
 				    struct m0_be_tx_group_cfg *gr_cfg)
 {
@@ -195,7 +200,9 @@ M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group     *gr,
 			.fgc_reg_size_max    = gr_cfg->tgc_size_max.tc_reg_size,
 			.fgc_seg_nr_max	      = gr_cfg->tgc_seg_nr_max,
 		},
-		.gfc_seg_io_fdatasync = !gr_cfg->tgc_disable_seg_io_fdatasync,
+		.gfc_log = gr_cfg->tgc_log,
+		.gfc_log_discard = gr_cfg->tgc_log_discard,
+		.gfc_pd = gr_cfg->tgc_pd,
 	};
 	/* XXX temporary block begin */
 	gr->tg_size             = gr_cfg->tgc_size_max;
@@ -360,16 +367,6 @@ M0_INTERNAL void m0_be_tx_group_stop(struct m0_be_tx_group *gr)
 	m0_be_tx_group_fom_stop(&gr->tg_fom);
 }
 
-M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_tx_group *gr)
-{
-	m0_be_group_format_log_discard(&gr->tg_od);
-}
-
-M0_INTERNAL void m0_be_tx_group_engine_discard(struct m0_be_tx_group *gr)
-{
-	m0_be_engine__tx_group_discard(gr->tg_engine, gr);
-}
-
 M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr)
 {
 	return m0_be_group_format_allocate(&gr->tg_od);
@@ -382,6 +379,12 @@ M0_INTERNAL void m0_be_tx_group__deallocate(struct m0_be_tx_group *gr)
 
 M0_INTERNAL void m0_be_tx_group_seg_place_prepare(struct m0_be_tx_group *gr)
 {
+	struct m0_be_reg_d *rd;
+
+	if (!gr->tg_recovering) {
+		M0_BE_REG_AREA_FORALL(&gr->tg_reg_area, rd)
+			m0_be_group_format_reg_seg_add(&gr->tg_od, rd);
+	}
 	m0_be_group_format_seg_place_prepare(&gr->tg_od);
 }
 
@@ -445,6 +448,7 @@ M0_INTERNAL int m0_be_tx_group_decode(struct m0_be_tx_group *gr)
 static void be_tx_group_reconstruct_reg_area(struct m0_be_tx_group *gr)
 {
 	struct m0_be_group_format *gft = &gr->tg_od;
+	struct m0_be_seg          *seg;
 	struct m0_be_reg_d         rd;
 	uint32_t                   reg_nr;
 	uint32_t                   i;
@@ -452,10 +456,18 @@ static void be_tx_group_reconstruct_reg_area(struct m0_be_tx_group *gr)
 	reg_nr = m0_be_group_format_reg_nr(gft);
 	for (i = 0; i < reg_nr; ++i) {
 		m0_be_group_format_reg_get(gft, i, &rd);
-		m0_be_reg_area_capture(&gr->tg_reg_area, &rd);
-		rd.rd_reg.br_seg = m0_be_domain_seg(gr->tg_domain,
-						    rd.rd_reg.br_addr);
-		m0_be_group_format_reg_seg_add(&gr->tg_od, &rd);
+		seg = m0_be_domain_seg(gr->tg_domain, rd.rd_reg.br_addr);
+		/*
+		 * It is possible that seg is already removed from seg0.
+		 * In this case the safest way is to ignore such regions.
+		 * TODO add some code to prevent ABA problem (another segment
+		 * is added at the same address as previous is removed).
+		 */
+		if (seg != NULL) {
+			m0_be_reg_area_capture(&gr->tg_reg_area, &rd);
+			rd.rd_reg.br_seg = seg;
+			m0_be_group_format_reg_seg_add(&gr->tg_od, &rd);
+		}
 	}
 }
 
@@ -585,6 +597,26 @@ M0_INTERNAL int m0_be_tx_group_reapply(struct m0_be_tx_group *gr,
 
 	m0_be_op_done(op);
 	return 0;
+}
+
+M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_log_discard      *ld,
+                                        struct m0_be_log_discard_item *ldi)
+{
+	m0_be_group_format_discard(ld, ldi);
+}
+
+M0_INTERNAL void
+m0_be_tx_group_seg_io_credit(struct m0_be_tx_group_cfg *gr_cfg,
+                             struct m0_be_io_credit    *io_cred)
+{
+	struct m0_be_group_format_cfg gft_cfg = {
+		.gfc_fmt_cfg = {
+			.fgc_reg_nr_max	  = gr_cfg->tgc_size_max.tc_reg_nr,
+			.fgc_reg_size_max = gr_cfg->tgc_size_max.tc_reg_size,
+			.fgc_seg_nr_max	  = gr_cfg->tgc_seg_nr_max,
+		}
+	};
+	m0_be_group_format_seg_io_credit(&gft_cfg, io_cred);
 }
 
 /** @} end of be group */

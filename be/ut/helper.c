@@ -320,7 +320,6 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.tgc_seg_nr_max	  = 256,
 			.tgc_size_max	  = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
 			.tgc_payload_max  = 1 << 24,
-			.tgc_disable_seg_io_fdatasync = false,
 		},
 		.bec_tx_size_max	  = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
 		.bec_tx_payload_max	  = 1 << 21,
@@ -352,6 +351,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 				.lsch_io_sched_cfg = {
 				},
 			},
+			.lc_full_threshold = 20 * (1 << 20),
 			/* other fields are filled by the domain */
 		},
 		.bc_0types                 = zts,
@@ -372,6 +372,16 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_seg_cfg		   = NULL,
 		.bc_seg_nr		   = 0,
 		.bc_mkfs_progress_cb	   = NULL,
+		.bc_pd_cfg = {
+			.bpdc_seg_io_nr = 0x1,
+		},
+		.bc_log_discard_cfg = {
+			.ldsc_items_max         = 0x100,
+			.ldsc_items_threshold   = 0x80,
+			.ldsc_items_pending_max = 1,
+			.ldsc_loc               = m0_locality0_get(),
+			.ldsc_sync_timeout      = M0_TIME_ONE_SECOND * 5ULL,
+		},
 	};
 }
 

@@ -167,7 +167,9 @@ struct m0_ut_suite be_ut = {
 		{ "log-api",                 m0_be_ut_log_api                 },
 		{ "log-header",              m0_be_ut_log_header              },
 		{ "log-unplaced",            m0_be_ut_log_unplaced            },
+/* XXX this test writes and discards records in random order
 		{ "log-multi",               m0_be_ut_log_multi               },
+*/
 		{ "recovery",                m0_be_ut_recovery                },
 		{ "pd-usecase",              m0_be_ut_pd_usecase              },
 		{ "seg-open",                m0_be_ut_seg_open_close          },

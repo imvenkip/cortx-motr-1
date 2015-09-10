@@ -98,6 +98,11 @@ static void be_io_sched_launch_next(struct m0_be_io_sched *sched)
 		io = sched_io_tlist_head(&sched->bis_ios);
 		M0_ASSERT(ergo(io != NULL,
 			       sched->bis_pos <= io->bio_ext.e_start));
+		if (io != NULL) {
+			M0_LOG(M0_DEBUG, "bis_pos=%"PRIu64" "
+			       "io->bio_ext.e_start=%"PRIu64,
+			       sched->bis_pos, io->bio_ext.e_start);
+		}
 		if (io != NULL && io->bio_ext.e_start == sched->bis_pos) {
 			sched->bis_io_in_progress = true;
 			M0_LOG(M0_DEBUG, "sched=%p io=%p pos=%lu",
@@ -171,9 +176,9 @@ M0_INTERNAL void m0_be_io_sched_add(struct m0_be_io_sched *sched,
 {
 	struct m0_be_io *io_last;
 
-	M0_LOG(M0_DEBUG, "sched=%p io=%p op=%p "
-	       "m0_be_io_size(io)=%"PRIu64,
-	       sched, io, op, m0_be_io_size(io));
+	M0_LOG(M0_DEBUG, "sched=%p io=%p op=%p ext="EXT_F" "
+	       "m0_be_io_size(io)=%"PRIu64, sched, io, op,
+	       EXT_P(ext == NULL ? &M0_EXT(0, 0) : ext), m0_be_io_size(io));
 
 	M0_PRE(m0_be_io_sched_is_locked(sched));
 	M0_PRE(equi(!m0_be_io_is_empty(io) && m0_be_io_opcode(io) == SIO_READ,

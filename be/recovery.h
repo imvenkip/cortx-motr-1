@@ -23,9 +23,9 @@
 #ifndef __MERO_BE_RECOVERY_H__
 #define __MERO_BE_RECOVERY_H__
 
-#include "lib/tlist.h"
+#include "lib/tlist.h"          /* m0_tl */
 #include "lib/mutex.h"          /* m0_mutex */
-#include "lib/types.h"          /* m0_bcount_t */
+#include "lib/types.h"          /* bool */
 
 /**
  * @page recovery-fspec Recovery Functional Specification
@@ -58,6 +58,8 @@ struct m0_be_recovery {
 	struct m0_be_log *brec_log;
 	struct m0_mutex   brec_lock;
 	struct m0_tl      brec_iters;
+	m0_bindex_t       brec_pos_start;
+	m0_bindex_t       brec_pos_end;
 };
 
 M0_INTERNAL void m0_be_recovery_init(struct m0_be_recovery *rvr);
@@ -68,6 +70,9 @@ M0_INTERNAL void m0_be_recovery_fini(struct m0_be_recovery *rvr);
  */
 M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr,
 				   struct m0_be_log      *log);
+
+M0_INTERNAL m0_bindex_t m0_be_recovery_pos_start(struct m0_be_recovery *rvr);
+M0_INTERNAL m0_bindex_t m0_be_recovery_pos_end(struct m0_be_recovery *rvr);
 
 /** Returns true if there is a log record which needs to be re-applied. */
 M0_INTERNAL bool
