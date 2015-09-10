@@ -21,7 +21,7 @@ conf_ios_device_setup()
 	#dev conf obj
 	local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$_DDEV_ID\")}"
 	#disk conf obj
-	local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id)}"
+        local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id, [1: $PVERID])}"
 	if (($NR_DISK_FIDS == 0))
 	then
 		DISK_FIDS="$ddisk_id"

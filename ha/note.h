@@ -132,15 +132,21 @@ enum m0_ha_obj_state {
 	 */
 	M0_NC_TRANSIENT,
 	/**
-	 * This state is only applicable to the pool objects. In this state, the
-	 * pool is undergoing repair, i.e., the process of reconstructing data
-	 * lost due to a failure and storing them in spare space.
+	 * This state is only applicable to the pool objects. In this state,
+	 * the pool is undergoing repair, i.e., the process of reconstructing
+	 * data lost due to a failure and storing them in spare space.
 	 */
 	M0_NC_REPAIR,
 	/**
+	 * This state is only applicable to the pool objects. In this state,
+	 * the pool device has completed sns repair. Its data is re-constructed
+	 * on its corresponding spare space.
+	 */
+	M0_NC_REPAIRED,
+	/**
 	 * This state is only applicable to the pool objects. Rebalance process
-	 * is complementary to repair: previously reconstructed data are copied
-	 * from spare space to the replacement storage.
+	 * is complementary to repair: previously reconstructed data is being
+	 * copied from spare space to the replacement storage.
 	 */
 	M0_NC_REBALANCE,
 

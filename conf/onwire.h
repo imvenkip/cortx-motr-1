@@ -204,6 +204,8 @@ struct m0_confx_disk {
 	struct m0_confx_header xk_header;
 	/* Storage device associated with this disk. */
 	struct m0_fid          xk_dev;
+	/* Pool versions this disk is part of. */
+	struct arr_fid         xk_pvers;
 } M0_XCA_RECORD;
 
 struct m0_confx_obj {

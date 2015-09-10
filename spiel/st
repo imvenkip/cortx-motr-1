@@ -172,10 +172,10 @@ stub_confdb() {
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
 (enclosure-0 ctrls=[controller-0] pvers=[pver-0])
 (controller-0 node=node-0 disks=[disk-0, disk-1, disk-2, disk-3] pvers=[pver-0])
-(disk-0 dev=sdev-1)
-(disk-1 dev=sdev-2)
-(disk-2 dev=sdev-3)
-(disk-3 dev=sdev-4)
+(disk-0 dev=sdev-1 pvers=[pver-0])
+(disk-1 dev=sdev-2 pvers=[pver-0])
+(disk-2 dev=sdev-3 pvers=[pver-0])
+(disk-3 dev=sdev-4 pvers=[pver-0])
 (sdev-0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
     filename="/dev/sdev0")
 (sdev-1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4

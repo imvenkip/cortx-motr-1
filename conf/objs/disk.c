@@ -43,9 +43,10 @@ M0_CONF__INVARIANT_DEFINE(disk_invariant, m0_conf_disk);
 static int disk_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 		       struct m0_conf_cache *cache)
 {
-	int                  rc;
-	struct m0_conf_obj  *child;
-	struct m0_conf_disk *d = M0_CONF_CAST(dest, m0_conf_disk);
+	int                   rc;
+	struct m0_conf_obj   *child;
+	struct m0_conf_disk  *d = M0_CONF_CAST(dest, m0_conf_disk);
+	struct m0_confx_disk *s = XCAST(src);
 
 	rc = m0_conf_obj_find(cache, &XCAST(src)->xk_dev, &child);
 	if (rc == 0) {
@@ -53,17 +54,20 @@ static int disk_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 		/* back pointer to disk objects */
 		d->ck_dev->sd_disk = &dest->co_id;
 	}
-	return M0_RC(rc);
+	return M0_RC(conf_pvers_decode(&d->ck_pvers, &s->xk_pvers, cache));
+
 }
 
 static int disk_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
-	struct m0_conf_disk *s = M0_CONF_CAST(src, m0_conf_disk);
+	struct m0_conf_disk  *s = M0_CONF_CAST(src, m0_conf_disk);
+	struct m0_confx_disk *d = XCAST(dest);
 
 	confx_encode(dest, src);
 	if (s->ck_dev != NULL)
 		XCAST(dest)->xk_dev = s->ck_dev->sd_obj.co_id;
-	return 0;
+	return M0_RC(conf_pvers_encode(&d->xk_pvers,
+			  (const struct m0_conf_pver**)s->ck_pvers));
 }
 
 static bool
@@ -94,6 +98,7 @@ static void disk_delete(struct m0_conf_obj *obj)
 	struct m0_conf_disk *x = M0_CONF_CAST(obj, m0_conf_disk);
 
 	m0_conf_disk_bob_fini(x);
+	m0_free(x->ck_pvers);
 	m0_free(x);
 }
 

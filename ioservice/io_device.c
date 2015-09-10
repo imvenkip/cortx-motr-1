@@ -297,6 +297,8 @@ static int ios_poolmach_devices_add(struct m0_poolmach        *poolmach,
 			pooldev->pd_sdev_fid = disk->ck_dev->sd_obj.co_id;
 			pooldev->pd_id = disk->ck_obj.co_id;
 			pooldev->pd_node = poolnode;
+			m0_pooldev_clink_add(&pooldev->pd_clink,
+					     &obj->co_ha_chan);
 			M0_CNT_INC(i);
 		}
 	}
@@ -483,7 +485,6 @@ M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh_service *service)
 	pm = m0_reqh_lockers_get(reqh, poolmach_key);
 	m0_reqh_lockers_clear(reqh, poolmach_key);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-
 	m0_poolmach_fini(pm);
 	m0_free(pm);
 }

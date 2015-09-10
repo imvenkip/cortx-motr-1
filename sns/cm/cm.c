@@ -590,7 +590,7 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 		rc = m0_conf_disk_get(confc, dev_fid, &disk);
 		if (rc != 0)
 			return M0_RC(rc);
-		conf_pver = m0_pool_dev_pver(disk, confc);
+		conf_pver = disk->ck_pvers;
 		if (conf_pver == NULL)
 			return M0_ERR(-EINVAL);
 		for (j = 0; conf_pver[j] != NULL; ++j) {

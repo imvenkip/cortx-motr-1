@@ -24,8 +24,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/assert.h"
-#include "lib/hash.h"          /* m0_hash */
-
+#include "lib/hash.h"      /* m0_hash */
 #include "conf/confc.h"    /* m0_confc_from_obj */
 #include "conf/schema.h"   /* M0_CST_IOS, M0_CST_MDS */
 #include "conf/diter.h"    /* m0_conf_diter_next_sync */
@@ -44,6 +43,8 @@
 #ifndef __KERNEL__
 #include "mero/setup.h"
 #endif
+
+#include "lib/finject.h" /* M0_FI_ENABLED */
 /**
    @page pool_mach_store_replica DLD of Pool Machine store and replica
 
@@ -927,6 +928,60 @@ m0_pool_version2layout_id(const struct m0_fid *pv_fid, uint64_t lid)
 	        return m0_hash(m0_fid_hash(pv_fid) + lid);
 }
 
+static uint32_t ha2pm_state_map(enum m0_ha_obj_state hastate)
+{
+	uint32_t ha2pm_statemap [] = {
+		[M0_NC_ONLINE]         = M0_PNDS_ONLINE,
+		[M0_NC_FAILED]         = M0_PNDS_FAILED,
+		[M0_NC_TRANSIENT]      = M0_PNDS_OFFLINE,
+		[M0_NC_REPAIR]         = M0_PNDS_SNS_REPAIRING,
+		[M0_NC_REPAIRED]       = M0_PNDS_SNS_REPAIRED,
+		[M0_NC_REBALANCE]      = M0_PNDS_SNS_REBALANCING,
+	};
+	M0_ASSERT (hastate < M0_NC_NR);
+	return ha2pm_statemap[hastate];
+}
+
+static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
+{
+	struct m0_poolmach_event  pme;
+	struct m0_conf_obj       *obj;
+	struct m0_pooldev        *pdev;
+
+	M0_ENTRY();
+	obj = container_of(cl->cl_chan, struct m0_conf_obj, co_ha_chan);
+	M0_PRE(obj != NULL &&
+	       m0_conf_fid_type(&obj->co_id) == &M0_CONF_DISK_TYPE);
+	M0_ASSERT(obj != NULL);
+	pdev = container_of(cl, struct m0_pooldev, pd_clink);
+	M0_ASSERT(pdev != NULL);
+	pme.pe_type = M0_POOL_DEVICE;
+	pme.pe_index = pdev->pd_index;
+	pme.pe_state = ha2pm_state_map(obj->co_ha_state);
+	return M0_RC(m0_poolmach_state_transit(pdev->pd_pm, &pme, NULL));
+}
+
+M0_INTERNAL void m0_pooldev_clink_del(struct m0_clink *cl)
+{
+	if (M0_FI_ENABLED("do_nothing_for_poolmach-ut")) {
+		/*
+		 * The poolmach-ut does not add/register clink in pooldev.
+		 * So need to skip deleting the links if this is called
+		 * during poolmach-ut.
+		 * TODO: This is workaround & can be addressed differently.
+		 */
+		return;
+	}
+	m0_clink_del_lock(cl);
+	m0_clink_fini(cl);
+}
+
+M0_INTERNAL void m0_pooldev_clink_add(struct m0_clink *link,
+				      struct m0_chan  *chan)
+{
+	m0_clink_init(link, disks_poolmach_state_update_cb);
+	m0_clink_add_lock(chan, link);
+}
 #ifndef __KERNEL__
 /**
  * Find out device ids of the REPAIRED devices in the given pool machine
@@ -953,18 +1008,6 @@ M0_INTERNAL int m0_pool_device_reopen(struct m0_poolmach *pm,
 		}
 	}
 	return M0_RC(rc);
-}
-
-M0_INTERNAL struct m0_conf_pver **m0_pool_dev_pver(struct m0_conf_disk *disk,
-						   struct m0_confc *confc)
-{
-	struct m0_conf_dir        *dir;
-	struct m0_conf_controller *contr;
-
-	dir = M0_CONF_CAST(disk->ck_obj.co_parent, m0_conf_dir);
-	contr = M0_CONF_CAST(dir->cd_obj.co_parent,
-			     m0_conf_controller);
-	return contr->cc_pvers;
 }
 
 static int pool_device_index(struct m0_poolmach *pm, struct m0_fid *fid)

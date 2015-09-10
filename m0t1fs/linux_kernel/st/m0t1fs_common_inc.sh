@@ -79,6 +79,7 @@ TM_MIN_RECV_QUEUE_LEN=16
 MAX_RPC_MSG_SIZE=65536
 XPT=lnet
 MD_REDUNDANCY=1  # Meta-data redundancy, use greater than 1 after failure domain is available.
+PVERID='^v|1:10'
 
 unload_kernel_module()
 {
@@ -215,7 +216,6 @@ function build_conf()
 	local  ENCLID='^e|1:7'
 	local  CTRLID='^c|1:8'
 	local  POOLID='^o|1:9'
-	local  PVERID='^v|1:10'
 	#"pool_width" number of objv created for devv conf objects
 	local  RACKVID="^j|1:$(($pool_width + 1))"
 	local  ENCLVID="^j|1:$(($pool_width + 2))"
@@ -329,9 +329,9 @@ function build_conf()
 		local RACK1="{0x61| (($RACKID1), [1: $ENCLID1], [1: $PVERID1])}"
 		local ENCL1="{0x65| (($ENCLID1), [1: $CTRLID1], [1: $PVERID1])}"
 		local CTRL1="{0x63| (($CTRLID1), $NODEID1, [3: $DISKID1, $DISKID2, $DISKID3], [1: $PVERID1])}"
-		local  DISK1="{0x6b| (($DISKID1), $SDEVID1)}"
-		local  DISK2="{0x6b| (($DISKID2), $SDEVID2)}"
-		local  DISK3="{0x6b| (($DISKID3), $SDEVID3)}"
+                local DISK1="{0x6b| (($DISKID1), $SDEVID1, [1: $PVERID1])}"
+                local DISK2="{0x6b| (($DISKID2), $SDEVID2, [1: $PVERID1])}"
+                local DISK3="{0x6b| (($DISKID3), $SDEVID3, [1: $PVERID1])}"
 
 		local POOL1="{0x6f| (($POOLID1), 0, [1: $PVERID1])}"
 		local PVER1="{0x76| (($PVERID1), 0, 1, 1, 3, [5: 1, 0, 0, 0, 1], [1: $RACKVID1])}"

@@ -29,6 +29,7 @@
 #undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_POOL
 #include "lib/trace.h"      /* M0_LOG */
+#include "lib/finject.h"    /* m0_fi_enable_off_n_on_m() m0_fi_disable() */
 
 enum {
 	PM_TEST_DEFAULT_DEVICE_NUMBER      = 10,
@@ -398,10 +399,14 @@ static void pm_test_transit(void)
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == -EINVAL);
 
+	m0_fi_enable_off_n_on_m("m0_pooldev_clink_del",
+			  "do_nothing_for_poolmach-ut", 0,
+			  (PM_TEST_DEFAULT_DEVICE_NUMBER + 1));
 	/* Destroy poolmach persistent storage. We will have some different
 	 * poolmach parameters in next test case.
 	 */
 	m0_poolmach_store_destroy(&pm, be_seg, sm_grp, NULL);
+	m0_fi_disable("m0_pooldev_clink_del", "do_nothing_for_poolmach-ut");
 	/* finally */
 	m0_poolmach_fini(&pm);
 }
@@ -452,7 +457,7 @@ static void pm_test_spare_slot(void)
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
-		if (state == M0_PNDS_SNS_REPAIRING)
+		if (state == M0_PNDS_SNS_REPAIRING || state == M0_PNDS_FAILED)
 			continue;
 		/* transit to other state other than the above one is invalid */
 		event.pe_state = state;
@@ -485,7 +490,8 @@ static void pm_test_spare_slot(void)
 	rc = m0_poolmach_sns_repair_spare_query(&pm, 2, &spare_slot);
 	M0_UT_ASSERT(rc == -ENOENT);
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
-		if (state == M0_PNDS_SNS_REPAIRED)
+		if (state == M0_PNDS_SNS_REPAIRED ||
+		    state == M0_PNDS_SNS_REPAIRING)
 			continue;
 		/* transit to other state other than the above one is invalid */
 		event.pe_state = state;
@@ -514,7 +520,8 @@ static void pm_test_spare_slot(void)
 	rc = m0_poolmach_sns_repair_spare_query(&pm, 2, &spare_slot);
 	M0_UT_ASSERT(rc == -ENOENT);
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
-		if (state == M0_PNDS_SNS_REBALANCING)
+		if (state == M0_PNDS_SNS_REBALANCING ||
+		    state == M0_PNDS_SNS_REPAIRED)
 			continue;
 		/* transit to other state other than the above one is invalid */
 		event.pe_state = state;
@@ -540,7 +547,8 @@ static void pm_test_spare_slot(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 0);
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
-		if (state == M0_PNDS_ONLINE)
+		if (state == M0_PNDS_ONLINE ||
+		    state == M0_PNDS_SNS_REBALANCING)
 			continue;
 		/* transit to other state other than the above one is invalid */
 		event.pe_state = state;
@@ -564,10 +572,14 @@ static void pm_test_spare_slot(void)
 	rc = m0_poolmach_sns_repair_spare_query(&pm, 1, &spare_slot);
 	M0_UT_ASSERT(rc == -ENOENT);
 
+	m0_fi_enable_off_n_on_m("m0_pooldev_clink_del",
+			  "do_nothing_for_poolmach-ut", 0,
+			  (PM_TEST_DEFAULT_DEVICE_NUMBER + 1));
 	/* Destroy poolmach persistent storage. We will have some different
 	 * poolmach parameters in next test case.
 	 */
 	m0_poolmach_store_destroy(&pm, be_seg, sm_grp, NULL);
+	m0_fi_disable("m0_pooldev_clink_del", "do_nothing_for_poolmach-ut");
 	/* finally */
 	m0_poolmach_fini(&pm);
 }
@@ -795,9 +807,13 @@ static void pm_test_load_from_persistent_storage(void)
 				      3 /* three spare device */);
 	M0_UT_ASSERT(rc == 0);
 
+	m0_fi_enable_off_n_on_m("m0_pooldev_clink_del",
+			  "do_nothing_for_poolmach-ut", 0,
+			  (PM_TEST_DEFAULT_DEVICE_NUMBER + 1));
 	/* Destroy poolmach persistent storage.
 	 */
 	m0_poolmach_store_destroy(&pm, be_seg, sm_grp, NULL);
+	m0_fi_disable("m0_pooldev_clink_del", "do_nothing_for_poolmach-ut");
 	m0_poolmach_fini(&pm);
 }
 

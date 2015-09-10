@@ -49,7 +49,8 @@ static bool obj_is_flset_target(const struct m0_conf_obj *obj)
 {
 	return M0_IN(m0_conf_obj_type(obj), (&M0_CONF_RACK_TYPE,
 					     &M0_CONF_ENCLOSURE_TYPE,
-					     &M0_CONF_CONTROLLER_TYPE));
+					     &M0_CONF_CONTROLLER_TYPE,
+					     &M0_CONF_DISK_TYPE));
 
 }
 
@@ -61,7 +62,8 @@ static int flset_diter_init(struct m0_conf_diter      *it,
 	return m0_conf_diter_init(it, confc, &fs->cf_obj,
 				  M0_CONF_FILESYSTEM_RACKS_FID,
 				  M0_CONF_RACK_ENCLS_FID,
-				  M0_CONF_ENCLOSURE_CTRLS_FID);
+				  M0_CONF_ENCLOSURE_CTRLS_FID,
+				  M0_CONF_CONTROLLER_DISKS_FID);
 }
 
 static int flset_diter_next(struct m0_conf_diter *it)
@@ -114,7 +116,8 @@ flset_update(struct m0_flset *flset, struct m0_conf_obj *obj)
 	    m0_flset_tlist_contains(&flset->fls_objs, obj)) {
 		m0_flset_tlist_del(obj);
 		pver_failed_devs_count_update(obj);
-	} else if (obj->co_ha_state == M0_NC_FAILED &&
+	} else if ((obj->co_ha_state == M0_NC_FAILED ||
+		    obj->co_ha_state == M0_NC_TRANSIENT) &&
 		   !m0_flset_tlist_contains(&flset->fls_objs, obj)) {
 		m0_flset_tlist_add_tail(&flset->fls_objs, obj);
 		pver_failed_devs_count_update(obj);

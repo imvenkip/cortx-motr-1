@@ -34,7 +34,8 @@ int m0_poolmach__store_init(struct m0_be_seg          *be_seg,
 			    uint32_t                   nr_devices,
 			    uint32_t                   max_node_failures,
 			    uint32_t                   max_device_failures,
-			    struct m0_poolmach_state **state);
+			    struct m0_poolmach_state **state,
+			    struct m0_poolmach        *pm);
 
 M0_INTERNAL int m0_poolmach__store(struct m0_poolmach            *pm,
 				   struct m0_be_tx               *tx,
@@ -48,7 +49,8 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 			     uint32_t                    nr_devices,
 			     struct m0_pool_spare_usage *spare_usage_array,
 			     uint32_t                    max_node_failures,
-			     uint32_t                    max_device_failures);
+			     uint32_t                    max_device_failures,
+			     struct m0_poolmach         *poolmach);
 
 static inline uint32_t m0_pm_devices_nr(uint32_t nr_devices)
 {

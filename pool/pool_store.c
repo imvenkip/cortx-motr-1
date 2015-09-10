@@ -225,7 +225,8 @@ static int poolmach_store_create(struct m0_be_seg   *be_seg,
 				 uint32_t            nr_nodes,
 				 uint32_t            nr_devices,
 				 uint32_t            max_node_failures,
-				 uint32_t            max_device_failures)
+				 uint32_t            max_device_failures,
+				 struct m0_poolmach *pm)
 {
 	struct m0_poolmach_state   *state;
 	struct m0_poolnode         *nodes_array;
@@ -248,7 +249,7 @@ static int poolmach_store_create(struct m0_be_seg   *be_seg,
 
 	m0_poolmach__state_init(state, nodes_array, nr_nodes, devices_array,
 				nr_devices, spare_usage_array,
-				max_node_failures, max_device_failures);
+				max_node_failures, max_device_failures, pm);
 	poolmach_state_capture(be_seg, be_tx, state);
 
 	data = M0_BUF_INIT_PTR(&state);
@@ -271,7 +272,8 @@ int m0_poolmach__store_init(struct m0_be_seg          *be_seg,
 			    uint32_t                   nr_devices,
 			    uint32_t                   max_node_failures,
 			    uint32_t                   max_device_failures,
-			    struct m0_poolmach_state **state)
+			    struct m0_poolmach_state **state,
+			    struct m0_poolmach        *pm)
 {
 	int rc;
 
@@ -294,7 +296,7 @@ int m0_poolmach__store_init(struct m0_be_seg          *be_seg,
 	else
 		rc = poolmach_store_create(be_seg, be_tx, nr_nodes, nr_devices,
 					   max_node_failures,
-					   max_device_failures);
+					   max_device_failures, pm);
 	if (rc == 0)
 		*state = m0_get()->i_pool_module;
 	return M0_RC(rc);
@@ -312,8 +314,10 @@ static int poolmach_store_destroy(struct m0_be_seg   *be_seg,
 	struct m0_poolmach_event_link *scan;
 	struct m0_list_link           *prev;
 	struct m0_list_link           *next;
+	struct m0_clink               *cl;
 	const char                    *id = "000000001";
 	int                            rc;
+	int                            i;
 
 	M0_PRE(be_seg != NULL);
 	M0_ENTRY("sid: %"PRIu64, be_seg->bs_id);
@@ -355,6 +359,26 @@ static int poolmach_store_destroy(struct m0_be_seg   *be_seg,
 
 	M0_SET0(&cred);
 	m0_be_tx_init(tx, 0, be_seg->bs_domain, sm_grp, NULL, NULL, NULL, NULL);
+	for (i = 0; i < (state->pst_nr_devices -1); ++i) {
+		/*
+		 * Interating one device less as the last device in the
+		 * pst_devices_array remains unused. This is  because
+		 * pst_nr_devices is incremented by one so as to keep
+		 * the 0th device reserved for ADDB device but the 0th
+		 * device is never skipped in subsequent usage of the
+		 * array. See: m0_pm_devices_nr()
+		 * Due to this the clink in the last pooldevice in the
+		 * pst_devices_array is unregistered and calling
+		 * m0_pooldev_clink_del() on it caused core dump hence
+		 * need to skip the last device in pst_devices_array
+		 * during clink delete.
+		 * TODO: Handle/treat 0th device in pst_devices_array
+		 * as ADDB device and start using the array from 1st
+		 * index for io devices.
+		 */
+		cl = &state->pst_devices_array[i].pd_clink;
+		m0_pooldev_clink_del(cl);
+	}
 	M0_BE_FREE_CREDIT_PTR(state, be_seg, &cred);
 	M0_BE_FREE_CREDIT_ARR(nodes_array, state->pst_nr_nodes, be_seg, &cred);
 	M0_BE_FREE_CREDIT_ARR(devices_array, state->pst_nr_devices, be_seg,
@@ -429,8 +453,7 @@ M0_INTERNAL int m0_poolmach_credit_calc(struct m0_poolmach *pm,
 		rc = m0_conf_disk_get(confc, dev_fid, &disk);
 		if (rc != 0)
 			return M0_RC(rc);
-		conf_pver =
-			m0_pool_dev_pver(disk, confc);
+		conf_pver = disk->ck_pvers;
 		if (conf_pver == NULL) {
 			m0_confc_close(&disk->ck_obj);
 			return M0_ERR(-EINVAL);
@@ -471,7 +494,8 @@ int m0_poolmach__store_init(struct m0_be_seg          *be_seg,
 			    uint32_t                   nr_devices,
 			    uint32_t                   max_node_failures,
 			    uint32_t                   max_device_failures,
-			    struct m0_poolmach_state **state)
+			    struct m0_poolmach_state **state,
+			    struct m0_poolmach        *pm)
 {
 	return 0;
 }

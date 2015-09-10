@@ -268,12 +268,6 @@ m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
 				 enum m0_conf_service_type type);
 
 /**
- * Returns an array of pool versions associated with the given device.
- */
-M0_INTERNAL struct m0_conf_pver **m0_pool_dev_pver(struct m0_conf_disk *disk,
-						   struct m0_confc *confc);
-
-/**
  * A state that a pool node/device can be in.
  */
 enum m0_pool_nd_state {
@@ -335,8 +329,17 @@ struct m0_pooldev {
 	struct m0_fid           pd_id;
 	/** storage device fid */
 	struct m0_fid           pd_sdev_fid;
-	/* a node this storage device is attached to */
+	/** a node this storage device is attached to */
 	struct m0_poolnode     *pd_node;
+	/** pool machine this pooldev belongs to */
+	struct m0_poolmach     *pd_pm;
+	/**
+	 * Link to receive HA state change notification. This will wait on
+	 * disk obj's wait channel i.e. m0_conf_obj::co_ha_chan.
+	 */
+	struct m0_clink         pd_clink;
+	/** pooldev index in the poolmachine-state device array*/
+	uint32_t                pd_index;
 	struct m0_format_footer pd_footer;
 };
 
@@ -457,6 +460,17 @@ void m0_poolmach_store_init_creds_add(struct m0_be_seg       *be_seg,
 				      uint32_t                max_dev_fails,
 				      struct m0_be_tx_credit *cred);
 
+
+/**
+ * Register clink of pooldev to disk conf object's wait channel
+ * to receive HA notifications.
+ */
+M0_INTERNAL void m0_pooldev_clink_add(struct m0_clink *link,
+				      struct m0_chan  *chan);
+/**
+ * Delete clink of pooldev
+ */
+M0_INTERNAL void m0_pooldev_clink_del(struct m0_clink *cl);
 /** @} end of servermachine group */
 #endif /* __MERO_POOL_POOL_H__ */
 

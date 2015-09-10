@@ -373,6 +373,8 @@ M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj)
 		return M0_CONF_CAST(obj, m0_conf_enclosure)->ce_pvers;
 	else if (obj_type == &M0_CONF_CONTROLLER_TYPE)
 		return M0_CONF_CAST(obj, m0_conf_controller)->cc_pvers;
+	else if (obj_type == &M0_CONF_DISK_TYPE)
+		return M0_CONF_CAST(obj, m0_conf_disk)->ck_pvers;
 	else
 		M0_IMPOSSIBLE("");
 }

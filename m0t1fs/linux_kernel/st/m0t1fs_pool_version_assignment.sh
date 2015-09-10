@@ -71,6 +71,8 @@ pool_version_assignment()
 	local ctrl_from_pver1="^c|10:1"
 	local process_from_pver1="^r|10:1"
 	local ios_from_pver1="^s|10:1"
+        local disk_from_pver0="^k|1:1"
+        local disk_from_pver1="^k|10:1"
 
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$1"|| {
 		return 1
@@ -151,7 +153,6 @@ pool_version_assignment()
 		unmount_and_clean
 		return 1
 	}
-
 	###  Should succeed since pool version 1 is available now.
 	touch $MERO_M0T1FS_MOUNT_DIR/$file4 || {
 		unmount_and_clean
@@ -172,6 +173,38 @@ pool_version_assignment()
 		unmount_and_clean
 		return 1
 	}
+
+        #Test pool version switch on disk failures.
+        ### Mark disk from pool version 0 as failed.
+        change_controller_state "$disk_from_pver0" "$M0_NC_FAILED" "0" || {
+                unmount_and_clean
+                return 1
+        }
+	touch $MERO_M0T1FS_MOUNT_DIR/$file1 || {
+		unmount_and_clean
+		return 1
+	}
+	setfattr -n lid -v 8 $MERO_M0T1FS_MOUNT_DIR/$file1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$file1 bs=1M count=5 || {
+		unmount_and_clean
+		return 1
+	}
+	rm -vf $MERO_M0T1FS_MOUNT_DIR/$file1 || {
+		unmount_and_clean
+		return 1
+	}
+
+        ### Mark disk from pool version 1 as failed.
+        change_controller_state "$disk_from_pver1" "$M0_NC_FAILED" "0" || {
+                unmount_and_clean
+                return 1
+        }
+
+        ###  Should fail since no pool available now failed.
+        touch $MERO_M0T1FS_MOUNT_DIR/$file2 && {
+                unmount_and_clean
+                return 1
+        }
 
 	unmount_and_clean
 	return 0

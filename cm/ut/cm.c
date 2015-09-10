@@ -128,12 +128,12 @@ static void cm_setup_ut(void)
 	m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
 	reqh = cm_ut_service->rs_reqh;
 	pm = m0_ios_poolmach_get(reqh);
-	m0_confc_fini(confc);
 	grp = m0_locality0_get()->lo_grp;
 	m0_sm_group_lock(grp);
 	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
 	m0_sm_group_unlock(grp);
 	m0_ios_poolmach_fini(cm_ut_service);
+	m0_confc_fini(confc);
 	cm_ut_service_cleanup();
 }
 

@@ -114,8 +114,7 @@ static void poolmach_fom_store_credit(struct m0_fom *fom)
 				      &disk);
 		if (rc != 0)
 			break;
-		conf_pver =
-			m0_pool_dev_pver(disk, confc);
+		conf_pver = disk->ck_pvers;
 		for (k = 0; conf_pver[k] != NULL; ++k) {
 			pool_ver =
 				m0_pool_version_find(&mero->cc_pools_common,
@@ -216,6 +215,12 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 		     pme.pe_type  = set_fop->fps_type;
 		     pme.pe_index = set_fop->fps_dev_info.fpi_dev[i].fpd_index;
 		     pme.pe_state = set_fop->fps_dev_info.fpi_dev[i].fpd_state;
+		     /* Update the global pool-machine. */
+		     M0_ASSERT(pme.pe_index < poolmach->pm_state->pst_nr_devices);
+		     rc = m0_poolmach_state_transit(poolmach, &pme,
+						    &fom->fo_tx.tx_betx);
+		     if (rc != 0)
+			     break;
 		     /* Update pool-machines per pool-version to which device
 		      * is associated.
 		      */
@@ -223,7 +228,7 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 		     rc = m0_conf_disk_get(confc, dev_fid, &disk);
 		     if (rc != 0)
 			     break;
-		     conf_pver = m0_pool_dev_pver(disk, confc);
+		     conf_pver = disk->ck_pvers;
 		     if (conf_pver == NULL)
 			     break;
 		     for (k = 0; conf_pver[k] != NULL; ++k) {
@@ -250,12 +255,6 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 				     break;
 		     }
 		     m0_confc_close(&disk->ck_obj);
-		     /* Update the global pool-machine. */
-		     M0_ASSERT(pme.pe_index < pv_pm->pm_state->pst_nr_devices);
-		     rc = m0_poolmach_state_transit(poolmach, &pme,
-						    &fom->fo_tx.tx_betx);
-		     if (rc != 0)
-			     break;
 		}
 		set_fop_rep->fps_rc = rc;
 		break;

@@ -522,11 +522,16 @@ struct m0_conf_sdev {
 };
 
 struct m0_conf_disk {
-	struct m0_conf_obj   ck_obj;
+	struct m0_conf_obj    ck_obj;
 	/** Pointer to the storage device associated with this disk. */
-	struct m0_conf_sdev *ck_dev;
+	struct m0_conf_sdev  *ck_dev;
+	/**
+	 * Pool versions this disk is part of.
+	 * NULL-terminated array.
+	 */
+	struct m0_conf_pver **ck_pvers;
 };
-
+
 /* ------------------------------------------------------------------
  * Cast
  * ------------------------------------------------------------------ */

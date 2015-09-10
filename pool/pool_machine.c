@@ -83,6 +83,9 @@ static void poolmach_state_update(struct m0_poolmach_state *st,
 			d->ck_obj.co_id;
 		st->pst_devices_array[*idx_devices].pd_node =
 			&st->pst_nodes_array[*idx_nodes];
+		m0_pooldev_clink_add(
+			&st->pst_devices_array[*idx_devices].pd_clink,
+			&d->ck_obj.co_ha_chan);
 		M0_CNT_INC(*idx_devices);
 	} else {
 		M0_IMPOSSIBLE("Invalid conf_obj type");
@@ -125,7 +128,8 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 			     uint32_t                    nr_devices,
 			     struct m0_pool_spare_usage *spare_usage_array,
 			     uint32_t                    max_node_failures,
-			     uint32_t                    max_device_failures)
+			     uint32_t                    max_device_failures,
+			     struct m0_poolmach         *pm)
 {
 	int i;
 
@@ -152,6 +156,8 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 		state->pst_devices_array[i].pd_state = M0_PNDS_ONLINE;
 		M0_SET0(&state->pst_devices_array[i].pd_id);
 		state->pst_devices_array[i].pd_node = NULL;
+		state->pst_devices_array[i].pd_index = i;
+		state->pst_devices_array[i].pd_pm = pm;
 	}
 
 	for (i = 0; i < state->pst_max_device_failures; i++) {
@@ -204,7 +210,7 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 
 	m0_poolmach__state_init(state, nodes_array, nr_nodes, devices_array,
 				nr_devices, spare_usage_array,
-				max_node_failures, max_device_failures);
+				max_node_failures, max_device_failures, pm);
 	poolmach_init(pm, state, NULL);
 	return M0_RC(0);
 }
@@ -261,7 +267,7 @@ int m0_poolmach_backed_init(struct m0_poolmach *pm,
 	rc = m0_poolmach__store_init(be_seg, be_tx, nr_nodes,
 				     nr_devices, max_node_failures,
 			             max_device_failures,
-				     &state);
+				     &state, pm);
 	if (rc == 0)
 		poolmach_init(pm, state, be_seg);
 	return M0_RC(rc);
@@ -271,6 +277,8 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 {
 	struct m0_poolmach_event_link *scan;
 	struct m0_poolmach_state      *state = pm->pm_state;
+	struct m0_clink               *cl;
+	int                            i;
 
 	M0_PRE(pm != NULL);
 
@@ -286,6 +294,26 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 			m0_free(scan);
 		} m0_tl_endfor;
 
+		for (i = 0; i < (state->pst_nr_devices -1); ++i) {
+			/*
+			 * Interating one device less as the last device in the
+			 * pst_devices_array remains unused. This is  because
+			 * pst_nr_devices is incremented by one so as to keep
+			 * the 0th device reserved for ADDB device but the 0th
+			 * device is never skipped in subsequent usage of the
+			 * array. See: m0_pm_devices_nr()
+			 * Due to this the clink in the last pooldevice in the
+			 * pst_devices_array is unregistered and calling
+			 * m0_pooldev_clink_del() on it caused core dump hence
+			 * need to skip the last device in pst_devices_array
+			 * during clink delete.
+			 * TODO: Handle/treat 0th device in pst_devices_array
+			 * as ADDB device and start using the array from 1st
+			 * index for io devices.
+			 */
+			cl = &state->pst_devices_array[i].pd_clink;
+			m0_pooldev_clink_del(cl);
+		}
 		m0_free(state->pst_spare_usage_array);
 		m0_free(state->pst_devices_array);
 		m0_free(state->pst_nodes_array);
@@ -402,10 +430,13 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		return M0_ERR(-EINVAL);
 	}
 
+	if (old_state == event->pe_state)
+		return M0_RC(0);
+
 	switch (old_state) {
 	case M0_PNDS_ONLINE:
 		if (!M0_IN(event->pe_state, (M0_PNDS_OFFLINE,
-						M0_PNDS_FAILED)))
+					     M0_PNDS_FAILED)))
 			return M0_ERR(-EINVAL);
 		break;
 	case M0_PNDS_OFFLINE:

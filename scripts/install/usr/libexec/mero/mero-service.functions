@@ -531,6 +531,7 @@ _build_disk_ids_str()
 {
     local start_id=$1
     local count=$2
+    local pverid=$3
 
     local dev_ids
     local id
@@ -573,6 +574,7 @@ _build_diskv_fids_str()
 _build_ios_devs()
 {
     local count=$1
+    local pverid=$2
 
     local devs
     local id
@@ -581,7 +583,7 @@ _build_ios_devs()
         local ddisk_id="^k|1:$id"
         local ddiskv_id="^j|1:$id"
         local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$id\")}"
-        local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id)}"
+        local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id, [1: $pverid])}"
         local ddiskv_obj="{0x6a| (($ddiskv_id), $ddisk_id, [0])}"
         local dev="$ddev_obj,\n  $ddisk_obj,\n  $ddiskv_obj"
         devs="$devs${devs:+,\n  }$dev"
@@ -687,7 +689,7 @@ _build_service_objects()
                 local count=$(m0_get_global_services ios | wc -w)
                 local disks_per_service=$(( $pool_width / $count ))
 
-                disk_ids=$(_build_disk_ids_str $(($ios_nr * $disks_per_service + 1)) $disks_per_service)
+                disk_ids=$(_build_disk_ids_str $(($ios_nr * $disks_per_service + 1)) $disks_per_service $pverid)
                 ((ios_nr++)) || true
             fi
 
@@ -771,7 +773,7 @@ m0_build_local_conf()
   {0x6e| (($node), 16000, 2, 3, 2, $poolid, [$procs: $proc_names])},
   $proc_objs,
   $service_objs,
-  $(_build_ios_devs $pool_width),
+  $(_build_ios_devs $pool_width $pverid),
   $rack,
   $encl,
   $ctrl,
