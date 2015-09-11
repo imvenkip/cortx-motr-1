@@ -25,11 +25,8 @@ SINGLE_FILE="SINGLE_FILE"
 SEPARATE_FILE="SEPARATE_FILE"
 BOTH_FILE_KINDS="BOTH_FILE_KINDS" # default
 
-# File creation gets hung after a device failure. MERO-1085 has been created for the same.
-# file_kind should be changed back to BOTH_FILE_KINDS once MERO-1085 is fixed.
-#export file_kind=$BOTH_FILE_KINDS
-export file_kind=$SINGLE_FILE
-
+export file_kind=$BOTH_FILE_KINDS
+#export file_kind=$SEPARATE_FILE
 # Data pattern to be used while creating data files for testing
 # - ABCD
 #   - Each alphabet from 'a' to 'z' is written 4096 times each serailly

@@ -201,6 +201,10 @@ fmio_files_write()
 	then
 		file_to_compare_sandbox="$fmio_sandbox/0:1000$dd_count"
 		file_to_compare_m0t1fs="$MERO_M0T1FS_MOUNT_DIR/0:1000$dd_count"
+		echo "touch $file_to_compare_m0t1fs"
+		echo "setfattr -n lid -v 4 $file_to_compare_m0t1fs"
+		touch $file_to_compare_m0t1fs
+		setfattr -n lid -v 4 $file_to_compare_m0t1fs
 	fi
 	echo -e "Write to the files from sandbox and m0t1fs (dd_count #$dd_count):"
 	echo -e "\t - $file_to_compare_sandbox \n\t - $file_to_compare_m0t1fs"
@@ -242,6 +246,8 @@ fmio_files_compare()
 {
 	#Read file from m0t1fs with minimum possible count
 	local block_size=`expr $ABCD_SOURCE_SIZE \+ $random_source_size`
+	mount | grep m0t1
+	ls -l $file_to_compare_m0t1fs
 	dd if=$file_to_compare_m0t1fs bs=$block_size count=1 of=$fmio_sandbox/local_m0t1fs_cp
 	cmp $file_to_compare_sandbox $fmio_sandbox/local_m0t1fs_cp
 	rc=$?
@@ -497,11 +503,14 @@ fmio_io_test()
 		echo "Failed: IO or read after first $step..."
 		return 1
 	}
-	echo -e "\n*** $test_name test 2: Another IO and read after first $step ***"
-	fmio_files_write dd bs=8821 count=5 seek=23 conv=notrunc || {
-		echo "Failed: IO or read after first $step..."
-		return 1
-	}
+	if [ $single_file_test -eq 1 ]
+	then
+		echo -e "\n*** $test_name test 2.1: Another IO and read after first $step ***"
+		fmio_files_write dd bs=8821 count=5 seek=23 conv=notrunc || {
+			echo "Failed: IO or read after first $step..."
+			return 1
+		}
+	fi
 	echo "Sending device2 failure"
 	fmio_pool_mach_set_failure $fail_device2 || {
 		return 1
