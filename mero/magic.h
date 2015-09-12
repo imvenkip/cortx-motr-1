@@ -129,7 +129,16 @@ enum m0_magic_satchel {
 	/* be/log.c::record_tl (be loss head) */
 	M0_BE_LOG_RECORD_HEAD_MAGIC = 0x33be10554ead77,
 
-	/* m0_be_log_record_iter::lri_link (be safe heal) */
+	/* m0_be_log_discard::lds_start_q (feed flies) */
+	M0_BE_LOG_DISCARD_MAGIC = 0x33feedf11e577,
+
+	/* be/log_discard.c::ld_start_tl (be is cool) */
+	M0_BE_LOG_DISCARD_HEAD_MAGIC = 0x33be15c00177,
+
+	/* m0_be_log_discard::lds_item_pool (flood blob) */
+	M0_BE_LOG_DISCARD_POOL_MAGIC = 0x33f100db10b77,
+
+	/* m0_be_log_record_iter::lri_linkage (be safe heal) */
 	M0_BE_RECOVERY_MAGIC = 0x33be5afe4ea177,
 
 	/* be/recovery.c::log_record_iter_tl (be safe head) */

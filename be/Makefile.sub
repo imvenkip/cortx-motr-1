@@ -13,6 +13,7 @@ nobase_mero_include_HEADERS += \
                                be/io_sched.h        \
                                be/list.h            \
                                be/log.h             \
+			       be/log_discard.h     \
 			       be/log_sched.h       \
 			       be/log_store.h       \
 			       be/op.h              \
@@ -48,6 +49,7 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/io_sched.c        \
 			   be/list.c            \
 			   be/log.c             \
+			   be/log_discard.c     \
 			   be/log_sched.c       \
 			   be/log_store.c       \
 			   be/op.c              \

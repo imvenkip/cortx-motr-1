@@ -64,6 +64,9 @@ extern void m0_be_ut_log_store_rbuf(void);
 
 extern void m0_be_ut_log_sched(void);
 
+extern void m0_be_ut_log_discard_usecase(void);
+extern void m0_be_ut_log_discard_getput(void);
+
 extern void m0_be_ut_log_user(void);
 extern void m0_be_ut_log_api(void);
 extern void m0_be_ut_log_header(void);
@@ -158,6 +161,8 @@ struct m0_ut_suite be_ut = {
 		{ "log_store-io_translate",  m0_be_ut_log_store_io_translate  },
 		{ "log_store-rbuf",          m0_be_ut_log_store_rbuf          },
 		{ "log_sched-noop",          m0_be_ut_log_sched               },
+		{ "log_discard-usecase",     m0_be_ut_log_discard_usecase     },
+		{ "log_discard-getput",      m0_be_ut_log_discard_getput      },
 		{ "log-user",                m0_be_ut_log_user                },
 		{ "log-api",                 m0_be_ut_log_api                 },
 		{ "log-header",              m0_be_ut_log_header              },
