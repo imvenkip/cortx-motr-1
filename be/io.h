@@ -28,8 +28,12 @@
 #include "lib/chan.h"           /* m0_clink */
 #include "lib/types.h"          /* m0_bcount_t */
 #include "lib/atomic.h"         /* m0_atomic64 */
+#include "lib/ext.h"            /* m0_ext */
+
+#include "be/op.h"              /* m0_be_op */
 
 #include "stob/io.h"            /* m0_stob_io */
+#include "sm/sm.h"              /* m0_sm_ast */
 
 /**
  * @defgroup be Meta-data back-end
@@ -38,11 +42,14 @@
  * m0_be_io is an abstraction on top of m0_stob_io. It makes all kinds
  * of stob I/O inside BE easier.
  *
+ * * Tests
+ * - test that I/O callback even for empty I/O is called from somewhere else;
  * @{
  */
 
 struct m0_stob;
 struct m0_be_io;
+struct m0_be_io_sched;
 
 struct m0_be_io_part {
 	struct m0_stob_io bip_sio;
@@ -98,6 +105,7 @@ struct m0_be_io {
 	/** @see m0_be_io_sync_enable */
 	bool                    bio_sync;
 	enum m0_stob_io_opcode  bio_opcode;
+	struct m0_sm_ast        bio_ast;
 
 	void                   *bio_user_data;
 };
@@ -145,6 +153,9 @@ M0_INTERNAL m0_bcount_t m0_be_io_size(struct m0_be_io *bio);
 
 /** call fdatasync() for linux stob after IO completion */
 M0_INTERNAL void m0_be_io_sync_enable(struct m0_be_io *bio);
+M0_INTERNAL bool m0_be_io_sync_is_enabled(struct m0_be_io *bio);
+
+M0_INTERNAL enum m0_stob_io_opcode m0_be_io_opcode(struct m0_be_io *io);
 
 M0_INTERNAL void m0_be_io_configure(struct m0_be_io        *bio,
 				    enum m0_stob_io_opcode  opcode);

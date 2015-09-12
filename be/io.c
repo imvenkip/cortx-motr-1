@@ -29,6 +29,7 @@
 #include "lib/memory.h"          /* m0_alloc */
 #include "lib/errno.h"           /* ENOMEM */
 #include "lib/ext.h"             /* m0_ext_are_overlapping */
+#include "lib/locality.h"        /* m0_locality0_get */
 
 #include "stob/linux.h"          /* m0_stob_linux_container */
 #include "stob/io.h"             /* m0_stob_iovec_sort */
@@ -533,7 +534,8 @@ static void be_io_finished(struct m0_be_io *bio)
 	unsigned              i;
 	int                   rc;
 
-	finished_nr = m0_atomic64_add_return(&bio->bio_stob_io_finished_nr, 1);
+	finished_nr = bio->bio_stob_nr == 0 ? 0 :
+		      m0_atomic64_add_return(&bio->bio_stob_io_finished_nr, 1);
 	/*
 	 * Next `if' body will be executed only in the last finished stob I/O
 	 * callback.
@@ -585,6 +587,14 @@ static bool be_io_cb(struct m0_clink *link)
 	return rc == 0;
 }
 
+static void be_io_empty_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_be_io *bio = ast->sa_datum;
+
+	M0_PRE(m0_be_io_is_empty(bio));
+	be_io_finished(bio);
+}
+
 M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 {
 	unsigned i;
@@ -600,7 +610,9 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 	m0_be_op_active(op);
 
 	if (m0_be_io_is_empty(bio)) {
-		m0_be_op_done(op);
+		bio->bio_ast.sa_cb    = &be_io_empty_ast;
+		bio->bio_ast.sa_datum = bio;
+		m0_sm_ast_post(m0_locality0_get()->lo_grp, &bio->bio_ast);
 		return;
 	}
 
@@ -616,6 +628,16 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 M0_INTERNAL void m0_be_io_sync_enable(struct m0_be_io *bio)
 {
 	bio->bio_sync = true;
+}
+
+M0_INTERNAL bool m0_be_io_sync_is_enabled(struct m0_be_io *bio)
+{
+	return bio->bio_sync;
+}
+
+M0_INTERNAL enum m0_stob_io_opcode m0_be_io_opcode(struct m0_be_io *io)
+{
+	return io->bio_opcode;
 }
 
 M0_INTERNAL bool m0_be_io_is_empty(struct m0_be_io *bio)
