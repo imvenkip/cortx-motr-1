@@ -423,6 +423,12 @@ struct m0_mero {
         /** Force to override found filesystem during mkfs. */
 	bool                        cc_force;
 
+	/** Skip BE initialization when unneeded (like in m0rpcping).*/
+	bool                        cc_no_storage;
+
+	/** Skip Conf initialization when unneeded (like in m0rpcping).*/
+	bool                        cc_no_conf;
+
 	/** Command line arguments. */
 	struct cs_args		    cc_args;
 };

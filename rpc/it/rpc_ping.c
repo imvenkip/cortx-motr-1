@@ -382,12 +382,9 @@ static int run_server(void)
 	static char rpc_size[STRING_LEN];
 	int	    rc;
 	char       *argv[] = {
-		"rpclib_ut", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
-		"-f", "<0x7200000000000002:1>",
-		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
-		"-A", SERVER_ADDB_STOB_FILE_NAME, "-w", "5",
+		"rpclib_ut",
+		"-e", server_endpoint,
 		"-q", tm_len, "-m", rpc_size,
-		"-P", M0_UT_CONF_PROFILE, "-c", M0_UT_PATH("conf-str.txt")
 	};
 	struct m0_rpc_server_ctx sctx = {
 		.rsx_xprts            = &xprt,
@@ -422,6 +419,8 @@ static int run_server(void)
 	if (rc != 0)
 		goto fop_fini;
 
+	sctx.rsx_mero_ctx.cc_no_conf = true;
+	sctx.rsx_mero_ctx.cc_no_storage = true;
 	rc = m0_rpc_server_start(&sctx);
 	if (rc != 0)
 		goto fop_fini;
