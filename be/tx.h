@@ -348,6 +348,7 @@ struct m0_be_tx {
 	 * @todo Use m0_be_tx::t_filler callback to fill m0_be_tx::t_payload.
 	 */
 	struct m0_buf          t_payload;
+	m0_bcount_t            t_payload_prepared;
 	struct m0_sm_ast       t_ast_grouping;
 	struct m0_sm_ast       t_ast_active;
 	struct m0_sm_ast       t_ast_failed;
