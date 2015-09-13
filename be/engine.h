@@ -69,7 +69,8 @@ struct m0_be_engine_cfg {
 	 * Time from "first tx is added to the group" to "group is not accepting
 	 * new transactions".
 	 */
-	m0_time_t		   bec_group_freeze_timeout;
+	m0_time_t		   bec_group_freeze_timeout_min;
+	m0_time_t		   bec_group_freeze_timeout_max;
 	/** Request handler for group foms and engine timeouts */
 	struct m0_reqh		  *bec_reqh;
 	/** Wait in m0_be_engine_start() until recovery is finished. */

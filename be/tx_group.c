@@ -274,16 +274,17 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 	} else {
 		m0_be_tx_credit_add(&group_used, &tx->t_prepared);
 
-		if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
-		    m0_be_tx_group_tx_nr(gr) < gr->tg_cfg.tgc_tx_nr_max &&
-		    gr->tg_payload_prepared + tx->t_payload_prepared <=
-		    gr->tg_cfg.tgc_payload_max) {
+		if (m0_be_tx_group_tx_nr(gr) == gr->tg_cfg.tgc_tx_nr_max) {
+			rc = -EXFULL;
+		} else if (!m0_be_tx_credit_le(&group_used, &gr->tg_size) ||
+		           gr->tg_payload_prepared + tx->t_payload_prepared >
+		           gr->tg_cfg.tgc_payload_max) {
+			rc = -ENOSPC;
+		} else {
 			be_tx_group_tx_add(gr, tx);
 			gr->tg_used              = group_used;
 			gr->tg_payload_prepared += tx->t_payload_prepared;
 			rc = 0;
-		} else {
-			rc = -ENOSPC;
 		}
 	}
 	M0_POST(m0_be_tx_group__invariant(gr));

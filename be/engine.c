@@ -402,15 +402,25 @@ static void be_engine_group_timeout_arm(struct m0_be_engine   *en,
                                         struct m0_be_tx_group *gr)
 {
 	struct m0_sm_group *sm_grp = m0_be_tx_group__sm_group(gr);
+	m0_time_t           t_min  = en->eng_cfg->bec_group_freeze_timeout_min;
+	m0_time_t           t_max  = en->eng_cfg->bec_group_freeze_timeout_max;
+	m0_time_t           delay;
+	uint64_t            grouping_q_length;
+	uint64_t            tx_per_group_max;
 
 	M0_ENTRY("en=%p gr=%p sm_grp=%p", en, gr, sm_grp);
 	M0_PRE(be_engine_is_locked(en));
 
-	gr->tg_close_deadline = m0_time_now() +
-				en->eng_cfg->bec_group_freeze_timeout;
+	grouping_q_length = etx_tlist_length(&en->eng_txs[M0_BTS_GROUPING]);
+	M0_ASSERT(grouping_q_length > 0);
+	tx_per_group_max = en->eng_cfg->bec_group_cfg.tgc_tx_nr_max;
+	grouping_q_length = min_check(grouping_q_length, tx_per_group_max);
+	delay = t_min + (t_max - t_min) * grouping_q_length / tx_per_group_max;
+	gr->tg_close_deadline = m0_time_now() + delay;
 	gr->tg_close_timer_arm.sa_cb = &be_engine_group_timer_arm;
 	m0_sm_ast_post(sm_grp, &gr->tg_close_timer_arm);
-	M0_LEAVE();
+	M0_LEAVE("grouping_q_length=%"PRIu64" delay=%"PRIu64,
+	         grouping_q_length, delay);
 }
 
 static struct m0_be_tx_group *be_engine_group_find(struct m0_be_engine *en)
@@ -431,23 +441,23 @@ static int be_engine_tx_trygroup(struct m0_be_engine *en,
 	M0_PRE(!m0_be_tx__is_recovering(tx));
 
 	while ((gr = be_engine_group_find(en)) != NULL) {
-		if (m0_be_tx__is_exclusive(tx) && m0_be_tx_group_tx_nr(gr) > 0)
+		if (m0_be_tx__is_exclusive(tx) && m0_be_tx_group_tx_nr(gr) > 0) {
 			rc = -EBUSY;
-		else {
+		} else {
 			rc = m0_be_tx_group_tx_add(gr, tx);
 			if (rc == 0)
 				m0_be_tx__group_assign(tx, gr);
 		}
-		if (rc != 0 ||
+		if (rc == -EXFULL ||
 		    m0_be_tx__is_fast(tx) ||
 		    m0_be_tx__is_exclusive(tx)) {
 			be_engine_group_freeze(en, gr);
-		} else if (m0_be_tx_group_tx_nr(gr) == 1) {
+		} else if (rc == 0 && m0_be_tx_group_tx_nr(gr) == 1) {
 			be_engine_group_timeout_arm(en, gr);
 		}
-		if (rc != 0)
+		if (M0_IN(rc, (-EBUSY, -EXFULL)))
 			be_engine_group_tryclose(en, gr);
-		if (rc == 0)
+		if (M0_IN(rc, (0, -ENOSPC)))
 			break;
 	}
 	if (rc == 0)
@@ -525,6 +535,7 @@ static void be_engine_got_tx_closed(struct m0_be_engine *en,
 
 	M0_CNT_DEC(gr->tg_nr_unclosed);
 	m0_be_tx_group_tx_closed(gr, tx);
+	be_engine_got_tx_grouping(en);
 	be_engine_group_tryclose(en, gr);
 }
 

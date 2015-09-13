@@ -316,7 +316,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 	    .bc_engine = {
 		.bec_group_nr		  = 1,
 		.bec_group_cfg = {
-			.tgc_tx_nr_max	  = 20,
+			.tgc_tx_nr_max	  = 128,
 			.tgc_seg_nr_max	  = 256,
 			.tgc_size_max	  = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
 			.tgc_payload_max  = 1 << 24,
@@ -324,7 +324,8 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		},
 		.bec_tx_size_max	  = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
 		.bec_tx_payload_max	  = 1 << 21,
-		.bec_group_freeze_timeout = M0_TIME_ONE_MSEC,
+		.bec_group_freeze_timeout_min =  1 * M0_TIME_ONE_MSEC,
+		.bec_group_freeze_timeout_max = 50 * M0_TIME_ONE_MSEC,
 		.bec_reqh		  = reqh,
 		.bec_wait_for_recovery	  = true,
 		.bec_recovery_disable	  = false,
