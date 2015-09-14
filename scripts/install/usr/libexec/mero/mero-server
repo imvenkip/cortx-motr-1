@@ -39,6 +39,8 @@ m0_server()
     local stob_type='-T ad'
     local stob_opts
     local proc_fid="<$(m0_get_proc_fid_for $service)>"
+    local confd_global_ep=${MERO_CONFD_EP:-$(m0_get_global_ep_of confd)}
+    confd_ep="${MERO_CONFD_LOCAL_EP:-$confd_global_ep}"
 
     case "$service" in
         mds*)
@@ -56,11 +58,14 @@ m0_server()
 
         confd) stob_type='-T linux'
                if [[ -r $conf ]]; then
-                   MERO_M0D_OPTS+=" -c $conf"
+                   cp $conf $service_dir/conf.xc
                else
                    m0_build_local_conf > $service_dir/conf.xc
-                   MERO_M0D_OPTS+=' -c conf.xc'
                fi
+               if [[ -n $MERO_CONFD_LOCAL_EP ]]; then
+                   sed -i -e "s/$confd_global_ep/$confd_ep/g" $service_dir/conf.xc
+               fi
+	       MERO_M0D_OPTS+=' -c conf.xc'
             ;;
 
         ha*)   stob_type='-T linux'
@@ -71,17 +76,19 @@ m0_server()
                    " available services are 'mds*' and 'ios*'"
             ;;
     esac
-    local confd_ep=${MERO_CONFD_EP:-$(m0_get_global_ep_of confd)}
     local service_ep="lnet:$(m0_get_ep_of $service)"
 
-    if [[ $service != confd ]]; then
-        MERO_M0D_OPTS+=" -C $confd_ep"
+    if [[ $service == confd ]]; then
+	service_ep="lnet:$confd_ep"
+    else
+	MERO_M0D_OPTS+=" -C $confd_ep"
     fi
 
     local binary=$(m0_path_to $cmd)
     if [[ $cmd == m0mkfs ]]; then
 	service_ep="lnet:$(m0_get_mkfs_ep_of $service)"
     fi
+
     # enable core dumps
     ulimit -c unlimited
 

@@ -269,9 +269,7 @@ m0_get_ep_of()
 
     for s in $(m0_get_services $node); do
         case $s in
-            confd*)
-                local global_confd_ep="$lnid:$lpid:$portal:$((confd_tid++))"
-                ep="${MERO_CONFD_LOCAL_EP:-$global_confd_ep}"
+            confd*) ep="$lnid:$lpid:$portal:$((confd_tid++))"
                 ;;
             mds*) ep="$lnid:$lpid:$portal:$((mds_tid++))"
                 ;;
