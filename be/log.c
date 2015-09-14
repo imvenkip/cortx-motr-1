@@ -667,6 +667,9 @@ m0_be_log_record_io_prepare(struct m0_be_log_record *record,
 		log->lg_prev_record_size = size;
 		record->lgr_size         = size;
 
+		if (size_reserved != size)
+			log->lg_got_space_cb(log);
+
 		/* log record header */
 		lio    = record->lgr_io[0];
 		header = &record->lgr_header;
@@ -763,6 +766,8 @@ M0_INTERNAL void m0_be_log_unreserve(struct m0_be_log *log, m0_bcount_t size)
 
 	log->lg_free     += size;
 	log->lg_reserved -= size;
+
+	log->lg_got_space_cb(log);
 }
 
 M0_INTERNAL uint32_t m0_be_log_bshift(struct m0_be_log *log)
