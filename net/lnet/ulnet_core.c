@@ -962,7 +962,9 @@ int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
 
 	bewp.dbw_ktm = ctm->ctm_kpvt;
 	bewp.dbw_timeout = m0_time_to_realtime(timeout);
-	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BUF_EVENT_WAIT, &bewp);
+	do {
+		rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BUF_EVENT_WAIT, &bewp);
+	} while (rc == -EINTR);
 	return rc < 0 ? rc : 0;
 }
 

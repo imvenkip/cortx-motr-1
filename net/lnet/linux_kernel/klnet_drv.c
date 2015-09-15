@@ -1464,6 +1464,8 @@ done:
 	if (rc < 0 && ergo(cmd == M0_LNET_BUF_EVENT_WAIT, rc != -ETIMEDOUT)) {
 		M0_LOG(M0_ERROR, "cmd=%x rc=%d", cmd, rc);
 	}
+	if (rc == -ERESTARTSYS)
+		rc = -EINTR;
 	return M0_RC(rc);
 }
 
