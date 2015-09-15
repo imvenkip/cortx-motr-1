@@ -178,3 +178,16 @@ M0_INTERNAL unsigned long m0_be_reg_gen_idx(const struct m0_be_reg *reg);
 
 /** @} end of be group */
 #endif /* __MERO_BE_SEG_H__ */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */

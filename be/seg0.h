@@ -257,3 +257,16 @@ int m0_be_0type_del(struct m0_be_0type  *zt,
 
 /** @} end of be group */
 #endif /* __MERO_BE_SEG0_H__ */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */
