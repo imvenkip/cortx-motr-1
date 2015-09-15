@@ -241,16 +241,17 @@ class SpielWrapper:
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, cores=Bitmap,
              memory_limit_as=long, memory_limit_rss=long,
-             memory_limit_stack=long, memory_limit_memlock=long)
+             memory_limit_stack=long, memory_limit_memlock=long, endpoint=str)
     def process_add(self, spiel_tx, fid, parent, cores, memory_limit_as,
                     memory_limit_rss, memory_limit_stack,
-                    memory_limit_memlock):
+                    memory_limit_memlock, endpoint):
         return self.mero.m0_spiel_process_add(spiel_tx.data, byref(fid),
                                               byref(parent), byref(cores),
                                               c_uint64(memory_limit_as),
                                               c_uint64(memory_limit_rss),
                                               c_uint64(memory_limit_memlock),
-                                              c_uint64(memory_limit_stack))
+                                              c_uint64(memory_limit_stack),
+                                              endpoint)
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, svc_type=int,
              svc_endpoints=list, svc_params=ServiceInfoParameters)

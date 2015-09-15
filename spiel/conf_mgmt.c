@@ -922,6 +922,7 @@ int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 	M0_PRE(fid != NULL);
 	M0_PRE(parent != NULL);
 	M0_PRE(cores != NULL);
+	M0_PRE(endpoint != NULL);
 	M0_ENTRY();
 
 	m0_mutex_lock(&tx->spt_lock);

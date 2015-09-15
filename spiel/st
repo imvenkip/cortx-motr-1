@@ -32,6 +32,10 @@ PROC_FID="<$PROC_FID_CNTR:$PROC_FID_KEY>"
 PROF_OPT="<0x7000000000000001:0>"
 
 start() {
+    # install "mero" Python module required by m0spiel tool
+    cd $M0_CORE_DIR/utils/m0spiel
+    python setup.py install > /dev/null
+    cd $M0_CORE_DIR
     _init
     m0d_with_rms_start
 }
@@ -136,12 +140,14 @@ stub_confdb() {
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 services=[service-0, service-1, service-2])
+    mem_limit_memlock=0 endpoint="$SERVER1_ENDPOINT"
+    services=[service-0, service-1, service-2, service-3, service-4])
 (service-0 type=4 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (service-1 type=7 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (service-2 type=6 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
     sdev-4])
 (service-3 type=1 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-0])
+(service-4 type=3 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (pool-0 order=0 pvers=[pver-0])
 (pver-0 ver=0 N=2 K=1 P=4 nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
@@ -176,11 +182,9 @@ EOF
 ### interface part will affect to second m0d instance. Spiel commands from
 ### configuration management part may affect to both m0d.
 m0d_with_rms_start() {
-    local CONFD_SPEC="-s confd:<$CONF_FID_CON:1> -c $CONF_FILE"
     local OPTS="-F -D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
-    -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER1_ENDPOINT $CONFD_SPEC\
-    -s addb2:<$ADD2_FID_CON:1> -s rmservice:<$RMS_FID_CON:1>
-    -s mdservice:<$MDS_FID_CON:2> -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN\
+    -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER1_ENDPOINT\
+    -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -P $PROF_OPT -f $PROC_FID"
 
     stub_confdb | $M0_CORE_DIR/utils/m0confgen >$CONF_FILE
@@ -203,14 +207,11 @@ m0d_with_rms_start() {
 }
 
 test_m0d_start() {
-    local CONFD_SPEC="-s confd:<$CONF_FID_CON:2> -c $CONF_FILE"
+    local CONFD_SPEC="-s confd:<$CONF_FID_CON:2> "
     ### TODO: remove ioservice from command line arguments when the following issue
     ### will be fixed https://jira.xyratex.com/browse/MERO-1048
     local OPTS="-F -D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
-
-    -A linuxstob:$SANDBOX_DIR/addb-stobs\
-    -e lnet:$SERVER2_ENDPOINT $CONFD_SPEC -s addb2:<$ADD2_FID_CON:2>\
-    -s ioservice:<$IOS_FID_CON:2>\
+    -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER2_ENDPOINT -c $CONF_FILE\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_OPT\
     -f $PROC_FID"
 
@@ -254,12 +255,14 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'process'       : Fid($PROC_FID_CNTR, $PROC_FID_KEY),
         'process2'      : Fid($PROC_FID_CNTR, $PROC_FID_KEY2),
         'ios'           : Fid(0x7300000000000002, 0),
-        'mds'           : Fid($MDS_FID_CON, 2),
-        'mds2'          : Fid($MDS_FID_CON, 3),
+        'mds'           : Fid(0x7300000000000002, 2),
+        'mds2'          : Fid(0x7300000000000002, 3),
         'stats'         : Fid(0x7300000000000002, 4),
         'addb2'         : Fid(0x7300000000000002, 5),
         'sns_repair'    : Fid(0x7300000000000002, 6),
         'sns_rebalance' : Fid(0x7300000000000002, 7),
+        'confd'         : Fid(0x7300000000000002, 8),
+        'confd2'        : Fid(0x7300000000000002, 9),
         'sdev0'         : Fid(0x6400000000000009, 9),
         'sdev1'         : Fid(0x6400000000000009, 10),
         'sdev2'         : Fid(0x6400000000000009, 11),
@@ -273,8 +276,8 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
 ### TODO: Uncomment the first line and remove the second when the following issue
 ### will be fixed https://jira.xyratex.com/browse/MERO-1048
     export SERVICES="
-#services = ['ios', 'mds2', 'stats', 'sns_repair', 'sns_rebalance']
-services = ['mds2', 'stats', 'sns_repair', 'sns_rebalance']
+services = ['ios', 'mds2', 'stats', 'sns_repair', 'sns_rebalance']
+#services = ['mds2', 'stats', 'sns_repair', 'sns_rebalance']
 "
 ### enum of service health statuses. see m0_service_health in reqh/reqh_service.h
     export HEALTH="
@@ -326,13 +329,19 @@ conf_objs_add = [('profile_add', tx, fids['profile']),
                  ('disk_v_add', tx, fids['diskv3'], fids['ctrlv'],
                   fids['disk3']),
                  ('process_add', tx, fids['process'], fids['node'], cores,
-                  0L, 0L, 0L, 0L),
+                  0L, 0L, 0L, 0L, "$SERVER1_ENDPOINT"),
                  ('process_add', tx, fids['process2'], fids['node'],
-                  cores, 0L, 0L, 0L, 0L),
+                  cores, 0L, 0L, 0L, 0L, "$SERVER2_ENDPOINT"),
                  ('service_add', tx, fids['sss'], fids['process'], M0_CST_SSS,
                   ["$SERVER1_ENDPOINT"], ServiceInfoParameters()),
+                 ('service_add', tx, fids['confd'], fids['process'], M0_CST_MGS,
+                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters(confdb_path =
+		  "$SERVER1_ENDPOINT")),
                  ('service_add', tx, fids['sss2'], fids['process2'], M0_CST_SSS,
                   ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                 ('service_add', tx, fids['confd2'], fids['process2'], M0_CST_MGS,
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(confdb_path =
+		  "$SERVER2_ENDPOINT")),
                  ('service_add', tx, fids['rms'], fids['process'], M0_CST_RMS,
                   ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['ha'], fids['process2'], M0_CST_HA,
@@ -425,30 +434,6 @@ for command in service_commands:
     except:
         sys.exit("an error occurred while {0} executing, service fid \
                  {1}".format(command[0], command[1]))
-
-EOF
-}
-
-start_services() {
-    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
-$FIDS_LIST
-$SERVICES
-
-from itertools import product
-
-if spiel.cmd_profile_set(str(fids['profile'])) != 0:
-    sys.exit('can not set profile {0}'.format(fids['profile']))
-
-service_commands = list(product(['service_init', 'service_start'],
-                                [fids[x] for x in services]))
-for command in service_commands:
-    try:
-        if getattr(spiel, command[0])(*command[1:]) != 0:
-            sys.exit("an error occurred while {0} executing, service fid\
-                     {1}".format(command[0], command[1]))
-    except:
-            sys.exit("an error occurred while {0} executing, service fid\
-                     {1}".format(command[0], command[1]))
 
 EOF
 }
@@ -550,9 +535,6 @@ construct_db
 
 test_m0d_start
 
-say "Start services"
-start_services
-
 say "Validate health"
 validate_health
 
@@ -570,9 +552,6 @@ reconfig_process
 say "wait for reconfigure"
 sleep 10
 grep -q "Restarting" $SANDBOX_DIR/m0d.log || die "Reconfigure is not finished"
-
-say "Start services"
-start_services
 
 say "Validate health"
 validate_health
