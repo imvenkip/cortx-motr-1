@@ -181,7 +181,6 @@ static void body_mem2wire(struct m0_fop_cob *body,
 {
 	body->b_pfid = attr->ca_pfid;
 	body->b_tfid = attr->ca_tfid;
-	body->b_pver = attr->ca_pver;
 	if (valid & M0_COB_ATIME)
 		body->b_atime = attr->ca_atime;
 	if (valid & M0_COB_CTIME)
@@ -204,6 +203,8 @@ static void body_mem2wire(struct m0_fop_cob *body,
 		body->b_nlink = attr->ca_nlink;
 	if (valid & M0_COB_LID)
 		body->b_lid = attr->ca_lid;
+	if (valid & M0_COB_PVER)
+		body->b_pver = attr->ca_pver;
 	body->b_valid = valid;
 }
 
@@ -238,6 +239,8 @@ static void body_wire2mem(struct m0_cob_attr *attr,
 		attr->ca_blocks = body->b_blocks;
 	if (body->b_valid & M0_COB_LID)
 		attr->ca_lid = body->b_lid;
+	if (body->b_valid & M0_COB_PVER)
+		attr->ca_pver = body->b_pver;
 	attr->ca_version = body->b_version;
 }
 
@@ -577,7 +580,7 @@ static int m0t1fs_create(struct inode     *dir,
 	mo.mo_attr.ca_valid     = (M0_COB_UID    | M0_COB_GID   | M0_COB_ATIME |
 				   M0_COB_CTIME  | M0_COB_MTIME | M0_COB_MODE  |
 				   M0_COB_BLOCKS | M0_COB_SIZE  | M0_COB_LID   |
-				   M0_COB_NLINK);
+				   M0_COB_NLINK  | M0_COB_PVER);
 	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
 
@@ -1183,16 +1186,8 @@ M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 	/* Update inode fields with data from @getattr_rep or cached attrs */
 	m0t1fs_inode_update(inode, body);
-	if (ci->ci_layout_id != body->b_lid) {
-		/* layout for this file is changed. */
-
-		M0_ASSERT(ci->ci_layout_instance != NULL);
-		m0_layout_instance_fini(ci->ci_layout_instance);
-
-		ci->ci_layout_id = body->b_lid;
-		rc = m0t1fs_inode_layout_init(ci);
-		M0_ASSERT(rc == 0);
-	}
+	rc = m0t1fs_inode_layout_rebuild(ci, body);
+	M0_ASSERT(rc == 0);
 
 	/** Now its time to return inode stat data to user. */
 	stat->dev = inode->i_sb->s_dev;
@@ -1239,9 +1234,9 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 	m0t1fs_fs_lock(csb);
 
+	if (m0t1fs_inode_is_root(&ci->ci_inode))
+		goto update;
 	if (csb->csb_oostore) {
-		if (m0t1fs_inode_is_root(&ci->ci_inode))
-			goto update;
 		rc = m0t1fs_cob_getattr(inode);
 		goto update;
 	}
@@ -1265,17 +1260,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 	/** Update inode fields with data from @getattr_rep or cached attrs. */
 	m0t1fs_inode_update(inode, body);
-	if (!m0t1fs_inode_is_root(&ci->ci_inode) &&
-	    ci->ci_layout_id != body->b_lid) {
-		/* layout for this file is changed. */
-
-		M0_ASSERT(ci->ci_layout_instance != NULL);
-		m0_layout_instance_fini(ci->ci_layout_instance);
-
-		ci->ci_layout_id = body->b_lid;
-		rc = m0t1fs_inode_layout_init(ci);
-		M0_ASSERT(rc == 0);
-	}
+	rc = m0t1fs_inode_layout_rebuild(ci, body);
 update:
 	/** Now its time to return inode stat data to user. */
 	stat->dev = inode->i_sb->s_dev;
@@ -1547,11 +1532,12 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 	op_name = (func == m0t1fs_ios_cob_create) ? "create" :
 		  (func == m0t1fs_ios_cob_delete) ? "delete" :
 		  (func == m0t1fs_ios_cob_truncate) ? "truncate" : "setattr";
+	csb = M0T1FS_SB(ci->ci_inode.i_sb);
 
-	M0_LOG(M0_DEBUG, "Component object %s for "FID_F,
+	M0_LOG(M0_DEBUG, "%s Component object %s for "FID_F,
+			 csb->csb_oostore ? "oostore mode" : "",
 			 op_name, FID_P(m0t1fs_inode_fid(ci)));
 
-	csb = M0T1FS_SB(ci->ci_inode.i_sb);
 	m0_semaphore_init(&cob_req.cr_sem, 0);
 
 	cob_req.cr_deadline = m0_time_from_now(0, COB_REQ_DEADLINE);
@@ -2252,15 +2238,7 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 			m0_dump_cob_attr(&attr);
 			/* Update inode fields with data from @getattr_rep. */
 			m0t1fs_inode_update(inode, body);
-
-			if (ci->ci_layout_id != body->b_lid)
-				ci->ci_layout_id = body->b_lid;
-			if (m0_fid_cmp(&ci->ci_pver, &body->b_pver))
-				ci->ci_pver = body->b_pver;
-			if (ci->ci_layout_id != body->b_lid ||
-			    m0_fid_cmp(&ci->ci_pver, &body->b_pver))
-				rc = m0t1fs_inode_layout_init(ci);
-
+			rc = m0t1fs_inode_layout_rebuild(ci, body);
 			m0_fop_put0_lock(fop);
 			break;
 		}

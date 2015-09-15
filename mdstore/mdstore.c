@@ -222,6 +222,7 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 	nsrec.cnr_mtime = attr->ca_mtime;
 	nsrec.cnr_ctime = attr->ca_ctime;
 	nsrec.cnr_lid   = attr->ca_lid;
+	nsrec.cnr_pver  = attr->ca_pver;
 
 	omgrec.cor_uid = attr->ca_uid;
 	omgrec.cor_gid = attr->ca_gid;
@@ -235,7 +236,6 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 		m0_free(nskey);
 		goto out;
 	}
-	fabrec->cfb_pver = attr->ca_pver;
 
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
 	if (rc != 0) {
@@ -647,7 +647,8 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 	if (cob->co_flags & M0_CA_NSREC) {
 		attr->ca_valid |= M0_COB_ATIME | M0_COB_CTIME | M0_COB_MTIME |
 				  M0_COB_SIZE | M0_COB_BLKSIZE | M0_COB_BLOCKS/* |
-				  M0_COB_RDEV*/ | M0_COB_LID;
+				  M0_COB_RDEV*/ | M0_COB_LID | M0_COB_PVER;
+
 		attr->ca_atime = cob->co_nsrec.cnr_atime;
 		attr->ca_ctime = cob->co_nsrec.cnr_ctime;
 		attr->ca_mtime = cob->co_nsrec.cnr_mtime;
@@ -657,6 +658,7 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 		//attr->ca_rdev = cob->co_nsrec.cnr_rdev;
 		attr->ca_size = cob->co_nsrec.cnr_size;
 		attr->ca_lid = cob->co_nsrec.cnr_lid;
+		attr->ca_pver = cob->co_nsrec.cnr_pver;
 		//attr->ca_version = cob->co_nsrec.cnr_version;
 		M0_LOG(M0_DEBUG, "attrs of "FID_F"/%.*s->"FID_F",%u: "
 		       "cntr:%u, nlink:%u",
@@ -675,8 +677,6 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 	/*
 	 * @todo: Copy rest of the fab fields.
 	 */
-	attr->ca_pver = cob->co_fabrec->cfb_pver;
-
 	return M0_RC(rc);
 }
 

@@ -839,7 +839,7 @@ static int cob_attr_get(struct m0_cob        *cob,
 	if (cob->co_flags & M0_CA_NSREC) {
 		attr->ca_valid |= M0_COB_ATIME | M0_COB_CTIME   | M0_COB_MTIME |
 				  M0_COB_SIZE  | M0_COB_BLKSIZE | M0_COB_BLOCKS|
-				  M0_COB_LID;
+				  M0_COB_LID | M0_COB_PVER;
 		attr->ca_atime   = cob->co_nsrec.cnr_atime;
 		attr->ca_ctime   = cob->co_nsrec.cnr_ctime;
 		attr->ca_mtime   = cob->co_nsrec.cnr_mtime;

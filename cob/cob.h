@@ -317,13 +317,14 @@ enum m0_cob_valid_flags {
 	M0_COB_NLINK   = 1 << 10,
 	M0_COB_RDEV    = 1 << 11,
 	M0_COB_BLKSIZE = 1 << 12,
-	M0_COB_LID     = 1 << 13
+	M0_COB_LID     = 1 << 13,
+	M0_COB_PVER    = 1 << 14
 };
 
 #define M0_COB_ALL (M0_COB_ATIME | M0_COB_MTIME | M0_COB_CTIME |               \
 		    M0_COB_SIZE | M0_COB_MODE | M0_COB_UID | M0_COB_GID |      \
 		    M0_COB_BLOCKS | M0_COB_TYPE | M0_COB_FLAGS | M0_COB_NLINK |\
-		    M0_COB_RDEV | M0_COB_BLKSIZE | M0_COB_LID)
+		    M0_COB_RDEV | M0_COB_BLKSIZE | M0_COB_LID | M0_COB_PVER)
 
 /**
  * Attributes describing object that needs to be created or modified.

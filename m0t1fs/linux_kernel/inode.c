@@ -525,7 +525,11 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 	uint64_t                  layout_id;
 
 	M0_ENTRY();
-	M0_LOG(M0_DEBUG, FID_F, FID_P(m0t1fs_inode_fid(ci)));
+	M0_PRE(m0_fid_is_valid(&ci->ci_pver));
+	M0_LOG(M0_DEBUG, "fid:"FID_F"pver"FID_F"lid:%d",
+			FID_P(m0t1fs_inode_fid(ci)),
+			FID_P(&ci->ci_pver),
+			(int)ci->ci_layout_id);
 
 	csb = M0T1FS_SB(ci->ci_inode.i_sb);
 
@@ -539,5 +543,24 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 	}
 
 	M0_LEAVE("rc: %d", rc);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0t1fs_inode_layout_rebuild(struct m0t1fs_inode *ci,
+					    struct m0_fop_cob *body)
+{
+	int rc = 0;
+
+	M0_ENTRY();
+	M0_PRE(ci != NULL);
+	M0_PRE(body != NULL);
+	M0_PRE(body->b_valid & (M0_COB_LID | M0_COB_PVER));
+
+	if (ci->ci_layout_id != body->b_lid ||
+	    m0_fid_cmp(&ci->ci_pver, &body->b_pver)) {
+		ci->ci_layout_id = body->b_lid;
+		ci->ci_pver = body->b_pver;
+		rc = m0t1fs_inode_layout_init(ci);
+	}
 	return M0_RC(rc);
 }

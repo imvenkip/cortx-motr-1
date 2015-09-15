@@ -891,6 +891,8 @@ M0_INTERNAL struct inode *m0t1fs_alloc_inode(struct super_block *sb);
 M0_INTERNAL void m0t1fs_destroy_inode(struct inode *inode);
 
 M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci);
+M0_INTERNAL int m0t1fs_inode_layout_rebuild(struct m0t1fs_inode *ci,
+					    struct m0_fop_cob *body);
 
 /* dir.c */
 

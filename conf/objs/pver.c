@@ -146,10 +146,17 @@ static const struct m0_conf_obj_ops pver_ops = {
 
 M0_CONF__CTOR_DEFINE(pver_create, m0_conf_pver, &pver_ops);
 
+static bool pver_fid_is_valid(const struct m0_fid *fid)
+{
+	return M0_RC(m0_fid_type_getfid(fid)->ft_id ==
+		     M0_CONF_PVER_TYPE.cot_ftype.ft_id);
+}
+
 const struct m0_conf_obj_type M0_CONF_PVER_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'v',
-		.ft_name = "pver"
+		.ft_name = "pver",
+		.ft_is_valid = pver_fid_is_valid
 	},
 	.cot_create  = &pver_create,
 	.cot_xt      = &m0_confx_pver_xc,

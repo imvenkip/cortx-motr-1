@@ -571,6 +571,12 @@ m0t1fs_crud()
 	if [ "$mode" != "oostore" ]; then
 		ls -l $MERO_M0T1FS_MOUNT_DIR || rc=1
 	fi
+	unmount_and_clean
+	echo "Remount and perform write on already created file"
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$mode" || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname1 bs=4K   count=1 || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname2 bs=128K count=1 || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname3 bs=1M   count=1 || rc=1
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname1 || rc=1
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname2 || rc=1
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname3 || rc=1
@@ -728,6 +734,7 @@ m0t1fs_oostore_mode_basic()
 
 m0t1fs_parallel_io_test()
 {
+	local mode=$1
 	N=2
 	K=1
 	P=4
@@ -783,18 +790,24 @@ m0t1fs_system_tests()
 		echo "Failed: m0t1fs basic test failed."
 		return 1
 	}
+
 	m0t1fs_parallel_io_test || {
 		echo "Failed: m0t1fs parallel io test failed."
 		return 1
 	}
+
 	m0t1fs_oostore_mode || {
 		echo "Failed: m0t1fs oostore mode test failed."
-		echo "Test failure temporary disabled until MERO-1148 is fixed"
-		# return 1
+		return 1
 	}
 
 	m0t1fs_oostore_mode_basic || {
 		echo "Failed: m0t1fs oostore mode basic test failed."
+		return 1
+	}
+
+	m0t1fs_parallel_io_test "oostore" || {
+		echo "Failed: m0t1fs parallel io test failed."
 		return 1
 	}
 
