@@ -20,6 +20,7 @@
 
 #include "be/recovery.h"
 
+#include "lib/arith.h"          /* max_check */
 #include "lib/errno.h"          /* -ENOSYS */
 #include "lib/memory.h"
 #include "be/fmt.h"
@@ -176,13 +177,24 @@ be_recovery_log_record_iter_destroy(struct m0_be_log_record_iter *iter)
 M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr,
 				   struct m0_be_log      *log)
 {
-	struct m0_be_log_record_iter *prev = NULL;
+	struct m0_be_fmt_log_header   log_hdr = {};
+	struct m0_be_log_record_iter *prev    = NULL;
 	struct m0_be_log_record_iter *iter;
 	m0_bindex_t                   last_discarded;
+	m0_bindex_t                   log_discarded;
+	m0_bindex_t                   next_pos = M0_BINDEX_MAX;
 	m0_bindex_t                   head_pos;
 	m0_bindex_t                   tail_pos;
 	m0_bcount_t                   tail_size;
 	int                           rc;
+
+	/* TODO avoid reading of header from disk, log reads it during init */
+	rc = m0_be_fmt_log_header_init(&log_hdr, NULL);
+	M0_ASSERT(rc == 0);
+	rc = m0_be_log_header_read(log, &log_hdr);
+	M0_ASSERT(rc == 0);
+	log_discarded = log_hdr.flh_discarded;
+	m0_be_fmt_log_header_fini(&log_hdr);
 
 	rvr->brec_log = log;
 	rc = be_recovery_log_record_iter_new(&iter);
@@ -199,14 +211,21 @@ M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr,
 	if (rc == -ENOENT && prev == NULL)
 		goto empty;
 
-	last_discarded = prev->lri_header.lrh_discarded;
+	last_discarded = max_check(prev->lri_header.lrh_discarded,
+				   log_discarded);
 	prev = log_record_iter_tlist_head(&rvr->brec_iters);
 	while (prev != NULL && prev->lri_header.lrh_pos < last_discarded) {
+		next_pos = prev->lri_header.lrh_pos + prev->lri_header.lrh_size;
 		log_record_iter_tlink_del_fini(prev);
 		be_recovery_log_record_iter_destroy(prev);
 		prev = log_record_iter_tlist_head(&rvr->brec_iters);
 	}
-	M0_ASSERT(prev != NULL);
+	M0_ASSERT(ergo(prev == NULL,
+		       last_discarded == log_discarded &&
+	               last_discarded == next_pos));
+	if (prev == NULL)
+		goto empty;
+
 	rc = 0;
 	while (rc == 0 && prev->lri_header.lrh_pos > last_discarded) {
 		rc = be_recovery_log_record_iter_new(&iter);
@@ -238,6 +257,7 @@ err:
 	return rc;
 
 empty:
+	/* Correct log pointers should be set during log open. */
 	M0_POST(log_record_iter_tlist_is_empty(&rvr->brec_iters));
 	return 0;
 }

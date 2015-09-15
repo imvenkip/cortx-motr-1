@@ -408,9 +408,9 @@ static void be_ut_log_header_repair_test(int header_nr,
 		rc = m0_be_fmt_log_header_init(hdrs[i], NULL);
 		M0_UT_ASSERT(rc == 0);
 		if (i < new_nr)
-			m0_be_log_header__set(hdrs[i], lsn_new, size_new);
+			m0_be_log_header__set(hdrs[i], 0, lsn_new, size_new);
 		else
-			m0_be_log_header__set(hdrs[i], lsn_old, size_old);
+			m0_be_log_header__set(hdrs[i], 0, lsn_old, size_old);
 	}
 	rc = m0_be_fmt_log_header_init(&valid, NULL);
 	M0_UT_ASSERT(rc == 0);

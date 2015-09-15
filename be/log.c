@@ -70,6 +70,7 @@ static int be_log_level_enter(struct m0_module *module)
 	struct m0_be_fmt_log_header *header;
 	struct m0_be_log            *log   = be_log_module2log(module);
 	int                          level = module->m_cur + 1;
+	m0_bindex_t                  current;
 	int                          rc;
 
 	switch (level) {
@@ -103,7 +104,7 @@ static int be_log_level_enter(struct m0_module *module)
 		return m0_be_fmt_log_header_init(&log->lg_header, NULL);
 	case M0_BE_LOG_LEVEL_HEADER:
 		if (log->lg_create_mode) {
-			m0_be_log_header__set(&log->lg_header, 0, 0);
+			m0_be_log_header__set(&log->lg_header, 0, 0, 0);
 			rc = be_log_header_write(log, &log->lg_header);
 		} else {
 			rc = m0_be_log_header_read(log, &log->lg_header);
@@ -111,11 +112,12 @@ static int be_log_level_enter(struct m0_module *module)
 		return rc;
 	case M0_BE_LOG_LEVEL_ASSIGNS:
 		if (!log->lg_create_mode) {
-			header              = &log->lg_header;
-			log->lg_current     = header->flh_group_lsn +
-					      header->flh_group_size;
-			log->lg_discarded   = log->lg_current;
-			log->lg_prev_record = header->flh_group_lsn;
+			header  = &log->lg_header;
+			current = header->flh_group_lsn +
+				  header->flh_group_size;
+			m0_be_log_pointers_set(log, current, current,
+					       header->flh_group_lsn,
+					       header->flh_group_size);
 		}
 		log->lg_free = m0_be_log_store_buf_size(&log->lg_store);
 		log->lg_external_lock = log->lg_cfg.lc_lock;
@@ -769,10 +771,12 @@ M0_INTERNAL uint32_t m0_be_log_bshift(struct m0_be_log *log)
 }
 
 M0_INTERNAL void m0_be_log_header__set(struct m0_be_fmt_log_header *hdr,
+				       m0_bindex_t                  discarded,
 				       m0_bindex_t                  lsn,
 				       m0_bcount_t                  size)
 {
 	m0_be_fmt_log_header_reset(hdr);
+	hdr->flh_discarded  = discarded;
 	hdr->flh_group_lsn  = lsn;
 	hdr->flh_group_size = size;
 }
@@ -780,7 +784,8 @@ M0_INTERNAL void m0_be_log_header__set(struct m0_be_fmt_log_header *hdr,
 M0_INTERNAL bool m0_be_log_header__is_eq(struct m0_be_fmt_log_header *hdr1,
 					 struct m0_be_fmt_log_header *hdr2)
 {
-	return hdr1->flh_group_lsn  == hdr2->flh_group_lsn &&
+	return hdr1->flh_discarded  == hdr2->flh_discarded &&
+	       hdr1->flh_group_lsn  == hdr2->flh_group_lsn &&
 	       hdr1->flh_group_size == hdr2->flh_group_size;
 }
 
@@ -809,7 +814,7 @@ static void be_log_header_update(struct m0_be_log *log)
 		index = log->lg_unplaced_pos;
 		size  = log->lg_unplaced_size;
 	}
-	m0_be_log_header__set(&log->lg_header, index, size);
+	m0_be_log_header__set(&log->lg_header, log->lg_discarded, index, size);
 }
 
 static int be_log_header_write(struct m0_be_log            *log,
@@ -839,8 +844,9 @@ M0_INTERNAL bool m0_be_log_header__repair(struct m0_be_fmt_log_header **hdrs,
 		i = 2;
 		need_repair = true;
 	}
-	m0_be_log_header__set(out, hdrs[i]->flh_group_lsn,
-			      hdrs[i]->flh_group_size);
+	m0_be_log_header__set(out, hdrs[i]->flh_discarded,
+				   hdrs[i]->flh_group_lsn,
+				   hdrs[i]->flh_group_size);
 
 	return need_repair || !m0_be_log_header__is_eq(hdrs[0], hdrs[2]);
 }

@@ -201,8 +201,9 @@ struct m0_be_fmt_group_cfg;
 
 struct m0_be_fmt_log_header {
 	uint64_t    flh_serial;
-	m0_bcount_t flh_group_size;
+	m0_bindex_t flh_discarded;
 	m0_bindex_t flh_group_lsn;
+	m0_bcount_t flh_group_size;
 } M0_XCA_RECORD;
 
 struct m0_be_fmt_group {

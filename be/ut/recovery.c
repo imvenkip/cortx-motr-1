@@ -261,9 +261,7 @@ void m0_be_ut_recovery(void)
 
 	be_ut_recovery_log_reopen(&ctx);
 	count = be_ut_recovery_iter_count(&ctx);
-	/* XXX broken
-	 * M0_UT_ASSERT(count == 0);
-	 */
+	M0_UT_ASSERT(count == 0);
 
 	be_ut_recovery_log_fini(&ctx);
 	m0_be_recovery_fini(&ctx.burc_rvr);

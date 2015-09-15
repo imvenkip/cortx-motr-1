@@ -435,6 +435,7 @@ M0_INTERNAL void m0_be_log_unreserve(struct m0_be_log *log, m0_bcount_t size);
 M0_INTERNAL uint32_t m0_be_log_bshift(struct m0_be_log *log);
 
 M0_INTERNAL void m0_be_log_header__set(struct m0_be_fmt_log_header *hdr,
+				       m0_bindex_t                  discarded,
 				       m0_bindex_t                  lsn,
 				       m0_bcount_t                  size);
 M0_INTERNAL bool m0_be_log_header__is_eq(struct m0_be_fmt_log_header *hdr1,
