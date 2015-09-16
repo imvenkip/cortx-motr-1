@@ -13,6 +13,8 @@ TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 
 MAX_RPC_MSG_SIZE=163840
 TM_MIN_RECV_QUEUE_LEN=2
+DEV_NR=4
+DEV_SIZE=$((1024 *1024))
 
 die() { echo "$@" >&2; exit 1; }
 error() { echo "$@" >&2; stop 1; }
@@ -29,12 +31,28 @@ PROC_FID_CNTR=0x7200000000000001
 PROC_FID_KEY=3
 PROC_FID_KEY2=4
 PROC_FID="<$PROC_FID_CNTR:$PROC_FID_KEY>"
+PROC_FID2="<$PROC_FID_CNTR:$PROC_FID_KEY2>"
 PROF_OPT="<0x7000000000000001:0>"
+
+iosloopdevs() {
+    cat > $SANDBOX_DIR/disks.conf << EOF
+    Device:
+EOF
+    for i in $(seq 1 $DEV_NR)
+    do
+        dd if=/dev/zero of=$SANDBOX_DIR/${i}.img bs=$DEV_SIZE seek=$DEV_SIZE count=1
+        losetup /dev/loop$i $SANDBOX_DIR/${i}.img
+        cat >> $SANDBOX_DIR/disks.conf << EOF
+       - id: $i
+         filename: /dev/loop$i
+EOF
+    done
+}
 
 start() {
     # install "mero" Python module required by m0spiel tool
     cd $M0_CORE_DIR/utils/m0spiel
-    python setup.py install > /dev/null
+    python setup.py install > /dev/null || die 'Cannot install Python "mero" module'
     cd $M0_CORE_DIR
     _init
     m0d_with_rms_start
@@ -46,7 +64,7 @@ stop() {
     services_stop
     sleep 3
     _fini
-    [ $rc -eq 0 ] || echo "Spiel test FAILED"
+    [ $rc -eq 0 ] || say "spiel: test status: FAILED"
     exit $rc
 }
 
@@ -64,6 +82,7 @@ _fini() {
 sandbox_init() {
     rm -rf $SANDBOX_DIR
     mkdir -p $SANDBOX_DIR/mnt
+    iosloopdevs
 }
 
 sandbox_fini() {
@@ -72,6 +91,10 @@ sandbox_fini() {
     fi
     ## Note that the script does not delete $SANDBOX_DIR itself:
     ## developers may want to analyze the logs contained there.
+    for i in $(seq 1 $DEV_NR)
+    do
+        losetup -d /dev/loop$i
+    done
 }
 
 ### XXX Code duplication!
@@ -141,13 +164,14 @@ stub_confdb() {
     processes=[process-0])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$SERVER1_ENDPOINT"
-    services=[service-0, service-1, service-2, service-3, service-4])
+    services=[service-0, service-1, service-2, service-3, service-4, service-5])
 (service-0 type=4 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (service-1 type=7 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (service-2 type=6 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
     sdev-4])
 (service-3 type=1 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-0])
 (service-4 type=3 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
+(service-5 type=10 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (pool-0 order=0 pvers=[pver-0])
 (pver-0 ver=0 N=2 K=1 P=4 nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
@@ -185,7 +209,7 @@ m0d_with_rms_start() {
     local OPTS="-F -D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
     -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER1_ENDPOINT\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
-    -w 3 -P $PROF_OPT -f $PROC_FID"
+    -w 3 -P $PROF_OPT -f $PROC_FID -E -d $SANDBOX_DIR/disks.conf"
 
     stub_confdb | $M0_CORE_DIR/utils/m0confgen >$CONF_FILE
 
@@ -208,12 +232,10 @@ m0d_with_rms_start() {
 
 test_m0d_start() {
     local CONFD_SPEC="-s confd:<$CONF_FID_CON:2> "
-    ### TODO: remove ioservice from command line arguments when the following issue
-    ### will be fixed https://jira.xyratex.com/browse/MERO-1048
-    local OPTS="-F -D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
+    local OPTS="-D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
     -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER2_ENDPOINT -c $CONF_FILE\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_OPT\
-    -f $PROC_FID"
+    -f $PROC_FID2 -E -d $SANDBOX_DIR/disks.conf"
 
     cd $SANDBOX_DIR
 
@@ -230,6 +252,10 @@ services_stop() { killall -q lt-m0d && wait || true; }
 export_vars() {
     export M0_SPIEL_OPTS="
     -l $M0_CORE_DIR/mero/.libs/libmero.so --server $SERVER1_ENDPOINT
+    --client $SPIEL_ENDPOINT --rmservice $SERVER1_ENDPOINT"
+
+    export M0_SPIEL_OPTS2="
+    -l $M0_CORE_DIR/mero/.libs/libmero.so --server $SERVER2_ENDPOINT
     --client $SPIEL_ENDPOINT --rmservice $SERVER1_ENDPOINT"
 
     export FIDS_LIST="
@@ -257,27 +283,21 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'ios'           : Fid(0x7300000000000002, 0),
         'mds'           : Fid(0x7300000000000002, 2),
         'mds2'          : Fid(0x7300000000000002, 3),
-        'stats'         : Fid(0x7300000000000002, 4),
         'addb2'         : Fid(0x7300000000000002, 5),
         'sns_repair'    : Fid(0x7300000000000002, 6),
         'sns_rebalance' : Fid(0x7300000000000002, 7),
         'confd'         : Fid(0x7300000000000002, 8),
         'confd2'        : Fid(0x7300000000000002, 9),
-        'sdev0'         : Fid(0x6400000000000009, 9),
-        'sdev1'         : Fid(0x6400000000000009, 10),
-        'sdev2'         : Fid(0x6400000000000009, 11),
-        'sdev3'         : Fid(0x6400000000000009, 12),
+        'sdev0'         : Fid(0x6400000000000009, 0),
+        'sdev1'         : Fid(0x6400000000000009, 1),
+        'sdev2'         : Fid(0x6400000000000009, 2),
+        'sdev3'         : Fid(0x6400000000000009, 3),
         'rms'           : Fid(0x7300000000000004, 0),
-        'sss'           : Fid(0x7300000000000004, 1),
-        'sss2'          : Fid(0x7300000000000004, 2),
-        'ha'            : Fid(0x7300000000000004, 3)
+        'ha'            : Fid(0x7300000000000004, 4)
 }
 "
-### TODO: Uncomment the first line and remove the second when the following issue
-### will be fixed https://jira.xyratex.com/browse/MERO-1048
     export SERVICES="
-services = ['ios', 'mds2', 'stats', 'sns_repair', 'sns_rebalance']
-#services = ['mds2', 'stats', 'sns_repair', 'sns_rebalance']
+services = ['ios', 'mds2', 'sns_repair', 'sns_rebalance']
 "
 ### enum of service health statuses. see m0_service_health in reqh/reqh_service.h
     export HEALTH="
@@ -332,48 +352,44 @@ conf_objs_add = [('profile_add', tx, fids['profile']),
                   0L, 0L, 0L, 0L, "$SERVER1_ENDPOINT"),
                  ('process_add', tx, fids['process2'], fids['node'],
                   cores, 0L, 0L, 0L, 0L, "$SERVER2_ENDPOINT"),
-                 ('service_add', tx, fids['sss'], fids['process'], M0_CST_SSS,
-                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['confd'], fids['process'], M0_CST_MGS,
                   ["$SERVER1_ENDPOINT"], ServiceInfoParameters(confdb_path =
 		  "$SERVER1_ENDPOINT")),
-                 ('service_add', tx, fids['sss2'], fids['process2'], M0_CST_SSS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['confd2'], fids['process2'], M0_CST_MGS,
                   ["$SERVER2_ENDPOINT"], ServiceInfoParameters(confdb_path =
 		  "$SERVER2_ENDPOINT")),
                  ('service_add', tx, fids['rms'], fids['process'], M0_CST_RMS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['ha'], fids['process2'], M0_CST_HA,
                   ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['ios'], fids['process2'], M0_CST_IOS,
                   ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['sns_repair'], fids['process2'],
                   M0_CST_SNS_REP, ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                 ('service_add', tx, fids['addb2'], fids['process2'],
+                  M0_CST_ADDB2, ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['sns_rebalance'], fids['process2'],
                   M0_CST_SNS_REB, ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['mds'], fids['process'], M0_CST_MDS,
                   ["$SERVER1_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['mds2'], fids['process2'], M0_CST_MDS,
                   ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
-                 ('service_add', tx, fids['stats'], fids['process2'], M0_CST_STS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
-                 ('device_add', tx, fids['sdev0'], fids['ios'],
+                 ('device_add', tx, fids['sdev0'], fids['mds2'],
                   fids['disk0'], M0_CFG_DEVICE_INTERFACE_SCSI,
-                  M0_CFG_DEVICE_MEDIA_SSD, 1024, 512L, 123L, 0x55L,
-                  "fake_filename0"),
+		  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
+                  "dev/loop0"),
                  ('device_add', tx, fids['sdev1'], fids['ios'],
                   fids['disk1'], M0_CFG_DEVICE_INTERFACE_SCSI,
-                  M0_CFG_DEVICE_MEDIA_SSD, 1024, 512L, 123L, 0x55L,
-                  "fake_filename1"),
+		  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
+                  "dev/loop1"),
                  ('device_add', tx, fids['sdev2'], fids['ios'],
                   fids['disk2'], M0_CFG_DEVICE_INTERFACE_SCSI,
-                  M0_CFG_DEVICE_MEDIA_SSD, 1024, 512L, 123L, 0x55L,
-                  "fake_filename2"),
+                  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
+                  "dev/loop2"),
                  ('device_add', tx, fids['sdev3'], fids['ios'],
                   fids['disk3'], M0_CFG_DEVICE_INTERFACE_SCSI,
-                  M0_CFG_DEVICE_MEDIA_SSD, 1024, 512L, 123L, 0x55L,
-                  "fake_filename3"),
+                  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
+                  "dev/loop3"),
                  ('tx_commit', tx)
 ]
 
@@ -392,7 +408,7 @@ EOF
 }
 
 validate_health() {
-    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
 $FIDS_LIST
 $SERVICES
 $HEALTH
@@ -414,7 +430,7 @@ EOF
 }
 
 restart_services() {
-    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
 $FIDS_LIST
 $SERVICES
 
@@ -439,7 +455,7 @@ EOF
 }
 
 reconfig_process() {
-    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
 $FIDS_LIST
 
 if spiel.cmd_profile_set(str(fids['profile'])) != 0:
@@ -453,17 +469,20 @@ EOF
 }
 
 perform_io() {
-    local TEST_STR="`head -c 512 /dev/urandom`"
-    local TEST_FILE=$SANDBOX_DIR/mnt/test.txt
+    #local TEST_STR="`head -c 512 /dev/urandom`"
+    local TEST_STR="Hello world"
+    local TEST_FILE=$SANDBOX_DIR/mnt/file.txt
+    #local TEST_FILE=$SANDBOX_DIR/mnt/test.txt
 
-    trap "rm -f $TEST_FILE" 0
-    echo $TEST_STR > $TEST_FILE
-
-    [ "`cat $TEST_FILE`" = $TEST_STR ] || die "IO error"
+    ls $SANDBOX_DIR/mnt
+    touch $TEST_FILE || die "m0t1fs: Can't touch file"
+    setfattr -n lid -v 5 $TEST_FILE || die "m0t1fs: Can't set an attribute"
+    echo $TEST_STR > $TEST_FILE || die "m0t1fs: Can't write to file"
+    [ "`cat $TEST_FILE`" == "$TEST_STR" ] || die "IO error"
 }
 
 fs_stats_fetch() {
-    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
 $FIDS_LIST
 
 if spiel.cmd_profile_set(str(fids['profile'])) != 0:
@@ -482,7 +501,7 @@ EOF
 
 _mount() {
     mkdir -p $SANDBOX_DIR/mnt
-    local MOUNT_OPTS="-t m0t1fs -o profile=$PROF_OPT,confd=$SERVER1_ENDPOINT \
+    local MOUNT_OPTS="-t m0t1fs -o profile=$PROF_OPT,confd=$SERVER2_ENDPOINT \
 none $SANDBOX_DIR/mnt"
     echo "mount $MOUNT_OPTS"
     mount $MOUNT_OPTS || return $?
@@ -557,16 +576,11 @@ say "Validate health"
 validate_health
 
 _mount || stop $?
-#TODO uncomment the following lines when this issue is fixed
-#https://jira.xyratex.com/browse/MERO-1048
-#say "Perform IO"
-#perform_io
 
-#say "Validate health"
-#validate_health
+say "Perform IO"
+perform_io
 
-# this msg is used by Jenkins as a test success criteria;
-# it should appear on STDOUT
-if [ $? -eq 0 ] ; then
-    say 'spiel: test status: SUCCESS'
-fi
+say "Validate health"
+validate_health
+
+say "spiel: test status: SUCCESS"

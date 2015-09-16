@@ -66,9 +66,9 @@ def require(**params):
 
 
 # enum m0_conf_service_type
-service_types = list(range(1, 10))
+service_types = list(range(1, 11))
 M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_RMS, M0_CST_STS, M0_CST_HA,\
-    M0_CST_SSS, M0_CST_SNS_REP, M0_CST_SNS_REB = service_types
+    M0_CST_SSS, M0_CST_SNS_REP, M0_CST_SNS_REB, M0_CST_ADDB2 = service_types
 
 
 # enum m0_cfg_storage_device_interface_type
