@@ -138,9 +138,13 @@ static void _fctx_fini(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_sns_cm_file_ctx *fctx = _AST2FCTX(ast, sf_fini_ast);
 
+	m0_file_owner_fini(&fctx->sf_owner);
+	m0_rm_remote_fini(&fctx->sf_creditor);
+	m0_file_fini(&fctx->sf_file);
 	m0_cm_lock(&fctx->sf_scm->sc_base);
 	_fctx_status_set(fctx, M0_SCFS_FINI);
 	m0_sm_fini(&fctx->sf_sm);
+	m0_clink_fini(&fctx->sf_fini_clink);
 	m0_cm_unlock(&fctx->sf_scm->sc_base);
 	m0_free(fctx);
 }
@@ -154,7 +158,6 @@ static void __sns_cm_fctx_cleanup(struct m0_sns_cm_file_ctx *fctx)
 	m0_scmfctx_htable_del(&fctx->sf_scm->sc_file_ctx, fctx);
 	m0_sns_cm_fctx_fini(fctx);
 	fctx->sf_fini_ast.sa_cb = _fctx_fini;
-	__fctx_ast_post(fctx, &fctx->sf_fini_ast);
 }
 
 M0_INTERNAL void m0_sns_cm_fctx_cleanup(struct m0_sns_cm *scm)
@@ -208,16 +211,22 @@ static void sns_cm_fctx_rm_init(struct m0_sns_cm_file_ctx *fctx)
 
 static void sns_cm_fctx_rm_fini(struct m0_sns_cm_file_ctx *fctx)
 {
-	int rc;
-
 	m0_file_unlock(&fctx->sf_rin);
+	m0_rm_owner_lock(&fctx->sf_owner);
+	m0_clink_add(&fctx->sf_owner.ro_sm.sm_chan, &fctx->sf_fini_clink);
+	m0_rm_owner_unlock(&fctx->sf_owner);
 	m0_rm_owner_windup(&fctx->sf_owner);
-	rc = m0_rm_owner_timedwait(&fctx->sf_owner, M0_BITS(ROS_FINAL),
-				   M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
-	m0_file_owner_fini(&fctx->sf_owner);
-	m0_rm_remote_fini(&fctx->sf_creditor);
-	m0_file_fini(&fctx->sf_file);
+}
+
+static bool fctx_fini_clink_cb(struct m0_clink *link)
+{
+	struct m0_sns_cm_file_ctx *fctx = M0_AMB(fctx, link, sf_fini_clink);
+	if (fctx->sf_owner.ro_sm.sm_state == ROS_FINAL) {
+		m0_clink_del(link);
+		__fctx_ast_post(fctx, &fctx->sf_fini_ast);
+	}
+
+	return true;
 }
 
 M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
@@ -246,6 +255,7 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 	m0_scmfctx_tlink_init(fctx);
 	m0_ref_init(&fctx->sf_ref, 1, sns_cm_fctx_release);
 	m0_sm_init(&fctx->sf_sm, &fctx_sm_conf, M0_SCFS_INIT, &scm->sc_base.cm_sm_group);
+	m0_clink_init(&fctx->sf_fini_clink, fctx_fini_clink_cb);
 	fctx->sf_group = grp;
 	fctx->sf_scm = scm;
 	if (!m0_sns_cm2reqh(scm)->rh_oostore)

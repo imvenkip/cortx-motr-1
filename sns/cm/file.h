@@ -107,6 +107,8 @@ struct m0_sns_cm_file_ctx {
 
 	struct m0_sm_ast            sf_fini_ast;
 
+	struct m0_clink             sf_fini_clink;
+
 	/** Index of the ioservice last visited to get file attributes. */
 	uint64_t                    sf_nr_ios_visited;
 	int                         sf_rc;
