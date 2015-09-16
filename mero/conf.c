@@ -310,9 +310,6 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 		struct m0_conf_obj     *obj = m0_conf_diter_result(&it);
 		struct m0_conf_service *svc = M0_CONF_CAST(obj,
 							   m0_conf_service);
-		M0_LOG(M0_DEBUG, "service:%s fid:" FID_F,
-				m0_conf_service_name_dup(svc),
-				FID_P(&svc->cs_obj.co_id));
 		M0_ASSERT(rctx->rc_nr_services < rctx->rc_max_services);
 		/** @todo Check only one service of each service type is present
 			  per endpoint in the configuration.
@@ -327,6 +324,9 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 			break;
 		}
 		rctx->rc_service_fids[svc->cs_type] = svc->cs_obj.co_id;
+		M0_LOG(M0_DEBUG, "service:%s fid:" FID_F,
+		       rctx->rc_services[svc->cs_type],
+		       FID_P(&rctx->rc_service_fids[svc->cs_type]));
 		M0_CNT_INC(rctx->rc_nr_services);
 	}
 	m0_conf_diter_fini(&it);
