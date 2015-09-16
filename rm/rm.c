@@ -30,10 +30,13 @@
 #include "lib/mutex.h"
 #include "lib/trace.h"
 #include "lib/bob.h"
+#include "lib/finject.h" /* M0_FI_ENABLED */
 #include "fid/fid.h"
 #include "addb2/addb2.h"
 #include "mero/magic.h"
 #include "sm/sm.h"
+#include "conf/obj.h"    /* m0_conf_obj      */
+#include "fid/fid.h"     /* m0_fid           */
 
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
@@ -56,6 +59,7 @@ static bool owner_invariant        (struct m0_rm_owner *owner);
 static void pin_del                (struct m0_rm_pin *pin);
 static bool owner_invariant_state  (const struct m0_rm_owner *owner,
 				    struct owner_invariant_state *is);
+static struct m0_rm_incoming *cr2in(const struct m0_rm_credit *cr);
 static void incoming_check         (struct m0_rm_incoming *in);
 static int  incoming_check_with    (struct m0_rm_incoming *in,
 				    struct m0_rm_credit *credit);
@@ -92,12 +96,14 @@ static bool credit_conflicts        (const struct m0_rm_credit *A,
 				     const struct m0_rm_credit *B);
 static int  credit_diff             (struct m0_rm_credit *c0,
 				     const struct m0_rm_credit *c1);
+static void conflict_notify         (struct m0_rm_credit *credit);
 static void windup_incoming_complete(struct m0_rm_incoming *in,
 				     int32_t rc);
 static void windup_incoming_conflict(struct m0_rm_incoming *in);
 static int cached_credits_hold       (struct m0_rm_incoming *in);
 static void cached_credits_clear     (struct m0_rm_owner *owner);
 static bool owner_is_idle	    (const struct m0_rm_owner *o);
+static bool owner_is_liquidated     (const struct m0_rm_owner *o);
 static bool incoming_is_complete    (const struct m0_rm_incoming *in);
 static int remnant_credit_get	    (const struct m0_rm_credit *src,
 				     const struct m0_rm_credit *diff,
@@ -110,6 +116,7 @@ static int loan_dup		    (const struct m0_rm_loan *src_loan,
 static void owner_liquidate	    (struct m0_rm_owner *src_owner);
 static void owner_cleanup           (struct m0_rm_owner *owner);
 static void credit_processor        (struct m0_rm_resource_type *rt);
+static bool rm_on_remote_death_cb   (struct m0_clink *link);
 
 #define INCOMING_CREDIT(in) in->rin_want.cr_datum
 
@@ -135,7 +142,6 @@ M0_TL_DESCR_DEFINE(m0_owners, "local owners", , struct m0_rm_owner,
 		   ro_owner_linkage, ro_magix,
 		   M0_RM_OWNER_LIST_MAGIC, M0_RM_OWNER_LIST_HEAD_MAGIC);
 M0_TL_DEFINE(m0_owners, M0_INTERNAL, struct m0_rm_owner);
-
 
 static const struct m0_bob_type credit_bob = {
         .bt_name         = "credit",
@@ -446,11 +452,11 @@ static struct m0_sm_state_descr owner_states[] = {
 	[ROS_INITIAL] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "Init",
-		.sd_allowed   = M0_BITS(ROS_INITIALISING, ROS_FINAL)
+		.sd_allowed   = M0_BITS(ROS_INITIALISING)
 	},
 	[ROS_INITIALISING] = {
 		.sd_name      = "Initialising",
-		.sd_allowed   = M0_BITS(ROS_ACTIVE, ROS_FINAL)
+		.sd_allowed   = M0_BITS(ROS_ACTIVE)
 	},
 	[ROS_ACTIVE] = {
 		.sd_name      = "Active",
@@ -462,7 +468,13 @@ static struct m0_sm_state_descr owner_states[] = {
 	},
 	[ROS_FINALISING] = {
 		.sd_name      = "Finalising",
-		.sd_allowed   = M0_BITS(ROS_INSOLVENT, ROS_FINAL)
+		.sd_allowed   = M0_BITS(ROS_INSOLVENT, ROS_DEAD_CREDITOR,
+					ROS_FINAL)
+	},
+	[ROS_DEAD_CREDITOR] = {
+		.sd_flags     = M0_SDF_FAILURE | M0_SDF_FINAL,
+		.sd_name      = "Creditor_is_dead",
+		.sd_allowed   = M0_BITS(ROS_ACTIVE, ROS_FINAL),
 	},
 	[ROS_INSOLVENT] = {
 		.sd_flags     = M0_SDF_TERMINAL,
@@ -492,6 +504,16 @@ static inline void owner_state_set(struct m0_rm_owner    *owner,
 	m0_sm_state_set(&owner->ro_sm, state);
 }
 
+static inline void owner_fail(struct m0_rm_owner     *owner,
+			      enum m0_rm_owner_state  state,
+			      int                     rc)
+{
+	M0_LOG(M0_INFO, "Owner: %p, state change:[%s -> %s] err %d\n",
+	       owner, m0_sm_state_name(&owner->ro_sm, owner->ro_sm.sm_state),
+	       m0_sm_state_name(&owner->ro_sm, state), rc);
+	m0_sm_fail(&owner->ro_sm, state, rc);
+}
+
 static bool owner_has_loans(struct m0_rm_owner *owner)
 {
 	return !m0_rm_ur_tlist_is_empty(&owner->ro_sublet) ||
@@ -508,9 +530,14 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 			 * Flush the loans and cached credits.
 			 */
 			if (owner_has_loans(owner)) {
-				owner_state_set(owner, ROS_FINALISING);
 				cached_credits_clear(owner);
-				owner_liquidate(owner);
+				if (M0_FI_ENABLED("drop_loans")) {
+					owner_cleanup(owner);
+					owner_state_set(owner, ROS_FINAL);
+				} else {
+					owner_state_set(owner, ROS_FINALISING);
+					owner_liquidate(owner);
+				}
 			} else {
 				owner_state_set(owner, ROS_FINAL);
 				M0_POST(owner_invariant(owner));
@@ -520,15 +547,19 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 	case ROS_FINALISING:
 		/*
 		 * owner_liquidate() creates requests. Make sure that all those
-		 * requests are processed. Once the owner is idle, if there
-		 * are no pending loans, finalise owner. Otherwise put it
+		 * requests are processed. Once the owner is liquidated, if
+		 * there are no pending loans, finalise owner. Otherwise put it
 		 * in INSOLVENT state. Currently there is no recovery from
 		 * INSOLVENT state.
 		 */
-		if (owner_is_idle(owner)) {
+		if (owner_is_liquidated(owner)) {
 			cached_credits_clear(owner);
-			owner_state_set(owner, owner_has_loans(owner) ?
-					       ROS_INSOLVENT : ROS_FINAL);
+			if (owner_has_loans(owner))
+				owner_state_set(owner, ROS_INSOLVENT);
+			else if (owner->ro_user_windup)
+				owner_state_set(owner, ROS_FINAL);
+			else
+				owner_fail(owner, ROS_DEAD_CREDITOR, -ENODEV);
 			if (owner_state(owner) == ROS_INSOLVENT)
 				owner_cleanup(owner);
 		}
@@ -539,10 +570,6 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 	default:
 		break;
 	}
-	/**
-	 * @todo Optionally send notification to
-	 * objects waiting for finalising the owner.
-	 */
 }
 
 static bool owner_smgrp_is_locked(const struct m0_rm_owner *owner)
@@ -603,7 +630,6 @@ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner      *owner,
 	m0_mutex_lock(&res->r_type->rt_lock);
 	m0_owners_tlink_init_at_tail(owner, &res->r_local);
 	m0_mutex_unlock(&res->r_type->rt_lock);
-
 	M0_POST(owner_invariant(owner));
 	M0_POST(owner->ro_resource == res);
 
@@ -703,10 +729,28 @@ M0_EXPORTED(m0_rm_owner_selfadd);
 
 static bool owner_is_idle(const struct m0_rm_owner *o)
 {
+	/*
+	 * Owner is considered to be idle when all local requests are
+	 * satisfied and there are no outgoing requests.
+	 */
 	return  m0_forall(i, ARRAY_SIZE(o->ro_incoming),
-			  m0_forall(j, ARRAY_SIZE(o->ro_incoming[i]),
-				    m0_rm_ur_tlist_is_empty(
-					    &o->ro_incoming[i][j]))) &&
+			m0_forall(j, ARRAY_SIZE(o->ro_incoming[i]),
+				m0_tl_forall(m0_rm_ur, c, &o->ro_incoming[i][j],
+				    incoming_state(cr2in(c)) == RI_SUCCESS))) &&
+		m0_forall(k, ARRAY_SIZE(o->ro_outgoing),
+			  m0_rm_ur_tlist_is_empty(&o->ro_outgoing[k]));
+}
+
+static bool owner_is_liquidated(const struct m0_rm_owner *o)
+{
+	/*
+	 * Owner is considered to be liquidated if all locally granted requests
+	 * are released and there no outgoing requests.
+	 */
+	return  m0_forall(i, ARRAY_SIZE(o->ro_incoming),
+			m0_forall(j, ARRAY_SIZE(o->ro_incoming[i]),
+				m0_rm_ur_tlist_is_empty(
+					&o->ro_incoming[i][j]))) &&
 		m0_forall(k, ARRAY_SIZE(o->ro_outgoing),
 			  m0_rm_ur_tlist_is_empty(&o->ro_outgoing[k]));
 }
@@ -716,7 +760,7 @@ static void owner_liquidate(struct m0_rm_owner *o)
 	struct m0_rm_credit   *credit;
 	struct m0_rm_loan     *loan;
 	struct m0_rm_incoming *in;
-	int		       rc = 0;
+	int                    rc = 0;
 
 	M0_ENTRY("owner: %p", o);
 	/*
@@ -752,10 +796,19 @@ static void owner_liquidate(struct m0_rm_owner *o)
 			break;
 	} m0_tl_endfor;
 
+	/*
+	 * Call conflict callback for all held credits. Users are expected to
+	 * put them, so owner can continue with windup process.
+	 */
+	m0_tl_for (m0_rm_ur, &o->ro_owned[OWOS_HELD], credit) {
+		conflict_notify(credit);
+	} m0_tl_endfor;
+
 	m0_tl_for (m0_rm_ur, &o->ro_borrowed, credit) {
 		M0_ASSERT(m0_rm_credit_bob_check(credit));
 		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
-		if (loan->rl_id == M0_RM_LOAN_SELF_ID) {
+		if (loan->rl_id == M0_RM_LOAN_SELF_ID ||
+		    (o->ro_creditor != NULL && o->ro_creditor->rem_dead)) {
 			m0_rm_ur_tlist_del(credit);
 			m0_rm_loan_fini(loan);
 			m0_free(loan);
@@ -799,21 +852,43 @@ M0_INTERNAL int m0_rm_owner_timedwait(struct m0_rm_owner *owner,
 	m0_rm_owner_lock(owner);
 	rc = m0_sm_timedwait(&owner->ro_sm, state, abs_timeout);
 	m0_rm_owner_unlock(owner);
-
-	return rc ?: owner->ro_sm.sm_rc;
+	return rc;
 }
 
-M0_INTERNAL void m0_rm_owner_windup(struct m0_rm_owner *owner)
+M0_INTERNAL void m0_rm_owner_creditor_reset(struct m0_rm_owner  *owner,
+					    struct m0_rm_remote *creditor)
 {
+	M0_ENTRY();
+	M0_PRE(owner_state(owner) == ROS_DEAD_CREDITOR ||
+	       owner->ro_creditor == NULL);
+	m0_rm_owner_lock(owner);
+	owner->ro_creditor = creditor;
+	if (owner_state(owner) == ROS_DEAD_CREDITOR)
+		owner_state_set(owner, ROS_ACTIVE);
+	m0_rm_owner_unlock(owner);
+	M0_LEAVE();
+}
+
+
+static void owner_windup_locked(struct m0_rm_owner *owner)
+{
+	M0_PRE(owner_smgrp_is_locked(owner));
 	/*
 	 * Put the owner in ROS_QUIESCE. This will prevent any new
 	 * incoming requests on it.
 	 */
+	owner_state_set(owner, ROS_QUIESCE);
+	owner_balance(owner);
+}
+
+M0_INTERNAL void m0_rm_owner_windup(struct m0_rm_owner *owner)
+{
 	m0_rm_owner_lock(owner);
-	if (owner_state(owner) != ROS_QUIESCE) {
-		owner_state_set(owner, ROS_QUIESCE);
-		owner_balance(owner);
-	}
+	owner->ro_user_windup = true;
+	if (owner_state(owner) == ROS_ACTIVE)
+		owner_windup_locked(owner);
+	else if (owner_state(owner) == ROS_DEAD_CREDITOR)
+		owner_state_set(owner, ROS_FINAL);
 	m0_rm_owner_unlock(owner);
 }
 
@@ -823,7 +898,8 @@ M0_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner)
 
 	M0_ENTRY("owner: %p", owner);
 	M0_PRE(owner_invariant(owner));
-	M0_PRE(M0_IN(owner_state(owner), (ROS_FINAL, ROS_INSOLVENT)));
+	M0_PRE(M0_IN(owner_state(owner),
+		     (ROS_FINAL, ROS_INSOLVENT, ROS_DEAD_CREDITOR)));
 
 	m0_mutex_lock(&res->r_type->rt_lock);
 	m0_owners_tlink_del_fini(owner);
@@ -910,6 +986,11 @@ static const struct m0_sm_conf inc_conf = {
 	.scf_state     = inc_states
 };
 
+static struct m0_rm_incoming *cr2in(const struct m0_rm_credit *cr)
+{
+	return container_of(cr, struct m0_rm_incoming, rin_want);
+}
+
 static inline void incoming_state_set(struct m0_rm_incoming     *in,
 				      enum m0_rm_incoming_state  state)
 {
@@ -984,8 +1065,10 @@ static void windup_incoming_conflict(struct m0_rm_incoming *in)
 static void windup_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	M0_ENTRY();
-	incoming_release(in);
-	incoming_surrender(in);
+	if (rc == 0) {
+		incoming_release(in);
+		incoming_surrender(in);
+	}
 	M0_PRE(incoming_invariant(in));
 	M0_PRE(M0_IN(incoming_state(in),
 	       (RI_INITIALISED, RI_FAILURE, RI_RELEASED)));
@@ -1063,11 +1146,13 @@ static int remnant_loan_get(const struct m0_rm_loan    *loan,
 	struct m0_rm_loan *new_loan;
 	int		   rc;
 
-	M0_ENTRY("split loan credit: %llu with credit: %llu",
-		 (long long unsigned) loan->rl_credit.cr_datum,
-		 (long long unsigned) credit->cr_datum);
-	M0_PRE(remnant_loan != NULL);
+	M0_ENTRY();
 	M0_PRE(loan != NULL);
+	M0_PRE(credit != NULL);
+	M0_PRE(remnant_loan != NULL);
+	M0_LOG(M0_DEBUG, "split loan credit: %llu with credit: %llu",
+	       (long long unsigned) loan->rl_credit.cr_datum,
+	       (long long unsigned) credit->cr_datum);
 
 	rc = loan_dup(loan, &new_loan) ?:
 		credit_diff(&new_loan->rl_credit, credit);
@@ -1186,51 +1271,30 @@ static bool rev_session_clink_cb(struct m0_clink *link)
 	return true;
 }
 
-static int remote_find(struct m0_rm_remote          **rem,
-		       struct m0_rm_remote_incoming  *rem_in,
-		       struct m0_rm_resource         *res)
+M0_INTERNAL struct m0_rm_remote *
+m0_rm_remote_find(struct m0_rm_remote_incoming *rem_in)
 {
-	struct m0_rm_remote *other;
-	int		     rc = 0;
-	struct m0_cookie    *cookie = &rem_in->ri_rem_owner_cookie;
+	struct m0_cookie      *cookie = &rem_in->ri_rem_owner_cookie;
+	struct m0_rm_resource *res = incoming_to_resource(&rem_in->ri_incoming);
 
-	M0_PRE(rem != NULL);
-	M0_PRE(res != NULL);
 	M0_PRE(cookie != NULL);
-
-	other = m0_tl_find(m0_remotes, other, &res->r_remote,
-			   m0_cookie_is_eq(&other->rem_cookie, cookie));
-	if (other == NULL) {
-		M0_ALLOC_PTR(other);
-		if (other != NULL) {
-			m0_rm_remote_init(other, res);
-			rc = m0_rm_reverse_session_get(rem_in, other);
-			if (rc != 0) {
-				m0_free(other);
-				return M0_ERR(rc);
-			}
-			other->rem_state = REM_SERVICE_LOCATED;
-			other->rem_cookie = *cookie;
-			/* @todo - Figure this out */
-			/* other->rem_id = 0; */
-			m0_remotes_tlist_add(&res->r_remote, other);
-		} else
-			rc = M0_ERR(-ENOMEM);
-	}
-	*rem = other;
-	return M0_RC(rc);
+	M0_PRE(res != NULL);
+	return m0_tl_find(m0_remotes, other, &res->r_remote,
+			  m0_cookie_is_eq(&other->rem_cookie, cookie));
 }
 
 M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote   *rem,
 				   struct m0_rm_resource *res)
 {
-	M0_PRE(rem->rem_state == REM_FREED);
+	M0_PRE(M0_IS0(rem));
 
 	M0_ENTRY("remote: %p", rem);
 	rem->rem_state = REM_INITIALISED;
 	rem->rem_resource = res;
+	rem->rem_cookie = M0_COOKIE_NULL;
 	m0_chan_init(&rem->rem_signal, &res->r_type->rt_lock);
 	m0_clink_init(&rem->rem_rev_sess_clink, rev_session_clink_cb);
+	m0_rm_ha_tracker_init(&rem->rem_tracker, rm_on_remote_death_cb);
 	m0_remotes_tlink_init(rem);
 	m0_rm_remote_bob_init(rem);
 	resource_get(res);
@@ -1260,6 +1324,9 @@ M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem)
 
 	rem->rem_state = REM_FREED;
 	m0_chan_fini_lock(&rem->rem_signal);
+
+	m0_rm_ha_unsubscribe_lock(&rem->rem_tracker);
+	m0_rm_ha_tracker_fini(&rem->rem_tracker);
 	/*
 	 * Do nothing with rem->rem_session. If it was used to
 	 * borrow credits, then session is managed by user. If
@@ -1277,14 +1344,11 @@ M0_EXPORTED(m0_rm_remote_fini);
 static void cached_credits_clear(struct m0_rm_owner *owner)
 {
 	struct m0_rm_credit *credit;
-	int		     i;
 
 	M0_ENTRY("owner: %p", owner);
-	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
-		m0_tl_teardown(m0_rm_ur, &owner->ro_owned[i], credit) {
-			m0_rm_credit_fini(credit);
-			m0_free(credit);
-		}
+	m0_tl_teardown(m0_rm_ur, &owner->ro_owned[OWOS_CACHED], credit) {
+		m0_rm_credit_fini(credit);
+		m0_free(credit);
 	}
 	M0_LEAVE();
 }
@@ -1394,24 +1458,23 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 	 * If there are no pins, sublet within the same group has been
 	 * granted.
 	 */
-	rc = remote_find(&debtor, rem_in, o->ro_resource);
-	if (rc == 0) {
-		rc = m0_rm_loan_alloc(&loan, &in->rin_want, debtor) ?:
-			pi_tlist_is_empty(&in->rin_pins) ? 0 :
-			cached_credits_remove(in);
-		/* @todo */
-		loan->rl_credit.cr_group_id = rem_in->ri_group_id;
-		if (rc != 0 && loan != NULL) {
-			m0_rm_loan_fini(loan);
-			m0_free(loan);
-		} else if (rc == 0) {
-			/*
-			 * Store the loan in the sublet list.
-			 */
-			m0_rm_ur_tlist_add(&o->ro_sublet, &loan->rl_credit);
-			m0_cookie_init(&loan->rl_cookie, &loan->rl_id);
-			rem_in->ri_loan_cookie = loan->rl_cookie;
-		}
+	debtor = m0_rm_remote_find(rem_in);
+	M0_ASSERT(debtor != NULL);
+	rc = m0_rm_loan_alloc(&loan, &in->rin_want, debtor) ?:
+		pi_tlist_is_empty(&in->rin_pins) ? 0 :
+		cached_credits_remove(in);
+	/* @todo */
+	loan->rl_credit.cr_group_id = rem_in->ri_group_id;
+	if (rc != 0 && loan != NULL) {
+		m0_rm_loan_fini(loan);
+		m0_free(loan);
+	} else if (rc == 0) {
+		/*
+		 * Store the loan in the sublet list.
+		 */
+		m0_rm_ur_tlist_add(&o->ro_sublet, &loan->rl_credit);
+		m0_cookie_init(&loan->rl_cookie, &loan->rl_id);
+		rem_in->ri_loan_cookie = loan->rl_cookie;
 	}
 
 	M0_POST(owner_invariant(o));
@@ -1541,12 +1604,6 @@ static bool credit_group_cmp(struct m0_uint128 *g1, struct m0_uint128 *g2)
 		m0_uint128_eq(g1, &m0_rm_no_group)) || !m0_uint128_eq(g1, g2);
 }
 
-static void incoming_failure_set(struct m0_rm_incoming *in, int err)
-{
-	m0_sm_move(&in->rin_sm, err, RI_FAILURE);
-	in->rin_rc = err;
-}
-
 static void incoming_queue(struct m0_rm_owner *owner, struct m0_rm_incoming *in)
 {
 	/*
@@ -1592,7 +1649,7 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in)
 				 in, m0_sm_state_name(&in->rin_sm,
 						      in->rin_sm.sm_state),
 				 m0_sm_state_name(&in->rin_sm, RI_FAILURE));
-		incoming_failure_set(in, -ENODEV);
+		incoming_complete(in, -ENODEV);
 	}
 
 	m0_rm_owner_unlock(owner);
@@ -2156,7 +2213,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 
 	M0_ENTRY("incoming: %p credit: %llu", in,
 		 (long long unsigned) rest->cr_datum);
-	M0_PRE(m0_rm_ur_tlist_contains(
+	M0_PRE_EX(m0_rm_ur_tlist_contains(
 		       &o->ro_incoming[in->rin_priority][OQS_GROUND], want));
 
 	/*
@@ -2287,24 +2344,22 @@ static void incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 	M0_ENTRY("incoming: %p error: [%d]", in, rc);
 	M0_PRE(in->rin_ops != NULL);
 	M0_PRE(in->rin_ops->rio_complete != NULL);
+	M0_PRE(M0_IN(incoming_state(in), (RI_CHECK, RI_INITIALISED)));
 	M0_PRE(rc <= 0);
+	M0_PRE_EX(!m0_rm_ur_tlink_is_in(&in->rin_want) ||
+		  m0_rm_ur_tlist_contains(
+			&owner->ro_incoming[in->rin_priority][OQS_GROUND],
+			&in->rin_want));
 
 	in->rin_rc = rc;
 	M0_LOG(M0_DEBUG, "Incoming req: %p, state change:[%s -> %s]\n",
 			 in, m0_sm_state_name(&in->rin_sm, in->rin_sm.sm_state),
 			 m0_sm_state_name(&in->rin_sm,
 				 rc == 0 ? RI_SUCCESS : RI_FAILURE));
-	/*
-	 * incoming_release() might have moved the request into excited
-	 * state when the last tracking pin was removed, shun it back
-	 * into obscurity.
-	 */
-	m0_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority][OQS_GROUND],
-			    &in->rin_want);
 	m0_sm_move(&in->rin_sm, rc, rc == 0 ? RI_SUCCESS : RI_FAILURE);
 	if (rc != 0) {
 		incoming_release(in);
-		m0_rm_ur_tlist_del(&in->rin_want);
+		m0_rm_ur_tlist_remove(&in->rin_want);
 		M0_ASSERT(pi_tlist_is_empty(&in->rin_pins));
 	}
 	M0_ASSERT(incoming_invariant(in));
@@ -2330,9 +2385,8 @@ static void incoming_policy_apply(struct m0_rm_incoming *in)
 	if (IS_IN_ARRAY(in->rin_policy, generic))
 		generic[in->rin_policy](in);
 	else {
-		struct m0_rm_resource *resource;
+		struct m0_rm_resource *resource = incoming_to_resource(in);
 
-		resource = in->rin_want.cr_owner->ro_resource;
 		resource->r_ops->rop_policy(resource, in);
 	}
 }
@@ -2448,9 +2502,10 @@ static int cancel_send(struct m0_rm_loan *loan)
 {
 	int rc;
 
-	M0_ENTRY("credit: %llu", (long long unsigned)
-		 loan->rl_credit.cr_datum);
+	M0_ENTRY();
 	M0_PRE(loan != NULL);
+	M0_LOG(M0_DEBUG, "credit: %llu", (long long unsigned)
+	       loan->rl_credit.cr_datum);
 
 	rc = m0_rm_request_out(M0_ROT_CANCEL, NULL, loan,
 			       &loan->rl_credit, loan->rl_other);
@@ -2728,9 +2783,7 @@ static bool credit_invariant(const struct m0_rm_credit *credit, void *data)
 		_0C(ergo(credit_is_reserved(credit),
 			 (is->is_phase == OIS_OWNED))) &&
 		_0C(ergo(is->is_phase == OIS_INCOMING,
-			 incoming_invariant(container_of(credit,
-							 struct m0_rm_incoming,
-							 rin_want)))) &&
+			 incoming_invariant(cr2in(credit)))) &&
 		_0C(credit_pin_nr(credit, M0_RPF_BARRIER) <= 1);
 }
 
@@ -3282,6 +3335,126 @@ error:
 M0_EXPORTED(m0_rm_net_locate);
 
 /** @} end of remote group */
+
+/**
+ * @name HA-notification Code to deal with HA notifications on creditors/debtors
+ * death
+ *
+ * @{
+ */
+
+/**
+ * Processes remote RM service failure. Corresponding remote instance of type
+ * m0_rm_remote played one of two exclusive roles for local owners: debtor or
+ * creditor. Both roles are handled in this function to make it generic.
+ *
+ * If remote instance was created to represent debtor part in the loans, then
+ * these loans are instantly settled to cached list. If there are outgoing
+ * revoke requests in progress to this remote, then they will eventually be
+ * completed with successful return code (@see revoke_ast()).
+ *
+ * If remote instance was created to represent creditor of some local owner,
+ * then further functioning of this owner is impossible, because all borrowed
+ * credits should be dropped. The potential problem is that borrowed credits
+ * could be sub-let to other owners or could be in active use ("held"). In order
+ * to gracefully drop these credits owner does "self-windup" process. Eventually
+ * this owner will transit to ROS_FINAL state.
+ *
+ * @note Remote structures (m0_rm_remote) are not destroyed until rm resource
+ * finalisation, because there can be outgoing requests to them in progress.
+ * Also remote can recover from failed state and become online again.
+ */
+static void rm_remote_death_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_rm_remote *remote = ast->sa_datum;
+	struct m0_rm_owner  *owner;
+	struct m0_rm_credit *credit;
+	struct m0_rm_loan   *loan;
+
+	remote->rem_dead = true;
+	m0_tl_for(m0_owners, &remote->rem_resource->r_local, owner) {
+		m0_tl_for(m0_rm_ur, &owner->ro_sublet, credit) {
+			loan = bob_of(credit, struct m0_rm_loan, rl_credit,
+				      &loan_bob);
+			if (loan->rl_other == remote) {
+				/* put the loan's credit back to CACHED */
+				int rc = m0_rm_loan_settle(owner, loan);
+				/**
+				 * @todo
+				 * if rc != 0, then credits remain in sub-let
+				 * list and can't be revoked anymore. Also we
+				 * can't return error code to user. Maybe we
+				 * should notify HA about error?
+				 */
+				if (rc != 0)
+					M0_LOG(M0_WARN, "continuing even"
+					       " after rc = %d with ep = %s",
+					       rc, remote->rem_tracker.rht_ep);
+			}
+		} m0_tl_endfor;
+
+		if (owner->ro_creditor == remote &&
+		    owner_state(owner) == ROS_ACTIVE) {
+			owner_windup_locked(owner);
+		}
+	} m0_tl_endfor;
+}
+
+/**
+ * Processes HA notification saying remote is ONLINE. We are interested only in
+ * the case when remote recovered from a failure. If remote is a debtor,
+ * then local owner will accept requests from it again. If remote is a creditor,
+ * then local owner regain an opportunity to satisfy incoming requests.
+ *
+ * @note It is assumed that all RPC sessions to remote are still valid and
+ * operational.
+ */
+static void rm_remote_online_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_rm_remote *remote = ast->sa_datum;
+	struct m0_rm_owner  *owner;
+
+	remote->rem_dead = false;
+	m0_tl_for(m0_owners, &remote->rem_resource->r_local, owner) {
+		if (owner->ro_creditor == remote &&
+		    owner_state(owner) == ROS_DEAD_CREDITOR) {
+			owner_state_set(owner, ROS_ACTIVE);
+		}
+	} m0_tl_endfor;
+}
+
+/**
+ * Callback that is associated with remote RM service configuration object state
+ * change. If HA notification about service failure is accepted, then post AST
+ * to resource type sm group to process remote failure under group lock.
+ *
+ * @note RM service can recover from failure in the feature. HA will send
+ * notification with M0_NC_ONLINE ha state, so keep tracking RM service state.
+ */
+static bool rm_on_remote_death_cb(struct m0_clink *link)
+{
+	struct m0_rm_remote  *remote;
+	struct m0_sm_ast     *ast;
+	struct m0_conf_obj   *obj;
+	enum m0_ha_obj_state  new_state;
+
+	obj = container_of(link->cl_chan, struct m0_conf_obj, co_ha_chan);
+	new_state = obj->co_ha_state;
+	if (M0_IN(new_state, (M0_NC_FAILED,M0_NC_ONLINE))) {
+		remote = container_of(link, struct m0_rm_remote,
+				      rem_tracker.rht_clink);
+		ast = new_state == M0_NC_FAILED ?
+			&remote->rem_tracker.rht_dead_ast :
+			&remote->rem_tracker.rht_online_ast;
+		ast->sa_cb = new_state == M0_NC_FAILED ?
+			rm_remote_death_ast : rm_remote_online_ast;
+		ast->sa_datum = remote;
+		m0_sm_ast_post(resource_grp(remote->rem_resource), ast);
+	}
+	return false;
+}
+
+/** @} end of HA-notification group */
 
 /** @} end of rm group */
 

@@ -24,7 +24,7 @@
 #include "lib/memory.h"                 /* M0_ALLOC_PTR */
 #include "lib/errno.h"
 #include "lib/string.h"
-#include "lib/finject.h"
+#include "lib/finject.h"                /* m0_fi_enable_once */
 #include "ut/ut.h"
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"

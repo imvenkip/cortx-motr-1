@@ -182,7 +182,7 @@ struct m0_sns_cm_rm_ctx {
 	 */
 	struct m0_rm_domain             rc_dom;
 	struct m0_rm_resource_type      rc_rt;
-	/** RM service context representing the the remote rm owner. */
+	/** RM service context representing the remote rm owner. */
 	struct m0_reqh_service_ctx     *rc_rm_ctx;
 };
 

@@ -103,12 +103,6 @@ static void rwlock_owner_set(struct rm_ut_data *self)
 
 static void rwlock_owner_unset(struct rm_ut_data *self)
 {
-	int rc;
-
-	m0_rm_owner_windup(self->rd_owner);
-	rc = m0_rm_owner_timedwait(self->rd_owner, M0_BITS(ROS_FINAL),
-				   M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(owner_state(self->rd_owner) == ROS_FINAL);
 	m0_rm_rwlock_owner_fini(self->rd_owner);
 	m0_free0(&self->rd_owner);
@@ -162,9 +156,11 @@ static void rwlock_utinit(void)
 
 	/* Maximum 3 servers for this test */
 	test_servers_nr = 3;
+
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_init(&rm_ctxs[i]);
 
+	rm_ctxs_conf_init(rm_ctxs, test_servers_nr);
 	rwlock_build_hierarchy();
 	for (i = 0; i < test_servers_nr; ++i) {
 		rm_ctxs[i].rc_test_data.rd_ops = &rwlock_ut_data_ops;
@@ -184,10 +180,11 @@ static void rwlock_utfini(void)
 	 * The ops within the loops need sync points. Hence they are separate.
 	 */
 	for (i = 0; i < test_servers_nr; ++i)
-		rm_ctx_server_windup(i);
+		rm_ctx_server_owner_windup(i);
 	/* Disconnect the servers */
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_server_stop(i);
+	rm_ctxs_conf_fini(rm_ctxs, test_servers_nr);
 	/* Finalise the servers */
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_fini(&rm_ctxs[i]);

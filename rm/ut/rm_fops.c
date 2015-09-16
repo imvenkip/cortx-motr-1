@@ -78,6 +78,7 @@ static void request_param_init(enum m0_rm_incoming_flags flags)
 	M0_UT_ASSERT(test_loan != NULL);
 	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
 	remote.rem_state = REM_FREED;
+	M0_SET0(&remote);
 	m0_rm_remote_init(&remote, rm_test_data.rd_res);
 	m0_cookie_init(&remote.rem_cookie, &rm_test_data.rd_owner->ro_id);
 	m0_rm_loan_init(test_loan, &rm_test_data.rd_credit, &remote);
@@ -582,7 +583,7 @@ static void borrow_fop_funcs_test(void)
 	/* 2. Test borrow_reply() - reply for BORROW FOP */
 	borrow_reply_test();
 
-	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+	rm_utdata_owner_windup_fini(&rm_test_data);
 }
 
 static void revoke_fop_funcs_test(void)
@@ -597,7 +598,7 @@ static void revoke_fop_funcs_test(void)
 	/* 2. Test revoke_reply() - reply for REVOKE FOP */
 	revoke_reply_test();
 
-	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+	rm_utdata_owner_windup_fini(&rm_test_data);
 }
 
 void rm_fop_funcs_test(void)

@@ -40,13 +40,6 @@
 #include "rpc/rpc_machine.h"   /* m0_rpc_machine */
 #include "sm/sm.h"
 #include "spiel/ut/spiel_ut_common.h"
-#include "ut/file_helpers.h"           /* M0_UT_CONF_PATH */
-
-/**
- * Returns absolute path to given file in conf/ut directory.
- * M0_CONF_UT_DIR is defined in conf/ut/Makefile.am.
- */
-
 
 #define STR_LEN 1000
 

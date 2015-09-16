@@ -457,6 +457,7 @@ static void flock_utinit(void)
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_init(&rm_ctxs[i]);
 
+	rm_ctxs_conf_init(rm_ctxs, test_servers_nr);
 	server_hier_config();
 	m0_mutex_init(&rm_ut_tests_chan_mutex);
 	m0_chan_init(&rm_ut_tests_chan, &rm_ut_tests_chan_mutex);
@@ -487,6 +488,7 @@ static void flock_utfini(void)
 	for (i = test_servers_nr - 1; i >= 0; --i) {
 		rm_ctx_server_stop(i);
 	}
+	rm_ctxs_conf_fini(rm_ctxs, test_servers_nr);
 	/*
 	 * Finalise the servers. Must be done in the reverse order, so that the
 	 * first initialised reqh is finalised last.

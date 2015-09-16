@@ -284,6 +284,12 @@ incoming_state(const struct m0_rm_incoming *in)
 	return in->rin_sm.sm_state;
 }
 
+static inline struct m0_rm_resource *
+incoming_to_resource(struct m0_rm_incoming *in)
+{
+	return in->rin_want.cr_owner->ro_resource;
+}
+
 static inline enum m0_rm_owner_state
 owner_state(const struct m0_rm_owner *owner)
 {
@@ -291,12 +297,21 @@ owner_state(const struct m0_rm_owner *owner)
 }
 
 static inline struct m0_sm_group *
+resource_grp(const struct m0_rm_resource *res)
+{
+	return &res->r_type->rt_sm_grp;
+}
+
+static inline struct m0_sm_group *
 owner_grp(const struct m0_rm_owner *owner)
 {
-	return &owner->ro_resource->r_type->rt_sm_grp;
+	return resource_grp(owner->ro_resource);
 }
 
 /** @} end of RM lists. */
+
+M0_INTERNAL struct m0_rm_remote *
+m0_rm_remote_find(struct m0_rm_remote_incoming *rem_in);
 
 /* __MERO_RM_RM_INTERNAL_H__ */
 #endif

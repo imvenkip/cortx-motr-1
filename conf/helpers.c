@@ -175,23 +175,32 @@ M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs)
 		     _conf_load(fs, fs_to_diskvs, ARRAY_SIZE(fs_to_diskvs)));
 }
 
+static void __ha_nvec_reset(struct m0_ha_nvec *nvec, int32_t total)
+{
+	int i;
+	for(i = 0; i < nvec->nv_nr; i++)
+		nvec->nv_note[i] = (struct m0_ha_note){ M0_FID0, 0 };
+	nvec->nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
+}
+
 M0_INTERNAL int m0_conf_ha_state_update(struct m0_rpc_session *ha_sess,
 					struct m0_confc       *confc)
 {
 	struct m0_conf_cache *cache = &confc->cc_cache;
 	struct m0_conf_obj   *obj;
 	struct m0_ha_nvec    *nvec;
-	struct m0_mutex       chan_lock;
-	struct m0_chan        chan;
-	struct m0_clink       clink;
+	int32_t               total;
 	int                   rc;
 	int                   i = 0;
+
+	if ((total = m0_conf_cache_tlist_length(&cache->ca_registry)) < 1)
+		return M0_RC(-ENOENT);
 
 	M0_ALLOC_PTR(nvec);
 	if (nvec == NULL)
 		return M0_ERR(-ENOMEM);
 
-	nvec->nv_nr = m0_conf_cache_tlist_length(&cache->ca_registry);
+	nvec->nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
 	M0_ALLOC_ARR(nvec->nv_note, nvec->nv_nr);
 	if (nvec->nv_note == NULL) {
 		rc = M0_ERR(-ENOMEM);
@@ -199,9 +208,38 @@ M0_INTERNAL int m0_conf_ha_state_update(struct m0_rpc_session *ha_sess,
 	}
 
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		/* collect next note item */
 		nvec->nv_note[i].no_id = obj->co_id;
 		nvec->nv_note[i++].no_state = M0_NC_UNKNOWN;
+		/* see if it's time to discover */
+		if (nvec->nv_nr == i) {
+			rc = m0_conf_ha_state_discover(ha_sess, nvec, confc);
+			if (rc == 0) {
+				total -= nvec->nv_nr;
+				if (total > 0)
+					__ha_nvec_reset(nvec, total), i = 0;
+				else
+					break;
+			} else {
+				break;
+			}
+		}
 	} m0_tlist_endfor;
+
+	m0_free(nvec->nv_note);
+end:
+	m0_free(nvec);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_conf_ha_state_discover(struct m0_rpc_session *ha_sess,
+					  struct m0_ha_nvec     *nvec,
+					  struct m0_confc       *confc)
+{
+	struct m0_mutex       chan_lock;
+	struct m0_chan        chan;
+	struct m0_clink       clink;
+	int                   rc;
 
 	m0_mutex_init(&chan_lock);
 	m0_chan_init(&chan, &chan_lock);
@@ -228,9 +266,6 @@ M0_INTERNAL int m0_conf_ha_state_update(struct m0_rpc_session *ha_sess,
 	m0_mutex_unlock(&chan_lock);
 	m0_mutex_fini(&chan_lock);
 
-	m0_free(nvec->nv_note);
-end:
-	m0_free(nvec);
 	return M0_RC(rc);
 }
 

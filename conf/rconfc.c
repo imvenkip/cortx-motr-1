@@ -592,7 +592,6 @@ static void rlock_ctx_owner_setup(struct rlock_ctx *rlx)
 				&rlx->rlc_rwlock, NULL);
 	m0_rm_remote_init(creditor, owner->ro_resource);
 	creditor->rem_session = &rlx->rlc_sess;
-	creditor->rem_cookie  = M0_COOKIE_NULL;
 	owner->ro_creditor    = creditor;
 }
 

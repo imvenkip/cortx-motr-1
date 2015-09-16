@@ -352,12 +352,6 @@ static void rings_owner_set(struct rm_ut_data *self)
 
 static void rings_owner_unset(struct rm_ut_data *self)
 {
-	int rc;
-
-	m0_rm_owner_windup(self->rd_owner);
-	rc = m0_rm_owner_timedwait(self->rd_owner, M0_BITS(ROS_FINAL),
-				   M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
 	m0_rm_owner_fini(self->rd_owner);
 	m0_free0(&self->rd_owner);
 }

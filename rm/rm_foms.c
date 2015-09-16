@@ -29,6 +29,8 @@
 #include "fop/fom_generic.h"
 #include "rpc/service.h"
 #include "rpc/rpc.h"
+#include "reqh/reqh.h"
+#include "conf/confc.h"     /* m0_confc */
 
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
@@ -117,23 +119,31 @@ const struct m0_fom_type_ops rm_cancel_fom_type_ops = {
 	.fto_create = cancel_fom_create,
 };
 
-
 struct m0_sm_state_descr rm_req_phases[] = {
 	[FOPH_RM_REQ_START] = {
 		.sd_flags   = M0_SDF_INITIAL,
-		.sd_name    = "RM Request Begin",
-		.sd_allowed = M0_BITS(FOPH_RM_REQ_WAIT, FOPH_RM_REQ_FINISH)
+		.sd_name    = "RM_Request_Begin",
+		.sd_allowed = M0_BITS(FOPH_RM_REQ_CREDIT_GET,
+				      FOPH_RM_REQ_DEBTOR_SUBSCRIBE,
+				      FOPH_RM_REQ_FINISH)
+	},
+	[FOPH_RM_REQ_CREDIT_GET] = {
+		.sd_name    = "RM_Credit_Get",
+		.sd_allowed = M0_BITS(FOPH_RM_REQ_WAIT)
 	},
 	[FOPH_RM_REQ_WAIT] = {
-		.sd_name    = "RM Request Wait",
+		.sd_name    = "RM_Request_Wait",
 		.sd_allowed = M0_BITS(FOPH_RM_REQ_FINISH)
 	},
 	[FOPH_RM_REQ_FINISH] = {
 		.sd_flags   = M0_SDF_FINAL,
-		.sd_name    = "RM Request Completion",
+		.sd_name    = "RM_Request_Completion",
 		.sd_allowed = 0
 	},
-
+	[FOPH_RM_REQ_DEBTOR_SUBSCRIBE] = {
+		.sd_name    = "Debtor_Subscribe",
+		.sd_allowed = M0_BITS(FOPH_RM_REQ_CREDIT_GET)
+	},
 };
 
 const struct m0_sm_conf borrow_sm_conf = {
@@ -274,8 +284,8 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 	struct m0_rm_fop_borrow_rep *breply_fop;
 	struct m0_rm_fop_revoke_rep *rreply_fop;
 	struct rm_request_fom       *rfom;
-	struct m0_rm_loan	    *loan;
-	int			     rc = 0;
+	struct m0_rm_loan           *loan;
+	int                          rc = 0;
 
 	M0_ENTRY("reply for fom: %p", fom);
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
@@ -294,8 +304,8 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 				    struct m0_rm_loan, rl_id);
 
 		M0_ASSERT(loan != NULL);
-		breply_fop->br_creditor_cookie =
-			 rfom->rf_in.ri_rem_owner_cookie;
+		m0_cookie_init(&breply_fop->br_creditor_cookie,
+				&loan->rl_credit.cr_owner->ro_id);
 		/*
 		 * Memory for the buffer is allocated by the function.
 		 */
@@ -456,6 +466,67 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 	return M0_RC(rc);
 }
 
+static int remote_create(struct m0_rm_remote          **rem,
+			 struct m0_rm_remote_incoming  *rem_in)
+{
+	struct m0_cookie      *cookie = &rem_in->ri_rem_owner_cookie;
+	struct m0_rm_resource *res = incoming_to_resource(&rem_in->ri_incoming);
+	struct m0_rm_remote   *other;
+	int                    rc;
+
+	M0_ALLOC_PTR(other);
+	if (other != NULL) {
+		m0_rm_remote_init(other, res);
+		rc = m0_rm_reverse_session_get(rem_in, other);
+		if (rc != 0) {
+			m0_free(other);
+			return M0_ERR(rc);
+		}
+		other->rem_state = REM_SERVICE_LOCATED;
+		other->rem_cookie = *cookie;
+		/* @todo - Figure this out */
+		/* other->rem_id = 0; */
+		m0_remotes_tlist_add(&res->r_remote, other);
+	} else
+		rc = M0_ERR(-ENOMEM);
+	*rem = other;
+	return M0_RC(rc);
+}
+
+/**
+ * Asynchronously starts subscribing debtor to HA notification. This call makes
+ * remote request FOM sm route to diverge and first locate conf object
+ * corresponding to the remote object and install clink into the object's
+ * channel, and only then continue dealing with credit processing.
+ */
+static int rfom_debtor_subscribe(struct rm_request_fom        *rfom,
+				 struct m0_rm_remote          *debtor)
+{
+	struct m0_confc       *confc;
+	struct m0_rpc_item    *item;
+	const char            *ep;
+	struct m0_fom         *fom;
+	int                    rc;
+
+	M0_PRE(rfom != NULL);
+	fom = &rfom->rf_fom;
+	item = &fom->fo_fop->f_item;
+	ep = m0_rpc_item_remote_ep_addr(item);
+	M0_ASSERT(ep != NULL);
+	/* get confc instance HA to be notifying on */
+	confc = &item->ri_rmachine->rm_reqh->rh_confc;
+	rc = m0_rm_ha_subscriber_init(&rfom->rf_sbscr, &fom->fo_loc->fl_group,
+				confc, ep, &debtor->rem_tracker);
+	if (rc == 0) {
+		m0_fom_phase_set(fom, FOPH_RM_REQ_DEBTOR_SUBSCRIBE);
+		m0_fom_wait_on(fom, &rfom->rf_sbscr.rhs_sm.sm_chan,
+			       &fom->fo_cb);
+		m0_rm_ha_subscribe(&rfom->rf_sbscr);
+	}
+
+	return M0_RC(rc);
+}
+
 /*
  * Prepare incoming request. Send request for the credits.
  */
@@ -463,8 +534,8 @@ static int request_pre_process(struct m0_fom *fom,
 			       enum m0_rm_incoming_type type)
 {
 	struct rm_request_fom *rfom;
-	struct m0_rm_incoming *in;
-	int		       rc;
+	struct m0_rm_remote   *debtor;
+	int                    rc;
 
 	M0_ENTRY("pre-processing fom: %p request : %d", fom, type);
 
@@ -477,20 +548,48 @@ static int request_pre_process(struct m0_fom *fom,
 		 * This will happen if owner cookie is stale or
 		 * copying of credit data fails.
 		 */
-		reply_err_set(type, fom, rc);
-		M0_LEAVE();
-		return M0_FSO_AGAIN;
+		goto err;
 	}
 
-	in = &rfom->rf_in.ri_incoming;
-	m0_rm_credit_get(in);
+	if (type == M0_RIT_BORROW) {
+		debtor = m0_rm_remote_find(&rfom->rf_in);
+		if (debtor == NULL) {
+			rc = remote_create(&debtor, &rfom->rf_in);
+			if (rc != 0) {
+				m0_rm_incoming_fini(&rfom->rf_in.ri_incoming);
+				goto err;
+			}
+			/*
+			 * Subscribe debtor to HA notifications. If subscription
+			 * fails, proceed as usual to the next step.
+			 */
+			if (!M0_FI_ENABLED("no-subscription")) {
+				rc = rfom_debtor_subscribe(rfom, debtor);
+				if (rc == 0)
+					return M0_RC(M0_FSO_WAIT);
+			}
+		} else if (debtor->rem_dead) {
+			/*
+			 * There is nobody to reply to, as request originator
+			 * has been announced dead to the moment.
+			 */
+			rc = M0_ERR(-ECANCELED);
+			m0_rm_incoming_fini(&rfom->rf_in.ri_incoming);
+			goto err;
+		}
+	}
 
-	m0_fom_phase_set(fom, FOPH_RM_REQ_WAIT);
+	m0_fom_phase_set(fom, FOPH_RM_REQ_CREDIT_GET);
 	/*
 	 * Don't try to analyse incoming_state(in), because access to 'in' is
 	 * not synchronised here. Return always M0_FSO_WAIT, fom will wakeup
 	 * from remote_incoming_complete().
 	 */
+	return M0_RC(M0_FSO_AGAIN);
+
+err:
+	reply_err_set(type, fom, rc);
+	m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);
 	return M0_RC(M0_FSO_WAIT);
 }
 
@@ -530,7 +629,8 @@ static int request_post_process(struct m0_fom *fom)
 static int request_fom_tick(struct m0_fom           *fom,
 			    enum m0_rm_incoming_type type)
 {
-	int rc = 0;
+	struct rm_request_fom *rfom;
+	int                    rc = 0;
 
 	M0_ENTRY("running fom: %p for request: %d", fom, type);
 
@@ -540,6 +640,12 @@ static int request_fom_tick(struct m0_fom           *fom,
 			rc = cancel_process(fom);
 		else
 			rc = request_pre_process(fom, type);
+		break;
+	case FOPH_RM_REQ_CREDIT_GET:
+		rfom = container_of(fom, struct rm_request_fom, rf_fom);
+		m0_fom_phase_set(fom, FOPH_RM_REQ_WAIT);
+		m0_rm_credit_get(&rfom->rf_in.ri_incoming);
+		rc = M0_FSO_WAIT;
 		break;
 	case FOPH_RM_REQ_WAIT:
 		rc = request_post_process(fom);
@@ -552,16 +658,55 @@ static int request_fom_tick(struct m0_fom           *fom,
 	return M0_RC(rc);
 }
 
+static int debtor_subscription_check(struct m0_fom *fom)
+{
+	struct rm_request_fom *rfom;
+	int                    rc;
+
+	rfom = container_of(fom, struct rm_request_fom, rf_fom);
+	if (M0_IN(rfom->rf_sbscr.rhs_sm.sm_state,
+		  (RM_HA_SBSCR_FINAL, RM_HA_SBSCR_FAILURE))) {
+		if (rfom->rf_sbscr.rhs_sm.sm_rc != 0) {
+			M0_LOG(M0_DEBUG, "Can't subscribe to debtor with ep %s",
+			   m0_rm_remote_find(&rfom->rf_in)->rem_tracker.rht_ep);
+		}
+		m0_rm_ha_subscriber_fini(&rfom->rf_sbscr);
+		/* Ignore subscriber return code, procced to getting credit */
+		m0_fom_phase_set(fom, FOPH_RM_REQ_CREDIT_GET);
+		rc = M0_FSO_AGAIN;
+	}
+	else {
+		m0_fom_wait_on(fom, &rfom->rf_sbscr.rhs_sm.sm_chan,
+			       &fom->fo_cb);
+		rc = M0_FSO_WAIT;
+	}
+	return M0_RC(rc);
+}
+
 /**
  * This function handles the request to borrow a credit to a resource on
  * a server ("creditor").
+ *
+ * Prior to borrowing credit remote object (debtor) has to be subscribed to HA
+ * notifications about conf object status change to handle debtor death
+ * properly. This is done in FOPH_RM_REQ_DEBTOR_SUBSCRIBE phase.
  *
  * @param fom -> fom processing the CREDIT_BORROW request on the server
  *
  */
 static int borrow_fom_tick(struct m0_fom *fom)
 {
-	return request_fom_tick(fom, FRT_BORROW);
+	int rc;
+
+	M0_ENTRY("running fom: %p for request: %d", fom, FRT_BORROW);
+	switch (m0_fom_phase(fom)) {
+	case FOPH_RM_REQ_DEBTOR_SUBSCRIBE:
+		rc = debtor_subscription_check(fom);
+		break;
+	default:
+		rc = request_fom_tick(fom, FRT_BORROW);
+	}
+	return M0_RC(rc);
 }
 
 /**
@@ -587,19 +732,32 @@ static int cancel_process(struct m0_fom *fom)
 
 	cfop = m0_fop_data(fom->fo_fop);
 
+	owner = m0_cookie_of(&cfop->fc_creditor_cookie,
+			     struct m0_rm_owner, ro_id);
+	/* Creditors are alive as long as RM service is running */
+	M0_ASSERT(owner != NULL);
+	/* Lock owner to exclude races with processing HA notification */
+	m0_rm_owner_lock(owner);
 	loan = m0_cookie_of(&cfop->fc_loan.lo_cookie,
 			    struct m0_rm_loan, rl_id);
-	M0_ASSERT(loan != NULL);
-	M0_ASSERT(loan->rl_other != NULL);
-
-	owner = loan->rl_credit.cr_owner;
-	rc = m0_rm_loan_settle(owner, loan);
+	/*
+	 * Loan can be absent if debtor is considered dead and this loan has
+	 * already been revoked.
+	 */
+	if (loan != NULL) {
+		M0_ASSERT(loan->rl_other != NULL);
+		M0_ASSERT(!loan->rl_other->rem_dead);
+		rc = m0_rm_loan_settle(owner, loan);
+		reply_err_set(FRT_CANCEL, fom, rc);
+		m0_rpc_reply_post(&fom->fo_fop->f_item,
+				  m0_fop_to_rpc_item(fom->fo_rep_fop));
+	} else {
+		M0_LOG(M0_WARN, "loan %p is not found!",
+				(void *)cfop->fc_loan.lo_cookie.co_addr);
+	}
+	m0_rm_owner_unlock(owner);
 
 	m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);
-	reply_err_set(FRT_CANCEL, fom, rc);
-	m0_rpc_reply_post(&fom->fo_fop->f_item,
-			  m0_fop_to_rpc_item(fom->fo_rep_fop));
-
 	return M0_RC(M0_FSO_WAIT);
 }
 

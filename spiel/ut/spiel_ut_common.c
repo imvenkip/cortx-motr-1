@@ -21,6 +21,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
 
+#include "lib/finject.h"               /* m0_fi_enable_once */
 #include "net/lnet/lnet.h"             /* m0_net_lnet_xprt */
 #include "net/net.h"
 #include "rpc/rpc.h"
@@ -29,8 +30,8 @@
 #include "reqh/reqh.h"
 #include "spiel/spiel.h"
 #include "ut/ut.h"
+#include "ut/file_helpers.h"           /* M0_UT_CONF_PROFILE */
 #include "spiel/ut/spiel_ut_common.h"
-#include "ut/file_helpers.h"           /* M0_UT_CONF_PATH */
 
 static struct m0_spiel_ut_reqh ut_reqh;
 
@@ -62,7 +63,6 @@ M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 	);
 	if (rc != 0)
 		goto buf_pool;
-	m0_reqh_start(&spl_reqh->sur_reqh);
 
 	rc = m0_rpc_machine_init(&spl_reqh->sur_rmachine,
 				 &spl_reqh->sur_net_dom, ep_addr,
@@ -70,9 +70,12 @@ M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 				 M0_BUFFER_ANY_COLOUR,
 				 M0_RPC_DEF_MAX_RPC_MSG_SIZE,
 				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
-	if (rc == 0) {
-		return 0;
-	}
+	if (rc != 0)
+		goto reqh;
+	m0_reqh_start(&spl_reqh->sur_reqh);
+	return 0;
+reqh:
+	m0_reqh_fini(&spl_reqh->sur_reqh);
 buf_pool:
 	m0_rpc_net_buffer_pool_cleanup(&spl_reqh->sur_buf_pool);
 net:

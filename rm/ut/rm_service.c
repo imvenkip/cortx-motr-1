@@ -18,6 +18,7 @@
  * Original creation date: 20-Mar-2013
  */
 
+#include "lib/finject.h"      /* m0_fi_enable_once */
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
 #include "rm/rm_service.h"
@@ -93,8 +94,7 @@ static void test_flock(struct m0_rm_owner *owner, struct m0_file *file,
 
 	M0_SET0(owner);
 	m0_file_init(file, fid, &rm_test_data.rd_dom, 0);
-	m0_file_owner_init(owner, &m0_rm_no_group, file, NULL);
-	owner->ro_creditor = creditor;
+	m0_file_owner_init(owner, &m0_rm_no_group, file, creditor);
 	m0_file_lock(owner, &in);
 	m0_rm_owner_lock(owner);
 	rc = m0_sm_timedwait(&in.rin_sm,
@@ -162,7 +162,7 @@ static void rm_client(const int tid)
 
 	m0_rm_remote_init(creditor, resource);
 	creditor->rem_session = &client_ctx->rc_sess[SERVER_1];
-	creditor->rem_cookie  = M0_COOKIE_NULL;
+	creditor->rem_state   = REM_SERVICE_LOCATED;
 
 	/*
 	 * Test for Cancel

@@ -37,6 +37,7 @@ struct m0_fid;
 struct m0_rpc_session;
 struct m0_flset;
 struct m0_conf_obj_type;
+struct m0_ha_nvec;
 
 /**
  * Count number of objects of type "type" from specified path.
@@ -105,6 +106,18 @@ M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs);
  */
 M0_INTERNAL int m0_conf_ha_state_update(struct m0_rpc_session *ha_sess,
 					struct m0_confc       *confc);
+/**
+ * Update configuration objects ha state from ha service according to provided
+ * HA note vector.
+ *
+ * The difference from m0_conf_ha_state_update() is dealing with an arbitrary
+ * note vector. Client may fill in the vector following any logic that suits its
+ * needs. All the status results which respective conf objects exist in the
+ * provided confc instance cache will be applied to the cache.
+ */
+M0_INTERNAL int m0_conf_ha_state_discover(struct m0_rpc_session *ha_sess,
+					  struct m0_ha_nvec     *nvec,
+					  struct m0_confc       *confc);
 
 /**
  * Opens root configuration object.

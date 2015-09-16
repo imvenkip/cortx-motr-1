@@ -21,9 +21,16 @@
 #include "lib/memory.h"
 #include "lib/cookie.h"
 #include "lib/misc.h"
+#include "lib/string.h"           /* m0_strdup */
+#include "lib/finject.h"          /* m0_fi_enable_once */
 #include "rpc/rpclib.h"           /* m0_rpc_client_connect */
 #include "ut/ut.h"
 #include "lib/ub.h"
+#include "fid/fid.h"              /* m0_fid, m0_fid_tset */
+#include "conf/cache.h"
+#include "conf/obj.h"
+#include "conf/obj_ops.h"         /* m0_conf_obj_find */
+#include "conf/objs/common.h"     /* child_adopt */
 #include "rm/rm.h"
 #include "rm/rm_service.h"        /* m0_rms_type */
 #include "rm/rm_internal.h"
@@ -74,6 +81,16 @@ void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&owner->ro_owned[OWOS_CACHED]));
 }
 
+void rm_utdata_owner_windup_fini(struct rm_ut_data *data)
+{
+	int rc ;
+
+	m0_rm_owner_windup(rm_test_data.rd_owner);
+	rc = m0_rm_owner_timedwait(rm_test_data.rd_owner, M0_BITS(ROS_FINAL),
+				   M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+}
 /*
  * Recursive call to initialise object hierarchy
  *
@@ -232,6 +249,7 @@ void rm_ctx_server_start(enum rm_server srv_id)
 		M0_ALLOC_PTR(creditor);
 		M0_UT_ASSERT(creditor != NULL);
 		m0_rm_remote_init(creditor, owner->ro_resource);
+		creditor->rem_state = REM_SERVICE_LOCATED;
 		creditor->rem_session = &rm_ctxs[srv_id].rc_sess[cred_id];
 		owner->ro_creditor = creditor;
 	} else
@@ -243,6 +261,20 @@ void rm_ctx_server_start(enum rm_server srv_id)
 			rm_ctx_connect(&rm_ctxs[srv_id], &rm_ctxs[debtr_id]);
 	}
 
+}
+
+void rm_ctx_server_owner_windup(enum rm_server srv_id)
+{
+	struct m0_rm_owner *owner = rm_ctxs[srv_id].rc_test_data.rd_owner;
+	int                 rc;
+
+	if (rm_ctxs[srv_id].rc_is_dead)
+		m0_fi_enable_once("owner_finalisation_check", "drop_loans");
+	m0_rm_owner_windup(owner);
+	rc = m0_rm_owner_timedwait(owner, M0_BITS(ROS_FINAL),
+				   M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+	rm_ctx_server_windup(srv_id);
 }
 
 void rm_ctx_server_windup(enum rm_server srv_id)
@@ -271,6 +303,95 @@ void rm_ctx_server_stop(enum rm_server srv_id)
 		debtr_id = rm_ctxs[srv_id].debtor_id[i];
 		if (debtr_id != SERVER_INVALID)
 			rm_ctx_disconnect(&rm_ctxs[srv_id], &rm_ctxs[debtr_id]);
+	}
+}
+
+void rm_ctxs_rmsvc_conf_add(struct m0_confc *confc, struct rm_ctx *rmctx)
+{
+	struct m0_fid           svc_fid;
+	struct m0_conf_service *service;
+	struct m0_conf_obj     *svc_obj;
+	struct m0_fid           proc_fid;
+	struct m0_conf_obj     *proc_obj;
+	struct m0_conf_process *process;
+	struct m0_conf_cache   *cache = &confc->cc_cache;
+	int                     rc;
+
+	m0_conf_cache_lock(cache);
+	m0_fid_tset(&proc_fid, M0_CONF_PROCESS_TYPE.cot_ftype.ft_id, 1, 3);
+	proc_obj = m0_conf_cache_lookup(cache, &proc_fid);
+	process = M0_CONF_CAST(proc_obj, m0_conf_process);
+	M0_ASSERT(proc_obj != NULL);
+	m0_fid_tset(&svc_fid, M0_CONF_SERVICE_TYPE.cot_ftype.ft_id,
+			0, rmctx->rc_id);
+	rc = m0_conf_obj_find(cache, &svc_fid, &svc_obj);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(m0_conf_obj_is_stub(svc_obj));
+	service = M0_CONF_CAST(svc_obj, m0_conf_service);
+	service->cs_type = M0_CST_RMS;
+	M0_ALLOC_ARR(service->cs_endpoints, 2);
+	M0_ASSERT(service->cs_endpoints != NULL);
+	service->cs_endpoints[0] = m0_strdup(rmctx->rc_rmach_ctx.rmc_ep_addr);
+	M0_ASSERT(service->cs_endpoints[0] != NULL);
+	service->cs_endpoints[1] = NULL;
+	m0_conf_dir_tlist_add_tail(&process->pc_services->cd_items, svc_obj);
+	child_adopt(&process->pc_services->cd_obj, svc_obj);
+	svc_obj->co_status = M0_CS_READY;
+	m0_conf_cache_unlock(cache);
+}
+
+void rm_ctxs_conf_init(struct rm_ctx *rm_ctxs, int ctxs_nr)
+{
+	struct rm_ctx   *rmctx;
+	struct m0_confc *confc;
+	int              i, j;
+	int              rc;
+	char minimal_conf_str[] = "[6:\
+	   {0x74| ((^t|1:0), 1, [1 : ^p|1:0])},\
+	   {0x70| ((^p|1:0), ^f|1:1)},\
+	   {0x66| ((^f|1:1),\
+		(11, 22), 41212, [3: \"param-0\", \"param-1\", \"param-2\"],\
+		^o|1:23,\
+		   [1: ^n|1:2],\
+		   [1: ^o|1:23],\
+		   [0])},\
+	   {0x6e| ((^n|1:2), 16000, 2, 3, 2, ^o|1:23,\
+		   [1: ^r|1:3])},\
+	   {0x72| ((^r|1:3), [1:3], 0, 0, 0, 0, \"addr-0\", [0])},\
+	   {0x6f| ((^o|1:23), 0, [0])}]";
+
+	for (i = 0; i < ctxs_nr; i++) {
+		rmctx = &rm_ctxs[i];
+		confc = &rmctx->rc_rmach_ctx.rmc_reqh.rh_confc;
+		/*
+		 * Initialise confc instance in reqh. Confc is necessary to
+		 * track death of creditors/debtors.
+		 */
+		m0_fid_tset(&rmctx->rc_rmach_ctx.rmc_reqh.rh_profile,
+			    M0_CONF_PROFILE_TYPE.cot_ftype.ft_id, 1, 0);
+		rc = m0_confc_init(confc,
+				   m0_locality0_get()->lo_grp,
+				   NULL,
+				   &rmctx->rc_rmach_ctx.rmc_rpc,
+				   minimal_conf_str);
+		M0_ASSERT(rc == 0);
+		for (j = 0; j < ctxs_nr; j++) {
+			rm_ctxs_rmsvc_conf_add(confc, &rm_ctxs[j]);
+		}
+	}
+}
+
+void rm_ctxs_conf_fini(struct rm_ctx *rm_ctxs, int ctxs_nr)
+{
+	struct rm_ctx   *rmctx;
+	struct m0_confc *confc;
+	int              i;
+
+	for (i = 0; i < ctxs_nr; i++) {
+		rmctx = &rm_ctxs[i];
+		confc = &rmctx->rc_rmach_ctx.rmc_reqh.rh_confc;
+		m0_conf_cache_dir_clean(&confc->cc_cache);
+		m0_confc_fini(confc);
 	}
 }
 

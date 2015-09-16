@@ -329,14 +329,23 @@ static void brw_fom_state_test(enum test_type test)
 	/*
 	 * Call the first phase of FOM.
 	 */
+	m0_fi_enable_once("request_pre_process", "no-subscription");
+	rc = borrow_fom_tick(fom);
+	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_CREDIT_GET);
+	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+
+	/*
+	 * Call the second phase of FOM.
+	 */
 	if (test == RM_UT_MEMFAIL_TEST)
 		m0_fi_enable_once("rings_credit_copy", "fail_copy");
 	rc = borrow_fom_tick(fom);
 	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_WAIT);
 	M0_UT_ASSERT(rc == M0_FSO_WAIT);
 
+
 	/*
-	 * Call the second phase of FOM.
+	 * Call the third phase of FOM.
 	 */
 	m0_fi_enable_once("request_post_process", "no_rpc_reply_post");
 	rc = borrow_fom_tick(fom);
@@ -344,7 +353,7 @@ static void brw_fom_state_test(enum test_type test)
 
 	fom_fini(fom, M0_RIT_BORROW);
 	brw_test_cleanup();
-	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+	rm_utdata_owner_windup_fini(&rm_test_data);
 }
 
 /*
@@ -546,6 +555,14 @@ static void rvk_fom_state_test(enum test_type test)
 	/*
 	 * Call the first FOM phase.
 	 */
+	m0_fi_enable_once("request_pre_process", "no-subscription");
+	rc = revoke_fom_tick(fom);
+	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_CREDIT_GET);
+	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+
+	/*
+	 * Call the second FOM phase.
+	 */
 	if (test == RM_UT_MEMFAIL_TEST)
 		m0_fi_enable_once("rings_credit_copy", "fail_copy");
 	rc = revoke_fom_tick(fom);
@@ -553,14 +570,14 @@ static void rvk_fom_state_test(enum test_type test)
 	M0_UT_ASSERT(rc == M0_FSO_WAIT);
 
 	/*
-	 * Call the second FOM phase.
+	 * Call the third FOM phase.
 	 */
 	m0_fi_enable_once("request_post_process", "no_rpc_reply_post");
 	rc = revoke_fom_tick(fom);
 	rvk_fom_state_validate(fom, rc, test);
 
 	fom_fini(fom, M0_RIT_REVOKE);
-	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+	rm_utdata_owner_windup_fini(&rm_test_data);
 }
 
 /*

@@ -136,7 +136,7 @@ struct m0_rm_fop_revoke_rep {
 
 struct m0_rm_fop_cancel {
 	struct m0_rm_fop_loan fc_loan;
-	struct m0_cookie      fc_debtor_cookie;
+	struct m0_cookie      fc_creditor_cookie;
 } M0_XCA_RECORD;
 
 /**

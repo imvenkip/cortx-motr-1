@@ -172,6 +172,10 @@ struct m0_ha_nvec {
 	struct m0_ha_note *nv_note;
 } M0_XCA_SEQUENCE;
 
+enum m0_ha_state_update_defaults {
+	M0_HA_STATE_UPDATE_LIMIT = 1024,
+};
+
 /**
  * Queries HA about the current the failure state for a set of objects.
  *

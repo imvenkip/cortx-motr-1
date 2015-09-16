@@ -323,12 +323,15 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 		struct m0_conf_obj     *obj = m0_conf_diter_result(&it);
 		struct m0_conf_service *svc = M0_CONF_CAST(obj,
 							   m0_conf_service);
+		char                   *sname = m0_conf_service_name_dup(svc);
+		M0_LOG(M0_DEBUG, "service:%s fid:" FID_F, sname,
+				FID_P(&svc->cs_obj.co_id));
 		M0_ASSERT(rctx->rc_nr_services < rctx->rc_max_services);
 		/** @todo Check only one service of each service type is present
 			  per endpoint in the configuration.
 		    M0_ASSERT(rctx->rc_services[svc->cs_type] == NULL);
 		*/
-		rctx->rc_services[svc->cs_type] = m0_conf_service_name_dup(svc);
+		rctx->rc_services[svc->cs_type] = sname;
 		if (rctx->rc_services[svc->cs_type] == NULL) {
 			int i;
 			rc = -ENOMEM;

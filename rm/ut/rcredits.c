@@ -168,6 +168,8 @@ static void remote_credits_utinit(enum rcredits_hier_type hier_type)
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_init(&rm_ctxs[i]);
 
+	rm_ctxs_conf_init(rm_ctxs, test_servers_nr);
+
 	if (hier_type == RCREDITS_HIER_CHAIN)
 		chain_hier_config();
 	else if (hier_type == RCREDITS_HIER_STAR)
@@ -177,6 +179,7 @@ static void remote_credits_utinit(enum rcredits_hier_type hier_type)
 	for (i = 0; i < test_servers_nr; ++i) {
 		rings_utdata_ops_set(&rm_ctxs[i].rc_test_data);
 		rm_ctx_server_start(i);
+		M0_UT_ASSERT(!rm_ctxs[i].rc_is_dead);
 	}
 
 	/* Set creditors cookie, so incoming RM service requests
@@ -199,11 +202,12 @@ static void remote_credits_utfini(void)
 	 */
 	/* De-construct RM objects hierarchy */
 	for (i = test_servers_nr - 1; i >= 0; --i)
-		rm_ctx_server_windup(i);
+		rm_ctx_server_owner_windup(i);
 
 	/* Disconnect the servers */
 	for (i = test_servers_nr - 1; i >= 0; --i)
 		rm_ctx_server_stop(i);
+	rm_ctxs_conf_fini(rm_ctxs, test_servers_nr);
 
 	/*
 	 * Finalise the servers. Must be done in the reverse order, so that the
@@ -838,6 +842,278 @@ static void test_barrier_same_time(void)
 	remote_credits_utfini();
 }
 
+static void remote_ha_state_update(enum rm_server       server,
+				   enum rm_server       watcher,
+				   enum m0_ha_obj_state new_state)
+{
+	struct rm_ctx   *sctx = &rm_ctxs[server];
+	struct rm_ctx   *wctx = &rm_ctxs[watcher];
+	struct m0_confc *confc = &wctx->rc_rmach_ctx.rmc_reqh.rh_confc;
+	struct m0_ha_note n1[] = {
+		{ M0_FID_TINIT('s', 0, sctx->rc_id), new_state },
+	};
+	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
+
+	m0_ha_state_accept(confc, &nvec);
+}
+
+/* creditor/debtor death - simulate HA note acceptance */
+static void remote_die(enum rm_server server, enum rm_server watcher)
+{
+	struct rm_ctx *sctx = &rm_ctxs[server];
+
+	remote_ha_state_update(server, watcher, M0_NC_FAILED);
+	sctx->rc_is_dead = true;
+}
+
+static void rm_server_restart(enum rm_server server)
+{
+	rm_ctx_server_owner_windup(server);
+	rm_ctx_server_stop(server);
+	rm_ctx_server_start(server);
+	rm_ctxs[server].rc_is_dead = false;
+}
+
+static void remote_online(enum rm_server server, enum rm_server watcher)
+{
+	rm_server_restart(server);
+	remote_ha_state_update(server, watcher, M0_NC_ONLINE);
+}
+
+static void debtor_death_acceptance_wait(enum rm_server dead,
+					 enum rm_server watcher)
+{
+	struct rm_ctx         *sctx = &rm_ctxs[dead];
+	struct rm_ctx         *wctx = &rm_ctxs[watcher];
+	struct m0_rm_remote   *remote;
+	struct m0_rm_resource *res;
+	struct m0_cookie       cookie;
+	bool                   death_accepted;
+
+	res = wctx->rc_test_data.rd_res;
+	m0_cookie_init(&cookie, &sctx->rc_test_data.rd_owner->ro_id);
+	remote = m0_tl_find(m0_remotes, other, &res->r_remote,
+			  m0_cookie_is_eq(&other->rem_cookie, &cookie));
+	/* Busy loop to wait until remote->rem_dead flag is set */
+	do {
+		m0_sm_group_lock(resource_grp(res));
+		death_accepted = remote->rem_dead;
+		m0_sm_group_unlock(resource_grp(res));
+	} while (!death_accepted);
+}
+
+static void test_debtor_death(void)
+{
+	remote_credits_utinit(RCREDITS_HIER_CHAIN);
+
+	/* Get NENYA from SERVER_3 to SERVER_2 */
+	borrow_and_cache(SERVER_2, NENYA);
+
+	credits_are_equal(SERVER_3, RCL_SUBLET,   NENYA);
+	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS & ~NENYA);
+	credits_are_equal(SERVER_2, RCL_BORROWED, NENYA);
+	credits_are_equal(SERVER_2, RCL_CACHED,   NENYA);
+
+	remote_die(SERVER_2, SERVER_3);
+	/*
+	 * Debtor death is handled asynchronously through AST,
+	 * wait until AST is executed.
+	 */
+	debtor_death_acceptance_wait(SERVER_2, SERVER_3);
+
+	/* SERVER_3 revoked automatically all sub-let loans to SERVER_2 */
+	credits_are_equal(SERVER_3, RCL_SUBLET,   0);
+	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS);
+
+	remote_credits_utfini();
+}
+
+static void rm_ctx_creditor_track(enum rm_server srv_id)
+{
+	struct m0_rm_owner  *owner = rm_ctxs[srv_id].rc_test_data.rd_owner;
+	struct m0_rm_remote *creditor = owner->ro_creditor;
+	struct m0_confc     *confc;
+	const char          *rem_ep;
+	int                  rc;
+
+	confc = &rm_ctxs[srv_id].rc_rmach_ctx.rmc_reqh.rh_confc;
+	rem_ep = m0_rpc_conn_addr(creditor->rem_session->s_conn);
+	rc = m0_rm_ha_subscribe_sync(confc, rem_ep, &creditor->rem_tracker);
+	M0_ASSERT(rc == 0);
+}
+
+static void test_creditor_death(void)
+{
+	int                  rc;
+	struct m0_rm_remote *rem_creditor;
+
+	remote_credits_utinit(RCREDITS_HIER_CHAIN);
+
+	rm_ctx_creditor_track(SERVER_1);
+	rm_ctx_creditor_track(SERVER_2);
+	/* Get NENYA from SERVER_3 to SERVER_1 through SERVER_2 */
+	borrow_and_cache(SERVER_1, NENYA);
+
+	credits_are_equal(SERVER_3, RCL_SUBLET,   NENYA);
+	credits_are_equal(SERVER_3, RCL_CACHED,   ALLRINGS & ~NENYA);
+	credits_are_equal(SERVER_2, RCL_BORROWED, NENYA);
+	credits_are_equal(SERVER_2, RCL_SUBLET,   NENYA);
+	credits_are_equal(SERVER_1, RCL_BORROWED, NENYA);
+	credits_are_equal(SERVER_1, RCL_CACHED,   NENYA);
+
+	remote_die(SERVER_3, SERVER_2);
+
+	/*
+	 * SERVER_3 is dead.
+	 * SERVER_2 makes "self-windup" on loosing the creditor (in order to
+	 * cleanup all borrowed credits). It implies revoking NENYA from
+	 * SERVER_1.  SERVER_2 eventually transits to ROS_FINAL state.
+	 */
+	rc = m0_rm_owner_timedwait(rm_ctxs[SERVER_2].rc_test_data.rd_owner,
+				   M0_BITS(ROS_DEAD_CREDITOR), M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+	credits_are_equal(SERVER_2, RCL_BORROWED, 0);
+	credits_are_equal(SERVER_2, RCL_CACHED,   0);
+	credits_are_equal(SERVER_1, RCL_BORROWED, 0);
+	credits_are_equal(SERVER_1, RCL_CACHED,   0);
+
+	/*
+	 * SERVER_1 receive -ENODEV for NENYA request since SERVER_2 is in
+	 * ROS_FINAL state.
+	 */
+	credit_get_and_hold_nowait(SERVER_1, RIF_MAY_BORROW, NENYA);
+	m0_chan_wait(&rm_ctxs[SERVER_1].rc_clink);
+	M0_UT_ASSERT(rm_ctxs[SERVER_1].rc_test_data.rd_in.rin_rc == -ENODEV);
+
+	/* Re-init SERVER_2 for clean UT finalisation */
+	rem_creditor = rm_ctxs[SERVER_2].rc_test_data.rd_owner->ro_creditor;
+	m0_rm_owner_fini(rm_ctxs[SERVER_2].rc_test_data.rd_owner);
+	m0_rm_owner_init_rfid(rm_ctxs[SERVER_2].rc_test_data.rd_owner,
+			      &m0_rm_no_group,
+			      rm_ctxs[SERVER_2].rc_test_data.rd_res,
+			      rem_creditor);
+
+	remote_credits_utfini();
+}
+
+static void test_creditor_death2(void)
+{
+	int                  rc;
+	struct m0_rm_remote *rem_creditor;
+
+	remote_credits_utinit(RCREDITS_HIER_CHAIN);
+
+	rm_ctx_creditor_track(SERVER_2);
+	borrow_and_hold(SERVER_2, NENYA);
+
+	m0_semaphore_init(&conflict2_sem, 0);
+	remote_die(SERVER_3, SERVER_2);
+
+	/*
+	 * SERVER_2 calls conflict callback for all held credits, since these
+	 * credits are not valid anymore because of the creditor's death.
+	 * Wait until conflict callback is called and put credit, so owner can
+	 * proceed with "self-windup".
+	 */
+	m0_semaphore_timeddown(&conflict2_sem, M0_TIME_NEVER);
+	held_credit_cache(SERVER_2);
+	rc = m0_rm_owner_timedwait(rm_ctxs[SERVER_2].rc_test_data.rd_owner,
+				   M0_BITS(ROS_DEAD_CREDITOR), M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+	credits_are_equal(SERVER_2, RCL_BORROWED, 0);
+	credits_are_equal(SERVER_2, RCL_CACHED,   0);
+
+	/* Re-init SERVER_2 for clean UT finalisation */
+	rem_creditor = rm_ctxs[SERVER_2].rc_test_data.rd_owner->ro_creditor;
+	m0_rm_owner_fini(rm_ctxs[SERVER_2].rc_test_data.rd_owner);
+	m0_rm_owner_init_rfid(rm_ctxs[SERVER_2].rc_test_data.rd_owner,
+			      &m0_rm_no_group,
+			      rm_ctxs[SERVER_2].rc_test_data.rd_res,
+			      rem_creditor);
+
+	m0_semaphore_fini(&conflict2_sem);
+	remote_credits_utfini();
+}
+
+static void test_creditor_recovered(void)
+{
+	int rc;
+
+	remote_credits_utinit(RCREDITS_HIER_CHAIN);
+
+	rm_ctx_creditor_track(SERVER_2);
+	borrow_and_cache(SERVER_2, NENYA);
+
+	credits_are_equal(SERVER_2, RCL_BORROWED, NENYA);
+	credits_are_equal(SERVER_2, RCL_CACHED,   NENYA);
+
+	remote_die(SERVER_3, SERVER_2);
+
+	rc = m0_rm_owner_timedwait(rm_ctxs[SERVER_2].rc_test_data.rd_owner,
+				   M0_BITS(ROS_DEAD_CREDITOR), M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+	credits_are_equal(SERVER_2, RCL_BORROWED, 0);
+	credits_are_equal(SERVER_2, RCL_CACHED,   0);
+
+	credit_get_and_hold_nowait(SERVER_2, RIF_MAY_BORROW, NENYA);
+	m0_chan_wait(&rm_ctxs[SERVER_2].rc_clink);
+	M0_UT_ASSERT(rm_ctxs[SERVER_2].rc_test_data.rd_in.rin_rc == -ENODEV);
+
+	/* Imitate HA notification that creditor is M0_NC_ONLINE again */
+	remote_online(SERVER_3, SERVER_2);
+	creditor_cookie_setup(SERVER_2, SERVER_3);
+
+	/* Now credit request is granted */
+	borrow_and_cache(SERVER_2, NENYA);
+	credits_are_equal(SERVER_2, RCL_BORROWED, NENYA);
+	credits_are_equal(SERVER_2, RCL_CACHED,   NENYA);
+
+	remote_credits_utfini();
+}
+
+static void test_creditor_reset(void)
+{
+	int                 rc;
+	struct m0_rm_owner *owner2;
+
+	remote_credits_utinit(RCREDITS_HIER_CHAIN);
+
+	rm_ctx_creditor_track(SERVER_2);
+	borrow_and_cache(SERVER_2, NENYA);
+
+	credits_are_equal(SERVER_2, RCL_BORROWED, NENYA);
+	credits_are_equal(SERVER_2, RCL_CACHED,   NENYA);
+
+	remote_die(SERVER_3, SERVER_2);
+
+	rc = m0_rm_owner_timedwait(rm_ctxs[SERVER_2].rc_test_data.rd_owner,
+				   M0_BITS(ROS_DEAD_CREDITOR), M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+	credits_are_equal(SERVER_2, RCL_BORROWED, 0);
+	credits_are_equal(SERVER_2, RCL_CACHED,   0);
+
+	credit_get_and_hold_nowait(SERVER_2, RIF_MAY_BORROW, NENYA);
+	m0_chan_wait(&rm_ctxs[SERVER_2].rc_clink);
+	M0_UT_ASSERT(rm_ctxs[SERVER_2].rc_test_data.rd_in.rin_rc == -ENODEV);
+
+	/*
+	 * Reset creditor for SERVER_2, so SERVER_2 local owner is ROS_ACTIVE
+	 * again. Actually it is the same creditor, but rm owner is indifferent
+	 * to this trick. Restart SERVER_3 to re-initialise possessed credits.
+	 */
+	rm_server_restart(SERVER_3);
+	owner2 = rm_ctxs[SERVER_2].rc_test_data.rd_owner;
+	m0_rm_owner_creditor_reset(owner2, owner2->ro_creditor);
+	creditor_cookie_setup(SERVER_2, SERVER_3);
+
+	/* Now credit request is granted */
+	borrow_and_cache(SERVER_2, NENYA);
+	credits_are_equal(SERVER_2, RCL_BORROWED, NENYA);
+	credits_are_equal(SERVER_2, RCL_CACHED,   NENYA);
+
+	remote_credits_utfini();
+}
+
 struct m0_ut_suite rm_rcredits_ut = {
 	.ts_name = "rm-rcredits-ut",
 	.ts_tests = {
@@ -858,6 +1134,11 @@ struct m0_ut_suite rm_rcredits_ut = {
 		{ "barrier-overcome-star"    , test_barrier_overcome_star },
 		{ "barrier-overcome-chain"   , test_barrier_overcome_chain },
 		{ "barrier-same-time"        , test_barrier_same_time },
+		{ "debtor-death"             , test_debtor_death },
+		{ "creditor-death"           , test_creditor_death },
+		{ "creditor-death2"          , test_creditor_death2 },
+		{ "creditor-recovered"       , test_creditor_recovered },
+		{ "creditor-reset"           , test_creditor_reset },
 		{ NULL, NULL }
 	}
 };

@@ -68,7 +68,7 @@ static void local_credits_fini(void)
 	m0_chan_fini_lock(&conflict_chan);
 	m0_mutex_fini(&conflict_mutex);
 	m0_chan_fini_lock(&complete_chan);
-	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+	rm_utdata_owner_windup_fini(&rm_test_data);
 }
 
 static void credits_pinned_number_test(enum m0_rm_incoming_flags flags)

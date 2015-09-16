@@ -198,15 +198,12 @@ static void sns_cm_fctx_rm_init(struct m0_sns_cm_file_ctx *fctx)
 	m0_file_init(&fctx->sf_file, &fctx->sf_fid, &scm->sc_rm_ctx.rc_dom,
 		     M0_DI_NONE);
 	m0_rm_remote_init(&fctx->sf_creditor, &fctx->sf_file.fi_res);
-	m0_file_owner_init(&fctx->sf_owner, &m0_rm_sns_cm_group, &fctx->sf_file,
-			   NULL);
-	m0_rm_incoming_init(&fctx->sf_rin, &fctx->sf_owner, M0_RIT_LOCAL,
-			    RIP_NONE,
-			    RIF_MAY_BORROW | RIF_MAY_REVOKE);
-
-	fctx->sf_owner.ro_creditor = &fctx->sf_creditor;
 	fctx->sf_creditor.rem_session = &scm->sc_rm_ctx.rc_rm_ctx->sc_session;
-	fctx->sf_creditor.rem_cookie = M0_COOKIE_NULL;
+	fctx->sf_creditor.rem_state = REM_SERVICE_LOCATED;
+	m0_file_owner_init(&fctx->sf_owner, &m0_rm_sns_cm_group, &fctx->sf_file,
+			   &fctx->sf_creditor);
+	m0_rm_incoming_init(&fctx->sf_rin, &fctx->sf_owner, M0_RIT_LOCAL,
+			    RIP_NONE, RIF_MAY_BORROW | RIF_MAY_REVOKE);
 }
 
 static void sns_cm_fctx_rm_fini(struct m0_sns_cm_file_ctx *fctx)

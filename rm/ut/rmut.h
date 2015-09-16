@@ -129,6 +129,7 @@ struct rm_ctx {
 	struct m0_rpc_session      rc_sess[SERVER_NR];
 	struct rm_ut_data          rc_test_data;
 	uint32_t                   rc_debtors_nr;
+	bool                       rc_is_dead;
 	enum rm_server             creditor_id;
 	enum rm_server             debtor_id[SERVER_NR - 1];
 };
@@ -147,6 +148,7 @@ M0_EXTERN const char        *db_name[];
 
 void rm_utdata_init(struct rm_ut_data *data, enum obj_type type);
 void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type);
+void rm_utdata_owner_windup_fini(struct rm_ut_data *data);
 void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
 				 struct m0_rm_credit *credit);
 
@@ -157,12 +159,15 @@ void rm_ctx_connect(struct rm_ctx *src, const struct rm_ctx *dest);
 void rm_ctx_disconnect(struct rm_ctx *src, const struct rm_ctx *dest);
 void rm_ctx_server_start(enum rm_server srv_id);
 void rm_ctx_server_windup(enum rm_server srv_id);
+void rm_ctx_server_owner_windup(enum rm_server srv_id);
 void rm_ctx_server_stop(enum rm_server srv_id);
 void creditor_cookie_setup(enum rm_server dsrv_id, enum rm_server csrv_id);
 void loan_session_set(enum rm_server csrv_id, enum rm_server dsrv_id);
 void credits_are_equal(enum rm_server          srv_id,
 		       enum rm_ut_credits_list list_id,
 		       uint64_t                value);
+void rm_ctxs_conf_init(struct rm_ctx *rm_ctxs, int ctxs_nr);
+void rm_ctxs_conf_fini(struct rm_ctx *rm_ctxs, int ctxs_nr);
 
 
 /* __MERO_RM_UT_RMUT_H__ */

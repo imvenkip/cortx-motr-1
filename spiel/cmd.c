@@ -1007,8 +1007,6 @@ done:
 	return found;
 }
 
-#define LOG_LVL M0_FATAL
-
 static void spiel__pool_ctx_init(struct _pool_cmd_ctx *ctx,
 				 struct m0_spiel      *spl)
 {

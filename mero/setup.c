@@ -1377,8 +1377,6 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	if (M0_IN(m0_reqh_state_get(reqh), (M0_REQH_ST_DRAIN, M0_REQH_ST_INIT)))
 		m0_reqh_pre_storage_fini_svcs_stop(reqh);
 
-	cs_rpc_machines_fini(reqh);
-
 	M0_POST(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
 	M0_LEAVE();
 }
@@ -1994,6 +1992,14 @@ static void cs_conf_destroy(struct m0_mero *cctx)
 		m0_pool_versions_destroy(&cctx->cc_pools_common);
 		m0_pools_service_ctx_destroy(&cctx->cc_pools_common);
 		m0_pools_destroy(&cctx->cc_pools_common);
+	}
+}
+
+static void cs_conf_fini(struct m0_mero *cctx)
+{
+	struct m0_confc *confc = m0_mero2confc(cctx);
+
+	if (confc->cc_group != NULL) {
 		m0_pools_common_fini(&cctx->cc_pools_common);
 		m0_confc_fini(m0_mero2confc(cctx));
 	}
@@ -2113,9 +2119,12 @@ void m0_cs_fini(struct m0_mero *cctx)
 	if (cctx->cc_pools_common.pc_ha_ctx != NULL)
 		m0_flset_destroy(&reqh->rh_failure_set);
 
-	cs_conf_destroy(cctx);
-	if (rctx->rc_state >= RC_REQH_INITIALISED)
+	if (rctx->rc_state >= RC_REQH_INITIALISED) {
+		cs_conf_destroy(cctx);
 		cs_reqh_stop(rctx);
+		cs_conf_fini(cctx);
+		cs_rpc_machines_fini(reqh);
+	}
 	if (rctx->rc_state == RC_INITIALISED)
 		cs_reqh_storage_fini(rctx);
 	cs_reqh_ctx_fini(rctx);

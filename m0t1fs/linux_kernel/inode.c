@@ -148,10 +148,10 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode *ci,
 	 */
 	m0_file_init(&ci->ci_flock, fid, rdom, M0_DI_DEFAULT_TYPE);
 	m0_rm_remote_init(&ci->ci_creditor, &ci->ci_flock.fi_res);
-	m0_file_owner_init(&ci->ci_fowner, &m0_rm_m0t1fs_group,
-			   &ci->ci_flock, NULL);
-	ci->ci_fowner.ro_creditor = &ci->ci_creditor;
 	ci->ci_creditor.rem_session = &pc->pc_rm_ctx->sc_session;
+	ci->ci_creditor.rem_state = REM_SERVICE_LOCATED;
+	m0_file_owner_init(&ci->ci_fowner, &m0_rm_m0t1fs_group,
+			   &ci->ci_flock, &ci->ci_creditor);
 
 	M0_LEAVE();
 }

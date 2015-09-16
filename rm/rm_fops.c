@@ -164,8 +164,6 @@ static int fop_common_fill(struct rm_out         *outreq,
 	m0_fop_init(fop, fopt, NULL, rm_fop_release);
 	rc = m0_fop_data_alloc(fop);
 	if (rc == 0) {
-		struct m0_rm_resource *resource;
-
 		*data  = m0_fop_data(fop);
 		req = (struct m0_rm_fop_req *) (char *)*data + offset;
 		req->rrq_policy = in->rin_policy;
@@ -181,8 +179,7 @@ static int fop_common_fill(struct rm_out         *outreq,
 		if (!(in->rin_flags & WAIT_TRY_FLAGS))
 			req->rrq_flags |= RIF_LOCAL_WAIT;
 		req->rrq_owner.ow_cookie = *cookie;
-		resource = in->rin_want.cr_owner->ro_resource;
-		rc = m0_rm_resource_encode(resource,
+		rc = m0_rm_resource_encode(incoming_to_resource(in),
 					   &req->rrq_owner.ow_resource) ?:
 			m0_rm_credit_encode(credit,
 					    &req->rrq_credit.cr_opaque);
@@ -198,8 +195,8 @@ static int borrow_fop_fill(struct rm_out         *outreq,
 			   struct m0_rm_credit   *credit)
 {
 	struct m0_rm_fop_borrow *bfop;
-	struct m0_cookie	 cookie;
-	int			 rc;
+	struct m0_cookie         cookie;
+	int                      rc;
 
 	M0_ENTRY("creating borrow fop for incoming: %p credit value: %llu",
 		 in, (long long unsigned) credit->cr_datum);
@@ -259,6 +256,7 @@ static int cancel_fop_fill(struct rm_out     *outreq,
 	if (rc == 0) {
 		cfop = m0_fop_data(fop);
 		cfop->fc_loan.lo_cookie = loan->rl_cookie;
+		cfop->fc_creditor_cookie = loan->rl_other->rem_cookie;
 	} else {
 		m0_fop_fini(fop);
 	}
@@ -468,18 +466,28 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_fop_generic_reply *revoke_reply;
 	struct m0_rm_owner          *owner;
-	struct m0_rm_loan	    *rvk_loan;
-	struct rm_out		    *outreq;
-	struct m0_rpc_item	    *item;
-	int			     rc;
+	struct m0_rm_loan           *rvk_loan;
+	struct rm_out               *outreq;
+	struct m0_rpc_item          *item;
+	int                          rc;
 
 	M0_ENTRY();
 	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
 
 	outreq   = container_of(ast, struct rm_out, ou_ast);
-	item     = &outreq->ou_fop.f_item;
-	rc       = item->ri_error;
 	rvk_loan = &outreq->ou_req.rog_want;
+	if (rvk_loan->rl_other->rem_dead) {
+		/*
+		 * Remote owner is considered failed by HA. All loans are
+		 * already revoked in rm_remote_death_ast(). Set result code to
+		 * SUCCESS, since loan is already settled and goto out to
+		 * not try settle it once more.
+		 */
+		rc = 0;
+		goto out;
+	}
+	item = &outreq->ou_fop.f_item;
+	rc   = item->ri_error;
 	if (rc == 0) {
 		/* No RPC error. Check for revoke error, if any */
 		M0_ASSERT(item->ri_reply != NULL);
