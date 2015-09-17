@@ -226,13 +226,15 @@ my %level = (
     'warn'    => qr/ ^ WARN $ /xms,
     'error'   => qr/ ^ ERROR $ /xms,
     'fatal'   => qr/ ^ FATAL $ /xms,
-    'call+'   => qr/ ^ CALL   | DEBUG  | INFO   | NOTICE | WARN  | ERROR | FATAL $ /xms,
-    'debug+'  => qr/ ^ DEBUG  | INFO   | NOTICE | WARN   | ERROR | FATAL $ /xms,
-    'info+'   => qr/ ^ INFO   | NOTICE | WARN   | ERROR  | FATAL $ /xms,
-    'notice+' => qr/ ^ NOTICE | WARN   | ERROR  | FATAL $ /xms,
-    'warn+'   => qr/ ^ WARN   | ERROR  | FATAL $ /xms,
-    'error+'  => qr/ ^ ERROR  | FATAL $ /xms,
-    'fatal+'  => qr/ ^ FATAL $ /xms,
+    'always'  => qr/ ^ ALWAYS $ /xms,
+    'call+'   => qr/ ^ CALL   | DEBUG  | INFO   | NOTICE | WARN  | ERROR | FATAL | ALWAYS $ /xms,
+    'debug+'  => qr/ ^ DEBUG  | INFO   | NOTICE | WARN   | ERROR | FATAL | ALWAYS $ /xms,
+    'info+'   => qr/ ^ INFO   | NOTICE | WARN   | ERROR  | FATAL | ALWAYS $ /xms,
+    'notice+' => qr/ ^ NOTICE | WARN   | ERROR  | FATAL  | ALWAYS $ /xms,
+    'warn+'   => qr/ ^ WARN   | ERROR  | FATAL  | ALWAYS $ /xms,
+    'error+'  => qr/ ^ ERROR  | FATAL  | ALWAYS $ /xms,
+    'fatal+'  => qr/ ^ FATAL  | ALWAYS $ /xms,
+    'always+' => qr/ ^ ALWAYS $ /xms,
 );
 
 my $kernel_trace_records_file = '/sys/kernel/debug/mero/trace/records';
@@ -267,7 +269,7 @@ sub validate_level
 {
     my $level  = shift;
 
-    my @allowed_levels = qw( call debug info notice warn error fatal );
+    my @allowed_levels = qw( call debug info notice warn error fatal always );
     my $level_token = join '|', @allowed_levels;
 
     $level_token = qr/ \b (?: $level_token ) \b \+? /ixms;
@@ -377,6 +379,7 @@ sub level_color
         WARN    => $Term::ANSIColor::VERSION < 3.00 ? 'bold yellow' : 'bright_yellow',
         ERROR   => $Term::ANSIColor::VERSION < 3.00 ? 'red'         : 'bright_red',
         FATAL   => 'bold red',
+        ALWAYS  => 'magenta',
     );
 
     die "Invalid value '$level' of trace record field 'level'\n"
