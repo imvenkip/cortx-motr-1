@@ -356,6 +356,17 @@ static void stob_linux_cfg_free(void *cfg_create)
 	m0_free(cfg_create);
 }
 
+static int stob_linux_stat(struct m0_stob_linux *lstob)
+{
+	struct stat statbuf;
+	int         rc;
+
+	rc = fstat(lstob->sl_fd, &statbuf);
+	if (rc == -1)
+		return M0_ERR(-errno);
+	lstob->sl_mode = statbuf.st_mode;
+	return M0_RC(0);
+}
 
 static int stob_linux_open(struct m0_stob *stob,
 			   struct m0_stob_domain *dom,
@@ -364,33 +375,26 @@ static int stob_linux_open(struct m0_stob *stob,
 			   bool create)
 {
 	struct m0_stob_linux_domain *ldom = m0_stob_linux_domain_container(dom);
-	struct m0_stob_linux	    *lstob = m0_stob_linux_container(stob);
-	struct stat		     statbuf;
-	mode_t			     mode = ldom->sld_cfg.sldc_file_mode;
-	char			    *path = ldom->sld_path;
-	char			    *file_stob;
-	int			     flags = ldom->sld_cfg.sldc_file_flags;
-	int			     rc;
+	struct m0_stob_linux        *lstob = m0_stob_linux_container(stob);
+	char                        *file_stob;
+	int                          flags = ldom->sld_cfg.sldc_file_flags;
+	int                          rc;
 
 	stob->so_ops = &stob_linux_ops;
 	lstob->sl_dom = ldom;
 
-	file_stob = stob_linux_file_stob(path, stob_fid);
-	rc	  = file_stob == NULL ? -ENOMEM : 0;
-	if (rc == 0) {
-		rc = create && cfg != NULL ? symlink((char*)cfg, file_stob) : 0;
-		flags |= O_RDWR;
-		flags |= create && cfg == NULL		      ? O_CREAT  : 0;
-		flags |= m0_stob_ioq_directio(&ldom->sld_ioq) ? O_DIRECT : 0;
-		lstob->sl_fd = rc ?: open(file_stob, flags, mode);
-		rc = lstob->sl_fd == -1 ? -errno : 0;
-		if (rc == 0) {
-			rc = fstat(lstob->sl_fd, &statbuf);
-			rc = rc == -1 ? -errno : 0;
-			if (rc == 0)
-				lstob->sl_mode = statbuf.st_mode;
-		}
-	}
+	file_stob = stob_linux_file_stob(ldom->sld_path, stob_fid);
+	if (file_stob == NULL)
+		return M0_ERR(-ENOMEM);
+
+	rc = create && cfg != NULL ? symlink((char *)cfg, file_stob) : 0;
+	flags |= O_RDWR;
+	flags |= create && cfg == NULL                ? O_CREAT  : 0;
+	flags |= m0_stob_ioq_directio(&ldom->sld_ioq) ? O_DIRECT : 0;
+	lstob->sl_fd = rc ?: open(file_stob, flags,
+				  ldom->sld_cfg.sldc_file_mode);
+	rc = lstob->sl_fd == -1 ? -errno : stob_linux_stat(lstob);
+
 	m0_free(file_stob);
 	return M0_RC(rc);
 }
