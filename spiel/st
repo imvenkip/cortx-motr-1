@@ -586,4 +586,8 @@ _mount || stop $?
 #say "Validate health"
 #validate_health
 
-say "Spiel test SUCCESS"
+# this msg is used by Jenkins as a test success criteria;
+# it should appear on STDOUT
+if [ $? -eq 0 ] ; then
+    say 'spiel: test status: SUCCESS'
+fi
