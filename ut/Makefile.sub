@@ -11,6 +11,8 @@ ut_libmero_ut_la_SOURCES += ut/ast_thread.c \
                             ut/cs_service.h \
                             ut/file_helpers.h \
                             ut/file_helpers.c \
+                            ut/misc.c \
+                            ut/misc.h \
                             ut/module.c \
                             ut/module.h \
                             ut/stob.c \
