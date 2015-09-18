@@ -207,7 +207,7 @@ static void be_ut_tgf_buf_init(struct be_ut_tgf_ctx   *ctx,
 		tx = &group->tgfg_txs[i];
 		rc = m0_buf_alloc(&tx->tgft_payload, tx->tgft_payload_size);
 		M0_UT_ASSERT(rc == 0);
-		payload_max = max_check(payload_max, tx->tgft_payload_size);
+		payload_max += tx->tgft_payload_size;
 		be_ut_tgf_rnd_fill(tx->tgft_payload.b_addr,
 				   tx->tgft_payload.b_nob);
 	}

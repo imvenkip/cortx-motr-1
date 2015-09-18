@@ -31,6 +31,7 @@
 #include "lib/thread.h" /* LAMBDA */
 
 #include "ut/ut.h"
+#include "ut/misc.h"    /* m0_ut_random_shuffle */
 
 /**
  * @addtogroup be
@@ -277,7 +278,9 @@ static void be_fmt_group_populate(struct m0_be_fmt_group *group,
 	int i;
 
 	for (i = 0; i < TX_NR_MAX; ++i)
-		m0_be_fmt_group_tx_add(group, &TX(payload, payload_size, i));
+		m0_be_fmt_group_tx_add(group, i == 0 ?
+				       &TX(payload, payload_size, i) :
+				       &TX(   NULL,            0, i));
 
 	for (i = 0; i < REG_NR_MAX; ++i)
 		m0_be_fmt_group_reg_add(group, &REG(payload_size,
@@ -351,7 +354,8 @@ void m0_be_ut_fmt_group_size_max(void)
 			max = max64u(max, tests[i].reg_sizes[j]);
 		}
 		cfg = CFG(tests[i].tx_nr, tests[i].reg_nr,
-			  tests[i].payload_size, reg_area_size);
+			  tests[i].payload_size * tests[i].tx_nr,
+			  reg_area_size);
 
 		buf = max == 0 ? NULL : m0_alloc(max);
 		M0_UT_ASSERT(ergo(max != 0, buf != NULL));
@@ -365,7 +369,7 @@ void m0_be_ut_fmt_group_size_max(void)
 		}
 		for (j = 0; j < tests[i].reg_nr; ++j) {
 			m0_be_fmt_group_reg_add(&fg, &REG(tests[i].reg_sizes[j],
-							  0, buf));
+							  NULL, buf));
 		}
 		size_max = m0_be_fmt_group_size_max(&cfg);
 		size     = m0_be_fmt_group_size(&fg);
@@ -373,6 +377,128 @@ void m0_be_ut_fmt_group_size_max(void)
 		m0_be_fmt_group_fini(&fg);
 		m0_free(buf);
 	}
+}
+
+enum {
+	BE_UT_FMT_GROUP_SIZE_MAX_RND_NR   = 0x40,
+	BE_UT_FMT_GROUP_SIZE_MAX_RND_ITER = 0x40,
+};
+
+static m0_bcount_t
+be_ut_fmt_group_size_max_check(struct m0_be_fmt_group_cfg *fg_cfg,
+                               uint64_t                   *seed)
+{
+	struct m0_be_fmt_group *fg;
+	m0_bcount_t             size;
+	m0_bcount_t             size_max;
+	uint64_t               *payload_size = NULL;
+	uint64_t               *reg_size = NULL;
+	int                     rc;
+	uint64_t                i;
+
+	if ((fg_cfg->fgc_tx_nr_max == 0 && fg_cfg->fgc_payload_size_max > 0) ||
+	    (fg_cfg->fgc_reg_nr_max == 0 && fg_cfg->fgc_reg_size_max > 0))
+		return M0_BCOUNT_MAX;
+
+	M0_ALLOC_PTR(fg);
+	M0_UT_ASSERT(fg != NULL);
+	if (fg_cfg->fgc_tx_nr_max > 0) {
+		M0_ALLOC_ARR(payload_size, fg_cfg->fgc_tx_nr_max);
+		M0_UT_ASSERT(payload_size != NULL);
+		m0_ut_random_arr_with_sum(payload_size, fg_cfg->fgc_tx_nr_max,
+		                          fg_cfg->fgc_payload_size_max, seed);
+		m0_ut_random_shuffle(payload_size, fg_cfg->fgc_tx_nr_max, seed);
+		M0_ASSERT(m0_reduce(i, fg_cfg->fgc_tx_nr_max,
+				    0, + payload_size[i]) ==
+		          fg_cfg->fgc_payload_size_max);
+	}
+	if (fg_cfg->fgc_reg_nr_max > 0) {
+		M0_ALLOC_ARR(reg_size, fg_cfg->fgc_reg_nr_max);
+		M0_UT_ASSERT(reg_size != NULL);
+		m0_ut_random_arr_with_sum(reg_size, fg_cfg->fgc_reg_nr_max,
+		                          fg_cfg->fgc_reg_size_max, seed);
+		m0_ut_random_shuffle(reg_size, fg_cfg->fgc_reg_nr_max, seed);
+		M0_ASSERT(m0_reduce(i, fg_cfg->fgc_reg_nr_max,
+				    0, + reg_size[i]) ==
+		          fg_cfg->fgc_reg_size_max);
+	}
+	rc = m0_be_fmt_group_init(fg, fg_cfg);
+	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < fg_cfg->fgc_tx_nr_max; ++i)
+		m0_be_fmt_group_tx_add(fg, &TX(NULL, payload_size[i], 0));
+	for (i = 0; i < fg_cfg->fgc_reg_nr_max; ++i)
+		m0_be_fmt_group_reg_add(fg, &REG(reg_size[i], NULL, NULL));
+	size = m0_be_fmt_group_size(fg);
+	size_max = m0_be_fmt_group_size_max(fg_cfg);
+	M0_ASSERT_INFO(size == size_max, "size=%"PRIu64" size_max=%"PRIu64,
+	               size, size_max);
+	m0_be_fmt_group_fini(fg);
+	m0_free(reg_size);
+	m0_free(payload_size);
+	m0_free(fg);
+	return size_max;
+}
+
+static void be_ut_fmt_group_size_max_test(struct m0_be_fmt_group_cfg *fg_cfg2,
+                                          uint64_t                   *seed)
+{
+	struct m0_be_fmt_group_cfg  fg_cfg = *fg_cfg2;
+	m0_bcount_t                 size_max;
+	m0_bcount_t                 size_max_prev;
+	uint64_t                   *value[] = {
+		&fg_cfg.fgc_tx_nr_max,
+		&fg_cfg.fgc_reg_nr_max,
+		&fg_cfg.fgc_payload_size_max,
+		&fg_cfg.fgc_reg_size_max,
+		&fg_cfg.fgc_seg_nr_max,
+	};
+	int                         i;
+
+	size_max_prev = be_ut_fmt_group_size_max_check(&fg_cfg, seed);
+	for (i = 0; i < BE_UT_FMT_GROUP_SIZE_MAX_RND_ITER; ++i) {
+		++*value[m0_rnd64(seed) % ARRAY_SIZE(value)];
+		size_max = be_ut_fmt_group_size_max_check(&fg_cfg, seed);
+		M0_UT_ASSERT(ergo(size_max_prev != M0_BCOUNT_MAX,
+				  size_max >= size_max_prev));
+		size_max_prev = size_max == M0_BCOUNT_MAX ?
+			        size_max_prev : size_max;
+	}
+}
+
+void m0_be_ut_fmt_group_size_max_rnd(void)
+{
+	struct m0_be_fmt_group_cfg *fg_cfg;
+	uint64_t                    seed = 42;
+	int                         i;
+
+	be_ut_fmt_group_size_max_test(&(struct m0_be_fmt_group_cfg){
+		.fgc_tx_nr_max        = 0,
+		.fgc_reg_nr_max       = 0,
+		.fgc_payload_size_max = 0,
+		.fgc_reg_size_max     = 0,
+		.fgc_seg_nr_max       = 0,
+	}, &seed);
+	be_ut_fmt_group_size_max_test(&(struct m0_be_fmt_group_cfg){
+		.fgc_tx_nr_max        = 0x100,
+		.fgc_reg_nr_max       = 0x100,
+		.fgc_payload_size_max = 0x100,
+		.fgc_reg_size_max     = 0x100,
+		.fgc_seg_nr_max       = 0x100,
+	}, &seed);
+
+	M0_ALLOC_PTR(fg_cfg);
+	M0_UT_ASSERT(fg_cfg != NULL);
+	for (i = 0; i < BE_UT_FMT_GROUP_SIZE_MAX_RND_NR; ++i) {
+		*fg_cfg = (struct m0_be_fmt_group_cfg){
+			.fgc_tx_nr_max        = m0_rnd64(&seed) % 0x10 + 1,
+			.fgc_reg_nr_max       = m0_rnd64(&seed) % 0x10 + 1,
+			.fgc_payload_size_max = m0_rnd64(&seed) % 0x1000,
+			.fgc_reg_size_max     = m0_rnd64(&seed) % 0x1000,
+			.fgc_seg_nr_max       = m0_rnd64(&seed) % 0x10 + 1,
+		};
+		be_ut_fmt_group_size_max_test(fg_cfg, &seed);
+	}
+	m0_free(fg_cfg);
 }
 
 void m0_be_ut_fmt_group(void)

@@ -298,19 +298,24 @@ M0_INTERNAL m0_bcount_t
 m0_be_fmt_group_size_max(const struct m0_be_fmt_group_cfg *cfg)
 {
 	return sizeof(struct m0_be_fmt_group_header) +
-	       sizeof(uint32_t) +
+	       /* m0_be_fmt_content_header */
+	       M0_MEMBER_SIZE(struct m0_be_fmt_content_header_txs, cht_nr) +
 	       sizeof(struct m0_be_fmt_content_header_tx) *
 					cfg->fgc_tx_nr_max +
-	       sizeof(uint32_t) +
+	       M0_MEMBER_SIZE(struct m0_be_fmt_content_header_reg_area,
+			      chr_nr) +
 	       sizeof(struct m0_be_fmt_content_header_reg) *
 					cfg->fgc_reg_nr_max +
-	       sizeof(uint32_t) +
-	       (sizeof(uint64_t) + cfg->fgc_payload_size_max) *
+	       /* m0_be_fmt_content */
+	       M0_MEMBER_SIZE(struct m0_be_fmt_content_payloads, fcp_nr) +
+	       (sizeof(struct m0_buf) - M0_MEMBER_SIZE(struct m0_buf, b_addr)) *
 					cfg->fgc_tx_nr_max +
-	       sizeof(uint32_t) +
-	       sizeof(uint64_t) * cfg->fgc_reg_nr_max +
+	       cfg->fgc_payload_size_max +
+	       M0_MEMBER_SIZE(struct m0_be_fmt_content_reg_area, cra_nr) +
+	       (sizeof(struct m0_buf) - M0_MEMBER_SIZE(struct m0_buf, b_addr)) *
+					cfg->fgc_reg_nr_max +
 	       cfg->fgc_reg_size_max +
-	       sizeof(uint64_t);
+	       M0_MEMBER_SIZE(struct m0_be_fmt_group, fg_cfg);
 }
 
 M0_INTERNAL int m0_be_fmt_group_encode(struct m0_be_fmt_group  *fg,
@@ -391,7 +396,9 @@ M0_INTERNAL void m0_be_fmt_group_tx_add(struct m0_be_fmt_group    *fg,
 	cp = &fg->fg_content.fmc_payloads;
 
 	M0_ASSERT(m0_be_fmt_group__invariant(fg));
-	M0_ASSERT(ftx->bft_payload.b_nob <= cfg->fgc_payload_size_max);
+	M0_ASSERT(m0_reduce(i, ht->cht_nr, 0,
+			    + ht->cht_tx[i].chx_payload_size) +
+	          ftx->bft_payload.b_nob <= cfg->fgc_payload_size_max);
 
 	ht->cht_tx[ht->cht_nr++]  = (struct m0_be_fmt_content_header_tx) {
 		.chx_tx_id        = ftx->bft_id,

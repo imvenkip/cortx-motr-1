@@ -48,6 +48,7 @@ extern void m0_be_ut_fmt_log_header(void);
 extern void m0_be_ut_fmt_cblock(void);
 extern void m0_be_ut_fmt_group(void);
 extern void m0_be_ut_fmt_group_size_max(void);
+extern void m0_be_ut_fmt_group_size_max_rnd(void);
 
 extern void m0_be_ut_io(void);
 extern void m0_be_ut_io_sched(void);
@@ -128,9 +129,10 @@ struct m0_ut_suite be_ut = {
 		{ "reg_area-random",         m0_be_ut_reg_area_random         },
 		{ "reg_area-merge",          m0_be_ut_reg_area_merge          },
 		{ "fmt-log_header",          m0_be_ut_fmt_log_header          },
-/* XXX */	{ "fmt-group_cb",            m0_be_ut_fmt_cblock              },
+		{ "fmt-cblock",              m0_be_ut_fmt_cblock              },
 		{ "fmt-group",               m0_be_ut_fmt_group               },
 		{ "fmt-group_size_max",      m0_be_ut_fmt_group_size_max      },
+		{ "fmt-group_size_max_rnd",  m0_be_ut_fmt_group_size_max_rnd  },
 		{ "io-noop",                 m0_be_ut_io                      },
 		{ "io_sched",                m0_be_ut_io_sched                },
 		{ "log_store-create_simple", m0_be_ut_log_store_create_simple },
