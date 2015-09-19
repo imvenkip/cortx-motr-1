@@ -524,6 +524,7 @@ static void be_engine_got_tx_closed(struct m0_be_engine *en,
 	M0_PRE(be_engine_is_locked(en));
 
 	M0_CNT_DEC(gr->tg_nr_unclosed);
+	m0_be_tx_group_tx_closed(gr, tx);
 	be_engine_group_tryclose(en, gr);
 }
 

@@ -290,6 +290,48 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL void m0_be_tx_group_tx_closed(struct m0_be_tx_group *gr,
+                                          struct m0_be_tx       *tx)
+{
+	struct m0_be_tx_credit tx_prepared;
+	struct m0_be_tx_credit tx_captured;
+	m0_bcount_t            log_used;
+	m0_bcount_t            log_unused;
+
+	if (m0_be_tx__is_recovering(tx))
+		return;
+
+	m0_be_reg_area_prepared(m0_be_tx__reg_area(tx), &tx_prepared);
+	m0_be_reg_area_captured(m0_be_tx__reg_area(tx), &tx_captured);
+	M0_ASSERT(m0_be_tx_credit_le(&tx_prepared, &gr->tg_used));
+	M0_ASSERT(m0_be_tx_credit_le(&tx_captured, &tx_prepared));
+	M0_ASSERT(tx->t_payload_prepared <= gr->tg_payload_prepared);
+	M0_ASSERT(tx->t_payload.b_nob    <= tx->t_payload_prepared);
+	M0_LOG(M0_DEBUG, "gr=%p tx=%p tx_prepared="BETXCR_F" "
+	       "t_payload_prepared=%"PRIu64" tg_used="BETXCR_F" "
+	       "tg_payload_prepared=%"PRIu64, gr, tx, BETXCR_P(&tx_prepared),
+	       tx->t_payload_prepared, BETXCR_P(&gr->tg_used),
+	       gr->tg_payload_prepared);
+
+	m0_be_tx_credit_sub(&gr->tg_used, &tx_prepared);
+	m0_be_tx_credit_add(&gr->tg_used, &tx_captured);
+	gr->tg_payload_prepared -= tx->t_payload_prepared;
+	gr->tg_payload_prepared += tx->t_payload.b_nob;
+	M0_LOG(M0_DEBUG, "gr=%p tx=%p tx_captured="BETXCR_F" "
+	       "t_payload.b_nob=%"PRIu64" tg_used="BETXCR_F" "
+	       "tg_payload_prepared=%"PRIu64, gr, tx, BETXCR_P(&tx_captured),
+	       tx->t_payload.b_nob, BETXCR_P(&gr->tg_used),
+	       gr->tg_payload_prepared);
+
+	log_used = m0_be_group_format_log_reserved_size(
+			    gr->tg_cfg.tgc_log, &tx_captured,
+			    tx->t_payload.b_nob);
+	M0_ASSERT(tx->t_log_reserved_size >= log_used);
+	log_unused = tx->t_log_reserved_size - log_used;
+	tx->t_log_reserved_size = log_used;
+	m0_be_log_unreserve(gr->tg_cfg.tgc_log, log_unused);
+}
+
 M0_INTERNAL void m0_be_tx_group_tx_del(struct m0_be_tx_group *gr,
 				       struct m0_be_tx *tx)
 {
