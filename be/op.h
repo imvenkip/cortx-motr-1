@@ -37,8 +37,9 @@
  * - if you need to debug m0_be_op - just enable logging in
  *   be_op_state_change().
  *
- * Known bugs
- * - it is not possible to finalise m0_be_op in callback for M0_BOS_DONE state.
+ * Future directions
+ * - allow M0_BE_OP_SYNC_RET_WITH() to return user-supplied function;
+ * - use m0_be_op::bo_rc instead of a_rc, t_rc, e_rc.
  *
  * @{
  */
@@ -70,6 +71,10 @@ typedef void (*m0_be_op_cb_t)(struct m0_be_op *op, void *param);
 struct m0_be_op {
 	struct m0_sm        bo_sm;
 	struct m0_fom      *bo_fom;
+	/** use m0_be_op_rc_set() and m0_op_rc to set/get this field */
+	int                 bo_rc;
+	/** bo_rc was set using m0_be_op_rc_set() */
+	bool                bo_rc_is_set;
 	/*
 	 * Hack.
 	 *
@@ -88,7 +93,6 @@ struct m0_be_op {
 			 * m0_be_alloc() or m0_be_alloc_aligned().
 			 */
 			void *a_ptr;
-			/* XXX @todo refactor all _rc into m0_be_op.bo_rc */
 			int   a_rc;
 		} u_allocator;
 		struct m0_be_op__btree {
@@ -118,6 +122,7 @@ struct m0_be_op {
 	struct m0_be_op    *bo_parent;
 	/* is this op an op_set */
 	bool                bo_is_op_set;
+
 	m0_be_op_cb_t       bo_cb_active;
 	void               *bo_cb_active_param;
 	m0_be_op_cb_t       bo_cb_done;
@@ -169,6 +174,9 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op,
  */
 M0_INTERNAL void m0_be_op_set_add(struct m0_be_op *parent,
 				  struct m0_be_op *child);
+
+M0_INTERNAL void m0_be_op_rc_set(struct m0_be_op *op, int rc);
+M0_INTERNAL int  m0_be_op_rc(struct m0_be_op *op);
 
 /**
  * Performs the action, waiting for its completion.

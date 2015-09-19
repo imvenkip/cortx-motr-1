@@ -110,8 +110,10 @@ M0_INTERNAL void m0_be_op_init(struct m0_be_op *op)
 	be_op_sm_init(op);
 	bos_tlist_init(&op->bo_children);
 	bos_tlink_init(op);
-	op->bo_parent = NULL;
+	op->bo_parent    = NULL;
 	op->bo_is_op_set = false;
+	op->bo_rc        = 0;
+	op->bo_rc_is_set = false;
 }
 
 M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op)
@@ -150,6 +152,8 @@ M0_INTERNAL void m0_be_op_reset(struct m0_be_op *op)
 	M0_ASSERT(op->bo_parent == NULL);
 	M0_ASSERT(bos_tlist_is_empty(&op->bo_children));
 	op->bo_is_op_set = false;
+	op->bo_rc_is_set = false;
+	op->bo_rc        = 0;
 	be_op_sm_init(op);
 }
 
@@ -301,6 +305,28 @@ M0_INTERNAL void m0_be_op_set_add(struct m0_be_op *parent,
 
 	be_op_unlock(parent);
 	be_op_unlock(child);
+}
+
+M0_INTERNAL void m0_be_op_rc_set(struct m0_be_op *op, int rc)
+{
+	be_op_lock(op);
+	M0_PRE(op->bo_sm.sm_state == M0_BOS_ACTIVE);
+	M0_PRE(!op->bo_rc_is_set);
+	op->bo_rc        = rc;
+	op->bo_rc_is_set = true;
+	be_op_unlock(op);
+}
+
+M0_INTERNAL int m0_be_op_rc(struct m0_be_op *op)
+{
+	int rc;
+
+	be_op_lock(op);
+	M0_PRE(op->bo_sm.sm_state == M0_BOS_DONE);
+	M0_PRE(op->bo_rc_is_set);
+	rc = op->bo_rc;
+	be_op_unlock(op);
+	return rc;
 }
 
 /** @} end of be group */
