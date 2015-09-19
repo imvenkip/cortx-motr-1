@@ -273,6 +273,11 @@ M0_INTERNAL void m0_be_log_pointers_set(struct m0_be_log *log,
 	log->lg_discarded        = discarded_ptr;
 	log->lg_prev_record      = last_record_pos;
 	log->lg_prev_record_size = last_record_size;
+
+	M0_LOG(M0_DEBUG, "lg_current=%"PRIu64" lg_discarded=%"PRIu64" "
+	       "lg_prev_record=%"PRIu64" lg_prev_record_size=%"PRIu64,
+	       log->lg_current, log->lg_discarded,
+	       log->lg_prev_record, log->lg_prev_record_size);
 }
 
 static void be_log_header_io(struct m0_be_log             *log,
@@ -509,6 +514,9 @@ M0_INTERNAL int m0_be_log_record_io_create(struct m0_be_log_record *record,
 	int                    index  = record->lgr_io_nr;
 	int                    rc     = 0;
 
+	M0_ENTRY("record=%p index=%d size_max=%"PRIu64,
+		 record, index, size_max);
+
 	if (index >= M0_BE_LOG_RECORD_IO_NR_MAX)
 		return -ERANGE;
 
@@ -542,7 +550,7 @@ M0_INTERNAL int m0_be_log_record_io_create(struct m0_be_log_record *record,
 		m0_free(record->lgr_io[index]);
 		m0_free(record->lgr_op[index]);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static int be_log_record_header_init(struct m0_be_fmt_log_record_header *hdr)
@@ -620,6 +628,9 @@ m0_be_log_record_io_prepare(struct m0_be_log_record *record,
 
 	struct m0_be_fmt_log_record_footer *footer;
 	struct m0_be_fmt_log_record_header *header;
+
+	M0_ENTRY("record=%p opcode=%d size_reserved=%lu",
+	         record, opcode, size_reserved);
 
 	M0_PRE(m0_mutex_is_locked(log->lg_external_lock));
 	M0_PRE(ergo(opcode == SIO_READ, record->lgr_state == LGR_USED));
@@ -748,15 +759,20 @@ m0_be_log_record_io_bufvec(struct m0_be_log_record *record,
 
 M0_INTERNAL int m0_be_log_reserve(struct m0_be_log *log, m0_bcount_t size)
 {
+	int rc;
+
+	M0_ENTRY("log=%p size=%lu lg_free=%lu", log, size, log->lg_free);
+
 	M0_PRE(m0_be_log__invariant(log));
 
-	if (log->lg_free < size)
-		return -EAGAIN;
-
-	log->lg_free     -= size;
-	log->lg_reserved += size;
-
-	return 0;
+	if (log->lg_free < size)  {
+		rc = -EAGAIN;
+	} else {
+		log->lg_free     -= size;
+		log->lg_reserved += size;
+		rc = 0;
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_log_unreserve(struct m0_be_log *log, m0_bcount_t size)
@@ -780,6 +796,8 @@ M0_INTERNAL void m0_be_log_header__set(struct m0_be_fmt_log_header *hdr,
 				       m0_bindex_t                  lsn,
 				       m0_bcount_t                  size)
 {
+	M0_ENTRY("discarded=%lu lsn=%lu size=%lu", discarded, lsn, size);
+
 	m0_be_fmt_log_header_reset(hdr);
 	hdr->flh_discarded  = discarded;
 	hdr->flh_group_lsn  = lsn;
@@ -833,7 +851,7 @@ static int be_log_header_write(struct m0_be_log            *log,
 	rc  = m0_be_fmt_log_header_encode_buf(log_hdr, buf);
 	if (rc == 0)
 		be_log_header_io_sync(log, M0_BE_LOG_STORE_IO_WRITE);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL bool m0_be_log_header__repair(struct m0_be_fmt_log_header **hdrs,

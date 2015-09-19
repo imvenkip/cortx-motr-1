@@ -64,6 +64,8 @@ static int be_group_format_level_enter(struct m0_module *module)
 	m0_bcount_t                 size_cblock;
 	int                         level = module->m_cur + 1;
 
+	M0_LOG(M0_DEBUG, "gft=%p level=%d", gft, level);
+
 	switch (level) {
 	case M0_BE_GROUP_FORMAT_LEVEL_ASSIGNS:
 		gft->gft_group              = gft->gft_cfg.gfc_group;
@@ -113,6 +115,8 @@ static void be_group_format_level_leave(struct m0_module *module)
 {
 	struct m0_be_group_format *gft = be_group_format_module2gft(module);
 	int                        level = module->m_cur;
+
+	M0_LOG(M0_DEBUG, "gft=%p level=%d", gft, level);
 
 	switch (level) {
 	case M0_BE_GROUP_FORMAT_LEVEL_ASSIGNS:
