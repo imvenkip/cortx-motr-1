@@ -574,6 +574,40 @@ static const struct timespec ioq_timeout_default = {
 	.tv_nsec = 0
 };
 
+unsigned long stob_ioq_timer_cb(unsigned long data)
+{
+	struct m0_semaphore *stop_sem = (void *)data;
+
+	m0_semaphore_up(stop_sem);
+	return 0;
+}
+
+static int stob_ioq_thread_init(struct m0_stob_ioq *ioq)
+{
+	struct m0_timer_locality *timer_loc;
+	int                       thread_index;
+	int rc;
+
+	thread_index = m0_thread_self() - ioq->ioq_thread;
+	timer_loc = &ioq->ioq_stop_timer_loc[thread_index];
+	m0_timer_locality_init(timer_loc);
+	rc = m0_timer_thread_attach(timer_loc);
+	if (rc != 0) {
+		m0_timer_locality_fini(timer_loc);
+		return M0_ERR(rc);
+	}
+	rc = m0_timer_init(&ioq->ioq_stop_timer[thread_index], M0_TIMER_HARD,
+	                   timer_loc, &stob_ioq_timer_cb,
+	                   (unsigned long)&ioq->ioq_stop_sem[thread_index]);
+	if (rc != 0) {
+		m0_timer_thread_detach(timer_loc);
+		m0_timer_locality_fini(timer_loc);
+		return M0_ERR(rc);
+	}
+	m0_semaphore_init(&ioq->ioq_stop_sem[thread_index], 0);
+	return M0_RC(rc);
+}
+
 /**
    Linux adieu worker thread.
 
@@ -591,12 +625,14 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 	struct m0_addb2_counter inflight = {};
 	struct m0_addb2_counter queued   = {};
 	struct m0_addb2_counter gotten   = {};
+	int                     thread_index;
 
-	M0_ADDB2_PUSH(M0_AVI_STOB_IOQ, m0_thread_self() - ioq->ioq_thread);
+	thread_index = m0_thread_self() - ioq->ioq_thread;
+	M0_ADDB2_PUSH(M0_AVI_STOB_IOQ, thread_index);
 	m0_addb2_counter_add(&inflight, M0_AVI_STOB_IOQ_INFLIGHT, -1);
 	m0_addb2_counter_add(&queued,   M0_AVI_STOB_IOQ_QUEUED, -1);
 	m0_addb2_counter_add(&gotten,   M0_AVI_STOB_IOQ_GOT, -1);
-	while (!ioq->ioq_shutdown) {
+	while (!m0_semaphore_trydown(&ioq->ioq_stop_sem[thread_index])) {
 		timeout = ioq_timeout_default;
 		got = raw_io_getevents(ioq->ioq_ctx, 1, ARRAY_SIZE(evout),
 				       evout, &timeout);
@@ -620,14 +656,18 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 				     m0_atomic64_get(&ioq->ioq_avail));
 	}
 	m0_addb2_pop(M0_AVI_STOB_IOQ);
+	m0_semaphore_fini(&ioq->ioq_stop_sem[thread_index]);
+	m0_timer_stop(&ioq->ioq_stop_timer[thread_index]);
+	m0_timer_fini(&ioq->ioq_stop_timer[thread_index]);
+	m0_timer_thread_detach(&ioq->ioq_stop_timer_loc[thread_index]);
+	m0_timer_locality_fini(&ioq->ioq_stop_timer_loc[thread_index]);
 }
 
 M0_INTERNAL int m0_stob_ioq_init(struct m0_stob_ioq *ioq)
 {
-	int                          result;
-	int                          i;
+	int result;
+	int i;
 
-	ioq->ioq_shutdown = false;
 	ioq->ioq_ctx      = NULL;
 	m0_atomic64_set(&ioq->ioq_avail, M0_STOB_IOQ_RING_SIZE);
 	ioq->ioq_queued   = 0;
@@ -639,8 +679,9 @@ M0_INTERNAL int m0_stob_ioq_init(struct m0_stob_ioq *ioq)
 	if (result == 0) {
 		for (i = 0; i < ARRAY_SIZE(ioq->ioq_thread); ++i) {
 			result = M0_THREAD_INIT(&ioq->ioq_thread[i],
-						struct m0_stob_ioq *,
-						NULL, &stob_ioq_thread, ioq,
+			                        struct m0_stob_ioq *,
+			                        &stob_ioq_thread_init,
+						&stob_ioq_thread, ioq,
 						"ioq_thread%d", i);
 			if (result != 0)
 				break;
@@ -656,7 +697,8 @@ M0_INTERNAL void m0_stob_ioq_fini(struct m0_stob_ioq *ioq)
 {
 	int i;
 
-	ioq->ioq_shutdown = true;
+	for (i = 0; i < ARRAY_SIZE(ioq->ioq_stop_timer); ++i)
+		m0_timer_start(&ioq->ioq_stop_timer[i], M0_TIME_IMMEDIATELY);
 	for (i = 0; i < ARRAY_SIZE(ioq->ioq_thread); ++i) {
 		if (ioq->ioq_thread[i].t_func != NULL)
 			m0_thread_join(&ioq->ioq_thread[i]);

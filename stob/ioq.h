@@ -23,13 +23,15 @@
 #ifndef __MERO_STOB_IOQ_H__
 #define __MERO_STOB_IOQ_H__
 
-#include <libaio.h>	/* io_context_t */
+#include <libaio.h>        /* io_context_t */
 
-#include "lib/types.h"	/* bool */
-#include "lib/atomic.h"	/* m0_atomic64 */
-#include "lib/thread.h"	/* m0_thread */
-#include "lib/mutex.h"	/* m0_mutex */
-#include "lib/queue.h"	/* m0_queue */
+#include "lib/types.h"     /* bool */
+#include "lib/atomic.h"    /* m0_atomic64 */
+#include "lib/thread.h"    /* m0_thread */
+#include "lib/mutex.h"     /* m0_mutex */
+#include "lib/queue.h"     /* m0_queue */
+#include "lib/timer.h"     /* m0_timer */
+#include "lib/semaphore.h" /* m0_semaphore */
 
 /**
  * @defgroup stoblinux
@@ -59,30 +61,32 @@ struct m0_stob_ioq {
 	 *  Can be set with m0_stob_ioq_directio_setup().
 	 *  Initial value is set to 'false'.
 	 */
-	bool		   ioq_use_directio;
+	bool                     ioq_use_directio;
 	/** Set up when domain is being shut down. adieu worker threads
 	    (ioq_thread()) check this field on each iteration. */
-	bool		   ioq_shutdown;
 	/**
 	    Ring buffer shared between adieu and the kernel.
 
 	    It contains adieu request fragments currently being executed by the
 	    kernel. The kernel delivers AIO completion events through this
 	    buffer. */
-	io_context_t	   ioq_ctx;
+	io_context_t             ioq_ctx;
 	/** Free slots in the ring buffer. */
-	struct m0_atomic64 ioq_avail;
+	struct m0_atomic64       ioq_avail;
 	/** Used slots in the ring buffer. */
-	int		   ioq_queued;
+	int                      ioq_queued;
 	/** Worker threads. */
-	struct m0_thread   ioq_thread[M0_STOB_IOQ_NR_THREADS];
+	struct m0_thread         ioq_thread[M0_STOB_IOQ_NR_THREADS];
 
 	/** Mutex protecting all ioq_ fields (except for the ring buffer that is
 	    updated by the kernel asynchronously). */
-	struct m0_mutex	   ioq_lock;
+	struct m0_mutex          ioq_lock;
 	/** Admission queue where adieu request fragments are kept until there
 	    is free space in the ring buffer.  */
-	struct m0_queue	   ioq_queue;
+	struct m0_queue          ioq_queue;
+	struct m0_semaphore      ioq_stop_sem[M0_STOB_IOQ_NR_THREADS];
+	struct m0_timer          ioq_stop_timer[M0_STOB_IOQ_NR_THREADS];
+	struct m0_timer_locality ioq_stop_timer_loc[M0_STOB_IOQ_NR_THREADS];
 };
 
 M0_INTERNAL int m0_stob_ioq_init(struct m0_stob_ioq *ioq);
