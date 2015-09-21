@@ -1072,7 +1072,7 @@ static int grow_cache_st_in(struct m0_sm *mach)
 		rc = M0_ERR(-EPROTO);
 
 	if (rc == 0)
-		cache_grow(ctx->fc_confc, resp);
+		rc = cache_grow(ctx->fc_confc, resp);
 
 	grp = &item->ri_rmachine->rm_sm_grp;
 	m0_sm_group_lock(grp);
@@ -1083,12 +1083,12 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	m0_sm_group_unlock(grp);
 	ctx->fc_rpc_item = NULL;
 
-	if (rc == 0) {
-		M0_LEAVE("retval=S_CHECK");
+	if (rc == 0 || rc == -EAGAIN) {
+		M0_LEAVE("rc=%d retval=S_CHECK", rc);
 	        return S_CHECK;
 	}
 	mach->sm_rc = rc;
-	M0_LEAVE("retval=S_FAILURE");
+	M0_LEAVE("rc=%d retval=S_FAILURE", rc);
 	return S_FAILURE;
 }
 
