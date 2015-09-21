@@ -60,6 +60,8 @@ IOSEP=(
     12345:33:903   # IOS4 EP
 )
 
+IOS_PVER2_EP="12345:33:904"
+
 # list of io server end points tmid in [800, 899)
 MDSEP=(
     12345:33:800   # MDS1 EP
@@ -180,7 +182,7 @@ PROF_OPT='<0x7000000000000001:0>'
 
 . `dirname ${BASH_SOURCE[0]}`/common_service_fids_inc.sh
 
-# On cent OS 7 loop device is created during losetup, so need to call
+# On cent OS 7 loop device is created during losetup, so no need to call
 # create_loop_device().
 create_loop_device ()
 {
@@ -317,6 +319,9 @@ function build_conf()
 		local  NODEID1='^n|10:1'
 		local  PROCID1='^r|10:1'
 		local  IO_SVCID1='^s|10:1'
+		local  ADDB_SVCID1='^s|10:2'
+		local  REP_SVCID1='^s|10:3'
+		local  REB_SVCID1='^s|10:4'
 		local  SDEVID1='^d|10:1'
 		local  SDEVID2='^d|10:2'
 		local  SDEVID3='^d|10:3'
@@ -334,14 +339,18 @@ function build_conf()
 		local  DISKVID1='^j|10:4'
 		local  DISKVID2='^j|10:5'
 		local  DISKVID3='^j|10:6'
+		local  IOS_EP="\"${server_nid}:$IOS_PVER2_EP\""
 		# conf objects for anther pool version to test assignment
 		# of pools to new objects.
 		local NODE1="{0x6e| (($NODEID1), 16000, 2, 3, 2, $POOLID1, [1: $PROCID1])}"
-		local PROC1="{0x72| (($PROCID1), [1:3], 0, 0, 0, 0, "\"${ioservices[0]}\"", [1: $IO_SVCID1])}"
-		local IO_SVC1="{0x73| (($IO_SVCID1), 2, [1: "\"${ioservices[0]}\""], [3: $SDEVID1, $SDEVID2, $SDEVID3])}"
-		local SDEV1="{0x64| (($SDEVID1), 4, 1, 4096, 596000000000, 3, 4, \"$MERO_M0T1FS_TEST_DIR/ios1/data-disk300.img\")}"
-		local SDEV2="{0x64| (($SDEVID2), 4, 1, 4096, 596000000000, 3, 4, \"$MERO_M0T1FS_TEST_DIR/ios1/data-disk301.img\")}"
-		local SDEV3="{0x64| (($SDEVID3), 4, 1, 4096, 596000000000, 3, 4, \"$MERO_M0T1FS_TEST_DIR/ios1/data-disk302.img\")}"
+		local PROC1="{0x72| (($PROCID1), [1:3], 0, 0, 0, 0, $IOS_EP, [4: $IO_SVCID1, $ADDB_SVCID1, $REP_SVCID1, $REB_SVCID1])}"
+		local IO_SVC1="{0x73| (($IO_SVCID1), 2, [1: $IOS_EP], [3: $SDEVID1, $SDEVID2, $SDEVID3])}"
+		local ADDB_SVC1="{0x73| (($ADDB_SVCID1), 10, [1: $IOS_EP], [0])}"
+		local REP_SVC1="{0x73| (($REP_SVCID1), 8, [1: $IOS_EP], [0])}"
+		local REB_SVC1="{0x73| (($REB_SVCID1), 9, [1: $IOS_EP], [0])}"
+		local SDEV1="{0x64| (($SDEVID1), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop5\")}"
+		local SDEV2="{0x64| (($SDEVID2), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop6\")}"
+		local SDEV3="{0x64| (($SDEVID3), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop7\")}"
 		local RACK1="{0x61| (($RACKID1), [1: $ENCLID1], [1: $PVERID1])}"
 		local ENCL1="{0x65| (($ENCLID1), [1: $CTRLID1], [1: $PVERID1])}"
 		local CTRL1="{0x63| (($CTRLID1), $NODEID1, [3: $DISKID1, $DISKID2, $DISKID3], [1: $PVERID1])}"
@@ -357,8 +366,8 @@ function build_conf()
 		local  DISKV1="{0x6a| (($DISKVID1), $DISKID1, [0])}"
 		local  DISKV2="{0x6a| (($DISKVID2), $DISKID2, [0])}"
 		local  DISKV3="{0x6a| (($DISKVID3), $DISKID3, [0])}"
-		PVER1_OBJS=", \n$NODE1, \n$PROC1, \n$IO_SVC1, \n$SDEV1, \n$SDEV2, \n$SDEV3, \n$RACK1, \n$ENCL1, \n$CTRL1, \n$DISK1, \n$DISK2, \n$DISK3, \n$POOL1, \n$PVER1, \n$RACKV1, \n$ENCLV1, \n$CTRLV1, \n$DISKV1, \n$DISKV2, \n$DISKV3"
-		PVER1_OBJ_COUNT=20
+		PVER1_OBJS=", \n$NODE1, \n$PROC1, \n$IO_SVC1, \n$ADDB_SVC1, \n$REP_SVC1, \n$REB_SVC1, \n$SDEV1, \n$SDEV2, \n$SDEV3, \n$RACK1, \n$ENCL1, \n$CTRL1, \n$DISK1, \n$DISK2, \n$DISK3, \n$POOL1, \n$PVER1, \n$RACKV1, \n$ENCLV1, \n$CTRLV1, \n$DISKV1, \n$DISKV2, \n$DISKV3"
+		PVER1_OBJ_COUNT=23
 		node_count=2
 		rack_count=2
 		pool_count=2
@@ -366,7 +375,7 @@ function build_conf()
 		NODES="$NODES, $NODEID1"
 		POOLS="$POOLS, $POOLID1"
 		RACKS="$RACKS, $RACKID1"
-		# Total 20 objects for this anther pool version
+		# Total 23 objects for this anther pool version
 	fi
 
  # Here "15" configuration objects includes services excluding ios & mds,

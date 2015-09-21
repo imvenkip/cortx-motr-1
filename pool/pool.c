@@ -493,8 +493,8 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 M0_INTERNAL struct m0_pool_version *
 m0__pool_version_find(struct m0_pool *pool, const struct m0_fid *id)
 {
-		return m0_tl_find(pool_version, pv, &pool->po_vers,
-				  m0_fid_eq(&pv->pv_id, id));
+	return m0_tl_find(pool_version, pv, &pool->po_vers,
+			  m0_fid_eq(&pv->pv_id, id));
 }
 
 M0_INTERNAL struct m0_pool_version *

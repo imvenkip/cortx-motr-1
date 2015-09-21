@@ -187,23 +187,32 @@ mero_service()
 		done
 
                 #create devs for backup pool
-                DIR=$MERO_M0T1FS_TEST_DIR/ios1
-                cd $DIR
-                dd if=/dev/zero of=data-disk300.img bs=1M seek=1M count=1 ||
-                        return 1
-                dd if=/dev/zero of=data-disk301.img bs=1M seek=1M count=1 ||
-                        return 1
-                dd if=/dev/zero of=data-disk302.img bs=1M seek=1M count=1 ||
-                        return 1
+		if ((multiple_pools == 1)); then
+			DIR=$MERO_M0T1FS_TEST_DIR/ios5
+			rm -rf $DIR
+			mkdir -p $DIR
+			cd $DIR
+			dd if=/dev/zero of=data-disk1.img bs=1M seek=1M count=1 ||
+				return 1
+			dd if=/dev/zero of=data-disk2.img bs=1M seek=1M count=1 ||
+				return 1
+			dd if=/dev/zero of=data-disk3.img bs=1M seek=1M count=1 ||
+				return 1
+			losetup -d /dev/loop5 &> /dev/null
+			losetup /dev/loop5 data-disk1.img
+			losetup -d /dev/loop6 &> /dev/null
+			losetup /dev/loop6 data-disk2.img
+			losetup -d /dev/loop7 &> /dev/null
+			losetup /dev/loop7 data-disk3.img
                 cat >> disks.conf << EOF
-   - id: 300
-     filename: `pwd`/data-disk300.img
-   - id: 301
-     filename: `pwd`/data-disk301.img
-   - id: 302
-     filename: `pwd`/data-disk302.img
+   - id: 1
+     filename: /dev/loop5
+   - id: 2
+     filename: /dev/loop6
+   - id: 3
+     filename: /dev/loop7
 EOF
-
+		fi
 		DIR=$MERO_M0T1FS_TEST_DIR/confd
 		build_conf $N $K $P $multiple_pools | tee $DIR/conf.xc
 
@@ -270,7 +279,18 @@ EOF
 			echo $cmd
 			eval "$cmd"
 		done
+		if ((multiple_pools == 1)); then
+			DIR=$MERO_M0T1FS_TEST_DIR/ios5
 
+			tmid=904
+			ulimit -c unlimited
+			cmd="cd $DIR && exec \
+			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
+			$common_opts -e $XPT:${lnet_nid}:${IOS_PVER2_EP%:*:*}:$MKFS_PORTAL:$tmid \
+			-C $CONFD_EP -E |& tee -a m0mkfs.log"
+			echo $cmd
+			eval "$cmd"
+		fi
 		# spawn ha agent
 		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
 		      -C $CONFD_EP -f $proc_fid"
@@ -322,6 +342,20 @@ EOF
 			(eval "$cmd") &
 
 		done
+		if ((multiple_pools == 1)); then
+			DIR=$MERO_M0T1FS_TEST_DIR/ios5
+			ulimit -c unlimited
+			cmd="cd $DIR && exec \
+			$prog_start -T $MERO_STOB_DOMAIN \
+			$common_opts -e $XPT:${lnet_nid}:$IOS_PVER2_EP\
+                        -f $proc_fid \
+			-C $CONFD_EP |& tee -a m0d.log"
+			echo $cmd
+
+			local m0d_log=$DIR/m0d.log
+			touch $m0d_log
+			(eval "$cmd") &
+		fi
 
 		# Wait for confd to start
 		local confd_log=$MERO_M0T1FS_TEST_DIR/confd/m0d.log
@@ -358,6 +392,12 @@ EOF
 				sleep 2
 			done
 		done
+		if ((multiple_pools == 1)); then
+			while ! grep CTRL $MERO_M0T1FS_TEST_DIR/ios5/m0d.log > /dev/null;
+			do
+				sleep 2
+			done
+		fi
 		echo "Mero ioservices started."
 	}
 

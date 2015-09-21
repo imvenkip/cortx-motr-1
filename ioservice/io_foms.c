@@ -907,6 +907,7 @@ M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
 	struct m0_cob_nsrec   nsrec = {};
 	struct m0_fid         gfid;
 
+	M0_ENTRY("COB fid:"FID_F"pver:"FID_F, FID_P(fid), FID_P(pver));
 	rc = m0_cob_alloc(cdom, &cob);
 	if (rc != 0)
 		return M0_RC(rc);
@@ -953,6 +954,7 @@ M0_INTERNAL int m0_io_cob_stob_create(struct m0_fom *fom,
 	bool                 cob_recreate = false;
 	int                  rc;
 
+	M0_ENTRY("COB:"FID_F"pver:"FID_F, FID_P(fid), FID_P(pver));
 	m0_cob_oikey_make(&oikey, fid, 0);
 	rc = m0_cob_locate(cdom, &oikey, 0, &cob);
 	if (rc == 0 && cob != NULL &&
@@ -1159,8 +1161,10 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	stobio_tlist_init(&fom_obj->fcrw_stio_list);
 	stobio_tlist_init(&fom_obj->fcrw_done_list);
 
-	M0_LOG(M0_DEBUG, "fom=%p : op=%s, desc=%d.", fom,
-	       m0_is_read_fop(fop) ? "READ" : "WRITE", rwfop->crw_desc.id_nr);
+	M0_LOG(M0_DEBUG, "fom=%p : op=%s, desc=%d gfid"FID_F"cob fid"FID_F
+			 "pver"FID_F, fom, m0_is_read_fop(fop) ? "READ" : "WRITE",
+			  rwfop->crw_desc.id_nr, FID_P(&rwfop->crw_gfid),
+			  FID_P(&rwfop->crw_fid), FID_P(&rwfop->crw_pver));
 
 	return M0_RC(rc);
 }
@@ -1207,10 +1211,10 @@ static int io_prepare(struct m0_fom *fom)
 	reqh = m0_fom_reqh(fom);
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
-	mero = m0_cs_ctx_get(reqh);
 	rwfop = io_rw_get(fom->fo_fop);
 	rwrep = io_rw_rep_get(fom->fo_rep_fop);
 	M0_ASSERT(fom_obj->fcrw_pver == NULL);
+	mero = m0_cs_ctx_get(reqh);
 	fom_obj->fcrw_pver = m0_pool_version_find(&mero->cc_pools_common,
 						  &rwfop->crw_pver);
 	if (fom_obj->fcrw_pver == NULL) {
@@ -1221,9 +1225,9 @@ static int io_prepare(struct m0_fom *fom)
 	poolmach = &fom_obj->fcrw_pver->pv_mach;
 	cliv = (struct m0_poolmach_versions*)(&rwfop->crw_version);
 
-	M0_LOG(M0_DEBUG, "Preparing %s IO @"FID_F"",
+	M0_LOG(M0_DEBUG, "Preparing %s IO @"FID_F"pver"FID_F,
 	       m0_is_read_fop(fom->fo_fop)? "Read": "Write",
-	       FID_P(&rwfop->crw_fid));
+	       FID_P(&rwfop->crw_fid), FID_P(&rwfop->crw_pver));
 	/*
 	 * Dumps the state of SNS repair with respect to global fid
 	 * from IO fop.

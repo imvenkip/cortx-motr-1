@@ -48,6 +48,11 @@ pool_version_assignment()
 		unmount_and_clean
 		return 1
 	}
+	setfattr -n lid -v 8 $MERO_M0T1FS_MOUNT_DIR/$file1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$file1 bs=1M count=5 || {
+		unmount_and_clean
+		return 1
+	}
 	rm -vf $MERO_M0T1FS_MOUNT_DIR/$file1 || {
 		unmount_and_clean
 		return 1
@@ -60,6 +65,11 @@ pool_version_assignment()
 	}
 
 	touch $MERO_M0T1FS_MOUNT_DIR/$file2 || {
+		unmount_and_clean
+		return 1
+	}
+	setfattr -n lid -v 8 $MERO_M0T1FS_MOUNT_DIR/$file2
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$file2 bs=1M count=5 || {
 		unmount_and_clean
 		return 1
 	}
@@ -88,6 +98,11 @@ pool_version_assignment()
 
 	###  Should succeed since pool version 0 is available now.
 	touch $MERO_M0T1FS_MOUNT_DIR/$file4 || {
+		unmount_and_clean
+		return 1
+	}
+	setfattr -n lid -v 8 $MERO_M0T1FS_MOUNT_DIR/$file4
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$file4 bs=1M count=5 || {
 		unmount_and_clean
 		return 1
 	}
