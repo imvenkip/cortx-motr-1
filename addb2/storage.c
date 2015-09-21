@@ -184,6 +184,10 @@ struct m0_addb2_storage {
 	 */
 	struct m0_tl                       as_inflight;
 	/**
+	 * Formed but still not launched frames.
+	 */
+	struct m0_tl                       as_pending;
+	/**
 	 * Pre-allocated frames. ->as_idle and ->as_inflight contain elements of
 	 * this array.
 	 */
@@ -234,6 +238,7 @@ static struct frame *frame_cur   (const struct m0_addb2_storage *stor);
 static bool        stor_invariant(const struct m0_addb2_storage *stor);
 static void        stor_fini     (struct m0_addb2_storage *stor);
 static void        stor_balance  (struct m0_addb2_storage *stor);
+static void        stor_drain    (struct m0_addb2_storage *stor);
 static void        stor_update   (struct m0_addb2_storage *stor,
 				  const struct m0_addb2_frame_header *header);
 static m0_bindex_t stor_round    (const struct m0_addb2_storage *stor,
@@ -284,6 +289,7 @@ m0_addb2_storage_init(struct m0_stob *stob, m0_bcount_t size,
 		tr_tlist_init(&stor->as_queue);
 		frame_tlist_init(&stor->as_inflight);
 		frame_tlist_init(&stor->as_idle);
+		frame_tlist_init(&stor->as_pending);
 		stor->as_marker = (struct m0_addb2_trace_obj) {
 			.o_tr = {
 				.tr_nr   = m0_addb2__dummy_payload_size,
@@ -305,7 +311,9 @@ m0_addb2_storage_init(struct m0_stob *stob, m0_bcount_t size,
 
 M0_INTERNAL void m0_addb2_storage_fini(struct m0_addb2_storage *stor)
 {
+	m0_mutex_lock(&stor->as_lock);
 	M0_PRE(stor_invariant(stor));
+	m0_mutex_unlock(&stor->as_lock);
 	stor_fini(stor);
 }
 
@@ -357,6 +365,7 @@ static void stor_fini(struct m0_addb2_storage *stor)
 	}
 	frame_tlist_fini(&stor->as_idle);
 	frame_tlist_fini(&stor->as_inflight);
+	frame_tlist_fini(&stor->as_pending);
 	tr_tlist_fini(&stor->as_queue);
 	m0_mutex_fini(&stor->as_lock);
 	m0_stob_put(stor->as_stob);
@@ -381,10 +390,12 @@ static void stor_balance(struct m0_addb2_storage *stor)
 
 		if (frame != NULL && frame->f_header.he_trace_nr > 0)
 			frame_submit(frame);
+		stor_drain(stor);
 		if (frame_tlist_is_empty(&stor->as_inflight) &&
 		    stor->as_ops->sto_idle != NULL)
 			stor->as_ops->sto_idle(stor);
 	}
+	stor_drain(stor);
 }
 
 /**
@@ -480,17 +491,35 @@ static void frame_fini(struct frame *frame)
 }
 
 /**
- * Submits the frame for write, if successful, update current position.
+ * "Submits" the frame, by moving it to the pending list.
  */
 static void frame_submit(struct frame *frame)
 {
-	if (frame_try(frame) == 0)
-		stor_update(frame->f_stor, &frame->f_header);
-	else {
-		frame_done(frame);
-		/* Not much else we can do here. */
-		frame_idle(frame);
-	}
+	struct m0_addb2_frame_header *h    = &frame->f_header;
+	struct m0_addb2_storage      *stor = frame->f_stor;
+
+	frame_tlist_move_tail(&stor->as_pending, frame);
+	h->he_size        = stor_round(stor, h->he_size);
+	h->he_seqno       = stor->as_seqno;
+	h->he_offset      = stor->as_pos;
+	h->he_prev_offset = stor->as_prev_offset;
+	stor_update(stor, h);
+}
+
+/**
+ * Submits pending frames.
+ */
+static void stor_drain(struct m0_addb2_storage *stor)
+{
+	struct frame *frame;
+
+	m0_tl_for(frame, &stor->as_pending, frame) {
+		if (frame_try(frame) != 0) {
+			frame_done(frame);
+			/* Not much else we can do here. */
+			frame_idle(frame);
+		}
+	} m0_tl_endfor;
 }
 
 /**
@@ -516,8 +545,10 @@ static void stor_update(struct m0_addb2_storage *stor,
 /**
  * Attempts to submit the frame for write.
  *
- * xcode the frame into frame->f_area, first header, then traces one by
+ * Copy the frame into frame->f_area, first header, then traces one by
  * one. Submit stob_io.
+ *
+ * This function releases and re-acquired storage lock.
  */
 static int frame_try(struct frame *frame)
 {
@@ -538,13 +569,11 @@ do {							\
 	int                           i;
 
 	M0_PRE(!frame_tlist_contains(&stor->as_inflight, frame));
+	M0_PRE( frame_tlist_contains(&stor->as_pending,  frame));
 	M0_ASSERT(stor_rounded(stor, h->he_offset));
 
 	frame_tlist_move(&stor->as_inflight, frame);
-	h->he_size        = stor_round(stor, h->he_size);
-	h->he_seqno       = stor->as_seqno;
-	h->he_offset      = stor->as_pos;
-	h->he_prev_offset = stor->as_prev_offset;
+	m0_mutex_unlock(&stor->as_lock);
 	frame->f_block_count = h->he_size;
 	frame->f_block_index = h->he_offset;
 	cur = frame->f_area;
@@ -562,6 +591,7 @@ do {							\
 		frame_io_open(frame);
 		M0_LOG(M0_ERROR, "Failed to launch: %i.", M0_ERR(result));
 	}
+	m0_mutex_lock(&stor->as_lock);
 	return M0_RC(result);
 #undef PLACE
 }
@@ -619,7 +649,7 @@ static bool frame_endio(struct m0_clink *link)
 	frame_io_open(frame);
 	frame_idle(frame);
 	stor_balance(stor);
-	M0_PRE(stor_invariant(stor));
+	M0_POST(stor_invariant(stor));
 	m0_mutex_unlock(&stor->as_lock);
 	return true;
 }
@@ -687,9 +717,11 @@ static bool frame_invariant(const struct frame *frame)
 	const struct m0_addb2_storage      *stor = frame->f_stor;
 
 	return  _0C(frame_tlink_is_in(frame)) &&
-		_0C(frame_tlist_contains(&stor->as_idle, frame) ||
+		_0C(frame_tlist_contains(&stor->as_idle,     frame) ||
+		    frame_tlist_contains(&stor->as_pending,  frame) ||
 		    frame_tlist_contains(&stor->as_inflight, frame)) &&
-		_0C(ergo(frame_tlist_contains(&stor->as_inflight, frame),
+		_0C(ergo(frame_tlist_contains(&stor->as_inflight, frame) ||
+			 frame_tlist_contains(&stor->as_pending,  frame),
 			 h->he_size > 0 && h->he_trace_nr > 0 &&
 			 stor_rounded(stor, h->he_offset) &&
 			 stor_rounded(stor, h->he_size))) &&
@@ -702,7 +734,18 @@ static bool frame_invariant(const struct frame *frame)
 
 static bool stor_invariant(const struct m0_addb2_storage *stor)
 {
+	if (frame_tlist_length(&stor->as_idle) +
+	    frame_tlist_length(&stor->as_pending) +
+	    frame_tlist_length(&stor->as_inflight) !=
+	    ARRAY_SIZE(stor->as_prealloc)) {
+		M0_LOG(M0_FATAL, "%i + %i + %i != %i",
+		       (int)frame_tlist_length(&stor->as_idle),
+		       (int)frame_tlist_length(&stor->as_pending),
+		       (int)frame_tlist_length(&stor->as_inflight),
+		       (int)ARRAY_SIZE(stor->as_prealloc));
+	}
 	return  _0C(frame_tlist_length(&stor->as_idle) +
+		    frame_tlist_length(&stor->as_pending) +
 		    frame_tlist_length(&stor->as_inflight) ==
 		    ARRAY_SIZE(stor->as_prealloc)) &&
 		_0C(stor_rounded(stor, stor->as_bsize)) &&
