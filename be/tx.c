@@ -196,19 +196,18 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 	enum m0_be_tx_state state;
 
 	*tx = (struct m0_be_tx) {
-		.t_id               = tid,
-		.t_engine           = m0_be_domain_engine(dom),
-		.t_persistent       = persistent,
-		.t_discarded        = discarded,
-		.t_filler           = filler,
-		.t_datum            = datum,
-		.t_payload_prepared = 0,
-		.t_fast             = false,
-		.t_gc_enabled       = false,
-		.t_gc_free          = NULL,
-		.t_gc_param         = NULL,
-		.t_exclusive        = false,
-		.t_recovering       = false,
+		.t_id           = tid,
+		.t_engine       = m0_be_domain_engine(dom),
+		.t_persistent   = persistent,
+		.t_discarded    = discarded,
+		.t_filler       = filler,
+		.t_datum        = datum,
+		.t_fast         = false,
+		.t_gc_enabled   = false,
+		.t_gc_free      = NULL,
+		.t_gc_param     = NULL,
+		.t_exclusive    = false,
+		.t_recovering   = false,
 	};
 
 	m0_sm_init(&tx->t_sm, &be_tx_sm_conf, M0_BTS_PREPARE, sm_group);
@@ -268,7 +267,7 @@ M0_INTERNAL void m0_be_tx_payload_prep(struct m0_be_tx *tx, m0_bcount_t size)
 	M0_ENTRY();
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
 
-	tx->t_payload_prepared += size;
+	tx->t_payload.b_nob += size;
 
 	M0_POST(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
 	M0_LEAVE();
@@ -390,20 +389,21 @@ static int be_tx_memory_allocate(struct m0_be_tx *tx)
 {
 	int rc;
 
-	tx->t_payload.b_nob = tx->t_payload_prepared;
-	if (tx->t_payload_prepared > 0)
+	if (tx->t_payload.b_nob > 0)
 		tx->t_payload.b_addr = m0_alloc_nz(tx->t_payload.b_nob);
 	if (tx->t_payload.b_addr == NULL && tx->t_payload.b_nob != 0) {
 		rc = -ENOMEM;
-		M0_LOG(M0_ERROR, "tx=%p t_payload_prepared=%"PRIu64" rc=%d",
-		       tx, tx->t_payload_prepared, rc);
+		M0_LOG(M0_INFO, "tx = %p: there is not enough memory "
+		       "to allocate payload with size = %"PRIu64,
+		       tx, tx->t_payload.b_nob);
 	} else {
 		rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared,
 					 M0_BE_REG_AREA_DATA_COPY);
 		if (rc != 0) {
 			m0_free0(&tx->t_payload.b_addr);
-			M0_LOG(M0_ERROR, "tx=%p t_prepared="BETXCR_F" rc=%d",
-			       tx, BETXCR_P(&tx->t_prepared), rc);
+			M0_LOG(M0_DEBUG, "tx = %p: there is not enough memory "
+			       "to allocate using prepared credit "BETXCR_F,
+			       tx, BETXCR_P(&tx->t_prepared));
 		}
 	}
 	return M0_RC(rc);

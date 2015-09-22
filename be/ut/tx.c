@@ -18,15 +18,6 @@
  * Original creation date: 12-Jun-2013
  */
 
-
-/**
- * @addtogroup be
- *
- * * Additional tests
- * - too large tx payload
- * @{
- */
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 

@@ -297,13 +297,13 @@ static void be_engine_got_tx_open(struct m0_be_engine *en,
 	while ((tx = be_engine_tx_opening_peek(en)) != NULL) {
 		if (!m0_be_tx_credit_le(&tx->t_prepared,
 					&en->eng_cfg->bec_tx_size_max) ||
-		    tx->t_payload_prepared > en->eng_cfg->bec_tx_payload_max) {
+		    tx->t_payload.b_nob > en->eng_cfg->bec_tx_payload_max) {
 			M0_LOG(M0_ERROR,
 			       "tx=%p engine=%p t_prepared="BETXCR_F" "
-			       "t_payload_prepared=%lu bec_tx_size_max="BETXCR_F
-			       " bec_tx_payload_max=%lu",
+			       "t_payload.b_nob=%lu bec_tx_size_max="BETXCR_F" "
+			       "bec_tx_payload_max=%lu",
 			       tx, en, BETXCR_P(&tx->t_prepared),
-			       tx->t_payload_prepared,
+			       tx->t_payload.b_nob,
 			       BETXCR_P(&en->eng_cfg->bec_tx_size_max),
 			       en->eng_cfg->bec_tx_payload_max);
 			be_engine_tx_state_post(en, tx, M0_BTS_FAILED);
@@ -311,7 +311,7 @@ static void be_engine_got_tx_open(struct m0_be_engine *en,
 			tx->t_log_reserved_size =
 				m0_be_group_format_log_reserved_size(
 					&en->eng_log, &tx->t_prepared,
-					tx->t_payload_prepared);
+					tx->t_payload.b_nob);
 			rc = m0_be_log_reserve(&en->eng_log,
 					       tx->t_log_reserved_size);
 			if (rc == 0) {

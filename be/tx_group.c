@@ -96,10 +96,9 @@ static void be_tx_group_reg_area_gather(struct m0_be_tx_group *gr)
 			m0_be_reg_area_prepared(ra, &prepared);
 			m0_be_reg_area_captured(ra, &captured);
 			m0_be_reg_area_used(ra, &used);
-			M0_LOG(M0_DEBUG, "tx=%p t_prepared="BETXCR_F" "
-			       "t_payload_prepared=%lu captured="BETXCR_F" "
-			       "used="BETXCR_F" t_payload.b_nob=%"PRIu64,
-			       tx, BETXCR_P(&prepared), tx->t_payload_prepared,
+			M0_LOG(M0_DEBUG, "tx=%p prepared="BETXCR_F" "
+			       "captured="BETXCR_F" used="BETXCR_F" "
+			       "payload_size=%"PRIu64, tx, BETXCR_P(&prepared),
 			       BETXCR_P(&captured), BETXCR_P(&used),
 			       tx->t_payload.b_nob);
 		} M0_BE_TX_GROUP_TX_ENDFOR;
@@ -259,11 +258,10 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 	struct m0_be_tx_credit group_used = gr->tg_used;
 	int                    rc;
 
-	M0_ENTRY("gr=%p tx=%p t_prepared="BETXCR_F" t_payload_prepared=%lu "
-	         "tg_used="BETXCR_F" tg_payload_prepared=%lu group_tx_nr=%zu",
-	         gr, tx, BETXCR_P(&tx->t_prepared), tx->t_payload_prepared,
-	         BETXCR_P(&gr->tg_used), gr->tg_payload_prepared,
-	         m0_be_tx_group_tx_nr(gr));
+	M0_ENTRY("gr=%p tx=%p tx->t_prepared="BETXCR_F" payload_size=%lu "
+	         "group_used="BETXCR_F" group_tx_nr=%zu",
+	         gr, tx, BETXCR_P(&tx->t_prepared), tx->t_payload.b_nob,
+	         BETXCR_P(&gr->tg_used), m0_be_tx_group_tx_nr(gr));
 	M0_PRE(m0_be_tx_group__invariant(gr));
 	M0_PRE(equi(m0_be_tx__is_recovering(tx),
 		    m0_be_tx_group_is_recovering(gr)));
@@ -276,11 +274,11 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 
 		if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
 		    m0_be_tx_group_tx_nr(gr) < gr->tg_cfg.tgc_tx_nr_max &&
-		    gr->tg_payload_prepared + tx->t_payload_prepared <=
+		    gr->tg_payload_prepared + tx->t_payload.b_nob <
 		    gr->tg_cfg.tgc_payload_max) {
 			be_tx_group_tx_add(gr, tx);
 			gr->tg_used              = group_used;
-			gr->tg_payload_prepared += tx->t_payload_prepared;
+			gr->tg_payload_prepared += tx->t_payload.b_nob;
 			rc = 0;
 		} else {
 			rc = -ENOSPC;
