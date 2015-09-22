@@ -601,6 +601,33 @@ static void chain(void)
 	m0_sm_group_unlock(&G);
 }
 
+static struct m0_sm_ast_wait wait;
+static struct m0_mutex       wait_guard;
+
+static void ast_wait_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	x = true;
+	m0_mutex_lock(&wait_guard);
+	m0_sm_ast_wait_signal(&wait);
+	m0_mutex_unlock(&wait_guard);
+}
+
+static void ast_wait(void)
+{
+	m0_mutex_init(&wait_guard);
+	m0_sm_ast_wait_init(&wait, &wait_guard);
+	x = false;
+	ast.sa_cb = &ast_wait_cb;
+	m0_mutex_lock(&wait_guard);
+	m0_sm_ast_wait_post(&wait, &G, &ast);
+	m0_sm_ast_wait(&wait);
+	M0_UT_ASSERT(x);
+
+	m0_sm_ast_wait_fini(&wait);
+	m0_mutex_unlock(&wait_guard);
+	m0_mutex_fini(&wait_guard);
+}
+
 struct m0_ut_suite sm_ut = {
 	.ts_name = "sm-ut",
 	.ts_init = init,
@@ -611,6 +638,7 @@ struct m0_ut_suite sm_ut = {
 		{ "timeout",    timeout },
 		{ "group",      group },
 		{ "chain",      chain },
+		{ "wait",       ast_wait },
 		{ NULL, NULL }
 	}
 };

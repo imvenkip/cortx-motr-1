@@ -276,6 +276,7 @@ struct m0_sm_group;
 struct m0_sm_ast;
 struct m0_sm_addb2_stats;
 struct m0_sm_group_addb2;
+struct m0_sm_ast_wait;
 
 /* import */
 struct m0_timer;
@@ -799,6 +800,67 @@ M0_INTERNAL int m0_sm_addb2_init(struct m0_sm_conf *conf,
 M0_INTERNAL void m0_sm_addb2_fini(struct m0_sm_conf *conf);
 
 M0_INTERNAL bool m0_sm_addb2_counter_init(struct m0_sm *sm);
+
+/**
+ * API of waiting for AST completion.
+ *
+ * Use example:
+ *
+ * @code
+ * struct m0_sm_ast_wait *wait  = ...;
+ * struct m0_mutex       *guard = ...; // m0_sm_group::s_lock, when possible.
+ *
+ * m0_sm_ast_wait_init(wait, guard);
+ *
+ * // Thread A:
+ * ast->sa_cb = ast_cb; // Must call m0_sm_ast_wait_signal() at the end.
+ * m0_mutex_lock(guard);
+ * m0_sm_ast_wait_post(wait, grp, ast);
+ * m0_mutex_unlock(guard);
+ *
+ * // Thread B:
+ * m0_mutex_lock(guard);
+ * m0_sm_ast_wait(wait);
+ * m0_mutex_unlock(guard);
+ * @endcode
+ */
+struct m0_sm_ast_wait {
+	/** Whether posting of ASTs is allowed. */
+	bool           aw_allowed;
+	/** Number of posted, still not completed ASTs. */
+	unsigned       aw_active;
+	/** Channel on which AST completion is signalled. */
+	struct m0_chan aw_chan;
+};
+
+M0_INTERNAL void m0_sm_ast_wait_init(struct m0_sm_ast_wait *wait,
+				     struct m0_mutex *ch_guard);
+M0_INTERNAL void m0_sm_ast_wait_fini(struct m0_sm_ast_wait *wait);
+
+/**
+ * Waits until all m0_sm_ast_wait_post()ed ASTs are executed.
+ *
+ * @pre  m0_mutex_is_locked(wait->aw_chan.ch_guard)
+ */
+M0_INTERNAL void m0_sm_ast_wait(struct m0_sm_ast_wait *wait);
+
+/**
+ * Posts an AST that might be waited for.
+ *
+ * @note ast->sa_cb must call m0_sm_ast_wait_signal() as its last action.
+ *
+ * @pre  m0_mutex_is_locked(wait->aw_chan.ch_guard)
+ */
+M0_INTERNAL void m0_sm_ast_wait_post(struct m0_sm_ast_wait *wait,
+				     struct m0_sm_group *grp,
+				     struct m0_sm_ast *ast);
+
+/**
+ * Signifies completion of an AST, posted with m0_sm_ast_wait_post().
+ *
+ * @pre  m0_mutex_is_locked(wait->aw_chan.ch_guard)
+ */
+M0_INTERNAL void m0_sm_ast_wait_signal(struct m0_sm_ast_wait *wait);
 
 /** @} end of sm group */
 #endif /* __MERO_SM_SM_H__ */

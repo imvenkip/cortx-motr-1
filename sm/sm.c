@@ -815,8 +815,63 @@ M0_INTERNAL bool m0_sm_addb2_counter_init(struct m0_sm *sm)
 	return conf->scf_addb2_key > 0;
 }
 
-/** @} end of sm group */
+M0_INTERNAL void
+m0_sm_ast_wait_init(struct m0_sm_ast_wait *wait, struct m0_mutex *ch_guard)
+{
+	wait->aw_allowed = true;
+	wait->aw_active = 0;
+	m0_chan_init(&wait->aw_chan, ch_guard);
+}
 
+M0_INTERNAL void m0_sm_ast_wait_fini(struct m0_sm_ast_wait *wait)
+{
+	M0_PRE(wait->aw_active == 0);
+
+	m0_chan_fini(&wait->aw_chan);
+}
+
+M0_INTERNAL void m0_sm_ast_wait(struct m0_sm_ast_wait *wait)
+{
+	struct m0_clink  clink;
+	struct m0_mutex *guard = wait->aw_chan.ch_guard;
+
+	M0_PRE(m0_mutex_is_locked(guard));
+	m0_clink_init(&clink, NULL);
+	/* Disable further ASTs. */
+	wait->aw_allowed = false;
+	m0_clink_add(&wait->aw_chan, &clink);
+	/* Wait until outstanding ASTs complete. */
+	while (wait->aw_active > 0) {
+		m0_mutex_unlock(guard);
+		m0_chan_wait(&clink);
+		m0_mutex_lock(guard);
+	}
+	m0_clink_del(&clink);
+	m0_clink_fini(&clink);
+}
+
+M0_INTERNAL void m0_sm_ast_wait_post(struct m0_sm_ast_wait *wait,
+				     struct m0_sm_group *grp,
+				     struct m0_sm_ast *ast)
+{
+	M0_PRE(m0_mutex_is_locked(wait->aw_chan.ch_guard));
+
+	if (wait->aw_allowed) {
+		M0_CNT_INC(wait->aw_active);
+		m0_sm_ast_post(grp, ast);
+	}
+}
+
+M0_INTERNAL void m0_sm_ast_wait_signal(struct m0_sm_ast_wait *wait)
+{
+	M0_PRE(m0_mutex_is_locked(wait->aw_chan.ch_guard));
+
+	M0_CNT_DEC(wait->aw_active);
+	if (wait->aw_active == 0)
+		m0_chan_signal(&wait->aw_chan);
+}
+
+/** @} end of sm group */
 #undef M0_TRACE_SUBSYSTEM
 
 /*

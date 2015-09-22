@@ -106,6 +106,7 @@ struct m0_addb2_sys {
 	 */
 	m0_bcount_t              sy_queued;
 	struct m0_sm_ast         sy_ast;
+	struct m0_sm_ast_wait    sy_astwait;
 	/**
 	 * Cached machines.
 	 */
@@ -127,24 +128,9 @@ struct m0_addb2_sys {
 	 */
 	m0_bcount_t              sy_total;
 	/**
-	 * Is AST posting enabled.
-	 */
-	bool                     sy_astenabled;
-	/**
-	 * Number of posted, still not completed ASTs.
-	 *
-	 * Used to synchronise with ASTs during finalisation
-	 * (m0_addb2_sys_fini()).
-	 */
-	unsigned                 sy_outstanding;
-	/**
 	 * Semaphore to wait until back-end stops.
 	 */
 	struct m0_semaphore      sy_wait;
-	/**
-	 * Channel on which AST completion is signalled.
-	 */
-	struct m0_chan           sy_astwait;
 	/**
 	 * A thread that holds ->sy_lock.
 	 *
@@ -202,7 +188,15 @@ int m0_addb2_sys_init(struct m0_addb2_sys **out,
 		sys->sy_conf = *conf;
 		sys->sy_ast.sa_cb = &sys_ast;
 		m0_mutex_init(&sys->sy_lock);
-		m0_chan_init(&sys->sy_astwait, &sys->sy_lock);
+		m0_sm_ast_wait_init(&sys->sy_astwait, &sys->sy_lock);
+		/**
+		 * `addb2' subsystem is initialised before locales are.
+		 * Disable posting of ASTs until m0_addb2_sys_sm_start()
+		 * is called.
+		 *
+		 * @see m0_sm_ast_wait_post(), m0_addb2_sys_sm_start()
+		 */
+		sys->sy_astwait.aw_allowed = false;
 		m0_semaphore_init(&sys->sy_wait, 0);
 		tr_tlist_init(&sys->sy_queue);
 		mach_tlist_init(&sys->sy_pool);
@@ -269,7 +263,7 @@ void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
 	mach_tlist_fini(&sys->sy_granted);
 	net_stop(sys);
 	stor_stop(sys);
-	m0_chan_fini(&sys->sy_astwait);
+	m0_sm_ast_wait_fini(&sys->sy_astwait);
 	sys_unlock(sys);
 	tr_tlist_fini(&sys->sy_queue);
 	m0_semaphore_fini(&sys->sy_wait);
@@ -382,29 +376,16 @@ void m0_addb2_sys_stor_stop(struct m0_addb2_sys *sys)
 void m0_addb2_sys_sm_start(struct m0_addb2_sys *sys)
 {
 	sys_lock(sys);
-	sys->sy_astenabled = true;
+	sys->sy_astwait.aw_allowed = true;
 	sys_unlock(sys);
 }
 
 void m0_addb2_sys_sm_stop(struct m0_addb2_sys *sys)
 {
-	struct m0_clink clink;
-
-	m0_clink_init(&clink, NULL);
 	sys_lock(sys);
-	/* Disable further asts. */
-	sys->sy_astenabled = false;
-	m0_clink_add(&sys->sy_astwait, &clink);
-	/* Wait until outstanding ASTs complete. */
-	while (sys->sy_outstanding > 0) {
-		sys_unlock(sys);
-		m0_chan_wait(&clink);
-		sys_lock(sys);
-	}
+	m0_sm_ast_wait(&sys->sy_astwait);
 	M0_ASSERT(sys->sy_ast.sa_next == NULL);
-	m0_clink_del(&clink);
 	sys_unlock(sys);
-	m0_clink_fini(&clink);
 }
 
 int m0_addb2_sys_submit(struct m0_addb2_sys *sys,
@@ -494,10 +475,14 @@ static int sys_submit(struct m0_addb2_mach *m, struct m0_addb2_trace_obj *obj)
 static void sys_post(struct m0_addb2_sys *sys)
 {
 	M0_PRE(m0_mutex_is_locked(&sys->sy_lock));
-	if (sys->sy_astenabled && sys->sy_ast.sa_next == NULL) {
-		++ sys->sy_outstanding;
-		m0_sm_ast_post(m0_locality_here()->lo_grp, &sys->sy_ast);
-	}
+	/*
+	 * m0_sm_ast_wait_post() checks for ->aw_allowed, but we have to check
+	 * it before calling m0_locality_here(), because m0_addb2_global_fini()
+	 * is called after m0_localities_fini().
+	 */
+	if (sys->sy_astwait.aw_allowed && sys->sy_ast.sa_next == NULL)
+		m0_sm_ast_wait_post(&sys->sy_astwait,
+				    m0_locality_here()->lo_grp, &sys->sy_ast);
 }
 
 /**
@@ -572,8 +557,7 @@ static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		m0_addb2_counter_add(counter, id, -1);
 	}
 	sys_balance(sys);
-	sys->sy_outstanding--;
-	m0_chan_signal(&sys->sy_astwait);
+	m0_sm_ast_wait_signal(&sys->sy_astwait);
 	sys_unlock(sys);
 }
 
