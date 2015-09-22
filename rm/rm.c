@@ -1950,6 +1950,16 @@ static void conflict_notify(struct m0_rm_credit *credit)
 		M0_ASSERT(m0_rm_pin_bob_check(pin));
 		if (pin->rp_flags & M0_RPF_PROTECT) {
 			in = pin->rp_incoming;
+			/*
+			 * In current design rio_conflict() will never be called
+			 * before rio_complete() for any incoming request.
+			 * M0_RPF_PROTECT pins are deleted if incoming request
+			 * can't be fully granted and lifetime of such pins is
+			 * incoming_check() function. It is important to hold
+			 * this assertion to not confuse incoming request
+			 * originator.
+			 */
+			M0_ASSERT(in->rin_sm.sm_state == RI_SUCCESS);
 			in->rin_ops->rio_conflict(in);
 		}
 	} m0_tl_endfor;
