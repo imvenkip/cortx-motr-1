@@ -418,8 +418,10 @@ static int sss_device_format(struct m0_fom *fom)
 
 	m0_storage_devs_lock(devs);
 	dev = m0_storage_devs_find_by_cid(devs, dfom->ssm_cid);
-	rc = (dev == NULL) ? M0_ERR(-ENOENT) : 0;
-	rc = rc ?: m0_storage_dev_format(dev);
+	/*
+	 * Note. If device not attached yet then dev equal NULL.
+	 */
+	rc = m0_storage_dev_format(dev, dfom->ssm_cid);
 	m0_storage_devs_unlock(devs);
 	return M0_RC(rc);
 }

@@ -170,7 +170,8 @@ M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,
  *
  * Not implemented yet.
  */
-M0_INTERNAL int m0_storage_dev_format(struct m0_storage_dev *dev);
+M0_INTERNAL int m0_storage_dev_format(struct m0_storage_dev *dev,
+				      uint64_t               cid);
 
 /** @} end of sdev group */
 #endif /* __MERO_IOSERVICE_STORAGE_DEV_H__ */

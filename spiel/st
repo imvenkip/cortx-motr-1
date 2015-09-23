@@ -51,7 +51,7 @@ EOF
 
 start() {
     # install "mero" Python module required by m0spiel tool
-    cd $M0_CORE_DIR/utils/m0spiel
+    cd $M0_CORE_DIR/utils/spiel
     python setup.py install > /dev/null || die 'Cannot install Python "mero" module'
     cd $M0_CORE_DIR
     _init
@@ -64,7 +64,7 @@ stop() {
     services_stop
     sleep 3
     _fini
-    [ $rc -eq 0 ] || say "spiel: test status: FAILED"
+    [ $rc -eq 0 ] || echo "Spiel test FAILED"
     exit $rc
 }
 
@@ -306,7 +306,7 @@ HEALTH_GOOD, HEALTH_BAB, HEALTH_INACTIVE, HEALTH_UNKNOWN = range(4)
 }
 
 construct_db() {
-    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    $M0_CORE_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 N = 2
 K = 1
@@ -408,7 +408,7 @@ EOF
 }
 
 validate_health() {
-    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
+    $M0_CORE_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
 $FIDS_LIST
 $SERVICES
 $HEALTH
@@ -430,7 +430,7 @@ EOF
 }
 
 restart_services() {
-    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
+    $M0_CORE_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
 $FIDS_LIST
 $SERVICES
 
@@ -455,7 +455,7 @@ EOF
 }
 
 reconfig_process() {
-    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
+    $M0_CORE_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
 $FIDS_LIST
 
 if spiel.cmd_profile_set(str(fids['profile'])) != 0:
@@ -482,7 +482,7 @@ perform_io() {
 }
 
 fs_stats_fetch() {
-    $M0_CORE_DIR/utils/m0spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
+    $M0_CORE_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
 $FIDS_LIST
 
 if spiel.cmd_profile_set(str(fids['profile'])) != 0:
@@ -505,6 +505,28 @@ _mount() {
 none $SANDBOX_DIR/mnt"
     echo "mount $MOUNT_OPTS"
     mount $MOUNT_OPTS || return $?
+}
+
+device_commands_check() {
+    $M0_CORE_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
+$FIDS_LIST
+
+if spiel.cmd_profile_set(str(fids['profile'])) != 0:
+    sys.exit('can not set profile {0}'.format(fids['profile']))
+
+device_commands = [('device_detach', fids['disk1']),
+                   ('device_format', fids['disk1']),
+                   ('device_attach', fids['disk1'])]
+for command in device_commands:
+    try:
+        if getattr(spiel, command[0])(*command[1:]) != 0:
+            sys.exit("an error occurred while {0} executing, device fid\
+                     {1}".format(command[0], command[1]))
+    except:
+        sys.exit("an error occurred while {0} executing, device fid \
+                 {1}".format(command[0], command[1]))
+
+EOF
 }
 
 ## Keep the audience engaged.
@@ -582,5 +604,8 @@ perform_io
 
 say "Validate health"
 validate_health
+
+say "Device commands"
+device_commands_check
 
 say "spiel: test status: SUCCESS"

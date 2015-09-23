@@ -184,16 +184,11 @@ static void test_spiel_device_cmds(void)
 	rc = m0_spiel_device_detach(&spiel, &disk_fid);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_fi_enable_once("m0_storage_dev_attach_by_conf", "no_real_dev");
-	rc = m0_spiel_device_attach(&spiel, &disk_fid);
+	rc = m0_spiel_device_format(&spiel, &disk_fid);
 	M0_UT_ASSERT(rc == 0);
 
-	/**
-	 * @todo Format is not implemented yet.
-	 */
-	rc = m0_spiel_device_format(&spiel, &disk_fid);
-	M0_UT_ASSERT(rc == -ENOSYS);
-	rc = m0_spiel_device_detach(&spiel, &disk_fid);
+	m0_fi_enable_once("m0_storage_dev_attach_by_conf", "no_real_dev");
+	rc = m0_spiel_device_attach(&spiel, &disk_fid);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_device_detach(&spiel, &disk_invalid_fid);

@@ -206,13 +206,13 @@ M0_INTERNAL void m0_storage_devs_detach_all(struct m0_storage_devs *devs)
 	} m0_tl_endfor;
 }
 
-M0_INTERNAL int m0_storage_dev_format(struct m0_storage_dev *dev)
+M0_INTERNAL int m0_storage_dev_format(struct m0_storage_dev *dev,
+				      uint64_t               cid)
 {
-	/**
-	 * @todo Implement device formatting. There is special command in spiel
-	 * for that, but requirements are not defined yet.
+	/*
+	 * Nothing do for Format command.
 	 */
-	return M0_ERR(-ENOSYS);
+	return M0_RC(0);
 }
 
 #undef M0_TRACE_SUBSYSTEM

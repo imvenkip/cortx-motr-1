@@ -49,6 +49,12 @@
  * @{
  */
 
+M0_TL_DESCR_DEFINE(spiel_string, "list of endpoints",
+		   static, struct spiel_string_entry, sse_link, sse_magic,
+		   M0_STATS_MAGIC, M0_STATS_HEAD_MAGIC);
+M0_TL_DEFINE(spiel_string, static, struct spiel_string_entry);
+
+
 static bool _filter_svc(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
@@ -59,38 +65,40 @@ static bool _filter_controller(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE;
 }
 
-static bool _filter_process(const struct m0_conf_obj *obj)
-{
-	return m0_conf_obj_type(obj) == &M0_CONF_PROCESS_TYPE;
-}
-
 static int spiel_node_process_endpoint_add(struct m0_spiel    *spl,
 				           struct m0_conf_obj *node,
-				           struct m0_list     *list)
+				           struct m0_tl       *list)
 {
 	struct spiel_string_entry *entry;
 	struct m0_confc           *confc = &spl->spl_rconfc.rc_confc;
 	struct m0_conf_diter       it;
 	struct m0_conf_process    *p;
+	struct m0_conf_service    *svc;
 	int                        rc;
 
 	M0_ENTRY("conf_node: %p", &node);
 
 	rc = m0_conf_diter_init(&it, confc, node,
-				M0_CONF_NODE_PROCESSES_FID);
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	while ((rc = m0_conf_diter_next_sync(&it, _filter_process)) ==
+	while ((rc = m0_conf_diter_next_sync(&it, _filter_svc)) ==
 		     M0_CONF_DIRNEXT) {
-		p = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_process);
-		M0_ALLOC_PTR(entry);
-		if (entry == NULL) {
-			rc = M0_ERR(-ENOMEM);
+		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
+		if (svc->cs_type == M0_CST_IOS) {
+			p = M0_CONF_CAST(svc->cs_obj.co_parent->co_parent,
+					 m0_conf_process);
+			M0_ALLOC_PTR(entry);
+			if (entry == NULL) {
+				rc = M0_ERR(-ENOMEM);
+				break;
+			}
+			entry->sse_string = m0_strdup(p->pc_endpoint);
+			spiel_string_tlink_init_at(entry, list);
 			break;
 		}
-		entry->sse_string = m0_strdup(p->pc_endpoint);
-		m0_list_add(list, &entry->sse_linkage);
 	}
 
 	m0_conf_diter_fini(&it);
@@ -104,7 +112,7 @@ static int spiel_node_process_endpoint_add(struct m0_spiel    *spl,
  */
 static int spiel_endpoints_for_device_generic(struct m0_spiel     *spl,
 					      const struct m0_fid *device_fid,
-					      struct m0_list      *list)
+					      struct m0_tl        *list)
 {
 	struct m0_confc           *confc = &spl->spl_rconfc.rc_confc;
 	struct m0_conf_diter       it;
@@ -114,7 +122,6 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel     *spl,
 	struct m0_conf_controller *ctrl;
 	struct m0_conf_obj        *node_obj;
 	int                        rc;
-	bool                       found = false;
 
 	M0_ENTRY();
 	M0_PRE(device_fid != NULL);
@@ -156,7 +163,6 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel     *spl,
 							        list);
 				m0_confc_close(node_obj);
 			}
-			found = true;
 			m0_confc_close(disk);
 		}
 	}
@@ -164,7 +170,7 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel     *spl,
 	m0_conf_diter_fini(&it);
 	m0_confc_close(fs);
 
-	return found ? M0_RC(rc) : M0_ERR(-ENOENT);
+	return M0_RC(rc);
 }
 
 static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
@@ -584,32 +590,38 @@ static int spiel_device_command_fop_send(struct m0_spiel     *spl,
 	return M0_RC(rc);
 }
 
+/**
+ * Search all processes that have IO services, fetch their endpoints and send
+ * command FOPs.
+ */
 static int spiel_device_command_send(struct m0_spiel     *spl,
 				     const struct m0_fid *dev_fid,
 				     int                  cmd)
 {
-	struct m0_list  endpoints;
-	int             rc;
+	struct m0_tl               endpoints;
+	struct spiel_string_entry *ep;
+	int                        rc;
 
 	M0_ENTRY();
 
 	if (m0_conf_fid_type(dev_fid) != &M0_CONF_DISK_TYPE)
 		return M0_ERR(-EINVAL);
 
-	m0_list_init(&endpoints);
+	spiel_string_tlist_init(&endpoints);
 
 	rc = spiel_endpoints_for_device_generic(spl, dev_fid, &endpoints);
-	if (rc == 0)
-		m0_list_entry_forall(e, &endpoints, struct spiel_string_entry,
-			     sse_linkage,
-			     rc = rc ?: spiel_device_command_fop_send(spl,
-						e->sse_string, dev_fid, cmd);
-			     m0_list_del(&e->sse_linkage);
-			     m0_free((char *)e->sse_string);
-			     m0_free(e);
-			     true;);
+	if (rc == 0 && spiel_string_tlist_is_empty(&endpoints))
+		rc = M0_ERR(-ENOENT);
 
-	m0_list_fini(&endpoints);
+	if (rc == 0)
+		m0_tl_teardown(spiel_string, &endpoints, ep) {
+			rc = rc ?: spiel_device_command_fop_send(spl,
+					ep->sse_string, dev_fid, cmd);
+			m0_free((char *)ep->sse_string);
+			m0_free(ep);
+		}
+
+	spiel_string_tlist_fini(&endpoints);
 
 	return M0_RC(rc);
 }

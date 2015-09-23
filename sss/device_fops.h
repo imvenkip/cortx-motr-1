@@ -138,7 +138,7 @@ enum m0_sss_device_req_cmd {
 	M0_DEVICE_DETACH,
 	/**
 	 * Format command.
-	 * Format select device. Not implement yet.
+	 * Format select device.
 	 */
 	M0_DEVICE_FORMAT,
 	/**

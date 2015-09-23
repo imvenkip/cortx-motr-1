@@ -50,8 +50,9 @@ enum {
 #define SPIEL_DEVICE_FORMAT_TIMEOUT   m0_time_from_now(10*60, 0)
 
 struct spiel_string_entry {
-	struct m0_list_link sse_linkage;
-	char               *sse_string;
+	char            *sse_string;
+	struct m0_tlink  sse_link;
+	uint64_t         sse_magic;
 };
 
 /****************************************************/

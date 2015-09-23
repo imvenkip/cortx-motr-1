@@ -173,8 +173,6 @@
                send reply and finish
 
    @endverbatim
-
-  Note! Now Device format command is not supported.
 */
 
 /**
@@ -218,7 +216,8 @@ enum sss_device_fom_phases {
 	 */
 	SSS_DFOM_DETACH_POOL_MACHINE,
 	/**
-	 * Start device format - now stub.
+	 * Make device format.
+	 * Empty function
 	 */
 	SSS_DFOM_FORMAT,
 };
