@@ -32,6 +32,7 @@
 #include "conf/obj_ops.h"     /* M0_CONF_DIRNEXT, m0_conf_obj_get */
 #include "conf/confc.h"
 #include "conf/diter.h"
+#include "fid/fid_list.h"
 #include "fop/fop.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/link.h"
@@ -883,20 +884,15 @@ M0_EXPORTED(m0_spiel_process_list_services);
 /*                      Pools                       */
 /****************************************************/
 
-M0_TL_DESCR_DEFINE(fs_items, "list of items fs operates on",
-		   static, struct _stats_item, i_link, i_magic,
-		   M0_STATS_MAGIC, M0_STATS_HEAD_MAGIC);
-M0_TL_DEFINE(fs_items, static, struct _stats_item);
-
 static int spiel_stats_item_add(struct m0_tl *tl, const struct m0_fid *fid)
 {
-	struct _stats_item *si;
+	struct m0_fid_item *si;
 
 	M0_ALLOC_PTR(si);
 	if (si == NULL)
 		return M0_ERR(-ENOMEM);
 	si->i_fid = *fid;
-	fs_items_tlink_init_at(si, tl);
+	m0_fids_tlink_init_at(si, tl);
 	return M0_RC(0);
 }
 
@@ -1001,7 +997,7 @@ static bool spiel__pool_service_has_sdev(struct _pool_cmd_ctx *ctx,
 	while ((rc = m0_conf_diter_next_sync(&it, _filter_sdev))
 						== M0_CONF_DIRNEXT && !found) {
 		obj = m0_conf_diter_result(&it);
-		if (m0_tl_find(fs_items, si, &ctx->pl_sdevs_fid,
+		if (m0_tl_find(m0_fids, si, &ctx->pl_sdevs_fid,
 			      m0_fid_cmp(&si->i_fid, &obj->co_id) == 0) != NULL)
 			found = true;
 	}
@@ -1019,27 +1015,27 @@ static void spiel__pool_ctx_init(struct _pool_cmd_ctx *ctx,
 	M0_SET0(ctx);
 	ctx->pl_spl = spl;
 	ctx->pl_confc = &spl->spl_rconfc.rc_confc;
-	fs_items_tlist_init(&ctx->pl_sdevs_fid);
-	fs_items_tlist_init(&ctx->pl_services_fid);
-	M0_POST(fs_items_tlist_invariant(&ctx->pl_sdevs_fid));
-	M0_POST(fs_items_tlist_invariant(&ctx->pl_services_fid));
+	m0_fids_tlist_init(&ctx->pl_sdevs_fid);
+	m0_fids_tlist_init(&ctx->pl_services_fid);
+	M0_POST(m0_fids_tlist_invariant(&ctx->pl_sdevs_fid));
+	M0_POST(m0_fids_tlist_invariant(&ctx->pl_services_fid));
 }
 
 static void spiel__pool_ctx_fini(struct _pool_cmd_ctx *ctx)
 {
-	struct _stats_item *si;
+	struct m0_fid_item *si;
 
-	if (!fs_items_tlist_is_empty(&ctx->pl_sdevs_fid))
-		m0_tl_teardown(fs_items, &ctx->pl_sdevs_fid, si) {
+	if (!m0_fids_tlist_is_empty(&ctx->pl_sdevs_fid))
+		m0_tl_teardown(m0_fids, &ctx->pl_sdevs_fid, si) {
 			m0_free(si);
 		}
-	fs_items_tlist_fini(&ctx->pl_sdevs_fid);
+	m0_fids_tlist_fini(&ctx->pl_sdevs_fid);
 
-	if (!fs_items_tlist_is_empty(&ctx->pl_services_fid))
-		m0_tl_teardown(fs_items, &ctx->pl_services_fid, si) {
+	if (!m0_fids_tlist_is_empty(&ctx->pl_services_fid))
+		m0_tl_teardown(m0_fids, &ctx->pl_services_fid, si) {
 			m0_free(si);
 		}
-	fs_items_tlist_fini(&ctx->pl_services_fid);
+	m0_fids_tlist_fini(&ctx->pl_services_fid);
 }
 
 static bool spiel__pool_service_select(const struct m0_conf_obj *item,
@@ -1147,7 +1143,7 @@ static int spiel_pool_generic_handler(struct m0_spiel             *spl,
 	int                   service_count;
 	int                   index;
 	struct _pool_cmd_ctx  ctx;
-	struct _stats_item   *si;
+	struct m0_fid_item   *si;
 	bool                  cmd_status;
 
 	M0_ENTRY();
@@ -1172,7 +1168,7 @@ static int spiel_pool_generic_handler(struct m0_spiel             *spl,
 	}
 
 	cmd_status = M0_IN(cmd, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS));
-	service_count = fs_items_tlist_length(&ctx.pl_services_fid);
+	service_count = m0_fids_tlist_length(&ctx.pl_services_fid);
 
 	if (cmd_status) {
 		M0_ALLOC_ARR(*statuses, service_count);
@@ -1183,7 +1179,7 @@ static int spiel_pool_generic_handler(struct m0_spiel             *spl,
 	}
 
 	index = 0;
-	m0_tl_for(fs_items, &ctx.pl_services_fid, si) {
+	m0_tl_for(m0_fids, &ctx.pl_services_fid, si) {
 		M0_ASSERT(index < service_count);
 		rc = spiel__pool_cmd_send(&ctx, &si->i_fid, cmd, index,
 					  cmd_status ? *statuses : NULL);
@@ -1296,18 +1292,18 @@ static void spiel__fs_stats_ctx_init(struct _fs_stats_ctx *fsx,
 	fsx->fx_spl = spl;
 	fsx->fx_fid = *fs_fid;
 	fsx->fx_type = item_type;
-	fs_items_tlist_init(&fsx->fx_items);
-	M0_POST(fs_items_tlist_invariant(&fsx->fx_items));
+	m0_fids_tlist_init(&fsx->fx_items);
+	M0_POST(m0_fids_tlist_invariant(&fsx->fx_items));
 }
 
 static void spiel__fs_stats_ctx_fini(struct _fs_stats_ctx *fsx)
 {
-	struct _stats_item *si;
+	struct m0_fid_item *si;
 
-	m0_tl_teardown(fs_items, &fsx->fx_items, si) {
+	m0_tl_teardown(m0_fids, &fsx->fx_items, si) {
 		m0_free(si);
 	}
-	fs_items_tlist_fini(&fsx->fx_items);
+	m0_fids_tlist_fini(&fsx->fx_items);
 }
 
 /**
@@ -1319,7 +1315,7 @@ static void spiel__fs_stats_ctx_fini(struct _fs_stats_ctx *fsx)
 static bool spiel__item_enlist(const struct m0_conf_obj *item, void *ctx)
 {
 	struct _fs_stats_ctx *fsx = ctx;
-	struct _stats_item   *si;
+	struct m0_fid_item   *si;
 
 	M0_LOG(SPIEL_LOGLVL, "arrived: " FID_F " (%s)", FID_P(&item->co_id),
 	       m0_fid_type_getfid(&item->co_id)->ft_name);
@@ -1335,7 +1331,7 @@ static bool spiel__item_enlist(const struct m0_conf_obj *item, void *ctx)
 		return false;
 	}
 	si->i_fid = item->co_id;
-	fs_items_tlink_init_at(si, &fsx->fx_items);
+	m0_fids_tlink_init_at(si, &fsx->fx_items);
 	M0_LOG(SPIEL_LOGLVL, "* booked: " FID_F " (%s)", FID_P(&item->co_id),
 	       m0_fid_type_getfid(&item->co_id)->ft_name);
 	return true;
@@ -1351,7 +1347,7 @@ static bool spiel__fs_test(const struct m0_conf_obj *fs_obj, void *ctx)
 /**
  * Updates filesystem stats by list item.
  */
-static void spiel__fs_stats_ctx_update(struct _stats_item *si,
+static void spiel__fs_stats_ctx_update(struct m0_fid_item   *si,
 				       struct _fs_stats_ctx *fsx)
 {
 	struct m0_fop            *reply_fop = NULL;
@@ -1394,7 +1390,7 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 	struct m0_confc      *confc;
 	struct m0_fid        *profile;
 	struct _fs_stats_ctx  fsx;
-	struct _stats_item   *si;
+	struct m0_fid_item    *si;
 	int                   rc;
 
 	M0_ENTRY();
@@ -1421,7 +1417,7 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 		goto leave;
 	}
 	/* update stats by the list of found items */
-	m0_tl_for(fs_items, &fsx.fx_items, si) {
+	m0_tl_for(m0_fids, &fsx.fx_items, si) {
 		spiel__fs_stats_ctx_update(si, &fsx);
 		if (fsx.fx_rc != 0) {
 			if (fsx.fx_rc == -EOVERFLOW) {

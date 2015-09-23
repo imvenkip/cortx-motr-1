@@ -250,11 +250,6 @@ ysXAXAgJ5lQoMcOkbBNBW9Nz9OM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
  */
 M0_EXTERN unsigned poolmach_key;
 
-struct m0_ios_poolmach_args {
-	uint32_t nr_sdevs;
-	uint32_t nr_nodes;
-};
-
 static bool is_conf_controller(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE;

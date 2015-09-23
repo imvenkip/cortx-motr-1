@@ -59,13 +59,6 @@ struct spiel_string_entry {
 /*                    Filesystem                    */
 /****************************************************/
 
-/** Descriptor for an item to be polled about stats */
-struct _stats_item {
-	struct m0_fid   i_fid;           /**< respective conf object's fid    */
-	struct m0_tlink i_link;          /**< link in _fs_stats_ctx::fx_items */
-	uint64_t        i_magic;
-};
-
 /** filesystem stats collection context */
 struct _fs_stats_ctx {
 	/**
@@ -77,7 +70,7 @@ struct _fs_stats_ctx {
 	struct m0_spiel *fx_spl;         /**< spiel instance      */
 	m0_bcount_t      fx_free;        /**< free space          */
 	m0_bcount_t      fx_total;       /**< total space         */
-	struct m0_tl     fx_items;       /**< _stats_item list    */
+	struct m0_tl     fx_items;       /**< m0_fid_item list    */
 	struct m0_fid    fx_fid;         /**< filesystem fid      */
 	/** stats item type to be enlisted */
 	const struct m0_conf_obj_type *fx_type;

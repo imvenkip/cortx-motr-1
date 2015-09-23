@@ -387,7 +387,8 @@ static int ios_start(struct m0_reqh_service *service)
 	m0_ios_start_sm_exec(&iosvc->rios_sm);
 	m0_ios_start_lock(&iosvc->rios_sm);
 	rc = m0_sm_timedwait(&iosvc->rios_sm.ism_sm,
-			     M0_BITS(M0_IOS_START_FINAL, M0_IOS_START_FAILURE),
+			     M0_BITS(M0_IOS_START_COMPLETE,
+				     M0_IOS_START_FAILURE),
 			     M0_TIME_NEVER);
 	m0_ios_start_unlock(&iosvc->rios_sm);
 	rc = rc ?: iosvc->rios_sm.ism_sm.sm_rc;
@@ -434,7 +435,7 @@ static bool ios_start_async_cb(struct m0_clink *clink)
 	iosvc = container_of(clink, struct m0_reqh_io_service, rios_clink);
 	ios_sm = &iosvc->rios_sm;
 	if (M0_IN(ios_sm->ism_sm.sm_state,
-		   (M0_IOS_START_FINAL, M0_IOS_START_FAILURE))) {
+		   (M0_IOS_START_COMPLETE, M0_IOS_START_FAILURE))) {
 		m0_clink_del(clink);
 		m0_clink_fini(clink);
 		rc = ios_sm->ism_sm.sm_rc;

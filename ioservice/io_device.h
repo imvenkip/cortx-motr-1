@@ -86,6 +86,11 @@ struct m0_reqh;
 struct m0_poolmach;
 struct m0_reqh_service;
 
+struct m0_ios_poolmach_args {
+	uint32_t nr_sdevs;
+	uint32_t nr_nodes;
+};
+
 enum {
 	/**
 	 * i/o reply error code to indicate the client known failure vector

@@ -498,6 +498,7 @@ scope const struct m0_tl_descr name ## _tl
 scope void name ## _tlist_init(struct m0_tl *head);			\
 scope void name ## _tlist_fini(struct m0_tl *head);			\
 scope void name ## _tlink_init(amb_type *amb);				\
+scope bool name ## _tlist_invariant(const struct m0_tl *head);		\
 scope bool name ## _tlist_invariant_ext(const struct m0_tl *head,       \
                                         bool (*check)(const amb_type *, \
                                         void *), void *);		\

@@ -30,6 +30,7 @@
 #include "be/tx.h"
 #include "cob/cob.h"
 #include "conf/obj_ops.h"
+#include "fid/fid_list.h"            /* m0_fids_tlist_XXX */
 #include "ioservice/io_service.h"
 #include "ioservice/ios_start_sm.h"
 #include "mero/setup.h"
@@ -47,17 +48,12 @@ M0_EXTERN unsigned poolmach_key;
 M0_INTERNAL int m0_ios_create_buffer_pool(struct m0_reqh_service *service);
 M0_INTERNAL void m0_ios_delete_buffer_pool(struct m0_reqh_service *service);
 
-struct ios_start_sm_hadler {
-	/** AST callback */
-	void (*iosh_ast_cb)(struct m0_sm_group *, struct m0_sm_ast *);
-};
-
 static struct m0_sm_state_descr ios_start_sm_states[] = {
 	[M0_IOS_START_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "ios_start_init",
 		.sd_allowed = M0_BITS(M0_IOS_START_CDOM_CREATE,
-				      M0_IOS_START_PM_INIT,
+				      M0_IOS_START_BUFFER_POOL_CREATE,
 				      M0_IOS_START_FAILURE)
 	},
 	[M0_IOS_START_CDOM_CREATE] = {
@@ -68,7 +64,7 @@ static struct m0_sm_state_descr ios_start_sm_states[] = {
 	[M0_IOS_START_CDOM_CREATE_RES] = {
 		.sd_flags   = 0,
 		.sd_name    = "ios_start_be_result",
-		.sd_allowed = M0_BITS(M0_IOS_START_MKFS, M0_IOS_START_PM_INIT,
+		.sd_allowed = M0_BITS(M0_IOS_START_MKFS,
 				      M0_IOS_START_FAILURE)
 	},
 	[M0_IOS_START_MKFS] = {
@@ -79,36 +75,55 @@ static struct m0_sm_state_descr ios_start_sm_states[] = {
 	[M0_IOS_START_MKFS_RESULT] = {
 		.sd_flags   = 0,
 		.sd_name    = "ios_start_mkfs_result",
+		.sd_allowed = M0_BITS(M0_IOS_START_BUFFER_POOL_CREATE,
+				      M0_IOS_START_FAILURE)
+	},
+	[M0_IOS_START_BUFFER_POOL_CREATE] = {
+		.sd_flags   = 0,
+		.sd_name    = "ios_start_buffer_pool_create",
+		.sd_allowed = M0_BITS(M0_IOS_START_CONF_COUNTER_INIT,
+				      M0_IOS_START_FAILURE)
+	},
+	[M0_IOS_START_CONF_COUNTER_INIT] = {
+		.sd_flags   = 0,
+		.sd_name    = "ios_start_conf_counter_init",
+		.sd_allowed = M0_BITS(M0_IOS_START_CONF_COUNTER_NODES,
+				      M0_IOS_START_FAILURE)
+	},
+	[M0_IOS_START_CONF_COUNTER_NODES] = {
+		.sd_flags   = 0,
+		.sd_name    = "ios_start_conf_counter_nodes",
+		.sd_allowed = M0_BITS(M0_IOS_START_CONF_COUNTER_SDEVS,
+				      M0_IOS_START_FAILURE)
+	},
+	[M0_IOS_START_CONF_COUNTER_SDEVS] = {
+		.sd_flags   = 0,
+		.sd_name    = "ios_start_conf_counter_sdevs",
 		.sd_allowed = M0_BITS(M0_IOS_START_PM_INIT,
 				      M0_IOS_START_FAILURE)
 	},
 	[M0_IOS_START_PM_INIT] = {
 		.sd_flags   = 0,
 		.sd_name    = "ios_start_pm_init",
-		.sd_allowed = M0_BITS(M0_IOS_START_CONF_FS_GET)
+		.sd_allowed = M0_BITS(M0_IOS_START_CONF_FILL_INIT)
 	},
-	[M0_IOS_START_CONF_FS_GET] = {
+	[M0_IOS_START_CONF_FILL_INIT] = {
 		.sd_flags   = 0,
-		.sd_name    = "ios_start_fs_get",
-		.sd_allowed = M0_BITS(M0_IOS_START_CONF_ITER_INIT,
+		.sd_name    = "ios_start_conf_fill_init",
+		.sd_allowed = M0_BITS(M0_IOS_START_CONF_FILL,
 				      M0_IOS_START_FAILURE)
 	},
-	[M0_IOS_START_CONF_ITER_INIT] = {
+	[M0_IOS_START_CONF_FILL] = {
 		.sd_flags   = 0,
-		.sd_name    = "ios_start_conf_iter_init",
-		.sd_allowed = M0_BITS(M0_IOS_START_CONF_ITER,
+		.sd_name    = "ios_start_conf_fill",
+		.sd_allowed = M0_BITS(M0_IOS_START_COMPLETE,
 				      M0_IOS_START_FAILURE)
-	},
-	[M0_IOS_START_CONF_ITER] = {
-		.sd_flags   = 0,
-		.sd_name    = "ios_start_conf_iter",
-		.sd_allowed = M0_BITS(M0_IOS_START_FINAL, M0_IOS_START_FAILURE)
 	},
 	[M0_IOS_START_FAILURE] = {
 		.sd_flags     = M0_SDF_FAILURE | M0_SDF_FINAL,
 		.sd_name      = "ios_start_failure",
 	},
-	[M0_IOS_START_FINAL] = {
+	[M0_IOS_START_COMPLETE] = {
 		.sd_flags   = M0_SDF_TERMINAL,
 		.sd_name    = "ios_start_fini",
 		.sd_allowed = 0
@@ -121,6 +136,9 @@ static const struct m0_sm_conf ios_start_sm_conf = {
 	.scf_state     = ios_start_sm_states
 };
 
+static void ios_start_buffer_pool_create(struct m0_ios_start_sm *ios_sm);
+static int ios_start_fs_obj_open(struct m0_ios_start_sm *ios_sm);
+static void ios_start_conf_sdev_init(struct m0_ios_start_sm *ios_sm);
 static void ios_start_sm_tick(struct m0_ios_start_sm *ios_sm);
 
 static struct m0_ios_start_sm *ios_start_clink2sm(struct m0_clink *cl)
@@ -165,11 +183,24 @@ static void ios_start_state_set(struct m0_ios_start_sm  *ios_sm,
 	m0_sm_state_set(&ios_sm->ism_sm, state);
 }
 
+static void ios_start_sdev_list_fini(struct m0_ios_start_sm *ios_sm)
+{
+	struct m0_fid_item *si;
+
+	if (!m0_fids_tlist_is_empty(&ios_sm->ism_sdevs_fid))
+		m0_tl_teardown(m0_fids, &ios_sm->ism_sdevs_fid, si) {
+			m0_free(si);
+		}
+	m0_fids_tlist_fini(&ios_sm->ism_sdevs_fid);
+}
+
 static void ios_start_sm_failure(struct m0_ios_start_sm *ios_sm, int rc)
 {
 	enum m0_ios_start_state state = ios_start_state_get(ios_sm);
 
 	switch (state) {
+	case M0_IOS_START_INIT:
+		/* fallthrough */
 	case M0_IOS_START_CDOM_CREATE_RES:
 		/* Possibly errors source: tx close */
 		if (ios_sm->ism_dom != NULL)
@@ -181,24 +212,30 @@ static void ios_start_sm_failure(struct m0_ios_start_sm *ios_sm, int rc)
 		m0_cob_domain_fini(ios_sm->ism_dom);
 		break;
 	case M0_IOS_START_MKFS_RESULT:
-		/* Possibly errors source: tx close, m0_cob_domain_mkfs,
-					   ios_start_pm_prepare */
+		/* Possibly errors source: tx close, m0_cob_domain_mkfs */
+		m0_cob_domain_destroy(ios_sm->ism_dom, ios_sm->ism_sm.sm_grp);
+		m0_cob_domain_fini(ios_sm->ism_dom);
+		break;
+	case M0_IOS_START_BUFFER_POOL_CREATE:
 		m0_cob_domain_destroy(ios_sm->ism_dom, ios_sm->ism_sm.sm_grp);
 		m0_cob_domain_fini(ios_sm->ism_dom);
 		m0_ios_delete_buffer_pool(ios_sm->ism_service);
 		break;
+	case M0_IOS_START_COMPLETE:
+		/* Possibly errors source: tx close */
+		/* fallthrough */
+	case M0_IOS_START_CONF_COUNTER_SDEVS:
+		/* Possibly errors source: m0_confc_... , pm_prepare */
+		/* fallthrough */
 	case M0_IOS_START_PM_INIT:
 		/* Possibly errors source: tx open */
 		/* fallthrough */
-	case M0_IOS_START_CONF_FS_GET:
-		/* Possibly errors source: tx close, m0_poolmach_backed_init,
-					   m0_confc_ctx_init */
-		/* fallthrough */
-	case M0_IOS_START_CONF_ITER_INIT:
+	case M0_IOS_START_CONF_FILL_INIT:
 		/* Possibly errors source: m0_confc_...  */
+		ios_start_sdev_list_fini(ios_sm);
 		/* fallthrough */
-	case M0_IOS_START_FINAL:
-		/* Possibly errors source: tx close */
+	case M0_IOS_START_CONF_COUNTER_INIT:
+		/* Possibly errors source: m0_confc_...  */
 		m0_ios_delete_buffer_pool(ios_sm->ism_service);
 		m0_cob_domain_fini(ios_sm->ism_dom);
 		m0_free(ios_sm->ism_poolmach);
@@ -238,6 +275,8 @@ M0_INTERNAL void m0_ios_start_sm_exec(struct m0_ios_start_sm *ios_sm)
 	ios_start_sm_tick(ios_sm);
 	M0_LEAVE();
 }
+
+/* TX section  */
 
 static void ios_start_tx_waiter(struct m0_clink *cl, uint32_t flag)
 {
@@ -287,38 +326,6 @@ static void ios_start_tx_close(struct m0_ios_start_sm *ios_sm)
 	m0_be_tx_close(&ios_sm->ism_tx);
 }
 
-static int ios_start_pm_prepare(struct m0_ios_start_sm *ios_sm)
-{
-	struct m0_be_tx_credit  cred  = {};
-	struct m0_be_seg       *seg = ios_sm->ism_reqh->rh_beseg;
-	struct m0_be_tx        *tx = &ios_sm->ism_tx;
-	struct m0_mero         *mero;
-	int                     rc;
-
-	rc = m0_ios_create_buffer_pool(ios_sm->ism_service);
-	if (rc != 0) {
-		return M0_ERR(rc);
-	}
-
-	M0_ALLOC_PTR(ios_sm->ism_poolmach);
-	if (ios_sm->ism_poolmach == NULL) {
-		m0_ios_delete_buffer_pool(ios_sm->ism_service);
-		return M0_ERR(-ENOMEM);
-	}
-
-	mero = ios_sm->ism_service->rs_reqh_ctx->rc_mero;
-	m0_poolmach_store_init_creds_add(seg, PM_DEFAULT_NR_NODES,
-					 mero->cc_pool_width,
-					 mero->cc_pool_width, &cred);
-	m0_be_tx_init(tx, 0, seg->bs_domain, ios_sm->ism_sm.sm_grp,
-		      NULL, NULL, NULL, NULL);
-	m0_be_tx_prep(tx, &cred);
-
-	ios_start_state_set(ios_sm, M0_IOS_START_PM_INIT);
-	ios_start_tx_open(ios_sm, true);
-	return M0_RC(0);
-}
-
 static void ios_start_cdom_tx_open(struct m0_ios_start_sm *ios_sm)
 {
 	struct m0_be_tx_credit  cred  = {};
@@ -335,6 +342,8 @@ static void ios_start_cdom_tx_open(struct m0_ios_start_sm *ios_sm)
 	ios_start_state_set(ios_sm, M0_IOS_START_CDOM_CREATE);
 	ios_start_tx_open(ios_sm, true);
 }
+
+/* AST section */
 
 static void ios_start_ast_start(struct m0_sm_group *grp,
 				struct m0_sm_ast   *ast)
@@ -355,12 +364,12 @@ static void ios_start_ast_start(struct m0_sm_group *grp,
 					ios_sm->ism_reqh->rh_beseg,
 					NULL);
 		if (rc == 0) {
-			rc = ios_start_pm_prepare(ios_sm);
-			if (rc != 0)
-				m0_cob_domain_fini(ios_sm->ism_dom);
-		}
-		if (rc != 0)
+			ios_start_state_set(ios_sm,
+					    M0_IOS_START_BUFFER_POOL_CREATE);
+			ios_start_buffer_pool_create(ios_sm);
+		} else {
 			ios_start_sm_failure(ios_sm, rc);
+		}
 	}
 	M0_LEAVE();
 }
@@ -371,6 +380,7 @@ static void ios_start_ast_cdom_create(struct m0_sm_group *grp,
 	struct m0_ios_start_sm *ios_sm = ios_start_ast2sm(ast);
 	int                    rc;
 
+	M0_ENTRY();
 	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_CDOM_CREATE);
 
 	rc = m0_cob_domain_create_prepared(&ios_sm->ism_dom,
@@ -384,6 +394,7 @@ static void ios_start_ast_cdom_create(struct m0_sm_group *grp,
 
 	ios_start_state_set(ios_sm, M0_IOS_START_CDOM_CREATE_RES);
 	ios_start_tx_close(ios_sm);
+	M0_LEAVE();
 }
 
 static void ios_start_cob_tx_open(struct m0_ios_start_sm *ios_sm)
@@ -391,8 +402,8 @@ static void ios_start_cob_tx_open(struct m0_ios_start_sm *ios_sm)
 	struct m0_be_tx_credit  cred  = {};
 	struct m0_be_seg       *seg = ios_sm->ism_reqh->rh_beseg;
 
-	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d",
-	       ios_sm->ism_reqh, m0_get()->i_ios_cdom_key);
+	M0_ENTRY("key init for reqh=%p, key=%d",
+		 ios_sm->ism_reqh, m0_get()->i_ios_cdom_key);
 
 	m0_cob_tx_credit(ios_sm->ism_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
 	m0_be_tx_init(&ios_sm->ism_tx, 0, seg->bs_domain,
@@ -400,12 +411,16 @@ static void ios_start_cob_tx_open(struct m0_ios_start_sm *ios_sm)
 	m0_be_tx_prep(&ios_sm->ism_tx, &cred);
 
 	ios_start_tx_open(ios_sm, false);
+
+	M0_LEAVE();
 }
 
-static void ios_start_ast_be_result(struct m0_sm_group *grp,
-				    struct m0_sm_ast   *ast)
+static void ios_start_ast_cdom_create_res(struct m0_sm_group *grp,
+					  struct m0_sm_ast   *ast)
 {
 	struct m0_ios_start_sm *ios_sm = ios_start_ast2sm(ast);
+
+	M0_ENTRY();
 
 	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_CDOM_CREATE_RES);
 
@@ -426,12 +441,14 @@ static void ios_start_ast_be_result(struct m0_sm_group *grp,
 		ios_start_state_set(ios_sm, M0_IOS_START_MKFS);
 		ios_start_cob_tx_open(ios_sm);
 	}
+	M0_LEAVE();
 }
 
 static void ios_start_ast_mkfs(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_ios_start_sm *ios_sm = ios_start_ast2sm(ast);
 
+	M0_ENTRY();
 	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_MKFS);
 
 	ios_sm->ism_last_rc = m0_cob_domain_mkfs(ios_sm->ism_dom,
@@ -440,58 +457,58 @@ static void ios_start_ast_mkfs(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	ios_start_state_set(ios_sm, M0_IOS_START_MKFS_RESULT);
 	ios_start_tx_close(ios_sm);
+	M0_LEAVE();
 }
 
 static void ios_start_ast_mkfs_result(struct m0_sm_group *grp,
 				     struct m0_sm_ast *ast)
 {
 	struct m0_ios_start_sm *ios_sm = ios_start_ast2sm(ast);
-	int                     rc;
 
+	M0_ENTRY();
 	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_MKFS_RESULT);
 
 	m0_be_tx_fini(&ios_sm->ism_tx);
 
-	rc = ios_sm->ism_last_rc ?: ios_start_pm_prepare(ios_sm);
-	if (rc != 0)
-		ios_start_sm_failure(ios_sm, ios_sm->ism_last_rc);
+	ios_start_state_set(ios_sm, M0_IOS_START_BUFFER_POOL_CREATE);
+	ios_start_buffer_pool_create(ios_sm);
+
+	M0_LEAVE();
 }
 
-static void ios_start_ast_pm_init(struct m0_sm_group *grp,
-				  struct m0_sm_ast   *ast)
+static void ios_start_buffer_pool_create(struct m0_ios_start_sm *ios_sm)
 {
-	struct m0_ios_start_sm *ios_sm = ios_start_ast2sm(ast);
-	struct m0_mero         *mero;
-	int                     rc;
+	int rc;
 
-	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_PM_INIT);
+	M0_ENTRY();
+	M0_ASSERT(ios_start_state_get(ios_sm) ==
+		  M0_IOS_START_BUFFER_POOL_CREATE);
 
-	mero = ios_sm->ism_service->rs_reqh_ctx->rc_mero;
-	rc = m0_poolmach_backed_init(ios_sm->ism_poolmach,
-				     ios_sm->ism_reqh->rh_beseg,
-				     &ios_sm->ism_tx,
-				     PM_DEFAULT_NR_NODES,
-				     mero->cc_pool_width,
-				     PM_DEFAULT_MAX_NODE_FAILURES,
-				     mero->cc_pool_width);
-	if (rc != 0)
-		ios_sm->ism_last_rc = M0_ERR(rc);
+	rc = m0_ios_create_buffer_pool(ios_sm->ism_service) ?:
+	     ios_start_fs_obj_open(ios_sm);
+	if (rc != 0) {
+		ios_start_sm_failure(ios_sm, rc);
+	}
 
-	ios_start_state_set(ios_sm, M0_IOS_START_CONF_FS_GET);
-	ios_start_tx_close(ios_sm);
+	M0_LEAVE();
 }
+
+/* Conf filesystem section */
 
 static bool ios_start_ast_conf_fs_get_cb(struct m0_clink *cl)
 {
 	struct m0_ios_start_sm *ios_sm = ios_start_clink2sm(cl);
-	int                    rc;
+	int                     rc;
 
 	if (m0_confc_ctx_is_completed(&ios_sm->ism_confc_ctx)) {
 		rc = m0_confc_ctx_error(&ios_sm->ism_confc_ctx);
-		if (rc != 0)
+		if (rc != 0) {
 			ios_start_sm_failure(ios_sm, rc);
-		else
+		} else {
+			ios_start_state_set(ios_sm,
+					    M0_IOS_START_CONF_COUNTER_INIT);
 			ios_start_sm_tick(ios_sm);
+		}
 
 		m0_clink_del(cl);
 		m0_clink_fini(cl);
@@ -530,29 +547,111 @@ static void ios_start_fs_obj_close(struct m0_ios_start_sm *ios_sm)
 	M0_LEAVE();
 }
 
-static void ios_start_ast_conf_fs_get(struct m0_sm_group *grp,
-				     struct m0_sm_ast *ast)
+/* Poolmachine section */
+
+static int ios_start_pm_prepare(struct m0_ios_start_sm *ios_sm)
+{
+	struct m0_be_tx_credit  cred  = {};
+	struct m0_be_seg       *seg = ios_sm->ism_reqh->rh_beseg;
+	struct m0_be_tx        *tx = &ios_sm->ism_tx;
+
+	M0_ENTRY();
+
+	M0_ALLOC_PTR(ios_sm->ism_poolmach);
+	if (ios_sm->ism_poolmach == NULL)
+		return M0_ERR(-ENOMEM);
+
+	m0_poolmach_store_init_creds_add(seg,
+					 ios_sm->ism_poolmach_args.nr_nodes,
+					 ios_sm->ism_poolmach_args.nr_sdevs,
+					 ios_sm->ism_poolmach_args.nr_sdevs,
+					 &cred);
+	m0_be_tx_init(tx, 0, seg->bs_domain, ios_sm->ism_sm.sm_grp,
+		      NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(tx, &cred);
+
+	ios_start_state_set(ios_sm, M0_IOS_START_PM_INIT);
+	ios_start_tx_open(ios_sm, true);
+	return M0_RC(0);
+}
+
+static void ios_start_ast_pm_init(struct m0_sm_group *grp,
+				  struct m0_sm_ast   *ast)
 {
 	struct m0_ios_start_sm *ios_sm = ios_start_ast2sm(ast);
 	int                     rc;
 
-	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_CONF_FS_GET);
+	M0_ENTRY();
+	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_PM_INIT);
 
-	m0_be_tx_fini(&ios_sm->ism_tx);
+	rc = m0_poolmach_backed_init(ios_sm->ism_poolmach,
+				     ios_sm->ism_reqh->rh_beseg,
+				     &ios_sm->ism_tx,
+				     ios_sm->ism_poolmach_args.nr_nodes,
+				     ios_sm->ism_poolmach_args.nr_sdevs,
+				     PM_DEFAULT_MAX_NODE_FAILURES,
+				     ios_sm->ism_poolmach_args.nr_sdevs);
+	if (rc != 0)
+		ios_sm->ism_last_rc = M0_ERR(rc);
 
-	rc = ios_sm->ism_last_rc ?: ios_start_fs_obj_open(ios_sm);
-	if (rc == 0)
-		ios_start_state_set(ios_sm, M0_IOS_START_CONF_ITER_INIT);
-	else
-		ios_start_sm_failure(ios_sm, rc);
+	ios_start_state_set(ios_sm, M0_IOS_START_CONF_FILL_INIT);
+	ios_start_tx_close(ios_sm);
+	M0_LEAVE();
 }
 
 static void ios_start_pm_set(struct m0_ios_start_sm *ios_sm)
 {
+	M0_ENTRY();
 	m0_rwlock_write_lock(&ios_sm->ism_reqh->rh_rwlock);
 	m0_reqh_lockers_set(ios_sm->ism_reqh, poolmach_key,
 			    ios_sm->ism_poolmach);
 	m0_rwlock_write_unlock(&ios_sm->ism_reqh->rh_rwlock);
+
+	ios_start_state_set(ios_sm, M0_IOS_START_COMPLETE);
+	M0_LEAVE();
+}
+
+/* Conf iter section */
+
+static void ios_start_pm_nodes_counter(struct m0_ios_start_sm *ios_sm,
+				       struct m0_conf_obj     *obj)
+{
+	M0_ASSERT(ios_start_state_get(ios_sm) ==
+		  M0_IOS_START_CONF_COUNTER_NODES);
+
+	if (obj != NULL && m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE)
+			ios_sm->ism_poolmach_args.nr_nodes++;
+}
+
+static bool ios_start_sdev_belongs_ioservice(const struct m0_conf_obj *sdev_obj)
+{
+	struct m0_conf_obj     *svc_obj = sdev_obj->co_parent->co_parent;
+	struct m0_conf_service *svc = M0_CONF_CAST(svc_obj, m0_conf_service);
+
+	return svc != NULL && svc->cs_type == M0_CST_IOS;
+}
+
+static int ios_start_pm_sdevs_counter(struct m0_ios_start_sm *ios_sm,
+				      struct m0_conf_obj     *obj)
+{
+	struct m0_fid_item *si;
+
+	M0_ASSERT(ios_start_state_get(ios_sm) ==
+		  M0_IOS_START_CONF_COUNTER_SDEVS);
+
+	if (obj != NULL && m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE) {
+		if (ios_start_sdev_belongs_ioservice(obj)) {
+
+			M0_ALLOC_PTR(si);
+			if (si == NULL)
+				return M0_ERR(-ENOMEM);
+			si->i_fid = obj->co_id;
+			m0_fids_tlink_init_at(si, &ios_sm->ism_sdevs_fid);
+
+			ios_sm->ism_poolmach_args.nr_sdevs++;
+		}
+	}
+	return M0_RC(0);
 }
 
 static void ios_start_pm_disk_add(struct m0_ios_start_sm *ios_sm,
@@ -561,38 +660,81 @@ static void ios_start_pm_disk_add(struct m0_ios_start_sm *ios_sm,
 	struct m0_conf_disk *d;
 	int                  idx;
 
-	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_CONF_ITER);
-	M0_ASSERT(obj != NULL && m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE);
-	d = M0_CONF_CAST(obj, m0_conf_disk);
-	idx = ios_sm->ism_pool_index++;
-	ios_sm->ism_poolmach->pm_state->
-		pst_devices_array[idx].pd_id = d->ck_obj.co_id;
+	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_CONF_FILL);
+
+	if (obj != NULL && m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE) {
+		d = M0_CONF_CAST(obj, m0_conf_disk);
+
+		if (m0_tl_exists(m0_fids, item, &ios_sm->ism_sdevs_fid,
+				 m0_fid_eq(&item->i_fid,
+					   &d->ck_dev->sd_obj.co_id)))
+		{
+			idx = ios_sm->ism_pool_index++;
+			M0_ASSERT(idx < ios_sm->ism_poolmach_args.nr_sdevs);
+			ios_sm->ism_poolmach->pm_state->
+				pst_devices_array[idx].pd_id = d->ck_obj.co_id;
+		}
+	}
 }
 
-static bool _obj_is_disk(const struct m0_conf_obj *obj)
+static bool _obj_is_disk_or_controller(const struct m0_conf_obj *obj)
 {
-	return m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE;
+	return M0_IN(m0_conf_obj_type(obj),
+		     (&M0_CONF_DISK_TYPE, &M0_CONF_SDEV_TYPE,
+		      &M0_CONF_CONTROLLER_TYPE));
+}
+
+static void ios_start_poolmash_disks_check(struct m0_ios_start_sm *ios_sm)
+{
+	M0_LOG(M0_DEBUG, "nodes=%d, sdev=%d, disks=%d",
+			 ios_sm->ism_poolmach_args.nr_nodes,
+			 ios_sm->ism_poolmach_args.nr_sdevs,
+			 ios_sm->ism_pool_index);
+
+	if (ios_sm->ism_poolmach_args.nr_sdevs != ios_sm->ism_pool_index) {
+		M0_LOG(M0_DEBUG, "Conf has error on this poolmach");
+	}
 }
 
 static void ios_start_conf_disk_next(struct m0_ios_start_sm *ios_sm)
 {
 	struct m0_mutex *sm_grp_lock = &ios_sm->ism_sm.sm_grp->s_lock;
 	int              rc;
+	int              rc1 = 0;
 
+	M0_ENTRY();
 	/**
 	 * @todo m0_conf_diter_next take sm_grp_lock internally and there is no
 	 * function for users who already have a lock.
 	 * Corresponding ticket: MERO-1189.
 	 */
 	m0_mutex_unlock(sm_grp_lock);
-	while ((rc = m0_conf_diter_next(&ios_sm->ism_it, _obj_is_disk)) ==
-			M0_CONF_DIRNEXT) {
+	while ((rc = m0_conf_diter_next(&ios_sm->ism_it,
+					_obj_is_disk_or_controller)) ==
+			M0_CONF_DIRNEXT && rc1 == 0) {
 		m0_mutex_lock(sm_grp_lock);
-		ios_start_pm_disk_add(ios_sm,
+		switch (ios_start_state_get(ios_sm)) {
+		case M0_IOS_START_CONF_COUNTER_NODES:
+			ios_start_pm_nodes_counter(ios_sm,
 				      m0_conf_diter_result(&ios_sm->ism_it));
+			break;
+		case M0_IOS_START_CONF_COUNTER_SDEVS:
+			rc1 = ios_start_pm_sdevs_counter(ios_sm,
+				      m0_conf_diter_result(&ios_sm->ism_it));
+			break;
+		case M0_IOS_START_CONF_FILL:
+			ios_start_pm_disk_add(ios_sm,
+				      m0_conf_diter_result(&ios_sm->ism_it));
+			break;
+		default:
+			M0_IMPOSSIBLE("Invalid phase");
+		}
 		m0_mutex_unlock(sm_grp_lock);
 	}
 	m0_mutex_lock(sm_grp_lock);
+
+	if (rc1 != 0)
+		rc = rc1;
 
 	/*
 	 * If rc == M0_CONF_DIRMISS, then ios_start_disk_iter_cb() will be
@@ -605,23 +747,41 @@ static void ios_start_conf_disk_next(struct m0_ios_start_sm *ios_sm)
 		m0_mutex_unlock(sm_grp_lock);
 		m0_conf_diter_fini(&ios_sm->ism_it);
 		m0_mutex_lock(sm_grp_lock);
-		ios_start_fs_obj_close(ios_sm);
 
 		if (rc == M0_CONF_DIREND) {
-			ios_start_pm_set(ios_sm);
-			ios_start_state_set(ios_sm, M0_IOS_START_FINAL);
-		} else {
-			ios_start_sm_failure(ios_sm, rc);
+			rc = 0;
+			switch (ios_start_state_get(ios_sm)) {
+			case M0_IOS_START_CONF_COUNTER_NODES:
+				ios_start_conf_sdev_init(ios_sm);
+				break;
+			case M0_IOS_START_CONF_COUNTER_SDEVS:
+				rc = ios_start_pm_prepare(ios_sm);
+				break;
+			case M0_IOS_START_CONF_FILL:
+				ios_start_poolmash_disks_check(ios_sm);
+				ios_start_sdev_list_fini(ios_sm);
+				ios_start_fs_obj_close(ios_sm);
+				ios_start_pm_set(ios_sm);
+				break;
+			default:
+				/* Unexpected case*/
+				M0_ASSERT(true);
+			}
 		}
+		if (rc != 0)
+			ios_start_sm_failure(ios_sm, rc);
 	}
+	M0_LEAVE();
 }
 
-void ios_start_conf_iter_ast(struct m0_sm_group *grp,
-			     struct m0_sm_ast   *ast)
+static void ios_start_ast_conf_iter(struct m0_sm_group *grp,
+				    struct m0_sm_ast   *ast)
 {
 	struct m0_ios_start_sm *ios_sm = ios_start_ast2sm(ast);
 
+	M0_ENTRY();
 	ios_start_conf_disk_next(ios_sm);
+	M0_LEAVE();
 }
 
 static bool ios_start_disk_iter_cb(struct m0_clink *cl)
@@ -632,16 +792,37 @@ static bool ios_start_disk_iter_cb(struct m0_clink *cl)
 	return true;
 }
 
-static void ios_start_ast_conf_iter_init(struct m0_sm_group *grp,
-					 struct m0_sm_ast   *ast)
+static void ios_start_conf_sdev_init(struct m0_ios_start_sm *ios_sm)
 {
-	struct m0_ios_start_sm *ios_sm = ios_start_ast2sm(ast);
-	struct m0_confc        *confc;
-	int                     rc;
+	struct m0_confc *confc;
+	int              rc;
 
-	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_CONF_ITER_INIT);
+	m0_fids_tlist_init(&ios_sm->ism_sdevs_fid);
 
-	ios_sm->ism_fs_obj = m0_confc_ctx_result(&ios_sm->ism_confc_ctx);
+	confc = &ios_sm->ism_reqh->rh_confc;
+	rc = m0_conf_diter_init(&ios_sm->ism_it, confc, ios_sm->ism_fs_obj,
+				M0_CONF_FILESYSTEM_NODES_FID,
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID,
+				M0_CONF_SERVICE_SDEVS_FID);
+	if (rc != 0) {
+		ios_start_fs_obj_close(ios_sm);
+		ios_start_sm_failure(ios_sm, rc);
+		return;
+	}
+
+	ios_start_state_set(ios_sm, M0_IOS_START_CONF_COUNTER_SDEVS);
+
+	m0_clink_init(&ios_sm->ism_clink, ios_start_disk_iter_cb);
+	m0_clink_add_lock(&ios_sm->ism_it.di_wait, &ios_sm->ism_clink);
+	ios_start_conf_disk_next(ios_sm);
+}
+
+static void ios_start_conf_iter_init(struct m0_ios_start_sm  *ios_sm,
+				     enum m0_ios_start_state  next_state)
+{
+	struct m0_confc *confc;
+	int              rc;
 
 	confc = &ios_sm->ism_reqh->rh_confc;
 	rc = m0_conf_diter_init(&ios_sm->ism_it, confc, ios_sm->ism_fs_obj,
@@ -655,36 +836,79 @@ static void ios_start_ast_conf_iter_init(struct m0_sm_group *grp,
 		return;
 	}
 
-	ios_sm->ism_pool_index = 0;
-
-	ios_start_state_set(ios_sm, M0_IOS_START_CONF_ITER);
+	ios_start_state_set(ios_sm, next_state);
 
 	m0_clink_init(&ios_sm->ism_clink, ios_start_disk_iter_cb);
 	m0_clink_add_lock(&ios_sm->ism_it.di_wait, &ios_sm->ism_clink);
 	ios_start_conf_disk_next(ios_sm);
 }
 
+static void ios_start_ast_conf_counter_init(struct m0_sm_group *grp,
+					    struct m0_sm_ast   *ast)
+{
+	struct m0_ios_start_sm *ios_sm = ios_start_ast2sm(ast);
+
+	M0_ENTRY();
+	M0_ASSERT(ios_start_state_get(ios_sm) ==
+		  M0_IOS_START_CONF_COUNTER_INIT);
+
+	ios_sm->ism_fs_obj = m0_confc_ctx_result(&ios_sm->ism_confc_ctx);
+
+	ios_sm->ism_poolmach_args.nr_sdevs = 0;
+	ios_sm->ism_poolmach_args.nr_nodes = 0;
+	ios_start_conf_iter_init(ios_sm, M0_IOS_START_CONF_COUNTER_NODES);
+	M0_LEAVE();
+}
+
+static void ios_start_ast_conf_fill_init(struct m0_sm_group *grp,
+					 struct m0_sm_ast   *ast)
+{
+	struct m0_ios_start_sm *ios_sm = ios_start_ast2sm(ast);
+
+	M0_ENTRY();
+	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_CONF_FILL_INIT);
+
+	m0_be_tx_fini(&ios_sm->ism_tx);
+
+	if (ios_sm->ism_last_rc != 0) {
+		ios_start_sm_failure(ios_sm, ios_sm->ism_last_rc);
+	} else {
+		ios_sm->ism_pool_index = 0;
+		ios_start_conf_iter_init(ios_sm, M0_IOS_START_CONF_FILL);
+	}
+
+	M0_LEAVE();
+}
+
+/* SM section */
+
 static void ios_start_sm_tick(struct m0_ios_start_sm *ios_sm)
 {
 	int                             state;
-	const struct ios_start_sm_hadler handlers[] = {
-		[M0_IOS_START_INIT] = {ios_start_ast_start},
-		[M0_IOS_START_CDOM_CREATE] = {ios_start_ast_cdom_create},
-		[M0_IOS_START_CDOM_CREATE_RES] = {ios_start_ast_be_result},
-		[M0_IOS_START_MKFS] = {ios_start_ast_mkfs},
-		[M0_IOS_START_MKFS_RESULT] = {ios_start_ast_mkfs_result},
-		[M0_IOS_START_PM_INIT] = {ios_start_ast_pm_init},
-		[M0_IOS_START_CONF_FS_GET] = {ios_start_ast_conf_fs_get},
-		[M0_IOS_START_CONF_ITER_INIT] = {ios_start_ast_conf_iter_init},
-		[M0_IOS_START_CONF_ITER] = {ios_start_conf_iter_ast}
+	void (*handlers[])(struct m0_sm_group *, struct m0_sm_ast *) = {
+		[M0_IOS_START_INIT] = ios_start_ast_start,
+		[M0_IOS_START_CDOM_CREATE] = ios_start_ast_cdom_create,
+		[M0_IOS_START_CDOM_CREATE_RES] = ios_start_ast_cdom_create_res,
+		[M0_IOS_START_MKFS] = ios_start_ast_mkfs,
+		[M0_IOS_START_MKFS_RESULT] = ios_start_ast_mkfs_result,
+		[M0_IOS_START_CONF_COUNTER_INIT] =
+						ios_start_ast_conf_counter_init,
+		[M0_IOS_START_CONF_COUNTER_NODES] = ios_start_ast_conf_iter,
+		[M0_IOS_START_CONF_COUNTER_SDEVS] = ios_start_ast_conf_iter,
+		[M0_IOS_START_PM_INIT] = ios_start_ast_pm_init,
+		[M0_IOS_START_CONF_FILL_INIT] = ios_start_ast_conf_fill_init,
+		[M0_IOS_START_CONF_FILL] = ios_start_ast_conf_iter
 	};
 
+	M0_ENTRY();
 	state = ios_start_state_get(ios_sm);
-	M0_ASSERT(handlers[state].iosh_ast_cb != NULL);
+	M0_LOG(M0_DEBUG, "State: %d", state);
+	M0_ASSERT(handlers[state] != NULL);
 	M0_SET0(&ios_sm->ism_ast);
-	ios_sm->ism_ast.sa_cb = handlers[state].iosh_ast_cb;
+	ios_sm->ism_ast.sa_cb = handlers[state];
 	ios_sm->ism_ast.sa_datum = ios_sm;
 	m0_sm_ast_post(ios_sm->ism_sm.sm_grp, &ios_sm->ism_ast);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_ios_start_sm_fini(struct m0_ios_start_sm *ios_sm)
@@ -692,7 +916,7 @@ M0_INTERNAL void m0_ios_start_sm_fini(struct m0_ios_start_sm *ios_sm)
 	M0_ENTRY("ios_sm: %p", ios_sm);
 	M0_PRE(ios_sm != NULL);
 	M0_PRE(M0_IN(ios_start_state_get(ios_sm),
-		(M0_IOS_START_FINAL, M0_IOS_START_FAILURE)));
+		(M0_IOS_START_COMPLETE, M0_IOS_START_FAILURE)));
 	M0_PRE(ios_start_is_locked(ios_sm));
 
 	m0_sm_fini(&ios_sm->ism_sm);

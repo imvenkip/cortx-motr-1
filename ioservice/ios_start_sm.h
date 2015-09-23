@@ -42,6 +42,7 @@
 #include "conf/confc.h"
 #include "conf/diter.h"
 #include "dtm/dtm.h"
+#include "ioservice/io_device.h"
 #include "sm/sm.h"
 
 struct m0_fom;
@@ -61,33 +62,37 @@ struct m0_ios_start_sm
 	 *
 	 * This machine belongs to locality0 sm group.
 	 */
-	struct m0_sm              ism_sm;
+	struct m0_sm                ism_sm;
 	/** IO service COB domain */
-	struct m0_cob_domain     *ism_dom;
+	struct m0_cob_domain       *ism_dom;
 	/** IO service COB domain ID */
-	struct m0_cob_domain_id   ism_cdom_id;
+	struct m0_cob_domain_id     ism_cdom_id;
 	/** Request handler IO service instance */
-	struct m0_reqh_service   *ism_service;
+	struct m0_reqh_service     *ism_service;
 	/** Request handler */
-	struct m0_reqh           *ism_reqh;
+	struct m0_reqh             *ism_reqh;
 	/** BE TX instance, used three times, @see m0_ios_start_state */
-	struct m0_be_tx           ism_tx;
+	struct m0_be_tx             ism_tx;
 	/* Pool machine associated with IO service */
-	struct m0_poolmach       *ism_poolmach;
+	struct m0_poolmach         *ism_poolmach;
 	/** Confc context to open ism_fs_obj configuration object */
-	struct m0_confc_ctx       ism_confc_ctx;
+	struct m0_confc_ctx         ism_confc_ctx;
 	/** Filesystem conf object, used to search for ism_poolmach disks */
-	struct m0_conf_obj       *ism_fs_obj;
+	struct m0_conf_obj         *ism_fs_obj;
 	/** Directory iterator over filesystem m0_conf_disk objects */
-	struct m0_conf_diter      ism_it;
+	struct m0_conf_diter        ism_it;
+	/** List of sdevs fid */
+	struct m0_tl                ism_sdevs_fid;
 	/** Current index in poolmachine->pm_state->pst_devices_array */
-	int                       ism_pool_index;
+	int                         ism_pool_index;
+	/** Numbers of devices and dicks */
+	struct m0_ios_poolmach_args ism_poolmach_args;
 	/** Clink to wait on be_tx and conf_obj channels */
-	struct m0_clink           ism_clink;
+	struct m0_clink             ism_clink;
 	/** AST scheduler current states */
-	struct m0_sm_ast          ism_ast;
+	struct m0_sm_ast            ism_ast;
 	/** Stores result of last operation between state transitions */
-	int                       ism_last_rc;
+	int                         ism_last_rc;
 };
 
 /**
@@ -117,26 +122,39 @@ enum m0_ios_start_state {
 	 */
 	M0_IOS_START_MKFS,
 	/**
-	 * Create poolmachine and start BE TX for fill poolmachine
+	 * Create poolmachine
 	 */
 	M0_IOS_START_MKFS_RESULT,
 	/**
-	 * Fill poolmachine, close BE TX
+	 * Create buffer pool and get filesystem conf object
+	 */
+	M0_IOS_START_BUFFER_POOL_CREATE,
+	/**
+	 * Initialise iter for count devices and disks by filesystem
+	 */
+	M0_IOS_START_CONF_COUNTER_INIT,
+	/**
+	 * Count  disks by filesystem
+	 */
+	M0_IOS_START_CONF_COUNTER_NODES,
+	/**
+	 * Count devices by filesystem and
+	 * start BE TX for fill poolmachine
+	 */
+	M0_IOS_START_CONF_COUNTER_SDEVS,
+	/**
+	 * Initialize poolmachine
 	 */
 	M0_IOS_START_PM_INIT,
 	/**
 	 * Get m0_conf_filesystem from confc
 	 */
-	M0_IOS_START_CONF_FS_GET,
+	M0_IOS_START_CONF_FILL_INIT,
 	/**
-	 * Initialise iter for read all m0_conf_disk by filesystem
-	 */
-	M0_IOS_START_CONF_ITER_INIT,
-	/**
-	 * Add  m0_conf_disk ID to poolmachine,
+	 * Add m0_conf_disk ID to poolmachine,
 	 * Save poolmachine to lockers
 	 */
-	M0_IOS_START_CONF_ITER,
+	M0_IOS_START_CONF_FILL,
 	/**
 	 * Handle errors from other states
 	 */
@@ -144,7 +162,7 @@ enum m0_ios_start_state {
 	/**
 	 * Finish state
 	 */
-	M0_IOS_START_FINAL
+	M0_IOS_START_COMPLETE
 };
 
 M0_INTERNAL void m0_ios_start_lock(struct m0_ios_start_sm *ios_sm);
@@ -163,7 +181,7 @@ M0_INTERNAL int m0_ios_start_sm_init(struct m0_ios_start_sm  *ios_sm,
 
 /**
  * Execute IO service start SM. User is expected to wait until
- * ios_sm->ism_sm.sm_state is in (M0_IOS_START_FINAL, M0_IOS_START_FAILURE).
+ * ios_sm->ism_sm.sm_state is in (M0_IOS_START_COMPLETE, M0_IOS_START_FAILURE).
  */
 M0_INTERNAL void m0_ios_start_sm_exec(struct m0_ios_start_sm *ios_sm);
 

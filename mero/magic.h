@@ -873,6 +873,12 @@ enum m0_magic_satchel {
 /* SPIEL */
 	/*                 (filecf coders)*/
 	M0_SPIEL_FOP_MAGIC     = 0x33f11ecfc0de2577,
+
+/* fid */
+	/*                  (fid) */
+	M0_FID_MAGIC           = 0x33f1d00000000077,
+	/*                  (fidhead) */
+	M0_FID_HEAD_MAGIC      = 0x33f1d4ead0000077,
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */
