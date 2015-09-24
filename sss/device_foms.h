@@ -71,12 +71,25 @@
      inits, authenticate, resources, authorization
 			 |
 			 v
-     +<---------SSS_DFOM_DISK_OPEN------+
-     |					wait for opening m0_conf_disk
+     +<---------SSS_DFOM_DISK_OPENING---+
+     |				wait for opening m0_conf_disk
      |			 v--------------+
+     |        SSS_DFOM_DISK_OPENED------+
+     |			read m0_conf_disk, wait for opening m0_conf_filesystem
+     |                   v--------------+
+     |         SSS_DFOM_FS_OPENED,
+     |			read m0_conf_filesystem, start iterator m0_conf_sdev
+     |                   v--------------+
+     |         SSS_DFOM_SDEV_ITER,
+     |			search m0_conf_sdev,
+     |			check "sdev belong IO service of this node"
+     |                   v--------------+
      +<--------SSS_DFOM_SWITCH
-     |			 |
-     |			 v
+     |                   |
+     |                   v
+     +<-------- SSS_DFOM_SDEV_OPENING,
+     |                   |
+     |                   v
      +<--------SSS_DFOM_ATTACH_STOB
      |			 |
      |			 v
@@ -111,9 +124,19 @@
      inits, authenticate, resources, authorization
 			 |
 			 v
-     +<---------SSS_DFOM_DISK_OPEN------+
-     |					wait for opening m0_conf_disk
+     +<---------SSS_DFOM_DISK_OPENING---+
+     |				wait for opening m0_conf_disk
      |			 v--------------+
+     |        SSS_DFOM_DISK_OPENED------+
+     |			read m0_conf_disk, wait for opening m0_conf_filesystem
+     |                   v--------------+
+     |         SSS_DFOM_FS_OPENED,
+     |			read m0_conf_filesystem, start iterator m0_conf_sdev
+     |                   v--------------+
+     |         SSS_DFOM_SDEV_ITER,
+     |			search m0_conf_sdev,
+     |			check "sdev belong IO service of this node"
+     |                   v--------------+
      +<--------SSS_DFOM_SWITCH
      |			 |
      |			 v
@@ -148,22 +171,29 @@
      inits, authenticate, resources, authorization
 			 |
 			 v
-     +<---------SSS_DFOM_DISK_OPEN------+
-     |					wait for opening m0_conf_disk
+     +<---------SSS_DFOM_DISK_OPENING---+
+     |				wait for opening m0_conf_disk
      |			 v--------------+
-     +<---------SSS_DFOM_INIT
-     |			 |
-     |			 v
+     |        SSS_DFOM_DISK_OPENED------+
+     |			read m0_conf_disk, wait for opening m0_conf_filesystem
+     |                   v--------------+
+     |         SSS_DFOM_FS_OPENED,
+     |			read m0_conf_filesystem, start iterator m0_conf_sdev
+     |                   v--------------+
+     |         SSS_DFOM_SDEV_ITER,
+     |			search m0_conf_sdev,
+     |			check "sdev belong IO service of this node"
+     |                   v--------------+
      +<--------SSS_DFOM_SWITCH
      |			 |
      |			 v
      +<--Standard fom generic phases TX context
      |			 |
      |			 v
-     +<--------SSS_DFOM_SWITCH
+     +<-----------SSS_DFOM_SWITCH
      |			 |
      |			 v
-     +<----SSS_DFOM_FORMAT
+     +<-----------SSS_DFOM_FORMAT
      |			 |
      |			 v
  FOPH_FAILED        FOPH_SUCCESS
@@ -186,17 +216,26 @@ enum sss_device_fom_phases {
 	/**
 	* Start read additional data from confc
 	*/
-	SSS_DFOM_DISK_OPEN,
+	SSS_DFOM_DISK_OPENING,
 	/**
 	 * FOM waits until disk configuration object is retrieved.
 	 * Also internal FOM state is populated after configuration is
 	 * retrieved.
 	 */
-	SSS_DFOM_DISK_OPENING,
+	SSS_DFOM_DISK_OPENED,
+	/**
+	 * m0_conf_filesystem opened
+	 */
+	SSS_DFOM_FS_OPENED,
+	/**
+	 * SDEV iterator - search sdev with it parent
+	 */
+	SSS_DFOM_SDEV_ITER,
 	/**
 	 * Open storage device configuration object.
+	 * Start Conf iterator for search storage device parent - IO service
 	 */
-	SSS_DFOM_SDEV_OPEN,
+	SSS_DFOM_SDEV_OPENING,
 	/**
 	 * Create AD stob domain and main stob for device.
 	 */
@@ -216,8 +255,7 @@ enum sss_device_fom_phases {
 	 */
 	SSS_DFOM_DETACH_POOL_MACHINE,
 	/**
-	 * Make device format.
-	 * Empty function
+	 * Format device
 	 */
 	SSS_DFOM_FORMAT,
 };

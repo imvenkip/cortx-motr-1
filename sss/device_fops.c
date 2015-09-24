@@ -53,7 +53,7 @@ M0_INTERNAL int m0_sss_device_fops_init(void)
 	 * move to extended phase else simple way.
 	 */
 	sss_device_fom_phases_desc[M0_FOPH_TXN_INIT].sd_allowed |=
-				M0_BITS(SSS_DFOM_DISK_OPEN);
+				M0_BITS(SSS_DFOM_DISK_OPENING);
 
 	m0_sss_fop_device_fopt.ft_magix = 0;
 	m0_sss_fop_device_rep_fopt.ft_magix = 0;

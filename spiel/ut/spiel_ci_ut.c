@@ -30,11 +30,14 @@
 #include "conf/obj_ops.h"
 #include "conf/preload.h"     /* M0_CONF_STR_MAXLEN */
 #include "conf/ut/common.h"   /* g_grp */
+#include "module/instance.h"  /* m0_get */
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine */
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx */
 #include "ut/ut.h"
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
+#include "stob/stob.h"        /* m0_stob_lookup */
+#include "stob/domain.h"      /* m0_stob_id_make */
 #include "ut/file_helpers.h"  /* M0_UT_PATH */
 
 static struct m0_spiel spiel;
@@ -168,12 +171,54 @@ static void test_spiel_process_cmds(void)
 	spiel_ci_ut_fini();
 }
 
+static bool spiel_stob_exists(uint64_t cid)
+{
+	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
+	struct m0_stob_id       id;
+	struct m0_stob         *stob;
+	int                     rc;
+
+	m0_stob_id_make(0, cid, &devs->sds_back_domain->sd_id, &id);
+	rc = m0_stob_lookup(&id, &stob);
+	if (stob != NULL)
+		m0_stob_put(stob);
+	return rc == 0 && stob != NULL;
+}
+
+static void spiel_change_svc_type(struct m0_confc *confc,
+				  const struct m0_fid *fid)
+{
+	struct m0_conf_obj     *obj;
+	struct m0_conf_service *svc;
+	int                     rc;
+
+	rc = m0_confc_open_by_fid_sync(confc, fid, &obj);
+	M0_UT_ASSERT(rc == 0);
+	svc = M0_CONF_CAST(obj, m0_conf_service);
+	svc->cs_type = M0_CST_IOS;
+	m0_confc_close(obj);
+}
+
 static void test_spiel_device_cmds(void)
 {
-	const struct m0_fid disk_fid = M0_FID_TINIT(
+	/*
+	 * According to ut/conf-str.txt:
+	 * - disk-16 is associated with sdev-15;
+	 * - sdev-15 belongs IO service-9;
+	 * - disk-55 is associated with sdev-51;
+	 * - sdev-51 belongs service-27, which is not an IO service;
+	 * - disk-23 does not exist.
+	 */
+	uint64_t            io_sdev = 15;
+	uint64_t            nonio_sdev = 51;
+	const struct m0_fid io_disk = M0_FID_TINIT(
 				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 16);
-	const struct m0_fid disk_invalid_fid = M0_FID_TINIT(
+	const struct m0_fid nonio_disk = M0_FID_TINIT(
+				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 55);
+	const struct m0_fid nosuch_disk = M0_FID_TINIT(
 				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 23);
+	const struct m0_fid nonio_svc = M0_FID_TINIT(
+				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 27);
 	int                 rc;
 
 	spiel_ci_ut_init();
@@ -181,17 +226,44 @@ static void test_spiel_device_cmds(void)
 	 * After mero startup devices are online by default,
 	 * so detach them at first.
 	 */
-	rc = m0_spiel_device_detach(&spiel, &disk_fid);
+	rc = m0_spiel_device_detach(&spiel, &io_disk);
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(!spiel_stob_exists(io_sdev));
 
-	rc = m0_spiel_device_format(&spiel, &disk_fid);
+	rc = m0_spiel_device_format(&spiel, &io_disk);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(!spiel_stob_exists(io_sdev));
+
+	m0_fi_enable_once("m0_storage_dev_attach_by_conf", "no_real_dev");
+	rc = m0_spiel_device_attach(&spiel, &io_disk);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(spiel_stob_exists(io_sdev));
+
+	/*
+	 * Change type nonio_svc (owner nonio_disk) to IO service for this test
+	 * only.
+	 * Now client part m0_spiel_device_xxx command process nonio_disk as
+	 * IO disk, server part process disk as disk from another node.
+	 */
+	spiel_change_svc_type(&spiel.spl_rconfc.rc_confc, &nonio_svc);
+
+	rc = m0_spiel_device_format(&spiel, &nonio_disk);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_fi_enable_once("m0_storage_dev_attach_by_conf", "no_real_dev");
-	rc = m0_spiel_device_attach(&spiel, &disk_fid);
+	rc = m0_spiel_device_attach(&spiel, &nonio_disk);
 	M0_UT_ASSERT(rc == 0);
+	/*
+	 * Stob is not created for device that does not belong IO service
+	 * current node.
+	 */
+	M0_UT_ASSERT(!spiel_stob_exists(nonio_sdev));
 
-	rc = m0_spiel_device_detach(&spiel, &disk_invalid_fid);
+	rc = m0_spiel_device_detach(&spiel, &nonio_disk);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(!spiel_stob_exists(nonio_sdev));
+
+	rc = m0_spiel_device_attach(&spiel, &nosuch_disk);
 	M0_UT_ASSERT(rc == -ENOENT);
 	spiel_ci_ut_fini();
 }
@@ -247,7 +319,8 @@ static uint64_t test_spiel_fs_stats_sdevs_total(struct m0_confc        *confc,
 
 	rc = m0_confc_open_sync(&sdevs_dir, sdevs_dir, M0_FID0);
 	M0_UT_ASSERT(rc == 0);
-	for (obj = NULL; (rc = m0_confc_readdir_sync(sdevs_dir, &obj)) > 0; ) {
+	obj = NULL;
+	while (m0_confc_readdir_sync(sdevs_dir, &obj) > 0) {
 		sdev = M0_CONF_CAST(obj, m0_conf_sdev);
 		M0_UT_ASSERT(!m0_addu64_will_overflow(total, sdev->sd_size));
 		total += sdev->sd_size;
@@ -287,7 +360,7 @@ static uint64_t test_spiel_fs_stats_ios_total(const struct m0_fid *fs_fid)
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	M0_UT_ASSERT(rc == 0);
-	while ((rc = m0_conf_diter_next_sync(&it, test_spiel_filter_service)) ==
+	while (m0_conf_diter_next_sync(&it, test_spiel_filter_service) ==
 	       M0_CONF_DIRNEXT) {
 		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
 		if(svc->cs_type == M0_CST_IOS) {

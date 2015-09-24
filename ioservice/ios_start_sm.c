@@ -525,13 +525,11 @@ static int ios_start_fs_obj_open(struct m0_ios_start_sm *ios_sm)
 	m0_confc_ctx_init(&ios_sm->ism_confc_ctx, confc);
 	if (!ios_sm->ism_confc_ctx.fc_allowed) {
 		m0_confc_ctx_fini(&ios_sm->ism_confc_ctx);
-		return M0_ERR(-ENOENT);
+		return M0_ERR(-EPERM);
 	}
-
 	m0_clink_init(&ios_sm->ism_clink, ios_start_ast_conf_fs_get_cb);
 	m0_clink_add(&ios_sm->ism_confc_ctx.fc_mach.sm_chan,
 		     &ios_sm->ism_clink);
-
 	m0_confc_open(&ios_sm->ism_confc_ctx, confc->cc_root,
 			M0_CONF_ROOT_PROFILES_FID,
 			ios_sm->ism_reqh->rh_profile,
