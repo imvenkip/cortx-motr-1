@@ -758,9 +758,9 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
 }
 M0_EXPORTED(m0_spiel_process_reconfig);
 
-int m0_spiel_process_health(struct m0_spiel     *spl,
-			    const struct m0_fid *proc_fid,
-			    struct m0_fop      **reply)
+static int spiel_process__health(struct m0_spiel      *spl,
+				 const struct m0_fid  *proc_fid,
+				 struct m0_fop       **reply)
 {
 	struct m0_fop *reply_fop;
 	int            rc;
@@ -784,6 +784,12 @@ int m0_spiel_process_health(struct m0_spiel     *spl,
 			m0_fop_put_lock(reply_fop);
 	}
 	return rc < 0 ? M0_ERR(rc) : M0_RC(health);
+}
+
+int m0_spiel_process_health(struct m0_spiel     *spl,
+			    const struct m0_fid *proc_fid)
+{
+	return M0_RC(spiel_process__health(spl, proc_fid, NULL));
 }
 M0_EXPORTED(m0_spiel_process_health);
 
@@ -1341,7 +1347,7 @@ static void spiel__fs_stats_ctx_update(struct _stats_item *si,
 	int                       rc;
 
 	M0_PRE(fsx->fx_rc == 0);
-	rc = m0_spiel_process_health(fsx->fx_spl, &si->i_fid, &reply_fop);
+	rc = spiel_process__health(fsx->fx_spl, &si->i_fid, &reply_fop);
 	M0_LOG(SPIEL_LOGLVL, "* next:  rc = %d " FID_F " (%s)",
 	       rc, FID_P(&si->i_fid),
 	       m0_fid_type_getfid(&si->i_fid)->ft_name);

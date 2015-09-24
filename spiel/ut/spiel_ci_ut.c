@@ -141,10 +141,10 @@ static void test_spiel_process_cmds(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* Health */
-	rc = m0_spiel_process_health(&spiel, &process_invalid_fid, NULL);
+	rc = m0_spiel_process_health(&spiel, &process_invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	rc = m0_spiel_process_health(&spiel, &process_fid, NULL);
+	rc = m0_spiel_process_health(&spiel, &process_fid);
 	M0_UT_ASSERT(rc == M0_HEALTH_GOOD);
 
 	/* Stop */

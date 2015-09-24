@@ -770,8 +770,7 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
  *         negative value if error occurred
  */
 int m0_spiel_process_health(struct m0_spiel     *spl,
-			    const struct m0_fid *proc_fid,
-			    struct m0_fop      **reply);
+			    const struct m0_fid *proc_fid);
 
 /**
  * Prepare mero process for stopping
