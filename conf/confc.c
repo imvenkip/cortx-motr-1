@@ -83,6 +83,7 @@
  *     S_WAIT_REPLY -> S_FAILURE [label="timeout\nor\nrc != 0"];
  *     S_WAIT_REPLY -> S_GROW_CACHE [label="response received,\nrc == 0"];
  *     S_WAIT_REPLY -> S_SKIP_CONFD [label="network error,\nneed next confd"];
+ *     S_WAIT_REPLY -> S_WAIT_REPLY [label="confd not yet started,\nrc == -EAGAIN"];
  *     S_SKIP_CONFD -> S_CHECK [label="successfully reconnected\nto next confd"];
  *     S_SKIP_CONFD -> S_FAILURE [label="no confd to\nconnect anymore"];
  *     S_GROW_CACHE -> S_FAILURE [label="error"];
@@ -324,7 +325,8 @@ static struct m0_sm_state_descr confc_ctx_states[S_NR] = {
 		.sd_in        = wait_reply_st_in,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
-		.sd_allowed   = M0_BITS(S_GROW_CACHE, S_FAILURE, S_SKIP_CONFD)
+		.sd_allowed   = M0_BITS(S_GROW_CACHE, S_WAIT_REPLY, S_FAILURE,
+					S_SKIP_CONFD)
 	},
 	[S_WAIT_STATUS] = {
 		.sd_flags     = 0,
@@ -1083,7 +1085,7 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	m0_sm_group_unlock(grp);
 	ctx->fc_rpc_item = NULL;
 
-	if (rc == 0 || rc == -EAGAIN) {
+	if (rc == 0) {
 		M0_LEAVE("rc=%d retval=S_CHECK", rc);
 	        return S_CHECK;
 	}
@@ -1137,6 +1139,8 @@ static void on_replied(struct m0_rpc_item *item)
 		if (ctx->fc_confc->cc_gops != NULL &&
 		    ctx->fc_confc->cc_gops->go_skip != NULL)
 			ast_state_set(&ctx->fc_ast, S_SKIP_CONFD);
+		else if (rc == -EAGAIN)
+			ast_state_set(&ctx->fc_ast, S_WAIT_REPLY);
 		else
 			ast_fail(&ctx->fc_ast, rc);
 	}
