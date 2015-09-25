@@ -893,12 +893,19 @@ M0_INTERNAL int m0_rpc_rcv_conn_terminate(struct m0_rpc_conn *conn)
 
 M0_INTERNAL void m0_rpc_conn_terminate_reply_sent(struct m0_rpc_conn *conn)
 {
+	struct m0_rpc_session *session0;
+
 	M0_ENTRY("conn: %p", conn);
 	M0_ASSERT(conn != NULL);
 	M0_ASSERT(m0_rpc_machine_is_locked(conn->c_rpc_machine));
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_ASSERT(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATED,
 					   M0_RPC_CONN_FAILED)));
+
+	session0 = m0_rpc_conn_session0(conn);
+	m0_sm_timedwait(&session0->s_sm, M0_BITS(M0_RPC_SESSION_IDLE),
+	                M0_TIME_NEVER);
+
 	m0_rpc_conn_fini_locked(conn);
 	m0_free(conn);
 	M0_LEAVE();
