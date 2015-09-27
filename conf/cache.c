@@ -103,15 +103,6 @@ m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 			  m0_fid_eq(&obj->co_id, id));
 }
 
-M0_INTERNAL struct m0_conf_obj *
-m0_conf_cache_inquire(const struct m0_conf_cache *cache,
-		      enum m0_conf_status         status)
-{
-	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
-	return m0_tl_find(m0_conf_cache, obj, &cache->ca_registry,
-			  obj->co_status == status);
-}
-
 static void _obj_del(struct m0_conf_obj *obj)
 {
 	m0_conf_cache_tlist_del(obj);

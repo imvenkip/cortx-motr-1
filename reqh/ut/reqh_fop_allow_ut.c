@@ -201,6 +201,10 @@ static void fop_allow_test(void)
 	rc = send_fop();
 	M0_UT_ASSERT(rc == -ECONNREFUSED);
 
+	/* Test reposting of the fop in case of failure. */
+	rc = send_fop();
+	M0_UT_ASSERT(rc == -ECONNREFUSED);
+
 	ut_sss_req(ds1_service_type.rst_name,
 		   M0_SERVICE_INIT, 0,  M0_RST_INITIALISED);
 	ut_sss_req(ds1_service_type.rst_name,

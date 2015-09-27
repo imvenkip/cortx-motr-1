@@ -83,7 +83,8 @@
  *     S_WAIT_REPLY -> S_FAILURE [label="timeout\nor\nrc != 0"];
  *     S_WAIT_REPLY -> S_GROW_CACHE [label="response received,\nrc == 0"];
  *     S_WAIT_REPLY -> S_SKIP_CONFD [label="network error,\nneed next confd"];
- *     S_WAIT_REPLY -> S_WAIT_REPLY [label="confd not yet started,\nrc == -EAGAIN"];
+ *     S_WAIT_REPLY -> S_RETRY_CONFD [label="confd not yet started,\nrc == -EAGAIN"];
+ *     S_RETRY_CONFD -> S_CHECK [label="repost the configuration request\n"];
  *     S_SKIP_CONFD -> S_CHECK [label="successfully reconnected\nto next confd"];
  *     S_SKIP_CONFD -> S_FAILURE [label="no confd to\nconnect anymore"];
  *     S_GROW_CACHE -> S_FAILURE [label="error"];
@@ -287,11 +288,12 @@
  * State definitions
  * ------------------------------------------------------------------ */
 
-static int check_st_in(struct m0_sm *mach);      /* S_CHECK */
-static int wait_reply_st_in(struct m0_sm *mach); /* S_WAIT_REPLY */
-static int skip_confd_st_in(struct m0_sm *mach); /* S_SKIP_CONFD */
-static int grow_cache_st_in(struct m0_sm *mach); /* S_GROW_CACHE */
-static int failure_st_in(struct m0_sm *mach);    /* S_FAILURE */
+static int check_st_in(struct m0_sm *mach);       /* S_CHECK */
+static int wait_reply_st_in(struct m0_sm *mach);  /* S_WAIT_REPLY */
+static int skip_confd_st_in(struct m0_sm *mach);  /* S_SKIP_CONFD */
+static int retry_confd_st_in(struct m0_sm *mach); /* S_RETRY_CONFD */
+static int grow_cache_st_in(struct m0_sm *mach);  /* S_GROW_CACHE */
+static int failure_st_in(struct m0_sm *mach);     /* S_FAILURE */
 
 static bool check_st_invariant(const struct m0_sm *mach);    /* S_CHECK */
 static bool failure_st_invariant(const struct m0_sm *mach);  /* S_FAILURE */
@@ -299,7 +301,8 @@ static bool terminal_st_invariant(const struct m0_sm *mach); /* S_TERMINAL */
 
 /** States of m0_confc_ctx::fc_mach. */
 enum confc_ctx_state { S_INITIAL, S_CHECK, S_WAIT_REPLY, S_WAIT_STATUS,
-		       S_SKIP_CONFD, S_GROW_CACHE, S_FAILURE, S_TERMINAL, S_NR };
+		       S_RETRY_CONFD, S_SKIP_CONFD, S_GROW_CACHE, S_FAILURE,
+		       S_TERMINAL, S_NR };
 
 static struct m0_sm_state_descr confc_ctx_states[S_NR] = {
 	[S_INITIAL] = {
@@ -325,13 +328,21 @@ static struct m0_sm_state_descr confc_ctx_states[S_NR] = {
 		.sd_in        = wait_reply_st_in,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
-		.sd_allowed   = M0_BITS(S_GROW_CACHE, S_WAIT_REPLY, S_FAILURE,
+		.sd_allowed   = M0_BITS(S_GROW_CACHE, S_RETRY_CONFD, S_FAILURE,
 					S_SKIP_CONFD)
 	},
 	[S_WAIT_STATUS] = {
 		.sd_flags     = 0,
 		.sd_name      = "S_WAIT_STATUS",
 		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = M0_BITS(S_CHECK)
+	},
+	[S_RETRY_CONFD] = {
+		.sd_flags     = 0,
+		.sd_name      = "S_RETRY_CONFD",
+		.sd_in        = retry_confd_st_in,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = M0_BITS(S_CHECK)
@@ -806,17 +817,11 @@ M0_INTERNAL void m0_confc_open_by_fid(struct m0_confc_ctx *ctx,
 	struct m0_conf_obj *obj;
 	int                 rc;
 
-	M0_PRE(ctx != NULL);
-	M0_PRE(fid != NULL);
-
-	m0_conf_cache_lock(&ctx->fc_confc->cc_cache);
-	rc = m0_conf_obj_find(&ctx->fc_confc->cc_cache, fid, &obj);
-	m0_conf_cache_unlock(&ctx->fc_confc->cc_cache);
-
-	if (rc != 0)
-		ast_fail(&ctx->fc_ast, rc);
-	else
+	rc = m0_conf_obj_find_lock(&ctx->fc_confc->cc_cache, fid, &obj);
+	if (rc == 0)
 		m0_confc_open(ctx, obj, M0_FID0);
+	else
+		ast_fail(&ctx->fc_ast, rc);
 }
 
 M0_INTERNAL int m0_confc_open_by_fid_sync(struct m0_confc      *confc,
@@ -1009,13 +1014,49 @@ static int wait_reply_st_in(struct m0_sm *mach)
 	return S_FAILURE;
 }
 
+/**
+ * Change status of origin object of the configuration request from
+ * M0_CS_LOADING to M0_CS_MISSING.
+ */
+static void conf_obj_status_reset(struct m0_confc_ctx *ctx)
+{
+	struct m0_rpc_item   *item = ctx->fc_rpc_item;
+	struct m0_confc      *confc = ctx->fc_confc;
+	struct m0_conf_obj   *obj;
+	struct m0_conf_fetch *req;
+
+	req = m0_fop_data(m0_rpc_item_to_fop(item));
+	confc_lock(confc);
+	obj = m0_conf_cache_lookup(&confc->cc_cache, &req->f_origin);
+	confc_unlock(confc);
+	M0_ASSERT(obj->co_status == M0_CS_LOADING);
+	obj->co_status = M0_CS_MISSING;
+}
+
+/** Actions to perform on entering S_RETRY_CONFD state. */
+static int retry_confd_st_in(struct m0_sm *mach)
+{
+	struct m0_confc_ctx *ctx = mach_to_ctx(mach);
+
+	M0_ENTRY("mach=%p ctx=%p", mach, ctx);
+
+	conf_obj_status_reset(ctx);
+	/* end up with rpc item which is not needed anymore */
+	m0_rpc_item_put_lock(ctx->fc_rpc_item);
+	ctx->fc_rpc_item = NULL;
+
+	/*
+	 * Retry with the last missing object
+	 */
+	M0_LEAVE("retval=S_CHECK");
+	return S_CHECK;
+}
+
 /** Actions to perform on entering S_SKIP_CONFD state. */
 static int skip_confd_st_in(struct m0_sm *mach)
 {
-	struct m0_confc_ctx  *ctx = mach_to_ctx(mach);
-	struct m0_rpc_item   *item = ctx->fc_rpc_item;
-	struct m0_conf_cache *cache = &ctx->fc_confc->cc_cache;
-	int                   rc;
+	struct m0_confc_ctx *ctx = mach_to_ctx(mach);
+	int                  rc;
 
 	M0_ENTRY("mach=%p ctx=%p", mach, ctx);
 	M0_PRE(ctx->fc_confc->cc_gops != NULL &&
@@ -1025,32 +1066,15 @@ static int skip_confd_st_in(struct m0_sm *mach)
 	rc = ctx->fc_confc->cc_gops->go_skip(ctx->fc_confc);
 	if (M0_FI_ENABLED("force_reconnect_success"))
 		rc = 0;
+	if (rc == 0)
+		conf_obj_status_reset(ctx);
 	/* end up with rpc item which is not needed anymore */
-	m0_rpc_item_put_lock(item);
+	m0_rpc_item_put_lock(ctx->fc_rpc_item);
 	ctx->fc_rpc_item = NULL;
 
-	if (rc == 0) {
-		struct m0_conf_obj *obj;
-		/*
-		 * The object was in M0_CS_LOADING state. Now need it back to
-		 * M0_CS_MISSING to let path_walk_complete() go on normal way.
-		 */
-		m0_mutex_lock(cache->ca_lock);
-		obj = m0_conf_cache_inquire(cache, M0_CS_LOADING);
-		if (obj != NULL)
-			obj->co_status = M0_CS_MISSING;
-		m0_mutex_unlock(cache->ca_lock);
-		/*
-		 * when successfully connected to another confd,
-		 * go on with the last missing object
-		 */
-		M0_LEAVE("retval=S_CHECK");
-		return S_CHECK;
-	}
-
 	mach->sm_rc = rc;
-	M0_LEAVE("retval=S_FAILURE");
-	return S_FAILURE;
+	M0_LEAVE("rc=%d retval=%s", rc, rc == 0 ? "S_CHECK" : "S_FAILURE");
+	return rc == 0 ? S_CHECK : S_FAILURE;
 }
 
 /** Actions to perform on entering S_GROW_CACHE state. */
@@ -1085,13 +1109,9 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	m0_sm_group_unlock(grp);
 	ctx->fc_rpc_item = NULL;
 
-	if (rc == 0) {
-		M0_LEAVE("rc=%d retval=S_CHECK", rc);
-	        return S_CHECK;
-	}
 	mach->sm_rc = rc;
-	M0_LEAVE("rc=%d retval=S_FAILURE", rc);
-	return S_FAILURE;
+	M0_LEAVE("rc=%d retval=%s", rc, rc == 0 ? "S_CHECK" : "S_FAILURE");
+	return rc == 0 ? S_CHECK : S_FAILURE;
 }
 
 /** Actions to perform on entering S_FAILURE state. */
@@ -1140,11 +1160,11 @@ static void on_replied(struct m0_rpc_item *item)
 		    ctx->fc_confc->cc_gops->go_skip != NULL)
 			ast_state_set(&ctx->fc_ast, S_SKIP_CONFD);
 		else if (rc == -EAGAIN)
-			ast_state_set(&ctx->fc_ast, S_WAIT_REPLY);
+			ast_state_set(&ctx->fc_ast, S_RETRY_CONFD);
 		else
 			ast_fail(&ctx->fc_ast, rc);
 	}
-	M0_LEAVE();
+	M0_LEAVE("rc=%d", rc);
 }
 
 /** Handles `object loading completed' and `object unpinned' events. */
@@ -1337,7 +1357,7 @@ static void _state_set(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
 {
 	int state = *(int *)ast->sa_datum;
 	M0_PRE(M0_IN(state, (S_INITIAL, S_CHECK, S_WAIT_REPLY, S_WAIT_STATUS,
-			     S_SKIP_CONFD, S_GROW_CACHE,
+			     S_RETRY_CONFD, S_SKIP_CONFD, S_GROW_CACHE,
                              /* note the absence of S_FAILURE */
 			     S_TERMINAL)));
 

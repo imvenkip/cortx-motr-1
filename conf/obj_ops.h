@@ -182,6 +182,9 @@ M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
 				 const struct m0_fid *id,
 				 struct m0_conf_obj **out);
 
+M0_INTERNAL int m0_conf_obj_find_lock(struct m0_conf_cache *cache,
+				      const struct m0_fid *id,
+				      struct m0_conf_obj **out);
 /**
  * Finalises and frees configuration object.
  *

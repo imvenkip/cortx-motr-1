@@ -171,11 +171,6 @@ M0_INTERNAL int m0_conf_cache_to_string(struct m0_conf_cache  *cache,
 
 M0_INTERNAL int m0_conf_version(struct m0_conf_cache *cache);
 
-/** Searches object by status */
-M0_INTERNAL struct m0_conf_obj *
-m0_conf_cache_inquire(const struct m0_conf_cache *cache,
-		      enum m0_conf_status         status);
-
 /** Fetches the first pinned object, or NULL otherwise */
 M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_pinned(const struct m0_conf_cache *cache);

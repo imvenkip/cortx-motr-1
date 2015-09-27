@@ -58,18 +58,11 @@ M0_INTERNAL int m0_conf_device_get(struct m0_confc      *confc,
 	struct m0_conf_obj *obj;
 	int                 rc;
 
-	M0_PRE(confc != NULL);
-	M0_PRE(fid != NULL);
-
-	m0_conf_cache_lock(&confc->cc_cache);
-	rc = m0_conf_obj_find(&confc->cc_cache, fid, &obj);
-	m0_conf_cache_unlock(&confc->cc_cache);
-
+	rc = m0_conf_obj_find_lock(&confc->cc_cache, fid, &obj);
 	if (rc == 0 && m0_conf_obj_is_stub(obj))
 		rc = m0_confc_open_sync(&obj, obj, M0_FID0);
 	if (rc == 0)
 		*sdev = M0_CONF_CAST(obj, m0_conf_sdev);
-
 	return M0_RC(rc);
 }
 
@@ -80,18 +73,10 @@ M0_INTERNAL int m0_conf_disk_get(struct m0_confc      *confc,
 	struct m0_conf_obj *obj;
 	int                 rc;
 
-	M0_PRE(confc != NULL);
-	M0_PRE(fid != NULL);
-
-	m0_conf_cache_lock(&confc->cc_cache);
-	rc = m0_conf_obj_find(&confc->cc_cache, fid, &obj);
-	m0_conf_cache_unlock(&confc->cc_cache);
-
-	if (rc == 0)
-		rc = m0_confc_open_sync(&obj, obj, M0_FID0);
+	rc = m0_conf_obj_find_lock(&confc->cc_cache, fid, &obj) ?:
+		m0_confc_open_sync(&obj, obj, M0_FID0);
 	if (rc == 0)
 		*disk = M0_CONF_CAST(obj, m0_conf_disk);
-
 	return M0_RC(rc);
 }
 
@@ -309,14 +294,10 @@ M0_INTERNAL bool m0_conf_is_pool_version_dirty(struct m0_confc     *confc,
 	bool                dirty;
 
 	m0_conf_cache_lock(&confc->cc_cache);
-	if (m0_conf_obj_find(&confc->cc_cache, pver_fid, &obj) != 0 ||
-	    m0_conf_obj_is_stub(obj)) {
-		m0_conf_cache_unlock(&confc->cc_cache);
-		return true;
-	}
-	dirty = (M0_CONF_CAST(obj, m0_conf_pver))->pv_nfailed > 0;
+	dirty = m0_conf_obj_find(&confc->cc_cache, pver_fid, &obj) != 0 ||
+		m0_conf_obj_is_stub(obj) ||
+		M0_CONF_CAST(obj, m0_conf_pver)->pv_nfailed > 0;
 	m0_conf_cache_unlock(&confc->cc_cache);
-
 	return dirty;
 }
 

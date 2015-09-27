@@ -500,6 +500,9 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 {
 	M0_PRE(m0_rpc_machine_is_locked(item->ri_rmachine));
 
+	M0_ENTRY("item: %p nr_sent:%d [%s/%u] xid=%"PRIu64,
+			item, item->ri_nr_sent, item_kind(item),
+			item->ri_type->rit_opcode, item->ri_header.osr_xid);
 	/*
 	 * xid needs to be assigned only once.
 	 * At this point ri_nr_send is already incremented.
@@ -513,6 +516,7 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 		M0_LOG(M0_DEBUG, "set item xid = %"PRIu64,
 		       item->ri_header.osr_xid);
 	}
+	M0_LEAVE();
 }
 
 /**
@@ -556,14 +560,14 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 		if (next != NULL)
 			*next = m0_rpc_item_cache_lookup(&sess->s_req_cache,
 							 xid + 1);
-		return true;
+		return M0_RC(true);
 	} else if (m0_mod_gt(xid, sess->s_xid)) {
 		/* Out-of-order case. Cache it for the future. */
 		cached = m0_rpc_item_cache_lookup(&sess->s_req_cache, xid);
 		if (cached == NULL)
 			m0_rpc_item_cache_add(&sess->s_req_cache, item,
 				m0_time_from_now(M0_RPC_ITEM_REQ_CACHE_TMO, 0));
-		return false;
+		return M0_RC(false);
 	}
 
 	/* Resend cached reply if it is available for the request. */
@@ -579,7 +583,7 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 				cached->ri_error = 0;
 			m0_rpc_item_send_reply(item, cached);
 		}
-		return false;
+		return M0_RC(false);
 	}
 
 	/* Misordered request without reply - just drop it. */
@@ -587,7 +591,7 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 	       item, item_kind(item), item->ri_type->rit_opcode,
 	       xid, sess->s_xid + 1);
 
-	return false;
+	return M0_RC(false);
 }
 
 M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
@@ -1169,6 +1173,8 @@ M0_INTERNAL bool m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
 {
 	struct m0_rpc_item *cached;
 
+	M0_ENTRY("item: %p [%s/%u] xid=%"PRIu64, item, item_kind(item),
+			item->ri_type->rit_opcode, item->ri_header.osr_xid);
 	M0_PRE(m0_rpc_item_cache__invariant(ic));
 
 	cached = m0_rpc_item_cache_lookup(ic, item->ri_header.osr_xid);
@@ -1180,14 +1186,17 @@ M0_INTERNAL bool m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
 		       " item=%p", item->ri_header.osr_xid, item);
 	item->ri_cache_deadline = deadline;
 
-	return cached == NULL;
+	return M0_RC(cached == NULL);
 }
 
 static void rpc_item_cache_del(struct m0_rpc_item_cache *ic,
 			       struct m0_rpc_item	*item)
 {
+	M0_ENTRY("item: %p [%s/%u] xid=%"PRIu64, item, item_kind(item),
+		 item->ri_type->rit_opcode, item->ri_header.osr_xid);
 	ric_tlink_del_fini(item);
 	m0_rpc_item_put(item);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_rpc_item_cache_del(struct m0_rpc_item_cache *ic,
@@ -1195,11 +1204,13 @@ M0_INTERNAL void m0_rpc_item_cache_del(struct m0_rpc_item_cache *ic,
 {
 	struct m0_rpc_item *cached;
 
+	M0_ENTRY("xid=%"PRIu64, xid);
 	M0_PRE(m0_rpc_item_cache__invariant(ic));
 
 	cached = m0_rpc_item_cache_lookup(ic, xid);
 	if (cached != NULL)
 		rpc_item_cache_del(ic, cached);
+	M0_LEAVE();
 }
 
 M0_INTERNAL struct m0_rpc_item *
