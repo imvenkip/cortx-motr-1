@@ -103,6 +103,7 @@ m0_conf_obj_create(struct m0_conf_cache *cache, const struct m0_fid *id)
 	obj->co_ha_state = M0_NC_ONLINE;
 
 	m0_chan_init(&obj->co_chan, cache->ca_lock);
+	m0_chan_init(&obj->co_ha_chan, cache->ca_lock);
 
 	m0_conf_cache_tlink_init(obj);
 	m0_conf_dir_tlink_init(obj);
@@ -177,6 +178,7 @@ M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 	m0_conf_dir_tlink_fini(obj);
 	m0_conf_cache_tlink_fini(obj);
 	m0_chan_fini(&obj->co_chan);
+	m0_chan_fini(&obj->co_ha_chan);
 
 	/* Finalise concrete fields; free the object. */
 	obj->co_ops->coo_delete(obj);

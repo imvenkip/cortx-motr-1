@@ -354,6 +354,8 @@ EOF
 
 			local m0d_log=$DIR/m0d.log
 			touch $m0d_log
+			#Save IOS5, to start it again after controller HA event.
+			IOS5_CMD=$cmd
 			(eval "$cmd") &
 		fi
 

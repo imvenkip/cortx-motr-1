@@ -220,7 +220,7 @@ M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
 		obj = m0_conf_cache_lookup(cache, &note->nv_note[i].no_id);
 		if (obj != NULL && obj->co_status == M0_CS_READY) {
 			obj->co_ha_state = note->nv_note[i].no_state;
-			m0_chan_broadcast(&obj->co_chan);
+			m0_chan_broadcast(&obj->co_ha_chan);
 		}
 	}
 	m0_conf_cache_unlock(cache);

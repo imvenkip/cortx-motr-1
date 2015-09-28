@@ -108,7 +108,6 @@ static void net_lock     (struct m0_addb2_net *net);
 static void net_unlock   (struct m0_addb2_net *net);
 static void net_force    (struct m0_addb2_net *net);
 static void net_sent     (struct m0_rpc_item *item);
-static bool src_invariant(const struct source *s);
 static bool net_invariant(const struct m0_addb2_net *net);
 static void net_fop_init (struct m0_fop *fop, struct m0_addb2_net *net,
 			  struct m0_addb2_trace *trace);
@@ -283,12 +282,6 @@ static void src_fini(struct source *s)
 	m0_free(s);
 }
 
-static bool src_invariant(const struct source *s)
-{
-	return  src_tlink_is_in(s) &&
-		m0_rpc_item_source_is_registered(&s->s_src);
-}
-
 static void net_lock(struct m0_addb2_net *net)
 {
 	m0_mutex_lock(&net->ne_lock);
@@ -304,7 +297,7 @@ static void net_unlock(struct m0_addb2_net *net)
 static bool net_invariant(const struct m0_addb2_net *net)
 {
 	return m0_tl_forall(src, s, &net->ne_src,
-			    s->s_net == net && src_invariant(s));
+			    s->s_net == net);
 }
 
 static void net_force(struct m0_addb2_net *net)

@@ -138,7 +138,7 @@ flset_update(struct m0_flset *flset, struct m0_conf_obj *obj)
 static bool flset_hw_obj_failure_cb(struct m0_clink *cl)
 {
 	struct m0_conf_obj *obj = container_of(cl->cl_chan, struct m0_conf_obj,
-					       co_chan);
+					       co_ha_chan);
 	struct m0_flset    *flset = container_of(cl, struct flset_clink,
 						 fcl_link)->fcl_parent;
 
@@ -224,7 +224,7 @@ static int flset_clinks_register(struct m0_flset           *flset,
 	while ((rc = flset_diter_next(&it)) == M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		fls_cl = flset_clink_get(flset, flset->fls_links_nr);
-		flset_clink_init_add(flset, fls_cl, &obj->co_chan);
+		flset_clink_init_add(flset, fls_cl, &obj->co_ha_chan);
 		flset->fls_links_nr++;
 	}
 	M0_ASSERT(ergo(rc == 0, flset->fls_links_nr == objs_nr));

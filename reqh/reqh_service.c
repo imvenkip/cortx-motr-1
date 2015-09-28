@@ -34,6 +34,9 @@
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "mero/magic.h"
+#include "conf/objs/common.h" /* m0_conf_obj_find */
+#include "conf/helpers.h"     /* m0_conf_obj2reqh */
+#include "pool/pool.h"        /* m0_pools_common_service_ctx_find */
 
 /**
    @addtogroup reqhservice
@@ -567,15 +570,36 @@ static bool reqh_service_context_invariant(const struct m0_reqh_service_ctx *ctx
 
 static void reqh_service_disconnect(struct m0_reqh_service_ctx *ctx)
 {
-	m0_time_t   timeout;
+	m0_time_t           timeout;
+	struct m0_conf_obj *pobj;
+	struct m0_conf_obj *sobj;
+	int                 rc;
+	bool                wait = true;
+
 
 	M0_PRE(reqh_service_context_invariant(ctx));
 	M0_PRE(ctx->sc_is_active);
 
 	M0_LOG(M0_INFO, "Disconnecting from service. %s",
 		m0_rpc_conn_addr(&ctx->sc_conn));
-	/* client should not wait infinitely. */
-	timeout = m0_time_from_now(M0_RPC_ITEM_RESEND_INTERVAL * 2 + 1, 0);
+
+	rc = m0_conf_obj_find(&ctx->sc_pc->pc_confc->cc_cache,
+			      &ctx->sc_fid, &sobj);
+	if (rc == 0) {
+		pobj = sobj->co_parent->co_parent;
+		wait = pobj->co_ha_state == M0_NC_ONLINE;
+	} else {
+		M0_LOG(M0_ERROR, "Failed to get conf object "FID_F,
+		       FID_P(&ctx->sc_fid));
+	}
+
+	/*
+	 * Not required to wait for reply on session/connection termination
+	 * if process is died otherwise wait for some timeout.
+	 */
+	timeout = !wait ? m0_time_from_now(0, 0) :
+		m0_time_from_now(M0_RPC_ITEM_RESEND_INTERVAL * 2 + 1, 0);
+
 	(void)m0_rpc_session_destroy(&ctx->sc_session, timeout);
 	(void)m0_rpc_conn_destroy(&ctx->sc_conn, timeout);
 	ctx->sc_is_active = false;
@@ -611,30 +635,133 @@ M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx)
 	M0_PRE(reqh_service_context_invariant(ctx));
 
 	m0_mutex_fini(&ctx->sc_max_pending_tx_lock);
+        m0_clink_del_lock(&ctx->sc_svc_event);
+        m0_clink_fini(&ctx->sc_svc_event);
+        m0_clink_del_lock(&ctx->sc_process_event);
+        m0_clink_fini(&ctx->sc_process_event);
+
 	m0_reqh_service_ctx_bob_fini(ctx);
 
 	M0_LEAVE();
 }
 
+/**
+ * Connect/Disconnect service context on process event from HA.
+ */
+static bool process_event_handler(struct m0_clink *clink)
+{
+	struct m0_reqh_service_ctx *ctx =
+		container_of(clink, struct m0_reqh_service_ctx,
+			     sc_process_event);
+	struct m0_conf_obj         *obj =
+		container_of(clink->cl_chan, struct m0_conf_obj, co_ha_chan);
+	struct m0_conf_process     *process;
+	bool                        result = true;
+	int                         rc = 0;
+
+	M0_ENTRY();
+	M0_PRE(m0_conf_fid_type(&obj->co_id) == &M0_CONF_PROCESS_TYPE);
+	process = M0_CONF_CAST(obj, m0_conf_process);
+
+	switch (obj->co_ha_state) {
+	case M0_NC_FAILED:
+	case M0_NC_TRANSIENT:
+		/**
+		 * @todo Cancel RPC session ctx->sc_session.
+		 *       Ref. MERO-1093 (RPC item cancel).
+		 *
+		 * rc = m0_rpc_session_cancel(&ctx->sc_session);
+		 */
+
+		reqh_service_disconnect(ctx);
+		break;
+	case M0_NC_ONLINE:
+		if (!ctx->sc_is_active &&
+		    obj->co_parent->co_parent->co_ha_state == M0_NC_ONLINE)
+			rc = reqh_service_connect(ctx, ctx->sc_pc->pc_rmach,
+						  process->pc_endpoint,
+						  REQH_SVC_MAX_RPCS_IN_FLIGHT);
+		if (rc != 0) {
+			M0_LOG(M0_DEBUG, "Service"FID_F", type=%d, rc=%d",
+			       FID_P(&ctx->sc_fid), ctx->sc_type, rc);
+			result = false;
+		}
+		break;
+	default:
+		break;
+	}
+
+	M0_LEAVE();
+	return result;
+}
+
+/**
+ * Cancel items for service on service failure event from HA.
+ */
+static bool service_event_handler(struct m0_clink *clink)
+{
+	struct m0_reqh_service_ctx *ctx =
+		container_of(clink, struct m0_reqh_service_ctx, sc_svc_event);
+	struct m0_conf_obj         *obj =
+		container_of(clink->cl_chan, struct m0_conf_obj, co_ha_chan);
+	struct m0_conf_service     *service;
+	struct m0_reqh             *reqh = m0_conf_obj2reqh(obj);
+	bool                        result = true;
+
+	M0_ENTRY();
+	M0_PRE(m0_conf_fid_type(&obj->co_id) == &M0_CONF_SERVICE_TYPE);
+	service = M0_CONF_CAST(obj, m0_conf_service);
+	M0_PRE(ctx == m0_pools_common_service_ctx_find(reqh->rh_pools,
+						       &obj->co_id,
+						       service->cs_type));
+
+	switch (obj->co_ha_state) {
+	case M0_NC_FAILED:
+	case M0_NC_TRANSIENT:
+		/**
+		 * @todo Cancel RPC item for ctx->sc_session, service->cs_type.
+		 *       Ref. MERO-1093 (RPC item cancel).
+		 *
+		 * rc = m0_rpc_item_cancel_by_service(&ctx->sc_session,
+		 *                                    &ctx->sc_type);
+		 */
+
+		break;
+	case M0_NC_ONLINE:
+		break;
+	default:
+		break;
+	}
+
+	M0_LEAVE();
+	return result;
+}
+
 M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
-					 struct m0_fid *id,
+					 struct m0_conf_obj *sobj,
 					 enum m0_conf_service_type stype)
 {
+	struct m0_conf_obj *pobj = sobj->co_parent->co_parent;
+
 	M0_ENTRY();
 
 	M0_SET0(ctx);
-	ctx->sc_fid = *id;
+	ctx->sc_fid = sobj->co_id;
 	ctx->sc_type = stype;
-	M0_LOG(M0_DEBUG, FID_F "%d", FID_P(id), stype);
+	M0_LOG(M0_DEBUG, FID_F "%d", FID_P(&sobj->co_id), stype);
 	m0_reqh_service_ctx_bob_init(ctx);
 	m0_mutex_init(&ctx->sc_max_pending_tx_lock);
+	m0_clink_init(&ctx->sc_svc_event, service_event_handler);
+	m0_clink_add_lock(&sobj->co_ha_chan, &ctx->sc_svc_event);
+	m0_clink_init(&ctx->sc_process_event, process_event_handler);
+	m0_clink_add_lock(&pobj->co_ha_chan, &ctx->sc_process_event);
 
 	M0_POST(reqh_service_context_invariant(ctx));
 	M0_LEAVE();
 	return 0;
 }
 
-M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_fid *id,
+M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_conf_obj *sobj,
 					   struct m0_rpc_machine *rmach,
 					   enum m0_conf_service_type stype,
 					   const char *endpoint,
@@ -643,14 +770,14 @@ M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_fid *id,
 {
 	int rc;
 
-	M0_PRE(m0_fid_is_set(id));
+	M0_PRE(m0_fid_is_set(&sobj->co_id));
 	M0_PRE(service_type_is_valid(stype));
 
-	M0_ENTRY(FID_F "stype:%d", FID_P(id), stype);
+	M0_ENTRY(FID_F "stype:%d", FID_P(&sobj->co_id), stype);
 	M0_ALLOC_PTR(*ctx);
 	if (*ctx == NULL)
 		return M0_ERR(-ENOMEM);
-	rc = m0_reqh_service_ctx_init(*ctx, id, stype);
+	rc = m0_reqh_service_ctx_init(*ctx, sobj, stype);
 	if (rc == 0 && connect) {
 		rc = reqh_service_connect(*ctx, rmach, endpoint,
 					  REQH_SVC_MAX_RPCS_IN_FLIGHT);
@@ -666,8 +793,11 @@ M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_fid *id,
 M0_INTERNAL void
 m0_reqh_service_ctx_destroy(struct m0_reqh_service_ctx *ctx)
 {
-	if (ctx->sc_is_active)
+	if (ctx->sc_is_active) {
+		m0_conf_cache_lock(&ctx->sc_pc->pc_confc->cc_cache);
 		reqh_service_disconnect(ctx);
+		m0_conf_cache_unlock(&ctx->sc_pc->pc_confc->cc_cache);
+	}
 	m0_reqh_service_ctx_fini(ctx);
 	m0_free(ctx);
 }

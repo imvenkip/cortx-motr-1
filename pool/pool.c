@@ -639,18 +639,23 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	M0_PRE((pc->pc_rmach != NULL) == services_connect);
 
 	for (endpoint = cs->cs_endpoints; *endpoint != NULL; ++endpoint) {
-		rc = m0_reqh_service_ctx_create(&cs->cs_obj.co_id, pc->pc_rmach,
+		rc = m0_reqh_service_ctx_create(&cs->cs_obj, pc->pc_rmach,
 						cs->cs_type, *endpoint, &ctx,
 						services_connect);
 		if (rc != 0)
 			return M0_ERR(rc);
 		pools_common_svc_ctx_tlink_init_at_tail(ctx, &pc->pc_svc_ctxs);
+		ctx->sc_pc = pc;
 	}
 	M0_CNT_INC(pc->pc_nr_svcs[cs->cs_type]);
 
 	return M0_RC(rc);
 }
 
+/**
+ * @todo : This needs to be converted to process (m0d) context since
+ *         it connects to specific process endpoint.
+ */
 static int service_ctxs_create(struct m0_pools_common *pc,
 			       struct m0_conf_filesystem *fs,
 			       bool service_connect)

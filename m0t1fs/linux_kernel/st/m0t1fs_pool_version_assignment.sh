@@ -10,15 +10,51 @@ M0_CORE_DIR=${M0_CORE_DIR%/*/*/*/*}
 
 . $M0_CORE_DIR/scripts/functions
 
-send_ha_device_event()
+# Got these states from "$MERO_CORE_DIR/ha/note.h"
+M0_NC_ONLINE=1
+M0_NC_FAILED=2
+
+start_stop_m0d()
+{
+	local dev_state=$1
+	local m0d_pid
+
+	if [ $dev_state -eq $M0_NC_FAILED ]
+	then
+		# Stop m0d
+		echo -n Stopping m0d on controller ep $IOS_PVER2_EP ...
+		m0d_pid=`pgrep -n lt-m0d `
+		kill -TERM $m0d_pid >/dev/null 2>&1
+		sleep 10
+	else
+		#restart m0d
+		echo $cmd
+		(eval "$IOS5_CMD") &
+		while ! grep CTRL $MERO_M0T1FS_TEST_DIR/ios5/m0d.log > /dev/null;
+		do
+			sleep 2
+		done
+		# Give some time to initialise services ...
+		sleep 10
+	fi
+}
+
+change_controller_state()
 {
 	local lnet_nid=`sudo lctl list_nids | head -1`
 	local s_endpoint="$lnet_nid:12345:33:1"
 	local c_endpoint="$lnet_nid:12345:30:*"
 	local dev_fid=$1
 	local dev_state=$2
+	local start_stop_m0d_flag=$3
 	local ha_fop="[1: ($dev_fid, $dev_state)]"
 
+	if [ $start_stop_m0d_flag -eq "1" ]
+	then
+		start_stop_m0d $dev_state
+	fi
+
+	# Generate HA event
 	$M0_CORE_DIR/console/bin/m0console \
                 -f $(opcode M0_HA_NOTE_SET_OPCODE) \
                 -s $s_endpoint -c $c_endpoint \
@@ -34,11 +70,10 @@ pool_version_assignment()
 	local file4="0:4000"
 	# m0t1fs rpc end point, multiple mount on same
 	# node have different endpoint
-	local rack_from_pver0="^a|1:6"
-	local encl_from_pver1="^e|10:1"
-	# Got these states from "$MERO_CORE_DIR/ha/note.h"
-	local M0_NC_ONLINE=1
-	local M0_NC_FAILED=2
+	local ctrl_from_pver0="^c|1:8"
+	local ctrl_from_pver1="^c|10:1"
+	local process_from_pver1="^r|10:1"
+	local ios_from_pver1="^s|10:1"
 
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$1"|| {
 		return 1
@@ -53,13 +88,14 @@ pool_version_assignment()
 		unmount_and_clean
 		return 1
 	}
+
 	rm -vf $MERO_M0T1FS_MOUNT_DIR/$file1 || {
 		unmount_and_clean
 		return 1
 	}
 
-	### Mark rack from pool version 0 as failed.
-	send_ha_device_event "$rack_from_pver0" "$M0_NC_FAILED" || {
+	### Mark ctrl from pool version 0 as failed.
+	change_controller_state "$ctrl_from_pver0" "$M0_NC_FAILED" "0" || {
 		unmount_and_clean
 		return 1
 	}
@@ -78,8 +114,20 @@ pool_version_assignment()
 		return 1
 	}
 
-	### Mark encl from pool version 1 as failed.
-	send_ha_device_event "$encl_from_pver1" "$M0_NC_FAILED" || {
+	### It is expected that on failure/online HA dispatch events of some components,
+	### HA dispatch events to it's descendants.
+	### Mark ctrl from pool version 1 as failed.
+	change_controller_state "$ctrl_from_pver1" "$M0_NC_FAILED" "1" || {
+		unmount_and_clean
+		return 1
+	}
+	### Mark process(m0d) from pool version 1 as failed.
+	change_controller_state "$process_from_pver1" "$M0_NC_FAILED" "0" || {
+		unmount_and_clean
+		return 1
+	}
+	### Mark ios from pool version 1 as failed.
+	change_controller_state "$ios_from_pver1" "$M0_NC_FAILED" "0" || {
 		unmount_and_clean
 		return 1
 	}
@@ -90,13 +138,24 @@ pool_version_assignment()
 		return 1
 	}
 
-	### Mark rack from pool version 0 as running.
-	send_ha_device_event "$rack_from_pver0" "$M0_NC_ONLINE" || {
+	### Mark ctrl from pool version 1 as running.
+	### It reconnects endpoints from controller.
+	change_controller_state "$ctrl_from_pver1" "$M0_NC_ONLINE" "1" || {
+		unmount_and_clean
+		return 1
+	}
+	### Mark process(m0d) from pool version 1 as online.
+	change_controller_state "$process_from_pver1" "$M0_NC_ONLINE" "0" || {
+		unmount_and_clean
+		return 1
+	}
+	### Mark ios from pool version 1 as online.
+	change_controller_state "$ios_from_pver1" "$M0_NC_ONLINE" "0" || {
 		unmount_and_clean
 		return 1
 	}
 
-	###  Should succeed since pool version 0 is available now.
+	###  Should succeed since pool version 1 is available now.
 	touch $MERO_M0T1FS_MOUNT_DIR/$file4 || {
 		unmount_and_clean
 		return 1
@@ -107,6 +166,12 @@ pool_version_assignment()
 		return 1
 	}
 	rm -vf $MERO_M0T1FS_MOUNT_DIR/$file4 || {
+		unmount_and_clean
+		return 1
+	}
+
+	### Mark ctrl from pool version 0 as online.
+	change_controller_state "$ctrl_from_pver0" "$M0_NC_ONLINE" "0" || {
 		unmount_and_clean
 		return 1
 	}

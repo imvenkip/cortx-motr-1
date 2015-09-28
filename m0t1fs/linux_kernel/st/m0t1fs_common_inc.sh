@@ -61,6 +61,7 @@ IOSEP=(
 )
 
 IOS_PVER2_EP="12345:33:904"
+IOS5_CMD=""       #IOS5 process commandline to spawn it again on Controller event.
 
 # list of io server end points tmid in [800, 899)
 MDSEP=(

@@ -37,6 +37,7 @@
 
 struct m0_fop;
 struct m0_fom;
+struct m0_conf_obj;
 
 /**
    @defgroup reqhservice Request handler service
@@ -752,6 +753,11 @@ struct m0_reqh_service_ctx {
 	struct m0_reqh_service_txid sc_max_pending_tx;
 	struct m0_mutex             sc_max_pending_tx_lock;
 
+	/** clink to service configuration objects chan to act on HA events. */
+	struct m0_clink             sc_svc_event;
+	/** clink to process configuration objects chan to act on HA events. */
+	struct m0_clink             sc_process_event;
+
 	bool                        sc_is_active;
 
 	/** Magic = M0_REQH_SVC_CTX_MAGIC */
@@ -759,7 +765,7 @@ struct m0_reqh_service_ctx {
 };
 
 M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
-					 struct m0_fid *id,
+					 struct m0_conf_obj *sobj,
 					 enum m0_conf_service_type stype);
 
 M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx);
@@ -768,7 +774,7 @@ M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx);
  * Allocates and initialises m0_reqh_service_ctx for the given service type.
  * Establishes rpc connection with the given endpoint.
  */
-M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_fid *id,
+M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_conf_obj *sobj,
 					   struct m0_rpc_machine *rmach,
 					   enum m0_conf_service_type stype,
 					   const char *endpoint,

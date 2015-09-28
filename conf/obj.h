@@ -212,10 +212,15 @@ struct m0_conf_obj {
 	 * Channel on which following events are announced:
 	 * - configuration loading completed;
 	 * - object unpinned;
+	 */
+	struct m0_chan                co_chan;
+
+	/**
+	 * Channel on which following events are announced:
 	 * - HA state changed (only if co_status == M0_CS_READY).
 	 * Protected by configuration cache lock (co_cache->ca_lock).
 	 */
-	struct m0_chan                co_chan;
+	struct m0_chan                co_ha_chan;
 
 	/** Configuration cache this object belongs to. */
 	struct m0_conf_cache         *co_cache;
