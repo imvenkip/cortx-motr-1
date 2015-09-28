@@ -42,7 +42,7 @@ enum {
 	KEY_START = 1ULL << 16,
 	NR = 3,
 	KEY_MAX = KEY_START + NR,
-	NR_FIDS = 20,
+	NR_FIDS = 10,
 };
 
 static struct m0_reqh		*reqh;
@@ -114,7 +114,6 @@ static int flock_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 	int                        rc;
 	struct m0_sns_cm_file_ctx *fctx;
 	struct m0_fid		  *fid;
-	struct m0_file             file;
 
 	fid = &gfid;
 
@@ -162,9 +161,6 @@ static int flock_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 		break;
 	case FILE_UNLOCK_WAIT:
 		M0_UT_ASSERT(m0_scmfctx_htable_lookup(&scm->sc_file_ctx, fid) == NULL);
-		M0_SET0(&file);
-		m0_file_init(&file, fid, NULL, M0_DI_NONE);
-		M0_UT_ASSERT(m0_rm_resource_find(scm->sc_rm_ctx.rc_dom.rd_types[M0_RM_FLOCK_RT], &file.fi_res) == NULL);
 		m0_semaphore_up(&sem[*sem_id]);
 		*phase = M0_FOM_PHASE_FINISH;
 		rc = M0_FSO_WAIT;
@@ -206,25 +202,6 @@ static void sns_flock_single_fom(void)
 			   &flock_ut_fom_tick, NULL, &sem_id, 2);
 	m0_semaphore_down(&sem[sem_id]);
 	m0_semaphore_fini(&sem[sem_id]);
-}
-
-
-static bool flock_cb(struct m0_clink *clink)
-{
-	struct m0_sns_cm_file_ctx *fctx;
-	uint32_t		   state;
-
-	fctx = m0_scmfctx_htable_lookup(&scm->sc_file_ctx,
-					&test_fids[fid_index]);
-	M0_UT_ASSERT(fctx != NULL);
-	state = fctx->sf_rin.rin_sm.sm_state;
-	if (state == RI_SUCCESS) {
-		m0_sm_group_lock(fctx->sf_sm.sm_grp);
-		m0_sm_state_set(&fctx->sf_sm, M0_SCFS_LOCKED);
-		m0_sm_group_unlock(fctx->sf_sm.sm_grp);
-		return false;
-	}
-	return true;
 }
 
 static int fids_set(void)
@@ -286,22 +263,33 @@ static void file_lock_wait(struct m0_sns_cm_file_ctx *fctx,
 	m0_clink_add(chan, clink);
 	m0_rm_owner_unlock(&fctx->sf_owner);
 	/* Check if the lock is already acquired before waiting. */
-	while (state == RI_WAIT) {
+	while (!M0_IN(state, (RI_SUCCESS, RI_FAILURE))) {
 		m0_chan_timedwait(clink, m0_time_from_now(1, 0));
 		state = fctx->sf_rin.rin_sm.sm_state;
 	}
 
 	M0_UT_ASSERT(state == RI_SUCCESS);
+	m0_sm_group_lock(fctx->sf_sm.sm_grp);
+	m0_sm_state_set(&fctx->sf_sm, M0_SCFS_LOCKED);
+	m0_sm_group_unlock(fctx->sf_sm.sm_grp);
 	m0_rm_owner_lock(&fctx->sf_owner);
 	m0_clink_del(clink);
-	m0_clink_fini(clink);
 	m0_rm_owner_unlock(&fctx->sf_owner);
+}
+
+static void file_unlock_and_wait(struct m0_sns_cm_file_ctx *fctx,
+				 struct m0_clink *clink)
+{
+	clink->cl_is_oneshot = true;
+	m0_clink_add_lock(&fctx->sf_sm.sm_chan, clink);
+	m0_sns_cm_file_unlock(scm, &fctx->sf_fid);
+	m0_chan_wait(clink);
+	m0_clink_fini(clink);
 }
 
 static void sns_file_lock_unlock(void)
 {
 	struct m0_sns_cm_file_ctx *fctx[NR_FIDS];
-
 	struct m0_clink		   tc_clink[NR_FIDS];
 	struct m0_sm_group        *grp = m0_locality0_get()->lo_grp;
 	struct m0_fid              fid;
@@ -313,20 +301,22 @@ static void sns_file_lock_unlock(void)
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
 	for (i = 0; i < NR_FIDS; i++) {
 		fid_index = i;
-		m0_clink_init(&tc_clink[i], &flock_cb);
+		m0_clink_init(&tc_clink[i], NULL);
 		m0_cm_lock(&scm->sc_base);
-		rc = m0_sns_cm_file_lock(scm, &test_fids[i], grp, &fctx[i]);
+		M0_SET0(&fid);
+		m0_fid_set(&fid, cont, key);
+		rc = m0_sns_cm_file_lock(scm, &fid, grp, &fctx[i]);
 		M0_UT_ASSERT(rc == -EAGAIN);
 		m0_cm_unlock(&scm->sc_base);
 		file_lock_wait(fctx[i], &tc_clink[i]);
-		m0_fid_set(&fid, cont, key);
 		file_lock_verify(scm, &fid, 1);
 		++key;
 		if (key == KEY_MAX) {
 			cont++;
 			key = KEY_START;
 		}
-		m0_sns_cm_file_unlock(scm, &test_fids[i]);
+		file_unlock_and_wait(fctx[i], &tc_clink[i]);
+		m0_clink_fini(&tc_clink[i]);
 	}
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 }

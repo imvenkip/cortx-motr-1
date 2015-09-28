@@ -260,8 +260,10 @@ static bool diter_chan_cb(struct m0_clink *link)
 						di_clink);
 	struct m0_confc_ctx  *ctx = diter_lvl_ctx(&it->di_lvls[it->di_lvl]);
 
-	if (m0_confc_ctx_is_completed(ctx))
+	if (m0_confc_ctx_is_completed(ctx)) {
 		m0_chan_signal_lock(&it->di_wait);
+		m0_clink_del(link);
+	}
 	return true;
 }
 
@@ -375,7 +377,6 @@ static int diter_wait(struct m0_conf_diter *it)
 
 	M0_ENTRY();
 
-	m0_clink_del_lock(&it->di_clink);
 	lvl = diter_lvl(it);
 	ctx = diter_lvl_ctx(lvl);
 	prev = diter_lvl_dir_obj(lvl);

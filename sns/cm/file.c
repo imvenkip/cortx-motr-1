@@ -138,13 +138,14 @@ static void _fctx_fini(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_sns_cm_file_ctx *fctx = _AST2FCTX(ast, sf_fini_ast);
 
+	m0_clink_del_lock(&fctx->sf_fini_clink);
+	m0_clink_fini(&fctx->sf_fini_clink);
 	m0_file_owner_fini(&fctx->sf_owner);
 	m0_rm_remote_fini(&fctx->sf_creditor);
 	m0_file_fini(&fctx->sf_file);
 	m0_cm_lock(&fctx->sf_scm->sc_base);
 	_fctx_status_set(fctx, M0_SCFS_FINI);
 	m0_sm_fini(&fctx->sf_sm);
-	m0_clink_fini(&fctx->sf_fini_clink);
 	m0_cm_unlock(&fctx->sf_scm->sc_base);
 	m0_free(fctx);
 }
@@ -157,7 +158,6 @@ static void __sns_cm_fctx_cleanup(struct m0_sns_cm_file_ctx *fctx)
 		m0_layout_put(fctx->sf_layout);
 	m0_scmfctx_htable_del(&fctx->sf_scm->sc_file_ctx, fctx);
 	m0_sns_cm_fctx_fini(fctx);
-	fctx->sf_fini_ast.sa_cb = _fctx_fini;
 }
 
 M0_INTERNAL void m0_sns_cm_fctx_cleanup(struct m0_sns_cm *scm)
@@ -222,7 +222,6 @@ static bool fctx_fini_clink_cb(struct m0_clink *link)
 {
 	struct m0_sns_cm_file_ctx *fctx = M0_AMB(fctx, link, sf_fini_clink);
 	if (fctx->sf_owner.ro_sm.sm_state == ROS_FINAL) {
-		m0_clink_del(link);
 		__fctx_ast_post(fctx, &fctx->sf_fini_ast);
 	}
 
@@ -269,6 +268,7 @@ M0_INTERNAL void m0_sns_cm_fctx_fini(struct m0_sns_cm_file_ctx *fctx)
 {
 	M0_PRE(fctx != NULL);
 
+	fctx->sf_fini_ast.sa_cb = _fctx_fini;
 	if (!m0_sns_cm2reqh(fctx->sf_scm)->rh_oostore)
 		sns_cm_fctx_rm_fini(fctx);
 	m0_scmfctx_tlink_fini(fctx);
