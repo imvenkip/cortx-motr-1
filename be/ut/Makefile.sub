@@ -13,6 +13,7 @@ ut_libmero_ut_la_SOURCES += be/ut/alloc.c           \
                             be/ut/log_store.c       \
                             be/ut/main.c            \
                             be/ut/op.c              \
+                            be/ut/pool.c            \
                             be/ut/recovery.c        \
                             be/ut/seg.c             \
                             be/ut/seg0.c            \

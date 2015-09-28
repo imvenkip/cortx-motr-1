@@ -111,13 +111,25 @@ enum m0_magic_satchel {
 	/* m0_be_op::bo_set_link_magic (offloaded bel) */
 	M0_BE_OP_SET_LINK_MAGIC = 0x330ff10adedbe177,
 
+	/* m0_be_pool_item::bpli_link (add be class) */
+	M0_BE_POOL_MAGIC = 0x33addbec1a5577,
+
+	/* be/pool.c::be_pool_tl (del be head) */
+	M0_BE_POOL_HEAD_MAGIC = 0x33de1be4ead77,
+
+	/* m0_be_pool_queue_item::bplq_link (be fifo all) */
+	M0_BE_POOL_QUEUE_MAGIC = 0x33bef1f0a1177,
+
+	/* be/pool.c::be_pool_q_tl (be fifo head) */
+	M0_BE_POOL_QUEUE_HEAD_MAGIC = 0x33bef1f04ead77,
+
 	/* m0_be_log_record::lgr_linkage (be lossless) */
 	M0_BE_LOG_RECORD_MAGIC = 0x33be10551e5577,
 
 	/* be/log.c::record_tl (be loss head) */
 	M0_BE_LOG_RECORD_HEAD_MAGIC = 0x33be10554ead77,
 
-	/* m0_be_log_record_iter::lri_linkage (be safe heal) */
+	/* m0_be_log_record_iter::lri_link (be safe heal) */
 	M0_BE_RECOVERY_MAGIC = 0x33be5afe4ea177,
 
 	/* be/recovery.c::log_record_iter_tl (be safe head) */
