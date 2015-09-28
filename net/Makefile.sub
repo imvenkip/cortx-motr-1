@@ -3,8 +3,7 @@ nobase_mero_include_HEADERS += net/buffer_pool.h \
                                net/module.h \
                                net/net.h \
                                net/net_internal.h \
-                               net/net_otw_types.h \
-                               net/net_otw_types_xc.h
+                               net/net_otw_types.h
 
 mero_libmero_la_SOURCES  += net/buf.c \
                             net/buffer_pool.c \

@@ -2,7 +2,6 @@ nobase_mero_include_HEADERS += pool/pool.h \
                                pool/pool_machine.h \
                                pool/pool_fops.h \
                                pool/pool_foms.h \
-                               pool/pool_fops_xc.h \
                                pool/flset.h
 
 mero_libmero_la_SOURCES  += pool/pool.c \

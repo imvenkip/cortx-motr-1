@@ -172,7 +172,7 @@ mero_includedir             = $(includedir)/mero
 
 # these variables are populated in the Makefile.sub files of each mero module,
 # which are then included into this top-level makefile
-nobase_mero_include_HEADERS =
+nobase_mero_include_HEADERS = config.h $(XC_FILES)
 mero_libmero_la_SOURCES  =
 
 include $(top_srcdir)/addb2/Makefile.sub

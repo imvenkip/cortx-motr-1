@@ -1,5 +1,4 @@
 nobase_mero_include_HEADERS += \
-                               graph/graph_xc.h \
                                graph/graph.h
 
 mero_libmero_la_SOURCES  += \

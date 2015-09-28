@@ -1,3 +1,5 @@
+nobase_mero_include_HEADERS += ut/stob.h
+
 mero_libmero_la_SOURCES += ut/stob.c
 
 ut_libmero_ut_la_SOURCES += ut/ast_thread.c \

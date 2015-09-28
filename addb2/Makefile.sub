@@ -1,6 +1,5 @@
 nobase_mero_include_HEADERS += \
                             addb2/addb2.h \
-			    addb2/addb2_xc.h \
 			    addb2/consumer.h \
 			    addb2/counter.h \
 			    addb2/global.h \
@@ -9,7 +8,6 @@ nobase_mero_include_HEADERS += \
 			    addb2/net.h \
 			    addb2/service.h \
 			    addb2/storage.h \
-			    addb2/storage_xc.h \
 			    addb2/sys.h
 
 mero_libmero_la_SOURCES  += \

@@ -1,8 +1,6 @@
 nobase_mero_include_HEADERS += ha/epoch.h \
                                ha/note.h \
-                               ha/note_xc.h \
-                               ha/note_fops.h \
-                               ha/note_fops_xc.h
+                               ha/note_fops.h
 
 mero_libmero_la_SOURCES  += ha/epoch.c \
                             ha/note.c \

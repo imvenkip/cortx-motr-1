@@ -3,8 +3,7 @@ nobase_mero_include_HEADERS += console/console.h \
                                console/console_fop.h \
                                console/console_it.h \
                                console/console_mesg.h \
-                               console/console_yaml.h \
-                               console/console_fop_xc.h
+                               console/console_yaml.h
 
 mero_libmero_la_SOURCES  += console/console_fop.c \
                             console/console_fom.c \

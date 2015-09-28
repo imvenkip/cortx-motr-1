@@ -13,7 +13,6 @@ nobase_mero_include_HEADERS += rpc/session.h \
                                   rpc/packet_internal.h \
                                   rpc/rpclib.h \
                                   rpc/rpc_onwire.h \
-                                  rpc/rpc_onwire_xc.h \
                                   rpc/service.h \
                                   rpc/item.h \
                                   rpc/item_internal.h \
@@ -21,7 +20,6 @@ nobase_mero_include_HEADERS += rpc/session.h \
                                   rpc/conn.h \
                                   rpc/conn_internal.h \
                                   rpc/rpc_internal.h \
-                                  rpc/session_fops_xc.h \
                                   rpc/rev_conn.h \
                                   rpc/link.h
 

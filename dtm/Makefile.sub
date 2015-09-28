@@ -4,7 +4,6 @@ nobase_mero_include_HEADERS += \
                                   dtm/dtm.h \
                                   dtm/dtm_internal.h \
                                   dtm/dtm_update.h \
-                                  dtm/dtm_update_xc.h \
                                   dtm/dtx.h \
                                   dtm/factory.h \
                                   dtm/fol.h \

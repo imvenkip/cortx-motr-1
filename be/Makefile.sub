@@ -9,7 +9,6 @@ nobase_mero_include_HEADERS += \
                                be/extmap.h          \
                                be/extmap_internal.h \
 			       be/fmt.h		    \
-			       be/fmt_xc.h	    \
                                be/io.h              \
                                be/io_sched.h        \
                                be/list.h            \

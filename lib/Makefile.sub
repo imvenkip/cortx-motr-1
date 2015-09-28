@@ -2,19 +2,15 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/assert.h \
                                lib/atomic.h \
                                lib/bitmap.h \
-                               lib/bitmap_xc.h \
                                lib/bitstring.h \
                                lib/bob.h \
                                lib/buf.h \
-                               lib/buf_xc.h \
                                lib/byteorder.h \
                                lib/chan.h \
                                lib/cond.h \
                                lib/cookie.h \
-                               lib/cookie_xc.h \
                                lib/errno.h \
                                lib/ext.h \
-			       lib/ext_xc.h \
                                lib/finject.h \
                                lib/fs.h \
                                lib/getopts.h \
@@ -31,20 +27,17 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/rwlock.h \
                                lib/semaphore.h \
                                lib/string.h \
-                               lib/string_xc.h \
                                lib/thread.h \
                                lib/time.h \
                                lib/timer.h \
                                lib/tlist.h \
                                lib/trace.h \
                                lib/types.h \
-                               lib/types_xc.h \
                                lib/ub.h \
                                lib/uuid.h \
 			       lib/varr.h \
 			       lib/varr_private.h \
                                lib/vec.h \
-                               lib/vec_xc.h \
 			       lib/hash.h \
                                lib/user_space/getopts.h \
                                lib/user_space/misc.h \
