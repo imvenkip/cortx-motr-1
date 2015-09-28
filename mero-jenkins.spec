@@ -93,7 +93,6 @@ Mero filesystem runtime environment and servers.
 Summary: Mero include headers
 Group: Development/Kernel
 Provides: %{name}-devel = %{version}-%{release}
-Requires: %{name} = %{version}-%{release}
 
 %description devel
 This package contains the headers required to build external
@@ -138,7 +137,9 @@ xargs -a tests-ut.exclude rm -rv
 %else
 
 make DESTDIR=%{buildroot} install
-find %{buildroot} -name '*.la' | sed -e 's#^%{buildroot}##' > devel.files
+find %{buildroot} -name 'm0ff2c' | sed -e 's#^%{buildroot}##' > devel.files
+find %{buildroot} -name 'libmero-xcode-ff2c*.so*' | sed -e 's#^%{buildroot}##' >> devel.files
+find %{buildroot} -name '*.la' | sed -e 's#^%{buildroot}##' >> devel.files
 find %{buildroot}%{_includedir} | sed -e 's#^%{buildroot}##' >> devel.files
 mkdir -p %{buildroot}%{_localstatedir}/mero
 
@@ -165,8 +166,10 @@ fi
 %exclude %{_bindir}/m0kut*
 %exclude %{_bindir}/m0ut
 %exclude %{_bindir}/m0ub
+%exclude %{_bindir}/m0ff2c
 %exclude %{_libdir}/*.la
 %exclude %{_libdir}/libmero-ut*
+%exclude %{_libdir}/libmero-xcode-ff2c*
 %exclude %{_includedir}
 %exclude /lib/modules/*/kernel/fs/net/*
 %exclude /lib/modules/*/kernel/fs/rpc/*

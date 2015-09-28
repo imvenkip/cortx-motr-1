@@ -138,14 +138,14 @@ KDIR = @LINUX_OBJ@
 # ff2c
 #
 
-FF2C = $(top_builddir)/xcode/ff2c/ff2c
+FF2C = $(top_builddir)/xcode/ff2c/m0ff2c
 
-noinst_PROGRAMS          += xcode/ff2c/ff2c
-xcode_ff2c_ff2c_CPPFLAGS  = -DM0_TARGET='ff2c' $(AM_CPPFLAGS)
-xcode_ff2c_ff2c_LDADD     = xcode/ff2c/libmero-xcode-ff2c.la
+bin_PROGRAMS               += xcode/ff2c/m0ff2c
+xcode_ff2c_m0ff2c_CPPFLAGS  = -DM0_TARGET='m0ff2c' $(AM_CPPFLAGS)
+xcode_ff2c_m0ff2c_LDADD     = xcode/ff2c/libmero-xcode-ff2c.la
 
 # a separate ff2c library is required in order to test it in UT
-noinst_LTLIBRARIES += xcode/ff2c/libmero-xcode-ff2c.la
+lib_LTLIBRARIES += xcode/ff2c/libmero-xcode-ff2c.la
 
 xcode_ff2c_libmero_xcode_ff2c_la_CPPFLAGS = -DM0_TARGET='libmero-xcode-ff2c' \
                                             $(AM_CPPFLAGS)
