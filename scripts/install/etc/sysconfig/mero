@@ -52,10 +52,10 @@
 #MERO_LNET_NID=172.18.50.40@o2ib
 
 # Use m0traced daemon to collect trace logs of m0mero.ko module.
-MERO_TRACED_KMOD=yes
+#MERO_TRACED_KMOD=yes
 
 # Use m0traced daemon to collect trace logs of m0d processes.
-MERO_TRACED_M0D=yes
+#MERO_TRACED_M0D=yes
 
 # Can be set to a number of seconds for m0traced to monitor input file creation
 MERO_TRACED_CHECK_INPUT=30
