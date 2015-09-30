@@ -285,8 +285,10 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	      td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
 	    td->td_level & m0_trace_level) ||
 	    td->td_level & M0_ALWAYS)
-		m0_trace_record_print(header, body_in_buf);
+#else
+	if (td->td_level & (M0_WARN|M0_ERROR|M0_FATAL|M0_ALWAYS))
 #endif
+		m0_trace_record_print(header, body_in_buf);
 }
 M0_EXPORTED(m0_trace_allot);
 
