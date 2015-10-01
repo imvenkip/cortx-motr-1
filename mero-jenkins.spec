@@ -182,17 +182,15 @@ fi
 %files devel -f devel.files
 %endif
 
-%post
+%post -e
 /sbin/depmod -a
 systemctl daemon-reload
 /bin/sed -i -e "s/<host>/$(hostname -s)/" /etc/mero/genders
 /bin/sed -i -e "s/00000000-0000-0000-0000-000000000000/$(uuidgen)/" /etc/mero/genders
 
-#disk_cnt=$(/usr/sbin/m0gendisks -c) # use all available disks
-disk_cnt=8 # currently m0d not able to initialize more disks in a reasonable time
-if [ $? -eq 0 ] && [ $disk_cnt -ne 0 ] ; then
-    /usr/sbin/m0gendisks -d $disk_cnt -o /etc/mero/disks-ios.conf
-    /bin/sed -i -r -e "s/m0_pool_width=[[:digit:]]+/m0_pool_width=$disk_cnt/" /etc/mero/genders
+if [ x%%{?no_trace_logs} != x ] ; then
+    /bin/sed -i -r -e "s/(MERO_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/mero
+    /bin/sed -i -r -e "s/(MERO_TRACED_M0D=)yes/\1no/" /etc/sysconfig/mero
 fi
 
 %postun
