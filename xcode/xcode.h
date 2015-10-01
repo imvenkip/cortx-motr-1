@@ -547,6 +547,17 @@ struct m0_xcode_ctx {
 	 */
 	void                  *(*xcx_alloc)(struct m0_xcode_cursor *ctx, size_t);
 	void                   (*xcx_free)(struct m0_xcode_cursor *ctx);
+	/**
+	   This function is called every time type is traversed with
+	   m0_xcode_next().
+	 */
+	int                    (*xcx_iter)(const struct m0_xcode_cursor *it);
+	/**
+	   This function is called when xcode.c:ctx_walk() function called from
+	   m0_xcode_encode(), m0_xcode_decode(), m0_xcode_length() ends
+	   processing of given xcode context and xcode object embeded into it.
+	 */
+	void                  (*xcx_iter_end)(const struct m0_xcode_cursor *it);
 };
 
 /**

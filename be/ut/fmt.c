@@ -657,9 +657,10 @@ Mero panic reason: signo: 11
 			if (test[i].encoded_spoil != NULL)
 				test[i].encoded_spoil(&test[i], &encoded);
 			m0_bufvec_cursor_init(&cur_encoded, &bvec_encoded);
-			rc = m0_be_fmt_group_decode(&group_decoded,
-						    &cur_encoded,
-						    M0_BE_FMT_DECODE_CFG_DEFAULT);
+			rc = m0_be_fmt_group_decode(
+				&group_decoded,
+				&cur_encoded,
+				M0_BE_FMT_DECODE_CFG_DEFAULT_WITH_TRACE);
 			if (test[i].encoded_spoil == NULL)
 				M0_UT_ASSERT(rc == 0 &&
 					     fmt_group_eq(&group,

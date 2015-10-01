@@ -282,7 +282,13 @@ static int ctx_walk(struct m0_xcode_ctx *ctx, enum xcode_op op)
 		if (op == XO_DEC) {
 			result = m0_xcode_alloc_obj(it, ctx->xcx_alloc);
 			if (result != 0)
-				return result;
+				break;
+		}
+
+		if (ctx->xcx_iter != NULL) {
+			result = ctx->xcx_iter(it);
+			if (result != 0)
+				break;
 		}
 
 		xt  = cur->xo_type;
@@ -351,8 +357,13 @@ static int ctx_walk(struct m0_xcode_ctx *ctx, enum xcode_op op)
 		if (result < 0)
 			break;
 	}
+
+	if (ctx->xcx_iter_end != NULL)
+		ctx->xcx_iter_end(it);
+
 	if (op == XO_LEN)
 		result = result ?: length;
+
 	return result;
 }
 

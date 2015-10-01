@@ -271,12 +271,29 @@ struct m0_be_fmt_log_record_header {
  * configuration parameters.
  */
 struct m0_be_fmt_decode_cfg {
-	uint64_t dc_group_size_max;
+	uint64_t   dc_group_size_max;
+	int      (*dc_iter)(const struct m0_xcode_cursor *it);
+	void     (*dc_iter_end)(const struct m0_xcode_cursor *it);
 };
 
-#define M0_BE_FMT_DECODE_CFG_DEFAULT                    \
-	(&(const struct m0_be_fmt_decode_cfg) {         \
-		.dc_group_size_max =  1 << 24,          \
+/**
+ * Trace function for fmt types, when types are iterated generates log output.
+ */
+M0_INTERNAL int  m0_be_fmt_type_trace(const struct m0_xcode_cursor *it);
+M0_INTERNAL void m0_be_fmt_type_trace_end(const struct m0_xcode_cursor *it);
+
+#define M0_BE_FMT_DECODE_CFG_DEFAULT                      \
+	(&(const struct m0_be_fmt_decode_cfg) {           \
+		.dc_group_size_max =  1 << 24,            \
+		.dc_iter = NULL,                          \
+		.dc_iter_end = NULL,                      \
+	})
+
+#define M0_BE_FMT_DECODE_CFG_DEFAULT_WITH_TRACE           \
+	(&(const struct m0_be_fmt_decode_cfg) {           \
+		.dc_group_size_max =  1 << 24,            \
+		.dc_iter = m0_be_fmt_type_trace,          \
+		.dc_iter_end  = m0_be_fmt_type_trace_end, \
 	})
 
 /* functional interfaces */

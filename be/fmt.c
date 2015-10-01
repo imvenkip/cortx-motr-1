@@ -143,6 +143,8 @@ static int be_fmt_decode(struct m0_xcode_type               *type,
 
 	m0_xcode_ctx_init(ctx, &obj);
 	fctx.cfg = cfg;
+	ctx->xcx_iter     = cfg->dc_iter;
+	ctx->xcx_iter_end = cfg->dc_iter_end;
 
 	/*
 	 * xcode doesn't want to use default m0_xcode_alloc() (m0_alloc())
@@ -206,6 +208,33 @@ static void be_fmt_content_bufs_init(struct m0_be_fmt_group *fg)
 	for (i = 0; i < reg_area->cra_nr; ++i)
 		m0_buf_init(&reg_area->cra_reg[i], NULL,
 			    cfg->fgc_reg_size_max);
+}
+
+M0_INTERNAL void m0_be_fmt_type_trace_end(const struct m0_xcode_cursor *it)
+{
+	M0_LOG(M0_DEBUG, "last");
+}
+
+M0_INTERNAL int m0_be_fmt_type_trace(const struct m0_xcode_cursor *it)
+{
+	struct m0_xcode_obj *obj;
+	void                *ptr;
+	m0_bcount_t          size;
+
+	M0_PRE(it != NULL);
+
+	obj  = &m0_xcode_cursor_top((struct m0_xcode_cursor *)it)->s_obj;
+	ptr  = obj->xo_ptr;
+	size = obj->xo_type->xct_sizeof;
+
+	M0_LOG(M0_DEBUG, "name: %s, type:%d, depth:%d, ptr: %p, size: %lu",
+	       obj->xo_type->xct_name,
+	       obj->xo_type->xct_aggr,
+	       it->xcu_depth,
+	       ptr,
+	       size);
+
+	return 0;
 }
 
 M0_INTERNAL int m0_be_fmt_group_init(struct m0_be_fmt_group            *fg,
