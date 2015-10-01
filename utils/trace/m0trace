@@ -388,18 +388,46 @@ sub level_color
     return $level_color{$level};
 }
 
+my @color_map = qw(
+    red         green        yellow        blue        magenta        cyan white
+    bright_red  bright_green bright_yellow bright_blue bright_magenta
+    bright_cyan bright_white
+);
+
+
 sub time_of
 {
     my $tr = shift;
+
+    state %color;
+    state $next_color = 2;
 
     # TODO: currently, libmero stores time as rdtsc(), consider changing to
     # something meaning, like epoch or other with more precision
     #my $dt   = DateTime->from_epoch( epoch => $tr->{timestamp} );
     #my $time = $dt->month_abbr . '-' . $dt->day . ' ' . $dt->hms . '.'
                #. $dt->nanosecond . ' ';
-
     #return $time;
-    return $tr->{timestamp};
+
+    my $rdtsc = $tr->{timestamp};
+    if (defined $ENV{ANSI_COLORS_DISABLED} and $ENV{ANSI_COLORS_DISABLED} == 1) {
+        $rdtsc = substr($rdtsc, 0, (length $rdtsc) - 9) . '.'
+                 . substr($rdtsc, -9, 3) . '.' . substr($rdtsc, -6);
+    }
+    else {
+        my $base = substr($rdtsc, -9, 3);
+        if (not exists $color{$base}) {
+            $color{$base} = $next_color++;
+            if ($next_color > $#color_map) {
+                $next_color = 0;
+            }
+        }
+        $rdtsc = substr($rdtsc, 0, (length $rdtsc) - 9) . '.'
+                 . color( $color_map[ $color{$base} ] ) . $base
+                 . color( level_color($tr) ) . '.' . substr($rdtsc, -6);
+    }
+
+    return $rdtsc;
 }
 
 my $format_placeholder = qr/
@@ -469,17 +497,12 @@ sub expand_format_placeholder
     return;
 }
 
-my %stack_addr_color;
-my $next_stack_addr_color = 0;
-my @color_map = qw(
-    red         green        yellow        blue        magenta        cyan white
-    bright_red  bright_green bright_yellow bright_blue bright_magenta
-    bright_cyan bright_white
-);
-
 sub stack_addr_of
 {
     my $trace_record = shift;
+
+    state %color;
+    state $next_color = 0;
 
     if (defined $ENV{ANSI_COLORS_DISABLED} and $ENV{ANSI_COLORS_DISABLED} == 1) {
         return $trace_record->{stack_addr};
@@ -487,13 +510,13 @@ sub stack_addr_of
     else {
         my $addr = $trace_record->{stack_addr};
         my ($base, $offset) = ( substr($addr, 0, 2), substr($addr, 2) );
-        if (! exists $stack_addr_color{$base}) {
-            $stack_addr_color{$base} = $next_stack_addr_color++;
-            if ($next_stack_addr_color > scalar @color_map) {
-                $next_stack_addr_color = 0;
+        if (! exists $color{$base}) {
+            $color{$base} = $next_color++;
+            if ($next_color > $#color_map) {
+                $next_color = 0;
             }
         }
-        return colored( $base, $color_map[$stack_addr_color{$base}] )
+        return color( $color_map[$color{$base}] ) . $base
                . color( level_color($trace_record) ) . $offset
                . ' ' x (5 - length $addr);
     }
