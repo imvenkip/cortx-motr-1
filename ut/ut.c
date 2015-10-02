@@ -26,6 +26,7 @@
 #include "ut/module.h"          /* m0_ut_module */
 #include "module/instance.h"    /* m0 */
 #include "lib/errno.h"          /* ENOENT */
+#include "lib/finject.h"        /* m0_fi_init */
 #include "lib/string.h"         /* m0_streq */
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
 
@@ -272,10 +273,19 @@ static int test_list_create(struct m0_list *list, const struct m0_ut_module *m)
 
 	M0_PRE(m->ut_tests != NULL && *m->ut_tests != '\0');
 
+	/*
+	 * FI module is not initalised yet, but test_list_populate() calls
+	 * m0_alloc, with uses M0_FI_ENABLED.
+	 * M0_FI_ENABLED requires initialised FI.
+	 */
+	m0_fi_init();
+
 	m0_list_init(list);
 	rc = test_list_populate(list, m->ut_tests, m);
 	if (rc != 0)
 		test_list_destroy(list);
+
+	m0_fi_fini();
 	return rc;
 }
 

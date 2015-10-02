@@ -146,8 +146,13 @@ static int __init m0_ut_module_init(void)
 	tests_add(ut);
 
 	rc = m0_ut_init(&instance);
-	M0_ASSERT(rc == 0);
-
+	if (rc != 0)
+		/*
+		 * We still need to raise m0 instance to M0_LEVEL_INST_ONCE,
+		 * otherwise an attempt to unload m0kut kernel module will
+		 * result in kernel panic.
+		 */
+		m0_module_init(&instance.i_self, M0_LEVEL_INST_ONCE);
 	rc = M0_THREAD_INIT(&ut_thread, int, NULL, &run_kernel_ut, 0, "m0kut");
 	M0_ASSERT(rc == 0);
 	return rc;

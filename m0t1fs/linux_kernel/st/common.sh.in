@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/bin/bash
 
 # This script is also used by utils/ut.sh, utils/linux_kernel/ut.sh
 # If you are modifying this file, please make the relevant changes
@@ -10,28 +10,29 @@ MODLIST="@abs_top_srcdir@/mero/m0mero.ko"
 # modules in MODLIST.
 declare -A MODPARAMS
 NULL_UUID="00000000-0000-0000-0000-000000000000"
-MERO_MODULE_TRACE_MASK='!all'
-MERO_TRACE_PRINT_CONTEXT=short
-MERO_TRACE_LEVEL='call+'
+M0_MODULE_TRACE_MASK='!all'
+M0_TRACE_PRINT_CONTEXT=short
+M0_TRACE_LEVEL='fatal+'
 
 MODPARAMS[m0mero.ko]="node_uuid=${NODE_UUID:-$NULL_UUID}"
 
 MODPARAMS[m0ut.ko]="node_uuid=${NODE_UUID:-$NULL_UUID} \
-		    trace_immediate_mask=${MERO_MODULE_TRACE_MASK} \
-		    trace_print_context=${MERO_TRACE_PRINT_CONTEXT} \
-		    trace_level=${MERO_TRACE_LEVEL}"
+		    trace_immediate_mask=${M0_MODULE_TRACE_MASK} \
+		    trace_print_context=${M0_TRACE_PRINT_CONTEXT} \
+		    trace_level=${M0_TRACE_LEVEL} \
+		    ${tests:+tests=$tests} \
+		    ${exclude_tests:+exclude=$exclude_tests}"
 
 # to make command output parsing predictable
 export LC_MESSAGES=C
 
 abort()
 {
-	msg="$1"
 	echo "$1 Aborting."
 	exit 1
 }
 
-# Do not rmmod lnet, it may be in use by lustre
+# Do not rmmod lnet, it may be used by lustre
 modprobe_lnet()
 {
 	modprobe lnet || abort "Error probing lnet."
@@ -40,7 +41,7 @@ modprobe_lnet()
 modload_m0gf()
 {
 	BASE=@GF_ABS_SRC@
-	if test "x$BASE" = "x"; then
+	if [ -z "$BASE" ]; then
 		modprobe m0gf
 	else
 		insmod $BASE/src/linux_kernel/m0gf.ko
@@ -49,15 +50,16 @@ modload_m0gf()
 
 modunload_m0gf()
 {
-	rmmod m0gf &>> /dev/null
+	rmmod m0gf &> /dev/null
 }
 
 modload()
 {
-	for m in $MODLIST ;do
-                BN=$(basename $m)
-                PARAMS=
-                if [[ ! -z "${MODPARAMS[$BN]}" ]] ; then
+	local m
+	for m in $MODLIST; do
+		local BN=$(basename $m)
+		local PARAMS=
+		if [[ ! -z "${MODPARAMS[$BN]}" ]]; then
 		    PARAMS=${MODPARAMS[$BN]}
 		fi
 		insmod $m $PARAMS || abort "Error loading $m $PARAMS"
@@ -66,9 +68,10 @@ modload()
 
 modunload()
 {
-	for m in $MODLIST ;do
+	local m
+	for m in $MODLIST; do
 		echo $m
-	done | tac | while read ;do
-		rmmod $REPLY &>> /dev/null || echo "Error unloading $REPLY."
+	done | tac | while read; do
+		rmmod $REPLY &> /dev/null || echo "Error unloading $REPLY." >&2
 	done
 }

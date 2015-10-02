@@ -20,7 +20,7 @@ readonly node_uuid="12345678-90ab-cdef-fedc-ba0987654321"
 verbose=false
 rundir=$base_rundir
 tests=
-exclude=
+exclude_tests=
 trace_level=${M0_TRACE_LEVEL:-notice+}
 trace_immediate_mask=${M0_TRACE_MASK:-all}
 trace_print_context=${M0_TRACE_PRINT_CONTEXT:-short}
@@ -79,7 +79,7 @@ parse_cli_options()
     while true ; do
         case "$1" in
             -t|--tests)          tests=$2; shift 2 ;;
-            -x|--exclude-tests)  exclude=$2; shift 2 ;;
+            -x|--exclude-tests)  exclude_tests=$2; shift 2 ;;
             -v)                  verbose=true; shift ;;
             -h)                  help stdout ;;
             --)                  shift; break ;;
@@ -110,7 +110,7 @@ log()
 run_lut_helper()
 {
     # run it only if lnet test will be executed
-    if [[ ( -z $tests || $tests =~ .*lnet.* ) && ! $exclude =~ .*lnet.* ]] ; then
+    if [[ ( -z $tests || $tests =~ .*lnet.* ) && ! $exclude_tests =~ .*lnet.* ]] ; then
         log 'starting lnet KUT helper'
         if [[ -n $top_srcdir ]] ; then
             $top_srcdir/net/lnet/ut/m0kut-helper
@@ -150,7 +150,7 @@ load_modules()
                       "trace_print_context=$trace_print_context" \
                       "trace_level=$trace_level" \
                       "${tests:+tests=$tests}" \
-                      "${exclude:+exclude=$exclude}"
+                      "${exclude_tests:+exclude=$exclude_tests}"
 
         run_lut_helper
 
