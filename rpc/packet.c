@@ -136,19 +136,21 @@ M0_INTERNAL void m0_rpc_packet_discard(struct m0_rpc_packet *packet)
 M0_INTERNAL void m0_rpc_packet_add_item(struct m0_rpc_packet *p,
 					struct m0_rpc_item *item)
 {
-	M0_ENTRY("packet: %p item: %p", p, item);
+	M0_ENTRY("packet: %p, item: %p[%s/%u]", p, item,
+		 item_kind(item), item->ri_type->rit_opcode);
 	M0_PRE(m0_rpc_packet_invariant(p) && item != NULL);
 	M0_PRE(!packet_item_tlink_is_in(item));
 	M0_PRE(m0_rpc_machine_is_locked(p->rp_rmachine));
 
 	m0_rpc_item_get(item);
 	item->ri_rmachine = p->rp_rmachine;
+	item->ri_packet = p;
 	packet_item_tlink_init_at_tail(item, &p->rp_items);
 	++p->rp_ow.poh_nr_items;
 	p->rp_size += m0_rpc_item_size(item);
 
-	M0_LOG(M0_DEBUG, "nr_items: %llu packet size: %llu",
-			(unsigned long long)p->rp_ow.poh_nr_items,
+	M0_LOG(M0_DEBUG, "packet: %p nr_items: %llu packet size: %llu",
+			p, (unsigned long long)p->rp_ow.poh_nr_items,
 			(unsigned long long)p->rp_size);
 	M0_ASSERT(m0_rpc_packet_invariant(p));
 	M0_POST(m0_rpc_packet_is_carrying_item(p, item));
@@ -158,17 +160,19 @@ M0_INTERNAL void m0_rpc_packet_add_item(struct m0_rpc_packet *p,
 M0_INTERNAL void m0_rpc_packet_remove_item(struct m0_rpc_packet *p,
 					   struct m0_rpc_item *item)
 {
-	M0_ENTRY("packet: %p item: %p", p, item);
+	M0_ENTRY("packet: %p, item: %p[%s/%u]", p, item,
+		 item_kind(item), item->ri_type->rit_opcode);
 	M0_PRE(m0_rpc_packet_invariant(p) && item != NULL);
 	M0_PRE(m0_rpc_packet_is_carrying_item(p, item));
 	M0_PRE(m0_rpc_machine_is_locked(p->rp_rmachine));
 
 	packet_item_tlink_del_fini(item);
+	item->ri_packet = NULL;
 	--p->rp_ow.poh_nr_items;
 	p->rp_size -= m0_rpc_item_size(item);
 
-	M0_LOG(M0_DEBUG, "nr_items: %llu->%llu packet size: %llu->%llu",
-			(unsigned long long)p->rp_ow.poh_nr_items + 1,
+	M0_LOG(M0_DEBUG, "p %p, nr_items: %llu->%llu packet size: %llu->%llu",
+			p, (unsigned long long)p->rp_ow.poh_nr_items + 1,
 			(unsigned long long)p->rp_ow.poh_nr_items,
 			(unsigned long long)p->rp_size + m0_rpc_item_size(item),
 			(unsigned long long)p->rp_size);
@@ -186,7 +190,7 @@ M0_INTERNAL void m0_rpc_packet_remove_all_items(struct m0_rpc_packet *p)
 	M0_PRE(m0_rpc_packet_invariant(p));
 	M0_PRE(m0_rpc_machine_is_locked(p->rp_rmachine));
 
-	M0_LOG(M0_DEBUG, "nr_items: %d", (int)p->rp_ow.poh_nr_items);
+	M0_LOG(M0_DEBUG, "p %p, nr_items: %d", p, (int)p->rp_ow.poh_nr_items);
 
 	for_each_item_in_packet(item, p) {
 		m0_rpc_packet_remove_item(p, item);
@@ -492,7 +496,8 @@ M0_INTERNAL void m0_rpc_packet_traverse_items(struct m0_rpc_packet *p,
 
 	M0_ENTRY("p: %p visit: %p", p, visit);
 	M0_ASSERT(m0_rpc_packet_invariant(p));
-	M0_LOG(M0_DEBUG, "nr_items: %u", (unsigned int)p->rp_ow.poh_nr_items);
+	M0_LOG(M0_DEBUG, "%p nr_items: %u", p,
+	       (unsigned int)p->rp_ow.poh_nr_items);
 
 	for_each_item_in_packet(item, p) {
 		visit(p, item, opaque_data);

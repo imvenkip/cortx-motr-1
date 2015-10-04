@@ -63,6 +63,9 @@ mount_m0t1fs()
 		echo "Failed to mount m0t1fs file system."
 		return 1
 	}
+
+	echo "mount | grep m0t1fs"
+	mount | grep m0t1fs
 }
 
 unmount_and_clean()
@@ -72,6 +75,9 @@ unmount_and_clean()
 	umount $m0t1fs_mount_dir &>/dev/null
 
 	sleep 2
+
+	echo "mount | grep m0t1fs"
+	mount | grep m0t1fs
 
 	echo "Cleaning up test directory..."
 	rm -rf $m0t1fs_mount_dir &>/dev/null

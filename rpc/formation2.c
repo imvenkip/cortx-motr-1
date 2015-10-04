@@ -508,6 +508,15 @@ static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 				goto out;
 			if (item_will_exceed_packet_size(item, p, frm))
 				continue;
+			if (item->ri_sm.sm_state == M0_RPC_ITEM_FAILED) {
+				/*
+				 * Request might have been cancelled while in
+				 * URGENT state
+				 */
+				M0_ASSERT(m0_rpc_item_is_request(item));
+				frm_remove(frm, item);
+				continue;
+			}
 			if (M0_FI_ENABLED("skip_oneway_items") &&
 			    m0_rpc_item_is_oneway(item))
 				continue;

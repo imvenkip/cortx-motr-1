@@ -148,6 +148,9 @@ M0_INTERNAL void m0_rpc_bulk_default_cb(const struct m0_net_buffer_event *evt)
 	buf = (struct m0_rpc_bulk_buf *)nb->nb_app_private;
 	rbulk = buf->bb_rbulk;
 
+	M0_LOG(M0_DEBUG, "rbulk %p, nbuf %p, nbuf->nb_qtype %lu, "
+	       "evt->nbe_status %d", rbulk, nb,
+	       (unsigned long)nb->nb_qtype, evt->nbe_status);
 	M0_ASSERT(rpc_bulk_buf_invariant(buf));
 	M0_ASSERT(rpcbulk_tlink_is_in(buf));
 
@@ -180,11 +183,12 @@ M0_INTERNAL void m0_rpc_bulk_default_cb(const struct m0_net_buffer_event *evt)
 	M0_LEAVE("rb_rc=%d", rbulk->rb_rc);
 }
 
-M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)
+M0_INTERNAL size_t m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)
 {
 	struct m0_rpc_bulk_buf *rbuf;
+	size_t                  non_queued_nr = 0;
 
-	M0_ENTRY();
+	M0_ENTRY("rbulk %p", rbulk);
 	M0_PRE(rbulk != NULL);
 
 	m0_mutex_lock(&rbulk->rb_mutex);
@@ -194,8 +198,18 @@ M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)
 	m0_mutex_unlock(&rbulk->rb_mutex);
 
 	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
-		m0_net_buffer_del(rbuf->bb_nbuf, rbuf->bb_nbuf->nb_tm);
+		if (rbuf->bb_nbuf->nb_flags & M0_NET_BUF_QUEUED) {
+			m0_net_buffer_del(rbuf->bb_nbuf, rbuf->bb_nbuf->nb_tm);
+		} else {
+			rpcbulk_tlist_del(rbuf);
+			rpc_bulk_buf_deregister(rbuf);
+			rpc_bulk_buf_fini(rbuf);
+			++non_queued_nr;
+		}
 	} m0_tl_endfor;
+	M0_LEAVE("rbulk %p, non_queued_nr %llu", rbulk,
+		 (unsigned long long)non_queued_nr);
+	return non_queued_nr;
 }
 
 const struct m0_net_buffer_callbacks m0_rpc__buf_bulk_cb = {
@@ -431,6 +445,8 @@ static int rpc_bulk_op(struct m0_rpc_bulk                   *rbulk,
 	return M0_RC(rc);
 cleanup:
 	M0_ASSERT(rc != 0);
+
+	M0_LOG(M0_DEBUG, "rbulk %p, rc %d", rbulk, rc);
 	rpcbulk_tlist_del(rbuf);
 	m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
 		if (rbuf->bb_nbuf->nb_flags & M0_NET_BUF_QUEUED)

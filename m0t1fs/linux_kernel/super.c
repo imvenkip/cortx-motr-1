@@ -30,10 +30,9 @@
 #include "m0t1fs/linux_kernel/m0t1fs.h"
 #include "m0t1fs/linux_kernel/fsync.h"
 #include "mero/magic.h"    /* M0_T1FS_POOLS_MAGIC */
+#include "lib/finject.h"   /* M0_FI_ENABLED */
 #include "lib/misc.h"      /* M0_SET0 */
 #include "lib/memory.h"    /* M0_ALLOC_PTR, m0_free */
-#include "layout/linear_enum.h"
-#include "layout/pdclust.h"
 #include "conf/confc.h"    /* m0_confc */
 #include "conf/helpers.h"  /* m0_conf_fs_get */
 #include "rpc/rpclib.h"    /* m0_rcp_client_connect */
@@ -163,6 +162,10 @@ m0t1fs_container_id_to_session(const struct m0_pool_version *pver,
 
 	ctx = pver->pv_dev_to_ios_map[container_id - 1];
 	M0_ASSERT(ctx != NULL);
+
+	if (M0_FI_ENABLED("rpc_session_cancel")) {
+		m0_rpc_session_cancel(&ctx->sc_session);
+	}
 
 	M0_LOG(M0_DEBUG, "id %llu -> ctx=%p session=%p", container_id, ctx,
 			 &ctx->sc_session);

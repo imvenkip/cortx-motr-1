@@ -11,6 +11,7 @@ MERO_TEST_LOGFILE=$SANDBOX_DIR/mero_`date +"%Y-%m-%d_%T"`.log
 MERO_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_`date +"%d-%m-%Y_%T"`
 
 MERO_MODULE=m0mero
+MERO_CTL_MODULE=m0ctl #debugfs interface to control m0mero at runtime
 
 # kernel space tracing parameters
 MERO_MODULE_TRACE_MASK='!all'

@@ -71,7 +71,7 @@ M0_INTERNAL void m0_rpc_item_process_reply(struct m0_rpc_item *req,
 M0_INTERNAL void m0_rpc_item_send_reply(struct m0_rpc_item *req,
 					struct m0_rpc_item *reply);
 
-M0_INTERNAL void m0_rpc_item_replied_invoke(struct m0_rpc_item *req);
+M0_INTERNAL void m0_rpc_item_replied_invoke(struct m0_rpc_item *item);
 
 /** @} */
 #endif /* __MERO_RPC_ITEM_INT_H__ */

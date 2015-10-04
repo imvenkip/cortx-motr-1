@@ -118,6 +118,7 @@ enum m0_rpc_item_resend {
 	M0_RPC_ITEM_RESEND_INTERVAL = 1, /* in secs */
 	M0_RPC_ITEM_REPLY_CACHE_TMO = M0_RPC_ITEM_RESEND_INTERVAL * 10,
 	M0_RPC_ITEM_REQ_CACHE_TMO = M0_RPC_ITEM_RESEND_INTERVAL * 10,
+	M0_RPC_ITEM_WAIT_CACHE_TMO = M0_RPC_ITEM_RESEND_INTERVAL * 10,
 };
 
 /**
@@ -216,9 +217,18 @@ struct m0_rpc_item {
 	    just one tlink.
 	 */
 	struct m0_tlink                  ri_plink;
+	/** Packet this item has been placed into.
+	    It is required if the item is to be cancelled while
+	    being sent.
+	 */
+	struct m0_rpc_packet            *ri_packet;
 	/** One of m0_rpc_frm::f_itemq[], in which this item is placed. */
 	struct m0_tl                    *ri_itemq;
 	struct m0_rpc_frm               *ri_frm;
+	/** Link through which items are anchored on
+	    m0_rpc_session::s_pending_cache.
+	 */
+	struct m0_tlink                  ri_pending_link;
 	/** M0_RPC_ITEM_MAGIC */
 	uint64_t			 ri_magic;
 	/** Link for m0_rpc_item_cache::ric_items. */
@@ -255,7 +265,8 @@ struct m0_rpc_item_ops {
 	/**
 	   RPC layer executes this callback only for request items when,
 	   - a reply is received to the request item;
-	   - or any failure is occured (including timeout) in which case
+	   - or any failure has occured (including timeout, item not posted
+	     due to service being cancelled) in which case
 	     item->ri_error != 0
 
 	   If item->ri_error != 0, then item->ri_reply may or may not be NULL.
@@ -324,14 +335,49 @@ int m0_rpc_item_timedwait(struct m0_rpc_item *item,
 int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
 			       m0_time_t timeout);
 /**
-   Deletes the item from all rpc queues and moves it to
-   M0_RPC_ITEM_UNINITIALISED state. The item can be posted immediately after
-   this function returns. When posted, the item gets new xid and is treated as a
-   completely different item.
+   Deletes the item from all rpc queues.
+   If reply arrives for the original cancelled item, it is ignored.
 
-   If reply arrives for the original deleted item, it is ignored.
+   - Item is moved to M0_RPC_ITEM_FAILED state
+   - Item will be deleted once the user releases the reference/s it had held
+     for this item, e.g. at the time of creation and other explicit references,
+     if any.
  */
 void m0_rpc_item_cancel(struct m0_rpc_item *item);
+
+/**
+ * Similar to m0_rpc_item_cancel() except that it does not lock the RPC
+ * machine but expects that it is locked by the caller.
+ */
+void m0_rpc_item_cancel_nolock(struct m0_rpc_item *item);
+
+/**
+   Deletes the item from all rpc queues and re-initialises it.
+   If reply arrives for the original cancelled item, it is ignored.
+
+   - Item is first moved to M0_RPC_ITEM_FAILED state and then is moved to
+     M0_RPC_ITEM_UNINITIALISED state
+   - The item can be re-posted immediately after this function returns. When
+     re-posted, the item gets new xid and is treated as a completely different
+     item.
+ */
+void m0_rpc_item_cancel_init(struct m0_rpc_item *item);
+
+/**
+   Iterates over all the items 'submitted to RPC and which are yet to receive
+   reply' and invokes m0_rpc_item_cancel() for each of those.
+ */
+M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session);
+
+/**
+   Restores the cancelled session.
+ */
+M0_INTERNAL void m0_rpc_session_restore(struct m0_rpc_session *session);
+
+/**
+   Checks if a session is marked as cancelled.
+ */
+M0_INTERNAL bool m0_rpc_session_is_cancelled(struct m0_rpc_session *session);
 
 /**
    For default implementations of these interfaces for fops
@@ -490,7 +536,7 @@ enum {
  *   rpc item reference counting (m0_rpc_item_get() and m0_rpc_item_put());
  * - m0_rpc_item_cache_lookup() doesn't take any reference. If user wants to
  *   use rpc item after deadline then reference should be taken by the user;
- * - rpc items are added to cache using m0_rpc_item_add();
+ * - rpc items are added to cache using m0_rpc_item_cache_add();
  * - rpc items are removed from the cache if:
  *   - user calls m0_rpc_item_cache_del();
  *   - user calls m0_rpc_item_cache_purge() - in this case all items with
@@ -550,6 +596,18 @@ m0_rpc_item_cache_lookup(struct m0_rpc_item_cache *ic, uint64_t xid);
 M0_INTERNAL void m0_rpc_item_cache_purge(struct m0_rpc_item_cache *ic);
 /** Deletes all items from the cache. */
 M0_INTERNAL void m0_rpc_item_cache_clear(struct m0_rpc_item_cache *ic);
+
+/** Initialises the pending item cache. */
+M0_INTERNAL void m0_rpc_item_pending_cache_init(struct m0_rpc_session *session);
+/** Finalises the pending item cache. */
+M0_INTERNAL void m0_rpc_item_pending_cache_fini(struct m0_rpc_session *session);
+/**
+ * Adds item to the pending item cache only if it is not already present
+ * there. It is going to be present there in case of resend.
+ */
+M0_INTERNAL void m0_rpc_item_pending_cache_add( struct m0_rpc_item *item);
+/** Deletes item from the pending item cache. */
+M0_INTERNAL void m0_rpc_item_pending_cache_del(struct m0_rpc_item *item);
 
 #endif
 

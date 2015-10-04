@@ -208,6 +208,7 @@ static int m0_md_tick_create(struct m0_fom *fom)
 	struct m0_fop            *fop;
 	struct m0_fop            *fop_rep;
 	int                       rc;
+	struct m0_rpc_item       *item;
 
 	md = m0_fom_reqh(fom)->rh_mdstore;
 	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
@@ -218,6 +219,7 @@ static int m0_md_tick_create(struct m0_fom *fom)
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
+	item = m0_fop_to_rpc_item(fop);
 	req = m0_fop_data(fop);
 
 	body = &req->c_body;
@@ -229,7 +231,8 @@ static int m0_md_tick_create(struct m0_fom *fom)
 
 	m0_buf_init(&attr.ca_name, req->c_name.s_buf, req->c_name.s_len);
 
-	M0_LOG(M0_DEBUG, "Create "FID_F"/"FID_F" %.*s",
+	M0_LOG(M0_DEBUG, "%p[%u] Create "FID_F"/"FID_F" %.*s",
+	       item, item->ri_type->rit_opcode,
 	       FID_P(&body->b_pfid), FID_P(&body->b_tfid),
 	       (int)attr.ca_name.b_nob, (char *)attr.ca_name.b_addr);
 

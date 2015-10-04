@@ -30,6 +30,7 @@
 #include "mero/magic.h"
 #include "net/net.h"
 #include "rpc/rpc_internal.h"
+#include "rpc/service.h"
 
 /**
  * @addtogroup rpc
@@ -413,8 +414,10 @@ static void buf_send_cb(const struct m0_net_buffer_event *ev)
 static void item_done(struct m0_rpc_packet *p,
 		      struct m0_rpc_item *item, unsigned long rc)
 {
-	M0_ENTRY("item: %p rc: %lu", item, rc);
 	M0_PRE(item != NULL);
+
+	M0_ENTRY("item: %p[%u] item->ri_error: %d rc: %lu",
+	         item, item->ri_type->rit_opcode, item->ri_error, rc);
 
 	if (item->ri_pending_reply != NULL) {
 		/* item that is never sent, i.e. item->ri_nr_sent == 0,
@@ -426,7 +429,8 @@ static void item_done(struct m0_rpc_packet *p,
 	}
 
 	item->ri_error = item->ri_error ?: rc;
-	if (item->ri_error != 0) {
+	if (item->ri_error != 0 &&
+	    item->ri_sm.sm_state != M0_RPC_ITEM_FAILED) {
 		M0_LOG(M0_ERROR, "p:i=%p:%p failed with %d",
 				  p, item, item->ri_error);
 		m0_rpc_item_failed(item, item->ri_error);
@@ -440,8 +444,21 @@ static void item_sent(struct m0_rpc_item *item)
 {
 	struct m0_rpc_stats    *stats;
 
-	M0_ENTRY("item: %p sent=%u max=%lx", item,
-		 item->ri_nr_sent, (unsigned long)item->ri_nr_sent_max);
+	M0_ENTRY("%p[%s/%u], sent=%u max=%lx item->ri_sm.sm_state %d "
+		 "ri_error %d",
+		 item, item_kind(item), item->ri_type->rit_opcode,
+		 item->ri_nr_sent, (unsigned long)item->ri_nr_sent_max,
+		 item->ri_sm.sm_state, item->ri_error);
+
+	if (item->ri_sm.sm_state == M0_RPC_ITEM_FAILED) {
+		/*
+		 * Request might have been cancelled while in SENDING state
+		 * and before reaching M0_RPC_ITEM_SENT state.
+		 */
+		M0_ASSERT(m0_rpc_item_is_request(item));
+		M0_ASSERT(item->ri_error == -ECANCELED);
+		return;
+	}
 
 	M0_PRE(ergo(m0_rpc_item_is_request(item),
 	            M0_IN(item->ri_error, (0, -ETIMEDOUT))) &&
@@ -481,15 +498,26 @@ static void item_sent(struct m0_rpc_item *item)
 		m0_rpc_session_release(item->ri_session);
 
 	if (m0_rpc_item_is_request(item)) {
-		m0_rpc_item_change_state(item, M0_RPC_ITEM_WAITING_FOR_REPLY);
-		if (item->ri_pending_reply != NULL) {
-			/* Reply has already been received when we
-			   were waiting for buffer callback */
-			m0_rpc_item_process_reply(item, item->ri_pending_reply);
-			item->ri_pending_reply = NULL;
-			M0_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_REPLIED);
+		if (item->ri_session->s_session_id != SESSION_ID_0 &&
+		    m0_rpc_session_is_cancelled(item->ri_session)) {
+			M0_ASSERT(item->ri_rmachine ==
+				  item->ri_session->s_conn->c_rpc_machine);
+			m0_rpc_item_cancel_nolock(item);
+		} else {
+			m0_rpc_item_change_state(item,
+					M0_RPC_ITEM_WAITING_FOR_REPLY);
+			if (item->ri_pending_reply != NULL) {
+				/* Reply has already been received when we
+				   were waiting for buffer callback */
+				m0_rpc_item_process_reply(item,
+						item->ri_pending_reply);
+				item->ri_pending_reply = NULL;
+				M0_ASSERT(item->ri_sm.sm_state ==
+					  M0_RPC_ITEM_REPLIED);
+			}
 		}
 	}
+
 	M0_LEAVE();
 }
 

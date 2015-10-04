@@ -233,7 +233,7 @@ struct m0_rpc_bulk {
 	/** Mutex to protect access on list rb_buflist. */
 	struct m0_mutex		 rb_mutex;
 	/**
-	 * List of m0_rpc_bulk_buf structures linkged through
+	 * List of m0_rpc_bulk_buf structures linked through
 	 * m0_rpc_bulk_buf::rb_link.
 	 */
 	struct m0_tl		 rb_buflist;
@@ -358,8 +358,12 @@ m0_rpc_bulk_load(struct m0_rpc_bulk                   *rbulk,
  * Invocation of this API should be followed by wait on m0_rpc_bulk::rb_chan.
  * @pre  rbulk != NULL && rbulk->rb_rc == 0 && rpc_bulk_invariant(rbulk).
  * @post rpcbulk_tlist_is_empty(&rbulk->rb_buflist).
+ * @return count of non-queued net buffers. The net buffer callback will not be
+ *         invoked for such buffers and the user might want undo some of the
+ *         book-keeping that otherwise would have been done through the
+ *         callback.
  */
-M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk);
+M0_INTERNAL size_t m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk);
 
 M0_INTERNAL void m0_rpc_bulk_default_cb(const struct m0_net_buffer_event *evt);
 

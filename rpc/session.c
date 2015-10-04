@@ -230,6 +230,7 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 	session->s_session_id = SESSION_ID_INVALID;
 	session->s_conn       = conn;
 	session->s_xid        = 0;
+	session->s_cancelled  = false;
 
 	rpc_session_tlink_init(session);
 	m0_sm_init(&session->s_sm, &session_conf,
@@ -246,6 +247,7 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 	else
 		M0_LOG(M0_ERROR, "Session %p initialisation failed: %d",
 		       session, rc);
+	m0_rpc_item_pending_cache_init(session);
 
 	return M0_RC(rc);
 }
@@ -285,7 +287,7 @@ M0_EXPORTED(m0_rpc_session_fini);
 
 M0_INTERNAL void m0_rpc_session_fini_locked(struct m0_rpc_session *session)
 {
-	M0_ENTRY();
+	M0_ENTRY("session %p", session);
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	M0_PRE(M0_IN(session_state(session), (M0_RPC_SESSION_TERMINATED,
 					      M0_RPC_SESSION_INITIALISED,
@@ -293,6 +295,7 @@ M0_INTERNAL void m0_rpc_session_fini_locked(struct m0_rpc_session *session)
 
 	m0_rpc_item_cache_fini(&session->s_reply_cache);
 	m0_rpc_item_cache_fini(&session->s_req_cache);
+	m0_rpc_item_pending_cache_fini(session);
 	m0_rpc_conn_remove_session(session);
 	__session_fini(session);
 	session->s_session_id = SESSION_ID_INVALID;
@@ -559,6 +562,7 @@ M0_INTERNAL int m0_rpc_session_terminate_sync(struct m0_rpc_session *session,
 
 	rc = m0_rpc_session_terminate(session, abs_timeout);
 	if (rc == 0) {
+		M0_LOG(M0_DEBUG, "session: %p, wait for termination", session);
 		rc = m0_rpc_session_timedwait(session,
 					      M0_BITS(M0_RPC_SESSION_TERMINATED,
 						      M0_RPC_SESSION_FAILED),

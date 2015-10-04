@@ -390,6 +390,8 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 
 	session = m0_rpc_session_search(conn, session_id);
 	if (session != NULL) {
+		M0_LOG(M0_DEBUG, "session %p, hold_cnt %d, wait for session "
+		       "to become idle", session, session->s_hold_cnt);
 		m0_sm_timedwait(&session->s_sm, M0_BITS(M0_RPC_SESSION_IDLE),
 				M0_TIME_NEVER);
 		rc = m0_rpc_rcv_session_terminate(session);

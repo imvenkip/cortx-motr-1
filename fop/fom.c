@@ -1113,8 +1113,12 @@ void m0_fom_fini(struct m0_fom *fom)
 	runq_tlink_fini(fom);
 	m0_fom_callback_fini(&fom->fo_cb);
 
-	if (fom->fo_fop != NULL)
+	if (fom->fo_fop != NULL) {
+		M0_LOG(M0_DEBUG, "fom: %p fop %p item %p[%u] rep fop %p",
+		       fom, fom->fo_fop, &fom->fo_fop->f_item,
+				m0_fop_opcode(fom->fo_fop), fom->fo_rep_fop);
 		m0_fop_put_lock(fom->fo_fop);
+	}
 	if (fom->fo_rep_fop != NULL)
 		m0_fop_put_lock(fom->fo_rep_fop);
 
@@ -1140,8 +1144,12 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 	m0_fom_callback_init(&fom->fo_cb);
 	runq_tlink_init(fom);
 
-	if (fop != NULL)
+	if (fop != NULL) {
 		m0_fop_get(fop);
+		M0_LOG(M0_DEBUG, "fom: %p fop %p item %p[%u] rep fop %p",
+		       fom, fop, &fop->f_item, m0_fop_opcode(fop), reply);
+	}
+
 	fom->fo_fop = fop;
 
 	if (reply != NULL) {

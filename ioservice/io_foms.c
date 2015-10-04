@@ -1988,6 +1988,9 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 
 	rwfop = io_rw_get(fom->fo_fop);
 
+	M0_ENTRY("fom %p, fop %p, item %p[%u]" FID_F, fom, fom->fo_fop,
+		 m0_fop_to_rpc_item(fom->fo_fop), m0_fop_opcode(fom->fo_fop),
+	         FID_P(&rwfop->crw_fid));
 	/* first handle generic phase */
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {

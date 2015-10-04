@@ -71,7 +71,9 @@ M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item)
 	int                    rc;
 	struct m0_rpc_machine *machine;
 
-	M0_ENTRY("item: %p", item);
+	M0_ENTRY("%p[%s/%u]", item, item_kind(item),
+		 item->ri_type->rit_opcode);
+
 	M0_PRE(item->ri_session != NULL);
 	M0_PRE(m0_rpc_conn_is_snd(item->ri_session->s_conn));
 
@@ -91,6 +93,8 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 {
 	struct m0_rpc_session  *session;
 
+	M0_LOG(M0_DEBUG, "%p[%s/%u]",
+	       item, item_kind(item), item->ri_type->rit_opcode);
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && item->ri_type != NULL);
 	M0_PRE(m0_rpc_item_is_request(item));
@@ -117,8 +121,17 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	item->ri_header.osr_sender_id  = session->s_conn->c_sender_id;
 	item->ri_header.osr_session_id = session->s_session_id;
 
-	m0_rpc_item_send(item);
+	if (item->ri_session->s_session_id != SESSION_ID_0 &&
+	    m0_rpc_session_is_cancelled(item->ri_session)) {
+		M0_LOG(M0_DEBUG, "%p[%s/%u], fop %p, session %p, "
+		       "Session is cancelled. Hence, not posting the item",
+		       item, item_kind(item), item->ri_type->rit_opcode,
+		       m0_rpc_item_to_fop(item), item->ri_session);
+		m0_rpc_item_failed(item, -ECANCELED);
+		return M0_RC(item->ri_error);
+	}
 
+	m0_rpc_item_send(item);
 	return M0_RC(item->ri_error);
 }
 

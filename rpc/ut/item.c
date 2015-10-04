@@ -313,7 +313,7 @@ static void test_resend(void)
 	__test_timer_start_failure();
 	M0_LOG(M0_DEBUG, "TEST:3.5.1:END");
 
-	/* Test: Move item from WAITING_FOR_REOLY to FAILED state if
+	/* Test: Move item from WAITING_FOR_REPLY to FAILED state if
 		 item_sent() fails to start resend timer.
 	 */
 	M0_LOG(M0_DEBUG, "TEST:3.5.2:START");
@@ -390,25 +390,25 @@ static void test_failure_before_sending(void)
 		{"m0_net_buffer_add",       "fake_error", -EMSGSIZE},
 	};
 
-	/* TEST3: packet_ready() routine failed.
+	/* TEST4: packet_ready() routine failed.
 		  The item should move to FAILED state.
 	 */
 	for (i = 0; i < ARRAY_SIZE(fp); ++i) {
-		M0_LOG(M0_DEBUG, "TEST:3.%d:START", i + 1);
+		M0_LOG(M0_DEBUG, "TEST:4.%d:START", i + 1);
 		m0_fi_enable_once(fp[i].func, fp[i].tag);
 		rc = __test();
 		M0_UT_ASSERT(rc == fp[i].rc);
 		M0_UT_ASSERT(item_rc == fp[i].rc);
-		M0_LOG(M0_DEBUG, "TEST:3.%d:END", i + 1);
+		M0_LOG(M0_DEBUG, "TEST:4.%d:END", i + 1);
 		m0_fop_put_lock(fop);
 	}
-	/* TEST4: Network layer reported buffer send failure.
+	/* TEST5: Network layer reported buffer send failure.
 		  The item should move to FAILED state.
 		  NOTE: Buffer sending is successful, hence we need
 		  to explicitly drop the item on receiver using
 		  fault_point<"item_received", "drop_item">.
 	 */
-	M0_LOG(M0_DEBUG, "TEST:4:START");
+	M0_LOG(M0_DEBUG, "TEST:5:START");
 	m0_fi_enable("buf_send_cb", "fake_err");
 	m0_fi_enable("item_received", "drop_item");
 	rc = __test();
@@ -417,7 +417,7 @@ static void test_failure_before_sending(void)
 	m0_rpc_machine_get_stats(machine, &stats, false);
 	m0_fi_disable("buf_send_cb", "fake_err");
 	m0_fi_disable("item_received", "drop_item");
-	M0_LOG(M0_DEBUG, "TEST:4:END");
+	M0_LOG(M0_DEBUG, "TEST:5:END");
 	m0_fop_put_lock(fop);
 }
 
@@ -464,6 +464,7 @@ static void test_oneway_item(void)
 	int                 rc;
 
 	/* Test 1: Confirm one-way items reach receiver */
+	M0_LOG(M0_DEBUG, "TEST:6.1:START");
 	fop = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL, machine);
 	M0_UT_ASSERT(fop != NULL);
 
@@ -491,10 +492,12 @@ static void test_oneway_item(void)
 
 	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
 	m0_fop_put_lock(fop);
+	M0_LOG(M0_DEBUG, "TEST:6.1:END");
 
 	/* Test 2: Remaining queued oneway items are dropped during
 		   m0_rpc_frm_fini()
 	 */
+	M0_LOG(M0_DEBUG, "TEST:6.2:START");
 	M0_ALLOC_PTR(fop);
 	M0_UT_ASSERT(fop != NULL);
 	m0_fop_init(fop, &m0_rpc_arrow_fopt, NULL, fop_release);
@@ -517,6 +520,7 @@ static void test_oneway_item(void)
 	M0_UT_ASSERT(fop_release_called);
 	start_rpc_client_and_server();
 	m0_fi_disable("frm_fill_packet", "skip_oneway_items");
+	M0_LOG(M0_DEBUG, "TEST:6.2:END");
 }
 
 /*
@@ -538,44 +542,106 @@ static void rply_before_sentcb(void)
 }
 */
 
-static void check_cancel(void)
+bool REINITIALISE_AFTER_CANCEL = true;
+bool ALREADY_REPLIED           = true;
+
+void fop_test(int expected_rc)
 {
 	int rc;
 
-	m0_rpc_item_cancel(item);
-	M0_UT_ASSERT(item->ri_reply == NULL);
-	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_UNINITIALISED));
-	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
-			      0 /* deadline */);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(item->ri_error == 0);
-	M0_UT_ASSERT(item->ri_reply != NULL);
-	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED) &&
-		     chk_state(item->ri_reply, M0_RPC_ITEM_ACCEPTED));
-}
-
-static void test_cancel(void)
-{
-	int rc;
-
-	/* TEST5: Send item, cancel it and send again. */
-	M0_LOG(M0_DEBUG, "TEST:5:1:START");
 	fop = fop_alloc(machine);
-	item = &fop->f_item;
-	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
-			      0 /* deadline */);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(item->ri_error == 0);
-	M0_UT_ASSERT(item->ri_reply != NULL);
-	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED) &&
-		     chk_state(item->ri_reply, M0_RPC_ITEM_ACCEPTED));
-	check_cancel();
+	item              = &fop->f_item;
+	item->ri_session  = session;
+	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline = m0_time_from_now(0, 0);
+	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
+	if (expected_rc == 0) {
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(item->ri_error == 0);
+		M0_UT_ASSERT(item->ri_reply != NULL);
+		M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
+	} else {
+		M0_UT_ASSERT(rc == -ECANCELED);
+		M0_UT_ASSERT(rc == expected_rc);
+		M0_UT_ASSERT(item->ri_error == expected_rc);
+		M0_UT_ASSERT(item->ri_reply == NULL);
+		M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
+	}
 	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
 	m0_fop_put_lock(fop);
-	M0_LOG(M0_DEBUG, "TEST:5:1:END");
+}
+
+static void check_cancel(bool already_replied, bool reinitialise)
+{
+	uint64_t xid = item->ri_header.osr_xid;
+	int      rc;
+
+	M0_UT_ASSERT(m0_rpc_item_is_request(item));
+
+	if (reinitialise)
+		m0_rpc_item_cancel_init(item);
+	else {
+		m0_rpc_item_cancel(item);
+		if (already_replied) {
+			/* Item already replied. Hence, not cancelled. */
+			M0_UT_ASSERT(item->ri_error == 0);
+			M0_UT_ASSERT(item->ri_reply != NULL);
+			return;
+		}
+	}
+
+	/* Verify that the item was indeed cancelled. */
+	M0_UT_ASSERT(item->ri_reply == NULL);
+	if (reinitialise) {
+		M0_UT_ASSERT(item->ri_error == 0);
+		M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_UNINITIALISED));
+
+		/* Re-post the item that was re-initialised. */
+		rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
+				      0 /* deadline */);
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(item->ri_error == 0);
+		M0_UT_ASSERT(item->ri_header.osr_xid != xid);
+		M0_UT_ASSERT(item->ri_reply != NULL);
+		M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED) &&
+			     chk_state(item->ri_reply, M0_RPC_ITEM_ACCEPTED));
+	} else {
+		M0_UT_ASSERT(item->ri_error == -ECANCELED);
+		M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
+	}
+	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
+}
+
+static void cancel_item_with_various_states(bool reinitialise)
+{
+	int rc;
+	int sub_tc = reinitialise ? 1 : 2;
+
+	M0_LOG(M0_DEBUG, "TEST:7:%d:START", sub_tc);
+
+	/*
+	 * Cancel item that is already replied.
+	 * In this case, m0_rpc_item_cancel() is a no-op.
+	 */
+	M0_LOG(M0_DEBUG, "TEST:7:%d:1:START", sub_tc);
+	fop = fop_alloc(machine);
+	item = &fop->f_item;
+
+	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
+			      0 /* deadline */);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED) &&
+		     chk_state(item->ri_reply, M0_RPC_ITEM_ACCEPTED));
+	m0_fi_enable_once("item_cancel_fi", "cancel_replied_item");
+	check_cancel(ALREADY_REPLIED, reinitialise);
+	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
+	m0_fop_put_lock(fop);
+	M0_LOG(M0_DEBUG, "TEST:7:%d:1:END", sub_tc);
 
 	/* Cancel item while in formation. */
-	M0_LOG(M0_DEBUG, "TEST:5:2:START");
+	M0_LOG(M0_DEBUG, "TEST:7:%d:2:START", sub_tc);
 	fop = fop_alloc(machine);
 	item              = &fop->f_item;
 	item->ri_session  = session;
@@ -585,13 +651,40 @@ static void test_cancel(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_ENQUEUED));
-	check_cancel();
+	m0_fi_enable_once("item_cancel_fi", "cancel_enqueued_item");
+	check_cancel(!ALREADY_REPLIED, reinitialise);
 	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
 	m0_fop_put_lock(fop);
-	M0_LOG(M0_DEBUG, "TEST:5:2:END");
+	M0_LOG(M0_DEBUG, "TEST:7:%d:2:END", sub_tc);
 
-	/* Cancel while waiting for reply. */
-	M0_LOG(M0_DEBUG, "TEST:5:3:START");
+	/* Cancel while item is in SENDING state. */
+	M0_LOG(M0_DEBUG, "TEST:7:%d:3:START", sub_tc);
+	m0_fi_enable("buf_send_cb", "delay_callback");
+	fop = fop_alloc(machine);
+	item              = &fop->f_item;
+	item->ri_session  = session;
+	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline = m0_time_from_now(0, 0);
+	rc = m0_rpc_post(item);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_reply == NULL);
+	rc = m0_rpc_item_timedwait(item, M0_BITS(M0_RPC_ITEM_SENDING),
+				   M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	m0_fi_enable_once("item_cancel_fi", "cancel_sending_item");
+	check_cancel(!ALREADY_REPLIED, reinitialise);
+	m0_fi_disable("buf_send_cb", "delay_callback");
+	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
+	m0_fop_put_lock(fop);
+	M0_LOG(M0_DEBUG, "TEST:7:%d:3:END", sub_tc);
+
+	/*
+	 * Cancel while waiting for reply.
+	 * If reply is received for this request after cancelation, then it
+	 * is dropped and is recorded using a record of the kind:
+	 * item_received] 0x.. [REPLY/6] dropped
+	 */
+	M0_LOG(M0_DEBUG, "TEST:7:%d:4:START", sub_tc);
 	m0_fi_enable_once("cs_req_fop_fom_tick", "inject_delay");
 	fop = fop_alloc(machine);
 	item              = &fop->f_item;
@@ -603,11 +696,122 @@ static void test_cancel(void)
 	rc = m0_rpc_item_timedwait(item, M0_BITS(M0_RPC_ITEM_WAITING_FOR_REPLY),
 				   M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_WAITING_FOR_REPLY));
-	check_cancel();
+	M0_UT_ASSERT(item->ri_reply == NULL);
+	m0_fi_enable_once("item_cancel_fi", "cancel_waiting_for_reply_item");
+	check_cancel(!ALREADY_REPLIED, reinitialise);
 	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
 	m0_fop_put_lock(fop);
-	M0_LOG(M0_DEBUG, "TEST:5:3:END");
+	M0_LOG(M0_DEBUG, "TEST:7:%d:4:END", sub_tc);
+
+	/*
+	 * Receiver may be in between processing some reply items.
+	 * Wait for the receiver to become idle.
+	 */
+	m0_reqh_idle_wait(machine->rm_reqh);
+	/*
+	 * Post a fop successfully to ensure that the item 'cancelled on the
+	 * sender side but being processed on the receiver side', from the
+	 * prior sub-TC has been taken to completion.
+	 * Otherwise, stop_rpc_client_and_server() may hang in a rare case.
+	 */
+	fop_test(0);
+
+	M0_LOG(M0_DEBUG, "TEST:7:%d:END", sub_tc);
+}
+
+static void test_cancel_item(void)
+{
+	/*
+	 * Cancel item along with sending 'reinitialise = true' to
+	 * m0_rpc_item_cancel().
+	 */
+	cancel_item_with_various_states(REINITIALISE_AFTER_CANCEL);
+
+	/*
+	 * Cancel item along with sending 'reinitialise = false' to
+	 * m0_rpc_item_cancel().
+	 */
+	cancel_item_with_various_states(!REINITIALISE_AFTER_CANCEL);
+}
+
+uint32_t fop_dispatched_nr = 0;
+/*
+ * This is to help keep track of how many fops issued around session
+ * cancelation have been taken to completion, may it be with success
+ * or failure.
+ */
+static void session_ut_item_cb(struct m0_rpc_item *item)
+{
+	--fop_dispatched_nr;
+}
+
+static const struct m0_rpc_item_ops session_ut_item_ops = {
+        .rio_replied = session_ut_item_cb,
+};
+
+static void test_cancel_session(void)
+{
+	uint32_t       fop_nr = 10;
+	uint32_t       fop_cancelled_nr = 0;
+	struct m0_fop *fop_arr[fop_nr];
+	uint32_t       i;
+	int            rc;
+
+	/*
+	 * Cancel rpc session while it may have items in various states like
+	 * ENQUEUED, URGENT, SENDING, SENT or WAITING_FOR_REPLY. Replies are
+	 * dropped for the items applicable.
+	 */
+	M0_LOG(M0_DEBUG, "TEST:8:1:START");
+	for (i = 0; i < fop_nr; ++i) {
+		fop = fop_alloc(machine);
+		item               = &fop->f_item;
+		item->ri_session   = session;
+		item->ri_prio      = M0_RPC_ITEM_PRIO_MID;
+		item->ri_deadline  = m0_time_from_now(0, 0);
+		fop->f_item.ri_ops = &session_ut_item_ops;
+		rc = m0_rpc_post(item);
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(item->ri_reply == NULL);
+		fop_arr[i] = fop;
+		++fop_dispatched_nr;
+	}
+
+	M0_LOG(M0_DEBUG, "TEST:8:1:2: cancel session");
+	m0_rpc_session_cancel(session);
+	M0_UT_ASSERT(fop_dispatched_nr == 0);
+
+	for (i = 0; i < fop_nr; ++i) {
+		item = &fop->f_item;
+		M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
+		M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED) ||
+			     chk_state(item, M0_RPC_ITEM_REPLIED));
+		if (chk_state(item, M0_RPC_ITEM_FAILED)) {
+			M0_UT_ASSERT(item->ri_error == -ECANCELED);
+			++fop_cancelled_nr;
+		}
+		m0_fop_put_lock(fop_arr[i]);
+	}
+	M0_UT_ASSERT(fop_cancelled_nr > 0);
+
+	/*
+	 * Post a fop to verify that it gets cancelled while in the INITIALISED
+	 * state, the session being cancelled.
+	 */
+	fop_test(-ECANCELED);
+
+	M0_LOG(M0_DEBUG, "TEST:8:1:2: restore session");
+	m0_rpc_session_restore(session);
+
+	/*
+	 * Post a fop successfully to verify that the session has been restored.
+	 * This also ensures that 'the items received on the receiver which have
+	 * been cancelled on the sender side' have been taken to completion.
+	 * Otherwise, stop_rpc_client_and_server() may hang in a rare case.
+	 */
+	fop_test(0);
+
+	M0_LOG(M0_DEBUG, "TEST:8:1:END");
 }
 
 enum {
@@ -751,7 +955,8 @@ struct m0_ut_suite item_ut = {
 		{ "item-resend",            test_resend                 },
 		{ "failure-before-sending", test_failure_before_sending },
 		{ "oneway-item",            test_oneway_item            },
-		{ "cancel",                 test_cancel                 },
+		{ "cancel",                 test_cancel_item            },
+		{ "cancel-session",         test_cancel_session         },
 		{ NULL, NULL },
 	}
 };

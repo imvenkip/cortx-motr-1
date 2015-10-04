@@ -214,6 +214,7 @@ int m0_rpc_post_with_timeout_sync(struct m0_fop                *fop,
 				  m0_time_t                     timeout)
 {
 	struct m0_rpc_item *item;
+	int                 rc;
 
 	M0_ENTRY("fop: %p, session: %p", fop, session);
 	M0_PRE(session != NULL);
@@ -224,9 +225,16 @@ int m0_rpc_post_with_timeout_sync(struct m0_fop                *fop,
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = deadline;
 
-	return M0_RC(m0_rpc_post(item) ?:
-		     m0_rpc_item_wait_for_reply(item, timeout) ?:
-		     m0_rpc_item_generic_reply_rc(item->ri_reply));
+	/*
+	 * Add a ref so that the item does not get vanished, say due to
+	 * session cancellation, while it is being waited for.
+	 */
+	m0_fop_get(fop);
+	rc = m0_rpc_post(item) ?:
+	     m0_rpc_item_wait_for_reply(item, timeout) ?:
+	     m0_rpc_item_generic_reply_rc(item->ri_reply);
+	m0_fop_put_lock(fop);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_post_with_timeout_sync);
 

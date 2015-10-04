@@ -683,7 +683,7 @@ static void packet_received(struct m0_rpc_packet    *p,
 {
 	struct m0_rpc_item *item;
 
-	M0_ENTRY();
+	M0_ENTRY("p %p", p);
 
 	machine->rm_stats.rs_nr_rcvd_packets++;
 	machine->rm_stats.rs_nr_rcvd_bytes += p->rp_size;
@@ -749,12 +749,12 @@ static void item_received(struct m0_rpc_item      *item,
 		 !!m0_rpc_item_is_oneway(item));
 
 	if (M0_FI_ENABLED("drop_item_reply") && m0_rpc_item_is_reply(item)) {
-		M0_LOG(M0_DEBUG, "item: %p [%s/%u] dropped", item,
+		M0_LOG(M0_DEBUG, "%p[%s/%u] dropped", item,
 			item_kind(item), item->ri_type->rit_opcode);
 		return;
 	}
 	if (M0_FI_ENABLED("drop_item")) {
-		M0_LOG(M0_DEBUG, "item: %p [%s/%u] dropped", item,
+		M0_LOG(M0_DEBUG, "%p[%s/%u] dropped", item,
 			item_kind(item), item->ri_type->rit_opcode);
 		return;
 	}

@@ -868,6 +868,8 @@ M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
 	M0_PRE(ftype != NULL);
 	M0_PRE(gfid  != NULL);
 
+	M0_LOG(M0_DEBUG, "iofop %p", iofop);
+
 	m0_fop_init(&iofop->if_fop, ftype, NULL,
 		    fop_release ?: m0_io_fop_release);
 	rc = m0_fop_data_alloc(&iofop->if_fop);
@@ -1941,6 +1943,7 @@ M0_INTERNAL void m0_io_fop_release(struct m0_ref *ref)
 
         fop   = container_of(ref, struct m0_fop, f_ref);
         iofop = container_of(fop, struct m0_io_fop, if_fop);
+	M0_LOG(M0_DEBUG, "iofop %p", iofop);
         m0_io_fop_fini(iofop);
         m0_free(iofop);
 }

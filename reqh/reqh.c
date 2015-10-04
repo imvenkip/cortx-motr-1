@@ -22,6 +22,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 
+#include "lib/finject.h"   /* M0_FI_ENABLED */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -194,6 +195,8 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 	uint64_t                       mds_nr;
 	struct m0_pool_version        *md_pv;
 	const struct m0_pools_common  *pc = reqh->rh_pools;
+	struct m0_rpc_session         *session;
+	uint32_t                       i;
 
 	M0_ENTRY();
 
@@ -207,6 +210,19 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 	M0_ASSERT(pc->pc_md_redundancy <=
 		  (md_pv->pv_attr.pa_N + 2 * md_pv->pv_attr.pa_K));
 	M0_ASSERT(index <= mds_nr);
+
+	if (M0_FI_ENABLED("rpc_session_restore")) {
+		/*
+		 * It is unknown exactly which session was/were cancelled.
+		 * So, might as well restore all the sessions. Restoring
+		 * session is an idempotent op for a session that was never
+		 * cancelled.
+		 */
+		for (i = 0; i < md_pv->pv_attr.pa_P; ++i) {
+			session = &md_pv->pv_dev_to_ios_map[i]->sc_session;
+			m0_rpc_session_restore(session);
+		}
+	}
 
 	pi = m0_layout_instance_to_pdi(pc->pc_md_pool_linst);
 	src.sa_group = m0_fid_hash(gob_fid);

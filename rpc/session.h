@@ -333,10 +333,28 @@ struct m0_rpc_session {
 	struct m0_rpc_item_cache  s_reply_cache;
 
 	/**
-	 * Requests which are handling already.
+	 * Requests which are handled already.
 	 * This cache is protected with rpc machine lock.
 	 */
 	struct m0_rpc_item_cache  s_req_cache;
+
+	/**
+	 * Flag to indicate if this session has been cancelled.
+	 * This flag is set to TRUE at the beginning of m0_rpc_session_cancel()
+	 * execution.
+	 * Once this flag is set to TRUE, subsequent m0_rpc_post() against
+	 * the same session returns -ECANCELED error, until the session is
+	 * restored.
+	 */
+	bool                      s_cancelled;
+
+	/**
+	 * Items submitted to formation.
+	 * Required in case RPC session is to be cancelled so as to cancel
+	 * all such items.
+	 * This cache is protected with rpc machine lock.
+	 */
+	struct m0_tl              s_pending_cache;
 };
 
 /**

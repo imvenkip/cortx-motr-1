@@ -65,7 +65,7 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 	struct m0_rpc_item *item;
 	m0_time_t           now = m0_time_now();
 
-	M0_ENTRY("fop: %p, session: %p", fop, session);
+	M0_ENTRY("fop: %p, session: %p, item %p", fop, session, &fop->f_item);
 
 	item                = &fop->f_item;
 	item->ri_session    = session;

@@ -367,8 +367,10 @@ fmio_stob_read_full()
 		return 0 # Not returning error intentionally
 	fi
 
-	str1="00000000"
-	fid="0010000"
+	stob_type=1
+	str1=00000
+	str2=00000000:
+	fid="10000"
 	for (( i=1; i <= $P; ++i ))
 	do
 		if [ $i -le 4 ]
@@ -383,8 +385,9 @@ fmio_stob_read_full()
 		else
 			ios="ios4"
 		fi
-		str2=$(printf "%x" $i)
-		stobid="$str1$str2$fid"
+		dev_id=$(printf "%x" $i)
+		stobid="$stob_type$str1$dev_id$str2$fid"
+		echo "stobid $stobid"
 
 		echo "od -A d -c $MERO_M0T1FS_TEST_DIR/$ios/stobs/o/$stobid"
 		od -A d -c $MERO_M0T1FS_TEST_DIR/$ios/stobs/o/$stobid
@@ -488,6 +491,7 @@ fmio_io_test()
 		echo "Repairing after device1 failure"
 		fmio_sns_repair || return 1
 	fi
+
 	echo -e "\n*** $test_name test 1: Read after first $step ***"
 	fmio_files_compare || {
 		echo "Failed: read after first $step..."

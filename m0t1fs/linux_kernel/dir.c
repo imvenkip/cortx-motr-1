@@ -69,17 +69,18 @@ struct cob_fop {
 
 static void cob_rpc_item_cb(struct m0_rpc_item *item)
 {
-	int                              rc;
+	int                              rc = 0;
 	struct m0_fop                   *fop;
 	struct cob_fop                  *cfop;
 	struct cob_req                  *creq;
-	struct m0_fop_cob_op_reply      *reply;
+	struct m0_fop_cob_op_reply      *reply = NULL;
 	struct m0_fop_cob_op_rep_common *r_common;
 
-	M0_ENTRY("rpc_item %p", item);
 	M0_PRE(item != NULL);
 
 	fop  = m0_rpc_item_to_fop(item);
+	M0_ENTRY("rpc_item %p[%u], item->ri_error %d", item,
+		 m0_fop_opcode(fop), item->ri_error);
 	cfop = container_of(fop, struct cob_fop, c_fop);
 	creq = cfop->c_req;
 
@@ -93,13 +94,15 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 	reply = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
 	r_common = &reply->cor_common;
 
+	M0_LOG(M0_DEBUG, "%p[%u], item->ri_error %d, reply->cor_rc %d", item,
+	       item->ri_type->rit_opcode, item->ri_error, reply->cor_rc);
 	if (reply->cor_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		struct m0_fv_event     *event;
 		struct m0t1fs_sb       *csb = creq->cr_csb;
 		uint32_t                i;
 		struct m0_pool_version *pv;
 
-		/* Retrieve the latest server version and updates and apply
+		/* Retrieve the latest server version and update and apply
 		 * to the client's copy.
 		 */
 		pv = m0_pool_version_find(&csb->csb_pools_common,
@@ -120,11 +123,13 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 out:
 	if (creq->cr_rc == 0)
 		creq->cr_rc = rc;
+	M0_LOG(M0_DEBUG, "%p[%u] ref %llu, cob_req_fop %p, cr_rc %d, "
+	       FID_F"", item, m0_fop_opcode(fop),
+	       (unsigned long long)m0_ref_read(&fop->f_ref),
+	       cfop, creq->cr_rc, FID_P(&creq->cr_fid));
 
 	m0_semaphore_up(&creq->cr_sem);
 
-	M0_LOG(M0_DEBUG, "cob_req_fop=%p rc %d, "FID_F"", cfop,
-			creq->cr_rc, FID_P(&creq->cr_fid));
 	M0_LEAVE();
 }
 
@@ -1764,6 +1769,7 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 	int                                rc;
 	struct m0_fop                     *fop;
 	struct m0_rpc_session             *session;
+	struct m0_rpc_item                *item = NULL;
 	union {
 		struct m0_fop_create_rep    *create_rep;
 		struct m0_fop_unlink_rep    *unlink_rep;
@@ -1807,21 +1813,23 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		goto out;
 	}
 
+	item = m0_fop_to_rpc_item(fop);
+
 	rc = m0t1fs_mds_cob_fop_populate(csb, mo, fop);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR,
-		       "m0t1fs_mds_cob_fop_populate() failed with %d", rc);
+		       "%p[%u] m0t1fs_mds_cob_fop_populate() failed with %d",
+		       item, m0_fop_opcode(fop), rc);
 		goto out;
 	}
 
-	M0_LOG(M0_DEBUG, "Send md operation %u to session %p (sid=%lu)",
-			 m0_fop_opcode(fop), session,
+	M0_LOG(M0_DEBUG, "%p[%u] Send md operation to session %p (sid=%lu)",
+			 item, m0_fop_opcode(fop), session,
 			 (unsigned long)session->s_session_id);
-
 	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "m0_rpc_post_sync(%x) failed with %d",
-		       m0_fop_opcode(fop), rc);
+		M0_LOG(M0_ERROR, "%p[%u] m0_rpc_post_sync failed with %d",
+		       item, m0_fop_opcode(fop), rc);
 		goto out;
 	}
 
@@ -1904,8 +1912,8 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		remid = &u.delxattr_rep->d_mod_rep.fmr_remid;
 		break;
 	default:
-		M0_LOG(M0_ERROR, "Unexpected fop opcode %x",
-		       m0_fop_opcode(fop));
+		M0_LOG(M0_ERROR, "%p[%u] Unexpected fop opcode",
+		       item, m0_fop_opcode(fop));
 		rc = M0_ERR(-ENOSYS);
 		goto out;
 	}
@@ -1916,6 +1924,7 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		m0t1fs_fsync_record_update(ctx, csb, NULL, remid);
 
 out:
+	M0_LOG(M0_DEBUG, "%p[%u], rc %d", item, m0_fop_opcode(fop), rc);
 	m0_fop_put0_lock(fop);
 	return M0_RC(rc);
 }
@@ -2059,12 +2068,18 @@ static void cfop_release(struct m0_ref *ref)
 {
 	struct m0_fop  *fop;
 	struct cob_fop *cfop;
+	struct cob_req *creq;
 
 	M0_ENTRY();
 	M0_PRE(ref != NULL);
 
 	fop  = container_of(ref, struct m0_fop, f_ref);
 	cfop = container_of(fop, struct cob_fop, c_fop);
+	creq = cfop->c_req;
+	M0_LOG(M0_DEBUG, "%p[%u] ri_error %d, cob_req_fop %p, cr_rc %d, "
+	       FID_F, &fop->f_item, m0_fop_opcode(fop),
+	       fop->f_item.ri_error, cfop, creq->cr_rc,
+	       FID_P(&creq->cr_fid));
 	m0_fop_fini(fop);
 	m0_free(cfop);
 
@@ -2082,7 +2097,7 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 	struct m0_fid               cob_fid;
 	const struct m0_fid        *gob_fid;
 	uint32_t                    cob_idx;
-	struct m0_fop              *fop;
+	struct m0_fop              *fop = NULL;
 	struct cob_fop             *cfop;
 	struct m0_rpc_session      *session;
 	struct m0_pool_version     *pver;
@@ -2138,8 +2153,8 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 	if (rc != 0)
 		goto fop_put;
 
-	M0_LOG(M0_DEBUG, "Send %s "FID_F" to session %p (sid=%lu)",
-	       m0_fop_name(fop),
+	M0_LOG(M0_DEBUG, "%p[%u] Send %s "FID_F" to session %p (sid=%lu)",
+	       &fop->f_item, m0_fop_opcode(fop), m0_fop_name(fop),
 	       FID_P(&cob_fid), session, (unsigned long)session->s_session_id);
 
 	fop->f_item.ri_session  = session;
@@ -2199,7 +2214,7 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 	struct m0_fid                    cob_fid;
 	int                              rc = 0;
 	struct m0_cob_attr               attr;
-	struct m0_rpc_session           *session;
+	struct m0_rpc_session           *session = NULL;
 	struct m0t1fs_mdop               mo;
 	uint32_t                         i;
 	struct m0_fop_cob_getattr_reply *getattr_rep;
@@ -2234,10 +2249,10 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 		mo.mo_attr.ca_pver = ci->ci_pver;
 		m0t1fs_ios_cob_fop_populate(csb, &mo, fop, &cob_fid, gob_fid, i);
 
-		M0_LOG(M0_DEBUG, "Send cob operation %u %s to session %p"
-				"(sid=%lu)", m0_fop_opcode(fop),
-				m0_fop_name(fop), session,
-				(unsigned long)session->s_session_id);
+		M0_LOG(M0_DEBUG, "%p[%u] Send cob operation %s to session %p"
+		       "(sid=%lu)", &fop->f_item, m0_fop_opcode(fop),
+		       m0_fop_name(fop), session,
+		       (unsigned long)session->s_session_id);
 
 		rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
 		if (rc != 0) {
@@ -2247,7 +2262,8 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 		getattr_rep = m0_fop_data(m0_rpc_item_to_fop(
 					  fop->f_item.ri_reply));
 		rc = getattr_rep->cgr_rc;
-		M0_LOG(M0_DEBUG, "getattr returned: %d", rc);
+		M0_LOG(M0_DEBUG, "%p[%u] getattr returned: %d", &fop->f_item,
+		       m0_fop_opcode(fop), rc);
 
 		if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 			struct m0_fop_cob_op_rep_common *r_common;
@@ -2284,6 +2300,7 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 		}
 		m0_fop_put0_lock(fop);
 	}
+
 	return M0_RC(rc);
 }
 

@@ -201,6 +201,7 @@ void m0_fop_put_lock(struct m0_fop *fop)
 	M0_PRE(m0_ref_read(&fop->f_ref) > 0);
 
 	mach = m0_fop_rpc_machine(fop);
+	M0_ASSERT(mach != NULL);
 	m0_rpc_machine_lock(mach);
 	m0_fop_put(fop);
 	m0_rpc_machine_unlock(mach);

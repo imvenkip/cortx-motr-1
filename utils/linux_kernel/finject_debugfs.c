@@ -30,6 +30,7 @@
 #include <linux/ctype.h>     /* isprint */
 #include <linux/slab.h>      /* kfree */
 
+#include "lib/thread.h"      /* M0_THREAD_INIT */
 #include "lib/mutex.h"       /* m0_mutex */
 #include "lib/time.h"        /* m0_time_now */
 #include "lib/misc.h"        /* M0_SET_ARR0 */
@@ -306,6 +307,7 @@ static ssize_t fi_ctl_write(struct file *file, const char __user *user_buf,
 	int       argc;
 	char    **argv;
 
+	M0_THREAD_ENTER;
 	if (size > sizeof buf - 1)
 		return -EINVAL;
 

@@ -264,9 +264,18 @@ static int cancel_fop_fill(struct rm_out     *outreq,
 	return M0_RC(rc);
 }
 
+static void outreq_fini(struct rm_out *outreq, int rc)
+{
+	outreq->ou_req.rog_rc = rc;
+	m0_rm_outgoing_complete(&outreq->ou_req);
+	m0_fop_put_lock(&outreq->ou_fop);
+}
+
 M0_INTERNAL void m0_rm_outgoing_send(struct m0_rm_outgoing *outgoing)
 {
-	struct rm_out            *outreq;
+	struct rm_out      *outreq;
+	struct m0_rpc_item *item;
+	int                 rc;
 
 	M0_ENTRY("outgoing: %p", outgoing);
 	M0_PRE(outgoing->rog_sent == false);
@@ -274,6 +283,8 @@ M0_INTERNAL void m0_rm_outgoing_send(struct m0_rm_outgoing *outgoing)
 	outreq = container_of(outgoing, struct rm_out, ou_req);
 	M0_ASSERT(outreq->ou_ast.sa_cb == NULL);
 	M0_ASSERT(outreq->ou_fop.f_item.ri_session == NULL);
+
+	item = &outreq->ou_fop.f_item;
 
 	switch (outgoing->rog_type) {
 	case M0_ROT_BORROW:
@@ -289,15 +300,25 @@ M0_INTERNAL void m0_rm_outgoing_send(struct m0_rm_outgoing *outgoing)
 		break;
 	}
 
-	M0_LOG(M0_DEBUG, "sending request:%p over session: %p",
-			 outreq, outreq->ou_fop.f_item.ri_session);
+	item->ri_session = outgoing->rog_want.rl_other->rem_session;
+	item->ri_ops     = &rm_request_rpc_ops;
 
-	outreq->ou_fop.f_item.ri_session =
-		outgoing->rog_want.rl_other->rem_session;
-	outreq->ou_fop.f_item.ri_ops     = &rm_request_rpc_ops;
+	M0_LOG(M0_DEBUG, "%p[%u] sending request:%p over session: %p",
+	       item, item->ri_type->rit_opcode, outreq, item->ri_session);
+
 	if (M0_FI_ENABLED("no-rpc"))
 		return;
-	m0_rpc_post(&outreq->ou_fop.f_item);
+
+	rc = m0_rpc_post(item);
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "%p[%u], request %p could not be posted, "
+		       "rc %d", item, item->ri_type->rit_opcode, outgoing, rc);
+		m0_sm_ast_cancel(
+			owner_grp(outreq->ou_req.rog_want.rl_credit.cr_owner),
+			&outreq->ou_ast);
+		outreq_fini(outreq, rc);
+		return;
+	}
 
 	outgoing->rog_sent = true;
 
@@ -380,13 +401,6 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 
 out:
 	return M0_RC(rc);
-}
-
-static void outreq_fini(struct rm_out *outreq, int rc)
-{
-	outreq->ou_req.rog_rc = rc;
-	m0_rm_outgoing_complete(&outreq->ou_req);
-	m0_fop_put_lock(&outreq->ou_fop);
 }
 
 static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -558,6 +572,7 @@ static void reply_process(struct m0_rpc_item *item)
 	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
 	owner = outreq->ou_req.rog_want.rl_credit.cr_owner;
 
+	M0_ASSERT(outreq->ou_ast.sa_cb != NULL);
 	m0_sm_ast_post(owner_grp(owner), &outreq->ou_ast);
 	M0_LEAVE();
 }
