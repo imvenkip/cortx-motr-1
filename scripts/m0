@@ -84,69 +84,22 @@ cmd_run_kut() {
     $SUDO "$SRC/ut/m0kut" "$@"
 }
 
-say() { echo "<< $* >>"; }
-
 cmd_run_st() {
-    run_init
+    local pattern
+    local f
 
-    say net ST
-    $SUDO "$SRC/net/test/st/st.sh"
+    # Export variables for system tests.
+    export RUNDIR SRC SUDO
 
-    say rpc ping
-    "$SRC/rpc/it/st.sh"
-
-    say console ST
-    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.console-st "$SRC/console/st/console-st.sh"
-
-    say start/stop service ST
-    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.sss-st "$SRC/sss/st"
-
-    say m0confgen
-    cd $SRC; utils/m0confgen --self-check; cd -
-
-    say conf ST
-    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.conf-st "$SRC/conf/st"
-
-    say m0mount ST
-    $SUDO $SRC/scripts/m0mount -alvvsL -n 1 -d 2 -k 1 -p 4 -o -m -q
-
-    say spiel ST
-    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.spiel-st "$SRC/spiel/st"
-
-    say HA ST
-    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.ha-st "$SRC/ha/st/st"
-
-    say assign pool-version ST
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_pool_version_assignment.sh"
-
-    say IO ST
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
-
-    say multi-clients support ST
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_multi_clients.sh"
-
-    say degraded-mode IO ST in oostore mode
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh"
-
-    say pool machine query/set testing
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh"
-
-    say SNS single failure repair and rebalance
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_1f.sh"
-
-    say SNS multi failure repair
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh"
-
-if false; then # XXX ENABLEME after MERO-1086 is fixed
-    say Concurrent i/o with sns repair
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_cc_io_with_sns_repair.sh"
-fi
-
-    say sns repair/rebalance quiesce and resume
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_quiesce.sh"
-
-    say fsync ST
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_fsync_test.sh"
+    rundir_init
+    for pattern in ${@:-[0-9][0-9]*}; do
+        find "$SRC/scripts/st.d/" -maxdepth 1 \! -type d -name $pattern \
+            -perm +a=x -print |
+            while read f; do
+                echo "<< ${f##*/} >>" >&2
+                $f
+            done
+    done
 }
 
 cmd_run_all() {
@@ -162,7 +115,8 @@ cmd_dist_check() {
 }
 
 cmd_check_everything() {
-    local i cmd
+    local i
+    local cmd
 
     for i in 0 1; do
         echo "<< CONFIGURE_OPTS='$CONFIGURE_OPTS' >>" >&2
@@ -198,26 +152,32 @@ Commands:
     run-ut [OPTION]...   Run user-space unit tests.
                          OPTIONs are passed to 'ut/m0ut'.
 
-    run-kut             Run kernel unit tests.
+    run-kut              Run kernel unit tests.
 
-    run-st              Run system tests.
+    run-st [PATTERN]...  Run system tests.  Optional arguments specify which
+                         tests to run: each of the PATTERNs is prefixed with
+                         'scripts/st.d/' and those files that match
+                         the resulted shell pattern are executed.
+                         PATTERN defaults to '[0-9][0-9]*'.
+                         .
+                         Pattern examples:
+                             01net
+                             0{1,3..5}* {09..13}*
 
-    run-all             Run unit and system tests.
+    run-all              Run unit and system tests.
 
-    dist-check          Create and validate Mero distribution archive and rpm.
+    dist-check           Create and validate Mero distribution archive and rpm.
 
-    check-everything  = (rebuild + dist-check + run-all) * 2
-                        Please run this command before landing.
-                        .
-                        '* 2' means that the command is being run two
-                        times; the second time with './configure
-                        --disable-m0-asserts'.
+    check-everything  =  (rebuild + dist-check + run-all) * 2
+                         *NOTE* Please run this command before landing.
+                         .
+                         The command is executed twice (note '* 2' above):
+                         the 2nd time with './configure --disable-m0-asserts'.
 
-    clean [-f]          Execute 'make distclean' in Mero sources directory.
-                        '-f' will also remove untracked files and directories
-                        (i.e. those not added to the git repository).
-                        *WARNING*: You do not want to use '-f' option
-                        if there are any untracked files you care about.
+    clean [-f]           Execute 'make distclean' in Mero sources directory.
+                         '-f' will also remove untracked files and directories
+                         (i.e. those not added to the git repository).
+                         *CAUTION* Be careful with '-f' option!
 
     help    Show this help and exit.
 

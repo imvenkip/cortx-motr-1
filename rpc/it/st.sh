@@ -1,13 +1,18 @@
 #!/bin/bash
-CWD=$(cd "$( dirname "$0")" && pwd)
-SRC="$CWD/../.."
+set -eu
+
+if [ -z "${SRC:-}" ]; then
+    SRC="$(readlink -f $0)"
+    SRC="${SRC%/*/*/*}"
+fi
+[ -n "${SUDO:-}" ] || SUDO='sudo -E'
 
 rc=0
-sudo "$SRC/conf/st" insmod
-"$CWD/st" || rc=$?
-sudo "$SRC/conf/st" rmmod
+$SUDO "$SRC/conf/st" insmod
+"$SRC/rpc/it/st" || rc=$?
+$SUDO "$SRC/conf/st" rmmod
 [ $rc -eq 0 ] || exit $rc
 
-# this msg is used by Jenkins as a test success criteria;
-# it should appear on STDOUT
-echo "rpcping: test status: SUCCESS"
+# This message is used by Jenkins as a test success criteria;
+# it should appear in STDOUT.
+echo 'rpcping: test status: SUCCESS'

@@ -1,0 +1,4 @@
+#!/bin/bash
+set -eu
+
+exec $SUDO SANDBOX_DIR=$RUNDIR/sandbox.ha-st "$SRC/ha/st/st"

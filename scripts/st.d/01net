@@ -1,0 +1,4 @@
+#!/bin/bash
+set -eu
+
+exec $SUDO "$SRC/net/test/st/st.sh"

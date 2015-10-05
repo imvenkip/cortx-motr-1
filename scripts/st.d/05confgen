@@ -1,0 +1,5 @@
+#!/bin/bash
+set -eu
+
+cd $SRC
+exec utils/m0confgen --self-check

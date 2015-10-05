@@ -1,0 +1,5 @@
+#!/bin/bash
+set -eu
+
+exec $SUDO SANDBOX_DIR=$RUNDIR/sandbox.console-st \
+    "$SRC/console/st/console-st.sh"
