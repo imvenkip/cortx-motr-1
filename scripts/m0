@@ -24,12 +24,6 @@ SUDO='sudo -E'
 
 die() { echo "$@" >&2; exit 1; }
 
-clean() {
-    cd "$SRC"
-    make distclean || true
-    [ "${1:-}" = '-f' ] && git clean -fdx || true
-}
-
 _make() {
     local OUT=`mktemp`
     local TARGET=${1:-}
@@ -38,7 +32,7 @@ _make() {
     make ${MAKE_OPTS:-} $TARGET 2>&1 | tee $OUT
     [ ${PIPESTATUS[0]} -eq 0 ] || exit ${PIPESTATUS[0]}
     if grep 'WARNING' $OUT; then
-	die 'WARNING in make output is treated as error'
+        die 'WARNING in make output is treated as error'
     fi
 }
 
@@ -48,23 +42,51 @@ build() {
     _make
 }
 
-run_init() {
+_exec() {
+    [ $1 = 'cmd_help' ] || echo "----- ${@#cmd_} -----" >&2
+    $@
+}
+
+rundir_init() {
     $SUDO rm -rf "$RUNDIR"  # Ouch!
     $SUDO mkdir -m 0777 -p "$RUNDIR"
     cd "$RUNDIR"
 }
 
-run_ut()  { run_init; $SUDO "$SRC/utils/m0run" m0ut -- "$@"; }
+cmd_make() {
+    cd "$SRC"
+    if [ -f Makefile ]; then
+        _make
+    else
+        build
+    fi
+}
 
-run_kut() {
-    run_init
+cmd_clean() {
+    cd "$SRC"
+    make distclean || true
+    [ "${1:-}" = '-f' ] && git clean -fdx || true
+}
+
+cmd_rebuild() {
+    cmd_clean
+    cmd_build
+}
+
+cmd_run_ut() {
+    rundir_init
+    $SUDO "$SRC/utils/m0run" m0ut -- "$@"
+}
+
+cmd_run_kut() {
+    rundir_init
     echo 'Running kernel UT (this may take a while) ...'
     $SUDO "$SRC/ut/m0kut" "$@"
 }
 
 say() { echo "<< $* >>"; }
 
-run_st() {
+cmd_run_st() {
     run_init
 
     say net ST
@@ -127,36 +149,54 @@ fi
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_fsync_test.sh"
 }
 
-dist_check() {
+cmd_run_all() {
+    cmd_run_ut
+    cmd_run_kut
+    cmd_run_st
+}
+
+cmd_dist_check() {
     cd "$SRC"
     [ -f Makefile ] || die "You need to \`$PROG make' first."
     _make rpms
 }
 
-check_everything() {
-    for cmd in clean build dist_check run_ut run_kut run_st; do
-	echo "----- $cmd -----" >&2
-	$cmd
+cmd_check_everything() {
+    local i cmd
+
+    for i in 0 1; do
+        echo "<< CONFIGURE_OPTS='$CONFIGURE_OPTS' >>" >&2
+        for cmd in rebuild dist_check run_ut run_kut run_st; do
+            _exec cmd_$cmd
+        done
+
+        if echo ${CONFIGURE_OPTS:-} | grep -qe '--disable-m0-asserts'; then
+            return
+        else
+            CONFIGURE_OPTS="${CONFIGURE_OPTS:-} --disable-m0-asserts"
+        fi
     done
 }
 
-help() {
-    [ $1 -eq 0 ] && _usage || _usage >&2
-    exit $1
+cmd_help() {
+    local ret=${1:-0}
+
+    [ $ret -eq 0 ] && usage || usage >&2
+    exit $ret
 }
 
-_usage() {
+usage() {
     cat <<EOF
-Usage: $PROG COMMAND [OPTION]...
+Usage: $PROG {COMMAND [OPTION]...}...
 
 Commands:
-    make                Execute 'make' in Mero directory, falling back to
-                        '$PROG rebuild' if no Makefile is found.
+    make                 Execute 'make' in Mero directory, falling back to
+                         '$PROG rebuild' if no Makefile is found.
 
-    rebuild             Clean and build the whole Mero anew.
+    rebuild              Clean and build the whole Mero anew.
 
-    run-ut [OPTION]...  Run user-space unit tests.
-                        OPTIONs are passed to 'ut/m0ut'.
+    run-ut [OPTION]...   Run user-space unit tests.
+                         OPTIONs are passed to 'ut/m0ut'.
 
     run-kut             Run kernel unit tests.
 
@@ -185,35 +225,31 @@ Environment variables:
     CONFIGURE_OPTS      Extra options for './configure' command.
     MAKE_OPTS           Extra options for 'make' command.
 
-M0 sources: $SRC
-UT output:  $RUNDIR
+Mero sources: $SRC
+UT output:    $RUNDIR
 EOF
 }
 
-case "${1:-}" in
-    make)
-	cd "$SRC"
-	if [ -f Makefile ]; then
-	    _make
-	else
-	    build
-	fi;;
-    rebuild) clean; build;;
-    run-ut)  shift; run_ut "$@";;
-    run-kut) shift; run_kut "$@";;
-    run-st)  run_st;;
-    run-all)
-        shift; run_ut "$@"
-        run_kut
-        run_st;;
-    dist-check) shift; dist_check "$@";;
-    check-everything)
-	check_everything
-	echo ${CONFIGURE_OPTS:-} | grep -qe '--disable-m0-asserts' || {
-	    CONFIGURE_OPTS="${CONFIGURE_OPTS:-} --disable-m0-asserts"
-	    check_everything
-	};;
-    clean) shift; clean "$@";;
-    help) help 0;;
-    *)    help 1;;
-esac
+CMD=
+OPTS=
+while [ $# -gt 0 ]; do
+    case $1 in
+        make|clean|rebuild|run-ut|run-kut|run-st|run-all|dist-check| \
+            check-everything|help)
+            [ -z "$CMD" ] || _exec $CMD $OPTS
+            CMD=cmd_${1//-/_}
+            OPTS=;;
+        *)
+            [ -n "$CMD" ] || {
+                echo "Invalid command: $1" >&2
+                die "Type \`$PROG help' for usage."
+            }
+            OPTS+=" $1";;
+    esac
+    shift
+done
+if [ -n "$CMD" ]; then
+    _exec $CMD $OPTS
+else
+    cmd_help 1
+fi
