@@ -197,7 +197,13 @@ if initctl list | grep -q 'mero' ; then
 fi || true
 %endif
 
+
+%if 0%{?el6}
+%post
+%else
 %post -e
+%endif
+
 /sbin/depmod -a
 
 %if %{with systemd}
