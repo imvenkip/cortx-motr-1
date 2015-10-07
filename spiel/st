@@ -41,6 +41,7 @@ EOF
     for i in $(seq 1 $DEV_NR)
     do
         dd if=/dev/zero of=$SANDBOX_DIR/${i}.img bs=$DEV_SIZE seek=$DEV_SIZE count=1
+        losetup -d /dev/loop$i &> /dev/null || true
         losetup /dev/loop$i $SANDBOX_DIR/${i}.img
         cat >> $SANDBOX_DIR/disks.conf << EOF
        - id: $i
@@ -225,7 +226,7 @@ m0d_with_rms_start() {
     echo $M0_CORE_DIR/mero/m0d $OPTS
     $M0_CORE_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
     local PID=$!
-    sleep 1
+    sleep 10
     kill -0 $PID 2>/dev/null ||
     error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
 }
@@ -242,7 +243,7 @@ test_m0d_start() {
     echo $M0_CORE_DIR/mero/m0d $OPTS
     $M0_CORE_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
     local PID=$!
-    sleep 1
+    sleep 10
     kill -0 $PID 2>/dev/null ||
     error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
 }
@@ -301,7 +302,7 @@ services = ['ios', 'mds2', 'sns_repair', 'sns_rebalance']
 "
 ### enum of service health statuses. see m0_service_health in reqh/reqh_service.h
     export HEALTH="
-HEALTH_GOOD, HEALTH_BAB, HEALTH_INACTIVE, HEALTH_UNKNOWN = range(4)
+HEALTH_GOOD, HEALTH_BAD, HEALTH_INACTIVE, HEALTH_UNKNOWN = range(4)
 "
 }
 
@@ -574,6 +575,7 @@ export_vars
 say "Construct confc db"
 construct_db
 
+say "Test m0d start"
 test_m0d_start
 
 say "Validate health"
