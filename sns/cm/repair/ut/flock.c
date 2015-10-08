@@ -45,15 +45,19 @@ enum {
 	NR_FIDS = 10,
 };
 
-static struct m0_reqh		*reqh;
-static struct m0_reqh_service   *service;
-static struct m0_cm		*cm;
-static struct m0_sns_cm		*scm;
-static struct m0_fom_simple	fs[NR];
-static struct m0_fid		test_fids[NR_FIDS];
-static struct m0_semaphore	sem[NR_FIDS];
-static struct m0_fid		gfid;
-static int			fid_index;
+struct flock_ut_fom {
+	struct m0_fom_simple uf_fom;
+	struct m0_semaphore  uf_sem;
+};
+
+static struct m0_reqh          *reqh;
+static struct m0_reqh_service  *service;
+static struct m0_cm            *cm;
+static struct m0_sns_cm        *scm;
+static struct flock_ut_fom      fs[NR];
+static struct m0_fid            test_fids[NR_FIDS];
+static struct m0_fid            gfid;
+static int                      fid_index;
 
 enum {
 	FILE_LOCK = M0_FOM_PHASE_FINISH + 1,
@@ -109,7 +113,12 @@ static int file_lock_verify(struct m0_sns_cm *scm, struct m0_fid *fid,
 	return 0;
 }
 
-static int flock_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
+static struct flock_ut_fom *fom_simple2flock_fom(struct m0_fom_simple *fs)
+{
+	return container_of(fs, struct flock_ut_fom, uf_fom);
+}
+
+static int flock_ut_fom_tick(struct m0_fom *fom, void *data, int *phase)
 {
 	int                        rc;
 	struct m0_sns_cm_file_ctx *fctx;
@@ -161,7 +170,6 @@ static int flock_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 		break;
 	case FILE_UNLOCK_WAIT:
 		M0_UT_ASSERT(m0_scmfctx_htable_lookup(&scm->sc_file_ctx, fid) == NULL);
-		m0_semaphore_up(&sem[*sem_id]);
 		*phase = M0_FOM_PHASE_FINISH;
 		rc = M0_FSO_WAIT;
 		break;
@@ -176,6 +184,13 @@ static int flock_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 	return rc;
 }
 
+void flock_ut_fom_free(struct m0_fom_simple *sfom)
+{
+	struct flock_ut_fom *ut_fom = fom_simple2flock_fom(sfom);
+
+	m0_semaphore_up(&ut_fom->uf_sem);
+}
+
 static void sns_flock_multi_fom(void)
 {
 	uint32_t		   i;
@@ -183,25 +198,25 @@ static void sns_flock_multi_fom(void)
 	M0_SET0(&fs);
 	m0_fid_set(&gfid, 0, KEY_START);
 	for (i = 0; i < NR; i++) {
-		m0_semaphore_init(&sem[i], 0);
-		M0_FOM_SIMPLE_POST(&fs[i], reqh, &flock_ut_conf,
-				   &flock_ut_fom_tick, NULL, &i, 2);
-		m0_semaphore_down(&sem[i]);
-		m0_semaphore_fini(&sem[i]);
+		m0_semaphore_init(&fs[i].uf_sem, 0);
+		M0_FOM_SIMPLE_POST(&fs[i].uf_fom, reqh, &flock_ut_conf,
+				   &flock_ut_fom_tick, &flock_ut_fom_free, NULL, 2);
+	}
+	for (i = 0; i < NR; i++) {
+		m0_semaphore_down(&fs[i].uf_sem);
+		m0_semaphore_fini(&fs[i].uf_sem);
 	}
 }
 
 static void sns_flock_single_fom(void)
 {
-	uint32_t sem_id = 0;
-
 	m0_fid_set(&gfid, 0, KEY_START);
 
-	m0_semaphore_init(&sem[sem_id], 0);
-	M0_FOM_SIMPLE_POST(&fs[0], reqh, &flock_ut_conf,
-			   &flock_ut_fom_tick, NULL, &sem_id, 2);
-	m0_semaphore_down(&sem[sem_id]);
-	m0_semaphore_fini(&sem[sem_id]);
+	m0_semaphore_init(&fs[0].uf_sem, 0);
+	M0_FOM_SIMPLE_POST(&fs[0].uf_fom, reqh, &flock_ut_conf,
+			   &flock_ut_fom_tick, &flock_ut_fom_free, NULL, 2);
+	m0_semaphore_down(&fs[0].uf_sem);
+	m0_semaphore_fini(&fs[0].uf_sem);
 }
 
 static int fids_set(void)
