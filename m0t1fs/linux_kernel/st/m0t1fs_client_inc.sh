@@ -183,10 +183,10 @@ show_write_speed()
 		awk -F, '{print $3}'
 }
 
+# This test runs for various unit size values and writes
+# in multiple of full stripes (sum of data units in parity group).
 io_combinations()
 {
-	# This test runs for various stripe unit size values
-
 	echo "Test: io_combinations: (N,P,K) = ($2,$1,$3) $4 ..."
 
 	pool_width=$1
@@ -201,10 +201,7 @@ io_combinations()
 		return 1
 	fi
 
-	# Since current I/O supports full stripe I/O,
-	# I/O sizes are multiple of stripe size
-
-	# stripe unit size in K
+	# unit size in K
 	for unit_size in 4 8 16 32 64 128 256 512 1024 2048 4096
 	do
 	    stripe_size=`expr $unit_size '*' $data_units`
