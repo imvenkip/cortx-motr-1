@@ -93,6 +93,7 @@ Mero filesystem runtime environment and servers.
 Summary: Mero include headers
 Group: Development/Kernel
 Provides: %{name}-devel = %{version}-%{release}
+Requires: %{name}-libs = %{version}-%{release}
 
 %description devel
 This package contains the headers required to build external
@@ -182,13 +183,13 @@ fi
 %files devel -f devel.files
 %endif
 
-%post -e
+%post
 /sbin/depmod -a
 systemctl daemon-reload
 /bin/sed -i -e "s/<host>/$(hostname -s)/" /etc/mero/genders
 /bin/sed -i -e "s/00000000-0000-0000-0000-000000000000/$(uuidgen)/" /etc/mero/genders
 
-if [ x%%{?no_trace_logs} != x ] ; then
+if [ -e /tmp/mero_no_trace_logs ] ; then
     /bin/sed -i -r -e "s/(MERO_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/mero
     /bin/sed -i -r -e "s/(MERO_TRACED_M0D=)yes/\1no/" /etc/sysconfig/mero
 fi
