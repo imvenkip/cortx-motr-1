@@ -13,14 +13,14 @@ proc full_path {name} {
 proc wait_for {sid name} {
     expect -i $sid {
         timeout {
-            send_error "$name: timed out"
+            send_error "$name: timed out\n"
             return 110  ;# ETIMEDOUT
         }
         eof
     }
     set rc [lindex [wait -i $sid] 3]
     if {$rc != 0} {
-	send_error "$name: exit status $rc"
+	send_error "$name: exit status $rc\n"
     }
     return $rc
 }
