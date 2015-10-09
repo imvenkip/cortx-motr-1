@@ -70,7 +70,7 @@ cmd_clean() {
 
 cmd_rebuild() {
     cmd_clean
-    cmd_build
+    build
 }
 
 cmd_run_ut() {
