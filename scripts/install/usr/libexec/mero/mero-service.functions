@@ -93,6 +93,18 @@ m0_genders_value_of()
     nodeattr -f $MERO_GENDERS_CONF -v $node $var_name
 }
 
+# Checks if particular variable exists in genders "database"
+#   @param  $1  name of a variable
+#   @param  $2  optional name of a node, for which the query is performed, if
+#               ommited, then current node is queried
+m0_genders_has_variable()
+{
+    local var_name=$1
+    local node=$2
+
+    nodeattr -f $MERO_GENDERS_CONF -Q $node $var_name
+}
+
 # Start LNET service
 m0_start_lnet()
 {
@@ -243,7 +255,7 @@ m0_get_global_services()
         '') echo $services
             ;;
         *)
-            echo $services | grep -E -o "$service_type([[:digit:]]+)?"
+            echo $services | grep -E -o "$service_type([[:digit:]]+)?" || true
             ;;
     esac
 }
@@ -402,7 +414,7 @@ m0_get_conf()
 
     for n in $(m0_get_nodes); do
         for s in $(m0_get_services $n); do
-	   if [[ $s == "confd" ]]; then
+	   if [[ $s == confd ]] && $(m0_genders_has_variable m0_conf_path $n); then
               conf=$(m0_genders_value_of m0_conf_path $n)
               break
            fi
@@ -566,7 +578,7 @@ _build_process_names()
         for s in $(m0_get_services $node) ; do
             local name="$proc_fid_con:$key"
             names="$names${names:+, }$name"
-            ((key++))
+            ((++key)) || true
         done
     done
 
@@ -604,9 +616,9 @@ _build_process_objects()
             fi
 
             objs="$objs${objs:+, \n} $obj"
-            ((idx++))
+            ((idx++)) || true
         done
-        ((node_idx++))
+        ((node_idx++)) || true
     done
 
     echo -e "$objs"
@@ -653,7 +665,7 @@ _build_service_objects()
                 local disks_per_service=$(( $pool_width / $count ))
 
                 disk_ids=$(_build_disk_ids_str $(($ios_nr * $disks_per_service + 1)) $disks_per_service)
-                ((ios_nr++))
+                ((ios_nr++)) || true
             fi
 
             objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: "\"$ep\""], $disk_ids)}"
@@ -678,9 +690,9 @@ _build_service_objects()
                 objs="$objs${objs:+,\n  }{0x73| (($rms), $type_id, [1: "\"$ep\""], [0])}"
             fi
 
-            ((idx++))
+            ((idx++)) || true
         done
-        ((node_idx++))
+        ((node_idx++)) || true
     done
 
     echo -e "$objs"

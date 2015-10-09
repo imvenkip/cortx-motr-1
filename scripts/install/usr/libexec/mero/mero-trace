@@ -69,6 +69,7 @@ cleanup_old_logs()
     esac
 
     m0_log 'cleaning up old logs'
+    set +e
     for mask in img_mask log_mask ; do
         if [[ -n ${!mask} ]] ; then
             ls -t -1 ${!mask} \
@@ -77,6 +78,7 @@ cleanup_old_logs()
             | xargs bash -c 'rm -vf $@' argv0_placeholder
         fi
     done
+    set -e
 
     cd -
 }
