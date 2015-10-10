@@ -2,6 +2,14 @@
 
 BETOOL="sudo utils/m0run m0betool"
 LT_BETOOL="lt-m0betool"
+KILL_INTERVAL=60
+
+function kill_betool()
+{
+	kill -SIGKILL `pidof $LT_BETOOL`
+}
+
+trap kill_betool EXIT
 
 rm -rf /var/mero/m0betool
 $BETOOL st mkfs
@@ -9,7 +17,7 @@ i=0
 while true; do
 	$BETOOL st run &
 	PID="$!"
-	sleep 3
+	sleep $KILL_INTERVAL
 	kill -SIGKILL `pidof $LT_BETOOL`
 	KILL_STATUS=$?
 	wait

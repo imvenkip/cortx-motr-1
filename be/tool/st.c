@@ -91,14 +91,14 @@ static void betool_st_data_check(struct m0_be_ut_backend *ut_be,
 		value = seg->bs_addr + pos;
 		tx_value = *value;
 		tx_values[pos / BETOOL_ST_TX_STEP] = tx_value;
-		M0_LOG(M0_FATAL, "tx_value=%lu", tx_value);
+		M0_LOG(M0_ALWAYS, "tx_value=%lu", tx_value);
 		for (i = 0; i < BETOOL_ST_TX_STEP;
 		     i += BETOOL_ST_CAPTURE_STEP) {
 			value = seg->bs_addr + pos + i;
 			for (j = 0; j < BETOOL_ST_CAPTURE_BLOCK /
 					sizeof *value; ++j) {
 				if (value[j] != tx_value) {
-					M0_LOG(M0_FATAL, "step offset = %d "
+					M0_LOG(M0_ALWAYS, "step offset = %d "
 					       "capture block index = %d "
 					       "value[j]=%lu tx_value = %lu",
 					       i, j, value[j], tx_value);
@@ -123,10 +123,10 @@ static void betool_st_data_check(struct m0_be_ut_backend *ut_be,
 			break;
 		}
 	}
-	M0_LOG(M0_FATAL, "tx_first=%d tx_last=%d", tx_first, tx_last);
+	M0_LOG(M0_ALWAYS, "tx_first=%d tx_last=%d", tx_first, tx_last);
 	for (i = tx_first; i <= tx_last; ++i) {
 		if (i > 0 && tx_values[i - 1] > tx_values[i]) {
-			M0_LOG(M0_FATAL, "jump from %lu to %lu",
+			M0_LOG(M0_ALWAYS, "jump from %lu to %lu",
 			       *fill, tx_values[i]);
 				if (*fill != 0)
 					++jump_nr;
@@ -181,7 +181,7 @@ static void betool_st_event_time_print(m0_time_t  *time,
 			 betool_st_event_descr[i], (time[i] - time[0]) / 1000);
 		buf[ARRAY_SIZE(buf) - 1] = '\0';
 	}
-	M0_LOG(M0_FATAL, "%s", (const char *)buf);
+	M0_LOG(M0_ALWAYS, "%s", (const char *)buf);
 }
 
 /* pass fill_end = UINT64_MAX for the infinite loop */
@@ -211,7 +211,7 @@ static void betool_st_data_write(struct m0_be_ut_backend *ut_be,
 	cred    = M0_BE_TX_CREDIT(step_nr, BETOOL_ST_CAPTURE_BLOCK * step_nr);
 	start   = m0_round_up(m0_be_seg_reserved(seg), BETOOL_ST_TX_STEP);
 	ringbuf_steps = (BETOOL_ST_SEG_SIZE - start) / BETOOL_ST_TX_STEP;
-	M0_LOG(M0_FATAL, "cred = "BETXCR_F, BETXCR_P(&cred));
+	M0_LOG(M0_ALWAYS, "cred = "BETXCR_F, BETXCR_P(&cred));
 	for (; fill < fill_end; ++fill) {
 		betool_st_event_time(time, BETOOL_ST_TIME_BEGIN);
 
@@ -260,9 +260,11 @@ int m0_betool_st_run(void)
 
 	m0_betool_m0_init();
 	m0_be_ut_backend_cfg_default(&cfg);
+	M0_LOG(M0_ALWAYS, "recovering...");
 	m0_be_ut_backend_init_cfg(&ut_be, &cfg, false);
+	M0_LOG(M0_ALWAYS, "recovered.");
 	seg = m0_be_domain_seg_first(&ut_be.but_dom);
-	M0_LOG(M0_FATAL, "segment with addr=%p and size=%lu found",
+	M0_LOG(M0_ALWAYS, "segment with addr=%p and size=%lu found",
 	       seg->bs_addr, seg->bs_size);
 	M0_ASSERT_INFO(seg->bs_size == BETOOL_ST_SEG_SIZE,
 		       "seg->bs_size=%lu BETOOL_ST_SEG_SIZE=%d",
