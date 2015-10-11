@@ -35,7 +35,7 @@ M0_INTERNAL void m0_rwlock_init(struct m0_rwlock *lock)
 	int rc;
 
 	rc = pthread_rwlock_init(&lock->rw_lock, NULL);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 M0_INTERNAL void m0_rwlock_fini(struct m0_rwlock *lock)
@@ -43,7 +43,7 @@ M0_INTERNAL void m0_rwlock_fini(struct m0_rwlock *lock)
 	int rc;
 
 	rc = pthread_rwlock_destroy(&lock->rw_lock);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 M0_INTERNAL void m0_rwlock_write_lock(struct m0_rwlock *lock)
@@ -51,7 +51,7 @@ M0_INTERNAL void m0_rwlock_write_lock(struct m0_rwlock *lock)
 	int rc;
 
 	rc = pthread_rwlock_wrlock(&lock->rw_lock);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 M0_INTERNAL void m0_rwlock_write_unlock(struct m0_rwlock *lock)
@@ -59,7 +59,7 @@ M0_INTERNAL void m0_rwlock_write_unlock(struct m0_rwlock *lock)
 	int rc;
 
 	rc = pthread_rwlock_unlock(&lock->rw_lock);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 void m0_rwlock_read_lock(struct m0_rwlock *lock)
@@ -67,7 +67,7 @@ void m0_rwlock_read_lock(struct m0_rwlock *lock)
 	int rc;
 
 	rc = pthread_rwlock_rdlock(&lock->rw_lock);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 void m0_rwlock_read_unlock(struct m0_rwlock *lock)
@@ -75,7 +75,7 @@ void m0_rwlock_read_unlock(struct m0_rwlock *lock)
 	int rc;
 
 	rc = pthread_rwlock_unlock(&lock->rw_lock);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 /** @} end of rwlock group */

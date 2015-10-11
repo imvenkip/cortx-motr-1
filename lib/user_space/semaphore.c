@@ -41,7 +41,7 @@ M0_INTERNAL void m0_semaphore_fini(struct m0_semaphore *semaphore)
 	int rc;
 
 	rc = sem_destroy(&semaphore->s_sem);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 M0_INTERNAL void m0_semaphore_down(struct m0_semaphore *semaphore)
@@ -58,7 +58,7 @@ M0_INTERNAL void m0_semaphore_up(struct m0_semaphore *semaphore)
 	int rc;
 
 	rc = sem_post(&semaphore->s_sem);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore)
@@ -68,7 +68,8 @@ M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore)
 	do
 		rc = sem_trywait(&semaphore->s_sem);
 	while (rc == -1 && errno == EINTR);
-	M0_ASSERT(rc == 0 || (rc == -1 && errno == EAGAIN));
+	M0_ASSERT_INFO(rc == 0 || (rc == -1 && errno == EAGAIN),
+	               "rc=%d errno=%d", rc, errno);
 	errno = 0;
 	return rc == 0;
 }
@@ -79,7 +80,7 @@ M0_INTERNAL unsigned m0_semaphore_value(struct m0_semaphore *semaphore)
 	int result;
 
 	rc = sem_getvalue(&semaphore->s_sem, &result);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 	M0_POST(result >= 0);
 	return result;
 }
@@ -97,7 +98,8 @@ M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 	do
 		rc = sem_timedwait(&semaphore->s_sem, &ts);
 	while (rc == -1 && errno == EINTR);
-	M0_ASSERT(rc == 0 || (rc == -1 && errno == ETIMEDOUT));
+	M0_ASSERT_INFO(rc == 0 || (rc == -1 && errno == ETIMEDOUT),
+	               "rc=%d errno=%d", rc, errno);
 	if (rc == -1 && errno == ETIMEDOUT)
 		errno = 0;
 	return rc == 0;
