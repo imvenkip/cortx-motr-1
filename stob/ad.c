@@ -1014,8 +1014,8 @@ static uint32_t stob_ad_write_map_count(struct m0_stob_ad_domain *adom,
 
 	frags = 0;
 	m0_ivec_cursor_init(&it, iv);
-	grp_size = adom->sad_blocks_per_group;
-	lnet_mtu = LNET_MTU >> adom->sad_bshift;
+	grp_size = adom->sad_blocks_per_group << adom->sad_babshift;
+	lnet_mtu = LNET_MTU >> m0_stob_block_shift(adom->sad_bstore);
 	cnt1 = 0;
 	cnt2 = lnet_mtu;
 
@@ -1068,7 +1068,8 @@ static void stob_ad_write_credit(const struct m0_stob_domain *dom,
 	int                       frags;
 
 	frags = stob_ad_write_map_count(adom, iv, false);
-	bfrags = m0_vec_count(&iv->iv_vec) / adom->sad_blocks_per_group + 1;
+	bfrags = m0_vec_count(&iv->iv_vec) /
+		(adom->sad_blocks_per_group << adom->sad_babshift) + 1;
 	M0_LOG(M0_DEBUG, "bfrags=%d frags=%d", bfrags, frags);
 	frags = max_check(frags, bfrags);
 
