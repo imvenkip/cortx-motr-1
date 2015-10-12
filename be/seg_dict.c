@@ -70,16 +70,6 @@ dict_get_const(const struct m0_be_seg *seg)
 	return &((const struct m0_be_seg_hdr *) seg->bs_addr)->bs_dict;
 }
 
-static int seg_dict_tx_open(struct m0_be_seg *seg, struct m0_be_tx_credit *cred,
-		   struct m0_be_tx *tx, struct m0_sm_group *grp)
-{
-	m0_be_tx_init(tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
-	m0_be_tx_prep(tx, cred);
-	m0_be_tx_open(tx);
-	return m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-				  M0_TIME_NEVER);
-}
-
 /* -------------------------------------------------------------------
  * Credits
  */
@@ -289,84 +279,6 @@ M0_INTERNAL void m0_be_seg_dict_destroy(struct m0_be_seg *seg,
 
 	M0_BE_OP_SYNC(op, m0_be_btree_destroy(tree, tx, &op));
 	M0_LEAVE();
-}
-
-M0_INTERNAL int m0_be_seg_dict_create_grp(struct m0_be_seg   *seg,
-					  struct m0_sm_group *grp)
-{
-	struct m0_be_tx_credit cred = {};
-	struct m0_be_btree    *tree = dict_get(seg);
-	struct m0_be_tx       *tx;
-	int                    rc;
-
-	M0_ENTRY("seg=%p", seg);
-	M0_PRE(m0_be_seg__invariant(seg));
-
-	M0_ALLOC_PTR(tx);
-	if (tx == NULL)
-		return M0_ERR(-ENOMEM);
-
-	m0_be_btree_init(tree, seg, &dict_ops);
-	m0_be_btree_create_credit(tree, 1, &cred);
-	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_TYPE(struct m0_be_seg_hdr));
-
-	rc = seg_dict_tx_open(seg, &cred, tx, grp);
-	if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
-		m0_be_tx_fini(tx);
-		m0_free(tx);
-		return M0_ERR(-EFBIG);
-	}
-
-	M0_BE_OP_SYNC(op, m0_be_btree_create(tree, tx, &op));
-
-	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
-	m0_be_tx_fini(tx);
-	m0_free(tx);
-	return M0_RC(rc);
-}
-
-/* XXX
- * m0_be_seg_dict_create_grp() and m0_be_seg_dict_destroy_grp() are
- * almost identical. Their refactoring is hindered by the difference
- * in signatures of m0_be_btree_create_credit() and
- * m0_be_btree_destroy_credit() functions --- the latter expects
- * non-const `tree' argument.
- */
-
-M0_INTERNAL int m0_be_seg_dict_destroy_grp(struct m0_be_seg   *seg,
-					   struct m0_sm_group *grp)
-{
-	struct m0_be_tx_credit cred = {};
-	struct m0_be_btree    *tree = dict_get(seg);
-	struct m0_be_tx       *tx;
-	int                    rc;
-
-	M0_ENTRY("seg=%p", seg);
-	M0_PRE(m0_be_seg__invariant(seg));
-
-	M0_ALLOC_PTR(tx);
-	if (tx == NULL)
-		return M0_ERR(-ENOMEM);
-
-	m0_be_btree_init(tree, seg, &dict_ops);
-	m0_be_btree_destroy_credit(tree, 1, &cred);
-	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_TYPE(struct m0_be_seg_hdr));
-
-	rc = seg_dict_tx_open(seg, &cred, tx, grp);
-	if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
-		m0_be_tx_fini(tx);
-		m0_free(tx);
-		return M0_ERR(-EFBIG);
-	}
-
-	M0_BE_OP_SYNC(op, m0_be_btree_destroy(tree, tx, &op));
-
-	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
-	m0_be_tx_fini(tx);
-	m0_free(tx);
-	return M0_RC(rc);
 }
 
 #undef BUF_INIT_STR

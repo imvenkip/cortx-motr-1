@@ -666,13 +666,6 @@ M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
 	tx->t_gc_param   = param;
 }
 
-M0_INTERNAL unsigned long m0_be_tx_gen_idx_min(struct m0_be_tx *tx)
-{
-	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE, M0_BTS_CLOSED)));
-
-	return m0_be_reg_area_gen_idx_min(&tx->t_reg_area);
-}
-
 M0_EXTERN struct m0_sm_conf op_states_conf;
 M0_INTERNAL int m0_be_tx_mod_init(void)
 {

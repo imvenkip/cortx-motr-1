@@ -299,47 +299,6 @@ m0_be_reg_area_next(struct m0_be_reg_area *ra, struct m0_be_reg_d *prev);
 	     (rd) != NULL;                              \
 	     (rd) = m0_be_reg_area_next((ra), (rd)))
 
-/**
- * Returns min generation index for all regions reg_area contains.
- *
- * Returns ULONG_MAX for the empty reg_area.
- */
-M0_INTERNAL unsigned long m0_be_reg_area_gen_idx_min(struct m0_be_reg_area *ra);
-
-/**
- * Removes all regions from reg_area with generation index less than
- * gen_idx_min.
- *
- * Calling it with ULONG_MAX removes all regions from the reg_area.
- */
-M0_INTERNAL void m0_be_reg_area_prune(struct m0_be_reg_area *ra,
-                                      unsigned long          gen_idx_min);
-
-/*
- * Rebuilds global and local reg_area.
- *
- * It creates global_new and local_new reg_areas based on global and local with
- * the following transformations:
- * - each region and subregion from local that exists in global with greater
- *   generation index is not copied to local_new;
- * - each region and subregion from local that either doesn't exist in global or
- *   exists in global with generation index less or equal to local is copied to
- *   local_new;
- * - merge of global and local is copied to global_new; regions and subregions
- *   with greater generation index are always chosen;
- *
- * @pre global_new and local_new are empty
- *
- * @todo Don't use new reg_area, do it inplace in existing reg_areas.
- */
-M0_INTERNAL void m0_be_reg_area_rebuild(struct m0_be_reg_area *global,
-                                        struct m0_be_reg_area *local,
-                                        struct m0_be_reg_area *global_new,
-                                        struct m0_be_reg_area *local_new);
-
-M0_INTERNAL void m0_be_reg_area_io_add(struct m0_be_reg_area *ra,
-				       struct m0_be_io       *io);
-
 /*
  * Merger merges multiple reg_areas (sources) into one (destination) by the
  * following rules:

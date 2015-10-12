@@ -136,24 +136,6 @@ bool m0_be_reg__invariant(const struct m0_be_reg *reg)
 				      reg->br_addr + reg->br_size - 1));
 }
 
-/* XXX temporary */
-/* static */ int be_seg_read_all(struct m0_be_seg     *seg,
-				 struct m0_be_seg_hdr *hdr)
-{
-	m0_bindex_t pos;
-	m0_bcount_t size;
-	int         rc;
-
-	for (pos = 0; pos < hdr->bh_size; pos += M0_BE_SEG_READ_SIZE_MAX) {
-		size = min64(hdr->bh_size, M0_BE_SEG_READ_SIZE_MAX);
-		rc = m0_be_io_single(seg->bs_stob, SIO_READ,
-				     hdr->bh_addr + pos, pos, size);
-		if (rc != 0)
-			return M0_RC(rc);
-	}
-	return 0;
-}
-
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 {
 	struct m0_be_seg_hdr  hdr;

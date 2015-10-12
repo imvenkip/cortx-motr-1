@@ -624,8 +624,6 @@ M0_INTERNAL bool m0_be_should_break(struct m0_be_engine          *eng,
 				    const struct m0_be_tx_credit *accum,
 				    const struct m0_be_tx_credit *delta);
 
-M0_INTERNAL unsigned long m0_be_tx_gen_idx_min(struct m0_be_tx *tx);
-
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */
 

@@ -72,12 +72,6 @@ M0_INTERNAL void m0_be_seg_dict_delete_credit(const struct m0_be_seg *seg,
 					      const char             *name,
 					      struct m0_be_tx_credit *accum);
 
-/* XXX: deprecated sm_group based interface, still here due to outgoing db/db */
-M0_INTERNAL int m0_be_seg_dict_create_grp(struct m0_be_seg *seg,
-					  struct m0_sm_group *grp);
-M0_INTERNAL int m0_be_seg_dict_destroy_grp(struct m0_be_seg *seg,
-					   struct m0_sm_group *grp);
-
 /** @} end of be group */
 #endif /* __MERO_BE_SEG_DICT_H__ */
 
