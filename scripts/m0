@@ -87,17 +87,26 @@ cmd_run_kut() {
 cmd_run_st() {
     local pattern
     local f
+    local list_p=0
 
-    # Export variables for system tests.
-    export RUNDIR SRC SUDO
-
-    rundir_init
+    if [ "${1:-}" = '-l' ]; then
+        list_p=1
+        shift
+    else
+        rundir_init
+        # Export variables for system tests.
+        export RUNDIR SRC SUDO
+    fi
     for pattern in ${@:-[0-9][0-9]*}; do
         find "$SRC/scripts/st.d/" -maxdepth 1 \! -type d -name $pattern \
             -perm +a=x -print |
             while read f; do
-                echo "<< ${f##*/} >>" >&2
-                $f
+                if [ $list_p -eq 1 ]; then
+                    echo ${f##*/}
+                else
+                    echo "<< ${f##*/} >>" >&2
+                    $f || return $?
+                fi
             done
     done
 }
@@ -154,10 +163,12 @@ Commands:
 
     run-kut              Run kernel unit tests.
 
-    run-st [PATTERN]...  Run system tests.  Optional arguments specify which
-                         tests to run: each of the PATTERNs is prefixed with
-                         'scripts/st.d/' and those files that match
-                         the resulted shell pattern are executed.
+    run-st [-l] [PATTERN]...
+                         Run system tests or list ('-l') their names.
+                         Optional arguments specify which tests to run:
+                         each of the PATTERNs is prefixed with 'scripts/st.d/'
+                         and those files that match the resulting shell pattern
+                         are executed.
                          PATTERN defaults to '[0-9][0-9]*'.
                          .
                          Pattern examples:
