@@ -95,6 +95,7 @@ Group: Development/Kernel
 Provides: %{name}-devel = %{version}-%{release}
 Requires: %{name}-libs = %{version}-%{release}
 Requires: binutils-devel
+Requires: libyaml-devel
 
 %description devel
 This package contains the headers required to build external
