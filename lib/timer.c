@@ -77,8 +77,8 @@ M0_INTERNAL void m0_timer_start(struct m0_timer *timer,
 
 	timer->t_expire = expire;
 
-	m0_timer_ops[timer->t_type].tmr_start(timer);
 	timer->t_state = M0_TIMER_RUNNING;
+	m0_timer_ops[timer->t_type].tmr_start(timer);
 }
 
 M0_INTERNAL void m0_timer_stop(struct m0_timer *timer)
