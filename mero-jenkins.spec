@@ -96,6 +96,12 @@ Provides: %{name}-devel = %{version}-%{release}
 Requires: %{name}-libs = %{version}-%{release}
 Requires: binutils-devel
 Requires: libyaml-devel
+Requires: libaio-devel
+Requires: libuuid-devel
+Requires: systemd-devel
+Requires: glibc-headers
+Requires: kernel-devel = %{kernel_ver_requires}
+Requires: lustre-client-devel
 
 %description devel
 This package contains the headers required to build external
