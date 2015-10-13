@@ -817,7 +817,7 @@ static int cs_storage_init(const char *stob_type,
 	M0_PRE(stob != NULL);
 	M0_PRE(stype_is_valid(stob_type));
 
-	rc = cs_storage_bstore_prepare(stob_path, "directio=true",
+	rc = cs_storage_bstore_prepare(stob_path, "directio=false",
 				       dom_key, mkfs, force, &stob->s_sdom);
 	if (rc != 0)
 		return M0_ERR(rc);
