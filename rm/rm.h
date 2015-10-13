@@ -1907,7 +1907,7 @@ M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote *rem,
  *
  * @param rem
  * @see m0_rm_remote_init
- * @pre rem->rem_state == REM_INITIALIZED ||
+ * @pre rem->rem_state == REM_INITIALISED ||
  *      rem->rem_state == REM_SERVICE_LOCATED ||
  *      rem->rem_state == REM_OWNER_LOCATED
  */

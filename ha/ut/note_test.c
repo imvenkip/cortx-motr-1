@@ -256,7 +256,7 @@ static void test_ha_state_set_and_get(void)
 	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
 
 	local_confc_init(&confc);
-
+	m0_ha_client_add(&confc);
 	m0_ha_state_set(session, &nvec);
 
 	n1[0].no_state = M0_NC_UNKNOWN;
@@ -265,8 +265,9 @@ static void test_ha_state_set_and_get(void)
 	rc = m0_ha_state_get(session, &nvec, &chan);
 	M0_UT_ASSERT(rc == 0);
 	m0_chan_wait(&clink);
-	m0_ha_state_accept(&confc, &nvec);
+	m0_ha_state_accept(&nvec);
 	compare_ha_state(&confc, M0_NC_ONLINE);
+	m0_ha_client_del(&confc);
 
 	m0_confc_fini(&confc);
 }
@@ -286,6 +287,7 @@ static void test_ha_state_accept(void)
 	int                i;
 
 	local_confc_init(&confc);
+	m0_ha_client_add(&confc);
 
 	nvec.nv_nr   = ARRAY_SIZE(u);
 	nvec.nv_note = n;
@@ -295,16 +297,17 @@ static void test_ha_state_accept(void)
 		n[i].no_id    = u[i];
 		n[i].no_state = M0_NC_ONLINE;
 	}
-	m0_ha_state_accept(&confc, &nvec);
+	m0_ha_state_accept(&nvec);
 	compare_ha_state(&confc, M0_NC_ONLINE);
 
 	/* To check updates */
 	for (i = 0; i < ARRAY_SIZE(u); ++i) {
 		n[i].no_state = M0_NC_FAILED;
 	}
-	m0_ha_state_accept(&confc, &nvec);
+	m0_ha_state_accept(&nvec);
 	compare_ha_state(&confc, M0_NC_FAILED);
 
+	m0_ha_client_del(&confc);
 	m0_confc_fini(&confc);
 	m0_free(n);
 }
@@ -316,6 +319,7 @@ static void failure_sets_build(struct m0_reqh *reqh, struct m0_ha_nvec *nvec)
 	rc = m0_fid_sscanf(M0_UT_CONF_PROFILE, &reqh->rh_profile);
 	M0_UT_ASSERT(rc == 0);
 	local_confc_init(&reqh->rh_confc);
+	m0_ha_client_add(&reqh->rh_confc);
 	m0_ha_state_set(session, nvec);
 
 	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
@@ -332,6 +336,7 @@ static void failure_sets_destroy(struct m0_reqh *reqh)
 {
 	m0_flset_destroy(&reqh->rh_failure_set);
 	m0_confc_close(&fs->cf_obj);
+	m0_ha_client_del(&reqh->rh_confc);
 	m0_confc_fini(&reqh->rh_confc);
 }
 
@@ -381,7 +386,7 @@ static void test_poolversion_get(void)
 	/* Make rack from pool verison 0  FAILED */
 	n1[0].no_id   = M0_FID_TINIT('a', 1, 3);
 	n1[0].no_state = M0_NC_FAILED;
-	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
+	m0_ha_state_accept(&nvec1);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
 				     &reqh.rh_failure_set, &pver1);
@@ -393,7 +398,7 @@ static void test_poolversion_get(void)
 	/* Make rack from pool verison 1  FAILED */
 	n1[0].no_id   = M0_FID_TINIT('a', 1, 52);
 	n1[0].no_state = M0_NC_FAILED;
-	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
+	m0_ha_state_accept(&nvec1);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
 				     &reqh.rh_failure_set, &pver2);
@@ -403,7 +408,7 @@ static void test_poolversion_get(void)
 	/* Make encl from  pool verison 0  FAILED */
 	n1[0].no_id   = M0_FID_TINIT('e', 1, 7);
 	n1[0].no_state = M0_NC_FAILED;
-	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
+	m0_ha_state_accept(&nvec1);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
 				     &reqh.rh_failure_set, &pver2);
@@ -413,7 +418,7 @@ static void test_poolversion_get(void)
 	/* Make rack from pool verison 0 ONLINE */
 	n1[0].no_id   = M0_FID_TINIT('a', 1, 3);
 	n1[0].no_state = M0_NC_ONLINE;
-	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
+	m0_ha_state_accept(&nvec1);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
 				     &reqh.rh_failure_set, &pver2);
@@ -423,7 +428,7 @@ static void test_poolversion_get(void)
 	/* Make encl from pool verison 0 ONLINE */
 	n1[0].no_id   = M0_FID_TINIT('e', 1, 7);
 	n1[0].no_state = M0_NC_ONLINE;
-	m0_ha_state_accept(&reqh.rh_confc, &nvec1);
+	m0_ha_state_accept(&nvec1);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
 				     &reqh.rh_failure_set, &pver2);

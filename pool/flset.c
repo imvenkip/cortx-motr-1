@@ -246,7 +246,7 @@ static int flset_fill(struct m0_flset           *flset,
 	 * the cache, but actually states for racks, enclosures and controllers
 	 * are sufficient.
 	 */
-	rc = m0_conf_ha_state_update(ha_session, confc);
+	rc = m0_conf_confc_ha_update(ha_session, confc);
 	if (rc != 0) {
 		flset_clinks_deregister(flset);
 		return M0_ERR(rc);

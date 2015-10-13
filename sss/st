@@ -45,7 +45,7 @@ sss_send() {
 	local ID="$3"
 
 	env ${TRACE_console:-} $M0_SRC_DIR/console/bin/m0console \
-		-f $(opcode M0_SSS_REQ_OPCODE) \
+		-f $(opcode M0_SSS_SVC_REQ_OPCODE) \
 		-s $(endpoint $SERVER_TMID) -c $(endpoint $CLIENT_TMID) \
 		-d "($CMD, \"$SVC\", $ID, \"${SS_PARAM:-}\")" -v
 	echo rc_send = $? >&2

@@ -29,8 +29,8 @@
 
 M0_INTERNAL m0_bcount_t m0_fop_payload_size(const struct m0_rpc_item *item)
 {
-	struct m0_fop	   *fop;
-	struct m0_xcode_ctx ctx;
+	struct m0_fop       *fop;
+	struct m0_xcode_ctx  ctx;
 
 	M0_PRE(item != NULL);
 

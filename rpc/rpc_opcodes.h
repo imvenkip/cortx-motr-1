@@ -196,10 +196,8 @@ enum M0_RPC_OPCODES {
 	M0_HA_NOTE_GET_OPCODE               = 114,
 	M0_HA_NOTE_GET_REP_OPCODE           = 115,
 	M0_HA_NOTE_SET_OPCODE               = 116,
-
-	/** Service start/stop */
-	M0_SSS_REQ_OPCODE                   = 117,
-	M0_SSS_REP_OPCODE                   = 118,
+	M0_HA_ENTRYPOINT_REQ_OPCODE         = 117,
+	M0_HA_ENTRYPOINT_REP_OPCODE         = 118,
 
 	/* fsync fops */
 	M0_FSYNC_MDS_OPCODE                 = 119,
@@ -240,14 +238,18 @@ enum M0_RPC_OPCODES {
 	M0_SNS_REPAIR_ABORT_OPCODE          = 160,
 	M0_SNS_REPAIR_ABORT_REP_OPCODE      = 161,
 
+	/** SSS Service fops */
+	M0_SSS_SVC_REQ_OPCODE               = 200,
+	M0_SSS_SVC_REP_OPCODE               = 201,
+
 	/** SSS process fops */
-	M0_SSS_PROCESS_REQ_OPCODE           = 200,
-	M0_SSS_PROCESS_REP_OPCODE           = 202,
-	M0_SSS_PROCESS_SVC_LIST_REP_OPCODE  = 203,
+	M0_SSS_PROCESS_REQ_OPCODE           = 202,
+	M0_SSS_PROCESS_REP_OPCODE           = 203,
+	M0_SSS_PROCESS_SVC_LIST_REP_OPCODE  = 204,
 
 	/** SSS device fops */
-	M0_SSS_DEVICE_REQ_OPCODE            = 204,
-	M0_SSS_DEVICE_REP_OPCODE            = 205,
+	M0_SSS_DEVICE_REQ_OPCODE            = 205,
+	M0_SSS_DEVICE_REP_OPCODE            = 206,
 
 	/*
 	 * Identifiers below are for fop-less foms, not fops.

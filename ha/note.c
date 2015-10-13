@@ -204,8 +204,14 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
-				    const struct m0_ha_nvec *note)
+/**
+ * Callback used in m0_ha_state_accept(). Updates HA states for particular confc
+ * instance during iteration through HA clients list.
+ *
+ * For internal details see comments provided for m0_ha_state_accept().
+ */
+static void ha_state_accept(struct m0_confc         *confc,
+			    const struct m0_ha_nvec *note)
 {
 	struct m0_conf_obj   *obj;
 	struct m0_conf_cache *cache;
@@ -225,6 +231,11 @@ M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
 	}
 	m0_conf_cache_unlock(cache);
 	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_ha_state_accept(const struct m0_ha_nvec *note)
+{
+	m0_ha_clients_iterate((m0_ha_client_cb_t)ha_state_accept, note);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -38,14 +38,41 @@
 
 #include "ha/epoch.h"
 
-struct ha_global {
-	struct m0_rpc_session *hg_session;
+/**
+ * HA client record, an item of ha_global::hg_clients list.
+ *
+ * HA acceptance procedure is expected to apply notification vector to each and
+ * every confc instance globally known to HA via client records.
+ *
+ * @see m0_ha_state_accept()
+ */
+struct ha_client {
+	struct m0_confc *hc_confc;           /**< confc to be updated by HA   */
+	struct m0_ref    hc_ref;             /**< client reference counter    */
+	struct m0_tlink  hc_link;            /**< standard linkage to list    */
+	uint64_t         hc_magic;           /**< standard magic number       */
 };
 
-M0_TL_DESCR_DEFINE(m0_ham, "ha epoch monitor", M0_INTERNAL,
+/**
+ * HA global context. Intended for keeping list of clients to be notified via
+ * confc instances registered with the context. Besides, keeps RPC session to be
+ * used for communication with HA.
+ */
+struct ha_global {
+	struct m0_rpc_session *hg_session;   /**< HA global RPC session       */
+	struct m0_tl           hg_clients;   /**< HA clients to be updated    */
+	struct m0_mutex        hg_guard;     /**< contexts list protection    */
+};
+
+M0_TL_DESCR_DEFINE(hg_client, "ha global clients list", static,
+		   struct ha_client, hc_link, hc_magic,
+		   M0_HA_CLIENT_MAGIC, M0_HA_CLIENT_HEAD_MAGIC);
+M0_TL_DEFINE(hg_client, static, struct ha_client);
+
+M0_TL_DESCR_DEFINE(ham, "ha epoch monitor", static,
 		   struct m0_ha_epoch_monitor, hem_linkage, hem_magix,
 		   M0_HA_EPOCH_MONITOR_MAGIC, M0_HA_DOMAIN_MAGIC);
-M0_TL_DEFINE(m0_ham, M0_INTERNAL, struct m0_ha_epoch_monitor);
+M0_TL_DEFINE(ham, static, struct m0_ha_epoch_monitor);
 M0_INTERNAL const uint64_t M0_HA_EPOCH_NONE = 0ULL;
 
 static int default_mon_future(struct m0_ha_epoch_monitor *self,
@@ -58,7 +85,7 @@ M0_INTERNAL void m0_ha_domain_init(struct m0_ha_domain *dom, uint64_t epoch)
 {
 	dom->hdo_epoch = epoch;
 	m0_rwlock_init(&dom->hdo_lock);
-	m0_ham_tlist_init(&dom->hdo_monitors);
+	ham_tlist_init(&dom->hdo_monitors);
 	dom->hdo_default_mon = (struct m0_ha_epoch_monitor) {
 		.hem_future = default_mon_future
 	};
@@ -68,7 +95,7 @@ M0_INTERNAL void m0_ha_domain_init(struct m0_ha_domain *dom, uint64_t epoch)
 M0_INTERNAL void m0_ha_domain_fini(struct m0_ha_domain *dom)
 {
 	m0_ha_domain_monitor_del(dom, &dom->hdo_default_mon);
-	m0_ham_tlist_fini(&dom->hdo_monitors);
+	ham_tlist_fini(&dom->hdo_monitors);
 	m0_rwlock_fini(&dom->hdo_lock);
 }
 
@@ -76,7 +103,7 @@ M0_INTERNAL void m0_ha_domain_monitor_add(struct m0_ha_domain *dom,
 					struct m0_ha_epoch_monitor *mon)
 {
 	m0_rwlock_write_lock(&dom->hdo_lock);
-	m0_ham_tlink_init_at(mon, &dom->hdo_monitors);
+	ham_tlink_init_at(mon, &dom->hdo_monitors);
 	m0_rwlock_write_unlock(&dom->hdo_lock);
 }
 
@@ -84,7 +111,7 @@ M0_INTERNAL void m0_ha_domain_monitor_del(struct m0_ha_domain *dom,
 					struct m0_ha_epoch_monitor *mon)
 {
 	m0_rwlock_write_lock(&dom->hdo_lock);
-	m0_ham_tlist_del(mon);
+	ham_tlist_del(mon);
 	m0_rwlock_write_unlock(&dom->hdo_lock);
 }
 
@@ -118,27 +145,129 @@ M0_INTERNAL int m0_ha_global_init(void)
 	struct ha_global *hg;
 
 	M0_ALLOC_PTR(hg);
-	if (hg != NULL)
+	if (hg != NULL) {
 		m0_get()->i_moddata[M0_MODULE_HA] = hg;
+		m0_mutex_init(&hg->hg_guard);
+		hg_client_tlist_init(&hg->hg_clients);
+	}
 	return hg != NULL ? 0 : M0_ERR(-ENOMEM);
 }
 
 M0_INTERNAL void m0_ha_global_fini(void)
 {
-	m0_free0(&m0_get()->i_moddata[M0_MODULE_HA]);
+	struct ha_global *hg = m0_get()->i_moddata[M0_MODULE_HA];
+
+	M0_PRE(hg != NULL);
+	hg_client_tlist_fini(&hg->hg_clients);
+	m0_mutex_fini(&hg->hg_guard);
+	m0_free0(&hg);
 }
 
 M0_INTERNAL void m0_ha__session_set(struct m0_rpc_session *session)
 {
 	struct ha_global *hg = m0_get()->i_moddata[M0_MODULE_HA];
 
+	M0_PRE(hg != NULL);
 	hg->hg_session = session;
 }
 
 M0_INTERNAL struct m0_rpc_session *m0_ha_session_get(void)
 {
 	struct ha_global *hg = m0_get()->i_moddata[M0_MODULE_HA];
+
+	M0_PRE(hg != NULL);
 	return hg->hg_session;
+}
+
+static inline void ha_global_lock(struct ha_global *hg)
+{
+	m0_mutex_lock(&hg->hg_guard);
+}
+
+static inline void ha_global_unlock(struct ha_global *hg)
+{
+	m0_mutex_unlock(&hg->hg_guard);
+}
+
+/**
+ * @todo: Is it possible to move {m0}_ha_client_* functions to ha/note.[ch]
+ * files? Seems that functionality is related to HA notifications.
+ */
+/** ha_client::hc_ref release callback */
+static void ha_client_release(struct m0_ref *ref)
+{
+	struct ha_client *client;
+
+	client = container_of(ref, struct ha_client, hc_ref);
+	hg_client_tlink_del_fini(client);
+	m0_free(client);
+}
+
+M0_INTERNAL int m0_ha_client_add(struct m0_confc *confc)
+{
+	struct ha_global *hg = m0_get()->i_moddata[M0_MODULE_HA];
+	struct ha_client *client;
+	int               rc;
+
+	M0_ENTRY();
+	M0_PRE(hg != NULL);
+	ha_global_lock(hg);
+	client = m0_tl_find(hg_client, item, &hg->hg_clients,
+			    item->hc_confc == confc);
+	if (client == NULL) {
+		M0_ALLOC_PTR(client);
+		if (client == NULL) {
+			rc = -ENOMEM;
+			goto err;
+		}
+		client->hc_confc = confc;
+		hg_client_tlink_init_at_tail(client, &hg->hg_clients);
+		m0_ref_init(&client->hc_ref, 1, ha_client_release);
+	} else {
+		m0_ref_get(&client->hc_ref);
+		rc = -EALREADY;
+		goto err;
+	}
+	ha_global_unlock(hg);
+	return M0_RC(0);
+
+err:
+	ha_global_unlock(hg);
+	return M0_ERR(rc);
+
+}
+
+M0_INTERNAL int m0_ha_client_del(struct m0_confc *confc)
+{
+	struct ha_global *hg = m0_get()->i_moddata[M0_MODULE_HA];
+	struct ha_client *client;
+	int               rc = 0;
+
+	M0_ENTRY();
+	M0_PRE(hg != NULL);
+	ha_global_lock(hg);
+	client = m0_tl_find(hg_client, item, &hg->hg_clients,
+			    item->hc_confc == confc);
+ 	if (client != NULL)
+		m0_ref_put(&client->hc_ref);
+	else
+		rc = -ENOENT;
+	ha_global_unlock(hg);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_ha_clients_iterate(m0_ha_client_cb_t iter,
+				       const void       *data)
+{
+	struct ha_global *hg = m0_get()->i_moddata[M0_MODULE_HA];
+	struct ha_client *client;
+
+	M0_PRE(hg != NULL);
+	ha_global_lock(hg);
+	m0_tl_for(hg_client, &hg->hg_clients, client) {
+		iter(client->hc_confc, data);
+	} m0_tl_endfor;
+	ha_global_unlock(hg);
 }
 
 M0_INTERNAL int m0_ha_epoch_check(const struct m0_rpc_item *item)
@@ -165,7 +294,7 @@ M0_INTERNAL int m0_ha_epoch_check(const struct m0_rpc_item *item)
 	if (epoch == item_epoch)
 		goto out;
 
-	m0_tl_for(m0_ham, &ha_dom->hdo_monitors, mon) {
+	m0_tl_for(ham, &ha_dom->hdo_monitors, mon) {
 		if (item_epoch > epoch && mon->hem_future != NULL)
 			rc = mon->hem_future(mon, epoch, item);
 		else if (mon->hem_past != NULL)

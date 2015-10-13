@@ -28,13 +28,12 @@
 #include "lib/errno.h"
 #include "lib/finject.h"       /* M0_FI_ENABLED */
 #include "lib/locality.h"      /* m0_locality0_get */
-#include "fid/fid.h"           /* m0_fid */
+#include "fid/fid.h"           /* m0_fid_sscanf */
 #include "conf/schema.h"
 #include "conf/cache.h"
 #include "conf/obj.h"
 #include "conf/obj_ops.h"
 #include "conf/objs/common.h"
-#include "conf/onwire.h"     /* arr_fid */
 
 #include "reqh/reqh.h"
 #include "spiel/spiel.h"
@@ -74,9 +73,8 @@ int m0_spiel_start_quorum(struct m0_spiel   *spiel,
 	if (spiel->spl_confd_eps == NULL)
 		return M0_ERR(-ENOMEM);
 
-	rc = m0_rconfc_init(rconfc, spiel->spl_confd_eps, rm_ep,
-			    m0_locality0_get()->lo_grp, spiel->spl_rmachine,
-			    quorum, exp_cb);
+	rc = m0_rconfc_init(rconfc, m0_locality0_get()->lo_grp,
+			    spiel->spl_rmachine, exp_cb);
 	if (rc == 0) {
 		rc = m0_rconfc_start_sync(rconfc);
 		if (rc != 0) {

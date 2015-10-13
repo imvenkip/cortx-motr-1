@@ -66,7 +66,7 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 			const struct m0_fid *id,
 			const struct m0_fid *relfid,
 			const struct m0_conf_obj_type *children_type,
-			const struct arr_fid *src, struct m0_conf_dir **out)
+			const struct m0_fid_arr *src, struct m0_conf_dir **out)
 {
 	struct m0_conf_obj *child;
 	uint32_t            i;
@@ -173,7 +173,7 @@ M0_INTERNAL int conf_dirs_lookup(struct m0_conf_obj            **out,
 }
 
 M0_INTERNAL int
-arrfid_from_dir(struct arr_fid *dest, const struct m0_conf_dir *dir)
+arrfid_from_dir(struct m0_fid_arr *dest, const struct m0_conf_dir *dir)
 {
 	struct m0_conf_obj *obj;
 	size_t              i;
@@ -196,7 +196,7 @@ arrfid_from_dir(struct arr_fid *dest, const struct m0_conf_dir *dir)
 	return 0;
 }
 
-M0_INTERNAL void arrfid_free(struct arr_fid *arr)
+M0_INTERNAL void arrfid_free(struct m0_fid_arr *arr)
 {
 	m0_free0(&arr->af_elems);
 }
@@ -250,9 +250,9 @@ M0_INTERNAL void u32arr_free(struct arr_u32 *arr)
 }
 
 /** @note This code resembles m0_bufs_to_strings(). */
-M0_INTERNAL int conf_pvers_decode(struct m0_conf_pver ***dest,
-				  const struct arr_fid  *src,
-				  struct m0_conf_cache  *cache)
+M0_INTERNAL int conf_pvers_decode(struct m0_conf_pver     ***dest,
+				  const struct m0_fid_arr   *src,
+				  struct m0_conf_cache      *cache)
 {
 	uint32_t            i;
 	struct m0_conf_obj *obj;
@@ -280,7 +280,7 @@ M0_INTERNAL int conf_pvers_decode(struct m0_conf_pver ***dest,
 
 /** @note This code resembles m0_bufs_from_strings(). */
 M0_INTERNAL int
-conf_pvers_encode(struct arr_fid *dest, const struct m0_conf_pver **src)
+conf_pvers_encode(struct m0_fid_arr *dest, const struct m0_conf_pver **src)
 {
 	uint32_t i;
 

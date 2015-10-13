@@ -26,13 +26,13 @@
 #include "lib/memory.h"        /* m0_alloc, M0_ALLOC_ARR */
 #include "lib/string.h"        /* m0_strdup, m0_strings_dup */
 #include "lib/tlist.h"
+#include "fid/fid.h"
 #include "conf/cache.h"
 #include "conf/flip_fop.h"
 #include "conf/load_fop.h"
 #include "conf/obj.h"
 #include "conf/obj_ops.h"
 #include "conf/objs/common.h"
-#include "conf/onwire.h"       /* arr_fid */
 #include "conf/onwire_xc.h"    /* m0_confx_xc */
 #include "conf/preload.h"      /* m0_confx_free, m0_confx_to_string */
 #include "rpc/link.h"
@@ -51,8 +51,8 @@
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 
 /* tlists and tlist APIs referred from rpc layer. */
-static const struct arr_fid EMPTY_ARR_FID_PTR = { .af_count = 0,
-						  .af_elems = NULL };
+static const struct m0_fid_arr EMPTY_FID_ARR_PTR = { .af_count = 0,
+						     .af_elems = NULL };
 
 struct spiel_conf_param {
 	const struct m0_fid            *scp_fid;
@@ -84,7 +84,7 @@ static int spiel_root_add(struct m0_spiel_tx *tx)
 			     &root->rt_obj.co_id,
 			     &M0_CONF_ROOT_PROFILES_FID,
 			     &M0_CONF_ROOT_TYPE,
-			     &EMPTY_ARR_FID_PTR,
+			     &EMPTY_FID_ARR_PTR,
 			     &root->rt_profiles);
 		obj->co_status = M0_CS_READY;
 	}
@@ -510,11 +510,11 @@ static int spiel_filesystem_dirs_create(struct m0_conf_cache      *cache,
 	M0_PRE(fs->cf_racks == NULL);
 
 	rc = dir_new(cache, &fs->cf_obj.co_id, &M0_CONF_FILESYSTEM_NODES_FID,
-		     &M0_CONF_NODE_TYPE, &EMPTY_ARR_FID_PTR, &fs->cf_nodes) ?:
+		     &M0_CONF_NODE_TYPE, &EMPTY_FID_ARR_PTR, &fs->cf_nodes) ?:
 	     dir_new(cache, &fs->cf_obj.co_id, &M0_CONF_FILESYSTEM_POOLS_FID,
-		     &M0_CONF_POOL_TYPE, &EMPTY_ARR_FID_PTR, &fs->cf_pools) ?:
+		     &M0_CONF_POOL_TYPE, &EMPTY_FID_ARR_PTR, &fs->cf_pools) ?:
 	     dir_new(cache, &fs->cf_obj.co_id, &M0_CONF_FILESYSTEM_RACKS_FID,
-		     &M0_CONF_RACK_TYPE, &EMPTY_ARR_FID_PTR, &fs->cf_racks);
+		     &M0_CONF_RACK_TYPE, &EMPTY_FID_ARR_PTR, &fs->cf_racks);
 
 	return M0_RC(rc);
 }
@@ -531,7 +531,7 @@ static int spiel_node_dirs_create(struct m0_conf_cache *cache,
 	M0_PRE(node->cn_processes == NULL);
 
 	rc = dir_new(cache, &node->cn_obj.co_id, &M0_CONF_NODE_PROCESSES_FID,
-		     &M0_CONF_PROCESS_TYPE, &EMPTY_ARR_FID_PTR,
+		     &M0_CONF_PROCESS_TYPE, &EMPTY_FID_ARR_PTR,
 		     &node->cn_processes);
 
 	return M0_RC(rc);
@@ -550,7 +550,7 @@ static int spiel_process_dirs_create(struct m0_conf_cache   *cache,
 
 	rc = dir_new(cache, &process->pc_obj.co_id,
 		     &M0_CONF_PROCESS_SERVICES_FID, &M0_CONF_SERVICE_TYPE,
-		     &EMPTY_ARR_FID_PTR, &process->pc_services);
+		     &EMPTY_FID_ARR_PTR, &process->pc_services);
 
 	return M0_RC(rc);
 }
@@ -567,7 +567,7 @@ static int spiel_service_dirs_create(struct m0_conf_cache   *cache,
 	M0_PRE(service->cs_sdevs == NULL);
 
 	rc = dir_new(cache, &service->cs_obj.co_id, &M0_CONF_SERVICE_SDEVS_FID,
-		     &M0_CONF_SDEV_TYPE, &EMPTY_ARR_FID_PTR,
+		     &M0_CONF_SDEV_TYPE, &EMPTY_FID_ARR_PTR,
 		     &service->cs_sdevs);
 
 	return M0_RC(rc);
@@ -586,7 +586,7 @@ static int spiel_pool_dirs_create(struct m0_conf_cache *cache,
 	M0_PRE(pool->pl_pvers == NULL);
 
 	rc = dir_new(cache, &pool->pl_obj.co_id, &M0_CONF_POOL_PVERS_FID,
-		     &M0_CONF_PVER_TYPE, &EMPTY_ARR_FID_PTR, &pool->pl_pvers);
+		     &M0_CONF_PVER_TYPE, &EMPTY_FID_ARR_PTR, &pool->pl_pvers);
 
 	return M0_RC(rc);
 }
@@ -603,7 +603,7 @@ static int spiel_rack_dirs_create(struct m0_conf_cache *cache,
 	M0_PRE(rack->cr_encls == NULL);
 
 	rc = dir_new(cache, &rack->cr_obj.co_id, &M0_CONF_RACK_ENCLS_FID,
-		     &M0_CONF_ENCLOSURE_TYPE, &EMPTY_ARR_FID_PTR,
+		     &M0_CONF_ENCLOSURE_TYPE, &EMPTY_FID_ARR_PTR,
 		     &rack->cr_encls);
 
 	return M0_RC(rc);
@@ -622,7 +622,7 @@ static int spiel_enclosure_dirs_create(struct m0_conf_cache     *cache,
 
 	rc = dir_new(cache, &enclosure->ce_obj.co_id,
 		     &M0_CONF_ENCLOSURE_CTRLS_FID, &M0_CONF_CONTROLLER_TYPE,
-		     &EMPTY_ARR_FID_PTR, &enclosure->ce_ctrls);
+		     &EMPTY_FID_ARR_PTR, &enclosure->ce_ctrls);
 
 	return M0_RC(rc);
 }
@@ -640,7 +640,7 @@ static int spiel_controller_dirs_create(struct m0_conf_cache      *cache,
 
 	rc = dir_new(cache, &controller->cc_obj.co_id,
 		     &M0_CONF_CONTROLLER_DISKS_FID, &M0_CONF_DISK_TYPE,
-		     &EMPTY_ARR_FID_PTR, &controller->cc_disks);
+		     &EMPTY_FID_ARR_PTR, &controller->cc_disks);
 
 	return M0_RC(rc);
 }
@@ -657,7 +657,7 @@ static int spiel_pver_dirs_create(struct m0_conf_cache *cache,
 	M0_PRE(pver->pv_rackvs == NULL);
 
 	rc = dir_new(cache, &pver->pv_obj.co_id, &M0_CONF_PVER_RACKVS_FID,
-		     &M0_CONF_OBJV_TYPE, &EMPTY_ARR_FID_PTR, &pver->pv_rackvs);
+		     &M0_CONF_OBJV_TYPE, &EMPTY_FID_ARR_PTR, &pver->pv_rackvs);
 
 	return M0_RC(rc);
 }
@@ -674,7 +674,7 @@ static int spiel_rackv_dirs_create(struct m0_conf_cache *cache,
 	M0_PRE(objv->cv_children == NULL);
 
 	rc = dir_new(cache, &objv->cv_obj.co_id, &M0_CONF_RACKV_ENCLVS_FID,
-		     &M0_CONF_OBJV_TYPE, &EMPTY_ARR_FID_PTR,
+		     &M0_CONF_OBJV_TYPE, &EMPTY_FID_ARR_PTR,
 		     &objv->cv_children);
 
 	return M0_RC(rc);
@@ -692,7 +692,7 @@ static int spiel_enclosurev_dirs_create(struct m0_conf_cache *cache,
 	M0_PRE(objv->cv_children == NULL);
 
 	rc = dir_new(cache, &objv->cv_obj.co_id, &M0_CONF_ENCLV_CTRLVS_FID,
-		     &M0_CONF_OBJV_TYPE, &EMPTY_ARR_FID_PTR,
+		     &M0_CONF_OBJV_TYPE, &EMPTY_FID_ARR_PTR,
 		     &objv->cv_children);
 
 	return M0_RC(rc);
@@ -710,7 +710,7 @@ static int spiel_controllerv_dirs_create(struct m0_conf_cache *cache,
 	M0_PRE(objv->cv_children == NULL);
 
 	rc = dir_new(cache, &objv->cv_obj.co_id, &M0_CONF_CTRLV_DISKVS_FID,
-		     &M0_CONF_OBJV_TYPE, &EMPTY_ARR_FID_PTR,
+		     &M0_CONF_OBJV_TYPE, &EMPTY_FID_ARR_PTR,
 		     &objv->cv_children);
 
 	return M0_RC(rc);

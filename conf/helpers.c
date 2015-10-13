@@ -175,72 +175,15 @@ M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs)
 		     _conf_load(fs, fs_to_diskvs, ARRAY_SIZE(fs_to_diskvs)));
 }
 
-static void __ha_nvec_reset(struct m0_ha_nvec *nvec, int32_t total)
-{
-	int i;
-	for(i = 0; i < nvec->nv_nr; i++)
-		nvec->nv_note[i] = (struct m0_ha_note){ M0_FID0, 0 };
-	nvec->nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
-}
-
-M0_INTERNAL int m0_conf_ha_state_update(struct m0_rpc_session *ha_sess,
-					struct m0_confc       *confc)
-{
-	struct m0_conf_cache *cache = &confc->cc_cache;
-	struct m0_conf_obj   *obj;
-	struct m0_ha_nvec    *nvec;
-	int32_t               total;
-	int                   rc;
-	int                   i = 0;
-
-	if ((total = m0_conf_cache_tlist_length(&cache->ca_registry)) < 1)
-		return M0_RC(-ENOENT);
-
-	M0_ALLOC_PTR(nvec);
-	if (nvec == NULL)
-		return M0_ERR(-ENOMEM);
-
-	nvec->nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
-	M0_ALLOC_ARR(nvec->nv_note, nvec->nv_nr);
-	if (nvec->nv_note == NULL) {
-		rc = M0_ERR(-ENOMEM);
-		goto end;
-	}
-
-	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
-		/* collect next note item */
-		nvec->nv_note[i].no_id = obj->co_id;
-		nvec->nv_note[i++].no_state = M0_NC_UNKNOWN;
-		/* see if it's time to discover */
-		if (nvec->nv_nr == i) {
-			rc = m0_conf_ha_state_discover(ha_sess, nvec, confc);
-			if (rc == 0) {
-				total -= nvec->nv_nr;
-				if (total > 0)
-					__ha_nvec_reset(nvec, total), i = 0;
-				else
-					break;
-			} else {
-				break;
-			}
-		}
-	} m0_tlist_endfor;
-
-	m0_free(nvec->nv_note);
-end:
-	m0_free(nvec);
-	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_conf_ha_state_discover(struct m0_rpc_session *ha_sess,
-					  struct m0_ha_nvec     *nvec,
-					  struct m0_confc       *confc)
+M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
+				       struct m0_ha_nvec     *nvec)
 {
 	struct m0_mutex       chan_lock;
 	struct m0_chan        chan;
 	struct m0_clink       clink;
 	int                   rc;
 
+	M0_PRE(nvec->nv_nr <= M0_HA_STATE_UPDATE_LIMIT);
 	m0_mutex_init(&chan_lock);
 	m0_chan_init(&chan, &chan_lock);
 	m0_clink_init(&clink, NULL);
@@ -254,7 +197,7 @@ M0_INTERNAL int m0_conf_ha_state_discover(struct m0_rpc_session *ha_sess,
 		 */
 		m0_chan_wait(&clink);
 		if (nvec->nv_nr >= 0)
-			m0_ha_state_accept(confc, nvec);
+			m0_ha_state_accept(nvec);
 		else
 			rc = M0_ERR(nvec->nv_nr);
 	}
@@ -266,6 +209,66 @@ M0_INTERNAL int m0_conf_ha_state_discover(struct m0_rpc_session *ha_sess,
 	m0_mutex_unlock(&chan_lock);
 	m0_mutex_fini(&chan_lock);
 
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
+				      const struct m0_fid   *obj_fid)
+{
+	struct m0_ha_nvec nvec;
+	struct m0_ha_note note;
+
+	note.no_id    = *obj_fid;
+	note.no_state = M0_NC_UNKNOWN;
+	nvec.nv_nr    = 1;
+	nvec.nv_note  = &note;
+	return M0_RC(m0_conf_objs_ha_update(ha_sess, &nvec));
+}
+
+static void __ha_nvec_reset(struct m0_ha_nvec *nvec, int32_t total)
+{
+	int i;
+	for(i = 0; i < nvec->nv_nr; i++)
+		nvec->nv_note[i] = (struct m0_ha_note){ M0_FID0, 0 };
+	nvec->nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
+}
+
+M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
+					struct m0_confc       *confc)
+{
+	struct m0_conf_cache *cache = &confc->cc_cache;
+	struct m0_conf_obj   *obj;
+	struct m0_ha_nvec     nvec;
+	int32_t               total;
+	int                   rc;
+	int                   i = 0;
+
+	if ((total = m0_conf_cache_tlist_length(&cache->ca_registry)) < 1)
+		return M0_RC(-ENOENT);
+
+	nvec.nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
+	M0_ALLOC_ARR(nvec.nv_note, nvec.nv_nr);
+	if (nvec.nv_note == NULL)
+		return M0_ERR(-ENOMEM);
+
+	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		nvec.nv_note[i].no_id = obj->co_id;
+		nvec.nv_note[i++].no_state = M0_NC_UNKNOWN;
+		if (nvec.nv_nr == i) {
+			rc = m0_conf_objs_ha_update(ha_sess, &nvec);
+			if (rc == 0) {
+				total -= nvec.nv_nr;
+				if (total > 0)
+					__ha_nvec_reset(&nvec, total), i = 0;
+				else
+					break;
+			} else {
+				break;
+			}
+		}
+	} m0_tlist_endfor;
+
+	m0_free(nvec.nv_note);
 	return M0_RC(rc);
 }
 
@@ -281,6 +284,61 @@ M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
 	rc = m0_confc_open_sync(&root_obj, confc->cc_root, M0_FID0);
 	if (rc == 0)
 		*root = M0_CONF_CAST(root_obj, m0_conf_root);
+	return M0_RC(rc);
+}
+
+static bool _obj_is_service(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
+}
+
+M0_INTERNAL int m0_conf_service_open(struct m0_confc            *confc,
+				     const struct m0_fid        *profile,
+				     const char                 *ep,
+				     enum m0_conf_service_type   svc_type,
+				     struct m0_conf_service    **result)
+{
+	struct m0_conf_filesystem *fs;
+	struct m0_conf_obj        *obj;
+	struct m0_conf_service    *s;
+	struct m0_conf_diter       it;
+	int                        rc;
+	bool                       found = false;
+
+	M0_PRE(result != NULL);
+	rc = m0_conf_fs_get(profile, confc, &fs);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_NODES_FID,
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID);
+	if (rc != 0) {
+		m0_confc_close(&fs->cf_obj);
+		return M0_ERR(rc);
+	}
+
+	while ((rc = m0_conf_diter_next_sync(&it, _obj_is_service)) ==
+		M0_CONF_DIRNEXT) {
+		obj = m0_conf_diter_result(&it);
+		s = M0_CONF_CAST(obj, m0_conf_service);
+		if ((ep == NULL || m0_streq(s->cs_endpoints[0], ep)) &&
+		    s->cs_type == svc_type) {
+			*result = s;
+			m0_conf_cache_lock(&confc->cc_cache);
+			m0_conf_obj_get(obj);
+			m0_conf_cache_unlock(&confc->cc_cache);
+			rc = 0;
+			found = true;
+			break;
+		}
+	}
+	m0_conf_diter_fini(&it);
+	m0_confc_close(&fs->cf_obj);
+
+	if (rc == 0 && !found)
+		rc = -ENOENT;
 	return M0_RC(rc);
 }
 

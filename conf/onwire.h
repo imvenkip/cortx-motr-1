@@ -36,11 +36,6 @@ struct m0_conf_fetch_resp;
 struct m0_conf_update;
 struct m0_conf_update_resp;
 
-struct arr_fid {
-	uint32_t       af_count;
-	struct m0_fid *af_elems;
-} M0_XCA_SEQUENCE;
-
 struct arr_u32 {
 	uint32_t  au_count;
 	uint32_t *au_elems;
@@ -62,7 +57,7 @@ struct m0_confx_root {
 	/* Configuration database version. */
 	uint64_t               xt_verno;
 	/* Profiles in configuration database. */
-	struct arr_fid         xt_profiles;
+	struct m0_fid_arr      xt_profiles;
 } M0_XCA_RECORD;
 
 struct m0_confx_profile {
@@ -82,11 +77,11 @@ struct m0_confx_filesystem {
 	/* Pool to locate mata-data. */
 	struct m0_fid          xf_mdpool;
 	/* Nodes of this filesystem. */
-	struct arr_fid         xf_nodes;
+	struct m0_fid_arr      xf_nodes;
 	/* Pools this filesystem resides on. */
-	struct arr_fid         xf_pools;
+	struct m0_fid_arr      xf_pools;
 	/* Racks this filesystem resides on. */
-	struct arr_fid         xf_racks;
+	struct m0_fid_arr      xf_racks;
 } M0_XCA_RECORD;
 
 struct m0_confx_pool {
@@ -94,7 +89,7 @@ struct m0_confx_pool {
 	/* Order in set of pool. */
 	uint32_t               xp_order;
 	/* Pool versions for this pool. */
-	struct arr_fid         xp_pvers;
+	struct m0_fid_arr      xp_pvers;
 } M0_XCA_RECORD;
 
 struct m0_confx_pver {
@@ -110,14 +105,14 @@ struct m0_confx_pver {
 	/* The number of allowed failures for each failure domain. */
 	struct arr_u32         xv_nr_failures;
 	/* Rack versions associated with this pool version. */
-	struct arr_fid         xv_rackvs;
+	struct m0_fid_arr      xv_rackvs;
 } M0_XCA_RECORD;
 
 struct m0_confx_objv {
 	struct m0_confx_header xj_header;
 	/* Identifier of real device associated with this version. */
 	struct m0_fid          xj_real;
-	struct arr_fid         xj_children;
+	struct m0_fid_arr      xj_children;
 } M0_XCA_RECORD;
 
 struct m0_confx_node {
@@ -131,7 +126,7 @@ struct m0_confx_node {
 	/* Property flags.  See m0_cfg_flag_bit. */
 	uint64_t               xn_flags;
 	struct m0_fid          xn_pool_id;
-	struct arr_fid         xn_processes;
+	struct m0_fid_arr      xn_processes;
 } M0_XCA_RECORD;
 
 struct m0_confx_process {
@@ -143,7 +138,7 @@ struct m0_confx_process {
 	uint64_t                xr_mem_limit_memlock;
 	struct m0_buf           xr_endpoint;
 	/* Services being run by this process. */
-	struct arr_fid          xr_services;
+	struct m0_fid_arr       xr_services;
 } M0_XCA_RECORD;
 
 struct m0_confx_service {
@@ -153,7 +148,7 @@ struct m0_confx_service {
 	/* End-points from which this service is reachable. */
 	struct m0_bufs         xs_endpoints;
 	/* Devices associated with service. */
-	struct arr_fid         xs_sdevs;
+	struct m0_fid_arr      xs_sdevs;
 } M0_XCA_RECORD;
 
 struct m0_confx_sdev {
@@ -177,17 +172,17 @@ struct m0_confx_sdev {
 struct m0_confx_rack {
 	struct m0_confx_header xr_header;
 	/* Enclosures on this rack. */
-	struct arr_fid         xr_encls;
+	struct m0_fid_arr      xr_encls;
 	/* Pool versions this rack is part of. */
-	struct arr_fid         xr_pvers;
+	struct m0_fid_arr      xr_pvers;
 } M0_XCA_RECORD;
 
 struct m0_confx_enclosure {
 	struct m0_confx_header xe_header;
 	/* Controllers in this enclosure. */
-	struct arr_fid         xe_ctrls;
+	struct m0_fid_arr      xe_ctrls;
 	/* Pool versions this enclosure is part of. */
-	struct arr_fid         xe_pvers;
+	struct m0_fid_arr      xe_pvers;
 } M0_XCA_RECORD;
 
 struct m0_confx_controller {
@@ -195,9 +190,9 @@ struct m0_confx_controller {
 	/* The node this controller is associated with. */
 	struct m0_fid          xc_node;
 	/* Storage disks attached to this controller. */
-	struct arr_fid         xc_disks;
+	struct m0_fid_arr      xc_disks;
 	/* Pool versions this controller is part of. */
-	struct arr_fid         xc_pvers;
+	struct m0_fid_arr      xc_pvers;
 } M0_XCA_RECORD;
 
 struct m0_confx_disk {
@@ -205,7 +200,7 @@ struct m0_confx_disk {
 	/* Storage device associated with this disk. */
 	struct m0_fid          xk_dev;
 	/* Pool versions this disk is part of. */
-	struct arr_fid         xk_pvers;
+	struct m0_fid_arr      xk_pvers;
 } M0_XCA_RECORD;
 
 struct m0_confx_obj {
@@ -260,9 +255,9 @@ M0_INTERNAL size_t m0_confx_sizeof(void);
 /** Configuration fetch request. */
 struct m0_conf_fetch {
 	/** Configuration object the path originates from. */
-	struct m0_fid  f_origin;
+	struct m0_fid     f_origin;
 	/** Path components. */
-	struct arr_fid f_path;
+	struct m0_fid_arr f_path;
 } M0_XCA_RECORD;
 
 /** Confd's response to m0_conf_fetch. */

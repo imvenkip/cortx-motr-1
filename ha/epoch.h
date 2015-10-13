@@ -70,13 +70,10 @@
 #include "lib/tlist.h"
 #include "lib/rwlock.h"
 struct m0_rpc_item;
+struct m0_confc;
 
 /* export */
 struct m0_ha_domain;
-struct m0_ha_epoch_monitor;
-
-M0_TL_DESCR_DECLARE(m0_ham, M0_EXTERN);
-M0_TL_DECLARE(m0_ham, M0_INTERNAL, struct m0_ha_epoch_monitor);
 
 /**
  * Epoch change monitor.
@@ -204,6 +201,46 @@ M0_INTERNAL void m0_ha_domain_put_write(struct m0_ha_domain *dom, uint64_t epoch
 
 M0_INTERNAL int  m0_ha_global_init(void);
 M0_INTERNAL void m0_ha_global_fini(void);
+
+/**
+ * Adds new HA client record to HA global context, or increments client's
+ * reference counter in case client record already exists.
+ *
+ * With this registration the client side is allowed to provide any arbitrary
+ * confc instance having cache filled with the conf objects which HA state
+ * changes the client side wants to be notified of.
+ *
+ * In its turn, HA is to apply recieved HA notifications to every registered
+ * confc instance. (see m0_ha_state_accept() implementation)
+ *
+ * @note Any client is allowed to register any confc instance that suits
+ * client's needs in HA subscriptions, taking no care about the instance
+ * origins, i.e. no matter if the instance were already registered previously by
+ * some other client or not.
+ */
+M0_INTERNAL int m0_ha_client_add(struct m0_confc *confc);
+
+/**
+ * Decrements HA client record reference counter, and deletes the record from
+ * global HA list when the counter reaches zero value.
+ */
+M0_INTERNAL int m0_ha_client_del(struct m0_confc *confc);
+
+/**
+ * Callback used during global HA client list iteration
+ */
+typedef void (*m0_ha_client_cb_t)(void *client, const void *data);
+
+/**
+ * Global HA client list iteration. Calling back occurs on per-client context
+ * basis. Caller provides callback along with data the caller side is to
+ * process. Data is to remain non-modified during iteration.
+ *
+ * @note Global HA context mutex is expected to be locked in the course of
+ * client list iteration.
+ */
+M0_INTERNAL void m0_ha_clients_iterate(m0_ha_client_cb_t iter,
+				       const void       *data);
 
 M0_INTERNAL int m0_ha_epoch_check(const struct m0_rpc_item *item);
 

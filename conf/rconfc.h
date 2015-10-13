@@ -27,11 +27,13 @@
 #include "lib/mutex.h"
 #include "lib/chan.h"
 #include "lib/tlist.h"
+#include "fop/fop.h"    /* m0_fop */
 #include "sm/sm.h"
 #include "conf/confc.h"
 
 struct m0_rconfc;
 struct m0_rpc_machine;
+struct m0_rpc_item;
 
 /**
  * @page rconfc-fspec Redundant Configuration Client (rconfc)
@@ -111,6 +113,14 @@ struct m0_rpc_machine;
  * instead of m0_confc, and performs all further reading via
  * m0_rconfc::rc_confc.
  *
+ * Also, the consumer using rconfc doesn't provide any confd addresses
+ * explicitly. The list of confd servers and other related information is
+ * centralised and is maintained by HA service. Rconfc queries this information
+ * on startup using global HA session (via m0_ha_session_get()). Active global
+ * HA session is a prerequisite for rconfc initialisation. It is assumed that HA
+ * session is established to local HA agent and HA agent endpoint uniquely
+ * identifies mero cluster configuration.
+ *
  * Example:
  *
  * @code
@@ -120,7 +130,6 @@ struct m0_rpc_machine;
  * struct m0_sm_group    *grp = ...;
  * struct m0_rpc_machine *rpcm = ...;
  * struct m0_rconfc       rconfc;
- * char                  *confd-ep-addr[] = { confd1, confd2, .. , NULL };
  *
  * void conf_exp_cb(struct m0_rconfc *rconfc)
  * {
@@ -130,9 +139,7 @@ struct m0_rpc_machine;
  *
  * startup(const struct m0_fid *profile, ...)
  * {
- *         rc = m0_rconfc_init(&rconfc, confd-ep-addr,
- *                             res-mgr-addr, grp, profile,
- *                             rpcm, 0, conf_exp_cb, NULL);
+ *         rc = m0_rconfc_init(&rconfc, grp, rpcm, conf_exp_cb);
  *         if (rc == 0) {
  *              rc = m0_rconfc_start_sync(&rconfc);
  *              if (rc != 0)
@@ -183,8 +190,8 @@ struct m0_rpc_machine;
 
 enum m0_rconfc_state {
 	RCS_INIT,
-	RCS_FINAL,
-	RCS_STARTING,
+	RCS_ENTRYPOINT_GET,
+	RCS_ENTRYPOINT_REPLIED,
 	RCS_GET_RLOCK,
 	RCS_VERSION_ELECT,
 	RCS_IDLE,
@@ -192,6 +199,7 @@ enum m0_rconfc_state {
 	RCS_CONDUCTOR_DRAIN,
 	RCS_STOPPING,
 	RCS_FAILURE,
+	RCS_FINAL
 };
 
 /**
@@ -275,11 +283,11 @@ struct m0_rconfc {
 	 * perform configuration reading operations.
 	 */
 	struct m0_confc_gate_ops  rc_gops;
-	/** AST to set rconfc SM state. */
-	struct m0_sm_ast          rc_state_ast;
-	/** Data for AST to set SM state (next state or error code). */
+	/** AST to run functions in context of rconfc sm group. */
+	struct m0_sm_ast          rc_ast;
+	/** Additional data to be used inside AST (i.e. failure error code). */
 	int                       rc_datum;
-	/** AST to be called on read lock conflict. */
+	/** AST to be posted when user requests rconfc to stop. */
 	struct m0_sm_ast          rc_stop_ast;
 	/** A list of confc instances used during election. */
 	struct m0_tl              rc_herd;
@@ -295,44 +303,59 @@ struct m0_rconfc {
 	bool                      rc_stopping;
 	/**
 	 * Indicates whether read lock conflict was observed and
-	 * should be processed once rconfc is idle. */
+	 * should be processed once rconfc is idle.
+	 */
 	bool                      rc_rlock_conflict;
+	/** FOP is used to retrieve cluster entry point from HA. */
+	struct m0_fop             rc_entrypoint_fop;
+	/** Reply from HA with cluster entry point. */
+	struct m0_rpc_item       *rc_entrypoint_reply;
+	/**
+	 * Confc instance artificially filled with objects having fids of
+	 * current confd and top-level RM services got from HA. Artificial
+	 * nature is because of filling its cache non-standard way at the time
+	 * when conventional configuration reading is impossible due to required
+	 * conf version number remaining unknown until election procedure is
+	 * done.
+	 *
+	 * This instance is added to HA clients list and serves HA notifications
+	 * about remote confd and RM service deaths. The intention is to
+	 * automatically keep herd list and top-level RM endpoint address up to
+	 * date during the entire rconfc instance life cycle.
+	 *
+	 * @attention Never use this confc for real configuration reading. No
+	 *            RPC communication is possible with the instance due to the
+	 *            way of its initialisation.
+	 */
+	struct m0_confc           rc_phony;
 };
 
 /**
- * Rconfc client must supply a list of confd addresses the federated conf client
- * to work on.
- *
- * When quorum value Q == 0, the real Q is calculated based on the number of
- * confd_addr elements passed in: Q = Qdefault = Nconfd / 2 + 1;
- *
- * Otherwise, the value is accepted as is, under condition Q >= Qdefault
+ * Initialise redundant configuration client instance.
  *
  * If initialisation fails, then finalisation is done internally. No explicit
  * m0_rconfc_fini() is needed.
  *
  * @param rconfc     - rconfc instance
- * @param confd_addr - NULL-terminated array of net addresses of confd servers
- * @param rm_addr    - address of node running Resource Manager to talk to
  * @param sm_group   - state machine group to be used with confc.
  *                     Opening conf objects later in context of this SM group is
  *                     prohibited, so providing locality SM group is a
  *                     bad choice. Use locality0 (@ref m0_locality0_get) or
  *                     some dedicated SM group.
  * @param rmach      - RPC machine to be used to communicate with confd
- * @param quorum     - the quorum to be reached
  * @param exp_cb     - callback, a "configuration just expired" event
  */
 M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
-			       const char           **confd_addr,
-			       const char            *rm_addr,
 			       struct m0_sm_group    *sm_group,
 			       struct m0_rpc_machine *rmach,
-			       uint32_t               quorum,
 			       m0_rconfc_exp_cb_t     exp_cb);
 
 /**
- * Rconfc starts with election, where allocated confc instances poll
+ * Rconfc starts with obtaining all necessary information (cluster "entry
+ * point") from HA service. Global HA session is used (m0_ha_session_get()), so
+ * it should be set-up before rconfc start.
+ *
+ * Rconfc continues with election, where allocated confc instances poll
  * corresponding confd for configuration version number they currently run. At
  * the same time confd availability is tested.
  *
@@ -356,14 +379,15 @@ M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc);
 M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc);
 
 /**
- * Finalises dedicated rconfc->rc_rconfc instance and put all resources in use.
+ * Finalises dedicated m0_rconfc::rc_confc instance and puts all the acquired
+ * resources back.
  *
  * Function is asynchronous, user should wait on rconfc->rc_sm.sm_chan until
  * rconfc->rc_sm.sm_state is RCS_FINAL.
  *
- * @note The user is not allowed to call @ref m0_rconfc_start again on stopped
- * rconfc instance as well as other API. The only call allowed is @ref
- * m0_rconfc_fini.
+ * @note User is not allowed to call @ref m0_rconfc_start again on stopped
+ * rconfc instance as well as other API. The only calls allowed with stopped
+ * instance are @ref m0_rconfc_ver_max_read and @ref m0_rconfc_fini.
  */
 M0_INTERNAL void m0_rconfc_stop(struct m0_rconfc *rconfc);
 
@@ -391,6 +415,11 @@ M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc);
 
 /**
  * Set expiration callback.
+ *
+ * @note The alternative to providing expiration callback is detecting rconfc
+ * RCS_CONDUCTOR_DRAIN state. Once the consumer observes the rconfc instance in
+ * this state, the consumer must close all opened configuration objects and
+ * invalidate local copies of configuration objects.
  *
  * @pre rconfc is locked.
  */

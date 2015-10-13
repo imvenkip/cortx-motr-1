@@ -38,6 +38,11 @@ struct m0_fid {
 	uint64_t f_key;
 } M0_XCA_RECORD;
 
+struct m0_fid_arr {
+	uint32_t       af_count;
+	struct m0_fid *af_elems;
+} M0_XCA_SEQUENCE;
+
 M0_INTERNAL bool m0_fid_is_set(const struct m0_fid *fid);
 M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid);
 M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0,

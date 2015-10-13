@@ -843,27 +843,21 @@ static void test_barrier_same_time(void)
 }
 
 static void remote_ha_state_update(enum rm_server       server,
-				   enum rm_server       watcher,
 				   enum m0_ha_obj_state new_state)
 {
-	struct rm_ctx   *sctx = &rm_ctxs[server];
-	struct rm_ctx   *wctx = &rm_ctxs[watcher];
-	struct m0_confc *confc = &wctx->rc_rmach_ctx.rmc_reqh.rh_confc;
 	struct m0_ha_note n1[] = {
-		{ M0_FID_TINIT('s', 0, sctx->rc_id), new_state },
+		{ M0_FID_TINIT('s', 0, rm_ctxs[server].rc_id), new_state },
 	};
 	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
 
-	m0_ha_state_accept(confc, &nvec);
+	m0_ha_state_accept(&nvec);
 }
 
 /* creditor/debtor death - simulate HA note acceptance */
-static void remote_die(enum rm_server server, enum rm_server watcher)
+static void remote_die(enum rm_server server)
 {
-	struct rm_ctx *sctx = &rm_ctxs[server];
-
-	remote_ha_state_update(server, watcher, M0_NC_FAILED);
-	sctx->rc_is_dead = true;
+	remote_ha_state_update(server, M0_NC_FAILED);
+	rm_ctxs[server].rc_is_dead = true;
 }
 
 static void rm_server_restart(enum rm_server server)
@@ -874,17 +868,17 @@ static void rm_server_restart(enum rm_server server)
 	rm_ctxs[server].rc_is_dead = false;
 }
 
-static void remote_online(enum rm_server server, enum rm_server watcher)
+static void remote_online(enum rm_server server)
 {
 	rm_server_restart(server);
-	remote_ha_state_update(server, watcher, M0_NC_ONLINE);
+	remote_ha_state_update(server, M0_NC_ONLINE);
 }
 
 static void debtor_death_acceptance_wait(enum rm_server dead,
-					 enum rm_server watcher)
+					 enum rm_server waiter)
 {
 	struct rm_ctx         *sctx = &rm_ctxs[dead];
-	struct rm_ctx         *wctx = &rm_ctxs[watcher];
+	struct rm_ctx         *wctx = &rm_ctxs[waiter];
 	struct m0_rm_remote   *remote;
 	struct m0_rm_resource *res;
 	struct m0_cookie       cookie;
@@ -914,7 +908,7 @@ static void test_debtor_death(void)
 	credits_are_equal(SERVER_2, RCL_BORROWED, NENYA);
 	credits_are_equal(SERVER_2, RCL_CACHED,   NENYA);
 
-	remote_die(SERVER_2, SERVER_3);
+	remote_die(SERVER_2);
 	/*
 	 * Debtor death is handled asynchronously through AST,
 	 * wait until AST is executed.
@@ -961,7 +955,7 @@ static void test_creditor_death(void)
 	credits_are_equal(SERVER_1, RCL_BORROWED, NENYA);
 	credits_are_equal(SERVER_1, RCL_CACHED,   NENYA);
 
-	remote_die(SERVER_3, SERVER_2);
+	remote_die(SERVER_3);
 
 	/*
 	 * SERVER_3 is dead.
@@ -1007,7 +1001,7 @@ static void test_creditor_death2(void)
 	borrow_and_hold(SERVER_2, NENYA);
 
 	m0_semaphore_init(&conflict2_sem, 0);
-	remote_die(SERVER_3, SERVER_2);
+	remote_die(SERVER_3);
 
 	/*
 	 * SERVER_2 calls conflict callback for all held credits, since these
@@ -1047,7 +1041,7 @@ static void test_creditor_recovered(void)
 	credits_are_equal(SERVER_2, RCL_BORROWED, NENYA);
 	credits_are_equal(SERVER_2, RCL_CACHED,   NENYA);
 
-	remote_die(SERVER_3, SERVER_2);
+	remote_die(SERVER_3);
 
 	rc = m0_rm_owner_timedwait(rm_ctxs[SERVER_2].rc_test_data.rd_owner,
 				   M0_BITS(ROS_DEAD_CREDITOR), M0_TIME_NEVER);
@@ -1060,7 +1054,7 @@ static void test_creditor_recovered(void)
 	M0_UT_ASSERT(rm_ctxs[SERVER_2].rc_test_data.rd_in.rin_rc == -ENODEV);
 
 	/* Imitate HA notification that creditor is M0_NC_ONLINE again */
-	remote_online(SERVER_3, SERVER_2);
+	remote_online(SERVER_3);
 	creditor_cookie_setup(SERVER_2, SERVER_3);
 
 	/* Now credit request is granted */
@@ -1084,7 +1078,7 @@ static void test_creditor_reset(void)
 	credits_are_equal(SERVER_2, RCL_BORROWED, NENYA);
 	credits_are_equal(SERVER_2, RCL_CACHED,   NENYA);
 
-	remote_die(SERVER_3, SERVER_2);
+	remote_die(SERVER_3);
 
 	rc = m0_rm_owner_timedwait(rm_ctxs[SERVER_2].rc_test_data.rd_owner,
 				   M0_BITS(ROS_DEAD_CREDITOR), M0_TIME_NEVER);

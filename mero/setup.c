@@ -1939,7 +1939,8 @@ static int cs_conf_setup(struct m0_mero *cctx)
 		.ca_group   = m0_locality0_get()->lo_grp,
 	};
 
-	rc = m0_reqh_conf_setup(&cctx->cc_reqh_ctx.rc_reqh, conf_args);
+	rc = m0_reqh_conf_setup(&cctx->cc_reqh_ctx.rc_reqh, conf_args) ?:
+		m0_ha_client_add(m0_mero2confc(cctx));
 	if (rc != 0) {
 		m0_free(confstr);
 		return M0_ERR(rc);
@@ -1979,6 +1980,7 @@ pools_common_fini:
 conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
 conf_destroy:
+	m0_ha_client_del(m0_mero2confc(cctx));
 	m0_confc_fini(m0_mero2confc(cctx));
 	m0_free(confstr);
 	return M0_ERR(rc);
@@ -1988,6 +1990,7 @@ static void cs_conf_destroy(struct m0_mero *cctx)
 {
 	struct m0_confc *confc = m0_mero2confc(cctx);
 
+	m0_ha_client_del(confc);
 	if (confc->cc_group != NULL) {
 		m0_pool_versions_destroy(&cctx->cc_pools_common);
 		m0_pools_service_ctx_destroy(&cctx->cc_pools_common);

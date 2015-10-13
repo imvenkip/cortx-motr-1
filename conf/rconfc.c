@@ -28,6 +28,7 @@
 #include "lib/errno.h"
 #include "lib/locality.h"  /* m0_locality0_get() */
 #include "lib/string.h"
+#include "lib/buf.h"       /* m0_buf_strdup */
 #include "lib/finject.h"   /* M0_FI_ENABLED */
 #include "mero/magic.h"
 #include "rm/rm.h"
@@ -36,16 +37,20 @@
 #include "conf/cache.h"
 #include "conf/obj_ops.h"  /* m0_conf_obj_find */
 #include "conf/confc.h"
+#include "conf/helpers.h"  /* m0_conf_ha_state_update */
 #include "conf/rconfc.h"
 #include "conf/rconfc_internal.h"
+#include "ha/note_fops.h"  /* m0_ha_entrypoint_req_fopt */
+#include "ha/note.h"       /* m0_ha_entrypoint_req */
 
 /**
  * @page rconfc-lspec rconfc Internals
  *
  * - @ref rconfc-lspec-sm
+ * - @ref rconfc-lspec-entrypoint
  * - @ref rconfc-lspec-rlock
  * - @ref rconfc-lspec-elect
- * - @ref rconfc-lspec-confc
+ * - @ref rconfc-lspec-ha-notification
  * - @ref rconfc-lspec-gate
  *   - @ref rconfc-lspec-gate-check
  *   - @ref rconfc-lspec-gate-drain
@@ -60,7 +65,8 @@
  *      node [fontsize=9];
  *      edge [fontsize=9];
  *      "RCS_INIT"              [shape=rect, style=filled, fillcolor=lightgrey];
- *      "RCS_STARTING"          [shape=rect, style=filled, fillcolor=lightgrey];
+ *      "RCS_ENTRYPOINT_GET"    [shape=rect, style=filled, fillcolor=green];
+ *      "RCS_ENTRYPOINT_REPLIED" [shape=rect, style=filled, fillcolor=green];
  *      "RCS_GET_RLOCK"         [shape=rect, style=filled, fillcolor=green];
  *      "RCS_VERSION_ELECT"     [shape=rect, style=filled, fillcolor=green];
  *      "RCS_IDLE"              [shape=rect, style=filled, fillcolor=cyan];
@@ -70,17 +76,24 @@
  *      "RCS_FAILURE"           [shape=rect, style=filled, fillcolor=tomato];
  *      "RCS_FINAL"             [shape=rect, style=filled, fillcolor=red];
  *
- *      "RCS_INIT" -> "RCS_STARTING"
- *      "RCS_STARTING" -> "RCS_GET_RLOCK"
- *      "RCS_STARTING" -> "RCS_FAILURE"
+ *      "RCS_INIT" -> "RCS_ENTRYPOINT_GET"
+ *      "RCS_INIT" -> "RCS_FINAL"
+ *      "RCS_ENTRYPOINT_GET" -> "RCS_ENTRYPOINT_REPLIED"
+ *      "RCS_ENTRYPOINT_GET" -> "RCS_FAILURE"
+ *      "RCS_ENTRYPOINT_REPLIED" -> "RCS_GET_RLOCK"
+ *      "RCS_ENTRYPOINT_REPLIED" -> "RCS_ENTRYPOINT_GET"
+ *      "RCS_ENTRYPOINT_REPLIED" -> "RCS_FAILURE"
  *      "RCS_GET_RLOCK" -> "RCS_VERSION_ELECT"
+ *      "RCS_GET_RLOCK" -> "RCS_ENTRYPOINT_GET"
  *      "RCS_GET_RLOCK" -> "RCS_FAILURE"
  *      "RCS_VERSION_ELECT" -> "RCS_IDLE"
+ *      "RCS_VERSION_ELECT" -> "RCS_STOPPING"
+ *      "RCS_VERSION_ELECT" -> "RCS_RLOCK_CONFLICT"
  *      "RCS_VERSION_ELECT" -> "RCS_FAILURE"
  *      "RCS_IDLE" -> "RCS_RLOCK_CONFLICT"
  *      "RCS_IDLE" -> "RCS_STOPPING"
  *      "RCS_RLOCK_CONFLICT" -> "RCS_CONDUCTOR_DRAIN"
- *      "RCS_CONDUCTOR_DRAIN" -> "RCS_GET_RLOCK"
+ *      "RCS_CONDUCTOR_DRAIN" -> "RCS_ENTRYPOINT_GET"
  *      "RCS_CONDUCTOR_DRAIN" -> "RCS_FAILURE"
  *      "RCS_STOPPING" -> "RCS_FINAL"
  *      "RCS_FAILURE" -> "RCS_STOPPING"
@@ -88,7 +101,6 @@
  * @enddot
  *
  * Color agenda:                                          @n
- * @b light @b grey - Initialisation and startup states   @n
  * @b green         - States during startup or reelection @n
  * @b pink          - Reelection-only states              @n
  * @b dark @b grey  - Stopping states                     @n
@@ -99,7 +111,7 @@
  * state, then a fact of the happened event is stored, but its handling is
  * delayed until rconfc state is RCS_IDLE.
  *
- * If failure is occured that prevents rconfc from functioning properly, then
+ * If failure is occurred that prevents rconfc from functioning properly, then
  * rconfc goes to RCS_FAILURE state. SM in this state do nothing until user
  * requests for stopping.
  *
@@ -107,10 +119,27 @@
  * user on rconfc initialisation.
  *
  * <hr> <!------------------------------------------------------------>
+ * @section rconfc-lspec-entrypoint Request cluster entry point from HA
+ *
+ * The first stage of rconfc startup is determining the entry point of mero
+ * cluster, which configuration should be accessed. The entry point consists of
+ * several components. All of them can be changed during cluster lifetime.
+ *
+ * Cluster entry point includes:
+ * - List of confd servers fids along with RPC endpoints.
+ * - Fid and RPC endpoint of active RM creditor that manages concurrent access
+ *   to the cluster configuration database.
+ * - Quorum value. Minimum number of confd servers running the same
+ *   configuration version number necessary to elect this version.
+ *
+ * HA subsystem is responsible for serving queries for current cluster entry
+ * point. Rconfc makes query to HA subsystem through a local HA agent.
+ *
+ * <hr> <!------------------------------------------------------------>
  * @section rconfc-lspec-rlock Read Lock Acquisition and Revocation
  *
  * During m0_rconfc_start() execution rconfc requesting read lock from Resource
- * Manager (RM) by calling read_lock_get_st_in(). On request completion
+ * Manager (RM) by calling rconfc_read_lock_get(). On request completion
  * rconfc_read_lock_complete() is called. Successful lock acquisition indicates
  * no configuration change is in progress and configuration reading is allowed.
  *
@@ -119,16 +148,16 @@
  * revocation rconfc_read_lock_conflict() is called. The call installs
  * m0_confc_gate_ops::go_drain() callback to be notified when the last reading
  * context is detached from m0_rconfc::rc_confc instance. The callback ends in
- * calling rconfc_gate_drain() where rconfc starts conductor cache drain.
- * In conductor_drained_st_in() rconfc eventually puts the read lock back to RM.
+ * calling rconfc_gate_drain() where rconfc starts conductor cache drain. In
+ * rconfc_conductor_drained() rconfc eventually puts the read lock back to RM.
  *
  * Being informed about the conflict, rconfc disallows configuration reading
  * done via m0_rconfc::rc_confc until the next read lock acquisition is
- * complete. Besides, in conductor_drain_check_st_in() the mentioned confc's
- * cache is drained to prevent consumer from reading cached-but-outdated
- * configuration values. However, the cache data remains untouched and readable
- * to the very moment when there is no cache object pinned anymore, and the last
- * reading context detaches from the confc being in use.
+ * complete. Besides, in rconfc_conductor_drain() the mentioned confc's cache is
+ * drained to prevent consumer from reading cached-but-outdated configuration
+ * values. However, the cache data remains untouched and readable to the very
+ * moment when there is no cache object pinned anymore, and the last reading
+ * context detaches from the confc being in use.
  *
  * When done with the cache, m0_rconfc::rc_confc is disconnected from confd
  * server to prevent unauthorized read operations. Then the conflicting lock is
@@ -141,8 +170,8 @@
  * @section rconfc-lspec-elect Version Election and Quorum
  *
  * In the course of rconfc_read_lock_complete() under condition of successful
- * read lock acquisition version_elect_st_in() is called. The call initialises
- * every confc instance of the m0_rconfc::rc_herd list, attaches
+ * read lock acquisition rconfc transits to RCS_VERSION_ELECT state. It
+ * initialises every confc instance of the m0_rconfc::rc_herd list, attaches
  * rconfc__cb_quorum_test() to its context and initiates asynchronous reading
  * from the corresponding confd server. When version quorum is either
  * reached or found impossible rconfc_version_elected() is called.
@@ -161,6 +190,57 @@
  * When quorum is reached, rconfc_conductor_engage() is called connecting
  * m0_rconfc::rc_confc with a confd server from active list. Starting from this
  * moment configuration reading is allowed until read lock is revoked.
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section rconfc-lspec-ha-notification Processing HA notifications
+ *
+ * Rconfc is interested in the following notifications from HA:
+ * - Permanent failure of active RM creditor.
+ * - Permanent failure of one of confd servers from the herd.
+ *
+ * In order to receive these notifications rconfc creates phony confc
+ * (m0_rconfc::rc_phony) and adds fake objects for RM creditor service and confd
+ * services upon receiving cluster entry point. Using general non-phony confc
+ * instance is not possible, because configuration version election isn't done
+ * to that moment.
+ *
+ * Actions performed on RM creditor death:
+ * - If read lock is not acquired yet, then rconfc restarts election process
+ *   from requesting cluster entry point. HA subsystem is expected to return
+ *   information about newly chosen active RM creditor or an error if it was
+ *   unable to choose one. Please note that if HA subsystem constantly
+ *   returns already dead RM creditor, then rconfc will go to infinite loop.
+ *
+ * - If read lock is held by rconfc, then RM creditor death is observed by
+ *   checking local owner state in rconfc_read_lock_conflict(). The thing is
+ *   that local owner also tracks changes in RM creditor HA state
+ *   (see rlock_ctx_creditor_setup()). On RM creditor death owner goes to
+ *   ROS_QUIESCE state and calls conflict callbacks for all held credits.
+ *   Rconfc unsets local owner creditor and restarts election process in order
+ *   to receive newly chosen creditor from HA.
+ *
+ * Actions performed on death of confd server from herd:
+ * - Drop connection.
+ * - Finalise internal confc.
+ * - Mark herd link as CONFC_DEAD, so this confd doesn't participate in possible
+ *   confd switch (see @ref rconfc-lspec-gate-skip) or reelection.
+ *
+ * @attention Currently HA notifications processing doesn't take "conductor"
+ * confc into account. This confc instance is separated from those used in herd
+ * and is not affected even if death of confd server it communicates with is
+ * observed. It is assumed that RPC eventually will return an error and
+ * "conductor" confc will be reconnected to another confd.
+ *
+ * @note There are no special HA notifications about the fact that confd servers
+ * list has changed. In order to make rconfc logic correct in such case the
+ * following behaviour is expected from HA:
+ * - Confd server can't be excluded from list without prior HA notification
+ *   about permanent failure of this confd server. Rconfc will receive
+ *   this notification and will stop working with it.
+ * - Confd server can't be added to the list without prior configuration
+ *   database update, that adds this service to database. Rconfc will observe
+ *   read lock conflict and eventually will restart election process, thus
+ *   obtaining updated confd list.
  *
  * <hr> <!------------------------------------------------------------>
  * @section rconfc-lspec-gate Gating confc operations
@@ -422,6 +502,7 @@
  * @{
  */
 
+static void rconfc_herd_link_fini(struct rconfc_link *lnk);
 static bool rconfc_gate_check(struct m0_confc *confc);
 static int  rconfc_gate_skip(struct m0_confc *confc);
 static bool rconfc_gate_drain(struct m0_clink *clink);
@@ -440,23 +521,36 @@ struct m0_rm_incoming_ops m0_rconfc_ri_ops = {
 	.rio_conflict = rconfc_read_lock_conflict,
 };
 
+static void rconfc_entrypoint_req_replied(struct m0_rpc_item *item);
+
+static struct m0_rpc_item_ops rconfc_entrypoint_item_ops = {
+	.rio_replied = rconfc_entrypoint_req_replied
+};
+
 static struct m0_sm_state_descr rconfc_states[] = {
 	[RCS_INIT] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "RCS_INIT",
-		.sd_allowed   = M0_BITS(RCS_STARTING)
+		.sd_allowed   = M0_BITS(RCS_ENTRYPOINT_GET, RCS_FINAL)
 	},
-	[RCS_STARTING] = {
-		.sd_name      = "RCS_STARTING",
-		.sd_allowed   = M0_BITS(RCS_GET_RLOCK, RCS_FAILURE),
+	[RCS_ENTRYPOINT_GET] = {
+		.sd_name      = "RCS_ENTRYPOINT_GET",
+		.sd_allowed   = M0_BITS(RCS_ENTRYPOINT_REPLIED, RCS_FAILURE),
+	},
+	[RCS_ENTRYPOINT_REPLIED] = {
+		.sd_name      = "RCS_ENTRYPOINT_REPLIED",
+		.sd_allowed   = M0_BITS(RCS_GET_RLOCK, RCS_ENTRYPOINT_GET,
+					RCS_FAILURE),
 	},
 	[RCS_GET_RLOCK] = {
 		.sd_name      = "RCS_GET_RLOCK",
-		.sd_allowed   = M0_BITS(RCS_VERSION_ELECT, RCS_FAILURE),
+		.sd_allowed   = M0_BITS(RCS_VERSION_ELECT, RCS_ENTRYPOINT_GET,
+					RCS_FAILURE),
 	},
 	[RCS_VERSION_ELECT] = {
 		.sd_name      = "RCS_VERSION_ELECT",
-		.sd_allowed   = M0_BITS(RCS_IDLE, RCS_FAILURE),
+		.sd_allowed   = M0_BITS(RCS_IDLE, RCS_STOPPING,
+					RCS_RLOCK_CONFLICT, RCS_FAILURE),
 	},
 	[RCS_IDLE] = {
 		.sd_name      = "RCS_IDLE",
@@ -468,7 +562,7 @@ static struct m0_sm_state_descr rconfc_states[] = {
 	},
 	[RCS_CONDUCTOR_DRAIN] = {
 		.sd_name      = "RCS_CONDUCTOR_DRAIN",
-		.sd_allowed   = M0_BITS(RCS_GET_RLOCK, RCS_FAILURE),
+		.sd_allowed   = M0_BITS(RCS_ENTRYPOINT_GET, RCS_FAILURE),
 	},
 	[RCS_STOPPING] = {
 		.sd_name      = "RCS_STOPPING",
@@ -511,6 +605,111 @@ M0_TL_DEFINE(rcnf_active, M0_INTERNAL, struct rconfc_link);
  * Helpers
  ***************************************/
 
+/* ------------------- Phony confc ------------------ */
+
+/**
+ * Phony confc initialisation. Done with no confd address, and cache being fed
+ * with minimal formal local cache string containing root object only. Once
+ * initialised, it is expected to append proper object FIDs, obtained from HA
+ * and watched for death notifications during entire rconfc instance life cycle.
+ */
+static int _confc_phony_init(struct m0_confc *confc)
+{
+	void *fake_ptr = (void *)1;
+	int   rc;
+
+	M0_ENTRY();
+	/*
+	 * The confc never to do real conf reading, so no real group is
+	 * required, as well as no real RPC machine to be used because no RPC
+	 * connection to be established. Fake pointers are just to prevent
+	 * assertions from firing in m0_confc_init().
+	 */
+	rc = m0_confc_init(confc, fake_ptr, NULL, fake_ptr, NULL);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = m0_ha_client_add(confc);
+	if (rc != 0)
+		m0_confc_fini(confc);
+	return M0_RC(rc);
+}
+
+/**
+ * Finalisation of the phony confc. Indicates that no HA notification is
+ * expected anymore, so the instance must be removed from HA client list and
+ * drained safely.
+ */
+static void _confc_phony_fini(struct m0_confc *phony)
+{
+	M0_ENTRY();
+	/* Cache contains only root object */
+	M0_PRE(m0_conf_cache_tlist_length(
+				&phony->cc_cache.ca_registry) == 1);
+	m0_ha_client_del(phony);
+	m0_confc_fini(phony);
+	M0_SET0(phony);
+	M0_LEAVE();
+}
+
+/**
+ * Appends fake object to phony cache. Any duplicate fid is to be ignored by
+ * m0_conf_cache_add().
+ *
+ * Operation is allowed to be repeated as many times as required.
+ */
+static int _confc_phony_cache_append(struct m0_confc      *confc,
+				     const struct m0_fid  *fid,
+				     struct m0_conf_obj  **out)
+{
+	struct m0_conf_cache *cache = &confc->cc_cache;
+	struct m0_conf_obj   *obj;
+	int                   rc;
+
+	M0_ENTRY();
+	m0_conf_cache_lock(cache);
+	obj = m0_conf_obj_create(cache, fid);
+	if (obj == NULL)
+		return M0_ERR(-ENOMEM);
+	/*
+	 * fake it be an already normally read object to comply with HA
+	 * subscription mechanisms (see ha_state_accept())...
+	 */
+	obj->co_status = M0_CS_READY;
+	/*
+	 * ...and fake it be pinned, as further discharging will rely on
+	 * that pin while iterating the cache
+	 */
+	obj->co_nrefs  = 1;
+	rc = m0_conf_cache_add(cache, obj);
+	if (rc != 0)
+		m0_conf_obj_delete(obj);
+	m0_conf_cache_unlock(cache);
+	if (out != NULL && rc == 0)
+		*out = obj;
+	return M0_RC(rc);
+}
+
+/**
+ * Removes fake conf object with respective fid from phony cache. Object status
+ * needs to be forced to M0_CS_MISSING to safely pass m0_conf_cache_del().
+ */
+static void _confc_phony_cache_remove(struct m0_confc     *confc,
+				      const struct m0_fid *fid)
+{
+	struct m0_conf_obj   *obj;
+	struct m0_conf_cache *cache = &confc->cc_cache;
+
+	M0_ENTRY();
+	m0_conf_cache_lock(cache);
+	obj = m0_conf_cache_lookup(&confc->cc_cache, fid);
+	M0_ASSERT(!m0_conf_obj_is_stub(obj));
+	obj->co_status = M0_CS_MISSING;
+	obj->co_nrefs  = 0;
+	m0_conf_cache_del(cache, obj);
+	m0_conf_cache_unlock(cache);
+	M0_LEAVE();
+}
+
 /* -------------- Read lock context ----------------- */
 
 static struct m0_rconfc *rlock_ctx_incoming_to_rconfc(struct m0_rm_incoming *in)
@@ -521,114 +720,158 @@ static struct m0_rconfc *rlock_ctx_incoming_to_rconfc(struct m0_rm_incoming *in)
 	return rlx->rlc_parent;
 }
 
+static bool rlock_ctx_is_online(struct rlock_ctx *rlx)
+{
+	return rlx->rlc_rm_addr != NULL;
+}
+
 static void rlock_ctx_disconnect(struct rlock_ctx *rlx)
 {
 	int rc;
 
-	M0_PRE(rlx->rlc_online);
+	M0_PRE(rlock_ctx_is_online(rlx));
 	rc = m0_rpc_session_destroy(&rlx->rlc_sess, M0_TIME_NEVER);
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Failed to destroy rlock session");
 	rc = m0_rpc_conn_destroy(&rlx->rlc_conn, M0_TIME_NEVER);
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Failed to destroy rlock connection");
-	rlx->rlc_online = false;
+	m0_free(rlx->rlc_rm_addr);
+	rlx->rlc_rm_addr = NULL;
 }
 
-static int rlock_ctx_connect(struct rlock_ctx *rlx)
+static int rlock_ctx_connect(struct rlock_ctx *rlx, const char *ep)
 {
 	enum { MAX_RPCS_IN_FLIGHT = 15 };
 
 	int rc;
 
 	M0_ENTRY();
-	M0_PRE(!rlx->rlc_online);
+	M0_PRE(!rlock_ctx_is_online(rlx));
+	M0_PRE(ep != NULL);
+	rlx->rlc_rm_addr = m0_strdup(ep);
+	if (rlx->rlc_rm_addr == NULL)
+		return M0_ERR(-ENOMEM);
 	if (M0_FI_ENABLED("rm_conn_failed"))
 		rc = M0_ERR(-ECONNREFUSED);
 	else
 		rc = m0_rpc_client_connect(&rlx->rlc_conn, &rlx->rlc_sess,
 					   rlx->rlc_rmach, rlx->rlc_rm_addr,
 					   MAX_RPCS_IN_FLIGHT);
-	rlx->rlc_online = (rc == 0);
+	if (rc != 0) {
+		m0_free(rlx->rlc_rm_addr);
+		rlx->rlc_rm_addr = NULL;
+	}
 	return M0_RC(rc);
 }
 
-static bool rlock_ctx_is_initialised(const struct rlock_ctx *rlx)
+static int rlock_ctx_create(struct m0_rconfc       *parent,
+			    struct m0_rpc_machine  *rmach,
+			    struct rlock_ctx      **out)
 {
-	return rlx->rlc_parent != NULL;
-}
+	struct rlock_ctx *rlx;
 
-static int rlock_ctx_init(struct rlock_ctx      *rlx,
-			  struct m0_rconfc      *parent,
-			  struct m0_rpc_machine *rmach,
-			  const char            *rm_addr)
-{
 	M0_ENTRY();
-	M0_PRE(rlx != NULL);
+	M0_PRE(out != NULL);
 	M0_PRE(rmach != NULL);
-	M0_PRE(rm_addr != NULL);
-	M0_PRE(M0_IS0(rlx));
+
+	M0_ALLOC_PTR(rlx);
+	if (rlx == NULL)
+		return M0_ERR(-ENOMEM);
 
 	rlx->rlc_parent = parent;
 	rlx->rlc_rmach = rmach;
-	rlx->rlc_rm_addr = m0_strdup(rm_addr);
-	if (rlx->rlc_rm_addr == NULL)
-		return M0_ERR(-ENOMEM);
-
+	m0_rw_lockable_init(&rlx->rlc_rwlock, &M0_RWLOCK_FID,
+			    m0_rwlockable_domain());
+	m0_fid_tgenerate(&rlx->rlc_owner_fid, M0_RM_OWNER_FT);
+	m0_rm_rwlock_owner_init(&rlx->rlc_owner, &rlx->rlc_owner_fid,
+				&rlx->rlc_rwlock, NULL);
+	rlx->rlc_rm_addr = NULL;
+	*out = rlx;
 	return M0_RC(0);
 }
 
-static void rlock_ctx_owner_setup(struct rlock_ctx *rlx)
+static void rlock_ctx_destroy(struct rlock_ctx *rlx)
 {
-	struct m0_rm_owner  *owner;
-	struct m0_rm_remote *creditor;
+	M0_PRE(!rlock_ctx_is_online(rlx));
+	m0_rw_lockable_fini(&rlx->rlc_rwlock);
+	m0_free(rlx);
+}
 
-	m0_rw_lockable_init(&rlx->rlc_rwlock, &M0_RWLOCK_FID,
-			    m0_rwlockable_domain());
-	owner            = &rlx->rlc_owner;
-	creditor         = &rlx->rlc_creditor;
-	m0_fid_tgenerate(&rlx->rlc_owner_fid, M0_RM_OWNER_FT);
-	m0_rm_rwlock_owner_init(owner, &rlx->rlc_owner_fid,
-				&rlx->rlc_rwlock, NULL);
+static enum m0_rm_owner_state
+rlock_ctx_creditor_state(struct rlock_ctx *rlx)
+{
+	return rlx->rlc_owner.ro_sm.sm_state;
+}
+
+static int rlock_ctx_creditor_setup(struct rlock_ctx    *rlx,
+				    const struct m0_fid *fid,
+				    const char          *ep)
+{
+	struct m0_rm_owner  *owner = &rlx->rlc_owner;
+	struct m0_rm_remote *creditor = &rlx->rlc_creditor;
+	struct m0_conf_obj  *obj;
+	int                  rc;
+
+	M0_ENTRY();
+	M0_PRE(M0_IN(rlock_ctx_creditor_state(rlx),
+		     (ROS_ACTIVE, ROS_DEAD_CREDITOR)));
+	rc = _confc_phony_cache_append(&rlx->rlc_parent->rc_phony, fid, &obj);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = m0_conf_obj_ha_update(m0_ha_session_get(), fid);
+	if (rc != 0)
+		goto conf_obj_del;
+	if (obj->co_ha_state == M0_NC_FAILED) {
+		rc = -EHOSTUNREACH;
+		goto conf_obj_del;
+	}
+	rc = rlock_ctx_connect(rlx, ep);
+	if (rc != 0)
+		goto conf_obj_del;
 	m0_rm_remote_init(creditor, owner->ro_resource);
 	creditor->rem_session = &rlx->rlc_sess;
-	owner->ro_creditor    = creditor;
+	m0_rm_owner_creditor_reset(owner, creditor);
+	rlx->rlc_rm_fid       = *fid;
+	/*
+	 * Subscribe for HA state changes of creditor.
+	 * Unsubscription is automatically done in m0_rm_remote_fini().
+	 */
+	m0_clink_add_lock(&obj->co_ha_chan, &creditor->rem_tracker.rht_clink);
+	return M0_RC(0);
+conf_obj_del:
+	_confc_phony_cache_remove(&rlx->rlc_parent->rc_phony, fid);
+	return M0_ERR(rc);
+}
+
+static void rlock_ctx_creditor_unset(struct rlock_ctx *rlx)
+{
+	rlock_ctx_disconnect(rlx);
+	m0_rm_remote_fini(&rlx->rlc_creditor);
+	rlx->rlc_owner.ro_creditor = NULL;
+	_confc_phony_cache_remove(&rlx->rlc_parent->rc_phony, &rlx->rlc_rm_fid);
 }
 
 static void rlock_ctx_owner_windup(struct rlock_ctx *rlx)
 {
 	int rc;
 
-	if (rlx->rlc_creditor.rem_session != NULL) {
-		m0_rm_owner_windup(&rlx->rlc_owner);
-		rc = m0_rm_owner_timedwait(&rlx->rlc_owner,
-					   M0_BITS(ROS_FINAL, ROS_INSOLVENT),
-					   M0_TIME_NEVER);
-		M0_ASSERT(rc == 0);
-		m0_rm_remote_fini(&rlx->rlc_creditor);
-		m0_rm_rwlock_owner_fini(&rlx->rlc_owner);
-		m0_rw_lockable_fini(&rlx->rlc_rwlock);
-	}
-}
-
-static void rlock_ctx_fini(struct rlock_ctx *rlx)
-{
-	m0_free0(&rlx->rlc_rm_addr);
-	M0_SET0(rlx);
+	m0_rm_owner_windup(&rlx->rlc_owner);
+	rc = m0_rm_owner_timedwait(&rlx->rlc_owner,
+				   M0_BITS(ROS_FINAL, ROS_INSOLVENT),
+				   M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
 }
 
 /* -------------- Quorum calculation context ----------------- */
 
-static int ver_accm_alloc_init(struct ver_accm **va, int total)
+static void ver_accm_init(struct ver_accm *va, int total)
 {
 	M0_ENTRY();
 	M0_PRE(total <= VERSION_ITEMS_TOTAL_MAX);
-	M0_ALLOC_PTR(*va);
-	if (*va == NULL)
-		return M0_ERR(-ENOMEM);
-	M0_SET0(*va);
-	(*va)->va_total = total;
-	return M0_RC(0);
+	M0_SET0(va);
+	va->va_total = total;
+	M0_LEAVE();
 }
 
 /* -------------- Confc Helpers -------------- */
@@ -643,6 +886,7 @@ static bool _confc_is_online(const struct m0_confc *confc)
 	return confc->cc_rpc_conn.c_rpc_machine != NULL;
 }
 
+/** Safe remote confd address reading */
 static const char *_confc_remote_addr_read(const struct m0_confc *confc)
 {
 	return _confc_is_online(confc) ?
@@ -672,12 +916,17 @@ static int _confc_cache_clean(struct m0_confc *confc)
 				      &confc->cc_root));
 }
 
-/* -------------- Rconfc Helpers -------------- */
-
-static uint32_t rconfc_quorum_default_calc(uint32_t total)
+static int _confc_cache_clean_lock(struct m0_confc *confc)
 {
-	return total/2 + 1;
+	int rc;
+
+	m0_conf_cache_lock(&confc->cc_cache);
+	rc = _confc_cache_clean(confc);
+	m0_conf_cache_unlock(&confc->cc_cache);
+	return M0_RC(rc);
 }
+
+/* -------------- Rconfc Helpers -------------- */
 
 static uint32_t rconfc_confd_count(const char **confd_addr)
 {
@@ -690,7 +939,11 @@ static uint32_t rconfc_confd_count(const char **confd_addr)
 	return count;
 }
 
-static bool rconfc_confd_are_all_unique(const char **confd_addr)
+/**
+ * Reports confd addresses uniqueness. Tested along with fids uniqueness during
+ * rconfc_herd_update().
+ */
+static bool rconfc_confd_addr_are_all_unique(const char **confd_addr)
 {
 	uint32_t count = rconfc_confd_count(confd_addr);
 	return m0_forall(i, count,
@@ -698,6 +951,20 @@ static bool rconfc_confd_are_all_unique(const char **confd_addr)
 				   i == j ? true :
 				   !m0_streq(confd_addr[i],
 					     confd_addr[j])));
+}
+
+/**
+ * Reports confd fids uniqueness. Tested along with addresses uniqueness during
+ * rconfc_herd_update().
+ */
+static bool rconfc_confd_fids_are_all_unique(const struct m0_fid_arr *fids)
+{
+	uint32_t count = fids->af_count;
+	return m0_forall(i, count,
+			 m0_forall(j, i,
+				   i == j ? true :
+				   !m0_fid_eq(&fids->af_elems[i],
+					      &fids->af_elems[j])));
 }
 
 /***************************************
@@ -730,7 +997,7 @@ static void rconfc_ast_post(struct m0_rconfc  *rconfc,
 			    void             (*cb)(struct m0_sm_group *,
 				                   struct m0_sm_ast *))
 {
-	struct m0_sm_ast *ast = &rconfc->rc_state_ast;
+	struct m0_sm_ast *ast = &rconfc->rc_ast;
 
 	ast->sa_cb = cb;
 	ast->sa_datum = rconfc;
@@ -755,6 +1022,13 @@ static void rconfc_fail(struct m0_rconfc *rconfc, int rc)
 	 * write lock requests from completion.
 	 */
 	rconfc_read_lock_put(rconfc);
+	/* Release any held references to RPC items. */
+	if (rconfc->rc_entrypoint_reply != NULL) {
+		m0_rpc_item_put_lock(rconfc->rc_entrypoint_reply);
+		rconfc->rc_entrypoint_reply = NULL;
+	}
+	if (!M0_IS0(&rconfc->rc_entrypoint_fop.f_item))
+		m0_rpc_item_put_lock(&rconfc->rc_entrypoint_fop.f_item);
 	m0_sm_fail(&rconfc->rc_sm, RCS_FAILURE, rc);
 }
 
@@ -794,17 +1068,98 @@ static void rconfc_active_all_unlink(struct m0_rconfc *rconfc)
 	}
 }
 
-static void rconfc_herd_init(struct m0_rconfc *rconfc)
+/**
+ * Performs subscription to HA notifications regarding confd death.
+ */
+static void rconfc_herd_link_subscribe(struct rconfc_link *lnk)
+{
+	struct m0_conf_obj   *obj;
+	struct m0_conf_cache *cache = &lnk->rl_rconfc->rc_phony.cc_cache;
+
+	M0_PRE(lnk->rl_state == CONFC_IDLE);
+	obj = m0_conf_cache_lookup(cache, &lnk->rl_confd_fid);
+	M0_ASSERT(obj != NULL);
+	m0_clink_add_lock(&obj->co_ha_chan, &lnk->rl_ha_clink);
+}
+
+/**
+ * Dismisses subscription to HA notifications in case it was done previously.
+ */
+static void rconfc_herd_link_unsubscribe(struct rconfc_link *lnk)
+{
+	if (lnk->rl_ha_clink.cl_chan != NULL)
+		m0_clink_del_lock(&lnk->rl_ha_clink);
+}
+
+/**
+ * The callback is called when corresponding HA notification arrives to phony
+ * confc. Death notification results in disabling respective link and putting it
+ * to dead state. Any other sort of notification is ignored.
+ */
+static bool rconfc_herd_link__on_death_cb(struct m0_clink *clink)
 {
 	struct rconfc_link *lnk;
+	struct m0_conf_obj *obj;
 
-	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
-		lnk->rl_rc = m0_confc_init(lnk->rl_confc, rconfc->rc_sm.sm_grp,
-					   lnk->rl_confd_addr, rconfc->rc_rmach,
-					   NULL);
-		if (lnk->rl_rc == 0)
-			lnk->rl_state = CONFC_IDLE;
-	} m0_tl_endfor;
+	M0_ENTRY();
+	lnk = container_of(clink, struct rconfc_link, rl_ha_clink);
+	obj = container_of(clink->cl_chan, struct m0_conf_obj, co_ha_chan);
+	M0_ASSERT(m0_fid_eq(&lnk->rl_confd_fid, &obj->co_id));
+	if (obj->co_ha_state != M0_NC_FAILED) {
+		M0_LEAVE("co_ha_state = %d, return true", obj->co_ha_state);
+		return true;
+	}
+	m0_rconfc_lock(lnk->rl_rconfc);
+	if (lnk->rl_state != CONFC_DEAD) {
+		if (lnk->rl_state != CONFC_FAILED)
+			m0_confc_reconnect(&lnk->rl_confc, NULL, NULL);
+		/**
+		 * @todo Do something more intelligent here to terminate RPC
+		 * session and connection to already dead endpoint.
+		 */
+		rconfc_herd_link_fini(lnk);
+		/**
+		 * @todo This confd fid removal from cache here is based on the
+		 * assumption that HA never puts a node ever known dead back to
+		 * operational state until cluster shutdown. Should be properly
+		 * handled when the design changes.
+		 */
+		lnk->rl_state = CONFC_DEAD;
+	}
+	m0_rconfc_unlock(lnk->rl_rconfc);
+	M0_LEAVE("co_ha_state = M0_NC_FAILED, return false");
+	return false;
+}
+
+static void rconfc_herd_link_init(struct rconfc_link *lnk)
+{
+	struct m0_rconfc *rconfc = lnk->rl_rconfc;
+
+	M0_ENTRY("lnk %p", lnk);
+	M0_PRE(rconfc != NULL);
+	m0_clink_init(&lnk->rl_ha_clink, rconfc_herd_link__on_death_cb);
+	lnk->rl_rc = m0_confc_init(&lnk->rl_confc, rconfc->rc_sm.sm_grp,
+				   lnk->rl_confd_addr, rconfc->rc_rmach,
+				   NULL);
+	if (lnk->rl_rc == 0)
+		lnk->rl_state = CONFC_IDLE;
+	else
+		m0_clink_fini(&lnk->rl_ha_clink);
+	M0_LEAVE();
+}
+
+static void rconfc_herd_link_fini(struct rconfc_link *lnk)
+{
+	M0_ENTRY("lnk %p", lnk);
+	/* dead confc has no internals to fini */
+	if (lnk->rl_state != CONFC_DEAD) {
+		rconfc_herd_link_unsubscribe(lnk);
+		_confc_phony_cache_remove(&lnk->rl_rconfc->rc_phony,
+					  &lnk->rl_confd_fid);
+		m0_clink_fini(&lnk->rl_ha_clink);
+		m0_confc_fini(&lnk->rl_confc);
+	}
+	M0_LEAVE();
 }
 
 static void rconfc_herd_fini(struct m0_rconfc *rconfc)
@@ -812,26 +1167,105 @@ static void rconfc_herd_fini(struct m0_rconfc *rconfc)
 	struct rconfc_link *lnk;
 
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
-		if (lnk->rl_state != CONFC_DEAD) {
-			m0_clink_del(&lnk->rl_clink);
-			m0_clink_fini(&lnk->rl_clink);
-			m0_confc_ctx_fini_locked(&lnk->rl_cctx);
-			m0_confc_fini(lnk->rl_confc);
-		}
-		/* dead confc has no internals to fini */
+		rconfc_herd_link_fini(lnk);
 	} m0_tl_endfor;
+}
+
+static void rconfc_herd_link_destroy(struct rconfc_link *lnk)
+{
+	rcnf_herd_tlink_fini(lnk);
+	m0_free(lnk->rl_confd_addr);
+	m0_free(lnk);
 }
 
 static void rconfc_herd_prune(struct m0_rconfc *rconfc)
 {
 	struct rconfc_link *lnk;
 
-	m0_tl_teardown(rcnf_herd, &rconfc->rc_herd, lnk) {
-		rcnf_herd_tlink_fini(lnk);
-		m0_free(lnk->rl_confc);
-		m0_free(lnk->rl_confd_addr);
-		m0_free(lnk);
+	m0_tl_teardown(rcnf_herd, &rconfc->rc_herd, lnk)
+		rconfc_herd_link_destroy(lnk);
+}
+
+M0_INTERNAL struct rconfc_link *rconfc_herd_find(struct m0_rconfc *rconfc,
+						 const char       *addr)
+{
+	M0_PRE(addr != NULL);
+	return m0_tl_find(rcnf_herd, lnk, &rconfc->rc_herd,
+				m0_streq(lnk->rl_confd_addr, addr));
+}
+
+/**
+ * Allocates a herd of confc instances in accordance with the number of
+ * addresses of confd servers to be in touch with.
+ */
+static int rconfc_herd_update(struct m0_rconfc   *rconfc,
+			      const char        **confd_addr,
+			      struct m0_fid_arr  *confd_fids)
+{
+	struct rconfc_link *new_lnk;
+	struct rconfc_link *lnk;
+	uint32_t            count = rconfc_confd_count(confd_addr);
+	uint32_t            idx;
+
+	M0_ENTRY("rconfc = %p, confd_addr[] = %p, [confd_addr] = %u",
+		 rconfc, confd_addr, count);
+	M0_PRE(confd_addr != NULL);
+	M0_PRE(count > 0);
+	M0_PRE(count == confd_fids->af_count);
+	M0_PRE(rconfc_confd_addr_are_all_unique(confd_addr));
+	M0_PRE(rconfc_confd_fids_are_all_unique(confd_fids));
+
+	for (idx = 0; *confd_addr != NULL; confd_addr++, idx++) {
+		lnk = rconfc_herd_find(rconfc, *confd_addr);
+		if (lnk != NULL) {
+			lnk->rl_preserve = true;
+		} else {
+			M0_ALLOC_PTR(new_lnk);
+			if (new_lnk == NULL)
+				goto no_mem;
+			/* add the allocated element to herd */
+			new_lnk->rl_rconfc     = rconfc;
+			new_lnk->rl_confd_fid  = confd_fids->af_elems[idx];
+			new_lnk->rl_confd_addr = m0_strdup(*confd_addr);
+			if (new_lnk->rl_confd_addr == NULL)
+				goto no_mem;
+			new_lnk->rl_state      = CONFC_DEAD;
+			new_lnk->rl_preserve   = true;
+			rconfc_herd_link_init(new_lnk);
+			rcnf_herd_tlink_init_at_tail(new_lnk, &rconfc->rc_herd);
+			/*
+			 * only successfully connected @ref rconfc_link gets
+			 * subscribed to HA notifications, and therefore, its
+			 * confd fid is to be added to phony cache
+			 */
+			if (new_lnk->rl_state == CONFC_IDLE) {
+				_confc_phony_cache_append(
+					&rconfc->rc_phony,
+					&new_lnk->rl_confd_fid, NULL);
+				rconfc_herd_link_subscribe(new_lnk);
+			} else {
+				M0_ASSERT(new_lnk->rl_state == CONFC_DEAD);
+			}
+		}
 	}
+	ver_accm_init(rconfc->rc_qctx, count);
+	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
+		if (!lnk->rl_preserve) {
+			rconfc_herd_link_fini(lnk);
+			rconfc_herd_link_destroy(lnk);
+		} else {
+			/*
+			 * Clean confc cache, so version will be actually
+			 * queried from confd, not extracted from cache.
+			 */
+			_confc_cache_clean_lock(&lnk->rl_confc);
+			lnk->rl_preserve = false;
+		}
+	} m0_tl_endfor;
+	return M0_RC(0);
+no_mem:
+	rconfc_herd_prune(rconfc);
+	return M0_ERR(-ENOMEM);
 }
 
 /**
@@ -847,7 +1281,7 @@ static void rconfc_active_populate(struct m0_rconfc *rconfc)
 	/* re-populate active list */
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		if (lnk->rl_state == CONFC_OPEN &&
-		    _confc_ver_read(lnk->rl_confc) == rconfc->rc_ver)
+		    _confc_ver_read(&lnk->rl_confc) == rconfc->rc_ver)
 			rcnf_active_tlink_init_at_tail(lnk, &rconfc->rc_active);
 	} m0_tl_endfor;
 }
@@ -951,40 +1385,219 @@ static void rconfc_read_lock_get(struct m0_rconfc *rconfc)
 	m0_rm_credit_get(req);
 }
 
-static void rconfc_start_ast_cb(struct m0_sm_group *grp M0_UNUSED,
-			       struct m0_sm_ast   *ast)
+static struct m0_rconfc *item_to_rconfc(struct m0_rpc_item *item)
 {
-	struct m0_rconfc *rconfc = ast->sa_datum;
-	struct rlock_ctx *rlx = rconfc->rc_rlock_ctx;
-	int               rc;
+	return container_of(m0_rpc_item_to_fop(item), struct m0_rconfc,
+			    rc_entrypoint_fop);
+}
+
+static void rconfc_fop_release(struct m0_ref *ref)
+{
+	struct m0_fop *fop;
 
 	M0_ENTRY();
-	rc = rlock_ctx_connect(rlx);
-	if (rc != 0) {
+	M0_PRE(ref != NULL);
+	fop = container_of(ref, struct m0_fop, f_ref);
+	m0_fop_fini(fop);
+	M0_SET0(fop);
+	M0_LEAVE();
+}
+
+static int rconfc_entrypoint_req(struct m0_rconfc *rconfc)
+{
+	struct m0_fop         *fop  = &rconfc->rc_entrypoint_fop;
+	struct m0_rpc_session *sess = m0_ha_session_get();
+	struct m0_rpc_item    *item;
+	void                  *data;
+
+	M0_ENTRY();
+	/*
+	 * Global session to HA agent should be set and established before
+	 * rconfc initialisation.
+	 */
+	M0_ASSERT(sess != NULL);
+	data = m0_alloc(sizeof (struct m0_ha_entrypoint_req));
+	if (data == NULL)
+		return M0_ERR(-ENOMEM);
+	m0_fop_init(fop, &m0_ha_entrypoint_req_fopt, NULL, rconfc_fop_release);
+	fop->f_data.fd_data = data;
+	item = &fop->f_item;
+	item->ri_rmachine = rconfc->rc_rmach;
+	item->ri_ops      = &rconfc_entrypoint_item_ops;
+	item->ri_session  = sess;
+	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline = M0_TIME_IMMEDIATELY;
+
+	return M0_RC(m0_rpc_post(item));
+}
+
+static void rconfc_entrypoint_get(struct m0_rconfc *rconfc)
+{
+	int rc;
+
+	M0_ENTRY();
+	rconfc_state_set(rconfc, RCS_ENTRYPOINT_GET);
+	rc = rconfc_entrypoint_req(rconfc);
+	if (rc != 0)
 		rconfc_fail(rconfc, rc);
-	} else {
-		rlock_ctx_owner_setup(rconfc->rc_rlock_ctx);
+	M0_LEAVE();
+}
+
+static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
+					  struct m0_sm_ast   *ast)
+{
+	struct m0_rconfc            *rconfc = ast->sa_datum;
+	struct rlock_ctx            *rlx    = rconfc->rc_rlock_ctx;
+	char                        *rep_rm_addr = NULL;
+	struct m0_ha_entrypoint_rep *entrypoint;
+	struct m0_rpc_item          *reply = rconfc->rc_entrypoint_reply;
+	struct m0_fid                rep_rm_fid;
+	const char                 **confd_eps = NULL;
+	bool                         addr_mismatch;
+	int                          rc = 0;
+
+	M0_ENTRY();
+	M0_PRE(reply != NULL);
+	entrypoint = m0_fop_data(m0_rpc_item_to_fop(reply));
+	rconfc_state_set(rconfc, RCS_ENTRYPOINT_REPLIED);
+	rconfc->rc_quorum = entrypoint->hbp_quorum;
+	rep_rm_fid = entrypoint->hbp_active_rm_fid;
+	rep_rm_addr = m0_buf_strdup(&entrypoint->hbp_active_rm_ep);
+	if (rep_rm_addr == NULL)
+		rc = M0_ERR(-ENOMEM);
+	rc = rc ?: m0_bufs_to_strings(&confd_eps, &entrypoint->hbp_confd_eps) ?:
+		rconfc_herd_update(rconfc, confd_eps,
+				   &entrypoint->hbp_confd_fids) ?:
+		m0_conf_confc_ha_update(m0_ha_session_get(), &rconfc->rc_phony);
+	m0_strings_free(confd_eps);
+	m0_rpc_item_put_lock(&rconfc->rc_entrypoint_fop.f_item);
+	m0_rpc_item_put_lock(reply);
+	rconfc->rc_entrypoint_reply = NULL;
+	if (rc != 0) {
+		m0_free(rep_rm_addr);
+		rconfc_fail(rconfc, rc);
+		return;
+	}
+	addr_mismatch = rlx->rlc_rm_addr == NULL ||
+			!m0_streq(rlx->rlc_rm_addr, rep_rm_addr);
+	if (addr_mismatch) {
+		if (rlock_ctx_is_online(rlx))
+			rlock_ctx_creditor_unset(rlx);
+		rc = rlock_ctx_creditor_setup(rlx, &rep_rm_fid, rep_rm_addr);
+	}
+	m0_free(rep_rm_addr);
+	if (rc == 0) {
 		rconfc_state_set(rconfc, RCS_GET_RLOCK);
 		rconfc_read_lock_get(rconfc);
+	} else {
+		rconfc_entrypoint_get(rconfc);
+	}
+}
+
+static void rconfc_entrypoint_req_replied(struct m0_rpc_item *item)
+{
+	struct m0_rconfc            *rconfc = item_to_rconfc(item);
+	struct m0_rpc_item          *reply  = item->ri_reply;
+	struct m0_ha_entrypoint_rep *entrypoint;
+	int                          rc;
+
+	rc = item->ri_error ?:
+		m0_rpc_item_generic_reply_rc(reply) ?:
+		(entrypoint = m0_fop_data(m0_rpc_item_to_fop(reply)))->hbp_rc;
+	if (rc != 0)
+		rconfc_fail_ast(rconfc, rc);
+	else {
+		/* Reply is used later in rconfc_entrypoint_replied_ast() */
+		rconfc->rc_entrypoint_reply = reply;
+		m0_rpc_item_get(reply);
+		rconfc_ast_post(rconfc, rconfc_entrypoint_replied_ast);
+	}
+}
+
+static void rconfc_start_ast_cb(struct m0_sm_group *grp M0_UNUSED,
+			        struct m0_sm_ast   *ast)
+{
+	M0_ENTRY();
+	rconfc_entrypoint_get(ast->sa_datum);
+	M0_LEAVE();
+}
+
+static void rconfc_owner_creditor_reset(struct m0_sm_group *grp M0_UNUSED,
+					struct m0_sm_ast   *ast)
+{
+	struct m0_rconfc *rconfc = ast->sa_datum;
+	struct rlock_ctx *rlx    = rconfc->rc_rlock_ctx;
+
+	M0_ENTRY();
+	rlock_ctx_creditor_unset(rlx);
+	/*
+	 * Start conf reelection from reading entry point.
+	 * RM creditor is likely to be changed by HA.
+	 */
+	rconfc_entrypoint_get(rconfc);
+
+	M0_LEAVE();
+}
+
+static bool rlock_owner_clink_cb(struct m0_clink *cl)
+{
+	struct rlock_ctx *rlx = container_of(cl, struct rlock_ctx, rlc_clink);
+	uint32_t          state = rlx->rlc_owner.ro_sm.sm_state;
+	struct m0_rconfc *rconfc = rlx->rlc_parent;
+
+	M0_ASSERT(state != ROS_INSOLVENT);
+	if (state == ROS_DEAD_CREDITOR) {
+		rconfc_ast_post(rconfc, rconfc_owner_creditor_reset);
+		m0_clink_del(cl);
+		m0_clink_fini(cl);
+	}
+	return true;
+}
+
+static void rconfc_creditor_death_handle(struct m0_rconfc *rconfc)
+{
+	struct rlock_ctx   *rlx = rconfc->rc_rlock_ctx;
+	struct m0_rm_owner *owner = &rlx->rlc_owner;
+
+	M0_ENTRY();
+	M0_PRE(rlock_ctx_creditor_state(rlx) != ROS_ACTIVE);
+	if (owner->ro_sm.sm_state == ROS_DEAD_CREDITOR) {
+		rconfc_ast_post(rconfc, rconfc_owner_creditor_reset);
+	} else {
+		/* Wait until owner is in ROS_DEAD_CREDITOR state. */
+		m0_clink_init(&rlx->rlc_clink, rlock_owner_clink_cb);
+		m0_clink_add(&owner->ro_sm.sm_chan, &rlx->rlc_clink);
 	}
 	M0_LEAVE();
 }
 
 static void rconfc_conductor_drained(struct m0_rconfc *rconfc)
 {
+	struct rlock_ctx   *rlx = rconfc->rc_rlock_ctx;
+	struct m0_rm_owner *owner = &rlx->rlc_owner;
+
 	/* disconnect confc until read lock being granted */
 	m0_confc_reconnect(&rconfc->rc_confc, NULL, NULL);
 	/* return read lock back to RM */
 	rconfc_read_lock_put(rconfc);
 	/* prepare for version election */
 	rconfc_active_all_unlink(rconfc);
-	rconfc_herd_fini(rconfc);
 	rconfc->rc_ver = M0_CONF_VER_UNKNOWN;
 	/* let consumer know the cache has been drained */
 	if (rconfc->rc_drained_cb != NULL)
 		rconfc->rc_drained_cb(rconfc);
-	rconfc_state_set(rconfc, RCS_GET_RLOCK);
-	rconfc_read_lock_get(rconfc);
+	if (rlock_ctx_creditor_state(rlx) != ROS_ACTIVE) {
+		m0_rm_owner_lock(owner);
+		/* Creditor is considered dead by HA */
+		rconfc_creditor_death_handle(rconfc);
+		m0_rm_owner_unlock(owner);
+	} else {
+		/*
+		 * Start process of conf reelection from reading entrypoint.
+		 * List of confd or active RM could possibly have changed.
+		 */
+		rconfc_entrypoint_get(rconfc);
+	}
 }
 
 /**
@@ -1107,52 +1720,6 @@ static bool rconfc_gate_drain(struct m0_clink *clink)
 	return M0_RC(false);
 }
 
-/**
- * Allocates internally used contexts for quorum and read lock. Allocates a herd
- * of confc instances in accordance with the number of addresses of confd
- * servers to be in touch with.
- */
-static int rconfc_allocate(struct m0_rconfc *rconfc,
-			   const char      **confd_addr)
-{
-	int               rc;
-	uint32_t          count = rconfc_confd_count(confd_addr);
-	struct ver_accm  *va;
-	struct rlock_ctx *rlx;
-
-	M0_ENTRY();
-	M0_SET0(&rconfc->rc_confc);
-	rc = ver_accm_alloc_init(&va, count);
-	if (rc == 0)
-		rconfc->rc_qctx = va;
-	else
-		return M0_ERR(rc);
-	M0_ALLOC_PTR(rlx);
-	if (rlx == NULL)
-		return M0_ERR(-ENOMEM);
-	rconfc->rc_rlock_ctx = rlx;
-
-	for (; *confd_addr != NULL; confd_addr++) {
-		struct rconfc_link *lnk;
-		struct m0_confc    *confc;
-
-		M0_ALLOC_PTR(confc);
-		M0_ALLOC_PTR(lnk);
-		if (confc == NULL || lnk == NULL) {
-			m0_free(confc);
-			m0_free(lnk);
-			return M0_ERR(-ENOMEM);
-		}
-		/* add the allocated element to herd */
-		lnk->rl_rconfc     = rconfc;
-		lnk->rl_confc      = confc;
-		lnk->rl_confd_addr = m0_strdup(*confd_addr);
-		lnk->rl_state      = CONFC_DEAD;
-		rcnf_herd_tlink_init_at_tail(lnk, &rconfc->rc_herd);
-	}
-	return M0_RC(rc);
-}
-
 static void rlock_conflict_handle(struct m0_sm_group *grp,
 				  struct m0_sm_ast   *ast)
 {
@@ -1180,16 +1747,19 @@ static void rlock_conflict_handle(struct m0_sm_group *grp,
 
 static void rconfc_rlock_windup(struct m0_rconfc *rconfc)
 {
+	struct rlock_ctx *rlx = rconfc->rc_rlock_ctx;
 	/**
 	 * Release sm group lock to prevent dead-lock with
-	 * rconfc_read_lock_conflict. In worst case rlock_windup_st_in acquires
-	 * locks in "rconfc sm group lock"->"rm owner lock" order and
+	 * rconfc_read_lock_conflict. In worst case rconfc_rlock_windup()
+	 * acquires locks in "rconfc sm group lock"->"rm owner lock" order and
 	 * rconfc_read_lock_conflict in reverse order.
 	 */
 	m0_rconfc_unlock(rconfc);
 	rconfc_read_lock_put(rconfc);
 	m0_rconfc_lock(rconfc);
-	rlock_ctx_owner_windup(rconfc->rc_rlock_ctx);
+	if (rlock_ctx_creditor_state(rlx) == ROS_ACTIVE)
+		rlock_ctx_owner_windup(rlx);
+	m0_rm_rwlock_owner_fini(&rlx->rlc_owner);
 }
 
 static void rconfc_stop_internal(struct m0_rconfc *rconfc)
@@ -1198,8 +1768,8 @@ static void rconfc_stop_internal(struct m0_rconfc *rconfc)
 
 	rconfc_herd_fini(rconfc);
 	rconfc_rlock_windup(rconfc);
-	if (rlx->rlc_online)
-		rlock_ctx_disconnect(rlx);
+	if (rlock_ctx_is_online(rlx))
+		rlock_ctx_creditor_unset(rlx);
 	rconfc_state_set(rconfc, RCS_FINAL);
 }
 
@@ -1242,27 +1812,30 @@ static void rconfc_read_lock_conflict(struct m0_rm_incoming *in)
 
 static void rconfc_idle(struct m0_rconfc *rconfc)
 {
-	rconfc_state_set(rconfc, RCS_IDLE);
 	if (rconfc->rc_stopping) {
 		rconfc_state_set(rconfc, RCS_STOPPING);
 		rconfc_stop_internal(rconfc);
-	} else if (rconfc->rc_rlock_conflict) {
+		return;
+	}
+	if (rconfc->rc_rlock_conflict) {
 		rconfc->rc_rlock_conflict = false;
 		rconfc_state_set(rconfc, RCS_RLOCK_CONFLICT);
 		rconfc_ast_post(rconfc, rlock_conflict_handle);
+		return;
 	}
 	/*
 	 * If both rc_stopping and rc_rlock_conflict flags aren't set, then
 	 * SM will be idle until read lock conflict is observed provoking
 	 * reelection or user requests stopping rconfc.
 	 */
+	rconfc_state_set(rconfc, RCS_IDLE);
 }
 
 static bool rconfc_quorum_is_possible(struct m0_rconfc *rconfc)
 {
-	struct ver_accm    *va = rconfc->rc_qctx;
-	int                 ver_count_max;
-	int                 armed_count;
+	struct ver_accm *va = rconfc->rc_qctx;
+	int              ver_count_max;
+	int              armed_count;
 
 	armed_count = m0_tl_reduce(rcnf_herd, lnk, &rconfc->rc_herd, 0,
 				   + (lnk->rl_state == CONFC_ARMED));
@@ -1285,11 +1858,11 @@ static bool rconfc_quorum_is_possible(struct m0_rconfc *rconfc)
 static bool rconfc_quorum_test(struct m0_rconfc *rconfc,
 			       struct m0_confc *confc)
 {
-	struct ver_accm    *va = rconfc->rc_qctx;
-	struct ver_item    *vi = NULL;
-	uint64_t            ver;
-	int                 idx;
-	bool                quorum_reached = false;
+	struct ver_accm *va = rconfc->rc_qctx;
+	struct ver_item *vi = NULL;
+	uint64_t         ver;
+	int              idx;
+	bool             quorum_reached = false;
 
 	M0_ENTRY("rconfc = %p, confc = %p", rconfc, confc);
 	M0_PRE(va != NULL);
@@ -1354,10 +1927,28 @@ static int rconfc_conductor_engage(struct m0_rconfc *rconfc)
 static void rconfc_version_elected(struct m0_sm_group *grp,
 				   struct m0_sm_ast   *ast)
 {
-	struct m0_rconfc *rconfc = ast->sa_datum;
-	int               rc;
+	struct m0_rconfc   *rconfc = ast->sa_datum;
+	struct rconfc_link *lnk;
+	int                 rc;
 
 	M0_ENTRY();
+	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
+		M0_PRE(M0_IN(lnk->rl_state,
+			     (CONFC_OPEN, CONFC_FAILED, CONFC_ARMED)));
+		m0_clink_del(&lnk->rl_clink);
+		m0_clink_fini(&lnk->rl_clink);
+		/** @todo Possibly confc context still requesting version from
+		 * confd, thus having outstanding FOPs. Receiving reply after
+		 * confc context is finalised will lead to crash.
+		 *
+		 * In order to fix it there should be interface in confc
+		 * allowing to cancel opening request. It should be implemented
+		 * and used here once MERO-1093 is resolved and RPC will have
+		 * interface to cancel outgoing FOPS.
+		 */
+		m0_confc_ctx_fini_locked(&lnk->rl_cctx);
+	} m0_tl_endfor;
+
 	rc = rconfc_quorum_is_reached(rconfc) ?
 		rconfc_conductor_engage(rconfc) : -EPROTO;
 	if (rc != 0)
@@ -1397,7 +1988,7 @@ static bool rconfc__cb_quorum_test(struct m0_clink *clink)
 	if (m0_confc_ctx_is_completed(&lnk->rl_cctx)) {
 		lnk->rl_rc = m0_confc_ctx_error(&lnk->rl_cctx);
 		if (M0_FI_ENABLED("read_ver_failed")) {
-			lnk->rl_confc->cc_cache.ca_ver = M0_CONF_VER_UNKNOWN;
+			lnk->rl_confc.cc_cache.ca_ver = M0_CONF_VER_UNKNOWN;
 			lnk->rl_rc = -ENODATA;
 		}
 		lnk->rl_state = lnk->rl_rc == 0 ? CONFC_OPEN : CONFC_FAILED;
@@ -1410,7 +2001,7 @@ static bool rconfc__cb_quorum_test(struct m0_clink *clink)
 			quorum_before = rconfc_quorum_is_reached(rconfc);
 
 			quorum_now = quorum_before ||
-				     rconfc_quorum_test(rconfc, lnk->rl_confc);
+				     rconfc_quorum_test(rconfc, &lnk->rl_confc);
 			if (quorum_now)
 				/* Maybe add replied confc to active list */
 				rconfc_active_populate(rconfc);
@@ -1443,11 +2034,10 @@ static void rconfc_version_elect(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_PRE(va->va_total != 0);
 	va->va_count = 0;
 	m0_forall(idx, va->va_total, M0_SET0(&va->va_items[idx]));
-	rconfc_herd_init(rconfc);
 	/* query confd instances */
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		if (lnk->rl_rc == 0) {
-			m0_confc_ctx_init(&lnk->rl_cctx, lnk->rl_confc);
+			m0_confc_ctx_init(&lnk->rl_cctx, &lnk->rl_confc);
 
 			m0_clink_init(&lnk->rl_clink, rconfc__cb_quorum_test);
 			m0_clink_add(&lnk->rl_cctx.fc_mach.sm_chan,
@@ -1468,6 +2058,7 @@ static void rconfc_version_elect(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	struct m0_rconfc *rconfc;
+	struct rlock_ctx *rlx;
 
 	M0_ENTRY("in = %p, rc = %d", in, rc);
 	if (rc != 0)
@@ -1477,10 +2068,15 @@ static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 		rc = M0_ERR(-ESRCH);
 	rconfc = rlock_ctx_incoming_to_rconfc(in);
 	M0_ASSERT(rconfc->rc_sm.sm_state == RCS_GET_RLOCK);
+	rlx = rconfc->rc_rlock_ctx;
 	if (rc == 0)
 		rconfc_ast_post(rconfc, rconfc_version_elect);
 	else
-		rconfc_fail_ast(rconfc, rc);
+		if (rlock_ctx_creditor_state(rlx) != ROS_ACTIVE)
+			/* Creditor is considered dead by HA */
+			rconfc_creditor_death_handle(rconfc);
+		else
+			rconfc_fail_ast(rconfc, rc);
 	M0_LEAVE();
 }
 
@@ -1490,43 +2086,49 @@ static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 
 M0_INTERNAL void m0_rconfc_lock(struct m0_rconfc *rconfc)
 {
-	m0_sm_group_lock(rconfc->rc_sm.sm_grp);
+	/*
+	 * Don't use m0_sm_group_lock() to ensure that ASTs posted via
+	 * rconfc_ast_post() are executed in well-known context.
+	 * m0_sm_group_lock() has side effect of running ASTs in current context
+	 * after releasing the mutex.
+	 */
+	m0_mutex_lock(&rconfc->rc_sm.sm_grp->s_lock);
 }
 
 M0_INTERNAL void m0_rconfc_unlock(struct m0_rconfc *rconfc)
 {
-	m0_sm_group_unlock(rconfc->rc_sm.sm_grp);
+	m0_mutex_unlock(&rconfc->rc_sm.sm_grp->s_lock);
 }
 
 M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
-			       const char           **confd_addr,
-			       const char            *rm_addr,
 			       struct m0_sm_group    *sm_group,
 			       struct m0_rpc_machine *rmach,
-			       uint32_t               quorum,
 			       m0_rconfc_exp_cb_t     exp_cb)
 {
-	int      rc;
-	uint32_t q;
-	uint32_t count = rconfc_confd_count(confd_addr);
+	int               rc;
+	struct rlock_ctx *rlock_ctx;
+	struct ver_accm  *va;
 
-	M0_ENTRY("rconfc = %p, confd_addr[] = %p, [confd_addr] = %u, "
-		 "quorum = %u", rconfc, confd_addr, count, quorum);
+	M0_ENTRY("rconfc = %p", rconfc);
 	M0_PRE(rconfc != NULL);
 	M0_PRE(rmach != NULL);
-	M0_PRE(confd_addr != NULL);
 	M0_PRE(sm_group != NULL);
-	M0_PRE(rconfc_confd_are_all_unique(confd_addr));
 
 	M0_SET0(rconfc);
-	/* validate against minimal (default) quorum value */
-	q = rconfc_quorum_default_calc(count);
-	M0_ASSERT(quorum == 0 || quorum >= q);
 
-	rconfc->rc_quorum  = (quorum != 0 && quorum > q) ? quorum : q;
+	M0_ALLOC_PTR(va);
+	if (va == NULL)
+		return M0_ERR(-ENOMEM);
+	rc = rlock_ctx_create(rconfc, rmach, &rlock_ctx);
+	if (rc != 0)
+		goto rlock_err;
+	rc = _confc_phony_init(&rconfc->rc_phony);
+	if (rc != 0) {
+		goto confc_err;
+	}
 	rconfc->rc_rmach   = rmach;
-	rconfc->rc_qctx    = NULL;
 	rconfc->rc_exp_cb  = exp_cb;
+	rconfc->rc_qctx    = va;
 	rconfc->rc_ver     = M0_CONF_VER_UNKNOWN;
 	rconfc->rc_gops = (struct m0_confc_gate_ops) {
 		.go_check = m0_rconfc_gate_ops.go_check,
@@ -1534,29 +2136,25 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 		.go_drain = NULL,
 	};
 	rconfc->rc_drained_cb = NULL;
+	rconfc->rc_rlock_ctx  = rlock_ctx;
 
 	rcnf_herd_tlist_init(&rconfc->rc_herd);
 	rcnf_active_tlist_init(&rconfc->rc_active);
 	m0_clink_init(&rconfc->rc_unpinned_cl, rconfc_unpinned_cb);
 	m0_sm_init(&rconfc->rc_sm, &rconfc_sm_conf, RCS_INIT, sm_group);
 
-	rc = rconfc_allocate(rconfc, confd_addr) ?:
-	     rlock_ctx_init(rconfc->rc_rlock_ctx, rconfc,
-			    rconfc->rc_rmach, rm_addr);
-	if (rc != 0) {
-		m0_rconfc_fini(rconfc);
-		return M0_ERR(rc);
-	}
-	return M0_RC(rc);
+	return M0_RC(0);
+confc_err:
+	rlock_ctx_destroy(rlock_ctx);
+rlock_err:
+	m0_free(va);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc)
 {
 	M0_ENTRY("rconfc %p", rconfc);
-	m0_rconfc_lock(rconfc);
-	rconfc_state_set(rconfc, RCS_STARTING);
 	rconfc_ast_post(rconfc, rconfc_start_ast_cb);
-	m0_rconfc_unlock(rconfc);
 	M0_LEAVE();
 }
 
@@ -1579,6 +2177,10 @@ M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc)
 M0_INTERNAL void m0_rconfc_stop(struct m0_rconfc *rconfc)
 {
 	M0_ENTRY("rconfc %p", rconfc);
+	/*
+	 * Can't use rconfc_ast_post() here, because this AST can be already
+	 * posted (after observing read lock conflict, for example).
+	 */
 	rconfc->rc_stop_ast.sa_cb    = rconfc_stop_ast_cb;
 	rconfc->rc_stop_ast.sa_datum = rconfc;
 	m0_sm_ast_post(rconfc->rc_sm.sm_grp, &rconfc->rc_stop_ast);
@@ -1599,17 +2201,28 @@ M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc)
 {
 	M0_ENTRY("rconfc = %p", rconfc);
 	M0_PRE(rconfc != NULL);
+	M0_PRE(rconfc->rc_rlock_ctx != NULL);
+	M0_PRE(_confc_is_inited(&rconfc->rc_phony));
 
+	m0_rconfc_lock(rconfc);
+	if (rconfc->rc_sm.sm_state == RCS_INIT) {
+		/*
+		 * looks like this rconfc instance never was started, so do
+		 * internal cleanup prior to read lock context destruction and
+		 * finalising state machine
+		 */
+		rconfc_stop_internal(rconfc);
+	}
+	m0_rconfc_unlock(rconfc);
 	m0_free(rconfc->rc_qctx);
-	if (rlock_ctx_is_initialised(rconfc->rc_rlock_ctx))
-		rlock_ctx_fini(rconfc->rc_rlock_ctx);
-	m0_free(rconfc->rc_rlock_ctx);
+	rlock_ctx_destroy(rconfc->rc_rlock_ctx);
 	if (_confc_is_inited(&rconfc->rc_confc))
 		m0_confc_fini(&rconfc->rc_confc);
 	rconfc_active_all_unlink(rconfc);
 	rcnf_active_tlist_fini(&rconfc->rc_active);
 	rconfc_herd_prune(rconfc);
 	rcnf_herd_tlist_fini(&rconfc->rc_herd);
+	_confc_phony_fini(&rconfc->rc_phony);
 	m0_rconfc_lock(rconfc);
 	m0_sm_fini(&rconfc->rc_sm);
 	m0_rconfc_unlock(rconfc);
@@ -1625,7 +2238,7 @@ M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc)
 	m0_rconfc_lock(rconfc);
 	ver_max = m0_tl_fold(rcnf_herd, lnk, acc, &rconfc->rc_herd,
 			     M0_CONF_VER_UNKNOWN,
-			     max64(acc, _confc_ver_read(lnk->rl_confc)));
+			     max64(acc, _confc_ver_read(&lnk->rl_confc)));
 	m0_rconfc_unlock(rconfc);
 	M0_LEAVE("ver_max = %"PRIu64, ver_max);
 	return ver_max;

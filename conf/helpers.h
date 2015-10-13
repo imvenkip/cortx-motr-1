@@ -23,6 +23,7 @@
 #define __MERO_CONF_HELPERS_H__
 
 #include "lib/tlist.h"
+#include "conf/schema.h" /* m0_conf_service_type */
 
 struct m0_confc;
 struct m0_conf_obj;
@@ -100,11 +101,29 @@ M0_INTERNAL int m0_conf_poolversion_get(const struct m0_fid  *profile,
 M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs);
 
 /**
+ * Update configuration objects ha state from ha service according to provided
+ * HA note vector.
+ *
+ * The difference from m0_conf_confc_ha_state_update() is dealing with an
+ * arbitrary note vector. Client may fill in the vector following any logic that
+ * suits its needs. All the status results which respective conf objects exist
+ * in the provided confc instance cache will be applied to all HA clients
+ * currently registered with HA global context.
+ *
+ * @pre nvec->nv_nr <= M0_HA_STATE_UPDATE_LIMIT
+ */
+M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
+				       struct m0_ha_nvec     *nvec);
+
+M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
+				      const struct m0_fid   *obj_fid);
+
+/**
  * Update configuration objects ha state from ha service.
  * Fetches HA state of configuration objects from HA service and
  * updates local configuration cache.
  */
-M0_INTERNAL int m0_conf_ha_state_update(struct m0_rpc_session *ha_sess,
+M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
 					struct m0_confc       *confc);
 /**
  * Update configuration objects ha state from ha service according to provided
@@ -150,5 +169,11 @@ M0_INTERNAL int m0_conf__obj_count(const struct m0_fid *profile,
 
 /** Obtains m0_conf_pver array from rack/enclousure/controller. */
 M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj);
+
+M0_INTERNAL int m0_conf_service_open(struct m0_confc            *confc,
+				     const struct m0_fid        *profile,
+				     const char                 *ep,
+				     enum m0_conf_service_type   svc_type,
+				     struct m0_conf_service    **svc);
 
 #endif /* __MERO_CONF_HELPERS_H__ */

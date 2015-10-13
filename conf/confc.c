@@ -464,12 +464,12 @@ M0_INTERNAL int m0_confc_reconnect(struct m0_confc       *confc,
 				   const char            *confd_addr)
 {
 	int rc;
+
 	M0_ENTRY("confc = %p, confd_addr = %s", confc, confd_addr);
 	confc_lock(confc);
 	if (confc_is_online(confc))
 		disconnect_from_confd(confc);
 	M0_ASSERT(!confc_is_online(confc));
-	rc = 0;
 	if (not_empty(confd_addr))
 		rc = connect_to_confd(confc, confd_addr, rpc_mach);
 	else
@@ -490,7 +490,6 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 
 	M0_ENTRY("confc=%p", confc);
 	M0_PRE(sm_group != NULL);
-	M0_PRE(not_empty(confd_addr) || not_empty(local_conf));
 	M0_PRE(ergo(not_empty(confd_addr), rpc_mach != NULL));
 	M0_LOG(M0_DEBUG, "confd=%s lconf=%s", confd_addr, local_conf);
 

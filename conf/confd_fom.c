@@ -24,14 +24,16 @@
 #include "conf/fop.h"         /* m0_conf_fetch_resp_fopt */
 #include "conf/confd.h"       /* m0_confd, m0_confd_bob */
 #include "conf/obj_ops.h"     /* m0_conf_obj_invariant */
-#include "conf/onwire.h"      /* arr_fid */
 #include "conf/preload.h"     /* m0_confx_free */
+#include "conf/onwire.h"
 #include "conf/cache.h"
 #include "rpc/rpc_opcodes.h"  /* M0_CONF_FETCH_OPCODE */
 #include "fop/fom_generic.h"  /* M0_FOPH_NR */
 #include "lib/memory.h"       /* m0_free */
 #include "lib/misc.h"         /* M0_SET0 */
 #include "lib/errno.h"        /* ENOMEM, EOPNOTSUPP */
+#include "fid/fid.h"          /* m0_fid, m0_fid_arr */
+
 /**
  * @addtogroup confd_dlspec
  *
@@ -41,7 +43,7 @@
 static int conf_fetch_tick(struct m0_fom *fom);
 static int conf_update_tick(struct m0_fom *fom);
 static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
-			  const struct arr_fid *path,
+			  const struct m0_fid_arr *path,
 			  struct m0_conf_cache *cache);
 
 static size_t confd_fom_locality(const struct m0_fom *fom)
@@ -180,9 +182,10 @@ static int readiness_check(const struct m0_conf_obj *obj)
  * @param n      Address of the counter to be used by apply().
  * @param enc    Encoded configuration data to be used by apply().
  */
-static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_fid *path,
+static int confd_path_walk(struct m0_conf_obj *cur,
+			   const struct m0_fid_arr *path,
 			   int (*apply)(size_t *n, struct m0_confx *enc,
-					const struct m0_conf_obj *obj),
+			   const struct m0_conf_obj *obj),
 			   size_t *n, struct m0_confx *enc)
 {
 	struct m0_conf_obj *entry;
@@ -254,10 +257,10 @@ static void cache_ver_update(struct m0_conf_cache *cache)
 	M0_POST(cache->ca_ver != M0_CONF_VER_UNKNOWN);
 }
 
-static int confx_populate(struct m0_confx      *dest,
-			  const struct m0_fid  *origin,
-			  const struct arr_fid *path,
-			  struct m0_conf_cache *cache)
+static int confx_populate(struct m0_confx         *dest,
+			  const struct m0_fid     *origin,
+			  const struct m0_fid_arr *path,
+			  struct m0_conf_cache    *cache)
 {
 	struct m0_conf_obj *org;
 	int                 rc;

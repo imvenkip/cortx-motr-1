@@ -25,7 +25,7 @@
 
 struct m0_conf_cache;
 struct m0_confx_obj;
-struct arr_fid;
+struct m0_fid_arr;
 
 /**
  * @page conf-fspec-objops Configuration Object Operations
@@ -270,7 +270,7 @@ M0_INTERNAL void m0_conf_dir_del(struct m0_conf_dir *dir,
 
 /** Compares fids with directory entries. */
 M0_INTERNAL bool m0_conf_dir_elems_match(const struct m0_conf_dir *dir,
-					 const struct arr_fid *fids);
+					 const struct m0_fid_arr  *fids);
 
 /** @} conf_dfspec_objops */
 #endif /* __MERO_CONF_OBJOPS_H__ */

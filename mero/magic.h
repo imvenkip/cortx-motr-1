@@ -443,6 +443,10 @@ enum m0_magic_satchel {
 	M0_HA_EPOCH_MONITOR_MAGIC = 0x33beadade1a1de77,
 	/* m0_ha_domain::hdo_monitors::t_magic (beef official) */
 	M0_HA_DOMAIN_MAGIC = 0x33beef0ff1c1a177,
+	/* ha_client_ctx::hx_magic (booze defaced) */
+	M0_HA_CLIENT_MAGIC = 0x33b002edefaced77,
+	/* ha_client_ctx::hx_magic (cliff dazzled) */
+	M0_HA_CLIENT_HEAD_MAGIC = 0x33c11ffda221ed77,
 
 /* ioservice */
 	/* m0_tmp_stob_io_descr::siod_linkage (zealos obsses) */

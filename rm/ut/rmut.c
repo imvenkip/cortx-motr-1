@@ -378,6 +378,7 @@ void rm_ctxs_conf_init(struct rm_ctx *rm_ctxs, int ctxs_nr)
 		for (j = 0; j < ctxs_nr; j++) {
 			rm_ctxs_rmsvc_conf_add(confc, &rm_ctxs[j]);
 		}
+		m0_ha_client_add(confc);
 	}
 }
 
@@ -390,6 +391,7 @@ void rm_ctxs_conf_fini(struct rm_ctx *rm_ctxs, int ctxs_nr)
 	for (i = 0; i < ctxs_nr; i++) {
 		rmctx = &rm_ctxs[i];
 		confc = &rmctx->rc_rmach_ctx.rmc_reqh.rh_confc;
+		m0_ha_client_del(confc);
 		m0_conf_cache_dir_clean(&confc->cc_cache);
 		m0_confc_fini(confc);
 	}

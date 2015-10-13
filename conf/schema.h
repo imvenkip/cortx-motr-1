@@ -154,7 +154,7 @@ enum {
 enum m0_conf_service_type {
 	M0_CST_MDS = 1, /**< Meta-data service. */
 	M0_CST_IOS,     /**< IO/data service. */
-	M0_CST_MGS,     /**< Management service (confd?). */
+	M0_CST_MGS,     /**< Management service (confd). */
 	M0_CST_RMS,     /**< Resource management service. */
 	M0_CST_STS,     /**< Stats service */
 	M0_CST_HA,      /**< HA service */

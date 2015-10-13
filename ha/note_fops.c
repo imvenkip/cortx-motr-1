@@ -31,12 +31,16 @@ extern struct m0_reqh_service_type m0_rpc_service_type;
 struct m0_fop_type m0_ha_state_get_fopt;
 struct m0_fop_type m0_ha_state_get_rep_fopt;
 struct m0_fop_type m0_ha_state_set_fopt;
+struct m0_fop_type m0_ha_entrypoint_req_fopt;
+struct m0_fop_type m0_ha_entrypoint_rep_fopt;
 
 M0_INTERNAL void m0_ha_state_fop_fini(void)
 {
 	m0_fop_type_fini(&m0_ha_state_get_fopt);
 	m0_fop_type_fini(&m0_ha_state_get_rep_fopt);
 	m0_fop_type_fini(&m0_ha_state_set_fopt);
+	m0_fop_type_fini(&m0_ha_entrypoint_req_fopt);
+	m0_fop_type_fini(&m0_ha_entrypoint_rep_fopt);
 }
 
 M0_INTERNAL int m0_ha_state_fop_init(void)
@@ -63,6 +67,20 @@ M0_INTERNAL int m0_ha_state_fop_init(void)
 			 .sm        = &m0_generic_conf,
 			 .svc_type  = &m0_rpc_service_type,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
+	M0_FOP_TYPE_INIT(&m0_ha_entrypoint_req_fopt,
+			 .name      = "HA Cluster Entry Point Get Req",
+			 .opcode    = M0_HA_ENTRYPOINT_REQ_OPCODE,
+			 .xt        = m0_ha_entrypoint_req_xc,
+			 .fom_ops   = m0_ha_entrypoint_fom_type_ops,
+			 .sm        = &m0_generic_conf,
+			 .svc_type  = &m0_rpc_service_type,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
+	M0_FOP_TYPE_INIT(&m0_ha_entrypoint_rep_fopt,
+			 .name      = "HA Cluster Entry Point Get Reply",
+			 .opcode    = M0_HA_ENTRYPOINT_REP_OPCODE,
+			 .xt        = m0_ha_entrypoint_rep_xc,
+			 .svc_type  = &m0_rpc_service_type,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 	return 0;
 }
 

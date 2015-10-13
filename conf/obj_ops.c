@@ -29,6 +29,7 @@
 #include "lib/misc.h"      /* M0_IN */
 #include "lib/arith.h"     /* M0_CNT_INC, M0_CNT_DEC */
 #include "lib/errno.h"     /* ENOMEM */
+#include "fid/fid.h"       /* m0_fid_eq, m0_fid_arr */
 #include "mero/magic.h"    /* M0_CONF_OBJ_MAGIC */
 #include "pool/flset.h"    /* m0_flset_tl */
 
@@ -209,7 +210,7 @@ static bool confx_obj_is_valid(const struct m0_confx_obj *flat)
 {
 	/* XXX TODO
 	 * - All of m0_fid-s contained in `flat' are m0_fid_is_set();
-	 * - all of arr_fid-s are populated with valid m0_fid-s;
+	 * - all of fid_arr-s are populated with valid m0_fid-s;
 	 * - etc.
 	 */
 	(void)flat; /* XXX */
@@ -283,7 +284,7 @@ m0_conf_dir_del(struct m0_conf_dir *dir, struct m0_conf_obj *obj)
 }
 
 M0_INTERNAL bool m0_conf_dir_elems_match(const struct m0_conf_dir *dir,
-					 const struct arr_fid *fids)
+					 const struct m0_fid_arr  *fids)
 {
 	int i = 0;
 

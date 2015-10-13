@@ -27,6 +27,7 @@
 #include "lib/memory.h"   /* m0_free */
 #include "lib/errno.h"    /* ENOMEM, ENOENT */
 #include "lib/misc.h"     /* M0_IN */
+#include "fid/fid.h"
 
 #define M0_CONF__BOB_DEFINE(type, magic, check)                               \
 const struct m0_bob_type type ## _bob = {                                     \
@@ -84,13 +85,13 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 			const struct m0_fid *dir_id,
 			const struct m0_fid *relfid,
 			const struct m0_conf_obj_type *children_type,
-			const struct arr_fid *src,
+			const struct m0_fid_arr *src,
 			struct m0_conf_dir **out);
 
 struct conf_dir_entries {
 	const struct m0_fid           *de_relfid;
 	const struct m0_conf_obj_type *de_entry_type;
-	const struct arr_fid          *de_entries;
+	const struct m0_fid_arr       *de_entries;
 };
 #define CONF_DIR_ENTRIES(relfid, entry_type, entries) \
 	((struct conf_dir_entries){ (relfid), (entry_type), (entries) })
@@ -102,7 +103,7 @@ M0_INTERNAL int dir_create_and_populate(struct m0_conf_dir **result,
 
 struct conf_dir_encoding_pair {
 	const struct m0_conf_dir *dep_src;
-	struct arr_fid           *dep_dest;
+	struct m0_fid_arr        *dep_dest;
 };
 
 M0_INTERNAL int conf_dirs_encode(const struct conf_dir_encoding_pair *how,
@@ -120,9 +121,9 @@ M0_INTERNAL int conf_dirs_lookup(struct m0_conf_obj            **out,
 
 M0_INTERNAL bool arrays_eq(const char **cached, const struct m0_bufs *flat);
 
-M0_INTERNAL int arrfid_from_dir(struct arr_fid *dest,
+M0_INTERNAL int arrfid_from_dir(struct m0_fid_arr *dest,
 				const struct m0_conf_dir *dir);
-M0_INTERNAL void arrfid_free(struct arr_fid *arr);
+M0_INTERNAL void arrfid_free(struct m0_fid_arr *arr);
 
 M0_INTERNAL void confx_encode(struct m0_confx_obj *dest,
 			      const struct m0_conf_obj *src);
@@ -134,11 +135,11 @@ M0_INTERNAL bool u32arr_cmp(const struct arr_u32 *a1, const uint32_t *a2,
 			    uint32_t a2_nr);
 M0_INTERNAL void u32arr_free(struct arr_u32 *arr);
 
-M0_INTERNAL int conf_pvers_decode(struct m0_conf_pver ***dest,
-				  const struct arr_fid  *src,
-				  struct m0_conf_cache  *cache);
+M0_INTERNAL int conf_pvers_decode(struct m0_conf_pver     ***dest,
+				  const struct m0_fid_arr   *src,
+				  struct m0_conf_cache      *cache);
 
-M0_INTERNAL int conf_pvers_encode(struct arr_fid             *dest,
+M0_INTERNAL int conf_pvers_encode(struct m0_fid_arr          *dest,
 				  const struct m0_conf_pver **src);
 
 #endif /* __MERO_CONF_OBJS_COMMON_H__ */

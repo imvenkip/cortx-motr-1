@@ -111,21 +111,35 @@ static void test_init_fini(void)
 {
 	struct m0_rpc_machine    mach;
 	struct m0_rpc_server_ctx rctx;
-	int                      rc;
 	struct m0_rconfc         rconfc;
-	char                    *confd_addr[] = {SERVER_ENDPOINT_ADDR, NULL};
-	uint64_t                 ver;
+	int                      rc;
+
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    SERVER_ENDPOINT_ADDR, &g_grp,
-			    &mach, 0, test_null_exp_cb);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_fini(&rconfc);
+	ut_mero_stop(&mach, &rctx);
+}
+
+static void test_start_stop(void)
+{
+	struct m0_rpc_machine    mach;
+	struct m0_rpc_server_ctx rctx;
+	int                      rc;
+	struct m0_rconfc         rconfc;
+	uint64_t                 ver;
+
+	rc = ut_mero_start(&mach, &rctx);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ver != 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
 	M0_UT_ASSERT(ver == rconfc.rc_ver);
+	/** @todo Check addresses used by rconfc */
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 	ut_mero_stop(&mach, &rctx);
@@ -137,24 +151,24 @@ static void test_start_failures(void)
 	struct m0_rpc_server_ctx rctx;
 	int                      rc;
 	struct m0_rconfc         rconfc;
-	char                    *confd_addr[] = {SERVER_ENDPOINT_ADDR, NULL};
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_enable_once("rlock_ctx_connect", "rm_conn_failed");
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    SERVER_ENDPOINT_ADDR, &g_grp,
-			    &mach, 0, test_null_exp_cb);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
-	M0_UT_ASSERT(rc == -ECONNREFUSED);
+	/*
+	 * If connection to RM fails, then rconfc will try to start from
+	 * beginning, because it is possible that RM creditor has changed during
+	 * connection. Second attempt will succeed.
+	 */
+	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 
 	m0_fi_enable_once("rconfc_read_lock_complete", "rlock_req_failed");
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    SERVER_ENDPOINT_ADDR, &g_grp,
-			    &mach, 0, test_null_exp_cb);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == -ESRCH);
@@ -162,9 +176,7 @@ static void test_start_failures(void)
 	m0_rconfc_fini(&rconfc);
 
 	m0_fi_enable_once("rconfc__cb_quorum_test", "read_ver_failed");
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    SERVER_ENDPOINT_ADDR, &g_grp,
-			    &mach, 0, test_no_quorum_exp_cb);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_no_quorum_exp_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == -EPROTO);
@@ -172,9 +184,7 @@ static void test_start_failures(void)
 	m0_rconfc_fini(&rconfc);
 
 	m0_fi_enable_once("rconfc_conductor_iterate", "conductor_conn_fail");
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    SERVER_ENDPOINT_ADDR, &g_grp,
-			    &mach, 0, test_null_exp_cb);
+	rc = m0_rconfc_init(&rconfc,&g_grp, &mach, test_null_exp_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == -ENOENT);
@@ -190,15 +200,12 @@ static void test_reading(void)
 	struct m0_rpc_server_ctx rctx;
 	int                      rc;
 	struct m0_rconfc         rconfc;
-	char                    *confd_addr[] = {SERVER_ENDPOINT_ADDR, NULL};
 	uint64_t                 ver;
 	struct m0_conf_obj      *cobj;
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    SERVER_ENDPOINT_ADDR, &g_grp,
-			    &mach, 0, test_null_exp_cb);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
@@ -216,22 +223,39 @@ static void test_reading(void)
 	ut_mero_stop(&mach, &rctx);
 }
 
+static bool quorum_impossible_clink_cb(struct m0_clink *cl)
+{
+	struct m0_rconfc *rconfc = container_of(cl->cl_chan, struct m0_rconfc,
+						rc_sm.sm_chan);
+
+	if (rconfc->rc_sm.sm_state == RCS_GET_RLOCK) {
+		/*
+		 * Override required quorum value to be greater then number of
+		 * confd, so quorum is impossible.
+		 */
+		M0_PRE(rconfc->rc_quorum != 0);
+		rconfc->rc_quorum *= 2;
+		m0_clink_del(cl);
+	}
+	return true;
+}
+
 static void test_quorum_impossible(void)
 {
 	struct m0_rconfc         rconfc;
 	struct m0_rpc_machine    mach;
-	char                    *confd_addr[] = {SERVER_ENDPOINT_ADDR, NULL};
 	int                      rc;
 	uint64_t                 ver;
 	struct m0_rpc_server_ctx rctx;
+	struct m0_clink          clink;
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    (const char*) confd_addr[0], &g_grp,
-			    &mach, 2, test_no_quorum_exp_cb);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_no_quorum_exp_cb);
 	M0_UT_ASSERT(rc == 0);
+	m0_clink_init(&clink, quorum_impossible_clink_cb);
+	m0_clink_add_lock(&rconfc.rc_sm.sm_chan, &clink);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == -EPROTO);
 	ver = m0_rconfc_ver_max_read(&rconfc);
@@ -239,6 +263,7 @@ static void test_quorum_impossible(void)
 	M0_UT_ASSERT(rconfc.rc_ver == M0_CONF_VER_UNKNOWN);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
+	m0_clink_fini(&clink);
 	ut_mero_stop(&mach, &rctx);
 }
 
@@ -254,7 +279,6 @@ static void test_gops(void)
 	struct m0_rconfc         rconfc;
 	struct m0_rpc_machine    mach;
 	struct m0_confc_ctx      confc_ctx;
-	char                    *confd_addr[] = {SERVER_ENDPOINT_ADDR, NULL};
 	int                      rc;
 	struct m0_rpc_server_ctx rctx;
 	bool                     check_res;
@@ -263,9 +287,7 @@ static void test_gops(void)
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    (const char*) confd_addr[0], &g_grp,
-			    &mach, 0, NULL);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
@@ -332,7 +354,6 @@ static void test_version_change(void)
 {
 	struct m0_rconfc         rconfc;
 	struct m0_rpc_machine    mach;
-	char                    *confd_addr[] = {SERVER_ENDPOINT_ADDR, NULL};
 	int                      rc;
 	struct m0_rpc_server_ctx rctx;
 	struct rlock_ctx        *rlx;
@@ -343,9 +364,7 @@ static void test_version_change(void)
 	m0_semaphore_init(&g_expired_sem, 0);
 
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    (const char*) confd_addr[0], &g_grp,
-			    &mach, 0, conflict_exp_cb);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, conflict_exp_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
@@ -387,7 +406,6 @@ static void test_cache_drop(void)
 {
 	struct m0_rconfc         rconfc;
 	struct m0_rpc_machine    mach;
-	char                    *confd_addr[] = {SERVER_ENDPOINT_ADDR, NULL};
 	int                      rc;
 	struct m0_rpc_server_ctx rctx;
 	struct rlock_ctx        *rlx;
@@ -398,9 +416,7 @@ static void test_cache_drop(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_semaphore_init(&g_expired_sem, 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    (const char*) confd_addr[0], &g_grp,
-			    &mach, 0, conflict_exp_cb);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, conflict_exp_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
@@ -432,7 +448,6 @@ static void test_confc_ctx_block(void)
 {
 	struct m0_rconfc         rconfc;
 	struct m0_rpc_machine    mach;
-	char                    *confd_addr[] = {SERVER_ENDPOINT_ADDR, NULL};
 	int                      rc;
 	struct m0_rpc_server_ctx rctx;
 	struct rlock_ctx        *rlx;
@@ -441,9 +456,7 @@ static void test_confc_ctx_block(void)
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    (const char*) confd_addr[0], &g_grp,
-			    &mach, 0, NULL);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
@@ -464,15 +477,12 @@ static void test_reconnect_fail(void)
 	struct m0_rpc_server_ctx rctx;
 	int                      rc;
 	struct m0_rconfc         rconfc;
-	char                    *confd_addr[] = {SERVER_ENDPOINT_ADDR, NULL};
 	uint64_t                 ver;
 	struct m0_conf_obj      *cobj;
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    SERVER_ENDPOINT_ADDR, &g_grp,
-			    &mach, 0, test_null_exp_cb);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
@@ -508,15 +518,12 @@ static void test_reconnect_success(void)
 	struct m0_rpc_server_ctx rctx;
 	int                      rc;
 	struct m0_rconfc         rconfc;
-	char                    *confd_addr[] = {SERVER_ENDPOINT_ADDR, NULL};
 	uint64_t                 ver;
 	struct m0_conf_obj      *cobj;
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, (const char**) confd_addr,
-			    SERVER_ENDPOINT_ADDR, &g_grp,
-			    &mach, 0, test_null_exp_cb);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
@@ -542,6 +549,101 @@ static void test_reconnect_success(void)
 	ut_mero_stop(&mach, &rctx);
 }
 
+static void _subscribe_to_service(struct m0_rconfc *rconfc,
+				  struct m0_fid    *fid,
+				  struct m0_clink  *clink)
+{
+	struct m0_conf_obj   *obj;
+	struct m0_confc      *phony = &rconfc->rc_phony;
+	struct m0_conf_cache *cache = &phony->cc_cache;
+
+	obj = m0_conf_cache_lookup(cache, fid);
+	M0_UT_ASSERT(obj != NULL);
+
+	m0_clink_add_lock(&obj->co_ha_chan, clink);
+}
+
+struct _ha_notify_ctx {
+	struct m0_clink     clink;
+	struct m0_semaphore sem;
+	struct m0_fid       fid;
+};
+
+static void _notify_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct _ha_notify_ctx *x    = ast->sa_datum;
+	struct m0_ha_note      n1[] = { { x->fid, M0_NC_FAILED } };
+	struct m0_ha_nvec      nvec = { ARRAY_SIZE(n1), n1 };
+
+	m0_ha_state_accept(&nvec);
+}
+
+static bool _clink_cb(struct m0_clink *link)
+{
+	struct _ha_notify_ctx *x =
+		container_of(link, struct _ha_notify_ctx, clink);
+	struct m0_conf_obj    *obj =
+		container_of(link->cl_chan, struct m0_conf_obj, co_ha_chan);
+
+	/* now make sure the signal came from the right object ... */
+	M0_UT_ASSERT(m0_fid_eq(&x->fid, &obj->co_id));
+	M0_UT_ASSERT(obj->co_ha_state == M0_NC_FAILED);
+	/* ... and let the test move on */
+	m0_semaphore_up(&x->sem);
+	return false;
+}
+
+static void test_ha_notify(void)
+{
+	struct m0_rpc_machine    mach;
+	struct m0_rpc_server_ctx rctx;
+	int                      rc;
+	struct m0_rconfc         rconfc;
+	struct m0_fid            rm_fid = M0_FID_TINIT('s', 1, 2);
+	struct m0_sm_ast         notify_ast = {0};
+	struct _ha_notify_ctx    hnx;
+
+	rc = ut_mero_start(&mach, &rctx);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rconfc.rc_ver != 0);
+
+	/* make sure rconfc is ready */
+	M0_UT_ASSERT(rconfc.rc_sm.sm_state == RCS_IDLE);
+	/* prepare notification context */
+	m0_semaphore_init(&hnx.sem, 0);
+	m0_clink_init(&hnx.clink, _clink_cb);
+	_subscribe_to_service(&rconfc, &rm_fid, &hnx.clink);
+	hnx.fid = rm_fid;
+
+	/* imitate HA note arrived from outside */
+	notify_ast.sa_datum = &hnx;
+	notify_ast.sa_cb = _notify_cb;
+	m0_sm_ast_post(&g_grp, &notify_ast);
+
+	/* now wait for notification fired ... */
+	m0_semaphore_down(&hnx.sem);
+	m0_semaphore_fini(&hnx.sem);
+	/* ... unsubscribe ... */
+	m0_clink_del_lock(&hnx.clink);
+	m0_clink_fini(&hnx.clink);
+	/* ... and leave */
+	m0_rconfc_lock(&rconfc);
+	m0_sm_timedwait(&rconfc.rc_sm, M0_BITS(RCS_FAILURE), M0_TIME_NEVER);
+	m0_rconfc_unlock(&rconfc);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+	/*
+	 * rconfc RM owner didn't return credits to creditor and now
+	 * this owner is finalised. Drop this loan on creditor side.
+	 */
+	m0_fi_enable_once("owner_finalisation_check", "drop_loans");
+	ut_mero_stop(&mach, &rctx);
+}
+
 static int rconfc_ut_init(void)
 {
 	return conf_ut_ast_thread_init();
@@ -558,6 +660,7 @@ struct m0_ut_suite rconfc_ut = {
 	.ts_fini  = rconfc_ut_fini,
 	.ts_tests = {
 		{ "init-fini",  test_init_fini },
+		{ "start-stop", test_start_stop },
 		{ "start-fail", test_start_failures },
 		{ "reading",    test_reading },
 		{ "impossible", test_quorum_impossible },
@@ -567,6 +670,7 @@ struct m0_ut_suite rconfc_ut = {
 		{ "ctx-block",  test_confc_ctx_block },
 		{ "reconnect",  test_reconnect_success },
 		{ "recon-fail", test_reconnect_fail },
+		{ "ha-notify",  test_ha_notify },
 		{ NULL, NULL }
 	}
 };

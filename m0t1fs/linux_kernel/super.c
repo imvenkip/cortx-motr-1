@@ -47,6 +47,7 @@
 #include "addb2/sys.h"
 #include "pool/flset.h"        /* m0_flset_build, m0_flset_destroy */
 #include "module/instance.h"   /* m0_get */
+#include "ha/epoch.h"          /* m0_ha_client_add */
 
 extern struct io_mem_stats iommstats;
 extern struct m0_bitmap    m0t1fs_client_ep_tmid;
@@ -617,7 +618,8 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		.ca_group   = &csb->csb_iogroup,
 	};
 
-	rc = m0_reqh_conf_setup(reqh, confc_args);
+	rc = m0_reqh_conf_setup(reqh, confc_args) ?:
+		m0_ha_client_add(&reqh->rh_confc);
 	if (rc != 0)
 		goto err_rpc_fini;
 
@@ -690,6 +692,7 @@ err_pools_destroy:
 err_conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
 err_conf_fini:
+	m0_ha_client_del(&reqh->rh_confc);
 	m0_confc_fini(&reqh->rh_confc);
 err_rpc_fini:
 	m0t1fs_rpc_fini(csb);
@@ -710,6 +713,7 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_pools_service_ctx_destroy(&csb->csb_pools_common);
 	m0_pools_destroy(&csb->csb_pools_common);
 	m0_pools_common_fini(&csb->csb_pools_common);
+	m0_ha_client_del(&csb->csb_reqh.rh_confc);
 	m0_confc_fini(&csb->csb_reqh.rh_confc);
 	m0t1fs_rpc_fini(csb);
 	m0t1fs_net_fini(csb);

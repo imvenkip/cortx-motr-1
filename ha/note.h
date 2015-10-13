@@ -24,7 +24,6 @@
 #ifndef __MERO___HA_NOTE_H__
 #define __MERO___HA_NOTE_H__
 
-
 /**
  * @defgroup ha-note HA notification
  *
@@ -96,6 +95,8 @@
 #include "fid/fid_xc.h"
 #include "lib/chan.h"
 #include "lib/types.h"
+#include "lib/buf.h"          /* m0_buf, m0_bufs */
+#include "lib/buf_xc.h"       /* m0_buf_xc, m0_bufs_xc */
 #include "rpc/rpc.h"
 #include "xcode/xcode_attr.h"
 
@@ -183,6 +184,44 @@ enum m0_ha_state_update_defaults {
 };
 
 /**
+ * Cluster entry point contains information necessary to access cluster
+ * configuration. This information is maintained by HA subsystem.
+ */
+struct m0_ha_entrypoint_rep {
+	/** Negative if accessing cluster configuration is impossible. */
+	int32_t           hbp_rc;
+	/**
+	 * Minimum number of confd servers agreed upon current configuration
+	 * version in cluster. Client shouldn't access configuration if this quorum
+	 * value is not reached.
+	 */
+	uint32_t          hbp_quorum;
+	/**
+	 * Fids of confd services replicating configuration database. The same
+	 * Fids should be present in configuration database tree.
+	 */
+	struct m0_fid_arr hbp_confd_fids;
+	/** RPC endpoints of confd services. */
+	struct m0_bufs    hbp_confd_eps;
+	/**
+	 * Fid of RM service maintaining read/write access to configuration
+	 * database. The same fid should be present in configuration database
+	 * tree.
+	 */
+	struct m0_fid     hbp_active_rm_fid;
+	/**
+	 * RPC endpoint of RM service.
+	 */
+	struct m0_buf     hbp_active_rm_ep;
+} M0_XCA_RECORD;
+
+/** @todo: Support for FOPs with Null payload */
+struct m0_ha_entrypoint_req {
+	/** Can be ignored by receiver. */
+	uint32_t dummy;
+} M0_XCA_RECORD;
+
+/**
  * Queries HA about the current the failure state for a set of objects.
  *
  * Constructs a m0_ha_state_get_fopt from the "note" parameter and
@@ -239,7 +278,8 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 				 struct m0_ha_nvec *note);
 /**
- * Incorporates received failure state changes in the local confc cache.
+ * Incorporates received failure state changes in the cache of every confc
+ * instance registered with the global HA context (see m0_ha_client_add()).
  *
  * Failure states of configuration objects are received from HA (not confd),
  * but are stored in the same data-structure (conf client cache  (m0_confc)
@@ -263,9 +303,11 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
  *                             m0_conf_fid_is_valid(&note->nv_note[i].no_id) &&
  *    ergo(M0_IN(note->nv_note[i].no_state, (M0_NC_REPAIR, M0_NC_REBALANCE)),
  *         m0_conf_fid_type(&note->nv_note[i].no_id) == &M0_CONF_POOL_TYPE))
+ *
+ * Actual cache update is done by ha_state_accept() called on per-client basis
+ * in the course of iterating global HA context client list.
  */
-M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
-				    const struct m0_ha_nvec *note);
+M0_INTERNAL void m0_ha_state_accept(const struct m0_ha_nvec *note);
 
 M0_INTERNAL struct m0_rpc_session *m0_ha_session_get(void);
 
