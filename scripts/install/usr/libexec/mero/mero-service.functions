@@ -81,18 +81,6 @@ m0_path_to()
     fi
 }
 
-# Return value of particular variable, stored in genders "database"
-#   @param  $1  name of a variable
-#   @param  $2  optional name of a node, for which the query is performed, if
-#               ommited, then value is returned for current node
-m0_genders_value_of()
-{
-    local var_name=$1
-    local node=$2
-
-    nodeattr -f $MERO_GENDERS_CONF -v $node $var_name
-}
-
 # Checks if particular variable exists in genders "database"
 #   @param  $1  name of a variable
 #   @param  $2  optional name of a node, for which the query is performed, if
@@ -103,6 +91,22 @@ m0_genders_has_variable()
     local node=$2
 
     nodeattr -f $MERO_GENDERS_CONF -Q $node $var_name
+}
+
+# Return value of particular variable, stored in genders "database"
+#   @param  $1  name of a variable
+#   @param  $2  optional name of a node, for which the query is performed, if
+#               ommited, then value is returned for current node
+m0_genders_value_of()
+{
+    local var_name=$1
+    local node=$2
+
+    if m0_genders_has_variable $var_name $node ; then
+        nodeattr -f $MERO_GENDERS_CONF -v $node $var_name
+    else
+        m0_log "WARN: query not existing genders var '$var_name'${node:+ node $node}"
+    fi
 }
 
 # Start LNET service
