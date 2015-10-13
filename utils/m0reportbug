@@ -1,0 +1,162 @@
+#!/bin/bash
+set -eu
+# set -x
+# export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+###
+### History:
+###
+### Date       Version Description
+### ---------- ------- ----------------------------------------------------
+### 2015-10-19 0.1     Initial release: system probes, backtraces (running
+###                    lt-m0* processes, core dumps), m0traces.
+###
+VERSION='0.1'
+
+DATA_DIR=m0reportbug-data
+OUTPUT=m0reportbug.txt # the file is created in $DATA_DIR/
+MAX_CORE_SIZE=512 # MB
+
+section() { echo "----- $@ -----"; }
+die() { echo "$@" >&2; exit 1; }
+
+main() {
+    local g
+    local stages=(
+        probes
+        backtraces_live
+        backtraces_cores
+        m0traces
+    )
+    if [ -d $DATA_DIR ]; then
+        read -p "$DATA_DIR/ exists. Overwrite [Y/n]? "
+        case $REPLY in
+            'N'|'n') echo 'Aborted'; exit 4;; # EINTR
+        esac
+        rm -r $DATA_DIR
+    fi
+    mkdir $DATA_DIR
+    cd $DATA_DIR
+
+    echo m0reportbug $VERSION >$OUTPUT
+    for g in "${stages[@]}"; do
+        echo -n "$g... " >&2
+        $g
+        echo 'OK' >&2
+    done >>$OUTPUT
+    echo Please attach $DATA_DIR/\* files to a bug report. >&2
+}
+
+m0version() {
+    dmesg | grep 'mero: Git' | tail -3 | cut -d: -f2-
+}
+
+probes() {
+    local p
+    local probes=(
+        'date -u --rfc-3339=seconds'
+        'hostname'
+        'uptime'
+        'rpm -qi mero'
+        'm0version'
+        'uname -a'
+        'cat /proc/cmdline'
+        'cat /proc/cpuinfo'
+        'cat /proc/partitions'
+        'cat /proc/diskstats'
+        'cat /proc/vmstat'
+        'free'
+        'mount'
+        'lspci'
+        'gcc --version'
+        'ip addr'
+        'ip -s link'
+        'cat /etc/modprobe.d/lnet.conf'
+        'lsmod'
+        'ps -e f'
+        'ps auxH'
+        'ls /dev/disk/by-*'
+        'dmesg'
+    )
+    for p in "${probes[@]}"; do
+        section $p
+        $p || true
+    done
+}
+
+gdb_bt() {
+    [ $# -eq 2 ] || die 'Usage: gdb_bt <prog> {<core>|<pid>}>'
+    sudo gdb -nx $@ <<EOF
+set pagination off
+bt
+p "###"
+thread apply all bt
+p "###"
+thread apply all bt full
+quit
+EOF
+    echo
+}
+
+backtraces_live() {
+    local pid task
+
+    pgrep lt-m0 | while read pid; do
+        local args="$(ps h -o args $pid)"
+        local prog=$(echo $args | cut -d' ' -f1)
+
+        section /proc/$pid/stack
+        sudo cat /proc/$pid/stack
+
+        sudo ls /proc/$pid/task | while read task; do
+            section /proc/$pid/task/$task/stack
+            sudo cat /proc/$pid/task/$task/stack
+        done
+
+        section $pid $(basename $prog)
+        echo $args
+        gdb_bt $prog $pid
+    done
+}
+
+backtraces_cores() {
+    local tmp=/tmp/m0reportbug_$$.tmp
+    local out=cores_$(date -u +%Y%m%d-%H%M%S).tar.gz
+    local core
+
+    trap "rm -f $tmp" 0
+    sudo find /var/mero -type f -name core.\* | while read core; do
+        local mb=$(sudo du -BM $core | cut -dM -f1)
+        echo $((mb <= $MAX_CORE_SIZE)) $core  # <include?> <path>
+    done >$tmp
+    [ -s $tmp ] || return 0  # No core dumps. Nothing to do.
+
+    ## Print backtraces.
+    cut -d' ' -f2 $tmp | while read core; do
+        section $core
+        gdb_bt $(sudo file $core | cut -d\' -f2 | cut -d' ' -f1) $core
+    done
+
+    ## Pack core dumps.
+    section $out
+    grep '^0 ' $tmp | cut -d' ' -f2 | while read core; do
+        echo "Skipping $core: the file is too large" \
+             "($(sudo du -h $core | cut -f1))"
+    done
+    if grep -q '^1 ' $tmp; then
+        (cd /var/mero
+         grep '^1 ' $tmp | cut -d' ' -f2 | cut -d/ -f4- |
+             sudo tar -T - -czf - || true) >$out
+        sha1sum $out
+    fi
+}
+
+m0traces() {
+    local out=m0traces_$(date -u +%Y%m%d-%H%M%S).tar.gz
+
+    section $out
+    (cd /var/mero
+     sudo find . -type f -name m0trace.\* | sudo tar -T - -czf - || true) >$out
+    sha1sum $out
+}
+
+main
