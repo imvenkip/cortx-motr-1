@@ -35,6 +35,7 @@
 #include "lib/trace.h"         /* M0_ERR */
 #include "lib/arith.h"         /* m0_gcd64 m0_enc m0_dec */
 #include "lib/hash.h"          /* m0_hash */
+#include "lib/bob.h"
 #include "lib/assert.h"        /* _0C */
 #include "lib/misc.h"          /* m0_permute */
 
@@ -57,6 +58,7 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
 
 static inline bool fd_tile_invariant(const struct m0_fd_tile *tile);
 
+static int tolvec_sanity_check(const struct m0_conf_pver *pv);
 /**
  * Checks the feasibility of expected tolerance using the attributes of
  * the symmetric tree formed from the pool version.
@@ -76,12 +78,26 @@ static int tree_level_nodes_cnt(const struct m0_conf_pver *pv, uint64_t level,
 static int min_children_cnt(const struct m0_conf_pver *pver, uint64_t pv_level,
 			    uint64_t *children_nr);
 
+/**
+ * Uniformly distributes units from a parent node to all the children.
+ */
+static void uniform_distribute(uint64_t **units, uint64_t level,
+			       uint64_t parent_nr, uint64_t child_nr);
+
+/**
+ * Calculates the sum of the units received by the first 'toll' number of
+ * nodes from a level 'level', when nodes are arranged in descending order
+ * of units they possess.
+ */
+static uint64_t units_calc(uint64_t **units, uint64_t level, uint64_t parent_nr,
+			   uint64_t child_nr, uint64_t tol);
+
+
 /** Calculates the pool-width associated with the symmetric tree. */
 static uint64_t pool_width_calc(uint64_t *children_nr, uint64_t depth);
 
 
 /** Returns an index of permuted target. **/
-
 static void permuted_tgt_get(struct m0_pdclust_instance *pi, uint64_t omega,
 			     uint64_t *rel_vidx, uint64_t *tgt_idx);
 
@@ -108,8 +124,6 @@ static bool is_cache_valid(const struct m0_fd_perm_cache *cache,
 			   uint64_t omega, const struct m0_fid *gfid);
 
 static uint64_t tree2pv_level_conv(uint64_t level, uint64_t tree_depth);
-
-static uint64_t ceil_of(uint64_t a, uint64_t b);
 
 static bool obj_check(const struct m0_conf_obj *obj,
 		      const struct m0_conf_obj_type *type)
@@ -278,8 +292,7 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 	int      rc;
 
 	M0_PRE(pv != NULL && pool_ver != NULL && failure_level != NULL);
-	M0_PRE(m0_exists(i, pv->pv_nr_failures_nr,
-			 pv->pv_nr_failures[i] != 0));
+
 	rc = symm_tree_attr_get(pv, failure_level, children_nr);
 	if (rc != 0) {
 		return M0_RC(rc);
@@ -289,7 +302,19 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 	if (rc != 0)
 		return M0_RC(rc);
 	m0_fd__tile_populate(&pool_ver->pv_fd_tile);
+
+	M0_LEAVE("Symm tree pool width = %d\tFD tree depth = %d",
+		 (int)pool_ver->pv_fd_tile.ft_cols, (int)*failure_level);
 	return M0_RC(rc);
+}
+
+static int tolvec_sanity_check(const struct m0_conf_pver *pv)
+{
+	if (!m0_exists(i, pv->pv_nr_failures_nr, pv->pv_nr_failures[i] != 0))
+		return M0_ERR_INFO(-EINVAL, "Tolerance values associated with"
+				    "all the levels of configuration"
+				    "tree are 0");
+	return 0;
 }
 
 static  uint64_t tree2pv_level_conv(uint64_t level, uint64_t tree_depth)
@@ -302,122 +327,136 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
 			      uint64_t *children_nr)
 {
 	int      rc;
-	uint64_t max_units;
-	uint64_t pv_level;
 	uint64_t min_children;
-	uint64_t G;
-	uint64_t tol;
-	uint64_t level;
+	uint64_t pv_level;
+	uint64_t conf_level;
+	uint64_t fd_level;
 
-	G = parity_group_size(&pv->pv_attr);
-	for (level = 1, tol = 0; tol == 0 && level < M0_FTA_DEPTH_MAX;
-	     ++level) {
-		rc = tree_level_nodes_cnt(pv, level, children_nr);
+	rc = tolvec_sanity_check(pv);
+	if (rc != 0)
+		return M0_RC(rc);
+	/* Drop down to the first level from the configuration tree that will be
+	 * part of failure domains tree.
+	 */
+	for (conf_level = 1; conf_level < M0_FTA_DEPTH_MAX; ++conf_level) {
+		rc = tree_level_nodes_cnt(pv, conf_level, children_nr);
 		if (rc != 0) {
-			*depth = level;
+			*depth = conf_level;
 			return M0_RC(rc);
 		}
-		max_units = ceil_of(G, children_nr[0]);
-		tol = pv->pv_attr.pa_K / max_units;
-		if (tol < pv->pv_nr_failures[level]) {
-			*depth = level;
-			 return M0_ERR(-EINVAL);
-		}
-		if (tol > 0 && pv->pv_nr_failures[level] > 0)
+		if (pv->pv_nr_failures[conf_level] > 0)
 			break;
 	}
-	*depth = M0_FTA_DEPTH_MAX - level;
-	for (pv_level = level; pv_level < M0_FTA_DEPTH_MAX - 1; ++pv_level) {
+	/* Calculate the depth of failure domains tree. */
+	*depth = M0_FTA_DEPTH_MAX - conf_level;
+	for (fd_level = 1, pv_level = conf_level; fd_level < *depth; ++fd_level,
+	     ++pv_level) {
 		rc = min_children_cnt(pv, pv_level, &min_children);
 		if (rc != 0) {
 			*depth = pv_level;
 			return M0_RC(rc);
 		}
-		children_nr[pv_level - level + 1] = min_children;
+		children_nr[fd_level] = min_children;
 	}
+	/* Total number of leaf nodes can be calculated by reducing elements of
+	 * children_nr using multiplication. In order to enable this operation,
+	 * children count for leaf-nodes is stored as unity,
+	 */
 	children_nr[*depth] = 1;
-	rc = tolerance_check(pv, children_nr, level, depth);
+	/* Check if the skeleton tree (a.k.a. symmetric tree) meets the
+	 * required tolerance at all the levels.
+	 */
+	rc = tolerance_check(pv, children_nr, conf_level, depth);
 	if (rc != 0)
 		return M0_RC(rc);
 	return M0_RC(rc);
 }
 
-static uint64_t ceil_of(uint64_t a, uint64_t b)
+static int tolerance_check(const struct m0_conf_pver *pv, uint64_t *children_nr,
+                           uint64_t first_level, uint64_t *failure_level)
 {
-	return (a + b - 1) / b;
-}
+        int       rc = 0;
+        int       i;
+        uint64_t  G;
+        uint64_t  K;
+        uint64_t  nodes;
+        uint64_t  sum;
+        uint64_t *units[M0_FTA_DEPTH_MAX];
+        uint64_t  depth;
 
-static int tolerance_check(const struct m0_conf_pver *pv,
-			   uint64_t *children_nr, uint64_t first_level,
-			   uint64_t *failure_level)
-{
-	int       rc = 0;
-	int       i;
-	uint64_t  j;
-	uint64_t  k;
-	uint64_t  G;
-	uint64_t  K;
-	uint64_t  level;
-	uint64_t  nodes_child;
-	uint64_t  nodes;
-	uint64_t  cnt;
-	uint64_t  tol;
-	uint64_t  sum;
-	uint64_t *units[M0_FTA_DEPTH_MAX];
+        G = parity_group_size(&pv->pv_attr);
+        K = pv->pv_attr.pa_K;
 
-	G = parity_group_size(&pv->pv_attr);
-	K = pv->pv_attr.pa_K;
-	/* total nodes at given level. */
-	nodes = 1;
-	/* total nodes at the level of children. */
-	nodes_child = children_nr[0];
-	M0_ALLOC_PTR(units[0]);
-	if (units[0] == NULL) {
-		*failure_level = 0;
-		return M0_ERR(-ENOMEM);
-	}
-	units[0][0] = G;
-	for (i = 1, level = first_level; level < M0_FTA_DEPTH_MAX - 1;
-	     ++i, ++level) {
-		M0_ALLOC_ARR(units[i], nodes_child);
+        /* total nodes at given level. */
+        nodes = 1;
+        depth = *failure_level;
+	for (i = 0; i <= depth; ++i) {
+		M0_ALLOC_ARR(units[i], nodes);
 		if (units[i] == NULL) {
 			rc = -ENOMEM;
 			*failure_level = i;
 			goto out;
 		}
-		tol = pv->pv_nr_failures[level];
-		/* Distribute units from parents to children. */
-		for (j = 0; j < nodes; ++j) {
-			for (k = 0; k < children_nr[i - 1]; ++k) {
-				units[i][j * children_nr[i - 1] + k] =
-					units[i - 1][j] / children_nr[i - 1];
-			}
-			for (k = 0; k < units[i - 1][j] % children_nr[i - 1];
-			     ++k) {
-				units[i][j * children_nr[i - 1] + k] += 1;
-			}
-		}
-		/* Check the tolerance. */
-		for (k = 0, sum = 0, cnt = 0;
-		     cnt < tol && k < children_nr[i - 1]; ++k) {
-			for (j = 0; cnt < tol && j < nodes; ++j) {
-				sum += units[i][j *children_nr[i - 1] + k];
-				++cnt;
-			}
-		}
-		if (sum > K) {
-			*failure_level = level;
-			rc = -EINVAL;
-			goto out;
-		}
-		nodes = nodes_child;
-		nodes_child *= children_nr[i];
+                nodes *= children_nr[i];
+
 	}
+        units[0][0] = G;
+        for (i = 1, nodes = 1; i < depth; ++i) {
+                /* Distribute units from parents to children. */
+                uniform_distribute(units, i, nodes, children_nr[i - 1]);
+                /* Calculate the sum of units held by top five nodes. */
+                sum = units_calc(units, i, nodes, children_nr[i - 1],
+                                 pv->pv_nr_failures[first_level + i - 1]);
+                if (sum > K) {
+                        *failure_level = first_level + i - 1;
+                        rc = -EINVAL;
+                        goto out;
+                }
+                nodes *= children_nr[i - 1];
+        }
 out:
-	for (--i; i > -1; --i) {
+	for (i = 0; i <= depth; ++i) {
 		m0_free(units[i]);
 	}
 	return rc == 0 ? M0_RC(rc) : M0_ERR(rc);
+}
+
+static void uniform_distribute(uint64_t **units, uint64_t level,
+			       uint64_t parent_nr, uint64_t child_nr)
+{
+	uint64_t pid;
+	uint64_t cid;
+	uint64_t g_cid;
+	uint64_t u_nr;
+
+	for (pid = 0; pid < parent_nr; ++pid) {
+		u_nr = units[level - 1][pid];
+		for (cid = 0; cid < child_nr; ++cid) {
+			g_cid = pid * child_nr + cid;
+			units[level][g_cid] = (uint64_t)(u_nr / child_nr);
+		}
+		for (cid = 0; cid < (u_nr % child_nr); ++cid) {
+			g_cid = pid * child_nr + cid;
+			units[level][g_cid] += 1;
+		}
+	}
+}
+
+static uint64_t units_calc(uint64_t **units, uint64_t level, uint64_t parent_nr,
+			   uint64_t child_nr,  uint64_t tol)
+{
+	uint64_t pid;
+	uint64_t cid;
+	uint64_t sum = 0;
+	uint64_t cnt = 0;
+
+	for (cid = 0; cnt < tol && cid < child_nr; ++cid) {
+		for (pid = 0; cnt < tol && pid < parent_nr; ++pid) {
+			sum += units[level][pid * child_nr + cid];
+			++cnt;
+		}
+	}
+	return sum;
 }
 
 static uint64_t parity_group_size(const struct m0_pdclust_attr *la_attr)
@@ -505,7 +544,6 @@ M0_INTERNAL void m0_fd_src_to_tgt(const struct m0_fd_tile *tile,
 
 	M0_PRE(tile != NULL && src != NULL && tgt != NULL);
 	M0_PRE(fd_tile_invariant(tile));
-
 	C = tile->ft_rows * tile->ft_cols / tile->ft_G;
 
 	/* Get normalized location. */

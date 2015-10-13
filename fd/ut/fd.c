@@ -29,6 +29,7 @@
 #include "lib/misc.h"       /* M0_SET0 and uint32_t uint64_t etc. */
 #include "lib/arith.h"      /* m0_rnd */
 #include "lib/memory.h"     /* m0_alloc m0_free */
+#include "lib/errno.h"      /* EINVAL */
 #include "ut/ut.h"          /* M0_UT_ASSERT */
 #include "ut/file_helpers.h"
 #include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
@@ -157,7 +158,7 @@ char local_conf_str[] = "[34:\
    {0x6b| ((^k|1:21), ^d|1:13)},\
    {0x6b| ((^k|1:22), ^d|1:14)},\
    {0x6f| ((^o|1:23), 0, [1: ^v|1:24])},\
-   {0x76| ((^v|1:24), 0, 3, 1, 5, [5: 1,0,0,0,0],\
+   {0x76| ((^v|1:24), 0, 3, 1, 5, [5: 1,0,0,0,1],\
            [1: ^j|1:25])},\
    {0x6a| ((^j|1:25), ^a|1:15,\
            [1: ^j|1:26])},\
@@ -204,7 +205,6 @@ static bool is_tgt_failed(struct m0_pool_version *pv,
 static void failed_nodes_mark(struct m0_fd_tree *tree, uint32_t level,
 			      uint64_t tol, uint64_t *failed_domains);
 static void fd_tolerance_check(struct m0_pool_version *pv);
-
 
 static void test_fd_mapping_sanity(enum tree_attr ta)
 {
@@ -421,6 +421,7 @@ static void test_pv2fd_conv(void)
 	static char          local_conf[M0_CONF_STR_MAXLEN];
 #endif
 	uint64_t             failure_level;
+	uint64_t             max_failures = 1;
 	int                  i;
 	int                  rc;
 
@@ -460,16 +461,42 @@ static void test_pv2fd_conv(void)
 			failure_level = 0;
 		}
 	} while (rc != 0);
+	/* Figure out thte first level for which user specified tolerance is
+	 * non-zero. */
+	for (i = 0; i < M0_FTA_DEPTH_MAX; ++i)
+		if (pv->pv_nr_failures[i] != 0) {
+			max_failures = pv->pv_nr_failures[i];
+			failure_level     = i;
+			break;
+		}
+	/* We intend to test those cases whenver supported cases are greater
+	 * than or equal to teh actual failures.
+	 */
+#ifndef __KERNEL__
+	M0_UT_ASSERT(i < M0_FTA_DEPTH_DISK);
+	pv->pv_nr_failures[failure_level] = 0;
+#else
+	max_failures = 1;
+#endif
+	for (i = 0; i < max_failures; ++i) {
+		rc = m0_fd_tile_build(pv, &pool_ver, &failure_level);
+		M0_UT_ASSERT(rc == 0);
+		rc = m0_fd_tree_build(pv, &pool_ver.pv_fd_tree);
+		M0_UT_ASSERT(rc == 0);
+		memcpy(pool_ver.pv_fd_tol_vec, pv->pv_nr_failures,
+		       M0_FTA_DEPTH_MAX *sizeof pool_ver.pv_fd_tol_vec[0]);
+		fd_mapping_check(&pool_ver);
+		fd_tolerance_check(&pool_ver);
+		m0_fd_tree_destroy(&pool_ver.pv_fd_tree);
+		m0_fd_tile_destroy(&pool_ver.pv_fd_tile);
+		++pv->pv_nr_failures[failure_level];
+	}
+	/*  Test the case when entire tolerance vector is zero. */
+	for (i = 0; i < M0_FTA_DEPTH_MAX; ++i)
+		pv->pv_nr_failures[i] = 0;
 	rc = m0_fd_tile_build(pv, &pool_ver, &failure_level);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_fd_tree_build(pv, &pool_ver.pv_fd_tree);
-	M0_UT_ASSERT(rc == 0);
-	memcpy(pool_ver.pv_fd_tol_vec, pv->pv_nr_failures,
-	       M0_FTA_DEPTH_MAX *sizeof pool_ver.pv_fd_tol_vec[0]);
-	fd_mapping_check(&pool_ver);
-	fd_tolerance_check(&pool_ver);
-	m0_fd_tree_destroy(&pool_ver.pv_fd_tree);
-	m0_fd_tile_destroy(&pool_ver.pv_fd_tile);
+	M0_UT_ASSERT(rc == -EINVAL);
+
 	m0_conf_diter_fini(&it);
 	m0_confc_close(fs_obj);
 	m0_confc_fini(&confc);

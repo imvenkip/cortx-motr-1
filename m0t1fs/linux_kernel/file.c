@@ -3675,7 +3675,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	 */
 	if (rc < 0 )
 		return M0_RC(rc);
-	M0_LOG(M0_FATAL, "Proceeding with the degraded read");
+	M0_LOG(M0_DEBUG, "Proceeding with the degraded read");
 	start = m0_time_now();
 	csb = file_to_sb(req->ir_file);
 	pm = m0t1fs_file_to_poolmach(req->ir_file);
@@ -3719,7 +3719,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	 * spanned by input IO-request is in degraded mode.
 	 */
 	if (req->ir_dgmap_nr > 0) {
-		M0_LOG(M0_FATAL, " processing the failed parity groups");
+		M0_LOG(M0_DEBUG, " processing the failed parity groups");
 		if (ioreq_sm_state(req) == IRS_READ_COMPLETE)
 			ioreq_sm_state_set(req, IRS_DEGRADED_READING);
 

@@ -100,7 +100,7 @@ enum m0_fd_tree_attr {
 	M0_FTA_DEPTH_ENCL,
 	M0_FTA_DEPTH_CONT,
 	M0_FTA_DEPTH_DISK,
-	M0_FTA_DEPTH_MAX = 5,
+	M0_FTA_DEPTH_MAX,
 };
 
 /**
