@@ -274,6 +274,7 @@ m0_spiel_stop
 m0_spiel_tx_close
 m0_spiel_tx_commit
 m0_spiel_tx_commit_forced
+m0_spiel_tx_dump
 m0_spiel_tx_open
 m0_stats_free
 m0_stats_query

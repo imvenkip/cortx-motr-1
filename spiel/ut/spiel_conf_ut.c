@@ -246,6 +246,9 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK]);
 	M0_UT_ASSERT(rc == 0);
 
+	rc = m0_spiel_pool_version_done(tx, &spiel_obj_fid[SPIEL_UT_OBJ_PVER]);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_spiel_process_add(tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
@@ -285,6 +288,222 @@ static void spiel_conf_create_ok(void)
 	spiel_conf_ut_fini();
 }
 
+static void spiel_conf_pver_check(struct m0_spiel_tx *tx)
+{
+	struct m0_conf_obj        *obj;
+	struct m0_conf_pver       *pver;
+	struct m0_conf_rack       *rack;
+	struct m0_conf_enclosure  *enclosure;
+	struct m0_conf_controller *controller;
+
+	m0_mutex_lock(&tx->spt_lock);
+	obj = m0_conf_cache_lookup(&tx->spt_cache,
+				   &spiel_obj_fid[SPIEL_UT_OBJ_PVER]);
+	pver = M0_CONF_CAST(obj, m0_conf_pver);
+	M0_UT_ASSERT(pver != NULL);
+
+	obj = m0_conf_cache_lookup(&tx->spt_cache,
+				   &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
+	rack = M0_CONF_CAST(obj, m0_conf_rack);
+	M0_UT_ASSERT(rack != NULL);
+	M0_UT_ASSERT(rack->cr_pvers != NULL);
+	M0_UT_ASSERT(rack->cr_pvers[0] == pver);
+	M0_UT_ASSERT(rack->cr_pvers[1] == NULL);
+
+	obj = m0_conf_cache_lookup(&tx->spt_cache,
+				   &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
+	enclosure = M0_CONF_CAST(obj, m0_conf_enclosure);
+	M0_UT_ASSERT(enclosure != NULL);
+	M0_UT_ASSERT(enclosure->ce_pvers != NULL);
+	M0_UT_ASSERT(enclosure->ce_pvers[0] == pver);
+	M0_UT_ASSERT(enclosure->ce_pvers[1] == NULL);
+
+	obj = m0_conf_cache_lookup(&tx->spt_cache,
+				   &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
+	controller = M0_CONF_CAST(obj, m0_conf_controller);
+	M0_UT_ASSERT(controller != NULL);
+	M0_UT_ASSERT(controller->cc_pvers != NULL);
+	M0_UT_ASSERT(controller->cc_pvers[0] == pver);
+	M0_UT_ASSERT(controller->cc_pvers[1] == NULL);
+
+	m0_mutex_unlock(&tx->spt_lock);
+}
+
+static void spiel_conf_pver_delete_check(struct m0_spiel_tx *tx)
+{
+	struct m0_conf_obj *obj;
+
+	m0_mutex_lock(&tx->spt_lock);
+	obj = m0_conf_cache_lookup(&tx->spt_cache,
+				   &spiel_obj_fid[SPIEL_UT_OBJ_PVER]);
+	M0_UT_ASSERT(obj == NULL);
+
+	obj = m0_conf_cache_lookup(&tx->spt_cache,
+				   &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V]);
+	M0_UT_ASSERT(obj == NULL);
+
+	obj = m0_conf_cache_lookup(&tx->spt_cache,
+				   &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V]);
+	M0_UT_ASSERT(obj == NULL);
+
+	obj = m0_conf_cache_lookup(&tx->spt_cache,
+				   &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V]);
+	M0_UT_ASSERT(obj == NULL);
+
+	m0_mutex_unlock(&tx->spt_lock);
+}
+
+static void spiel_conf_create_pver_tree(struct m0_spiel_tx *tx)
+{
+	int                    rc;
+	struct m0_fid          fake_fid = spiel_obj_fid[SPIEL_UT_OBJ_PROFILE];
+	struct m0_pdclust_attr pdclust_attr = { .pa_N=1, .pa_K=1, .pa_P=3};
+	struct m0_pdclust_attr pdclust_attr_invalid = { .pa_N=1, .pa_K=2,
+							.pa_P=3};
+	uint32_t               nr_failures[] = {0, 0, 0, 0, 1};
+
+	/* Pool version */
+	rc = m0_spiel_pool_version_add(tx,
+				       &fake_fid,
+				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				       nr_failures,
+				       ARRAY_SIZE(nr_failures),
+				       &pdclust_attr);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pool_version_add(tx,
+				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				       &fake_fid,
+				       nr_failures,
+				       ARRAY_SIZE(nr_failures),
+				       &pdclust_attr);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pool_version_add(tx,
+				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				       NULL,
+				       0,
+				       &pdclust_attr);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pool_version_add(tx,
+				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				       nr_failures,
+				       ARRAY_SIZE(nr_failures),
+				       &pdclust_attr_invalid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pool_version_add(tx,
+				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				       nr_failures,
+				       ARRAY_SIZE(nr_failures),
+				       &pdclust_attr);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Rack version */
+	rc = m0_spiel_rack_v_add(tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				 &fake_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_rack_v_add(tx,
+				 &fake_fid,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_rack_v_add(tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
+				 &fake_fid,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_rack_v_add(tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Enclosure version */
+	rc = m0_spiel_enclosure_v_add(tx,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
+				      &fake_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_enclosure_v_add(tx,
+				      &fake_fid,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_enclosure_v_add(tx,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
+				      &fake_fid,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_enclosure_v_add(tx,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Controller version */
+	rc = m0_spiel_controller_v_add(tx,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
+				      &fake_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_controller_v_add(tx,
+				      &fake_fid,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_controller_v_add(tx,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
+				      &fake_fid,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_controller_v_add(tx,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Disk version */
+	rc = m0_spiel_disk_v_add(tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
+				 &fake_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_disk_v_add(tx,
+				 &fake_fid,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_disk_v_add(tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK_V],
+				 &fake_fid,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_disk_v_add(tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK]);
+	M0_UT_ASSERT(rc == 0);
+}
+
 /*
  * spiel-conf-create-fail test
  */
@@ -293,12 +512,6 @@ static void spiel_conf_create_fail(void)
 	struct m0_spiel_tx            tx;
 	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
 	int                           rc;
-	struct m0_pdclust_attr        pdclust_attr = { .pa_N=1,
-						       .pa_K=1,
-						       .pa_P=3};
-	struct m0_pdclust_attr        pdclust_attr_invalid = { .pa_N=1,
-							       .pa_K=2,
-							       .pa_P=3};
 	const char                   *fs_param[] = { "11111", "22222", NULL };
 	struct m0_spiel_service_info  service_info = {
 		.svi_endpoints = fs_param };
@@ -312,7 +525,6 @@ static void spiel_conf_create_fail(void)
 					.b_nr = 2,
 					.b_words = zero_mask
 					};
-	uint32_t                      nr_failures[] = {0, 0, 0, 0, 1};
 
 	spiel_conf_ut_init();
 	m0_bitmap_init(&bitmap, 32);
@@ -518,146 +730,20 @@ static void spiel_conf_create_fail(void)
 			       &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
 	M0_UT_ASSERT(rc == 0);
 
-	/* Pool version */
-	rc = m0_spiel_pool_version_add(&tx,
-				       &fake_fid,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
-				       nr_failures,
-				       ARRAY_SIZE(nr_failures),
-				       &pdclust_attr);
-	M0_UT_ASSERT(rc == -EINVAL);
+	/* Finish pool version */
+	/* Pver done error */
+	spiel_conf_create_pver_tree(&tx);
+	m0_fi_enable_off_n_on_m("spiel_pver_add", "fail_allocation", 1, 1);
+	rc = m0_spiel_pool_version_done(&tx, &spiel_obj_fid[SPIEL_UT_OBJ_PVER]);
+	m0_fi_disable("spiel_pver_add", "fail_allocation");
+	M0_UT_ASSERT(rc == -ENOMEM);
+	spiel_conf_pver_delete_check(&tx);
 
-	rc = m0_spiel_pool_version_add(&tx,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				       &fake_fid,
-				       nr_failures,
-				       ARRAY_SIZE(nr_failures),
-				       &pdclust_attr);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_pool_version_add(&tx,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
-				       NULL,
-				       0,
-				       &pdclust_attr);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_pool_version_add(&tx,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
-				       nr_failures,
-				       ARRAY_SIZE(nr_failures),
-				       &pdclust_attr_invalid);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_pool_version_add(&tx,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
-				       nr_failures,
-				       ARRAY_SIZE(nr_failures),
-				       &pdclust_attr);
+	/* Pver done OK */
+	spiel_conf_create_pver_tree(&tx);
+	rc = m0_spiel_pool_version_done(&tx, &spiel_obj_fid[SPIEL_UT_OBJ_PVER]);
 	M0_UT_ASSERT(rc == 0);
-
-	/* Rack version */
-	rc = m0_spiel_rack_v_add(&tx,
-				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
-				 &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				 &fake_fid);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_rack_v_add(&tx,
-				 &fake_fid,
-				 &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_rack_v_add(&tx,
-				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
-				 &fake_fid,
-				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_rack_v_add(&tx,
-				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
-				 &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
-	M0_UT_ASSERT(rc == 0);
-
-	/* Enclosure version */
-	rc = m0_spiel_enclosure_v_add(&tx,
-				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
-				      &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
-				      &fake_fid);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_enclosure_v_add(&tx,
-				      &fake_fid,
-				      &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
-				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_enclosure_v_add(&tx,
-				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
-				      &fake_fid,
-				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_enclosure_v_add(&tx,
-				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
-				      &spiel_obj_fid[SPIEL_UT_OBJ_RACK_V],
-				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
-	M0_UT_ASSERT(rc == 0);
-
-	/* Controller version */
-	rc = m0_spiel_controller_v_add(&tx,
-				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
-				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
-				      &fake_fid);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_controller_v_add(&tx,
-				      &fake_fid,
-				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
-				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_controller_v_add(&tx,
-				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
-				      &fake_fid,
-				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_controller_v_add(&tx,
-				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
-				      &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE_V],
-				      &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
-	M0_UT_ASSERT(rc == 0);
-
-	/* Disk version */
-	rc = m0_spiel_disk_v_add(&tx,
-				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK_V],
-				 &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
-				 &fake_fid);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_disk_v_add(&tx,
-				 &fake_fid,
-				 &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
-				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK]);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_disk_v_add(&tx,
-				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK_V],
-				 &fake_fid,
-				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK]);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_disk_v_add(&tx,
-				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK_V],
-				 &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER_V],
-				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK]);
-	M0_UT_ASSERT(rc == 0);
+	spiel_conf_pver_check(&tx);
 
 	/* Process */
 	rc = m0_spiel_process_add(&tx,
@@ -873,14 +959,27 @@ static void spiel_conf_create_fail(void)
  */
 static void spiel_conf_delete(void)
 {
-	struct m0_spiel_tx tx;
-	int                rc;
+	struct m0_spiel_tx        tx;
+	int                       rc;
+	struct m0_conf_obj       *obj;
+	struct m0_conf_enclosure *enclosure;
 
 	spiel_conf_ut_init();
 
 	spiel_conf_create_configuration(&spiel, &tx);
+	obj = m0_conf_cache_lookup(&tx.spt_cache,
+				   &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE]);
+	enclosure = M0_CONF_CAST(obj, m0_conf_enclosure);
+	M0_UT_ASSERT(enclosure != NULL);
+
 	rc = m0_spiel_element_del(&tx, &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
 	M0_UT_ASSERT(rc == 0);
+
+	M0_UT_ASSERT(enclosure->ce_pvers[0] != NULL);
+	rc = m0_spiel_element_del(&tx, &spiel_obj_fid[SPIEL_UT_OBJ_PVER]);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(enclosure->ce_pvers[0] == NULL);
+
 	m0_spiel_tx_close(&tx);
 
 	spiel_conf_ut_fini();
@@ -1101,6 +1200,9 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 				 &fid_disk3);
 	M0_UT_ASSERT(rc == 0);
 
+	rc = m0_spiel_pool_version_done(tx, &fid_pver);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_spiel_process_add(tx, &fid_process1, &fid_node,
 				  &bitmap, 4000, 1, 2, 3, ep[0]);
 	M0_UT_ASSERT(rc == 0);
@@ -1136,18 +1238,6 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	m0_bitmap_fini(&bitmap);
 }
 
-static int spiel_str_to_file(char *str, const char *filename)
-{
-	int   rc;
-	FILE *file;
-	file = fopen(filename, "w+");
-	if (file == NULL)
-		return errno;
-	rc = fwrite(str, strlen(str), 1, file)==1 ? 0 : -EINVAL;
-	fclose(file);
-	return rc;
-}
-
 static int spiel_file_read(const char *filename, char *dest, size_t sz)
 {
 	FILE  *f;
@@ -1179,7 +1269,6 @@ static void spiel_conf_file(void)
 {
 	int                   rc;
 	struct m0_spiel_tx    tx;
-	struct m0_confx      *confx;
 	char                 *str;
 	const char            filename[] = "/tmp/spiel_conf_file.txt";
 	struct m0_conf_cache  cache;
@@ -1192,20 +1281,8 @@ static void spiel_conf_file(void)
 	spiel_conf_file_create_tree(&tx);
 
 	/* Convert to file */
-	M0_ALLOC_PTR(confx);
-
-	m0_mutex_lock(&tx.spt_lock);
-	rc = m0_conf_cache_encode(&tx.spt_cache, confx);
-	m0_mutex_unlock(&tx.spt_lock);
+	rc = m0_spiel_tx_dump(&tx, filename);
 	M0_UT_ASSERT(rc == 0);
-
-	m0_confx_to_string(confx, &str);
-
-	rc = spiel_str_to_file(str, filename);
-	M0_UT_ASSERT(rc == 0);
-
-	m0_confx_free(confx);
-	m0_free_aligned(str, strlen(str) + 1, PAGE_SHIFT);
 	m0_spiel_tx_close(&tx);
 
 	/* Load file */

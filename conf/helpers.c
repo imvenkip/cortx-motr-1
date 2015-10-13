@@ -328,4 +328,18 @@ M0_INTERNAL int m0_conf__obj_count(const struct m0_fid *profile,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj)
+{
+	const struct m0_conf_obj_type *obj_type = m0_conf_obj_type(obj);
+
+	if (obj_type == &M0_CONF_RACK_TYPE)
+		return M0_CONF_CAST(obj, m0_conf_rack)->cr_pvers;
+	else if (obj_type == &M0_CONF_ENCLOSURE_TYPE)
+		return M0_CONF_CAST(obj, m0_conf_enclosure)->ce_pvers;
+	else if (obj_type == &M0_CONF_CONTROLLER_TYPE)
+		return M0_CONF_CAST(obj, m0_conf_controller)->cc_pvers;
+	else
+		M0_IMPOSSIBLE("");
+}
+
 #undef M0_TRACE_SUBSYSTEM

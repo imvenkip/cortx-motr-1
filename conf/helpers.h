@@ -135,4 +135,7 @@ M0_INTERNAL int m0_conf__obj_count(const struct m0_fid *profile,
 				   int                  level,
 				   const struct m0_fid *path);
 
+/** Obtains m0_conf_pver array from rack/enclousure/controller. */
+M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj);
+
 #endif /* __MERO_CONF_HELPERS_H__ */

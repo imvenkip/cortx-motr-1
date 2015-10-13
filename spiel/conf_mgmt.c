@@ -39,6 +39,9 @@
 #include "rpc/rpclib.h"        /* m0_rpc_client_connect */
 #include "spiel/spiel.h"
 #include "spiel/conf_mgmt.h"
+#ifndef __KERNEL__
+#include <stdio.h>             /* FILE, fopen */
+#endif
 
 /**
  * @addtogroup spiel-api-fspec-intr
@@ -1672,9 +1675,14 @@ fail:
 }
 M0_EXPORTED(m0_spiel_disk_v_add);
 
-int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
-			       const struct m0_fid *fid)
+static int spiel_pver_add(struct m0_conf_obj **obj_v, struct m0_conf_pver *pver)
 {
+	struct m0_conf_obj             *obj;
+	const struct m0_conf_obj_type  *obj_type;
+	struct m0_conf_pver           **pvers;
+	struct m0_conf_pver           **pvers_new;
+	unsigned                        nr_pvers;
+
 	M0_ENTRY();
 	/* TODO: There m0_conf_pver::pv_nr_failures should be checked and Mero
 	 * has a function named m0_fd_tolerance_check() for it. But the function
@@ -1684,14 +1692,157 @@ int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
 	 * use confc and work with the m0_conf_cache only.
 	 */
 
-	/* TODO */
+	obj = M0_CONF_CAST(*obj_v, m0_conf_objv)->cv_real;
+	obj_type = m0_conf_obj_type(obj);
 
-	M0_LEAVE();
+	if(obj_type == &M0_CONF_DISK_TYPE)
+		return M0_RC(0);
 
-	return 0;
+	pvers = m0_conf_pvers(obj);
+	for (nr_pvers = 0; pvers != NULL && pvers[nr_pvers] != NULL; ++nr_pvers)
+		/* count the elements */;
+
+	/* Element count = old count + new + finish NULL */
+	M0_ALLOC_ARR(pvers_new, nr_pvers + 2);
+	if (pvers_new == NULL || M0_FI_ENABLED("fail_allocation"))
+		return M0_ERR(-ENOMEM);
+	memcpy(pvers_new, pvers, nr_pvers * sizeof(*pvers));
+	pvers_new[nr_pvers] = pver;
+
+	if (obj_type == &M0_CONF_RACK_TYPE)
+		M0_CONF_CAST(obj, m0_conf_rack)->cr_pvers = pvers_new;
+	else if (obj_type == &M0_CONF_ENCLOSURE_TYPE)
+		M0_CONF_CAST(obj, m0_conf_enclosure)->ce_pvers = pvers_new;
+	else if (obj_type == &M0_CONF_CONTROLLER_TYPE)
+		M0_CONF_CAST(obj, m0_conf_controller)->cc_pvers = pvers_new;
+	else
+		M0_IMPOSSIBLE("");
+
+	m0_free(pvers);
+	return M0_RC(0);
+}
+
+/**
+ * Removes `pver' element from m0_conf_pvers(obj).
+ *
+ * @note spiel_pver_delete() does not change the size of pvers array.
+ * If pvers has pver then after remove it pvers has two NULLs end.
+ */
+static int spiel_pver_delete(struct m0_conf_obj        *obj,
+			     const struct m0_conf_pver *pver)
+{
+	struct m0_conf_pver **pvers = m0_conf_pvers(obj);
+	unsigned              i;
+	bool                  found = false;
+
+	M0_ENTRY();
+	M0_PRE(pver != NULL);
+
+	if (pvers == NULL)
+		return M0_ERR(-ENOENT);
+
+	for (i = 0; pvers[i] != NULL; ++i) {
+		if (pvers[i] == pver)
+			found = true;
+		if (found)
+			pvers[i] = pvers[i + 1];
+	}
+	return M0_RC(found ? 0 : -ENOENT);
+}
+
+static int spiel_objv_remove(struct m0_conf_obj  **obj,
+			     struct m0_conf_pver  *pver)
+{
+	struct m0_conf_objv *objv = M0_CONF_CAST(*obj, m0_conf_objv);
+
+	if (objv->cv_children != NULL)
+		m0_conf_cache_del((*obj)->co_cache, &objv->cv_children->cd_obj);
+	m0_conf_obj_put(*obj);
+	m0_conf_dir_tlist_del(*obj);
+	m0_conf_cache_del((*obj)->co_cache, *obj);
+	*obj = NULL;
+	return M0_RC(0);
+}
+
+static int spiel_pver_iterator(struct m0_conf_obj  *dir,
+			       struct m0_conf_pver *pver,
+			       int (*action)(struct m0_conf_obj**,
+					     struct m0_conf_pver*))
+{
+	int                  rc;
+	struct m0_conf_obj  *entry;
+	struct m0_conf_objv *objv;
+
+	m0_conf_obj_get(dir); /* required by ->coo_readdir() */
+	for (entry = NULL; (rc = dir->co_ops->coo_readdir(dir, &entry)) > 0; ) {
+		/* All configuration is expected to be available. */
+		M0_ASSERT(rc != M0_CONF_DIRMISS);
+
+		objv = M0_CONF_CAST(entry, m0_conf_objv);
+		rc = objv->cv_children == NULL ? 0 :
+		      spiel_pver_iterator(&objv->cv_children->cd_obj, pver,
+					  action);
+		rc = rc ?: action(&entry, pver);
+		if (rc != 0) {
+			m0_conf_obj_put(entry);
+			break;
+		}
+	}
+	m0_conf_obj_put(dir);
+
+	return M0_RC(rc);
+}
+
+int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
+			       const struct m0_fid *fid)
+{
+	int                  rc;
+	struct m0_conf_pver *pver;
+
+	M0_ENTRY();
+
+	m0_mutex_lock(&tx->spt_lock);
+	pver = M0_CONF_CAST(m0_conf_cache_lookup(&tx->spt_cache, fid),
+			    m0_conf_pver);
+	M0_ASSERT(pver != NULL);
+	rc = spiel_pver_iterator(&pver->pv_rackvs->cd_obj, pver,
+				 &spiel_pver_add);
+	if (rc != 0) {
+		spiel_pver_iterator(&pver->pv_rackvs->cd_obj, pver,
+				    &spiel_objv_remove);
+		/*
+		 * TODO: Remove this line once m0_spiel_element_del removes
+		 * the object itself and all its m0_conf_dir members.
+		 */
+		m0_conf_cache_del(&tx->spt_cache, &pver->pv_rackvs->cd_obj);
+
+		m0_mutex_unlock(&tx->spt_lock);
+		m0_spiel_element_del(tx, fid);
+	} else {
+		m0_mutex_unlock(&tx->spt_lock);
+	}
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_pool_version_done);
 
+static void spiel_pver_remove(struct m0_conf_cache *cache,
+			      struct m0_conf_pver  *pver)
+{
+	struct m0_conf_obj            *obj;
+	const struct m0_conf_obj_type *obj_type;
+
+	M0_ENTRY();
+
+	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		obj_type = m0_conf_obj_type(obj);
+		if (obj_type == &M0_CONF_RACK_TYPE ||
+		    obj_type == &M0_CONF_ENCLOSURE_TYPE ||
+		    obj_type == &M0_CONF_CONTROLLER_TYPE)
+			spiel_pver_delete(obj, pver);
+	} m0_tl_endfor;
+
+	M0_LEAVE();
+}
 
 int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid)
 {
@@ -1703,6 +1854,9 @@ int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid)
 	m0_mutex_lock(&tx->spt_lock);
 	obj = m0_conf_cache_lookup(&tx->spt_cache, fid);
 	if (obj != NULL) {
+		if (m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE)
+			spiel_pver_remove(&tx->spt_cache,
+					  M0_CONF_CAST(obj, m0_conf_pver));
 		m0_conf_dir_tlist_del(obj);
 		m0_conf_cache_del(&tx->spt_cache, obj);
 	}
@@ -1711,6 +1865,36 @@ int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid)
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_element_del);
+
+
+static int spiel_str_to_file(char *str, const char *filename)
+{
+#ifdef __KERNEL__
+	return 0;
+#else
+	int   rc;
+	FILE *file;
+	file = fopen(filename, "w+");
+	if (file == NULL)
+		return errno;
+	rc = fwrite(str, strlen(str), 1, file)==1 ? 0 : -EINVAL;
+	fclose(file);
+	return rc;
+#endif
+}
+
+int m0_spiel_tx_dump(struct m0_spiel_tx *tx, const char *filename)
+{
+	int   rc;
+	char *buffer;
+
+	M0_ENTRY();
+	rc = m0_conf_cache_to_string(&tx->spt_cache, &buffer) ?:
+	     spiel_str_to_file(buffer, filename);
+	m0_free_aligned(buffer, strlen(buffer) + 1, PAGE_SHIFT);
+	return M0_RC(rc);
+}
+M0_EXPORTED(m0_spiel_tx_dump);
 
 /** @} */
 

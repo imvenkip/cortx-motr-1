@@ -32,7 +32,7 @@
 #include "conf/obj.h"
 #include "conf/obj_ops.h" /* M0_CONF_DIRNEXT */
 #include "conf/diter.h"
-#include "conf/helpers.h" /* m0_conf_ha_state_update */
+#include "conf/helpers.h" /* m0_conf_ha_state_update, m0_conf_pvers */
 #include "pool/flset.h"
 
 M0_TL_DESCR_DEFINE(m0_flset, "failed resources", M0_INTERNAL,
@@ -74,20 +74,6 @@ static void flset_diter_fini(struct m0_conf_diter *it)
 	m0_conf_diter_fini(it);
 }
 
-static struct m0_conf_pver **conf_pvers(const struct m0_conf_obj *obj)
-{
-	const struct m0_conf_obj_type *obj_type = m0_conf_obj_type(obj);
-
-	if (obj_type == &M0_CONF_RACK_TYPE)
-		return (M0_CONF_CAST(obj, m0_conf_rack))->cr_pvers;
-	else if (obj_type == &M0_CONF_ENCLOSURE_TYPE)
-		return (M0_CONF_CAST(obj, m0_conf_enclosure))->ce_pvers;
-	else if (obj_type == &M0_CONF_CONTROLLER_TYPE)
-		return (M0_CONF_CAST(obj, m0_conf_controller))->cc_pvers;
-	else
-		M0_IMPOSSIBLE("");
-}
-
 M0_INTERNAL bool m0_flset_pver_has_failed_dev(struct m0_flset     *flset,
 					      struct m0_conf_pver *pver)
 {
@@ -96,7 +82,7 @@ M0_INTERNAL bool m0_flset_pver_has_failed_dev(struct m0_flset     *flset,
 	int                   i;
 
 	m0_tl_for(m0_flset, &flset->fls_objs, obj) {
-		pvers = conf_pvers(obj);
+		pvers = m0_conf_pvers(obj);
 		for (i = 0; pvers[i] != NULL; ++i) {
 			if (m0_fid_eq(&pver->pv_obj.co_id,
 				      &pvers[i]->pv_obj.co_id))
@@ -111,7 +97,7 @@ static void pver_failed_devs_count_update(struct m0_conf_obj *obj)
 	struct m0_conf_pver **pvers;
 	int                   i;
 
-	pvers = conf_pvers(obj);
+	pvers = m0_conf_pvers(obj);
 
 	if (obj->co_ha_state == M0_NC_ONLINE)
 		for (i = 0; pvers[i] != NULL; ++i)

@@ -667,6 +667,10 @@ int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
  */
 int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid);
 
+/**
+ * Saves spiel transaction dump to file.
+ */
+int m0_spiel_tx_dump(struct m0_spiel_tx *tx, const char *filename);
 
 /**********************************************************/
 /*                 Command interface                      */
