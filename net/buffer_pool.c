@@ -215,7 +215,7 @@ m0_net_buffer_pool_get(struct m0_net_buffer_pool *pool, uint32_t colour)
 	struct m0_net_buffer *nb;
 
 	M0_ENTRY();
-	M0_PRE(m0_net_buffer_pool_invariant(pool));
+	M0_PRE_EX(m0_net_buffer_pool_invariant(pool));
 	M0_PRE(colour_is_valid(pool, colour));
 
 	if (pool->nbp_free <= 0)
@@ -232,7 +232,7 @@ m0_net_buffer_pool_get(struct m0_net_buffer_pool *pool, uint32_t colour)
 	if (pool->nbp_free < pool->nbp_threshold)
 		pool->nbp_ops->nbpo_below_threshold(pool);
 	nb->nb_pool = pool;
-	M0_POST(m0_net_buffer_pool_invariant(pool));
+	M0_POST_EX(m0_net_buffer_pool_invariant(pool));
 	M0_POST(nb->nb_ep == NULL);
 	M0_LEAVE();
 	return nb;
@@ -243,7 +243,7 @@ M0_INTERNAL void m0_net_buffer_pool_put(struct m0_net_buffer_pool *pool,
 					uint32_t colour)
 {
 	M0_PRE(buf != NULL);
-	M0_PRE(m0_net_buffer_pool_invariant(pool));
+	M0_PRE_EX(m0_net_buffer_pool_invariant(pool));
 	M0_PRE(buf->nb_ep == NULL);
 	M0_PRE(colour_is_valid(pool, colour));
 	M0_PRE(!(buf->nb_flags & M0_NET_BUF_QUEUED));
@@ -261,7 +261,7 @@ M0_INTERNAL void m0_net_buffer_pool_put(struct m0_net_buffer_pool *pool,
 	M0_CNT_INC(pool->nbp_free);
 	if (pool->nbp_free == 1)
 		pool->nbp_ops->nbpo_not_empty(pool);
-	M0_POST(m0_net_buffer_pool_invariant(pool));
+	M0_POST_EX(m0_net_buffer_pool_invariant(pool));
 	M0_LEAVE();
 }
 

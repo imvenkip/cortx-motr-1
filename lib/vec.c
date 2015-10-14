@@ -694,7 +694,7 @@ M0_INTERNAL int m0_0vec_cbuf_add(struct m0_0vec *zvec,
 	bvec->ov_vec.v_count[curr_seg] = buf->b_nob;
 	zvec->z_index[curr_seg] = *index;
 
-	M0_POST(m0_0vec_invariant(zvec));
+	M0_POST_EX(m0_0vec_invariant(zvec));
 	return 0;
 }
 

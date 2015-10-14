@@ -962,7 +962,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		ex->e_end   = *(m0_bindex_t*)key.b_addr;
 		ex->e_start = *(m0_bindex_t*)val.b_addr;
 
-		balloc_debug_dump_extent("loading...", ex);
+		/* balloc_debug_dump_extent("loading...", ex); */
 	}
 
 	m0_be_btree_cursor_fini(&cursor);
@@ -1840,7 +1840,7 @@ repeat:
 			}
 			bac->bac_scanned++;
 
-			m0_balloc_debug_dump_group_extent("AAA", grp);
+			/* m0_balloc_debug_dump_group_extent("AAA", grp); */
 			if (cr == 0 ||
 			    (cr == 1 &&
 			     len == bac->bac_ctxt->cb_sb.bsb_stripe_size))
