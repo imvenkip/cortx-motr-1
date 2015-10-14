@@ -21,6 +21,7 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
+#include "lib/memory.h"
 #include "lib/trace.h"
 #include "lib/tlist.h"
 #include "lib/rwlock.h"
@@ -1145,21 +1146,35 @@ M0_INTERNAL void m0_rpc_item_send_reply(struct m0_rpc_item *req,
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_rpc_item_cache_init(struct m0_rpc_item_cache *ic,
-					struct m0_mutex		 *lock)
+M0_INTERNAL int m0_rpc_item_cache_init(struct m0_rpc_item_cache *ic,
+				       struct m0_mutex          *lock)
 {
-	ric_tlist_init(&ic->ric_items);
+	int i;
+
+	M0_ALLOC_ARR(ic->ric_items, RIC_HASH_SIZE);
+	if (ic->ric_items == NULL)
+		return M0_ERR(-ENOMEM);
+
+	for (i = 0; i < RIC_HASH_SIZE; ++i)
+		ric_tlist_init(&ic->ric_items[i]);
+
 	ic->ric_lock = lock;
 
 	M0_POST(m0_rpc_item_cache__invariant(ic));
+
+	return 0;
 }
 
 M0_INTERNAL void m0_rpc_item_cache_fini(struct m0_rpc_item_cache *ic)
 {
+	int i;
+
 	M0_PRE(m0_rpc_item_cache__invariant(ic));
 
 	m0_rpc_item_cache_clear(ic);
-	ric_tlist_fini(&ic->ric_items);
+	for (i = 0; i < RIC_HASH_SIZE; ++i)
+		ric_tlist_fini(&ic->ric_items[i]);
+	m0_free(ic->ric_items);
 }
 
 M0_INTERNAL bool m0_rpc_item_cache__invariant(struct m0_rpc_item_cache *ic)
@@ -1180,7 +1195,8 @@ M0_INTERNAL bool m0_rpc_item_cache_add(struct m0_rpc_item_cache *ic,
 	cached = m0_rpc_item_cache_lookup(ic, item->ri_header.osr_xid);
 	if (cached == NULL) {
 		m0_rpc_item_get(item);
-		ric_tlink_init_at(item, &ic->ric_items);
+		ric_tlink_init_at(item, &ic->ric_items[item->ri_header.osr_xid &
+		                                      RIC_HASH_MASK]);
 	}
 	M0_ASSERT_INFO(M0_IN(cached, (NULL, item)), "duplicate xid=%"PRIu64
 		       " item=%p", item->ri_header.osr_xid, item);
@@ -1218,32 +1234,38 @@ m0_rpc_item_cache_lookup(struct m0_rpc_item_cache *ic, uint64_t xid)
 {
 	M0_PRE(m0_rpc_item_cache__invariant(ic));
 
-	return m0_tl_find(ric, item, &ic->ric_items,
+	return m0_tl_find(ric, item, &ic->ric_items[xid & RIC_HASH_MASK],
 			  item->ri_header.osr_xid == xid);
 }
 
 M0_INTERNAL void m0_rpc_item_cache_purge(struct m0_rpc_item_cache *ic)
 {
+	int i;
 	struct m0_rpc_item *item;
 	m0_time_t	    now = m0_time_now();
 
 	M0_PRE(m0_rpc_item_cache__invariant(ic));
 
-	m0_tl_for(ric, &ic->ric_items, item) {
-		if (now > item->ri_cache_deadline)
-			rpc_item_cache_del(ic, item);
-	} m0_tl_endfor;
+	for (i = 0; i < RIC_HASH_SIZE; ++i) {
+		m0_tl_for(ric, &ic->ric_items[i], item) {
+			if (now > item->ri_cache_deadline)
+				rpc_item_cache_del(ic, item);
+		} m0_tl_endfor;
+	}
 }
 
 M0_INTERNAL void m0_rpc_item_cache_clear(struct m0_rpc_item_cache *ic)
 {
+	int i;
 	struct m0_rpc_item *item;
 
 	M0_PRE(m0_rpc_item_cache__invariant(ic));
 
-	m0_tl_for(ric, &ic->ric_items, item) {
-		rpc_item_cache_del(ic, item);
-	} m0_tl_endfor;
+	for (i = 0; i < RIC_HASH_SIZE; ++i) {
+		m0_tl_for(ric, &ic->ric_items[i], item) {
+			rpc_item_cache_del(ic, item);
+		} m0_tl_endfor;
+	}
 }
 
 M0_INTERNAL void m0_rpc_item_replied_invoke(struct m0_rpc_item *req)

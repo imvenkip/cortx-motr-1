@@ -219,6 +219,8 @@ M0_EXPORTED(m0_rpc_session_init);
 M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 					   struct m0_rpc_conn *conn)
 {
+	int rc;
+
 	M0_ENTRY("session: %p, conn: %p", session, conn);
 	M0_PRE(session != NULL && conn != NULL);
 	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
@@ -235,13 +237,17 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 		   &conn->c_rpc_machine->rm_sm_grp);
 	m0_rpc_conn_add_session(conn, session);
 	M0_ASSERT(m0_rpc_session_invariant(session));
-	m0_rpc_item_cache_init(&session->s_reply_cache,
-			       &conn->c_rpc_machine->rm_sm_grp.s_lock);
-	m0_rpc_item_cache_init(&session->s_req_cache,
-			       &conn->c_rpc_machine->rm_sm_grp.s_lock);
-	M0_LOG(M0_INFO, "Session %p INITIALISED \n", session);
+	rc = m0_rpc_item_cache_init(&session->s_reply_cache,
+				    &conn->c_rpc_machine->rm_sm_grp.s_lock) ?:
+	     m0_rpc_item_cache_init(&session->s_req_cache,
+				    &conn->c_rpc_machine->rm_sm_grp.s_lock);
+	if (rc == 0)
+		M0_LOG(M0_INFO, "Session %p INITIALISED", session);
+	else
+		M0_LOG(M0_ERROR, "Session %p initialisation failed: %d",
+		       session, rc);
 
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 /**

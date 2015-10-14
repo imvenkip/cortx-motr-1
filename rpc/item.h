@@ -473,6 +473,11 @@ M0_INTERNAL struct m0_rpc_item_type *m0_rpc_item_type_lookup(uint32_t opcode);
 M0_INTERNAL const char *
 m0_rpc_item_remote_ep_addr(const struct m0_rpc_item *item);
 
+enum {
+	RIC_HASH_MASK = 0xf,
+	RIC_HASH_SIZE = RIC_HASH_MASK + 1,
+};
+
 /**
  * Simple rpc item cache.
  *
@@ -495,20 +500,24 @@ m0_rpc_item_remote_ep_addr(const struct m0_rpc_item *item);
  */
 struct m0_rpc_item_cache {
 	/** Uses m0_rpc_item::ri_cache_link */
-	struct m0_tl	 ric_items;
+	struct m0_tl    *ric_items;
 	/** External lock for item list protection */
 	struct m0_mutex *ric_lock;
 };
 
-M0_INTERNAL void m0_rpc_item_cache_init(struct m0_rpc_item_cache *ic,
-					struct m0_mutex		 *lock);
+/**
+ * Besides other cache initialization stuff allocates memory for the cache,
+ * so may return -ENOMEM.
+ */
+M0_INTERNAL int m0_rpc_item_cache_init(struct m0_rpc_item_cache *ic,
+				       struct m0_mutex          *lock);
 M0_INTERNAL void m0_rpc_item_cache_fini(struct m0_rpc_item_cache *ic);
 M0_INTERNAL bool m0_rpc_item_cache__invariant(struct m0_rpc_item_cache *ic);
 
 /**
  * Adds item to the cache.
  *
- * If an item with the same xid is already there, does nothing.
+ * If an item is already in the cache, updates its deadline only.
  * It takes one reference to the item if item is actually added to the cache.
  * There is no guarantee that item will remain in cache after deadline passed.
  * @param ic - items cache.
