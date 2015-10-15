@@ -330,6 +330,11 @@ M0_INTERNAL int m0_pdclust_build(struct m0_layout_domain *dom,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL bool m0_pdclust_attr_check(const struct m0_pdclust_attr *attr)
+{
+	return attr->pa_P >= attr->pa_N + 2 * attr->pa_K;
+}
+
 M0_INTERNAL uint32_t m0_pdclust_N(const struct m0_pdclust_layout *pl)
 {
 	return pl->pl_attr.pa_N;

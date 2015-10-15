@@ -722,15 +722,15 @@ static int spiel_conf_parameter_check(struct m0_conf_cache    *cache,
 	M0_PRE(cache != NULL);
 	M0_PRE(parameters != NULL);
 
-	while(param->scp_fid != NULL) {
-		if (m0_conf_fid_type(param->scp_fid) != param->scp_type)
+	while (param->scp_type != NULL) {
+		if (param->scp_fid == NULL ||
+		    m0_conf_fid_type(param->scp_fid) != param->scp_type)
 			return M0_ERR(-EINVAL);
 		rc = m0_conf_obj_find(cache, param->scp_fid, param->scp_obj);
 		if (rc != 0)
 			return M0_ERR(rc);
 		++param;
 	}
-
 	if ((*parameters->scp_obj)->co_status != M0_CS_MISSING)
 		return M0_ERR(-EEXIST);
 
@@ -761,10 +761,7 @@ int m0_spiel_profile_add(struct m0_spiel_tx *tx, const struct m0_fid *fid)
 	child_adopt(&root->rt_profiles->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
 
-	if (!m0_conf_obj_invariant(obj)) {
-		rc = M0_ERR(-EINVAL);
-		goto fail;
-	}
+	M0_POST(m0_conf_obj_invariant(obj));
 
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
@@ -789,14 +786,22 @@ int m0_spiel_filesystem_add(struct m0_spiel_tx   *tx,
 	struct m0_conf_obj        *obj = NULL;
 	struct m0_conf_filesystem *fs;
 	struct m0_conf_obj        *obj_parent;
+	struct m0_conf_obj        *pool;
 
 	M0_ENTRY();
-
+	if (fs_params == NULL || rootfid == NULL)
+		return M0_ERR(-EINVAL);
+	/*
+	 * TODO: rootfid may have any type at the moment since it is not used
+	 * yet. But it may be changed and here need to check fid type in the
+	 * future.
+	 */
 	m0_mutex_lock(&tx->spt_lock);
 
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_FILESYSTEM_TYPE, &obj},
-			      {parent, &M0_CONF_PROFILE_TYPE, &obj_parent});
+			      {parent, &M0_CONF_PROFILE_TYPE, &obj_parent},
+			      {mdpool, &M0_CONF_POOL_TYPE, &pool});
 	if (rc != 0)
 		goto fail;
 
@@ -820,10 +825,7 @@ int m0_spiel_filesystem_add(struct m0_spiel_tx   *tx,
 	child_adopt(obj_parent, obj);
 	obj->co_status = M0_CS_READY;
 
-	if (!m0_conf_obj_invariant(obj)) {
-		rc = M0_ERR(-EINVAL);
-		goto fail;
-	}
+	M0_POST(m0_conf_obj_invariant(obj));
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
 
@@ -886,10 +888,7 @@ int m0_spiel_node_add(struct m0_spiel_tx  *tx,
 	child_adopt(&fs->cf_nodes->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
 
-	if (!m0_conf_obj_invariant(obj)) {
-		rc = M0_ERR(-EINVAL);
-		goto fail;
-	}
+	M0_POST(m0_conf_obj_invariant(obj));
 
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
@@ -901,6 +900,12 @@ fail:
 	return M0_ERR(rc);
 }
 M0_EXPORTED(m0_spiel_node_add);
+
+static bool spiel_cores_is_valid(const struct m0_bitmap *cores)
+{
+	return cores != NULL && m0_exists(i, cores->b_nr,
+					  cores->b_words[i] != 0);
+}
 
 int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 			 const struct m0_fid *fid,
@@ -918,13 +923,9 @@ int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 	struct m0_conf_obj     *obj_parent;
 	struct m0_conf_node    *node;
 
-	M0_PRE(tx != NULL);
-	M0_PRE(fid != NULL);
-	M0_PRE(parent != NULL);
-	M0_PRE(cores != NULL);
-	M0_PRE(endpoint != NULL);
 	M0_ENTRY();
-
+	if (!spiel_cores_is_valid(cores) || endpoint == NULL)
+		return M0_ERR(-EINVAL);
 	m0_mutex_lock(&tx->spt_lock);
 
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
@@ -965,10 +966,7 @@ int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 	child_adopt(&node->cn_processes->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
 
-	if (!m0_conf_obj_invariant(obj)) {
-		rc = M0_ERR(-EINVAL);
-		goto fail;
-	}
+	M0_POST(m0_conf_obj_invariant(obj));
 
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
@@ -996,7 +994,7 @@ static int spiel_service_info_copy(struct m0_conf_service             *service,
 	if (info->svi_type == M0_CST_MGS) {
 		service->cs_u.confdb_path = m0_strdup(info->svi_u.confdb_path);
 		if (service->cs_u.confdb_path == NULL)
-			return M0_ERR(-EINVAL);
+			return M0_ERR(-ENOMEM);
 	}
 
 	return M0_RC(0);
@@ -1014,7 +1012,8 @@ int m0_spiel_service_add(struct m0_spiel_tx                 *tx,
 	struct m0_conf_process *process;
 
 	M0_ENTRY();
-
+	if (service_info == NULL)
+		return M0_ERR(-EINVAL);
 	m0_mutex_lock(&tx->spt_lock);
 
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
@@ -1053,10 +1052,7 @@ int m0_spiel_service_add(struct m0_spiel_tx                 *tx,
 	child_adopt(&process->pc_services->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
 
-	if (!m0_conf_obj_invariant(obj)) {
-		rc = M0_ERR(-EINVAL);
-		goto fail;
-	}
+	M0_POST(m0_conf_obj_invariant(obj));
 
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
@@ -1091,6 +1087,10 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 	struct m0_conf_disk    *disk;
 
 	M0_ENTRY();
+	if(!M0_CFG_SDEV_INTERFACE_TYPE_IS_VALID(iface) ||
+	   !M0_CFG_SDEV_MEDIA_TYPE_IS_VALID(media) ||
+	   filename == NULL)
+		return M0_ERR(-EINVAL);
 
 	m0_mutex_lock(&tx->spt_lock);
 
@@ -1132,10 +1132,7 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 	disk->ck_dev = device;
 	obj->co_status = M0_CS_READY;
 
-	if (!m0_conf_obj_invariant(obj)) {
-		rc = M0_ERR(-EINVAL);
-		goto fail;
-	}
+	M0_POST(m0_conf_obj_invariant(obj));
 
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
@@ -1188,10 +1185,7 @@ int m0_spiel_pool_add(struct m0_spiel_tx  *tx,
 	child_adopt(&fs->cf_pools->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
 
-	if (!m0_conf_obj_invariant(obj)) {
-		rc = M0_ERR(-EINVAL);
-		goto fail;
-	}
+	M0_POST(m0_conf_obj_invariant(obj));
 
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
@@ -1240,7 +1234,7 @@ int m0_spiel_rack_add(struct m0_spiel_tx  *tx,
 
 	child_adopt(&fs->cf_racks->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
-
+	M0_POST(m0_conf_obj_invariant(obj));
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
 
@@ -1290,10 +1284,7 @@ int m0_spiel_enclosure_add(struct m0_spiel_tx  *tx,
 	child_adopt(&rack->cr_encls->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
 
-	if (!m0_conf_obj_invariant(obj)) {
-		rc = M0_ERR(-EINVAL);
-		goto fail;
-	}
+	M0_POST(m0_conf_obj_invariant(obj));
 
 	m0_mutex_unlock(&tx->spt_lock);
 
@@ -1348,7 +1339,7 @@ int m0_spiel_controller_add(struct m0_spiel_tx  *tx,
 
 	child_adopt(&enclosure->ce_ctrls->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
-
+	M0_POST(m0_conf_obj_invariant(obj));
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
 
@@ -1389,7 +1380,7 @@ int m0_spiel_disk_add(struct m0_spiel_tx  *tx,
 
 	child_adopt(&controller->cc_disks->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
-
+	M0_POST(m0_conf_obj_invariant(obj));
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
 
@@ -1415,7 +1406,8 @@ int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
 	struct m0_conf_pool *pool;
 
 	M0_ENTRY();
-
+	if (!m0_pdclust_attr_check(attrs))
+		return M0_ERR(-EINVAL);
 	if (nr_failures_cnt == 0)
 		return M0_ERR(-EINVAL);
 
@@ -1454,7 +1446,7 @@ int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
 
 	child_adopt(&pool->pl_pvers->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
-
+	M0_POST(m0_conf_obj_invariant(obj));
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
 
@@ -1513,7 +1505,7 @@ int m0_spiel_rack_v_add(struct m0_spiel_tx  *tx,
 
 	child_adopt(&pver->pv_rackvs->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
-
+	M0_POST(m0_conf_obj_invariant(obj));
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
 
@@ -1566,7 +1558,7 @@ int m0_spiel_enclosure_v_add(struct m0_spiel_tx  *tx,
 
 	child_adopt(&objv_parent->cv_children->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
-
+	M0_POST(m0_conf_obj_invariant(obj));
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
 
@@ -1620,7 +1612,7 @@ int m0_spiel_controller_v_add(struct m0_spiel_tx  *tx,
 
 	child_adopt(&objv_parent->cv_children->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
-
+	M0_POST(m0_conf_obj_invariant(obj));
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
 
@@ -1668,7 +1660,7 @@ int m0_spiel_disk_v_add(struct m0_spiel_tx  *tx,
 
 	child_adopt(&objv_parent->cv_children->cd_obj, obj);
 	obj->co_status = M0_CS_READY;
-
+	M0_POST(m0_conf_obj_invariant(obj));
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(rc);
 
@@ -1684,6 +1676,13 @@ int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
 			       const struct m0_fid *fid)
 {
 	M0_ENTRY();
+	/* TODO: There m0_conf_pver::pv_nr_failures should be checked and Mero
+	 * has a function named m0_fd_tolerance_check() for it. But the function
+	 * cannot be called here, because it uses m0_confc for walking on the
+	 * configuration tree and tx->spt_cache doesn't belong to any confc
+	 * instance. Maybe m0_fd_tolerance_check() should be rewritten to not
+	 * use confc and work with the m0_conf_cache only.
+	 */
 
 	/* TODO */
 

@@ -268,6 +268,8 @@ M0_INTERNAL int m0_pdclust_build(struct m0_layout_domain *dom,
 				 struct m0_layout_enum *le,
 				 struct m0_pdclust_layout **out);
 
+/** Returns true iff pa_P >= pa_N + 2 * pa_K */
+M0_INTERNAL bool m0_pdclust_attr_check(const struct m0_pdclust_attr *attr);
 M0_INTERNAL uint32_t m0_pdclust_N(const struct m0_pdclust_layout *pl);
 M0_INTERNAL uint32_t m0_pdclust_K(const struct m0_pdclust_layout *pl);
 M0_INTERNAL uint32_t m0_pdclust_P(const struct m0_pdclust_layout *pl);

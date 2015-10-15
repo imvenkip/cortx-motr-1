@@ -23,6 +23,7 @@
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"  /* m0_confx_pver_xc */
 #include "mero/magic.h"      /* M0_CONF_PVER_MAGIC */
+#include "layout/pdclust.h"  /* m0_pdclust_attr_check */
 
 #define XCAST(xobj) ((struct m0_confx_pver *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_pver, xv_header) == 0);
@@ -35,8 +36,7 @@ static bool pver_check(const void *bob)
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_PVER_TYPE);
 
 	return ergo(!m0_conf_obj_is_stub(self_obj),
-		    _0C((self->pv_attr.pa_P >=
-			 self->pv_attr.pa_N + 2 * self->pv_attr.pa_K)) &&
+		    _0C(m0_pdclust_attr_check(&self->pv_attr)) &&
 		    _0C((self->pv_nr_failures_nr == 0) ==
 			(self->pv_nr_failures == NULL)));
 }

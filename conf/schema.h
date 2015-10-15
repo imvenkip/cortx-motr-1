@@ -118,9 +118,12 @@ enum m0_cfg_storage_device_interface_type {
 	M0_CFG_DEVICE_INTERFACE_SATA2,    /**< SATA II */
 	M0_CFG_DEVICE_INTERFACE_SCSI2,    /**< SCSI II */
 	M0_CFG_DEVICE_INTERFACE_SAS,      /**< SAS     */
-	M0_CFG_DEVICE_INTERFACE_SAS2      /**< SAS II  */
+	M0_CFG_DEVICE_INTERFACE_SAS2,     /**< SAS II  */
+	M0_CFG_DEVICE_INTERFACE_NR
 };
 
+#define M0_CFG_SDEV_INTERFACE_TYPE_IS_VALID(dtype)            \
+	(0 < (dtype) && (dtype) < M0_CFG_DEVICE_INTERFACE_NR)
 /**
    Mero device media types.
 */
@@ -135,8 +138,12 @@ enum m0_cfg_storage_device_media_type {
 	M0_CFG_DEVICE_MEDIA_TAPE,
 
 	/** read-only memory, like CD */
-	M0_CFG_DEVICE_MEDIA_ROM
+	M0_CFG_DEVICE_MEDIA_ROM,
+
+	M0_CFG_DEVICE_MEDIA_NR
 };
+#define M0_CFG_SDEV_MEDIA_TYPE_IS_VALID(dtype)            \
+	(0 < (dtype) && (dtype) < M0_CFG_DEVICE_MEDIA_NR)
 
 enum {
 	/** maximum number of params */

@@ -293,9 +293,12 @@ static void spiel_conf_create_fail(void)
 	struct m0_spiel_tx            tx;
 	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
 	int                           rc;
-	struct m0_pdclust_attr        pdclust_attr = { .pa_N=0,
-						       .pa_K=0,
-						       .pa_P=0};
+	struct m0_pdclust_attr        pdclust_attr = { .pa_N=1,
+						       .pa_K=1,
+						       .pa_P=3};
+	struct m0_pdclust_attr        pdclust_attr_invalid = { .pa_N=1,
+							       .pa_K=2,
+							       .pa_P=3};
 	const char                   *fs_param[] = { "11111", "22222", NULL };
 	struct m0_spiel_service_info  service_info = {
 		.svi_endpoints = fs_param };
@@ -304,6 +307,11 @@ static void spiel_conf_create_fail(void)
 	struct m0_fid                 fake_fid =
 					spiel_obj_fid[SPIEL_UT_OBJ_PROFILE];
 	struct m0_bitmap              bitmap;
+	uint64_t                      zero_mask[] = {0, 0};
+	struct m0_bitmap              zero_bitmap = {
+					.b_nr = 2,
+					.b_words = zero_mask
+					};
 	uint32_t                      nr_failures[] = {0, 0, 0, 0, 1};
 
 	spiel_conf_ut_init();
@@ -316,6 +324,9 @@ static void spiel_conf_create_fail(void)
 
 	/* Profile */
 	rc = m0_spiel_profile_add(&tx, &fake_profile_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_profile_add(&tx, NULL);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
@@ -337,7 +348,22 @@ static void spiel_conf_create_fail(void)
 				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 				     fs_param);
 	M0_UT_ASSERT(rc == -EINVAL);
-
+	rc = m0_spiel_filesystem_add(&tx,
+				     &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM],
+				     &fake_profile_fid,
+				     10,
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				     fs_param);
+	M0_UT_ASSERT(rc == -EINVAL);
+	rc = m0_spiel_filesystem_add(&tx,
+				     &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     10,
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     &fake_fid,
+				     fs_param);
+	M0_UT_ASSERT(rc == -EINVAL);
 	/* alloc fail for cf_params */
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
 	rc = m0_spiel_filesystem_add(&tx,
@@ -522,6 +548,14 @@ static void spiel_conf_create_fail(void)
 				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 				       nr_failures,
 				       ARRAY_SIZE(nr_failures),
+				       &pdclust_attr_invalid);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pool_version_add(&tx,
+				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				       nr_failures,
+				       ARRAY_SIZE(nr_failures),
 				       &pdclust_attr);
 	M0_UT_ASSERT(rc == 0);
 
@@ -641,6 +675,24 @@ static void spiel_conf_create_fail(void)
 	rc = m0_spiel_process_add(&tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
+				  NULL, 4000, 1, 2, 3, ep[0]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_process_add(&tx,
+				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
+				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
+				  &bitmap, 4000, 1, 2, 3, NULL);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_process_add(&tx,
+				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
+				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
+				  &zero_bitmap, 4000, 1, 2, 3, ep[0]);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_process_add(&tx,
+				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
+				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
 				  &bitmap, 4000, 1, 2, 3, ep[0]);
 	M0_UT_ASSERT(rc == 0);
 
@@ -658,6 +710,12 @@ static void spiel_conf_create_fail(void)
 				  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				  &fake_fid,
 				  &service_info);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_service_add(&tx,
+				  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
+				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
+				  NULL);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	/* Check copy endpoints parameter */
@@ -765,6 +823,33 @@ static void spiel_conf_create_fail(void)
 				 M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, "fake_filename");
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_device_add(&tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
+				 M0_CFG_DEVICE_INTERFACE_NR,
+				 M0_CFG_DEVICE_MEDIA_SSD,
+				 1024, 512, 123, 0x55, "fake_filename");
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_device_add(&tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
+				 M0_CFG_DEVICE_INTERFACE_SCSI,
+				 M0_CFG_DEVICE_MEDIA_NR,
+				 1024, 512, 123, 0x55, "fake_filename");
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_device_add(&tx,
+				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
+				 M0_CFG_DEVICE_INTERFACE_SCSI,
+				 M0_CFG_DEVICE_MEDIA_SSD,
+				 1024, 512, 123, 0x55, NULL);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	rc = m0_spiel_device_add(&tx,
