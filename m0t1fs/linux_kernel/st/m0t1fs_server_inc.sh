@@ -275,7 +275,7 @@ EOF
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid \
-			-C $CONFD_EP -E |& tee -a m0mkfs.log"
+			-C $CONFD_EP |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
 		done
@@ -287,7 +287,7 @@ EOF
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:${IOS_PVER2_EP%:*:*}:$MKFS_PORTAL:$tmid \
-			-C $CONFD_EP -E |& tee -a m0mkfs.log"
+			-C $CONFD_EP |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
 		fi

@@ -25,7 +25,7 @@ m0_mkfs()
     local be_opts=${segment_size:+ -z $segment_size}
     local node_uuid=$(m0_genders_value_of m0_uuid)
 
-    $mero_exec_dir/mero-server $service m0mkfs "-E -F -u $node_uuid $be_opts"
+    $mero_exec_dir/mero-server $service m0mkfs "-F -u $node_uuid $be_opts"
 }
 
 source $service_funcs

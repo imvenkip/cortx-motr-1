@@ -1130,8 +1130,6 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		      struct m0_be_ut_backend *be,
 		      const char              *name,
 		      bool                     preallocate,
-		      /* XXX the flag is ignored */
-		      bool                     disable_seg_io_fdatasync,
 		      bool                     format,
 		      struct m0_be_seg       **out)
 {
@@ -1222,7 +1220,6 @@ static int cs_storage_setup(struct m0_mero *cctx)
 
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
 			rctx->rc_be_seg_preallocate,
-			rctx->rc_be_disable_seg_io_fdatasync,
 			(mkfs && force), &rctx->rc_beseg);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "cs_be_init");
@@ -1829,13 +1826,6 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				LAMBDA(void, (void)
 				{
 					rctx->rc_be_seg_preallocate = true;
-				})),
-			M0_VOIDARG('E', "Disable seg I/O fdatasync()",
-				LAMBDA(void, (void)
-				{
-					/* XXX the flag is completely ignored */
-					rctx->rc_be_disable_seg_io_fdatasync =
-						true;
 				})),
 			M0_VOIDARG('v', "Print version and exit",
 				LAMBDA(void, (void)
