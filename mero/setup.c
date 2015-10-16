@@ -807,7 +807,8 @@ static int cs_storage_init(const char *stob_type,
 			   uint64_t dom_key,
 			   struct cs_stobs *stob,
 			   struct m0_be_seg *seg,
-			   bool mkfs, bool force)
+			   bool mkfs, bool force,
+			   bool disable_direct_io)
 {
 	int                rc;
 
@@ -817,7 +818,9 @@ static int cs_storage_init(const char *stob_type,
 	M0_PRE(stob != NULL);
 	M0_PRE(stype_is_valid(stob_type));
 
-	rc = cs_storage_bstore_prepare(stob_path, "directio=false",
+	rc = cs_storage_bstore_prepare(stob_path,
+	                               disable_direct_io ? "directio=false" :
+							   "directio=true",
 				       dom_key, mkfs, force, &stob->s_sdom);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -1242,7 +1245,7 @@ static int cs_storage_setup(struct m0_mero *cctx)
 	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
 			     M0_AD_STOB_LINUX_DOM_KEY,
 			     &rctx->rc_stob, rctx->rc_beseg,
-			     mkfs, force);
+			     mkfs, force, rctx->rc_disable_direct_io);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "cs_storage_init: rc=%d", rc);
 		/* XXX who should call yaml_document_delete()? */
@@ -1843,6 +1846,11 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				{
 					m0_get()->i_disable_addb2_storage =
 								true;
+				})),
+			M0_VOIDARG('I', "Disable direct I/O for data",
+				LAMBDA(void, (void)
+				{
+					rctx->rc_disable_direct_io = true;
 				})),
 			);
 	/* generate reqh fid in case it is all-zero */

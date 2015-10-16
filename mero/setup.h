@@ -339,6 +339,9 @@ struct m0_reqh_context {
 
 	/** Process FID */
 	struct m0_fid                rc_fid;
+
+	/** Disable direct I/O for data from clients */
+	bool                         rc_disable_direct_io;
 };
 
 /**
