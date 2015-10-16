@@ -47,6 +47,7 @@
 #include "addb2/global.h"
 #include "addb2/sys.h"
 #include "pool/flset.h"        /* m0_flset_build, m0_flset_destroy */
+#include "module/instance.h"   /* m0_get */
 
 extern struct io_mem_stats iommstats;
 extern struct m0_bitmap    m0t1fs_client_ep_tmid;
@@ -72,6 +73,10 @@ MODULE_PARM_DESC(tm_recv_queue_min_len, "TM receive queue minimum length");
 static uint32_t max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 module_param(max_rpc_msg_size, int, S_IRUGO);
 MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
+
+static int addb2_net_disable = 0;
+module_param(addb2_net_disable, int, S_IRUGO);
+MODULE_PARM_DESC(addb2_net_disable, "Disable addb2 records network submit");
 
 M0_INTERNAL void io_bob_tlists_init(void);
 static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf);
@@ -886,6 +891,9 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	struct mount_opts mops = {0};
 
 	M0_ENTRY();
+
+	if (addb2_net_disable != 0)
+		m0_get()->i_disable_addb2_storage = true;
 
 	M0_ALLOC_PTR(csb);
 	if (csb == NULL) {
