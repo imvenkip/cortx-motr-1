@@ -418,7 +418,7 @@ m0_get_conf()
 
     for n in $(m0_get_nodes); do
         for s in $(m0_get_services $n); do
-	   if [[ $s == confd ]] && $(m0_genders_has_variable m0_conf_path $n); then
+	   if [[ $s == confd ]] && m0_genders_has_variable m0_conf_path $n ; then
               conf=$(m0_genders_value_of m0_conf_path $n)
               break
            fi
@@ -435,11 +435,30 @@ m0_get_conf()
 #
 m0_get_core_params()
 {
+    local optional_params
+
+    if m0_genders_has_variable m0_be_tx_group_tx_nr_max ; then
+        optional_params+=" -n $(m0_genders_value_of m0_be_tx_group_tx_nr_max)"
+    fi
+
+    if m0_genders_has_variable m0_be_tx_group_reg_nr_max ; then
+        optional_params+=" -k $(m0_genders_value_of m0_be_tx_group_reg_nr_max)"
+    fi
+
+    if m0_genders_has_variable m0_be_tx_group_reg_size_max ; then
+        optional_params+=" -K $(m0_genders_value_of m0_be_tx_group_reg_size_max)"
+    fi
+
+    if m0_genders_has_variable m0_be_tx_group_payload_size_max ; then
+        optional_params+=" -p $(m0_genders_value_of m0_be_tx_group_payload_size_max)"
+    fi
+
     echo " -D db -S stobs -A linuxstob:addb-stobs" \
          " -P $m0_prof_opt" \
          " -w $(m0_genders_value_of m0_pool_width)" \
          " -m $(m0_genders_value_of m0_max_rpc_msg_size)" \
-         " -q $(m0_genders_value_of m0_min_rpc_recvq_len)"
+         " -q $(m0_genders_value_of m0_min_rpc_recvq_len)" \
+         " $optional_params"
 }
 
 # Return space-separated list of running Mero servers on a current node
