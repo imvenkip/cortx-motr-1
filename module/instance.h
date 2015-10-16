@@ -107,6 +107,7 @@ struct m0 {
 	struct m0_poolmach_state *i_pool_module;
 	struct m0_storage_devs    i_storage_devs;
 	bool                      i_reqh_uses_ad_stob;
+	bool                      i_disable_addb2_storage;
 	/** Key for ioservice cob domain */
 	unsigned                  i_ios_cdom_key;
 	/** Key for mdservice cob domain */

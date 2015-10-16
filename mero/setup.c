@@ -1838,6 +1838,12 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				{
 					/* not used here, it's a placeholder */
 				})),
+			M0_VOIDARG('g', "Disable addb2 storage submit",
+				LAMBDA(void, (void)
+				{
+					m0_get()->i_disable_addb2_storage =
+								true;
+				})),
 			);
 	/* generate reqh fid in case it is all-zero */
 	process_fid_generate_conditional(rctx);

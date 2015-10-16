@@ -65,6 +65,7 @@
 #include "lib/thread.h"
 
 #include "pool/pool.h"                  /* pools_common_svc_ctx_tl */
+#include "module/instance.h"            /* m0_get */
 
 #include "addb2/addb2.h"
 #include "addb2/storage.h"
@@ -447,7 +448,8 @@ static void sys_balance(struct m0_addb2_sys *sys)
 	if (sys->sy_stor != NULL || sys->sy_net != NULL) {
 		while ((obj = tr_tlist_pop(&sys->sy_queue)) != NULL) {
 			sys->sy_queued -= obj->o_tr.tr_nr;
-			if ((sys->sy_stor != NULL ?
+			if (m0_get()->i_disable_addb2_storage ||
+			    (sys->sy_stor != NULL ?
 			     m0_addb2_storage_submit(sys->sy_stor, obj) :
 			     m0_addb2_net_submit(sys->sy_net, obj)) == 0)
 				m0_addb2_trace_done(&obj->o_tr);
