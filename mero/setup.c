@@ -1155,6 +1155,27 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		be->but_dom_cfg.bc_log.lc_store_cfg.lsc_size =
 			rctx->rc_be_log_size;
 	}
+	if (rctx->rc_be_tx_group_tx_nr_max > 0) {
+		be->but_dom_cfg.bc_engine.bec_group_cfg.tgc_tx_nr_max =
+			rctx->rc_be_tx_group_tx_nr_max;
+	}
+	if (rctx->rc_be_tx_group_tx_nr_max > 0) {
+		be->but_dom_cfg.bc_engine.bec_group_cfg.tgc_tx_nr_max =
+			rctx->rc_be_tx_group_tx_nr_max;
+	}
+	if (!equi(rctx->rc_be_tx_group_reg_nr_max > 0,
+	          rctx->rc_be_tx_group_reg_size_max > 0))
+		return M0_ERR(-EINVAL);
+	if (rctx->rc_be_tx_group_reg_nr_max > 0 &&
+	    rctx->rc_be_tx_group_reg_size_max > 0) {
+		be->but_dom_cfg.bc_engine.bec_group_cfg.tgc_size_max =
+			M0_BE_TX_CREDIT(rctx->rc_be_tx_group_reg_nr_max,
+			                rctx->rc_be_tx_group_reg_size_max);
+	}
+	if (rctx->rc_be_tx_group_payload_size_max > 0) {
+		be->but_dom_cfg.bc_engine.bec_group_cfg.tgc_payload_max =
+			rctx->rc_be_tx_group_payload_size_max;
+	}
 	rc = m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, format);
 	if (rc != 0)
 		goto err;
@@ -1768,6 +1789,28 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				LAMBDA(void, (int64_t size)
 				{
 					rctx->rc_be_log_size = size;
+				})),
+			M0_NUMBERARG('n', "BE tx group tx nr max",
+				LAMBDA(void, (int64_t nr)
+				{
+					rctx->rc_be_tx_group_tx_nr_max = nr;
+				})),
+			M0_NUMBERARG('k', "BE tx group reg nr max",
+				LAMBDA(void, (int64_t nr)
+				{
+					rctx->rc_be_tx_group_reg_nr_max = nr;
+				})),
+			M0_NUMBERARG('K', "BE tx group reg size max",
+				LAMBDA(void, (int64_t size)
+				{
+					rctx->rc_be_tx_group_reg_size_max =
+								size;
+				})),
+			M0_NUMBERARG('p', "BE tx group payload size max",
+				LAMBDA(void, (int64_t size)
+				{
+					rctx->rc_be_tx_group_payload_size_max =
+								size;
 				})),
 			M0_STRINGARG('c', "Path to the configuration database",
 				LAMBDA(void, (const char *s)

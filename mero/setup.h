@@ -291,6 +291,10 @@ struct m0_reqh_context {
 	/** BE primary segment size for m0mkfs. */
 	m0_bcount_t		     rc_be_seg_size;
 	m0_bcount_t		     rc_be_log_size;
+	m0_bcount_t                  rc_be_tx_group_tx_nr_max;
+	m0_bcount_t                  rc_be_tx_group_reg_nr_max;
+	m0_bcount_t                  rc_be_tx_group_reg_size_max;
+	m0_bcount_t                  rc_be_tx_group_payload_size_max;
 
 	/**
 	 * Default path to the configuration database.
