@@ -42,6 +42,7 @@
 #include "m0t1fs/linux_kernel/fsync.h"
 #include "pool/pool.h"
 #include "conf/helpers.h"           /* m0_conf_poolversion_get() */
+#include "conf/obj_ops.h"	    /* m0_conf_obj_find_lock */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob, m0_fid_cob_device_id */
 
 extern const struct m0_uint128 m0_rm_m0t1fs_group;
@@ -467,6 +468,41 @@ static int m0t1fs_fid_create(struct inode     *dir,
 	return M0_ERR(-EOPNOTSUPP);
 }
 
+static uint64_t default_layout_id_get(struct m0t1fs_sb *csb)
+{
+	int                        rc;
+	int                        i;
+	uint64_t                   lid;
+	const uint64_t             FS_LID_INDEX = 1;
+	struct m0_conf_obj        *cobj = NULL;
+	const struct m0_fid        fsid = M0_FID_TINIT('f', 1, 1);
+	struct m0_conf_filesystem *fs;
+
+	M0_ENTRY();
+
+	rc = m0_conf_obj_find_lock(&csb->csb_reqh.rh_confc.cc_cache,
+				   &fsid, &cobj);
+	if (rc == 0) {
+		fs = M0_CONF_CAST(cobj, m0_conf_filesystem);
+
+		for (i = 0; fs->cf_params[i] != NULL; ++i) {
+			M0_LOG(M0_DEBUG, "param(%d): %s", i, fs->cf_params[i]);
+			if (i == FS_LID_INDEX) {
+				lid = simple_strtoul(fs->cf_params[i], NULL, 0);
+				M0_LOG(M0_DEBUG, "fetched layout id: %s, %llu",
+				       fs->cf_params[i], lid);
+
+				M0_LEAVE();
+				return lid;
+			}
+		}
+	}
+
+	M0_LEAVE();
+
+	return M0_DEFAULT_LAYOUT_ID;
+}
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 static int m0t1fs_create(struct inode     *dir,
 			 struct dentry    *dentry,
@@ -552,7 +588,7 @@ static int m0t1fs_create(struct inode     *dir,
 	M0_LOG(M0_INFO, "Creating \"%s\" with pool version "FID_F,
 	       (char*)dentry->d_name.name, FID_P(&ci->ci_pver));
 	/* layout id for new file */
-        ci->ci_layout_id = M0_DEFAULT_LAYOUT_ID;
+        ci->ci_layout_id = default_layout_id_get(csb);
 
 	m0t1fs_file_lock_init(ci, csb);
 	rc = m0t1fs_inode_layout_init(ci);
