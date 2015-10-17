@@ -994,6 +994,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 {
 	struct be_alloc_chunk *iter;
 	struct be_alloc_chunk *c = NULL;
+	int                    iter_nr = 0;
 
 	M0_PRE_EX(m0_be_allocator__invariant(a));
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
@@ -1003,6 +1004,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	m0_mutex_lock(&a->ba_lock);
 	/* algorithm starts here */
 	m0_tl_for(chunks_free, &a->ba_h->bah_free.bl_list, iter) {
+		++iter_nr;
 		c = be_alloc_chunk_trysplit(a, tx, iter, size, shift);
 		if (c != NULL)
 			break;
@@ -1020,8 +1022,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	be_allocator_stats_update(&a->ba_h->bah_stats,
 				  c == NULL ? size : c->bac_size, true, c == 0);
 	M0_LOG(M0_DEBUG, "allocator=%p size=%lu shift=%u rc=%d "
-	       "c=%p c->bac_size=%lu a_ptr=%p",
-	       a, size, shift, op->bo_u.u_allocator.a_rc,
+	       "iter_nr=%d c=%p c->bac_size=%lu a_ptr=%p",
+	       a, size, shift, op->bo_u.u_allocator.a_rc, iter_nr,
 	       c, c == NULL ? 0 : c->bac_size, op->bo_u.u_allocator.a_ptr);
 	if (op->bo_u.u_allocator.a_rc != 0)
 		be_allocator_stats_print(&a->ba_h->bah_stats);
