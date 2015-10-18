@@ -221,6 +221,7 @@ static int stob_null_domain_create(struct m0_stob_type *type,
 		M0_ALLOC_PTR(snd);
 	rc = rc ?: snd == NULL ? -ENOMEM : 0;
 	if (rc == 0) {
+		m0_mutex_init(&snd->snd_lock);
 		snd->snd_dom_key = dom_key,
 		m0_stob_domain__dom_id_make(&snd->snd_dom.sd_id,
 					    m0_stob_type_id_get(type),
@@ -233,6 +234,7 @@ static int stob_null_domain_create(struct m0_stob_type *type,
 		if (rc != 0) {
 			stob_null_stobs_tlist_fini(&snd->snd_stobs);
 			m0_free(snd->snd_path);
+			m0_mutex_fini(&snd->snd_lock);
 			m0_free(snd);
 		}
 	}
@@ -251,6 +253,7 @@ static int stob_null_domain_destroy(struct m0_stob_type *type,
 		stob_null_domain_del(snd, snd->snd_lists);
 		stob_null_stobs_tlist_fini(&snd->snd_stobs);
 		m0_free(snd->snd_path);
+		m0_mutex_fini(&snd->snd_lock);
 		m0_free(snd);
 	}
 	return 0;

@@ -346,6 +346,7 @@ void test_locality_chore(void)
 		.co_tick  = &tick
 	};
 
+	m0_mutex_init(&lock);
 	nr_loc = m0_fom_dom()->fd_localities_nr;
 	key = m0_locality_data_alloc(721, &ctor, NULL, &ctor);
 	M0_UT_ASSERT(key >= 0);
@@ -397,6 +398,7 @@ void test_locality_chore(void)
 	M0_UT_ASSERT(result == -ENOMEM);
 	_reqh_fini();
 	m0_locality_data_free(key);
+	m0_mutex_fini(&lock);
 }
 M0_EXPORTED(test_locality_chore);
 

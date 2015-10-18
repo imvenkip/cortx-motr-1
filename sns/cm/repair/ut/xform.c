@@ -240,12 +240,27 @@ static void tgt_fid_cob_create(struct m0_reqh *reqh)
 	M0_ASSERT(rc == 0);
 }
 
+static void ag_init(struct m0_sns_cm_repair_ag *rag)
+{
+	struct m0_cm_aggr_group *ag = &rag->rag_base.sag_base;
+
+	/* Workaround to avoid lock of uninitialised mutex */
+	m0_mutex_init(&ag->cag_mutex);
+}
+
+static void ag_fini(struct m0_sns_cm_repair_ag *rag)
+{
+	struct m0_cm_aggr_group *ag = &rag->rag_base.sag_base;
+
+	m0_mutex_fini(&ag->cag_mutex);
+}
+
 static void ag_prepare(struct m0_sns_cm_repair_ag *rag, int failure_nr,
 		       const struct m0_cm_aggr_group_ops *ag_ops,
 		       struct m0_sns_cm_repair_ag_failure_ctx *fc)
 {
 	struct m0_sns_cm_ag *sag;
-	int                 i;
+	int                  i;
 
 	sag = &rag->rag_base;
 	sag->sag_base.cag_transformed_cp_nr = 0;
@@ -539,6 +554,10 @@ static int xform_init(void)
 	scm->sc_it.si_cob_dom = cdom;
 	scm->sc_helpers = &xform_ut_repair_helpers;
 
+	ag_init(&s_rag);
+	ag_init(&m_rag);
+	ag_init(&n_rag);
+
 	return 0;
 }
 
@@ -547,6 +566,10 @@ static int xform_fini(void)
 	struct m0_cob_domain *cdom;
 	struct m0_stob_id     stob_id;
 	int                   rc;
+
+	ag_fini(&n_rag);
+	ag_fini(&m_rag);
+	ag_fini(&s_rag);
 
 	m0_fid_convert_cob2stob(&cob_fid, &stob_id);
 	rc = m0_ut_stob_destroy_by_stob_id(&stob_id);

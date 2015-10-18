@@ -767,11 +767,17 @@ M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm)
 
 	scm = cm2sns(cm);
 	m0_sns_cm_iter_fini(&scm->sc_it);
+
+	/*
+	 * Finalise parents first to avoid usage of finalised mutexes.
+	 * m0_sns_cm_setup() makes initialisation in reverse order too.
+	 */
+	sns_cm_bp_fini(&scm->sc_obp);
+	sns_cm_bp_fini(&scm->sc_ibp);
+
 	m0_net_buffer_pool_fini(&scm->sc_ibp.sb_bp);
 	m0_net_buffer_pool_fini(&scm->sc_obp.sb_bp);
 
-	sns_cm_bp_fini(&scm->sc_obp);
-	sns_cm_bp_fini(&scm->sc_ibp);
 	M0_LEAVE();
 }
 

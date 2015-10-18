@@ -131,14 +131,12 @@ extern struct m0_sm_group ut__txs_sm_group;
 
 static int _init(void)
 {
-	m0_sm_group_init(&ut__txs_sm_group);
 	return m0_ut_ast_thread_start(&ut__txs_sm_group);
 }
 
 static int _fini(void)
 {
 	m0_ut_ast_thread_stop();
-	m0_sm_group_fini(&ut__txs_sm_group);
 	return 0;
 }
 

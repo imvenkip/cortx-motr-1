@@ -51,7 +51,6 @@ static void test_init(void)
 	unsigned    shift     = 12;
 	uint32_t    buf_nr    = 10;
 
-	m0_chan_init(&buf_chan, &bp.nbp_mutex);
 	M0_ALLOC_PTR(bp.nbp_ndom);
 	M0_UT_ASSERT(bp.nbp_ndom != NULL);
 	rc = m0_net_domain_init(bp.nbp_ndom, &m0_net_lnet_xprt);
@@ -61,6 +60,7 @@ static void test_init(void)
 				      M0_NET_BUFFER_POOL_THRESHOLD, seg_nr,
 				      seg_size, colours, shift);
 	M0_UT_ASSERT(rc == 0);
+	m0_chan_init(&buf_chan, &bp.nbp_mutex);
 	m0_net_buffer_pool_lock(&bp);
 	rc = m0_net_buffer_pool_provision(&bp, buf_nr);
 	m0_net_buffer_pool_unlock(&bp);
@@ -163,11 +163,10 @@ static void test_fini(void)
 	m0_net_buffer_pool_lock(&bp);
 	M0_UT_ASSERT(m0_net_buffer_pool_invariant(&bp));
 	m0_net_buffer_pool_unlock(&bp);
+	m0_chan_fini_lock(&buf_chan);
 	m0_net_buffer_pool_fini(&bp);
 	m0_net_domain_fini(bp.nbp_ndom);
 	m0_free(bp.nbp_ndom);
-	m0_chan_fini_lock(&buf_chan);
-
 }
 
 static void buffers_get_put(int rc)
