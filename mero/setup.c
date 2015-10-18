@@ -690,7 +690,7 @@ static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob)
 	return 0;
 }
 
-static void cs_storage_devs_fini()
+static void cs_storage_devs_fini(void)
 {
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
 
@@ -746,7 +746,7 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 	}
 
 	if (rc != 0)
-		cs_storage_devs_fini(stob);
+		cs_storage_devs_fini();
 	return M0_RC(rc);
 }
 
@@ -844,7 +844,7 @@ static int cs_storage_init(const char *stob_type,
 static void cs_storage_fini(struct cs_stobs *stob)
 {
 	if (m0_get()->i_reqh_uses_ad_stob)
-		cs_storage_devs_fini(stob);
+		cs_storage_devs_fini();
 	if (stob->s_sdom != NULL)
 		m0_stob_domain_fini(stob->s_sdom);
 	if (stob->s_sfile.sf_is_initialised)
@@ -1102,8 +1102,12 @@ out:
  */
 static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
 {
+	struct cs_stobs *stobs = &addb_stob->cas_stobs;
+
 	m0_stob_put(addb_stob->cas_stob);
-	cs_storage_fini(&addb_stob->cas_stobs);
+	m0_stob_domain_fini(stobs->s_sdom);
+	if (stobs->s_sfile.sf_is_initialised)
+		yaml_document_delete(&stobs->s_sfile.sf_document);
 }
 
 static void be_seg_init(struct m0_be_ut_backend *be,
