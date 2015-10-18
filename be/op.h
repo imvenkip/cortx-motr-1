@@ -189,9 +189,16 @@ M0_INTERNAL int  m0_be_op_rc(struct m0_be_op *op);
  */
 #define M0_BE_OP_SYNC(op_obj, action)                   \
 	do {                                            \
-		struct m0_be_op op_obj;                 \
+		struct m0_be_op op_obj = {};            \
 		M0_BE_OP_SYNC_WITH(&op_obj, action);    \
 	} while (0)
+
+#define M0_BE_OP_SYNC_RC(op_obj, action)                \
+	({                                              \
+		struct m0_be_op op_obj = {};            \
+		M0_BE_OP_SYNC_WITH_RC(&op_obj, action); \
+	})
+
 
 /**
  * Similar to #M0_BE_OP_SYNC, but works with a caller-supplied operation
@@ -206,6 +213,19 @@ M0_INTERNAL int  m0_be_op_rc(struct m0_be_op *op);
 		m0_be_op_wait(__opp);           \
 		m0_be_op_fini(__opp);           \
 	} while (0)
+
+#define M0_BE_OP_SYNC_WITH_RC(op, action)       \
+	({                                      \
+		struct m0_be_op *__opp = (op);  \
+		int __op_rc;                    \
+						\
+		m0_be_op_init(__opp);           \
+		action;                         \
+		m0_be_op_wait(__opp);           \
+		__op_rc = m0_be_op_rc(__opp);   \
+		m0_be_op_fini(__opp);           \
+		__op_rc;                        \
+	})
 
 
 /**

@@ -736,9 +736,9 @@ stop:
 engine_stop:
 	m0_be_engine_stop(&dom->bd_engine);
 engine_fini:
+	M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&dom->bd_log_discard, &op));
 	m0_be_engine_fini(en);
 stop_pre:
-	M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&dom->bd_log_discard, &op));
 	m0_be_log_discard_fini(&dom->bd_log_discard);
 	m0_be_pd_fini(&dom->bd_pd);
 	m0_be_recovery_fini(&dom->bd_recovery);

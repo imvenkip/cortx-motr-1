@@ -187,8 +187,8 @@ M0_INTERNAL struct m0_be_io *m0_be_pd_io_be_io(struct m0_be_pd_io *pdio)
 static void be_pd_sync_run(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_be_pd  *pd = ast->sa_datum;
-	struct m0_be_op   op = {};
 	m0_time_t         now;
+	int               rc;
 
 	m0_be_op_active(pd->bpd_sync_op);
 	now = m0_time_now();
@@ -196,13 +196,12 @@ static void be_pd_sync_run(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	pd->bpd_sync_delay   = now - pd->bpd_sync_delay;
 	pd->bpd_sync_prev    = now - pd->bpd_sync_prev;
 
-	M0_BE_OP_SYNC_WITH(&op, m0_be_io_launch(&pd->bpd_sync_io, &op));
+	rc = M0_BE_OP_SYNC_RC(op, m0_be_io_launch(&pd->bpd_sync_io, &op));
 
 	now = m0_time_now();
 	pd->bpd_sync_runtime = now - pd->bpd_sync_runtime;
 	M0_LOG(M0_DEBUG, "runtime=%lu delay=%lu prev=%lu rc=%d",
-	       pd->bpd_sync_runtime, pd->bpd_sync_delay, pd->bpd_sync_prev,
-	       m0_be_op_rc(&op));
+	       pd->bpd_sync_runtime, pd->bpd_sync_delay, pd->bpd_sync_prev, rc);
 	pd->bpd_sync_prev        = now;
 	pd->bpd_sync_in_progress = false;
 	m0_be_op_done(pd->bpd_sync_op);
