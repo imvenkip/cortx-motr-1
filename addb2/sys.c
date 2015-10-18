@@ -133,20 +133,6 @@ struct m0_addb2_sys {
 	 */
 	struct m0_semaphore      sy_wait;
 	/**
-	 * A thread that holds ->sy_lock.
-	 *
-	 * Used to implement recursive locking in sys_lock().
-	 */
-	struct m0_thread        *sy_owner;
-	/**
-	 * Level of recursive locking in sy_lock().
-	 */
-	unsigned                 sy_nesting;
-	/**
-	 * addb2 stats on ->sy_lock mutex.
-	 */
-	struct m0_mutex_addb2    sy_lock_stats;
-	/**
 	 * List of counters registered via m0_addb2_sys_counter_add().
 	 */
 	struct m0_list           sy_counters;
@@ -205,11 +191,6 @@ int m0_addb2_sys_init(struct m0_addb2_sys **out,
 		mach_tlist_init(&sys->sy_moribund);
 		mach_tlist_init(&sys->sy_deathrow);
 		m0_list_init(&sys->sy_counters);
-		m0_addb2_sys_counter_add(sys, &sys->sy_lock_stats.ma_hold,
-					 M0_AVI_ADDB2_SYS_LOCK_HOLD);
-		m0_addb2_sys_counter_add(sys, &sys->sy_lock_stats.ma_wait,
-					 M0_AVI_ADDB2_SYS_LOCK_WAIT);
-		sys->sy_lock.m_addb2 = &sys->sy_lock_stats;
 		*out = sys;
 		result = 0;
 	} else
@@ -383,8 +364,18 @@ void m0_addb2_sys_sm_start(struct m0_addb2_sys *sys)
 
 void m0_addb2_sys_sm_stop(struct m0_addb2_sys *sys)
 {
+	struct m0_addb2_mach *stash;
+
+	/*
+	 * m0_sm_ast_wait() unlocks sys->sy_lock, bypassing sys_unlock(),
+	 * imitate sys->sy_stash manipulations in sys_{un,}lock().
+	 */
 	sys_lock(sys);
+	stash = sys->sy_stash;
+	sys->sy_stash = NULL;
 	m0_sm_ast_wait(&sys->sy_astwait);
+	M0_ASSERT(sys->sy_stash == NULL);
+	sys->sy_stash = stash;
 	M0_ASSERT(sys->sy_ast.sa_next == NULL);
 	sys_unlock(sys);
 }
@@ -566,45 +557,36 @@ static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 /**
  * Locks the sys object.
  *
- * Due to re-entrancy, recursive locking is needed.
- *
  * @see sys_unlock.
  */
 static void sys_lock(struct m0_addb2_sys *sys)
 {
-	if (sys->sy_owner != m0_thread_self()) {
-		struct m0_addb2_mach *cur = m0_thread_tls()->tls_addb2_mach;
+	struct m0_addb2_mach *cur = m0_thread_tls()->tls_addb2_mach;
 
-		/*
-		 * Clear the addb2 machine, associated with the current
-		 * thread. This avoids addb2 re-entrancy and dead-locks. Do this
-		 * outside of the lock, just in case m0_mutex_lock() makes addb2
-		 * calls.
-		 *
-		 * The machine is restored in sys_unlock().
-		 */
-		m0_thread_tls()->tls_addb2_mach = NULL;
-		m0_mutex_lock(&sys->sy_lock);
-		sys->sy_owner = m0_thread_self();
-		M0_ASSERT(sys->sy_nesting == 0);
-		M0_ASSERT(sys->sy_stash == NULL);
-		sys->sy_stash = cur;
-	}
-	++sys->sy_nesting;
+	/*
+	 * Clear the addb2 machine, associated with the current
+	 * thread. This avoids addb2 re-entrancy and dead-locks. Do this
+	 * outside of the lock, just in case m0_mutex_lock() makes addb2
+	 * calls.
+	 *
+	 * The machine is restored in sys_unlock().
+	 */
+	m0_thread_tls()->tls_addb2_mach = NULL;
+	m0_mutex_lock(&sys->sy_lock);
+	M0_ASSERT(sys->sy_stash == NULL);
+	sys->sy_stash = cur;
 	M0_ASSERT(sys_invariant(sys));
 }
 
 static void sys_unlock(struct m0_addb2_sys *sys)
 {
-	M0_ASSERT(sys_invariant(sys));
-	if (--sys->sy_nesting == 0) {
-		struct m0_addb2_mach *cur = sys->sy_stash;
+	struct m0_addb2_mach *cur = sys->sy_stash;
 
-		sys->sy_stash = NULL;
-		sys->sy_owner = 0;
-		m0_mutex_unlock(&sys->sy_lock);
-		m0_thread_tls()->tls_addb2_mach = cur;
-	}
+	M0_ASSERT(sys_invariant(sys));
+
+	sys->sy_stash = NULL;
+	m0_mutex_unlock(&sys->sy_lock);
+	m0_thread_tls()->tls_addb2_mach = cur;
 }
 
 static void net_idle(struct m0_addb2_net *net, void *datum)
@@ -639,7 +621,7 @@ static const struct m0_addb2_storage_ops sys_stor_ops = {
 static bool sys_invariant(const struct m0_addb2_sys *sys)
 {
 	return  _0C(m0_mutex_is_locked(&sys->sy_lock)) &&
-		_0C(sys->sy_nesting > 0) &&
+		_0C(m0_thread_tls()->tls_addb2_mach == NULL) && /* sys_lock() */
 		_0C(sys->sy_queued <= sys->sy_conf.co_queue_max) &&
 		_0C(M0_CHECK_EX(sys->sy_queued == m0_tl_reduce(tr, t,
 						       &sys->sy_queue,

@@ -545,8 +545,6 @@ struct id_intrp ids[] = {
 							&skip, &_clock } },
 	{ M0_AVI_RPC_IN_PHASE,    "rpc-in-phase",    { &rpc_in,
 						       &skip, &_clock } },
-	{ M0_AVI_ADDB2_SYS_LOCK_HOLD, "sys-lock-hold", { COUNTER } },
-	{ M0_AVI_ADDB2_SYS_LOCK_WAIT, "sys-lock-wait", { COUNTER } },
 	{ M0_AVI_BE_TX_STATE,     "tx-state",       { &tx_state, &skip,
 						       &_clock } },
 	{ M0_AVI_BE_TX_COUNTER,   "",
