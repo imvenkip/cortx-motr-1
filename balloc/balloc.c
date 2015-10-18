@@ -218,6 +218,55 @@ M0_INTERNAL void m0_balloc_unlock_group(struct m0_balloc_group_info *grp)
 
 #define MAX_ALLOCATION_CHUNK 2048ULL
 
+static int balloc_group_info_init(struct m0_balloc_group_info *gi,
+				  struct m0_balloc *cb)
+{
+	struct m0_balloc_group_desc gd = {};
+	struct m0_buf               key = M0_BUF_INIT_PTR(&gi->bgi_groupno);
+	struct m0_buf               val = M0_BUF_INIT_PTR(&gd);
+	int                         rc;
+
+	rc = btree_lookup_sync(&cb->cb_db_group_desc, &key, &val);
+	if (rc == 0) {
+		gi->bgi_freeblocks = gd.bgd_freeblocks;
+		gi->bgi_fragments  = gd.bgd_fragments;
+		gi->bgi_maxchunk   = gd.bgd_maxchunk;
+		gi->bgi_state	   = M0_BALLOC_GROUP_INFO_INIT;
+		gi->bgi_extents	   = NULL;
+		m0_list_init(&gi->bgi_prealloc_list);
+		m0_mutex_init(bgi_mutex(gi));
+	}
+	return M0_RC(rc);
+}
+
+static void balloc_group_info_fini(struct m0_balloc_group_info *gi)
+{
+	m0_mutex_fini(bgi_mutex(gi));
+	m0_list_fini(&gi->bgi_prealloc_list);
+}
+
+static int balloc_group_info_load(struct m0_balloc *bal)
+{
+	struct m0_balloc_group_info *gi;
+	m0_bcount_t                  i;
+	int                          rc = 0;
+
+	M0_LOG(M0_INFO, "Loading group info...");
+	for (i = 0; i < bal->cb_sb.bsb_groupcount; ++i) {
+		gi = &bal->cb_group_info[i];
+		gi->bgi_groupno = i;
+		rc = balloc_group_info_init(gi, bal);
+		if (rc != 0)
+			break;
+
+		/* TODO verify the super_block info based on the group info */
+	}
+	while (rc != 0 && i > 0) {
+		balloc_group_info_fini(&bal->cb_group_info[--i]);
+	}
+	return rc;
+}
+
 /**
    finalization of the balloc environment.
  */
@@ -234,6 +283,7 @@ static void balloc_fini_internal(struct m0_balloc *bal)
 			m0_balloc_lock_group(gi);
 			m0_balloc_release_extents(gi);
 			m0_balloc_unlock_group(gi);
+			balloc_group_info_fini(gi);
 		}
 		m0_free0(&bal->cb_group_info);
 	}
@@ -531,7 +581,6 @@ static int balloc_groups_write(struct m0_balloc *bal)
 
 	M0_ALLOC_ARR(bal->cb_group_info, sb->bsb_groupcount);
 	if (bal->cb_group_info == NULL) {
-		M0_LOG(M0_ERROR, "create allocate memory for group info");
 		return M0_ERR(-ENOMEM);
 	}
 	bgs = (struct balloc_groups_write_cfg){
@@ -542,7 +591,7 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	};
 	M0_ALLOC_ARR(bgs.bgs_bgc, bgs.bgs_max);
 	if (bgs.bgs_bgc == NULL) {
-		m0_free(bal->cb_group_info);
+		m0_free0(&bal->cb_group_info);
 		return M0_ERR(-ENOMEM);
 	}
 	m0_mutex_init(&bgs.bgs_lock);
@@ -553,6 +602,7 @@ static int balloc_groups_write(struct m0_balloc *bal)
 		.tbc_credit = &balloc_group_write_credit,
 		.tbc_do     = &balloc_group_write_do,
 	};
+
 	rc = m0_be_tx_bulk_init(&tb, &tb_cfg);
 	if (rc == 0) {
 		M0_BE_OP_SYNC(op, m0_be_tx_bulk_run(&tb, &op));
@@ -564,6 +614,11 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	if (bgs.bgs_rc != 0)
 		rc = bgs.bgs_rc;
 
+	rc = rc ?: balloc_group_info_load(bal);
+	if (rc != 0) {
+		/* balloc_fini_internal() checks whether this pointer is NULL */
+		m0_free0(&bal->cb_group_info);
+	}
 	return M0_RC(rc);
 }
 
@@ -644,28 +699,6 @@ static int balloc_gi_sync(struct m0_balloc *cb,
 	return M0_RC(rc);
 }
 
-
-static int balloc_load_group_info(struct m0_balloc *cb,
-				  struct m0_balloc_group_info *gi)
-{
-	struct m0_balloc_group_desc gd = {};
-	struct m0_buf               key = M0_BUF_INIT_PTR(&gi->bgi_groupno);
-	struct m0_buf               val = M0_BUF_INIT_PTR(&gd);
-	int                         rc;
-
-	rc = btree_lookup_sync(&cb->cb_db_group_desc, &key, &val);
-	if (rc == 0) {
-		gi->bgi_freeblocks = gd.bgd_freeblocks;
-		gi->bgi_fragments  = gd.bgd_fragments;
-		gi->bgi_maxchunk   = gd.bgd_maxchunk;
-		gi->bgi_state	   = M0_BALLOC_GROUP_INFO_INIT;
-		gi->bgi_extents	   = NULL;
-		m0_list_init(&gi->bgi_prealloc_list);
-		m0_mutex_init(bgi_mutex(gi));
-	}
-	return M0_RC(rc);
-}
-
 static int sb_mount(struct m0_balloc *bal, struct m0_sm_group *grp)
 {
 	struct timeval now;
@@ -691,9 +724,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 				m0_bcount_t blocks_per_group,
 				m0_bcount_t res_groups)
 {
-	struct m0_balloc_group_info	*gi;
-	int				 rc;
-	m0_bcount_t			 i;
+	int rc;
 
 	M0_ENTRY();
 
@@ -726,26 +757,14 @@ static int balloc_init_internal(struct m0_balloc *bal,
 
 	M0_LOG(M0_INFO, "Group Count = %lu", bal->cb_sb.bsb_groupcount);
 
-	i = bal->cb_sb.bsb_groupcount * sizeof (struct m0_balloc_group_info);
-	bal->cb_group_info = m0_alloc(i);
-	if (bal->cb_group_info == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
-
-	M0_LOG(M0_INFO, "Loading group info...");
-	for (i = 0; i < bal->cb_sb.bsb_groupcount; i++ ) {
-		gi = &bal->cb_group_info[i];
-		gi->bgi_groupno = i;
-
-		rc = balloc_load_group_info(bal, gi);
+	M0_ALLOC_ARR(bal->cb_group_info, bal->cb_sb.bsb_groupcount);
+	rc = bal->cb_group_info == NULL ? M0_ERR(-ENOMEM) : 0;
+	if (rc == 0) {
+		rc = balloc_group_info_load(bal);
 		if (rc != 0)
-			goto out;
-
-		/* TODO verify the super_block info based on the group info */
+			m0_free0(&bal->cb_group_info);
 	}
-
-	rc = sb_mount(bal, grp);
+	rc = rc ?: sb_mount(bal, grp);
 out:
 	if (rc != 0)
 		balloc_fini_internal(bal);
