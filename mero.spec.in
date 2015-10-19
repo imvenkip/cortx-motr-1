@@ -19,7 +19,7 @@
 %define lustre_modules lustre-modules
 %else
 %define lustre_devel   lustre-client-devel
-%define lustre_modules lustre-client-modules
+%define lustre_modules kmod-lustre-client
 %endif
 
 %bcond_with ut
