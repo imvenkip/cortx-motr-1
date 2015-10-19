@@ -1114,7 +1114,11 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	if (csb->csb_oostore) {
 		rc = m0t1fs_component_objects_op(ci, &mo,
 						 m0t1fs_ios_cob_delete);
-		if (rc != 0)
+		if (rc == 0) {
+			inode->i_ctime = dir->i_ctime = dir->i_mtime = now;
+			inode_dec_link_count(inode);
+			mark_inode_dirty(dir);
+		} else
 			M0_LOG(M0_ERROR,
 			       "ioservice delete fop failed: %d, size=%lld",
 			       rc, ci->ci_inode.i_size);

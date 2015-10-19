@@ -5119,9 +5119,10 @@ int m0t1fs_flush(struct file *file, fl_owner_t id)
 	int                  rc;
 
 	M0_THREAD_ENTER;
-	M0_LOG(M0_INFO, "close size %d", (unsigned int)inode->i_size);
+	M0_ENTRY("inode links:%d close size %d", (unsigned int)inode->i_nlink,
+						 (unsigned int)inode->i_size);
 
-	if (!csb->csb_oostore)
+	if (!csb->csb_oostore || inode->i_nlink == 0)
 		return M0_RC(0);
 
 	M0_SET0(&mo);
