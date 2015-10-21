@@ -702,7 +702,6 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	if (rc != 0)
 		goto out;
 	cm->cm_ready_fops_recvd = 0;
-	cm_ast_run_fom_init(cm);
 	m0_cm_ag_store_fom_start(cm);
 	m0_cm_cp_pump_prepare(cm);
 	cm_move(cm, rc, M0_CMS_PREPARE, M0_CM_ERR_PREPARE);
@@ -725,6 +724,7 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_PREPARE)));
 	M0_PRE(m0_cm_invariant(cm));
 
+	cm_ast_run_fom_init(cm);
 	rmach = m0_cm_rpc_machine_find(reqh);
 	rc = cm_replicas_connect(cm, rmach, reqh);
 	if (rc == -ENOENT)
@@ -1008,7 +1008,8 @@ static int cm_ast_run_fom_tick(struct m0_fom *fom, struct m0_cm *cm, int *phase)
 		m0_cm_unlock(cm);
 	}
 
-	if (M0_IN(m0_cm_state_get(cm), (M0_CMS_ACTIVE, M0_CMS_STOP)) && cm->cm_proxy_nr == 0 &&
+	if (M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_ACTIVE,
+					M0_CMS_STOP)) && cm->cm_proxy_nr == 0 &&
 		cm->cm_aggr_grps_out_nr == 0 && cm->cm_aggr_grps_in_nr == 0)
 		result = -ESHUTDOWN;
 	else {
