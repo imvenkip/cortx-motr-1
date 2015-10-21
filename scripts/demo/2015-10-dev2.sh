@@ -23,11 +23,11 @@ CLIENT_LIST="$(echo 10.22.192.{51,52,{59..64},68,69,70})"
 TEST_TYPE="write"
 NUMBER_OF_CLIENTS=$(echo $CLIENT_LIST | wc -w)
 FILE_LID=13
-TEST_DURATION="5m"
+TEST_DURATION="10m"
 FILE_PREFIX="0:1000"
 FILE_DIR=/mnt/m0t1fs
 IO_BLOCK_SIZE="128M"
-MAX_IO_SIZE_PER_CLIENT="8T"
+MAX_IO_SIZE_PER_CLIENT="10G"
 THREADS_PER_CLIENT=10
 
 COMMAND=
@@ -94,12 +94,12 @@ direct=1
 overwrite=1
 end_fsync=0
 fsync_on_close=0
-do_verify=0
 invalidate=0
 allow_file_create=0
 create_on_open=0
 file_append=1
 clat_percentiles=1
+verify=crc32c-intel
 
 [write]
 runtime=$TEST_DURATION
@@ -109,7 +109,6 @@ thread
 group_reporting
 ioengine=sync
 filename_format=$FILE_PREFIX$client_index0\$jobnum
-buffer_pattern=0x0
 wait_for_previous
 EOF
 }
