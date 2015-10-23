@@ -25,6 +25,7 @@
 #include "sns/parity_repair.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/ag.h"
+#include "cm/proxy.h"
 
 M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 					  struct m0_pdclust_layout *pl);
@@ -32,34 +33,67 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 					     const struct m0_cm_ag_id *id,
 					     struct m0_pdclust_layout *pl,
-					     struct m0_pdclust_instance *pi)
+					     struct m0_pdclust_instance *pi,
+					     struct m0_bitmap *proxy_in_map)
 {
-        struct m0_pdclust_src_addr  sa;
+	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
+	const struct m0_cm         *cm = &scm->sc_base;
+	struct m0_pdclust_src_addr  sa;
         struct m0_pdclust_tgt_addr  ta;
         struct m0_fid               cobfid;
+	struct m0_fid               spare_cob;
 	struct m0_fid               gfid;
+	struct m0_cm_proxy         *pxy;
+	const char                 *ep;
+	bool                        is_failed;
 	uint32_t                    incoming = 0;
-	uint64_t                    upg;
+	uint32_t                    local_spares = 0;
+	uint32_t                    tgt_unit_prev;
 	uint64_t                    unit;
+	int                         rc;
 
 	M0_ENTRY();
 
-	agid2fid(id,  &gfid);
+	agid2fid(id, &gfid);
 	sa.sa_group = agid2group(id);
-	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-	for (unit = 0; unit < upg; ++unit) {
+	for (unit = 0; unit < m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl); ++unit) {
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid,
 				      &cobfid);
-		if (!m0_sns_cm_unit_is_spare(scm, pl, pi, &gfid, sa.sa_group,
-					     unit) &&
-		    !m0_sns_cm_is_cob_failed(scm, &cobfid) &&
-		    !m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid))
-			M0_CNT_INC(incoming);
+		is_failed = m0_sns_cm_is_cob_failed(scm, &cobfid);
+		if (m0_sns_cm_unit_is_spare(scm, pl, pi, &gfid, sa.sa_group,
+					    unit))
+			continue;
+		/* Count number of spares corresponding to the failures
+		 * on a node. This is required to calculate exact number of
+		 * incoming copy packets.
+		 */
+		if (is_failed && !m0_sns_cm_is_cob_repaired(scm, &cobfid)) {
+			rc = m0_sns_repair_spare_map(pm, &gfid, pl, pi,
+					sa.sa_group, unit, (unsigned *)&sa.sa_unit,
+					&tgt_unit_prev);
+			if (rc != 0)
+				return M0_ERR(rc);
+
+			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &spare_cob);
+			if (m0_sns_cm_unit_is_spare(scm, pl, pi, &gfid, sa.sa_group,
+						    sa.sa_unit) &&
+			    m0_sns_cm_is_local_cob(cm, &spare_cob)) {
+				M0_CNT_INC(local_spares);
+			}
+		}
+		if (!is_failed && !m0_sns_cm_is_local_cob(cm, &cobfid)) {
+			ep = m0_sns_cm_tgt_ep(cm, &cobfid);
+			pxy = m0_tl_find(proxy, pxy, &cm->cm_proxies, m0_streq(ep, pxy->px_endpoint));
+			if (!m0_bitmap_get(proxy_in_map, pxy->px_id)) {
+				m0_bitmap_set(proxy_in_map, pxy->px_id, true);
+				M0_CNT_INC(incoming);
+			}
+		}
 	}
 
 	M0_LEAVE();
-	return M0_RC(incoming);
+	return M0_RC(incoming * local_spares);
 }
 
 static uint64_t repair_ag_unit_start(const struct m0_pdclust_layout *pl)

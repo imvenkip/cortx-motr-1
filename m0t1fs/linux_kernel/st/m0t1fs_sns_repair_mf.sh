@@ -101,10 +101,10 @@ sns_repair_test()
 ####### Set Failure device
 	pool_mach_set_failure $fail_device1 $fail_device2 || return $?
 
+	pool_mach_query $fail_device1 $fail_device2 || return $?
+
 	echo "Device $fail_device1 and $fail_device2 failed. Do dgmode read"
 	verify || return $?
-
-	pool_mach_query $fail_device1 $fail_device2 || return $?
 
 	sns_repair || return $?
 
@@ -115,10 +115,11 @@ sns_repair_test()
 	sns_repair_or_rebalance_status "repair" || return $?
 
 	echo "SNS Repair done."
-	verify || return $?
 
 ####### Query device state
 	pool_mach_query $fail_device1 $fail_device2 || return $?
+
+	verify || return $?
 
         echo "Starting SNS Re-balance.."
 	sns_rebalance || return $?
@@ -129,8 +130,9 @@ sns_repair_test()
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status "rebalance" || return $?
 
-
 	echo "SNS Rebalance done."
+	pool_mach_query $fail_device1 $fail_device2 || return $?
+
 	verify || return $?
 
 	pool_mach_set_failure $fail_device3 || return $?
@@ -143,10 +145,10 @@ sns_repair_test()
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status "repair" || return $?
 
+	pool_mach_query $fail_device3 || return $?
+
 	echo "SNS Repair done."
 	verify || return $?
-
-	pool_mach_query $fail_device3 || return $?
 
         echo "Starting SNS Re-balance.."
 	sns_rebalance || return $?
@@ -158,9 +160,9 @@ sns_repair_test()
 	sns_repair_or_rebalance_status "rebalance" || return $?
 
 	echo "SNS Rebalance done."
-	verify || return $?
-
 	pool_mach_query $fail_device1 $fail_device2 $fail_device3
+
+	verify || return $?
 
 	return $?
 }

@@ -63,6 +63,11 @@ M0_INTERNAL void m0_cm_ag_unlock(struct m0_cm_aggr_group *ag)
 	m0_mutex_unlock(&ag->cag_mutex);
 }
 
+M0_INTERNAL void m0_cm_ag_is_locked(struct m0_cm_aggr_group *ag)
+{
+	m0_mutex_is_locked(&ag->cag_mutex);
+}
+
 M0_INTERNAL int m0_cm_ag_id_cmp(const struct m0_cm_ag_id *id0,
 				const struct m0_cm_ag_id *id1)
 {
@@ -160,7 +165,7 @@ M0_INTERNAL void m0_cm_aggr_group_init(struct m0_cm_aggr_group *ag,
 
 M0_INTERNAL void m0_cm_aggr_group_fini(struct m0_cm_aggr_group *ag)
 {
-	struct m0_cm       *cm;
+	struct m0_cm *cm;
 
 	M0_ENTRY();
 	M0_ASSERT(ag != NULL);
@@ -305,6 +310,18 @@ M0_INTERNAL void m0_cm_aggr_group_add(struct m0_cm *cm,
 		__aggr_group_add(ag, &aggr_grps_out_tl, &cm->cm_aggr_grps_out);
 		M0_CNT_INC(cm->cm_aggr_grps_out_nr);
 	}
+	/*
+	 * Save the HI incoming aggregation group identifier.
+	 * This is used mainly during sliding window update to advance the
+	 * window starting from the highest processed incoming aggregation
+	 * group identifier.
+	 */
+	if (has_incoming && m0_cm_ag_id_cmp(&cm->cm_sw_last_updated_hi, &id) < 0) {
+		cm->cm_sw_last_updated_hi = id;
+	} else if (!has_incoming && m0_cm_ag_id_cmp(&cm->cm_last_out_hi, &id) < 0) {
+		cm->cm_last_out_hi = id;
+	}
+
 	M0_LEAVE();
 }
 
@@ -313,7 +330,7 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 				       bool has_incoming,
 				       struct m0_cm_aggr_group **out)
 {
-	int                      rc;
+	int rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL && id != NULL);
@@ -329,16 +346,6 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	else if (rc != 0)
 		return M0_RC(rc);
 
-	/*
-	 * Save the HI incoming aggregation group identifier.
-	 * This is used mainly during sliding window update to advance the
-	 * window starting from the highest processed incoming aggregation
-	 * group identifier.
-	 */
-	if (has_incoming && m0_cm_ag_id_cmp(&cm->cm_sw_last_updated_hi, id) < 0) {
-		cm->cm_sw_last_updated_hi = *id;
-	}
-
 	M0_ASSERT(rc <= 0);
 	return M0_RC(rc);
 }
@@ -350,9 +357,9 @@ M0_INTERNAL bool m0_cm_aggr_group_tlists_are_empty(struct m0_cm *cm)
 
 M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 {
-	int                      rc;
-	struct m0_cm_ag_id       next;
-	struct m0_cm_ag_id       id;
+	struct m0_cm_ag_id next;
+	struct m0_cm_ag_id id;
+	int                rc;
 
 	M0_ENTRY();
 

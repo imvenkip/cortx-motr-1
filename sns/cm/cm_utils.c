@@ -206,8 +206,7 @@ M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 	m0_poolmach_device_state(scm->sc_base.cm_pm,
 				 m0_fid_cob_device_id(cob_fid),
 				 &state_out);
-	return M0_IN(state_out, (M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING,
-				 M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING));
+	return !M0_IN(state_out, (M0_PNDS_ONLINE, M0_PNDS_OFFLINE));
 }
 
 M0_INTERNAL bool m0_sns_cm_is_cob_repaired(const struct m0_sns_cm *scm,
@@ -437,6 +436,7 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 		result = scm->sc_helpers->sch_ag_is_relevant(scm, &fid,
 							     group, pl,
 							     pi);
+
         return M0_RC(result);
 }
 
@@ -444,11 +444,13 @@ M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id,
 				struct m0_pdclust_layout *pl,
-				struct m0_pdclust_instance *pi)
+				struct m0_pdclust_instance *pi,
+				struct m0_bitmap *proxy_in_map)
 {
 	M0_PRE(m0_cm_is_locked(&scm->sc_base));
 
-	return scm->sc_helpers->sch_ag_max_incoming_units(scm, id, pl, pi);
+	return scm->sc_helpers->sch_ag_max_incoming_units(scm, id, pl, pi,
+							  proxy_in_map);
 }
 
 M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_sns_cm *snscm,

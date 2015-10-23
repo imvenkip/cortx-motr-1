@@ -89,7 +89,8 @@ M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id,
 				struct m0_pdclust_layout *pl,
-				struct m0_pdclust_instance *pi);
+				struct m0_pdclust_instance *pi,
+				struct m0_bitmap *proxy_in_map);
 
 M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 					 const struct m0_fid *cob_fid);

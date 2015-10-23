@@ -80,11 +80,11 @@ sns_repair_test()
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status "rebalance" || return $?
 
+	pool_mach_query $fail_device
+
 	echo "SNS Re-balance done."
 	echo "Verifying checksums.."
 	md5sum_check || return $?
-
-	pool_mach_query $fail_device
 
 	return $?
 }

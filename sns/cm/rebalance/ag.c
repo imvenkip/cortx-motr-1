@@ -30,6 +30,7 @@
 #include "fid/fid.h"
 #include "sns/parity_repair.h"
 
+#include "cm/proxy.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/rebalance/ag.h"
 #include "sns/cm/cp.h"
@@ -53,26 +54,12 @@ static void rebalance_ag_fini(struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_rebalance_ag *rag;
 	struct m0_sns_cm_ag           *sag;
-        struct m0_sns_cm              *scm;
-	struct m0_pdclust_layout      *pl;
-	struct m0_sns_cm_file_ctx     *fctx;
-	struct m0_cm_ag_id            *id = &ag->cag_id;
-	uint64_t                       total_resbufs;
 
 	M0_ENTRY();
 	M0_PRE(ag != NULL);
 
 	sag = ag2snsag(ag);
-	fctx = sag->sag_fctx;
 	rag = sag2rebalanceag(sag);
-	scm = cm2sns(ag->cag_cm);
-	if (ag->cag_has_incoming) {
-		pl = m0_layout_to_pdl(fctx->sf_layout);
-		total_resbufs = m0_sns_cm_incoming_reserve_bufs(scm, id, pl,
-								fctx->sf_pi);
-		m0_sns_cm_normalize_reservation(scm, ag, pl, total_resbufs);
-	}
-
 	m0_sns_cm_ag_fini(sag);
 	m0_free(rag);
 
@@ -94,9 +81,11 @@ static bool rebalance_ag_can_fini(const struct m0_cm_aggr_group *ag)
 }
 
 static const struct m0_cm_aggr_group_ops sns_cm_rebalance_ag_ops = {
-	.cago_ag_can_fini = rebalance_ag_can_fini,
-	.cago_fini        = rebalance_ag_fini,
-	.cago_local_cp_nr = m0_sns_cm_ag_local_cp_nr
+	.cago_ag_can_fini       = rebalance_ag_can_fini,
+	.cago_fini              = rebalance_ag_fini,
+	.cago_local_cp_nr       = m0_sns_cm_ag_local_cp_nr,
+	.cago_has_incoming_from = m0_sns_cm_ag_has_incoming_from,
+	.cago_is_frozen_on      = m0_sns_cm_ag_is_frozen_on
 };
 
 M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,

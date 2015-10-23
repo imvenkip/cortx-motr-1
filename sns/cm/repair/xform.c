@@ -28,6 +28,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/parity_math.h"
+#include "sns/cm/file.h"
 
 /**
  * @addtogroup SNSCMCP
@@ -187,10 +188,12 @@ out:
 static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 				 struct m0_sns_cm_repair_ag_failure_ctx *fc)
 {
-	struct m0_cm_aggr_group *ag  = &rag->rag_base.sag_base;
-	struct m0_cm_cp         *acc = &fc->fc_tgt_acc_cp.sc_base;
-	int                      rc = 0;
-	int                      is_local_cob;
+	struct m0_sns_cm_ag        *sag = &rag->rag_base;
+	struct m0_cm_aggr_group    *ag  = &sag->sag_base;
+	struct m0_cm_cp            *acc = &fc->fc_tgt_acc_cp.sc_base;
+	uint64_t                    incoming_nr;
+	int                         rc = 0;
+	int                         is_local_cob;
 
 	/*
 	 * Check if all copy packets are processed at this stage,
@@ -202,10 +205,10 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 	 * aggregation group are transformed, then transformation can
 	 * be marked complete.
 	 */
+	incoming_nr = ag->cag_cp_global_nr - sag->sag_fnr;
 	is_local_cob = m0_sns_cm_is_local_cob(ag->cag_cm, &fc->fc_tgt_cobfid);
 	if ((is_local_cob &&
-	     m0_sns_cm_ag_acc_is_full_with(acc, rag->rag_base.sag_incoming_nr +
-						 ag->cag_cp_local_nr)) ||
+	     m0_sns_cm_ag_acc_is_full_with(acc, incoming_nr)) ||
 	    (!is_local_cob &&
 	     m0_sns_cm_ag_acc_is_full_with(acc, ag->cag_cp_local_nr))) {
 		rc = res_cp_enqueue(acc);

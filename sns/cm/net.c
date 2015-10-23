@@ -188,12 +188,12 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
 	struct m0_rpc_bulk_buf *rbuf;
 	struct m0_net_domain   *ndom;
 	struct m0_net_buffer   *nbuf;
-	uint32_t                nbuf_seg_nr;
-	uint32_t                tmp_seg_nr;
 	struct m0_rpc_session  *session;
 	struct m0_cm_cp_fop    *cp_fop;
 	struct m0_fop          *fop;
 	struct m0_rpc_item     *item;
+	uint32_t                nbuf_seg_nr;
+	uint32_t                tmp_seg_nr;
 	uint64_t                offset;
 	int                     rc;
 	int                     i;
@@ -434,26 +434,25 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 	if (cp->c_cm_proxy == NULL) {
 		m0_cm_lock(cm);
 		cm_proxy = m0_cm_proxy_locate(cm, remote_rep);
-		m0_cm_unlock(cm);
 		M0_ASSERT(cm_proxy != NULL);
 		cp->c_cm_proxy = cm_proxy;
+		m0_cm_unlock(cm);
 	} else
 		cm_proxy = cp->c_cm_proxy;
-
-	/*
-	 * If remote replica has already stopped due to some reason, all the
-	 * pending copy packets addressed to that copy machine must be
-	 * finalised.
-	 */
-	if (cm_proxy->px_status == M0_CMS_STOP) {
-		m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
-		return M0_FSO_WAIT;
-	}
 
 	if (m0_cm_ag_id_cmp(&cp->c_ag->cag_id, &cm_proxy->px_sw.sw_hi) <= 0) {
 		rc = cp->c_ops->co_phase_next(cp);
 	} else {
-		m0_cm_proxy_cp_add(cm_proxy, cp);
+		/*
+		 * If remote replica has already stopped due to some reason, all the
+		 * pending copy packets addressed to that copy machine must be
+		 * finalised.
+		 */
+		if (M0_IN(cm_proxy->px_status, (M0_PX_STOP))) {
+			m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
+		} else
+			m0_cm_proxy_cp_add(cm_proxy, cp);
+
 		rc = M0_FSO_WAIT;
 	}
 

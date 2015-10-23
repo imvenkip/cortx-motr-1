@@ -672,6 +672,7 @@ M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp)
 						nbp->nbp_colours_nr;
 			cp_data_buf_tlink_del_fini(nbuf);
 			m0_cm_buffer_put(nbp, nbuf, colour);
+			M0_CNT_DEC(cp->c_buf_nr);
 		} m0_tl_endfor;
 		nbp->nbp_ops->nbpo_not_empty(nbp);
 		m0_net_buffer_pool_unlock(nbp);

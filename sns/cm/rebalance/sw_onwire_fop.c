@@ -50,10 +50,11 @@ M0_INTERNAL int
 m0_sns_cm_rebalance_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
 					void (*fop_release)(struct m0_ref *),
 					const char *local_ep,
-					const struct m0_cm_sw *sw)
+					const struct m0_cm_sw *sw,
+					const struct m0_cm_ag_id *last_out)
 {
 	return m0_sns_cm_sw_onwire_fop_setup(cm, &rebalance_sw_onwire_fopt, fop,
-					     fop_release, local_ep, sw);
+					     fop_release, local_ep, sw, last_out);
 
 }
 

@@ -141,7 +141,8 @@ struct m0_sns_cm_helpers {
 	uint64_t (*sch_ag_max_incoming_units)(const struct m0_sns_cm *scm,
 					      const struct m0_cm_ag_id *id,
 					      struct m0_pdclust_layout *pl,
-					      struct m0_pdclust_instance *pi);
+					      struct m0_pdclust_instance *pi,
+					      struct m0_bitmap *proxy_in_map);
 
 	/**
 	 * Returns index of starting unit of the given aggregation group to
@@ -304,11 +305,6 @@ M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 
 M0_INTERNAL uint64_t m0_sns_cm_cp_buf_nr(struct m0_net_buffer_pool *bp,
                                          uint64_t data_seg_nr);
-
-M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_sns_cm *scm,
-						 struct m0_cm_aggr_group *ag,
-						 struct m0_pdclust_layout *pl,
-						 uint64_t nr_res_bufs);
 
 M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 					 struct m0_pdclust_layout *pl,

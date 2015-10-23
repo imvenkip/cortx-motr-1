@@ -96,6 +96,7 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 			m0_cm_proxy_update(cm_proxy,
 					   &swo_fop->swo_base.swo_sw.sw_lo,
 					   &swo_fop->swo_base.swo_sw.sw_hi,
+					   &swo_fop->swo_base.swo_last_out,
 					   swo_fop->swo_base.swo_cm_status);
 		}
 		m0_cm_unlock(cm);

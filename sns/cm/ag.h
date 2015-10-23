@@ -48,10 +48,28 @@ struct m0_sns_cm_ag {
 	uint32_t                         sag_fnr;
 
 	/**
+	 * m0_cm::cm_proxy_nr size of bitmap which identifies if there are any
+	 * incoming copy packets from the corresponding proxy.
+	 */
+	struct m0_bitmap                 sag_proxy_incoming_map;
+
+	/** Number of local copy packets created by data iterator. */
+	uint32_t                         sag_cp_created_nr;
+
+	/**
 	 * Actual number of incoming data/parity units for this aggregation
 	 * group.
 	 */
 	uint32_t                         sag_incoming_nr;
+
+	/** Number of outgoing copy packets. */
+	uint32_t                         sag_outgoing_nr;
+
+	/** Number of local targets/spares of an aggregation group to be used.*/
+	uint32_t                         sag_local_tgts_nr;
+
+	/** Number of incoming copy packets that will no more arrive. */
+	uint32_t                         sag_not_coming;
 
 	/** Bitmap of failed units in the aggregation group. */
 	struct m0_bitmap                 sag_fmap;
@@ -96,6 +114,27 @@ M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag);
  * given node for an aggregation group.
  */
 M0_INTERNAL uint64_t m0_sns_cm_ag_local_cp_nr(const struct m0_cm_aggr_group *ag);
+M0_INTERNAL bool m0_sns_cm_ag_has_incoming_from(struct m0_cm_aggr_group *ag,
+						struct m0_cm_proxy *proxy);
+
+/**
+ * Returns true iff aggregation group cannot progress.
+ * This can happen during sns repair/rebalance quiesce or abort operation.
+ * An aggregation group can be frozen in following cases,
+ * case 1: The given proxy @pxy has completed (i.e. there will be no more
+ *         outgoing copy packets created by the proxy) and there are still
+ *         incoming copy packets expected from the proxy.
+ * case 2: There are incoming aggregation groups which have received all
+ *         the relevant copy packets from the remote replicas but pump
+ *         fom is already stopped so there will be no more local copy
+ *         packets created if any.
+ * In both the above cases we check if all the possible copy packets those
+ * can be received or created are finalised and the remaining expected copy
+ * packets will no longer come into existence, in which case the aggregation
+ * group is marked as frozen.
+ */
+M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag,
+					   struct m0_cm_proxy *pxy);
 
 M0_INTERNAL struct m0_sns_cm_ag *ag2snsag(const struct m0_cm_aggr_group *ag);
 

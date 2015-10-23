@@ -229,6 +229,8 @@ struct m0_cm {
 	 */
 	struct m0_cm_ag_id               cm_sw_last_updated_hi;
 
+	struct m0_cm_ag_id               cm_last_out_hi;
+
 	struct m0_cm_ag_id               cm_last_processed_out;
 
 	/**
@@ -346,7 +348,8 @@ struct m0_cm_ops {
 	int (*cmo_sw_onwire_fop_setup)(struct m0_cm *cm, struct m0_fop *fop,
 				       void (*fop_release)(struct m0_ref *),
 				       const char *local_ep,
-				       const struct m0_cm_sw *sw);
+				       const struct m0_cm_sw *sw,
+				       const struct m0_cm_ag_id *last_out);
 
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct m0_cm *cm);
@@ -504,7 +507,14 @@ M0_INTERNAL void m0_cm_buffer_put(struct m0_net_buffer_pool *bp,
 
 M0_INTERNAL struct m0_cm *m0_cmsvc2cm(struct m0_reqh_service *cmsvc);
 
-M0_INTERNAL void m0_cm_proxies_fini(struct m0_cm *cm);
+/**
+ * Finalising a proxy can be a blocking operation as we wait until the
+ * correspoding remote replica has completed its operations.
+ *
+ * @retval 0         On success.
+ * @retval -EAGAIN   When proxy is not ready to be finalised.
+ */
+M0_INTERNAL int m0_cm_proxies_fini(struct m0_cm *cm);
 
 M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh);
 
@@ -512,8 +522,9 @@ M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_notify(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_wait(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL void m0_cm_wait_cancel(struct m0_cm *cm, struct m0_fom *fom);
-M0_INTERNAL void m0_cm_complete(struct m0_cm *cm);
+M0_INTERNAL int m0_cm_complete(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom);
+M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *proxy);
 
 /** @} endgroup CM */
 

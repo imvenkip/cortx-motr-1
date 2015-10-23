@@ -858,39 +858,20 @@ m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 				struct m0_pdclust_layout *pl,
 				struct m0_pdclust_instance *pi)
 {
-	struct m0_fid gfid;
-	uint64_t      nr_cp_bufs;
-	uint64_t      cp_data_seg_nr;
-	uint64_t      nr_incoming;
+	struct m0_bitmap proxy_map;
+	struct m0_fid    gfid;
+	uint64_t         nr_cp_bufs;
+	uint64_t         cp_data_seg_nr;
+	uint64_t         nr_incoming;
 
-	nr_incoming = m0_sns_cm_ag_max_incoming_units(scm, id, pl, pi);
+	m0_bitmap_init(&proxy_map, scm->sc_base.cm_proxy_nr);
+	nr_incoming = m0_sns_cm_ag_max_incoming_units(scm, id, pl, pi, &proxy_map);
         agid2fid(id, &gfid);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
+	m0_bitmap_fini(&proxy_map);
 
 	return nr_cp_bufs * nr_incoming;
-}
-
-M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_sns_cm *scm,
-						 struct m0_cm_aggr_group *ag,
-						 struct m0_pdclust_layout *pl,
-						 uint64_t nr_res_bufs)
-{
-	uint64_t extra_bufs = 0;
-	uint64_t nr_cp_bufs;
-	uint64_t cp_data_seg_nr;
-
-	M0_PRE(m0_cm_is_locked(&scm->sc_base));
-
-	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
-	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
-	if (nr_res_bufs >= (nr_cp_bufs * (ag->cag_freed_cp_nr -
-					  ag->cag_cp_local_nr)))
-		extra_bufs = nr_res_bufs - (nr_cp_bufs * (ag->cag_freed_cp_nr -
-							  ag->cag_cp_local_nr));
-	if (extra_bufs > 0)
-		scm->sc_ibp_reserved_nr -= min64u(scm->sc_ibp_reserved_nr,
-						  extra_bufs);
 }
 
 /**

@@ -94,9 +94,10 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 		 */
 		rc = m0_sns_cm_cp_dup(cp, &tgt_cp);
 		if (rc == 0) {
-			if (scp->sc_is_local)
+			if (scp->sc_is_local) {
 				M0_CNT_INC(ag->cag_cp_local_nr);
-			 else
+				M0_CNT_INC(sns_ag->sag_cp_created_nr);
+			 } else
 				M0_CNT_INC(sns_ag->sag_incoming_nr);
 			m0_cm_cp_enqueue(cm, tgt_cp);
 		}

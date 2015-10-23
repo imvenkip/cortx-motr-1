@@ -30,6 +30,8 @@
 #include "fid/fid.h"
 #include "sns/parity_repair.h"
 
+#include "cm/proxy.h"
+
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/repair/ag.h"
 #include "sns/cm/cp.h"
@@ -63,11 +65,13 @@ M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
 						struct m0_pdclust_layout *pl,
 						struct m0_pdclust_instance *pi)
 {
-	uint64_t nr_cp_bufs;
-	uint64_t cp_data_seg_nr;
-	uint64_t nr_acc_bufs;
-	uint64_t nr_in_bufs;
+	struct m0_fid gfid;
+	uint64_t      nr_cp_bufs;
+	uint64_t      cp_data_seg_nr;
+	uint64_t      nr_acc_bufs;
+	uint64_t      nr_in_bufs;
 
+	agid2fid(id, &gfid);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	/*
 	 * Calculate number of buffers required for a copy packet.
@@ -77,7 +81,8 @@ M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
 	/* Calculate number of buffers required for incoming copy packets. */
 	nr_in_bufs = m0_sns_cm_incoming_reserve_bufs(scm, id, pl, pi);
 	/* Calculate number of buffers required for accumulator copy packets. */
-	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
+	nr_acc_bufs = nr_cp_bufs * m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi,
+							    id->ai_lo.u_lo, NULL);
 	return nr_in_bufs + nr_acc_bufs;
 }
 
@@ -154,33 +159,59 @@ static void incr_recover_fini(struct m0_sns_cm_repair_ag *rag)
 	m0_parity_math_fini(&rag->rag_math);
 }
 
+static void acc_check_fini(struct m0_sns_cm_repair_ag *rag)
+{
+	struct m0_cm_cp          *cp;
+	struct m0_sns_cm_ag      *sag = &rag->rag_base;
+	struct m0_cm_aggr_group  *ag = &sag->sag_base;
+	struct m0_sns_cm         *scm = cm2sns(ag->cag_cm);
+	struct m0_pdclust_layout *pl = m0_layout_to_pdl(sag->sag_fctx->sf_layout);
+	uint32_t                  nr_cp_bufs;
+	uint32_t                  unused_cps = 0;
+	uint32_t                  nr_bufs;
+	int                       i;
+
+	M0_PRE(rag != NULL);
+
+	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp,
+					 m0_sns_cm_data_seg_nr(scm, pl));
+	for (i = 0; i < sag->sag_fnr; ++i) {
+		if (!rag->rag_fc[i].fc_is_inuse) {
+			M0_CNT_INC(unused_cps);
+			continue;
+		}
+		cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
+		if (cp->c_buf_nr > 0) {
+			cp->c_ops->co_free(cp);
+		}
+	}
+	/* While reserving incoming buffers, we consider all the
+	 * accumulators, in-order to avoid buffer leakage, normalize
+	 * the reservation if any of the accumulators is not in use.
+	 */
+	if (ag->cag_has_incoming) {
+		unused_cps += sag->sag_not_coming * sag->sag_local_tgts_nr;
+		nr_bufs = unused_cps * nr_cp_bufs;
+		scm->sc_ibp_reserved_nr -= nr_bufs;
+	}
+}
+
 static void repair_ag_fini(struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_ag        *sag;
 	struct m0_sns_cm_repair_ag *rag;
-        struct m0_cm               *cm;
-        struct m0_sns_cm           *scm;
-	struct m0_pdclust_layout   *pl;
-	struct m0_sns_cm_file_ctx  *fctx;
-	uint64_t                    total_resbufs;
 
 	M0_ENTRY();
 	M0_PRE(ag != NULL);
 
 	sag = ag2snsag(ag);
-	fctx = sag->sag_fctx;
 	rag = sag2repairag(sag);
-        cm = ag->cag_cm;
-        M0_ASSERT(cm != NULL);
-        scm = cm2sns(cm);
-	if (ag->cag_has_incoming) {
-		pl = m0_layout_to_pdl(fctx->sf_layout);
-		total_resbufs = m0_sns_cm_repair_ag_inbufs(scm, &ag->cag_id,
-							   pl, fctx->sf_pi);
-		m0_sns_cm_normalize_reservation(scm, ag, pl,
-						total_resbufs);
-	}
 	incr_recover_fini(rag);
+	/* In-case the aggregation group is being forcefully finalised
+	 * (e.g. quiesce or abort), we need to release accumulator copy packet
+	 * buffers.
+	 */
+	acc_check_fini(rag);
 	m0_sns_cm_ag_fini(sag);
 	m0_free(rag->rag_fc);
 	m0_free(rag);
@@ -205,9 +236,11 @@ static bool repair_ag_can_fini(const struct m0_cm_aggr_group *ag)
 }
 
 static const struct m0_cm_aggr_group_ops sns_cm_repair_ag_ops = {
-	.cago_ag_can_fini = repair_ag_can_fini,
-	.cago_fini        = repair_ag_fini,
-	.cago_local_cp_nr = m0_sns_cm_ag_local_cp_nr
+	.cago_ag_can_fini       = repair_ag_can_fini,
+	.cago_fini              = repair_ag_fini,
+	.cago_local_cp_nr       = m0_sns_cm_ag_local_cp_nr,
+	.cago_has_incoming_from = m0_sns_cm_ag_has_incoming_from,
+	.cago_is_frozen_on      = m0_sns_cm_ag_is_frozen_on
 };
 
 static uint64_t repair_ag_target_unit(struct m0_sns_cm_ag *sag,
@@ -244,6 +277,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 	struct m0_fid                           cobfid;
 	struct m0_fid                          *tgt_cobfid;
 	struct m0_pdclust_instance             *pi = sag->sag_fctx->sf_pi;
+	bool                                    local;
 	enum m0_pool_nd_state                   state_out;
 	uint64_t                                tgt_unit;
 	uint64_t                                fidx = 0;
@@ -336,15 +370,19 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 		 * (struct m0_sns_cm_repair_ag::rag_acc_inuse_nr). Use this
 		 * information to finalise an aggregation group.
 		 */
-		if (m0_sns_cm_is_local_cob(cm, tgt_cobfid) ||
-		    sag->sag_base.cag_cp_local_nr != 0) {
+		local = m0_sns_cm_is_local_cob(cm, tgt_cobfid);
+		if (local || sag->sag_base.cag_cp_local_nr != 0) {
 			rag_fc->fc_failed_idx = data_unit_id_out;
 			rag_fc->fc_tgt_idx = tgt_unit;
 			rag_fc->fc_tgt_cob_index =
 				m0_sns_cm_ag_unit2cobindex(sag, tgt_unit, pl, pi);
 			M0_CNT_INC(rag->rag_acc_inuse_nr);
 			rag_fc->fc_is_inuse = true;
+			if (local)
+				M0_CNT_INC(sag->sag_local_tgts_nr);
 		}
+		if (rag_fc->fc_is_inuse && !m0_sns_cm_is_local_cob(cm, &rag_fc->fc_tgt_cobfid))
+			M0_CNT_INC(sag->sag_outgoing_nr);
 		++fidx;
 	}
 
@@ -440,12 +478,13 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	for (i = 0; i < sag->sag_fnr; ++i) {
 		rag_fc = &rag->rag_fc[i];
-		if (rag_fc->fc_is_inuse)
+		if (rag_fc->fc_is_inuse) {
 			rc = m0_sns_cm_acc_cp_setup(&rag_fc->fc_tgt_acc_cp,
 						    &rag_fc->fc_tgt_cobfid,
 						    rag_fc->fc_tgt_cob_index,
 						    rag_fc->fc_failed_idx,
 						    cp_data_seg_nr);
+		}
 		if (rc != 0)
 			return M0_RC(rc);
 	}

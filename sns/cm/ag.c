@@ -38,6 +38,7 @@
 #include "sns/cm/cm.h"
 #include "sns/cm/iter.h"
 #include "sns/cm/file.h"
+#include "cm/proxy.h"
 
 /**
    @addtogroup SNSCMAG
@@ -228,14 +229,6 @@ static int ai_fid_next(struct m0_sns_cm_ag_iter *ai)
 	struct m0_fid     fid = {0, 0};
 	struct m0_fid     fid_curr = ai->ai_fid;
 	int               rc;
-	struct m0_sns_cm *scm = ai2sns(ai);
-	struct m0_cm     *cm = &scm->sc_base;
-
- 	if (cm->cm_quiesce || cm->cm_abort) {
- 		M0_LOG(M0_DEBUG, "%lu: Got %s cmd", cm->cm_id,
- 				 cm->cm_quiesce ? "QUIESCE" : "ABORT");
-		return M0_RC(-ENODATA);
-	}
 
 	do {
 		M0_CNT_INC(fid_curr.f_key);
@@ -266,13 +259,13 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 				   struct m0_cm_ag_id *id_next)
 {
 	struct m0_sns_cm_ag_iter  *ai = &scm->sc_ag_it;
+	struct m0_cm              *cm = &scm->sc_base;
 	struct m0_sns_cm_file_ctx *fctx;
 	struct m0_fid              fid;
 	int                        rc;
 
 	if (ai_state(ai) > AIS_GROUP_NEXT)
 		return -ENOENT;
-
 	ai->ai_id_curr = *id_curr;
 	agid2fid(&ai->ai_id_curr, &fid);
 	fctx = ai->ai_fctx;
@@ -295,6 +288,13 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 	}
 
 	do {
+		if ((cm->cm_quiesce || cm->cm_abort) && (M0_IN(ai_state(ai),
+							 (AIS_FID_LOCK,
+							  AIS_FID_NEXT)))) {
+			M0_LOG(M0_WARN, "%lu: Got %s cmd", cm->cm_id,
+					 cm->cm_quiesce ? "QUIESCE" : "ABORT");
+			return M0_RC(-ENODATA);
+		}
 		rc = ai_action[ai_state(ai)](ai);
 	} while (rc == 0);
 
@@ -401,6 +401,7 @@ M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag)
         M0_ASSERT(cm != NULL);
 	scm = cm2sns(cm);
 	m0_bitmap_fini(&sag->sag_fmap);
+	m0_bitmap_fini(&sag->sag_proxy_incoming_map);
 	m0_sns_cm_fctx_put(scm, &ag->cag_id);
 	m0_cm_aggr_group_fini_and_progress(ag);
         M0_LEAVE();
@@ -432,19 +433,23 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	pi = fctx->sf_pi;
 	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
 	m0_bitmap_init(&sag->sag_fmap, upg);
+	m0_bitmap_init(&sag->sag_proxy_incoming_map, scm->sc_base.cm_proxy_nr);
+
 	sag->sag_fctx = fctx;
 	/* calculate actual failed number of units in this group. */
 	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo,
 					&sag->sag_fmap);
 	if (f_nr == 0) {
 		m0_bitmap_fini(&sag->sag_fmap);
+		m0_bitmap_fini(&sag->sag_proxy_incoming_map);
 		m0_sns_cm_fctx_put(scm, id);
 		return M0_ERR(-EINVAL);
 	}
 	sag->sag_fnr = f_nr;
 	if (has_incoming)
 		sag->sag_incoming_nr = m0_sns_cm_ag_max_incoming_units(scm, id,
-								       pl, pi);
+								       pl, pi,
+								       &sag->sag_proxy_incoming_map);
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming,
 			      ag_ops);
 	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(sag, pl);
@@ -452,6 +457,53 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL bool m0_sns_cm_ag_has_incoming_from(struct m0_cm_aggr_group *ag,
+						struct m0_cm_proxy *proxy)
+{
+	struct m0_sns_cm_ag *sag = ag2snsag(ag);
+	return m0_bitmap_get(&sag->sag_proxy_incoming_map, proxy->px_id);
+}
+
+M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m0_cm_proxy *pxy)
+{
+	struct m0_cm        *cm = ag->cag_cm;
+	struct m0_sns_cm_ag *sag = ag2snsag(ag);
+	uint32_t             not_coming = 0;
+	uint32_t             local_cps = 0;
+	uint32_t             expected_free = 0;
+
+	/*
+	 * Find out if there are any incoming copy packets from the given proxy that
+	 * is already completed and the copy packets will no longer be arriving.
+	 */
+	if (ag->cag_ops->cago_has_incoming_from(ag, pxy)) {
+		if (M0_IN(pxy->px_status, (M0_PX_COMPLETE, M0_PX_STOP)) &&
+		    m0_cm_ag_id_cmp(&pxy->px_last_out_recvd, &ag->cag_id) < 0) {
+			m0_bitmap_set(&sag->sag_proxy_incoming_map, pxy->px_id, false);
+			M0_CNT_INC(sag->sag_not_coming);
+		}
+	}
+
+	/*
+	 * Calculate the expected copy packets that can be created and finalised
+	 * in-order to mark aggregation group as frozen.
+	 */
+	if (sag->sag_not_coming > 0 || (m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
+					sag->sag_cp_created_nr != ag->cag_cp_local_nr)) {
+		not_coming = sag->sag_not_coming * sag->sag_local_tgts_nr;
+		if (ag->cag_cp_local_nr > 0) {
+			local_cps = ag->cag_cp_local_nr + sag->sag_outgoing_nr;
+			if (m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
+			    sag->sag_cp_created_nr != ag->cag_cp_local_nr) {
+				local_cps = sag->sag_cp_created_nr;
+			}
+		}
+		expected_free =  local_cps + sag->sag_incoming_nr - not_coming;
+
+		return expected_free == ag->cag_freed_cp_nr;
+	} else
+		return false;
+}
 
 /** @} SNSCMAG */
 #undef M0_TRACE_SUBSYSTEM

@@ -32,6 +32,8 @@
 #include "cm/pump.h"
 #include "cm/cm.h"
 #include "cm/cp.h"
+#include "cm/ag.h"           /* m0_cm_aggr_groups_prune */
+#include "cm/proxy.h"        /* m0_cm_proxy_min_sw_hi_get */
 #include "reqh/reqh.h"
 
 #include "pool/pool.h"
@@ -184,33 +186,62 @@ static void wakeup(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	m0_fom_wakeup(&pump->p_fom);
 }
 
+static void pump_wait(struct m0_cm_cp_pump *pump)
+{
+	struct m0_sm_group *grp;
+	struct m0_fom      *p_fom;
+
+	p_fom = &pump->p_fom;
+	grp = &p_fom->fo_loc->fl_group;
+	pump->p_wakeup.sa_cb = wakeup;
+	m0_sm_ast_post(grp, &pump->p_wakeup);
+}
+
 static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 {
+	struct m0_cm *cm = pump2cm(cp_pump);
+	int           rc;
+
+	if (!m0_cm_aggr_group_tlists_are_empty(cm)) {
+		pump_wait(cp_pump);
+		return M0_FSO_WAIT;
+	}
+
+	m0_cm_lock(cm);
+	rc = m0_cm_complete(cm);
+	m0_cm_unlock(cm);
+	if (rc == -EAGAIN) {
+		pump_wait(cp_pump);
+		return M0_FSO_WAIT;
+	}
+
+	M0_LOG(M0_DEBUG, "pump completed. Stopping the CM");
+	pump_move(cp_pump, 0, CPP_STOP);
+
+	return M0_FSO_AGAIN;
+}
+
+static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
+{
 	struct m0_cm           *cm = pump2cm(cp_pump);
-	struct m0_confc        *confc;
-	struct m0_mero         *mero;
-	struct m0_fom          *p_fom;
 	struct m0_reqh         *reqh;
-	struct m0_dtx          *dtx;
 	struct m0_be_tx_credit *acc;
 	struct m0_poolmach     *pm;
+	struct m0_mero         *mero;
+	struct m0_confc        *confc;
 	uint64_t                nr_fail;
 	struct m0_sm_group     *grp;
+	struct m0_fom          *p_fom;
+	struct m0_dtx          *dtx;
 	int                     rc;
 
 	p_fom = &cp_pump->p_fom;
 	pm = m0_ios_poolmach_get(m0_fom_reqh(p_fom));
 	M0_ASSERT(pm != NULL);
 	nr_fail = m0_poolmach_nr_dev_failures(pm);
-	dtx = &p_fom->fo_tx;
 	reqh = m0_fom_reqh(p_fom);
 	grp = &p_fom->fo_loc->fl_group;
-
-	if (!m0_cm_aggr_group_tlists_are_empty(cm)) {
-		cp_pump->p_wakeup.sa_cb = wakeup;
-		m0_sm_ast_post(grp, &cp_pump->p_wakeup);
-		return M0_FSO_WAIT;
-	}
+	dtx = &p_fom->fo_tx;
 
 	if (dtx->tx_state < M0_DTX_INIT) {
 		m0_dtx_init(dtx, reqh->rh_beseg->bs_domain, grp);
@@ -224,7 +255,6 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 					     acc);
 		if (rc != 0)
 			return rc;
-
 		m0_dtx_open(dtx);
 	}
 	if (m0_be_tx_state(&dtx->tx_betx) == M0_BTS_FAILED) {
@@ -237,24 +267,11 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 		m0_fom_wait_on(p_fom, &dtx->tx_betx.t_sm.sm_chan,
 				&p_fom->fo_cb);
 		return M0_FSO_WAIT;
-	} else if (dtx->tx_state == M0_DTX_INIT)
+	} else if (dtx->tx_state == M0_DTX_INIT) {
 		m0_dtx_opened(dtx);
-
-	M0_LOG(M0_DEBUG, "pump completed. Stopping the CM");
-	pump_move(cp_pump, 0, CPP_STOP);
-	m0_cm_complete(cm);
-	m0_cm_stop(cm);
-
-	return M0_FSO_AGAIN;
-}
-
-static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
-{
-	struct m0_fom *p_fom;
-	struct m0_dtx *dtx;
-
-	p_fom = &cp_pump->p_fom;
-	dtx = &p_fom->fo_tx;
+		/* Stop copy machine */
+		m0_cm_stop(cm);
+	}
 
 	if (dtx->tx_state != M0_DTX_DONE) {
 		m0_fom_wait_on(p_fom, &dtx->tx_betx.t_sm.sm_chan, &p_fom->fo_cb);
@@ -323,6 +340,7 @@ static struct m0_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
 		.sd_allowed = 0
 	},
 };
+
 
 struct m0_sm_trans_descr cm_cp_pump_td[] = {
 	{"Copy packet allocated",
@@ -440,12 +458,6 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
 
 	cp_pump = &cm->cm_cp_pump;
 	m0_fom_queue(&cp_pump->p_fom);
-	M0_LEAVE();
-}
-
-M0_INTERNAL void m0_cm_cp_pump_stop(struct m0_cm *cm)
-{
-	M0_ENTRY("cm = %p", cm);
 	M0_LEAVE();
 }
 

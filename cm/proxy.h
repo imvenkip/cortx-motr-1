@@ -43,6 +43,14 @@
 
 struct m0_cm_cp;
 
+enum proxy_state {
+	M0_PX_INIT,
+	M0_PX_READY,
+	M0_PX_ACTIVE,
+	M0_PX_COMPLETE,
+	M0_PX_STOP
+};
+
 /**
  * Represents remote replica and stores its details including its sliding
  * window.
@@ -57,9 +65,21 @@ struct m0_cm_proxy {
 	/** Last local sliding window update sent to this replica. */
 	struct m0_cm_sw         px_last_sw_onwire_sent;
 
+	/**
+	 * Identifier of the last aggregation group received from this proxy
+	 * having outgoing copy packets.
+	 */
+	struct m0_cm_ag_id      px_last_out_recvd;
+
+	/**
+	 * Identifier of last aggregation group sent to this proxy
+	 * having outgoing copy packets.
+	 */
+	struct m0_cm_ag_id      px_last_out_sent;
+
 	struct m0_sm_ast        px_sw_onwire_ast;
 
-	uint32_t                px_status;
+	enum proxy_state        px_status;
 
 	bool                    px_is_done;
 
@@ -121,11 +141,11 @@ M0_INTERNAL struct m0_cm_proxy *m0_cm_proxy_locate(struct m0_cm *cm,
 M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 				    struct m0_cm_ag_id *lo,
 				    struct m0_cm_ag_id *hi,
+				    struct m0_cm_ag_id *last_out,
 				    uint32_t px_status);
 
 M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
-					  struct m0_cm_sw *sw,
-					  bool onetime);
+					  struct m0_cm_sw *sw);
 
 M0_INTERNAL void m0_cm_proxy_cp_add(struct m0_cm_proxy *pxy,
 				    struct m0_cm_cp *cp);
@@ -137,15 +157,7 @@ M0_INTERNAL bool m0_cm_proxy_agid_is_in_sw(struct m0_cm_proxy *pxy,
 
 M0_INTERNAL void m0_cm_proxy_fini(struct m0_cm_proxy *pxy);
 
-/**
- * Checks if m0_cm_proxy::px_nr_updates_sent == m0_cm_proxy::px_nr_asts, else
- * waits on channel m0_cm_proxy::px_signal. Once all the call backs
- * corresponding to the updates sent are processed m0_cm_proxy::px_signal is
- * notified. This avoids invalid state of proxy during proxy finalisation.
- * @see proxy_sw_onwire_ast_cb()
- * @see m0_cm_proxies_fini()
- */
-M0_INTERNAL void m0_cm_proxy_fini_wait(struct m0_cm_proxy *proxy);
+M0_INTERNAL bool m0_cm_proxy_is_done(const struct m0_cm_proxy *pxy);
 M0_INTERNAL void m0_cm_proxy_pending_cps_wakeup(struct m0_cm *cm);
 
 M0_TL_DESCR_DECLARE(proxy, M0_EXTERN);

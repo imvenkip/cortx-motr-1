@@ -40,6 +40,7 @@
  */
 
 struct m0_cm_cp;
+struct m0_cm_proxy;
 
 /** Unique aggregation group identifier. */
 struct m0_cm_ag_id {
@@ -127,6 +128,11 @@ struct m0_cm_aggr_group_ops {
 	 * group on the local node.
 	 */
 	uint64_t (*cago_local_cp_nr)(const struct m0_cm_aggr_group *ag);
+
+	bool (*cago_has_incoming_from)(struct m0_cm_aggr_group *ag,
+				       struct m0_cm_proxy *proxy);
+
+	bool (*cago_is_frozen_on)(struct m0_cm_aggr_group *ag, struct m0_cm_proxy *proxy);
 };
 
 extern struct m0_bob_type aggr_grps_bob;

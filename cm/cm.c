@@ -483,7 +483,7 @@ static struct m0_sm_state_descr cm_state_descr[M0_CMS_NR] = {
 	[M0_CMS_STOP] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_stop",
-		.sd_allowed	= (1 << M0_CMS_IDLE)
+		.sd_allowed	= M0_BITS(M0_CMS_IDLE),
 	},
 	[M0_CMS_FINI] = {
 		.sd_flags	= M0_SDF_TERMINAL,
@@ -648,6 +648,7 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 	int                         rc = -ENOENT;
 	struct m0_pools_common     *pc;
 	struct m0_reqh_service_ctx *ctx;
+	uint32_t                    proxy_cnt = 0;
 
 	M0_PRE(cm != NULL && rmach != NULL && reqh != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
@@ -663,11 +664,12 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 				ctx->sc_type);
 		if (strcmp(lep, dep) == 0 || ctx->sc_type != M0_CST_IOS)
 			continue;
-		rc = m0_cm_proxy_alloc(0, &ag_id0, &ag_id0, dep, &pxy);
+		rc = m0_cm_proxy_alloc(proxy_cnt, &ag_id0, &ag_id0, dep, &pxy);
 		if (rc == 0) {
 			pxy->px_conn = &ctx->sc_conn;
 			pxy->px_session = &ctx->sc_session;
 			m0_cm_proxy_add(cm, pxy);
+			M0_CNT_INC(proxy_cnt);
 			M0_LOG(M0_DEBUG, "Connected to %s", dep);
 		}
 	} m0_tl_endfor;
@@ -775,18 +777,22 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 	return M0_RC(rc);
 }
 
-M0_INTERNAL void m0_cm_proxies_fini(struct m0_cm *cm)
+M0_INTERNAL int m0_cm_proxies_fini(struct m0_cm *cm)
 {
 	struct m0_cm_proxy *pxy;
 
 	M0_PRE(m0_cm_is_locked(cm));
 
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
-		m0_cm_proxy_fini_wait(pxy);
+		/* Check if proxy has completed. */
+		if (!m0_cm_proxy_is_done(pxy))
+			return -EAGAIN;
 		m0_cm_proxy_del(cm, pxy);
 		m0_cm_proxy_fini(pxy);
 		m0_free(pxy);
 	} m0_tl_endfor;
+
+	return 0;
 }
 
 M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
@@ -797,7 +803,7 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	M0_PRE(cm != NULL);
 
 	m0_cm_lock(cm);
-	M0_PRE(m0_cm_state_get(cm) == M0_CMS_ACTIVE);
+	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_ACTIVE)));
 	M0_PRE(m0_cm_invariant(cm));
 	/*
 	 * We set the state here to M0_CMS_STOP and once copy machine
@@ -805,14 +811,10 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	 * M0_CMS_IDLE state as m0_cm_start() expects copy machine to be idle
 	 * before starting new restructuring operation.
 	 */
-	m0_cm_proxies_fini(cm);
+	m0_cm_state_set(cm, M0_CMS_STOP);
 	m0_cm_ast_run_fom_wakeup(cm);
 	rc = cm->cm_ops->cmo_stop(cm);
-	if (!cm->cm_quiesce) {
-		M0_SET0(&cm->cm_sw_last_updated_hi);
-		M0_SET0(&cm->cm_last_processed_out);
-	}
-	m0_cm_state_set(cm, M0_CMS_STOP);
+
 	cm_move(cm, rc, M0_CMS_IDLE, M0_CM_ERR_STOP);
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -1052,20 +1054,48 @@ M0_INTERNAL void m0_cm_wait_cancel(struct m0_cm *cm, struct m0_fom *fom)
 	m0_mutex_unlock(&cm->cm_wait_mutex);
 }
 
-M0_INTERNAL void m0_cm_complete(struct m0_cm *cm)
+M0_INTERNAL int m0_cm_complete(struct m0_cm *cm)
 {
-	if (cm->cm_quiesce)
-		m0_cm_ag_store_fini(&cm->cm_ag_store);
-	else
-		m0_cm_ag_store_complete(&cm->cm_ag_store);
-	m0_cm_notify(cm);
-	m0_cm_cp_pump_stop(cm);
+	int rc;
+
+	M0_PRE(m0_cm_is_locked(cm));
+
+	if (!cm->cm_done) {
+		if (cm->cm_quiesce || cm->cm_abort)
+			m0_cm_ag_store_fini(&cm->cm_ag_store);
+		else
+			m0_cm_ag_store_complete(&cm->cm_ag_store);
+	}
+
 	cm->cm_done = true;
+	/*
+	 * Finalising proxies is a blocking operation becuase we wait until
+	 * the remote replica, corresponding to the copy machine proxy is
+	 * complete. Thus we check for -EAGAIN if proxy is not yet ready to
+	 * be finalised.
+	 */
+	rc = m0_cm_proxies_fini(cm);
+	if (rc == -EAGAIN)
+		return M0_RC(rc);
+	m0_cm_notify(cm);
+
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom)
 {
 	m0_cm_wait(cm, fom);
+}
+
+M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *proxy)
+{
+	struct m0_cm_aggr_group *ag = NULL;
+
+	m0_tlist_for(&aggr_grps_in_tl, &cm->cm_aggr_grps_in, ag) {
+		if (ag->cag_ops->cago_is_frozen_on(ag, proxy)) {
+			ag->cag_ops->cago_fini(ag);
+		}
+	} m0_tlist_endfor;
 }
 
 #undef M0_TRACE_SUBSYSTEM

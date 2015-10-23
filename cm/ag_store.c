@@ -166,16 +166,16 @@ static int ag_store_init_load(struct m0_cm_ag_store *store, struct m0_cm_ag_stor
 		M0_LOG(M0_DEBUG, "in=["M0_AG_F"] out=["M0_AG_F"]",
 				 M0_AG_P(&(*data)->d_in),  M0_AG_P(&(*data)->d_out));
 		return M0_RC(rc);
+	} else if (rc == -ENOENT) {
+		M0_SET0(tx);
+		m0_be_tx_init(tx, 0, seg->bs_domain, &fom->fo_loc->fl_group, NULL,
+				NULL, NULL, NULL);
+		M0_BE_ALLOC_CREDIT_PTR(*data, seg, &cred);
+		m0_be_seg_dict_insert_credit(seg, ag_store, &cred);
+		m0_be_tx_prep(tx, &cred);
+		m0_be_tx_open(tx);
+		M0_POST(tx->t_sm.sm_rc == 0);
 	}
-
-	M0_SET0(tx);
-	m0_be_tx_init(tx, 0, seg->bs_domain, &fom->fo_loc->fl_group, NULL,
-		      NULL, NULL, NULL);
-	M0_BE_ALLOC_CREDIT_PTR(*data, seg, &cred);
-	m0_be_seg_dict_insert_credit(seg, ag_store, &cred);
-	m0_be_tx_prep(tx, &cred);
-	m0_be_tx_open(tx);
-	M0_POST(tx->t_sm.sm_rc == 0);
 
 	return M0_RC(rc);
 }
@@ -267,7 +267,8 @@ static int ag_store_init_wait(struct m0_cm_ag_store *store)
 			return M0_RC(rc);
 		rc = ag_store_init_load(store, &s_data);
 		if (rc != 0)
-			return M0_RC(rc);
+			return M0_ERR_INFO(rc, "Cannot load ag store, status=%d phase=%d",
+						store->s_status, m0_fom_phase(fom));
 		m0_cm_lock(cm);
 		store->s_data.d_in = s_data->d_in;
 		store->s_data.d_out = s_data->d_out;
@@ -297,7 +298,8 @@ static int ag_store__update(struct m0_cm_ag_store *store)
 
 	rc = ag_store_init_load(store, &s_data);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR_INFO(rc, "Cannot load ag store, status=%d phase=%d",
+					store->s_status, m0_fom_phase(fom));
 	if (rc == 0) {
 		s_data->d_in = store->s_data.d_in;
 		s_data->d_out = store->s_data.d_out;
@@ -335,8 +337,12 @@ static int ag_store_update(struct m0_cm_ag_store *store)
 	m0_cm_lock(cm);
 	rc = ag_store__update(store);
 	m0_cm_unlock(cm);
-	if (rc != 0)
-		return M0_RC(rc);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "AG Store update failed: %d", rc);
+		store->s_status = S_FINI;
+		if (rc != -ENOENT)
+			return M0_ERR(rc);
+	}
 	m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
 	m0_dtx_done(tx);
 	m0_fom_phase_move(fom, rc, AG_STORE_UPDATE_WAIT);
@@ -381,18 +387,18 @@ static int ag_store_update_wait(struct m0_cm_ag_store *store)
 
 static int ag_store_complete(struct m0_cm_ag_store *store)
 {
-	struct m0_cm            *cm = store2cm(store);
-	struct m0_fom           *fom = &store->s_fom;
-	struct m0_dtx           *tx = &fom->fo_tx;
-	struct m0_be_seg        *seg = cm->cm_service.rs_reqh->rh_beseg;
+	struct m0_cm               *cm = store2cm(store);
+	struct m0_fom              *fom = &store->s_fom;
+	struct m0_dtx              *tx = &fom->fo_tx;
+	struct m0_be_seg           *seg = cm->cm_service.rs_reqh->rh_beseg;
 	struct m0_cm_ag_store_data *s_data;
-	char                     ag_store[80];
-	int                      rc;
+	char                        ag_store[80];
+	int                         rc;
 
 	rc = ag_store_init_load(store, &s_data);
 	if (rc != 0)
-		return M0_RC(rc);
-	M0_LOG(M0_DEBUG, "store data = %p", s_data);
+		return M0_ERR_INFO(rc, "Cannot load ag store, status=%d phase=%d",
+					store->s_status, m0_fom_phase(fom));
 
 	sprintf(ag_store, "ag_store_%llu", (unsigned long long)cm->cm_id);
         if (tx->tx_state < M0_DTX_INIT) {
@@ -440,8 +446,8 @@ static uint64_t ag_store_fom_locality(const struct m0_fom *fom)
 static int ag_store_fom_tick(struct m0_fom *fom)
 {
 	struct m0_cm_ag_store *store;
-	int                 phase = m0_fom_phase(fom);
-	int                 rc;
+	int                    phase = m0_fom_phase(fom);
+	int                    rc;
 
 	store = fom2store(fom);
 	rc = ag_store_action[phase](store);

@@ -57,7 +57,6 @@ struct m0_cm_cp_pump {
 	 */
 	struct m0_cm_cp       *p_cp;
 	uint64_t               p_magix;
-	/** Set true by m0_cm_cp_pump_stop() */
 	struct m0_sm_ast       p_wakeup;
 };
 
@@ -69,12 +68,6 @@ M0_INTERNAL void m0_cm_cp_pump_prepare(struct m0_cm *cm);
  * This is invoked from m0_cm_start()
  */
 M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm);
-
-/**
- * Stops pump FOM by setting m0_cm_cp_pump::p_shutdown to true and awaking
- * pump FOM using m0_fom_wakeup().
- */
-M0_INTERNAL void m0_cm_cp_pump_stop(struct m0_cm *cm);
 
 /**
  * Wakes up pump FOM to create more copy packets.

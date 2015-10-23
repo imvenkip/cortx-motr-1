@@ -25,9 +25,9 @@ file_size=(
 	300
 )
 
-N=2
-K=1
-P=4
+N=3
+K=3
+P=15
 stride=32
 src_bs=10M
 src_count=20
@@ -35,7 +35,8 @@ src_count=20
 sns_repair_rebalance_quiesce_test()
 {
 	local rc=0
-	local fail_device=1
+	local fail_device1=1
+	local fail_device2=9
 	local unit_size=$((stride * 1024))
 
 	echo "Starting SNS repair/rebalance quiesce testing ..."
@@ -52,14 +53,14 @@ sns_repair_rebalance_quiesce_test()
 	done
 
 ####### Set Failure device
-	pool_mach_set_failure $fail_device || return $?
+	pool_mach_set_failure $fail_device1 $fail_device2 || return $?
 
-	echo "Device $fail_device failed. Do dgmode read"
+	echo "Device $fail_device1 $fail_device2 failed. Do dgmode read"
 	md5sum_check || return $?
 
 	echo "SNS repair, and this will be quiesecd"
 	sns_repair
-	sleep 5
+	sleep 3
 
 	# sending out QUIESCE cmd
 	sns_repair_quiesce
@@ -68,7 +69,7 @@ sns_repair_rebalance_quiesce_test()
 	wait_for_sns_repair_or_rebalance "repair" || return $?
 
 	echo "Query device state"
-	pool_mach_query $fail_device || return $?
+	pool_mach_query $fail_device1 $fail_device2 || return $?
 
 	echo "Continue SNS repair..."
 	sns_repair || return $?
@@ -80,11 +81,11 @@ sns_repair_rebalance_quiesce_test()
 	md5sum_check || return $?
 
 	echo "Query device state"
-	pool_mach_query $fail_device || return $?
+	pool_mach_query $fail_device1 $fail_device2 || return $?
 
 	echo "Starting SNS Re-balance, and this will be quiesced"
 	sns_rebalance
-	sleep 5
+	sleep 3
 
 	# sending out QUIESCE cmd
 	sns_rebalance_quiesce
@@ -100,12 +101,12 @@ sns_repair_rebalance_quiesce_test()
 
 	echo "SNS Re-balance done."
 ####### Query device state
-	pool_mach_query $fail_device || return $?
+	pool_mach_query $fail_device1 $fail_device2 || return $?
 
 	echo "Verifying checksums.."
 	md5sum_check || return $?
 
-	pool_mach_query $fail_device
+	pool_mach_query $fail_device1 $fail_device2
 
 	return $?
 }

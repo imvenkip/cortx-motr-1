@@ -77,7 +77,6 @@ static void usage(void)
 }
 
 static void repair_reply_received(struct m0_rpc_item *item) {
-	int64_t                        reply_cnt;
 	uint32_t                       req_op;
 	struct trigger_fop            *treq;
 	struct m0_fop                 *req_fop;
@@ -99,8 +98,7 @@ static void repair_reply_received(struct m0_rpc_item *item) {
 	} else
 		printf("\n");
 
-	reply_cnt = m0_atomic64_add_return(&srv_rep_cnt, 1);
-	if (reply_cnt == srv_cnt)
+	if (m0_atomic64_dec_and_test(&srv_rep_cnt))
 		m0_chan_signal_lock(&repair_wait);
 }
 
@@ -163,7 +161,7 @@ int main(int argc, char *argv[])
 		return M0_ERR(-EINVAL);
 	}
 
-	m0_atomic64_set(&srv_rep_cnt, 0);
+	m0_atomic64_set(&srv_rep_cnt, srv_cnt);
 	m0_sns_cm_repair_trigger_fop_init();
 	m0_sns_cm_rebalance_trigger_fop_init();
 	repair_client_init();
@@ -207,9 +205,6 @@ int main(int argc, char *argv[])
 			return M0_ERR(rc);
 		}
 		printf("trigger fop sent to %s\n", srv_ep_addr[i]);
-
-		//rc = rc ?: trep->rc;
-		//m0_fop_put_lock(fop);
 	}
 
 	m0_chan_wait(&repair_clink);

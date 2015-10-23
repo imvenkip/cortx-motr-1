@@ -61,6 +61,8 @@ struct m0_cm_sw_onwire {
 	/** Replica's sliding window. */
 	struct m0_cm_sw       swo_sw;
 
+	struct m0_cm_ag_id    swo_last_out;
+
 	uint32_t              swo_cm_status;
 }M0_XCA_RECORD;
 
@@ -71,7 +73,8 @@ struct m0_cm_sw_update {
 };
 
 M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *sw_onwire,
-				     const char *ep, const struct m0_cm_sw *sw);
+				     const char *ep, const struct m0_cm_sw *sw,
+				     const struct m0_cm_ag_id *last_out);
 
 M0_INTERNAL void m0_cm_sw_set(struct m0_cm_sw *dst,
 			      const struct m0_cm_ag_id *lo,

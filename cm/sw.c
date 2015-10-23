@@ -72,22 +72,28 @@ M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
 }
 
 M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *sw_onwire,
-                                     const char *ep, const struct m0_cm_sw *sw)
+				     const char *ep, const struct m0_cm_sw *sw,
+				     const struct m0_cm_ag_id *last_out)
 {
 	M0_PRE(sw_onwire != NULL && ep != NULL && sw != NULL);
 
 	m0_cm_sw_copy(&sw_onwire->swo_sw, sw);
+	sw_onwire->swo_last_out = *last_out;
 	sw_onwire->swo_cm_ep.ep_size = CS_MAX_EP_ADDR_LEN;
 	M0_ALLOC_ARR(sw_onwire->swo_cm_ep.ep, CS_MAX_EP_ADDR_LEN);
 	if (sw_onwire->swo_cm_ep.ep == NULL )
 		return M0_ERR(-ENOMEM);
 	strncpy(sw_onwire->swo_cm_ep.ep, ep, CS_MAX_EP_ADDR_LEN);
 	if (cm->cm_done)
-		sw_onwire->swo_cm_status = M0_CMS_STOP;
+		sw_onwire->swo_cm_status = M0_PX_STOP;
+	else if (!m0_cm_aggr_group_tlists_are_empty(cm) &&
+		 m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
+		 cm->cm_sw_update.swu_is_complete)
+		sw_onwire->swo_cm_status = M0_PX_COMPLETE;
 	else if (!m0_cm_aggr_group_tlists_are_empty(cm))
-		sw_onwire->swo_cm_status = M0_CMS_ACTIVE;
+		sw_onwire->swo_cm_status = M0_PX_ACTIVE;
 	else
-		sw_onwire->swo_cm_status = M0_CMS_READY;
+		sw_onwire->swo_cm_status = M0_PX_READY;
 
 	return 0;
 }
@@ -132,7 +138,7 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		ID_LOG("proxy last updated",
 		       &pxy->px_last_sw_onwire_sent.sw_hi);
-		rc = m0_cm_proxy_remote_update(pxy, &sw, true);
+		rc = m0_cm_proxy_remote_update(pxy, &sw);
 		if (rc != 0)
 			break;
 	} m0_tl_endfor;

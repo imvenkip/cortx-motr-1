@@ -317,8 +317,6 @@ end:
 /** Fetches next GOB fid. */
 static int iter_fid_next(struct m0_sns_cm_iter *it)
 {
-	struct m0_sns_cm                *scm = it2sns(it);
-	struct m0_cm                    *cm  = &scm->sc_base;
 	struct m0_sns_cm_iter_file_ctx  *ifc = &it->si_fc;
 	struct m0_fid                    fid_next;
 	int                              rc;
@@ -326,12 +324,6 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 
 	m0_fid_gob_make(&fid_next, 0, 0);
 	ifc->ifc_fctx = NULL;
-	if (cm->cm_quiesce || cm->cm_abort) {
-		M0_LOG(M0_WARN, "%lu: Got %s cmd: returning -ENODATA",
-				 cm->cm_id,
-				 cm->cm_quiesce ? "QUIESCE" : "ABORT");
-		return M0_RC(-ENODATA);
-	}
 
 	/* Get current GOB fid saved in the iterator. */
 	do {
@@ -401,9 +393,10 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 			 uint64_t group, struct m0_pdclust_layout *pl,
 			 bool has_incoming, struct m0_cm_aggr_group **ag)
 {
-	struct m0_cm       *cm = &scm->sc_base;
-	struct m0_cm_ag_id  agid;
-	int                 rc = 0;
+	struct m0_cm        *cm = &scm->sc_base;
+	struct m0_cm_ag_id   agid;
+	struct m0_sns_cm_ag *sag;
+	int                  rc = 0;
 
 	m0_sns_cm_ag_agid_setup(gfid, group, &agid);
 	/*
@@ -419,7 +412,7 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 		if (m0_cm_ag_id_cmp(&agid,
 				    &cm->cm_sw_last_updated_hi) <= 0) {
 			*ag = m0_cm_aggr_group_locate(cm, &agid, has_incoming);
-			return 0;
+			goto out;
 		}
 	}
 
@@ -435,6 +428,12 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 	if (rc == 0)
 		rc = m0_cm_aggr_group_alloc(cm, &agid, has_incoming, ag);
 
+out:
+	if (*ag != NULL && has_incoming) {
+		sag = ag2snsag(*ag);
+		if (sag->sag_outgoing_nr > 0 && !aggr_grps_out_tlink_is_in(*ag))
+			m0_cm_aggr_group_add(cm, *ag, false);
+	}
 	return M0_RC(rc);
 }
 
@@ -569,6 +568,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm_iter_file_ctx *ifc;
 	struct m0_sns_cm_file_ctx      *fctx;
 	struct m0_sns_cm_cp            *scp;
+	struct m0_sns_cm_ag            *sag;
 	bool                            has_data;
 	uint64_t                        group;
 	uint64_t                        stob_offset;
@@ -590,6 +590,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	scp = it->si_cp;
 	scp->sc_base.c_ag = it->si_ag;
 	M0_ASSERT(scp->sc_base.c_ag != NULL);
+	sag = ag2snsag(scp->sc_base.c_ag);
 	scp->sc_is_local = true;
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	/*
@@ -617,6 +618,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	if (rc < 0)
 		return M0_RC(rc);
 
+	M0_CNT_INC(sag->sag_cp_created_nr);
 	rc = M0_FSO_AGAIN;
 out:
 	iter_phase_set(it, ITPH_COB_NEXT);
@@ -730,6 +732,14 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 	it = &scm->sc_it;
 	it->si_cp = cp2snscp(cp);
 	do {
+		if (cm->cm_quiesce || cm->cm_abort) {
+			if (M0_IN(iter_phase(it), (ITPH_FID_NEXT))) {
+				M0_LOG(M0_WARN, "%lu: Got %s cmd: returning -ENODATA",
+						 cm->cm_id,
+						 cm->cm_quiesce ? "QUIESCE" : "ABORT");
+				return M0_RC(-ENODATA);
+			}
+		}
 		rc = iter_action[iter_phase(it)](it);
 		M0_ASSERT(iter_invariant(it));
 	} while (rc == 0);
@@ -761,7 +771,7 @@ static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
 		.sd_flags   = 0,
 		.sd_name    = "group next",
 		.sd_allowed = M0_BITS(ITPH_COB_NEXT, ITPH_AG_SETUP,
-				      ITPH_FID_NEXT)
+				      ITPH_FID_NEXT, ITPH_IDLE)
 	},
 	[ITPH_FID_NEXT] = {
 		.sd_flags   = 0,
@@ -849,15 +859,12 @@ M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 
 M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it)
 {
-	struct m0_sns_cm *scm = it2sns(it);
-	struct m0_cm     *cm;
+	M0_PRE(M0_IN(iter_phase(it), (ITPH_IDLE, ITPH_FID_NEXT)));
 
-	M0_PRE(iter_phase(it) == ITPH_IDLE);
-
-	cm = &scm->sc_base;
+	if (iter_phase(it) != ITPH_IDLE)
+		iter_phase_set(it, ITPH_IDLE);
 	m0_cob_ns_iter_fini(&it->si_cns_it);
-	if (!cm->cm_quiesce)
-		M0_SET0(&it->si_fc);
+	M0_SET0(&it->si_fc);
 }
 
 M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm_iter *it)

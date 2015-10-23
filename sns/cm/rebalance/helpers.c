@@ -39,7 +39,8 @@ static uint64_t
 rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id,
 				struct m0_pdclust_layout *pl,
-				struct m0_pdclust_instance *pi)
+				struct m0_pdclust_instance *pi,
+				struct m0_bitmap *proxy_in_map)
 {
         struct m0_poolmach         *pm = scm->sc_base.cm_pm;
         struct m0_fid               cobfid;
@@ -77,7 +78,6 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
                 if (!m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid))
 			M0_CNT_INC(incoming_nr);
 	}
-
         return incoming_nr;
 }
 
