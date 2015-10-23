@@ -131,9 +131,11 @@ M0_INTERNAL int m0_stob_locate(struct m0_stob *stob)
 	M0_PRE(m0_stob_state_get(stob) == CSS_UNKNOWN);
 
 	rc = dom->sd_ops->sdo_stob_init(stob, dom, m0_stob_fid_get(stob));
-	m0_stob__state_set(stob,
-			   rc == 0	 ? CSS_EXISTS :
-			   rc == -ENOENT ? CSS_NOENT : m0_stob_state_get(stob));
+	if (rc == 0)
+		m0_stob__state_set(stob, CSS_EXISTS);
+	else if (rc == -ENOENT)
+		m0_stob__state_set(stob, CSS_NOENT);
+
 	return M0_RC(M0_IN(rc, (0, -ENOENT)) ? 0 : rc);
 }
 

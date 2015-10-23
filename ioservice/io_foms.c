@@ -1090,6 +1090,7 @@ static int stob_object_find(struct m0_fom *fom)
 	result = m0_stob_find(&stob_id, &fom_obj->fcrw_stob);
 	if (result != 0)
 		return result;
+
 	stob_state = m0_stob_state_get(fom_obj->fcrw_stob);
 	if (stob_state == CSS_UNKNOWN)
 		result = m0_stob_locate(fom_obj->fcrw_stob);
