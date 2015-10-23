@@ -436,6 +436,35 @@ struct m0_fom_type_ops m0_rpc_fom_conn_terminate_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
+static void conn_cleanup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_rpc_conn *conn;
+
+	conn = container_of(ast, struct m0_rpc_conn, c_ast);
+	m0_rpc_conn_terminate_reply_sent(conn);
+}
+
+static void conn_terminate_reply_sent_cb(struct m0_rpc_item *item)
+{
+	struct m0_rpc_conn *conn;
+
+	M0_ENTRY("item: %p", item);
+
+	M0_PRE(item != NULL &&
+	       item->ri_session != NULL &&
+	       item->ri_session->s_session_id == SESSION_ID_0 &&
+	       item->ri_session->s_conn != NULL);
+
+	conn = item->ri_session->s_conn;
+	conn->c_ast.sa_cb = conn_cleanup_ast;
+	m0_sm_ast_post(&conn->c_rpc_machine->rm_sm_grp, &conn->c_ast);
+	M0_LEAVE();
+}
+
+static const struct m0_rpc_item_ops conn_terminate_reply_item_ops = {
+	.rio_sent = conn_terminate_reply_sent_cb,
+};
+
 M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 {
 	struct m0_rpc_fop_conn_terminate_rep *reply;
@@ -458,19 +487,26 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 	item    = &fop->f_item;
 	conn    = item->ri_session->s_conn;
 	machine = conn->c_rpc_machine;
-
 	m0_rpc_machine_lock(machine);
+
 	reply->ctr_sender_id = request->ct_sender_id;
-	reply->ctr_rc        = m0_rpc_rcv_conn_terminate(conn);
+	switch (conn_state(conn)) {
+	case M0_RPC_CONN_ACTIVE:
+		reply->ctr_rc = m0_rpc_rcv_conn_terminate(conn);
+		break;
+	case M0_RPC_CONN_TERMINATING:
+		reply->ctr_rc = -EALREADY;
+		break;
+	case M0_RPC_CONN_TERMINATED:
+		reply->ctr_rc = -EPERM;
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid state");
+	}
 	m0_rpc_machine_unlock(machine);
 
+	fop_rep->f_item.ri_ops = &conn_terminate_reply_item_ops;
 	m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-
-	m0_rpc_machine_lock(machine);
-	m0_sm_timedwait(&item->ri_session->s_sm, M0_BITS(M0_RPC_SESSION_IDLE),
-			M0_TIME_NEVER);
-	m0_rpc_conn_terminate_reply_sent(conn);
-	m0_rpc_machine_unlock(machine);
 
 	/*
 	 * In memory state of conn is not cleaned up, at this point.

@@ -903,11 +903,10 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_sent(struct m0_rpc_conn *conn)
 					   M0_RPC_CONN_FAILED)));
 
 	session0 = m0_rpc_conn_session0(conn);
-	m0_sm_timedwait(&session0->s_sm, M0_BITS(M0_RPC_SESSION_IDLE),
-	                M0_TIME_NEVER);
-
-	m0_rpc_conn_fini_locked(conn);
-	m0_free(conn);
+	if (session0->s_sm.sm_state == M0_RPC_SESSION_IDLE) {
+		m0_rpc_conn_fini_locked(conn);
+		m0_free(conn);
+	}
 	M0_LEAVE();
 }
 
