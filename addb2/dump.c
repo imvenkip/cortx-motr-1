@@ -84,14 +84,11 @@ struct fom {
 	uint64_t                  fo_addr;
 	uint64_t                  fo_tid;
 	const struct m0_fom_type *fo_type;
-	m0_time_t                 fo_state_clock;
-	m0_time_t                 fo_phase_clock;
 	uint64_t                  fo_magix;
 };
 
 struct context {
 	struct fom                    c_fom;
-	m0_time_t                     c_clock;
 	const struct m0_addb2_record *c_rec;
 	const struct m0_addb2_value  *c_val;
 };
@@ -262,7 +259,6 @@ static void _clock(struct context *ctx, const uint64_t *v, char *buf)
 	sprintf(buf, "%04d-%02d-%02d-%02d:%02d:%02d.%09lu",
 		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
 		tm.tm_min, tm.tm_sec, m0_time_nanoseconds(stamp));
-	ctx->c_clock = stamp;
 }
 
 static void duration(struct context *ctx, const uint64_t *v, char *buf)
@@ -307,7 +303,6 @@ static void sm_state(const struct m0_sm_conf *conf,
 			conf->scf_state[d->td_src].sd_name,
 			d->td_cause, conf->scf_state[d->td_tgt].sd_name);
 	}
-	ctx->c_fom.fo_state_clock = v[2];
 }
 
 extern struct m0_sm_conf fom_states_conf;
@@ -324,7 +319,6 @@ static void fom_phase(struct context *ctx, const uint64_t *v, char *buf)
 	/*
 	 * v[0] - transition id
 	 * v[1] - state id
-	 * v[2] - time stamp
 	 */
 	if (ctx->c_fom.fo_type != NULL) {
 		conf = &ctx->c_fom.fo_type->ft_conf;
@@ -340,7 +334,6 @@ static void fom_phase(struct context *ctx, const uint64_t *v, char *buf)
 				d->td_cause, s->sd_name);
 		} else
 			sprintf(buf, "phase transition %i", (int)v[0]);
-		ctx->c_fom.fo_phase_clock = v[2];
 	} else
 		sprintf(buf, "phase ast transition %i", (int)v[0]);
 }
@@ -380,14 +373,13 @@ static void sym(struct context *ctx, const uint64_t *v, char *buf)
 
 static void counter(struct context *ctx, const uint64_t *v, char *buf)
 {
-	struct m0_addb2_counter_data *d = (void *)&v[1];
+	struct m0_addb2_counter_data *d = (void *)&v[0];
 	double avg;
 	double dev;
 
 	avg = d->cod_nr > 0 ? ((double)d->cod_sum) / d->cod_nr : 0;
 	dev = d->cod_nr > 1 ? ((double)d->cod_ssq) / d->cod_nr - avg * avg : 0;
 
-	_clock(ctx, v, buf);
 	sprintf(buf + strlen(buf), " nr: %"PRId64" min: %"PRId64" max: %"PRId64
 		" avg: %f dev: %f datum: %"PRIx64" ",
 		d->cod_nr, d->cod_min, d->cod_max, avg, dev, d->cod_datum);
@@ -473,7 +465,7 @@ static void beop_state_counter(struct context *ctx, char *buf)
 
 #define COUNTER  &counter, &skip, &skip, &skip, &skip, &skip, &skip
 #define FID &fid, &skip
-#define TIMED &_clock, &duration, &sym
+#define TIMED &duration, &sym
 
 struct id_intrp ids[] = {
 	{ M0_AVI_NULL,            "null" },
@@ -484,20 +476,17 @@ struct id_intrp ids[] = {
 	{ M0_AVI_SERVICE,         "service",         { FID } },
 	{ M0_AVI_FOM,             "fom",             { &ptr, &fom_type,
 						       &skip, &skip } },
-	{ M0_AVI_CLOCK,           "clock",           { &_clock } },
-	{ M0_AVI_PHASE,           "fom-phase",       { &fom_phase, &skip,
-						       &_clock } },
-	{ M0_AVI_STATE,           "fom-state",       { &fom_state, &skip,
-						       &_clock } },
+	{ M0_AVI_CLOCK,           "clock",           { } },
+	{ M0_AVI_PHASE,           "fom-phase",       { &fom_phase, &skip } },
+	{ M0_AVI_STATE,           "fom-state",       { &fom_state, &skip } },
 	{ M0_AVI_STATE_COUNTER,   "",
 	  .ii_repeat = M0_AVI_STATE_COUNTER_END - M0_AVI_STATE_COUNTER,
 	  .ii_spec   = &fom_state_counter },
 	{ M0_AVI_ALLOC,           "alloc",           { &dec, &ptr },
 	  { "size", "addr" } },
-	{ M0_AVI_FOM_DESCR,       "fom-descr",       { &_clock, FID,
-						       &hex, &rpcop,
+	{ M0_AVI_FOM_DESCR,       "fom-descr",       { FID, &hex, &rpcop,
 						       &rpcop, &bol },
-	  { NULL, "service", NULL, "sender",
+	  { "service", NULL, "sender",
 	    "req-opcode", "rep-opcode", "local" } },
 	{ M0_AVI_FOM_ACTIVE,      "fom-active",      { COUNTER } },
 	{ M0_AVI_RUNQ,            "runq",            { COUNTER } },
@@ -527,13 +516,11 @@ struct id_intrp ids[] = {
 							 &dec,&dec },
 	  { "req_state", NULL, NULL, "unit_type", "device_state",
 	    "frame", "target", "group", "unit" }},
-	{ M0_AVI_STOB_IO_LAUNCH,  "stob-io-launch",  { &_clock, FID, &dec,
-						       &dec, &dec, &dec,
-						       &dec },
-	  { NULL, NULL, NULL, "count", "bvec-nr", "ivec-nr", "offset" } },
-	{ M0_AVI_STOB_IO_END,     "stob-io-end",     { &_clock, FID, &dec,
-						       &dec, &dec },
-	  { NULL, NULL, NULL, "rc", "count", "frag" } },
+	{ M0_AVI_STOB_IO_LAUNCH,  "stob-io-launch",  { FID, &dec,
+						       &dec, &dec, &dec, &dec },
+	  { NULL, NULL, "count", "bvec-nr", "ivec-nr", "offset" } },
+	{ M0_AVI_STOB_IO_END,     "stob-io-end",     { FID, &dec, &dec, &dec },
+	  { NULL, NULL, "rc", "count", "frag" } },
 	{ M0_AVI_STOB_IOQ,        "stob-ioq-thread", { &dec } },
 	{ M0_AVI_STOB_IOQ_INFLIGHT, "stob-ioq-inflight", { COUNTER } },
 	{ M0_AVI_STOB_IOQ_QUEUED, "stob-ioq-queued", { COUNTER } },
@@ -541,12 +528,9 @@ struct id_intrp ids[] = {
 
 	{ M0_AVI_RPC_LOCK,        "rpc-machine-lock", { &ptr } },
 	{ M0_AVI_RPC_REPLIED,     "rpc-replied",      { &ptr, &rpcop } },
-	{ M0_AVI_RPC_OUT_PHASE,   "rpc-out-phase",    { &rpc_out,
-							&skip, &_clock } },
-	{ M0_AVI_RPC_IN_PHASE,    "rpc-in-phase",    { &rpc_in,
-						       &skip, &_clock } },
-	{ M0_AVI_BE_TX_STATE,     "tx-state",       { &tx_state, &skip,
-						       &_clock } },
+	{ M0_AVI_RPC_OUT_PHASE,   "rpc-out-phase",    { &rpc_out, &skip } },
+	{ M0_AVI_RPC_IN_PHASE,    "rpc-in-phase",    { &rpc_in, &skip } },
+	{ M0_AVI_BE_TX_STATE,     "tx-state",       { &tx_state, &skip  } },
 	{ M0_AVI_BE_TX_COUNTER,   "",
 	  .ii_repeat = M0_AVI_BE_TX_COUNTER_END - M0_AVI_BE_TX_COUNTER,
 	  .ii_spec   = &tx_state_counter },
@@ -649,6 +633,10 @@ static void val_dump(struct context *ctx, const char *prefix,
 	ctx->c_val = val;
 	printf(prefix);
 	pad(indent);
+	if (indent == 0 && val->va_time != 0) {
+		_clock(ctx, &val->va_time, buf);
+		printf("%s ", buf);
+	}
 	if (intrp != NULL && intrp->ii_spec != NULL) {
 		intrp->ii_spec(ctx, buf);
 		printf("%s%s", buf, cr ? "\n" : " ");

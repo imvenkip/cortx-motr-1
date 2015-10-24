@@ -39,7 +39,7 @@ $ ./utils/m0run m0addb2dump -- /var/mero/systest-27554/????/addb-stobs/o/*2 |les
 
 The output consists of records, formatted as following:
 
-* clock            2015-04-14-15:32:02.395575233
+* 2015-10-24-04:21:44.073956527 clock
 |         node             <11186d8bf0e34117:ab1897c062a22573>
 |         locality         0
 
@@ -51,14 +51,14 @@ generated).
 
 A few more examples:
 
-* m0t1fs-create    <4700000000000000:10007>, mode: 100644, rc: 0
+* 2015-10-24-04:21:44.073956527 m0t1fs-create <4700000000000000:10007>, mode: 100644, rc: 0
 |         node             <11186d8bf0e34117:ab1897c062a22573>
 |         thread           ffff88007407ca80, 7081
 
 This is a client-originated record. The measurement records file creation
 operation in m0t1fs.
 
-* alloc            size: 40,   addr: @0x7fd27c53eb20
+* 2015-04-20-14:36:13.687531192 alloc     size: 40,   addr: @0x7fd27c53eb20
 |         node             <f3b62b87d9e642b2:96a4e0520cc5477b>
 |         locality         1
 |         thread           7fd28f5fe700
@@ -69,7 +69,7 @@ operation in m0t1fs.
 Record of a memory allocation, which happened when a fom in "Zero-copy finish"
 phase launched AD-stob IO, which incurred Linux-stob IO.
 
-* fom-phase        Zero-copy finish -[Wait for Zero-copy finished buffer release]-> Network buffer release, 2015-04-14-15:33:11.986308972
+* 2015-10-24-04:21:44.073956527 fom-phase        Zero-copy finish -[Wait for Zero-copy finished buffer release]-> Network buffer release
 |         node             <11186d8bf0e34117:ab1897c062a22573>
 |         locality         3
 |         thread           7f79e57fb700
@@ -78,13 +78,13 @@ phase launched AD-stob IO, which incurred Linux-stob IO.
 This record describes fom state transition. Note the "fom" label in the context:
 it describes the fom which undergoes the phase transition.
 
-* fom-descr        2015-04-14-15:33:11.998165453, service: <0:0>, sender: c28baccf27e0001, req-opcode: Read request, rep-opcode: Read reply, local: false
+* 2015-04-14-15:33:11.998165453 fom-descr service: <7300000000000001:0>, sender: c28baccf27e0001, req-opcode: Read request, rep-opcode: Read reply, local: false
 |         node             <11186d8bf0e34117:ab1897c062a22573>
 |         locality         3
 |         thread           7f79e57fb700
 |         ast
 |         fom              @0x7f795008ed20, 'IO fom', transitions: 0, phase: 0
-* ios-io-descr     file: <4700000000000000:10006>, cob: <1:10006>, read-v: 0,  write-v: 0, seg-nr: 1,  count: 8192, offset: 36864, descr-nr: 1, colour: 0
+* 2015-04-14-15:33:11.998124387 ios-io-descr     file: <4700000000000000:10006>, cob: <1:10006>, read-v: 0,  write-v: 0, seg-nr: 1,  count: 8192, offset: 36864, descr-nr: 1, colour: 0
 |         node             <11186d8bf0e34117:ab1897c062a22573>
 |         locality         3
 |         thread           7f79e57fb700
@@ -110,13 +110,13 @@ There are two types of measurements:
 
 "Clock" is a sensor. Other examples of sensors are:
 
-* fom-active       2015-04-15-13:04:19.614626769 nr: 24 min: 1 max: 2 avg: 1.500000 dev: 0.250000
+* 2015-04-15-13:04:19.614626769 fom-active nr: 24 min: 1 max: 2 avg: 1.500000 dev: 0.250000
 |         node             <b0cf922c851b42c4:89028b3a5eeded41>
 |         locality         0
-* runq             2015-04-15-13:04:19.614627234 nr: 242 min: 0 max: 2 avg: 0.657025 dev: 0.382368
+* 2015-04-15-13:04:19.614627234 runq nr: 242 min: 0 max: 2 avg: 0.657025 dev: 0.382368
 |         node             <b0cf922c851b42c4:89028b3a5eeded41>
 |         locality         0
-* wail             2015-04-15-13:04:19.614627526 nr: 218 min: 0 max: 2 avg: 0.940367 dev: 0.496444
+* 2015-04-15-13:04:19.614627526 wail nr: 218 min: 0 max: 2 avg: 0.940367 dev: 0.496444
 |         node             <b0cf922c851b42c4:89028b3a5eeded41>
 |         locality         0
 
@@ -125,7 +125,7 @@ context, number of foms in locality run-queue and locality wait-list.
 
 Important sensors are fom phase transition counters:
 
-* Read request/IO fom: fom_tx_wait -[Transaction opened]-> IO Prepare 2015-04-15-13:04:18.607430792 nr: 5 min: 131 max: 898 avg: 379.600000 dev: 88701.040000 datum: 0
+* 2015-04-15-13:04:18.607430792 Read request/IO fom: fom_tx_wait -[Transaction opened]-> IO Prepare nr: 5 min: 131 max: 898 avg: 379.600000 dev: 88701.040000 datum: 0
 |         node             <b0cf922c851b42c4:89028b3a5eeded41>
 |         locality         1
 
@@ -147,13 +147,13 @@ particular type in a particular locality. Note that:
 
 There is a similar counter for fom *state* transitions:
 
-* /FOM states: Ready -[Run]-> Running 2015-04-15-13:03:13.656801304 nr: 124 min: 3 max: 297 avg: 11.580645 dev: 698.808012 datum: 0
+* 2015-04-15-13:03:13.656801304 /FOM states: Ready -[Run]-> Running nr: 124 min: 3 max: 297 avg: 11.580645 dev: 698.808012 datum: 0
 |         node             <b0cf922c851b42c4:89028b3a5eeded41>
 |         locality         0
 
 This counter is shared by foms of all types. There are also separate fom state transitions for some fop types:
 
-* Write request/FOM states: Ready -[Run]-> Running 2015-04-20-14:36:13.572621581 nr: 6 min: 3 max: 6 avg: 5.166667 dev: 1.138889 datum: 0
+* 2015-04-20-14:36:13.572621581 Write request/FOM states: Ready -[Run]-> Running nr: 6 min: 3 max: 6 avg: 5.166667 dev: 1.138889 datum: 0
 |         node             <f3b62b87d9e642b2:96a4e0520cc5477b>
 |         locality         1
 
@@ -171,15 +171,15 @@ between m0addb2dump output format and line-oriented format. Output is
 "flattened" by by appending context labels to the measurement line. E.g., the
 "clock" record above becomes
 
-* clock            2015-04-14-15:32:02.395575233 |         node             <11186d8bf0e34117:ab1897c062a22573> |         locality         0
+* 2015-04-14-15:32:02.395575233 clock         |         node             <11186d8bf0e34117:ab1897c062a22573> |         locality         0
 
 (as one line).
 
-'-r' converts its input back into default m0addb2dump format.
+'-d' converts its input back into default m0addb2dump format.
 
 Example use:
 
-m0addb2dump -f $INPUT | grep forq | sort -k9,9 -n | m0addb2dump -r | less
+m0addb2dump -f $INPUT | grep forq-duration | sort -k4,4 | m0addb2dump -d | less
 
 This finds all addb2 records describing fork-queue AST processing, sorts them by
 processing time and displays results.
@@ -187,7 +187,7 @@ processing time and displays results.
 A more sophisticated query would be:
 
 $ m0addb2dump -f $INPUT | \
-     grep 'Write.*committed.*nr: [^0]' | awk '{print $27}' | sort | uniq -c
+     grep 'Write.*committed.*nr: [^0]' | awk '{print $30}' | sort | uniq -c
 
 which finds all records about WRITE foms transition to the "transaction
 committed" phase, extracts locality number ($27) from records and counts how
@@ -195,8 +195,9 @@ many times foms committed in each locality.
 
 To find how much memory is allocated for a particular fom, given by its address:
 
-$ m0addb2dump -f $PWD/ios1/addb-stobs/o/*2 | grep '^\* alloc.*@0x7f5f980527d0' |\
-       awk '{print $4; sum += $4} END {print "Total:", sum}'
+$ m0addb2dump -f $PWD/ios1/addb-stobs/o/*2 |\
+       grep '^\* [-0-9:.]* alloc.*fom *@0x7fab90041270' |\
+       awk '{print $5; sum += $5} END {print "Total:", sum}'
 8,
 8,
 48,
@@ -236,7 +237,7 @@ Statistics on individual state transitions by locality:
 
 m0addb2dump $INPUT -f | grep 'tx-state.*locality *[0-9]' |\
     awk '{print $15}' | sort | uniq -c
-   6314 0
-  10907 1
-     14 2
-   6118 3
+  18838 0
+  19715 1
+  20196 2
+  19162 3

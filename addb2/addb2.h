@@ -68,21 +68,21 @@
  * All addb2 records have the same structure: a record (struct m0_addb2_record)
  * is a "measurement", tagged with a set of "labels". Measurements and labels
  * have the same structure, described by struct m0_addb2_value: a 56-bit
- * identifier, plus a (variable up to 15, possibly 0) number of 64-bit data
- * items, called "payload". To give a fictitious, but realistic example of a
- * record:
+ * identifier, plus a time-stamp, plus a (variable up to 15, possibly 0) number
+ * of 64-bit data items, called "payload". To give a fictitious, but realistic
+ * example of a record:
  *
  * @verbatim
- *                |  IDENTIFIER      PAYLOAD[0]    PAYLOAD[1]    PAYLOAD[2]
- *    ------------+---------------------------------------------------------
- *    MEASUREMENT |  IO_WAIT_TIME    5117216ns
- *    LABEL-6     |  DEVICE_FID      7             200
- *    LABEL-5     |  FOP_OBJ_FID     10            23213
- *    LABEL-4     |  CLIENT_ID       404
- *    LABEL-3     |  FOP_OP_CODE     COB_READ
- *    LABEL-2     |  SERVICE         IOSERVICE
- *    LABEL-1     |  CPU_CORE        3
- *    LABEL-0     |  NODE_ID         20
+ *                |  IDENTIFIER      TIMESTAMP     PAYLOAD[0]    PAYLOAD[1] ...
+ *    ------------+------------------------------------------------------------
+ *    MEASUREMENT |  IO_WAIT_TIME     851263.911   5117216ns
+ *    LABEL-6     |  DEVICE_FID       849265.721   7             200
+ *    LABEL-5     |  FOP_OBJ_FID      842124.732   10            23213
+ *    LABEL-4     |  CLIENT_ID        842124.732   404
+ *    LABEL-3     |  FOP_OP_CODE      842124.732   COB_READ
+ *    LABEL-2     |  SERVICE           15216.215   IOSERVICE
+ *    LABEL-1     |  CPU_CORE            521.100   3
+ *    LABEL-0     |  NODE_ID             100.321   20
  * @endverbatim
  *
  * Labels describe the context, in which the measurement occurred. In this case
@@ -91,6 +91,9 @@
  * to the ioservice on the server 20 and handled on the 3rd core.
  *
  * The measurement itself is read operation latency: 5117216ns.
+ *
+ * Time-stamps (in nanoseconds) record the time when the measurement was taken
+ * or the context was entered.
  *
  * Measurements can be produced in two ways:
  *
@@ -101,7 +104,7 @@
  *       IMPLEMENTATION periodically reads the sensors associated with the
  *       context.
  *
- * Examples of a record produced by a sensor would be
+ * Examples (sans time-stamps) of records produced by a sensor would be
  *
  * @verbatim
  *                |  IDENTIFIER      PAYLOAD[0]    PAYLOAD[1]    PAYLOAD[2]

@@ -380,7 +380,7 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 			delta = m0_time_sub(now, mach->sm_state_epoch) >> 10;
 			M0_ASSERT(stats->as_nr == 0 || trans < stats->as_nr);
 			if (stats->as_id != 0)
-				M0_ADDB2_ADD(stats->as_id, trans, state, now);
+				M0_ADDB2_ADD(stats->as_id, trans, state);
 			if (stats->as_nr > 0)
 				m0_addb2_counter_mod(&stats->as_counter[trans],
 						     delta);

@@ -695,24 +695,26 @@ int m0_addb2_cursor_next(struct m0_addb2_cursor *cur)
 
 	while (cur->cu_pos < cur->cu_trace->tr_nr) {
 		uint64_t *addr  = &cur->cu_trace->tr_body[cur->cu_pos];
-		uint64_t  datum = *addr;
+		uint64_t  datum = addr[0];
+		m0_time_t time  = addr[1];
 		uint64_t  tag   = datum >> (64 - 8);
 		uint8_t   nr    = tag & 0xf;
 
 		M0_CASSERT(VALUE_MAX_NR == 0xf);
 
 		datum &= ~TAG_MASK;
-		addr += 1;
+		addr += 2;
 		switch (tag) {
 		case PUSH ... PUSH + VALUE_MAX_NR:
 			if (r->ar_label_nr < ARRAY_SIZE(r->ar_label)) {
 				r->ar_label[r->ar_label_nr ++] =
 					(struct m0_addb2_value) {
 					.va_id   = datum,
+					.va_time = time,
 					.va_nr   = nr,
 					.va_data = addr
 				};
-				cur->cu_pos += nr + 1;
+				cur->cu_pos += nr + 2;
 				continue;
 			} else
 				M0_LOG(M0_NOTICE, "Too many labels.");
@@ -720,7 +722,7 @@ int m0_addb2_cursor_next(struct m0_addb2_cursor *cur)
 		case POP:
 			if (r->ar_label_nr > 0) {
 				-- r->ar_label_nr;
-				cur->cu_pos += 1;
+				cur->cu_pos += 2;
 				continue;
 			} else
 				M0_LOG(M0_NOTICE, "Underflow.");
@@ -729,10 +731,11 @@ int m0_addb2_cursor_next(struct m0_addb2_cursor *cur)
 		case SENSOR ... SENSOR + VALUE_MAX_NR:
 			r->ar_val = (struct m0_addb2_value) {
 				.va_id   = datum,
+				.va_time = time,
 				.va_nr   = nr,
 				.va_data = addr
 			};
-			cur->cu_pos += nr + 1;
+			cur->cu_pos += nr + 2;
 			if (datum == M0_AVI_NODATA) /* skip internal record */
 				continue;
 			m0_addb2_consume(&cur->cu_src, r);
@@ -880,11 +883,13 @@ static void mach_idle(struct m0_addb2_mach *m)
 static void add(struct m0_addb2_mach *mach,
 		uint64_t id, int n, const uint64_t *value)
 {
-	struct buffer *buf = cur(mach, sizeof id + n * sizeof value[0]);
+	m0_time_t      now = m0_time_now();
+	struct buffer *buf = cur(mach,
+				 sizeof id + sizeof now + n * sizeof value[0]);
 
 	if (buf != NULL) {
 		buffer_add(buf, id);
-
+		buffer_add(buf, now);
 		while (n-- > 0)
 			buffer_add(buf, *value++);
 	}
@@ -1004,7 +1009,7 @@ static struct tentry *mach_top(struct m0_addb2_mach *m)
  */
 static void sensor_place(struct m0_addb2_mach *m, struct m0_addb2_sensor *s)
 {
-	int nr = s->s_nr + 1;
+	int nr = s->s_nr;
 
 	M0_PRE(s != NULL);
 	M0_PRE(nr <= VALUE_MAX_NR);
@@ -1012,8 +1017,7 @@ static void sensor_place(struct m0_addb2_mach *m, struct m0_addb2_sensor *s)
 	{
 		uint64_t area[nr]; /* VLA! */
 
-		area[0] = m0_time_now();
-		s->s_ops->so_snapshot(s, area + 1);
+		s->s_ops->so_snapshot(s, area);
 		add(m, tag(SENSOR | nr, s->s_id), nr, area);
 		record_consume(m, s->s_id, nr, area);
 	}

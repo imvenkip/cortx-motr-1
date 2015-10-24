@@ -42,12 +42,18 @@ static void init_fini(void)
 	m0_addb2_mach_fini(m);
 }
 
+enum {
+	SKIPME = 0xbebebebebe4ebebe,
+	END    = 0xbcbcbcbcbcbcb7bc
+};
+
 static bool trace_eq(const struct m0_addb2_trace *t0,
 		     const struct m0_addb2_trace *t1)
 {
 	return t0->tr_nr == t1->tr_nr &&
-		memcmp(t0->tr_body, t1->tr_body,
-		       t0->tr_nr * sizeof t0->tr_body[0]) == 0;
+		m0_forall(i, t1->tr_nr,
+			  t0->tr_body[i] == t1->tr_body[i] ||
+			  t0->tr_body[i] == SKIPME);
 }
 
 enum {
@@ -84,6 +90,11 @@ static struct m0_addb2_trace *shouldbe;
 static int check_submit(const struct m0_addb2_mach *mach,
 			struct m0_addb2_trace *trace)
 {
+	int nr;
+
+	for (nr = 0; shouldbe->tr_body[nr] != END; ++nr)
+		;
+	shouldbe->tr_nr = nr;
 	M0_UT_ASSERT(trace_eq(shouldbe, trace));
 	M0_UT_ASSERT(submitted == 0);
 	++ submitted;
@@ -100,11 +111,13 @@ static void push_pop(void)
 	struct m0_addb2_mach *m;
 
 	shouldbe = &(struct m0_addb2_trace) {
-		.tr_nr = 3,
 		.tr_body = (uint64_t[]){
 			0x1100000000000000 | LABEL_ID_0, /* PUSH 17, 1 */
+			SKIPME,                          /* time-stamp */
 			payload[0],                      /* payload */
-			0x0f00000000000000               /* POP */
+			0x0f00000000000000,              /* POP */
+			SKIPME,                          /* time-stamp */
+			END
 		}
 	};
 
@@ -125,10 +138,12 @@ static void push0_pop(void)
 	struct m0_addb2_mach *m;
 
 	shouldbe = &(struct m0_addb2_trace) {
-		.tr_nr = 2,
 		.tr_body = (uint64_t[]){
 			0x1000000000000000 | LABEL_ID_0, /* PUSH 17, 0 */
-			0x0f00000000000000               /* POP */
+			SKIPME,                          /* time-stamp */
+			0x0f00000000000000,              /* POP */
+			SKIPME,                          /* time-stamp */
+			END
 		}
 	};
 
@@ -148,15 +163,17 @@ static void push5_pop(void)
 	struct m0_addb2_mach *m;
 
 	shouldbe = &(struct m0_addb2_trace) {
-		.tr_nr = 7,
 		.tr_body = (uint64_t[]){
 			0x1500000000000000 | LABEL_ID_0, /* PUSH 17, 5 */
+			SKIPME,                          /* time-stamp */
 			payload[3],
 			payload[4],
 			payload[5],
 			payload[6],
 			payload[7],
-			0x0f00000000000000               /* POP */
+			0x0f00000000000000,               /* POP */
+			SKIPME,                           /* time-stamp */
+			END
 		}
 	};
 
@@ -176,18 +193,24 @@ static void pushN_popN(void)
 	struct m0_addb2_mach *m;
 
 	shouldbe = &(struct m0_addb2_trace) {
-		.tr_nr = 10,
 		.tr_body = (uint64_t[]){
 			0x1100000000000000 | (LABEL_ID_0 + 0), /* PUSH 17, 5 */
+			SKIPME,                                /* time-stamp */
 			payload[2],
 			0x1000000000000000 | (LABEL_ID_0 + 2), /* PUSH 19, 0 */
+			SKIPME,                                /* time-stamp */
 			0x1300000000000000 | (LABEL_ID_0 + 3), /* PUSH 1a, 3 */
+			SKIPME,                                /* time-stamp */
 			payload[0],
 			payload[1],
 			payload[2],
 			0x0f00000000000000,                    /* POP */
+			SKIPME,                                /* time-stamp */
 			0x0f00000000000000,                    /* POP */
+			SKIPME,                                /* time-stamp */
 			0x0f00000000000000,                    /* POP */
+			SKIPME,                                /* time-stamp */
+			END
 		}
 	};
 
@@ -210,10 +233,11 @@ static void add(void)
 	struct m0_addb2_mach *m;
 
 	shouldbe = &(struct m0_addb2_trace) {
-		.tr_nr = 2,
 		.tr_body = (uint64_t[]){
 			0x2100000000000000 | LABEL_ID_0, /* DATA 17, 1 */
-			payload[0]                       /* payload */
+			SKIPME,                          /* time-stamp */
+			payload[0],                      /* payload */
+			END
 		}
 	};
 
@@ -232,24 +256,32 @@ static void add_var(void)
 	int                   i;
 
 	shouldbe = &(struct m0_addb2_trace) {
-		.tr_nr = 16,
 		.tr_body = (uint64_t[]){
 			0x1100000000000000 | (LABEL_ID_0 + 0), /* PUSH 17, 1 */
+			SKIPME,                                /* time-stamp */
 			payload[0],
 			0x1100000000000000 | (LABEL_ID_0 + 1), /* PUSH 18, 1 */
+			SKIPME,                                /* time-stamp */
 			payload[1],
 			0x2000000000000000 | (LABEL_ID_0 + 0), /* DATA 17, 0 */
+			SKIPME,                                /* time-stamp */
 			0x2100000000000000 | (LABEL_ID_0 + 1), /* DATA 18, 1 */
+			SKIPME,                                /* time-stamp */
 			payload[1],
 			0x2200000000000000 | (LABEL_ID_0 + 2), /* DATA 19, 2 */
+			SKIPME,                                /* time-stamp */
 			payload[2],
 			payload[3],
 			0x2300000000000000 | (LABEL_ID_0 + 3), /* DATA 1a, 3 */
+			SKIPME,                                /* time-stamp */
 			payload[3],
 			payload[4],
 			payload[5],
 			0x0f00000000000000,                    /* POP */
-			0x0f00000000000000                     /* POP */
+			SKIPME,                                /* time-stamp */
+			0x0f00000000000000,                    /* POP */
+			SKIPME,                                /* time-stamp */
+			END
 		}
 	};
 
@@ -276,13 +308,14 @@ static int full_submit(const struct m0_addb2_mach *mach,
 	int i;
 
 	++ submitted;
-	M0_UT_ASSERT(trace->tr_nr % 2 == 0);
-	for (i = 0; i < trace->tr_nr; i += 2) {
+	M0_UT_ASSERT(trace->tr_nr % 3 == 0);
+	for (i = 0; i < trace->tr_nr; i += 3) {
 		M0_UT_ASSERT(trace->tr_body[i] ==
-			     (0x2100000000000000 | (total + i / 2)));
-		M0_UT_ASSERT(trace->tr_body[i + 1] == payload[0]);
+			     (0x2100000000000000 | (total + i / 3)));
+		/* trace->tr_body[i + 1] is the time-stamp. */
+		M0_UT_ASSERT(trace->tr_body[i + 2] == payload[0]);
 	}
-	total += trace->tr_nr / 2;
+	total += trace->tr_nr / 3;
 	M0_UT_ASSERT(total == added);
 	enough = (submitted > 10);
 	if (keep) {
@@ -348,9 +381,9 @@ static int sensor_submit(const struct m0_addb2_mach *mach,
 
 	++ submitted;
 	for (i = 0; i < depth; ++ i)
-		M0_UT_ASSERT(trace->tr_body[i] == /* PUSH 17 + i, 0 */
+		M0_UT_ASSERT(trace->tr_body[2 * i] == /* PUSH 17 + i, 0 */
 			     (0x1000000000000000 | (LABEL_ID_0 + i)));
-	M0_UT_ASSERT(trace->tr_body[i] !=         /* PUSH 17 + i, 0 */
+	M0_UT_ASSERT(trace->tr_body[2 * i] !=         /* PUSH 17 + i, 0 */
 		     (0x1000000000000000 | (LABEL_ID_0 + i)));
 	for (; i < trace->tr_nr; ++ i) {
 		if (trace->tr_body[i] == SENSOR_MARKER)

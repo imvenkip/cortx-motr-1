@@ -94,10 +94,12 @@ enum {
 };
 
 /**
- * Structure of addb2 measurements and labels: an identifier and a payload.
+ * Structure of addb2 measurements and labels: an identifier, a time-stamp and a
+ * payload.
  */
 struct m0_addb2_value {
 	uint64_t        va_id;
+	uint64_t        va_time;
 	unsigned        va_nr;
 	const uint64_t *va_data;
 };

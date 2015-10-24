@@ -1869,8 +1869,7 @@ static bool stob_ad_endio(struct m0_clink *link)
 	io->si_rc     = aio->ai_back.si_rc;
 	io->si_count += aio->ai_back.si_count;
 	io->si_state  = SIS_IDLE;
-	M0_ADDB2_ADD(M0_AVI_STOB_IO_END, m0_time_now(),
-		     FID_P(m0_stob_fid_get(io->si_obj)),
+	M0_ADDB2_ADD(M0_AVI_STOB_IO_END, FID_P(m0_stob_fid_get(io->si_obj)),
 		     io->si_rc, io->si_count, aio->ai_back.si_user.ov_vec.v_nr);
 	stob_ad_io_release(aio);
 	m0_chan_broadcast_lock(&io->si_wait);
