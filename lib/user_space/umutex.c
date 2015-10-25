@@ -21,6 +21,7 @@
 #include "lib/misc.h"   /* M0_SET0 */
 #include "lib/mutex.h"
 #include "lib/assert.h"
+#include "lib/errno.h"  /* EBUSY */
 
 /**
    @addtogroup mutex
@@ -32,27 +33,43 @@
 
 M0_INTERNAL void m0_arch_mutex_init(struct m0_arch_mutex *mutex)
 {
-	pthread_mutex_init(&mutex->m_impl, NULL);
+	int rc;
+
+	rc = pthread_mutex_init(&mutex->m_impl, NULL);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 M0_INTERNAL void m0_arch_mutex_fini(struct m0_arch_mutex *mutex)
 {
-	pthread_mutex_destroy(&mutex->m_impl);
+	int rc;
+
+	rc = pthread_mutex_destroy(&mutex->m_impl);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 M0_INTERNAL void m0_arch_mutex_lock(struct m0_arch_mutex *mutex)
 {
-	pthread_mutex_lock(&mutex->m_impl);
+	int rc;
+
+	rc = pthread_mutex_lock(&mutex->m_impl);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 M0_INTERNAL void m0_arch_mutex_unlock(struct m0_arch_mutex *mutex)
 {
-	pthread_mutex_unlock(&mutex->m_impl);
+	int rc;
+
+	rc = pthread_mutex_unlock(&mutex->m_impl);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 }
 
 M0_INTERNAL int m0_arch_mutex_trylock(struct m0_arch_mutex *mutex)
 {
-	return pthread_mutex_trylock(&mutex->m_impl);
+	int rc;
+
+	rc = pthread_mutex_trylock(&mutex->m_impl);
+	M0_ASSERT_INFO(M0_IN(rc, (0, EBUSY)), "rc=%d", rc);
+	return rc;
 }
 
 /** @} end of mutex group */
