@@ -237,7 +237,7 @@ static struct frame *frame_cur   (const struct m0_addb2_storage *stor);
 
 static bool        stor_invariant(const struct m0_addb2_storage *stor);
 static void        stor_fini     (struct m0_addb2_storage *stor);
-static void        stor_balance  (struct m0_addb2_storage *stor);
+static void        stor_balance  (struct m0_addb2_storage *stor, int delta);
 static void        stor_drain    (struct m0_addb2_storage *stor);
 static void        stor_update   (struct m0_addb2_storage *stor,
 				  const struct m0_addb2_frame_header *header);
@@ -328,7 +328,7 @@ M0_INTERNAL void m0_addb2_storage_stop(struct m0_addb2_storage *stor)
 	M0_PRE(stor_invariant(stor));
 	M0_PRE(!stor->as_stopped);
 	stor->as_stopped = true;
-	stor_balance(stor);
+	stor_balance(stor, 0);
 	M0_PRE(stor_invariant(stor));
 	m0_mutex_unlock(&stor->as_lock);
 }
@@ -340,7 +340,7 @@ M0_INTERNAL int m0_addb2_storage_submit(struct m0_addb2_storage *stor,
 	M0_PRE(stor_invariant(stor));
 	M0_PRE(!stor->as_stopped);
 	tr_tlink_init_at_tail(obj, &stor->as_queue);
-	stor_balance(stor);
+	stor_balance(stor, 0);
 	M0_PRE(stor_invariant(stor));
 	m0_mutex_unlock(&stor->as_lock);
 	return +1;
@@ -374,8 +374,10 @@ static void stor_fini(struct m0_addb2_storage *stor)
 
 /**
  * Attempts to append some traces into a frames and to submit full frames.
+ *
+ * "delta" parameter is 1 when called from frame_endio() and 0 otherwise.
  */
-static void stor_balance(struct m0_addb2_storage *stor)
+static void stor_balance(struct m0_addb2_storage *stor, int delta)
 {
 	struct m0_addb2_trace_obj *obj = tr_tlist_head(&stor->as_queue);
 	bool                       force = false;
@@ -385,14 +387,22 @@ static void stor_balance(struct m0_addb2_storage *stor)
 		force |= obj->o_force;
 		obj = tr_tlist_head(&stor->as_queue);
 	}
-	if (obj == NULL && (stor->as_stopped | force)) {
+	if (obj == NULL && (stor->as_stopped || force)) {
 		struct frame *frame = frame_cur(stor);
 
 		if (frame != NULL && frame->f_header.he_trace_nr > 0)
 			frame_submit(frame);
 		stor_drain(stor);
-		if (frame_tlist_is_empty(&stor->as_inflight) &&
-		    stor->as_ops->sto_idle != NULL)
+		/*
+		 * "delta" accounts for the frame for which IO completion is
+		 * executed. This frame cannot be moved to the idle list before
+		 * calling stor_balance(), because then there will be a
+		 * situation when inflight and pending lists are empty, storage
+		 * lock is released (in frame_endio()->...->frame_try()) and
+		 * frame_endio() is still running---racing with stor_fini().
+		 */
+		if (frame_tlist_length(&stor->as_inflight) == delta &&
+		    stor->as_stopped && stor->as_ops->sto_idle != NULL)
 			stor->as_ops->sto_idle(stor);
 	}
 	stor_drain(stor);
@@ -646,9 +656,9 @@ static bool frame_endio(struct m0_clink *link)
 	frame_done(frame);
 	m0_mutex_lock(&stor->as_lock);
 	M0_PRE(stor_invariant(stor));
+	stor_balance(stor, 1);
 	frame_io_open(frame);
 	frame_idle(frame);
-	stor_balance(stor);
 	M0_POST(stor_invariant(stor));
 	m0_mutex_unlock(&stor->as_lock);
 	return true;
