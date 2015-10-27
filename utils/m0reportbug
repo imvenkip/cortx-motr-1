@@ -7,10 +7,11 @@ set -eu
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2015-10-27 0.2     `m0version' calls `m0d -v'.
 ### 2015-10-19 0.1     Initial release: system probes, backtraces (running
 ###                    lt-m0* processes, core dumps), m0traces.
 ###
-VERSION='0.1'
+VERSION='0.2'
 
 DATA_DIR=m0reportbug-data
 OUTPUT=m0reportbug.txt # the file is created in $DATA_DIR/
@@ -47,7 +48,27 @@ main() {
 }
 
 m0version() {
-    dmesg | grep 'mero: Git' | tail -3 | cut -d: -f2-
+    local s
+
+    s=$(dirname $(readlink -f $0))
+    if [ -x $s/m0d ]; then
+        $s/m0d -v
+        return
+    fi
+    sudo find /var/mero -type f -name core.\* | while read s; do
+        s=$(program_from_core $s)
+        if [ ${s%/.libs/lt-m0d} != $s ]; then
+            ${s%/.libs/lt-m0d}/m0d -v
+            return
+        fi
+    done
+    pgrep lt-m0 | while read s; do
+        s=$(ps h -o args $s | cut -d' ' -f1)
+        if [ ${s%/.libs/lt-m0d} != $s ]; then
+            ${s%/.libs/lt-m0d}/m0d -v
+            return
+        fi
+    done
 }
 
 probes() {
@@ -56,8 +77,8 @@ probes() {
         'date -u --rfc-3339=seconds'
         'hostname'
         'uptime'
-        'rpm -qi mero'
         'm0version'
+        'rpm -qi mero'
         'uname -a'
         'cat /proc/cmdline'
         'cat /proc/cpuinfo'
