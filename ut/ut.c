@@ -273,19 +273,23 @@ static int test_list_create(struct m0_list *list, const struct m0_ut_module *m)
 
 	M0_PRE(m->ut_tests != NULL && *m->ut_tests != '\0');
 
+#ifdef __KERNEL__
 	/*
 	 * FI module is not initalised yet, but test_list_populate() calls
 	 * m0_alloc, with uses M0_FI_ENABLED.
 	 * M0_FI_ENABLED requires initialised FI.
 	 */
 	m0_fi_init();
+#endif
 
 	m0_list_init(list);
 	rc = test_list_populate(list, m->ut_tests, m);
 	if (rc != 0)
 		test_list_destroy(list);
 
+#ifdef __KERNEL__
 	m0_fi_fini();
+#endif
 	return rc;
 }
 
