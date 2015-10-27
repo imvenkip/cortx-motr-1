@@ -144,7 +144,7 @@ M0_EXPORTED(m0_spiel_tx_open);
  *  each element has state M0_CS_READY and
  *  has real parent (if last need by obj type)
  */
-static int spiel_cache_check(struct m0_spiel_tx *tx)
+int m0_spiel_tx_validate(struct m0_spiel_tx *tx)
 {
 	struct m0_conf_obj   *obj;
 	struct m0_conf_obj   *obj_parent;
@@ -174,6 +174,7 @@ static int spiel_cache_check(struct m0_spiel_tx *tx)
 
 	return M0_RC(0);
 }
+M0_EXPORTED(m0_spiel_tx_validate);
 
 /**
  * Frees Spiel context without completing the transaction.
@@ -410,7 +411,7 @@ int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx, bool forced,
 		M0_ASSERT(rc == 0);
 	}
 
-	rc = spiel_cache_check(tx) ?:
+	rc = m0_spiel_tx_validate(tx) ?:
 	     m0_conf_cache_to_string(&tx->spt_cache, &tx->spt_buffer);
 	if (rc != 0)
 		goto tx_fini;

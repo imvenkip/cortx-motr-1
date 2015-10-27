@@ -275,6 +275,24 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 	m0_bitmap_fini(&bitmap);
 }
 
+static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
+						    struct m0_spiel_tx *tx)
+{
+	int rc;
+
+	m0_spiel_tx_open(spiel, tx);
+	M0_UT_ASSERT(tx->spt_version != M0_CONF_VER_UNKNOWN);
+
+	rc = m0_spiel_profile_add(tx, &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE]);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Filesystem was skipped */
+	rc = m0_spiel_pool_add(tx,
+			       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+			       &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM],
+			       2);
+	M0_UT_ASSERT(rc == 0);
+}
 /*
  * spiel-conf-create-ok test
  */
@@ -1485,6 +1503,34 @@ static void spiel_conf_load_fail(void)
 	spiel_conf_ut_fini();
 }
 
+static void spiel_conf_dump(void)
+{
+	struct m0_spiel_tx  tx;
+	const char         *filename = "config.xc";
+	int                 rc;
+
+	spiel_conf_ut_init();
+	spiel_conf_create_configuration(&spiel, &tx);
+	rc = m0_spiel_tx_validate(&tx);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_spiel_tx_dump(&tx, filename);
+	M0_UT_ASSERT(rc == 0);
+	rc = spiel_conf_ut_fini();
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void spiel_conf_tx_invalid(void)
+{
+	struct m0_spiel_tx tx;
+	int                rc;
+
+	spiel_conf_ut_init();
+	spiel_conf_create_invalid_configuration(&spiel, &tx);
+	rc = m0_spiel_tx_validate(&tx);
+	M0_UT_ASSERT(rc != 0);
+	rc = spiel_conf_ut_fini();
+	M0_UT_ASSERT(rc == 0);
+}
 /**
  * @todo Restore unit test once spiel can start when rconfc quorum isn't reached
  */
@@ -1609,6 +1655,8 @@ const struct m0_ut_suite spiel_conf_ut = {
 		{ "spiel-conf-flip-fail",   spiel_conf_flip_fail   },
 		{ "spiel-conf-check-fail",  spiel_conf_check_fail  },
 		{ "spiel-conf-load-fail",   spiel_conf_load_fail   },
+		{ "spiel-conf-dump",        spiel_conf_dump        },
+		{ "spiel-conf-tx-invalid",  spiel_conf_tx_invalid  },
 		/**
 		 * @todo Test is disabled because now spiel can't start
 		 * successfully if quorum is not reached in rconfc.

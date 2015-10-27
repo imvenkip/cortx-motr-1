@@ -668,6 +668,19 @@ int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
 int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid);
 
 /**
+ * Check configuration tree contained in transaction. It is valid if each
+ * configuration object has state M0_CS_READY and has real parent (if any is
+ * required). Valid transaction is ready for dump or commit.
+ *
+ * @see m0_spiel_tx_dump
+ * @see m0_spiel_tx_commit
+ *
+ * @param tx          spiel transaction
+ * @return -EBUSY if an object is not in M0_CS_READY state.
+ * @return -ENOENT if an object hasn't real parent.
+ */
+int m0_spiel_tx_validate(struct m0_spiel_tx *tx);
+/**
  * Saves spiel transaction dump to file.
  */
 int m0_spiel_tx_dump(struct m0_spiel_tx *tx, const char *filename);
