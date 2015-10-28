@@ -1,6 +1,4 @@
 #!/bin/bash
 set -eu
 
-### XXX ENABLEME after MERO-1086 is fixed.
-
 exec $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_cc_io_with_sns_repair.sh"
