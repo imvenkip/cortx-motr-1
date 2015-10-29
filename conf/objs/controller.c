@@ -74,7 +74,8 @@ controller_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	};
 
 	confx_encode(dest, src);
-	d->xc_node = s->cc_node->cn_obj.co_id;
+	if (s->cc_node != NULL)
+		d->xc_node = s->cc_node->cn_obj.co_id;
 	return M0_RC(conf_dirs_encode(dirs, ARRAY_SIZE(dirs)) ?:
 		     conf_pvers_encode(
 			     &d->xc_pvers,

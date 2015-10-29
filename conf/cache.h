@@ -164,10 +164,12 @@ struct m0_confx;
    except m0_conf_dir
  */
 M0_INTERNAL int m0_conf_cache_encode(struct m0_conf_cache *cache,
-				     struct m0_confx      *dest);
+				     struct m0_confx      *dest,
+				     bool                  debug);
 
 M0_INTERNAL int m0_conf_cache_to_string(struct m0_conf_cache  *cache,
-					char                 **str);
+					char                 **str,
+					bool                   debug);
 
 M0_INTERNAL int m0_conf_version(struct m0_conf_cache *cache);
 

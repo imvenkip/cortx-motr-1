@@ -62,7 +62,8 @@ profile_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_conf_profile *s = M0_CONF_CAST(src, m0_conf_profile);
 
 	confx_encode(dest, src);
-	XCAST(dest)->xp_filesystem = s->cp_filesystem->cf_obj.co_id;
+	if (s->cp_filesystem != NULL)
+		XCAST(dest)->xp_filesystem = s->cp_filesystem->cf_obj.co_id;
 	return 0;
 }
 

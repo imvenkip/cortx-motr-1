@@ -85,7 +85,8 @@ objv_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_confx_objv *d = XCAST(dest);
 
 	confx_encode(dest, src);
-	XCAST(dest)->xj_real = s->cv_real->co_id;
+	if (s->cv_real != NULL)
+		XCAST(dest)->xj_real = s->cv_real->co_id;
 	return s->cv_children == NULL ? 0 :
 		arrfid_from_dir(&d->xj_children, s->cv_children);
 }

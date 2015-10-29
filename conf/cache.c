@@ -164,11 +164,14 @@ M0_INTERNAL void m0_conf_cache_dir_clean(struct m0_conf_cache *cache)
 }
 
 static int
-conf_encode(struct m0_confx *enc, const struct m0_conf_obj *obj)
+conf_encode(struct m0_confx          *enc,
+	    const struct m0_conf_obj *obj,
+	    bool                      debug)
 {
 	int rc;
 
-	M0_PRE(m0_conf_obj_invariant(obj) && obj->co_status == M0_CS_READY);
+	M0_PRE(debug ||
+	       (m0_conf_obj_invariant(obj) && obj->co_status == M0_CS_READY));
 
 	rc = obj->co_ops->coo_encode(M0_CONFX_AT(enc, enc->cx_nr), obj);
 	if (rc == 0)
@@ -177,7 +180,8 @@ conf_encode(struct m0_confx *enc, const struct m0_conf_obj *obj)
 }
 
 M0_INTERNAL int m0_conf_cache_encode(struct m0_conf_cache *cache,
-				     struct m0_confx      *dest)
+				     struct m0_confx      *dest,
+				     bool                  debug)
 {
 	struct m0_conf_obj *obj = NULL;
 	int                 rc;
@@ -189,7 +193,8 @@ M0_INTERNAL int m0_conf_cache_encode(struct m0_conf_cache *cache,
 
 	M0_SET0(dest);
 
-	rc = m0_tl_forall(m0_conf_cache, scan, &cache->ca_registry,
+	rc = debug ? 0 :
+	     m0_tl_forall(m0_conf_cache, scan, &cache->ca_registry,
 			  (m0_conf_obj_invariant(scan) &&
 			   scan->co_status == M0_CS_READY))
 		? 0 : -EINVAL;
@@ -209,7 +214,7 @@ M0_INTERNAL int m0_conf_cache_encode(struct m0_conf_cache *cache,
 
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
 		if (m0_conf_obj_type(obj) != &M0_CONF_DIR_TYPE) {
-			rc = conf_encode(dest, obj);
+			rc = conf_encode(dest, obj, debug);
 			if (rc != 0)
 				break;
 		}
@@ -225,7 +230,8 @@ M0_INTERNAL int m0_conf_cache_encode(struct m0_conf_cache *cache,
 }
 
 M0_INTERNAL int m0_conf_cache_to_string(struct m0_conf_cache  *cache,
-					char                 **str)
+					char                 **str,
+					bool                   debug)
 {
 	struct m0_confx *confx = NULL;
 	int              rc;
@@ -237,7 +243,7 @@ M0_INTERNAL int m0_conf_cache_to_string(struct m0_conf_cache  *cache,
 		return M0_ERR(-ENOMEM);
 
 	m0_conf_cache_lock(cache);
-	rc = m0_conf_cache_encode(cache, confx);
+	rc = m0_conf_cache_encode(cache, confx, debug);
 	m0_conf_cache_unlock(cache);
 	if (rc != 0)
 		goto done;

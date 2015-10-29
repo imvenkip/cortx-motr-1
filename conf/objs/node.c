@@ -78,7 +78,8 @@ static int node_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	d->xn_nr_cpu     = s->cn_nr_cpu;
 	d->xn_last_state = s->cn_last_state;
 	d->xn_flags      = s->cn_flags;
-	d->xn_pool_id    = s->cn_pool->pl_obj.co_id;
+	if (s->cn_pool != NULL)
+		d->xn_pool_id    = s->cn_pool->pl_obj.co_id;
 
 	return arrfid_from_dir(&d->xn_processes, s->cn_processes);
 }

@@ -275,23 +275,116 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 	m0_bitmap_fini(&bitmap);
 }
 
+#define FID_MOVE(fid, step) 	\
+	&M0_FID_INIT((fid).f_container, (fid).f_key + (step))
+
 static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 						    struct m0_spiel_tx *tx)
 {
-	int rc;
+	int                           rc;
+	struct m0_pdclust_attr        pdclust_attr = { .pa_N=0,
+						       .pa_K=0,
+						       .pa_P=0};
+	const char                   *fs_param[] = { "11111", "22222", NULL };
+	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
+	struct m0_spiel_service_info  service_info = {.svi_endpoints=ep};
+	uint32_t                      nr_failures[] = {0, 0, 0, 0, 1};
+	struct m0_bitmap              bitmap;
+
+	m0_bitmap_init(&bitmap, 32);
+	m0_bitmap_set(&bitmap, 0, true);
+	m0_bitmap_set(&bitmap, 1, true);
 
 	m0_spiel_tx_open(spiel, tx);
 	M0_UT_ASSERT(tx->spt_version != M0_CONF_VER_UNKNOWN);
 
-	rc = m0_spiel_profile_add(tx, &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE]);
+	rc = m0_spiel_profile_add(tx, FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_PROFILE], 1));
 	M0_UT_ASSERT(rc == 0);
 
-	/* Filesystem was skipped */
+	rc = m0_spiel_filesystem_add(tx,
+				     FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM], 2),
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     10,
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				     fs_param);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_spiel_pool_add(tx,
-			       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+			       FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_POOL], 3),
 			       &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM],
 			       2);
 	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_rack_add(tx,
+			       FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_RACK], 4),
+			       &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM]);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_enclosure_add(tx,
+				    FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE], 5),
+				    &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_node_add(tx,
+			       FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_NODE], 6),
+			       &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM],
+			       256,
+			       2,
+			       10,
+			       0xff00ff00,
+			       &spiel_obj_fid[SPIEL_UT_OBJ_POOL]);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_controller_add(tx,
+				     FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER], 7),
+				     &spiel_obj_fid[SPIEL_UT_OBJ_ENCLOSURE],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_NODE]);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_disk_add(tx,
+			       FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_DISK], 8),
+			       &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_pool_version_add(tx,
+				       FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_PVER], 9),
+				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				       nr_failures,
+				       ARRAY_SIZE(nr_failures),
+				       &pdclust_attr);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_rack_v_add(tx,
+				 FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_RACK_V], 10),
+				 &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_RACK]);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_process_add(tx,
+				  FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_PROCESS], 11),
+				  &spiel_obj_fid[SPIEL_UT_OBJ_NODE],
+				  &bitmap, 4000, 1, 2, 3, ep[0]);
+	M0_UT_ASSERT(rc == 0);
+
+	service_info.svi_type = M0_CST_IOS;
+	service_info.svi_u.repair_limits = 10;
+	rc = m0_spiel_service_add(tx,
+				  FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_SERVICE], 12),
+				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
+				  &service_info);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_device_add(tx,
+				 FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_SDEV], 13),
+				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
+				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
+				 M0_CFG_DEVICE_INTERFACE_SCSI,
+				 M0_CFG_DEVICE_MEDIA_SSD,
+				 1024, 512, 123, 0x55, "fake_filename");
+	M0_UT_ASSERT(rc == 0);
+
+	m0_bitmap_fini(&bitmap);
 }
 /*
  * spiel-conf-create-ok test
@@ -1394,7 +1487,7 @@ static void spiel_conf_big_db(void)
 					  &svc_info);
 		M0_UT_ASSERT(rc == 0);
 	}
-	rc = m0_conf_cache_to_string(&tx.spt_cache, &cache_str);
+	rc = m0_conf_cache_to_string(&tx.spt_cache, &cache_str, false);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(strlen(cache_str) > seg_size);
 	rc = m0_spiel_tx_commit(&tx);
@@ -1506,15 +1599,25 @@ static void spiel_conf_load_fail(void)
 static void spiel_conf_dump(void)
 {
 	struct m0_spiel_tx  tx;
+	struct m0_spiel_tx  tx_bad;
 	const char         *filename = "config.xc";
+	const char         *filename_bad = "config_b.xc";
 	int                 rc;
 
 	spiel_conf_ut_init();
+
 	spiel_conf_create_configuration(&spiel, &tx);
 	rc = m0_spiel_tx_validate(&tx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_spiel_tx_dump(&tx, filename);
 	M0_UT_ASSERT(rc == 0);
+
+	spiel_conf_create_invalid_configuration(&spiel, &tx_bad);
+	rc = m0_spiel_tx_validate(&tx_bad);
+	M0_UT_ASSERT(rc != 0);
+	rc = m0_spiel_tx_dump_debug(&tx_bad, filename_bad);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = spiel_conf_ut_fini();
 	M0_UT_ASSERT(rc == 0);
 }

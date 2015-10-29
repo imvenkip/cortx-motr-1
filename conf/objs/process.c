@@ -85,14 +85,16 @@ process_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	rc = m0_bitmap_onwire_init(&d->xr_cores, s->pc_cores.b_nr);
 	if (rc != 0)
 		return M0_ERR(rc);
-	m0_bitmap_store(&s->pc_cores, &d->xr_cores);
+	if (s->pc_cores.b_words != NULL)
+		m0_bitmap_store(&s->pc_cores, &d->xr_cores);
 
 	d->xr_mem_limit_as      = s->pc_memlimit_as;
 	d->xr_mem_limit_rss     = s->pc_memlimit_rss;
 	d->xr_mem_limit_stack   = s->pc_memlimit_stack;
 	d->xr_mem_limit_memlock = s->pc_memlimit_memlock;
-	return M0_RC(m0_buf_copy(&d->xr_endpoint,
-			   &M0_BUF_INITS((char *)s->pc_endpoint)) ?:
+	return M0_RC((s->pc_endpoint == NULL ? 0 :
+			m0_buf_copy(&d->xr_endpoint,
+				&M0_BUF_INITS((char *)s->pc_endpoint))) ?:
 		     arrfid_from_dir(&d->xr_services, s->pc_services));
 }
 

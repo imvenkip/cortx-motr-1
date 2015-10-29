@@ -61,7 +61,8 @@ static int disk_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_conf_disk *s = M0_CONF_CAST(src, m0_conf_disk);
 
 	confx_encode(dest, src);
-	XCAST(dest)->xk_dev = s->ck_dev->sd_obj.co_id;
+	if (s->ck_dev != NULL)
+		XCAST(dest)->xk_dev = s->ck_dev->sd_obj.co_id;
 	return 0;
 }
 

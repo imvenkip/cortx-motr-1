@@ -684,6 +684,10 @@ int m0_spiel_tx_validate(struct m0_spiel_tx *tx);
  * Saves spiel transaction dump to file.
  */
 int m0_spiel_tx_dump(struct m0_spiel_tx *tx, const char *filename);
+/**
+ * Saves spiel transaction dump to file with error and stub object too.
+ */
+int m0_spiel_tx_dump_debug(struct m0_spiel_tx *tx, const char *filename);
 
 /**********************************************************/
 /*                 Command interface                      */
