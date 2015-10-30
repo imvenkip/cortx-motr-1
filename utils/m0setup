@@ -57,7 +57,7 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
    -s|--disk-size GiBs     Size of image files for loop devices in GiB.
                            Default is ${loop_img_size_gb}.
 
-   -c                      Detach connected loop devices and remove image files.
+   -c|--cleanup            Detach connected loop devices and remove image files.
                            Number of loop devices is taken from '-P|--pool-width'
                            and image files location from '-d|--loop-img-dir'
                            options.
@@ -78,7 +78,7 @@ parse_cli_options()
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
     TEMP=$( getopt --options hvcP:N:K:i:d:s: \
-                   --longoptions help,verbose,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,disk-size: \
+                   --longoptions help,verbose,cleanup,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,disk-size: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -89,7 +89,7 @@ parse_cli_options()
     while true ; do
         case "$1" in
             -h|--help)          help stdout ;;
-            -c)                 do_cleanup=true;      shift   ;;
+            -c|cleanup)         do_cleanup=true;      shift   ;;
             -P|--pool-width)    pool_width=$2;        shift 2 ;;
             -N|--data-units)    data_units=$2;        shift 2 ;;
             -K|--parity-units)  parity_units=$2;      shift 2 ;;

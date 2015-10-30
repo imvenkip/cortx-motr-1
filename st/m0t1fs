@@ -115,7 +115,7 @@ die()
 
 is_mero_installed()
 {
-    if [[ -e /etc/init/mero.conf ]] ; then
+    if [[ -e /etc/sysconfig/mero ]] ; then
         return 0
     else
         return 1
@@ -150,25 +150,41 @@ do_m0t1fs_system_test()
 {
     debug "do_m0t1fs_system_test: start dd"
 
-    # set unit_size to 4MB (see mdservice/md_service.c:lid_to_unit_map[])
-    touch /mnt/m0t1fs/data
-    setfattr -n lid -v 11 /mnt/m0t1fs/data
+    local test_file_path='/mnt/m0t1fs/0:4200000'
 
-    dd if=/dev/sda of=/mnt/m0t1fs/data bs=32M &
+    touch $test_file_path
+    # set unit_size to 4MB (see mdservice/md_service.c:lid_to_unit_map[])
+    setfattr -n lid -v 13 $test_file_path
+
+    local src_file_path=/dev/zero
+
+    for device in /dev/{s,v,h}da ; do
+        if [[ -e $device ]] ; then
+            src_file_path=$device
+            break
+        fi
+    done
+
+    debug "using $device as a source file"
+    dd if=$src_file_path of=$test_file_path bs=32M &
 
     local dd_pid=$!
     local i=60
 
     while [[ $((--i)) -gt 0 ]] ; do
         sleep 1
-        kill -USR1 $dd_pid
+        if ps -p $dd_pid &> /dev/null ; then
+            kill -USR1 $dd_pid
+        else
+            break
+        fi
     done
 
     debug "do_m0t1fs_system_test: stop dd"
-    kill $dd_pid
+    kill $dd_pid || true
 
     debug "do_m0t1fs_system_test: sleep 30 sec"
-    sleep 30 # FIXME: w/a for 'umount: /mnt/m0t1fs: device is busy'
+    sleep 10 # FIXME: w/a for 'umount: /mnt/m0t1fs: device is busy'
 
     debug "do_m0t1fs_system_test: syncing data"
     sync
@@ -195,20 +211,40 @@ fi
 
 [[ -n $rpm_pkg ]] && install_mero_rpm $rpm_pkg
 
-info "Running mero-mkfs"
-start mero-mkfs
-info "Starting Mero"
-start mero-singlenode MERO_M0D_REMOVE_SERVICE_DIR=true
+for ios_num in 1 2 ; do
+    info "--------------- m0t1fs test with $ios_num ioservice(s)  ---------------"
 
-do_m0t1fs_system_test
+    info 'Running m0setup'
+    m0setup -i $ios_num
 
-info "Stopping Mero"
-stop mero-singlenode
+    info 'Running mero-mkfs'
+    systemctl start mero-mkfs
+
+    info 'Starting Mero'
+    systemctl start mero-singlenode
+
+    info 'Performing m0t1fs test'
+    do_m0t1fs_system_test
+
+    info  'Stopping Mero'
+    debug "  stopping mero-singlenode.. ($(date -u))"
+    systemctl stop mero-singlenode
+    debug "  [done] ($(date -u))"
+    sleep 5
+    debug "  stopping mero-kernel.. ($(date -u))"
+    systemctl stop mero-kernel
+    debug "  [done] ($(date -u))"
+
+    info 'Running m0setup cleanup'
+    m0setup -c
+done
 
 if [[ -n $rpm_pkg ]] ; then
     # this ugly 'sleep sync' required to workaround situation when mero-kernel
-    # doesn't have enough time to unload modules, due to buggy upstart
+    # doesn't have enough time to unload modules, due to buggy systemd
     # behaviour, before rpm will remove them
-    sleep 20
+    debug 'ugly "sync" to make sure that systemd has *really* stopped all' \
+          'mero services'
+    sleep 30
     remove_mero_rpm $rpm_pkg
 fi
