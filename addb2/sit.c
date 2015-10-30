@@ -47,6 +47,7 @@
 #include "addb2/addb2.h"
 #include "addb2/consumer.h"
 #include "addb2/internal.h"
+#include "addb2/identifier.h"       /* M0_AVI_SIT */
 #include "addb2/storage.h"
 #include "addb2/storage_xc.h"
 
@@ -57,14 +58,6 @@ struct m0_addb2_sit {
 	struct m0_stob              *s_stob;
 	m0_bcount_t                  s_size;
 	/**
-	 * Earliest header found in the stob.
-	 */
-	struct m0_addb2_frame_header s_start;
-	/**
-	 * Latest header found in the stob.
-	 */
-	struct m0_addb2_frame_header s_end;
-	/**
 	 * Header of the current frame.
 	 */
 	struct m0_addb2_frame_header s_current;
@@ -72,6 +65,8 @@ struct m0_addb2_sit {
 	m0_bcount_t                  s_bsize;
 	struct m0_addb2_cursor       s_cursor;
 	struct m0_addb2_source       s_src;
+	struct m0_addb2_record       s_rec;
+	uint64_t                     s_payload[9];
 	/**
 	 * The buffer into which the current frame is read.
 	 */
@@ -85,52 +80,52 @@ struct m0_addb2_sit {
 	 * The index of the current trace within the current frame.
 	 */
 	m0_bindex_t                  s_trace_idx;
+	bool                         s_fired;
 };
 
 static bool header_is_valid(const struct m0_addb2_sit *it,
 			    const struct m0_addb2_frame_header *h);
-static int it_init(struct m0_addb2_sit *it,
-		   const struct m0_addb2_frame_header *anchor);
-static int it_next(struct m0_addb2_sit *it);
-static int it_load(struct m0_addb2_sit *it);
-static int it_read(const struct m0_addb2_sit *it, void *buf,
-		   m0_bindex_t offset, m0_bcount_t count);
-static void it_forward(struct m0_addb2_sit *it);
+static int  it_init(struct m0_addb2_sit *it,
+		    struct m0_addb2_frame_header *h, m0_bindex_t start);
+static int  it_alloc(struct m0_addb2_sit *it, struct m0_stob *stob);
+static void it_free(struct m0_addb2_sit *it);
+static int  it_next(struct m0_addb2_sit *it, struct m0_addb2_record **out);
+static void it_rec (struct m0_addb2_sit *it, struct m0_addb2_record **out);
+static int  it_load(struct m0_addb2_sit *it);
+static int  it_read(const struct m0_addb2_sit *it, void *buf,
+		    m0_bindex_t offset, m0_bcount_t count);
 static bool it_rounded(const struct m0_addb2_sit *it, m0_bindex_t index);
 static bool it_is_in(const struct m0_addb2_sit *it, m0_bindex_t index);
 static bool it_invariant(const struct m0_addb2_sit *it);
 static void it_trace_set(struct m0_addb2_sit *it);
 static int header_read(struct m0_addb2_sit *it, struct m0_addb2_frame_header *h,
 		       m0_bindex_t offset);
+static m0_bindex_t header_next(const struct m0_addb2_sit *it,
+			       const struct m0_addb2_frame_header *h);
 
 int m0_addb2_sit_init(struct m0_addb2_sit **out,
-		      struct m0_stob *stob, m0_bcount_t size,
-		      const struct m0_addb2_frame_header *anchor)
+		      struct m0_stob *stob, m0_bindex_t start)
 {
-	struct m0_addb2_sit *it;
-	int                  result;
-	unsigned             shift = m0_stob_block_shift(stob);
-	void                *buf;
+	struct m0_addb2_frame_header  h;
+	struct m0_addb2_sit          *it;
+	int                           result;
 
 	M0_ALLOC_PTR(it);
-	buf = m0_alloc_aligned(FRAME_SIZE_MAX, shift);
-	if (it != NULL && buf != NULL) {
-		m0_stob_get(stob);
-		it->s_stob   = stob;
-		it->s_size   = size;
-		it->s_bshift = shift;
-		it->s_bsize  = 1ULL << it->s_bshift;
-		it->s_buf    = buf;
-		m0_addb2_source_init(&it->s_src);
-		if (ergo(anchor != NULL, header_is_valid(it, anchor)))
-			result = min_check(it_init(it, anchor), 0);
-		else
-			result = M0_ERR(-EPROTO);
-		if (result != 0)
-			m0_addb2_sit_fini(it);
+	if (it != NULL) {
+		result = it_alloc(it, stob);
+		if (result == 0) {
+			result = m0_addb2_storage_header(stob, &h);
+			if (result == 0) {
+				it->s_size = h.he_stob_size;
+				m0_addb2_source_init(&it->s_src);
+				result = it_init(it, &h, start);
+				if (result != 0)
+					m0_addb2_sit_fini(it);
+			}
+		} else
+			it_free(it);
 	} else {
 		m0_free(it);
-		m0_free_aligned(buf, FRAME_SIZE_MAX, shift);
 		result = M0_ERR(-ENOMEM);
 	}
 	if (result == 0)
@@ -144,8 +139,7 @@ void m0_addb2_sit_fini(struct m0_addb2_sit *it)
 	if (it->s_cursor.cu_trace != NULL)
 		m0_addb2_cursor_fini(&it->s_cursor);
 	m0_addb2_source_fini(&it->s_src);
-	m0_stob_put(it->s_stob);
-	m0_free_aligned(it->s_buf, FRAME_SIZE_MAX, it->s_bshift);
+	it_free(it);
 	m0_free(it);
 }
 
@@ -155,16 +149,21 @@ int m0_addb2_sit_next(struct m0_addb2_sit *it, struct m0_addb2_record **out)
 
 	M0_PRE(it_invariant(it));
 
-	do {
-		result = m0_addb2_cursor_next(&it->s_cursor);
-		if (result > 0) {
-			*out = &it->s_cursor.cu_rec;
-			m0_addb2_consume(&it->s_src, *out);
-		} else if (result == 0) {
-			m0_addb2_cursor_fini(&it->s_cursor);
-			result = it_next(it);
-		}
-	} while (result == +2);
+	if (!it->s_fired) {
+		it_rec(it, out);
+		it->s_fired = true;
+		return +1;
+	}
+	*out = NULL;
+	result = m0_addb2_cursor_next(&it->s_cursor);
+	if (result > 0) {
+		*out = &it->s_cursor.cu_rec;
+	} else if (result == 0) {
+		m0_addb2_cursor_fini(&it->s_cursor);
+		result = it_next(it, out);
+	}
+	if (*out != NULL)
+		m0_addb2_consume(&it->s_src, *out);
 	M0_POST(ergo(result >= 0, it_invariant(it)));
 	return M0_RC(result);
 }
@@ -175,57 +174,72 @@ struct m0_addb2_source *m0_addb2_sit_source(struct m0_addb2_sit *it)
 	return &it->s_src;
 }
 
-M0_INTERNAL int m0_addb2_storage_header(struct m0_stob *stob, m0_bcount_t size,
+M0_INTERNAL int m0_addb2_storage_header(struct m0_stob *stob,
 					struct m0_addb2_frame_header *h)
 {
-	struct m0_addb2_sit *sit;
-	int                  result;
+	struct m0_addb2_sit it = {};
+	int                 result;
 
-	if (size < sizeof *h)
-		return M0_ERR(-EINVAL);
-
-	result = m0_addb2_sit_init(&sit, stob, size, NULL);
+	result = it_alloc(&it, stob);
 	if (result == 0) {
-		*h = sit->s_end;
-		m0_addb2_sit_fini(sit);
-	}
+		result = header_read(&it, h, 0);
+		it_free(&it);
+	} else
+		result = M0_ERR(-ENOMEM);
 	return result;
 }
 
 /**
- * Scans the stob and determines the range of headers.
- *
- * Starting from the given anchor header scan backwards, until either the first
- * even header is found (one with he_prev_offset == 0) or are about to jump over
- * the anchor.
+ * If starting offset is given, loads the header at this offset, otherwise scans
+ * frames backward from the last frame recorded in the stob header.
  */
 static int it_init(struct m0_addb2_sit *it,
-		   const struct m0_addb2_frame_header *anchor)
+		   struct m0_addb2_frame_header *h, m0_bindex_t start)
 {
-	struct m0_addb2_frame_header *h = &it->s_start;
-	int                           result;
+	struct m0_addb2_frame_header prev;
+	int                          result;
 
-	if (anchor != NULL)
-		it->s_end = *anchor;
-	else
-		it_forward(it);
-	result = header_read(it, h, 0);
+	if (start != 0) {
+		result = header_read(it, h, start);
+	} else {
+		while (1) {
+			result = header_read(it, &prev, h->he_prev_offset);
+			if (result != 0 || prev.he_seqno != h->he_seqno - 1)
+				break;
+			*h = prev;
+		}
+	}
 	if (result == 0) {
-		if (h->he_prev_offset != 0) {
-			while (h->he_prev_offset >
-			       anchor->he_offset + anchor->he_size) {
-				result = header_read(it, h, h->he_prev_offset);
-				if (result != 0)
-					break;
-			}
-		}
-		if (result == 0) {
-			it->s_current = *h;
-			result = it_load(it);
-		}
+		it->s_current = *h;
+		result = it_load(it);
 	}
 	M0_POST(ergo(result >= 0, it_invariant(it)));
 	return M0_RC(result);
+}
+
+static int it_alloc(struct m0_addb2_sit *it, struct m0_stob *stob)
+{
+	void    *buf;
+	int      result;
+	uint32_t shift = m0_stob_block_shift(stob);
+
+	buf = m0_alloc_aligned(FRAME_SIZE_MAX, shift);
+	if (buf != NULL) {
+		m0_stob_get(stob);
+		it->s_stob   = stob;
+		it->s_bshift = shift;
+		it->s_bsize  = M0_BITS(it->s_bshift);
+		it->s_buf    = buf;
+		result       = 0;
+	} else
+		result = M0_ERR(-ENOMEM);
+	return result;
+}
+
+static void it_free(struct m0_addb2_sit *it)
+{
+	m0_stob_put(it->s_stob);
+	m0_free_aligned(it->s_buf, FRAME_SIZE_MAX, it->s_bshift);
 }
 
 /**
@@ -248,8 +262,8 @@ static int header_read(struct m0_addb2_sit *it, struct m0_addb2_frame_header *h,
 		M0_SET0(h);
 		m0_bufvec_cursor_init(&cur, &buf);
 		result = m0_xcode_encdec(HEADER_XO(h), &cur, M0_XCODE_DECODE) ?:
-			header_is_valid(it, h) && h->he_offset == offset ?
-			0 : -EPROTO;
+			header_is_valid(it, h) &&
+			(offset == 0 || h->he_offset == offset) ? 0 : -EPROTO;
 	}
 	return M0_RC(result);
 }
@@ -258,9 +272,10 @@ static int header_read(struct m0_addb2_sit *it, struct m0_addb2_frame_header *h,
  * Moves the iterator to the next record once the current trace buffer has been
  * exhausted.
  */
-static int it_next(struct m0_addb2_sit *it)
+static int it_next(struct m0_addb2_sit *it, struct m0_addb2_record **out)
 {
 	struct m0_addb2_frame_header *h = &it->s_current;
+	struct m0_addb2_frame_header  next;
 	int                           result;
 
 	M0_PRE(it_invariant(it));
@@ -272,26 +287,56 @@ static int it_next(struct m0_addb2_sit *it)
 		++ it->s_trace_idx;
 		it->s_trace_ptr += it->s_trace.tr_nr + 1;
 		it_trace_set(it);
-		result = +2;
-	} else if (h->he_offset >= it->s_end.he_offset &&
-		   h->he_offset < it->s_end.he_offset + it->s_end.he_size) {
-		/*
-		 * Last frame is completed, finish the iterator.
-		 */
-		result = 0;
+		result = +1;
 	} else {
-		h->he_offset += h->he_size;
-		if (it->s_size - h->he_offset < FRAME_SIZE_MAX)
-			h->he_offset = 0;
+		next.he_offset = header_next(it, h);
 		/*
 		 * Go to the next frame.
 		 */
-		result = header_read(it, h, h->he_offset);
-		if (result == 0)
+		result = header_read(it, &next, next.he_offset);
+		if (result == 0 && next.he_seqno == h->he_seqno + 1) {
+			*h = next;
 			result = it_load(it);
+			if (result == 0)
+				result = +1;
+		} else /* Cannot read the next header, stop iteration. */
+			result = 0;
 	}
+	if (result == +1)
+		it_rec(it, out);
 	M0_POST(ergo(result >= 0, it_invariant(it)));
 	return M0_RC(result);
+}
+
+/**
+ * Produces a surrogate addb record indicating internal boundary in the storage
+ * stream.
+ */
+static void it_rec(struct m0_addb2_sit *it, struct m0_addb2_record **out)
+{
+	struct m0_addb2_frame_header *h = &it->s_current;
+	int                           i = 0;
+
+	it->s_payload[i++] = h->he_seqno;
+	it->s_payload[i++] = h->he_offset;
+	it->s_payload[i++] = h->he_prev_offset;
+	it->s_payload[i++] = header_next(it, h);
+	it->s_payload[i++] = h->he_size;
+	it->s_payload[i++] = it->s_trace_idx;
+	it->s_payload[i++] = h->he_trace_nr;
+	it->s_payload[i++] = h->he_fid.f_container;
+	it->s_payload[i++] = h->he_fid.f_key;
+	M0_ASSERT(i == ARRAY_SIZE(it->s_payload));
+	it->s_rec = (struct m0_addb2_record) {
+		.ar_val = {
+			.va_id   = M0_AVI_SIT,
+			.va_time = h->he_time,
+			.va_nr   = ARRAY_SIZE(it->s_payload),
+			.va_data = it->s_payload
+		},
+		.ar_label_nr = 0
+	};
+	*out = &it->s_rec;
 }
 
 /**
@@ -316,36 +361,22 @@ static int it_load(struct m0_addb2_sit *it)
 			it->s_trace_ptr = ((void *)it->s_buf) + sizeof *h;
 			it_trace_set(it);
 			it->s_trace_idx = 0;
-			result = +2;
 		}
 	}
 	M0_POST(ergo(result >= 0, it_invariant(it)));
 	return M0_RC(result);
 }
 
-/**
- * Scans the stob starting from the beginning, looking for valid frames.
- */
-static void it_forward(struct m0_addb2_sit *it)
+/** Returns offset of the next header. */
+static m0_bindex_t header_next(const struct m0_addb2_sit *it,
+			       const struct m0_addb2_frame_header *h)
 {
-	struct m0_addb2_frame_header h;
-	uint64_t                     seqno;
-	uint64_t                     next;
-	int                          result;
+	m0_bindex_t offset;
 
-	it->s_end = M0_ADDB2_HEADER_INIT;
-	result = header_read(it, &h, 0);
-	if (result == 0) {
-		seqno = h.he_seqno;
-		do {
-			it->s_end = h;
-			next = h.he_offset + h.he_size;
-			if (it->s_size - next < FRAME_SIZE_MAX)
-				break;
-			result = header_read(it, &h, next);
-		} while (result == 0 && h.he_seqno == ++seqno);
-		result = 0;
-	}
+	offset = h->he_offset + h->he_size;
+	if (it->s_size - offset < FRAME_SIZE_MAX)
+		offset = BSIZE;
+	return offset;
 }
 
 static bool it_rounded(const struct m0_addb2_sit *it, m0_bindex_t index)
@@ -355,7 +386,7 @@ static bool it_rounded(const struct m0_addb2_sit *it, m0_bindex_t index)
 
 static bool it_is_in(const struct m0_addb2_sit *it, m0_bindex_t index)
 {
-	return index < it->s_size;
+	return ergo(it->s_size != 0, index < it->s_size);
 }
 
 static bool header_is_valid(const struct m0_addb2_sit *it,
@@ -379,12 +410,8 @@ static bool it_invariant(const struct m0_addb2_sit *it)
 	const struct m0_addb2_frame_header *h    = &it->s_current;
 	char                               *body = (char *)it->s_trace.tr_body;
 
-	return  _0C(header_is_valid(it, &it->s_current)) &&
-		_0C(header_is_valid(it, &it->s_start)) &&
-		_0C(header_is_valid(it, &it->s_end)) &&
+	return  _0C(header_is_valid(it, h)) &&
 		_0C(it->s_trace_idx < h->he_trace_nr) &&
-		_0C(it->s_start.he_seqno <= h->he_seqno) &&
-		_0C(h->he_seqno <= it->s_end.he_seqno) &&
 		_0C(ergo(body != NULL,
 			 it->s_buf <= body && body < it->s_buf + h->he_size));
 }

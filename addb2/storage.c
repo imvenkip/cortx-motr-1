@@ -56,7 +56,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADDB
 
-#include "lib/misc.h"          /* ARRAY_SIZE, M0_FIELD_VALUE */
+#include "lib/misc.h"          /* ARRAY_SIZE, M0_FIELD_VALUE, M0_BITS */
 #include "lib/vec.h"
 #include "lib/chan.h"
 #include "lib/trace.h"
@@ -80,7 +80,14 @@ enum {
 	 * Maximal number of frames storage engine will submit to write
 	 * concurrently.
 	 */
-	MAX_INFLIGHT = 8
+	MAX_INFLIGHT = 8,
+	/**
+	 * Number of fragments in frame IO.
+	 *
+	 * Each frame IO update storage header at the beginning of the stob and
+	 * also writes the frame itself in the stob.
+	 */
+	IO_FRAG = 2
 };
 
 /**
@@ -110,13 +117,20 @@ struct frame {
 	 */
 	void                         *f_area;
 	/**
-	 * Number of blocks in the frame storage representation.
+	 * Array of sizes of stob extents into which the frame IO is directed.
+	 *
+	 * Frame IO goes into 2 extents: storage header at the beginning of the
+	 * stob and frame proper.
 	 */
-	m0_bcount_t                   f_block_count;
+	m0_bcount_t                   f_count[IO_FRAG];
 	/**
-	 * Starting frame block in stob.
+	 * Array of starting indices of stob extents.
 	 */
-	m0_bindex_t                   f_block_index;
+	m0_bindex_t                   f_index[IO_FRAG];
+	/**
+	 * IO buffers.
+	 */
+	void                         *f_buf[IO_FRAG];
 	/**
 	 * Clink used to handle stob io completion.
 	 */
@@ -144,14 +158,6 @@ struct m0_addb2_storage {
 	 * Stob block size shift.
 	 */
 	unsigned                           as_bshift;
-	/**
-	 * Frame block size shift.
-	 */
-	unsigned                           as_fshift;
-	/**
-	 * Stob block size.
-	 */
-	m0_bcount_t                        as_bsize;
 	/**
 	 * Stob size, passed to m0_addb2_storage_init().
 	 */
@@ -246,25 +252,29 @@ static m0_bindex_t stor_round    (const struct m0_addb2_storage *stor,
 static bool        stor_rounded  (const struct m0_addb2_storage *stor,
 				  m0_bindex_t index);
 
+static const struct m0_format_tag frame_tag;
+
 M0_INTERNAL struct m0_addb2_storage *
-m0_addb2_storage_init(struct m0_stob *stob, m0_bcount_t size,
-		      const struct m0_addb2_frame_header *last,
+m0_addb2_storage_init(struct m0_stob *stob, m0_bcount_t size, bool format,
 		      const struct m0_addb2_storage_ops *ops, void *cookie)
 {
-	struct m0_addb2_storage      *stor;
-	struct m0_addb2_frame_header  h;
+	struct m0_addb2_storage     *stor;
+	struct m0_addb2_frame_header h;
 
-	/* If last frame header is not given, read it from storage. */
-	if (last == NULL) {
-		if (m0_addb2_storage_header(stob, size, &h) == 0)
-			last = &h;
-		else
-			return NULL;
-	}
-	if (last->he_offset >= size ||
-	    last->he_offset + last->he_size > size)
+	M0_PRE(size >= BSIZE + FRAME_SIZE_MAX);
+
+	if (format) {
+		/*
+		 * Initialise "h" so that stor_update() below sets up the first
+		 * frame.
+		 */
+		h.he_seqno  = 0;
+		h.he_offset = 0;
+		h.he_size   = BSIZE;
+		M0_CASSERT(sizeof(struct m0_addb2_frame_header) <= BSIZE);
+	} else if (m0_addb2_storage_header(stob, &h) == 0 &&
+		   size != h.he_stob_size)
 		return NULL;
-
 	M0_ALLOC_PTR(stor);
 	if (stor != NULL) {
 		int i;
@@ -280,12 +290,10 @@ m0_addb2_storage_init(struct m0_stob *stob, m0_bcount_t size,
 		 * For disk format compatibility, make block size a constant
 		 * independent of stob block size. Use 64KB.
 		 */
-		stor->as_fshift = 16;
-		M0_ASSERT(stor->as_bshift <= stor->as_fshift);
-		stor->as_bsize  = 1ULL << stor->as_fshift;
+		M0_ASSERT(stor->as_bshift <= BSHIFT);
 		stor->as_cookie = cookie;
 		M0_PRE(stor_rounded(stor, size));
-		stor_update(stor, last);
+		stor_update(stor, &h);
 		tr_tlist_init(&stor->as_queue);
 		frame_tlist_init(&stor->as_inflight);
 		frame_tlist_init(&stor->as_idle);
@@ -460,22 +468,33 @@ static int frame_init(struct frame *frame, struct m0_addb2_storage *stor)
 	int result;
 
 	frame->f_stor = stor;
-	frame->f_area = m0_alloc_aligned(FRAME_SIZE_MAX, stor->as_fshift);
+	/*
+	 * Allocate a buffer to contain both the storage header and the frame.
+	 */
+	frame->f_area = m0_alloc_aligned(BSIZE + FRAME_SIZE_MAX, BSHIFT);
 	if (frame->f_area != NULL) {
 		struct m0_stob_io *io = &frame->f_io;
 
 		frame_clear(frame);
 		m0_stob_io_init(io);
+		frame->f_count[0] = BSIZE;
+		frame->f_index[0] = 0;
+		frame->f_buf[0] = frame->f_area;
+		frame->f_buf[1] = frame->f_area + BSIZE;
 		io->si_opcode = SIO_WRITE;
-		io->si_user   = (struct m0_bufvec)
-			M0_BUFVEC_INIT_BUF(&frame->f_area,
-					   &frame->f_block_count);
+		io->si_user   = (struct m0_bufvec) {
+			.ov_vec = {
+				.v_nr    = ARRAY_SIZE(frame->f_count),
+				.v_count = frame->f_count
+			},
+			.ov_buf = frame->f_buf
+		};
 		io->si_stob = (struct m0_indexvec) {
 			.iv_vec = {
-				.v_nr    = 1,
-				.v_count = &frame->f_block_count
+				.v_nr    = ARRAY_SIZE(frame->f_count),
+				.v_count = frame->f_count
 			},
-			.iv_index = &frame->f_block_index
+			.iv_index = frame->f_index
 		};
 		io->si_fol_frag = (void *)1;
 		m0_clink_init(&frame->f_clink, &frame_endio);
@@ -495,8 +514,7 @@ static void frame_fini(struct frame *frame)
 		m0_clink_del_lock(&frame->f_clink);
 		m0_clink_fini(&frame->f_clink);
 		m0_stob_io_fini(&frame->f_io);
-		m0_free_aligned(frame->f_area,
-				FRAME_SIZE_MAX, frame->f_stor->as_fshift);
+		m0_free_aligned(frame->f_area, BSIZE + FRAME_SIZE_MAX, BSHIFT);
 	}
 }
 
@@ -539,17 +557,11 @@ static void stor_drain(struct m0_addb2_storage *stor)
 static void stor_update(struct m0_addb2_storage *stor,
 			const struct m0_addb2_frame_header *header)
 {
-	if (header == &M0_ADDB2_HEADER_INIT) {
-		stor->as_seqno       = 0;
-		stor->as_prev_offset = 0;
-		stor->as_pos         = 0;
-	} else {
-		stor->as_seqno       = header->he_seqno + 1;
-		stor->as_prev_offset = header->he_offset;
-		stor->as_pos         = header->he_offset + header->he_size;
-		if (stor->as_size - stor->as_pos < FRAME_SIZE_MAX)
-			stor->as_pos = 0;
-	}
+	stor->as_seqno       = header->he_seqno + 1;
+	stor->as_prev_offset = header->he_offset;
+	stor->as_pos         = header->he_offset + header->he_size;
+	if (stor->as_size - stor->as_pos < FRAME_SIZE_MAX)
+		stor->as_pos = BSIZE; /* wrap around */
 }
 
 /**
@@ -572,11 +584,11 @@ do {							\
 	M0_POST(M0_IS_8ALIGNED(cur));			\
 } while (0)
 
-	struct m0_addb2_frame_header *h    = &frame->f_header;
-	struct m0_addb2_storage      *stor = frame->f_stor;
-	void                         *cur;
-	int                           result;
-	int                           i;
+	struct m0_addb2_frame_header   *h    = &frame->f_header;
+	struct m0_addb2_storage        *stor = frame->f_stor;
+	void                           *cur;
+	int                             result;
+	int                             i;
 
 	M0_PRE(!frame_tlist_contains(&stor->as_inflight, frame));
 	M0_PRE( frame_tlist_contains(&stor->as_pending,  frame));
@@ -584,9 +596,14 @@ do {							\
 
 	frame_tlist_move(&stor->as_inflight, frame);
 	m0_mutex_unlock(&stor->as_lock);
-	frame->f_block_count = h->he_size;
-	frame->f_block_index = h->he_offset;
-	cur = frame->f_area;
+	h->he_time = m0_time_now();
+	frame->f_count[1] = h->he_size;
+	frame->f_index[1] = h->he_offset;
+	m0_format_header_pack(&h->he_header, &frame_tag);
+	m0_format_footer_generate(&h->he_footer, h, sizeof *h);
+	cur = frame->f_buf[0];
+	PLACE(cur, h, 1);
+	cur = frame->f_buf[1];
 	PLACE(cur, h, 1);
 	for (i = 0; i < h->he_trace_nr; ++i) {
 		struct m0_addb2_trace *tr = frame->f_trace[i];
@@ -633,9 +650,10 @@ static void frame_clear(struct frame *frame)
 
 	M0_SET0(&frame->f_trace);
 	*h = (typeof (*h)) {
-		.he_size        = sizeof *h,
-		.he_header_size = sizeof *h,
-		.he_magix       = M0_ADDB2_FRAME_HEADER_MAGIX
+		.he_size      = sizeof *h,
+		.he_stob_size = frame->f_stor->as_size,
+		.he_fid       = *m0_stob_fid_get(frame->f_stor->as_stob),
+		.he_magix     = M0_ADDB2_FRAME_HEADER_MAGIX
 	};
 }
 
@@ -670,10 +688,13 @@ static bool frame_endio(struct m0_clink *link)
 static void frame_io_pack(struct frame *frame)
 {
 	unsigned shift = frame->f_stor->as_bshift;
+	int      i;
 
-	frame->f_area = m0_stob_addr_pack(frame->f_area, shift);
-	frame->f_block_count >>= shift;
-	frame->f_block_index >>= shift;
+	for (i = 0; i < IO_FRAG; ++i) {
+		frame->f_buf[i] = m0_stob_addr_pack(frame->f_buf[i], shift);
+		frame->f_count[i] >>= shift;
+		frame->f_index[i] >>= shift;
+	}
 }
 
 /**
@@ -682,10 +703,13 @@ static void frame_io_pack(struct frame *frame)
 static void frame_io_open(struct frame *frame)
 {
 	unsigned shift = frame->f_stor->as_bshift;
+	int      i;
 
-	frame->f_area = m0_stob_addr_open(frame->f_area, shift);
-	frame->f_block_count <<= shift;
-	frame->f_block_index <<= shift;
+	for (i = 0; i < IO_FRAG; ++i) {
+		frame->f_buf[i] = m0_stob_addr_open(frame->f_buf[i], shift);
+		frame->f_count[i] <<= shift;
+		frame->f_index[i] <<= shift;
+	}
 }
 
 /**
@@ -713,7 +737,7 @@ static void frame_done(struct frame *frame)
 static m0_bindex_t stor_round(const struct m0_addb2_storage *stor,
 			      m0_bindex_t index)
 {
-	return m0_round_up(index, stor->as_bsize);
+	return m0_round_up(index, BSIZE);
 }
 
 static bool stor_rounded(const struct m0_addb2_storage *stor, m0_bindex_t index)
@@ -744,25 +768,21 @@ static bool frame_invariant(const struct frame *frame)
 
 static bool stor_invariant(const struct m0_addb2_storage *stor)
 {
-	if (frame_tlist_length(&stor->as_idle) +
-	    frame_tlist_length(&stor->as_pending) +
-	    frame_tlist_length(&stor->as_inflight) !=
-	    ARRAY_SIZE(stor->as_prealloc)) {
-		M0_LOG(M0_FATAL, "%i + %i + %i != %i",
-		       (int)frame_tlist_length(&stor->as_idle),
-		       (int)frame_tlist_length(&stor->as_pending),
-		       (int)frame_tlist_length(&stor->as_inflight),
-		       (int)ARRAY_SIZE(stor->as_prealloc));
-	}
 	return  _0C(frame_tlist_length(&stor->as_idle) +
 		    frame_tlist_length(&stor->as_pending) +
 		    frame_tlist_length(&stor->as_inflight) ==
 		    ARRAY_SIZE(stor->as_prealloc)) &&
-		_0C(stor_rounded(stor, stor->as_bsize)) &&
+		_0C(stor_rounded(stor, BSIZE)) &&
 		_0C(stor->as_pos <= stor->as_size - FRAME_SIZE_MAX) &&
 		m0_forall(i, ARRAY_SIZE(stor->as_prealloc),
 			  frame_invariant(&stor->as_prealloc[i]));
 }
+
+static const struct m0_format_tag frame_tag = {
+	.ot_version = 1,
+	.ot_type    = 0,
+	.ot_size    = sizeof(struct m0_addb2_frame_header)
+};
 
 #undef M0_TRACE_SUBSYSTEM
 

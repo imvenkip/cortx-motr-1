@@ -46,7 +46,11 @@
 
 /* import */
 #include "lib/types.h"
+#include "fid/fid.h"
+#include "fid/fid_xc.h"
 #include "xcode/xcode_attr.h"
+#include "format/format.h"
+#include "format/format_xc.h"
 struct m0_stob;
 struct m0_addb2_trace_obj;
 struct m0_addb2_record;
@@ -83,20 +87,14 @@ struct m0_addb2_storage_ops {
  * Allocates and initialises the storage machine.
  *
  * @param stob - the storage object to write traces to.
- *
  * @param size - the size of the storage object.
- *
- * @param last - the position of the last valid trace in the stob. If (last ==
- * &M0_ADDB2_HEADER_INIT) then the stob is re-initialised and all existing
- * records are lost.
- *
+ * @param format - if true, reformat the stob.
  * @param cookie - an arbitrary cookie returned by m0_addb2_storage_cookie().
  *
  * @pre size is a multiple of stob block size.
  */
 M0_INTERNAL struct m0_addb2_storage *
-m0_addb2_storage_init(struct m0_stob *stob, m0_bcount_t size,
-		      const struct m0_addb2_frame_header *last,
+m0_addb2_storage_init(struct m0_stob *stob, m0_bcount_t size, bool format,
 		      const struct m0_addb2_storage_ops *ops, void *cookie);
 
 /**
@@ -126,26 +124,23 @@ M0_INTERNAL int m0_addb2_storage_submit(struct m0_addb2_storage *stor,
  * Header used by storage machine to locate traces on storage.
  */
 struct m0_addb2_frame_header {
-	uint64_t he_seqno;
-	uint64_t he_offset;
-	uint64_t he_prev_offset;
-	uint32_t he_trace_nr;
-	uint32_t he_size;
-	uint32_t he_header_size;
-	uint32_t he_pad;
-	uint64_t he_magix;
+	struct m0_format_header he_header;
+	uint64_t                he_seqno;
+	uint64_t                he_offset;
+	uint64_t                he_prev_offset;
+	uint32_t                he_trace_nr;
+	uint32_t                he_size;
+	uint64_t                he_time;
+	uint64_t                he_stob_size;
+	uint64_t                he_magix;
+	struct m0_fid           he_fid;
+	struct m0_format_footer he_footer;
 } M0_XCA_RECORD;
-
-/**
- * Special header object used to force m0_addb2_storage_init() to initialise the
- * storage.
- */
-M0_EXTERN const struct m0_addb2_frame_header M0_ADDB2_HEADER_INIT;
 
 /**
  * Returns the header of the latest frame recorded on the stob.
  */
-M0_INTERNAL int m0_addb2_storage_header(struct m0_stob *stob, m0_bcount_t size,
+M0_INTERNAL int m0_addb2_storage_header(struct m0_stob *stob,
 					struct m0_addb2_frame_header *h);
 /*
  * Storage offline CONSUMER interface.
@@ -154,9 +149,8 @@ M0_INTERNAL int m0_addb2_storage_header(struct m0_stob *stob, m0_bcount_t size,
 /**
  * Allocates and initialises storage trace iterator.
  */
-int  m0_addb2_sit_init(struct m0_addb2_sit **out,
-		       struct m0_stob *stob, m0_bcount_t size,
-		       const struct m0_addb2_frame_header *anchor);
+int  m0_addb2_sit_init(struct m0_addb2_sit **out, struct m0_stob *stob,
+		       m0_bindex_t start);
 /**
  * Returns the next record from the storage iterator.
  *

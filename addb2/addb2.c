@@ -1043,23 +1043,6 @@ M0_INTERNAL uint64_t m0_addb2__dummy_payload[1] = {};
 M0_INTERNAL uint64_t m0_addb2__dummy_payload_size =
 	ARRAY_SIZE(m0_addb2__dummy_payload);
 
-/**
- * Predefined header, which means "format storage" when passed to
- * m0_addb2_storage_init().
- *
- * This is defined here rather than in addb2/storage.c, because it is needed by
- * the kernel code too.
- */
-M0_INTERNAL const struct m0_addb2_frame_header M0_ADDB2_HEADER_INIT = {
-	.he_seqno       = 0,
-	.he_offset      = 0,
-	.he_prev_offset = 0,
-	.he_trace_nr    = 1,
-	.he_size        = FRAME_SIZE_MAX,
-	.he_header_size = sizeof M0_ADDB2_HEADER_INIT,
-	.he_magix       = M0_ADDB2_FRAME_HEADER_MAGIX
-};
-
 M0_INTERNAL void m0_addb2__mach_print(const struct m0_addb2_mach *m)
 {
 #if DEBUG_OWNERSHIP

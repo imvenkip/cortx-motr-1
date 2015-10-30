@@ -29,6 +29,7 @@
 #include "addb2/storage.h"
 #include "addb2/internal.h"
 #include "addb2/consumer.h"
+#include "addb2/identifier.h"       /* M0_AVI_SIT */
 #include "addb2/ut/common.h"
 
 static struct m0_stob_domain   *dom;
@@ -95,8 +96,7 @@ static void once_idle(struct m0_addb2_storage *_stor)
 static struct m0_semaphore idlewait;
 static unsigned done;
 static unsigned committed;
-static       struct m0_addb2_frame_header  last;
-static const struct m0_addb2_frame_header *anchor;
+static struct m0_addb2_frame_header  last;
 
 static void test_idle(struct m0_addb2_storage *stor)
 {
@@ -116,8 +116,7 @@ static void write_init_fini(void)
 	stob_get(true);
 	idled = false;
 	m0_semaphore_init(&idlewait, 0);
-	stor = m0_addb2_storage_init(stob, SIZE,
-				     &M0_ADDB2_HEADER_INIT, &ops, NULL);
+	stor = m0_addb2_storage_init(stob, SIZE, true, &ops, NULL);
 	M0_UT_ASSERT(stor != NULL);
 	m0_addb2_storage_stop(stor);
 	/*
@@ -185,7 +184,7 @@ static void stor_init(bool create)
 	m0_semaphore_init(&idlewait, 0);
 	m0_semaphore_init(&machwait, 0);
 	stob_get(create);
-	stor = m0_addb2_storage_init(stob, stob_size, anchor, &test_ops, NULL);
+	stor = m0_addb2_storage_init(stob, stob_size, create, &test_ops, NULL);
 	M0_UT_ASSERT(stor != NULL);
 	mach = mach_set(&test_submit);
 	M0_UT_ASSERT(mach != NULL);
@@ -209,7 +208,6 @@ static void stor_fini(bool destroy)
 
 static void submit_one(void)
 {
-	anchor = &M0_ADDB2_HEADER_INIT;
 	stor_init(true);
 	M0_ADDB2_ADD(18, 127, 0, 0, 1);
 	stor_fini(true);
@@ -223,29 +221,26 @@ static void read_one(void)
 {
 	int result;
 	struct m0_addb2_record *rec = NULL;
-	uint64_t orig_trace_nr;
 
-	last = *(anchor = &M0_ADDB2_HEADER_INIT);
+	M0_SET0(&last);
 	stor_init(true);
-	orig_trace_nr = last.he_trace_nr;
 	M0_ADDB2_PUSH(1, 2);
 	M0_ADDB2_ADD(0x0011111111111111,
 		     0x2222222222222222, 0x3333333333333333,
 		     0x4444444444444444, 0x5555555555555555);
 	m0_addb2_pop(1);
 	stor_fini(false);
-	M0_UT_ASSERT(memcmp(&last, &M0_ADDB2_HEADER_INIT, sizeof last));
-	M0_UT_ASSERT(last.he_trace_nr    == 1 + orig_trace_nr);
-	M0_UT_ASSERT(last.he_offset      == 0);
+	M0_UT_ASSERT(last.he_offset      == BSIZE);
 	M0_UT_ASSERT(last.he_prev_offset == 0);
-
 	stob_get(false);
-	result = m0_addb2_sit_init(&sit, stob, SIZE, &last);
+	result = m0_addb2_sit_init(&sit, stob, 0);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(sit != NULL);
-	result = m0_addb2_sit_next(sit, &rec);
-	M0_UT_ASSERT(result > 0);
-	M0_UT_ASSERT(rec != NULL);
+	do {
+		result = m0_addb2_sit_next(sit, &rec);
+		M0_UT_ASSERT(result > 0);
+		M0_UT_ASSERT(rec != NULL);
+	} while (rec->ar_val.va_id == M0_AVI_SIT);
 	M0_UT_ASSERT(receq(rec, &(struct small_record) {
 			.ar_val = VAL(0x0011111111111111,
 				      0x2222222222222222, 0x3333333333333333,
@@ -307,6 +302,8 @@ static void check_one(const struct m0_addb2_record *rec)
 		.va_nr   = checked % ARRAY_SIZE(payload),
 		.va_data = payload
 	};
+	if (rec->ar_val.va_id == M0_AVI_SIT)
+		return;
 	M0_UT_ASSERT(valeq(&rec->ar_val, &ideal));
 	M0_UT_ASSERT(rec->ar_label_nr == checked % DEPTH_MAX);
 	M0_UT_ASSERT(m0_forall(i, checked % DEPTH_MAX,
@@ -328,7 +325,7 @@ static void read_many(void)
 
 	issued = 0;
 	checked = 0;
-	last = *(anchor = &M0_ADDB2_HEADER_INIT);
+	M0_SET0(&last);
 	stor_init(true);
 	for (i = 0; i <= NR; ++i)
 		add_one();
@@ -336,10 +333,10 @@ static void read_many(void)
 	stor_fini(false);
 
 	stob_get(false);
-	result = m0_addb2_sit_init(&sit, stob, SIZE, &last);
+	result = m0_addb2_sit_init(&sit, stob, 0);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(sit != NULL);
-	for (i = 0; i <= NR; ++i) {
+	while (checked <= NR) {
 		result = m0_addb2_sit_next(sit, &rec);
 		M0_UT_ASSERT(result > 0);
 		M0_UT_ASSERT(rec != NULL);
@@ -374,12 +371,11 @@ static void wrap(int n)
 
 	issued = 0;
 	checked = 0;
-	stob_size = n * FRAME_SIZE_MAX;
-	last = *(anchor = &M0_ADDB2_HEADER_INIT);
+	stob_size = n * FRAME_SIZE_MAX + BSIZE;
+	M0_SET0(&last);
 	stor_init(true);
 	frame_fill();
-	M0_UT_ASSERT(ergo(n > 1, last.he_offset != 0));
-	while (last.he_offset != 0)
+	while (last.he_offset != BSIZE)
 		frame_fill();
 	frame_fill();
 	frame_fill();
@@ -388,12 +384,14 @@ static void wrap(int n)
 	m0_addb2_pop(0);
 	stor_fini(false);
 	stob_get(false);
-	result = m0_addb2_sit_init(&sit, stob, stob_size, &last);
+	result = m0_addb2_sit_init(&sit, stob, 0);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(sit != NULL);
-	result = m0_addb2_sit_next(sit, &rec);
-	M0_UT_ASSERT(result > 0);
-	M0_UT_ASSERT(rec != NULL);
+	do {
+		result = m0_addb2_sit_next(sit, &rec);
+		M0_UT_ASSERT(result > 0);
+		M0_UT_ASSERT(rec != NULL);
+	} while (rec->ar_val.va_id == M0_AVI_SIT);
 	checked = rec->ar_val.va_id;
 	check_one(rec);
 	while ((result = m0_addb2_sit_next(sit, &rec)) > 0)

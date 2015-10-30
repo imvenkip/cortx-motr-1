@@ -116,7 +116,7 @@ enum m0_addb2_value_id {
 	 */
 	M0_AVI_FOP_TYPES_RANGE_START = 0x1000000,
 	M0_AVI_FOP_TYPES_RANGE_END   = 0x1ffffff,
-
+	M0_AVI_SIT,
 	M0_AVI_LAST,
 	/** No data. */
 	M0_AVI_NODATA = 0x00ffffffffffffffull,

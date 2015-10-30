@@ -34,6 +34,7 @@
 #include <signal.h>
 #include <bfd.h>
 #include <stdlib.h>                    /* qsort */
+#include <unistd.h>                    /* sleep */
 
 #include "lib/memory.h"
 #include "lib/assert.h"
@@ -121,6 +122,8 @@ static void misc_fini(void);
 extern int  optind;
 static bool flatten = false;
 static bool deflatten = false;
+static m0_bindex_t offset = 0;
+static int delay = 0;
 
 int main(int argc, char **argv)
 {
@@ -137,6 +140,10 @@ int main(int argc, char **argv)
 	misc_init();
 
 	result = M0_GETOPTS("m0addb2dump", argc, argv,
+			M0_FORMATARG('o', "Starting offset",
+				     "%"SCNx64, &offset),
+			M0_FORMATARG('c', "Continuous dump interval (sec.)",
+				     "%i", &delay),
 			M0_STRINGARG('l', "Mero library path",
 				     LAMBDA(void, (const char *path) {
 						     libbfd_init(path);
@@ -155,6 +162,9 @@ int main(int argc, char **argv)
 		flate();
 		return EX_OK;
 	}
+	if ((delay != 0 || offset != 0) && optind + 1 < argc)
+		err(EX_USAGE,
+		    "Staring offset and continuous dump imply single file.");
 	result = m0_stob_domain_init("linuxstob:"DOM, "directio=true", &dom);
 	if (result == 0)
 		m0_stob_domain_destroy(dom);
@@ -201,16 +211,26 @@ static void file_dump(struct m0_stob_domain *dom, const char *fname)
 	result = stat(fname, &buf);
 	if (result != 0)
 		err(EX_NOINPUT, "Cannot stat: %d", result);
-
-	/** @todo XXX size parameter copied from m0_reqh_addb2_init(). */
-	result = m0_addb2_sit_init(&sit, stob, 128ULL << 30, NULL);
-	if (result != 0)
-		err(EX_DATAERR, "Cannot initialise iterator: %d", result);
-	while ((result = m0_addb2_sit_next(sit, &rec)) > 0)
-		rec_dump(&(struct context){}, rec);
-	if (result != 0)
-		err(EX_DATAERR, "Iterator error: %d", result);
-	m0_addb2_sit_fini(sit);
+	do {
+		result = m0_addb2_sit_init(&sit, stob, offset);
+		if (delay > 0 && result == -EPROTO) {
+			printf("Sleeping for %i seconds (%lx).\n",
+			       delay, offset);
+			sleep(delay);
+			continue;
+		}
+		if (result != 0)
+			err(EX_DATAERR, "Cannot initialise iterator: %d",
+			    result);
+		while ((result = m0_addb2_sit_next(sit, &rec)) > 0) {
+			rec_dump(&(struct context){}, rec);
+			if (rec->ar_val.va_id == M0_AVI_SIT)
+				offset = rec->ar_val.va_data[3];
+		}
+		if (result != 0)
+			err(EX_DATAERR, "Iterator error: %d", result);
+		m0_addb2_sit_fini(sit);
+	} while (delay > 0);
 	m0_stob_destroy(stob, NULL);
 }
 
@@ -540,6 +560,9 @@ struct id_intrp ids[] = {
 	{ M0_AVI_FOP_TYPES_RANGE_START,   "",
 	  .ii_repeat = M0_AVI_FOP_TYPES_RANGE_END-M0_AVI_FOP_TYPES_RANGE_START,
 	  .ii_spec   = &fop_counter },
+	{ M0_AVI_SIT,             "sit",  { &hex, &hex, &hex, &hex, &hex,
+					    &dec, &dec, FID },
+	  { "seq", "offset", "prev", "next", "size", "idx", "nr", "fid" } },
 	{ M0_AVI_NODATA,          "nodata" },
 };
 

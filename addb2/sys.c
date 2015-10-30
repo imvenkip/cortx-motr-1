@@ -342,9 +342,8 @@ int m0_addb2_sys_stor_start(struct m0_addb2_sys *sys, struct m0_stob *stob,
 {
 	M0_PRE(sys->sy_stor == NULL);
 
-	sys->sy_stor = m0_addb2_storage_init(stob, size,
-				     format ? &M0_ADDB2_HEADER_INIT : NULL,
-				     &sys_stor_ops, sys);
+	sys->sy_stor = m0_addb2_storage_init(stob, size, format,
+					     &sys_stor_ops, sys);
 	return sys->sy_stor != NULL ? 0 : M0_ERR(-ENOMEM);
 }
 
@@ -389,7 +388,7 @@ int m0_addb2_sys_submit(struct m0_addb2_sys *sys,
 		tr_tlink_init_at_tail(obj, &sys->sy_queue);
 		sys_post(sys);
 	} else {
-		M0_LOG(M0_WARN, "Queue overflow.");
+		M0_LOG(M0_DEBUG, "Queue overflow.");
 		obj = NULL;
 	}
 	sys_unlock(sys);
