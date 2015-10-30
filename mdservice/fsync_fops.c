@@ -60,7 +60,7 @@ M0_EXPORTED(m0_mdservice_fsync_fop_fini);
  * for an fsync fop.
  */
 const struct m0_fom_type_ops m0_fsync_fom_ops = {
-        .fto_create = m0_fsync_req_fom_create
+	.fto_create = m0_fsync_req_fom_create
 };
 
 

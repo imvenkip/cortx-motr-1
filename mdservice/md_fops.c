@@ -29,7 +29,7 @@
 #include "mdservice/md_fops_xc.h"
 
 static int md_fol_frag_undo(struct m0_fop_fol_frag *ffrag,
-			        struct m0_fol *fol);
+			    struct m0_fol *fol);
 static int md_fol_frag_redo(struct m0_fop_fol_frag *ffrag,
 				struct m0_fol *fol);
 
@@ -41,7 +41,7 @@ const struct m0_fop_type_ops m0_md_fop_ops = {
 #ifndef __KERNEL__
 struct m0_fom_type_ops m0_md_fom_ops = {
 	/* This field is patched by UT. */
-        .fto_create = m0_md_req_fom_create
+	.fto_create = m0_md_req_fom_create
 };
 
 extern struct m0_reqh_service_type m0_mds_type;
@@ -81,12 +81,11 @@ struct m0_fop_type m0_fop_readdir_rep_fopt;
 
 M0_INTERNAL int m0_mdservice_fopts_init(void)
 {
-        M0_FOP_TYPE_INIT(&m0_fop_create_fopt,
+	M0_FOP_TYPE_INIT(&m0_fop_create_fopt,
 			 .name      = "Create request",
 			 .opcode    = M0_MDSERVICE_CREATE_OPCODE,
 			 .xt        = m0_fop_create_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &m0_md_fom_ops,
@@ -108,8 +107,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .name      = "Hardlink request",
 			 .opcode    = M0_MDSERVICE_LINK_OPCODE,
 			 .xt        = m0_fop_link_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &m0_md_fom_ops,
@@ -120,8 +118,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .name      = "Unlink request",
 			 .opcode    = M0_MDSERVICE_UNLINK_OPCODE,
 			 .xt        = m0_fop_unlink_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &m0_md_fom_ops,
@@ -132,8 +129,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .name      = "Open request",
 			 .opcode    = M0_MDSERVICE_OPEN_OPCODE,
 			 .xt        = m0_fop_open_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &m0_md_fom_ops,
@@ -144,8 +140,10 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .name      = "Close request",
 			 .opcode    = M0_MDSERVICE_CLOSE_OPCODE,
 			 .xt        = m0_fop_close_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 /*
+			  * Close needs transactions for open-unlinked case.
+			  */
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &m0_md_fom_ops,
@@ -156,8 +154,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .name      = "Setattr request",
 			 .opcode    = M0_MDSERVICE_SETATTR_OPCODE,
 			 .xt        = m0_fop_setattr_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &m0_md_fom_ops,
@@ -179,8 +176,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .name      = "Setxattr request",
 			 .opcode    = M0_MDSERVICE_SETXATTR_OPCODE,
 			 .xt        = m0_fop_setxattr_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &m0_md_fom_ops,
@@ -202,8 +198,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .name      = "Delxattr request",
 			 .opcode    = M0_MDSERVICE_DELXATTR_OPCODE,
 			 .xt        = m0_fop_delxattr_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &m0_md_fom_ops,
@@ -236,8 +231,7 @@ M0_INTERNAL int m0_mdservice_fopts_init(void)
 			 .name      = "Rename request",
 			 .opcode    = M0_MDSERVICE_RENAME_OPCODE,
 			 .xt        = m0_fop_rename_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &m0_md_fom_ops,
@@ -340,44 +334,44 @@ M0_INTERNAL int m0_mdservice_rep_fopts_init(void)
 
 M0_INTERNAL int m0_mdservice_fop_init(void)
 {
-        return	m0_mdservice_fopts_init() ?:
+	return	m0_mdservice_fopts_init() ?:
 		m0_mdservice_rep_fopts_init();
 }
 M0_EXPORTED(m0_mdservice_fop_init);
 
 M0_INTERNAL void m0_mdservice_fop_fini(void)
 {
-        m0_fop_type_fini(&m0_fop_create_fopt);
-        m0_fop_type_fini(&m0_fop_lookup_fopt);
-        m0_fop_type_fini(&m0_fop_link_fopt);
-        m0_fop_type_fini(&m0_fop_unlink_fopt);
-        m0_fop_type_fini(&m0_fop_open_fopt);
-        m0_fop_type_fini(&m0_fop_close_fopt);
-        m0_fop_type_fini(&m0_fop_setattr_fopt);
-        m0_fop_type_fini(&m0_fop_getattr_fopt);
-        m0_fop_type_fini(&m0_fop_setxattr_fopt);
-        m0_fop_type_fini(&m0_fop_getxattr_fopt);
-        m0_fop_type_fini(&m0_fop_delxattr_fopt);
-        m0_fop_type_fini(&m0_fop_listxattr_fopt);
-        m0_fop_type_fini(&m0_fop_statfs_fopt);
-        m0_fop_type_fini(&m0_fop_rename_fopt);
-        m0_fop_type_fini(&m0_fop_readdir_fopt);
+	m0_fop_type_fini(&m0_fop_create_fopt);
+	m0_fop_type_fini(&m0_fop_lookup_fopt);
+	m0_fop_type_fini(&m0_fop_link_fopt);
+	m0_fop_type_fini(&m0_fop_unlink_fopt);
+	m0_fop_type_fini(&m0_fop_open_fopt);
+	m0_fop_type_fini(&m0_fop_close_fopt);
+	m0_fop_type_fini(&m0_fop_setattr_fopt);
+	m0_fop_type_fini(&m0_fop_getattr_fopt);
+	m0_fop_type_fini(&m0_fop_setxattr_fopt);
+	m0_fop_type_fini(&m0_fop_getxattr_fopt);
+	m0_fop_type_fini(&m0_fop_delxattr_fopt);
+	m0_fop_type_fini(&m0_fop_listxattr_fopt);
+	m0_fop_type_fini(&m0_fop_statfs_fopt);
+	m0_fop_type_fini(&m0_fop_rename_fopt);
+	m0_fop_type_fini(&m0_fop_readdir_fopt);
 
-        m0_fop_type_fini(&m0_fop_create_rep_fopt);
-        m0_fop_type_fini(&m0_fop_lookup_rep_fopt);
-        m0_fop_type_fini(&m0_fop_link_rep_fopt);
-        m0_fop_type_fini(&m0_fop_unlink_rep_fopt);
-        m0_fop_type_fini(&m0_fop_open_rep_fopt);
-        m0_fop_type_fini(&m0_fop_close_rep_fopt);
-        m0_fop_type_fini(&m0_fop_setattr_rep_fopt);
-        m0_fop_type_fini(&m0_fop_getattr_rep_fopt);
-        m0_fop_type_fini(&m0_fop_setxattr_rep_fopt);
-        m0_fop_type_fini(&m0_fop_getxattr_rep_fopt);
-        m0_fop_type_fini(&m0_fop_delxattr_rep_fopt);
-        m0_fop_type_fini(&m0_fop_listxattr_rep_fopt);
-        m0_fop_type_fini(&m0_fop_statfs_rep_fopt);
-        m0_fop_type_fini(&m0_fop_rename_rep_fopt);
-        m0_fop_type_fini(&m0_fop_readdir_rep_fopt);
+	m0_fop_type_fini(&m0_fop_create_rep_fopt);
+	m0_fop_type_fini(&m0_fop_lookup_rep_fopt);
+	m0_fop_type_fini(&m0_fop_link_rep_fopt);
+	m0_fop_type_fini(&m0_fop_unlink_rep_fopt);
+	m0_fop_type_fini(&m0_fop_open_rep_fopt);
+	m0_fop_type_fini(&m0_fop_close_rep_fopt);
+	m0_fop_type_fini(&m0_fop_setattr_rep_fopt);
+	m0_fop_type_fini(&m0_fop_getattr_rep_fopt);
+	m0_fop_type_fini(&m0_fop_setxattr_rep_fopt);
+	m0_fop_type_fini(&m0_fop_getxattr_rep_fopt);
+	m0_fop_type_fini(&m0_fop_delxattr_rep_fopt);
+	m0_fop_type_fini(&m0_fop_listxattr_rep_fopt);
+	m0_fop_type_fini(&m0_fop_statfs_rep_fopt);
+	m0_fop_type_fini(&m0_fop_rename_rep_fopt);
+	m0_fop_type_fini(&m0_fop_readdir_rep_fopt);
 
 	m0_xc_md_fops_fini();
 }

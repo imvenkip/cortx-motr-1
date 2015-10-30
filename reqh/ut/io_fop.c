@@ -109,19 +109,6 @@ const struct m0_sm_conf write_conf = {
 };
 
 /**
- * Fop type structures required for initialising corresponding fops.
- */
-static struct m0_fop_type *stob_fops[] = {
-	&m0_stob_io_create_fopt,
-	&m0_stob_io_write_fopt,
-	&m0_stob_io_read_fopt,
-
-	&m0_stob_io_create_rep_fopt,
-	&m0_stob_io_write_rep_fopt,
-	&m0_stob_io_read_rep_fopt,
-};
-
-/**
  * A generic fom structure to hold fom, reply fop, storage object
  * and storage io object, used for fop execution.
  */
@@ -138,7 +125,7 @@ struct m0_stob_io_fom {
 	 * Fol record part representing stob io operations.
 	 * It should be pointed by m0_stob_io::si_fol_frag.
 	 */
-        struct m0_fol_frag		 sif_fol_frag;
+	struct m0_fol_frag		 sif_fol_frag;
 };
 
 extern struct m0_stob_domain *reqh_ut_stob_domain_find(void);
@@ -369,109 +356,110 @@ static int stob_create_fom_tick(struct m0_fom *fom)
  */
 static int stob_read_fom_tick(struct m0_fom *fom)
 {
-        struct m0_stob_io_read      *in_fop;
-        struct m0_stob_io_read_rep  *out_fop;
-        struct m0_stob_io_fom       *fom_obj;
-        struct m0_stob_io           *stio;
-        struct m0_stob              *stobj;
-        struct m0_rpc_item          *item;
-        struct m0_fop               *fop;
-        void                        *addr;
-        m0_bcount_t                  count;
-        m0_bcount_t                  offset;
-        uint32_t                     bshift;
-        int                          result = 0;
+	struct m0_stob_io_read      *in_fop;
+	struct m0_stob_io_read_rep  *out_fop;
+	struct m0_stob_io_fom       *fom_obj;
+	struct m0_stob_io           *stio;
+	struct m0_stob              *stobj;
+	struct m0_rpc_item          *item;
+	struct m0_fop               *fop;
+	void                        *addr;
+	m0_bcount_t                  count;
+	m0_bcount_t                  offset;
+	uint32_t                     bshift;
+	int                          result = 0;
 
-        M0_PRE(m0_fop_opcode(fom->fo_fop) == M0_STOB_IO_READ_REQ_OPCODE);
+	M0_PRE(m0_fop_opcode(fom->fo_fop) == M0_STOB_IO_READ_REQ_OPCODE);
 
-        fom_obj = container_of(fom, struct m0_stob_io_fom, sif_fom);
-        stio = &fom_obj->sif_stio;
-        if (m0_fom_phase(fom) < M0_FOPH_NR) {
-                result = m0_fom_tick_generic(fom);
-        } else {
-                out_fop = m0_fop_data(fom_obj->sif_rep_fop);
-                M0_ASSERT(out_fop != NULL);
+	fom_obj = container_of(fom, struct m0_stob_io_fom, sif_fom);
+	stio = &fom_obj->sif_stio;
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		result = m0_fom_tick_generic(fom);
+	} else {
+		out_fop = m0_fop_data(fom_obj->sif_rep_fop);
+		M0_ASSERT(out_fop != NULL);
 
-                if (m0_fom_phase(fom) == M0_FOPH_READ_STOB_IO) {
+		if (m0_fom_phase(fom) == M0_FOPH_READ_STOB_IO) {
 			uint8_t                  *buf;
 
-                        in_fop = m0_fop_data(fom->fo_fop);
-                        M0_ASSERT(in_fop != NULL);
-                        fom_obj->sif_stobj = stob_object_find(
+			in_fop = m0_fop_data(fom->fo_fop);
+			M0_ASSERT(in_fop != NULL);
+			fom_obj->sif_stobj = stob_object_find(
 				&in_fop->fir_object, fom);
 
-                        stobj =  fom_obj->sif_stobj;
-                        bshift = m0_stob_block_shift(stobj);
+			stobj =  fom_obj->sif_stobj;
+			bshift = m0_stob_block_shift(stobj);
 
 			M0_ALLOC_ARR(buf, 1 << BALLOC_DEF_BLOCK_SHIFT);
 			M0_ASSERT(buf != NULL);
 			out_fop->firr_value.fi_buf   = buf;
 			out_fop->firr_value.fi_count =
-			                            1 << BALLOC_DEF_BLOCK_SHIFT;
+						    1 << BALLOC_DEF_BLOCK_SHIFT;
 
 			addr = m0_stob_addr_pack(buf, bshift);
-                        count = out_fop->firr_value.fi_count >> bshift;
-                        offset = 0;
+			count = out_fop->firr_value.fi_count >> bshift;
+			offset = 0;
 
-                        m0_stob_io_init(stio);
+			m0_stob_io_init(stio);
 
-                        stio->si_user = (struct m0_bufvec)
+			stio->si_user = (struct m0_bufvec)
 				M0_BUFVEC_INIT_BUF(&addr, &count);
 
-                        stio->si_stob.iv_vec.v_nr    = 1;
-                        stio->si_stob.iv_vec.v_count = &count;
-                        stio->si_stob.iv_index       = &offset;
+			stio->si_stob.iv_vec.v_nr    = 1;
+			stio->si_stob.iv_vec.v_count = &count;
+			stio->si_stob.iv_index       = &offset;
 
-                        stio->si_opcode = SIO_READ;
-                        stio->si_flags  = 0;
+			stio->si_opcode = SIO_READ;
+			stio->si_flags  = 0;
 
-                        m0_mutex_lock(&stio->si_mutex);
-                        m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
-                        m0_mutex_unlock(&stio->si_mutex);
-                        result = m0_stob_io_launch(stio, stobj,
+			m0_mutex_lock(&stio->si_mutex);
+			m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
+			m0_mutex_unlock(&stio->si_mutex);
+			result = m0_stob_io_launch(stio, stobj,
 						   &fom->fo_tx, NULL);
 
-                        if (result != 0) {
-                                m0_mutex_lock(&stio->si_mutex);
-                                m0_fom_callback_cancel(&fom->fo_cb);
-                                m0_mutex_unlock(&stio->si_mutex);
-                                m0_fom_phase_move(fom, result, M0_FOPH_FAILURE);
-                        } else {
-                                m0_fom_phase_set(fom, M0_FOPH_READ_STOB_IO_WAIT);
-                                result = M0_FSO_WAIT;
-                        }
-                } else if (m0_fom_phase(fom) == M0_FOPH_READ_STOB_IO_WAIT) {
-                        stobj = fom_obj->sif_stobj;
+			if (result != 0) {
+				m0_mutex_lock(&stio->si_mutex);
+				m0_fom_callback_cancel(&fom->fo_cb);
+				m0_mutex_unlock(&stio->si_mutex);
+				m0_fom_phase_move(fom, result, M0_FOPH_FAILURE);
+			} else {
+				m0_fom_phase_set(fom,
+						 M0_FOPH_READ_STOB_IO_WAIT);
+				result = M0_FSO_WAIT;
+			}
+		} else if (m0_fom_phase(fom) == M0_FOPH_READ_STOB_IO_WAIT) {
+			stobj = fom_obj->sif_stobj;
 			bshift = m0_stob_block_shift(stobj);
 			out_fop->firr_count = stio->si_count << bshift;
 			m0_fom_phase_moveif(fom, stio->si_rc, M0_FOPH_SUCCESS,
 					    M0_FOPH_FAILURE);
-                }
+		}
 
-                if (m0_fom_phase(fom) == M0_FOPH_FAILURE ||
-                    m0_fom_phase(fom) == M0_FOPH_SUCCESS) {
-                        out_fop->firr_rc = m0_fom_rc(fom);
+		if (m0_fom_phase(fom) == M0_FOPH_FAILURE ||
+		    m0_fom_phase(fom) == M0_FOPH_SUCCESS) {
+			out_fop->firr_rc = m0_fom_rc(fom);
 			fop = fom_obj->sif_rep_fop;
 			item = m0_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
-                        fom->fo_rep_fop = fom_obj->sif_rep_fop;
-                        result = M0_FSO_AGAIN;
-                }
+			fom->fo_rep_fop = fom_obj->sif_rep_fop;
+			result = M0_FSO_AGAIN;
+		}
 
-        }
+	}
 
-        if (m0_fom_phase(fom) == M0_FOPH_FINISH) {
-                /*
-                   If we fail in any of the generic phase, stob io
-                   is uninitialised, so no need to fini.
-                 */
-                if (stio->si_state != SIS_ZERO) {
-                        m0_stob_io_fini(stio);
-                        m0_stob_put(fom_obj->sif_stobj);
-                }
-        }
+	if (m0_fom_phase(fom) == M0_FOPH_FINISH) {
+		/*
+		   If we fail in any of the generic phase, stob io
+		   is uninitialised, so no need to fini.
+		 */
+		if (stio->si_state != SIS_ZERO) {
+			m0_stob_io_fini(stio);
+			m0_stob_put(fom_obj->sif_stobj);
+		}
+	}
 
-        return result;
+	return result;
 }
 
 static void fom_stob_write_credit(struct m0_fom *fom)
@@ -500,105 +488,105 @@ static void fom_stob_write_credit(struct m0_fom *fom)
  */
 static int stob_write_fom_tick(struct m0_fom *fom)
 {
-        struct m0_stob_io_write     *in_fop;
-        struct m0_stob_io_write_rep *out_fop;
-        struct m0_stob_io_fom       *fom_obj;
-        struct m0_stob_io           *stio;
-        struct m0_stob              *stobj;
-        struct m0_rpc_item          *item;
-        struct m0_fop               *fop;
-        void                        *addr;
-        m0_bcount_t                  count;
-        m0_bindex_t                  offset;
-        uint32_t                     bshift;
-        int                          result = 0;
+	struct m0_stob_io_write     *in_fop;
+	struct m0_stob_io_write_rep *out_fop;
+	struct m0_stob_io_fom       *fom_obj;
+	struct m0_stob_io           *stio;
+	struct m0_stob              *stobj;
+	struct m0_rpc_item          *item;
+	struct m0_fop               *fop;
+	void                        *addr;
+	m0_bcount_t                  count;
+	m0_bindex_t                  offset;
+	uint32_t                     bshift;
+	int                          result = 0;
 
-        M0_PRE(m0_fop_opcode(fom->fo_fop) == M0_STOB_IO_WRITE_REQ_OPCODE);
+	M0_PRE(m0_fop_opcode(fom->fo_fop) == M0_STOB_IO_WRITE_REQ_OPCODE);
 
-        fom_obj = container_of(fom, struct m0_stob_io_fom, sif_fom);
-        stio = &fom_obj->sif_stio;
+	fom_obj = container_of(fom, struct m0_stob_io_fom, sif_fom);
+	stio = &fom_obj->sif_stio;
 
-        if (m0_fom_phase(fom) < M0_FOPH_NR) {
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
 			fom_stob_write_credit(fom);
-                result = m0_fom_tick_generic(fom);
-        } else {
-                out_fop = m0_fop_data(fom_obj->sif_rep_fop);
-                M0_ASSERT(out_fop != NULL);
+		result = m0_fom_tick_generic(fom);
+	} else {
+		out_fop = m0_fop_data(fom_obj->sif_rep_fop);
+		M0_ASSERT(out_fop != NULL);
 
-                if (m0_fom_phase(fom) == M0_FOPH_WRITE_STOB_IO) {
-                        in_fop = m0_fop_data(fom->fo_fop);
-                        M0_ASSERT(in_fop != NULL);
+		if (m0_fom_phase(fom) == M0_FOPH_WRITE_STOB_IO) {
+			in_fop = m0_fop_data(fom->fo_fop);
+			M0_ASSERT(in_fop != NULL);
 
-                        fom_obj->sif_stobj = stob_object_find(
+			fom_obj->sif_stobj = stob_object_find(
 				&in_fop->fiw_object, fom);
 
-                        stobj = fom_obj->sif_stobj;
-                        bshift = m0_stob_block_shift(stobj);
+			stobj = fom_obj->sif_stobj;
+			bshift = m0_stob_block_shift(stobj);
 
-                        addr = m0_stob_addr_pack(in_fop->fiw_value.fi_buf,
-			                         bshift);
-                        count = in_fop->fiw_value.fi_count >> bshift;
-                        offset = 0;
+			addr = m0_stob_addr_pack(in_fop->fiw_value.fi_buf,
+						 bshift);
+			count = in_fop->fiw_value.fi_count >> bshift;
+			offset = 0;
 
-                        m0_stob_io_init(stio);
+			m0_stob_io_init(stio);
 
-                        stio->si_user = (struct m0_bufvec)
+			stio->si_user = (struct m0_bufvec)
 				M0_BUFVEC_INIT_BUF(&addr, &count);
 
-                        stio->si_stob.iv_vec.v_nr    = 1;
-                        stio->si_stob.iv_vec.v_count = &count;
-                        stio->si_stob.iv_index       = &offset;
-                        stio->si_opcode = SIO_WRITE;
+			stio->si_stob.iv_vec.v_nr    = 1;
+			stio->si_stob.iv_vec.v_count = &count;
+			stio->si_stob.iv_index       = &offset;
+			stio->si_opcode = SIO_WRITE;
 			stio->si_fol_frag = &fom_obj->sif_fol_frag;
-                        stio->si_flags  = 0;
+			stio->si_flags  = 0;
 
-                        m0_mutex_lock(&stio->si_mutex);
-                        m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
-                        m0_mutex_unlock(&stio->si_mutex);
-                        result = m0_stob_io_launch(stio,
+			m0_mutex_lock(&stio->si_mutex);
+			m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
+			m0_mutex_unlock(&stio->si_mutex);
+			result = m0_stob_io_launch(stio,
 						   stobj, &fom->fo_tx, NULL);
 
-                        if (result != 0) {
-                                m0_mutex_lock(&stio->si_mutex);
-                                m0_fom_callback_cancel(&fom->fo_cb);
-                                m0_mutex_unlock(&stio->si_mutex);
-                                m0_fom_phase_move(fom, result, M0_FOPH_FAILURE);
-                        } else {
-                                m0_fom_phase_set(fom,
+			if (result != 0) {
+				m0_mutex_lock(&stio->si_mutex);
+				m0_fom_callback_cancel(&fom->fo_cb);
+				m0_mutex_unlock(&stio->si_mutex);
+				m0_fom_phase_move(fom, result, M0_FOPH_FAILURE);
+			} else {
+				m0_fom_phase_set(fom,
 						 M0_FOPH_WRITE_STOB_IO_WAIT);
-                                result = M0_FSO_WAIT;
-                        }
-                } else if (m0_fom_phase(fom) == M0_FOPH_WRITE_STOB_IO_WAIT) {
-                        stobj = fom_obj->sif_stobj;
+				result = M0_FSO_WAIT;
+			}
+		} else if (m0_fom_phase(fom) == M0_FOPH_WRITE_STOB_IO_WAIT) {
+			stobj = fom_obj->sif_stobj;
 			bshift = m0_stob_block_shift(stobj);
 			out_fop->fiwr_count = stio->si_count << bshift;
 			m0_fom_phase_moveif(fom, stio->si_rc, M0_FOPH_SUCCESS,
 					    M0_FOPH_FAILURE);
-                }
+		}
 
-                if (m0_fom_phase(fom) == M0_FOPH_FAILURE ||
-                    m0_fom_phase(fom) == M0_FOPH_SUCCESS) {
-                        out_fop->fiwr_rc = m0_fom_rc(fom);
+		if (m0_fom_phase(fom) == M0_FOPH_FAILURE ||
+		    m0_fom_phase(fom) == M0_FOPH_SUCCESS) {
+			out_fop->fiwr_rc = m0_fom_rc(fom);
 			fop = fom_obj->sif_rep_fop;
 			item = m0_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
-                        fom->fo_rep_fop = fom_obj->sif_rep_fop;
-                        result = M0_FSO_AGAIN;
-                }
-        }
+			fom->fo_rep_fop = fom_obj->sif_rep_fop;
+			result = M0_FSO_AGAIN;
+		}
+	}
 
-        if (m0_fom_phase(fom) == M0_FOPH_FINISH) {
-                /*
-                   If we fail in any of the generic phase, stob io
-                   is uninitialised, so no need to fini.
-                 */
-                if (stio->si_state != SIS_ZERO) {
-                        m0_stob_io_fini(stio);
-                        m0_stob_put(fom_obj->sif_stobj);
-                }
-        }
-        return result;
+	if (m0_fom_phase(fom) == M0_FOPH_FINISH) {
+		/*
+		   If we fail in any of the generic phase, stob io
+		   is uninitialised, so no need to fini.
+		 */
+		if (stio->si_state != SIS_ZERO) {
+			m0_stob_io_fini(stio);
+			m0_stob_put(fom_obj->sif_stobj);
+		}
+	}
+	return result;
 }
 
 /**
@@ -620,9 +608,6 @@ void m0_stob_io_fop_fini(void);
  */
 void m0_stob_io_fop_init(void)
 {
-	int		    i;
-	struct m0_fop_type *fop_type;
-
 	m0_sm_conf_extend(m0_generic_conf.scf_state, stob_read_phases,
 			  m0_generic_conf.scf_nr_states);
 	m0_sm_conf_extend(m0_generic_conf.scf_state, stob_write_phases,
@@ -634,8 +619,7 @@ void m0_stob_io_fop_init(void)
 			 .xt        = m0_stob_io_create_xc,
 			 .fom_ops   = &stob_create_fom_type_ops,
 			 .sm        = &m0_generic_conf,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .svc_type  = &m0_rpc_service_type);
 	M0_FOP_TYPE_INIT(&m0_stob_io_read_fopt,
 			 .name      = "Stob read",
@@ -643,8 +627,7 @@ void m0_stob_io_fop_init(void)
 			 .xt        = m0_stob_io_read_xc,
 			 .fom_ops   = &stob_read_fom_type_ops,
 			 .sm        = &read_conf,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .svc_type  = &m0_rpc_service_type);
 	M0_FOP_TYPE_INIT(&m0_stob_io_write_fopt,
 			 .name      = "Stob write",
@@ -652,8 +635,7 @@ void m0_stob_io_fop_init(void)
 			 .xt        = m0_stob_io_write_xc,
 			 .fom_ops   = &stob_write_fom_type_ops,
 			 .sm        = &write_conf,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .svc_type  = &m0_rpc_service_type);
 	M0_FOP_TYPE_INIT(&m0_stob_io_create_rep_fopt,
 			 .name      = "Stob create reply",
@@ -673,12 +655,6 @@ void m0_stob_io_fop_init(void)
 			 .xt        = m0_stob_io_write_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .svc_type  = &m0_rpc_service_type);
-	for (i = 0; i < ARRAY_SIZE(stob_fops); ++i) {
-		fop_type = stob_fops[i];
-		if ((fop_type->ft_rpc_item_type.rit_flags &
-		     M0_RPC_ITEM_TYPE_REQUEST) == 0)
-			continue;
-	}
 }
 
 /**

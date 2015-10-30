@@ -33,6 +33,7 @@
 #include "dtm/dtm.h"
 #include "rpc/rpc.h"
 #include "rpc/rpc_opcodes.h"    /* M0_REQH_ERROR_REPLY_OPCODE */
+#include "rpc/item_internal.h"  /* m0_rpc_item_is_update */
 #include "reqh/reqh.h"
 #include "fop/fom_generic.h"
 #include "fop/fom_generic_xc.h"
@@ -90,6 +91,12 @@ int32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *reply)
 		return 0;
 }
 M0_EXPORTED(m0_rpc_item_generic_reply_rc);
+
+static bool fom_is_update(const struct m0_fom *fom)
+{
+	return m0_rpc_item_is_update(m0_fop_to_rpc_item(fom->fo_fop));
+}
+
 /**
  * Fom phase descriptor structure, helps to transition fom
  * through its standard phases
@@ -233,13 +240,9 @@ static int fom_auth_wait(struct m0_fom *fom)
  */
 static int fom_tx_init(struct m0_fom *fom)
 {
-	struct m0_reqh *reqh;
-
-	reqh = m0_fom_reqh(fom);
-
-	m0_dtx_init(&fom->fo_tx, reqh->rh_beseg->bs_domain,
-		    &fom->fo_loc->fl_group);
-
+	if (fom_is_update(fom))
+		m0_dtx_init(&fom->fo_tx, m0_fom_reqh(fom)->rh_beseg->bs_domain,
+			    &fom->fo_loc->fl_group);
 	return M0_FSO_AGAIN;
 }
 
@@ -249,19 +252,18 @@ static int fom_tx_init(struct m0_fom *fom)
  */
 static int fom_tx_open(struct m0_fom *fom)
 {
-	struct m0_dtx  *dtx  = &fom->fo_tx;
+	if (fom_is_update(fom)) {
+		struct m0_dtx *dtx = &fom->fo_tx;
 
-	m0_be_tx_payload_prep(m0_fom_tx(fom), FOL_REC_MAXSIZE);
-
-	if (!fom->fo_local) {
-		int rc;
-		rc = m0_fop_fol_add(fom->fo_fop, fom->fo_rep_fop, dtx);
-		if (rc < 0)
-			return M0_RC(rc);
+		m0_be_tx_payload_prep(m0_fom_tx(fom), FOL_REC_MAXSIZE);
+		if (!fom->fo_local) {
+			int rc;
+			rc = m0_fop_fol_add(fom->fo_fop, fom->fo_rep_fop, dtx);
+			if (rc < 0)
+				return M0_RC(rc);
+		}
+		m0_dtx_open(dtx);
 	}
-
-	m0_dtx_open(dtx);
-
 	return M0_FSO_AGAIN;
 }
 
@@ -271,21 +273,25 @@ static int fom_tx_open(struct m0_fom *fom)
  */
 static int fom_tx_wait(struct m0_fom *fom)
 {
-	struct m0_be_tx *tx = m0_fom_tx(fom);
+	if (fom_is_update(fom)) {
+		struct m0_be_tx *tx = m0_fom_tx(fom);
 
-	M0_ENTRY("fom=%p", fom);
-	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_OPENING, M0_BTS_GROUPING,
-					  M0_BTS_ACTIVE, M0_BTS_FAILED)));
+		M0_ENTRY("fom=%p", fom);
+		M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_OPENING,
+						  M0_BTS_GROUPING,
+						  M0_BTS_ACTIVE,
+						  M0_BTS_FAILED)));
 
-	if (m0_be_tx_state(tx) == M0_BTS_FAILED)
-		return M0_RC(tx->t_sm.sm_rc);
-	else if (M0_IN(m0_be_tx_state(tx), (M0_BTS_OPENING, M0_BTS_GROUPING))) {
-		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
-		M0_LEAVE();
-		return M0_FSO_WAIT;
-	} else
-		m0_dtx_opened(&fom->fo_tx);
-
+		if (m0_be_tx_state(tx) == M0_BTS_FAILED)
+			return M0_RC(tx->t_sm.sm_rc);
+		else if (M0_IN(m0_be_tx_state(tx), (M0_BTS_OPENING,
+						    M0_BTS_GROUPING))) {
+			m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
+			M0_LEAVE();
+			return M0_FSO_WAIT;
+		} else
+			m0_dtx_opened(&fom->fo_tx);
+	}
 	M0_LEAVE();
 	return M0_FSO_AGAIN;
 }
@@ -326,7 +332,6 @@ static int fom_failure(struct m0_fom *fom)
 		M0_LOG(M0_NOTICE, "fom_rc=%d", rc);
 		generic_reply_build(fom);
 	}
-
 	return M0_FSO_AGAIN;
 }
 
@@ -343,14 +348,12 @@ static int fom_success(struct m0_fom *fom)
  */
 static int fom_fol_rec_add(struct m0_fom *fom)
 {
-	struct m0_dtx *dtx = &fom->fo_tx;
-
-	if (!fom->fo_local && dtx->tx_state == M0_DTX_OPEN) {
+	if (fom_is_update(fom) &&
+	    !fom->fo_local && fom->fo_tx.tx_state == M0_DTX_OPEN) {
 		int rc = m0_fom_fol_rec_add(fom);
 		if (rc < 0)
 			return M0_RC(rc);
 	}
-
 	return M0_FSO_AGAIN;
 }
 
@@ -363,7 +366,9 @@ static int fom_tx_commit(struct m0_fom *fom)
 	struct m0_dtx   *dtx = &fom->fo_tx;
 	struct m0_be_tx *tx  = m0_fom_tx(fom);
 
-	if (dtx->tx_state == M0_DTX_INIT) {
+	if (!fom_is_update(fom))
+		;
+	else if (dtx->tx_state == M0_DTX_INIT) {
 		m0_dtx_fini(dtx);
 	} else if (M0_IN(dtx->tx_state, (M0_DTX_OPEN, M0_DTX_DONE))){
 		M0_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
@@ -381,7 +386,9 @@ M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom)
 	struct m0_dtx   *dtx = &fom->fo_tx;
 	struct m0_be_tx *tx = m0_fom_tx(fom);
 
-	if (dtx->tx_state == M0_DTX_DONE) {
+	if (!fom_is_update(fom))
+		;
+	else if (dtx->tx_state == M0_DTX_DONE) {
 		if (m0_be_tx_state(tx) == M0_BTS_DONE) {
 			m0_dtx_fini(&fom->fo_tx);
 			return M0_FSO_AGAIN;
@@ -400,10 +407,10 @@ M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom)
  *
  * @pre fom->fo_rep_fop != NULL
  *
- * @todo Implement write back cache, during which we may
- *	perform updates on local objects and re-integrate
- *	with the server later, in that case we may block while,
-	we caching fop, this requires more additions to the routine.
+ * @todo Implement write back cache, during which we may perform updates on
+ *       local objects and re-integrate with the server later, in that case we
+ *       may block while, we caching fop, this requires more additions to the
+ *       routine.
  */
 static int fom_queue_reply(struct m0_fom *fom)
 {

@@ -30,11 +30,10 @@ extern struct m0_cm_type sns_rebalance_cmt;
 
 M0_INTERNAL void m0_sns_cm_rebalance_cpx_init(void)
 {
-        m0_sns_cpx_init(&m0_sns_rebalance_cpx_fopt,
+	m0_sns_cpx_init(&m0_sns_rebalance_cpx_fopt,
 			M0_SNS_CM_REBALANCE_CP_OPCODE,
 			"SNS Rebalance copy packet", m0_sns_cpx_xc,
-			M0_RPC_ITEM_TYPE_REQUEST |
-			M0_RPC_ITEM_TYPE_MUTABO,
+			M0_RPC_MUTABO_REQ,
 			&sns_rebalance_cmt);
 	m0_sns_cpx_init(&m0_sns_rebalance_cpx_reply_fopt,
 			M0_SNS_CM_REBALANCE_CP_REP_OPCODE,

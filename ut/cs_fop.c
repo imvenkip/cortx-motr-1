@@ -131,18 +131,17 @@ void m0_cs_ut_ds1_fop_fini(void)
 
 int m0_cs_ut_ds1_fop_init(void)
 {
-        /*
-	  As we are finalising and initialising fop types multiple times
-	  per service for various m0d commands, So reinitialise
-	  fop_type_format for each corresponding service fop types.
-	*/
+	/*
+	 * As we are finalising and initialising fop types multiple times per
+	 * service for various m0d commands, So reinitialise fop_type_format for
+	 * each corresponding service fop types.
+	 */
 	m0_xc_cs_fop_init();
-        M0_FOP_TYPE_INIT(&cs_ds1_req_fop_fopt,
+	M0_FOP_TYPE_INIT(&cs_ds1_req_fop_fopt,
 			 .name      = "ds1 request",
 			 .opcode    = M0_CS_DS1_REQ_OPCODE,
 			 .xt        = cs_ds1_req_fop_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fom_ops   = &cs_ds1_req_fop_fom_type_ops,
 			 .sm        = &m0_generic_conf,
 			 .svc_type  = &ds1_service_type);

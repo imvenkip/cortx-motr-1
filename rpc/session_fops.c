@@ -126,8 +126,7 @@ M0_INTERNAL int m0_rpc_session_fop_init(void)
 			 .name      = "Rpc conn establish",
 			 .opcode    = M0_RPC_CONN_ESTABLISH_OPCODE,
 			 .xt        = m0_rpc_fop_conn_establish_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .rpc_ops   = &conn_establish_item_type_ops,
 			 .fom_ops   = &m0_rpc_fom_conn_establish_type_ops,
 			 .sm        = &m0_generic_conf,
@@ -136,8 +135,7 @@ M0_INTERNAL int m0_rpc_session_fop_init(void)
 			 .name      = "Rpc conn terminate",
 			 .opcode    = M0_RPC_CONN_TERMINATE_OPCODE,
 			 .xt        = m0_rpc_fop_conn_terminate_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fom_ops   = &m0_rpc_fom_conn_terminate_type_ops,
 			 .sm        = &m0_generic_conf,
 			 .svc_type  = &m0_rpc_service_type);
@@ -145,8 +143,7 @@ M0_INTERNAL int m0_rpc_session_fop_init(void)
 			 .name      = "Rpc session establish",
 			 .opcode    = M0_RPC_SESSION_ESTABLISH_OPCODE,
 			 .xt        = m0_rpc_fop_session_establish_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fom_ops   = &m0_rpc_fom_session_establish_type_ops,
 			 .sm        = &m0_generic_conf,
 			 .svc_type  = &m0_rpc_service_type);
@@ -154,8 +151,7 @@ M0_INTERNAL int m0_rpc_session_fop_init(void)
 			 .name      = "Rpc session terminate",
 			 .opcode    = M0_RPC_SESSION_TERMINATE_OPCODE,
 			 .xt        = m0_rpc_fop_session_terminate_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fom_ops   = &m0_rpc_fom_session_terminate_type_ops,
 			 .sm        = &m0_generic_conf,
 			 .svc_type  = &m0_rpc_service_type);

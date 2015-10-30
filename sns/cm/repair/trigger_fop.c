@@ -54,8 +54,7 @@ M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void)
 				   M0_SNS_REPAIR_TRIGGER_OPCODE,
 				   "sns repair trigger",
 				   trigger_fop_xc,
-				   M0_RPC_ITEM_TYPE_REQUEST |
-				   M0_RPC_ITEM_TYPE_MUTABO,
+				   M0_RPC_MUTABO_REQ,
 				   &sns_repair_cmt);
 	m0_sns_cm_trigger_fop_init(&m0_sns_repair_trigger_rep_fopt,
 				   M0_SNS_REPAIR_TRIGGER_REP_OPCODE,
@@ -68,8 +67,7 @@ M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void)
 				   M0_SNS_REPAIR_QUIESCE_OPCODE,
 				   "sns repair quiesce trigger",
 				   trigger_fop_xc,
-				   M0_RPC_ITEM_TYPE_REQUEST |
-				   M0_RPC_ITEM_TYPE_MUTABO,
+				   M0_RPC_MUTABO_REQ,
 				   &sns_repair_cmt);
 	m0_sns_cm_trigger_fop_init(&m0_sns_repair_quiesce_trigger_rep_fopt,
 				   M0_SNS_REPAIR_QUIESCE_REP_OPCODE,
@@ -82,8 +80,7 @@ M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void)
 				   M0_SNS_REPAIR_STATUS_OPCODE,
 				   "sns repair status",
 				   trigger_fop_xc,
-				   M0_RPC_ITEM_TYPE_REQUEST |
-				   M0_RPC_ITEM_TYPE_MUTABO,
+				   M0_RPC_MUTABO_REQ,
 				   &sns_repair_cmt);
 	m0_sns_cm_trigger_fop_init(&m0_sns_repair_status_rep_fopt,
 				   M0_SNS_REPAIR_STATUS_REP_OPCODE,
@@ -95,8 +92,7 @@ M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void)
 				   M0_SNS_REPAIR_ABORT_OPCODE,
 				   "sns repair abort",
 				   trigger_fop_xc,
-				   M0_RPC_ITEM_TYPE_REQUEST |
-				   M0_RPC_ITEM_TYPE_MUTABO,
+				   M0_RPC_MUTABO_REQ,
 				   &sns_repair_cmt);
 	m0_sns_cm_trigger_fop_init(&m0_sns_repair_abort_rep_fopt,
 				   M0_SNS_REPAIR_ABORT_REP_OPCODE,

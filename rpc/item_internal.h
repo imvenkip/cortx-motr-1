@@ -40,6 +40,7 @@ M0_INTERNAL int m0_rpc_item_module_init(void);
 */
 M0_INTERNAL void m0_rpc_item_module_fini(void);
 
+M0_INTERNAL bool m0_rpc_item_is_update(const struct m0_rpc_item *item);
 M0_INTERNAL bool m0_rpc_item_is_oneway(const struct m0_rpc_item *item);
 M0_INTERNAL bool m0_rpc_item_is_request(const struct m0_rpc_item *item);
 M0_INTERNAL bool m0_rpc_item_is_reply(const struct m0_rpc_item *item);

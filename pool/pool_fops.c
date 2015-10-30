@@ -72,7 +72,7 @@ M0_INTERNAL int m0_poolmach_fop_init(void)
 			 .name      = "Pool Machine set request",
 			 .opcode    = M0_POOLMACHINE_SET_OPCODE,
 			 .xt        = m0_fop_poolmach_set_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fom_ops   = &poolmach_fom_type_ops,
 			 .sm        = &poolmach_conf,
 			 .svc_type  = &m0_ios_type);

@@ -300,8 +300,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .name      = "Write request",
 			 .opcode    = M0_IOSERVICE_WRITEV_OPCODE,
 			 .xt        = m0_fop_cob_writev_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-				      M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &io_fop_rwv_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &io_fom_type_ops,
@@ -326,8 +325,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .name      = "Cob create request",
 			 .opcode    = M0_IOSERVICE_COB_CREATE_OPCODE,
 			 .xt        = m0_fop_cob_create_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-				      M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &cob_fom_type_ops,
@@ -339,8 +337,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .name      = "Cob delete request",
 			 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
 			 .xt        = m0_fop_cob_delete_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-				      M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &cob_fom_type_ops,
@@ -352,7 +349,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .name      = "Cob truncate request",
 			 .opcode    = M0_IOSERVICE_COB_TRUNCATE_OPCODE,
 			 .xt        = m0_fop_cob_truncate_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &cob_fom_type_ops,
@@ -398,13 +395,12 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .sm        = &m0_fsync_fom_conf,
 			 .fom_ops   = &m0_fsync_fom_ops,
 #endif
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
+			 .rpc_flags = M0_RPC_MUTABO_REQ);
 	M0_FOP_TYPE_INIT(&m0_fop_cob_setattr_fopt,
 			 .name      = "Cob setattr request",
 			 .opcode    = M0_IOSERVICE_COB_SETATTR_OPCODE,
 			 .xt        = m0_fop_cob_setattr_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-				      M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fop_ops   = NULL,
 #ifndef __KERNEL__
 			 .fom_ops   = &cob_fom_type_ops,

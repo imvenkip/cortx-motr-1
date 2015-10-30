@@ -49,8 +49,7 @@ M0_INTERNAL void m0_ping_fop_init(void)
 			 .name      = "Ping fop",
 			 .opcode    = M0_RPC_PING_OPCODE,
 			 .xt        = m0_fop_ping_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .fom_ops   = &m0_fom_ping_type_ops,
 			 .sm        = &m0_generic_conf,
 			 .svc_type  = &m0_rpc_service_type);

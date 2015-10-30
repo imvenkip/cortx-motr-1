@@ -98,8 +98,7 @@ M0_INTERNAL int m0_conf_fops_init(void)
 			 .svc_type  = &m0_confd_stype,
 			 .sm        = &m0_generic_conf,
 #endif
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-			 M0_RPC_ITEM_TYPE_MUTABO);
+			 .rpc_flags = M0_RPC_MUTABO_REQ);
 	M0_FOP_TYPE_INIT(&m0_conf_update_resp_fopt,
 			 .name      = "Configuration update response",
 			 .opcode    = M0_CONF_UPDATE_RESP_OPCODE,

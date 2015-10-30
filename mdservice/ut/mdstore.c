@@ -69,8 +69,8 @@ static void fom_fini(struct m0_fom *fom)
 {
 	M0_UT_ASSERT(orig_fom_fini != NULL);
 
-        if (error == 0)
-                error = m0_fom_rc(fom);
+	if (error == 0)
+		error = m0_fom_rc(fom);
 	orig_fom_fini(fom);
 	m0_semaphore_up(&inflight);
 }
@@ -90,11 +90,11 @@ static int fom_create(struct m0_fop *fop, struct m0_fom **m,
 
 static void test_mkfs(void)
 {
-        struct m0_md_lustre_fid	 testroot;
-        struct m0_fid		 rootfid;
-        struct m0_be_tx		 tx;
-        struct m0_be_tx_credit	 cred = {};
-        int			 fd;
+	struct m0_md_lustre_fid	 testroot;
+	struct m0_fid		 rootfid;
+	struct m0_be_tx		 tx;
+	struct m0_be_tx_credit	 cred = {};
+	int			 fd;
 	int			 rc;
 
 	M0_SET0(&ut_be);
@@ -104,41 +104,41 @@ static void test_mkfs(void)
 			  .rhia_mdstore = &md,
 			  .rhia_fid     = &g_process_fid,
 		);
-        M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	ut_be.but_dom_cfg.bc_engine.bec_reqh = &reqh;
 	m0_be_ut_backend_init(&ut_be);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 
-        fd = open(M0_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
-        M0_UT_ASSERT(fd > 0);
+	fd = open(M0_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
+	M0_UT_ASSERT(fd > 0);
 
-        rc = read(fd, &testroot, sizeof(testroot));
-        M0_UT_ASSERT(rc == sizeof(testroot));
-        close(fd);
+	rc = read(fd, &testroot, sizeof(testroot));
+	M0_UT_ASSERT(rc == sizeof(testroot));
+	close(fd);
 
-        rc = m0_mdstore_init(&md, &id, be_seg, false);
-        M0_UT_ASSERT(rc == -ENOENT);
+	rc = m0_mdstore_init(&md, &id, be_seg, false);
+	M0_UT_ASSERT(rc == -ENOENT);
 	rc = m0_mdstore_create(&md, grp, &id, be_seg);
-        M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
-        /* Create root and other structures */
+	/* Create root and other structures */
 	m0_cob_tx_credit(md.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-        m0_fid_set(&rootfid, testroot.f_seq, testroot.f_oid);
+	m0_fid_set(&rootfid, testroot.f_seq, testroot.f_oid);
 	rc = m0_cob_domain_mkfs(md.md_dom, &rootfid, &tx);
-        M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	m0_ut_be_tx_end(&tx);
 
-        /* Fini old mdstore */
-        m0_mdstore_fini(&md);
+	/* Fini old mdstore */
+	m0_mdstore_fini(&md);
 
-        /* Init mdstore with root init flag set to 1 */
-        rc = m0_mdstore_init(&md, &id, be_seg, true);
-        M0_UT_ASSERT(rc == 0);
+	/* Init mdstore with root init flag set to 1 */
+	rc = m0_mdstore_init(&md, &id, be_seg, true);
+	M0_UT_ASSERT(rc == 0);
 
-        /* Fini everything */
-        m0_mdstore_fini(&md);
+	/* Fini everything */
+	m0_mdstore_fini(&md);
 }
 
 extern void (*m0_md_req_fom_fini_func)(struct m0_fom *fom);
@@ -154,11 +154,11 @@ static void test_init(void)
 	/* Patch fom creation routine. */
 	orig_fom_create = m0_md_fom_ops.fto_create;
 	m0_md_fom_ops.fto_create = fom_create;
-        rc = m0_mdstore_init(&md, &id, be_seg, true);
-        M0_UT_ASSERT(rc == 0);
+	rc = m0_mdstore_init(&md, &id, be_seg, true);
+	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_reqh_service_allocate(&mdservice, &m0_mds_type, NULL);
-        M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(mdservice, &reqh, NULL);
 	m0_reqh_service_start(mdservice);
 
@@ -180,7 +180,8 @@ static void test_fini(void)
 	if (m0_reqh_state_get(&reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown_wait(&reqh);
 
-	if (M0_IN(m0_reqh_state_get(&reqh), (M0_REQH_ST_DRAIN, M0_REQH_ST_INIT)))
+	if (M0_IN(m0_reqh_state_get(&reqh), (M0_REQH_ST_DRAIN,
+					     M0_REQH_ST_INIT)))
 		m0_reqh_pre_storage_fini_svcs_stop(&reqh);
 
 	m0_md_fom_ops.fto_create = orig_fom_create;
@@ -203,16 +204,16 @@ static void test_mdops(void)
 	struct m0_fop              *fop;
 	int                         i;
 
-        fd = open(M0_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
-        M0_UT_ASSERT(fd > 0);
+	fd = open(M0_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
+	M0_UT_ASSERT(fd > 0);
 
-        result = read(fd, &root, sizeof(root));
-        M0_UT_ASSERT(result == sizeof(root));
-        error = 0;
+	result = read(fd, &root, sizeof(root));
+	M0_UT_ASSERT(result == sizeof(root));
+	error = 0;
 
 	m0_sm_group_init(&machine.rm_sm_grp);
-        for (i = 0; i < REC_NR; ++i) {
-                fop = NULL;
+	for (i = 0; i < REC_NR; ++i) {
+		fop = NULL;
 		do {
 			result = read(fd, &size, sizeof(size));
 			if (result < sizeof(size))
@@ -225,19 +226,19 @@ static void test_mdops(void)
 			m0_free(rec);
 			/* Let's get second part of rename fop. */
 		} while (result == -EAGAIN);
-                if (result == -EOPNOTSUPP)
-                        continue;
-                m0_reqh_fop_handle(&reqh, fop);
+		if (result == -EOPNOTSUPP)
+			continue;
+		m0_reqh_fop_handle(&reqh, fop);
 		m0_fop_put_lock(fop);
 
-                /* Process fops one by one sequentially. */
-                m0_semaphore_down(&inflight);
-        }
+		/* Process fops one by one sequentially. */
+		m0_semaphore_down(&inflight);
+	}
  end:
-        close(fd);
-        /* Make sure that all fops are handled. */
+	close(fd);
+	/* Make sure that all fops are handled. */
 	m0_reqh_idle_wait_for(&reqh, m0_reqh_service_find(&m0_mds_type, &reqh));
-        M0_UT_ASSERT(error == 0);
+	M0_UT_ASSERT(error == 0);
 	m0_sm_group_fini(&machine.rm_sm_grp);
 }
 
@@ -291,15 +292,15 @@ static void ut_fsync_create_fom(void)
 }
 
 struct m0_ut_suite mdservice_ut = {
-        .ts_name = "mdservice-ut",
-        .ts_tests = {
-                { "mdservice-mkfs", test_mkfs },
-                { "mdservice-init", test_init },
-                { "mdservice-ops",  test_mdops },
-                { "mdservice-fsync", ut_fsync_create_fom},
-                { "mdservice-fini", test_fini },
-                { NULL, NULL }
-        }
+	.ts_name = "mdservice-ut",
+	.ts_tests = {
+		{ "mdservice-mkfs", test_mkfs },
+		{ "mdservice-init", test_init },
+		{ "mdservice-ops",  test_mdops },
+		{ "mdservice-fsync", ut_fsync_create_fom},
+		{ "mdservice-fini", test_fini },
+		{ NULL, NULL }
+	}
 };
 
 /*

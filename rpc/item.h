@@ -452,21 +452,23 @@ struct m0_rpc_item_type_ops {
  */
 enum m0_rpc_item_type_flags {
 	/** Receiver of item is expected to send reply to item of this type */
-	M0_RPC_ITEM_TYPE_REQUEST = 1,
+	M0_RPC_ITEM_TYPE_REQUEST = (1 << 0),
 	/**
 	  Item of this type is reply to some item of M0_RPC_ITEM_TYPE_REQUEST
 	  type.
 	*/
-	M0_RPC_ITEM_TYPE_REPLY = (1 << 1),
+	M0_RPC_ITEM_TYPE_REPLY   = (1 << 1),
 	/**
 	  This is a one-way item. There is no reply for this type of
 	  item
 	*/
-	M0_RPC_ITEM_TYPE_ONEWAY = (1 << 2),
+	M0_RPC_ITEM_TYPE_ONEWAY  = (1 << 2),
 	/**
 	  Item of this type can modify file-system state on receiver.
 	*/
-	M0_RPC_ITEM_TYPE_MUTABO = (1 << 3)
+	M0_RPC_ITEM_TYPE_MUTABO  = (1 << 3),
+
+	M0_RPC_MUTABO_REQ = M0_RPC_ITEM_TYPE_MUTABO | M0_RPC_ITEM_TYPE_REQUEST
 };
 
 /**
