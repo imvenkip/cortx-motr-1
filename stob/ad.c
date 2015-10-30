@@ -574,7 +574,7 @@ static int stob_ad_create(struct m0_stob *stob,
 
 	M0_PRE(dtx != NULL);
 	prefix = M0_UINT128(stob_fid->f_container, stob_fid->f_key);
-	M0_LOG(M0_DEBUG, U128D_F, U128_P(&prefix));
+	M0_LOG(M0_DEBUG, U128X_F, U128_P(&prefix));
 	return M0_BE_OP_SYNC_RET(op,
 				 m0_be_emap_obj_insert(&adom->sad_adata,
 						       &dtx->tx_betx, &op,
@@ -1309,11 +1309,12 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 				 m0_vec_cursor_step(dst),
 				 m0_be_emap_caret_step(car));
 
+		/* that is too expensive:
 		M0_LOG(M0_DEBUG, "%2d: sz=%lx buf=%p off=%lx "
 			"ext="EXT_F" val=%lx",
 			idx, (unsigned long)frag_size, buf,
 			(unsigned long)off, EXT_P(&seg->ee_ext),
-			(unsigned long)seg->ee_val);
+			(unsigned long)seg->ee_val); */
 		if (seg->ee_val == AET_HOLE) {
 			/*
 			 * Read of a hole or unallocated space (beyond

@@ -657,7 +657,7 @@ M0_INTERNAL int m0_be_emap_caret_move_sync(struct m0_be_emap_caret *car,
 	if (rc == 0)
 		m0_be_op_wait(&car->ct_it->ec_op);
 
-	return M0_RC(rc);
+	return rc;
 }
 
 M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
