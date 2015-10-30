@@ -931,11 +931,12 @@ static int rlock_ctx_connect(struct rlock_ctx *rlx, const char *ep)
 	else
 		rc = m0_rpc_client_connect(&rlx->rlc_conn, &rlx->rlc_sess,
 					   rlx->rlc_rmach, rlx->rlc_rm_addr,
-					   MAX_RPCS_IN_FLIGHT);
+					   NULL, MAX_RPCS_IN_FLIGHT);
 	if (rc != 0) {
 		m0_free(rlx->rlc_rm_addr);
 		rlx->rlc_rm_addr = NULL;
 	}
+	rlx->rlc_online = (rc == 0);
 	return M0_RC(rc);
 }
 
@@ -1420,6 +1421,20 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 			new_lnk->rl_state      = CONFC_DEAD;
 			new_lnk->rl_preserve   = true;
 			rconfc_herd_link_init(new_lnk);
+			/**
+			 * @todo There's a possible problem here to be thought
+			 * over. rconfc_herd_link_init() internally calls
+			 * m0_confc_init() where connection to the respective
+			 * confd is created. No service object exists to the
+			 * moment, so HA subscription is not possible. At the
+			 * same time connection is done with M0_TIME_NEVER
+			 * timeout, which may cause rconfc start to hang forever
+			 * in case the confd is not able to respond. Though herd
+			 * link subscription makes rconfc be aware of the
+			 * service death in future, it cannot help here on
+			 * start. A possible solution could be an explicit
+			 * timeout specified some way for confc initialisation.
+			 */
 			rcnf_herd_tlink_init_at_tail(new_lnk, &rconfc->rc_herd);
 			/*
 			 * only successfully connected @ref rconfc_link gets

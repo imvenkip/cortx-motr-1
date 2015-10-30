@@ -32,6 +32,7 @@
 #include "lib/string.h"    /* m0_vsnprintf */
 #include "lib/errno.h"     /* ENOENT */
 #include "lib/memory.h"    /* M0_ALLOC_ARR */
+#include "net/net.h"       /* m0_net_endpoint_is_valid */
 
 static const struct m0_conf_ruleset conf_rules;
 

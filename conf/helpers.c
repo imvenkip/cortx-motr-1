@@ -231,6 +231,86 @@ M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL bool m0_conf_service_ep_is_known(struct m0_conf_obj *svc_obj,
+					     const char         *ep_addr)
+{
+	struct m0_conf_service *svc;
+	const char            **eps;
+	bool                    rv = false;
+
+	M0_ENTRY("svc_obj = "FID_F", ep_addr = %s", FID_P(&svc_obj->co_id),
+		 ep_addr);
+	M0_PRE(m0_conf_fid_type(&svc_obj->co_id) == &M0_CONF_SERVICE_TYPE);
+	svc = M0_CONF_CAST(svc_obj, m0_conf_service);
+	for (eps = svc->cs_endpoints; *eps != NULL; eps++) {
+		if (m0_streq(ep_addr, *eps)) {
+			rv = true;
+			break;
+		}
+	}
+	M0_LEAVE("rv = %s", rv ? "true" : "false");
+	return rv;
+}
+
+static bool _is_svc(const struct m0_conf_obj *obj)
+{
+	return m0_conf_fid_type(&obj->co_id) == &M0_CONF_SERVICE_TYPE;
+}
+
+static int reqh_conf_service_find(struct m0_reqh           *reqh,
+				  enum m0_conf_service_type stype,
+				  const char               *ep_addr,
+				  struct m0_conf_obj      **svc_obj)
+{
+	struct m0_conf_diter       it;
+	struct m0_conf_obj        *obj;
+	struct m0_conf_service    *svc;
+	struct m0_conf_filesystem *fs = NULL;
+	struct m0_confc           *confc = m0_reqh2confc(reqh);
+	int                        rc;
+	const struct m0_fid        path[] = {M0_CONF_FILESYSTEM_NODES_FID,
+					     M0_CONF_NODE_PROCESSES_FID,
+					     M0_CONF_PROCESS_SERVICES_FID};
+
+	M0_ENTRY();
+	if (confc->cc_group == NULL) {
+		/*
+		 * it looks like a dummy rpc client is calling this, as the
+		 * provided confc instance is still not initialised to the
+		 * moment, so reading configuration is impossible
+		 */
+		M0_LOG(M0_DEBUG,
+		       "Unable to read configuration, reqh confc not inited");
+		if (svc_obj != NULL)
+			*svc_obj = NULL;
+		return M0_RC(0);
+	}
+	rc = m0_conf_fs_get(&reqh->rh_profile, confc, &fs) ?:
+		m0_conf__diter_init(&it, confc, &fs->cf_obj, ARRAY_SIZE(path),
+				    path);
+	if (rc != 0)
+		goto bailout;
+
+	while ((rc = m0_conf_diter_next_sync(&it, _is_svc)) > 0) {
+		obj = m0_conf_diter_result(&it);
+		svc = M0_CONF_CAST(obj, m0_conf_service);
+		if (svc->cs_type == stype &&
+		    m0_conf_service_ep_is_known(obj, ep_addr)) {
+			if (svc_obj != NULL)
+				*svc_obj = obj;
+			rc = 0;
+			break;
+		}
+	}
+
+	m0_conf_diter_fini(&it);
+bailout:
+	if (fs != NULL)
+		m0_confc_close(&fs->cf_obj);
+
+	return M0_RC(rc);
+}
+
 M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
 				      const struct m0_fid   *obj_fid)
 {
@@ -242,6 +322,37 @@ M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
 	nvec.nv_nr    = 1;
 	nvec.nv_note  = &note;
 	return M0_RC(m0_conf_objs_ha_update(ha_sess, &nvec));
+}
+
+M0_INTERNAL int m0_conf_service_find(struct m0_reqh            *reqh,
+				     const struct m0_fid       *fid,
+				     enum m0_conf_service_type  type,
+				     const char                *ep_addr,
+				     struct m0_conf_obj       **svc_obj)
+{
+	struct m0_conf_obj     *obj = NULL;
+	struct m0_conf_service *svc;
+	int                     rc = 0;
+
+	M0_ENTRY();
+	M0_PRE(reqh != NULL);
+	M0_PRE(m0_conf_service_type_is_valid(type));
+	M0_PRE(ep_addr != NULL && *ep_addr != '\0'); /* not empty */
+
+	if (fid != NULL)
+		obj = m0_conf_cache_lookup(&m0_reqh2confc(reqh)->cc_cache, fid);
+	if (obj == NULL)
+		rc = reqh_conf_service_find(reqh, type, ep_addr, &obj);
+	if (obj != NULL) {
+		M0_ASSERT(rc == 0);
+		svc = M0_CONF_CAST(obj, m0_conf_service);
+		M0_ASSERT(svc->cs_type == type);
+		M0_ASSERT(fid == NULL || m0_fid_eq(fid, &obj->co_id));
+		M0_ASSERT(m0_conf_service_ep_is_known(obj, ep_addr));
+		if (svc_obj != NULL)
+			*svc_obj = obj;
+	}
+	return M0_RC(rc);
 }
 
 static void __ha_nvec_reset(struct m0_ha_nvec *nvec, int32_t total)

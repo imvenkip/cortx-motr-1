@@ -31,6 +31,9 @@
 #include "fop/fop.h"
 #include "module/instance.h"  /* m0_get */
 #include "rpc/rpc_internal.h"
+#include "conf/helpers.h"     /* m0_conf_service_ep_is_known */
+#include "conf/obj_ops.h"     /* m0_conf_obj_get, m0_conf_obj_put */
+#include "conf/cache.h"       /* m0_conf_cache_lock, m0_conf_cache_unlock */
 
 /**
    @addtogroup rpc_session
@@ -44,6 +47,9 @@ M0_INTERNAL struct m0_rpc_chan *rpc_chan_get(struct m0_rpc_machine *machine,
 					     struct m0_net_end_point *dest_ep,
 					     uint64_t max_rpcs_in_flight);
 M0_INTERNAL void rpc_chan_put(struct m0_rpc_chan *chan);
+
+static bool rpc_conn__on_service_event_cb(struct m0_clink *clink);
+static void rpc_conn_sessions_cleanup_fail(struct m0_rpc_conn *conn, bool fail);
 
 /**
    Attaches session 0 object to conn object.
@@ -259,6 +265,7 @@ M0_INTERNAL bool m0_rpc_conn_is_rcv(const struct m0_rpc_conn *conn)
 }
 
 M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
+				 struct m0_conf_obj *svc_obj,
 				 struct m0_net_end_point *ep,
 				 struct m0_rpc_machine *machine,
 				 uint64_t max_rpcs_in_flight)
@@ -266,12 +273,16 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
 	int rc;
 
 	M0_ENTRY("conn: %p", conn);
-	M0_ASSERT(conn != NULL && machine != NULL && ep != NULL);
+	M0_PRE(conn != NULL && machine != NULL && ep != NULL);
+	M0_PRE(svc_obj == NULL ||
+	       (!m0_conf_obj_is_stub(svc_obj) &&
+		m0_conf_service_ep_is_known(svc_obj, ep->nep_addr)));
 
 	M0_SET0(conn);
 
 	m0_rpc_machine_lock(machine);
 
+	conn->c_svc_obj = svc_obj;
 	conn->c_flags = RCF_SENDER_END;
 	m0_uuid_generate(&conn->c_uuid);
 
@@ -292,6 +303,26 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_conn_init);
+
+static void __conn_ha_subscribe(struct m0_rpc_conn *conn)
+{
+	M0_ENTRY("conn = %p", conn);
+	if (conn->c_svc_obj != NULL) {
+		M0_ASSERT(conn->c_ha_clink.cl_cb != NULL);
+		m0_clink_add_lock(&conn->c_svc_obj->co_ha_chan,
+				  &conn->c_ha_clink);
+	}
+	M0_LEAVE("conn->c_svc_obj = %p", conn->c_svc_obj);
+}
+
+static void __conn_ha_unsubscribe(struct m0_rpc_conn *conn)
+{
+	if (m0_clink_is_armed(&conn->c_ha_clink)) {
+		M0_ASSERT(conn->c_svc_obj != NULL);
+		m0_clink_del(&conn->c_ha_clink);
+		conn->c_ha_clink.cl_chan = NULL;
+	}
+}
 
 static int __conn_init(struct m0_rpc_conn      *conn,
 		       struct m0_net_end_point *ep,
@@ -315,6 +346,8 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 	conn->c_sender_id   = SENDER_ID_INVALID;
 	conn->c_nr_sessions = 0;
 
+	m0_clink_init(&conn->c_ha_clink, rpc_conn__on_service_event_cb);
+	__conn_ha_subscribe(conn);
 	rpc_session_tlist_init(&conn->c_sessions);
 	item_source_tlist_init(&conn->c_item_sources);
 	rpc_conn_tlink_init(conn);
@@ -378,13 +411,21 @@ static int session_zero_attach(struct m0_rpc_conn *conn)
 static void __conn_fini(struct m0_rpc_conn *conn)
 {
 	M0_ENTRY("conn: %p", conn);
-	M0_ASSERT(conn != NULL);
+	M0_PRE(conn != NULL);
+	/*
+	 * There must be no HA subscription to the moment to prevent
+	 * rpc_conn__on_service_event_cb() from being called when object is
+	 * already about to die.
+	 */
+	M0_PRE(conn->c_svc_obj == NULL);
+	M0_PRE(!m0_clink_is_armed(&conn->c_ha_clink));
 
 	rpc_chan_put(conn->c_rpcchan);
 
 	rpc_session_tlist_fini(&conn->c_sessions);
 	item_source_tlist_fini(&conn->c_item_sources);
 	rpc_conn_tlink_fini(conn);
+	m0_clink_fini(&conn->c_ha_clink);
 	M0_LEAVE();
 }
 
@@ -434,6 +475,9 @@ M0_INTERNAL void m0_rpc_conn_fini(struct m0_rpc_conn *conn)
 	m0_rpc_machine_lock(machine);
 
 	session0 = m0_rpc_conn_session0(conn);
+	if (!M0_IN(session_state(session0), (M0_RPC_SESSION_BUSY,
+					     M0_RPC_SESSION_IDLE)))
+		m0_rpc_session_quiesce(session0);
 	m0_sm_timedwait(&session0->s_sm, M0_BITS(M0_RPC_SESSION_IDLE),
 			M0_TIME_NEVER);
 
@@ -444,6 +488,59 @@ M0_INTERNAL void m0_rpc_conn_fini(struct m0_rpc_conn *conn)
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rpc_conn_fini);
+
+M0_INTERNAL int m0_rpc_conn_ha_subscribe(struct m0_rpc_conn *conn,
+					 struct m0_conf_obj *svc_obj)
+{
+	M0_ENTRY();
+	M0_PRE(conn != NULL && svc_obj != NULL);
+	M0_PRE(conn->c_svc_obj == NULL);
+
+	if (M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE))) {
+		/*
+		 * provided service object must match to already established
+		 * connection endpoint, i.e. the endpoint must be known to the
+		 * service configuration
+		 */
+		const char *ep = m0_rpc_conn_addr(conn);
+		if (!m0_conf_service_ep_is_known(svc_obj, ep))
+			return M0_ERR_INFO(
+				EINVAL, "Conn %p ep %s unknown to svc_obj "
+				FID_F, conn, ep, FID_P(&svc_obj->co_id));
+	}
+
+	m0_rpc_machine_lock(conn->c_rpc_machine);
+	conn->c_svc_obj = svc_obj;
+	__conn_ha_subscribe(conn);
+	m0_rpc_machine_unlock(conn->c_rpc_machine);
+	return M0_RC(0);
+}
+
+M0_INTERNAL void m0_rpc_conn_ha_unsubscribe_lock(struct m0_rpc_conn *conn)
+{
+	struct m0_conf_cache *cc;
+
+	M0_PRE(conn != NULL);
+	if (conn->c_svc_obj == NULL)
+		return;
+
+	cc = conn->c_svc_obj->co_cache;
+	m0_conf_cache_lock(cc);
+	m0_rpc_conn_ha_unsubscribe(conn);
+	m0_conf_cache_unlock(cc);
+}
+
+M0_INTERNAL void m0_rpc_conn_ha_unsubscribe(struct m0_rpc_conn *conn)
+{
+	M0_PRE(conn != NULL);
+	if (conn->c_svc_obj == NULL)
+		return;
+
+	m0_rpc_machine_lock(conn->c_rpc_machine);
+	__conn_ha_unsubscribe(conn);
+	conn->c_svc_obj = NULL;
+	m0_rpc_machine_unlock(conn->c_rpc_machine);
+}
 
 M0_INTERNAL void m0_rpc_conn_fini_locked(struct m0_rpc_conn *conn)
 {
@@ -596,6 +693,7 @@ M0_INTERNAL struct m0_rpc_session *m0_rpc_session_pop(
 }
 
 M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
+				   struct m0_conf_obj *svc_obj,
 				   struct m0_net_end_point *ep,
 				   struct m0_rpc_machine *rpc_machine,
 				   uint64_t max_rpcs_in_flight,
@@ -603,14 +701,16 @@ M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
 {
 	int rc;
 
-	M0_ENTRY("conn: %p, ep_addr: %s, machine: %p max_rpcs_in_flight: %llu",
-		 conn, (char *)ep->nep_addr, rpc_machine,
+	M0_ENTRY("conn: %p, svc_obj: %p, ep_addr: %s, "
+		 "machine: %p max_rpcs_in_flight: %llu",
+		 conn, svc_obj, (char *)ep->nep_addr, rpc_machine,
 		 (unsigned long long)max_rpcs_in_flight);
 
 	if (M0_FI_ENABLED("fake_error"))
 		return M0_RC(-EINVAL);
 
-	rc = m0_rpc_conn_init(conn, ep, rpc_machine, max_rpcs_in_flight);
+	rc = m0_rpc_conn_init(conn, svc_obj, ep, rpc_machine,
+			      max_rpcs_in_flight);
 	if (rc == 0) {
 		rc = m0_rpc_conn_establish_sync(conn, abs_timeout);
 		if (rc != 0)
@@ -757,6 +857,7 @@ int m0_rpc_conn_destroy(struct m0_rpc_conn *conn, m0_time_t abs_timeout)
 
 	M0_ENTRY("conn: %p", conn);
 
+	m0_rpc_conn_ha_unsubscribe_lock(conn);
 	rc = m0_rpc_conn_terminate_sync(conn, abs_timeout);
 	m0_rpc_conn_fini(conn);
 
@@ -821,6 +922,19 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 	}
 	args = m0_fop_data(fop);
 	args->ct_sender_id = conn->c_sender_id;
+
+	if (m0_rpc_conn_is_known_dead(conn)) {
+		/*
+		 * Unable to terminate normal way while having other side
+		 * dead. Therefore, fail itself and quit.
+		 */
+		m0_fop_put(fop);
+		rc = -ECANCELED;
+		conn_failed(conn, rc);
+		rpc_conn_sessions_cleanup_fail(conn, true);
+		m0_rpc_machine_unlock(machine);
+		return M0_ERR_INFO(rc, "conn_terminate: conn is known dead");
+	}
 
 	session_0 = m0_rpc_conn_session0(conn);
 
@@ -930,6 +1044,19 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 
 M0_INTERNAL void m0_rpc_conn_cleanup_all_sessions(struct m0_rpc_conn *conn)
 {
+	rpc_conn_sessions_cleanup_fail(conn, false);
+}
+
+/**
+ * Connection's session list cleanup omitting session0. When instructed to fail,
+ * all finalising sessions are put to failed state. Otherwise are waited for
+ * getting to idle state before being finalised.
+ *
+ * @note Currently, sessions are to fail in case rpc connection is found dead
+ * while terminating. See m0_rpc_conn_terminate().
+ */
+static void rpc_conn_sessions_cleanup_fail(struct m0_rpc_conn *conn, bool fail)
+{
 	struct m0_rpc_session *session;
 
 	m0_tl_for(rpc_session, &conn->c_sessions, session) {
@@ -937,11 +1064,20 @@ M0_INTERNAL void m0_rpc_conn_cleanup_all_sessions(struct m0_rpc_conn *conn)
 			continue;
 		M0_LOG(M0_INFO, "Aborting session %llu",
 			(unsigned long long)session->s_session_id);
-		m0_sm_timedwait(&session->s_sm, M0_BITS(M0_RPC_SESSION_IDLE),
-				M0_TIME_NEVER);
-		(void)m0_rpc_rcv_session_terminate(session);
+		if (fail) {
+			if (session_state(session) != M0_RPC_SESSION_FAILED)
+				m0_sm_fail(&session->s_sm,
+					   M0_RPC_SESSION_FAILED,
+					   -ECANCELED);
+			M0_ASSERT(session_state(session) ==
+				  M0_RPC_SESSION_FAILED);
+		} else { /* normal cleanup */
+			m0_sm_timedwait(&session->s_sm,
+					M0_BITS(M0_RPC_SESSION_IDLE),
+					M0_TIME_NEVER);
+			m0_rpc_rcv_session_terminate(session);
+		}
 		m0_rpc_session_fini_locked(session);
-		m0_free(session);
 	} m0_tl_endfor;
 	M0_POST(rpc_session_tlist_length(&conn->c_sessions) == 1);
 }
@@ -1036,5 +1172,60 @@ M0_INTERNAL int m0_rpc_conn_session_list_dump(const struct m0_rpc_conn *conn)
 M0_INTERNAL const char *m0_rpc_conn_addr(const struct m0_rpc_conn *conn)
 {
 	return conn->c_rpcchan->rc_destep->nep_addr;
+}
+
+M0_INTERNAL bool m0_rpc_conn_is_known_dead(const struct m0_rpc_conn *conn)
+{
+	M0_PRE(conn != NULL);
+	return conn->c_svc_obj != NULL &&
+		conn->c_svc_obj->co_ha_state == M0_NC_FAILED;
+}
+
+/**
+ * Walks through all sessions on the connection and cancels rpc items placed
+ * onto session request cache.
+ *
+ * @note Only non-protected rpc items are canceled automatically. See
+ * m0_rpc_session_cancel() internals for details.
+ */
+static void rpc_conn_sessions_cancel(struct m0_rpc_conn *conn)
+{
+	struct m0_rpc_session *session;
+
+	m0_tl_for(rpc_session, &conn->c_sessions, session) {
+		if (session->s_session_id == SESSION_ID_0)
+			continue;
+		m0_rpc_session_cancel(session);
+	} m0_tl_endfor;
+}
+
+/**
+ * Callback called on HA notification for conf service object the connection is
+ * established to. In case service found dead, all outgoing requests in all
+ * sessions associated with the connection are canceled.
+ */
+static bool rpc_conn__on_service_event_cb(struct m0_clink *clink)
+{
+	struct m0_rpc_conn *conn = container_of(clink, struct m0_rpc_conn,
+						c_ha_clink);
+	struct m0_conf_obj *obj  = container_of(clink->cl_chan,
+						struct m0_conf_obj, co_ha_chan);
+
+	M0_PRE(conn->c_svc_obj == obj);
+	M0_LOG(M0_DEBUG, "obj->co_ha_state = %d", obj->co_ha_state);
+	/*
+	 * Ignore M0_NC_TRANSIENT state to keep items re-sending until service
+	 * gets M0_NC_ONLINE or becomes M0_NC_FAILED finally.
+	 */
+	if (obj->co_ha_state == M0_NC_FAILED)
+		rpc_conn_sessions_cancel(conn);
+	/**
+	 * @todo See if to __conn_ha_unsubscribe() right now, but not wait until
+	 * rpc connection getting finalised.
+	 *
+	 * @todo See if anything, or what and when otherwise, we need to do on
+	 * getting M0_NC_ONLINE notification.
+	 */
+	return true;
 }
 /** @} */

@@ -66,6 +66,11 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 				 m0_time_t abs_timeout);
 
 /**
+   Posts rpc item while having rpc machine already locked.
+ */
+M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item);
+
+/**
    Temporary routine to place fop in a global queue, from where it can be
    selected for execution.
  */

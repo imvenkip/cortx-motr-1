@@ -21,6 +21,7 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
+#include "conf/objs/common.h" /* M0_CONF_SERVICE_TYPE */
 #include "lib/memory.h"
 #include "lib/trace.h"
 #include "lib/tlist.h"
@@ -29,6 +30,7 @@
 #include "lib/errno.h"
 #include "lib/finject.h"
 #include "ha/epoch.h"
+#include "ha/note.h"
 #include "mero/magic.h"
 #include "addb2/addb2.h"
 #include "rpc/addb2.h"
@@ -41,6 +43,7 @@
  */
 
 static int item_entered_in_urgent_state(struct m0_sm *mach);
+static void item_ha_timer_cb(struct m0_sm_timer *timer);
 static void item_timer_cb(struct m0_sm_timer *timer);
 static void item_timedout(struct m0_rpc_item *item);
 static void item_resend(struct m0_rpc_item *item);
@@ -49,6 +52,9 @@ static int item_reply_received(struct m0_rpc_item *reply,
 static bool item_reply_received_fi(struct m0_rpc_item *req,
 				   struct m0_rpc_item *reply);
 static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply);
+static void reqh_service_ha_state_set(struct m0_rpc_item *item,
+				      struct m0_fid      *fid,
+				      uint8_t             state);
 
 const struct m0_sm_conf outgoing_item_sm_conf;
 const struct m0_sm_conf incoming_item_sm_conf;
@@ -72,6 +78,12 @@ M0_TL_DESCR_DEFINE(pending_item, "pending-item-list", M0_INTERNAL,
 		   struct m0_rpc_item, ri_pending_link, ri_magic,
 		   M0_RPC_ITEM_MAGIC, M0_RPC_ITEM_PENDING_CACHE_HEAD_MAGIC);
 M0_TL_DEFINE(pending_item, M0_INTERNAL, struct m0_rpc_item);
+
+struct m0_rpc_item_timeout_ops m0_ritoo = {
+	.ritoo_timer_cb    = item_timer_cb,
+	.ritoo_ha_timer_cb = item_ha_timer_cb,
+	.ritoo_ha_notify   = reqh_service_ha_state_set,
+};
 
 /** Global rpc item types list. */
 static struct m0_tl        rpc_item_types_list;
@@ -369,6 +381,7 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
 	pending_item_tlink_init(item);
 	m0_sm_timeout_init(&item->ri_deadline_timeout);
 	m0_sm_timer_init(&item->ri_timer);
+	m0_sm_timer_init(&item->ri_ha_timer);
 	/* item->ri_sm will be initialised when the item is posted */
 	M0_LEAVE();
 }
@@ -386,6 +399,7 @@ void m0_rpc_item_fini(struct m0_rpc_item *item)
 	item->ri_cookid = 0;
 
 	m0_sm_timer_fini(&item->ri_timer);
+	m0_sm_timer_fini(&item->ri_ha_timer);
 	m0_sm_timeout_fini(&item->ri_deadline_timeout);
 
 	if (item->ri_sm.sm_state > M0_RPC_ITEM_UNINITIALISED)
@@ -674,7 +688,9 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 
 	item->ri_error = rc;
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_FAILED);
-	m0_rpc_item_stop_timer(item);
+	m0_rpc_item_timer_stop(item);
+	m0_rpc_item_ha_timer_stop(item);
+	/* XXX ->rio_sent() can be called multiple times (due to cancel). */
 	if (m0_rpc_item_is_oneway(item) &&
 	    item->ri_ops != NULL && item->ri_ops->rio_sent != NULL) {
 		item->ri_ops->rio_sent(item);
@@ -878,7 +894,7 @@ static int item_entered_in_urgent_state(struct m0_sm *mach)
 	return -1;
 }
 
-M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
+M0_INTERNAL int m0_rpc_item_timer_start(struct m0_rpc_item *item)
 {
 	M0_PRE(m0_rpc_item_is_request(item));
 
@@ -894,18 +910,146 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 	m0_sm_timer_fini(&item->ri_timer);
 	m0_sm_timer_init(&item->ri_timer);
 	return m0_sm_timer_start(&item->ri_timer, &item->ri_rmachine->rm_sm_grp,
-				 item_timer_cb,
+				 m0_ritoo.ritoo_timer_cb,
 				 m0_time_add(m0_time_now(),
 					     item->ri_resend_interval));
 }
 
-M0_INTERNAL void m0_rpc_item_stop_timer(struct m0_rpc_item *item)
+M0_INTERNAL int m0_rpc_item_ha_timer_start(struct m0_rpc_item *item)
+{
+	M0_PRE(m0_rpc_item_is_request(item));
+
+	M0_ENTRY("item %p Starting HA timer", item);
+	if (!m0_sm_timer_is_armed(&item->ri_ha_timer))
+	    m0_sm_timer_fini(&item->ri_ha_timer);
+
+	if (item->ri_session->s_conn->c_svc_obj == NULL)
+		return 0; /* there's no point to arm the timer */
+
+	m0_sm_timer_init(&item->ri_ha_timer);
+	return M0_RC(m0_sm_timer_start(&item->ri_ha_timer,
+				       &item->ri_rmachine->rm_sm_grp,
+				       m0_ritoo.ritoo_ha_timer_cb,
+				       m0_time_add(m0_time_now(),
+						   m0_ha_notify_interval_get()))
+		);
+}
+
+M0_INTERNAL void m0_rpc_item_timer_stop(struct m0_rpc_item *item)
 {
 	if (m0_sm_timer_is_armed(&item->ri_timer)) {
 		M0_ASSERT(m0_rpc_item_is_request(item));
 		M0_LOG(M0_DEBUG, "%p Stopping timer", item);
 		m0_sm_timer_cancel(&item->ri_timer);
 	}
+}
+
+M0_INTERNAL void m0_rpc_item_ha_timer_stop(struct m0_rpc_item *item)
+{
+	if (m0_sm_timer_is_armed(&item->ri_ha_timer)) {
+		M0_ASSERT(m0_rpc_item_is_request(item));
+		M0_LOG(M0_DEBUG, "%p Stopping HA timer", item);
+		m0_sm_timer_cancel(&item->ri_ha_timer);
+	}
+}
+
+static struct m0_fid* m0_conn2reqh_service_fid(struct m0_rpc_conn *conn)
+{
+	M0_PRE(conn != NULL);
+	if (conn->c_svc_obj != NULL)
+		return &conn->c_svc_obj->co_id;
+	return NULL;
+}
+
+static void reqh_service_ha_state_set(struct m0_rpc_item *item,
+				      struct m0_fid      *fid,
+				      uint8_t             state)
+{
+	struct m0_rpc_session     *ha_session = m0_ha_session_get();
+	struct m0_ha_state_single *hss;
+
+	M0_PRE(m0_conf_fid_type(fid) == &M0_CONF_SERVICE_TYPE);
+	M0_PRE(M0_IN(state, (M0_NC_TRANSIENT, M0_NC_ONLINE)));
+
+	M0_ENTRY();
+	if (ha_session == NULL) {
+		/* report error only once and suppress repetitions */
+		if (!(item->ri_flags & M0_RIF_COMPLAINED))
+			M0_LOG(M0_DEBUG, "Unable to talk to HA");
+		goto leave;
+		/**
+		 * @todo The case when timeouts start happening while HA session
+		 * is not established yet is handled above. This should cover
+		 * issues with HA session itself.
+		 *
+		 * But situation with HA session failed should be though over
+		 * carefully, as some reliable algorithm is required for
+		 * re-establishing HA session once the latter found failed.
+		 */
+	}
+	/* session must not be initialising or terminating */
+	if (m0_rpc_session_validate(ha_session) != 0)
+		goto leave;
+	/*
+	 * there's no point to disturb ha session any more while its item
+	 * already waits for response and is about to re-send
+	 */
+	if (ha_session == item->ri_session)
+		goto leave;
+	M0_ALLOC_PTR(hss);
+	if (hss == NULL) {
+		M0_LOG(M0_ERROR, "Failed to allocate hss { fid = "FID_F
+		       ", state = %d }", FID_P(fid), state);
+		M0_ERR(-ENOMEM);
+		goto leave;
+	}
+	hss->hss_note = (struct m0_ha_note) { *fid, state };
+	hss->hss_nvec = (struct m0_ha_nvec) { 1, &hss->hss_note };
+	/* we're supposed to be in rpc_worker_thread_fn() */
+	M0_ASSERT(m0_rpc_machine_is_locked(item->ri_rmachine));
+	m0_ha_state_single_post(ha_session, &hss->hss_nvec);
+	item->ri_rmachine->rm_stats.rs_nr_ha_noted_items++;
+leave:
+	M0_LEAVE();
+}
+
+/**
+ * HA needs to be notified in case rpc item is not replied within the timer's
+ * interval. This is to indicate that peered service may experience issues with
+ * networking, and thus the service status has to be considered M0_NC_TRANSIENT
+ * until reply comes back to sender.
+ *
+ * @note The update is to be sent on every timer triggering, i.e. on every
+ * re-send of the item.
+ *
+ * See item__on_reply_postprocess() for complimentary part of the item's
+ * processing.
+ */
+static void item_ha_timer_cb(struct m0_sm_timer *timer)
+{
+	struct m0_rpc_item *item;
+	struct m0_fid      *svc_fid;
+	struct m0_conf_obj *svc_obj;
+
+	M0_ENTRY();
+	M0_PRE(timer != NULL);
+
+	item = container_of(timer, struct m0_rpc_item, ri_ha_timer);
+	item->ri_rmachine->rm_stats.rs_nr_ha_timedout_items++;
+	M0_ASSERT(item->ri_magic == M0_RPC_ITEM_MAGIC);
+	M0_ASSERT(m0_rpc_machine_is_locked(item->ri_rmachine));
+	svc_obj = item->ri_session->s_conn->c_svc_obj;
+	svc_fid = m0_conn2reqh_service_fid(item->ri_session->s_conn);
+	if (svc_obj == NULL || svc_fid == NULL)
+		return; /*
+			 * connection not subscribed to HA notes, so no reaction
+			 * is expected on timeout expiration
+			 */
+	if (item->ri_sm.sm_state < M0_RPC_ITEM_REPLIED) {
+		m0_ritoo.ritoo_ha_notify(item, svc_fid, M0_NC_TRANSIENT);
+		item->ri_flags |= M0_RIF_COMPLAINED;
+	}
+	M0_LEAVE();
 }
 
 static void item_timer_cb(struct m0_sm_timer *timer)
@@ -964,23 +1108,33 @@ static void item_resend(struct m0_rpc_item *item)
 
 	M0_ENTRY("%p[%s/%u] %s", item, item_kind(item),
 	       item->ri_type->rit_opcode, item_state_name(item));
+	m0_rpc_item_ha_timer_stop(item);
 
 	switch (item->ri_sm.sm_state) {
 	case M0_RPC_ITEM_ENQUEUED:
 	case M0_RPC_ITEM_URGENT:
-		rc = m0_rpc_item_start_timer(item);
+		rc = m0_rpc_item_timer_start(item);
 		/* XXX already completed requests??? */
 		if (rc != 0) {
 			m0_rpc_frm_remove_item(item->ri_frm, item);
 			m0_rpc_item_failed(item, -ETIMEDOUT);
+		} else {
+			item->ri_error = m0_rpc_item_ha_timer_start(item);
 		}
 		break;
 
 	case M0_RPC_ITEM_SENDING:
-		item->ri_error = m0_rpc_item_start_timer(item);
+		item->ri_error = m0_rpc_item_timer_start(item) ?:
+				 m0_rpc_item_ha_timer_start(item);
 		break;
 
 	case M0_RPC_ITEM_WAITING_FOR_REPLY:
+		if (m0_rpc_session_validate(item->ri_session) != 0) {
+			M0_LOG(M0_DEBUG,
+			       "session state %d does not allow sending",
+			       session_state(item->ri_session));
+			return;
+		}
 		m0_rpc_item_send(item);
 		break;
 
@@ -988,6 +1142,14 @@ static void item_resend(struct m0_rpc_item *item)
 		M0_ASSERT_INFO(false, "item->ri_sm.sm_state = %d",
 			       item->ri_sm.sm_state);
 	}
+	M0_LEAVE();
+}
+
+static int item_conn_test(struct m0_rpc_item *item)
+{
+	M0_PRE(item != NULL && item->ri_session != NULL);
+	return m0_rpc_conn_is_known_dead(item->ri_session->s_conn) ?
+		-ECANCELED : 0;
 }
 
 M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
@@ -1014,7 +1176,8 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 				  M0_RPC_ITEM_FAILED))));
 
 	if (m0_rpc_item_is_request(item)) {
-		rc = m0_rpc_item_start_timer(item);
+		rc = item_conn_test(item) ?: m0_rpc_item_timer_start(item) ?:
+			m0_rpc_item_ha_timer_start(item);
 		if (rc != 0) {
 			m0_rpc_item_failed(item, rc);
 			M0_LEAVE();
@@ -1251,6 +1414,32 @@ static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply)
 	return M0_RC(rc);
 }
 
+/**
+ * HA to be updated in case the peered service replied after experiencing
+ * issues, and the item was re-sending due to those.
+ */
+static void item__on_reply_postprocess(struct m0_rpc_item *item)
+{
+	struct m0_fid      *svc_fid;
+	struct m0_conf_obj *svc_obj;
+
+	M0_ENTRY();
+	svc_obj = item->ri_session->s_conn->c_svc_obj;
+	svc_fid = m0_conn2reqh_service_fid(item->ri_session->s_conn);
+	if (svc_obj == NULL || svc_fid == NULL)
+		goto leave; /*
+			     * connection is not subscribed to HA notes, so no
+			     * reaction is expected on reply
+			     */
+	if ((item->ri_flags & M0_RIF_COMPLAINED) == M0_RIF_COMPLAINED ||
+	    svc_obj->co_ha_state == M0_NC_TRANSIENT) {
+		m0_ritoo.ritoo_ha_notify(item, svc_fid, M0_NC_ONLINE);
+		item->ri_flags &= ~M0_RIF_COMPLAINED;
+	}
+leave:
+	M0_LEAVE();
+}
+
 M0_INTERNAL void m0_rpc_item_process_reply(struct m0_rpc_item *req,
 					   struct m0_rpc_item *reply)
 {
@@ -1261,18 +1450,18 @@ M0_INTERNAL void m0_rpc_item_process_reply(struct m0_rpc_item *req,
 	M0_PRE(M0_IN(req->ri_sm.sm_state, (M0_RPC_ITEM_WAITING_FOR_REPLY,
 					   M0_RPC_ITEM_ENQUEUED,
 					   M0_RPC_ITEM_URGENT)));
-
-	m0_rpc_item_stop_timer(req);
+	m0_rpc_item_timer_stop(req);
+	m0_rpc_item_ha_timer_stop(req);
 	req->ri_reply = reply;
 	m0_rpc_item_replied_invoke(req);
 	m0_rpc_item_change_state(req, M0_RPC_ITEM_REPLIED);
 	m0_rpc_item_pending_cache_del(req);
+	item__on_reply_postprocess(req);
 	/*
 	 * Reference release done here is for the reference taken in
 	 * m0_rpc__post_locked() for request items.
 	 */
 	m0_rpc_item_put(req);
-
 	M0_LEAVE();
 }
 
@@ -1448,9 +1637,20 @@ M0_INTERNAL void m0_rpc_item_pending_cache_init(struct m0_rpc_session *session)
 	pending_item_tlist_init(&session->s_pending_cache);
 }
 
+static void pending_cache_drain(struct m0_rpc_session *session)
+{
+	struct m0_rpc_item *item;
+
+	M0_PRE(m0_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
+	m0_tl_teardown(pending_item, &session->s_pending_cache, item) {
+		m0_rpc_item_put(item);
+	};
+}
+
 M0_INTERNAL void m0_rpc_item_pending_cache_fini(struct m0_rpc_session *session)
 {
 	M0_PRE(m0_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
+	pending_cache_drain(session);
 	pending_item_tlist_fini(&session->s_pending_cache);
 }
 

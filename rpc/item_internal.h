@@ -25,11 +25,40 @@
 
 #include "rpc/item.h"
 
+struct m0_fid;
+
 /**
    @addtogroup rpc
 
    @{
  */
+
+/**
+ * Timeout operations, rpc item internal use only.
+ */
+struct m0_rpc_item_timeout_ops {
+	/**
+	 * item timeout callback intended for item re-sending
+	 */
+	void (*ritoo_timer_cb)(struct m0_sm_timer *timer);
+	/**
+	 * item timeout callback intended for reporting transient state to HA in
+	 * case HA subscription exists on underlying rpc connection
+	 */
+	void (*ritoo_ha_timer_cb)(struct m0_sm_timer *timer);
+	/**
+	 * HA notification procedure
+	 */
+	void (*ritoo_ha_notify)(struct m0_rpc_item *item, struct m0_fid *fid,
+				uint8_t state);
+};
+
+/**
+ * Timeout operations callbacks, global instance. Introduced for the sake of
+ * unit tests so far. Though maybe in future somebody could find a more decent
+ * purpose for the ops interception.
+ */
+extern struct m0_rpc_item_timeout_ops m0_ritoo;
 
 /** Initialises global the rpc item state including types list and lock */
 M0_INTERNAL int m0_rpc_item_module_init(void);
@@ -55,8 +84,11 @@ M0_INTERNAL void m0_rpc_item_change_state(struct m0_rpc_item *item,
 					  enum m0_rpc_item_state state);
 M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc);
 
-M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item);
-M0_INTERNAL void m0_rpc_item_stop_timer(struct m0_rpc_item *item);
+M0_INTERNAL int m0_rpc_item_timer_start(struct m0_rpc_item *item);
+M0_INTERNAL void m0_rpc_item_timer_stop(struct m0_rpc_item *item);
+
+M0_INTERNAL int m0_rpc_item_ha_timer_start(struct m0_rpc_item *item);
+M0_INTERNAL void m0_rpc_item_ha_timer_stop(struct m0_rpc_item *item);
 
 M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item);
 

@@ -83,7 +83,7 @@ static void test_conn_establish(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* TEST: Connection established successfully */
-	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
+	rc = m0_rpc_conn_create(&conn, NULL, ep, machine, MAX_RPCS_IN_FLIGHT,
 				m0_time_from_now(TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
@@ -94,7 +94,7 @@ static void test_conn_establish(void)
 	 */
 	m0_fi_enable_once("m0_rpc_fom_conn_establish_tick", "sleep-for-resend");
 	m0_fi_enable("m0_rpc_fom_conn_establish_tick", "free-timer");
-	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
+	rc = m0_rpc_conn_create(&conn, NULL, ep, machine, MAX_RPCS_IN_FLIGHT,
 				M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 
@@ -103,7 +103,8 @@ static void test_conn_establish(void)
 
 	for (i = 0; i < ARRAY_SIZE(fps1); ++i) {
 		m0_fi_enable(fps1[i].fn, fps1[i].pt);
-		rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
+		rc = m0_rpc_conn_create(&conn, NULL, ep, machine,
+					MAX_RPCS_IN_FLIGHT,
 					m0_time_from_now(TIMEOUT, 0));
 		m0_fi_disable(fps1[i].fn, fps1[i].pt);
 		M0_UT_ASSERT(rc == -ETIMEDOUT);
@@ -112,7 +113,8 @@ static void test_conn_establish(void)
 		count = 0;
 		m0_fi_enable_func(fps2[i].fn, fps2[i].pt,
 				  enable_for_all_but_first_call, &count);
-		rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
+		rc = m0_rpc_conn_create(&conn, NULL, ep, machine,
+					MAX_RPCS_IN_FLIGHT,
 					m0_time_from_now(TIMEOUT, 0));
 		m0_fi_disable(fps2[i].fn, fps2[i].pt);
 		M0_UT_ASSERT(rc == -ETIMEDOUT);
@@ -137,7 +139,7 @@ static void test_session_establish(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* TEST1: Connection established successfully */
-	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
+	rc = m0_rpc_conn_create(&conn, NULL, ep, machine, MAX_RPCS_IN_FLIGHT,
 				m0_time_from_now(TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_session_create(&session, &conn,
@@ -175,7 +177,7 @@ static void test_session_terminate(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* TEST1: Connection established successfully */
-	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
+	rc = m0_rpc_conn_create(&conn, NULL, ep, machine, MAX_RPCS_IN_FLIGHT,
 				m0_time_from_now(TIMEOUT, 0));
 	for (i = 0; i < ARRAY_SIZE(fps); ++i) {
 		rc = m0_rpc_session_create(&session, &conn,
@@ -229,7 +231,8 @@ static void test_conn_terminate(void)
 	M0_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < ARRAY_SIZE(fps); ++i) {
-		rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
+		rc = m0_rpc_conn_create(&conn, NULL, ep, machine,
+					MAX_RPCS_IN_FLIGHT,
 					m0_time_from_now(TIMEOUT, 0));
 		M0_UT_ASSERT(rc == 0);
 		m0_fi_enable(fps[i].fn, fps[i].pt);

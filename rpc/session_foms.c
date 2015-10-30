@@ -433,6 +433,7 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 		gen->ssf_term_session = NULL;
 		m0_fom_phase_set(fom, M0_RPC_CONN_SESS_TERMINATE_WAIT);
 		m0_rpc_machine_unlock(machine);
+		M0_LEAVE();
 		return M0_FSO_AGAIN;
 
 	case M0_RPC_CONN_SESS_TERMINATE_WAIT:
@@ -447,6 +448,7 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 				rc = rpc_tick_ret(session, fom,
 					  M0_RPC_CONN_SESS_TERMINATE_WAIT);
 				m0_rpc_machine_unlock(machine);
+				M0_LEAVE();
 				return rc;
 			} else { /* session == NULL */
 				rc = -ENOENT;
@@ -459,6 +461,15 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 			       "session: %p, hold_cnt: %d, wait for session "
 			       "to become idle", session, session->s_hold_cnt);
 
+			M0_ASSERT(M0_IN(session_state(session),
+					(M0_RPC_SESSION_IDLE,
+					 M0_RPC_SESSION_BUSY)));
+			if (session_state(session) == M0_RPC_SESSION_BUSY) {
+				M0_LOG(M0_DEBUG, "Session [%p] busy.", session);
+				m0_rpc_machine_unlock(machine);
+				M0_LEAVE();
+				return M0_FSO_AGAIN;
+			}
 			rc = m0_rpc_rcv_session_terminate(session);
 			M0_ASSERT(ergo(rc != 0, session_state(session) ==
 				       M0_RPC_SESSION_FAILED));
@@ -595,12 +606,20 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 			M0_LOG(M0_DEBUG, "Session is ready for termination");
 			session = (struct m0_rpc_session *)gen->ssf_term_session;
 			M0_ASSERT(session != NULL);
-			(void)m0_rpc_rcv_session_terminate(session);
-			m0_rpc_session_fini_locked(session);
-			m0_free(session);
-			gen->ssf_term_session = NULL;
+			M0_ASSERT(M0_IN(session_state(session),
+					(M0_RPC_SESSION_IDLE,
+					 M0_RPC_SESSION_BUSY)));
+			if (session_state(session) == M0_RPC_SESSION_IDLE) {
+				(void)m0_rpc_rcv_session_terminate(session);
+				m0_rpc_session_fini_locked(session);
+				m0_free(session);
+				gen->ssf_term_session = NULL;
+			} else {
+				M0_LOG(M0_DEBUG, "Session [%p] busy.", session);
+			}
 
 			m0_rpc_machine_unlock(machine);
+			M0_LEAVE();
 			return M0_FSO_AGAIN;
 		}
 

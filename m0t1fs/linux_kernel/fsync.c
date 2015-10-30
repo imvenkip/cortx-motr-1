@@ -99,6 +99,10 @@ int m0t1fs_fsync_request_create(struct m0_reqh_service_txid        *stx,
 
 	M0_ENTRY();
 
+	rc = m0_rpc_session_validate(&stx->stx_service_ctx->sc_rlink.rlk_sess);
+	if (rc != 0)
+		return M0_ERR(rc);
+
 	if (stx->stx_service_ctx->sc_type == M0_CST_MDS)
 		fopt = &m0_fop_fsync_mds_fopt;
 	else if (stx->stx_service_ctx->sc_type == M0_CST_IOS)

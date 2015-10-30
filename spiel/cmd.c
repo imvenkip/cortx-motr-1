@@ -194,7 +194,7 @@ static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
 	if (rlink == NULL)
 		return M0_ERR(-ENOMEM);
 
-	rc = m0_rpc_link_init(rlink, rmachine, remote_ep,
+	rc = m0_rpc_link_init(rlink, rmachine, NULL, remote_ep,
 			      SPIEL_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
 		conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
@@ -951,7 +951,7 @@ static int spiel_sns_cmd_send(struct m0_rpc_machine *rmachine,
 	M0_PRE(sns != NULL);
 
 	fop = sns->ss_fop;
-	rc = m0_rpc_link_init(rlink, rmachine, remote_ep,
+	rc = m0_rpc_link_init(rlink, rmachine, NULL, remote_ep,
 			      SPIEL_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
 		conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);

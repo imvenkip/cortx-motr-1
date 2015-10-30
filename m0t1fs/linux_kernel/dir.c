@@ -1834,7 +1834,9 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 						 mo->mo_attr.ca_name.b_nob,
 						 mo->mo_use_hint,
 						 mo->mo_hash_hint);
-	M0_ASSERT(session != NULL);
+	rc = m0_rpc_session_validate(session);
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	fop = m0_fop_alloc_at(session, ftype);
 	if (fop == NULL) {
@@ -2261,7 +2263,12 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 	for (i = 0; i < csb->csb_pools_common.pc_md_redundancy; i++) {
 		session = m0_reqh_mdpool_service_index_to_session(
 				&csb->csb_reqh, gob_fid, i);
-		M0_ASSERT(session != NULL);
+		rc = m0_rpc_session_validate(session);
+		if (rc != 0) {
+			if (rc == -ECANCELED)
+				continue;
+			return M0_ERR(rc);
+		}
 		m0_fid_convert_gob2cob(gob_fid, &cob_fid, 0);
 
 		M0_LOG(M0_DEBUG, "Getattr for "FID_F "~" FID_F,

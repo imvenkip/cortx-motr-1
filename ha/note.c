@@ -26,6 +26,7 @@
 #include "lib/chan.h"
 #include "lib/memory.h"
 #include "lib/trace.h"
+#include "rpc/rpc_internal.h"   /* m0_rpc__post_locked */
 #include "rpc/rpclib.h"
 #include "rpc/session.h"
 
@@ -211,6 +212,63 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 		m0_fop_put_lock(fop);
 	} else
 		M0_LOG(M0_NOTICE, "Cannot allocate fop.");
+	M0_LEAVE();
+}
+
+static void ha_state_single_fop_data_free(struct m0_fop *fop)
+{
+	struct m0_ha_state_single *hss;
+	struct m0_ha_nvec         *nvec = fop->f_data.fd_data;
+
+	M0_PRE(nvec != NULL);
+	hss = container_of(nvec, struct m0_ha_state_single, hss_nvec);
+	m0_free(hss);
+	fop->f_data.fd_data = NULL;
+}
+
+static void ha_state_single_replied(struct m0_rpc_item *item)
+{
+	struct m0_fop *fop = container_of(item, struct m0_fop, f_item);
+
+	ha_state_single_fop_data_free(fop);
+	m0_fop_put(fop);
+}
+
+struct m0_rpc_item_ops ha_ri_ops = {
+	.rio_replied = ha_state_single_replied,
+};
+
+M0_INTERNAL void m0_ha_state_single_post(struct m0_rpc_session *session,
+					 struct m0_ha_nvec     *nvec)
+{
+	struct m0_rpc_machine *rmach = m0_fop_session_machine(session);
+	struct m0_fop         *fop;
+	struct m0_rpc_item    *item;
+	int                    rc;
+
+	M0_ENTRY();
+	M0_PRE(nvec != NULL);
+	M0_PRE(note_invariant(nvec, true));
+
+	fop = m0_fop_alloc(&m0_ha_state_set_fopt, nvec, rmach);
+	if (fop == NULL) {
+		M0_LOG(M0_NOTICE, "Cannot allocate fop.");
+		goto leave;
+	}
+	item              = &fop->f_item;
+	item->ri_ops      = &ha_ri_ops;
+	item->ri_session  = session;
+	item->ri_prio     = M0_RPC_ITEM_PRIO_MIN;
+	item->ri_deadline = m0_time_from_now(DEADLINE_S, DEADLINE_NS);
+	item->ri_resend_interval =
+		m0_time(RESEND_INTERVAL_SET_S, RESEND_INTERVAL_SET_NS);
+	rc = m0_rpc__post_locked(item);
+	if (rc != 0) {
+		M0_LOG(M0_NOTICE, "Post failed: %i.", rc);
+		ha_state_single_fop_data_free(fop);
+		m0_fop_put_lock(fop);
+	}
+leave:
 	M0_LEAVE();
 }
 

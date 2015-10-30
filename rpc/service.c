@@ -174,7 +174,7 @@ m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 	M0_ALLOC_PTR(revc);
 	rc = revc == NULL ? -ENOMEM : 0;
 	rc = rc ?: m0_rpc_link_init(&revc->rcf_rlink,
-				    item->ri_rmachine, rem_ep,
+				    item->ri_rmachine, NULL, rem_ep,
 				    M0_REV_CONN_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
 		m0_rpc_link_connect_async(&revc->rcf_rlink,

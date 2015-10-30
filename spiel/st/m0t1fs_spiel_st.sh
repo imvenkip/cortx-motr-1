@@ -15,7 +15,7 @@ MAX_RPC_MSG_SIZE=163840
 TM_MIN_RECV_QUEUE_LEN=2
 DEV_NR=4
 DEV_SIZE=$((1024 * 1024))
-PYTHON_STUFF=python_files.txt
+INSTALLED_FILES=cleanup-on-quit.txt
 
 error() { echo "$@" >&2; stop 1; }
 
@@ -63,8 +63,8 @@ EOF
 start() {
     # install "mero" Python module required by m0spiel tool
     cd $M0_SRC_DIR/utils/spiel
-    python setup.py install --record $PYTHON_STUFF > /dev/null ||\
-die 'Cannot install Python "mero" module'
+    python setup.py install --record $INSTALLED_FILES > /dev/null ||
+        die 'Cannot install Python "mero" module'
     sandbox_init
     _init
     m0d_with_rms_start
@@ -97,8 +97,8 @@ _fini() {
         losetup -d /dev/loop$i
     done
     cd $M0_SRC_DIR/utils/spiel
-    cat $PYTHON_STUFF | xargs rm -rf
-    rm -rf build/ $PYTHON_STUFF
+    cat $INSTALLED_FILES | xargs rm -rf
+    rm -rf build/ $INSTALLED_FILES
 }
 
 ### XXX Code duplication!

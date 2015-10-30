@@ -496,7 +496,7 @@ static int wlock_ctx_connect(struct m0_spiel_wlock_ctx *wlx)
 	M0_PRE(wlx != NULL);
 	return m0_rpc_client_connect(&wlx->wlc_conn, &wlx->wlc_sess,
 				     wlx->wlc_rmach, wlx->wlc_rm_addr,
-				     MAX_RPCS_IN_FLIGHT);
+				     NULL, MAX_RPCS_IN_FLIGHT);
 }
 
 static void wlock_ctx_disconnect(struct m0_spiel_wlock_ctx *wlx)
@@ -719,7 +719,7 @@ int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx,
 			m0_rpc_client_connect(&spiel_cmd[idx].slc_connect,
 					      &spiel_cmd[idx].slc_session,
 					      tx->spt_spiel->spl_rmachine,
-					      confd_eps[idx],
+					      confd_eps[idx], NULL,
 					      MAX_RPCS_IN_FLIGHT) ?:
 			spiel_load_fop_send(tx, &spiel_cmd[idx]);
 	}

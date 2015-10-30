@@ -21,6 +21,8 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 
+#define M0_UT_TRACE  0
+
 #include "ut/ut.h"
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
@@ -233,11 +235,49 @@ static bool only_second_time(void *data)
 	return *ip == 2;
 }
 
+enum m0_ha_obj_state expected_state;
+struct m0_fid        expected_fid;
+
+static void __ha_notify(struct m0_rpc_item *item,
+			struct m0_fid      *fid,
+			uint8_t             state)
+{
+	M0_UT_ENTER();
+	/* make sure HA is to be called with expected parameters */
+	M0_UT_ASSERT(expected_state == state);
+	M0_UT_ASSERT(m0_fid_eq(&expected_fid, fid));
+	/*
+	 * imitate reqh_service_ha_state_set() behavior while sending nothing to
+	 * HA because there is no HA environment up and running to accept a note
+	 */
+	item->ri_rmachine->rm_stats.rs_nr_ha_noted_items++;
+	/* toggle expected state */
+	expected_state = expected_state == M0_NC_TRANSIENT ?
+		M0_NC_ONLINE : M0_NC_TRANSIENT;
+	M0_UT_RETURN();
+}
+
 static void test_resend(void)
 {
+	struct m0_rpc_item_timeout_ops ritoo_orig = m0_ritoo;
 	struct m0_rpc_item *item;
 	int                 rc;
 	int                 cnt = 0;
+	struct m0_fid       sfid  = M0_FID_TINIT('s', 1, 25);
+	struct m0_reqh     *reqh  = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
+	struct m0_confc    *confc = m0_reqh2confc(reqh);
+	struct m0_conf_obj *svc_obj;
+
+	rc = m0_confc_open_by_fid_sync(confc, &sfid, &svc_obj);
+	M0_UT_ASSERT(rc == 0 && svc_obj != NULL);
+	rc = m0_rpc_conn_ha_subscribe(session->s_conn, svc_obj);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_rpc_machine_get_stats(machine, &saved, false);
+
+	m0_ritoo.ritoo_ha_notify = __ha_notify;
+	expected_state = M0_NC_TRANSIENT;
+	expected_fid = sfid;
 
 	/* Test: Request is dropped. */
 	M0_LOG(M0_DEBUG, "TEST:3.1:START");
@@ -309,7 +349,7 @@ static void test_resend(void)
 		 fails to start item timer.
 	 */
 	M0_LOG(M0_DEBUG, "TEST:3.5.1:START");
-	m0_fi_enable_once("m0_rpc_item_start_timer", "failed");
+	m0_fi_enable_once("m0_rpc_item_timer_start", "failed");
 	__test_timer_start_failure();
 	M0_LOG(M0_DEBUG, "TEST:3.5.1:END");
 
@@ -318,13 +358,28 @@ static void test_resend(void)
 	 */
 	M0_LOG(M0_DEBUG, "TEST:3.5.2:START");
 	cnt = 0;
-	m0_fi_enable_func("m0_rpc_item_start_timer", "failed",
+	m0_fi_enable_func("m0_rpc_item_timer_start", "failed",
 			  only_second_time, &cnt);
 	m0_fi_enable("item_received_fi", "drop_item");
 	__test_timer_start_failure();
 	m0_fi_disable("item_received_fi", "drop_item");
-	m0_fi_disable("m0_rpc_item_start_timer", "failed");
+	m0_fi_disable("m0_rpc_item_timer_start", "failed");
+	m0_rpc_machine_get_stats(machine, &stats, false);
+	/*
+	 * Check that HA was notified about the delay for a response from the
+	 * service on the rpc item.
+	 */
+	M0_UT_ASSERT(saved.rs_nr_ha_timedout_items <
+		     stats.rs_nr_ha_timedout_items);
+	M0_UT_ASSERT(saved.rs_nr_ha_noted_items <
+		     stats.rs_nr_ha_noted_items);
 	M0_LOG(M0_DEBUG, "TEST:3.5.2:END");
+	/* restore m0_ritoo */
+	m0_ritoo = ritoo_orig;
+	/* clean up */
+	m0_rpc_conn_ha_unsubscribe_lock(session->s_conn);
+	M0_UT_ASSERT(session->s_conn->c_ha_clink.cl_chan == NULL);
+	m0_confc_close(svc_obj);
 }
 
 static void misordered_item_replied_cb(struct m0_rpc_item *item)
@@ -943,6 +998,109 @@ static void test_item_cache(void)
 	m0_free(items);
 }
 
+static struct m0_thread ha_thread = {0};
+m0_chan_cb_t rpc_conn_original_ha_cb = NULL;
+
+void __ha_accept_imitate(struct m0_conf_obj *obj)
+{
+	M0_UT_ENTER("obj = %p", obj);
+	m0_nanosleep(m0_time(0, m0_ha_notify_interval_get() / 2), NULL);
+	obj->co_ha_state = M0_NC_FAILED;
+	m0_chan_broadcast_lock(&obj->co_ha_chan);
+	M0_UT_RETURN("broadcast done");
+}
+
+static void __ha_timer__dummy(struct m0_sm_timer *timer)
+{
+	struct m0_rpc_item *item;
+	struct m0_conf_obj *obj;
+
+	M0_UT_ENTER();
+	item = container_of(timer, struct m0_rpc_item, ri_ha_timer);
+	M0_UT_LOG("item = %p", item);
+	obj = item->ri_session->s_conn->c_svc_obj;
+	M0_UT_LOG("obj = %p", obj);
+	M0_UT_ASSERT(obj->co_ha_state == M0_NC_FAILED);
+	M0_UT_RETURN();
+}
+
+static bool __ha_service_event(struct m0_clink *link)
+{
+	bool rc;
+
+	M0_UT_ENTER();
+	rc = rpc_conn_original_ha_cb(link);
+	M0_UT_LOG("rc = %d", rc);
+	m0_semaphore_up(&wait);
+	M0_UT_RETURN();
+	return rc;
+}
+
+static void test_ha_cancel(void)
+{
+	struct m0_reqh     *reqh  = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
+	struct m0_confc    *confc = m0_reqh2confc(reqh);
+	struct m0_fid       sfid  = M0_FID_TINIT('s', 1, 25);
+	struct m0_conf_obj *svc_obj;
+	int                 rc;
+
+	struct m0_rpc_item_timeout_ops ritoo_orig = m0_ritoo;
+
+	rc = m0_confc_open_by_fid_sync(confc, &sfid, &svc_obj);
+	M0_UT_ASSERT(rc == 0 && svc_obj != NULL);
+
+	/*
+	 * Re-initiate rpc conn subscription to HA notes. This will replace
+	 * original ha clink callback with the local one. We need to follow
+	 * work flow, but take detours for the sake of test passage.
+	 */
+	rpc_conn_original_ha_cb = session->s_conn->c_ha_clink.cl_cb;
+	m0_clink_fini(&session->s_conn->c_ha_clink);
+	m0_clink_init(&session->s_conn->c_ha_clink, __ha_service_event);
+	/*
+	 * We are going to imitate service death notification before connection
+	 * getting timed out. Need to intercept standard item's ha timer
+	 * callback to prevent sending temporary failure status to HA as we have
+	 * no real HA environment running
+	 */
+	m0_ritoo.ritoo_ha_timer_cb = __ha_timer__dummy;
+	rc = m0_rpc_conn_ha_subscribe(session->s_conn, svc_obj);
+	M0_UT_ASSERT(rc == 0);
+	/* imitate external HA note acceptance */
+	rc = M0_THREAD_INIT(&ha_thread, struct m0_conf_obj *, NULL,
+			    &__ha_accept_imitate, svc_obj, "death_note");
+	M0_UT_ASSERT(rc == 0);
+
+	/* send fop with delay enabled */
+	fop = fop_alloc(machine);
+	item = &fop->f_item;
+	item->ri_nr_sent_max = 2;
+	m0_rpc_machine_get_stats(machine, &saved, false);
+	m0_fi_enable_once("cs_req_fop_fom_tick", "inject_delay");
+	m0_semaphore_init(&wait, 0);
+	M0_UT_LOG("posting item = %p", item);
+	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
+			      0 /* deadline */);
+	M0_UT_LOG("done with posting");
+	M0_UT_ASSERT(rc == -ECANCELED);
+	M0_UT_ASSERT(item->ri_error == -ECANCELED);
+	M0_UT_ASSERT(item->ri_reply == NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
+	m0_semaphore_down(&wait);
+	m0_semaphore_fini(&wait);
+	m0_fop_put_lock(fop);
+	/* restore m0_ritoo */
+	m0_ritoo = ritoo_orig;
+	/* recover connection */
+	rc = m0_rpc_client_stop(&cctx);
+	M0_UT_ASSERT(rc == -ECANCELED);
+	rc = m0_rpc_client_start(&cctx);
+	M0_UT_ASSERT(rc == 0);
+	/* recover service object */
+	svc_obj->co_ha_state = M0_NC_ONLINE;
+	m0_confc_close(svc_obj);
+}
+
 struct m0_ut_suite item_ut = {
 	.ts_name = "rpc-item-ut",
 	.ts_init = ts_item_init,
@@ -956,6 +1114,7 @@ struct m0_ut_suite item_ut = {
 		{ "failure-before-sending", test_failure_before_sending },
 		{ "oneway-item",            test_oneway_item            },
 		{ "cancel",                 test_cancel_item            },
+		{ "ha-cancel",              test_ha_cancel              },
 		{ "cancel-session",         test_cancel_session         },
 		{ NULL, NULL },
 	}

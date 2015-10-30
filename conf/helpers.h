@@ -125,6 +125,26 @@ M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
 				      const struct m0_fid   *obj_fid);
 
 /**
+ * Locates conf service object identified by fid (optional), service type and
+ * endpoint address. In case fid is NULL, service type and endpoint address are
+ * used to locate the object in configuration.
+ *
+ * The object is looked up in confc belonging to REQH instance.
+ *
+ * In case service object not found in cache immediately by fid, a service
+ * object of the given type and endpoint is looked up in configuration under
+ * current profile.
+ *
+ * The found service object is ultimately tested for having the provided
+ * endpoint address.
+ */
+M0_INTERNAL int m0_conf_service_find(struct m0_reqh            *reqh,
+				     const struct m0_fid       *fid,
+				     enum m0_conf_service_type  type,
+				     const char                *ep_addr,
+				     struct m0_conf_obj       **svc_obj);
+
+/**
  * Update configuration objects ha state from ha service.
  * Fetches HA state of configuration objects from HA service and
  * updates local configuration cache.
@@ -193,5 +213,12 @@ M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
 
 M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc);
 M0_INTERNAL void m0_confc_drained_cb(struct m0_rconfc *rconfc);
+
+/**
+ * Finds out if service configuration includes the specified endpoint address,
+ * i.e. endpoint is known to service configuration.
+ */
+M0_INTERNAL bool m0_conf_service_ep_is_known(struct m0_conf_obj *svc_obj,
+					     const char         *ep_addr);
 
 #endif /* __MERO_CONF_HELPERS_H__ */

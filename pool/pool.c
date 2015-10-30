@@ -34,6 +34,7 @@
 #include "ioservice/io_device.h"  /* m0_ios_poolmach_get */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
+#include "rpc/rpc_machine.h"   /* m0_rpc_machine_ep */
 
 #include "pool/pool.h"
 #include "pool/pool_fops.h"
@@ -655,7 +656,7 @@ static void service_ctxs_destroy(struct m0_pools_common *pc)
 		if (ctx->sc_is_connected) {
 			rc = m0_reqh_service_disconnect_wait(ctx);
 			/* XXX Current function doesn't fail. */
-			M0_ASSERT(rc == 0);
+			M0_ASSERT(rc == 0 || rc == -ECANCELED);
 		}
 		m0_reqh_service_ctx_destroy(ctx);
 	}

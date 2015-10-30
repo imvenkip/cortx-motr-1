@@ -152,6 +152,10 @@ enum m0_rpc_session_state {
 	M0_RPC_SESSION_FINALISED
 };
 
+/** Transforms @ref m0_rpc_session_state value to string */
+M0_INTERNAL const char *
+m0_rpc_session_state_to_str(enum m0_rpc_session_state state);
+
 /**
    Rpc connection can be shared by multiple entities (e.g. users) by
    creating their own "session" on the connection.
@@ -458,6 +462,12 @@ M0_INTERNAL int m0_rpc_session_timedwait(struct m0_rpc_session *session,
 					 const m0_time_t abs_timeout);
 
 /**
+ * Validates if session allows posting items. Validation includes testing
+ * session state as well as connection and rpc machine pointers being not NULL.
+ */
+M0_INTERNAL int m0_rpc_session_validate(struct m0_rpc_session *session);
+
+/**
    Finalises session object
 
    @pre M0_IN(session_state(session), (M0_RPC_SESSION_TERMINATED,
@@ -489,6 +499,12 @@ M0_INTERNAL void m0_rpc_session_restore(struct m0_rpc_session *session);
    Checks if a session is marked as cancelled.
  */
 M0_INTERNAL bool m0_rpc_session_is_cancelled(struct m0_rpc_session *session);
+
+/**
+   Does forced session state transition: ESTABLISHING --> IDLE
+   Intended to prepare non-established session for termination.
+ */
+M0_INTERNAL void m0_rpc_session_quiesce(struct m0_rpc_session *session);
 
 /**
    Returns maximum size of an RPC item allowed on this session.

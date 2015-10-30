@@ -97,7 +97,6 @@
 #include "lib/types.h"
 #include "lib/buf.h"          /* m0_buf, m0_bufs */
 #include "lib/buf_xc.h"       /* m0_buf_xc, m0_bufs_xc */
-#include "rpc/rpc.h"
 #include "xcode/xcode_attr.h"
 
 /* export */
@@ -108,6 +107,7 @@ struct m0_ha_nvec;
 struct m0_confc;
 struct m0_conf_obj;
 struct m0_fop;
+struct m0_rpc_session;
 
 /** Intializes the notification interface. */
 M0_INTERNAL int m0_ha_state_init(struct m0_rpc_session *session);
@@ -179,6 +179,17 @@ struct m0_ha_nvec {
 	int32_t            nv_nr;
 	struct m0_ha_note *nv_note;
 } M0_XCA_SEQUENCE;
+
+/**
+ * Single "note vector" package.
+ *
+ * Rpc item makes use of it when notifying HA about remote side connectivity
+ * issues (M0_NC_TRANSIENT <--> M0_NC_ONLINE)
+ */
+struct m0_ha_state_single {
+	struct m0_ha_note hss_note;
+	struct m0_ha_nvec hss_nvec;
+};
 
 enum m0_ha_state_update_defaults {
 	M0_HA_STATE_UPDATE_LIMIT = 1024,
@@ -279,6 +290,14 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 				 struct m0_ha_nvec *note);
 /**
+ * Asynchronous version of m0_ha_state_set() intended for posting single state.
+ *
+ * To comply with m0_rpc__post_locked():
+ * @pre m0_rpc_machine_is_locked(session_machine(session));
+ */
+M0_INTERNAL void m0_ha_state_single_post(struct m0_rpc_session *session,
+					 struct m0_ha_nvec     *nvec);
+/**
  * Incorporates received failure state changes in the cache of every confc
  * instance registered with the global HA context (see m0_ha_client_add()).
  *
@@ -311,6 +330,14 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 M0_INTERNAL void m0_ha_state_accept(const struct m0_ha_nvec *note);
 
 M0_INTERNAL struct m0_rpc_session *m0_ha_session_get(void);
+
+/**
+ * Returns interval to notify HA on elapsing one.
+ *
+ * Intended for cases when some entity malfunction, temporary or not, causes
+ * timeout which is worth notifying HA about entity state change.
+ */
+M0_INTERNAL m0_time_t m0_ha_notify_interval_get(void);
 
 M0_INTERNAL void m0_conf_ha_callback(struct m0_conf_obj *obj);
 

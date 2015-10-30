@@ -27,12 +27,14 @@
 #include "lib/time.h"          /* m0_time_t */
 #include "sm/sm.h"
 #include "rpc/rpc_onwire.h"    /* m0_rpc_sender_uuid */
+#include "ha/note.h"
 
 /* Imports */
 struct m0_rpc_machine;
 struct m0_rpc_service;
 struct m0_rpc_chan;
 struct m0_net_end_point;
+struct m0_conf_obj;
 
 /* Exports */
 struct m0_rpc_conn;
@@ -294,11 +296,26 @@ struct m0_rpc_conn {
 
 	/** M0_RPC_CONN_MAGIC */
 	uint64_t		  c_magic;
+
+	/** HA notification clink */
+	struct m0_clink           c_ha_clink;
+
+	/**
+	 * Service object the connection is established to. Allowed to be NULL,
+	 * in case no HA notification is required.
+	 */
+	struct m0_conf_obj       *c_svc_obj;
 };
 
 /**
    Initialises @conn object and associates it with @machine.
    No network communication is involved.
+
+   Service object can be provided to the call as an option. In case svc_obj is
+   not NULL, connection gets subscribed to HA notifications on the object. Death
+   notification under the circumstances is to result in cancelling all rpc items
+   registered with the connection and still remaining unsent unless protection
+   is set up on item explicitly by client with m0_rpc_item_ha_autocancel_set().
 
    Note: m0_rpc_conn_init() can fail with -ENOMEM, -EINVAL.
 	 if m0_rpc_conn_init() fails, conn is left in undefined state.
@@ -310,6 +327,7 @@ struct m0_rpc_conn {
 			(conn->c_flags & RCF_SENDER_END) != 0)
  */
 M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
+				 struct m0_conf_obj *svc_obj,
 				 struct m0_net_end_point *ep,
 				 struct m0_rpc_machine *machine,
 				 uint64_t max_rpcs_in_flight);
@@ -347,8 +365,14 @@ M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
  * A combination of m0_rpc_conn_init() and m0_rpc_conn_establish_sync() in a
  * single routine - initialize connection object, establish a connection and
  * wait until it become active.
+ *
+ * Conf object svc_obj is allowed to be NULL in case HA notification monitoring
+ * is not required on the established connection. Otherwise it should be from
+ * confc instance ultimately added to HA clients list to let HA notifications be
+ * handled proper way.
  */
 M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
+				   struct m0_conf_obj *svc_obj,
 				   struct m0_net_end_point *ep,
 				   struct m0_rpc_machine *rpc_machine,
 				   uint64_t max_rpcs_in_flight,
@@ -419,6 +443,29 @@ M0_INTERNAL int m0_rpc_conn_timedwait(struct m0_rpc_conn *conn,
 				      const m0_time_t abs_timeout);
 
 /**
+ * Late binding to service object. To be used with rpc connection possibly
+ * established to the moment, but originally not subscribed to HA notifications.
+ *
+ * @pre conn->c_svc_obj == NULL
+ */
+M0_INTERNAL int m0_rpc_conn_ha_subscribe(struct m0_rpc_conn *conn,
+					 struct m0_conf_obj *svc_obj);
+
+
+/**
+ * Removes HA subscription in case one exists.
+ *
+ * @pre m0_conf_cache_is_locked(conn->c_svc_obj->co_cache)
+ */
+M0_INTERNAL void m0_rpc_conn_ha_unsubscribe(struct m0_rpc_conn *conn);
+
+/**
+ * Locked version of m0_rpc_conn_ha_unsubscribe() internally taking conf cache
+ * lock for service object the connection is subscribed to.
+ */
+M0_INTERNAL void m0_rpc_conn_ha_unsubscribe_lock(struct m0_rpc_conn *conn);
+
+/**
    Just for debugging purpose. Useful in gdb.
 
    dir = 1, to print incoming conn list
@@ -428,6 +475,13 @@ M0_INTERNAL int m0_rpc_machine_conn_list_dump(struct m0_rpc_machine *machine,
 					      int dir);
 
 M0_INTERNAL const char *m0_rpc_conn_addr(const struct m0_rpc_conn *conn);
+
+/**
+ * Tests connection object for remote service being known dead to the moment,
+ * i.e. having related conf service object bearing M0_NC_FAILED state. In case
+ * no HA subsctiption exists on the connection, reports the assertion false.
+ */
+M0_INTERNAL bool m0_rpc_conn_is_known_dead(const struct m0_rpc_conn *conn);
 
 /** @}  End of rpc_session group */
 #endif /* __MERO_RPC_CONN_H__ */

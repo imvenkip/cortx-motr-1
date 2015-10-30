@@ -1520,7 +1520,8 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 	M0_PRE(not_empty(confd_addr) && rpc_mach != NULL);
 
 	rc = m0_rpc_client_connect(&confc->cc_rpc_conn, &confc->cc_rpc_session,
-				   rpc_mach, confd_addr, MAX_RPCS_IN_FLIGHT);
+				   rpc_mach, confd_addr, NULL,
+				   MAX_RPCS_IN_FLIGHT);
 	M0_POST((rc == 0) == confc_is_online(confc));
 	return M0_RC(rc);
 }

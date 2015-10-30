@@ -26,6 +26,7 @@
 #include "rpc/session.h"
 #include "net/lnet/lnet.h"
 #include "rpc/link.h"
+#include "rpc/rpc.h"
 
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 
@@ -107,8 +108,8 @@ static void rlut_remote_unreachable(void)
 	M0_ALLOC_PTR(rlink);
 	M0_UT_ASSERT(rlink != NULL);
 
-	rc = m0_rpc_link_init(rlink, &rmachine, remote_ep,
-			      RLUT_MAX_RPCS_IN_FLIGHT);
+	rc = m0_rpc_link_init(rlink, &rmachine, NULL, remote_ep,
+			      MAX_RPCS_IN_FLIGHT);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_rpc_link_connect_sync(rlink,
@@ -134,7 +135,8 @@ static void rlut_reconnect(void)
 
 	M0_ALLOC_PTR(rlink);
 	M0_UT_ASSERT(rlink != NULL);
-	rc = m0_rpc_link_init(rlink, mach, remote_ep, RLUT_MAX_RPCS_IN_FLIGHT);
+	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
+			      RLUT_MAX_RPCS_IN_FLIGHT);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Reconnect after disconnect */

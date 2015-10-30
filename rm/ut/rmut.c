@@ -211,7 +211,7 @@ void rm_ctx_connect(struct rm_ctx *src, const struct rm_ctx *dest)
 				   &src->rc_sess[dest->rc_id],
 				   &src->rc_rmach_ctx.rmc_rpc,
 				   dest->rc_rmach_ctx.rmc_ep_addr,
-				   MAX_RPCS_IN_FLIGHT);
+				   NULL, MAX_RPCS_IN_FLIGHT);
 	M0_UT_ASSERT(rc == 0);
 }
 

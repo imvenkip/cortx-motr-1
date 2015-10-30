@@ -36,6 +36,7 @@
 #include "fop/fop.h"
 #include "fop/fom_generic.h" /* m0_rpc_item_generic_reply_rc */
 #include "rpc/rpclib.h"
+#include "conf/helpers.h"    /* m0_conf_service_locate */
 
 #ifndef __KERNEL__
 #  include "reqh/reqh.h"
@@ -95,6 +96,7 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_session *session,
 				      struct m0_rpc_machine *rpc_mach,
 				      const char            *remote_addr,
+				      struct m0_conf_obj    *svc_obj,
 				      uint64_t               max_rpcs_in_flight)
 {
 	struct m0_net_end_point *ep;
@@ -107,7 +109,7 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 	if (rc != 0)
 		return M0_RC(rc);
 
-	rc = m0_rpc_conn_create(conn, ep, rpc_mach, max_rpcs_in_flight,
+	rc = m0_rpc_conn_create(conn, svc_obj, ep, rpc_mach, max_rpcs_in_flight,
 				M0_TIME_NEVER);
 	m0_net_end_point_put(ep);
 	if (rc != 0)
@@ -118,6 +120,25 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 		(void)m0_rpc_conn_destroy(conn, M0_TIME_NEVER);
 
 	return M0_RC(rc);
+}
+
+M0_INTERNAL int
+m0_rpc_client_find_connect(struct m0_rpc_conn       *conn,
+			   struct m0_rpc_session    *session,
+			   struct m0_rpc_machine    *rpc_mach,
+			   const char               *remote_addr,
+			   const struct m0_fid      *sfid,
+			   enum m0_conf_service_type stype,
+			   uint64_t                  max_rpcs_in_flight)
+{
+	struct m0_conf_obj *svc_obj = NULL;
+
+	M0_ENTRY();
+	M0_PRE(rpc_mach != NULL);
+	return M0_RC(m0_conf_service_find(rpc_mach->rm_reqh, sfid, stype,
+					  remote_addr, &svc_obj) ?:
+		     m0_rpc_client_connect(conn, session, rpc_mach, remote_addr,
+					   svc_obj, max_rpcs_in_flight));
 }
 
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
@@ -161,7 +182,7 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 
 	rc = m0_rpc_client_connect(&cctx->rcx_connection, &cctx->rcx_session,
 				   &cctx->rcx_rpc_machine,
-				   cctx->rcx_remote_addr,
+				   cctx->rcx_remote_addr, NULL,
 				   cctx->rcx_max_rpcs_in_flight);
 	if (rc == 0)
 		return M0_RC(0);

@@ -567,7 +567,7 @@ static int cs_ha_init(struct m0_mero *cctx)
 	if (cctx->cc_ha_addr == NULL && cctx->cc_reqh_ctx.rc_confdb != NULL)
 		return M0_RC(0); /*  having no HA is allowed for local conf */
 	return M0_RC(m0_rpc_client_connect(&cctx->cc_ha_conn, &cctx->cc_ha_sess,
-					   rmach, cctx->cc_ha_addr,
+					   rmach, cctx->cc_ha_addr, NULL,
 					   2 /*MAX_RPCS_IN_FLIGHT*/) ?:
 		     m0_ha_state_init(&cctx->cc_ha_sess));
 }
@@ -2220,6 +2220,8 @@ void m0_cs_fini(struct m0_mero *cctx)
 	struct m0_reqh         *reqh = &rctx->rc_reqh;
 
 	M0_ENTRY();
+
+	m0_ha_state_fini(); /* we don't care about reporting to HA anymore */
 
 	if (rctx->rc_state == RC_INITIALISED)
 		m0_reqh_layouts_cleanup(reqh);

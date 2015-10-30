@@ -574,11 +574,11 @@ static int m0_ios_mds_conn_init(struct m0_reqh             *reqh,
 		if (conn == NULL)
 			return M0_RC(-ENOMEM);
 
-		rc = m0_rpc_client_connect(&conn->imc_conn,
-					   &conn->imc_session,
-					   rpc_machine,
-					   srv_ep_addr,
-					   MAX_NR_RPC_IN_FLIGHT);
+		rc = m0_rpc_client_find_connect(&conn->imc_conn,
+						&conn->imc_session,
+						rpc_machine, srv_ep_addr,
+						NULL, M0_CST_MDS,
+						MAX_NR_RPC_IN_FLIGHT);
 		if (rc == 0) {
 			conn->imc_connected = true;
 			M0_LOG(M0_DEBUG, "Ios connected to mds %s",

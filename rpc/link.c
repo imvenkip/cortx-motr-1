@@ -34,6 +34,8 @@
 #include "rpc/rpc_machine_internal.h" /* m0_rpc_machine_lock */
 #include "rpc/rpc_opcodes.h"          /* M0_RPC_LINK_CONN_OPCODE */
 #include "rpc/link.h"
+#include "rpc/session_internal.h"     /* m0_rpc_session_fini_locked */
+#include "rpc/conn_internal.h"        /* m0_rpc_conn_remove_session */
 
 /**
  * @addtogroup rpc_link
@@ -140,6 +142,8 @@ static int rpc_link_conn_terminate(struct m0_rpc_link *rlink)
 	int rc;
 
 	rc = m0_rpc_conn_terminate(&rlink->rlk_conn, rlink->rlk_timeout);
+	if (rc == -ECANCELED)
+		return M0_FSO_AGAIN; /* no need to fail in the case */
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Connection termination failed (rlink=%p)",
 		       rlink);
@@ -149,6 +153,7 @@ static int rpc_link_conn_terminate(struct m0_rpc_link *rlink)
 
 static int rpc_link_conn_terminated(struct m0_rpc_link *rlink)
 {
+	m0_rpc_conn_ha_unsubscribe_lock(&rlink->rlk_conn);
 	return M0_FSO_WAIT;
 }
 
@@ -159,16 +164,33 @@ static int rpc_link_sess_terminate(struct m0_rpc_link *rlink)
 	M0_PRE(SESS_STATE(&rlink->rlk_sess) == M0_RPC_SESSION_IDLE);
 
 	rc = m0_rpc_session_terminate(&rlink->rlk_sess, rlink->rlk_timeout);
+	if (rc == -ECANCELED)
+		return M0_FSO_AGAIN; /* continue normal way */
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Session termination failed (rlink=%p)",
-		       rlink);
+		M0_LOG(M0_ERROR, "Session termination failed (rlink=%p, rc=%d)",
+		       rlink, rc);
 	}
 	return rc == 0 ? M0_FSO_AGAIN : rc;
+}
+
+static void rpc_link_sess_cleanup(struct m0_rpc_link *rlink)
+{
+	struct m0_rpc_session *sess = &rlink->rlk_sess;
+
+	if (M0_IN(session_state(&rlink->rlk_sess), (M0_RPC_SESSION_INITIALISED,
+						    M0_RPC_SESSION_FINALISED)))
+		return;
+	if (m0_rpc_session_search(sess->s_conn, sess->s_session_id) != NULL)
+		m0_rpc_conn_remove_session(sess);
+	m0_rpc_session_cancel(sess);
+	m0_rpc_session_fini_locked(sess);
 }
 
 static int rpc_link_conn_failure(struct m0_rpc_link *rlink)
 {
 	rlink->rlk_rc = m0_fom_rc(&rlink->rlk_fom);
+	m0_rpc_conn_ha_unsubscribe_lock(&rlink->rlk_conn);
+	rpc_link_sess_cleanup(rlink);
 	return M0_FSO_WAIT;
 }
 
@@ -484,6 +506,7 @@ M0_INTERNAL void m0_rpc_link_module_fini(void)
 
 M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 				 struct m0_rpc_machine *mach,
+				 struct m0_conf_obj *svc_obj,
 				 const char *ep,
 				 uint64_t max_rpcs_in_flight)
 {
@@ -497,7 +520,7 @@ M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 
 	rc = m0_net_end_point_create(&net_ep, &mach->rm_tm, ep);
 	if (rc == 0) {
-		rc = m0_rpc_conn_init(&rlink->rlk_conn, net_ep, mach,
+		rc = m0_rpc_conn_init(&rlink->rlk_conn, svc_obj, net_ep, mach,
 				      max_rpcs_in_flight);
 		m0_net_end_point_put(net_ep);
 	}
@@ -518,8 +541,15 @@ M0_INTERNAL void m0_rpc_link_fini(struct m0_rpc_link *rlink)
 	M0_PRE(!rlink->rlk_connected);
 	m0_chan_fini_lock(&rlink->rlk_wait);
 	m0_mutex_fini(&rlink->rlk_wait_mutex);
-	m0_rpc_session_fini(&rlink->rlk_sess);
-	m0_rpc_conn_fini(&rlink->rlk_conn);
+	/*
+	 * The link may be already discharged, as the peered service object
+	 * might be announced dead. So need to double-check if the underlying
+	 * session and connection really require finalising.
+	 */
+	if (session_state(&rlink->rlk_sess) != M0_RPC_SESSION_FINALISED)
+		m0_rpc_session_fini(&rlink->rlk_sess);
+	if (conn_state(&rlink->rlk_conn) != M0_RPC_CONN_FINALISED)
+		m0_rpc_conn_fini(&rlink->rlk_conn);
 }
 
 M0_INTERNAL void m0_rpc_link_reset(struct m0_rpc_link *rlink)

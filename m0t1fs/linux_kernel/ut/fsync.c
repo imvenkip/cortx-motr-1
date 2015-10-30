@@ -92,6 +92,9 @@ static struct m0t1fs_sb                  csb;
 /* A fake serivce context for fsync to send rpc to */
 static struct m0_reqh_service_ctx    service;
 
+/* fake connection complying with m0_rpc_session_validate() */
+struct m0_rpc_conn conn = { .c_rpc_machine = (void*)1 };
+
 /* Stub functions used to test m0t1fs_fsync */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 static int ut_kernel_fsync(struct file *file, loff_t start, loff_t end,
@@ -201,6 +204,8 @@ static void fake_fs_setup(void)
 
 	m0_mutex_init(&service.sc_max_pending_tx_lock);
 	service.sc_type = M0_CST_IOS;
+	service.sc_rlink.rlk_sess.s_conn = &conn;
+	service.sc_rlink.rlk_sess.s_sm.sm_state = M0_RPC_SESSION_IDLE;
 
 	/* Add some records that need fsyncing
 	 * This creates @10 records, all for the same service that need

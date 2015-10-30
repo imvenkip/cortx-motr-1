@@ -38,6 +38,17 @@
 
 #include "ha/epoch.h"
 
+enum {
+	/**
+	 * Interval being elapsed after rpc item sending has to result in
+	 * sending M0_NC_TRANSIENT state to HA. Expected to be shorter than
+	 * M0_RPC_ITEM_RESEND_INTERVAL.
+	 *
+	 * default value, in milliseconds
+	 */
+	M0_HA_INTERVAL_NOTIFY = 500 * M0_TIME_ONE_MSEC,
+};
+
 /**
  * HA client record, an item of ha_global::hg_clients list.
  *
@@ -59,7 +70,19 @@ struct ha_client {
  * used for communication with HA.
  */
 struct ha_global {
-	struct m0_rpc_session *hg_session;   /**< HA global RPC session       */
+	/**
+	 * Session to be used instance-wide to communicate with HA.
+	 *
+	 * Accessible via m0_ha_session_get().
+	 */
+	struct m0_rpc_session *hg_session;
+	/**
+	 * Time to notify HA about service death. Globally set for mero
+	 * instance during m0_ha_global_init().
+	 *
+	 * Accessible for reading via m0_ha_notify_interval_get().
+	 */
+	m0_time_t              hg_notify_interval;
 	struct m0_tl           hg_clients;   /**< HA clients to be updated    */
 	struct m0_mutex        hg_guard;     /**< contexts list protection    */
 };
@@ -145,12 +168,13 @@ M0_INTERNAL int m0_ha_global_init(void)
 	struct ha_global *hg;
 
 	M0_ALLOC_PTR(hg);
-	if (hg != NULL) {
-		m0_get()->i_moddata[M0_MODULE_HA] = hg;
-		m0_mutex_init(&hg->hg_guard);
-		hg_client_tlist_init(&hg->hg_clients);
-	}
-	return hg != NULL ? 0 : M0_ERR(-ENOMEM);
+	if (hg == NULL)
+		return M0_ERR(-ENOMEM);
+	hg->hg_notify_interval = m0_time(0, M0_HA_INTERVAL_NOTIFY);
+	m0_get()->i_moddata[M0_MODULE_HA] = hg;
+	m0_mutex_init(&hg->hg_guard);
+	hg_client_tlist_init(&hg->hg_clients);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_ha_global_fini(void)
@@ -275,6 +299,12 @@ M0_INTERNAL void m0_ha_clients_iterate(m0_ha_client_cb_t iter,
 		iter(client->hc_confc, data);
 	} m0_tl_endfor;
 	ha_global_unlock(hg);
+}
+
+M0_INTERNAL m0_time_t m0_ha_notify_interval_get(void)
+{
+	struct ha_global *hg = m0_get()->i_moddata[M0_MODULE_HA];
+	return hg->hg_notify_interval;
 }
 
 M0_INTERNAL int m0_ha_epoch_check(const struct m0_rpc_item *item)

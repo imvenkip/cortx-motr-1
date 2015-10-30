@@ -580,7 +580,7 @@ M0_INTERNAL int m0_reqh_service_connect(struct m0_reqh_service_ctx *ctx,
 	M0_PRE(reqh_service_context_invariant(ctx));
 
 	M0_SET0(&ctx->sc_rlink);
-	rc = m0_rpc_link_init(&ctx->sc_rlink, rmach, addr,
+	rc = m0_rpc_link_init(&ctx->sc_rlink, rmach, ctx->sc_sobj, addr,
 			      max_rpc_nr_in_flight);
 	if (rc == 0) {
 		rc = m0_rpc_link_connect_sync(&ctx->sc_rlink, M0_TIME_NEVER);
@@ -675,11 +675,17 @@ static bool process_event_handler(struct m0_clink *clink)
 	switch (obj->co_ha_state) {
 	case M0_NC_FAILED:
 	case M0_NC_TRANSIENT:
-		M0_ASSERT(ctx->sc_is_active);
-		m0_rpc_session_cancel(&ctx->sc_rlink.rlk_sess);
+		if (ctx->sc_is_active)
+			m0_rpc_session_cancel(&ctx->sc_rlink.rlk_sess);
+		/*
+		 * The session is just cancelled, or it was already cancelled
+		 * some time before.
+		 */
+		M0_ASSERT(m0_rpc_session_is_cancelled(&ctx->sc_rlink.rlk_sess));
 		/* m0_rpc_post() needs valid session, so service context is not
-		 * finalised. Here making service context as inactive, which will
-		 * become active again after reconnection when process is restarted.
+		 * finalised. Here making service context as inactive, which
+		 * will become active again after reconnection when process is
+		 * restarted.
 		 */
 		ctx->sc_is_active = false;
 		break;
@@ -687,6 +693,27 @@ static bool process_event_handler(struct m0_clink *clink)
 		if (ctx->sc_is_active ||
 		    m0_conf_obj_grandparent(obj)->co_ha_state != M0_NC_ONLINE)
 			break;
+		/*
+		 * Process may become online prior to service object.
+		 *
+		 * Make sure respective service object is known online. In case
+		 * it is not, quit and let service_event_handler() do the job.
+		 *
+		 * Note: until service object gets known online, re-connection
+		 * is not possible due to assertions in RPC connection HA
+		 * subscription code.
+		 */
+		if (ctx->sc_sobj == NULL)
+			ctx->sc_sobj = m0_conf_cache_lookup(obj->co_cache,
+							    &ctx->sc_fid);
+		M0_ASSERT(ctx->sc_sobj != NULL);
+		if (ctx->sc_sobj->co_ha_state != M0_NC_ONLINE)
+			break;
+		/*
+		 * We are about to reconnect, so conf object cache is to unlock
+		 * to let reconnection go smooth.
+		 */
+		m0_conf_cache_unlock(obj->co_cache);
 		/* XXX Since reqh_service_reconnect() is synchronous this
 		 * prevents situation when other handler is called during
 		 * connection establishment/termination. But this blocks the
@@ -695,6 +722,7 @@ static bool process_event_handler(struct m0_clink *clink)
 		rc = reqh_service_reconnect(ctx, ctx->sc_pc->pc_rmach,
 					    process->pc_endpoint,
 					    REQH_SVC_MAX_RPCS_IN_FLIGHT);
+		m0_conf_cache_lock(obj->co_cache);
 		if (rc != 0) {
 			M0_LOG(M0_DEBUG, "Service"FID_F", type=%d, rc=%d",
 					 FID_P(&ctx->sc_fid), ctx->sc_type, rc);
@@ -731,16 +759,56 @@ static bool service_event_handler(struct m0_clink *clink)
 						       service->cs_type));
 
 	switch (obj->co_ha_state) {
-	case M0_NC_FAILED:
 	case M0_NC_TRANSIENT:
+		/*
+		 * It seems important to do nothing here to let rpc item ha
+		 * timeout do its job. When HA really decides on service death,
+		 * it notifies with M0_NC_FAILED.
+		 */
+		break;
+	case M0_NC_FAILED:
 		if (ctx->sc_is_active &&
 		    !m0_rpc_session_is_cancelled(session))
 			m0_rpc_session_cancel(session);
 		break;
 	case M0_NC_ONLINE:
-		if (ctx->sc_is_active &&
-		    m0_rpc_session_is_cancelled(session))
-			m0_rpc_session_restore(session);
+		/*
+		 * In case service event comes to context that is already
+		 * active, just make sure the session is not cancelled, and
+		 * restore the one otherwise.
+		 *
+		 * In case the context is not active, do reconnect service
+		 * context.
+		 *
+		 * Note: Make no assumptions about process HA state, as service
+		 * state update may take a lead in the batch updates.
+		 */
+		if (ctx->sc_is_active) {
+			if (m0_rpc_session_is_cancelled(session))
+				m0_rpc_session_restore(session);
+		} else {
+			int rc;
+
+			/*
+			 * We are about to reconnect, so conf object cache is to
+			 * unlock to let reconnection go smooth.
+			 */
+			m0_conf_cache_unlock(obj->co_cache);
+			/* XXX Since reqh_service_reconnect() is synchronous
+			 * this prevents situation when other handler is called
+			 * during connection establishment/termination. But this
+			 * blocks the thread as well.
+			 */
+			rc = reqh_service_reconnect(ctx, ctx->sc_pc->pc_rmach,
+						    service->cs_endpoints[0],
+						    REQH_SVC_MAX_RPCS_IN_FLIGHT);
+			m0_conf_cache_lock(obj->co_cache);
+			if (rc != 0) {
+				M0_LOG(M0_DEBUG, "Service"FID_F", type=%d, rc=%d",
+				       FID_P(&ctx->sc_fid), ctx->sc_type, rc);
+				return false;
+			}
+		}
 		break;
 	default:
 		break;

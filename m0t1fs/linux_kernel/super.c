@@ -416,7 +416,7 @@ static int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
 	int                    rc;
 
 	M0_ENTRY();
-	rc = m0_rpc_client_connect(ha_conn, ha_sess, rmach, ha_addr,
+	rc = m0_rpc_client_connect(ha_conn, ha_sess, rmach, ha_addr, NULL,
 				   2 /*MAX_RPCS_IN_FLIGHT*/);
 	if (rc != 0)
 		return M0_ERR(rc);

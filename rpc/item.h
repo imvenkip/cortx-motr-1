@@ -174,6 +174,11 @@ struct m0_rpc_item {
 	    the operation, depending on ri_nr_sent and ri_nr_sent_max.
 	 */
 	struct m0_sm_timer               ri_timer;
+	/** HA notify timer.
+	 *
+	 * Invokes item_ha_timer_cb() after every ha_global->hg_notify_interval.
+	 */
+	struct m0_sm_timer               ri_ha_timer;
 	/** RPC item state machine.
 	    @see outgoing_item_states
 	    @see incoming_item_states
@@ -246,7 +251,11 @@ enum m0_rpc_item_flags {
 	/**
 	 * Sender already has the reply.
 	 */
-	M0_RIF_REPLIED = 1 << 1
+	M0_RIF_REPLIED = 1 << 1,
+	/**
+	 * Item has previously sent M0_NC_TRANSIENT state to HA
+	 */
+	M0_RIF_COMPLAINED = 1 << 2,
 };
 
 struct m0_rpc_item_ops {

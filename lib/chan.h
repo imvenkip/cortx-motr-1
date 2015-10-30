@@ -429,9 +429,20 @@ M0_INTERNAL bool m0_chan_trywait(struct m0_clink *link);
 M0_INTERNAL bool m0_chan_timedwait(struct m0_clink *link,
 				   const m0_time_t abs_timeout);
 
-M0_INTERNAL void m0_chan_lock(struct m0_chan *chan);
-M0_INTERNAL void m0_chan_unlock(struct m0_chan *chan);
-M0_INTERNAL bool m0_chan_is_locked(const struct m0_chan *chan);
+/**
+   Locks ch_guard.
+ */
+M0_INTERNAL void m0_chan_lock(struct m0_chan *ch);
+
+/**
+   Unlocks ch_guard.
+ */
+M0_INTERNAL void m0_chan_unlock(struct m0_chan *ch);
+
+/**
+   Tests ch_guard for being locked.
+ */
+M0_INTERNAL bool m0_chan_is_locked(const struct m0_chan *ch);
 
 /*
  * XXX HA re-link

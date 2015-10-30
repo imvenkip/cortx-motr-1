@@ -567,6 +567,31 @@ int m0_rpc_session_destroy(struct m0_rpc_session *session,
 }
 M0_EXPORTED(m0_rpc_session_destroy);
 
+M0_INTERNAL int m0_rpc_session_validate(struct m0_rpc_session *session)
+{
+	M0_ENTRY();
+	M0_PRE(session != NULL);
+	if (session->s_cancelled) {
+		M0_LOG(M0_DEBUG, "Session already cancelled to the moment");
+		return M0_ERR(-ECANCELED);
+	}
+	if (!M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
+					    M0_RPC_SESSION_BUSY))) {
+		M0_LOG(M0_DEBUG, "Session state %s is not valid",
+		       m0_rpc_session_state_to_str(session_state(session)));
+		return M0_ERR(-EINVAL);
+	}
+	if (session->s_conn == NULL) {
+		M0_LOG(M0_DEBUG, "Session connection is NULL");
+		return M0_ERR(-ENOMEDIUM);
+	}
+	if (session->s_conn->c_rpc_machine == NULL) {
+		M0_LOG(M0_DEBUG, "Session connection rpc machine is NULL");
+		return M0_ERR(-ENOMEDIUM);
+	}
+	return M0_RC(0);
+}
+
 M0_INTERNAL int m0_rpc_session_terminate_sync(struct m0_rpc_session *session,
 					      m0_time_t abs_timeout)
 {
@@ -812,6 +837,20 @@ M0_INTERNAL int m0_rpc_rcv_session_terminate(struct m0_rpc_session *session)
 	return M0_RC(0);
 }
 
+M0_INTERNAL void m0_rpc_session_quiesce(struct m0_rpc_session *session)
+{
+	M0_ENTRY("session: %p", session);
+
+	M0_PRE(session != NULL);
+	M0_PRE(m0_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
+	M0_PRE(m0_rpc_session_invariant(session));
+	M0_PRE(session_state(session) == M0_RPC_SESSION_ESTABLISHING);
+
+	session_state_set(session, M0_RPC_SESSION_IDLE);
+	M0_POST(m0_rpc_session_invariant(session));
+	M0_LEAVE();
+}
+
 M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session)
 {
 	struct m0_rpc_item *item;
@@ -819,6 +858,8 @@ M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session)
 	M0_PRE(session->s_session_id != SESSION_ID_0);
 
 	M0_ENTRY("session %p", session);
+	if (session->s_cancelled)
+		goto leave;
 	m0_rpc_machine_lock(session->s_conn->c_rpc_machine);
 	session->s_cancelled = true;
 	m0_tl_for(pending_item, &session->s_pending_cache, item) {
@@ -829,6 +870,7 @@ M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session)
 	m0_rpc_machine_unlock(session->s_conn->c_rpc_machine);
 	M0_POST(pending_item_tlist_is_empty(&session->s_pending_cache));
 	M0_POST(session->s_sm.sm_state == M0_RPC_SESSION_IDLE);
+leave:
 	M0_LEAVE("session %p", session);
 }
 
@@ -856,6 +898,25 @@ M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item)
 		m0_rpc_item_replied_invoke(item);
 	}
 }
+
+#define S_CASE(x) case x: return #x;
+M0_INTERNAL const char *
+m0_rpc_session_state_to_str(enum m0_rpc_session_state state)
+{
+	switch (state) {
+		S_CASE(M0_RPC_SESSION_INITIALISED)
+		S_CASE(M0_RPC_SESSION_ESTABLISHING)
+		S_CASE(M0_RPC_SESSION_IDLE)
+		S_CASE(M0_RPC_SESSION_BUSY)
+		S_CASE(M0_RPC_SESSION_FAILED)
+		S_CASE(M0_RPC_SESSION_TERMINATING)
+		S_CASE(M0_RPC_SESSION_TERMINATED)
+		S_CASE(M0_RPC_SESSION_FINALISED)
+	}
+	M0_LOG(M0_ERROR, "State %d unknown", state);
+	M0_ASSERT(NULL == "No transcript");
+}
+#undef S_CASE
 
 #undef M0_TRACE_SUBSYSTEM
 

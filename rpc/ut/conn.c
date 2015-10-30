@@ -84,7 +84,7 @@ static int conn_ut_fini(void)
 static void conn_init(void)
 {
 	int rc;
-	rc = m0_rpc_conn_init(&conn, &ep, &machine, 1);
+	rc = m0_rpc_conn_init(&conn, NULL, &ep, &machine, 1);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_INITIALISED);
 	M0_UT_ASSERT(conn.c_rpc_machine == &machine);
@@ -192,12 +192,12 @@ static void conn_init_fail_test(void)
 	int rc;
 	/* Checks for m0_rpc_conn_init() failure due to allocation failure */
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
-	rc = m0_rpc_conn_init(&conn, &ep, &machine, 1);
+	rc = m0_rpc_conn_init(&conn, NULL, &ep, &machine, 1);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	/* Checks for failure due to error in rpc_chan_get() */
 	m0_fi_enable_once("rpc_chan_get", "fake_error");
-	rc = m0_rpc_conn_init(&conn, &ep, &machine, 1);
+	rc = m0_rpc_conn_init(&conn, NULL, &ep, &machine, 1);
 	M0_UT_ASSERT(rc == -ENOMEM);
 }
 

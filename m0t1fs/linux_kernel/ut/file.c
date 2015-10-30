@@ -853,8 +853,8 @@ static void target_ioreq_test(void)
 	struct io_request           req;
 	uint64_t                    size;
 	struct m0_fid               cfid;
-	struct m0_rpc_session       session;
-	struct m0_rpc_conn          conn;
+	struct m0_rpc_session       session = { .s_cancelled = false };
+	struct m0_rpc_conn          conn    = { .c_svc_obj   = NULL  };
 	struct io_req_fop          *irfop;
 	int                         cnt;
 	int                         rc;
@@ -877,6 +877,7 @@ static void target_ioreq_test(void)
 
 	conn.c_rpc_machine = &csb.csb_rpc_machine;
 	session.s_conn = &conn;
+	session.s_sm.sm_state = M0_RPC_SESSION_IDLE;
 
 	aligned_buf = m0_alloc_aligned(M0_0VEC_ALIGN, M0_0VEC_SHIFT);
 
@@ -1077,6 +1078,7 @@ static void dgmode_readio_test(void)
 	M0_UT_ASSERT(session != NULL);
 	M0_ALLOC_PTR(conn);
 	M0_UT_ASSERT(conn != NULL);
+	session->s_sm.sm_state = M0_RPC_SESSION_IDLE;
 	session->s_conn = conn;
 	conn->c_rpc_machine = &csb.csb_rpc_machine;
 	conn->c_rpc_machine->rm_tm.ntm_dom = &csb.csb_ndom;

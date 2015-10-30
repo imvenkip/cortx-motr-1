@@ -154,17 +154,45 @@ struct m0_rpc_client_ctx {
 /**
  * Establishes RPC connection and creates a session.
  *
+ * Connection automatically handles HA notifications regarding state of service
+ * identified by service object, if provided. In case of service death being
+ * announced, all rpc items on the connection get cancelled letting connection
+ * close safe.
+ *
  * @param[out] conn
  * @param[out] session
  * @param[in]  rpc_mach
  * @param[in]  remote_addr
+ * @param[in]  service object, optional, can be NULL
  * @param[in]  max_rpcs_in_flight
  */
 M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_session *session,
 				      struct m0_rpc_machine *rpc_mach,
 				      const char            *remote_addr,
+				      struct m0_conf_obj    *svc_obj,
 				      uint64_t               max_rpcs_in_flight);
+
+/**
+ * A bit more intelligent version of m0_rpc_client_connect(). To be sure client
+ * connects to right service, client side provides service fid (optional, can be
+ * NULL) and service type along with the remote address. The call internally
+ * makes sure the provided address belongs to service of correct fid and type.
+ *
+ * However even with service object not found, m0_rpc_client_connect() attempt
+ * is ultimately done anyway.
+ *
+ * @note confc contained by REQH, i.e. accessible by m0_reqh2confc(reqh), is
+ * used for service object look-up.
+ */
+M0_INTERNAL int
+m0_rpc_client_find_connect(struct m0_rpc_conn       *conn,
+			   struct m0_rpc_session    *session,
+			   struct m0_rpc_machine    *rpc_mach,
+			   const char               *remote_addr,
+			   const struct m0_fid      *sfid,
+			   enum m0_conf_service_type stype,
+			   uint64_t                  max_rpcs_in_flight);
 
 /**
  * Starts client's rpc machine.

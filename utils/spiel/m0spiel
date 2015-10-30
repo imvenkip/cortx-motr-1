@@ -530,7 +530,7 @@ class SpielWrapper:
         self.ha_session = self.allocate_memory(m0_rpc_session__size())
         rc = self.mero.m0_rpc_client_connect(self.ha_conn, self.ha_session,
                                              self.rpc_machine, self.ha_ep,
-                                             2)
+                                             None, 2)
         if rc != 0:
             raise RuntimeError("failed to initialise HA session, rc = " +
                                str(result))

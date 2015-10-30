@@ -47,7 +47,6 @@
 #include "sns/cm/sw_onwire_fop.h"
 #include "sns/cm/file.h"
 #include "lib/locality.h"
-#include "rpc/rpclib.h" /* m0_rpc_client_connect. */
 #include "rm/rm_service.h"
 
 #include "conf/diter.h"
