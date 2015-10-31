@@ -7,18 +7,16 @@ set -eu
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2015-10-31 0.3     Process raw m0traces with `m0tracedump'.
 ### 2015-10-27 0.2     `m0version' calls `m0d -v'.
 ### 2015-10-19 0.1     Initial release: system probes, backtraces (running
 ###                    lt-m0* processes, core dumps), m0traces.
 ###
-VERSION='0.2'
+VERSION='0.3'
 
 DATA_DIR=m0reportbug-data
 OUTPUT=m0reportbug.txt # the file is created in $DATA_DIR/
 MAX_CORE_SIZE=512 # MB
-
-section() { echo "----- $@ -----"; }
-die() { echo "$@" >&2; exit 1; }
 
 main() {
     local g
@@ -28,48 +26,81 @@ main() {
         backtraces_cores
         m0traces
     )
-    if [ -d $DATA_DIR ]; then
-        read -p "$DATA_DIR/ exists. Overwrite [Y/n]? "
-        case $REPLY in
-            'N'|'n') echo 'Aborted'; exit 4;; # EINTR
-        esac
-        rm -r $DATA_DIR
-    fi
-    mkdir $DATA_DIR
-    cd $DATA_DIR
 
+    mkcd $DATA_DIR
     echo m0reportbug $VERSION >$OUTPUT
     for g in "${stages[@]}"; do
         echo -n "$g... " >&2
         $g
         echo 'OK' >&2
     done >>$OUTPUT
-    echo Please attach $DATA_DIR/\* files to a bug report. >&2
+    echo "Please attach $DATA_DIR/* files to a bug report." >&2
+}
+
+die() { echo "$@" >&2; exit 1; }
+warn() { echo "*WARNING* $@" >&2; }
+
+mkcd() {
+    local dir=$1
+
+    if [ -d $dir ]; then
+        read -p "$dir/ exists. Overwrite [Y/n]? "
+        case $REPLY in
+            n|N) echo 'Aborted'; exit 4;; # EINTR
+        esac
+        rm -r $dir
+    fi
+    mkdir $dir
+    cd $dir
+}
+
+program_from_core() { sudo file $1 | cut -d\' -f2 | cut -d' ' -f1; }
+program_from_pid() { ps h -o args $1 | cut -d' ' -f1; }
+
+find_exec() {
+    local name=$1
+    local dir=$(dirname $(readlink -f $0))
+    local s
+
+    ## First try to find the executable in m0reportbug's directory.
+    if [ -x $dir/$name ]; then
+        echo $dir/$name
+        return
+    fi
+
+    ## Try to guess the path from core dumps.
+    sudo find /var/mero -type f -name core.\* | while read s; do
+        s=$(program_from_core $s | sed -n "s:/\.libs/lt-$name:/$name:p")
+        if [ -n "$s" ]; then
+            echo $s
+            return
+        fi
+    done
+
+    ## Try to guess the path from running processes.
+    pgrep lt-m0 | while read s; do
+        s=$(program_from_pid $s | sed -n "s:/\.libs/lt-$name:/$name:p")
+        if [ -n "$s" ]; then
+            echo $s
+            return
+        fi
+    done
+
+    ## Last resort.
+    which $name 2>/dev/null
 }
 
 m0version() {
-    local s
+    local m0d=$(find_exec m0d)
 
-    s=$(dirname $(readlink -f $0))
-    if [ -x $s/m0d ]; then
-        $s/m0d -v
-        return
+    if [ -n "$m0d" ]; then
+        $m0d -v
+    else
+        warn 'm0d executable not found'
     fi
-    sudo find /var/mero -type f -name core.\* | while read s; do
-        s=$(program_from_core $s)
-        if [ ${s%/.libs/lt-m0d} != $s ]; then
-            ${s%/.libs/lt-m0d}/m0d -v
-            return
-        fi
-    done
-    pgrep lt-m0 | while read s; do
-        s=$(ps h -o args $s | cut -d' ' -f1)
-        if [ ${s%/.libs/lt-m0d} != $s ]; then
-            ${s%/.libs/lt-m0d}/m0d -v
-            return
-        fi
-    done
 }
+
+section() { echo "----- $@ -----"; }
 
 probes() {
     local p
@@ -141,7 +172,7 @@ backtraces_live() {
 
 backtraces_cores() {
     local tmp=/tmp/m0reportbug_$$.tmp
-    local out=cores_$(date -u +%Y%m%d-%H%M%S).tar.gz
+    local out=cores.tar.gz
     local core
 
     trap "rm -f $tmp" 0
@@ -154,11 +185,11 @@ backtraces_cores() {
     ## Print backtraces.
     cut -d' ' -f2 $tmp | while read core; do
         section $core
-        gdb_bt $(sudo file $core | cut -d\' -f2 | cut -d' ' -f1) $core
+        gdb_bt $(program_from_core $core) $core
     done
 
     ## Pack core dumps.
-    section $out
+    section core dumps
     grep '^0 ' $tmp | cut -d' ' -f2 | while read core; do
         echo "Skipping $core: the file is too large" \
              "($(sudo du -h $core | cut -f1))"
@@ -172,12 +203,31 @@ backtraces_cores() {
 }
 
 m0traces() {
-    local out=m0traces_$(date -u +%Y%m%d-%H%M%S).tar.gz
+    local m0tracedump=$(find_exec m0tracedump)
+    local out=m0traces
+    local path
 
     section $out
-    (cd /var/mero
-     sudo find . -type f -name m0trace.\* | sudo tar -T - -czf - || true) >$out
-    sha1sum $out
+    if [ -n "$m0tracedump" ]; then
+        (out=$(readlink -f .)/$out
+         cd /var/mero
+         sudo find . -type f -name m0trace.\* | cut -c3- | while read path; do
+             [ -d $out/$(dirname $path) ] || mkdir -p $out/$(dirname $path)
+             ##
+             ## Disable stderr output to suppress these messages:
+             ##
+             ## > lt-m0tracedump: Warning: skipping non-existing trace
+             ## > descriptor 0x7f977d0bdb00 (orig 0x7ff6ad5c9b00)
+             sudo $m0tracedump -s -i $path 2>/dev/null |
+                 gzip >$out/$path.yaml.gz
+         done)
+    else
+        warn 'm0tracedump executable not found'
+        (cd /var/mero
+         sudo find . -type f -name m0trace.\* | sudo tar -T - -czf - || true) \
+            >$out.tar.gz
+    fi
+    find $out -type f -exec sha1sum {} +
 }
 
 main
