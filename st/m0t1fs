@@ -18,6 +18,7 @@ readonly verbose_level_none=0
 # variables
 verbose_level=$verbose_level_none
 rpm_pkg=''
+needs_cleanup=true
 
 
 #
@@ -133,7 +134,7 @@ install_mero_rpm()
     fi
 
     info "Installing rpm: $pkg"
-    rpm -ihv $pkg
+    rpm --nodeps -ihv $pkg
 }
 
 remove_mero_rpm()
@@ -143,7 +144,7 @@ remove_mero_rpm()
     local pkg_name=$(echo $pkg | grep -Po '(?:^|(?<=/))[_[:alnum:]]+(?=-\d+\.\d+\.\d+)')
 
     info "Removing rpm: $pkg_name"
-    rpm -e $pkg_name
+    rpm --nodeps -e $pkg_name
 }
 
 do_m0t1fs_system_test()
@@ -193,6 +194,26 @@ do_m0t1fs_system_test()
     lsof /mnt/m0t1fs || true
 }
 
+
+#
+# Cleanup
+#
+
+cleanup()
+{
+    $needs_cleanup || exit 0
+
+    warn 'not clean exit detected, performing a clean-up'
+    set +e
+    info 'stopping mero-kernel'
+    systemctl stop mero-kernel
+    info 'm0setup cleanup'
+    m0setup -c
+    info 'rpm cleanup'
+    remove_mero_rpm $rpm_pkg
+}
+
+trap cleanup EXIT
 
 #
 # Main
@@ -248,3 +269,5 @@ if [[ -n $rpm_pkg ]] ; then
     sleep 30
     remove_mero_rpm $rpm_pkg
 fi
+
+needs_cleanup=false
