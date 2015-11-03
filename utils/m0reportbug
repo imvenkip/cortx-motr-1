@@ -2,17 +2,25 @@
 set -eu
 # set -x
 # export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+
+VERSION='0.4'
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2015-11-03 0.4     Delete old $DATA_DIR without asking user.
+###                    Let the packed m0trace files have timestamps of original
+###                    files.  Fix the issue of `find_exec' not working
+###                    properly with relative paths.
+###
 ### 2015-10-31 0.3     Process raw m0traces with `m0tracedump'.
+###
 ### 2015-10-27 0.2     `m0version' calls `m0d -v'.
+###
 ### 2015-10-19 0.1     Initial release: system probes, backtraces (running
 ###                    lt-m0* processes, core dumps), m0traces.
 ###
-VERSION='0.3'
 
 DATA_DIR=m0reportbug-data
 OUTPUT=m0reportbug.txt # the file is created in $DATA_DIR/
@@ -37,19 +45,48 @@ main() {
     echo "Please attach $DATA_DIR/* files to a bug report." >&2
 }
 
+probes() {
+    local p
+    local probes=(
+        'date -u --rfc-3339=seconds'
+        'hostname'
+        'uptime'
+        'm0version'
+        'rpm -qi mero'
+        'uname -a'
+        'cat /proc/cmdline'
+        'cat /proc/cpuinfo'
+        'cat /proc/partitions'
+        'cat /proc/diskstats'
+        'cat /proc/vmstat'
+        'free'
+        'mount'
+        'lspci'
+        'gcc --version'
+        'ip addr'
+        'ip -s link'
+        'cat /etc/modprobe.d/lnet.conf'
+        'lsmod'
+        'ps -e f'
+        'ps auxH'
+        'ls /dev/disk/by-*'
+        'dmesg'
+    )
+    for p in "${probes[@]}"; do
+        section $p
+        $p || true
+    done
+}
+
 die() { echo "$@" >&2; exit 1; }
 warn() { echo "*WARNING* $@" >&2; }
+
+section() { echo "----- $@ -----"; }
 
 mkcd() {
     local dir=$1
 
-    if [ -d $dir ]; then
-        read -p "$dir/ exists. Overwrite [Y/n]? "
-        case $REPLY in
-            n|N) echo 'Aborted'; exit 4;; # EINTR
-        esac
-        rm -r $dir
-    fi
+    rm -rf $dir # Bye-bye, the output of previous call!
     mkdir $dir
     cd $dir
 }
@@ -57,9 +94,13 @@ mkcd() {
 program_from_core() { sudo file $1 | cut -d\' -f2 | cut -d' ' -f1; }
 program_from_pid() { ps h -o args $1 | cut -d' ' -f1; }
 
+### Since $0 may be a relative path (e.g., 'utils/m0reportbug'),
+### we might not be able to canonicalize it after cd-ing to $DATA_DIR.
+PROG=$(readlink -f $0)
+
 find_exec() {
     local name=$1
-    local dir=$(dirname $(readlink -f $0))
+    local dir=$(dirname $PROG)
     local s
 
     ## First try to find the executable in m0reportbug's directory.
@@ -98,41 +139,6 @@ m0version() {
     else
         warn 'm0d executable not found'
     fi
-}
-
-section() { echo "----- $@ -----"; }
-
-probes() {
-    local p
-    local probes=(
-        'date -u --rfc-3339=seconds'
-        'hostname'
-        'uptime'
-        'm0version'
-        'rpm -qi mero'
-        'uname -a'
-        'cat /proc/cmdline'
-        'cat /proc/cpuinfo'
-        'cat /proc/partitions'
-        'cat /proc/diskstats'
-        'cat /proc/vmstat'
-        'free'
-        'mount'
-        'lspci'
-        'gcc --version'
-        'ip addr'
-        'ip -s link'
-        'cat /etc/modprobe.d/lnet.conf'
-        'lsmod'
-        'ps -e f'
-        'ps auxH'
-        'ls /dev/disk/by-*'
-        'dmesg'
-    )
-    for p in "${probes[@]}"; do
-        section $p
-        $p || true
-    done
 }
 
 gdb_bt() {
@@ -220,6 +226,7 @@ m0traces() {
              ## > descriptor 0x7f977d0bdb00 (orig 0x7ff6ad5c9b00)
              sudo $m0tracedump -s -i $path 2>/dev/null |
                  gzip >$out/$path.yaml.gz
+             touch -r $path $out/$path.yaml.gz
          done)
     else
         warn 'm0tracedump executable not found'
@@ -227,7 +234,9 @@ m0traces() {
          sudo find . -type f -name m0trace.\* | sudo tar -T - -czf - || true) \
             >$out.tar.gz
     fi
-    find $out -type f -exec sha1sum {} +
+    if [ -d $out ]; then
+        find $out -type f -exec sha1sum {} +
+    fi
 }
 
 main
