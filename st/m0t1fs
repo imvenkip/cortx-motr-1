@@ -232,8 +232,16 @@ fi
 
 [[ -n $rpm_pkg ]] && install_mero_rpm $rpm_pkg
 
+# this is required, because other test scripts might leave some
+# loopback devices attached
+info 'Running m0setup cleanup'
+m0setup -c
+
 for ios_num in 1 2 ; do
     info "--------------- m0t1fs test with $ios_num ioservice(s)  ---------------"
+
+    info '/var/mero cleanup'
+    rm -rf /var/mero/{confd,ha,mds,ios*}/
 
     info 'Running m0setup'
     m0setup -i $ios_num
