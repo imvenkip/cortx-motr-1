@@ -696,21 +696,13 @@ static void ios_start_poolmash_disks_check(struct m0_ios_start_sm *ios_sm)
 
 static void ios_start_conf_disk_next(struct m0_ios_start_sm *ios_sm)
 {
-	struct m0_mutex *sm_grp_lock = &ios_sm->ism_sm.sm_grp->s_lock;
-	int              rc;
-	int              rc1 = 0;
+	int rc;
+	int rc1 = 0;
 
 	M0_ENTRY();
-	/**
-	 * @todo m0_conf_diter_next take sm_grp_lock internally and there is no
-	 * function for users who already have a lock.
-	 * Corresponding ticket: MERO-1189.
-	 */
-	m0_mutex_unlock(sm_grp_lock);
 	while ((rc = m0_conf_diter_next(&ios_sm->ism_it,
 					_obj_is_disk_or_controller)) ==
 			M0_CONF_DIRNEXT && rc1 == 0) {
-		m0_mutex_lock(sm_grp_lock);
 		switch (ios_start_state_get(ios_sm)) {
 		case M0_IOS_START_CONF_COUNTER_NODES:
 			ios_start_pm_nodes_counter(ios_sm,
@@ -727,10 +719,7 @@ static void ios_start_conf_disk_next(struct m0_ios_start_sm *ios_sm)
 		default:
 			M0_IMPOSSIBLE("Invalid phase");
 		}
-		m0_mutex_unlock(sm_grp_lock);
 	}
-	m0_mutex_lock(sm_grp_lock);
-
 	if (rc1 != 0)
 		rc = rc1;
 
@@ -742,9 +731,7 @@ static void ios_start_conf_disk_next(struct m0_ios_start_sm *ios_sm)
 		/* End of directory or error */
 		m0_clink_del_lock(&ios_sm->ism_clink);
 		m0_clink_fini(&ios_sm->ism_clink);
-		m0_mutex_unlock(sm_grp_lock);
 		m0_conf_diter_fini(&ios_sm->ism_it);
-		m0_mutex_lock(sm_grp_lock);
 
 		if (rc == M0_CONF_DIREND) {
 			rc = 0;
@@ -808,6 +795,7 @@ static void ios_start_conf_sdev_init(struct m0_ios_start_sm *ios_sm)
 		ios_start_sm_failure(ios_sm, rc);
 		return;
 	}
+	m0_conf_diter_locked_set(&ios_sm->ism_it, true);
 
 	ios_start_state_set(ios_sm, M0_IOS_START_CONF_COUNTER_SDEVS);
 
@@ -833,6 +821,7 @@ static void ios_start_conf_iter_init(struct m0_ios_start_sm  *ios_sm,
 		ios_start_sm_failure(ios_sm, rc);
 		return;
 	}
+	m0_conf_diter_locked_set(&ios_sm->ism_it, true);
 
 	ios_start_state_set(ios_sm, next_state);
 

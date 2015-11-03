@@ -211,6 +211,15 @@ struct m0_conf_diter {
 	uint32_t                  di_nr_lvls;
 	/** Current level. */
 	uint32_t                  di_lvl;
+	/**
+	 * Flag determines if diter is protected by locality lock or not.
+	 * This field is workaround for a case when m0_conf_diter_next() or
+	 * m0_conf_diter_fini() are called under locality lock which protects
+	 * m0_confc_ctx::fc_mach.
+	 *
+	 * @see MERO-1307
+	 */
+	bool                      di_locked;
 };
 
 /**
@@ -231,6 +240,10 @@ M0_INTERNAL int m0_conf__diter_init(struct m0_conf_diter *it,
 				    uint32_t nr_lvls,
 				    const struct m0_fid *path);
 M0_INTERNAL void m0_conf_diter_fini(struct m0_conf_diter *it);
+
+/** @see m0_conf_diter::di_locked */
+M0_INTERNAL void m0_conf_diter_locked_set(struct m0_conf_diter *it,
+					  bool locked);
 
 /**
  * Returns next struct m0_conf_obj in the given configuration path using the

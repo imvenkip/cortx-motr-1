@@ -214,6 +214,15 @@ M0_INTERNAL void m0_conf_diter_lvl_init(struct m0_conf_diter_lvl *l,
 					.dl_lvl = lvl};
 }
 
+static void diter_confc_ctx_fini(struct m0_conf_diter *it,
+				 struct m0_confc_ctx *ctx)
+{
+	if (it->di_locked)
+		m0_confc_ctx_fini_locked(ctx);
+	else
+		m0_confc_ctx_fini(ctx);
+}
+
 M0_INTERNAL void m0_conf_diter_lvl_fini(struct m0_conf_diter_lvl *l)
 {
 	struct m0_confc_ctx *ctx = &l->dl_cctx[M0_DLM_DIR].lc_ctx;
@@ -224,7 +233,7 @@ M0_INTERNAL void m0_conf_diter_lvl_fini(struct m0_conf_diter_lvl *l)
 	if (entry != NULL && entry->co_nrefs > 0)
 		m0_confc_close(entry);
 	if (ctx->fc_confc != NULL)
-		m0_confc_ctx_fini(ctx);
+		diter_confc_ctx_fini(l->dl_di, ctx);
 }
 
 static inline struct m0_conf_obj *diter_lvl_dir_obj(struct m0_conf_diter_lvl *l)
@@ -316,6 +325,12 @@ M0_INTERNAL void m0_conf_diter_fini(struct m0_conf_diter *it)
 	M0_LEAVE();
 }
 
+M0_INTERNAL void m0_conf_diter_locked_set(struct m0_conf_diter *it,
+					  bool locked)
+{
+	it->di_locked = locked;
+}
+
 M0_INTERNAL void m0_conf_diter_wait_arm(struct m0_conf_diter *it,
 					struct m0_clink *clink)
 {
@@ -326,12 +341,18 @@ M0_INTERNAL void m0_conf_diter_wait_arm(struct m0_conf_diter *it,
 
 static void diter_wait_arm(struct m0_conf_diter *it, struct m0_confc_ctx *ctx)
 {
-	m0_clink_add_lock(&ctx->fc_mach.sm_chan, &it->di_clink);
+	if (it->di_locked)
+		m0_clink_add(&ctx->fc_mach.sm_chan, &it->di_clink);
+	else
+		m0_clink_add_lock(&ctx->fc_mach.sm_chan, &it->di_clink);
 }
 
-static void diter_wait_cancel(struct m0_clink *clink)
+static void diter_wait_cancel(struct m0_clink *clink, bool locked)
 {
-	m0_clink_del_lock(clink);
+	if (locked)
+		m0_clink_del(clink);
+	else
+		m0_clink_del_lock(clink);
 }
 
 static void diter_lvl_result_set(struct m0_conf_diter_lvl *l,
@@ -382,11 +403,11 @@ static int diter_wait(struct m0_conf_diter *it)
 	prev = diter_lvl_dir_obj(lvl);
 	rc = m0_confc_ctx_error(ctx);
 	if (rc != 0) {
-		m0_confc_ctx_fini(ctx);
+		diter_confc_ctx_fini(it, ctx);
 		return M0_ERR(rc);
 	}
 	diter_lvl_result_set(lvl, m0_confc_ctx_result(ctx));
-	m0_confc_ctx_fini(ctx);
+	diter_confc_ctx_fini(it, ctx);
 	if (lvl->dl_mode == M0_DLM_DIR) {
 		if (prev != NULL)
 			m0_confc_close(prev);
@@ -466,7 +487,7 @@ static int diter_lvl_read(struct m0_conf_diter *it)
 	diter_wait_arm(it, ctx);
 	rc = m0_confc_readdir(ctx, origin, &entry);
 	if (rc != M0_CONF_DIRMISS)
-		diter_wait_cancel(&it->di_clink);
+		diter_wait_cancel(&it->di_clink, it->di_locked);
 	switch (rc) {
 	case M0_CONF_DIREND:
 		if (it->di_lvl == 0) {
@@ -482,7 +503,7 @@ static int diter_lvl_read(struct m0_conf_diter *it)
 		}
 		diter_lvl_result_set(lvl, NULL);
 		/* Finalise m0_confc_ctx to re-use next time. */
-		m0_confc_ctx_fini(ctx);
+		diter_confc_ctx_fini(it, ctx);
 		break;
 	case M0_CONF_DIRMISS:
 		diter_lvl_result_set(lvl, entry);
@@ -490,7 +511,7 @@ static int diter_lvl_read(struct m0_conf_diter *it)
 		break;
 	case M0_CONF_DIRNEXT:
 		diter_lvl_result_set(lvl, entry);
-		m0_confc_ctx_fini(ctx);
+		diter_confc_ctx_fini(it, ctx);
 		/* We go depth first. */
 		it->di_phase = (it->di_lvl < it->di_nr_lvls - 1) ?
 				DPH_LVL_OPEN : it->di_phase;
@@ -542,7 +563,7 @@ m0_conf_diter_next_sync(struct m0_conf_diter *it,
 		rc = m0_conf_diter_next(it, filter);
 		if (rc == M0_CONF_DIRMISS)
 			m0_chan_wait(&link);
-		diter_wait_cancel(&link);
+		diter_wait_cancel(&link, false);
 	} while (rc == M0_CONF_DIRMISS);
 
 	return M0_RC(rc);
