@@ -445,14 +445,6 @@ static void chunks_all_tlist_add_c(struct m0_be_allocator *a,
 	chunks_all_tlist_capture_around(a, tx, new);
 }
 
-static void chunks_free_tlist_add_c(struct m0_be_allocator *a,
-				    struct m0_be_tx *tx,
-				    struct be_alloc_chunk *new)
-{
-	chunks_free_tlist_add(&a->ba_h->bah_free.bl_list, new);
-	chunks_free_tlist_capture_around(a, tx, new);
-}
-
 static void chunks_all_tlist_init_c(struct m0_be_allocator *a,
 				    struct m0_be_tx *tx,
 				    struct m0_tl *l)
@@ -625,7 +617,7 @@ static void be_alloc_chunk_mark_free(struct m0_be_allocator *a,
 		chunks_free_tlist_add_before_c(a, tx, next, c);
 #else
 	c->bac_free = true;
-	chunks_free_tlist_add_c(a, tx, c);
+	chunks_free_tlist_add_tail_c(a, tx, c);
 #endif
 	M0_POST(c->bac_free);
 	M0_POST(be_alloc_chunk_invariant(a, c));
@@ -664,11 +656,10 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
 	else
 		chunks_all_tlist_add_c(a, tx, new);
 	if (free) {
-		/** add chunk to m0_be_allocator_header.bac_free list */
 		if (f != NULL)
 			chunks_free_tlist_add_after_c(a, tx, f, new);
 		else
-			chunks_free_tlist_add_c(a, tx, new);
+			chunks_free_tlist_add_tail_c(a, tx, new);
 	}
 	M0_POST(be_alloc_chunk_invariant(a, new));
 	M0_POST(ergo(free && f != NULL, be_alloc_chunk_invariant(a, f)));
@@ -717,7 +708,7 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
 		else
 			; /* space before the first chunk is temporary lost */
 	} else {
-		prev_free = be_alloc_chunk_add_after(a, tx, prev, prev_free,
+		prev_free = be_alloc_chunk_add_after(a, tx, prev, NULL,
 						     0, chunk0_size, true);
 		prev = prev_free;
 	}
