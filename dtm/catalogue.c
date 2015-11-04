@@ -25,6 +25,8 @@
  * @{
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM
+#include "lib/trace.h"
 #include "lib/assert.h"
 #include "lib/errno.h"                 /* ENOENT */
 #include "mero/magic.h"
@@ -101,7 +103,7 @@ M0_INTERNAL int m0_dtm_catalogue_find(struct m0_dtm_catalogue *cat,
 			m0_dtm_catalogue_add(cat, *out);
 			result = 0;
 		} else
-			result = -ENOMEM;
+			result = M0_ERR(-ENOMEM);
 	}
 	return result;
 }

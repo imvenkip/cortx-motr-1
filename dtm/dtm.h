@@ -219,7 +219,7 @@
  *
  *     - LIMBO: a new update is initialised by m0_dtm_update_init(). From the
  *       very beginning the update is associated with an operation and a
- *       history. m0_dtm_init() places the update on the operation's list
+ *       history. m0_dtm_update_init() places the update on the operation's list
  *       updates, but not on the history's list of updates. The update starts in
  *       LIMBO state and remains in this stats until the operation, to which the
  *       update belongs is closed. In other words, LIMBO is the state of updates

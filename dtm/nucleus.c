@@ -461,7 +461,7 @@ M0_INTERNAL bool m0_dtm_up_invariant(const struct m0_dtm_up *up)
 		_0C(ergo(up->up_state > M0_DOS_INPROGRESS,
 			 up->up_orig_ver != 0)) &&
 		_0C(hi_tlist_contains(&up->up_hi->hi_ups, up) ==
-		                           (up->up_state != M0_DOS_LIMBO)) &&
+					(up->up_state != M0_DOS_LIMBO)) &&
 		_0C(op_tlist_contains(&up->up_op->op_ups, up));
 }
 
