@@ -266,6 +266,13 @@ for ios_num in 1 2 ; do
 
     info 'Running m0setup cleanup'
     m0setup -c
+
+    info 'Performing sanity checks'
+    if lsmod | grep -q m0 ; then
+        die 'failed to unload mero kernel modules'
+    else
+        debug 'looks OK, no mero kernel modules are loaded'
+    fi
 done
 
 if [[ -n $rpm_pkg ]] ; then
