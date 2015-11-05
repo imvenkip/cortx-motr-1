@@ -1,4 +1,4 @@
 #!/bin/bash
 set -eu
 
-exec $SUDO SANDBOX_DIR=$RUNDIR/sandbox.spiel-st "$SRC/spiel/st"
+exec $SUDO "$M0_SRC_DIR/spiel/st"

@@ -17,8 +17,8 @@ ulimit -c unlimited
 RUNDIR=${RUNDIR:-/var/mero/$USER}
 
 PROG="${0##*/}"
-SRC="$(readlink -f $0)"
-SRC="${SRC%/*/*}"
+M0_SRC_DIR="$(readlink -f $0)"
+M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 SUDO='sudo -E'
 
@@ -59,7 +59,7 @@ rundir_init() {
 }
 
 cmd_make() {
-    cd "$SRC"
+    cd "$M0_SRC_DIR"
     if [ -f Makefile ]; then
         _make
     else
@@ -68,7 +68,7 @@ cmd_make() {
 }
 
 cmd_clean() {
-    cd "$SRC"
+    cd "$M0_SRC_DIR"
     make distclean || true
     [ "${1:-}" = '-f' ] && git clean -fdx || true
 }
@@ -80,13 +80,13 @@ cmd_rebuild() {
 
 cmd_run_ut() {
     rundir_init
-    $SUDO "$SRC/utils/m0run" m0ut -- "$@"
+    $SUDO "$M0_SRC_DIR/utils/m0run" m0ut -- "$@"
 }
 
 cmd_run_kut() {
     rundir_init
     echo 'Running kernel UT (this may take a while) ...'
-    $SUDO "$SRC/ut/m0kut" "$@"
+    $SUDO "$M0_SRC_DIR/ut/m0kut" "$@"
 }
 
 cmd_run_st() {
@@ -100,16 +100,17 @@ cmd_run_st() {
     else
         rundir_init
         # Export variables for system tests.
-        export RUNDIR SRC SUDO
+        export M0_SRC_DIR SUDO
     fi
     for pattern in ${@:-[0-9][0-9]*}; do
-        find "$SRC/scripts/st.d/" -maxdepth 1 \! -type d -name $pattern \
+        find "$M0_SRC_DIR/scripts/st.d/" -maxdepth 1 \! -type d -name $pattern \
             -perm +a=x -print | sort |
             while read f; do
                 if [ $list_p -eq 1 ]; then
                     echo ${f##*/}
                 else
                     echo "<< ${f##*/} >>" >&2
+                    export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
                     $f || return $?
                 fi
             done
@@ -123,7 +124,7 @@ cmd_run_all() {
 }
 
 cmd_dist_check() {
-    cd "$SRC"
+    cd "$M0_SRC_DIR"
     [ -f Makefile ] || die "You need to \`$PROG make' first."
     _make rpms
 }
@@ -201,7 +202,7 @@ Environment variables:
     CONFIGURE_OPTS      Extra options for './configure' command.
     MAKE_OPTS           Extra options for 'make' command.
 
-Mero sources: $SRC
+Mero sources: $M0_SRC_DIR
 UT output:    $RUNDIR
 EOF
 }

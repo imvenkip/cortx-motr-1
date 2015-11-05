@@ -21,7 +21,7 @@ dd_count=0
 # The counter is required to generate file names while cleaning up the files
 # created in the mount directory for separate file io testing.
 separate_file_dd_count_start=0
-st_dir=$MERO_CORE_ROOT/m0t1fs/linux_kernel/st
+st_dir=$M0_SRC_DIR/m0t1fs/linux_kernel/st
 blk_size=$((stride * 1024))
 half_blk=$((blk_size / 2))
 OOSTORE=${1-1}
@@ -481,16 +481,12 @@ fmio_io_test()
 	fi
 
 	echo "Sending device1 failure"
-	fmio_pool_mach_set_failure $fail_device1 || {
-		return 1
-	}
+	fmio_pool_mach_set_failure $fail_device1 || return 1
 
 	if [ $failed_dev_test -ne 1 ]
 	then
 		echo "Repairing after device1 failure"
-		fmio_sns_repair || {
-			return 1
-		}
+		fmio_sns_repair || return 1
 	fi
 	echo -e "\n*** $test_name test 1: Read after first $step ***"
 	fmio_files_compare || {
@@ -540,16 +536,13 @@ fmio_io_test()
 		return 0
 	fi
 	echo "Sending device2 failure"
-	fmio_pool_mach_set_failure $fail_device2 || {
-		return 1
-	}
+	fmio_pool_mach_set_failure $fail_device2 || return 1
 
 	if [ $failed_dev_test -ne 1 ]
 	then
 		echo "Repairing after device2 failure"
-		fmio_sns_repair || {
-		return 1
-	} fi
+		fmio_sns_repair || return 1
+        fi
 	echo "Create a file after second $step: $file_to_create2"
 	touch $file_to_create2
 	rc=$?
@@ -593,7 +586,7 @@ fmio_io_test()
 #		fi
 #	fi
 
-	if [ $failed_dev_test -ne 1 ] 
+	if [ $failed_dev_test -ne 1 ]
 	then
 		echo "Repairing after device3 failure"
 		fmio_sns_repair || {
@@ -638,12 +631,12 @@ fmio_failed_dev_test()
 
 	echo "Starting failed device IO testing"
 	fmio_io_test || {
-	echo "Failed: fmio_io_test for failed device..."
-	return 1
-}
+		echo "Failed: fmio_io_test for failed device..."
+		return 1
+	}
 
-echo -e "failed device IO test succeeded"
-return 0
+	echo "failed device IO test succeeded"
+	return 0
 }
 
 fmio_repaired_dev_test()
@@ -655,12 +648,12 @@ fmio_repaired_dev_test()
 
 	echo "Starting repaired device IO testing"
 	fmio_io_test || {
-	echo "Failed: fmio_io_test for repaired device..."
-	return 1
-}
+		echo "Failed: fmio_io_test for repaired device..."
+		return 1
+	}
 
-echo -e "repaired device IO test succeeded"
-return 0
+	echo "repaired device IO test succeeded"
+	return 0
 }
 
 fmio_mero_service_start()
@@ -714,12 +707,12 @@ fmio_m0t1fs_mount()
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
 		mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P $mountopt &>> $MERO_TEST_LOGFILE || {
-		cat $MERO_TEST_LOGFILE
-		return 1
-	}
-	mount
-fi
-return 0
+			cat $MERO_TEST_LOGFILE
+			return 1
+		}
+		mount
+	fi
+	return 0
 }
 
 fmio_m0t1fs_unmount()
@@ -782,19 +775,17 @@ failure_modes_test()
 			echo "Failed: failed device IO test..."
 			return 1
 		}
-	echo "--------------------------------------------------------"
-	echo "Done with the failed device IO testing ($str)"
-	echo "--------------------------------------------------------"
-	# @todo- Can not run repair in non-oostore mode till MERO-678 gets
-	# fixed.
-	if [ $OOSTORE -ne 1 ]
-	then
-		return 0
-	fi
-	echo -e "Mark the devices online again before the next test"
-	fmio_repair_n_rebalance || {
-		return 1
-	}
+		echo "--------------------------------------------------------"
+		echo "Done with the failed device IO testing ($str)"
+		echo "--------------------------------------------------------"
+		# @todo- Can not run repair in non-oostore mode till MERO-678
+                # gets fixed.
+		if [ $OOSTORE -ne 1 ]
+		then
+			return 0
+		fi
+		echo "Mark the devices online again before the next test"
+		fmio_repair_n_rebalance || return 1
 	fi
 	#@todo Run sns_repair and rebalance tests in oostore mode only when MERO-1166 lands.
 	# This is so because till then new pool version won't get created for
@@ -813,15 +804,15 @@ failure_modes_test()
 		# Perform repaired device IO test by 'marking some devices as
 		# failed followed by performing repair' in between
 		fmio_repaired_dev_test || {
-		echo "Failed: repaired device IO test..."
-		return 1
-	}
+			echo "Failed: repaired device IO test..."
+			return 1
+		}
 
-	echo "--------------------------------------------------------"
-	echo "Done with the repaired device IO testing ($str)"
-	echo "--------------------------------------------------------"
+		echo "--------------------------------------------------------"
+		echo "Done with the repaired device IO testing ($str)"
+		echo "--------------------------------------------------------"
 
-	echo -e "Mark the devices online again before the next test"
+		echo "Mark the devices online again before the next test"
 		fmio_sns_rebalance || {
 			echo "Failed: sns rebalance..."
 			return 1
@@ -832,17 +823,14 @@ failure_modes_test()
 
 main()
 {
-	if [ $OOSTORE -eq 0 ]
-	then
-		echo "*********************************************************"
-		echo "Running non-oostore test."
-		echo "*********************************************************"
+	sandbox_init
 
-	else
-		echo "*********************************************************"
-		echo "Running oostore test."
-		echo "*********************************************************"
-	fi
+	echo '*********************************************************'
+	echo -n 'Running '
+	[ $OOSTORE -eq 0 ] || echo -n 'non-'
+	echo 'oostore test.'
+	echo '*********************************************************'
+
 	NODE_UUID=`uuidgen`
 	fmio_sandbox="$MERO_M0T1FS_TEST_DIR/sandbox"
 	rc=0
@@ -875,13 +863,10 @@ main()
 	echo -e "MERO_STOB_DOMAIN \t $MERO_STOB_DOMAIN"
 
 	echo -e "\nPreprocessing for failure modes IO testing"
-	fmio_mero_service_start || {
-	return 1
-	}
+	fmio_mero_service_start || return 1
 
-	fmio_pre || {
-		return 1
-	}
+	fmio_pre || return 1
+
 	fmio_m0t1fs_mount $OOSTORE || {
 		fmio_mero_service_stop
 		return 1
@@ -895,13 +880,13 @@ main()
 		echo "========================================================"
 		single_file_test=1
 		failure_modes_test || {
-		fmio_m0t1fs_unmount
-		fmio_mero_service_stop
-		return 1
-	}
-	echo "========================================================"
-	echo "Done with the single file IO testing"
-	echo "========================================================"
+			fmio_m0t1fs_unmount
+			fmio_mero_service_stop
+			return 1
+		}
+		echo "========================================================"
+		echo "Done with the single file IO testing"
+		echo "========================================================"
 	fi
 
 	if [ $file_kind == $SEPARATE_FILE ] || [ $file_kind == $BOTH_FILE_KINDS ]
@@ -914,35 +899,30 @@ main()
 		# separate file IO testing.
 		separate_file_dd_count_start=`expr $dd_count + 1`
 		failure_modes_test || {
-		fmio_m0t1fs_unmount
-		fmio_mero_service_stop
-		return 1
+			fmio_m0t1fs_unmount
+			fmio_mero_service_stop
+			return 1
 		}
 		echo "========================================================"
 		echo "Done with the separate file IO testing"
 		echo "========================================================"
 	fi
-	fmio_m0t1fs_clean || {
-		rc=1
-	}
+	fmio_m0t1fs_clean || rc=1
+	fmio_m0t1fs_unmount || rc=1
+	fmio_mero_service_stop || rc=1
 
-	fmio_m0t1fs_unmount || {
-		rc=1
-	}
-
-	fmio_mero_service_stop || {
-		rc=1
-	}
 	echo "********************************************************"
 	echo "Done with the failure modes IO testing"
 	echo "********************************************************"
 
 	echo "Test log available at $MERO_TEST_LOGFILE."
+	[ $rc -ne 0 ] || sandbox_fini
 	return $rc
 }
 
 trap unprepare EXIT
 main
+
 # this msg is used by Jenkins as a test success criteria;
 # it should appear on STDOUT
 if [ $? -eq 0 ] ; then

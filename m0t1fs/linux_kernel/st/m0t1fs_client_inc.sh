@@ -236,8 +236,12 @@ io_combinations()
 
 m0loop_st_run()
 {
+	if [ -z "${M0_SRC_DIR:-}" ]; then
+		echo 'M0_SRC_DIR: unbound variable' >&2
+		return 1
+	fi
 	echo "Load m0loop module... "
-	cmd="insmod `dirname $0`/../../../mero/m0loop.ko"
+	cmd="insmod $M0_SRC_DIR/mero/m0loop.ko"
 	echo $cmd && $cmd || return 1
 
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH ||

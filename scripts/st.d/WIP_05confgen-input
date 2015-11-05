@@ -9,7 +9,7 @@ confstr-desugar() {
     echo
 }
 
-cd "$SRC"
+cd "$M0_SRC_DIR"
 
 set -o pipefail
 DIFF="$(confstr-desugar <ut/conf-str.txt | tr ' ' \\n |

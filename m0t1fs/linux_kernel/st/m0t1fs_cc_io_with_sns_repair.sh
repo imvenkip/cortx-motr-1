@@ -221,14 +221,15 @@ main()
 
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
+
+	sandbox_init
+
 	mero_service start $multiple_pools  $stride $N $K $P || {
 		echo "Failed to start Mero Service."
 		return 1
 	}
 
-	sns_repair_mount $N $K $P || {
-		rc=$?
-	}
+	sns_repair_mount $N $K $P || rc=$?
 
 	if [[ $rc -eq 0 ]] && ! sns_repair_test ; then
 		echo "Failed: SNS repair failed.."
@@ -244,12 +245,11 @@ main()
 	}
 
 	echo "Test log available at $MERO_TEST_LOGFILE."
-
+	[ $rc -ne 0 ] || sandbox_fini
 	return $rc
 }
 
 trap unprepare EXIT
-
 main
 
 # this msg is used by Jenkins as a test success criteria;

@@ -5,10 +5,14 @@ set -eu
 # set -eux
 # export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
-CWD=$(cd "$( dirname "$0")" && pwd)
+SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.net-st}
 
-source $CWD/st-config.sh
-source "$ST_COMMON"
+CWD=$(dirname $(readlink -f $0))
+M0_SRC_DIR=${CWD%/*/*/*}
+
+. $M0_SRC_DIR/scripts/functions  # die, opcode, sandbox_init
+. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
+. $CWD/st-config.sh
 
 role_space()
 {
@@ -28,6 +32,7 @@ lctl network up > /dev/null
 modload_m0gf
 modload || exit $?
 
+sandbox_init
 export TEST_RUN_TIME=5
 echo "transfer machines endpoint prefix is $LNET_PREFIX"
 for KERNEL_ROLE in "none" "client" "server"; do
@@ -39,6 +44,7 @@ for KERNEL_ROLE in "none" "client" "server"; do
 	echo "--- bulk test (test message size is 1MiB)"
 	sh $CWD/st-bulk.sh
 done
+sandbox_fini
 
 # this msg is used by Jenkins as a test success criteria;
 # it should appear on STDOUT

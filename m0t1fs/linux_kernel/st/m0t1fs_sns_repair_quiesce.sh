@@ -114,6 +114,8 @@ main()
 {
 	local rc=0
 
+	sandbox_init
+
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
 	mero_service start $multiple_pools $stride $N $K $P || {
@@ -121,9 +123,7 @@ main()
 		return 1
 	}
 
-	sns_repair_mount $NR_DATA $NR_PARITY $POOL_WIDTH || {
-		rc=$?
-	}
+	sns_repair_mount $NR_DATA $NR_PARITY $POOL_WIDTH || rc=$?
 
 	if [[ $rc -eq 0 ]] && ! sns_repair_rebalance_quiesce_test ; then
 		echo "Failed: SNS repair/rebalance quiesce failed.."
@@ -139,12 +139,11 @@ main()
 	}
 
 	echo "Test log available at $MERO_TEST_LOGFILE."
-
+	[ $rc -ne 0 ] || sandbox_fini
 	return $rc
 }
 
 trap unprepare EXIT
-
 main
 
 # this msg is used by Jenkins as a test success criteria;

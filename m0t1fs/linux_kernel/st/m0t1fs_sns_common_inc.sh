@@ -7,7 +7,7 @@ pool_mach_set_failure()
 		DEVICES="$DEVICES -I $i"
 		STATE="$STATE -s 1"
 	done
-	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
+	poolmach="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N $# \
 		 $DEVICES $STATE -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
@@ -32,7 +32,7 @@ pool_mach_set_repairing()
 		DEVICES="$DEVICES -I $i"
 		STATE="$STATE -s 3"
 	done
-	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
+	poolmach="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N $# \
 		 $DEVICES $STATE -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
@@ -55,7 +55,7 @@ pool_mach_set_repaired()
 		DEVICES="$DEVICES -I $i"
 		STATE="$STATE -s 4"
 	done
-	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
+	poolmach="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N $# \
 		 $DEVICES $STATE -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
@@ -78,7 +78,7 @@ pool_mach_set_rebalancing()
 		DEVICES="$DEVICES -I $i"
 		STATE="$STATE -s 5"
 	done
-	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
+	poolmach="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N $# \
 		 $DEVICES $STATE -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
@@ -101,7 +101,7 @@ pool_mach_set_rebalanced()
 		DEVICES="$DEVICES -I $i"
 		STATE="$STATE -s 0"
 	done
-	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
+	poolmach="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N $# \
 		 $DEVICES $STATE -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
@@ -123,7 +123,7 @@ pool_mach_query()
 	do
 		DEVICES="$DEVICES -I $i"
 	done
-	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N $# \
+	poolmach="$M0_SRC_DIR/pool/m0poolmach -O Query -T device -N $# \
 		 $DEVICES -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $poolmach
 	eval $poolmach
@@ -155,7 +155,7 @@ sns_repair()
 {
 	local rc=0
 
-	repair_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+	repair_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 2 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $repair_trigger
 	eval $repair_trigger
 	rc=$?
@@ -170,7 +170,7 @@ sns_rebalance()
 {
 	local rc=0
 
-        rebalance_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 4 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+        rebalance_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 4 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
         echo $rebalance_trigger
 	eval $rebalance_trigger
 	rc=$?
@@ -185,7 +185,7 @@ sns_repair_quiesce()
 {
 	local rc=0
 
-	repair_quiesce_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 8 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	repair_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 8 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 	echo $repair_quiesce_trigger
 	eval $repair_quiesce_trigger
 	rc=$?
@@ -200,7 +200,7 @@ sns_rebalance_quiesce()
 {
 	local rc=0
 
-	rebalance_quiesce_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 16 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	rebalance_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 16 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 	echo $rebalance_quiesce_trigger
 	eval $rebalance_quiesce_trigger
 	rc=$?
@@ -215,7 +215,7 @@ sns_repair_abort()
 {
 	local rc=0
 
-	repair_abort_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 128 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	repair_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 128 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 	echo $repair_abort_trigger
 	eval $repair_abort_trigger
 	rc=$?
@@ -233,7 +233,7 @@ sns_repair_or_rebalance_status()
 	[ "$1" == "repair" ] && op=32
 	[ "$1" == "rebalance" ] && op=64
 
-	repair_status="$MERO_CORE_ROOT/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 	echo $repair_status
 	eval $repair_status
 	rc=$?
@@ -252,7 +252,7 @@ wait_for_sns_repair_or_rebalance()
 	[ "$1" == "rebalance" ] && op=64
 	while true ; do
 		sleep 5
-		repair_status="$MERO_CORE_ROOT/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+		repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 		echo $repair_status
 		status=`eval $repair_status`
 		rc=$?

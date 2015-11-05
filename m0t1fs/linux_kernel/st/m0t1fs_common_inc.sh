@@ -1,25 +1,16 @@
-if [ -z "$PS1" ]; then
-	# non-interactive shell
-	# MERO_CORE_ROOT should be absolute path
-	if [ ${0:0:1} = "/" ]; then
-		MERO_CORE_ROOT=`dirname $0`
-	else
-		MERO_CORE_ROOT=$PWD/`dirname $0`
-	fi
-	MERO_CORE_ROOT=${MERO_CORE_ROOT%/m0t1fs*}
-else
-	# interactive shell
-	if [ -z "$MERO_CORE_ROOT" ]; then
-		MERO_CORE_ROOT=$PWD
-		echo "MERO_CORE_ROOT variable is set to $MERO_CORE_ROOT"
-	fi
-fi
+M0_SRC_DIR=`readlink -f ${BASH_SOURCE[0]}`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
+
+. $M0_SRC_DIR/scripts/functions  # sandbox_init
+
+[ -n "$SANDBOX_DIR" ] || SANDBOX_DIR=/var/mero/systest-$$
+## XXX TODO: Replace `MERO_M0T1FS_TEST_DIR' with `SANDBOX_DIR' everywhere
+## and delete the former.
+MERO_M0T1FS_TEST_DIR=$SANDBOX_DIR
+MERO_TEST_LOGFILE=$SANDBOX_DIR/mero_`date +"%Y-%m-%d_%T"`.log
 MERO_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_`date +"%d-%m-%Y_%T"`
-MERO_M0T1FS_TEST_DIR=/var/mero/systest-$$
-MERO_TEST_LOGFILE=/var/mero/mero_`date +"%Y-%m-%d_%T"`.log
 
 MERO_MODULE=m0mero
-
 
 # kernel space tracing parameters
 MERO_MODULE_TRACE_MASK='!all'
@@ -112,7 +103,7 @@ load_kernel_module()
 	# last component in this addr will be generated and filled in m0mero.
 	LADDR="$lnet_nid:12345:33:"
 
-	mero_module_path=$MERO_CORE_ROOT/mero
+	mero_module_path=$M0_SRC_DIR/mero
 	mero_module=$MERO_MODULE
 	lsmod | grep $mero_module &> /dev/null
 	if [ $? -eq "0" ]
@@ -138,26 +129,9 @@ load_kernel_module()
         fi
 }
 
-prepare_testdir()
-{
-	echo "Cleaning up test directory $MERO_M0T1FS_TEST_DIR ..."
-	rm -rf $MERO_M0T1FS_TEST_DIR	 &> /dev/null
-
-	echo "Creating test directory $MERO_M0T1FS_TEST_DIR ..."
-	mkdir -p $MERO_M0T1FS_TEST_DIR &> /dev/null
-
-	if [ $? -ne "0" ]
-	then
-		echo "Failed to create test directory."
-		return 1
-	fi
-
-	return 0
-}
-
 prepare()
 {
-	prepare_testdir || return $?
+	sandbox_init || return $?
 	modload_m0gf >& /dev/null
 	echo 8 > /proc/sys/kernel/printk
 	load_kernel_module || return $?
@@ -166,18 +140,18 @@ prepare()
 unprepare()
 {
 	sleep 2 # allow pending IO to complete
-	if mount | grep m0t1fs > /dev/null; then
+	if mount | grep -q m0t1fs; then
 		umount $MERO_M0T1FS_MOUNT_DIR
 		sleep 2
 		rm -rf $MERO_M0T1FS_MOUNT_DIR
 	fi
 
-	if lsmod | grep m0mero > /dev/null; then
+	if lsmod | grep -q m0mero; then
 		unload_kernel_module
 	fi
 	modunload_m0gf
+	## The absence of `sandbox_fini' is intentional.
 }
-
 
 PROF_OPT='<0x7000000000000001:0>'
 

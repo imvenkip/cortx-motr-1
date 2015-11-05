@@ -44,12 +44,14 @@ main()
 	echo "System tests start:"
 	echo "Test log will be stored in $MERO_TEST_LOGFILE."
 
+        sandbox_init
+
 	set -o pipefail
 	m0t1fs_test 2>&1 | tee -a $MERO_TEST_LOGFILE
 	rc=$?
 
 	echo "Test log available at $MERO_TEST_LOGFILE."
-
+	[ $rc -ne 0 ] || sandbox_fini
 	return $rc
 }
 

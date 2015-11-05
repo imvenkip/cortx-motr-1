@@ -18,7 +18,7 @@ pool_mach_test()
 	done
 
 ####### Query
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
+	trigger="$M0_SRC_DIR/pool/m0poolmach -O Query -T device -N 1 -I 1
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
@@ -30,7 +30,7 @@ pool_mach_test()
 	fi
 
 ####### Set
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 1
+	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 1
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
@@ -42,7 +42,7 @@ pool_mach_test()
 	fi
 
 ####### Query again
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
+	trigger="$M0_SRC_DIR/pool/m0poolmach -O Query -T device -N 1 -I 1
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
@@ -54,7 +54,7 @@ pool_mach_test()
 	fi
 
 ####### Set again. This set request should get error
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 0
+	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 0
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
@@ -66,7 +66,7 @@ pool_mach_test()
 	fi
 
 ####### Set again. This set request should get error
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 1
+	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 1
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
@@ -78,7 +78,7 @@ pool_mach_test()
 	fi
 
 ####### Set again. This set request should get error
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 2
+	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 2
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
@@ -90,7 +90,7 @@ pool_mach_test()
 	fi
 
 ####### Query again
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
+	trigger="$M0_SRC_DIR/pool/m0poolmach -O Query -T device -N 1 -I 1
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
@@ -106,6 +106,8 @@ pool_mach_test()
 
 main()
 {
+	sandbox_init
+
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
 	mero_service start $multiple_pools
@@ -128,11 +130,11 @@ main()
 		return 1
 	fi
 
+	[ $rc -ne 0 ] || sandbox_fini
 	return $rc
 }
 
 trap unprepare EXIT
-
 main
 
 # this msg is used by Jenkins as a test success criteria;

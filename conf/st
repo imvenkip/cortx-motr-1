@@ -15,7 +15,7 @@ set -eu
 ### 2. Start m0d via Expect wrapper.
 
 ## CAUTION: This path will be removed by superuser.
-SANDBOX_DIR=${SANDBOX_DIR:-~/_sandbox.conf-st}
+SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.conf-st}
 
 TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-!rpc,formation,fop,memory}
 TRACE_LEVEL=${M0_TRACE_LEVEL:-info+}
@@ -24,11 +24,12 @@ TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 MAX_RPC_MSG_SIZE=163840
 TM_MIN_RECV_QUEUE_LEN=2
 
-die() { echo "$@" >&2; exit 1; }
 error() { echo "$@" >&2; stop 1; }
 
-M0_CORE_DIR=`readlink -f $0`
-M0_CORE_DIR=${M0_CORE_DIR%/*/*}
+M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*}
+
+. $M0_SRC_DIR/scripts/functions  # die, sandbox_init
 
 ## Path to the file with configuration string for confd.
 CONF_FILE=$SANDBOX_DIR/conf.txt
@@ -48,7 +49,6 @@ stop() {
    if [[ $rc -eq 0 ]] ; then
        echo "conf-st: test status: SUCCESS"
    fi
-
    exit $rc
 }
 
@@ -56,31 +56,20 @@ _init() {
     lnet_up
     modules_insert
     sandbox_init
+    mkdir $SANDBOX_DIR/mnt
 }
 
 _fini() {
+    rmdir $SANDBOX_DIR/mnt
     sandbox_fini
     modules_remove
 }
 
-sandbox_init() {
-    rm -rf $SANDBOX_DIR
-    mkdir -p $SANDBOX_DIR/mnt
-}
-
-sandbox_fini() {
-    if [ -d $SANDBOX_DIR/mnt ]; then
-	rmdir $SANDBOX_DIR/mnt
-    fi
-    ## Note that the script does not delete $SANDBOX_DIR itself:
-    ## developers may want to analyze the logs contained there.
-}
-
 modules_insert() {
-    insmod $M0_CORE_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko ||
+    insmod $M0_SRC_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko ||
 	die 'Inserting m0gf.ko failed'
 
-    insmod $M0_CORE_DIR/mero/m0mero.ko \
+    insmod $M0_SRC_DIR/mero/m0mero.ko \
 	local_addr=$M0T1FS_ENDPOINT \
 	max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
 	tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
@@ -199,7 +188,7 @@ EOF
 ###       m0d starts with minimal set of options and configures itself.
 ###
 
-. $M0_CORE_DIR/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
+. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
 
 services_start() {
     [ $# -eq 0 -o "${1:-}" = autoconf ] || error 'Invalid argument'
@@ -222,7 +211,7 @@ services_start() {
 
     OPTS="$OPTS -f <0x7200000000000001:1>"
 
-    confdb | $M0_CORE_DIR/utils/m0confgen >$CONF_FILE ||
+    confdb | $M0_SRC_DIR/utils/m0confgen >$CONF_FILE ||
 	error 'm0confgen failed'
 
     echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
@@ -231,12 +220,12 @@ services_start() {
     [ "$MODE" = autoconf ] || {
 	## m0mkfs should be executed only once. It is usually executed
 	## during cluster initial setup.
-	$M0_CORE_DIR/utils/mkfs/m0mkfs $OPTS >>$SANDBOX_DIR/mkfs.log ||
+	$M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$SANDBOX_DIR/mkfs.log ||
 	    error 'm0mkfs failed'
     }
 
     ## XXX TODO: Start m0d via Expect wrapper. You never know how long to sleep.
-    $M0_CORE_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
+    $M0_SRC_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
     local PID=$!
     sleep 2
     kill -0 $PID 2>/dev/null ||

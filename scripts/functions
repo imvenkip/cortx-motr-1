@@ -2,12 +2,27 @@
 
 die() { echo "$@" >&2; exit 1; }
 
+sandbox_init() {
+    [ -n "${SANDBOX_DIR:-}" ] || die 'SANDBOX_DIR: unbound variable'
+    rm -rf $SANDBOX_DIR
+    mkdir $SANDBOX_DIR
+    pushd $SANDBOX_DIR >/dev/null
+}
+
+sandbox_fini() {
+    [ -n "${SANDBOX_DIR:-}" ] || die 'SANDBOX_DIR: unbound variable'
+    popd >/dev/null
+    [ -n "${KEEP_SANDBOX:-}" ] || rm -r $SANDBOX_DIR
+}
+
 ### Example:
 ###     $ opcode M0_LAYOUT_OPCODE
 ###     92
 opcode() {
-	[ $# -eq 1 ] || die 'Invalid usage'
-	local NAME="$1"
-	grep -v '#pragma once' $M0_CORE_DIR/rpc/rpc_opcodes.h | cpp | \
-		awk "/$NAME/ {print \$3}" | tr -d ,
+    [ $# -eq 1 ] || die 'Invalid usage'
+    local NAME="$1"
+
+    [ -n "${M0_SRC_DIR:-}" ] || die 'M0_SRC_DIR: unbound variable'
+    grep -v '#pragma once' $M0_SRC_DIR/rpc/rpc_opcodes.h | cpp |
+        awk "/$NAME/ {print \$3}" | tr -d ,
 }

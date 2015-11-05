@@ -118,6 +118,8 @@ main()
 {
 	local rc=0
 
+	sandbox_init
+
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
 	mero_service start $multiple_pools $stride $N $K $P || {
@@ -143,12 +145,11 @@ main()
 	}
 
 	echo "Test log available at $MERO_TEST_LOGFILE."
-
+	[ $rc -ne 0 ] || sandbox_fini
 	return $rc
 }
 
 trap unprepare EXIT
-
 main
 
 # this msg is used by Jenkins as a test success criteria;

@@ -1,5 +1,5 @@
 #!/bin/bash
 set -eu
 
-cd $SRC
+cd "$M0_SRC_DIR"
 exec utils/m0confgen --self-check

@@ -5,10 +5,7 @@
 . `dirname $0`/m0t1fs_client_inc.sh
 . `dirname $0`/m0t1fs_server_inc.sh
 
-M0_CORE_DIR=`readlink -f $0`
-M0_CORE_DIR=${M0_CORE_DIR%/*/*/*/*}
-
-. $M0_CORE_DIR/scripts/functions
+. $M0_SRC_DIR/scripts/functions  # opcode
 
 # Got these states from "$MERO_CORE_DIR/ha/note.h"
 M0_NC_ONLINE=1
@@ -30,7 +27,7 @@ start_stop_m0d()
 		#restart m0d
 		echo $cmd
 		(eval "$IOS5_CMD") &
-		while ! grep CTRL $MERO_M0T1FS_TEST_DIR/ios5/m0d.log > /dev/null;
+		while ! grep -q CTRL $MERO_M0T1FS_TEST_DIR/ios5/m0d.log;
 		do
 			sleep 2
 		done
@@ -55,7 +52,7 @@ change_controller_state()
 	fi
 
 	# Generate HA event
-	$M0_CORE_DIR/console/bin/m0console \
+	$M0_SRC_DIR/console/bin/m0console \
                 -f $(opcode M0_HA_NOTE_SET_OPCODE) \
                 -s $s_endpoint -c $c_endpoint \
                 -d "$ha_fop" || true
@@ -216,12 +213,14 @@ main()
 	echo "System tests start:"
 	echo "Test log will be stored in $MERO_TEST_LOGFILE."
 
+	sandbox_init
+
 	set -o pipefail
 	m0t1fs_pool_version_assignment 2>&1 | tee -a $MERO_TEST_LOGFILE
 	rc=$?
 
 	echo "Test log available at $MERO_TEST_LOGFILE."
-
+	[ $rc -ne 0 ] || sandbox_fini
 	return $rc
 }
 

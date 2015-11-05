@@ -41,6 +41,8 @@ multi_clients()
 
 main()
 {
+	sandbox_init
+
 	echo "Starting multi clients testing:"
 	echo "Test log will be stored in $MERO_TEST_LOGFILE."
 
@@ -48,6 +50,7 @@ main()
 	rc=$?
 
 	echo "Test log available at $MERO_TEST_LOGFILE."
+	[ $rc -ne 0 ] || sandbox_fini
 	return $rc
 }
 

@@ -3,19 +3,19 @@ set -eu
 
 [ `id -u` -eq 0 ] || { echo 'Must be run by superuser' >&2; exit 1; }
 
-M0_CORE_DIR=`readlink -f $0`
-M0_CORE_DIR=${M0_CORE_DIR%/*/*/*}
-SANDBOX_DIR=${SANDBOX_DIR:-~/_sandbox.ha-st}
+M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
+SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.ha-st}
 
-rm -rf $SANDBOX_DIR
-mkdir $SANDBOX_DIR
-cd $SANDBOX_DIR
+. $M0_SRC_DIR/scripts/functions  # sandbox_init
 
 rc=0
-$M0_CORE_DIR/conf/st insmod
-$M0_CORE_DIR/ha/st/st.exp || rc=$?
-$M0_CORE_DIR/conf/st rmmod
+sandbox_init
+$M0_SRC_DIR/conf/st insmod
+$M0_SRC_DIR/ha/st/st.exp || rc=$?
+$M0_SRC_DIR/conf/st rmmod
 [ $rc -eq 0 ] || exit $rc
+sandbox_fini
 
 # this msg is used by Jenkins as a test success criteria;
 # it should appear on STDOUT

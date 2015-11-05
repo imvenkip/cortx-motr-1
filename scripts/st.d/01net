@@ -1,4 +1,4 @@
 #!/bin/bash
 set -eu
 
-exec $SUDO "$SRC/net/test/st/st.sh"
+exec $SUDO "$M0_SRC_DIR/net/test/st/st.sh"

@@ -19,7 +19,7 @@ conf_ios_device_setup()
 	eval $id_count_out=`expr $_id_count + 1`
 
 	#dev conf obj
-	local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$_DDEV_ID\")}" 
+	local ddev_obj="{0x64| (($ddev_id), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$_DDEV_ID\")}"
 	#disk conf obj
 	local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id)}"
 	if (($NR_DISK_FIDS == 0))
@@ -141,9 +141,9 @@ mero_service()
 		unit_size=$((stride * 1024))
 	fi
 
-        prog_mkfs="$MERO_CORE_ROOT/utils/mkfs/m0mkfs"
-        prog_start="$MERO_CORE_ROOT/mero/m0d"
-        prog_exec="$MERO_CORE_ROOT/mero/.libs/lt-m0d"
+        prog_mkfs="$M0_SRC_DIR/utils/mkfs/m0mkfs"
+        prog_start="$M0_SRC_DIR/mero/m0d"
+        prog_exec="$M0_SRC_DIR/mero/.libs/lt-m0d"
 
 	if echo $(basename $0) | grep -q 'altogether'; then
 		prog_start="${prog_start}-altogether"

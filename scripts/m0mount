@@ -60,12 +60,11 @@
 # (the code depends on this).
 #
 
-# Globally visible build root.
-BROOT="$(readlink -f $0)"
-BROOT="${BROOT%/*/*}"
+M0_SRC_DIR="$(readlink -f $0)"
+M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
-. $BROOT/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh  # build_conf
-. $BROOT/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh  # conf_ios_device_setup
+. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh  # build_conf
+. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh  # conf_ios_device_setup
 
 usage()
 {
@@ -182,7 +181,7 @@ MP=/mnt/m0
 FSTMID=1
 
 # Remote work arena
-WORK_ARENA=/var/mero
+WORK_ARENA=${SANDBOX_DIR:-/var/mero}
 
 CONF_FILE=$WORK_ARENA/conf.xc
 
@@ -214,17 +213,17 @@ LSUM=
 if [ $0 = "/usr/bin/m0mount" ]; then
 	M0D=/usr/bin/m0d
 	M0MKFS=/usr/bin/m0mkfs
-	M0LAYOUT="/usr/bin/m0layout"
+	M0LAYOUT=/usr/bin/m0layout
 	SUMFILE=$M0D
 	MERO_KO_LOAD_CMD="modprobe m0mero"
 	GF_KO_LOAD_CMD="modprobe m0gf"
 else
-	M0D=$BROOT/mero/m0d
-	M0MKFS="$BROOT/utils/mkfs/m0mkfs"
-	M0LAYOUT="$BROOT/utils/m0layout"
-	SUMFILE=$BROOT/mero/.libs/m0d
-	MERO_KO_LOAD_CMD="insmod $BROOT/mero/m0mero.ko"
-	GF_KO_LOAD_CMD="insmod $BROOT/extra-libs/gf-complete/src/linux_kernel/m0gf.ko"
+	M0D=$M0_SRC_DIR/mero/m0d
+	M0MKFS=$M0_SRC_DIR/utils/mkfs/m0mkfs
+	M0LAYOUT=$M0_SRC_DIR/utils/m0layout
+	SUMFILE=$M0_SRC_DIR/mero/.libs/m0d
+	MERO_KO_LOAD_CMD="insmod $M0_SRC_DIR/mero/m0mero.ko"
+	GF_KO_LOAD_CMD="insmod $M0_SRC_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko"
 fi
 
 #
@@ -780,7 +779,6 @@ function setup_loops ()
 {
 	echo Setting up loop devices ...
 
-	l_do mkdir -p $WORK_ARENA
 	for ((i = 0; i < $((POOL_WIDTH + SERVICES_NR)); i++)); do
 		if [ $run_mkfs -eq 1 ]; then
 			l_do dd if=/dev/zero of=$WORK_ARENA/disk-image-$i \
@@ -856,6 +854,9 @@ setup_params()
 main()
 {
 	setup_params
+
+	l_do mkdir -p $WORK_ARENA
+	cd $WORK_ARENA
 
 	if [ $setup_loops_p -ne 0 ]; then
 		setup_loops

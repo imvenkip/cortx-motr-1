@@ -1,4 +1,4 @@
 #!/bin/bash
 set -eu
 
-exec $SUDO SANDBOX_DIR=$RUNDIR/sandbox.conf-st "$SRC/conf/st"
+exec $SUDO "$M0_SRC_DIR/conf/st"

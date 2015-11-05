@@ -19,6 +19,8 @@ fwait_test()
 
 main()
 {
+	sandbox_init
+
 	NODE_UUID=`uuidgen`
 	echo "About to start Mero service"
 	local multiple_pools=0
@@ -50,7 +52,7 @@ main()
 	fi
 
 	echo "Test log available at $MERO_TEST_LOGFILE."
-
+	[ $rc -ne 0 ] || sandbox_fini
 	return $rc
 }
 

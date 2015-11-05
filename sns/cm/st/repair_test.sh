@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 # Script to perform system tests for single node sns repair.
 # Uses various combination of values for N, K, P and unit size parameters of
@@ -10,9 +11,8 @@
 # 3) Once i/o is done, start repair.
 # Note: This script should be run from mero directory
 
-set -e
-
-BROOT=${PWD}
+M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
 
 N=(8 10 11 12 13 14 15 16 18 20)
 
@@ -38,7 +38,7 @@ cleanup()
 main()
 {
 	for ((i = 0; i < ${#P[*]}; i++)); do
-		cmd="$BROOT/scripts/m0mount -a -L -n 1 -d ${N[$i]} -p ${P[$i]} -u ${U[$i]} -vv -q"
+		cmd="$M0_SRC_DIR/scripts/m0mount -a -L -n 1 -d ${N[$i]} -p ${P[$i]} -u ${U[$i]} -vv -q"
 		if ! $cmd
 		then
 			echo "Cannot start mero service"
@@ -53,9 +53,9 @@ main()
 			return 1
 		fi
 
-		cmd="$BROOT/sns/cm/st/m0repair -O 2 -U ${U[$i]} -F ${N[$i]} -n 1
-			-s 100000000000 -N ${N[$i]} -K 1 -P ${P[$i]} -C 172.18.50.45@o2ib:12345:41:102
-			-S 172.18.50.45@o2ib:12345:41:101"
+		cmd="$M0_SRC_DIR/sns/cm/st/m0repair -O 2 -U ${U[$i]}
+-F ${N[$i]} -n 1 -s 100000000000 -N ${N[$i]} -K 1 -P ${P[$i]}
+-C 172.18.50.45@o2ib:12345:41:102 -S 172.18.50.45@o2ib:12345:41:101"
 		if ! $cmd
 		then
 			echo "SNS Repair failed"
