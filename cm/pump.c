@@ -439,7 +439,7 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
 	M0_PRE(m0_cm_is_locked(cm));
 
 	cp_pump = &cm->cm_cp_pump;
-	m0_fom_queue(&cp_pump->p_fom, cm->cm_service.rs_reqh);
+	m0_fom_queue(&cp_pump->p_fom);
 	M0_LEAVE();
 }
 

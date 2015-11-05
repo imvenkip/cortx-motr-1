@@ -383,7 +383,7 @@ M0_INTERNAL int m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf)
 	int            rc;
 	struct m0_fom *fom = &gf->tgf_gen;
 
-	m0_fom_queue(fom, gf->tgf_reqh);
+	m0_fom_queue(fom);
 	m0_semaphore_down(&gf->tgf_start_sem);
 	M0_ASSERT(M0_IN(m0_fom_phase(fom), (TGS_OPEN, TGS_FAILED)));
 	rc = m0_fom_rc(fom);

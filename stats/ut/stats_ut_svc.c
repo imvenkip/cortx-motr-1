@@ -236,8 +236,7 @@ static void update_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 
 	m0_mutex_lock(&ut_stats_mutex);
 
-	/* Submit fop to reqh handler */
-	m0_fom_queue(fom, reqh);
+	m0_fom_queue(fom);
 	m0_cond_wait(&ut_stats_cond);
 
 	m0_mutex_unlock(&ut_stats_mutex);
@@ -380,8 +379,7 @@ static void query_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 
 	m0_mutex_lock(&ut_stats_mutex);
 
-	/* Submit fop to reqh handler */
-	m0_fom_queue(fom, reqh);
+	m0_fom_queue(fom);
 	m0_cond_wait(&ut_stats_cond);
 
 	m0_mutex_unlock(&ut_stats_mutex);

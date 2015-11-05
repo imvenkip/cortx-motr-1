@@ -367,7 +367,7 @@ reqh_fom_add(struct m0_reqh *reqh, size_t seqn, enum scenario test)
 
 	m0_rwlock_read_lock(&reqh->rh_rwlock);
         M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
-	m0_fom_queue(fom, reqh);
+	m0_fom_queue(fom);
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
 }
 

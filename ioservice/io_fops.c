@@ -196,7 +196,7 @@ static int io_fol_cd_rec_frag_op(struct m0_fop_fol_frag *frag,
 	result = fop != NULL ? m0_cob_fom_create(fop, &fom, reqh) : -ENOMEM;
 	if (result == 0) {
 		fom->fo_local = true;
-		m0_fom_queue(fom, reqh);
+		m0_fom_queue(fom);
 	}
 	return result;
 }

@@ -542,12 +542,11 @@ static inline struct m0_be_tx_credit *m0_fom_tx_credit(struct m0_fom *fom)
  * type is void.
  *
  * @param fom A fom to be submitted for execution
- * @param reqh request handler processing the fom
  *
  * @pre m0_fom_group_is_locked(fom)
  * @pre m0_fom_phase(fom) == M0_FOM_PHASE_INIT
  */
-M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh);
+M0_INTERNAL void m0_fom_queue(struct m0_fom *fom);
 
 /**
  * Returns reqh the fom belongs to

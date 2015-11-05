@@ -642,7 +642,7 @@ M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
 	M0_PRE(m0_cm_cp_invariant(cp));
 
-	m0_fom_queue(fom, reqh);
+	m0_fom_queue(fom);
 }
 
 M0_INTERNAL void m0_cm_cp_buf_add(struct m0_cm_cp *cp, struct m0_net_buffer *nb)

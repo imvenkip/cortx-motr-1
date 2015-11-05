@@ -208,7 +208,7 @@ void write_post(void)
 	w_sag.sag_base.cag_cp_local_nr = 1;
 	w_sag.sag_fnr = 1;
 
-	m0_fom_queue(&w_sns_cp.sc_base.c_fom, reqh);
+	m0_fom_queue(&w_sns_cp.sc_base.c_fom);
 
 	/* Wait till ast gets posted. */
 	m0_semaphore_down(&sem);
@@ -253,7 +253,7 @@ static void read_post(void)
 	r_sag.sag_fnr = 1;
 	m0_fid_convert_cob2stob(&cob_fid, &r_sns_cp.sc_stob_id);
 	r_sns_cp.sc_cobfid = M0_MDSERVICE_SLASH_FID;
-	m0_fom_queue(&r_sns_cp.sc_base.c_fom, reqh);
+	m0_fom_queue(&r_sns_cp.sc_base.c_fom);
 
         /* Wait till ast gets posted. */
 	m0_semaphore_down(&sem);

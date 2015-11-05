@@ -555,7 +555,7 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 
 	rc = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom, reqh);
 	if (rc == 0)
-		m0_fom_queue(fom, reqh);
+		m0_fom_queue(fom);
 
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
 	return M0_RC(rc);

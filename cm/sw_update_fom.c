@@ -181,7 +181,7 @@ M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm)
 	swu->swu_is_complete = false;
 	m0_fom_init(&cm->cm_sw_update.swu_fom, &cm->cm_type->ct_swu_fomt,
 		    &cm_sw_update_fom_ops, NULL, NULL, cm->cm_service.rs_reqh);
-	m0_fom_queue(fom, cm->cm_service.rs_reqh);
+	m0_fom_queue(fom);
 
 	M0_LEAVE();
 }

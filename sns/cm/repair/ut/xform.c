@@ -316,7 +316,7 @@ static void test_single_cp(void)
 	m0_bitmap_init(&s_fc[0].fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
 		       sag->sag_base.cag_cp_global_nr);
 	s_cp.sc_is_local = true;
-	m0_fom_queue(&cp->c_fom, reqh);
+	m0_fom_queue(&cp->c_fom);
 
 	/* Wait till ast gets posted. */
 	m0_semaphore_down(&sem);
@@ -358,7 +358,7 @@ static void test_multi_cp_single_failure(void)
 		m_cp[i].sc_is_local = true;
 		cp_prepare(cp, &m_buf[i], SEG_NR, SEG_SIZE, sag,
 			   'r', &multiple_cp_fom_ops, reqh, i, false, NULL);
-		m0_fom_queue(&cp->c_fom, reqh);
+		m0_fom_queue(&cp->c_fom);
 		m0_semaphore_down(&sem);
 	}
 	m0_reqh_idle_wait(reqh);
@@ -424,7 +424,7 @@ static void cp_multi_failures_post(char data, int cnt, int index)
 	m0_bitmap_init(&cp->c_xform_cp_indices,
 			sag->sag_base.cag_cp_global_nr);
 	m0_bitmap_set(&cp->c_xform_cp_indices, index, true);
-	m0_fom_queue(&cp->c_fom, reqh);
+	m0_fom_queue(&cp->c_fom);
 	m0_semaphore_down(&sem);
 }
 

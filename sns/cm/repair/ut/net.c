@@ -427,7 +427,7 @@ static void read_and_verify()
 	m0_fid_convert_cob2stob(&cob_fid, &r_sns_cp.sc_stob_id);
 	r_sns_cp.sc_index = 0;
 	r_sns_cp.sc_base.c_ops = &read_cp_ops;
-	m0_fom_queue(&r_sns_cp.sc_base.c_fom, s0_reqh);
+	m0_fom_queue(&r_sns_cp.sc_base.c_fom);
 
 	m0_semaphore_down(&read_cp_sem);
 }
@@ -912,7 +912,7 @@ static void test_cp_send_recv_verify()
 	/* Assume this as accumulator copy packet to be sent on remote side. */
 	s_sns_cp.sc_base.c_ag_cp_idx = ~0;
 
-	m0_fom_queue(&s_sns_cp.sc_base.c_fom, &rmach_ctx.rmc_reqh);
+	m0_fom_queue(&s_sns_cp.sc_base.c_fom);
 
 	/* Wait till ast gets posted. */
 	m0_semaphore_down(&sem);

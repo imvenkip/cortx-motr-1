@@ -545,7 +545,7 @@ static void rpc_link_fom_queue(struct m0_rpc_link *rlink,
 	M0_SET0(&rlink->rlk_fom);
 	m0_fom_init(&rlink->rlk_fom, fom_type, fom_ops, NULL, NULL,
 		    mach->rm_reqh);
-	m0_fom_queue(&rlink->rlk_fom, mach->rm_reqh);
+	m0_fom_queue(&rlink->rlk_fom);
 
 	M0_LEAVE();
 }

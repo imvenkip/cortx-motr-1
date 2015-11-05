@@ -204,7 +204,7 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp, struct m0_cm_aggr_group *ag,
 	/* Over-ride the fom ops. */
 	cp->c_fom.fo_ops = &dummy_cp_fom_ops;
 	m0_cm_cp_buf_add(cp, nb);
-	m0_fom_queue(&cp->c_fom, &cmut_rmach_ctx.rmc_reqh);
+	m0_fom_queue(&cp->c_fom);
 	m0_semaphore_down(&sem);
 }
 

@@ -73,7 +73,7 @@ M0_INTERNAL void m0_fom_simple_post(struct m0_fom_simple *simpleton,
 	if (locality == M0_FOM_SIMPLE_HERE)
 		locality = m0_locality_here()->lo_idx;
 	simpleton->si_locality = locality;
-	m0_fom_queue(&simpleton->si_fom, reqh);
+	m0_fom_queue(&simpleton->si_fom);
 }
 
 M0_INTERNAL void m0_fom_simple_hoard(struct m0_fom_simple *cat, size_t nr,

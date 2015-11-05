@@ -146,7 +146,7 @@ static void test_stats_req_handle(struct m0_reqh *reqh)
 	rc = stats_fom_create(&fom, reqh);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_fom_queue(fom, reqh);
+	m0_fom_queue(fom);
 
 	m0_chan_wait(&clink);
 

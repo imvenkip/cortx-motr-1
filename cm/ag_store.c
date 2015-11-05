@@ -489,7 +489,7 @@ M0_INTERNAL void m0_cm_ag_store_fom_start(struct m0_cm *cm)
 	store->s_status = S_ACTIVE;
 	m0_fom_init(&cm->cm_ag_store.s_fom, &cm->cm_type->ct_ag_store_fomt,
 		    &ag_store_update_fom_ops, NULL, NULL, cm->cm_service.rs_reqh);
-	m0_fom_queue(fom, cm->cm_service.rs_reqh);
+	m0_fom_queue(fom);
 
 	M0_LEAVE();
 }
