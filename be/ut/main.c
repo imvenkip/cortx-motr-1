@@ -121,7 +121,7 @@ extern void m0_be_ut_alloc_multiple(void);
 extern void m0_be_ut_alloc_concurrent(void);
 extern void m0_be_ut_alloc_transactional(void);
 
-extern void m0_be_ut_list_api(void);
+extern void m0_be_ut_list(void);
 extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_emap(void);
 extern void m0_be_ut_seg_dict(void);
@@ -212,7 +212,7 @@ struct m0_ut_suite be_ut = {
 		{ "alloc-transactional",     m0_be_ut_alloc_transactional     },
 		{ "obj",                     m0_be_ut_obj_test                },
 #endif
-		{ "list",                    m0_be_ut_list_api                },
+		{ "list",                    m0_be_ut_list                    },
 		{ "btree",                   m0_be_ut_btree_simple            },
 		{ "seg_dict",                m0_be_ut_seg_dict                },
 		{ "seg0",                    m0_be_ut_seg0_test               },

@@ -42,7 +42,9 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
 			     m0_bcount_t size)
 {
 	void *p = m0_alloc(size);
-	op->bo_u.u_allocator.a_ptr = p;
+
+	if (op != NULL)
+		op->bo_u.u_allocator.a_ptr = p;
 	if (ptr != NULL)
 		*ptr = p;
 }
@@ -308,6 +310,40 @@ M0_INTERNAL struct m0_be_seg *m0_be_domain_seg0_get(struct m0_be_domain *dom)
 int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec)
 {
 	return M0_ERR(-EINVAL);
+}
+
+M0_INTERNAL void m0_be_ut_alloc(struct m0_be_ut_backend *ut_be,
+				struct m0_be_ut_seg *ut_seg,
+				void **ptr,
+				m0_bcount_t size)
+{
+	m0_be_alloc(NULL, NULL, NULL, ptr, size);
+}
+
+M0_INTERNAL void m0_be_ut_free(struct m0_be_ut_backend *ut_be,
+			       struct m0_be_ut_seg *ut_seg,
+			       void *ptr)
+{
+	m0_be_free(NULL, NULL, NULL, ptr);
+}
+
+M0_INTERNAL void m0_be_ut_txc_init(struct m0_be_ut_txc *tc)
+{
+}
+
+M0_INTERNAL void m0_be_ut_txc_start(struct m0_be_ut_txc *tc,
+				    struct m0_be_tx *tx,
+				    const struct m0_be_seg *seg)
+{
+}
+
+M0_INTERNAL void m0_be_ut_txc_check(struct m0_be_ut_txc *tc,
+				    struct m0_be_tx *tx)
+{
+}
+
+M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc)
+{
 }
 
 #undef M0_TRACE_SUBSYSTEM

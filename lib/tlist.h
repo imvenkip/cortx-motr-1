@@ -253,8 +253,6 @@ struct m0_tl {
 	uint64_t       t_magic;
 	/** Underlying m0_list. */
 	struct m0_list t_head;
-	/** Unsafe flag is set when not all nodes are present in memory. */
-	bool           t_unsafe;
 	char           t_pad[7];
 };
 M0_BASSERT(sizeof(bool) == 1);
