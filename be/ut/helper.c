@@ -699,6 +699,7 @@ static void be_ut_seg_allocator_initfini(struct m0_be_seg *seg,
 	int                     rc;
 
 	a = m0_be_seg_allocator(seg);
+
 	if (ut_be != NULL) {
 		m0_be_ut_tx_init(&tx, ut_be);
 		be_ut_tx_lock_if(tx.t_sm.sm_grp, ut_be);

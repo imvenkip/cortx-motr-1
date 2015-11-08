@@ -783,7 +783,7 @@ void m0_be_ut_tx_capturing(void)
 		for (j = 0; j < BE_UT_TX_CAPTURING_NR; ++j) {
 			ptr = seg->bs_addr + m0_be_seg_reserved(seg) +
 			      rand_r(&seed) %
-			      (BE_UT_TX_CAPTURING_RANGE - sizeof(*ptr));
+			      (BE_UT_TX_CAPTURING_RANGE - sizeof *ptr);
 			*ptr = rand_r(&seed);
 			m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, ptr));
 

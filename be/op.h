@@ -188,10 +188,10 @@ M0_INTERNAL int  m0_be_op_rc(struct m0_be_op *op);
  * @endcode
  */
 #define M0_BE_OP_SYNC(op_obj, action)                   \
-	do {                                            \
+	({                                              \
 		struct m0_be_op op_obj = {};            \
 		M0_BE_OP_SYNC_WITH(&op_obj, action);    \
-	} while (0)
+	})
 
 #define M0_BE_OP_SYNC_RC(op_obj, action)                \
 	({                                              \
@@ -205,14 +205,14 @@ M0_INTERNAL int  m0_be_op_rc(struct m0_be_op *op);
  * structure.
  */
 #define M0_BE_OP_SYNC_WITH(op, action)          \
-	do {                                    \
+	({                                      \
 		struct m0_be_op *__opp = (op);  \
 						\
 		m0_be_op_init(__opp);           \
 		action;                         \
 		m0_be_op_wait(__opp);           \
 		m0_be_op_fini(__opp);           \
-	} while (0)
+	})
 
 #define M0_BE_OP_SYNC_WITH_RC(op, action)       \
 	({                                      \

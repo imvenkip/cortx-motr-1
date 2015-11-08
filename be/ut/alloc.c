@@ -18,51 +18,58 @@
  * Original creation date: 3-Jun-2013
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "lib/trace.h"
+
 #include "be/alloc.h"
 
-#include "lib/memory.h"		/* m0_addr_is_aligned */
-#include "lib/misc.h"		/* M0_SET_ARR0 */
-#include "lib/thread.h"		/* m0_thread */
-#include "ut/ut.h"		/* M0_UT_ASSERT */
-#include "be/ut/helper.h"	/* m0_be_ut_backend */
-#include "be/op.h"              /* m0_be_op */
+#include "lib/memory.h"         /* m0_addr_is_aligned */
+#include "lib/misc.h"           /* M0_SET_ARR0 */
+#include "lib/thread.h"         /* m0_thread */
+#include "lib/arith.h"          /* m0_rnd64 */
 
-#include <stdlib.h>		/* rand_r */
-#include <string.h>		/* memset */
+#include "ut/ut.h"              /* M0_UT_ASSERT */
+
+#include "be/ut/helper.h"       /* m0_be_ut_backend */
+#include "be/op.h"              /* m0_be_op */
+#include "be/alloc_internal.h"  /* be_alloc_chunk */
 
 enum {
-	BE_UT_ALLOC_SEG_SIZE = 0x400000,
-	BE_UT_ALLOC_SIZE     = 0x100,
+	BE_UT_ALLOC_SEG_SIZE = 0x20000,
+	BE_UT_ALLOC_SIZE     = 0x80,
 	BE_UT_ALLOC_SHIFT    = 13,
-	BE_UT_ALLOC_PTR_NR   = 0x100,
-	BE_UT_ALLOC_NR	     = 0x1000,
+	BE_UT_ALLOC_PTR_NR   = 0x20,
+	BE_UT_ALLOC_NR       = 0x800,
 	BE_UT_ALLOC_MT_NR    = 0x100,
-	BE_UT_ALLOC_THR_NR   = 0x10,
-	BE_UT_ALLOC_TX_NR    = 0x100,
+	BE_UT_ALLOC_THR_NR   = 0x4,
 };
 
 struct be_ut_alloc_thread_state {
 	struct m0_thread ats_thread;
 	/** pointers array for this thread */
-	void		*ats_ptr[BE_UT_ALLOC_PTR_NR];
+	void            *ats_ptr[BE_UT_ALLOC_PTR_NR];
 	/** number of interations for this thread */
-	int		 ats_nr;
+	int              ats_nr;
+	bool             ats_capturing_check;
 };
 
-static struct m0_be_ut_backend	       be_ut_alloc_backend;
-static struct m0_be_ut_seg	       be_ut_alloc_seg;
+static struct m0_be_ut_backend         be_ut_alloc_backend;
+static struct m0_be_ut_seg             be_ut_alloc_seg;
 static struct be_ut_alloc_thread_state be_ut_ts[BE_UT_ALLOC_THR_NR];
 
 M0_INTERNAL void m0_be_ut_alloc_init_fini(void)
 {
-	struct m0_be_ut_seg    ut_seg = {};
-	struct m0_be_allocator a      = {};
-	int		       rc;
+	struct m0_be_ut_seg     ut_seg = {};
+	struct m0_be_seg       *seg;
+	struct m0_be_allocator *a;
+	int                     rc;
 
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
-	rc = m0_be_allocator_init(&a, ut_seg.bus_seg);
+	seg = ut_seg.bus_seg;
+	a = m0_be_seg_allocator(seg);
+	rc = m0_be_allocator_init(a, seg);
 	M0_UT_ASSERT(rc == 0);
-	m0_be_allocator_fini(&a);
+	m0_be_allocator_fini(a);
 	m0_be_ut_seg_fini(&ut_seg);
 }
 
@@ -71,106 +78,99 @@ M0_INTERNAL void m0_be_ut_alloc_create_destroy(void)
 	struct m0_be_ut_seg ut_seg;
 
 	m0_be_ut_backend_init(&be_ut_alloc_backend);
-	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
-	m0_be_ut_seg_check_persistence(&ut_seg);
+	m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend, BE_UT_ALLOC_SEG_SIZE);
+	/* m0_be_ut_seg_check_persistence(&ut_seg); */
 
 	m0_be_ut_seg_allocator_init(&ut_seg, &be_ut_alloc_backend);
-	m0_be_ut_seg_check_persistence(&ut_seg);
+	/* m0_be_ut_seg_check_persistence(&ut_seg); */
 
 	m0_be_ut_seg_allocator_fini(&ut_seg, &be_ut_alloc_backend);
-	m0_be_ut_seg_check_persistence(&ut_seg);
+	/* m0_be_ut_seg_check_persistence(&ut_seg); */
 
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&be_ut_alloc_backend);
+	M0_SET0(&be_ut_alloc_backend);
 }
 
-static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
-				   struct m0_be_ut_backend *ut_be,
-				   void **p,
-				   unsigned *seed)
+static void be_ut_alloc_ptr_handle(struct m0_be_allocator  *a,
+				   void                   **p,
+				   uint64_t                *seed,
+				   bool                     capturing_check)
 {
-	struct m0_be_tx_credit	credit = {};
-	enum m0_be_allocator_op optype;
-	struct m0_be_ut_txc	tc = {};
-	struct m0_be_op		op;
-	struct m0_be_tx		tx_;
-	struct m0_be_tx	       *tx = ut_be == NULL ? NULL : &tx_;
-	m0_bcount_t		size;
-	unsigned		shift;
-	int			rc;
+	struct m0_be_ut_backend *ut_be = &be_ut_alloc_backend;
+	struct m0_be_ut_seg     *ut_seg;
+	m0_bcount_t              size;
+	unsigned                 shift;
 
-	size = rand_r(seed) % BE_UT_ALLOC_SIZE + 1;
-	shift = rand_r(seed) % BE_UT_ALLOC_SHIFT;
-	optype = *p == NULL ? M0_BAO_ALLOC_ALIGNED : M0_BAO_FREE_ALIGNED;
+	ut_seg = capturing_check ? &be_ut_alloc_seg : NULL;
 
-	if (ut_be != NULL) {
-		m0_be_ut_tx_init(tx, ut_be);
+	size  = m0_rnd64(seed) % BE_UT_ALLOC_SIZE + 1;
+	shift = m0_rnd64(seed) % BE_UT_ALLOC_SHIFT;
 
-		m0_be_allocator_credit(a, optype, size, shift, &credit);
-		m0_be_alloc_stats_credit(a, &credit);
-		m0_be_tx_prep(tx, &credit);
-
-		rc = m0_be_tx_open_sync(tx);
-		M0_UT_ASSERT(rc == 0);
-		m0_be_ut_txc_init(&tc);
-		m0_be_ut_txc_start(&tc, tx, a->ba_seg);
-	}
-
-	m0_be_op_init(&op);
 	if (*p == NULL) {
-		m0_be_alloc_aligned(a, tx, &op, p, size, shift);
-		m0_be_op_wait(&op);
+		M0_BE_UT_TRANSACT(ut_be, ut_seg, tx, cred,
+			  (m0_be_allocator_credit(a, M0_BAO_ALLOC_ALIGNED,
+						 size, shift, &cred),
+			   m0_be_alloc_stats_credit(a, &cred)),
+			  (M0_BE_OP_SYNC(op,
+				 m0_be_alloc_aligned(a, tx, &op, p, size, shift)),
+			   m0_be_alloc_stats_capture(a, tx)));
 		M0_UT_ASSERT(*p != NULL);
 		M0_UT_ASSERT(m0_addr_is_aligned(*p, shift));
-		m0_be_alloc_stats_capture(a, tx);
 	} else {
-		m0_be_free_aligned(a, tx, &op, *p);
-		m0_be_op_wait(&op);
+		M0_BE_UT_TRANSACT(ut_be, ut_seg, tx, cred,
+			  (m0_be_allocator_credit(a, M0_BAO_FREE_ALIGNED,
+						 size, shift, &cred),
+			   m0_be_alloc_stats_credit(a, &cred)),
+			  (M0_BE_OP_SYNC(op,
+					m0_be_free_aligned(a, tx, &op, *p)),
+			   m0_be_alloc_stats_capture(a, tx)));
 		*p = NULL;
-	}
-	m0_be_op_fini(&op);
-
-	if (ut_be != NULL) {
-		m0_be_ut_txc_check(&tc, tx);
-		m0_be_ut_txc_fini(&tc);
-		m0_be_tx_close_sync(tx);
-		m0_be_tx_fini(tx);
 	}
 }
 
 static void be_ut_alloc_thread(int index)
 {
 	struct be_ut_alloc_thread_state *ts = &be_ut_ts[index];
-	struct m0_be_allocator		*a;
-	unsigned			 seed = index;
-	int				 i;
-	int				 j;
+	struct m0_be_allocator          *a;
+	uint64_t                         seed = index;
+	int                              i;
+	int                              j;
 
 	a = m0_be_seg_allocator(be_ut_alloc_seg.bus_seg);
 	M0_UT_ASSERT(a != NULL);
 	M0_SET_ARR0(ts->ats_ptr);
 	for (j = 0; j < ts->ats_nr; ++j) {
-		i = rand_r(&seed) % ARRAY_SIZE(ts->ats_ptr);
-		be_ut_alloc_ptr_handle(a, NULL, &ts->ats_ptr[i], &seed);
+		i = m0_rnd64(&seed) % ARRAY_SIZE(ts->ats_ptr);
+		be_ut_alloc_ptr_handle(a, &ts->ats_ptr[i], &seed,
+				       ts->ats_capturing_check);
 	}
 	for (i = 0; i < BE_UT_ALLOC_PTR_NR; ++i) {
-		if (ts->ats_ptr[i] != NULL)
-			be_ut_alloc_ptr_handle(a, NULL, &ts->ats_ptr[i], &seed);
+		if (ts->ats_ptr[i] != NULL) {
+			be_ut_alloc_ptr_handle(a, &ts->ats_ptr[i], &seed,
+					       ts->ats_capturing_check);
+		}
 	}
+	m0_be_ut_backend_thread_exit(&be_ut_alloc_backend);
 }
 
 static void be_ut_alloc_mt(int nr)
 {
-	int rc;
-	int i;
+	struct m0_be_ut_backend *ut_be  = &be_ut_alloc_backend;
+	struct m0_be_ut_seg     *ut_seg = &be_ut_alloc_seg;
+	int                      rc;
+	int                      i;
 
 	M0_SET_ARR0(be_ut_ts);
 	for (i = 0; i < nr; ++i) {
 		be_ut_ts[i].ats_nr = nr == 1 ? BE_UT_ALLOC_NR :
 					       BE_UT_ALLOC_MT_NR;
+		be_ut_ts[i].ats_capturing_check = nr == 1;
 	}
-	m0_be_ut_seg_init(&be_ut_alloc_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
-	m0_be_ut_seg_allocator_init(&be_ut_alloc_seg, NULL);
+
+	m0_be_ut_backend_init(ut_be);
+	m0_be_ut_seg_init(ut_seg, ut_be, BE_UT_ALLOC_SEG_SIZE);
+	m0_be_ut_seg_allocator_init(ut_seg, ut_be);
 	for (i = 0; i < nr; ++i) {
 		rc = M0_THREAD_INIT(&be_ut_ts[i].ats_thread, int, NULL,
 				    &be_ut_alloc_thread, i,
@@ -181,8 +181,10 @@ static void be_ut_alloc_mt(int nr)
 		m0_thread_join(&be_ut_ts[i].ats_thread);
 		m0_thread_fini(&be_ut_ts[i].ats_thread);
 	}
-	m0_be_ut_seg_allocator_fini(&be_ut_alloc_seg, NULL);
-	m0_be_ut_seg_fini(&be_ut_alloc_seg);
+	m0_be_ut_seg_allocator_fini(ut_seg, ut_be);
+	m0_be_ut_seg_fini(ut_seg);
+	m0_be_ut_backend_fini(ut_be);
+	M0_SET0(ut_be);
 }
 
 M0_INTERNAL void m0_be_ut_alloc_multiple(void)
@@ -195,45 +197,125 @@ M0_INTERNAL void m0_be_ut_alloc_concurrent(void)
 	be_ut_alloc_mt(BE_UT_ALLOC_THR_NR);
 }
 
-M0_INTERNAL void m0_be_ut_alloc_transactional(void)
+static void be_ut_alloc_credit_log(struct m0_be_allocator  *a,
+				   enum m0_be_allocator_op  optype,
+				   const char              *optype_str,
+				   m0_bcount_t              size,
+				   unsigned                 shift)
 {
-	struct m0_be_ut_backend *ut_be = &be_ut_alloc_backend;
-	struct m0_be_ut_seg	 ut_seg;
-	struct m0_be_allocator	*a;
-	void			*ptrs[BE_UT_ALLOC_PTR_NR];
-	unsigned		 seed = 0;
-	int			 i;
-	int			 j;
+	struct m0_be_tx_credit cred = {};
 
-	M0_SET0(ut_be);
-	m0_be_ut_backend_init(ut_be);
-	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
-	m0_be_ut_seg_check_persistence(&ut_seg);
-
-	m0_be_ut_seg_allocator_init(&ut_seg, ut_be);
-	m0_be_ut_seg_check_persistence(&ut_seg);
-
-	a = m0_be_seg_allocator(ut_seg.bus_seg);
-	M0_UT_ASSERT(a != NULL);
-
-	M0_SET_ARR0(ptrs);
-	for (j = 0; j < BE_UT_ALLOC_TX_NR; ++j) {
-		i = rand_r(&seed) % ARRAY_SIZE(ptrs);
-		be_ut_alloc_ptr_handle(a, ut_be, &ptrs[i], &seed);
-		m0_be_ut_seg_check_persistence(&ut_seg);
-	}
-	for (i = 0; i < ARRAY_SIZE(ptrs); ++i) {
-		if (ptrs[i] != NULL)
-			be_ut_alloc_ptr_handle(a, ut_be, &ptrs[i], &seed);
-		m0_be_ut_seg_check_persistence(&ut_seg);
-	}
-
-	m0_be_ut_seg_allocator_fini(&ut_seg, ut_be);
-	m0_be_ut_seg_check_persistence(&ut_seg);
-
-	m0_be_ut_seg_fini(&ut_seg);
-	m0_be_ut_backend_fini(ut_be);
+	m0_be_allocator_credit(a, optype, size, shift, &cred);
+	M0_LOG(M0_INFO,
+	       "m0_be_allocator_credit(): "
+	       "optype = %d (%s), size = %lu, shift = %d, credit = "BETXCR_F,
+	       optype, optype_str, size, shift, BETXCR_P(&cred));
 }
+
+M0_INTERNAL void m0_be_ut_alloc_info(void)
+{
+	struct m0_be_allocator *a;
+	struct m0_be_ut_seg     ut_seg;
+	m0_bcount_t             size;
+	unsigned                shift;
+
+	m0_be_ut_backend_init(&be_ut_alloc_backend);
+	m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend, BE_UT_ALLOC_SEG_SIZE);
+	m0_be_ut_seg_allocator_init(&ut_seg, &be_ut_alloc_backend);
+	a = m0_be_seg_allocator(ut_seg.bus_seg);
+
+	be_ut_alloc_credit_log(a, M0_BAO_CREATE,       "create", 0, 0);
+	be_ut_alloc_credit_log(a, M0_BAO_DESTROY,      "destroy", 0, 0);
+	be_ut_alloc_credit_log(a, M0_BAO_FREE,         "free", 0, 0);
+	be_ut_alloc_credit_log(a, M0_BAO_FREE_ALIGNED, "free_aligned", 0, 0);
+
+	for (size = 1; size <= 0x1000; size *= 4)
+		be_ut_alloc_credit_log(a, M0_BAO_ALLOC, "alloc", size, 0);
+	for (shift = 0; shift <= 12; shift += 1) {
+		be_ut_alloc_credit_log(a, M0_BAO_ALLOC_ALIGNED, "alloc_aligned",
+				       0x100, shift);
+	}
+
+	m0_be_ut_seg_allocator_fini(&ut_seg, &be_ut_alloc_backend);
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&be_ut_alloc_backend);
+	M0_SET0(&be_ut_alloc_backend);
+}
+
+/* segment and memory allocation sizes to test */
+enum {
+	BE_UT_OOM_SEG_START     = 0x1200,
+	BE_UT_OOM_SEG_STEP      = 0x42,
+	BE_UT_OOM_SEG_STEP_NR   = 0x4,
+	BE_UT_OOM_ALLOC_START   = 0x1,
+	BE_UT_OOM_ALLOC_STEP    = 0x1,
+	BE_UT_OOM_ALLOC_STEP_NR = 0x4,
+};
+
+static void be_ut_alloc_oom_case(struct m0_be_allocator *a,
+				 m0_bcount_t             alloc_size)
+{
+	unsigned   ptrs_nr_max = a->ba_seg->bs_size / alloc_size + 1;
+	unsigned   ptrs_nr     = 0;
+	unsigned   i;
+	void     **ptrs;
+
+	M0_ALLOC_ARR(ptrs, ptrs_nr_max);
+	M0_UT_ASSERT(ptrs != NULL);
+
+	do {
+		M0_UT_ASSERT(ptrs_nr < ptrs_nr_max);
+		M0_BE_UT_TRANSACT(&be_ut_alloc_backend, NULL, tx, cred,
+		  m0_be_allocator_credit(a, M0_BAO_ALLOC, alloc_size, 0, &cred),
+		  M0_BE_OP_SYNC(op, m0_be_alloc(a, tx, &op,
+						&ptrs[ptrs_nr], alloc_size)));
+	} while (ptrs[ptrs_nr++] != NULL);
+
+	M0_UT_ASSERT(ptrs_nr > 1);
+
+	for (i = 0; i < ptrs_nr; ++i) {
+		M0_BE_UT_TRANSACT(&be_ut_alloc_backend, NULL, tx, cred,
+			  m0_be_allocator_credit(a, M0_BAO_FREE, 0, 0, &cred),
+			  M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op, ptrs[i])));
+	}
+
+	m0_free(ptrs);
+}
+
+M0_INTERNAL void m0_be_ut_alloc_oom(void)
+{
+	struct m0_be_allocator *a;
+	struct m0_be_ut_seg     ut_seg;
+	int                     seg_size_start;
+	int                     seg_step;
+	int                     alloc_step;
+
+	m0_be_ut_backend_init(&be_ut_alloc_backend);
+
+	m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend, 0x10000);
+	seg_size_start = m0_be_seg_reserved(ut_seg.bus_seg) +
+			 BE_UT_OOM_SEG_START;
+	m0_be_ut_seg_fini(&ut_seg);
+
+	for (seg_step = 0; seg_step < BE_UT_OOM_SEG_STEP_NR; ++seg_step) {
+		m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend,
+				  seg_size_start +
+				  seg_step * BE_UT_OOM_SEG_STEP);
+		m0_be_ut_seg_allocator_init(&ut_seg, &be_ut_alloc_backend);
+		a = m0_be_seg_allocator(ut_seg.bus_seg);
+
+		for (alloc_step = 0; alloc_step < BE_UT_OOM_ALLOC_STEP_NR;
+		     ++alloc_step) {
+			be_ut_alloc_oom_case(a, BE_UT_OOM_ALLOC_START +
+					     alloc_step * BE_UT_OOM_ALLOC_STEP);
+		}
+		m0_be_ut_seg_allocator_fini(&ut_seg, &be_ut_alloc_backend);
+		m0_be_ut_seg_fini(&ut_seg);
+	}
+	m0_be_ut_backend_fini(&be_ut_alloc_backend);
+	M0_SET0(&be_ut_alloc_backend);
+}
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

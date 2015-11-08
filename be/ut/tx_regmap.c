@@ -712,7 +712,7 @@ static void be_ut_reg_area_do(m0_bcount_t begin, m0_bcount_t end,
 	M0_PRE(0 <= end   && end   <= BE_UT_RA_SIZE);
 	M0_PRE(begin <= end);
 
-	memcpy(be_ut_ra_save, be_ut_ra_data, sizeof(be_ut_ra_save));
+	memcpy(be_ut_ra_save, be_ut_ra_data, sizeof be_ut_ra_save);
 
 	LOGD("\n%s [%lu, %lu)",
 	     do_insert ? "capture" : "uncapture", begin, end);
