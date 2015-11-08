@@ -22,13 +22,10 @@
 #ifndef __MERO_BE_UT_HELPER_H__
 #define __MERO_BE_UT_HELPER_H__
 
-#ifndef __KERNEL__
-#include <stdio.h>		/* FILE */
-#endif
-
-#include "lib/types.h"		/* bool */
-#include "lib/buf.h"		/* m0_buf */
-#include "sm/sm.h"		/* m0_sm */
+#include "lib/types.h"  /* bool */
+#include "lib/buf.h"    /* m0_buf */
+#include "lib/memory.h" /* M0_ALLOC_PTR */
+#include "sm/sm.h"      /* m0_sm */
 
 #include "be/domain.h"		/* m0_be_domain */
 #include "be/seg.h"		/* m0_be_seg */
@@ -56,8 +53,6 @@ struct m0_be_ut_backend {
 	bool				  but_sm_groups_unlocked;
 	char				 *but_stob_domain_location;
 };
-
-M0_INTERNAL void m0_be_ut_fake_mkfs(void);
 
 /*
  * Fill cfg with default configuration.
@@ -194,11 +189,6 @@ void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg,
 void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
 				 struct m0_be_ut_backend *ut_be);
 
-void m0_be_ut__seg_allocator_init(struct m0_be_seg *seg,
-				  struct m0_be_ut_backend *ut_be);
-void m0_be_ut__seg_allocator_fini(struct m0_be_seg *seg,
-				  struct m0_be_ut_backend *ut_be);
-
 M0_INTERNAL void m0_be_ut_alloc(struct m0_be_ut_backend  *ut_be,
 				struct m0_be_ut_seg      *ut_seg,
 				void                    **ptr,
@@ -213,12 +203,6 @@ M0_INTERNAL void m0_be_ut_free(struct m0_be_ut_backend *ut_be,
 
 #define M0_BE_UT_FREE_PTR(ut_be, ut_seg, ptr)                           \
 		m0_be_ut_free((ut_be), (ut_seg), (ptr))
-
-M0_INTERNAL int m0_be_ut__seg_dict_create(struct m0_be_seg   *seg,
-					  struct m0_sm_group *grp);
-
-M0_INTERNAL int m0_be_ut__seg_dict_destroy(struct m0_be_seg   *seg,
-					   struct m0_sm_group *grp);
 
 /**
  * Executes __action_func in a single transaction.
@@ -260,17 +244,6 @@ M0_INTERNAL int m0_be_ut__seg_dict_destroy(struct m0_be_seg   *seg,
 		m0_be_tx_fini(__tx);                                    \
 		m0_free(__tx);                                          \
 	} while (0)
-
-
-/**
-   Load/save segments using lambda functions to a file with name @filename.
- */
-#ifndef __KERNEL__
-M0_INTERNAL void m0_be_state_save(const char *filename,
-				  bool (*func)(FILE *, int *));
-M0_INTERNAL void m0_be_state_load(const char *filename,
-				  bool (*func)(FILE *, int *));
-#endif
 
 #endif /* __MERO_BE_UT_HELPER_H__ */
 

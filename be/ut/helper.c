@@ -241,62 +241,9 @@ static void m0_be_ut_sm_group_thread_fini(struct m0_be_ut_sm_group_thread *sgt)
 	m0_free(sgt);
 }
 
-#if 0
-M0_INTERNAL void m0_be_ut_fake_mkfs(void)
-{
-	extern char *program_invocation_name;
-	char *ut_dir;
-	char cmd[512] = {};
-	int rc;
-
-	ut_dir = get_current_dir_name();
-	rc = chdir("..");
-	M0_ASSERT(rc == 0);
-
-	snprintf(cmd, ARRAY_SIZE(cmd), "%s -t be-ut:fake_mkfs -k > "
-		 "/dev/null 2>&1", program_invocation_name);
-	rc = system(cmd);
-	M0_ASSERT(rc == 0);
-
-	rc = chdir(ut_dir);
-	M0_ASSERT(rc == 0);
-
-	free(ut_dir);
-}
-#endif
-
 #define M0_BE_LOG_NAME  "M0_BE:LOG"
 #define M0_BE_SEG0_NAME "M0_BE:SEG0"
 #define M0_BE_SEG_NAME  "M0_BE:SEG%08lu"
-
-M0_INTERNAL void m0_be_ut_fake_mkfs(void)
-{
-	enum { BE_UT_FAKE_MKFS_SEG_NR = 10 };
-
-	struct m0_be_0type_seg_cfg segs_cfg[BE_UT_FAKE_MKFS_SEG_NR];
-	struct m0_be_domain_cfg    dom_cfg = {};
-	struct m0_be_ut_backend    ut_be = {};
-	unsigned                   i;
-	int                        rc;
-
-	for (i = 0; i < ARRAY_SIZE(segs_cfg); ++i) {
-		segs_cfg[i] = (struct m0_be_0type_seg_cfg){
-			.bsc_stob_key	 = m0_be_ut_seg_allocate_id(),
-			.bsc_size	 = 1 << 24,
-			.bsc_preallocate = false,
-			.bsc_addr	 = m0_be_ut_seg_allocate_addr(1 << 24),
-			.bsc_stob_create_cfg = NULL,
-		};
-	}
-	m0_be_ut_backend_cfg_default(&dom_cfg);
-	dom_cfg.bc_mkfs_mode = true;
-	dom_cfg.bc_seg_cfg   = segs_cfg;
-	dom_cfg.bc_seg_nr    = ARRAY_SIZE(segs_cfg);
-
-	rc = m0_be_ut_backend_init_cfg(&ut_be, &dom_cfg, true);
-	M0_ASSERT(rc == 0);
-	m0_be_ut_backend_fini(&ut_be);
-}
 
 void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 {
@@ -789,18 +736,6 @@ void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
 				 struct m0_be_ut_backend *ut_be)
 {
 	be_ut_seg_allocator_initfini(ut_seg->bus_seg, ut_be, false);
-}
-
-void m0_be_ut__seg_allocator_init(struct m0_be_seg *seg,
-				  struct m0_be_ut_backend *ut_be)
-{
-	be_ut_seg_allocator_initfini(seg, ut_be, true);
-}
-
-void m0_be_ut__seg_allocator_fini(struct m0_be_seg *seg,
-				  struct m0_be_ut_backend *ut_be)
-{
-	be_ut_seg_allocator_initfini(seg, ut_be, false);
 }
 
 M0_INTERNAL void m0_be_ut_txc_init(struct m0_be_ut_txc *tc)

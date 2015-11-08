@@ -97,8 +97,6 @@ static void test_mkfs(void)
         int			 fd;
 	int			 rc;
 
-	m0_be_ut_fake_mkfs();
-
 	M0_SET0(&ut_be);
 	be_seg = m0_be_domain_seg0_get(&ut_be.but_dom);
 	rc = M0_REQH_INIT(&reqh,

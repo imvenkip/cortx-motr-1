@@ -28,8 +28,6 @@
 #include "be/seg.h"
 #include "cob/cob.h"
 #include "lib/locality.h"
-#include "ut/be.h"		   /* m0_be_ut__seg_dict_create */
-#include "ut/stob.h"		   /* m0_ut_stob_linux_get_by_key */
 
 static const char db_name[]    = "ut-cob";
 static const char test_name[]  = "hello_world";

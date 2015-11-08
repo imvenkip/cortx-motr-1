@@ -21,7 +21,8 @@
 #include "be/domain.h"
 
 #include "ut/ut.h"
-#include "be/ut/helper.h"
+
+#include "be/ut/helper.h"       /* m0_be_ut_backend */
 
 void m0_be_ut_mkfs(void)
 {
@@ -57,6 +58,42 @@ void m0_be_ut_mkfs(void)
 	M0_UT_ASSERT(rc == 0);
 	seg = m0_be_domain_seg(dom, addr);
 	M0_ASSERT_INFO(seg == NULL, "seg = %p", seg);
+	m0_be_ut_backend_fini(&ut_be);
+}
+
+enum {
+	BE_UT_MKFS_MULTISEG_SEG_NR   = 0x10,
+	BE_UT_MKFS_MULTISEG_SEG_SIZE = 1 << 24,
+};
+
+M0_INTERNAL void m0_be_ut_mkfs_multiseg(void)
+{
+	struct m0_be_0type_seg_cfg  segs_cfg[BE_UT_MKFS_MULTISEG_SEG_NR];
+	struct m0_be_domain_cfg     dom_cfg = {};
+	struct m0_be_ut_backend     ut_be = {};
+	m0_bcount_t                 size;
+	unsigned                    i;
+	void                       *addr;
+	int                         rc;
+
+	for (i = 0; i < ARRAY_SIZE(segs_cfg); ++i) {
+		size = BE_UT_MKFS_MULTISEG_SEG_SIZE;
+		addr = m0_be_ut_seg_allocate_addr(size);
+		segs_cfg[i] = (struct m0_be_0type_seg_cfg){
+			.bsc_stob_key        = m0_be_ut_seg_allocate_id(),
+			.bsc_size            = size,
+			.bsc_preallocate     = false,
+			.bsc_addr            = addr,
+			.bsc_stob_create_cfg = NULL,
+		};
+	}
+	m0_be_ut_backend_cfg_default(&dom_cfg);
+	dom_cfg.bc_mkfs_mode = true;
+	dom_cfg.bc_seg_cfg   = segs_cfg;
+	dom_cfg.bc_seg_nr    = ARRAY_SIZE(segs_cfg);
+
+	rc = m0_be_ut_backend_init_cfg(&ut_be, &dom_cfg, true);
+	M0_ASSERT(rc == 0);
 	m0_be_ut_backend_fini(&ut_be);
 }
 

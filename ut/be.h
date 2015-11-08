@@ -66,22 +66,6 @@ M0_INTERNAL void m0_ut_be_tx_begin2(struct m0_be_tx *tx,
 /** Closes the transaction and waits for its completion. */
 M0_INTERNAL void m0_ut_be_tx_end(struct m0_be_tx *tx);
 
-/** Allocates `size' bytes on segment `seg' synchronously. */
-M0_INTERNAL void *m0_ut_be_alloc(m0_bcount_t size, struct m0_be_seg *seg,
-				 struct m0_be_ut_backend *ut_be);
-
-/** Releases resources obtained with m0_ut_be_alloc(). */
-M0_INTERNAL void m0_ut_be_free(void *ptr, m0_bcount_t size,
-			       struct m0_be_seg *seg,
-			       struct m0_be_ut_backend *ut_be);
-
-M0_INTERNAL int m0_be_ut__seg_dict_create(struct m0_be_seg   *seg,
-					  struct m0_sm_group *grp);
-
-M0_INTERNAL int m0_be_ut__seg_dict_destroy(struct m0_be_seg   *seg,
-					   struct m0_sm_group *grp);
-
-
 /** @} end of ut group */
 #endif /* __MERO_UT_BE_H__ */
 

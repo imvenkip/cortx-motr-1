@@ -25,7 +25,7 @@
 #include "lib/memory.h"         /* M0_ALLOC_PTR, m0_free */
 #include "be/ut/helper.h"	/* m0_be_ut_backend */
 #include "ut/ut.h"
-#include "ut/be.h"		/* m0_be_ut__seg_dict_create */
+
 
 void m0_be_ut_seg_dict(void)
 {
@@ -63,11 +63,19 @@ void m0_be_ut_seg_dict(void)
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	seg = ut_seg.bus_seg;
 #ifdef __KERNEL__
-	rc = m0_be_ut__seg_dict_create(seg, NULL);
-	M0_ASSERT(rc == 0);
+	m0_be_tx_init(&tx, 0, seg->bs_domain, NULL, NULL, NULL, NULL, NULL);
+	m0_be_seg_dict_create_credit(seg, &credit);
+	m0_be_tx_prep(&tx, &credit);
+	rc = m0_be_tx_open_sync(&tx);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_seg_dict_create(seg, &tx);
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
 #endif
+	M0_SET0(&tx);
 	m0_be_ut_tx_init(&tx, &ut_be);
 
+	credit = M0_BE_TX_CREDIT(0, 0);
 	for (i = 0; i < ARRAY_SIZE(dict); ++i) {
 		m0_be_seg_dict_insert_credit(seg, "....", &credit);
 		m0_be_seg_dict_delete_credit(seg, "....", &credit);

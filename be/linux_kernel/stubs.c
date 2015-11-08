@@ -296,16 +296,7 @@ void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)
 {
 }
 
-void m0_be_ut_fake_mkfs(void)
-{
-}
-
 void m0_be_ut_seg0_test(void)
-{
-}
-
-void m0_be_ut__seg_allocator_init(struct m0_be_seg *seg,
-				  struct m0_be_ut_backend *ut_be)
 {
 }
 

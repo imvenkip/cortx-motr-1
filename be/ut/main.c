@@ -85,6 +85,7 @@ extern void m0_be_ut_seg_large(void);
 extern void m0_be_ut_group_format(void);
 
 extern void m0_be_ut_mkfs(void);
+extern void m0_be_ut_mkfs_multiseg(void);
 extern void m0_be_ut_domain(void);
 
 extern void m0_be_ut_tx_states(void);
@@ -124,7 +125,6 @@ extern void m0_be_ut_list_api(void);
 extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_emap(void);
 extern void m0_be_ut_seg_dict(void);
-extern void m0_be_ut_fake_mkfs(void);
 extern void m0_be_ut_seg0_test(void);
 
 extern void m0_be_ut_obj_test(void);
@@ -178,6 +178,7 @@ struct m0_ut_suite be_ut = {
 		{ "seg-large",               m0_be_ut_seg_large               },
 		{ "group_format",            m0_be_ut_group_format            },
 		{ "mkfs",                    m0_be_ut_mkfs                    },
+		{ "mkfs-multiseg",           m0_be_ut_mkfs_multiseg           },
 		{ "domain",                  m0_be_ut_domain                  },
 		{ "tx-states",               m0_be_ut_tx_states               },
 		{ "tx-empty",                m0_be_ut_tx_empty                },
@@ -214,7 +215,6 @@ struct m0_ut_suite be_ut = {
 		{ "list",                    m0_be_ut_list_api                },
 		{ "btree",                   m0_be_ut_btree_simple            },
 		{ "seg_dict",                m0_be_ut_seg_dict                },
-		{ "fake_mkfs",               m0_be_ut_fake_mkfs               },
 		{ "seg0",                    m0_be_ut_seg0_test               },
 		{ "emap",                    m0_be_ut_emap                    },
 		{ NULL, NULL }
