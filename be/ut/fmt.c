@@ -227,24 +227,23 @@ static bool fmt_group_eq(struct m0_be_fmt_group *left,
 	struct m0_buf                            *rreg =
 		right->fg_content.fmc_reg_area.cra_reg;
 
-	return _0C(memcmp(&left->fg_header, &right->fg_header,
-			  sizeof left->fg_header) == 0) &&
-		_0C(left->fg_content_header.fch_reg_area.chr_nr ==
-		    right->fg_content_header.fch_reg_area.chr_nr) &&
-		_0C(left->fg_content_header.fch_txs.cht_nr ==
-		    right->fg_content_header.fch_txs.cht_nr) &&
-		_0C(m0_forall(i, rnr, memcmp(&lra->chr_reg[i], &rra->chr_reg[i],
-					     sizeof lra->chr_reg[i]) == 0)) &&
-		_0C(m0_forall(i, tnr, memcmp(&ltxs->cht_tx[i], &rtxs->cht_tx[i],
-					     sizeof ltxs->cht_tx[i]) == 0)) &&
-		_0C(left->fg_content.fmc_payloads.fcp_nr ==
-		    right->fg_content.fmc_payloads.fcp_nr) &&
-		_0C(left->fg_content.fmc_reg_area.cra_nr ==
-		    right->fg_content.fmc_reg_area.cra_nr) &&
-		_0C(m0_forall(i, pnr, m0_buf_eq(&lps[i], &rps[i]))) &&
-		_0C(m0_forall(i, rnr, m0_buf_eq(&lreg[i], &rreg[i]))) &&
-		_0C(m0_be_fmt_group_size(left) ==
-		    m0_be_fmt_group_size(right));
+	return memcmp(&left->fg_header, &right->fg_header,
+	              sizeof left->fg_header) == 0 &&
+	       left->fg_content_header.fch_reg_area.chr_nr ==
+	       right->fg_content_header.fch_reg_area.chr_nr &&
+	       left->fg_content_header.fch_txs.cht_nr ==
+	       right->fg_content_header.fch_txs.cht_nr &&
+	       m0_forall(i, rnr, memcmp(&lra->chr_reg[i], &rra->chr_reg[i],
+	                                sizeof lra->chr_reg[i]) == 0) &&
+	       m0_forall(i, tnr, memcmp(&ltxs->cht_tx[i], &rtxs->cht_tx[i],
+	                                sizeof ltxs->cht_tx[i]) == 0) &&
+	       left->fg_content.fmc_payloads.fcp_nr ==
+	       right->fg_content.fmc_payloads.fcp_nr &&
+	       left->fg_content.fmc_reg_area.cra_nr ==
+	       right->fg_content.fmc_reg_area.cra_nr &&
+	       m0_forall(i, pnr, m0_buf_eq(&lps[i], &rps[i])) &&
+	       m0_forall(i, rnr, m0_buf_eq(&lreg[i], &rreg[i])) &&
+	       m0_be_fmt_group_size(left) == m0_be_fmt_group_size(right);
 }
 
 #define CFG(tx_nr_max, reg_nr_max, payload_sz_max, ra_sz_max)   \
