@@ -22,7 +22,7 @@
 #ifndef __MERO_BE_TX_CREDIT_H__
 #define __MERO_BE_TX_CREDIT_H__
 
-#include "lib/types.h"	/* m0_bcount_t */
+#include "lib/types.h"  /* m0_bcount_t */
 
 /**
  * @defgroup be Meta-data back-end
@@ -58,8 +58,6 @@
  *
  * @see M0_BE_TX_CREDIT(), M0_BE_TX_CREDIT_TYPE().
  */
-
-struct m0_be_tx;
 
 #ifdef __KERNEL__
 #  undef M0_DEBUG_BE_CREDITS
@@ -97,7 +95,7 @@ extern const struct m0_be_tx_credit m0_be_tx_credit_invalid;
 	(struct m0_be_tx_credit){ .tc_reg_nr = (nr), .tc_reg_size = (size) }
 
 #define M0_BE_TX_CREDIT_TYPE(type) M0_BE_TX_CREDIT(1, sizeof(type))
-#define M0_BE_TX_CREDIT_PTR(ptr)   M0_BE_TX_CREDIT(1, sizeof(*(ptr)))
+#define M0_BE_TX_CREDIT_PTR(ptr)   M0_BE_TX_CREDIT(1, sizeof *(ptr))
 #define M0_BE_TX_CREDIT_BUF(buf)   M0_BE_TX_CREDIT(1, (buf)->b_nob)
 
 /** Format for the printf() family functions. @see BETXCR_P */
@@ -141,6 +139,19 @@ M0_INTERNAL void m0_be_tx_credit_mac(struct m0_be_tx_credit *c,
 				     const struct m0_be_tx_credit *c1,
 				     m0_bcount_t k);
 
+/**
+ * c = smallest credit that meets the following requirement:
+ * m0_be_tx_credit_le(c0, c) && m0_be_tx_credit_le(c1, c)
+ */
+M0_INTERNAL void m0_be_tx_credit_max(struct m0_be_tx_credit       *c,
+				     const struct m0_be_tx_credit *c0,
+				     const struct m0_be_tx_credit *c1);
+
+/* c += m0_be_tx_credit_max(c, c0, c1) */
+M0_INTERNAL void m0_be_tx_credit_add_max(struct m0_be_tx_credit       *c,
+					 const struct m0_be_tx_credit *c0,
+					 const struct m0_be_tx_credit *c1);
+
 /* c0 <= c1 */
 M0_INTERNAL bool m0_be_tx_credit_le(const struct m0_be_tx_credit *c0,
 				    const struct m0_be_tx_credit *c1);
@@ -148,6 +159,7 @@ M0_INTERNAL bool m0_be_tx_credit_le(const struct m0_be_tx_credit *c0,
 /* c0 == c1 */
 M0_INTERNAL bool m0_be_tx_credit_eq(const struct m0_be_tx_credit *c0,
 				    const struct m0_be_tx_credit *c1);
+
 /** @} end of be group */
 #endif /* __MERO_BE_TX_CREDIT_H__ */
 

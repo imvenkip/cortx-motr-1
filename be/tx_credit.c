@@ -19,9 +19,10 @@
  */
 
 #include "be/tx_credit.h"
-#include "be/tx.h"
-#include "be/engine.h"
-#include "lib/assert.h"    /* M0_PRE */
+
+#include "lib/assert.h"         /* M0_PRE */
+#include "lib/arith.h"          /* max_check */
+#include "lib/misc.h"           /* m0_forall */
 
 /**
  * @addtogroup be
@@ -99,6 +100,25 @@ M0_INTERNAL bool m0_be_tx_credit_eq(const struct m0_be_tx_credit *c0,
 	return c0->tc_reg_nr   == c1->tc_reg_nr &&
 	       c0->tc_reg_size == c1->tc_reg_size;
 }
+
+M0_INTERNAL void m0_be_tx_credit_max(struct m0_be_tx_credit       *c,
+				     const struct m0_be_tx_credit *c0,
+				     const struct m0_be_tx_credit *c1)
+{
+	*c = M0_BE_TX_CREDIT(max_check(c0->tc_reg_nr,   c1->tc_reg_nr),
+			     max_check(c0->tc_reg_size, c1->tc_reg_size));
+}
+
+M0_INTERNAL void m0_be_tx_credit_add_max(struct m0_be_tx_credit       *c,
+					 const struct m0_be_tx_credit *c0,
+					 const struct m0_be_tx_credit *c1)
+{
+	struct m0_be_tx_credit cred;
+
+	m0_be_tx_credit_max(&cred, c0, c1);
+	m0_be_tx_credit_add(c, &cred);
+}
+
 /** @} end of be group */
 
 /*
