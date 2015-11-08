@@ -2,6 +2,7 @@ ut_libmero_ut_la_SOURCES += be/ut/alloc.c           \
                             be/ut/btree.c           \
                             be/ut/domain.c          \
                             be/ut/extmap.c          \
+                            be/ut/fl.c              \
 			    be/ut/fmt.c		    \
                             be/ut/helper.c          \
                             be/ut/helper.h          \

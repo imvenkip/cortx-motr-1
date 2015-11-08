@@ -115,6 +115,8 @@ extern void m0_be_ut_tx_bulk_medium_tx(void);
 extern void m0_be_ut_tx_bulk_medium_cred(void);
 extern void m0_be_ut_tx_bulk_large_cred(void);
 
+extern void m0_be_ut_fl(void);
+
 extern void m0_be_ut_alloc_init_fini(void);
 extern void m0_be_ut_alloc_create_destroy(void);
 extern void m0_be_ut_alloc_multiple(void);
@@ -206,6 +208,7 @@ struct m0_ut_suite be_ut = {
 		{ "tx_bulk-medium_tx",       m0_be_ut_tx_bulk_medium_tx       },
 		{ "tx_bulk-medium_cred",     m0_be_ut_tx_bulk_medium_cred     },
 		{ "tx_bulk-large_cred",      m0_be_ut_tx_bulk_large_cred      },
+		{ "fl",                      m0_be_ut_fl                      },
 		{ "alloc-init",              m0_be_ut_alloc_init_fini         },
 		{ "alloc-create",            m0_be_ut_alloc_create_destroy    },
 		{ "alloc-multiple",          m0_be_ut_alloc_multiple          },

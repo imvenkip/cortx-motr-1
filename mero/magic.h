@@ -93,7 +93,7 @@ enum m0_magic_satchel {
 	/* be_alloc_chunk::bac_magic (official feis) */
 	M0_BE_ALLOC_ALL_LINK_MAGIC = 0x0ff1c1a1fe15,
 
-	/* m0_be_allocator_header::bah_free (cascadia aloe) */
+	/* m0_be_fl::bfl_free[index]::bfs_list (cascadia aloe) */
 	M0_BE_ALLOC_FREE_MAGIC = 0xca5cad1aa10e,
 
 	/* be_alloc_chunk::bac_magic_free (edifice faded) */

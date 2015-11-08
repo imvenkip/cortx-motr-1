@@ -8,6 +8,7 @@ nobase_mero_include_HEADERS += \
 			       be/engine.h          \
                                be/extmap.h          \
                                be/extmap_internal.h \
+                               be/fl.h              \
 			       be/fmt.h		    \
                                be/io.h              \
                                be/io_sched.h        \
@@ -43,6 +44,7 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/engine.c          \
 			   be/extmap.c          \
 			   be/extmap_xc.c       \
+                           be/fl.c              \
 			   be/fmt.c		\
 			   be/fmt_xc.c		\
 			   be/io.c              \
