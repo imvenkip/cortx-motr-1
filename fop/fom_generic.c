@@ -331,7 +331,7 @@ static int fom_failure(struct m0_fom *fom)
 }
 
 /**
- * Fom execution is successfull.
+ * Fom execution is successful.
  */
 static int fom_success(struct m0_fom *fom)
 {
@@ -401,7 +401,7 @@ M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom)
  * @pre fom->fo_rep_fop != NULL
  *
  * @todo Implement write back cache, during which we may
- *	perform updations on local objects and re integrate
+ *	perform updates on local objects and re-integrate
  *	with the server later, in that case we may block while,
 	we caching fop, this requires more additions to the routine.
  */
@@ -438,7 +438,7 @@ static int fom_timeout(struct m0_fom *fom)
  * Fom phase operations table, this defines a fom_phase_desc object
  * for every generic phase of the fom, containing a function pointer
  * to the phase handler, the next phase fom should transition into
- * and a phase name in user visible format inorder to log addb event.
+ * and a phase name in user visible format in order to log addb event.
  *
  * @see struct fom_phase_desc
  */
