@@ -18,8 +18,8 @@
 #
 
 CONFD_NODE="172.16.1.1"
-SERVER_LIST="$(echo 172.16.{1,2}.{1..7})"
-CLIENT_LIST="$(echo 10.22.192.{51,52,{59..64},68,69,70})"
+SERVER_LIST="$(echo 172.16.1.{1..6} 172.16.2.{1..7})"
+CLIENT_LIST="$(echo 10.22.192.{51,52,{59..64},68,69})"
 TEST_TYPE="write"
 NUMBER_OF_CLIENTS=$(echo $CLIENT_LIST | wc -w)
 FILE_LID=13
@@ -27,7 +27,7 @@ TEST_DURATION="10m"
 FILE_PREFIX="0:1000"
 FILE_DIR=/mnt/m0t1fs
 IO_BLOCK_SIZE="128M"
-MAX_IO_SIZE_PER_CLIENT="10G"
+MAX_FILE_SIZE="10G"
 THREADS_PER_CLIENT=10
 
 COMMAND=
@@ -83,34 +83,47 @@ function fio_script()
 	cat << EOF
 # tested with patched fio-2.2.10
 [global]
-name="Concurrent write test"
+name="Concurrent $TEST_TYPE test"
 directory=$FILE_DIR
 fallocate=none
 fadvise_hint=0
-size=$MAX_IO_SIZE_PER_CLIENT
+size=$MAX_FILE_SIZE
 blocksize=$IO_BLOCK_SIZE
 blockalign=$IO_BLOCK_SIZE
 direct=1
-overwrite=1
 end_fsync=0
 fsync_on_close=0
 invalidate=0
 allow_file_create=0
 create_on_open=0
-file_append=1
 clat_percentiles=1
 verify=crc32c-intel
-
-[write]
-runtime=$TEST_DURATION
-readwrite=$TEST_TYPE
 numjobs=$THREADS_PER_CLIENT
 thread
-group_reporting
 ioengine=sync
 filename_format=$FILE_PREFIX$client_index0\$jobnum
-wait_for_previous
+
 EOF
+
+	if [ "x$TEST_TYPE" = "xwrite" ]; then
+		cat << EOF
+[write]
+runtime=$TEST_DURATION
+readwrite=write
+file_append=1
+do_verify=0
+group_reporting
+EOF
+	fi
+
+	if [ "x$TEST_TYPE" = "xread" ]; then
+		cat << EOF
+[read]
+runtime=$TEST_DURATION
+readwrite=read
+group_reporting
+EOF
+	fi
 }
 
 function help()
@@ -131,8 +144,8 @@ Commands:
 Helper commands:
 -i path_to_rpm   install rpm on clients and servers
 -g               print genders file
--f               print fio script for the first client
--v               verbose mode (set -eux)
+-f client_name   print fio script
+-v               verbose mode
 To speed up mkfs process:
 -s  save /var/mero
 -r  restore /var/mero
@@ -141,11 +154,11 @@ What is hardcoded:
 - list of servers           $SERVER_LIST
 - list of clients           $CLIENT_LIST
 - confd node                $CONFD_NODE
-- test type                 $TEST_TYPE
 - fio binary                $FIO_BINARY
 - genders file
 
 What is configurable:
+-t  test type               $TEST_TYPE
 -C  number of clients       $NUMBER_OF_CLIENTS
 -L  file lid                $FILE_LID
     unit size for file      ${LID_TO_UNIT_MAP[$FILE_LID]}
@@ -153,7 +166,7 @@ What is configurable:
 -P  file prefix             $FILE_PREFIX
 -D  file dir                $FILE_DIR
 -B  io block size           $IO_BLOCK_SIZE
--S  max io size per client  $MAX_IO_SIZE_PER_CLIENT
+-S  max file size to write  $MAX_FILE_SIZE
 -R  io threads per client   $THREADS_PER_CLIENT
 EOF
 }
@@ -164,9 +177,7 @@ function run_test()
 # time rm $FILES
 # time touch $FILES
 # time setfattr -n lid -v 13 $FILES
-	for node in $CLIENT_LIST; do
-		ssh -n $node $FIO_BINARY --server &
-	done
+	on_each_client "$FIO_BINARY --server --daemonize=/tmp/fio.pid"
 	# Do toucn and setfattr. It can be removed after
 	# default lid can be used.
 	client_index=0
@@ -181,10 +192,12 @@ function run_test()
 			break
 		fi
 	done
-	echo "`date` Creating files on $node..."
-	ssh -n $node "touch $files"
-	ssh -n $node "setfattr -n lid -v $FILE_LID $files"
-	echo "`date` Done."
+	if [ "x$TEST_TYPE" = "xwrite" ]; then
+		echo "`date` Creating files on $node..."
+		ssh -n $node "touch $files"
+		ssh -n $node "setfattr -n lid -v $FILE_LID $files"
+		echo "`date` Done."
+	fi
 	i=0
 	FIO_PARAMS=""
 	for node in $CLIENT_LIST; do
@@ -197,9 +210,7 @@ function run_test()
 		fi
 	done
 	$FIO_BINARY --eta-newline=5 --status-interval=30 $FIO_PARAMS
-	for node in $CLIENT_LIST; do
-		ssh -n $node pkill -x fio &
-	done
+	on_each_client pkill -x fio
 	wait
 }
 
@@ -254,7 +265,7 @@ function main()
 	if [ $# -eq 0 ]; then
 		help
 	fi
-	while getopts "h?c:i:gfvC:L:T:P:D:B:S:R:" opt; do
+	while getopts "h?c:i:gfvt:C:L:T:P:D:B:S:R:" opt; do
 		case "$opt" in
 		h|\?)
 			help
@@ -277,6 +288,9 @@ function main()
 		v)
 			set -eux
 			;;
+		t)
+			TEST_TYPE=$OPTARG
+			;;
 		C)
 			NUMBER_OF_CLIENTS=$OPTARG
 			;;
@@ -296,7 +310,7 @@ function main()
 			IO_BLOCK_SIZE=$OPTARG
 			;;
 		S)
-			MAX_IO_SIZE_PER_CLIENT=$OPTARG
+			MAX_FILE_SIZE=$OPTARG
 			;;
 		R)
 			THREADS_PER_CLIENT=$OPTARG
