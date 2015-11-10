@@ -570,23 +570,13 @@ static const struct file_operations trc_records_fops = {
 
 /******************************* buffer **************************************/
 
-static bool trc_buffer_is_opened = false;
-static const struct m0_trace_rec_header *trc_buffer_last_trh;
-
 static int trc_buffer_open(struct inode *i, struct file *f)
 {
-	if (trc_buffer_is_opened)
-		return -EBUSY;
-
-	trc_buffer_is_opened = true;
-	trc_buffer_last_trh = NULL;
-
 	return 0;
 }
 
 static int trc_buffer_release(struct inode *i, struct file *f)
 {
-	trc_buffer_is_opened = false;
 	return 0;
 }
 

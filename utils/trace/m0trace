@@ -208,6 +208,7 @@ my %cli_option = (
     output_file  => '-', # STDOUT by default
     stream_mode  => 1,
     use_pager    => 1,
+    flush_output => 0,
     log_dir      => '/var/log/mero',
     mero_dir     => '/var/mero',
     color        => 'auto',
@@ -239,6 +240,8 @@ my %level = (
 );
 
 my $kernel_trace_records_file = '/sys/kernel/debug/mero/trace/records';
+my $kernel_trace_buffer_file  = '/sys/kernel/debug/mero/trace/buffer';
+my $kernel_module_core_file   = '/sys/kernel/debug/mero/core';
 
 sub validate_trace_record
 {
@@ -804,8 +807,18 @@ sub process_cli_options
                 $file_pattern = "trace-m0mero~*.bin";
             }
             when ('kernel-buf') {
-                $cli_option{input_file} = $kernel_trace_records_file;
-                $cli_option{use_pager}  = 0;
+                $cli_option{input_file}   = $kernel_trace_records_file;
+                $cli_option{use_pager}    = 0;
+                $cli_option{flush_output} = 1;
+                return;
+            }
+            when ('kernel-buf-dump') {
+                my $module_img = create_tempfile_for('m0mero.ko', '.img');
+                copy($kernel_module_core_file, $module_img);
+
+                $cli_option{module_image} = $module_img;
+                $cli_option{input_file}   = $kernel_trace_buffer_file;
+
                 return;
             }
             when (/^(?:confd|ha|(?:mds|ios)\d*)$/)   {
@@ -870,6 +883,10 @@ sub main
     }
     else {
         open $output_fh, ">$cli_option{output_file}";
+    }
+
+    if ($cli_option{flush_output}) {
+        $output_fh->autoflush(1);
     }
 
     if ($cli_option{yaml_output}
