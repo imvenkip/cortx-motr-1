@@ -848,21 +848,19 @@ sub main
 
     my @trace_records;
 
-    if ( !$cli_option{dump_header} ) {
-        if ( $cli_option{stream_mode} ) {
-            tie @trace_records, 'Tie::Array::Lazy::YAMLstream', $input_file;
-        }
-        else {
-            my $yaml_data = YAML::XS::LoadFile( $input_file );
+    if ( $cli_option{stream_mode} ) {
+        tie @trace_records, 'Tie::Array::Lazy::YAMLstream', $input_file;
+    }
+    elsif ( !$cli_option{dump_header} ) {
+        my $yaml_data = YAML::XS::LoadFile( $input_file );
 
-            die "Incorrect format of input data: root entry 'trace_records' not found\n"
-                if !exists $yaml_data->{trace_records};
+        die "Incorrect format of input data: root entry 'trace_records' not found\n"
+            if !exists $yaml_data->{trace_records};
 
-            die "No trace records available\n"
-                if !defined $yaml_data->{trace_records};
+        die "No trace records available\n"
+            if !defined $yaml_data->{trace_records};
 
-            @trace_records = @{ $yaml_data->{trace_records} }
-        }
+        @trace_records = @{ $yaml_data->{trace_records} }
     }
 
     my $output_fh;
@@ -874,10 +872,15 @@ sub main
         open $output_fh, ">$cli_option{output_file}";
     }
 
-    if ($cli_option{dump_header} or $cli_option{yaml_output}) {
+    if ($cli_option{yaml_output}
+        or $cli_option{dump_header} and !$cli_option{stream_mode})
+    {
         open my $input_fh, "$input_file";
         copy($input_fh, $output_fh);
         close $input_fh;
+    }
+    elsif ($cli_option{dump_header}) {
+        print {$output_fh} YAML::XS::Dump( $trace_records[0]->{header} );
     }
     else {
         for my $tr (@trace_records) {

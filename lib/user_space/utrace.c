@@ -243,16 +243,18 @@ static void print_trace_buf_header(FILE *ofile,
 	size_t     time_str_len;
 	time_t     time;
 
-	fprintf(ofile, "header_size:        %u  # bytes\n", tbh->tbh_header_size);
-	fprintf(ofile, "buffer_size:        %u  # bytes\n", tbh->tbh_buf_size);
-	fprintf(ofile, "buffer_type:        %s\n",
+	fprintf(ofile, "header:\n");
+
+	fprintf(ofile, "  header_size:        %u  # bytes\n", tbh->tbh_header_size);
+	fprintf(ofile, "  buffer_size:        %u  # bytes\n", tbh->tbh_buf_size);
+	fprintf(ofile, "  buffer_type:        %s\n",
 		tbh->tbh_buf_type == M0_TRACE_BUF_KERNEL ? "KERNEL" :
 		tbh->tbh_buf_type == M0_TRACE_BUF_USER   ? "USER"   :
 							   "UNKNOWN"
 	);
-	fprintf(ofile, "mero_version:       %s\n", tbh->tbh_mero_version);
-	fprintf(ofile, "mero_git_describe:  %s\n", tbh->tbh_mero_git_describe);
-	fprintf(ofile, "mero_kernel:        %s\n", tbh->tbh_mero_kernel_ver);
+	fprintf(ofile, "  mero_version:       %s\n", tbh->tbh_mero_version);
+	fprintf(ofile, "  mero_git_describe:  %s\n", tbh->tbh_mero_git_describe);
+	fprintf(ofile, "  mero_kernel:        %s\n", tbh->tbh_mero_kernel_ver);
 
 	rc = putenv("TZ=UTC0");
 	if (rc != 0)
@@ -264,11 +266,11 @@ static void print_trace_buf_header(FILE *ofile,
 		time_str_len = strftime(time_str, sizeof time_str,
 					"%b %e %H:%M:%S %Z %Y", &tm);
 		if (time_str_len == 0)
-			fprintf(stderr, "failed to format trace file timestamp\n");
-		fprintf(ofile, "trace_time:         '%s'\n", time_str);
+			fprintf(stderr, "  failed to format trace file timestamp\n");
+		fprintf(ofile, "  trace_time:         '%s'\n", time_str);
 	} else {
 		fprintf(stderr, "incorrect timestamp value in trace header\n");
-		fprintf(ofile, "trace_time:         ''\n");
+		fprintf(ofile, "  trace_time:         ''\n");
 	}
 }
 
