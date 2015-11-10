@@ -85,6 +85,7 @@ Requires:       perl-YAML-LibYAML
 Requires:       perl-DateTime
 Requires:       perl-File-Which
 Requires:       perl-List-MoreUtils
+Requires:       perl-autodie
 
 %description
 Mero filesystem runtime environment and servers.
