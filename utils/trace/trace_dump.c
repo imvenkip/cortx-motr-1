@@ -43,13 +43,13 @@ int main(int argc, char *argv[])
 	static struct m0 instance;
 
 	const char  std_inout_file_name[] = "-";
-	const char *input_file_name = std_inout_file_name;
-	const char *output_file_name = std_inout_file_name;
-	const char *m0mero_ko_path = DEFAULT_M0MERO_KO_IMG_PATH;
+	const char *input_file_name       = std_inout_file_name;
+	const char *output_file_name      = std_inout_file_name;
+	const char *m0mero_ko_path        = DEFAULT_M0MERO_KO_IMG_PATH;
 	FILE       *input_file;
 	FILE       *output_file;
-	bool        stream_mode = false;
-	bool        dump_header_only = false;
+	bool        stream_mode           = true;
+	bool        dump_header_only      = false;
 	int         rc;
 
 	/* prevent creation of trace file for ourselves */
@@ -80,11 +80,19 @@ int main(int argc, char *argv[])
 			output_file_name = m0_strdup(str);
 		})
 	  ),
-	  M0_FLAGARG('s',
+	  M0_VOIDARG('s',
 		  "stream mode, each trace record is formatted as a"
 		  " separate YAML document, so they can be fetched from"
-		  " YAML stream one by one",
-		  &stream_mode
+		  " YAML stream one by one (this option has no effect as it's"
+		  " 'on' by default, it has been kept for backward"
+		  " compatibility, it's superseded by '-S' option)",
+		  LAMBDA(void, (void) { })
+	  ),
+	  M0_VOIDARG('S',
+		  "disable stream mode (discards action of '-s' option)",
+		  LAMBDA(void, (void) {
+			  stream_mode = false;
+		  })
 	  ),
 	  M0_FLAGARG('H',
 		  "dump only trace header information",

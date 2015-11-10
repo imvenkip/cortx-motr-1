@@ -728,7 +728,7 @@ sub prepare_input_file
         else {
             my $temp_file = create_tempfile_for( $cli_option{input_file} );
 
-            system "$m0tracedump $img_opt -i $cli_option{input_file} -o $temp_file";
+            system "$m0tracedump -S $img_opt -i $cli_option{input_file} -o $temp_file";
             $input_file = $temp_file;
         }
     }
