@@ -189,6 +189,7 @@ use IO::Handle;
 use Term::ANSIColor;
 use File::Temp qw( tempfile );
 use File::Spec;
+use File::Copy;
 
 # external modules (not included into base perl distribution)
 use YAML::XS;
@@ -757,6 +758,7 @@ sub process_cli_options
         'i|input=s'        =>  \$cli_option{input_file},
         'o|output=s'       =>  \$cli_option{output_file},
         'S|stream-mode!'   =>  \$cli_option{stream_mode},
+        'Y|yaml-output'    =>  \$cli_option{yaml_output},
         'pager!'           =>  \$cli_option{use_pager},
         'color=s'          =>  \$cli_option{color},
         'c'                =>  sub { $cli_option{color} = 'always' },
@@ -863,19 +865,19 @@ sub main
         }
     }
 
-    my $output_file;
+    my $output_fh;
 
-    if ($cli_option{output_file} eq '-' and $cli_option{use_pager})
-    {
-        open $output_file, "| less -RSM";
+    if ($cli_option{output_file} eq '-' and $cli_option{use_pager}) {
+        open $output_fh, "| less -RSM";
     }
     else {
-        open $output_file, ">$cli_option{output_file}";
+        open $output_fh, ">$cli_option{output_file}";
     }
 
-    if ($cli_option{dump_header}) {
-        open my $header, "$input_file";
-        print {$output_file} "$_" while (<$header>);
+    if ($cli_option{dump_header} or $cli_option{yaml_output}) {
+        open my $input_fh, "$input_file";
+        copy($input_fh, $output_fh);
+        close $input_fh;
     }
     else {
         for my $tr (@trace_records) {
@@ -884,16 +886,15 @@ sub main
                  and match_func($tr) and match_msg($tr))
                 or (!defined($cli_option{match_only}) and is_error_level($tr, 'warn+')))
             {
-                print_trace_record($output_file, $tr);
+                print_trace_record($output_fh, $tr);
             }
         }
     }
 
-    close $output_file;
+    close $output_fh;
 
     return;
 }
-
 
 main();
 
@@ -907,11 +908,11 @@ m0trace - display Mero trace logs in human friendly form
 =head1 SYNOPSIS
 
 m0trace  [kernel|confd|iosX|mdsX]  [-i|--input <ifile>] [-o|--output <ofile>]
-[-S|--stream-mode] [--no-pager] [--no-relpath] [-w|--column-width <num>]
-[-c|-C|--color=MODE] [-d] [-k|--kdump] [-I|--module-image=<FILE>]
-[-L|--log-dir=DIR] [-H|--dump-header] [-F|--follow] [-M|--match-only]
-[-f|--format=FMT] [-l|--level=LVL] [-s|--subsys=SBS] [-e|--file=FL]
-[-u|--func=FUN] [-m|--msg=MSG] [-h|--help] [--usage] [--man]
+[-S|--stream-mode] [-Y|--yaml-output] [--no-pager] [--no-relpath]
+[-w|--column-width <num>] [-c|-C|--color=MODE] [-d] [-k|--kdump]
+[-I|--module-image=<FILE>] [-L|--log-dir=DIR] [-H|--dump-header] [-F|--follow]
+[-M|--match-only] [-f|--format=FMT] [-l|--level=LVL] [-s|--subsys=SBS]
+[-e|--file=FL] [-u|--func=FUN] [-m|--msg=MSG] [-h|--help] [--usage] [--man]
 
 =head1 DESCRIPTION
 
@@ -961,6 +962,11 @@ from STDIN and not from file.
 
 This option implies that YAML trace log was produces by B<m0tracedump> with
 B<-s> option.
+
+=item B<-Y|--yaml-output>
+
+Don't perform any parsing of input stream, simply redirect it into output. As
+input is always in YAML format, this produces a raw YAML output as well.
 
 =item B<--no-pager>
 
