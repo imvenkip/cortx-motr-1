@@ -25,14 +25,19 @@ SUDO='sudo -E'
 die() { echo "$@" >&2; exit 1; }
 
 _make() {
-    local OUT=`mktemp`
     local TARGET=${1:-}
 
-    trap "rm $OUT" 0
-    make ${MAKE_OPTS:-} $TARGET 2>&1 | tee $OUT
-    [ ${PIPESTATUS[0]} -eq 0 ] || exit ${PIPESTATUS[0]}
-    if grep 'WARNING' $OUT; then
-        die 'WARNING in make output is treated as error'
+    if [ "${TARGET:-}" = rpms ]; then
+        ## Tolerate warnings. rpms get built in spite of them.
+        make ${MAKE_OPTS:-} $TARGET || exit $?
+    else
+        local OUT=`mktemp`
+        trap "rm $OUT" 0
+        make ${MAKE_OPTS:-} $TARGET 2>&1 | tee $OUT
+        [ ${PIPESTATUS[0]} -eq 0 ] || exit ${PIPESTATUS[0]}
+        if grep 'WARNING' $OUT; then
+            die 'WARNING in make output is treated as error'
+        fi
     fi
 }
 
