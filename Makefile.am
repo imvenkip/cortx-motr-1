@@ -602,8 +602,11 @@ endif
 # utils
 #
 
-sbin_SCRIPTS  += utils/m0gendisks utils/m0setup
-sbin_SCRIPTS  += utils/m0run
+sbin_SCRIPTS  += utils/m0gendisks \
+                 utils/m0setup \
+                 utils/m0reportbug \
+                 utils/m0run
+
 bin_SCRIPTS   += ut/m0kut
 
 #

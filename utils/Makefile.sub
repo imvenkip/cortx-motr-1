@@ -1,4 +1,5 @@
 EXTRA_DIST += utils/m0gendisks \
+              utils/m0reportbug \
               utils/m0run \
               utils/m0setup \
               utils/linux_kernel/m0ctl_main.c \
