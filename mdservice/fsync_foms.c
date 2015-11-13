@@ -33,7 +33,9 @@
 #include "rpc/rpc_opcodes.h"
 
 #include "fop/fom_generic.h"
+#include "be/domain.h" /* m0_be_domain */
 #include "be/engine.h" /* m0_be_engine__tx_find */
+#include "reqh/reqh.h" /* m0_reqh */
 
 static void fsync_fom_fini(struct m0_fom *fom);
 static int fsync_fom_tick(struct m0_fom *fom);
@@ -123,8 +125,11 @@ M0_INTERNAL struct m0_sm_conf m0_fsync_fom_conf = {
 static struct m0_be_tx *fsync_target_tx_get(struct m0_fom *fom,
 					    uint64_t       txid)
 {
+	struct m0_be_engine *en;
+
 	M0_PRE(fom != NULL);
-	return m0_be_engine__tx_find(m0_fom_tx(fom)->t_engine, txid);
+	en = &m0_fom_reqh(fom)->rh_beseg->bs_domain->bd_engine;
+	return m0_be_engine__tx_find(en, txid);
 }
 
 /**
