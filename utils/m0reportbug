@@ -3,13 +3,13 @@ set -eu
 # set -x
 # export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
-VERSION=0.5
+VERSION=0.5.1
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
-### 2015-11-15 0.5     Specify input directory via CLI argument.
+### 2015-11-15 0.5.1   Specify input directory via CLI argument.
 ### 2015-11-03 0.4     Delete old $OUT_DIR without asking user.
 ###                    Let the packed m0trace files have timestamps of original
 ###                    files.  Fix the issue of `find_exec' not working
@@ -41,6 +41,8 @@ main() {
 
     mkcd $OUT_DIR
     echo m0reportbug $VERSION >$OUTPUT
+    echo IN_DIR=$IN_DIR >>$OUTPUT
+
     for g in "${stages[@]}"; do
         echo -n "$g... " >&2
         $g
@@ -114,7 +116,7 @@ find_exec() {
     fi
 
     ## Try to guess the path from core dumps.
-    sudo find /var/mero -type f -name core.\* | while read s; do
+    sudo find "$IN_DIR" -type f -name core.\* | while read s; do
         s=$(program_from_core $s | sed -n "s:/\.libs/lt-$name:/$name:p")
         if [ -n "$s" ]; then
             echo $s
@@ -186,7 +188,7 @@ backtraces_cores() {
     local core
 
     trap "rm -f $tmp" 0
-    sudo find /var/mero -type f -name core.\* | while read core; do
+    sudo find "$IN_DIR" -type f -name core.\* | while read core; do
         local mb=$(sudo du -BM $core | cut -dM -f1)
         echo $((mb <= $MAX_CORE_SIZE)) $core  # <include?> <path>
     done >$tmp
@@ -205,7 +207,7 @@ backtraces_cores() {
              "($(sudo du -h $core | cut -f1))"
     done
     if grep -q '^1 ' $tmp; then
-        (cd /var/mero
+        (cd "$IN_DIR"
          grep '^1 ' $tmp | cut -d' ' -f2 | cut -d/ -f4- |
              sudo tar -T - -czf - || true) >$out
         sha1sum $out
@@ -220,7 +222,7 @@ m0traces() {
     section $out
     if [ -n "$m0tracedump" ]; then
         (out=$(readlink -f .)/$out
-         cd /var/mero
+         cd "$IN_DIR"
          sudo find . -type f -name m0trace.\* | cut -c3- | while read path; do
              [ -d $out/$(dirname $path) ] || mkdir -p $out/$(dirname $path)
              ##
@@ -234,7 +236,7 @@ m0traces() {
          done)
     else
         warn 'm0tracedump executable not found'
-        (cd /var/mero
+        (cd "$IN_DIR"
          sudo find . -type f -name m0trace.\* | sudo tar -T - -czf - || true) \
             >$out.tar.gz
     fi
@@ -269,7 +271,7 @@ optparse() {
     if [ $# -gt 1 ]; then
         die 'Too many arguments'
     elif [ $# -eq 1 ]; then
-        IN_DIR="$1"
+        IN_DIR="$(readlink -f $1)"
     fi
     [ -d "$IN_DIR" ] || die "$IN_DIR: no such directory"
 }
