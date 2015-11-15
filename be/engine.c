@@ -604,6 +604,7 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 	case M0_BTS_PREPARE:
 		/* TODO don't assign id for recovering tx */
 		tx->t_id = be_engine_tx_id_allocate(en);
+		M0_LOG(M0_DEBUG, "tx=%p t_id=%"PRIu64, tx, tx->t_id);
 		break;
 	case M0_BTS_OPENING:
 		be_engine_got_tx_open(en, tx);
@@ -635,6 +636,8 @@ M0_INTERNAL void m0_be_engine__tx_force(struct m0_be_engine *en,
 {
 	struct m0_be_tx_group *grp;
 
+
+	M0_ENTRY("en=%p tx=%p", en, tx);
 
 	/*
 	 * Note: as multiple txs may try to move tx group's fom (for example,
@@ -755,6 +758,8 @@ M0_INTERNAL void m0_be_engine_got_log_space_cb(struct m0_be_log *log)
 	struct m0_be_engine *en =
 		container_of(log, struct m0_be_engine, eng_log);
 
+	M0_ENTRY("en=%p log=%p", en, log);
+
 	// be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
 
@@ -770,6 +775,8 @@ M0_INTERNAL void m0_be_engine_full_log_cb(struct m0_be_log *log)
 		container_of(log, struct m0_be_engine, eng_log);
 	struct m0_be_domain *dom = en->eng_domain;
 
+	M0_ENTRY("en=%p dom=%p log=%p", en, dom, log);
+
 	m0_be_log_discard_sync(&dom->bd_log_discard);
 }
 
@@ -778,6 +785,8 @@ M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
 {
 	struct m0_be_tx *tx = NULL;
 	size_t		 i;
+
+	M0_ENTRY("en=%p id=%"PRIu64, en, id);
 
 	be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
@@ -799,6 +808,8 @@ M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
 	if (tx != NULL)
 		m0_be_tx_get(tx);
 
+	M0_LEAVE("en=%p tx=%p state=%s", en, tx,
+		 tx == NULL ? "" : m0_be_tx_state_name(m0_be_tx_state(tx)));
 	return tx;
 }
 

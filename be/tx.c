@@ -254,33 +254,33 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx              *tx,
 			       const struct m0_be_tx_credit *credit)
 {
-	M0_ENTRY();
+	M0_ENTRY("tx=%p credit="BETXCR_F, tx, BETXCR_P(credit));
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
 
 	m0_be_tx_credit_add(&tx->t_prepared, credit);
 
 	M0_POST(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
-	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_be_tx_payload_prep(struct m0_be_tx *tx, m0_bcount_t size)
 {
-	M0_ENTRY();
+	M0_ENTRY("tx=%p size=%"PRIu64, tx, size);
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
 
 	tx->t_payload_prepared += size;
 
 	M0_POST(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
-	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 {
-	M0_ENTRY();
+	M0_ENTRY("tx=%p t_prepared="BETXCR_F" t_payload_prepared=%"PRIu64,
+		 tx, BETXCR_P(&tx->t_prepared), tx->t_payload_prepared);
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
 
 	if (m0_be_tx_credit_eq(&tx->t_prepared, &m0_be_tx_credit_invalid)) {
-		M0_LOG(M0_NOTICE, "tx = %p: tx credit is invalid", tx);
+		M0_LOG(M0_NOTICE, "tx=%p t_prepared="BETXCR_F,
+		       tx, BETXCR_P(&tx->t_prepared));
 		be_tx_state_move(tx, M0_BTS_FAILED, -EINVAL);
 	} else {
 		be_tx_state_move(tx, M0_BTS_OPENING, 0);
@@ -314,7 +314,7 @@ m0_be_tx_uncapture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
 
 M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
 {
-	M0_ENTRY();
+	M0_ENTRY("tx=%p", tx);
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
 
 	be_tx_state_move(tx, M0_BTS_CLOSED, 0);
@@ -324,7 +324,8 @@ M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
 
 M0_INTERNAL void m0_be_tx_get(struct m0_be_tx *tx)
 {
-	M0_ENTRY();
+	M0_ENTRY("tx=%p t_ref=%"PRIu32" state=%s",
+		 tx, tx->t_ref, m0_be_tx_state_name(m0_be_tx_state(tx)));
 	M0_PRE(be_tx_is_locked(tx));
 	M0_PRE(!M0_IN(m0_be_tx_state(tx), (M0_BTS_FAILED, M0_BTS_DONE)));
 
@@ -333,7 +334,8 @@ M0_INTERNAL void m0_be_tx_get(struct m0_be_tx *tx)
 
 M0_INTERNAL void m0_be_tx_put(struct m0_be_tx *tx)
 {
-	M0_ENTRY();
+	M0_ENTRY("tx=%p t_ref=%"PRIu32" state=%s",
+		 tx, tx->t_ref, m0_be_tx_state_name(m0_be_tx_state(tx)));
 	M0_PRE(be_tx_is_locked(tx));
 
 	M0_CNT_DEC(tx->t_ref);
@@ -345,7 +347,8 @@ M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx,
 				   uint64_t         states,
 				   m0_time_t        deadline)
 {
-	M0_ENTRY();
+	M0_ENTRY("tx=%p state=%s states=%"PRIu64" deadline=%"PRIu64,
+		 tx, m0_be_tx_state_name(m0_be_tx_state(tx)), states, deadline);
 	M0_PRE(be_tx_is_locked(tx));
 	M0_PRE(ergo(tx->t_gc_enabled,
 		    M0_IN(m0_be_tx_state(tx), (M0_BTS_PREPARE, M0_BTS_OPENING,
@@ -369,8 +372,8 @@ static void be_tx_state_move_ast(struct m0_be_tx *tx, enum m0_be_tx_state state)
 {
 	enum m0_be_tx_state tx_state = m0_be_tx_state(tx);
 
-	M0_LOG(M0_DEBUG, "ast: tx = %p, %s -> %s",
-	       tx, m0_be_tx_state_name(tx_state), m0_be_tx_state_name(state));
+	M0_ENTRY("tx=%p %s -> %s",
+	         tx, m0_be_tx_state_name(tx_state), m0_be_tx_state_name(state));
 
 	if (tx_state < M0_BTS_CLOSED || state == tx_state + 1) {
 		/*
@@ -413,6 +416,8 @@ static void be_tx_gc(struct m0_be_tx *tx)
 	void (*gc_free)(struct m0_be_tx *, void *param);
 	void  *gc_param;
 
+	M0_ENTRY("tx=%p t_gc_free=%p t_gc_param=%p",
+		 tx, tx->t_gc_free, tx->t_gc_param);
 	gc_free  = tx->t_gc_free;
 	gc_param = tx->t_gc_param;
 	m0_be_tx_fini(tx);
@@ -428,9 +433,9 @@ static void be_tx_state_move(struct m0_be_tx     *tx,
 {
 	bool tx_is_freed = false;
 
-	M0_ENTRY("tx %p: %s --> %s, rc = %d", tx,
+	M0_ENTRY("tx=%p rc=%d %s -> %s", tx, rc,
 		 m0_be_tx_state_name(m0_be_tx_state(tx)),
-		 m0_be_tx_state_name(state), rc);
+		 m0_be_tx_state_name(state));
 
 	M0_PRE(m0_be_tx__invariant(tx));
 	M0_PRE(be_tx_is_locked(tx));
@@ -444,11 +449,6 @@ static void be_tx_state_move(struct m0_be_tx     *tx,
 		if (rc != 0)
 			state = M0_BTS_FAILED;
 	}
-
-	if (rc != 0)
-		M0_LOG(M0_INFO, "%s -> %s: transaction failure: rc = %d",
-		       m0_be_tx_state_name(m0_be_tx_state(tx)),
-		       m0_be_tx_state_name(state), rc);
 
 	if (state == M0_BTS_LOGGED && tx->t_persistent != NULL)
 		tx->t_persistent(tx);
@@ -496,8 +496,7 @@ M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx     *tx,
 	 */
 	M0_PRE(M0_IN(state, (M0_BTS_GROUPING, M0_BTS_ACTIVE, M0_BTS_FAILED,
 			     M0_BTS_LOGGED, M0_BTS_PLACED, M0_BTS_DONE)));
-	M0_LOG(M0_DEBUG, "tx = %p, state = %s",
-	       tx, m0_be_tx_state_name(state));
+	M0_LOG(M0_DEBUG, "tx=%p state=%s", tx, m0_be_tx_state_name(state));
 
 	m0_sm_ast_post(tx->t_sm.sm_grp, be_tx_ast(tx, state));
 }
@@ -530,8 +529,8 @@ M0_INTERNAL int m0_be_tx_open_sync(struct m0_be_tx *tx)
 	state = m0_be_tx_state(tx);
 	M0_ASSERT_INFO(equi(rc == 0, state == M0_BTS_ACTIVE) &&
 		       equi(rc != 0, state == M0_BTS_FAILED),
-		       "rc = %d, tx = %p, m0_be_tx_state(tx) = %s",
-		       rc, tx, m0_be_tx_state_name(state));
+		       "tx=%p rc=%d state=%s",
+		       tx, rc, m0_be_tx_state_name(state));
 	return M0_RC(rc);
 }
 
@@ -589,6 +588,8 @@ M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx)
 {
 	M0_PRE(be_tx_is_locked(tx));
 	M0_PRE(m0_be_tx_state(tx) >= M0_BTS_CLOSED);
+
+	M0_ENTRY("tx=%p", tx);
 
 	/* let be engine do the dirty part */
 	m0_be_engine__tx_force(tx->t_engine, tx);
@@ -658,6 +659,8 @@ M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
 							      void *param),
 				    void            *param)
 {
+	M0_ENTRY("tx=%p gc_free=%p param=%p", tx, gc_free, param);
+
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE, M0_BTS_OPENING,
 					  M0_BTS_ACTIVE)));
 
