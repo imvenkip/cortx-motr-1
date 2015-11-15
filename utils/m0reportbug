@@ -3,13 +3,14 @@ set -eu
 # set -x
 # export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
-VERSION='0.4'
+VERSION=0.5
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
-### 2015-11-03 0.4     Delete old $DATA_DIR without asking user.
+### 2015-11-15 0.5     Specify input directory via CLI argument.
+### 2015-11-03 0.4     Delete old $OUT_DIR without asking user.
 ###                    Let the packed m0trace files have timestamps of original
 ###                    files.  Fix the issue of `find_exec' not working
 ###                    properly with relative paths.
@@ -22,8 +23,9 @@ VERSION='0.4'
 ###                    lt-m0* processes, core dumps), m0traces.
 ###
 
-DATA_DIR=m0reportbug-data
-OUTPUT=m0reportbug.txt # the file is created in $DATA_DIR/
+IN_DIR=/var/mero # default value; overruled by CLI argument
+OUT_DIR=m0reportbug-data
+OUTPUT=m0reportbug.txt # the file is created in $OUT_DIR/
 MAX_CORE_SIZE=512 # MB
 
 main() {
@@ -35,14 +37,16 @@ main() {
         m0traces
     )
 
-    mkcd $DATA_DIR
+    optparse "$@"
+
+    mkcd $OUT_DIR
     echo m0reportbug $VERSION >$OUTPUT
     for g in "${stages[@]}"; do
         echo -n "$g... " >&2
         $g
         echo 'OK' >&2
     done >>$OUTPUT
-    echo "Please attach $DATA_DIR/* files to a bug report." >&2
+    echo "Please attach $OUT_DIR/* files to a bug report." >&2
 }
 
 probes() {
@@ -95,7 +99,7 @@ program_from_core() { sudo file $1 | cut -d\' -f2 | cut -d' ' -f1; }
 program_from_pid() { ps h -o args $1 | cut -d' ' -f1; }
 
 ### Since $0 may be a relative path (e.g., 'utils/m0reportbug'),
-### we might not be able to canonicalize it after cd-ing to $DATA_DIR.
+### we might not be able to canonicalize it after cd-ing to $OUT_DIR.
 PROG=$(readlink -f $0)
 
 find_exec() {
@@ -239,4 +243,35 @@ m0traces() {
     fi
 }
 
-main
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [OPTION] [INPUT_DIR]
+Gather forensic data, which can be used for investigating Mero issues,
+from INPUT_DIR and its subdirectories.
+
+    -h, --help   Show this help and exit.
+
+INPUT_DIR defaults to '$IN_DIR'.
+EOF
+}
+
+optparse() {
+    local TEMP=$(getopt -o h --long help -n "${0##*/}" -- "$@")
+    eval set -- "$TEMP"
+    while true; do
+        case "$1" in
+            -h|--help) usage; exit 0;;
+            --) shift; break;;
+            *) break;;
+        esac
+    done
+
+    if [ $# -gt 1 ]; then
+        die 'Too many arguments'
+    elif [ $# -eq 1 ]; then
+        IN_DIR="$1"
+    fi
+    [ -d "$IN_DIR" ] || die "$IN_DIR: no such directory"
+}
+
+main "$@"
