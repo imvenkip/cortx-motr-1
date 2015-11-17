@@ -138,8 +138,11 @@ main()
 		rc=1
 	}
 
-	echo "Test log available at $MERO_TEST_LOGFILE."
-	[ $rc -ne 0 ] || sandbox_fini
+	if [ $rc -eq 0 ]; then
+		sandbox_fini
+	else
+		echo "Test log available at $MERO_TEST_LOGFILE."
+	fi
 	return $rc
 }
 

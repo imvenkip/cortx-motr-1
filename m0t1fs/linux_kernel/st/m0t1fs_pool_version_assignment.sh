@@ -252,8 +252,11 @@ main()
 	m0t1fs_pool_version_assignment 2>&1 | tee -a $MERO_TEST_LOGFILE
 	rc=$?
 
-	echo "Test log available at $MERO_TEST_LOGFILE."
-	[ $rc -ne 0 ] || sandbox_fini
+	if [ $rc -eq 0 ]; then
+		sandbox_fini
+	else
+		echo "Test log available at $MERO_TEST_LOGFILE."
+	fi
 	return $rc
 }
 
