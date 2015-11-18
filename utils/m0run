@@ -69,8 +69,12 @@ Usage: $PROG_NAME [options] <exec-file> [-- exec-options]
     -d[debugger], --debugger[=debugger]
 
                         Run <exec-file> under 'debugger'. If 'debugger' is
-                        omitted, gdb is used by default. Valid debuggers are
-                        'gdb' and 'valgrind'.
+                        omitted, gdb is used by default. Valid debuggers are:
+                        'gdb', 'cgdb', 'valgrind', 'valgrind-memcheck',
+                        'valgrind-cachegrind', 'valgrind-callgrind',
+                        'valgrind-helgrind', 'valgrind-drd', 'valgrind-massif',
+                        'valgrind-exp-sgcheck', 'valgrind-exp-dhat',
+                        'valgrind-exp-bbv'.
 
     -l|--trace-level    Trace level (for both m0mero.ko and libmero.so).
                         By default it's 'notice+'.
