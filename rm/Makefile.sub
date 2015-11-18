@@ -3,7 +3,8 @@ nobase_mero_include_HEADERS += rm/rm.h \
 			       rm/rm_foms.h \
 			       rm/rm_service.h \
 			       rm/rm_rwlock.h \
-			       rm/rm_ha.h
+			       rm/rm_ha.h \
+			       rm/rm_internal.h
 
 mero_libmero_la_SOURCES     += rm/rm_fops.c \
 			       rm/rm.c \
@@ -11,7 +12,6 @@ mero_libmero_la_SOURCES     += rm/rm_fops.c \
 			       rm/rm_fops_xc.c \
 			       rm/rm_service.c \
 			       rm/rm_rwlock.c \
-			       rm/rm_ha.c \
-			       rm/rm_internal.h
+			       rm/rm_ha.c
 
 XC_FILES                    += rm/rm_fops_xc.h
