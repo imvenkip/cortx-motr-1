@@ -2014,6 +2014,12 @@ static int cs_reqh_layouts_setup(struct m0_mero *cctx)
 	return M0_RC(rc);
 }
 
+volatile sig_atomic_t gotsignal;
+
+static int sigcheck(void) {
+	return gotsignal ? -EINTR : 0;
+}
+
 int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 {
 	int rc;
@@ -2022,17 +2028,36 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 		return M0_ERR(-EINVAL);
 
 	m0_rwlock_write_lock(&cctx->cc_rwlock);
-	rc = cs_args_parse(cctx, argc, argv) ?:
-	     cs_reqh_ctx_validate(cctx) ?:
-	     cs_daemonize(cctx) ?:
-	     cs_net_domains_init(cctx) ?:
-	     cs_buffer_pool_setup(cctx) ?:
-	     cs_reqh_start(&cctx->cc_reqh_ctx) ?:
-	     cs_rpc_machines_init(cctx) ?:
-	     cs_conf_setup(cctx) ?:
-	     cs_storage_setup(cctx);
+	rc = sigcheck() || cs_args_parse(cctx, argc, argv);
+	if (rc != 0)
+		goto out;
+	rc = sigcheck() || cs_reqh_ctx_validate(cctx);
+	if (rc != 0)
+		goto out;
+	rc = sigcheck() || cs_daemonize(cctx);
+	if (rc != 0)
+		goto out;
+	rc = sigcheck() || cs_net_domains_init(cctx);
+	if (rc != 0)
+		goto out;
+	rc = sigcheck() || cs_buffer_pool_setup(cctx);
+	if (rc != 0)
+		goto out;
+	rc = sigcheck() || cs_reqh_start(&cctx->cc_reqh_ctx);
+	if (rc != 0)
+		goto out;
+	rc = sigcheck() || cs_rpc_machines_init(cctx);
+	if (rc != 0)
+		goto out;
+	rc = sigcheck() || cs_conf_setup(cctx);
+	if (rc != 0)
+		goto out;
+	rc = sigcheck() || cs_storage_setup(cctx);
 
+out:
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
+	if (gotsignal)
+		rc = -EINTR;
 	return M0_RC(rc);
 }
 
@@ -2046,40 +2071,42 @@ int m0_cs_start(struct m0_mero *cctx)
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
 
-	rc = reqh_services_start(rctx);
+	rc = sigcheck() || reqh_services_start(rctx);
 	if (rc != 0)
 		return M0_ERR(rc);
 
 	if (cctx->cc_no_conf)
 		return M0_RC(0);
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
+	rc = sigcheck() || m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_pools_service_ctx_create(&cctx->cc_pools_common, fs);
+	rc = sigcheck() || m0_pools_service_ctx_create(&cctx->cc_pools_common, fs);
 	if (rc != 0)
 		goto error;
 
-	rc = m0_pool_versions_setup(&cctx->cc_pools_common, fs,
-				    NULL, NULL, NULL);
+	rc = sigcheck() || m0_pool_versions_setup(&cctx->cc_pools_common, fs,
+						NULL, NULL, NULL);
 	if (rc != 0)
 		goto error;
 
-	rc = m0_reqh_ha_setup(reqh);
+	rc = sigcheck() || m0_reqh_ha_setup(reqh);
         if (rc != 0)
 		goto error;
 
-        rc = m0_flset_build(&reqh->rh_failure_set,
-			    &reqh->rh_pools->pc_ha_ctx->sc_session, fs);
+        rc = sigcheck() || m0_flset_build(&reqh->rh_failure_set,
+					&reqh->rh_pools->pc_ha_ctx->sc_session, fs);
 	if (rc != 0)
-                return M0_ERR(rc);
+		goto error;
 
-	rc = cs_reqh_layouts_setup(cctx);
+	rc = sigcheck() || cs_reqh_layouts_setup(cctx);
         if (rc != 0)
-		return M0_ERR(rc);
+		goto error;
 
 	m0_confc_close(&fs->cf_obj);
+	if (rc == 0)
+		rc = sigcheck();
 	return M0_RC(rc);
 
 error:

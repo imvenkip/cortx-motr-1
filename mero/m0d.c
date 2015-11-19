@@ -65,7 +65,8 @@ enum result_status
 	M0_RESULT_STATUS_RESTART = 2,
 };
 
-static volatile sig_atomic_t gotsignal = M0_RESULT_STATUS_WORK;
+extern volatile sig_atomic_t gotsignal;
+static bool regsignal = false;
 
 /**
    Signal handler registered so that pause()
@@ -83,18 +84,29 @@ static void cs_term_sig_handler(int signum)
    Registers signal handler to catch SIGUSR1 signals to
    restart the Mero process.
  */
-static int cs_wait_for_termination(void)
+static int cs_register_signal(void)
 {
 	struct sigaction        term_act;
+	int rc;
 
+	regsignal = false;
+	gotsignal = M0_RESULT_STATUS_WORK;
 	term_act.sa_handler = cs_term_sig_handler;
 	sigemptyset(&term_act.sa_mask);
 	term_act.sa_flags = 0;
-	sigaction(SIGTERM, &term_act, NULL);
-	sigaction(SIGINT,  &term_act, NULL);
-	sigaction(SIGQUIT, &term_act, NULL);
-	sigaction(SIGUSR1, &term_act, NULL);
 
+	rc = sigaction(SIGTERM, &term_act, NULL) ?:
+		sigaction(SIGINT,  &term_act, NULL) ?:
+		sigaction(SIGQUIT, &term_act, NULL) ?:
+		sigaction(SIGUSR1, &term_act, NULL);
+	if (rc == 0)
+		regsignal = true;
+	return rc;
+}
+
+static int cs_wait_signal(void)
+{
+	M0_PRE(regsignal);
 	printf("Press CTRL+C to quit.\n");
 	fflush(stdout);
 	do {
@@ -123,6 +135,15 @@ M0_INTERNAL int main(int argc, char **argv)
 		warnx("\n Failed to setrlimit\n");
 		goto out;
 	}
+
+	rc = cs_register_signal();
+	if (rc != 0) {
+		warnx("\n Failed to register signals\n");
+		goto out;
+	}
+
+init_m0d:
+	gotsignal = M0_RESULT_STATUS_WORK;
 
 	errno = 0;
 	M0_SET0(&mero_ctx);
@@ -171,14 +192,19 @@ start_m0d:
 #endif
 	rc = m0_cs_start(&mero_ctx);
 	if (rc == 0) {
-		result = cs_wait_for_termination();
+		/* For st/m0d-signal-test.sh */
+		printf("Started\n");
+		fflush(stdout);
+		result = cs_wait_signal();
 	}
+
 	if (rc == 0 && result == M0_RESULT_STATUS_RESTART) {
 		/*
 		 * Note! A very common cause of failure restart is
 		 * non-finalize (non-clean) any subsystem
 		 */
 		m0_cs_fini(&mero_ctx);
+restart_signal:
 		m0_quiesce();
 
 		gotsignal = M0_RESULT_STATUS_WORK;
@@ -202,10 +228,28 @@ start_m0d:
 		goto start_m0d;
 	}
 
+	if (rc == 0) {
+		/* Ignore cleanup labels signal handling for normal start. */
+		gotsignal = M0_RESULT_STATUS_WORK;
+	}
+
 cleanup1:
 	m0_cs_fini(&mero_ctx);
+	if (gotsignal) {
+		/* This string is checked in signals handling ST. */
+		warnx("\n Got signal during Mero setup \n");
+		if (gotsignal == M0_RESULT_STATUS_RESTART)
+			goto restart_signal;
+		gotsignal = M0_RESULT_STATUS_WORK;
+	}
 cleanup2:
 	m0_fini();
+	if (gotsignal) {
+		/* This string is checked in signals handling ST. */
+		warnx("\n Got signal during Mero init \n");
+		if (gotsignal == M0_RESULT_STATUS_RESTART)
+			goto init_m0d;
+	}
 out:
 	errno = rc < 0 ? -rc : rc;
 	return errno;
