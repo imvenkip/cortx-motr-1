@@ -93,7 +93,7 @@ pool_version_assignment()
 		return 1
 	}
 
-	### Mark ctrl from pool version 0 as failed.
+	echo "Mark ctrl from pool version 0 as failed."
 	change_controller_state "$ctrl_from_pver0" "$M0_NC_FAILED" "0" || {
 		unmount_and_clean
 		return 1
@@ -115,45 +115,45 @@ pool_version_assignment()
 
 	### It is expected that on failure/online HA dispatch events of some components,
 	### HA dispatch events to it's descendants.
-	### Mark ctrl from pool version 1 as failed.
+	echo "Mark ctrl from pool version 1 as failed."
 	change_controller_state "$ctrl_from_pver1" "$M0_NC_FAILED" "1" || {
 		unmount_and_clean
 		return 1
 	}
-	### Mark process(m0d) from pool version 1 as failed.
+	echo " Mark process(m0d) from pool version 1 as failed."
 	change_controller_state "$process_from_pver1" "$M0_NC_FAILED" "0" || {
 		unmount_and_clean
 		return 1
 	}
-	### Mark ios from pool version 1 as failed.
+	echo "Mark ios from pool version 1 as failed."
 	change_controller_state "$ios_from_pver1" "$M0_NC_FAILED" "0" || {
 		unmount_and_clean
 		return 1
 	}
 
-	###  Should fail since no pool available now failed.
+	echo "Should fail since no pool available now failed."
 	touch $MERO_M0T1FS_MOUNT_DIR/$file3 && {
 		unmount_and_clean
 		return 1
 	}
 
-	### Mark ctrl from pool version 1 as running.
+	echo "Mark ctrl from pool version 1 as running."
 	### It reconnects endpoints from controller.
 	change_controller_state "$ctrl_from_pver1" "$M0_NC_ONLINE" "1" || {
 		unmount_and_clean
 		return 1
 	}
-	### Mark process(m0d) from pool version 1 as online.
+	echo "Mark process(m0d) from pool version 1 as online."
 	change_controller_state "$process_from_pver1" "$M0_NC_ONLINE" "0" || {
 		unmount_and_clean
 		return 1
 	}
-	### Mark ios from pool version 1 as online.
+	echo "Mark ios from pool version 1 as online."
 	change_controller_state "$ios_from_pver1" "$M0_NC_ONLINE" "0" || {
 		unmount_and_clean
 		return 1
 	}
-	###  Should succeed since pool version 1 is available now.
+	echo "Should succeed since pool version 1 is available now."
 	touch $MERO_M0T1FS_MOUNT_DIR/$file4 || {
 		unmount_and_clean
 		return 1
@@ -168,14 +168,14 @@ pool_version_assignment()
 		return 1
 	}
 
-	### Mark ctrl from pool version 0 as online.
+	echo "Mark ctrl from pool version 0 as online."
 	change_controller_state "$ctrl_from_pver0" "$M0_NC_ONLINE" "0" || {
 		unmount_and_clean
 		return 1
 	}
 
         #Test pool version switch on disk failures.
-        ### Mark disk from pool version 0 as failed.
+        echo "Mark disk from pool version 0 as failed."
         change_controller_state "$disk_from_pver0" "$M0_NC_FAILED" "0" || {
                 unmount_and_clean
                 return 1
@@ -194,13 +194,13 @@ pool_version_assignment()
 		return 1
 	}
 
-        ### Mark disk from pool version 1 as failed.
+        echo "Mark disk from pool version 1 as failed."
         change_controller_state "$disk_from_pver1" "$M0_NC_FAILED" "0" || {
                 unmount_and_clean
                 return 1
         }
 
-        ###  Should fail since no pool available now failed.
+        echo "Should fail since no pool available now failed."
         touch $MERO_M0T1FS_MOUNT_DIR/$file2 && {
                 unmount_and_clean
                 return 1

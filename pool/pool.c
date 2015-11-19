@@ -571,14 +571,13 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 	     m0_pool_version_device_map_init(pv, pver, pc) ?:
 	     m0_poolmach_init_by_conf(&pv->pv_mach, pver);
 	if (rc == 0) {
-		pool_version_tlist_add_tail(&pool->po_vers, pv);
 		pv->pv_pc = pc;
 		memcpy(pv->pv_fd_tol_vec, pver->pv_nr_failures,
 		       M0_FTA_DEPTH_MAX * sizeof pver->pv_nr_failures[0]);
-		rc = m0_fd_tile_build(pver, pv, &failure_level);
-		if (rc == 0) {
-			rc = m0_fd_tree_build(pver, &pv->pv_fd_tree);
-		}
+		rc = m0_fd_tile_build(pver, pv, &failure_level) ?:
+			m0_fd_tree_build(pver, &pv->pv_fd_tree);
+		if (rc == 0)
+			pool_version_tlist_add_tail(&pool->po_vers, pv);
 	}
 
 	M0_POST(pool_version_invariant(pv));

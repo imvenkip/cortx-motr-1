@@ -66,6 +66,9 @@ static void
 fs_options_add(struct cs_args *args, const struct m0_conf_filesystem *fs)
 {
 	int i;
+
+	if (fs->cf_params == NULL)
+		return;
 	for (i = 0; fs->cf_params[i] != NULL; ++i)
 		option_add(args, m0_strdup(fs->cf_params[i]));
 }

@@ -666,13 +666,8 @@ static bool process_event_handler(struct m0_clink *clink)
 	switch (obj->co_ha_state) {
 	case M0_NC_FAILED:
 	case M0_NC_TRANSIENT:
-		/**
-		 * @todo Cancel RPC session ctx->sc_session.
-		 *       Ref. MERO-1093 (RPC item cancel).
-		 *
-		 * rc = m0_rpc_session_cancel(&ctx->sc_session);
-		 */
-
+		M0_ASSERT(ctx->sc_is_active);
+		m0_rpc_session_cancel(&ctx->sc_session);
 		reqh_service_disconnect(ctx);
 		break;
 	case M0_NC_ONLINE:
@@ -718,16 +713,14 @@ static bool service_event_handler(struct m0_clink *clink)
 	switch (obj->co_ha_state) {
 	case M0_NC_FAILED:
 	case M0_NC_TRANSIENT:
-		/**
-		 * @todo Cancel RPC item for ctx->sc_session, service->cs_type.
-		 *       Ref. MERO-1093 (RPC item cancel).
-		 *
-		 * rc = m0_rpc_item_cancel_by_service(&ctx->sc_session,
-		 *                                    &ctx->sc_type);
-		 */
-
+		if (ctx->sc_is_active &&
+		    !m0_rpc_session_is_cancelled(&ctx->sc_session))
+			m0_rpc_session_cancel(&ctx->sc_session);
 		break;
 	case M0_NC_ONLINE:
+		if (ctx->sc_is_active &&
+		    m0_rpc_session_is_cancelled(&ctx->sc_session))
+			m0_rpc_session_restore(&ctx->sc_session);
 		break;
 	default:
 		break;

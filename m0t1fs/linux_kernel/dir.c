@@ -379,9 +379,44 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 	M0_ENTRY("Getting %.*s's xattr %s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name);
 
-	if (csb->csb_oostore)
-		return M0_ERR(-EOPNOTSUPP);
 	m0t1fs_fs_lock(csb);
+	if (m0_streq(name, "pver")) {
+		M0_LOG(M0_DEBUG, "buffer:%p size:%d"FID_F, buffer, (int)size,
+				FID_P(&ci->ci_pver));
+		if (buffer != NULL) {
+			if ((size_t)sizeof(struct m0_fid) > size) {
+				rc = M0_ERR(-ERANGE);
+				m0t1fs_fs_unlock(csb);
+				return M0_RC(rc);
+			}
+			sprintf(buffer, FID_F, FID_P(&ci->ci_pver));
+			m0t1fs_fs_unlock(csb);
+			return M0_RC(rc = strlen(buffer));
+		}
+		m0t1fs_fs_unlock(csb);
+		return M0_RC(rc = M0_FID_STR_LEN);
+	}
+	if (m0_streq(name, "lid")) {
+		M0_LOG(M0_DEBUG, "buffer:%p size:%d lid:%d"FID_F, buffer,
+				(int)size, (int)ci->ci_layout_id,
+				FID_P(&ci->ci_pver));
+		if (buffer != NULL) {
+			if ((size_t)sizeof(uint64_t) > size) {
+				rc = M0_ERR(-ERANGE);
+				m0t1fs_fs_unlock(csb);
+				return M0_RC(rc);
+			}
+			sprintf(buffer, "%d", (int)ci->ci_layout_id);
+			m0t1fs_fs_unlock(csb);
+			return M0_RC(rc = strlen(buffer));
+		}
+		m0t1fs_fs_unlock(csb);
+		return M0_RC(rc = UINT32_STR_LEN);
+	}
+	if (csb->csb_oostore) {
+		m0t1fs_fs_unlock(csb);
+		return M0_ERR(-EOPNOTSUPP);
+	}
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
@@ -1536,23 +1571,6 @@ M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
 	return fid;
 }
 
-static uint32_t m0t1fs_ios_cob_idx(const struct m0t1fs_inode *ci,
-				   const struct m0_fid *gfid,
-				   const struct m0_fid *cfid)
-{
-	uint32_t cob_idx;
-
-	M0_PRE(ci->ci_layout_instance != NULL);
-	M0_PRE(gfid != NULL);
-	M0_PRE(cfid != NULL);
-
-	cob_idx = m0_layout_enum_find(m0_layout_instance_to_enum(
-				      ci->ci_layout_instance), gfid, cfid);
-	M0_LOG(M0_DEBUG, "cob idx: %d for gob fid "FID_F" cob fid "FID_F"",
-			 cob_idx, FID_P(gfid), FID_P(cfid));
-	return cob_idx;
-}
-
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 				       struct m0t1fs_mdop *mop,
 				       int (*func)(struct cob_req *,
@@ -1561,13 +1579,12 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 						   int idx))
 {
 	struct m0t1fs_sb       *csb;
-	struct m0_fid           cob_fid;
 	struct cob_req          cob_req;
 	int                     i = 0;
 	int                     rc = 0;
-	uint32_t                cob_idx;
 	const char             *op_name;
 	struct m0_pool_version *pv;
+	struct m0_pools_common *pc;
 
 	M0_PRE(ci != NULL);
 	M0_PRE(func != NULL);
@@ -1578,6 +1595,7 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 		  (func == m0t1fs_ios_cob_delete) ? "delete" :
 		  (func == m0t1fs_ios_cob_truncate) ? "truncate" : "setattr";
 	csb = M0T1FS_SB(ci->ci_inode.i_sb);
+	pc = &csb->csb_pools_common;
 
 	M0_LOG(M0_DEBUG, "%s Component object %s for "FID_F,
 			 csb->csb_oostore ? "oostore mode" : "",
@@ -1598,49 +1616,35 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 		 * Create, delete and setattr operations on meta data cobs on
 		 * ioservices are performed.
 		 */
-		for (i = 0; i < csb->csb_pools_common.pc_md_redundancy; i++) {
+		for (i = 0; i < pc->pc_md_redundancy && rc == 0; i++)
 			rc = func(&cob_req, ci, mop, i);
-			if (rc != 0) {
-				M0_LOG(M0_ERROR, "Cob %s "FID_F" failed with %d",
-					op_name, FID_P(&cob_req.cr_fid), rc);
-				goto out;
-			}
-		}
-		if (func == m0t1fs_ios_cob_setattr ||
+		while (--i >= 0)
+			m0_semaphore_down(&cob_req.cr_sem);
+
+		if (rc != 0 ||
+		    func == m0t1fs_ios_cob_setattr ||
 		    func == m0t1fs_ios_cob_create ||
 		    /*  Data cobs are not createed until first write (CROW). */
 		    ci->ci_inode.i_size <= 0)
 			goto out;
-		while (--i >= 0)
-			m0_semaphore_down(&cob_req.cr_sem);
 	}
 
-	pv = m0_pool_version_find(&csb->csb_pools_common, &ci->ci_pver);
+	pv = m0_pool_version_find(pc, &ci->ci_pver);
 	if (pv == NULL) {
 		M0_LOG(M0_ERROR, "Failed to get pool version "FID_F"",
 		       FID_P(&ci->ci_pver));
 		goto out;
 	}
 
-	for (i = 0; i < pv->pv_attr.pa_P; ++i) {
-		cob_fid = m0t1fs_ios_cob_fid(ci, i);
-		cob_idx = m0t1fs_ios_cob_idx(ci, m0t1fs_inode_fid(ci),
-					     &cob_fid);
-		M0_ASSERT(cob_idx != ~0);
-		mop->mo_cob_type = M0_COB_IO;
+	mop->mo_cob_type = M0_COB_IO;
+	for (i = 0; i < pv->pv_attr.pa_P && rc == 0; i++)
 		rc = func(&cob_req, ci, mop, i);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR, "Cob %s "FID_F" failed with %d",
-					 op_name, FID_P(&cob_fid), rc);
-			break;
-		}
-	}
-out:
 	while (--i >= 0)
 		m0_semaphore_down(&cob_req.cr_sem);
+out:
 	m0_semaphore_fini(&cob_req.cr_sem);
-	M0_LOG(M0_DEBUG, "Cob %s "FID_F" with %d", op_name, FID_P(&cob_fid),
-			rc ?: cob_req.cr_rc);
+	M0_LOG(M0_DEBUG, "Cob %s "FID_F" with %d", op_name,
+			FID_P(&cob_req.cr_fid), rc ?: cob_req.cr_rc);
 
 	return M0_RC(rc ?: cob_req.cr_rc);
 }
@@ -2120,6 +2124,7 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 	} else {
 		cob_fid = m0t1fs_ios_cob_fid(ci, idx);
 		cob_idx = m0_fid_cob_device_id(&cob_fid);
+		M0_ASSERT(cob_idx != ~0);
 		session = m0t1fs_container_id_to_session(pver,
 				m0_fid_cob_device_id(&cob_fid));
 	}
@@ -2258,7 +2263,11 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 		fop->f_item.ri_nr_sent_max = M0T1FS_RPC_MAX_RETRIES;
 		rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
 		if (rc != 0) {
+			M0_LOG(M0_ERROR, "%p[%u] getattr returned: %d", &fop->f_item,
+					m0_fop_opcode(fop), rc);
 			m0_fop_put0_lock(fop);
+			if (rc == -ECANCELED)
+				continue;
 			return M0_RC(rc);
 		}
 		getattr_rep = m0_fop_data(m0_rpc_item_to_fop(

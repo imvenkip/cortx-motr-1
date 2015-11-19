@@ -5301,7 +5301,8 @@ int m0t1fs_flush(struct file *file, fl_owner_t id)
 	mo.mo_attr.ca_pver = m0t1fs_file_to_pver(file)->pv_id;
 
 	rc = m0t1fs_cob_setattr(inode, &mo);
-	return M0_RC(rc);
+	return rc != 0 ? M0_ERR_INFO(rc, FID_F, FID_P(&mo.mo_attr.ca_tfid)) :
+			 M0_RC(rc);
 }
 
 const struct file_operations m0t1fs_reg_file_operations = {

@@ -213,6 +213,7 @@ mero_service()
      filename: /dev/loop7
 EOF
 		fi
+
 		DIR=$MERO_M0T1FS_TEST_DIR/confd
 		build_conf $N $K $P $multiple_pools | tee $DIR/conf.xc
 

@@ -134,7 +134,7 @@ int m0t1fs_fsync_request_create(struct m0_reqh_service_txid        *stx,
 
 	rc = fi.post_rpc(item);
 	if (rc != 0) {
-		fi.fop_fini(fop);
+		fi.fop_put(fop);
 		return M0_ERR_INFO(rc, "Calling m0_rpc_post() failed.");
 	}
 
