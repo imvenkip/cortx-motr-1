@@ -29,13 +29,17 @@
 
 #include "mdservice/fsync_foms.h"
 #include "mdservice/fsync_fops.h"
-#include "ioservice/io_fops.h" /* m0_fop_fsync_ios_fopt */
+#include "ioservice/io_fops.h"     /* m0_fop_fsync_ios_fopt */
 #include "rpc/rpc_opcodes.h"
+#include "ioservice/storage_dev.h" /* m0_storage_dev */
+#include "module/instance.h"       /* m0_get */
+#include "mero/setup.h"
 
 #include "fop/fom_generic.h"
 #include "be/domain.h" /* m0_be_domain */
 #include "be/engine.h" /* m0_be_engine__tx_find */
 #include "reqh/reqh.h" /* m0_reqh */
+
 
 static void fsync_fom_fini(struct m0_fom *fom);
 static int fsync_fom_tick(struct m0_fom *fom);
@@ -56,6 +60,7 @@ static const struct m0_fom_ops fsync_fom_ops = {
 enum fsync_fom_phase {
 	M0_FOPH_FSYNC_FOM_START = M0_FOPH_NR + 1,
 	M0_FOPH_FSYNC_FOM_WAIT,
+	M0_FOPH_FSYNC_DATASYNC,
 };
 
 /**
@@ -65,6 +70,7 @@ struct m0_sm_state_descr m0_fsync_fom_phases[] = {
 	[M0_FOPH_FSYNC_FOM_START] = {
 		.sd_name    = "start",
 		.sd_allowed = M0_BITS(M0_FOPH_FSYNC_FOM_WAIT,
+				      M0_FOPH_FSYNC_DATASYNC,
 				      M0_FOPH_SUCCESS,
 				      M0_FOPH_FAILURE)
 	},
@@ -72,6 +78,12 @@ struct m0_sm_state_descr m0_fsync_fom_phases[] = {
 		.sd_name    = "wait",
 		.sd_allowed = M0_BITS(M0_FOPH_FAILURE,
 				      M0_FOPH_FSYNC_FOM_WAIT,
+				      M0_FOPH_FSYNC_DATASYNC,
+				      M0_FOPH_SUCCESS)
+	},
+	[M0_FOPH_FSYNC_DATASYNC] = {
+		.sd_name    = "datasync",
+		.sd_allowed = M0_BITS(M0_FOPH_FAILURE,
 				      M0_FOPH_SUCCESS)
 	},
 };
@@ -82,11 +94,15 @@ struct m0_sm_state_descr m0_fsync_fom_phases[] = {
 static struct m0_sm_trans_descr fsync_fom_phases_trans[] = {
 	[ARRAY_SIZE(m0_generic_phases_trans)] =
 	{ "tx wait",      M0_FOPH_FSYNC_FOM_START, M0_FOPH_FSYNC_FOM_WAIT},
+	{ "start tx=0",   M0_FOPH_FSYNC_FOM_START, M0_FOPH_FSYNC_DATASYNC},
 	{ "start failed", M0_FOPH_FSYNC_FOM_START, M0_FOPH_FAILURE},
 	{ "no wait",      M0_FOPH_FSYNC_FOM_START, M0_FOPH_SUCCESS},
 	{ "wait failed",  M0_FOPH_FSYNC_FOM_WAIT,  M0_FOPH_FAILURE},
 	{ "wait more",    M0_FOPH_FSYNC_FOM_WAIT,  M0_FOPH_FSYNC_FOM_WAIT},
-	{ "done",         M0_FOPH_FSYNC_FOM_WAIT,  M0_FOPH_SUCCESS}
+	{ "wait done",    M0_FOPH_FSYNC_FOM_WAIT,  M0_FOPH_SUCCESS},
+	{ "sync",         M0_FOPH_FSYNC_FOM_WAIT,  M0_FOPH_FSYNC_DATASYNC},
+	{ "sync done",    M0_FOPH_FSYNC_DATASYNC,  M0_FOPH_SUCCESS},
+	{ "sync failed",  M0_FOPH_FSYNC_DATASYNC,  M0_FOPH_FAILURE},
 };
 
 /**
@@ -159,6 +175,7 @@ static int fsync_fom_tick(struct m0_fom *fom)
 {
 	/* return value included in the fsync reply */
 	int                             rc;
+	struct m0_reqh_context         *rctx;
 	struct m0_fop_fsync_rep        *rep;
 	struct m0_fop_fsync            *req;
 	struct m0_be_tx                *target_tx;
@@ -179,6 +196,8 @@ static int fsync_fom_tick(struct m0_fom *fom)
 
 	txid = req->ff_be_remid.tri_txid;
 	M0_LOG(M0_DEBUG, "Target tx:%lu\n", txid);
+	rctx = container_of(m0_fom_reqh(fom), struct m0_reqh_context, rc_reqh);
+
 
 	phase = m0_fom_phase(fom);
 
@@ -188,7 +207,25 @@ static int fsync_fom_tick(struct m0_fom *fom)
 	}
 
 	M0_ASSERT(M0_IN(phase,
-			(M0_FOPH_FSYNC_FOM_START, M0_FOPH_FSYNC_FOM_WAIT)));
+			(M0_FOPH_FSYNC_FOM_START,
+			 M0_FOPH_FSYNC_FOM_WAIT,
+			 M0_FOPH_FSYNC_DATASYNC)));
+
+	if (phase == M0_FOPH_FSYNC_DATASYNC) {
+		struct m0_storage_devs *sdevs = &m0_get()->i_storage_devs;
+
+		m0_fom_block_enter(fom);
+
+		m0_storage_devs_lock(sdevs);
+		rc = m0_storage_devs_fdatasync(sdevs);
+		m0_storage_devs_unlock(sdevs);
+
+		m0_fom_block_leave(fom);
+
+		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+
+		return M0_FSO_AGAIN;
+	}
 
 	/* we can get the target tx because we're at the same locality */
 	target_tx = fsync_target_tx_get(fom, txid);
@@ -247,7 +284,12 @@ fsync_done:
 	 */
 	rep->ffr_be_remid.tri_txid = txid;
 
-	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	if (!rctx->rc_disable_direct_io)
+		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS,
+				    M0_FOPH_FAILURE);
+	else
+		m0_fom_phase_moveif(fom, rc, M0_FOPH_FSYNC_DATASYNC,
+				    M0_FOPH_FAILURE);
 
 	M0_LEAVE("fsync fop request processed");
 

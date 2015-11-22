@@ -28,6 +28,7 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/semaphore.h \
                                lib/string.h \
                                lib/thread.h \
+                               lib/thread_pool.h \
                                lib/time.h \
                                lib/timer.h \
                                lib/tlist.h \
@@ -81,6 +82,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/string_xc.c \
                            lib/string.c \
                            lib/thread.c \
+                           lib/thread_pool.c \
                            lib/time.c \
                            lib/timer.c \
                            lib/tlist.c \

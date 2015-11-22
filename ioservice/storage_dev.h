@@ -25,6 +25,7 @@
 
 #include "lib/tlist.h"
 #include "lib/mutex.h"
+#include "lib/thread_pool.h"
 
 /* import */
 struct m0_stob;
@@ -77,13 +78,15 @@ M0_TL_DECLARE(storage_dev, M0_EXTERN, struct m0_storage_dev);
  */
 struct m0_storage_devs {
 	/** Mutex to protect sds_devices list */
-	struct m0_mutex        sds_lock;
+	struct m0_mutex          sds_lock;
 	/** Linkage into list of storage devices. */
-	struct m0_tl           sds_devices;
+	struct m0_tl             sds_devices;
 	/** Backing store stob domain. One per all storage devices. */
-	struct m0_stob_domain *sds_back_domain;
+	struct m0_stob_domain   *sds_back_domain;
 	/** Backend segment. One per all storage devices. */
-	struct m0_be_seg      *sds_be_seg;
+	struct m0_be_seg        *sds_be_seg;
+	/** Parallel pool processing list of storage devs */
+	struct m0_parallel_pool  sds_pool;
 };
 
 /**
@@ -172,6 +175,11 @@ M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,
  */
 M0_INTERNAL int m0_storage_dev_format(struct m0_storage_dev *dev,
 				      uint64_t               cid);
+
+/**
+ * Does fdatasync on all stobs in storage devices.
+ */
+M0_INTERNAL int m0_storage_devs_fdatasync(struct m0_storage_devs *devs);
 
 /** @} end of sdev group */
 #endif /* __MERO_IOSERVICE_STORAGE_DEV_H__ */

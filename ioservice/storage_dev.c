@@ -29,6 +29,7 @@
 #include "stob/linux.h"             /* m0_stob_linux */
 #include "ioservice/fid_convert.h"  /* m0_fid_validate_linuxstob */
 #include "ioservice/storage_dev.h"
+#include <unistd.h>                 /* fdatasync */
 
 /**
    @addtogroup sdev
@@ -45,6 +46,11 @@ M0_TL_DESCR_DEFINE(storage_dev, "storage_dev", M0_INTERNAL,
 		   M0_STORAGE_DEV_MAGIC, M0_STORAGE_DEV_HEAD_MAGIC);
 
 M0_TL_DEFINE(storage_dev, M0_INTERNAL, struct m0_storage_dev);
+
+static bool storage_devs_is_locked(struct m0_storage_devs *devs)
+{
+	return m0_mutex_is_locked(&devs->sds_lock);
+}
 
 M0_INTERNAL void m0_storage_devs_lock(struct m0_storage_devs *devs)
 {
@@ -66,11 +72,13 @@ M0_INTERNAL int m0_storage_devs_init(struct m0_storage_devs *devs,
 	storage_dev_tlist_init(&devs->sds_devices);
 	devs->sds_be_seg = be_seg;
 	m0_mutex_init(&devs->sds_lock);
-	return M0_RC(0);
+	return M0_RC(m0_parallel_pool_init(&devs->sds_pool, 10, 20));
 }
 
 M0_INTERNAL void m0_storage_devs_fini(struct m0_storage_devs *devs)
 {
+	m0_parallel_pool_terminate_wait(&devs->sds_pool);
+	m0_parallel_pool_fini(&devs->sds_pool);
 	storage_dev_tlist_fini(&devs->sds_devices);
 	m0_mutex_fini(&devs->sds_lock);
 }
@@ -239,6 +247,30 @@ M0_INTERNAL int m0_storage_dev_format(struct m0_storage_dev *dev,
 	 * Nothing do for Format command.
 	 */
 	return M0_RC(0);
+}
+
+static int sdev_stob_fsync(void *psdev)
+{
+	int rc;
+	struct m0_storage_dev *sdev = (struct m0_storage_dev *)psdev;
+	struct m0_stob_linux *lstob = m0_stob_linux_container(sdev->isd_stob);
+
+	rc = fdatasync(lstob->sl_fd);
+	M0_POST(rc == 0); /* XXX */
+
+	M0_LOG(M0_DEBUG, "fsync on fd: %d, done", lstob->sl_fd);
+	return rc;
+}
+
+M0_INTERNAL int m0_storage_devs_fdatasync(struct m0_storage_devs *sdevs)
+{
+	int rc;
+
+	M0_PRE(storage_devs_is_locked(sdevs));
+
+	rc = M0_PARALLEL_FOR(storage_dev, &sdevs->sds_pool,
+			     &sdevs->sds_devices, sdev_stob_fsync);
+	return rc;
 }
 
 #undef M0_TRACE_SUBSYSTEM

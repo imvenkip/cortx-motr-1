@@ -440,7 +440,7 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 		 (char*)dentry->d_name.name, name);
 
 	if (csb->csb_oostore)
-		return M0_ERR(-EOPNOTSUPP);
+		return M0_RC(-EOPNOTSUPP);
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
