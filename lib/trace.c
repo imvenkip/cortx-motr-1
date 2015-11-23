@@ -740,25 +740,25 @@ M0_INTERNAL void m0_console_printf(const char *fmt, ...)
 }
 
 /*
- * escape any occurrence of single-quote characters (') inside string by
- * duplicating them, for example "it's a pen" becomes "it''s a pen"
  */
-static int escape_yaml_str(char *str, size_t max_size)
+static int format_yaml_str(char *str, size_t max_size, size_t align_size)
 {
-	size_t   str_len    = strlen(str);
-	ssize_t  free_space = max_size - str_len;
-	char    *p          = str;
+	size_t      str_len    = strlen(str);
+	ssize_t     free_space = max_size - str_len;
+	const char *fill_chars = "                              ";
+	char       *p          = str;
 
-	if (free_space < 0)
+	if (free_space < 0 || strlen(fill_chars) < align_size)
 		return -EINVAL;
 
-	while ((p = strchr(p, '\'')) != NULL)
+	while ((p = strchr(p, '\n')) != NULL)
 	{
-		if (--free_space < 0)
+		p++;
+		free_space -= align_size;
+		if (free_space < 0)
 			return -ENOMEM;
-		memmove(p + 1, p, strlen(p) + 1);
-		*p = '\'';
-		p += 2;
+		memmove(p + align_size, p, strlen(p) + 1);
+		memcpy(p, fill_chars, align_size);
 	}
 
 	return 0;
@@ -776,6 +776,11 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
 	size_t                       outbuf_used = 0;
 	int                          rc;
 
+	enum {
+		MSG_SHIFT_LEN_STREAM = 2,
+		MSG_SHIFT_LEN_NORMAL = 6,
+	};
+
 	msg_buf[0] = '\0';
 	m0_trace_args_unpack(trh, args, tr_body);
 
@@ -788,7 +793,8 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
 				    "func:       %s\n"
 				    "file:       %s\n"
 				    "line:       %u\n"
-				    "msg:        '"
+				    "msg:        !str |\n"
+				    "  "
 
 				  : "  - record_num: %" PRIu64 "\n"
 				    "    timestamp:  %" PRIu64 "\n"
@@ -799,7 +805,8 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
 				    "    func:       %s\n"
 				    "    file:       %s\n"
 				    "    line:       %u\n"
-				    "    msg:        '";
+				    "    msg:        !str |\n"
+				    "      ";
 
 	outbuf_used += snprintf(outbuf, outbuf_size, td_fmt,
 				trh->trh_no,
@@ -823,13 +830,15 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
 				" truncated to %zu bytes",
 				__func__, sizeof msg_buf);
 
-	rc = escape_yaml_str(msg_buf, sizeof msg_buf);
+	rc = format_yaml_str(msg_buf, sizeof msg_buf,
+			     yaml_stream_mode ? MSG_SHIFT_LEN_STREAM :
+			                        MSG_SHIFT_LEN_NORMAL);
 	if (rc != 0)
-		m0_error_printf("mero: %s: failed to escape single quote"
-				" characters in msg: %s", __func__, msg_buf);
+		m0_error_printf("mero: %s: failed to align msg: %s\n" , __func__,
+				msg_buf);
 
 	outbuf_used += snprintf(outbuf + outbuf_used, outbuf_size - outbuf_used,
-				"%s'\n", msg_buf);
+				"%s\n", msg_buf);
 	if (outbuf_used >= outbuf_size)
 		return -ENOBUFS;
 

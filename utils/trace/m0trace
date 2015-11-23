@@ -902,6 +902,8 @@ sub main
     else {
         for my $tr (@trace_records) {
             validate_trace_record($tr);
+            $tr->{msg} = ${ $tr->{msg} };
+            chomp $tr->{msg};
             if ((match_level($tr) and match_subsys($tr) and match_file($tr)
                  and match_func($tr) and match_msg($tr))
                 or (!defined($cli_option{match_only}) and is_error_level($tr, 'warn+')))
