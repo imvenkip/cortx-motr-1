@@ -31,7 +31,6 @@
 use 5.010;
 use strict;
 use warnings;
-# TODO: read man
 use autodie;
 
 
@@ -93,6 +92,7 @@ package Tie::Array::Lazy::YAMLstream;
     use base qw( Tie::Array );
 
     use Carp;
+    use English qw( -no_match_vars ); # avoids regex performance penalty
     use POSIX qw( INT_MAX );
 
     our $VERSION = '1.002001';
@@ -106,13 +106,17 @@ package Tie::Array::Lazy::YAMLstream;
 
         open my $stream, "$file";
 
-        # always read the first line to handle '---' at the beginning of stream
-        my $first_line = <$stream>;
-
         my $self = {
-            stream => $stream,
-            doc    => $first_line,
+            stream        => $stream,
+            current_index => 0,
         };
+
+        if (not eof $self->{stream}) {
+            local $INPUT_RECORD_SEPARATOR = '---';
+            my $doc = readline $self->{stream};
+            chomp $doc;
+            $self->{current} = YAML::XS::Load( $doc );
+        }
 
         return bless $self, $class;;
     }
@@ -129,7 +133,8 @@ package Tie::Array::Lazy::YAMLstream;
         my $self  = shift;
         my $index = shift;
 
-        if ( defined $self->{current_index} and $self->{current_index} == $index ) {
+
+        if ($self->{current_index} == $index) {
 
             croak "Internal error in package " . __PACKAGE__ . " - no current"
                   . " element for index $index\n"
@@ -141,30 +146,11 @@ package Tie::Array::Lazy::YAMLstream;
             $self->{current_index} = $index;
         }
 
-        my $stream = $self->{stream};
-
-        while ( defined $self->{doc}
-                and defined ( my $line = <$stream> ) )
-        {
-            if ( $line =~ /^---\s/ ) {
-                my $yaml_data = YAML::XS::Load( $self->{doc} );
-
-                $self->{doc}     = $line; # stash the line for the next document
-                $self->{current} = $yaml_data;
-
-                return $yaml_data;
-            } else {
-                $self->{doc} .= $line;
-            }
-        }
-
-        if ( defined $self->{doc} ) {
-            my $yaml_data = YAML::XS::Load( $self->{doc} );
-
-            $self->{doc}     = undef;
-            $self->{current} = $yaml_data;
-
-            return $yaml_data;
+        if (not eof $self->{stream}) {
+            local $INPUT_RECORD_SEPARATOR = '---';
+            my $doc = readline $self->{stream};
+            chomp $doc;
+            return $self->{current} = YAML::XS::Load( $doc );
         }
 
         return;
@@ -174,7 +160,7 @@ package Tie::Array::Lazy::YAMLstream;
     {
         my $self = shift;
 
-        return defined $self->{doc} ? INT_MAX : 0;
+        return defined $self->{current} ? INT_MAX : 0;
     }
 }
 
@@ -900,10 +886,15 @@ sub main
         print {$output_fh} YAML::XS::Dump( $trace_records[0]->{header} );
     }
     else {
+        READ_RECORDS:
         for my $tr (@trace_records) {
+            last READ_RECORDS
+                if !defined $tr;
+
             validate_trace_record($tr);
             $tr->{msg} = ${ $tr->{msg} };
             chomp $tr->{msg};
+
             if ((match_level($tr) and match_subsys($tr) and match_file($tr)
                  and match_func($tr) and match_msg($tr))
                 or (!defined($cli_option{match_only}) and is_error_level($tr, 'warn+')))
