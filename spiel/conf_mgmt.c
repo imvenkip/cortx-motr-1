@@ -1695,10 +1695,6 @@ static int spiel_pver_add(struct m0_conf_obj **obj_v, struct m0_conf_pver *pver)
 
 	obj = M0_CONF_CAST(*obj_v, m0_conf_objv)->cv_real;
 	obj_type = m0_conf_obj_type(obj);
-
-	if(obj_type == &M0_CONF_DISK_TYPE)
-		return M0_RC(0);
-
 	pvers = m0_conf_pvers(obj);
 	for (nr_pvers = 0; pvers != NULL && pvers[nr_pvers] != NULL; ++nr_pvers)
 		/* count the elements */;
@@ -1716,6 +1712,8 @@ static int spiel_pver_add(struct m0_conf_obj **obj_v, struct m0_conf_pver *pver)
 		M0_CONF_CAST(obj, m0_conf_enclosure)->ce_pvers = pvers_new;
 	else if (obj_type == &M0_CONF_CONTROLLER_TYPE)
 		M0_CONF_CAST(obj, m0_conf_controller)->cc_pvers = pvers_new;
+	else if (obj_type == &M0_CONF_DISK_TYPE)
+		M0_CONF_CAST(obj, m0_conf_disk)->ck_pvers = pvers_new;
 	else
 		M0_IMPOSSIBLE("");
 
@@ -1830,15 +1828,14 @@ static void spiel_pver_remove(struct m0_conf_cache *cache,
 			      struct m0_conf_pver  *pver)
 {
 	struct m0_conf_obj            *obj;
-	const struct m0_conf_obj_type *obj_type;
+	const struct m0_conf_obj_type *ot;
 
 	M0_ENTRY();
 
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
-		obj_type = m0_conf_obj_type(obj);
-		if (obj_type == &M0_CONF_RACK_TYPE ||
-		    obj_type == &M0_CONF_ENCLOSURE_TYPE ||
-		    obj_type == &M0_CONF_CONTROLLER_TYPE)
+		ot = m0_conf_obj_type(obj);
+		if (M0_IN(ot, (&M0_CONF_RACK_TYPE, &M0_CONF_ENCLOSURE_TYPE,
+			       &M0_CONF_CONTROLLER_TYPE, &M0_CONF_DISK_TYPE)))
 			spiel_pver_delete(obj, pver);
 	} m0_tl_endfor;
 
