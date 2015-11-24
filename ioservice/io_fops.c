@@ -395,7 +395,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .sm        = &m0_fsync_fom_conf,
 			 .fom_ops   = &m0_fsync_fom_ops,
 #endif
-			 .rpc_flags = M0_RPC_MUTABO_REQ);
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
 	M0_FOP_TYPE_INIT(&m0_fop_cob_setattr_fopt,
 			 .name      = "Cob setattr request",
 			 .opcode    = M0_IOSERVICE_COB_SETATTR_OPCODE,
