@@ -2157,9 +2157,10 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 	       &fop->f_item, m0_fop_opcode(fop), m0_fop_name(fop),
 	       FID_P(&cob_fid), session, (unsigned long)session->s_session_id);
 
-	fop->f_item.ri_session  = session;
-	fop->f_item.ri_ops      = &cob_item_ops;
-	fop->f_item.ri_deadline = cr->cr_deadline; /* pack fops */
+	fop->f_item.ri_session     = session;
+	fop->f_item.ri_ops         = &cob_item_ops;
+	fop->f_item.ri_deadline    = cr->cr_deadline; /* pack fops */
+	fop->f_item.ri_nr_sent_max = M0T1FS_RPC_MAX_RETRIES;
 	rc = m0_rpc_post(&fop->f_item);
 	if (rc != 0)
 		goto fop_put;
@@ -2254,6 +2255,7 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 		       m0_fop_name(fop), session,
 		       (unsigned long)session->s_session_id);
 
+		fop->f_item.ri_nr_sent_max = M0T1FS_RPC_MAX_RETRIES;
 		rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
 		if (rc != 0) {
 			m0_fop_put0_lock(fop);

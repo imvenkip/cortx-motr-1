@@ -5426,6 +5426,7 @@ static int iofop_async_submit(struct m0_io_fop      *iofop,
 
 	iofop->if_fop.f_item.ri_session = session;
 	item = &iofop->if_fop.f_item;
+	item->ri_nr_sent_max = M0T1FS_RPC_MAX_RETRIES;
 	rc = m0_rpc_post(item);
 	M0_LOG(M0_DEBUG, "[%p] IO fop %p, %p[%u], rbulk %p, submitted to rpc, "
 	       "rc %d, ri_error %d", req, &iofop->if_fop, item,
