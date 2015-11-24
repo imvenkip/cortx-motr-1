@@ -86,6 +86,7 @@ Requires:       perl-DateTime
 Requires:       perl-File-Which
 Requires:       perl-List-MoreUtils
 Requires:       perl-autodie
+Requires:       perl-Try-Tiny
 
 %description
 Mero filesystem runtime environment and servers.

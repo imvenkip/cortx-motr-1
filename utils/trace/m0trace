@@ -92,8 +92,10 @@ package Tie::Array::Lazy::YAMLstream;
     use base qw( Tie::Array );
 
     use Carp;
+    use Try::Tiny;
     use English qw( -no_match_vars ); # avoids regex performance penalty
     use POSIX qw( INT_MAX );
+    #use Data::Dumper;
 
     our $VERSION = '1.002001';
     $VERSION = eval $VERSION;
@@ -113,9 +115,16 @@ package Tie::Array::Lazy::YAMLstream;
 
         if (not eof $self->{stream}) {
             local $INPUT_RECORD_SEPARATOR = '---';
+
             my $doc = readline $self->{stream};
             chomp $doc;
-            $self->{current} = YAML::XS::Load( $doc );
+
+            try {
+                $self->{current} = YAML::XS::Load( $doc );
+            }
+            catch {
+                carp "malformed YAML data: $_";
+            };
         }
 
         return bless $self, $class;;
@@ -146,11 +155,22 @@ package Tie::Array::Lazy::YAMLstream;
             $self->{current_index} = $index;
         }
 
-        if (not eof $self->{stream}) {
+        while (not eof $self->{stream}) {
             local $INPUT_RECORD_SEPARATOR = '---';
+
             my $doc = readline $self->{stream};
             chomp $doc;
-            return $self->{current} = YAML::XS::Load( $doc );
+
+            try {
+                $self->{current} = YAML::XS::Load( $doc );
+            }
+            catch {
+                carp "malformed YAML data: $_";
+                $self->{current} = undef;
+            };
+
+            return $self->{current}
+                if defined $self->{current};
         }
 
         return;
