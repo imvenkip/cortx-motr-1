@@ -1701,7 +1701,7 @@ static int nlx_kcore_nidstr_decode(const char *nidstr, uint64_t *nid)
 {
 	*nid = libcfs_str2nid(nidstr);
 	if (*nid == LNET_NID_ANY)
-		return M0_ERR(-EINVAL);
+		return M0_ERR_INFO(-EINVAL, "nidstr=%s", nidstr);
 	return 0;
 }
 

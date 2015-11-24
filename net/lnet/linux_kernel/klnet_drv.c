@@ -1155,7 +1155,8 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
 		sz += strlen(nidstrs[i]) + 1;
 	if (sz > p->dng_size) {
 		nlx_kcore_nidstrs_put(&nidstrs);
-		return M0_ERR(-EFBIG);
+		return M0_ERR_INFO(-EFBIG, "sz=%"PRIu64" p->dng_size=%"PRIu64,
+				   sz, p->dng_size);
 	}
 	NLX_ALLOC(buf, sz);
 	if (buf == NULL) {
