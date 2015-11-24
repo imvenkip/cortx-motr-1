@@ -195,7 +195,7 @@ M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh)
 	tbh->tbh_buf_type = M0_TRACE_BUF_USER;
 }
 
-static unsigned align(FILE *file, unsigned align, unsigned pos)
+static unsigned align(FILE *file, uint64_t align, uint64_t pos)
 {
 	M0_ASSERT(m0_is_po2(align));
 	while (!feof(file) && (pos & (align - 1))) {
@@ -366,10 +366,10 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 
 	int        rc;
 	ptrdiff_t  td_offset = 0;
-	unsigned   pos = 0;
-	unsigned   nr;
-	unsigned   n2r;
-	int        size;
+	size_t     pos = 0;
+	size_t     nr;
+	size_t     n2r;
+	size_t     size;
 	char      *buf;
 
 	static char  yaml_buf[16 * 1024]; /* 16 KB */
@@ -401,7 +401,7 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 
 			if (nr != sizeof trh.trh_magic) {
 				if (!feof(trace_file)) {
-					warnx("Got %u bytes of magic instead"
+					warnx("Got %zu bytes of magic instead"
 					      " of %zu", nr,
 					      sizeof trh.trh_magic);
 					return EX_DATAERR;
@@ -416,7 +416,7 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 		n2r = sizeof trh - sizeof trh.trh_magic;
 		nr  = fread(&trh.trh_sp, 1, n2r, trace_file);
 		if (nr != n2r) {
-			warnx("Got %u bytes of record (need %u)", nr, n2r);
+			warnx("Got %zu bytes of record (need %zu)", nr, n2r);
 			return EX_DATAERR;
 		}
 		pos += nr;
@@ -444,13 +444,14 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 
 		buf = m0_alloc(size);
 		if (buf == NULL) {
-			warn("Failed to allocate %i bytes of memory", size);
-			return EX_TEMPFAIL;
+			warn("Failed to allocate %zu bytes of memory, looks like"
+			     " a corrupted trace descriptor, skipping...", size);
+			continue;
 		}
 
 		nr = fread(buf, 1, size, trace_file);
 		if (nr != size) {
-			warnx("Got %u bytes of data (need %i)", nr, size);
+			warnx("Got %zu bytes of data (need %zu)", nr, size);
 			return EX_DATAERR;
 		}
 		pos += nr;
