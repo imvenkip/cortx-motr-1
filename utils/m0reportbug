@@ -3,17 +3,26 @@ set -eu
 # set -x
 # export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
-VERSION=0.5.1
+VERSION=0.6
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2015-11-25 0.6     * Add more probes.
+###                    * Collect stderr output of probes.
+###                    * Get stacks of `dd' and `fio' processes.
+###                    * Update backtraces_cores() to work on Jenkins nodes.
+###                    * Add `--version' CLI option.
+###                    * [bugfix] backtraces_live(): Make `lt-' prefix optional.
+###
 ### 2015-11-15 0.5.1   Specify input directory via CLI argument.
-### 2015-11-03 0.4     Delete old $OUT_DIR without asking user.
-###                    Let the packed m0trace files have timestamps of original
-###                    files.  Fix the issue of `find_exec' not working
-###                    properly with relative paths.
+###
+### 2015-11-03 0.4     * Delete old $OUT_DIR without asking user.
+###                    * Let the packed m0trace files have timestamps
+###                      of original files.
+###                    * [bugfix] Fix the issue of `find_exec' not working
+###                      properly with relative paths.
 ###
 ### 2015-10-31 0.3     Process raw m0traces with `m0tracedump'.
 ###
@@ -62,8 +71,11 @@ probes() {
         'uname -a'
         'cat /proc/cmdline'
         'cat /proc/cpuinfo'
-        'cat /proc/partitions'
         'cat /proc/diskstats'
+        'cat /proc/interrupts'
+        'cat /proc/mdstat'
+        'cat /proc/meminfo'
+        'cat /proc/partitions'
         'cat /proc/vmstat'
         'free'
         'mount'
@@ -72,15 +84,17 @@ probes() {
         'ip addr'
         'ip -s link'
         'cat /etc/modprobe.d/lnet.conf'
+        'sudo cat /sys/kernel/debug/mero/trace/stat'
         'lsmod'
         'ps -e f'
         'ps auxH'
         'ls /dev/disk/by-*'
         'dmesg'
+        'sudo find /var/mero'
     )
     for p in "${probes[@]}"; do
         section $p
-        $p || true
+        $p 2>&1 || true
     done
 }
 
@@ -104,6 +118,15 @@ program_from_pid() { ps h -o args $1 | cut -d' ' -f1; }
 ### we might not be able to canonicalize it after cd-ing to $OUT_DIR.
 PROG=$(readlink -f $0)
 
+### Try to find a path to executable, given its name.
+###
+### Example:
+###   $ find_exec m0d
+###   ==> /path/to/workdir/src/mero/m0d
+###   $ find_exec /path/to/workdir/src/mero/m0d
+###   ==> /path/to/workdir/src/mero/m0d
+###
+### See also `binary'.
 find_exec() {
     local name=$1
     local dir=$(dirname $PROG)
@@ -111,30 +134,50 @@ find_exec() {
 
     ## First try to find the executable in m0reportbug's directory.
     if [ -x $dir/$name ]; then
-        echo $dir/$name
+        readlink -f $dir/$name
         return
     fi
 
     ## Try to guess the path from core dumps.
     sudo find "$IN_DIR" -type f -name core.\* | while read s; do
-        s=$(program_from_core $s | sed -n "s:/\.libs/lt-$name:/$name:p")
-        if [ -n "$s" ]; then
+        s=$(program_from_core $s | sed -rn "s:/\.libs/(lt-)?$name:/$name:p")
+        if [ -n "$s" -a -x "$s" ]; then
             echo $s
             return
         fi
     done
 
     ## Try to guess the path from running processes.
-    pgrep lt-m0 | while read s; do
-        s=$(program_from_pid $s | sed -n "s:/\.libs/lt-$name:/$name:p")
-        if [ -n "$s" ]; then
+    pgrep '\<(lt-)?m0' | while read s; do
+        s=$(program_from_pid $s | sed -rn "s:/\.libs/(lt-)?$name:/$name:p")
+        if [ -n "$s" -a -x "$s" ]; then
             echo $s
             return
         fi
     done
 
     ## Last resort.
-    which $name 2>/dev/null
+    which $name 2>/dev/null || warn "$name executable not found"
+}
+
+### Try to deduce a path to binary, given path to an executable file,
+### which may be a shell script (ASCII text).
+###
+### Example:
+###   $ binary /path/to/workdir/src/mero/m0d
+###   ==> /path/to/workdir/src/mero/.libs/m0d
+###
+### See also `find_exec'.
+binary() {
+    local f="${1:-}"
+    [ -n "$f" -a -x "$f" ] || return
+
+    for f in "$f" "$(dirname $f)/.libs/$(basename $f)"; do
+        if [ "$(file -bi $f | cut -d= -f2)" = 'binary' ]; then
+            echo $f
+            return
+        fi
+    done
 }
 
 m0version() {
@@ -142,8 +185,6 @@ m0version() {
 
     if [ -n "$m0d" ]; then
         $m0d -v
-    else
-        warn 'm0d executable not found'
     fi
 }
 
@@ -164,7 +205,7 @@ EOF
 backtraces_live() {
     local pid task
 
-    pgrep lt-m0 | while read pid; do
+    pgrep '\<(lt-)?m0|\<(dd|fio)\>' | while read pid; do
         local args="$(ps h -o args $pid)"
         local prog=$(echo $args | cut -d' ' -f1)
 
@@ -175,6 +216,9 @@ backtraces_live() {
             section /proc/$pid/task/$task/stack
             sudo cat /proc/$pid/task/$task/stack
         done
+
+        ## Skip kernel threads and bash scripts -- we cannot gdb_bt them.
+        [ "${prog#[}" = "$prog" -a "$prog" != '/bin/bash' ] || continue
 
         section $pid $(basename $prog)
         echo $args
@@ -197,7 +241,7 @@ backtraces_cores() {
     ## Print backtraces.
     cut -d' ' -f2 $tmp | while read core; do
         section $core
-        gdb_bt $(program_from_core $core) $core
+        gdb_bt $(binary $(find_exec $(program_from_core $core))) $core 2>&1
     done
 
     ## Pack core dumps.
@@ -215,11 +259,11 @@ backtraces_cores() {
 }
 
 m0traces() {
-    local m0tracedump=$(find_exec m0tracedump)
     local out=m0traces
     local path
 
     section $out
+    local m0tracedump=$(find_exec m0tracedump)
     if [ -n "$m0tracedump" ]; then
         (out=$(readlink -f .)/$out
          cd "$IN_DIR"
@@ -235,7 +279,6 @@ m0traces() {
              touch -r $path $out/$path.yaml.gz
          done)
     else
-        warn 'm0tracedump executable not found'
         (cd "$IN_DIR"
          sudo find . -type f -name m0trace.\* | sudo tar -T - -czf - || true) \
             >$out.tar.gz
@@ -251,18 +294,20 @@ Usage: ${0##*/} [OPTION] [INPUT_DIR]
 Gather forensic data, which can be used for investigating Mero issues,
 from INPUT_DIR and its subdirectories.
 
-    -h, --help   Show this help and exit.
+    -h, --help      Show this help and exit.
+    -V, --version   Show version number and exit.
 
 INPUT_DIR defaults to '$IN_DIR'.
 EOF
 }
 
 optparse() {
-    local TEMP=$(getopt -o h --long help -n "${0##*/}" -- "$@")
+    local TEMP=$(getopt -o hV --long help,version -n "${0##*/}" -- "$@")
     eval set -- "$TEMP"
     while true; do
         case "$1" in
             -h|--help) usage; exit 0;;
+            -V|--version) echo m0reportbug $VERSION; exit 0;;
             --) shift; break;;
             *) break;;
         esac
