@@ -912,8 +912,12 @@ sub main
                 if !defined $tr;
 
             validate_trace_record($tr);
-            $tr->{msg} = ${ $tr->{msg} };
-            chomp $tr->{msg};
+
+            # dereference msg's value if it's formatted as a "!str |" YAML tag
+            if (ref $tr->{msg}) {
+                $tr->{msg} = ${ $tr->{msg} };
+                chomp $tr->{msg};
+            }
 
             if ((match_level($tr) and match_subsys($tr) and match_file($tr)
                  and match_func($tr) and match_msg($tr))
