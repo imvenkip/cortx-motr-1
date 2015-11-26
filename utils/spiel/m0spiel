@@ -25,9 +25,8 @@ def address_get():
 
 default_libmero_path = '../../mero/.libs/libmero.so'
 addr = address_get()
-default_confd_ep = addr + ':12345:33:100'
-default_rm_ep = addr + ':12345:33:100'
-default_client_ep = addr + ":12345:33:200"
+default_ha_ep = addr + ':12345:34:1001'
+default_client_ep = addr + ":12345:34:200"
 
 
 # Helper function to check the type of the function parameter. This is useful
@@ -162,20 +161,28 @@ class SpielWrapper:
         self.mero = CDLL(mero)
         self.mero.malloc.restype = c_void_p
 
-    def spiel_init(self, client):
+    def spiel_init(self, client, ha):
         self.client_ep = c_char_p(client) if client is not None else c_char_p(
             default_client_ep)
+        self.ha_ep = c_char_p(ha) if ha is not None else c_char_p(
+            default_ha_ep)
         self.__init_m0_instance()
         self.domain = self.__init_net_domain()
         self.buffer_pool = self.__net_buffer_pool_setup(self.domain)
         self.reqh = self.__init_reqh()
         self.rpc_machine = self.__init_rpc_machine(self.domain, self.reqh,
                                                    self.buffer_pool)
+        self.__ha_session_init()
         self.spiel = self.__spiel_init(self.reqh)
 
     def spiel_fini(self):
         self.mero.m0_spiel_fini(self.spiel)
         self.__free(self.spiel)
+        self.mero.m0_ha_state_fini()
+        self.mero.m0_rpc_session_destroy(self.ha_session, ~0L)
+        self.__free(self.ha_session)
+        self.mero.m0_rpc_conn_destroy(self.ha_conn, ~0L)
+        self.__free(self.ha_conn)
         self.mero.m0_rpc_machine_fini(self.rpc_machine)
         self.__free(self.rpc_machine)
         self.mero.m0_reqh_fini(self.reqh)
@@ -189,13 +196,11 @@ class SpielWrapper:
 
     @require(spiel_tx=SpielTx)
     def tx_open(self, spiel_tx):
-        print("tx_open")
         spiel_tx.data = self.allocate_memory(m0_spiel_tx__size())
         self.mero.m0_spiel_tx_open(self.spiel, spiel_tx.data)
 
     @require(spiel_tx=SpielTx)
     def tx_commit(self, spiel_tx):
-        print("commit")
         return self.mero.m0_spiel_tx_commit(spiel_tx.data)
 
     @require(spiel_tx=SpielTx)
@@ -501,6 +506,17 @@ class SpielWrapper:
             raise RuntimeError("m0_rpc_machine_init, rc = " + str(result))
         return rpc_machine
 
+    def __ha_session_init(self):
+        self.ha_conn = self.allocate_memory(m0_rpc_conn__size())
+        self.ha_session = self.allocate_memory(m0_rpc_session__size())
+        rc = self.mero.m0_rpc_client_connect(self.ha_conn, self.ha_session,
+                                             self.rpc_machine, self.ha_ep,
+                                             2)
+        if rc != 0:
+            raise RuntimeError("failed to initialise HA session, rc = " +
+                               str(result))
+        self.mero.m0_ha_state_init(self.ha_session)
+
     def __spiel_init(self, reqh):
         spiel = self.allocate_memory(m0_spiel__size())
         result = self.mero.m0_spiel_init(spiel, reqh)
@@ -665,18 +681,15 @@ Execute commands from command line:
 \techo -e 'print(spiel_service_init(Fid(1,1)))' | sudo ./m0spiel''')
     parser.add_option('--self-check', action='store_true',
                       help='Run unit tests and exit')
-    parser.add_option('--server', '-s', default=default_confd_ep,
-                      help='Confd endpoint. Default value: ' +
-                      default_confd_ep)
+    parser.add_option('--ha', '-s', default=default_ha_ep,
+                      help='HA endpoint. Default value: ' +
+                      default_ha_ep)
     parser.add_option('--client', '-c', default=default_client_ep,
                       help='Client endpoint. Default value: ' +
                       default_client_ep)
     parser.add_option('-l', default=default_libmero_path, dest='mero',
                       help='Path to libmero.so. Default value: ' +
                       default_libmero_path)
-    parser.add_option('--rmservice', '-r', default=default_rm_ep, dest='rm_ep',
-                      help='Default endpoint of RM service. Default value: ' +
-                      default_rm_ep)
     return parser
 
 
@@ -686,8 +699,7 @@ if __name__ == "__main__":
     try:
         tool = SpielTool(args.mero, args.client)
         atexit.register(tool.spiel.spiel_fini)
-        tool.spiel.spiel_init(args.client)
-        print("spiel init")
+        tool.spiel.spiel_init(args.client, args.ha)
     except RuntimeError as e:
         print('an error occurred: ' + str(e), file=sys.stderr)
         print('-' * 80, file=sys.stderr)

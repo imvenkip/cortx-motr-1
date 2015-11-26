@@ -1,14 +1,14 @@
 #!/bin/bash
-set -eu
+set -e
 
-# set -x
-# export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+#set -x
+#export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.spiel-st}
 
-TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-!rpc,formation,fop,memory}
-TRACE_LEVEL=${M0_TRACE_LEVEL:-call+}
+TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-all}
+TRACE_LEVEL=${M0_TRACE_LEVEL:-warn}
 TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 
 MAX_RPC_MSG_SIZE=163840
@@ -22,6 +22,9 @@ M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . $M0_SRC_DIR/scripts/functions  # die, sandbox_init
+. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
+. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
 
 ## Path to the file with configuration string for confd.
@@ -67,16 +70,17 @@ start() {
 
 stop() {
     local rc=${1:-$?}
+
+    trap - EXIT
     if `mount | grep -q "m0t1fs"`; then umount $SANDBOX_DIR/mnt; fi
-    services_stop
-    sleep 3
+    mero_service stop;
     _fini
     if [ $rc -eq 0 ]; then
         sandbox_fini
     else
         say "Spiel test FAILED: $rc"
+        exit $rc
     fi
-    exit $rc
 }
 
 _init() {
@@ -90,7 +94,6 @@ _fini() {
     for i in $(seq $DEV_NR); do
         losetup -d /dev/loop$i
     done
-    modules_remove
 }
 
 ### XXX Code duplication!
@@ -243,8 +246,6 @@ test_m0d_start() {
     error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
 }
 
-services_stop() { killall -q lt-m0d && wait || true; }
-
 export_vars() {
     export M0_SPIEL_OPTS="
     -l $M0_SRC_DIR/mero/.libs/libmero.so --client $SPIEL_ENDPOINT"
@@ -305,7 +306,6 @@ P = 4
 mask = c_uint64(3)
 cores = Bitmap(1, pointer(mask))
 
-print("create tx")
 tx = SpielTx(spiel.spiel)
 spiel.tx_open(tx)
 
@@ -428,6 +428,7 @@ $FIDS_LIST
 $SERVICES
 
 from itertools import product
+
 $PYTHON_BOILERPLATE
 
 service_commands = list(product(['service_quiesce', 'service_stop',
@@ -562,41 +563,42 @@ echo 8 >/proc/sys/kernel/printk  # Print kernel messages to the console.
 export_vars
 
 say "Construct confc db"
-construct_db
+construct_db || stop
 
 say "Test m0d start"
-test_m0d_start
+test_m0d_start || stop
 
 say "Validate health"
-validate_health
+validate_health || stop
 
 say "Fetch filesystem stats"
-fs_stats_fetch
+fs_stats_fetch || stop
 
 say "Restart services"
-restart_services
+restart_services || stop
 
 say "Validate health"
-validate_health
+validate_health || stop
 
 say "Reconfig Process"
-reconfig_process
+reconfig_process || stop
+
 say "wait for reconfigure"
 sleep 10
 grep -q "Restarting" $SANDBOX_DIR/m0d.log || die "Reconfigure is not finished"
 
 say "Validate health"
-validate_health
+validate_health || stop
 
 _mount || stop $?
 
 say "Perform IO"
-perform_io
+perform_io || stop
 
 say "Validate health"
-validate_health
+validate_health || stop
 
 say "Device commands"
-device_commands_check
+device_commands_check || stop
 
-say "spiel: test status: SUCCESS"
+stop && echo "spiel: test status: SUCCESS"
