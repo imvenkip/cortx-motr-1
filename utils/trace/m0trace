@@ -156,7 +156,7 @@ package Tie::Array::Lazy::YAMLstream;
         }
 
         while (not eof $self->{stream}) {
-            local $INPUT_RECORD_SEPARATOR = '---';
+            local $INPUT_RECORD_SEPARATOR = "---\n";
 
             my $doc = readline $self->{stream};
             chomp $doc;
