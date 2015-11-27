@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
 {
 	static struct m0 instance;
 	struct m0_ut_module *ut;
-	int   rc                   = EXIT_SUCCESS;
+	int   rc;
 	bool  list_ut              = false;
 	bool  with_tests           = false;
 	bool  list_owners          = false;
@@ -231,6 +231,7 @@ int main(int argc, char *argv[])
 	bool  finject_stats_after  = false;
 	bool  parse_trace          = false;
 	int   seed                 = -1;
+	int   count                = 1;
 	const char *fault_point         = NULL;
 	const char *fp_file_name        = NULL;
 	const char *trace_mask          = NULL;
@@ -271,7 +272,7 @@ int main(int argc, char *argv[])
 				),
 		    M0_FORMATARG('H', "shuffle test suites before execution. "
 				 "The argument is a seed value. "
-				 "0 to shuffle randomly", "%u", &seed),
+				 "0 to shuffle randomly", "%i", &seed),
 		    M0_FLAGARG('k', "keep the sandbox directory",
 				&ut->ut_keep_sandbox),
 		    M0_FLAGARG('l', "list available test suites",
@@ -293,6 +294,7 @@ int main(int argc, char *argv[])
 					m0_trace_print_subsystems();
 					exit(EXIT_SUCCESS);
 				})),
+		    M0_FORMATARG('n', "repetition count", "%i", &count),
 		    M0_FLAGARG('o', "list test owners",
 				&list_owners),
 		    M0_STRINGARG('p', "trace print context, values:"
@@ -378,21 +380,22 @@ int main(int argc, char *argv[])
 		printf("\n");
 	}
 #endif /* XXX */
-	if (seed != -1) {
-		if (seed == 0) {
-			seed = time(NULL) ^ (getpid() << 17);
-			printf("Seed: %u.\n", seed);
+	do {
+		if (seed != -1) {
+			if (seed == 0) {
+				seed = time(NULL) ^ (getpid() << 17);
+				printf("Seed: %i.\n", seed);
+			}
+			m0_ut_shuffle(seed);
 		}
-		m0_ut_shuffle(seed);
-	}
 
-	if (list_ut)
-		m0_ut_list(with_tests);
-	else if (list_owners)
-		m0_ut_list_owners();
-	else
-		rc = m0_ut_run();
-
+		if (list_ut)
+			m0_ut_list(with_tests);
+		else if (list_owners)
+			m0_ut_list_owners();
+		else
+			rc = m0_ut_run();
+	} while (rc == 0 && --count > 0);
 	if (finject_stats_after) {
 		printf("\n");
 		m0_fi_print_info();
