@@ -168,8 +168,7 @@ static void io_err_callback(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	lstob = M0_AMB(lstob, ast, sl_ast);
 	M0_LOG(M0_WARN, "IO error: stob_id=" STOB_ID_F " conf_sdev=" FID_F,
 	       STOB_ID_P(&lstob->sl_stob.so_id), FID_P(&lstob->sl_conf_sdev));
-	ioq = &container_of(&lstob->sl_stob.so_domain,
-			    struct m0_stob_linux_domain, sld_dom)->sld_ioq;
+	ioq = &lstob->sl_dom->sld_ioq;
 	rpc_ssn = m0_ha_session_get();
 	m0_mutex_lock(&ioq->ioq_lock);
 	if (rpc_ssn != NULL) {
