@@ -76,6 +76,14 @@ enum m0_conf_version {
 	 * @see m0_rconfc
 	 */
 	M0_CONF_VER_UNKNOWN = 0,
+	/**
+	 * Reserved version number indicating that m0_conf_root::rt_verno is not
+	 * set yet, i. e. Spiel transaction was opened but not committed yet.
+	 *
+	 * @see m0_spiel_tx_open()
+	 * @see m0_spiel_tx_commit()
+	 */
+	M0_CONF_VER_FAKE = ~0,
 };
 
 /** Configuration cache. */

@@ -36,17 +36,18 @@ static void spiel_start_stop(void)
 {
 	int              rc;
 	struct m0_spiel  spiel;
-	const char      *confd_eps[] = { SERVER_ENDPOINT_ADDR, NULL };
 	const char      *profile = M0_UT_CONF_PROFILE;
-	const char      *rm_ep = confd_eps[0];
 
-	rc = m0_spiel_start(&spiel, &spl_reqh->sur_reqh, confd_eps, rm_ep);
+	rc = m0_spiel_init(&spiel, &spl_reqh->sur_reqh);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_spiel_rconfc_start(&spiel, NULL);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_cmd_profile_set(&spiel, profile);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_spiel_stop(&spiel);
+	m0_spiel_rconfc_stop(&spiel);
+	m0_spiel_fini(&spiel);
 }
 
 

@@ -7,7 +7,7 @@ set -eu
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.spiel-st}
 
-TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-!rpc,formation,fop,memory,conf}
+TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-!rpc,formation,fop,memory}
 TRACE_LEVEL=${M0_TRACE_LEVEL:-call+}
 TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 
@@ -34,12 +34,18 @@ PROC_FID="<$PROC_FID_CNTR:$PROC_FID_KEY>"
 PROC_FID2="<$PROC_FID_CNTR:$PROC_FID_KEY2>"
 PROF_OPT="<0x7000000000000001:0>"
 
+PYTHON_BOILERPLATE="
+if spiel.rconfc_start():
+    sys.exit('cannot start rconfc')
+
+if spiel.cmd_profile_set(str(fids['profile'])) != 0:
+    sys.exit('cannot set profile {0}'.format(fids['profile']))"
+
 iosloopdevs() {
     cat > $SANDBOX_DIR/disks.conf << EOF
     Device:
 EOF
-    for i in $(seq 1 $DEV_NR)
-    do
+    for i in $(seq $DEV_NR); do
         dd if=/dev/zero of=$SANDBOX_DIR/${i}.img bs=$DEV_SIZE seek=$DEV_SIZE count=1
         losetup -d /dev/loop$i &> /dev/null || true
         losetup /dev/loop$i $SANDBOX_DIR/${i}.img
@@ -54,7 +60,7 @@ start() {
     # install "mero" Python module required by m0spiel tool
     cd $M0_SRC_DIR/utils/spiel
     python setup.py install > /dev/null || die 'Cannot install Python "mero" module'
-    cd $M0_SRC_DIR
+    sandbox_init
     _init
     m0d_with_rms_start
 }
@@ -65,23 +71,25 @@ stop() {
     services_stop
     sleep 3
     _fini
-    [ $rc -eq 0 ] || echo "Spiel test FAILED"
+    if [ $rc -eq 0 ]; then
+        sandbox_fini
+    else
+        say "Spiel test FAILED: $rc"
+    fi
     exit $rc
 }
 
 _init() {
     lnet_up
     modules_insert
-    sandbox_init
     mkdir $SANDBOX_DIR/mnt
     iosloopdevs
 }
 
 _fini() {
-    for i in $(seq 1 $DEV_NR); do
+    for i in $(seq $DEV_NR); do
         losetup -d /dev/loop$i
     done
-    sandbox_fini
     modules_remove
 }
 
@@ -239,12 +247,7 @@ services_stop() { killall -q lt-m0d && wait || true; }
 
 export_vars() {
     export M0_SPIEL_OPTS="
-    -l $M0_SRC_DIR/mero/.libs/libmero.so --server $SERVER1_ENDPOINT
-    --client $SPIEL_ENDPOINT --rmservice $SERVER1_ENDPOINT"
-
-    export M0_SPIEL_OPTS2="
-    -l $M0_SRC_DIR/mero/.libs/libmero.so --server $SERVER2_ENDPOINT
-    --client $SPIEL_ENDPOINT --rmservice $SERVER1_ENDPOINT"
+    -l $M0_SRC_DIR/mero/.libs/libmero.so --client $SPIEL_ENDPOINT"
 
     export FIDS_LIST="
 fids = {'profile'       : Fid(0x7000000000000001, 0),
@@ -302,6 +305,7 @@ P = 4
 mask = c_uint64(3)
 cores = Bitmap(1, pointer(mask))
 
+print("create tx")
 tx = SpielTx(spiel.spiel)
 spiel.tx_open(tx)
 
@@ -397,13 +401,11 @@ EOF
 }
 
 validate_health() {
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
+    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 $SERVICES
 $HEALTH
-
-if spiel.cmd_profile_set(str(fids['profile'])) != 0:
-    sys.exit('can not set profile {0}'.format(fids['profile']))
+$PYTHON_BOILERPLATE
 
 for key in services:
     rc = spiel.service_health(fids[key])
@@ -415,18 +417,18 @@ rc = spiel.process_health(fids['process'])
 if rc not in [HEALTH_GOOD, HEALTH_UNKNOWN]:
     sys.exit('an error occurred while checking health of process wwith fid {0},\
              result code {1}'.format(fids[process], rc))
+
+spiel.rconfc_stop()
 EOF
 }
 
 restart_services() {
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
+    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 $SERVICES
 
 from itertools import product
-
-if spiel.cmd_profile_set(str(fids['profile'])) != 0:
-    sys.exit('can not set profile {0}'.format(fids['profile']))
+$PYTHON_BOILERPLATE
 
 service_commands = list(product(['service_quiesce', 'service_stop',
                                  'service_init', 'service_start'],
@@ -440,20 +442,21 @@ for command in service_commands:
         sys.exit("an error occurred while {0} executing, service fid \
                  {1}".format(command[0], command[1]))
 
+spiel.rconfc_stop()
 EOF
 }
 
 reconfig_process() {
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
+    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
-
-if spiel.cmd_profile_set(str(fids['profile'])) != 0:
-    sys.exit('can not set profile {0}'.format(fids['profile']))
+$PYTHON_BOILERPLATE
 
 rc = spiel.process_reconfig(fids['process2'])
 if rc != 0:
     sys.exit('Error: process reconfig for process {0}\
              (status {1})'.format(fids['process2'], rc))
+
+spiel.rconfc_stop()
 EOF
 }
 
@@ -471,11 +474,9 @@ perform_io() {
 }
 
 fs_stats_fetch() {
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
+    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
-
-if spiel.cmd_profile_set(str(fids['profile'])) != 0:
-    sys.exit('can not set profile {0}'.format(fids['profile']))
+$PYTHON_BOILERPLATE
 
 fs_stats = FsStats()
 rc = spiel.filesystem_stats_fetch(fids['fs'], fs_stats)
@@ -483,6 +484,7 @@ if rc != 0:
 	sys.exit('Error: filesystem stats fetch for fs {0}\
                  (status {1})'.format(fids['fs'], rc))
 
+spiel.rconfc_stop()
 print("free space  {0:>20}".format(fs_stats.fs_free))
 print("total space {0:>20}".format(fs_stats.fs_total))
 EOF
@@ -497,11 +499,9 @@ none $SANDBOX_DIR/mnt"
 }
 
 device_commands_check() {
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS2 <<EOF
+    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
-
-if spiel.cmd_profile_set(str(fids['profile'])) != 0:
-    sys.exit('can not set profile {0}'.format(fids['profile']))
+$PYTHON_BOILERPLATE
 
 device_commands = [('device_detach', fids['disk1']),
                    ('device_format', fids['disk1']),
@@ -515,6 +515,7 @@ for command in device_commands:
         sys.exit("an error occurred while {0} executing, device fid \
                  {1}".format(command[0], command[1]))
 
+spiel.rconfc_stop()
 EOF
 }
 

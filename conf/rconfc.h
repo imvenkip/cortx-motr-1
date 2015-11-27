@@ -434,6 +434,14 @@ M0_INTERNAL void m0_rconfc_exp_cb_set(struct m0_rconfc   *rconfc,
 M0_INTERNAL void m0_rconfc_drained_cb_set(struct m0_rconfc       *rconfc,
 					  m0_rconfc_drained_cb_t  cb);
 
+/**
+ * Allocates and fills eps with confd endpoints from m0_rconfc::rc_herd list.
+ * Returns number of endpoints or -ENOMEM if memory allocation was failed during
+ * duplication of an endpoint.
+ */
+M0_INTERNAL int m0_rconfc_confd_endpoints(struct m0_rconfc   *rconfc,
+					  const char       ***eps);
+
 /** @} rconfc_dfspec */
 #endif /* __MERO_CONF_RCONFC_H__ */
 

@@ -33,7 +33,9 @@
 #include "ut/file_helpers.h"           /* M0_UT_CONF_PROFILE */
 #include "spiel/ut/spiel_ut_common.h"
 
-static struct m0_spiel_ut_reqh ut_reqh;
+static struct  m0_spiel_ut_reqh ut_reqh;
+const char    *confd_addr[] = { SERVER_ENDPOINT_ADDR, NULL };
+const char    *rm_addr      = SERVER_ENDPOINT_ADDR;
 
 M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 		                       const char              *ep_addr)
@@ -141,32 +143,37 @@ M0_INTERNAL void m0_spiel__ut_rpc_server_stop(struct m0_rpc_server_ctx *rpc_srv)
 }
 
 M0_INTERNAL int m0_spiel__ut_init(struct m0_spiel *spiel,
-				  char            *confd_path)
+				  char            *confd_path,
+				  const bool       cmd_iface)
 {
 	int         rc;
-	const char *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
-	const char *rm_ep = ep[0];
 	const char *client_ep = CLIENT_ENDPOINT_ADDR;
 	const char *profile = M0_UT_CONF_PROFILE;
 
 	rc = m0_spiel__ut_reqh_init(&ut_reqh, client_ep);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel__ut_rpc_server_start(&ut_reqh.sur_confd_srv, ep[0],
+	rc = m0_spiel__ut_rpc_server_start(&ut_reqh.sur_confd_srv,
+					   confd_addr[0],
 					   confd_path);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_start(spiel, &ut_reqh.sur_reqh, ep, rm_ep);
+	rc = m0_spiel_init(spiel, &ut_reqh.sur_reqh);
 	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_spiel_cmd_profile_set(spiel, profile);
-	M0_UT_ASSERT(rc == 0);
+	if (cmd_iface) {
+		rc = m0_spiel_rconfc_start(spiel, NULL);
+		M0_UT_ASSERT(rc == 0);
+		rc = m0_spiel_cmd_profile_set(spiel, profile);
+		M0_UT_ASSERT(rc == 0);
+	}
 	return 0;
 }
 
-M0_INTERNAL int m0_spiel__ut_fini(struct m0_spiel *spiel)
+M0_INTERNAL int m0_spiel__ut_fini(struct m0_spiel *spiel, const bool cmd_iface)
 {
-	m0_spiel_stop(spiel);
+	if (cmd_iface)
+		m0_spiel_rconfc_stop(spiel);
+	m0_spiel_fini(spiel);
 	m0_spiel__ut_rpc_server_stop(&ut_reqh.sur_confd_srv);
 	m0_spiel__ut_reqh_fini(&ut_reqh);
 	return 0;

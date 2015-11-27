@@ -43,35 +43,34 @@
  * @{
  */
 
-int m0_spiel_start(struct m0_spiel *spiel,
-		   struct m0_reqh  *reqh,
-		   const char     **confd_eps,
-		   const char      *rm_ep)
+int m0_spiel_init(struct m0_spiel *spiel, struct m0_reqh *reqh)
 {
-	return m0_spiel_start_quorum(spiel, reqh, confd_eps, rm_ep, 0, NULL);
-}
-M0_EXPORTED(m0_spiel_start);
+	M0_PRE(reqh != NULL);
+	M0_ENTRY("spiel %p, reqh %p", spiel, reqh);
 
-int m0_spiel_start_quorum(struct m0_spiel   *spiel,
-			  struct m0_reqh    *reqh,
-			  const char       **confd_eps,
-			  const char        *rm_ep,
-			  uint32_t           quorum,
-			  m0_rconfc_exp_cb_t exp_cb)
+	M0_SET0(spiel);
+	spiel->spl_rmachine = m0_reqh_rpc_mach_tlist_head(
+				&reqh->rh_rpc_machines);
+	if (spiel->spl_rmachine == NULL)
+		return M0_ERR(-ENOENT);
+	return M0_RC(0);
+}
+M0_EXPORTED(m0_spiel_init);
+
+void m0_spiel_fini(struct m0_spiel *spiel)
+{
+	return;
+}
+M0_EXPORTED(m0_spiel_fini);
+
+int m0_spiel_rconfc_start(struct m0_spiel    *spiel,
+			  m0_rconfc_exp_cb_t  exp_cb)
 {
 	int               rc;
 	struct m0_rconfc *rconfc = &spiel->spl_rconfc;
 
 	M0_ENTRY();
-	M0_PRE(reqh != NULL && confd_eps != NULL && rm_ep != NULL);
-	M0_SET0(spiel);
-	spiel->spl_rmachine = m0_reqh_rpc_mach_tlist_head(
-			&reqh->rh_rpc_machines);
-	if (spiel->spl_rmachine == NULL)
-		return M0_ERR(-ENOENT);
-	spiel->spl_confd_eps = m0_strings_dup(confd_eps);
-	if (spiel->spl_confd_eps == NULL)
-		return M0_ERR(-ENOMEM);
+	M0_PRE(spiel->spl_rmachine != NULL);
 
 	rc = m0_rconfc_init(rconfc, m0_locality0_get()->lo_grp,
 			    spiel->spl_rmachine, exp_cb);
@@ -83,22 +82,20 @@ int m0_spiel_start_quorum(struct m0_spiel   *spiel,
 		}
 	}
 	if (rc != 0) {
-		m0_strings_free(spiel->spl_confd_eps);
 		return M0_ERR(rc);
 	}
 	return M0_RC(0);
 }
-M0_EXPORTED(m0_spiel_start_quorum);
+M0_EXPORTED(m0_spiel_rconfc_start);
 
-void m0_spiel_stop(struct m0_spiel *spiel)
+void m0_spiel_rconfc_stop(struct m0_spiel *spiel)
 {
 	M0_ENTRY();
 	m0_rconfc_stop_sync(&spiel->spl_rconfc);
 	m0_rconfc_fini(&spiel->spl_rconfc);
-	m0_strings_free(spiel->spl_confd_eps);
 	M0_LEAVE();
 }
-M0_EXPORTED(m0_spiel_stop);
+M0_EXPORTED(m0_spiel_rconfc_stop);
 
 int m0_spiel_cmd_profile_set(struct m0_spiel *spiel, const char *profile_str)
 {

@@ -230,6 +230,8 @@ m0_rwlock_read_unlock
 m0_sm_group_call
 m0_sm_state_set
 m0_spiel_cmd_profile_set
+m0_spiel_rconfc_start
+m0_spiel_rconfc_stop
 m0_spiel_controller_add
 m0_spiel_controller_v_add
 m0_spiel_device_add
@@ -243,6 +245,8 @@ m0_spiel_enclosure_add
 m0_spiel_enclosure_v_add
 m0_spiel_filesystem_add
 m0_spiel_filesystem_stats_fetch
+m0_spiel_fini
+m0_spiel_init
 m0_spiel_node_add
 m0_spiel_pool_add
 m0_spiel_pool_rebalance_quiesce
@@ -270,9 +274,6 @@ m0_spiel_service_init
 m0_spiel_service_quiesce
 m0_spiel_service_start
 m0_spiel_service_stop
-m0_spiel_start
-m0_spiel_start_quorum
-m0_spiel_stop
 m0_spiel_tx_validate
 m0_spiel_tx_close
 m0_spiel_tx_commit

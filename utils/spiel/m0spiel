@@ -162,23 +162,19 @@ class SpielWrapper:
         self.mero = CDLL(mero)
         self.mero.malloc.restype = c_void_p
 
-    def spiel_start(self, server, client, rm_ep):
-        self.confd_eps = c_char_p(server) if server is not None else c_char_p(
-            default_confd_ep)
+    def spiel_init(self, client):
         self.client_ep = c_char_p(client) if client is not None else c_char_p(
             default_client_ep)
-        self.rm_ep = c_char_p(rm_ep) if rm_ep is not None else c_char_p(
-            default_rm_ep)
         self.__init_m0_instance()
         self.domain = self.__init_net_domain()
         self.buffer_pool = self.__net_buffer_pool_setup(self.domain)
         self.reqh = self.__init_reqh()
         self.rpc_machine = self.__init_rpc_machine(self.domain, self.reqh,
                                                    self.buffer_pool)
-        self.spiel = self.__spiel_start(self.reqh)
+        self.spiel = self.__spiel_init(self.reqh)
 
-    def spiel_stop(self):
-        self.mero.m0_spiel_stop(self.spiel)
+    def spiel_fini(self):
+        self.mero.m0_spiel_fini(self.spiel)
         self.__free(self.spiel)
         self.mero.m0_rpc_machine_fini(self.rpc_machine)
         self.__free(self.rpc_machine)
@@ -193,11 +189,13 @@ class SpielWrapper:
 
     @require(spiel_tx=SpielTx)
     def tx_open(self, spiel_tx):
+        print("tx_open")
         spiel_tx.data = self.allocate_memory(m0_spiel_tx__size())
         self.mero.m0_spiel_tx_open(self.spiel, spiel_tx.data)
 
     @require(spiel_tx=SpielTx)
     def tx_commit(self, spiel_tx):
+        print("commit")
         return self.mero.m0_spiel_tx_commit(spiel_tx.data)
 
     @require(spiel_tx=SpielTx)
@@ -211,8 +209,8 @@ class SpielWrapper:
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, redundancy=int,
              rootfid=Fid, mdpool=Fid, fs_params=list)
-    def filesystem_add(self, spiel_tx, fid, parent, redundancy, rootfid, mdpool,
-                       fs_params):
+    def filesystem_add(self, spiel_tx, fid, parent, redundancy, rootfid,
+                       mdpool, fs_params):
         # fs_params must be list of strings. Unfortunately ctypes can't
         # automatically convert list (or array) of strings to something
         # compatible with char**. The code below do this.
@@ -345,6 +343,17 @@ class SpielWrapper:
     @require(spiel_tx=SpielTx, fid=Fid)
     def element_del(self, spiel_tx, fid):
         return self.mero.m0_spiel_element_del(spiel_tx.data, byref(fid))
+#############################################################################
+#                                                                           #
+#                              Command Interface                            #
+#                                                                           #
+#############################################################################
+
+    def rconfc_start(self):
+        return self.mero.m0_spiel_rconfc_start(self.spiel)
+
+    def rconfc_stop(self):
+        self.mero.m0_spiel_rconfc_stop(self.spiel)
 
     @require(profile=str)
     def cmd_profile_set(self, profile):
@@ -401,7 +410,7 @@ class SpielWrapper:
     @require(fid=Fid)
     def process_list_services(self, fid, svc_list=POINTER(RunningServices)):
         return self.mero.m0_spiel_process_list_services(self.spiel, byref(fid),
-                                                byref(svc_list))
+                                                        byref(svc_list))
 
     @require(fid=Fid)
     def pool_repair_start(self, fid):
@@ -426,7 +435,8 @@ class SpielWrapper:
 
     @require(fid=Fid)
     def pool_rebalance_quiesce(self, fid):
-        return self.mero.m0_spiel_pool_rebalance_quiesce(self.spiel, byref(fid))
+        return self.mero.m0_spiel_pool_rebalance_quiesce(self.spiel,
+                                                         byref(fid))
 
     @require(fid=Fid)
     def pool_rebalance_continue(self, fid):
@@ -440,7 +450,8 @@ class SpielWrapper:
 
     @require(fid=Fid, stats=FsStats)
     def filesystem_stats_fetch(self, fid, stats):
-        return self.mero.m0_spiel_filesystem_stats_fetch(self.spiel, byref(fid),
+        return self.mero.m0_spiel_filesystem_stats_fetch(self.spiel,
+                                                         byref(fid),
                                                          byref(stats))
 
     def __init_m0_instance(self):
@@ -490,11 +501,9 @@ class SpielWrapper:
             raise RuntimeError("m0_rpc_machine_init, rc = " + str(result))
         return rpc_machine
 
-    def __spiel_start(self, reqh):
+    def __spiel_init(self, reqh):
         spiel = self.allocate_memory(m0_spiel__size())
-        confd_eps_p = pointer(self.confd_eps)
-        result = self.mero.m0_spiel_start(spiel, reqh, confd_eps_p,
-                                          self.rm_ep)
+        result = self.mero.m0_spiel_init(spiel, reqh)
         if result != 0:
             raise RuntimeError("m0_spiel_start, rc = " + str(result))
         return spiel
@@ -509,7 +518,7 @@ class SpielWrapper:
 
 
 class SpielTool:
-    def __init__(self, mero, server, client, rm_ep):
+    def __init__(self, mero, client):
         self.spiel = SpielWrapper(mero)
 
     def interactive_console_create(self):
@@ -544,9 +553,11 @@ class SpielToolTest(unittest.TestCase):
                  ('node_add', True, self.spielTx, Fid(0x6e00000000000001, 2),
                   Fid(0x6600000000000001, 1), 1L, 1, 1L, 1L,
                   Fid(0x6f00000000000001, 9)),
-                 ('process_add', True, self.spielTx, Fid(0x7200000000000001, 3),
+                 ('process_add', True, self.spielTx, Fid(0x7200000000000001,
+                                                         3),
                   Fid(0x6e00000000000001, 2), self.Bitmap, 1L, 2L, 3L, 4L),
-                 ('service_add', True, self.spielTx, Fid(0x7300000000000002, 0),
+                 ('service_add', True, self.spielTx, Fid(0x7300000000000002,
+                                                         0),
                   Fid(0x7200000000000001, 3), M0_CST_IOS,
                   ["10.0.2.2@tcp:12345:12:12"], ServiceInfoParameters()),
                  ('device_add', True, self.spielTx, Fid(0x6400000000000009, 9),
@@ -598,15 +609,17 @@ class SpielToolTest(unittest.TestCase):
                  ('pool_repair_start', True, Fid(0x6f00000000000001, 199)),
                  ('pool_repair_quiesce', True, Fid(0x6f00000000000001, 199)),
                  ('pool_rebalance_start', True, Fid(0x6f00000000000001, 199)),
-                 ('pool_rebalance_quiesce', True, Fid(0x6f00000000000001, 199)),
+                 ('pool_rebalance_quiesce', True, Fid(0x6f00000000000001,
+                                                      199)),
                  ('filesystem_stats_fetch', True, Fid(0x6600000000000001, 1),
                   FsStats())
-        ]
+                 ]
         try:
             for t in tests:
                 print('{0}...'.format(t[0]))
-                if t[1] == True:
-                    self.assertNotEqual(getattr(self.spiel, t[0])(*t[2:]), None)
+                if t[1]:
+                    self.assertNotEqual(getattr(self.spiel, t[0])(*t[2:]),
+                                        None)
                 else:
                     getattr(self.spiel, t[0])(*t[2:])
         except AssertionError:
@@ -671,9 +684,10 @@ if __name__ == "__main__":
     parser = create_arguments_parser()
     args, _ = parser.parse_args()
     try:
-        tool = SpielTool(args.mero, args.server, args.client, args.rm_ep)
-        atexit.register(tool.spiel.spiel_stop)
-        tool.spiel.spiel_start(args.server, args.client, args.rm_ep)
+        tool = SpielTool(args.mero, args.client)
+        atexit.register(tool.spiel.spiel_fini)
+        tool.spiel.spiel_init(args.client)
+        print("spiel init")
     except RuntimeError as e:
         print('an error occurred: ' + str(e), file=sys.stderr)
         print('-' * 80, file=sys.stderr)

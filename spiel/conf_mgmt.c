@@ -79,7 +79,18 @@ static int spiel_root_add(struct m0_spiel_tx *tx)
 		rc = M0_ERR(-EEXIST);
 	if (rc == 0) {
 		root = M0_CONF_CAST(obj, m0_conf_root);
-		root->rt_verno = tx->spt_version;
+		/* Real version number will be set during transaction commit
+		 * one of the two ways:
+		 *
+		 * 1. Spiel client may provide version number explicitly when
+		 * calling m0_spiel_tx_commit_forced().
+		 *
+		 * 2. In case client does not provide any valid version number,
+		 * current maximum version number known among confd services is
+		 * going to be fetched by rconfc. This value to be incremented
+		 * and used as version number of currently composed conf DB.
+		 */
+		root->rt_verno = M0_CONF_VER_FAKE;
 		rc = dir_new(&tx->spt_cache,
 			     &root->rt_obj.co_id,
 			     &M0_CONF_ROOT_PROFILES_FID,
@@ -112,7 +123,6 @@ static int spiel_root_ver_update(struct m0_spiel_tx *tx, uint64_t verno)
 	if (rc == 0) {
 		root = M0_CONF_CAST(obj, m0_conf_root);
 		root->rt_verno = verno;
-		tx->spt_version = verno;
 	}
 	m0_mutex_unlock(&tx->spt_lock);
 
@@ -122,19 +132,17 @@ static int spiel_root_ver_update(struct m0_spiel_tx *tx, uint64_t verno)
 void m0_spiel_tx_open(struct m0_spiel    *spiel,
 		      struct m0_spiel_tx *tx)
 {
-	M0_ENTRY();
+	int rc;
+
+	M0_PRE(tx != NULL);
+	M0_ENTRY("tx %p", tx);
 
 	tx->spt_spiel = spiel;
 	tx->spt_buffer = NULL;
 	m0_mutex_init(&tx->spt_lock);
 	m0_conf_cache_init(&tx->spt_cache, &tx->spt_lock);
-
-	tx->spt_version = m0_rconfc_ver_max_read(&spiel->spl_rconfc);
-	M0_ASSERT(tx->spt_version != M0_CONF_VER_UNKNOWN);
-	++tx->spt_version;
-
-	spiel_root_add(tx);
-
+	rc = spiel_root_add(tx);
+	M0_ASSERT(rc == 0);
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_spiel_tx_open);
@@ -203,6 +211,24 @@ static bool spiel_load_cmd_invariant(struct m0_spiel_load_command *cmd)
 	       _0C(cmd->slc_load_fop.f_type == &m0_fop_conf_load_fopt);
 }
 
+static uint64_t spiel_root_conf_version(struct m0_spiel_tx *tx)
+{
+	int                  rc;
+	uint64_t             verno;
+	struct m0_conf_obj  *obj;
+	struct m0_conf_root *root;
+
+	M0_ENTRY();
+
+	m0_mutex_lock(&tx->spt_lock);
+	rc = m0_conf_obj_find(&tx->spt_cache, &M0_CONF_ROOT_FID, &obj);
+	M0_ASSERT(_0C(rc == 0) && _0C(obj != NULL));
+	root = M0_CONF_CAST(obj, m0_conf_root);
+	verno = root->rt_verno;
+	m0_mutex_unlock(&tx->spt_lock);
+
+	return verno;
+}
 /**
  * Finalizes a FOP for Spiel Load command.
  * @pre spiel_load_cmd_invariant(spiel_cmd)
@@ -251,7 +277,7 @@ static int spiel_load_fop_init(struct m0_spiel_load_command *spiel_cmd,
 	if (rc == 0) {
 		/* Fill Spiel Conf FOP specific data*/
 		conf_fop = m0_conf_fop_to_load_fop(&spiel_cmd->slc_load_fop);
-		conf_fop->clf_version = tx->spt_version;
+		conf_fop->clf_version = spiel_root_conf_version(tx);
 		conf_fop->clf_tx_id = (uint64_t)tx;
 		m0_rpc_bulk_init(&spiel_cmd->slc_rbulk);
 		M0_POST(spiel_load_cmd_invariant(spiel_cmd));
@@ -366,7 +392,7 @@ static int spiel_flip_fop_send(struct m0_spiel_tx           *tx,
 	if (rc == 0) {
 		flip_fop = m0_conf_fop_to_flip_fop(&spiel_cmd->slc_flip_fop);
 		flip_fop->cff_prev_version = spiel_cmd->slc_version;
-		flip_fop->cff_next_version = tx->spt_version;
+		flip_fop->cff_next_version = spiel_root_conf_version(tx);
 		flip_fop->cff_tx_id = (uint64_t)tx;
 	}
 
@@ -386,21 +412,27 @@ static int spiel_flip_fop_send(struct m0_spiel_tx           *tx,
 	return M0_RC(rc);
 }
 
-int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx, bool forced,
-			      uint64_t ver_forced, uint32_t *rquorum)
+int m0_spiel_tx_commit_forced(struct m0_spiel_tx  *tx,
+			      bool                 forced,
+			      uint64_t             ver_forced,
+			      uint32_t            *rquorum)
 {
-	int                           rc;
-	struct m0_spiel_load_command *spiel_cmd   = NULL;
-	uint32_t                      confd_count = 0;
-	uint32_t                      quorum      = 0;
-	uint32_t                      idx;
+	int                            rc;
+	struct m0_spiel_load_command  *spiel_cmd   = NULL;
+	const char                   **confd_eps   = NULL;
+	uint32_t                       confd_count = 0;
+	uint32_t                       quorum      = 0;
+	uint32_t                       idx;
+	uint64_t                       rconfc_ver;
 
 	enum {
 		MAX_RPCS_IN_FLIGHT = 2
 	};
 
 	M0_ENTRY();
-
+	rc = m0_spiel_rconfc_start(tx->spt_spiel, NULL);
+	if (rc != 0)
+		goto rconfc_fail;
 	/*
 	 * in case ver_forced value is other than M0_CONF_VER_UNKNOWN, override
 	 * transaction version number with ver_forced, otherwise leave the one
@@ -409,18 +441,41 @@ int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx, bool forced,
 	if (ver_forced != M0_CONF_VER_UNKNOWN) {
 		rc = spiel_root_ver_update(tx, ver_forced);
 		M0_ASSERT(rc == 0);
+	} else {
+		rconfc_ver = m0_rconfc_ver_max_read(&tx->spt_spiel->spl_rconfc);
+		if (rconfc_ver != M0_CONF_VER_UNKNOWN) {
+			++rconfc_ver;
+		} else {
+			/*
+			 * Version number may be unknown due to cluster quorum
+			 * issues at runtime, so need to return error code to
+			 * client.
+			 */
+			rc = -ENODATA;
+			goto tx_fini;
+		}
+		rc = spiel_root_ver_update(tx, rconfc_ver);
+		M0_ASSERT(rc == 0);
 	}
 
 	rc = m0_spiel_tx_validate(tx) ?:
 	     m0_conf_cache_to_string(&tx->spt_cache, &tx->spt_buffer, false);
+	if (M0_FI_ENABLED("encode_fail"))
+		rc = -ENOMEM;
 	if (rc != 0)
 		goto tx_fini;
 
-	for (confd_count = 0; tx->spt_spiel->spl_confd_eps[confd_count] != NULL;
-	     ++confd_count)
-		; /* collect the number of confd addresses */
-
-	M0_ALLOC_ARR(spiel_cmd, confd_count);
+	confd_count = m0_rconfc_confd_endpoints(&tx->spt_spiel->spl_rconfc,
+						&confd_eps);
+	if  (confd_count == 0) {
+		rc = M0_ERR(-ENODATA);
+		goto tx_fini;
+	} else if (confd_count < 0) {
+		rc = M0_ERR(confd_count);
+		goto tx_fini;
+	}
+	if (!M0_FI_ENABLED("cmd_alloc_fail"))
+		M0_ALLOC_ARR(spiel_cmd, confd_count);
 	if (spiel_cmd == NULL) {
 		rc = M0_ERR(-ENOMEM);
 		goto tx_fini;
@@ -431,7 +486,7 @@ int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx, bool forced,
 			m0_rpc_client_connect(&spiel_cmd[idx].slc_connect,
 					      &spiel_cmd->slc_session,
 					      tx->spt_spiel->spl_rmachine,
-					      tx->spt_spiel->spl_confd_eps[idx],
+					      confd_eps[idx],
 					      MAX_RPCS_IN_FLIGHT) ?:
 			spiel_load_fop_send(tx, &spiel_cmd[idx]);
 	}
@@ -459,6 +514,9 @@ int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx, bool forced,
 		M0_ERR(-ENOENT) : 0;
 
 tx_fini:
+	m0_spiel_rconfc_stop(tx->spt_spiel);
+rconfc_fail:
+	m0_strings_free(confd_eps);
 	if (tx->spt_buffer != NULL) {
 		m0_free_aligned(tx->spt_buffer,
 				strlen(tx->spt_buffer) + 1,
@@ -490,7 +548,7 @@ tx_fini:
 }
 M0_EXPORTED(m0_spiel_tx_commit_forced);
 
-int m0_spiel_tx_commit(struct m0_spiel_tx *tx)
+int m0_spiel_tx_commit(struct m0_spiel_tx  *tx)
 {
 	return m0_spiel_tx_commit_forced(tx, false, M0_CONF_VER_UNKNOWN, NULL);
 }

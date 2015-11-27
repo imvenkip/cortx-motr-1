@@ -47,7 +47,7 @@ int spiel_ci_ut_init(void)
 {
 	int rc;
 
-	rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("conf-str.txt"));
+	rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("conf-str.txt"), true);
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_enable("ss_process_quiesce", "keep_confd_rmservice");
 	return 0;
@@ -56,7 +56,7 @@ int spiel_ci_ut_init(void)
 int spiel_ci_ut_fini(void)
 {
 	m0_fi_disable("ss_process_quiesce", "keep_confd_rmservice");
-	m0_spiel__ut_fini(&spiel);
+	m0_spiel__ut_fini(&spiel, true);
 	return 0;
 }
 

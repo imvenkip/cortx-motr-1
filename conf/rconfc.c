@@ -2258,6 +2258,30 @@ M0_INTERNAL void m0_rconfc_drained_cb_set(struct m0_rconfc       *rconfc,
 	rconfc->rc_drained_cb = cb;
 }
 
+M0_INTERNAL int m0_rconfc_confd_endpoints(struct m0_rconfc   *rconfc,
+					  const char       ***eps)
+{
+
+	struct rconfc_link  *lnk;
+	size_t               confd_eps_length;
+	int                  i = 0;
+
+	M0_PRE(*eps == NULL);
+	confd_eps_length = m0_tlist_length(&rcnf_herd_tl, &rconfc->rc_herd);
+	M0_ALLOC_ARR(*eps, confd_eps_length + 1);
+	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
+		(*eps)[i] = m0_strdup(lnk->rl_confd_addr);
+		if ((*eps)[i] == NULL)
+			goto fail;
+		M0_CNT_INC(i);
+	} m0_tl_endfor;
+	(*eps)[i] = NULL;
+	return i;
+fail:
+	m0_strings_free(*eps);
+	return M0_ERR(-ENOMEM);
+}
+
 /** @} rconfc_dlspec */
 #undef M0_TRACE_SUBSYSTEM
 

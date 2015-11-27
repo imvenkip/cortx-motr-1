@@ -35,6 +35,8 @@
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 
 struct m0_spiel;
+extern const char *confd_addr[];
+extern const char *rm_addr;
 
 /**
  * Request handler context with all necessary structures.
@@ -62,9 +64,10 @@ M0_INTERNAL void m0_spiel__ut_rpc_server_stop(
 					struct m0_rpc_server_ctx *rpc_srv);
 
 M0_INTERNAL int m0_spiel__ut_init(struct m0_spiel *spiel,
-				  char            *confd_path);
+				  char            *confd_path,
+				  const bool       cmd_iface);
 
-M0_INTERNAL int m0_spiel__ut_fini(struct m0_spiel *spiel);
+M0_INTERNAL int m0_spiel__ut_fini(struct m0_spiel *spiel, const bool cmd_iface);
 
 #endif /* __MERO_SPIEL_UT_SPIEL_UT_COMMON_H__ */
 /*

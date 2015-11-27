@@ -212,11 +212,6 @@ struct m0_spiel_sns_status {
 struct m0_spiel {
 	/** RPC machine for network communication */
 	struct m0_rpc_machine *spl_rmachine;
-	/**
-	 * Confd endpoints to communicate with. Used both in configuration
-	 * management and command interface.
-	 */
-	const char           **spl_confd_eps;
 	/** Configuration profile for spiel command interface */
 	struct m0_fid          spl_profile;
 	/** Rconfc instance */
@@ -224,59 +219,21 @@ struct m0_spiel {
 };
 
 /**
- * Start spiel instance. Should be invoked before calling other spiel functions.
+ * Initialises spiel instance.
+ * Should be invoked before using other spiel functions.
+ * If initialisation fails, then spiel instance must not be used.
  *
- * Schematic code to start spiel using standard mero setup procedure:
- * @code
- * struct m0_mero  mero;
- * struct m0_spiel spiel;
- * const char    *confd_eps[] = { "0@lo:12345:34:1" , NULL };
- *
- * m0_cs_init(&mero, ...);
- * m0_cs_setup_env(&mero, ...);
- * m0_cs_start(&mero);
- *
- * m0_spiel_start(&spiel, m0_cs_reqh_get(&mero), confd_eps, rm_ep,
- *                m0_locality_get(1)->lo_grp);
- * @endcode
- *
- * @param spiel      Spiel instance
- * @param reqh       Request handler
- * @param confd_eps  Network endpoints of confd services. @n
- *                   Endpoints are deep-copied internally
- * @param rm_ep      Network endpoint of Resource Manager service.
- *
- * @note The call implies automatic quorum value calculation as well as no
- * expiration callback installed during spiel start. For more specific start
- * conditioning see m0_spiel_start_quorum(). On the other hand, the expiration
- * callback may be installed after successful start any time later by
- * m0_rconfc_exp_cb_set().
+ * @param spiel   spiel instance
+ * @param reqh    request handler
  */
-int m0_spiel_start(struct m0_spiel    *spiel,
-		   struct m0_reqh     *reqh,
-		   const char        **confd_eps,
-		   const char         *rm_ep);
+int m0_spiel_init(struct m0_spiel *spiel, struct m0_reqh *reqh);
 
 /**
- * A more sophisticated spiel start version. Additionally allows to provide
- * a specific quorum value to be reached. As well, it makes possible to install
- * configuration expiration callback if required.
- *
- * @see m0_spiel_start()
- */
-int m0_spiel_start_quorum(struct m0_spiel    *spiel,
-			  struct m0_reqh     *reqh,
-			  const char        **confd_eps,
-			  const char         *rm_ep,
-			  uint32_t            quorum,
-			  m0_rconfc_exp_cb_t  exp_cb);
-
-/**
- * Stop spiel instance.
+ * Finalise spiel instance.
  *
  * @param spiel spiel instance
  */
-void m0_spiel_stop(struct m0_spiel *spiel);
+void m0_spiel_fini(struct m0_spiel *spiel);
 
 /**********************************************************/
 /*              Configuration management                  */
@@ -316,8 +273,6 @@ struct m0_spiel_tx {
 	  * Free afrer end last receive on Spiel load FOP
 	  */
 	char                 *spt_buffer;
-	/** New ConfD version */
-	uint64_t              spt_version;
 };
 
 /**
@@ -347,7 +302,11 @@ void m0_spiel_tx_close(struct m0_spiel_tx *tx);
  * anymore. When failed, forced committing with m0_spiel_tx_commit_forced()
  * still remains as an option.
  *
- * @param tx spiel transaction
+ * @param tx        spiel transaction
+ * @param confd_eps endpoints of confd services to which the transaction is to
+ * @param rm_ep     endpoint of resource manager. Spiel must acquire write lock
+ *                  before commiting the transaction
+ * be applied
  *
  * @note In case normal transaction committing is required, but resultant quorum
  * number reached is to be controlled as well, the action has to be done using
@@ -358,7 +317,7 @@ void m0_spiel_tx_close(struct m0_spiel_tx *tx);
                                        &rquorum);
  @endcode
  */
-int m0_spiel_tx_commit(struct m0_spiel_tx *tx);
+int m0_spiel_tx_commit(struct m0_spiel_tx  *tx);
 
 /**
  * Commits filled-in spiel transaction forcing as many loads and flips as
@@ -371,6 +330,10 @@ int m0_spiel_tx_commit(struct m0_spiel_tx *tx);
  * completing previously failed uploads to confd servers.
  *
  * @param tx         spiel transaction
+ * @param confd_eps  endpoints of confd services to which the transaction is to
+ *                   be applied
+ * @param rm_ep      endpoint of resource manager. Spiel must acquire write lock
+ *                   before commiting the transaction
  * @param forced     committing with forcing any possible LOAD/FLIP enabled
  * @param ver_forced version number the initial value to be overridden with
  * @param rquorum    resultant quorum value reached, NULL value allowed
@@ -379,8 +342,10 @@ int m0_spiel_tx_commit(struct m0_spiel_tx *tx);
  * other, i.e. forced committing with unchanged version number is possible as
  * well as non-forced committing with version number overridden.
  */
-int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx, bool forced,
-			      uint64_t ver_forced, uint32_t *rquorum);
+int m0_spiel_tx_commit_forced(struct m0_spiel_tx  *tx,
+			      bool                 forced,
+			      uint64_t             ver_forced,
+			      uint32_t            *rquorum);
 
 /**
  * Add profile to the configuration tree of the transaction
@@ -692,6 +657,35 @@ int m0_spiel_tx_dump_debug(struct m0_spiel_tx *tx, const char *filename);
 /**********************************************************/
 /*                 Command interface                      */
 /**********************************************************/
+/**
+ * Start spiel instance.
+ *
+ * Schematic code to start spiel using standard mero setup procedure:
+ * @code
+ * struct m0_mero  mero;
+ * struct m0_spiel spiel;
+ *
+ * m0_cs_init(&mero, ...);
+ * m0_cs_setup_env(&mero, ...);
+ * m0_cs_start(&mero);
+ *
+ * m0_spiel_init(&spiel, m0_cs_reqh_get(&mero));
+ * m0_spiel_rconfc_start(&spiel);
+ * @endcode
+ *
+ * @param spiel              Spiel instance
+ * @param m0_rconfc_exp_cb_t Rconfc expiration callback
+ */
+int m0_spiel_rconfc_start(struct m0_spiel    *spiel,
+			  m0_rconfc_exp_cb_t  exp_cb);
+
+/**
+ * Stop spiel instance.
+ *
+ * @param spiel spiel instance
+ */
+void m0_spiel_rconfc_stop(struct m0_spiel *spiel);
+
 /**
  * Set spiel command profile fid from string. Profile string pointer may be
  * NULL, and this results in setting the fid to M0_FID0.

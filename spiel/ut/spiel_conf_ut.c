@@ -127,7 +127,8 @@ static int spiel_conf_ut_init()
 			M0_UT_PATH("conf-str-tmp.txt"));
 
 	/* Use copy of conf-str file as confd path - file may be changed */
-	int rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("conf-str-tmp.txt"));
+	int rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("conf-str-tmp.txt"),
+				   false);
 	M0_UT_ASSERT(rc == 0);
 
 	return 0;
@@ -137,7 +138,7 @@ static int spiel_conf_ut_fini()
 {
 	int rc;
 
-	m0_spiel__ut_fini(&spiel);
+	m0_spiel__ut_fini(&spiel, false);
 
 	rc = system("rm -rf "M0_UT_PATH("confd"));
 	M0_ASSERT(rc != -1);
@@ -163,8 +164,6 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 	m0_bitmap_set(&bitmap, 1, true);
 
 	m0_spiel_tx_open(spiel, tx);
-	M0_UT_ASSERT(tx->spt_version != M0_CONF_VER_UNKNOWN);
-
 	rc = m0_spiel_profile_add(tx, &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE]);
 	M0_UT_ASSERT(rc == 0);
 
@@ -296,8 +295,6 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 	m0_bitmap_set(&bitmap, 1, true);
 
 	m0_spiel_tx_open(spiel, tx);
-	M0_UT_ASSERT(tx->spt_version != M0_CONF_VER_UNKNOWN);
-
 	rc = m0_spiel_profile_add(tx, FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_PROFILE], 1));
 	M0_UT_ASSERT(rc == 0);
 
@@ -643,8 +640,6 @@ static void spiel_conf_create_fail(void)
 	m0_bitmap_set(&bitmap, 1, true);
 
 	m0_spiel_tx_open(&spiel, &tx);
-	M0_UT_ASSERT(tx.spt_version != M0_CONF_VER_UNKNOWN);
-
 	/* Profile */
 	rc = m0_spiel_profile_add(&tx, &fake_profile_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
@@ -1388,7 +1383,6 @@ static void spiel_conf_file(void)
 	spiel_conf_ut_init();
 
 	m0_spiel_tx_open(&spiel, &tx);
-	M0_UT_ASSERT(tx.spt_version != M0_CONF_VER_UNKNOWN);
 	spiel_conf_file_create_tree(&tx);
 
 	/* Convert to file */
@@ -1553,21 +1547,9 @@ static void spiel_conf_check_fail(void)
 	obj->co_parent->co_ops->coo_delete(obj->co_parent);
 	obj->co_parent = obj_parent;
 
-	/* M0_ALLOC_PTR(confx) test */
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
-	rc = m0_spiel_tx_commit(&tx);
-	M0_UT_ASSERT(rc == -ENOMEM);
-
 	/* m0_conf_cache_encode test */
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
+	m0_fi_enable_once("m0_spiel_tx_commit_forced", "encode_fail");
 	rc = m0_spiel_tx_commit(&tx);
-	m0_fi_disable("m0_alloc", "fail_allocation");
-	M0_UT_ASSERT(rc == -ENOMEM);
-
-	/* sessions & small_allign == OK */
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 21, 1);
-	rc = m0_spiel_tx_commit(&tx);
-	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_spiel_tx_close(&tx);
@@ -1586,10 +1568,8 @@ static void spiel_conf_load_fail(void)
 
 	spiel_conf_ut_init();
 	spiel_conf_create_configuration(&spiel, &tx);
-	/* M0_ALLOC_PTR(spiel_cmd) */
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 21, 1);
+	m0_fi_enable_once("m0_spiel_tx_commit_forced", "cmd_alloc_fail");
 	rc = m0_spiel_tx_commit(&tx);
-	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_spiel_tx_close(&tx);
@@ -1675,7 +1655,7 @@ static void spiel_conf_force(void)
 	const char               *ep[] = { SERVER_ENDPOINT_ADDR,
 			                   "127.0.0.1", /* bad address */
 			                   NULL };
-	const char               *rm_ep = ep[0];
+	const char               *rm_addr = ep[0];
 	struct m0_spiel           spiel;
 	uint64_t                  ver_org = M0_CONF_VER_UNKNOWN;
 	uint64_t                  ver_new = M0_CONF_VER_UNKNOWN;
@@ -1684,7 +1664,7 @@ static void spiel_conf_force(void)
 
 	spiel_conf_force_ut_init(&spl_reqh);
 	/* start with quorum impossible due to second ep being invalid */
-	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_ep);
+	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_addr);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spiel.spl_rconfc.rc_ver == M0_CONF_VER_UNKNOWN);
 	ver_org = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
@@ -1698,15 +1678,15 @@ static void spiel_conf_force(void)
 	rc = m0_spiel_tx_commit(&tx);
 	M0_UT_ASSERT(rc == -ENOENT); /* no quorum reached */
 	/* try forced commit with all invalid addresses */
-	eps_orig = spiel.spl_confd_eps;
-	spiel.spl_confd_eps = (const char*[]) { "127.0.0.2", "127.0.0.1", NULL};
+	eps_orig = spiel.spl_confd_addr;
+	spiel.spl_confd_addr = (const char*[]) { "127.0.0.2", "127.0.0.1", NULL};
 	rc = m0_spiel_tx_commit_forced(&tx, true, M0_CONF_VER_UNKNOWN,
 				       &rquorum);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rquorum < spiel.spl_rconfc.rc_quorum);
 	M0_UT_ASSERT(rquorum == 0);
 	/* try to repeat the forced commit with the original set */
-	spiel.spl_confd_eps = eps_orig;
+	spiel.spl_confd_addr = eps_orig;
 	rc = m0_spiel_tx_commit_forced(&tx, true, M0_CONF_VER_UNKNOWN,
 				       &rquorum);
 	M0_UT_ASSERT(rc == 0);
@@ -1716,7 +1696,7 @@ static void spiel_conf_force(void)
 
 	/* make sure new version applied */
 	M0_SET0(&spiel);
-	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_ep);
+	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_addr);
 	M0_UT_ASSERT(rc == 0);
 	ver_new = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
 	M0_UT_ASSERT(ver_new == ver_org + 1); /*
@@ -1736,7 +1716,7 @@ static void spiel_conf_force(void)
 
 	/* make sure new version applied */
 	M0_SET0(&spiel);
-	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_ep);
+	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_addr);
 	M0_UT_ASSERT(rc == 0);
 	ver_new = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
 	M0_UT_ASSERT(ver_new == ver_org + 10); /* ver_forced confirmed */
