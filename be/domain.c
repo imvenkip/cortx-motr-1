@@ -685,13 +685,8 @@ static int be_domain_start_stop(struct m0_be_domain     *dom,
 	if (rc != 0)
 		goto out;
 
-	m0_be_recovery_init(&dom->bd_recovery);
-	rc = m0_be_recovery_run(&dom->bd_recovery, &dom->bd_engine.eng_log);
-	M0_ASSERT(rc == 0);
-	dom->bd_engine.eng_log.lg_cfg.lc_sched_cfg.lsch_io_sched_cfg.
-		bisc_pos_start = m0_be_recovery_pos_end(&dom->bd_recovery);
 	dom->bd_cfg.bc_pd_cfg.bpdc_sched.bisc_pos_start =
-			m0_be_recovery_pos_start(&dom->bd_recovery);
+			m0_be_log_recovery_discarded(m0_be_domain_log(dom));
 	m0_be_tx_group_seg_io_credit(&dom->bd_cfg.bc_engine.bec_group_cfg,
 	                             &dom->bd_cfg.bc_pd_cfg.bpdc_io_credit);
 	rc = m0_be_pd_init(&dom->bd_pd, &dom->bd_cfg.bc_pd_cfg);
@@ -702,7 +697,6 @@ static int be_domain_start_stop(struct m0_be_domain     *dom,
 				    &dom->bd_cfg.bc_log_discard_cfg);
 	M0_ASSERT(rc == 0);
 	dom->bd_cfg.bc_engine.bec_domain   = dom;
-	dom->bd_cfg.bc_engine.bec_recovery = &dom->bd_recovery;
 	dom->bd_cfg.bc_engine.bec_log_discard = &dom->bd_log_discard;
 	dom->bd_cfg.bc_engine.bec_pd = &dom->bd_pd;
 	rc = m0_be_engine_init(en, dom, &dom->bd_cfg.bc_engine);
@@ -741,7 +735,6 @@ engine_fini:
 	m0_be_engine_fini(en);
 stop_pre:
 	m0_be_pd_fini(&dom->bd_pd);
-	m0_be_recovery_fini(&dom->bd_recovery);
 	if (mkfs_mode) {
 		be_domain_stop_mkfs_pre(dom);
 	} else {

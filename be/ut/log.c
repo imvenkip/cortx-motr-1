@@ -445,9 +445,47 @@ void m0_be_ut_log_multi(void)
 	be_ut_log_multi_ut(BE_UT_LOG_THREAD_NR, false, 2, BE_UT_LOG_LIO_SIZE);
 }
 
+/** @see be_ut_recovery_iter_count() */
+static void be_ut_log_recover_and_discard(struct m0_be_log *log,
+                                          struct m0_mutex  *lock)
+{
+	struct m0_be_log_record_iter iter   = {};
+	struct m0_be_log_record      record = {};
+	int                          rc;
+
+	m0_be_log_record_init(&record, log);
+	rc = m0_be_log_record_io_create(&record, BE_UT_LOG_LIO_SIZE);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_log_record_allocate(&record);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_log_record_iter_init(&iter);
+	M0_UT_ASSERT(rc == 0);
+	while (m0_be_log_recovery_record_available(log)) {
+		m0_be_log_recovery_record_get(log, &iter);
+		m0_be_log_record_assign(&record, &iter, true);
+		m0_mutex_lock(lock);
+		m0_be_log_record_io_prepare(&record, SIO_READ, 0);
+		m0_mutex_unlock(lock);
+		rc = M0_BE_OP_SYNC_RET(op,
+				       m0_be_log_record_io_launch(&record, &op),
+				       bo_sm.sm_rc);
+		M0_UT_ASSERT(rc == 0);
+		m0_mutex_lock(lock);
+		m0_be_log_record_discard(log, record.lgr_size);
+		m0_mutex_unlock(lock);
+		m0_be_log_record_reset(&record);
+	}
+	m0_be_log_record_iter_fini(&iter);
+	m0_be_log_record_deallocate(&record);
+	m0_be_log_record_fini(&record);
+}
+
 /*
  * Check m0_be_log_close() in case when at least 1 record is finalised
  * without discarding.
+ *
+ * XXX temporary changed due to recovery integration.
+ * Please change back after log_discard become a part of log.
  */
 void m0_be_ut_log_unplaced(void)
 {
@@ -469,15 +507,22 @@ void m0_be_ut_log_unplaced(void)
 		be_ut_log_record_init_write_one(&records[i], &log,
 						&lock, &ops[i]);
 	}
-	pos = records[1].lgr_position;
+	pos = records[3].lgr_position;
+	/*
 	be_ut_log_record_wait_fini_one(&records[0], &lock, &ops[0], true);
 	be_ut_log_record_wait_fini_one(&records[1], &lock, &ops[1], false);
+	be_ut_log_record_wait_fini_one(&records[2], &lock, &ops[2], true);
+	be_ut_log_record_wait_fini_one(&records[3], &lock, &ops[3], false);
+	*/
+	be_ut_log_record_wait_fini_one(&records[0], &lock, &ops[0], true);
+	be_ut_log_record_wait_fini_one(&records[1], &lock, &ops[1], true);
 	be_ut_log_record_wait_fini_one(&records[2], &lock, &ops[2], true);
 	be_ut_log_record_wait_fini_one(&records[3], &lock, &ops[3], false);
 
 	m0_be_log_close(&log);
 	be_ut_log_open(&log, &lock);
 	be_ut_log_curr_pos_check(&log, pos);
+	be_ut_log_recover_and_discard(&log, &lock);
 
 	/* 0th non-discarded */
 
@@ -487,14 +532,23 @@ void m0_be_ut_log_unplaced(void)
 		be_ut_log_record_init_write_one(&records[i], &log,
 						&lock, &ops[i]);
 	}
-	pos = records[0].lgr_position;
+	pos = records[1].lgr_position;
+	/*
+	 * After log_discard is part of log it can be reverted back.
+	 */
+	/*
 	be_ut_log_record_wait_fini_one(&records[0], &lock, &ops[0], false);
 	be_ut_log_record_wait_fini_one(&records[1], &lock, &ops[1], true);
+	be_ut_log_record_wait_fini_one(&records[2], &lock, &ops[2], false);
+	*/
+	be_ut_log_record_wait_fini_one(&records[0], &lock, &ops[0], true);
+	be_ut_log_record_wait_fini_one(&records[1], &lock, &ops[1], false);
 	be_ut_log_record_wait_fini_one(&records[2], &lock, &ops[2], false);
 
 	m0_be_log_close(&log);
 	be_ut_log_open(&log, &lock);
 	be_ut_log_curr_pos_check(&log, pos);
+	be_ut_log_recover_and_discard(&log, &lock);
 
 	/* all 3 non-discarded */
 
@@ -512,6 +566,7 @@ void m0_be_ut_log_unplaced(void)
 	m0_be_log_close(&log);
 	be_ut_log_open(&log, &lock);
 	be_ut_log_curr_pos_check(&log, pos);
+	be_ut_log_recover_and_discard(&log, &lock);
 
 	be_ut_log_fini(&log);
 	m0_mutex_fini(&lock);

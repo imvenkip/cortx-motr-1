@@ -38,7 +38,6 @@ struct m0_reqh_service;
 struct m0_be_tx_group;
 struct m0_be_domain;
 struct m0_be_engine;
-struct m0_be_recovery;
 struct m0_reqh;
 struct m0_stob;
 struct m0_be_log_discard;
@@ -77,11 +76,8 @@ struct m0_be_engine_cfg {
 	struct m0_reqh		  *bec_reqh;
 	/** Wait in m0_be_engine_start() until recovery is finished. */
 	bool			   bec_wait_for_recovery;
-	/** Disable recovery. This field should be set to false. XXX implement*/
-	bool			   bec_recovery_disable;
 	/** BE domain the engine belongs to. */
 	struct m0_be_domain	  *bec_domain;
-	struct m0_be_recovery	  *bec_recovery;
 	struct m0_be_log_discard  *bec_log_discard;
 	struct m0_be_pd           *bec_pd;
 	/** Configuration for each group. It is set by the engine. */
@@ -114,7 +110,6 @@ struct m0_be_engine {
 	 */
 	bool                       eng_exclusive_mode;
 	struct m0_be_domain       *eng_domain;
-	struct m0_be_recovery     *eng_recovery;
 	struct m0_semaphore        eng_recovery_wait_sem;
 	bool                       eng_recovery_finished;
 };

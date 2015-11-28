@@ -216,7 +216,7 @@ M0_INTERNAL void m0_be_tx_group_log_write(struct m0_be_tx_group *gr,
  * ------------------------------------------------------------------ */
 
 M0_INTERNAL void m0_be_tx_group_recovery_prepare(struct m0_be_tx_group *gr,
-						 struct m0_be_recovery *rvr);
+						 struct m0_be_log      *log);
 M0_INTERNAL void m0_be_tx_group_log_read(struct m0_be_tx_group *gr,
 					 struct m0_be_op       *op);
 M0_INTERNAL int m0_be_tx_group_decode(struct m0_be_tx_group *gr);

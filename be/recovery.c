@@ -145,8 +145,10 @@ M0_TL_DESCR_DEFINE(log_record_iter, "m0_be_log_record_iter list in recovery",
 		   M0_BE_RECOVERY_MAGIC, M0_BE_RECOVERY_HEAD_MAGIC);
 M0_TL_DEFINE(log_record_iter, static, struct m0_be_log_record_iter);
 
-M0_INTERNAL void m0_be_recovery_init(struct m0_be_recovery *rvr)
+M0_INTERNAL void m0_be_recovery_init(struct m0_be_recovery     *rvr,
+                                     struct m0_be_recovery_cfg *cfg)
 {
+	rvr->brec_cfg = *cfg;
 	m0_mutex_init(&rvr->brec_lock);
 	log_record_iter_tlist_init(&rvr->brec_iters);
 }
@@ -177,18 +179,15 @@ be_recovery_log_record_iter_destroy(struct m0_be_log_record_iter *iter)
 	}
 }
 
-M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr,
-				   struct m0_be_log      *log)
+M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr)
 {
 	struct m0_be_fmt_log_header   log_hdr = {};
 	struct m0_be_log_record_iter *prev    = NULL;
 	struct m0_be_log_record_iter *iter;
+	struct m0_be_log             *log = rvr->brec_cfg.brc_log;
 	m0_bindex_t                   last_discarded;
 	m0_bindex_t                   log_discarded;
 	m0_bindex_t                   next_pos = M0_BINDEX_MAX;
-	m0_bindex_t                   head_pos;
-	m0_bindex_t                   tail_pos;
-	m0_bcount_t                   tail_size;
 	int                           rc;
 
 	/* TODO avoid reading of header from disk, log reads it during init */
@@ -197,9 +196,7 @@ M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr,
 	rc = m0_be_log_header_read(log, &log_hdr);
 	M0_ASSERT(rc == 0);
 	log_discarded = log_hdr.flh_discarded;
-	m0_be_fmt_log_header_fini(&log_hdr);
 
-	rvr->brec_log = log;
 	rc = be_recovery_log_record_iter_new(&iter);
 	rc = rc ?: m0_be_log_record_initial(log, iter);
 	while (rc == 0) {
@@ -241,44 +238,58 @@ M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr,
 	}
 	M0_ASSERT(ergo(rc == 0, prev->lri_header.lrh_pos == last_discarded));
 
-	if (rc != 0) {
+	if (rc != 0)
 		goto err;
-	}
-	iter      = log_record_iter_tlist_tail(&rvr->brec_iters);
-	head_pos  = prev->lri_header.lrh_pos;
-	tail_pos  = iter->lri_header.lrh_pos;
-	tail_size = iter->lri_header.lrh_size;
 
-	rvr->brec_pos_start = head_pos;
-	rvr->brec_pos_end   = tail_pos + tail_size;
+	iter = log_record_iter_tlist_tail(&rvr->brec_iters);
 
-	m0_be_log_pointers_set(log, tail_pos + tail_size, head_pos,
-			       tail_pos, tail_size);
-	return 0;
+	rvr->brec_last_record_pos  = iter->lri_header.lrh_pos;
+	rvr->brec_last_record_size = iter->lri_header.lrh_size;
+	rvr->brec_current          = rvr->brec_last_record_pos +
+				     rvr->brec_last_record_size;
+	rvr->brec_discarded        = prev->lri_header.lrh_pos;
+
+	goto out;
 
 err:
 	m0_tl_for(log_record_iter, &rvr->brec_iters, iter) {
 		log_record_iter_tlink_del_fini(iter);
 		be_recovery_log_record_iter_destroy(iter);
 	} m0_tl_endfor;
-	return rc;
+	goto out;
 
 empty:
-	rvr->brec_pos_start = log_discarded;
-	rvr->brec_pos_end   = log_discarded;
-	/* Correct log pointers should be set during log open. */
+	rc = 0;
+	rvr->brec_last_record_pos  = log_hdr.flh_group_lsn;
+	rvr->brec_last_record_size = log_hdr.flh_group_size;
+	rvr->brec_current          = log_discarded;
+	rvr->brec_discarded        = log_discarded;
 	M0_POST(log_record_iter_tlist_is_empty(&rvr->brec_iters));
-	return 0;
+out:
+	m0_be_fmt_log_header_fini(&log_hdr);
+	return rc;
 }
 
-M0_INTERNAL m0_bindex_t m0_be_recovery_pos_start(struct m0_be_recovery *rvr)
+M0_INTERNAL m0_bindex_t m0_be_recovery_current(struct m0_be_recovery *rvr)
 {
-	return rvr->brec_pos_start;
+	return rvr->brec_current;
 }
 
-M0_INTERNAL m0_bindex_t m0_be_recovery_pos_end(struct m0_be_recovery *rvr)
+M0_INTERNAL m0_bindex_t m0_be_recovery_discarded(struct m0_be_recovery *rvr)
 {
-	return rvr->brec_pos_end;
+	return rvr->brec_discarded;
+}
+
+M0_INTERNAL m0_bindex_t
+m0_be_recovery_last_record_pos(struct m0_be_recovery *rvr)
+{
+	return rvr->brec_last_record_pos;
+}
+
+M0_INTERNAL m0_bcount_t
+m0_be_recovery_last_record_size(struct m0_be_recovery *rvr)
+{
+	return rvr->brec_last_record_size;
 }
 
 M0_INTERNAL bool

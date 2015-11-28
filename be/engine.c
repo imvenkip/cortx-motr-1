@@ -110,7 +110,6 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
 	en->eng_cfg      = en_cfg;
 	en->eng_group_nr = en_cfg->bec_group_nr;
 	en->eng_domain   = dom;
-	en->eng_recovery = en_cfg->bec_recovery;
 
 	M0_ALLOC_ARR(en->eng_group, en_cfg->bec_group_nr);
 	if (en->eng_group == NULL) {
@@ -125,8 +124,6 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
 	rc = m0_be_tx_service_init(en, en_cfg->bec_reqh);
 	if (rc != 0)
 		goto err_free;
-	rc = en_cfg->bec_recovery_disable ? 0 : 0;
-	     /* m0_be_recovery_run(en->eng_recovery, &en->eng_log); */
 	if (rc != 0)
 		goto err_service_fini;
 	for (i = 0; i < en->eng_group_nr; ++i) {
@@ -218,8 +215,7 @@ static bool be_engine_is_locked(const struct m0_be_engine *en)
 
 static bool be_engine_invariant(struct m0_be_engine *en)
 {
-	M0_PRE(be_engine_is_locked(en));
-	return true; /* XXX TODO */
+	return be_engine_is_locked(en);
 }
 
 static uint64_t be_engine_tx_id_allocate(struct m0_be_engine *en)
@@ -475,11 +471,11 @@ static void be_engine_try_recovery(struct m0_be_engine *en)
 
 	M0_ENTRY();
 
-	while (m0_be_recovery_log_record_available(en->eng_recovery)) {
+	while (m0_be_log_recovery_record_available(&en->eng_log)) {
 		gr = be_engine_group_find(en);
 		if (gr == NULL)
 			break;
-		m0_be_tx_group_recovery_prepare(gr, en->eng_recovery);
+		m0_be_tx_group_recovery_prepare(gr, &en->eng_log);
 		be_engine_group_freeze(en, gr);
 		be_engine_group_tryclose(en, gr);
 		group_recovery_started = true;
@@ -487,7 +483,7 @@ static void be_engine_try_recovery(struct m0_be_engine *en)
 	/* XXX it will work only with one tx group */
 	M0_ASSERT(en->eng_cfg->bec_group_nr == 1);
 	if (!group_recovery_started &&
-	    !m0_be_recovery_log_record_available(en->eng_recovery) &&
+	    !m0_be_log_recovery_record_available(&en->eng_log) &&
 	    !en->eng_recovery_finished) {
 		en->eng_recovery_finished = true;
 		m0_semaphore_up(&en->eng_recovery_wait_sem);
@@ -759,13 +755,11 @@ M0_INTERNAL void m0_be_engine_got_log_space_cb(struct m0_be_log *log)
 
 	M0_ENTRY("en=%p log=%p", en, log);
 
-	// be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
 
 	be_engine_got_tx_open(en, NULL);
 
 	M0_POST(be_engine_invariant(en));
-	// be_engine_unlock(en);
 }
 
 M0_INTERNAL void m0_be_engine_full_log_cb(struct m0_be_log *log)
@@ -775,6 +769,8 @@ M0_INTERNAL void m0_be_engine_full_log_cb(struct m0_be_log *log)
 	struct m0_be_domain *dom = en->eng_domain;
 
 	M0_ENTRY("en=%p dom=%p log=%p", en, dom, log);
+
+	M0_PRE(be_engine_invariant(en));
 
 	m0_be_log_discard_sync(&dom->bd_log_discard);
 }

@@ -427,10 +427,10 @@ m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
 }
 
 M0_INTERNAL void m0_be_tx_group_recovery_prepare(struct m0_be_tx_group *gr,
-						 struct m0_be_recovery *rvr)
+						 struct m0_be_log      *log)
 {
-	m0_be_group_format_recovery_prepare(&gr->tg_od, rvr);
-	m0_be_tx_group_fom_recovery_prepare(&gr->tg_fom, rvr);
+	m0_be_group_format_recovery_prepare(&gr->tg_od, log);
+	m0_be_tx_group_fom_recovery_prepare(&gr->tg_fom);
 	gr->tg_recovering = true;
 }
 

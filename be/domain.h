@@ -24,7 +24,6 @@
 #define __MERO_BE_DOMAIN_H__
 
 #include "be/engine.h"          /* m0_be_engine */
-#include "be/recovery.h"        /* m0_be_recovery */
 #include "be/seg0.h"            /* m0_be_0type */
 #include "be/log.h"             /* m0_be_log_cfg */
 #include "be/pd.h"              /* m0_be_pd */
@@ -147,7 +146,6 @@ struct m0_be_domain {
 	struct m0_module          bd_module;
 	struct m0_be_domain_cfg   bd_cfg;
 	struct m0_be_engine       bd_engine;
-	struct m0_be_recovery     bd_recovery;
 	struct m0_mutex           bd_lock;
 	struct m0_tl              bd_0types;
 	struct m0_be_0type       *bd_0types_allocated;

@@ -470,11 +470,11 @@ m0_be_group_format_log_use(struct m0_be_group_format *gft,
 
 M0_INTERNAL void
 m0_be_group_format_recovery_prepare(struct m0_be_group_format *gft,
-				    struct m0_be_recovery     *rvr)
+				    struct m0_be_log          *log)
 {
 	struct m0_be_log_record *record = &gft->gft_log_record;
 
-	m0_be_recovery_log_record_get(rvr, &gft->gft_log_record_iter);
+	m0_be_log_recovery_record_get(log, &gft->gft_log_record_iter);
 	m0_be_log_record_assign(record, &gft->gft_log_record_iter, true);
 	m0_be_log_record_io_prepare(record, SIO_READ, 0);
 }

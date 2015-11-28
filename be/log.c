@@ -68,11 +68,10 @@ static struct m0_be_log *be_log_module2log(struct m0_module *module)
 
 static int be_log_level_enter(struct m0_module *module)
 {
-	struct m0_be_fmt_log_header *header;
-	struct m0_be_log            *log   = be_log_module2log(module);
-	int                          level = module->m_cur + 1;
-	m0_bindex_t                  current;
-	int                          rc;
+	struct m0_be_recovery *rvr;
+	struct m0_be_log      *log   = be_log_module2log(module);
+	int                    level = module->m_cur + 1;
+	int                    rc;
 
 	switch (level) {
 	case M0_BE_LOG_LEVEL_INIT:
@@ -87,9 +86,10 @@ static int be_log_level_enter(struct m0_module *module)
 		record_tlist_init(&log->lg_records);
 		m0_be_op_init(&log->lg_header_read_op);
 		m0_be_op_init(&log->lg_header_write_op);
-		rc = m0_be_log_sched_init(&log->lg_sched,
-					  &log->lg_cfg.lc_sched_cfg);
-		return rc;
+		return 0;
+	case M0_BE_LOG_LEVEL_LOG_SCHED:
+		return m0_be_log_sched_init(&log->lg_sched,
+		                            &log->lg_cfg.lc_sched_cfg);
 	case M0_BE_LOG_LEVEL_LOG_STORE:
 		if (log->lg_create_mode) {
 			log->lg_cfg.lc_store_cfg.lsc_rbuf_size =
@@ -111,14 +111,22 @@ static int be_log_level_enter(struct m0_module *module)
 			rc = m0_be_log_header_read(log, &log->lg_header);
 		}
 		return rc;
+	case M0_BE_LOG_LEVEL_RECOVERY:
+		if (!log->lg_create_mode) {
+			log->lg_cfg.lc_recovery_cfg.brc_log = log;
+			m0_be_recovery_init(&log->lg_recovery,
+			                    &log->lg_cfg.lc_recovery_cfg);
+			return m0_be_recovery_run(&log->lg_recovery);
+		}
+		return 0;
 	case M0_BE_LOG_LEVEL_ASSIGNS:
 		if (!log->lg_create_mode) {
-			header  = &log->lg_header;
-			current = header->flh_group_lsn +
-				  header->flh_group_size;
-			m0_be_log_pointers_set(log, current, current,
-					       header->flh_group_lsn,
-					       header->flh_group_size);
+			rvr = &log->lg_recovery;
+			m0_be_log_pointers_set(log,
+			        m0_be_recovery_current(rvr),
+			        m0_be_recovery_discarded(rvr),
+			        m0_be_recovery_last_record_pos(rvr),
+			        m0_be_recovery_last_record_size(rvr));
 		}
 		log->lg_free = m0_be_log_store_buf_size(&log->lg_store);
 		log->lg_external_lock = log->lg_cfg.lc_lock;
@@ -137,11 +145,13 @@ static void be_log_level_leave(struct m0_module *module)
 
 	switch (level) {
 	case M0_BE_LOG_LEVEL_INIT:
-		m0_be_log_sched_fini(&log->lg_sched);
 		m0_be_op_fini(&log->lg_header_write_op);
 		m0_be_op_fini(&log->lg_header_read_op);
 		record_tlist_fini(&log->lg_records);
 		m0_mutex_fini(&log->lg_record_state_lock);
+		break;
+	case M0_BE_LOG_LEVEL_LOG_SCHED:
+		m0_be_log_sched_fini(&log->lg_sched);
 		break;
 	case M0_BE_LOG_LEVEL_LOG_STORE:
 		if (log->lg_destroy_mode)
@@ -156,8 +166,12 @@ static void be_log_level_leave(struct m0_module *module)
 		if (!log->lg_destroy_mode) {
 			be_log_header_update(log);
 			rc = be_log_header_write(log, &log->lg_header);
-			M0_ASSERT_INFO(rc == 0, "rc = %d", rc); /* XXX */
+			M0_ASSERT_INFO(rc == 0, "rc=%d", rc); /* XXX */
 		}
+		break;
+	case M0_BE_LOG_LEVEL_RECOVERY:
+		if (!log->lg_create_mode)
+			m0_be_recovery_fini(&log->lg_recovery);
 		break;
 	case M0_BE_LOG_LEVEL_ASSIGNS:
 		break;
@@ -169,6 +183,11 @@ static void be_log_level_leave(struct m0_module *module)
 static const struct m0_modlev be_log_levels[] = {
 	[M0_BE_LOG_LEVEL_INIT] = {
 		.ml_name  = "M0_BE_LOG_LEVEL_INIT",
+		.ml_enter = be_log_level_enter,
+		.ml_leave = be_log_level_leave,
+	},
+	[M0_BE_LOG_LEVEL_LOG_SCHED] = {
+		.ml_name  = "M0_BE_LOG_LEVEL_LOG_SCHED",
 		.ml_enter = be_log_level_enter,
 		.ml_leave = be_log_level_leave,
 	},
@@ -184,6 +203,11 @@ static const struct m0_modlev be_log_levels[] = {
 	},
 	[M0_BE_LOG_LEVEL_HEADER] = {
 		.ml_name  = "M0_BE_LOG_LEVEL_HEADER",
+		.ml_enter = be_log_level_enter,
+		.ml_leave = be_log_level_leave,
+	},
+	[M0_BE_LOG_LEVEL_RECOVERY] = {
+		.ml_name  = "M0_BE_LOG_LEVEL_RECOVERY",
 		.ml_enter = be_log_level_enter,
 		.ml_leave = be_log_level_leave,
 	},
@@ -739,7 +763,7 @@ m0_be_log_record_io_prepare(struct m0_be_log_record *record,
 		be_log_header_update(log);
 		buf = m0_be_log_store_rbuf_write_buf(&log->lg_store);
 		rc  = m0_be_fmt_log_header_encode_buf(&log->lg_header, buf);
-		M0_ASSERT_INFO(rc == 0, "rc = %d", rc); /* XXX */
+		M0_ASSERT_INFO(rc == 0, "rc=%d", rc); /* XXX */
 		record->lgr_write_header = true;
 	}
 
@@ -1130,6 +1154,26 @@ M0_INTERNAL int m0_be_log_record_prev(struct m0_be_log                   *log,
 	if (rc == 0 && curr->lri_header.lrh_pos <= prev->lri_header.lrh_pos)
 		rc = -ENOENT;
 	return rc;
+}
+
+M0_INTERNAL bool
+m0_be_log_recovery_record_available(struct m0_be_log *log)
+{
+	return log->lg_create_mode ? false :
+	       m0_be_recovery_log_record_available(&log->lg_recovery);
+}
+
+M0_INTERNAL void
+m0_be_log_recovery_record_get(struct m0_be_log             *log,
+			      struct m0_be_log_record_iter *iter)
+{
+	m0_be_recovery_log_record_get(&log->lg_recovery, iter);
+}
+
+M0_INTERNAL m0_bindex_t
+m0_be_log_recovery_discarded(struct m0_be_log *log)
+{
+	return m0_be_recovery_discarded(&log->lg_recovery);
 }
 
 M0_INTERNAL bool m0_be_log_contains_stob(struct m0_be_log        *log,

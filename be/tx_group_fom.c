@@ -421,8 +421,7 @@ m0_be_tx_group_fom__sm_group(struct m0_be_tx_group_fom *m)
 }
 
 M0_INTERNAL void
-m0_be_tx_group_fom_recovery_prepare(struct m0_be_tx_group_fom *m,
-				    struct m0_be_recovery     *rvr)
+m0_be_tx_group_fom_recovery_prepare(struct m0_be_tx_group_fom *m)
 {
 	m->tgf_recovery_mode = true;
 }

@@ -32,8 +32,6 @@
 
 #include "be/op.h"              /* m0_be_op */
 
-struct m0_be_engine;
-struct m0_be_recovery;
 struct m0_be_tx_group;
 struct m0_reqh;
 
@@ -83,8 +81,7 @@ M0_INTERNAL struct m0_sm_group *
 m0_be_tx_group_fom__sm_group(struct m0_be_tx_group_fom *m);
 
 M0_INTERNAL void
-m0_be_tx_group_fom_recovery_prepare(struct m0_be_tx_group_fom *m,
-				    struct m0_be_recovery     *rvr);
+m0_be_tx_group_fom_recovery_prepare(struct m0_be_tx_group_fom *m);
 
 M0_INTERNAL void m0_be_tx_group_fom_mod_init(void);
 M0_INTERNAL void m0_be_tx_group_fom_mod_fini(void);

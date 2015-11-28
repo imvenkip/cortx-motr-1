@@ -58,7 +58,6 @@ struct be_ut_tgf_group {
 struct be_ut_tgf_ctx {
 	struct m0_be_log         tgfc_log;
 	struct m0_mutex          tgfc_lock;
-	struct m0_be_recovery    tgfc_rvr;
 	struct m0_be_log_discard tgfc_log_discard;
 	struct m0_be_log_discard_cfg tgfc_log_discard_cfg;
 	struct m0_be_pd          tgfc_pd;
@@ -361,10 +360,10 @@ static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
 
 	m0_be_group_format_reset(gft);
 	M0_BE_OP_SYNC(op, m0_be_group_format_prepare(gft, &op));
-	available = m0_be_recovery_log_record_available(&ctx->tgfc_rvr);
+	available = m0_be_log_recovery_record_available(&ctx->tgfc_log);
 	M0_UT_ASSERT(available);
 	m0_mutex_lock(&ctx->tgfc_lock);
-	m0_be_group_format_recovery_prepare(gft, &ctx->tgfc_rvr);
+	m0_be_group_format_recovery_prepare(gft, &ctx->tgfc_log);
 	m0_mutex_unlock(&ctx->tgfc_lock);
 	rc = M0_BE_OP_SYNC_RET(op,
 			       m0_be_group_format_log_read(gft, &op),
@@ -484,7 +483,6 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 		               groups[i].tgfg_cfg.gfc_fmt_cfg.fgc_seg_nr_max);
 	}
 
-	m0_be_recovery_init(&ctx.tgfc_rvr);
 	m0_be_group_format_seg_io_credit(&gfc_cfg,
 					 &ctx.tgfc_pd_cfg.bpdc_io_credit);
 	rc = m0_be_log_discard_init(&ctx.tgfc_log_discard,
@@ -517,7 +515,6 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 	for (i = 0; i < group_nr; ++i) {
 		be_ut_tgf_group_init(&ctx, &groups[i]);
 	}
-	m0_be_recovery_run(&ctx.tgfc_rvr, &ctx.tgfc_log);
 	be_ut_tgf_do_discard = true;
 	for (i = 0; i < group_nr; ++i) {
 		be_ut_tgf_group_read_check(&ctx, &groups[i], true);
@@ -529,7 +526,6 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 	M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&ctx.tgfc_log_discard, &op));
 	m0_be_pd_fini(&ctx.tgfc_pd);
 	m0_be_log_discard_fini(&ctx.tgfc_log_discard);
-	m0_be_recovery_fini(&ctx.tgfc_rvr);
 	be_ut_tgf_log_fini(&ctx);
 	be_ut_tgf_seg_fini(&ctx);
 }

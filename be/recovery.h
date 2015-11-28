@@ -54,25 +54,35 @@
 struct m0_be_log;
 struct m0_be_log_record_iter;
 
-struct m0_be_recovery {
-	struct m0_be_log *brec_log;
-	struct m0_mutex   brec_lock;
-	struct m0_tl      brec_iters;
-	m0_bindex_t       brec_pos_start;
-	m0_bindex_t       brec_pos_end;
+struct m0_be_recovery_cfg {
+	struct m0_be_log *brc_log;
 };
 
-M0_INTERNAL void m0_be_recovery_init(struct m0_be_recovery *rvr);
+struct m0_be_recovery {
+	struct m0_be_recovery_cfg brec_cfg;
+	struct m0_mutex           brec_lock;
+	struct m0_tl              brec_iters;
+	m0_bindex_t               brec_last_record_pos;
+	m0_bcount_t               brec_last_record_size;
+	m0_bindex_t               brec_current;
+	m0_bindex_t               brec_discarded;
+};
+
+M0_INTERNAL void m0_be_recovery_init(struct m0_be_recovery     *rvr,
+                                     struct m0_be_recovery_cfg *cfg);
 M0_INTERNAL void m0_be_recovery_fini(struct m0_be_recovery *rvr);
 /**
  * Scans log for all log records that need to be re-applied and stores them in
  * the list of log-only records.
  */
-M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr,
-				   struct m0_be_log      *log);
+M0_INTERNAL int m0_be_recovery_run(struct m0_be_recovery *rvr);
 
-M0_INTERNAL m0_bindex_t m0_be_recovery_pos_start(struct m0_be_recovery *rvr);
-M0_INTERNAL m0_bindex_t m0_be_recovery_pos_end(struct m0_be_recovery *rvr);
+M0_INTERNAL m0_bindex_t m0_be_recovery_current(struct m0_be_recovery *rvr);
+M0_INTERNAL m0_bindex_t m0_be_recovery_discarded(struct m0_be_recovery *rvr);
+M0_INTERNAL m0_bindex_t
+m0_be_recovery_last_record_pos(struct m0_be_recovery *rvr);
+M0_INTERNAL m0_bcount_t
+m0_be_recovery_last_record_size(struct m0_be_recovery *rvr);
 
 /** Returns true if there is a log record which needs to be re-applied. */
 M0_INTERNAL bool

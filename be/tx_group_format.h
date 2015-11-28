@@ -27,7 +27,6 @@
 #include "be/io.h"              /* m0_be_io */
 #include "be/tx_regmap.h"       /* m0_be_reg_area */
 #include "be/fmt.h"             /* m0_be_fmt_group */
-#include "be/recovery.h"        /* m0_be_recovery_log_record */
 #include "be/log.h"             /* m0_be_log_io */
 #include "be/tx_credit.h"       /* m0_be_tx_credit */
 
@@ -185,7 +184,7 @@ m0_be_group_format_log_use(struct m0_be_group_format *gft,
 			   m0_bcount_t                size_reserved);
 M0_INTERNAL void
 m0_be_group_format_recovery_prepare(struct m0_be_group_format *gft,
-				    struct m0_be_recovery     *rvr);
+				    struct m0_be_log          *log);
 
 M0_INTERNAL void m0_be_group_format_log_write(struct m0_be_group_format *gft,
 					      struct m0_be_op           *op);

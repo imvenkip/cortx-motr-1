@@ -34,6 +34,7 @@
 #include "be/log_sched.h"       /* m0_be_log_sched */
 #include "be/op.h"              /* m0_be_op */
 #include "be/io.h"              /* m0_be_io */
+#include "be/recovery.h"        /* m0_be_recovery */
 
 #include "stob/io.h"            /* m0_stob_io_opcode */
 
@@ -235,9 +236,11 @@ enum {
 
 enum {
 	M0_BE_LOG_LEVEL_INIT,
+	M0_BE_LOG_LEVEL_LOG_SCHED,
 	M0_BE_LOG_LEVEL_LOG_STORE,
 	M0_BE_LOG_LEVEL_HEADER_PREINIT,
 	M0_BE_LOG_LEVEL_HEADER,
+	M0_BE_LOG_LEVEL_RECOVERY,
 	M0_BE_LOG_LEVEL_ASSIGNS,
 	M0_BE_LOG_LEVEL_READY,
 };
@@ -245,6 +248,7 @@ enum {
 struct m0_be_log_cfg {
 	struct m0_be_log_store_cfg  lc_store_cfg;
 	struct m0_be_log_sched_cfg  lc_sched_cfg;
+	struct m0_be_recovery_cfg   lc_recovery_cfg;
 	m0_be_log_got_space_cb_t    lc_got_space_cb;
 	m0_be_log_full_cb_t         lc_full_cb;
 	m0_bcount_t                 lc_full_threshold;
@@ -268,6 +272,7 @@ struct m0_be_log {
 	struct m0_be_log_store   lg_store;
 	/** Scheduler */
 	struct m0_be_log_sched   lg_sched;
+	struct m0_be_recovery    lg_recovery;
 	struct m0_be_fmt_log_header lg_header;
 	/** List of all non-discarded log_records */
 	struct m0_tl             lg_records;
@@ -486,6 +491,14 @@ M0_INTERNAL int m0_be_log_record_prev(struct m0_be_log *log,
 M0_INTERNAL bool m0_be_fmt_log_record_header__invariant(
 				struct m0_be_fmt_log_record_header *header,
 				struct m0_be_log                   *log);
+
+M0_INTERNAL bool
+m0_be_log_recovery_record_available(struct m0_be_log *log);
+M0_INTERNAL void
+m0_be_log_recovery_record_get(struct m0_be_log             *log,
+			      struct m0_be_log_record_iter *iter);
+M0_INTERNAL m0_bindex_t
+m0_be_log_recovery_discarded(struct m0_be_log *log);
 
 M0_INTERNAL bool m0_be_log_contains_stob(struct m0_be_log        *log,
                                          const struct m0_stob_id *stob_id);

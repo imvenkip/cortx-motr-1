@@ -41,7 +41,6 @@ const char *be_ut_recovery_log_sdom_init_cfg   = "directio=true";
 const char *be_ut_recovery_log_sdom_create_cfg = "";
 
 struct be_ut_recovery_ctx {
-	struct m0_be_recovery    burc_rvr;
 	struct m0_be_log         burc_log;
 	struct m0_mutex          burc_lock;
 	struct m0_stob_domain   *burc_sdom;
@@ -173,22 +172,18 @@ static void be_ut_recovery_log_fill(struct be_ut_recovery_ctx *ctx,
 				       bo_sm.sm_rc);
 		M0_UT_ASSERT(rc == 0);
 
+		m0_mutex_lock(lock);
 		if (i < discard_nr) {
-			m0_mutex_lock(lock);
 			m0_be_log_record_discard(record->lgr_log,
 						  record->lgr_size);
-			m0_mutex_unlock(lock);
+		} else {
+			m0_be_log_record_skip_discard(record);
 		}
+		m0_mutex_unlock(lock);
 	}
 
 	for (i = 0; i < record_nr; ++i) {
 		record = &ctx->burc_records[i];
-		if (i >= discard_nr) {
-			m0_mutex_lock(lock);
-			m0_be_log_record_discard(record->lgr_log,
-						  record->lgr_size);
-			m0_mutex_unlock(lock);
-		}
 		be_ut_recovery_log_record_fini_one(record);
 	}
 	m0_free(ctx->burc_records);
@@ -197,7 +192,6 @@ static void be_ut_recovery_log_fill(struct be_ut_recovery_ctx *ctx,
 static int be_ut_recovery_iter_count(struct be_ut_recovery_ctx *ctx)
 {
 	struct m0_be_log             *log    = &ctx->burc_log;
-	struct m0_be_recovery        *rvr    = &ctx->burc_rvr;
 	struct m0_mutex              *lock   = &ctx->burc_lock;
 	struct m0_be_log_record       record = {};
 	struct m0_be_log_record_iter  iter   = {};
@@ -207,11 +201,8 @@ static int be_ut_recovery_iter_count(struct be_ut_recovery_ctx *ctx)
 	be_ut_recovery_log_record_init_one(&record, log);
 	rc = m0_be_log_record_iter_init(&iter);
 	M0_UT_ASSERT(rc == 0);
-	/* next function changes log's pointers */
-	rc = m0_be_recovery_run(rvr, log);
-	M0_UT_ASSERT(rc == 0);
-	while (m0_be_recovery_log_record_available(rvr)) {
-		m0_be_recovery_log_record_get(rvr, &iter);
+	while (m0_be_log_recovery_record_available(log)) {
+		m0_be_log_recovery_record_get(log, &iter);
 		++count;
 
 		/* discard this record to move log's pointers */
@@ -240,7 +231,6 @@ void m0_be_ut_recovery(void)
 	int                       count;
 	int                       nr;
 
-	m0_be_recovery_init(&ctx.burc_rvr);
 	be_ut_recovery_log_init(&ctx);
 
 	/* empty log */
@@ -248,17 +238,18 @@ void m0_be_ut_recovery(void)
 	M0_UT_ASSERT(count == 0);
 
 	be_ut_recovery_log_fill(&ctx, 10, 10, false);
-	count = be_ut_recovery_iter_count(&ctx);
-	M0_UT_ASSERT(count == 1);
-
 	be_ut_recovery_log_reopen(&ctx);
+	count = be_ut_recovery_iter_count(&ctx);
+	M0_UT_ASSERT(count == 0);
+
 	be_ut_recovery_log_fill(&ctx, 10, 5, false);
+	be_ut_recovery_log_reopen(&ctx);
 	count = be_ut_recovery_iter_count(&ctx);
 	M0_UT_ASSERT(count == 5);
 
 	nr = BE_UT_RECOVERY_LOG_SIZE / BE_UT_RECOVERY_LOG_RESERVE_SIZE * 2;
-	be_ut_recovery_log_reopen(&ctx);
 	be_ut_recovery_log_fill(&ctx, nr, nr - 5, false);
+	be_ut_recovery_log_reopen(&ctx);
 	count = be_ut_recovery_iter_count(&ctx);
 	M0_UT_ASSERT(count == 5);
 
@@ -267,7 +258,6 @@ void m0_be_ut_recovery(void)
 	M0_UT_ASSERT(count == 0);
 
 	be_ut_recovery_log_fini(&ctx);
-	m0_be_recovery_fini(&ctx.burc_rvr);
 }
 
 /*
