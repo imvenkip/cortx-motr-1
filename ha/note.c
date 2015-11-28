@@ -139,7 +139,8 @@ static bool note_invariant(const struct m0_ha_nvec *note, bool known)
 #define N(i) (note->nv_note[i])
 	return m0_forall(i, note->nv_nr,
 			 _0C((N(i).no_state != M0_NC_UNKNOWN) == known) &&
-			 _0C(m0_conf_fid_is_valid(&N(i).no_id)) &&
+			 _0C(!m0_fid_is_set(&N(i).no_id) ||
+			     m0_conf_fid_is_valid(&N(i).no_id)) &&
 			 _0C(ergo(M0_IN(N(i).no_state,
 					(M0_NC_REPAIR, M0_NC_REBALANCE)),
 			 m0_conf_fid_type(&N(i).no_id) == &M0_CONF_POOL_TYPE)));
