@@ -208,6 +208,19 @@ static void be_log_discard_check_sync(struct m0_be_log_discard *ld,
 	}
 }
 
+static void be_log_discard_item_discard(struct m0_be_log_discard      *ld,
+                                        struct m0_be_log_discard_item *ldi)
+{
+	M0_LOG(M0_DEBUG, "ld=%p ldi=%p", ld, ldi);
+
+	M0_PRE(be_log_discard_is_locked(ld));
+	M0_PRE(ldi->ldi_state == LDI_SYNCED);
+
+	ld->lds_cfg.ldsc_discard(ld, ldi);
+	ldi->ldi_state = LDI_DISCARDED;
+	m0_be_log_discard_item_put(ld, ldi);
+}
+
 static void be_log_discard_item_trydiscard(struct m0_be_log_discard      *ld,
                                            struct m0_be_log_discard_item *ldi)
 {
@@ -216,12 +229,8 @@ static void be_log_discard_item_trydiscard(struct m0_be_log_discard      *ld,
 
 	if (ldi->ldi_state == LDI_FINISHED && ldi->ldi_synced)
 		ldi->ldi_state = LDI_SYNCED;
-	if (ldi->ldi_state == LDI_SYNCED) {
-		M0_LOG(M0_DEBUG, "discard ld=%p ldi=%p", ld, ldi);
-		ld->lds_cfg.ldsc_discard(ld, ldi);
-		ldi->ldi_state = LDI_DISCARDED;
-		m0_be_log_discard_item_put(ld, ldi);
-	}
+	if (ldi->ldi_state == LDI_SYNCED)
+		be_log_discard_item_discard(ld, ldi);
 }
 
 static void be_log_discard_sync_done_cb(struct m0_be_op *op, void *param)
