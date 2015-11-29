@@ -20,6 +20,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 
 #include "lib/trace.h"
+#include "lib/memory.h"            /* M0_ALLOC_PTR */
 #include "lib/misc.h"              /* ARRAY_SIZE */
 #include "lib/semaphore.h"
 #include "ut/ut.h"
@@ -361,6 +362,13 @@ static void frame_fill(void)
 	}
 }
 
+static void context_clean(void)
+{
+	while ((issued % DEPTH_MAX) != 1)
+		add_one();
+	m0_addb2_pop(0);
+}
+
 /**
  * Force storage stob wrap-around "n" times.
  */
@@ -379,9 +387,7 @@ static void wrap(int n)
 		frame_fill();
 	frame_fill();
 	frame_fill();
-	while ((issued % DEPTH_MAX) != 1)
-		add_one();
-	m0_addb2_pop(0);
+	context_clean();
 	stor_fini(false);
 	stob_get(false);
 	result = m0_addb2_sit_init(&sit, stob, 0);
@@ -433,6 +439,84 @@ static void wrap7(void)
 	wrap(7);
 }
 
+enum { THREADS = 8, OUTER = 50, INNER = 100 };
+
+static struct m0_semaphore pump_start;
+static struct m0_semaphore pump_done;
+static bool pump_exit;
+
+static void io_thread(int x)
+{
+	static uint64_t body[8100];
+	int             i;
+
+	do {
+		m0_semaphore_down(&pump_start);
+		for (i = 0; i < INNER; ++i) {
+			struct m0_addb2_trace_obj *obj;
+
+			M0_ALLOC_PTR(obj);
+			obj->o_tr.tr_nr   = 8000;
+			obj->o_tr.tr_body = body;
+			obj->o_done       = (void *)&m0_free;
+			m0_addb2_storage_submit(stor, obj);
+		}
+		m0_semaphore_up(&pump_done);
+	} while (!pump_exit);
+}
+
+static void io_idle(struct m0_addb2_storage *stor)
+{
+	test_idle(stor);
+}
+
+static void io_done(struct m0_addb2_storage *stor,
+		    struct m0_addb2_trace_obj *obj)
+{
+}
+
+/**
+ * "fini-io" test: test storage finalisation concurrent with IO.
+ */
+static void fini_io(void)
+{
+	int i;
+	int j;
+	int result;
+	struct m0_thread t[THREADS] = {};
+	const struct m0_addb2_storage_ops io_ops = {
+		.sto_idle = &io_idle,
+		.sto_done = &io_done
+	};
+
+	for (i = 0; i < ARRAY_SIZE(t); ++i) {
+		result = M0_THREAD_INIT(&t[i], int, NULL, &io_thread, 0,
+					"io_thread");
+		M0_UT_ASSERT(result == 0);
+	}
+	stob_get(true);
+	for (i = 0; i < OUTER; ++i) {
+		idled = false;
+		pump_exit = (i == OUTER - 1);
+		m0_semaphore_init(&idlewait, 0);
+		stor = m0_addb2_storage_init(stob, SIZE, i == 0, &io_ops, NULL);
+		M0_UT_ASSERT(stor != NULL);
+		for (j = 0; j < ARRAY_SIZE(t); ++j)
+			m0_semaphore_up(&pump_start);
+		for (j = 0; j < ARRAY_SIZE(t); ++j)
+			m0_semaphore_down(&pump_done);
+		m0_addb2_storage_stop(stor);
+		m0_semaphore_down(&idlewait);
+		M0_UT_ASSERT(idled);
+		m0_addb2_storage_fini(stor);
+	}
+	for (i = 0; i < ARRAY_SIZE(t); ++i) {
+		m0_thread_join(&t[i]);
+		m0_thread_fini(&t[i]);
+	}
+	stob_put(true);
+}
+
 struct m0_ut_suite addb2_storage_ut = {
 	.ts_name = "addb2-storage",
 	.ts_init = NULL,
@@ -446,6 +530,7 @@ struct m0_ut_suite addb2_storage_ut = {
 		{ "wrap-2",                        &wrap2 },
 		{ "wrap-3",                        &wrap3 },
 		{ "wrap-7",                        &wrap7 },
+		{ "fini-io",                       &fini_io },
 		{ NULL, NULL }
 	}
 };

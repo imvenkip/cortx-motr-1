@@ -184,7 +184,6 @@ int m0_addb2_sys_init(struct m0_addb2_sys **out,
 		 * @see m0_sm_ast_wait_post(), m0_addb2_sys_sm_start()
 		 */
 		sys->sy_astwait.aw_allowed = false;
-		m0_semaphore_init(&sys->sy_wait, 0);
 		tr_tlist_init(&sys->sy_queue);
 		mach_tlist_init(&sys->sy_pool);
 		mach_tlist_init(&sys->sy_granted);
@@ -248,7 +247,6 @@ void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
 	m0_sm_ast_wait_fini(&sys->sy_astwait);
 	sys_unlock(sys);
 	tr_tlist_fini(&sys->sy_queue);
-	m0_semaphore_fini(&sys->sy_wait);
 	m0_mutex_fini(&sys->sy_lock);
 	/* Do not finalise &sys->sy_counters: can be non-empty. */
 	m0_free(sys);
@@ -501,9 +499,11 @@ static void net_stop(struct m0_addb2_sys *sys)
 	M0_PRE(m0_mutex_is_locked(&sys->sy_lock));
 	sys_balance(sys);
 	if (sys->sy_net != NULL) {
+		m0_semaphore_init(&sys->sy_wait, 0);
 		m0_addb2_net_stop(sys->sy_net, &net_idle, sys);
 		m0_semaphore_down(&sys->sy_wait);
 		m0_addb2_net_fini(sys->sy_net);
+		m0_semaphore_fini(&sys->sy_wait);
 		sys->sy_net = NULL;
 	}
 }
@@ -513,11 +513,13 @@ static void stor_stop(struct m0_addb2_sys *sys)
 	M0_PRE(m0_mutex_is_locked(&sys->sy_lock));
 	sys_balance(sys);
 	if (sys->sy_stor != NULL) {
+		m0_semaphore_init(&sys->sy_wait, 0);
 		m0_addb2_storage_stop(sys->sy_stor);
 		sys_unlock(sys);
 		m0_semaphore_down(&sys->sy_wait);
 		sys_lock(sys);
 		m0_addb2_storage_fini(sys->sy_stor);
+		m0_semaphore_fini(&sys->sy_wait);
 		sys->sy_stor = NULL;
 	}
 }

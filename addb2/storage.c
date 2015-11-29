@@ -31,13 +31,17 @@
  * FRAME_SIZE_MAX.
  *
  * Once the frame reaches the maximal size, it is submitted for write to the
- * stob (frame_submit()) and moved to the in-flight list
+ * stob (frame_try()) and moved to the in-flight list
  * (m0_addb2_storage::as_inflight). When IO completes, completion handler
  * frame_endio() is called, which invokes completion call-backs and moves the
  * frame to the idle list (m0_addb2_storage::as_idle).
  *
  * If the idle list is empty (all frames are in-flight), newly submitted traces
  * are added to a pending queue m0_addb2_srorage::as_queue).
+ *
+ * An intermediate list (m0_addb2_storage::as_pending) contains formed, but
+ * still not submitted frames. It is used to avoid keepinf g the storage lock
+ * over stob IO launching.
  *
  * On storage a frame starts with the header (m0_addb2_frame_header), which
  * contains frame size and offset of the previous frame header. This allows
@@ -194,8 +198,8 @@ struct m0_addb2_storage {
 	 */
 	struct m0_tl                       as_pending;
 	/**
-	 * Pre-allocated frames. ->as_idle and ->as_inflight contain elements of
-	 * this array.
+	 * Pre-allocated frames. ->as_idle, ->as_pending and ->as_inflight
+	 * contain elements of this array.
 	 */
 	struct frame                       as_prealloc[MAX_INFLIGHT + 1];
 	const struct m0_addb2_storage_ops *as_ops;
@@ -209,6 +213,7 @@ struct m0_addb2_storage {
 	 * Small trace used to mark when the storage engine is opened.
 	 */
 	struct m0_addb2_trace_obj          as_marker;
+	bool                               as_idled;
 };
 
 /**
@@ -410,8 +415,11 @@ static void stor_balance(struct m0_addb2_storage *stor, int delta)
 		 * frame_endio() is still running---racing with stor_fini().
 		 */
 		if (frame_tlist_length(&stor->as_inflight) == delta &&
-		    stor->as_stopped && stor->as_ops->sto_idle != NULL)
+		    stor->as_stopped && !stor->as_idled &&
+		    stor->as_ops->sto_idle != NULL) {
+			stor->as_idled = true;
 			stor->as_ops->sto_idle(stor);
+		}
 	}
 	stor_drain(stor);
 }
@@ -541,13 +549,14 @@ static void stor_drain(struct m0_addb2_storage *stor)
 {
 	struct frame *frame;
 
-	m0_tl_for(frame, &stor->as_pending, frame) {
+	/* Cannot used m0_tl_for() because of concurrent frame insertions. */
+	while ((frame = frame_tlist_head(&stor->as_pending)) != NULL) {
 		if (frame_try(frame) != 0) {
 			frame_done(frame);
 			/* Not much else we can do here. */
 			frame_idle(frame);
 		}
-	} m0_tl_endfor;
+	}
 }
 
 /**
