@@ -107,6 +107,14 @@ struct m0_be_log_discard {
 	struct m0_be_op                     *lds_flush_op;
 	struct m0_sm_timer                   lds_sync_timer;
 	bool                                 lds_stopping;
+	/**
+	 * m0_be_log_discard_fini() will wait on this semaphore
+	 * until discard callbacks are executed.
+	 * XXX Temporary solution.
+	 */
+	struct m0_semaphore                  lds_discard_wait_sem;
+	int                                  lds_discard_left;
+	bool                                 lds_discard_waiting;
 };
 
 M0_INTERNAL int m0_be_log_discard_init(struct m0_be_log_discard     *ld,
