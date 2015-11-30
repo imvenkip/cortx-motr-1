@@ -201,11 +201,23 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 		if (result != 0)
 			return result;
 		if (flag == M0_XCODE_CURSOR_PRE && aggr == M0_XA_ATOM) {
-			int nob;
-			int nr;
+			int      nob;
+			int      nr;
+			unsigned bval = 0;
+			void    *pval;
 
-			nr = sscanf(str, fmt[xt->xct_atype],
-				    cur->xo_ptr, &nob);
+			/*
+			 * according to format, a byte goes to 4-byte bval, but
+			 * not directly to allocated buffer (i.e. cur->xo_ptr)
+			 */
+			pval = xt->xct_atype == M0_XAT_U8 ? &bval : cur->xo_ptr;
+			nr = sscanf(str, fmt[xt->xct_atype], pval, &nob);
+			if (xt->xct_atype == M0_XAT_U8) {
+				if (bval < 0x100)
+					*(uint8_t *)cur->xo_ptr = (uint8_t)bval;
+				else
+					return M0_ERR(-EOVERFLOW);
+			}
 			/*
 			 * WARNING
 			 *
