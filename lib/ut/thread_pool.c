@@ -31,6 +31,7 @@ static uint64_t test_counts = 0;
 static struct m0_atomic64 counts;
 struct tpool_test {
 	uint64_t        t_count;   /* payload */
+	int             t_rc;
 	struct m0_tlink t_linkage;
 	uint64_t        t_magic;
 };
@@ -41,13 +42,21 @@ struct tpool_test test[] = {
 	{ .t_count = 1 }, { .t_count = 2 }, { .t_count = 3 }, { .t_count = 4 },
 	{ .t_count = 5 }, { .t_count = 6 }, { .t_count = 7 }, { .t_count = 8 },
 };
+struct tpool_test error_test[] = {
+	{ .t_count = 1 }, { .t_count = 2, .t_rc = -EINTR,  },
+	{ .t_count = 3 }, { .t_count = 4, .t_rc = -ENOMEM, },
+	{ .t_count = 5 }, { .t_count = 6, .t_rc = -E2BIG,  },
+	{ .t_count = 7 }, { .t_count = 8, .t_rc = -EINTR,  },
+};
 
 static int thread_pool_process(void *item)
 {
 	struct tpool_test *t = (struct tpool_test *)item;
-	m0_atomic64_add(&counts, t->t_count);
 
-	return 0;
+	if (t->t_rc == 0)
+		m0_atomic64_add(&counts, t->t_count);
+
+	return t->t_rc;
 }
 
 static void thread_pool_init(struct m0_parallel_pool *pool)
@@ -72,15 +81,19 @@ static void thread_pool_fini(struct m0_parallel_pool *pool)
 	m0_parallel_pool_fini(pool);
 }
 
-static void feed(struct m0_parallel_pool *pool)
+static void feed(struct m0_parallel_pool *pool, bool err_test)
 {
-	int rc;
-	int i;
+	struct tpool_test *t = !err_test ? test : error_test;
+	int                sz = !err_test ? ARRAY_SIZE(test)
+					  : ARRAY_SIZE(error_test);
+	int                rc;
+	int                i;
 
-	for (i = 0; i < ARRAY_SIZE(test); ++i) {
-		rc = m0_parallel_pool_job_add(pool, &test[i]);
+	for (i = 0; i < sz; ++i) {
+		rc = m0_parallel_pool_job_add(pool, &t[i]);
 		M0_UT_ASSERT(rc == 0);
-		test_counts += test[i].t_count;
+		test_counts += !err_test ? t[i].t_count : (t[i].t_rc == 0 ?
+							   t[i].t_count : 0);
 	}
 }
 
@@ -90,7 +103,7 @@ static void simple_thread_pool_test(struct m0_parallel_pool *pool)
 	int rc;
 
 	for (; rounds > 0; --rounds) {
-		feed(pool);
+		feed(pool, false);
 		m0_parallel_pool_start(pool, thread_pool_process);
 		rc = m0_parallel_pool_wait(pool);
 		M0_UT_ASSERT(rc == 0);
@@ -126,6 +139,26 @@ static void parallel_for_pool_test(struct m0_parallel_pool *pool)
 	}
 }
 
+static void simple_thread_pool_error_test(struct m0_parallel_pool *pool)
+{
+	struct tpool_test *job = NULL;
+	int                rounds = ROUNDS_NR;
+	int                rc;
+
+	for (; rounds > 0; --rounds) {
+		feed(pool, true);
+		m0_parallel_pool_start(pool, thread_pool_process);
+		rc = m0_parallel_pool_wait(pool);
+		M0_UT_ASSERT(rc == -EINTR);
+		M0_UT_ASSERT(m0_atomic64_get(&counts) == test_counts);
+		while (m0_parallel_pool_rc_next(pool, (void **)&job, &rc) > 0) {
+			M0_UT_ASSERT(job != NULL);
+			M0_UT_ASSERT(rc == job->t_rc);
+		}
+	}
+
+}
+
 void m0_ut_lib_thread_pool_test(void)
 {
 	struct m0_parallel_pool pool = {};
@@ -136,6 +169,7 @@ void m0_ut_lib_thread_pool_test(void)
 	thread_pool_init(&pool);
 	simple_thread_pool_test(&pool);
 	parallel_for_pool_test(&pool);
+	simple_thread_pool_error_test(&pool);
 	thread_pool_fini(&pool);
 
 	small_thread_pool_init(&small_pool);

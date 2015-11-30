@@ -44,6 +44,7 @@ enum  m0_parallel_pool_state {
 
 struct m0_parallel_queue_link {
 	struct m0_queue_link  ql_link;
+	int                   ql_rc;
 	void                 *ql_item;
 };
 
@@ -97,7 +98,6 @@ static void pool_thread(struct m0_parallel_pool *pool)
 {
 	struct m0_parallel_queue_link *qlink;
 	void                          *item;
-	int                            rc;
 
 	while (true) {
 		m0_semaphore_down(&pool->pp_ready);
@@ -112,15 +112,9 @@ static void pool_thread(struct m0_parallel_pool *pool)
 				break;
 
 			item = qlink->ql_item;
-			rc = pool->pp_process(item);
-
-			/* @TODO: Currenly pool doesn't support error codes
-			 * returned by the user but it's easy to fix this. Just
-			 * add corresponding .ql_rc field into struct
-			 * m0_parallel_queue_link, and introduce interface
-			 * function like m0_parallel_pool_get_next_error().
-			 */
-			M0_ASSERT(rc == 0);
+			qlink->ql_rc = pool->pp_process(item);
+			M0_LOG(M0_DEBUG, "job: %p, ql_rc: %d", item,
+			       qlink->ql_rc);
 		}
 
 		m0_semaphore_up(&pool->pp_sync);
@@ -221,6 +215,10 @@ M0_INTERNAL void m0_parallel_pool_start(struct m0_parallel_pool *pool,
 
 	pool->pp_state = PPS_BUSY;
 	pool->pp_process = process;
+	pool->pp_next_rc = 0;
+	for (i = 0; i < pool->pp_qlinks_nr; ++i)
+		pool->pp_qlinks[i].ql_rc = 0;
+
 
 	for (i = 0; i < pool->pp_thread_nr; ++i)
 		m0_semaphore_up(&pool->pp_ready);
@@ -240,7 +238,8 @@ M0_INTERNAL int m0_parallel_pool_wait(struct m0_parallel_pool *pool)
 	pool->pp_state = PPS_IDLE;
 	pool->pp_process = NULL;
 
-	return 0;
+	return m0_forall(i, pool->pp_qlinks_nr,
+			 pool->pp_qlinks[i].ql_rc == 0) ? 0 : M0_ERR(-EINTR);
 }
 
 M0_INTERNAL void m0_parallel_pool_terminate_wait(struct m0_parallel_pool *pool)
@@ -274,8 +273,28 @@ M0_INTERNAL int m0_parallel_pool_job_add(struct m0_parallel_pool *pool,
 		return 0;
 	}
 
-	return -ENOSPC;
+	return M0_ERR(-EFBIG);
 }
+
+M0_INTERNAL int m0_parallel_pool_rc_next(struct m0_parallel_pool *pool,
+					 void **job, int *rc)
+{
+	int i;
+
+	M0_PRE(pool->pp_state == PPS_IDLE);
+
+	for (i = pool->pp_next_rc; i < pool->pp_qlinks_nr; ++i) {
+		if (pool->pp_qlinks[i].ql_rc != 0) {
+			*job = pool->pp_qlinks[i].ql_item;
+			*rc  = pool->pp_qlinks[i].ql_rc;
+			pool->pp_next_rc = ++i;
+			return +1;
+		}
+	}
+
+	return 0;
+}
+
 
 #undef M0_TRACE_SUBSYSTEM
 

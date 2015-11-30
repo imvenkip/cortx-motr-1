@@ -94,6 +94,7 @@ struct m0_parallel_pool {
 	int                            pp_qlinks_nr;
 
 	int                            pp_state;
+	int                            pp_next_rc;
 };
 
 M0_INTERNAL int m0_parallel_pool_init(struct m0_parallel_pool *pool,
@@ -105,6 +106,8 @@ M0_INTERNAL int  m0_parallel_pool_wait(struct m0_parallel_pool *pool);
 M0_INTERNAL void m0_parallel_pool_start(struct m0_parallel_pool *pool,
 					int (*process)(void *job));
 M0_INTERNAL void m0_parallel_pool_terminate_wait(struct m0_parallel_pool *pool);
+M0_INTERNAL int  m0_parallel_pool_rc_next(struct m0_parallel_pool *pool,
+					  void **job, int *rc);
 
 /* parallel for macro */
 
@@ -114,7 +117,7 @@ M0_INTERNAL void m0_parallel_pool_terminate_wait(struct m0_parallel_pool *pool);
 	typeof (name ## _tlist_head(NULL)) obj;                         \
 	m0_tl_for(name, list, obj) {                                    \
 		rc = m0_parallel_pool_job_add(pool, obj);               \
-		if (rc == -ENOSPC) {                                    \
+		if (rc == -EFBIG) {                                     \
 			m0_parallel_pool_start(pool, process);          \
 			rc = m0_parallel_pool_wait(pool);               \
 			if (rc != 0)                                    \
