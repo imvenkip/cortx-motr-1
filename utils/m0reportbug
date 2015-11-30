@@ -3,12 +3,23 @@ set -eu
 # set -x
 # export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
-VERSION=0.6
+VERSION=0.7
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2015-12-04 0.7     * Use preset paths, different for rpm and non-rpm
+###                      (source) installations.
+###                    * Tolerate the absence of gdb.
+###                    * Collect no more than 20 most recent m0trace files.
+###                    * Limit the size of _compressed_ core dump file,
+###                      not the original file.
+###                    * gdb_bt(): set solib-search-path to obtain meaningful
+###                      backtraces at Jenkins nodes.
+###                    * backtraces_live(): Don't fail if a process disappears.
+###                    * Add `--path' CLI option.
+###
 ### 2015-11-25 0.6     * Add more probes.
 ###                    * Collect stderr output of probes.
 ###                    * Get stacks of `dd' and `fio' processes.
@@ -35,7 +46,8 @@ VERSION=0.6
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DIR=m0reportbug-data
 OUTPUT=m0reportbug.txt # the file is created in $OUT_DIR/
-MAX_CORE_SIZE=512 # MB
+MERO_PACKAGE_VERSION=0.1.0 # must correspond to `M0_VERSION' in configure.ac
+M0TRACES_MAX=20 # how many most recently modified m0trace files to collect
 
 main() {
     local g
@@ -54,6 +66,7 @@ main() {
 
     for g in "${stages[@]}"; do
         echo -n "$g... " >&2
+        section "[$g]"
         $g
         echo 'OK' >&2
     done >>$OUTPUT
@@ -111,94 +124,99 @@ mkcd() {
     cd $dir
 }
 
-program_from_core() { sudo file $1 | cut -d\' -f2 | cut -d' ' -f1; }
-program_from_pid() { ps h -o args $1 | cut -d' ' -f1; }
+program_from_core() {
+    ## Sample output of `file' command:
+    ##
+    ##   $ sudo file /var/mero/ios1/core.1271
+    ##   /var/mero/ios1/core.1271: ELF 64-bit LSB core file x86-64, version 1 (SYSV), SVR4-style, from 'm0d -e lnet:10.22.192.32@tcp:12345:42:401 -f <0x7200000000000001:4> -T ad -D db'
+    sudo file $1 | cut -d\' -f2 | cut -d' ' -f1 | xargs basename
+}
 
 ### Since $0 may be a relative path (e.g., 'utils/m0reportbug'),
 ### we might not be able to canonicalize it after cd-ing to $OUT_DIR.
 PROG=$(readlink -f $0)
 
-### Try to find a path to executable, given its name.
-###
-### Example:
-###   $ find_exec m0d
-###   ==> /path/to/workdir/src/mero/m0d
-###   $ find_exec /path/to/workdir/src/mero/m0d
-###   ==> /path/to/workdir/src/mero/m0d
-###
-### See also `binary'.
-find_exec() {
+_path_rpm() {
+    [ $# -eq 1 ] || die "Usage: ${FUNCNAME[0]} <name>"
     local name=$1
-    local dir=$(dirname $PROG)
-    local s
 
-    ## First try to find the executable in m0reportbug's directory.
-    if [ -x $dir/$name ]; then
-        readlink -f $dir/$name
-        return
+    case $name in
+        m0d|m0mkfs|m0tracedump) echo "/usr/bin/$name";;
+        libmero.so) echo "/usr/lib64/libmero-${MERO_PACKAGE_VERSION}.so";;
+        m0mero.ko) echo "/lib/module/$(uname -r)/kernel/fs/mero/m0mero.ko";;
+        *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
+    esac
+}
+
+_path_src() {
+    [ $# -eq 2 -a -z "${2%.libs/}" ]||
+        die "Usage: ${FUNCNAME[0]}: <name> [.libs/]"
+    local name=$1
+    local subdir="$2"
+
+    local src="$(echo $PROG | sed -n 's:/utils/m0reportbug$::p')"
+    [ -n "$src" ] || die "${FUNCNAME[0]}: Impossible happened"
+
+    case $name in
+        m0d) echo "$src/mero/${subdir}$name";;
+        m0mkfs) echo "$src/utils/mkfs/${subdir}$name";;
+        m0tracedump)
+            [ -z "$subdir" ] || die "${FUNCNAME[0]}: Unexpected argument"
+            echo "$src/utils/trace/$name";;
+        libmero.so) echo "$src/mero/.libs/libmero-${MERO_PACKAGE_VERSION}.so";;
+        m0mero.ko) echo "$src/mero/m0mero.ko";;
+        lt-m0ut) echo "$src/ut/.libs/lt-m0ut";;
+        *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
+    esac
+}
+
+path() {
+    [ $# -ge 1 -a -n "$1" -a -z "${2:-}" -o "${2:-}" = binary ] ||
+        die "Usage: ${FUNCNAME[0]} <name> [binary]"
+    local name=$1
+    local subdir="${2:+.libs/}"
+    local result
+
+    if [ "$(dirname $PROG)" = '/usr/sbin' ]; then
+        result=$(_path_rpm $name) # installed from rpm
+    else
+        result=$(_path_src $name "$subdir") # being run from sources
     fi
 
-    ## Try to guess the path from core dumps.
-    sudo find "$IN_DIR" -type f -name core.\* | while read s; do
-        s=$(program_from_core $s | sed -rn "s:/\.libs/(lt-)?$name:/$name:p")
-        if [ -n "$s" -a -x "$s" ]; then
-            echo $s
-            return
-        fi
-    done
-
-    ## Try to guess the path from running processes.
-    pgrep '\<(lt-)?m0' | while read s; do
-        s=$(program_from_pid $s | sed -rn "s:/\.libs/(lt-)?$name:/$name:p")
-        if [ -n "$s" -a -x "$s" ]; then
-            echo $s
-            return
-        fi
-    done
-
-    ## Last resort.
-    which $name 2>/dev/null || warn "$name executable not found"
-}
-
-### Try to deduce a path to binary, given path to an executable file,
-### which may be a shell script (ASCII text).
-###
-### Example:
-###   $ binary /path/to/workdir/src/mero/m0d
-###   ==> /path/to/workdir/src/mero/.libs/m0d
-###
-### See also `find_exec'.
-binary() {
-    local f="${1:-}"
-    [ -n "$f" -a -x "$f" ] || return
-
-    for f in "$f" "$(dirname $f)/.libs/$(basename $f)"; do
-        if [ "$(file -bi $f | cut -d= -f2)" = 'binary' ]; then
-            echo $f
-            return
-        fi
-    done
-}
-
-m0version() {
-    local m0d=$(find_exec m0d)
-
-    if [ -n "$m0d" ]; then
-        $m0d -v
+    if [ -z "$result" ]; then
+        warn "${FUNCNAME[0]}: Unable to find $name"
+    elif ! [ -a "$result" ]; then
+        warn "${FUNCNAME[0]}: $result: No such file"
+    elif [ "${2:-}" = binary -a \
+           "$(file -bi $result | cut -d= -f2)" != binary ]; then
+        warn "${FUNCNAME[0]}: $name is not a binary file"
+    else
+        echo $result
     fi
 }
+
+m0version() { $(path m0d) -v; }
+
+GDB=$(which gdb 2>/dev/null || true)
 
 gdb_bt() {
-    [ $# -eq 2 ] || die 'Usage: gdb_bt <prog> {<core>|<pid>}>'
-    sudo gdb -nx $@ <<EOF
+    [ -n "$GDB" ] || die "${FUNCNAME[0]} cannot be used"
+    [ $# -eq 2 ] || die 'Usage: ${FUNCNAME[0]} <prog> {<core>|<pid>}>'
+
+    [ -n "$1" ] || return 0 # do nothing if `prog' argument is empty
+    {
+        cat <<EOF
+set solib-search-path .:$(dirname $(path libmero.so))
 set pagination off
+p "### bt"
 bt
-p "###"
+p "### thread apply all bt"
 thread apply all bt
-p "###"
+p "### thread apply all bt full"
 thread apply all bt full
 quit
 EOF
+    } | sudo $GDB -nx $@ 2>&1 || true
     echo
 }
 
@@ -207,85 +225,89 @@ backtraces_live() {
 
     pgrep '\<(lt-)?m0|\<(dd|fio)\>' | while read pid; do
         local args="$(ps h -o args $pid)"
+        [ -n "$args" ] || continue # the process may be gone
         local prog=$(echo $args | cut -d' ' -f1)
 
         section /proc/$pid/stack
-        sudo cat /proc/$pid/stack
+        echo args: $args
+        sudo cat /proc/$pid/stack 2>&1 || true # the process may be gone
 
-        sudo ls /proc/$pid/task | while read task; do
+        { sudo ls /proc/$pid/task 2>&1 || true; } | while read task; do
             section /proc/$pid/task/$task/stack
-            sudo cat /proc/$pid/task/$task/stack
+            sudo cat /proc/$pid/task/$task/stack 2>&1 || true
         done
 
-        ## Skip kernel threads and bash scripts -- we cannot gdb_bt them.
-        [ "${prog#[}" = "$prog" -a "$prog" != '/bin/bash' ] || continue
+        ## Skip kernel threads and shell scripts -- we cannot gdb_bt them.
+        [ "${prog#[}" = "$prog" ] || continue
+        [ "$prog" != '/bin/bash' -a "$prog" != '/bin/sh' ] || continue
 
         section $pid $(basename $prog)
-        echo $args
-        gdb_bt $prog $pid
+        [ -z "$GDB" ] || gdb_bt $prog $pid
     done
 }
 
 backtraces_cores() {
-    local tmp=/tmp/m0reportbug_$$.tmp
-    local out=cores.tar.gz
+    local outdir=cores
     local core
 
-    trap "rm -f $tmp" 0
-    sudo find "$IN_DIR" -type f -name core.\* | while read core; do
-        local mb=$(sudo du -BM $core | cut -dM -f1)
-        echo $((mb <= $MAX_CORE_SIZE)) $core  # <include?> <path>
-    done >$tmp
-    [ -s $tmp ] || return 0  # No core dumps. Nothing to do.
-
     ## Print backtraces.
-    cut -d' ' -f2 $tmp | while read core; do
-        section $core
-        gdb_bt $(binary $(find_exec $(program_from_core $core))) $core 2>&1
-    done
+    if [ -n "$GDB" ]; then
+        sudo find "$IN_DIR" -type f -name core.\* | while read core; do
+            section $core
+            gdb_bt "$(path $(program_from_core $core) binary)" $core
+        done
+    fi
 
     ## Pack core dumps.
     section core dumps
-    grep '^0 ' $tmp | cut -d' ' -f2 | while read core; do
-        echo "Skipping $core: the file is too large" \
-             "($(sudo du -h $core | cut -f1))"
-    done
-    if grep -q '^1 ' $tmp; then
-        (cd "$IN_DIR"
-         grep '^1 ' $tmp | cut -d' ' -f2 | cut -d/ -f4- |
-             sudo tar -T - -czf - || true) >$out
-        sha1sum $out
-    fi
+    (outdir=$(readlink -f .)/$outdir
+     cd "$IN_DIR"
+     sudo find . -type f -name core.\* | cut -c3- | while read core; do
+         [ -d $outdir/$(dirname $core) ] || mkdir -p $outdir/$(dirname $core)
+         sudo ls -sh $core # print size
+         sudo gzip -c $core | {
+             local err
+             ## Write no more than 64 MB.
+             if ! err=$(dd ibs=8k count=8k of=$outdir/$core.gz 2>&1); then
+                 echo $err
+                 continue
+             fi
+             ## Is there anything left in the input stream?
+             if [ $(dd bs=1 count=1 2>/dev/null | wc -c) -gt 0 ]; then
+                 echo "Skipping $core: the compressed file is too large"
+                 rm $outdir/$core.gz
+             else
+                 touch -r $core $outdir/$core.gz
+             fi
+         }
+     done)
 }
 
 m0traces() {
-    local out=m0traces
+    local outdir=m0traces
     local path
 
-    section $out
-    local m0tracedump=$(find_exec m0tracedump)
-    if [ -n "$m0tracedump" ]; then
-        (out=$(readlink -f .)/$out
-         cd "$IN_DIR"
-         sudo find . -type f -name m0trace.\* | cut -c3- | while read path; do
-             [ -d $out/$(dirname $path) ] || mkdir -p $out/$(dirname $path)
-             ##
-             ## Disable stderr output to suppress these messages:
-             ##
-             ## > lt-m0tracedump: Warning: skipping non-existing trace
-             ## > descriptor 0x7f977d0bdb00 (orig 0x7ff6ad5c9b00)
-             sudo $m0tracedump -s -i $path 2>/dev/null |
-                 gzip >$out/$path.yaml.gz
-             touch -r $path $out/$path.yaml.gz
-         done)
-    else
-        (cd "$IN_DIR"
-         sudo find . -type f -name m0trace.\* | sudo tar -T - -czf - || true) \
-            >$out.tar.gz
-    fi
-    if [ -d $out ]; then
-        find $out -type f -exec sha1sum {} +
-    fi
+    local m0tracedump=$(path m0tracedump)
+    (outdir=$(readlink -f .)/$outdir
+     cd "$IN_DIR"
+     sudo find . -type f -name m0trace.\* | cut -c3- | {
+         if [ -z "${M0TRACES_MAX:-}" ]; then
+             cat
+         else
+             xargs -r stat -c '%Y %n' | sort -nr -k1,1 |
+                 head -n $M0TRACES_MAX | cut -d' ' -f2-
+         fi
+     } | while read path; do
+         [ -d $outdir/$(dirname $path) ] || mkdir -p $outdir/$(dirname $path)
+         ##
+         ## Disable stderr output to suppress these messages:
+         ##
+         ## > lt-m0tracedump: Warning: skipping non-existing trace
+         ## > descriptor 0x7f977d0bdb00 (orig 0x7ff6ad5c9b00)
+         sudo $m0tracedump -s -i $path 2>/dev/null | gzip >$outdir/$path.yaml.gz
+         touch -r $path $outdir/$path.yaml.gz
+         echo $path.yaml.gz
+     done)
 }
 
 usage() {
@@ -295,6 +317,7 @@ Gather forensic data, which can be used for investigating Mero issues,
 from INPUT_DIR and its subdirectories.
 
     -h, --help      Show this help and exit.
+    -p, --path      Show locations of Mero binaries: m0d, m0mero.ko, etc.
     -V, --version   Show version number and exit.
 
 INPUT_DIR defaults to '$IN_DIR'.
@@ -302,11 +325,16 @@ EOF
 }
 
 optparse() {
-    local TEMP=$(getopt -o hV --long help,version -n "${0##*/}" -- "$@")
+    local TEMP=$(getopt -o hpV --long help,path,version -n "${0##*/}" -- "$@")
     eval set -- "$TEMP"
     while true; do
         case "$1" in
             -h|--help) usage; exit 0;;
+            -p|--path)
+                for f in m0d m0mkfs libmero.so m0mero.ko m0tracedump; do
+                    path $f
+                done | sort
+                exit 0;;
             -V|--version) echo m0reportbug $VERSION; exit 0;;
             --) shift; break;;
             *) break;;
