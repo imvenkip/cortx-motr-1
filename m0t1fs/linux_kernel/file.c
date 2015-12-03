@@ -5213,6 +5213,16 @@ static ssize_t aio_read(struct kiocb *kcb, const struct iovec *iov,
 		return res;
 	}
 
+	if (count == 0)
+		/*
+		 * And thus spake POSIX: "Before any action described below is
+		 * taken, and if nbyte is zero, the read() function may detect
+		 * and return errors as described below. In the absence of
+		 * errors, or if error detection is not performed, the read()
+		 * function shall return zero and have no other results."
+		 */
+		return M0_RC(0);
+
 	/* Index vector has to be created before io_request is created. */
 	ivec = indexvec_create(seg_nr, iov, pos);
 	if (ivec == NULL)
