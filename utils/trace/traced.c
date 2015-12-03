@@ -90,7 +90,6 @@ enum lr_action {
 
 static enum lr_action rotator_action = LR_ROTATE;
 static volatile bool  stop_processing = false;
-static bool           sendfile_is_supported;
 
 enum {
 	MAX_LOG_NAMES = 1024,
@@ -192,12 +191,22 @@ static int write_trace_header(const struct m0_trace_buf_header *header,
 	return rc;
 }
 
-static int write_trace_data(int fd, const void *buf, size_t size)
+static inline int get_output_fd(int *fd_ptr)
 {
-	ssize_t n;
-	int     rc;
+	int fd;
 
 	m0_mutex_lock(&write_data_mutex);
+	fd = *fd_ptr;
+	m0_mutex_unlock(&write_data_mutex);
+
+	return fd;
+}
+
+static int write_trace_data(int *fd_ptr, const void *buf, size_t size)
+{
+	ssize_t n;
+	int     fd = get_output_fd(fd_ptr);
+	int     rc;
 
 	n = write(fd, buf, size);
 	if (n != size) {
@@ -206,8 +215,6 @@ static int write_trace_data(int fd, const void *buf, size_t size)
 			strerror(errno));
 		return EX_IOERR;
 	}
-
-	m0_mutex_unlock(&write_data_mutex);
 
 	rc = fsync(fd);
 	if (rc != 0)
@@ -274,174 +281,40 @@ static void wake_up_rotator_thread(enum lr_action a)
 	m0_mutex_unlock(&rotator_mutex);
 }
 
-static int copy_file(int dest_fd, const char *dest_name, int source_fd,
-		     const char *source_name, off_t *offset, off_t count)
+static int rotate_original_log(struct rotator_ctx *rctx)
 {
-	int rc = 0;
+	int ofd;
+	int rc;
 
-	log_debug("%s: fd %d => %d, offset %zu, count %zu\n",
-		  __func__, source_fd, dest_fd, *offset, count);
+	log_debug("rotating original log..\n");
 
-	if (offset == NULL) {
-		log_err("%s: invalid offset value: NULL\n", __func__);
-		return -EINVAL;
+	rc = rename(output_file_name, log_names[0]);
+	if (rc != 0) {
+		log_err("failed to rename log file '%s' => '%s': %s\n",
+			output_file_name, log_names[0], strerror(errno));
+		return rc;
 	}
 
-	if (sendfile_is_supported) {
-		rc = sendfile(dest_fd, source_fd, offset, count);
-		if (rc != 0) {
-			log_err("failed to copy log file '%s' => '%s': %s\n",
-				source_name, dest_name, strerror(errno));
-			return rc;
-		}
-	} else {
-		static char buf[4 * 1024 * 1024]; /* 4MB */
-		int         nr = 0;
-		int         nw;
-		off_t       total_wr_bytes = 0;
-		off_t       new_offset;
-
-		/*
-		 * we need to re-open source file and get a second fd to have
-		 * our own file_pos pointer and not interfer with the main
-		 * thread, which writes trace records
-		 */
-		source_fd = open(source_name, O_RDONLY);
-		if (source_fd == -1) {
-			log_err("failed to open file '%s' for copying: %s\n",
-				source_name, strerror(errno));
-			return -errno;
-		}
-
-		new_offset = lseek(source_fd, *offset, SEEK_SET);
-		if (new_offset != *offset) {
-			log_err("failed to set file position to %zu for '%s'"
-				" file: %s\n",
-				*offset, output_file_name, strerror(errno));
-			goto close;
-		}
-
-		while (total_wr_bytes < count &&
-		       (nr = read(source_fd, buf, sizeof buf)) > 0)
-		{
-			if (total_wr_bytes + nr <= count)
-				nw = nr;
-			else
-				nw = count - total_wr_bytes;
-
-			log_debug("%s: write %d bytes\n", __func__, nw);
-
-			rc = write(dest_fd, buf, nw);
-			if (rc == -1) {
-				log_err("failed to write data to '%s' file:"
-					" %s\n", dest_name, strerror(errno));
-				rc = -errno;
-				goto close;
-			}
-
-			rc = 0;
-			total_wr_bytes += nw;
-		}
-
-		if (nr == -1) {
-			log_err("failed to read data from '%s' file: %s\n",
-				source_name, strerror(errno));
-			rc = -errno;
-			goto close;
-		}
-
-		new_offset = lseek(source_fd, 0, SEEK_CUR);
-		if (new_offset == (off_t)-1) {
-			log_err("failed to get current file position for '%s'"
-				" file: %s\n",
-				output_file_name, strerror(errno));
-			goto close;
-		}
-		*offset = new_offset;
-close:
-		close(source_fd);
-	}
-
-	if (rc != 0)
-		log_err("failed to copy log file '%s' => '%s'\n",
-			source_name, dest_name);
-	return rc;
-}
-
-static int rotate_original_log(int log_fd,
-			       const struct m0_trace_buf_header *log_header)
-{
-	int          rc;
-	int          dest_fd;
-	struct stat  log_stat;
-	off_t        log_offset = 0;
-	off_t        log_old_size;
-
-	dest_fd = open(log_names[0], O_WRONLY|O_CREAT|O_TRUNC,
-		       S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
-	if (dest_fd == -1) {
+	/* open new output file */
+	ofd = open(output_file_name, O_RDWR|O_CREAT|O_TRUNC,
+		   S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+	if (ofd == -1) {
 		log_err("failed to open output file '%s': %s\n",
-			log_names[0], strerror(errno));
+			output_file_name, strerror(errno));
 		return EX_CANTCREAT;
 	}
 
-	rc = fstat(log_fd, &log_stat);
-	if (rc != 0) {
-		log_err("failed to get stat info for '%s' file: %s\n",
-				output_file_name, strerror(errno));
-		goto close_dest;
-	}
+	log_debug("new output log fd %d\n", ofd);
 
-	log_debug("copy original log to '%s'\n", log_names[0]);
-
-	rc = copy_file(dest_fd, log_names[0], log_fd, output_file_name,
-		       &log_offset, log_stat.st_size);
+	rc = write_trace_header(rctx->log_header, ofd, output_file_name);
 	if (rc != 0)
-		goto close_dest;
-
-	log_debug("done\n");
-
-	log_old_size = log_stat.st_size;
-	rc = fstat(log_fd, &log_stat);
-	if (rc != 0) {
-		log_err("failed to get stat info for '%s' file: %s\n",
-				output_file_name, strerror(errno));
-		goto close_dest;
-	}
+		return rc;
 
 	m0_mutex_lock(&write_data_mutex);
-
-	log_debug("write mutex locked in %s\n", __func__);
-
-	log_debug("copy reminder of original log to '%s'\n", log_names[0]);
-
-	rc = copy_file(dest_fd, log_names[0], log_fd, output_file_name,
-		       &log_offset, log_stat.st_size - log_old_size);
-	if (rc != 0)
-		goto unlock;
-
-	rc = ftruncate(log_fd, 0);
-	if (rc != 0) {
-		log_err("failed to truncate log file '%s': %s\n",
-			output_file_name, strerror(errno));
-		goto unlock;
-	}
-
-	rc = (int)lseek(log_fd, 0, SEEK_SET);
-	if (rc != 0) {
-		log_err("failed to set file position to 0 for '%s' file: %s\n",
-			output_file_name, strerror(errno));
-		goto unlock;
-	}
-
-	rc = write_trace_header(log_header, log_fd, output_file_name);
-	if (rc != 0)
-		goto unlock;
-unlock:
+	rctx->log_fd = ofd;
 	m0_mutex_unlock(&write_data_mutex);
-	log_debug("write mutex released in %s\n", __func__);
-close_dest:
-	close(dest_fd);
+
+	log_debug("original log has been rotated\n");
 	return rc;
 }
 
@@ -497,13 +370,13 @@ static void log_rotator_thread(struct rotator_ctx *rctx)
 				}
 			}
 
-		rotate_original_log(rctx->log_fd, rctx->log_header);
+		rotate_original_log(rctx);
 	}
 
 	log_debug("log rotation thread stopped\n");
 }
 
-static int process_trace_buffer(int ofd,
+static int process_trace_buffer(int *ofd_ptr,
 				const struct m0_trace_buf_header *logheader,
 				const char *logbuf)
 {
@@ -514,7 +387,7 @@ static int process_trace_buffer(int ofd,
 	const m0_time_t  idle_timeo = 100 * M0_TIME_ONE_MSEC;
 	m0_time_t        timeo = idle_timeo;
 
-	rc = write_trace_header(logheader, ofd, output_file_name);
+	rc = write_trace_header(logheader, get_output_fd(ofd_ptr), output_file_name);
 	if (rc != 0)
 		return rc;
 
@@ -526,7 +399,7 @@ static int process_trace_buffer(int ofd,
 	 * write first chunk of trace data, we always start from the beginning
 	 * of buffer till current position
 	 */
-	rc = write_trace_data(ofd, logbuf, curpos - logbuf);
+	rc = write_trace_data(ofd_ptr, logbuf, curpos - logbuf);
 	if (rc != 0)
 		return rc;
 
@@ -544,7 +417,7 @@ static int process_trace_buffer(int ofd,
 				timeo = idle_timeo;
 
 			/* utilize idle period to rotate logs if needed */
-			if (is_log_rotation_needed(ofd)) {
+			if (is_log_rotation_needed( get_output_fd(ofd_ptr) )) {
 				wake_up_rotator_thread(LR_ROTATE);
 				continue;
 			}
@@ -560,14 +433,14 @@ static int process_trace_buffer(int ofd,
 		}
 
 		if (curpos > oldpos) {
-			rc = write_trace_data(ofd, oldpos, curpos - oldpos);
+			rc = write_trace_data(ofd_ptr, oldpos, curpos - oldpos);
 			if (rc != 0)
 				return rc;
 		} else {
-			rc = write_trace_data(ofd, curpos, logbuf_end - curpos);
+			rc = write_trace_data(ofd_ptr, curpos, logbuf_end - curpos);
 			if (rc != 0)
 				return rc;
-			rc = write_trace_data(ofd, logbuf, curpos - logbuf);
+			rc = write_trace_data(ofd_ptr, logbuf, curpos - logbuf);
 			if (rc != 0)
 				return rc;
 		}
@@ -595,36 +468,6 @@ static int init_log_names(void)
 
 	return 0;
 }
-
-/*
- * kernel version, starting from which sendfile supports plain files as its
- * destination, see sendfile(2) manpage
- */
-#define SENDFILE_KERNEL_VER  "2.6.33"
-
-static bool check_sendfile_support(void)
-{
-	int            rc;
-	bool           supported;
-	struct utsname un;
-
-	rc = uname(&un);
-	if (rc != 0)
-		return false;
-
-	supported = strcmp(un.release, SENDFILE_KERNEL_VER) >= 0;
-
-	if (supported)
-		log_info("sendfile(2) is supported by a current kernel\n");
-	else
-		log_info("sendfile(2) is fully supported starting from %s"
-			 " kernel version, falling back to read/write copy via"
-			 " buffer for log rotation\n", SENDFILE_KERNEL_VER);
-
-	return supported;
-}
-
-#undef SENDFILE_KERNEL_VER
 
 int save_kore_file(void)
 {
@@ -818,8 +661,6 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return rc;
 
-	sendfile_is_supported = check_sendfile_support();
-
 	if (save_kore) {
 		rc = save_kore_file();
 		if (rc != 0)
@@ -888,7 +729,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* do main work */
-	rc = process_trace_buffer(ofd, logheader, logbuf);
+	rc = process_trace_buffer(&rotator_data.log_fd, logheader, logbuf);
 
 	/* stop log rotation thread */
 	wake_up_rotator_thread(LR_STOP);
