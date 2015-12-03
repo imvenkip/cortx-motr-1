@@ -33,13 +33,13 @@ void test_getopts(void)
 	bool	    e;
 	m0_bcount_t bcount;
 	m0_time_t   time;
-	static char *argv[] = {
+	char *argv[] = {
 		"getopts-ut",
 		"-e",
 		"-n", "010",
 		NULL
 	};
-	static char *argv_scaled[] = {
+	char *argv_scaled[] = {
 		"-a", "2b",
 		"-b", "30k",
 		"-c", "400m",

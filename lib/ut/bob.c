@@ -50,6 +50,7 @@ M0_BOB_DEFINE(static, &foo_bob, foo);
 
 static void test_tlist_init(void)
 {
+	M0_SET0(&foo_bob);
 	m0_bob_type_tlist_init(&foo_bob, &foo_tl);
 	M0_UT_ASSERT(!strcmp(foo_bob.bt_name, foo_tl.td_name));
 	M0_UT_ASSERT(foo_bob.bt_magix == magix);

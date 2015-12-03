@@ -95,9 +95,9 @@ static void _cb0(struct m0_sm_group *grp, struct m0_sm_ast *a)
 	m0_semaphore_up(&sem[idx]);
 }
 
+static int expected;
 static int simple_tick(struct m0_fom *fom, int *x, int *__unused)
 {
-	static int expected = 0;
 
 	M0_UT_ASSERT(*x == expected);
 
@@ -345,6 +345,17 @@ void test_locality_chore(void)
 		.co_leave = &leave,
 		.co_tick  = &tick
 	};
+
+	memset(passed, 0, sizeof passed);
+	memset(core,   0, sizeof core);
+	memset(sem,    0, sizeof sem);
+	memset(ast,    0, sizeof ast);
+	memset(s,      0, sizeof s);
+	M0_SET0(&reqh);
+	M0_SET0(&lock);
+	M0_SET0(&hoarded);
+	free_func_called = false;
+	expected = 0;
 
 	m0_mutex_init(&lock);
 	nr_loc = m0_fom_dom()->fd_localities_nr;
