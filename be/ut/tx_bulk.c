@@ -39,7 +39,8 @@
 #include "ut/ut.h"              /* M0_UT_ASSERT */
 
 enum {
-	BE_UT_TX_BULK_SEG_SIZE = 1UL << 26,
+	BE_UT_TX_BULK_SEG_SIZE       = 1UL << 26,
+	BE_UT_TX_BULK_TX_SIZE_MAX_BP = 2000,
 };
 
 static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg *tb_cfg,
@@ -50,10 +51,11 @@ static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg *tb_cfg,
 				   void                      *ptr,
 				   bool                       success)
 {
-	struct m0_be_ut_backend      *ut_be;
-	struct m0_be_tx_bulk         *tb;
-	struct m0_be_ut_seg          *ut_seg;
-	int                           rc;
+	struct m0_be_ut_backend *ut_be;
+	struct m0_be_domain_cfg  cfg = {};
+	struct m0_be_tx_bulk    *tb;
+	struct m0_be_ut_seg     *ut_seg;
+	int                      rc;
 
 	M0_ALLOC_PTR(ut_be);
 	M0_UT_ASSERT(ut_be != NULL);
@@ -62,7 +64,17 @@ static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg *tb_cfg,
 	M0_ALLOC_PTR(ut_seg);
 	M0_UT_ASSERT(ut_seg != NULL);
 
-	m0_be_ut_backend_init(ut_be);
+	/*
+	 * Decrease max group and tx size to reduce seg and log I/O size needed
+	 * for tx_bulk UTs.
+	 */
+	m0_be_ut_backend_cfg_default(&cfg);
+	m0_be_tx_credit_mul_bp(&cfg.bc_engine.bec_tx_size_max,
+	                       BE_UT_TX_BULK_TX_SIZE_MAX_BP);
+	m0_be_tx_credit_mul_bp(&cfg.bc_engine.bec_group_cfg.tgc_size_max,
+	                       BE_UT_TX_BULK_TX_SIZE_MAX_BP);
+	rc = m0_be_ut_backend_init_cfg(ut_be, &cfg, true);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_ut_seg_init(ut_seg, ut_be, BE_UT_TX_BULK_SEG_SIZE);
 
 	test_prepare(ut_be, ut_seg, ptr);
