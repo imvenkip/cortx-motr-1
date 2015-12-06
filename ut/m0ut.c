@@ -18,10 +18,12 @@
  * Original creation date: 07/19/2010
  */
 
-#include <stdlib.h>  /* exit, srand, rand */
-#include <unistd.h>  /* getpid */
-#include <time.h>    /* time */
-#include <err.h>     /* warn */
+#include <stdlib.h>       /* exit, srand, rand */
+#include <unistd.h>       /* getpid */
+#include <time.h>         /* time */
+#include <err.h>          /* warn */
+#include <sys/time.h>     /* getrusage */
+#include <sys/resource.h> /* getrusage */
 
 #if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE  /* required for basename, see man basename(3) */
@@ -223,6 +225,7 @@ int main(int argc, char *argv[])
 {
 	static struct m0 instance;
 	struct m0_ut_module *ut;
+	struct rusage usage;
 	int   rc;
 	bool  list_ut              = false;
 	bool  with_tests           = false;
@@ -403,6 +406,17 @@ int main(int argc, char *argv[])
 ut_fini:
 	m0_ut_fini();
 end:
+	if (rc == 0) {
+		getrusage(RUSAGE_SELF, &usage);
+		printf("utime %ld.%06ld stime %ld.%06ld "
+		       "maxrss %ld nvcsw %ld nivcsw %ld\n",
+		       usage.ru_utime.tv_sec, usage.ru_utime.tv_usec,
+		       usage.ru_stime.tv_sec, usage.ru_stime.tv_usec,
+		       usage.ru_maxrss, usage.ru_nvcsw, usage.ru_nivcsw);
+		printf("minflt %ld majflt %ld inblock %ld oublock %ld\n",
+		       usage.ru_minflt, usage.ru_majflt,
+		       usage.ru_inblock, usage.ru_oublock);
+	}
 	return rc < 0 ? -rc : rc;
 }
 
