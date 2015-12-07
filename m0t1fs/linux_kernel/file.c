@@ -541,6 +541,9 @@ static inline uint64_t target_offset(uint64_t		       frame,
 	       (gob_offset % layout_unit_size(play));
 }
 
+static bool is_pver_dud(uint32_t fdev_nr, uint32_t dev_k, uint32_t fsvc_nr,
+			uint32_t svc_k);
+
 static uint64_t tioreqs_hash_func(const struct m0_htable *htable, const void *k)
 {
 	const uint64_t *key = (uint64_t *)k;
@@ -2848,9 +2851,6 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 				     (inode->i_size > 0 &&
 				      page_id(start + PAGE_CACHE_SIZE - 1) ==
 				      page_id(inode->i_size - 1));
-			M0_LOG(M0_DEBUG, "[%p] within_eof = %d\n",
-			       req, within_eof ? 1 : 0);
-
 			if (map->pi_databufs[row][col] != NULL) {
 				if (map->pi_databufs[row][col]->db_flags &
 				    PA_READ_FAILED)
@@ -2890,15 +2890,9 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 			if (within_eof) {
 				if (dbuf->db_flags & PA_READ_FAILED ||
 				    is_page_read(dbuf)) {
-					M0_LOG(M0_DEBUG, "[%p] D [%u][%u], "
-					       "f=0x%x\n", req,
-					       row, col, dbuf->db_flags);
 					continue;
 				}
 				dbuf->db_flags |= PA_DGMODE_READ;
-				M0_LOG(M0_DEBUG, "[%p] D [%u][%u], "
-				       "flag = 0x%x\n", req,
-				       row, col, dbuf->db_flags);
 			}
 		}
 	}
@@ -2948,15 +2942,9 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 			/* Skips the page if it is marked as PA_READ_FAILED. */
 			if (dbuf->db_flags & PA_READ_FAILED ||
 			    is_page_read(dbuf)) {
-				M0_LOG(M0_DEBUG, "[%p] P [%u][%u], "
-				       "flag = 0x%x\n", req, row,
-				       col + data_col_nr(play), dbuf->db_flags);
 				continue;
 			}
 			dbuf->db_flags |= PA_DGMODE_READ;
-			M0_LOG(M0_DEBUG, "[%p] P [%u][%u], flag = 0x%x\n",
-			       req, row, col + data_col_nr(play),
-			       dbuf->db_flags);
 		}
 	}
 	if (rc != 0)
@@ -2971,9 +2959,11 @@ err:
 static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 {
 	int                       rc = 0;
-	uint8_t                  *fail;
+	uint8_t                  *data_fail;
+	uint8_t                  *parity_fail;
 	uint32_t                  row;
 	uint32_t                  col;
+	uint32_t                  K;
 	unsigned long             zpage;
 	struct m0_buf            *data;
 	struct m0_buf            *parity;
@@ -3016,51 +3006,40 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 				   "for m0_buf", map->pi_ioreq);
 	}
 
-	fail = failed.b_addr;
-	M0_LOG(M0_DEBUG, "[%p] map %p, recovering for grpid %llu",
-	       map->pi_ioreq, map, map->pi_grpid);
+	data_fail = failed.b_addr;
+	parity_fail = data_fail + data_col_nr(play);
 	/* Populates data and failed buffers. */
 	for (row = 0; row < data_row_nr(play); ++row) {
-
-		memset(fail, 0, failed.b_nob);
+		memset(data_fail, 0, failed.b_nob);
+		K = 0;
 		for (col = 0; col < data_col_nr(play); ++col) {
-
 			data[col].b_nob = PAGE_CACHE_SIZE;
-
 			if (map->pi_databufs[row][col] == NULL) {
 				data[col].b_addr = (void *)zpage;
-				*(fail + col) = 0;
 				continue;
 			}
-
-			M0_LOG(M0_DEBUG, "[%p] D row=%u, col=%u flag=0x%x",
-			       map->pi_ioreq, row, col,
-			       map->pi_databufs[row][col]->db_flags);
-			/* Here, unit number is same as column number. */
-			*(fail + col) = (map->pi_databufs[row][col]->db_flags &
-					PA_READ_FAILED) ? 1 : 0;
+			if (map->pi_databufs[row][col]->db_flags &
+			    PA_READ_FAILED) {
+				*(data_fail + col) = 1;
+				++K;
+			}
 			data[col].b_addr = map->pi_databufs[row][col]->
 					   db_buf.b_addr;
 		}
 		for (col = 0; col < parity_col_nr(play); ++col) {
-
 			M0_ASSERT(map->pi_paritybufs[row][col] != NULL);
-			M0_LOG(M0_DEBUG, "[%p] P row=%u, col=%u flag=0x%x",
-			       map->pi_ioreq, row, col,
-			       map->pi_paritybufs[row][col]->db_flags);
 			parity[col].b_addr = map->pi_paritybufs[row][col]->
 				db_buf.b_addr;
 			parity[col].b_nob  = PAGE_CACHE_SIZE;
-
-			*(fail + data_col_nr(play) + col) =
-				(map->pi_paritybufs[row][col]->db_flags &
-				 PA_READ_FAILED) ? 1 : 0;
+			if (map->pi_paritybufs[row][col]->db_flags &
+			    PA_READ_FAILED) {
+				*(parity_fail + col) = 1;
+				++K;
+			}
 		}
-
-		for (col = 0; col < data_col_nr(play) + parity_col_nr(play);
-		     ++col) {
-			M0_LOG(M0_DEBUG, "[%p] col=%d, fail=%u",
-			       map->pi_ioreq, col, *(fail + col));
+		if (K > parity_col_nr(play)) {
+			rc = -EIO;
+			break;
 		}
 		m0_parity_math_recover(parity_math(map->pi_ioreq), data,
 				       parity, &failed);
@@ -3070,8 +3049,10 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	m0_free(parity);
 	m0_free(failed.b_addr);
 	free_page(zpage);
-
-	return M0_RC(rc);
+	return rc == 0 ? M0_RC(rc) : M0_ERR_INFO(-EIO, "Number of failed units"
+						 "in parity group exceeds the"
+						 "total number of parity units"
+						 "in a parity group.");
 }
 
 static int ioreq_iomaps_parity_groups_cal(struct io_request *req)
@@ -3444,11 +3425,6 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 
 				parity_page_pos_get(iomap, unit * unit_size,
 						    &row, &col);
-				M0_LOG(M0_DEBUG, "[%p] parity block: "
-				       "unit %llu, row %lu, col %lu",
-				       req, (unsigned long long)unit,
-				       (unsigned long)row, (unsigned long)col);
-
 				for (; row < parity_row_nr(play); ++row) {
 					dbuf = iomap->pi_paritybufs[row][col];
 					M0_ASSERT(dbuf != NULL);
@@ -3462,8 +3438,6 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 						dbuf->db_flags |=
 							PA_DGMODE_WRITE;
 				}
-				M0_LOG(M0_DEBUG, "[%p] adding parity. "
-				       "ti state=%d\n", req, ti->ti_state);
 				ti->ti_ops->tio_seg_add(ti, &src, &tgt, pgstart,
 							layout_unit_size(play),
 							iomap);
@@ -3608,7 +3582,6 @@ static int device_check(struct io_request *req)
 		if (ti->ti_rc == -ECANCELED) {
 			if (!is_session_marked(req, ti->ti_session)) {
 				M0_CNT_INC(fsvc_nr);
-				M0_CNT_INC(fdev_nr);
 			}
 		/* The case when multiple devices under the same service are
 		 * unavailable. */
@@ -3617,20 +3590,38 @@ static int device_check(struct io_request *req)
 			   !is_session_marked(req, ti->ti_session)) {
 			M0_CNT_INC(fdev_nr);
 		}
-		if (fdev_nr > layout_k(play) || fsvc_nr > max_failures)
-			return M0_ERR_INFO(-EIO, "[%p] Failed to recover data "
-					   "since number of failed data units "
-					   "(%lu) exceeds number of parity "
-					   "units in parity group (%lu) OR "
-					   "number of failed services (%lu) "
-					   "exceeds number of max failures "
-					   "supported (%lu)",
-					   req, (unsigned long)fdev_nr,
-					   (unsigned long)layout_k(play),
-					   (unsigned long)fsvc_nr,
-					   (unsigned long)max_failures);
 	} m0_htable_endfor;
+	M0_LOG(M0_DEBUG, "failed devices = %d\ttolerance=%d", (int)fdev_nr, (int)layout_k(play));
+	if (is_pver_dud(fdev_nr, layout_k(play), fsvc_nr, max_failures))
+		return M0_ERR_INFO(-EIO, "[%p] Failed to recover data "
+				"since number of failed data units "
+				"(%lu) exceeds number of parity "
+				"units in parity group (%lu) OR "
+				"number of failed services (%lu) "
+				"exceeds number of max failures "
+				"supported (%lu)",
+				req, (unsigned long)fdev_nr,
+				(unsigned long)layout_k(play),
+				(unsigned long)fsvc_nr,
+				(unsigned long)max_failures);
 	return M0_RC(fdev_nr);
+}
+
+/* If there are F(l) failures at level l, and K(l) failures are tolerable for
+ * the level l, then the condition for pool-version to be non-dud is:
+ *			\sum_over_l {F(l) / K(l)} <= 1
+ * Once MERO-899 lands into master, this function will go away.
+ */
+static bool is_pver_dud(uint32_t fdev_nr, uint32_t dev_k, uint32_t fsvc_nr,
+			uint32_t svc_k)
+{
+	if (fdev_nr > 0 && dev_k == 0)
+		return true;
+	if (fsvc_nr > 0 && svc_k == 0)
+		return true;
+	return (svc_k + fsvc_nr > 0) ?
+		(fdev_nr * svc_k + fsvc_nr * dev_k) > dev_k * svc_k :
+		fdev_nr > dev_k;
 }
 
 static int ioreq_dgmode_write(struct io_request *req, bool rmw)
@@ -3645,16 +3636,13 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	xfer = &req->ir_nwxfer;
 	M0_ENTRY("[%p]", req);
 	csb = file_to_sb(req->ir_file);
-	/* In oostore we do not enter the degraded mode write. */
-	if (xfer->nxr_rc == 0 || xfer->nxr_rc == -E2BIG)
+	/* In oostore mode we do not enter the degraded mode write. */
+	if (csb->csb_oostore || M0_IN(xfer->nxr_rc, (0, -E2BIG)))
 		return M0_RC(xfer->nxr_rc);
 
 	rc = device_check(req);
 	if (rc < 0 ) {
 		return M0_RC(rc);
-	}
-	if (csb->csb_oostore && rc > 0) {
-		return -EIO;
 	}
 	ioreq_sm_state_set(req, IRS_DEGRADED_WRITING);
 	/*
@@ -4034,6 +4022,8 @@ static int ioreq_iosm_handle(struct io_request *req)
 			 */
 			rc = req->ir_ops->iro_dgmode_write(req, rmw);
 			if (rc != 0) {
+				if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
+					rc = -EAGAIN;
 				M0_LOG(M0_ERROR, "[%p] iro_dgmode_write() "
 				       "failed: rc=%d", req, rc);
 				goto fail_locked;
@@ -4151,8 +4141,10 @@ static int ioreq_iosm_handle(struct io_request *req)
 		/* Returns immediately if all devices are in healthy state. */
 		rc = req->ir_ops->iro_dgmode_write(req, rmw);
 		if (rc != 0) {
+			if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
+				rc = -EAGAIN;
 			M0_LOG(M0_ERROR, "[%p] iro_dgmode_write() failed: "
-			       "rc=%d", req, rc);
+					"rc=%d", req, rc);
 			goto fail_locked;
 		}
 	}
@@ -5669,6 +5661,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0t1fs_inode         *inode;
 	struct m0_be_tx_remid       *remid;
 	struct m0_fop_generic_reply *gen_rep;
+	uint64_t                    actual_bytes = 0;
 	int                          rc;
 
 	M0_ENTRY("sm_group %p sm_ast %p", grp, ast);
@@ -5741,31 +5734,29 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 				rpcbulk_tlist_length(
 					&irfop->irf_iofop.if_rbulk.rb_buflist));
 
-	if (tioreq->ti_rc == 0)
-		tioreq->ti_rc = rc;
-
-	if (xfer->nxr_rc == 0 && rc != 0) {
-		xfer->nxr_rc = rc;
-		M0_LOG(M0_INFO, "[%p] nwxfer rc = %d", req, xfer->nxr_rc);
-	}
-
-	if (irfop->irf_pattr == PA_DATA) {
-		tioreq->ti_databytes += iofop->if_rbulk.rb_bytes;
-	} else
-		tioreq->ti_parbytes  += iofop->if_rbulk.rb_bytes;
-
-	M0_LOG(M0_INFO, "[%p] fop %p, Returned no of bytes = %llu, "
-	       "expected = %llu", req, &iofop->if_fop, rw_reply->rwr_count,
-	       iofop->if_rbulk.rb_bytes);
 	/* update pending transaction number */
 	ctx = m0_reqh_service_ctx_from_session(reply_item->ri_session);
 	inode = m0t1fs_file_to_m0inode(req->ir_file);
 	m0t1fs_fsync_record_update(ctx, m0inode_to_sb(inode), inode, remid);
+	actual_bytes = rw_reply->rwr_count;
 
 ref_dec:
+	if (tioreq->ti_rc == 0)
+		tioreq->ti_rc = rc;
+
+	if (xfer->nxr_rc == 0 && rc != 0)
+		xfer->nxr_rc = rc;
 	M0_LOG(M0_DEBUG, "[%p] rc %d, tioreq->ti_rc %d, nwxfer rc = %d",
 	       req, rc, tioreq->ti_rc, xfer->nxr_rc);
 
+	if (irfop->irf_pattr == PA_DATA)
+		tioreq->ti_databytes += iofop->if_rbulk.rb_bytes;
+	else
+		tioreq->ti_parbytes  += iofop->if_rbulk.rb_bytes;
+
+	M0_LOG(M0_INFO, "[%p] fop %p, Returned no of bytes = %llu, "
+	       "expected = %llu", req, &iofop->if_fop, actual_bytes,
+	       iofop->if_rbulk.rb_bytes);
 	/* Drop reference on request and reply fop. */
 	m0_fop_put0_lock(&iofop->if_fop);
 	m0_fop_put0_lock(reply_fop);

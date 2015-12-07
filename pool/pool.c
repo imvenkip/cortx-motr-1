@@ -448,7 +448,7 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 
 	m0_conf_diter_fini(&it);
 
-	M0_POST(dev_idx <= pv->pv_attr.pa_P);
+	M0_POST(dev_idx == pv->pv_attr.pa_P);
 	return M0_RC(rc);
 }
 
