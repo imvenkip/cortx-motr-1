@@ -1,6 +1,10 @@
 #!/bin/bash
 
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.fsync-st}
+M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*}
+cd $M0_SRC_DIR
+
 echo "Installing Mero services"
 sudo scripts/install-mero-service -u
 sudo scripts/install-mero-service -l
