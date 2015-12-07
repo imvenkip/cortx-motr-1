@@ -150,8 +150,8 @@ static int packet_ready(struct m0_rpc_packet *p)
 		for_each_item_in_packet(item, p) {
 			if (m0_rpc_item_is_reply(item)) {
 				rc = -ENETDOWN;
-				M0_LOG(M0_ERROR, "set p:i=%p:%p error to %d",
-				       p, item, rc);
+				M0_LOG(M0_ERROR, "packet %p, item %p[%u] set error to %d",
+				       p, item, item->ri_type->rit_opcode, rc);
 				goto out;
 			}
 		} end_for_each_item_in_packet;
@@ -431,8 +431,8 @@ static void item_done(struct m0_rpc_packet *p,
 	item->ri_error = item->ri_error ?: rc;
 	if (item->ri_error != 0 &&
 	    item->ri_sm.sm_state != M0_RPC_ITEM_FAILED) {
-		M0_LOG(M0_ERROR, "p:i=%p:%p failed with %d",
-				  p, item, item->ri_error);
+		M0_LOG(M0_ERROR, "packet %p, item %p[%u] failed with %d",
+				  p, item, item->ri_type->rit_opcode, item->ri_error);
 		m0_rpc_item_failed(item, item->ri_error);
 	} else
 		item_sent(item);

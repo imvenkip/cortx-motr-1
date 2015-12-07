@@ -30,7 +30,7 @@ main()
 	echo "mero service started"
 
 	mkdir -p $MERO_M0T1FS_MOUNT_DIR
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || return 1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "oostore" || return 1
 
 	fsync_test || {
 		echo "Failed: Fsync test failed.."

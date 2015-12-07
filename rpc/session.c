@@ -791,6 +791,40 @@ M0_INTERNAL int m0_rpc_rcv_session_terminate(struct m0_rpc_session *session)
 	return M0_RC(0);
 }
 
+M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session)
+{
+	struct m0_rpc_item *item;
+
+	M0_PRE(session->s_session_id != SESSION_ID_0);
+
+	M0_ENTRY("session %p", session);
+	m0_rpc_machine_lock(session->s_conn->c_rpc_machine);
+	session->s_cancelled = true;
+	m0_tl_for(pending_item, &session->s_pending_cache, item) {
+		m0_rpc_item_get(item);
+		m0_rpc_item_cancel_nolock(item);
+		m0_rpc_item_put(item);
+	} m0_tl_endfor;
+	m0_rpc_machine_unlock(session->s_conn->c_rpc_machine);
+	M0_POST(pending_item_tlist_is_empty(&session->s_pending_cache));
+	M0_POST(session->s_sm.sm_state == M0_RPC_SESSION_IDLE);
+	M0_LEAVE("session %p", session);
+}
+
+M0_INTERNAL void m0_rpc_session_restore(struct m0_rpc_session *session)
+{
+	M0_ENTRY("session %p", session);
+	m0_rpc_machine_lock(session->s_conn->c_rpc_machine);
+	session->s_cancelled = false;
+	m0_rpc_machine_unlock(session->s_conn->c_rpc_machine);
+	M0_LEAVE("session %p", session);
+}
+
+M0_INTERNAL bool m0_rpc_session_is_cancelled(struct m0_rpc_session *session)
+{
+	return session->s_cancelled;
+}
+
 M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item)
 {
 	M0_PRE(item != NULL && item->ri_error != 0);

@@ -241,16 +241,16 @@ static void test_resend(void)
 
 	/* Test: Request is dropped. */
 	M0_LOG(M0_DEBUG, "TEST:3.1:START");
-	m0_fi_enable_once("item_received", "drop_item");
+	m0_fi_enable_once("item_received_fi", "drop_item");
 	__test_resend(NULL);
 	M0_LOG(M0_DEBUG, "TEST:3.1:END");
 
 	/* Test: Reply is dropped. */
 	M0_LOG(M0_DEBUG, "TEST:3.2:START");
-	m0_fi_enable_func("item_received", "drop_item",
+	m0_fi_enable_func("item_received_fi", "drop_item",
 			  only_second_time, &cnt);
 	__test_resend(NULL);
-	m0_fi_disable("item_received", "drop_item");
+	m0_fi_disable("item_received_fi", "drop_item");
 	M0_LOG(M0_DEBUG, "TEST:3.2:END");
 
 	/* Test: ENQUEUED -> REPLIED transition.
@@ -320,9 +320,9 @@ static void test_resend(void)
 	cnt = 0;
 	m0_fi_enable_func("m0_rpc_item_start_timer", "failed",
 			  only_second_time, &cnt);
-	m0_fi_enable("item_received", "drop_item");
+	m0_fi_enable("item_received_fi", "drop_item");
 	__test_timer_start_failure();
-	m0_fi_disable("item_received", "drop_item");
+	m0_fi_disable("item_received_fi", "drop_item");
 	m0_fi_disable("m0_rpc_item_start_timer", "failed");
 	M0_LOG(M0_DEBUG, "TEST:3.5.2:END");
 }
@@ -406,17 +406,17 @@ static void test_failure_before_sending(void)
 		  The item should move to FAILED state.
 		  NOTE: Buffer sending is successful, hence we need
 		  to explicitly drop the item on receiver using
-		  fault_point<"item_received", "drop_item">.
+		  fault_point<"item_received_fi", "drop_item">.
 	 */
 	M0_LOG(M0_DEBUG, "TEST:5:START");
 	m0_fi_enable("buf_send_cb", "fake_err");
-	m0_fi_enable("item_received", "drop_item");
+	m0_fi_enable("item_received_fi", "drop_item");
 	rc = __test();
 	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(item_rc == -EINVAL);
 	m0_rpc_machine_get_stats(machine, &stats, false);
 	m0_fi_disable("buf_send_cb", "fake_err");
-	m0_fi_disable("item_received", "drop_item");
+	m0_fi_disable("item_received_fi", "drop_item");
 	M0_LOG(M0_DEBUG, "TEST:5:END");
 	m0_fop_put_lock(fop);
 }

@@ -33,14 +33,14 @@ touch_file()
 
 mount_m0t1fs()
 {
-	if [ $# -ne 4 -a $# -ne 5 ]
+	if [ $# -ne 1 -a $# -ne 2 ]
 	then
-		echo "Usage: mount_m0t1fs <mount_dir> <N> <K> <p>"
+		echo "Usage: mount_m0t1fs <mount_dir> [mount_options]"
 		return 1
 	fi
 
 	local m0t1fs_mount_dir=$1
-	local mountop=$5
+	local mountop=$2
 
 	# Create mount directory
 	sudo mkdir -p $m0t1fs_mount_dir || {
@@ -79,7 +79,7 @@ unmount_and_clean()
 	echo "mount | grep m0t1fs"
 	mount | grep m0t1fs
 
-	echo "Cleaning up test directory..."
+	echo "Cleaning up mount test directory..."
 	rm -rf $m0t1fs_mount_dir &>/dev/null
 
 	local i=0
@@ -127,7 +127,7 @@ bulkio_test()
 	local mode=$3
 	local mountopt=$4
 
-	mount_m0t1fs $m0t1fs_mount_dir $NR_DATA $NR_PARITY $POOL_WIDTH "$mode,$mountopt" || return 1
+	mount_m0t1fs $m0t1fs_mount_dir "$mode,$mountopt" || return 1
 
 	echo "Creating local input file of I/O size ..."
 	run "dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts"
@@ -250,7 +250,7 @@ m0loop_st_run()
 	cmd="insmod $M0_SRC_DIR/mero/m0loop.ko"
 	echo $cmd && $cmd || return 1
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH ||
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR ||
 		return 1
 
 	echo "Create m0t1fs file..."
@@ -310,7 +310,7 @@ file_creation_test()
 	local SOURCE_TXT=/tmp/source.txt
 	local START_FID=15     # Added to skip root and other system fids.
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$mode,"verify"" || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "$mode,"verify"" || {
 		return 1
 	}
 	for i in {a..z} {A..Z} ; do
@@ -346,7 +346,7 @@ file_creation_test()
 		return 1
 	fi
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH $mode || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mode || {
 		return 1
 	}
 	echo "Test: removing $NR_FILES files on m0t1fs..."
@@ -370,7 +370,7 @@ file_creation_test()
 		return 0
 	fi
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "verify" || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "verify" || {
                 return 1
         }
 	for ((i=0; i<$nr_files; ++i)); do
@@ -413,15 +413,15 @@ multi_client_test()
 
 	local rc=0
 
-	mount_m0t1fs ${mount_dir_1} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" ||
+	mount_m0t1fs ${mount_dir_1} "fid_start=65536" ||
 		return 1
 	mount | grep m0t1fs
-	mount_m0t1fs ${mount_dir_2} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=66536" || {
+	mount_m0t1fs ${mount_dir_2} "fid_start=66536" || {
 		unmount_m0t1fs ${mount_dir_1}
 		return 1
 	}
 	mount | grep m0t1fs
-	mount_m0t1fs ${mount_dir_3} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=67536" || {
+	mount_m0t1fs ${mount_dir_3} "fid_start=67536" || {
 		unmount_m0t1fs ${mount_dir_1}
 		unmount_m0t1fs ${mount_dir_2}
 		return 1
@@ -447,14 +447,14 @@ multi_client_test()
 	unmount_m0t1fs ${mount_dir_2}
 	unmount_m0t1fs ${mount_dir_3}
 	echo "First round done."
-	mount_m0t1fs ${mount_dir_1} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" || {
+	mount_m0t1fs ${mount_dir_1} "fid_start=65536" || {
 		return 1
 	}
-	mount_m0t1fs ${mount_dir_2} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=66536" || {
+	mount_m0t1fs ${mount_dir_2} "fid_start=66536" || {
 		unmount_m0t1fs ${mount_dir_1}
 		return 1
 	}
-	mount_m0t1fs ${mount_dir_3} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=67536" || {
+	mount_m0t1fs ${mount_dir_3} "fid_start=67536" || {
 		unmount_m0t1fs ${mount_dir_1}
 		unmount_m0t1fs ${mount_dir_2}
 		return 1
@@ -523,7 +523,7 @@ obf_test()
 	local rc=0
 
 	echo "Test: obf..."
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "oostore" || {
 		return 1
 	}
 	touch $MERO_M0T1FS_MOUNT_DIR/0:30000 || rc=1
@@ -585,7 +585,7 @@ m0t1fs_crud()
 	fi
 	unmount_and_clean
 	echo "Remount and perform write on already created file"
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$mode" || rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "$mode" || rc=1
 	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname1 bs=4K   count=1 || rc=1
 	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname2 bs=128K count=1 || rc=1
 	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname3 bs=1M   count=1 || rc=1
@@ -609,7 +609,7 @@ m0t1fs_basic()
 	local fsname2="890"
 	local fsname3="xyz0"
 	echo "Test: basic..."
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH || rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR || rc=1
 	mount | grep m0t1fs
 	m0t1fs_crud $fsname1 $fsname2 $fsname3 || rc=1
 	unmount_and_clean
@@ -631,7 +631,7 @@ m0t1fs_large_dir()
 	local count=512
 
 	echo "Test: larde_dir: mode=$1 fsname_prefix=$2..."
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$mode" || rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "$mode" || rc=1
 	mount | grep m0t1fs                                 || rc=1
 	for i in `seq 1 $count`; do
 		touch $MERO_M0T1FS_MOUNT_DIR/$fsname_prex$i || rc=1
@@ -667,7 +667,7 @@ m0t1fs_oostore_mode()
 	local mode="oostore"
 
 	echo "Test: oostore_mode..."
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH $mode || rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mode || rc=1
 	mount | grep m0t1fs                              || rc=1
 	m0t1fs_crud $fsname1 $fsname2 $fsname3 $mode || rc=1
 	touch $MERO_M0T1FS_MOUNT_DIR/123456 2>/dev/null && rc=1
@@ -701,7 +701,7 @@ m0t1fs_oostore_mode_basic()
 		echo;
 	done > $SOURCE_TXT
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "oostore" || rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "oostore" || rc=1
 	mount | grep m0t1fs                                 || rc=1
 	cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/$fsname1   || rc=1
 	cat $MERO_M0T1FS_MOUNT_DIR/$fsname1 > /tmp/$fsname1 || rc=1
@@ -754,7 +754,7 @@ m0t1fs_parallel_io_test()
 	UNIT_SIZE=512 # KB
 	NR_UNITS=3 # Write that many units on disk at a time.
 	echo "Parallel IO test"
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$mode" || rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "$mode" || rc=1
 	mount | grep m0t1fs                              || rc=1
 	echo "Create files"
 	for i in 0:100{0..4}000; do

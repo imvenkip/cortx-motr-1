@@ -473,6 +473,22 @@ int m0_rpc_session_destroy(struct m0_rpc_session *session,
 			   m0_time_t abs_timeout);
 
 /**
+   Iterates over all the items 'submitted to RPC and which are yet to receive
+   reply' and invokes m0_rpc_item_cancel() for each of those.
+ */
+M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session);
+
+/**
+   Restores the cancelled session.
+ */
+M0_INTERNAL void m0_rpc_session_restore(struct m0_rpc_session *session);
+
+/**
+   Checks if a session is marked as cancelled.
+ */
+M0_INTERNAL bool m0_rpc_session_is_cancelled(struct m0_rpc_session *session);
+
+/**
    Returns maximum size of an RPC item allowed on this session.
  */
 M0_INTERNAL m0_bcount_t
@@ -485,6 +501,8 @@ m0_rpc_session_get_max_item_payload_size(const struct m0_rpc_session *session);
 M0_INTERNAL struct m0_rpc_machine *
 session_machine(const struct m0_rpc_session *s);
 
+M0_TL_DESCR_DECLARE(pending_item, M0_EXTERN);
+M0_TL_DECLARE(pending_item, M0_INTERNAL, struct m0_rpc_item);
 
 /** @} end of session group */
 

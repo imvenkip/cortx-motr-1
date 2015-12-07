@@ -130,7 +130,7 @@ main()
 		return 1
 	}
 
-	sns_repair_mount $NR_DATA $NR_PARITY $POOL_WIDTH || {
+	sns_repair_mount || {
 		rc=$?
 	}
 

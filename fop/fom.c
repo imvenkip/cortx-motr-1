@@ -1447,12 +1447,22 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 
 void m0_fom_phase_set(struct m0_fom *fom, int phase)
 {
+	M0_LOG(M0_DEBUG, "fom=%p, item %p[%u] phase set: %s -> %s", fom,
+	       fom->fo_fop == NULL ? NULL : &fom->fo_fop->f_item,
+	       fom->fo_fop == NULL ? 0 : m0_fop_opcode(fom->fo_fop),
+	       m0_fom_phase_name(fom, m0_fom_phase(fom)),
+	       m0_fom_phase_name(fom, phase));
 	m0_sm_state_set(&fom->fo_sm_phase, phase);
 }
 M0_EXPORTED(m0_fom_phase_set);
 
 void m0_fom_phase_move(struct m0_fom *fom, int32_t rc, int phase)
 {
+	M0_LOG(M0_DEBUG, "fom=%p, item %p[%u] phase set: %s -> %s", fom,
+	       fom->fo_fop == NULL ? NULL : &fom->fo_fop->f_item,
+	       fom->fo_fop == NULL ? 0 : m0_fop_opcode(fom->fo_fop),
+	       m0_fom_phase_name(fom, m0_fom_phase(fom)),
+	       m0_fom_phase_name(fom, phase));
 	m0_sm_move(&fom->fo_sm_phase, rc, phase);
 }
 M0_EXPORTED(m0_fom_phase_move);

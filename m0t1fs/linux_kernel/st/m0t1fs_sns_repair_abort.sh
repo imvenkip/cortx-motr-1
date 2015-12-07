@@ -160,7 +160,7 @@ main()
 		return 1
 	}
 
-	sns_repair_mount $N $K $P || rc=$?
+	sns_repair_mount || rc=$?
 
 	if [[ $rc -eq 0 ]] && ! sns_repair_test ; then
 		echo "Failed: SNS repair failed.."

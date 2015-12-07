@@ -60,16 +60,10 @@ pool_mach_query()
 
 sns_repair_mount()
 {
-	N=$1
-	K=$2
-	P=$3
-
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P "oostore,verify" &>> $MERO_TEST_LOGFILE || {
-		cat $MERO_TEST_LOGFILE
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "oostore,verify" || {
 		echo "mount failed"
 		return 1
 	}
-	mount | grep m0t1fs
 }
 
 sns_repair()

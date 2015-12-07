@@ -45,7 +45,6 @@
 #include "conf/obj_ops.h"	    /* m0_conf_obj_find_lock */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob, m0_fid_cob_device_id */
 
-
 extern const struct m0_uint128 m0_rm_m0t1fs_group;
 /**
  * Cob create/delete fop send deadline (in ns).
@@ -1215,8 +1214,10 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 			mark_inode_dirty(dir);
 		} else
 			M0_LOG(M0_ERROR,
-			       "ioservice delete fop failed: %d, size=%lld",
-			       rc, ci->ci_inode.i_size);
+			       "ioservice delete fop failed: %d, gob fid "
+			       FID_F", size=%lld",
+			       rc, FID_P(m0t1fs_inode_fid(ci)),
+			       ci->ci_inode.i_size);
 		m0t1fs_fs_unlock(csb);
 		return M0_RC(rc);
 	}

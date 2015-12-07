@@ -1769,9 +1769,9 @@ static int io_launch(struct m0_fom *fom)
 		m0_fom_callback_arm(fom, &stio->si_wait, &stio_desc->siod_fcb);
 		m0_mutex_unlock(&stio->si_mutex);
 
-		M0_LOG(M0_DEBUG, "launch fom: %lu, req_count: %lx, "
+		M0_LOG(M0_DEBUG, "launch fom: %p, start_time %lu, req_count: %lx, "
 		       "count: %lx, submitted: %lx, expect: %lx",
-		       fom_obj->fcrw_fom_start_time,
+		       fom, fom_obj->fcrw_fom_start_time,
 		       fom_obj->fcrw_req_count, fom_obj->fcrw_count,
 		       m0_vec_count(&stio->si_user.ov_vec), ivec_count);
 		fom_obj->fcrw_io_launch_time = m0_time_now();

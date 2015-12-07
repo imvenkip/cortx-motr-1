@@ -737,11 +737,7 @@ fmio_m0t1fs_mount()
 	echo "Mount options are $mountopt"
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P $mountopt &>> $MERO_TEST_LOGFILE || {
-			cat $MERO_TEST_LOGFILE
-			return 1
-		}
-		mount
+		mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mountopt || return 1
 	fi
 	return 0
 }

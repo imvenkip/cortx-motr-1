@@ -109,7 +109,7 @@ main()
 		return 1
 	}
 
-	sns_repair_mount $NR_DATA $NR_PARITY $POOL_WIDTH || rc=$?
+	sns_repair_mount || rc=$?
 
 	if [[ $rc -eq 0 ]] && ! sns_repair_test ; then
 		echo "Failed: SNS repair failed.."

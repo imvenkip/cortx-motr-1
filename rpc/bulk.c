@@ -402,6 +402,7 @@ static int rpc_bulk_op(struct m0_rpc_bulk                   *rbulk,
 					    (M0_NET_QT_ACTIVE_BULK_RECV,
 					     M0_NET_QT_ACTIVE_BULK_SEND))));
 		nb->nb_callbacks = bulk_cb;
+
 		/*
 		 * Registers the net buffer with net domain if it is not
 		 * registered already.

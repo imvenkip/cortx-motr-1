@@ -46,6 +46,8 @@ static void item_timedout(struct m0_rpc_item *item);
 static void item_resend(struct m0_rpc_item *item);
 static int item_reply_received(struct m0_rpc_item *reply,
 			       struct m0_rpc_item **req_out);
+static bool item_reply_received_fi(struct m0_rpc_item *req,
+				   struct m0_rpc_item *reply);
 static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply);
 
 const struct m0_sm_conf outgoing_item_sm_conf;
@@ -66,10 +68,10 @@ M0_TL_DESCR_DEFINE(ric, "rpc item cache", M0_INTERNAL,
 		   M0_RPC_ITEM_MAGIC, M0_RPC_ITEM_CACHE_HEAD_MAGIC);
 M0_TL_DEFINE(ric, M0_INTERNAL, struct m0_rpc_item);
 
-M0_TL_DESCR_DEFINE(pending_item, "pending-item-list", static,
+M0_TL_DESCR_DEFINE(pending_item, "pending-item-list", M0_INTERNAL,
 		   struct m0_rpc_item, ri_pending_link, ri_magic,
 		   M0_RPC_ITEM_MAGIC, M0_RPC_ITEM_PENDING_CACHE_HEAD_MAGIC);
-M0_TL_DEFINE(pending_item, static, struct m0_rpc_item);
+M0_TL_DEFINE(pending_item, M0_INTERNAL, struct m0_rpc_item);
 
 /** Global rpc item types list. */
 static struct m0_tl        rpc_item_types_list;
@@ -512,7 +514,7 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 			item->ri_type->rit_opcode, item->ri_header.osr_xid);
 	/*
 	 * xid needs to be assigned only once.
-	 * At this point ri_nr_send is already incremented.
+	 * At this point ri_nr_sent is already incremented.
 	 *
 	 * xid for reply is not changed. It is already set to the request xid.
 	 */
@@ -520,8 +522,8 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 		item->ri_header.osr_xid = rpc_item_needs_xid(item) ?
 					  ++item->ri_session->s_xid :
 					  UINT64_MAX;
-		M0_LOG(M0_DEBUG, "set item xid = %"PRIu64,
-		       item->ri_header.osr_xid);
+		M0_LOG(M0_DEBUG, "%p[%u] set item xid = %"PRIu64, item,
+		       item->ri_type->rit_opcode, item->ri_header.osr_xid);
 	}
 	M0_LEAVE();
 }
@@ -1157,11 +1159,32 @@ static int item_reply_received(struct m0_rpc_item *reply,
 		req, item_kind(req), req->ri_type->rit_opcode,
 		reply, item_kind(reply), reply->ri_type->rit_opcode);
 
+	if (item_reply_received_fi(req, reply))
+		return M0_RC(-EREMOTE);
+
 	rc = req_replied(req, reply);
 	if (rc == 0)
 		*req_out = req;
 
 	return M0_RC(rc);
+}
+
+static bool item_reply_received_fi(struct m0_rpc_item *req,
+				   struct m0_rpc_item *reply)
+{
+	if (M0_FI_ENABLED("drop_create_item_reply") &&
+	    req->ri_type->rit_opcode == M0_IOSERVICE_COB_CREATE_OPCODE) {
+		M0_LOG(M0_DEBUG, "%p[%s/%u] create reply dropped", reply,
+		       item_kind(reply), reply->ri_type->rit_opcode);
+		return true;
+	}
+	if (M0_FI_ENABLED("drop_delete_item_reply") &&
+	    req->ri_type->rit_opcode == M0_IOSERVICE_COB_DELETE_OPCODE) {
+		M0_LOG(M0_DEBUG, "%p[%s/%u] delete reply dropped", reply,
+		       item_kind(reply), reply->ri_type->rit_opcode);
+		return true;
+	}
+	return false;
 }
 
 static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply)
@@ -1257,12 +1280,13 @@ M0_INTERNAL void m0_rpc_item_send_reply(struct m0_rpc_item *req,
 {
 	struct m0_rpc_session *sess;
 
-	M0_ENTRY("req=%p reply=%p", req, reply);
-
 	M0_PRE(req != NULL && reply != NULL);
 	M0_PRE(m0_rpc_item_is_request(req));
 	M0_PRE(M0_IN(req->ri_sm.sm_state, (M0_RPC_ITEM_ACCEPTED)));
 	M0_PRE(M0_IN(req->ri_reply, (NULL, reply)));
+
+	M0_ENTRY("req=%p[%u], reply=%p[%u]",
+		 req, req->ri_type->rit_opcode, reply, reply->ri_type->rit_opcode);
 
 	if (req->ri_reply == NULL) {
 		m0_rpc_item_get(reply);
@@ -1473,42 +1497,6 @@ M0_INTERNAL void m0_rpc_item_pending_cache_del(struct m0_rpc_item *item)
 	pending_item_tlink_del_fini(item);
 	m0_rpc_item_put(item);
 	M0_LEAVE("%p Removed from pending cache", item);
-}
-
-M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session)
-{
-	struct m0_rpc_item *item;
-
-	M0_PRE(session->s_session_id != SESSION_ID_0);
-
-	M0_LOG(M0_DEBUG, "session %p", session);
-	M0_ENTRY("session %p", session);
-
-	m0_rpc_machine_lock(session->s_conn->c_rpc_machine);
-	session->s_cancelled = true;
-	m0_tl_for(pending_item, &session->s_pending_cache, item) {
-		m0_rpc_item_get(item);
-		m0_rpc_item_cancel_nolock(item);
-		m0_rpc_item_put(item);
-	} m0_tl_endfor;
-	m0_rpc_machine_unlock(session->s_conn->c_rpc_machine);
-	M0_POST(pending_item_tlist_is_empty(&session->s_pending_cache));
-	M0_POST(session->s_sm.sm_state == M0_RPC_SESSION_IDLE);
-	M0_LEAVE("session %p", session);
-}
-
-M0_INTERNAL void m0_rpc_session_restore(struct m0_rpc_session *session)
-{
-	M0_ENTRY("session %p", session);
-	m0_rpc_machine_lock(session->s_conn->c_rpc_machine);
-	session->s_cancelled = false;
-	m0_rpc_machine_unlock(session->s_conn->c_rpc_machine);
-	M0_LEAVE("session %p", session);
-}
-
-M0_INTERNAL bool m0_rpc_session_is_cancelled(struct m0_rpc_session *session)
-{
-	return session->s_cancelled;
 }
 
 M0_INTERNAL void m0_rpc_item_replied_invoke(struct m0_rpc_item *req)

@@ -733,6 +733,7 @@ m0_rpc_machine_find_conn(const struct m0_rpc_machine *machine,
 }
 
 M0_INTERNAL void (*m0_rpc__item_dropped)(struct m0_rpc_item *item);
+static bool item_received_fi(struct m0_rpc_item *item);
 
 static void item_received(struct m0_rpc_item      *item,
 			  struct m0_net_end_point *from_ep)
@@ -748,16 +749,9 @@ static void item_received(struct m0_rpc_item      *item,
 		 (char *)from_ep->nep_addr,
 		 !!m0_rpc_item_is_oneway(item));
 
-	if (M0_FI_ENABLED("drop_item_reply") && m0_rpc_item_is_reply(item)) {
-		M0_LOG(M0_DEBUG, "%p[%s/%u] dropped", item,
-			item_kind(item), item->ri_type->rit_opcode);
+	if (item_received_fi(item))
 		return;
-	}
-	if (M0_FI_ENABLED("drop_item")) {
-		M0_LOG(M0_DEBUG, "%p[%s/%u] dropped", item,
-			item_kind(item), item->ri_type->rit_opcode);
-		return;
-	}
+
 	if (m0_rpc_item_is_conn_establish(item))
 		m0_rpc_fop_conn_establish_ctx_init(item, from_ep);
 
@@ -780,6 +774,33 @@ static void item_received(struct m0_rpc_item      *item,
 	}
 
 	M0_LEAVE();
+}
+
+static bool item_received_fi(struct m0_rpc_item *item)
+{
+	if (M0_FI_ENABLED("drop_item")) {
+		M0_LOG(M0_DEBUG, "%p[%s/%u] dropped", item,
+			item_kind(item), item->ri_type->rit_opcode);
+		return true;
+	}
+	if (M0_FI_ENABLED("drop_item_reply") && m0_rpc_item_is_reply(item)) {
+		M0_LOG(M0_DEBUG, "%p[%s/%u] dropped", item,
+			item_kind(item), item->ri_type->rit_opcode);
+		return true;
+	}
+	if (M0_FI_ENABLED("drop_setattr_item_reply") &&
+	    item->ri_type->rit_opcode == M0_IOSERVICE_COB_SETATTR_REP_OPCODE) {
+		M0_LOG(M0_DEBUG, "%p[%s/%u] setattr reply dropped", item,
+		       item_kind(item), item->ri_type->rit_opcode);
+		return true;
+	}
+	if (M0_FI_ENABLED("drop_getattr_item_reply") &&
+	    item->ri_type->rit_opcode == M0_IOSERVICE_COB_GETATTR_REP_OPCODE) {
+		M0_LOG(M0_DEBUG, "%p[%s/%u] getattr reply dropped", item,
+		       item_kind(item), item->ri_type->rit_opcode);
+		return true;
+	}
+	return false;
 }
 
 static void net_buf_err(struct m0_net_buffer *nb, int32_t status)

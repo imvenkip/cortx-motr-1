@@ -364,22 +364,6 @@ void m0_rpc_item_cancel_nolock(struct m0_rpc_item *item);
 void m0_rpc_item_cancel_init(struct m0_rpc_item *item);
 
 /**
-   Iterates over all the items 'submitted to RPC and which are yet to receive
-   reply' and invokes m0_rpc_item_cancel() for each of those.
- */
-M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session);
-
-/**
-   Restores the cancelled session.
- */
-M0_INTERNAL void m0_rpc_session_restore(struct m0_rpc_session *session);
-
-/**
-   Checks if a session is marked as cancelled.
- */
-M0_INTERNAL bool m0_rpc_session_is_cancelled(struct m0_rpc_session *session);
-
-/**
    For default implementations of these interfaces for fops
    @see M0_FOP_DEFAULT_ITEM_TYPE_OPS
  */

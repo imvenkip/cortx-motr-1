@@ -72,7 +72,7 @@ pool_version_assignment()
         local disk_from_pver0="^k|1:1"
         local disk_from_pver1="^k|10:1"
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$1"|| {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "$1"|| {
 		return 1
 	}
 

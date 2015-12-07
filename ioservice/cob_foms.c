@@ -388,6 +388,9 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 	M0_PRE(fom->fo_ops != NULL);
 	M0_PRE(fom->fo_type != NULL);
 
+	cob_op = cob_fom_get(fom);
+	M0_ENTRY("cob_getattr for "FID_F, FID_P(&cob_op->fco_gfid));
+
 	fop = fom->fo_fop;
 	reply = m0_fop_data(fom->fo_rep_fop);
 	r_common = &reply->cgr_common;
@@ -406,8 +409,8 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 		reply->cgr_rc = rc;
 		return M0_FSO_AGAIN;
 	case M0_FOPH_COB_OPS_EXECUTE:
-		M0_LOG(M0_DEBUG, "Cob %s operation started", ops);
-		cob_op = cob_fom_get(fom);
+		M0_LOG(M0_DEBUG, "Cob %s operation started for "FID_F,
+		       ops, FID_P(&cob_op->fco_gfid));
 		rc = cob_getattr(fom, cob_op, &attr);
 		m0_md_cob_mem2wire(&reply->cgr_body, &attr);
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
@@ -422,7 +425,7 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 	if (rc != 0)
 		reply->cgr_rc = rc;
 	cob_tick_tail(fom, r_common);
-	return M0_FSO_AGAIN;
+	return M0_RC(M0_FSO_AGAIN);
 }
 
 static int cob_setattr_fom_tick(struct m0_fom *fom)
@@ -442,6 +445,8 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 	M0_PRE(fom->fo_type != NULL);
 
 	cob_op = cob_fom_get(fom);
+	M0_ENTRY("cob_setattr for "FID_F, FID_P(&cob_op->fco_gfid));
+
 	fop = fom->fo_fop;
 	cs_common = m0_cobfop_common_get(fop);
 	reply = m0_fop_data(fom->fo_rep_fop);
@@ -468,7 +473,8 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 		reply->csr_rc = rc;
 		return M0_FSO_AGAIN;
 	case M0_FOPH_COB_OPS_EXECUTE:
-		M0_LOG(M0_DEBUG, "Cob %s operation started", ops);
+		M0_LOG(M0_DEBUG, "Cob %s operation started for "FID_F,
+		       ops, FID_P(&cob_op->fco_gfid));
 		m0_md_cob_wire2mem(&attr, &cs_common->c_body);
 		m0_dump_cob_attr(&attr);
 		rc = cob_setattr(fom, cob_op, &attr);
@@ -484,7 +490,7 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 	if (rc != 0)
 		reply->csr_rc = rc;
 	cob_tick_tail(fom, r_common);
-	return M0_FSO_AGAIN;
+	return M0_RC(M0_FSO_AGAIN);
 }
 
 static bool cob_pool_version_mismatch(const struct m0_fom *fom)
@@ -679,7 +685,7 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	case M0_FOPH_COB_OPS_PREPARE:
 		rc = cob_tick_prepare(fom);
 		reply->cor_rc = rc;
-		return M0_FSO_AGAIN;
+		return M0_RC(M0_FSO_AGAIN);
 	case M0_FOPH_COB_OPS_EXECUTE:
 		fop_type = cob_op->fco_fop_type;
 		M0_LOG(M0_DEBUG, "Cob %s operation for "FID_F"/%x "FID_F" for %s",
@@ -723,7 +729,7 @@ tail:
 	if (rc != 0)
 		reply->cor_rc = rc;
 	cob_tick_tail(fom, r_common);
-	return M0_FSO_AGAIN;
+	return M0_RC(M0_FSO_AGAIN);
 }
 
 M0_INTERNAL int m0_cc_stob_cr_credit(struct m0_stob_id *sid,

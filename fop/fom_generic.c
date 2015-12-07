@@ -794,11 +794,6 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 	} else if (rc == M0_FSO_AGAIN) {
 		/* fpd_action() could change phase */
 		fpd_phase = &fpd_table[m0_fom_phase(fom)];
-		M0_LOG(M0_DEBUG, "fom=%p, item %p[%u] phase set: %s -> %s", fom,
-			fom->fo_fop == NULL ? NULL : &fom->fo_fop->f_item,
-			fom->fo_fop == NULL ? 0 : m0_fop_opcode(fom->fo_fop),
-			m0_fom_phase_name(fom, m0_fom_phase(fom)),
-			m0_fom_phase_name(fom, fpd_phase->fpd_nextphase));
 		m0_fom_phase_set(fom, fpd_phase->fpd_nextphase);
 	}
 
