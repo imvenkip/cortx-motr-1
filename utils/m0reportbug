@@ -3,12 +3,16 @@ set -eu
 # set -x
 # export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
-VERSION=0.7
+VERSION=0.7.1
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2015-12-08 0.7.1   * Core dumps and m0trace files may be not world-readable.
+###                      Run `touch -r' with sudo.
+###                    * Canonicalize $IN_DIR to allow symbolic links.
+###
 ### 2015-12-04 0.7     * Use preset paths, different for rpm and non-rpm
 ###                      (source) installations.
 ###                    * Tolerate the absence of gdb.
@@ -59,6 +63,11 @@ main() {
     )
 
     optparse "$@"
+    [ -d "$IN_DIR" ] || die "$IN_DIR: no such directory"
+
+    ## `find $IN_DIR` would return nothing if $IN_DIR is a link.
+    ## `find -H $IN_DIR` would depend on $PWD if $IN_DIR is a relative path.
+    IN_DIR=$(readlink -f $IN_DIR)
 
     mkcd $OUT_DIR
     echo m0reportbug $VERSION >$OUTPUT
@@ -277,7 +286,7 @@ backtraces_cores() {
                  echo "Skipping $core: the compressed file is too large"
                  rm $outdir/$core.gz
              else
-                 touch -r $core $outdir/$core.gz
+                 sudo touch -r $core $outdir/$core.gz
              fi
          }
      done)
@@ -305,7 +314,7 @@ m0traces() {
          ## > lt-m0tracedump: Warning: skipping non-existing trace
          ## > descriptor 0x7f977d0bdb00 (orig 0x7ff6ad5c9b00)
          sudo $m0tracedump -s -i $path 2>/dev/null | gzip >$outdir/$path.yaml.gz
-         touch -r $path $outdir/$path.yaml.gz
+         sudo touch -r $path $outdir/$path.yaml.gz
          echo $path.yaml.gz
      done)
 }
@@ -344,9 +353,8 @@ optparse() {
     if [ $# -gt 1 ]; then
         die 'Too many arguments'
     elif [ $# -eq 1 ]; then
-        IN_DIR="$(readlink -f $1)"
+        IN_DIR="$1"
     fi
-    [ -d "$IN_DIR" ] || die "$IN_DIR: no such directory"
 }
 
 main "$@"
