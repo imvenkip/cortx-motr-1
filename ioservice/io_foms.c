@@ -1227,6 +1227,10 @@ static int io_prepare(struct m0_fom *fom)
 	rwrep = io_rw_rep_get(fom->fo_rep_fop);
 	M0_ASSERT(fom_obj->fcrw_pver == NULL);
 	mero = m0_cs_ctx_get(reqh);
+	M0_LOG(M0_DEBUG, "Preparing %s IO index:%d @"FID_F"pver"FID_F,
+	       m0_is_read_fop(fom->fo_fop) ? "Read": "Write",
+	       (int)rwfop->crw_index,
+	       FID_P(&rwfop->crw_fid), FID_P(&rwfop->crw_pver));
 	fom_obj->fcrw_pver = m0_pool_version_find(&mero->cc_pools_common,
 						  &rwfop->crw_pver);
 	if (fom_obj->fcrw_pver == NULL) {
@@ -1237,10 +1241,6 @@ static int io_prepare(struct m0_fom *fom)
 	poolmach = &fom_obj->fcrw_pver->pv_mach;
 	cliv = (struct m0_poolmach_versions*)(&rwfop->crw_version);
 
-	M0_LOG(M0_DEBUG, "Preparing %s IO index:%d @"FID_F"pver"FID_F,
-	       m0_is_read_fop(fom->fo_fop) ? "Read": "Write",
-	       (int)rwfop->crw_index,
-	       FID_P(&rwfop->crw_fid), FID_P(&rwfop->crw_pver));
 	/*
 	 * Dumps the state of SNS repair with respect to global fid
 	 * from IO fop.

@@ -20,8 +20,8 @@ scripts/install-mero-service -u
 rm -rf /etc/mero
 rm -f  /etc/sysconfig/mero
 scripts/install-mero-service -l
-utils/m0setup -v -P 12 -N 2 -K 1 -i 3 -d /var/mero/img -s 8 -c
-utils/m0setup -v -P 12 -N 2 -K 1 -i 3 -d /var/mero/img -s 8
+utils/m0setup -v -P 12 -N 2 -K 1 -i 3 -d /var/mero/img -s 128 -c
+utils/m0setup -v -P 12 -N 2 -K 1 -i 3 -d /var/mero/img -s 128
 
 # update Mero configuration: turn on fdatasync with '-I' option
 sed -i "s/.*MERO_M0D_EXTRA_OPTS.*/MERO_M0D_EXTRA_OPTS='-I'/" \
@@ -36,6 +36,8 @@ sed -i "s@.*MERO_M0D_DATA_DIR.*@MERO_M0D_DATA_DIR=${SANDBOX_DIR}/mero@" \
 echo "Start Mero services"
 systemctl start mero-mkfs
 systemctl start mero-singlenode
+
+sleep 10 # allow mero to finish its startup
 
 echo "Perform fsync test"
 for i in 0:1{0..9}0000; do touch /mnt/m0t1fs/$i & done
