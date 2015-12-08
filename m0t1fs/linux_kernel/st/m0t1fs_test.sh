@@ -40,7 +40,7 @@ m0t1fs_test()
 
 main()
 {
-	local rc
+	local rc=0
 	echo "System tests start:"
 	echo "Test log will be stored in $MERO_TEST_LOGFILE."
 
@@ -48,7 +48,7 @@ main()
 
 	set -o pipefail
 	m0t1fs_test 2>&1 | tee -a $MERO_TEST_LOGFILE
-	rc=$?
+	rc=${PIPESTATUS[0]}
 
 	if [ $rc -eq 0 ]; then
 		sandbox_fini

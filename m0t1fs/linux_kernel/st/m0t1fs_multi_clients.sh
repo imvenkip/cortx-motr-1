@@ -47,7 +47,7 @@ main()
 	echo "Test log will be stored in $MERO_TEST_LOGFILE."
 
 	multi_clients 2>&1 | tee -a $MERO_TEST_LOGFILE
-	rc=$?
+	rc=${PIPESTATUS[0]}
 
 	if [ $rc -eq 0 ]; then
 		sandbox_fini

@@ -411,7 +411,7 @@ multi_client_test()
 	local mount_dir_2=${MERO_M0T1FS_MOUNT_DIR}bb
 	local mount_dir_3=${MERO_M0T1FS_MOUNT_DIR}cc
 
-	local rc
+	local rc=0
 
 	mount_m0t1fs ${mount_dir_1} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" ||
 		return 1
