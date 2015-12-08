@@ -19,6 +19,7 @@
  */
 
 #include <stdlib.h>       /* exit, srand, rand */
+#include <stdio.h>        /* fopen */
 #include <unistd.h>       /* getpid */
 #include <time.h>         /* time */
 #include <err.h>          /* warn */
@@ -226,7 +227,9 @@ int main(int argc, char *argv[])
 	static struct m0 instance;
 	struct m0_ut_module *ut;
 	struct rusage usage;
+	FILE *proc_self_io;
 	int   rc;
+	int   rc1;
 	bool  list_ut              = false;
 	bool  with_tests           = false;
 	bool  list_owners          = false;
@@ -242,6 +245,14 @@ int main(int argc, char *argv[])
 	const char *trace_print_context = NULL;
 	const char *tests_select        = NULL;
 	const char *tests_exclude       = NULL;
+	static char        proc_io_buf[0x1000];
+	unsigned long long rchar;
+	unsigned long long wchar;
+	unsigned long long syscr;
+	unsigned long long syscw;
+	unsigned long long read_bytes;
+	unsigned long long write_bytes;
+	unsigned long long cancelled_write_bytes;
 
 	m0_instance_setup(&instance);
 	(void)m0_ut_module_type.mt_create(&instance);
@@ -406,16 +417,31 @@ int main(int argc, char *argv[])
 ut_fini:
 	m0_ut_fini();
 end:
-	if (rc == 0) {
-		getrusage(RUSAGE_SELF, &usage);
-		printf("utime %ld.%06ld stime %ld.%06ld "
-		       "maxrss %ld nvcsw %ld nivcsw %ld\n",
-		       usage.ru_utime.tv_sec, usage.ru_utime.tv_usec,
-		       usage.ru_stime.tv_sec, usage.ru_stime.tv_usec,
-		       usage.ru_maxrss, usage.ru_nvcsw, usage.ru_nivcsw);
-		printf("minflt %ld majflt %ld inblock %ld oublock %ld\n",
-		       usage.ru_minflt, usage.ru_majflt,
-		       usage.ru_inblock, usage.ru_oublock);
+	getrusage(RUSAGE_SELF, &usage);
+	printf("utime %ld.%06ld stime %ld.%06ld "
+	       "maxrss %ld nvcsw %ld nivcsw %ld\n",
+	       usage.ru_utime.tv_sec, usage.ru_utime.tv_usec,
+	       usage.ru_stime.tv_sec, usage.ru_stime.tv_usec,
+	       usage.ru_maxrss, usage.ru_nvcsw, usage.ru_nivcsw);
+	printf("minflt %ld majflt %ld inblock %ld oublock %ld\n",
+	       usage.ru_minflt, usage.ru_majflt,
+	       usage.ru_inblock, usage.ru_oublock);
+	proc_self_io = fopen("/proc/self/io", "r");
+	if (proc_self_io != NULL) {
+		rc1 = fscanf(proc_self_io, "%s %llu %s %llu %s %llu %s %llu "
+		             "%s %llu %s %llu %s %llu",
+		             proc_io_buf, &rchar, proc_io_buf, &wchar,
+		             proc_io_buf, &syscr, proc_io_buf, &syscw,
+		             proc_io_buf, &read_bytes, proc_io_buf,
+		             &write_bytes, proc_io_buf, &cancelled_write_bytes);
+		fclose(proc_self_io);
+		if (rc1 == 14) {
+			printf("rchar %llu wchar %llu syscr %llu syscw %llu\n",
+			       rchar, wchar, syscr, syscw);
+			printf("read_bytes %llu write_bytes %llu "
+			       "cancelled_write_bytes %llu\n",
+			       read_bytes, write_bytes, cancelled_write_bytes);
+		}
 	}
 	return rc < 0 ? -rc : rc;
 }
