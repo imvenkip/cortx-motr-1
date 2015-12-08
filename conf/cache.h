@@ -83,7 +83,7 @@ enum m0_conf_version {
 	 * @see m0_spiel_tx_open()
 	 * @see m0_spiel_tx_commit()
 	 */
-	M0_CONF_VER_FAKE = ~0,
+	M0_CONF_VER_TEMP = ~0,
 };
 
 /** Configuration cache. */

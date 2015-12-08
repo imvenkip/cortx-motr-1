@@ -296,17 +296,14 @@ void m0_spiel_tx_close(struct m0_spiel_tx *tx);
 /**
  * Commits filled-in spiel transaction. The call performs normal committing when
  * reaching quorum is mandatory for uploading new configuration to confd servers
- * and putting it in effect.
+ * and putting it in effect. Endpoints of confd and rm services will be resolved
+ * internally by rconfc which gets them from HA service.
  *
  * Once function succeeded, the spiel transaction must not be committed
  * anymore. When failed, forced committing with m0_spiel_tx_commit_forced()
  * still remains as an option.
  *
  * @param tx        spiel transaction
- * @param confd_eps endpoints of confd services to which the transaction is to
- * @param rm_ep     endpoint of resource manager. Spiel must acquire write lock
- *                  before commiting the transaction
- * be applied
  *
  * @note In case normal transaction committing is required, but resultant quorum
  * number reached is to be controlled as well, the action has to be done using
@@ -330,10 +327,6 @@ int m0_spiel_tx_commit(struct m0_spiel_tx  *tx);
  * completing previously failed uploads to confd servers.
  *
  * @param tx         spiel transaction
- * @param confd_eps  endpoints of confd services to which the transaction is to
- *                   be applied
- * @param rm_ep      endpoint of resource manager. Spiel must acquire write lock
- *                   before commiting the transaction
  * @param forced     committing with forcing any possible LOAD/FLIP enabled
  * @param ver_forced version number the initial value to be overridden with
  * @param rquorum    resultant quorum value reached, NULL value allowed

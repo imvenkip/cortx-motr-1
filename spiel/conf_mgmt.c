@@ -90,7 +90,7 @@ static int spiel_root_add(struct m0_spiel_tx *tx)
 		 * going to be fetched by rconfc. This value to be incremented
 		 * and used as version number of currently composed conf DB.
 		 */
-		root->rt_verno = M0_CONF_VER_FAKE;
+		root->rt_verno = M0_CONF_VER_TEMP;
 		rc = dir_new(&tx->spt_cache,
 			     &root->rt_obj.co_id,
 			     &M0_CONF_ROOT_PROFILES_FID,
