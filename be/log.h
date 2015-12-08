@@ -217,6 +217,7 @@
  */
 
 struct m0_ext;
+struct m0_stob_id;
 struct m0_be_io;
 struct m0_be_log_io;
 struct m0_be_log_record_iter;
@@ -486,6 +487,8 @@ M0_INTERNAL bool m0_be_fmt_log_record_header__invariant(
 				struct m0_be_fmt_log_record_header *header,
 				struct m0_be_log                   *log);
 
+M0_INTERNAL bool m0_be_log_contains_stob(struct m0_be_log        *log,
+                                         const struct m0_stob_id *stob_id);
 /** @} end of be group */
 
 #endif /* __MERO_BE_LOG_H__ */

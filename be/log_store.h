@@ -302,6 +302,9 @@ M0_INTERNAL void
 m0_be_log_store_rbuf_io_reset(struct m0_be_log_store       *ls,
 			      enum m0_be_log_store_io_type  io_type);
 
+M0_INTERNAL bool
+m0_be_log_store_contains_stob(struct m0_be_log_store  *ls,
+                              const struct m0_stob_id *stob_id);
 /** @} end of be group */
 
 #endif /* __MERO_BE_LOG_STORE_H__ */

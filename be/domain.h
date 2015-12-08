@@ -60,6 +60,7 @@
  * @{
  */
 
+struct m0_stob_id;
 struct m0_be_tx;
 struct m0_be_0type;
 struct m0_be_log;
@@ -258,6 +259,19 @@ M0_INTERNAL void m0_be_domain_tx_size_max(struct m0_be_domain    *dom,
 M0_INTERNAL void m0_be_domain__group_limits(struct m0_be_domain *dom,
                                             uint32_t            *group_nr,
                                             uint32_t            *tx_per_group);
+
+/**
+ * Check if the stob with the stob_id is used as a log stob
+ * for the given domain.
+ */
+M0_INTERNAL bool m0_be_domain_is_stob_log(struct m0_be_domain     *dom,
+                                          const struct m0_stob_id *stob_id);
+/**
+ * Check if the stob with the stob_id is used as a seg stob
+ * for the given domain.
+ */
+M0_INTERNAL bool m0_be_domain_is_stob_seg(struct m0_be_domain     *dom,
+                                          const struct m0_stob_id *stob_id);
 
 /** @} end of be group */
 #endif /* __MERO_BE_DOMAIN_H__ */

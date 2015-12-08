@@ -742,6 +742,13 @@ M0_INTERNAL bool m0_be_log_store_overwrites(struct m0_be_log_store *ls,
 	       (index >= end && (position >= index || position < end));
 }
 
+M0_INTERNAL bool
+m0_be_log_store_contains_stob(struct m0_be_log_store  *ls,
+                              const struct m0_stob_id *stob_id)
+{
+	return m0_stob_id_eq(stob_id, m0_stob_id_get(ls->ls_stob));
+}
+
 /** @} end of be group */
 #undef M0_TRACE_SUBSYSTEM
 

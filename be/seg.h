@@ -29,8 +29,8 @@
 
 struct m0_be_op;
 struct m0_be_reg_d;
-struct m0_be_reg_area;
 struct m0_stob;
+struct m0_stob_id;
 
 /**
  * @defgroup be Meta-data back-end
@@ -175,6 +175,9 @@ M0_INTERNAL int m0_be_reg__write(struct m0_be_reg *reg);
  * @todo add UT similar to libm0-ut:time.
  */
 M0_INTERNAL unsigned long m0_be_reg_gen_idx(const struct m0_be_reg *reg);
+
+M0_INTERNAL bool m0_be_seg_contains_stob(struct m0_be_seg        *seg,
+                                         const struct m0_stob_id *stob_id);
 
 /** @} end of be group */
 #endif /* __MERO_BE_SEG_H__ */

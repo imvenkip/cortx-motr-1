@@ -33,7 +33,6 @@
 #include "stob/linux.h"       /* m0_stob_linux_container */
 
 #include "be/seg_internal.h"  /* m0_be_seg_hdr */
-#include "be/tx_regmap.h"     /* m0_be_reg_area */
 #include "be/io.h"            /* m0_be_io */
 
 #include <sys/mman.h>         /* mmap */
@@ -280,6 +279,12 @@ M0_INTERNAL unsigned long m0_be_reg_gen_idx(const struct m0_be_reg *reg)
 	M0_CASSERT(sizeof global_gen_idx == sizeof(unsigned long));
 	return m0_atomic64_add_return(&global_gen_idx, 1);
 #endif
+}
+
+M0_INTERNAL bool m0_be_seg_contains_stob(struct m0_be_seg        *seg,
+                                         const struct m0_stob_id *stob_id)
+{
+	return m0_stob_id_eq(m0_stob_id_get(seg->bs_stob), stob_id);
 }
 
 /** @} end of be group */

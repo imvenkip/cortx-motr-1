@@ -327,6 +327,14 @@ M0_INTERNAL void m0_stob_id_make(uint64_t container,
 	m0_fid_tset(&stob_id->si_fid, m0_fid_tget(dom_id), container, key);
 }
 
+M0_INTERNAL bool m0_stob_id_eq(const struct m0_stob_id *stob_id0,
+                               const struct m0_stob_id *stob_id1)
+{
+	return m0_fid_eq(&stob_id0->si_domain_fid, &stob_id1->si_domain_fid) &&
+	       m0_fid_eq(&stob_id0->si_fid,        &stob_id1->si_fid);
+
+}
+
 /** @} end group stob */
 #undef M0_TRACE_SUBSYSTEM
 

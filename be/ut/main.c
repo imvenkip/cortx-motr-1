@@ -87,6 +87,7 @@ extern void m0_be_ut_group_format(void);
 extern void m0_be_ut_mkfs(void);
 extern void m0_be_ut_mkfs_multiseg(void);
 extern void m0_be_ut_domain(void);
+extern void m0_be_ut_domain_is_stob(void);
 
 extern void m0_be_ut_tx_states(void);
 extern void m0_be_ut_tx_empty(void);
@@ -183,6 +184,7 @@ struct m0_ut_suite be_ut = {
 		{ "mkfs",                    m0_be_ut_mkfs                    },
 		{ "mkfs-multiseg",           m0_be_ut_mkfs_multiseg           },
 		{ "domain",                  m0_be_ut_domain                  },
+		{ "domain-is_stob",          m0_be_ut_domain_is_stob          },
 		{ "tx-states",               m0_be_ut_tx_states               },
 		{ "tx-empty",                m0_be_ut_tx_empty                },
 		{ "tx-usecase_success",      m0_be_ut_tx_usecase_success      },

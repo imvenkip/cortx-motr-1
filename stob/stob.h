@@ -317,6 +317,9 @@ M0_INTERNAL void m0_stob_id_make(uint64_t container,
 				 const struct m0_fid *dom_id,
 				 struct m0_stob_id *stob_id);
 
+M0_INTERNAL bool m0_stob_id_eq(const struct m0_stob_id *stob_id0,
+                               const struct m0_stob_id *stob_id1);
+
 M0_INTERNAL int m0_stob_mod_init(void);
 M0_INTERNAL void m0_stob_mod_fini(void);
 

@@ -21,6 +21,7 @@
 #include "be/domain.h"
 
 #include "ut/ut.h"
+#include "stob/stob.h"          /* m0_stob_id */
 
 #include "be/ut/helper.h"       /* m0_be_ut_backend */
 
@@ -102,6 +103,26 @@ void m0_be_ut_domain(void)
 	struct m0_be_ut_backend ut_be = {};
 
 	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_fini(&ut_be);
+}
+
+void m0_be_ut_domain_is_stob(void)
+{
+	struct m0_be_ut_backend  ut_be = {};
+	struct m0_be_domain     *dom;
+	struct m0_stob_id        stob_id = {};
+	bool                     is_stob;
+
+	m0_be_ut_backend_init(&ut_be);
+	dom = &ut_be.but_dom;
+	is_stob = m0_be_domain_is_stob_log(dom, &stob_id);
+	M0_UT_ASSERT(!is_stob);
+	is_stob = m0_be_domain_is_stob_seg(dom, &stob_id);
+	M0_UT_ASSERT(!is_stob);
+	/*
+	 * TODO add more cases after domain interfaces allow to enumerate stobs
+	 * used by segments and log.
+	 */
 	m0_be_ut_backend_fini(&ut_be);
 }
 

@@ -1132,6 +1132,12 @@ M0_INTERNAL int m0_be_log_record_prev(struct m0_be_log                   *log,
 	return rc;
 }
 
+M0_INTERNAL bool m0_be_log_contains_stob(struct m0_be_log        *log,
+                                         const struct m0_stob_id *stob_id)
+{
+	return m0_be_log_store_contains_stob(&log->lg_store, stob_id);
+}
+
 /** @} end of be group */
 #undef M0_TRACE_SUBSYSTEM
 

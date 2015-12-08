@@ -1078,6 +1078,29 @@ M0_INTERNAL void m0_be_domain__group_limits(struct m0_be_domain *dom,
 	m0_be_engine__group_limits(&dom->bd_engine, group_nr, tx_per_group);
 }
 
+M0_INTERNAL bool m0_be_domain_is_stob_log(struct m0_be_domain     *dom,
+                                          const struct m0_stob_id *stob_id)
+{
+	bool it_is;
+
+	be_domain_lock(dom);
+	it_is = m0_be_log_contains_stob(m0_be_domain_log(dom), stob_id);
+	be_domain_unlock(dom);
+	return it_is;
+}
+
+M0_INTERNAL bool m0_be_domain_is_stob_seg(struct m0_be_domain     *dom,
+                                          const struct m0_stob_id *stob_id)
+{
+	bool it_is = false;
+
+	be_domain_lock(dom);
+	it_is = m0_tl_exists(seg, seg, &dom->bd_segs,
+	                     m0_be_seg_contains_stob(seg, stob_id));
+	be_domain_unlock(dom);
+	return it_is;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 /** @} end of be group */
 
