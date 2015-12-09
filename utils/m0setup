@@ -21,6 +21,7 @@ data_units=2
 parity_units=1
 ios_num=1
 loop_img_dir='/var/mero'
+mero_data_dir='/var/mero'
 loop_img_size_gb=64
 
 #
@@ -38,7 +39,8 @@ usage()
     cat <<USAGE_END
 Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
                [-P|--pool-width num] [-N|--data-units num] [-K|--parity-units num]
-               [-i|--ios-number num] [-d|--disk-img-dir path] [-s|--disk-size GiBs]
+               [-i|--ios-number num] [-d|--loop-img-dir path] [-m|--mero-dir path]
+               [-s|--disk-size GiBs]
 
    -P|--pool-width num     Total number of disks in the pool. So many loop
                            devices will be provisioned. Default is ${pool_width}.
@@ -56,6 +58,8 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
 
    -s|--disk-size GiBs     Size of image files for loop devices in GiB.
                            Default is ${loop_img_size_gb}.
+
+   -m|--mero-dir path      Mero metadata directory. Default is '$mero_data_dir'.
 
    -c|--cleanup            Detach connected loop devices and remove image files.
                            Number of loop devices is taken from '-P|--pool-width'
@@ -77,8 +81,8 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt --options hvcP:N:K:i:d:s: \
-                   --longoptions help,verbose,cleanup,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,disk-size: \
+    TEMP=$( getopt --options hvcP:N:K:i:d:m:s: \
+                   --longoptions help,verbose,cleanup,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -95,6 +99,7 @@ parse_cli_options()
             -K|--parity-units)  parity_units=$2;      shift 2 ;;
             -i|--ios-number)    ios_num=$2;           shift 2 ;;
             -d|--loop-img-dir)  loop_img_dir=$2;      shift 2 ;;
+            -m|--mero-dir)      mero_data_dir=$2;     shift 2 ;;
             -s|--disk-size)     loop_img_size_gb=$2;  shift 2 ;;
             -v)                 verbose=true;         shift   ;;
             --)                 shift; break ;;
@@ -185,7 +190,7 @@ generate_genders_config()
 
     local hostname=$(hostname -s)
     cat <<GENDERS_END > $genders_file
-$hostname  m0_datadir=/var/mero
+$hostname  m0_datadir=$mero_data_dir
 $hostname  m0_t1fs_mountpoint=/mnt/m0t1fs
 $hostname  m0_data_units=$data_units
 $hostname  m0_parity_units=$parity_units
