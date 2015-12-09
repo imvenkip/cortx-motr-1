@@ -1445,13 +1445,13 @@ static void spiel_conf_load_send(void)
 
 static void spiel_conf_big_db(void)
 {
+#define SVC_EP "192.168.252.132@tcp:12345:41:201"
 	struct m0_spiel_tx  tx;
 	int                 rc;
 	int                 i;
 	int                 svc_nr;
 	struct m0_fid       fid = spiel_obj_fid[SPIEL_UT_OBJ_SERVICE];
-	const char         *svc_ep[] = {"192.168.252.132@tcp:12345:41:201",
-					NULL};
+	const char         *svc_ep[] = { SVC_EP, NULL };
 	struct m0_spiel_service_info svc_info = {
 			.svi_type = M0_CST_IOS,
 			.svi_endpoints = svc_ep
@@ -1460,10 +1460,7 @@ static void spiel_conf_big_db(void)
 	char               *cache_str;
 	uint32_t            svc_str_size = sizeof(
 			"{0x73|(((0x7300000000000001,0)),0x1,"
-			"[0x1:[0x20:0x31,0x39,0x32,0x2e,0x31,0x36,0x38,0x2e,"
-			"0x32,0x35,0x32,0x2e,0x31,0x33,0x32,0x40,0x74,0x63,"
-			"0x70,0x3a,0x31,0x32,0x33,0x34,0x35,0x3a,0x34,0x31,"
-			"0x3a,0x32,0x30,0x31]],[0])},") - 1;
+			"[0x1: " SVC_EP "], [0])},") - 1;
 
 	spiel_conf_ut_init();
 	spiel_conf_create_configuration(&spiel, &tx);

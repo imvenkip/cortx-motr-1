@@ -239,7 +239,22 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 			str += nob;
 		}
 	}
-	return *str == 0 ? 0 : -EINVAL;
+	return *str == 0 ? 0 : M0_ERR(-EINVAL);
+}
+
+static bool quoted_string(const struct m0_xcode_type *xt,
+			  const struct m0_xcode_obj  *obj,
+			  struct m0_fop_str          *qstr)
+{
+	if (m0_xcode_is_byte_array(xt)) {
+		qstr->s_len = m0_xcode_tag(obj);
+		qstr->s_buf = m0_xcode_addr(obj, 1, 0);
+
+		/* A crude printability check. */
+		return m0_forall(i, qstr->s_len,
+				qstr->s_buf[i] >= ' ' && qstr->s_buf[i] <= '~');
+	} else
+		return false;
 }
 
 M0_INTERNAL int m0_xcode_print(const struct m0_xcode_obj *obj,
@@ -261,10 +276,16 @@ M0_INTERNAL int m0_xcode_print(const struct m0_xcode_obj *obj,
 		enum m0_xcode_cursor_flag     flag = top->s_flag;
 		const struct m0_xcode_type   *xt   = cur->xo_type;
 		enum m0_xcode_aggr            aggr = xt->xct_aggr;
+		struct m0_fop_str             qstr;
 
 		if (flag == M0_XCODE_CURSOR_PRE)
 			PCHAR(punctchar(&it));
 
+		if (quoted_string(xt, cur, &qstr)) {
+			P("\"%.*s\"", qstr.s_len, qstr.s_buf);
+			m0_xcode_skip(&it);
+			continue;
+		}
 		PCHAR(structure[aggr][flag]);
 
 		if (flag == M0_XCODE_CURSOR_PRE && aggr == M0_XA_ATOM)

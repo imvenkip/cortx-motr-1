@@ -679,8 +679,9 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str);
  * This function is (almost) the inverse of m0_xcode_read().
  *
  * @note No attempt at pretty-printing is done. All atomic values are output in
- * hexadecimal, bytes arrays are not treated specially, etc. Its main intended
- * use is logging and debugging.
+ * hexadecimal, etc. Its main intended use is logging and debugging. Byte arrays
+ * that contain only printable ASCII values are printed in the "string literal"
+ * format.
  */
 M0_INTERNAL int m0_xcode_print(const struct m0_xcode_obj *obj,
 			       char *str, int nr);

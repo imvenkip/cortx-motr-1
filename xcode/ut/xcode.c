@@ -595,6 +595,29 @@ static const struct m0_xcode_type_ops read_ops = {
 
 #define OBJ(xt, ptr) (&(struct m0_xcode_obj){ .xo_type = (xt), .xo_ptr = (ptr) })
 
+static void literal(const char *input, const char *output)
+{
+	struct v            *V;
+	struct m0_xcode_obj *obj;
+	char                *buf;
+	int                  result;
+
+	output = output ?: input;
+	buf = m0_alloc(strlen(input) + 1);
+	M0_UT_ASSERT(buf != NULL);
+	M0_ALLOC_PTR(V);
+	obj = OBJ(&xut_v.xt, V);
+	result = m0_xcode_read(obj, input);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(V->v_nr == strlen(output) - 2);
+	M0_UT_ASSERT(strncmp(V->v_data, output + 1, V->v_nr) == 0);
+	result = m0_xcode_print(obj, buf, strlen(input) + 1);
+	M0_UT_ASSERT(result == strlen(output));
+	M0_UT_ASSERT(strcmp(output, buf) == 0);
+	m0_free(buf);
+	m0_xcode_free_obj(obj);
+}
+
 static void xcode_read_test(void)
 {
 	int         result;
@@ -603,7 +626,6 @@ static void xcode_read_test(void)
 	struct v   *V;
 	struct top *_T;
 	struct top  _Tmp;
-	char       *str;
 
 	M0_SET0(&F);
 	result = m0_xcode_read(OBJ(&xut_foo.xt, &F), "(10, 0xff)");
@@ -687,52 +709,17 @@ static void xcode_read_test(void)
 	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
 
 /* MERO-1396 <- */
-	str = "\"/dev/disk/by-id/wwn-0x5000c50078c12486\"";
-        M0_ALLOC_PTR(V);
-        result = m0_xcode_read(OBJ(&xut_v.xt, V), str);
-        M0_UT_ASSERT(result == 0);
-        M0_UT_ASSERT(V->v_nr == strlen(str) - 2); /* no quotes */
-        M0_UT_ASSERT(memcmp(V->v_data, str + 1, V->v_nr) == 0);
-        m0_xcode_free_obj(OBJ(&xut_v.xt, V));
-
-	str = "[0x15:0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,"
-		"0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30]";
-        M0_ALLOC_PTR(V);
-        result = m0_xcode_read(OBJ(&xut_v.xt, V), str);
-        M0_UT_ASSERT(result == 0);
-        M0_UT_ASSERT(V->v_nr == 0x15);
-        M0_UT_ASSERT(memcmp(V->v_data, "000000000000000000000", V->v_nr) == 0);
-        m0_xcode_free_obj(OBJ(&xut_v.xt, V));
-
-	str = "[0x16:0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,"
-		"0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30]";
-        M0_ALLOC_PTR(V);
-        result = m0_xcode_read(OBJ(&xut_v.xt, V), str);
-        M0_UT_ASSERT(result == 0);
-        M0_UT_ASSERT(V->v_nr == 0x16);
-        M0_UT_ASSERT(memcmp(V->v_data, "0000000000000000000000", V->v_nr) == 0);
-        m0_xcode_free_obj(OBJ(&xut_v.xt, V));
+	literal("\"/dev/disk/by-id/wwn-0x5000c50078c12486\"", NULL);
+	literal("[0x15:0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,"
+		"0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30]",
+		"\"000000000000000000000\"");
+	literal("[0x16:0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,"
+		"0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30]",
+		"\"0000000000000000000000\"");
 /* -!> */
-
-	M0_ALLOC_PTR(V);
-	result = m0_xcode_read(OBJ(&xut_v.xt, V), "\"a\"");
-	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(V->v_nr == 1);
-	M0_UT_ASSERT(strncmp(V->v_data, "a", 1) == 0);
-	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
-
-	M0_ALLOC_PTR(V);
-	result = m0_xcode_read(OBJ(&xut_v.xt, V), "\"abcdef\"");
-	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(V->v_nr == 6);
-	M0_UT_ASSERT(strncmp(V->v_data, "abcdef", 6) == 0);
-	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
-
-	M0_ALLOC_PTR(V);
-	result = m0_xcode_read(OBJ(&xut_v.xt, V), "\"\"");
-	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(V->v_nr == 0);
-	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
+	literal("\"a\"", NULL);
+	literal("\"abcdef\"", NULL);
+	literal("\"\"", NULL);
 
 	M0_ALLOC_PTR(V);
 	result = m0_xcode_read(OBJ(&xut_v.xt, V), "\"");
