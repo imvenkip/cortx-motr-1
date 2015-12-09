@@ -631,12 +631,10 @@ M0_INTERNAL void m0_rpc_item_change_state(struct m0_rpc_item *item,
 	M0_PRE(item != NULL);
 	M0_PRE(m0_rpc_machine_is_locked(item->ri_rmachine));
 
-	M0_LOG(M0_DEBUG, "%p[%s/%u] %s -> %s, sm %s, ref %llu", item,
+	M0_LOG(M0_DEBUG, "%p[%s/%u] %s -> %s, sm %s", item,
 	       item_kind(item), item->ri_type->rit_opcode,
 	       item_state_name(item), m0_sm_state_name(&item->ri_sm, state),
-	       item->ri_sm.sm_conf->scf_name,
-	       (unsigned long long)m0_ref_read(
-				&(m0_rpc_item_to_fop(item)->f_ref)));
+	       item->ri_sm.sm_conf->scf_name);
 
 	m0_sm_state_set(&item->ri_sm, state);
 }
