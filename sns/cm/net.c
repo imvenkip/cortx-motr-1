@@ -448,7 +448,7 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 		 * pending copy packets addressed to that copy machine must be
 		 * finalised.
 		 */
-		if (M0_IN(cm_proxy->px_status, (M0_PX_STOP))) {
+		if (M0_IN(cm_proxy->px_status, (M0_PX_COMPLETE, M0_PX_STOP))) {
 			m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
 		} else
 			m0_cm_proxy_cp_add(cm_proxy, cp);

@@ -202,7 +202,8 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 	struct m0_cm *cm = pump2cm(cp_pump);
 	int           rc;
 
-	if (!m0_cm_aggr_group_tlists_are_empty(cm)) {
+	if (!m0_cm_aggr_group_tlists_are_empty(cm) ||
+	    !cm->cm_sw_update.swu_is_complete) {
 		pump_wait(cp_pump);
 		return M0_FSO_WAIT;
 	}

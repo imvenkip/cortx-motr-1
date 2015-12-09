@@ -114,6 +114,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
                 return M0_RC(rc);
         }
 
+	sag->sag_local_tgts_nr = sag->sag_incoming_nr;
 	*out = &sag->sag_base;
 	M0_LEAVE("ag: %p", &sag->sag_base);
 	return M0_RC(rc);

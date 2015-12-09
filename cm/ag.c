@@ -247,28 +247,15 @@ m0_cm_aggr_group_locate(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	M0_PRE(m0_cm_is_locked(cm));
 
 	ID_INCOMING_LOG("id", id, has_incoming);
-	ag = __aggr_group_locate(id, &aggr_grps_in_tl,
-			&cm->cm_aggr_grps_in);
-	if (ag != NULL)
-		return ag;
-	/*
-	 * We did not find the aggregation group for the given aggregation group
-	 * identifier in the m0_cm::cm_aggr_groups_in list. So now look into
-	 * m0_cm::cm_aggr_groups_out list, there's a possibility that the
-	 * aggregation group has out-coming copy packets and thus was created
-	 * and added to m0_cm::cm_aggr_groups_out list earlier.
-	 */
-	ag = __aggr_group_locate(id, &aggr_grps_out_tl, &cm->cm_aggr_grps_out);
-
-	/*
-	 * The aggregation group we found is relevant and thus has incoming
-	 * copy packets. But there are also local outgoing copy packets for
-	 * this aggregation group. Thus even though it is already added to
-	 * the m0_cm::cm_aggr_grps_out, it should also be added to m0_cm::
-	 * cm_aggr_grps_in list.
-	 */
-	if (ag != NULL && has_incoming)
-		m0_cm_aggr_group_add(cm, ag, true);
+	if (has_incoming) {
+		ag = __aggr_group_locate(id, &aggr_grps_in_tl,
+					 &cm->cm_aggr_grps_in);
+	} else {
+		ag = __aggr_group_locate(id, &aggr_grps_out_tl,
+					 &cm->cm_aggr_grps_out);
+		//if (ag != NULL && has_incoming)
+		//	m0_cm_aggr_group_add(cm, ag, true);
+	}
 	return ag;
 }
 
@@ -306,20 +293,13 @@ M0_INTERNAL void m0_cm_aggr_group_add(struct m0_cm *cm,
 	if (has_incoming) {
 		__aggr_group_add(ag, &aggr_grps_in_tl, &cm->cm_aggr_grps_in);
 		M0_CNT_INC(cm->cm_aggr_grps_in_nr);
+		if (m0_cm_ag_id_cmp(&cm->cm_sw_last_updated_hi, &id) < 0)
+			cm->cm_sw_last_updated_hi = id;
 	} else {
 		__aggr_group_add(ag, &aggr_grps_out_tl, &cm->cm_aggr_grps_out);
 		M0_CNT_INC(cm->cm_aggr_grps_out_nr);
-	}
-	/*
-	 * Save the HI incoming aggregation group identifier.
-	 * This is used mainly during sliding window update to advance the
-	 * window starting from the highest processed incoming aggregation
-	 * group identifier.
-	 */
-	if (has_incoming && m0_cm_ag_id_cmp(&cm->cm_sw_last_updated_hi, &id) < 0) {
-		cm->cm_sw_last_updated_hi = id;
-	} else if (!has_incoming && m0_cm_ag_id_cmp(&cm->cm_last_out_hi, &id) < 0) {
-		cm->cm_last_out_hi = id;
+		if (m0_cm_ag_id_cmp(&cm->cm_last_out_hi, &id) < 0)
+			cm->cm_last_out_hi = id;
 	}
 
 	M0_LEAVE();

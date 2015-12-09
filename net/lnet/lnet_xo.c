@@ -45,11 +45,11 @@ static bool nlx_buffer_invariant(const struct m0_net_buffer *nb)
 {
 	const struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 
-	return bp != NULL && bp->xb_nb == nb && nlx_dom_invariant(nb->nb_dom) &&
-	    bp->xb_core.cb_buffer_id == (nlx_core_opaque_ptr_t) nb &&
-	    ergo(nb->nb_flags & M0_NET_BUF_QUEUED,
-		 nb->nb_tm != NULL && nlx_tm_invariant(nb->nb_tm)) &&
-	    nlx_xo_buffer_bufvec_invariant(nb);
+	return _0C(bp != NULL) && _0C(bp->xb_nb == nb) && _0C(nlx_dom_invariant(nb->nb_dom)) &&
+	    _0C(bp->xb_core.cb_buffer_id == (nlx_core_opaque_ptr_t) nb) &&
+	    _0C(ergo(nb->nb_flags & M0_NET_BUF_QUEUED,
+		 nb->nb_tm != NULL && nlx_tm_invariant(nb->nb_tm))) &&
+	    _0C(nlx_xo_buffer_bufvec_invariant(nb));
 }
 
 static bool nlx_tm_invariant(const struct m0_net_transfer_mc *tm)

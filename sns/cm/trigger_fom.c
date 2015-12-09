@@ -171,6 +171,7 @@ static int prepare(struct m0_fom *fom)
 	struct m0_cm          *cm = trig2cm(fom);
 	struct m0_sns_cm      *scm = cm2sns(cm);
 	struct trigger_fop    *treq = m0_fop_data(fom->fo_fop);
+	static uint64_t        progress;
 	enum m0_pool_nd_state  state;
 	enum m0_cm_state       cm_state;
 	int                    rc;
@@ -197,13 +198,21 @@ static int prepare(struct m0_fom *fom)
 	if (M0_IN(treq->op, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
 		struct m0_fop                *rfop = fom->fo_rep_fop;
 		struct m0_sns_status_rep_fop *trep = m0_fop_data(rfop);
-		static uint64_t               progress;
 		enum m0_sns_cm_status         cm_status;
 
 		/* sending back status and progress */
 		M0_LOG(M0_DEBUG, "sending back status for %d: cm state=%d",
 				 treq->op, cm_state);
 
+		/* For debugging purpose. */
+		if (progress > 25) {
+			M0_LOG(M0_WARN, "in: %u out: %u",
+					(unsigned)cm->cm_aggr_grps_in_nr,
+					(unsigned)cm->cm_aggr_grps_out_nr);
+			M0_LOG(M0_WARN, "sw_last:"M0_AG_F" out_last:"M0_AG_F,
+					M0_AG_P(&cm->cm_sw_last_updated_hi),
+					M0_AG_P(&cm->cm_last_out_hi));
+		}
 		switch (cm_state) {
 			case M0_CMS_IDLE:
 			case M0_CMS_STOP:
@@ -239,6 +248,7 @@ static int prepare(struct m0_fom *fom)
 	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
 					   M0_PNDS_SNS_REBALANCING;
 	if (cm_state == M0_CMS_IDLE) {
+		progress = 0;
 		m0_cm_wait(cm, fom);
 		rc = m0_cm_prepare(cm);
 		if (rc == 0) {

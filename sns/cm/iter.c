@@ -395,7 +395,6 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 {
 	struct m0_cm        *cm = &scm->sc_base;
 	struct m0_cm_ag_id   agid;
-	struct m0_sns_cm_ag *sag;
 	int                  rc = 0;
 
 	m0_sns_cm_ag_agid_setup(gfid, group, &agid);
@@ -430,8 +429,7 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 
 out:
 	if (*ag != NULL && has_incoming) {
-		sag = ag2snsag(*ag);
-		if (sag->sag_outgoing_nr > 0 && !aggr_grps_out_tlink_is_in(*ag))
+		if ((*ag)->cag_cp_local_nr > 0 && !aggr_grps_out_tlink_is_in(*ag))
 			m0_cm_aggr_group_add(cm, *ag, false);
 	}
 	return M0_RC(rc);
@@ -733,7 +731,7 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 	it->si_cp = cp2snscp(cp);
 	do {
 		if (cm->cm_quiesce || cm->cm_abort) {
-			if (M0_IN(iter_phase(it), (ITPH_FID_NEXT))) {
+			if (M0_IN(iter_phase(it), (ITPH_FID_NEXT, ITPH_GROUP_NEXT))) {
 				M0_LOG(M0_WARN, "%lu: Got %s cmd: returning -ENODATA",
 						 cm->cm_id,
 						 cm->cm_quiesce ? "QUIESCE" : "ABORT");
@@ -859,7 +857,8 @@ M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 
 M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it)
 {
-	M0_PRE(M0_IN(iter_phase(it), (ITPH_IDLE, ITPH_FID_NEXT)));
+	M0_PRE(M0_IN(iter_phase(it), (ITPH_IDLE, ITPH_FID_NEXT,
+				      ITPH_GROUP_NEXT)));
 
 	if (iter_phase(it) != ITPH_IDLE)
 		iter_phase_set(it, ITPH_IDLE);

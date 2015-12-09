@@ -25,6 +25,8 @@
 
 #include "fid/fid.h"
 
+#include "cm/proxy.h"
+
 #include "sns/parity_repair.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/ag.h"
@@ -47,6 +49,9 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
         struct m0_fid               gfid;
         struct m0_pdclust_src_addr  sa;
         struct m0_pdclust_tgt_addr  ta;
+	struct m0_cm_proxy         *pxy;
+	const struct m0_cm         *cm;
+	const char                 *ep;
         int32_t                     incoming_nr = 0;
         uint32_t                    tgt_unit;
         uint32_t                    tgt_unit_prev;
@@ -55,6 +60,7 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
         int                         rc;
 
         M0_SET0(&sa);
+	cm = &scm->sc_base;
         agid2fid(id, &gfid);
         sa.sa_group = agid2group(id);
 	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
@@ -65,7 +71,7 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &cobfid);
 		if (!m0_sns_cm_is_cob_failed(scm, &cobfid))
 			continue;
-                if (!m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid))
+                if (!m0_sns_cm_is_local_cob(cm, &cobfid))
                         continue;
                 rc = m0_sns_repair_spare_map(pm, &gfid, pl, pi, sa.sa_group,
 					     unit, &tgt_unit, &tgt_unit_prev);
@@ -75,8 +81,14 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 		M0_SET0(&cobfid);
                 sa.sa_unit = tgt_unit;
                 m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &cobfid);
-                if (!m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid))
+                if (!m0_sns_cm_is_local_cob(cm, &cobfid)) {
+			ep = m0_sns_cm_tgt_ep(cm, &cobfid);
+			pxy = m0_tl_find(proxy, pxy, &cm->cm_proxies,
+					 m0_streq(ep, pxy->px_endpoint));
+			if (!m0_bitmap_get(proxy_in_map, pxy->px_id))
+				m0_bitmap_set(proxy_in_map, pxy->px_id, true);
 			M0_CNT_INC(incoming_nr);
+		}
 	}
         return incoming_nr;
 }

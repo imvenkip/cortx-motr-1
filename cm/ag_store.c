@@ -207,14 +207,17 @@ static int ag_store_init(struct m0_cm_ag_store *store)
 				M0_SET0(&cm->cm_last_processed_out);
 				M0_SET0(&cm->cm_sw_last_persisted_hi);
 			}
-			/*
-			 * Wait until we receive sliding window updates
-			 * from all other replicas.
-			 */
-			m0_cm_lock(cm);
-			m0_cm_proxies_init_wait(cm, fom);
-			rc = M0_FSO_WAIT;
-			m0_cm_unlock(cm);
+			if (cm->cm_proxy_nr > 0) {
+				/*
+				 * Wait until we receive sliding window updates
+				 * from all other replicas.
+				 */
+				m0_cm_lock(cm);
+				m0_cm_proxies_init_wait(cm, fom);
+				rc = M0_FSO_WAIT;
+				m0_cm_unlock(cm);
+			} else
+				rc = M0_FSO_AGAIN;
 			/* Notify copy machine after reading persistent store. */
 			m0_cm_notify(cm);
 		} else {
@@ -276,8 +279,11 @@ static int ag_store_init_wait(struct m0_cm_ag_store *store)
 		m0_cm_unlock(cm);
 		m0_cm_notify(cm);
 		m0_fom_phase_move(fom, 0, AG_STORE_START);
-		m0_cm_proxies_init_wait(cm, fom);
-		return M0_FSO_WAIT;
+		if (cm->cm_proxy_nr > 0) {
+			m0_cm_proxies_init_wait(cm, fom);
+			return M0_FSO_WAIT;
+		} else
+			return M0_FSO_AGAIN;
 	default :
 		break;
 	}
