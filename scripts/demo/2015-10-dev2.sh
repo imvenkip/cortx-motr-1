@@ -193,7 +193,7 @@ function run_test()
 		fi
 	done
 	if [ "x$TEST_TYPE" = "xwrite" ]; then
-		echo "`date` Creating files on $node..."
+		echo "`date` Creating $FILE_PREFIX-prefixed files on $node..."
 		ssh -n $node "touch $files"
 		ssh -n $node "setfattr -n lid -v $FILE_LID $files"
 		echo "`date` Done."
