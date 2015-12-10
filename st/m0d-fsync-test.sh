@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.fsync-st}
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
@@ -37,4 +39,11 @@ wait
 
 echo "Tear down Mero services"
 sudo systemctl stop mero-singlenode
+
+# this msg is used by Jenkins as a test success criteria;
+# it should appear on STDOUT
+if [ $? -eq 0 ] ; then
+    echo "m0d-fsync: test status: SUCCESS"
+fi
+
 sudo scripts/install-mero-service -u
