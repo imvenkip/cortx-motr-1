@@ -1,12 +1,6 @@
-<host>  m0_datadir=/var/mero
-<host>  m0_t1fs_mountpoint=/mnt/m0t1fs
+<host>  m0_uuid=00000000-0000-0000-0000-000000000000
+<host>  m0_lnet_nid=auto
+<host>  m0_services=confd;ha;mds;ios
+<host>  m0_pool_width=8
 <host>  m0_data_units=2
 <host>  m0_parity_units=1
-<host>  m0_pool_width=8
-<host>  m0_services=confd;ha;mds;ios
-<host>  m0_max_rpc_msg_size=65536
-<host>  m0_uuid=00000000-0000-0000-0000-000000000000
-<host>  m0_min_rpc_recvq_len=16
-<host>  m0_lnet_nid=auto
-<host>  m0_be_segment_size=4294967296
-<host>  m0_node_type=singlenode

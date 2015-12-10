@@ -150,8 +150,8 @@ m0_load_modules()
         m0mero_params="$MERO_KMOD_PARAMS $MERO_KMOD_EXTRA_PARAMS"
     else
         local uuid=${MERO_KMOD_NODE_UUID:-$(m0_genders_value_of m0_uuid)}
-        local msg_size=$(m0_genders_value_of m0_max_rpc_msg_size)
-        local qlen=$(m0_genders_value_of m0_min_rpc_recvq_len)
+        local msg_size=${MERO_M0D_MAX_RPC_MSG_SIZE:-$(m0_genders_value_of m0_max_rpc_msg_size)}
+        local qlen=${MERO_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}
         local ep=$(m0_get_kmod_ep)
 
         m0mero_params="$m0mero_params node_uuid=$uuid"
@@ -211,11 +211,11 @@ m0_get_lnet_nid()
 
     local lnid
     # if $node is empty, then query is for current node
-    if [ -z "$node" -o "$node" = "$(hostname -s)" ] ; then
+    if [[ -z $node || $node == $(hostname -s) ]] ; then
         lnid=${MERO_LNET_NID:=$(m0_genders_value_of m0_lnet_nid)}
-        if [ "$lnid" = 'auto' ] ; then
+        if [[ -z $lnid || $lnid == auto ]] ; then
             lnid=$(lctl list_nids | head -n1)
-            [ -z "$lnid" ] && \
+            [[ -z $lnid ]] && \
                 m0_exit 'Failed to auto-detect Lnet NID, please check that' \
                         ' lnet service is running'
         fi
@@ -319,9 +319,9 @@ m0_get_ep_of()
 
     for s in $(m0_get_services $node); do
         case $s in
-            confd*) ep="$lnid:$lpid:$portal:$((confd_tid++))"
+            confd*) ep=${MERO_CONFD_EP:-"$lnid:$lpid:$portal:$((confd_tid++))"}
                 ;;
-            mds*) ep="$lnid:$lpid:$portal:$((mds_tid++))"
+            mds*) ep=${MERO_MDS_EP:-"$lnid:$lpid:$portal:$((mds_tid++))"}
                 ;;
             ios*) ep="$lnid:$lpid:$portal:$((ios_tid++))"
                 ;;
@@ -410,24 +410,6 @@ m0_get_global_ep_of()
     echo $(m0_get_global_eps_of $stype) | awk '{print $1}'
 }
 
-m0_get_conf()
-{
-    local conf
-    local n
-    local s
-
-    for n in $(m0_get_nodes); do
-        for s in $(m0_get_services $n); do
-	   if [[ $s == confd ]] && m0_genders_has_variable m0_conf_path $n ; then
-              conf=$(m0_genders_value_of m0_conf_path $n)
-              break
-           fi
-	done
-    done
-
-    echo $conf
-}
-
 #
 # Build parameters list for m0d running "core" services
 #
@@ -456,8 +438,8 @@ m0_get_core_params()
     echo " -D db -S stobs -A linuxstob:addb-stobs" \
          " -P $m0_prof_opt" \
          " -w $(m0_genders_value_of m0_pool_width)" \
-         " -m $(m0_genders_value_of m0_max_rpc_msg_size)" \
-         " -q $(m0_genders_value_of m0_min_rpc_recvq_len)" \
+         " -m ${MERO_M0D_MAX_RPC_MSG_SIZE:-$(m0_genders_value_of m0_max_rpc_msg_size)}" \
+         " -q ${MERO_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}" \
          " $optional_params"
 }
 

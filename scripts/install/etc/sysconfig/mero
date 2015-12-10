@@ -5,26 +5,25 @@
 # directory.
 
 # Location of Mero logs and trace files, by default it's /var/log/mero.
-#MERO_LOG_DIR=/var/log/mero
+#MERO_LOG_DIR='/var/log/mero'
 
 # Override default value for m0t1fs mount point
-#MERO_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
+MERO_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
 
-# Which Mero services to start on current node.
-#MERO_SERVICES='mds1 mds2 ios1 ios2 ios3 ios4'
-
-# MD service endpoint (for example when it's running on a different node)
-#MERO_MDS_EP=
-
-# CONF service endpoint
+# override CONFD service endpoint
 #MERO_CONFD_EP=
 
-# Comma-separated list of IO services endpoints (for example when they're
-# running on different nodes)
-#MERO_IOS_EPS=
+# override MD service endpoint
+#MERO_MDS_EP=
+
+# override CONFD configuration database, default is '/etc/mero/conf.xc'
+#MERO_CONFD_CONFIG='/etc/mero/conf.xc'
+
+# override which Mero services to start on a current node.
+#MERO_SERVICES='confd ha mds ios'
 
 # Local node uuid for m0merko.ko module.
-#MERO_KMOD_NODE_UUID=00000000-0000-0000-0000-000000000000
+#MERO_KMOD_NODE_UUID='00000000-0000-0000-0000-000000000000'
 
 # Override default parameters of m0mero.ko module.
 #MERO_KMOD_PARAMS=
@@ -33,7 +32,32 @@
 #MERO_KMOD_EXTRA_PARAMS=
 
 # Where m0d stores it's data, by default it's /var/mero.
-#MERO_M0D_DATA_DIR=/var/mero
+MERO_M0D_DATA_DIR=/var/mero
+
+# Override total number of disks in a cluster.
+#MERO_M0D_POOL_WIDTH=8
+
+# Override number of data units in parity group.
+#MERO_M0D_DATA_UNITS=2
+
+# Override number of parity units in parity group.
+#MERO_M0D_PARITY_UNITS=1
+
+# Maximum size of rpm message, in bytes.
+MERO_M0D_MAX_RPC_MSG_SIZE=65536
+
+# Maximum rpc receive queue length.
+MERO_M0D_MIN_RPC_RECVQ_LEN=16
+
+# Backend log size (in bytes) for all m0d's. Default is 512 MiB.
+#MERO_M0D_BELOG_SIZE=536870912
+
+# Backend segment size (in bytes) for all m0d's, except for IO service.
+# Default is 512 MiB.
+MERO_M0D_BESEG_SIZE=536870912
+
+# Backend segment size (in bytes) for IO service. Default is 4 GiB.
+MERO_M0D_IOS_BESEG_SIZE=4294967296
 
 # Override default options of m0d.
 #MERO_M0D_OPTS=

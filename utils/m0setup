@@ -190,18 +190,12 @@ generate_genders_config()
 
     local hostname=$(hostname -s)
     cat <<GENDERS_END > $genders_file
-$hostname  m0_datadir=$mero_data_dir
-$hostname  m0_t1fs_mountpoint=/mnt/m0t1fs
+$hostname  m0_uuid=$(uuidgen)
+$hostname  m0_lnet_nid=auto
+$hostname  m0_services=confd;ha;mds;$ios
+$hostname  m0_pool_width=$pool_width
 $hostname  m0_data_units=$data_units
 $hostname  m0_parity_units=$parity_units
-$hostname  m0_pool_width=$pool_width
-$hostname  m0_services=confd;ha;mds;$ios
-$hostname  m0_max_rpc_msg_size=65536
-$hostname  m0_uuid=$(uuidgen)
-$hostname  m0_min_rpc_recvq_len=16
-$hostname  m0_lnet_nid=auto
-$hostname  m0_be_segment_size=536870912
-$hostname  m0_node_type=singlenode
 GENDERS_END
 
     debug "genders:\n-----BEGIN GENDERS-----\n$(cat $genders_file)\n-----END GENDERS-----"

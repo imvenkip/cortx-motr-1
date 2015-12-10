@@ -8,7 +8,7 @@ readonly PROG_NAME=$(basename $0)
 
 # global variables, which can be overriden in /etc/sysconfig/mero
 MERO_GENDERS_CONF=/etc/mero/genders
-MERO_M0D_OPTS=''
+MERO_CONFD_CONFIG=/etc/mero/conf.xc
 
 # service local variables
 user_config=/etc/sysconfig/mero
@@ -22,52 +22,55 @@ m0_server()
 
     source $service_funcs
 
-    local conf=$(m0_get_conf)
     [[ -n $service ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
-    [[ -z $conf || -r $conf ]] || m0_exit "usage: $conf file is not readable or exists"
 
-    [ -r $user_config ] && source $user_config
+    [[ -r $user_config ]] && source $user_config
 
-    [ -n "$MERO_M0D_DEBUGGER" ] && export M0_DEBUGGER=$MERO_M0D_DEBUGGER
+    [[ -n $MERO_M0D_DEBUGGER ]] && export M0_DEBUGGER=$MERO_M0D_DEBUGGER
 
     local service_dir=$(m0_get_m0d_data_dir_for $service)
-    if [ x$MERO_M0D_REMOVE_SERVICE_DIR = xtrue ] && [ -d "$service_dir" ] ; then
+    if [[ $MERO_M0D_REMOVE_SERVICE_DIR == true ]] && [[ -d $service_dir ]] ; then
         rm -rf "$service_dir"
     fi
-    [ ! -d "$service_dir" ] && mkdir -p "$service_dir"
-    cd $service_dir
+    [[ ! -d $service_dir ]] && mkdir -p "$service_dir"
+    cd "$service_dir"
 
-    local MERO_M0D_OPTS+=$(m0_get_core_params)
+    MERO_M0D_OPTS=${MERO_M0D_OPTS:-$(m0_get_core_params)}
+
     local stob_type='-T ad'
     local stob_opts
     local proc_fid="<$(m0_get_proc_fid_for $service)>"
     local confd_global_ep=${MERO_CONFD_EP:-$(m0_get_global_ep_of confd)}
-    confd_ep="${MERO_CONFD_LOCAL_EP:-$confd_global_ep}"
+    local confd_ep="${MERO_CONFD_LOCAL_EP:-$confd_global_ep}"
+    local conf=$MERO_CONFD_CONFIG
 
     case "$service" in
         mds*)
             ;;
 
-	rms*)
+        rms*)
             ;;
 
-        ios*)  if [[ -r $conf ]]; then
-                   stob_opts+=' -U '
+        ios*)  local disks_conf="/etc/mero/disks-$service.conf"
+               if [[ -r $disks_conf ]]; then
+                   stob_opts+=" -d $disks_conf"
                else
-                   stob_opts+=" -d /etc/mero/disks-$service.conf"
+                   stob_opts+=' -U '
                fi
             ;;
 
         confd) stob_type='-T linux'
-               if [[ -r $conf ]]; then
-                   cp $conf $service_dir/conf.xc
-               else
-                   m0_build_local_conf > $service_dir/conf.xc
+               if [[ ! -r $conf ]]; then
+                   m0_build_local_conf > $conf
                fi
+
                if [[ -n $MERO_CONFD_LOCAL_EP ]]; then
-                   sed -i -e "s/$confd_global_ep/$confd_ep/g" $service_dir/conf.xc
+                   cp $conf $service_dir/conf-local.xc
+                   sed -i -e "s/$confd_global_ep/$confd_ep/g" $service_dir/conf-local.xc
+                   MERO_M0D_OPTS+=" -c $service_dir/conf-local.xc"
+               else
+                   MERO_M0D_OPTS+=" -c $conf"
                fi
-	       MERO_M0D_OPTS+=' -c conf.xc'
             ;;
 
         ha*)   stob_type='-T linux'
@@ -81,14 +84,14 @@ m0_server()
     local service_ep="lnet:$(m0_get_ep_of $service)"
 
     if [[ $service == confd ]]; then
-	service_ep="lnet:$confd_ep"
+        service_ep="lnet:$confd_ep"
     else
-	MERO_M0D_OPTS+=" -C $confd_ep"
+        MERO_M0D_OPTS+=" -C $confd_ep"
     fi
 
     local binary=$(m0_path_to $cmd)
     if [[ $cmd == m0mkfs ]]; then
-	service_ep="lnet:$(m0_get_mkfs_ep_of $service)"
+        service_ep="lnet:$(m0_get_mkfs_ep_of $service)"
     fi
 
     # enable core dumps
