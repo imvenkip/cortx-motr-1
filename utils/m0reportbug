@@ -3,12 +3,17 @@ set -eu
 # set -x
 # export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
-VERSION=0.7.1
+VERSION=0.8
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2015-12-10 0.8     * Require superuser privileges; drop sudo-s.
+###                    * Fetch binaries: libmero.so, m0mkfs, m0d, lt-m0ut, etc.
+###                    * Pack results into .tar.bz2 archive.
+###                    * gdb_bt(): Show `info sharedlibrary'.
+###
 ### 2015-12-08 0.7.1   * Core dumps and m0trace files may be not world-readable.
 ###                      Run `touch -r' with sudo.
 ###                    * Canonicalize $IN_DIR to allow symbolic links.
@@ -53,6 +58,8 @@ OUTPUT=m0reportbug.txt # the file is created in $OUT_DIR/
 MERO_PACKAGE_VERSION=0.1.0 # must correspond to `M0_VERSION' in configure.ac
 M0TRACES_MAX=20 # how many most recently modified m0trace files to collect
 
+umask 0002
+
 main() {
     local g
     local stages=(
@@ -60,8 +67,10 @@ main() {
         backtraces_live
         backtraces_cores
         m0traces
+        binaries
     )
 
+    [ `id -u` -eq 0 ] || die 'Must be run by superuser'
     optparse "$@"
     [ -d "$IN_DIR" ] || die "$IN_DIR: no such directory"
 
@@ -79,7 +88,9 @@ main() {
         $g
         echo 'OK' >&2
     done >>$OUTPUT
-    echo "Please attach $OUT_DIR/* files to a bug report." >&2
+    cd ..
+    tar --remove-files -cjf $OUT_DIR.tar.bz2 $OUT_DIR
+    echo "Please attach $OUT_DIR.tar.bz2 to a bug report." >&2
 }
 
 probes() {
@@ -106,13 +117,13 @@ probes() {
         'ip addr'
         'ip -s link'
         'cat /etc/modprobe.d/lnet.conf'
-        'sudo cat /sys/kernel/debug/mero/trace/stat'
+        'cat /sys/kernel/debug/mero/trace/stat'
         'lsmod'
         'ps -e f'
         'ps auxH'
         'ls /dev/disk/by-*'
         'dmesg'
-        'sudo find /var/mero'
+        'find /var/mero'
     )
     for p in "${probes[@]}"; do
         section $p
@@ -136,9 +147,9 @@ mkcd() {
 program_from_core() {
     ## Sample output of `file' command:
     ##
-    ##   $ sudo file /var/mero/ios1/core.1271
+    ##   $ file /var/mero/ios1/core.1271
     ##   /var/mero/ios1/core.1271: ELF 64-bit LSB core file x86-64, version 1 (SYSV), SVR4-style, from 'm0d -e lnet:10.22.192.32@tcp:12345:42:401 -f <0x7200000000000001:4> -T ad -D db'
-    sudo file $1 | cut -d\' -f2 | cut -d' ' -f1 | xargs basename
+    file $1 | cut -d\' -f2 | cut -d' ' -f1 | xargs basename
 }
 
 ### Since $0 may be a relative path (e.g., 'utils/m0reportbug'),
@@ -152,7 +163,9 @@ _path_rpm() {
     case $name in
         m0d|m0mkfs|m0tracedump) echo "/usr/bin/$name";;
         libmero.so) echo "/usr/lib64/libmero-${MERO_PACKAGE_VERSION}.so";;
-        m0mero.ko) echo "/lib/module/$(uname -r)/kernel/fs/mero/m0mero.ko";;
+        m0mero.ko) echo "/lib/module/$(uname -r)/kernel/fs/mero/$name";;
+        libmero-ut.so|libmero-xcode-ff2c.so) echo "/usr/lib64/$name.0.0.0";;
+        libgf_complete.so) echo '/usr/lib64/$name.1.0.0';;
         *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
     esac
 }
@@ -173,8 +186,12 @@ _path_src() {
             [ -z "$subdir" ] || die "${FUNCNAME[0]}: Unexpected argument"
             echo "$src/utils/trace/$name";;
         libmero.so) echo "$src/mero/.libs/libmero-${MERO_PACKAGE_VERSION}.so";;
-        m0mero.ko) echo "$src/mero/m0mero.ko";;
-        lt-m0ut) echo "$src/ut/.libs/lt-m0ut";;
+        m0mero.ko) echo "$src/mero/$name";;
+        lt-m0ut) echo "$src/ut/.libs/$name";;
+        libmero-ut.so) echo "$src/ut/.libs/$name.0.0.0";;
+        libmero-xcode-ff2c.so) echo "$src/xcode/ff2c/.libs/$name.0.0.0";;
+        libgf_complete.so)
+            echo "$src/extra-libs/gf-complete/src/.libs/$name.1.0.0";;
         *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
     esac
 }
@@ -223,9 +240,11 @@ p "### thread apply all bt"
 thread apply all bt
 p "### thread apply all bt full"
 thread apply all bt full
+p "### info sharedlibrary"
+info sharedlibrary
 quit
 EOF
-    } | sudo $GDB -nx $@ 2>&1 || true
+    } | $GDB -nx $@ 2>&1 || true
     echo
 }
 
@@ -239,11 +258,11 @@ backtraces_live() {
 
         section /proc/$pid/stack
         echo args: $args
-        sudo cat /proc/$pid/stack 2>&1 || true # the process may be gone
+        cat /proc/$pid/stack 2>&1 || true # the process may be gone
 
-        { sudo ls /proc/$pid/task 2>&1 || true; } | while read task; do
+        { ls /proc/$pid/task 2>&1 || true; } | while read task; do
             section /proc/$pid/task/$task/stack
-            sudo cat /proc/$pid/task/$task/stack 2>&1 || true
+            cat /proc/$pid/task/$task/stack 2>&1 || true
         done
 
         ## Skip kernel threads and shell scripts -- we cannot gdb_bt them.
@@ -261,7 +280,7 @@ backtraces_cores() {
 
     ## Print backtraces.
     if [ -n "$GDB" ]; then
-        sudo find "$IN_DIR" -type f -name core.\* | while read core; do
+        find "$IN_DIR" -type f -name core.\* | while read core; do
             section $core
             gdb_bt "$(path $(program_from_core $core) binary)" $core
         done
@@ -271,10 +290,10 @@ backtraces_cores() {
     section core dumps
     (outdir=$(readlink -f .)/$outdir
      cd "$IN_DIR"
-     sudo find . -type f -name core.\* | cut -c3- | while read core; do
+     find . -type f -name core.\* | cut -c3- | while read core; do
          [ -d $outdir/$(dirname $core) ] || mkdir -p $outdir/$(dirname $core)
-         sudo ls -sh $core # print size
-         sudo gzip -c $core | {
+         ls -sh $core # print size
+         gzip -c $core | {
              local err
              ## Write no more than 64 MB.
              if ! err=$(dd ibs=8k count=8k of=$outdir/$core.gz 2>&1); then
@@ -286,7 +305,7 @@ backtraces_cores() {
                  echo "Skipping $core: the compressed file is too large"
                  rm $outdir/$core.gz
              else
-                 sudo touch -r $core $outdir/$core.gz
+                 touch -r $core $outdir/$core.gz
              fi
          }
      done)
@@ -299,7 +318,7 @@ m0traces() {
     local m0tracedump=$(path m0tracedump)
     (outdir=$(readlink -f .)/$outdir
      cd "$IN_DIR"
-     sudo find . -type f -name m0trace.\* | cut -c3- | {
+     find . -type f -name m0trace.\* | cut -c3- | {
          if [ -z "${M0TRACES_MAX:-}" ]; then
              cat
          else
@@ -313,10 +332,44 @@ m0traces() {
          ##
          ## > lt-m0tracedump: Warning: skipping non-existing trace
          ## > descriptor 0x7f977d0bdb00 (orig 0x7ff6ad5c9b00)
-         sudo $m0tracedump -s -i $path 2>/dev/null | gzip >$outdir/$path.yaml.gz
-         sudo touch -r $path $outdir/$path.yaml.gz
+         $m0tracedump -s -i $path 2>/dev/null | gzip >$outdir/$path.yaml.gz
+         touch -r $path $outdir/$path.yaml.gz
          echo $path.yaml.gz
      done)
+}
+
+binaries() {
+    local -r libs=(
+        libmero.so
+        libmero-xcode-ff2c.so
+        libmero-ut.so
+        libgf_complete.so
+    )
+    local f s
+
+    mkdir binaries
+    ## Note, that we intentionally skip `m0mero.ko' as it's too big (42M).
+    for f in m0mkfs m0d lt-m0ut ${libs[@]}; do
+        s=$(path $f binary)
+        if [ -n "$s" ]; then
+            ## Strip `.0.0' suffix when copying.
+            f=$(basename $s)
+            cp -pv $s binaries/${f%.0.0}
+            ## RATIONALE: Shared libraries, required by a binary, have
+            ## `.0.0' suffix stripped.
+            ##
+            ##     $ objdump -p lt-m0ut | awk '/NEEDED/ {print $2}' | head -2
+            ##     libmero-ut.so.0
+            ##     libmero-xcode-ff2c.so.0
+            ##
+            ## By stripping `.0.0' suffixes, we let developers load
+            ## shared library symbol files by executing
+            ## `set solib-search-path m0reportbug-data/binaries' GDB command.
+            ## If the full name of shared library was preserved (e.g.,
+            ## `libmero-ut.so.0.0.0'), gdb would not be able to find this
+            ## library.
+        fi
+    done
 }
 
 usage() {
