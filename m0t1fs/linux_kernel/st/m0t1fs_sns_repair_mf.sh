@@ -99,13 +99,14 @@ sns_repair_test()
 	mount
 
 ####### Set Failure device
-	pool_mach_set_failure $fail_device1 $fail_device2 || return $?
+	pool_mach_set_state "failed" $fail_device1 $fail_device2 || return $?
 
 	pool_mach_query $fail_device1 $fail_device2 || return $?
 
 	echo "Device $fail_device1 and $fail_device2 failed. Do dgmode read"
 	verify || return $?
 
+	pool_mach_set_state "repairing" $fail_device1 $fail_device2 || return $?
 	sns_repair || return $?
 
 	echo "wait for sns repair"
@@ -114,6 +115,7 @@ sns_repair_test()
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status "repair" || return $?
 
+	pool_mach_set_state "repaired" $fail_device1 $fail_device2 || return $?
 	echo "SNS Repair done."
 
 ####### Query device state
@@ -122,6 +124,7 @@ sns_repair_test()
 	verify || return $?
 
         echo "Starting SNS Re-balance.."
+	pool_mach_set_state "rebalancing" $fail_device1 $fail_device2 || return $?
 	sns_rebalance || return $?
 
 	echo "wait for sns rebalance"
@@ -129,14 +132,16 @@ sns_repair_test()
 
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status "rebalance" || return $?
+	pool_mach_set_state "online" $fail_device1 $fail_device2 || return $?
 
 	echo "SNS Rebalance done."
 	pool_mach_query $fail_device1 $fail_device2 || return $?
 
 	verify || return $?
 
-	pool_mach_set_failure $fail_device3 || return $?
+	pool_mach_set_state "failed" $fail_device3 || return $?
 
+	pool_mach_set_state "repairing" $fail_device3 || return $?
 	sns_repair || return $?
 
 	echo "wait for sns repair"
@@ -144,6 +149,7 @@ sns_repair_test()
 
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status "repair" || return $?
+	pool_mach_set_state "repaired" $fail_device3 || return $?
 
 	pool_mach_query $fail_device3 || return $?
 
@@ -151,6 +157,7 @@ sns_repair_test()
 	verify || return $?
 
         echo "Starting SNS Re-balance.."
+	pool_mach_set_state "rebalancing" $fail_device3 || return $?
 	sns_rebalance || return $?
 
 	echo "wait for sns rebalance"
@@ -158,6 +165,7 @@ sns_repair_test()
 
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status "rebalance" || return $?
+	pool_mach_set_state "online" $fail_device3 || return $?
 
 	echo "SNS Rebalance done."
 	pool_mach_query $fail_device1 $fail_device2 $fail_device3

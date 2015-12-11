@@ -24,7 +24,6 @@
 #include "lib/trace.h"
 
 #include "fop/fop.h"
-#include "pool/pool.h"
 #include "reqh/reqh.h"
 
 #include "sns/cm/cm_utils.h"
@@ -77,12 +76,6 @@ static int repair_cm_stop(struct m0_cm *cm)
 	if (cm->cm_quiesce || cm->cm_abort) {
 		M0_LOG(M0_DEBUG, "repair stopped by %s cmd",
 				 cm->cm_quiesce ? "QUIESCE" : "ABORT");
-	} else {
-		enum m0_pool_nd_state state;
-		state = M0_PNDS_SNS_REPAIRED;
-		m0_sns_cm_pm_event_post(scm, &cm->cm_cp_pump.p_fom.fo_tx.tx_betx,
-					M0_POOL_DEVICE, state);
-		M0_LOG(M0_DEBUG, "repair stopped normally");
 	}
 
 	return m0_sns_cm_stop(cm);

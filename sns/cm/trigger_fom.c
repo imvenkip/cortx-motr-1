@@ -172,7 +172,6 @@ static int prepare(struct m0_fom *fom)
 	struct m0_sns_cm      *scm = cm2sns(cm);
 	struct trigger_fop    *treq = m0_fop_data(fom->fo_fop);
 	static uint64_t        progress;
-	enum m0_pool_nd_state  state;
 	enum m0_cm_state       cm_state;
 	int                    rc;
 
@@ -244,9 +243,8 @@ static int prepare(struct m0_fom *fom)
 		return M0_FSO_AGAIN;
 	}
 
+	rc = M0_FSO_AGAIN;
 	scm->sc_op = treq->op;
-	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
-					   M0_PNDS_SNS_REBALANCING;
 	if (cm_state == M0_CMS_IDLE) {
 		progress = 0;
 		m0_cm_wait(cm, fom);
@@ -257,15 +255,9 @@ static int prepare(struct m0_fom *fom)
 		} else {
 			m0_cm_wait_cancel(cm, fom);
 		}
-	} else {
-		M0_ASSERT(fom->fo_tx.tx_state == M0_DTX_OPEN);
-		rc = m0_sns_cm_pm_event_post(scm, &fom->fo_tx.tx_betx,
-					     M0_POOL_DEVICE, state);
-		if (rc == 0) {
-			m0_fom_phase_set(fom, M0_SNS_TPH_READY);
-			rc = M0_FSO_AGAIN;
-		}
-	}
+	} else
+		m0_fom_phase_set(fom, M0_SNS_TPH_READY);
+
 	M0_LOG(M0_DEBUG, "got trigger: prepare");
 
 	return M0_RC(rc);

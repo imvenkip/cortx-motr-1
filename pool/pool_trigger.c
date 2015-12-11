@@ -295,18 +295,13 @@ int main(int argc, char *argv[])
 	    di != dev_nr        || ((op[0] == 'S'||op[0] == 's') && ds!=dev_nr)
 	   ) {
 		print_help();
-		fprintf(stderr, "Insane arguments: op=%s type=%s cl_ep=%s"
+		fprintf(stderr, "Insane arguments: op=%s type=%s cl_ep=%s "
 				"dev_nr=%d di=%d ds=%d srv_cnt=%d\n",
 				op, type, cl_ep_addr, dev_nr, di, ds, srv_cnt);
 		return M0_ERR(-EINVAL);
 	}
 
 	for (i = 0; i < dev_nr; ++i) {
-		/*
-		 * XXX MERO-703: Restore the following once MERO-699 and
-		 * MERO-671 are fixed
-		 * if (device_state_arr[i] < 0 || device_state_arr[i] > 2) {
-		 */
 		if (device_state_arr[i] < 0 || device_state_arr[i] > 5) {
 			fprintf(stderr, "invalid device state: %lld\n",
 				(long long)device_state_arr[i]);

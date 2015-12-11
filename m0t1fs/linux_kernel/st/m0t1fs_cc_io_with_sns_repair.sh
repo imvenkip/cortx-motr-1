@@ -141,7 +141,7 @@ sns_repair_test()
 	mount
 
 ####### Set Failure device
-	pool_mach_set_failure $fail_device1 $fail_device2 || return $?
+	pool_mach_set_state "failed" $fail_device1 $fail_device2 || return $?
 
 	echo "Device $fail_device1 and $fail_device2 failed. Do dgmode read"
 	verify_all files[@] 0 ${#files[*]} || return $?
@@ -149,6 +149,7 @@ sns_repair_test()
 	pool_mach_query $fail_device1 $fail_device2 || return $?
 
 	echo "*** Start sns repair and it will run in background ****"
+	pool_mach_set_state "repairing" $fail_device1 $fail_device2 || return $?
 	sns_repair
 	sleep 5
 	#echo "**** Create files while sns repair is in-progress ****"
@@ -160,6 +161,7 @@ sns_repair_test()
 
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
+	pool_mach_set_state "repaired" $fail_device1 $fail_device2 || return $?
 	echo "SNS Repair done."
 
 	verify_all files[@] 0 ${#files[*]} || return $?
@@ -169,15 +171,20 @@ sns_repair_test()
 	pool_mach_query $fail_device1 $fail_device2 || return $?
 
         echo "Starting SNS Re-balance.."
+	pool_mach_set_state "rebalancing" $fail_device1 $fail_device2 || return $?
 	sns_rebalance || return $?
 
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+	pool_mach_set_state "online" $fail_device1 $fail_device2 || return $?
 	echo "SNS Rebalance done."
+
 	verify_all files[@] 0 ${#files[*]} || return $?
 	#verify_all new_files[@] 0 4 || return $?
 
-	pool_mach_set_failure $fail_device3 || return $?
+	pool_mach_set_state "failed" $fail_device3 || return $?
 
 	echo "**** Start sns repair and it will run in background ****"
+	pool_mach_set_state "repairing" $fail_device3 || return $?
 	sns_repair
 	sleep 5
 	#echo "**** Create files while sns repair is in-progress ****"
@@ -189,6 +196,7 @@ sns_repair_test()
 
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
+	pool_mach_set_state "repaired" $fail_device3 || return $?
 
 	echo "SNS Repair done."
 	verify_all files[@] 0 ${#files[*]} || return $?
@@ -198,7 +206,8 @@ sns_repair_test()
 
 	verify_all files[@] 0 ${#files[*]} || return $?
 
-        echo "Starting SNS Re-balance.."
+	echo "Starting SNS Re-balance.."
+	pool_mach_set_state "rebalancing" $fail_device3 || return $?
 	sns_rebalance || return $?
 
 	echo "SNS Rebalance done."
@@ -207,6 +216,7 @@ sns_repair_test()
 
 	echo "wait for SNS Re-balance "
 	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+	pool_mach_set_state "online" $fail_device3 || return $?
 
 	pool_mach_query $fail_device1 $fail_device2 $fail_device3
 

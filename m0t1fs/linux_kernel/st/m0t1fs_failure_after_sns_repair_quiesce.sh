@@ -53,12 +53,13 @@ sns_repair_rebalance_quiesce_test()
 	done
 
 	echo "****** Start failure after quiesce test ******"
-	pool_mach_set_failure $fail_device1 || return $?
+	pool_mach_set_state "failed" $fail_device1 || return $?
 
 	echo "Device $fail_device1 failed. Do dgmode read"
 	md5sum_check || return $?
 
 	echo "SNS repair, and this will be quiesecd"
+	pool_mach_set_state "repairing" $fail_device1 || return $?
 	sns_repair
 	sleep 5
 
@@ -71,17 +72,19 @@ sns_repair_rebalance_quiesce_test()
 	echo "Query device state"
 	pool_mach_query $fail_device1 || return $?
 
-	pool_mach_set_failure $fail_device9 || return $?
+	pool_mach_set_state "failed" $fail_device9 || return $?
 
 	echo "Query device state"
 	pool_mach_query $fail_device1 $fail_device9 || return $?
 
 	echo "Continue SNS repair..."
+	pool_mach_set_state "repairing" $fail_device9 || return $?
 	sns_repair || return $?
 
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
 
+	pool_mach_set_state "repaired" $fail_device1 $fail_device9 || return $?
 	echo "SNS Repair done."
 	md5sum_check || return $?
 
@@ -89,6 +92,7 @@ sns_repair_rebalance_quiesce_test()
 	pool_mach_query $fail_device1 $fail_device9 || return $?
 
 	echo "Starting SNS Re-balance, and this will be quiesced"
+	pool_mach_set_state "rebalancing" $fail_device1 $fail_device9 || return $?
 	sns_rebalance
 	sleep 5
 
@@ -104,6 +108,7 @@ sns_repair_rebalance_quiesce_test()
 	echo "wait for sns rebalance"
 	wait_for_sns_repair_or_rebalance "rebalance" || return $?
 
+	pool_mach_set_state "online" $fail_device1 $fail_device9 || return $?
 	echo "SNS Re-balance done."
 ####### Query device state
 	pool_mach_query $fail_device1 $fail_device9 || return $?

@@ -310,11 +310,6 @@ M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 					 struct m0_pdclust_layout *pl,
 					 uint64_t nr_bufs);
 
-M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
-					struct m0_be_tx *tx,
-					enum m0_poolmach_event_owner_type et,
-					enum m0_pool_nd_state state);
-
 /**
  * Returns state of SNS repair process with respect to @gfid.
  * @param gfid Input global fid for which SNS repair state has to

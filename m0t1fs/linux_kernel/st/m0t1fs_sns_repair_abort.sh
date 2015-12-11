@@ -68,6 +68,7 @@ src_count=2
 
 verify()
 {
+	echo "verifying ..."
 	for ((i=0; i < ${#files[*]}; i++)) ; do
 		local_read $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
 		read_and_verify ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
@@ -99,7 +100,7 @@ sns_repair_test()
 	mount
 
 	echo "Set Failure device: $fail_device1 $fail_device2"
-	pool_mach_set_failure $fail_device1 $fail_device2 || return $?
+	pool_mach_set_state "failed" $fail_device1 $fail_device2 || return $?
 
 	echo "Device $fail_device1 and $fail_device2 failed. Do dgmode read"
 	verify || return $?
@@ -107,6 +108,7 @@ sns_repair_test()
 	pool_mach_query $fail_device1 $fail_device2 || return $?
 
 	echo "Start SNS repair"
+	pool_mach_set_state "repairing" $fail_device1 $fail_device2 || return $?
 	sns_repair || return $?
 	sleep 3
 
@@ -126,7 +128,8 @@ sns_repair_test()
 	pool_mach_query $fail_device1 $fail_device2 || return $?
 
 	echo "Set Failure device: $fail_device3"
-	pool_mach_set_failure $fail_device3 || return $?
+	pool_mach_set_state "failed" $fail_device3 || return $?
+	pool_mach_set_state "repairing" $fail_device3 || return $?
 
 	echo "Start SNS repair again ..."
 	sns_repair || return $?
@@ -137,10 +140,11 @@ sns_repair_test()
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status "repair" || return $?
 
+	pool_mach_set_state "repaired" $fail_device1 $fail_device2 $fail_device3 || return $?
 	echo "SNS Repair done."
 	verify || return $?
 
-	pool_mach_query $fail_device3 || return $?
+	pool_mach_query $fail_device1 $fail_device2 $fail_device3 || return $?
 
 	return $?
 }

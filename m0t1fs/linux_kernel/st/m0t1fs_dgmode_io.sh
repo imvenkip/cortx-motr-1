@@ -289,10 +289,15 @@ fmio_files_compare()
 
 fmio_pool_mach_set_failure()
 {
+	local device=$1
+	[ -n $device ] || {
+		echo "parameter 'device' is required"
+		return 1
+	}
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		pool_mach_set_failure $1 || {
-			echo "Failed: pool_mach_set_failure..."
+		pool_mach_set_state "failed" $device || {
+			echo "Failed: pool_mach_set_state failed for $device ..."
 			return 1
 		}
 		pool_mach_query $fail_devices
@@ -302,8 +307,16 @@ fmio_pool_mach_set_failure()
 
 fmio_sns_repair()
 {
+	local device=$1
+	[ -n $device ] || {
+		echo "parameter 'device' is required"
+		return 1
+	}
+
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
+		pool_mach_set_state "repairing" $device || return 1
+
 		sns_repair || {
 			echo "Failed: SNS repair..."
 			return 1
@@ -311,6 +324,8 @@ fmio_sns_repair()
 		echo "wait for sns repair"
 		wait_for_sns_repair_or_rebalance "repair" || return $?
 
+		pool_mach_set_state "repaired" $device || return 1
+		echo "sns repair done"
 		pool_mach_query $fail_devices
 	fi
 
@@ -325,14 +340,26 @@ fmio_sns_repair()
 
 fmio_sns_rebalance()
 {
+	local device=$1
+	[ -n $device ] || {
+		echo "parameter 'device' is required"
+		return 1
+	}
+
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
+		pool_mach_set_state "rebalancing" $device || return 1
+
 		sns_rebalance || {
 			echo "Failed: SNS rebalance..."
 			return 1
 		}
 		echo "wait for sns rebalance"
 		wait_for_sns_repair_or_rebalance "rebalance" || return $?
+
+		pool_mach_set_state "online" $device || return 1
+		echo "sns rebalance done"
+
 		pool_mach_query $fail_devices
 	fi
 	return 0
@@ -341,13 +368,13 @@ fmio_sns_rebalance()
 fmio_repair_n_rebalance()
 {
 	echo "Performing repair and rebalance to mark the devices back online"
-	fmio_sns_repair || {
+	fmio_sns_repair $@ || {
 		echo "Failed: sns repair..."
 		return 1
 	}
 
 	echo "Performing rebalance"
-	fmio_sns_rebalance || {
+	fmio_sns_rebalance $@ || {
 		echo "Failed: sns rebalance..."
 		return 1
 	}
@@ -489,7 +516,7 @@ fmio_io_test()
 	if [ $failed_dev_test -ne 1 ]
 	then
 		echo "Repairing after device1 failure"
-		fmio_sns_repair || return 1
+		fmio_sns_repair $fail_device1 || return 1
 	fi
 
 	echo -e "\n*** $test_name test 1: Read after first $step ***"
@@ -545,7 +572,7 @@ fmio_io_test()
 	if [ $failed_dev_test -ne 1 ]
 	then
 		echo "Repairing after device2 failure"
-		fmio_sns_repair || return 1
+		fmio_sns_repair $fail_device2 || return 1
         fi
 	echo "Create a file after second $step: $file_to_create2"
 	touch $file_to_create2
@@ -593,7 +620,7 @@ fmio_io_test()
 	if [ $failed_dev_test -ne 1 ]
 	then
 		echo "Repairing after device3 failure"
-		fmio_sns_repair || {
+		fmio_sns_repair $fail_device3 || {
 		return 1
 	}
 	fi
@@ -789,7 +816,7 @@ failure_modes_test()
 			return 0
 		fi
 		echo "Mark the devices online again before the next test"
-		fmio_repair_n_rebalance || return 1
+		fmio_repair_n_rebalance $fail_devices || return 1
 	fi
 	#@todo Run sns_repair and rebalance tests in oostore mode only when MERO-1166 lands.
 	# This is so because till then new pool version won't get created for
@@ -817,7 +844,7 @@ failure_modes_test()
 		echo "--------------------------------------------------------"
 
 		echo "Mark the devices online again before the next test"
-		fmio_sns_rebalance || {
+		fmio_sns_rebalance $fail_devices || {
 			echo "Failed: sns rebalance..."
 			return 1
 		}
