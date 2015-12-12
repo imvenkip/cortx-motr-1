@@ -15,16 +15,19 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ *                  Maxim Medved <max.medved@seagate.com>
  * Original creation date: 17-Jun-2013
  */
 
-#include <stdio.h>		/* fflush */
-#include <stdlib.h>		/* rand_r */
-#include <string.h>		/* memcpy */
-
-#include "lib/misc.h"		/* M0_SET0 */
-#include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "be/tx_regmap.h"
+
+#include "ut/ut.h"		/* M0_UT_ASSERT */
+
+#include "lib/types.h"          /* uint64_t */
+#include "lib/arith.h"          /* m0_rnd64 */
+#include "lib/misc.h"           /* M0_SET0 */
+#include "lib/string.h"         /* memcpy */
+
 #include "be/ut/helper.h"	/* m0_be_ut_seg */
 
 /*
@@ -88,7 +91,7 @@ void m0_be_ut_reg_d_tree(void)
 {
 	struct be_ut_rdt_reg_d *urd;
 	struct m0_be_reg_d     *rd;
-	unsigned		seed = 0;
+	uint64_t                seed = 0;
 	m0_bcount_t		r_size;
 	void		       *r_addr;
 	int			rc;
@@ -99,7 +102,7 @@ void m0_be_ut_reg_d_tree(void)
 	rc = m0_be_rdt_init(&be_ut_rdt, BE_UT_RDT_SIZE);
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < BE_UT_RDT_SIZE; ++i) {
-		r_size = rand_r(&seed) % BE_UT_RDT_R_SIZE + 1;
+		r_size = m0_rnd64(&seed) % BE_UT_RDT_R_SIZE + 1;
 		r_addr = (void *) (uintptr_t) (i * BE_UT_RDT_R_SIZE + 1);
 		be_ut_rdt_rd[i] = (struct be_ut_rdt_reg_d) {
 			.ur_rd = {
@@ -110,7 +113,7 @@ void m0_be_ut_reg_d_tree(void)
 	}
 	be_ut_reg_d_tree_check();
 	for (i = 0; i < BE_UT_RDT_ITER; ++i) {
-		index = rand_r(&seed) % BE_UT_RDT_SIZE;
+		index = m0_rnd64(&seed) % BE_UT_RDT_SIZE;
 		urd = &be_ut_rdt_rd[index];
 
 		if (!urd->ur_inserted) {
@@ -406,7 +409,6 @@ static void be_ut_regmap_data_cmp(const struct m0_be_reg_d *r,
 	LOGD("    : ");
 	for (i = 0; i < BE_UT_REGMAP_LEN; ++i)
 		be_ut_regmap_print_d(i % 10, i);
-	fflush(stdout);
 
 	for (i = 0; i < BE_UT_REGMAP_LEN; ++i) {
 		M0_UT_ASSERT(ergo(nop,
@@ -543,15 +545,15 @@ void m0_be_ut_regmap_random(void)
 	m0_bcount_t begin;
 	m0_bcount_t end;
 	unsigned    i;
-	unsigned    seed = 0;
+	uint64_t    seed = 0;
 	int	    do_insert;
 
 	be_ut_regmap_init();
 	for (i = 0; i < BE_UT_REGMAP_ITER; ++i) {
-		begin = rand_r(&seed) % (BE_UT_REGMAP_LEN -
+		begin = m0_rnd64(&seed) % (BE_UT_REGMAP_LEN -
 					 BE_UT_REGMAP_R_SIZE - 1) + 1;
-		end = begin + rand_r(&seed) % BE_UT_REGMAP_R_SIZE + 1;
-		do_insert = rand_r(&seed) % 2;
+		end = begin + m0_rnd64(&seed) % BE_UT_REGMAP_R_SIZE + 1;
+		do_insert = m0_rnd64(&seed) % 2;
 		be_ut_regmap_do(begin, end, do_insert != 0);
 	}
 	be_ut_regmap_fini();
@@ -567,7 +569,7 @@ enum {
 
 static struct m0_be_reg_area  be_ut_ra_reg_area;
 static struct m0_be_seg      *be_ut_ra_seg;
-static unsigned		      be_ut_ra_rand_seed;
+static uint64_t               be_ut_ra_rand_seed;
 static char		      be_ut_ra_save[BE_UT_RA_SIZE];
 static char		      be_ut_ra_data[BE_UT_RA_SIZE];
 static char		      be_ut_ra_reg[BE_UT_RA_SIZE];
@@ -694,7 +696,7 @@ static void be_ut_reg_area_rand(void)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(be_ut_ra_reg); ++i)
-		be_ut_ra_reg[i] = rand_r(&be_ut_ra_rand_seed) % 0xFF + 1;
+		be_ut_ra_reg[i] = m0_rnd64(&be_ut_ra_rand_seed) % 0xFF + 1;
 }
 
 /*
@@ -780,7 +782,7 @@ void m0_be_ut_reg_area_random(void)
 	m0_bcount_t	    begin;
 	m0_bcount_t	    end;
 	unsigned	    i;
-	unsigned	    seed = 0;
+	uint64_t            seed = 0;
 	int		    do_insert;
 
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_RA_SEG_SIZE);
@@ -788,10 +790,10 @@ void m0_be_ut_reg_area_random(void)
 
 	be_ut_reg_area_init(BE_UT_RA_ITER);
 	for (i = 0; i < BE_UT_RA_ITER; ++i) {
-		begin = rand_r(&seed) % (BE_UT_REGMAP_LEN -
+		begin = m0_rnd64(&seed) % (BE_UT_REGMAP_LEN -
 					 BE_UT_REGMAP_R_SIZE - 1) + 1;
-		end = begin + rand_r(&seed) % BE_UT_REGMAP_R_SIZE + 1;
-		do_insert = rand_r(&seed) % 2;
+		end = begin + m0_rnd64(&seed) % BE_UT_REGMAP_R_SIZE + 1;
+		do_insert = m0_rnd64(&seed) % 2;
 		be_ut_reg_area_do(begin, end, do_insert != 0);
 		be_ut_reg_area_size_length_check(0, 0, false);
 	}
@@ -815,7 +817,7 @@ enum {
 /* #define BE_UT_RA_MERGE_DEBUG */
 
 static struct m0_be_seg	*be_ut_ra_merge_seg;
-static unsigned		 be_ut_ra_merge_seed;
+static uint64_t          be_ut_ra_merge_seed;
 static unsigned char	 be_ut_ra_merge_pre[BE_UT_RA_MERGE_SIZE_TOTAL];
 static unsigned char	 be_ut_ra_merged[BE_UT_RA_MERGE_SIZE_TOTAL];
 static unsigned char	 be_ut_ra_merge_post[BE_UT_RA_MERGE_SIZE_TOTAL];
@@ -823,7 +825,7 @@ static unsigned char	 be_ut_ra_merge_post[BE_UT_RA_MERGE_SIZE_TOTAL];
 /* get random number in range [min, max] */
 static unsigned be_ut_reg_area_merge_rand(unsigned min, unsigned max)
 {
-	return rand_r(&be_ut_ra_merge_seed) % (max - min + 1) + min;
+	return m0_rnd64(&be_ut_ra_merge_seed) % (max - min + 1) + min;
 }
 
 static m0_bindex_t be_ut_reg_area_merge_addr2offs(void *addr)

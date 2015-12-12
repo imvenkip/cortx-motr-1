@@ -20,12 +20,13 @@
 
 #include "be/fl.h"
 
+#include "lib/types.h"          /* uint64_t */
+#include "lib/arith.h"          /* m0_rnd64 */
+
 #include "ut/ut.h"              /* M0_UT_ASSERT */
 
 #include "be/alloc_internal.h"  /* be_alloc_chunk */
 #include "be/ut/helper.h"       /* m0_be_ut_backend */
-
-#include <stdlib.h>             /* rand_r */
 
 enum {
 	BE_UT_FL_CHUNK_NR  = 0x100,
@@ -37,12 +38,12 @@ enum {
 
 static struct m0_be_ut_backend be_ut_fl_backend;
 
-static unsigned int be_ut_fl_rand(unsigned int max, unsigned int *seed)
+static uint64_t be_ut_fl_rand(uint64_t max, uint64_t *seed)
 {
-	return rand_r(seed) % max;
+	return m0_rnd64(seed) % max;
 }
 
-static m0_bcount_t be_ut_fl_rand_size(unsigned int *seed)
+static m0_bcount_t be_ut_fl_rand_size(uint64_t *seed)
 {
 	return be_ut_fl_rand(BE_UT_FL_SIZE_MAX, seed);
 }
@@ -56,12 +57,12 @@ void m0_be_ut_fl(void)
 	struct m0_be_tx_credit          cred;
 	struct m0_be_fl                *fl;
 	struct m0_be_seg               *seg;
-	unsigned int                    seed = 0;
+	uint64_t                        seed = 0;
 	void                           *addr;
 	int                            *chunks_used;
 	int                             i;
 	int                             rc;
-	int                             index;
+	uint64_t                        index;
 
 	m0_be_ut_backend_init(ut_be);
 	m0_be_ut_seg_init(&ut_seg, ut_be, BE_UT_FL_SEG_SIZE);

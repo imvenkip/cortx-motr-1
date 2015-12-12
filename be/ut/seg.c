@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ *                  Maxim Medved <max.medved@seagate.com>
  * Original creation date: 29-May-2013
  */
 
@@ -23,6 +24,8 @@
 
 #include "be/seg.h"             /* m0_be_seg */
 
+#include "lib/types.h"          /* uint64_t */
+#include "lib/arith.h"          /* m0_rnd64 */
 #include "lib/thread.h"         /* M0_THREAD_INIT */
 #include "lib/semaphore.h"      /* m0_semaphore */
 #include "lib/misc.h"           /* m0_forall */
@@ -31,8 +34,6 @@
 #include "ut/ut.h"              /* M0_UT_ASSERT */
 #include "ut/stob.h"            /* m0_ut_stob_linux_get */
 #include "be/ut/helper.h"       /* m0_be_ut_seg_helper */
-
-#include <stdlib.h>             /* rand_r */
 
 enum {
 	BE_UT_SEG_SIZE    = 0x20000,
@@ -54,10 +55,10 @@ static void be_ut_seg_rand_reg(struct m0_be_reg *reg,
 			       void *seg_addr,
 			       m0_bindex_t *offset,
 			       m0_bcount_t *size,
-			       unsigned *seed)
+			       uint64_t *seed)
 {
-	*size   = rand_r(seed) % (BE_UT_SEG_IO_SIZE / 2) + 1;
-	*offset = rand_r(seed) % (BE_UT_SEG_IO_SIZE / 2 - 1);
+	*size   = m0_rnd64(seed) % (BE_UT_SEG_IO_SIZE / 2) + 1;
+	*offset = m0_rnd64(seed) % (BE_UT_SEG_IO_SIZE / 2 - 1);
 	reg->br_addr = seg_addr + BE_UT_SEG_IO_OFFS + *offset;
 	reg->br_size = *size;
 }
@@ -73,13 +74,12 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 	static char         pre[BE_UT_SEG_IO_SIZE];
 	static char         post[BE_UT_SEG_IO_SIZE];
 	static char         rand[BE_UT_SEG_IO_SIZE];
-	unsigned            seed;
+	uint64_t            seed = 0;
 	int                 rc;
 	int                 i;
 	int                 j;
 	int                 cmp;
 
-	seed = 0;
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 	reg_check = M0_BE_REG(seg, BE_UT_SEG_IO_SIZE,
@@ -88,7 +88,7 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 		be_ut_seg_rand_reg(&reg, seg->bs_addr, &offset, &size, &seed);
 		reg.br_seg = seg;
 		for (j = 0; j < reg.br_size; ++j)
-			rand[j] = rand_r(&seed) & 0xFF;
+			rand[j] = m0_rnd64(&seed) & 0xFF;
 
 		/* read segment before write operation */
 		rc = m0_be_seg__read(&reg_check, pre);

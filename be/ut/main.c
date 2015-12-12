@@ -27,9 +27,6 @@
  * - simple  - simple test that checks predefined patterns;
  * - mt      - multithreaded test;
  * - random  - test that uses RNG to test as much use cases as possible.
- *
- * TODO
- * - XXX s/rand_r/m0_rnd/g in all BE UT.
  */
 
 extern void m0_be_ut_op_usecase(void);

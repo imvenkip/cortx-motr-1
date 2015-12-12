@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ *                  Maxim Medved <max.medved@seagate.com>
  * Original creation date: 12-Jun-2013
  */
 
@@ -31,14 +32,13 @@
 #include "lib/trace.h"
 
 #include "lib/types.h"          /* m0_uint128_eq */
+#include "lib/arith.h"          /* m0_rnd64 */
 #include "lib/misc.h"           /* M0_BITS */
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
 
 #include "ut/ut.h"
 
 #include "be/ut/helper.h"       /* m0_be_ut_backend */
-
-#include <stdlib.h>             /* rand_r */
 
 void m0_be_ut_tx_usecase_success(void)
 {
@@ -468,23 +468,25 @@ enum {
 	BE_UT_TX_P_REG_SIZE_MAX = 0x100,
 };
 
-static void be_ut_tx_reg_rand(struct m0_be_reg *reg, struct m0_be_seg *seg,
-			      unsigned *seed)
+static void be_ut_tx_reg_rand(struct m0_be_reg *reg,
+			      struct m0_be_seg *seg,
+			      uint64_t         *seed)
 {
 	uintptr_t addr;
 
 	reg->br_seg = seg;
-	reg->br_size = rand_r(seed) % BE_UT_TX_P_REG_SIZE_MAX + 1;
-	addr = rand_r(seed) % (seg->bs_size - reg->br_size - seg->bs_reserved);
+	reg->br_size = m0_rnd64(seed) % BE_UT_TX_P_REG_SIZE_MAX + 1;
+	addr = m0_rnd64(seed) %
+	       (seg->bs_size - reg->br_size - seg->bs_reserved);
 	reg->br_addr = seg->bs_addr + seg->bs_reserved + addr;
 }
 
-static void be_ut_tx_reg_rand_fill(struct m0_be_reg *reg, unsigned *seed)
+static void be_ut_tx_reg_rand_fill(struct m0_be_reg *reg, uint64_t *seed)
 {
 	int i;
 
 	for (i = 0; i < reg->br_size; ++i)
-		((char *) reg->br_addr)[i] = rand_r(seed) & 0xFF;
+		((char *) reg->br_addr)[i] = m0_rnd64(seed) & 0xFF;
 }
 
 void m0_be_ut_tx_persistence(void)
@@ -495,7 +497,7 @@ void m0_be_ut_tx_persistence(void)
 	struct m0_be_ut_seg     ut_seg;
 	struct m0_be_seg       *seg;
 	struct m0_be_tx         tx;
-	unsigned                seed = 0;
+	uint64_t                seed = 0;
 	int                     i;
 	int                     j;
 	int                     rc;
@@ -760,7 +762,7 @@ void m0_be_ut_tx_capturing(void)
 	struct m0_be_ut_seg      ut_seg;
 	struct m0_be_seg        *seg;
 	struct m0_be_tx          tx;
-	unsigned int             seed = 0;
+	uint64_t                 seed = 0;
 	uint64_t                *ptr;
 	int                      i;
 	int                      j;
@@ -782,9 +784,9 @@ void m0_be_ut_tx_capturing(void)
 		m0_be_ut_txc_start(&tc, &tx, seg);
 		for (j = 0; j < BE_UT_TX_CAPTURING_NR; ++j) {
 			ptr = seg->bs_addr + m0_be_seg_reserved(seg) +
-			      rand_r(&seed) %
+			      m0_rnd64(&seed) %
 			      (BE_UT_TX_CAPTURING_RANGE - sizeof *ptr);
-			*ptr = rand_r(&seed);
+			*ptr = m0_rnd64(&seed);
 			m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, ptr));
 
 			m0_be_ut_txc_check(&tc, &tx);

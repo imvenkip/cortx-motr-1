@@ -57,13 +57,13 @@ enum {
 
 static char        be_ut_log_store_pre[BE_UT_LOG_STOR_SIZE];
 static char        be_ut_log_store_post[BE_UT_LOG_STOR_SIZE];
-static unsigned    be_ut_log_store_seed;
+static uint64_t    be_ut_log_store_seed;
 static m0_bindex_t be_ut_log_store_pos;
 
 /* this random may have non-uniform distribution */
 static int be_ut_log_store_rand(int mod)
 {
-	return rand_r(&be_ut_log_store_seed) % mod;
+	return m0_rnd64(&be_ut_log_store_seed) % mod;
 }
 
 static void
