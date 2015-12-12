@@ -42,10 +42,7 @@ static int be_tx_init_open(struct m0_be_tx *tx,
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, cred);
-	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE,
-						M0_BTS_FAILED),
-				    M0_TIME_NEVER);
+	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 
 	return rc;
@@ -102,9 +99,7 @@ int main(int argc, char **argv)
 			(unsigned long long)ext.e_start,
 			(unsigned long long)ext.e_end);
 
-		m0_be_tx_close(tx);
-		result = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE),
-						M0_TIME_NEVER);
+		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
 	}
 	M0_ASSERT(result == 0);

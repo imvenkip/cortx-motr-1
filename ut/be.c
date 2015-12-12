@@ -79,11 +79,7 @@ M0_INTERNAL void m0_ut_be_tx_begin2(struct m0_be_tx *tx,
 
 M0_INTERNAL void m0_ut_be_tx_end(struct m0_be_tx *tx)
 {
-	int rc;
-
-	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
+	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 }
 

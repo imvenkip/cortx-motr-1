@@ -563,7 +563,7 @@ int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
 	struct m0_be_domain   *bedom = seg->bs_domain; /* XXX */
 	struct m0_be_tx_credit cred  = {};
 	struct m0_be_tx       *tx;
-	int                    rc, rc2;
+	int                    rc;
 
 	M0_PRE(cdid->id != 0);
 
@@ -579,9 +579,7 @@ int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
 		goto tx_fini;
 
 	rc = m0_cob_domain_create_prepared(dom, grp, cdid, seg, tx);
-	m0_be_tx_close(tx);
-	rc2 = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
-	rc = rc ?: rc2;
+	m0_be_tx_close_sync(tx);
 tx_fini:
 	m0_be_tx_fini(tx);
 	m0_free(tx);
@@ -635,8 +633,7 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 	M0_BE_FREE_PTR_SYNC(dom, seg, tx);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, dom);
 
-	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 	m0_free(tx);
 

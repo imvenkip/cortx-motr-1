@@ -51,30 +51,13 @@ static int ut_fini(void)
 	return 0;
 }
 
-static void ut_tx_close(struct m0_be_tx *tx)
-{
-	int rc;
-
-        m0_be_tx_close(tx);
-        rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
-        M0_UT_ASSERT(rc == 0);
-}
-
 static void ut_tx_open(struct m0_be_tx *tx, struct m0_be_tx_credit *credit)
 {
 	int rc;
 
         m0_be_ut_tx_init(tx, &ut_be);
-        M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
-        M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
-
 	m0_be_tx_prep(tx, credit);
-        M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
-        M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
-
-        m0_be_tx_open(tx);
-        rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-                                M0_TIME_NEVER);
+        rc = m0_be_tx_open_sync(tx);
         M0_UT_ASSERT(rc == 0);
         M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 }
@@ -127,7 +110,7 @@ static void test_mkfs(void)
 	             M0_COB_ROOT_FID.f_key); /* root */
 	M0_UT_ASSERT(rc != 0);
 
-	ut_tx_close(tx);
+	m0_be_tx_close_sync(tx);
         m0_be_tx_fini(tx);
 
 	m0_cob_domain_fini(dom);
@@ -201,7 +184,7 @@ static void test_create(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_put(cob);
 
-	ut_tx_close(tx);
+	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 }
 
@@ -244,7 +227,7 @@ static void test_add_name(void)
 	M0_UT_ASSERT(rc != 0);
 	m0_free(nskey);
 
-	ut_tx_close(tx);
+	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 }
 
@@ -279,7 +262,7 @@ static void test_del_name(void)
 	M0_UT_ASSERT(rc != 0);
 	m0_free(nskey);
 
-	ut_tx_close(tx);
+	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 }
 
@@ -346,7 +329,7 @@ static void test_delete(void)
 	m0_cob_tx_credit(dom, M0_COB_OP_DELETE_PUT, &accum);
 	ut_tx_open(tx, &accum);
 	rc = m0_cob_delete_put(cob, tx);
-	ut_tx_close(tx);
+	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 
 	M0_UT_ASSERT(rc == 0);
