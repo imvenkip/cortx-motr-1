@@ -524,6 +524,7 @@ M0_INTERNAL int m0_be_emap_count(struct m0_be_emap_cursor *it,
 		++nr_segs;
 		if (m0_be_emap_ext_is_last(&seg->ee_ext))
 			break;
+		M0_SET0(op);
 		m0_be_op_init(op);
 		m0_be_emap_next(it);
 		m0_be_op_wait(op);
@@ -652,6 +653,7 @@ M0_INTERNAL int m0_be_emap_caret_move_sync(struct m0_be_emap_caret *car,
 {
 	int rc = 0;
 
+	M0_SET0(&car->ct_it->ec_op);
 	m0_be_op_init(&car->ct_it->ec_op);
 	rc = m0_be_emap_caret_move(car, count);
 	if (rc == 0)
@@ -824,6 +826,7 @@ static int emap_it_get(struct m0_be_emap_cursor *it)
 	struct m0_be_op *op = &it->ec_cursor.bc_op;
 	int              rc;
 
+	M0_SET0(op);
 	m0_be_op_init(op);
 	m0_be_btree_cursor_get(&it->ec_cursor, &it->ec_keybuf, true);
 	m0_be_op_wait(op);
@@ -855,6 +858,7 @@ static int be_emap_next(struct m0_be_emap_cursor *it)
 	struct m0_be_op *op = &it->ec_cursor.bc_op;
 	int              rc;
 
+	M0_SET0(op);
 	m0_be_op_init(op);
 	m0_be_btree_cursor_next(&it->ec_cursor);
 	m0_be_op_wait(op);

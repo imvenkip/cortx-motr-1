@@ -1237,9 +1237,8 @@ static int btree_count_items(struct m0_be_btree *tree, m0_bcount_t *ksize,
 	if (tree->bb_root != NULL) {
 		m0_be_btree_cursor_init(&cur, tree);
 
-		m0_be_op_init(op);
-		m0_be_btree_minkey(tree, op, &start);
-		m0_be_op_fini(op);
+		M0_SET0(op);
+		M0_BE_OP_SYNC_WITH(op, m0_be_btree_minkey(tree, op, &start));
 
 		rc = m0_be_btree_cursor_get_sync(&cur, &start, true);
 
@@ -1249,11 +1248,7 @@ static int btree_count_items(struct m0_be_btree *tree, m0_bcount_t *ksize,
 				*ksize = key.b_nob;
 			if (val.b_nob > *vsize)
 				*vsize = val.b_nob;
-			m0_be_op_init(op);
-			m0_be_btree_cursor_next(&cur);
-			M0_ASSERT(m0_be_op_is_done(op));
-			rc = op_tree(op)->t_rc;
-			m0_be_op_fini(op);
+			rc = m0_be_btree_cursor_next_sync(&cur);
 			++count;
 		}
 
@@ -1729,16 +1724,10 @@ M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *cur,
 					    const struct m0_buf *key,
 					    bool slant)
 {
-	struct m0_be_op *op = &cur->bc_op;
-	int              rc;
-
-	m0_be_op_init(op);
-	m0_be_btree_cursor_get(cur, key, slant);
-	m0_be_op_wait(op);
-	rc = op_tree(op)->t_rc;
-	m0_be_op_fini(op);
-
-	return M0_RC(rc);
+	M0_SET0(&cur->bc_op);
+	return M0_RC(M0_BE_OP_SYNC_RET_WITH(&cur->bc_op,
+			      m0_be_btree_cursor_get(cur, key, slant),
+			      bo_u.u_btree.t_rc));
 }
 
 static int btree_cursor_seek(struct m0_be_btree_cursor *cur, void *key)
@@ -1866,30 +1855,18 @@ out:
 
 M0_INTERNAL int m0_be_btree_cursor_next_sync(struct m0_be_btree_cursor *cur)
 {
-	struct m0_be_op *op = &cur->bc_op;
-	int              rc;
-
-	m0_be_op_init(op);
-	m0_be_btree_cursor_next(cur);
-	m0_be_op_wait(op);
-	rc = op_tree(op)->t_rc;
-	m0_be_op_fini(op);
-
-	return M0_RC(rc);
+	M0_SET0(&cur->bc_op);
+	return M0_RC(M0_BE_OP_SYNC_RET_WITH(&cur->bc_op,
+	                                    m0_be_btree_cursor_next(cur),
+	                                    bo_u.u_btree.t_rc));
 }
 
 M0_INTERNAL int m0_be_btree_cursor_prev_sync(struct m0_be_btree_cursor *cur)
 {
-	struct m0_be_op *op = &cur->bc_op;
-	int              rc;
-
-	m0_be_op_init(op);
-	m0_be_btree_cursor_prev(cur);
-	m0_be_op_wait(op);
-	rc = op_tree(op)->t_rc;
-	m0_be_op_fini(op);
-
-	return M0_RC(rc);
+	M0_SET0(&cur->bc_op);
+	return M0_RC(M0_BE_OP_SYNC_RET_WITH(&cur->bc_op,
+	                                    m0_be_btree_cursor_prev(cur),
+	                                    bo_u.u_btree.t_rc));
 }
 
 M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor)

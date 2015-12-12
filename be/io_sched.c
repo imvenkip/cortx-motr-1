@@ -194,6 +194,7 @@ M0_INTERNAL void m0_be_io_sched_add(struct m0_be_io_sched *sched,
 		io->bio_ext = *ext;
 	}
 	be_io_sched_insert(sched, io);
+	M0_SET0(&io->bio_sched_op);
 	m0_be_op_init(&io->bio_sched_op);
 	m0_be_op_callback_set(&io->bio_sched_op, &be_io_sched_cb,
 			      io, M0_BOS_GC);

@@ -506,6 +506,7 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 	M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&ctx.tgfc_log_discard, &op));
 	m0_be_pd_fini(&ctx.tgfc_pd);
 	m0_be_log_discard_fini(&ctx.tgfc_log_discard);
+	M0_SET0(&ctx.tgfc_log_discard);
 	rc = m0_be_log_discard_init(&ctx.tgfc_log_discard,
 	                            &ctx.tgfc_log_discard_cfg);
 	M0_UT_ASSERT(rc == 0);

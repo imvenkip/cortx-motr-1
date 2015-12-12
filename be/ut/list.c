@@ -22,10 +22,13 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
-#include "lib/misc.h"
-#include "ut/ut.h"
-#include "be/ut/helper.h"
 #include "be/list.h"
+
+#include "ut/ut.h"              /* M0_UT_ASSERT */
+
+#include "lib/misc.h"           /* M0_SET0 */
+
+#include "be/ut/helper.h"       /* m0_be_ut_backend_init */
 #include "be/op.h"              /* m0_be_op */
 
 /* -------------------------------------------------------------------------
@@ -89,6 +92,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
 		m0_be_tlink_init(elem[i], list);
+		M0_SET0(&op);
 		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_TLINK_CREATE, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_tlink_create(elem[i], tx, &op,
@@ -102,6 +106,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 				  (elem[i]->t_payload = i,
 				   M0_BE_TX_CAPTURE_PTR(seg, tx, elem[i])));
 
+		M0_SET0(&op);
 		if (i < ARRAY_SIZE(elem) / 2) {
 			if (i % 2 == 0) {
 				M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
@@ -136,6 +141,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 		if (!M0_IN(i, (0, 2, 7, 9)))
 			continue;
 
+		M0_SET0(&op);
 		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_DEL, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_list_del(list, &op,
@@ -157,6 +163,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 		if (M0_IN(i, (0, 2, 7, 9)))
 			continue;
 
+		M0_SET0(&op);
 		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_DEL, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_list_del(list, &op,
@@ -164,12 +171,14 @@ M0_INTERNAL void m0_be_ut_list(void)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
+		M0_SET0(&op);
 		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_TLINK_DESTROY, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_tlink_destroy(elem[i], tx, &op,
 							      list)));
 		m0_be_tlink_fini(elem[i], list);
 	}
+	M0_SET0(&op);
 	M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_DESTROY, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_list_destroy(list, tx, &op)));
@@ -192,7 +201,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 
 static void *be_list_head(struct m0_be_list *list)
 {
-	struct m0_be_op  op;
+	struct m0_be_op  op = {};
 	void            *p;
 
 	M0_BE_OP_SYNC_WITH(&op, p = m0_be_list_head(list, &op));
@@ -201,7 +210,7 @@ static void *be_list_head(struct m0_be_list *list)
 
 static void *be_list_next(struct m0_be_list *list, const void *obj)
 {
-	struct m0_be_op  op;
+	struct m0_be_op  op = {};
 	void            *p;
 
 	M0_BE_OP_SYNC_WITH(&op, p = m0_be_list_next(list, &op, obj));

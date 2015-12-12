@@ -535,7 +535,7 @@ static int stob_ad_init(struct m0_stob *stob,
 			const struct m0_fid *stob_fid)
 {
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
-	struct m0_be_emap_cursor  it;
+	struct m0_be_emap_cursor  it = {};
 	struct m0_uint128         prefix;
 	int                       rc;
 
@@ -627,11 +627,10 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 			}
 			m0_be_tx_credit_add(accum, &cred);
 			if (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
-				m0_be_op_init(op);
-				m0_be_emap_next(&it);
-				m0_be_op_wait(op);
-				rc = m0_be_emap_op_rc(&it);
-				m0_be_op_fini(op);
+				M0_SET0(op);
+				rc = M0_BE_OP_SYNC_RET_WITH(op,
+						    m0_be_emap_next(&it),
+						    bo_u.u_emap.e_rc);
 				if (rc != 0)
 					break;
 			}
@@ -662,7 +661,7 @@ static int ext_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 {
 	struct m0_stob_ad_domain *adom;
 	struct m0_be_emap_seg    *seg;
-	struct m0_be_emap_cursor  it;
+	struct m0_be_emap_cursor  it = {};
 	struct m0_stob_ad        *astob;
 	struct m0_be_op          *it_op;
 	struct m0_ext            *ext;
@@ -694,6 +693,7 @@ static int ext_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	}
 	M0_LOG(M0_DEBUG, "ext="EXT_F, EXT_P(&todo));
 	it_op = &it.ec_op;
+	M0_SET0(it_op);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx->tx_betx, &todo, AET_HOLE,
 		 LAMBDA(void, (struct m0_be_emap_seg *__seg) {
@@ -723,7 +723,7 @@ static int ext_punch(struct m0_stob *stob, struct m0_dtx *tx,
 {
 	struct m0_stob_ad_domain *adom;
 	struct m0_be_emap_seg    *seg;
-	struct m0_be_emap_cursor  it;
+	struct m0_be_emap_cursor  it = {};
 	struct m0_stob_ad        *astob;
 	struct m0_be_op          *it_op;
 	struct m0_ext            *ext;
@@ -744,6 +744,7 @@ static int ext_punch(struct m0_stob *stob, struct m0_dtx *tx,
 		todo->e_end = seg->ee_ext.e_end;
 	}
 	it_op = &it.ec_op;
+	M0_SET0(it_op);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx->tx_betx, todo, AET_HOLE,
 		 LAMBDA(void, (struct m0_be_emap_seg *__seg) {
@@ -988,6 +989,7 @@ M0_INTERNAL int stob_ad_cursor(struct m0_stob_ad_domain *adom,
 
 	prefix = M0_UINT128(fid->f_container, fid->f_key);
 	M0_LOG(M0_DEBUG, FID_F, FID_P(fid));
+	M0_SET0(&it->ec_op);
 	rc = M0_BE_OP_SYNC_RET_WITH(
 		&it->ec_op,
 		m0_be_emap_lookup(&adom->sad_adata, &prefix, offset, it),
@@ -1502,7 +1504,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 {
 	int                    result;
 	int                    rc = 0;
-	struct m0_be_emap_cursor  it;
+	struct m0_be_emap_cursor  it = {};
 	/* an extent in the logical name-space to be mapped to ext. */
 	struct m0_ext          todo = {
 		.e_start = off,
@@ -1532,6 +1534,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	 * logical extent of the segment and seg->ee_val is the starting offset
 	 * of the corresponding physical extent.
 	 */
+	M0_SET0(&it.ec_op);
 	m0_be_op_init(&it.ec_op);
 	m0_be_emap_paste(&it, &io->si_tx->tx_betx, &todo, ext->e_start,
 	 LAMBDA(void, (struct m0_be_emap_seg *seg) {
@@ -1912,6 +1915,7 @@ static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
 	M0_PRE(dom != NULL);
 
 	for (i = 0; rc == 0 && i < arp->arp_seg.ps_segments; ++i) {
+		M0_SET0(&it.ec_op);
 		rc = M0_BE_OP_SYNC_RET_WITH(
 			&it.ec_op,
 			m0_be_emap_lookup(&adom->sad_adata,
@@ -1923,6 +1927,7 @@ static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
 			M0_LOG(M0_DEBUG, "%3d: ext="EXT_F" val=0x%llx",
 				i, EXT_P(&old_data[i].ee_ext),
 				(unsigned long long)old_data[i].ee_val);
+			M0_SET0(&it.ec_op);
 			rc = M0_BE_OP_SYNC_RET_WITH(
 				&it.ec_op,
 				m0_be_emap_extent_update(&it, tx, &old_data[i]),

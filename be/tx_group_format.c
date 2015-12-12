@@ -556,6 +556,7 @@ M0_INTERNAL void m0_be_group_format_seg_place(struct m0_be_group_format *gft,
 	gft_op = &gft->gft_pd_io_op;
 	M0_SET0(gft_op);
 	m0_be_op_init(gft_op);
+	M0_SET0(&gft->gft_tmp_op);
 	m0_be_op_init(&gft->gft_tmp_op);
 	m0_be_op_set_add(op, gft_op);
 	m0_be_op_set_add(op, &gft->gft_tmp_op);

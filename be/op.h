@@ -242,7 +242,7 @@ M0_INTERNAL int  m0_be_op_rc(struct m0_be_op *op);
  */
 #define M0_BE_OP_SYNC_RET(op_obj, action, member)                \
 	({                                                       \
-		struct m0_be_op op_obj;                          \
+		struct m0_be_op op_obj = {};                     \
 		M0_BE_OP_SYNC_RET_WITH(&op_obj, action, member); \
 	})
 

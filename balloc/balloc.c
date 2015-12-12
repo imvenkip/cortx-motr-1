@@ -966,15 +966,8 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ex->e_end);
 
 	for (i = 0; i < grp->bgi_fragments; i++, ex++) {
-		m0_be_op_init(&cursor.bc_op);
-		if (i == 0)
-			m0_be_btree_cursor_get(&cursor, &key, true);
-		else
-			m0_be_btree_cursor_next(&cursor);
-		m0_be_op_wait(&cursor.bc_op);
-		M0_ASSERT(m0_be_op_is_done(&cursor.bc_op));
-		rc = cursor.bc_op.bo_u.u_btree.t_rc;
-		m0_be_op_fini(&cursor.bc_op);
+		rc = i == 0 ? m0_be_btree_cursor_get_sync(&cursor, &key, true) :
+			      m0_be_btree_cursor_next_sync(&cursor);
 		if (rc != 0)
 			break;
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);

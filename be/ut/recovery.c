@@ -121,6 +121,7 @@ static void be_ut_recovery_log_close(struct be_ut_recovery_ctx *ctx)
 static void be_ut_recovery_log_reopen(struct be_ut_recovery_ctx *ctx)
 {
 	be_ut_recovery_log_close(ctx);
+	M0_SET0(&ctx->burc_log);
 	be_ut_recovery_log_open(ctx);
 }
 

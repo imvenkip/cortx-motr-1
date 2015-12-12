@@ -169,6 +169,7 @@ static int be_emap_lookup(struct m0_be_emap        *map,
 {
 	int rc;
 
+	M0_SET0(&it->ec_op);
 	m0_be_op_init(&it->ec_op);
 	m0_be_emap_lookup(emap, prefix, offset, it);
 	m0_be_op_wait(&it->ec_op);
@@ -236,6 +237,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 		total  = 102; /* 100 + 2, the sum of elements in len[]. */
 		M0_UT_ASSERT(seglen > total);
 		len[ARRAY_SIZE(len) - 1] = seglen - total;
+		M0_SET0(it_op);
 		m0_be_op_init(it_op);
 		m0_be_emap_split(&it, &tx2, &vec);
 		m0_be_op_wait(it_op);
@@ -272,6 +274,7 @@ static void test_print(void)
 		       (unsigned long)seg->ee_val);
 		if (m0_be_emap_ext_is_last(&seg->ee_ext))
 			break;
+		M0_SET0(it_op);
 		m0_be_op_init(it_op);
 		m0_be_emap_next(&it);
 		m0_be_op_wait(it_op);
@@ -290,6 +293,7 @@ static void test_merge(void)
 	M0_UT_ASSERT(rc == 0);
 
 	while (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
+		M0_SET0(it_op);
 		m0_be_op_init(it_op);
 		m0_be_emap_merge(&it, &tx2, m0_ext_length(&seg->ee_ext));
 		m0_be_op_wait(it_op);
@@ -312,6 +316,7 @@ static void test_paste(void)
 	e.e_end   = 20;
 
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
+	M0_SET0(it_op);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 12, NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
@@ -349,6 +354,7 @@ static void test_paste(void)
 	e.e_end   = 25;
 
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
+	M0_SET0(it_op);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 11, NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
@@ -386,6 +392,7 @@ static void test_paste(void)
 	e.e_end   = M0_BINDEX_MAX + 1;
 
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
+	M0_SET0(it_op);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 0, NULL, NULL, NULL);
 	m0_be_op_wait(it_op);

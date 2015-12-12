@@ -80,6 +80,7 @@ static void be_ut_pd_usecase_thread(void *param)
 	M0_ALLOC_ARR(mem, test->bput_pd_io_nr * test->bput_pd_reg_nr * 2);
 	for (iter = 0; iter < test->bput_iter_nr; ++iter) {
 		for (i = 0; i < test->bput_pd_io_nr; ++i) {
+			M0_SET0(&op[i]);
 			m0_be_op_init(&op[i]);
 			M0_BE_OP_SYNC(op1, m0_be_pd_io_get(pd, &pdio[i], &op1));
 		}
