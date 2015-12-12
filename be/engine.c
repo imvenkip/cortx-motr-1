@@ -70,8 +70,7 @@ static void be_engine_tx_group_state_move(struct m0_be_engine       *en,
 
 	M0_PRE(be_engine_is_locked(en));
 	M0_PRE(gr->tg_state == prev_state[state]);
-	M0_PRE(m0_tl_exists(egr, gr_in_list, &en->eng_groups[gr->tg_state],
-	                    gr_in_list == gr));
+	M0_PRE(egr_tlist_contains(&en->eng_groups[gr->tg_state], gr));
 
 	egr_tlist_move(&en->eng_groups[state], gr);
 	gr->tg_state = state;
