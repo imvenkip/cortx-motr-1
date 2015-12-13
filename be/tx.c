@@ -195,7 +195,9 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 {
 	enum m0_be_tx_state state;
 
-	*tx = (struct m0_be_tx) {
+	M0_PRE(M0_IS0(tx));
+
+	*tx = (struct m0_be_tx){
 		.t_id               = tid,
 		.t_engine           = m0_be_domain_engine(dom),
 		.t_persistent       = persistent,

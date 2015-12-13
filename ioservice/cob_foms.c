@@ -662,9 +662,10 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 		case M0_FOPH_TXN_COMMIT_WAIT:
 			if (!cob_op->fco_is_done && m0_fom_rc(fom) == 0) {
 				rc = m0_fom_tx_commit_wait(fom);
-				if (rc == M0_FSO_AGAIN)
+				if (rc == M0_FSO_AGAIN) {
+					M0_SET0(m0_fom_tx(fom));
 					m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
-				else
+				} else
 					return M0_RC(rc);
 			}
 			break;

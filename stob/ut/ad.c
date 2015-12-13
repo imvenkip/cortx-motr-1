@@ -277,6 +277,7 @@ static void test_write(int nr, struct m0_dtx *tx)
 
 	if (tx == NULL) {
 		tx = &g_tx;
+		M0_SET0(tx);
 		m0_dtx_init(tx, &ut_be.but_dom, grp);
 		is_local_tx = true;
 	}
@@ -346,6 +347,7 @@ static void test_punch(int nr)
 	int                 i;
 
 	tx = &g_tx;
+	M0_SET0(tx);
 	m0_dtx_init(tx, &ut_be.but_dom, grp);
 	rc = obj_fore->so_ops->sop_punch_credit(obj_fore, &tx->tx_betx_cred);
 	M0_ASSERT(rc == 0);
@@ -439,9 +441,10 @@ static void test_ad_undo(void)
 {
 	struct m0_sm_group *grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	struct m0_fol_frag *rfrag;
-	struct m0_dtx       tx;
+	struct m0_dtx       tx = {};
 	int                 rc;
 
+	M0_SET0(&g_tx);
 	m0_dtx_init(&g_tx, &ut_be.but_dom, grp);
 	memset(user_buf[0], 'a', buf_size);
 	test_write(1, &g_tx);

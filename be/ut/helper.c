@@ -571,6 +571,7 @@ void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)
 {
 	struct m0_sm_group *grp = m0_be_ut_backend_sm_group_lookup(ut_be);
 
+	M0_SET0(tx);
 	be_ut_tx_lock_if(grp, ut_be);
 	m0_be_tx_init(tx, 0, &ut_be->but_dom, grp, NULL, NULL, NULL, NULL);
 	be_ut_tx_unlock_if(grp, ut_be);

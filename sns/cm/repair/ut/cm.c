@@ -198,7 +198,7 @@ M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_cob        *cob;
 	struct m0_fid         cob_fid;
-	struct m0_dtx         tx;
+	struct m0_dtx         tx = {};
 	struct m0_cob_nskey  *nskey;
 	struct m0_cob_nsrec   nsrec;
 	struct m0_cob_fabrec *fabrec;
@@ -243,7 +243,7 @@ M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_cob        *cob;
 	struct m0_fid         cob_fid;
-	struct m0_dtx         tx;
+	struct m0_dtx         tx = {};
 	struct m0_cob_oikey   oikey;
 	int                   rc;
 

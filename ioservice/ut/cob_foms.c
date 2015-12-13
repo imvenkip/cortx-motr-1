@@ -1295,7 +1295,7 @@ static void cobfoms_fv_updates(void)
 	struct m0_poolmach      *pm;
 	struct m0_poolmach_event event;
 	struct m0_be_tx_credit   cred = {};
-	struct m0_be_tx          tx;
+	struct m0_be_tx          tx = {};
 	struct m0_sm_group      *grp  = m0_locality0_get()->lo_grp;
 	struct m0_mero          *mero;
 	struct m0_pool_version  *pver;
@@ -1452,6 +1452,7 @@ static void fom_dtx_init(struct m0_fom *fom, struct m0_sm_group *grp,
 
 	beseg = m0_fom_reqh(fom)->rh_beseg;
 	m0_sm_group_lock(grp);
+	M0_SET0(&fom->fo_tx);
 	m0_dtx_init(&fom->fo_tx, beseg->bs_domain, grp);
 	cob_op_credit(fom, opcode, m0_fom_tx_credit(fom));
 	co = cob_fom_get(fom);

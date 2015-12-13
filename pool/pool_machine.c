@@ -225,7 +225,7 @@ int m0_poolmach_backed_init2(struct m0_poolmach *pm,
 			     uint32_t            max_device_failures)
 {
 #ifndef __KERNEL__
-	struct m0_be_tx         tx;
+	struct m0_be_tx         tx = {};
 	struct m0_be_tx_credit  cred = {};
 	struct m0_be_domain    *bedom = be_seg->bs_domain;
 	int                     rc;

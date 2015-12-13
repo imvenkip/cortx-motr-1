@@ -26,7 +26,7 @@
 #include "stob/stob.h"
 #include "pool/pool.h"
 #include "conf/confc.h" /* m0_confc_close */
-#include "lib/misc.h"
+#include "lib/misc.h"   /* M0_SET0 */
 #include "lib/uuid.h"
 #include "be/seg0.h"
 #include "be/op.h"      /* M0_BE_OP_SYNC */
@@ -341,6 +341,7 @@ static int poolmach_store_destroy(struct m0_be_seg   *be_seg,
 		prev = scan->pel_linkage.t_link.ll_prev;
 		next = scan->pel_linkage.t_link.ll_next;
 
+		M0_SET0(tx);
 		m0_be_tx_init(tx, 0, be_seg->bs_domain, sm_grp,
 			      NULL, NULL, NULL, NULL);
 		m0_be_tx_prep(tx, &cred);
@@ -358,6 +359,7 @@ static int poolmach_store_destroy(struct m0_be_seg   *be_seg,
 	} m0_tl_endfor;
 
 	M0_SET0(&cred);
+	M0_SET0(tx);
 	m0_be_tx_init(tx, 0, be_seg->bs_domain, sm_grp, NULL, NULL, NULL, NULL);
 	for (i = 0; i < (state->pst_nr_devices -1); ++i) {
 		/*

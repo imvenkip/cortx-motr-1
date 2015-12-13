@@ -335,6 +335,7 @@ static void ios_start_cdom_tx_open(struct m0_ios_start_sm *ios_sm)
 	m0_cob_domain_credit_add(ios_sm->ism_dom, tx, seg,
 				 &ios_sm->ism_cdom_id, &cred);
 
+	M0_SET0(tx);
 	m0_be_tx_init(tx, 0, seg->bs_domain, ios_sm->ism_sm.sm_grp,
 		      NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, &cred);
@@ -406,6 +407,7 @@ static void ios_start_cob_tx_open(struct m0_ios_start_sm *ios_sm)
 		 ios_sm->ism_reqh, m0_get()->i_ios_cdom_key);
 
 	m0_cob_tx_credit(ios_sm->ism_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
+	M0_SET0(&ios_sm->ism_tx);
 	m0_be_tx_init(&ios_sm->ism_tx, 0, seg->bs_domain,
 		      ios_sm->ism_sm.sm_grp, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(&ios_sm->ism_tx, &cred);
@@ -564,6 +566,7 @@ static int ios_start_pm_prepare(struct m0_ios_start_sm *ios_sm)
 					 ios_sm->ism_poolmach_args.nr_sdevs,
 					 ios_sm->ism_poolmach_args.nr_sdevs,
 					 &cred);
+	M0_SET0(tx);
 	m0_be_tx_init(tx, 0, seg->bs_domain, ios_sm->ism_sm.sm_grp,
 		      NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, &cred);

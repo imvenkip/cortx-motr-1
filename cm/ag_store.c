@@ -318,6 +318,7 @@ static int ag_store_update(struct m0_cm_ag_store *store)
 	int                rc;
 
 	if (tx->tx_state < M0_DTX_INIT) {
+		M0_SET0(tx);
 		m0_dtx_init(tx, seg->bs_domain,
 				&fom->fo_loc->fl_group);
 		tx->tx_betx_cred = M0_BE_TX_CREDIT_TYPE(struct m0_cm_ag_store_data);
@@ -402,6 +403,7 @@ static int ag_store_complete(struct m0_cm_ag_store *store)
 
 	sprintf(ag_store, "ag_store_%llu", (unsigned long long)cm->cm_id);
         if (tx->tx_state < M0_DTX_INIT) {
+	        M0_SET0(tx);
                 m0_dtx_init(tx, seg->bs_domain,
                                 &fom->fo_loc->fl_group);
 		M0_BE_FREE_CREDIT_PTR(s_data, seg, &tx->tx_betx_cred);

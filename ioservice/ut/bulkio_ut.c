@@ -1374,6 +1374,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 							 &reqh->rh_fol);
 		} else {
 			m0_sm_group_lock(grp);
+			M0_SET0(&dtx);
 			m0_dtx_init(&dtx, reqh->rh_beseg->bs_domain, grp);
 			dec_frag->rp_ops->rpo_undo_credit(dec_frag,
 				&dtx.tx_betx_cred);
@@ -1710,7 +1711,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	struct m0_fop_cob_rw_reply *rw_reply;
 	struct m0_fop_cob_rw	   *rw;
 	struct m0_be_tx_credit      cred = {};
-	struct m0_be_tx             tx;
+	struct m0_be_tx             tx = {};
 	struct m0_sm_group         *grp  = m0_locality0_get()->lo_grp;
 	struct m0_rpc_session      *sess = &bp->bp_cctx->rcx_session;
 	struct m0_mero             *mero;
