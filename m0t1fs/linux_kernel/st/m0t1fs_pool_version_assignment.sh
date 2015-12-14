@@ -87,11 +87,8 @@ pool_version_assignment()
 		unmount_and_clean
 		return 1
 	}
-
-	rm -vf $MERO_M0T1FS_MOUNT_DIR/$file1 || {
-		unmount_and_clean
-		return 1
-	}
+	pver_0=$(getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/$file1 | awk -F '=' 'NF > 1 { print $2 }')
+	echo "pool version 0 id: $pver_0"
 
 	echo "Mark ctrl from pool version 0 as failed."
 	change_controller_state "$ctrl_from_pver0" "$M0_NC_FAILED" "0" || {
@@ -108,7 +105,22 @@ pool_version_assignment()
 		unmount_and_clean
 		return 1
 	}
+
+	pver_1=$(getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/$file2 | awk -F '=' 'NF > 1 { print $2 }')
+	echo "pool version 1 id:  $pver_1"
+	if  [ "$pver_0" == "$pver_1" ]
+	then
+		echo "error: ids of pool version 0 and pool version 1 match...."
+		unmount_and_clean
+		return 1
+	fi
+
 	rm -vf $MERO_M0T1FS_MOUNT_DIR/$file2 || {
+		unmount_and_clean
+		return 1
+	}
+
+	rm -vf $MERO_M0T1FS_MOUNT_DIR/$file1 || {
 		unmount_and_clean
 		return 1
 	}
@@ -163,6 +175,16 @@ pool_version_assignment()
 		unmount_and_clean
 		return 1
 	}
+	pver=$(getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/$file4 | awk -F '=' 'NF > 1 { print $2 }')
+	echo "pool version id : $pver"
+
+	if  [ "$pver" != "$pver_1" ]
+	then
+		echo "error: old and new pool version ids of pool version 1 do not match"
+		unmount_and_clean
+		return 1
+	fi
+
 	rm -vf $MERO_M0T1FS_MOUNT_DIR/$file4 || {
 		unmount_and_clean
 		return 1
@@ -175,7 +197,7 @@ pool_version_assignment()
 	}
 
         #Test pool version switch on disk failures.
-        echo "Mark disk from pool version 0 as failed."
+        echo "Mark disk from pool version 0 as failed"
         change_controller_state "$disk_from_pver0" "$M0_NC_FAILED" "0" || {
                 unmount_and_clean
                 return 1
@@ -189,6 +211,16 @@ pool_version_assignment()
 		unmount_and_clean
 		return 1
 	}
+	pver_1=$(getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/$file1 | awk -F '=' 'NF > 1 { print $2 }')
+	echo "pool version id:  $pver_1"
+
+	if  [ "$pver_0" == "$pver_1" ]
+	then
+		echo "ids of pool version 0 and pool version 1 match...."
+		unmount_and_clean
+		return 1
+	fi
+
 	rm -vf $MERO_M0T1FS_MOUNT_DIR/$file1 || {
 		unmount_and_clean
 		return 1

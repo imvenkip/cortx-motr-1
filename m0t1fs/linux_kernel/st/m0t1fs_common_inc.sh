@@ -79,7 +79,6 @@ MAX_NR_FILES=20 # XXX temporary workaround for performance issues
 TM_MIN_RECV_QUEUE_LEN=16
 MAX_RPC_MSG_SIZE=65536
 XPT=lnet
-MD_REDUNDANCY=1  # Meta-data redundancy, use greater than 1 after failure domain is available.
 PVERID='^v|1:10'
 
 unload_kernel_module()
@@ -187,6 +186,7 @@ function build_conf()
 	local pool_count=1
 	local rack_count=1
 	local PROC_FID_CONT='^r|1'
+	local MD_REDUNDANCY=1
 
 	if [ -z "$ioservices" ]; then
 		ioservices=("${IOSEP[@]}")
@@ -202,6 +202,9 @@ function build_conf()
 		done
 	fi
 
+	if [ $multiple_pools -eq "1" ]; then
+		MD_REDUNDANCY=2
+	fi;
 	# prepare configuration data
 	local RMS_ENDPOINT="\"${mdservices[0]}\""
 	local CONFD_ENDPOINT="\"${mdservices[0]%:*:*}:33:100\""
