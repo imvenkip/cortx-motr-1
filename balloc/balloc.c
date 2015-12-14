@@ -236,7 +236,7 @@ static int balloc_group_info_init(struct m0_balloc_group_info *gi,
 		m0_list_init(&gi->bgi_prealloc_list);
 		m0_mutex_init(bgi_mutex(gi));
 	}
-	return M0_RC(rc);
+	return rc;
 }
 
 static void balloc_group_info_fini(struct m0_balloc_group_info *gi)
@@ -264,7 +264,7 @@ static int balloc_group_info_load(struct m0_balloc *bal)
 	while (rc != 0 && i > 0) {
 		balloc_group_info_fini(&bal->cb_group_info[--i]);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
