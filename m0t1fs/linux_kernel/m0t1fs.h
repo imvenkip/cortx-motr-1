@@ -807,6 +807,9 @@ struct m0t1fs_inode {
 	struct m0_mutex            ci_pending_tx_lock;
 
 	uint64_t                   ci_magic;
+
+	/* Have layout changed via setfattr? */
+	bool			   ci_layout_changed;
 };
 
 /** CPUs semaphore - to control CPUs usage by parity calcs. */
@@ -977,6 +980,10 @@ M0_INTERNAL int m0t1fs_mds_cob_delxattr(struct m0t1fs_sb            *csb,
 
 M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry,
 				   uint64_t newsize);
+
+M0_INTERNAL int m0t1fs_inode_set_layout_id(struct m0t1fs_inode *ci,
+					   struct m0t1fs_mdop *mo,
+			    		   int layout_id);
 
 M0_INTERNAL int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 				const void *value, size_t size, int flags);

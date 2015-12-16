@@ -924,7 +924,7 @@ M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
 M0_INTERNAL uint64_t
 m0_pool_version2layout_id(const struct m0_fid *pv_fid, uint64_t lid)
 {
-	        return m0_hash(m0_fid_hash(pv_fid) + lid);
+	return m0_hash(m0_fid_hash(pv_fid) + lid);
 }
 
 static uint32_t ha2pm_state_map(enum m0_ha_obj_state hastate)

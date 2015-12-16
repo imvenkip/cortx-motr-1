@@ -45,6 +45,7 @@
 #include "conf/obj_ops.h"	    /* m0_conf_obj_find_lock */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob, m0_fid_cob_device_id */
 
+
 extern const struct m0_uint128 m0_rm_m0t1fs_group;
 /**
  * Cob create/delete fop send deadline (in ns).
@@ -284,11 +285,59 @@ int m0t1fs_fid_setxattr(struct dentry *dentry, const char *name,
 	return M0_ERR(-EOPNOTSUPP);
 }
 
+int m0t1fs_inode_set_layout_id(struct m0t1fs_inode *ci,
+				struct m0t1fs_mdop *mo,
+				int layout_id)
+{
+	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
+	struct m0_fop              *rep_fop = NULL;
+	int                         rc;
+
+	/*
+	 * Layout can be changed only for the freshly
+	 * created file which does not contain any data yet.
+	 */
+	if (ci->ci_inode.i_size != 0) {
+		rc = -EEXIST;
+		return rc;
+	}
+
+	if (layout_id == LID_NONE) {
+		rc = -EINVAL;
+		return rc;
+	}
+
+	if (layout_id == ci->ci_layout_id)
+		return 0;
+
+	ci->ci_layout_id = layout_id;
+
+	rc = m0t1fs_inode_layout_init(ci);
+	if (rc != 0)
+		return rc;
+
+	mo->mo_attr.ca_lid = ci->ci_layout_id;
+	mo->mo_attr.ca_valid |= M0_COB_LID;
+
+	if (!csb->csb_oostore) {
+		rc = m0t1fs_mds_cob_setattr(csb, mo, &rep_fop);
+		m0_fop_put0_lock(rep_fop);
+		goto out;
+	}
+	M0_LOG(M0_DEBUG, "Changing lid to %lld", mo->mo_attr.ca_lid);
+	rc = m0t1fs_component_objects_op(ci, mo, m0t1fs_ios_cob_setattr);
+out:
+	if (rc == 0)
+		ci->ci_layout_changed = true;
+	return rc;
+}
+
 int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		    const void *value, size_t size, int flags)
 {
 	struct m0t1fs_inode        *ci = M0T1FS_I(dentry->d_inode);
 	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
+	int                         layout_id;
 	struct m0t1fs_mdop          mo;
 	int                         rc;
 	struct m0_fop              *rep_fop = NULL;
@@ -312,37 +361,43 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		rc = -EINVAL;
 		if (value == NULL || size >= ARRAY_SIZE(buf))
 			goto out;
-		/*
-		 * Layout can be changed only for the freshly
-		 * created file which does not contain any data yet.
-		 */
-		if (ci->ci_inode.i_size != 0) {
-			rc = -EEXIST;
-			goto out;
-		}
 		memcpy(buf, value, size);
 		buf[size] = '\0';
-		ci->ci_layout_id = simple_strtoul(buf, &endp, 0);
-		if (endp - buf < size || ci->ci_layout_id == LID_NONE)
+		layout_id = simple_strtoul(buf, &endp, 0);
+		if (endp - buf < size || layout_id == LID_NONE)
 			goto out;
 
-		rc = m0t1fs_inode_layout_init(ci);
+		rc = m0t1fs_inode_set_layout_id(ci, &mo, layout_id);
 		if (rc != 0)
 			goto out;
+	} else if (m0_streq(name, "writesize")) {
+		size_t buffsize = 0, writesize = 0;
+		char *bsptr, *wsptr, *endp;
+		char  buf[40], *ptr;
 
-		mo.mo_attr.ca_lid = ci->ci_layout_id;
-		mo.mo_attr.ca_valid |= M0_COB_LID;
-
-		if (!csb->csb_oostore) {
-			rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
+		rc = -EINVAL;
+		if (value == NULL || size >= ARRAY_SIZE(buf))
 			goto out;
+
+		memcpy(buf, value, size);
+		buf[size] = '\0';
+		ptr = buf;
+
+		bsptr = strsep(&ptr, ";");
+		if (bsptr != NULL)
+			buffsize = simple_strtoul(bsptr, &endp, 0);
+		M0_LOG(M0_DEBUG, "Seting new IO buffsize %d.", (int)buffsize);
+
+		wsptr = strsep(&ptr, ";");
+		if (wsptr != NULL) {
+			writesize = simple_strtoul(wsptr, &endp, 0);
+			M0_LOG(M0_DEBUG, "Setting new IO writesize %d.", (int)writesize);
 		}
-		if (rc == 0) {
-			M0_LOG(M0_DEBUG, "changing lid to %lld",
-					 mo.mo_attr.ca_lid);
-			rc = m0t1fs_component_objects_op(ci, &mo,
-						m0t1fs_ios_cob_setattr);
-		}
+
+		/* Find optimal lid and set it to the inode.*/
+		layout_id = m0_layout_find_by_buffsize(&csb->csb_reqh.rh_ldom,
+							&ci->ci_pver, buffsize);
+		rc = m0t1fs_inode_set_layout_id(ci, &mo, layout_id);
 	} else {
 		if (csb->csb_oostore) {
 			rc = -EOPNOTSUPP;
@@ -351,9 +406,9 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		m0_buf_init(&mo.mo_attr.ca_eakey, (void*)name, strlen(name));
 		m0_buf_init(&mo.mo_attr.ca_eaval, (void*)value, size);
 		rc = m0t1fs_mds_cob_setxattr(csb, &mo, &rep_fop);
+		m0_fop_put0_lock(rep_fop);
 	}
 out:
-	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }

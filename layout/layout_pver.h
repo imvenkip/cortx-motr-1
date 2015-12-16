@@ -123,6 +123,9 @@ M0_INTERNAL int m0_layout_init_by_pver(struct m0_layout_domain *dom,
                                        struct m0_pool_version *pv,
                                        int *count);
 
+extern int m0_lid_to_unit_map[];
+extern const int m0_lid_to_unit_map_nr;
+
 /** @} end group layout_conf */
 
 /* __MERO_LAYOUT_LAYOUT_PVER_H__ */

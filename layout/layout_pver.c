@@ -94,7 +94,7 @@ static int __layout_build(struct m0_layout_domain *dom,
         return M0_RC(rc);
 }
 
-static int lid_to_unit_map[] = {
+int m0_lid_to_unit_map[] = {
        [ 0] =       -1, /* invalid */
        [ 1] =     4096,
        [ 2] =     8192,
@@ -111,6 +111,7 @@ static int lid_to_unit_map[] = {
        [13] = 16777216,
        [14] = 33554432,
 };
+const int m0_lid_to_unit_map_nr = ARRAY_SIZE(m0_lid_to_unit_map);
 
 M0_INTERNAL int m0_layout_init_by_pver(struct m0_layout_domain *dom,
                                        struct m0_pool_version *pv,
@@ -124,9 +125,9 @@ M0_INTERNAL int m0_layout_init_by_pver(struct m0_layout_domain *dom,
         int 			i;
 
         M0_ENTRY();
-	for (i = M0_DEFAULT_LAYOUT_ID; i < ARRAY_SIZE(lid_to_unit_map); ++i) {
+	for (i = M0_DEFAULT_LAYOUT_ID; i < m0_lid_to_unit_map_nr; ++i) {
 		/* Use current unit size. */
-		pa->pa_unit_size = lid_to_unit_map[i];
+		pa->pa_unit_size = m0_lid_to_unit_map[i];
 		m0_uint128_init(&pa->pa_seed, M0_PDCLUST_SEED);
 
 		layout_id = m0_pool_version2layout_id(&pv->pv_id, i);

@@ -180,6 +180,7 @@ static void m0t1fs_inode_init(struct m0t1fs_inode *ci)
 	M0_SET0(&ci->ci_creditor);
 	M0_SET0(&ci->ci_fowner);
 	ci->ci_layout_instance = NULL;
+	ci->ci_layout_changed = false;
 
 	m0_mutex_init(&ci->ci_pending_tx_lock);
 	ispti_tlist_init(&ci->ci_pending_tx);
@@ -352,6 +353,24 @@ static int m0t1fs_inode_set(struct inode *inode, void *opaque)
 	return M0_RC(0);
 }
 
+M0_INTERNAL void m0t1fs_inode_update_blksize(struct inode *inode,
+					     struct m0_layout *layout)
+{
+	struct m0_pdclust_attr 	*pa;
+	size_t 			 buffsize;
+
+	pa = &m0_layout_to_pdl(layout)->pl_attr;
+	buffsize = pa->pa_unit_size * pa->pa_N;
+
+#ifdef HAVE_INODE_BLKSIZE
+	inode->i_blksize  = buffsize;
+#else
+	inode->i_blkbits = 12;
+	while ((1 << inode->i_blkbits) < buffsize)
+		inode->i_blkbits++;
+#endif
+}
+
 M0_INTERNAL void m0t1fs_inode_update(struct inode      *inode,
 				     struct m0_fop_cob *body)
 {
@@ -522,7 +541,7 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 	struct m0t1fs_sb          *csb;
 	struct m0_layout_instance *linst;
 	int                        rc;
-	uint64_t                  layout_id;
+	uint64_t                   layout_id;
 
 	M0_ENTRY();
 	M0_PRE(m0_fid_is_valid(&ci->ci_pver));
@@ -540,6 +559,7 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 		if (ci->ci_layout_instance != NULL)
 			m0_layout_instance_fini(ci->ci_layout_instance);
 		ci->ci_layout_instance = linst;
+		m0t1fs_inode_update_blksize(&ci->ci_inode, linst->li_l);
 	}
 
 	M0_LEAVE("rc: %d", rc);

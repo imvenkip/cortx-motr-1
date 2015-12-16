@@ -826,6 +826,47 @@ M0_INTERNAL void m0_layout_enum_type_unregister(struct m0_layout_domain *dom,
 	M0_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
 }
 
+M0_INTERNAL uint64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
+						struct m0_fid *pver,
+						size_t buffsize)
+{
+	uint64_t lid = M0_DEFAULT_LAYOUT_ID;
+	struct m0_pdclust_attr *pa;
+	struct m0_layout *l;
+	uint64_t hash;
+	int i;
+
+	m0_mutex_lock(&dom->ld_lock);
+	for (i = M0_DEFAULT_LAYOUT_ID; i < m0_lid_to_unit_map_nr; ++i) {
+		hash = m0_pool_version2layout_id(pver, i);
+		l = m0_layout__list_lookup(dom, hash, true);
+		if (l != NULL) {
+			pa = &m0_layout_to_pdl(l)->pl_attr;
+			if ((pa->pa_unit_size * pa->pa_N) <= buffsize) {
+				lid = i;
+			} else {
+				m0_ref_put(&l->l_ref);
+				break;
+			}
+			m0_ref_put(&l->l_ref);
+		}
+	}
+
+	hash = m0_pool_version2layout_id(pver, lid);
+	l = m0_layout__list_lookup(dom, hash, true);
+	if (l != NULL) {
+		pa = &m0_layout_to_pdl(l)->pl_attr;
+		M0_LOG(M0_WARN,
+			"Found lid=%d (pver+lid hash=%lx, unit_size=%d, N=%d) "
+			"by buffer size %d.", (int)lid, (unsigned long int)hash,
+			(int)pa->pa_unit_size, (int)pa->pa_N, (int)buffsize);
+		m0_ref_put(&l->l_ref);
+	}
+	m0_mutex_unlock(&dom->ld_lock);
+
+	return lid;
+}
+
 M0_INTERNAL struct m0_layout *m0_layout_find(struct m0_layout_domain *dom,
 					     uint64_t lid)
 {

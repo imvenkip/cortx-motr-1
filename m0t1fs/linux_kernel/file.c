@@ -5092,7 +5092,7 @@ static ssize_t file_dio_write(struct kiocb	 *kcb,
 }
 
 static ssize_t aio_write(struct kiocb *kcb, const struct iovec *iov,
-			 unsigned long  seg_nr, loff_t  pos)
+			 unsigned long seg_nr, loff_t pos)
 {
 	int		    rc;
 	size_t		    count = 0;

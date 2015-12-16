@@ -742,6 +742,19 @@ M0_INTERNAL struct m0_layout *m0_layout_find(struct m0_layout_domain *dom,
 					     uint64_t lid);
 
 /**
+ * Find optimal layout id by pver and buffersize. Note, that returned lid
+ * is _not_ pver+lid hash (client-side style id) but rather server-side
+ * one (currently in range 1-14).
+ *
+ * If buffer is too small then returns the first very lid. If too large then
+ * returns the layout id describing biggest possible unit_size.
+ *
+ * Always returns valid layout id.
+ */
+M0_INTERNAL uint64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
+						struct m0_fid *pver,
+						size_t buffsize);
+/**
  * Acquires an additional reference on the layout object.
  * @see m0_layout_put()
  * @see m0_layout_find()

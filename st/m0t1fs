@@ -154,7 +154,7 @@ do_m0t1fs_system_test()
     local test_file_path='/mnt/m0t1fs/0:4200000'
 
     touch $test_file_path
-    # set unit_size to 4MB (see mdservice/md_service.c:lid_to_unit_map[])
+    # set unit_size to 16MB (see layout/layout_pver.c:m0_lid_to_unit_map)
     setfattr -n lid -v 13 $test_file_path
 
     local src_file_path=/dev/zero
