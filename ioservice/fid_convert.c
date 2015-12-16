@@ -83,6 +83,11 @@ M0_INTERNAL uint32_t m0_fid_cob_device_id(const struct m0_fid *cob_fid)
 	return m0_fid__device_id_extract(cob_fid);
 }
 
+M0_INTERNAL uint64_t m0_fid_conf_sdev_device_id(const struct m0_fid *sdev_fid)
+{
+	return sdev_fid->f_key & ((1ULL << M0_FID_DEVICE_ID_BITS) - 1);
+}
+
 M0_INTERNAL bool m0_fid_validate_gob(const struct m0_fid *gob_fid)
 {
 	return m0_fid_tget(gob_fid) == m0_file_fid_type.ft_id &&

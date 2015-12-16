@@ -78,7 +78,7 @@ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
-                                "-d", "devices.conf",
+				"-U",
                                 "-e", "lnet:0@lo:12345:34:1",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf-str.txt")};
@@ -358,15 +358,6 @@ static void dev_conf_file_create(void)
 	fclose(f);
 	f = fopen("d2", "w");
 	M0_UT_ASSERT(f != NULL);
-	fclose(f);
-
-	f = fopen("devices.conf", "w+");
-	M0_UT_ASSERT(f != NULL);
-	fprintf(f, "Devices:\n");
-	fprintf(f, "        - id: 0\n");
-	fprintf(f, "          filename: %s/d1\n", path);
-	fprintf(f, "        - id: 1\n");
-	fprintf(f, "          filename: %s/d2\n", path);
 	fclose(f);
 }
 

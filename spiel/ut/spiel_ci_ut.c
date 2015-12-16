@@ -387,8 +387,10 @@ void test_spiel_fs_stats(void)
 
 	m0_fi_enable_once("cs_storage_devs_init", "init_via_conf");
 	m0_fi_enable("m0_storage_dev_attach_by_conf", "no_real_dev");
+	m0_fi_enable("m0_storage_dev_attach", "no_real_dev");
 	spiel_ci_ut_init();
 	m0_fi_disable("m0_storage_dev_attach_by_conf", "no_real_dev");
+	m0_fi_disable("m0_storage_dev_attach", "no_real_dev");
 	/* test non-existent fs */
 	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_bad, &fs_stats);
 	M0_UT_ASSERT(rc == -ENOENT);

@@ -192,7 +192,9 @@ M0_INTERNAL int m0_storage_dev_attach(struct m0_storage_devs *devs,
 				      const char             *path,
 				      uint64_t                size)
 {
-	return storage_dev_attach(devs, cid, path, size, NULL);
+	return storage_dev_attach(devs, cid,
+				  M0_FI_ENABLED("no_real_dev") ? NULL : path,
+				  size, NULL);
 }
 
 M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs    *devs,

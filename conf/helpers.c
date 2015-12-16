@@ -36,6 +36,7 @@
 #include "ha/note.h"       /* m0_ha_nvec, m0_ha_state_accept, m0_ha_state_get */
 #include "pool/flset.h"    /* m0_flset_pver_has_failed_dev */
 
+
 M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 			       struct m0_confc            *confc,
 			       struct m0_conf_filesystem **result)

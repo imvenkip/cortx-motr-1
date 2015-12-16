@@ -107,6 +107,7 @@ m0_fid_convert_adstob2bstore(const struct m0_fid *stob_domain_fid,
 			     struct m0_fid       *bstore_fid);
 
 M0_INTERNAL uint32_t m0_fid_cob_device_id(const struct m0_fid *cob_fid);
+M0_INTERNAL uint64_t m0_fid_conf_sdev_device_id(const struct m0_fid *sdev_fid);
 
 M0_INTERNAL bool m0_fid_validate_gob(const struct m0_fid *gob_fid);
 M0_INTERNAL bool m0_fid_validate_cob(const struct m0_fid *cob_fid);

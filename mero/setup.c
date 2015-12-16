@@ -723,6 +723,7 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 		return M0_ERR(rc);
 
 	if (stob->s_sfile.sf_is_initialised) {
+		M0_LOG(M0_DEBUG, "yaml config");
 		doc = &stob->s_sfile.sf_document;
 		for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
 			for (item = (node)->data.sequence.items.start;
@@ -739,6 +740,7 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 			}
 		}
 	} else if (stob->s_ad_disks_init || M0_FI_ENABLED("init_via_conf")) {
+		M0_LOG(M0_DEBUG, "conf config");
 		rc = cs_conf_storage_init(stob, devs);
 	} else {
 		rc = m0_storage_dev_attach(devs, M0_AD_STOB_DOM_KEY_DEFAULT,
@@ -1842,7 +1844,8 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				{
 					rctx->rc_dfilepath = s;
 				})),
-			M0_VOIDARG('U', "User configuration file",
+			M0_VOIDARG('U', "Use conf{c,d} configuration interface "
+				   "for storage devs and stobs instead of -d",
 				LAMBDA(void, (void)
 				{
 					rctx->rc_stob.s_ad_disks_init = true;

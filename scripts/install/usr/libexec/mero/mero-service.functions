@@ -367,7 +367,9 @@ m0_get_proc_fid_for()
 
     if [[ -n $nidx ]] ; then
         sidx=$(_word_index "$(m0_get_services)" $service)
+
         if [[ -n $sidx ]] ; then
+            ((--sidx)) || true
             proc_fid=$(printf 0x%x:%d $((0x7200000000000000+$nidx)) $sidx)
         else
             m0_exit "cannot find service $service"
