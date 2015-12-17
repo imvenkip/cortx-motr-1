@@ -358,20 +358,22 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 	struct rm_request_fom  *rfom;
 	struct m0_fom          *fom;
 	struct m0_reqh_service *service;
+	struct m0_rpc_item     *item;
 
+	M0_PRE(_0C(rem_in != NULL) && _0C(remote != NULL));
+	M0_ENTRY("remote incoming %p remote %p", rem_in, remote);
 	rfom = container_of(rem_in, struct rm_request_fom, rf_in);
 	fom  = &rfom->rf_fom;
-	if (fom->fo_fop->f_item.ri_session != NULL) {
+	item = &fom->fo_fop->f_item;
+	if (item->ri_session != NULL) {
 		service = m0_reqh_rpc_service_find(fom->fo_service->rs_reqh);
 		M0_ASSERT(service != NULL);
 		remote->rem_session =
-			m0_rpc_service_reverse_session_lookup(service,
-						&fom->fo_fop->f_item);
+			m0_rpc_service_reverse_session_lookup(service, item);
 		if (remote->rem_session == NULL) {
 			remote->rem_rev_sess_clink.cl_is_oneshot = true;
 			rc = m0_rpc_service_reverse_session_get(
-				service, &fom->fo_fop->f_item,
-				&remote->rem_rev_sess_clink,
+				service, item, &remote->rem_rev_sess_clink,
 				&remote->rem_session);
 		}
 	}

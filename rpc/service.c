@@ -136,17 +136,21 @@ m0_rpc_service_reverse_session_lookup(struct m0_reqh_service   *service,
 				      const struct m0_rpc_item *item)
 {
 
-	const char                   *rem_ep;
-	struct m0_reverse_connection *revc;
-	struct m0_rpc_service        *svc;
+	struct m0_reverse_connection     *revc;
+	struct m0_rpc_service            *svc;
+	const struct m0_rpc_item_header2 *header;
 
 	M0_PRE(item != NULL && service->rs_type == &m0_rpc_service_type);
-
+	header = &item->ri_header;
 	svc    = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
-	rem_ep = m0_rpc_item_remote_ep_addr(item);
-
-	revc = m0_tl_find(rev_conn, revc, &svc->rps_rev_conns,
-			  strcmp(rem_ep, REV_CONN_DEST_EP(revc)) == 0);
+	if (header->osr_sender_id == SENDER_ID_INVALID)
+		revc = m0_tl_find(rev_conn, revc, &svc->rps_rev_conns,
+				m0_uint128_cmp(&revc->rcf_rlink.rlk_conn.c_uuid,
+					       &header->osr_uuid) == 0);
+	else
+		revc = m0_tl_find(rev_conn, revc, &svc->rps_rev_conns,
+				  revc->rcf_rlink.rlk_conn.c_sender_id ==
+				  header->osr_sender_id);
 	return revc == NULL ? NULL : &revc->rcf_rlink.rlk_sess;
 }
 

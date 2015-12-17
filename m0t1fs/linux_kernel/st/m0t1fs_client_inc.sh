@@ -469,6 +469,11 @@ multi_client_test()
 	diff /bin/ls ${mount_dir_2}/obj2 || rc=1
 	diff /bin/ls ${mount_dir_3}/obj3 || rc=1
 
+	# Completely repeat the first round of the test.
+	diff /bin/ls ${mount_dir_1}/obj1 || rc=1
+	diff /bin/ls ${mount_dir_1}/obj2 || rc=1
+	diff /bin/ls ${mount_dir_1}/obj3 || rc=1
+
 	unmount_m0t1fs ${mount_dir_1}
 	unmount_m0t1fs ${mount_dir_2}
 	unmount_m0t1fs ${mount_dir_3}
