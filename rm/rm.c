@@ -883,6 +883,7 @@ static void owner_windup_locked(struct m0_rm_owner *owner)
 
 M0_INTERNAL void m0_rm_owner_windup(struct m0_rm_owner *owner)
 {
+	M0_ENTRY("owner %p", owner);
 	m0_rm_owner_lock(owner);
 	owner->ro_user_windup = true;
 	if (owner_state(owner) == ROS_ACTIVE)
@@ -890,6 +891,7 @@ M0_INTERNAL void m0_rm_owner_windup(struct m0_rm_owner *owner)
 	else if (owner_state(owner) == ROS_DEAD_CREDITOR)
 		owner_state_set(owner, ROS_FINAL);
 	m0_rm_owner_unlock(owner);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner)
@@ -1807,7 +1809,7 @@ static void owner_balance(struct m0_rm_owner *o)
 	bool                   todo;
 	int                    prio;
 
-	M0_ENTRY();
+	M0_ENTRY("owner %p", o);
 	do {
 		todo = false;
 		m0_tl_for (m0_rm_ur, &o->ro_outgoing[OQS_EXCITED], credit) {
@@ -2871,6 +2873,7 @@ static bool owner_invariant(struct m0_rm_owner *owner)
 	bool                         rc;
 	struct owner_invariant_state is;
 
+	M0_ENTRY("owner %p", owner);
 	M0_ASSERT(m0_fid_is_set(&owner->ro_fid));
 	M0_ASSERT(m0_fid_tget(&owner->ro_fid) == M0_RM_OWNER_FT);
 	M0_SET0(&is);

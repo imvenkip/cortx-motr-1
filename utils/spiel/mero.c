@@ -32,6 +32,7 @@
 	X(m0_net_buffer_pool) \
 	X(m0_reqh)            \
 	X(m0_reqh_init_args)  \
+	X(m0_reqh_service)    \
 	X(m0_rpc_conn)        \
 	X(m0_rpc_machine)     \
 	X(m0_rpc_session)     \

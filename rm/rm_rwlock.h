@@ -144,11 +144,18 @@ M0_INTERNAL int m0_rw_lockable_type_register(struct m0_rm_domain        *dom,
 M0_INTERNAL
 void m0_rw_lockable_type_deregister(struct m0_rm_resource_type *rtype);
 
+/** Fid used with rwlockable resources */
 extern const struct m0_fid M0_RWLOCK_FID;
 
-M0_INTERNAL struct m0_rm_domain *m0_rwlockable_domain(void);
-M0_INTERNAL int  m0_rwlockable_domain_init(void);
-M0_INTERNAL void m0_rwlockable_domain_fini(void);
+/** RW lockable domain and type initialiser. */
+M0_INTERNAL int
+m0_rwlockable_domain_type_init(struct m0_rm_domain        *rwl_dom,
+			       struct m0_rm_resource_type *rwl_rt);
+
+/** RW lockable domain and type finaliser. */
+M0_INTERNAL void
+m0_rwlockable_domain_type_fini(struct m0_rm_domain        *rwl_dom,
+			       struct m0_rm_resource_type *rwl_rt);
 
 /** @} end of RWLock */
 

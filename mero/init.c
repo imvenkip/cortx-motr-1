@@ -200,8 +200,6 @@ struct init_fini_call subsystem[] = {
 #endif /* __KERNEL__ */
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" },
-	{ &m0_rwlockable_domain_init, &m0_rwlockable_domain_fini,
-	  "rw-lockable" }
 };
 
 static void fini_nr(struct init_fini_call *arr, int nr)

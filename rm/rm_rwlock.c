@@ -250,27 +250,23 @@ const struct m0_rm_credit_ops rwlock_credit_ops = {
 #define RW_XO(rw) (&M0_XCODE_OBJ(m0_fid_xc, (void *)(rw)->rwl_fid))
 #define CR_XO(cr) (&M0_XCODE_OBJ(&M0_XT_U64, (void *)&(cr)->cr_datum))
 
-static struct m0_rm_domain        rwlockable_dom;
-static struct m0_rm_resource_type rwlockable_rt;
-
-M0_INTERNAL struct m0_rm_domain *m0_rwlockable_domain(void)
+M0_INTERNAL int
+m0_rwlockable_domain_type_init(struct m0_rm_domain        *rwl_dom,
+			       struct m0_rm_resource_type *rwl_rt)
 {
-	return &rwlockable_dom;
-}
-
-M0_INTERNAL int m0_rwlockable_domain_init(void)
-{
-	M0_SET0(&rwlockable_dom);
-	M0_SET0(&rwlockable_rt);
-	m0_rm_domain_init(&rwlockable_dom);
-	m0_rw_lockable_type_register(&rwlockable_dom, &rwlockable_rt);
+	M0_SET0(rwl_dom);
+	M0_SET0(rwl_rt);
+	m0_rm_domain_init(rwl_dom);
+	m0_rw_lockable_type_register(rwl_dom, rwl_rt);
 	return 0;
 }
 
-M0_INTERNAL void m0_rwlockable_domain_fini(void)
+M0_INTERNAL void
+m0_rwlockable_domain_type_fini(struct m0_rm_domain        *rwl_dom,
+			       struct m0_rm_resource_type *rwl_rt)
 {
-	m0_rw_lockable_type_deregister(&rwlockable_rt);
-	m0_rm_domain_fini(&rwlockable_dom);
+	m0_rw_lockable_type_deregister(rwl_rt);
+	m0_rm_domain_fini(rwl_dom);
 }
 
 /** Compare identifiers of two lockable resources */

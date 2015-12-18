@@ -30,6 +30,15 @@ static struct  m0_spiel_ut_reqh ut_reqh;
 const char    *confd_addr[] = { SERVER_ENDPOINT_ADDR, NULL };
 const char    *rm_addr      = SERVER_ENDPOINT_ADDR;
 
+static int m0_spiel__ut_rms_start(struct m0_reqh *reqh)
+{
+	struct m0_reqh_service *service;
+	struct m0_fid           fid;
+
+	m0_fid_tgenerate(&fid, M0_CONF_SERVICE_TYPE.cot_ftype.ft_id);
+	return m0_reqh_service_setup(&service, &m0_rms_type, reqh, NULL, &fid);
+}
+
 M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 		                       const char              *ep_addr)
 {
@@ -68,7 +77,12 @@ M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 	if (rc != 0)
 		goto reqh;
 	m0_reqh_start(&spl_reqh->sur_reqh);
+	rc = m0_spiel__ut_rms_start(&spl_reqh->sur_reqh);
+	if (rc != 0)
+		goto rm;
 	return 0;
+rm:
+	m0_reqh_services_terminate(&spl_reqh->sur_reqh);
 reqh:
 	m0_reqh_fini(&spl_reqh->sur_reqh);
 buf_pool:

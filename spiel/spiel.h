@@ -211,11 +211,13 @@ struct m0_spiel_sns_status {
  */
 struct m0_spiel {
 	/** RPC machine for network communication */
-	struct m0_rpc_machine *spl_rmachine;
+	struct m0_rpc_machine     *spl_rmachine;
 	/** Configuration profile for spiel command interface */
-	struct m0_fid          spl_profile;
+	struct m0_fid              spl_profile;
 	/** Rconfc instance */
-	struct m0_rconfc       spl_rconfc;
+	struct m0_rconfc           spl_rconfc;
+	/** Write lock context */
+	struct m0_spiel_wlock_ctx *spl_wlock_ctx;
 };
 
 /**

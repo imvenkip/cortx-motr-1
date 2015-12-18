@@ -35,6 +35,7 @@
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"    /* m0_confx_xc */
 #include "conf/preload.h"      /* m0_confx_free, m0_confx_to_string */
+#include "rm/rm_rwlock.h"      /* m0_rw_lockable */
 #include "rpc/link.h"
 #include "rpc/rpclib.h"        /* m0_rpc_client_connect */
 #include "ioservice/fid_convert.h" /* M0_FID_DEVICE_ID_MAX */
@@ -60,6 +61,16 @@ struct spiel_conf_param {
 	const struct m0_conf_obj_type  *scp_type;
 	struct m0_conf_obj            **scp_obj;
 };
+
+static int spiel_rwlockable_write_domain_init(struct m0_spiel_wlock_ctx *wlx)
+{
+	return m0_rwlockable_domain_type_init(&wlx->wlc_dom, &wlx->wlc_rt);
+}
+
+static void spiel_rwlockable_write_domain_fini(struct m0_spiel_wlock_ctx *wlx)
+{
+	m0_rwlockable_domain_type_fini(&wlx->wlc_dom, &wlx->wlc_rt);
+}
 
 #define SPIEL_CONF_CHECK(cache, ...)                                     \
 	spiel_conf_parameter_check(cache, (struct spiel_conf_param []) { \
@@ -413,10 +424,230 @@ static int spiel_flip_fop_send(struct m0_spiel_tx           *tx,
 	return M0_RC(rc);
 }
 
-int m0_spiel_tx_commit_forced(struct m0_spiel_tx  *tx,
-			      bool                 forced,
-			      uint64_t             ver_forced,
-			      uint32_t            *rquorum)
+static int  wlock_ctx_semaphore_init(struct m0_spiel_wlock_ctx *wlx)
+{
+	return m0_semaphore_init(&wlx->wlc_sem, 0);
+}
+
+static void wlock_ctx_semaphore_up(struct m0_spiel_wlock_ctx *wlx)
+{
+	m0_semaphore_up(&wlx->wlc_sem);
+}
+
+static int wlock_ctx_create(struct m0_spiel *spl)
+{
+	struct m0_spiel_wlock_ctx *wlx;
+	int                        rc;
+
+	M0_PRE(spl->spl_wlock_ctx == NULL);
+
+	M0_ENTRY();
+	M0_ALLOC_PTR(wlx);
+	if (wlx == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto err;
+	}
+
+	wlx->wlc_rmach = spl->spl_rmachine;
+	spiel_rwlockable_write_domain_init(wlx);
+	m0_rw_lockable_init(&wlx->wlc_rwlock, &M0_RWLOCK_FID, &wlx->wlc_dom);
+	m0_fid_tgenerate(&wlx->wlc_owner_fid, M0_RM_OWNER_FT);
+	m0_rm_rwlock_owner_init(&wlx->wlc_owner, &wlx->wlc_owner_fid,
+				&wlx->wlc_rwlock, NULL);
+	rc = m0_rconfc_rm_endpoint(&spl->spl_rconfc, &wlx->wlc_rm_addr);
+	if (rc != 0)
+		goto rwlock_alloc;
+	rc = wlock_ctx_semaphore_init(wlx);
+	if (rc != 0)
+		goto rwlock_alloc;
+	spl->spl_wlock_ctx = wlx;
+	return M0_RC(0);
+rwlock_alloc:
+	m0_free(wlx);
+err:
+	return M0_ERR(rc);
+}
+
+static void wlock_ctx_destroy(struct m0_spiel_wlock_ctx *wlx)
+{
+	int rc;
+
+	M0_PRE(wlx != NULL);
+
+	M0_ENTRY("wlock ctx %p", wlx);
+	m0_rm_owner_windup(&wlx->wlc_owner);
+	rc = m0_rm_owner_timedwait(&wlx->wlc_owner,
+				   M0_BITS(ROS_FINAL, ROS_INSOLVENT),
+				   M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+	M0_LOG(M0_DEBUG, "owner winduped");
+	m0_rm_rwlock_owner_fini(&wlx->wlc_owner);
+	m0_rw_lockable_fini(&wlx->wlc_rwlock);
+	spiel_rwlockable_write_domain_fini(wlx);
+	M0_LEAVE();
+}
+
+static int wlock_ctx_connect(struct m0_spiel_wlock_ctx *wlx)
+{
+	enum { MAX_RPCS_IN_FLIGHT = 15 };
+
+	M0_PRE(wlx != NULL);
+	return m0_rpc_client_connect(&wlx->wlc_conn, &wlx->wlc_sess,
+				     wlx->wlc_rmach, wlx->wlc_rm_addr,
+				     MAX_RPCS_IN_FLIGHT);
+}
+
+static void wlock_ctx_disconnect(struct m0_spiel_wlock_ctx *wlx)
+{
+	int               rc;
+
+	M0_PRE(_0C(wlx != NULL) && _0C(!M0_IS0(&wlx->wlc_sess)));
+	M0_ENTRY("wlock ctx %p", wlx);
+	rc = m0_rpc_session_destroy(&wlx->wlc_sess, M0_TIME_NEVER);
+	if (rc != 0)
+		M0_LOG(M0_ERROR, "Failed to destroy wlock session");
+	rc = m0_rpc_conn_destroy(&wlx->wlc_conn, M0_TIME_NEVER);
+	if (rc != 0)
+		M0_LOG(M0_ERROR, "Failed to destroy wlock connection");
+	M0_LEAVE();
+
+}
+
+static void spiel_tx_write_lock_complete(struct m0_rm_incoming *in,
+					 int32_t                rc)
+{
+	struct m0_spiel_wlock_ctx *wlx = container_of(in,
+						      struct m0_spiel_wlock_ctx,
+						      wlc_req);
+
+	M0_ENTRY("incoming %p, rc %d", in, rc);
+	wlx->wlc_rc = rc;
+	wlock_ctx_semaphore_up(wlx);
+	M0_LEAVE();
+}
+
+static void spiel_tx_write_lock_conflict(struct m0_rm_incoming *in)
+{
+	/* Do nothing */
+}
+
+static struct m0_rm_incoming_ops spiel_tx_ri_ops = {
+	.rio_complete = spiel_tx_write_lock_complete,
+	.rio_conflict = spiel_tx_write_lock_conflict,
+};
+
+static void wlock_ctx_creditor_setup(struct m0_spiel_wlock_ctx *wlx)
+{
+	struct m0_rm_owner    *owner;
+	struct m0_rm_remote   *creditor;
+
+	M0_PRE(wlx != NULL);
+	M0_ENTRY("wlx = %p", wlx);
+	owner = &wlx->wlc_owner;
+	creditor = &wlx->wlc_creditor;
+	m0_rm_remote_init(creditor, owner->ro_resource);
+	creditor->rem_session = &wlx->wlc_sess;
+	m0_rm_owner_creditor_reset(owner, creditor);
+	M0_LEAVE();
+}
+
+static void _spiel_tx_write_lock_get(struct m0_spiel_wlock_ctx *wlx)
+{
+	struct m0_rm_incoming *req;
+
+	M0_PRE(wlx != NULL);
+	M0_ENTRY("wlock ctx = %p", wlx);
+	req = &wlx->wlc_req;
+	m0_rm_rwlock_req_init(req, &wlx->wlc_owner, &spiel_tx_ri_ops,
+			      RIF_MAY_BORROW | RIF_MAY_REVOKE | RIF_LOCAL_WAIT,
+			      RM_RWLOCK_WRITE);
+	m0_rm_credit_get(req);
+	M0_LEAVE();
+}
+
+static void wlock_ctx_creditor_unset(struct m0_spiel_wlock_ctx *wlx)
+{
+	M0_PRE(wlx != NULL);
+	M0_ENTRY("wlx = %p", wlx);
+	m0_rm_remote_fini(&wlx->wlc_creditor);
+	wlx->wlc_owner.ro_creditor = NULL;
+	M0_LEAVE();
+}
+
+static void wlock_ctx_semaphore_down(struct m0_spiel_wlock_ctx *wlx)
+{
+	m0_semaphore_down(&wlx->wlc_sem);
+}
+
+static int spiel_tx_write_lock_get(struct m0_spiel_tx *tx)
+{
+	struct m0_spiel           *spl;
+	struct m0_spiel_wlock_ctx *wlx;
+	int                        rc;
+
+	M0_PRE(tx != NULL);
+	M0_ENTRY("tx %p", tx);
+
+	spl = tx->spt_spiel;
+	rc = wlock_ctx_create(spl);
+	if (rc != 0)
+		goto fail;
+	wlx = spl->spl_wlock_ctx;
+	rc = wlock_ctx_connect(wlx);
+	if (rc != 0)
+		goto ctx_free;
+	wlock_ctx_creditor_setup(wlx);
+	_spiel_tx_write_lock_get(wlx);
+	wlock_ctx_semaphore_down(wlx);
+	rc = wlx->wlc_rc;
+	if (rc != 0)
+		goto ctx_destroy;
+	return M0_RC(rc);
+ctx_destroy:
+	wlock_ctx_destroy(wlx);
+	wlock_ctx_disconnect(wlx);
+ctx_free:
+	m0_free(wlx->wlc_rm_addr);
+	m0_free(wlx);
+fail:
+	return M0_ERR(rc);
+}
+
+static void _spiel_tx_write_lock_put(struct m0_spiel_wlock_ctx *wlx)
+{
+	struct m0_rm_incoming *req;
+
+	M0_PRE(wlx != NULL);
+	M0_ENTRY("wlock ctx = %p", wlx);
+	req = &wlx->wlc_req;
+	m0_rm_credit_put(req);
+	m0_rm_incoming_fini(req);
+	wlock_ctx_creditor_unset(wlx);
+	M0_LEAVE();
+}
+
+static void spiel_tx_write_lock_put(struct m0_spiel_tx *tx)
+{
+	struct m0_spiel           *spl;
+	struct m0_spiel_wlock_ctx *wlx;
+
+	M0_PRE(tx != NULL);
+	M0_ENTRY("tx %p", tx);
+
+	spl = tx->spt_spiel;
+	wlx = spl->spl_wlock_ctx;
+	_spiel_tx_write_lock_put(spl->spl_wlock_ctx);
+	wlock_ctx_destroy(spl->spl_wlock_ctx);
+	wlock_ctx_disconnect(spl->spl_wlock_ctx);
+	m0_free(wlx->wlc_rm_addr);
+	m0_free(wlx);
+	M0_LEAVE();
+}
+
+int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx,
+			      bool                forced,
+			      uint64_t            ver_forced,
+			      uint32_t           *rquorum)
 {
 	int                            rc;
 	struct m0_spiel_load_command  *spiel_cmd   = NULL;
@@ -481,11 +712,10 @@ int m0_spiel_tx_commit_forced(struct m0_spiel_tx  *tx,
 		rc = M0_ERR(-ENOMEM);
 		goto tx_fini;
 	}
-
 	for (idx = 0; idx < confd_count; ++idx) {
 		spiel_cmd[idx].slc_status =
 			m0_rpc_client_connect(&spiel_cmd[idx].slc_connect,
-					      &spiel_cmd->slc_session,
+					      &spiel_cmd[idx].slc_session,
 					      tx->spt_spiel->spl_rmachine,
 					      confd_eps[idx],
 					      MAX_RPCS_IN_FLIGHT) ?:
@@ -504,6 +734,9 @@ int m0_spiel_tx_commit_forced(struct m0_spiel_tx  *tx,
 	}
 
 	quorum = 0;
+	rc = spiel_tx_write_lock_get(tx);
+	if (rc != 0)
+		goto tx_fini;
 	for (idx = 0; idx < confd_count; ++idx) {
 		if (spiel_cmd[idx].slc_status == 0) {
 			rc = spiel_flip_fop_send(tx, &spiel_cmd[idx]);
@@ -511,6 +744,8 @@ int m0_spiel_tx_commit_forced(struct m0_spiel_tx  *tx,
 				++quorum;
 		}
 	}
+	/* TODO: handle creditor death */
+	spiel_tx_write_lock_put(tx);
 	rc = !forced && quorum < tx->spt_spiel->spl_rconfc.rc_quorum ?
 		M0_ERR(-ENOENT) : 0;
 

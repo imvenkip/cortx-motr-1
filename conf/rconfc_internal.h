@@ -43,19 +43,22 @@ enum confc_state {
 struct m0_rconfc;
 
 struct rlock_ctx {
-	struct m0_rconfc      *rlc_parent;    /**< back link to parent      */
-	struct m0_rpc_machine *rlc_rmach;     /**< rpc machine              */
-	struct m0_rpc_conn     rlc_conn;      /**< rpc connection           */
-	struct m0_rpc_session  rlc_sess;      /**< rpc session              */
-	char                  *rlc_rm_addr;   /**< HA-reported RM address   */
-	struct m0_fid          rlc_rm_fid;    /**< HA-reported RM fid       */
-	bool                   rlc_online;    /**< is RM connected          */
-	struct m0_rw_lockable  rlc_rwlock;    /**< lockable resource        */
-	struct m0_rm_owner     rlc_owner;     /**< local owner-borrower     */
-	struct m0_fid          rlc_owner_fid; /**< owner fid                */
-	struct m0_rm_remote    rlc_creditor;  /**< remote creditor          */
-	struct m0_rm_incoming  rlc_req;       /**< request to wait on       */
-	struct m0_clink        rlc_clink;     /**< waiter for owner windup  */
+	struct m0_rconfc          *rlc_parent;    /**< back link to parent    */
+	struct m0_rpc_machine     *rlc_rmach;     /**< rpc machine            */
+	struct m0_rpc_conn         rlc_conn;      /**< rpc connection         */
+	struct m0_rpc_session      rlc_sess;      /**< rpc session            */
+	char                      *rlc_rm_addr;   /**< HA-reported RM address */
+	struct m0_fid              rlc_rm_fid;    /**< HA-reported RM fid     */
+	bool                       rlc_online;    /**< is RM connected        */
+	struct m0_rw_lockable      rlc_rwlock;    /**< lockable resource      */
+	struct m0_rm_owner         rlc_owner;     /**< local owner-borrower   */
+	struct m0_fid              rlc_owner_fid; /**< owner fid              */
+	struct m0_rm_remote        rlc_creditor;  /**< remote creditor        */
+	struct m0_rm_incoming      rlc_req;       /**< request to wait on     */
+	struct m0_clink            rlc_clink;     /**< waiter for owner windup*/
+	struct m0_rm_domain        rlc_dom;       /**< read domain            */
+	struct m0_rm_resource_type rlc_rt;        /**< read resource type     */
+
 };
 
 /* -------------- Quorum calculation context ----------------- */

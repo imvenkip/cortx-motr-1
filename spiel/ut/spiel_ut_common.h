@@ -28,6 +28,7 @@
 #include "reqh/reqh.h"        /* m0_reqh */
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine */
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx */
+#include "rm/rm_service.h"    /* m0_rms_type */
 
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"

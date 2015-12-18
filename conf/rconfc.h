@@ -442,6 +442,13 @@ M0_INTERNAL void m0_rconfc_drained_cb_set(struct m0_rconfc       *rconfc,
 M0_INTERNAL int m0_rconfc_confd_endpoints(struct m0_rconfc   *rconfc,
 					  const char       ***eps);
 
+/**
+ * Allocates and fills ep with RM endpoint from
+ * m0_rconfc::rc_rlock_ctx::rlc_rm_addr. Returns 0 if success or -ENOMEM if
+ * memory allocation was failed during duplication of the endpoint.
+ */
+M0_INTERNAL int m0_rconfc_rm_endpoint(struct m0_rconfc *rconfc, char **ep);
+
 /** @} rconfc_dfspec */
 #endif /* __MERO_CONF_RCONFC_H__ */
 

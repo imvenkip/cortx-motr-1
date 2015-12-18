@@ -712,6 +712,16 @@ static void _confc_phony_cache_remove(struct m0_confc     *confc,
 
 /* -------------- Read lock context ----------------- */
 
+static int rlock_ctx_read_domain_init(struct rlock_ctx *rlx)
+{
+	return m0_rwlockable_domain_type_init(&rlx->rlc_dom, &rlx->rlc_rt);
+}
+
+static void rlock_ctx_read_domain_fini(struct rlock_ctx *rlx)
+{
+	m0_rwlockable_domain_type_fini(&rlx->rlc_dom, &rlx->rlc_rt);
+}
+
 static struct m0_rconfc *rlock_ctx_incoming_to_rconfc(struct m0_rm_incoming *in)
 {
 	struct rlock_ctx *rlx;
@@ -770,6 +780,7 @@ static int rlock_ctx_create(struct m0_rconfc       *parent,
 			    struct rlock_ctx      **out)
 {
 	struct rlock_ctx *rlx;
+	int               rc;
 
 	M0_ENTRY();
 	M0_PRE(out != NULL);
@@ -781,8 +792,10 @@ static int rlock_ctx_create(struct m0_rconfc       *parent,
 
 	rlx->rlc_parent = parent;
 	rlx->rlc_rmach = rmach;
-	m0_rw_lockable_init(&rlx->rlc_rwlock, &M0_RWLOCK_FID,
-			    m0_rwlockable_domain());
+	rc = rlock_ctx_read_domain_init(rlx);
+	if (rc != 0)
+		return M0_ERR(rc);
+	m0_rw_lockable_init(&rlx->rlc_rwlock, &M0_RWLOCK_FID, &rlx->rlc_dom);
 	m0_fid_tgenerate(&rlx->rlc_owner_fid, M0_RM_OWNER_FT);
 	m0_rm_rwlock_owner_init(&rlx->rlc_owner, &rlx->rlc_owner_fid,
 				&rlx->rlc_rwlock, NULL);
@@ -795,6 +808,7 @@ static void rlock_ctx_destroy(struct rlock_ctx *rlx)
 {
 	M0_PRE(!rlock_ctx_is_online(rlx));
 	m0_rw_lockable_fini(&rlx->rlc_rwlock);
+	rlock_ctx_read_domain_fini(rlx);
 	m0_free(rlx);
 }
 
@@ -1381,7 +1395,7 @@ static void rconfc_read_lock_get(struct m0_rconfc *rconfc)
 	rlx = rconfc->rc_rlock_ctx;
 	req = &rlx->rlc_req;
 	m0_rm_rwlock_req_init(req, &rlx->rlc_owner, &m0_rconfc_ri_ops,
-			      RIF_MAY_BORROW | RIF_MAY_REVOKE, RM_RWLOCK_READ);
+			      RIF_MAY_BORROW, RM_RWLOCK_READ);
 	m0_rm_credit_get(req);
 }
 
@@ -2280,6 +2294,22 @@ M0_INTERNAL int m0_rconfc_confd_endpoints(struct m0_rconfc   *rconfc,
 fail:
 	m0_strings_free(*eps);
 	return M0_ERR(-ENOMEM);
+}
+
+M0_INTERNAL int m0_rconfc_rm_endpoint(struct m0_rconfc *rconfc, char **ep)
+{
+	struct rlock_ctx *rlx;
+
+	M0_PRE(_0C(rconfc != NULL) && _0C(rconfc->rc_rlock_ctx != NULL) &&
+	       rlock_ctx_is_online(rconfc->rc_rlock_ctx));
+	M0_PRE(*ep == NULL);
+
+	rlx = rconfc->rc_rlock_ctx;
+	*ep = m0_strdup(rlx->rlc_rm_addr);
+	if (*ep == NULL)
+		return M0_ERR(-ENOMEM);
+	return M0_RC(0);
+
 }
 
 /** @} rconfc_dlspec */

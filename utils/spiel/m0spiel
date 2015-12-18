@@ -98,6 +98,9 @@ class Fid(Structure):
         return "<" + hex(self.f_container)[:-1] + ":" + str(self.f_key) + ">"
 
 
+spiel_rms_fid = Fid(0x7300000000000004, 100)
+
+
 # struct m0_bitmap
 class Bitmap(Structure):
     _fields_ = [("b_nr", c_uint32), ("b_words", POINTER(c_uint64))]
@@ -185,6 +188,7 @@ class SpielWrapper:
         self.__free(self.ha_conn)
         self.mero.m0_rpc_machine_fini(self.rpc_machine)
         self.__free(self.rpc_machine)
+        self.mero.m0_reqh_services_terminate(self.reqh);
         self.mero.m0_reqh_fini(self.reqh)
         self.__free(self.reqh)
         self.mero.m0_rpc_net_buffer_pool_cleanup(self.buffer_pool)
@@ -494,6 +498,15 @@ class SpielWrapper:
         if result != 0:
             raise RuntimeError("m0_reqh_init, rc = " + str(result))
         self.__free(reqh_args)
+        self.mero.m0_reqh_start(reqh)
+        rms = self.allocate_memory(m0_reqh_service__size())
+        rms_p = cast(rms, c_void_p)
+        result = self.mero.m0_reqh_service_setup(rms_p,
+                                                 self.mero.m0_rms_type,
+                                                 reqh, None,
+                                                 byref(spiel_rms_fid))
+        if result != 0:
+            raise RuntimeError("RM service start failed, rc = " + str(result))
         return reqh
 
     def __init_rpc_machine(self, domain, reqh, buffer_pool):
