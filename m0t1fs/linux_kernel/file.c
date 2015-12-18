@@ -1330,8 +1330,11 @@ static int user_data_copy(struct pargrp_iomap *map,
 				dbuf->db_flags |= PA_COPY_FRMUSR_DONE;
 
 			if (bytes != end - start)
-				return M0_ERR_INFO(-EFAULT, "[%p] Failed to "
-					       "copy_from_user", map->pi_ioreq);
+				return M0_ERR_INFO(
+					-EFAULT, "[%p] Failed to"
+					" copy_from_user: %" PRIu64 " !="
+					" %" PRIu64 " - %" PRIu64,
+					map->pi_ioreq, bytes, end, start);
 		}
 	} else {
 		if (dbuf->db_page == NULL)
@@ -1696,7 +1699,10 @@ static int ioreq_user_data_copy(struct io_request   *req,
 			rc = user_data_copy(this_map, pgstart, pgend,
 					    &it, dir, filter);
 			if (rc != 0)
-				return M0_ERR_INFO(rc, "[%p] Copy failed", req);
+				return M0_ERR_INFO(
+					rc, "[%p] Copy failed (pgstart=%" PRIu64
+					" pgend=%" PRIu64 ")",
+					req, pgstart, pgend);
 
 			iov_iter_advance(&it, count);
 		}
