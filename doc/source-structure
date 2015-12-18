@@ -340,3 +340,32 @@ Then create module/linux_kernel directory and place "kernel-only" files of your
 module there.
 
 Note: build system should be reconfigured after affected changes.
+
+How to add a system test?
+-------------------------
+
+A system test (ST) is usually a bash script. Some of Mero STs are written
+in C, Python, Expect.
+
+Put your system test into top-level st/ directory. If tested functionality
+is limited to that of a particular subsystem, the ST may be put into
+<subsystem>/st/ directory.
+
+If the ST creates any output files, like most of them do, this output should
+go to a dedicated "sandbox" directory. The path to this directory should
+be taken from `SANDBOX_DIR` environment variable. If this variable is not set,
+the ST should come up with a default value,
+e.g. "/var/mero/sandbox.<subsystem>-st".
+Sandbox directory should be deleted if the test succeeds, and preserved
+in case of failure.
+Consider using `sandbox_init` and `sandbox_fini` shell functions, defined
+in scripts/functions.
+
+    Rationale: separation of test output directories allows to aim `m0reportbug`
+    tool at a specific output directory and gather forensic data of the failed
+    test only.
+
+Create an entry for the ST in scripts/st.d/ directory. This is needed in order
+for the ST to be executed by `m0 run-st` command.
+
+An ST should have executable bits set (chmod +x).
