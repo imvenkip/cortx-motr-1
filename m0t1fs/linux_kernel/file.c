@@ -6382,7 +6382,9 @@ static ssize_t m0t1fs_direct_IO(int rw,
 	 * Otherwise generic kernel code will use unimplemented callbacks to
 	 * continue buffered I/O (e.g. write_begin()).
 	 */
-	M0_POST(retval < 0 || retval == m0_vec_count(&ivec->iv_vec));
+	M0_ASSERT_INFO(retval < 0 || retval == m0_vec_count(&ivec->iv_vec),
+		       "%" PRIi64 " != %" PRIi64, (int64_t)retval,
+		       m0_vec_count(&ivec->iv_vec));
 
 	m0_indexvec_free(ivec);
 	m0_free(ivec);
