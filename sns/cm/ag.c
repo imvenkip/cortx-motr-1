@@ -140,8 +140,8 @@ static int ai_group_next(struct m0_sns_cm_ag_iter *ai)
 	fom = &fctx->sf_scm->sc_base.cm_sw_update.swu_fom;
 	for (i = group; i < nr_groups; ++i) {
 		m0_sns_cm_ag_agid_setup(&ai->ai_fid, i, &ag_id);
-		if (!m0_sns_cm_ag_is_relevant(scm, pl, ai->ai_fctx->sf_pi,
-					      &ag_id))
+		if (!m0_sns_cm_ag_is_relevant(scm, fctx->sf_pm, pl,
+					      fctx->sf_pi, &ag_id))
 			continue;
 		m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
 		if (!cm->cm_ops->cmo_has_space(cm, &ag_id, l)) {
@@ -384,7 +384,8 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_local_cp_nr(const struct m0_cm_aggr_group *ag)
 	scm = cm2sns(cm);
 
 	M0_LEAVE();
-	return m0_sns_cm_ag_nr_local_units(scm, &fid, pl, fctx->sf_pi, group);
+	return m0_sns_cm_ag_nr_local_units(scm, fctx->sf_pm, &fid, pl,
+					   fctx->sf_pi, group);
 }
 
 M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag)
@@ -437,8 +438,8 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 
 	sag->sag_fctx = fctx;
 	/* calculate actual failed number of units in this group. */
-	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo,
-					&sag->sag_fmap);
+	f_nr = m0_sns_cm_ag_failures_nr(scm, fctx->sf_pm, &gfid, pl, pi,
+					id->ai_lo.u_lo, &sag->sag_fmap);
 	if (f_nr == 0 || f_nr > m0_pdclust_K(pl)) {
 		m0_bitmap_fini(&sag->sag_fmap);
 		m0_bitmap_fini(&sag->sag_proxy_incoming_map);
@@ -447,7 +448,7 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	}
 	sag->sag_fnr = f_nr;
 	if (has_incoming)
-		sag->sag_incoming_nr = m0_sns_cm_ag_max_incoming_units(scm, id,
+		sag->sag_incoming_nr = m0_sns_cm_ag_max_incoming_units(scm, fctx->sf_pm, id,
 								       pl, pi,
 								       &sag->sag_proxy_incoming_map);
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming,

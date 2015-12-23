@@ -34,12 +34,6 @@
 #include "ut/file_helpers.h"
 #include "conf/preload.h"
 
-/* import from pool/pool_store.c */
-M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
-					  struct m0_be_seg   *be_seg,
-					  struct m0_sm_group *sm_grp,
-					  struct m0_dtm      *dtm);
-
 static struct m0_semaphore sem;
 
 /* Single thread test vars. */
@@ -297,8 +291,6 @@ static int cm_cp_init(void)
 	rc = m0_fid_sscanf(cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile,
 			   &cm_ut_service->rs_reqh->rh_profile);
 	M0_ASSERT(rc == 0);
-	rc = m0_ios_poolmach_init(cm_ut_service);
-	M0_ASSERT(rc == 0);
 
 	return 0;
 }
@@ -307,14 +299,8 @@ static int cm_cp_init(void)
 static int cm_cp_fini(void)
 {
 	struct m0_reqh     *reqh = cm_ut_service->rs_reqh;
-	struct m0_poolmach *pm = m0_ios_poolmach_get(reqh);
-	struct m0_sm_group *grp  = m0_locality0_get()->lo_grp;
 	struct m0_confc    *confc = &reqh->rh_confc;
 
-	m0_sm_group_lock(grp);
-	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
-	m0_sm_group_unlock(grp);
-	m0_ios_poolmach_fini(cm_ut_service);
 	cm_ut_service_cleanup();
 	m0_cm_type_deregister(&cm_ut_cmt);
 	m0_ut_rpc_mach_fini(&cmut_rmach_ctx);

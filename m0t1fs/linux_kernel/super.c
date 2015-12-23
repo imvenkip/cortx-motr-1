@@ -573,6 +573,7 @@ int m0t1fs_pool_find(struct m0t1fs_sb *csb)
 	struct m0_conf_pool *cp;
 	struct m0_conf_pver *pver = NULL;
 	struct m0_reqh      *reqh = &csb->csb_reqh;
+	struct m0_pool      *pool;
 	int                  rc;
 
 	rc = m0_conf_poolversion_get(&reqh->rh_profile, &reqh->rh_confc,
@@ -580,11 +581,11 @@ int m0t1fs_pool_find(struct m0t1fs_sb *csb)
 	if (rc != 0)
 		return M0_ERR(rc);
 	cp = M0_CONF_CAST(m0_conf_obj_grandparent(&pver->pv_obj), m0_conf_pool);
-	csb->csb_pool = m0_pool_find(&csb->csb_pools_common, &cp->pl_obj.co_id);
-	M0_ASSERT(csb->csb_pool != NULL);
+	pool = m0_pool_find(&csb->csb_pools_common, &cp->pl_obj.co_id);
+	M0_ASSERT(pool != NULL);
 
-	csb->csb_pool_version = m0__pool_version_find(csb->csb_pool,
-						     &pver->pv_obj.co_id);
+	csb->csb_pool_version = m0__pool_version_find(pool,
+						      &pver->pv_obj.co_id);
 
 	return M0_RC(rc);
 }

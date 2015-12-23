@@ -24,23 +24,25 @@
 
 #include "sns/parity_repair.h"
 #include "sns/cm/cm_utils.h"
+#include "sns/cm/file.h"
 #include "sns/cm/ag.h"
 #include "cm/proxy.h"
+#include "pool/pool_machine.h"
 
 M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 					  struct m0_pdclust_layout *pl);
 
 static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
+					     struct m0_poolmach *pm,
 					     const struct m0_cm_ag_id *id,
 					     struct m0_pdclust_layout *pl,
 					     struct m0_pdclust_instance *pi,
 					     struct m0_bitmap *proxy_in_map)
 {
-	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
 	const struct m0_cm         *cm = &scm->sc_base;
 	struct m0_pdclust_src_addr  sa;
-        struct m0_pdclust_tgt_addr  ta;
-        struct m0_fid               cobfid;
+	struct m0_pdclust_tgt_addr  ta;
+	struct m0_fid               cobfid;
 	struct m0_fid               spare_cob;
 	struct m0_fid               gfid;
 	struct m0_cm_proxy         *pxy;
@@ -53,6 +55,7 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	int                         rc;
 
 	M0_ENTRY();
+	M0_PRE(pm != NULL);
 
 	agid2fid(id, &gfid);
 	sa.sa_group = agid2group(id);
@@ -60,15 +63,15 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid,
 				      &cobfid);
-		is_failed = m0_sns_cm_is_cob_failed(scm, &cobfid);
-		if (m0_sns_cm_unit_is_spare(scm, pl, pi, &gfid, sa.sa_group,
+		is_failed = m0_sns_cm_is_cob_failed(pm, &cobfid);
+		if (m0_sns_cm_unit_is_spare(pm, pl, pi, &gfid, sa.sa_group,
 					    unit))
 			continue;
 		/* Count number of spares corresponding to the failures
 		 * on a node. This is required to calculate exact number of
 		 * incoming copy packets.
 		 */
-		if (is_failed && !m0_sns_cm_is_cob_repaired(scm, &cobfid)) {
+		if (is_failed && !m0_sns_cm_is_cob_repaired(pm, &cobfid)) {
 			rc = m0_sns_repair_spare_map(pm, &gfid, pl, pi,
 					sa.sa_group, unit, (unsigned *)&sa.sa_unit,
 					&tgt_unit_prev);
@@ -76,7 +79,7 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				return M0_ERR(rc);
 
 			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &spare_cob);
-			if (m0_sns_cm_unit_is_spare(scm, pl, pi, &gfid, sa.sa_group,
+			if (m0_sns_cm_unit_is_spare(pm, pl, pi, &gfid, sa.sa_group,
 						    sa.sa_unit) &&
 			    m0_sns_cm_is_local_cob(cm, &spare_cob)) {
 				M0_CNT_INC(local_spares);
@@ -107,12 +110,12 @@ static uint64_t repair_ag_unit_end(const struct m0_pdclust_layout *pl)
 }
 
 static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
+				  struct m0_poolmach *pm,
 				  const struct m0_fid *gfid,
 				  uint64_t group,
 				  struct m0_pdclust_layout *pl,
 				  struct m0_pdclust_instance *pi)
 {
-	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
 	struct m0_fid               cobfid;
@@ -124,6 +127,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	bool                        result = false;
 	int                         rc;
 	M0_ENTRY();
+	M0_PRE(pm != NULL);
 
 	N = m0_pdclust_N(pl);
 	K = m0_pdclust_K(pl);
@@ -131,23 +135,23 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	for (j = 0; j < N + 2 * K; ++j) {
 		sa.sa_unit = j;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		if (m0_sns_cm_unit_is_spare(scm, pl, pi, gfid, group, j))
+		if (m0_sns_cm_unit_is_spare(pm, pl, pi, gfid, group, j))
 			continue;
-		if (!m0_sns_cm_is_cob_failed(scm, &cobfid))
+		if (!m0_sns_cm_is_cob_failed(pm, &cobfid))
 			continue;
-		if (m0_sns_cm_is_cob_repaired(scm, &cobfid))
+		if (m0_sns_cm_is_cob_repaired(pm, &cobfid))
 			continue;
 		rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
 				group, j, &tgt_unit, &tgt_unit_prev);
 		if (rc != 0)
 			return M0_RC(rc);
 		sa.sa_unit = tgt_unit;
-		if (!m0_sns_cm_unit_is_spare(scm, pl, pi, gfid, group, tgt_unit))
+		if (!m0_sns_cm_unit_is_spare(pm, pl, pi, gfid, group, tgt_unit))
 			continue;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
 		rc = m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid);
 		M0_LOG(M0_DEBUG, FID_F" local=%d", FID_P(&cobfid), rc);
-		if (rc == true && !m0_sns_cm_is_cob_failed(scm, &cobfid)) {
+		if (rc == true && !m0_sns_cm_is_cob_failed(pm, &cobfid)) {
 			result = true;
 			break;
 		}
@@ -157,7 +161,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 }
 
 int repair_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
-                     const struct m0_fid *cob_fid)
+		      const struct m0_fid *cob_fid)
 {
 	int rc;
 

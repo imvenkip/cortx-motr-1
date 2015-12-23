@@ -554,22 +554,12 @@ M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp
 
 M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 {
-	struct m0_sns_cm      *scm = cm2sns(cm);
-	struct m0_poolmach    *pm;
-	uint32_t               nr_failures;
-	int                    bufs_nr;
-	int		       rc;
+	struct m0_sns_cm *scm = cm2sns(cm);
+	int               bufs_nr;
+	int               rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
-
-	pm = m0_ios_poolmach_get(m0_sns_cm2reqh(scm));
-	M0_ASSERT(pm != NULL);
-	nr_failures = m0_poolmach_nr_dev_failures(pm);
-	if (pm->pm_state->pst_nr_failures < nr_failures) {
-		cm->cm_reset = true;
-		pm->pm_state->pst_nr_failures = nr_failures;
-	}
 
 	rc = m0_sns_cm_rm_init(scm);
 	if(rc != 0)
@@ -776,15 +766,18 @@ m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 				struct m0_pdclust_layout *pl,
 				struct m0_pdclust_instance *pi)
 {
-	struct m0_bitmap proxy_map;
-	struct m0_fid    gfid;
-	uint64_t         nr_cp_bufs;
-	uint64_t         cp_data_seg_nr;
-	uint64_t         nr_incoming;
+	struct m0_bitmap           proxy_map;
+	uint64_t                   nr_cp_bufs;
+	uint64_t                   cp_data_seg_nr;
+	uint64_t                   nr_incoming;
+	struct m0_sns_cm_file_ctx *fctx;
+
+	fctx = m0_sns_cm_fctx_get(scm, id);
+	M0_ASSERT(fctx != NULL);
 
 	m0_bitmap_init(&proxy_map, scm->sc_base.cm_proxy_nr);
-	nr_incoming = m0_sns_cm_ag_max_incoming_units(scm, id, pl, pi, &proxy_map);
-        agid2fid(id, &gfid);
+	nr_incoming = m0_sns_cm_ag_max_incoming_units(scm, fctx->sf_pm,
+						      id, pl, pi, &proxy_map);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
 	m0_bitmap_fini(&proxy_map);

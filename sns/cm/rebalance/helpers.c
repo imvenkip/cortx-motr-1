@@ -39,12 +39,12 @@ M0_INTERNAL int m0_sns_cm_rebalance_ag_setup(struct m0_sns_cm_ag *sag,
 
 static uint64_t
 rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
+				struct m0_poolmach *pm,
 				const struct m0_cm_ag_id *id,
 				struct m0_pdclust_layout *pl,
 				struct m0_pdclust_instance *pi,
 				struct m0_bitmap *proxy_in_map)
 {
-        struct m0_poolmach         *pm = scm->sc_base.cm_pm;
         struct m0_fid               cobfid;
         struct m0_fid               gfid;
         struct m0_pdclust_src_addr  sa;
@@ -68,8 +68,9 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 		sa.sa_unit = unit;
 		M0_SET0(&ta);
 		M0_SET0(&cobfid);
+		M0_ASSERT(pm != NULL);
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &cobfid);
-		if (!m0_sns_cm_is_cob_failed(scm, &cobfid))
+		if (!m0_sns_cm_is_cob_failed(pm, &cobfid))
 			continue;
                 if (!m0_sns_cm_is_local_cob(cm, &cobfid))
                         continue;
@@ -134,12 +135,12 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 }
 
 static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
+				     struct m0_poolmach *pm,
 				     const struct m0_fid *gfid,
 				     uint64_t group,
 				     struct m0_pdclust_layout *pl,
 				     struct m0_pdclust_instance *pi)
 {
-	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
 	uint32_t                    spare;
 	uint32_t                    spare_prev;
 	struct m0_pdclust_src_addr  sa;
@@ -151,6 +152,7 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	uint32_t                    funit;
 	bool                        result = false;
 	int                         rc;
+	M0_PRE(pm != NULL);
 
 	N = m0_pdclust_N(pl);
 	K = m0_pdclust_K(pl);
@@ -158,7 +160,7 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	for (i = 0; i < N + K; ++i) {
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		if (m0_sns_cm_is_cob_failed(scm, &cobfid) &&
+		if (m0_sns_cm_is_cob_failed(pm, &cobfid) &&
 		    m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid)) {
 			do {
 				funit = sa.sa_unit;
@@ -170,7 +172,7 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 				sa.sa_unit = spare;
 				m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta,
 						      gfid, &cobfid);
-			} while (m0_sns_cm_is_cob_failed(scm, &cobfid));
+			} while (m0_sns_cm_is_cob_failed(pm, &cobfid));
 
 			if (!m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid))
 				result = true;
@@ -187,19 +189,25 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
  */
 M0_INTERNAL int m0_sns_reopen_stob_devices(struct m0_cm *cm)
 {
-	struct m0_poolmach    *pm;
 	struct m0_sns_cm      *scm = cm2sns(cm);
 	enum m0_pool_nd_state  state;
-	int                    rc;
+	int                    rc = 0;
 
 	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
 		M0_PNDS_SNS_REBALANCING;
 	M0_PRE(state == M0_PNDS_SNS_REBALANCING);
+#if 0
+	/*
+	 * This piece of code need to be moved into HA callback.
+	 * Please see MERO-1484 for references.
+	 */
+	struct m0_poolmach    *pm;
 	pm = m0_ios_poolmach_get(scm->sc_base.cm_service.rs_reqh);
 	rc = m0_pool_device_reopen(pm, scm->sc_base.cm_service.rs_reqh);
 	if (rc != 0) {
 		return M0_ERR(rc);
 	}
+#endif
 	return M0_RC(rc);
 }
 

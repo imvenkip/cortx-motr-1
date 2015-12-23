@@ -42,13 +42,6 @@
 #include <unistd.h>			/* usleep */
 #include "lib/locality.h"
 
-/* import from pool/pool_store.c */
-M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
-					  struct m0_be_seg   *be_seg,
-					  struct m0_sm_group *sm_grp,
-					  struct m0_dtm      *dtm);
-
-
 static int cm_ut_init(void)
 {
 	int rc;
@@ -75,9 +68,6 @@ static int cm_ut_fini(void)
 
 static void cm_setup_ut(void)
 {
-	struct m0_reqh     *reqh;
-	struct m0_poolmach *pm;
-	struct m0_sm_group *grp;
 	struct m0_locality *locality;
 	struct m0_cm       *cm = &cm_ut[0].ut_cm;
 	struct m0_confc    *confc;
@@ -102,9 +92,6 @@ static void cm_setup_ut(void)
 			   &cm_ut_service->rs_reqh->rh_profile);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ios_poolmach_init(cm_ut_service);
-	M0_UT_ASSERT(rc == 0);
-
 	m0_cm_lock(cm);
 	rc = cm->cm_ops->cmo_prepare(cm);
 	M0_UT_ASSERT(rc == 0);
@@ -126,13 +113,6 @@ static void cm_setup_ut(void)
 		usleep(200);
 
 	m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
-	reqh = cm_ut_service->rs_reqh;
-	pm = m0_ios_poolmach_get(reqh);
-	grp = m0_locality0_get()->lo_grp;
-	m0_sm_group_lock(grp);
-	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
-	m0_sm_group_unlock(grp);
-	m0_ios_poolmach_fini(cm_ut_service);
 	m0_confc_fini(confc);
 	cm_ut_service_cleanup();
 }

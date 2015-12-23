@@ -25,6 +25,7 @@
 
 
 #include "sns/cm/ag.h"
+#include "pool/pool_machine.h"
 
 /**
    @defgroup SNSCMAG SNS copy machine aggregation group
@@ -135,6 +136,7 @@ M0_INTERNAL bool m0_sns_cm_ag_acc_is_full_with(const struct m0_cm_cp *acc,
  * Calculates number of buffers required for all the incoming copy packets.
  */
 M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
+						struct m0_poolmach *pm,
 						const struct m0_cm_ag_id *id,
 						struct m0_pdclust_layout *pl,
 						struct m0_pdclust_instance *pi);

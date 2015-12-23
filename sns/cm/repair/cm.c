@@ -107,7 +107,8 @@ static bool repair_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	fctx = m0_sns_cm_fctx_locate(scm, &fid);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 	M0_ASSERT(fctx != NULL);
-	total_inbufs = m0_sns_cm_repair_ag_inbufs(scm, id, pl, fctx->sf_pi);
+	total_inbufs = m0_sns_cm_repair_ag_inbufs(scm, fctx->sf_pm,
+						  id, pl, fctx->sf_pi);
 	return m0_sns_cm_has_space_for(scm, pl, total_inbufs);
 }
 

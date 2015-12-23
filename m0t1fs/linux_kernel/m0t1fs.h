@@ -673,9 +673,6 @@ struct m0t1fs_sb {
 	/** Total number of containers. */
 	uint32_t                                csb_nr_containers;
 
-	/** Pool being used by m0t1fs currently. */
-	struct m0_pool                         *csb_pool;
-
 	/** Pool version being used by m0t1fs currently. */
 	struct m0_pool_version                 *csb_pool_version;
 

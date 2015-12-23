@@ -173,22 +173,21 @@ static bool iter_invariant(const struct m0_sns_cm_iter *it)
 static void unit_to_cobfid(struct m0_sns_cm_iter_file_ctx *ifc,
 			   struct m0_fid *cob_fid_out)
 {
-	struct m0_sns_cm_iter       *it;
-	struct m0_sns_cm            *scm;
 	struct m0_pdclust_instance  *pi;
 	struct m0_pdclust_layout    *pl;
 	struct m0_pdclust_src_addr  *sa;
 	struct m0_pdclust_tgt_addr  *ta;
 	struct m0_fid               *fid;
+	struct m0_poolmach          *pm;
 
-	it = container_of(ifc, struct m0_sns_cm_iter, si_fc);
-	scm = it2sns(it);
 	fid = &ifc->ifc_gfid;
 	pi = ifc->ifc_fctx->sf_pi;
 	pl = m0_layout_to_pdl(ifc->ifc_fctx->sf_layout);
 	sa = &ifc->ifc_sa;
 	ta = &ifc->ifc_ta;
-	ifc->ifc_cob_is_spare_unit = m0_sns_cm_unit_is_spare(scm, pl, pi, fid,
+	pm = ifc->ifc_fctx->sf_pm;
+	ifc->ifc_cob_is_spare_unit = m0_sns_cm_unit_is_spare(pm, pl,
+							     pi, fid,
 							     sa->sa_group,
 							     sa->sa_unit);
 	m0_sns_cm_unit2cobfid(pl, pi, sa, ta, fid, cob_fid_out);
@@ -348,7 +347,8 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 	return M0_RC(rc);
 }
 
-static bool __has_incoming(struct m0_sns_cm *scm, struct m0_pdclust_layout *pl,
+static bool __has_incoming(struct m0_sns_cm *scm, struct m0_poolmach *pm,
+			   struct m0_pdclust_layout *pl,
 			   struct m0_pdclust_instance *pi, struct m0_fid *gfid,
 			   uint64_t group)
 {
@@ -360,12 +360,11 @@ static bool __has_incoming(struct m0_sns_cm *scm, struct m0_pdclust_layout *pl,
 	M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
 	       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
 	       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
-	return m0_sns_cm_ag_is_relevant(scm, pl, pi, &agid);
+	return m0_sns_cm_ag_is_relevant(scm, pm, pl, pi, &agid);
 }
 
 static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 {
-	struct m0_sns_cm               *scm = it2sns(it);
 	struct m0_sns_cm_iter_file_ctx *ifc = &it->si_fc;
 	struct m0_pdclust_layout       *pl;
 	struct m0_fid                  *fid = &ifc->ifc_gfid;
@@ -374,15 +373,17 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 	struct m0_pdclust_src_addr      sa;
 	struct m0_pdclust_tgt_addr      ta;
 	int                             i;
+	struct m0_poolmach             *pm = ifc->ifc_fctx->sf_pm;
 
 	pl = m0_layout_to_pdl(ifc->ifc_fctx->sf_layout);
 	for (i = 0; i < it->si_fc.ifc_upg; ++i) {
 		sa.sa_unit = i;
 		sa.sa_group = group;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
-		if (m0_sns_cm_is_cob_failed(scm, &cobfid) &&
-		    !m0_sns_cm_is_cob_repaired(scm, &cobfid) &&
-		    !m0_sns_cm_unit_is_spare(scm, pl, pi, fid, group, sa.sa_unit))
+		if (m0_sns_cm_is_cob_failed(pm, &cobfid) &&
+		    !m0_sns_cm_is_cob_repaired(pm, &cobfid) &&
+		    !m0_sns_cm_unit_is_spare(pm, pl, pi, fid,
+					     group, sa.sa_unit))
 			return false;
 	}
 
@@ -455,6 +456,7 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	uint64_t                        nrlu;
 	bool                            has_incoming = false;
 	int                             rc = 0;
+	struct m0_poolmach             *pm;
 
 	M0_ENTRY("it = %p", it);
 
@@ -466,11 +468,12 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	sa = &ifc->ifc_sa;
 	gfid = &ifc->ifc_gfid;
 	it->si_ag = NULL;
+	pm = fctx->sf_pm;
 	for (group = sa->sa_group; group < ifc->ifc_groups_nr; ++group) {
 		if (__group_skip(it, group))
 			continue;
-		has_incoming = __has_incoming(scm, pl, pi, gfid, group);
-		nrlu = m0_sns_cm_ag_nr_local_units(scm, gfid, pl, pi, group);
+		has_incoming = __has_incoming(scm, pm, pl, pi, gfid, group);
+		nrlu = m0_sns_cm_ag_nr_local_units(scm, pm, gfid, pl, pi, group);
 		if (has_incoming || nrlu > 0) {
 			rc = __group_alloc(scm, gfid, group, pl, has_incoming, &it->si_ag);
 			if (rc != 0) {
@@ -561,7 +564,6 @@ static bool unit_has_data(struct m0_sns_cm *scm, uint32_t unit)
 static int iter_cp_setup(struct m0_sns_cm_iter *it)
 {
 	struct m0_sns_cm               *scm = it2sns(it);
-	struct m0_cm                   *cm = &scm->sc_base;
 	struct m0_pdclust_layout       *pl;
 	struct m0_sns_cm_iter_file_ctx *ifc;
 	struct m0_sns_cm_file_ctx      *fctx;
@@ -604,8 +606,9 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	 * This is required to mark the appropriate data/parity unit of
 	 * which this spare contains data.
 	 */
+
 	if (m0_pdclust_unit_classify(pl, ag_cp_idx) == M0_PUT_SPARE) {
-		rc = m0_sns_repair_data_map(cm->cm_pm, pl,
+		rc = m0_sns_repair_data_map(fctx->sf_pm, pl,
 					    fctx->sf_pi, group,
 					    ag_cp_idx, &ag_cp_idx);
 		if (rc != 0)
@@ -682,7 +685,7 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		M0_LOG(M0_DEBUG, "cob locate rc = %d", rc);
 		++sa->sa_unit;
 	} while (rc == -ENOENT ||
-		 m0_sns_cm_is_cob_failed(it2sns(it), cob_fid));
+		 m0_sns_cm_is_cob_failed(ifc->ifc_fctx->sf_pm, cob_fid));
 
 	if (rc == 0)
 		iter_phase_set(it, ITPH_CP_SETUP);

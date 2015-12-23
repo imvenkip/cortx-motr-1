@@ -37,7 +37,6 @@
 #include "reqh/reqh.h"
 
 #include "pool/pool.h"
-#include "ioservice/io_device.h" /* m0_ios_poolmach_get */
 
 #include "mero/setup.h"          /* m0_cs_ctx_get */
 /**
@@ -226,36 +225,19 @@ static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
 {
 	struct m0_cm           *cm = pump2cm(cp_pump);
 	struct m0_reqh         *reqh;
-	struct m0_be_tx_credit *acc;
-	struct m0_poolmach     *pm;
-	struct m0_mero         *mero;
-	struct m0_confc        *confc;
-	uint64_t                nr_fail;
 	struct m0_sm_group     *grp;
 	struct m0_fom          *p_fom;
 	struct m0_dtx          *dtx;
 	int                     rc;
 
 	p_fom = &cp_pump->p_fom;
-	pm = m0_ios_poolmach_get(m0_fom_reqh(p_fom));
-	M0_ASSERT(pm != NULL);
-	nr_fail = m0_poolmach_nr_dev_failures(pm);
+
 	reqh = m0_fom_reqh(p_fom);
 	grp = &p_fom->fo_loc->fl_group;
 	dtx = &p_fom->fo_tx;
 
 	if (dtx->tx_state < M0_DTX_INIT) {
 		m0_dtx_init(dtx, reqh->rh_beseg->bs_domain, grp);
-		acc = m0_fom_tx_credit(p_fom);
-		m0_poolmach_store_credit(pm, acc);
-		m0_be_tx_credit_mul(acc, nr_fail);
-		m0_be_tx_credit_add(acc, acc);
-		confc = &cm->cm_service.rs_reqh->rh_confc;
-		mero = cm->cm_service.rs_reqh_ctx->rc_mero;
-		rc = m0_poolmach_credit_calc(pm, confc, &mero->cc_pools_common,
-					     acc);
-		if (rc != 0)
-			return rc;
 		m0_dtx_open(dtx);
 	}
 	if (m0_be_tx_state(&dtx->tx_betx) == M0_BTS_FAILED) {

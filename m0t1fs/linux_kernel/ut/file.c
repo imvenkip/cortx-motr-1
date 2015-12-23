@@ -244,7 +244,6 @@ static int file_io_ut_init(void)
 
 	rc = m0t1fs_pool_find(&csb);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(csb.csb_pool != NULL);
 	M0_UT_ASSERT(csb.csb_pool_version != NULL);
 	pver = csb.csb_pool_version;
 

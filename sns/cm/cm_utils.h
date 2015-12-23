@@ -76,6 +76,7 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
  * number as the parameters to this function in-order to perform sanity checks.
  */
 M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
+						 struct m0_poolmach *pm,
 						 const struct m0_fid *fid,
 						 struct m0_pdclust_layout *pl,
 						 struct m0_pdclust_instance *pi,
@@ -87,15 +88,16 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm_ag *ag,
 
 M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
+				struct m0_poolmach *pm,
 				const struct m0_cm_ag_id *id,
 				struct m0_pdclust_layout *pl,
 				struct m0_pdclust_instance *pi,
 				struct m0_bitmap *proxy_in_map);
 
-M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
+M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_poolmach *pm,
 					 const struct m0_fid *cob_fid);
 
-M0_INTERNAL bool m0_sns_cm_is_cob_repaired(const struct m0_sns_cm *scm,
+M0_INTERNAL bool m0_sns_cm_is_cob_repaired(struct m0_poolmach *pm,
 					   const struct m0_fid *cob_fid);
 
 /**
@@ -106,7 +108,7 @@ M0_INTERNAL uint64_t
 m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
 			   uint64_t fidx);
 
-M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
+M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
 					 struct m0_pdclust_layout *pl,
 					 struct m0_pdclust_instance *pi,
 					 const struct m0_fid *fid,
@@ -150,6 +152,7 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
 					 const struct m0_fid *gfid);
 
 M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
+					    struct m0_poolmach *pm,
 					    const struct m0_fid *gfid,
 					    struct m0_pdclust_layout *pl,
 					    struct m0_pdclust_instance *pi,
@@ -163,6 +166,7 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
  * the repair.
  */
 M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
+					  struct m0_poolmach *pm,
 					  struct m0_pdclust_layout *pl,
 					  struct m0_pdclust_instance *pi,
 					  const struct m0_cm_ag_id *id);

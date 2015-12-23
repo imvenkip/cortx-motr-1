@@ -42,12 +42,6 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/trace.h"
 
-/* import from pool/pool_store.c */
-M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
-					  struct m0_be_seg   *be_seg,
-					  struct m0_sm_group *sm_grp,
-					  struct m0_dtm      *dtm);
-
 #define DUMMY_DBNAME      "dummy-db"
 #define DUMMY_COB_ID      20
 #define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
@@ -497,7 +491,6 @@ static void cm_ready(struct m0_cm *cm)
 
 static void receiver_init()
 {
-	struct m0_poolmach_state *ps;
 	int                       rc;
 
 	rc = m0_cm_type_register(&sender_cm_cmt);
@@ -516,20 +509,8 @@ static void receiver_init()
 
 	recv_scm = cm2sns(recv_cm);
 	recv_scm->sc_op = SNS_REPAIR;
-	recv_cm->cm_pm = m0_ios_poolmach_get(recv_cm->cm_service.rs_reqh);
-	M0_UT_ASSERT(recv_cm->cm_pm != NULL);
 
 	m0_cm_lock(recv_cm);
-	/*
-	 * Set the state of the failed device to "M0_PNDS_FAILED" in the pool
-	 * machine explicitly.
-	 */
-	ps = recv_cm->cm_pm->pm_state;
-	ps->pst_devices_array[DEV_ID].pd_state = M0_PNDS_FAILED;
-	ps->pst_spare_usage_array[DEV_ID].psu_device_state =
-		M0_PNDS_SNS_REPAIRING;
-	ps->pst_spare_usage_array[DEV_ID].psu_device_index = DEV_ID;
-
 	M0_UT_ASSERT(recv_cm->cm_ops->cmo_prepare(recv_cm) == 0);
 	m0_cm_state_set(recv_cm, M0_CMS_PREPARE);
 
@@ -731,11 +712,7 @@ static void sender_init()
 	rc = m0_fid_sscanf(sender_cm_service->rs_reqh_ctx->rc_mero->cc_profile,
 			   &sender_cm_service->rs_reqh->rh_profile);
 	M0_UT_ASSERT(rc == 0);
-	m0_fi_enable_once("m0_poolmach__store_init", "recreate_pm_store");
 
-	rc = m0_ios_poolmach_init(sender_cm_service);
-
-	M0_UT_ASSERT(rc == 0);
 	m0_cm_lock(&sender_cm);
 	M0_UT_ASSERT(sender_cm.cm_ops->cmo_prepare(&sender_cm) == 0);
 	m0_cm_state_set(&sender_cm, M0_CMS_PREPARE);
@@ -807,9 +784,6 @@ static void receiver_fini()
 
 static void sender_fini()
 {
-	struct m0_reqh     *reqh;
-	struct m0_poolmach *pm;
-	struct m0_sm_group *grp;
 	struct m0_confc    *confc;
 	int                 rc;
 
@@ -824,14 +798,7 @@ static void sender_fini()
         M0_UT_ASSERT(rc == 0);
         m0_net_domain_fini(&client_net_dom);
 	m0_reqh_idle_wait(&rmach_ctx.rmc_reqh);
-	reqh = sender_cm_service->rs_reqh;
-	pm = m0_ios_poolmach_get(reqh);
-	grp = m0_locality0_get()->lo_grp;
 
-	m0_sm_group_lock(grp);
-	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
-	m0_sm_group_unlock(grp);
-	m0_ios_poolmach_fini(sender_cm_service);
 	confc = &sender_cm_service->rs_reqh->rh_confc;
 	m0_confc_fini(confc);
 	m0_reqh_service_prepare_to_stop(sender_cm_service);

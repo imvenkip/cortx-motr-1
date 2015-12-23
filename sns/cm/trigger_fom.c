@@ -35,8 +35,6 @@
 #include "rpc/rpc.h"
 #include "fop/fop_item_type.h"
 
-#include "ioservice/io_device.h" /* m0_ios_poolmach_get */
-
 #include "cm/proxy.h"
 #include "cm/cm.h"
 
@@ -310,37 +308,13 @@ static int (*trig_action[]) (struct m0_fom *) = {
 static int trigger_fom_tick(struct m0_fom *fom)
 {
 	struct trigger_fop     *treq = m0_fop_data(fom->fo_fop);
-	struct m0_be_tx_credit *tx_cred;
 	struct m0_cm           *cm;
-	struct m0_sns_cm       *scm;
-	struct m0_poolmach     *pm;
-	struct m0_confc        *confc;
-	struct m0_mero         *mero;
 	enum m0_cm_state        cm_state;
-	uint64_t                nr_fail;
 	int                     rc = 0;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		cm = trig2cm(fom);
-		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN &&
-		    M0_IN(treq->op, (SNS_REPAIR, SNS_REBALANCE))){
-			/* Calculate credits for global pool machine. */
-			pm = m0_ios_poolmach_get(m0_fom_reqh(fom));
-			M0_ASSERT(pm != NULL);
-			nr_fail = m0_poolmach_nr_dev_failures(pm);
-			tx_cred = m0_fom_tx_credit(fom);
-			m0_poolmach_store_credit(pm, tx_cred);
-			m0_be_tx_credit_mul(tx_cred, nr_fail);
-			m0_be_tx_credit_add(tx_cred, tx_cred);
-			scm = cm2sns(cm);
-			confc = &scm->sc_base.cm_service.rs_reqh->rh_confc;
-			mero = m0_cs_ctx_get(scm->sc_base.cm_service.rs_reqh);
-			rc = m0_poolmach_credit_calc(pm, confc,
-						     &mero->cc_pools_common,
-						     tx_cred);
-			if (rc != 0)
-				goto out;
-		} else if (m0_fom_phase(fom) == M0_FOPH_INIT &&
+		if (m0_fom_phase(fom) == M0_FOPH_INIT &&
 			   M0_IN(treq->op, (SNS_REPAIR, SNS_REBALANCE))) {
 			m0_cm_lock(cm);
 			cm_state = m0_cm_state_get(cm);
@@ -358,7 +332,6 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		rc = m0_fom_tick_generic(fom);
 	} else
 		rc = trig_action[m0_fom_phase(fom)](fom);
-out:
 	if (rc < 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		trigger_rep_set(fom);

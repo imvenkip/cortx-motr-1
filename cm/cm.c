@@ -691,17 +691,11 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	m0_cm_lock(cm);
 	M0_PRE(m0_cm_state_get(cm) == M0_CMS_IDLE);
 
-        cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
-        if (cm->cm_pm == NULL || M0_FI_ENABLED("prepare_failure")) {
-                rc = -EINVAL;
-		goto out;
-	}
-
 	cm->cm_done = false;
 	cm->cm_proxy_init_updated = 0;
 	cm->cm_quiesce = false;
 	cm->cm_abort   = false;
-	cm->cm_reset = false;
+	cm->cm_reset   = true;
 	cm->cm_epoch = m0_time_now();
 	rc = cm->cm_ops->cmo_prepare(cm);
 	if (rc != 0)

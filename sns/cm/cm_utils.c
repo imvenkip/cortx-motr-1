@@ -160,6 +160,7 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
+						 struct m0_poolmach *pm,
 						 const struct m0_fid *fid,
 						 struct m0_pdclust_layout *pl,
 						 struct m0_pdclust_instance *pi,
@@ -183,8 +184,8 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
 		if (m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid) &&
-		    !m0_sns_cm_is_cob_failed(scm, &cobfid) &&
-		    !m0_sns_cm_unit_is_spare(scm, pl, pi, fid, group, i))
+		    !m0_sns_cm_is_cob_failed(pm, &cobfid) &&
+		    !m0_sns_cm_unit_is_spare(pm, pl, pi, fid, group, i))
 			M0_CNT_INC(nrlu);
 	}
 	M0_LEAVE("number of local units = %lu", nrlu);
@@ -199,27 +200,31 @@ uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm_ag *sag,
 	return m0_pdclust_N(pl) + m0_pdclust_K(pl);
 }
 
-M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
+M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_poolmach *pm,
 					 const struct m0_fid *cob_fid)
 {
 	enum m0_pool_nd_state state_out = 0;
-	m0_poolmach_device_state(scm->sc_base.cm_pm,
+	M0_PRE(pm != NULL);
+
+	m0_poolmach_device_state(pm,
 				 m0_fid_cob_device_id(cob_fid),
 				 &state_out);
 	return !M0_IN(state_out, (M0_PNDS_ONLINE, M0_PNDS_OFFLINE));
 }
 
-M0_INTERNAL bool m0_sns_cm_is_cob_repaired(const struct m0_sns_cm *scm,
+M0_INTERNAL bool m0_sns_cm_is_cob_repaired(struct m0_poolmach *pm,
 					   const struct m0_fid *cob_fid)
 {
 	enum m0_pool_nd_state state_out = 0;
-	m0_poolmach_device_state(scm->sc_base.cm_pm,
+	M0_PRE(pm != NULL);
+
+	m0_poolmach_device_state(pm,
 				 m0_fid_cob_device_id(cob_fid),
 				 &state_out);
 	return state_out == M0_PNDS_SNS_REPAIRED;
 }
 
-M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
+M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
 					 struct m0_pdclust_layout *pl,
 					 struct m0_pdclust_instance *pi,
 					 const struct m0_fid *fid,
@@ -245,8 +250,9 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 		sa.sa_unit = spare_nr;
 		sa.sa_group = group_nr;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
-		rc = m0_poolmach_device_state(scm->sc_base.cm_pm,
-			m0_fid_cob_device_id(&cobfid), &state_out);
+		rc = m0_poolmach_device_state(pm,
+					      m0_fid_cob_device_id(&cobfid),
+					      &state_out);
 		M0_ASSERT(rc == 0);
 		if (state_out == M0_PNDS_SNS_REPAIRED)
 			goto out;
@@ -258,7 +264,7 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 		 * If we fail to map the spare unit to any of the previously
 		 * failed data unit, means the spare is empty.
 		 */
-		rc = m0_sns_repair_data_map(scm->sc_base.cm_pm, pl, pi,
+		rc = m0_sns_repair_data_map(pm, pl, pi,
 					    group_nr, spare_nr,
 					    &data_unit_id_out);
 		if (rc == -ENOENT)
@@ -280,10 +286,9 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 		 * empty.
 		 */
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
-		if (m0_poolmach_device_is_in_spare_usage_array(
-					scm->sc_base.cm_pm,
+		if (m0_poolmach_device_is_in_spare_usage_array(pm,
 					m0_fid_cob_device_id(&cobfid))) {
-			rc = m0_poolmach_device_state(scm->sc_base.cm_pm,
+			rc = m0_poolmach_device_state(pm,
 				m0_fid_cob_device_id(&cobfid), &state_out);
 			M0_ASSERT(rc == 0);
 			if (!M0_IN(state_out, (M0_PNDS_SNS_REPAIRED,
@@ -379,6 +384,7 @@ M0_INTERNAL bool m0_sns_cm_is_local_cob(const struct m0_cm *cm,
 }
 
 M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
+					    struct m0_poolmach *pm,
 					    const struct m0_fid *gfid,
 					    struct m0_pdclust_layout *pl,
 					    struct m0_pdclust_instance *pi,
@@ -398,11 +404,11 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
 	sa.sa_group = group;
 	for (unit = 0; unit < upg; ++unit) {
-		if (m0_sns_cm_unit_is_spare(scm, pl, pi, gfid, group, unit))
+		if (m0_sns_cm_unit_is_spare(pm, pl, pi, gfid, group, unit))
 			continue;
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		if (m0_sns_cm_is_cob_failed(scm, &cobfid)) {
+		if (m0_sns_cm_is_cob_failed(pm, &cobfid)) {
 			M0_CNT_INC(group_failures);
 			if (fmap_out != NULL) {
 				M0_ASSERT(fmap_out->b_nr == upg);
@@ -416,9 +422,10 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 }
 
 M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
-                                          struct m0_pdclust_layout *pl,
+					  struct m0_poolmach *pm,
+					  struct m0_pdclust_layout *pl,
 					  struct m0_pdclust_instance *pi,
-                                          const struct m0_cm_ag_id *id)
+					  const struct m0_cm_ag_id *id)
 {
         struct m0_fid               fid;
         size_t                      group_failures;
@@ -430,10 +437,10 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
         agid2fid(id,  &fid);
 	group = id->ai_lo.u_lo;
 	/* Firstly check if this group has any failed units. */
-	group_failures = m0_sns_cm_ag_failures_nr(scm, &fid, pl,
+	group_failures = m0_sns_cm_ag_failures_nr(scm, pm, &fid, pl,
 						  pi, group, NULL);
 	if (group_failures > 0 )
-		result = scm->sc_helpers->sch_ag_is_relevant(scm, &fid,
+		result = scm->sc_helpers->sch_ag_is_relevant(scm, pm, &fid,
 							     group, pl,
 							     pi);
 
@@ -442,6 +449,7 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 
 M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
+				struct m0_poolmach *pm,
 				const struct m0_cm_ag_id *id,
 				struct m0_pdclust_layout *pl,
 				struct m0_pdclust_instance *pi,
@@ -449,7 +457,7 @@ m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
 {
 	M0_PRE(m0_cm_is_locked(&scm->sc_base));
 
-	return scm->sc_helpers->sch_ag_max_incoming_units(scm, id, pl, pi,
+	return scm->sc_helpers->sch_ag_max_incoming_units(scm, pm, id, pl, pi,
 							  proxy_in_map);
 }
 

@@ -63,6 +63,9 @@ struct m0_sns_cm_file_ctx {
 
 	struct m0_cob_attr          sf_attr;
 
+	/** Poolmach for this file. */
+	struct m0_poolmach         *sf_pm;
+
 	struct m0_layout           *sf_layout;
 
 	/** pdclust instance for a particular GOB. */

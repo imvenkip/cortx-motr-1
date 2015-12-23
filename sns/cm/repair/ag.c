@@ -63,6 +63,7 @@ sag2repairag(const struct m0_sns_cm_ag *sag)
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
+						struct m0_poolmach *pm,
 						const struct m0_cm_ag_id *id,
 						struct m0_pdclust_layout *pl,
 						struct m0_pdclust_instance *pi)
@@ -83,7 +84,7 @@ M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
 	/* Calculate number of buffers required for incoming copy packets. */
 	nr_in_bufs = m0_sns_cm_incoming_reserve_bufs(scm, id, pl, pi);
 	/* Calculate number of buffers required for accumulator copy packets. */
-	nr_acc_bufs = nr_cp_bufs * m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi,
+	nr_acc_bufs = nr_cp_bufs * m0_sns_cm_ag_failures_nr(scm, pm, &gfid, pl, pi,
 							    id->ai_lo.u_lo, NULL);
 	return nr_in_bufs + nr_acc_bufs;
 }
@@ -251,12 +252,14 @@ static uint64_t repair_ag_target_unit(struct m0_sns_cm_ag *sag,
 				      struct m0_pdclust_instance *pi,
 				      uint64_t fdev, uint64_t funit)
 {
-        struct m0_poolmach         *pm = sag->sag_base.cag_cm->cm_pm;
-        struct m0_fid               gfid;
-        uint64_t                    group;
-        uint32_t                    tgt_unit;
-        uint32_t                    tgt_unit_prev;
-        int                         rc;
+        struct m0_poolmach *pm;
+        struct m0_fid       gfid;
+        uint64_t            group;
+        uint32_t            tgt_unit;
+        uint32_t            tgt_unit_prev;
+        int                 rc;
+
+	pm = sag->sag_fctx->sf_pm;
 
         agid2fid(&sag->sag_base.cag_id, &gfid);
         group = agid2group(&sag->sag_base.cag_id);
@@ -274,7 +277,6 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 {
 	struct m0_sns_cm_ag                    *sag = &rag->rag_base;
 	struct m0_cm                           *cm = snsag2cm(sag);
-	struct m0_sns_cm                       *scm = cm2sns(cm);
 	struct m0_sns_cm_repair_ag_failure_ctx *rag_fc;
 	struct m0_fid                           fid;
 	struct m0_fid                           cobfid;
@@ -288,16 +290,18 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 	uint64_t                                data_unit_id_out;
 	int                                     i;
 	int                                     rc = 0;
+	struct m0_poolmach                     *pm;
 
 	M0_PRE(fmap != NULL);
 	M0_PRE(fmap->b_nr == (m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl)));
 
+	pm = sag->sag_fctx->sf_pm;
 	agid2fid(&sag->sag_base.cag_id, &fid);
 	group = agid2group(&sag->sag_base.cag_id);
 	for (i = 0; i < fmap->b_nr; ++i) {
 		if (!m0_bitmap_get(fmap, i))
 			continue;
-		if (m0_sns_cm_unit_is_spare(scm, pl, pi, &fid, group, i))
+		if (m0_sns_cm_unit_is_spare(pm, pl, pi, &fid, group, i))
 			continue;
 		/*
 		 * Check if the failed index is spare, which means that
@@ -306,7 +310,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 		 * invoked yet.
 		 */
 		if (m0_pdclust_unit_classify(pl, i) == M0_PUT_SPARE) {
-			rc = m0_sns_repair_data_map(cm->cm_pm, pl, pi, group,
+			rc = m0_sns_repair_data_map(pm, pl, pi, group,
 						    i, &data_unit_id_out);
 				if (rc != 0)
 					return M0_RC(rc);
@@ -326,7 +330,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 		 * data unit @data_unit_id_out is another spare unit in the
 		 * aggregation group (i.e N + K < i < N + 2K).
 		 */
-		if (m0_sns_cm_unit_is_spare(scm, pl, pi, &fid, group,
+		if (m0_sns_cm_unit_is_spare(pm, pl, pi, &fid, group,
 					    data_unit_id_out))
 			continue;
 		rc = m0_sns_cm_ag_tgt_unit2cob(sag, data_unit_id_out, pl, pi,
@@ -341,7 +345,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 		 * Hence move to next failed unit in the aggregation group.
 		 */
 		if (data_unit_id_out == i) {
-			rc = m0_poolmach_device_state(cm->cm_pm,
+			rc = m0_poolmach_device_state(pm,
 					m0_fid_cob_device_id(&cobfid),
 					&state_out);
 			if (rc != 0)

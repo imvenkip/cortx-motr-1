@@ -139,6 +139,7 @@ struct m0_sns_cm_helpers {
 	 * received by this replica.
 	 */
 	uint64_t (*sch_ag_max_incoming_units)(const struct m0_sns_cm *scm,
+					      struct m0_poolmach *pm,
 					      const struct m0_cm_ag_id *id,
 					      struct m0_pdclust_layout *pl,
 					      struct m0_pdclust_instance *pi,
@@ -161,6 +162,7 @@ struct m0_sns_cm_helpers {
 	 * packets from other replicas, else false.
 	 */
 	bool     (*sch_ag_is_relevant)(struct m0_sns_cm *scm,
+				       struct m0_poolmach *pm,
 				       const struct m0_fid *gfid,
 				       uint64_t group,
 				       struct m0_pdclust_layout *pl,

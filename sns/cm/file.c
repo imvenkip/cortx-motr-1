@@ -26,6 +26,7 @@
 
 #include "ioservice/io_service.h"
 #include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 
 #include "sns/cm/cm.h"
 #include "sns/cm/cm_utils.h"
@@ -541,11 +542,11 @@ static int _attr_fetch(struct m0_sns_cm_file_ctx *fctx)
 		return M0_RC(0);
 
 	m0_ref_get(&fctx->sf_ref);
-	rc = !reqh->rh_oostore ?
-		m0_ios_mds_getattr_async(reqh, &fctx->sf_fid, &fctx->sf_attr,
-					 &_attr_cb, fctx) :
+	rc = reqh->rh_oostore ?
 		m0_ios_getattr_async(reqh, &fctx->sf_fid, &fctx->sf_attr,
-				     fctx->sf_nr_ios_visited, &_attr_cb, fctx);
+				     fctx->sf_nr_ios_visited, &_attr_cb, fctx):
+		m0_ios_mds_getattr_async(reqh, &fctx->sf_fid, &fctx->sf_attr,
+					 &_attr_cb, fctx);
 	if (rc == 0 && fctx->sf_attr.ca_size == 0)
 		return M0_RC(-EAGAIN);
 
@@ -583,6 +584,26 @@ static int fid_layout_instance(struct m0_sns_cm_file_ctx *fctx)
 	return M0_RC(rc);
 }
 
+static struct m0_poolmach *
+sns_cm_poolmach_get(struct m0_sns_cm_file_ctx *fctx)
+{
+	struct m0_reqh         *reqh;
+	struct m0_pool_version *pv;
+	M0_PRE(fctx != NULL);
+
+	reqh = m0_sns_cm2reqh(fctx->sf_scm);
+	pv = m0_pool_version_find(reqh->rh_pools, &fctx->sf_attr.ca_pver);
+
+	if (pv != NULL) {
+		return &pv->pv_mach;
+	} else {
+		M0_LOG(M0_ERROR, "Cannot find pool version for fid="FID_F
+				 " pver="FID_F,
+				 FID_P(&fctx->sf_fid),
+				 FID_P(&fctx->sf_attr.ca_pver));
+		return NULL;
+	}
+}
 
 M0_INTERNAL int
 m0_sns_cm_file_attr_and_layout(struct m0_sns_cm_file_ctx *fctx)
@@ -624,6 +645,11 @@ m0_sns_cm_file_attr_and_layout(struct m0_sns_cm_file_ctx *fctx)
 		if (fctx->sf_pi == NULL)
 			rc = fid_layout_instance(fctx);
 		M0_ASSERT(fctx->sf_pi != NULL);
+
+		/* populate fctx->sf_pm here */
+		fctx->sf_pm = sns_cm_poolmach_get(fctx);
+		M0_ASSERT(fctx->sf_pm != NULL);
+
 		break;
 	case M0_SCFS_ATTR_FETCH :
 	case M0_SCFS_LAYOUT_FETCH :

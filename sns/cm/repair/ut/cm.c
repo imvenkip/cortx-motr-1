@@ -120,36 +120,6 @@ static void service_start_failure(void)
 	M0_ASSERT(rc != 0);
 }
 
-static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
-			      enum m0_pool_nd_state state)
-{
-	struct m0_poolmach_event pme;
-	int                      rc;
-	struct m0_be_tx_credit   cred = {};
-	struct m0_be_tx          tx;
-	struct m0_sm_group      *grp  = m0_locality0_get()->lo_grp;
-
-	M0_SET0(&pme);
-	pme.pe_type  = M0_POOL_DEVICE;
-	pme.pe_index = fd;
-	pme.pe_state = state;
-
-	m0_sm_group_lock(grp);
-	m0_be_tx_init(&tx, 0, reqh->rh_beseg->bs_domain, grp,
-			      NULL, NULL, NULL, NULL);
-	m0_poolmach_store_credit(pm, &cred);
-
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_poolmach_state_transit(cm->cm_pm, &pme, &tx);
-	m0_be_tx_close_sync(&tx);
-	m0_be_tx_fini(&tx);
-	M0_UT_ASSERT(rc == 0);
-	m0_sm_group_unlock(grp);
-}
-
 static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 {
 	int rc;
@@ -163,13 +133,10 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 	M0_UT_ASSERT(service != NULL);
 
 	cm = container_of(service, struct m0_cm, cm_service);
-	cm->cm_pm = m0_ios_poolmach_get(reqh);
 	scm = cm2sns(cm);
-	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_FAILED);
 	scm->sc_op = op;
 	rc = cm->cm_ops->cmo_prepare(cm);
 	M0_UT_ASSERT(rc == 0);
-	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_SNS_REPAIRING);
 	rc = cm->cm_ops->cmo_start(cm);
 	M0_UT_ASSERT(rc == 0);
         service = m0_reqh_service_find(&m0_rms_type, reqh),
@@ -411,8 +378,6 @@ static void _cpp_tx_start(struct m0_cm *cm)
 	m0_sm_group_lock(grp);
 	m0_be_tx_init(tx, 0, reqh->rh_beseg->bs_domain, grp,
 			      NULL, NULL, NULL, NULL);
-	m0_poolmach_store_credit(cm->cm_pm, &cred);
-
 	m0_be_tx_prep(tx, &cred);
 	rc = m0_be_tx_open_sync(tx);
 	M0_ASSERT(rc == 0);
@@ -445,8 +410,6 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	 * for subsequent failure tests so that pool machine doesn't interpret
 	 * it as a multiple failure after reading from the persistence store.
 	 */
-	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_SNS_REBALANCING);
-	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_ONLINE);
 	cs_fini(&sctx);
 }
 

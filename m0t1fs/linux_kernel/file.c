@@ -760,14 +760,6 @@ M0_INTERNAL void io_bob_tlists_init(void)
 }
 
 static void device_state_reset(struct nw_xfer_request *xfer, bool rmw);
-static int io_spare_map(const struct pargrp_iomap *map,
-			const struct m0_pdclust_src_addr *src,
-			uint32_t *spare_slot, uint32_t *spare_slot_prev,
-			enum m0_pool_nd_state *eff_state);
-
-static int unit_state(const struct m0_pdclust_src_addr *src,
-			 const struct io_request *req,
-			 enum m0_pool_nd_state *state);
 
 static void io_rpc_item_cb (struct m0_rpc_item *item);
 static void io_req_fop_release(struct m0_ref *ref);
@@ -1201,10 +1193,9 @@ static void nw_xfer_request_init(struct nw_xfer_request *xfer)
 
 static void nw_xfer_request_fini(struct nw_xfer_request *xfer)
 {
-	M0_ENTRY("nw_xfer_request : %p, nxr_rc %d", xfer, xfer->nxr_rc);
-
 	M0_PRE(xfer != NULL && xfer->nxr_state == NXS_COMPLETE);
 	M0_PRE_EX(nw_xfer_request_invariant(xfer));
+	M0_ENTRY("nw_xfer_request : %p, nxr_rc %d", xfer, xfer->nxr_rc);
 
 	xfer->nxr_ops = NULL;
 	m0_mutex_fini(&xfer->nxr_lock);
@@ -1427,7 +1418,7 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 			old_pbuf = &map->pi_paritybufs[row][col]->db_buf;
 			if (memcmp(pbufs[col].b_addr, old_pbuf->b_addr,
 				   PAGE_CACHE_SIZE)) {
-				M0_LOG(M0_DEBUG, "[%p] parity verification "
+				M0_LOG(M0_ERROR, "[%p] parity verification "
 				       "failed for %llu [%u:%u], rc %d",
 				       map->pi_ioreq, map->pi_grpid, row, col,
 				       -EIO);
@@ -1633,12 +1624,11 @@ static void ioreq_pgiomap_find(struct io_request    *req,
 			       struct pargrp_iomap **out)
 {
 	uint64_t id;
-
-	M0_ENTRY("[%p] group_id = %llu, cursor = %llu", req, grpid, *cursor);
 	M0_PRE(req    != NULL);
 	M0_PRE(out    != NULL);
 	M0_PRE(cursor != NULL);
 	M0_PRE(*cursor < req->ir_iomap_nr);
+	M0_ENTRY("[%p] group_id = %llu, cursor = %llu", req, grpid, *cursor);
 
 	for (id = *cursor; id < req->ir_iomap_nr; ++id) {
 		if (req->ir_iomaps[id]->pi_grpid == grpid) {
@@ -2230,7 +2220,7 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 
 	M0_PRE_EX(pargrp_iomap_invariant(map));
 
-	M0_ENTRY("[%p] map %p", map->pi_ioreq, map);
+	M0_ENTRY("[%p] map %p grpid=%llu", map->pi_ioreq, map, map->pi_grpid);
 	inode = iomap_to_inode(map);
 	csb = M0T1FS_SB(inode->i_sb);
 
@@ -2523,7 +2513,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 	/* For READ in verify mode or WRITE */
 	if (map->pi_ioreq->ir_type == IRT_WRITE ||
 	    (map->pi_ioreq->ir_type == IRT_READ && csb->csb_verify))
-		rc = pargrp_iomap_paritybufs_alloc(map);
+		rc = map->pi_ops->pi_paritybufs_alloc(map);
 
 	M0_POST_EX(ergo(rc == 0, pargrp_iomap_invariant(map)));
 
@@ -2543,10 +2533,9 @@ static int pargrp_iomap_pages_mark_as_failed(struct pargrp_iomap       *map,
 	uint32_t                    col_nr;
 	struct data_buf          ***bufs;
 	struct m0_pdclust_layout   *play;
-
-	M0_ENTRY("[%p] map %p", map->pi_ioreq, map);
 	M0_PRE(map != NULL);
 	M0_PRE(M0_IN(type, (M0_PUT_DATA, M0_PUT_PARITY)));
+	M0_ENTRY("[%p] map %p", map->pi_ioreq, map);
 
 	play = pdlayout_get(map->pi_ioreq);
 
@@ -2595,6 +2584,64 @@ static int pargrp_iomap_pages_mark_as_failed(struct pargrp_iomap       *map,
 	}
 	return M0_RC(rc);
 }
+
+static int unit_state(const struct m0_pdclust_src_addr *src,
+		      const struct io_request *req,
+		      enum m0_pool_nd_state *state)
+{
+	struct m0_pdclust_instance *play_instance;
+	struct m0_pdclust_tgt_addr  tgt;
+	struct m0_fid		    tfid;
+	int			    rc;
+	struct m0_poolmach         *pm;
+
+	M0_ENTRY("[%p]", req);
+
+	play_instance = pdlayout_instance(layout_instance(req));
+	m0_fd_fwd_map(play_instance, src, &tgt);
+	tfid = target_fid(req, &tgt);
+
+	pm = m0t1fs_file_to_poolmach(req->ir_file);
+	M0_ASSERT(pm != NULL);
+	rc = m0_poolmach_device_state(pm, m0_fid_cob_device_id(&tfid), state);
+	if (rc != 0)
+		return M0_RC(rc);
+	return M0_RC(rc);
+}
+
+static int io_spare_map(const struct pargrp_iomap *map,
+			const struct m0_pdclust_src_addr *src,
+			uint32_t *spare_slot, uint32_t *spare_slot_prev,
+			enum m0_pool_nd_state *eff_state)
+{
+
+	struct m0_pdclust_layout   *play;
+	struct m0_pdclust_instance *play_instance;
+	const struct m0_fid	   *gfid;
+	struct m0_pdclust_src_addr  spare;
+	int			    rc;
+	struct m0_poolmach         *pm;
+
+	M0_ENTRY("[%p]", map->pi_ioreq);
+	play = pdlayout_get(map->pi_ioreq);
+	play_instance = pdlayout_instance(layout_instance(map->pi_ioreq));
+	gfid = file_to_fid(map->pi_ioreq->ir_file);
+
+	pm = m0t1fs_file_to_poolmach(map->pi_ioreq->ir_file);
+	M0_ASSERT(pm != NULL);
+	rc = m0_sns_repair_spare_map(pm, gfid, play, play_instance,
+				     src->sa_group, src->sa_unit,
+				     spare_slot, spare_slot_prev);
+	if (rc != 0) {
+		return M0_RC(rc);
+	}
+	/* Check if there is an effective failure of unit. */
+	spare.sa_group = src->sa_group;
+	spare.sa_unit = *spare_slot_prev;
+	rc = unit_state(&spare, map->pi_ioreq, eff_state);
+	return M0_RC(rc);
+}
+
 
 static void mark_page_as_read_failed(struct pargrp_iomap *map, uint32_t row,
 				     uint32_t col, enum page_attr page_type)
@@ -2686,12 +2733,19 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	pargrp_src_addr(index[0], req, tio, &src);
 	M0_ASSERT(src.sa_group == map->pi_grpid);
 	M0_ASSERT(src.sa_unit  <  layout_n(play) + layout_k(play));
+	M0_LOG(M0_DEBUG, "[%p] src=[%llu:%llu] device state=%d",
+			 map->pi_ioreq, src.sa_group, src.sa_unit, dev_state);
 	if (dev_state == M0_PNDS_SNS_REPAIRED) {
 		rc = io_spare_map(map, &src, &spare_slot, &spare_slot_prev,
 				  &dev_state);
 		M0_ASSERT(rc == 0);
-		if (dev_state == M0_PNDS_SNS_REPAIRED)
+		M0_LOG(M0_DEBUG, "[%p] spare=[%u] spare_prev=[%u] state=%d",
+				 map->pi_ioreq, spare_slot,
+				 spare_slot_prev, dev_state);
+		if (dev_state == M0_PNDS_SNS_REPAIRED) {
+			M0_LOG(M0_DEBUG, "reading from spare");
 			return M0_RC(0);
+		}
 	}
 	map->pi_state = PI_DEGRADED;
 	++req->ir_dgmap_nr;
@@ -2747,63 +2801,6 @@ par_fail:
 	m0_free0(&map->pi_paritybufs);
 
 	return M0_ERR_INFO(rc, "[%p] dgmode_process failed", req);
-}
-
-static int io_spare_map(const struct pargrp_iomap *map,
-			const struct m0_pdclust_src_addr *src,
-			uint32_t *spare_slot, uint32_t *spare_slot_prev,
-			enum m0_pool_nd_state *eff_state)
-{
-
-	struct m0_pdclust_layout   *play;
-	struct m0_pdclust_instance *play_instance;
-	const struct m0_fid	   *gfid;
-	struct m0_pdclust_src_addr  spare;
-	int			    rc;
-	struct m0_poolmach         *pm;
-
-	M0_ENTRY("[%p]", map->pi_ioreq);
-	play = pdlayout_get(map->pi_ioreq);
-	play_instance = pdlayout_instance(layout_instance(map->pi_ioreq));
-	gfid = file_to_fid(map->pi_ioreq->ir_file);
-
-	pm = m0t1fs_file_to_poolmach(map->pi_ioreq->ir_file);
-	M0_ASSERT(pm != NULL);
-	rc = m0_sns_repair_spare_map(pm, gfid, play, play_instance,
-				     src->sa_group, src->sa_unit,
-				     spare_slot, spare_slot_prev);
-	if (rc != 0) {
-		return M0_RC(rc);
-	}
-	/* Check if there is an effective failure of unit. */
-	spare.sa_group = src->sa_group;
-	spare.sa_unit = *spare_slot_prev;
-	rc = unit_state(&spare, map->pi_ioreq, eff_state);
-	return M0_RC(rc);
-}
-
-static int unit_state(const struct m0_pdclust_src_addr *src,
-		      const struct io_request *req,
-		      enum m0_pool_nd_state *state)
-{
-	struct m0_pdclust_instance *play_instance;
-	struct m0_pdclust_tgt_addr  tgt;
-	struct m0_fid		    tfid;
-	int			    rc;
-	struct m0_poolmach         *pm;
-
-	M0_ENTRY("[%p]", req);
-
-	play_instance = pdlayout_instance(layout_instance(req));
-	m0_fd_fwd_map(play_instance, src, &tgt);
-	tfid = target_fid(req, &tgt);
-
-	pm = m0t1fs_file_to_poolmach(req->ir_file);
-	M0_ASSERT(pm != NULL);
-	rc = m0_poolmach_device_state(pm, m0_fid_cob_device_id(&tfid), state);
-	if (rc != 0)
-		return M0_RC(rc);
-	return M0_RC(rc);
 }
 
 static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
@@ -3463,6 +3460,7 @@ static inline int ioreq_sm_timedwait(struct io_request *req,
 				     uint64_t           state)
 {
 	int rc;
+	M0_PRE(req != NULL);
 
 	M0_ENTRY("[%p] Waiting for %s -> %s, Pending fops %llu, "
 		 "Pending rdbulk %llu", req,
@@ -3470,7 +3468,6 @@ static inline int ioreq_sm_timedwait(struct io_request *req,
 		 io_states[state].sd_name,
 		 m0_atomic64_get(&req->ir_nwxfer.nxr_iofop_nr),
 		 m0_atomic64_get(&req->ir_nwxfer.nxr_rdbulk_nr));
-	M0_PRE(req != NULL);
 
 	m0_mutex_lock(&req->ir_sm.sm_grp->s_lock);
 	rc = m0_sm_timedwait(&req->ir_sm, (1 << state), M0_TIME_NEVER);
@@ -3727,7 +3724,6 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	struct target_ioreq     *ti;
 	enum m0_pool_nd_state    state;
 	struct m0_poolmach      *pm;
-	struct m0t1fs_sb        *csb;
 	struct nw_xfer_request  *xfer;
 
 	M0_PRE_EX(io_request_invariant(req));
@@ -3753,7 +3749,6 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	if (rc < 0)
 		return M0_RC(rc);
 	M0_LOG(M0_DEBUG, "[%p] Proceeding with the degraded read", req);
-	csb = file_to_sb(req->ir_file);
 	pm = m0t1fs_file_to_poolmach(req->ir_file);
 	M0_ASSERT(pm != NULL);
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
@@ -3904,6 +3899,18 @@ static int ioreq_no_lock(struct io_request *req)
 static void ioreq_no_unlock(struct io_request *req)
 {;}
 
+static void device_state_reset(struct nw_xfer_request *xfer, bool rmw)
+{
+	struct target_ioreq *ti;
+
+	M0_PRE(xfer != NULL);
+	M0_PRE(xfer->nxr_state == NXS_COMPLETE);
+
+	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
+		ti->ti_state = M0_PNDS_ONLINE;
+	} m0_htable_endfor;
+}
+
 static int ioreq_iosm_handle(struct io_request *req)
 {
 	int			rc;
@@ -3971,7 +3978,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 
 		state = req->ir_type == IRT_READ ? IRS_READ_COMPLETE:
 						   IRS_WRITE_COMPLETE;
-		rc    = ioreq_sm_timedwait(req, state);
+		rc = ioreq_sm_timedwait(req, state);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "[%p] ioreq_sm_timedwait() failed: "
 			       "rc=%d", req, rc);
@@ -4185,18 +4192,6 @@ fail:
 	return M0_ERR_INFO(rc, "[%p] ioreq_iosm_handle failed", req);
 }
 
-static void device_state_reset(struct nw_xfer_request *xfer, bool rmw)
-{
-	struct target_ioreq *ti;
-
-	M0_PRE(xfer != NULL);
-	M0_PRE(xfer->nxr_state == NXS_COMPLETE);
-
-	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
-		ti->ti_state = M0_PNDS_ONLINE;
-	} m0_htable_endfor;
-}
-
 static int io_request_init(struct io_request        *req,
 			   struct file              *file,
 			   const struct iovec       *iov,
@@ -4207,9 +4202,6 @@ static int io_request_init(struct io_request        *req,
 	uint32_t                    seg;
 	uint32_t                    i;
 	uint32_t                    max_failures;
-	struct m0_pdclust_layout   *play;
-	struct m0_pdclust_instance *play_instance;
-	struct m0_pool_version     *pver;
 
 	M0_ENTRY("[%p] rw %d", req, rw);
 
@@ -4236,9 +4228,6 @@ static int io_request_init(struct io_request        *req,
 	if (req->ir_nwxfer.nxr_rc != 0)
 		return M0_ERR_INFO(req->ir_nwxfer.nxr_rc,
 				   "[%p] nw_xfer_req_init() failed", req);
-	play = pdlayout_get(req);
-	play_instance = pdlayout_instance(layout_instance(req));
-	pver = play_instance->pi_base.li_l->l_pver;
 	max_failures = tolerance_of_level(req, M0_FTA_DEPTH_CONT);
 	M0_ALLOC_ARR(req->ir_failed_session, max_failures + 1);
 	if (req->ir_failed_session == NULL)
@@ -4707,7 +4696,7 @@ static void data_buf_dealloc_fini(struct data_buf *buf)
 	M0_PRE(data_buf_invariant(buf));
 
 	if (buf->db_page != NULL)
-		user_page_unmap(buf, buf->db_flags & PA_WRITE ? false : true);
+		user_page_unmap(buf, (buf->db_flags & PA_WRITE) ? false : true);
 	else if (buf->db_buf.b_addr != NULL)
 		buf_page_free(&buf->db_buf);
 
@@ -5232,8 +5221,9 @@ static ssize_t aio_read(struct kiocb *kcb, const struct iovec *iov,
 
 	M0_LOG(M0_INFO, "Read vec-count = %llu", m0_vec_count(&ivec->iv_vec));
 	res = m0t1fs_aio(kcb, iov, ivec, IRT_READ);
-	M0_LOG(M0_DEBUG, "Read vec-count = %8llu return = %8llu",
-			 m0_vec_count(&ivec->iv_vec), (unsigned long long)res);
+	M0_LOG(M0_DEBUG, "Read @%llu vec-count = %8llu return = %8llu(%d)",
+			 pos, m0_vec_count(&ivec->iv_vec),
+			 (unsigned long long)res, (int)res);
 	/* Updates file position. */
 	if (res > 0)
 		kcb->ki_pos = pos + res;
@@ -5540,9 +5530,9 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	struct m0_io_fop  *iofop;
 	struct io_req_fop *reqfop;
 	struct io_request *ioreq;
+	M0_PRE(item != NULL);
 
 	M0_ENTRY("rpc_item %p[%u]", item, item->ri_type->rit_opcode);
-	M0_PRE(item != NULL);
 
 	fop    = m0_rpc_item_to_fop(item);
 	iofop  = container_of(fop, struct m0_io_fop, if_fop);
@@ -5716,8 +5706,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	remid     = &rw_reply->rwr_mod_rep.fmr_remid;
 	req->ir_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
-	       "sns state = %d", req, req_item, req_item->ri_type->rit_opcode,
-	       rc, req->ir_sns_state);
+			 "sns state = %d", req, req_item,
+			 req_item->ri_type->rit_opcode, rc, req->ir_sns_state);
 
 	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		M0_ASSERT(rw_reply != NULL);
@@ -5744,10 +5734,11 @@ ref_dec:
 	if (tioreq->ti_rc == 0)
 		tioreq->ti_rc = rc;
 
-	if (xfer->nxr_rc == 0 && rc != 0)
+	if (xfer->nxr_rc == 0 && rc != 0) {
 		xfer->nxr_rc = rc;
-	M0_LOG(M0_DEBUG, "[%p] rc %d, tioreq->ti_rc %d, nwxfer rc = %d",
-	       req, rc, tioreq->ti_rc, xfer->nxr_rc);
+		M0_LOG(M0_ERROR, "[%p] rc %d, tioreq->ti_rc %d, nwxfer rc = %d",
+				 req, rc, tioreq->ti_rc, xfer->nxr_rc);
+	}
 
 	if (irfop->irf_pattr == PA_DATA)
 		tioreq->ti_databytes += iofop->if_rbulk.rb_bytes;
@@ -6077,14 +6068,13 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 	int		    seg_nr;
 	struct io_request  *req;
 	struct m0_indexvec *ivec;
-
-	M0_ENTRY("io_req_fop %p net_domain %p delta_size %d",
-		 irfop, dom, *delta);
 	M0_PRE(irfop  != NULL);
 	M0_PRE(dom    != NULL);
 	M0_PRE(rbuf   != NULL);
 	M0_PRE(delta  != NULL);
 	M0_PRE(maxsize > 0);
+	M0_ENTRY("io_req_fop %p net_domain %p delta_size %d",
+		 irfop, dom, *delta);
 
 	req     = bob_of(irfop->irf_tioreq->ti_nwxfer, struct io_request,
 			 ir_nwxfer, &ioreq_bobtype);
