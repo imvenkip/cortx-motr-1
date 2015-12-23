@@ -3637,7 +3637,6 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 {
 	int                      rc;
 	struct target_ioreq     *ti;
-	m0_time_t                start;
 	struct m0t1fs_sb        *csb;
 	struct nw_xfer_request  *xfer;
 
@@ -3658,7 +3657,6 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 		return -EIO;
 	}
 	ioreq_sm_state_set(req, IRS_DEGRADED_WRITING);
-	start = m0_time_now();
 	/*
 	 * This IO request has already acquired distributed lock on the
 	 * file by this time.
@@ -3739,7 +3737,6 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	uint64_t                 id;
 	struct io_req_fop       *irfop;
 	struct target_ioreq     *ti;
-	m0_time_t                start;
 	enum m0_pool_nd_state    state;
 	struct m0_poolmach      *pm;
 	struct m0t1fs_sb        *csb;
@@ -3768,7 +3765,6 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	if (rc < 0)
 		return M0_RC(rc);
 	M0_LOG(M0_DEBUG, "[%p] Proceeding with the degraded read", req);
-	start = m0_time_now();
 	csb = file_to_sb(req->ir_file);
 	pm = m0t1fs_file_to_poolmach(req->ir_file);
 	M0_ASSERT(pm != NULL);
@@ -4953,8 +4949,6 @@ M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb             *kcb,
 	ssize_t                  count;
 	struct io_request       *req;
 	struct m0t1fs_sb        *csb;
-	m0_time_t                start;
-	uint64_t                 time_io;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY("indexvec %p, rw %d", ivec, rw);
@@ -4963,7 +4957,6 @@ M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb             *kcb,
 	M0_PRE(ivec != NULL);
 	M0_PRE(M0_IN(rw, (IRT_READ, IRT_WRITE)));
 
-	start = m0_time_now();
 	csb   = file_to_sb(kcb->ki_filp);
 again:
 	M0_ALLOC_PTR(req);
@@ -5018,7 +5011,6 @@ last:
 	if (rc == -EAGAIN)
 		goto again;
 
-	time_io = m0_time_sub(m0_time_now(), start);
 	M0_LEAVE();
 	return rc != 0 ? rc : count;
 }
