@@ -257,6 +257,12 @@ enum {
 	/** @todo should equal to size of HDD */
 	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL * 32 * 1024 * 1000,
 	BALLOC_DEF_BLOCK_SHIFT		= 12,// 4K Blocks
+	/**
+	 * Approximate number of groups. Exact number of groups can differ
+	 * depending on group size restrictions.
+	 */
+	BALLOC_DEF_GROUPS_NR            = 64,
+	/** Used as minimal group size */
 	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
 	BALLOC_DEF_RESERVED_GROUPS	= 2
 };

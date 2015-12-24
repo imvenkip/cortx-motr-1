@@ -211,6 +211,7 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 					   void **cfg_create)
 {
 	struct ad_domain_cfg *cfg;
+	m0_bcount_t           grp_blocks;
 	int                   rc;
 
 	if (str_cfg_create == NULL)
@@ -218,13 +219,7 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 
 	M0_ALLOC_PTR(cfg);
 	if (cfg != NULL) {
-		*cfg = (struct ad_domain_cfg) {
-			.adg_container_size   = BALLOC_DEF_CONTAINER_SIZE,
-			.adg_bshift           = BALLOC_DEF_BLOCK_SHIFT,
-			.adg_blocks_per_group = BALLOC_DEF_BLOCKS_PER_GROUP,
-			.adg_res_groups       = BALLOC_DEF_RESERVED_GROUPS,
-		};
-		/* format = seg:domain_fid:fid */
+		/* format = seg:domain_fid:fid:container_size */
 		rc = sscanf(str_cfg_create, "%p:"FID_SF":"FID_SF":%lu",
 			    (void **)&cfg->adg_seg,
 			    FID_S(&cfg->adg_id.si_domain_fid),
@@ -237,10 +232,21 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 	if (rc == 0) {
 		if (cfg->adg_container_size == 0)
 			cfg->adg_container_size = BALLOC_DEF_CONTAINER_SIZE;
+		cfg->adg_bshift     = BALLOC_DEF_BLOCK_SHIFT;
+		cfg->adg_res_groups = BALLOC_DEF_RESERVED_GROUPS;
+		/*
+		 * Big number of groups slows balloc initialisation. Therefore,
+		 * group size is counted depending on BALLOC_DEF_GROUPS_NR.
+		 * Group size must be power of 2.
+		 */
+		grp_blocks = (cfg->adg_container_size >> cfg->adg_bshift) /
+			     BALLOC_DEF_GROUPS_NR;
+		grp_blocks = 1 << m0_log2(grp_blocks);
+		grp_blocks = max64u(grp_blocks, BALLOC_DEF_BLOCKS_PER_GROUP);
+		cfg->adg_blocks_per_group = grp_blocks;
 		M0_LOG(M0_DEBUG, "device size %lu", cfg->adg_container_size);
 		*cfg_create = cfg;
 	}
-
 	return M0_RC(rc);
 }
 

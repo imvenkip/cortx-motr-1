@@ -396,12 +396,14 @@ static int balloc_sb_write(struct m0_balloc            *bal,
 	                            req->bfr_groupsize ?: 1;
 
 	M0_LOG(M0_DEBUG, "total=%llu bs=%llu groupsize=%llu groups=%llu "
-			 "resvd=%llu",
+			 "resvd=%llu unused=%llu",
 		(unsigned long long)req->bfr_totalsize,
 		(unsigned long long)req->bfr_blocksize,
 		(unsigned long long)req->bfr_groupsize,
 		(unsigned long long)number_of_groups,
-		(unsigned long long)req->bfr_reserved_groups);
+		(unsigned long long)req->bfr_reserved_groups,
+		(unsigned long long)(req->bfr_totalsize - number_of_groups *
+				     req->bfr_groupsize * req->bfr_blocksize));
 
 	if (number_of_groups <= req->bfr_reserved_groups) {
 		M0_LOG(M0_ERROR, "container is too small");
