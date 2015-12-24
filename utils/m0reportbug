@@ -3,12 +3,14 @@ set -eu
 # set -x
 # export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
-VERSION=0.8
+VERSION=0.8.1
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2015-12-24 0.8.1   Do not attach gdb to dd and fio processes.
+###
 ### 2015-12-10 0.8     * Require superuser privileges; drop sudo-s.
 ###                    * Fetch binaries: libmero.so, m0mkfs, m0d, lt-m0ut, etc.
 ###                    * Pack results into .tar.bz2 archive.
@@ -265,9 +267,11 @@ backtraces_live() {
             cat /proc/$pid/task/$task/stack 2>&1 || true
         done
 
-        ## Skip kernel threads and shell scripts -- we cannot gdb_bt them.
-        [ "${prog#[}" = "$prog" ] || continue
-        [ "$prog" != '/bin/bash' -a "$prog" != '/bin/sh' ] || continue
+        [ "${prog#[}" = "$prog" ] || continue # skip kernel threads
+        case $(basename $prog) in
+            bash|sh|dd|fio) # skip these as well
+                continue;;
+        esac
 
         section $pid $(basename $prog)
         [ -z "$GDB" ] || gdb_bt $prog $pid
