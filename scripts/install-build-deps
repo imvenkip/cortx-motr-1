@@ -28,6 +28,7 @@ declare -rA RPM_PACKAGE=(
     [perl-find]='perl-File-Find-Rule'   # check-sources
     [perl-io]='perl-IO-All'             # check-sources
     [python-ply]='python-ply'           # m0confgen
+    [python-dev]='python-devel'         # m0spiel
     [libc-dev]='glibc-headers'
     [kernel-dev]='kernel-devel'
     [aio]='libaio'
@@ -41,6 +42,7 @@ declare -rA RPM_PACKAGE=(
     [uuid-dev]='libuuid-devel'
     [lsb]='redhat-lsb'
     [systemd-dev]='systemd-devel'
+    [expect]='expect'
 )
 
 declare -rA DEB_PACKAGE=(
@@ -59,6 +61,7 @@ declare -rA DEB_PACKAGE=(
     [perl-find]='libfile-find-rule-perl'
     [perl-io]='libio-all-perl'
     [python-ply]='python-ply'
+    [python-dev]='python-devel'
     [libc-dev]='libc6-dev'
     [kernel-dev]='linux-headers-generic'
     [aio]='libaio1'
@@ -70,6 +73,7 @@ declare -rA DEB_PACKAGE=(
     [genders]='genders'
     [uuid-dev]='uuid-dev'
     [lsb]='lsb-release'
+    [expect]='expect'
 )
 
 # variables
