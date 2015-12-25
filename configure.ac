@@ -457,7 +457,7 @@ MERO_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
 AC_SUBST([RT_LIBS])
 
 MERO_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
-	[uuid_generate cannot be found! Try to install libuuid.])
+	[uuid_generate cannot be found! Try to install libuuid and libuuid-devel.])
 AC_SUBST([UUID_LIBS])
 
 #
