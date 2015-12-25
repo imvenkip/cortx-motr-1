@@ -5,8 +5,6 @@
 . `dirname $0`/m0t1fs_client_inc.sh
 . `dirname $0`/m0t1fs_server_inc.sh
 
-. $M0_SRC_DIR/scripts/functions  # opcode
-
 # Got these states from "$MERO_CORE_DIR/ha/note.h"
 M0_NC_ONLINE=1
 M0_NC_FAILED=2
@@ -246,6 +244,7 @@ m0t1fs_pool_version_assignment()
 {
 	NODE_UUID=`uuidgen`
 	local multiple_pools=1
+
 	mero_service start "$multiple_pools"
 	if [ $? -ne "0" ]
 	then
@@ -265,11 +264,9 @@ m0t1fs_pool_version_assignment()
 
 	if [ $rc -ne "0" ]
 	then
-		echo "Failed pool_version_assignment system tests."
-		return 1
+		echo "Failed pool_version_assignment system tests: rc=$rc"
+		return $rc
 	fi
-
-	echo "System tests status: SUCCESS."
 }
 
 main()
@@ -294,3 +291,4 @@ main()
 
 trap unprepare EXIT
 main
+report_and_exit pool-version-assignment $?

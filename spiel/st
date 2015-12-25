@@ -21,7 +21,7 @@ error() { echo "$@" >&2; stop 1; }
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
-. $M0_SRC_DIR/scripts/functions  # die, sandbox_init
+. $M0_SRC_DIR/scripts/functions # die, sandbox_init, report_and_exit
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
@@ -601,4 +601,5 @@ validate_health || stop
 say "Device commands"
 device_commands_check || stop
 
-stop && echo "spiel: test status: SUCCESS"
+stop
+report_and_exit spiel $?

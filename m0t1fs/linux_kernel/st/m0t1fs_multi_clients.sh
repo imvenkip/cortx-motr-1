@@ -9,6 +9,7 @@ multi_clients()
 {
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
+
 	mero_service start $multiple_pools
 	if [ $? -ne "0" ]
 	then
@@ -29,12 +30,9 @@ multi_clients()
 
 	if [ $rc -ne "0" ]
 	then
-		echo "Failed m0t1fs multi-clients tests."
-		return 1
+		echo "Failed m0t1fs multi-clients tests: rc=$rc"
+		return $rc
 	fi
-
-	echo "m0t1fs multi-clients tests status: SUCCESS."
-	return $rc
 }
 
 main()
@@ -57,9 +55,4 @@ main()
 
 trap unprepare EXIT
 main
-
-# this msg is used by Jenkins as a test success criteria;
-# it should appear on STDOUT
-if [ $? -eq 0 ] ; then
-    echo "multi-client: test status: SUCCESS"
-fi
+report_and_exit multi-client $?

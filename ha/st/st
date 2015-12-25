@@ -7,16 +7,14 @@ M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.ha-st}
 
-. $M0_SRC_DIR/scripts/functions  # sandbox_init
+. $M0_SRC_DIR/scripts/functions # sandbox_init, report_and_exit
 
 rc=0
 sandbox_init
 $M0_SRC_DIR/conf/st insmod
 $M0_SRC_DIR/ha/st/st.exp || rc=$?
 $M0_SRC_DIR/conf/st rmmod
-[ $rc -eq 0 ] || exit $rc
-sandbox_fini
-
-# this msg is used by Jenkins as a test success criteria;
-# it should appear on STDOUT
-echo "ha-st: test status: SUCCESS"
+if [ $rc -eq 0 ]; then
+    sandbox_fini
+fi
+report_and_exit ha-st $rc

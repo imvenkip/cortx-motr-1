@@ -10,7 +10,7 @@ SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.net-st}
 CWD=$(dirname $(readlink -f $0))
 M0_SRC_DIR=${CWD%/*/*/*}
 
-. $M0_SRC_DIR/scripts/functions  # die, opcode, sandbox_init
+. $M0_SRC_DIR/scripts/functions # die, opcode, sandbox_init, report_and_exit
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
 . $CWD/st-config.sh
 
@@ -45,7 +45,4 @@ for KERNEL_ROLE in "none" "client" "server"; do
 	sh $CWD/st-bulk.sh
 done
 sandbox_fini
-
-# this msg is used by Jenkins as a test success criteria;
-# it should appear on STDOUT
-echo "net: test status: SUCCESS"
+report_and_exit net 0

@@ -29,7 +29,7 @@ error() { echo "$@" >&2; stop 1; }
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
-. $M0_SRC_DIR/scripts/functions  # die, sandbox_init
+. $M0_SRC_DIR/scripts/functions # die, sandbox_init, report_and_exit
 
 ## Path to the file with configuration string for confd.
 CONF_FILE=$SANDBOX_DIR/conf.txt
@@ -42,14 +42,7 @@ start() {
 stop() {
    services_stop
    _fini
-   local rc=${1:-$?}
-
-   # this msg is used by Jenkins as a test success criteria;
-   # it should appear on STDOUT
-   if [[ $rc -eq 0 ]] ; then
-       echo "conf-st: test status: SUCCESS"
-   fi
-   exit $rc
+   report_and_exit conf-st ${1:-$?}
 }
 
 _init() {

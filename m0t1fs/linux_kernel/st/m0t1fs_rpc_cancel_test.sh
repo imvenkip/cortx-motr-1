@@ -471,16 +471,13 @@ main()
 	echo "*********************************************************"
 
 	if [ $rc -eq 0 ]; then
-		# this msg is used by Jenkins as a test success criteria;
-		echo "rpc-session-cancel: test status: SUCCESS"
+		[ $DEBUG_MODE -eq 1 ] || sandbox_fini
 	else
-		echo "rpc-session-cancel: test status: FAIL"
 		echo "Test log available at $MERO_TEST_LOGFILE."
 	fi
-
-	[ $rc -ne 0 ] || [ $DEBUG_MODE -eq 1 ] || sandbox_fini
 	return $rc
 }
 
 trap unprepare EXIT
 main
+report_and_exit rpc-session-cancel $?

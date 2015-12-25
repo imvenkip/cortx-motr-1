@@ -9,7 +9,7 @@ SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.console-st}
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
-. $M0_SRC_DIR/scripts/functions  # die, opcode, sandbox_init
+. $M0_SRC_DIR/scripts/functions # die, opcode, sandbox_init, report_and_exit
 
 CLIENT=$M0_SRC_DIR/console/bin/m0console
 SERVER=$M0_SRC_DIR/console/st/server
@@ -173,7 +173,4 @@ start_server
 run_st
 stop_server
 sandbox_fini
-
-# this msg is used by Jenkins as a test success criteria;
-# it should appear on STDOUT
-echo "console: test status: SUCCESS"
+report_and_exit console 0

@@ -9,6 +9,7 @@ m0t1fs_test()
 {
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
+
 	mero_service start $multiple_pools
 	if [ $? -ne "0" ]
 	then
@@ -29,11 +30,9 @@ m0t1fs_test()
 
 	if [ $rc -ne "0" ]
 	then
-		echo "Failed m0t1fs system tests."
-		return 1
+		echo "Failed m0t1fs system tests: rc=$rc"
+		return $rc
 	fi
-
-	echo "System tests status: SUCCESS."
 }
 
 main()
@@ -58,3 +57,4 @@ main()
 
 trap unprepare EXIT
 main
+report_and_exit m0t1fs $?

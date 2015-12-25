@@ -15,6 +15,21 @@ sandbox_fini() {
     [ -n "${KEEP_SANDBOX:-}" ] || rm -r $SANDBOX_DIR
 }
 
+report_and_exit() {
+    [ $# -eq 2 ] || die "${FUNCNAME[0]}: Invalid usage"
+    local name=$1
+    local rc=$2
+
+    if [ $rc -eq 0 ]; then
+        ## This message is used by Jenkins as a test success criteria;
+        ## it must appear on stdout.
+        echo "$name: test status: SUCCESS"
+    else
+        echo "$name: FAILURE $rc" >&2
+    fi
+    exit $rc
+}
+
 ### Similar to `source` builtin command with `set +eu` in effect.
 ###
 ### Vanilla `. /etc/rc.d/init.d/functions` will fail if either "errexit"
@@ -30,7 +45,7 @@ source+eu() {
 ###     $ opcode M0_LAYOUT_OPCODE
 ###     92
 opcode() {
-    [ $# -eq 1 ] || die 'Invalid usage'
+    [ $# -eq 1 ] || die "${FUNCNAME[0]}: Invalid usage"
     local NAME="$1"
 
     [ -n "${M0_SRC_DIR:-}" ] || die 'M0_SRC_DIR: unbound variable'
