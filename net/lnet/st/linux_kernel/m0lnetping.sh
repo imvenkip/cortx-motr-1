@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/bin/bash
 
 # Small wrapper to run kernel lnetping ST
 

@@ -23,7 +23,7 @@ CLIENT_EP_ADDR='0@lo:12345:34:*'
 CONF_FILE_PATH=$M0_SRC_DIR/ut/diter_xc.txt
 CONF_PROFILE='<0x7000000000000001:0>'
 
-NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91   # required by `common.sh'
+NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91  # required by `common.sh'
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh  # modload_m0gf
 
 start_server()
@@ -33,10 +33,8 @@ start_server()
 	echo 8 >/proc/sys/kernel/printk
 	modload
 
-	set +eu
 	_use_systemctl=0
-	. /etc/rc.d/init.d/functions  # import `status' function definition
-	set -eu
+	source+eu /etc/rc.d/init.d/functions  # import `status' function
 
 	echo -n 'Running m0mkfs... ' >&2
 	##

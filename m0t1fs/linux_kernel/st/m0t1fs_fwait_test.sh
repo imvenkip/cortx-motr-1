@@ -1,9 +1,7 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Tests the fwait feature on Mero.
 #
-
-#set -x
 
 . `dirname $0`/common.sh
 . `dirname $0`/m0t1fs_common_inc.sh

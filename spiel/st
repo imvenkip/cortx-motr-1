@@ -72,8 +72,8 @@ stop() {
     local rc=${1:-$?}
 
     trap - EXIT
-    if `mount | grep -q "m0t1fs"`; then umount $SANDBOX_DIR/mnt; fi
-    mero_service stop;
+    if mount | grep -q m0t1fs; then umount $SANDBOX_DIR/mnt; fi
+    mero_service stop
     _fini
     if [ $rc -eq 0 ]; then
         sandbox_fini

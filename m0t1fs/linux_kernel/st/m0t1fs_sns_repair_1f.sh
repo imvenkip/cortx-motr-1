@@ -1,6 +1,4 @@
-#!/bin/sh
-
-#set -x
+#!/bin/bash
 
 . `dirname $0`/common.sh
 . `dirname $0`/m0t1fs_common_inc.sh

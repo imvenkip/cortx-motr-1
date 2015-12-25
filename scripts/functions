@@ -15,6 +15,17 @@ sandbox_fini() {
     [ -n "${KEEP_SANDBOX:-}" ] || rm -r $SANDBOX_DIR
 }
 
+### Similar to `source` builtin command with `set +eu` in effect.
+###
+### Vanilla `. /etc/rc.d/init.d/functions` will fail if either "errexit"
+### (set -e) or "nounset" (set -u) option is turned on.
+source+eu() {
+    local orig=$-
+    set +eu
+    . "$@"
+    set -$orig
+}
+
 ### Example:
 ###     $ opcode M0_LAYOUT_OPCODE
 ###     92

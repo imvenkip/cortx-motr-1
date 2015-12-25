@@ -1,5 +1,5 @@
-#! /bin/sh
-#set -eux
+#!/bin/bash
+#set -eu
 
 # Command line example (for one host)
 # sudo ./test-user.sh console localhost localhost localhost \

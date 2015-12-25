@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/bin/bash
 
 MODLIST="mero/m0mero.ko"
 

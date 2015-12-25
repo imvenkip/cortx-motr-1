@@ -98,7 +98,7 @@ servers_stop()
 {
 	prog=$1
 
-	. /etc/rc.d/init.d/functions
+	source+eu /etc/rc.d/init.d/functions
 
 	# shutdown services. mds should be stopped last, because
 	# other ioservices may have connections to mdservice.
@@ -150,7 +150,7 @@ mero_service()
 		prog_exec="${prog_exec}-altogether"
 	fi
 
-	. /etc/rc.d/init.d/functions
+	source+eu /etc/rc.d/init.d/functions
 
 	start() {
 		local i

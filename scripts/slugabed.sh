@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/bin/bash
 
 #
 # COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
@@ -42,7 +42,7 @@
 #     uthread_trampoline+0x37 [libmero-0.1.0.so]
 #     start_thread+0xd1 [libpthread-2.12.so]
 #     __clone+0x6d [libc-2.12.so]
-# 
+#
 # Each entry is the header line followed by the probe name, followed by the
 # backtrace. The header line summarises the time spent in a system call entered
 # from the given backtrace:
@@ -123,8 +123,3 @@ objs_opt="-d /lib64/ld-2.12.so -d /lib64/libpthread-2.12.so -d /lib64/libselinux
 sudo stap -g $objs_opt -DMAXTRACE=10 -DSTP_NO_OVERLOAD \
                        -DMAXSKIPPED=1000000 -DMAXERRORS=1000 \
     ./scripts/slugabed.stp $proc 0 0
-
-
-
-
-
