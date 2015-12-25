@@ -31,6 +31,7 @@
 #include "rpc/rpc.h"
 #include "reqh/reqh.h"
 #include "conf/confc.h"       /* m0_conf_cache */
+#include "conf/diter.h"       /* m0_conf_diter */
 #include "conf/obj_ops.h"     /* m0_conf_obj_put */
 #include "conf/helpers.h"     /* m0_conf_service_open */
 
@@ -218,39 +219,60 @@ static int ha_entrypoint_confd_eps_fill(struct m0_confc             *confc,
 	return M0_RC(rc);
 }
 
+static bool _online_service_filter(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE &&
+	       obj->co_ha_state == M0_NC_ONLINE;
+}
+
 static int ha_entrypoint_active_rm_fill(struct m0_confc             *confc,
 					const struct m0_fid         *profile,
 					struct m0_ha_entrypoint_rep *rep_fop)
 {
-	char                   *rm_ep;
-	struct m0_conf_service *rm_svc;
-	int                     rc;
+	struct m0_conf_filesystem *fs;
+	struct m0_conf_obj        *obj;
+	struct m0_conf_service    *s;
+	struct m0_conf_diter       it;
+	char                      *rm_ep = NULL;
+	int                        rc;
 
 	/*
 	 * This code is executed only for testing purposes if there is no real
-	 * HA service in cluster. Assume that active RM at the same EP as first
-	 * confd server.
+	 * HA service in cluster.
 	 */
-	M0_ASSERT(rep_fop->hbp_confd_eps.ab_count > 0);
-	rm_ep = m0_buf_strdup(&rep_fop->hbp_confd_eps.ab_elems[0]);
-	if (rm_ep == NULL)
-		return M0_ERR(-ENOMEM);
-	rc = m0_conf_service_open(confc, profile, rm_ep, M0_CST_RMS, &rm_svc);
+	rc = m0_conf_fs_get(profile, confc, &fs);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_NODES_FID,
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0) {
-		m0_free(rm_ep);
+		m0_confc_close(&fs->cf_obj);
 		return M0_ERR(rc);
 	}
-	if (rm_svc->cs_obj.co_ha_state == M0_NC_FAILED) {
-		m0_free(rm_ep);
-		rc = M0_ERR(-EHOSTUNREACH);
-	} else {
-		rep_fop->hbp_active_rm_fid = rm_svc->cs_obj.co_id;
-		rep_fop->hbp_active_rm_ep = M0_BUF_INITS(rm_ep);
+
+	while ((rc = m0_conf_diter_next_sync(&it,
+					    _online_service_filter)) > 0) {
+		obj = m0_conf_diter_result(&it);
+		s = M0_CONF_CAST(obj, m0_conf_service);
+		if (s->cs_type == M0_CST_RMS) {
+			rep_fop->hbp_active_rm_fid = s->cs_obj.co_id;
+			rm_ep = m0_strdup(s->cs_endpoints[0]);
+			rep_fop->hbp_active_rm_ep =  M0_BUF_INITS(rm_ep);
+			break;
+		}
 	}
-	m0_conf_cache_lock(&confc->cc_cache);
-	m0_conf_obj_put(&rm_svc->cs_obj);
-	m0_conf_cache_unlock(&confc->cc_cache);
-	return M0_RC(rc);
+	m0_conf_diter_fini(&it);
+	m0_confc_close(&fs->cf_obj);
+	if (rm_ep == NULL) {
+		rc = M0_ERR(-EHOSTUNREACH);
+		goto err;
+	}
+	return M0_RC(0);
+err:
+	return M0_ERR(rc);
 }
 
 static int ha_entrypoint_get_fom_tick(struct m0_fom *fom)
