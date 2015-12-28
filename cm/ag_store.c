@@ -238,6 +238,8 @@ static int ag_store_start(struct m0_cm_ag_store *store)
 	struct m0_cm *cm = store2cm(store);
 
 	m0_fom_phase_set(&store->s_fom, AG_STORE_UPDATE);
+	M0_LOG(M0_DEBUG, "cm_sw_last_updated_hi=["M0_AG_F"]",
+	       M0_AG_P(&cm->cm_sw_last_updated_hi));
 	cm->cm_last_processed_out = cm->cm_sw_last_updated_hi;
 	m0_cm_sw_update_start(cm);
 

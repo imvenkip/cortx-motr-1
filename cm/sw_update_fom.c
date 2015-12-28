@@ -102,8 +102,9 @@ static int swu_start(struct m0_cm_sw_update *swu)
 	if (M0_IN(rc, (-ENOBUFS, -ENOENT, -ENODATA))) {
 		m0_fom_phase_move(fom, 0, SWU_UPDATE);
 		rc = rc == -ENOBUFS ? M0_FSO_WAIT : M0_FSO_AGAIN;
+		/* Notify copy machine on updating initial sliding window. */
+		m0_cm_notify(cm);
 	}
-	m0_cm_notify(cm);
 	m0_cm_unlock(cm);
 
 	return rc;
@@ -112,21 +113,19 @@ static int swu_start(struct m0_cm_sw_update *swu)
 static int swu_update(struct m0_cm_sw_update *swu)
 {
 	struct m0_cm   *cm = cm_swu2cm(swu);
-	struct m0_fom  *fom = &swu->swu_fom;
 	int             rc;
 
 	m0_cm_lock(cm);
 	rc = m0_cm_sw_local_update(cm);
 	if (rc == M0_FSO_WAIT)
 		goto out;
-	if (M0_IN(rc, (-ENOENT, -ENODATA))) {
+	if (rc == -ENOBUFS)
+		rc = M0_FSO_WAIT;
+	if (rc < 0)
 		swu->swu_is_complete = true;
-		m0_fom_phase_move(fom, 0, SWU_FINI);
-	}
-
-	rc = rc == 0 ? M0_FSO_AGAIN : M0_FSO_WAIT;
 out:
 	m0_cm_unlock(cm);
+	rc = rc == 0 ? M0_FSO_AGAIN : rc;
 	return M0_RC(rc);
 }
 

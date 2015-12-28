@@ -439,7 +439,7 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	/* calculate actual failed number of units in this group. */
 	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo,
 					&sag->sag_fmap);
-	if (f_nr == 0) {
+	if (f_nr == 0 || f_nr > m0_pdclust_K(pl)) {
 		m0_bitmap_fini(&sag->sag_fmap);
 		m0_bitmap_fini(&sag->sag_proxy_incoming_map);
 		m0_sns_cm_fctx_put(scm, id);
