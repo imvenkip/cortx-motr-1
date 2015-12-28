@@ -11,7 +11,6 @@ CONSOLE_SSH=
 CONSOLE_CMD=
 
 SSH="ssh"
-RMMOD="rmmod -w"
 
 INIT_TIME_S=3
 STOP_TIME_S=1
@@ -114,8 +113,8 @@ host_pre()
 host_post()
 {
 	local ssh_credentials="$1"
-	ssh_sudo "$ssh_credentials" $RMMOD m0mero
-	ssh_sudo "$ssh_credentials" $RMMOD m0gf
+	ssh_sudo "$ssh_credentials" rmmod m0mero
+	ssh_sudo "$ssh_credentials" rmmod m0gf
 }
 
 node_host_pre()
@@ -138,7 +137,7 @@ node_kernel_pre()
 node_kernel_post()
 {
 	local ssh_credentials="$(node_get $1 ssh)"
-	ssh_sudo "$ssh_credentials" $RMMOD m0nettestd
+	ssh_sudo "$ssh_credentials" rmmod m0nettestd
 }
 
 node_user_pre()

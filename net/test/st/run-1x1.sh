@@ -61,7 +61,7 @@ node_stop()
 	local role=$1
 
 	if [ "$role" == "$KERNEL_ROLE" ]; then
-		rmmod -w m0nettestd
+		rmmod m0nettestd
 	fi
 }
 
