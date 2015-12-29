@@ -127,10 +127,11 @@ int m0t1fs_fsync_request_create(struct m0_reqh_service_txid        *stx,
 	 *  Prepare the fop as an rpc item
 	 */
 	item = &fop->f_item;
-	item->ri_session = &stx->stx_service_ctx->sc_session;
-	item->ri_prio = M0_RPC_ITEM_PRIO_MID;
-	item->ri_deadline = 0;
-	item->ri_nr_sent_max = M0T1FS_RPC_MAX_RETRIES;
+	item->ri_session         = &stx->stx_service_ctx->sc_session;
+	item->ri_prio            = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline        = 0;
+	item->ri_nr_sent_max     = M0T1FS_RPC_MAX_RETRIES;
+	item->ri_resend_interval = M0T1FS_RPC_RESEND_INTERVAL;
 
 	rc = fi.post_rpc(item);
 	if (rc != 0) {
@@ -195,7 +196,7 @@ int m0t1fs_fsync_reply_process(struct m0t1fs_sb                *csb,
 	fop = &ffw->ffw_fop;
 	item = &fop->f_item;
 
-	rc = fi.wait_for_reply(item, M0_TIME_NEVER);
+	rc = fi.wait_for_reply(item, m0_time_from_now(M0T1FS_RPC_TIMEOUT, 0));
 	if (rc != 0) {
 		fi.fop_put(fop);
 		return M0_ERR_INFO(rc, "Calling m0_rpc_item_wait_for_reply() "

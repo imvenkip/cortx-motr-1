@@ -225,6 +225,10 @@ int m0_rpc_post_with_timeout_sync(struct m0_fop                *fop,
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = deadline;
 
+	/* Set default value if user hasn't set anything else */
+	if (item->ri_nr_sent_max == ~(uint64_t)0)
+		item->ri_nr_sent_max = M0_RPCLIB_MAX_RETRIES;
+
 	/*
 	 * Add a ref so that the item does not get vanished, say due to
 	 * session cancellation, while it is being waited for.

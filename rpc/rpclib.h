@@ -37,6 +37,14 @@ struct m0_fop;
 struct m0_net_xprt;
 struct m0_net_domain;
 
+enum {
+	/**
+	 * Maximum number of retries (m0_rpc_item::ri_nr_sent_max)
+	 * for m0_rpc_post_sync() and m0_rpc_post_with_timeout_sync().
+	 */
+	M0_RPCLIB_MAX_RETRIES = 60,
+};
+
 #ifndef __KERNEL__
 
 struct m0_reqh;
@@ -187,7 +195,8 @@ int m0_rpc_client_stop_stats(struct m0_rpc_client_ctx *cctx,
  * To change this behaviour set fop->f_item.ri_nr_sent_max and
  * fop->f_item.ri_resend_interval. They are, maximum number of times
  * fop is sent before failing and interval after which the fop is resent,
- * respectively. Their default values are ~0 and m0_time(1, 0).
+ * respectively. Their default values are M0_RPCLIB_MAX_RETRIES and
+ * m0_time(1, 0).
  *
  * To simply timeout fop after N seconds set fop->f_item.ri_nr_sent_max
  * to N before calling m0_rpc_post_sync().
