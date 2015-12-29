@@ -1,14 +1,21 @@
 #!/bin/bash
 set -eu
 # set -x
-# export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+# export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.8.1
+VERSION=0.9
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2015-12-29 0.9     * Collect addb data.
+###                    * Add `journalctl` probe.
+###                    * Do not fetch binaries unless there is a core dump
+###                      or `-b' CLI option is provided.
+###                    * Show duration of slow stages.
+###                    * [bugfix] _path_rpm(): Use proper quotes.
+###
 ### 2015-12-24 0.8.1   Do not attach gdb to dd and fio processes.
 ###
 ### 2015-12-10 0.8     * Require superuser privileges; drop sudo-s.
@@ -59,17 +66,20 @@ OUT_DIR=m0reportbug-data
 OUTPUT=m0reportbug.txt # the file is created in $OUT_DIR/
 MERO_PACKAGE_VERSION=0.1.0 # must correspond to `M0_VERSION' in configure.ac
 M0TRACES_MAX=20 # how many most recently modified m0trace files to collect
+ADDB_TAIL=100000 # limit each m0addb2dump output file to that many lines
+STAGE_TIME_LIMIT=10 # seconds; if a stage runs longer, show its duration
 
 umask 0002
 
 main() {
-    local g
+    local g t
     local stages=(
         probes
         backtraces_live
-        backtraces_cores
+        backtraces_cores # must precede `binaries' stage
         m0traces
-        binaries
+        addb # must follow `m0traces' stage (m0addb2dump creates new m0traces)
+        binaries # will be skipped unless COLLECT_BINARIES_P=1
     )
 
     [ `id -u` -eq 0 ] || die 'Must be run by superuser'
@@ -85,10 +95,14 @@ main() {
     echo IN_DIR=$IN_DIR >>$OUTPUT
 
     for g in "${stages[@]}"; do
+        if [ $g = binaries -a ${COLLECT_BINARIES_P:-0} -ne 1 ]; then
+            continue
+        fi
         echo -n "$g... " >&2
         section "[$g]"
+        t=$(date +%s)
         $g
-        echo 'OK' >&2
+        echo "OK$(_time $t)" >&2
     done >>$OUTPUT
     cd ..
     tar --remove-files -cjf $OUT_DIR.tar.bz2 $OUT_DIR
@@ -125,6 +139,7 @@ probes() {
         'ps auxH'
         'ls /dev/disk/by-*'
         'dmesg'
+        'journalctl -b -0'
         'find /var/mero'
     )
     for p in "${probes[@]}"; do
@@ -146,6 +161,16 @@ mkcd() {
     cd $dir
 }
 
+_time() {
+    local start=$1
+    local limit=${STAGE_TIME_LIMIT:-0}
+    local t=$(($(date +%s) - start))
+
+    if [ $limit -ne 0 -a $t -gt $limit ]; then
+        printf ' (%um%us)' $((t / 60)) $((t % 60))
+    fi
+}
+
 program_from_core() {
     ## Sample output of `file' command:
     ##
@@ -164,16 +189,17 @@ _path_rpm() {
 
     case $name in
         m0d|m0mkfs|m0tracedump) echo "/usr/bin/$name";;
+        m0addb2dump) echo "/usr/sbin/$name";;
         libmero.so) echo "/usr/lib64/libmero-${MERO_PACKAGE_VERSION}.so";;
         m0mero.ko) echo "/lib/module/$(uname -r)/kernel/fs/mero/$name";;
         libmero-ut.so|libmero-xcode-ff2c.so) echo "/usr/lib64/$name.0.0.0";;
-        libgf_complete.so) echo '/usr/lib64/$name.1.0.0';;
+        libgf_complete.so) echo "/usr/lib64/$name.1.0.0";;
         *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
     esac
 }
 
 _path_src() {
-    [ $# -eq 2 -a -z "${2%.libs/}" ]||
+    [ $# -eq 2 -a -z "${2%.libs/}" ] ||
         die "Usage: ${FUNCNAME[0]}: <name> [.libs/]"
     local name=$1
     local subdir="$2"
@@ -187,6 +213,9 @@ _path_src() {
         m0tracedump)
             [ -z "$subdir" ] || die "${FUNCNAME[0]}: Unexpected argument"
             echo "$src/utils/trace/$name";;
+        m0addb2dump)
+            [ -z "$subdir" ] || die "${FUNCNAME[0]}: Unexpected argument"
+            echo "$src/addb2/$name";;
         libmero.so) echo "$src/mero/.libs/libmero-${MERO_PACKAGE_VERSION}.so";;
         m0mero.ko) echo "$src/mero/$name";;
         lt-m0ut) echo "$src/ut/.libs/$name";;
@@ -313,6 +342,9 @@ backtraces_cores() {
              fi
          }
      done)
+    if [ -d $outdir ]; then
+        COLLECT_BINARIES_P=1
+    fi
 }
 
 m0traces() {
@@ -339,6 +371,31 @@ m0traces() {
          $m0tracedump -s -i $path 2>/dev/null | gzip >$outdir/$path.yaml.gz
          touch -r $path $outdir/$path.yaml.gz
          echo $path.yaml.gz
+     done)
+}
+
+addb() {
+    local outdir=addb
+    local dir path
+
+    local m0addb2dump=$(path m0addb2dump)
+    (outdir=$(readlink -f .)/$outdir
+     cd "$IN_DIR"
+     find . -type d -name addb-stobs | cut -c3- | while read dir; do
+         find $dir/o -type f -name \*:2 | while read path; do
+             [ -d $outdir/$(dirname $path) ] ||
+                 mkdir -p $outdir/$(dirname $path)
+             ##
+             ## "$PWD/" prefix is needed to make an absolute path.
+             ## m0addb2dump fails if a relative path is provided:
+             ##
+             ## > lt-m0addb2dump: Cannot create stob: -2: No such file
+             ## > or directory
+             $m0addb2dump $PWD/$path | tail -$ADDB_TAIL |
+                 gzip >$outdir/$path.gz
+             touch -r $path $outdir/$path.gz
+             echo $path.gz
+         done
      done)
 }
 
@@ -382,8 +439,10 @@ Usage: ${0##*/} [OPTION] [INPUT_DIR]
 Gather forensic data, which can be used for investigating Mero issues,
 from INPUT_DIR and its subdirectories.
 
+Options:
     -h, --help      Show this help and exit.
     -p, --path      Show locations of Mero binaries: m0d, m0mero.ko, etc.
+    -b, --binaries  Collect Mero binaries even if there are no core dumps.
     -V, --version   Show version number and exit.
 
 INPUT_DIR defaults to '$IN_DIR'.
@@ -391,20 +450,24 @@ EOF
 }
 
 optparse() {
-    local TEMP=$(getopt -o hpV --long help,path,version -n "${0##*/}" -- "$@")
+    local TEMP=$(getopt -o hpbV --long help,path,binaries,version \
+                        -n "${0##*/}" -- "$@")
     eval set -- "$TEMP"
     while true; do
         case "$1" in
             -h|--help) usage; exit 0;;
             -p|--path)
-                for f in m0d m0mkfs libmero.so m0mero.ko m0tracedump; do
+                for f in m0mkfs m0d m0tracedump m0addb2dump m0mero.ko \
+                         libmero{,-xcode-ff2c,-ut}.so libgf_complete.so; do
                     path $f
-                done | sort
+                done
                 exit 0;;
+            -b|--binaries) COLLECT_BINARIES_P=1;;
             -V|--version) echo m0reportbug $VERSION; exit 0;;
             --) shift; break;;
             *) break;;
         esac
+        shift
     done
 
     if [ $# -gt 1 ]; then
