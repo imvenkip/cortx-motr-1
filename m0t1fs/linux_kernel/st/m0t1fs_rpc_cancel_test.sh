@@ -16,7 +16,7 @@ K=2
 P=20
 stride=32
 bs=8192
-count=30
+count=150
 st_dir=$M0_SRC_DIR/m0t1fs/linux_kernel/st
 rcancel_sandbox="$MERO_M0T1FS_TEST_DIR/rcancel_sandbox"
 source_file="$rcancel_sandbox/rcancel_source"
@@ -88,7 +88,7 @@ rcancel_post()
 {
 	if [ $DEBUG_MODE -eq 1 ]
 	then
-		pkill m0traced
+		pkill -9 m0traced
 		# Note: trace may be read as follows
 		#$M0_SRC_DIR/utils/trace/m0trace -w0 -s m0t1fs,rpc -I /var/log/mero/m0mero_ko.img -i /var/log/mero/m0trace.bin -o $MERO_TEST_LOGFILE.trace
 	fi
@@ -125,7 +125,7 @@ rcancel_issue_writes_n_wait()
 	echo "Test: Writing to $ww_nr_files files on m0t1fs"
 	for ((i=0; i<$ww_nr_files; ++i)); do
 		echo "dd if=$source_file of=$ww_file_base$i bs=$bs count=$count &"
-		dd if=$source_file of=$ww_file_base$i bs=$bs count=$count >> $MERO_TEST_LOGFILE 2>&1 &
+		dd if=$source_file of=$ww_file_base$i bs=$bs count=$count &
 	done
 
 	dd_count=$(ps -aef | grep -w "dd" | wc -l)
@@ -440,6 +440,7 @@ rcancel_test()
 main()
 {
 	NODE_UUID=`uuidgen`
+	local rc
 
 	echo "*********************************************************"
 	echo "Starting with the RPC session cancelation testing"
@@ -450,19 +451,19 @@ main()
 	rcancel_mero_service_start || return 1
 
 	rcancel_test 2>&1 | tee -a $MERO_TEST_LOGFILE
-	rc=$?
+	rc=${PIPESTATUS[0]}
+	echo "rcancel_test rc $rc"
+	if [ $rc -ne "0" ]; then
+		echo "Failed m0t1fs RPC Session Cancel test."
+	fi
 
 	mero_service stop
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to stop Mero Service."
-		return 1
-	fi
-
-	if [ $rc -ne "0" ]
-	then
-		echo "Failed m0t1fs RPC Session Cancel test."
-		return 1
+		if [ $rc -eq "0" ]; then
+			rc=1
+		fi
 	fi
 
 	echo "*********************************************************"
@@ -470,18 +471,16 @@ main()
 	echo "*********************************************************"
 
 	if [ $rc -eq 0 ]; then
-		sandbox_fini
+		# this msg is used by Jenkins as a test success criteria;
+		echo "rpc-session-cancel: test status: SUCCESS"
 	else
+		echo "rpc-session-cancel: test status: FAIL"
 		echo "Test log available at $MERO_TEST_LOGFILE."
 	fi
+
+	[ $rc -ne 0 ] || [ $DEBUG_MODE -eq 1 ] || sandbox_fini
 	return $rc
 }
 
 trap unprepare EXIT
 main
-
-# this msg is used by Jenkins as a test success criteria;
-# it should appear on STDOUT
-if [ $? -eq 0 ] ; then
-    echo "rpc-session-cancel: test status: SUCCESS"
-fi
