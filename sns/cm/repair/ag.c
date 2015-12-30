@@ -54,6 +54,8 @@ M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
 				       uint64_t failed_unit_idx,
 				       uint64_t data_seg_nr);
 
+M0_INTERNAL int repair_cp_bufvec_split(struct m0_cm_cp *cp);
+
 M0_INTERNAL struct m0_sns_cm_repair_ag *
 sag2repairag(const struct m0_sns_cm_ag *sag)
 {
@@ -182,6 +184,7 @@ static void acc_check_fini(struct m0_sns_cm_repair_ag *rag)
 		}
 		cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
 		if (cp->c_buf_nr > 0) {
+			repair_cp_bufvec_split(cp);
 			cp->c_ops->co_free(cp);
 		}
 	}

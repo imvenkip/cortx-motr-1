@@ -710,6 +710,31 @@ M0_INTERNAL int m0_cm_cp_bufvec_merge(struct m0_cm_cp *cp)
 	return 0;
 }
 
+M0_INTERNAL int m0_cm_cp_bufvec_split(struct m0_cm_cp *cp)
+{
+	struct m0_net_buffer       *nbuf_head;
+	struct m0_bufvec           *bufvec;
+	uint32_t                    new_v_nr;
+	m0_bcount_t                *new_v_count;
+	uint32_t                    i;
+
+	nbuf_head = cp_data_buf_tlist_head(&cp->c_buffers);
+	new_v_nr = nbuf_head->nb_pool->nbp_seg_nr;
+	M0_ALLOC_ARR(new_v_count, new_v_nr);
+	if (new_v_count == NULL)
+		return M0_ERR(-ENOMEM);
+
+	bufvec = &nbuf_head->nb_buffer;
+	for (i = 0; i < new_v_nr; ++i)
+		new_v_count[i] = bufvec->ov_vec.v_count[i];
+
+	m0_free(bufvec->ov_vec.v_count);
+	bufvec->ov_vec.v_nr = new_v_nr;
+	bufvec->ov_vec.v_count = new_v_count;
+
+	return 0;
+}
+
 M0_INTERNAL void m0_cm_cp_buf_move(struct m0_cm_cp *src, struct m0_cm_cp *dest)
 {
 	struct m0_net_buffer *nbuf;

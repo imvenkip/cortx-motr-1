@@ -293,6 +293,7 @@ M0_INTERNAL uint64_t m0_cm_cp_nr(struct m0_cm_cp *cp);
  * This is required in order to use RS code APIs.
  */
 M0_INTERNAL int m0_cm_cp_bufvec_merge(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_cm_cp_bufvec_split(struct m0_cm_cp *cp);
 M0_INTERNAL void m0_cm_cp_buf_move(struct m0_cm_cp *src, struct m0_cm_cp *dest);
 /**
  * The meta-data of the @src is copied to @dest and the data buffers are

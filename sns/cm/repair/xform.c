@@ -42,36 +42,17 @@ sag2repairag(const struct m0_sns_cm_ag *sag);
  * Splits the merged bufvec into original form, where first bufvec
  * no longer contains the metadata of all the bufvecs in the copy packet.
  */
-static int cp_bufvec_split(struct m0_cm_cp *cp)
+M0_INTERNAL int repair_cp_bufvec_split(struct m0_cm_cp *cp)
 {
-	struct m0_net_buffer       *nbuf_head;
-	struct m0_bufvec           *bufvec;
 	struct m0_sns_cm_ag        *sag = ag2snsag(cp->c_ag);
 	struct m0_sns_cm_repair_ag *rag;
-	uint32_t                    new_v_nr;
-	m0_bcount_t                *new_v_count;
-	uint32_t                    i;
 
 	rag = sag2repairag(sag);
 	if (cp->c_buf_nr == 1 ||
 	    rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
 		return 0;
 
-	nbuf_head = cp_data_buf_tlist_head(&cp->c_buffers);
-	new_v_nr = nbuf_head->nb_pool->nbp_seg_nr;
-	M0_ALLOC_ARR(new_v_count, new_v_nr);
-	if (new_v_count == NULL)
-		return M0_ERR(-ENOMEM);
-
-	bufvec = &nbuf_head->nb_buffer;
-	for (i = 0; i < new_v_nr; ++i)
-		new_v_count[i] = bufvec->ov_vec.v_count[i];
-
-	m0_free(bufvec->ov_vec.v_count);
-	bufvec->ov_vec.v_nr = new_v_nr;
-	bufvec->ov_vec.v_count = new_v_count;
-
-	return 0;
+	return m0_cm_cp_bufvec_split(cp);
 }
 
 /**
@@ -177,12 +158,12 @@ static int res_cp_enqueue(struct m0_cm_cp *cp)
 {
 	int rc;
 
-	rc = cp_bufvec_split(cp);
+	rc = repair_cp_bufvec_split(cp);
 	if (rc != 0)
-		goto out;
+		return M0_ERR(rc);
 	m0_cm_cp_enqueue(cp->c_ag->cag_cm, cp);
-out:
-	return M0_RC(rc);
+
+	return M0_RC(0);
 }
 
 static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
@@ -316,7 +297,7 @@ out:
 	 * to be reused by other copy packets.
 	 */
 	if (rc == 0 || rc == -ENOENT)
-		rc = cp_bufvec_split(cp);
+		rc = repair_cp_bufvec_split(cp);
 	m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
 	rc = M0_FSO_WAIT;
 	m0_cm_ag_unlock(ag);
