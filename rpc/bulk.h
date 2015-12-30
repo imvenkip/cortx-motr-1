@@ -148,6 +148,10 @@ enum {
 	 * So it should be deregistered by rpc bulk APIs as well.
 	 */
 	M0_RPC_BULK_NETBUF_REGISTERED,
+	/**
+	 * RPC bulk operation timeout is kept as 60 sec.
+	 */
+	M0_RPC_BULK_TMO = 60
 };
 
 /**

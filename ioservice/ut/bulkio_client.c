@@ -379,6 +379,54 @@ static void bulkclient_test(void)
 
 	m0_clink_fini(&clink);
 	m0_rpc_bulk_fini(sbulk);
+	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
+		rc = memcmp(nbufs[i]->nb_buffer.ov_buf[IO_SINGLE_BUFFER - 1],
+			    sbuf, M0_0VEC_ALIGN);
+		M0_UT_ASSERT(rc == 0);
+	}
+
+	/* Rpc bulk op timeout */
+	rc = m0_rpc_bulk_buf_add(rbulk, IO_SINGLE_BUFFER, &nd, nb, &rbuf1);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_bulk_store(rbulk, &ctm->bmt_conn, rw->crw_desc.id_descs,
+			       &m0_rpc__buf_bulk_cb);
+	M0_UT_ASSERT(rc == 0);
+	m0_mutex_lock(&rbulk->rb_mutex);
+	m0_clink_init(&clink, NULL);
+	m0_clink_add(&rbulk->rb_chan, &clink);
+	m0_mutex_unlock(&rbulk->rb_mutex);
+	rc = m0_rpc_bulk_store_del(rbulk);
+	M0_UT_ASSERT(rc == 0);
+	m0_chan_wait(&clink);
+	m0_mutex_lock(&rbulk->rb_mutex);
+	m0_clink_del(&clink);
+	m0_mutex_unlock(&rbulk->rb_mutex);
+
+	m0_rpc_bulk_init(sbulk);
+	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
+		rc = m0_rpc_bulk_buf_add(sbulk, 1, &nd, nbufs[i],
+					 &rbuf2);
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(rbuf2 != NULL);
+	}
+
+	m0_mutex_lock(&sbulk->rb_mutex);
+	m0_rpc_bulk_qtype(sbulk, q);
+	m0_clink_init(&clink, NULL);
+	m0_clink_add(&sbulk->rb_chan, &clink);
+	m0_mutex_unlock(&sbulk->rb_mutex);
+	m0_fi_enable("rpc_bulk_op", "timeout_2s");
+	rc = m0_rpc_bulk_load(sbulk, &stm->bmt_conn, rw->crw_desc.id_descs,
+			      &m0_rpc__buf_bulk_cb);
+	M0_UT_ASSERT(rc == 0);
+	m0_chan_wait(&clink);
+	m0_mutex_lock(&sbulk->rb_mutex);
+	M0_UT_ASSERT(m0_tlist_is_empty(&rpcbulk_tl, &sbulk->rb_buflist));
+	m0_clink_del(&clink);
+	m0_mutex_unlock(&sbulk->rb_mutex);
+
+	m0_clink_fini(&clink);
+
 
 	bulkio_msg_tm_fini(ctm);
 	bulkio_msg_tm_fini(stm);
@@ -386,9 +434,6 @@ static void bulkclient_test(void)
 	m0_free(stm);
 
 	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
-		rc = memcmp(nbufs[i]->nb_buffer.ov_buf[IO_SINGLE_BUFFER - 1],
-			    sbuf, M0_0VEC_ALIGN);
-		M0_UT_ASSERT(rc == 0);
 		m0_bufvec_free_aligned(&nbufs[i]->nb_buffer, M0_0VEC_SHIFT);
 		m0_free(nbufs[i]);
 	}

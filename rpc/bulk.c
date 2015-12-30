@@ -26,6 +26,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"                      /* M0_IN */
+#include "lib/finject.h"
 #include "mero/magic.h"
 #include "net/net.h"
 #include "rpc/bulk.h"
@@ -401,8 +402,6 @@ static int rpc_bulk_op(struct m0_rpc_bulk                   *rbulk,
 					    (M0_NET_QT_ACTIVE_BULK_RECV,
 					     M0_NET_QT_ACTIVE_BULK_SEND))));
 		nb->nb_callbacks = bulk_cb;
-
-
 		/*
 		 * Registers the net buffer with net domain if it is not
 		 * registered already.
@@ -413,6 +412,9 @@ static int rpc_bulk_op(struct m0_rpc_bulk                   *rbulk,
 				goto cleanup;
 			rbuf->bb_flags |= M0_RPC_BULK_NETBUF_REGISTERED;
 		}
+		nb->nb_timeout = m0_time_from_now(M0_RPC_BULK_TMO, 0);
+		if (M0_FI_ENABLED("timeout_2s"))
+			nb->nb_timeout = m0_time_from_now(2, 0);
 
 		if (op == M0_RPC_BULK_LOAD) {
 			rc = m0_net_desc_copy(&descs[cnt].bdd_desc,
