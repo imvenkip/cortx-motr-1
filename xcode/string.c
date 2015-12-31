@@ -88,6 +88,10 @@ static int string_literal(struct m0_xcode_obj *obj, const char *str)
 			M0_IMPOSSIBLE("Invalid counter type.");
 		}
 	}
+
+	if (len == 0)
+		return len;
+
 	*(void **)m0_xcode_addr(obj, 1, ~0ULL) = mem = m0_alloc(len);
 	if (mem != NULL) {
 		memcpy(mem, str, len);
