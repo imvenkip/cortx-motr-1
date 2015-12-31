@@ -578,9 +578,10 @@ static void confd_stop(struct m0_reqh_service *service)
 M0_INTERNAL int m0_confd_cache_preload_string(struct m0_conf_cache *cache,
 					      const char           *buf)
 {
-	struct m0_confx *enc;
-	int              i;
-	int              rc;
+	struct m0_confx    *enc;
+	int                 i;
+	int                 rc;
+	struct m0_conf_obj *obj;
 
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
@@ -596,6 +597,16 @@ M0_INTERNAL int m0_confd_cache_preload_string(struct m0_conf_cache *cache,
 		rc = m0_conf_obj_find(cache, m0_conf_objx_fid(xobj), &obj) ?:
 			m0_conf_obj_fill(obj, xobj, cache);
 	}
+
+	/* Check for orphan configuration object. */
+	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		M0_ASSERT_INFO(((m0_conf_obj_type(obj)== &M0_CONF_ROOT_TYPE) ||
+				 obj->co_parent != NULL ||
+				 m0_tlink_is_in(&m0_conf_dir_tl, obj)),
+			       FID_F" is not part of configuration tree.",
+			       FID_P(&obj->co_id));
+	} m0_tlist_endfor;
+
 	/*
 	 * Now having cache updated, reset version number to M0_CONF_VER_UNKNOWN
 	 * to let confd update it properly somewhat later when processing next
