@@ -11,7 +11,7 @@
 			)
 
 %define kernel_ver %( echo %{raw_kernel_ver} | tr - _ )
-%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.x86_64$//' )
+%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.x86_64$//' )
 
 # distribution
 %if 0%{?el6}
