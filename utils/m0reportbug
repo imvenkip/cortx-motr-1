@@ -3,12 +3,18 @@ set -eu
 # set -x
 # export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.9.1
+VERSION=0.9.2
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-01-05 0.9.2   * Do not collect ADDB data unless `--addb' option
+###                      is provided. (Collection of ADDB data may hang.)
+###                    * Don't tolerate invalid CLI options.
+###                    * Perform optional ADDB collection at the very end
+###                      of the execution.
+###
 ### 2015-12-31 0.9.1   [fix] gdb_bt(): Do not call `dirname' without argument.
 ###
 ### 2015-12-29 0.9     * Collect addb data.
@@ -80,8 +86,9 @@ main() {
         backtraces_live
         backtraces_cores # must precede `binaries' stage
         m0traces
-        addb # must follow `m0traces' stage (m0addb2dump creates new m0traces)
         binaries # will be skipped unless COLLECT_BINARIES_P=1
+        addb # Should go after `m0traces' stage (m0addb2dump creates new
+             # m0traces, which we do not want to collect).
     )
 
     [ `id -u` -eq 0 ] || die 'Must be run by superuser'
@@ -97,9 +104,10 @@ main() {
     echo IN_DIR=$IN_DIR >>$OUTPUT
 
     for g in "${stages[@]}"; do
-        if [ $g = binaries -a ${COLLECT_BINARIES_P:-0} -ne 1 ]; then
-            continue
-        fi
+        case $g in
+            addb) [ ${COLLECT_ADDB_P:-0} -eq 1 ] || continue;;
+            binaries) [ ${COLLECT_BINARIES_P:-0} -eq 1 ] || continue;;
+        esac
         echo -n "$g... " >&2
         section "[$g]"
         t=$(date +%s)
@@ -443,8 +451,9 @@ from INPUT_DIR and its subdirectories.
 
 Options:
     -h, --help      Show this help and exit.
-    -p, --path      Show locations of Mero binaries: m0d, m0mero.ko, etc.
+    --addb          Collect ADDB data.
     -b, --binaries  Collect Mero binaries even if there are no core dumps.
+    -p, --path      Show locations of Mero binaries: m0d, m0mero.ko, etc.
     -V, --version   Show version number and exit.
 
 INPUT_DIR defaults to '$IN_DIR'.
@@ -452,19 +461,31 @@ EOF
 }
 
 optparse() {
-    local TEMP=$(getopt -o hpbV --long help,path,binaries,version \
-                        -n "${0##*/}" -- "$@")
+    ##
+    ## We do not want the program to proceed if invalid CLI options
+    ## are provided.
+    ##
+    ## If TEMP variable was given a value at the place of its declaration
+    ## (i.e. if we used `local TEMP=$(getopt ...)' expression), the program
+    ## would ignore getopt errors!  On the contrary, when variable
+    ## declaration and initialization are separated, any error of `getopt'
+    ## command (e.g., invalid option) will result in program failure.
+    ##
+    local TEMP # do not assign value here
+    TEMP=$(getopt -o hpbV --long help,addb,binaries,path,version \
+                  -n "${0##*/}" -- "$@")
     eval set -- "$TEMP"
     while true; do
         case "$1" in
             -h|--help) usage; exit 0;;
+            --addb) COLLECT_ADDB_P=1;;
+            -b|--binaries) COLLECT_BINARIES_P=1;;
             -p|--path)
                 for f in m0mkfs m0d m0tracedump m0addb2dump m0mero.ko \
                          libmero{,-xcode-ff2c,-ut}.so libgf_complete.so; do
                     path $f
                 done
                 exit 0;;
-            -b|--binaries) COLLECT_BINARIES_P=1;;
             -V|--version) echo m0reportbug $VERSION; exit 0;;
             --) shift; break;;
             *) break;;
