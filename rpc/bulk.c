@@ -199,9 +199,8 @@ M0_INTERNAL size_t m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)
 	m0_mutex_unlock(&rbulk->rb_mutex);
 
 	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
-		if (rbuf->bb_nbuf->nb_flags & M0_NET_BUF_QUEUED) {
-			m0_net_buffer_del(rbuf->bb_nbuf, rbuf->bb_nbuf->nb_tm);
-		} else {
+		if (!m0_net_buffer_del(rbuf->bb_nbuf,
+				       rbuf->bb_nbuf->nb_tm)) {
 			rpcbulk_tlist_del(rbuf);
 			rpc_bulk_buf_deregister(rbuf);
 			rpc_bulk_buf_fini(rbuf);

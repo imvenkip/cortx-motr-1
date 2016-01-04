@@ -1566,8 +1566,11 @@ M0_INTERNAL int m0_net_buffer_add(struct m0_net_buffer *buf,
    different thread.
 
    @pre buf->nb_flags & M0_NET_BUF_REGISTERED
+
+   @retval true (success)
+   @retval false (failure, the buffer is not queued)
  */
-M0_INTERNAL void m0_net_buffer_del(struct m0_net_buffer *buf,
+M0_INTERNAL bool m0_net_buffer_del(struct m0_net_buffer *buf,
 				   struct m0_net_transfer_mc *tm);
 
 /**

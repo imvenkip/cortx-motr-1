@@ -254,10 +254,11 @@ M0_INTERNAL int m0_net_buffer_add(struct m0_net_buffer *buf,
 }
 M0_EXPORTED(m0_net_buffer_add);
 
-M0_INTERNAL void m0_net_buffer_del(struct m0_net_buffer *buf,
+M0_INTERNAL bool m0_net_buffer_del(struct m0_net_buffer *buf,
 				   struct m0_net_transfer_mc *tm)
 {
 	struct m0_net_domain *dom;
+	bool                  rc = true;
 
 	M0_PRE(tm != NULL && tm->ntm_dom != NULL);
 	M0_PRE(buf != NULL);
@@ -271,6 +272,7 @@ M0_INTERNAL void m0_net_buffer_del(struct m0_net_buffer *buf,
 
 	if (!(buf->nb_flags & M0_NET_BUF_QUEUED)) {
 		/* completion race condition? no error */
+		rc = false;
 		goto m_err_exit;
 	}
 
@@ -281,9 +283,10 @@ M0_INTERNAL void m0_net_buffer_del(struct m0_net_buffer *buf,
 
 	M0_POST(m0_net__buffer_invariant(buf));
 	M0_POST(m0_net__tm_invariant(tm));
-
  m_err_exit:
 	m0_mutex_unlock(&tm->ntm_mutex);
+
+	return rc;
 }
 M0_EXPORTED(m0_net_buffer_del);
 
