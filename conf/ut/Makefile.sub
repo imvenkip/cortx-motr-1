@@ -9,7 +9,8 @@ ut_libmero_ut_la_SOURCES += \
     conf/ut/load.c          \
     conf/ut/rpc_helpers.c   \
     conf/ut/rpc_helpers.h   \
-    conf/ut/rconfc.c
+    conf/ut/rconfc.c        \
+    conf/ut/validation.c
 
 ut_libmero_ut_la_CPPFLAGS += -DM0_CONF_UT_STR_NR_OBJS=$(shell \
 	grep -Em1 '^\[[0-9]+:' ut/conf-str.txt | \

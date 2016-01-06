@@ -28,8 +28,8 @@
 #include "ut/ut.h"
 #include "ut/file_helpers.h"
 
-struct m0_mutex      g_lock;
-struct m0_conf_cache g_cache;
+static struct m0_mutex      g_lock;
+static struct m0_conf_cache g_cache;
 
 void test_obj_xtors(void)
 {
