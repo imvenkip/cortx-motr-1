@@ -150,18 +150,20 @@ static size_t trigger_fom_home_locality(const struct m0_fom *fom)
 	return m0_fop_opcode(fom->fo_fop);
 }
 
+static struct m0_cm *trig2cm(const struct m0_fom *fom)
+{
+	return container_of(fom->fo_service, struct m0_cm, cm_service);
+}
+
 static void trigger_rep_set(struct m0_fom *fom)
 {
 	struct m0_fop          *rfop = fom->fo_rep_fop;
 	struct trigger_rep_fop *trep = m0_fop_data(rfop);
+	struct m0_cm           *cm   = trig2cm(fom);
 
-	trep->rc = m0_fom_rc(fom);
+	trep->rc = cm->cm_mach.sm_rc != 0 ? cm->cm_mach.sm_rc : m0_fom_rc(fom);
 	fom->fo_rep_fop = rfop;
 	M0_LOG(M0_DEBUG, "sending back trigger reply:%d", trep->rc);
-}
-static struct m0_cm *trig2cm(const struct m0_fom *fom)
-{
-	return container_of(fom->fo_service, struct m0_cm, cm_service);
 }
 
 static int prepare(struct m0_fom *fom)
@@ -185,7 +187,7 @@ static int prepare(struct m0_fom *fom)
 
 	if (treq->op == SNS_REPAIR_ABORT) {
 		/* setting abort flag */
-		cm->cm_abort = true;
+		m0_cm_abort(cm);
 		M0_LOG(M0_DEBUG, "GOT ABORT cmd");
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		trigger_rep_set(fom);
@@ -243,7 +245,7 @@ static int prepare(struct m0_fom *fom)
 
 	rc = M0_FSO_AGAIN;
 	scm->sc_op = treq->op;
-	if (cm_state == M0_CMS_IDLE) {
+	if (M0_IN(cm_state, (M0_CMS_IDLE, M0_CMS_STOP, M0_CMS_FAIL))) {
 		progress = 0;
 		m0_cm_wait(cm, fom);
 		rc = m0_cm_prepare(cm);
@@ -324,7 +326,8 @@ static int trigger_fom_tick(struct m0_fom *fom)
 			 * required to prevent dependency between trigger_fom's
 			 * and m0_cm_sw_update fom's transactions.
 			 */
-			if (cm_state == M0_CMS_IDLE) {
+			if (M0_IN(cm_state, (M0_CMS_IDLE, M0_CMS_STOP,
+					     M0_CMS_FAIL))) {
 				m0_fom_phase_set(fom, M0_SNS_TPH_PREPARE);
 				return M0_FSO_AGAIN;
 			}

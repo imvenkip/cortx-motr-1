@@ -442,33 +442,28 @@ M0_TL_DEFINE(cmtypes, static, struct m0_cm_type);
 static struct m0_bob_type cmtypes_bob;
 M0_BOB_DEFINE(static, &cmtypes_bob, m0_cm_type);
 
-static void cm_move(struct m0_cm *cm, int rc, enum m0_cm_state state,
-		    enum m0_cm_failure failure);
 static void cm_ast_run_fom_init(struct m0_cm *cm);
 
 static struct m0_sm_state_descr cm_state_descr[M0_CMS_NR] = {
 	[M0_CMS_INIT] = {
 		.sd_flags	= M0_SDF_INITIAL,
 		.sd_name	= "cm_init",
-		.sd_allowed	= M0_BITS(M0_CMS_IDLE, M0_CMS_FAIL, M0_CMS_FINI)
+		.sd_allowed	= M0_BITS(M0_CMS_IDLE, M0_CMS_FINI)
 	},
 	[M0_CMS_IDLE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_idle",
-		.sd_allowed	= M0_BITS(M0_CMS_FAIL, M0_CMS_PREPARE,
-					  M0_CMS_READY, M0_CMS_FINI)
+		.sd_allowed	= M0_BITS(M0_CMS_FAIL, M0_CMS_PREPARE, M0_CMS_FINI)
 	},
 	[M0_CMS_PREPARE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_prepare",
-		.sd_allowed	= M0_BITS(M0_CMS_READY, M0_CMS_FINI,
-					  M0_CMS_FAIL)
+		.sd_allowed	= M0_BITS(M0_CMS_READY, M0_CMS_FAIL)
 	},
 	[M0_CMS_READY] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_ready",
-		.sd_allowed	= M0_BITS(M0_CMS_ACTIVE, M0_CMS_FINI,
-					  M0_CMS_FAIL)
+		.sd_allowed	= M0_BITS(M0_CMS_ACTIVE, M0_CMS_FAIL)
 	},
 	[M0_CMS_ACTIVE] = {
 		.sd_flags	= 0,
@@ -478,12 +473,13 @@ static struct m0_sm_state_descr cm_state_descr[M0_CMS_NR] = {
 	[M0_CMS_FAIL] = {
 		.sd_flags	= M0_SDF_FAILURE,
 		.sd_name	= "cm_fail",
-		.sd_allowed	= M0_BITS(M0_CMS_IDLE, M0_CMS_FINI, M0_CMS_STOP)
+		.sd_allowed	= M0_BITS(M0_CMS_PREPARE, M0_CMS_FINI)
 	},
 	[M0_CMS_STOP] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_stop",
-		.sd_allowed	= M0_BITS(M0_CMS_IDLE),
+		.sd_allowed	= M0_BITS(M0_CMS_IDLE, M0_CMS_FINI,
+					  M0_CMS_PREPARE)
 	},
 	[M0_CMS_FINI] = {
 		.sd_flags	= M0_SDF_TERMINAL,
@@ -503,48 +499,17 @@ M0_INTERNAL struct m0_cm *m0_cmsvc2cm(struct m0_reqh_service *cmsvc)
 	return container_of(cmsvc, struct m0_cm, cm_service);
 }
 
-static void __cm_fail(struct m0_cm *cm, int rc, enum m0_cm_state state)
+M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, int rc)
 {
-	cm->cm_mach.sm_rc = rc;
-	m0_cm_state_set(cm, state);
-}
-
-M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
-			    int rc)
-{
-	M0_ENTRY("cm: %p fc: %u rc: %d", cm, failure, rc);
+	M0_ENTRY("cm: %p rc: %d", cm, rc);
 
 	M0_PRE(cm != NULL);
 	M0_PRE(rc < 0);
-	M0_PRE(cm->cm_service.rs_reqh != NULL);
 
-	/*
-	 * Set the corresponding error code in sm and move the copy machine
-	 * to failed state.
-	 */
+	M0_LOG(M0_ERROR, "copy machine failure, state=%d rc=%d",
+	       m0_cm_state_get(cm), rc);
 	m0_sm_fail(&cm->cm_mach, M0_CMS_FAIL, rc);
 
-	switch (failure) {
-	case M0_CM_ERR_SETUP:
-		break;
-	case M0_CM_ERR_PREPARE:
-		__cm_fail(cm, 0, M0_CMS_IDLE);
-		break;
-	case M0_CM_ERR_READY:
-		__cm_fail(cm, 0, M0_CMS_IDLE);
-		break;
-	case M0_CM_ERR_START:
-		/* Reset the rc and move the copy machine to IDLE state. */
-		__cm_fail(cm, 0, M0_CMS_IDLE);
-		break;
-
-	case M0_CM_ERR_STOP:
-		__cm_fail(cm, 0, M0_CMS_IDLE);
-		break;
-
-	default:
-		M0_ASSERT(failure >= M0_CM_ERR_NR);
-	}
 	M0_LEAVE();
 }
 
@@ -596,16 +561,9 @@ M0_INTERNAL bool m0_cm_invariant(const struct m0_cm *cm)
 		     m0_reqh_service_invariant(&cm->cm_service));
 }
 
-static void cm_move(struct m0_cm *cm, int rc, enum m0_cm_state state,
-		    enum m0_cm_failure failure)
-{
-	M0_PRE(rc <= 0);
-	rc != 0 ? m0_cm_fail(cm, failure, rc) : m0_cm_state_set(cm, state);
-}
-
 M0_INTERNAL int m0_cm_setup(struct m0_cm *cm)
 {
-	int	rc;
+	int rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL);
@@ -626,8 +584,8 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm)
 		m0_mutex_init(&cm->cm_ast_run_fom_wait_mutex);
 		m0_chan_init(&cm->cm_wait, &cm->cm_wait_mutex);
 		m0_chan_init(&cm->cm_ast_run_fom_wait, &cm->cm_ast_run_fom_wait_mutex);
+		m0_cm_state_set(cm, M0_CMS_IDLE);
 	}
-	cm_move(cm, rc, M0_CMS_IDLE, M0_CM_ERR_SETUP);
 
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -677,6 +635,28 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 	return M0_RC(rc);
 }
 
+static void cm_replicas_destroy(struct m0_cm *cm)
+{
+	struct m0_cm_proxy *pxy;
+
+	M0_PRE(m0_cm_is_locked(cm));
+
+	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
+		m0_cm_proxy_del(cm, pxy);
+		m0_cm_proxy_fini(pxy);
+		m0_free(pxy);
+	} m0_tl_endfor;
+}
+
+static void cm_pre_start_cleanup(struct m0_cm *cm)
+{
+	m0_cm_ag_store_fini(&cm->cm_ag_store);
+	m0_cm_unlock(cm);
+	m0_cm_stop(cm);
+	m0_cm_lock(cm);
+	cm_replicas_destroy(cm);
+}
+
 M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh)
 {
         return m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
@@ -689,7 +669,8 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	int                    rc;
 
 	m0_cm_lock(cm);
-	M0_PRE(m0_cm_state_get(cm) == M0_CMS_IDLE);
+	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_STOP,
+					   M0_CMS_FAIL)));
 
 	cm->cm_done = false;
 	cm->cm_proxy_init_updated = 0;
@@ -697,19 +678,27 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	cm->cm_abort   = false;
 	cm->cm_reset   = true;
 	cm->cm_epoch = m0_time_now();
-	rc = cm->cm_ops->cmo_prepare(cm);
-	if (rc != 0)
-		goto out;
 	rmach = m0_cm_rpc_machine_find(reqh);
 	rc = cm_replicas_connect(cm, rmach, reqh);
 	if (rc == -ENOENT)
 		rc = 0;
 	if (rc == 0) {
+		if (M0_FI_ENABLED("prepare_failure"))
+			rc = -EINVAL;
+		else
+			rc = cm->cm_ops->cmo_prepare(cm);
+		if (rc != 0) {
+			m0_cm_fail(cm, rc);
+			cm_replicas_destroy(cm);
+			goto out;
+		}
+	}
+	if (rc == 0) {
 		cm->cm_ready_fops_recvd = 0;
 		m0_cm_ag_store_fom_start(cm);
 		m0_cm_cp_pump_prepare(cm);
+		m0_cm_state_set(cm, M0_CMS_PREPARE);
 	}
-	cm_move(cm, rc, M0_CMS_PREPARE, M0_CM_ERR_PREPARE);
 out:
 	m0_cm_unlock(cm);
 	return M0_RC(rc);
@@ -724,12 +713,19 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	M0_PRE(cm->cm_type != NULL);
 
 	m0_cm_lock(cm);
-	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_PREPARE)));
+	M0_PRE(m0_cm_state_get(cm) == M0_CMS_PREPARE);
 	M0_PRE(m0_cm_invariant(cm));
 
 	cm_ast_run_fom_init(cm);
-	rc = m0_cm_sw_remote_update(cm);
-	cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
+	if (M0_FI_ENABLED("ready_failure"))
+		rc = -EINVAL;
+	else
+		rc = m0_cm_sw_remote_update(cm);
+	if (rc != 0) {
+		m0_cm_fail(cm, rc);
+		cm_pre_start_cleanup(cm);
+	} else
+		m0_cm_state_set(cm, M0_CMS_READY);
 	m0_cm_unlock(cm);
 
 	M0_LEAVE("rc: %d", rc);
@@ -750,7 +746,7 @@ M0_INTERNAL bool m0_cm_is_active(struct m0_cm *cm)
 
 M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 {
-	int	  rc;
+	int rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL);
@@ -760,11 +756,18 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 	M0_PRE(m0_cm_state_get(cm) == M0_CMS_READY);
 	M0_PRE(m0_cm_invariant(cm));
 
-	rc = cm->cm_ops->cmo_start(cm);
+	if (M0_FI_ENABLED("start_failure"))
+		rc = -EINVAL;
+	else
+		rc = cm->cm_ops->cmo_start(cm);
 	/* Start pump FOM to create copy packets. */
-	if (rc == 0)
+	if (rc == 0) {
 		m0_cm_cp_pump_start(cm);
-	cm_move(cm, rc, M0_CMS_ACTIVE, M0_CM_ERR_START);
+		m0_cm_state_set(cm, M0_CMS_ACTIVE);
+	} else {
+		m0_cm_fail(cm, rc);
+		cm_pre_start_cleanup(cm);
+	}
 
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -793,25 +796,21 @@ M0_INTERNAL int m0_cm_proxies_fini(struct m0_cm *cm)
 
 M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 {
-	int	rc;
+	int rc = cm->cm_mach.sm_rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL);
 
 	m0_cm_lock(cm);
-	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_ACTIVE)));
+	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_PREPARE, M0_CMS_READY,
+					   M0_CMS_ACTIVE, M0_CMS_FAIL)));
 	M0_PRE(m0_cm_invariant(cm));
-	/*
-	 * We set the state here to M0_CMS_STOP and once copy machine
-	 * specific resources are released copy machine transitions back to
-	 * M0_CMS_IDLE state as m0_cm_start() expects copy machine to be idle
-	 * before starting new restructuring operation.
-	 */
-	m0_cm_state_set(cm, M0_CMS_STOP);
-	m0_cm_ast_run_fom_wakeup(cm);
-	rc = cm->cm_ops->cmo_stop(cm);
 
-	cm_move(cm, rc, M0_CMS_IDLE, M0_CM_ERR_STOP);
+	/* In-case of failure (rc != 0) keep copy machine in failed state. */
+	if (rc == 0)
+		m0_cm_state_set(cm, M0_CMS_STOP);
+	m0_cm_ast_run_fom_wakeup(cm);
+	cm->cm_ops->cmo_stop(cm);
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
 
@@ -890,7 +889,7 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 
 	m0_cm_lock(cm);
 	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_INIT, M0_CMS_IDLE,
-					   M0_CMS_READY, M0_CMS_FAIL)));
+					   M0_CMS_STOP, M0_CMS_FAIL)));
 	M0_PRE(m0_cm_invariant(cm));
 
 	cm->cm_ops->cmo_fini(cm);
@@ -1007,7 +1006,7 @@ static int cm_ast_run_fom_tick(struct m0_fom *fom, struct m0_cm *cm, int *phase)
 	}
 
 	if (M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_ACTIVE,
-					M0_CMS_STOP)) && cm->cm_proxy_nr == 0 &&
+					M0_CMS_STOP, M0_CMS_FAIL)) && cm->cm_proxy_nr == 0 &&
 		cm->cm_aggr_grps_out_nr == 0 && cm->cm_aggr_grps_in_nr == 0)
 		result = -ESHUTDOWN;
 	else {
@@ -1092,6 +1091,11 @@ M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *p
 			ag->cag_ops->cago_fini(ag);
 		}
 	} m0_tlist_endfor;
+}
+
+M0_INTERNAL void m0_cm_abort(struct m0_cm *cm)
+{
+	cm->cm_abort = true;
 }
 
 #undef M0_TRACE_SUBSYSTEM

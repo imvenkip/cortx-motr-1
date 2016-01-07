@@ -68,7 +68,7 @@ M0_INTERNAL void m0_cm_cp_pump_prepare(struct m0_cm *cm);
  * This is invoked from m0_cm_start()
  */
 M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm);
-
+M0_INTERNAL void m0_cm_cp_pump_destroy(struct m0_cm *cm);
 /**
  * Wakes up pump FOM to create more copy packets.
  */

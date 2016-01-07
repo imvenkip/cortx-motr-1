@@ -72,6 +72,7 @@ m0_sns_cm_ut_file_size_layout(struct m0_sns_cm_file_ctx *fctx)
 	p = pools_tlist_head(&reqh->rh_pools->pc_pools);
 	pver = pool_version_tlist_head(&p->po_vers);
 	lid = m0_hash(m0_fid_hash(&pver->pv_id) + SNS_DEFAULT_LAYOUT_ID);
+	fctx->sf_pm = &pver->pv_mach;
 	fctx->sf_layout = m0_layout_find(&reqh->rh_ldom, lid);
 	if (fctx->sf_layout != NULL)
 		goto out;

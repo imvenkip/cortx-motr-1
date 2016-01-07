@@ -112,9 +112,8 @@ static int cm_ut_start(struct m0_cm *cm)
 	return 0;
 }
 
-static int cm_ut_stop(struct m0_cm *cm)
+static void cm_ut_stop(struct m0_cm *cm)
 {
-	return 0;
 }
 
 static int cm_ut_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)

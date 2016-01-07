@@ -54,6 +54,7 @@ enum {
 enum {
 	ITER_RUN = M0_FOM_PHASE_FINISH + 1,
 	ITER_WAIT,
+	ITER_COMPLETE
 };
 
 static struct m0_reqh          *reqh;
@@ -63,7 +64,9 @@ static struct m0_sns_cm        *scm;
 static struct m0_sns_cm_cp      scp;
 static struct m0_sns_cm_ag     *sag;
 static struct m0_fom_simple     iter_fom;
+static struct m0_fom_timeout    iter_fom_timeout;
 static struct m0_semaphore      iter_sem;
+static const struct m0_fid      M0_SNS_CM_REPAIR_UT_PVER = M0_FID_TINIT('v', 1, 8);
 
 static struct m0_sm_state_descr iter_ut_fom_phases[] = {
 	[M0_FOM_PHASE_INIT] = {
@@ -74,12 +77,16 @@ static struct m0_sm_state_descr iter_ut_fom_phases[] = {
 	[ITER_RUN] = {
 		.sd_name      = "Iterator run",
 		.sd_allowed   = M0_BITS(ITER_WAIT, M0_FOM_PHASE_INIT,
-					M0_FOM_PHASE_FINISH)
+					ITER_COMPLETE, M0_FOM_PHASE_FINISH)
 	},
 	[ITER_WAIT] = {
 		.sd_name      = "Iterator wait",
 		.sd_allowed   = M0_BITS(ITER_RUN, M0_FOM_PHASE_INIT,
 					M0_FOM_PHASE_FINISH)
+	},
+	[ITER_COMPLETE] = {
+		.sd_name      = "Iterator complete",
+		.sd_allowed   = M0_BITS(ITER_COMPLETE, M0_FOM_PHASE_FINISH)
 	},
 	[M0_FOM_PHASE_FINISH] = {
 		.sd_name      = "fini",
@@ -120,6 +127,37 @@ static void service_start_failure(void)
 	M0_ASSERT(rc != 0);
 }
 
+static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
+			      enum m0_pool_nd_state state)
+{
+	struct m0_poolmach_event pme;
+	int                      rc;
+	struct m0_be_tx_credit   cred = {};
+	struct m0_be_tx          tx;
+	struct m0_sm_group      *grp  = m0_locality0_get()->lo_grp;
+
+	M0_SET0(&pme);
+	M0_SET0(&tx);
+	pme.pe_type  = M0_POOL_DEVICE;
+	pme.pe_index = fd;
+	pme.pe_state = state;
+
+	m0_sm_group_lock(grp);
+	m0_be_tx_init(&tx, 0, reqh->rh_beseg->bs_domain, grp,
+			      NULL, NULL, NULL, NULL);
+	m0_poolmach_store_credit(pm, &cred);
+
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_open_sync(&tx);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_poolmach_state_transit(pm, &pme, &tx);
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
+	M0_UT_ASSERT(rc == 0);
+	m0_sm_group_unlock(grp);
+}
+
 static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 {
 	int rc;
@@ -137,8 +175,13 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 	scm->sc_op = op;
 	rc = cm->cm_ops->cmo_prepare(cm);
 	M0_UT_ASSERT(rc == 0);
+	m0_cm_lock(cm);
+	m0_cm_state_set(cm, M0_CMS_PREPARE);
+	m0_cm_state_set(cm, M0_CMS_READY);
 	rc = cm->cm_ops->cmo_start(cm);
 	M0_UT_ASSERT(rc == 0);
+	m0_cm_state_set(cm, M0_CMS_ACTIVE);
+	m0_cm_unlock(cm);
         service = m0_reqh_service_find(&m0_rms_type, reqh),
         M0_ASSERT(service != NULL);
 }
@@ -253,13 +296,13 @@ static void repair_ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *hea
 			cp->c_ops->co_free(cp);
 		}
 		ag->cag_ops->cago_fini(ag);
-		m0_cm_unlock(cm);
-		m0_cm_lock(cm);
 	} m0_tlist_endfor;
 }
 
-static void ag_destroy(void)
+static void ag_destroy()
 {
+	if (cm->cm_aggr_grps_in_nr == 0 && cm->cm_aggr_grps_out_nr == 0)
+		m0_sns_cm_fctx_cleanup(scm);
 	repair_ag_destroy(&aggr_grps_in_tl, &cm->cm_aggr_grps_in);
 	repair_ag_destroy(&aggr_grps_out_tl, &cm->cm_aggr_grps_out);
 }
@@ -328,10 +371,10 @@ static int iter_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 				*phase = ITER_WAIT;
 				rc = M0_FSO_WAIT;
 			}
-			if (rc == -ENODATA) {
-				*phase = M0_FOM_PHASE_FINISH;
-				rc = M0_FSO_WAIT;
-				m0_semaphore_up(&iter_sem);
+			if (rc < 0) {
+				ag_destroy(fom);
+				*phase = ITER_COMPLETE;
+				rc = M0_FSO_AGAIN;
 			}
 			m0_cm_unlock(cm);
 			break;
@@ -339,13 +382,29 @@ static int iter_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 			*phase = ITER_RUN;
 			rc = M0_FSO_AGAIN;
 			break;
+		case ITER_COMPLETE:
+			/* Allow asts to run if any. */
+			m0_cm_lock(cm);
+			m0_cm_unlock(cm);
+			if (scm->sc_rm_ctx.rc_rt.rt_nr_resources == 0) {
+				*phase = M0_FOM_PHASE_FINISH;
+				m0_semaphore_up(&iter_sem);
+			} else {
+				m0_fom_timeout_init(&iter_fom_timeout);
+				m0_fom_timeout_wait_on(&iter_fom_timeout, fom, m0_time_from_now(2, 0));
+			}
+			rc = M0_FSO_WAIT;
+			break;
 	}
 
 	return rc;
 }
 
-static void iter_run(uint64_t pool_width, uint64_t nr_files)
+static void iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 {
+	struct m0_pool_version *pver;
+	struct m0_mero         *mero;
+
 	m0_fi_enable("m0_sns_cm_file_attr_and_layout", "ut_attr_layout");
 	m0_fi_enable("iter_fid_attr_fetch", "ut_attr_fetch");
 	m0_fi_enable("iter_fid_attr_fetch_wait", "ut_attr_fetch_wait");
@@ -356,10 +415,17 @@ static void iter_run(uint64_t pool_width, uint64_t nr_files)
 	scm->sc_it.si_fom = &iter_fom.si_fom;
 	m0_semaphore_init(&iter_sem, 0);
 	M0_SET0(&iter_fom);
+	mero = m0_cs_ctx_get(reqh);
+	pver = m0_pool_version_find(&mero->cc_pools_common, &M0_SNS_CM_REPAIR_UT_PVER);
+	M0_UT_ASSERT(pver != NULL);
+	pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_FAILED);
+	pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_SNS_REPAIRING);
 	M0_FOM_SIMPLE_POST(&iter_fom, reqh, &iter_ut_conf,
 			   &iter_ut_fom_tick, NULL, NULL, 2);
 	m0_semaphore_down(&iter_sem);
 	m0_semaphore_fini(&iter_sem);
+	m0_fom_timeout_fini(&iter_fom_timeout);
+	pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_SNS_REPAIRED);
 
 	m0_fi_disable("m0_sns_cm_file_attr_and_layout", "ut_attr_layout");
 	m0_fi_disable("iter_fid_attr_fetch", "ut_attr_fetch");
@@ -395,43 +461,45 @@ static void _cpp_tx_close(struct m0_cm *cm)
 
 static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 {
-	int rc;
+	struct m0_pool_version *pver;
+	struct m0_mero         *mero;
 
-	m0_cm_lock(cm);
-	ag_destroy();
 	_cpp_tx_start(cm);
-	rc = cm->cm_ops->cmo_stop(cm);
-	M0_UT_ASSERT(rc == 0);
+	m0_cm_stop(cm);
 	_cpp_tx_close(cm);
 
-	m0_cm_unlock(cm);
 	cobs_delete(nr_files, pool_width);
+	mero = m0_cs_ctx_get(reqh);
+	pver = m0_pool_version_find(&mero->cc_pools_common, &M0_SNS_CM_REPAIR_UT_PVER);
+	M0_UT_ASSERT(pver != NULL);
 	/* Transition the failed device M0_PNDS_SNS_REBALANCING->M0_PNDS_ONLINE,
 	 * for subsequent failure tests so that pool machine doesn't interpret
 	 * it as a multiple failure after reading from the persistence store.
 	 */
+	pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_SNS_REBALANCING);
+	pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_ONLINE);
 	cs_fini(&sctx);
 }
 
 static void iter_repair_single_file(void)
 {
 	iter_setup(SNS_REPAIR, 2);
-	iter_run(10, 1);
-	iter_stop(10, 1, 2);
+	iter_run(6, 1, 2);
+	iter_stop(6, 1, 2);
 }
 
 static void iter_repair_multi_file(void)
 {
 	iter_setup(SNS_REPAIR, 5);
-	iter_run(10, 2);
-	iter_stop(10, 2, 5);
+	iter_run(6, 2, 5);
+	iter_stop(6, 2, 5);
 }
 
 static void iter_repair_large_file_with_large_unit_size(void)
 {
-	iter_setup(SNS_REPAIR, 9);
-	iter_run(10, 1);
-	iter_stop(10, 1, 9);
+	iter_setup(SNS_REPAIR, 1);
+	iter_run(6, 1, 1);
+	iter_stop(6, 1, 1);
 }
 
 /*
@@ -466,11 +534,19 @@ static void iter_rebalance_large_file_with_large_unit_size(void)
 }
 */
 
+static void iter_ag_init_failure(void)
+{
+	m0_fi_enable_once("m0_sns_cm_ag_init", "ag_init_failure");
+	iter_setup(SNS_REPAIR, 2);
+	iter_run(6, 1, 2);
+	iter_stop(6, 1, 2);
+}
+
 static void iter_invalid_nr_cobs(void)
 {
-	iter_setup(SNS_REPAIR, 7);
-	iter_run(3, 1);
-	iter_stop(3, 1, 7);
+	iter_setup(SNS_REPAIR, 3);
+	iter_run(3, 1, 3);
+	iter_stop(3, 1, 3);
 }
 
 struct m0_ut_suite sns_cm_repair_ut = {
@@ -485,6 +561,7 @@ struct m0_ut_suite sns_cm_repair_ut = {
 		{ "iter-repair-multi-file", iter_repair_multi_file},
 		{ "iter-repair-large-file-with-large-unit-size",
 		  iter_repair_large_file_with_large_unit_size},
+		{ "iter-ag-init-failure", iter_ag_init_failure},
 		{ "iter-invalid-nr-cobs", iter_invalid_nr_cobs},
 		{ NULL, NULL }
 	}

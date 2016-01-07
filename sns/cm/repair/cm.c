@@ -67,7 +67,7 @@ static int repair_cm_prepare(struct m0_cm *cm)
 	return m0_sns_cm_prepare(cm);
 }
 
-static int repair_cm_stop(struct m0_cm *cm)
+static void repair_cm_stop(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
 
@@ -78,7 +78,7 @@ static int repair_cm_stop(struct m0_cm *cm)
 				 cm->cm_quiesce ? "QUIESCE" : "ABORT");
 	}
 
-	return m0_sns_cm_stop(cm);
+	m0_sns_cm_stop(cm);
 }
 
 /**

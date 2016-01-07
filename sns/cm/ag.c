@@ -26,6 +26,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
+#include "lib/finject.h"
 
 #include "fid/fid.h"
 #include "ioservice/io_service.h" /* m0_ios_cdom_get */
@@ -440,7 +441,8 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	/* calculate actual failed number of units in this group. */
 	f_nr = m0_sns_cm_ag_failures_nr(scm, fctx->sf_pm, &gfid, pl, pi,
 					id->ai_lo.u_lo, &sag->sag_fmap);
-	if (f_nr == 0 || f_nr > m0_pdclust_K(pl)) {
+	if (f_nr == 0 || f_nr > m0_pdclust_K(pl) ||
+	    M0_FI_ENABLED("ag_init_failure")) {
 		m0_bitmap_fini(&sag->sag_fmap);
 		m0_bitmap_fini(&sag->sag_proxy_incoming_map);
 		m0_sns_cm_fctx_put(scm, id);

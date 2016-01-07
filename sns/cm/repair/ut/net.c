@@ -550,9 +550,8 @@ static int sender_cm_start(struct m0_cm *cm)
 	return 0;
 }
 
-static int sender_cm_stop(struct m0_cm *cm)
+static void sender_cm_stop(struct m0_cm *cm)
 {
-	return 0;
 }
 
 static int sender_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)

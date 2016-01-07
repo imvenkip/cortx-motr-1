@@ -604,11 +604,17 @@ M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
 	if (scm->sc_total_read_size == NULL)
 		return M0_ERR(-ENOMEM);
 	M0_ALLOC_ARR(scm->sc_total_write_size, loc_nr);
-	if (scm->sc_total_write_size == NULL)
+	if (scm->sc_total_write_size == NULL) {
+		m0_free(scm->sc_total_read_size);
 		return M0_ERR(-ENOMEM);
+	}
 	rc = m0_sns_cm_iter_start(&scm->sc_it);
-	if (rc == 0)
-		scm->sc_start_time = m0_time_now();
+	if (rc != 0) {
+		m0_free(scm->sc_total_read_size);
+		m0_free(scm->sc_total_write_size);
+		return M0_ERR(rc);
+	}
+	scm->sc_start_time = m0_time_now();
 
 	return M0_RC(rc);
 }
@@ -618,6 +624,7 @@ M0_INTERNAL void m0_sns_cm_rm_fini(struct m0_sns_cm *scm)
 	M0_ENTRY("scm: %p", scm);
 
 	m0_sns_cm_fctx_cleanup(scm);
+	m0_scmfctx_htable_fini(&scm->sc_file_ctx);
 
 	if (!m0_sns_cm2reqh(scm)->rh_oostore)
 		m0_rm_type_deregister(&scm->sc_rm_ctx.rc_rt);
@@ -639,7 +646,7 @@ static void sns_cm_buffer_pools_prune(struct m0_sns_cm *scm)
 		  scm->sc_ibp.sb_bp.nbp_buf_nr == 0);
 }
 
-M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)
+M0_INTERNAL void m0_sns_cm_stop(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
 	size_t            twrite = 0;
@@ -649,22 +656,23 @@ M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)
 
 	m0_sns_cm_iter_stop(&scm->sc_it);
 	scm->sc_stop_time = m0_time_now();
-	for (i = 0; i < loc_nr; ++i) {
-		tread += scm->sc_total_read_size[i];
-		twrite += scm->sc_total_write_size[i];
+	if (scm->sc_total_read_size != NULL &&
+	    scm->sc_total_write_size != NULL) {
+		for (i = 0; i < loc_nr; ++i) {
+			tread += scm->sc_total_read_size[i];
+			twrite += scm->sc_total_write_size[i];
+		}
+		M0_LOG(M0_INFO, "Time: %llu Read Size: %llu Write size: %llu",
+		       (unsigned long long)m0_time_sub(scm->sc_stop_time,
+						       scm->sc_start_time),
+		       (unsigned long long)tread, (unsigned long long)twrite);
+		M0_CNT_INC(scm->sc_repair_done);
+		m0_free(scm->sc_total_read_size);
+		m0_free(scm->sc_total_write_size);
 	}
-	M0_LOG(M0_INFO, "Time: %llu Read Size: %llu Write size: %llu",
-	       (unsigned long long)m0_time_sub(scm->sc_stop_time,
-					       scm->sc_start_time),
-	       (unsigned long long)tread, (unsigned long long)twrite);
-	M0_CNT_INC(scm->sc_repair_done);
 	m0_sns_cm_rm_fini(scm);
 	m0_sns_cm_ag_iter_fini(&scm->sc_ag_it);
-	m0_free(scm->sc_total_read_size);
-	m0_free(scm->sc_total_write_size);
 	sns_cm_buffer_pools_prune(scm);
-
-	return 0;
 }
 
 M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm)
@@ -781,6 +789,7 @@ m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
 	m0_bitmap_fini(&proxy_map);
+	m0_sns_cm_fctx_put(scm, id);
 
 	return nr_cp_bufs * nr_incoming;
 }

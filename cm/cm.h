@@ -131,23 +131,6 @@ enum m0_cm_state {
 	M0_CMS_NR
 };
 
-/**
- * Various copy machine failures. m0_cm_fail() uses these to perform failure
- * specific processing.
- * @see m0_cm_fail()
- */
-enum m0_cm_failure {
-	/** Copy machine setup failure */
-	M0_CM_ERR_SETUP = 1,
-	M0_CM_ERR_PREPARE,
-	/** Copy machine start failure */
-	M0_CM_ERR_READY,
-	M0_CM_ERR_START,
-	/** Copy machine stop failure */
-	M0_CM_ERR_STOP,
-	M0_CM_ERR_NR
-};
-
 enum {
 	CM_RPC_TIMEOUT              = 20, /* seconds */
 	CM_MAX_NR_RPC_IN_FLIGHT     = 100,
@@ -310,7 +293,7 @@ struct m0_cm_ops {
 	int (*cmo_start)(struct m0_cm *cm);
 
 	/** Invoked from m0_cm_stop(). */
-	int (*cmo_stop)(struct m0_cm *cm);
+	void (*cmo_stop)(struct m0_cm *cm);
 
 	int (*cmo_ag_alloc)(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 			    bool has_incoming, struct m0_cm_aggr_group **out);
@@ -452,8 +435,7 @@ M0_INTERNAL int m0_cm_configure(struct m0_cm *cm, struct m0_fop *fop);
  * @param failure Copy machine failure code.
  * @param rc errno to which sm rc will be set to.
  */
-M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
-			    int rc);
+M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, int rc);
 
 #define M0_CM_TYPE_DECLARE(cmtype, id, ops, name, typecode)	\
 struct m0_cm_type cmtype ## _cmt = {				\
@@ -525,6 +507,7 @@ M0_INTERNAL void m0_cm_wait_cancel(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL int m0_cm_complete(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *proxy);
+M0_INTERNAL void m0_cm_abort(struct m0_cm *cm);
 
 /** @} endgroup CM */
 

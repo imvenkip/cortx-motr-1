@@ -282,7 +282,7 @@ M0_INTERNAL struct m0_cm_cp *m0_sns_cm_cp_alloc(struct m0_cm *cm);
 
 M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm);
 
-M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm);
+M0_INTERNAL void m0_sns_cm_stop(struct m0_cm *cm);
 
 M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm);
 

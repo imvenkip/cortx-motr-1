@@ -163,9 +163,17 @@ static void cp_reply_received(struct m0_rpc_item *req_item)
 	cp_fop = container_of(req_fop, struct m0_cm_cp_fop, cf_fop);
 	scp = cp2snscp(cp_fop->cf_cp);
 	rep_item = req_item->ri_reply;
-	rep_fop = m0_rpc_item_to_fop(rep_item);
-	sns_cpx_rep = m0_fop_data(rep_fop);
-	scp->sc_base.c_rc = sns_cpx_rep->scr_cp_rep.cr_rc;
+	if (rep_item != NULL) {
+		if (m0_rpc_item_is_generic_reply_fop(rep_item))
+			scp->sc_base.c_rc = m0_rpc_item_generic_reply_rc(rep_item);
+		else {
+			rep_fop = m0_rpc_item_to_fop(rep_item);
+			sns_cpx_rep = m0_fop_data(rep_fop);
+			scp->sc_base.c_rc = sns_cpx_rep->scr_cp_rep.cr_rc;
+		}
+	} else
+		scp->sc_base.c_rc = req_item->ri_error;
+
 	m0_fom_wakeup(&scp->sc_base.c_fom);
 }
 
@@ -271,8 +279,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
 	m0_fop_put_lock(fop);
 out:
 	if (rc != 0) {
-		if (rbulk != NULL)
-			m0_rpc_bulk_buflist_empty(rbulk);
+		M0_LOG(M0_ERROR, "rc=%d", rc);
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FAIL);
 		return M0_FSO_AGAIN;
 	}
@@ -293,10 +300,9 @@ M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 	M0_LOG(M0_DEBUG, "rbulk rc: %d reply rc: %d", rbulk->rb_rc, cp->c_rc);
 
 	if (cp->c_rc != 0) {
-		/**
-		 * @todo handle error case, e.g. cleanup rpc bulk if needed,
-		 * and halt the repair.
-		 */
+		M0_LOG(M0_ERROR, "rc=%d", cp->c_rc);
+		m0_fom_phase_move(&cp->c_fom, cp->c_rc, M0_CCP_FAIL);
+		return M0_FSO_AGAIN;
 	}
 
 	/*
@@ -318,8 +324,6 @@ static int cp_buf_acquire(struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm *sns_cm = cm2sns(cp->c_ag->cag_cm);
 	int               rc;
-
-	M0_PRE(cp != NULL);
 
 	rc = m0_sns_cm_buf_attach(&sns_cm->sc_ibp.sb_bp, cp);
 	if (rc == -ENOBUFS)

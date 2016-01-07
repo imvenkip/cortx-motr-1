@@ -26,10 +26,14 @@
 #include "lib/misc.h"
 #include "lib/thread.h"
 
+#include "rpc/rpclib.h"
+
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
+
+#include "sns/cm/cm.h"
 
 #include "cm/cm.h"
 #include "cm/cp.h"
@@ -41,6 +45,49 @@
 #include "ut/file_helpers.h"
 #include <unistd.h>			/* usleep */
 #include "lib/locality.h"
+
+struct m0_rpc_server_ctx cm_ut_sctx;
+struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
+static const char *SERVER_LOGFILE = "cm_ut.log";
+char  *cm_ut_server_args[] = { "m0d", "-T", "LINUX",
+				"-D", "sr_db", "-S", "sr_stob",
+				"-A", "linuxstob:sr_addb_stob",
+				"-f", "<0x7200000000000001:1>",
+				"-w", "10",
+				"-G", "lnet:0@lo:12345:34:1",
+				"-e", "lnet:0@lo:12345:34:1",
+				"-P", M0_UT_CONF_PROFILE,
+				"-c", M0_UT_PATH("conf-str.txt")};
+
+static void cm_ut_server_start(void)
+{
+	int rc;
+
+	cm_ut_sctx.rsx_xprts            = &xprt;
+	cm_ut_sctx.rsx_xprts_nr         = 1;
+	cm_ut_sctx.rsx_argv             = cm_ut_server_args;
+	cm_ut_sctx.rsx_argc             = ARRAY_SIZE(cm_ut_server_args);
+	cm_ut_sctx.rsx_log_file_name    = SERVER_LOGFILE;
+
+	rc = m0_rpc_server_start(&cm_ut_sctx);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void cm_ut_server_stop(void)
+{
+	m0_rpc_server_stop(&cm_ut_sctx);
+}
+
+static struct m0_cm *cm_ut_sctx2cm(void)
+{
+	struct m0_reqh         *reqh;
+	struct m0_reqh_service *svc;
+
+	reqh = m0_cs_reqh_get(&cm_ut_sctx.rsx_mero_ctx);
+	svc = m0_reqh_service_find(m0_reqh_service_type_find("sns_repair"),
+				   reqh);
+	return container_of(svc, struct m0_cm, cm_service);
+}
 
 static int cm_ut_init(void)
 {
@@ -55,11 +102,14 @@ static int cm_ut_init(void)
 	rc = m0_cm_type_register(&cm_ut_cmt);
 	M0_ASSERT(rc == 0);
 
+	cm_ut_server_start();
+
 	return 0;
 }
 
 static int cm_ut_fini(void)
 {
+	cm_ut_server_stop();
 	m0_cm_type_deregister(&cm_ut_cmt);
 	m0_ut_rpc_mach_fini(&cmut_rmach_ctx);
 
@@ -140,6 +190,71 @@ static void cm_setup_failure_ut(void)
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc != 0);
 	m0_reqh_service_fini(cm_ut_service);
+}
+
+static void cm_prepare_failure_ut(void)
+{
+	struct m0_cm *cm = cm_ut_sctx2cm();
+	int           rc;
+
+	m0_fi_enable_once("m0_cm_prepare", "prepare_failure");
+	rc = m0_cm_prepare(cm);
+	M0_UT_ASSERT(rc != 0);
+}
+
+static void cm_wait_pre(struct m0_cm *cm, struct m0_clink *clink)
+{
+	m0_clink_init(clink, NULL);
+	clink->cl_is_oneshot = true;
+	m0_mutex_lock(&cm->cm_wait_mutex);
+	m0_clink_add(&cm->cm_wait, clink);
+	m0_mutex_unlock(&cm->cm_wait_mutex);
+}
+
+static void cm_wait_post(struct m0_cm *cm, struct m0_clink *clink)
+{
+	m0_chan_wait(clink);
+	m0_clink_fini(clink);
+}
+
+static void cm_ready_failure_ut(void)
+{
+	struct m0_cm     *cm = cm_ut_sctx2cm();
+	struct m0_sns_cm *scm = cm2sns(cm);
+	struct m0_clink   cm_wait_link;
+	int               rc;
+
+	m0_fi_enable_once("m0_cm_ready", "ready_failure");
+	cm_wait_pre(cm, &cm_wait_link);
+	scm->sc_op = SNS_REPAIR;
+	rc = m0_cm_prepare(cm);
+	M0_UT_ASSERT(rc == 0);
+	cm_wait_post(cm, &cm_wait_link);
+	rc = m0_cm_ready(cm);
+	M0_UT_ASSERT(rc != 0);
+	m0_reqh_idle_wait_for(cm->cm_service.rs_reqh, &cm->cm_service);
+}
+
+static void cm_start_failure_ut(void)
+{
+	struct m0_cm     *cm = cm_ut_sctx2cm();
+	struct m0_sns_cm *scm = cm2sns(cm);
+	struct m0_clink   cm_wait_link;
+	int               rc;
+
+	m0_fi_enable_once("m0_cm_start", "start_failure");
+	cm_wait_pre(cm, &cm_wait_link);
+	scm->sc_op = SNS_REPAIR;
+	rc = m0_cm_prepare(cm);
+	M0_UT_ASSERT(rc == 0);
+	cm_wait_post(cm, &cm_wait_link);
+	//cm_wait_pre(cm, &cm_wait_link);
+	rc = m0_cm_ready(cm);
+	M0_UT_ASSERT(rc == 0);
+	//cm_wait_post(cm, &cm_wait_link);
+	rc = m0_cm_start(cm);
+	M0_UT_ASSERT(rc != 0);
+	m0_reqh_idle_wait_for(cm->cm_service.rs_reqh, &cm->cm_service);
 }
 
 static void ag_id_assign(struct m0_cm_ag_id *id, uint64_t hi_hi, uint64_t hi_lo,
@@ -250,10 +365,13 @@ struct m0_ut_suite cm_generic_ut = {
         .ts_init = &cm_ut_init,
         .ts_fini = &cm_ut_fini,
         .ts_tests = {
-		{ "cm_setup_ut",          cm_setup_ut          },
-		{ "cm_setup_failure_ut",  cm_setup_failure_ut  },
-		{ "cm_init_failure_ut",   cm_init_failure_ut   },
-		{ "cm_ag_ut",             cm_ag_ut             },
+		{ "cm_setup_ut",           cm_setup_ut           },
+		{ "cm_setup_failure_ut",   cm_setup_failure_ut   },
+		{ "cm_init_failure_ut",    cm_init_failure_ut    },
+		{ "cm_prepare_failure_ut", cm_prepare_failure_ut },
+		{ "cm_ready_failure_ut",   cm_ready_failure_ut   },
+		{ "cm_start_failure_ut",   cm_start_failure_ut   },
+		{ "cm_ag_ut",              cm_ag_ut               },
 		{ NULL, NULL }
         }
 };

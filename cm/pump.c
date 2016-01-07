@@ -284,10 +284,11 @@ static int cpp_fail(struct m0_cm_cp_pump *cp_pump)
 
 	cm = pump2cm(cp_pump);
 	m0_cm_lock(cm);
-	m0_cm_fail(cm, M0_CM_ERR_START, m0_fom_rc(&cp_pump->p_fom));
+	m0_cm_fail(cm, m0_fom_rc(&cp_pump->p_fom));
+	m0_cm_abort(cm);
 	m0_cm_unlock(cm);
-	pump_move(cp_pump, 0, CPP_FINI);
-	return M0_FSO_WAIT;
+	pump_move(cp_pump, 0, CPP_COMPLETE);
+	return M0_FSO_AGAIN;
 }
 
 static struct m0_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
@@ -315,7 +316,7 @@ static struct m0_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
 	[CPP_FAIL] = {
 		.sd_flags   = M0_SDF_FAILURE,
 		.sd_name    = "copy packet pump fail",
-		.sd_allowed = M0_BITS(CPP_FINI)
+		.sd_allowed = M0_BITS(CPP_COMPLETE)
 	},
 	[CPP_FINI] = {
 		.sd_flags   = M0_SDF_TERMINAL,
@@ -355,7 +356,7 @@ struct m0_sm_trans_descr cm_cp_pump_td[] = {
 	 CPP_FINI},
 	{"Pump failed",
 	 CPP_FAIL,
-	 CPP_FINI},
+	 CPP_COMPLETE},
 };
 
 struct m0_sm_conf cm_cp_pump_conf = {
@@ -430,6 +431,11 @@ M0_INTERNAL void m0_cm_cp_pump_prepare(struct m0_cm *cm)
 	m0_cm_cp_pump_bob_init(cp_pump);
 	m0_fom_init(&cp_pump->p_fom, &cm->cm_type->ct_pump_fomt,
 		    &cm_cp_pump_fom_ops, NULL, NULL, cm->cm_service.rs_reqh);
+}
+
+M0_INTERNAL void m0_cm_cp_pump_destroy(struct m0_cm *cm)
+{
+	cm_cp_pump_fom_fini(&cm->cm_cp_pump.p_fom);
 }
 
 M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)

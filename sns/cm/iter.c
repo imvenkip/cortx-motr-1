@@ -61,6 +61,7 @@ static const struct m0_bob_type iter_bob = {
 M0_BOB_DEFINE(static, &iter_bob, m0_sns_cm_iter);
 
 enum cm_data_iter_phase {
+	ITPH_INIT,
 	/**
 	 * Iterator is in this phase when m0_cm:cm_ops::cmo_data_next() is first
 	 * invoked as part of m0_cm_start() and m0_cm_cp_pump_start(), from
@@ -155,14 +156,11 @@ iter_layout_invariant(enum cm_data_iter_phase phase,
 
 static bool iter_invariant(const struct m0_sns_cm_iter *it)
 {
-	const struct m0_sns_cm_iter_file_ctx *ifc = &it->si_fc;
-	enum cm_data_iter_phase               phase = iter_phase(it);
-
 	return it != NULL && m0_sns_cm_iter_bob_check(it) &&
 	       it->si_cp != NULL &&
-	       ergo(ifc->ifc_fctx != NULL &&
-		    ifc->ifc_fctx->sf_layout != NULL,
-		    iter_layout_invariant(phase, &it->si_fc));
+	       ergo(it->si_fc.ifc_fctx != NULL &&
+		    it->si_fc.ifc_fctx->sf_layout != NULL,
+		    iter_layout_invariant(iter_phase(it), &it->si_fc));
 }
 
 /**
@@ -758,9 +756,14 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 }
 
 static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
-	[ITPH_IDLE] = {
+	[ITPH_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "iter init",
+		.sd_allowed = M0_BITS(ITPH_IDLE, ITPH_FINI)
+	},
+	[ITPH_IDLE] = {
+		.sd_flags   = 0,
+		.sd_name    = "iter idle",
 		.sd_allowed = M0_BITS(ITPH_FID_NEXT, ITPH_FINI)
 	},
 	[ITPH_COB_NEXT] = {
@@ -831,7 +834,7 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
         if (rc != 0) {
                 return M0_ERR(rc);
 	}
-	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_IDLE, &cm->cm_sm_group);
+	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_INIT, &cm->cm_sm_group);
 	m0_sns_cm_iter_bob_init(it);
 	it->si_total_files = 0;
 	if (it->si_fom == NULL)
@@ -846,33 +849,37 @@ M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 	struct m0_fid     gfid_start;
 	struct m0_sns_cm *scm = it2sns(it);
 	struct m0_cm     *cm = &scm->sc_base;
-	int           rc;
+	int               rc;
 
 	M0_PRE(it != NULL);
-	M0_PRE(iter_phase(it) == ITPH_IDLE);
+	M0_PRE(M0_IN(iter_phase(it), (ITPH_INIT, ITPH_IDLE)));
 
 	agid2fid(&cm->cm_last_processed_out, &gfid_start);
 	m0_fid_gob_make(&gfid, gfid_start.f_container, gfid_start.f_key);
 	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, it->si_cob_dom);
+	if (iter_phase(it) == ITPH_INIT)
+		iter_phase_set(it, ITPH_IDLE);
 
 	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it)
 {
-	M0_PRE(M0_IN(iter_phase(it), (ITPH_IDLE, ITPH_FID_NEXT,
+	M0_PRE(M0_IN(iter_phase(it), (ITPH_INIT, ITPH_IDLE, ITPH_FID_NEXT,
 				      ITPH_GROUP_NEXT)));
 
-	if (iter_phase(it) != ITPH_IDLE)
+	if (!M0_IN(iter_phase(it), (ITPH_INIT, ITPH_IDLE)))
 		iter_phase_set(it, ITPH_IDLE);
-	m0_cob_ns_iter_fini(&it->si_cns_it);
-	M0_SET0(&it->si_fc);
+	if (iter_phase(it) == ITPH_IDLE) {
+		m0_cob_ns_iter_fini(&it->si_cns_it);
+		M0_SET0(&it->si_fc);
+	}
 }
 
 M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm_iter *it)
 {
 	M0_PRE(it != NULL);
-	M0_PRE(iter_phase(it) == ITPH_IDLE);
+	M0_PRE(M0_IN(iter_phase(it), (ITPH_INIT, ITPH_IDLE)));
 
 	iter_phase_set(it, ITPH_FINI);
 	m0_sm_fini(&it->si_sm);

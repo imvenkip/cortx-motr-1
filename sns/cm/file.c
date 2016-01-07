@@ -169,7 +169,6 @@ M0_INTERNAL void m0_sns_cm_fctx_cleanup(struct m0_sns_cm *scm)
 	m0_htable_for(m0_scmfctx, fctx, &scm->sc_file_ctx) {
 		__sns_cm_fctx_cleanup(fctx);
 	} m0_htable_endfor;
-	m0_scmfctx_htable_fini(&scm->sc_file_ctx);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 }
 
