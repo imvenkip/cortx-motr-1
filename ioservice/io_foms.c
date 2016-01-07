@@ -1185,14 +1185,23 @@ int ios__poolmach_check(struct m0_poolmach *poolmach,
 	m0_poolmach_current_version_get(poolmach, &curr);
 
 	/* Check the client version and server version before any processing */
-	if (!m0_poolmach_version_equal(cliv, &curr)) {
-		M0_LOG(M0_DEBUG, "VERSION MISMATCH! poolmach = %p", poolmach);
-		m0_poolmach_version_dump(cliv);
-		m0_poolmach_version_dump(&curr);
-		m0_poolmach_event_list_dump(poolmach);
-		m0_poolmach_device_state_dump(poolmach);
-		return M0_RC(M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
-	}
+
+	/** @todo: MERO-1502: When HA will be in place we no longer require
+	 *         VERSION_MISMATCH error as server/client will fetch latest
+	 *         pool machine states from HA at every crash/reboot.
+	 *         Please visit the Jira page for more details.
+	 *         Commenting this now as a cleaner approach to ignore it
+	 *         is being handeled as part of MERO-1502.
+	 *
+	 * if (!m0_poolmach_version_equal(cliv, &curr)) {
+	 *	   M0_LOG(M0_DEBUG, "VERSION MISMATCH! poolmach = %p", poolmach);
+	 *	   m0_poolmach_version_dump(cliv);
+	 *	   m0_poolmach_version_dump(&curr);
+	 *	   m0_poolmach_event_list_dump(poolmach);
+	 *	   m0_poolmach_device_state_dump(poolmach);
+	 *	   return M0_RC(M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
+	 * }
+	 */
 	return M0_RC(0);
 }
 

@@ -71,6 +71,7 @@ mount_m0t1fs()
 unmount_and_clean()
 {
 	m0t1fs_mount_dir=$MERO_M0T1FS_MOUNT_DIR
+        multiple_pools=$1
 	echo "Unmounting file system ..."
 	umount $m0t1fs_mount_dir &>/dev/null
 
@@ -92,6 +93,11 @@ unmount_and_clean()
 		local ios_index=`expr $i + 1`
 		rm -rf $MERO_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
 	done
+
+        if (($multiple_pools == 1)); then
+		local ios_index=`expr $i + 1`
+		rm -rf $MERO_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
+        fi
 }
 
 unmount_m0t1fs()

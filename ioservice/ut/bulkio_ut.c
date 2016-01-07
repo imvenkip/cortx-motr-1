@@ -1707,6 +1707,14 @@ static void bulkio_server_read_write_multiple_nb(void)
 	m0_reqh_idle_wait(reqh);
 }
 
+/** @todo: MERO-1502: When HA will be in place we no longer require
+ *       VERSION_MISMATCH error as server/client will
+ *       fetch latestpool machine states from HA at every crash/reboot.
+ *       Please visit the Jira page for more details.
+ *       Commenting this now as a cleaner approach to ignore it is being
+ *       handeled as part of MERO-1502.
+ */
+#if 0
 static void bulkio_server_read_write_fv_mismatch(void)
 {
 	struct m0_reqh		   *reqh;
@@ -1792,6 +1800,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 			M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
 	m0_fop_put_lock(rfop);
 }
+#endif
 
 static void bulkio_init(void)
 {
@@ -1859,8 +1868,18 @@ struct m0_ut_suite bulkio_server_ut = {
 		   bulkio_server_read_write_multiple_nb},
 		{ "bulkio_server_rw_state_transition_test",
 		   bulkio_server_rw_state_transition_test},
+/** @todo: MERO-1502: When HA will be in place we no longer require
+ *       VERSION_MISMATCH error as server/client will
+ *       fetch latestpool machine states from HA at every crash/reboot.
+ *       Please visit the Jira page for more details.
+ *       Commenting this now as a cleaner approach to ignore it is being
+ *       handeled as part of MERO-1502.
+ */
+#if 0
+
 		{ "bulkio_server_read_write_fv_mismatch",
 		   bulkio_server_read_write_fv_mismatch},
+#endif
 		{ "bulkio_fini", bulkio_fini},
 		{ NULL, NULL }
 	}

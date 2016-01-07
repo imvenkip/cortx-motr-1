@@ -5569,8 +5569,9 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	struct m0_fv_updates        *reply_updates;
 	struct m0_poolmach_event    *event;
 	struct io_request           *req;
-	uint32_t                     i = 0;
         struct m0_poolmach          *pm;
+	uint32_t                     i = 0;
+	int                          c_count;
 
 	M0_PRE(irfop != NULL);
 
@@ -5596,6 +5597,9 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	 * call will be restarted.
 	 */
 	while (i < reply_updates->fvu_count) {
+		c_count = pm->pm_state->pst_version.pvn_version[PVE_READ];
+		if (c_count == reply_version->fvv_read)
+			break;
 		event = (struct m0_poolmach_event*)&reply_updates->fvu_events[i];
 		m0_poolmach_event_dump(event);
 		m0_poolmach_state_transit(pm, event, NULL);
@@ -5698,11 +5702,20 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 			 "sns state = %d", req, req_item,
 			 req_item->ri_type->rit_opcode, rc, req->ir_sns_state);
 
-	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-		M0_LOG(M0_INFO, "[%p] item %p, VERSION_MISMATCH received on "
-		       FID_F, req, req_item, FID_P(&tioreq->ti_fid));
-		failure_vector_mismatch(irfop);
-	}
+	/*
+	 * ##TODO: A cleaner approach to ignore
+	 *         M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH error
+	 *         will be handeled as part of MERO-1502.
+	 *
+	 * if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+	 *	M0_ASSERT(rw_reply != NULL);
+	 *	M0_LOG(M0_FATAL, "[%p] item %p, VERSION_MISMATCH received on "
+	 *	FID_F, req, req_item, FID_P(&tioreq->ti_fid));
+	 *	failure_vector_mismatch(irfop);
+	 * }
+	 */
+
+	failure_vector_mismatch(irfop);
 	irfop->irf_reply_rc = rc;
 
 	/* update pending transaction number */

@@ -388,6 +388,29 @@ function build_conf()
   $CTRLV $PVER1_OBJS]"
 }
 
+# Uses console utility to generate proxy HA notification.
+# input parameters:
+# (i)   ha_fop to be sent
+# (ii)  list of endpoints
+# (iii) endpoint where reply is to be received.
+dispatch_ha_events()
+{
+	local ha_fop=$1
+        local eplist=($2)
+        local self_endpoint=$3
+
+        for ep in "${eplist[@]}"
+        do
+                # dispatch ha_fop
+                cmd="$M0_SRC_DIR/console/bin/m0console \
+                     -f $(opcode M0_HA_NOTE_SET_OPCODE) \
+                     -s $ep -c $self_endpoint \
+                     -d \"$ha_fop\""
+                #echo $cmd
+                (eval "$cmd")
+        done
+}
+
 function run()
 {
 	echo "# $*"

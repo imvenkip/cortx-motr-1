@@ -70,6 +70,11 @@ static inline uint32_t m0_pm_devices_nr(uint32_t nr_devices)
 	return nr_devices + 1;
 }
 
+M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
+					  struct m0_be_seg   *be_seg,
+					  struct m0_sm_group *sm_grp,
+					  struct m0_dtm      *dtm);
+
 #endif /* __MERO_POOL_POOLMACH_INTERNAL_H__ */
 
 /*

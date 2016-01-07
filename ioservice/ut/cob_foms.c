@@ -1281,6 +1281,7 @@ static void cob_delete_api_test(void)
 	m0_sm_group_unlock(&dummy_loc.fl_group);
 }
 
+# if 0
 static void cobfoms_fv_updates(void)
 {
 	struct m0_reqh          *reqh;
@@ -1324,7 +1325,15 @@ static void cobfoms_fv_updates(void)
 			      M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
 			      COB_FOP_SINGLE);
 }
+#endif
 
+/** @todo: MERO-1502: When HA will be in place we no longer require
+ *         VERSION_MISMATCH error as server/client will fetch latest
+ *         pool machine states from HA at every crash/reboot.
+ *         Please visit the Jira page for more details.
+ *         Commenting this now as a cleaner approach to ignore it
+ *         is being handeled as part of MERO-1502.
+ */
 # if 0
 #define COB_DATA(data) M0_XCODE_OBJ(m0_fop_cob_common_xc, data)
 
@@ -1560,7 +1569,17 @@ struct m0_ut_suite cobfoms_ut = {
 		 * to read back from stob finalized transactions payloads.
 		 * This might be available along with recovery.
 		{ "cob_create_delete_fol_verify",   cobfoms_fol_verify}, */
+
+/** @todo: MERO-1502: When HA will be in place we no longer require
+ *         VERSION_MISMATCH error as server/client will fetch latest
+ *         pool machine states from HA at every crash/reboot.
+ *         Please visit the Jira page for more details.
+ *         Commenting this now as a cleaner approach to ignore it
+ *         is being handeled as part of MERO-1502.
+ */
+#if 0
 		{ "single_fop_with_mismatch_fv",    cobfoms_fv_updates},
+#endif
 		{ "cobfoms_utfini",                 cobfoms_utfini},
 		{ NULL, NULL }
 	}
