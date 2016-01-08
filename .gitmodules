@@ -1,7 +1,3 @@
-[submodule "extra-libs/galois"]
-	path = extra-libs/galois
-	url = http://es-gerrit.xyus.xyratex.com:8080/mero-galois
-	ignore = untracked
 [submodule "extra-libs/yaml"]
 	path = extra-libs/yaml
 	url = http://es-gerrit.xyus.xyratex.com:8080/mero-yaml
