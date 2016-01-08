@@ -1,8 +1,8 @@
 [submodule "extra-libs/yaml"]
 	path = extra-libs/yaml
-	url = http://es-gerrit.xyus.xyratex.com:8080/mero-yaml
+	url = ../mero-yaml
 	ignore = untracked
 [submodule "extra-libs/gf-complete"]
 	path = extra-libs/gf-complete
-	url = http://es-gerrit.xyus.xyratex.com:8080/gf-complete
+	url = ../gf-complete
 	ignore = untracked
