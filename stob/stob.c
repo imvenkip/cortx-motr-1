@@ -292,7 +292,8 @@ M0_INTERNAL void m0_stob__cache_evict(struct m0_stob *stob)
 {
 	struct m0_stob_domain *dom = m0_stob_dom_get(stob);
 
-	stob->so_ops->sop_fini(stob);
+	if (m0_stob_state_get(stob) != CSS_UNKNOWN)
+		stob->so_ops->sop_fini(stob);
 	dom->sd_ops->sdo_stob_free(dom, stob);
 }
 

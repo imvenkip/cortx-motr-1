@@ -387,25 +387,16 @@ static int stob_linux_open(struct m0_stob *stob,
 	if (file_stob == NULL)
 		return M0_ERR(-ENOMEM);
 
-	m0_mutex_init(&lstob->sl_wait_guard);
-	m0_sm_ast_wait_init(&lstob->sl_wait, &lstob->sl_wait_guard);
-
 	rc = create && cfg != NULL ? symlink((char *)cfg, file_stob) : 0;
 	flags |= O_RDWR;
 	flags |= create && cfg == NULL                ? O_CREAT  : 0;
 	flags |= m0_stob_ioq_directio(&ldom->sld_ioq) ? O_DIRECT : 0;
-	lstob->sl_finalised = false;
 	lstob->sl_fd = rc ?: open(file_stob, flags,
 				  ldom->sld_cfg.sldc_file_mode);
 	rc = lstob->sl_fd == -1 ? -errno : stob_linux_stat(lstob);
 
 	m0_free(file_stob);
-	if (rc != 0) {
-		m0_mutex_lock(&lstob->sl_wait_guard);
-		m0_sm_ast_wait_fini(&lstob->sl_wait);
-		m0_mutex_unlock(&lstob->sl_wait_guard);
-		m0_mutex_fini(&lstob->sl_wait_guard);
-	}
+
 	return M0_RC(rc);
 }
 
@@ -413,31 +404,37 @@ static int stob_linux_init(struct m0_stob *stob,
 			   struct m0_stob_domain *dom,
 			   const struct m0_fid *stob_fid)
 {
-	return stob_linux_open(stob, dom, stob_fid, NULL, false);
+	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
+	int                   rc;
+
+	rc = stob_linux_open(stob, dom, stob_fid, NULL, false);
+	if (M0_IN(rc, (0, -ENOENT))) {
+		m0_mutex_init(&lstob->sl_wait_guard);
+		m0_sm_ast_wait_init(&lstob->sl_wait, &lstob->sl_wait_guard);
+	}
+	return rc;
+}
+
+static void stob_linux_close(struct m0_stob_linux *lstob)
+{
+	int rc;
+
+	if (lstob->sl_fd != -1) {
+		rc = close(lstob->sl_fd);
+		M0_ASSERT(rc == 0);
+		lstob->sl_fd = -1;
+	}
 }
 
 static void stob_linux_fini(struct m0_stob *stob)
 {
 	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
-	int                   rc;
 
-	/*
-	 * stob_linux_fini() can be called twice: from stob_linux_destroy()
-	 * and during stob cache eviction. Stob is finalised before destroying
-	 * to call unlink(2) for closed file.
-	 */
-	if (!lstob->sl_finalised) {
-		if (lstob->sl_fd != -1) {
-			rc = close(lstob->sl_fd);
-			M0_ASSERT(rc == 0);
-			lstob->sl_fd = -1;
-		}
-		m0_mutex_lock(&lstob->sl_wait_guard);
-		m0_sm_ast_wait_fini(&lstob->sl_wait);
-		m0_mutex_unlock(&lstob->sl_wait_guard);
-		m0_mutex_fini(&lstob->sl_wait_guard);
-		lstob->sl_finalised = true;
-	}
+	stob_linux_close(lstob);
+	m0_mutex_lock(&lstob->sl_wait_guard);
+	m0_sm_ast_wait_fini(&lstob->sl_wait);
+	m0_mutex_unlock(&lstob->sl_wait_guard);
+	m0_mutex_fini(&lstob->sl_wait_guard);
 }
 
 static void stob_linux_create_credit(struct m0_stob_domain *dom,
@@ -466,7 +463,7 @@ static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 	char                 *file_stob;
 	int                   rc;
 
-	stob_linux_fini(stob);
+	stob_linux_close(lstob);
 	file_stob = stob_linux_file_stob(lstob->sl_dom->sld_path,
 					 m0_stob_fid_get(stob));
 	rc = file_stob == NULL ? -ENOMEM : unlink(file_stob);

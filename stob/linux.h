@@ -66,8 +66,6 @@ struct m0_stob_linux {
 	struct m0_sm_ast_wait        sl_wait;
 	/** This mutex is used by m0_sm_ast_wait API. */
 	struct m0_mutex              sl_wait_guard;
-	/** Avoids double finalisation when stob is destroyed. */
-	bool                         sl_finalised;
 };
 
 M0_INTERNAL struct m0_stob_linux *m0_stob_linux_container(struct m0_stob *stob);
