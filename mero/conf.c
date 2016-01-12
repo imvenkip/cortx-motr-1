@@ -267,14 +267,15 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *stob,
 			sdev = M0_CONF_CAST(m0_conf_diter_result(&it),
 					    m0_conf_sdev);
 			M0_LOG(M0_DEBUG,
-			       "sdev.sd_obj.co_id.f_key: %" PRIu64 ", "
+			       "sdev " FID_F "device index: %d"
 			       "sdev.sd_filename: %s, "
 			       "sdev.sd_size: %" PRIu64,
-			       sdev->sd_obj.co_id.f_key,
+			       FID_P(&sdev->sd_obj.co_id), sdev->sd_dev_idx,
 			       sdev->sd_filename, sdev->sd_size);
 
+			M0_ASSERT(sdev->sd_dev_idx <= M0_FID_DEVICE_ID_MAX);
 			rc = m0_storage_dev_attach(devs,
-			        m0_fid_conf_sdev_device_id(&sdev->sd_obj.co_id),
+			        sdev->sd_dev_idx,
 			        sdev->sd_filename,
 			        sdev->sd_size);
 			if (rc != 0)

@@ -505,6 +505,8 @@ struct m0_conf_sdev {
 	 *       for this object.
 	 */
 	struct m0_fid     *sd_disk;
+	/** Device index */
+	uint32_t           sd_dev_idx;
 	/** Interface type. See m0_cfg_storage_device_interface_type. */
 	uint32_t           sd_iface;
 	/** Media type. See m0_cfg_storage_device_media_type. */

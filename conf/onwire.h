@@ -153,6 +153,8 @@ struct m0_confx_service {
 
 struct m0_confx_sdev {
 	struct m0_confx_header xd_header;
+	/** Device index between 1 to poolwidth. */
+	uint32_t               xd_dev_idx;
 	/* Interface type.  See m0_cfg_storage_device_interface_type. */
 	uint32_t               xd_iface;
 	/* Media type.  See m0_cfg_storage_device_media_type. */

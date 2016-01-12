@@ -128,15 +128,15 @@ confdb() {
 (service-3 type=2 endpoints=["$IOS0_ENDPOINT"]
     sdevs=[sdev-1, sdev-2, sdev-3, sdev-4])
 (service-4 type=6 endpoints=["$IOS0_ENDPOINT"] sdevs=[])
-(sdev-0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
+(sdev-0 devid=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
     filename="/dev/sdev0")
-(sdev-1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
+(sdev-1 devid=2 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
     filename="/dev/sdev1")
-(sdev-2 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
+(sdev-2 devid=3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
     filename="/dev/sdev2")
-(sdev-3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
+(sdev-3 devid=4 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
     filename="/dev/sdev3")
-(sdev-4 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
+(sdev-4 devid=5 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
     filename="/dev/sdev4")
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
 (enclosure-0 ctrls=[controller-0] pvers=[pver-0])
@@ -163,7 +163,7 @@ confdb() {
 (process-10 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$IOS1_ENDPOINT" services=[service-10])
 (service-10 type=2 endpoints=["$IOS1_ENDPOINT"] sdevs=[sdev-10])
-(sdev-10 iface=4 media=2 bsize=8192 size=0 last_state=2 flags=4
+(sdev-10 devid=6 iface=4 media=2 bsize=8192 size=0 last_state=2 flags=4
     filename="/dev/null")
 (pool-10 order=0 pvers=[])
 EOF

@@ -23,6 +23,7 @@
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"  /* m0_confx_sdev_xc */
 #include "mero/magic.h"      /* M0_CONF_SDEV_MAGIC */
+#include "ioservice/fid_convert.h" /* M0_FID_DEVICE_ID_MAX */
 
 #define XCAST(xobj) ((struct m0_confx_sdev *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_sdev, xd_header) == 0);
@@ -35,7 +36,8 @@ static bool sdev_check(const void *bob)
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_SDEV_TYPE);
 
 	return _0C(m0_conf_obj_is_stub(self_obj) ==
-		   (self->sd_filename == NULL));
+		   (self->sd_filename == NULL)) &&
+		_0C(self->sd_dev_idx <= M0_FID_DEVICE_ID_MAX);
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_sdev, M0_CONF_SDEV_MAGIC, sdev_check);
@@ -47,6 +49,7 @@ static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 	struct m0_conf_sdev        *d = M0_CONF_CAST(dest, m0_conf_sdev);
 	const struct m0_confx_sdev *s = XCAST(src);
 
+	d->sd_dev_idx    = s->xd_dev_idx;
 	d->sd_iface      = s->xd_iface;
 	d->sd_media      = s->xd_media;
 	d->sd_bsize      = s->xd_bsize;
@@ -66,6 +69,7 @@ static int sdev_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_confx_sdev *d = XCAST(dest);
 
 	confx_encode(dest, src);
+	d->xd_dev_idx    = s->sd_dev_idx;
 	d->xd_iface      = s->sd_iface;
 	d->xd_media      = s->sd_media;
 	d->xd_bsize      = s->sd_bsize;
@@ -88,6 +92,7 @@ sdev_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 		obj->sd_size       == xobj->xd_size       &&
 		obj->sd_last_state == xobj->xd_last_state &&
 		obj->sd_flags      == xobj->xd_flags      &&
+		obj->sd_dev_idx    == xobj->xd_dev_idx    &&
 		m0_buf_streq(&xobj->xd_filename, obj->sd_filename);
 }
 

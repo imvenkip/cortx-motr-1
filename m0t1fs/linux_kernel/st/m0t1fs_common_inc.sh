@@ -29,6 +29,7 @@ MERO_STOB_DOMAIN="ad -d disks.conf"
 
 IOS_DEVS=""
 NR_IOS_DEVS=0
+NR_IOS_SDEVS=1
 IOS_DEV_IDS=
 
 DISK_FIDS=""
@@ -327,9 +328,9 @@ function build_conf()
 		local ADDB_SVC1="{0x73| (($ADDB_SVCID1), 10, [1: $IOS_EP], [0])}"
 		local REP_SVC1="{0x73| (($REP_SVCID1), 8, [1: $IOS_EP], [0])}"
 		local REB_SVC1="{0x73| (($REB_SVCID1), 9, [1: $IOS_EP], [0])}"
-		local SDEV1="{0x64| (($SDEVID1), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop5\")}"
-		local SDEV2="{0x64| (($SDEVID2), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop6\")}"
-		local SDEV3="{0x64| (($SDEVID3), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop7\")}"
+		local SDEV1="{0x64| (($SDEVID1), $NR_IOS_SDEVS, 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop5\")}"
+		local SDEV2="{0x64| (($SDEVID2), $(($NR_IOS_SDEVS + 1)), $4, 1, 4096, 596000000000, 3, 4, \"/dev/loop6\")}"
+		local SDEV3="{0x64| (($SDEVID3), $(($NR_IOS_SDEVS + 2)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop7\")}"
 		local RACK1="{0x61| (($RACKID1), [1: $ENCLID1], [1: $PVERID1])}"
 		local ENCL1="{0x65| (($ENCLID1), [1: $CTRLID1], [1: $PVERID1])}"
 		local CTRL1="{0x63| (($CTRLID1), $NODEID1, [3: $DISKID1, $DISKID2, $DISKID3], [1: $PVERID1])}"

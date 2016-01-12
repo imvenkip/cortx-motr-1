@@ -714,7 +714,7 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 	yaml_node_t            *node;
 	yaml_node_t            *s_node;
 	yaml_node_item_t       *item;
-	m0_bcount_t       	size = 0; /* Uses BALLOC_DEF_CONTAINER_SIZE; */
+	m0_bcount_t             size = 0; /* Uses BALLOC_DEF_CONTAINER_SIZE; */
 
 	M0_ENTRY();
 
