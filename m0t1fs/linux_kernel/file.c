@@ -328,8 +328,6 @@ M0_TL_DESCR_DEFINE(iofops, "List of IO fops", static,
 		   M0_T1FS_IOFOP_MAGIC, M0_T1FS_TIOREQ_MAGIC);
 
 M0_TL_DEFINE(iofops,  static, struct io_req_fop);
-M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
-M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 
 static const struct m0_bob_type tioreq_bobtype;
 static struct m0_bob_type iofop_bobtype;
@@ -5323,12 +5321,11 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 
 	M0_ASSERT(m0_is_read_fop(&iofop->if_fop));
 	M0_LOG(M0_DEBUG, "[%p] Pending fops %llu, Pending rdbulk %llu, "
-	       "fop %p, item %p, "FID_F", rbulk %p, bulk_tlist_length %llu",
+	       "fop %p, item %p, "FID_F", rbulk %p",
 	       ioreq, m0_atomic64_get(&ioreq->ir_nwxfer.nxr_iofop_nr),
 	       m0_atomic64_get(&ioreq->ir_nwxfer.nxr_rdbulk_nr) - 1,
 	       &iofop->if_fop, &iofop->if_fop.f_item,
-	       FID_P(&reqfop->irf_tioreq->ti_fid), rbulk,
-	       (unsigned long long)rpcbulk_tlist_length(&rbulk->rb_buflist));
+	       FID_P(&reqfop->irf_tioreq->ti_fid), rbulk);
 
 	/*
 	 * buf will be released in this callback. But rbulk is still valid
@@ -5452,10 +5449,9 @@ static void io_req_fop_release(struct m0_ref *ref)
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_iofop_nr),
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_rdbulk_nr));
 	M0_LOG(M0_DEBUG, "[%p] fop %p, "FID_F", %p[%u], ri_error %d, "
-	       "rbulk %p, rbulk_nr %llu", req, &iofop->if_fop,
+	       "rbulk %p", req, &iofop->if_fop,
 	       FID_P(&reqfop->irf_tioreq->ti_fid), item,
-	       item->ri_type->rit_opcode, item->ri_error, rbulk,
-	       (unsigned long long)rpcbulk_tlist_length(&rbulk->rb_buflist));
+	       item->ri_type->rit_opcode, item->ri_error, rbulk);
 
 	/*
 	 * Release the net buffers if rpc bulk object is still dirty.
@@ -5463,12 +5459,12 @@ static void io_req_fop_release(struct m0_ref *ref)
 	 * transfer machine.
 	 */
 	m0_mutex_lock(&xfer->nxr_lock);
-	if (!m0_tlist_is_empty(&rpcbulk_tl, &rbulk->rb_buflist)) {
+	if (!m0_rpc_bulk_is_empty(rbulk)) {
 		struct m0_clink clink;
 		size_t          buf_nr;
 		size_t          non_queued_buf_nr = 0;
 
-		buf_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
+		buf_nr = m0_rpc_bulk_buf_length(rbulk);
 		m0_clink_init(&clink, NULL);
 		m0_clink_add_lock(&rbulk->rb_chan, &clink);
 		non_queued_buf_nr = m0_rpc_bulk_store_del(rbulk);
@@ -5502,16 +5498,15 @@ static void io_req_fop_release(struct m0_ref *ref)
 		m0_clink_fini(&clink);
 	} else
 		m0_mutex_unlock(&xfer->nxr_lock);
-	M0_ASSERT(m0_tlist_is_empty(&rpcbulk_tl, &rbulk->rb_buflist));
+	M0_ASSERT(m0_rpc_bulk_is_empty(rbulk));
 	M0_LOG(M0_DEBUG, "[%p] fop %p, Pending fops %llu, Pending rdbulk %llu",
 	       req, fop,
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_iofop_nr),
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_rdbulk_nr));
 	M0_LOG(M0_DEBUG, "[%p] fop %p, "FID_F", %p[%u], ri_error %d, "
-	       "rbulk %p, rbulk_nr %llu", req, &iofop->if_fop,
+	       "rbulk %p", req, &iofop->if_fop,
 	       FID_P(&reqfop->irf_tioreq->ti_fid), item,
-	       item->ri_type->rit_opcode, item->ri_error, rbulk,
-	       (unsigned long long)rpcbulk_tlist_length(&rbulk->rb_buflist));
+	       item->ri_type->rit_opcode, item->ri_error, rbulk);
 
 	rwfop = io_rw_get(&iofop->if_fop);
 	M0_ASSERT(rwfop != NULL);
@@ -5676,12 +5671,10 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	req_item   = &iofop->if_fop.f_item;
 	reply_item = req_item->ri_reply;
 	M0_LOG(M0_DEBUG, "[%p] nxr_iofop_nr %llu, nxr_rdbulk_nr %llu, "
-	       "item %p[%u], ri_error %d, bulk_tlist_len %llu",
-	       req, (unsigned long long)m0_atomic64_get(&xfer->nxr_iofop_nr),
-	       (unsigned long long)m0_atomic64_get(&xfer->nxr_rdbulk_nr),
-	       req_item, req_item->ri_type->rit_opcode, req_item->ri_error,
-	       (unsigned long long)rpcbulk_tlist_length(
-						&iofop->if_rbulk.rb_buflist));
+		"item %p[%u], ri_error %d", req,
+		(unsigned long long)m0_atomic64_get(&xfer->nxr_iofop_nr),
+		(unsigned long long)m0_atomic64_get(&xfer->nxr_rdbulk_nr),
+		req_item, req_item->ri_type->rit_opcode, req_item->ri_error);
 	rc = req_item->ri_error;
 	if (reply_item != NULL) {
 		reply_fop = m0_rpc_item_to_fop(reply_item);
@@ -5689,10 +5682,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 	if (rc < 0) {
 		M0_LOG(M0_ERROR, "[%p] item %p, rc=%d", req, req_item, rc);
-		if (m0_is_read_fop(&iofop->if_fop))
-			m0_atomic64_sub(&xfer->nxr_rdbulk_nr,
-					rpcbulk_tlist_length(
-					&iofop->if_rbulk.rb_buflist));
 		goto ref_dec;
 	}
 	M0_ASSERT(reply_item != NULL &&
@@ -5717,13 +5706,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 	irfop->irf_reply_rc = rc;
 
-	/* For whatever reason, io didn't complete successfully.
-	 * Clear read bulk count */
-	if (rc < 0 && m0_is_read_fop(&irfop->irf_iofop.if_fop))
-		m0_atomic64_sub(&tioreq->ti_nwxfer->nxr_rdbulk_nr,
-				rpcbulk_tlist_length(
-					&irfop->irf_iofop.if_rbulk.rb_buflist));
-
 	/* update pending transaction number */
 	ctx = m0_reqh_service_ctx_from_session(reply_item->ri_session);
 	inode = m0t1fs_file_to_m0inode(req->ir_file);
@@ -5731,6 +5713,11 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	actual_bytes = rw_reply->rwr_count;
 
 ref_dec:
+	/* For whatever reason, io didn't complete successfully.
+	 * Clear read bulk count */
+	if (rc < 0 && m0_is_read_fop(&iofop->if_fop))
+		m0_atomic64_sub(&xfer->nxr_rdbulk_nr,
+				m0_rpc_bulk_buf_length(&iofop->if_rbulk));
 	if (tioreq->ti_rc == 0)
 		tioreq->ti_rc = rc;
 
@@ -6123,6 +6110,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	struct m0_rpc_bulk_buf      *rbuf;
 	struct m0_poolmach_versions  curr;
 	struct m0_poolmach_versions *cli;
+	struct m0_io_fop            *iofop;
 	struct m0_fop_cob_rw        *rw_fop;
         struct m0_poolmach          *pm;
 	struct nw_xfer_request      *xfer;
@@ -6189,7 +6177,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		pm = m0t1fs_file_to_poolmach(req->ir_file);
 		M0_ASSERT(pm != NULL);
 		m0_poolmach_current_version_get(pm, &curr);
-		rw_fop = io_rw_get(&irfop->irf_iofop.if_fop);
+		iofop = &irfop->irf_iofop;
+		rw_fop = io_rw_get(&iofop->if_fop);
 		cli = (struct m0_poolmach_versions *)&rw_fop->crw_version;
 		*cli = curr;
 
@@ -6206,8 +6195,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		 * permitted size.
 		 */
 		while (seg < SEG_NR(ivec) &&
-		       m0_io_fop_size_get(&irfop->irf_iofop.if_fop) + delta <
-		       maxsize) {
+		       m0_io_fop_size_get(&iofop->if_fop) + delta < maxsize) {
 
 			M0_LOG(M0_DEBUG, "[%p] adding: seg=%u@%u pa=0x%x, "
 			       "filter=0x%x, rw=0x%x", req, seg, SEG_NR(ivec),
@@ -6258,7 +6246,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			++seg;
 		}
 
-		if (m0_io_fop_byte_count(&irfop->irf_iofop) == 0) {
+		if (m0_io_fop_byte_count(iofop) == 0) {
 			irfop_fini(irfop);
 			continue;
 		}
@@ -6270,14 +6258,14 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_pver =
 			m0t1fs_file_to_m0inode(req->ir_file)->ci_pver;
 
-		rc = m0_io_fop_prepare(&irfop->irf_iofop.if_fop);
+		rc = m0_io_fop_prepare(&iofop->if_fop);
 		if (rc != 0)
 			goto fini_fop;
 
-		if (m0_is_read_fop(&irfop->irf_iofop.if_fop))
+		if (m0_is_read_fop(&iofop->if_fop))
 			m0_atomic64_add(&xfer->nxr_rdbulk_nr,
-					rpcbulk_tlist_length(
-					&irfop->irf_iofop.if_rbulk.rb_buflist));
+					m0_rpc_bulk_buf_length(
+					&iofop->if_rbulk));
 
 		m0_atomic64_inc(&xfer->nxr_iofop_nr);
 		iofops_tlist_add(&ti->ti_iofops, irfop);
@@ -6285,9 +6273,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		M0_LOG(M0_DEBUG, "[%p] fop=%p bulk=%p (%s) @"FID_F
 		       " pending io fops = %llu, pending read bulks = %llu "
 		       "list_len=%d",
-		       req, &irfop->irf_iofop.if_fop,
-		       &irfop->irf_iofop.if_rbulk,
-		       m0_is_read_fop(&irfop->irf_iofop.if_fop) ? "r" : "w",
+		       req, &iofop->if_fop, &iofop->if_rbulk,
+		       m0_is_read_fop(&iofop->if_fop) ? "r" : "w",
 		       FID_P(&ti->ti_fid),
 		       m0_atomic64_get(&xfer->nxr_iofop_nr),
 		       m0_atomic64_get(&xfer->nxr_rdbulk_nr),

@@ -906,8 +906,7 @@ static void target_ioreq_test(void)
 
 	m0_tl_for(iofops, &ti.ti_iofops, irfop) {
 		struct m0_rpc_bulk *rbulk = &irfop->irf_iofop.if_rbulk;
-		M0_UT_ASSERT(!m0_tlist_is_empty(&rpcbulk_tl,
-						&rbulk->rb_buflist));
+		M0_UT_ASSERT(!m0_rpc_bulk_is_empty(rbulk));
 		M0_UT_ASSERT(m0_io_fop_size_get(&irfop->irf_iofop.if_fop) <=
 			m0_rpc_session_get_max_item_payload_size(&session));
 	} m0_tl_endfor;
@@ -916,7 +915,7 @@ static void target_ioreq_test(void)
 		struct m0_io_fop *iofop = &irfop->irf_iofop;
 
 		m0_atomic64_sub(&req.ir_nwxfer.nxr_rdbulk_nr,
-			rpcbulk_tlist_length(&iofop->if_rbulk.rb_buflist));
+			m0_rpc_bulk_buf_length(&iofop->if_rbulk));
 		irfop_fini(irfop);
 		/* @todo: fix me: m0_io_fop_fini(iofop); */
 		m0_atomic64_dec(&req.ir_nwxfer.nxr_iofop_nr);
@@ -1097,7 +1096,7 @@ static void dgmode_readio_test(void)
 	reply = m0_fop_get(reply);
 
 	rbulk = &irfop->irf_iofop.if_rbulk;
-	M0_UT_ASSERT(m0_tlist_length(&rpcbulk_tl, &rbulk->rb_buflist) == 1);
+	M0_UT_ASSERT(m0_rpc_bulk_buf_length(rbulk) == 1);
 	rbuf  = m0_tlist_head(&rpcbulk_tl, &rbulk->rb_buflist);
 
 	/*

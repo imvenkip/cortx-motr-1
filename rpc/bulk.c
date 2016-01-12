@@ -479,6 +479,27 @@ m0_rpc_bulk_load(struct m0_rpc_bulk                   *rbulk,
 }
 M0_EXPORTED(m0_rpc_bulk_load);
 
+M0_INTERNAL bool m0_rpc_bulk_is_empty(struct m0_rpc_bulk *rbulk)
+{
+	bool empty;
+
+	m0_mutex_lock(&rbulk->rb_mutex);
+	empty = rpcbulk_tlist_is_empty(&rbulk->rb_buflist);
+	m0_mutex_unlock(&rbulk->rb_mutex);
+
+	return empty;
+}
+
+M0_INTERNAL size_t m0_rpc_bulk_buf_length(struct m0_rpc_bulk *rbulk)
+{
+	size_t buf_nr;
+
+	m0_mutex_lock(&rbulk->rb_mutex);
+	buf_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
+	m0_mutex_unlock(&rbulk->rb_mutex);
+	return buf_nr;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of rpc group */

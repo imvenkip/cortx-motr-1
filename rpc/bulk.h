@@ -265,7 +265,7 @@ M0_INTERNAL void m0_rpc_bulk_init(struct m0_rpc_bulk *rbulk);
    Removes all m0_rpc_bulk_buf structures from list of such structures in
    m0_rpc_bulk structure and deallocates it.
    @pre rbulk != NULL.
-   @post rpcbulk_tlist_length(&rbulk->rb_buflist) = 0.
+   @post rpcbulk_tlist_length(&rbulk->rb_buflist) == 0.
  */
 M0_INTERNAL void m0_rpc_bulk_buflist_empty(struct m0_rpc_bulk *rbulk);
 
@@ -372,6 +372,11 @@ M0_INTERNAL size_t m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk);
 M0_INTERNAL void m0_rpc_bulk_default_cb(const struct m0_net_buffer_event *evt);
 
 extern const struct m0_net_buffer_callbacks m0_rpc__buf_bulk_cb;
+
+M0_INTERNAL size_t m0_rpc_bulk_buf_length(struct m0_rpc_bulk *rbulk);
+
+M0_INTERNAL bool m0_rpc_bulk_is_empty(struct m0_rpc_bulk *rbulk);
+
 /** @} bulkclientDFS end group */
 
 /** @} end of rpc group */
