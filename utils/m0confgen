@@ -61,12 +61,10 @@ class Error(Exception):
 conf_obj_types = {
     'root': ('t', 'verno=NUMBER profiles=[objid]'),
     'profile': ('p', 'filesystem=objid'),
-    'filesystem': ('f',
-                   'rootfid=fid redundancy=NUMBER params=[STRING]'
+    'filesystem': ('f', 'rootfid=fid redundancy=NUMBER params=[STRING]'
                    ' mdpool=objid nodes=[objid] pools=[objid] racks=[objid]'),
     'pool': ('o', 'order=NUMBER pvers=[objid]'),
-    'pver': ('v',
-             'ver=NUMBER N=NUMBER K=NUMBER P=NUMBER nr_failures=[NUMBER]'
+    'pver': ('v', 'ver=NUMBER N=NUMBER K=NUMBER P=NUMBER nr_failures=[NUMBER]'
              ' rackvs=[objid]'),
     'objv': ('j', 'real=objid children=[objid]'),
     'node': ('n', 'memsize=NUMBER nr_cpu=NUMBER last_state=NUMBER flags=NUMBER'
@@ -75,8 +73,8 @@ conf_obj_types = {
                 ' mem_limit_stack=NUMBER mem_limit_memlock=NUMBER'
                 ' endpoint=STRING services=[objid]'),
     'service': ('s', 'type=NUMBER endpoints=[STRING] sdevs=[objid]'),
-    'sdev': ('d', 'devid=NUMBER iface=NUMBER media=NUMBER bsize=NUMBER size=NUMBER'
-             ' last_state=NUMBER flags=NUMBER filename=STRING'),
+    'sdev': ('d', 'dev_idx=NUMBER iface=NUMBER media=NUMBER bsize=NUMBER'
+             ' size=NUMBER last_state=NUMBER flags=NUMBER filename=STRING'),
     'rack': ('a', 'encls=[objid] pvers=[objid]'),
     'enclosure': ('e', 'ctrls=[objid] pvers=[objid]'),
     'controller': ('c', 'node=objid disks=[objid] pvers=[objid]'),

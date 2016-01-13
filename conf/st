@@ -105,7 +105,7 @@ lnet_up() {
 }
 
 confdb() {
-	cat <<EOF
+    cat <<EOF
 (root-0 verno=1 profiles=[profile-0, profile-10])
 (profile-0 filesystem=filesystem-0)
 (filesystem-0 rootfid=(11, 22) redundancy=2
@@ -121,23 +121,24 @@ confdb() {
 (process-2 cores=[1] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$MDS_ENDPOINT" services=[service-2])
 (process-3 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-     mem_limit_memlock=0 endpoint="$IOS0_ENDPOINT" services=[service-3, service-4])
+    mem_limit_memlock=0 endpoint="$IOS0_ENDPOINT"
+    services=[service-3, service-4])
 (service-0 type=3 endpoints=["$MGS_ENDPOINT"] sdevs=[])
 (service-1 type=4 endpoints=["$RMS_ENDPOINT"] sdevs=[])
 (service-2 type=1 endpoints=["$MDS_ENDPOINT"] sdevs=[sdev-0])
 (service-3 type=2 endpoints=["$IOS0_ENDPOINT"]
     sdevs=[sdev-1, sdev-2, sdev-3, sdev-4])
 (service-4 type=6 endpoints=["$IOS0_ENDPOINT"] sdevs=[])
-(sdev-0 devid=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
-    filename="/dev/sdev0")
-(sdev-1 devid=2 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
-    filename="/dev/sdev1")
-(sdev-2 devid=3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
-    filename="/dev/sdev2")
-(sdev-3 devid=4 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
-    filename="/dev/sdev3")
-(sdev-4 devid=5 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
-    filename="/dev/sdev4")
+(sdev-0 dev_idx=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
+    flags=4 filename="/dev/sdev0")
+(sdev-1 dev_idx=2 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
+    flags=4 filename="/dev/sdev1")
+(sdev-2 dev_idx=3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+    flags=4 filename="/dev/sdev2")
+(sdev-3 dev_idx=4 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+    flags=4 filename="/dev/sdev3")
+(sdev-4 dev_idx=5 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+    flags=4 filename="/dev/sdev4")
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
 (enclosure-0 ctrls=[controller-0] pvers=[pver-0])
 (controller-0 node=node-0 disks=[disk-0, disk-1, disk-2] pvers=[pver-0])
@@ -163,7 +164,7 @@ confdb() {
 (process-10 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$IOS1_ENDPOINT" services=[service-10])
 (service-10 type=2 endpoints=["$IOS1_ENDPOINT"] sdevs=[sdev-10])
-(sdev-10 devid=6 iface=4 media=2 bsize=8192 size=0 last_state=2 flags=4
+(sdev-10 dev_idx=6 iface=4 media=2 bsize=8192 size=0 last_state=2 flags=4
     filename="/dev/null")
 (pool-10 order=0 pvers=[])
 EOF

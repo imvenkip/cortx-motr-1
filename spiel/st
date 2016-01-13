@@ -187,16 +187,16 @@ stub_confdb() {
 (disk-1 dev=sdev-2 pvers=[pver-0])
 (disk-2 dev=sdev-3 pvers=[pver-0])
 (disk-3 dev=sdev-4 pvers=[pver-0])
-(sdev-0 devid=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
-    filename="/dev/sdev0")
-(sdev-1 devid=2 iface=4 media=1 bsize=4096 size=596000000000 last_state=3 flags=4
-    filename="/dev/sdev1")
-(sdev-2 devid=3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
-    filename="/dev/sdev2")
-(sdev-3 devid=4 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
-    filename="/dev/sdev3")
-(sdev-4 devid=5 iface=7 media=2 bsize=8192 size=320000000000 last_state=2 flags=4
-    filename="/dev/sdev4")
+(sdev-0 dev_idx=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
+    flags=4 filename="/dev/sdev0")
+(sdev-1 dev_idx=2 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
+    flags=4 filename="/dev/sdev1")
+(sdev-2 dev_idx=3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+    flags=4 filename="/dev/sdev2")
+(sdev-3 dev_idx=4 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+    flags=4 filename="/dev/sdev3")
+(sdev-4 dev_idx=5 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+    flags=4 filename="/dev/sdev4")
 EOF
 }
 
