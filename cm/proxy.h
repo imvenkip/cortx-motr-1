@@ -59,6 +59,8 @@ struct m0_cm_proxy {
 	/** Remote replica's identifier. */
 	uint64_t                px_id;
 
+	m0_time_t               px_epoch;
+
 	/** Remote replica's sliding window. */
 	struct m0_cm_sw         px_sw;
 
@@ -142,7 +144,8 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 				    struct m0_cm_ag_id *lo,
 				    struct m0_cm_ag_id *hi,
 				    struct m0_cm_ag_id *last_out,
-				    uint32_t px_status);
+				    uint32_t px_status,
+				    m0_time_t px_epoch);
 
 M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 					  struct m0_cm_sw *sw);

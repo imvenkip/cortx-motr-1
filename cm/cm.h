@@ -185,6 +185,9 @@ struct m0_cm {
 	 */
 	uint64_t                         cm_id;
 
+	/** Represents beginning of copy machine operation. */
+	m0_time_t                        cm_epoch;
+
 	/**
 	 * State machine group for this copy machine type.
 	 * Each replica uses the mutex embedded in their state machine group to

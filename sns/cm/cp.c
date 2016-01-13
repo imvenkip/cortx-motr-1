@@ -129,7 +129,7 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 	cm = cpfom2cm(&sns_cp->sc_base.c_fom);
 	m0_cm_lock(cm);
 	ag = m0_cm_aggr_group_locate(cm, &ag_id, true);
-	M0_ASSERT(ag != NULL);
+	M0_ASSERT_INFO(ag != NULL, M0_AG_F, M0_AG_P(&ag_id));
 	m0_cm_unlock(cm);
 	sns_cp->sc_base.c_ag = ag;
 

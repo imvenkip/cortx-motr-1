@@ -56,6 +56,8 @@ struct m0_cm_local_ep {
  * remote copy machine replica.
  */
 struct m0_cm_sw_onwire {
+	/** Beginning of copy machine operation. */
+	m0_time_t             swo_cm_epoch;
 	/** Replica's local endpoint. */
 	struct m0_cm_local_ep swo_cm_ep;
 	/** Replica's sliding window. */

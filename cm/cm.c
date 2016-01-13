@@ -702,6 +702,7 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	cm->cm_quiesce = false;
 	cm->cm_abort   = false;
 	cm->cm_reset = false;
+	cm->cm_epoch = m0_time_now();
 	rc = cm->cm_ops->cmo_prepare(cm);
 	if (rc != 0)
 		goto out;

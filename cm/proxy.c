@@ -37,6 +37,7 @@
 #include "cm/cm.h"
 #include "cm/cp.h"
 #include "cm/proxy.h"
+#include "cm/ag.h"
 
 /**
    @addtogroup CMPROXY
@@ -177,7 +178,8 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 				    struct m0_cm_ag_id *lo,
 				    struct m0_cm_ag_id *hi,
 				    struct m0_cm_ag_id *last_out,
-				    uint32_t px_status)
+				    uint32_t px_status,
+				    m0_time_t px_epoch)
 {
 	struct m0_cm    *cm;
 	struct m0_cm_sw  sw;
@@ -191,6 +193,7 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	switch (pxy->px_status) {
 	case M0_PX_INIT :
 		if (px_status == M0_PX_READY) {
+			pxy->px_epoch = px_epoch;
 			/*
 			 * Here we select the minimum of the sliding window
 			 * starting point provided by each remote copy machine,
@@ -218,6 +221,13 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	case M0_PX_ACTIVE:
 	case M0_PX_COMPLETE:
 	case M0_PX_STOP:
+		if (px_epoch != pxy->px_epoch) {
+			M0_LOG(M0_WARN, "Mismatch Epoch,"
+			       "current: %llu" "received: %llu",
+			       (unsigned long long)pxy->px_epoch,
+			       (unsigned long long)px_epoch);
+			break;
+		}
 		pxy->px_status = px_status;
 		if (M0_IN(px_status, (M0_PX_ACTIVE, M0_PX_COMPLETE, M0_PX_STOP))) {
 			pxy->px_sw.sw_lo = *lo;
@@ -248,6 +258,7 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 						      px_sw_onwire_ast);
 	struct m0_cm            *cm    = proxy->px_cm;
 	struct m0_cm_aggr_group *lo;
+	struct m0_cm_aggr_group *hi;
 	struct m0_cm_ag_id       id_lo;
 	struct m0_cm_ag_id       id_hi;
 	struct m0_cm_sw          sw;
@@ -260,7 +271,11 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	lo = m0_cm_ag_lo(cm);
 	if (lo != NULL)
 		id_lo = lo->cag_id;
-	id_hi = cm->cm_sw_last_updated_hi;
+	hi = m0_cm_ag_hi(cm);
+	if (hi != NULL)
+		id_hi = hi->cag_id;
+	if (m0_cm_is_ready(cm))
+		id_hi = cm->cm_sw_last_updated_hi;
 	m0_cm_sw_set(&sw, &id_lo, &id_hi);
 	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %lu",
 			 proxy->px_endpoint, cm->cm_aggr_grps_in_nr);

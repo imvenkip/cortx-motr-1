@@ -97,7 +97,8 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 					   &swo_fop->swo_base.swo_sw.sw_lo,
 					   &swo_fop->swo_base.swo_sw.sw_hi,
 					   &swo_fop->swo_base.swo_last_out,
-					   swo_fop->swo_base.swo_cm_status);
+					   swo_fop->swo_base.swo_cm_status,
+					   swo_fop->swo_base.swo_cm_epoch);
 		}
 		m0_cm_unlock(cm);
 		m0_fom_phase_set(fom, SWOPH_FINI);
