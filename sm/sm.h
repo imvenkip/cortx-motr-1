@@ -187,11 +187,8 @@ void event_X(struct foo *f)
    <b>Accounting and statistics.</b>
 
    This module accumulates statistics about state transitions and time spent in
-   particular states. For additional flexibility these data are reported through
-   an addb context supplied during state machine initialisation so that the same
-   context can be used for other purposes too.
-
-   @todo accounting and statistics is not currently implemented.
+   particular states. Statistics are reported through m0_sm_addb2_stats
+   structure, associated with the state machine.
 
    <b>AST.</b>
 
