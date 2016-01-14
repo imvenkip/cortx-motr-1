@@ -37,6 +37,7 @@
 #include "conf/preload.h"      /* m0_confx_free, m0_confx_to_string */
 #include "rpc/link.h"
 #include "rpc/rpclib.h"        /* m0_rpc_client_connect */
+#include "ioservice/fid_convert.h" /* M0_FID_DEVICE_ID_MAX */
 #include "spiel/spiel.h"
 #include "spiel/conf_mgmt.h"
 #ifndef __KERNEL__
@@ -1132,6 +1133,7 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 			const struct m0_fid                       *fid,
 			const struct m0_fid                       *svc_parent,
 			const struct m0_fid                       *disk_parent,
+		        uint32_t                                   dev_idx,
 			enum m0_cfg_storage_device_interface_type  iface,
 			enum m0_cfg_storage_device_media_type      media,
 			uint32_t                                   bsize,
@@ -1149,7 +1151,8 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 	struct m0_conf_disk    *disk;
 
 	M0_ENTRY();
-	if(!M0_CFG_SDEV_INTERFACE_TYPE_IS_VALID(iface) ||
+	if(dev_idx == 0 || dev_idx > M0_FID_DEVICE_ID_MAX ||
+	   !M0_CFG_SDEV_INTERFACE_TYPE_IS_VALID(iface) ||
 	   !M0_CFG_SDEV_MEDIA_TYPE_IS_VALID(media) ||
 	   filename == NULL)
 		return M0_ERR(-EINVAL);
@@ -1164,6 +1167,7 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 		goto fail;
 
 	device = M0_CONF_CAST(obj, m0_conf_sdev);
+	device->sd_dev_idx = dev_idx;
 	device->sd_iface = iface;
 	device->sd_media = media;
 	device->sd_bsize = bsize;

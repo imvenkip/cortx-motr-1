@@ -266,7 +266,7 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
-				 M0_CFG_DEVICE_INTERFACE_SCSI,
+				 1, M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, "fake_filename");
 	M0_UT_ASSERT(rc == 0);
@@ -376,7 +376,7 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 				 FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_SDEV], 13),
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
-				 M0_CFG_DEVICE_INTERFACE_SCSI,
+				 2, M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, "fake_filename");
 	M0_UT_ASSERT(rc == 0);
@@ -1003,7 +1003,7 @@ static void spiel_conf_create_fail(void)
 				 &fake_fid,
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
-				 M0_CFG_DEVICE_INTERFACE_SCSI,
+				 1, M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, "fake_filename");
 	M0_UT_ASSERT(rc == -EINVAL);
@@ -1012,7 +1012,7 @@ static void spiel_conf_create_fail(void)
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
 				 &fake_fid,
 				 &fake_fid,
-				 M0_CFG_DEVICE_INTERFACE_SCSI,
+				 1, M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, "fake_filename");
 	M0_UT_ASSERT(rc == -EINVAL);
@@ -1021,7 +1021,7 @@ static void spiel_conf_create_fail(void)
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
-				 M0_CFG_DEVICE_INTERFACE_NR,
+				 1, M0_CFG_DEVICE_INTERFACE_NR,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, "fake_filename");
 	M0_UT_ASSERT(rc == -EINVAL);
@@ -1030,7 +1030,7 @@ static void spiel_conf_create_fail(void)
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
-				 M0_CFG_DEVICE_INTERFACE_SCSI,
+				 1, M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_NR,
 				 1024, 512, 123, 0x55, "fake_filename");
 	M0_UT_ASSERT(rc == -EINVAL);
@@ -1039,7 +1039,7 @@ static void spiel_conf_create_fail(void)
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
-				 M0_CFG_DEVICE_INTERFACE_SCSI,
+				 1, M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, NULL);
 	M0_UT_ASSERT(rc == -EINVAL);
@@ -1048,7 +1048,7 @@ static void spiel_conf_create_fail(void)
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				 &spiel_obj_fid[SPIEL_UT_OBJ_DISK],
-				 M0_CFG_DEVICE_INTERFACE_SCSI,
+				 1, M0_CFG_DEVICE_INTERFACE_SCSI,
 				 M0_CFG_DEVICE_MEDIA_SSD,
 				 1024, 512, 123, 0x55, "fake_filename");
 	M0_UT_ASSERT(rc == 0);
@@ -1329,15 +1329,15 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 				  &service_info2);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_device_add(tx, &fid_sdev1, &fid_service1, &fid_disk1,
+	rc = m0_spiel_device_add(tx, &fid_sdev1, &fid_service1, &fid_disk1, 1,
 				 4, 1, 4096, 596000000000, 3, 4, "/dev/sdev0");
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_device_add(tx, &fid_sdev2, &fid_service1, &fid_disk2,
+	rc = m0_spiel_device_add(tx, &fid_sdev2, &fid_service1, &fid_disk2, 2,
 				 4, 1, 4096, 596000000000, 3, 4, "/dev/sdev1");
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_device_add(tx, &fid_sdev3, &fid_service2, &fid_disk3,
+	rc = m0_spiel_device_add(tx, &fid_sdev3, &fid_service2, &fid_disk3, 3,
 				 7, 2, 8192, 320000000000, 2, 4, "/dev/sdev2");
 	M0_UT_ASSERT(rc == 0);
 

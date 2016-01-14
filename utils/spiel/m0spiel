@@ -272,8 +272,8 @@ class SpielWrapper:
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, iface=int, media=int,
              bsize=int, size=long, last_state=long, flags=long, filename=str)
-    def device_add(self, spiel_tx, fid, parent, disk, iface, media, bsize,
-                   size, last_state, flags, filename):
+    def device_add(self, spiel_tx, fid, parent, disk, dev_idx, iface, media,
+                   bsize, size, last_state, flags, filename):
         if iface not in storage_device_interface:
             print("Invalid storage device interface " + str(iface))
             sys.exit(1)
@@ -281,9 +281,9 @@ class SpielWrapper:
             print("Invalid storage device media type " + str(media))
             sys.exit(1)
         return self.mero.m0_spiel_device_add(spiel_tx.data, byref(fid),
-                                             byref(parent), byref(disk), iface,
-                                             media, bsize, size, last_state,
-                                             flags, filename)
+                                             byref(parent), byref(disk),
+                                             dev_idx, iface, media, bsize,
+                                             size, last_state, flags, filename)
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, order=int)
     def pool_add(self, spiel_tx, fid, parent, order):
@@ -578,7 +578,7 @@ class SpielToolTest(unittest.TestCase):
                   ["10.0.2.2@tcp:12345:12:12"], ServiceInfoParameters()),
                  ('device_add', True, self.spielTx, Fid(0x6400000000000009, 9),
                   Fid(0x7300000000000002, 0), Fid(0x6b00000000000001, 1),
-                  1, 1, 1, 1L, 1L, 1L, "device"),
+                  1, 1, 1, 1, 1L, 1L, 1L, "device"),
                  ('pool_add', True, self.spielTx, Fid(0x6f00000000000001, 9),
                   Fid(0x6600000000000001, 1), 1),
                  ('rack_add', True, self.spielTx, Fid(0x6100000000000001, 6),
