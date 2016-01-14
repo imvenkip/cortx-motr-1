@@ -396,7 +396,9 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int cs_conf_device_reopen(struct cs_stobs *stob, uint32_t dev_id)
+M0_INTERNAL int cs_conf_device_reopen(struct m0_poolmach *pm,
+				      struct cs_stobs *stob,
+				      uint32_t dev_id)
 {
 	struct m0_mero         *cctx;
 	struct m0_reqh_context *rctx;
@@ -410,7 +412,7 @@ M0_INTERNAL int cs_conf_device_reopen(struct cs_stobs *stob, uint32_t dev_id)
 	rctx = container_of(stob, struct m0_reqh_context, rc_stob);
 	cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
 	confc = m0_mero2confc(cctx);
-	fid = M0_FID_TINIT(M0_CONF_SDEV_TYPE.cot_ftype.ft_id, 1, dev_id);
+	fid = pm->pm_state->pst_devices_array[dev_id].pd_id;
 	rc = m0_conf_device_get(confc, &fid, &sdev);
 	if (rc == 0) {
 		struct m0_conf_service *svc = M0_CONF_CAST(

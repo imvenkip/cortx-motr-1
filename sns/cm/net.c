@@ -28,6 +28,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/sns_cp_onwire.h"
 #include "sns/cm/cm_utils.h"
+#include "sns/cm/file.h"
 
 #include "fop/fop.h"
 #include "fop/fom.h"
@@ -423,17 +424,19 @@ out:
 
 M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 {
-	struct m0_sns_cm_cp *scp         = cp2snscp(cp);
-	struct m0_fid        cob_fid;
-	struct m0_cm        *cm          = cpfom2cm(&cp->c_fom);
-	struct m0_cm_proxy  *cm_proxy;
-	const char          *remote_rep;
-	int                  rc;
+	struct m0_sns_cm_cp    *scp         = cp2snscp(cp);
+	struct m0_fid           cob_fid;
+	struct m0_cm           *cm          = cpfom2cm(&cp->c_fom);
+	struct m0_cm_proxy     *cm_proxy;
+	const char             *remote_rep;
+	int                     rc;
+	struct m0_pool_version *pv;
 
 	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_SW_CHECK);
 
 	m0_fid_convert_stob2cob(&scp->sc_stob_id, &cob_fid);
-	remote_rep = m0_sns_cm_tgt_ep(cm, &cob_fid);
+	pv = m0_sns_cm_pool_version_get(ag2snsag(cp->c_ag)->sag_fctx);
+	remote_rep = m0_sns_cm_tgt_ep(cm, pv, &cob_fid);
 	M0_ASSERT(remote_rep != NULL);
 	if (cp->c_cm_proxy == NULL) {
 		m0_cm_lock(cm);

@@ -175,7 +175,7 @@ static bool poolmach_check(struct m0_poolmach_state *pm_state_on_disk,
 			   uint32_t                  max_device_failures)
 {
 	if (pm_state_on_disk->pst_nr_nodes != nr_nodes ||
-	    pm_state_on_disk->pst_nr_devices != m0_pm_devices_nr(nr_devices) ||
+	    pm_state_on_disk->pst_nr_devices != nr_devices ||
 	    pm_state_on_disk->pst_max_node_failures != max_node_failures ||
 	    pm_state_on_disk->pst_max_device_failures != max_device_failures) {
 		M0_LOG(M0_ERROR, "Invalid pool configuration. Using stale pool "
@@ -238,7 +238,7 @@ static int poolmach_store_create(struct m0_be_seg   *be_seg,
 
 	M0_BE_ALLOC_PTR_SYNC(state, be_seg, be_tx);
 	M0_BE_ALLOC_ARR_SYNC(nodes_array, nr_nodes, be_seg, be_tx);
-	M0_BE_ALLOC_ARR_SYNC(devices_array, m0_pm_devices_nr(nr_devices),
+	M0_BE_ALLOC_ARR_SYNC(devices_array, nr_devices,
 			     be_seg, be_tx);
 	M0_BE_ALLOC_ARR_SYNC(spare_usage_array, max_device_failures,
 			     be_seg, be_tx);

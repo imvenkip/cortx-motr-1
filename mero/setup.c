@@ -1952,6 +1952,9 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	m0_pools_common_init(&cctx->cc_pools_common,
 			     m0_mero_to_rmach(cctx), fs);
 
+	M0_LOG(M0_DEBUG, "file system:"FID_F"profile"FID_F,
+			FID_P(&fs->cf_obj.co_id),
+			FID_P(&fs->cf_obj.co_parent->co_id));
 	rc = m0_pools_setup(&cctx->cc_pools_common, fs, NULL, NULL, NULL);
 	if (rc != 0)
 		goto pools_common_fini;
@@ -2158,6 +2161,7 @@ void m0_cs_fini(struct m0_mero *cctx)
  * for it and call m0_stob_linux_reopen() to reopen the stob.
  */
 M0_INTERNAL int m0_mero_stob_reopen(struct m0_reqh *reqh,
+				    struct m0_poolmach *pm,
 				    uint32_t dev_id)
 {
 	struct m0_stob_id       stob_id;
@@ -2176,7 +2180,7 @@ M0_INTERNAL int m0_mero_stob_reopen(struct m0_reqh *reqh,
 	stob = &rctx->rc_stob;
 	doc = &stob->s_sfile.sf_document;
 	if (rctx->rc_stob.s_ad_disks_init)
-		return M0_RC(cs_conf_device_reopen(stob, dev_id));
+		return M0_RC(cs_conf_device_reopen(pm, stob, dev_id));
 	if (!stob->s_sfile.sf_is_initialised)
 		return M0_ERR(-EINVAL);
 	for (node = doc->nodes.start; node < doc->nodes.top; ++node) {

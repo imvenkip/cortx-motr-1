@@ -28,7 +28,7 @@ pool_mach_test()
 	fi
 
 ####### Set
-	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 1
+	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 2
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
@@ -41,18 +41,6 @@ pool_mach_test()
 
 ####### Query again
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Query -T device -N 1 -I 1
-                         -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
-	echo $trigger
-	eval $trigger
-	rc=$?
-	if [ $rc != 0 ] ; then
-		echo "m0poolmach failed: $rc"
-	else
-		echo "m0poolmach done."
-	fi
-
-####### Set again. This set request should get error
-	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 0
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
@@ -77,6 +65,18 @@ pool_mach_test()
 
 ####### Set again. This set request should get error
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 2
+                         -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
+	echo $trigger
+	eval $trigger
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
+	else
+		echo "m0poolmach done."
+	fi
+
+####### Set again. This set request should get error
+	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 3
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger

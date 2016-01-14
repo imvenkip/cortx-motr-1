@@ -1599,28 +1599,6 @@ static void file_lock_release(struct m0_rm_incoming *rm_in)
 	M0_PRE(rm_in != NULL);
 	m0_file_unlock(rm_in);
 }
-/**
-   See "Containers and component objects" section in m0t1fs.h for
-   more information.
- */
-M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
-					     int index)
-{
-	struct m0_layout_enum *le;
-	struct m0_fid          fid;
-
-	M0_PRE(ci->ci_layout_instance != NULL);
-	M0_PRE(index >= 0);
-
-	le = m0_layout_instance_to_enum(ci->ci_layout_instance);
-
-	m0_layout_enum_get(le, index, m0t1fs_inode_fid(ci), &fid);
-
-	M0_LOG(M0_DEBUG, "gob fid "FID_F" @%d = cob fid "FID_F,
-	       FID_P(m0t1fs_inode_fid(ci)), index, FID_P(&fid));
-
-	return fid;
-}
 
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 				       struct m0t1fs_mdop *mop,
@@ -2173,11 +2151,10 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 		m0_fid_convert_gob2cob(gob_fid, &cob_fid, 0);
 		cob_idx = idx;
 	} else {
-		cob_fid = m0t1fs_ios_cob_fid(ci, idx);
+		m0_poolmach_gob2cob(&pver->pv_mach, gob_fid, idx, &cob_fid);
 		cob_idx = m0_fid_cob_device_id(&cob_fid);
 		M0_ASSERT(cob_idx != ~0);
-		session = m0t1fs_container_id_to_session(pver,
-				m0_fid_cob_device_id(&cob_fid));
+		session = m0t1fs_container_id_to_session(pver, cob_idx);
 	}
 	M0_ASSERT(session != NULL);
 

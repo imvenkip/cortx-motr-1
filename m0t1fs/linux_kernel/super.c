@@ -161,12 +161,8 @@ m0t1fs_container_id_to_session(const struct m0_pool_version *pver,
 
 	M0_LOG(M0_DEBUG, "container_id=%llu", container_id);
 
-	ctx = pver->pv_dev_to_ios_map[container_id - 1];
+	ctx = pver->pv_pool->po_dev2ios[container_id].pds_ctx;
 	M0_ASSERT(ctx != NULL);
-
-	if (M0_FI_ENABLED("rpc_session_cancel")) {
-		m0_rpc_session_cancel(&ctx->sc_session);
-	}
 
 	M0_LOG(M0_DEBUG, "id %llu -> ctx=%p session=%p", container_id, ctx,
 			 &ctx->sc_session);

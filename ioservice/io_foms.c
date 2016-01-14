@@ -1246,12 +1246,12 @@ static int io_prepare(struct m0_fom *fom)
 	 * given global fid.
 	 */
 	rc = m0_poolmach_device_state(poolmach,
-				      m0_fid_cob_device_id(&rwfop->crw_fid),
+				      rwfop->crw_index,
 				      &device_state);
 	if (rc == 0) {
 		M0_LOG(M0_DEBUG, "pm=(%p:%p device=%d state=%d)",
 				 poolmach, poolmach->pm_pver,
-				 m0_fid_cob_device_id(&rwfop->crw_fid),
+				 rwfop->crw_index,
 				 device_state);
 		rc = ios__poolmach_check(poolmach, cliv);
 	}
@@ -1263,7 +1263,7 @@ static int io_prepare(struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "IO @"FID_F" on failed device: %d "
 				 "(state = %d)",
 				 FID_P(&rwfop->crw_fid),
-				 m0_fid_cob_device_id(&rwfop->crw_fid),
+				 rwfop->crw_index,
 				 device_state);
 		rc = -EIO;
 	}

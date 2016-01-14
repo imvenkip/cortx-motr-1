@@ -604,6 +604,14 @@ sns_cm_poolmach_get(struct m0_sns_cm_file_ctx *fctx)
 	}
 }
 
+M0_INTERNAL struct m0_pool_version *
+m0_sns_cm_pool_version_get(struct m0_sns_cm_file_ctx *fctx)
+{
+	M0_PRE(fctx != NULL && fctx->sf_pm != NULL);
+
+	return fctx->sf_pm->pm_pver;
+}
+
 M0_INTERNAL int
 m0_sns_cm_file_attr_and_layout(struct m0_sns_cm_file_ctx *fctx)
 {

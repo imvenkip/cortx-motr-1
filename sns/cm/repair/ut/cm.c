@@ -490,9 +490,9 @@ static void iter_repair_single_file(void)
 
 static void iter_repair_multi_file(void)
 {
-	iter_setup(SNS_REPAIR, 5);
-	iter_run(6, 2, 5);
-	iter_stop(6, 2, 5);
+	iter_setup(SNS_REPAIR, 4);
+	iter_run(6, 2, 4);
+	iter_stop(6, 2, 4);
 }
 
 static void iter_repair_large_file_with_large_unit_size(void)

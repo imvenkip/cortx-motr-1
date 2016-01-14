@@ -1616,6 +1616,7 @@ static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 	rw = io_rw_get(&io_fops[index]->if_fop);
 
 	rw->crw_fid = bp->bp_fids[0];
+	rw->crw_index = m0_fid_cob_device_id(&bp->bp_fids[0]);
 	rw->crw_pver = CONF_PVER_FID;
 	bp->bp_offsets[0] = IO_SEG_START_OFFSET;
 

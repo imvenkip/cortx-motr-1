@@ -61,9 +61,8 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	sa.sa_group = agid2group(id);
 	for (unit = 0; unit < m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl); ++unit) {
 		sa.sa_unit = unit;
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid,
-				      &cobfid);
-		is_failed = m0_sns_cm_is_cob_failed(pm, &cobfid);
+		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, &gfid, &cobfid);
+		is_failed = m0_sns_cm_is_cob_failed(pm, ta.ta_obj);
 		if (m0_sns_cm_unit_is_spare(pm, pl, pi, &gfid, sa.sa_group,
 					    unit))
 			continue;
@@ -71,23 +70,29 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 		 * on a node. This is required to calculate exact number of
 		 * incoming copy packets.
 		 */
-		if (is_failed && !m0_sns_cm_is_cob_repaired(pm, &cobfid)) {
+		if (is_failed && !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj)) {
 			rc = m0_sns_repair_spare_map(pm, &gfid, pl, pi,
-					sa.sa_group, unit, (unsigned *)&sa.sa_unit,
-					&tgt_unit_prev);
+						     sa.sa_group, unit,
+						     (unsigned *)&sa.sa_unit,
+						     &tgt_unit_prev);
 			if (rc != 0)
 				return M0_ERR(rc);
 
-			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &spare_cob);
-			if (m0_sns_cm_unit_is_spare(pm, pl, pi, &gfid, sa.sa_group,
+			m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, &gfid,
+					      &spare_cob);
+			if (m0_sns_cm_unit_is_spare(pm, pl, pi, &gfid,
+						    sa.sa_group,
 						    sa.sa_unit) &&
-			    m0_sns_cm_is_local_cob(cm, &spare_cob)) {
+			    m0_sns_cm_is_local_cob(cm, pm->pm_pver,
+						   &spare_cob)) {
 				M0_CNT_INC(local_spares);
 			}
 		}
-		if (!is_failed && !m0_sns_cm_is_local_cob(cm, &cobfid)) {
-			ep = m0_sns_cm_tgt_ep(cm, &cobfid);
-			pxy = m0_tl_find(proxy, pxy, &cm->cm_proxies, m0_streq(ep, pxy->px_endpoint));
+		if (!is_failed && !m0_sns_cm_is_local_cob(cm, pm->pm_pver,
+					                  &cobfid)) {
+			ep = m0_sns_cm_tgt_ep(cm, pm->pm_pver, &cobfid);
+			pxy = m0_tl_find(proxy, pxy, &cm->cm_proxies,
+					 m0_streq(ep, pxy->px_endpoint));
 			if (!m0_bitmap_get(proxy_in_map, pxy->px_id)) {
 				m0_bitmap_set(proxy_in_map, pxy->px_id, true);
 				M0_CNT_INC(incoming);
@@ -134,12 +139,12 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	sa.sa_group = group;
 	for (j = 0; j < N + 2 * K; ++j) {
 		sa.sa_unit = j;
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
+		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, gfid, &cobfid);
 		if (m0_sns_cm_unit_is_spare(pm, pl, pi, gfid, group, j))
 			continue;
-		if (!m0_sns_cm_is_cob_failed(pm, &cobfid))
+		if (!m0_sns_cm_is_cob_failed(pm, ta.ta_obj))
 			continue;
-		if (m0_sns_cm_is_cob_repaired(pm, &cobfid))
+		if (m0_sns_cm_is_cob_repaired(pm, ta.ta_obj))
 			continue;
 		rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
 				group, j, &tgt_unit, &tgt_unit_prev);
@@ -148,10 +153,11 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 		sa.sa_unit = tgt_unit;
 		if (!m0_sns_cm_unit_is_spare(pm, pl, pi, gfid, group, tgt_unit))
 			continue;
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		rc = m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid);
+		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, gfid, &cobfid);
+		rc = m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver,
+				            &cobfid);
 		M0_LOG(M0_DEBUG, FID_F" local=%d", FID_P(&cobfid), rc);
-		if (rc == true && !m0_sns_cm_is_cob_failed(pm, &cobfid)) {
+		if (rc == true && !m0_sns_cm_is_cob_failed(pm, ta.ta_obj)) {
 			result = true;
 			break;
 		}
@@ -161,13 +167,13 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 }
 
 int repair_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
-		      const struct m0_fid *cob_fid)
+		      struct m0_poolmach *pm, const struct m0_fid *cob_fid)
 {
 	int rc;
 
 	rc = m0_sns_cm_cob_locate(cdom, cob_fid);
 	if (rc == -ENOENT) {
-		if (m0_sns_cm_is_local_cob(&scm->sc_base, cob_fid))
+		if (m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver, cob_fid))
 			rc = -ENODEV;
 	}
 

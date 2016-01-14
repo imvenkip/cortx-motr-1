@@ -31,6 +31,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/ag.h"
+#include "sns/cm/file.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/sns_cp_onwire.h"
 #include "ioservice/fid_convert.h"      /* m0_fid_convert_cob2stob */
@@ -196,9 +197,10 @@ M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 
 M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 {
-	struct m0_sns_cm     *scm;
-	struct m0_sns_cm_cp  *scp = cp2snscp(cp);
-	bool                  local_cob;
+	struct m0_sns_cm       *scm;
+	struct m0_pool_version *pv;
+	struct m0_sns_cm_cp    *scp = cp2snscp(cp);
+	bool                    local_cob;
 
 	M0_PRE(phase >= M0_CCP_INIT && phase < M0_CCP_NR);
 
@@ -208,8 +210,9 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 	}
 
 	if ((phase == M0_CCP_INIT && scp->sc_is_acc) || phase == M0_CCP_XFORM) {
+		pv = m0_sns_cm_pool_version_get(ag2snsag(cp->c_ag)->sag_fctx);
 		scm = cm2sns(cp->c_ag->cag_cm);
-		local_cob = m0_sns_cm_is_local_cob(&scm->sc_base,
+		local_cob = m0_sns_cm_is_local_cob(&scm->sc_base, pv,
 						   &scp->sc_cobfid);
 		M0_LOG(M0_DEBUG, "cob="FID_F" local=%d",
 		                  FID_P(&scp->sc_cobfid), local_cob);

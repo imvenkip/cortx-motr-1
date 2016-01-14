@@ -219,11 +219,6 @@ static void sss_device_fom_fini(struct m0_fom *fom)
 
 #ifndef __KERNEL__
 
-static uint64_t sss_device_fom_cid(struct m0_sss_dfom *dfom)
-{
-	return dfom->ssm_fid.f_key;
-}
-
 /**
  * Confc callback. Is used when m0_confc_open or m0_confc_open_by_fid
  * finished asyn for wakeup this FOM and finialize Conc query
@@ -507,8 +502,10 @@ static int sss_device_stob_attach(struct m0_fom *fom)
 		goto out;
 	sdev = M0_CONF_CAST(m0_confc_ctx_result(confc_ctx),
 				    m0_conf_sdev);
+	M0_LOG(M0_DEBUG, "sdev fid"FID_F"device index:%d",
+			FID_P(&sdev->sd_obj.co_id), (int)sdev->sd_dev_idx);
 	m0_storage_devs_lock(devs);
-	dev = m0_storage_devs_find_by_cid(devs, sss_device_fom_cid(dfom));
+	dev = m0_storage_devs_find_by_cid(devs, sdev->sd_dev_idx);
 	if (dev == NULL) {
 		/*
 		 * Enclose domain creation into m0_fom_block_{enter,leave}()
@@ -548,12 +545,18 @@ static int sss_device_stob_detach(struct m0_fom *fom)
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
 	struct m0_storage_dev  *dev;
 	int                     rc;
+	struct m0_confc        *confc = &m0_fom_reqh(fom)->rh_confc;
+	struct m0_conf_sdev    *sdev;
 
 	M0_ENTRY();
 	dfom = container_of(fom, struct m0_sss_dfom, ssm_fom);
-
+	rc = m0_conf_device_get(confc, &dfom->ssm_fid, &sdev);
+	if (rc != 0)
+		return M0_RC(rc);
+	M0_LOG(M0_DEBUG, "sdev fid"FID_F"device index:%d",
+			FID_P(&sdev->sd_obj.co_id), (int)sdev->sd_dev_idx);
 	m0_storage_devs_lock(devs);
-	dev = m0_storage_devs_find_by_cid(devs, sss_device_fom_cid(dfom));
+	dev = m0_storage_devs_find_by_cid(devs, sdev->sd_dev_idx);
 	rc = (dev == NULL) ? M0_ERR(-ENOENT) : 0;
 	if (rc == 0)
 		m0_storage_dev_detach(dev);
@@ -581,16 +584,22 @@ static int sss_device_format(struct m0_fom *fom)
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
 	struct m0_storage_dev  *dev;
 	int                     rc;
+	struct m0_confc        *confc = &m0_fom_reqh(fom)->rh_confc;
+	struct m0_conf_sdev    *sdev;
 
 	M0_ENTRY();
 	dfom = container_of(fom, struct m0_sss_dfom, ssm_fom);
-
+	rc = m0_conf_device_get(confc, &dfom->ssm_fid, &sdev);
+	if (rc != 0)
+		return M0_RC(rc);
+	M0_LOG(M0_DEBUG, "sdev fid"FID_F"device index:%d",
+			FID_P(&sdev->sd_obj.co_id), (int)sdev->sd_dev_idx);
 	m0_storage_devs_lock(devs);
-	dev = m0_storage_devs_find_by_cid(devs, sss_device_fom_cid(dfom));
+	dev = m0_storage_devs_find_by_cid(devs, sdev->sd_dev_idx);
 	/*
 	 * Note. If device not attached yet then dev equal NULL.
 	 */
-	rc = m0_storage_dev_format(dev, sss_device_fom_cid(dfom));
+	rc = m0_storage_dev_format(dev, sdev->sd_dev_idx);
 	m0_storage_devs_unlock(devs);
 	return M0_RC(rc);
 }

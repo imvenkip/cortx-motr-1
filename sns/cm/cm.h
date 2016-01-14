@@ -171,7 +171,9 @@ struct m0_sns_cm_helpers {
 	int      (*sch_ag_setup)(struct m0_sns_cm_ag *sag,
 				 struct m0_pdclust_layout *pl);
 
-	int      (*sch_cob_locate)(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
+	int      (*sch_cob_locate)(struct m0_sns_cm *scm,
+				   struct m0_cob_domain *cdom,
+				   struct m0_poolmach *pm,
 				   const struct m0_fid *cob_fid);
 
 };

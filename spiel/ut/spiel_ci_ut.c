@@ -200,10 +200,10 @@ static void test_spiel_device_cmds(void)
 	 * - sdev-51 belongs service-27, which is not an IO service;
 	 * - disk-23 does not exist.
 	 */
-	uint64_t            io_sdev = 15;
+	uint64_t            io_sdev = 7;
 	uint64_t            nonio_sdev = 51;
 	const struct m0_fid io_disk = M0_FID_TINIT(
-				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 16);
+				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 87);
 	const struct m0_fid nonio_disk = M0_FID_TINIT(
 				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 55);
 	const struct m0_fid nosuch_disk = M0_FID_TINIT(

@@ -1,3 +1,4 @@
+M0_NC_UNKNOWN=1
 M0_NC_ONLINE=1
 M0_NC_FAILED=2
 M0_NC_TRANSIENT=3
@@ -6,6 +7,7 @@ M0_NC_REPAIRED=5
 M0_NC_REBALANCE=6
 
 declare -A ha_states=(
+	[unknown]=$M0_NC_UNKNOWN
 	[online]=$M0_NC_ONLINE
 	[failed]=$M0_NC_FAILED
 	[offline]=$M0_NC_TRANSIENT

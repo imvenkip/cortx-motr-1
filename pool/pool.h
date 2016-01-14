@@ -60,16 +60,38 @@ enum map_type {
 	MDS
 };
 
+struct m0_pool_device_to_service {
+	/** Serice context for the target disk. */
+	struct m0_reqh_service_ctx *pds_ctx;
+
+	/** Sdev fid associated with the service context. */
+	struct m0_fid               pds_sdev_fid;
+};
+
 struct m0_pool {
-	struct m0_fid   po_id;
+	struct m0_fid                     po_id;
 
 	/** List of pool versions in this pool. */
-	struct m0_tl    po_vers;
+	struct m0_tl                      po_vers;
+
+	/* Total number of devices in the pool. */
+	uint32_t                          po_nr_devices;
+
+	/**
+	 * An array of size of po_nr_devices in the pool.
+	 * Maps device to io service.
+	 * Each po_dev2ios[i] entry points to instance of
+	 * struct m0_reqh_service_ctx which has established rpc connections
+	 * with the given service endpoints.
+	 * @todo Check whether concurrency needs to be handled after
+	 * MERO-1498 is in master.
+	 */
+	struct m0_pool_device_to_service *po_dev2ios;
 
 	/** Linkage into list of pools. */
-	struct m0_tlink po_linkage;
+	struct m0_tlink                   po_linkage;
 
-	uint64_t        po_magic;
+	uint64_t                          po_magic;
 };
 
 /**
@@ -101,15 +123,6 @@ struct m0_pool_version {
 	struct m0_fd_tree            pv_fd_tree;
 	/** The tolerance vector associated with the pool version. */
 	uint32_t                     pv_fd_tol_vec[M0_FTA_DEPTH_MAX];
-
-	/**
-	 * An array of size m0_poolversion::pv_attr:pa_P.
-	 * Maps device to io service.
-	 * Each pv_dev_to_ios_map[i] entry points to instance of
-	 * struct m0_reqh_service_ctx which has established rpc connections
-	 * with the given service endpoints.
-	 */
-	struct m0_reqh_service_ctx **pv_dev_to_ios_map;
 
 	/**
 	 * Linkage into list of pool versions.
@@ -189,7 +202,8 @@ M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 					    struct m0_conf_filesystem *fs);
 M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc);
 
-M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id);
+M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id,
+			     uint32_t nr_devices);
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool);
 
 /**
@@ -271,6 +285,9 @@ m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
  * A state that a pool node/device can be in.
  */
 enum m0_pool_nd_state {
+	/** a node/device is unknown */
+	M0_PNDS_UNKNOWN,
+
 	/** a node/device is online and serving IO */
 	M0_PNDS_ONLINE,
 
@@ -329,6 +346,14 @@ struct m0_pooldev {
 	struct m0_fid           pd_id;
 	/** storage device fid */
 	struct m0_fid           pd_sdev_fid;
+	/** pooldev index in the poolmachine-state device array*/
+	uint32_t                pd_index;
+	/**
+	 * storage device index between 1 to total number of devices in the
+	 * pool, get from m0_conf_sdev:sd_dev_idx.
+	 */
+	uint32_t                pd_sdev_idx;
+
 	/** a node this storage device is attached to */
 	struct m0_poolnode     *pd_node;
 	/** pool machine this pooldev belongs to */
@@ -338,8 +363,6 @@ struct m0_pooldev {
 	 * disk obj's wait channel i.e. m0_conf_obj::co_ha_chan.
 	 */
 	struct m0_clink         pd_clink;
-	/** pooldev index in the poolmachine-state device array*/
-	uint32_t                pd_index;
 	struct m0_format_footer pd_footer;
 };
 
@@ -471,6 +494,8 @@ M0_INTERNAL void m0_pooldev_clink_add(struct m0_clink *link,
  * Delete clink of pooldev
  */
 M0_INTERNAL void m0_pooldev_clink_del(struct m0_clink *cl);
+
+M0_INTERNAL uint32_t m0_ha2pm_state_map(enum m0_ha_obj_state hastate);
 /** @} end of servermachine group */
 #endif /* __MERO_POOL_POOL_H__ */
 

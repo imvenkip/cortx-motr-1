@@ -256,30 +256,15 @@ static bool is_conf_controller(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE;
 }
 
-static struct m0_conf_service *disk2service(const struct m0_conf_obj *disk_obj)
-{
-	struct m0_conf_obj *sdev_obj =
-		&M0_CONF_CAST(disk_obj, m0_conf_disk)->ck_dev->sd_obj;
-	struct m0_conf_obj *svc_obj = m0_conf_obj_grandparent(sdev_obj);
-
-	return M0_CONF_CAST(svc_obj, m0_conf_service);
-}
-
-static bool is_ios_disk(const struct m0_conf_obj *obj)
-{
-	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE);
-	return disk2service(obj)->cs_type == M0_CST_IOS;
-}
-
-static uint32_t ios_poolmach_devices_add(struct m0_poolmach        *poolmach,
-					 struct m0_poolnode        *poolnode,
-					 struct m0_conf_controller *ctrl,
-					 uint32_t                   device_idx)
+static int ios_poolmach_devices_add(struct m0_poolmach        *poolmach,
+				    struct m0_poolnode        *poolnode,
+				    struct m0_conf_controller *ctrl)
 {
 	struct m0_conf_disk *disk;
 	struct m0_pooldev   *pooldev;
 	struct m0_conf_obj  *obj = NULL;
 	struct m0_conf_obj  *disks_dir = &ctrl->cc_disks->cd_obj;
+	uint32_t             device_idx = 1;
 	int                  rc;
 
 	M0_ENTRY();
@@ -289,13 +274,15 @@ static uint32_t ios_poolmach_devices_add(struct m0_poolmach        *poolmach,
 		return M0_ERR(rc);
 
 	while ((rc = m0_confc_readdir_sync(disks_dir, &obj)) > 0) {
-		if (is_ios_disk(obj)) {
+		if (m0_is_ios_disk(obj)) {
 			disk = M0_CONF_CAST(obj, m0_conf_disk);
 			M0_ASSERT(device_idx <
 				  poolmach->pm_state->pst_nr_devices);
 			pooldev = &poolmach->pm_state->pst_devices_array[
 				device_idx];
 			pooldev->pd_sdev_fid = disk->ck_dev->sd_obj.co_id;
+			pooldev->pd_sdev_idx = disk->ck_dev->sd_dev_idx;
+			pooldev->pd_index = device_idx;
 			pooldev->pd_id = disk->ck_obj.co_id;
 			pooldev->pd_node = poolnode;
 			m0_pooldev_clink_add(&pooldev->pd_clink,
@@ -305,7 +292,7 @@ static uint32_t ios_poolmach_devices_add(struct m0_poolmach        *poolmach,
 	}
 	m0_confc_close(obj);
 	m0_confc_close(disks_dir);
-	return M0_RC(device_idx);
+	return M0_RC(0);
 }
 
 static int ios_poolmach_devices_count(struct m0_conf_controller *ctrl)
@@ -322,7 +309,7 @@ static int ios_poolmach_devices_count(struct m0_conf_controller *ctrl)
 	if (rc != 0)
 		return M0_ERR(rc);
 	while ((rc = m0_confc_readdir_sync(disks_dir, &obj)) > 0) {
-		if (is_ios_disk(obj))
+		if (m0_is_ios_disk(obj))
 			M0_CNT_INC(nr_sdevs);
 	}
 	m0_confc_close(obj);
@@ -365,7 +352,6 @@ static int ios_poolmach_objs_fill(struct m0_confc           *confc,
 	struct m0_poolnode        *poolnode;
 	struct m0_conf_controller *ctrl;
 	uint32_t                   node_idx;
-	uint32_t                   device_idx;
 	int                        rc;
 
 	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
@@ -375,7 +361,7 @@ static int ios_poolmach_objs_fill(struct m0_confc           *confc,
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	node_idx = device_idx = 0;
+	node_idx = 0;
 	while ((rc = m0_conf_diter_next_sync(&it, is_conf_controller)) ==
 	       M0_CONF_DIRNEXT) {
 		ctrl = M0_CONF_CAST(m0_conf_diter_result(&it),
@@ -383,8 +369,7 @@ static int ios_poolmach_objs_fill(struct m0_confc           *confc,
 		M0_ASSERT(node_idx < poolmach->pm_state->pst_nr_nodes);
 		poolnode = &poolmach->pm_state->pst_nodes_array[node_idx];
 		poolnode->pn_id = ctrl->cc_obj.co_id;
-		device_idx = ios_poolmach_devices_add(poolmach, poolnode, ctrl,
-						      device_idx);
+		ios_poolmach_devices_add(poolmach, poolnode, ctrl);
 		M0_CNT_INC(node_idx);
 	}
 	m0_conf_diter_fini(&it);
@@ -582,7 +567,7 @@ static char *ios_args_init_conf_error(const struct m0_conf_cache *cache,
 	/*
 	 * - for ctrl in controllers:
 	 *       for disk in ctrl.cc_disks:
-	 *           ## is_ios_disk() calls disk2service().
+	 *           ## m0_is_ios_disk() calls disk2service().
 	 *           assert type(disk.ck_dev) is m0_conf_sdev
 	 *           assert m0_conf_obj_type(m0_conf_obj_grandparent(
 	 *               disk.ck_dev)) == &M0_CONF_SERVICE_TYPE
@@ -601,7 +586,7 @@ static char *ios_objs_fill_conf_error(const struct m0_conf_cache *cache,
 	 *   for ctrl in controllers:
 	 *       nr_disks += len(ctrl.cc_disks)
 	 *       for disk in ctrl.cc_disks:
-	 *           if is_ios_disk(disk):
+	 *           if m0_is_ios_disk(disk):
 	 *               ++nr_ios_disks
 	 *   assert nr_ios_disks <= poolmach.pm_state.pst_nr_devices
 	 */

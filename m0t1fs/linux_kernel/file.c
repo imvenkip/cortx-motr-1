@@ -620,8 +620,12 @@ static inline m0_bindex_t gfile_offset(m0_bindex_t                       toff,
 static inline struct m0_fid target_fid(const struct io_request	  *req,
 				       struct m0_pdclust_tgt_addr *tgt)
 {
-	return m0t1fs_ios_cob_fid(m0t1fs_file_to_m0inode(req->ir_file),
-				  tgt->ta_obj);
+	struct m0_fid fid;
+
+	m0_poolmach_gob2cob(&m0t1fs_file_to_pver(req->ir_file)->pv_mach,
+			    file_to_fid(req->ir_file), tgt->ta_obj,
+			    &fid);
+	return fid;
 }
 
 static inline struct m0_rpc_session *target_session(struct io_request *req,
@@ -2601,7 +2605,7 @@ static int unit_state(const struct m0_pdclust_src_addr *src,
 
 	pm = m0t1fs_file_to_poolmach(req->ir_file);
 	M0_ASSERT(pm != NULL);
-	rc = m0_poolmach_device_state(pm, m0_fid_cob_device_id(&tfid), state);
+	rc = m0_poolmach_device_state(pm, tgt.ta_obj, state);
 	if (rc != 0)
 		return M0_RC(rc);
 	return M0_RC(rc);
@@ -2725,8 +2729,7 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	req = map->pi_ioreq;
 	pm = m0t1fs_file_to_poolmach(map->pi_ioreq->ir_file);
 	M0_ASSERT(pm != NULL);
-	rc = m0_poolmach_device_state(pm, m0_fid_cob_device_id(&tio->ti_fid),
-				      &dev_state);
+	rc = m0_poolmach_device_state(pm, tio->ti_obj, &dev_state);
 	play = pdlayout_get(req);
 	pargrp_src_addr(index[0], req, tio, &src);
 	M0_ASSERT(src.sa_group == map->pi_grpid);
@@ -3568,7 +3571,7 @@ static int device_check(struct io_request *req)
 	play = pdlayout_get(req);
 	m0_htable_for (tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
 		rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
-				              m0_fid_cob_device_id(&ti->ti_fid),
+				              ti->ti_obj,
 					      &state);
 		if (rc != 0)
 			return M0_ERR_INFO(rc, "[%p] Failed to retrieve target "
@@ -3586,7 +3589,8 @@ static int device_check(struct io_request *req)
 			M0_CNT_INC(fdev_nr);
 		}
 	} m0_htable_endfor;
-	M0_LOG(M0_DEBUG, "failed devices = %d\ttolerance=%d", (int)fdev_nr, (int)layout_k(play));
+	M0_LOG(M0_DEBUG, "failed devices = %d\ttolerance=%d", (int)fdev_nr,
+			(int)layout_k(play));
 	if (is_pver_dud(fdev_nr, layout_k(play), fsvc_nr, max_failures))
 		return M0_ERR_INFO(-EIO, "[%p] Failed to recover data "
 				"since number of failed data units "
@@ -3753,9 +3757,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		/* state is already queried in device_check() and stored
 		 * in ti->ti_state. Why do we do this again?
 		 */
-		rc = m0_poolmach_device_state(pm,
-					      m0_fid_cob_device_id(&ti->ti_fid),
-					      &state);
+		rc = m0_poolmach_device_state(pm, ti->ti_obj, &state);
 		if (rc != 0)
 			return M0_ERR_INFO(rc, "[%p] Failed to retrieve device "
 					   "state", req);
@@ -4332,8 +4334,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 
 	pm = m0t1fs_file_to_poolmach(req->ir_file);
 	M0_ASSERT(pm != NULL);
-	rc = m0_poolmach_device_state(pm, m0_fid_cob_device_id(&tfid),
-				      &device_state);
+	rc = m0_poolmach_device_state(pm, tgt->ta_obj, &device_state);
 	if (rc != 0)
 		return M0_RC(rc);
 
@@ -4444,7 +4445,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 			m0_fd_fwd_map(play_instance, &spare, tgt);
 			tfid = target_fid(req, tgt);
 			rc = m0_poolmach_device_state(pm,
-						      m0_fid_cob_device_id(&tfid),
+						      tgt->ta_obj,
 						      &device_state_prev);
 			if (rc != 0)
 				return M0_RC(rc);
@@ -4485,15 +4486,12 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 static int target_ioreq_init(struct target_ioreq    *ti,
 			     struct nw_xfer_request *xfer,
 			     const struct m0_fid    *cobfid,
-			     uint64_t		     ta_obj,
+			     uint64_t                ta_obj,
 			     struct m0_rpc_session  *session,
-			     uint64_t		     size)
+			     uint64_t                size)
 {
-	int		          rc;
-	struct m0_layout_enum    *le;
-	struct io_request        *req;
-	struct m0_fid		  tfid;
-
+	int                rc;
+	struct io_request *req;
 
 	M0_ENTRY("target_ioreq %p, nw_xfer_request %p, "FID_F,
 		 ti, xfer, FID_P(cobfid));
@@ -4518,13 +4516,9 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	ti->ti_databytes = 0;
 
 	req	   = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
-	le	   = m0_layout_to_enum(m0_pdl_to_layout(pdlayout_get(req)));
 	ti->ti_obj = ta_obj;
 
 	M0_LOG(M0_DEBUG, "[%p] ti %p", req, ti);
-	/* Verify that ta_obj provided by caller matches the layout. */
-	m0_layout_enum_get(le, ta_obj, file_to_fid(req->ir_file), &tfid);
-	M0_ASSERT(m0_fid_eq(&tfid, cobfid));
 	iofops_tlist_init(&ti->ti_iofops);
 	tioreqht_tlink_init(ti);
 	target_ioreq_bob_init(ti);
@@ -6270,6 +6264,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rbuf->bb_zerovec.z_bvec.ov_vec.v_nr = bbsegs;
 
 		rw_fop->crw_fid = ti->ti_fid;
+		rw_fop->crw_index = ti->ti_obj;
 		rw_fop->crw_pver =
 			m0t1fs_file_to_m0inode(req->ir_file)->ci_pver;
 

@@ -43,12 +43,16 @@ struct m0_sns_cm_ag;
  * @see m0_fd_fwd_map
  */
 M0_INTERNAL void
-m0_sns_cm_unit2cobfid(struct m0_pdclust_layout *pl,
-		      struct m0_pdclust_instance *pi,
+m0_sns_cm_unit2cobfid(struct m0_pdclust_instance *pi,
 		      const struct m0_pdclust_src_addr *sa,
 		      struct m0_pdclust_tgt_addr *ta,
+		      struct m0_poolmach *pm,
 		      const struct m0_fid *gfid,
 		      struct m0_fid *cfid_out);
+
+M0_INTERNAL uint32_t m0_sns_cm_device_index_get(struct m0_sns_cm_ag *sag,
+						struct m0_pdclust_instance *pi,
+						uint64_t unit_number);
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 						uint64_t unit,
@@ -95,10 +99,10 @@ m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				struct m0_bitmap *proxy_in_map);
 
 M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_poolmach *pm,
-					 const struct m0_fid *cob_fid);
+					 uint32_t cob_index);
 
 M0_INTERNAL bool m0_sns_cm_is_cob_repaired(struct m0_poolmach *pm,
-					   const struct m0_fid *cob_fid);
+					   uint32_t cob_index);
 
 /**
  * Returns index of spare unit in the parity group, given the failure index
@@ -149,6 +153,7 @@ M0_INTERNAL int
 m0_sns_cm_ut_file_size_layout(struct m0_sns_cm_file_ctx *fctx);
 
 M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
+					 const struct m0_pool_version *pv,
 					 const struct m0_fid *gfid);
 
 M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
@@ -181,7 +186,8 @@ M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_sns_cm *snscm,
 M0_INTERNAL struct m0_reqh *m0_sns_cm2reqh(const struct m0_sns_cm *snscm);
 
 M0_INTERNAL bool m0_sns_cm_is_local_cob(const struct m0_cm *cm,
-					const struct m0_fid *cobfid);
+					const struct m0_pool_version *pv,
+					const struct m0_fid *cob_fid);
 
 /** @} endgroup SNSCM */
 

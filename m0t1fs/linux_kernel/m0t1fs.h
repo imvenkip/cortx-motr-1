@@ -898,9 +898,6 @@ M0_INTERNAL int m0t1fs_inode_layout_rebuild(struct m0t1fs_inode *ci,
 
 /* dir.c */
 
-M0_INTERNAL struct m0_fid
-m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci, int index);
-
 M0_INTERNAL struct m0_rm_domain *m0t1fs_rm_domain_get(struct m0t1fs_sb *sb);
 
 M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,

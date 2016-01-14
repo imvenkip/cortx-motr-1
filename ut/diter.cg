@@ -18,15 +18,15 @@
 (service-5 type=10 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-6 type=3 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-7 type=6 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(sdev-10 dev_idx=10 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
+(sdev-10 dev_idx=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
-(sdev-11 dev_idx=11 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
+(sdev-11 dev_idx=2 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev1")
-(sdev-12 dev_idx=12 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+(sdev-12 dev_idx=3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
     flags=4 filename="/dev/sdev2")
-(sdev-13 dev_idx=13 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+(sdev-13 dev_idx=4 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
     flags=4 filename="/dev/sdev3")
-(sdev-14 dev_idx=14 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+(sdev-14 dev_idx=5 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
     flags=4 filename="/dev/sdev4")
 (rack-15 encls=[enclosure-16] pvers=[pver-24])
 (enclosure-16 ctrls=[controller-17] pvers=[pver-24])
@@ -35,8 +35,8 @@
 (disk-18 dev=sdev-10 pvers=[pver-24])
 (disk-19 dev=sdev-11 pvers=[pver-24])
 (disk-20 dev=sdev-12 pvers=[pver-24])
-(disk-21 dev=sdev-12 pvers=[pver-24])
-(disk-22 dev=sdev-12 pvers=[pver-24])
+(disk-21 dev=sdev-13 pvers=[pver-24])
+(disk-22 dev=sdev-14 pvers=[pver-24])
 (pool-23 order=0 pvers=[pver-24])
 (pver-24 ver=0 N=3 K=1 P=5 nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-25])
 (objv-25 real=rack-15 children=[objv-26])

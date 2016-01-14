@@ -190,7 +190,7 @@ M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs    *devs,
 					      const struct m0_conf_sdev *sdev)
 {
 	return storage_dev_attach(
-		devs, sdev->sd_obj.co_id.f_key,
+		devs, sdev->sd_dev_idx,
 		M0_FI_ENABLED("no_real_dev") ? NULL : sdev->sd_filename,
 		sdev->sd_size, sdev);
 }

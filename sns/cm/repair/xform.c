@@ -175,6 +175,7 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 	uint64_t                    incoming_nr;
 	int                         rc = 0;
 	int                         is_local_cob;
+	struct m0_pool_version     *pver;
 
 	/*
 	 * Check if all copy packets are processed at this stage,
@@ -187,7 +188,9 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 	 * be marked complete.
 	 */
 	incoming_nr = ag->cag_cp_global_nr - sag->sag_fnr;
-	is_local_cob = m0_sns_cm_is_local_cob(ag->cag_cm, &fc->fc_tgt_cobfid);
+	pver = m0_sns_cm_pool_version_get(sag->sag_fctx),
+	is_local_cob = m0_sns_cm_is_local_cob(ag->cag_cm, pver,
+					      &fc->fc_tgt_cobfid);
 	if ((is_local_cob &&
 	     m0_sns_cm_ag_acc_is_full_with(acc, incoming_nr)) ||
 	    (!is_local_cob &&

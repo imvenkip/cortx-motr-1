@@ -434,15 +434,22 @@ static void cp_multi_failures_post(char data, int cnt, int index)
  */
 static void test_multi_cp_multi_failures(void)
 {
-	int                   i;
-	int                   j;
-	struct m0_net_buffer *nbuf;
-	struct m0_sns_cm_ag  *sag;
+	int                       i;
+	int                       j;
+	struct m0_net_buffer     *nbuf;
+	struct m0_sns_cm_ag      *sag;
+	struct m0_sns_cm_file_ctx fctx;
+	struct m0_pool_version    pv;
+	struct m0_poolmach        pm;
 
+	m0_fi_enable("m0_sns_cm_tgt_ep", "local-ep");
 	m0_semaphore_init(&sem, 0);
 	ag_prepare(&n_rag, MULTI_FAILURES, &group_multi_fail_multi_cp_ops,
 		   n_fc);
 	sag = &n_rag.rag_base;
+	pm.pm_pver = &pv;
+	fctx.sf_pm = &pm;
+	sag->sag_fctx = &fctx;
 	for (i = 0; i < MULTI_FAILURES; ++i) {
 		n_acc_buf[i][0].nb_pool = &nbp;
 		cp_prepare(&n_fc[i].fc_tgt_acc_cp.sc_base, &n_acc_buf[i][0],
@@ -524,6 +531,7 @@ static void test_multi_cp_multi_failures(void)
 		     MULTI_FAIL_MULTI_CP_NR);
         M0_UT_ASSERT(sag->sag_base.cag_cp_local_nr == MULTI_FAIL_MULTI_CP_NR);
 	cp_buf_free(sag);
+	m0_fi_disable("m0_sns_cm_tgt_ep", "local-ep");
 }
 
 /*

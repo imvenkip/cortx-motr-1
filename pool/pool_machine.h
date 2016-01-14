@@ -398,6 +398,10 @@ M0_TL_DECLARE(poolmach_events, M0_INTERNAL, struct m0_poolmach_event_link);
 struct m0_pool_version *m0_dev_pver_get(struct m0_fid dev_fid,
 					struct m0_confc confc, char *profile,
 					struct m0_pools_common *pools_common);
+M0_INTERNAL void m0_poolmach_gob2cob(struct m0_poolmach *pm,
+				     const struct m0_fid *gfid,
+				     uint32_t idx,
+				     struct m0_fid *cob_fid_out);
 
 /** @} end of poolmach group */
 #endif /* __MERO_POOL_PVER_MACHINE_H__ */

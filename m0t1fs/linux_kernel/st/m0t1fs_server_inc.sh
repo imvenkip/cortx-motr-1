@@ -208,11 +208,11 @@ mero_service()
 			losetup -d /dev/loop7 &> /dev/null
 			losetup /dev/loop7 data-disk3.img
                 cat >> disks.conf << EOF
-   - id: 1
+   - id: 5
      filename: /dev/loop5
-   - id: 2
+   - id: 6
      filename: /dev/loop6
-   - id: 3
+   - id: 7
      filename: /dev/loop7
 EOF
 		fi

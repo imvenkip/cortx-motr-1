@@ -188,7 +188,7 @@ static void unit_to_cobfid(struct m0_sns_cm_iter_file_ctx *ifc,
 							     pi, fid,
 							     sa->sa_group,
 							     sa->sa_unit);
-	m0_sns_cm_unit2cobfid(pl, pi, sa, ta, fid, cob_fid_out);
+	m0_sns_cm_unit2cobfid(pi, sa, ta, pm, fid, cob_fid_out);
 }
 
 /* Uses name space iterator. */
@@ -377,9 +377,9 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 	for (i = 0; i < it->si_fc.ifc_upg; ++i) {
 		sa.sa_unit = i;
 		sa.sa_group = group;
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
-		if (m0_sns_cm_is_cob_failed(pm, &cobfid) &&
-		    !m0_sns_cm_is_cob_repaired(pm, &cobfid) &&
+		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, fid, &cobfid);
+		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
+		    !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj) &&
 		    !m0_sns_cm_unit_is_spare(pm, pl, pi, fid,
 					     group, sa.sa_unit))
 			return false;
@@ -670,7 +670,9 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		 * proceed to next parity group in the GOB.
 		 */
 		unit_to_cobfid(ifc, cob_fid);
-		rc = scm->sc_helpers->sch_cob_locate(scm, it->si_cob_dom, cob_fid);
+		rc = scm->sc_helpers->sch_cob_locate(scm, it->si_cob_dom,
+						     ifc->ifc_fctx->sf_pm,
+						     cob_fid);
 		/*
 		 * m0t1fs creates cobs on write(CROW), there's a possibility that
 		 * a particular data cob may not be present (because of EOF or
@@ -683,7 +685,8 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		M0_LOG(M0_DEBUG, "cob locate rc = %d", rc);
 		++sa->sa_unit;
 	} while (rc == -ENOENT ||
-		 m0_sns_cm_is_cob_failed(ifc->ifc_fctx->sf_pm, cob_fid));
+		 m0_sns_cm_is_cob_failed(ifc->ifc_fctx->sf_pm,
+				         ifc->ifc_ta.ta_obj));
 
 	if (rc == 0)
 		iter_phase_set(it, ITPH_CP_SETUP);

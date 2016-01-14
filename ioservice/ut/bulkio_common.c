@@ -168,6 +168,7 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	iofop = io_fops[index];
 	rw    = io_rw_get(&iofop->if_fop);
 	rw->crw_fid = bp->bp_fids[off_index];
+	rw->crw_index = m0_fid_cob_device_id(&rw->crw_fid);
 	rw->crw_pver = CONF_PVER_FID;
 
 	rbulk = &iofop->if_rbulk;

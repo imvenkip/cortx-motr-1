@@ -141,6 +141,7 @@ static void storage_dev_test(void)
 
 	sdev.sd_size = total_size;
 	sdev.sd_filename = fname1;
+	sdev.sd_dev_idx = 12;
 	rc =  m0_storage_dev_attach_by_conf(&devs, &sdev);
 	M0_UT_ASSERT(rc == 0);
 

@@ -28,6 +28,7 @@
 #include "conf/confc.h"
 #include "conf/obj_ops.h"     /* m0_conf_dirval */
 #include "conf/diter.h"       /* m0_conf_diter_init m0_conf_diter_next_sync */
+#include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob */
 #include "pool/pm_internal.h"
 
 /**
@@ -81,8 +82,13 @@ static void poolmach_state_update(struct m0_poolmach_state *st,
 		d = M0_CONF_CAST(objv_real, m0_conf_disk);
 		st->pst_devices_array[*idx_devices].pd_id =
 			d->ck_obj.co_id;
+		st->pst_devices_array[*idx_devices].pd_sdev_idx =
+			d->ck_dev->sd_dev_idx;
+		st->pst_devices_array[*idx_devices].pd_index = *idx_devices;
 		st->pst_devices_array[*idx_devices].pd_node =
 			&st->pst_nodes_array[*idx_nodes];
+		st->pst_devices_array[*idx_devices].pd_state =
+			m0_ha2pm_state_map(d->ck_obj.co_ha_state);
 		m0_pooldev_clink_add(
 			&st->pst_devices_array[*idx_devices].pd_clink,
 			&d->ck_obj.co_ha_chan);
@@ -117,6 +123,8 @@ M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 						   m0_conf_objv)->cv_real,
 				      &idx_nodes, &idx_devices);
 	m0_conf_diter_fini(&it);
+	M0_LOG(M0_DEBUG, "nodes:%d devices: %d", idx_nodes, idx_devices);
+	M0_POST(idx_devices <= pm->pm_state->pst_nr_devices);
 	return M0_RC(rc);
 }
 
@@ -144,7 +152,7 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 	state->pst_devices_array       = devices_array;
 	state->pst_spare_usage_array   = spare_usage_array;
 	state->pst_nr_nodes            = nr_nodes;
-	state->pst_nr_devices          = m0_pm_devices_nr(nr_devices);
+	state->pst_nr_devices          = nr_devices;
 	state->pst_max_node_failures   = max_node_failures;
 	state->pst_max_device_failures = max_device_failures;
 	for (i = 0; i < state->pst_nr_nodes; i++) {
@@ -153,9 +161,10 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 	}
 
 	for (i = 0; i < state->pst_nr_devices; i++) {
-		state->pst_devices_array[i].pd_state = M0_PNDS_ONLINE;
+		state->pst_devices_array[i].pd_state = M0_PNDS_UNKNOWN;
 		M0_SET0(&state->pst_devices_array[i].pd_id);
 		state->pst_devices_array[i].pd_node = NULL;
+		state->pst_devices_array[i].pd_sdev_idx = 0;
 		state->pst_devices_array[i].pd_index = i;
 		state->pst_devices_array[i].pd_pm = pm;
 	}
@@ -195,7 +204,7 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 
 	M0_ALLOC_PTR(state);
 	M0_ALLOC_ARR(nodes_array, nr_nodes);
-	M0_ALLOC_ARR(devices_array, m0_pm_devices_nr(nr_devices));
+	M0_ALLOC_ARR(devices_array, nr_devices);
 	M0_ALLOC_ARR(spare_usage_array, max_device_failures);
 	if (state == NULL ||
 	    nodes_array == NULL ||
@@ -294,23 +303,7 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 			m0_free(scan);
 		} m0_tl_endfor;
 
-		for (i = 0; i < (state->pst_nr_devices -1); ++i) {
-			/*
-			 * Interating one device less as the last device in the
-			 * pst_devices_array remains unused. This is  because
-			 * pst_nr_devices is incremented by one so as to keep
-			 * the 0th device reserved for ADDB device but the 0th
-			 * device is never skipped in subsequent usage of the
-			 * array. See: m0_pm_devices_nr()
-			 * Due to this the clink in the last pooldevice in the
-			 * pst_devices_array is unregistered and calling
-			 * m0_pooldev_clink_del() on it caused core dump hence
-			 * need to skip the last device in pst_devices_array
-			 * during clink delete.
-			 * TODO: Handle/treat 0th device in pst_devices_array
-			 * as ADDB device and start using the array from 1st
-			 * index for io devices.
-			 */
+		for (i = 0; i < state->pst_nr_devices; ++i) {
 			cl = &state->pst_devices_array[i].pd_clink;
 			m0_pooldev_clink_del(cl);
 		}
@@ -434,6 +427,12 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		return M0_RC(0);
 
 	switch (old_state) {
+	case M0_PNDS_UNKNOWN:
+		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE,
+					     M0_PNDS_OFFLINE,
+					     M0_PNDS_FAILED)))
+			return M0_ERR(-EINVAL);
+		break;
 	case M0_PNDS_ONLINE:
 		if (!M0_IN(event->pe_state, (M0_PNDS_OFFLINE,
 					     M0_PNDS_FAILED)))
@@ -492,10 +491,11 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	case M0_PNDS_ONLINE:
 		/* clear spare slot usage if it is from rebalancing */
 		for (i = 0; i < state->pst_max_device_failures; i++) {
-			if (spare_array[i].psu_device_index == event->pe_index){
+			if (spare_array[i].psu_device_index ==
+			    event->pe_index) {
 				M0_ASSERT(M0_IN(spare_array[i].psu_device_state,
-							(M0_PNDS_OFFLINE,
-							 M0_PNDS_SNS_REBALANCING)));
+						(M0_PNDS_OFFLINE,
+						 M0_PNDS_SNS_REBALANCING)));
 				spare_array[i].psu_device_index =
 					POOL_PM_SPARE_SLOT_UNUSED;
 				break;
@@ -526,7 +526,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	case M0_PNDS_SNS_REBALANCING:
 		/* change the repair spare slot usage */
 		for (i = 0; i < state->pst_max_device_failures; i++) {
-			if (spare_array[i].psu_device_index == event->pe_index){
+			if (spare_array[i].psu_device_index ==
+			    event->pe_index) {
 				spare_array[i].psu_device_state =
 					event->pe_state;
 				break;
@@ -578,7 +579,7 @@ M0_INTERNAL int m0_poolmach_state_query(struct m0_poolmach *pm,
 	state = pm->pm_state;
 	m0_rwlock_read_lock(&pm->pm_lock);
 	if (from != NULL && !m0_poolmach_version_equal(&zero, from)) {
-		m0_tl_for(poolmach_events, &state->pst_events_list, scan){
+		m0_tl_for (poolmach_events, &state->pst_events_list, scan) {
 			if (m0_poolmach_version_equal(&scan->pel_new_version,
 						from)) {
 				/* skip the current one and move to next */
@@ -610,7 +611,7 @@ M0_INTERNAL int m0_poolmach_state_query(struct m0_poolmach *pm,
 		poolmach_events_tlink_init_at_tail(event_link, event_list_head);
 
 		if (to != NULL &&
-				m0_poolmach_version_equal(&scan->pel_new_version, to))
+		    m0_poolmach_version_equal(&scan->pel_new_version, to))
 			break;
 		scan = poolmach_events_tlist_next(&state->pst_events_list,
 				scan);
@@ -661,7 +662,8 @@ M0_INTERNAL int m0_poolmach_device_state(struct m0_poolmach *pm,
 	M0_PRE(state_out != NULL);
 
 	if (device_index >= pm->pm_state->pst_nr_devices)
-		return M0_ERR(-EINVAL);
+		return M0_ERR_INFO(-EINVAL, "device index:%d total devices:%d",
+				device_index, pm->pm_state->pst_nr_devices);
 
 	m0_rwlock_read_lock(&pm->pm_lock);
 	*state_out = pm->pm_state->pst_devices_array[device_index].pd_state;
@@ -691,8 +693,8 @@ m0_poolmach_device_is_in_spare_usage_array(struct m0_poolmach *pm,
 					   uint32_t device_index)
 {
 	return m0_exists(i, pm->pm_state->pst_max_device_failures,
-		pm->pm_state->pst_spare_usage_array[i].psu_device_index ==
-				device_index);
+		(pm->pm_state->pst_spare_usage_array[i].psu_device_index ==
+				device_index));
 }
 
 M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
@@ -714,7 +716,8 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 	m0_rwlock_read_lock(&pm->pm_lock);
 	device_state = pm->pm_state->pst_devices_array[device_index].pd_state;
 	if (!M0_IN(device_state, (M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING,
-					M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING)))
+				  M0_PNDS_SNS_REPAIRED,
+				  M0_PNDS_SNS_REBALANCING)))
 		goto out;
 
 	spare_usage_array = pm->pm_state->pst_spare_usage_array;
@@ -827,9 +830,9 @@ M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm)
 {
 	int i;
 	M0_LOG(dump_level, ">>>>>");
-	for (i = 1; i < pm->pm_state->pst_nr_devices; i++) {
-		M0_LOG(dump_level, "%04d:device[%d] state: %d",
-				lno, i, pm->pm_state->pst_devices_array[i].pd_state);
+	for (i = 0; i < pm->pm_state->pst_nr_devices; i++) {
+		M0_LOG(dump_level, "%04d:device[%d] state: %d", lno, i,
+				pm->pm_state->pst_devices_array[i].pd_state);
 		lno++;
 	}
 	M0_LOG(dump_level, "=====");
@@ -843,6 +846,23 @@ M0_INTERNAL uint64_t m0_poolmach_nr_dev_failures(struct m0_poolmach *pm)
 	return m0_count(i, pm->pm_state->pst_max_device_failures,
 			spare_array[i].psu_device_index !=
 			POOL_PM_SPARE_SLOT_UNUSED);
+}
+
+M0_INTERNAL void m0_poolmach_gob2cob(struct m0_poolmach *pm,
+				     const struct m0_fid *gfid,
+				     uint32_t idx,
+				     struct m0_fid *cob_fid)
+{
+	struct m0_poolmach_state *pms;
+
+	M0_PRE(pm != NULL);
+
+	pms = pm->pm_state;
+	m0_fid_convert_gob2cob(gfid, cob_fid,
+			       pms->pst_devices_array[idx].pd_sdev_idx);
+
+	M0_LOG(M0_DEBUG, "gob fid "FID_F" @%d = cob fid "FID_F, FID_P(gfid),
+			idx, FID_P(cob_fid));
 }
 
 #undef dump_level

@@ -195,8 +195,7 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 	uint64_t                       mds_nr;
 	struct m0_pool_version        *md_pv;
 	const struct m0_pools_common  *pc = reqh->rh_pools;
-	struct m0_rpc_session         *session;
-	uint32_t                       i;
+	uint32_t                       idx;
 
 	M0_ENTRY();
 
@@ -211,30 +210,20 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 		  (md_pv->pv_attr.pa_N + 2 * md_pv->pv_attr.pa_K));
 	M0_ASSERT(index <= mds_nr);
 
-	if (M0_FI_ENABLED("rpc_session_restore")) {
-		/*
-		 * It is unknown exactly which session was/were cancelled.
-		 * So, might as well restore all the sessions. Restoring
-		 * session is an idempotent op for a session that was never
-		 * cancelled.
-		 */
-		for (i = 0; i < md_pv->pv_attr.pa_P; ++i) {
-			session = &md_pv->pv_dev_to_ios_map[i]->sc_session;
-			m0_rpc_session_restore(session);
-		}
-	}
-
 	pi = m0_layout_instance_to_pdi(pc->pc_md_pool_linst);
 	src.sa_group = m0_fid_hash(gob_fid);
 	src.sa_unit = index;
 
 	m0_fd_fwd_map(pi, &src, &tgt);
 	M0_ASSERT(tgt.ta_obj < mds_nr);
-	ctx = md_pv->pv_dev_to_ios_map[tgt.ta_obj];
+	idx = md_pv->pv_mach.pm_state->pst_devices_array[tgt.ta_obj].
+		pd_sdev_idx;
+	ctx = md_pv->pv_pool->po_dev2ios[idx].pds_ctx;
 	M0_ASSERT(ctx != NULL);
 
-	M0_LOG(M0_DEBUG, "redundancy %d id %d -> ctx=%p session=%p", index,
+	M0_LOG(M0_DEBUG, "device index %d id %d -> ctx=%p session=%p", idx,
 			(unsigned int)tgt.ta_obj, ctx, &ctx->sc_session);
+	M0_ASSERT(ctx->sc_session.s_conn != NULL);
 	M0_LEAVE();
 	return &ctx->sc_session;
 }

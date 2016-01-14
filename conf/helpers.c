@@ -81,6 +81,21 @@ M0_INTERNAL int m0_conf_disk_get(struct m0_confc      *confc,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL int m0_conf_service_get(struct m0_confc         *confc,
+				    struct m0_fid           *fid,
+				    struct m0_conf_service **service)
+{
+	struct m0_conf_obj *obj;
+	int                 rc;
+
+	rc = m0_conf_obj_find_lock(&confc->cc_cache, fid, &obj);
+	if (rc == 0 && m0_conf_obj_is_stub(obj))
+		rc = m0_confc_open_sync(&obj, obj, M0_FID0);
+	if (rc == 0)
+		*service = M0_CONF_CAST(obj, m0_conf_service);
+	return M0_RC(rc);
+}
+
 M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE;
@@ -408,14 +423,15 @@ M0_INTERNAL bool m0_conf_is_pool_version_dirty(struct m0_confc     *confc,
 M0_INTERNAL int m0_conf__obj_count(const struct m0_fid *profile,
 				   struct m0_confc     *confc,
 				   bool (*filter)(const struct m0_conf_obj *obj),
-				   int                  *count,
-				   int                   level,
-				   const struct m0_fid  *path)
+				   uint32_t            *count,
+				   int                  level,
+				   const struct m0_fid *path)
 {
 	struct m0_conf_diter       it;
 	struct m0_conf_filesystem *fs = NULL;
 	int                        rc;
 
+	M0_ENTRY("profile"FID_F, FID_P(profile));
 	rc = m0_conf_fs_get(profile, confc, &fs);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -446,6 +462,32 @@ M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj)
 		return M0_CONF_CAST(obj, m0_conf_disk)->ck_pvers;
 	else
 		M0_IMPOSSIBLE("");
+}
+
+static struct m0_conf_service *disk2service(const struct m0_conf_obj *disk_obj)
+{
+	struct m0_conf_obj *sdev_obj =
+		&M0_CONF_CAST(disk_obj, m0_conf_disk)->ck_dev->sd_obj;
+	struct m0_conf_obj *svc_obj = m0_conf_obj_grandparent(sdev_obj);
+
+	return M0_CONF_CAST(svc_obj, m0_conf_service);
+}
+
+M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE &&
+	       disk2service(obj)->cs_type == M0_CST_IOS;
+}
+
+M0_INTERNAL int m0_conf_pool_devices_count(struct m0_fid *profile,
+					   struct m0_confc *confc,
+					   uint32_t *nr_devices)
+{
+	return m0_conf_obj_count(profile, confc, m0_is_ios_disk, nr_devices,
+			         M0_CONF_FILESYSTEM_RACKS_FID,
+				 M0_CONF_RACK_ENCLS_FID,
+				 M0_CONF_ENCLOSURE_CTRLS_FID,
+				 M0_CONF_CONTROLLER_DISKS_FID);
 }
 
 #undef M0_TRACE_SUBSYSTEM

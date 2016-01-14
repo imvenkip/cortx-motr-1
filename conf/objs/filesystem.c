@@ -175,7 +175,7 @@ static struct m0_conf_obj *filesystem_create(void)
 	m0_conf_filesystem_bob_init(x);
 
 	ret = &x->cf_obj;
-	ret->co_parent = ret; /* no parent */
+	ret->co_parent = NULL;
 	ret->co_ops = &filesystem_ops;
 	return ret;
 }

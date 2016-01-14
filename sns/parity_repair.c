@@ -24,29 +24,22 @@
 #include "sns/parity_repair.h"
 #include "ioservice/fid_convert.h"  /* m0_fid_cob_device_id */
 
-static void device_index_get(const struct m0_fid *fid,
-			     struct m0_pdclust_layout *pl,
-			     struct m0_pdclust_instance *pi,
+static void device_index_get(struct m0_pdclust_instance *pi,
 			     uint64_t group_number, uint64_t unit_number,
 			     uint32_t *device_index_out)
 {
-        struct m0_fid               cob_fid;
         struct m0_pdclust_src_addr  sa;
         struct m0_pdclust_tgt_addr  ta;
-        struct m0_layout_enum      *le;
-
-        le = m0_layout_to_enum(m0_pdl_to_layout(pl));
 
 	/* Find out the device index. */
 	M0_SET0(&sa);
 	M0_SET0(&ta);
-	M0_SET0(&cob_fid);
 
         sa.sa_group = group_number;
         sa.sa_unit = unit_number;
         m0_fd_fwd_map(pi, &sa, &ta);
-	m0_layout_enum_get(le, ta.ta_obj, fid, &cob_fid);
-	*device_index_out = m0_fid_cob_device_id(&cob_fid);
+	*device_index_out = ta.ta_obj;
+	M0_LEAVE("index:%d", (int)ta.ta_obj);
 }
 
 M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
@@ -62,9 +55,11 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
         uint32_t device_index_new;
         int      rc;
 
+	M0_ENTRY("unit number:%d", (int)unit_number);
+
 	M0_PRE(pm != NULL && fid != NULL && pl != NULL);
 
-        device_index_get(fid, pl, pi, group_number, unit_number, &device_index);
+        device_index_get(pi, group_number, unit_number, &device_index);
 	*spare_slot_out_prev = unit_number;
 
         while (1) {
@@ -77,7 +72,7 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
 		 * Find out if spare slot's corresponding device index is
 		 * failed. If yes, find out new spare.
 		 */
-		device_index_get(fid, pl, pi, group_number,
+		device_index_get(pi, group_number,
 				 m0_pdclust_N(pl) + m0_pdclust_K(pl) +
 				 *spare_slot_out, &device_index_new);
 
@@ -114,7 +109,7 @@ static bool frame_eq(struct m0_pdclust_instance *pi, uint64_t group_number,
         M0_SET0(&ta);
 
         ta.ta_frame = frame;
-        ta.ta_obj = device_index - 1;
+        ta.ta_obj = device_index;
 
         m0_fd_bwd_map(pi, &ta, &sa);
         return sa.sa_group == group_number;
@@ -205,7 +200,7 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 		M0_SET0(&ta);
 
 		ta.ta_frame = frame;
-		ta.ta_obj = device_index - 1;
+		ta.ta_obj = device_index;
 
 		rc = m0_poolmach_device_state(pm, device_index, &state_out);
 		if (rc != 0) {

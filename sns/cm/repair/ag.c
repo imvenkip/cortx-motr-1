@@ -291,6 +291,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 	int                                     i;
 	int                                     rc = 0;
 	struct m0_poolmach                     *pm;
+	uint32_t                                index;
 
 	M0_PRE(fmap != NULL);
 	M0_PRE(fmap->b_nr == (m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl)));
@@ -337,6 +338,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 					       &cobfid);
 		if (rc != 0)
 			return M0_RC(rc);
+		index = m0_sns_cm_device_index_get(sag, pi, data_unit_id_out);
 		/*
 		 * Failed unit is data/parity unit.
 		 * Check the device state for the device hosting the failed unit.
@@ -345,17 +347,14 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 		 * Hence move to next failed unit in the aggregation group.
 		 */
 		if (data_unit_id_out == i) {
-			rc = m0_poolmach_device_state(pm,
-					m0_fid_cob_device_id(&cobfid),
-					&state_out);
+			rc = m0_poolmach_device_state(pm, index, &state_out);
 			if (rc != 0)
 				return M0_RC(rc);
 			if (state_out == M0_PNDS_SNS_REPAIRED)
 				continue;
 		}
 
-		tgt_unit = repair_ag_target_unit(sag, pl, pi,
-						 m0_fid_cob_device_id(&cobfid),
+		tgt_unit = repair_ag_target_unit(sag, pl, pi, index,
 						 data_unit_id_out);
 		rag_fc = &rag->rag_fc[fidx];
 		tgt_cobfid = &rag_fc->fc_tgt_cobfid;
@@ -377,7 +376,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 		 * (struct m0_sns_cm_repair_ag::rag_acc_inuse_nr). Use this
 		 * information to finalise an aggregation group.
 		 */
-		local = m0_sns_cm_is_local_cob(cm, tgt_cobfid);
+		local = m0_sns_cm_is_local_cob(cm, pm->pm_pver, tgt_cobfid);
 		if (local || sag->sag_base.cag_cp_local_nr != 0) {
 			rag_fc->fc_failed_idx = data_unit_id_out;
 			rag_fc->fc_tgt_idx = tgt_unit;
@@ -388,7 +387,9 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 			if (local)
 				M0_CNT_INC(sag->sag_local_tgts_nr);
 		}
-		if (rag_fc->fc_is_inuse && !m0_sns_cm_is_local_cob(cm, &rag_fc->fc_tgt_cobfid))
+		if (rag_fc->fc_is_inuse &&
+		    !m0_sns_cm_is_local_cob(cm, pm->pm_pver,
+					    &rag_fc->fc_tgt_cobfid))
 			M0_CNT_INC(sag->sag_outgoing_nr);
 		++fidx;
 	}

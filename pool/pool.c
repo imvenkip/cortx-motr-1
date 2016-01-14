@@ -32,7 +32,6 @@
 #include "conf/helpers.h"  /* m0_obj_is_pver */
 #include "conf/validation.h" /* m0_conf_ruleset */
 #include "ioservice/io_device.h"  /* m0_ios_poolmach_get */
-
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
 
@@ -263,11 +262,21 @@ M0_INTERNAL void m0_pools_fini(void)
 #endif
 }
 
-M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id)
+M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id,
+			     uint32_t nr_devices)
 {
 	M0_ENTRY();
 
 	pool->po_id = *id;
+	pool->po_nr_devices = nr_devices;
+	/**
+	 * @todo Store the map starting from 0th index after co-ordinating
+	 * with halon configuration string generation in which device index
+	 * storing can be started from 0 to Poolwidth.
+	 */
+	M0_ALLOC_ARR(pool->po_dev2ios, pool->po_nr_devices + 1);
+	if (pool->po_dev2ios == NULL)
+		return M0_ERR(-ENOMEM);
 	pools_tlink_init(pool);
 	pool_version_tlist_init(&pool->po_vers);
 
@@ -279,6 +288,7 @@ M0_INTERNAL void m0_pool_fini(struct m0_pool *pool)
 {
 	pools_tlink_fini(pool);
 	pool_version_tlist_fini(&pool->po_vers);
+	m0_free(pool->po_dev2ios);
 }
 
 static bool pools_common_invariant(const struct m0_pools_common *pc)
@@ -289,11 +299,7 @@ static bool pools_common_invariant(const struct m0_pools_common *pc)
 static bool pool_version_invariant(const struct m0_pool_version *pv)
 {
 	return _0C(pv != NULL) && _0C(m0_pool_version_bob_check(pv)) &&
-	       _0C(m0_fid_is_set(&pv->pv_id)) && _0C(pv->pv_pool != NULL) &&
-	       _0C(ergo(pv->pv_dev_to_ios_map != NULL && pv->pv_pc != NULL,
-		   m0_forall(i, pv->pv_attr.pa_P,
-		pools_common_svc_ctx_tlist_contains(&pv->pv_pc->pc_svc_ctxs,
-						pv->pv_dev_to_ios_map[i]))));
+	       _0C(m0_fid_is_set(&pv->pv_id)) && _0C(pv->pv_pool != NULL);
 }
 
 static bool obj_is_service(const struct m0_conf_obj *obj)
@@ -392,11 +398,10 @@ end:
 	return M0_RC(rc);
 }
 
-static bool obj_is_diskv(const struct m0_conf_obj *obj)
+static bool obj_is_ios_diskv(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE &&
-	       m0_conf_obj_type(M0_CONF_CAST(obj, m0_conf_objv)->cv_real) ==
-	       &M0_CONF_DISK_TYPE;
+	       m0_is_ios_disk(M0_CONF_CAST(obj, m0_conf_objv)->cv_real);
 }
 
 M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
@@ -411,10 +416,11 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 	struct m0_conf_obj         *obj;
 	uint64_t                    dev_idx = 0;
 	int                         rc;
+	struct m0_pool             *pool = pv->pv_pool;
 
 	M0_ENTRY();
 	M0_PRE(!pools_common_svc_ctx_tlist_is_empty(&pc->pc_svc_ctxs));
-	M0_PRE(pv->pv_dev_to_ios_map != NULL);
+	M0_PRE(pool != NULL && pool->po_dev2ios != NULL);
 
 	rc = m0_conf_diter_init(&it, pc->pc_confc, &pver->pv_obj,
 				M0_CONF_PVER_RACKVS_FID,
@@ -428,7 +434,7 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 	 * XXX TODO: Replace m0_conf_diter_next_sync() with
 	 * m0_conf_diter_next().
 	 */
-	while ((rc = m0_conf_diter_next_sync(&it, obj_is_diskv)) ==
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_ios_diskv)) ==
 							M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE);
@@ -443,13 +449,21 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 					   &ctx->sc_fid) &&
 				 ctx->sc_type == s->cs_type);
 		M0_ASSERT(ctx != NULL);
-		pv->pv_dev_to_ios_map[dev_idx] = ctx;
+		M0_LOG(M0_DEBUG, "device index:%d, service fid"FID_F"disk fid"
+				FID_F"sdev_fid"FID_F, d->ck_dev->sd_dev_idx,
+				FID_P(&ctx->sc_fid),
+				FID_P(&d->ck_obj.co_id),
+				FID_P(&d->ck_dev->sd_obj.co_id));
+		M0_ASSERT(d->ck_dev->sd_dev_idx <= pool->po_nr_devices);
+		pool->po_dev2ios[d->ck_dev->sd_dev_idx].pds_sdev_fid =
+			d->ck_dev->sd_obj.co_id;
+		pool->po_dev2ios[d->ck_dev->sd_dev_idx].pds_ctx = ctx;
 		M0_CNT_INC(dev_idx);
 	}
 
 	m0_conf_diter_fini(&it);
 
-	M0_POST(dev_idx == pv->pv_attr.pa_P);
+	M0_POST(dev_idx <= pool->po_nr_devices);
 	return M0_RC(rc);
 }
 
@@ -472,9 +486,6 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 	pv->pv_attr.pa_P = pool_width;
 	pv->pv_pool = pool;
 	pv->pv_nr_nodes = nr_nodes;
-	M0_ALLOC_ARR(pv->pv_dev_to_ios_map, pool_width);
-	if (pv->pv_dev_to_ios_map == NULL)
-		return M0_ERR(-ENOMEM);
 	if (be_seg != NULL)
 		m0_poolmach_backed_init2(&pv->pv_mach, be_seg, sm_grp,
 					 pv->pv_nr_nodes, pv->pv_attr.pa_P,
@@ -483,6 +494,7 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 		m0_poolmach_init(&pv->pv_mach, pv->pv_nr_nodes,
 				 pv->pv_attr.pa_P, pv->pv_nr_nodes,
 				 pv->pv_attr.pa_K);
+	pv->pv_mach.pm_pver = pv;
 	m0_pool_version_bob_init(pv);
 	pool_version_tlink_init(pv);
 
@@ -505,12 +517,14 @@ m0_pool_version_find(const struct m0_pools_common *pc, const struct m0_fid *id)
 	struct m0_pool         *p;
 	struct m0_pool_version *pver;
 
-	M0_ENTRY();
+	M0_ENTRY(FID_F, FID_P(id));
 	M0_PRE(pc != NULL);
 	m0_tl_for(pools, &pc->pc_pools, p) {
 		pver = m0__pool_version_find(p, id);
-		if (pver != NULL)
+		if (pver != NULL) {
+			M0_LOG(M0_DEBUG, FID_F, FID_P(&pver->pv_id));
 			return pver;
+		}
 	} m0_tl_endfor;
 
 	return NULL;
@@ -592,8 +606,8 @@ M0_INTERNAL void m0_pool_version_fini(struct m0_pool_version *pv)
 
 	pool_version_tlink_fini(pv);
 	m0_pool_version_bob_fini(pv);
-	m0_free(pv->pv_dev_to_ios_map);
 	m0_poolmach_fini(&pv->pv_mach);
+	pv->pv_mach.pm_pver = NULL;
 	m0_fd_tile_destroy(&pv->pv_fd_tile);
 	m0_fd_tree_destroy(&pv->pv_fd_tree);
 
@@ -860,10 +874,18 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 	struct m0_conf_diter  it;
 	struct m0_pool       *pool;
 	int                   rc;
+	uint32_t              nr_devices = 0;
 
 	M0_ENTRY();
 
 	confc = m0_confc_from_obj(&fs->cf_obj);
+	M0_LOG(M0_DEBUG, "file system:"FID_F"profile"FID_F,
+			FID_P(&fs->cf_obj.co_id),
+			FID_P(&fs->cf_obj.co_parent->co_id));
+	rc = m0_conf_pool_devices_count(&fs->cf_obj.co_parent->co_id,
+					confc, &nr_devices);
+	if (rc != 0)
+		return M0_ERR(rc);
 	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
 				M0_CONF_FILESYSTEM_POOLS_FID);
 	if (rc != 0)
@@ -876,18 +898,18 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 			rc = -ENOMEM;
 			break;
 		}
-		rc = m0_pool_init(pool, &m0_conf_diter_result(&it)->co_id);
+		rc = m0_pool_init(pool, &m0_conf_diter_result(&it)->co_id,
+				  nr_devices);
 		if (rc != 0)
 			break;
 		pools_tlink_init_at_tail(pool, &pc->pc_pools);
 	}
 
-	pc->pc_md_pool = m0_pool_find(pc, &fs->cf_mdpool);
-	M0_ASSERT(pc->pc_md_pool != NULL);
-
 	m0_conf_diter_fini(&it);
 	if (rc != 0)
 		m0_pools_destroy(pc);
+	pc->pc_md_pool = m0_pool_find(pc, &fs->cf_mdpool);
+	M0_ASSERT(pc->pc_md_pool != NULL);
 
 	return M0_RC(rc);
 }
@@ -928,7 +950,7 @@ m0_pool_version2layout_id(const struct m0_fid *pv_fid, uint64_t lid)
 	return m0_hash(m0_fid_hash(pv_fid) + lid);
 }
 
-static uint32_t ha2pm_state_map(enum m0_ha_obj_state hastate)
+M0_INTERNAL uint32_t m0_ha2pm_state_map(enum m0_ha_obj_state hastate)
 {
 	uint32_t ha2pm_statemap [] = {
 		[M0_NC_ONLINE]         = M0_PNDS_ONLINE,
@@ -956,13 +978,8 @@ static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
 	pdev = container_of(cl, struct m0_pooldev, pd_clink);
 	M0_ASSERT(pdev != NULL);
 	pme.pe_type = M0_POOL_DEVICE;
-	/*
-	 * poolmach devices indexes start from 1 to N. See m0_pm_devices_nr().
-	 * But devices indexes start from 0 to N - 1 in conf.
-	 */
-	pme.pe_index = pdev->pd_index + 1;
-	pme.pe_state = ha2pm_state_map(obj->co_ha_state);
-
+	pme.pe_index = pdev->pd_index;
+	pme.pe_state = m0_ha2pm_state_map(obj->co_ha_state);
 	M0_LOG(M0_DEBUG, "pe_type=%6s pe_index=%x, pe_state=%10d",
 			 pme.pe_type == M0_POOL_DEVICE ? "device":"node",
 			 pme.pe_index, pme.pe_state);
@@ -1011,7 +1028,7 @@ M0_INTERNAL int m0_pool_device_reopen(struct m0_poolmach *pm,
 	     POOL_PM_SPARE_SLOT_UNUSED; ++i) {
 		dev_id = spare_array[i].psu_device_index;
 		if (dev_array[dev_id].pd_state == M0_PNDS_SNS_REPAIRED) {
-			rc = m0_mero_stob_reopen(reqh, dev_id);
+			rc = m0_mero_stob_reopen(reqh, pm, dev_id);
 			if (rc != 0)
 				return M0_ERR(rc);
 		}
@@ -1107,8 +1124,9 @@ M0_INTERNAL int m0_pool_device_state_update(struct m0_reqh        *reqh,
 	}
 	return M0_RC(0);
 }
+
 #endif /* !__KERNEL__ */
-
+
 /* ------------------------------------------------------------------
  * conf validation
  * ------------------------------------------------------------------ */

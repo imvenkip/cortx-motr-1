@@ -183,6 +183,9 @@ m0_sns_cm_file_attr_and_layout_wait(struct m0_sns_cm_file_ctx *fctx,
 
 M0_INTERNAL int m0_sns_cm_fctx_state_get(struct m0_sns_cm_file_ctx *fctx);
 
+M0_INTERNAL struct m0_pool_version *
+m0_sns_cm_pool_version_get(struct m0_sns_cm_file_ctx *fctx);
+
 M0_HT_DESCR_DECLARE(m0_scmfctx, M0_EXTERN);
 M0_HT_DECLARE(m0_scmfctx, M0_EXTERN, struct m0_sns_cm_file_ctx,
               struct m0_fid);

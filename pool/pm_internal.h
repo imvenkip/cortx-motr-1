@@ -52,24 +52,6 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 			     uint32_t                    max_device_failures,
 			     struct m0_poolmach         *poolmach);
 
-static inline uint32_t m0_pm_devices_nr(uint32_t nr_devices)
-{
-	/**
-	 * @todo Historically 0th device was used for ADDB device, but
-	 * now 0th device is not used in pool machine.
-	 *
-	 * It's not possible to create exactly nr_devices in pool machine
-	 * since m0t1fs client uses device indexes 1..nr_devices in queries to
-	 * pool machine.
-	 *
-	 * Once m0t1fs client uses device indexes in range 0..nr_devices-1 this
-	 * function can be deleted and value nr_devices can be used directly in
-	 * pool machine code.
-	 */
-	/* nr_devices io devices and 1 for ADDB device. */
-	return nr_devices + 1;
-}
-
 M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
 					  struct m0_be_seg   *be_seg,
 					  struct m0_sm_group *sm_grp,

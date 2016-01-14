@@ -196,9 +196,13 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 void write_post(void)
 {
 	struct m0_sns_cm_file_ctx fctx;
+	struct m0_pool_version    pv;
+	struct m0_poolmach        pm;
 
 	m0_semaphore_init(&sem, 0);
 	w_buf.nb_pool = &nbp;
+	pm.pm_pver = &pv;
+	fctx.sf_pm = &pm;
 	w_sag.sag_fctx = &fctx;
 	cp_prepare(&w_sns_cp.sc_base, &w_buf, SEG_NR, SEG_SIZE,
 		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false, NULL);
@@ -238,8 +242,13 @@ const struct m0_cm_cp_ops read_cp_dummy_ops = {
 
 static void read_post(void)
 {
+	struct m0_sns_cm_file_ctx fctx;
+	struct m0_pool_version    pv;
+	struct m0_poolmach        pm;
 	m0_semaphore_init(&sem, 0);
 
+	pm.pm_pver = &pv;
+	fctx.sf_pm = &pm;
 	r_buf.nb_pool = &nbp;
 	/*
 	 * Purposefully fill the read bv with spaces i.e. ' '. This should get
@@ -251,6 +260,7 @@ static void read_post(void)
 	r_sns_cp.sc_base.c_ops = &read_cp_dummy_ops;
 	r_sag.sag_base.cag_cp_local_nr = 1;
 	r_sag.sag_fnr = 1;
+	r_sag.sag_fctx = &fctx;
 	m0_fid_convert_cob2stob(&cob_fid, &r_sns_cp.sc_stob_id);
 	r_sns_cp.sc_cobfid = M0_MDSERVICE_SLASH_FID;
 	m0_fom_queue(&r_sns_cp.sc_base.c_fom);
@@ -267,7 +277,7 @@ static void test_cp_write_read(void)
 	rc = cs_init(&sctx);
 	M0_ASSERT(rc == 0);
 
-	m0_fi_enable("m0_sns_cm_tgt_ep", "ut-case");
+	m0_fi_enable("m0_sns_cm_tgt_ep", "local-ep");
 
 	m0_fid_gob_make(&gob_fid, 1, M0_MDSERVICE_START_FID.f_key);
 	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, 1);
@@ -293,7 +303,7 @@ static void test_cp_write_read(void)
 	rc = m0_ios_cdom_get(reqh, &cdom);
 	M0_UT_ASSERT(rc == 0);
 	cob_delete(cdom, 1, &gob_fid);
-	m0_fi_disable("m0_sns_cm_tgt_ep", "ut-case");
+	m0_fi_disable("m0_sns_cm_tgt_ep", "local-ep");
 
 	cs_fini(&sctx);
 }

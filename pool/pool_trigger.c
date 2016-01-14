@@ -302,7 +302,8 @@ int main(int argc, char *argv[])
 	}
 
 	for (i = 0; i < dev_nr; ++i) {
-		if (device_state_arr[i] < 0 || device_state_arr[i] > 5) {
+		if (device_state_arr[i] < M0_PNDS_UNKNOWN ||
+		    device_state_arr[i] > M0_PNDS_NR) {
 			fprintf(stderr, "invalid device state: %lld\n",
 				(long long)device_state_arr[i]);
 			return M0_ERR(-EINVAL);

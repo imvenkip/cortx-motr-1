@@ -190,7 +190,7 @@ static int poolmach_fom_tick(struct m0_fom *fom)
                                         fpd_state);
 			else
 				m0_poolmach_device_state(poolmach,
-					query_fop->fpq_dev_idx.fpx_idx[i],
+					query_fop->fpq_dev_idx.fpx_idx[i] - 1,
 					&query_fop_rep->fqr_dev_info.fpi_dev[i].
 					fpd_state);
 			query_fop_rep->fqr_dev_info.fpi_dev[i].fpd_index =

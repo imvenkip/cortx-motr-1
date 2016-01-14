@@ -21,23 +21,23 @@
 (service-24 type=8 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-25 type=9 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-26 type=11 endpoints=["0@lo:12345:34:1"] sdevs=[sdev-96, sdev-97])
-(sdev-96 dev_idx=96 iface=4 media=1 bsize=4096 size=0 last_state=3 flags=4
+(sdev-96 dev_idx=1 iface=4 media=1 bsize=4096 size=0 last_state=3 flags=4
     filename="/var/mero/m0ut/ut-sandbox/d1")
-(sdev-97 dev_idx=97 iface=4 media=1 bsize=4096 size=0 last_state=3 flags=4
+(sdev-97 dev_idx=2 iface=4 media=1 bsize=4096 size=0 last_state=3 flags=4
     filename="/var/mero/m0ut/ut-sandbox/d2")
-(sdev-13 dev_idx=13 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
+(sdev-13 dev_idx=3 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev0")
-(sdev-14 dev_idx=14 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
+(sdev-14 dev_idx=4 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev1")
-(sdev-15 dev_idx=15 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
+(sdev-15 dev_idx=1 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
     flags=4 filename="/dev/sdev2")
-(sdev-71 dev_idx=71 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
+(sdev-71 dev_idx=2 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
     flags=4 filename="/dev/sdev3")
-(sdev-72 dev_idx=72 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
+(sdev-72 dev_idx=3 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
     flags=4 filename="/dev/sdev4")
-(sdev-73 dev_idx=73 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
+(sdev-73 dev_idx=4 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
     flags=4 filename="/dev/sdev5")
-(sdev-74 dev_idx=74 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
+(sdev-74 dev_idx=5 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
     flags=4 filename="/dev/sdev6")
 (rack-3 encls=[enclosure-7] pvers=[pver-8])
 (enclosure-7 ctrls=[controller-11] pvers=[pver-8])
@@ -62,18 +62,19 @@
 (node-48 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-56
     processes=[process-49])
 (process-49 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-27])
-(service-27 type=12 endpoints=["0@lo:12345:34:1"]
+    mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-27, service-28])
+(service-27 type=2 endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-51, sdev-83, sdev-84, sdev-85, sdev-86])
-(sdev-51 dev_idx=51 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
+(service-28 type=12 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(sdev-51 dev_idx=6 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev0")
-(sdev-83 dev_idx=83 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
+(sdev-83 dev_idx=7 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev1")
-(sdev-84 dev_idx=84 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
+(sdev-84 dev_idx=8 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev2")
-(sdev-85 dev_idx=85 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
+(sdev-85 dev_idx=9 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev3")
-(sdev-86 dev_idx=86 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
+(sdev-86 dev_idx=10 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev4")
 (rack-52 encls=[enclosure-53] pvers=[pver-57])
 (enclosure-53 ctrls=[controller-54] pvers=[pver-57])

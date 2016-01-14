@@ -103,18 +103,32 @@ out:
 
 /* End of UT specific code. */
 
-M0_INTERNAL void m0_sns_cm_unit2cobfid(struct m0_pdclust_layout *pl,
-				       struct m0_pdclust_instance *pi,
+M0_INTERNAL void m0_sns_cm_unit2cobfid(struct m0_pdclust_instance *pi,
 				       const struct m0_pdclust_src_addr *sa,
 				       struct m0_pdclust_tgt_addr *ta,
+				       struct m0_poolmach *pm,
 				       const struct m0_fid *gfid,
 				       struct m0_fid *cfid_out)
 {
-	struct m0_layout_enum *le;
-
 	m0_fd_fwd_map(pi, sa, ta);
-	le = m0_layout_to_enum(m0_pdl_to_layout(pl));
-	m0_layout_enum_get(le, ta->ta_obj, gfid, cfid_out);
+	m0_poolmach_gob2cob(pm, gfid, ta->ta_obj, cfid_out);
+}
+
+M0_INTERNAL uint32_t m0_sns_cm_device_index_get(struct m0_sns_cm_ag *sag,
+						struct m0_pdclust_instance *pi,
+						uint64_t unit_number)
+{
+	struct m0_pdclust_src_addr sa;
+	struct m0_pdclust_tgt_addr ta;
+
+	M0_SET0(&sa);
+	M0_SET0(&ta);
+
+	sa.sa_group = agid2group(&sag->sag_base.cag_id);
+	sa.sa_unit = unit_number;
+	m0_fd_fwd_map(pi, &sa, &ta);
+	M0_LEAVE("index:%d", (int)ta.ta_obj);
+	return ta.ta_obj;
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
@@ -122,8 +136,8 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 						struct m0_pdclust_layout *pl,
 						struct m0_pdclust_instance *pi)
 {
-	struct m0_pdclust_src_addr  sa;
-	struct m0_pdclust_tgt_addr  ta;
+	struct m0_pdclust_src_addr sa;
+	struct m0_pdclust_tgt_addr ta;
 
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = unit;
@@ -183,9 +197,10 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	sa.sa_group = group;
 	for (i = start; i < end; ++i) {
 		sa.sa_unit = i;
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
-		if (m0_sns_cm_is_local_cob(&scm->sc_base, &cobfid) &&
-		    !m0_sns_cm_is_cob_failed(pm, &cobfid) &&
+		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, fid, &cobfid);
+		if (m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver,
+					   &cobfid) &&
+		    !m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
 		    !m0_sns_cm_unit_is_spare(pm, pl, pi, fid, group, i))
 			M0_CNT_INC(nrlu);
 	}
@@ -202,25 +217,23 @@ uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm_ag *sag,
 }
 
 M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_poolmach *pm,
-					 const struct m0_fid *cob_fid)
+					 uint32_t cob_index)
 {
 	enum m0_pool_nd_state state_out = 0;
 	M0_PRE(pm != NULL);
 
-	m0_poolmach_device_state(pm,
-				 m0_fid_cob_device_id(cob_fid),
+	m0_poolmach_device_state(pm, cob_index,
 				 &state_out);
 	return !M0_IN(state_out, (M0_PNDS_ONLINE, M0_PNDS_OFFLINE));
 }
 
 M0_INTERNAL bool m0_sns_cm_is_cob_repaired(struct m0_poolmach *pm,
-					   const struct m0_fid *cob_fid)
+					   uint32_t cob_index)
 {
 	enum m0_pool_nd_state state_out = 0;
 	M0_PRE(pm != NULL);
 
-	m0_poolmach_device_state(pm,
-				 m0_fid_cob_device_id(cob_fid),
+	m0_poolmach_device_state(pm, cob_index,
 				 &state_out);
 	return state_out == M0_PNDS_SNS_REPAIRED;
 }
@@ -239,6 +252,8 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
 	bool                        result = true;
 	int                         rc;
 
+	M0_ENTRY("index:%d", (int)spare_nr);
+
 	if (m0_pdclust_unit_classify(pl, spare_nr) == M0_PUT_SPARE) {
 		/*
 		 * Firstly, check if the device corresponding to the given spare
@@ -250,14 +265,13 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
 		M0_SET0(&ta);
 		sa.sa_unit = spare_nr;
 		sa.sa_group = group_nr;
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
-		rc = m0_poolmach_device_state(pm,
-					      m0_fid_cob_device_id(&cobfid),
-					      &state_out);
+		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, fid, &cobfid);
+		rc = m0_poolmach_device_state(pm, ta.ta_obj, &state_out);
 		M0_ASSERT(rc == 0);
-		if (state_out == M0_PNDS_SNS_REPAIRED)
+		if (state_out == M0_PNDS_SNS_REPAIRED) {
+			M0_LOG(M0_DEBUG, "repaired index:%d", (int)ta.ta_obj);
 			goto out;
-
+		}
 		/*
 		 * Failed spare unit may contain data of previously failed data
 		 * unit from the parity group. Reverse map the spare unit to the
@@ -268,9 +282,10 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
 		rc = m0_sns_repair_data_map(pm, pl, pi,
 					    group_nr, spare_nr,
 					    &data_unit_id_out);
-		if (rc == -ENOENT)
+		if (rc == -ENOENT) {
+			M0_LOG(M0_DEBUG, "empty spare index:%d", (int)spare_nr);
 			goto out;
-
+		}
 		M0_SET0(&sa);
 		M0_SET0(&ta);
 
@@ -286,11 +301,10 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
 		 * spare unit contains data and needs to be repaired, else it is
 		 * empty.
 		 */
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
-		if (m0_poolmach_device_is_in_spare_usage_array(pm,
-					m0_fid_cob_device_id(&cobfid))) {
-			rc = m0_poolmach_device_state(pm,
-				m0_fid_cob_device_id(&cobfid), &state_out);
+		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, fid, &cobfid);
+		if (m0_poolmach_device_is_in_spare_usage_array(pm, ta.ta_obj)) {
+			rc = m0_poolmach_device_state(pm, ta.ta_obj,
+					              &state_out);
 			M0_ASSERT(rc == 0);
 			if (!M0_IN(state_out, (M0_PNDS_SNS_REPAIRED,
 					       M0_PNDS_SNS_REBALANCING)))
@@ -333,7 +347,8 @@ M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
         agid2fid(&sag->sag_base.cag_id, &gobfid);
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = tgt_unit;
-	m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gobfid, cobfid);
+	m0_sns_cm_unit2cobfid(pi, &sa, &ta, sag->sag_fctx->sf_pm,
+			      &gobfid, cobfid);
 
 	return 0;
 }
@@ -347,41 +362,37 @@ static const char* local_ep(const struct m0_cm *cm)
 }
 
 M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
-					 const struct m0_fid *cfid)
+					 const struct m0_pool_version *pv,
+					 const struct m0_fid *cob_fid)
 {
-	struct m0_reqh              *reqh   = cm->cm_service.rs_reqh;
-	struct m0_mero              *mero   = m0_cs_ctx_get(reqh);
-	struct cs_endpoint_and_xprt *ex;
-	uint32_t                     nr_ios =
-					cs_eps_tlist_length(&mero->cc_ios_eps);
-	uint32_t                     nr_devs_in_ios;
-	uint64_t                     nr_devs_checked = 0;
-	uint32_t                     dev_id;
+	struct m0_reqh         *reqh   = cm->cm_service.rs_reqh;
+	struct m0_confc        *confc  = &reqh->rh_confc;
+	struct m0_fid           svc_fid;
+	struct m0_conf_service *svc;
+	uint32_t                index;
+	int                     rc;
 
-	if (M0_FI_ENABLED("ut-case"))
+	if (M0_FI_ENABLED("local-ep"))
 		return local_ep(cm);
 
-	dev_id = m0_fid_cob_device_id(cfid);
-	M0_ASSERT(dev_id <= mero->cc_pool_width);
-	nr_devs_in_ios = (mero->cc_pool_width + nr_ios - 1) / nr_ios;
-	m0_tl_for(cs_eps, &mero->cc_ios_eps, ex) {
-		nr_devs_checked += nr_devs_in_ios;
-		if (dev_id <= nr_devs_checked) {
-			M0_LOG(M0_DEBUG, "Target endpoint for: "FID_F" %s",
-			       FID_P(cfid), ex->ex_endpoint);
-			return ex->ex_endpoint;
-		}
-	} m0_tl_endfor;
-
-	M0_IMPOSSIBLE("COB always must have its EP");
-
-	return NULL;
+	index = m0_fid_cob_device_id(cob_fid);
+	svc_fid = pv->pv_pool->po_dev2ios[index].pds_ctx->sc_fid;
+	rc = m0_conf_service_get(confc, &svc_fid, &svc);
+	if (rc != 0)
+		return NULL;
+	M0_LOG(M0_DEBUG, "Service endpoint for: "FID_F" %s Device index:%d",
+			FID_P(&svc_fid), svc->cs_endpoints[0], index);
+	M0_POST(svc->cs_endpoints[0] != NULL && svc->cs_type == M0_CST_IOS);
+	return svc->cs_endpoints[0];
 }
 
 M0_INTERNAL bool m0_sns_cm_is_local_cob(const struct m0_cm *cm,
-					const struct m0_fid *cobfid)
+					const struct m0_pool_version *pv,
+					const struct m0_fid *cob_fid)
 {
-	return m0_streq(local_ep(cm), m0_sns_cm_tgt_ep(cm, cobfid));
+	if (M0_FI_ENABLED("local-ep"))
+		return true;
+	return m0_streq(local_ep(cm), m0_sns_cm_tgt_ep(cm, pv, cob_fid));
 }
 
 M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
@@ -408,8 +419,8 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 		if (m0_sns_cm_unit_is_spare(pm, pl, pi, gfid, group, unit))
 			continue;
 		sa.sa_unit = unit;
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		if (m0_sns_cm_is_cob_failed(pm, &cobfid)) {
+		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, gfid, &cobfid);
+		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj)) {
 			M0_CNT_INC(group_failures);
 			if (fmap_out != NULL) {
 				M0_ASSERT(fmap_out->b_nr == upg);

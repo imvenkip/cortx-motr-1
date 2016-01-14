@@ -412,6 +412,9 @@ struct m0_fop_cob_rw {
 	/** File identifier of read/write request. */
 	struct m0_fid             crw_fid;
 
+	/** cob index in the pool verion. */
+	uint32_t                  crw_index;
+
 	/** Pool version for read/write request. */
 	struct m0_fid             crw_pver;
 
