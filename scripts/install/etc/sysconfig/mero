@@ -10,6 +10,9 @@
 # Override default value for m0t1fs mount point
 MERO_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
 
+# override HA service endpoint
+#MERO_HA_EP=
+
 # override CONFD service endpoint
 #MERO_CONFD_EP=
 
@@ -17,13 +20,13 @@ MERO_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
 #MERO_MDS_EP=
 
 # override CONFD configuration database, default is '/etc/mero/conf.xc'
-#MERO_CONFD_CONFIG='/etc/mero/conf.xc'
+#MERO_CONF_XC='/etc/mero/conf.xc'
 
 # override which Mero services to start on a current node.
 #MERO_SERVICES='confd ha mds ios'
 
 # Local node uuid for m0merko.ko module.
-#MERO_KMOD_NODE_UUID='00000000-0000-0000-0000-000000000000'
+#MERO_NODE_UUID='00000000-0000-0000-0000-000000000000'
 
 # Override default parameters of m0mero.ko module.
 #MERO_KMOD_PARAMS=
@@ -73,7 +76,10 @@ MERO_M0D_IOS_BESEG_SIZE=4294967296
 
 # Lnet network ID, it can either 'auto' (default) for auto-detection or a
 # specific IP address with Lnet network type ('o2ib' or 'tcp').
-#MERO_LNET_NID=172.18.50.40@o2ib
+#MERO_NODE_LNID=172.18.50.40@o2ib
+
+# Client's endpoint
+#MERO_M0T1FS_EP=172.18.50.40@tcp:12345:41:301
 
 # Use m0traced daemon to collect trace logs of m0mero.ko module.
 MERO_TRACED_KMOD=yes

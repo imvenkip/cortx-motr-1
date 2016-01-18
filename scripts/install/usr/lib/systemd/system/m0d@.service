@@ -1,0 +1,14 @@
+[Unit]
+Description=m0d helper
+Requires=mero-kernel.service
+Wants=mero-trace@%i.service
+After=mero-kernel.service
+Before=mero-trace@%i.service
+
+[Service]
+Type=notify
+Restart=on-abort
+StartLimitInterval=5
+StartLimitBurst=1
+EnvironmentFile=/etc/sysconfig/m0d-%i
+ExecStart=/usr/libexec/mero/mero-server m0d-%i

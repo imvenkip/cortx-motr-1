@@ -34,7 +34,7 @@ trap _term_handler TERM
 
 # Profile fid in the format suitable for 'prof=' mount option. Must match $prof
 # variable in m0_build_local_conf()
-m0_prof_opt='<0x7000000000000001:0>'
+m0_prof_opt='0x7000000000000001:0'
 
 # Print message on console (STDERR)
 #   @param  $1  msg
@@ -149,7 +149,7 @@ m0_load_modules()
     if [ -n "$MERO_KMOD_PARAMS" ] ; then
         m0mero_params="$MERO_KMOD_PARAMS $MERO_KMOD_EXTRA_PARAMS"
     else
-        local uuid=${MERO_KMOD_NODE_UUID:-$(m0_genders_value_of m0_uuid)}
+        local uuid=${MERO_NODE_UUID:-$(m0_genders_value_of m0_uuid)}
         local msg_size=${MERO_M0D_MAX_RPC_MSG_SIZE:-$(m0_genders_value_of m0_max_rpc_msg_size)}
         local qlen=${MERO_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}
         local ep=$(m0_get_kmod_ep)
@@ -167,7 +167,9 @@ m0_load_modules()
             || m0_exit "Failed to load m0mero module"
         insmod $(m0_path_to m0ctl.ko) || m0_exit "Failed to load m0ctl module"
     else
+        set -x
         modprobe m0mero $m0mero_params
+        set +x
         modprobe m0ctl
     fi
 }
@@ -212,7 +214,7 @@ m0_get_lnet_nid()
     local lnid
     # if $node is empty, then query is for current node
     if [[ -z $node || $node == $(hostname -s) ]] ; then
-        lnid=${MERO_LNET_NID:=$(m0_genders_value_of m0_lnet_nid)}
+        lnid=${MERO_NODE_LNID:=$(m0_genders_value_of m0_lnet_nid)}
         if [[ -z $lnid || $lnid == auto ]] ; then
             lnid=$(lctl list_nids | head -n1)
             [[ -z $lnid ]] && \
@@ -267,7 +269,7 @@ m0_get_global_services()
 # Return m0mero.ko endpoint
 m0_get_kmod_ep()
 {
-    echo "$(m0_get_lnet_nid):12345:41:301"
+    echo "${MERO_M0T1FS_EP:-$(m0_get_lnet_nid):12345:41:301}"
 }
 
 _portal_id()
@@ -286,14 +288,23 @@ _portal_id()
     echo $portal_id
 }
 
-m0_get_mkfs_ep_of()
+m0_ep_to_mkfs_ep()
 {
-    local service=$1
-    local service_ep=$(m0_get_ep_of $1)
+    local service_ep=$1
+
     local svc_tmid=$(echo $service_ep | cut -d: -f4)
     local portal_id=$(_portal_id mkfs)
 
     echo "${service_ep%:*:*}:$portal_id:$svc_tmid"
+}
+
+m0_get_mkfs_ep_of()
+{
+    local service=$1
+
+    local service_ep=$(m0_get_ep_of $service)
+
+    echo $(m0_ep_to_mkfs_ep $service_ep)
 }
 
 # Return endpoint of a particular service
@@ -304,6 +315,15 @@ m0_get_ep_of()
 {
     local service=$1
     local node=$2
+
+    # services managed by Halong get their endpoints from the per-service config
+    # file
+    if [[ $service == m0d-* ]] ; then
+        [[ -n $MERO_M0D_EP ]] ||
+            m0_exit "MERO_M0D_EP isn't set for $service service"
+        echo $MERO_M0D_EP
+        return
+    fi
 
     local found=false
     local lnid=$(m0_get_lnet_nid $node)
@@ -358,6 +378,12 @@ m0_get_proc_fid_for()
 {
     local service=$1
     local node=$2
+
+    # services managed by Halong have process FID included in their names
+    if [[ $service == m0d-* ]] ; then
+        echo ${service#m0d-}
+        return
+    fi
 
     local nidx
     local sidx
@@ -438,7 +464,7 @@ m0_get_core_params()
     fi
 
     echo " -D db -S stobs -A linuxstob:addb-stobs" \
-         " -P $m0_prof_opt" \
+         " -P <${MERO_PROFILE_FID:-$m0_prof_opt}>" \
          " -w $(m0_genders_value_of m0_pool_width)" \
          " -m ${MERO_M0D_MAX_RPC_MSG_SIZE:-$(m0_genders_value_of m0_max_rpc_msg_size)}" \
          " -q ${MERO_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}" \
@@ -464,13 +490,15 @@ m0_get_server_pid_for()
 {
     local service=$1
 
+    local prefix=mero-server
     local t='@'
     case $service in
         confd|ha) t='-' ;;
+        m0d-*)    prefix=m0d ;;
     esac
 
     if [ -x /usr/bin/systemctl ] ; then
-        systemctl show -pMainPID mero-server${t}${service}.service \
+        systemctl show -pMainPID ${prefix}${t}${service#m0d-}.service \
         | sed -e 's/MainPID=//'
     elif [ -x /sbin/initctl ] ; then
         initctl list \

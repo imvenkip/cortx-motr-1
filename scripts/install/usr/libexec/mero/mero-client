@@ -8,22 +8,30 @@ MERO_GENDERS_CONF=/etc/mero/genders
 
 # service local variables
 user_config=/etc/sysconfig/mero
+ha_config="/etc/sysconfig/m0t1fs-$2"
 service_funcs=/usr/libexec/mero/mero-service.functions
 
 
 start()
 {
+    local proc_fid=$1
+
     source $service_funcs
 
-    [ -r $user_config ] && source $user_config
+    if [[ -n $proc_fid && ! -e $ha_config ]] ; then
+        m0_exit "service config file '$ha_config' doesn't exist"
+    fi
+
+    [[ -r $ha_config   ]] && source $ha_config
+    [[ -r $user_config ]] && source $user_config
 
     mountpoint=${MERO_M0T1FS_MOUNTPOINT:-$(m0_genders_value_of m0_t1fs_mountpoint)}
-    confd_ep=$(echo ${MERO_CONFD_EP:-$(m0_get_global_ep_of confd)})
+    confd_ep=${MERO_CONFD_EP:-$(m0_get_global_ep_of confd)}
 
     [ ! -d "$mountpoint" ] && mkdir -p "$mountpoint"
 
     set -x
-    mount -t m0t1fs -o profile="$m0_prof_opt",confd=$confd_ep,oostore m0t1 $mountpoint
+    mount -t m0t1fs -o profile="<${MERO_PROFILE_FID:-$m0_prof_opt}>",confd=$confd_ep,oostore m0t1 $mountpoint
     set +x
 }
 
@@ -38,8 +46,9 @@ stop()
     umount $mountpoint
 }
 
+action="$1" && shift
 
-case $1 in
-    start)  start ;;
+case $action in
+    start)  start "$@" ;;
     stop)   stop ;;
 esac

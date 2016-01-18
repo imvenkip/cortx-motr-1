@@ -830,6 +830,9 @@ sub process_cli_options
             when (/^(?:confd|ha|(?:mds|ios)\d*)$/)   {
                 $file_pattern = "trace-m0d-$ARGV[0]-*.bin";
             }
+            when (/^m0d-.*$/)   {
+                $file_pattern = "trace-$ARGV[0]-*.bin";
+            }
             when (/^(?:confd|ha|(?:mds|ios)\d*)-buf$/) {
                 $file_pattern = "m0trace.*";
                 $ARGV[0] =~ m/^(?<sname>.*)-buf$/xms;

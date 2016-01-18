@@ -135,6 +135,8 @@ install_files()
                     'scripts/install/usr/lib/systemd/system/mero-server-confd.service' \
                     'scripts/install/usr/lib/systemd/system/mero-server-ha.service' \
                     'scripts/install/usr/lib/systemd/system/mero-server@.service' \
+                    'scripts/install/usr/lib/systemd/system/m0d@.service' \
+                    'scripts/install/usr/lib/systemd/system/m0t1fs@.service' \
                     'scripts/install/usr/lib/systemd/system/mero.service' \
                     'scripts/install/usr/lib/systemd/system/mero-client.service' \
                     'scripts/install/usr/lib/systemd/system/mero-singlenode.service' \
@@ -210,6 +212,8 @@ uninstall_files()
                     /usr/lib/systemd/system/mero-server-confd.service
                     /usr/lib/systemd/system/mero-server-ha.service
                     /usr/lib/systemd/system/mero-server@.service
+                    /usr/lib/systemd/system/m0d@.service
+                    /usr/lib/systemd/system/m0t1fs@.service
                     /usr/lib/systemd/system/mero.service
                     /usr/lib/systemd/system/mero-client.service
                     /usr/lib/systemd/system/mero-singlenode.service '

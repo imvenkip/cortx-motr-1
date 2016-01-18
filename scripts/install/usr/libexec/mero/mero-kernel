@@ -8,6 +8,7 @@ MERO_GENDERS_CONF=/etc/mero/genders
 
 # service local variables
 user_config=/etc/sysconfig/mero
+kernel_config=/etc/sysconfig/mero-kernel
 service_funcs=/usr/libexec/mero/mero-service.functions
 
 
@@ -15,7 +16,8 @@ start()
 {
     source $service_funcs
 
-    [ -r $user_config ] && source $user_config
+    [[ -r $kernel_config ]] && source $kernel_config
+    [[ -r $user_config   ]] && source $user_config
 
     m0_load_modules
 

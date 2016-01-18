@@ -8,10 +8,12 @@ readonly PROG_NAME=$(basename $0)
 
 # global variables, which can be overriden in /etc/sysconfig/mero
 MERO_GENDERS_CONF=/etc/mero/genders
-MERO_CONFD_CONFIG=/etc/mero/conf.xc
+MERO_CONF_XC=/etc/mero/conf.xc
 
 # service local variables
 user_config=/etc/sysconfig/mero
+ha_config="/etc/sysconfig/m0d-${1#m0d-}"
+kernel_config=/etc/sysconfig/mero-kernel
 service_funcs=/usr/libexec/mero/mero-service.functions
 
 m0_server()
@@ -24,15 +26,41 @@ m0_server()
 
     [[ -n $service ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
 
-    [[ -r $user_config ]] && source $user_config
+    if [[ $service == m0d-* && ! -e $ha_config ]] ; then
+        m0_exit "service config file '$ha_config' doesn't exist"
+    fi
+
+    # read configs
+    [[ -r $kernel_config ]] && source $kernel_config
+    [[ -r $ha_config   ]]   && source $ha_config
+    [[ -r $user_config ]]   && source $user_config
+
+    # validate Halon config
+    if [[ $service == m0d-* ]] ; then
+        [[ -n $MERO_M0D_EP ]] &&
+            m0_log "MERO_M0D_EP: $MERO_M0D_EP" ||
+                m0_exit "MERO_M0D_EP isn't set for $service service"
+
+        [[ -n $MERO_HA_EP ]] &&
+            m0_log "MERO_HA_EP: $MERO_HA_EP" ||
+                m0_exit "MERO_HA_EP isn't set for $service service"
+
+        [[ -n $MERO_PROFILE_FID ]] &&
+            m0_log "MERO_PROFILE_FID: $MERO_PROFILE_FID" ||
+                m0_exit "MERO_PROFILE_FID isn't set for $service service"
+
+        if [[ -n $MERO_CONF_XC ]] ; then
+            m0_log "MERO_CONF_XC: $MERO_CONF_XC"
+        fi
+    fi
 
     [[ -n $MERO_M0D_DEBUGGER ]] && export M0_DEBUGGER=$MERO_M0D_DEBUGGER
 
     local service_dir=$(m0_get_m0d_data_dir_for $service)
-    if [[ $MERO_M0D_REMOVE_SERVICE_DIR == true ]] && [[ -d $service_dir ]] ; then
+    if [[ $MERO_M0D_REMOVE_SERVICE_DIR == true ]] && [[ -d "$service_dir" ]] ; then
         rm -rf "$service_dir"
     fi
-    [[ ! -d $service_dir ]] && mkdir -p "$service_dir"
+    [[ ! -d "$service_dir" ]] && mkdir -p "$service_dir"
     cd "$service_dir"
 
     MERO_M0D_OPTS=${MERO_M0D_OPTS:-$(m0_get_core_params)}
@@ -40,9 +68,11 @@ m0_server()
     local stob_type='-T ad'
     local stob_opts
     local proc_fid="<$(m0_get_proc_fid_for $service)>"
-    local confd_global_ep=${MERO_CONFD_EP:-$(m0_get_global_ep_of confd)}
-    local confd_ep="${MERO_CONFD_LOCAL_EP:-$confd_global_ep}"
-    local conf=$MERO_CONFD_CONFIG
+
+    if [[ $service != m0d-* ]] ; then
+        local confd_global_ep=${MERO_CONFD_EP:-$(m0_get_global_ep_of confd)}
+        local confd_ep=${MERO_CONFD_LOCAL_EP:-$confd_global_ep}
+    fi
 
     case "$service" in
         mds*)
@@ -60,33 +90,42 @@ m0_server()
             ;;
 
         confd) stob_type='-T linux'
-               if [[ ! -r $conf ]]; then
-                   m0_build_local_conf > $conf
+               if [[ ! -r $MERO_CONF_XC ]]; then
+                   m0_build_local_conf > $MERO_CONF_XC
                fi
 
                if [[ -n $MERO_CONFD_LOCAL_EP ]]; then
-                   cp $conf $service_dir/conf-local.xc
-                   sed -i -e "s/$confd_global_ep/$confd_ep/g" $service_dir/conf-local.xc
+                   cp $MERO_CONF_XC "$service_dir/conf-local.xc"
+                   sed -i -e "s/$confd_global_ep/$confd_ep/g" "$service_dir/conf-local.xc"
                    MERO_M0D_OPTS+=" -c $service_dir/conf-local.xc"
                else
-                   MERO_M0D_OPTS+=" -c $conf"
+                   MERO_M0D_OPTS+=" -c $MERO_CONF_XC"
                fi
             ;;
 
         ha*)   stob_type='-T linux'
-               unset m0d_services
+            ;;
+
+        m0d-*) # this is for Halon controled services
+
+               # check if it is a confd process
+               if [[ -n $MERO_CONF_XC ]] ; then
+                   stob_type='-T linux'
+                   MERO_M0D_OPTS+="-c $MERO_CONF_XC"
+               fi
             ;;
 
         *) m0_exit "Failed to start unknown service '$service'," \
                    " available services are 'mds*' and 'ios*'"
             ;;
     esac
-    local service_ep="lnet:$(m0_get_ep_of $service)"
 
+    local service_ep
     if [[ $service == confd ]]; then
         service_ep="lnet:$confd_ep"
     else
-        MERO_M0D_OPTS+=" -C $confd_ep"
+        service_ep="lnet:${MERO_M0D_EP:-$(m0_get_ep_of $service)}"
+        [[ -n $MERO_M0D_EP ]] || MERO_M0D_OPTS+=" -C $confd_ep"
     fi
 
     local binary=$(m0_path_to $cmd)
