@@ -259,7 +259,7 @@ static struct m0_conf_service *disk2service(const struct m0_conf_obj *disk_obj)
 {
 	struct m0_conf_obj *sdev_obj =
 		&M0_CONF_CAST(disk_obj, m0_conf_disk)->ck_dev->sd_obj;
-	struct m0_conf_obj *svc_obj = sdev_obj->co_parent->co_parent;
+	struct m0_conf_obj *svc_obj = m0_conf_obj_grandparent(sdev_obj);
 
 	return M0_CONF_CAST(svc_obj, m0_conf_service);
 }

@@ -197,6 +197,9 @@ struct m0_conf_obj {
 	 *
 	 * For objects that may have several parents (e.g., m0_conf_node) this
 	 * points to the object itself.
+	 *
+	 * @note  Do not use obj->co_parent->co_parent chain of pointers.
+	 *        m0_conf_obj_grandparent() is a safer alternative.
 	 */
 	struct m0_conf_obj           *co_parent;
 
@@ -293,6 +296,8 @@ bool m0_conf_fid_is_valid(const struct m0_fid *fid);
  * @pre M0_IN(obj->co_status, (M0_CS_MISSING, M0_CS_LOADING, M0_CS_READY))
  */
 M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj);
+
+struct m0_conf_obj *m0_conf_obj_grandparent(const struct m0_conf_obj *obj);
 
 enum { M0_CONF_OBJ_TYPE_MAX = 256 };
 

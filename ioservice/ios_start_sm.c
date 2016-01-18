@@ -626,7 +626,7 @@ static void ios_start_pm_nodes_counter(struct m0_ios_start_sm *ios_sm,
 
 static bool ios_start_sdev_belongs_ioservice(const struct m0_conf_obj *sdev_obj)
 {
-	struct m0_conf_obj     *svc_obj = sdev_obj->co_parent->co_parent;
+	struct m0_conf_obj     *svc_obj = m0_conf_obj_grandparent(sdev_obj);
 	struct m0_conf_service *svc = M0_CONF_CAST(svc_obj, m0_conf_service);
 
 	return svc != NULL && svc->cs_type == M0_CST_IOS;

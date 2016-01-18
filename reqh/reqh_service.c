@@ -670,7 +670,7 @@ static bool process_event_handler(struct m0_clink *clink)
 		break;
 	case M0_NC_ONLINE:
 		if (ctx->sc_is_active ||
-		    obj->co_parent->co_parent->co_ha_state != M0_NC_ONLINE)
+		    m0_conf_obj_grandparent(obj)->co_ha_state != M0_NC_ONLINE)
 			break;
 		rc = reqh_service_reconnect(ctx, ctx->sc_pc->pc_rmach,
 					    process->pc_endpoint,
@@ -733,8 +733,7 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 					 struct m0_conf_obj *sobj,
 					 enum m0_conf_service_type stype)
 {
-	struct m0_conf_obj *pobj = sobj->co_parent->co_parent;
-
+	struct m0_conf_obj *pobj = m0_conf_obj_grandparent(sobj);
 	M0_ENTRY();
 
 	M0_SET0(ctx);

@@ -403,6 +403,19 @@ bool m0_conf_fid_is_valid(const struct m0_fid *fid)
 		obj_types[m0_fid_type_getfid(fid)->ft_id] != NULL;
 }
 
+struct m0_conf_obj *m0_conf_obj_grandparent(const struct m0_conf_obj *obj)
+{
+	struct m0_conf_obj *result;
+
+	M0_PRE(!m0_conf_obj_is_stub(obj));
+	M0_PRE(m0_conf_obj_type(obj->co_parent) == &M0_CONF_DIR_TYPE);
+
+	result = obj->co_parent->co_parent;
+
+	M0_POST(!m0_conf_obj_is_stub(result));
+	return result;
+}
+
 M0_INTERNAL int m0_conf_obj_init(void)
 {
 	m0_xcode_union_init(m0_confx_obj_xc, "m0_confx_obj",

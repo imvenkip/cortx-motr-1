@@ -213,7 +213,7 @@ static bool is_local_service(const struct m0_conf_obj *obj)
 	if (m0_conf_obj_type(obj) != &M0_CONF_SERVICE_TYPE)
 		return false;
 	svc = M0_CONF_CAST(obj, m0_conf_service);
-	p = M0_CONF_CAST(svc->cs_obj.co_parent->co_parent,
+	p = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
 			 m0_conf_process);
 	cctx = m0_cs_ctx_get(m0_conf_obj2reqh(obj));
 	lep = m0_rpc_machine_ep(m0_mero_to_rmach(cctx));
@@ -409,7 +409,7 @@ M0_INTERNAL int cs_conf_device_reopen(struct cs_stobs *stob, uint32_t dev_id)
 	rc = m0_conf_device_get(confc, &fid, &sdev);
 	if (rc == 0) {
 		struct m0_conf_service *svc = M0_CONF_CAST(
-					sdev->sd_obj.co_parent->co_parent,
+					m0_conf_obj_grandparent(&sdev->sd_obj),
 					m0_conf_service);
 		if (is_local_ios(&svc->cs_obj)) {
 			M0_LOG(M0_DEBUG, "sdev size:%ld path:%s FID:"FID_F,

@@ -227,7 +227,7 @@ all_fs_to_diskv_check(struct m0_confc *confc, struct m0_conf_obj *fs)
 		M0_ASSERT(m0_conf_obj_type(ov->cv_real) == &M0_CONF_DISK_TYPE);
 		d = M0_CONF_CAST(ov->cv_real, m0_conf_disk);
 		check_obj(&d->ck_obj);
-		s = M0_CONF_CAST(d->ck_dev->sd_obj.co_parent->co_parent,
+		s = M0_CONF_CAST(m0_conf_obj_grandparent(&d->ck_dev->sd_obj),
 				 m0_conf_service);
 		check_obj(&s->cs_obj);
 	};

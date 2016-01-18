@@ -434,7 +434,7 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 		ov = M0_CONF_CAST(obj, m0_conf_objv);
 		M0_ASSERT(m0_conf_obj_type(ov->cv_real) == &M0_CONF_DISK_TYPE);
 		d = M0_CONF_CAST(ov->cv_real, m0_conf_disk);
-		s = M0_CONF_CAST(d->ck_dev->sd_obj.co_parent->co_parent,
+		s = M0_CONF_CAST(m0_conf_obj_grandparent(&d->ck_dev->sd_obj),
 				 m0_conf_service);
 		ctx = m0_tl_find(pools_common_svc_ctx, ctx,
 				 &pc->pc_svc_ctxs,
@@ -831,9 +831,9 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 		}
 		pver_obj = M0_CONF_CAST(m0_conf_diter_result(&it),
 					m0_conf_pver);
-		pool_id = &pver_obj->pv_obj.co_parent->co_parent->co_id;
+		pool_id = &m0_conf_obj_grandparent(&pver_obj->pv_obj)->co_id;
 		pool = m0_tl_find(pools, pool, &pc->pc_pools,
-                          m0_fid_eq(&pool->po_id, pool_id));
+			  m0_fid_eq(&pool->po_id, pool_id));
 
 		M0_ASSERT(m0_fid_eq(&pool->po_id, pool_id));
 		rc = m0_pool_version_init_by_conf(pver, pver_obj, pool, pc,
@@ -981,6 +981,7 @@ M0_INTERNAL void m0_pooldev_clink_add(struct m0_clink *link,
 	m0_clink_init(link, disks_poolmach_state_update_cb);
 	m0_clink_add_lock(chan, link);
 }
+
 #ifndef __KERNEL__
 /**
  * Find out device ids of the REPAIRED devices in the given pool machine

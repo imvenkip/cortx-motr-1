@@ -397,8 +397,7 @@ static int sss_device_fom_sdev_iter(struct m0_fom *fom)
 			M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&dfom->ssm_it);
 		if (m0_fid_eq(&dfom->ssm_fid, &obj->co_id)) {
-			M0_ASSERT(obj->co_parent->co_parent != NULL);
-			svc_fid = obj->co_parent->co_parent->co_id;
+			svc_fid = m0_conf_obj_grandparent(obj)->co_id;
 			dfom->ssm_native_device = sss_device_find_has_svc(
 						&dfom->ssm_fom, &svc_fid);
 			rc = M0_CONF_DIREND;

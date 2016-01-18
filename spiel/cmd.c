@@ -89,7 +89,7 @@ static int spiel_node_process_endpoint_add(struct m0_spiel    *spl,
 		     M0_CONF_DIRNEXT) {
 		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
 		if (svc->cs_type == M0_CST_IOS) {
-			p = M0_CONF_CAST(svc->cs_obj.co_parent->co_parent,
+			p = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
 					 m0_conf_process);
 			M0_ALLOC_PTR(entry);
 			if (entry == NULL) {
@@ -396,7 +396,7 @@ static int spiel_ss_ep_for_svc(const struct m0_conf_service  *s,
 	M0_ENTRY();
 
 	/* m0_conf_process::pc_services dir is the parent for the service */
-	p = M0_CONF_CAST(s->cs_obj.co_parent->co_parent, m0_conf_process);
+	p = M0_CONF_CAST(m0_conf_obj_grandparent(&s->cs_obj), m0_conf_process);
 	M0_ASSERT(!m0_conf_obj_is_stub(&p->pc_obj));
 	/* All services within a process share the same endpoint. */
 	*ss_ep = m0_strdup(p->pc_endpoint);
@@ -909,7 +909,7 @@ static int spiel_sns_fop_fill_and_send(struct m0_spiel        *spl,
 {
 	struct trigger_fop *treq = m0_fop_data(fop);
 	struct m0_conf_process *p = M0_CONF_CAST(
-					svc->cs_obj.co_parent->co_parent,
+					m0_conf_obj_grandparent(&svc->cs_obj),
 					m0_conf_process);
 
 	M0_ENTRY("fop %p conf_service %p", fop, svc);
