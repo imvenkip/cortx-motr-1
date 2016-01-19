@@ -52,7 +52,7 @@ Configuration object types and attributes:
 
 class Error(Exception):
     pass
-
+
 ### ------------------------------------------------------------------
 ### Conf
 
@@ -138,18 +138,28 @@ input_format = input_format % {
                             for k, v in sorted(conf_obj_types.items())])
 }
 __doc__ = __doc__ % { 'input_format' : input_format }
-
+
 ### ------------------------------------------------------------------
 ### Lexer
 
-tokens = ('NUMBER', 'STRING', 'ID')
+tokens = ('HEXNUM', 'OCTNUM', 'DECNUM', 'STRING', 'ID')
 literals = '()[]-=,'
 
-t_ID = r'[a-zA-Z]\w*'
+t_ID = r'\b[a-zA-Z]\w*\b'
 t_ignore = ' \t'
 
-def t_NUMBER(t):
-    r'\d+'
+def t_HEXNUM(t):
+    r'\b0[xX][0-9a-fA-F]+\b'
+    t.value = int(t.value[2:], 16)
+    return t
+
+def t_OCTNUM(t):
+    r'\b0[0-7]+\b'
+    t.value = int(t.value[1:], 8)
+    return t
+
+def t_DECNUM(t):
+    r'\b\d+\b'
     t.value = int(t.value)
     return t
 
@@ -170,7 +180,7 @@ def t_error(t):
                                                        t.lexpos + 1))
 
 lexer = lex.lex()
-
+
 ### ------------------------------------------------------------------
 ### Parser
 
@@ -186,6 +196,13 @@ def p_opsequence(p):
 
 def p_empty(p):
     "empty :"
+
+def p_number(p):
+    """number : DECNUM
+              | HEXNUM
+              | OCTNUM
+    """
+    p[0] = p[1]
 
 def p_objs(p):
     """
@@ -203,12 +220,12 @@ def p_obj(p):
     p[0] = p[2], dict(p[3])
 
 def p_objid(p):
-    "objid : ID '-' NUMBER"
+    "objid : ID '-' number"
     assert p[1] in conf_obj_types.keys()
     p[0] = p[1], p[3]
 
 def p_fid(p):
-    "fid : '(' NUMBER ',' NUMBER ')'"
+    "fid : '(' number ',' number ')'"
     p[0] = p[2], p[4]
 
 def p_attrs(p):
@@ -223,7 +240,7 @@ def p_attrs(p):
 
 def p_attr(p):
     """
-    attr : ID '=' NUMBER
+    attr : ID '=' number
          | ID '=' STRING
          | ID '=' objid
          | ID '=' fid
@@ -239,8 +256,8 @@ def p_sequence(p):
     """
     strings : STRING
             | strings ',' STRING
-    numbers : NUMBER
-            | numbers ',' NUMBER
+    numbers : number
+            | numbers ',' number
     objids : objid
            | objids ',' objid
     """
@@ -253,7 +270,7 @@ def p_error(t):
     raise Error('Syntax error at byte ' + str(t.lexpos + 1))
 
 parser = yacc.yacc(debug=False)
-
+
 ### ------------------------------------------------------------------
 ### Tests
 
@@ -262,6 +279,10 @@ class TestParser(unittest.TestCase):
         self.assertEqual(parser.parse(''), [])
         self.assertEqual(parser.parse('(profile-0 filesystem=filesystem-1)'),
                          [(('profile', 0), dict(filesystem=('filesystem', 1)))])
+        self.assertEqual(parser.parse(
+            '(root-10 verno=0xa profiles=[profile-012])'),
+                         [(('root', 10),
+                           dict(verno=10, profiles=[('profile', 10)]))])
         self.assertEqual(parser.parse(
 """(filesystem-1 rootfid=(11, 12) redundancy=41212
     params=["param-0", "param-1", "param-2"]
@@ -340,7 +361,7 @@ class TestEncoders(unittest.TestCase):
 
     def test_file(self):
         conf_objs_encode(parser.parse(file('ut/conf-str.txt.in').read()))
-
+
 ### ------------------------------------------------------------------
 ### main
 
