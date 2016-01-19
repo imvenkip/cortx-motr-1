@@ -83,7 +83,6 @@ static void poolmach_fom_store_credit(struct m0_fom *fom)
 	struct m0_fop               *req_fop;
 	struct m0_poolmach          *poolmach;
 	struct m0_conf_disk         *disk;
-	struct m0_confc             *confc;
 	struct m0_mero              *mero;
 	struct m0_conf_pver        **conf_pver;
 	struct m0_poolmach          *pv_pm = NULL;
@@ -97,7 +96,6 @@ static void poolmach_fom_store_credit(struct m0_fom *fom)
 	struct m0_pooldev           *dev_array;
 
 	reqh         = m0_fom_reqh(fom);
-	confc        = &reqh->rh_confc;
 	poolmach     = m0_ios_poolmach_get(reqh);
 	mero         = m0_cs_ctx_get(reqh);
 	req_fop      = fom->fo_fop;
@@ -110,7 +108,7 @@ static void poolmach_fom_store_credit(struct m0_fom *fom)
 		dev_id =
 		  set_fop->fps_dev_info.fpi_dev->fpd_index;
 		dev_fid = &dev_array[dev_id].pd_id;
-		rc = m0_conf_disk_get(confc, dev_fid,
+		rc = m0_conf_disk_get(m0_reqh2confc(reqh), dev_fid,
 				      &disk);
 		if (rc != 0)
 			break;
@@ -135,7 +133,6 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 	struct m0_pooldev       *dev_array;
 	struct m0_reqh          *reqh;
 	struct m0_mero          *mero;
-	struct m0_confc         *confc;
 	struct m0_conf_disk     *disk;
 	struct m0_conf_pver    **conf_pver;
 	struct m0_pool_version  *pool_ver;
@@ -147,7 +144,6 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 
 
 	reqh         = m0_fom_reqh(fom);
-	confc        = &reqh->rh_confc;
 	poolmach     = m0_ios_poolmach_get(reqh);
 	req_fop      = fom->fo_fop;
 	rep_fop      = fom->fo_rep_fop;
@@ -225,7 +221,7 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 		      * is associated.
 		      */
 		     dev_fid   = &dev_array[pme.pe_index].pd_id;
-		     rc = m0_conf_disk_get(confc, dev_fid, &disk);
+		     rc = m0_conf_disk_get(m0_reqh2confc(reqh), dev_fid, &disk);
 		     if (rc != 0)
 			     break;
 		     conf_pver = disk->ck_pvers;

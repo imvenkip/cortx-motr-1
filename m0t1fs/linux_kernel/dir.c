@@ -574,8 +574,7 @@ static uint64_t default_layout_id_get(struct m0t1fs_sb *csb)
 
 	M0_ENTRY();
 
-	rc = m0_conf_obj_find_lock(&csb->csb_reqh.rh_confc.cc_cache,
-				   &fsid, &cobj);
+	rc = m0_conf_obj_find_lock(&m0_csb2confc(csb)->cc_cache, &fsid, &cobj);
 	if (rc == 0) {
 		fs = M0_CONF_CAST(cobj, m0_conf_filesystem);
 
@@ -632,7 +631,7 @@ static int m0t1fs_create(struct inode     *dir,
 
 	m0t1fs_fs_lock(csb);
 	/* Assign clean pool version */
-	if (m0_conf_is_pool_version_dirty(&csb->csb_reqh.rh_confc,
+	if (m0_conf_is_pool_version_dirty(m0_csb2confc(csb),
 					  &csb->csb_pool_version->pv_id)) {
 		rc = m0t1fs_pool_find(csb);
 		if (rc != 0) {
@@ -821,7 +820,7 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		body.b_valid = (M0_COB_MODE | M0_COB_LID);
 		body.b_lid = M0_DEFAULT_LAYOUT_ID;
 		body.b_mode = S_IFREG;
-		if (m0_conf_is_pool_version_dirty(&csb->csb_reqh.rh_confc,
+		if (m0_conf_is_pool_version_dirty(m0_csb2confc(csb),
 						  &csb->csb_pool_version->pv_id))
 			rc = m0t1fs_pool_find(csb);
 		if (rc != 0) {

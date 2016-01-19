@@ -288,6 +288,7 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'sdev3'         : Fid(0x6400000000000009, 3),
         'sdev4'         : Fid(0x6400000000000009, 4),
         'rms'           : Fid(0x7300000000000004, 0),
+        'rms2'          : Fid(0x7300000000000004, 1),
         'ha'            : Fid(0x7300000000000004, 4)
 }
 "
@@ -357,6 +358,8 @@ conf_objs_add = [('profile_add', tx, fids['profile']),
 		  "$SERVER2_ENDPOINT")),
                  ('service_add', tx, fids['rms'], fids['process'], M0_CST_RMS,
                   ["$SERVER1_ENDPOINT"], ServiceInfoParameters()),
+                 ('service_add', tx, fids['rms2'], fids['process2'], M0_CST_RMS,
+                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['ha'], fids['process2'], M0_CST_HA,
                   ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['ios'], fids['process2'], M0_CST_IOS,
@@ -502,7 +505,7 @@ EOF
 
 _mount() {
     mkdir -p $SANDBOX_DIR/mnt
-    local MOUNT_OPTS="-t m0t1fs -o profile=$PROF_OPT,confd=$SERVER2_ENDPOINT \
+    local MOUNT_OPTS="-t m0t1fs -o profile=$PROF_OPT,ha=$SERVER2_ENDPOINT \
 none $SANDBOX_DIR/mnt"
     echo "mount $MOUNT_OPTS"
     mount $MOUNT_OPTS || return $?

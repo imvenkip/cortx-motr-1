@@ -148,7 +148,7 @@ endpoint() {
 m0d_start() {
 	local MKFS_OPTS="-T linux -D sss_st.db -S sss_st.stob
 -A linuxstob:sss_st-addb.stob -e lnet:$(endpoint $SERVER_TMID)
--c $CONFDB_PATH -P $CONF_PROFILE"
+-H $(endpoint $SERVER_TMID) -c $CONFDB_PATH -P $CONF_PROFILE"
 	local M0D_OPT='-w 4 -m 163840 -q 16'
 
 	echo -n 'Running m0mkfs... ' >&2

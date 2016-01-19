@@ -36,7 +36,7 @@ static char *stats_ut_server_argv[] = {
         "rpclib_ut", "-T", "AD", "-D", SERVER_DB_NAME, "-w", "10",
 	"-f", "<0x7200000000000001:1>",
         "-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
-        "-e", SERVER_ENDPOINT,
+        "-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
 	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 };
 

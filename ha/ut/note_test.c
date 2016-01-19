@@ -59,7 +59,7 @@ static struct m0_rpc_client_ctx cctx = {
 static char *server_argv[] = {
 	"ha_ut", "-T", "AD", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
-	"-w", "10", "-e", SERVER_ENDPOINT,
+	"-w", "10", "-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
 	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 };
 
@@ -290,15 +290,16 @@ static void test_ha_state_accept(void)
 
 static void failure_sets_build(struct m0_reqh *reqh, struct m0_ha_nvec *nvec)
 {
-	int                        rc;
+	int              rc;
+	struct m0_confc *confc = m0_reqh2confc(reqh);
 
 	rc = m0_fid_sscanf(M0_UT_CONF_PROFILE, &reqh->rh_profile);
 	M0_UT_ASSERT(rc == 0);
-	local_confc_init(&reqh->rh_confc);
-	m0_ha_client_add(&reqh->rh_confc);
+	local_confc_init(confc);
+	m0_ha_client_add(confc);
 	m0_ha_state_set(session, nvec);
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
+	rc = m0_conf_fs_get(&reqh->rh_profile, confc, &fs);
 	M0_UT_ASSERT(rc == 0);
 
         rc = m0_conf_full_load(fs);
@@ -312,8 +313,8 @@ static void failure_sets_destroy(struct m0_reqh *reqh)
 {
 	m0_flset_destroy(&reqh->rh_failure_set);
 	m0_confc_close(&fs->cf_obj);
-	m0_ha_client_del(&reqh->rh_confc);
-	m0_confc_fini(&reqh->rh_confc);
+	m0_ha_client_del(m0_reqh2confc(reqh));
+	m0_confc_fini(m0_reqh2confc(reqh));
 }
 
 static void test_failure_sets(void)
@@ -344,6 +345,7 @@ static void test_poolversion_get(void)
 	struct m0_conf_pver       *pver0 = NULL;
 	struct m0_conf_pver       *pver1 = NULL;
 	struct m0_conf_pver       *pver2 = NULL;
+	struct m0_confc           *confc = m0_reqh2confc(&reqh);
 	struct m0_ha_note n1[] = {
 		{ M0_FID_TINIT('a', 1, 3),  M0_NC_ONLINE },
 		{ M0_FID_TINIT('e', 1, 7),  M0_NC_ONLINE },
@@ -354,7 +356,7 @@ static void test_poolversion_get(void)
 
 	failure_sets_build(&reqh, &nvec);
 
-	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, confc,
 				     &reqh.rh_failure_set, &pver0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_fid_eq(&pver0->pv_obj.co_id, &M0_FID_TINIT('v', 1, 8)));
@@ -364,7 +366,7 @@ static void test_poolversion_get(void)
 	n1[0].no_state = M0_NC_FAILED;
 	m0_ha_state_accept(&nvec1);
 
-	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, confc,
 				     &reqh.rh_failure_set, &pver1);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver0->pv_nfailed == 1);
@@ -376,7 +378,7 @@ static void test_poolversion_get(void)
 	n1[0].no_state = M0_NC_FAILED;
 	m0_ha_state_accept(&nvec1);
 
-	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, confc,
 				     &reqh.rh_failure_set, &pver2);
 	M0_UT_ASSERT(rc == -ENOENT);
 	M0_UT_ASSERT(pver1->pv_nfailed == 1);
@@ -386,7 +388,7 @@ static void test_poolversion_get(void)
 	n1[0].no_state = M0_NC_FAILED;
 	m0_ha_state_accept(&nvec1);
 
-	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, m0_reqh2confc(&reqh),
 				     &reqh.rh_failure_set, &pver2);
 	M0_UT_ASSERT(rc == -ENOENT);
 	M0_UT_ASSERT(pver0->pv_nfailed == 2);
@@ -396,7 +398,7 @@ static void test_poolversion_get(void)
 	n1[0].no_state = M0_NC_ONLINE;
 	m0_ha_state_accept(&nvec1);
 
-	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, confc,
 				     &reqh.rh_failure_set, &pver2);
 	M0_UT_ASSERT(rc == -ENOENT);
 	M0_UT_ASSERT(pver0->pv_nfailed == 1);
@@ -406,7 +408,7 @@ static void test_poolversion_get(void)
 	n1[0].no_state = M0_NC_ONLINE;
 	m0_ha_state_accept(&nvec1);
 
-	rc = m0_conf_poolversion_get(&reqh.rh_profile, &reqh.rh_confc,
+	rc = m0_conf_poolversion_get(&reqh.rh_profile, confc,
 				     &reqh.rh_failure_set, &pver2);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver2 != NULL);

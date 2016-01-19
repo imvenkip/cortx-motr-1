@@ -162,7 +162,7 @@ static int mds_start(struct m0_reqh_service *service)
 		return 0;
 
 	cctx = mds->rmds_gen.rs_reqh_ctx->rc_mero;
-	if (cctx->cc_profile == NULL || cctx->cc_confd_addr == NULL)
+	if (cctx->cc_profile == NULL || cctx->cc_ha_addr == NULL)
 		return 0;
 	/*reqh = mds->rmds_gen.rs_reqh;*/
 	/* grp  = &reqh->rh_sm_grp; - no, reqh is not started yet */

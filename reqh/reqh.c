@@ -703,29 +703,31 @@ M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh)
 M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
 				   struct m0_confc_args *args)
 {
-	struct m0_confc *confc = &reqh->rh_confc;
-        int                      rc;
+	struct m0_rconfc *rconfc = &reqh->rh_rconfc;
+        int               rc;
 
-	M0_PRE(ergo(args->ca_confd != NULL,
-		    (args->ca_group != NULL && args->ca_rmach != NULL)));
+	M0_PRE(args->ca_ha != NULL && args->ca_group != NULL &&
+	       args->ca_rmach != NULL);
 
         rc = m0_fid_sscanf(args->ca_profile, &reqh->rh_profile);
         if (rc != 0)
                 return M0_ERR_INFO(rc, "Cannot parse profile `%s'",
 				   args->ca_profile);
 
-	return m0_confc_init(confc, args->ca_group, args->ca_confd,
-			     args->ca_rmach, args->ca_confstr);
+	rc = m0_rconfc_init(rconfc, args->ca_group, args->ca_rmach, NULL);
+	if (rc != 0)
+		return M0_ERR(rc);
+	if (args->ca_confstr != NULL) {
+		rconfc->rc_local_conf = m0_strdup(args->ca_confstr);
+		if (rconfc->rc_local_conf == NULL)
+			return M0_ERR(-ENOMEM);
+	}
+	return M0_RC(0);
 }
 
-M0_INTERNAL int m0_reqh_ha_setup(struct m0_reqh *reqh)
+M0_INTERNAL struct m0_confc *m0_reqh2confc(struct m0_reqh *reqh)
 {
-	int rc;
-
-	M0_PRE(reqh->rh_pools->pc_ha_ctx != NULL);
-	rc = m0_ha_state_init(&reqh->rh_pools->pc_ha_ctx->sc_rlink.rlk_sess);
-
-	return M0_RC(rc);
+	return &reqh->rh_rconfc.rc_confc;
 }
 
 #undef M0_TRACE_SUBSYSTEM

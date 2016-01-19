@@ -36,6 +36,7 @@ char      *sns_cm_ut_svc[] = { "m0d", "-T", "LINUX",
 			       "-w", "10",
 			       "-G", "lnet:0@lo:12345:34:1",
                                "-e", "lnet:0@lo:12345:34:1",
+                               "-H", "0@lo:12345:34:1",
 			       "-P", M0_UT_CONF_PROFILE,
 			       "-c", M0_UT_PATH("conf.xc")};
 

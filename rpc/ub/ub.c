@@ -168,7 +168,8 @@ M0_BASSERT(MIN_RECV_QUEUE_LEN == 200);
 static char *g_argv[] = {
 	NAME(""), "-Q", "200" /* MIN_RECV_QUEUE_LEN */, "-w", "10",
 	"-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
-	"-A", "linuxstob:"NAME(".addb-stob"), "-e", SERVER_ENDPOINT,
+	"-A", "linuxstob:"NAME(".addb-stob"),
+	"-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
 	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 };
 

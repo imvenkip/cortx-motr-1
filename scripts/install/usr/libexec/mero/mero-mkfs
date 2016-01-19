@@ -55,18 +55,29 @@ if [[ -n $1 ]] ; then
     fi
     m0_mkfs $service
 else
+    ha_is_started=false
     confd_is_started=false
-    services=$(m0_get_services | sed 's/confd//')
-    env_file='/var/mero/env.sh'
+    all_services=$(m0_get_services)
+    services=$(echo $all_services | sed -r 's/ha|confd//g')
 
-    # check if there is a 'confd' service, we need to start it first,
+    # check if there are 'ha' and 'confd' services, we need to start them first,
     # but only if there are other services on this node which require mkfs
-    if [[ $services != $(m0_get_services) ]] ; then
-        systemctl start mero-mkfs@confd.service
-        if [[ -n $services ]] ; then
-            echo "MERO_CONFD_LOCAL_EP=$(m0_get_lnet_nid):12345:36:174" > $env_file
-            systemctl start mero-server-confd.service
-            confd_is_started=true
+    if [[ $services != $all_services ]]
+    then
+        if [[ $all_services == *ha* ]] ; then
+            systemctl start mero-mkfs@ha.service
+            if [[ -n $services ]] ; then
+                systemctl start mero-server-ha.service
+                ha_is_started=true
+            fi
+        fi
+
+        if [[ $all_services == *confd* ]] ; then
+            systemctl start mero-mkfs@confd.service
+            if [[ -n $services ]] ; then
+                systemctl start mero-server-confd.service
+                confd_is_started=true
+            fi
         fi
     fi
 
@@ -76,9 +87,15 @@ else
 
     if $confd_is_started ; then
         systemctl stop mero-server-confd.service
-        rm $env_file
         if systemctl -q is-active mero-trace@confd.service ; then
             systemctl stop mero-trace@confd.service
+        fi
+    fi
+
+    if $ha_is_started ; then
+        systemctl stop mero-server-ha.service
+        if systemctl -q is-active mero-trace@ha.service ; then
+            systemctl stop mero-trace@ha.service
         fi
     fi
 

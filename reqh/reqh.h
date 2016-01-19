@@ -29,6 +29,7 @@
 #include "lib/bob.h"
 
 #include "conf/confc.h"
+#include "conf/rconfc.h"     /* m0_rconfc */
 #include "sm/sm.h"
 #include "fop/fom.h"
 #include "layout/layout.h"
@@ -153,9 +154,9 @@ struct m0_reqh {
 	struct m0_fid                 rh_profile;
 
 	/**
-	 * Confc instance.
+	 * Rconfc instance.
 	 */
-	struct m0_confc               rh_confc;
+	struct m0_rconfc              rh_rconfc;
 
 	/**
 	 * Oostore mode
@@ -370,7 +371,6 @@ M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh);
  */
 M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
 				   struct m0_confc_args *args);
-M0_INTERNAL int m0_reqh_ha_setup(struct m0_reqh *reqh);
 
 /** Descriptor for tlist of request handler services. */
 M0_TL_DESCR_DECLARE(m0_reqh_svc, M0_EXTERN);
@@ -392,6 +392,9 @@ M0_INTERNAL struct m0_rpc_session *
 m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 				        const struct m0_fid *gfid,
 				        uint32_t index);
+
+M0_INTERNAL struct m0_confc *m0_reqh2confc(struct m0_reqh *reqh);
+
 /** @} endgroup reqh */
 
 /* __MERO_REQH_REQH_H__ */

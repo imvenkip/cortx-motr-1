@@ -89,7 +89,7 @@ static struct m0_layout_linear_attr  llattr;
 static struct m0t1fs_inode           ci;
 static struct m0_layout_linear_attr  llattr;
 static struct file                   lfile;
-static struct m0_confc              *confc = &csb.csb_reqh.rh_confc;
+static struct m0_confc              *confc = &csb.csb_reqh.rh_rconfc.rc_confc;
 static struct m0_rm_remote           creditor;
 static bool                          runast = false;
 
@@ -102,6 +102,8 @@ int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb);
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
 void m0t1fs_net_fini(struct m0t1fs_sb *csb);
 
+#define LOCAL_EP   "0@lo:12345:45:1"
+
 char local_conf[] = "[34:\
    {0x74| ((^t|1:0), 1, [1 : ^p|1:0])},\
    {0x70| ((^p|1:0), ^f|1:1)},\
@@ -113,23 +115,23 @@ char local_conf[] = "[34:\
            [1: ^a|1:15])},\
    {0x6e| ((^n|1:2), 16000, 2, 3, 2, ^o|1:23,\
            [1: ^r|1:3])},\
-   {0x72| ((^r|1:3), [1:3], 0, 0, 0, 0, \"addr-0\", [6: ^s|1:4,\
+   {0x72| ((^r|1:3), [1:3], 0, 0, 0, 0, \""LOCAL_EP"\", [6: ^s|1:4,\
                                                    ^s|1:5,\
                                                    ^s|1:6,\
                                                    ^s|1:7,\
                                                    ^s|1:8,\
                                                    ^s|1:9])},\
-   {0x73| ((^s|1:4), 1, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+   {0x73| ((^s|1:4), 1, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [0])},\
-   {0x73| ((^s|1:5), 2, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+   {0x73| ((^s|1:5), 2, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [5: ^d|1:10, ^d|1:11,\
                ^d|1:12, ^d|1:13,\
                ^d|1:14])},\
-   {0x73| ((^s|1:6), 3, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+   {0x73| ((^s|1:6), 3, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [0])},\
-   {0x73| ((^s|1:7), 4, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+   {0x73| ((^s|1:7), 4, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [0])},\
-   {0x73| ((^s|1:8), 6, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+   {0x73| ((^s|1:8), 6, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [0])},\
    {0x73| ((^s|1:9), 2, [1: \"addr-3\"],\
            [0])},\
@@ -194,6 +196,7 @@ static int file_io_ut_init(void)
 	struct m0_fid              fid;
 	struct m0_confc_args      *confc_args;
 	struct m0_reqh            *reqh = &csb.csb_reqh;
+	const char                *ha_addr = "0@lo:12345:34:1";
 
 	M0_SET0(&sb);
 	M0_SET0(&creditor);
@@ -210,20 +213,19 @@ static int file_io_ut_init(void)
 	rc = m0t1fs_rpc_init(&csb);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_confc_init(confc, &csb.csb_iogroup, NULL, NULL, local_conf);
-	M0_UT_ASSERT(rc == 0);
-
 	confc_args = &(struct m0_confc_args){
 		.ca_profile = "<0x7000000000000001:0>",
 		.ca_confstr = (char *)local_conf,
-		.ca_rmach   = NULL,
+		.ca_rmach   = &csb.csb_rpc_machine,
 		.ca_group   = &csb.csb_iogroup,
+		.ca_ha      = ha_addr,
 	};
 
 	rc = m0_reqh_conf_setup(reqh, confc_args);
         M0_UT_ASSERT(rc == 0);
-
-	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
+	rc = m0_rconfc_start_sync(&reqh->rh_rconfc);
+        M0_UT_ASSERT(rc == 0);
+	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_pools_common_init(&csb.csb_pools_common, NULL, fs);
@@ -237,8 +239,6 @@ static int file_io_ut_init(void)
 
 	rc = m0_pool_versions_setup(&csb.csb_pools_common, fs,
 				    NULL, NULL, NULL);
-	M0_UT_ASSERT(rc == 0);
-        rc = m0_reqh_ha_setup(reqh);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_flset_tlist_init(&reqh->rh_failure_set.fls_objs);
@@ -325,7 +325,8 @@ static int file_io_ut_fini(void)
 	m0_pools_service_ctx_destroy(&csb.csb_pools_common);
 	m0_pools_destroy(&csb.csb_pools_common);
 	m0_pools_common_fini(&csb.csb_pools_common);
-	m0_confc_fini(confc);
+	m0_rconfc_stop_sync(&csb.csb_reqh.rh_rconfc);
+	m0_rconfc_fini(&csb.csb_reqh.rh_rconfc);
 	m0_reqh_services_terminate(&csb.csb_reqh);
 	m0t1fs_rpc_fini(&csb);
 	m0t1fs_net_fini(&csb);

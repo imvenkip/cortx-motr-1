@@ -744,6 +744,12 @@ struct m0t1fs_sb {
 	/** HA service context. */
 	struct m0_reqh_service_ctx             *csb_ha_rsctx;
 
+	/** HA session used globally */
+	struct m0_rpc_session                   csb_ha_sess;
+
+	/** RPC connection HA session operates on */
+	struct m0_rpc_conn                      csb_ha_conn;
+
 	/**
 	 * list of pending transactions, by service,
 	 * protected by csb_service_pending_txid_map_lock
@@ -1018,6 +1024,7 @@ M0_INTERNAL struct m0_file *m0_fop_to_file(struct m0_fop *fop);
 M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode);
 M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo);
 M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *cob);
+M0_INTERNAL struct m0_confc *m0_csb2confc(struct m0t1fs_sb *csb);
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 
 /*

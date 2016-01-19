@@ -171,16 +171,18 @@ static void rwlock_utinit(void)
 	creditor_cookie_setup(SERVER_3, SERVER_1);
 }
 
-static void rwlock_utfini(void)
+static void rwlock_servers_windup(void)
 {
-	uint32_t  i;
+	int i;
 
-	/*
-	 * Following loops cannot be combined.
-	 * The ops within the loops need sync points. Hence they are separate.
-	 */
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_server_owner_windup(i);
+}
+
+static void rwlock_servers_disc_fini(void)
+{
+	int i;
+
 	/* Disconnect the servers */
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_server_stop(i);
@@ -188,6 +190,12 @@ static void rwlock_utfini(void)
 	/* Finalise the servers */
 	for (i = 0; i < test_servers_nr; ++i)
 		rm_ctx_fini(&rm_ctxs[i]);
+}
+
+static void rwlock_utfini(void)
+{
+	rwlock_servers_windup();
+	rwlock_servers_disc_fini();
 }
 
 static void rwlock_acquire_nowait(enum rm_server              srv,
@@ -436,6 +444,33 @@ void rwlock_write_write_hold_test(void)
 	rwlock_utfini();
 }
 
+void rwlock_two_read_locks_test(void)
+{
+	rwlock_utinit();
+
+	rwlock_acquire(SERVER_2, INREQ(SERVER_2), RIF_MAY_BORROW,
+		       RM_RWLOCK_READ);
+	credits_are_equal(SERVER_2, RCL_HELD, RM_RW_READ_LOCK);
+
+	rwlock_acquire(SERVER_3, INREQ(SERVER_3), RIF_MAY_BORROW,
+		       RM_RWLOCK_READ);
+	credits_are_equal(SERVER_3, RCL_HELD, RM_RW_READ_LOCK);
+
+	credits_are_equal(SERVER_1, RCL_CACHED, RM_RW_WRITE_LOCK - 2);
+
+	/*
+	 * Check that read credits are returned to the creditor successfully.
+	 */
+	rwlock_release(INREQ(SERVER_2));
+	rm_ctx_server_owner_windup(SERVER_2);
+	rwlock_release(INREQ(SERVER_3));
+	rm_ctx_server_owner_windup(SERVER_3);
+	credits_are_equal(SERVER_1, RCL_CACHED, RM_RW_WRITE_LOCK);
+	rm_ctx_server_owner_windup(SERVER_1);
+
+	rwlock_servers_disc_fini();
+}
+
 struct m0_ut_suite rm_rwlock_ut = {
 	.ts_name = "rm-rwlock-ut",
 	.ts_tests = {
@@ -447,6 +482,7 @@ struct m0_ut_suite rm_rwlock_ut = {
 		{ "write-lock-when-read-hold1", rwlock_write_read_hold_test1 },
 		{ "write-lock-when-read-hold2", rwlock_write_read_hold_test2 },
 		{ "write-lock-when-write-hold", rwlock_write_write_hold_test },
+		{ "two-read-locks"            , rwlock_two_read_locks_test },
 		{ NULL, NULL }
 	}
 };

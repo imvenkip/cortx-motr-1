@@ -91,7 +91,7 @@ export_endpoints() {
     export M0T1FS_ENDPOINT="$LNET_NID:12345:34:"
     export IOS0_ENDPOINT="$LNET_NID:12345:34:1001"
     export IOS1_ENDPOINT="$LNET_NID:12345:34:1002"
-    export CONFD_ENDPOINT="$IOS0_ENDPOINT"
+    export HA_ENDPOINT="$IOS0_ENDPOINT"
     export MGS_ENDPOINT="$IOS0_ENDPOINT"
     export RMS_ENDPOINT="$IOS0_ENDPOINT"
     export MDS_ENDPOINT="$IOS0_ENDPOINT"
@@ -193,7 +193,7 @@ services_start() {
     local CONFD_SPEC="-c $CONF_FILE"
     local OPTS=
     if [ "$MODE" = autoconf ]; then
-	OPTS="-C $CONFD_ENDPOINT -P $PROF_AC_OPT
+	OPTS="-P $PROF_AC_OPT
 -e lnet:$IOS1_ENDPOINT
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN"
     else
@@ -204,7 +204,7 @@ services_start() {
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_AC_OPT"
     fi
 
-    OPTS="$OPTS -f <0x7200000000000001:1>"
+    OPTS="$OPTS -f <0x7200000000000001:1> -H $HA_ENDPOINT"
 
     confdb | $M0_SRC_DIR/utils/m0confgen >$CONF_FILE ||
 	error 'm0confgen failed'
@@ -231,7 +231,7 @@ services_stop() { killall -q lt-m0d && wait || true; }
 
 _mount() {
     local PROF_OPT='<0x7000000000000001:0>' # "profile-0"
-    mount -t m0t1fs -o profile="$PROF_OPT",confd=$CONFD_ENDPOINT \
+    mount -t m0t1fs -o profile="$PROF_OPT",ha="$HA_ENDPOINT" \
 	  none $SANDBOX_DIR/mnt || return $?
 }
 

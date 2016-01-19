@@ -1,6 +1,6 @@
 <host>  m0_uuid=00000000-0000-0000-0000-000000000000
 <host>  m0_lnet_nid=auto
-<host>  m0_services=confd;ha;mds;ios
+<host>  m0_services=ha;confd;mds;ios
 <host>  m0_pool_width=8
 <host>  m0_data_units=2
 <host>  m0_parity_units=1

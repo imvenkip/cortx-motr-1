@@ -39,6 +39,7 @@ struct m0_rpc_session;
 struct m0_flset;
 struct m0_conf_obj_type;
 struct m0_ha_nvec;
+struct m0_reqh;
 
 /**
  * Count number of objects of type "type" from specified path.
@@ -60,8 +61,8 @@ struct m0_confc_args {
 	const char            *ca_profile;
 	/** Cofiguration string. */
 	char                  *ca_confstr;
-	/** Cofiguration server endpoint. */
-	const char            *ca_confd;
+	/** HA server endpoint. */
+	const char            *ca_ha;
 	/** Configuration retrieval state machine. */
 	struct m0_sm_group    *ca_group;
 	/** Configuration retrieval rpc machine. */
@@ -157,6 +158,8 @@ M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj);
 
 M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj);
 
+M0_INTERNAL struct m0_reqh *m0_confc2reqh(const struct m0_confc *confc);
+
 M0_INTERNAL bool m0_conf_is_pool_version_dirty(struct m0_confc     *confc,
 					       const struct m0_fid *pver_fid);
 
@@ -179,6 +182,8 @@ M0_INTERNAL int m0_conf_service_open(struct m0_confc            *confc,
 				     const char                 *ep,
 				     enum m0_conf_service_type   svc_type,
 				     struct m0_conf_service    **svc);
+
+M0_INTERNAL bool m0_conf_service_is_top_rms(const struct m0_conf_service *svc);
 
 M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj);
 M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,

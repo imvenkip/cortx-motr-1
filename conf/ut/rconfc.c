@@ -45,7 +45,7 @@ static int ut_mero_start(struct m0_rpc_machine    *mach,
 	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
-		"-w", "10", "-e", SERVER_ENDPOINT,
+		"-w", "10", "-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
 		"-c", M0_UT_PATH("diter.xc"), "-P", M0_UT_CONF_PROFILE
 	};
 	*rctx = (struct m0_rpc_server_ctx) {

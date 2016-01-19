@@ -211,6 +211,13 @@ M0_INTERNAL int m0_ha_client_add(struct m0_confc *confc)
 
 	M0_ENTRY();
 	M0_PRE(hg != NULL);
+	/*
+	 * Only properly initialised confc allowed to register here. Otherwise
+	 * early HA notifications acceptance to cause a crash on locking cache
+	 * in ha_state_accept()!
+	 */
+	M0_PRE(confc->cc_cache.ca_lock != NULL);
+
 	ha_global_lock(hg);
 	client = m0_tl_find(hg_client, item, &hg->hg_clients,
 			    item->hc_confc == confc);

@@ -818,12 +818,12 @@ rlock_ctx_creditor_state(struct rlock_ctx *rlx)
 	return rlx->rlc_owner.ro_sm.sm_state;
 }
 
-static int rlock_ctx_creditor_setup(struct rlock_ctx    *rlx,
-				    const struct m0_fid *fid,
-				    const char          *ep)
+static int rlock_ctx_creditor_setup(struct rlock_ctx *rlx,
+				    const char       *ep)
 {
 	struct m0_rm_owner  *owner = &rlx->rlc_owner;
 	struct m0_rm_remote *creditor = &rlx->rlc_creditor;
+	struct m0_fid       *fid = &rlx->rlc_rm_fid;
 	struct m0_conf_obj  *obj;
 	int                  rc;
 
@@ -941,6 +941,11 @@ static int _confc_cache_clean_lock(struct m0_confc *confc)
 }
 
 /* -------------- Rconfc Helpers -------------- */
+
+static uint32_t rconfc_state(struct m0_rconfc *rconfc)
+{
+	return rconfc->rc_sm.sm_state;
+}
 
 static uint32_t rconfc_confd_count(const char **confd_addr)
 {
@@ -1317,7 +1322,8 @@ static int rconfc_conductor_connect(struct m0_rconfc   *rconfc,
 		M0_PRE(_confc_ver_read(&rconfc->rc_confc) ==
 		       M0_CONF_VER_UNKNOWN);
 		rc = m0_confc_init(&rconfc->rc_confc, rconfc->rc_sm.sm_grp,
-				   lnk->rl_confd_addr, rconfc->rc_rmach, NULL);
+				   lnk->rl_confd_addr, rconfc->rc_rmach,
+				   rconfc->rc_local_conf);
 		if (rc != 0)
 			return M0_ERR(rc);
 		m0_confc_gate_ops_set(&rconfc->rc_confc, &rconfc->rc_gops);
@@ -1465,7 +1471,6 @@ static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
 	char                        *rep_rm_addr = NULL;
 	struct m0_ha_entrypoint_rep *entrypoint;
 	struct m0_rpc_item          *reply = rconfc->rc_entrypoint_reply;
-	struct m0_fid                rep_rm_fid;
 	const char                 **confd_eps = NULL;
 	uint32_t                     i;
 	bool                         addr_mismatch;
@@ -1476,7 +1481,7 @@ static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
 	entrypoint = m0_fop_data(m0_rpc_item_to_fop(reply));
 	rconfc_state_set(rconfc, RCS_ENTRYPOINT_REPLIED);
 	rconfc->rc_quorum = entrypoint->hbp_quorum;
-	rep_rm_fid = entrypoint->hbp_active_rm_fid;
+	rlx->rlc_rm_fid = entrypoint->hbp_active_rm_fid;
 	rep_rm_addr = m0_buf_strdup(&entrypoint->hbp_active_rm_ep);
 	if (rep_rm_addr == NULL)
 		rc = M0_ERR(-ENOMEM);
@@ -1515,7 +1520,7 @@ static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
 	if (addr_mismatch) {
 		if (rlock_ctx_is_online(rlx))
 			rlock_ctx_creditor_unset(rlx);
-		rc = rlock_ctx_creditor_setup(rlx, &rep_rm_fid, rep_rm_addr);
+		rc = rlock_ctx_creditor_setup(rlx, rep_rm_addr);
 	}
 	m0_free(rep_rm_addr);
 	if (rc == 0) {
@@ -2187,23 +2192,27 @@ rlock_err:
 M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc)
 {
 	M0_ENTRY("rconfc %p", rconfc);
-	rconfc_ast_post(rconfc, rconfc_start_ast_cb);
+	if (rconfc->rc_local_conf != NULL)
+		rconfc->rc_sm.sm_rc = m0_confc_init(&rconfc->rc_confc,
+						    rconfc->rc_sm.sm_grp,
+						    NULL, rconfc->rc_rmach,
+						    rconfc->rc_local_conf);
+	else
+		rconfc_ast_post(rconfc, rconfc_start_ast_cb);
 	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc)
 {
-	struct m0_clink clink;
-
-	m0_clink_init(&clink, NULL);
-	clink.cl_is_oneshot = true;
 	m0_rconfc_start(rconfc);
+	if (m0_rconfc_is_preloaded(rconfc))
+		goto leave;
 	m0_rconfc_lock(rconfc);
 	m0_sm_timedwait(&rconfc->rc_sm,
 			M0_BITS(RCS_IDLE, RCS_FAILURE),
 			M0_TIME_NEVER);
 	m0_rconfc_unlock(rconfc);
-	m0_clink_fini(&clink);
+leave:
 	return M0_RC(rconfc->rc_sm.sm_rc);
 }
 
@@ -2223,10 +2232,13 @@ M0_INTERNAL void m0_rconfc_stop(struct m0_rconfc *rconfc)
 M0_INTERNAL void m0_rconfc_stop_sync(struct m0_rconfc *rconfc)
 {
 	M0_ENTRY();
+	if (rconfc_state(rconfc) == RCS_INIT)
+		goto leave;
 	m0_rconfc_stop(rconfc);
 	m0_rconfc_lock(rconfc);
 	m0_sm_timedwait(&rconfc->rc_sm, M0_BITS(RCS_FINAL), M0_TIME_NEVER);
 	m0_rconfc_unlock(rconfc);
+leave:
 	M0_LEAVE();
 }
 
@@ -2238,7 +2250,7 @@ M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc)
 	M0_PRE(_confc_is_inited(&rconfc->rc_phony));
 
 	m0_rconfc_lock(rconfc);
-	if (rconfc->rc_sm.sm_state == RCS_INIT) {
+	if (rconfc_state(rconfc) == RCS_INIT) {
 		/*
 		 * looks like this rconfc instance never was started, so do
 		 * internal cleanup prior to read lock context destruction and
@@ -2247,6 +2259,7 @@ M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc)
 		rconfc_stop_internal(rconfc);
 	}
 	m0_rconfc_unlock(rconfc);
+	m0_free(rconfc->rc_local_conf);
 	m0_free(rconfc->rc_qctx);
 	rlock_ctx_destroy(rconfc->rc_rlock_ctx);
 	if (_confc_is_inited(&rconfc->rc_confc))
@@ -2268,6 +2281,7 @@ M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc)
 	uint64_t ver_max;
 
 	M0_ENTRY("rconfc = %p", rconfc);
+	M0_PRE(rconfc_state(rconfc) != RCS_INIT);
 	m0_rconfc_lock(rconfc);
 	ver_max = m0_tl_fold(rcnf_herd, lnk, acc, &rconfc->rc_herd,
 			     M0_CONF_VER_UNKNOWN,
@@ -2299,6 +2313,7 @@ M0_INTERNAL int m0_rconfc_confd_endpoints(struct m0_rconfc   *rconfc,
 	size_t               confd_eps_length;
 	int                  i = 0;
 
+	M0_PRE(rconfc_state(rconfc) != RCS_INIT);
 	M0_PRE(*eps == NULL);
 	confd_eps_length = m0_tlist_length(&rcnf_herd_tl, &rconfc->rc_herd);
 	M0_ALLOC_ARR(*eps, confd_eps_length + 1);
@@ -2319,6 +2334,7 @@ M0_INTERNAL int m0_rconfc_rm_endpoint(struct m0_rconfc *rconfc, char **ep)
 {
 	struct rlock_ctx *rlx;
 
+	M0_PRE(rconfc_state(rconfc) != RCS_INIT);
 	M0_PRE(_0C(rconfc != NULL) && _0C(rconfc->rc_rlock_ctx != NULL) &&
 	       rlock_ctx_is_online(rconfc->rc_rlock_ctx));
 	M0_PRE(*ep == NULL);
@@ -2328,7 +2344,26 @@ M0_INTERNAL int m0_rconfc_rm_endpoint(struct m0_rconfc *rconfc, char **ep)
 	if (*ep == NULL)
 		return M0_ERR(-ENOMEM);
 	return M0_RC(0);
+}
 
+M0_INTERNAL void m0_rconfc_rm_fid(struct m0_rconfc *rconfc, struct m0_fid *out)
+{
+	struct rlock_ctx *rlx;
+
+	M0_PRE(rconfc_state(rconfc) != RCS_INIT);
+	M0_PRE(_0C(rconfc != NULL) && _0C(rconfc->rc_rlock_ctx != NULL) &&
+	       rlock_ctx_is_online(rconfc->rc_rlock_ctx));
+	M0_PRE(m0_fid_eq(out, &M0_FID0));
+
+	rlx = rconfc->rc_rlock_ctx;
+	*out = rlx->rlc_rm_fid;
+}
+
+M0_INTERNAL bool m0_rconfc_is_preloaded(struct m0_rconfc *rconfc)
+{
+	return M0_IN(rconfc_state(rconfc), (RCS_INIT)) &&
+		_confc_is_inited(&rconfc->rc_confc) &&
+		rconfc->rc_local_conf != NULL;
 }
 
 /** @} rconfc_dlspec */

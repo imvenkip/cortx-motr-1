@@ -58,8 +58,9 @@
 #  include "module/instance.h"  /* m0 */
 #endif
 
-#define TRANSPORT_NAME  "lnet"
-#define SERVER_ENDPOINT TRANSPORT_NAME ":" "0@lo:12345:34:1"
+#define TRANSPORT_NAME       "lnet"
+#define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#define SERVER_ENDPOINT      TRANSPORT_NAME ":" SERVER_ENDPOINT_ADDR
 
 #define SERVER_DB_FILE_NAME        "m0rpcping_server.db"
 #define SERVER_STOB_FILE_NAME      "m0rpcping_server.stob"
@@ -382,6 +383,7 @@ static int run_server(void)
 	char       *argv[] = {
 		"rpclib_ut",
 		"-e", server_endpoint,
+		"-H", SERVER_ENDPOINT_ADDR,
 		"-q", tm_len, "-m", rpc_size,
 	};
 	struct m0_rpc_server_ctx sctx = {

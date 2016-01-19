@@ -58,7 +58,6 @@ struct rlock_ctx {
 	struct m0_clink            rlc_clink;     /**< waiter for owner windup*/
 	struct m0_rm_domain        rlc_dom;       /**< read domain            */
 	struct m0_rm_resource_type rlc_rt;        /**< read resource type     */
-
 };
 
 /* -------------- Quorum calculation context ----------------- */

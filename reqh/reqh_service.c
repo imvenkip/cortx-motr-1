@@ -604,7 +604,7 @@ M0_INTERNAL void m0_reqh_service_disconnect(struct m0_reqh_service_ctx *ctx)
 	 * if process is died otherwise wait for some timeout.
 	 */
 	timeout = !ctx->sc_is_active ? M0_TIME_IMMEDIATELY :
-		  m0_time_from_now(M0_RPC_ITEM_RESEND_INTERVAL * 2 + 1, 0);
+		m0_rpc__down_timeout();
 
 	m0_rpc_link_disconnect_async(&ctx->sc_rlink, timeout,
 				     &ctx->sc_rlink_wait);

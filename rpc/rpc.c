@@ -322,6 +322,11 @@ M0_INTERNAL uint32_t m0_rpc_max_recv_msgs(struct m0_net_domain *ndom,
 	       m0_rpc_max_msg_size(ndom, rpc_size);
 }
 
+M0_INTERNAL m0_time_t m0_rpc__down_timeout(void)
+{
+	return m0_time_from_now(M0_RPC_ITEM_RESEND_INTERVAL * 2 + 1, 0);
+}
+
 /** @} */
 
 /*

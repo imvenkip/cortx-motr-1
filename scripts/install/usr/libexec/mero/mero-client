@@ -25,14 +25,14 @@ start()
     [[ -r $ha_config   ]] && source $ha_config
     [[ -r $user_config ]] && source $user_config
 
-    mountpoint=${MERO_M0T1FS_MOUNTPOINT:-$(m0_genders_value_of m0_t1fs_mountpoint)}
-    confd_ep=${MERO_CONFD_EP:-$(m0_get_global_ep_of confd)}
-    profile="<${MERO_PROFILE_FID:-$m0_prof_opt}>"
+    local mountpoint=${MERO_M0T1FS_MOUNTPOINT:-$(m0_genders_value_of m0_t1fs_mountpoint)}
+    local ha_ep=${MERO_HA_EP:-$(m0_get_global_ep_of ha)}
+    local profile="<${MERO_PROFILE_FID:-$m0_prof_opt}>"
 
     [ ! -d "$mountpoint" ] && mkdir -p "$mountpoint"
 
     set -x
-    mount -t m0t1fs -o "profile=$profile,confd=$confd_ep,oostore" m0t1 $mountpoint
+    mount -t m0t1fs -o "profile=$profile,ha=$ha_ep,oostore" m0t1 $mountpoint
     set +x
 }
 

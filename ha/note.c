@@ -251,6 +251,46 @@ M0_INTERNAL void m0_ha_state_accept(const struct m0_ha_nvec *note)
 	m0_ha_clients_iterate((m0_ha_client_cb_t)ha_state_accept, note);
 }
 
+M0_INTERNAL int m0_ha_entrypoint_get(struct m0_fop **entrypoint_fop)
+{
+	struct m0_rpc_session *sess = m0_ha_session_get();
+	struct m0_fop         *fop;
+	struct m0_rpc_item    *item;
+	void                  *data;
+	int                    rc;
+
+	M0_ENTRY();
+	M0_PRE(entrypoint_fop != NULL);
+
+	if (sess == NULL)
+		return M0_ERR(-ENOMEDIUM);
+	data = m0_alloc(sizeof (struct m0_ha_entrypoint_req));
+	if (data == NULL)
+		return M0_ERR(-ENOMEM);
+	fop = m0_fop_alloc(&m0_ha_entrypoint_req_fopt, data,
+			   m0_fop_session_machine(sess));
+	if (fop != NULL) {
+		item = &fop->f_item;
+		item->ri_resend_interval = m0_time(RESEND_INTERVAL_SET_S,
+						   RESEND_INTERVAL_SET_NS);
+
+		rc = m0_rpc_post_sync(fop, sess, NULL,
+				    m0_time_from_now(DEADLINE_S, DEADLINE_NS));
+		if (rc != 0) {
+			m0_free(m0_fop_data(fop));
+			fop->f_data.fd_data = NULL;
+			m0_fop_put_lock(fop);
+		} else {
+			*entrypoint_fop = fop;
+		}
+	} else {
+		M0_LOG(M0_NOTICE, "Cannot allocate fop.");
+		rc = -ENOMEM;
+	}
+
+	return M0_RC(rc);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

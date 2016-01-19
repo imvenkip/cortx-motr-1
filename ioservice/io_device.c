@@ -384,7 +384,7 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
         struct m0_pools_common        *pc = reqh->rh_pools;
         struct m0_pool                *pool = pools_tlist_head(&pc->pc_pools);
         struct m0_pool_version        *pver = pool_version_tlist_head(&pool->po_vers);
-	struct m0_confc               *confc = &reqh->rh_confc;
+	struct m0_confc               *confc = m0_reqh2confc(reqh);
 	struct m0_sm_group            *grp = m0_locality0_get()->lo_grp;
 	struct m0_ios_poolmach_args    ios_poolmach_args;
 	struct m0_conf_filesystem     *fs;

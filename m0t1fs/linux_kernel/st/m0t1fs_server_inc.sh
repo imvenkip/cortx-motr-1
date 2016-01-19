@@ -218,6 +218,7 @@ EOF
 		fi
 
 		DIR=$MERO_M0T1FS_TEST_DIR/confd
+		CONFDB="$DIR/conf.xc"
 		build_conf $N $K $P $multiple_pools | tee $DIR/conf.xc
 
 		common_opts="-D db -S stobs -A linuxstob:addb-stobs \
@@ -226,7 +227,7 @@ EOF
 
 		# mkfs for confd server
 		opts="$common_opts -T linux -e $XPT:${CONFD_EP%:*:*}:$MKFS_PORTAL:1\
-		      -c $DIR/conf.xc"
+		      -c $CONFDB"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0mkfs.log"
 
 		echo $cmd
@@ -234,20 +235,17 @@ EOF
 
 		# spawn confd
 		opts="$common_opts -f $proc_fid -T linux -e $XPT:$CONFD_EP \
-		      -c $DIR/conf.xc"
+		      -c $CONFDB"
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		echo $cmd
 		(eval "$cmd") &
 
-                # Wait until confd service starts.
-                # This will be handeled by MERO-988.
-                sleep 5
 		# mkfs for ha agent
 		DIR=$MERO_M0T1FS_TEST_DIR/ha
 		rm -rf $DIR
 		mkdir -p $DIR
 		opts="$common_opts -T linux -e $XPT:${lnet_nid}:${HA_EP%:*:*}:$MKFS_PORTAL:1 \
-		      -C $CONFD_EP"
+		      -c $CONFDB"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0mkfs.log"
 		echo $cmd
 		(eval "$cmd")
@@ -264,7 +262,7 @@ EOF
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T ad \
 			$common_opts -e $XPT:${lnet_nid}:${MDSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid \
-			-C $CONFD_EP |& tee -a m0mkfs.log"
+			-c $CONFDB |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
 		done
@@ -279,7 +277,7 @@ EOF
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid \
-			-C $CONFD_EP |& tee -a m0mkfs.log"
+			-c $CONFDB |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
 		done
@@ -291,13 +289,13 @@ EOF
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:${IOS_PVER2_EP%:*:*}:$MKFS_PORTAL:$tmid \
-			-C $CONFD_EP |& tee -a m0mkfs.log"
+			-c $CONFDB |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
 		fi
 		# spawn ha agent
 		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
-		      -C $CONFD_EP -f $proc_fid"
+		      -c $CONFDB -f $proc_fid"
 		DIR=$MERO_M0T1FS_TEST_DIR/ha
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		echo $cmd
@@ -314,16 +312,28 @@ EOF
 
 			ulimit -c unlimited
 
+			#let only instance with RMS read config locally
+			MDS_CONF=""
+			if [ $i -eq 0 ]; then
+			    MDS_CONFDB="-c $CONFDB"
+			fi
+
 			cmd="cd $DIR && exec \
 			$prog_start -T ad \
 			$common_opts -e $XPT:${lnet_nid}:${MDSEP[$i]} \
-                        -f $proc_fid \
-			-C $CONFD_EP |& tee -a m0d.log"
+                        -f $proc_fid -H ${lnet_nid}:$HA_EP \
+			$MDS_CONFDB |& tee -a m0d.log"
 			echo $cmd
 
 			local m0d_log=$DIR/m0d.log
 			touch $m0d_log
 			(eval "$cmd") &
+
+			# let instance with RMS be the first initialised one;
+			# let ha agent initialise along with the mds instance
+			if [ $i -eq 0 ]; then
+			    sleep 5
+			fi
 
 		done
 
@@ -338,7 +348,7 @@ EOF
 			$prog_start -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]} \
                         -f $proc_fid \
-			-C $CONFD_EP |& tee -a m0d.log"
+			-H ${lnet_nid}:$HA_EP |& tee -a m0d.log"
 			echo $cmd
 
 			local m0d_log=$DIR/m0d.log
@@ -353,7 +363,7 @@ EOF
 			$prog_start -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:$IOS_PVER2_EP\
                         -f $proc_fid \
-			-C $CONFD_EP |& tee -a m0d.log"
+			-H ${lnet_nid}:$HA_EP |& tee -a m0d.log"
 			echo $cmd
 
 			local m0d_log=$DIR/m0d.log

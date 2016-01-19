@@ -82,7 +82,7 @@ M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
 				     const char *f_path);
 
 /**
- * Associates linux stob with some configuration find.
+ * Associates linux stob with fid of a m0_conf_sdev object.
  * This fid is sent to HA when stob I/O error is reported.
  */
 M0_INTERNAL void

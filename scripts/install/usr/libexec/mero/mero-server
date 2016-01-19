@@ -8,7 +8,7 @@ readonly PROG_NAME=$(basename $0)
 
 # global variables, which can be overriden in /etc/sysconfig/mero
 MERO_GENDERS_CONF=/etc/mero/genders
-MERO_CONF_XC=/etc/mero/conf.xc
+MERO_CONF_XC_DEFAULT=/etc/mero/conf.xc
 
 # service local variables
 user_config=/etc/sysconfig/mero
@@ -41,9 +41,8 @@ m0_server()
             m0_log "MERO_M0D_EP: $MERO_M0D_EP" ||
                 m0_exit "MERO_M0D_EP isn't set for $service service"
 
-        [[ -n $MERO_HA_EP ]] &&
-            m0_log "MERO_HA_EP: $MERO_HA_EP" ||
-                m0_exit "MERO_HA_EP isn't set for $service service"
+        [[ -z $MERO_HA_EP ]] ||
+            m0_log "MERO_HA_EP: $MERO_HA_EP"
 
         [[ -n $MERO_PROFILE_FID ]] &&
             m0_log "MERO_PROFILE_FID: $MERO_PROFILE_FID" ||
@@ -69,16 +68,16 @@ m0_server()
     local stob_opts
     local proc_fid="<$(m0_get_proc_fid_for $service)>"
 
-    if [[ $service != m0d-* ]] ; then
-        local confd_global_ep=${MERO_CONFD_EP:-$(m0_get_global_ep_of confd)}
-        local confd_ep=${MERO_CONFD_LOCAL_EP:-$confd_global_ep}
-    fi
-
+    # mds and rms are expected to read local configuration until the
+    # order of mero bootstrapping changes to start rms along with
+    # confd prior to any other services, except maybe ha, which is
+    # independent of confd or rms, but to be started prior to any
+    # other m0d or m0t1fs requiring ha for further remote conf read
     case "$service" in
-        mds*)
+        mds*)  MERO_M0D_OPTS+=" -c ${MERO_CONF_XC:-$MERO_CONF_XC_DEFAULT}"
             ;;
 
-        rms*)
+        rms*)  MERO_M0D_OPTS+=" -c ${MERO_CONF_XC:-$MERO_CONF_XC_DEFAULT}"
             ;;
 
         ios*)  local disks_conf="/etc/mero/disks-$service.conf"
@@ -89,43 +88,42 @@ m0_server()
                fi
             ;;
 
-        confd) stob_type='-T linux'
+        confd|ha*)
+               : ${MERO_CONF_XC:=$MERO_CONF_XC_DEFAULT}
+
+               stob_type='-T linux'
+               MERO_M0D_OPTS+=" -c $MERO_CONF_XC"
                if [[ ! -r $MERO_CONF_XC ]]; then
                    m0_build_local_conf > $MERO_CONF_XC
                fi
-
-               if [[ -n $MERO_CONFD_LOCAL_EP ]]; then
-                   cp $MERO_CONF_XC "$service_dir/conf-local.xc"
-                   sed -i -e "s/$confd_global_ep/$confd_ep/g" "$service_dir/conf-local.xc"
-                   MERO_M0D_OPTS+=" -c $service_dir/conf-local.xc"
-               else
-                   MERO_M0D_OPTS+=" -c $MERO_CONF_XC"
-               fi
             ;;
 
-        ha*)   stob_type='-T linux'
-            ;;
-
-        m0d-*) # this is for Halon controled services
+        m0d-*) # Halon controlled services
 
                # check if it is a confd process
                if [[ -n $MERO_CONF_XC ]] ; then
                    stob_type='-T linux'
                    MERO_M0D_OPTS+="-c $MERO_CONF_XC"
                fi
+
+               MERO_M0D_OPTS+=${MERO_HA_EP:+ -H $MERO_HA_EP}
             ;;
 
-        *) m0_exit "Failed to start unknown service '$service'," \
-                   " available services are 'mds*' and 'ios*'"
+        *)     m0_exit "Failed to start unknown service '$service'," \
+                       " available services are 'mds*' and 'ios*'"
             ;;
     esac
 
+    if [[ $service != m0d-* ]] ; then
+        local ha_ep=${MERO_HA_EP:-$(m0_get_global_ep_of ha)}
+    fi
+
     local service_ep
-    if [[ $service == confd ]]; then
-        service_ep="lnet:$confd_ep"
+    if [[ $service == ha ]]; then
+        service_ep="lnet:$ha_ep"
     else
         service_ep="lnet:${MERO_M0D_EP:-$(m0_get_ep_of $service)}"
-        [[ -n $MERO_M0D_EP ]] || MERO_M0D_OPTS+=" -C $confd_ep"
+        MERO_M0D_OPTS+=${ha_ep:+ -H $ha_ep}
     fi
 
     local binary=$(m0_path_to $cmd)

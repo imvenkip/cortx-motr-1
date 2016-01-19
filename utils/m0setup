@@ -148,8 +148,6 @@ path_of()
 
 init_loop_devices()
 {
-    cleanup_loop_devices
-
     if [[ ! -d $loop_img_dir ]] ; then
         warn "'$loop_img_dir' doesn't exist, creating.."
         mkdir -p "$loop_img_dir"
@@ -192,18 +190,6 @@ cleanup_ios_configs()
     done
 }
 
-cleanup_mero_configs()
-{
-    log "Removing /etc/mero/* files"
-
-    if $verbose ; then
-        local v_flag='-v'
-    fi
-
-    rm -f $v_flag "$etc_mero_dir/genders"
-    rm -f $v_flag "$etc_mero_dir/conf.xc"
-}
-
 generate_genders_config()
 {
     local genders_file=$etc_mero_dir/genders
@@ -218,7 +204,7 @@ generate_genders_config()
     cat <<GENDERS_END > $genders_file
 $hostname  m0_uuid=$(uuidgen)
 $hostname  m0_lnet_nid=auto
-$hostname  m0_services=confd;ha;mds;$ios
+$hostname  m0_services=ha;confd;mds;$ios
 $hostname  m0_pool_width=$pool_width
 $hostname  m0_data_units=$data_units
 $hostname  m0_parity_units=$parity_units
@@ -260,7 +246,6 @@ parse_cli_options "$@"
 if $do_cleanup ; then
     cleanup_loop_devices
     cleanup_ios_configs
-    cleanup_mero_configs
     exit 0
 fi
 

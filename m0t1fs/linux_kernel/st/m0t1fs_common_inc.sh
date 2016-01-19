@@ -207,7 +207,6 @@ function build_conf()
 		MD_REDUNDANCY=2
 	fi;
 	# prepare configuration data
-	local RMS_ENDPOINT="\"${mdservices[0]}\""
 	local CONFD_ENDPOINT="\"${mdservices[0]%:*:*}:33:100\""
 	local HA_ENDPOINT="\"${mdservices[0]%:*:*}:34:1\""
 	local  ROOT='^t|1:0'
@@ -215,7 +214,6 @@ function build_conf()
 	local    FS='^f|1:1'
 	local  NODE='^n|1:2'
 	local CONFD="$CONF_FID_CON:0"
-	local    RM="$RMS_FID_CON:0"
 	local HA_SVC_ID='^s|1:6'
 	local  RACKID='^a|1:6'
 	local  ENCLID='^e|1:7'
@@ -245,11 +243,13 @@ function build_conf()
 	    local ADDB_OBJ="{0x73| (($ADDB_NAME), 10, [1: $iosep], [0])}"
 	    local SNS_REP_OBJ="{0x73| (($SNS_REP_NAME), 8, [1: $iosep], [0])}"
 	    local SNS_REB_OBJ="{0x73| (($SNS_REB_NAME), 9, [1: $iosep], [0])}"
+	    local RM_NAME="$RMS_FID_CON:$M0D"
+            local RM_OBJ="{0x73| (($RM_NAME), 4, [1: $iosep], [0])}"
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
-	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME"
-	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $iosep, [4: ${IOS_NAMES[$i]}])}"
-	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ"
+	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME, $RM_NAME"
+	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $iosep, [5: ${IOS_NAMES[$i]}])}"
+	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ, \n $RM_OBJ"
 	    PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $PROC_OBJ"
 	    PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$PROC_NAME"
 	done
@@ -260,27 +260,29 @@ function build_conf()
 	    local mdsep="\"${mdservices[$i]}\""
 	    local MDS_OBJ="{0x73| (($MDS_NAME), 1, [1: $mdsep], [0])}"
 	    local ADDB_OBJ="{0x73| (($ADDB_NAME), 10, [1: $mdsep], [0])}"
+	    local RM_NAME="$RMS_FID_CON:$M0D"
+            local RM_OBJ="{0x73| (($RM_NAME), 4, [1: $mdsep], [0])}"
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
-	    MDS_NAMES[$i]="$MDS_NAME, $ADDB_NAME"
-	    if ((i == 0)); then
-		local RM_OBJ="{0x73| (($RM), 4, [1: $RMS_ENDPOINT], [0])}"
-		MDS_OBJS="$MDS_OBJ, \n  $ADDB_OBJ, \n  $RM_OBJ"
-		PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $mdsep, [3: ${MDS_NAMES[$i]}, $RM])}"
-	    else
-		MDS_OBJS="$MDS_OBJS, \n  $MDS_OBJ, \n  $ADDB_OBJ"
-		PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $mdsep, [2: ${MDS_NAMES[$i]}])}"
-	    fi
+	    MDS_NAMES[$i]="$MDS_NAME, $ADDB_NAME, $RM_NAME"
+	    MDS_OBJS="$MDS_OBJS${MDS_OBJS:+,} \n $MDS_OBJ, \n  $ADDB_OBJ, \n  $RM_OBJ"
+	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $mdsep, [3: ${MDS_NAMES[$i]}])}"
 	    PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
 	    PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	done
 
 	PROC_NAME="$PROC_FID_CONT:$((M0D++))"
-	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${HA_ENDPOINT}", [1: $HA_SVC_ID])}"
+	RM_NAME="$RMS_FID_CON:$M0D"
+	RM_OBJ="{0x73| (($RM_NAME), 4, [1: $HA_ENDPOINT], [0])}"
+	RM_OBJS="$RM_OBJS${RM_OBJS:+,} \n $RM_OBJ"
+	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${HA_ENDPOINT}", [2: $HA_SVC_ID, $RM_NAME])}"
 	PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
 	PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	PROC_NAME="$PROC_FID_CONT:$((M0D++))"
-	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${CONFD_ENDPOINT}", [1: $CONFD])}"
+	RM_NAME="$RMS_FID_CON:$M0D"
+	RM_OBJ="{0x73| (($RM_NAME), 4, [1: $CONFD_ENDPOINT], [0])}"
+	RM_OBJS="$RM_OBJS${RM_OBJS:+,} \n $RM_OBJ"
+	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${CONFD_ENDPOINT}", [2: $CONFD, $RM_NAME])}"
 	PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
 	PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	local RACK="{0x61| (($RACKID), [1: $ENCLID], [1: $PVERID])}"
@@ -361,7 +363,7 @@ function build_conf()
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
- [$(($((${#ioservices[*]} * 5)) + $((${#mdservices[*]} * 3)) + $NR_IOS_DEVS + 17 + $PVER1_OBJ_COUNT)):
+ [$(($((${#ioservices[*]} * 6)) + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $PVER1_OBJ_COUNT)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
@@ -377,6 +379,7 @@ function build_conf()
   {0x73| (($HA_SVC_ID), 6, [1: $HA_ENDPOINT], [0])},
   $MDS_OBJS,
   $IOS_OBJS,
+  $RM_OBJS,
   $IOS_DEVS,
   $RACK,
   $ENCL,

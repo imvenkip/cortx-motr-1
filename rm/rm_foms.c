@@ -516,7 +516,7 @@ static int rfom_debtor_subscribe(struct rm_request_fom        *rfom,
 	ep = m0_rpc_item_remote_ep_addr(item);
 	M0_ASSERT(ep != NULL);
 	/* get confc instance HA to be notifying on */
-	confc = &item->ri_rmachine->rm_reqh->rh_confc;
+	confc = m0_reqh2confc(item->ri_rmachine->rm_reqh);
 	rc = m0_rm_ha_subscriber_init(&rfom->rf_sbscr, &fom->fo_loc->fl_group,
 				confc, ep, &debtor->rem_tracker);
 	if (rc == 0) {
@@ -750,13 +750,14 @@ static int cancel_process(struct m0_fom *fom)
 		M0_ASSERT(loan->rl_other != NULL);
 		M0_ASSERT(!loan->rl_other->rem_dead);
 		rc = m0_rm_loan_settle(owner, loan);
-		reply_err_set(FRT_CANCEL, fom, rc);
-		m0_rpc_reply_post(&fom->fo_fop->f_item,
-				  m0_fop_to_rpc_item(fom->fo_rep_fop));
 	} else {
 		M0_LOG(M0_WARN, "loan %p is not found!",
 				(void *)cfop->fc_loan.lo_cookie.co_addr);
+		rc = -ENOENT;
 	}
+	reply_err_set(FRT_CANCEL, fom, rc);
+	m0_rpc_reply_post(&fom->fo_fop->f_item,
+			  m0_fop_to_rpc_item(fom->fo_rep_fop));
 	m0_rm_owner_unlock(owner);
 
 	m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);

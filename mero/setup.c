@@ -131,8 +131,8 @@ static bool reqh_ctx_services_are_valid(const struct m0_reqh_context *rctx)
 			rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0')) &&
 	       _0C(cctx->cc_no_conf ||
 		   ergo(rctx->rc_services[M0_CST_MGS] == NULL,
-			cctx->cc_confd_addr != NULL &&
-			*cctx->cc_confd_addr != '\0')) &&
+			cctx->cc_ha_addr != NULL &&
+			*cctx->cc_ha_addr != '\0')) &&
 	       _0C(ergo(rctx->rc_nr_services != 0, rctx->rc_services != NULL &&
 			!cs_eps_tlist_is_empty(&rctx->rc_eps)));
 }
@@ -157,15 +157,24 @@ static bool reqh_context_invariant(const struct m0_reqh_context *rctx)
 	return m0_reqh_context_bob_check(rctx); /* calls reqh_context_check() */
 }
 
-M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero)
+static struct m0_reqh *mero2reqh(struct m0_mero *mero)
 {
-	return m0_reqh_rpc_mach_tlist_head(
-		&mero->cc_reqh_ctx.rc_reqh.rh_rpc_machines);
+  	return &mero->cc_reqh_ctx.rc_reqh;
+}
+
+static struct m0_rconfc *mero2rconfc(struct m0_mero *mero)
+{
+	return &mero2reqh(mero)->rh_rconfc;
 }
 
 M0_INTERNAL struct m0_confc *m0_mero2confc(struct m0_mero *mero)
 {
-	return &mero->cc_reqh_ctx.rc_reqh.rh_confc;
+	return &mero2rconfc(mero)->rc_confc;
+}
+
+M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero)
+{
+	return m0_reqh_rpc_mach_tlist_head(&mero2reqh(mero)->rh_rpc_machines);
 }
 
 /**
@@ -544,6 +553,64 @@ static void cs_rpc_machines_fini(struct m0_reqh *reqh)
 		m0_rpc_machine_fini(rpcmach);
 		m0_free(rpcmach);
 	} m0_tl_endfor;
+}
+
+/**
+ * Establishes rpc session to HA service. The session is set up to be used
+ * globally across all mero modules.
+ */
+static int cs_ha_init(struct m0_mero *cctx)
+{
+	struct m0_rpc_machine *rmach = m0_mero_to_rmach(cctx);
+
+	M0_ENTRY();
+	if (cctx->cc_ha_addr == NULL && cctx->cc_reqh_ctx.rc_confdb != NULL)
+		return M0_RC(0); /*  having no HA is allowed for local conf */
+	return M0_RC(m0_rpc_client_connect(&cctx->cc_ha_conn, &cctx->cc_ha_sess,
+					   rmach, cctx->cc_ha_addr,
+					   2 /*MAX_RPCS_IN_FLIGHT*/) ?:
+		     m0_ha_state_init(&cctx->cc_ha_sess));
+}
+
+/**
+ * When started with local configuration, it is allowed to have no HA endpoint
+ * provided, e.g. in case of bare m0mkfs or confd start. (see @ref cs_ha_init)
+ *
+ * To comply with various assertions in the code, some non-empty string is
+ * required in m0_mero::cc_ha_addr. The FAKE_HA_ADDR serves precisely to the
+ * purpose.
+ */
+static char *FAKE_HA_ADDR = "fake-HA-addr";
+
+static bool bad_address(char *addr)
+{
+	return addr == NULL || addr == FAKE_HA_ADDR || *addr == '\0';
+}
+
+/**
+ * Clears global HA session info and terminates rpc session to HA service.
+ */
+static void cs_ha_fini(struct m0_mero *cctx)
+{
+	int rc;
+
+	M0_ENTRY("client_ctx: %p", cctx);
+	m0_ha_state_fini();
+	M0_PRE(bad_address(cctx->cc_ha_addr) ||
+	       M0_IN(session_state(&cctx->cc_ha_sess), (M0_RPC_SESSION_IDLE,
+							M0_RPC_SESSION_BUSY)));
+	if (bad_address(cctx->cc_ha_addr))
+		goto leave; /* session had no chance to be established */
+	rc = m0_rpc_session_destroy(&cctx->cc_ha_sess,
+				    m0_rpc__down_timeout());
+	if (rc != 0)
+		M0_LOG(M0_ERROR, "Failed to destroy session %d", rc);
+	rc = m0_rpc_conn_destroy(&cctx->cc_ha_conn,
+				 m0_rpc__down_timeout());
+	if (rc != 0)
+		M0_LOG(M0_ERROR, "Failed to destroy connection %d", rc);
+leave:
+	M0_LEAVE();
 }
 
 static uint32_t
@@ -1432,14 +1499,17 @@ static void cs_mero_init(struct m0_mero *cctx)
 	cctx->cc_args.ca_argc_max = 0;
 	cctx->cc_args.ca_argv = NULL;
 	cctx->cc_profile = NULL;
-	cctx->cc_confd_addr = NULL;
+	cctx->cc_ha_addr = NULL;
 }
 
 static void cs_mero_fini(struct m0_mero *cctx)
 {
 	struct cs_endpoint_and_xprt *ep;
 
-	m0_free(cctx->cc_confd_addr);
+	if (cctx->cc_ha_addr == FAKE_HA_ADDR)
+		cctx->cc_ha_addr = NULL;
+
+	m0_free(cctx->cc_ha_addr);
 	m0_free(cctx->cc_profile);
 
 	m0_tl_teardown(cs_eps, &cctx->cc_ios_eps, ep) {
@@ -1492,7 +1562,7 @@ static void cs_help(FILE *out, const char *progname)
 "  -Q num   Minimum length of TM receive queue.\n"
 "  -M num   Maximum RPC message size.\n"
 "  -w num   Pool width.\n"
-"  -C addr  Endpoint address of confd service.\n"
+"  -H addr  Endpoint address of HA service.\n"
 "  -P str   Configuration profile.\n"
 "  -G addr  Endpoint address of mdservice.\n"
 "  -i addr  Add new entry to the list of ioservice endpoint addresses.\n"
@@ -1705,11 +1775,11 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				     "%i", &cctx->cc_recv_queue_min_length),
 			M0_FORMATARG('M', "Maximum RPC message size", "%i",
 				     &cctx->cc_max_rpc_msg_size),
-			M0_STRINGARG('C', "Confd endpoint address",
+			M0_STRINGARG('H', "HA endpoint address",
 				LAMBDA(void, (const char *s)
 				{
-					cctx->cc_confd_addr = m0_strdup(s);
-					M0_ASSERT(cctx->cc_confd_addr != NULL);
+					cctx->cc_ha_addr = m0_strdup(s);
+					M0_ASSERT(cctx->cc_ha_addr != NULL);
 				})),
 			M0_STRINGARG('P', "Configuration profile",
 				LAMBDA(void, (const char *s)
@@ -1912,10 +1982,9 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 static int cs_conf_setup(struct m0_mero *cctx)
 {
 	struct cs_args      *args = &cctx->cc_args;
-	struct m0_reqh      *reqh = &cctx->cc_reqh_ctx.rc_reqh;
+	struct m0_reqh      *reqh = mero2reqh(cctx);
 	struct m0_confc_args conf_args = {
 		.ca_profile = cctx->cc_profile,
-		.ca_confd   = cctx->cc_confd_addr,
 		.ca_rmach   = m0_mero_to_rmach(cctx),
 		.ca_group   = m0_locality0_get()->lo_grp
 	};
@@ -1932,14 +2001,31 @@ static int cs_conf_setup(struct m0_mero *cctx)
 			return M0_ERR(rc);
 	}
 
-	rc = m0_reqh_conf_setup(&cctx->cc_reqh_ctx.rc_reqh, &conf_args) ?:
-		m0_ha_client_add(m0_mero2confc(cctx));
+	/*
+	 * In case local configuration available, it is allowed to have no ha
+	 * session connected, so need to fake ha address in case one was not
+	 * specified. The behaviour is expected to help starting 'HA imitator'
+	 * m0d so far.
+	 */
+	if (cctx->cc_ha_addr == NULL && cctx->cc_reqh_ctx.rc_confdb != NULL)
+		cctx->cc_ha_addr = FAKE_HA_ADDR;
+	conf_args.ca_ha = cctx->cc_ha_addr;
+
+	rc = m0_reqh_conf_setup(reqh, &conf_args);
 	/* confstr is not needed after m0_reqh_conf_setup() */
 	m0_free0(&conf_args.ca_confstr);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
+	rc = m0_rconfc_start_sync(mero2rconfc(cctx));
+	if (rc != 0)
+		goto rconfc_fini;
+
+	rc = m0_ha_client_add(m0_mero2confc(cctx));
+	if (rc != 0)
+		goto conf_destroy;
+
+	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
 		goto ha_client_del;
 
@@ -1962,7 +2048,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	if (rc != 0)
 		goto pools_common_fini;
 	if (cctx->cc_pools_common.pc_md_redundancy > 0)
-		cctx->cc_reqh_ctx.rc_reqh.rh_oostore = true;
+		mero2reqh(cctx)->rh_oostore = true;
 
 	if (!cctx->cc_mkfs)
 		rc = cs_reqh_ctx_services_validate(cctx);
@@ -1975,7 +2061,10 @@ conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
 ha_client_del:
 	m0_ha_client_del(m0_mero2confc(cctx));
-	m0_confc_fini(m0_mero2confc(cctx));
+conf_destroy:
+	m0_rconfc_stop_sync(mero2rconfc(cctx));
+rconfc_fini:
+	m0_rconfc_fini(mero2rconfc(cctx));
 	return M0_ERR(rc);
 }
 
@@ -1983,7 +2072,6 @@ static void cs_conf_destroy(struct m0_mero *cctx)
 {
 	struct m0_confc *confc = m0_mero2confc(cctx);
 
-	m0_ha_client_del(confc);
 	if (confc->cc_group != NULL) {
 		m0_pool_versions_destroy(&cctx->cc_pools_common);
 		m0_pools_service_ctx_destroy(&cctx->cc_pools_common);
@@ -1997,17 +2085,16 @@ static void cs_conf_fini(struct m0_mero *cctx)
 
 	if (confc->cc_group != NULL) {
 		m0_pools_common_fini(&cctx->cc_pools_common);
-		m0_confc_fini(m0_mero2confc(cctx));
+		m0_rconfc_stop_sync(mero2rconfc(cctx));
+		m0_rconfc_fini(mero2rconfc(cctx));
 	}
 }
 
 static int cs_reqh_layouts_setup(struct m0_mero *cctx)
 {
-	if (cctx->cc_profile == NULL && cctx->cc_confd_addr == NULL)
-		return 0;
-	int rc = m0_reqh_layouts_setup(&cctx->cc_reqh_ctx.rc_reqh,
-				       &cctx->cc_pools_common);
-	return M0_RC(rc);
+	return M0_RC(cctx->cc_profile == NULL ? 0 :
+		     m0_reqh_layouts_setup(&cctx->cc_reqh_ctx.rc_reqh,
+					   &cctx->cc_pools_common));
 }
 
 volatile sig_atomic_t gotsignal;
@@ -2045,6 +2132,9 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	rc = sigcheck() || cs_rpc_machines_init(cctx);
 	if (rc != 0)
 		goto out;
+	rc = sigcheck() || cs_ha_init(cctx);
+	if (rc != 0)
+		goto out;
 	rc = sigcheck() || cs_conf_setup(cctx);
 	if (rc != 0)
 		goto out;
@@ -2060,7 +2150,7 @@ out:
 int m0_cs_start(struct m0_mero *cctx)
 {
 	struct m0_reqh_context     *rctx = &cctx->cc_reqh_ctx;
-	struct m0_reqh             *reqh = &cctx->cc_reqh_ctx.rc_reqh;
+	struct m0_reqh             *reqh = mero2reqh(cctx);
 	int                         rc;
 	struct m0_conf_filesystem  *fs;
 
@@ -2074,7 +2164,8 @@ int m0_cs_start(struct m0_mero *cctx)
 	if (cctx->cc_no_conf)
 		return M0_RC(0);
 
-	rc = sigcheck() || m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
+	rc = sigcheck() || m0_conf_fs_get(&reqh->rh_profile,
+					  m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -2086,11 +2177,6 @@ int m0_cs_start(struct m0_mero *cctx)
 						NULL, NULL, NULL);
 	if (rc != 0)
 		goto error;
-
-	rc = sigcheck() || m0_reqh_ha_setup(reqh);
-        if (rc != 0)
-		goto error;
-
         rc = sigcheck() || m0_flset_build(&reqh->rh_failure_set,
 				&reqh->rh_pools->pc_ha_ctx->sc_rlink.rlk_sess,
 				fs);
@@ -2143,8 +2229,11 @@ void m0_cs_fini(struct m0_mero *cctx)
 	if (cctx->cc_pools_common.pc_ha_ctx != NULL)
 		m0_flset_destroy(&reqh->rh_failure_set);
 
+	m0_ha_client_del(m0_mero2confc(cctx));
+
 	if (rctx->rc_state >= RC_REQH_INITIALISED) {
 		cs_conf_destroy(cctx);
+		cs_ha_fini(cctx);
 		cs_reqh_stop(rctx);
 		cs_conf_fini(cctx);
 		cs_rpc_machines_fini(reqh);

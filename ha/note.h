@@ -107,6 +107,7 @@ struct m0_ha_nvec;
 /* foward declaration */
 struct m0_confc;
 struct m0_conf_obj;
+struct m0_fop;
 
 /** Intializes the notification interface. */
 M0_INTERNAL int m0_ha_state_init(struct m0_rpc_session *session);
@@ -312,6 +313,8 @@ M0_INTERNAL void m0_ha_state_accept(const struct m0_ha_nvec *note);
 M0_INTERNAL struct m0_rpc_session *m0_ha_session_get(void);
 
 M0_INTERNAL void m0_conf_ha_callback(struct m0_conf_obj *obj);
+
+M0_INTERNAL int m0_ha_entrypoint_get(struct m0_fop **entrypoint_fop);
 
 /** @} end of ha-note group */
 

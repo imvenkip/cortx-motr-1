@@ -28,6 +28,7 @@
 #include "lib/string.h"     /* m0_strdup */
 #include "sm/sm.h"
 #include "conf/confc.h"
+#include "conf/helpers.h"   /* m0_confc2reqh */
 #include "conf/diter.h"
 #include "conf/obj_ops.h"   /* M0_CONF_DIRNEXT, M0_CONF_DIREND */
 #include "reqh/reqh.h"      /* m0_reqh */
@@ -238,7 +239,7 @@ static void rm_ha_fs_open(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_confc_ctx        *cctx = &sbscr->rhs_cctx;
 	struct m0_reqh             *reqh;
 
-	reqh = container_of(confc, struct m0_reqh, rh_confc);
+	reqh = m0_confc2reqh(confc);
 	m0_confc_ctx_init(cctx, confc);
 	if (!cctx->fc_allowed) {
 		m0_confc_ctx_fini(cctx);
@@ -274,7 +275,7 @@ static int rm_remote_ep_to_rms_obj(struct m0_confc     *confc,
 	M0_PRE(confc != NULL);
 	M0_PRE(rem_ep != NULL);
 
-	reqh = container_of(confc, struct m0_reqh, rh_confc);
+	reqh = m0_confc2reqh(confc);
 	rc = m0_confc_open_sync(&fs, confc->cc_root,
 				M0_CONF_ROOT_PROFILES_FID,
 				reqh->rh_profile,

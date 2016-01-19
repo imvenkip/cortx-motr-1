@@ -1317,7 +1317,6 @@ M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem)
 	 */
 	m0_clink_cleanup(&rem->rem_rev_sess_clink);
 	m0_clink_fini(&rem->rem_rev_sess_clink);
-
 	rem->rem_state = REM_FREED;
 	m0_chan_fini_lock(&rem->rem_signal);
 
@@ -2620,11 +2619,20 @@ static int loan_check(struct m0_rm_owner  *owner,
 	M0_ENTRY("loan check against credit: %llu",
 			(long long unsigned) rest->cr_datum);
 	m0_tl_for (m0_rm_ur, list, cr) {
-		if (!cr->cr_ops->cro_intersects(rest, cr))
-			continue;
-		rc = credit_diff(rest, cr);
-		if (rc != 0 || credit_is_empty(rest))
-			break;
+		/*
+		 * Credits that are granted to the owners from the same group
+		 * never conflicts, so intersecting (or even conflicting)
+		 * credits can be potentially granted to several owners.
+		 * Don't put the credit to cached list until all copies given
+		 * to the owners from the same group are returned back.
+		 */
+		if (cr->cr_ops->cro_intersects(rest, cr) &&
+		    !credit_group_cmp(&rest->cr_group_id, &cr->cr_group_id))
+		{
+			rc = credit_diff(rest, cr);
+			if (rc != 0 || credit_is_empty(rest))
+				break;
+		}
 	} m0_tl_endfor;
 	return M0_RC(rc);
 }

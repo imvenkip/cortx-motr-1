@@ -109,7 +109,7 @@ static void cm_setup_ut(void)
 	int                 rc;
 
 	cm_ut_service_alloc_init();
-	confc = &cm_ut_service->rs_reqh->rh_confc;
+	confc = m0_reqh2confc(cm_ut_service->rs_reqh);
 	rc = m0_file_read(M0_UT_PATH("diter.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
 	locality = m0_locality0_get();

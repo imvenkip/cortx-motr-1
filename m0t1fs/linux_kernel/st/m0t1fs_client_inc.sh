@@ -56,7 +56,7 @@ mount_m0t1fs()
 	echo "Mounting file system..."
 
 	local cmd="sudo mount -t m0t1fs \
-	    -o profile='$PROF_OPT',confd='$CONFD_EP',$mountop \
+	    -o profile='$PROF_OPT',ha='$lnet_nid:$HA_EP',$mountop \
 	    none $m0t1fs_mount_dir"
 	echo $cmd
 	eval $cmd || {

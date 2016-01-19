@@ -930,7 +930,7 @@ static void rm_ctx_creditor_track(enum rm_server srv_id)
 	const char          *rem_ep;
 	int                  rc;
 
-	confc = &rm_ctxs[srv_id].rc_rmach_ctx.rmc_reqh.rh_confc;
+	confc = m0_reqh2confc(&rm_ctxs[srv_id].rc_rmach_ctx.rmc_reqh);
 	rem_ep = m0_rpc_conn_addr(creditor->rem_session->s_conn);
 	rc = m0_rm_ha_subscribe_sync(confc, rem_ep, &creditor->rem_tracker);
 	M0_ASSERT(rc == 0);

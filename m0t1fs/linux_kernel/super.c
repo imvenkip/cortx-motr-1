@@ -205,7 +205,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
  * ---------------------------------------------------------------- */
 
 struct mount_opts {
-	char     *mo_confd;
+	char     *mo_ha;
 	char     *mo_profile;
 	uint32_t  mo_fid_start;
 };
@@ -220,7 +220,7 @@ enum m0t1fs_mntopts {
 };
 
 static const match_table_t m0t1fs_mntopt_tokens = {
-	{ M0T1FS_MNTOPT_CONFD,      "confd=%s"      },
+	{ M0T1FS_MNTOPT_CONFD,      "ha=%s"         },
 	{ M0T1FS_MNTOPT_PROFILE,    "profile=%s"    },
 	{ M0T1FS_MNTOPT_FID_START,  "fid_start=%s"  },
 	{ M0T1FS_MNTOPT_OOSTORE,    "oostore"       },
@@ -235,7 +235,7 @@ static void mount_opts_fini(struct mount_opts *mops)
 
 	/* Here we use kfree() instead of m0_free() because the memory
 	 * was allocated using match_strdup(). */
-	kfree(mops->mo_confd);
+	kfree(mops->mo_ha);
 	kfree(mops->mo_profile);
 	M0_SET0(mops);
 
@@ -277,9 +277,9 @@ static bool is_empty(const char *s)
 
 static int mount_opts_validate(const struct mount_opts *mops)
 {
-	if (is_empty(mops->mo_confd))
+	if (is_empty(mops->mo_ha))
 		return M0_ERR_INFO(-EINVAL,
-				   "Mandatory parameter is missing: confd");
+				   "Mandatory parameter is missing: ha");
 	if (is_empty(mops->mo_profile))
 		return M0_ERR_INFO(-EINVAL,
 				   "Mandatory parameter is missing: profile");
@@ -311,10 +311,10 @@ static int mount_opts_parse(struct m0t1fs_sb *csb, char *options,
 	while ((op = strsep(&options, ",")) != NULL && *op != '\0') {
 		switch (match_token(op, m0t1fs_mntopt_tokens, args)) {
 		case M0T1FS_MNTOPT_CONFD:
-			rc = str_parse(&dest->mo_confd, args);
+			rc = str_parse(&dest->mo_ha, args);
 			if (rc != 0)
 				goto out;
-			M0_LOG(M0_INFO, "confd: %s", dest->mo_confd);
+			M0_LOG(M0_INFO, "HA: %s", dest->mo_ha);
 			break;
 
 		case M0T1FS_MNTOPT_PROFILE:
@@ -385,6 +385,54 @@ M0_INTERNAL void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 	m0_sm_group_fini(&csb->csb_iogroup);
 	m0_mutex_fini(&csb->csb_mutex);
 	csb->csb_next_key = 0;
+	M0_LEAVE();
+}
+
+/* ----------------------------------------------------------------
+ * HA service connectivity
+ * ---------------------------------------------------------------- */
+
+/**
+ * Establishes rpc session to HA service. The session is set up to be used
+ * globally.
+ */
+static int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
+{
+	struct m0_rpc_machine *rmach   = &csb->csb_rpc_machine;
+	struct m0_rpc_session *ha_sess = &csb->csb_ha_sess;
+	struct m0_rpc_conn    *ha_conn = &csb->csb_ha_conn;
+	int                    rc;
+
+	M0_ENTRY();
+	rc = m0_rpc_client_connect(ha_conn, ha_sess, rmach, ha_addr,
+				   2 /*MAX_RPCS_IN_FLIGHT*/);
+	if (rc != 0)
+		return M0_ERR(rc);
+	return M0_RC(m0_ha_state_init(ha_sess));
+}
+
+/**
+ * Clears global HA session info and terminates rpc session to HA service.
+ */
+static void m0t1fs_ha_fini(struct m0t1fs_sb *csb)
+{
+	struct m0_rpc_session *ha_sess = &csb->csb_ha_sess;
+	struct m0_rpc_conn    *ha_conn = &csb->csb_ha_conn;
+	int                    rc;
+
+	M0_ENTRY("csb: %p", csb);
+	m0_ha_state_fini();
+	M0_PRE(M0_IN(session_state(ha_sess), (M0_RPC_SESSION_IDLE,
+					      M0_RPC_SESSION_BUSY)));
+	if (session_state(ha_sess) == M0_RPC_SESSION_INITIALISED)
+		goto leave; /* session was not established */
+	rc = m0_rpc_session_destroy(ha_sess, m0_rpc__down_timeout());
+	if (rc != 0)
+		M0_LOG(M0_ERROR, "Failed to destroy session %d", rc);
+	rc = m0_rpc_conn_destroy(ha_conn, m0_rpc__down_timeout());
+	if (rc != 0)
+		M0_LOG(M0_ERROR, "Failed to destroy connection %d", rc);
+leave:
 	M0_LEAVE();
 }
 
@@ -550,6 +598,16 @@ struct m0t1fs_sb *reqh2sb(struct m0_reqh *reqh)
 	return container_of(reqh, struct m0t1fs_sb, csb_reqh);
 }
 
+static struct m0_rconfc *csb2rconfc(struct m0t1fs_sb *csb)
+{
+	return &csb->csb_reqh.rh_rconfc;
+}
+
+M0_INTERNAL struct m0_confc *m0_csb2confc(struct m0t1fs_sb *csb)
+{
+	return &csb2rconfc(csb)->rc_confc;
+}
+
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 {
 	M0_ENTRY();
@@ -572,7 +630,7 @@ int m0t1fs_pool_find(struct m0t1fs_sb *csb)
 	struct m0_pool      *pool;
 	int                  rc;
 
-	rc = m0_conf_poolversion_get(&reqh->rh_profile, &reqh->rh_confc,
+	rc = m0_conf_poolversion_get(&reqh->rh_profile, m0_reqh2confc(reqh),
 				     &reqh->rh_failure_set, &pver);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -610,19 +668,30 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	confc_args = &(struct m0_confc_args){
 		.ca_profile = mops->mo_profile,
-		.ca_confd   = mops->mo_confd,
+		.ca_ha      = mops->mo_ha,
 		.ca_rmach   = &csb->csb_rpc_machine,
 		.ca_group   = &csb->csb_iogroup,
 	};
 
-	rc = m0_reqh_conf_setup(reqh, confc_args) ?:
-		m0_ha_client_add(&reqh->rh_confc);
+	rc = m0t1fs_ha_init(csb, mops->mo_ha);
 	if (rc != 0)
 		goto err_rpc_fini;
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
+	rc = m0_reqh_conf_setup(reqh, confc_args);
 	if (rc != 0)
-		goto err_conf_fini;
+		goto err_ha_fini;
+
+	rc = m0_rconfc_start_sync(csb2rconfc(csb));
+	if (rc != 0)
+		goto err_rconfc_fini;
+
+	rc = m0_ha_client_add(m0_reqh2confc(reqh));
+	if (rc != 0)
+		goto err_rconfc_stop;
+
+	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	if (rc != 0)
+		goto err_ha_client_del;
 
 	rc = m0_conf_full_load(fs);
 	if (rc != 0)
@@ -644,10 +713,6 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0_pool_versions_setup(pc, fs, NULL, NULL, NULL);
 	if (rc != 0)
 		goto err_pools_service_ctx_destroy;
-
-	rc = m0_reqh_ha_setup(reqh);
-	if (rc != 0)
-		goto err_pool_versions_destroy;
 
 	rc = m0_flset_build(&reqh->rh_failure_set,
 			    &reqh->rh_pools->pc_ha_ctx->sc_rlink.rlk_sess, fs);
@@ -681,7 +746,6 @@ err_failure_set_destroy:
 	m0_flset_destroy(&reqh->rh_failure_set);
 err_ha_destroy:
 	m0_ha_state_fini();
-err_pool_versions_destroy:
 	m0_pool_versions_destroy(&csb->csb_pools_common);
 err_pools_service_ctx_destroy:
 	m0_pools_service_ctx_destroy(&csb->csb_pools_common);
@@ -691,9 +755,14 @@ err_pools_common_fini:
 	m0_pools_common_fini(&csb->csb_pools_common);
 err_conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
-err_conf_fini:
-	m0_ha_client_del(&reqh->rh_confc);
-	m0_confc_fini(&reqh->rh_confc);
+err_ha_client_del:
+	m0_ha_client_del(m0_reqh2confc(reqh));
+err_rconfc_stop:
+	m0_rconfc_stop_sync(csb2rconfc(csb));
+err_rconfc_fini:
+	m0_rconfc_fini(csb2rconfc(csb));
+err_ha_fini:
+	m0t1fs_ha_fini(csb);
 err_rpc_fini:
 	m0t1fs_rpc_fini(csb);
 err_net_fini:
@@ -712,9 +781,11 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_pools_service_ctx_destroy(&csb->csb_pools_common);
 	m0_pools_destroy(&csb->csb_pools_common);
 	m0_pools_common_fini(&csb->csb_pools_common);
-	m0_ha_client_del(&csb->csb_reqh.rh_confc);
-	m0_confc_fini(&csb->csb_reqh.rh_confc);
+	m0_ha_client_del(m0_reqh2confc(&csb->csb_reqh));
+	m0_rconfc_stop_sync(csb2rconfc(csb));
+	m0_rconfc_fini(csb2rconfc(csb));
 	m0_reqh_services_terminate(&csb->csb_reqh);
+	m0t1fs_ha_fini(csb);
 	m0t1fs_rpc_fini(csb);
 	m0t1fs_net_fini(csb);
 }
@@ -770,7 +841,7 @@ M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
                         S_IRGRP | S_IXGRP |                    /*r-x for group*/
                         S_IROTH | S_IXOTH);
 
-	if (m0_conf_is_pool_version_dirty(&csb->csb_reqh.rh_confc,
+	if (m0_conf_is_pool_version_dirty(m0_csb2confc(csb),
 					  &csb->csb_pool_version->pv_id))
 		rc = m0t1fs_pool_find(csb);
 	if (rc != 0)

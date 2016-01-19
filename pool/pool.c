@@ -25,6 +25,7 @@
 #include "lib/misc.h"
 #include "lib/assert.h"
 #include "lib/hash.h"      /* m0_hash */
+#include "lib/string.h"    /* m0_streq */
 #include "conf/confc.h"    /* m0_confc_from_obj */
 #include "conf/schema.h"   /* M0_CST_IOS, M0_CST_MDS */
 #include "conf/diter.h"    /* m0_conf_diter_next_sync */
@@ -706,6 +707,69 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	return M0_RC(rc);
 }
 
+static bool is_local_rms(const struct m0_conf_obj *obj)
+{
+	const char                   *lep;
+	const struct m0_conf_service *svc;
+	const struct m0_conf_process *p;
+	struct m0_rpc_machine        *rm;
+	struct m0_reqh               *reqh;
+
+	if (m0_conf_obj_type(obj) != &M0_CONF_SERVICE_TYPE)
+		return false;
+	svc = M0_CONF_CAST(obj, m0_conf_service);
+	if (svc->cs_type != M0_CST_RMS)
+		return false;
+	p = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
+			 m0_conf_process);
+	reqh = m0_conf_obj2reqh(obj);
+	rm = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
+	lep = m0_rpc_machine_ep(rm);
+	M0_LOG(M0_DEBUG, "lep: %s svc ep: %s type:%d process:"FID_F"service:"
+			 FID_F, lep,
+			 p->pc_endpoint, svc->cs_type,
+			 FID_P(&p->pc_obj.co_id),
+			 FID_P(&svc->cs_obj.co_id));
+	return m0_streq(lep, p->pc_endpoint);
+}
+
+static int active_rms_fid_copy(struct m0_pools_common *pc,
+			       struct m0_fid          *active_rm)
+{
+	struct m0_rconfc *rconfc;
+	struct m0_fop    *entry;
+	int               rc = 0;
+
+	rconfc = container_of(pc->pc_confc, struct m0_rconfc, rc_confc);
+	/*
+	 * Connect to RM service returned by HA on entrypoint.
+	 * HA is responsible to keep active RM service and
+	 * consistency of RMS states  across the entire cluster
+	 * by supporting not more than one active RM at a time.
+	 */
+	if (!m0_rconfc_is_preloaded(rconfc)) {
+		m0_rconfc_rm_fid(rconfc, active_rm);
+	} else if (m0_ha_session_get() != NULL) {
+		/*
+		 * rconfc may be pre-loaded, but HA session still exist anyway,
+		 * so real RMS fid remains discoverable via entrypoint request
+		 */
+		rc = m0_ha_entrypoint_get(&entry);
+		if (rc == 0) {
+			struct m0_rpc_item *rep = entry->f_item.ri_reply;
+			struct m0_ha_entrypoint_rep *epr;
+
+			epr = m0_fop_data(m0_rpc_item_to_fop(rep));
+			*active_rm = epr->hbp_active_rm_fid;
+			/* dismiss entry fop */
+			m0_free(m0_fop_data(entry));
+			entry->f_data.fd_data = NULL;
+			m0_fop_put_lock(entry);
+		}
+	}
+	return M0_RC(rc);
+}
+
 /**
  * @todo : This needs to be converted to process (m0d) context since
  *         it connects to specific process endpoint.
@@ -717,9 +781,27 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 	struct m0_conf_diter    it;
 	struct m0_conf_service *s;
 	struct m0_conf_obj     *obj;
+	struct m0_fid           active_rm = M0_FID0;
 	int                     rc;
 
 	M0_ENTRY();
+
+	rc = active_rms_fid_copy(pc, &active_rm);
+	if (rc != 0)
+		return M0_ERR(rc);
+	/*
+	 * Please note, zero may be returned here in rc even with active rm not
+	 * found. Non-zero code is to indicate an error occurred in the course
+	 * of calling m0_ha_entrypoint_get(), but not a failure in finding the
+	 * fid itself. In this situation a fallback is taking local rms for the
+	 * purpose of context creation (see conf iteration below).
+	 */
+	if (m0_fid_is_set(&active_rm)) {
+		rc = m0_conf_service_get(pc->pc_confc, &active_rm, &s) ? :
+			__service_ctx_create(pc, s, service_connect);
+		if (rc != 0)
+			return M0_ERR(rc);
+	}
 
 	rc = m0_conf_diter_init(&it, pc->pc_confc, &fs->cf_obj,
 				M0_CONF_FILESYSTEM_NODES_FID,
@@ -741,12 +823,17 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 		 * Connection to confd is managed by configuration client.
 		 * confd is already connected in m0_confc_init() to the
 		 * endpoint provided by the command line argument -C.
+		 *
+		 * Connection to RMS is skipped here except local RMS
+		 * if local configuration preloaded. Nodes will only
+		 * use RM services returned by HA entrypoint.
 		 */
-		if (s->cs_type == M0_CST_MGS)
-			continue;
-		rc = __service_ctx_create(pc, s, service_connect);
-		if (rc != 0)
-			break;
+		if ((!m0_fid_is_set(&active_rm) && is_local_rms(obj)) ||
+		    (s->cs_type != M0_CST_MGS && s->cs_type != M0_CST_RMS)) {
+			rc = __service_ctx_create(pc, s, service_connect);
+				if (rc != 0)
+					break;
+		}
 	}
 
 	m0_conf_diter_fini(&it);
@@ -807,7 +894,8 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 					    struct m0_conf_filesystem *fs)
 {
-	int rc;
+	int               rc;
+	struct m0_rconfc *rconfc;
 
 	M0_ENTRY();
 	M0_PRE(pc != NULL && fs != NULL);
@@ -822,9 +910,11 @@ M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 	if (rc != 0)
 		goto err;
 
+        rconfc = container_of(pc->pc_confc, struct m0_rconfc, rc_confc);
 	pc->pc_rm_ctx = service_ctx_find_by_type(pc, M0_CST_RMS);
 	pc->pc_ha_ctx = service_ctx_find_by_type(pc, M0_CST_HA);
-	if (pc->pc_rm_ctx == NULL || pc->pc_ha_ctx == NULL) {
+	if (pc->pc_ha_ctx == NULL ||
+	    (!m0_rconfc_is_preloaded(rconfc) && pc->pc_rm_ctx == NULL)) {
 		rc = M0_ERR_INFO(-ENOENT, "The mandatory %s service is missing."
 				 "Make sure this is specified in the conf db.",
 				 pc->pc_rm_ctx == NULL ? "RM" : "HA");

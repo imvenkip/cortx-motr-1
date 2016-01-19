@@ -368,6 +368,22 @@ M0_INTERNAL int m0_conf_service_open(struct m0_confc            *confc,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL bool m0_conf_service_is_top_rms(const struct m0_conf_service *svc)
+{
+	struct m0_conf_service *confd = NULL;
+	struct m0_confc        *confc = m0_confc_from_obj(&svc->cs_obj);
+	struct m0_reqh         *reqh = m0_confc2reqh(confc);
+
+	M0_PRE(svc != NULL);
+	M0_PRE(svc->cs_type == M0_CST_RMS);
+
+	/* look up for confd on the same endpoint */
+	m0_conf_service_open(confc, &reqh->rh_profile, svc->cs_endpoints[0],
+			     M0_CST_MGS, &confd);
+	m0_confc_close(&confd->cs_obj);
+	return confd != NULL;
+}
+
 static const char *service_name[] = {
 	[0]              = NULL,           /* unused, enum declarations start
 					    *  from 1
@@ -398,12 +414,18 @@ static struct m0_confc *conf_obj2confc(const struct m0_conf_obj *obj)
 	return container_of(obj->co_cache, struct m0_confc, cc_cache);
 }
 
-M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj)
+M0_INTERNAL struct m0_reqh *m0_confc2reqh(const struct m0_confc *confc)
 {
-	struct m0_confc *confc = conf_obj2confc(obj);
+	struct m0_rconfc *rconfc;
 
 	M0_PRE(confc != NULL);
-	return container_of(confc, struct m0_reqh, rh_confc);
+	rconfc = container_of(confc, struct m0_rconfc, rc_confc);
+	return container_of(rconfc, struct m0_reqh, rh_rconfc);
+}
+
+M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj)
+{
+	return m0_confc2reqh(conf_obj2confc(obj));
 }
 
 M0_INTERNAL bool m0_conf_is_pool_version_dirty(struct m0_confc     *confc,

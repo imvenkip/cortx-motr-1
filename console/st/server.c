@@ -66,7 +66,7 @@ int main(int argc, char **argv)
 	char    *server_argv[] = {
 		argv[0], "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
-		"-w", "10", "-e", ENDPOINT,
+		"-w", "10", "-e", ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
 		"-c", M0_UT_PATH("diter.xc"), "-P", M0_UT_CONF_PROFILE
 		"-q", tm_len, "-m", rpc_size
 	};

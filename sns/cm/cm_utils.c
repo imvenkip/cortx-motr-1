@@ -366,7 +366,7 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
 					 const struct m0_fid *cob_fid)
 {
 	struct m0_reqh         *reqh   = cm->cm_service.rs_reqh;
-	struct m0_confc        *confc  = &reqh->rh_confc;
+	struct m0_confc        *confc  = m0_reqh2confc(reqh);
 	struct m0_fid           svc_fid;
 	struct m0_conf_service *svc;
 	uint32_t                index;

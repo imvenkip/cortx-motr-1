@@ -117,7 +117,7 @@ static int ha_state_get_fom_tick(struct m0_fom *fom)
 {
 	struct m0_ha_nvec      *req_fop;
 	struct m0_ha_state_fop *rep_fop;
-	struct m0_confc        *confc = &m0_fom2reqh(fom)->rh_confc;
+	struct m0_confc        *confc = m0_reqh2confc(m0_fom2reqh(fom));
 
 	req_fop = m0_fop_data(fom->fo_fop);
 	rep_fop = m0_fop_data(fom->fo_rep_fop);
@@ -257,7 +257,7 @@ static int ha_entrypoint_active_rm_fill(struct m0_confc             *confc,
 					    _online_service_filter)) > 0) {
 		obj = m0_conf_diter_result(&it);
 		s = M0_CONF_CAST(obj, m0_conf_service);
-		if (s->cs_type == M0_CST_RMS) {
+		if (s->cs_type == M0_CST_RMS && m0_conf_service_is_top_rms(s)) {
 			rep_fop->hbp_active_rm_fid = s->cs_obj.co_id;
 			rm_ep = m0_strdup(s->cs_endpoints[0]);
 			rep_fop->hbp_active_rm_ep =  M0_BUF_INITS(rm_ep);
@@ -279,7 +279,7 @@ static int ha_entrypoint_get_fom_tick(struct m0_fom *fom)
 {
 	struct m0_ha_entrypoint_rep *rep_fop;
 	struct m0_reqh              *reqh = m0_fom_reqh(fom);
-	struct m0_confc             *confc = &reqh->rh_confc;
+	struct m0_confc             *confc = m0_reqh2confc(reqh);
 	struct m0_fid               *profile = &reqh->rh_profile;
 
 	rep_fop = m0_fop_data(fom->fo_rep_fop);

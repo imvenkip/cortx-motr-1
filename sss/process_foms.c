@@ -476,7 +476,7 @@ static int ss_process_reconfig_data_get(struct m0_fom *fom)
 	req = m0_ss_fop_process_req(fom->fo_fop);
 	reqh = m0_fom_reqh(fom);
 
-	m0_confc_ctx_init(&pfom->spm_confc_ctx, &reqh->rh_confc);
+	m0_confc_ctx_init(&pfom->spm_confc_ctx, m0_reqh2confc(reqh));
 	if (!pfom->spm_confc_ctx.fc_allowed) {
 		m0_confc_ctx_fini(&pfom->spm_confc_ctx);
 		return M0_ERR(-ENODEV);

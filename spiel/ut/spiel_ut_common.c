@@ -102,7 +102,7 @@ M0_INTERNAL void m0_spiel__ut_reqh_fini(struct m0_spiel_ut_reqh *spl_reqh)
 }
 
 M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
-					      const char          *confd_ep,
+					      const char          *ha_ep,
 					      const char          *confdb_path)
 {
 	enum {
@@ -116,17 +116,16 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 	char                max_rpc_size[RPC_SIZE_MAX_LEN];
 	struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 
-	snprintf(full_ep, EP_MAX_LEN, "lnet:%s", confd_ep);
+	snprintf(full_ep, EP_MAX_LEN, "lnet:%s", ha_ep);
 	snprintf(max_rpc_size, RPC_SIZE_MAX_LEN,
 		 "%d", M0_RPC_DEF_MAX_RPC_MSG_SIZE);
 
 #define NAME(ext) "ut_spiel" ext
 	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
-		"-A", "linuxstob:"NAME("-addb_stob"), "-w", "10", "-e", full_ep,
-		"-f", "<0x7200000000000002:1>",
-		"-m", max_rpc_size,
-		"-G", full_ep,
+		"-A", "linuxstob:"NAME("-addb_stob"), "-w", "10",
+		"-e", full_ep, "-H", (char *)ha_ep, "-f", "<0x7200000000000002:1>",
+		"-m", max_rpc_size, "-G", full_ep,
 		"-c", (char *)confdb_path, "-P", M0_UT_CONF_PROFILE
 	};
 #undef NAME
@@ -138,7 +137,7 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 	rpc_srv->rsx_argv     = argv;
 	/* if !run_io_srv then remove last row of argv array */
 	rpc_srv->rsx_argc     = ARRAY_SIZE(argv);
-	snprintf(log_name, LOG_NAME_MAX_LEN, "confd_%s.log", confd_ep);
+	snprintf(log_name, LOG_NAME_MAX_LEN, "confd_%s.log", ha_ep);
 	rpc_srv->rsx_log_file_name = log_name;
 
 	return m0_rpc_server_start(rpc_srv);

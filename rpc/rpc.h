@@ -148,6 +148,8 @@ M0_INTERNAL m0_bcount_t m0_rpc_max_msg_size(struct m0_net_domain *ndom,
 M0_INTERNAL uint32_t m0_rpc_max_recv_msgs(struct m0_net_domain *ndom,
 					  m0_bcount_t rpc_size);
 
+M0_INTERNAL m0_time_t m0_rpc__down_timeout(void);
+
 /** @} end group rpc */
 
 #endif /* __MERO_RPC_RPCCORE_H__  */

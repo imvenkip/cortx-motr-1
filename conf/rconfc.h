@@ -328,6 +328,15 @@ struct m0_rconfc {
 	 *            way of its initialisation.
 	 */
 	struct m0_confc           rc_phony;
+	/**
+	 * Local configuration database string to be passed to rc_confc during
+	 * its initialisation. Initially NULL-ed it can be set prior to running
+	 * m0_rconfc_start(). Being set it indicates that rconfc is to be
+	 * running mode compatible with confd, i.e. having cache pre-loaded.
+	 *
+	 * @see m0_rconfc_is_preloaded()
+	 */
+	char                     *rc_local_conf;
 };
 
 /**
@@ -370,6 +379,13 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
  * @note Even with unsuccessful startup rconfc instance requires for
  * explicit m0_rconfc_stop(). The behavior is to provide an ability to call
  * m0_rconfc_ver_max_read() even after unsuccessful version election.
+ *
+ * When m0_rconfc::rc_local_conf is not NULL during start, m0_rconfc::rc_confc
+ * is pre-loaded from the local configuration string. Such rconfc instance does
+ * not participate in standard rconfc activity like holding read lock, version
+ * election etc., and being pre-loaded it can only be stopped and finalised.
+ *
+ * @see m0_rconfc_is_preloaded()
  */
 M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc);
 
@@ -410,6 +426,8 @@ M0_INTERNAL void m0_rconfc_unlock(struct m0_rconfc *rconfc);
  *
  * @note Supposed to be called internally, e.g. by spiel during transaction
  * opening.
+ *
+ * @pre rconfc_state(rconfc) != RCS_INIT
  */
 M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc);
 
@@ -438,6 +456,8 @@ M0_INTERNAL void m0_rconfc_drained_cb_set(struct m0_rconfc       *rconfc,
  * Allocates and fills eps with confd endpoints from m0_rconfc::rc_herd list.
  * Returns number of endpoints or -ENOMEM if memory allocation was failed during
  * duplication of an endpoint.
+ *
+ * @pre rconfc_state(rconfc) != RCS_INIT
  */
 M0_INTERNAL int m0_rconfc_confd_endpoints(struct m0_rconfc   *rconfc,
 					  const char       ***eps);
@@ -446,8 +466,32 @@ M0_INTERNAL int m0_rconfc_confd_endpoints(struct m0_rconfc   *rconfc,
  * Allocates and fills ep with RM endpoint from
  * m0_rconfc::rc_rlock_ctx::rlc_rm_addr. Returns 0 if success or -ENOMEM if
  * memory allocation was failed during duplication of the endpoint.
+ *
+ * @pre rconfc_state(rconfc) != RCS_INIT
  */
 M0_INTERNAL int m0_rconfc_rm_endpoint(struct m0_rconfc *rconfc, char **ep);
+
+/**
+ * Returns the fid of active RM obtained by entrypoint request to HA.
+ *
+ * @pre rconfc_state(rconfc) != RCS_INIT
+ */
+M0_INTERNAL void m0_rconfc_rm_fid(struct m0_rconfc *rconfc, struct m0_fid *out);
+
+/**
+ * When running 'pre-loaded' mode no communication with a herd of confd
+ * instances, reaching quorum, getting read lock, blocking read context, etc. is
+ * supposed on such rconfc instance. In this case it just shells the pre-filled
+ * rc_confc while having all event mechanisms disabled. In this case rconfc
+ * remains to be in RCS_INIT state.
+ *
+ * @note Due to being in RCS_INIT state calling m0_rconfc_ver_max_read(),
+ * m0_rconfc_rm_endpoint() and m0_rconfc_confd_endpoints() makes no sense with
+ * such rconfc, and therefore, prohibited. Rconfc starting and stopping under
+ * the circumstances causes no effect on the internal state machine, which
+ * remains in RCS_INIT state during all its life.
+ */
+M0_INTERNAL bool m0_rconfc_is_preloaded(struct m0_rconfc *rconfc);
 
 /** @} rconfc_dfspec */
 #endif /* __MERO_CONF_RCONFC_H__ */

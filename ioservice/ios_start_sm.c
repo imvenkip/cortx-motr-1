@@ -521,7 +521,7 @@ static bool ios_start_ast_conf_fs_get_cb(struct m0_clink *cl)
 
 static int ios_start_fs_obj_open(struct m0_ios_start_sm *ios_sm)
 {
-	struct m0_confc *confc = &ios_sm->ism_reqh->rh_confc;
+	struct m0_confc *confc = m0_reqh2confc(ios_sm->ism_reqh);
 
 	M0_ENTRY();
 	m0_confc_ctx_init(&ios_sm->ism_confc_ctx, confc);
@@ -788,7 +788,7 @@ static void ios_start_conf_sdev_init(struct m0_ios_start_sm *ios_sm)
 
 	m0_fids_tlist_init(&ios_sm->ism_sdevs_fid);
 
-	confc = &ios_sm->ism_reqh->rh_confc;
+	confc = m0_reqh2confc(ios_sm->ism_reqh);
 	rc = m0_conf_diter_init(&ios_sm->ism_it, confc, ios_sm->ism_fs_obj,
 				M0_CONF_FILESYSTEM_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
@@ -814,7 +814,7 @@ static void ios_start_conf_iter_init(struct m0_ios_start_sm  *ios_sm,
 	struct m0_confc *confc;
 	int              rc;
 
-	confc = &ios_sm->ism_reqh->rh_confc;
+	confc = m0_reqh2confc(ios_sm->ism_reqh);
 	rc = m0_conf_diter_init(&ios_sm->ism_it, confc, ios_sm->ism_fs_obj,
 				M0_CONF_FILESYSTEM_RACKS_FID,
 				M0_CONF_RACK_ENCLS_FID,

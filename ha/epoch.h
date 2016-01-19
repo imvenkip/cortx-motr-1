@@ -213,6 +213,8 @@ M0_INTERNAL void m0_ha_global_fini(void);
  * In its turn, HA is to apply recieved HA notifications to every registered
  * confc instance. (see m0_ha_state_accept() implementation)
  *
+ * @pre confc->cc_cache.ca_lock != NULL
+ *
  * @note Any client is allowed to register any confc instance that suits
  * client's needs in HA subscriptions, taking no care about the instance
  * origins, i.e. no matter if the instance were already registered previously by

@@ -280,7 +280,8 @@ static void sss_device_fom_switch(struct m0_fom *fom)
 static int sss_confc_ctx_init(struct m0_sss_dfom *dfom)
 {
 	struct m0_confc_ctx *ctx = &dfom->ssm_confc_ctx;
-	struct m0_confc     *confc = &m0_fom_reqh(&dfom->ssm_fom)->rh_confc;
+	struct m0_confc     *confc =
+		m0_reqh2confc(m0_fom_reqh(&dfom->ssm_fom));
 
 	m0_confc_ctx_init(ctx, confc);
 	if (!ctx->fc_allowed) {
@@ -342,7 +343,7 @@ static int sss_device_fom_disk_opened(struct m0_fom *fom)
 	struct m0_sss_dfom  *dfom = container_of(fom, struct m0_sss_dfom,
 						 ssm_fom);
 	struct m0_confc_ctx *ctx = &dfom->ssm_confc_ctx;
-	struct m0_confc     *confc = &m0_fom_reqh(fom)->rh_confc;
+	struct m0_confc     *confc = m0_reqh2confc(m0_fom_reqh(fom));
 	int                  rc;
 
 	M0_ENTRY();
@@ -438,7 +439,7 @@ static int sss_device_fom_fs_info_use(struct m0_sss_dfom  *dfom,
 static int sss_device_fom_sdev_iter_init(struct m0_sss_dfom *dfom,
 					 struct m0_conf_obj *fs_obj)
 {
-	struct m0_confc *confc = &m0_fom_reqh(&dfom->ssm_fom)->rh_confc;
+	struct m0_confc *confc = m0_reqh2confc(m0_fom_reqh(&dfom->ssm_fom));
 	int              rc;
 
 	rc = m0_conf_diter_init(&dfom->ssm_it, confc, fs_obj,
@@ -545,7 +546,7 @@ static int sss_device_stob_detach(struct m0_fom *fom)
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
 	struct m0_storage_dev  *dev;
 	int                     rc;
-	struct m0_confc        *confc = &m0_fom_reqh(fom)->rh_confc;
+	struct m0_confc        *confc = m0_reqh2confc(m0_fom_reqh(fom));
 	struct m0_conf_sdev    *sdev;
 
 	M0_ENTRY();
@@ -584,7 +585,7 @@ static int sss_device_format(struct m0_fom *fom)
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
 	struct m0_storage_dev  *dev;
 	int                     rc;
-	struct m0_confc        *confc = &m0_fom_reqh(fom)->rh_confc;
+	struct m0_confc        *confc = m0_reqh2confc(m0_fom_reqh(fom));
 	struct m0_conf_sdev    *sdev;
 
 	M0_ENTRY();

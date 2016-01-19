@@ -259,7 +259,6 @@ static void test_cp_multi_thread(void)
 static int cm_cp_init(void)
 {
 	int                 rc;
-	struct m0_confc    *confc;
 	struct m0_locality *locality;
 	char               *confstr = NULL;
 
@@ -271,12 +270,12 @@ static int cm_cp_init(void)
 	rc = m0_cm_type_register(&cm_ut_cmt);
 	M0_ASSERT(rc == 0);
 	cm_ut_service_alloc_init();
-	confc = &cm_ut_service->rs_reqh->rh_confc;
 
 	rc = m0_file_read(M0_UT_PATH("diter.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
 	locality = m0_locality0_get();
-	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, confstr);
+	rc = m0_confc_init(m0_reqh2confc(cm_ut_service->rs_reqh),
+			   locality->lo_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
 	m0_free0(&confstr);
 
@@ -293,13 +292,12 @@ static int cm_cp_init(void)
 /* Finalises the request handler. */
 static int cm_cp_fini(void)
 {
-	struct m0_reqh     *reqh = cm_ut_service->rs_reqh;
-	struct m0_confc    *confc = &reqh->rh_confc;
+	struct m0_reqh *reqh = cm_ut_service->rs_reqh;
 
 	cm_ut_service_cleanup();
 	m0_cm_type_deregister(&cm_ut_cmt);
 	m0_ut_rpc_mach_fini(&cmut_rmach_ctx);
-	m0_confc_fini(confc);
+	m0_confc_fini(m0_reqh2confc(reqh));
 	return 0;
 }
 

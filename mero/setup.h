@@ -417,7 +417,10 @@ struct m0_mero {
 	uint32_t                    cc_pool_width;
 
 	char                       *cc_profile;
-	char                       *cc_confd_addr;
+
+	char                       *cc_ha_addr; /**< HA endpoint address     */
+	struct m0_rpc_session       cc_ha_sess; /**< global HA session       */
+	struct m0_rpc_conn          cc_ha_conn; /**< rpc conn for HA session */
 
 	/** Run as a daemon? */
 	bool                        cc_daemon;

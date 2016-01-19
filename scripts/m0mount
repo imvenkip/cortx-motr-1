@@ -605,7 +605,7 @@ $XPT_SETUP -f $proc_fid" > ${SLOG}-confd.log &
 
 		DIR=$WORK_ARENA/ha
 		if [ $run_mkfs -eq 1 ]; then
-			mkfs $DIR "-T linux" "-C $CONFD_EP" "-e $XPT:$HA_EP" || return 1
+			mkfs $DIR "-T linux" "-c $CONF_FILE" "-e $XPT:$HA_EP" || return 1
 		fi
 		echo Running m0d...
 		$RUN "cd $DIR && \
@@ -613,7 +613,7 @@ M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
 M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
--w $POOL_WIDTH -e $XPT:$HA_EP -P '$PROF_OPT' -C $CONFD_EP \
+-w $POOL_WIDTH -e $XPT:$HA_EP -P '$PROF_OPT' -c $CONF_FILE \
 $XPT_SETUP -f $proc_fid" >> ${SLOG}-ha.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start m0d on $H
@@ -623,7 +623,7 @@ $XPT_SETUP -f $proc_fid" >> ${SLOG}-ha.log &
 
 		DIR=$WORK_ARENA/mds
 		if [ $run_mkfs -eq 1 ]; then
-			mkfs "$DIR" "-T linux" "-C $CONFD_EP" "-e $XPT:$MDS_EP" || return 1
+			mkfs "$DIR" "-T linux" "-c $CONF_FILE" "-e $XPT:$MDS_EP" || return 1
 		fi
 		echo Running m0d...
 		$RUN "cd $DIR && \
@@ -631,7 +631,7 @@ M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
 M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
--w $POOL_WIDTH -e $XPT:$MDS_EP -P '$PROF_OPT' -C $CONFD_EP \
+-w $POOL_WIDTH -e $XPT:$MDS_EP -P '$PROF_OPT' -H $HA_EP -c $CONF_FILE \
 $XPT_SETUP -f $proc_fid" >> ${SLOG}-mds.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start m0d on $H
@@ -639,10 +639,10 @@ $XPT_SETUP -f $proc_fid" >> ${SLOG}-mds.log &
 		fi
 		sleep 2
 	fi
-	SNAME+=" -P '$PROF_OPT' -C $CONFD_EP -f $proc_fid"
+	SNAME+=" -P '$PROF_OPT' -H $HA_EP -f $proc_fid"
 
 	if [ $run_mkfs -eq 1 ]; then
-		mkfs "$DDIR" "$STOB_PARAMS" "-C $CONFD_EP" "-e $XPT:$EP" || return 1
+		mkfs "$DDIR" "$STOB_PARAMS" "-H $HA_EP" "-e $XPT:$EP" || return 1
 	fi
 	echo Running m0d...
 	$RUN "cd $DDIR && \
@@ -787,8 +787,9 @@ function pstop_servers()
 
 function stop_servers()
 {
-	pstop_servers "m0d.*-C"
-	pstop_servers "m0d.*-c"
+	pstop_servers "m0d.*/d0"
+	pstop_servers "m0d.*/confd"
+	pstop_servers "m0d.*/mds"
 	pstop_servers m0d
 }
 
@@ -909,7 +910,7 @@ main()
 
 	# mount the file system
 	mkdir -p $MP
-	l_do "mount -t m0t1fs -o profile='$PROF_OPT',confd=$CONFD_EP,$oostore_mode 'm0t1' $MP" || {
+	l_do "mount -t m0t1fs -o profile='$PROF_OPT',ha=$HA_EP,$oostore_mode 'm0t1' $MP" || {
 		echo ERROR: Unable to mount the file system
 		exit 1
 	}

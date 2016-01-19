@@ -978,12 +978,17 @@ struct _pool_cmd_ctx {
 };
 
 static int spiel_pool_device_collect(struct _pool_cmd_ctx *ctx,
-				     struct m0_conf_objv  *diskv)
+				     struct m0_conf_obj *obj_diskv)
 {
+	struct m0_conf_objv *diskv;
 	struct m0_conf_obj  *obj_disk;
 	struct m0_conf_disk *disk;
 	int                  rc;
 
+	diskv = M0_CONF_CAST(obj_diskv, m0_conf_objv);
+	if (diskv == NULL ||
+	    m0_conf_obj_type(diskv->cv_real) != &M0_CONF_DISK_TYPE)
+		return M0_ERR(-ENOENT);
 
 	rc = m0_confc_open_by_fid_sync(ctx->pl_confc,
 				       &diskv->cv_real->co_id, &obj_disk);
@@ -1151,7 +1156,6 @@ static int spiel_pool__device_collection_fill(struct _pool_cmd_ctx *ctx,
 	struct m0_confc      *confc = &ctx->pl_spl->spl_rconfc.rc_confc;
 	struct m0_conf_obj   *pool_obj = NULL;
 	struct m0_conf_obj   *obj;
-	struct m0_conf_objv  *objv;
 	struct m0_conf_diter  it;
 	int                   rc;
 	M0_ENTRY();
@@ -1172,16 +1176,11 @@ static int spiel_pool__device_collection_fill(struct _pool_cmd_ctx *ctx,
 	while ((rc = m0_conf_diter_next_sync(&it, _filter_objv))
 							== M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
-		objv = M0_CONF_CAST(obj, m0_conf_objv);
-		if (objv == NULL ||
-		    m0_conf_obj_type(objv->cv_real) != &M0_CONF_DISK_TYPE)
-			continue;
 		/* Pin obj to protect it from removal while being in use */
 		m0_mutex_lock(&confc->cc_lock);
 		m0_conf_obj_get(obj);
 		m0_mutex_unlock(&confc->cc_lock);
-		rc = spiel_pool_device_collect(ctx, objv);
-		M0_ASSERT(rc == 0);
+		spiel_pool_device_collect(ctx, obj);
 		m0_mutex_lock(&confc->cc_lock);
 		m0_conf_obj_put(obj);
 		m0_mutex_unlock(&confc->cc_lock);

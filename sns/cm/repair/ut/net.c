@@ -695,7 +695,7 @@ static void sender_init()
 
 	locality = m0_locality0_get();
 	sender_service_alloc_init();
-	confc = &sender_cm_service->rs_reqh->rh_confc;
+	confc = m0_reqh2confc(sender_cm_service->rs_reqh);
 	rc = m0_file_read(M0_UT_PATH("diter.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, confstr);
@@ -783,8 +783,8 @@ static void receiver_fini()
 
 static void sender_fini()
 {
-	struct m0_confc    *confc;
-	int                 rc;
+	struct m0_confc *confc;
+	int              rc;
 
 	m0_cm_lock(&sender_cm);
 	m0_sm_timedwait(&sender_cm.cm_mach, M0_BITS(M0_CMS_STOP, M0_CMS_IDLE), M0_TIME_NEVER);
@@ -797,8 +797,7 @@ static void sender_fini()
         M0_UT_ASSERT(rc == 0);
         m0_net_domain_fini(&client_net_dom);
 	m0_reqh_idle_wait(&rmach_ctx.rmc_reqh);
-
-	confc = &sender_cm_service->rs_reqh->rh_confc;
+	confc = m0_reqh2confc(sender_cm_service->rs_reqh);
 	m0_confc_fini(confc);
 	m0_reqh_service_prepare_to_stop(sender_cm_service);
 	m0_reqh_service_stop(sender_cm_service);

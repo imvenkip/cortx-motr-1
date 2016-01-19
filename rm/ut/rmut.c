@@ -362,7 +362,7 @@ void rm_ctxs_conf_init(struct rm_ctx *rm_ctxs, int ctxs_nr)
 
 	for (i = 0; i < ctxs_nr; i++) {
 		rmctx = &rm_ctxs[i];
-		confc = &rmctx->rc_rmach_ctx.rmc_reqh.rh_confc;
+		confc = m0_reqh2confc(&rmctx->rc_rmach_ctx.rmc_reqh);
 		/*
 		 * Initialise confc instance in reqh. Confc is necessary to
 		 * track death of creditors/debtors.
@@ -390,7 +390,7 @@ void rm_ctxs_conf_fini(struct rm_ctx *rm_ctxs, int ctxs_nr)
 
 	for (i = 0; i < ctxs_nr; i++) {
 		rmctx = &rm_ctxs[i];
-		confc = &rmctx->rc_rmach_ctx.rmc_reqh.rh_confc;
+		confc = m0_reqh2confc(&rmctx->rc_rmach_ctx.rmc_reqh);
 		m0_ha_client_del(confc);
 		m0_conf_cache_lock(&confc->cc_cache);
 		m0_conf_cache_clean(&confc->cc_cache, &M0_CONF_DIR_TYPE);
