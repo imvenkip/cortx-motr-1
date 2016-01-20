@@ -616,8 +616,8 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
 
 	m0_be_op_active(&car->ct_it->ec_op);
 
-	M0_ASSERT(be_emap_caret_invariant(car));
 	m0_rwlock_read_lock(emap_rwlock(car->ct_it->ec_map));
+	M0_ASSERT(be_emap_caret_invariant(car));
 	while (count > 0 && car->ct_index < M0_BINDEX_MAX + 1) {
 		m0_bcount_t step;
 
@@ -641,10 +641,10 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
 		car->ct_index += step;
 		count -= step;
 	}
+	M0_ASSERT(be_emap_caret_invariant(car));
 	m0_rwlock_read_unlock(emap_rwlock(car->ct_it->ec_map));
 
 	m0_be_op_done(&car->ct_it->ec_op);
-	M0_ASSERT(be_emap_caret_invariant(car));
 	return rc < 0 ? rc : car->ct_index == M0_BINDEX_MAX + 1;
 }
 
