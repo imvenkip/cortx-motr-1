@@ -5646,7 +5646,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0t1fs_inode         *inode;
 	struct m0_be_tx_remid       *remid;
 	struct m0_fop_generic_reply *gen_rep;
-	uint64_t                    actual_bytes = 0;
+	uint64_t                     actual_bytes = 0;
 	int                          rc;
 
 	M0_ENTRY("sm_group %p sm_ast %p", grp, ast);
@@ -5680,26 +5680,25 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		reply_fop = m0_rpc_item_to_fop(reply_item);
 		rc = rc ?: m0_rpc_item_generic_reply_rc(reply_item);
 	}
-	if (rc < 0) {
+	if (rc < 0 || reply_item == NULL) {
+		M0_ASSERT(ergo(reply_item == NULL, rc != 0));
 		M0_LOG(M0_ERROR, "[%p] item %p, rc=%d", req, req_item, rc);
 		goto ref_dec;
 	}
-	M0_ASSERT(reply_item != NULL &&
-		  !m0_rpc_item_is_generic_reply_fop(reply_item));
+	M0_ASSERT(!m0_rpc_item_is_generic_reply_fop(reply_item));
 	M0_ASSERT(m0_is_io_fop_rep(reply_fop));
 
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rc = gen_rep->gr_rc;
-	rw_reply  = io_rw_rep_get(reply_fop);
-	rc        =  rc ?: rw_reply->rwr_rc;
-	remid     = &rw_reply->rwr_mod_rep.fmr_remid;
+	rw_reply = io_rw_rep_get(reply_fop);
+	rc       = rc ?: rw_reply->rwr_rc;
+	remid    = &rw_reply->rwr_mod_rep.fmr_remid;
 	req->ir_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
 			 "sns state = %d", req, req_item,
 			 req_item->ri_type->rit_opcode, rc, req->ir_sns_state);
 
 	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-		M0_ASSERT(rw_reply != NULL);
 		M0_LOG(M0_INFO, "[%p] item %p, VERSION_MISMATCH received on "
 		       FID_F, req, req_item, FID_P(&tioreq->ti_fid));
 		failure_vector_mismatch(irfop);
@@ -6055,6 +6054,7 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 	int		    seg_nr;
 	struct io_request  *req;
 	struct m0_indexvec *ivec;
+
 	M0_PRE(irfop  != NULL);
 	M0_PRE(dom    != NULL);
 	M0_PRE(rbuf   != NULL);
