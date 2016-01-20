@@ -1,8 +1,7 @@
 # Site local configuration of Mero services, allows to override global
-# configuration found under /etc/mero directory.
+# configuration found under /etc/mero and /etc/sysconfig directories.
 #
-# This file is included by mero upstart services, located in /etc/init
-# directory.
+# This file is included by mero systemd service scripts.
 
 # Location of Mero logs and trace files, by default it's /var/log/mero.
 #MERO_LOG_DIR='/var/log/mero'

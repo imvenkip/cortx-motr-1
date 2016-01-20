@@ -109,22 +109,6 @@ install_files()
         /bin/sed -i -e "s%#MERO_DEVEL_WORKDIR_PATH=.*$%MERO_DEVEL_WORKDIR_PATH=$(pwd)%" /etc/sysconfig/mero
     fi
 
-    dir='/etc/init'
-    if [[ -d $dir ]] ; then
-        for file in 'scripts/install/etc/init/mero-autostart.conf' \
-                    'scripts/install/etc/init/mero.conf' \
-                    'scripts/install/etc/init/mero-client.conf' \
-                    'scripts/install/etc/init/mero-kernel.conf' \
-                    'scripts/install/etc/init/mero-singlenode.conf' \
-                    'scripts/install/etc/init/mero-mkfs.conf' \
-                    'scripts/install/etc/init/mero-server.conf' \
-                    'scripts/install/etc/init/mero-trace.conf' \
-                    ;
-        do
-            run "$cmd $(pwd)/$file $dir"
-        done
-    fi
-
     dir='/usr/lib/systemd/system'
     if [[ -d $dir ]] ; then
         for file in 'scripts/install/usr/lib/systemd/system/lnet.service' \
@@ -174,7 +158,6 @@ install_files()
     done
 
     $dry_run || {
-        [[ -x /sbin/initctl ]] && initctl reload-configuration
         [[ -x /usr/bin/systemctl ]] && systemctl daemon-reload
     }
 }
@@ -191,17 +174,6 @@ uninstall_files()
                /usr/libexec/mero/mero-server
                /usr/libexec/mero/mero
                /usr/libexec/mero/mero-client '
-
-    if [[ -d /etc/init ]] ; then
-        file_list+='/etc/init/mero-autostart.conf
-                    /etc/init/mero.conf
-                    /etc/init/mero-client.conf
-                    /etc/init/mero-kernel.conf
-                    /etc/init/mero-singlenode.conf
-                    /etc/init/mero-mkfs.conf
-                    /etc/init/mero-server.conf
-                    /etc/init/mero-trace.conf '
-    fi
 
     if [[ -d /usr/lib/systemd/system ]] ; then
         file_list+='/usr/lib/systemd/system/lnet.service
@@ -231,7 +203,6 @@ uninstall_files()
     done
 
     $dry_run || {
-        [[ -x /sbin/initctl ]] && initctl reload-configuration
         [[ -x /usr/bin/systemctl ]] && systemctl daemon-reload
     }
 }

@@ -721,17 +721,6 @@ usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/lnet.service \
                         scripts/install/usr/lib/systemd/system/mero-trace@.service \
                         scripts/install/usr/lib/systemd/system/mero.service
 EXTRA_DIST           += $(usr_lib_systemd_DATA)
-else
-etc_initdir    = $(sysconfdir)/init
-etc_init_DATA  = scripts/install/etc/init/mero.conf \
-                 scripts/install/etc/init/mero-autostart.conf \
-                 scripts/install/etc/init/mero-client.conf \
-                 scripts/install/etc/init/mero-kernel.conf \
-                 scripts/install/etc/init/mero-singlenode.conf \
-                 scripts/install/etc/init/mero-mkfs.conf \
-                 scripts/install/etc/init/mero-server.conf \
-                 scripts/install/etc/init/mero-trace.conf
-EXTRA_DIST    += $(etc_init_DATA)
 endif
 
 etc_sysconfigdir    = $(sysconfdir)/sysconfig

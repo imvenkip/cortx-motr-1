@@ -190,16 +190,6 @@ fi
 %files devel -f devel.files
 %endif
 
-%pre
-%if !%{with systemd}
-if initctl list | grep -q 'mero' ; then
-    status mero-client | grep -q 'start/running' && stop mero-client
-    status mero        | grep -q 'start/running' && stop mero
-    status mero-kernel | grep -q 'start/running' && stop mero-kernel
-fi || true
-%endif
-
-
 %if 0%{?el6}
 %post
 %else
@@ -210,8 +200,6 @@ fi || true
 
 %if %{with systemd}
 systemctl daemon-reload
-%else
-/sbin/initctl reload-configuration
 %endif
 
 /bin/sed -i -e "s/<host>/$(hostname -s)/" /etc/mero/genders
@@ -222,21 +210,10 @@ if [ x%%{?no_trace_logs} != x ] ; then
     /bin/sed -i -r -e "s/(MERO_TRACED_M0D=)yes/\1no/" /etc/sysconfig/mero
 fi
 
-%preun
-%if !%{with systemd}
-if initctl list | grep -q 'mero' ; then
-    status mero-client | grep -q 'start/running' && stop mero-client
-    status mero        | grep -q 'start/running' && stop mero
-    status mero-kernel | grep -q 'start/running' && stop mero-kernel
-fi || true
-%endif
-
 %postun
 /sbin/depmod -a
 %if %{with systemd}
 systemctl daemon-reload
-%else
-/sbin/initctl reload-configuration
 %endif
 
 %if %{with ut}
