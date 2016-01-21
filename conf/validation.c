@@ -36,7 +36,7 @@ static const struct m0_conf_ruleset *conf_validity_checks[] = {
 	&m0_pool_rules,
 };
 
-M0_INTERNAL char *m0_conf_validation_error(const struct m0_conf_obj *root,
+M0_INTERNAL char *m0_conf_validation_error(const struct m0_conf_cache *cache,
 					   char *buf, size_t buflen)
 {
 	unsigned                   i;
@@ -58,7 +58,7 @@ M0_INTERNAL char *m0_conf_validation_error(const struct m0_conf_obj *root,
 			M0_ASSERT(rc > 0 && (size_t)rc < buflen);
 			_buflen = strlen(buf);
 			_buf = buf + _buflen;
-			err = rule->cvr_error(root, _buf, _buflen);
+			err = rule->cvr_error(cache, _buf, _buflen);
 			if (err == NULL)
 				continue;
 			if (err != _buf) {

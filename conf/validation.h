@@ -21,7 +21,7 @@
 #ifndef __MERO_CONF_VALIDATION_H__
 #define __MERO_CONF_VALIDATION_H__
 
-struct m0_conf_obj;
+struct m0_conf_cache;
 
 /**
  * @defgroup conf_validation
@@ -35,8 +35,7 @@ struct m0_conf_obj;
  */
 
 /**
- * Performs semantic validation of the DAG of configuration objects,
- * referred to by `root' object.
+ * Performs semantic validation of the DAG of configuration objects.
  *
  * If m0_conf_validation_error() finds a problem with configuration
  * data, it returns a pointer to a string that describes the problem.
@@ -50,7 +49,7 @@ struct m0_conf_obj;
  * If no issues with configuration data are found, m0_conf_validation_error()
  * returns NULL.
  */
-M0_INTERNAL char *m0_conf_validation_error(const struct m0_conf_obj *root,
+M0_INTERNAL char *m0_conf_validation_error(const struct m0_conf_cache *cache,
 					   char *buf, size_t buflen);
 
 /** Validation rule. */
@@ -63,7 +62,7 @@ struct m0_conf_rule {
 	/**
 	 * @see m0_conf_validation_error() for arguments' description.
 	 */
-	char     *(*cvr_error)(const struct m0_conf_obj *root,
+	char     *(*cvr_error)(const struct m0_conf_cache *cache,
 			       char *buf, size_t buflen);
 };
 

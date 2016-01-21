@@ -1105,7 +1105,7 @@ M0_INTERNAL int m0_pool_device_state_update(struct m0_reqh        *reqh,
  * conf validation
  * ------------------------------------------------------------------ */
 
-static char *pool_paths_conf_error(const struct m0_conf_obj *root,
+static char *pool_paths_conf_error(const struct m0_conf_cache *cache,
 				   char *buf, size_t buflen)
 {
 	/*
@@ -1118,7 +1118,7 @@ static char *pool_paths_conf_error(const struct m0_conf_obj *root,
 }
 
 /** Ensures that the conf DAG can be used by m0_pool_mds_map_init(). */
-static char *pool_mds_map_init_conf_error(const struct m0_conf_obj *root,
+static char *pool_mds_map_init_conf_error(const struct m0_conf_cache *cache,
 					  char *buf, size_t buflen)
 {
 	/*
@@ -1130,7 +1130,7 @@ static char *pool_mds_map_init_conf_error(const struct m0_conf_obj *root,
 }
 
 /** Ensures that the conf DAG can be used by __mds_map(). */
-static char *pool_mds_map_conf_error(const struct m0_conf_obj *root,
+static char *pool_mds_map_conf_error(const struct m0_conf_cache *cache,
 				     char *buf, size_t buflen)
 {
 	/*
@@ -1142,8 +1142,9 @@ static char *pool_mds_map_conf_error(const struct m0_conf_obj *root,
 /**
  * Ensures that the conf DAG can be used by m0_pool_version_device_map_init().
  */
-static char *pool_version_device_map_conf_error(const struct m0_conf_obj *root,
-						char *buf, size_t buflen)
+static char *
+pool_version_device_map_conf_error(const struct m0_conf_cache *cache,
+				   char *buf, size_t buflen)
 {
 	/*
 	 * - nr_devices = 0
@@ -1160,7 +1161,7 @@ static char *pool_version_device_map_conf_error(const struct m0_conf_obj *root,
 }
 
 /** Ensures that the conf DAG can be used by m0_pools_setup(). */
-static char *pool_setup_conf_error(const struct m0_conf_obj *root,
+static char *pool_setup_conf_error(const struct m0_conf_cache *cache,
 				   char *buf, size_t buflen)
 {
 	/*

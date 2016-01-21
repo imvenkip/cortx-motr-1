@@ -553,7 +553,7 @@ out:
  * conf validation
  * ------------------------------------------------------------------ */
 
-static char *ios_paths_conf_error(const struct m0_conf_obj *root,
+static char *ios_paths_conf_error(const struct m0_conf_cache *cache,
 				  char *buf, size_t buflen)
 {
 #if 0 /* XXX WIP */
@@ -576,7 +576,7 @@ static char *ios_paths_conf_error(const struct m0_conf_obj *root,
 }
 
 /** Ensures that the conf DAG can be used by ios_poolmach_args_init(). */
-static char *ios_args_init_conf_error(const struct m0_conf_obj *root,
+static char *ios_args_init_conf_error(const struct m0_conf_cache *cache,
 				      char *buf, size_t buflen)
 {
 	/*
@@ -591,7 +591,7 @@ static char *ios_args_init_conf_error(const struct m0_conf_obj *root,
 }
 
 /** Ensures that the conf DAG can be used by ios_poolmach_objs_fill(). */
-static char *ios_objs_fill_conf_error(const struct m0_conf_obj *root,
+static char *ios_objs_fill_conf_error(const struct m0_conf_cache *cache,
 				      char *buf, size_t buflen)
 {
 	/*

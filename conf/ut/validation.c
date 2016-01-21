@@ -35,21 +35,18 @@ static char               g_buf[128];
 static void test_path(void)
 {
 #if XXX_WIP__CONF_VALIDATION
-	struct m0_conf_obj *root;
 	const struct m0_fid bad_profile = M0_FID_TINIT('p', ~0, 9);
 	char               *err;
 
-	root = m0_conf_cache_lookup(cache, &M0_CONF_ROOT_FID);
-	M0_UT_ASSERT(root != NULL);
-	err = m0_conf_path_validate(root, g_buf, sizeof g_buf,
+	err = m0_conf_path_validate(cache, g_buf, sizeof g_buf,
 				    M0_CONF_ROOT_PROFILES_FID);
 	M0_UT_ASSERT(err == NULL);
-	err = m0_conf_path_validate(root, g_buf, sizeof g_buf,
+	err = m0_conf_path_validate(cache, g_buf, sizeof g_buf,
 				    M0_CONF_ROOT_PROFILES_FID,
 				    &bad_profile);
 	M0_UT_ASSERT(m0_streq(err,
 			      "No such path component: <70ffffffffffffff:9>"));
-	err = m0_conf_path_validate(root, g_buf, sizeof g_buf,
+	err = m0_conf_path_validate(cache, g_buf, sizeof g_buf,
 				    M0_CONF_ROOT_PROFILES_FID, XXX_profile,
 				    M0_CONF_PROFILE_FILESYSTEM_FID,
 				    M0_CONF_FILESYSTEM_RACKS_FID,
