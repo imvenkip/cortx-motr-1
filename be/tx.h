@@ -282,7 +282,7 @@ struct m0_be_tx {
 	uint64_t               t_id;
 	struct m0_be_engine   *t_engine;
 
-	/** Linkage in one of m0_be_tx_engine::te_txs[] lists. */
+	/** Linkage in one of m0_be_tx_engine::eng_txs[] lists. */
 	struct m0_tlink        t_engine_linkage;
 	/** Linkage in m0_be_tx_group::tg_txs. */
 	struct m0_tlink        t_group_linkage;
