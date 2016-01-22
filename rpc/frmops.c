@@ -498,23 +498,13 @@ static void item_sent(struct m0_rpc_item *item)
 		m0_rpc_session_release(item->ri_session);
 
 	if (m0_rpc_item_is_request(item)) {
-		if (item->ri_session->s_session_id != SESSION_ID_0 &&
-		    m0_rpc_session_is_cancelled(item->ri_session)) {
-			M0_ASSERT(item->ri_rmachine ==
-				  item->ri_session->s_conn->c_rpc_machine);
-			m0_rpc_item_cancel_nolock(item);
-		} else {
-			m0_rpc_item_change_state(item,
-					M0_RPC_ITEM_WAITING_FOR_REPLY);
-			if (item->ri_pending_reply != NULL) {
-				/* Reply has already been received when we
-				   were waiting for buffer callback */
-				m0_rpc_item_process_reply(item,
-						item->ri_pending_reply);
-				item->ri_pending_reply = NULL;
-				M0_ASSERT(item->ri_sm.sm_state ==
-					  M0_RPC_ITEM_REPLIED);
-			}
+		m0_rpc_item_change_state(item, M0_RPC_ITEM_WAITING_FOR_REPLY);
+		if (item->ri_pending_reply != NULL) {
+			/* Reply has already been received when we
+			   were waiting for buffer callback */
+			m0_rpc_item_process_reply(item, item->ri_pending_reply);
+			item->ri_pending_reply = NULL;
+			M0_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_REPLIED);
 		}
 	}
 

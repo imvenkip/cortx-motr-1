@@ -13,6 +13,14 @@
 # Note: Always keep its value 0 while pushing the code to the repository.
 DEBUG_MODE=0
 
+# If INTERNAL_LOOP is set to 1, the various test cases are run iteratively,
+# using an infinite loop. This may be useful for testing for some issues
+# which may not be consistently reproducible. As compared to running external
+# loop over ST, this internal loop approach saves significant time by avoiding
+# mero service restart.
+# Note: Always keep its value 0 while pushing the code to the repository.
+INTERNAL_LOOP=0
+
 # MD_REDUNDANCY used for this ST
 # - RCANCEL_MD_REDUNDANCY_1
 #   - multiple_pools value is set to 0 in this case, indicating that multiple
@@ -168,6 +176,7 @@ rcancel_session_cancel_fop()
 		echo "Test: sleep 4m so that the processing on the IOS is done that may need to wait for the net buf timeouts."
 		echo "Such case is not applicable for production scenario where the IOS would be unreachable before session is canceled."
 		sleep 4m
+		echo "sleep done"
 	fi
 }
 
@@ -449,7 +458,7 @@ rcancel_cancel_during_read_test()
 
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mountopt || return 1
 
-	echo "Test: Have $rt_read_nr_files files created on m0t1fs"
+	echo "Test: Have $rt_read_nr_files data files created on m0t1fs, to be used for read test"
 	for ((i=0; i<$rt_read_nr_files; ++i)); do
 		touch $rt_read_file_base$i
 		dd if=$source_file of=$rt_read_file_base$i bs=$bs count=$count &
@@ -592,6 +601,19 @@ rcancel_cancel_during_create_test()
 		return 1
 	fi
 
+	echo "Test: rm $create_nr_files files after restore"
+	for ((i=0; i<$create_nr_files; ++i)); do
+		rm -f $create_file_base$i
+		rm_rc=$?
+		echo "rm -f $create_file_base$i: rc $rm_rc"
+		if [ $rm_rc -ne 0 ]
+		then
+			echo "rm failed, $create_file_base$i"
+			unmount_and_clean
+			return 1
+		fi
+	done
+
 	unmount_and_clean
 }
 
@@ -672,6 +694,19 @@ rcancel_cancel_during_delete_test()
 		return 1
 	fi
 
+	echo "Test: rm $delete_nr_files files after restore"
+	for ((i=0; i<$delete_nr_files; ++i)); do
+		rm -f $delete_file_base$i
+		rm_rc=$?
+		echo "rm -f $delete_file_base$i: rc $rm_rc"
+		if [ $rm_rc -ne 0 ]
+		then
+			echo "rm failed, $delete_file_base$i"
+			unmount_and_clean
+			return 1
+		fi
+	done
+
 	unmount_and_clean
 }
 
@@ -739,6 +774,19 @@ rcancel_cancel_during_setfattr_ops_test()
 		unmount_and_clean
 		return 1
 	fi
+
+	echo "Test: rm $setfattr_nr_files files after restore"
+	for ((i=0; i<$setfattr_nr_files; ++i)); do
+		rm -f $setfattr_file_base$i
+		rm_rc=$?
+		echo "rm -f $setfattr_file_base$i: rc $rm_rc"
+		if [ $rm_rc -ne 0 ]
+		then
+			echo "rm failed, $setfattr_file_base$i"
+			unmount_and_clean
+			return 1
+		fi
+	done
 
 	unmount_and_clean
 }
@@ -810,13 +858,23 @@ rcancel_cancel_during_getfattr_ops_test()
 		fi
 	fi
 
+	echo "Test: rm $getfattr_nr_files files after restore"
+	for ((i=0; i<$getfattr_nr_files; ++i)); do
+		rm -f $getfattr_file_base$i
+		rm_rc=$?
+		echo "rm -f $getfattr_file_base$i: rc $rm_rc"
+		if [ $rm_rc -ne 0 ]
+		then
+			echo "rm failed, $getfattr_file_base$i"
+			unmount_and_clean
+			return 1
+		fi
+	done
 	unmount_and_clean
 }
 
-rcancel_test()
+rcancel_test_cases()
 {
-	rcancel_pre || return 1
-
 	echo "======================================================="
 	echo "TC.1.Start: mount-cancel-restore-unmount"
 	echo "======================================================="
@@ -887,7 +945,35 @@ rcancel_test()
 		echo "Failed: Connection timed out error has occurred"
 		return 1
 	fi
+}
 
+rcancel_test()
+{
+	local while_loop_i=0
+
+	rcancel_pre || return 1
+
+	if [ $INTERNAL_LOOP -eq 1 ]
+	then
+		while true; do
+			echo "while_loop_i $while_loop_i"
+			echo "==========================="
+			while_loop_i=`expr $while_loop_i \+ 1`
+
+			# Wipe out contents from MERO_TEST_LOGFILE
+			echo "" > $MERO_TEST_LOGFILE
+
+			rcancel_test_cases || {
+				rcancel_post
+				return 1
+			}
+		done
+	else
+		rcancel_test_cases || {
+			rcancel_post
+			return 1
+		}
+	fi
 	rcancel_post || return 1
 }
 
@@ -927,7 +1013,6 @@ main()
 	if [ $rc -eq 0 ]; then
 		[ $DEBUG_MODE -eq 1 ] || sandbox_fini
 	else
-		echo "rpc-session-cancel: test status: FAIL"
 		echo "Test log available at $MERO_TEST_LOGFILE."
 	fi
 	return $rc
