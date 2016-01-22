@@ -482,6 +482,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 
 		fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_INIT);
 
+		m0_fi_enable_once("zero_copy_initiate", "keep-net-buffers");
 		rc = m0_io_fom_cob_rw_tick(fom);
 		M0_UT_ASSERT(m0_fom_rc(fom) != 0 &&
 			     rc == M0_FSO_AGAIN &&
@@ -516,6 +517,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	        fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_WAIT);
 	        fom_obj->fcrw_bulk.rb_rc  = -1;
 
+		m0_fi_enable_once("zero_copy_finish", "keep-net-buffers");
 	        rc = m0_io_fom_cob_rw_tick(fom);
 	        M0_UT_ASSERT(m0_fom_rc(fom) != 0 &&
 	                     rc == M0_FSO_AGAIN &&
@@ -530,8 +532,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	         *         Input phase          : M0_FOPH_IO_ZERO_COPY_WAIT
 	         *         Expected Output phase: M0_FOPH_IO_STOB_INIT
 	         */
-	        fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_WAIT);
-
+		fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_WAIT);
 	        rc = m0_io_fom_cob_rw_tick(fom);
 	        M0_UT_ASSERT(m0_fom_rc(fom) == 0 &&
 	                     rc == M0_FSO_AGAIN &&
@@ -552,6 +553,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	        rwfop->crw_fid = invalid_fid;
 	        fom_phase_set(fom, M0_FOPH_IO_STOB_INIT);
 
+		m0_fi_enable_once("io_launch", "keep-net-buffers");
 	        rc = m0_io_fom_cob_rw_tick(fom);
 	        M0_UT_ASSERT(m0_fom_rc(fom) != 0 && rc == M0_FSO_AGAIN  &&
 	                     m0_fom_phase(fom) == M0_FOPH_FAILURE);
@@ -598,6 +600,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 
 		fom_phase_set(fom, M0_FOPH_IO_STOB_WAIT);
 		m0_fi_enable_once("io_finish", "fake_error");
+		m0_fi_enable_once("io_finish", "keep-net-buffers");
 	        rc = m0_io_fom_cob_rw_tick(fom);
 	        M0_UT_ASSERT(m0_fom_rc(fom) != 0 && rc == M0_FSO_AGAIN  &&
 	                     m0_fom_phase(fom) == M0_FOPH_FAILURE);
@@ -825,6 +828,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 
 	        fom_phase_set(fom, M0_FOPH_IO_STOB_INIT);
 
+		m0_fi_enable_once("io_launch", "keep-net-buffers");
 	        rc = m0_io_fom_cob_rw_tick(fom);
 	        M0_UT_ASSERT(m0_fom_rc(fom) != 0 &&
 	                     rc == M0_FSO_AGAIN &&
@@ -873,8 +877,9 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	        M0_UT_ASSERT(saved_stobio_desc != NULL);
 
 	        fom_phase_set(fom, M0_FOPH_IO_STOB_WAIT);
-		m0_fi_enable_once("io_finish", "fake_error");
 
+		m0_fi_enable_once("io_finish", "fake_error");
+		m0_fi_enable_once("io_finish", "keep-net-buffers");
 	        rc = m0_io_fom_cob_rw_tick(fom);
 	        M0_UT_ASSERT(m0_fom_rc(fom) != 0 &&
 	                     rc == M0_FSO_AGAIN &&
@@ -920,6 +925,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 
 		fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_INIT);
 
+		m0_fi_enable_once("zero_copy_initiate", "keep-net-buffers");
 		rc = m0_io_fom_cob_rw_tick(fom);
 		M0_UT_ASSERT(m0_fom_rc(fom) != 0 &&
 			     rc == M0_FSO_AGAIN &&
@@ -955,6 +961,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	        fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_WAIT);
 	        fom_obj->fcrw_bulk.rb_rc  = -1;
 
+		m0_fi_enable_once("zero_copy_finish", "keep-net-buffers");
 	        rc = m0_io_fom_cob_rw_tick(fom);
 	        M0_UT_ASSERT(m0_fom_rc(fom) != 0 &&
 	                     rc == M0_FSO_AGAIN &&

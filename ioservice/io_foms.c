@@ -607,6 +607,7 @@ static int io_finish(struct m0_fom *);
 static int zero_copy_initiate(struct m0_fom *);
 static int zero_copy_finish(struct m0_fom *);
 static int net_buffer_release(struct m0_fom *);
+static int nbuf_release_done(struct m0_fom *fom, int still_required);
 
 static void io_fom_addb2_descr(struct m0_fom *fom);
 
@@ -1398,9 +1399,30 @@ static int net_buffer_acquire(struct m0_fom *fom)
  */
 static int net_buffer_release(struct m0_fom *fom)
 {
+	int                      still_required;
+	struct m0_io_fom_cob_rw *fom_obj;
+
+	M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_BUFFER_RELEASE);
+
+	M0_ENTRY("fom=%p", fom);
+
+	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+	still_required = fom_obj->fcrw_ndesc - fom_obj->fcrw_curr_desc_index;
+
+	nbuf_release_done(fom, still_required);
+
+	if (still_required == 0)
+	       m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+
+	M0_LEAVE();
+	return M0_FSO_AGAIN;
+}
+
+static int nbuf_release_done(struct m0_fom *fom, int still_required)
+{
 	uint32_t                  colour;
-	int                       acquired_net_bufs;
-	int                       required_net_bufs;
+	int                       acquired;
+	int                       released = 0;
 	struct m0_fop             *fop;
 	struct m0_io_fom_cob_rw   *fom_obj;
 	struct m0_net_transfer_mc *tm;
@@ -1408,7 +1430,6 @@ static int net_buffer_release(struct m0_fom *fom)
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_read_fop(fom->fo_fop) || m0_is_write_fop(fom->fo_fop));
 	M0_PRE(fom->fo_service != NULL);
-	M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_BUFFER_RELEASE);
 
 	M0_ENTRY("fom=%p", fom);
 
@@ -1422,27 +1443,24 @@ static int net_buffer_release(struct m0_fom *fom)
 
 	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
 					   &fom_obj->fcrw_netbuf_list));
-	acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
-	required_net_bufs = fom_obj->fcrw_ndesc - fom_obj->fcrw_curr_desc_index;
+	acquired = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
 
 	m0_net_buffer_pool_lock(fom_obj->fcrw_bp);
-	while (acquired_net_bufs > required_net_bufs) {
+	while (acquired > still_required) {
 		struct m0_net_buffer *nb;
 
 		nb = netbufs_tlist_tail(&fom_obj->fcrw_netbuf_list);
 		M0_ASSERT(nb != NULL);
 		m0_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
 		netbufs_tlink_del_fini(nb);
-		acquired_net_bufs--;
+		--acquired;
+		++released;
 	}
 	m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
 
-	fom_obj->fcrw_batch_size = acquired_net_bufs;
-	M0_LOG(M0_DEBUG, "Released network buffers, batch_size = %d.",
-	       fom_obj->fcrw_batch_size);
-
-	if (required_net_bufs == 0)
-	       m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+	fom_obj->fcrw_batch_size = acquired;
+	M0_LOG(M0_DEBUG, "Released %d network buffer(s), batch_size = %d.",
+	       released, still_required);
 
 	M0_LEAVE();
 	return M0_FSO_AGAIN;
@@ -1515,6 +1533,8 @@ static int zero_copy_initiate(struct m0_fom *fom)
 		 */
 		rc = m0_rpc_bulk_buf_add(rbulk, segs_nr, dom, nb, &rb_buf);
 		if (rc != 0) {
+			if (!M0_FI_ENABLED("keep-net-buffers"))
+				nbuf_release_done(fom, 0);
 			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 			M0_LEAVE();
 			return M0_FSO_AGAIN;
@@ -1546,6 +1566,7 @@ static int zero_copy_initiate(struct m0_fom *fom)
 		m0_mutex_unlock(&rbulk->rb_mutex);
 		m0_rpc_bulk_buflist_empty(rbulk);
 		m0_rpc_bulk_fini(rbulk);
+		nbuf_release_done(fom, 0);
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		M0_LEAVE();
 		return M0_FSO_AGAIN;
@@ -1585,8 +1606,14 @@ static int zero_copy_finish(struct m0_fom *fom)
 	m0_mutex_lock(&rbulk->rb_mutex);
 	M0_ASSERT(rpcbulkbufs_tlist_is_empty(&rbulk->rb_buflist));
 	if (rbulk->rb_rc != 0){
-		m0_fom_phase_move(fom, rbulk->rb_rc, M0_FOPH_FAILURE);
 		m0_mutex_unlock(&rbulk->rb_mutex);
+
+		if (!M0_FI_ENABLED("keep-net-buffers")) {
+			m0_rpc_bulk_fini(rbulk);
+			nbuf_release_done(fom, 0);
+		}
+		m0_fom_phase_move(fom, rbulk->rb_rc, M0_FOPH_FAILURE);
+
 		M0_LEAVE();
 		return M0_FSO_AGAIN;
 	}
@@ -1822,6 +1849,8 @@ out:
 	if (fom_obj->fcrw_stob != NULL)
 		m0_stob_put(fom_obj->fcrw_stob);
 	if (rc != 0) {
+		if (!M0_FI_ENABLED("keep-net-buffers"))
+			nbuf_release_done(fom, 0);
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 	} else {
 		/* empty operation */
@@ -1890,6 +1919,8 @@ static int io_finish(struct m0_fom *fom)
 	rc = fom_obj->fcrw_rc ?: rc;
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "rc=%d", rc);
+		if (!M0_FI_ENABLED("keep-net-buffers"))
+			nbuf_release_done(fom, 0);
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		M0_LEAVE();
 		return M0_FSO_AGAIN;
