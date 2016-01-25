@@ -1301,33 +1301,18 @@ static int m0t1fs_rmdir(struct inode *dir, struct dentry *dentry)
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
-				   struct kstat *stat)
+static int m0t1fs_inode_update_stat(struct inode *inode,
+				    struct m0_fop_cob *body, struct kstat *stat)
 {
-	struct m0t1fs_sb    *csb;
-	struct inode        *inode;
-	struct m0_fop_cob   *body;
-	struct m0t1fs_inode *ci;
-	int                  rc;
+	struct m0t1fs_inode *ci = M0T1FS_I(inode);
+	int rc;
 
-	M0_THREAD_ENTER;
-	M0_ENTRY();
-
-	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
-
-	inode = dentry->d_inode;
-	csb   = M0T1FS_SB(inode->i_sb);
-	ci    = M0T1FS_I(inode);
-
-	m0t1fs_fs_lock(csb);
-
-	/* Return cached attributes for files in .mero/fid dir */
-	body = &csb->csb_virt_body;
-
-	/* Update inode fields with data from @getattr_rep or cached attrs */
-	m0t1fs_inode_update(inode, body);
-	rc = m0t1fs_inode_layout_rebuild(ci, body);
-	M0_ASSERT(rc == 0);
+	if (body != NULL) {
+		m0t1fs_inode_update(inode, body);
+		rc = m0t1fs_inode_layout_rebuild(ci, body);
+		if (rc != 0)
+			return rc;
+	}
 
 	/** Now its time to return inode stat data to user. */
 	stat->dev = inode->i_sb->s_dev;
@@ -1347,8 +1332,33 @@ M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
 #endif
 	stat->size = i_size_read(inode);
 	stat->blocks = stat->blksize ? stat->size / stat->blksize : 0;
+	return 0;
+}
+
+M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
+				   struct kstat *stat)
+{
+	struct m0t1fs_sb    *csb;
+	struct inode        *inode;
+	struct m0_fop_cob   *body;
+	int                  rc;
+
+	M0_THREAD_ENTER;
+	M0_ENTRY();
+
+	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
+
+	inode = dentry->d_inode;
+	csb   = M0T1FS_SB(inode->i_sb);
+
+	m0t1fs_fs_lock(csb);
+
+	/* Return cached attributes for files in .mero/fid dir */
+	body = &csb->csb_virt_body;
+	rc = m0t1fs_inode_update_stat(inode, body, stat);
+
 	m0t1fs_fs_unlock(csb);
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
@@ -1374,11 +1384,14 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 	m0t1fs_fs_lock(csb);
 
-	if (m0t1fs_inode_is_root(&ci->ci_inode))
-		goto update;
+	if (m0t1fs_inode_is_root(&ci->ci_inode)) {
+		m0t1fs_inode_update_stat(inode, NULL, stat);
+		goto out;
+	}
 	if (csb->csb_oostore) {
 		rc = m0t1fs_cob_getattr(inode);
-		goto update;
+		m0t1fs_inode_update_stat(inode, NULL, stat);
+		goto out;
 	}
 
 	M0_SET0(&mo);
@@ -1397,29 +1410,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 		goto out;
 	getattr_rep = m0_fop_data(rep_fop);
 	body = &getattr_rep->g_body;
-
-	/** Update inode fields with data from @getattr_rep or cached attrs. */
-	m0t1fs_inode_update(inode, body);
-	rc = m0t1fs_inode_layout_rebuild(ci, body);
-update:
-	/** Now its time to return inode stat data to user. */
-	stat->dev = inode->i_sb->s_dev;
-	stat->ino = inode->i_ino;
-	stat->mode = inode->i_mode;
-	stat->nlink = inode->i_nlink;
-	stat->uid = inode->i_uid;
-	stat->gid = inode->i_gid;
-	stat->rdev = inode->i_rdev;
-	stat->atime = inode->i_atime;
-	stat->mtime = inode->i_mtime;
-	stat->ctime = inode->i_ctime;
-#ifdef HAVE_INODE_BLKSIZE
-	stat->blksize = inode->i_blksize;
-#else
-	stat->blksize = 1 << inode->i_blkbits;
-#endif
-	stat->size = i_size_read(inode);
-	stat->blocks = stat->blksize ? stat->size / stat->blksize : 0;
+	rc = m0t1fs_inode_update_stat(inode, body, stat);
 out:
 	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
