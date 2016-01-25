@@ -995,9 +995,10 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	uint32_t state = item->ri_sm.sm_state;
 	int      rc;
 
-	M0_ENTRY("%p[%s/%u] ri_session %p, ri_nr_sent_max = %"PRIu64
-		 ", ri_deadline = %"PRIu64", ri_nr_sent = %u",
+	M0_ENTRY("%p[%s/%u] dest_ep=%s ri_session=%p ri_nr_sent_max=%"PRIu64
+		 " ri_deadline=%"PRIu64" ri_nr_sent=%u",
 		 item, item_kind(item), item->ri_type->rit_opcode,
+		 m0_rpc_item_remote_ep_addr(item),
 	         item->ri_session, item->ri_nr_sent_max, item->ri_deadline,
 		 item->ri_nr_sent);
 	M0_PRE(item != NULL && m0_rpc_machine_is_locked(item->ri_rmachine));
