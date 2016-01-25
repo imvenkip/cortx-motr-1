@@ -38,6 +38,29 @@
    belonging to rpc-session module
  */
 
+static struct m0_sm_state_descr m0_rpc_fom_sess_conn_term_phases[] = {
+	[M0_RPC_CONN_SESS_TERMINATE_INIT] = {
+		.sd_name      = "m0_rpc_fom_sess_conn_term_phases init",
+		.sd_allowed   = M0_BITS(M0_RPC_CONN_SESS_TERMINATE_WAIT),
+		.sd_flags     = M0_SDF_INITIAL
+	},
+	[M0_RPC_CONN_SESS_TERMINATE_WAIT] = {
+		.sd_name      = "m0_rpc_fom_sess_conn_term_phases wait",
+		.sd_allowed   = M0_BITS(M0_RPC_CONN_SESS_TERMINATE_WAIT,
+					M0_RPC_CONN_SESS_TERMINATE_DONE),
+	},
+	[M0_RPC_CONN_SESS_TERMINATE_DONE] = {
+		.sd_name      = "m0_rpc_fom_sess_conn_term_phases done",
+		.sd_flags     = M0_SDF_TERMINAL
+	}
+};
+
+M0_INTERNAL const struct m0_sm_conf m0_rpc_fom_sess_conn_term_phases_sm_conf = {
+	.scf_name      = "rpc_fom_session_terminate fom",
+	.scf_nr_states = ARRAY_SIZE(m0_rpc_fom_sess_conn_term_phases),
+	.scf_state     = m0_rpc_fom_sess_conn_term_phases
+};
+
 static void conn_establish_fop_release(struct m0_ref *ref)
 {
 	struct m0_rpc_fop_conn_establish_ctx *ctx;
@@ -137,7 +160,7 @@ M0_INTERNAL int m0_rpc_session_fop_init(void)
 			 .xt        = m0_rpc_fop_conn_terminate_xc,
 			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fom_ops   = &m0_rpc_fom_conn_terminate_type_ops,
-			 .sm        = &m0_generic_conf,
+			 .sm        = &m0_rpc_fom_sess_conn_term_phases_sm_conf,
 			 .svc_type  = &m0_rpc_service_type);
 	M0_FOP_TYPE_INIT(&m0_rpc_fop_session_establish_fopt,
 			 .name      = "Rpc session establish",
@@ -153,7 +176,7 @@ M0_INTERNAL int m0_rpc_session_fop_init(void)
 			 .xt        = m0_rpc_fop_session_terminate_xc,
 			 .rpc_flags = M0_RPC_MUTABO_REQ,
 			 .fom_ops   = &m0_rpc_fom_session_terminate_type_ops,
-			 .sm        = &m0_generic_conf,
+			 .sm        = &m0_rpc_fom_sess_conn_term_phases_sm_conf,
 			 .svc_type  = &m0_rpc_service_type);
 	M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_establish_rep_fopt,
 			 .name      = "Rpc conn establish reply",

@@ -64,6 +64,21 @@ M0_INTERNAL struct m0_rpc_session *m0_rpc_session_search(const struct
 							 uint64_t session_id);
 
 /**
+   Searches in conn->c_sessions list, a session object whose session id
+   matches with given @session_id and pops it from this list.
+   @see m0_rpc_session_search for more details
+ */
+M0_INTERNAL struct m0_rpc_session *m0_rpc_session_search_and_pop(
+	const struct m0_rpc_conn *conn, uint64_t session_id);
+
+/**
+   Pops first valid session from conn->c_sessions list
+   @see m0_rpc_session_search for more details
+ */
+M0_INTERNAL struct m0_rpc_session *m0_rpc_session_pop(
+	const struct m0_rpc_conn *conn);
+
+/**
    Searches and returns session with session_id 0.
    Each rpc connection always has exactly one instance of session with
    SESSION_ID_0 in its c_sessions list.

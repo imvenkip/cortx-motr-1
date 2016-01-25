@@ -155,10 +155,11 @@ M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session)
 
 	ok = _0C(session != NULL) &&
 	     _0C(session->s_conn != NULL) &&
-	     _0C(rpc_session_tlist_contains(&session->s_conn->c_sessions,
-			             session)) &&
+	     _0C(ergo(rpc_session_tlink_is_in(session),
+		      rpc_session_tlist_contains(&session->s_conn->c_sessions,
+						 session))) &&
 	     _0C(ergo(session->s_session_id != SESSION_ID_0,
-		  session->s_conn->c_nr_sessions > 0));
+		      session->s_conn->c_nr_sessions > 0));
 
 	if (!ok)
 		return false;
@@ -296,7 +297,8 @@ M0_INTERNAL void m0_rpc_session_fini_locked(struct m0_rpc_session *session)
 	m0_rpc_item_cache_fini(&session->s_reply_cache);
 	m0_rpc_item_cache_fini(&session->s_req_cache);
 	m0_rpc_item_pending_cache_fini(session);
-	m0_rpc_conn_remove_session(session);
+	if (rpc_session_tlink_is_in(session))
+		m0_rpc_conn_remove_session(session);
 	__session_fini(session);
 	session->s_session_id = SESSION_ID_INVALID;
 	session_state_set(session, M0_RPC_SESSION_FINALISED);

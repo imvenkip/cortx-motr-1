@@ -38,6 +38,12 @@
    associated item types.
  */
 
+enum m0_rpc_conn_sess_terminate_phases {
+	M0_RPC_CONN_SESS_TERMINATE_INIT = M0_FOM_PHASE_INIT,
+	M0_RPC_CONN_SESS_TERMINATE_DONE = M0_FOM_PHASE_FINISH,
+	M0_RPC_CONN_SESS_TERMINATE_WAIT,
+};
+
 extern const struct m0_fop_type_ops m0_rpc_fop_conn_establish_ops;
 extern const struct m0_fop_type_ops m0_rpc_fop_conn_terminate_ops;
 extern const struct m0_fop_type_ops m0_rpc_fop_session_establish_ops;

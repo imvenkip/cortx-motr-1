@@ -519,6 +519,43 @@ M0_INTERNAL struct m0_rpc_session *m0_rpc_session_search(const struct
 			  session->s_session_id == session_id);
 }
 
+M0_INTERNAL struct m0_rpc_session *m0_rpc_session_search_and_pop(
+	const struct m0_rpc_conn *conn, uint64_t session_id)
+{
+	struct m0_rpc_session *session;
+
+	M0_ENTRY("conn: %p, session_id: %" PRIu64, conn, (uint64_t) session_id);
+	M0_PRE(conn != NULL);
+	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
+
+	session = m0_tl_find(rpc_session, session, &conn->c_sessions,
+			     session->s_session_id == session_id);
+	if (session != NULL)
+		m0_rpc_conn_remove_session(session);
+
+	M0_LEAVE("session: %p", session);
+	return session;
+}
+
+M0_INTERNAL struct m0_rpc_session *m0_rpc_session_pop(
+	const struct m0_rpc_conn *conn)
+{
+	struct m0_rpc_session *session;
+
+	M0_ENTRY("conn: %p", conn);
+	M0_PRE(conn != NULL);
+	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
+
+	session = m0_tl_find(rpc_session, session, &conn->c_sessions,
+			     session->s_session_id != SESSION_ID_0);
+
+	if (session != NULL)
+		m0_rpc_conn_remove_session(session);
+
+	M0_LEAVE("session: %p", session);
+	return session;
+}
+
 M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
 				   struct m0_net_end_point *ep,
 				   struct m0_rpc_machine *rpc_machine,

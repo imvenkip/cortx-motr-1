@@ -59,19 +59,22 @@ static void session_gen_fom_fini(struct m0_fom *fom)
 static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
 				  struct m0_reqh *reqh)
 {
-	const struct m0_fom_ops		     *fom_ops;
-	struct m0_fom			     *fom;
-	struct m0_fop_type		     *reply_fopt;
-	struct m0_fop			     *reply_fop;
-	int				      rc;
+	struct m0_rpc_connection_session_specific_fom *gen;
+	const struct m0_fom_ops		              *fom_ops;
+	struct m0_fom			              *fom;
+	struct m0_fop_type		              *reply_fopt;
+	struct m0_fop			              *reply_fop;
+	int				               rc;
 
 	M0_ENTRY("fop: %p", fop);
 
-	M0_ALLOC_PTR(fom);
-	if (fom == NULL) {
+	M0_ALLOC_PTR(gen);
+	if (gen == NULL) {
 		rc = M0_ERR(-ENOMEM);
 		goto out;
 	}
+	fom = &gen->ssf_fom_generic;
+
 	if (fop->f_type == &m0_rpc_fop_conn_establish_fopt) {
 
 		reply_fopt = &m0_rpc_fop_conn_establish_rep_fopt;
@@ -120,10 +123,33 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
 
 out:
 	if (rc != 0) {
-		m0_free(fom);
+		m0_free(gen);
 		*m = NULL;
 	}
 	return M0_RC(rc);
+}
+
+static int rpc_tick_ret(struct m0_rpc_session *session,
+			struct m0_fom         *fom,
+			int                    next_state)
+{
+	enum m0_fom_phase_outcome ret = M0_FSO_AGAIN;
+	struct m0_rpc_machine *machine = session_machine(session);
+
+	M0_ENTRY("session: %p, state: %d", session, session_state(session));
+	M0_PRE(m0_rpc_machine_is_locked(machine));
+	M0_PRE(m0_fom_phase(fom) == M0_RPC_CONN_SESS_TERMINATE_WAIT);
+
+	if (M0_IN(session_state(session), (M0_RPC_SESSION_BUSY,
+					   M0_RPC_SESSION_TERMINATING))) {
+		ret = M0_FSO_WAIT;
+		m0_fom_wait_on(fom, &session->s_sm.sm_chan, &fom->fo_cb);
+	}
+
+	m0_fom_phase_set(fom, next_state);
+
+	M0_LEAVE("ret: %d", ret);
+	return ret;
 }
 
 const struct m0_fom_ops m0_rpc_fom_conn_establish_ops = {
@@ -349,18 +375,24 @@ struct m0_fom_type_ops m0_rpc_fom_session_terminate_type_ops = {
 
 M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 {
-	struct m0_rpc_fop_session_terminate_rep *reply;
-	struct m0_rpc_fop_session_terminate     *request;
-	struct m0_rpc_item                      *item;
-	struct m0_rpc_session                   *session;
-	struct m0_rpc_machine                   *machine;
-	struct m0_rpc_conn                      *conn;
-	uint64_t                                 session_id;
-	int                                      rc;
+	struct m0_rpc_connection_session_specific_fom *gen;
+	struct m0_rpc_fop_session_terminate_rep       *reply;
+	struct m0_rpc_fop_session_terminate           *request;
+	struct m0_rpc_item                            *item;
+	struct m0_rpc_session                         *session;
+	struct m0_rpc_machine                         *machine;
+	struct m0_rpc_conn                            *conn;
+	uint64_t                                       session_id;
+	int                                            rc;
 
-	M0_ENTRY("fom: %p", fom);
+	M0_ENTRY("fom: %p, fom_phase: %d", fom, m0_fom_phase(fom));
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
+
+	gen = container_of(fom,
+			       struct m0_rpc_connection_session_specific_fom,
+			       ssf_fom_generic);
+	M0_ASSERT(gen != NULL);
 
 	request = m0_fop_data(fom->fo_fop);
 	M0_ASSERT(request != NULL);
@@ -388,25 +420,59 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 		goto out;
 	}
 
-	session = m0_rpc_session_search(conn, session_id);
-	if (session != NULL) {
-		M0_LOG(M0_DEBUG, "session %p, hold_cnt %d, wait for session "
-		       "to become idle", session, session->s_hold_cnt);
-		m0_sm_timedwait(&session->s_sm, M0_BITS(M0_RPC_SESSION_IDLE),
-				M0_TIME_NEVER);
-		rc = m0_rpc_rcv_session_terminate(session);
-		M0_ASSERT(ergo(rc != 0,
-			       session_state(session) ==
-					M0_RPC_SESSION_FAILED));
-		M0_ASSERT(ergo(rc == 0,
-			       session_state(session) ==
-					M0_RPC_SESSION_TERMINATED));
+	/* The following switch is an asynchronous cycle and it
+	 * does the following:
+	 *
+	 * wait until session_state(session) == M0_RPC_SESSION_IDLE
+	 * finalize(session)
+	 */
+	rc = 0;
+	session = NULL;
+	switch(m0_fom_phase(fom)) {
+	case M0_RPC_CONN_SESS_TERMINATE_INIT:
+		gen->ssf_term_session = NULL;
+		m0_fom_phase_set(fom, M0_RPC_CONN_SESS_TERMINATE_WAIT);
+		m0_rpc_machine_unlock(machine);
+		return M0_FSO_AGAIN;
 
-		m0_rpc_session_fini_locked(session);
-		m0_free(session);
-	} else { /* session == NULL */
-		rc = -ENOENT;
+	case M0_RPC_CONN_SESS_TERMINATE_WAIT:
+		if (gen->ssf_term_session == NULL) {
+			session = m0_rpc_session_search_and_pop(conn,
+								session_id);
+			gen->ssf_term_session = session;
+			if (session != NULL) {
+				M0_LOG(M0_DEBUG, "session: %p, hold_cnt: %d, "
+				       "wait session to become idle", session,
+				       session->s_hold_cnt);
+				rc = rpc_tick_ret(session, fom,
+					  M0_RPC_CONN_SESS_TERMINATE_WAIT);
+				m0_rpc_machine_unlock(machine);
+				return rc;
+			} else { /* session == NULL */
+				rc = -ENOENT;
+			}
+		} else {
+			session = (struct m0_rpc_session *)gen->ssf_term_session;
+			M0_ASSERT(session != NULL);
+
+			M0_LOG(M0_DEBUG, "Actual session remove. "
+			       "session: %p, hold_cnt: %d, wait for session "
+			       "to become idle", session, session->s_hold_cnt);
+
+			rc = m0_rpc_rcv_session_terminate(session);
+			M0_ASSERT(ergo(rc != 0, session_state(session) ==
+				       M0_RPC_SESSION_FAILED));
+			M0_ASSERT(ergo(rc == 0, session_state(session) ==
+				       M0_RPC_SESSION_TERMINATED));
+
+			m0_rpc_session_fini_locked(session);
+			m0_free(session);
+		}
+
+	default:
+		;
 	}
+
 out:
 	m0_rpc_machine_unlock(machine);
 
@@ -418,7 +484,7 @@ out:
 	 * Note: request is received on SESSION_0, which is different from
 	 * current session being terminated. Reply will also go on SESSION_0.
 	 */
-	m0_fom_phase_set(fom, M0_FOPH_FINISH);
+	m0_fom_phase_set(fom, M0_RPC_CONN_SESS_TERMINATE_DONE);
 	m0_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 
 	M0_LEAVE();
@@ -469,17 +535,24 @@ static const struct m0_rpc_item_ops conn_terminate_reply_item_ops = {
 
 M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 {
-	struct m0_rpc_fop_conn_terminate_rep *reply;
-	struct m0_rpc_fop_conn_terminate     *request;
-	struct m0_rpc_item                   *item;
-	struct m0_fop                        *fop;
-	struct m0_fop                        *fop_rep;
-	struct m0_rpc_conn                   *conn;
-	struct m0_rpc_machine                *machine;
+	struct m0_rpc_connection_session_specific_fom *gen;
+	struct m0_rpc_fop_conn_terminate_rep          *reply;
+	struct m0_rpc_fop_conn_terminate              *request;
+	struct m0_rpc_item                            *item;
+	struct m0_fop                                 *fop;
+	struct m0_fop                                 *fop_rep;
+	struct m0_rpc_conn                            *conn;
+	struct m0_rpc_machine                         *machine;
+	struct m0_rpc_session                         *session;
 
 	M0_ENTRY("fom: %p", fom);
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
+
+	gen = container_of(fom,
+			       struct m0_rpc_connection_session_specific_fom,
+			       ssf_fom_generic);
+	M0_ASSERT(gen != NULL);
 
 	fop     = fom->fo_fop;
 	fop_rep = fom->fo_rep_fop;
@@ -489,11 +562,56 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 	item    = &fop->f_item;
 	conn    = item->ri_session->s_conn;
 	machine = conn->c_rpc_machine;
-	m0_rpc_machine_lock(machine);
+
+	/* The following switch is an asynchronous cycle and it
+	 * does the following:
+	 *
+	 * for (session : connection) {
+	 *      wait until session_state(session) == M0_RPC_SESSION_IDLE
+	 *      finalize(session)
+	 * }
+	 */
+	switch(m0_fom_phase(fom)) {
+	case M0_RPC_CONN_SESS_TERMINATE_INIT:
+		gen->ssf_term_session = NULL;
+		m0_fom_phase_set(fom, M0_RPC_CONN_SESS_TERMINATE_WAIT);
+		return M0_FSO_AGAIN;
+
+	case M0_RPC_CONN_SESS_TERMINATE_WAIT:
+		m0_rpc_machine_lock(machine);
+
+		if (gen->ssf_term_session == NULL) {
+			session = m0_rpc_session_pop(conn);
+			gen->ssf_term_session = session;
+			if (session != NULL) {
+				int rc;
+				M0_LOG(M0_DEBUG, "Arming connection fom");
+				rc = rpc_tick_ret(session, fom,
+					  M0_RPC_CONN_SESS_TERMINATE_WAIT);
+				m0_rpc_machine_unlock(machine);
+				return rc;
+			}
+		} else {
+			M0_LOG(M0_DEBUG, "Session is ready for termination");
+			session = (struct m0_rpc_session *)gen->ssf_term_session;
+			M0_ASSERT(session != NULL);
+			(void)m0_rpc_rcv_session_terminate(session);
+			m0_rpc_session_fini_locked(session);
+			m0_free(session);
+			gen->ssf_term_session = NULL;
+
+			m0_rpc_machine_unlock(machine);
+			return M0_FSO_AGAIN;
+		}
+
+	default:
+		;
+	}
 
 	reply->ctr_sender_id = request->ct_sender_id;
 	switch (conn_state(conn)) {
 	case M0_RPC_CONN_ACTIVE:
+		M0_ASSERT(conn->c_nr_sessions <= 1);
 		reply->ctr_rc = m0_rpc_rcv_conn_terminate(conn);
 		break;
 	case M0_RPC_CONN_TERMINATING:
@@ -516,7 +634,7 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 	 * callback of &fop_rep->f_item item.
 	 * see: conn_terminate_reply_sent_cb, conn_cleanup_ast()
 	 */
-	m0_fom_phase_set(fom, M0_FOPH_FINISH);
+	m0_fom_phase_set(fom, M0_RPC_CONN_SESS_TERMINATE_DONE);
 	M0_LEAVE();
 	return M0_FSO_WAIT;
 }

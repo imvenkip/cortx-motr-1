@@ -97,6 +97,23 @@ extern const struct m0_fom_ops m0_rpc_fom_conn_terminate_ops;
 M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom);
 M0_INTERNAL void m0_rpc_fom_conn_terminate_fini(struct m0_fom *fom);
 
+
+/*
+ * Context fom used store fom data between its processing phases.
+ */
+struct m0_rpc_connection_session_specific_fom {
+	/**
+	   Genreric fom
+	 */
+	struct m0_fom ssf_fom_generic;
+
+	/**
+	   session pointer, during termination phase it has to be stored
+	   between FOM phases
+	 */
+	void    *ssf_term_session;
+};
+
 #endif
 
 /** @} end of rpc_session group */
