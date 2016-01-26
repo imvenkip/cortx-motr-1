@@ -182,18 +182,13 @@ M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0, const struct m0_fid *fid1)
 }
 M0_EXPORTED(m0_fid_cmp);
 
-M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid)
-{
-	int rc = sscanf(s, FID_SF, FID_S(fid));
-	return rc == 2 ? 0 : -EINVAL;
-}
-
 /**
  * Parses fid string representation.
  *
- * Two formats are supported:
+ * Three formats are supported:
  *
  *     * CONT:KEY, where CONT and KEY are in sexadecimal.
+ *     * <CONT:KEY>, where CONT and KEY are in sexadecimal.
  *
  *     * TYPE|CONT:KEY, where TYPE is a 1-character fid type
  *       (m0_fid_type::ft_id), CONT is the container sans type and KEY is the
@@ -204,24 +199,31 @@ static int fid_sscanf(const char *s, struct m0_fid *fid, int *nob)
 {
 	int rc;
 
-	rc = sscanf(s, " %"SCNx64" : %"SCNx64" %n", FID_S(fid), nob);
-	/* See a comment in m0_xcode_read() on the effects of %n. */
+	/* First check format with braces. */
+	rc = sscanf(s, FID_SF" %n", FID_S(fid), nob);
 	if (rc != 2) {
-		uint8_t ft;
+		/* If not found then check the without braces. */
+		rc = sscanf(s, " %"SCNx64" : %"SCNx64" %n", FID_S(fid), nob);
+		/* See a comment in m0_xcode_read() on the effects of %n. */
+		if (rc != 2) {
+			uint8_t ft;
 
-		rc = sscanf(s, " %c | %"SCNi64" : %"SCNi64" %n",
-			    &ft, FID_S(fid), nob);
-		if (rc == 3 && m0_fid_tget(fid) == 0) {
-			m0_fid_tchange(fid, ft);
-			rc = 0;
+			/* Check for other formats. */
+			rc = sscanf(s, " %c | %"SCNi64" : %"SCNi64" %n",
+				    &ft, FID_S(fid), nob);
+			if (rc == 3 && m0_fid_tget(fid) == 0) {
+				m0_fid_tchange(fid, ft);
+				rc = 0;
+			} else
+				rc = -EINVAL; /* No M0_ERR() here. */
 		} else
-			rc = -EINVAL; /* No M0_ERR() here. */
+			rc = 0;
 	} else
 		rc = 0;
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_fid_sscanf_simple(const char *s, struct m0_fid *fid)
+M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid)
 {
 	int nob;
 	return fid_sscanf(s, fid, &nob);

@@ -643,7 +643,7 @@ static int m0t1fs_create(struct inode     *dir,
 		return M0_ERR(-ENOMEM);
 	}
 	if (csb->csb_oostore) {
-		rc = m0_fid_sscanf_simple(dentry->d_name.name, &new_fid);
+		rc = m0_fid_sscanf(dentry->d_name.name, &new_fid);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cannot parse fid \"%s\" in oostore",
 					 (char*)dentry->d_name.name);
@@ -806,7 +806,7 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		struct m0_fid        gfid;
 		struct m0_fop_cob    body;
 
-		rc = m0_fid_sscanf_simple(dentry->d_name.name, &new_fid);
+		rc = m0_fid_sscanf(dentry->d_name.name, &new_fid);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cannot parse fid \"%s\" in oostore",
 					 (char*)dentry->d_name.name);
@@ -879,7 +879,7 @@ static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
 	int rc;
 
 	M0_THREAD_ENTER;
-	rc = m0_fid_sscanf_simple(dentry->d_name.name, &fid);
+	rc = m0_fid_sscanf(dentry->d_name.name, &fid);
 	if (rc != 0) {
 		M0_LEAVE("Cannot parse fid \"%s\"", (char*)dentry->d_name.name);
 		return ERR_PTR(rc);
