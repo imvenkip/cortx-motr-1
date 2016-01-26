@@ -296,11 +296,11 @@ fmio_pool_mach_set_failure()
 	}
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		pool_mach_set_state "failed" $device || {
-			echo "Failed: pool_mach_set_state failed for $device ..."
+		disk_state_set "failed" $device || {
+			echo "Failed: disk_state_set failed for $device ..."
 			return 1
 		}
-		pool_mach_query $fail_devices
+		disk_state_get $fail_devices
 	fi
 	return 0
 }
@@ -315,7 +315,7 @@ fmio_sns_repair()
 
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		pool_mach_set_state "repairing" $device || return 1
+		disk_state_set "repairing" $device || return 1
 
 		sns_repair || {
 			echo "Failed: SNS repair..."
@@ -324,9 +324,9 @@ fmio_sns_repair()
 		echo "wait for sns repair"
 		wait_for_sns_repair_or_rebalance "repair" || return $?
 
-		pool_mach_set_state "repaired" $device || return 1
+		disk_state_set "repaired" $device || return 1
 		echo "sns repair done"
-		pool_mach_query $fail_devices
+		disk_state_get $fail_devices
 	fi
 
 	if [ $debug_level == $DEBUG_LEVEL_3 ]
@@ -348,7 +348,7 @@ fmio_sns_rebalance()
 
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		pool_mach_set_state "rebalancing" $device || return 1
+		disk_state_set "rebalancing" $device || return 1
 
 		sns_rebalance || {
 			echo "Failed: SNS rebalance..."
@@ -357,10 +357,10 @@ fmio_sns_rebalance()
 		echo "wait for sns rebalance"
 		wait_for_sns_repair_or_rebalance "rebalance" || return $?
 
-		pool_mach_set_state "online" $device || return 1
+		disk_state_set "online" $device || return 1
 		echo "sns rebalance done"
 
-		pool_mach_query $fail_devices
+		disk_state_get $fail_devices
 	fi
 	return 0
 }
@@ -490,7 +490,7 @@ fmio_io_test()
 	echo "All the devices are online at this point"
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		pool_mach_query $fail_devices
+		disk_state_get $fail_devices
 	fi
 
 	echo "Creating files initially"

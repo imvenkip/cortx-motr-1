@@ -956,8 +956,16 @@ static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
 	pdev = container_of(cl, struct m0_pooldev, pd_clink);
 	M0_ASSERT(pdev != NULL);
 	pme.pe_type = M0_POOL_DEVICE;
-	pme.pe_index = pdev->pd_index;
+	/*
+	 * poolmach devices indexes start from 1 to N. See m0_pm_devices_nr().
+	 * But devices indexes start from 0 to N - 1 in conf.
+	 */
+	pme.pe_index = pdev->pd_index + 1;
 	pme.pe_state = ha2pm_state_map(obj->co_ha_state);
+
+	M0_LOG(M0_DEBUG, "pe_type=%6s pe_index=%x, pe_state=%10d",
+			 pme.pe_type == M0_POOL_DEVICE ? "device":"node",
+			 pme.pe_index, pme.pe_state);
 	return M0_RC(m0_poolmach_state_transit(pdev->pd_pm, &pme, NULL));
 }
 

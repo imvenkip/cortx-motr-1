@@ -50,18 +50,20 @@ sns_repair_test()
 	done
 
 ####### Set Failure device
-	pool_mach_set_state "failed" $fail_device || return $?
+	disk_state_set "failed" $fail_device || return $?
+
+	disk_state_get $fail_device || return $?
 
 	echo "Device $fail_device failed. Do dgmode read"
 	md5sum_check || return $?
 
-	pool_mach_set_state "repairing" $fail_device || return $?
+	disk_state_set "repairing" $fail_device || return $?
 	sns_repair || return $?
 
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
 
-	pool_mach_set_state "repaired" $fail_device || return $?
+	disk_state_set "repaired" $fail_device || return $?
 
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status "repair" || return $?
@@ -70,23 +72,23 @@ sns_repair_test()
 	md5sum_check || return $?
 
 	echo "Query device state"
-	pool_mach_query $fail_device || return $?
+	disk_state_get $fail_device || return $?
 
-	pool_mach_set_state "rebalancing" $fail_device || return $?
+	disk_state_set "rebalancing" $fail_device || return $?
 	echo "Starting SNS Re-balance.."
 	sns_rebalance || return $?
 
-	pool_mach_query $fail_device
+	disk_state_get $fail_device
 
 	echo "wait for sns rebalance"
 	wait_for_sns_repair_or_rebalance "rebalance" || return $?
 
-	pool_mach_set_state "online" $fail_device || return $?
+	disk_state_set "online" $fail_device || return $?
 
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status "rebalance" || return $?
 
-	pool_mach_query $fail_device
+	disk_state_get $fail_device
 
 	echo "SNS Re-balance done."
 

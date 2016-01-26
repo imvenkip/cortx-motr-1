@@ -5722,8 +5722,10 @@ ref_dec:
 
 	if (xfer->nxr_rc == 0 && rc != 0) {
 		xfer->nxr_rc = rc;
-		M0_LOG(M0_ERROR, "[%p] rc %d, tioreq->ti_rc %d, nwxfer rc = %d",
-				 req, rc, tioreq->ti_rc, xfer->nxr_rc);
+		M0_LOG(M0_ERROR, "[%p][type=%d] rc %d, tioreq->ti_rc %d, "
+				 "nwxfer rc = %d @"FID_F,
+				 req, req->ir_type, rc, tioreq->ti_rc,
+				 xfer->nxr_rc, FID_P(&tioreq->ti_fid));
 	}
 
 	if (irfop->irf_pattr == PA_DATA)

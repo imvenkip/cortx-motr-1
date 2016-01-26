@@ -51,13 +51,13 @@ sns_repair_rebalance_quiesce_test()
 	done
 
 ####### Set Failure device
-	pool_mach_set_state "failed" $fail_device1 $fail_device2 || return $?
+	disk_state_set "failed" $fail_device1 $fail_device2 || return $?
 
 	echo "Device $fail_device1 $fail_device2 failed. Do dgmode read"
 	md5sum_check || return $?
 
 	echo "SNS repair, and this will be quiesecd"
-	pool_mach_set_state "repairing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repairing" $fail_device1 $fail_device2 || return $?
 	sns_repair
 	sleep 3
 
@@ -68,7 +68,7 @@ sns_repair_rebalance_quiesce_test()
 	wait_for_sns_repair_or_rebalance "repair" || return $?
 
 	echo "Query device state"
-	pool_mach_query $fail_device1 $fail_device2 || return $?
+	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "Continue SNS repair..."
 	sns_repair || return $?
@@ -77,14 +77,14 @@ sns_repair_rebalance_quiesce_test()
 	wait_for_sns_repair_or_rebalance "repair" || return $?
 
 	echo "SNS Repair done."
-	pool_mach_set_state "repaired" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repaired" $fail_device1 $fail_device2 || return $?
 	md5sum_check || return $?
 
 	echo "Query device state"
-	pool_mach_query $fail_device1 $fail_device2 || return $?
+	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "Starting SNS Re-balance, and this will be quiesced"
-	pool_mach_set_state "rebalancing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "rebalancing" $fail_device1 $fail_device2 || return $?
 	sns_rebalance
 	sleep 3
 
@@ -100,15 +100,15 @@ sns_repair_rebalance_quiesce_test()
 	echo "wait for sns rebalance"
 	wait_for_sns_repair_or_rebalance "rebalance" || return $?
 
-	pool_mach_set_state "online" $fail_device1 $fail_device2 || return $?
+	disk_state_set "online" $fail_device1 $fail_device2 || return $?
 	echo "SNS Re-balance done."
 ####### Query device state
-	pool_mach_query $fail_device1 $fail_device2 || return $?
+	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "Verifying checksums.."
 	md5sum_check || return $?
 
-	pool_mach_query $fail_device1 $fail_device2
+	disk_state_get $fail_device1 $fail_device2
 
 	return $?
 }

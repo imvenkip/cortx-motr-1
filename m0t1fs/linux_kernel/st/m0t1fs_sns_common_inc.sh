@@ -1,35 +1,65 @@
-declare -A states=(
-	[online]=0
-	[failed]=1
-	[offline]=2
-	[repairing]=3
-	[repaired]=4
-	[rebalancing]=5
+M0_NC_ONLINE=1
+M0_NC_FAILED=2
+M0_NC_TRANSIENT=3
+M0_NC_REPAIR=4
+M0_NC_REPAIRED=5
+M0_NC_REBALANCE=6
+
+declare -A ha_states=(
+	[online]=$M0_NC_ONLINE
+	[failed]=$M0_NC_FAILED
+	[offline]=$M0_NC_TRANSIENT
+	[repairing]=$M0_NC_REPAIR
+	[repaired]=$M0_NC_REPAIRED
+	[rebalancing]=$M0_NC_REBALANCE
 )
 
-pool_mach_set_state()
+disk_state_set()
 {
-	DEVICES=""
-	STATE=""
-	state_name=$1
+	local lnet_nid=`sudo lctl list_nids | head -1`
+	local s_endpoint="$lnet_nid:12345:33:1"
+	local c_endpoint="$lnet_nid:12345:30:*"
+	local state_name=$1
 	shift
+	local state=${ha_states[$state_name]}
 
-	state=${states[$state_name]}
+	local service_eps=(
+		"$lnet_nid:${IOSEP[0]}"
+		"$lnet_nid:${IOSEP[1]}"
+		"$lnet_nid:${IOSEP[2]}"
+		"$lnet_nid:${IOSEP[3]}"
+		"$lnet_nid:${HA_EP}"
+	)
 
-	echo "setting device { $@ } to $state_name ($state)"
+	local nr=0
+	local DS=""
 
-	for i in "$@"
+	echo "setting device { $@ } to $state_name (HA state=$state)"
+
+	for d in "$@"
 	do
-		DEVICES="$DEVICES -I $i"
-		STATE="$STATE -s $state"
+		if [ $nr -eq 0 ] ; then
+			DS="(^k|1:$d, $state)"
+		else
+			DS="$DS, (^k|1:$d, $state)"
+		fi
+		nr=$((nr + 1))
 	done
-	poolmach="$M0_SRC_DIR/pool/m0poolmach -O Set -T device -N $# \
-		 $DEVICES $STATE -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
-	echo $poolmach
-	eval $poolmach
+
+	for sep in "${service_eps[@]}"; do
+		ha_note="$M0_SRC_DIR/console/bin/m0console     \
+			-s $sep                                \
+			-c $c_endpoint                         \
+			-f $(opcode M0_HA_NOTE_SET_OPCODE)     \
+			-v                                     \
+			-d '[$nr: $DS]'"
+		echo $ha_note
+		eval $ha_note
+	done
+
 	rc=$?
 	if [ $rc != 0 ] ; then
-		echo "m0poolmach failed: $rc"
+		echo "HA note set failed: $rc"
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return $rc
 	fi
@@ -37,20 +67,49 @@ pool_mach_set_state()
 	return 0
 }
 
-pool_mach_query()
+disk_state_get()
 {
-	DEVICES=""
-	for i in "$@"
+	local lnet_nid=`sudo lctl list_nids | head -1`
+	local s_endpoint="$lnet_nid:12345:33:1"
+	local c_endpoint="$lnet_nid:12345:30:*"
+
+	local service_eps=(
+		"$lnet_nid:${IOSEP[0]}"
+		"$lnet_nid:${IOSEP[1]}"
+		"$lnet_nid:${IOSEP[2]}"
+		"$lnet_nid:${IOSEP[3]}"
+		"$lnet_nid:${HA_EP}"
+	)
+
+	local nr=0
+	local DS=""
+
+	echo "getting device { $@ }'s HA state"
+
+	for d in "$@"
 	do
-		DEVICES="$DEVICES -I $i"
+		if [ $nr -eq 0 ] ; then
+			DS="(^k|1:$d, 0)"
+		else
+			DS="$DS, (^k|1:$d, 0)"
+		fi
+		nr=$((nr + 1))
 	done
-	poolmach="$M0_SRC_DIR/pool/m0poolmach -O Query -T device -N $# \
-		 $DEVICES -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
-	echo $poolmach
-	eval $poolmach
+
+	for sep in "${service_eps[@]}"; do
+		ha_note="$M0_SRC_DIR/console/bin/m0console     \
+			-s $sep                                \
+			-c $c_endpoint                         \
+			-f $(opcode M0_HA_NOTE_GET_OPCODE)     \
+			-v                                     \
+			-d '[$nr: $DS]'"
+		echo $ha_note
+		eval $ha_note
+	done
+
 	rc=$?
 	if [ $rc != 0 ] ; then
-		echo "m0poolmach failed: $rc"
+		echo "HA note get failed: $rc"
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return $rc
 	fi

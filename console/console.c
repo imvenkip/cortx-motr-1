@@ -98,7 +98,7 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 	if (rc != 0)
 		return M0_RC(rc);
 
-	printf("Sending FOP ");
+	printf("Sending FOP: ");
 	m0_cons_fop_name_print(ftype);
 
 	rc = m0_cons_fop_obj_output(fop);
@@ -126,7 +126,7 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 	}
 
 	/* Print reply */
-	printf("Server replied with FOP ");
+	printf("Server replied with FOP: ");
 	m0_cons_fop_name_print(rfop->f_type);
 
 	rc = m0_cons_fop_obj_output(rfop);

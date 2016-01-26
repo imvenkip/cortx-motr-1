@@ -161,7 +161,7 @@ struct m0_ha_note {
 	/** Object identifier. */
 	struct m0_fid no_id;
 	/** State, from enum m0_ha_obj_state. */
-	uint8_t       no_state;
+	uint32_t      no_state;
 } M0_XCA_RECORD;
 
 /**
