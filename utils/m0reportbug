@@ -1,14 +1,18 @@
 #!/bin/bash
 set -eu
 # set -x
-# export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
+export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.9.2
+VERSION=0.10.1
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-01-27 0.10.1  * _path_src() is able to handle `lt-m0d'.
+###                    * Compare VERSION with that of the topmost History
+###                      entry. Fail if the values differ.
+###
 ### 2016-01-19 0.10    Create .tar.gz archive. bzip2 is not always available.
 ###
 ### 2016-01-05 0.9.2   * Do not collect ADDB data unless `--addb' option
@@ -220,7 +224,7 @@ _path_src() {
     [ -n "$src" ] || die "${FUNCNAME[0]}: Impossible happened"
 
     case $name in
-        m0d) echo "$src/mero/${subdir}$name";;
+        m0d|lt-m0d) echo "$src/mero/${subdir}$name";;
         m0mkfs) echo "$src/utils/mkfs/${subdir}$name";;
         m0tracedump)
             [ -z "$subdir" ] || die "${FUNCNAME[0]}: Unexpected argument"
@@ -502,4 +506,6 @@ optparse() {
     fi
 }
 
+[ $VERSION = "$(grep -A2 '^### Date' $PROG | tail -1 | cut -d' ' -f3)" ] ||
+    die 'VERSION must be updated'
 main "$@"
