@@ -394,9 +394,10 @@ static void bulkclient_test(void)
 	m0_mutex_lock(&rbulk->rb_mutex);
 	m0_clink_init(&clink, NULL);
 	m0_clink_add(&rbulk->rb_chan, &clink);
-	m0_mutex_unlock(&rbulk->rb_mutex);
-	rc = m0_rpc_bulk_store_del(rbulk);
+	rc = m0_rpc_bulk_store_del_unqueued(rbulk);
 	M0_UT_ASSERT(rc == 0);
+	m0_mutex_unlock(&rbulk->rb_mutex);
+	m0_rpc_bulk_store_del(rbulk);
 	m0_chan_wait(&clink);
 	m0_mutex_lock(&rbulk->rb_mutex);
 	m0_clink_del(&clink);

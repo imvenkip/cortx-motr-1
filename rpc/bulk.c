@@ -78,9 +78,9 @@ static void rpc_bulk_buf_fini(struct m0_rpc_bulk_buf *rbuf)
 	M0_PRE(rbuf != NULL);
 	M0_PRE(!(nbuf->nb_flags & M0_NET_BUF_QUEUED));
 
+	rpc_bulk_buf_deregister(rbuf);
 	m0_net_desc_free(&nbuf->nb_desc);
 	m0_0vec_fini(&rbuf->bb_zerovec);
-	rpc_bulk_buf_deregister(rbuf);
 	if (rbuf->bb_flags & M0_RPC_BULK_NETBUF_ALLOCATED)
 		m0_free(nbuf);
 	m0_free(rbuf);
@@ -173,8 +173,6 @@ M0_INTERNAL void m0_rpc_bulk_default_cb(const struct m0_net_buffer_event *evt)
 		rbulk->rb_rc = evt->nbe_status;
 
 	rpcbulk_tlist_del(buf);
-	rpc_bulk_buf_deregister(buf);
-
 	rpc_bulk_buf_fini(buf);
 	if (m0_chan_has_waiters(&rbulk->rb_chan) &&
 	    rpcbulk_tlist_is_empty(&rbulk->rb_buflist))
@@ -184,37 +182,50 @@ M0_INTERNAL void m0_rpc_bulk_default_cb(const struct m0_net_buffer_event *evt)
 	M0_LEAVE("rb_rc=%d", rbulk->rb_rc);
 }
 
-M0_INTERNAL size_t m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)
+M0_INTERNAL size_t m0_rpc_bulk_store_del_unqueued(struct m0_rpc_bulk *rbulk)
 {
 	struct m0_rpc_bulk_buf *rbuf;
-	size_t                  non_queued_nr = 0;
+	size_t                  unqueued_nr = 0;
+
+	M0_ENTRY("rbulk %p", rbulk);
+	M0_PRE(rbulk != NULL);
+
+	M0_PRE(rbulk->rb_rc == 0);
+	M0_PRE(rpc_bulk_invariant(rbulk));
+	M0_PRE(m0_chan_has_waiters(&rbulk->rb_chan));
+	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
+		if (!(rbuf->bb_flags & M0_RPC_BULK_NETBUF_QUEUED)) {
+			rpcbulk_tlist_del(rbuf);
+			rpc_bulk_buf_fini(rbuf);
+			++unqueued_nr;
+		}
+	} m0_tl_endfor;
+
+	M0_LEAVE("rbulk %p, unqueued_nr %llu", rbulk,
+		 (unsigned long long)unqueued_nr);
+	return unqueued_nr;
+}
+
+M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)
+{
+	struct m0_rpc_bulk_buf *rbuf;
 
 	M0_ENTRY("rbulk %p", rbulk);
 	M0_PRE(rbulk != NULL);
 
 	m0_mutex_lock(&rbulk->rb_mutex);
+
 	M0_PRE(rbulk->rb_rc == 0);
 	M0_PRE(rpc_bulk_invariant(rbulk));
 	M0_PRE(m0_chan_has_waiters(&rbulk->rb_chan));
-	m0_mutex_unlock(&rbulk->rb_mutex);
 
 	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
-		if (!m0_net_buffer_del(rbuf->bb_nbuf,
-				       rbuf->bb_nbuf->nb_tm)) {
-			m0_mutex_lock(&rbulk->rb_mutex);
-			/* yes, rbuf may be deleted by this time already */
-			if (rpcbulk_tlink_is_in(rbuf)) {
-				rpcbulk_tlist_del(rbuf);
-				rpc_bulk_buf_deregister(rbuf);
-				rpc_bulk_buf_fini(rbuf);
-				++non_queued_nr;
-			}
-			m0_mutex_unlock(&rbulk->rb_mutex);
-		}
+		m0_net_buffer_del(rbuf->bb_nbuf, rbuf->bb_nbuf->nb_tm);
 	} m0_tl_endfor;
-	M0_LEAVE("rbulk %p, non_queued_nr %llu", rbulk,
-		 (unsigned long long)non_queued_nr);
-	return non_queued_nr;
+
+	m0_mutex_unlock(&rbulk->rb_mutex);
+
+	M0_LEAVE("rbulk %p", rbulk);
 }
 
 const struct m0_net_buffer_callbacks m0_rpc__buf_bulk_cb = {
@@ -432,14 +443,16 @@ static int rpc_bulk_op(struct m0_rpc_bulk                   *rbulk,
 		rc = m0_net_buffer_add(nb, tm);
 		if (rc != 0)
 			goto cleanup;
+		rbuf->bb_flags |= M0_RPC_BULK_NETBUF_QUEUED;
 
 		if (op == M0_RPC_BULK_STORE) {
 			rc = m0_net_desc_copy(&nb->nb_desc,
 					      &descs[cnt].bdd_desc);
-                        if (rc != 0) {
-                                m0_net_buffer_del(nb, tm);
-                                goto cleanup;
-                        }
+			if (rc != 0) {
+				m0_net_buffer_del(nb, tm);
+				rbuf->bb_flags &= ~M0_RPC_BULK_NETBUF_QUEUED;
+				goto cleanup;
+			}
 			descs[cnt].bdd_used = nb->nb_length;
 		}
 
@@ -456,8 +469,10 @@ cleanup:
 	M0_LOG(M0_DEBUG, "rbulk %p, rc %d", rbulk, rc);
 	rpcbulk_tlist_del(rbuf);
 	m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
-		if (rbuf->bb_nbuf->nb_flags & M0_NET_BUF_QUEUED)
+		if (rbuf->bb_flags & M0_RPC_BULK_NETBUF_QUEUED) {
 			m0_net_buffer_del(rbuf->bb_nbuf, tm);
+			rbuf->bb_flags &= ~M0_RPC_BULK_NETBUF_QUEUED;
+		}
 	} m0_tl_endfor;
 	m0_mutex_unlock(&rbulk->rb_mutex);
 	return M0_ERR(rc);

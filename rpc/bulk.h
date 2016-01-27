@@ -138,13 +138,18 @@ enum {
 	 * allocated by rpc bulk APIs.
 	 * So it should be deallocated by rpc bulk APIs as well.
 	 */
-	M0_RPC_BULK_NETBUF_ALLOCATED = 1,
+	M0_RPC_BULK_NETBUF_ALLOCATED   = (1 << 0),
 	/**
 	 * The net buffer belonging to struct m0_rpc_bulk_buf is
 	 * registered with net domain by rpc bulk APIs.
 	 * So it should be deregistered by rpc bulk APIs as well.
 	 */
-	M0_RPC_BULK_NETBUF_REGISTERED,
+	M0_RPC_BULK_NETBUF_REGISTERED  = (1 << 1),
+	/**
+	 * The net buffer has been queued to TM's queue.
+	 */
+	M0_RPC_BULK_NETBUF_QUEUED      = (1 << 2),
+
 	/**
 	 * RPC bulk operation timeout is kept as 60 sec.
 	 */
@@ -359,12 +364,15 @@ m0_rpc_bulk_load(struct m0_rpc_bulk                   *rbulk,
  * Invocation of this API should be followed by wait on m0_rpc_bulk::rb_chan.
  * @pre  rbulk != NULL && rbulk->rb_rc == 0 && rpc_bulk_invariant(rbulk).
  * @post rpcbulk_tlist_is_empty(&rbulk->rb_buflist).
- * @return count of non-queued net buffers. The net buffer callback will not be
- *         invoked for such buffers and the user might want undo some of the
- *         book-keeping that otherwise would have been done through the
- *         callback.
  */
-M0_INTERNAL size_t m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk);
+M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk);
+
+/*
+ * Like m0_rpc_bulk_store_del() but deletes unqueued buffers only.
+ * Requires rbulk locked by user.
+ * @return number of deleted unqueued bufs.
+ */
+M0_INTERNAL size_t m0_rpc_bulk_store_del_unqueued(struct m0_rpc_bulk *rbulk);
 
 M0_INTERNAL void m0_rpc_bulk_default_cb(const struct m0_net_buffer_event *evt);
 

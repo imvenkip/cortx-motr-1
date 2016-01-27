@@ -5459,15 +5459,19 @@ static void io_req_fop_release(struct m0_ref *ref)
 	 * transfer machine.
 	 */
 	m0_mutex_lock(&xfer->nxr_lock);
-	if (!m0_rpc_bulk_is_empty(rbulk)) {
+	m0_mutex_lock(&rbulk->rb_mutex);
+	if (!m0_tlist_is_empty(&rpcbulk_tl, &rbulk->rb_buflist)) {
 		struct m0_clink clink;
 		size_t          buf_nr;
-		size_t          non_queued_buf_nr = 0;
+		size_t          non_queued_buf_nr;
 
-		buf_nr = m0_rpc_bulk_buf_length(rbulk);
 		m0_clink_init(&clink, NULL);
-		m0_clink_add_lock(&rbulk->rb_chan, &clink);
-		non_queued_buf_nr = m0_rpc_bulk_store_del(rbulk);
+		m0_clink_add(&rbulk->rb_chan, &clink);
+		buf_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
+		non_queued_buf_nr = m0_rpc_bulk_store_del_unqueued(rbulk);
+		m0_mutex_unlock(&rbulk->rb_mutex);
+
+		m0_rpc_bulk_store_del(rbulk);
 		M0_LOG(M0_DEBUG, "[%p] fop %p, %p[%u], bulk %p, buf_nr %llu, "
 		       "non_queued_buf_nr %llu", req, &iofop->if_fop, item,
 		       item->ri_type->rit_opcode, rbulk,
@@ -5496,8 +5500,10 @@ static void io_req_fop_release(struct m0_ref *ref)
 		}
 		m0_clink_del_lock(&clink);
 		m0_clink_fini(&clink);
-	} else
+	} else {
+		m0_mutex_unlock(&rbulk->rb_mutex);
 		m0_mutex_unlock(&xfer->nxr_lock);
+	}
 	M0_ASSERT(m0_rpc_bulk_is_empty(rbulk));
 	M0_LOG(M0_DEBUG, "[%p] fop %p, Pending fops %llu, Pending rdbulk %llu",
 	       req, fop,
