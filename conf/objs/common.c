@@ -58,7 +58,7 @@ static void dir_id_build(struct m0_fid *out, const struct m0_fid *id,
 	out->f_container &= ~0x00ffff00000000ULL;
 	/* ... place parent type there... */
 	out->f_container |= ((uint64_t)m0_fid_type_getfid(id)->ft_id) << 48;
-	/* ... and place parent type there. */
+	/* ... and place children type there. */
 	out->f_container |= ((uint64_t)children_type->cot_ftype.ft_id) << 40;
 }
 
