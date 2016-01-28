@@ -100,7 +100,8 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 	struct m0_net_end_point *ep;
 	int                      rc;
 
-	M0_ENTRY();
+	M0_ENTRY("conn=%p session=%p rpc_mach=%p remote_addr=%s",
+	         conn, session, rpc_mach, remote_addr);
 
 	rc = m0_net_end_point_create(&ep, &rpc_mach->rm_tm, remote_addr);
 	if (rc != 0)
