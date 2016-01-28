@@ -87,7 +87,7 @@ enum {
 #define M0_FID_TINIT(type, container, key)				\
 	M0_FID_INIT(M0_FID_TCONTAINER((type), (container)), (key))
 
-#define M0_FID0 { 0ULL, 0ULL }
+#define M0_FID0 M0_FID_INIT(0ULL, 0ULL)
 
 #define M0_FID_BUF(fid) ((struct m0_buf){	\
 	.b_nob = sizeof *(fid),			\
