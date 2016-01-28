@@ -23,6 +23,8 @@
 #ifndef __MERO_MDSERVICE_MD_SERVICE_H__
 #define __MERO_MDSERVICE_MD_SERVICE_H__
 
+#include "reqh/reqh_service.h"   /* m0_reqh_service */
+
 /**
  * @defgroup mdservice MD Service Operations
  * @see @ref reqh

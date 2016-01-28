@@ -125,12 +125,9 @@
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "lib/chan.h"
+#include "net/net.h"
 
-struct m0_net_buffer;
-struct m0_net_domain;
-struct m0_net_buf_desc;
 struct m0_rpc_conn;
-enum m0_net_queue_type;
 
 /**
    Represents attributes of struct m0_rpc_bulk_buf.

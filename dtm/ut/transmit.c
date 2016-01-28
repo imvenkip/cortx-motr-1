@@ -38,6 +38,7 @@
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
 #include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 #include "rpc/rpc_opcodes.h"
 #include "dtm/dtm_internal.h"
 #include "dtm/operation.h"

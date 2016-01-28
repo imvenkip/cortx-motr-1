@@ -208,13 +208,15 @@ Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
 
 #include "dtm/dtm.h"               /* m0_dtx */
 #include "fol/fol.h"
-#include "dtm/dtm.h"           /* m0_dtx */
 #include "stob/stob.h"
-#include "reqh/reqh_service.h"
 #include "addb2/counter.h"
 #include "addb2/sys.h"
 
 struct m0_addb2_mach;
+
+/* import */
+struct m0_reqh_service;
+struct m0_reqh_service_type;
 
 /* export */
 struct m0_fom_domain;

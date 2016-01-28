@@ -41,6 +41,7 @@
 #include "fop/fom_long_lock.h"
 #include "module/instance.h"          /* m0_get */
 #include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 #include "sm/sm.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/rpc_opcodes.h"

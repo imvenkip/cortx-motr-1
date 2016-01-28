@@ -18,15 +18,16 @@
  * Original creation date: 04-Jun-2013
  */
 
-#include "reqh/reqh.h"
-#include "fop/fom.h"
-#include "fop/fom_simple.h"
 #include "lib/misc.h"           /* m0_forall */
 #include "lib/mutex.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/locality.h"
 #include "lib/finject.h"
+#include "fop/fom.h"
+#include "fop/fom_simple.h"
+#include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 #include "ut/ut.h"
 
 enum {

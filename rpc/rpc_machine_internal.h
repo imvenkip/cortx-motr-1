@@ -31,6 +31,7 @@
 struct m0_net_end_point;
 struct m0_rpc_machine;
 struct m0_rpc_machine_watch;
+struct m0_rpc_conn;
 
 
 /**

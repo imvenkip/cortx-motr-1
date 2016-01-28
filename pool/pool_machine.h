@@ -38,6 +38,7 @@ struct m0_be_tx_credit;
 struct m0_poolnode;
 struct m0_pooldev;
 struct m0_pool_spare_usage;
+struct m0_pools_common;
 struct m0_poolmach_event;
 struct m0_poolmach_event_link;
 struct m0_conf_pver;

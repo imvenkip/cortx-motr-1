@@ -20,6 +20,7 @@
 #include "ut/ut.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 #include "rpc/rpc_opcodes.h"   /* M0_UT_STATS_OPCODE */
 
 #include "fop/ut/stats/stats_fom.c"

@@ -24,6 +24,7 @@
 #include "fop/fom_long_lock.h"
 #include "fop/fom_generic.h"   /* m0_generic_conf, M0_FOPH_NR */
 #include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 #include "rpc/rpc_opcodes.h"   /* M0_UB_FOM_OPCODE */
 #include "lib/memory.h"        /* m0_free */
 #include "lib/ub.h"            /* M0_UB_ASSERT */
