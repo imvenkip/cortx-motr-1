@@ -333,7 +333,6 @@ void test_m0t1fs_fsync_reply_process(void)
 	struct m0t1fs_fsync_fop_wrapper  ffw;
 	struct m0_reqh_service_txid      stx;
 	struct m0_fop_fsync             *ffd;
-	struct m0_reqh_service_ctx       another_service;
 
 	fake_fs_setup();
 
@@ -341,7 +340,6 @@ void test_m0t1fs_fsync_reply_process(void)
 	M0_SET0(&stx);
 	M0_SET0(&ffd);
 	M0_SET0(&copy);
-	M0_SET0(&another_service);
 
 	/* Copy the fsync_interactions struct so that we can restore it to
 	 * default values later */
@@ -466,11 +464,9 @@ void test_m0t1fs_fsync_reply_process(void)
 void test_m0t1fs_fsync_record_update(void)
 {
 	struct m0_reqh_service_txid *iter;
-	struct m0_reqh_service_ctx   another_service;
 	struct m0_be_tx_remid        btr;
 
 	fake_fs_setup();
-	M0_SET0(&another_service);
 
 	/* test the inode record is updated */
 	btr.tri_txid = 50;
