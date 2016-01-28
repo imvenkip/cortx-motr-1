@@ -115,17 +115,6 @@ static int stob_domain_create_or_init(uint64_t                 cid,
 	return M0_RC(rc);
 }
 
-static void
-conf_sdev_associate(struct m0_stob_linux *lstob, const struct m0_fid *conf_sdev)
-{
-	M0_PRE(_0C(m0_conf_fid_is_valid(conf_sdev)) &&
-	       _0C(m0_conf_fid_type(conf_sdev) == &M0_CONF_SDEV_TYPE));
-	M0_PRE(ergo(m0_fid_is_set(&lstob->sl_conf_sdev),
-		    m0_fid_eq(&lstob->sl_conf_sdev, conf_sdev)));
-
-	lstob->sl_conf_sdev = *conf_sdev;
-}
-
 static int storage_dev_attach(struct m0_storage_devs    *devs,
 			      uint64_t                   cid,
 			      const char                *path,
@@ -172,8 +161,8 @@ static int storage_dev_attach(struct m0_storage_devs    *devs,
 		} else if (conf_sdev != NULL) {
 			/* Ensure that we are dealing with a linux stob. */
 			M0_ASSERT(m0_fid_validate_linuxstob(&stob_id));
-			conf_sdev_associate(m0_stob_linux_container(stob),
-					    &conf_sdev->sd_obj.co_id);
+			m0_stob_linux_conf_sdev_associate(stob,
+						  &conf_sdev->sd_obj.co_id);
 		}
 	}
 stob_put:

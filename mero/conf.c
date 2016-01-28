@@ -241,13 +241,14 @@ static bool is_device(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE;
 }
 
-static int cs_conf_storage_attach_by_srv(struct cs_stobs        *stob,
+static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 					 struct m0_storage_devs *devs,
 					 struct m0_fid          *svc_fid,
 					 struct m0_confc        *confc)
 {
 	struct m0_conf_obj  *svc;
 	struct m0_conf_sdev *sdev;
+	struct m0_stob      *stob;
 	int                  rc;
 
 	M0_ENTRY();
@@ -280,6 +281,10 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *stob,
 			        sdev->sd_size);
 			if (rc != 0)
 				break;
+			stob = m0_storage_devs_find_by_cid(devs,
+					    sdev->sd_dev_idx)->isd_stob,
+			m0_stob_linux_conf_sdev_associate(stob,
+							  &sdev->sd_obj.co_id);
 
 		}
 		m0_conf_diter_fini(&it);

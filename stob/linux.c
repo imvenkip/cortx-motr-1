@@ -562,6 +562,15 @@ M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
 	return M0_RC(0);
 }
 
+M0_INTERNAL void
+m0_stob_linux_conf_sdev_associate(struct m0_stob      *stob,
+                                  const struct m0_fid *conf_sdev)
+{
+	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
+
+	lstob->sl_conf_sdev = *conf_sdev;
+}
+
 static struct m0_stob_type_ops stob_linux_type_ops = {
 	.sto_register                = &stob_linux_type_register,
 	.sto_deregister              = &stob_linux_type_deregister,

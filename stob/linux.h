@@ -81,6 +81,14 @@ m0_stob_linux_domain_container(struct m0_stob_domain *dom);
 M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
 				     const char *f_path);
 
+/**
+ * Associates linux stob with some configuration find.
+ * This fid is sent to HA when stob I/O error is reported.
+ */
+M0_INTERNAL void
+m0_stob_linux_conf_sdev_associate(struct m0_stob      *stob,
+                                  const struct m0_fid *conf_sdev);
+
 extern const struct m0_stob_type m0_stob_linux_type;
 
 /** @} end group stoblinux */
