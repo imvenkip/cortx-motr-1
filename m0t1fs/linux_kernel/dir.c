@@ -579,7 +579,11 @@ static uint64_t default_layout_id_get(struct m0t1fs_sb *csb)
 	if (rc == 0) {
 		fs = M0_CONF_CAST(cobj, m0_conf_filesystem);
 
-		for (i = 0; fs->cf_params[i] != NULL; ++i) {
+		/* TODO move the warning to the mount time */
+		if (fs->cf_params == NULL)
+			M0_LOG(M0_WARN, "fs->cf_params == NULL");
+		for (i = 0;
+		     fs->cf_params != NULL && fs->cf_params[i] != NULL; ++i) {
 			M0_LOG(M0_DEBUG, "param(%d): %s", i, fs->cf_params[i]);
 			if (i == FS_LID_INDEX) {
 				lid = simple_strtoul(fs->cf_params[i], NULL, 0);
