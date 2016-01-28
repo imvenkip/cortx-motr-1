@@ -706,7 +706,6 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 {
 	m0_addb2_sys_net_stop(m0_addb2_global_get());
 	m0t1fs_sb_layouts_fini(csb);
-	m0_reqh_services_terminate(&csb->csb_reqh);
 	/* @todo Make a separate unconfigure api and do this in that */
 	m0_flset_destroy(&csb->csb_reqh.rh_failure_set);
 	m0_ha_state_fini();
@@ -716,6 +715,7 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_pools_common_fini(&csb->csb_pools_common);
 	m0_ha_client_del(&csb->csb_reqh.rh_confc);
 	m0_confc_fini(&csb->csb_reqh.rh_confc);
+	m0_reqh_services_terminate(&csb->csb_reqh);
 	m0t1fs_rpc_fini(csb);
 	m0t1fs_net_fini(csb);
 }
