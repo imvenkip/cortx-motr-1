@@ -873,15 +873,7 @@ static int cs_service_init(const char *name, struct m0_reqh_context *rctx,
 	if (stype == NULL)
 		return M0_ERR(-EINVAL);
 
-	rc = m0_reqh_service_allocate(&service, stype, rctx);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	m0_reqh_service_init(service, reqh, fid);
-
-	rc = m0_reqh_service_start(service);
-	if (rc != 0)
-		m0_reqh_service_fini(service);
+	rc = m0_reqh_service_setup(&service, stype, reqh, rctx, fid);
 
 	M0_POST(ergo(rc == 0, m0_reqh_service_invariant(service)));
 	return M0_RC(rc);
