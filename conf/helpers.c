@@ -244,7 +244,10 @@ M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
 	int                   rc;
 	int                   i = 0;
 
-	if ((total = m0_conf_cache_tlist_length(&cache->ca_registry)) < 1)
+	total = m0_tl_reduce(m0_conf_cache, obj, &cache->ca_registry, 0,
+	                     + (m0_fid_tget(&obj->co_id) ==
+	                        M0_CONF_DIR_TYPE.cot_ftype.ft_id ? 0 : 1));
+	if (total == 0)
 		return M0_RC(-ENOENT);
 
 	nvec.nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
@@ -253,6 +256,13 @@ M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
 		return M0_ERR(-ENOMEM);
 
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		/*
+		 * Skip directories - they're only used in Mero internal
+		 * representation and HA knows nothing about them.
+		 */
+		if (m0_fid_tget(&obj->co_id) ==
+		    M0_CONF_DIR_TYPE.cot_ftype.ft_id)
+			continue;
 		nvec.nv_note[i].no_id = obj->co_id;
 		nvec.nv_note[i++].no_state = M0_NC_UNKNOWN;
 		if (nvec.nv_nr == i) {
