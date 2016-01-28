@@ -156,7 +156,11 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 	struct m0_fop          *fop;
 	struct get_fop_context *ctx;
 
-	M0_ENTRY();
+	M0_ENTRY("session=%p chan=%p "
+		 "note->nv_nr=%"PRIi32" note->nv_note[0].no_id="FID_F
+	         " note->nv_note[0].no_state=%u", session, chan, note->nv_nr,
+	         FID_P(note->nv_nr > 0 ? &note->nv_note[0].no_id : &M0_FID0),
+	         note->nv_nr > 0 ? note->nv_note[0].no_state : 0);
 	M0_PRE(note_invariant(note, false));
 	M0_ALLOC_PTR(ctx);
 	if (ctx == NULL)
@@ -182,7 +186,10 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 	struct m0_rpc_item *item;
 	int                 rc;
 
-	M0_ENTRY();
+	M0_ENTRY("session=%p note->nv_nr=%"PRIi32" note->nv_note[0].no_id="FID_F
+	         " note->nv_note[0].no_state=%u", session, note->nv_nr,
+	         FID_P(note->nv_nr > 0 ? &note->nv_note[0].no_id : &M0_FID0),
+	         note->nv_nr > 0 ? note->nv_note[0].no_state : 0);
 	M0_PRE(note_invariant(note, true));
 
 	fop = m0_fop_alloc(&m0_ha_state_set_fopt, note,
@@ -219,7 +226,7 @@ static void ha_state_accept(struct m0_confc         *confc,
 	struct m0_conf_cache *cache;
 	int                   i;
 
-	M0_ENTRY();
+	M0_ENTRY("confc=%p note->nv_nr=%"PRIi32, confc, note->nv_nr);
 	M0_PRE(note_invariant(note, true));
 
 	cache = &confc->cc_cache;
