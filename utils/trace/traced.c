@@ -28,7 +28,7 @@
 #include <sys/stat.h>   /* open */
 #include <signal.h>     /* sigaction */
 #include <fcntl.h>      /* open */
-#include <unistd.h>     /* close, daemon */
+#include <unistd.h>     /* close, daemon, STDOUT_FILENO */
 #include <syslog.h>     /* openlog, vsyslog */
 #include <stdarg.h>     /* va_arg */
 #include <linux/limits.h> /* PATH_MAX */
@@ -66,13 +66,15 @@ static const char *input_file_name  = DEFAULT_IN_FILE_NAME;
 static const char *output_file_name = DEFAULT_OUT_FILE_NAME;
 static const char *output_kore_file_name = M0MERO_KO_CORE_OUT_FILE_NAME;
 
-static bool     daemon_mode = false;
-static bool     use_syslog = false;
-static bool     save_kore = true;
-static int      log_level = LOG_INFO;
-static uint32_t log_rotation_dealy = 5; /* in seconds */
-static uint32_t max_log_size = 1024;    /* in MB */
-static uint32_t keep_logs = 6;          /* number of logs to keep */
+static bool      daemon_mode        = false;
+static bool      pipe_mode          = false;
+static bool      use_syslog         = false;
+static bool      save_kore          = true;
+static int       log_level          = LOG_INFO;
+static bool      rotation_enabled   = true;
+static uint32_t  log_rotation_dealy = 5;        /* in seconds             */
+static uint32_t  max_log_size       = 1024;     /* in MB                  */
+static uint32_t  keep_logs          = 6;        /* number of logs to keep */
 
 static struct m0_mutex  write_data_mutex;
 static struct m0_mutex  rotator_mutex;
@@ -174,7 +176,7 @@ static int write_trace_header(const struct m0_trace_buf_header *header,
 			      int ofd, const char *ofname)
 {
 	ssize_t n;
-	int     rc;
+	int     rc = 0;
 
 	n = write(ofd, header, header->tbh_header_size);
 	if (n != header->tbh_header_size) {
@@ -183,10 +185,12 @@ static int write_trace_header(const struct m0_trace_buf_header *header,
 		return EX_IOERR;
 	}
 
-	rc = fsync(ofd);
-	if (rc != 0)
-		log_err("fsync(2) failed on output file '%s': %s",
-			ofname, strerror(errno));
+	if (!pipe_mode) {
+		rc = fsync(ofd);
+		if (rc != 0)
+			log_err("fsync(2) failed on output file '%s': %s",
+				ofname, strerror(errno));
+	}
 
 	return rc;
 }
@@ -206,7 +210,7 @@ static int write_trace_data(int *fd_ptr, const void *buf, size_t size)
 {
 	ssize_t n;
 	int     fd = get_output_fd(fd_ptr);
-	int     rc;
+	int     rc = 0;
 
 	n = write(fd, buf, size);
 	if (n != size) {
@@ -216,10 +220,12 @@ static int write_trace_data(int *fd_ptr, const void *buf, size_t size)
 		return EX_IOERR;
 	}
 
-	rc = fsync(fd);
-	if (rc != 0)
-		log_err("fsync(2) failed on output file '%s': %s",
-			output_file_name, strerror(errno));
+	if (!pipe_mode) {
+		rc = fsync(fd);
+		if (rc != 0)
+			log_err("fsync(2) failed on output file '%s': %s",
+				output_file_name, strerror(errno));
+	}
 
 	return rc;
 }
@@ -245,7 +251,7 @@ static bool is_log_rotation_needed(int fd)
 	struct stat       log_stat;
 	int               rc;
 
-	if (max_log_size == 0)
+	if (!rotation_enabled || max_log_size == 0)
 		return false;
 
 	if (time_of_last_check == 0)
@@ -395,13 +401,15 @@ static int process_trace_buffer(int *ofd_ptr,
 	if (curpos == NULL)
 		return -EINVAL;
 
-	/*
-	 * write first chunk of trace data, we always start from the beginning
-	 * of buffer till current position
-	 */
-	rc = write_trace_data(ofd_ptr, logbuf, curpos - logbuf);
-	if (rc != 0)
-		return rc;
+        if (!pipe_mode) {
+                /*
+                 * write first chunk of trace data, we always start from the
+                 * beginning of buffer till current position
+                 */
+                rc = write_trace_data(ofd_ptr, logbuf, curpos - logbuf);
+                if (rc != 0)
+                        return rc;
+        }
 
 	oldpos = curpos;
 
@@ -606,7 +614,7 @@ int main(int argc, char *argv[])
 		})
 	  ),
 	  M0_FLAGARG('L',
-		  "log information into syslog instead of STDOUT (by default"
+		  "log information into syslog instead of STDERR (by default"
 		  " is off)",
 		  &use_syslog
 	  ),
@@ -629,6 +637,17 @@ int main(int argc, char *argv[])
 		" specified period of time (in seconds)",
 		LAMBDA(void, (int64_t k) {
 			monitor_cycles = k;
+		})
+	  ),
+	  M0_VOIDARG('p',
+		"pipe mode - run in foreground, output to STDOUT and disable"
+		" log rotation",
+		LAMBDA(void, (void) {
+			pipe_mode        = true;
+			rotation_enabled = false;
+			daemon_mode      = false;
+			save_kore        = false;
+			output_file_name = "-";
 		})
 	  ),
 	);
@@ -657,9 +676,11 @@ int main(int argc, char *argv[])
 		return EX_OSERR;
 	}
 
-	rc = init_log_names();
-	if (rc != 0)
-		return rc;
+	if (rotation_enabled) {
+		rc = init_log_names();
+		if (rc != 0)
+			return rc;
+	}
 
 	if (save_kore) {
 		rc = save_kore_file();
@@ -683,12 +704,17 @@ int main(int argc, char *argv[])
 	}
 
 	/* open output file */
-	ofd = open(output_file_name, O_RDWR|O_CREAT|O_TRUNC,
-		   S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
-	if (ofd == -1) {
-		log_err("failed to open output file '%s': %s\n",
-			output_file_name, strerror(errno));
-		return EX_CANTCREAT;
+	if (strcmp(output_file_name, "-") == 0) {
+		ofd = STDOUT_FILENO;
+		output_file_name = "*STDOUT*";
+	} else {
+		ofd = open(output_file_name, O_RDWR|O_CREAT|O_TRUNC,
+			   S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+		if (ofd == -1) {
+			log_err("failed to open output file '%s': %s\n",
+				output_file_name, strerror(errno));
+			return EX_CANTCREAT;
+		}
 	}
 	log_debug("output log fd %d\n", ofd);
 
@@ -719,22 +745,26 @@ int main(int argc, char *argv[])
 	rotator_data.log_fd = ofd;
 	rotator_data.log_header = logheader;
 
-	/* start log rotation thread */
-	rc = M0_THREAD_INIT(&rotator_tid, struct rotator_ctx *, NULL,
-			    &log_rotator_thread, &rotator_data,
-			    "m0traced_logrt");
-	if (rc != 0) {
-		log_err("failed to start log rotation thread\n");
-		return EX_SOFTWARE;
+	if (rotation_enabled) {
+		/* start log rotation thread */
+		rc = M0_THREAD_INIT(&rotator_tid, struct rotator_ctx *, NULL,
+				    &log_rotator_thread, &rotator_data,
+				    "m0traced_logrt");
+		if (rc != 0) {
+			log_err("failed to start log rotation thread\n");
+			return EX_SOFTWARE;
+		}
 	}
 
 	/* do main work */
 	rc = process_trace_buffer(&rotator_data.log_fd, logheader, logbuf);
 
 	/* stop log rotation thread */
-	wake_up_rotator_thread(LR_STOP);
-	m0_thread_join(&rotator_tid);
-	m0_thread_fini(&rotator_tid);
+	if (rotation_enabled) {
+		wake_up_rotator_thread(LR_STOP);
+		m0_thread_join(&rotator_tid);
+		m0_thread_fini(&rotator_tid);
+	}
 
 	m0_cond_fini(&rotator_cond);
 	m0_mutex_fini(&rotator_mutex);

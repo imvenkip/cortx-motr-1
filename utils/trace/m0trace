@@ -720,24 +720,27 @@ sub prepare_input_file
             $cli_option{module_image} = $module_img;
         }
 
+        my $m0traced    = locate_m0_binary('m0traced');
         my $m0tracedump = locate_m0_binary('m0tracedump');
-        my $img_opt     = defined $cli_option{module_image}
+        my $dump_opt    = defined $cli_option{module_image}
                               ? "-k $cli_option{module_image}" : '';
 
         if ($cli_option{dump_header}) {
             $input_file = "$m0tracedump -H -i $cli_option{input_file} |";
         }
         elsif ($cli_option{follow}) {
-            $input_file = "tail -c +0 -F $cli_option{input_file} "
-                          . "| $m0tracedump -s $img_opt |";
+            $cli_option{use_pager}    = 0;
+            $cli_option{flush_output} = 1;
+            $input_file = "$m0traced -p -S -i $cli_option{input_file} "
+                          . "| $m0tracedump -s $dump_opt |";
         }
         elsif ($cli_option{stream_mode}) {
-            $input_file = "$m0tracedump -s $img_opt -i $cli_option{input_file} |";
+            $input_file = "$m0tracedump -s $dump_opt -i $cli_option{input_file} |";
         }
         else {
             my $temp_file = create_tempfile_for( $cli_option{input_file} );
 
-            system "$m0tracedump -S $img_opt -i $cli_option{input_file} -o $temp_file";
+            system "$m0tracedump -S $dump_opt -i $cli_option{input_file} -o $temp_file";
             $input_file = $temp_file;
         }
     }
@@ -769,6 +772,7 @@ sub process_cli_options
         'S|stream-mode!'   =>  \$cli_option{stream_mode},
         'Y|yaml-output'    =>  \$cli_option{yaml_output},
         'pager!'           =>  \$cli_option{use_pager},
+        'flush-output'     =>  \$cli_option{flush_output},
         'color=s'          =>  \$cli_option{color},
         'c'                =>  sub { $cli_option{color} = 'always' },
         'C'                =>  sub { $cli_option{color} = 'never' },
@@ -808,23 +812,26 @@ sub process_cli_options
     if (defined $ARGV[0] and $cli_option{input_file} eq '-') {
         my $file_pattern;
 
+        die "Error: -F|--follow option is allowed only for '*-buf' targets"
+            if $cli_option{follow} && $ARGV[0] !~ m/-buf$/xms;
+
         given ($ARGV[0]) {
             when ('kernel') {
                 $file_pattern = "trace-m0mero~*.bin";
             }
             when ('kernel-buf') {
-                $cli_option{input_file}   = $kernel_trace_records_file;
-                $cli_option{use_pager}    = 0;
-                $cli_option{flush_output} = 1;
-                return;
-            }
-            when ('kernel-buf-dump') {
                 my $module_img = create_tempfile_for('m0mero.ko', '.img');
                 copy($kernel_module_core_file, $module_img);
 
                 $cli_option{module_image} = $module_img;
                 $cli_option{input_file}   = $kernel_trace_buffer_file;
 
+                return;
+            }
+            when ('kernel-live') {
+                $cli_option{input_file}   = $kernel_trace_records_file;
+                $cli_option{use_pager}    = 0;
+                $cli_option{flush_output} = 1;
                 return;
             }
             when (/^(?:confd|ha|(?:mds|ios)\d*)$/)   {
@@ -947,12 +954,15 @@ m0trace - display Mero trace logs in human friendly form
 
 =head1 SYNOPSIS
 
-m0trace  [kernel|confd|iosX|mdsX]  [-i|--input <ifile>] [-o|--output <ofile>]
-[-S|--stream-mode] [-Y|--yaml-output] [--no-pager] [--no-relpath]
-[-w|--column-width <num>] [-c|-C|--color=MODE] [-d] [-k|--kdump]
-[-I|--module-image=<FILE>] [-L|--log-dir=DIR] [-H|--dump-header] [-F|--follow]
-[-M|--match-only] [-f|--format=FMT] [-l|--level=LVL] [-s|--subsys=SBS]
-[-e|--file=FL] [-u|--func=FUN] [-m|--msg=MSG] [-h|--help] [--usage] [--man]
+m0trace  kernel[-buf] | confd[-buf] | iosX[-buf] | mdsX[-buf]
+
+m0trace  [-i|--input <ifile>] [-o|--output <ofile>]
+         [-S|--stream-mode] [-Y|--yaml-output] [--no-pager] [--no-relpath]
+         [-w|--column-width <num>] [-c|-C|--color=MODE] [-d] [-k|--kdump]
+         [--flush-output] [-I|--module-image=<FILE>] [-L|--log-dir=DIR]
+         [-H|--dump-header] [-F|--follow] [-M|--match-only] [-f|--format=FMT]
+         [-l|--level=LVL] [-s|--subsys=SBS] [-e|--file=FL] [-u|--func=FUN]
+         [-m|--msg=MSG] [-h|--help] [--usage] [--man]
 
 =head1 DESCRIPTION
 
@@ -1012,6 +1022,10 @@ input is always in YAML format, this produces a raw YAML output as well.
 
 Don't use pager (less) to display results.
 
+=item B<--flush-output>
+
+Flush output file after writing each trace record.
+
 =item B<--no-relpath>
 
 Use full path when displaying name of a source file to which a trace record
@@ -1066,9 +1080,7 @@ Only print trace file header and exit. Option --no-pager is ignored.
 =item B<-F|--follow>
 
 Monitor trace file and print trace records as soon as they appear in the file.
-This works only with trace files, which are produces by C<m0traced>, trace files
-created directly by C<m0d> are filled in a ring buffer fashion, so monitoring
-doesn't make sense for them. Implies B<-S|--stream-mode>.
+Starts at a current position in the trace buffer. Implies B<-S|--stream-mode>.
 
 =item B<-M|--match-only>
 
