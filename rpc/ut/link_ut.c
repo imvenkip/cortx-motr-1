@@ -100,15 +100,15 @@ static void rlut_remote_unreachable(void)
 
 	rlut_init(&net_dom, &buf_pool, &reqh, &rmachine);
 
-	/* RPC link structure is too big to be allocated on on stack */
+	/* RPC link structure is too big to be allocated on stack */
 	M0_ALLOC_PTR(rlink);
 	M0_UT_ASSERT(rlink != NULL);
 
 	rc = m0_rpc_link_init(rlink, &rmachine, remote_ep,
-			      CONN_TIMEOUT, MAX_RPCS_IN_FLIGHT);
+			      MAX_RPCS_IN_FLIGHT);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_rpc_link_connect_sync(rlink);
+	rc = m0_rpc_link_connect_sync(rlink, m0_time_from_now(CONN_TIMEOUT, 0));
 	M0_UT_ASSERT(rc != 0 && !rlink->rlk_connected);
 	m0_rpc_link_fini(rlink);
 	m0_free(rlink);

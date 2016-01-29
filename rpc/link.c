@@ -57,6 +57,8 @@ struct rpc_link_state_transition {
 	const char *rlst_st_desc;
 };
 
+typedef void (*rpc_link_cb_t)(struct m0_rpc_link*, m0_time_t, struct m0_clink*);
+
 static int    rpc_link_conn_fom_tick(struct m0_fom *fom);
 static void   rpc_link_conn_fom_fini(struct m0_fom *fom);
 static int    rpc_link_disc_fom_tick(struct m0_fom *fom);
@@ -500,7 +502,6 @@ M0_INTERNAL void m0_rpc_link_module_fini(void)
 M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 				 struct m0_rpc_machine *mach,
 				 const char *ep,
-				 m0_time_t timeout,
 				 uint64_t max_rpcs_in_flight)
 {
 	int rc;
@@ -509,7 +510,6 @@ M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 	M0_PRE(M0_IS0(rlink));
 
 	rlink->rlk_connected          = false;
-	rlink->rlk_timeout            = timeout;
 	rlink->rlk_max_rpcs_in_flight = max_rpcs_in_flight;
 	rlink->rlk_rpcmach            = mach;
 	rlink->rlk_rem_ep             = m0_strdup(ep);
@@ -551,42 +551,51 @@ static void rpc_link_fom_queue(struct m0_rpc_link *rlink,
 }
 
 static int rpc_link_call_sync(struct m0_rpc_link *rlink,
-			      void (*cb)(struct m0_rpc_link*, struct m0_clink*))
+			      m0_time_t abs_timeout,
+			      rpc_link_cb_t cb)
 {
 	struct m0_clink clink;
 
 	m0_clink_init(&clink, NULL);
 	clink.cl_is_oneshot = true;
-	cb(rlink, &clink);
+	cb(rlink, abs_timeout, &clink);
 	m0_chan_wait(&clink);
 	m0_clink_fini(&clink);
 	return rlink->rlk_rc;
 }
 
 M0_INTERNAL void m0_rpc_link_connect_async(struct m0_rpc_link *rlink,
+					   m0_time_t abs_timeout,
 					   struct m0_clink *wait_clink)
 {
 	M0_PRE(!rlink->rlk_connected);
+	rlink->rlk_timeout = abs_timeout;
 	rpc_link_fom_queue(rlink, wait_clink, &rpc_link_conn_fom_type,
 			   &rpc_link_conn_fom_ops);
 }
 
-M0_INTERNAL int m0_rpc_link_connect_sync(struct m0_rpc_link *rlink)
+M0_INTERNAL int m0_rpc_link_connect_sync(struct m0_rpc_link *rlink,
+					 m0_time_t abs_timeout)
 {
-	return rpc_link_call_sync(rlink, &m0_rpc_link_connect_async);
+	return rpc_link_call_sync(rlink, abs_timeout,
+				  &m0_rpc_link_connect_async);
 }
 
 M0_INTERNAL void m0_rpc_link_disconnect_async(struct m0_rpc_link *rlink,
+					      m0_time_t abs_timeout,
 					      struct m0_clink *wait_clink)
 {
 	M0_PRE(rlink->rlk_connected);
+	rlink->rlk_timeout = abs_timeout;
 	rpc_link_fom_queue(rlink, wait_clink, &rpc_link_disc_fom_type,
 			   &rpc_link_disc_fom_ops);
 }
 
-M0_INTERNAL int m0_rpc_link_disconnect_sync(struct m0_rpc_link *rlink)
+M0_INTERNAL int m0_rpc_link_disconnect_sync(struct m0_rpc_link *rlink,
+					    m0_time_t abs_timeout)
 {
-	return rpc_link_call_sync(rlink, &m0_rpc_link_disconnect_async);
+	return rpc_link_call_sync(rlink, abs_timeout,
+				  &m0_rpc_link_disconnect_async);
 }
 #undef M0_TRACE_SUBSYSTEM
 

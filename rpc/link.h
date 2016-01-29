@@ -83,7 +83,6 @@ M0_INTERNAL void m0_rpc_link_module_fini(void);
 M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 				 struct m0_rpc_machine *mach,
 				 const char *ep,
-				 m0_time_t timeout,
 				 uint64_t max_rpcs_in_flight);
 M0_INTERNAL void m0_rpc_link_fini(struct m0_rpc_link *rlink);
 
@@ -94,8 +93,10 @@ M0_INTERNAL void m0_rpc_link_fini(struct m0_rpc_link *rlink);
  *		     be 'oneshot'.
  */
 M0_INTERNAL void m0_rpc_link_connect_async(struct m0_rpc_link *rlink,
+					   m0_time_t abs_timeout,
 					   struct m0_clink *wait_clink);
-M0_INTERNAL int m0_rpc_link_connect_sync(struct m0_rpc_link *rlink);
+M0_INTERNAL int m0_rpc_link_connect_sync(struct m0_rpc_link *rlink,
+					 m0_time_t abs_timeout);
 /**
  * Makes asynchronous rpc_session and rpc_conn termination.
  *
@@ -103,8 +104,10 @@ M0_INTERNAL int m0_rpc_link_connect_sync(struct m0_rpc_link *rlink);
  *		     be 'oneshot'.
  */
 M0_INTERNAL void m0_rpc_link_disconnect_async(struct m0_rpc_link *rlink,
+					      m0_time_t abs_timeout,
 					      struct m0_clink *wait_clink);
-M0_INTERNAL int m0_rpc_link_disconnect_sync(struct m0_rpc_link *rlink);
+M0_INTERNAL int m0_rpc_link_disconnect_sync(struct m0_rpc_link *rlink,
+					    m0_time_t abs_timeout);
 
 /** @} end of rpc_link group */
 

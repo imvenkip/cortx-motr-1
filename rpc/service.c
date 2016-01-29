@@ -175,10 +175,11 @@ m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 	rc = revc == NULL ? -ENOMEM : 0;
 	rc = rc ?: m0_rpc_link_init(&revc->rcf_rlink,
 				    item->ri_rmachine, rem_ep,
-				    m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
 				    M0_REV_CONN_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
-		m0_rpc_link_connect_async(&revc->rcf_rlink, clink);
+		m0_rpc_link_connect_async(&revc->rcf_rlink,
+				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
+				clink);
 		*session = &revc->rcf_rlink.rlk_sess;
 		rev_conn_tlink_init_at_tail(revc, &svc->rps_rev_conns);
 	}
@@ -201,7 +202,8 @@ m0_rpc_service_reverse_session_put(struct m0_reqh_service *service)
 			m0_clink_init(&revc->rcf_disc_wait, NULL);
 			revc->rcf_disc_wait.cl_is_oneshot = true;
 			m0_rpc_link_disconnect_async(&revc->rcf_rlink,
-						     &revc->rcf_disc_wait);
+				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
+				&revc->rcf_disc_wait);
 		}
 	} m0_tlist_endfor;
 	m0_tl_teardown(rev_conn, &svc->rps_rev_conns, revc) {

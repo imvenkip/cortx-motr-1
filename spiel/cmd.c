@@ -179,8 +179,9 @@ static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
 			  struct m0_fop         *cmd_fop,
 			  m0_time_t              timeout)
 {
-	struct m0_rpc_link     *rlink;
-	int                     rc;
+	struct m0_rpc_link *rlink;
+	m0_time_t           conn_timeout;
+	int                 rc;
 
 	M0_ENTRY("lep=%s ep=%s", m0_rpc_machine_ep(rmachine), remote_ep);
 
@@ -194,10 +195,10 @@ static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
 		return M0_ERR(-ENOMEM);
 
 	rc = m0_rpc_link_init(rlink, rmachine, remote_ep,
-			m0_time_from_now(SPIEL_CONN_TIMEOUT, 0),
-			SPIEL_MAX_RPCS_IN_FLIGHT);
+			      SPIEL_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
-		rc = m0_rpc_link_connect_sync(rlink) ?:
+		conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
+		rc = m0_rpc_link_connect_sync(rlink, conn_timeout) ?:
 		     m0_rpc_post_with_timeout_sync(cmd_fop,
 						    &rlink->rlk_sess,
 						    NULL,
@@ -205,7 +206,8 @@ static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
 						    timeout);
 
 		/* disconnect should be called even if connect failed */
-		m0_rpc_link_disconnect_sync(rlink);
+		conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
+		m0_rpc_link_disconnect_sync(rlink, conn_timeout);
 		m0_rpc_link_fini(rlink);
 	}
 
