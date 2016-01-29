@@ -61,7 +61,7 @@ static char **server_argv_alloc(const char *server_ep_addr, int *argc)
 		"-S", S_STOBFILE, "-A", S_ADDB_STOBFILE, "-e", ep,
 		"-q", tm_len, "-m", rpc_size, "-w", "10", "-G", ep,
 		"-f", "<0x7200000000000001:3>",
-		"-c", M0_UT_PATH("diter_xc.txt"), "-P", M0_UT_CONF_PROFILE
+		"-c", M0_UT_PATH("diter.xc"), "-P", M0_UT_CONF_PROFILE
 	};
 
 	n = snprintf(ep, sizeof ep, "lnet:%s", server_ep_addr);

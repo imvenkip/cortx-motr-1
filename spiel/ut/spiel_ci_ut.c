@@ -47,7 +47,7 @@ int spiel_ci_ut_init(void)
 {
 	int rc;
 
-	rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("conf-str.txt"), true);
+	rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("conf.xc"), true);
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_enable("ss_process_quiesce", "keep_confd_rmservice");
 	return 0;
@@ -202,7 +202,7 @@ static void spiel_change_svc_type(struct m0_confc *confc,
 static void test_spiel_device_cmds(void)
 {
 	/*
-	 * According to ut/conf-str.txt:
+	 * According to ut/conf.xc:
 	 * - disk-16 is associated with sdev-15;
 	 * - sdev-15 belongs IO service-9;
 	 * - disk-55 is associated with sdev-51;
@@ -346,7 +346,7 @@ static uint64_t test_spiel_fs_stats_ios_total(const struct m0_fid *fs_fid)
 	uint64_t                svc_total = 0;
 	uint64_t                total = 0;
 
-	rc = m0_ut_file_read(M0_UT_PATH("conf-str.txt"), local_conf,
+	rc = m0_ut_file_read(M0_UT_PATH("conf.xc"), local_conf,
 			     sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
 

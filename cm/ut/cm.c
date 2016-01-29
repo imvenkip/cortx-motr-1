@@ -57,7 +57,7 @@ char  *cm_ut_server_args[] = { "m0d", "-T", "LINUX",
 				"-G", "lnet:0@lo:12345:34:1",
 				"-e", "lnet:0@lo:12345:34:1",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static void cm_ut_server_start(void)
 {
@@ -126,7 +126,7 @@ static void cm_setup_ut(void)
 
 	cm_ut_service_alloc_init();
 	confc = &cm_ut_service->rs_reqh->rh_confc;
-	rc = m0_ut_file_read(M0_UT_PATH("diter_xc.txt"), local_conf,
+	rc = m0_ut_file_read(M0_UT_PATH("diter.xc"), local_conf,
 			     sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
 	locality = m0_locality0_get();

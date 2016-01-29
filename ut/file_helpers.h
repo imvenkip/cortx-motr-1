@@ -22,14 +22,9 @@
 #define __MERO_UT_FILE_HELPERS_H__
 
 #include <stddef.h>   /* size_t */
-#include "lib/misc.h" /* M0_QUOTE */
+#include "lib/misc.h" /* M0_SRC_PATH */
 
-/**
- * Returns absolute path to given file in ut/ directory.
- * M0_UT_DIR is defined in ut/Makefile.sub.
- */
-#define M0_UT_PATH(name) M0_QUOTE(M0_UT_DIR) "/" name
-
+#define M0_UT_PATH(name) M0_SRC_PATH("ut/" name)
 #define M0_UT_CONF_PROFILE "<0x7000000000000001:0>"
 
 /**

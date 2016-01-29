@@ -55,7 +55,7 @@ static char *cs_ut_service_one_cmd[] = { "m0d", "-T", "linux",
                                 "-e", "lnet:0@lo:12345:34:1",
 				"-w", "10",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_services_many_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -64,7 +64,7 @@ static char *cs_ut_services_many_cmd[] = { "m0d", "-T", "AD",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-D",
                                 "cs_sdb", "-T", "AD",
@@ -72,7 +72,7 @@ static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-D",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-S", "cs_stob", "-A", "linuxstob:cs_addb_stob",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_dev_stob_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -81,7 +81,7 @@ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-T", "AD",
 				"-U",
                                 "-e", "lnet:0@lo:12345:34:1",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_stype_bad_cmd[] = { "m0d", "-T", "asdadd",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -89,7 +89,7 @@ static char *cs_ut_stype_bad_cmd[] = { "m0d", "-T", "asdadd",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -97,28 +97,28 @@ static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-T", "AD",
 				"-w", "10",
                                 "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_ep_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_sdb", "-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_service_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_sdb", "-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_args_bad_cmd[] = { "m0d", "-D", "cs_sdb",
                                 "-S", "cs_stob", "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -126,7 +126,7 @@ static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-T", "linux",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-q", "4", "-m", "4096",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_lnet_cmd[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -134,7 +134,7 @@ static char *cs_ut_lnet_cmd[] = { "m0d", "-T", "linux",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -144,7 +144,7 @@ static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-T", "linux",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 /** @todo Remove passing of multiple endpoints to m0d, as is not needed. */
 
@@ -158,7 +158,7 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -168,7 +168,7 @@ static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -176,7 +176,7 @@ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
 				"-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_UT_PATH("conf-str.txt")};
+				"-c", M0_UT_PATH("conf.xc")};
 
 static const char *cdbnames[] = { "cdb1", "cdb2" };
 static const char *cl_ep_addrs[] = { "0@lo:12345:34:2", "127.0.0.1:34569" };

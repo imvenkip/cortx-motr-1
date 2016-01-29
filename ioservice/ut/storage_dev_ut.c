@@ -63,7 +63,7 @@ static int rpc_start(struct m0_rpc_server_ctx *rpc_srv)
 		"-w", "10", "-e", full_ep,
 		"-f", "<0x7200000000000001:1>",
 		"-m", max_rpc_size,
-		"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
+		"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 	};
 #undef NAME
 

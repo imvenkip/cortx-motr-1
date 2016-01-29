@@ -28,11 +28,13 @@ ut_libmero_ut_la_SOURCES += ut/ast_thread.c \
                             ut/ut_rpc_machine.h \
                             ut/ut_rpc_machine.c
 
-ut_libmero_ut_la_CPPFLAGS += -DM0_UT_DIR=$(abs_top_builddir)/ut/
+ut_libmero_ut_la_CPPFLAGS += -DM0_UT_CONF_NR_OBJS=$(shell \
+    grep -Em1 '^\[[0-9]+:' ut/conf.xc | cut -d: -f1 | cut -d\[ -f2-)
 
-XC_FILES   += ut/cs_fop_xc.h
+XC_FILES += ut/cs_fop_xc.h
 
-EXTRA_DIST += ut/conf-str.txt \
-	      ut/linux_kernel/ut.c \
+CONFXC_FILES += ut/conf.xc ut/diter.xc
+
+EXTRA_DIST += ut/linux_kernel/ut.c \
               ut/linux_kernel/m0ut_main.c \
               ut/m0kut

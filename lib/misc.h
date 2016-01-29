@@ -40,6 +40,13 @@
 #define M0_QUOTE(s) _QUOTE(s)
 
 /**
+ * The absolute path to a file in Mero sources directory.
+ *
+ * M0_SRC_DIR is defined in configure.ac.
+ */
+#define M0_SRC_PATH(name) M0_QUOTE(M0_SRC_DIR) "/" name
+
+/**
  * Returns rounded up value of @val in chunks of @size.
  * @pre m0_is_po2(size)
  */

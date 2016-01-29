@@ -48,7 +48,7 @@ enum {
 	M0_UT_CONF_UNKNOWN_NODE
 };
 
-/* See conf/ut/conf-str.txt */
+/* See ut/conf.xc */
 static const struct m0_fid m0_ut_conf_fids[] = {
 	[M0_UT_CONF_ROOT]         = M0_FID_TINIT('t', 1, 0),
 	[M0_UT_CONF_PROF]         = M0_FID_TINIT('p', 1, 0),

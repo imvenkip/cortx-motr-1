@@ -5,9 +5,7 @@ rpc_it_m0rpcping_SOURCES  = rpc/it/ping_fop.c \
                             rpc/it/ping_fop.h \
                             rpc/it/ping_fom.h
 
-XC_FILES   += rpc/it/ping_fop_xc.h
-
-rpc_it_m0rpcping_CPPFLAGS += -DM0_UT_DIR=$(abs_top_builddir)/ut/
+XC_FILES += rpc/it/ping_fop_xc.h
 
 EXTRA_DIST += rpc/it/linux_kernel/rpc_ping.h \
               rpc/it/linux_kernel/m0rpcping_main.c \

@@ -158,12 +158,12 @@ void test_obj_fill(void)
 
 	m0_confx_free(NULL); /* to make sure this can be done */
 
-	rc = m0_ut_file_read(M0_UT_PATH("conf-str.txt"), buf, sizeof buf);
+	rc = m0_ut_file_read(M0_UT_PATH("conf.xc"), buf, sizeof buf);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_confstr_parse(buf, &enc);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(enc->cx_nr == M0_CONF_UT_STR_NR_OBJS);
+	M0_UT_ASSERT(enc->cx_nr == M0_UT_CONF_NR_OBJS);
 
 	m0_mutex_lock(&g_lock);
 	for (i = 0; i < enc->cx_nr; ++i) {

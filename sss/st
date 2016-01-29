@@ -21,7 +21,7 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 . $M0_SRC_DIR/scripts/functions # die, opcode, sandbox_init, report_and_exit
 
 CONF_PROFILE='<0x7000000000000001:0>' #'<^p|1:0>'
-CONFDB_PATH=$M0_SRC_DIR/ut/diter_xc.txt
+CONFDB_PATH=$M0_SRC_DIR/ut/diter.xc
 if [ "$(perl -wse 'print int(rand(2))')" -eq 0 ]; then  # 0.5 probability
 	CONFDB_m0d="-c $CONFDB_PATH"
 fi

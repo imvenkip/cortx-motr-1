@@ -44,9 +44,6 @@
 #include "conf/helpers.h"  /* m0_conf_fs_get */
 #include "pool/flset.h"
 
-/* See "ha/ut/Makefile.sub" for M0_HA_UT_DIR */
-#define M0_HA_UT_PATH(name)   M0_QUOTE(M0_CONF_UT_DIR) "/" name
-
 #define CLIENT_DB_NAME        "ha_ut_client.db"
 #define CLIENT_ENDPOINT_ADDR  "0@lo:12345:34:*"
 
@@ -57,7 +54,7 @@
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
 #define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
 
-/* See "conf/ut/conf-str.txt" */
+/* See "ut/conf.xc" */
 static const struct m0_fid conf_obj_id_fs = M0_FID_TINIT('f', 2, 1);
 
 static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
@@ -84,7 +81,7 @@ static char *server_argv[] = {
 	"ha_ut", "-T", "AD", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
 	"-w", "10", "-e", SERVER_ENDPOINT,
-	"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
+	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 };
 
 static struct m0_rpc_server_ctx sctx = {
@@ -181,8 +178,8 @@ static void local_confc_init(struct m0_confc *confc)
 {
 	int rc;
 
-	rc = m0_ut_file_read(M0_UT_PATH("conf-str.txt"),
-			     ut_ha_conf_str, sizeof ut_ha_conf_str);
+	rc = m0_ut_file_read(M0_UT_PATH("conf.xc"), ut_ha_conf_str,
+			     sizeof ut_ha_conf_str);
 	M0_UT_ASSERT(rc == 0);
 
 	/*

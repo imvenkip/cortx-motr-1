@@ -83,7 +83,7 @@ if (fop == NULL)
  * Contain 4 steps:
  *
  * - detach - detach device. Device was connect on standard start UT and
- * description in file ut/conf-str.txt.
+ * description in file ut/conf.xc.
  * Expected return value - OK (0)
  *
  * - attach - attach device. Attach device which was detach on previous step.

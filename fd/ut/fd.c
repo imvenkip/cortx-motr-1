@@ -31,7 +31,7 @@
 #include "lib/memory.h"     /* m0_alloc m0_free */
 #include "lib/errno.h"      /* EINVAL */
 #include "ut/ut.h"          /* M0_UT_ASSERT */
-#include "ut/file_helpers.h"
+#include "ut/file_helpers.h" /* m0_ut_file_read */
 #include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
 
 /* Conf parameters. */
@@ -428,8 +428,8 @@ static void test_pv2fd_conv(void)
 	M0_SET0(&confc);
 	M0_SET0(&pool_ver);
 #ifndef __KERNEL__
-	rc = m0_ut_file_read(M0_UT_PATH("failure-domains-str.txt"), local_conf,
-			     sizeof local_conf);
+	rc = m0_ut_file_read(M0_SRC_PATH("fd/ut/failure-domains.xc"),
+			     local_conf, sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, local_conf);
 	M0_UT_ASSERT(rc == 0);

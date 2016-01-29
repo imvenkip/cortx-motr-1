@@ -711,7 +711,7 @@ M0_CPPFLAGS="$GF_INCLUDES $YAML_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
              -iquote $ABS_BUILDDIR -iquote $SRCDIR -include config.h \
-             $M0_CPPFLAGS"
+	     -DM0_SRC_DIR=$ABS_SRCDIR $M0_CPPFLAGS"
 
 # -Wno-attributes is required to suppress warnings about unrecognized
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we

@@ -123,12 +123,10 @@ static int spiel_copy_file(const char *source, const char* dest)
 
 static int spiel_conf_ut_init()
 {
-	spiel_copy_file(M0_UT_PATH("conf-str.txt"),
-			M0_UT_PATH("conf-str-tmp.txt"));
+	spiel_copy_file(M0_UT_PATH("conf.xc"), M0_UT_PATH("tmp-conf.xc"));
 
-	/* Use copy of conf-str file as confd path - file may be changed */
-	int rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("conf-str-tmp.txt"),
-				   false);
+	/* Use a copy of conf.xc file as confd path - file may have changed */
+	int rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("tmp-conf.xc"), false);
 	M0_UT_ASSERT(rc == 0);
 
 	return 0;
@@ -142,7 +140,7 @@ static int spiel_conf_ut_fini()
 
 	rc = system("rm -rf "M0_UT_PATH("confd"));
 	M0_ASSERT(rc != -1);
-	unlink(M0_UT_PATH("conf-str-tmp.txt"));
+	unlink(M0_UT_PATH("tmp-conf.xc"));
 	return 0;
 }
 
@@ -1095,7 +1093,7 @@ static void spiel_conf_delete(void)
 /*
   spiel-conf-file create tree
 
-  Create conf file equvalent  conf/ut/conf-str.txt
+  Create conf file equvalent to ut/conf.xc
 
 [20:
 # profile:      ('p', 1,  0)
@@ -1621,14 +1619,13 @@ static void spiel_conf_force_ut_init(struct m0_spiel_ut_reqh *spl_reqh)
 	const char *ep = SERVER_ENDPOINT_ADDR;
 	const char *client_ep = CLIENT_ENDPOINT_ADDR;
 
-	spiel_copy_file(M0_UT_PATH("conf-str.txt"),
-			M0_UT_PATH("conf-str-tmp.txt"));
+	spiel_copy_file(M0_UT_PATH("conf.xc"), M0_UT_PATH("tmp-conf.xc"));
 
 	rc = m0_spiel__ut_reqh_init(spl_reqh, client_ep);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel__ut_rpc_server_start(&spl_reqh->sur_confd_srv, ep,
-					   M0_UT_PATH("conf-str-tmp.txt"));
+					   M0_UT_PATH("tmp-conf.xc"));
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -1641,7 +1638,7 @@ static void spiel_conf_force_ut_fini(struct m0_spiel_ut_reqh *spl_reqh)
 
 	rc = system("rm -rf "M0_UT_PATH("confd"));
 	M0_ASSERT(rc != -1);
-	unlink(M0_UT_PATH("conf-str-tmp.txt"));
+	unlink(M0_UT_PATH("tmp-conf.xc"));
 }
 
 static void spiel_conf_force(void)

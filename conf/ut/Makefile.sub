@@ -12,6 +12,4 @@ ut_libmero_ut_la_SOURCES += \
     conf/ut/rconfc.c        \
     conf/ut/validation.c
 
-ut_libmero_ut_la_CPPFLAGS += -DM0_CONF_UT_STR_NR_OBJS=$(shell \
-	grep -Em1 '^\[[0-9]+:' ut/conf-str.txt | \
-	cut -d: -f1 | cut -d\[ -f2-)
+CONFXC_FILES += conf/ut/duplicated-ids.xc

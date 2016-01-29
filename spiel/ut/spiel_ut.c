@@ -64,7 +64,7 @@ static int spiel_ut_init()
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel__ut_rpc_server_start(&spl_reqh->sur_confd_srv, ep,
-					   M0_UT_PATH("conf-str.txt"));
+					   M0_UT_PATH("conf.xc"));
 	M0_UT_ASSERT(rc == 0);
 
 	return 0;

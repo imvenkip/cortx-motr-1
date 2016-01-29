@@ -35,7 +35,7 @@ char      *sns_cm_ut_svc[] = { "m0d", "-T", "LINUX",
 			       "-G", "lnet:0@lo:12345:34:1",
                                "-e", "lnet:0@lo:12345:34:1",
 			       "-P", M0_UT_CONF_PROFILE,
-			       "-c", M0_UT_PATH("conf-str.txt")};
+			       "-c", M0_UT_PATH("conf.xc")};
 
 struct m0_net_xprt *sr_xprts[] = {
         &m0_net_lnet_xprt,

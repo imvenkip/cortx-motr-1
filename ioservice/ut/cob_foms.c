@@ -119,7 +119,7 @@ static char *server_args[] = {
 	"-w", "10", "-e", SERVER_ENDP,
 	"-f", "<0x7200000000000001:1>",
 	"-q", COB_FOP_NR_STR,
-	"-c", M0_UT_PATH("diter_xc.txt"), "-P", M0_UT_CONF_PROFILE
+	"-c", M0_UT_PATH("diter.xc"), "-P", M0_UT_CONF_PROFILE
 };
 
 static void cobfoms_utinit(void)

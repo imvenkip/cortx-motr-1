@@ -698,7 +698,7 @@ static void sender_init()
 	locality = m0_locality0_get();
 	sender_service_alloc_init();
 	confc = &sender_cm_service->rs_reqh->rh_confc;
-	rc = m0_ut_file_read(M0_UT_PATH("diter_xc.txt"), local_conf,
+	rc = m0_ut_file_read(M0_UT_PATH("diter.xc"), local_conf,
 			     sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, local_conf);

@@ -169,7 +169,7 @@ static char *g_argv[] = {
 	NAME(""), "-Q", "200" /* MIN_RECV_QUEUE_LEN */, "-w", "10",
 	"-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
 	"-A", "linuxstob:"NAME(".addb-stob"), "-e", SERVER_ENDPOINT,
-	"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
+	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 };
 
 static struct m0_rpc_server_ctx g_sctx = {

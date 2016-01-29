@@ -137,7 +137,7 @@ void test_confdb(void)
 		{ &m0_ut_conf_fids[M0_UT_CONF_DISKV], &diskv_check   }
 	};
 
-	rc = m0_ut_file_read(M0_UT_PATH("conf-str.txt"), m0_ut_conf_str,
+	rc = m0_ut_file_read(M0_UT_PATH("conf.xc"), m0_ut_conf_str,
 			     sizeof m0_ut_conf_str);
 	M0_UT_ASSERT(rc == 0);
 
@@ -148,7 +148,7 @@ void test_confdb(void)
 
 	rc = m0_confstr_parse(m0_ut_conf_str, &enc);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(enc->cx_nr == M0_CONF_UT_STR_NR_OBJS);
+	M0_UT_ASSERT(enc->cx_nr == M0_UT_CONF_NR_OBJS);
 
 	conf_ut_db_init();
 
@@ -198,7 +198,7 @@ void test_confdb(void)
 
 	rc = m0_confdb_read(seg, &dec);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(enc->cx_nr == M0_CONF_UT_STR_NR_OBJS);
+	M0_UT_ASSERT(enc->cx_nr == M0_UT_CONF_NR_OBJS);
 	/*
 	 * @dec can be re-ordered w.r.t. to @enc.
 	 */

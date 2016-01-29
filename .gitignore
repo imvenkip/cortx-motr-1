@@ -97,6 +97,11 @@ modules.builtin
 *_ff.[hc]
 
 #
+# m0confgen-erated files
+#
+*.xc
+
+#
 # Gcov files
 #
 *.gcda

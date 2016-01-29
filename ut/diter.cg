@@ -1,0 +1,50 @@
+(root-0 verno=1 profiles=[profile-0])
+(profile-0 filesystem=filesystem-1)
+(filesystem-1 rootfid=(0xb, 0x16) redundancy=41212
+    params=["param-0", "param-1", "param-2"] mdpool=pool-23 nodes=[node-2]
+    pools=[pool-23] racks=[rack-15])
+(node-2 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-23
+    processes=[process-3])
+(process-3 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
+    mem_limit_memlock=1 endpoint="0@lo:12345:34:1"
+    services=[service-0, service-1, service-2, service-3, service-4, service-5,
+              service-6, service-7])
+(service-0 type=2 endpoints=["0@lo:12345:34:1"]
+    sdevs=[sdev-10, sdev-11, sdev-12, sdev-13, sdev-14])
+(service-1 type=1 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-2 type=4 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-3 type=8 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-4 type=9 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-5 type=10 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-6 type=3 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-7 type=6 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(sdev-10 dev_idx=10 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
+    flags=4 filename="/dev/sdev0")
+(sdev-11 dev_idx=11 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
+    flags=4 filename="/dev/sdev1")
+(sdev-12 dev_idx=12 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+    flags=4 filename="/dev/sdev2")
+(sdev-13 dev_idx=13 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+    flags=4 filename="/dev/sdev3")
+(sdev-14 dev_idx=14 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+    flags=4 filename="/dev/sdev4")
+(rack-15 encls=[enclosure-16] pvers=[pver-24])
+(enclosure-16 ctrls=[controller-17] pvers=[pver-24])
+(controller-17 node=node-2 disks=[disk-18, disk-19, disk-20, disk-21, disk-22]
+    pvers=[pver-24])
+(disk-18 dev=sdev-10 pvers=[pver-24])
+(disk-19 dev=sdev-11 pvers=[pver-24])
+(disk-20 dev=sdev-12 pvers=[pver-24])
+(disk-21 dev=sdev-12 pvers=[pver-24])
+(disk-22 dev=sdev-12 pvers=[pver-24])
+(pool-23 order=0 pvers=[pver-24])
+(pver-24 ver=0 N=3 K=1 P=5 nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-25])
+(objv-25 real=rack-15 children=[objv-26])
+(objv-26 real=enclosure-16 children=[objv-27])
+(objv-27 real=controller-17
+    children=[objv-28, objv-29, objv-30, objv-31, objv-32])
+(objv-28 real=disk-18 children=[])
+(objv-29 real=disk-19 children=[])
+(objv-30 real=disk-20 children=[])
+(objv-31 real=disk-21 children=[])
+(objv-32 real=disk-22 children=[])

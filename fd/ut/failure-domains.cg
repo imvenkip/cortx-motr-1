@@ -1,8 +1,7 @@
 (root-0 verno=1 profiles=[profile-0])
 (profile-0 filesystem=filesystem-1)
-(filesystem-1 rootfid=(11, 22) redundancy=0
-    params=["param-0", "param-1", "param-2"]
-    mdpool=pool-3
+(filesystem-1 rootfid=(0xb, 0x16) redundancy=0 params=["param-0", "param-1",
+    "param-2"] mdpool=pool-3
     nodes=[node-4, node-5, node-6, node-7, node-8, node-9, node-10, node-11]
     pools=[pool-3] racks=[rack-12, rack-13])
 (node-4 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-3
@@ -33,7 +32,7 @@
 (sdev-25 dev_idx=25 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev9")
 (node-5 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-3
-  processes=[process-26])
+    processes=[process-26])
 (process-26 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-27])
 (service-27 type=4 endpoints=["0@lo:12345:34:1"]
@@ -62,7 +61,7 @@
 (node-6 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-3
     processes=[process-38])
 (process-38 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-  mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-39])
+    mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-39])
 (service-38 type=4 endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-40, sdev-41, sdev-42, sdev-43, sdev-44, sdev-45, sdev-46,
            sdev-47, sdev-48, sdev-49])
@@ -224,9 +223,8 @@
 (rack-12 encls=[enclosure-120, enclosure-121, enclosure-122] pvers=[pver-123])
 (enclosure-120 ctrls=[controller-124, controller-125] pvers=[pver-123])
 (controller-124 node=node-4
-    disks=[disk-126, disk-127, disk-128, disk-129, disk-130, disk-131,
-           disk-132, disk-133, disk-134, disk-135]
-    pvers=[pver-123])
+    disks=[disk-126, disk-127, disk-128, disk-129, disk-130, disk-131, disk-132,
+           disk-133, disk-134, disk-135] pvers=[pver-123])
 (disk-126 dev=sdev-16 pvers=[pver-123])
 (disk-127 dev=sdev-17 pvers=[pver-123])
 (disk-128 dev=sdev-18 pvers=[pver-123])
@@ -238,9 +236,8 @@
 (disk-134 dev=sdev-24 pvers=[pver-123])
 (disk-135 dev=sdev-25 pvers=[pver-123])
 (controller-125 node=node-5
-    disks=[disk-136, disk-137, disk-138, disk-139, disk-140, disk-141,
-           disk-142, disk-143, disk-144, disk-145]
-    pvers=[pver-123])
+    disks=[disk-136, disk-137, disk-138, disk-139, disk-140, disk-141, disk-142,
+           disk-143, disk-144, disk-145] pvers=[pver-123])
 (disk-136 dev=sdev-28 pvers=[pver-123])
 (disk-137 dev=sdev-29 pvers=[pver-123])
 (disk-138 dev=sdev-30 pvers=[pver-123])
@@ -253,9 +250,8 @@
 (disk-145 dev=sdev-37 pvers=[pver-123])
 (enclosure-121 ctrls=[controller-146] pvers=[pver-123])
 (controller-146 node=node-6
-    disks=[disk-146, disk-147, disk-148, disk-149, disk-150, disk-151,
-           disk-152, disk-153, disk-154, disk-155]
-    pvers=[pver-123])
+    disks=[disk-146, disk-147, disk-148, disk-149, disk-150, disk-151, disk-152,
+           disk-153, disk-154, disk-155] pvers=[pver-123])
 (disk-146 dev=sdev-41 pvers=[pver-123])
 (disk-147 dev=sdev-42 pvers=[pver-123])
 (disk-148 dev=sdev-43 pvers=[pver-123])
@@ -268,9 +264,8 @@
 (disk-155 dev=sdev-50 pvers=[pver-123])
 (enclosure-122 ctrls=[controller-156] pvers=[pver-123])
 (controller-156 node=node-7
-    disks=[disk-156, disk-157, disk-158, disk-159, disk-160, disk-161,
-           disk-162, disk-163, disk-164, disk-165]
-    pvers=[pver-123])
+    disks=[disk-156, disk-157, disk-158, disk-159, disk-160, disk-161, disk-162,
+           disk-163, disk-164, disk-165] pvers=[pver-123])
 (disk-156 dev=sdev-52 pvers=[pver-123])
 (disk-157 dev=sdev-53 pvers=[pver-123])
 (disk-158 dev=sdev-54 pvers=[pver-123])
@@ -285,9 +280,8 @@
     pvers=[pver-123])
 (enclosure-166 ctrls=[controller-170] pvers=[pver-123])
 (controller-170 node=node-8
-    disks=[disk-171, disk-172, disk-173, disk-174, disk-175, disk-176,
-           disk-177, disk-178, disk-179, disk-180]
-    pvers=[pver-123])
+    disks=[disk-171, disk-172, disk-173, disk-174, disk-175, disk-176, disk-177,
+           disk-178, disk-179, disk-180] pvers=[pver-123])
 (disk-171 dev=sdev-64 pvers=[pver-123])
 (disk-172 dev=sdev-65 pvers=[pver-123])
 (disk-173 dev=sdev-66 pvers=[pver-123])
@@ -300,9 +294,8 @@
 (disk-180 dev=sdev-73 pvers=[pver-123])
 (enclosure-167 ctrls=[controller-181] pvers=[pver-123])
 (controller-181 node=node-9
-    disks=[disk-182, disk-183, disk-184, disk-185, disk-186, disk-187,
-           disk-188, disk-189, disk-190, disk-191]
-    pvers=[pver-123])
+    disks=[disk-182, disk-183, disk-184, disk-185, disk-186, disk-187, disk-188,
+           disk-189, disk-190, disk-191] pvers=[pver-123])
 (disk-181 dev=sdev-76 pvers=[pver-123])
 (disk-182 dev=sdev-77 pvers=[pver-123])
 (disk-183 dev=sdev-78 pvers=[pver-123])
@@ -315,9 +308,8 @@
 (disk-190 dev=sdev-85 pvers=[pver-123])
 (enclosure-168 ctrls=[controller-191] pvers=[pver-123])
 (controller-191 node=node-10
-    disks=[disk-192, disk-193, disk-194, disk-195, disk-196, disk-197,
-           disk-198, disk-199, disk-200, disk-201]
-    pvers=[pver-123])
+    disks=[disk-192, disk-193, disk-194, disk-195, disk-196, disk-197, disk-198,
+           disk-199, disk-200, disk-201] pvers=[pver-123])
 (disk-192 dev=sdev-88 pvers=[pver-123])
 (disk-193 dev=sdev-89 pvers=[pver-123])
 (disk-194 dev=sdev-90 pvers=[pver-123])
@@ -330,9 +322,8 @@
 (disk-201 dev=sdev-97 pvers=[pver-123])
 (enclosure-169 ctrls=[controller-202] pvers=[pver-123])
 (controller-202 node=node-11
-    disks=[disk-203, disk-204, disk-205, disk-206, disk-207, disk-208,
-           disk-209, disk-210, disk-211, disk-212]
-    pvers=[pver-123])
+    disks=[disk-203, disk-204, disk-205, disk-206, disk-207, disk-208, disk-209,
+           disk-210, disk-211, disk-212] pvers=[pver-123])
 (disk-203 dev=sdev-110 pvers=[pver-123])
 (disk-204 dev=sdev-111 pvers=[pver-123])
 (disk-205 dev=sdev-112 pvers=[pver-123])
@@ -344,12 +335,13 @@
 (disk-211 dev=sdev-118 pvers=[pver-123])
 (disk-212 dev=sdev-119 pvers=[pver-123])
 (pool-3 order=0 pvers=[pver-123])
-(pver-123 ver=0 N=8 K=2 P=80 permutations=[] nr_failures=[0, 0, 1, 1, 2]
+(pver-123 ver=0 N=8 K=2 P=80 nr_failures=[0, 0, 1, 1, 2]
     rackvs=[objv-213, objv-214])
 (objv-213 real=rack-12 children=[objv-215, objv-216, objv-217])
 (objv-215 real=enclosure-120 children=[objv-218, objv-219])
-(objv-218 real=controller-124 children=[objv-220, objv-221, objv-222,
-    objv-223, objv-224, objv-225,objv-226,objv-227,objv-228,objv-229])
+(objv-218 real=controller-124
+    children=[objv-220, objv-221, objv-222, objv-223, objv-224, objv-225,
+              objv-226, objv-227, objv-228, objv-229])
 (objv-220 real=disk-126 children=[])
 (objv-221 real=disk-127 children=[])
 (objv-222 real=disk-128 children=[])
@@ -362,7 +354,7 @@
 (objv-229 real=disk-135 children=[])
 (objv-219 real=controller-125
     children=[objv-230, objv-231, objv-232, objv-233, objv-234, objv-235,
-              objv-236,objv-237,objv-238,objv-239])
+              objv-236, objv-237, objv-238, objv-239])
 (objv-230 real=disk-136 children=[])
 (objv-231 real=disk-137 children=[])
 (objv-232 real=disk-138 children=[])

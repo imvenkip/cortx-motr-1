@@ -55,7 +55,7 @@ struct m0_confx;
  * <!---------------------------------------------------------------->
  * @subsection conf-fspec-preload-string-examples Examples
  *
- * See examples of configuration strings in conf/ut/conf-str.txt and
+ * See examples of configuration strings in ut/conf.cg and
  * m0t1fs/linux_kernel/st/st.
  *
  * @see @ref conf_dfspec_preload "Detailed Functional Specification"

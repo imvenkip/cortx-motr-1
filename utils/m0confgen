@@ -2,9 +2,9 @@
 from __future__ import print_function
 
 ### TODO:
-###  - Parser: handle errors gracefully, do not `assert'.
 ###  - DOT output.
 ###  - Profile.
+###  - Parser: handle errors gracefully, do not `assert'.
 ###  - ? Change fid format:
 ###        fid = NUMBER ":" NUMBER
 ###  - ? Default values.
@@ -627,7 +627,7 @@ class TestParser(unittest.TestCase):
                               nodes=[('node', 2)],
                               pools=[('pool', 4)],
                               racks=[('rack', 3)]))])
-        self.assertEqual(43, len(self.parse(file('ut/conf-str.txt.in').read())))
+        self.assertEqual(68, len(self.parse(file('ut/conf.cg').read())))
 
 
 class TestEncoders(unittest.TestCase):
@@ -764,8 +764,8 @@ Expected 2 attributes, got 3""", conf_obj_encode,
                                 from_xcode=True)
 
     def test_file(self):
-        conf_objs_encode(Parser().parse(file('ut/conf-str.txt.in').read()))
-        conf_objs_encode(XCParser().parse(file('ut/conf-str.txt').read()),
+        conf_objs_encode(Parser().parse(file('ut/conf.cg').read()))
+        conf_objs_encode(XCParser().parse(file('ut/conf.xc').read()),
                          from_xcode=True)
 
 
@@ -796,7 +796,7 @@ class TestXCParser(unittest.TestCase):
     (('disk', 55), [('sdev', 51), [('pver', 57)]]),
     (('pool', 56), [0, [('pver', 57)]]),
     (('pver', 57), [0, 8, 2, 15, [], [('objv', 58)]])])
-        self.assertEqual(68, len(self.parse(file('ut/conf-str.txt').read())))
+        self.assertEqual(68, len(self.parse(file('ut/conf.xc').read())))
 
     def test_errors(self):
         self.assertRaisesRegexp(Error, """Bad list.*

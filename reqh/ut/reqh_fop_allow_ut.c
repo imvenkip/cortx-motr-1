@@ -42,7 +42,7 @@ static char *ut_server_argv[] = {
 	"-f", "<0x7200000000000001:1>",
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
 	"-w", "10", "-e", SERVER_ENDPOINT,
-	"-c", M0_UT_PATH("conf-str.txt"), "-P", M0_UT_CONF_PROFILE
+	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 };
 
 struct m0_reqh_service_type *ut_stypes[] = {
