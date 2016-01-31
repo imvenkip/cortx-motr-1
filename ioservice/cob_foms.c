@@ -19,30 +19,17 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
-#include <sys/stat.h>    /* S_ISDIR */
-#include "lib/errno.h"
-#include "lib/memory.h"             /* m0_free(), M0_ALLOC_PTR() */
-#include "lib/misc.h"               /* M0_SET0() */
 #include "lib/trace.h"
-#include "fid/fid.h"                /* m0_fid */
-#include "cob/ns_iter.h"
-#include "fop/fom_generic.h"        /* m0_fom_tick_generic() */
-#include "ioservice/io_foms.h"      /* io_fom_cob_rw_fid2stob_map */
-#include "ioservice/io_fops.h"      /* m0_cobfop_common_get */
-#include "ioservice/cob_foms.h"     /* m0_fom_cob_create, m0_fom_cob_delete */
-#include "ioservice/io_fops.h"      /* m0_is_cob_create_fop() */
-#include "mdstore/mdstore.h"
-#include "ioservice/io_device.h"   /* m0_ios_poolmach_get() */
-#include "reqh/reqh_service.h"
-#include "pool/pool.h"
-#include "mero/setup.h"
-#include "ioservice/io_service.h"
-#include "lib/finject.h"
-#include "layout/layout.h"
-#include "layout/pdclust.h"
-#include "module/instance.h"       /* m0_get */
+
+#include "ioservice/cob_foms.h"    /* m0_fom_cob_create */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
-#include "stob/domain.h"
+#include "ioservice/io_device.h" /* M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH */
+#include "ioservice/io_service.h"  /* m0_reqh_io_service */
+#include "mero/setup.h"            /* m0_cs_ctx_get */
+#include "stob/domain.h"           /* m0_stob_domain_find_by_stob_id */
+
+struct m0_poolmach;
+struct m0_poolmach_versions;
 
 /* Forward Declarations. */
 static void cc_fom_fini(struct m0_fom *fom);

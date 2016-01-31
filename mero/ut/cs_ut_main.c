@@ -18,25 +18,12 @@
  * Original creation date: 12/10/2011
  */
 
-#include "ut/ut.h"     /* M0_UT_ASSERT */
-#include "lib/misc.h"  /* M0_SET_ARR0 */
-#include "lib/errno.h"
-#include "lib/memory.h"
-#include "lib/tlist.h"
-
-#include "rpc/rpclib.h"        /* m0_rpc_server_ctx */
-#include "rpc/rpc_opcodes.h"
-#include "fop/fop.h"
-#include "net/bulk_mem.h"
-#include "net/lnet/lnet.h"
-#include "reqh/reqh_service.h"
-#include "mero/setup.h"
-#include "ut/cs_fop.h"
-#include "ut/cs_fop_xc.h"      /* cs_ds1_{req,rep}_fop, cs_ds2_{req,rep}_fop */
-#include "ut/cs_service.h"     /* m0_cs_default_stypes */
-#include "ut/file_helpers.h"   /* M0_UT_PATH */
-
 #include "mero/setup.c"
+
+#include "net/bulk_mem.h"  /* m0_net_bulk_mem_xprt */
+#include "ut/cs_fop.h"     /* CS_UT_SERVICE1 */
+#include "ut/misc.h"       /* M0_UT_PATH */
+#include "ut/ut.h"
 
 extern const struct m0_tl_descr ndoms_descr;
 

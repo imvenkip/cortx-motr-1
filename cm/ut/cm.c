@@ -20,34 +20,18 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
 #include "lib/trace.h"
-#include "lib/finject.h"
-#include "lib/memory.h"
-#include "ut/ut.h"
-#include "lib/misc.h"
-#include "lib/thread.h"
 
-#include "rpc/rpclib.h"
-
-#include "reqh/reqh.h"
-#include "reqh/reqh_service.h"
-#include "ioservice/io_device.h"
-#include "pool/pool.h"
+#include <unistd.h>                /* usleep */
 
 #include "sns/cm/cm.h"
+#include "cm/ut/common_service.h"  /* cmut_rmach_ctx */
+#include "rpc/rpclib.h"            /* m0_rpc_server_ctx */
+#include "lib/fs.h"                /* m0_file_read */
+#include "ut/misc.h"               /* M0_UT_PATH */
+#include "ut/ut.h"
 
-#include "cm/cm.h"
-#include "cm/cp.h"
-#include "cm/ag.h"
-#include "cm/ut/common_service.h"
-
-#include "conf/ut/common.h"
-#include "conf/preload.h"
-#include "ut/file_helpers.h"
-#include <unistd.h>			/* usleep */
-#include "lib/locality.h"
-
-struct m0_rpc_server_ctx cm_ut_sctx;
-struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
+static struct m0_rpc_server_ctx cm_ut_sctx;
+static struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 static const char *SERVER_LOGFILE = "cm_ut.log";
 char  *cm_ut_server_args[] = { "m0d", "-T", "LINUX",
 				"-D", "sr_db", "-S", "sr_stob",
@@ -63,11 +47,11 @@ static void cm_ut_server_start(void)
 {
 	int rc;
 
-	cm_ut_sctx.rsx_xprts            = &xprt;
-	cm_ut_sctx.rsx_xprts_nr         = 1;
-	cm_ut_sctx.rsx_argv             = cm_ut_server_args;
-	cm_ut_sctx.rsx_argc             = ARRAY_SIZE(cm_ut_server_args);
-	cm_ut_sctx.rsx_log_file_name    = SERVER_LOGFILE;
+	cm_ut_sctx.rsx_xprts         = &xprt;
+	cm_ut_sctx.rsx_xprts_nr      = 1;
+	cm_ut_sctx.rsx_argv          = cm_ut_server_args;
+	cm_ut_sctx.rsx_argc          = ARRAY_SIZE(cm_ut_server_args);
+	cm_ut_sctx.rsx_log_file_name = SERVER_LOGFILE;
 
 	rc = m0_rpc_server_start(&cm_ut_sctx);
 	M0_UT_ASSERT(rc == 0);
@@ -121,18 +105,18 @@ static void cm_setup_ut(void)
 	struct m0_locality *locality;
 	struct m0_cm       *cm = &cm_ut[0].ut_cm;
 	struct m0_confc    *confc;
-	char                local_conf[M0_CONF_STR_MAXLEN];
+	char               *confstr = NULL;
 	int                 rc;
 
 	cm_ut_service_alloc_init();
 	confc = &cm_ut_service->rs_reqh->rh_confc;
-	rc = m0_ut_file_read(M0_UT_PATH("diter.xc"), local_conf,
-			     sizeof local_conf);
+	rc = m0_file_read(M0_UT_PATH("diter.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
 	locality = m0_locality0_get();
-
-	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, local_conf);
+	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
+	m0_free0(&confstr);
+
 	/* Internally calls m0_cm_setup(). */
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
@@ -371,7 +355,7 @@ struct m0_ut_suite cm_generic_ut = {
 		{ "cm_prepare_failure_ut", cm_prepare_failure_ut },
 		{ "cm_ready_failure_ut",   cm_ready_failure_ut   },
 		{ "cm_start_failure_ut",   cm_start_failure_ut   },
-		{ "cm_ag_ut",              cm_ag_ut               },
+		{ "cm_ag_ut",              cm_ag_ut              },
 		{ NULL, NULL }
         }
 };

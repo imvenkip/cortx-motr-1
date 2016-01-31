@@ -18,15 +18,12 @@
  * Original creation date: 20-Mar-2013
  */
 
-#include "lib/finject.h"      /* m0_fi_enable_once */
-#include "rm/rm.h"
-#include "rm/rm_internal.h"
 #include "rm/rm_service.h"
-#include "file/file.h"
-#include "rm/ut/rmut.h"
-#include "rpc/rpclib.h"
-#include "ut/cs_service.h"
-#include "ut/file_helpers.h"  /* M0_UT_PATH */
+#include "net/lnet/lnet.h" /* m0_net_lnet_xprt */
+#include "rm/ut/rmut.h"    /* rm_ctx */
+#include "rpc/rpclib.h"    /* m0_rpc_server_ctx */
+#include "ut/misc.h"       /* M0_UT_PATH */
+#include "ut/ut.h"
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR

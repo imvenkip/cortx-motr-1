@@ -18,23 +18,20 @@
  * Original creation date: 26-Sep-2012
  */
 
-#include <stdlib.h>        /* system */
-#include "lib/memory.h"    /* m0_free */
-#include "conf/obj.h"
-#include "conf/db.h"       /* m0_confdb_create, m0_confdb_read */
-#include "conf/onwire.h"   /* m0_confx_obj, m0_confx */
-#include "conf/preload.h"  /* m0_confstr_parse, m0_confx_free */
-#include "ut/file_helpers.h"  /* m0_ut_file_read */
-#include "lib/finject.h"   /* m0_fi_enable */
+#include "conf/db.h"
+#include "conf/obj.h"       /* m0_conf_fid_type */
+#include "conf/onwire.h"    /* m0_confx_obj, m0_confx */
+#include "conf/preload.h"   /* m0_confstr_parse, m0_confx_free */
+#include "conf/ut/confc.h"  /* m0_ut_conf_fids */
+#include "lib/fs.h"         /* m0_file_read */
+#include "lib/finject.h"    /* m0_fi_enable */
+#include "be/ut/helper.h"   /* m0_be_ut_backend_init */
+#include "ut/misc.h"        /* M0_UT_PATH */
 #include "ut/ut.h"
-#include "be/ut/helper.h"  /* m0_be_ut_backend_init */
-
-#include "conf/ut/confc.h" /* m0_ut_conf_fids */
 
 static struct m0_be_ut_backend ut_be;
 static struct m0_be_ut_seg     ut_seg;
 static struct m0_be_seg       *seg;
-static char                    m0_ut_conf_str[M0_CONF_STR_MAXLEN];
 
 #define XCAST(xobj, type) ((struct type *)(&(xobj)->xo_u))
 
@@ -117,12 +114,13 @@ static void conf_ut_be_tx_fini(struct m0_be_tx *tx)
 	m0_be_tx_fini(tx);
 }
 
-void test_confdb(void)
+static void test_confdb(void)
 {
 	struct m0_confx        *enc;
 	struct m0_confx        *dec;
 	struct m0_be_tx_credit  accum = {};
 	struct m0_be_tx         tx = {};
+	char                   *confstr = NULL;
 	bool                    error_desired;
 	int                     i;
 	int                     j;
@@ -137,8 +135,7 @@ void test_confdb(void)
 		{ &m0_ut_conf_fids[M0_UT_CONF_DISKV], &diskv_check   }
 	};
 
-	rc = m0_ut_file_read(M0_UT_PATH("conf.xc"), m0_ut_conf_str,
-			     sizeof m0_ut_conf_str);
+	rc = m0_file_read(M0_UT_PATH("conf.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_confstr_parse("[0]", &enc);
@@ -146,9 +143,10 @@ void test_confdb(void)
 	M0_UT_ASSERT(enc->cx_nr == 0);
 	m0_confx_free(enc);
 
-	rc = m0_confstr_parse(m0_ut_conf_str, &enc);
+	rc = m0_confstr_parse(confstr, &enc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(enc->cx_nr == M0_UT_CONF_NR_OBJS);
+	m0_free0(&confstr);
 
 	conf_ut_db_init();
 

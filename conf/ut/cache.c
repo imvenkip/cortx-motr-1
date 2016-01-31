@@ -22,11 +22,12 @@
 #include "conf/obj_ops.h"  /* m0_conf_obj_create */
 #include "conf/preload.h"  /* m0_confstr_parse, m0_confx_free */
 #include "conf/onwire.h"   /* m0_confx_obj, m0_confx */
-#include "ut/file_helpers.h"
 #include "lib/buf.h"       /* m0_buf, M0_BUF_INITS */
 #include "lib/errno.h"     /* ENOENT */
+#include "lib/fs.h"        /* m0_file_read */
+#include "lib/memory.h"    /* m0_free0 */
+#include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
-#include "ut/file_helpers.h"
 
 static struct m0_mutex      g_lock;
 static struct m0_conf_cache g_cache;
@@ -150,20 +151,20 @@ void test_obj_find(void)
 
 void test_obj_fill(void)
 {
-	static char buf[M0_CONF_STR_MAXLEN];
 	struct m0_confx    *enc;
 	struct m0_conf_obj *obj;
+	char               *confstr = NULL;
 	int                 i;
 	int                 rc;
 
 	m0_confx_free(NULL); /* to make sure this can be done */
 
-	rc = m0_ut_file_read(M0_UT_PATH("conf.xc"), buf, sizeof buf);
+	rc = m0_file_read(M0_UT_PATH("conf.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_confstr_parse(buf, &enc);
+	rc = m0_confstr_parse(confstr, &enc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(enc->cx_nr == M0_UT_CONF_NR_OBJS);
+	m0_free0(&confstr);
 
 	m0_mutex_lock(&g_lock);
 	for (i = 0; i < enc->cx_nr; ++i) {

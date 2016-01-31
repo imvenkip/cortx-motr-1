@@ -21,16 +21,12 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
 
-#include "lib/memory.h"                 /* M0_ALLOC_PTR */
-#include "lib/errno.h"
-#include "lib/string.h"
-#include "lib/finject.h"                /* m0_fi_enable_once */
-#include "ut/ut.h"
 #include "spiel/spiel.h"
-#include "spiel/ut/spiel_ut_common.h"
-#include "ut/file_helpers.h"            /* M0_UT_CONF_PROFILE */
+#include "spiel/ut/spiel_ut_common.h"  /* m0_spiel_ut_reqh */
+#include "ut/misc.h"                   /* M0_UT_PATH */
+#include "ut/ut.h"
 
-struct m0_spiel_ut_reqh *spl_reqh;
+static struct m0_spiel_ut_reqh *spl_reqh;
 
 static void spiel_start_stop(void)
 {

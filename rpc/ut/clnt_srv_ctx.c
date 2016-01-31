@@ -24,7 +24,7 @@
 #include "ut/cs_fop.h"          /* cs_ds2_req_fop_fopt */
 #include "ut/cs_fop_xc.h"       /* cs_ds2_req_fop */
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
-#include "ut/file_helpers.h"    /* M0_UT_PATH */
+#include "ut/misc.h"            /* M0_UT_PATH */
 
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 

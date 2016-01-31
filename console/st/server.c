@@ -31,12 +31,12 @@
 #include "ut/module.h"          /* m0_ut_module (XXX DELETEME) */
 #include "rpc/rpclib.h"         /* m0_rpc_server_start */
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
+#include "ut/misc.h"            /* M0_UT_PATH */
 #include "ut/ut.h"              /* m0_ut_init */
 
 #include "console/console.h"
 #include "console/console_fop.h"
 #include "conf/ut/common.h"     /* SERVER_ENDPOINT_ADDR */
-#include "ut/file_helpers.h"    /* M0_UT_CONF_PROFILE */
 
 /**
    @addtogroup console

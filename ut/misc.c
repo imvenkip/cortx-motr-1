@@ -18,7 +18,6 @@
  * Original creation date: 26-Sep-2015
  */
 
-
 /**
  * @addtogroup ut
  *

@@ -20,28 +20,19 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
-#include "lib/finject.h"
 
-#include "net/lnet/lnet.h"    /* m0_net_lnet_xprt */
-#include "lib/finject.h"
-#include "lib/misc.h"         /* M0_SET0 */
-#include "conf/diter.h"       /* m0_conf_diter */
-#include "conf/obj.h"
-#include "conf/obj_ops.h"
-#include "conf/preload.h"     /* M0_CONF_STR_MAXLEN */
-#include "conf/ut/common.h"   /* g_grp */
-#include "module/instance.h"  /* m0_get */
-#include "rpc/rpc_machine.h"  /* m0_rpc_machine */
-#include "rpc/rpclib.h"       /* m0_rpc_server_ctx */
-#include "ut/ut.h"
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
-#include "stob/stob.h"        /* m0_stob_lookup */
-#include "stob/domain.h"      /* m0_stob_id_make */
-#include "ut/file_helpers.h"  /* M0_UT_PATH */
+#include "conf/obj_ops.h"     /* M0_CONF_DIRNEXT */
+#include "module/instance.h"  /* m0_get */
+#include "stob/domain.h"      /* m0_stob_domain */
+#include "lib/finject.h"
+#include "lib/fs.h"           /* m0_file_read */
+#include "conf/ut/common.h"   /* conf_ut_ast_thread_fini */
+#include "ut/misc.h"          /* M0_UT_PATH */
+#include "ut/ut.h"
 
 static struct m0_spiel spiel;
-static char local_conf[M0_CONF_STR_MAXLEN];
 
 int spiel_ci_ut_init(void)
 {
@@ -342,17 +333,17 @@ static uint64_t test_spiel_fs_stats_ios_total(const struct m0_fid *fs_fid)
 	struct m0_conf_diter    it;
 	struct m0_conf_obj     *fs_obj;
 	struct m0_conf_service *svc;
+	char                   *confstr = NULL;
 	int                     rc;
 	uint64_t                svc_total = 0;
 	uint64_t                total = 0;
 
-	rc = m0_ut_file_read(M0_UT_PATH("conf.xc"), local_conf,
-			     sizeof local_conf);
+	rc = m0_file_read(M0_UT_PATH("conf.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-
 	rc = m0_confc_init(&confc, m0_locality0_get()->lo_grp, NULL, NULL,
-			   local_conf);
+			   confstr);
 	M0_UT_ASSERT(rc == 0);
+	m0_free0(&confstr);
 	rc = m0_confc_open_by_fid_sync(&confc, fs_fid, &fs_obj);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_conf_diter_init(&it, &confc, fs_obj,

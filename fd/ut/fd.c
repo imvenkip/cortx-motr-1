@@ -18,21 +18,18 @@
  * Original creation date: 13-Feb-15.
  */
 
-#include "fd/fd_internal.h"
 #include "fd/fd.h"
-#include "conf/diter.h"     /* m0_conf_diter */
-#include "fd/ut/common.h"   /* fd_ut_* */
-#include "conf/ut/common.h" /* g_grp */
-#include "conf/obj_ops.h"   /* M0_CONF_DIRNEXT */
+#include "fd/fd_internal.h" /* m0_fd__tree_root_create */
+#include "fd/ut/common.h"   /* la_N */
 #include "pool/pool.h"      /* m0_pool_version */
-#include "layout/pdclust.h" /* m0_pdclust_perm_cache_build */
-#include "lib/misc.h"       /* M0_SET0 and uint32_t uint64_t etc. */
-#include "lib/arith.h"      /* m0_rnd */
-#include "lib/memory.h"     /* m0_alloc m0_free */
+#include "conf/confc.h"     /* m0_confc */
+#include "conf/diter.h"     /* m0_conf_diter */
+#include "conf/obj_ops.h"   /* M0_CONF_DIRNEXT */
+#include "lib/memory.h"     /* m0_alloc */
+#include "lib/fs.h"         /* m0_file_read */
 #include "lib/errno.h"      /* EINVAL */
-#include "ut/ut.h"          /* M0_UT_ASSERT */
-#include "ut/file_helpers.h" /* m0_ut_file_read */
-#include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
+#include "conf/ut/common.h" /* g_grp */
+#include "ut/ut.h"
 
 /* Conf parameters. */
 enum {
@@ -109,7 +106,7 @@ static const struct m0_fid fids[] = {
 	[UNKNOWN_SVC] = M0_FID_TINIT('s', 5, 33),
 };
 
-char local_conf_str[] = "[34:\
+static const char local_conf_str[] = "[34:\
    {0x74| ((^t|1:0), 1, [1 : ^p|1:0])},\
    {0x70| ((^p|1:0), ^f|1:1)},\
    {0x66| ((^f|1:1),\
@@ -173,7 +170,6 @@ char local_conf_str[] = "[34:\
    {0x6a| ((^j|1:30), ^k|1:20, [0])},\
    {0x6a| ((^j|1:31), ^k|1:21, [0])},\
    {0x6a| ((^j|1:32), ^k|1:22, [0])}]";
-
 
 struct m0_pdclust_attr pd_attr  = {
 	.pa_N         = la_N,
@@ -418,7 +414,7 @@ static void test_pv2fd_conv(void)
 	struct m0_conf_obj  *pv_obj;
 	struct m0_conf_pver *pv;
 #ifndef __KERNEL__
-	static char          local_conf[M0_CONF_STR_MAXLEN];
+	char                *confstr = NULL;
 #endif
 	uint64_t             failure_level;
 	uint64_t             max_failures = 1;
@@ -428,11 +424,11 @@ static void test_pv2fd_conv(void)
 	M0_SET0(&confc);
 	M0_SET0(&pool_ver);
 #ifndef __KERNEL__
-	rc = m0_ut_file_read(M0_SRC_PATH("fd/ut/failure-domains.xc"),
-			     local_conf, sizeof local_conf);
+	rc = m0_file_read(M0_SRC_PATH("fd/ut/failure-domains.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, local_conf);
+	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
+	m0_free0(&confstr);
 #else
 	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, local_conf_str);
 	M0_UT_ASSERT(rc == 0);

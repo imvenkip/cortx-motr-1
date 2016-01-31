@@ -24,12 +24,21 @@
 #define __MERO_UT_MISC_H__
 
 #include "lib/types.h"  /* uint64_t */
+#include "lib/misc.h"   /* M0_SRC_PATH */
 
 /**
  * @defgroup ut
  *
  * @{
  */
+
+/**
+ * Returns absolute path to given file in ut/ directory.
+ * M0_UT_DIR is defined in ut/Makefile.sub.
+ */
+#define M0_UT_PATH(name) M0_SRC_PATH("ut/" name)
+
+#define M0_UT_CONF_PROFILE "<0x7000000000000001:0>"
 
 /**
  * Random shuffles an array.
@@ -53,7 +62,6 @@ M0_INTERNAL void m0_ut_random_arr_with_sum(uint64_t *arr,
 					   uint64_t  nr,
 					   uint64_t  sum,
 					   uint64_t *seed);
-
 
 /** @} end of ut group */
 #endif /* __MERO_UT_MISC_H__ */

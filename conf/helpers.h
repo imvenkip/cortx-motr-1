@@ -59,7 +59,7 @@ struct m0_confc_args {
 	/** Cofiguration profile. */
 	const char            *ca_profile;
 	/** Cofiguration string. */
-	const char            *ca_confstr;
+	char                  *ca_confstr;
 	/** Cofiguration server endpoint. */
 	const char            *ca_confd;
 	/** Configuration retrieval state machine. */

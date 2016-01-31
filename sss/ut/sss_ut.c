@@ -18,28 +18,17 @@
  * Original creation date: 04-Mar-2015
  */
 
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
-#include "lib/assert.h"
-#include "lib/buf.h"           /* m0_buf_init */
-#include "lib/finject.h"       /* m0_fi_enable, m0_fi_disable */
-#include "lib/memory.h"        /* M0_ALLOC_PTR */
-#include "fid/fid.h"           /* m0_fid */
-#include "net/net.h"
+#include "sss/ss_fops.h"       /* m0_sss_req */
+#include "sss/process_fops.h"  /* m0_ss_process_req */
+#include "sss/device_fops.h"   /* m0_sss_device_fop */
 #include "net/lnet/lnet.h"     /* m0_net_lnet_xprt */
-#include "fop/fop.h"
-#include "rpc/item.h"
-#include "rpc/rpc_opcodes.h"
-#include "rpc/rpclib.h"
-#include "reqh/reqh_service.h" /* m0_service_health */
+#include "rpc/rpclib.h"        /* m0_rpc_server_ctx */
+#include "lib/finject.h"
+#include "ut/misc.h"           /* M0_UT_PATH */
 #include "ut/ut.h"
-#include "ut/file_helpers.h"   /* M0_UT_PATH */
-#include "sss/process_fops.h"
-#include "sss/ss_fops.h"
-#include "sss/device_foms.h"
-#include "sss/device_fops.h"
 
 #define SERVER_DB_NAME        "sss_ut_server.db"
 #define SERVER_STOB_NAME      "sss_ut_server.stob"
@@ -442,7 +431,6 @@ const struct m0_ut_suite sss_ut = {
 M0_EXPORTED(sss_ut);
 
 #undef M0_TRACE_SUBSYSTEM
-
 
 /*
  *  Local variables:

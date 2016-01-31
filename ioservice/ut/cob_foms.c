@@ -19,30 +19,22 @@
  * Original creation date: 03/07/2012
  */
 
-#include "lib/locality.h"
-#include "lib/finject.h"
-#include "ut/ut.h"
-#include "ut/file_helpers.h"             /* m0_ut_file_read */
-#include "lib/memory.h"
-#include "conf/preload.h"                /* M0_CONF_STR_MAXLEN */
-#include "net/lnet/lnet.h"
-#include "rpc/rpclib.h"                  /* m0_rpc_server_ctx */
-#include "ioservice/ut/bulkio_common.h"
-#include "ioservice/cob_foms.c"          /* To access static APIs. */
-#include "ioservice/io_service.h"
-#include "ioservice/io_fops_xc.h"
-#include "ioservice/fid_convert.h"       /* m0_fid_convert_gob2cob */
-#include "stob/ad.h"                     /* m0_stob_ad_type */
-#include "stob/linux.h"                  /* m0_stob_linux_type */
-#include "stob/type.h"                   /* m0_stob_type */
-#include "ut/cs_service.h"               /* ds1_service_type */
-#include "ut/cs_fop.h"                   /* m0_ut_fom_phase_set */
-#include "rpc/rpc_machine_internal.h"
-#include "mdservice/fsync_fops.h"
-#include "mero/setup_internal.h"         /* m0_mero_conf_setup */
+#include "ioservice/cob_foms.c" /* to access static APIs */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
 #include "lib/trace.h"
+
+#include "ioservice/ut/bulkio_common.h" /* cob_attr_default_fill */
+#include "mdservice/fsync_fops.h"       /* m0_fop_fsync */
+#include "rpc/rpclib.h"                 /* m0_rpc_server_ctx */
+#include "rpc/rpc_opcodes.h"            /* M0_UT_IOS_OPCODE */
+#include "rpc/rpc_machine_internal.h"   /* m0_rpc_machine_lock */
+#include "stob/type.h"                  /* m0_stob_type */
+#include "stob/ad.h"                    /* m0_stob_ad_type */
+#include "stob/linux.h"                 /* m0_stob_linux_type */
+#include "ut/cs_fop.h"                  /* m0_ut_fom_phase_set */
+#include "ut/misc.h"                    /* M0_UT_PATH */
+#include "ut/ut.h"
 
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;

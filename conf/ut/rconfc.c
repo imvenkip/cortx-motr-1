@@ -20,23 +20,16 @@
 
 #include <unistd.h>                    /* usleep */
 
-#include "conf/cache.h"                /* M0_CONF_VER_UNKNOWN */
-#include "conf/confc.h"
 #include "conf/rconfc.h"
-#include "conf/obj.h"
-#include "conf/confd.h"                /* m0_confd */
-#include "conf/cache.h"
-#include "reqh/reqh_service.h"         /* m0_reqh_service */
-#include "rpc/rpclib.h"                /* m0_rpc_server_ctx */
-#include "ut/file_helpers.h"
-#include "conf/ut/rpc_helpers.h"
+#include "conf/rconfc_internal.h"      /* rlock_ctx */
+#include "conf/confd.h"                /* m0_confd_stype */
+#include "conf/ut/common.h"            /* SERVER_ENDPOINT */
 #include "conf/ut/confc.h"             /* m0_ut_conf_fids */
-#include "conf/ut/common.h"
+#include "conf/ut/rpc_helpers.h"       /* m0_ut_rpc_machine_start */
+#include "rpc/rpclib.h"                /* m0_rpc_server_ctx */
 #include "lib/finject.h"
-#include "lib/locality.h"              /* m0_locality0_get */
-#include "lib/mutex.h"
+#include "ut/misc.h"                   /* M0_UT_PATH */
 #include "ut/ut.h"
-#include "conf/rconfc_internal.h"
 
 static struct m0_semaphore  g_expired_sem;
 static struct m0_reqh      *ut_reqh;
@@ -48,7 +41,6 @@ static int ut_mero_start(struct m0_rpc_machine    *mach,
 			 struct m0_rpc_server_ctx *rctx)
 {
 	int rc;
-
 #define NAME(ext) "rconfc-ut" ext
 	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"),

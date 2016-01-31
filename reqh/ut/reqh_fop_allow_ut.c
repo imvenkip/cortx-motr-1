@@ -16,21 +16,11 @@
  * Original author: Rajanikant Chirmade <Rajnaikant_Chirmade@xyratex.com>
  * Original creation date: 28-July-2014
  */
-#include "lib/buf.h"
-#include "lib/memory.h"
+
+#include "reqh/ut/reqh_service_xc.h" /* m0_xc_reqh_service_init */
+#include "rpc/rpc_opcodes.h"         /* M0_REQH_UT_ALLOW_OPCODE */
+#include "sss/ss_fops.h"             /* m0_sss_req */
 #include "ut/ut.h"
-#include "fop/fop.h"
-#include "fop/fom.h"
-#include "fop/fom_generic.h"
-#include "sss/ss_fops.h"
-#include "rpc/item.h"
-#include "rpc/rpclib.h"
-#include "rpc/rpc_opcodes.h"             /* M0_REQH_UT_ALLOW_OPCODE */
-#include "reqh/ut/reqh_service.h"
-#include "reqh/ut/reqh_service_xc.h"
-#include "ut/cs_fop.h"
-#include "ut/ut_rpc_machine.h"
-#include "ut/file_helpers.h"
 
 #include "rpc/ut/clnt_srv_ctx.c"
 #include "reqh/ut/reqhut_fom.c"

@@ -56,7 +56,6 @@
 #  include <arpa/inet.h>
 #  include <netdb.h>
 #  include "module/instance.h"  /* m0 */
-#  include "ut/file_helpers.h"  /* M0_UT_PATH */
 #endif
 
 #define TRANSPORT_NAME  "lnet"

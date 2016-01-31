@@ -30,6 +30,7 @@
 #include "conf/preload.h"  /* m0_confx_free */
 #include "lib/errno.h"     /* ENOMEM */
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
+#include "lib/fs.h"        /* m0_file_read */
 #include "mero/magic.h"    /* M0_CONFD_MAGIC */
 #include "reqh/reqh_service.h"
 #include "mero/setup.h"
@@ -543,20 +544,20 @@ M0_INTERNAL void m0_confd_cache_destroy(struct m0_conf_cache *cache)
 
 static int confd_start(struct m0_reqh_service *service)
 {
-	struct m0_confd      *confd = bob_of(service, struct m0_confd, d_reqh,
+	struct m0_confd *confd = bob_of(service, struct m0_confd, d_reqh,
 					&m0_confd_bob);
-	char                 *confstr = NULL;
-	char                 *conf_fname = NULL;
-	int                   rc;
+	char            *path = NULL;
+	char            *confstr = NULL;
+	int              rc;
 
 	M0_ENTRY();
 	m0_mutex_init(&confd->d_cache_lock);
-	rc = m0_confd_service_to_filename(service, &conf_fname) ?:
-	     m0_conf_file_read(conf_fname, &confstr) ?:
+	rc = m0_confd_service_to_filename(service, &path) ?:
+	     m0_file_read(path, &confstr) ?:
 	     m0_confd_cache_create(&confd->d_cache, &confd->d_cache_lock,
 				   confstr);
 	m0_free(confstr);
-	m0_free(conf_fname);
+	m0_free(path);
 	if (rc != 0) {
 		m0_mutex_fini(&confd->d_cache_lock);
 		return M0_ERR(rc);

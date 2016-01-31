@@ -67,7 +67,6 @@ struct m0_fom_cob_op {
 	uint64_t                 fco_flags;
 };
 
-
 M0_INTERNAL int m0_cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
 				  struct m0_reqh *reqh);
 

@@ -18,20 +18,10 @@
  * Original creation date: 01/06/2012
  */
 
-#include "ut/ut.h"                /* M0_UT_ASSERT */
-#include "lib/errno.h"
-#include "lib/tlist.h"
-
-#include "rpc/rpclib.h"
-#include "net/lnet/lnet.h"
-#include "net/bulk_mem.h"
-#include "reqh/reqh_service.h"
-#include "ioservice/io_service.h"
-#include "mero/setup.h"
-#include "ut/cs_service.h"         /* m0_cs_default_stypes */
-#include "ut/file_helpers.h"
-
 #include "ioservice/io_service.c"
+#include "net/bulk_mem.h"         /* m0_net_bulk_mem_xprt */
+#include "ut/misc.h"              /* M0_UT_PATH */
+#include "ut/ut.h"
 
 extern const struct m0_tl_descr bufferpools_tl;
 

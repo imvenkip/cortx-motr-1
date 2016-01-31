@@ -24,7 +24,6 @@
 #include "stats/stats_fops.h"
 #include "reqh/reqh_service.h"
 #include "stats/stats_api.h"
-#include "ut/file_helpers.h"
 
 #include "stats/stats_srv.c"
 #include "rpc/ut/clnt_srv_ctx.c"

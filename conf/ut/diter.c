@@ -21,18 +21,15 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
-#include "conf/confc.h"     /* m0_confc__open */
-#include "conf/helpers.h"
-#include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
-#include "conf/obj_ops.h"   /* M0_CONF_DIREND */
 #include "conf/diter.h"
-#include "ut/file_helpers.h"
-#include "conf/ut/rpc_helpers.h"
-#include "conf/ut/common.h"
-#include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
-#include "rpc/rpclib.h"     /* m0_rpc_server_ctx */
+#include "conf/obj_ops.h"         /* M0_CONF_DIREND */
+#include "conf/ut/common.h"       /* g_grp */
+#include "conf/ut/rpc_helpers.h"  /* m0_ut_rpc_machine_start */
+#include "rpc/rpclib.h"           /* m0_rpc_server_ctx */
+#include "lib/fs.h"               /* m0_file_read */
+#include "lib/memory.h"           /* m0_free */
+#include "ut/misc.h"              /* M0_UT_PATH */
 #include "ut/ut.h"
-#include "conf/ut/confc.h"
 
 enum {
 	PROF,
@@ -220,7 +217,7 @@ all_fs_to_diskv_check(struct m0_confc *confc, struct m0_conf_obj *fs)
 	M0_UT_ASSERT(rc == 0);
 
 	while ((rc = m0_conf_diter_next_sync(&it, _filter_diskv)) ==
-							M0_CONF_DIRNEXT) {
+	       M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE);
 		ov = M0_CONF_CAST(obj, m0_conf_objv);
@@ -236,7 +233,8 @@ all_fs_to_diskv_check(struct m0_confc *confc, struct m0_conf_obj *fs)
 	M0_UT_ASSERT(rc == 0);
 }
 
-static void all_fs_to_disks_check(struct m0_confc *confc, struct m0_conf_obj *fs)
+static void
+all_fs_to_disks_check(struct m0_confc *confc, struct m0_conf_obj *fs)
 {
 	struct m0_conf_diter it;
 	int                  rc;
@@ -309,14 +307,13 @@ static void conf_diter_test(const char *confd_addr,
 
 static void test_diter_local(void)
 {
-	char local_conf[M0_CONF_STR_MAXLEN];
-	int  rc;
+	char *confstr = NULL;
+	int   rc;
 
-	rc = m0_ut_file_read(M0_UT_PATH("diter.xc"), local_conf,
-			     sizeof local_conf);
+	rc = m0_file_read(M0_UT_PATH("diter.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-
-	conf_diter_test(NULL, NULL, local_conf);
+	conf_diter_test(NULL, NULL, confstr);
+	m0_free(confstr);
 }
 
 static void test_diter_net(void)
@@ -357,14 +354,14 @@ static void test_diter_invalid_input(void)
 	struct m0_confc       confc;
 	struct m0_conf_diter  it;
 	struct m0_conf_obj   *fs_obj;
-	static char           local_conf[M0_CONF_STR_MAXLEN];
+	char                 *confstr = NULL;
 	int                   rc;
 
-	rc = m0_ut_file_read(M0_UT_PATH("diter.xc"), local_conf,
-			     sizeof local_conf);
+	rc = m0_file_read(M0_UT_PATH("diter.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, local_conf);
+	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
+	m0_free0(&confstr);
 	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,
 				M0_CONF_ROOT_PROFILES_FID, fids[PROF],
 				M0_CONF_PROFILE_FILESYSTEM_FID);

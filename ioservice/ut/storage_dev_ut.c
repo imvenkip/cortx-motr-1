@@ -18,23 +18,17 @@
  * Original creation date: 08/07/2015
  */
 
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include "lib/errno.h"
-#include "lib/finject.h"
-#include "conf/obj.h"
-#include "ioservice/storage_dev.h"
-#include "mero/setup.h"
-#include "rpc/rpclib.h"
-#include "balloc/balloc.h"
-#include "stob/domain.h"      /* m0_stob_domain_find_by_location */
-#include "ut/file_helpers.h"  /* M0_UT_PATH */
-#include "ut/ut.h"
-
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
+
+#include <unistd.h> /* get_current_dir_name */
+
+#include "ioservice/storage_dev.h" /* m0_storage_devs */
+#include "balloc/balloc.h"         /* BALLOC_DEF_BLOCK_SHIFT */
+#include "rpc/rpclib.h"            /* m0_rpc_server_ctx */
+#include "lib/finject.h"
+#include "ut/misc.h"               /* M0_UT_PATH */
+#include "ut/ut.h"
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 

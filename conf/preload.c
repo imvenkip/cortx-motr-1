@@ -37,49 +37,6 @@ M0_INTERNAL void m0_confx_free(struct m0_confx *enc)
 	M0_LEAVE();
 }
 
-#ifndef __KERNEL__
-M0_INTERNAL int m0_conf_file_read(const char *path, char **dest)
-{
-	FILE  *f;
-	long   size;
-	size_t n;
-	int    rc = 0;
-
-	M0_ENTRY("path=`%s'", path);
-
-	f = fopen(path, "rb");
-	if (f == NULL)
-		return M0_ERR_INFO(-errno, "path=`%s'", path);
-
-	rc = fseek(f, 0, SEEK_END);
-	if (rc == 0) {
-		size = ftell(f);
-		rc = fseek(f, 0, SEEK_SET);
-	}
-	if (rc != 0) {
-		fclose(f);
-		return M0_ERR_INFO(-errno, "fseek() failed: path=`%s'", path);
-	}
-	/* it should be freed by the caller */
-	M0_ALLOC_ARR(*dest, size + 1);
-	if (*dest != NULL) {
-		n = fread(*dest, 1, size + 1, f);
-		M0_ASSERT_INFO(n == size, "n=%zu size=%ld", n, size);
-		if (ferror(f))
-			rc = -errno;
-		else if (!feof(f))
-			rc = M0_ERR(-EFBIG);
-		else
-			(*dest)[n] = '\0';
-	} else {
-		rc = M0_ERR(-ENOMEM);
-	}
-
-	fclose(f);
-	return M0_RC(rc);
-}
-#endif
-
 M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_confx **out)
 {
 	int rc;

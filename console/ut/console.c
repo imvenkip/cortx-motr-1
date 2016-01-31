@@ -18,35 +18,16 @@
  * Original creation date: 08/03/2011
  */
 
-#ifndef CONSOLE_UT
+#include <unistd.h>           /* truncate(2) */
+#include <sys/types.h>        /* truncate(2) */
+
 #define CONSOLE_UT
-#endif
-
-#include <sysexits.h>
-#include <unistd.h>	      /* truncate */
-#include <sys/types.h>	      /* truncate */
-
-#include "lib/types.h"        /* uint64_t */
+#include "console/console.c"  /* timeout */
+#include "net/lnet/lnet.h"    /* m0_net_lnet_xprt */
+#include "rpc/rpclib.h"       /* m0_rpc_client_ctx */
+#include "rpc/rpc_opcodes.h"  /* M0_CONS_FOP_DEVICE_OPCODE */
+#include "ut/misc.h"          /* M0_UT_PATH */
 #include "ut/ut.h"
-#include "lib/assert.h"
-#include "lib/memory.h"
-#include "lib/errno.h"        /* ETIMEDOUT */
-#include "lib/thread.h"       /* m0_thread */
-#include "lib/trace.h"
-#include "lib/misc.h"         /* M0_SET0 */
-#include "rpc/rpclib.h"       /* m0_rpc_server_start, m0_rpc_client_start */
-#include "rpc/rpc_opcodes.h"
-#include "ut/cs_service.h"    /* m0_cs_default_stypes */
-#include "fop/fop.h"
-
-#include "console/console.h"
-#include "console/console_fop.h"
-#include "console/console_fop_xc.h"
-#include "console/console_it.h"
-#include "console/console_yaml.h"
-#include "console/console_mesg.h"
-#include "console/console.c"
-#include "ut/file_helpers.h"     /* M0_UT_PATH */
 
 /**
    @addtogroup console
@@ -691,9 +672,9 @@ struct m0_ut_suite console_ut = {
 	}
 };
 
+/** @} end of console group */
 #undef CONSOLE_UT
 
-/** @} end of console group */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

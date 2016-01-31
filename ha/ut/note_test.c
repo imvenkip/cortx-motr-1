@@ -18,31 +18,11 @@
  * Original creation date: 19-Sep-2013
  */
 
-#include "conf/confc.h"
-#include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
-#include "ut/file_helpers.h"
-#include "fid/fid.h"
-#include "fop/fom_generic.h"
-#include "lib/buf.h"
-#include "lib/errno.h"
-#include "lib/misc.h"       /* M0_QUOTE */
-#include "lib/string.h"
-#include "lib/time.h"
-#include "lib/uuid.h"
-#include "net/lnet/lnet.h"
-#include "rpc/rpc.h"
-#include "rpc/rpc_opcodes.h"
-#include "rpc/rpclib.h"
-#include "ut/cs_service.h"
-#include "ut/ut.h"
-#include "conf/ut/confc.h"  /* conf_ut_obj_find() */
-
 #include "ha/note.c"
-#include "ha/note_fops.h"
-#include "ha/note_fops_xc.h"
-#include "ha/note_xc.h"
-#include "conf/helpers.h"  /* m0_conf_fs_get */
-#include "pool/flset.h"
+#include "lib/fs.h"         /* m0_file_read */
+#include "conf/ut/confc.h"  /* m0_ut_conf_fids */
+#include "ut/misc.h"        /* M0_UT_PATH */
+#include "ut/ut.h"
 
 #define CLIENT_DB_NAME        "ha_ut_client.db"
 #define CLIENT_ENDPOINT_ADDR  "0@lo:12345:34:*"
@@ -60,7 +40,6 @@ static const struct m0_fid conf_obj_id_fs = M0_FID_TINIT('f', 2, 1);
 static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain   client_net_dom;
 static struct m0_rpc_session *session;
-static char                   ut_ha_conf_str[M0_CONF_STR_MAXLEN];
 struct m0_conf_filesystem    *fs;
 
 enum {
@@ -176,12 +155,11 @@ static void done_get_chan_fini(void)
 
 static void local_confc_init(struct m0_confc *confc)
 {
-	int rc;
+	char *confstr = NULL;
+	int   rc;
 
-	rc = m0_ut_file_read(M0_UT_PATH("conf.xc"), ut_ha_conf_str,
-			     sizeof ut_ha_conf_str);
+	rc = m0_file_read(M0_UT_PATH("conf.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-
 	/*
 	 * All configuration objects need to be preloaded, since
 	 * m0_ha_state_accept() function traverses all the descendants appearing
@@ -193,8 +171,9 @@ static void local_confc_init(struct m0_confc *confc)
 	 *    obj->co_status == M0_CS_READY m0_conf_obj_put()
 	 */
 	rc = m0_confc_init(confc, &g_grp, SERVER_ENDPOINT_ADDR,
-			   &(cctx.rcx_rpc_machine), ut_ha_conf_str);
+			   &(cctx.rcx_rpc_machine), confstr);
 	M0_UT_ASSERT(rc == 0);
+	m0_free(confstr);
 }
 
 static void compare_ha_state(struct m0_confc *confc,

@@ -30,10 +30,10 @@
 #include "net/bulk_mem.h"   /* m0_net_bulk_mem_xprt */
 #include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
 #include "ut/cs_service.h"  /* m0_cs_default_stypes */
+#include "ut/misc.h"        /* M0_UT_PATH */
 #include "rpc/rpclib.h"     /* m0_rpc_server_ctx, m0_rpc_client_ctx */
 #include "rpc/session.h"    /* m0_rpc_session_timedwait */
 #include "rpc/ub/rpc_ub_fops.h"
-#include "ut/file_helpers.h" /* M0_UT_PATH */
 
 /* ----------------------------------------------------------------
  * CLI arguments

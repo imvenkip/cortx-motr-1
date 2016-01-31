@@ -18,21 +18,14 @@
  * Original creation date: 09/24/2012
  */
 
-#include "ut/ut.h"
-#include "lib/memory.h"
-#include "lib/misc.h"
-#include "reqh/reqh.h"
-#include "ioservice/io_device.h"
 #include "cm/cp.h"
 #include "cm/cp.c"
-#include "sns/cm/cp.h"
-#include "cm/ag.h"
 #include "cm/ut/common_service.h"
-#include "conf/ut/common.h"
-#include "lib/locality.h"
-#include "ioservice/fid_convert.h"
-#include "ut/file_helpers.h"
-#include "conf/preload.h"
+#include "sns/cm/cp.h"
+#include "ioservice/fid_convert.h"  /* m0_fid_gob_make */
+#include "lib/fs.h"                 /* m0_file_read */
+#include "ut/misc.h"                /* M0_UT_PATH */
+#include "ut/ut.h"
 
 static struct m0_semaphore sem;
 
@@ -268,7 +261,7 @@ static int cm_cp_init(void)
 	int                 rc;
 	struct m0_confc    *confc;
 	struct m0_locality *locality;
-	char                local_conf[M0_CONF_STR_MAXLEN];
+	char               *confstr = NULL;
 
 	M0_SET0(&cmut_rmach_ctx);
 	cmut_rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
@@ -279,12 +272,14 @@ static int cm_cp_init(void)
 	M0_ASSERT(rc == 0);
 	cm_ut_service_alloc_init();
 	confc = &cm_ut_service->rs_reqh->rh_confc;
-	rc = m0_ut_file_read(M0_UT_PATH("diter.xc"), local_conf,
-			     sizeof local_conf);
+
+	rc = m0_file_read(M0_UT_PATH("diter.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
 	locality = m0_locality0_get();
-	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, local_conf);
+	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
+	m0_free0(&confstr);
+
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_ASSERT(rc == 0);
 	cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile = M0_UT_CONF_PROFILE;

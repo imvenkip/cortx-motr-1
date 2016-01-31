@@ -32,6 +32,16 @@
  */
 M0_INTERNAL int m0_cleandir(const char *dir);
 
+#ifndef __KERNEL__
+/**
+ * Reads file contents into dynamically allocated string.
+ *
+ * @note If the call succeeds, the user is responsible for freeing
+ *       allocated memory with m0_free(*out).
+ */
+M0_INTERNAL int m0_file_read(const char *path, char **out);
+#endif
+
 #endif /* __MERO_LIB_FS_H__ */
 
 /*

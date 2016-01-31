@@ -18,29 +18,25 @@
  * Original creation date: 03/26/2013
  */
 
-#include "lib/misc.h"
-#include "lib/locality.h"
-#include "lib/finject.h"
-#include "net/lnet/lnet.h"
-#include "reqh/reqh.h"
-#include "sns/cm/net.c"
-#include "sns/cm/ag.c"
-#include "sns/cm/repair/ag.c"
-#include "sns/cm/cp.h"
-#include "sns/cm/repair/ut/cp_common.h"
-#include "ioservice/io_service.h"
-#include "ioservice/io_device.h"
-#include "reqh/reqh_service.h"
-#include "cm/proxy.h"
-#include "ut/ut_rpc_machine.h"
-#include "ut/stob.h"            /* m0_ut_stob_create_by_stob_id */
-#include <unistd.h>             /* usleep */
-#include "conf/ut/common.h"
-#include "conf/preload.h"
-#include "ut/file_helpers.h"
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/trace.h"
+
+#include <unistd.h> /* sleep */
+
+#include "sns/cm/repair/ag.h"           /* sag2repairag */
+#include "sns/cm/repair/ut/cp_common.h" /* cp_prepare */
+#include "ioservice/fid_convert.h"      /* m0_fid_convert_cob2stob */
+#include "ioservice/io_service.h"       /* m0_ios_cdom_get */
+#include "rpc/rpclib.h"                 /* m0_rpc_client_ctx */
+#include "rpc/rpc_opcodes.h"            /* M0_CM_UT_SENDER_OPCODE */
+#include "lib/fs.h"                     /* m0_file_read */
+#include "lib/finject.h"
+#include "ut/ut_rpc_machine.h"          /* m0_ut_rpc_mach_ctx */
+#include "ut/stob.h"                    /* m0_ut_stob_create_by_stob_id */
+#include "ut/misc.h"                    /* M0_UT_PATH */
+#include "ut/ut.h"
+
+#include "sns/cm/repair/ag.c" /* m0_sns_cm_acc_cp_init */
 
 #define DUMMY_DBNAME      "dummy-db"
 #define DUMMY_COB_ID      20
@@ -683,8 +679,8 @@ static void sender_init()
 {
 	struct m0_confc      *confc;
 	struct m0_locality   *locality;
-	char                  local_conf[M0_CONF_STR_MAXLEN];
 	struct m0_net_domain *ndom;
+	char                 *confstr = NULL;
 	uint32_t              colours;
 	int                   nr_bufs;
 	int                   rc;
@@ -698,11 +694,12 @@ static void sender_init()
 	locality = m0_locality0_get();
 	sender_service_alloc_init();
 	confc = &sender_cm_service->rs_reqh->rh_confc;
-	rc = m0_ut_file_read(M0_UT_PATH("diter.xc"), local_conf,
-			     sizeof local_conf);
+	rc = m0_file_read(M0_UT_PATH("diter.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, local_conf);
+	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
+	m0_free0(&confstr);
+
 	rc = m0_reqh_service_start(sender_cm_service);
 	M0_UT_ASSERT(rc == 0);
 

@@ -19,10 +19,9 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
-#include "lib/memory.h"
 #include "lib/trace.h"
 
-#include "rpc/rpclib.h"
+#include "lib/memory.h"
 
 #include "cm/proxy.h"
 #include "sns/cm/cm.h"
@@ -34,6 +33,7 @@
 #include "fop/fom.h"
 #include "net/net.h"
 #include "rpc/item.h"
+#include "rpc/rpclib.h"
 #include "rpc/session.h"
 #include "rpc/conn.h"
 #include "rpc/rpc_machine_internal.h"
@@ -464,6 +464,8 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 }
 
 /** @} SNSCMCP */
+#undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

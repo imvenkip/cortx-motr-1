@@ -71,18 +71,10 @@ struct m0_confx;
  */
 
 /**
- * Maximum size of conf string that confd_cache_preload() can handle.
- *
- * XXX This is rather silly of confd_cache_preload() to load conf string
- *     in full. Oh well.
- */
-enum { M0_CONF_STR_MAXLEN = 32768 };
-
-/**
  * Encodes configuration string.
  *
  * @note If the call succeeds, the user is responsible for freeing
- *       allocated with m0_confx_free(*out).
+ *       allocated memory with m0_confx_free(*out).
  */
 M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_confx **out);
 
@@ -91,8 +83,6 @@ M0_INTERNAL void m0_confx_free(struct m0_confx *enc);
 
 M0_INTERNAL int m0_confx_to_string(struct m0_confx  *confx,
 				   char            **str);
-
-M0_INTERNAL int m0_conf_file_read(const char *path, char **dest);
 
 /** @} conf_dfspec_preload */
 #endif /* __MERO_CONF_PRELOAD_H__ */

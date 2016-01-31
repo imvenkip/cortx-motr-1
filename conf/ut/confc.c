@@ -21,26 +21,20 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
-#include "fid/fid.h"
 #include "conf/confc.h"
-#include "conf/helpers.h"
-#include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
-#include "conf/obj_ops.h"   /* M0_CONF_DIREND */
-#include "conf/preload.h"   /* M0_CONF_STR_MAXLEN */
-#include "conf/diter.h"
-#include "ut/file_helpers.h"
-#include "conf/ut/rpc_helpers.h"
-#include "conf/ut/common.h"
-#include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
-#include "rpc/rpclib.h"     /* m0_rpc_server_ctx */
+#include "conf/obj_ops.h"         /* M0_CONF_DIREND */
+#include "conf/helpers.h"         /* m0_conf_root_open */
+#include "conf/ut/confc.h"        /* m0_ut_conf_fids */
+#include "conf/ut/common.h"       /* conf_ut_waiter */
+#include "conf/ut/rpc_helpers.h"  /* m0_ut_rpc_machine_start */
+#include "rpc/rpclib.h"           /* m0_rpc_server_ctx */
+#include "lib/fs.h"               /* m0_file_read */
+#include "lib/errno.h"            /* ENOENT */
+#include "lib/memory.h"           /* m0_free */
+#include "ut/misc.h"              /* M0_UT_PATH */
 #include "ut/ut.h"
-#include "conf/ut/confc.h"  /* m0_ut_conf_fids */
 
-#include "pool/pool.h"
-#include "pool/pool_machine.h"
-
-static char g_confc_str[M0_CONF_STR_MAXLEN];
-uint8_t     g_num;
+static uint8_t g_num;
 
 static void root_open_test(struct m0_confc *confc)
 {
@@ -383,24 +377,25 @@ static void test_confc_local(void)
 {
 	struct m0_confc     confc = {};
 	struct m0_conf_obj *obj;
+	char               *confstr = NULL;
 	int                 rc;
-
-	rc = m0_ut_file_read(M0_UT_PATH("conf.xc"), g_confc_str,
-			     sizeof g_confc_str);
-	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_confc_init(&confc, &g_grp, NULL, NULL,
 			   "bad configuration string");
 	M0_UT_ASSERT(rc == -EPROTO);
 
-	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, g_confc_str);
+	rc = m0_file_read(M0_UT_PATH("conf.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, confstr);
+	M0_UT_ASSERT(rc == 0);
+
 	/* normal case - profile exists in conf */
 	rc = m0_confc_open_sync(&obj, confc.cc_root,
 				M0_CONF_ROOT_PROFILES_FID,
 				m0_ut_conf_fids[M0_UT_CONF_PROF]);
 	M0_UT_ASSERT(rc == 0);
 	m0_confc_close(obj);
+
 	/* fail case - profile does not exist */
 	rc = m0_confc_open_sync(&obj, confc.cc_root,
 				M0_CONF_ROOT_PROFILES_FID,
@@ -408,7 +403,8 @@ static void test_confc_local(void)
 	M0_UT_ASSERT(rc == -ENOENT);
 	m0_confc_fini(&confc);
 
-	confc_test(NULL, NULL, g_confc_str);
+	confc_test(NULL, NULL, confstr);
+	m0_free(confstr);
 }
 
 static void test_confc_net(void)
@@ -446,14 +442,14 @@ static void test_confc_net(void)
 static void test_confc_invalid_input(void)
 {
 	struct m0_confc confc = {};
+	char           *confstr = NULL;
 	int             rc;
 
-	rc = m0_ut_file_read(M0_SRC_PATH("conf/ut/duplicated-ids.xc"),
-			     g_confc_str, sizeof g_confc_str);
+	rc = m0_file_read(M0_SRC_PATH("conf/ut/duplicated-ids.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, g_confc_str);
+	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == -EEXIST);
+	m0_free(confstr);
 }
 
 struct m0_ut_suite confc_ut = {

@@ -21,25 +21,17 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
 
-#include "lib/memory.h"                 /* M0_ALLOC_PTR */
-#include "lib/errno.h"
-#include "lib/string.h"
-#include "lib/finject.h"
-#include "ut/ut.h"
-#include "conf/cache.h"
-#include "conf/load_fom.h"              /* m0_conf_cache_from_string */
-#include "conf/obj_ops.h"               /* m0_conf_obj_create */
-#include "conf/onwire.h"                /* m0_confx */
-#include "conf/onwire_xc.h"             /* m0_confx_xc */
-#include "conf/preload.h"               /* m0_confx_free */
+#include <fcntl.h>  /* open */
+#include <unistd.h> /* close */
+
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
-#include "ut/file_helpers.h"
-
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/mman.h>
+#include "conf/load_fom.h" /* m0_conf_cache_from_string */
+#include "conf/obj_ops.h"  /* m0_conf_obj_create */
+#include "lib/finject.h"
+#include "lib/fs.h"        /* m0_file_read */
+#include "ut/misc.h"       /* M0_UT_PATH */
+#include "ut/ut.h"
 
 struct m0_spiel spiel;
 
@@ -64,8 +56,7 @@ enum {
 	SPIEL_UT_OBJ_COUNT,
 };
 
-#define	SPIEL_UT_OBJ_ROOT   SPIEL_UT_OBJ_COUNT
-
+#define SPIEL_UT_OBJ_ROOT SPIEL_UT_OBJ_COUNT
 
 static struct m0_fid spiel_obj_fid[] = {
 	M0_FID_TINIT('D', 1, 1 ),
@@ -85,7 +76,7 @@ static struct m0_fid spiel_obj_fid[] = {
 	M0_FID_TINIT('j', 15, 15),
 	M0_FID_TINIT('j', 16, 16),
 	M0_FID_TINIT('j', 17, 17),
-	M0_FID_TINIT(0, 00, 00),
+	M0_FID_TINIT(0, 0, 0),
 };
 
 static int spiel_copy_file(const char *source, const char* dest)
@@ -1342,30 +1333,6 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	m0_bitmap_fini(&bitmap);
 }
 
-static int spiel_file_read(const char *filename, char *dest, size_t sz)
-{
-	FILE  *f;
-	size_t n;
-	int    rc = 0;
-
-	M0_ENTRY();
-
-	f = fopen(filename, "r");
-	if (f == NULL)
-		return M0_RC(-errno);
-
-	n = fread(dest, 1, sz - 1, f);
-	if (ferror(f))
-		rc = -errno;
-	else if (!feof(f))
-		rc = -EFBIG;
-	else
-		dest[n] = '\0';
-
-	fclose(f);
-	return M0_RC(rc);
-}
-
 /*
  * spiel-conf-file test
  */
@@ -1373,7 +1340,7 @@ static void spiel_conf_file(void)
 {
 	int                   rc;
 	struct m0_spiel_tx    tx;
-	char                 *str;
+	char                 *confstr = NULL;
 	const char            filename[] = "/tmp/spiel_conf_file.txt";
 	struct m0_conf_cache  cache;
 	struct m0_mutex       lock;
@@ -1389,8 +1356,7 @@ static void spiel_conf_file(void)
 	m0_spiel_tx_close(&tx);
 
 	/* Load file */
-	M0_ALLOC_ARR(str, M0_CONF_STR_MAXLEN);
-	rc = spiel_file_read(filename, str, M0_CONF_STR_MAXLEN);
+	rc = m0_file_read(filename, &confstr);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_mutex_init(&lock);
@@ -1398,8 +1364,8 @@ static void spiel_conf_file(void)
 
 	m0_mutex_lock(&lock);
 
-	rc = m0_conf_cache_from_string(&cache, str);
-	m0_free(str);
+	rc = m0_conf_cache_from_string(&cache, confstr);
+	m0_free(confstr);
 	M0_UT_ASSERT(rc == 0);
 	m0_mutex_unlock(&lock);
 

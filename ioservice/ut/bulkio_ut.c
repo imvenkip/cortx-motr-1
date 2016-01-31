@@ -32,7 +32,6 @@
 #include "ioservice/io_foms.c"  /* To access static APIs. */
 #include "mero/setup.h"
 #include "mero/setup_internal.h" /* m0_mero_conf_setup */
-#include "conf/preload.h"        /* M0_CONF_STR_MAXLEN */
 #include "pool/pool.h"
 #include "fop/fom_generic.c"
 

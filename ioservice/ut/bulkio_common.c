@@ -18,21 +18,12 @@
  * Original creation date: 02/21/2011
  */
 
-#ifndef __KERNEL__
-#  include <errno.h>
-#endif
 #include "bulkio_common.h"
-#include "rpc/rpclib.h"     /* m0_rpc_client_start */
-#include "rpc/session.h"
-#include "ut/cs_service.h"  /* ds1_service_type */
-#include "net/lnet/lnet.h"
-#include "file/file.h"
-#include "lib/string.h"     /* m0_strdup */
+#include "rpc/rpclib.h"             /* m0_rpc_server_ctx */
+#include "ioservice/fid_convert.h"  /* m0_fid_gob_make */
+#include "mdservice/fsync_fops.h"   /* m0_fop_fsync */
+#include "ut/misc.h"                /* M0_UT_PATH */
 #include "ut/ut.h"
-
-#include "mdservice/fsync_fops.h"
-#include "ioservice/io_fops.h"     /* m0_fop_fsync_ios_fopt */
-#include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob */
 
 #define S_DBFILE        "bulkio_st.db"
 #define S_STOBFILE      "bulkio_st_stob"

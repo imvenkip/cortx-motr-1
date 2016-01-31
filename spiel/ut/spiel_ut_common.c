@@ -21,17 +21,10 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
 
-#include "lib/finject.h"               /* m0_fi_enable_once */
-#include "net/lnet/lnet.h"             /* m0_net_lnet_xprt */
-#include "net/net.h"
-#include "rpc/rpc.h"
-#include "rpc/rpclib.h"
-#include "rpc/rpc_machine.h"
-#include "reqh/reqh.h"
-#include "spiel/spiel.h"
-#include "ut/ut.h"
-#include "ut/file_helpers.h"           /* M0_UT_CONF_PROFILE */
 #include "spiel/ut/spiel_ut_common.h"
+#include "spiel/spiel.h"
+#include "ut/misc.h" /* M0_UT_PATH */
+#include "ut/ut.h"
 
 static struct  m0_spiel_ut_reqh ut_reqh;
 const char    *confd_addr[] = { SERVER_ENDPOINT_ADDR, NULL };

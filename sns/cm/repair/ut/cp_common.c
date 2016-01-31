@@ -18,12 +18,14 @@
  * Original creation date: 10/22/2012
  */
 
-#include "net/lnet/lnet.h"
-#include "mero/setup.h"
-#include "sns/cm/repair/ut/cp_common.h"
+#include "net/lnet/lnet.h"               /* m0_net_lnet_xprt */
+#include "mero/setup.h"                  /* m0_mero */
+#include "sns/cm/repair/ut/cp_common.h"  /* cs_fini */
+#include "ut/misc.h"                     /* M0_UT_PATH */
+#include "ut/ut.h"
+
 #include "sns/cm/repair/service.c"
 #include "sns/cm/rebalance/service.c"
-#include "ut/file_helpers.h"  /* M0_UT_PATH */
 
 /* Global structures for setting up mero service. */
 const char log_file_name[] = "sr_ut.errlog";

@@ -38,7 +38,6 @@
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
 #include "rpc/service.h"
-#include "ut/file_helpers.h"
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 #include "ha/epoch.h"
 

@@ -34,6 +34,7 @@
 #include "lib/misc.h"
 #include "lib/locality.h"
 #include "lib/uuid.h"       /* m0_uuid_generate */
+#include "lib/fs.h"         /* m0_file_read */
 #include "fid/fid.h"
 #include "stob/ad.h"
 #include "net/net.h"
@@ -53,8 +54,6 @@
 #include "module/instance.h"	/* m0_get */
 #include "conf/obj.h"           /* M0_CONF_PROCESS_TYPE */
 #include "conf/helpers.h"       /* m0_confc_args */
-#include "conf/preload.h"       /* M0_CONF_STR_MAXLEN */
-
 #include "be/ut/helper.h"
 #include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */
 #include "ioservice/storage_dev.h"
@@ -1918,46 +1917,40 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 
 static int cs_conf_setup(struct m0_mero *cctx)
 {
-	struct cs_args       *args = &cctx->cc_args;
-	struct m0_reqh       *reqh = &cctx->cc_reqh_ctx.rc_reqh;
-	struct m0_confc_args *conf_args;
-	char                 *confstr = NULL;
+	struct cs_args      *args = &cctx->cc_args;
+	struct m0_reqh      *reqh = &cctx->cc_reqh_ctx.rc_reqh;
+	struct m0_confc_args conf_args = {
+		.ca_profile = cctx->cc_profile,
+		.ca_confd   = cctx->cc_confd_addr,
+		.ca_rmach   = m0_mero_to_rmach(cctx),
+		.ca_group   = m0_locality0_get()->lo_grp
+	};
 	struct m0_conf_filesystem *fs;
-	int                   rc;
+	int                        rc;
 
 	if (cctx->cc_no_conf)
 		return M0_RC(0);
 
 	if (cctx->cc_reqh_ctx.rc_confdb != NULL) {
-		rc = m0_conf_file_read(cctx->cc_reqh_ctx.rc_confdb, &confstr);
+		rc = m0_file_read(cctx->cc_reqh_ctx.rc_confdb,
+				  &conf_args.ca_confstr);
 		if (rc != 0)
 			return M0_ERR(rc);
 	}
 
-	conf_args = &(struct m0_confc_args){
-		.ca_profile = cctx->cc_profile,
-		.ca_confstr = confstr,
-		.ca_confd   = cctx->cc_confd_addr,
-		.ca_rmach   = m0_mero_to_rmach(cctx),
-		.ca_group   = m0_locality0_get()->lo_grp,
-	};
-
-	rc = m0_reqh_conf_setup(&cctx->cc_reqh_ctx.rc_reqh, conf_args) ?:
+	rc = m0_reqh_conf_setup(&cctx->cc_reqh_ctx.rc_reqh, &conf_args) ?:
 		m0_ha_client_add(m0_mero2confc(cctx));
-	if (rc != 0) {
-		m0_free(confstr);
+	/* confstr is not needed after m0_reqh_conf_setup() */
+	m0_free0(&conf_args.ca_confstr);
+	if (rc != 0)
 		return M0_ERR(rc);
-	}
 
 	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
 	if (rc != 0)
-		goto conf_destroy;
+		goto ha_client_del;
 
-	rc = m0_conf_full_load(fs);
-	if (rc != 0)
-		goto conf_fs_close;
-
-	rc = cs_conf_services_init(cctx) ?:
+	rc = m0_conf_full_load(fs) ?:
+		cs_conf_services_init(cctx) ?:
 		cs_conf_to_args(args, fs) ?:
 		_args_parse(cctx, args->ca_argc, args->ca_argv);
 	if (rc != 0)
@@ -1975,17 +1968,15 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	if (!cctx->cc_mkfs)
 		rc = cs_reqh_ctx_services_validate(cctx);
 	m0_confc_close(&fs->cf_obj);
-	m0_free(confstr);
 	return M0_RC(rc);
 
 pools_common_fini:
 	m0_pools_common_fini(&cctx->cc_pools_common);
 conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
-conf_destroy:
+ha_client_del:
 	m0_ha_client_del(m0_mero2confc(cctx));
 	m0_confc_fini(m0_mero2confc(cctx));
-	m0_free(confstr);
 	return M0_ERR(rc);
 }
 
