@@ -49,8 +49,8 @@ struct m0_conf_cache;
  * If no issues with configuration data are found, m0_conf_validation_error()
  * returns NULL.
  */
-M0_INTERNAL char *m0_conf_validation_error(const struct m0_conf_cache *cache,
-					   char *buf, size_t buflen);
+char *m0_conf_validation_error(const struct m0_conf_cache *cache,
+			       char *buf, size_t buflen);
 
 /** Validation rule. */
 struct m0_conf_rule {

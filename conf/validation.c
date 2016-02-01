@@ -36,8 +36,8 @@ static const struct m0_conf_ruleset *conf_validity_checks[] = {
 	&m0_pool_rules,
 };
 
-M0_INTERNAL char *m0_conf_validation_error(const struct m0_conf_cache *cache,
-					   char *buf, size_t buflen)
+char *m0_conf_validation_error(const struct m0_conf_cache *cache,
+			       char *buf, size_t buflen)
 {
 	unsigned                   i;
 	const struct m0_conf_rule *rule;
