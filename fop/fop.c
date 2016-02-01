@@ -245,6 +245,8 @@ void m0_fop_type_init(struct m0_fop_type *ft,
 	struct m0_rpc_item_type    *rpc_type;
 	const struct m0_xcode_type *xt = args->xt;
 
+	M0_ENTRY("name=%s opcode=%"PRIu32" rpc_flags=%"PRIu64,
+		 args->name, args->opcode, args->rpc_flags);
 	M0_PRE(ft->ft_magix == 0);
 	M0_PRE(ergo(args->rpc_flags & M0_RPC_ITEM_TYPE_REPLY,
 		    xt->xct_nr > 0 && xt->xct_child[0].xf_type == &M0_XT_U32));
