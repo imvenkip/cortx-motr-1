@@ -127,7 +127,7 @@ int m0t1fs_fsync_request_create(struct m0_reqh_service_txid        *stx,
 	 *  Prepare the fop as an rpc item
 	 */
 	item = &fop->f_item;
-	item->ri_session         = &stx->stx_service_ctx->sc_session;
+	item->ri_session         = &stx->stx_service_ctx->sc_rlink.rlk_sess;
 	item->ri_prio            = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline        = 0;
 	item->ri_nr_sent_max     = M0T1FS_RPC_MAX_RETRIES;

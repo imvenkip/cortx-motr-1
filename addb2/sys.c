@@ -310,6 +310,7 @@ void m0_addb2_sys_net_stop(struct m0_addb2_sys *sys)
 int m0_addb2_sys_net_start_with(struct m0_addb2_sys *sys, struct m0_tl *head)
 {
 	struct m0_reqh_service_ctx *service;
+	struct m0_rpc_conn         *conn;
 	int                         result;
 
 	if (sys->sy_net == NULL) {
@@ -326,7 +327,8 @@ int m0_addb2_sys_net_start_with(struct m0_addb2_sys *sys, struct m0_tl *head)
 		 */
 		if (!M0_IN(service->sc_type, (M0_CST_MDS, M0_CST_IOS)))
 			continue;
-		result = m0_addb2_net_add(sys->sy_net, &service->sc_conn);
+		conn = &service->sc_rlink.rlk_conn;
+		result = m0_addb2_net_add(sys->sy_net, conn);
 		if (result != 0) {
 			m0_addb2_sys_net_stop(sys);
 			break;

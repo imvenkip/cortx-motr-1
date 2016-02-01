@@ -616,7 +616,7 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 	lep = m0_rpc_machine_ep(rmach);
 	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
 		struct m0_cm_proxy *pxy;
-		const char *dep = m0_rpc_conn_addr(&ctx->sc_conn);
+		const char *dep = ctx->sc_rlink.rlk_rem_ep;
 
 		M0_LOG(M0_DEBUG, "Connect %s dep %s type %d", lep, dep,
 				ctx->sc_type);
@@ -624,8 +624,8 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 			continue;
 		rc = m0_cm_proxy_alloc(proxy_cnt, &ag_id0, &ag_id0, dep, &pxy);
 		if (rc == 0) {
-			pxy->px_conn = &ctx->sc_conn;
-			pxy->px_session = &ctx->sc_session;
+			pxy->px_conn = &ctx->sc_rlink.rlk_conn;
+			pxy->px_session = &ctx->sc_rlink.rlk_sess;
 			m0_cm_proxy_add(cm, pxy);
 			M0_CNT_INC(proxy_cnt);
 			M0_LOG(M0_DEBUG, "Connected to %s", dep);

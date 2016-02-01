@@ -32,12 +32,13 @@
 #include "sm/sm.h"
 #include "be/tx.h"       /* m0_be_tx_remid */
 #include "conf/schema.h" /* m0_conf_service_type */
-#include "rpc/rpc.h"     /* m0_rpc_conn, m0_rpc_session */
+#include "rpc/link.h"    /* m0_rpc_link */
 #include "fid/fid.h"
 
 struct m0_fop;
 struct m0_fom;
 struct m0_conf_obj;
+struct m0_rpc_session;
 
 /**
    @defgroup reqhservice Request handler service
@@ -743,8 +744,8 @@ struct m0_reqh_service_ctx {
 
 	enum m0_conf_service_type   sc_type;
 
-	struct m0_rpc_conn          sc_conn;
-	struct m0_rpc_session       sc_session;
+	struct m0_rpc_link          sc_rlink;
+	struct m0_clink             sc_rlink_wait;
 
 	/** Linkage into external list of service contexts. */
 	struct m0_tlink             sc_link;
@@ -753,12 +754,17 @@ struct m0_reqh_service_ctx {
 	struct m0_reqh_service_txid sc_max_pending_tx;
 	struct m0_mutex             sc_max_pending_tx_lock;
 
+	struct m0_conf_obj         *sc_sobj;
+	struct m0_conf_obj         *sc_pobj;
+
 	/** clink to service configuration objects chan to act on HA events. */
 	struct m0_clink             sc_svc_event;
 	/** clink to process configuration objects chan to act on HA events. */
 	struct m0_clink             sc_process_event;
 
 	bool                        sc_is_active;
+	/** Used by pool to determine if service needs to be disconnected. */
+	bool                        sc_is_connected;
 
 	/** Magic = M0_REQH_SVC_CTX_MAGIC */
 	uint64_t                    sc_magic;
@@ -772,21 +778,33 @@ M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx);
 
 /**
  * Allocates and initialises m0_reqh_service_ctx for the given service type.
- * Establishes rpc connection with the given endpoint.
  */
 M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_conf_obj *sobj,
-					   struct m0_rpc_machine *rmach,
 					   enum m0_conf_service_type stype,
-					   const char *endpoint,
-					   struct m0_reqh_service_ctx **ctx,
-					   bool connect);
+					   struct m0_reqh_service_ctx **ctx);
 
 /**
- * Terminates rpc connection.
  * Finalises and destroys given service context.
  */
 M0_INTERNAL void
 m0_reqh_service_ctx_destroy(struct m0_reqh_service_ctx *ctx);
+
+/** Establishes rpc connection with the given endpoint. */
+M0_INTERNAL int m0_reqh_service_connect(struct m0_reqh_service_ctx *ctx,
+					struct m0_rpc_machine *rmach,
+					const char *addr,
+					uint32_t max_rpc_nr_in_flight);
+
+/** Terminates rpc connection asynchronously. */
+M0_INTERNAL void m0_reqh_service_disconnect(struct m0_reqh_service_ctx *ctx);
+
+/** Waits until rpc connection is terminated. */
+M0_INTERNAL int
+m0_reqh_service_disconnect_wait(struct m0_reqh_service_ctx *ctx);
+
+M0_INTERNAL void m0_reqh_service_ctx_subscribe(struct m0_reqh_service_ctx *ctx);
+M0_INTERNAL void
+m0_reqh_service_ctx_unsubscribe(struct m0_reqh_service_ctx *ctx);
 
 /**
  * Returns the outer m0_reqh_service_ctx from a m0_rpc_session.

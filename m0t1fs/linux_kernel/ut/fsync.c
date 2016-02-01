@@ -111,7 +111,7 @@ static int ut_post_rpc(struct m0_rpc_item *item)
 	ut_post_rpc_count++;
 
 	/* Check this item came in with the 'right' session */
-	M0_UT_ASSERT(item->ri_session == &service.sc_session);
+	M0_UT_ASSERT(item->ri_session == &service.sc_rlink.rlk_sess);
 
 	/* After a certain point, change our return value */
 	if (ut_post_rpc_count < ut_post_rpc_delay)

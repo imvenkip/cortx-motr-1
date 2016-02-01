@@ -2089,7 +2089,8 @@ int m0_cs_start(struct m0_mero *cctx)
 		goto error;
 
         rc = sigcheck() || m0_flset_build(&reqh->rh_failure_set,
-					&reqh->rh_pools->pc_ha_ctx->sc_session, fs);
+				&reqh->rh_pools->pc_ha_ctx->sc_rlink.rlk_sess,
+				fs);
 	if (rc != 0)
 		goto error;
 

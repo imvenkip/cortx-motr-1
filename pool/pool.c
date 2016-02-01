@@ -639,10 +639,24 @@ M0_INTERNAL void m0_pool_versions_fini(struct m0_pool *pool)
 static void service_ctxs_destroy(struct m0_pools_common *pc)
 {
 	struct m0_reqh_service_ctx *ctx;
+	int                         rc;
 
 	M0_ENTRY();
 
+	/* Disconnect from all services asynchronously. */
+	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
+		if (ctx->sc_is_connected) {
+			m0_reqh_service_ctx_unsubscribe(ctx);
+			m0_reqh_service_disconnect(ctx);
+		}
+	} m0_tl_endfor;
+
 	m0_tl_teardown(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
+		if (ctx->sc_is_connected) {
+			rc = m0_reqh_service_disconnect_wait(ctx);
+			/* XXX Current function doesn't fail. */
+			M0_ASSERT(rc == 0);
+		}
 		m0_reqh_service_ctx_destroy(ctx);
 	}
 
@@ -666,13 +680,31 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	M0_PRE((pc->pc_rmach != NULL) == services_connect);
 
 	for (endpoint = cs->cs_endpoints; *endpoint != NULL; ++endpoint) {
-		rc = m0_reqh_service_ctx_create(&cs->cs_obj, pc->pc_rmach,
-						cs->cs_type, *endpoint, &ctx,
-						services_connect);
+		rc = m0_reqh_service_ctx_create(&cs->cs_obj, cs->cs_type, &ctx);
+		/*
+		 * TODO Don't connect to a service with state != M0_NC_ONLINE.
+		 * See MERO-1465.
+		 */
+		if (rc == 0 && services_connect) {
+			rc = m0_reqh_service_connect(ctx, pc->pc_rmach,
+					*endpoint, POOL_MAX_RPC_NR_IN_FLIGHT);
+			if (rc != 0)
+				m0_reqh_service_ctx_destroy(ctx);
+		}
 		if (rc != 0)
 			return M0_ERR(rc);
-		pools_common_svc_ctx_tlink_init_at_tail(ctx, &pc->pc_svc_ctxs);
+		ctx->sc_is_connected = services_connect;
 		ctx->sc_pc = pc;
+		pools_common_svc_ctx_tlink_init_at_tail(ctx, &pc->pc_svc_ctxs);
+		/*
+		 * TODO Subscription is done here to prevent the handlers to be
+		 * called when ctx->sc_rlink isn't fully established. But in
+		 * such way we loose notifications from HA before this point.
+		 * Subscription should be done during `ctx' initialisation and
+		 * handlers must not rely on that ctx->sc_rlink is established.
+		 */
+		if (ctx->sc_is_connected)
+			m0_reqh_service_ctx_subscribe(ctx);
 	}
 	M0_CNT_INC(pc->pc_nr_svcs[cs->cs_type]);
 

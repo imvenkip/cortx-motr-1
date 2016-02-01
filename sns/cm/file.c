@@ -190,15 +190,15 @@ M0_INTERNAL void m0_sns_cm_flock_resource_set(struct m0_sns_cm *scm)
 
 static void sns_cm_fctx_rm_init(struct m0_sns_cm_file_ctx *fctx)
 {
-	struct m0_sns_cm *scm;
+	struct m0_sns_cm_rm_ctx *rm_ctx;
 
 	M0_PRE(fctx != NULL && fctx->sf_scm != NULL);
 
-	scm = fctx->sf_scm;
-	m0_file_init(&fctx->sf_file, &fctx->sf_fid, &scm->sc_rm_ctx.rc_dom,
+	rm_ctx = &fctx->sf_scm->sc_rm_ctx;
+	m0_file_init(&fctx->sf_file, &fctx->sf_fid, &rm_ctx->rc_dom,
 		     M0_DI_NONE);
 	m0_rm_remote_init(&fctx->sf_creditor, &fctx->sf_file.fi_res);
-	fctx->sf_creditor.rem_session = &scm->sc_rm_ctx.rc_rm_ctx->sc_session;
+	fctx->sf_creditor.rem_session = &rm_ctx->rc_rm_ctx->sc_rlink.rlk_sess;
 	fctx->sf_creditor.rem_state = REM_SERVICE_LOCATED;
 	m0_file_owner_init(&fctx->sf_owner, &m0_rm_sns_cm_group, &fctx->sf_file,
 			   &fctx->sf_creditor);

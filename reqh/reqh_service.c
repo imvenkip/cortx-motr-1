@@ -568,33 +568,10 @@ static bool reqh_service_context_invariant(const struct m0_reqh_service_ctx *ctx
 	       _0C(service_type_is_valid(ctx->sc_type));
 }
 
-static void reqh_service_disconnect(struct m0_reqh_service_ctx *ctx)
-{
-	m0_time_t timeout;
-
-	M0_ENTRY();
-	M0_PRE(reqh_service_context_invariant(ctx));
-
-	M0_LOG(M0_INFO, "Disconnecting from service. %s",
-		m0_rpc_conn_addr(&ctx->sc_conn));
-
-	/*
-	 * Not required to wait for reply on session/connection termination
-	 * if process is died otherwise wait for some timeout.
-	 */
-	timeout = !ctx->sc_is_active ? M0_TIME_IMMEDIATELY :
-		m0_time_from_now(M0_RPC_ITEM_RESEND_INTERVAL * 2 + 1, 0);
-
-	(void)m0_rpc_session_destroy(&ctx->sc_session, timeout);
-	(void)m0_rpc_conn_destroy(&ctx->sc_conn, timeout);
-	ctx->sc_is_active = false;
-	M0_LEAVE();
-}
-
-static int reqh_service_connect(struct m0_reqh_service_ctx *ctx,
-				struct m0_rpc_machine *rmach,
-				const char *addr,
-				uint32_t max_rpc_nr_in_flight)
+M0_INTERNAL int m0_reqh_service_connect(struct m0_reqh_service_ctx *ctx,
+					struct m0_rpc_machine *rmach,
+					const char *addr,
+					uint32_t max_rpc_nr_in_flight)
 {
 	int rc;
 
@@ -602,14 +579,46 @@ static int reqh_service_connect(struct m0_reqh_service_ctx *ctx,
 						 addr);
 	M0_PRE(reqh_service_context_invariant(ctx));
 
-	rc = m0_rpc_client_connect(&ctx->sc_conn, &ctx->sc_session, rmach,
-				   addr, max_rpc_nr_in_flight);
+	M0_SET0(&ctx->sc_rlink);
+	rc = m0_rpc_link_init(&ctx->sc_rlink, rmach, addr,
+			      max_rpc_nr_in_flight);
 	if (rc == 0) {
-		ctx->sc_is_active = true;
-		M0_LOG(M0_INFO, "'%s' Connected to service '%s'",
-				m0_rpc_machine_ep(rmach), addr);
-	} else
-		M0_LOG(M0_WARN, "Failed to Connect to service `%s'", addr);
+		rc = m0_rpc_link_connect_sync(&ctx->sc_rlink, M0_TIME_NEVER);
+		if (rc != 0)
+			m0_rpc_link_fini(&ctx->sc_rlink);
+	}
+	ctx->sc_is_active = rc == 0;
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_reqh_service_disconnect(struct m0_reqh_service_ctx *ctx)
+{
+	m0_time_t timeout;
+
+	M0_ENTRY("Disconnecting from service. %s", ctx->sc_rlink.rlk_rem_ep);
+	M0_PRE(reqh_service_context_invariant(ctx));
+
+	/*
+	 * Not required to wait for reply on session/connection termination
+	 * if process is died otherwise wait for some timeout.
+	 */
+	timeout = !ctx->sc_is_active ? M0_TIME_IMMEDIATELY :
+		  m0_time_from_now(M0_RPC_ITEM_RESEND_INTERVAL * 2 + 1, 0);
+
+	m0_rpc_link_disconnect_async(&ctx->sc_rlink, timeout,
+				     &ctx->sc_rlink_wait);
+	ctx->sc_is_active = false;
+	M0_LEAVE();
+}
+
+M0_INTERNAL int m0_reqh_service_disconnect_wait(struct m0_reqh_service_ctx *ctx)
+{
+	int rc;
+
+	m0_chan_wait(&ctx->sc_rlink_wait);
+	rc = ctx->sc_rlink.rlk_rc;
+	m0_rpc_link_fini(&ctx->sc_rlink);
 
 	return M0_RC(rc);
 }
@@ -619,8 +628,13 @@ static int reqh_service_reconnect(struct m0_reqh_service_ctx *ctx,
 				  const char *addr,
 				  uint32_t max_rpc_nr_in_flight)
 {
-	reqh_service_disconnect(ctx);
-	return reqh_service_connect(ctx, rmach, addr, max_rpc_nr_in_flight);
+	int rc;
+
+	m0_reqh_service_disconnect(ctx);
+	rc = m0_reqh_service_disconnect_wait(ctx) ?:
+	     m0_reqh_service_connect(ctx, rmach, addr, max_rpc_nr_in_flight);
+
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx)
@@ -628,12 +642,12 @@ M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx)
 	M0_ENTRY();
 
 	M0_PRE(reqh_service_context_invariant(ctx));
+	M0_PRE(!ctx->sc_is_active);
 
+	m0_clink_fini(&ctx->sc_rlink_wait);
 	m0_mutex_fini(&ctx->sc_max_pending_tx_lock);
-        m0_clink_del_lock(&ctx->sc_svc_event);
-        m0_clink_fini(&ctx->sc_svc_event);
-        m0_clink_del_lock(&ctx->sc_process_event);
-        m0_clink_fini(&ctx->sc_process_event);
+	m0_clink_fini(&ctx->sc_svc_event);
+	m0_clink_fini(&ctx->sc_process_event);
 
 	m0_reqh_service_ctx_bob_fini(ctx);
 
@@ -661,7 +675,7 @@ static bool process_event_handler(struct m0_clink *clink)
 	case M0_NC_FAILED:
 	case M0_NC_TRANSIENT:
 		M0_ASSERT(ctx->sc_is_active);
-		m0_rpc_session_cancel(&ctx->sc_session);
+		m0_rpc_session_cancel(&ctx->sc_rlink.rlk_sess);
 		/* m0_rpc_post() needs valid session, so service context is not
 		 * finalised. Here making service context as inactive, which will
 		 * become active again after reconnection when process is restarted.
@@ -672,6 +686,11 @@ static bool process_event_handler(struct m0_clink *clink)
 		if (ctx->sc_is_active ||
 		    m0_conf_obj_grandparent(obj)->co_ha_state != M0_NC_ONLINE)
 			break;
+		/* XXX Since reqh_service_reconnect() is synchronous this
+		 * prevents situation when other handler is called during
+		 * connection establishment/termination. But this blocks the
+		 * thread as well.
+		 */
 		rc = reqh_service_reconnect(ctx, ctx->sc_pc->pc_rmach,
 					    process->pc_endpoint,
 					    REQH_SVC_MAX_RPCS_IN_FLIGHT);
@@ -699,6 +718,7 @@ static bool service_event_handler(struct m0_clink *clink)
 	struct m0_conf_obj         *obj =
 		container_of(clink->cl_chan, struct m0_conf_obj, co_ha_chan);
 	struct m0_conf_service     *service;
+	struct m0_rpc_session      *session = &ctx->sc_rlink.rlk_sess;
 	struct m0_reqh             *reqh = m0_conf_obj2reqh(obj);
 	bool                        result = true;
 
@@ -713,13 +733,13 @@ static bool service_event_handler(struct m0_clink *clink)
 	case M0_NC_FAILED:
 	case M0_NC_TRANSIENT:
 		if (ctx->sc_is_active &&
-		    !m0_rpc_session_is_cancelled(&ctx->sc_session))
-			m0_rpc_session_cancel(&ctx->sc_session);
+		    !m0_rpc_session_is_cancelled(session))
+			m0_rpc_session_cancel(session);
 		break;
 	case M0_NC_ONLINE:
 		if (ctx->sc_is_active &&
-		    m0_rpc_session_is_cancelled(&ctx->sc_session))
-			m0_rpc_session_restore(&ctx->sc_session);
+		    m0_rpc_session_is_cancelled(session))
+			m0_rpc_session_restore(session);
 		break;
 	default:
 		break;
@@ -734,18 +754,22 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 					 enum m0_conf_service_type stype)
 {
 	struct m0_conf_obj *pobj = m0_conf_obj_grandparent(sobj);
+
 	M0_ENTRY();
+	M0_LOG(M0_DEBUG, FID_F "%d", FID_P(&sobj->co_id), stype);
 
 	M0_SET0(ctx);
 	ctx->sc_fid = sobj->co_id;
+	ctx->sc_sobj = sobj;
+	ctx->sc_pobj = pobj;
 	ctx->sc_type = stype;
-	M0_LOG(M0_DEBUG, FID_F "%d", FID_P(&sobj->co_id), stype);
 	m0_reqh_service_ctx_bob_init(ctx);
 	m0_mutex_init(&ctx->sc_max_pending_tx_lock);
 	m0_clink_init(&ctx->sc_svc_event, service_event_handler);
-	m0_clink_add_lock(&sobj->co_ha_chan, &ctx->sc_svc_event);
 	m0_clink_init(&ctx->sc_process_event, process_event_handler);
-	m0_clink_add_lock(&pobj->co_ha_chan, &ctx->sc_process_event);
+	m0_clink_init(&ctx->sc_rlink_wait, NULL);
+	ctx->sc_rlink_wait.cl_is_oneshot = true;
+	ctx->sc_is_active = false;
 
 	M0_POST(reqh_service_context_invariant(ctx));
 	M0_LEAVE();
@@ -753,11 +777,8 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 }
 
 M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_conf_obj *sobj,
-					   struct m0_rpc_machine *rmach,
 					   enum m0_conf_service_type stype,
-					   const char *endpoint,
-					   struct m0_reqh_service_ctx **ctx,
-					   bool connect)
+					   struct m0_reqh_service_ctx **ctx)
 {
 	int rc;
 
@@ -769,12 +790,6 @@ M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_conf_obj *sobj,
 	if (*ctx == NULL)
 		return M0_ERR(-ENOMEM);
 	rc = m0_reqh_service_ctx_init(*ctx, sobj, stype);
-	if (rc == 0 && connect) {
-		rc = reqh_service_connect(*ctx, rmach, endpoint,
-					  REQH_SVC_MAX_RPCS_IN_FLIGHT);
-		if (rc != 0)
-			m0_reqh_service_ctx_fini(*ctx);
-	}
 	if (rc != 0)
 		m0_free(*ctx);
 
@@ -784,25 +799,35 @@ M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_conf_obj *sobj,
 M0_INTERNAL void
 m0_reqh_service_ctx_destroy(struct m0_reqh_service_ctx *ctx)
 {
-	if (ctx->sc_is_active) {
-		m0_conf_cache_lock(&ctx->sc_pc->pc_confc->cc_cache);
-		reqh_service_disconnect(ctx);
-		m0_conf_cache_unlock(&ctx->sc_pc->pc_confc->cc_cache);
-	}
 	m0_reqh_service_ctx_fini(ctx);
 	m0_free(ctx);
+}
+
+M0_INTERNAL void m0_reqh_service_ctx_subscribe(struct m0_reqh_service_ctx *ctx)
+{
+	m0_clink_add_lock(&ctx->sc_sobj->co_ha_chan, &ctx->sc_svc_event);
+	m0_clink_add_lock(&ctx->sc_pobj->co_ha_chan, &ctx->sc_process_event);
+}
+
+M0_INTERNAL void
+m0_reqh_service_ctx_unsubscribe(struct m0_reqh_service_ctx *ctx)
+{
+	m0_clink_del_lock(&ctx->sc_svc_event);
+	m0_clink_del_lock(&ctx->sc_process_event);
 }
 
 M0_INTERNAL struct m0_reqh_service_ctx *
 m0_reqh_service_ctx_from_session(struct m0_rpc_session *session)
 {
-	struct m0_reqh_service_ctx *ret = NULL;
+	struct m0_reqh_service_ctx *ret;
+	struct m0_rpc_link         *rlink;
 
 	M0_PRE(session != NULL);
 
-	ret = container_of(session, struct m0_reqh_service_ctx, sc_session);
+	rlink = container_of(session, struct m0_rpc_link, rlk_sess);
+	ret = container_of(rlink, struct m0_reqh_service_ctx, sc_rlink);
 
-	M0_PRE(reqh_service_context_invariant(ret));
+	M0_POST(reqh_service_context_invariant(ret));
 
 	return ret;
 }

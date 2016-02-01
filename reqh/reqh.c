@@ -189,6 +189,7 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 				        uint32_t index)
 {
 	struct m0_reqh_service_ctx    *ctx;
+	struct m0_rpc_session         *session;
 	struct m0_pdclust_instance    *pi;
 	struct m0_pdclust_src_addr     src;
 	struct m0_pdclust_tgt_addr     tgt;
@@ -220,12 +221,13 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 		pd_sdev_idx;
 	ctx = md_pv->pv_pool->po_dev2ios[idx].pds_ctx;
 	M0_ASSERT(ctx != NULL);
+	session = &ctx->sc_rlink.rlk_sess;
 
 	M0_LOG(M0_DEBUG, "device index %d id %d -> ctx=%p session=%p", idx,
-			(unsigned int)tgt.ta_obj, ctx, &ctx->sc_session);
-	M0_ASSERT(ctx->sc_session.s_conn != NULL);
+			(unsigned int)tgt.ta_obj, ctx, session);
+	M0_ASSERT(session->s_conn != NULL);
 	M0_LEAVE();
-	return &ctx->sc_session;
+	return session;
 }
 
 M0_INTERNAL int
@@ -718,9 +720,12 @@ M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
 
 M0_INTERNAL int m0_reqh_ha_setup(struct m0_reqh *reqh)
 {
-	M0_PRE(reqh->rh_pools->pc_ha_ctx != NULL);
+	int rc;
 
-	return M0_RC(m0_ha_state_init(&reqh->rh_pools->pc_ha_ctx->sc_session));
+	M0_PRE(reqh->rh_pools->pc_ha_ctx != NULL);
+	rc = m0_ha_state_init(&reqh->rh_pools->pc_ha_ctx->sc_rlink.rlk_sess);
+
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

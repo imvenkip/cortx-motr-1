@@ -141,9 +141,9 @@ m0t1fs_filename_to_mds_session(const struct m0t1fs_sb *csb,
 
 	M0_LOG(M0_DEBUG, "%8s->index=%llu ctx=%p session=%p",
 	       (const char*)filename,
-	       hash % pc->pc_nr_svcs[M0_CST_MDS], ctx, &ctx->sc_session);
+	       hash % pc->pc_nr_svcs[M0_CST_MDS], ctx, &ctx->sc_rlink.rlk_sess);
 	M0_LEAVE();
-	return &ctx->sc_session;
+	return &ctx->sc_rlink.rlk_sess;
 }
 
 /**
@@ -165,9 +165,9 @@ m0t1fs_container_id_to_session(const struct m0_pool_version *pver,
 	M0_ASSERT(ctx != NULL);
 
 	M0_LOG(M0_DEBUG, "id %llu -> ctx=%p session=%p", container_id, ctx,
-			 &ctx->sc_session);
+			 &ctx->sc_rlink.rlk_sess);
 	M0_LEAVE();
-	return &ctx->sc_session;
+	return &ctx->sc_rlink.rlk_sess;
 }
 
 static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
@@ -648,7 +648,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		goto err_pool_versions_destroy;
 
 	rc = m0_flset_build(&reqh->rh_failure_set,
-			    &reqh->rh_pools->pc_ha_ctx->sc_session, fs);
+			    &reqh->rh_pools->pc_ha_ctx->sc_rlink.rlk_sess, fs);
 	if (rc != 0)
 		goto err_ha_destroy;
 
