@@ -663,10 +663,10 @@ static const char *stob_file_path_get(yaml_document_t *doc, yaml_node_t *node)
 
 static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob)
 {
-	int               rc;
-	FILE             *f;
-	yaml_parser_t     parser;
-	yaml_document_t  *document;
+	FILE            *f;
+	yaml_parser_t    parser;
+	yaml_document_t *document;
+	int              rc = -EINVAL;
 
 	f = fopen(dfile, "r");
 	if (f == NULL)
@@ -675,18 +675,19 @@ static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob)
 	document = &stob->s_sfile.sf_document;
 	rc = yaml_parser_initialize(&parser);
 	if (rc != 1)
-		return M0_ERR(-EINVAL);
+		goto end;
 
 	yaml_parser_set_input_file(&parser, f);
 	rc = yaml_parser_load(&parser, document);
 	if (rc != 1)
-		return M0_ERR(-EINVAL);
+		goto end;
 
 	stob->s_sfile.sf_is_initialised = true;
 	yaml_parser_delete(&parser);
-
+	rc = 0;
+end:
 	fclose(f);
-	return 0;
+	return M0_RC(rc);
 }
 
 static void cs_storage_devs_fini(void)

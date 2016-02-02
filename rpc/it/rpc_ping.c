@@ -151,10 +151,9 @@ static int build_endpoint_addr(enum ep_type type,
 
 	if (buf_size > M0_NET_LNET_XEP_ADDR_LEN)
 		return -1;
-	else
-		snprintf(out_buf, buf_size, "%s:%u:%u:%u", nid, M0_NET_LNET_PID,
-			 M0_LNET_PORTAL, tmid);
 
+	snprintf(out_buf, buf_size, "%s:%u:%u:%d", nid, M0_NET_LNET_PID,
+		 M0_LNET_PORTAL, tmid);
 	if (verbose)
 		printf("%s endpoint: %s\n", ep_name, out_buf);
 
