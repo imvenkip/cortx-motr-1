@@ -3,12 +3,14 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.10.1
+VERSION=0.10.2
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-01-27 0.10.1  * add `df -h' probe
+###
 ### 2016-01-27 0.10.1  * _path_src() is able to handle `lt-m0d'.
 ###                    * Compare VERSION with that of the topmost History
 ###                      entry. Fail if the values differ.
@@ -144,6 +146,7 @@ probes() {
         'cat /proc/vmstat'
         'free'
         'mount'
+        'df -h'
         'lspci'
         'gcc --version'
         'ip addr'
