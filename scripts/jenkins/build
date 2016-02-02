@@ -31,6 +31,7 @@ sudo git clean -dfx
 sudo git submodule foreach git clean -dfx
 git submodule update
 
+sudo ./scripts/install-build-deps
 ./autogen.sh |& tee $ARTIFACTS/configure.log
 ./configure --enable-detailed-backtrace |& tee -a $ARTIFACTS/configure.log
 

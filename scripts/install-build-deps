@@ -36,7 +36,7 @@ declare -rA RPM_PACKAGE=(
     [aio-dev]='libaio-devel'
     [yaml]='libyaml'
     [yaml-dev]='libyaml-devel'
-    [lustre]='lustre-devel'
+    [lustre]='lustre-client-devel'
     [asciidoc]='asciidoc'
     [genders]='genders'
     [uuid-dev]='libuuid-devel'
@@ -80,6 +80,7 @@ declare -rA DEB_PACKAGE=(
 dry_run=false
 distro=''
 install_cmd=''
+yum_opts=''
 
 
 #
@@ -184,6 +185,17 @@ all_packages()
     echo ${!packages} | sed -e 's/\s/\n/g' | sort
 }
 
+update_repos()
+{
+    echo 'Updating repositories...'
+
+    if [[ $(distro_type) == debian ]]; then
+        apt-get update &> /dev/null || true
+    elif [[ $(distro_type) == redhat ]]; then
+        yum $yum_opts check-updates &> /dev/null || true
+    fi
+}
+
 missing_packages()
 {
     for p in $(all_packages); do
@@ -196,7 +208,7 @@ build_install_cmd()
     if [[ $(distro_type) == debian ]]; then
         echo 'apt-get -y install'
     elif [[ $(distro_type) == redhat ]]; then
-        echo 'yum -y install'
+        echo "yum -y $yum_opts install"
     fi
 }
 
@@ -214,7 +226,7 @@ check_available()
     if [[ $(distro_type) == debian ]]; then
         return $( apt-cache search $1 | grep -q '.*' )
     elif [[ $(distro_type) == redhat ]]; then
-        return $( yum list available --showduplicates $1 &> /dev/null )
+        return $( yum $yum_opts list available --showduplicates $1 &> /dev/null )
     fi
 }
 
@@ -223,15 +235,12 @@ check_epel_repository()
     echo -n 'Checking EPEL repository...'
 
     if yum repolist all |& grep -qi '\<epel\>'; then
-        echo -n '   [PRESENT]'
-        if yum repolist enabled |& grep -qi '\<epel\>'; then
-            echo '[ENABLED]'
-            return 0
-        else
-            echo '[DISABLED]'
-            die  'Error: please, enable EPEL repository manually in' \
-                 ' /etc/yum.repos.d, and then run this script again'
+        echo '   [PRESENT]'
+        yum_opts+=' --enablerepo=epel '
+        if yum repolist all |& grep -qi '\<fedora-epel\>'; then
+            yum_opts+=' --enablerepo=fedora-epel '
         fi
+        return 0
     else
         echo '   [ABSENT]'
         return 1
@@ -269,12 +278,14 @@ if [[ $(distro_type) == redhat ]]; then
          'first run ***'
 fi
 
-install_cmd=$(build_install_cmd)
-missing_pkgs=$(missing_packages)
-
 if [[ $(distro_type) == redhat ]]; then
     check_epel_repository || enable_epel_repository
 fi
+
+update_repos
+
+install_cmd=$(build_install_cmd)
+missing_pkgs=$(missing_packages)
 
 available_pkgs=
 not_available_pkgs=
