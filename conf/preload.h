@@ -21,6 +21,7 @@
 #ifndef __MERO_CONF_PRELOAD_H__
 #define __MERO_CONF_PRELOAD_H__
 
+struct m0_conf_cache;
 struct m0_confx;
 
 /**
@@ -71,18 +72,30 @@ struct m0_confx;
  */
 
 /**
+ * Loads conf cache from a string.
+ *
+ * @pre str != NULL
+ * @pre m0_conf_cache_is_locked(cache)
+ */
+M0_INTERNAL int m0_conf_cache_from_string(struct m0_conf_cache *cache,
+					  const char           *str);
+
+/**
  * Encodes configuration string.
  *
  * @note If the call succeeds, the user is responsible for freeing
  *       allocated memory with m0_confx_free(*out).
  */
-M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_confx **out);
+M0_INTERNAL int m0_confstr_parse(const char *str, struct m0_confx **out);
 
 /** Frees the memory, dynamically allocated by m0_confstr_parse(). */
 M0_INTERNAL void m0_confx_free(struct m0_confx *enc);
 
-M0_INTERNAL int m0_confx_to_string(struct m0_confx  *confx,
-				   char            **str);
+/**
+ * @note If the call succeeds, the user is responsible for calling
+ *       m0_free(*out).
+ */
+M0_INTERNAL int m0_confx_to_string(struct m0_confx *confx, char **out);
 
 /** @} conf_dfspec_preload */
 #endif /* __MERO_CONF_PRELOAD_H__ */

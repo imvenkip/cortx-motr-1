@@ -589,7 +589,7 @@ M0_INTERNAL int m0_confd_cache_preload_string(struct m0_conf_cache *cache,
 
 	rc = m0_confstr_parse(buf, &enc);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	for (i = 0; i < enc->cx_nr && rc == 0; ++i) {
 		struct m0_conf_obj        *obj;

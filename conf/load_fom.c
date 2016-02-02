@@ -19,29 +19,11 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
-#include "lib/errno.h"
-#include "lib/memory.h"
-#include "lib/tlist.h"
-#include "lib/assert.h"
-#include "lib/finject.h"
-#include "conf/confd.h"         /* m0_confd, m0_confd_bob */
-#include "conf/confd_stob.h"
-#include "conf/flip_fom.h"      /* m0_conf_generate_conf_filename */
-#include "conf/load_fop.h"
+
 #include "conf/load_fom.h"
-#include "conf/preload.h"       /* m0_confstr_parse, m0_confx_free */
-#include "conf/obj.h"           /* m0_conf_objx_fid */
-#include "conf/obj_ops.h"       /* m0_conf_obj_find */
-#include "conf/onwire.h"        /* M0_CONFX_AT */
-#include "fop/fop.h"
-#include "fid/fid.h"
-#include "mero/magic.h"
-#ifndef __KERNEL__
-  #include "mero/setup.h"
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#endif
+#include "conf/confd.h"         /* m0_confd, m0_confd_bob */
+#include "conf/confd_stob.h"    /* m0_conf_stob_location_generate */
+#include "lib/memory.h"         /* M0_ALLOC_PTR */
 
 /**
  * @addtogroup conf_foms
@@ -426,45 +408,6 @@ static int conf_zero_copy_finish(struct m0_fom *fom)
 }
 
 /**
- * Restore Conf cache from string.
- *
- * @param cache result cache.
- * @param buf string contain cache
- *
- * @pre cache != NULL
- * @pre buf != NULL
- * @pre cache is locked
- */
-M0_INTERNAL int m0_conf_cache_from_string(struct m0_conf_cache *cache,
-					  char                 *buf)
-{
-	struct m0_confx *enc;
-	int              i;
-	int              rc;
-
-	M0_ENTRY();
-
-	M0_PRE(cache != NULL);
-	M0_PRE(buf != NULL);
-	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
-
-	rc = m0_confstr_parse(buf, &enc);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	for (i = 0; i < enc->cx_nr && rc == 0; ++i) {
-		struct m0_conf_obj        *obj;
-		const struct m0_confx_obj *xobj = M0_CONFX_AT(enc, i);
-
-		rc = m0_conf_obj_find(cache, m0_conf_objx_fid(xobj), &obj) ?:
-			m0_conf_obj_fill(obj, xobj, cache);
-	}
-
-	m0_confx_free(enc);
-	return M0_RC(rc);
-}
-
-/**
  * Finalise bufvec and free allocated memory.
  *
  * @param fom instance file operation machine under execution
@@ -543,7 +486,7 @@ static int conf_load_fom_tick(struct m0_fom *fom)
 		rc = conf_buffer_free(fom);
 		break;
 	default:
-		M0_ASSERT(0);
+		M0_IMPOSSIBLE("");
 		break;
 	}
 

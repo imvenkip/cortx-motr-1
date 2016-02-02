@@ -97,11 +97,6 @@ struct m0_conf_cache {
 	/** Cache lock. */
 	struct m0_mutex *ca_lock;
 
-#if 0 /* XXX USEME */
-	/** Magic value. */
-	uint64_t         ca_magic;
-#endif
-
 	/** Configuration version number. */
 	uint64_t         ca_ver;
 };

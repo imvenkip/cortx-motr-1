@@ -45,15 +45,10 @@
 #include "net/net.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h" /* M0_FOPH_NR */
-#include "conf/cache.h"      /* m0_conf_cache */
-
 
 M0_INTERNAL int m0_conf_load_fom_create(struct m0_fop   *fop,
 					struct m0_fom  **out,
 					struct m0_reqh  *reqh);
-
-M0_INTERNAL int m0_conf_cache_from_string(struct m0_conf_cache *cache,
-					  char                 *buf);
 
 /**
  * Object encompassing FOM for Spiel load
