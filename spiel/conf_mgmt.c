@@ -203,12 +203,14 @@ void m0_spiel_tx_close(struct m0_spiel_tx *tx)
 {
 	M0_ENTRY();
 
+	m0_conf_cache_lock(&tx->spt_cache);
 	/*
 	 * Directories and cache objects are mixed in conf cache ca_registry
 	 * list, but finalization of conf object will fail if it still
 	 * presents in some directory. So delete all directories first.
 	 */
-	m0_conf_cache_dir_clean(&tx->spt_cache);
+	m0_conf_cache_clean(&tx->spt_cache, &M0_CONF_DIR_TYPE);
+	m0_conf_cache_unlock(&tx->spt_cache);
 
 	m0_conf_cache_fini(&tx->spt_cache);
 	m0_mutex_fini(&tx->spt_lock);

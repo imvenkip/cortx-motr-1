@@ -392,7 +392,9 @@ void rm_ctxs_conf_fini(struct rm_ctx *rm_ctxs, int ctxs_nr)
 		rmctx = &rm_ctxs[i];
 		confc = &rmctx->rc_rmach_ctx.rmc_reqh.rh_confc;
 		m0_ha_client_del(confc);
-		m0_conf_cache_dir_clean(&confc->cc_cache);
+		m0_conf_cache_lock(&confc->cc_cache);
+		m0_conf_cache_clean(&confc->cc_cache, &M0_CONF_DIR_TYPE);
+		m0_conf_cache_unlock(&confc->cc_cache);
 		m0_confc_fini(confc);
 	}
 }

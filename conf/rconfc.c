@@ -917,7 +917,7 @@ static int _confc_cache_clean(struct m0_confc *confc)
 	struct m0_conf_cache *cache = &confc->cc_cache;
 
 	M0_ENTRY();
-	m0_conf_cache_clean(cache);
+	m0_conf_cache_clean(cache, NULL);
 	/* Clear version to prevent version mismatch error after reelection */
 	cache->ca_ver = M0_CONF_VER_UNKNOWN;
 	/**

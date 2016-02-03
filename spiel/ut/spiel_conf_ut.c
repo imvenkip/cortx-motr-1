@@ -1511,7 +1511,7 @@ static void spiel_conf_check_fail(void)
 	obj->co_parent->co_ops->coo_delete(obj->co_parent);
 	obj->co_parent = obj_parent;
 
-	/* m0_conf_cache_encode test */
+	/* conf_cache_encode test */
 	m0_fi_enable_once("m0_spiel_tx_commit_forced", "encode_fail");
 	rc = m0_spiel_tx_commit(&tx);
 	M0_UT_ASSERT(rc == -ENOMEM);
