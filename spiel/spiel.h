@@ -643,12 +643,18 @@ int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid);
 int m0_spiel_tx_validate(struct m0_spiel_tx *tx);
 /**
  * Saves spiel transaction dump to file.
+ * @note Sets transaction's root version number to @b ver_forced.
+ * @pre ver_forced != M0_CONF_VER_UNKNOWN
  */
-int m0_spiel_tx_dump(struct m0_spiel_tx *tx, const char *filename);
+int m0_spiel_tx_dump(struct m0_spiel_tx *tx, uint64_t ver_forced,
+		     const char *filename);
 /**
  * Saves spiel transaction dump to file with error and stub object too.
+ * @note Sets transaction's root version number to @b ver_forced.
+ * @pre ver_forced != M0_CONF_VER_UNKNOWN
  */
-int m0_spiel_tx_dump_debug(struct m0_spiel_tx *tx, const char *filename);
+int m0_spiel_tx_dump_debug(struct m0_spiel_tx *tx, uint64_t ver_forced,
+			   const char *filename);
 
 /**********************************************************/
 /*                 Command interface                      */

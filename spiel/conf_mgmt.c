@@ -2178,28 +2178,35 @@ static int spiel_str_to_file(char *str, const char *filename)
 }
 
 static int spiel_tx_dump(struct m0_spiel_tx *tx,
-			const char          *filename,
-			bool                 debug)
+			 uint64_t            ver_forced,
+			 const char         *filename,
+			 bool                debug)
 {
 	int   rc;
 	char *buffer;
 
 	M0_ENTRY();
+	M0_PRE(ver_forced != M0_CONF_VER_UNKNOWN);
+	rc = spiel_root_ver_update(tx, ver_forced);
+	if (rc != 0)
+		return M0_ERR(rc);
 	rc = m0_conf_cache_to_string(&tx->spt_cache, &buffer, debug) ?:
 	     spiel_str_to_file(buffer, filename);
 	m0_free_aligned(buffer, strlen(buffer) + 1, PAGE_SHIFT);
 	return M0_RC(rc);
 }
 
-int m0_spiel_tx_dump(struct m0_spiel_tx *tx, const char *filename)
+int m0_spiel_tx_dump(struct m0_spiel_tx *tx, uint64_t ver_forced,
+		     const char *filename)
 {
-	return M0_RC(spiel_tx_dump(tx, filename, false));
+	return M0_RC(spiel_tx_dump(tx, ver_forced, filename, false));
 }
 M0_EXPORTED(m0_spiel_tx_dump);
 
-int m0_spiel_tx_dump_debug(struct m0_spiel_tx *tx, const char *filename)
+int m0_spiel_tx_dump_debug(struct m0_spiel_tx *tx, uint64_t ver_forced,
+			   const char *filename)
 {
-	return M0_RC(spiel_tx_dump(tx, filename, true));
+	return M0_RC(spiel_tx_dump(tx, ver_forced, filename, true));
 }
 M0_EXPORTED(m0_spiel_tx_dump_debug);
 

@@ -1342,7 +1342,8 @@ static void spiel_conf_file(void)
 	int                   rc;
 	struct m0_spiel_tx    tx;
 	char                 *confstr = NULL;
-	const char            filename[] = "/tmp/spiel_conf_file.txt";
+	const char            filename[] = M0_UT_PATH("spiel_conf_file.txt");
+	const int             ver_forced = 10;
 	struct m0_conf_cache  cache;
 	struct m0_mutex       lock;
 
@@ -1352,8 +1353,9 @@ static void spiel_conf_file(void)
 	spiel_conf_file_create_tree(&tx);
 
 	/* Convert to file */
-	rc = m0_spiel_tx_dump(&tx, filename);
+	rc = m0_spiel_tx_dump(&tx, ver_forced, filename);
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_conf_version(&tx.spt_cache) == ver_forced);
 	m0_spiel_tx_close(&tx);
 
 	/* Load file */
@@ -1544,6 +1546,7 @@ static void spiel_conf_dump(void)
 	struct m0_spiel_tx  tx_bad;
 	const char         *filename = "config.xc";
 	const char         *filename_bad = "config_b.xc";
+	const int           ver_forced = 10;
 	int                 rc;
 
 	spiel_conf_ut_init();
@@ -1551,13 +1554,14 @@ static void spiel_conf_dump(void)
 	spiel_conf_create_configuration(&spiel, &tx);
 	rc = m0_spiel_tx_validate(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_spiel_tx_dump(&tx, filename);
+	rc = m0_spiel_tx_dump(&tx, ver_forced, filename);
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_conf_version(&tx.spt_cache) == ver_forced);
 
 	spiel_conf_create_invalid_configuration(&spiel, &tx_bad);
 	rc = m0_spiel_tx_validate(&tx_bad);
 	M0_UT_ASSERT(rc != 0);
-	rc = m0_spiel_tx_dump_debug(&tx_bad, filename_bad);
+	rc = m0_spiel_tx_dump_debug(&tx_bad, 2, filename_bad);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = spiel_conf_ut_fini();
