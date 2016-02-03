@@ -556,6 +556,17 @@ net_test_user_space_m0nettestd_LDADD     = $(top_builddir)/mero/libmero.la \
 include $(top_srcdir)/net/test/user_space/Makefile.sub
 
 #
+# rm/st
+#
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS       += rm/st/m0rwlock
+endif
+rm_st_m0rwlock_CPPFLAGS  = -DM0_TARGET='m0rwlock' $(AM_CPPFLAGS)
+rm_st_m0rwlock_LDADD     = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/rm/st/Makefile.sub
+
+#
 # sns/cm/st
 #
 

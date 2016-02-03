@@ -385,6 +385,7 @@ M0_INTERNAL void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 	m0_atomic64_set(&csb->csb_pending_io_nr, 0);
 	csb->csb_oostore = false;
 	csb->csb_verify  = false;
+	csb->csb_rlock_revoked = false;
 	M0_LEAVE();
 }
 
@@ -615,14 +616,19 @@ struct m0t1fs_sb *reqh2sb(struct m0_reqh *reqh)
 	return container_of(reqh, struct m0t1fs_sb, csb_reqh);
 }
 
-static struct m0_rconfc *csb2rconfc(struct m0t1fs_sb *csb)
+static struct m0t1fs_sb *rconfc2csb(struct m0_rconfc *rconfc)
+{
+	return reqh2sb(container_of(rconfc, struct m0_reqh, rh_rconfc));
+}
+
+M0_INTERNAL struct m0_rconfc *m0_csb2rconfc(struct m0t1fs_sb *csb)
 {
 	return &csb->csb_reqh.rh_rconfc;
 }
 
 M0_INTERNAL struct m0_confc *m0_csb2confc(struct m0t1fs_sb *csb)
 {
-	return &csb2rconfc(csb)->rc_confc;
+	return &m0_csb2rconfc(csb)->rc_confc;
 }
 
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
@@ -661,6 +667,46 @@ int m0t1fs_pool_find(struct m0t1fs_sb *csb)
 	return M0_RC(rc);
 }
 
+static void m0t1fs_rconfc_exp_cb(struct m0_rconfc *rconfc)
+{
+	struct m0t1fs_sb           *csb = rconfc2csb(rconfc);
+	struct m0_reqh_service_ctx *ctx;
+	uint32_t                    i;
+
+	M0_ENTRY("rconfc %p, super %p", rconfc, csb);
+	csb->csb_rlock_revoked = true;
+	/*
+	 * Cancel sessions to IO services that were used during IO request
+	 * handling.
+	 */
+	for (i = 0; i < csb->csb_pools_common.pc_nr_devices; i++) {
+		ctx = csb->csb_pools_common.pc_dev2ios[i].pds_ctx;
+		if (ctx != NULL &&
+		    !m0_rpc_session_is_cancelled(&ctx->sc_rlink.rlk_sess))
+			m0_rpc_session_cancel(&ctx->sc_rlink.rlk_sess);
+	}
+	M0_LEAVE();
+
+}
+
+static void m0t1fs_rconfc_ready_cb(struct m0_rconfc *rconfc)
+{
+	struct m0t1fs_sb           *csb = rconfc2csb(rconfc);
+	struct m0_reqh_service_ctx *ctx;
+	uint32_t                    i;
+
+	M0_ENTRY("rconfc %p, super %p", rconfc, csb);
+	/* restore cancelled sessions */
+	for (i = 0; i < csb->csb_pools_common.pc_nr_devices; i++) {
+		ctx = csb->csb_pools_common.pc_dev2ios[i].pds_ctx;
+		if (ctx != NULL &&
+		    m0_rpc_session_is_cancelled(&ctx->sc_rlink.rlk_sess))
+			m0_rpc_session_restore(&ctx->sc_rlink.rlk_sess);
+	}
+	csb->csb_rlock_revoked = false;
+	M0_LEAVE();
+}
+
 int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 {
 	struct m0_addb2_sys       *sys = m0_addb2_global_get();
@@ -668,6 +714,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	struct m0_confc_args      *confc_args;
 	struct m0_reqh            *reqh = &csb->csb_reqh;
 	struct m0_conf_filesystem *fs;
+	struct m0_rconfc          *rconfc;
 	int                        rc;
 
 	M0_ENTRY();
@@ -698,7 +745,12 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_ha_fini;
 
-	rc = m0_rconfc_start_sync(csb2rconfc(csb), &reqh->rh_profile);
+	rconfc = m0_csb2rconfc(csb);
+	m0_rconfc_lock(rconfc);
+	m0_rconfc_exp_cb_set(rconfc, m0t1fs_rconfc_exp_cb);
+	m0_rconfc_ready_cb_set(rconfc, m0t1fs_rconfc_ready_cb);
+	m0_rconfc_unlock(rconfc);
+	rc = m0_rconfc_start_sync(m0_csb2rconfc(csb), &reqh->rh_profile);
 	if (rc != 0)
 		goto err_rconfc_fini;
 
@@ -775,9 +827,9 @@ err_conf_fs_close:
 err_ha_client_del:
 	m0_ha_client_del(m0_reqh2confc(reqh));
 err_rconfc_stop:
-	m0_rconfc_stop_sync(csb2rconfc(csb));
+	m0_rconfc_stop_sync(m0_csb2rconfc(csb));
 err_rconfc_fini:
-	m0_rconfc_fini(csb2rconfc(csb));
+	m0_rconfc_fini(m0_csb2rconfc(csb));
 err_ha_fini:
 	m0t1fs_ha_fini(csb);
 err_rpc_fini:
@@ -799,8 +851,8 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_pools_destroy(&csb->csb_pools_common);
 	m0_pools_common_fini(&csb->csb_pools_common);
 	m0_ha_client_del(m0_reqh2confc(&csb->csb_reqh));
-	m0_rconfc_stop_sync(csb2rconfc(csb));
-	m0_rconfc_fini(csb2rconfc(csb));
+	m0_rconfc_stop_sync(m0_csb2rconfc(csb));
+	m0_rconfc_fini(m0_csb2rconfc(csb));
 	m0_reqh_services_terminate(&csb->csb_reqh);
 	m0t1fs_ha_fini(csb);
 	m0t1fs_rpc_fini(csb);

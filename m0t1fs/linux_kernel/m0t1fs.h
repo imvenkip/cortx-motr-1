@@ -757,6 +757,11 @@ struct m0t1fs_sb {
 	struct m0_htable                        csb_service_pending_txid_map;
 	struct m0_mutex                         csb_service_pending_txid_map_lock;
 
+	/**
+	 * Indicates that rconfc read lock is revoked by a creditor.
+	 */
+	bool                                    csb_rlock_revoked;
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 	struct backing_dev_info                 csb_backing_dev_info;
 #endif
@@ -1025,6 +1030,7 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode);
 M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo);
 M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *cob);
 M0_INTERNAL struct m0_confc *m0_csb2confc(struct m0t1fs_sb *csb);
+M0_INTERNAL struct m0_rconfc *m0_csb2rconfc(struct m0t1fs_sb *csb);
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 
 /*

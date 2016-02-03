@@ -242,6 +242,15 @@ typedef void (*m0_rconfc_exp_cb_t)(struct m0_rconfc *rconfc);
 typedef void (*m0_rconfc_drained_cb_t)(struct m0_rconfc *rconfc);
 
 /**
+ * Rconfc ready callback is called when m0_rconfc::rc_sm is switched to RCS_IDLE
+ * state and an rconfc client is able to read configuration.
+ *
+ * @note The callback is called from rconfc instance being in locked state.
+ *
+ * @see m0_rconfc_ready_cb_set
+ */
+typedef void (*m0_rconfc_ready_cb_t)(struct m0_rconfc *rconfc);
+/**
  * Redundant configuration client.
  */
 struct m0_rconfc {
@@ -286,6 +295,12 @@ struct m0_rconfc {
 	 * installed later if required, on a locked rconfc instance.
 	 */
 	m0_rconfc_drained_cb_t    rc_drained_cb;
+
+	/**
+	 * Rconfc idle callback. Initially unset. Allowed to be
+	 * installed later if required, on a locked rconfc instance.
+	 */
+	m0_rconfc_ready_cb_t       rc_ready_cb;
 
 	/** RPC machine the rconfc to work on. */
 	struct m0_rpc_machine    *rc_rmach;
@@ -475,6 +490,14 @@ M0_INTERNAL void m0_rconfc_drained_cb_set(struct m0_rconfc       *rconfc,
 					  m0_rconfc_drained_cb_t  cb);
 
 /**
+ * Set rconfc idle callback.
+ *
+ * @pre rconfc is locked.
+ */
+M0_INTERNAL void m0_rconfc_ready_cb_set(struct m0_rconfc     *rconfc,
+					m0_rconfc_ready_cb_t  cb);
+
+/**
  * Allocates and fills eps with confd endpoints from m0_rconfc::rc_herd list.
  * Returns number of endpoints or -ENOMEM if memory allocation was failed during
  * duplication of an endpoint.
@@ -514,6 +537,12 @@ M0_INTERNAL void m0_rconfc_rm_fid(struct m0_rconfc *rconfc, struct m0_fid *out);
  * remains in RCS_INIT state during all its life.
  */
 M0_INTERNAL bool m0_rconfc_is_preloaded(struct m0_rconfc *rconfc);
+
+/**
+ * Indicates whether rconfc in RCS_IDLE state or not, In RCS_IDLE state rconfc
+ * holds a read lock and a client is able to read configuration.
+ */
+M0_INTERNAL bool m0_rconfc_reading_is_allowed(const struct m0_rconfc *rconfc);
 
 /** @} rconfc_dfspec */
 #endif /* __MERO_CONF_RCONFC_H__ */

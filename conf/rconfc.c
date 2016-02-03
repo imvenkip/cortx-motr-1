@@ -1104,7 +1104,7 @@ static int _confc_cache_clean_lock(struct m0_confc *confc)
 
 /* -------------- Rconfc Helpers -------------- */
 
-static uint32_t rconfc_state(struct m0_rconfc *rconfc)
+static uint32_t rconfc_state(const struct m0_rconfc *rconfc)
 {
 	return rconfc->rc_sm.sm_state;
 }
@@ -1227,7 +1227,7 @@ static void rconfc_fail_ast(struct m0_rconfc *rconfc, int rc)
 	rconfc_ast_post(rconfc, _failure_ast_cb);
 }
 
-static bool rconfc_reading_is_allowed(const struct m0_rconfc *rconfc)
+M0_INTERNAL bool m0_rconfc_reading_is_allowed(const struct m0_rconfc *rconfc)
 {
 	M0_PRE(rconfc != NULL);
 	return rconfc->rc_sm.sm_state == RCS_IDLE;
@@ -1864,7 +1864,7 @@ static bool rconfc_gate_check(struct m0_confc *confc)
 	M0_PRE(m0_mutex_is_locked(&confc->cc_lock));
 
 	rconfc = container_of(confc, struct m0_rconfc, rc_confc);
-	if (!rconfc_reading_is_allowed(rconfc)) {
+	if (!m0_rconfc_reading_is_allowed(rconfc)) {
 		m0_mutex_unlock(&confc->cc_lock);
 		m0_rconfc_lock(rconfc);
 		m0_sm_timedwait(&rconfc->rc_sm,
@@ -1873,7 +1873,7 @@ static bool rconfc_gate_check(struct m0_confc *confc)
 		m0_rconfc_unlock(rconfc);
 		m0_mutex_lock(&confc->cc_lock);
 	}
-	return M0_RC(rconfc_reading_is_allowed(rconfc));
+	return M0_RC(m0_rconfc_reading_is_allowed(rconfc));
 }
 
 /**
@@ -2029,6 +2029,8 @@ static void rconfc_idle(struct m0_rconfc *rconfc)
 	 * reelection or user requests stopping rconfc.
 	 */
 	rconfc_state_set(rconfc, RCS_IDLE);
+	if (rconfc->rc_ready_cb != NULL)
+		rconfc->rc_ready_cb(rconfc);
 }
 
 static bool rconfc_quorum_is_possible(struct m0_rconfc *rconfc)
@@ -2506,6 +2508,13 @@ M0_INTERNAL void m0_rconfc_drained_cb_set(struct m0_rconfc       *rconfc,
 {
 	M0_PRE(rconfc_is_locked(rconfc));
 	rconfc->rc_drained_cb = cb;
+}
+
+M0_INTERNAL void m0_rconfc_ready_cb_set(struct m0_rconfc    *rconfc,
+				       m0_rconfc_ready_cb_t  cb)
+{
+	M0_PRE(rconfc_is_locked(rconfc));
+	rconfc->rc_ready_cb = cb;
 }
 
 M0_INTERNAL int m0_rconfc_confd_endpoints(struct m0_rconfc   *rconfc,

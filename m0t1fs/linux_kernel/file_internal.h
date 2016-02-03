@@ -37,6 +37,7 @@
       - @ref rmw-lspec-state
       - @ref rmw-lspec-thread
       - @ref rmw-lspec-numa
+      - @ref rmw-lspec-abort
    - @ref rmw-degraded-readIO
       - @ref rmw-dgreadIO-req
       - @ref rmw-dgreadIO-highlights
@@ -254,6 +255,13 @@
    changes can be accommodated for irrespective of layout type.
    This way, the wastage of storage space in small IO can be restricted to
    block granularity.
+
+   Processing an IO request may be interrupted due to rconfc read lock
+   revocation.  At that point m0t1fs can't read configuration and all operations
+   must be stopped. In that case all IO requests existing at the moment are
+   marked as failed, and as the result client receives -ESTALE error code. The
+   client can try IO operations later when a configuration can be read again.
+   @see rmw-lspec-abort.
 
    @todo In future, optimizations could be done in order to speed up small file
    IO with the help of client side cache.
@@ -519,6 +527,14 @@
    @subsection rmw-lspec-numa NUMA optimizations
 
    None.
+
+   @subsection rmw-lspec-abort IO request aborting
+   When m0t1fs rconfc lost read lock it can't read configuration and all
+   existing IO requests must be stopped at the current point of progress.  Once
+   rconfc lost read lock, m0_rconfc::rc_exp_cb is triggered. It sets
+   m0t1fs_sb::csb_rlock_revoked to true and cancel sessions to IO services.
+   ioreq_iosm_handle checks the flag after its subroutines and interrupt
+   handling, if the read lock is revoked.
 
    @section rmw-degraded-readIO
 

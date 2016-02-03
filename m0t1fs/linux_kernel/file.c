@@ -3477,7 +3477,8 @@ static inline int ioreq_sm_timedwait(struct io_request *req,
 		 m0_atomic64_get(&req->ir_nwxfer.nxr_rdbulk_nr));
 
 	m0_mutex_lock(&req->ir_sm.sm_grp->s_lock);
-	rc = m0_sm_timedwait(&req->ir_sm, (1 << state), M0_TIME_NEVER);
+	rc = m0_sm_timedwait(&req->ir_sm, M0_BITS(state, IRS_FAILED),
+			     M0_TIME_NEVER);
 	m0_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
 
 	if (rc != 0)
@@ -3925,10 +3926,12 @@ static int ioreq_iosm_handle(struct io_request *req)
 	struct inode	       *inode;
 	struct target_ioreq    *ti;
 	struct nw_xfer_request *xfer;
+	struct m0t1fs_sb       *csb;
 
 	M0_PRE_EX(io_request_invariant(req));
 	xfer = &req->ir_nwxfer;
 	M0_ENTRY("[%p] sb %p", req, file_to_sb(req->ir_file));
+	csb = M0T1FS_SB(m0t1fs_file_to_inode(req->ir_file)->i_sb);
 
 	for (map = 0; map < req->ir_iomap_nr; ++map) {
 		if (M0_IN(req->ir_iomaps[map]->pi_rtype,
@@ -3981,7 +3984,6 @@ static int ioreq_iosm_handle(struct io_request *req)
 			       req, rc);
 			goto fail_locked;
 		}
-
 		state = req->ir_type == IRT_READ ? IRS_READ_COMPLETE:
 						   IRS_WRITE_COMPLETE;
 		rc = ioreq_sm_timedwait(req, state);
@@ -3990,9 +3992,6 @@ static int ioreq_iosm_handle(struct io_request *req)
 			       "rc=%d", req, rc);
 			goto fail_locked;
 		}
-
-		M0_ASSERT(ioreq_sm_state(req) == state);
-
 		if (req->ir_rc != 0) {
 			rc = req->ir_rc;
 			M0_LOG(M0_ERROR, "[%p] ir_rc=%d", req, rc);
@@ -4172,7 +4171,11 @@ static int ioreq_iosm_handle(struct io_request *req)
 		uint64_t newsize = max64u(inode->i_size,
 				seg_endpos(&req->ir_ivec,
 					req->ir_ivec.iv_vec.v_nr - 1));
-		m0t1fs_size_update(req->ir_file->f_dentry, newsize);
+		rc = m0t1fs_size_update(req->ir_file->f_dentry, newsize);
+		if (rc != 0 && csb->csb_rlock_revoked) {
+			rc = M0_ERR(-ESTALE);
+			goto fail_locked;
+		}
 		M0_LOG(M0_INFO, "[%p] File size set to %llu", req,
 		       inode->i_size);
 	}
@@ -4194,7 +4197,6 @@ fail:
 	M0_LOG(M0_DEBUG, "[%p] About to nxo_complete()", req);
 	xfer->nxr_ops->nxo_complete(xfer, false);
 	ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
-
 	return M0_ERR_INFO(rc, "[%p] ioreq_iosm_handle failed", req);
 }
 
@@ -4204,6 +4206,7 @@ static int io_request_init(struct io_request        *req,
 			   const struct m0_indexvec *ivec,
 			   enum io_req_type          rw)
 {
+	struct m0t1fs_sb           *sb;
 	int                         rc;
 	uint32_t                    seg;
 	uint32_t                    i;
@@ -4218,6 +4221,7 @@ static int io_request_init(struct io_request        *req,
 	M0_PRE(M0_IN(rw, (IRT_READ, IRT_WRITE)));
 	M0_PRE(M0_IS0(req));
 
+	sb = file_to_sb(file);
 	req->ir_rc	  = 0;
 	req->ir_file      = file;
 	req->ir_type      = rw;
@@ -4226,7 +4230,7 @@ static int io_request_init(struct io_request        *req,
 	req->ir_copied_nr = 0;
 	req->ir_direct_io = !!(file->f_flags & O_DIRECT);
 	req->ir_sns_state = SRS_UNINITIALIZED;
-	req->ir_ops       = file_to_sb(file)->csb_oostore ?
+	req->ir_ops       = sb->csb_oostore ?
 		&ioreq_oostore_ops : &ioreq_ops;
 
 	io_request_bob_init(req);
@@ -4248,9 +4252,11 @@ static int io_request_init(struct io_request        *req,
 
 	rc = m0_indexvec_alloc(&req->ir_ivec, SEG_NR(ivec));
 
-	if (rc != 0)
+	if (rc != 0) {
+		m0_free(req->ir_failed_session);
 		return M0_ERR_INFO(-ENOMEM, "[%p] Allocation of m0_indexvec",
 				   req);
+	}
 
 	for (seg = 0; seg < SEG_NR(ivec); ++seg) {
 		INDEX(&req->ir_ivec, seg) = INDEX(ivec, seg);
@@ -4260,9 +4266,14 @@ static int io_request_init(struct io_request        *req,
 	/* Sorts the index vector in increasing order of file offset. */
 	indexvec_sort(&req->ir_ivec);
 	indexvec_dump(&req->ir_ivec);
-
+	if (sb->csb_rlock_revoked)
+		goto err;
 	M0_POST_EX(ergo(rc == 0, io_request_invariant(req)));
 	return M0_RC(rc);
+err:
+	m0_free(req->ir_failed_session);
+	m0_indexvec_free(&req->ir_ivec);
+	return M0_ERR(-ESTALE);
 }
 
 static void io_request_fini(struct io_request *req)
@@ -5300,6 +5311,7 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	struct m0_io_fop       *iofop;
 	struct io_req_fop      *reqfop;
 	struct io_request      *ioreq;
+	struct m0t1fs_sb       *csb;
 	uint32_t                req_sm_state;
 
 	M0_ENTRY();
@@ -5314,6 +5326,7 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
 	ioreq = bob_of(reqfop->irf_tioreq->ti_nwxfer, struct io_request,
 		       ir_nwxfer, &ioreq_bobtype);
+	csb = M0T1FS_SB(m0t1fs_file_to_inode(ioreq->ir_file)->i_sb);
 
 	M0_ASSERT(rbulk == &reqfop->irf_iofop.if_rbulk);
 	M0_LOG(M0_DEBUG, "[%p] PASSIVE recv, e %p, status %d, len %llu, "
@@ -5335,6 +5348,8 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	if (evt->nbe_status != 0)
 		return;
 
+	if (csb->csb_rlock_revoked)
+		ioreq_sm_failed(ioreq, -ESTALE);
 	m0_mutex_lock(&ioreq->ir_nwxfer.nxr_lock);
 	req_sm_state = ioreq_sm_state(ioreq);
 	if (req_sm_state != IRS_READ_COMPLETE &&
@@ -5346,7 +5361,8 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 		 */
 		if (m0_atomic64_get(&ioreq->ir_nwxfer.nxr_rdbulk_nr) > 0)
 			m0_atomic64_dec(&ioreq->ir_nwxfer.nxr_rdbulk_nr);
-		if (m0_atomic64_get(&ioreq->ir_nwxfer.nxr_iofop_nr) == 0 &&
+		if (ioreq_sm_state(ioreq) != IRS_FAILED &&
+		    m0_atomic64_get(&ioreq->ir_nwxfer.nxr_iofop_nr) == 0 &&
 		    m0_atomic64_get(&ioreq->ir_nwxfer.nxr_rdbulk_nr) == 0) {
 			ioreq_sm_state_set(ioreq,
 					   (M0_IN(req_sm_state,
@@ -5654,6 +5670,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_fop_cob_rw_reply  *rw_reply;
 	struct m0_reqh_service_ctx  *ctx;
 	struct m0t1fs_inode         *inode;
+	struct m0t1fs_sb            *csb;
 	struct m0_be_tx_remid       *remid;
 	struct m0_fop_generic_reply *gen_rep;
 	uint64_t                     actual_bytes = 0;
@@ -5727,6 +5744,12 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	/* update pending transaction number */
 	ctx = m0_reqh_service_ctx_from_session(reply_item->ri_session);
 	inode = m0t1fs_file_to_m0inode(req->ir_file);
+	csb = M0T1FS_SB(inode->ci_inode.i_sb);
+	if (csb->csb_rlock_revoked) {
+		ioreq_sm_failed(req, -ESTALE);
+		rc = M0_ERR(-ESTALE);
+		goto ref_dec;
+	}
 	m0t1fs_fsync_record_update(ctx, m0inode_to_sb(inode), inode, remid);
 	actual_bytes = rw_reply->rwr_count;
 
