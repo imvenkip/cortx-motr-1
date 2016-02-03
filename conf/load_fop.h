@@ -80,8 +80,6 @@ M0_INTERNAL m0_bcount_t m0_conf_segment_size(struct m0_fop *fop);
 struct m0_fop_conf_load_rep {
 	/** Status code of operation. */
 	int32_t  clfr_rc;
-	/** Number of bytes translate. */
-	uint64_t clfr_count;
 	/** Current version number */
 	uint32_t clfr_version;
 } M0_XCA_RECORD;
@@ -101,8 +99,7 @@ struct m0_fop_conf_load {
 	struct m0_net_buf_desc_data clf_desc;
 } M0_XCA_RECORD;
 
-/* __MERO_CONF_LOAD_FOP_H__ */
-#endif
+#endif /* __MERO_CONF_LOAD_FOP_H__ */
 
 /*
  *  Local variables:

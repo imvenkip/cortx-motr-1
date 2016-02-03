@@ -57,8 +57,6 @@ M0_INTERNAL int m0_conf_load_fom_create(struct m0_fop   *fop,
 struct m0_conf_load_fom {
 	/** Generic m0_fom object. */
 	struct m0_fom        clm_gen;
-	/** Number of bytes successfully transferred. */
-	m0_bcount_t          clm_count;
 	/** rpc bulk load data. */
 	struct m0_rpc_bulk   clm_bulk;
 	/** Net buffer for contain data, translated rpc bulk */

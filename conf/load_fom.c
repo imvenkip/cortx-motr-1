@@ -445,11 +445,6 @@ static int conf_buffer_free(struct m0_fom *fom)
 
 /**
  * Phase transition for the Spiel Load operation.
- *
- * @param fom instance file operation machine under execution
- *
- * @pre fom != NULL
- * @pre fom->fo_fop if Conf Load type
  */
 static int conf_load_fom_tick(struct m0_fom *fom)
 {
@@ -458,44 +453,34 @@ static int conf_load_fom_tick(struct m0_fom *fom)
 	struct m0_fop_conf_load_rep *rep;
 
 	M0_ENTRY("fom %p", fom);
-
-	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_conf_load_fop(fom->fo_fop));
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR)
 		return m0_fom_tick_generic(fom);
 
-
 	conf_fom = container_of(fom, struct m0_conf_load_fom, clm_gen);
 	M0_ASSERT(conf_load_fom_invariant(conf_fom));
 
 	switch (m0_fom_phase(fom)) {
-	case M0_FOPH_CONF_FOM_PREPARE:
-		rc = conf_prepare(fom);
-		break;
-	case M0_FOPH_CONF_FOM_BUFFER_ALLOCATE:
-		rc = conf_net_buffer_allocate(fom);
-		break;
-	case M0_FOPH_CONF_ZERO_COPY_INIT:
-		rc = conf_zero_copy_initiate(fom);
-		break;
-	case M0_FOPH_CONF_ZERO_COPY_WAIT:
-		rc = conf_zero_copy_finish(fom);
-		break;
-	case M0_FOPH_CONF_BUFFER_FREE:
-		rc = conf_buffer_free(fom);
-		break;
+#define _CASE(phase, op)      \
+	case phase:           \
+		rc = op(fom); \
+		break
+
+	_CASE(M0_FOPH_CONF_FOM_PREPARE,         conf_prepare);
+	_CASE(M0_FOPH_CONF_FOM_BUFFER_ALLOCATE, conf_net_buffer_allocate);
+	_CASE(M0_FOPH_CONF_ZERO_COPY_INIT,      conf_zero_copy_initiate);
+	_CASE(M0_FOPH_CONF_ZERO_COPY_WAIT,      conf_zero_copy_finish);
+	_CASE(M0_FOPH_CONF_BUFFER_FREE,         conf_buffer_free);
+#undef _CASE
 	default:
 		M0_IMPOSSIBLE("");
-		break;
 	}
 
 	if (M0_IN(m0_fom_phase(fom), (M0_FOPH_SUCCESS, M0_FOPH_FAILURE))) {
 		rep = m0_conf_fop_to_load_fop_rep(fom->fo_rep_fop);
-		rep->clfr_rc    = m0_fom_rc(fom);
-		rep->clfr_count = conf_fom->clm_count;
+		rep->clfr_rc = m0_fom_rc(fom);
 	}
-
 	return M0_RC(rc);
 }
 
