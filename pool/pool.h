@@ -91,6 +91,12 @@ struct m0_pool {
 	/** Linkage into list of pools. */
 	struct m0_tlink                   po_linkage;
 
+	/**
+	 * List of failed devices in the pool.
+	 * @see m0_pool::pd_fail_linkage
+	 */
+	struct m0_tl                      po_failed_devices;
+
 	uint64_t                          po_magic;
 };
 
@@ -190,6 +196,9 @@ M0_TL_DECLARE(pool_version, M0_EXTERN, struct m0_pool_version);
 
 M0_TL_DESCR_DECLARE(pools, M0_EXTERN);
 M0_TL_DECLARE(pools, M0_EXTERN, struct m0_pool);
+
+M0_TL_DESCR_DECLARE(pool_failed_devs, M0_EXTERN);
+M0_TL_DECLARE(pool_failed_devs, M0_EXTERN, struct m0_pooldev);
 
 M0_INTERNAL void m0_pools_common_init(struct m0_pools_common *pc,
 				      struct m0_rpc_machine *rmach,
@@ -363,6 +372,13 @@ struct m0_pooldev {
 	 * disk obj's wait channel i.e. m0_conf_obj::co_ha_chan.
 	 */
 	struct m0_clink         pd_clink;
+
+	/**
+	 * Link into list of failed devices in the pool.
+	 * @see m0_pool::po_failed_devices.
+	 */
+	struct m0_tlink         pd_fail_linkage;
+
 	struct m0_format_footer pd_footer;
 };
 

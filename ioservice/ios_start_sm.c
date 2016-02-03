@@ -586,6 +586,7 @@ static void ios_start_ast_pm_init(struct m0_sm_group *grp,
 	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_PM_INIT);
 
 	rc = m0_poolmach_backed_init(ios_sm->ism_poolmach,
+				     NULL,
 				     ios_sm->ism_reqh->rh_beseg,
 				     &ios_sm->ism_tx,
 				     ios_sm->ism_poolmach_args.nr_nodes,

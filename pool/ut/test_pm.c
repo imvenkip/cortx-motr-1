@@ -38,10 +38,14 @@ enum {
 	PM_TEST_DEFAULT_MAX_NODE_FAILURE   = 1
 };
 
+static struct m0_fid M0_POOL_ID = M0_FID_TINIT('o', 1, 23);
+static struct m0_fid M0_PVER_ID = M0_FID_TINIT('v', 1, 24);
 static struct m0_sm_group       *sm_grp;
 static struct m0_be_ut_backend   ut_be;
 static struct m0_be_ut_seg       ut_seg;
 static struct m0_be_seg         *be_seg;
+static struct m0_pool            pool;
+static struct m0_pool_version    pver;
 
 /* import from pool/pool_store.c */
 M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
@@ -65,24 +69,39 @@ static int seg_fini()
 	return 0;
 }
 
+static int pool_pver_init(uint32_t N, uint32_t K)
+{
+	int rc;
+
+	M0_SET0(&pool);
+	m0_pool_init(&pool, &M0_POOL_ID, PM_TEST_DEFAULT_DEVICE_NUMBER);
+	M0_SET0(&pver);
+	rc = m0_pool_version_init(&pver, &M0_PVER_ID, &pool,
+				  PM_TEST_DEFAULT_DEVICE_NUMBER,
+				  PM_TEST_DEFAULT_NODE_NUMBER,
+				  N, K, be_seg,
+				  sm_grp, NULL);
+	return rc;
+}
+
+static void pool_pver_fini(void)
+{
+	m0_pool_version_fini(&pver);
+	m0_pool_fini(&pool);
+}
+
 static void pm_test_init_fini(void)
 {
-	struct m0_poolmach pm;
-	int                rc = 0;
+	int rc;
 
-	M0_SET0(&pm);
-	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
-				      PM_TEST_DEFAULT_NODE_NUMBER,
-				      PM_TEST_DEFAULT_DEVICE_NUMBER,
-				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-				      PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
+	rc = pool_pver_init(8, PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
 	M0_UT_ASSERT(rc == 0);
-	m0_poolmach_fini(&pm);
+	pool_pver_fini();
 }
 
 static void pm_test_transit(void)
 {
-	struct m0_poolmach             pm;
+	struct m0_poolmach            *pm;
 	int                            rc;
 	bool                           equal;
 	struct m0_poolmach_event       events[4];
@@ -98,20 +117,16 @@ static void pm_test_transit(void)
 	struct m0_be_tx_credit         cred = {};
 	struct m0_be_tx                tx;
 
-	M0_SET0(&pm);
-	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
-				      PM_TEST_DEFAULT_NODE_NUMBER,
-				      PM_TEST_DEFAULT_DEVICE_NUMBER,
-				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-				      PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
+	rc = pool_pver_init(8, PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
 	M0_UT_ASSERT(rc == 0);
-	m0_poolmach_store_credit(&pm, &cred);
+	pm = &pver.pv_mach;
+	m0_poolmach_store_credit(pm, &cred);
 
-	rc = m0_poolmach_current_version_get(&pm, &v0);
+	rc = m0_poolmach_current_version_get(pm, &v0);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_current_version_get(&pm, &v1);
+	rc = m0_poolmach_current_version_get(pm, &v1);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_current_version_get(&pm, &v2);
+	rc = m0_poolmach_current_version_get(pm, &v2);
 	M0_UT_ASSERT(rc == 0);
 
 	equal = m0_poolmach_version_equal(&v0, &v1);
@@ -123,7 +138,7 @@ static void pm_test_transit(void)
 	events[0].pe_index = 1;
 	events[0].pe_state = M0_PNDS_FAILED;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &events[0], &tx);
+	rc = m0_poolmach_state_transit(pm, &events[0], &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 
@@ -131,18 +146,18 @@ static void pm_test_transit(void)
 	events[1].pe_index = 3;
 	events[1].pe_state = M0_PNDS_OFFLINE;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &events[1], &tx);
+	rc = m0_poolmach_state_transit(pm, &events[1], &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_poolmach_current_version_get(&pm, &v1);
+	rc = m0_poolmach_current_version_get(pm, &v1);
 	M0_UT_ASSERT(rc == 0);
 
 	events[2].pe_type  = M0_POOL_DEVICE;
 	events[2].pe_index = 3;
 	events[2].pe_state = M0_PNDS_ONLINE;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &events[2], &tx);
+	rc = m0_poolmach_state_transit(pm, &events[2], &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 
@@ -150,11 +165,11 @@ static void pm_test_transit(void)
 	events[3].pe_index = 0;
 	events[3].pe_state = M0_PNDS_OFFLINE;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &events[3], &tx);
+	rc = m0_poolmach_state_transit(pm, &events[3], &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_poolmach_current_version_get(&pm, &v2);
+	rc = m0_poolmach_current_version_get(pm, &v2);
 	M0_UT_ASSERT(rc == 0);
 
 	equal = m0_poolmach_version_equal(&v0, &v1);
@@ -163,14 +178,14 @@ static void pm_test_transit(void)
 	M0_UT_ASSERT(!equal);
 	equal = m0_poolmach_version_equal(&v1, &v2);
 	M0_UT_ASSERT(!equal);
-	m0_poolmach_event_list_dump(&pm);
+	m0_poolmach_event_list_dump(pm);
 	m0_poolmach_version_dump(&v0);
 	m0_poolmach_version_dump(&v1);
 	m0_poolmach_version_dump(&v2);
 
 	/* case 1: from v0 to v1 */
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(&pm,
+	rc = m0_poolmach_state_query(pm,
 				     &v0,
 				     &v1,
 				     &events_list);
@@ -191,7 +206,7 @@ static void pm_test_transit(void)
 
 	/* case 2: from v1 to v2 */
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(&pm,
+	rc = m0_poolmach_state_query(pm,
 				     &v1,
 				     &v2,
 				     &events_list);
@@ -211,7 +226,7 @@ static void pm_test_transit(void)
 
 	/* case 3: from v0 to v2 */
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(&pm,
+	rc = m0_poolmach_state_query(pm,
 				     &v0,
 				     &v2,
 				     &events_list);
@@ -231,7 +246,7 @@ static void pm_test_transit(void)
 
 	/* case 4: from NULL to v1 */
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(&pm,
+	rc = m0_poolmach_state_query(pm,
 				     NULL,
 				     &v1,
 				     &events_list);
@@ -251,7 +266,7 @@ static void pm_test_transit(void)
 
 	/* case 5: from v1 to NULL */
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(&pm,
+	rc = m0_poolmach_state_query(pm,
 				     &v1,
 				     NULL,
 				     &events_list);
@@ -271,7 +286,7 @@ static void pm_test_transit(void)
 
 	/* case 6: from NULL to NULL */
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(&pm,
+	rc = m0_poolmach_state_query(pm,
 				     NULL,
 				     NULL,
 				     &events_list);
@@ -295,7 +310,7 @@ static void pm_test_transit(void)
 
 	/* case 7: from v0 to invalid */
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(&pm,
+	rc = m0_poolmach_state_query(pm,
 				     &v0,
 				     &v_invalid,
 				     &events_list);
@@ -315,7 +330,7 @@ static void pm_test_transit(void)
 
 	/* case 8: from NULL to invalid */
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(&pm,
+	rc = m0_poolmach_state_query(pm,
 				     NULL,
 				     &v_invalid,
 				     &events_list);
@@ -335,7 +350,7 @@ static void pm_test_transit(void)
 
 	/* case 9: from invalid to v2 */
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(&pm,
+	rc = m0_poolmach_state_query(pm,
 				     &v_invalid,
 				     &v2,
 				     &events_list);
@@ -345,7 +360,7 @@ static void pm_test_transit(void)
 
 	/* case 10: from invalid to NULL */
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(&pm,
+	rc = m0_poolmach_state_query(pm,
 				     &v_invalid,
 				     NULL,
 				     &events_list);
@@ -355,7 +370,7 @@ static void pm_test_transit(void)
 
 	/* case 11: from invalid to invalid */
 	poolmach_events_tlist_init(&events_list);
-	rc = m0_poolmach_state_query(&pm,
+	rc = m0_poolmach_state_query(pm,
 				     &v_invalid,
 				     &v_invalid,
 				     &events_list);
@@ -368,7 +383,7 @@ static void pm_test_transit(void)
 	e_invalid.pe_index = 0;
 	e_invalid.pe_state = M0_PNDS_OFFLINE;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &e_invalid, &tx);
+	rc = m0_poolmach_state_transit(pm, &e_invalid, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == -EINVAL);
 
@@ -377,7 +392,7 @@ static void pm_test_transit(void)
 	e_invalid.pe_index = 100;
 	e_invalid.pe_state = M0_PNDS_OFFLINE;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &e_invalid, &tx);
+	rc = m0_poolmach_state_transit(pm, &e_invalid, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == -EINVAL);
 
@@ -386,7 +401,7 @@ static void pm_test_transit(void)
 	e_invalid.pe_index = 0;
 	e_invalid.pe_state = M0_PNDS_SNS_REBALANCING + 1;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &e_invalid, &tx);
+	rc = m0_poolmach_state_transit(pm, &e_invalid, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == -EINVAL);
 
@@ -395,7 +410,7 @@ static void pm_test_transit(void)
 	e_invalid.pe_index = 0;
 	e_invalid.pe_state = M0_PNDS_NR;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &e_invalid, &tx);
+	rc = m0_poolmach_state_transit(pm, &e_invalid, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == -EINVAL);
 
@@ -405,32 +420,30 @@ static void pm_test_transit(void)
 	/* Destroy poolmach persistent storage. We will have some different
 	 * poolmach parameters in next test case.
 	 */
-	m0_poolmach_store_destroy(&pm, be_seg, sm_grp, NULL);
+	m0_poolmach_store_destroy(pm, be_seg, sm_grp, NULL);
 	m0_fi_disable("m0_pooldev_clink_del", "do_nothing_for_poolmach-ut");
 	/* finally */
-	m0_poolmach_fini(&pm);
+	pool_pver_fini();
 }
 
 static void pm_test_spare_slot(void)
 {
-	struct m0_poolmach    pm;
-	int                   rc = 0;
+	struct m0_poolmach       *pm;
+	int                       rc = 0;
 	struct m0_poolmach_event  event;
-	enum m0_pool_nd_state state_out;
-	enum m0_pool_nd_state target_state;
-	enum m0_pool_nd_state state;
-	uint32_t              spare_slot;
-	struct m0_be_tx       tx;
-	struct m0_be_tx_credit cred = {};
+	enum m0_pool_nd_state     state_out;
+	enum m0_pool_nd_state     target_state;
+	enum m0_pool_nd_state     state;
+	uint32_t                  spare_slot;
+	struct m0_be_tx           tx;
+	struct m0_be_tx_credit    cred = {};
 
-	M0_SET0(&pm);
-	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
-				      PM_TEST_DEFAULT_NODE_NUMBER,
-				      PM_TEST_DEFAULT_DEVICE_NUMBER,
-				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-				      2 /* two spare device */);
+	rc = pool_pver_init(6, 2);
 	M0_UT_ASSERT(rc == 0);
-	m0_poolmach_store_credit(&pm, &cred);
+	pm = &pver.pv_mach;
+
+	M0_UT_ASSERT(rc == 0);
+	m0_poolmach_store_credit(pm, &cred);
 
 	event.pe_type  = M0_POOL_DEVICE;
 	event.pe_index = 1;
@@ -440,20 +453,20 @@ static void pm_test_spare_slot(void)
 	target_state = M0_PNDS_FAILED;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+	rc = m0_poolmach_device_state(pm, 1, &state_out);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(state_out == target_state);
 
-	rc = m0_poolmach_device_state(&pm, PM_TEST_DEFAULT_DEVICE_NUMBER - 1,
+	rc = m0_poolmach_device_state(pm, PM_TEST_DEFAULT_DEVICE_NUMBER - 1,
 					&state_out);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_device_state(&pm, PM_TEST_DEFAULT_DEVICE_NUMBER,
+	rc = m0_poolmach_device_state(pm, PM_TEST_DEFAULT_DEVICE_NUMBER,
 					&state_out);
 	M0_UT_ASSERT(rc == -EINVAL);
-	rc = m0_poolmach_device_state(&pm, 100, &state_out);
+	rc = m0_poolmach_device_state(pm, 100, &state_out);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
@@ -462,12 +475,12 @@ static void pm_test_spare_slot(void)
 		/* transit to other state other than the above one is invalid */
 		event.pe_state = state;
 		m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-		rc = m0_poolmach_state_transit(&pm, &event, &tx);
+		rc = m0_poolmach_state_transit(pm, &event, &tx);
 		m0_ut_be_tx_end(&tx);
 		M0_UT_ASSERT(rc == -EINVAL);
 	}
 
-	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+	rc = m0_poolmach_device_state(pm, 1, &state_out);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(state_out == target_state);
 
@@ -476,18 +489,18 @@ static void pm_test_spare_slot(void)
 	target_state = M0_PNDS_SNS_REPAIRING;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+	rc = m0_poolmach_device_state(pm, 1, &state_out);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(state_out == target_state);
 	/* the first spare slot is used by device 1 */
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 1, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 1, &spare_slot);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 0);
 	/* no spare slot is used by device 2 */
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 2, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 2, &spare_slot);
 	M0_UT_ASSERT(rc == -ENOENT);
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
 		if (state == M0_PNDS_SNS_REPAIRED ||
@@ -496,7 +509,7 @@ static void pm_test_spare_slot(void)
 		/* transit to other state other than the above one is invalid */
 		event.pe_state = state;
 		m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-		rc = m0_poolmach_state_transit(&pm, &event, &tx);
+		rc = m0_poolmach_state_transit(pm, &event, &tx);
 		m0_ut_be_tx_end(&tx);
 		M0_UT_ASSERT(rc == -EINVAL);
 	}
@@ -506,18 +519,18 @@ static void pm_test_spare_slot(void)
 	target_state = M0_PNDS_SNS_REPAIRED;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+	rc = m0_poolmach_device_state(pm, 1, &state_out);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(state_out == target_state);
 	/* the first spare slot is used by device 1 */
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 1, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 1, &spare_slot);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 0);
 	/* no spare slot is used by device 2 */
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 2, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 2, &spare_slot);
 	M0_UT_ASSERT(rc == -ENOENT);
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
 		if (state == M0_PNDS_SNS_REBALANCING ||
@@ -526,7 +539,7 @@ static void pm_test_spare_slot(void)
 		/* transit to other state other than the above one is invalid */
 		event.pe_state = state;
 		m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-		rc = m0_poolmach_state_transit(&pm, &event, &tx);
+		rc = m0_poolmach_state_transit(pm, &event, &tx);
 		m0_ut_be_tx_end(&tx);
 		M0_UT_ASSERT(rc == -EINVAL);
 	}
@@ -536,14 +549,14 @@ static void pm_test_spare_slot(void)
 	target_state = M0_PNDS_SNS_REBALANCING;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+	rc = m0_poolmach_device_state(pm, 1, &state_out);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(state_out == target_state);
 	/* the first spare slot is used by device 1 */
-	rc = m0_poolmach_sns_rebalance_spare_query(&pm, 1, &spare_slot);
+	rc = m0_poolmach_sns_rebalance_spare_query(pm, 1, &spare_slot);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 0);
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
@@ -553,7 +566,7 @@ static void pm_test_spare_slot(void)
 		/* transit to other state other than the above one is invalid */
 		event.pe_state = state;
 		m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-		rc = m0_poolmach_state_transit(&pm, &event, &tx);
+		rc = m0_poolmach_state_transit(pm, &event, &tx);
 		m0_ut_be_tx_end(&tx);
 		M0_UT_ASSERT(rc == -EINVAL);
 	}
@@ -562,14 +575,14 @@ static void pm_test_spare_slot(void)
 	target_state = M0_PNDS_ONLINE;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+	rc = m0_poolmach_device_state(pm, 1, &state_out);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(state_out == target_state);
 	/* the first spare slot is not used any more */
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 1, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 1, &spare_slot);
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	m0_fi_enable_off_n_on_m("m0_pooldev_clink_del",
@@ -578,31 +591,27 @@ static void pm_test_spare_slot(void)
 	/* Destroy poolmach persistent storage. We will have some different
 	 * poolmach parameters in next test case.
 	 */
-	m0_poolmach_store_destroy(&pm, be_seg, sm_grp, NULL);
+	m0_poolmach_store_destroy(pm, be_seg, sm_grp, NULL);
 	m0_fi_disable("m0_pooldev_clink_del", "do_nothing_for_poolmach-ut");
 	/* finally */
-	m0_poolmach_fini(&pm);
+	pool_pver_fini();
 }
 
 static void pm_test_multi_fail(void)
 {
-	struct m0_poolmach       pm;
-	struct m0_poolmach_event event;
-	enum m0_pool_nd_state    state_out;
-	enum m0_pool_nd_state    target_state;
-	struct m0_be_tx          tx;
-	struct m0_be_tx_credit   cred = {};
-	uint32_t                 spare_slot;
-	int                      rc;
+	struct m0_poolmach       *pm;
+	struct m0_poolmach_event  event;
+	enum m0_pool_nd_state     state_out;
+	enum m0_pool_nd_state     target_state;
+	struct m0_be_tx           tx;
+	struct m0_be_tx_credit    cred = {};
+	uint32_t                  spare_slot;
+	int                       rc;
 
-	M0_SET0(&pm);
-	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
-				      PM_TEST_DEFAULT_NODE_NUMBER,
-				      PM_TEST_DEFAULT_DEVICE_NUMBER,
-				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-				      3 /*three spare device */);
+	rc = pool_pver_init(4, 3);
 	M0_UT_ASSERT(rc == 0);
-	m0_poolmach_store_credit(&pm, &cred);
+	pm = &pver.pv_mach;
+	m0_poolmach_store_credit(pm, &cred);
 
 	event.pe_type  = M0_POOL_DEVICE;
 
@@ -611,10 +620,10 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_FAILED;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+	rc = m0_poolmach_device_state(pm, 1, &state_out);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(state_out == target_state);
 
@@ -623,10 +632,10 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_FAILED;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_device_state(&pm, 2, &state_out);
+	rc = m0_poolmach_device_state(pm, 2, &state_out);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(state_out == target_state);
 
@@ -635,11 +644,11 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_SNS_REPAIRING;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 	/* the first spare slot is used by device 1 */
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 1, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 1, &spare_slot);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 0);
 
@@ -648,11 +657,11 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_SNS_REPAIRING;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 	/* the second spare slot is used by device 2 */
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 2, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 2, &spare_slot);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 1);
 
@@ -662,11 +671,11 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_SNS_REPAIRED;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 	/* the first spare slot is used by device 1 */
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 1, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 1, &spare_slot);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 0);
 
@@ -675,11 +684,11 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_SNS_REPAIRED;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 	/* the second spare slot is used by device 2 */
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 2, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 2, &spare_slot);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 1);
 
@@ -689,11 +698,11 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_SNS_REBALANCING;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 	/* the first spare slot is used by device 1 */
-	rc = m0_poolmach_sns_rebalance_spare_query(&pm, 1, &spare_slot);
+	rc = m0_poolmach_sns_rebalance_spare_query(pm, 1, &spare_slot);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 0);
 
@@ -702,11 +711,11 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_SNS_REBALANCING;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 	/* the second spare slot is used by device 2 */
-	rc = m0_poolmach_sns_rebalance_spare_query(&pm, 2, &spare_slot);
+	rc = m0_poolmach_sns_rebalance_spare_query(pm, 2, &spare_slot);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 1);
 
@@ -716,10 +725,10 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_ONLINE;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 2, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 2, &spare_slot);
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	/* transit device 3 to FAILED */
@@ -727,16 +736,16 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_FAILED;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 	target_state = M0_PNDS_SNS_REPAIRING;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 3, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 3, &spare_slot);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 1);
 
@@ -745,10 +754,10 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_ONLINE;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 1, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 1, &spare_slot);
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	/* transit device 4 to FAILED */
@@ -756,16 +765,16 @@ static void pm_test_multi_fail(void)
 	target_state = M0_PNDS_FAILED;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 	target_state = M0_PNDS_SNS_REPAIRING;
 	event.pe_state = target_state;
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_sns_repair_spare_query(&pm, 4, &spare_slot);
+	rc = m0_poolmach_sns_repair_spare_query(pm, 4, &spare_slot);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 0);
 
@@ -773,48 +782,36 @@ static void pm_test_multi_fail(void)
 	 * in next test case.
 	 */
 	/* finally */
-	m0_poolmach_fini(&pm);
+	pool_pver_fini();
 }
 
 /* load from last test case */
 static void pm_test_load_from_persistent_storage(void)
 {
-	struct m0_poolmach pm;
-	int                rc = 0;
+	struct m0_poolmach *pm;
+	int                 rc = 0;
 
-	M0_SET0(&pm);
-	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
-				      PM_TEST_DEFAULT_NODE_NUMBER,
-				      PM_TEST_DEFAULT_DEVICE_NUMBER,
-				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-				      3 /* three spare device */);
+	rc = pool_pver_init(4, 3);
 	M0_UT_ASSERT(rc == 0);
-	m0_poolmach_fini(&pm);
+	pm = &pver.pv_mach;
+	pool_pver_fini();
 
 	/* Use some different parameters. Error should be returned. */
-	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
-				      PM_TEST_DEFAULT_NODE_NUMBER + 1,
-				      PM_TEST_DEFAULT_DEVICE_NUMBER,
-				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-				      3 /* three spare device */);
+	rc = pool_pver_init(4, 10);
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	/* Now with proper parameters, it should work again. */
-	rc = m0_poolmach_backed_init2(&pm, be_seg, sm_grp,
-				      PM_TEST_DEFAULT_NODE_NUMBER,
-				      PM_TEST_DEFAULT_DEVICE_NUMBER,
-				      PM_TEST_DEFAULT_MAX_NODE_FAILURE,
-				      3 /* three spare device */);
+	rc = pool_pver_init(4, 3);
 	M0_UT_ASSERT(rc == 0);
+	/* Now with proper parameters, it should work again. */
 
 	m0_fi_enable_off_n_on_m("m0_pooldev_clink_del",
 			  "do_nothing_for_poolmach-ut", 0,
 			  (PM_TEST_DEFAULT_DEVICE_NUMBER + 1));
 	/* Destroy poolmach persistent storage.
 	 */
-	m0_poolmach_store_destroy(&pm, be_seg, sm_grp, NULL);
+	m0_poolmach_store_destroy(pm, be_seg, sm_grp, NULL);
 	m0_fi_disable("m0_pooldev_clink_del", "do_nothing_for_poolmach-ut");
-	m0_poolmach_fini(&pm);
+	pool_pver_fini();
 }
 
 struct m0_ut_suite poolmach_ut = {

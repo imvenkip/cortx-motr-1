@@ -236,6 +236,11 @@ M0_TL_DESCR_DEFINE(pool_version, "pool versions", M0_INTERNAL,
 
 M0_TL_DEFINE(pool_version, M0_INTERNAL, struct m0_pool_version);
 
+M0_TL_DESCR_DEFINE(pool_failed_devs, "pool failed devices", M0_INTERNAL,
+		   struct m0_pooldev, pd_fail_linkage, pd_footer.ft_magic,
+		   M0_POOL_DEV_MAGIC, M0_POOL_DEVICE_HEAD_MAGIC);
+M0_TL_DEFINE(pool_failed_devs, M0_INTERNAL, struct m0_pooldev);
+
 static const struct m0_bob_type pver_bob = {
         .bt_name         = "m0_pool_version",
         .bt_magix_offset = M0_MAGIX_OFFSET(struct m0_pool_version,
@@ -279,6 +284,7 @@ M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id,
 		return M0_ERR(-ENOMEM);
 	pools_tlink_init(pool);
 	pool_version_tlist_init(&pool->po_vers);
+	pool_failed_devs_tlist_init(&pool->po_failed_devices);
 
 	M0_LEAVE();
 	return 0;
@@ -286,9 +292,13 @@ M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id,
 
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool)
 {
+	struct m0_pooldev *pd;
+
+	m0_tl_teardown(pool_failed_devs, &pool->po_failed_devices, pd);
 	pools_tlink_fini(pool);
 	pool_version_tlist_fini(&pool->po_vers);
 	m0_free(pool->po_dev2ios);
+	pool_failed_devs_tlist_fini(&pool->po_failed_devices);
 }
 
 static bool pools_common_invariant(const struct m0_pools_common *pc)
@@ -478,6 +488,8 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				     struct m0_sm_group  *sm_grp,
 				     struct m0_dtm       *dtm)
 {
+	int rc;
+
 	M0_ENTRY();
 
 	pv->pv_id = *id;
@@ -487,21 +499,20 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 	pv->pv_pool = pool;
 	pv->pv_nr_nodes = nr_nodes;
 	if (be_seg != NULL)
-		m0_poolmach_backed_init2(&pv->pv_mach, be_seg, sm_grp,
-					 pv->pv_nr_nodes, pv->pv_attr.pa_P,
-					 pv->pv_nr_nodes, pv->pv_attr.pa_K);
+		rc = m0_poolmach_backed_init2(&pv->pv_mach, pv, be_seg, sm_grp,
+					      pv->pv_nr_nodes, pv->pv_attr.pa_P,
+					      pv->pv_nr_nodes, pv->pv_attr.pa_K);
 	else
-		m0_poolmach_init(&pv->pv_mach, pv->pv_nr_nodes,
-				 pv->pv_attr.pa_P, pv->pv_nr_nodes,
-				 pv->pv_attr.pa_K);
-	pv->pv_mach.pm_pver = pv;
+		rc = m0_poolmach_init(&pv->pv_mach, pv, pv->pv_nr_nodes,
+				      pv->pv_attr.pa_P, pv->pv_nr_nodes,
+				      pv->pv_attr.pa_K);
 	m0_pool_version_bob_init(pv);
 	pool_version_tlink_init(pv);
 
 	M0_POST(pool_version_invariant(pv));
 	M0_LEAVE();
 
-	return 0;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL struct m0_pool_version *
@@ -587,6 +598,7 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 	     m0_poolmach_init_by_conf(&pv->pv_mach, pver);
 	if (rc == 0) {
 		pv->pv_pc = pc;
+		pv->pv_mach.pm_pver = pv;
 		memcpy(pv->pv_fd_tol_vec, pver->pv_nr_failures,
 		       M0_FTA_DEPTH_MAX * sizeof pver->pv_nr_failures[0]);
 		rc = m0_fd_tile_build(pver, pv, &failure_level) ?:

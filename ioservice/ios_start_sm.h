@@ -73,7 +73,11 @@ struct m0_ios_start_sm
 	struct m0_reqh             *ism_reqh;
 	/** BE TX instance, used three times, @see m0_ios_start_state */
 	struct m0_be_tx             ism_tx;
-	/* Pool machine associated with IO service */
+	/*
+	 * Pool machine associated with IO service.
+	 * XXX ios global pool machine is no longer needed and
+	 * needs to be removed.
+	 */
 	struct m0_poolmach         *ism_poolmach;
 	/** Confc context to open ism_fs_obj configuration object */
 	struct m0_confc_ctx         ism_confc_ctx;

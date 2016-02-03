@@ -69,14 +69,33 @@ static int repair_cm_prepare(struct m0_cm *cm)
 
 static void repair_cm_stop(struct m0_cm *cm)
 {
-	struct m0_sns_cm *scm = cm2sns(cm);
+	struct m0_sns_cm       *scm = cm2sns(cm);
+	struct m0_pools_common *pc = cm->cm_service.rs_reqh->rh_pools;
+	struct m0_pool         *pool;
+	struct m0_pooldev      *pd;
 
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
 	if (cm->cm_quiesce || cm->cm_abort) {
 		M0_LOG(M0_DEBUG, "repair stopped by %s cmd",
-				 cm->cm_quiesce ? "QUIESCE" : "ABORT");
+				cm->cm_quiesce ? "QUIESCE" : "ABORT");
+		goto out;
 	}
+
+	if (m0_cm_state_get(cm) == M0_CMS_FAIL)
+		goto out;
+
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		m0_tl_for(pool_failed_devs, &pool->po_failed_devices, pd) {
+			if (pd->pd_state == M0_PNDS_SNS_REPAIRING)
+				m0_sns_cm_ha_state_set(&pd->pd_id,
+						       M0_NC_REPAIRED);
+		} m0_tl_endfor;
+		if (!pool_failed_devs_tlist_is_empty(&pool->po_failed_devices))
+			m0_sns_cm_ha_state_set(&pool->po_id, M0_NC_REPAIRED);
+	} m0_tl_endfor;
+
+out:
 
 	m0_sns_cm_stop(cm);
 }

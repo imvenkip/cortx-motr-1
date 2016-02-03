@@ -317,8 +317,7 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
         }
         m0_dtx_fini(tx);
 
-	if (sns_cp->sc_stio.si_opcode == SIO_WRITE)
-		cp->c_ops->co_complete(cp);
+	cp->c_ops->co_complete(cp);
 
 	/* Cleanup before proceeding to next phase. */
 	m0_indexvec_free(&sns_cp->sc_stio.si_stob);

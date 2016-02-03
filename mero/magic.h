@@ -623,6 +623,12 @@ enum m0_magic_satchel {
 	/* pool_version_tl::td_head_magic (feasible code) */
 	M0_POOL_VERSION_HEAD_MAGIC = 0x33fea51b1ec0de77,
 
+	/* m0_pooldev::pd_footer::ft_magic (cool fido dido) */
+	M0_POOL_DEV_MAGIC = 0x33c001f1d0d1d077,
+
+	/* pool_failed_device_tl::td_head_magic (soiled seabed) */
+	M0_POOL_DEVICE_HEAD_MAGIC = 0x335011ed5eabed77,
+
 	/* m0_flset_tl::td_head_magic (doss dose doze) */
 	M0_FLSET_MAGIC = 0x33d055d05ed02e77,
 

@@ -381,6 +381,9 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 {
 	struct m0_poolmach            *poolmach;
 	struct m0_reqh                *reqh = service->rs_reqh;
+        struct m0_pools_common        *pc = reqh->rh_pools;
+        struct m0_pool                *pool = pools_tlist_head(&pc->pc_pools);
+        struct m0_pool_version        *pver = pool_version_tlist_head(&pool->po_vers);
 	struct m0_confc               *confc = &reqh->rh_confc;
 	struct m0_sm_group            *grp = m0_locality0_get()->lo_grp;
 	struct m0_ios_poolmach_args    ios_poolmach_args;
@@ -415,7 +418,7 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 		goto fs_close;
 	/* We are not using reqh->rh_sm_grp here, otherwise deadlock */
 	m0_sm_group_lock(grp);
-	rc = m0_poolmach_backed_init2(poolmach, reqh->rh_beseg, grp,
+	rc = m0_poolmach_backed_init2(poolmach, pver, reqh->rh_beseg, grp,
 				      ios_poolmach_args.nr_nodes,
 				      ios_poolmach_args.nr_sdevs,
 				      PM_DEFAULT_MAX_NODE_FAILURES,
@@ -440,16 +443,23 @@ exit:
 
 M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh)
 {
-	struct m0_poolmach *pm;
+        struct m0_pools_common *pc = reqh->rh_pools;
+        struct m0_pool         *pool = pools_tlist_head(&pc->pc_pools);
+        struct m0_pool_version *pver = pool_version_tlist_head(&pool->po_vers);
+	struct m0_poolmach     *pm;
 
 	/* XXX: it floods the log:
 	M0_LOG(M0_DEBUG, "key get for reqh=%p, key=%d", reqh, poolmach_key);*/
 	M0_PRE(reqh != NULL);
 	M0_PRE(!m0_reqh_lockers_is_empty(reqh, poolmach_key));
 
+/*
+	XXX Cleanup as part of ios pool machine removal.
 	m0_rwlock_read_lock(&reqh->rh_rwlock);
 	pm = m0_reqh_lockers_get(reqh, poolmach_key);
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
+*/
+	pm = &pver->pv_mach;
 	M0_POST(pm != NULL);
 	return pm;
 }

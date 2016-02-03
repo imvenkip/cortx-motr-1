@@ -167,6 +167,7 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 		state->pst_devices_array[i].pd_sdev_idx = 0;
 		state->pst_devices_array[i].pd_index = i;
 		state->pst_devices_array[i].pd_pm = pm;
+		pool_failed_devs_tlink_init(&state->pst_devices_array[i]);
 	}
 
 	for (i = 0; i < state->pst_max_device_failures; i++) {
@@ -177,6 +178,7 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 }
 
 static void poolmach_init(struct m0_poolmach       *pm,
+			  struct m0_pool_version   *pver,
 			  struct m0_poolmach_state *pm_state,
 			  struct m0_be_seg         *seg)
 {
@@ -188,10 +190,12 @@ static void poolmach_init(struct m0_poolmach       *pm,
 	pm->pm_state = pm_state;
 	pm->pm_be_seg = seg;
 	pm->pm_is_initialised = true;
+	pm->pm_pver = pver;
 	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
+				 struct m0_pool_version *pver,
 				 uint32_t            nr_nodes,
 				 uint32_t            nr_devices,
 				 uint32_t            max_node_failures,
@@ -220,12 +224,14 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 	m0_poolmach__state_init(state, nodes_array, nr_nodes, devices_array,
 				nr_devices, spare_usage_array,
 				max_node_failures, max_device_failures, pm);
-	poolmach_init(pm, state, NULL);
+	poolmach_init(pm, pver, state, NULL);
+
 	return M0_RC(0);
 }
 
 M0_INTERNAL
 int m0_poolmach_backed_init2(struct m0_poolmach *pm,
+			     struct m0_pool_version *pver,
 			     struct m0_be_seg   *be_seg,
 			     struct m0_sm_group *sm_grp,
 			     uint32_t            nr_nodes,
@@ -245,7 +251,7 @@ int m0_poolmach_backed_init2(struct m0_poolmach *pm,
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_exclusive_open_sync(&tx);
 	if (rc == 0) {
-		rc = m0_poolmach_backed_init(pm, be_seg, &tx, nr_nodes,
+		rc = m0_poolmach_backed_init(pm, pver, be_seg, &tx, nr_nodes,
 					     nr_devices, max_node_failures,
 					     max_device_failures);
 		m0_be_tx_close_sync(&tx);
@@ -259,6 +265,7 @@ int m0_poolmach_backed_init2(struct m0_poolmach *pm,
 
 M0_INTERNAL
 int m0_poolmach_backed_init(struct m0_poolmach *pm,
+			    struct m0_pool_version *pver,
 			    struct m0_be_seg   *be_seg,
 			    struct m0_be_tx    *be_tx,
 			    uint32_t            nr_nodes,
@@ -278,7 +285,7 @@ int m0_poolmach_backed_init(struct m0_poolmach *pm,
 			             max_device_failures,
 				     &state, pm);
 	if (rc == 0)
-		poolmach_init(pm, state, be_seg);
+		poolmach_init(pm, pver, state, be_seg);
 	return M0_RC(rc);
 }
 
@@ -286,6 +293,7 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 {
 	struct m0_poolmach_event_link *scan;
 	struct m0_poolmach_state      *state = pm->pm_state;
+	struct m0_pooldev             *pd;
 	struct m0_clink               *cl;
 	int                            i;
 
@@ -306,6 +314,10 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 		for (i = 0; i < state->pst_nr_devices; ++i) {
 			cl = &state->pst_devices_array[i].pd_clink;
 			m0_pooldev_clink_del(cl);
+			pd = &state->pst_devices_array[i];
+			if (pool_failed_devs_tlink_is_in(pd))
+				pool_failed_devs_tlist_del(pd);
+			pool_failed_devs_tlink_fini(pd);
 		}
 		m0_free(state->pst_spare_usage_array);
 		m0_free(state->pst_devices_array);
@@ -385,6 +397,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	struct m0_poolmach_state      *state;
 	struct m0_pool_spare_usage    *spare_array;
 	struct m0_poolmach_event_link  event_link;
+	struct m0_pool                *pool;
+	struct m0_pooldev             *pd;
 	enum m0_pool_nd_state          old_state = M0_PNDS_FAILED;
 	int                            rc = 0;
 	int                            i;
@@ -394,6 +408,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 
 	M0_SET0(&event_link);
 	state = pm->pm_state;
+	pool = pm->pm_pver->pv_pool;
 
 	if (!M0_IN(event->pe_type, (M0_POOL_NODE, M0_POOL_DEVICE)))
 		return M0_ERR(-EINVAL);
@@ -501,6 +516,9 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 				break;
 			}
 		}
+		pd = &state->pst_devices_array[event->pe_index];
+		if (pool_failed_devs_tlink_is_in(pd))
+			pool_failed_devs_tlist_del(pd);
 		break;
 	case M0_PNDS_FAILED:
 		/* alloc a sns repare spare slot */
@@ -520,6 +538,9 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 			 */
 			/* TODO add ADDB error message here */
 		}
+		pd = &state->pst_devices_array[event->pe_index];
+		if (!pool_failed_devs_tlink_is_in(pd))
+			pool_failed_devs_tlist_add_tail(&pool->po_failed_devices, pd);
 		break;
 	case M0_PNDS_SNS_REPAIRING:
 	case M0_PNDS_SNS_REPAIRED:
