@@ -65,6 +65,7 @@ pool_version_assignment()
 	local file3="0:3000"
 	local file4="0:4000"
 	local file5="0:5000"
+	local file6="0:6000"
 	# m0t1fs rpc end point, multiple mount on same
 	# node have different endpoint
 	local ctrl_from_pver0="^c|1:8"
@@ -237,6 +238,22 @@ pool_version_assignment()
 		return 1
 	}
 
+        touch $MERO_M0T1FS_MOUNT_DIR/$file5 || {
+                unmount_and_clean
+                return 1
+        }
+
+        setfattr -n lid -v 8 $MERO_M0T1FS_MOUNT_DIR/$file5
+        dd if=/dev/urandom of=$MERO_M0T1FS_MOUNT_DIR/$file5 bs=1M count=5 || {
+                unmount_and_clean
+                return 1
+        }
+
+        dd if=$MERO_M0T1FS_MOUNT_DIR/$file5 of=$MERO_M0T1FS_TEST_DIR/file5_copy bs=1M count=5 || {
+                umount_and_clean
+                return 1
+        }
+
         echo "Mark disk from pool version 1 as failed."
         dispatch_ha_events "[1: ("$disk_from_pver1", "$M0_NC_FAILED")]" "${all_eps[*]}" $console_ep || {
                 unmount_and_clean $multiple_pools
@@ -273,19 +290,19 @@ pool_version_assignment()
                 return 1
         }
 
-        touch $MERO_M0T1FS_MOUNT_DIR/$file5 || {
+        touch $MERO_M0T1FS_MOUNT_DIR/$file6 || {
                 unmount_and_clean $multiple_pools
                 return 1
         }
 
-        echo "Make io on $MERO_M0T1FS_MOUNT_DIR/$file5"
-        setfattr -n lid -v 8 $MERO_M0T1FS_MOUNT_DIR/$file5
-        dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$file5 bs=1M count=5 || {
+        echo "Make io on $MERO_M0T1FS_MOUNT_DIR/$file6"
+        setfattr -n lid -v 8 $MERO_M0T1FS_MOUNT_DIR/$file6
+        dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$file6 bs=1M count=5 || {
                 unmount_and_clean $multiple_pools
                 return 1
         }
 
-        pver_0=$(getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/$file5 | awk -F '=' 'NF > 1 { print $2 }')
+        pver_0=$(getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/$file6 | awk -F '=' 'NF > 1 { print $2 }')
         echo "pool version 0 id:  $pver_0"
         if  [ "$pver_0" == "$pver_1" ]
         then
@@ -293,10 +310,25 @@ pool_version_assignment()
                 nmount_and_clean
                 return 1
         fi
-        rm -vf $MERO_M0T1FS_MOUNT_DIR/$file5 || {
+
+        rm -vf $MERO_M0T1FS_MOUNT_DIR/$file6 || {
                 unmount_and_clean $multiple_pools
                 return 1
         }
+
+        echo "dgmode read: Read file created on previous pool version"
+        diff $MERO_M0T1FS_MOUNT_DIR/$file5 $MERO_M0T1FS_TEST_DIR/file5_copy || {
+                unmount_and_clean
+                return 1
+        }
+
+        echo "dgmode write: Remove file created on previous pool version"
+        rm -vf $MERO_M0T1FS_MOUNT_DIR/$file5 || {
+                unmount_and_clean
+                return 1
+        }
+
+        rm -vf $MERO_M0T1FS_TEST_DIR/file5_copy;
 
         echo "Mark disk from pool version 1 as REPAIRING"
         dispatch_ha_events "[1: ("$disk_from_pver1", "4")]" "${all_eps[*]}" $console_ep || {
