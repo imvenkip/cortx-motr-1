@@ -73,6 +73,7 @@ BuildRequires:  binutils-devel
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
 BuildRequires:  redhat-lsb-core
+BuildRequires:  python-ply
 
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       kmod-lustre-client

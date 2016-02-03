@@ -73,6 +73,7 @@ BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  %{lustre_devel}
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
+BuildRequires:  python-ply
 %if %{with systemd}
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
