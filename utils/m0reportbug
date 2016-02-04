@@ -3,12 +3,14 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.11
+VERSION=0.11.1
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-02-04 0.11.1  Warn, don't fail in case of VERSION discrepancy.
+###
 ### 2016-02-04 0.11    * Collect /etc/mero/genders.
 ###                    * Get stack of `mount' process.
 ###
@@ -514,5 +516,5 @@ optparse() {
 }
 
 [ $VERSION = "$(grep -A2 '^### Date' $PROG | tail -1 | cut -d' ' -f3)" ] ||
-    die 'VERSION must be updated'
+    warn 'VERSION must be updated'
 main "$@"
