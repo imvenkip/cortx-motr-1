@@ -3,13 +3,16 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.10.2
+VERSION=0.11
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
-### 2016-01-27 0.10.1  * add `df -h' probe
+### 2016-02-04 0.11    * Collect /etc/mero/genders.
+###                    * Get stack of `mount' process.
+###
+### 2016-02-02 0.10.2  Add `df -h' probe.
 ###
 ### 2016-01-27 0.10.1  * _path_src() is able to handle `lt-m0d'.
 ###                    * Compare VERSION with that of the topmost History
@@ -135,6 +138,7 @@ probes() {
         'uptime'
         'm0version'
         'rpm -qi mero'
+        'cat /etc/mero/genders'
         'uname -a'
         'cat /proc/cmdline'
         'cat /proc/cpuinfo'
@@ -301,7 +305,7 @@ EOF
 backtraces_live() {
     local pid task
 
-    pgrep '\<(lt-)?m0|\<(dd|fio)\>' | while read pid; do
+    pgrep '\<(lt-)?m0|\<(dd|fio|mount)\>' | while read pid; do
         local args="$(ps h -o args $pid)"
         [ -n "$args" ] || continue # the process may be gone
         local prog=$(echo $args | cut -d' ' -f1)
