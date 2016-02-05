@@ -165,7 +165,9 @@ package Tie::Array::Lazy::YAMLstream;
                 $self->{current} = YAML::XS::Load( $doc );
             }
             catch {
-                carp "malformed YAML data: $_";
+                my ($doc_without_msg) = $doc =~ /^(.*)(?=msg:)/xms;
+                carp "malformed YAML data: $_\n"
+                     . "guilty trace record:\n$doc_without_msg";
                 $self->{current} = undef;
             };
 
