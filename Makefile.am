@@ -432,6 +432,7 @@ net_lnet_ut_m0kut_helper_LDADD     = $(top_builddir)/mero/libmero.la \
 
 if ENABLE_UNIT_TESTS
 bin_PROGRAMS     += ut/m0ut
+bin_SCRIPTS      += ut/m0kut
 endif
 ut_m0ut_CPPFLAGS  = -DM0_TARGET='m0ut' $(AM_CPPFLAGS)
 ut_m0ut_LDADD     = $(top_builddir)/ut/libmero-ut.la \
@@ -613,7 +614,7 @@ sbin_SCRIPTS  += utils/m0gendisks \
                  utils/m0reportbug \
                  utils/m0run
 
-bin_SCRIPTS   += ut/m0kut
+bin_SCRIPTS += utils/m0confgen
 
 #
 # m0t1fs/linux_kernel/st
