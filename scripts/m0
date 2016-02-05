@@ -42,8 +42,7 @@ _make() {
 }
 
 build() {
-    autoreconf -ifs
-    ./configure ${CONFIGURE_OPTS:-}
+    cmd_configure
     _make
 }
 
@@ -58,10 +57,16 @@ rundir_init() {
     cd "$RUNDIR"
 }
 
+cmd_configure() {
+    cd "$M0_SRC_DIR"
+    autoreconf -ifs
+    ./configure ${CONFIGURE_OPTS:-}
+}
+
 cmd_make() {
     cd "$M0_SRC_DIR"
     if [ -f Makefile ]; then
-        _make
+        _make "$@"
     else
         build
     fi
@@ -159,7 +164,9 @@ usage() {
 Usage: $PROG {COMMAND [OPTION]...}...
 
 Commands:
-    make                 Execute 'make' in Mero directory, falling back to
+    configure            Configure Mero sources (see CONFIGURE_OPTS below).
+
+    make [TARGET]...     Execute 'make' in Mero directory, falling back to
                          '$PROG rebuild' if no Makefile is found.
 
     rebuild              Clean and build the whole Mero anew.
@@ -212,7 +219,7 @@ OPTS=
 while [ $# -gt 0 ]; do
     case $1 in
         make|clean|rebuild|run-ut|run-kut|run-st|run-all|dist-check| \
-            check-everything|help)
+            check-everything|configure|help)
             [ -z "$CMD" ] || _exec $CMD $OPTS
             CMD=cmd_${1//-/_}
             OPTS=;;
