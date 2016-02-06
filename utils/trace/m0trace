@@ -373,7 +373,10 @@ sub match_msg
     return 1
         if !defined $cli_option{msg};
 
-    return $tr->{msg} =~ /$cli_option{msg}/ms;
+    my $highlighted_msg = ( $tr->{msg}
+        =~ s/($cli_option{msg})/color('red') . $1 . color('bright_white')/grems );
+
+    return $tr->{msg} =~ /$cli_option{msg}/ms && ($tr->{msg} = $highlighted_msg);
 }
 
 sub level_color
