@@ -81,6 +81,10 @@ M0_INTERNAL void m0_strings_free(const char **arr);
 
 M0_INTERNAL const char **m0_strings_dup(const char **src);
 
+M0_INTERNAL char *
+m0_vsnprintf(char *buf, size_t buflen, const char *format, ...)
+	__attribute__((format (printf, 3, 4)));
+
 #endif /* __MERO_LIB_STRING_H__ */
 
 /*

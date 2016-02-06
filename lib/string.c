@@ -18,12 +18,14 @@
  * Original creation date: 21-Aug-2014
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 #include "lib/types.h"        /* m0_bcount_t */
 #include "lib/memory.h"       /* M0_ALLOC_ARR */
 #include "lib/misc.h"         /* ARRAY_SIZE */
 #include "lib/finject.h"      /* M0_FI_ENABLED */
 #include "lib/string.h"
-
 
 const char *m0_bcount_with_suffix(char *buf, size_t size, m0_bcount_t c)
 {
@@ -75,6 +77,23 @@ M0_INTERNAL const char **m0_strings_dup(const char **src)
 
 	return (const char **)dest;
 }
+
+M0_INTERNAL char *
+m0_vsnprintf(char *buf, size_t buflen, const char *format, ...)
+{
+	va_list ap;
+	int     n;
+
+	va_start(ap, format);
+	n = vsnprintf(buf, buflen, format, ap);
+	va_end(ap);
+	M0_ASSERT(n > 0);
+	if ((size_t)n >= buflen)
+		M0_LOG(M0_WARN, "Output was truncated");
+	return buf;
+}
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
