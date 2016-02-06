@@ -1,4 +1,3 @@
-/* -*- C -*- */
 /*
  * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
  *
@@ -600,8 +599,8 @@ M0_INTERNAL int m0_confd_cache_preload_string(struct m0_conf_cache *cache,
 	/* Check for orphan configuration object. */
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
 		M0_ASSERT_INFO(((m0_conf_obj_type(obj)== &M0_CONF_ROOT_TYPE) ||
-				 obj->co_parent != NULL ||
-				 m0_tlink_is_in(&m0_conf_dir_tl, obj)),
+				obj->co_parent != NULL ||
+				m0_tlink_is_in(&m0_conf_dir_tl, obj)),
 			       FID_F" is not part of configuration tree.",
 			       FID_P(&obj->co_id));
 	} m0_tlist_endfor;

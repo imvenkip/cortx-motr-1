@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2016 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -20,78 +20,192 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
+#include <glob.h>
 #include "conf/validation.h"
-#include "conf/confc.h"
+#include "conf/cache.h"
+#include "conf/preload.h"  /* m0_conf_cache_from_string */
+#include "lib/string.h"    /* m0_streq */
+#include "lib/memory.h"    /* m0_free */
+#include "lib/fs.h"        /* m0_file_read */
 #include "ut/ut.h"
 
-#define XXX_WIP__CONF_VALIDATION 0 /* XXX DELETEME */
+static char                 g_buf[128];
+static struct m0_conf_cache g_cache;
+static struct m0_mutex      g_cache_lock;
 
-#if XXX_WIP__CONF_VALIDATION
-static struct m0_confc    g_confc;
-static struct m0_sm_group g_grp;
-#endif
-static char               g_buf[128];
-
-static void test_path(void)
-{
-#if XXX_WIP__CONF_VALIDATION
-	const struct m0_fid bad_profile = M0_FID_TINIT('p', ~0, 9);
-	char               *err;
-
-	err = m0_conf_path_validate(cache, g_buf, sizeof g_buf,
-				    M0_CONF_ROOT_PROFILES_FID);
-	M0_UT_ASSERT(err == NULL);
-	err = m0_conf_path_validate(cache, g_buf, sizeof g_buf,
-				    M0_CONF_ROOT_PROFILES_FID,
-				    &bad_profile);
-	M0_UT_ASSERT(m0_streq(err,
-			      "No such path component: <70ffffffffffffff:9>"));
-	err = m0_conf_path_validate(cache, g_buf, sizeof g_buf,
-				    M0_CONF_ROOT_PROFILES_FID, XXX_profile,
-				    M0_CONF_PROFILE_FILESYSTEM_FID,
-				    M0_CONF_FILESYSTEM_RACKS_FID,
-				    M0_CONF_RACK_ENCLS_FID,
-				    M0_CONF_ENCLOSURE_CTRLS_FID);
-	M0_UT_ASSERT(err == NULL);
-#else
-	/* M0_UT_ASSERT(!"XXX IMPLEMENTME"); */
-#endif
-}
+static char *sharp_comment(const char *input);
+static void cache_load(struct m0_conf_cache *cache, const char *path,
+		       char **sharp_out);
 
 static void test_validation(void)
 {
-	char *err;
+	glob_t g = {0};
+	char **pathv;
+	char  *err;
+	char  *expected;
+	int    rc;
 
-	err = m0_conf_validation_error(NULL, g_buf, sizeof g_buf);
-	M0_UT_ASSERT(err == NULL);
-	/* M0_UT_ASSERT(!"XXX IMPLEMENTME"); */
+	rc = glob(M0_SRC_PATH("conf/ut/t_*.xc"), 0, NULL, &g);
+	M0_UT_ASSERT(rc == 0);
+	for (pathv = g.gl_pathv; *pathv != NULL; ++pathv) {
+		cache_load(&g_cache, *pathv, &expected);
+
+		err = m0_conf_validation_error(&g_cache, g_buf, sizeof g_buf);
+		M0_UT_ASSERT((err == NULL) == (expected == NULL));
+		if (expected != NULL)
+			M0_UT_ASSERT(m0_streq(err, expected));
+		free(expected);
+
+		m0_conf_cache_lock(&g_cache);
+		m0_conf_cache_clean(&g_cache, NULL);
+		m0_conf_cache_unlock(&g_cache);
+	}
+	globfree(&g);
 }
 
-#if XXX_WIP__CONF_VALIDATION
+static void test_path(void)
+{
+	const char *err;
+
+	cache_load(&g_cache, M0_SRC_PATH("conf/ut/t_path.xc"), NULL);
+	m0_conf_cache_lock(&g_cache);
+	err = m0_conf_path_validate(g_buf, sizeof g_buf, &g_cache, NULL,
+				    M0_CONF_ROOT_FID);
+	M0_UT_ASSERT(m0_streq(err, "Unreachable path:"
+			      " <7400000000000001:0>/<7400000000000001:0>"));
+	err = m0_conf_path_validate(g_buf, sizeof g_buf, &g_cache, NULL,
+				    M0_CONF_ROOT_PROFILES_FID,
+				    M0_FID_TINIT('p', 1, 0), /* profile-0 */
+				    M0_CONF_PROFILE_FILESYSTEM_FID,
+				    M0_CONF_FILESYSTEM_NODES_FID,
+				    M0_CONF_ANY_FID);
+	M0_UT_ASSERT(err == NULL);
+	err = m0_conf_path_validate(g_buf, sizeof g_buf, &g_cache, NULL,
+				    M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
+				    M0_CONF_PROFILE_FILESYSTEM_FID,
+				    M0_CONF_FILESYSTEM_NODES_FID,
+				    M0_CONF_ANY_FID);
+	M0_UT_ASSERT(m0_streq(err, "Conf object is not ready:"
+			      " <6e00000000000001:2>"));
+	/*
+	 * We have to clean the cache, otherwise the following test will fail:
+	 *
+	 *   cache_load
+	 *    \_ m0_conf_cache_from_string
+	 *        \_ m0_conf_obj_fill
+	 *            \_ M0_PRE(m0_conf_obj_is_stub(dest)) ==> BOOM!
+	 */
+	m0_conf_cache_clean(&g_cache, NULL);
+	m0_conf_cache_unlock(&g_cache);
+}
+
+/**
+ * If the first line of the input matches /^#+=/ regexp, sharp_comment()
+ * returns the remainder of this line without the matched prefix.
+ * The returned string is stripped of leading and trailing blanks.
+ *
+ * If there is no match, sharp_comment() returns NULL.
+ *
+ * @note  The returned pointer should be free()d. (But not m0_free()d.)
+ */
+static char *sharp_comment(const char *input)
+{
+	const char *start = input;
+	const char *end;
+
+	if (*start != '#')
+		return NULL; /* not a comment */
+
+	while (*start == '#')
+		++start;
+	if (*start != '=')
+		return NULL; /* an ordinary, not a "sharp", comment */
+	for (++start; isblank(*start); ++start) /* NB space_skip() */
+		; /* lstrip */
+
+	for (end = start; !M0_IN(*end, (0, '\n')); ++end)
+		;
+	while (isblank(*(end-1)) && end-1 > start)
+		--end; /* rstrip */
+	return strndup(start, end - start);
+}
+
+static void test_sharp_comment(void)
+{
+	static const struct {
+		const char *input;
+		const char *result;
+	} samples[] = {
+		{ "", NULL },
+		{ "# ordinary comment", NULL },
+		{ "not a comment", NULL },
+		{ " #= not at start of the line", NULL },
+		{ "#= special comment\nanything", "special comment" },
+		{ "###=  \t text\t ", "text" },
+		{ "#=no leading space", "no leading space" },
+		{ "#= ", "" },
+		{ "#==", "=" }
+	};
+	char  *s;
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(samples); ++i) {
+		if (samples[i].result == NULL) {
+		    M0_UT_ASSERT(sharp_comment(samples[i].input) == NULL);
+		} else {
+			s = sharp_comment(samples[i].input);
+			M0_UT_ASSERT(m0_streq(s, samples[i].result));
+			free(s);
+		}
+	}
+}
+
+/**
+ * @note Don't forget to m0_free(*sharp_out).
+ */
+static void
+cache_load(struct m0_conf_cache *cache, const char *path, char **sharp_out)
+{
+	char *confstr = NULL;
+	int   rc;
+
+	M0_PRE(path != NULL && *path != '\0');
+
+	rc = m0_file_read(path, &confstr);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_conf_cache_lock(cache);
+	rc = m0_conf_cache_from_string(cache, confstr);
+	M0_UT_ASSERT(rc == 0);
+	m0_conf_cache_unlock(cache);
+
+	if (sharp_out != NULL)
+		*sharp_out = sharp_comment(confstr);
+	m0_free(confstr);
+}
+
 static int conf_validation_ut_init(void)
 {
-	M0_SET0(&g_grp);
-	m0_sm_group_init(&g_grp);
-	return m0_confc_init(&g_confc, &g_grp, NULL, NULL, "XXX_confstr");
+	m0_mutex_init(&g_cache_lock);
+	m0_conf_cache_init(&g_cache, &g_cache_lock);
+	return 0;
 }
 
 static int conf_validation_ut_fini(void)
 {
-	m0_confc_fini(&g_confc);
-	m0_sm_group_fini(&g_grp);
+	m0_conf_cache_fini(&g_cache);
+	m0_mutex_fini(&g_cache_lock);
 	return 0;
 }
-#endif
 
 struct m0_ut_suite conf_validation_ut = {
 	.ts_name  = "conf-validation",
-#if XXX_WIP__CONF_VALIDATION
 	.ts_init  = conf_validation_ut_init,
 	.ts_fini  = conf_validation_ut_fini,
-#endif
 	.ts_tests = {
-		{ "path",       test_path },
-		{ "validation", test_validation },
+		{ "sharp-comment", test_sharp_comment },
+		{ "path",          test_path },
+		{ "validation",    test_validation },
 		{ NULL, NULL }
 	}
 };

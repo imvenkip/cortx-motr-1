@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2016 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -27,6 +27,11 @@
 #include "lib/trace.h"
 
 #include "conf/validation.h"
+#include "conf/cache.h"
+#include "conf/obj.h"
+#include "conf/obj_ops.h"  /* m0_conf_dir_tl */
+#include "lib/string.h"    /* m0_vsnprintf */
+#include "lib/errno.h"     /* ENOENT */
 
 extern const struct m0_conf_ruleset m0_ios_rules;
 extern const struct m0_conf_ruleset m0_pool_rules;
@@ -61,18 +66,56 @@ char *m0_conf_validation_error(const struct m0_conf_cache *cache,
 			err = rule->cvr_error(cache, _buf, _buflen);
 			if (err == NULL)
 				continue;
-			if (err != _buf) {
-				rc = snprintf(buf, buflen, "%s.%s: %s",
-					      conf_validity_checks[i]->cv_name,
-					      rule->cvr_name,
-					      err);
-				M0_ASSERT(rc > 0);
-				/* Do not assert that rc < buflen,
-				 * let the string be truncated. */
-			}
-			buf[buflen - 1] = '\0';
-			return buf;
+			return err == _buf ? buf : m0_vsnprintf(
+				buf, buflen, "%s.%s: %s",
+				conf_validity_checks[i]->cv_name,
+				rule->cvr_name, err);
 		}
+	}
+	return NULL;
+}
+
+M0_INTERNAL char *m0_conf__path_validate(const struct m0_conf_cache *cache,
+					 struct m0_conf_obj *start,
+					 const struct m0_fid *path,
+					 char *buf, size_t buflen)
+{
+	struct m0_conf_obj *obj;
+	int                 rc;
+
+	M0_PRE(m0_conf_cache_is_locked(cache));
+
+	obj = start ?: m0_conf_cache_lookup(cache, &M0_CONF_ROOT_FID);
+	if (obj == NULL)
+		return m0_vsnprintf(buf, buflen, "No root object");
+	if (obj->co_status != M0_CS_READY)
+		return m0_vsnprintf(buf, buflen, "Conf object is not ready: "
+				    FID_F, FID_P(&obj->co_id));
+
+	for (; m0_fid_is_set(path) /* !eop */; ++path) {
+		if (m0_fid_eq(path, &M0_CONF_ANY_FID)) {
+			const struct m0_conf_dir *dir =
+				M0_CONF_CAST(obj, m0_conf_dir);
+			char *err = NULL;
+
+			if (!m0_tl_forall(m0_conf_dir, x, &dir->cd_items,
+					  /* recursive call */
+					  (err = m0_conf__path_validate(
+						  cache, x, path + 1,
+						  buf, buflen)) == NULL))
+				return err;
+			return NULL;
+		}
+		rc = obj->co_ops->coo_lookup(obj, path, &obj);
+		if (rc == -ENOENT)
+			return m0_vsnprintf(buf, buflen, "Unreachable path: "
+					    FID_F "/" FID_F, FID_P(&obj->co_id),
+					    FID_P(path));
+		M0_ASSERT(rc == 0);
+		if (obj->co_status != M0_CS_READY)
+			return m0_vsnprintf(buf, buflen,
+					    "Conf object is not ready: " FID_F,
+					    FID_P(&obj->co_id));
 	}
 	return NULL;
 }

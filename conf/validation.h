@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2016 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -22,6 +22,8 @@
 #define __MERO_CONF_VALIDATION_H__
 
 struct m0_conf_cache;
+struct m0_conf_obj;
+struct m0_fid;
 
 /**
  * @defgroup conf_validation
@@ -81,6 +83,48 @@ struct m0_conf_ruleset {
 	 */
 	struct m0_conf_rule cv_rules[M0_CONF_RULES_MAX];
 };
+
+/**
+ * Checks whether configuration path is passable.
+ *
+ * Returns NULL if the path can be traversed in full, i.e., if all
+ * configuration objects along the pass are accessible and M0_CS_READY.
+ * Otherwise m0_conf_path_validate() returns a pointer to a string that
+ * describes the problem.
+ *
+ * @param buf     Error message buffer; see m0_conf_validation_error().
+ * @param buflen  The length of `buf'; see m0_conf_validation_error().
+ * @param cache   Configuration cache.
+ * @param start   Configuration object to start traversal from.
+ * @param ...     Path to validate. The path is relative to `start' object.
+ *
+ * If a path component leads to a m0_conf_dir object, then the next path
+ * component (if there is any) should be either fid of a particular dir item,
+ * or M0_CONF_ANY_FID. The latter makes m0_conf_path_validate() check the
+ * remaining path for every item in the dir --- this is usually what user
+ * wants to do.
+ *
+ * Example:
+ * @code
+ * // Check if all m0_conf_profile, m0_conf_filesystem, and m0_conf_node
+ * // objects are ready.
+ * err = m0_conf_path_validate(buf, buflen, cache, NULL,
+ *                             M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
+ *                             M0_CONF_PROFILE_FILESYSTEM_FID,
+ *                             M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID);
+ * @endcode
+ *
+ * @pre  m0_conf_cache_is_locked(cache)
+ */
+#define m0_conf_path_validate(buf, buflen, cache, start, ...)     \
+	m0_conf__path_validate(                                   \
+		(cache), (start),                                 \
+		(const struct m0_fid []){ __VA_ARGS__, M0_FID0 }, \
+		(buf), (buflen))
+M0_INTERNAL char *m0_conf__path_validate(const struct m0_conf_cache *cache,
+					 struct m0_conf_obj *start,
+					 const struct m0_fid *path,
+					 char *buf, size_t buflen);
 
 /** @} */
 #endif /* __MERO_CONF_VALIDATION_H__ */

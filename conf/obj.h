@@ -603,6 +603,7 @@ M0_CONF_OBJ_TYPES;
 
 /* Relation fids. */
 #define M0_CONF_REL_FIDS               \
+	X_CONF(ANY,               -1); \
 	X_CONF(ROOT_PROFILES,      1); \
 	X_CONF(PROFILE_FILESYSTEM, 2); \
 	X_CONF(FILESYSTEM_NODES,   3); \

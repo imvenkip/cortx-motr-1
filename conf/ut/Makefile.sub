@@ -12,4 +12,6 @@ ut_libmero_ut_la_SOURCES += \
     conf/ut/rconfc.c        \
     conf/ut/validation.c
 
-CONFXC_FILES += conf/ut/duplicated-ids.xc
+CONFXC_FILES += \
+    conf/ut/duplicated-ids.xc \
+    conf/ut/t_path.xc
