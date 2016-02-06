@@ -76,6 +76,8 @@ struct m0_confx;
  *
  * @pre str != NULL
  * @pre m0_conf_cache_is_locked(cache)
+ *
+ * @see m0_conf_cache_to_string()
  */
 M0_INTERNAL int m0_conf_cache_from_string(struct m0_conf_cache *cache,
 					  const char           *str);

@@ -161,9 +161,8 @@ M0_BASSERT(offsetof(struct m0_confx_pool, xp_header) == 0);
 static bool pool_check(const void *bob)
 {
 	const struct m0_conf_pool *self = bob;
-	const struct m0_conf_obj  *self_obj = &self->pl_obj;
 
-	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_POOL_TYPE);
+	M0_PRE(m0_conf_obj_type(&self->pl_obj) == &M0_CONF_POOL_TYPE);
 
 	return true;
 }

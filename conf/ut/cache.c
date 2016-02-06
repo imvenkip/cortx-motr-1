@@ -44,9 +44,9 @@ void test_obj_xtors(void)
 		obj = m0_conf_obj_create(&g_cache, &fid);
 		M0_UT_ASSERT(obj != NULL);
 
-		m0_mutex_lock(&g_lock);
+		m0_conf_cache_lock(&g_cache);
 		m0_conf_obj_delete(obj);
-		m0_mutex_unlock(&g_lock);
+		m0_conf_cache_unlock(&g_cache);
 	}
 }
 
@@ -62,9 +62,9 @@ ut_conf_obj_create(const struct m0_fid *fid, struct m0_conf_obj **result)
 	M0_UT_ASSERT(*result != NULL);
 	M0_UT_ASSERT(m0_fid_eq(&(*result)->co_id, fid));
 
-	m0_mutex_lock(&g_lock);
+	m0_conf_cache_lock(&g_cache);
 	rc = m0_conf_cache_add(&g_cache, *result);
-	m0_mutex_unlock(&g_lock);
+	m0_conf_cache_unlock(&g_cache);
 	M0_UT_ASSERT(rc == 0);
 
 	M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache, fid) == *result);
@@ -72,9 +72,9 @@ ut_conf_obj_create(const struct m0_fid *fid, struct m0_conf_obj **result)
 
 static void ut_conf_obj_delete(struct m0_conf_obj *obj)
 {
-	m0_mutex_lock(&g_lock);
+	m0_conf_cache_lock(&g_cache);
 	m0_conf_cache_del(&g_cache, obj);
-	m0_mutex_unlock(&g_lock);
+	m0_conf_cache_unlock(&g_cache);
 
 	M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache, &obj->co_id) == NULL);
 }
@@ -115,14 +115,14 @@ void test_cache(void)
 	obj = m0_conf_obj_create(&g_cache, &samples[0]);
 	M0_UT_ASSERT(obj != NULL);
 
-	m0_mutex_lock(&g_lock);
+	m0_conf_cache_lock(&g_cache);
 	rc = m0_conf_cache_add(&g_cache, obj);
-	m0_mutex_unlock(&g_lock);
+	m0_conf_cache_unlock(&g_cache);
 	M0_UT_ASSERT(rc == -EEXIST);
 
-	m0_mutex_lock(&g_lock);
+	m0_conf_cache_lock(&g_cache);
 	m0_conf_obj_delete(obj);
-	m0_mutex_unlock(&g_lock);
+	m0_conf_cache_unlock(&g_cache);
 }
 
 void test_obj_find(void)
@@ -132,7 +132,7 @@ void test_obj_find(void)
 	struct m0_conf_obj *p = NULL;
 	struct m0_conf_obj *q = NULL;
 
-	m0_mutex_lock(&g_lock);
+	m0_conf_cache_lock(&g_cache);
 
 	rc = m0_conf_obj_find(&g_cache, &id, &p);
 	M0_UT_ASSERT(rc == 0);
@@ -146,7 +146,7 @@ void test_obj_find(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(q != p);
 
-	m0_mutex_unlock(&g_lock);
+	m0_conf_cache_unlock(&g_cache);
 }
 
 void test_obj_fill(void)
@@ -166,7 +166,7 @@ void test_obj_fill(void)
 	M0_UT_ASSERT(enc->cx_nr == M0_UT_CONF_NR_OBJS);
 	m0_free0(&confstr);
 
-	m0_mutex_lock(&g_lock);
+	m0_conf_cache_lock(&g_cache);
 	for (i = 0; i < enc->cx_nr; ++i) {
 		struct m0_confx_obj *xobj = M0_CONFX_AT(enc, i);
 
@@ -174,7 +174,7 @@ void test_obj_fill(void)
 			m0_conf_obj_fill(obj, xobj, &g_cache);
 		M0_UT_ASSERT(rc == 0);
 	}
-	m0_mutex_unlock(&g_lock);
+	m0_conf_cache_unlock(&g_cache);
 
 	m0_confx_free(enc);
 }

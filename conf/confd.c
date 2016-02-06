@@ -21,19 +21,17 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
-#include "lib/string.h"
 
-#include "conf/confc.h"
 #include "conf/confd.h"
 #include "conf/obj_ops.h"  /* m0_conf_obj_find */
 #include "conf/onwire.h"   /* m0_confx, m0_confx_obj */
 #include "conf/preload.h"  /* m0_confx_free */
 #include "lib/errno.h"     /* ENOMEM */
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
+#include "lib/string.h"    /* m0_strdup */
 #include "lib/fs.h"        /* m0_file_read */
 #include "mero/magic.h"    /* M0_CONFD_MAGIC */
-#include "reqh/reqh_service.h"
-#include "mero/setup.h"
+#include "mero/setup.h"    /* m0_reqh_context */
 
 /**
  * @page confd-lspec-page confd Internals
@@ -485,7 +483,7 @@ static int confd_allocate(struct m0_reqh_service            **service,
 
 	M0_ALLOC_PTR(confd);
 	if (confd == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	m0_bob_init(&m0_confd_bob, confd);
 	*service = &confd->d_reqh;

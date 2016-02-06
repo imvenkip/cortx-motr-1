@@ -31,9 +31,8 @@ M0_BASSERT(offsetof(struct m0_confx_node, xn_header) == 0);
 static bool node_check(const void *bob)
 {
 	const struct m0_conf_node *self = bob;
-	const struct m0_conf_obj  *self_obj = &self->cn_obj;
 
-	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_NODE_TYPE);
+	M0_PRE(m0_conf_obj_type(&self->cn_obj) == &M0_CONF_NODE_TYPE);
 
 	return true;
 }

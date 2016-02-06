@@ -31,9 +31,8 @@ M0_BASSERT(offsetof(struct m0_confx_objv, xj_header) == 0);
 static bool objv_check(const void *bob)
 {
 	const struct m0_conf_objv *self = bob;
-	const struct m0_conf_obj  *self_obj = &self->cv_obj;
 
-	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_OBJV_TYPE);
+	M0_PRE(m0_conf_obj_type(&self->cv_obj) == &M0_CONF_OBJV_TYPE);
 
 	return true;
 }

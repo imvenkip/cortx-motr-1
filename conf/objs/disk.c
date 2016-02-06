@@ -30,9 +30,8 @@ M0_BASSERT(offsetof(struct m0_confx_disk, xk_header) == 0);
 static bool disk_check(const void *bob)
 {
 	const struct m0_conf_disk *self = bob;
-	const struct m0_conf_obj  *self_obj = &self->ck_obj;
 
-	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_DISK_TYPE);
+	M0_PRE(m0_conf_obj_type(&self->ck_obj) == &M0_CONF_DISK_TYPE);
 
 	return true;
 }

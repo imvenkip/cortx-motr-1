@@ -22,8 +22,6 @@
 
 #include "conf/objs/common.h"
 #include "conf/cache.h"
-#include "conf/objs/common.h"
-#include "conf/cache.h"
 
 #define X_CONF(name, key)                              \
 	const struct m0_fid M0_CONF_ ## name ## _FID = \

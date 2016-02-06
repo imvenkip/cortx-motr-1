@@ -166,6 +166,8 @@ m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 /**
  * Creates conf string representation of all objects in the cache,
  * except m0_conf_dir objects.
+ *
+ * @see m0_conf_cache_from_string()
  */
 M0_INTERNAL int m0_conf_cache_to_string(struct m0_conf_cache *cache, char **str,
 					bool debug);

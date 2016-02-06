@@ -19,11 +19,12 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
-#include "lib/string.h"      /* m0_strings_free */
+
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"  /* m0_confx_service_xc */
 #include "conf/schema.h"     /* M0_CONF_SVC_TYPE_IS_VALID */
 #include "mero/magic.h"      /* M0_CONF_SERVICE_MAGIC */
+#include "lib/string.h"      /* m0_strings_free */
 
 static bool service_check(const void *bob)
 {

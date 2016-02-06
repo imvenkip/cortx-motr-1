@@ -30,9 +30,8 @@ M0_BASSERT(offsetof(struct m0_confx_profile, xp_header) == 0);
 static bool profile_check(const void *bob)
 {
 	const struct m0_conf_profile *self = bob;
-	const struct m0_conf_obj     *self_obj = &self->cp_obj;
 
-	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_PROFILE_TYPE);
+	M0_PRE(m0_conf_obj_type(&self->cp_obj) == &M0_CONF_PROFILE_TYPE);
 
 	return true;
 }

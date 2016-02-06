@@ -29,7 +29,16 @@ M0_TL_DESCR_DEFINE(m0_conf_dir, "m0_conf_dir::cd_items", M0_INTERNAL,
 		   M0_CONF_OBJ_MAGIC, M0_CONF_DIR_MAGIC);
 M0_TL_DEFINE(m0_conf_dir, M0_INTERNAL, struct m0_conf_obj);
 
-M0_CONF__BOB_DEFINE(m0_conf_dir, M0_CONF_DIR_MAGIC, NULL);
+static bool dir_check(const void *bob)
+{
+	const struct m0_conf_dir *self = bob;
+
+	M0_PRE(m0_conf_obj_type(&self->cd_obj) == &M0_CONF_DIR_TYPE);
+
+	return true;
+}
+
+M0_CONF__BOB_DEFINE(m0_conf_dir, M0_CONF_DIR_MAGIC, dir_check);
 M0_CONF__INVARIANT_DEFINE(dir_invariant, m0_conf_dir);
 
 static int dir_decode(struct m0_conf_obj        *dest M0_UNUSED,
@@ -135,18 +144,19 @@ static int dir_readdir(struct m0_conf_obj *dir, struct m0_conf_obj **pptr)
 	return ret;
 }
 
-static int dir_lookup(struct m0_conf_obj  *parent, const struct m0_fid *name,
+static int dir_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 		      struct m0_conf_obj **out)
 {
 	struct m0_conf_dir *x = M0_CONF_CAST(parent, m0_conf_dir);
+	struct m0_conf_obj *obj;
 
 	M0_PRE(parent->co_status == M0_CS_READY);
 
-	*out = m0_tl_find(m0_conf_dir, item, &x->cd_items,
-			  m0_fid_eq(&item->co_id, name));
-	if (*out == NULL)
+	obj = m0_tl_find(m0_conf_dir, item, &x->cd_items,
+			 m0_fid_eq(&item->co_id, name));
+	if (obj == NULL)
 		return M0_ERR(-ENOENT);
-
+	*out = obj;
 	M0_POST(m0_conf_obj_invariant(*out));
 	return 0;
 }
