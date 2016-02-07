@@ -115,10 +115,10 @@ static int spiel_copy_file(const char *source, const char* dest)
 
 static int spiel_conf_ut_init()
 {
-	spiel_copy_file(M0_UT_PATH("conf.xc"), M0_UT_PATH("tmp-conf.xc"));
+	spiel_copy_file(M0_UT_PATH("conf.xc"), "tmp-conf.xc");
 
 	/* Use a copy of conf.xc file as confd path - file may have changed */
-	int rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("tmp-conf.xc"), false);
+	int rc = m0_spiel__ut_init(&spiel, "tmp-conf.xc", false);
 	M0_UT_ASSERT(rc == 0);
 
 	return 0;
@@ -130,9 +130,9 @@ static int spiel_conf_ut_fini()
 
 	m0_spiel__ut_fini(&spiel, false);
 
-	rc = system("rm -rf "M0_UT_PATH("confd"));
+	rc = system("rm -rf confd");
 	M0_ASSERT(rc != -1);
-	unlink(M0_UT_PATH("tmp-conf.xc"));
+	unlink("tmp-conf.xc");
 	return 0;
 }
 
@@ -1342,7 +1342,7 @@ static void spiel_conf_file(void)
 	int                   rc;
 	struct m0_spiel_tx    tx;
 	char                 *confstr = NULL;
-	const char            filename[] = M0_UT_PATH("spiel_conf_file.txt");
+	const char            filename[] = "spiel-conf.xc";
 	const int             ver_forced = 10;
 	struct m0_conf_cache  cache;
 	struct m0_mutex       lock;
@@ -1361,6 +1361,7 @@ static void spiel_conf_file(void)
 	/* Load file */
 	rc = m0_file_read(filename, &confstr);
 	M0_UT_ASSERT(rc == 0);
+	unlink(filename);
 
 	m0_mutex_init(&lock);
 	m0_conf_cache_init(&cache, &lock);
@@ -1590,13 +1591,13 @@ static void spiel_conf_force_ut_init(struct m0_spiel_ut_reqh *spl_reqh)
 	const char *ep = SERVER_ENDPOINT_ADDR;
 	const char *client_ep = CLIENT_ENDPOINT_ADDR;
 
-	spiel_copy_file(M0_UT_PATH("conf.xc"), M0_UT_PATH("tmp-conf.xc"));
+	spiel_copy_file(M0_UT_PATH("conf.xc"), "tmp-conf.xc");
 
 	rc = m0_spiel__ut_reqh_init(spl_reqh, client_ep);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel__ut_rpc_server_start(&spl_reqh->sur_confd_srv, ep,
-					   M0_UT_PATH("tmp-conf.xc"));
+					   "tmp-conf.xc");
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -1607,9 +1608,9 @@ static void spiel_conf_force_ut_fini(struct m0_spiel_ut_reqh *spl_reqh)
 	m0_spiel__ut_rpc_server_stop(&spl_reqh->sur_confd_srv);
 	m0_spiel__ut_reqh_fini(spl_reqh);
 
-	rc = system("rm -rf "M0_UT_PATH("confd"));
+	rc = system("rm -rf confd");
 	M0_ASSERT(rc != -1);
-	unlink(M0_UT_PATH("tmp-conf.xc"));
+	unlink("tmp-conf.xc");
 }
 
 static void spiel_conf_force(void)

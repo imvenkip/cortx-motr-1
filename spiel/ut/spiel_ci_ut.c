@@ -567,12 +567,9 @@ done:
 	spiel_ci_ut_fini();
 }
 
-static int spiel_ci_tests_fini() {
-	int rc;
-
-	rc = conf_ut_ast_thread_fini() ?:
-	     system("rm -rf ut_spiel.db/");
-	return rc;
+static int spiel_ci_tests_fini()
+{
+	return conf_ut_ast_thread_fini() ?: system("rm -rf ut_spiel.db/");
 }
 
 struct m0_ut_suite spiel_ci_ut = {

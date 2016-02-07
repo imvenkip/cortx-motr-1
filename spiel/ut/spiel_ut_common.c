@@ -23,7 +23,7 @@
 
 #include "spiel/ut/spiel_ut_common.h"
 #include "spiel/spiel.h"
-#include "ut/misc.h" /* M0_UT_PATH */
+#include "ut/misc.h" /* M0_UT_CONF_PROFILE */
 #include "ut/ut.h"
 
 static struct  m0_spiel_ut_reqh ut_reqh;
@@ -121,7 +121,7 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 		 "%d", M0_RPC_DEF_MAX_RPC_MSG_SIZE);
 
 #define NAME(ext) "ut_spiel" ext
-	char               *argv[] = {
+	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
 		"-A", "linuxstob:"NAME("-addb_stob"), "-w", "10", "-e", full_ep,
 		"-f", "<0x7200000000000002:1>",

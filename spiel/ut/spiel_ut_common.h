@@ -22,7 +22,6 @@
 #ifndef __MERO_SPIEL_UT_SPIEL_UT_COMMON_H__
 #define __MERO_SPIEL_UT_SPIEL_UT_COMMON_H__
 
-#include "lib/misc.h"         /* M0_QUOTE */
 #include "net/net.h"          /* m0_net_domain */
 #include "net/buffer_pool.h"  /* m0_net_buffer_pool */
 #include "reqh/reqh.h"        /* m0_reqh */
@@ -30,12 +29,12 @@
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx */
 #include "rm/rm_service.h"    /* m0_rms_type */
 
-
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 
 struct m0_spiel;
+
 extern const char *confd_addr[];
 extern const char *rm_addr;
 
