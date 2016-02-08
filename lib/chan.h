@@ -291,7 +291,7 @@ M0_INTERNAL void m0_chan_fini_lock(struct m0_chan *chan);
    Notifies a clink currently registered with the channel that a new event
    happened.
 
-   @pre m0_mutex_is_locked(ch->ch_guard)
+   @pre m0_chan_is_locked(chan)
    @see m0_chan_broadcast()
  */
 M0_INTERNAL void m0_chan_signal(struct m0_chan *chan);
@@ -312,7 +312,7 @@ M0_INTERNAL void m0_chan_signal_lock(struct m0_chan *chan);
    at the time of this call, the call-backs are run to completion as part of
    broadcast.
 
-   @pre m0_mutex_is_locked(ch->ch_guard)
+   @pre m0_chan_is_locked(chan)
    @see m0_chan_signal()
  */
 M0_INTERNAL void m0_chan_broadcast(struct m0_chan *chan);
@@ -356,7 +356,7 @@ M0_INTERNAL void m0_clink_attach(struct m0_clink *link,
 /**
    Registers the clink with the channel.
 
-   @pre m0_mutex_is_locked(ch->ch_guard)
+   @pre m0_chan_is_locked(chan)
    @pre !m0_clink_is_armed(link)
    @post m0_clink_is_armed(link)
  */
@@ -365,7 +365,7 @@ M0_INTERNAL void m0_clink_add(struct m0_chan *chan, struct m0_clink *link);
 /**
    Un-registers the clink from the channel.
 
-   @pre m0_mutex_is_locked(ch->ch_guard)
+   @pre m0_chan_is_locked(chan)
    @pre   m0_clink_is_armed(link)
    @post !m0_clink_is_armed(link)
  */
@@ -414,6 +414,10 @@ M0_INTERNAL bool m0_chan_trywait(struct m0_clink *link);
  */
 M0_INTERNAL bool m0_chan_timedwait(struct m0_clink *link,
 				   const m0_time_t abs_timeout);
+
+M0_INTERNAL void m0_chan_lock(struct m0_chan *chan);
+M0_INTERNAL void m0_chan_unlock(struct m0_chan *chan);
+M0_INTERNAL bool m0_chan_is_locked(const struct m0_chan *chan);
 
 struct m0_chan_addb2 {
 	uint64_t                ca_wait;

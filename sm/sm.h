@@ -837,7 +837,7 @@ M0_INTERNAL void m0_sm_ast_wait_fini(struct m0_sm_ast_wait *wait);
 /**
  * Waits until all m0_sm_ast_wait_post()ed ASTs are executed.
  *
- * @pre  m0_mutex_is_locked(wait->aw_chan.ch_guard)
+ * @pre  m0_chan_is_locked(&wait->aw_chan)
  */
 M0_INTERNAL void m0_sm_ast_wait(struct m0_sm_ast_wait *wait);
 
@@ -846,7 +846,7 @@ M0_INTERNAL void m0_sm_ast_wait(struct m0_sm_ast_wait *wait);
  *
  * @note ast->sa_cb must call m0_sm_ast_wait_signal() as its last action.
  *
- * @pre  m0_mutex_is_locked(wait->aw_chan.ch_guard)
+ * @pre  m0_chan_is_locked(&wait->aw_chan)
  */
 M0_INTERNAL void m0_sm_ast_wait_post(struct m0_sm_ast_wait *wait,
 				     struct m0_sm_group *grp,
@@ -855,7 +855,7 @@ M0_INTERNAL void m0_sm_ast_wait_post(struct m0_sm_ast_wait *wait,
 /**
  * Signifies completion of an AST, posted with m0_sm_ast_wait_post().
  *
- * @pre  m0_mutex_is_locked(wait->aw_chan.ch_guard)
+ * @pre  m0_chan_is_locked(&wait->aw_chan)
  */
 M0_INTERNAL void m0_sm_ast_wait_signal(struct m0_sm_ast_wait *wait);
 

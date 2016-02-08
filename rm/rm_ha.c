@@ -407,9 +407,9 @@ M0_INTERNAL void m0_rm_ha_unsubscribe_lock(struct m0_rm_ha_tracker *tracker)
 	struct m0_chan *ch = tracker->rht_clink.cl_chan;
 
 	if (ch != NULL) {
-		m0_mutex_lock(ch->ch_guard);
+		m0_chan_lock(ch);
 		m0_rm_ha_unsubscribe(tracker);
-		m0_mutex_unlock(ch->ch_guard);
+		m0_chan_unlock(ch);
 	}
 }
 

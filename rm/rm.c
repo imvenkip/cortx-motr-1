@@ -1316,11 +1316,10 @@ M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem)
 	 * because no revoke requests were sent to remote owner.
 	 */
 	if (rem->rem_rev_sess_clink.cl_chan != NULL) {
-		m0_mutex_lock(rem->rem_rev_sess_clink.cl_chan->ch_guard);
-		if (m0_clink_is_armed(&rem->rem_rev_sess_clink)) {
+		m0_chan_lock(rem->rem_rev_sess_clink.cl_chan);
+		if (m0_clink_is_armed(&rem->rem_rev_sess_clink))
 			m0_clink_del(&rem->rem_rev_sess_clink);
-		}
-		m0_mutex_unlock(rem->rem_rev_sess_clink.cl_chan->ch_guard);
+		m0_chan_unlock(rem->rem_rev_sess_clink.cl_chan);
 	}
 	m0_clink_fini(&rem->rem_rev_sess_clink);
 

@@ -447,9 +447,9 @@ static void ss_process_confc_ctx_arm(struct m0_sss_process_fom *pfom)
 	struct m0_chan *chan;
 
 	chan = &pfom->spm_confc_ctx.fc_mach.sm_chan;
-	m0_mutex_lock(chan->ch_guard);
+	m0_chan_lock(chan);
 	m0_fom_wait_on(&pfom->spm_fom, chan, &pfom->spm_fom.fo_cb);
-	m0_mutex_unlock(chan->ch_guard);
+	m0_chan_unlock(chan);
 }
 
 static bool ss_process_confc_ctx_completed(struct m0_fom *fom)
