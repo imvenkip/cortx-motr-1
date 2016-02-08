@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # set -eux
 
 # The script works with fio 2.2.10 with the following patch

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # set -x
 # Script to startup local/remote services and mount Mero file system
 #
@@ -421,7 +421,7 @@ function gen_disks_conf_files()
 	local SF=/tmp/nh.$$
 
 	cat <<EOF >$SF
-#!/bin/bash
+#!/usr/bin/env bash
 
 #This script helps to create a disks configuration file on Titan controllers.
 #

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script is also used by utils/ut.sh, utils/linux_kernel/ut.sh
 # If you are modifying this file, please make the relevant changes

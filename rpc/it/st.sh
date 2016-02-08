@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -eu
 
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.rpc-st}

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script symlinks Mero init scripts to appropriate directories under /etc
 # so Mero services can be started from development source tree directory, using

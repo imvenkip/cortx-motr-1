@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.m0mount-st}
 M0_SRC_DIR=`readlink -f $0`

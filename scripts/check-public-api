@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script reports any public funcnition, which is present in
 # libmero-altogether.so, but not listed in mero-pub.api file. Only

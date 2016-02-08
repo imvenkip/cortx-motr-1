@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script installs all packages, which are required to build Mero.
 # It should work on Red Hat and Debian based systems.

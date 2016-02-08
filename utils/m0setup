@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ### set up loop devices and generate genders and disks-*.conf files for given
 ### N K P configuration on a single node

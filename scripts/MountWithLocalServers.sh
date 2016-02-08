@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # This script creates number of mero servers as per end points
 # given in $EP array.
 # Stobs are created in $WORK_ARENA

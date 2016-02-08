@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 #
 # Decode addresses from dynamic libraries loaded into running m0d.

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 #
 # COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED

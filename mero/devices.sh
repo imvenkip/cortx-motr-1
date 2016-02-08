@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 #This script helps to create a device configuration file viz. devices.conf.
 #The file uses yaml format, as desired by the m0d program.

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ### build a custom kernel from .src.rpm with additional config options enabled,
 ### which are required for Mero performance testing

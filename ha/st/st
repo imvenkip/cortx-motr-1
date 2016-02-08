@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -eu
 
 [ `id -u` -eq 0 ] || { echo 'Must be run by superuser' >&2; exit 1; }

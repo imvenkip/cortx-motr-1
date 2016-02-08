@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ### Check if there are some stray "c o l i b r i" or "c 2" keywords left in the
 ### code or in filenames

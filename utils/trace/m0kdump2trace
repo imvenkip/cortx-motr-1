@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script extracts trace buffer of Mero kernel module from linux kernel
 # crash dump (vmcore), produced by kdump service. Essentially, it's a wrapper

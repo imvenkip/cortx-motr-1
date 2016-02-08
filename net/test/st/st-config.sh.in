@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Assign a node uuid.
 # See m0t1fs/linux_kernel/m0t1fs.c:m0t1fs_param_node_uuid_get()

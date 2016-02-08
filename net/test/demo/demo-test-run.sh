@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # set -eux
 
 # Set this to 1 to enable removing of m0.trace.* files

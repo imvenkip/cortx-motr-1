@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Kernel module -  test node
 MOD_NODE=@abs_top_srcdir@/net/test/linux_kernel/m0nettestd.ko

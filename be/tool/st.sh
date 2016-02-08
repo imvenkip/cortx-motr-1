@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 BETOOL="sudo utils/m0run m0betool"
 LT_BETOOL="lt-m0betool"

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 sudo scripts/install-mero-service -u
 sudo scripts/install-mero-service -l

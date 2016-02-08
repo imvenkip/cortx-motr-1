@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ### wrapper to run user-space programs, which depend on m0mero kernel module
 

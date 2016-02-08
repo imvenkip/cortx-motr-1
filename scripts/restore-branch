@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script restores an old branch archived with `git format-patch`.
 # By default it takes branch data from $old_branches_dir, but it's possible to

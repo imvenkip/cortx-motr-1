@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script produces a list of block device files (like /dev/sda), in YAML
 # format, suitable as an input for `m0d`. It analyzes available disks in the
