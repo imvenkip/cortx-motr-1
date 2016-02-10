@@ -102,4 +102,10 @@ M0_INTERNAL int m0_confx_to_string(struct m0_confx *confx, char **out)
 	return rc <= size ? M0_RC(0) : M0_ERR(-ENOMEM);
 }
 
+M0_INTERNAL void m0_confx_string_free(char *str)
+{
+	M0_PRE(m0_addr_is_aligned(str, PAGE_SHIFT));
+	m0_free_aligned(str, strlen(str)+1, PAGE_SHIFT);
+}
+
 #undef M0_TRACE_SUBSYSTEM

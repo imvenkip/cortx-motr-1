@@ -282,7 +282,9 @@ m0_spiel_tx_commit
 m0_spiel_tx_commit_forced
 m0_spiel_tx_dump
 m0_spiel_tx_dump_debug
+m0_spiel_tx_str_free
 m0_spiel_tx_open
+m0_spiel_tx_to_str
 m0_stats_free
 m0_stats_query
 m0_thread_fini

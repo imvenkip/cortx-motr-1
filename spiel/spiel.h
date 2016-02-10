@@ -641,6 +641,21 @@ int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid);
  * @return -ENOENT if an object hasn't real parent.
  */
 int m0_spiel_tx_validate(struct m0_spiel_tx *tx);
+
+/**
+ * Saves spiel transaction dump to string. Caller is responsible for freeing the
+ * string with m0_spiel_tx_str_free().
+ * @note Sets transaction's root version number to @b ver_forced.
+ * @pre ver_forced != M0_CONF_VER_UNKNOWN
+ */
+int m0_spiel_tx_to_str(struct m0_spiel_tx *tx,
+		       uint64_t            ver_forced,
+		       char              **str);
+/**
+ * Frees string created with m0_spiel_tx_to_str().
+ */
+void m0_spiel_tx_str_free(char *str);
+
 /**
  * Saves spiel transaction dump to file.
  * @note Sets transaction's root version number to @b ver_forced.

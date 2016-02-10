@@ -755,11 +755,8 @@ tx_fini:
 	m0_spiel_rconfc_stop(tx->spt_spiel);
 rconfc_fail:
 	m0_strings_free(confd_eps);
-	if (tx->spt_buffer != NULL) {
-		m0_free_aligned(tx->spt_buffer,
-				strlen(tx->spt_buffer) + 1,
-				PAGE_SHIFT);
-	}
+	if (tx->spt_buffer != NULL)
+		m0_confx_string_free(tx->spt_buffer);
 
 	if (spiel_cmd != NULL) {
 		for (idx = 0; idx < confd_count; ++idx) {
@@ -2179,6 +2176,36 @@ static int spiel_str_to_file(char *str, const char *filename)
 #endif
 }
 
+static int spiel_tx_to_str(struct m0_spiel_tx *tx,
+			   uint64_t            ver_forced,
+			   char              **str,
+			   bool                debug)
+{
+	int   rc;
+
+	M0_ENTRY();
+	M0_PRE(ver_forced != M0_CONF_VER_UNKNOWN);
+	rc = spiel_root_ver_update(tx, ver_forced);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = m0_conf_cache_to_string(&tx->spt_cache, str, debug);
+	return M0_RC(rc);
+}
+
+int m0_spiel_tx_to_str(struct m0_spiel_tx *tx,
+		       uint64_t            ver_forced,
+		       char              **str)
+{
+	return spiel_tx_to_str(tx, ver_forced, str, false);
+}
+M0_EXPORTED(m0_spiel_tx_to_str);
+
+void m0_spiel_tx_str_free(char *str)
+{
+	m0_confx_string_free(str);
+}
+M0_EXPORTED(m0_spiel_tx_str_free);
+
 static int spiel_tx_dump(struct m0_spiel_tx *tx,
 			 uint64_t            ver_forced,
 			 const char         *filename,
@@ -2188,13 +2215,9 @@ static int spiel_tx_dump(struct m0_spiel_tx *tx,
 	char *buffer;
 
 	M0_ENTRY();
-	M0_PRE(ver_forced != M0_CONF_VER_UNKNOWN);
-	rc = spiel_root_ver_update(tx, ver_forced);
-	if (rc != 0)
-		return M0_ERR(rc);
-	rc = m0_conf_cache_to_string(&tx->spt_cache, &buffer, debug) ?:
-	     spiel_str_to_file(buffer, filename);
-	m0_free_aligned(buffer, strlen(buffer) + 1, PAGE_SHIFT);
+	rc = spiel_tx_to_str(tx, ver_forced, &buffer, debug) ?:
+		spiel_str_to_file(buffer, filename);
+	m0_spiel_tx_str_free(buffer);
 	return M0_RC(rc);
 }
 

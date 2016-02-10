@@ -1452,7 +1452,7 @@ static void spiel_conf_big_db(void)
 	rc = m0_spiel_tx_commit(&tx);
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_disable("m0_conf_segment_size", "const_size");
-	m0_free_aligned(cache_str, strlen(cache_str)+1, PAGE_SHIFT);
+	m0_confx_string_free(cache_str);
 	m0_spiel_tx_close(&tx);
 	spiel_conf_ut_fini();
 }
