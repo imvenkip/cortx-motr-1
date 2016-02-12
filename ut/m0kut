@@ -184,4 +184,10 @@ echo
 # kill tail
 kill %1
 
+# due to a bug in systemd, syslog may stop working occasionally which leads to a
+# lost KUT status line (normally should be present in /var/log/messages) that
+# makes Jenkins think that the test has failed ("no status found")
+# as a workaround we fetch test status line from a dmesg buffer:
+dmesg | grep --color=none 'Unit tests status'
+
 exit 0
