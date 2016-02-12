@@ -376,7 +376,7 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
 		return local_ep(cm);
 
 	index = m0_fid_cob_device_id(cob_fid);
-	svc_fid = pv->pv_pool->po_dev2ios[index].pds_ctx->sc_fid;
+	svc_fid = pv->pv_pc->pc_dev2ios[index].pds_ctx->sc_fid;
 	rc = m0_conf_service_get(confc, &svc_fid, &svc);
 	if (rc != 0)
 		return NULL;

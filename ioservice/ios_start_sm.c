@@ -671,7 +671,7 @@ static void ios_start_pm_disk_add(struct m0_ios_start_sm *ios_sm,
 				 m0_fid_eq(&item->i_fid,
 					   &d->ck_dev->sd_obj.co_id)))
 		{
-			idx = ios_sm->ism_pool_index++;
+			idx = ios_sm->ism_pool_index;
 			M0_ASSERT(idx < ios_sm->ism_poolmach_args.nr_sdevs);
 			ios_sm->ism_poolmach->pm_state->
 				pst_devices_array[idx].pd_id = d->ck_obj.co_id;

@@ -74,7 +74,7 @@ static int pool_pver_init(uint32_t N, uint32_t K)
 	int rc;
 
 	M0_SET0(&pool);
-	m0_pool_init(&pool, &M0_POOL_ID, PM_TEST_DEFAULT_DEVICE_NUMBER);
+	m0_pool_init(&pool, &M0_POOL_ID);
 	M0_SET0(&pver);
 	rc = m0_pool_version_init(&pver, &M0_PVER_ID, &pool,
 				  PM_TEST_DEFAULT_DEVICE_NUMBER,

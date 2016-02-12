@@ -479,9 +479,9 @@ M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj)
 	       disk2service(obj)->cs_type == M0_CST_IOS;
 }
 
-M0_INTERNAL int m0_conf_pool_devices_count(struct m0_fid *profile,
-					   struct m0_confc *confc,
-					   uint32_t *nr_devices)
+M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
+					  struct m0_confc *confc,
+					  uint32_t *nr_devices)
 {
 	return m0_conf_obj_count(profile, confc, m0_is_ios_disk, nr_devices,
 			         M0_CONF_FILESYSTEM_RACKS_FID,

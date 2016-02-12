@@ -181,8 +181,8 @@ M0_INTERNAL int m0_conf_service_open(struct m0_confc            *confc,
 				     struct m0_conf_service    **svc);
 
 M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj);
-M0_INTERNAL int m0_conf_pool_devices_count(struct m0_fid *profile,
-					   struct m0_confc *confc,
-					   uint32_t *nr_devices);
+M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
+					  struct m0_confc *confc,
+					  uint32_t *nr_devices);
 
 #endif /* __MERO_CONF_HELPERS_H__ */

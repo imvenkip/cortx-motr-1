@@ -145,7 +145,7 @@ static void cob_fom_stob2fid_map(const struct m0_fom_cob_op *cfom,
 				 struct m0_fid *out)
 {
 	if (cob_is_md(cfom))
-		*out = cfom->fco_cfid;
+		*out = cfom->fco_gfid;
 	else
 		m0_fid_convert_stob2cob(&cfom->fco_stob_id, out);
 }
@@ -267,6 +267,10 @@ static void cob_fom_populate(struct m0_fom *fom)
 				M0_COB_OP_DELETE : M0_COB_OP_TRUNCATE;
 	cfom->fco_recreate = false;
 	cfom->fco_is_done = false;
+	M0_LOG(M0_DEBUG, "Cob %s operation for "FID_F"/%x "FID_F" for %s",
+			  m0_fop_name(fop), FID_P(&cfom->fco_cfid),
+			  cfom->fco_cob_idx, FID_P(&cfom->fco_gfid),
+			  cob_is_md(cfom) ? "MD" : "IO");
 }
 
 /* defined in io_foms.c */
@@ -741,6 +745,7 @@ M0_INTERNAL int m0_cc_stob_create(struct m0_fom *fom, struct m0_stob_id *sid)
 	struct m0_stob *stob;
 	int             rc;
 
+	M0_ENTRY("stob create fid="FID_F, FID_P(&sid->si_fid));
 	rc = m0_stob_find(sid, &stob);
 	rc = rc ?: stob->so_state == CSS_UNKNOWN ?
 		   m0_stob_locate(stob) : 0;

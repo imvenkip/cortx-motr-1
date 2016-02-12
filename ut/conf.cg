@@ -27,7 +27,7 @@
     filename="/var/mero/m0ut/ut-sandbox/d2")
 (sdev-13 dev_idx=3 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev0")
-(sdev-14 dev_idx=4 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
+(sdev-14 dev_idx=0 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev1")
 (sdev-15 dev_idx=1 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
     flags=4 filename="/dev/sdev2")
@@ -74,7 +74,7 @@
     flags=4 filename="/dev/sdev2")
 (sdev-85 dev_idx=9 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev3")
-(sdev-86 dev_idx=10 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
+(sdev-86 dev_idx=0 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev4")
 (rack-52 encls=[enclosure-53] pvers=[pver-57])
 (enclosure-53 ctrls=[controller-54] pvers=[pver-57])

@@ -177,7 +177,7 @@ M0_INTERNAL void m0t1fs_init(struct sim *s, struct m0t1fs_conf *conf)
 	struct m0_fid pv_id = {0x789, 0x101112};
 	int           result;
 
-	m0_pool_init(&conf->ct_pool, &p_id, conf->ct_nr_devices);
+	m0_pool_init(&conf->ct_pool, &p_id);
 	m0_pool_version_init(&conf->ct_pool_version, &pv_id, &conf->ct_pool,
 			     conf->ct_nr_servers * conf->ct_nr_devices,
 			     conf->ct_nr_servers, conf->ct_N, conf->ct_K, NULL,

@@ -1087,6 +1087,7 @@ static int stob_object_find(struct m0_fom *fom)
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
 	rwfop = io_rw_get(fom->fo_fop);
+
 	m0_fid_convert_cob2stob(&rwfop->crw_fid, &stob_id);
 	result = m0_stob_find(&stob_id, &fom_obj->fcrw_stob);
 	if (result != 0)
@@ -1236,8 +1237,9 @@ static int io_prepare(struct m0_fom *fom)
 	poolmach = &fom_obj->fcrw_pver->pv_mach;
 	cliv = (struct m0_poolmach_versions*)(&rwfop->crw_version);
 
-	M0_LOG(M0_DEBUG, "Preparing %s IO @"FID_F"pver"FID_F,
-	       m0_is_read_fop(fom->fo_fop)? "Read": "Write",
+	M0_LOG(M0_DEBUG, "Preparing %s IO index:%d @"FID_F"pver"FID_F,
+	       m0_is_read_fop(fom->fo_fop) ? "Read": "Write",
+	       (int)rwfop->crw_index,
 	       FID_P(&rwfop->crw_fid), FID_P(&rwfop->crw_pver));
 	/*
 	 * Dumps the state of SNS repair with respect to global fid

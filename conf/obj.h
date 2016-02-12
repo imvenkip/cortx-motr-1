@@ -512,9 +512,8 @@ struct m0_conf_sdev {
 	struct m0_fid     *sd_disk;
 	/**
 	 * Device index.
-	 *
-	 * The value should be between 1 and pool width (P), inclusive.
-	 * @see https://jira.xyratex.com/browse/MERO-1474
+	 * The value should be between 0 and (P - 1), where P is total number of
+	 * devices under ioservices and should be unique.
 	 */
 	uint32_t           sd_dev_idx;
 	/** Interface type. See m0_cfg_storage_device_interface_type. */

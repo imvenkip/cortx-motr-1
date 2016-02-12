@@ -137,7 +137,7 @@ char local_conf[] = "[34:\
    {0x64| ((^d|1:11), 2, 4, 1, 4096, 596000000000, 3, 4, \"/dev/sdev1\")},\
    {0x64| ((^d|1:12), 3, 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev2\")},\
    {0x64| ((^d|1:13), 4, 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev3\")},\
-   {0x64| ((^d|1:14), 5, 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev4\")},\
+   {0x64| ((^d|1:14), 0, 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev4\")},\
    {0x61| ((^a|1:15),\
            [1: ^e|1:16], [1: ^v|1:24])},\
    {0x65| ((^e|1:16),\
@@ -226,7 +226,8 @@ static int file_io_ut_init(void)
 	rc = m0_conf_fs_get(&reqh->rh_profile, &reqh->rh_confc, &fs);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_pools_common_init(&csb.csb_pools_common, NULL, fs);
+	rc = m0_pools_common_init(&csb.csb_pools_common, NULL, fs);
+	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_pools_setup(&csb.csb_pools_common, fs, NULL, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);

@@ -69,35 +69,21 @@ struct m0_pool_device_to_service {
 };
 
 struct m0_pool {
-	struct m0_fid                     po_id;
+	struct m0_fid   po_id;
 
 	/** List of pool versions in this pool. */
-	struct m0_tl                      po_vers;
-
-	/* Total number of devices in the pool. */
-	uint32_t                          po_nr_devices;
-
-	/**
-	 * An array of size of po_nr_devices in the pool.
-	 * Maps device to io service.
-	 * Each po_dev2ios[i] entry points to instance of
-	 * struct m0_reqh_service_ctx which has established rpc connections
-	 * with the given service endpoints.
-	 * @todo Check whether concurrency needs to be handled after
-	 * MERO-1498 is in master.
-	 */
-	struct m0_pool_device_to_service *po_dev2ios;
+	struct m0_tl    po_vers;
 
 	/** Linkage into list of pools. */
-	struct m0_tlink                   po_linkage;
+	struct m0_tlink po_linkage;
 
 	/**
 	 * List of failed devices in the pool.
 	 * @see m0_pool::pd_fail_linkage
 	 */
-	struct m0_tl                      po_failed_devices;
+	struct m0_tl    po_failed_devices;
 
-	uint64_t                          po_magic;
+	uint64_t        po_magic;
 };
 
 /**
@@ -144,20 +130,20 @@ struct m0_pool_version {
  * Contains resources that are shared among the pools in the filesystem.
  */
 struct m0_pools_common {
-	struct m0_tl                 pc_pools;
+	struct m0_tl                      pc_pools;
 
-	struct m0_confc             *pc_confc;
+	struct m0_confc                  *pc_confc;
 
-	struct m0_rpc_machine       *pc_rmach;
+	struct m0_rpc_machine            *pc_rmach;
 
 	/** service context of MGS.*/
-	struct m0_reqh_service_ctx   pc_mgs;
+	struct m0_reqh_service_ctx        pc_mgs;
 
 	/**
 	  List of m0_reqh_service_ctx objects hanging using sc_link.
 	  tlist descriptor: svc_ctx_tl
 	  */
-	struct m0_tl                 pc_svc_ctxs;
+	struct m0_tl                      pc_svc_ctxs;
 
 	/**
 	  Array of pools_common_svc_ctx_tlist_length() valid elements.
@@ -165,25 +151,39 @@ struct m0_pools_common {
 	  pc_mds_map[i] points to m0_reqh_service_ctx of mdservice whose
 	  index is i.
 	  */
-	struct m0_reqh_service_ctx **pc_mds_map;
+	struct m0_reqh_service_ctx      **pc_mds_map;
 
 	/** RM service context */
-	struct m0_reqh_service_ctx  *pc_rm_ctx;
+	struct m0_reqh_service_ctx       *pc_rm_ctx;
 
 	/** HA service context. */
-	struct m0_reqh_service_ctx  *pc_ha_ctx;
+	struct m0_reqh_service_ctx       *pc_ha_ctx;
 
 	/**
 	 * Each ith element in the array gives the total number of services
 	 * of its corresponding type, e.g. element at M0_CST_MDS gives number
 	 * of meta-data services in the filesystem.
 	 */
-	uint64_t                     pc_nr_svcs[M0_CST_NR];
+	uint64_t                          pc_nr_svcs[M0_CST_NR];
+
+	/* Total number of devices under ioservices across all the pools. */
+	uint32_t                          pc_nr_devices;
+
+	/**
+	 * An array of size of pc_nr_devices.
+	 * Maps device to io service.
+	 * Each pc_dev2ios[i] entry points to instance of
+	 * struct m0_reqh_service_ctx which has established rpc connections
+	 * with the given service endpoints.
+	 * @todo Check whether concurrency needs to be handled after
+	 * MERO-1498 is in master.
+	 */
+	struct m0_pool_device_to_service *pc_dev2ios;
 
 	/** Metadata redundancy count. */
-	uint32_t                     pc_md_redundancy;
+	uint32_t                          pc_md_redundancy;
 	/** Pool of ioservices used to store meta data cobs. */
-	struct m0_pool              *pc_md_pool;
+	struct m0_pool                   *pc_md_pool;
 	/** Layout instance of the mdpool. */
 	struct m0_layout_instance   *pc_md_pool_linst;
 };
@@ -200,9 +200,9 @@ M0_TL_DECLARE(pools, M0_EXTERN, struct m0_pool);
 M0_TL_DESCR_DECLARE(pool_failed_devs, M0_EXTERN);
 M0_TL_DECLARE(pool_failed_devs, M0_EXTERN, struct m0_pooldev);
 
-M0_INTERNAL void m0_pools_common_init(struct m0_pools_common *pc,
-				      struct m0_rpc_machine *rmach,
-				      struct m0_conf_filesystem *fs);
+M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
+				     struct m0_rpc_machine *rmach,
+				     struct m0_conf_filesystem *fs);
 
 M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc);
 
@@ -211,8 +211,7 @@ M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 					    struct m0_conf_filesystem *fs);
 M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc);
 
-M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id,
-			     uint32_t nr_devices);
+M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id);
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool);
 
 /**

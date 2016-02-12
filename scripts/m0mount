@@ -433,19 +433,17 @@ function gen_disks_conf_files()
 #
 #===========================================================
 #Device:
-#       - id: 0
-#	  filename: /dev/sda
 #       - id: 1
+#	  filename: /dev/sda
+#       - id: 2
 #	  filename: /dev/sdb
 #===========================================================
-#
-# Disk id=0 is used for ADDB stob.
 #
 
 # number of disks to split by
 DISKS_SH_NR=$DISKS_SH_NR
 
-i=$dev_id; j=0; f=0;
+i=$dev_id; j=1; f=0;
 
 echo "Device:" > disks.conf
 
@@ -466,7 +464,7 @@ for dev in \$devs; do
 			i=\`expr \$i + 1\`
 		fi
 		j=\`expr \$j + 1\`
-		[ \$j -eq \$DISKS_SH_NR ] && j=0 && f=\`expr \$f + 1\`
+		[ \$j -eq \$DISKS_SH_NR ] && j=1 && f=\`expr \$f + 1\`
 	fi
 done
 exit 0

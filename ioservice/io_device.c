@@ -264,7 +264,7 @@ static int ios_poolmach_devices_add(struct m0_poolmach        *poolmach,
 	struct m0_pooldev   *pooldev;
 	struct m0_conf_obj  *obj = NULL;
 	struct m0_conf_obj  *disks_dir = &ctrl->cc_disks->cd_obj;
-	uint32_t             device_idx = 1;
+	uint32_t             device_idx = 0;
 	int                  rc;
 
 	M0_ENTRY();

@@ -2186,8 +2186,8 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 	if (rc != 0)
 		goto fop_put;
 
-	M0_LOG(M0_DEBUG, "%p[%u] Send %s "FID_F" to session %p (sid=%lu)",
-	       &fop->f_item, m0_fop_opcode(fop), m0_fop_name(fop),
+	M0_LOG(M0_DEBUG, "%p[%u] Send %s %d:"FID_F" to session %p (sid=%lu)",
+	       &fop->f_item, m0_fop_opcode(fop), m0_fop_name(fop), (int)cob_idx,
 	       FID_P(&cob_fid), session, (unsigned long)session->s_session_id);
 
 	fop->f_item.ri_session         = session;

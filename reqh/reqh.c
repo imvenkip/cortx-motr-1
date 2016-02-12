@@ -219,7 +219,7 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 	M0_ASSERT(tgt.ta_obj < mds_nr);
 	idx = md_pv->pv_mach.pm_state->pst_devices_array[tgt.ta_obj].
 		pd_sdev_idx;
-	ctx = md_pv->pv_pool->po_dev2ios[idx].pds_ctx;
+	ctx = md_pv->pv_pc->pc_dev2ios[idx].pds_ctx;
 	M0_ASSERT(ctx != NULL);
 	session = &ctx->sc_rlink.rlk_sess;
 

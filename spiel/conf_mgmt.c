@@ -1385,7 +1385,7 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 	struct m0_conf_disk    *disk;
 
 	M0_ENTRY();
-	if(dev_idx == 0 || dev_idx > M0_FID_DEVICE_ID_MAX ||
+	if(dev_idx > M0_FID_DEVICE_ID_MAX ||
 	   !M0_CFG_SDEV_INTERFACE_TYPE_IS_VALID(iface) ||
 	   !M0_CFG_SDEV_MEDIA_TYPE_IS_VALID(media) ||
 	   filename == NULL)

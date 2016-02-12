@@ -157,11 +157,11 @@ m0t1fs_container_id_to_session(const struct m0_pool_version *pver,
 	struct m0_reqh_service_ctx *ctx;
 
 	M0_ENTRY();
-	M0_PRE(container_id > 0);
+	M0_PRE(container_id < pver->pv_pc->pc_nr_devices);
 
 	M0_LOG(M0_DEBUG, "container_id=%llu", container_id);
 
-	ctx = pver->pv_pool->po_dev2ios[container_id].pds_ctx;
+	ctx = pver->pv_pc->pc_dev2ios[container_id].pds_ctx;
 	M0_ASSERT(ctx != NULL);
 
 	M0_LOG(M0_DEBUG, "id %llu -> ctx=%p session=%p", container_id, ctx,
@@ -628,12 +628,14 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_conf_fs_close;
 
-	m0_pools_common_init(pc, &csb->csb_rpc_machine, fs);
+	rc = m0_pools_common_init(pc, &csb->csb_rpc_machine, fs);
+	if (rc != 0)
+		goto err_conf_fs_close;
 	M0_ASSERT(ergo(csb->csb_oostore, pc->pc_md_redundancy > 0));
 
 	rc = m0_pools_setup(pc, fs, NULL, NULL, NULL);
 	if (rc != 0)
-		goto err_conf_fs_close;
+		goto err_pools_common_fini;
 
 	rc = m0_pools_service_ctx_create(pc, fs);
 	if (rc != 0)
@@ -685,6 +687,7 @@ err_pools_service_ctx_destroy:
 	m0_pools_service_ctx_destroy(&csb->csb_pools_common);
 err_pools_destroy:
 	m0_pools_destroy(&csb->csb_pools_common);
+err_pools_common_fini:
 	m0_pools_common_fini(&csb->csb_pools_common);
 err_conf_fs_close:
 	m0_confc_close(&fs->cf_obj);

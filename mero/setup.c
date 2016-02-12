@@ -732,8 +732,9 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 				result = stob_file_id_get(doc, s_node, &cid);
 				if (result != 0)
 					continue;
+				M0_ASSERT(cid > 0);
 				f_path = stob_file_path_get(doc, s_node);
-				rc = m0_storage_dev_attach(devs, cid,
+				rc = m0_storage_dev_attach(devs, cid - 1,
 							   f_path, size);
 				if (rc != 0)
 					break;
@@ -1949,8 +1950,10 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	if (rc != 0)
 		goto conf_fs_close;
 
-	m0_pools_common_init(&cctx->cc_pools_common,
-			     m0_mero_to_rmach(cctx), fs);
+	rc = m0_pools_common_init(&cctx->cc_pools_common,
+				  m0_mero_to_rmach(cctx), fs);
+	if (rc != 0)
+		goto conf_fs_close;
 
 	M0_LOG(M0_DEBUG, "file system:"FID_F"profile"FID_F,
 			FID_P(&fs->cf_obj.co_id),

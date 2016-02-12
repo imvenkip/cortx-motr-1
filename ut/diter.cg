@@ -26,7 +26,7 @@
     flags=4 filename="/dev/sdev2")
 (sdev-13 dev_idx=4 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
     flags=4 filename="/dev/sdev3")
-(sdev-14 dev_idx=5 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+(sdev-14 dev_idx=0 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
     flags=4 filename="/dev/sdev4")
 (rack-15 encls=[enclosure-16] pvers=[pver-24])
 (enclosure-16 ctrls=[controller-17] pvers=[pver-24])
