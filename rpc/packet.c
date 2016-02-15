@@ -462,8 +462,16 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 		rc = item_decode(cursor, &item);
 		if (rc != 0) {
 			struct m0_fop *fop = m0_rpc_item_to_fop(item);
+			uint64_t count = m0_ref_read(&fop->f_ref);
 
-			m0_fop_put_lock(fop);
+			/* After item_decode(), there's no conception of rpc or
+			 * fop, and rpc_mach is set in m0_rpc_packet_add_item()
+			 * later. So it's impossible to perform lock on rpc_mach
+			 * inside m0_fop_put_lock() and it's replaced with
+			 * explicit m0_ref_put(). */
+			M0_ASSERT(count == 1);
+			m0_ref_put(&fop->f_ref);
+
 			return M0_ERR(rc);
 		}
 		m0_rpc_machine_lock(p->rp_rmachine);
