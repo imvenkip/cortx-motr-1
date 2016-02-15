@@ -186,5 +186,12 @@ M0_INTERNAL int m0_conf_version(struct m0_conf_cache *cache);
 M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_pinned(const struct m0_conf_cache *cache);
 
+/**
+ * Maximum number of path components.
+ *
+ * Path is a sequence of m0_fids, used for conf DAG traversal.
+ */
+enum { M0_CONF_PATH_MAX = 15 };
+
 /** @} conf_dfspec_cache */
 #endif /* __MERO_CONF_CACHE_H__ */

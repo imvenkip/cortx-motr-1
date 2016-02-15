@@ -6,6 +6,7 @@ ut_libmero_ut_la_SOURCES += \
     conf/ut/common.c        \
     conf/ut/diter.c         \
     conf/ut/db.c            \
+    conf/ut/glob.c          \
     conf/ut/load.c          \
     conf/ut/rpc_helpers.c   \
     conf/ut/rpc_helpers.h   \

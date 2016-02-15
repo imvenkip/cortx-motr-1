@@ -100,24 +100,32 @@ objv_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	       m0_conf_dir_elems_match(obj->cv_children, &xobj->xj_children);
 }
 
+static const struct m0_fid *objv_rel(const struct m0_conf_objv *objv)
+{
+	const struct m0_conf_obj_type *real_type =
+		m0_conf_fid_type(&objv->cv_real->co_id);
+
+	if (real_type == &M0_CONF_RACK_TYPE)
+		return &M0_CONF_RACKV_ENCLVS_FID;
+	if (real_type == &M0_CONF_ENCLOSURE_TYPE)
+		return &M0_CONF_ENCLV_CTRLVS_FID;
+	if (real_type == &M0_CONF_CONTROLLER_TYPE)
+		return &M0_CONF_CTRLV_DISKVS_FID;
+	M0_IMPOSSIBLE("");
+	return NULL;
+}
+
 static int objv_lookup(const struct m0_conf_obj *parent,
 		       const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	struct m0_conf_objv *objv = M0_CONF_CAST(parent, m0_conf_objv);
 	M0_PRE(parent->co_status == M0_CS_READY);
 
-	if ((m0_conf_fid_type(&objv->cv_real->co_id) == &M0_CONF_RACK_TYPE &&
-	     m0_fid_eq(name, &M0_CONF_RACKV_ENCLVS_FID)) ||
-	    (m0_conf_fid_type(&objv->cv_real->co_id) ==
-			      &M0_CONF_ENCLOSURE_TYPE &&
-	     m0_fid_eq(name, &M0_CONF_ENCLV_CTRLVS_FID)) ||
-	     (m0_conf_fid_type(&objv->cv_real->co_id) ==
-			       &M0_CONF_CONTROLLER_TYPE &&
-	      m0_fid_eq(name, &M0_CONF_CTRLV_DISKVS_FID)))
-		*out = &M0_CONF_CAST(parent, m0_conf_objv)->cv_children->cd_obj;
-	else
+	M0_ASSERT(name != NULL);
+	if (!m0_fid_eq(name, objv_rel(objv)))
 		return M0_ERR(-ENOENT);
 
+	*out = &M0_CONF_CAST(parent, m0_conf_objv)->cv_children->cd_obj;
 	M0_POST(m0_conf_obj_invariant(*out));
 	return 0;
 }

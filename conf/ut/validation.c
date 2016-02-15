@@ -17,9 +17,6 @@
  * Original creation date: 7-Jan-2016
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
-#include "lib/trace.h"
-
 #include <glob.h>
 #include "conf/validation.h"
 #include "conf/cache.h"
@@ -50,13 +47,17 @@ static void test_validation(void)
 	for (pathv = g.gl_pathv; *pathv != NULL; ++pathv) {
 		cache_load(&g_cache, *pathv, &expected);
 
+		m0_conf_cache_lock(&g_cache);
 		err = m0_conf_validation_error(&g_cache, g_buf, sizeof g_buf);
 		M0_UT_ASSERT((err == NULL) == (expected == NULL));
-		if (expected != NULL)
+		if (expected != NULL) {
+			err = strstr(err, "] ");
+			M0_UT_ASSERT(err != NULL);
+			err += 2;
 			M0_UT_ASSERT(m0_streq(err, expected));
+		}
 		free(expected);
 
-		m0_conf_cache_lock(&g_cache);
 		m0_conf_cache_clean(&g_cache, NULL);
 		m0_conf_cache_unlock(&g_cache);
 	}
@@ -161,7 +162,7 @@ static void test_sharp_comment(void)
 }
 
 /**
- * @note Don't forget to m0_free(*sharp_out).
+ * @note Don't forget to free(*sharp_out).
  */
 static void
 cache_load(struct m0_conf_cache *cache, const char *path, char **sharp_out)
@@ -199,7 +200,7 @@ static int conf_validation_ut_fini(void)
 }
 
 struct m0_ut_suite conf_validation_ut = {
-	.ts_name  = "conf-validation",
+	.ts_name  = "conf-validation-ut",
 	.ts_init  = conf_validation_ut_init,
 	.ts_fini  = conf_validation_ut_fini,
 	.ts_tests = {
@@ -210,7 +211,6 @@ struct m0_ut_suite conf_validation_ut = {
 	}
 };
 
-#undef M0_TRACE_SUBSYSTEM
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

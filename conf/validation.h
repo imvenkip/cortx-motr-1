@@ -50,6 +50,9 @@ struct m0_fid;
  *
  * If no issues with configuration data are found, m0_conf_validation_error()
  * returns NULL.
+ *
+ * @pre  buf != NULL && buflen != 0
+ * @pre  m0_conf_cache_is_locked(cache)
  */
 char *m0_conf_validation_error(const struct m0_conf_cache *cache,
 			       char *buf, size_t buflen);
@@ -63,6 +66,9 @@ struct m0_conf_rule {
 	const char *cvr_name;
 	/**
 	 * @see m0_conf_validation_error() for arguments' description.
+	 *
+	 * @pre  m0_conf_cache_is_locked(cache)
+	 * (This precondition is enforced by m0_conf_validation_error().)
 	 */
 	char     *(*cvr_error)(const struct m0_conf_cache *cache,
 			       char *buf, size_t buflen);
@@ -115,6 +121,7 @@ struct m0_conf_ruleset {
  * @endcode
  *
  * @pre  m0_conf_cache_is_locked(cache)
+ * @pre  start == NULL || start->co_cache == cache
  */
 #define m0_conf_path_validate(buf, buflen, cache, start, ...)     \
 	m0_conf__path_validate(                                   \

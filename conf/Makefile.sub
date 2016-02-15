@@ -9,6 +9,7 @@ nobase_mero_include_HEADERS += \
                                conf/flip_fom.h \
                                conf/flip_fop.h \
                                conf/fop.h \
+                               conf/glob.h \
                                conf/helpers.h \
                                conf/load_fom.h \
                                conf/load_fop.h \
@@ -32,6 +33,7 @@ mero_libmero_la_SOURCES += \
                            conf/flip_fop.c \
                            conf/flip_fop_xc.c \
                            conf/fop.c \
+                           conf/glob.c \
                            conf/helpers.c \
                            conf/load_fom.c \
                            conf/load_fop.c \

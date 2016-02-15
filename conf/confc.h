@@ -640,9 +640,6 @@ M0_INTERNAL void m0_confc_gate_ops_set(struct m0_confc          *confc,
  * context
  * ------------------------------------------------------------------ */
 
-/** Maximum number of path components. */
-enum { M0_CONF_PATH_MAX = 15 };
-
 /** Configuration retrieval context. */
 struct m0_confc_ctx {
 	/**
@@ -789,7 +786,7 @@ M0_INTERNAL struct m0_conf_obj *m0_confc_ctx_result(struct m0_confc_ctx *ctx);
  * @param origin  Path origin (NULL = root configuration object).
  * @param ...     Path to the requested object. Variable arguments --
  *                path components -- are m0_fid initialisers
- *                (M0_FID()); use M0_FID0 for empty path.
+ *                (M0_FID_TINIT()); use M0_FID0 for empty path.
  *                The number of path components
  *                should not exceed M0_CONF_PATH_MAX.
  *

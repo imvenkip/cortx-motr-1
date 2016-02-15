@@ -62,7 +62,8 @@
 (node-48 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-56
     processes=[process-49])
 (process-49 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-27, service-28])
+    mem_limit_memlock=0 endpoint="0@lo:12345:34:1"
+    services=[service-27, service-28])
 (service-27 type=2 endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-51, sdev-83, sdev-84, sdev-85, sdev-86])
 (service-28 type=12 endpoints=["0@lo:12345:34:1"] sdevs=[])

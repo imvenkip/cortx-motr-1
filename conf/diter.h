@@ -26,6 +26,9 @@
 /**
  * @page confditer-fspec Configuration directory iterator
  *
+ * @note m0_conf_glob() is more convenient to use in situations when
+ *       configuration cache is fully loaded.
+ *
  * - @ref confditer-fspec-ds
  * - @ref confditer-fspec-sub
  *   - @ref confditer-fspec-sub-setup
@@ -135,7 +138,6 @@
  * @defgroup confditer Configuration directory iterator
  * @{
  */
-
 
 enum m0_diter_lvl_mode {
 	M0_DLM_DIR,

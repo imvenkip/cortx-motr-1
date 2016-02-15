@@ -52,22 +52,23 @@ char *m0_conf_validation_error(const struct m0_conf_cache *cache,
 	char                      *err;
 
 	M0_PRE(buf != NULL && buflen != 0);
+	M0_PRE(m0_conf_cache_is_locked(cache));
 
 	for (i = 0; i < ARRAY_SIZE(conf_validity_checks); ++i) {
 		for (rule = &conf_validity_checks[i]->cv_rules[0];
 		     rule->cvr_name != NULL;
 		     ++rule) {
-			rc = snprintf(buf, buflen, "%s.%s: ",
+			rc = snprintf(buf, buflen, "[%s.%s] ",
 				      conf_validity_checks[i]->cv_name,
 				      rule->cvr_name);
 			M0_ASSERT(rc > 0 && (size_t)rc < buflen);
 			_buflen = strlen(buf);
 			_buf = buf + _buflen;
-			err = rule->cvr_error(cache, _buf, _buflen);
+			err = rule->cvr_error(cache, _buf, buflen - _buflen);
 			if (err == NULL)
 				continue;
 			return err == _buf ? buf : m0_vsnprintf(
-				buf, buflen, "%s.%s: %s",
+				buf, buflen, "[%s.%s] %s",
 				conf_validity_checks[i]->cv_name,
 				rule->cvr_name, err);
 		}
@@ -75,6 +76,7 @@ char *m0_conf_validation_error(const struct m0_conf_cache *cache,
 	return NULL;
 }
 
+/** @todo XXX: Rewrite using m0_conf_glob(). */
 M0_INTERNAL char *m0_conf__path_validate(const struct m0_conf_cache *cache,
 					 struct m0_conf_obj *start,
 					 const struct m0_fid *path,
@@ -84,6 +86,7 @@ M0_INTERNAL char *m0_conf__path_validate(const struct m0_conf_cache *cache,
 	int                 rc;
 
 	M0_PRE(m0_conf_cache_is_locked(cache));
+	M0_PRE(start == NULL || start->co_cache == cache);
 
 	obj = start ?: m0_conf_cache_lookup(cache, &M0_CONF_ROOT_FID);
 	if (obj == NULL)
