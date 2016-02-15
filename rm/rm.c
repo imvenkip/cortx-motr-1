@@ -1315,12 +1315,7 @@ M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem)
 	 * It is possible that reverse session is not yet established,
 	 * because no revoke requests were sent to remote owner.
 	 */
-	if (rem->rem_rev_sess_clink.cl_chan != NULL) {
-		m0_chan_lock(rem->rem_rev_sess_clink.cl_chan);
-		if (m0_clink_is_armed(&rem->rem_rev_sess_clink))
-			m0_clink_del(&rem->rem_rev_sess_clink);
-		m0_chan_unlock(rem->rem_rev_sess_clink.cl_chan);
-	}
+	m0_clink_cleanup(&rem->rem_rev_sess_clink);
 	m0_clink_fini(&rem->rem_rev_sess_clink);
 
 	rem->rem_state = REM_FREED;

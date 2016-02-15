@@ -398,8 +398,7 @@ M0_INTERNAL void m0_rm_ha_tracker_fini(struct m0_rm_ha_tracker *tracker)
 
 M0_INTERNAL void m0_rm_ha_unsubscribe(struct m0_rm_ha_tracker *tracker)
 {
-	if (m0_clink_is_armed(&tracker->rht_clink))
-		m0_clink_del(&tracker->rht_clink);
+	m0_clink_cleanup_locked(&tracker->rht_clink);
 }
 
 M0_INTERNAL void m0_rm_ha_unsubscribe_lock(struct m0_rm_ha_tracker *tracker)

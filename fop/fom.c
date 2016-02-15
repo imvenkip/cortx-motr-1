@@ -1278,8 +1278,7 @@ M0_INTERNAL void m0_fom_callback_cancel(struct m0_fom_callback *cb)
 	M0_PRE(cb->fc_state >= M0_FCS_ARMED);
 
 	if (cb->fc_state == M0_FCS_ARMED) {
-		if (m0_clink_is_armed(clink))
-			m0_clink_del(clink);
+		m0_clink_cleanup_locked(clink);
 		cb_done(cb);
 		/* Once the clink is finalised, the AST cannot be posted, cancel
 		   the AST. */

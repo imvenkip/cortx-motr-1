@@ -387,6 +387,20 @@ M0_INTERNAL void m0_clink_del_lock(struct m0_clink *link);
 M0_INTERNAL bool m0_clink_is_armed(const struct m0_clink *link);
 
 /**
+   If clink armed, deletes the one from its channel. Otherwise, does nothing.
+
+   @pre !m0_chan_is_locked(link->cl_chan)
+ */
+M0_INTERNAL void m0_clink_cleanup(struct m0_clink *link);
+
+/**
+   If clink armed, deletes the one from its channel. Otherwise, does nothing.
+
+   @pre m0_chan_is_locked(link->cl_chan)
+ */
+M0_INTERNAL void m0_clink_cleanup_locked(struct m0_clink *link);
+
+/**
    Returns when there is an event pending in the clink. The event is consumed
    before the call returns.
 

@@ -432,6 +432,7 @@ static void disconnect_from_confd(struct m0_confc *confc);
 static void confc_lock(struct m0_confc *confc);
 static void confc_unlock(struct m0_confc *confc);
 static bool confc_is_locked(const struct m0_confc *confc);
+static void clink_cleanup_fini(struct m0_clink *link);
 
 static bool not_empty(const char *s)
 {
@@ -531,10 +532,7 @@ M0_INTERNAL void m0_confc_fini(struct m0_confc *confc)
 	M0_ENTRY("confc=%p", confc);
 	M0_PRE(confc->cc_nr_ctx == 0);
 
-	if (m0_clink_is_armed(&confc->cc_drain)) {
-		m0_clink_del(&confc->cc_drain);
-		m0_clink_fini(&confc->cc_drain);
-	}
+	clink_cleanup_fini(&confc->cc_drain);
 	m0_chan_fini_lock(&confc->cc_unattached);
 	m0_mutex_fini(&confc->cc_unatt_guard);
 	confc->cc_gops = NULL;
@@ -561,10 +559,7 @@ M0_INTERNAL void m0_confc_gate_ops_set(struct m0_confc          *confc,
 {
 	M0_PRE(confc != NULL);
 	M0_PRE(gops == NULL || gops->go_check != NULL);
-	if (m0_clink_is_armed(&confc->cc_drain)) {
-		m0_clink_del(&confc->cc_drain);
-		m0_clink_fini(&confc->cc_drain);
-	}
+	clink_cleanup_fini(&confc->cc_drain);
 	confc->cc_gops = gops;
 	if (gops->go_drain != NULL) {
 		m0_clink_init(&confc->cc_drain, confc->cc_gops->go_drain);
@@ -577,7 +572,19 @@ static bool _confc_check(const void *bob)
 	const struct m0_confc *confc = bob;
 	return confc->cc_group != NULL;
 }
-
+
+static void clink_cleanup_fini(struct m0_clink *link)
+{
+	if (link->cl_chan != NULL) {
+		M0_PRE(m0_chan_is_locked(link->cl_chan));
+		if (m0_clink_is_armed(link)) {
+			m0_clink_del(link);
+			m0_clink_fini(link);
+			M0_SET0(link);
+		}
+	}
+}
+
 /* ------------------------------------------------------------------
  * m0_confc_ctx
  * ------------------------------------------------------------------ */
