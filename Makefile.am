@@ -624,14 +624,14 @@ bin_SCRIPTS += utils/m0confgen
 noinst_PROGRAMS += m0t1fs/linux_kernel/st/m0t1fs_fwait_test_helper
 noinst_PROGRAMS += m0t1fs/linux_kernel/st/m0t1fs_fsync_test_helper
 m0t1fs_linux_kernel_st_m0t1fs_fsync_test_helper_CPPFLAGS  = \
-			-DM0_TARGET='m0t1fs_fsync_test_helper' $(AM_CPPFLAGS)
+            -DM0_TARGET='m0t1fs_fsync_test_helper' $(AM_CPPFLAGS)
 
 m0t1fs_linux_kernel_st_m0t1fs_fwait_test_helper_CPPFLAGS  = \
-			-DM0_TARGET='m0t1fs_fwait_test_helper' $(AM_CPPFLAGS)
+            -DM0_TARGET='m0t1fs_fwait_test_helper' $(AM_CPPFLAGS)
 
 noinst_PROGRAMS += m0t1fs/linux_kernel/st/m0t1fs_io_file_pattern
 m0t1fs_linux_kernel_st_m0t1fs_io_file_pattern_CPPFLAGS  = \
-			-DM0_TARGET='m0t1fs_io_file_pattern' $(AM_CPPFLAGS)
+            -DM0_TARGET='m0t1fs_io_file_pattern' $(AM_CPPFLAGS)
 
 include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
 
@@ -1276,11 +1276,11 @@ EXTRA_DIST += \
               be/ut/Kbuild.sub \
               cob/Kbuild.sub \
               conf/Kbuild.sub \
-	      conf/ut/Kbuild.sub \
+              conf/ut/Kbuild.sub \
               dtm/Kbuild.sub \
               dtm/ut/Kbuild.sub \
-	      fd/Kbuild.sub \
-	      fd/ut/Kbuild.sub \
+              fd/Kbuild.sub \
+              fd/ut/Kbuild.sub \
               fid/Kbuild.sub \
               fol/Kbuild.sub \
               fop/Kbuild.sub \
