@@ -780,7 +780,7 @@ ff2c_verbose   = $(ff2c_verbose_$(V))
 ff2c_verbose_  = $(ff2c_verbose_$(AM_DEFAULT_VERBOSITY))
 ff2c_verbose_0 = @echo "  FF2C  " $<;
 
-%_ff.h %_ff.c: %.ff $(FF2C)
+%_ff.h %_ff.c: %.ff config.h $(FF2C)
 	$(ff2c_verbose)$(FF2C) $<
 
 #
@@ -813,7 +813,7 @@ GCCXML_UNSUPPORTED_CFLAGS := -Werror --coverage -pipe -Wp,-D_FORTIFY_SOURCE=2 --
 GCCXML_CPPFLAGS := -DGCC_VERSION=4002
 GCCXML_CFLAGS   := $(filter-out $(GCCXML_UNSUPPORTED_CFLAGS), $(CPPFLAGS) $(CFLAGS) $(AM_CPPFLAGS) $(AM_CFLAGS))
 
-%_xc.h %_xc.c: %.h
+%_xc.h %_xc.c: %.h config.h
 	$(gccxml_verbose)$(GCCXML) $(GCCXML_CPPFLAGS) $(GCCXML_CFLAGS) -fxml=$(<:.h=.gccxml) $<
 	$(gccxml2xcode_verbose)$(top_srcdir)/xcode/gccxml2xcode -i $(<:.h=.gccxml) -l $(XC_LIST_FILE)
 
@@ -1267,7 +1267,7 @@ help:
 #                                     Misc
 ################################################################################
 
-EXTRA_DIST += $(XC_LIST_FILE) $(CONFXC_FILES)
+EXTRA_DIST += $(XC_LIST_FILE) $(CONFXC_FILES:.xc=.cg)
 
 EXTRA_DIST += \
               addb2/Kbuild.sub \
