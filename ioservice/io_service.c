@@ -477,7 +477,7 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 	int                      rc = 0;
 	struct m0_cob_domain    *cdom;
 	struct m0_cob_domain_id  cdom_id;
-	struct m0_dtx            tx;
+	struct m0_dtx            tx = {};
 	struct m0_sm_group      *grp = m0_locality0_get()->lo_grp;
 
 	M0_PRE(reqh != NULL);
