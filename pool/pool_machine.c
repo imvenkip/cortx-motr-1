@@ -454,7 +454,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 			return M0_ERR(-EINVAL);
 		break;
 	case M0_PNDS_OFFLINE:
-		if (event->pe_state != M0_PNDS_ONLINE)
+		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE,
+					     M0_PNDS_FAILED)))
 			return M0_ERR(-EINVAL);
 		break;
 	case M0_PNDS_FAILED:

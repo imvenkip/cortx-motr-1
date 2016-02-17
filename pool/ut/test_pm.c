@@ -102,6 +102,7 @@ static void pm_test_init_fini(void)
 static void pm_test_transit(void)
 {
 	struct m0_poolmach            *pm;
+	enum m0_pool_nd_state          state;
 	int                            rc;
 	bool                           equal;
 	struct m0_poolmach_event       events[4];
@@ -109,6 +110,7 @@ static void pm_test_transit(void)
 	struct m0_poolmach_versions    v1;
 	struct m0_poolmach_versions    v2;
 	struct m0_poolmach_event       e_invalid;
+	struct m0_poolmach_event       e_valid;
 	struct m0_poolmach_versions    v_invalid;
 	struct m0_tl                   events_list;
 	struct m0_poolmach_event_link *scan;
@@ -413,6 +415,30 @@ static void pm_test_transit(void)
 	rc = m0_poolmach_state_transit(pm, &e_invalid, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == -EINVAL);
+
+	/*  Test transition from M0_PNDS_OFFLINE to M0_PNDS_FAILED. */
+	rc = m0_poolmach_device_state(pm, 0, &state);
+	M0_UT_ASSERT(rc == 0 && state == M0_PNDS_UNKNOWN);
+
+	e_valid.pe_type  = M0_POOL_DEVICE;
+	e_valid.pe_index = 0;
+	e_valid.pe_state = M0_PNDS_OFFLINE;
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
+	rc = m0_poolmach_state_transit(pm, &e_valid, &tx);
+	m0_ut_be_tx_end(&tx);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_poolmach_device_state(pm, 0, &state);
+	M0_UT_ASSERT(rc == 0 && state == M0_PNDS_OFFLINE);
+
+	e_valid.pe_type  = M0_POOL_DEVICE;
+	e_valid.pe_index = 0;
+	e_valid.pe_state = M0_PNDS_FAILED;
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
+	rc = m0_poolmach_state_transit(pm, &e_valid, &tx);
+	m0_ut_be_tx_end(&tx);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_poolmach_device_state(pm, 0, &state);
+	M0_UT_ASSERT(rc == 0 && state == M0_PNDS_FAILED);
 
 	m0_fi_enable_off_n_on_m("m0_pooldev_clink_del",
 			  "do_nothing_for_poolmach-ut", 0,
