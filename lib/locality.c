@@ -242,11 +242,12 @@ M0_INTERNAL void m0_localities_fini(void)
 	struct locality_global *glob = loc_glob();
 
 	M0_PRE(glob->lg_dom != NULL);
-	M0_PRE(chores_g_tlist_is_empty(&glob->lg_chore));
 
 	locality_data_free_all();
 	if (glob->lg_dom != NULL)
 		m0_fom_domain_fini(glob->lg_dom);
+
+	M0_ASSERT(chores_g_tlist_is_empty(&glob->lg_chore));
 	glob->lg_dom = NULL;
 	glob->lg_shutdown = true;
 	m0_clink_signal(&glob->lg_grp.s_clink);
@@ -405,7 +406,8 @@ static void chore_add_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	if (chloc != NULL) {
 		chloc->lo_chore = chore;
 		chloc->lo_data  = chloc + 1;
-		result = chore->lc_ops->co_enter(chore, loc, chloc->lo_data);
+		result = chore->lc_ops->co_enter == NULL ? 0 :
+			chore->lc_ops->co_enter(chore, loc, chloc->lo_data);
 		if (result == 0) {
 			chore_l_tlink_init_at_tail(chloc, &loc->lo_chores);
 			chore->lc_active++;
@@ -426,7 +428,8 @@ static void chore_del_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	chloc = m0_tl_find(chore_l, scan, &loc->lo_chores,
 			   scan->lo_chore == chore);
 	M0_PRE(chloc != NULL);
-	chore->lc_ops->co_leave(chore, loc, chloc->lo_data);
+	if (chore->lc_ops->co_leave != NULL)
+		chore->lc_ops->co_leave(chore, loc, chloc->lo_data);
 	chore_l_tlink_del_fini(chloc);
 	chore->lc_active--;
 	m0_free(chloc);

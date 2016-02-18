@@ -329,6 +329,8 @@ struct m0_fom_domain {
 	size_t                          fd_localities_nr;
 	/** Domain operations. */
 	const struct m0_fom_domain_ops *fd_ops;
+	/** Long living foms detecting chore. */
+	struct m0_locality_chore        fd_hung_foms_chore;
 	struct m0_addb2_sys            *fd_addb2_sys;
 };
 

@@ -127,7 +127,9 @@
  */
 
 enum {
-	LOC_IDLE_NR = 1
+	LOC_IDLE_NR = 1,
+	HUNG_FOP_SEC_PERIOD   = 5,
+	HUNG_FOP_TIME_SEC_MAX = 2*60,
 };
 
 /**
@@ -177,6 +179,9 @@ static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
 				 const struct m0_fom *fom);
 static int loc_thr_create(struct m0_fom_locality *loc);
 
+static void hung_foms_notify(struct m0_locality_chore *chore,
+			     struct m0_locality *loc, void *place);
+
 static struct m0_sm_conf fom_states_conf0;
 M0_INTERNAL struct m0_sm_conf fom_states_conf;
 
@@ -186,6 +191,13 @@ M0_INTERNAL struct m0_sm_conf fom_states_conf;
  */
 static struct m0_fom_domain_ops m0_fom_dom_ops = {
 	.fdo_time_is_out = fom_wait_time_is_out
+};
+
+/**
+ * Chore which detects long-living foms.
+ */
+static const struct m0_locality_chore_ops hung_foms_chore_ops = {
+	.co_tick = hung_foms_notify
 };
 
 static void group_lock(struct m0_fom_locality *loc)
@@ -306,10 +318,32 @@ M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom)
 		_0C(fom->fo_service->rs_type == fom->fo_type->ft_rstype);
 }
 
+/*
+ * TODO: replace with corresponding HA handler when it's integrated
+ */
+static bool hung_fom_notify(const struct m0_fom *fom)
+{
+	m0_time_t diff;
+
+	if (M0_IN(fom->fo_type->ft_id, (M0_BE_TX_GROUP_OPCODE,
+					M0_ADDB_FOP_OPCODE)))
+	    return true;
+
+	diff = m0_time_sub(m0_time_now(), fom->fo_sm_state.sm_state_epoch);
+	if (m0_time_seconds(diff) > HUNG_FOP_TIME_SEC_MAX)
+		M0_LOG(M0_WARN, "FOP HUNG[" TIME_F " seconds in processing]: "
+		       "fom=%p, fop %p[%u] phase: %s", TIME_P(diff), fom,
+		       &fom->fo_fop,
+		       fom->fo_fop == NULL ? 0 : m0_fop_opcode(fom->fo_fop),
+		       m0_fom_phase_name(fom, m0_fom_phase(fom)));
+
+	return true; /* by convention of m0_tl_forall */
+}
+
 static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
 				 const struct m0_fom *fom)
 {
-	return false;
+	return hung_fom_notify(fom);
 }
 
 /**
@@ -668,8 +702,8 @@ static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
  */
 static void loc_handler_thread(struct m0_loc_thread *th)
 {
-	struct m0_clink        *clink = &th->lt_clink;
-	struct m0_fom_locality *loc   = th->lt_loc;
+	struct m0_clink        *clink  = &th->lt_clink;
+	struct m0_fom_locality *loc    = th->lt_loc;
 
 	while (1) {
 		/*
@@ -705,8 +739,8 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 		 */
 		while (1) {
 			struct m0_fom *fom;
-
 			M0_ASSERT(m0_locality_invariant(loc));
+
 			/*
 			 * Check for a blocked thread that tries to unblock and
 			 * complete a phase transition.
@@ -953,6 +987,19 @@ static void core_mask_apply(struct m0_bitmap *onln_cpu_map)
 			m0_bitmap_set(onln_cpu_map, i, false);
 }
 
+static void hung_foms_notify(struct m0_locality_chore *chore,
+			     struct m0_locality *loc, void *place)
+{
+	struct m0_fom_locality *floc = container_of(loc, struct m0_fom_locality,
+						    fl_locality);
+	const struct m0_fom_domain *dom = floc->fl_dom;
+
+	(void)m0_tl_forall(runq, fom, &floc->fl_runq,
+			   dom->fd_ops->fdo_time_is_out(dom, fom));
+	(void)m0_tl_forall(wail, fom, &floc->fl_wail,
+			   dom->fd_ops->fdo_time_is_out(dom, fom));
+}
+
 M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain **out)
 {
 	struct m0_fom_domain   *dom;
@@ -1015,6 +1062,12 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain **out)
 					m0_chan_signal(&loc->fl_idle);
 					group_unlock(loc);
 				}
+
+				m0_locality_chore_init(&dom->fd_hung_foms_chore,
+				       &hung_foms_chore_ops,
+				       NULL,
+				       M0_MKTIME(HUNG_FOP_SEC_PERIOD, 0),
+				       0);
 			}
 		} else
 			result = M0_ERR(-ENOMEM);
@@ -1033,6 +1086,7 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 {
 	int i;
 
+	m0_locality_chore_fini(&dom->fd_hung_foms_chore);
 	if (dom->fd_localities != NULL) {
 		i = dom->fd_localities_nr;
 		for (i = dom->fd_localities_nr - 1; i >= 0; --i) {
