@@ -1467,6 +1467,7 @@ static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
 	struct m0_rpc_item          *reply = rconfc->rc_entrypoint_reply;
 	struct m0_fid                rep_rm_fid;
 	const char                 **confd_eps = NULL;
+	uint32_t                     i;
 	bool                         addr_mismatch;
 	int                          rc = 0;
 
@@ -1479,9 +1480,25 @@ static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
 	rep_rm_addr = m0_buf_strdup(&entrypoint->hbp_active_rm_ep);
 	if (rep_rm_addr == NULL)
 		rc = M0_ERR(-ENOMEM);
-	rc = rc ?: m0_bufs_to_strings(&confd_eps, &entrypoint->hbp_confd_eps) ?:
-		rconfc_herd_update(rconfc, confd_eps,
-				   &entrypoint->hbp_confd_fids) ?:
+	rc = rc ?: m0_bufs_to_strings(&confd_eps, &entrypoint->hbp_confd_eps);
+	if (rc == 0) {
+		M0_LOG(M0_DEBUG, "hbp_rc=%"PRIi32" hbp_quorum=%"PRIu32" "
+		       "confd_nr=%"PRIu32, entrypoint->hbp_rc,
+		       entrypoint->hbp_quorum,
+		       entrypoint->hbp_confd_fids.af_count);
+		M0_LOG(M0_DEBUG, "hbp_active_rm_fid="FID_F" "
+		       "hbp_active_rm_ep=%s",
+		       FID_P(&entrypoint->hbp_active_rm_fid),
+		       (const char *)rep_rm_addr);
+		for (i = 0; i < entrypoint->hbp_confd_eps.ab_count; ++i) {
+			M0_LOG(M0_DEBUG, "hbp_confd_fids[%d]="FID_F" "
+			       "hbp_confd_eps[%d]=%s", i,
+			       FID_P(&entrypoint->hbp_confd_fids.af_elems[i]),
+			       i, confd_eps[i]);
+		}
+	}
+	rc = rc ?: rconfc_herd_update(rconfc, confd_eps,
+	                              &entrypoint->hbp_confd_fids) ?:
 		m0_conf_confc_ha_update(m0_ha_session_get(), &rconfc->rc_phony);
 	m0_strings_free(confd_eps);
 	m0_rpc_item_put_lock(&rconfc->rc_entrypoint_fop.f_item);
@@ -1490,6 +1507,7 @@ static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
 	if (rc != 0) {
 		m0_free(rep_rm_addr);
 		rconfc_fail(rconfc, rc);
+		M0_LEAVE();
 		return;
 	}
 	addr_mismatch = rlx->rlc_rm_addr == NULL ||
@@ -1506,6 +1524,7 @@ static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
 	} else {
 		rconfc_entrypoint_get(rconfc);
 	}
+	M0_LEAVE();
 }
 
 static void rconfc_entrypoint_req_replied(struct m0_rpc_item *item)
