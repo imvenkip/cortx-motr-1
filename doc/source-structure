@@ -260,7 +260,7 @@ alphabetic order (search where other ut makefiles are included).
 
     include $(top_srcdir)/foo/ut/Makefile.sub
 
-In utils/ut_main.c add
+In ut/m0ut.c add
 
 extern const struct m0_ut_suite foo_ut;
 
