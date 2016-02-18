@@ -245,7 +245,8 @@ M0_EXPORTED(m0_net_tm_fini);
 M0_INTERNAL int m0_net_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 {
 	int rc;
-	M0_ENTRY();
+
+	M0_ENTRY("tm=%p addr=%s", (void *)tm, addr);
 
 	M0_ASSERT(addr != NULL);
 	M0_PRE(tm != NULL);
@@ -277,7 +278,8 @@ M0_INTERNAL int m0_net_tm_stop(struct m0_net_transfer_mc *tm, bool abort)
 {
 	int rc;
 	enum m0_net_tm_state oldstate;
-	M0_ENTRY();
+
+	M0_ENTRY("tm=%p abort=%d", (void *)tm, !!abort);
 
 	m0_mutex_lock(&tm->ntm_mutex);
 	M0_PRE(m0_net__tm_invariant(tm));

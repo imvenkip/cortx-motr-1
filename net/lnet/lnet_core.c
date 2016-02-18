@@ -396,6 +396,8 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	size_t n = cp - ep_addr;
 	int rc;
 
+	M0_ENTRY("ep_addr=%s", ep_addr);
+
 	if (cp == NULL || n == 0 || n >= sizeof nidstr)
 		return M0_ERR(-EINVAL);
 	strncpy(nidstr, ep_addr, n);
