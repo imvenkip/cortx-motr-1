@@ -41,12 +41,14 @@ sleep 10 # allow mero to finish its startup
 
 echo "Perform fsync test"
 for i in 0:1{0..9}0000; do touch /mnt/m0t1fs/$i & done
-wait
+for i in $(jobs -p) ; do wait $i ; done
+
 for i in 0:1{0..9}0000; do setfattr -n lid -v 8 /mnt/m0t1fs/$i & done
-wait
+for i in $(jobs -p) ; do wait $i ; done
+
 for i in 0:1{0..9}0000; do dd if=/dev/zero of=/mnt/m0t1fs/$i \
     bs=8M count=20 conv=fsync & done
-wait
+for i in $(jobs -p) ; do wait $i ; done
 
 echo "Tear down Mero services"
 systemctl stop mero-singlenode
