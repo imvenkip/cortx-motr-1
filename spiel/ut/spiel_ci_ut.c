@@ -398,6 +398,24 @@ void test_spiel_fs_stats(void)
 	spiel_ci_ut_fini();
 }
 
+static void spiel_sns_repair_start(const struct m0_fid *pool_fid,
+				   const struct m0_fid *svc_fid)
+{
+	struct m0_spiel_sns_status *status;
+	enum m0_sns_cm_status       state;
+	int                         rc;
+
+	rc = m0_spiel_pool_repair_start(&spiel, pool_fid);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_spiel_pool_repair_status(&spiel, pool_fid, &status);
+	M0_UT_ASSERT(rc == 1);
+	state = status[0].sss_state;
+	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, svc_fid));
+	M0_UT_ASSERT(M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_STARTED)));
+	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	m0_free(status);
+}
+
 static void test_spiel_pool_repair(void)
 {
 	const struct m0_fid         pool_fid = M0_FID_TINIT(
@@ -422,6 +440,8 @@ static void test_spiel_pool_repair(void)
 
 	rc = m0_spiel_pool_repair_quiesce(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
+	rc = m0_spiel_pool_repair_abort(&spiel, &invalid_fid);
+	M0_UT_ASSERT(rc == -EINVAL);
 	rc = m0_spiel_pool_repair_continue(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
 	rc = m0_spiel_pool_repair_status(&spiel, &invalid_fid, &status);
@@ -435,19 +455,18 @@ static void test_spiel_pool_repair(void)
 	M0_UT_ASSERT(status[0].sss_progress >= 0);
 	m0_free(status);
 
-	rc = m0_spiel_pool_repair_start(&spiel, &pool_fid);
-	M0_UT_ASSERT(rc == 0);
+	spiel_sns_repair_start(&pool_fid, &svc_fid);
 
+	rc = m0_spiel_pool_repair_abort(&spiel, &pool_fid);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_spiel_pool_repair_status(&spiel, &pool_fid, &status);
 	M0_UT_ASSERT(rc == 1);
 	state = status[0].sss_state;
 	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
-	M0_UT_ASSERT(M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_STARTED,
-				   SNS_CM_STATUS_FAILED)));
-	M0_UT_ASSERT(status[0].sss_progress >= 0);
-	m0_free(status);
-	if (M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_FAILED)))
-		goto done;
+	M0_UT_ASSERT(state == SNS_CM_STATUS_IDLE);
+	M0_UT_ASSERT(status[0].sss_progress > 0);
+
+	spiel_sns_repair_start(&pool_fid, &svc_fid);
 
 	rc = m0_spiel_pool_repair_quiesce(&spiel, &pool_fid);
 	M0_UT_ASSERT(rc == 0);
@@ -455,7 +474,7 @@ static void test_spiel_pool_repair(void)
 	rc = m0_spiel_pool_repair_status(&spiel, &pool_fid, &status);
 	M0_UT_ASSERT(rc == 1);
 	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
-	M0_UT_ASSERT(status[0].sss_state = SNS_CM_STATUS_PAUSED);
+	M0_UT_ASSERT(status[0].sss_state == SNS_CM_STATUS_PAUSED);
 	M0_UT_ASSERT(status[0].sss_progress >= 0);
 	m0_free(status);
 
@@ -478,7 +497,6 @@ static void test_spiel_pool_repair(void)
 		m0_nanosleep(m0_time(5, 0), NULL);
 	}
 
-done:
 	m0_fi_disable("ready", "no_wait");
 	spiel_ci_ut_fini();
 }
@@ -546,7 +564,7 @@ static void test_spiel_pool_rebalance(void)
 	rc = m0_spiel_pool_rebalance_continue(&spiel, &pool_fid);
 	M0_UT_ASSERT(rc == 0);
 
-	while(1) {
+	while (1) {
 		rc = m0_spiel_pool_rebalance_status(&spiel, &pool_fid, &status);
 		M0_UT_ASSERT(rc == 1);
 		state = status[0].sss_state;

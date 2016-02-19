@@ -1325,6 +1325,15 @@ int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
 }
 M0_EXPORTED(m0_spiel_pool_repair_quiesce);
 
+int m0_spiel_pool_repair_abort(struct m0_spiel     *spl,
+			       const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(spl, pool_fid,
+						SNS_REPAIR_ABORT, NULL));
+}
+M0_EXPORTED(m0_spiel_pool_repair_abort);
+
 int m0_spiel_pool_repair_status(struct m0_spiel             *spl,
 				const struct m0_fid         *pool_fid,
 				struct m0_spiel_sns_status **statuses)

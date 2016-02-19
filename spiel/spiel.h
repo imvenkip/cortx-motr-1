@@ -898,7 +898,27 @@ int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
 				 const struct m0_fid *pool_fid);
 
 /**
- * Gets status of pool repair.
+ * Abort pool repair.
+ *
+ * The command is synchronous. it waits replies from all SNS services that each
+ * one receives fop and aborts repair. 0 is returned if each service replies
+ * with success result code (repair process is successfully aborted). Spiel
+ * client is able to check status of the current repair process by calling of
+ * m0_spiel_pool_repair_status command.
+ *
+ * @param spl            spiel instance
+ * @param pool_fid       pool fid from configuration DB
+ * @return 0 if all services reply with success result code, otherwise an error
+ * code from the first failed service (it replies with error) or confc (an error
+ * occurred during read of the configuration database)
+ *
+ * @see m0_spiel_pool_repair_status
+ */
+int m0_spiel_pool_repair_abort(struct m0_spiel     *spl,
+			       const struct m0_fid *pool_fid);
+
+/**
+ * Gets status pool repair.
  *
  * The command is synchronous. it waits replies from all SNS services.
  *
