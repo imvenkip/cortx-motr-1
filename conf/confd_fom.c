@@ -277,7 +277,7 @@ static int confx_populate(struct m0_confx         *dest,
 
 	org = confd_cache_lookup(cache, origin);
 	if (org == NULL)
-		return M0_ERR(-ENOENT);
+		return M0_ERR_INFO(-ENOENT, "origin="FID_F, FID_P(origin));
 
 	rc = confd_path_walk(org, path, _count, &nr, NULL);
 	if (rc != 0 || nr == 0)
