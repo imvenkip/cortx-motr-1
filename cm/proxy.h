@@ -30,6 +30,7 @@
 #include "rpc/conn.h"
 #include "rpc/session.h"
 #include "sm/sm.h"
+#include "conf/obj.h"
 
 #include "cm/sw.h"
 #include "cm/ag.h"
@@ -48,7 +49,8 @@ enum proxy_state {
 	M0_PX_READY,
 	M0_PX_ACTIVE,
 	M0_PX_COMPLETE,
-	M0_PX_STOP
+	M0_PX_STOP,
+	M0_PX_FAILED
 };
 
 /**
@@ -111,6 +113,16 @@ struct m0_cm_proxy {
 	 */
 	struct m0_tlink        px_linkage;
 
+	struct m0_tlink        px_fail_linkage;
+
+	/**
+	 * Listens for an event on io service's configuration object's
+	 * HA channel.
+	 * Used to update proxy status in the clink callback on HA
+	 * notification.
+	 */
+	struct m0_clink        px_ha_link;
+
 	uint64_t               px_magic;
 };
 
@@ -127,11 +139,9 @@ struct m0_cm_proxy_sw_onwire {
 	struct m0_cm_proxy *pso_proxy;
 };
 
-M0_INTERNAL int m0_cm_proxy_alloc(uint64_t px_id,
-				  struct m0_cm_ag_id *lo,
-				  struct m0_cm_ag_id *hi,
-				  const char *endpoint,
-				  struct m0_cm_proxy **pxy);
+M0_INTERNAL int m0_cm_proxy_init(struct m0_cm_proxy *pxy, uint64_t px_id,
+				 struct m0_cm_ag_id *lo, struct m0_cm_ag_id *hi,
+				 const char *endpoint);
 
 M0_INTERNAL void m0_cm_proxy_add(struct m0_cm *cm, struct m0_cm_proxy *pxy);
 
@@ -163,8 +173,14 @@ M0_INTERNAL void m0_cm_proxy_fini(struct m0_cm_proxy *pxy);
 M0_INTERNAL bool m0_cm_proxy_is_done(const struct m0_cm_proxy *pxy);
 M0_INTERNAL void m0_cm_proxy_pending_cps_wakeup(struct m0_cm *cm);
 
+M0_INTERNAL void m0_cm_proxy_event_handle_register(struct m0_cm_proxy *pxy,
+						   struct m0_conf_obj *svc_obj);
+
 M0_TL_DESCR_DECLARE(proxy, M0_EXTERN);
 M0_TL_DECLARE(proxy, M0_INTERNAL, struct m0_cm_proxy);
+
+M0_TL_DESCR_DECLARE(proxy_fail, M0_EXTERN);
+M0_TL_DECLARE(proxy_fail, M0_INTERNAL, struct m0_cm_proxy);
 
 M0_TL_DESCR_DECLARE(proxy_cp, M0_EXTERN);
 M0_TL_DECLARE(proxy_cp, M0_INTERNAL, struct m0_cm_cp);

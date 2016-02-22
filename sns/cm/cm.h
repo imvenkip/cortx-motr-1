@@ -314,8 +314,7 @@ M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 					 struct m0_pdclust_layout *pl,
 					 uint64_t nr_bufs);
 
-M0_INTERNAL void m0_sns_cm_ha_state_set(struct m0_fid *obj_id,
-					enum m0_ha_obj_state state);
+M0_INTERNAL void m0_sns_cm_ha_state_set(struct m0_ha_nvec *nvec);
 
 /**
  * Returns state of SNS repair process with respect to @gfid.

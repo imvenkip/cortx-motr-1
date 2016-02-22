@@ -203,6 +203,9 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 
 	if (!m0_cm_aggr_group_tlists_are_empty(cm) ||
 	    !cm->cm_sw_update.swu_is_complete) {
+		m0_cm_lock(cm);
+		m0_cm_proxy_failed_cleanup(cm);
+		m0_cm_unlock(cm);
 		pump_wait(cp_pump);
 		return M0_FSO_WAIT;
 	}

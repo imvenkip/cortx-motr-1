@@ -38,6 +38,7 @@
 #include "reqh/reqh.h"
 #include "fop/fop.h"
 #include "pool/pool.h" /* pools_common_svc */
+#include "conf/obj_ops.h"
 
 #include "cm/cm.h"
 #include "cm/ag.h"
@@ -506,6 +507,10 @@ M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, int rc)
 	M0_PRE(cm != NULL);
 	M0_PRE(rc < 0);
 
+	/* If copy machine is already marked failed, do nothing. */
+	if (m0_cm_state_get(cm) == M0_CMS_FAIL)
+		return;
+
 	M0_LOG(M0_ERROR, "copy machine failure, state=%d rc=%d",
 	       m0_cm_state_get(cm), rc);
 	m0_sm_fail(&cm->cm_mach, M0_CMS_FAIL, rc);
@@ -547,18 +552,19 @@ M0_INTERNAL void m0_cm_state_set(struct m0_cm *cm, enum m0_cm_state state)
 	       cm->cm_id, m0_cm_state_get(cm));
 }
 
+static int cm_rc(struct m0_cm *cm)
+{
+	return cm->cm_mach.sm_rc;
+}
+
 M0_INTERNAL bool m0_cm_invariant(const struct m0_cm *cm)
 {
-	int state = cm->cm_mach.sm_state;
-
-	return
-		/* NULL checks. */
-		cm != NULL && cm->cm_ops != NULL && cm->cm_type != NULL &&
-		m0_sm_invariant(&cm->cm_mach) &&
-		/* Copy machine state sanity checks. */
-		ergo(M0_IN(state, (M0_CMS_IDLE, M0_CMS_PREPARE, M0_CMS_READY,
-				   M0_CMS_ACTIVE, M0_CMS_STOP)),
-		     m0_reqh_service_invariant(&cm->cm_service));
+	return cm != NULL && cm->cm_ops != NULL && cm->cm_type != NULL &&
+	       m0_sm_invariant(&cm->cm_mach) &&
+	       ergo(M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_PREPARE,
+						M0_CMS_READY, M0_CMS_ACTIVE,
+						M0_CMS_STOP)),
+		    m0_reqh_service_invariant(&cm->cm_service));
 }
 
 M0_INTERNAL int m0_cm_setup(struct m0_cm *cm)
@@ -579,13 +585,8 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm)
 	rc = cm->cm_ops->cmo_setup(cm);
 	if (M0_FI_ENABLED("setup_failure_2"))
 		rc = -EINVAL;
-	if (rc == 0) {
-		m0_mutex_init(&cm->cm_wait_mutex);
-		m0_mutex_init(&cm->cm_ast_run_fom_wait_mutex);
-		m0_chan_init(&cm->cm_wait, &cm->cm_wait_mutex);
-		m0_chan_init(&cm->cm_ast_run_fom_wait, &cm->cm_ast_run_fom_wait_mutex);
+	if (rc == 0)
 		m0_cm_state_set(cm, M0_CMS_IDLE);
-	}
 
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -606,6 +607,7 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 	int                         rc = -ENOENT;
 	struct m0_pools_common     *pc;
 	struct m0_reqh_service_ctx *ctx;
+	struct m0_conf_obj         *svc_obj;
 	uint32_t                    proxy_cnt = 0;
 
 	M0_PRE(cm != NULL && rmach != NULL && reqh != NULL);
@@ -622,11 +624,23 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 				ctx->sc_type);
 		if (strcmp(lep, dep) == 0 || ctx->sc_type != M0_CST_IOS)
 			continue;
-		rc = m0_cm_proxy_alloc(proxy_cnt, &ag_id0, &ag_id0, dep, &pxy);
+		rc = m0_conf_obj_find_lock(&pc->pc_confc->cc_cache,
+					   &ctx->sc_fid, &svc_obj);
+		if (rc != 0)
+			return M0_ERR(rc);
+		if (svc_obj->co_ha_state != M0_NC_ONLINE) {
+			M0_LOG(M0_INFO, "Service down at endpoint %s", dep);
+			continue;
+		}
+		M0_ALLOC_PTR(pxy);
+		if (pxy == NULL)
+			return M0_ERR(-ENOMEM);
+		rc = m0_cm_proxy_init(pxy, proxy_cnt, &ag_id0, &ag_id0, dep);
 		if (rc == 0) {
 			pxy->px_conn = &ctx->sc_rlink.rlk_conn;
 			pxy->px_session = &ctx->sc_rlink.rlk_sess;
 			m0_cm_proxy_add(cm, pxy);
+			m0_cm_proxy_event_handle_register(pxy, svc_obj);
 			M0_CNT_INC(proxy_cnt);
 			M0_LOG(M0_DEBUG, "Connected to %s", dep);
 		}
@@ -687,11 +701,6 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 			rc = -EINVAL;
 		else
 			rc = cm->cm_ops->cmo_prepare(cm);
-		if (rc != 0) {
-			m0_cm_fail(cm, rc);
-			cm_replicas_destroy(cm);
-			goto out;
-		}
 	}
 	if (rc == 0) {
 		cm->cm_ready_fops_recvd = 0;
@@ -699,8 +708,12 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 		m0_cm_cp_pump_prepare(cm);
 		m0_cm_state_set(cm, M0_CMS_PREPARE);
 	}
-out:
+	if (rc != 0) {
+		m0_cm_fail(cm, rc);
+		cm_replicas_destroy(cm);
+	}
 	m0_cm_unlock(cm);
+
 	return M0_RC(rc);
 }
 
@@ -746,25 +759,27 @@ M0_INTERNAL bool m0_cm_is_active(struct m0_cm *cm)
 
 M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 {
-	int rc;
+	int rc = cm_rc(cm);
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL);
 	M0_PRE(cm->cm_type != NULL);
 
 	m0_cm_lock(cm);
-	M0_PRE(m0_cm_state_get(cm) == M0_CMS_READY);
+	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_READY, M0_CMS_FAIL)));
 	M0_PRE(m0_cm_invariant(cm));
 
 	if (M0_FI_ENABLED("start_failure"))
 		rc = -EINVAL;
-	else
+	if (rc == 0)
 		rc = cm->cm_ops->cmo_start(cm);
 	/* Start pump FOM to create copy packets. */
 	if (rc == 0) {
 		m0_cm_cp_pump_start(cm);
 		m0_cm_state_set(cm, M0_CMS_ACTIVE);
-	} else {
+	}
+
+	if (rc != 0) {
 		m0_cm_fail(cm, rc);
 		cm_pre_start_cleanup(cm);
 	}
@@ -874,6 +889,11 @@ M0_INTERNAL int m0_cm_init(struct m0_cm *cm, struct m0_cm_type *cm_type,
 	aggr_grps_in_tlist_init(&cm->cm_aggr_grps_in);
 	aggr_grps_out_tlist_init(&cm->cm_aggr_grps_out);
 	proxy_tlist_init(&cm->cm_proxies);
+	proxy_fail_tlist_init(&cm->cm_failed_proxies);
+	m0_mutex_init(&cm->cm_wait_mutex);
+	m0_mutex_init(&cm->cm_ast_run_fom_wait_mutex);
+	m0_chan_init(&cm->cm_wait, &cm->cm_wait_mutex);
+	m0_chan_init(&cm->cm_ast_run_fom_wait, &cm->cm_ast_run_fom_wait_mutex);
 
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -897,6 +917,10 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 	      (char *)cm->cm_type->ct_stype.rst_name,
 	      cm->cm_id, cm->cm_mach.sm_state);
 	m0_cm_state_set(cm, M0_CMS_FINI);
+	aggr_grps_in_tlist_fini(&cm->cm_aggr_grps_in);
+	aggr_grps_out_tlist_fini(&cm->cm_aggr_grps_out);
+	proxy_tlist_fini(&cm->cm_proxies);
+	proxy_fail_tlist_fini(&cm->cm_failed_proxies);
 	m0_sm_fini(&cm->cm_mach);
 	m0_chan_fini_lock(&cm->cm_wait);
 	m0_chan_fini_lock(&cm->cm_ast_run_fom_wait);
@@ -1086,11 +1110,22 @@ M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *p
 {
 	struct m0_cm_aggr_group *ag = NULL;
 
+	M0_PRE(m0_cm_is_locked(cm));
+
 	m0_tlist_for(&aggr_grps_in_tl, &cm->cm_aggr_grps_in, ag) {
 		if (ag->cag_ops->cago_is_frozen_on(ag, proxy)) {
 			ag->cag_ops->cago_fini(ag);
 		}
 	} m0_tlist_endfor;
+}
+
+M0_INTERNAL void m0_cm_proxy_failed_cleanup(struct m0_cm *cm)
+{
+	struct m0_cm_proxy *pxy;
+
+	m0_tl_for(proxy_fail, &cm->cm_failed_proxies, pxy) {
+		m0_cm_frozen_ag_cleanup(cm, pxy);
+	} m0_tl_endfor;
 }
 
 M0_INTERNAL void m0_cm_abort(struct m0_cm *cm)

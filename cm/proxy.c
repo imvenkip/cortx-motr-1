@@ -55,6 +55,12 @@ M0_TL_DESCR_DEFINE(proxy, "copy machine proxy", M0_INTERNAL,
 
 M0_TL_DEFINE(proxy, M0_INTERNAL, struct m0_cm_proxy);
 
+M0_TL_DESCR_DEFINE(proxy_fail, "copy machine proxy", M0_INTERNAL,
+		   struct m0_cm_proxy, px_fail_linkage, px_magic,
+		   CM_PROXY_LINK_MAGIC, CM_PROXY_HEAD_MAGIC);
+
+M0_TL_DEFINE(proxy_fail, M0_INTERNAL, struct m0_cm_proxy);
+
 M0_TL_DESCR_DEFINE(proxy_cp, "pending copy packets", M0_INTERNAL,
 		   struct m0_cm_cp, c_cm_proxy_linkage, c_magix,
 		   CM_CP_MAGIX, CM_PROXY_CP_HEAD_MAGIX);
@@ -80,31 +86,22 @@ static bool cm_proxy_invariant(const struct m0_cm_proxy *pxy)
 	       _0C(pxy->px_endpoint != NULL);
 }
 
-M0_INTERNAL int m0_cm_proxy_alloc(uint64_t px_id,
-				  struct m0_cm_ag_id *lo,
-				  struct m0_cm_ag_id *hi,
-				  const char *endpoint,
-				  struct m0_cm_proxy **pxy)
+M0_INTERNAL int m0_cm_proxy_init(struct m0_cm_proxy *proxy, uint64_t px_id,
+				 struct m0_cm_ag_id *lo, struct m0_cm_ag_id *hi,
+				 const char *endpoint)
 {
-	struct m0_cm_proxy *proxy;
-
-	M0_PRE(pxy != NULL && lo != NULL && hi != NULL && endpoint != NULL);
-
-	M0_ALLOC_PTR(proxy);
-	if (proxy == NULL)
-		return M0_ERR(-ENOMEM);
+	M0_PRE(proxy != NULL && lo != NULL && hi != NULL && endpoint != NULL);
 
 	m0_cm_proxy_bob_init(proxy);
-
+	proxy_tlink_init(proxy);
+	proxy_fail_tlink_init(proxy);
+	m0_mutex_init(&proxy->px_mutex);
+	proxy_cp_tlist_init(&proxy->px_pending_cps);
 	proxy->px_id = px_id;
 	proxy->px_sw.sw_lo = *lo;
 	proxy->px_sw.sw_hi = *hi;
 	proxy->px_endpoint = endpoint;
 	proxy->px_is_done = false;
-	proxy_tlink_init(proxy);
-	m0_mutex_init(&proxy->px_mutex);
-	proxy_cp_tlist_init(&proxy->px_pending_cps);
-	*pxy = proxy;
 	return 0;
 }
 
@@ -126,6 +123,9 @@ M0_INTERNAL void m0_cm_proxy_del(struct m0_cm *cm, struct m0_cm_proxy *pxy)
 	M0_ENTRY("cm: %p proxy: %p", cm, pxy);
 	M0_PRE(m0_cm_is_locked(cm));
 	M0_PRE(proxy_tlink_is_in(pxy));
+	if (proxy_fail_tlink_is_in(pxy))
+		proxy_fail_tlist_del(pxy);
+	proxy_fail_tlink_fini(pxy);
 	proxy_tlink_del_fini(pxy);
 	M0_ASSERT(!proxy_tlink_is_in(pxy));
 	M0_POST(cm_proxy_invariant(pxy));
@@ -262,7 +262,6 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	struct m0_cm_ag_id       id_lo;
 	struct m0_cm_ag_id       id_hi;
 	struct m0_cm_sw          sw;
-	int                      rc;
 
 	M0_ASSERT(cm_proxy_invariant(proxy));
 
@@ -281,14 +280,26 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 			 proxy->px_endpoint, cm->cm_aggr_grps_in_nr);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
-	if (!cm->cm_done || (proxy->px_status != M0_PX_STOP)) {
-		rc = m0_cm_proxy_remote_update(proxy, &sw);
-		M0_ASSERT(rc == 0);
+	if (!cm->cm_done || !M0_IN(proxy->px_status, (M0_PX_STOP, M0_PX_FAILED))) {
+		m0_cm_proxy_remote_update(proxy, &sw);
 	} else {
 		proxy->px_is_done = true;
-		/* Send one final notification to the proxy. */
-		m0_cm_proxy_remote_update(proxy, &sw);
+		if (proxy->px_status != M0_PX_FAILED) {
+			/* Send one final notification to the proxy. */
+			m0_cm_proxy_remote_update(proxy, &sw);
+		}
 		M0_CNT_DEC(cm->cm_proxy_nr);
+	}
+	/*
+	 * Handle service/node failure during sns-repair/rebalance.
+	 * Cannot send updates to dead proxy, all the aggregation groups,
+	 * frozen on that proxy must be destroyed.
+	 */
+	if (proxy->px_status == M0_PX_FAILED) {
+		m0_cm_fail(cm, -EHOSTDOWN);
+		m0_cm_abort(cm);
+		m0_cm_frozen_ag_cleanup(cm, proxy);
+		m0_cm_notify(cm);
 	}
 }
 
@@ -406,6 +417,10 @@ M0_INTERNAL void m0_cm_proxy_fini(struct m0_cm_proxy *pxy)
 	M0_PRE(proxy_cp_tlist_is_empty(&pxy->px_pending_cps));
 	proxy_cp_tlist_fini(&pxy->px_pending_cps);
 	m0_cm_proxy_bob_fini(pxy);
+	if (m0_clink_is_armed(&pxy->px_ha_link)) {
+		m0_clink_del_lock(&pxy->px_ha_link);
+		m0_clink_fini(&pxy->px_ha_link);
+	}
 	m0_mutex_fini(&pxy->px_mutex);
 	M0_LEAVE();
 }
@@ -437,6 +452,37 @@ M0_INTERNAL void m0_cm_proxy_pending_cps_wakeup(struct m0_cm *cm)
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		__wake_up_pending_cps(pxy);
 	} m0_tl_endfor;
+}
+
+static bool proxy_clink_cb(struct m0_clink *clink)
+{
+	struct m0_cm_proxy *pxy = M0_AMB(pxy, clink, px_ha_link);
+	struct m0_conf_obj *svc_obj = container_of(clink->cl_chan,
+						   struct m0_conf_obj,
+						   co_ha_chan);
+
+	M0_PRE(m0_conf_fid_type(&svc_obj->co_id) == &M0_CONF_SERVICE_TYPE);
+
+	if (M0_IN(svc_obj->co_ha_state, (M0_NC_FAILED, M0_NC_TRANSIENT))) {
+		m0_mutex_lock(&pxy->px_mutex);
+		pxy->px_status = M0_PX_FAILED;
+		proxy_fail_tlist_add_tail(&pxy->px_cm->cm_failed_proxies, pxy);
+		m0_mutex_unlock(&pxy->px_mutex);
+	} else if (svc_obj->co_ha_state == M0_NC_ONLINE &&
+		   pxy->px_status == M0_PX_FAILED) {
+		/* XXX Need to check repair/rebalance status. */
+		pxy->px_status = M0_PX_INIT;
+		pxy->px_is_done = false;
+	}
+
+	return true;
+}
+
+M0_INTERNAL void m0_cm_proxy_event_handle_register(struct m0_cm_proxy *pxy,
+						   struct m0_conf_obj *svc_obj)
+{
+	m0_clink_init(&pxy->px_ha_link, proxy_clink_cb);
+	m0_clink_add_lock(&svc_obj->co_ha_chan, &pxy->px_ha_link);
 }
 
 #undef M0_TRACE_SUBSYSTEM

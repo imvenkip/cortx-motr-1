@@ -126,7 +126,6 @@ static struct m0_cm_ag_id ag_id = {
 	}
 };
 
-static void cp_cm_proxy_init(struct m0_cm_proxy *proxy, const char *endpoint);
 M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
 			    uint64_t cont, struct m0_fid *gfid,
 			    uint32_t cob_idx);
@@ -521,7 +520,7 @@ static void receiver_init()
 	receiver_stob_create();
 	M0_ALLOC_PTR(recv_cm_proxy);
 	M0_UT_ASSERT(recv_cm_proxy != NULL);
-	cp_cm_proxy_init(recv_cm_proxy, client_addr);
+	m0_cm_proxy_init(recv_cm_proxy, 0, &ag_id, &ag_id, client_addr);
 	m0_cm_lock(recv_cm);
 	m0_cm_proxy_add(recv_cm, recv_cm_proxy);
 	recv_cm_proxy->px_is_done = true;
@@ -639,6 +638,7 @@ void sender_service_alloc_init()
 
 M0_TL_DECLARE(proxy_cp, M0_EXTERN, struct m0_cm_cp);
 
+/*
 static void cp_cm_proxy_init(struct m0_cm_proxy *proxy, const char *endpoint)
 {
 	proxy->px_sw.sw_lo = ag_id;
@@ -648,6 +648,7 @@ static void cp_cm_proxy_init(struct m0_cm_proxy *proxy, const char *endpoint)
 	proxy_cp_tlist_init(&proxy->px_pending_cps);
 	m0_mutex_init(&proxy->px_mutex);
 }
+*/
 
 static void sender_ag_create()
 {
@@ -680,6 +681,7 @@ static void sender_init()
 	struct m0_confc      *confc;
 	struct m0_locality   *locality;
 	struct m0_net_domain *ndom;
+	struct m0_cm_ag_id    agid0;
 	char                 *confstr = NULL;
 	uint32_t              colours;
 	int                   nr_bufs;
@@ -749,8 +751,9 @@ static void sender_init()
 	M0_UT_ASSERT(sender_cm_proxy != NULL);
 	sender_cm_proxy->px_conn = &conn;
 	sender_cm_proxy->px_session = &session;
-	cp_cm_proxy_init(sender_cm_proxy, m0_rpc_conn_addr(&conn));
+	M0_SET0(&agid0);
 	m0_cm_lock(&sender_cm);
+	m0_cm_proxy_init(sender_cm_proxy, 0, &ag_id, &ag_id, m0_rpc_conn_addr(&conn));
 	m0_cm_proxy_add(&sender_cm, sender_cm_proxy);
 	sender_cm_proxy->px_is_done = true;
 	m0_cm_unlock(&sender_cm);
@@ -834,6 +837,7 @@ static void test_cp_send_recv_verify()
 
 	m0_fi_enable("m0_sns_cm_tgt_ep", "local-ep");
 	m0_fi_enable("cpp_data_next", "enodata");
+	m0_fi_enable("m0_sns_cm_ha_state_set", "no_ha");
 
 	test_init();
 	M0_UT_ASSERT(recv_scm->sc_obp.sb_bp.nbp_buf_nr != 4);
@@ -899,6 +903,7 @@ static void test_cp_send_recv_verify()
 
 	m0_fi_disable("m0_sns_cm_tgt_ep", "local-ep");
 	m0_fi_disable("cpp_data_next", "enodata");
+	m0_fi_disable("m0_sns_cm_ha_state_set", "no_ha");
 }
 
 struct m0_ut_suite snscm_net_ut = {

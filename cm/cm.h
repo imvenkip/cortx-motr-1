@@ -246,6 +246,8 @@ struct m0_cm {
 	 */
 	struct m0_tl                     cm_proxies;
 
+	struct m0_tl                     cm_failed_proxies;
+
 	uint64_t                         cm_proxy_nr;
 
 	uint64_t                         cm_proxy_init_updated;
@@ -507,6 +509,7 @@ M0_INTERNAL void m0_cm_wait_cancel(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL int m0_cm_complete(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *proxy);
+M0_INTERNAL void m0_cm_proxy_failed_cleanup(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_abort(struct m0_cm *cm);
 
 /** @} endgroup CM */

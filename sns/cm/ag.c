@@ -130,11 +130,17 @@ static int ai_group_next(struct m0_sns_cm_ag_iter *ai)
 	struct m0_cm_aggr_group  *ag;
 	struct m0_fom            *fom;
 	struct m0_sns_cm_file_ctx *fctx = ai->ai_fctx;
+	struct m0_pool_version    *pver;
 	uint64_t                  fsize = fctx->sf_attr.ca_size;
 	uint64_t                  nr_groups = m0_sns_cm_nr_groups(pl, fsize);
 	uint64_t                  group = agid2group(&ai->ai_id_curr);
 	uint64_t                  i;
 	int                       rc = 0;
+
+	/* Move to next file if pool version is dirty already. */
+	pver = fctx->sf_pm->pm_pver;
+	if (m0_sns_cm_pver_is_dirty(pver))
+		goto fid_next;
 
 	if (m0_cm_ag_id_is_set(&ai->ai_id_curr))
 		++group;
@@ -156,14 +162,21 @@ static int ai_group_next(struct m0_sns_cm_ag_iter *ai)
 			if (ag == NULL) {
 				rc = m0_cm_aggr_group_alloc(cm, &ag_id,
 							    true, &ag);
-				if (rc != 0)
+				if (rc != 0) {
+					if (rc != ENOMEM) {
+						m0_sns_cm_pver_dirty_set(pver);
+						rc = 0;
+						goto fid_next;
+					}
 					return M0_ERR(rc);
+				}
 			}
 			rc = M0_FSO_AGAIN;
 		}
 		return M0_RC(rc);
 	}
 
+fid_next:
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
 	m0_sns_cm_file_unlock(scm, &ai->ai_fid);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);

@@ -60,6 +60,10 @@ enum map_type {
 	MDS
 };
 
+enum {
+	PV_SNS_DIRTY = 1 << 0,
+};
+
 struct m0_pool_device_to_service {
 	/** Serice context for the target disk. */
 	struct m0_reqh_service_ctx *pds_ctx;
@@ -115,6 +119,8 @@ struct m0_pool_version {
 	struct m0_fd_tree            pv_fd_tree;
 	/** The tolerance vector associated with the pool version. */
 	uint32_t                     pv_fd_tol_vec[M0_FTA_DEPTH_MAX];
+
+	uint32_t                     pv_sns_flags;
 
 	/**
 	 * Linkage into list of pool versions.

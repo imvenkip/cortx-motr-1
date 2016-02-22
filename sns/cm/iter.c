@@ -467,6 +467,8 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	gfid = &ifc->ifc_gfid;
 	it->si_ag = NULL;
 	pm = fctx->sf_pm;
+	if (m0_sns_cm_pver_is_dirty(pm->pm_pver))
+		goto fid_next;
 	for (group = sa->sa_group; group < ifc->ifc_groups_nr; ++group) {
 		if (__group_skip(it, group))
 			continue;
@@ -477,6 +479,11 @@ static int __group_next(struct m0_sns_cm_iter *it)
 			if (rc != 0) {
 				if (rc == -ENOBUFS)
 					iter_phase_set(it, ITPH_AG_SETUP);
+				if (rc == -EINVAL) {
+					m0_sns_cm_pver_dirty_set(pm->pm_pver);
+					rc = 0;
+					goto fid_next;
+				}
 			}
 			ifc->ifc_sa.sa_group = group;
 			ifc->ifc_sa.sa_unit = 0;
@@ -486,6 +493,7 @@ static int __group_next(struct m0_sns_cm_iter *it)
 		}
 	}
 
+fid_next:
 	/* Put the reference on the file lock taken in ITPH_FID_NEXT phase. */
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
 	m0_sns_cm_file_unlock(scm, gfid);

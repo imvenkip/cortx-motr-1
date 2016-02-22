@@ -432,6 +432,7 @@ static void test_spiel_pool_repair(void)
 
 	spiel_ci_ut_init();
 	m0_fi_enable("ready", "no_wait");
+	m0_fi_enable("m0_sns_cm_ha_state_set", "no_ha");
 	rc = m0_spiel_pool_repair_start(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
 
@@ -498,6 +499,7 @@ static void test_spiel_pool_repair(void)
 	}
 
 	m0_fi_disable("ready", "no_wait");
+	m0_fi_disable("m0_sns_cm_ha_state_set", "no_ha");
 	spiel_ci_ut_fini();
 }
 
@@ -517,6 +519,7 @@ static void test_spiel_pool_rebalance(void)
 
 	spiel_ci_ut_init();
 	m0_fi_enable("ready", "no_wait");
+	m0_fi_enable("m0_sns_cm_ha_state_set", "no_ha");
 	rc = m0_spiel_pool_rebalance_start(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
 
@@ -582,6 +585,7 @@ static void test_spiel_pool_rebalance(void)
 
 done:
 	m0_fi_disable("ready", "no_wait");
+	m0_fi_disable("m0_sns_cm_ha_state_set", "no_ha");
 	spiel_ci_ut_fini();
 }
 

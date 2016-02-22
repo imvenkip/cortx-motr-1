@@ -25,6 +25,7 @@
 
 #include "fop/fop.h"
 #include "reqh/reqh.h"
+#include "conf/obj_ops.h"
 
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/iter.h"
@@ -73,6 +74,14 @@ static void repair_cm_stop(struct m0_cm *cm)
 	struct m0_pools_common *pc = cm->cm_service.rs_reqh->rh_pools;
 	struct m0_pool         *pool;
 	struct m0_pooldev      *pd;
+	struct m0_conf_obj     *disk_obj;
+	struct m0_conf_disk    *disk;
+	struct m0_conf_cache   *cc;
+	struct m0_ha_nvec       nvec;
+	enum m0_ha_obj_state    dstate;
+	enum m0_ha_obj_state    pstate;
+	int                     i = 0;
+	int                     rc;
 
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
@@ -85,14 +94,36 @@ static void repair_cm_stop(struct m0_cm *cm)
 	if (m0_cm_state_get(cm) == M0_CMS_FAIL)
 		goto out;
 
+	rc = m0_sns_cm_ha_nvec_alloc(cm, M0_PNDS_SNS_REPAIRING, &nvec);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "HA note allocation failed with rc: %d", rc);
+		goto out;
+	}
+
+	cc = &pc->pc_confc->cc_cache;
 	m0_tl_for(pools, &pc->pc_pools, pool) {
+		pstate = M0_NC_REPAIRED;
 		m0_tl_for(pool_failed_devs, &pool->po_failed_devices, pd) {
-			if (pd->pd_state == M0_PNDS_SNS_REPAIRING)
-				m0_sns_cm_ha_state_set(&pd->pd_id,
-						       M0_NC_REPAIRED);
+			if (pd->pd_state == M0_PNDS_SNS_REPAIRING) {
+				dstate = M0_NC_REPAIRED;
+				rc = m0_conf_obj_find_lock(cc, &pd->pd_id,
+							   &disk_obj);
+				M0_ASSERT(rc == 0);
+				disk = M0_CONF_CAST(disk_obj, m0_conf_disk);
+				M0_ASSERT(disk != NULL);
+				if (m0_sns_cm_disk_has_dirty_pver(cm, disk)) {
+					dstate = M0_NC_REPAIR;
+					pstate = M0_NC_REPAIR;
+				}
+				nvec.nv_note[i].no_id = disk_obj->co_id;
+				nvec.nv_note[i].no_state = dstate;
+				M0_CNT_INC(i);
+			}
 		} m0_tl_endfor;
-		if (!pool_failed_devs_tlist_is_empty(&pool->po_failed_devices))
-			m0_sns_cm_ha_state_set(&pool->po_id, M0_NC_REPAIRED);
+		/* Set pool ha note. */
+		nvec.nv_note[i].no_id = pool->po_id;
+		nvec.nv_note[i].no_state = pstate;
+		m0_sns_cm_ha_state_set(&nvec);
 	} m0_tl_endfor;
 
 out:

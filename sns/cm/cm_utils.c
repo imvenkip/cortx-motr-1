@@ -486,6 +486,62 @@ M0_INTERNAL struct m0_reqh *m0_sns_cm2reqh(const struct m0_sns_cm *snscm)
 	return snscm->sc_base.cm_service.rs_reqh;
 }
 
+M0_INTERNAL bool m0_sns_cm_disk_has_dirty_pver(struct m0_cm *cm,
+					       struct m0_conf_disk *disk)
+{
+	struct m0_conf_pver   **conf_pvers;
+	struct m0_pool_version *pver;
+	struct m0_pools_common *pc = cm->cm_service.rs_reqh->rh_pools;
+	uint32_t                k;
+
+	conf_pvers = disk->ck_pvers;
+	for (k = 0; conf_pvers[k] != NULL; ++k) {
+		pver = m0_pool_version_find(pc, &conf_pvers[k]->pv_obj.co_id);
+		if (m0_sns_cm_pver_is_dirty(pver))
+			return true;
+	}
+
+	return false;
+}
+
+M0_INTERNAL bool m0_sns_cm_pver_is_dirty(struct m0_pool_version *pver)
+{
+	return pver->pv_sns_flags & PV_SNS_DIRTY;
+}
+
+M0_INTERNAL void m0_sns_cm_pver_dirty_set(struct m0_pool_version *pver)
+{
+	pver->pv_sns_flags |= PV_SNS_DIRTY;
+}
+
+M0_INTERNAL int m0_sns_cm_ha_nvec_alloc(struct m0_cm *cm,
+					enum m0_pool_nd_state state,
+					struct m0_ha_nvec *nvec)
+{
+	struct m0_pools_common *pc = cm->cm_service.rs_reqh->rh_pools;
+	struct m0_pool         *pool;
+	struct m0_pooldev      *pd;
+	struct m0_ha_note      *note;
+	uint64_t                nr_devs = 0;
+
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		m0_tl_for(pool_failed_devs, &pool->po_failed_devices, pd) {
+			if (pd->pd_state == state)
+				M0_CNT_INC(nr_devs);
+		} m0_tl_endfor;
+	} m0_tl_endfor;
+	if (nr_devs == 0)
+		return M0_ERR(-ENOENT);
+	/* We add one more ha note for pool. */
+	M0_ALLOC_ARR(note, nr_devs + 1);
+	if (note == NULL)
+		return M0_ERR(-ENOMEM);
+	nvec->nv_nr = nr_devs + 1;
+	nvec->nv_note = note;
+
+	return 0;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} endgroup SNSCM */
