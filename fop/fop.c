@@ -328,12 +328,15 @@ M0_INTERNAL void m0_fops_fini(void)
 
 struct m0_rpc_item *m0_fop_to_rpc_item(struct m0_fop *fop)
 {
+	M0_PRE(fop != NULL);
+
 	return &fop->f_item;
 }
 M0_EXPORTED(m0_fop_to_rpc_item);
 
 struct m0_fop *m0_rpc_item_to_fop(const struct m0_rpc_item *item)
 {
+	M0_PRE(item != NULL);
 	return container_of(item, struct m0_fop, f_item);
 }
 

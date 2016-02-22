@@ -18,7 +18,6 @@
  * Original creation date: 11-Feb-2015
  */
 
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
 

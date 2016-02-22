@@ -556,22 +556,27 @@ static int rpc_link_call_sync(struct m0_rpc_link *rlink,
 {
 	struct m0_clink clink;
 
+	M0_ENTRY("rlink=%p", rlink);
+
 	m0_clink_init(&clink, NULL);
 	clink.cl_is_oneshot = true;
 	cb(rlink, abs_timeout, &clink);
 	m0_chan_wait(&clink);
 	m0_clink_fini(&clink);
-	return rlink->rlk_rc;
+
+	return M0_RC(rlink->rlk_rc);
 }
 
 M0_INTERNAL void m0_rpc_link_connect_async(struct m0_rpc_link *rlink,
 					   m0_time_t abs_timeout,
 					   struct m0_clink *wait_clink)
 {
+	M0_ENTRY("rlink=%p", rlink);
 	M0_PRE(!rlink->rlk_connected);
 	rlink->rlk_timeout = abs_timeout;
 	rpc_link_fom_queue(rlink, wait_clink, &rpc_link_conn_fom_type,
 			   &rpc_link_conn_fom_ops);
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_rpc_link_connect_sync(struct m0_rpc_link *rlink,
@@ -585,10 +590,12 @@ M0_INTERNAL void m0_rpc_link_disconnect_async(struct m0_rpc_link *rlink,
 					      m0_time_t abs_timeout,
 					      struct m0_clink *wait_clink)
 {
+	M0_ENTRY("rlink=%p", rlink);
 	M0_PRE(rlink->rlk_connected);
 	rlink->rlk_timeout = abs_timeout;
 	rpc_link_fom_queue(rlink, wait_clink, &rpc_link_disc_fom_type,
 			   &rpc_link_disc_fom_ops);
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_rpc_link_disconnect_sync(struct m0_rpc_link *rlink,

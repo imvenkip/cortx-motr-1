@@ -206,6 +206,7 @@ struct m0_spiel_sns_status {
 	/* Progress of current repair/rebalance in percent */
 	unsigned int          sss_progress;
 };
+
 /**
  * Spiel instance context
  */
@@ -897,7 +898,7 @@ int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
 				 const struct m0_fid *pool_fid);
 
 /**
- * Gets status pool repair.
+ * Gets status of pool repair.
  *
  * The command is synchronous. it waits replies from all SNS services.
  *
@@ -974,7 +975,7 @@ int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
 				    const struct m0_fid *pool_fid);
 
 /**
- * Gets status pool rebalance.
+ * Gets status of pool rebalance.
  *
  * The command is synchronous. it waits replies from all SNS services.
  *
