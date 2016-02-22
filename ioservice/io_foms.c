@@ -2074,12 +2074,14 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		rwrep->rwr_count = fom_obj->fcrw_count << fom_obj->fcrw_bshift;
 		/* Information about the transaction for this update op. */
 		m0_fom_mod_rep_fill(&rwrep->rwr_mod_rep, fom);
-		poolmach = &fom_obj->fcrw_pver->pv_mach;
-		M0_ASSERT(poolmach != NULL);
-		m0_ios_poolmach_version_updates_pack(poolmach,
+		if (fom_obj->fcrw_pver != NULL) {
+			poolmach = &fom_obj->fcrw_pver->pv_mach;
+			M0_ASSERT(poolmach != NULL);
+			m0_ios_poolmach_version_updates_pack(poolmach,
 						     &rwfop->crw_version,
 						     &rwrep->rwr_fv_version,
 						     &rwrep->rwr_fv_updates);
+		}
 		return M0_RC(rc);
 	}
 
