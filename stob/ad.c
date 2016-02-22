@@ -51,6 +51,19 @@
 
 enum {
 	STOB_TYPE_AD = 0x02,
+	/*
+	 * As balloc space is exhausted or fragmented -
+	 * we may not succeed the allocation in one request.
+	 * From another side, we need to establish maximum
+	 * possible number of fragments we may have from balloc
+	 * to calculate BE credits at stob_ad_write_credit().
+	 * That's why we have this constant. Too big value
+	 * will result in excess credits, too low value will
+	 * result in early ENOSPC errors when there is still
+	 * some space available in balloc. So here might be
+	 * the tradeoff.
+	 */
+	BALLOC_FRAGS_MAX = 2,
 };
 
 struct ad_domain_cfg {
@@ -1003,17 +1016,12 @@ M0_INTERNAL int stob_ad_cursor(struct m0_stob_ad_domain *adom,
 	return M0_RC(rc);
 }
 
-#define LNET_MTU 0x100000UL /* (1MB) */
-
 static uint32_t stob_ad_write_map_count(struct m0_stob_ad_domain *adom,
 					struct m0_indexvec *iv, bool pack)
 {
 	uint32_t               frags;
 	m0_bcount_t            frag_size;
 	m0_bcount_t            grp_size;
-	m0_bcount_t            lnet_mtu;
-	m0_bcount_t            cnt1;
-	m0_bcount_t            cnt2;
 	bool                   eov;
 	struct m0_ivec_cursor  it;
 
@@ -1023,39 +1031,16 @@ static uint32_t stob_ad_write_map_count(struct m0_stob_ad_domain *adom,
 	frags = 0;
 	m0_ivec_cursor_init(&it, iv);
 	grp_size = adom->sad_blocks_per_group << adom->sad_babshift;
-	lnet_mtu = LNET_MTU >> m0_stob_block_shift(adom->sad_bstore);
-	cnt1 = 0;
-	cnt2 = lnet_mtu;
 
 	if (pack)
 		m0_indexvec_pack(iv);
 	do {
 		frag_size = min_check(m0_ivec_cursor_step(&it), grp_size);
-		frag_size = min_check(frag_size, lnet_mtu);
 		M0_ASSERT(frag_size > 0);
 		M0_ASSERT(frag_size <= (size_t)~0ULL);
 		M0_LOG(M0_DEBUG, "frag_size=0x%lx", frag_size);
 
 		eov = m0_ivec_cursor_move(&it, frag_size);
-
-		/*
-		 * For example: 0x40, 0x40, 0x40, 0x80 fragments case
-		 * ends up in: 0x40, 0x40, 0x40, 0x40, 0x40 fragments
-		 * at io_launch() because the last fragment (0x80 one)
-		 * can not fit into the 1MB LNET buffer limit and is
-		 * divided into two 0x40 fragments. So we just count such
-		 * cases here.
-		 */
-		if (!pack) {
-			cnt1 += frag_size;
-			if (cnt1 >= cnt2) {
-				if (cnt1 > cnt2) {
-					/* cross lnet_mtu-multiple boundary */
-					M0_CNT_INC(frags);
-				}
-				cnt2 += lnet_mtu;
-			}
-		}
 
 		M0_CNT_INC(frags);
 	} while (!eov);
@@ -1072,17 +1057,15 @@ static void stob_ad_write_credit(const struct m0_stob_domain *dom,
 	struct m0_ad_balloc      *ballroom = adom->sad_ballroom;
 	/* XXX discard const, because stob_ad_write_map_count() changes iv */
 	struct m0_indexvec       *iv = (struct m0_indexvec *) &io->si_stob;
-	int                       bfrags;
+	int                       bfrags = BALLOC_FRAGS_MAX;
 	int                       frags;
 
 	frags = stob_ad_write_map_count(adom, iv, false);
-	bfrags = m0_vec_count(&iv->iv_vec) /
-		(adom->sad_blocks_per_group << adom->sad_babshift) + 1;
-	M0_LOG(M0_DEBUG, "bfrags=%d frags=%d", bfrags, frags);
+	M0_LOG(M0_DEBUG, "frags=%d", frags);
 	frags = max_check(frags, bfrags);
 
 	if (ballroom->ab_ops->bo_alloc_credit != NULL)
-		ballroom->ab_ops->bo_alloc_credit(ballroom, frags, accum);
+		ballroom->ab_ops->bo_alloc_credit(ballroom, bfrags, accum);
 	m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, frags, accum);
 
 	if (adom->sad_overwrite && ballroom->ab_ops->bo_free_credit != NULL) {
@@ -1729,7 +1712,7 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 				 struct m0_be_emap_caret  *map)
 {
 	m0_bcount_t                 todo;
-	uint32_t                    frags;
+	uint32_t                    bfrags = 0;
 	int                         rc;
 	struct stob_ad_write_ext    head;
 	struct stob_ad_write_ext   *wext;
@@ -1756,7 +1739,12 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 		M0_ASSERT(todo >= got);
 		M0_LOG(M0_DEBUG, "got=%lu: " EXT_F, got, EXT_P(&wext->we_ext));
 		todo -= got;
+		++bfrags;
 		if (todo > 0) {
+			if (bfrags >= BALLOC_FRAGS_MAX) {
+				rc = M0_ERR(-ENOSPC);
+				break;
+			}
 			M0_ALLOC_PTR(next);
 			if (next != NULL) {
 				wext->we_next = next;
@@ -1769,7 +1757,11 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 			break;
 	}
 
+	M0_LOG(M0_DEBUG, "bfrags=%u", bfrags);
+
 	if (rc == 0) {
+		uint32_t frags;
+
 		stob_ad_wext_cursor_init(&wc, &head);
 		frags = stob_ad_write_count(src, &wc);
 		rc = stob_ad_vec_alloc(io->si_obj, back, frags);
@@ -1783,7 +1775,8 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 
 			m0_ivec_cursor_init(&dst, &io->si_stob);
 			stob_ad_wext_cursor_init(&wc, &head);
-			frags = stob_ad_write_map_count(adom, &io->si_stob, true);
+			frags = max_check(bfrags, stob_ad_write_map_count(adom,
+							   &io->si_stob, true));
 			rc = stob_ad_write_map(io, adom, &dst, map, &wc, frags);
 		}
 	}

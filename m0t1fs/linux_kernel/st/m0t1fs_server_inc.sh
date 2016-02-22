@@ -171,7 +171,7 @@ mero_service()
 		local nr_dev_per_ios=$(($P / $nr_ios))
 		local remainder=$(($P % $nr_ios))
 
-		echo "mero_service_start: (N, K, P) = ($N, $K $P), nr_ios $nr_ios, multiple_pools $multiple_pools"
+		echo "mero_service_start: (N,K,P)=($N,$K,$P) nr_ios=$nr_ios multiple_pools=$multiple_pools"
 
 		#create ios devices
 		for ((i=0; i < $nr_ios; i++)) ; do

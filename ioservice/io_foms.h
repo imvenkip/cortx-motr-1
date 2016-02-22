@@ -175,9 +175,9 @@ struct m0_io_fom_cob_rw {
 	struct m0_fom                    fcrw_gen;
 	/** Pool version for this io request. */
 	struct m0_pool_version          *fcrw_pver;
-	/** Number of desc io_fop desc list*/
+	/** Number of desc io_fop desc list */
 	uint32_t                         fcrw_ndesc;
-	/** index of net buffer descriptor under process*/
+	/** index of net buffer descriptor under process */
 	int                              fcrw_curr_desc_index;
 	/** Total IO requested from m0_io_indexvec */
 	m0_bcount_t                      fcrw_total_ioivec_cnt;
@@ -204,7 +204,9 @@ struct m0_io_fom_cob_rw {
 	struct m0_net_buffer_pool       *fcrw_bp;
 	/** Stob object on which this FOM is acting. */
 	struct m0_stob		        *fcrw_stob;
-	/** Stob IO packets for the operation. */
+	/** Array of all stob IOs we are going to fire (fcrw_ndesc in size). */
+	struct m0_stob_io_desc          *fcrw_stio;
+	/** The list of fired stob IOs. */
 	struct m0_tl                     fcrw_stio_list;
 	/** Completed stob IOs, used as holders for fol records. */
 	struct m0_tl                     fcrw_done_list;

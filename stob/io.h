@@ -291,7 +291,7 @@ struct m0_stob_io {
 	   Segments in si_stob must be non-overlapping and go in increasing
 	   offset order.
 
-	   @note extent sizes in m0_stob_io::si_stob.ov_vec.v_count[] and extent
+	   @note extent sizes in m0_stob_io::si_stob.iv_vec.v_count[] and extent
 	   offsets in m0_stob_io::si_stob.ov_index[] are in block size units (as
 	   determined by m0_stob_op::sop_block_shift).
 	 */

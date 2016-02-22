@@ -199,7 +199,7 @@ show_write_speed()
 # in multiple of full stripes (sum of data units in parity group).
 io_combinations()
 {
-	echo "Test: io_combinations: (N,P,K) = ($2,$1,$3) $4 ..."
+	echo "Test: io_combinations: (N,K,P) = ($2,$3,$1) $4 ..."
 
 	pool_width=$1
 	data_units=$2

@@ -343,9 +343,9 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	struct m0_fid              saved_fid;
 	struct m0_fid              invalid_fid;
 	struct m0_stob_io_desc    *saved_stobio_desc;
+	struct m0_stob            *saved_stob;
 	int                        saved_count;
 	struct m0_net_domain      *netdom;
-	struct m0_stob_id          stob_id;
 	struct m0_net_transfer_mc *tm;
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
@@ -446,7 +446,6 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	        }
 	        m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
 	        fom_obj->fcrw_batch_size = 0;
-	        rc = M0_FSO_WAIT;
 
 	        /*
 	         * Case 04 : Network buffer is available with the buffer pool.
@@ -480,6 +479,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 			m0_net_domain_get_max_buffer_size(netdom) + 4096;
 
 		fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_INIT);
+		m0_stob_get(fom_obj->fcrw_stob);
 
 		m0_fi_enable_once("zero_copy_initiate", "keep-net-buffers");
 		rc = m0_io_fom_cob_rw_tick(fom);
@@ -489,7 +489,6 @@ static int check_write_fom_tick(struct m0_fom *fom)
 
 		/* Cleanup & restore FOM for next test. */
 		rwfop->crw_desc.id_descs[cdi].bdd_used = saved_count;
-		rc = M0_FSO_WAIT;
 
 	        /*
 	         * Case 06 : Zero-copy success
@@ -515,6 +514,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	         */
 	        fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_WAIT);
 	        fom_obj->fcrw_bulk.rb_rc  = -1;
+		m0_stob_get(fom_obj->fcrw_stob);
 
 		m0_fi_enable_once("zero_copy_finish", "keep-net-buffers");
 	        rc = m0_io_fom_cob_rw_tick(fom);
@@ -524,7 +524,6 @@ static int check_write_fom_tick(struct m0_fom *fom)
 
 	        /* Cleanup & make clean FOM for next test. */
 	        fom_obj->fcrw_bulk.rb_rc  = 0;
-	        rc = M0_FSO_WAIT;
 
 	        /*
 	         * Case 08 : Zero-copy success from wait state.
@@ -546,6 +545,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	        /* Save original fid and pass invialid fid
 	         * to make I/O launch fail. */
 	        saved_fid = rwfop->crw_fid;
+		saved_stob = fom_obj->fcrw_stob;
 	        m0_fid_set(&invalid_fid, 111, 222);
 		m0_fid_tassume(&invalid_fid, &m0_cob_fid_type);
 		fom_obj->fcrw_stob = NULL;
@@ -559,7 +559,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 
 	        /* Cleanup & make clean FOM for next test. */
 	        rwfop->crw_fid = saved_fid;
-	        rc = M0_FSO_WAIT;
+		fom_obj->fcrw_stob = saved_stob;
 
 	        /*
 	         * Case 10 : STOB I/O launch success
@@ -597,6 +597,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	        saved_stobio_desc = stobio_tlist_pop(&fom_obj->fcrw_stio_list);
 	        M0_UT_ASSERT(saved_stobio_desc != NULL);
 
+		m0_stob_get(fom_obj->fcrw_stob);
 		fom_phase_set(fom, M0_FOPH_IO_STOB_WAIT);
 		m0_fi_enable_once("io_finish", "fake_error");
 		m0_fi_enable_once("io_finish", "keep-net-buffers");
@@ -609,12 +610,6 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	         * Restore original fom.
 	         */
 	        stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
-		m0_fid_convert_cob2stob(&rwfop->crw_fid, &stob_id);
-
-		rc = m0_stob_find(&stob_id, &fom_obj->fcrw_stob);
-	        M0_UT_ASSERT(rc == 0);
-
-	        rc = M0_FSO_WAIT;
 
 	        /*
 	         * Case 12 : STOB I/O success
@@ -694,7 +689,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	struct m0_fid              saved_fid;
 	struct m0_fid              invalid_fid;
 	struct m0_stob_io_desc    *saved_stobio_desc;
-	struct m0_stob_id          stob_id;
+	struct m0_stob            *saved_stob;
 	struct m0_net_transfer_mc *tm;
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
@@ -793,7 +788,6 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	        }
 	        m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
 	        fom_obj->fcrw_batch_size = 0;
-	        rc = M0_FSO_WAIT;
 
 	        /*
 	         * Case 04 : Network buffer available with buffer pool.
@@ -820,6 +814,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	        /* Save original fid and pass invalid fid to make I/O launch
 	         * fail. */
 	        saved_fid = rwfop->crw_fid;
+		saved_stob = fom_obj->fcrw_stob;
 	        m0_fid_set(&invalid_fid, 111, 222);
 		m0_fid_tassume(&invalid_fid, &m0_cob_fid_type);
 		fom_obj->fcrw_stob = NULL;
@@ -835,7 +830,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 
 	        /* Cleanup & make clean FOM for next test. */
 	        rwfop->crw_fid = saved_fid;
-	        rc = M0_FSO_WAIT;
+		fom_obj->fcrw_stob = saved_stob;
 
 	        /*
 	         * Case 06 : STOB I/O launch success
@@ -876,6 +871,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	        M0_UT_ASSERT(saved_stobio_desc != NULL);
 
 	        fom_phase_set(fom, M0_FOPH_IO_STOB_WAIT);
+		m0_stob_get(fom_obj->fcrw_stob);
 
 		m0_fi_enable_once("io_finish", "fake_error");
 		m0_fi_enable_once("io_finish", "keep-net-buffers");
@@ -889,12 +885,6 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	         * Restore original fom.
 	         */
 	        stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
-		m0_fid_convert_cob2stob(&rwfop->crw_fid, &stob_id);
-
-		rc = m0_stob_find(&stob_id, &fom_obj->fcrw_stob);
-	        M0_UT_ASSERT(rc == 0);
-
-	        rc = M0_FSO_WAIT;
 
 	        /*
 	         * Case 08 : STOB I/O success
@@ -923,6 +913,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 			m0_net_domain_get_max_buffer_size(netdom) + 4096;
 
 		fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_INIT);
+		m0_stob_get(fom_obj->fcrw_stob);
 
 		m0_fi_enable_once("zero_copy_initiate", "keep-net-buffers");
 		rc = m0_io_fom_cob_rw_tick(fom);
@@ -932,7 +923,6 @@ static int check_read_fom_tick(struct m0_fom *fom)
 
 		/* Cleanup & make clean FOM for next test. */
 		rwfop->crw_desc.id_descs[cdi].bdd_used = saved_count;
-		rc = M0_FSO_WAIT;
 		fom_phase_set(fom, TEST10);
 
 	        /*
@@ -959,6 +949,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	         */
 	        fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_WAIT);
 	        fom_obj->fcrw_bulk.rb_rc  = -1;
+		m0_stob_get(fom_obj->fcrw_stob);
 
 		m0_fi_enable_once("zero_copy_finish", "keep-net-buffers");
 	        rc = m0_io_fom_cob_rw_tick(fom);
@@ -968,7 +959,6 @@ static int check_read_fom_tick(struct m0_fom *fom)
 
 	        /* Cleanup & make clean FOM for next test. */
 	        fom_obj->fcrw_bulk.rb_rc  = 0;
-	        rc = M0_FSO_WAIT;
 
 	        /*
 	         * Case 12 : Zero-copy success
@@ -1461,7 +1451,7 @@ static void bulkio_server_rw_state_transition_test(void)
 	op = M0_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
 	bp->bp_wfops[0]->if_fop.f_type->ft_fom_type.ft_ops =
-	&ut_io_fom_cob_rw_type_ops;
+		&ut_io_fom_cob_rw_type_ops;
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops =
 		&bulkio_server_write_fop_ut_ops;
 	io_fops_submit(0, op);

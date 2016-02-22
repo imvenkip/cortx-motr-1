@@ -362,7 +362,11 @@ m0t1fs_pool_version_assignment()
 {
 	NODE_UUID=`uuidgen`
 
-	mero_service start "$multiple_pools"
+	local unit=16 # Kbytes
+	local N=2
+	local K=1
+	local P=4
+	mero_service start "$multiple_pools" $unit $N $K $P
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to start Mero Service."

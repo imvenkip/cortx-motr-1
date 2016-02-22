@@ -742,7 +742,7 @@ M0_INTERNAL int m0_cc_stob_cr_credit(struct m0_stob_id *sid,
 
 M0_INTERNAL int m0_cc_stob_create(struct m0_fom *fom, struct m0_stob_id *sid)
 {
-	struct m0_stob *stob;
+	struct m0_stob *stob = NULL;
 	int             rc;
 
 	M0_ENTRY("stob create fid="FID_F, FID_P(&sid->si_fid));

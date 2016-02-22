@@ -57,7 +57,7 @@ rcancel_mero_service_start()
 	local multiple_pools
 	local rc
 
-	echo "About to start Mero service, rcancel_md_redundancy $rcancel_md_redundancy"
+	echo "About to start Mero service, rcancel_md_redundancy=$rcancel_md_redundancy"
 	if [ $rcancel_md_redundancy -eq 1 ]
 	then
 		N=8
@@ -65,20 +65,22 @@ rcancel_mero_service_start()
 		P=20
 		stride=32
 		multiple_pools=0
-		mero_service start $multiple_pools $stride $N $K $P
-		rc=$?
 	else
+		N=2
+		K=1
+		P=4
+		stride=16
 		multiple_pools=1
-		mero_service start $multiple_pools
-		rc=$?
 	fi
+	mero_service start $multiple_pools $stride $N $K $P
+	rc=$?
 
 	if [ $rc -ne 0 ]
 	then
-		echo "Failed to start Mero Service"
+		echo "Failed to start Mero services: rc=$rc."
 		return 1
 	fi
-	echo "mero service started"
+	echo "Mero services have started successfully."
 
 	return 0
 }
@@ -983,7 +985,7 @@ main()
 	local rc
 
 	echo "*********************************************************"
-	echo "Start: RPC session cancelation testing"
+	echo "Start: RPC session cancellation testing"
 	echo "*********************************************************"
 
 	sandbox_init
@@ -1007,7 +1009,7 @@ main()
 	fi
 
 	echo "*********************************************************"
-	echo "End: RPC session cancelation testing"
+	echo "End: RPC session cancellation testing"
 	echo "*********************************************************"
 
 	if [ $rc -eq 0 ]; then
