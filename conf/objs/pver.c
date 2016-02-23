@@ -112,8 +112,8 @@ pver_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	       m0_conf_dir_elems_match(obj->pv_rackvs, &xobj->xv_rackvs);
 }
 
-static int pver_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
-		       struct m0_conf_obj **out)
+static int pver_lookup(const struct m0_conf_obj *parent,
+		       const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	M0_PRE(parent->co_status == M0_CS_READY);
 

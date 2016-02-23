@@ -130,7 +130,7 @@ static bool filesystem_match(const struct m0_conf_obj  *cached,
 		m0_conf_dir_elems_match(obj->cf_racks, &xobj->xf_racks);
 }
 
-static int filesystem_lookup(struct m0_conf_obj  *parent,
+static int filesystem_lookup(const struct m0_conf_obj *parent,
 			     const struct m0_fid *name,
 			     struct m0_conf_obj **out)
 {

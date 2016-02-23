@@ -107,10 +107,11 @@ static bool readdir_post(int retval, const struct m0_conf_dir *dir,
 		_0C((retval == M0_CONF_DIREND) == (entry == NULL)) &&
 		_0C(ergo(entry != NULL, m0_conf_obj_invariant(entry))) &&
 		_0C(ergo(entry != NULL, belongs(entry, dir))) &&
-		_0C(ergo(entry != NULL, (retval == M0_CONF_DIRNEXT) == (entry->co_nrefs > 0)));
+		_0C(ergo(entry != NULL,
+			 (retval == M0_CONF_DIRNEXT) == (entry->co_nrefs > 0)));
 }
 
-static int dir_readdir(struct m0_conf_obj *dir, struct m0_conf_obj **pptr)
+static int dir_readdir(const struct m0_conf_obj *dir, struct m0_conf_obj **pptr)
 {
 	struct m0_conf_obj *next;
 	int                 ret;
@@ -144,8 +145,8 @@ static int dir_readdir(struct m0_conf_obj *dir, struct m0_conf_obj **pptr)
 	return ret;
 }
 
-static int dir_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
-		      struct m0_conf_obj **out)
+static int dir_lookup(const struct m0_conf_obj *parent,
+		      const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	struct m0_conf_dir *x = M0_CONF_CAST(parent, m0_conf_dir);
 	struct m0_conf_obj *obj;

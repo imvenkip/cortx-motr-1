@@ -123,8 +123,8 @@ struct m0_conf_obj_ops {
 	 * @post  M0_IN(retval, (0, -ENOENT))
 	 * @post  ergo(retval == 0, m0_conf_obj_invariant(*out))
 	 */
-	int (*coo_lookup)(struct m0_conf_obj *parent, const struct m0_fid *name,
-			  struct m0_conf_obj **out);
+	int (*coo_lookup)(const struct m0_conf_obj *parent,
+			  const struct m0_fid *name, struct m0_conf_obj **out);
 
 	/**
 	 * Gets next directory entry.
@@ -145,7 +145,8 @@ struct m0_conf_obj_ops {
 	 * ->coo_readdir() pins (m0_conf_obj_get()) the resulting
 	 * object in case of M0_CONF_DIRNEXT.
 	 */
-	int (*coo_readdir)(struct m0_conf_obj *dir, struct m0_conf_obj **pptr);
+	int (*coo_readdir)(const struct m0_conf_obj *dir,
+			   struct m0_conf_obj **pptr);
 
 	/**
 	 * Finalises concrete fields of given configuration object and

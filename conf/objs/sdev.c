@@ -96,8 +96,8 @@ sdev_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 		m0_buf_streq(&xobj->xd_filename, obj->sd_filename);
 }
 
-static int sdev_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
-		       struct m0_conf_obj **out)
+static int sdev_lookup(const struct m0_conf_obj *parent,
+		       const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	M0_IMPOSSIBLE("No directory present");
 	return M0_ERR(-ENOSYS);

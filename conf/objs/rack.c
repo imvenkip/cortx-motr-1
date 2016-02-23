@@ -80,8 +80,8 @@ rack_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	return m0_conf_dir_elems_match(obj->cr_encls, &xobj->xr_encls);
 }
 
-static int rack_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
-		       struct m0_conf_obj **out)
+static int rack_lookup(const struct m0_conf_obj *parent,
+		       const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	struct m0_conf_rack *r = M0_CONF_CAST(parent, m0_conf_rack);
 	const struct conf_dir_relation dirs[] = {

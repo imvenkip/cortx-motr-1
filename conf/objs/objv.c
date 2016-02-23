@@ -100,8 +100,8 @@ objv_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	       m0_conf_dir_elems_match(obj->cv_children, &xobj->xj_children);
 }
 
-static int objv_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
-		       struct m0_conf_obj **out)
+static int objv_lookup(const struct m0_conf_obj *parent,
+		       const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	struct m0_conf_objv *objv = M0_CONF_CAST(parent, m0_conf_objv);
 	M0_PRE(parent->co_status == M0_CS_READY);

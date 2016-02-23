@@ -82,9 +82,8 @@ static bool root_match(const struct m0_conf_obj  *cached,
 	       m0_conf_dir_elems_match(obj->rt_profiles, &xobj->xt_profiles);
 }
 
-static int root_lookup(struct m0_conf_obj  *parent,
-		       const struct m0_fid *name,
-		       struct m0_conf_obj **out)
+static int root_lookup(const struct m0_conf_obj *parent,
+		       const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	struct m0_conf_root *root = M0_CONF_CAST(parent, m0_conf_root);
 	const struct conf_dir_relation dirs[] = {

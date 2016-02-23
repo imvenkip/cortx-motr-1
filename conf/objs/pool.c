@@ -207,8 +207,8 @@ pool_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 		m0_conf_dir_elems_match(obj->pl_pvers, &xobj->xp_pvers);
 }
 
-static int pool_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
-		       struct m0_conf_obj **out)
+static int pool_lookup(const struct m0_conf_obj *parent,
+		       const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	M0_PRE(parent->co_status == M0_CS_READY);
 

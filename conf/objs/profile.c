@@ -76,8 +76,8 @@ profile_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	return m0_fid_eq(&child->cf_obj.co_id, &xobj->xp_filesystem);
 }
 
-static int profile_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
-			  struct m0_conf_obj **out)
+static int profile_lookup(const struct m0_conf_obj *parent,
+			  const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	M0_PRE(parent->co_status == M0_CS_READY);
 

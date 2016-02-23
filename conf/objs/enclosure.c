@@ -82,9 +82,8 @@ static bool enclosure_match(const struct m0_conf_obj  *cached,
 	return m0_conf_dir_elems_match(obj->ce_ctrls, &xobj->xe_ctrls);
 }
 
-static int enclosure_lookup(struct m0_conf_obj  *parent,
-			    const struct m0_fid *name,
-			    struct m0_conf_obj **out)
+static int enclosure_lookup(const struct m0_conf_obj *parent,
+			    const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	struct m0_conf_enclosure *e = M0_CONF_CAST(parent, m0_conf_enclosure);
 	const struct conf_dir_relation dirs[] = {

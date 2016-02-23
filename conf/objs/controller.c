@@ -82,7 +82,7 @@ controller_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 			     (const struct m0_conf_pver**)s->cc_pvers));
 }
 
-static bool controller_match(const struct m0_conf_obj   *cached,
+static bool controller_match(const struct m0_conf_obj *cached,
 			     const struct m0_confx_obj *flat)
 {
 	const struct m0_confx_controller *xobj = XCAST(flat);
@@ -93,7 +93,7 @@ static bool controller_match(const struct m0_conf_obj   *cached,
 	       m0_conf_dir_elems_match(obj->cc_disks, &xobj->xc_disks);
 }
 
-static int controller_lookup(struct m0_conf_obj  *parent,
+static int controller_lookup(const struct m0_conf_obj *parent,
 			     const struct m0_fid *name,
 			     struct m0_conf_obj **out)
 {

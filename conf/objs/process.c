@@ -113,8 +113,8 @@ process_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 		m0_conf_dir_elems_match(obj->pc_services, &xobj->xr_services);
 }
 
-static int process_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
-			  struct m0_conf_obj **out)
+static int process_lookup(const struct m0_conf_obj *parent,
+			  const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	const struct m0_conf_process *p = M0_CONF_CAST(parent, m0_conf_process);
 
