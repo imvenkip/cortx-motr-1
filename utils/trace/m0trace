@@ -845,7 +845,7 @@ sub process_cli_options
             when (/^m0d-.*$/)   {
                 $file_pattern = "trace-$ARGV[0]-*.bin";
             }
-            when (/^(?:confd|ha|(?:mds|ios)\d*)-buf$/) {
+            when (/^(?:confd|ha|(?:rms|mds|ios)\d*)-buf$/) {
                 $file_pattern = "m0trace.*";
                 $ARGV[0] =~ m/^(?<sname>.*)-buf$/xms;
                 $cli_option{log_dir} = "$cli_option{mero_dir}/$+{sname}";
@@ -857,7 +857,7 @@ sub process_cli_options
             default {
                 die "Unknown type of requested trace log: '$ARGV[0]',"
                     . " supported values should match pattern:"
-                    . " '<kernel|confd|mds*|ios*>[-buf]', for example 'confd',"
+                    . " '<kernel|confd|ha|rms*|mds*|ios*>[-buf]', for example 'confd',"
                     . " 'mds-buf', 'ios2', 'ios2-buf'";
             }
         }
