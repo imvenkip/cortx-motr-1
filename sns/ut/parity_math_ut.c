@@ -118,13 +118,13 @@ static uint32_t *failure_setup(struct m0_parity_math *math,
 			       uint32_t total_failures, enum failure_type ft);
 static void array_randomly_fill(uint32_t *r_arr, uint32_t size,
 				uint32_t range);
-static void rhs_prepare(const struct m0_sns_ir *ir, struct m0_vector *des,
+static void rhs_prepare(const struct m0_sns_ir *ir, struct m0_matvec *des,
 			const struct m0_bufvec *x, const struct m0_bufvec *p,
 			const uint32_t *failed_arr, uint32_t total_failures);
-static void reconstruct(const struct m0_sns_ir *ir, const struct m0_vector *b,
-			struct m0_vector *r);
+static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
+			struct m0_matvec *r);
 static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
-		    const struct m0_bufvec *x, const struct m0_vector *r);
+		    const struct m0_bufvec *x, const struct m0_matvec *r);
 static void incremental_recover(struct m0_parity_math *math,
 				struct m0_bufvec *x, struct m0_bufvec *p);
 
@@ -687,8 +687,8 @@ static void direct_recover(struct m0_parity_math *math,  struct m0_bufvec *x,
 	uint32_t	 total_failures = 0;
 	uint32_t        *failed_arr;
 	int		 ret;
-	struct m0_vector b;
-	struct m0_vector r;
+	struct m0_matvec b;
+	struct m0_matvec r;
 	struct m0_sns_ir ir;
 	struct m0_bufvec recov_arr;
 
@@ -700,7 +700,7 @@ static void direct_recover(struct m0_parity_math *math,  struct m0_bufvec *x,
 	ret = m0_sns_ir_init(math, 0, &ir);
 	M0_UT_ASSERT(ret == 0);
 
-	ret = m0_vector_init(&b, ir.si_data_nr);
+	ret = m0_matvec_init(&b, ir.si_data_nr);
 	M0_UT_ASSERT(ret == 0);
 
 	rhs_prepare(&ir, &b, x, p, failed_arr, total_failures);
@@ -718,15 +718,15 @@ static void direct_recover(struct m0_parity_math *math,  struct m0_bufvec *x,
 			  ir.si_data_recovery_mat.m_width ==
 			  ir.si_data_nr));
 
-	ret = m0_vector_init(&r, ir.si_failed_data_nr);
+	ret = m0_matvec_init(&r, ir.si_failed_data_nr);
 	M0_UT_ASSERT(ret == 0);
 
 	reconstruct(&ir, &b, &r);
 	M0_UT_ASSERT(compare(&ir, failed_arr, x, &r));
 
 	m0_free(failed_arr);
-	m0_vector_fini(&r);
-	m0_vector_fini(&b);
+	m0_matvec_fini(&r);
+	m0_matvec_fini(&b);
 	m0_sns_ir_fini(&ir);
 }
 
@@ -772,7 +772,7 @@ static void array_randomly_fill(uint32_t *r_arr, uint32_t size,
 			interval;
 }
 
-static void rhs_prepare(const struct m0_sns_ir *ir, struct m0_vector *des,
+static void rhs_prepare(const struct m0_sns_ir *ir, struct m0_matvec *des,
 			const struct m0_bufvec *x, const struct m0_bufvec *p,
 			const uint32_t *failed_arr, uint32_t total_failures)
 {
@@ -782,20 +782,20 @@ static void rhs_prepare(const struct m0_sns_ir *ir, struct m0_vector *des,
 
 	for (i = 0, j = 0, k = 0; i < ir->si_data_nr; ++i) {
 		if (failed_arr[j] != i)
-			des->v_vector[k++] = (((uint8_t **)x[i].ov_buf)[0])[0];
+			des->mv_vector[k++] = (((uint8_t **)x[i].ov_buf)[0])[0];
 		else if (j < total_failures - 1)
 			++j;
 	}
-	for (i = 0; i < ir->si_parity_nr && k < des->v_size; ++i) {
+	for (i = 0; i < ir->si_parity_nr && k < des->mv_size; ++i) {
 		if (failed_arr[j] != i + ir->si_data_nr)
-			des->v_vector[k++] = (((uint8_t **)p[i].ov_buf)[0])[0];
+			des->mv_vector[k++] = (((uint8_t **)p[i].ov_buf)[0])[0];
 		else if (j < total_failures - 1)
 			++j;
 	}
 }
 
-static void reconstruct(const struct m0_sns_ir *ir, const struct m0_vector *b,
-			struct m0_vector *r)
+static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
+			struct m0_matvec *r)
 {
 	const struct m0_matrix *rm = &ir->si_data_recovery_mat;
 
@@ -807,7 +807,7 @@ static void reconstruct(const struct m0_sns_ir *ir, const struct m0_vector *b,
 }
 
 static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
-		    const struct m0_bufvec *x, const struct m0_vector *r)
+		    const struct m0_bufvec *x, const struct m0_matvec *r)
 {
 	uint32_t i;
 	uint32_t j;
@@ -815,7 +815,7 @@ static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
 	for (i = 0, j = 0; j < ir->si_failed_data_nr && i <
 	     ir->si_data_nr; ++i) {
 		if (failed_arr[j] == i) {
-			if ((uint8_t)*m0_vector_elem_get(r, j) !=
+			if ((uint8_t)*m0_matvec_elem_get(r, j) !=
 			    (((uint8_t **)x[i].ov_buf)[0])[0])
 				return false;
 			++j;

@@ -29,22 +29,22 @@
 /**
  * Represents math-vector of sz elements of type 'm0_parity_elem_t'
  */
-struct m0_vector {
-	uint32_t v_size;
-	m0_parity_elem_t *v_vector;
+struct m0_matvec {
+	uint32_t          mv_size;
+	m0_parity_elem_t *mv_vector;
 };
 
-M0_INTERNAL int m0_vector_init(struct m0_vector *v, uint32_t sz);
-M0_INTERNAL void m0_vector_fini(struct m0_vector *v);
-M0_INTERNAL void m0_vector_print(const struct m0_vector *vec);
+M0_INTERNAL int m0_matvec_init(struct m0_matvec *v, uint32_t sz);
+M0_INTERNAL void m0_matvec_fini(struct m0_matvec *v);
+M0_INTERNAL void m0_matvec_print(const struct m0_matvec *vec);
 
 /**
  * Gets element of vector 'v' in 'x' row
  *
- * @pre m0_vector_init(v) has been called
- * @pre x < v->v_size
+ * @pre m0_matvec_init(v) has been called
+ * @pre x < v->mv_size
  */
-m0_parity_elem_t* m0_vector_elem_get(const struct m0_vector *v, uint32_t x);
+m0_parity_elem_t* m0_matvec_elem_get(const struct m0_matvec *v, uint32_t x);
 
 
 /**
@@ -68,33 +68,31 @@ M0_INTERNAL void m0_matrix_print(const struct m0_matrix *mat);
  */
 m0_parity_elem_t* m0_matrix_elem_get(const struct m0_matrix *m, uint32_t x, uint32_t y);
 
-
-
 /**
  * Defines binary operation over matrix or vector element
  */
-typedef m0_parity_elem_t (*m0_vector_matrix_binary_operator_t)(m0_parity_elem_t,
+typedef m0_parity_elem_t (*m0_matvec_matrix_binary_operator_t)(m0_parity_elem_t,
 							       m0_parity_elem_t);
 
 /**
  * Apply operation 'f' to element of vector 'v' in row 'row' with const 'c':
  * v[row] = f(v[row], c);
  *
- * @pre m0_vector_init(v) has been called
+ * @pre m0_matvec_init(v) has been called
  */
-M0_INTERNAL void m0_vector_row_operate(struct m0_vector *v, uint32_t row,
+M0_INTERNAL void m0_matvec_row_operate(struct m0_matvec *v, uint32_t row,
 				       m0_parity_elem_t c,
-				       m0_vector_matrix_binary_operator_t f);
+				       m0_matvec_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of matrix 'm' in row 'row' with const 'c':
  * m(row,i) = f(m(row,i), c);
  *
- * @pre m0_vector_init(v) has been called
+ * @pre m0_matvec_init(v) has been called
  */
 M0_INTERNAL void m0_matrix_row_operate(struct m0_matrix *m, uint32_t row,
 				       m0_parity_elem_t c,
-				       m0_vector_matrix_binary_operator_t f);
+				       m0_matvec_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every col element of matrix 'm' in col 'col' with const 'c':
@@ -104,7 +102,7 @@ M0_INTERNAL void m0_matrix_row_operate(struct m0_matrix *m, uint32_t row,
  */
 M0_INTERNAL void m0_matrix_col_operate(struct m0_matrix *m, uint32_t col,
 				       m0_parity_elem_t c,
-				       m0_vector_matrix_binary_operator_t f);
+				       m0_matvec_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of matrix 'm' in row 'row0' with row 'row1' and
@@ -115,11 +113,11 @@ M0_INTERNAL void m0_matrix_col_operate(struct m0_matrix *m, uint32_t col,
  */
 M0_INTERNAL void m0_matrix_rows_operate(struct m0_matrix *m, uint32_t row0,
 					uint32_t row1,
-					m0_vector_matrix_binary_operator_t f0,
+					m0_matvec_matrix_binary_operator_t f0,
 					m0_parity_elem_t c0,
-					m0_vector_matrix_binary_operator_t f1,
+					m0_matvec_matrix_binary_operator_t f1,
 					m0_parity_elem_t c1,
-					m0_vector_matrix_binary_operator_t f);
+					m0_matvec_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of matrix 'm' in row 'row0' with row 'row1' and
@@ -130,9 +128,9 @@ M0_INTERNAL void m0_matrix_rows_operate(struct m0_matrix *m, uint32_t row0,
  */
 M0_INTERNAL void m0_matrix_rows_operate2(struct m0_matrix *m, uint32_t row0,
 					 uint32_t row1,
-					 m0_vector_matrix_binary_operator_t f0,
+					 m0_matvec_matrix_binary_operator_t f0,
 					 m0_parity_elem_t c0,
-					 m0_vector_matrix_binary_operator_t f);
+					 m0_matvec_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of matrix 'm' in row 'row0' with row 'row1' and
@@ -143,50 +141,50 @@ M0_INTERNAL void m0_matrix_rows_operate2(struct m0_matrix *m, uint32_t row0,
  */
 M0_INTERNAL void m0_matrix_rows_operate1(struct m0_matrix *m, uint32_t row0,
 					 uint32_t row1,
-					 m0_vector_matrix_binary_operator_t f1,
+					 m0_matvec_matrix_binary_operator_t f1,
 					 m0_parity_elem_t c1,
-					 m0_vector_matrix_binary_operator_t f);
+					 m0_matvec_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of vector 'v' in row 'row0' with row 'row1' and
  * apply operation 'fi' to every row element of vector 'v' in row 'rowi' with const 'ci':
  * m(row0,i) = f(f0(m(row0,i),c0), f1(m(row1,i),c1));
  *
- * @pre m0_vector_init(v) has been called
+ * @pre m0_matvec_init(v) has been called
  */
-M0_INTERNAL void m0_vector_rows_operate(struct m0_vector *v, uint32_t row0,
+M0_INTERNAL void m0_matvec_rows_operate(struct m0_matvec *v, uint32_t row0,
 					uint32_t row1,
-					m0_vector_matrix_binary_operator_t f0,
+					m0_matvec_matrix_binary_operator_t f0,
 					m0_parity_elem_t c0,
-					m0_vector_matrix_binary_operator_t f1,
+					m0_matvec_matrix_binary_operator_t f1,
 					m0_parity_elem_t c1,
-					m0_vector_matrix_binary_operator_t f);
+					m0_matvec_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of vector 'v' in row 'row0' with row 'row1' and
  * apply operation 'fi' to every row element of vector 'v' in row 'rowi' with const 'ci':
  * m(row0,i) = f(m(row0,i), f1(m(row1,i),c1));
  *
- * @pre m0_vector_init(v) has been called
+ * @pre m0_matvec_init(v) has been called
  */
-M0_INTERNAL void m0_vector_rows_operate1(struct m0_vector *v, uint32_t row0,
+M0_INTERNAL void m0_matvec_rows_operate1(struct m0_matvec *v, uint32_t row0,
 					 uint32_t row1,
-					 m0_vector_matrix_binary_operator_t f1,
+					 m0_matvec_matrix_binary_operator_t f1,
 					 m0_parity_elem_t c1,
-					 m0_vector_matrix_binary_operator_t f);
+					 m0_matvec_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every row element of vector 'v' in row 'row0' with row 'row1' and
  * apply operation 'fi' to every row element of vector 'v' in row 'rowi' with const 'ci':
  * m(row0,i) = f(f0(m(row0,i),c0), m(row1,i));
  *
- * @pre m0_vector_init(v) has been called
+ * @pre m0_matvec_init(v) has been called
  */
-M0_INTERNAL void m0_vector_rows_operate2(struct m0_vector *v, uint32_t row0,
+M0_INTERNAL void m0_matvec_rows_operate2(struct m0_matvec *v, uint32_t row0,
 					 uint32_t row1,
-					 m0_vector_matrix_binary_operator_t f0,
+					 m0_matvec_matrix_binary_operator_t f0,
 					 m0_parity_elem_t c0,
-					 m0_vector_matrix_binary_operator_t f);
+					 m0_matvec_matrix_binary_operator_t f);
 
 /**
  * Apply operation 'f' to every col element of matrix 'm' in col 'col0' with col 'col1' and
@@ -197,11 +195,11 @@ M0_INTERNAL void m0_vector_rows_operate2(struct m0_vector *v, uint32_t row0,
  */
 M0_INTERNAL void m0_matrix_cols_operate(struct m0_matrix *m, uint32_t col0,
 					uint32_t col1,
-					m0_vector_matrix_binary_operator_t f0,
+					m0_matvec_matrix_binary_operator_t f0,
 					m0_parity_elem_t c0,
-					m0_vector_matrix_binary_operator_t f1,
+					m0_matvec_matrix_binary_operator_t f1,
 					m0_parity_elem_t c1,
-					m0_vector_matrix_binary_operator_t f);
+					m0_matvec_matrix_binary_operator_t f);
 
 /**
  * Swaps row 'r0' and row 'r1' each with other
@@ -212,9 +210,9 @@ M0_INTERNAL void m0_matrix_swap_row(struct m0_matrix *m, uint32_t r0,
 
 /**
  * Swaps row 'r0' and row 'r1' each with other
- * @pre m0_vector_init(v) has been called
+ * @pre m0_matvec_init(v) has been called
  */
-M0_INTERNAL void m0_vector_swap_row(struct m0_vector *v, uint32_t r0,
+M0_INTERNAL void m0_matvec_swap_row(struct m0_matvec *v, uint32_t r0,
 				    uint32_t r1);
 
 /**
@@ -223,15 +221,15 @@ M0_INTERNAL void m0_vector_swap_row(struct m0_vector *v, uint32_t r0,
  * @param mul - multiplicaton function
  * @param add - addition function
  *
- * @pre m0_vector_init(v) has been called
+ * @pre m0_matvec_init(v) has been called
  * @pre m0_matrix_init(m) has been called
  * @pre m0_vec_init(r) has been called
  */
 M0_INTERNAL void m0_matrix_vec_multiply(const struct m0_matrix *m,
-					const struct m0_vector *v,
-					struct m0_vector *r,
-					m0_vector_matrix_binary_operator_t mul,
-					m0_vector_matrix_binary_operator_t add);
+					const struct m0_matvec *v,
+					struct m0_matvec *r,
+					m0_matvec_matrix_binary_operator_t mul,
+					m0_matvec_matrix_binary_operator_t add);
 
 /**
  * Returns submatrix of matrix 'mat' into 'submat', where 'x', 'y' - offsets

@@ -102,16 +102,16 @@ struct m0_parity_math {
 	uint32_t		     pmi_data_count;
 	uint32_t		     pmi_parity_count;
 	/* structures used for parity calculation and recovery */
-	struct m0_vector	     pmi_data;
-	struct m0_vector	     pmi_parity;
+	struct m0_matvec	     pmi_data;
+	struct m0_matvec	     pmi_parity;
 	/* Vandermonde matrix */
 	struct m0_matrix	     pmi_vandmat;
 	/* Submatrix of Vandermonde matrix used to compute parity. */
 	struct m0_matrix	     pmi_vandmat_parity_slice;
 	/* structures used for non-incremental recovery */
 	struct m0_matrix	     pmi_sys_mat;
-	struct m0_vector	     pmi_sys_vec;
-	struct m0_vector	     pmi_sys_res;
+	struct m0_matvec	     pmi_sys_vec;
+	struct m0_matvec	     pmi_sys_res;
 	struct m0_linsys	     pmi_sys;
 };
 

@@ -285,13 +285,13 @@ M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math)
 	if (math->pmi_parity_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
 		vandmat_fini(&math->pmi_vandmat);
 		m0_matrix_fini(&math->pmi_vandmat_parity_slice);
-		m0_vector_fini(&math->pmi_data);
-		m0_vector_fini(&math->pmi_parity);
+		m0_matvec_fini(&math->pmi_data);
+		m0_matvec_fini(&math->pmi_parity);
 
 		m0_linsys_fini(&math->pmi_sys);
 		m0_matrix_fini(&math->pmi_sys_mat);
-		m0_vector_fini(&math->pmi_sys_vec);
-		m0_vector_fini(&math->pmi_sys_res);
+		m0_matvec_fini(&math->pmi_sys_vec);
+		m0_matvec_fini(&math->pmi_sys_res);
 //		m0_parity_fini();
 	}
 }
@@ -339,24 +339,24 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 				        &math->pmi_vandmat_parity_slice, 0,
 					data_count);
 
-		ret = m0_vector_init(&math->pmi_data, data_count);
+		ret = m0_matvec_init(&math->pmi_data, data_count);
 		if (ret < 0)
 			goto handle_error;
 
-		ret = m0_vector_init(&math->pmi_parity, parity_count);
+		ret = m0_matvec_init(&math->pmi_parity, parity_count);
 		if (ret < 0)
 			goto handle_error;
 
-		ret = m0_vector_init(&math->pmi_sys_vec, math->pmi_data.v_size);
+		ret = m0_matvec_init(&math->pmi_sys_vec, math->pmi_data.mv_size);
 		if (ret < 0)
 			goto handle_error;
 
-		ret = m0_vector_init(&math->pmi_sys_res, math->pmi_data.v_size);
+		ret = m0_matvec_init(&math->pmi_sys_res, math->pmi_data.mv_size);
 		if (ret < 0)
 			goto handle_error;
 
-		ret = m0_matrix_init(&math->pmi_sys_mat, math->pmi_data.v_size,
-				     math->pmi_data.v_size);
+		ret = m0_matrix_init(&math->pmi_sys_mat, math->pmi_data.mv_size,
+				     math->pmi_data.mv_size);
 		if (ret < 0)
 			goto handle_error;
 	}
@@ -542,7 +542,7 @@ static uint32_t fails_count(uint8_t *fail, uint32_t unit_count)
 static void recovery_data_fill(struct m0_parity_math *math,
 			       uint8_t *fail, uint32_t unit_count, /* in. */
 			       struct m0_matrix *mat,
-			       struct m0_vector *vec) /* out. */
+			       struct m0_matvec *vec) /* out. */
 {
 	uint32_t f;
 	uint32_t y = 0;
@@ -553,11 +553,11 @@ static void recovery_data_fill(struct m0_parity_math *math,
 		 * if (block is ok) and
 		 * (not enough equations to solve system).
 		 */
-		if (!fail[f] && y < vec->v_size) {
+		if (!fail[f] && y < vec->mv_size) {
 			/* copy vec. */
-			*m0_vector_elem_get(vec, y) = f < math->pmi_data_count
-				? *m0_vector_elem_get(&math->pmi_data, f)
-				: *m0_vector_elem_get(&math->pmi_parity,
+			*m0_matvec_elem_get(vec, y) = f < math->pmi_data_count
+				? *m0_matvec_elem_get(&math->pmi_data, f)
+				: *m0_matvec_elem_get(&math->pmi_parity,
 						f - math->pmi_data_count);
 			/* copy mat. */
 			for (x = 0; x < mat->m_width; ++x)
@@ -574,8 +574,8 @@ static void parity_math_recover(struct m0_parity_math *math,
 				uint8_t *fail, uint32_t unit_count)
 {
 	struct m0_matrix *mat = &math->pmi_sys_mat;
-	struct m0_vector *vec = &math->pmi_sys_vec;
-	struct m0_vector *res = &math->pmi_sys_res;
+	struct m0_matvec *vec = &math->pmi_sys_vec;
+	struct m0_matvec *res = &math->pmi_sys_res;
 	struct m0_linsys *sys = &math->pmi_sys;
 
 	recovery_data_fill(math, fail, unit_count, mat, vec);
@@ -653,15 +653,15 @@ static void reed_solomon_recover(struct m0_parity_math *math,
 		M0_ASSERT(block_size == parity[ui].b_nob);
 
 	for (ei = 0; ei < block_size; ++ei) {
-		struct m0_vector *recovered = &math->pmi_sys_res;
+		struct m0_matvec *recovered = &math->pmi_sys_res;
 
 		/* load data and parity. */
 		for (ui = 0; ui < math->pmi_data_count; ++ui)
-			*m0_vector_elem_get(&math->pmi_data, ui) =
+			*m0_matvec_elem_get(&math->pmi_data, ui) =
 				((uint8_t*)data[ui].b_addr)[ei];
 
 		for (ui = 0; ui < math->pmi_parity_count; ++ui)
-			*m0_vector_elem_get(&math->pmi_parity, ui) =
+			*m0_matvec_elem_get(&math->pmi_parity, ui) =
 				((uint8_t*)parity[ui].b_addr)[ei];
 
 		/* recover data. */
@@ -669,7 +669,7 @@ static void reed_solomon_recover(struct m0_parity_math *math,
 		/* store data. */
 		for (ui = 0; ui < math->pmi_data_count; ++ui)
 			((uint8_t*)data[ui].b_addr)[ei] =
-				*m0_vector_elem_get(recovered, ui);
+				*m0_matvec_elem_get(recovered, ui);
 	}
 
 	/* recalculate parity. */

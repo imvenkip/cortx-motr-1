@@ -14,7 +14,7 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/finject.h \
                                lib/fs.h \
                                lib/getopts.h \
-			       lib/hash.h \
+                               lib/hash.h \
                                lib/list.h \
                                lib/locality.h \
                                lib/lockers.h \
@@ -36,10 +36,9 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/types.h \
                                lib/ub.h \
                                lib/uuid.h \
-			       lib/varr.h \
-			       lib/varr_private.h \
+                               lib/varr.h \
+                               lib/varr_private.h \
                                lib/vec.h \
-			       lib/hash.h \
                                lib/user_space/getopts.h \
                                lib/user_space/misc.h \
                                lib/user_space/mutex.h \
@@ -69,9 +68,9 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/finject.c \
                            lib/finject_internal.h \
                            lib/getopts.c \
-			   lib/hash.c \
+                           lib/hash.c \
                            lib/list.c \
-			   lib/locality.c \
+                           lib/locality.c \
                            lib/lockers.c \
                            lib/m0lib.c \
                            lib/memory.c \
@@ -91,7 +90,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/types_xc.c \
                            lib/ub.c \
                            lib/uuid.c \
-			   lib/varr.c \
+                           lib/varr.c \
                            lib/vec.c \
                            lib/vec_xc.c \
                            lib/user_space/finject_init.c \

@@ -31,17 +31,17 @@
  GLOBAL @TODO: ALLOCATE AND FREE DATA WITH CORRESPONDING ALIGNMENT!!!
  =========================================================================== */
 
-M0_INTERNAL int m0_vector_init(struct m0_vector *v, uint32_t sz)
+M0_INTERNAL int m0_matvec_init(struct m0_matvec *v, uint32_t sz)
 {
-	v->v_size = sz;
-	M0_ALLOC_ARR(v->v_vector, sz);
-	return v->v_vector == NULL ? -ENOMEM : 0;
+	v->mv_size = sz;
+	M0_ALLOC_ARR(v->mv_vector, sz);
+	return v->mv_vector == NULL ? -ENOMEM : 0;
 }
 
-M0_INTERNAL void m0_vector_fini(struct m0_vector *v)
+M0_INTERNAL void m0_matvec_fini(struct m0_matvec *v)
 {
-	m0_free0(&v->v_vector);
-	v->v_size = 0;
+	m0_free0(&v->mv_vector);
+	v->mv_size = 0;
 }
 
 M0_INTERNAL int m0_matrix_init(struct m0_matrix *m, uint32_t w, uint32_t h)
@@ -75,10 +75,10 @@ M0_INTERNAL void m0_matrix_fini(struct m0_matrix *m)
 	m->m_height = m->m_width = 0;
 }
 
-m0_parity_elem_t* m0_vector_elem_get(const struct m0_vector *v, uint32_t x)
+m0_parity_elem_t* m0_matvec_elem_get(const struct m0_matvec *v, uint32_t x)
 {
-	M0_PRE(x < v->v_size);
-	return &v->v_vector[x];
+	M0_PRE(x < v->mv_size);
+	return &v->mv_vector[x];
 }
 
 m0_parity_elem_t* m0_matrix_elem_get(const struct m0_matrix *m, uint32_t x, uint32_t y)
@@ -104,14 +104,14 @@ M0_INTERNAL void m0_matrix_print(const struct m0_matrix *mat)
 	M0_LOG(M0_DEBUG, "\n");
 }
 
-M0_INTERNAL void m0_vector_print(const struct m0_vector *vec)
+M0_INTERNAL void m0_matvec_print(const struct m0_matvec *vec)
 {
 	uint32_t x;
 	M0_PRE(vec);
 
 	M0_LOG(M0_DEBUG, "-----> vec %p\n", vec);
-	for (x = 0; x < vec->v_size; ++x)
-		M0_LOG(M0_DEBUG, "%6d\n", *m0_vector_elem_get(vec, x));
+	for (x = 0; x < vec->mv_size; ++x)
+		M0_LOG(M0_DEBUG, "%6d\n", *m0_matvec_elem_get(vec, x));
 	M0_LOG(M0_DEBUG, "\n");
 }
 
@@ -126,20 +126,20 @@ M0_INTERNAL void m0_matrix_swap_row(struct m0_matrix *m, uint32_t r0,
 	m->m_matrix[r1] = temp;
 }
 
-M0_INTERNAL void m0_vector_swap_row(struct m0_vector *v, uint32_t r0,
+M0_INTERNAL void m0_matvec_swap_row(struct m0_matvec *v, uint32_t r0,
 				    uint32_t r1)
 {
 	m0_parity_elem_t temp;
-	M0_PRE(r0 < v->v_size && r1 < v->v_size);
+	M0_PRE(r0 < v->mv_size && r1 < v->mv_size);
 
-	temp = v->v_vector[r0];
-	v->v_vector[r0] = v->v_vector[r1];
-	v->v_vector[r1] = temp;
+	temp = v->mv_vector[r0];
+	v->mv_vector[r0] = v->mv_vector[r1];
+	v->mv_vector[r1] = temp;
 }
 
 M0_INTERNAL void m0_matrix_row_operate(struct m0_matrix *m, uint32_t row,
 				       m0_parity_elem_t c,
-				       m0_vector_matrix_binary_operator_t f)
+				       m0_matvec_matrix_binary_operator_t f)
 {
 	uint32_t x;
 	M0_PRE(m);
@@ -150,11 +150,11 @@ M0_INTERNAL void m0_matrix_row_operate(struct m0_matrix *m, uint32_t row,
 	}
 }
 
-M0_INTERNAL void m0_vector_row_operate(struct m0_vector *v, uint32_t row,
+M0_INTERNAL void m0_matvec_row_operate(struct m0_matvec *v, uint32_t row,
 				       m0_parity_elem_t c,
-				       m0_vector_matrix_binary_operator_t f)
+				       m0_matvec_matrix_binary_operator_t f)
 {
-	m0_parity_elem_t *e = m0_vector_elem_get(v, row);
+	m0_parity_elem_t *e = m0_matvec_elem_get(v, row);
 	M0_PRE(v);
 
 	*e = f(*e, c);
@@ -162,11 +162,11 @@ M0_INTERNAL void m0_vector_row_operate(struct m0_vector *v, uint32_t row,
 
 M0_INTERNAL void m0_matrix_rows_operate(struct m0_matrix *m, uint32_t row0,
 					uint32_t row1,
-					m0_vector_matrix_binary_operator_t f0,
+					m0_matvec_matrix_binary_operator_t f0,
 					m0_parity_elem_t c0,
-					m0_vector_matrix_binary_operator_t f1,
+					m0_matvec_matrix_binary_operator_t f1,
 					m0_parity_elem_t c1,
-					m0_vector_matrix_binary_operator_t f)
+					m0_matvec_matrix_binary_operator_t f)
 {
 	uint32_t x;
 	M0_PRE(m);
@@ -180,9 +180,9 @@ M0_INTERNAL void m0_matrix_rows_operate(struct m0_matrix *m, uint32_t row0,
 
 M0_INTERNAL void m0_matrix_rows_operate2(struct m0_matrix *m, uint32_t row0,
 					 uint32_t row1,
-					 m0_vector_matrix_binary_operator_t f0,
+					 m0_matvec_matrix_binary_operator_t f0,
 					 m0_parity_elem_t c0,
-					 m0_vector_matrix_binary_operator_t f)
+					 m0_matvec_matrix_binary_operator_t f)
 {
 	uint32_t x;
 	M0_PRE(m);
@@ -196,9 +196,9 @@ M0_INTERNAL void m0_matrix_rows_operate2(struct m0_matrix *m, uint32_t row0,
 
 M0_INTERNAL void m0_matrix_rows_operate1(struct m0_matrix *m, uint32_t row0,
 					 uint32_t row1,
-					 m0_vector_matrix_binary_operator_t f1,
+					 m0_matvec_matrix_binary_operator_t f1,
 					 m0_parity_elem_t c1,
-					 m0_vector_matrix_binary_operator_t f)
+					 m0_matvec_matrix_binary_operator_t f)
 {
 	uint32_t x;
 	M0_PRE(m);
@@ -212,11 +212,11 @@ M0_INTERNAL void m0_matrix_rows_operate1(struct m0_matrix *m, uint32_t row0,
 
 M0_INTERNAL void m0_matrix_cols_operate(struct m0_matrix *m, uint32_t col0,
 					uint32_t col1,
-					m0_vector_matrix_binary_operator_t f0,
+					m0_matvec_matrix_binary_operator_t f0,
 					m0_parity_elem_t c0,
-					m0_vector_matrix_binary_operator_t f1,
+					m0_matvec_matrix_binary_operator_t f1,
 					m0_parity_elem_t c1,
-					m0_vector_matrix_binary_operator_t f)
+					m0_matvec_matrix_binary_operator_t f)
 {
 	uint32_t y;
 
@@ -231,7 +231,7 @@ M0_INTERNAL void m0_matrix_cols_operate(struct m0_matrix *m, uint32_t col0,
 
 M0_INTERNAL void m0_matrix_col_operate(struct m0_matrix *m, uint32_t col,
 				       m0_parity_elem_t c,
-				       m0_vector_matrix_binary_operator_t f)
+				       m0_matvec_matrix_binary_operator_t f)
 {
 	uint32_t y;
 	M0_PRE(m);
@@ -242,75 +242,75 @@ M0_INTERNAL void m0_matrix_col_operate(struct m0_matrix *m, uint32_t col,
 	}
 }
 
-M0_INTERNAL void m0_vector_rows_operate(struct m0_vector *v, uint32_t row0,
+M0_INTERNAL void m0_matvec_rows_operate(struct m0_matvec *v, uint32_t row0,
 					uint32_t row1,
-					m0_vector_matrix_binary_operator_t f0,
+					m0_matvec_matrix_binary_operator_t f0,
 					m0_parity_elem_t c0,
-					m0_vector_matrix_binary_operator_t f1,
+					m0_matvec_matrix_binary_operator_t f1,
 					m0_parity_elem_t c1,
-					m0_vector_matrix_binary_operator_t f)
+					m0_matvec_matrix_binary_operator_t f)
 {
 	m0_parity_elem_t *e0;
 	m0_parity_elem_t *e1;
 
 	M0_PRE(v);
 
-	e0 = m0_vector_elem_get(v, row0);
-	e1 = m0_vector_elem_get(v, row1);
+	e0 = m0_matvec_elem_get(v, row0);
+	e1 = m0_matvec_elem_get(v, row1);
 	*e0 = f(f0(*e0, c0), f1(*e1, c1));
 }
 
-M0_INTERNAL void m0_vector_rows_operate1(struct m0_vector *v, uint32_t row0,
+M0_INTERNAL void m0_matvec_rows_operate1(struct m0_matvec *v, uint32_t row0,
 					 uint32_t row1,
-					 m0_vector_matrix_binary_operator_t f1,
+					 m0_matvec_matrix_binary_operator_t f1,
 					 m0_parity_elem_t c1,
-					 m0_vector_matrix_binary_operator_t f)
+					 m0_matvec_matrix_binary_operator_t f)
 {
 	m0_parity_elem_t *e0;
 	m0_parity_elem_t *e1;
 
 	M0_PRE(v);
 
-	e0 = m0_vector_elem_get(v, row0);
-	e1 = m0_vector_elem_get(v, row1);
+	e0 = m0_matvec_elem_get(v, row0);
+	e1 = m0_matvec_elem_get(v, row1);
 	*e0 = f(*e0, f1(*e1, c1));
 }
 
-M0_INTERNAL void m0_vector_rows_operate2(struct m0_vector *v, uint32_t row0,
+M0_INTERNAL void m0_matvec_rows_operate2(struct m0_matvec *v, uint32_t row0,
 					 uint32_t row1,
-					 m0_vector_matrix_binary_operator_t f0,
+					 m0_matvec_matrix_binary_operator_t f0,
 					 m0_parity_elem_t c0,
-					 m0_vector_matrix_binary_operator_t f)
+					 m0_matvec_matrix_binary_operator_t f)
 {
 	m0_parity_elem_t *e0;
 	m0_parity_elem_t *e1;
 
 	M0_PRE(v);
 
-	e0 = m0_vector_elem_get(v, row0);
-	e1 = m0_vector_elem_get(v, row1);
+	e0 = m0_matvec_elem_get(v, row0);
+	e1 = m0_matvec_elem_get(v, row1);
 	*e0 = f(f0(*e0, c0), *e1);
 }
 
 
 M0_INTERNAL void m0_matrix_vec_multiply(const struct m0_matrix *m,
-					const struct m0_vector *v,
-					struct m0_vector *r,
-					m0_vector_matrix_binary_operator_t mul,
-					m0_vector_matrix_binary_operator_t add)
+					const struct m0_matvec *v,
+					struct m0_matvec *r,
+					m0_matvec_matrix_binary_operator_t mul,
+					m0_matvec_matrix_binary_operator_t add)
 {
 	uint32_t y;
 	uint32_t x;
 
         M0_PRE(v != NULL && m != NULL && r != NULL);
-	M0_PRE(m->m_width == v->v_size && m->m_height == r->v_size);
+	M0_PRE(m->m_width == v->mv_size && m->m_height == r->mv_size);
 
 	for (y = 0; y < m->m_height; ++y) {
-		m0_parity_elem_t *er = m0_vector_elem_get(r, y);
+		m0_parity_elem_t *er = m0_matvec_elem_get(r, y);
 		*er = M0_PARITY_ZERO;
 
                 for (x = 0; x < m->m_width; ++x) {
-			m0_parity_elem_t ev = *m0_vector_elem_get(v, x);
+			m0_parity_elem_t ev = *m0_matvec_elem_get(v, x);
 			m0_parity_elem_t em = *m0_matrix_elem_get(m, x, y);
 			*er = add(*er, mul(ev, em));
 		}

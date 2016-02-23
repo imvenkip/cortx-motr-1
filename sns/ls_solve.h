@@ -39,18 +39,19 @@
  */
 struct m0_linsys {
 	struct m0_matrix *l_mat;
-	struct m0_vector *l_vec;
-	struct m0_vector *l_res;
+	struct m0_matvec *l_vec;
+	struct m0_matvec *l_res;
 };
 
 /**
- * @pre m0_matrix_init(mat) && m0_vector_init(vec) && m0_vec_init(res)
+ * @pre m0_matrix_init(mat) && m0_matvec_init(vec) && m0_vec_init(res)
  * @pre mat->m_height > 0 && mat->width > 0
- * @pre mat->m_width == mat->m_height && res->v_size == vec->v_size && vec->v_size == mat->m_width
+ * @pre mat->m_width == mat->m_height && res->mv_size == vec->mv_size &&
+ *          vec->mv_size == mat->m_width
  */
 M0_INTERNAL void m0_linsys_init(struct m0_linsys *linsys,
 				struct m0_matrix *mat,
-				struct m0_vector *vec, struct m0_vector *res);
+				struct m0_matvec *vec, struct m0_matvec *res);
 
 M0_INTERNAL void m0_linsys_fini(struct m0_linsys *linsys);
 

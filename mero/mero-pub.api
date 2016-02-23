@@ -300,7 +300,7 @@ m0_time_seconds
 m0_time_sub
 m0_tlist_head
 m0_tlist_next
-m0_vector_elem_get
+m0_matvec_elem_get
 m0_be_ut_backend_cfg_default
 m0_be_ut_backend_fini
 m0_be_ut_backend_init

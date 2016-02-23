@@ -29,12 +29,12 @@
 
 M0_INTERNAL void m0_linsys_init(struct m0_linsys *lynsys,
 				struct m0_matrix *m,
-				struct m0_vector *v, struct m0_vector *r)
+				struct m0_matvec *v, struct m0_matvec *r)
 {
 	M0_PRE(m != NULL && v != NULL && r != NULL);
 	M0_PRE(m->m_height > 0 && m->m_width > 0);
-	M0_PRE(m->m_width == m->m_height && r->v_size == v->v_size &&
-	       v->v_size == m->m_width);
+	M0_PRE(m->m_width == m->m_height && r->mv_size == v->mv_size &&
+	       v->mv_size == m->m_width);
 
 	lynsys->l_mat = m;
 	lynsys->l_res = r;
@@ -68,7 +68,7 @@ static uint32_t find_max_row_index_for_col(struct m0_matrix *m,
 	return ret;
 }
 
-static void triangularize(struct m0_matrix *m, struct m0_vector *v)
+static void triangularize(struct m0_matrix *m, struct m0_matvec *v)
 {
 	uint32_t col = 0;
 	uint32_t current_row = 0;
@@ -81,37 +81,37 @@ static void triangularize(struct m0_matrix *m, struct m0_vector *v)
 		/* move row with max first elem to the top of matrix */
 		max_row = find_max_row_index_for_col(m, col);
 		m0_matrix_swap_row(m, current_row, max_row);
-		m0_vector_swap_row(v, current_row, max_row);
+		m0_matvec_swap_row(v, current_row, max_row);
 
 		/* divide row to eliminate first element of the row */
 		divisor = *m0_matrix_elem_get(m, col, current_row);
 		m0_matrix_row_operate(m, col, divisor, m0_parity_div);
-		m0_vector_row_operate(v, col, divisor, m0_parity_div);
+		m0_matvec_row_operate(v, col, divisor, m0_parity_div);
 
 		/* eliminate first elements in other rows */
 		row = current_row + 1;
 		for (; row < m->m_height; ++row) {
 			m0_parity_elem_t mult = *m0_matrix_elem_get(m, col, row);
 			m0_matrix_rows_operate1(m, row, col, m0_parity_mul, mult, m0_parity_sub);
-			m0_vector_rows_operate1(v, row, col, m0_parity_mul, mult, m0_parity_sub);
+			m0_matvec_rows_operate1(v, row, col, m0_parity_mul, mult, m0_parity_sub);
 		}
 	}
 }
 
-static void substitute(struct m0_matrix *m, struct m0_vector *v, struct m0_vector *r)
+static void substitute(struct m0_matrix *m, struct m0_matvec *v, struct m0_matvec *r)
 {
 	uint32_t col = m->m_width  - 1;
 	uint32_t row = m->m_height - 1;
 
 	for (; (int32_t)row >= 0; --row, --col) {
 		uint32_t pos;
-		m0_parity_elem_t *ev = m0_vector_elem_get(v, row);
+		m0_parity_elem_t *ev = m0_matvec_elem_get(v, row);
 		m0_parity_elem_t *em = m0_matrix_elem_get(m, col, row);
-		m0_parity_elem_t *er = m0_vector_elem_get(r, row);
+		m0_parity_elem_t *er = m0_matvec_elem_get(r, row);
 		m0_parity_elem_t rhs = *ev;
 
 		for (pos = 1; pos < m->m_height - row; ++pos) {
-			m0_parity_elem_t *er_prev = m0_vector_elem_get(r, row + pos);
+			m0_parity_elem_t *er_prev = m0_matvec_elem_get(r, row + pos);
 			m0_parity_elem_t *em_prev = m0_matrix_elem_get(m, col + pos, row);
 			rhs = m0_parity_sub(rhs, m0_parity_mul(*er_prev, *em_prev));
 		}
@@ -123,8 +123,8 @@ static void substitute(struct m0_matrix *m, struct m0_vector *v, struct m0_vecto
 M0_INTERNAL void m0_linsys_solve(struct m0_linsys *lynsys)
 {
 	struct m0_matrix *m = lynsys->l_mat;
-	struct m0_vector *v = lynsys->l_vec;
-	struct m0_vector *r = lynsys->l_res;
+	struct m0_matvec *v = lynsys->l_vec;
+	struct m0_matvec *r = lynsys->l_res;
 
 	triangularize(m, v);
 	substitute(m, v, r);
