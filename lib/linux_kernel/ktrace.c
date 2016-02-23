@@ -229,6 +229,8 @@ M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh)
 
 	tbh->tbh_buf_type = M0_TRACE_BUF_KERNEL;
 	tbh->tbh_module_core_addr = m->module_core;
+	tbh->tbh_module_core_size = m->core_size;
+	tbh->tbh_module_struct    = m;
 }
 
 /** @} end of trace group */

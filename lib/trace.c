@@ -708,7 +708,7 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 	}
 
 	if (m0_trace_print_context == M0_TRACE_PCTX_SHORT)
-		m0_error_printf("mero[%5.5u]: %6x %6s : [%s:%i:%s] ",
+		m0_error_printf("mero[%5.5u]: %5x %6s  [%s:%i:%s]  ",
 				trh->trh_pid,
 				(unsigned) (trh->trh_sp & 0xffff),
 				m0_trace_level_name(td->td_level),
@@ -884,7 +884,11 @@ M0_INTERNAL void m0_trace_buf_header_init(struct m0_trace_buf_header *tbh, uint3
 	const struct m0_build_info  *bi = m0_build_info_get();
 
 	tbh->tbh_magic          = M0_TRACE_BUF_HEADER_MAGIC;
+	tbh->tbh_header_addr    = tbh;
 	tbh->tbh_header_size    = M0_TRACE_BUF_HEADER_SIZE;
+	/* by default, assume that trace buffer follows header immediately;
+	 * m0_trace_init()|m0_arch_trace_init() may override it though */
+	tbh->tbh_buf_addr       = (char*)tbh->tbh_header_addr + tbh->tbh_header_size;
 	tbh->tbh_buf_size       = buf_size;
 	tbh->tbh_magic_sym_addr = &trace_magic_symbol;
 	tbh->tbh_log_time       = m0_time_now();

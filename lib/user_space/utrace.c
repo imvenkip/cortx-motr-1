@@ -20,7 +20,7 @@
 
 #include <string.h>   /* memset, strlen */
 #include <errno.h>
-#include <err.h>
+#include <err.h>      /* warn */
 #include <sysexits.h> /* EX_* exit codes (EX_OSERR, EX_SOFTWARE) */
 #include <stdio.h>
 #include <stdlib.h>   /* getenv, strtoul */
@@ -245,20 +245,13 @@ static void print_trace_buf_header(FILE *ofile,
 
 	fprintf(ofile, "header:\n");
 
-	fprintf(ofile, "  header_size:        %u  # bytes\n", tbh->tbh_header_size);
-	fprintf(ofile, "  buffer_size:        %u  # bytes\n", tbh->tbh_buf_size);
-	fprintf(ofile, "  buffer_type:        %s\n",
-		tbh->tbh_buf_type == M0_TRACE_BUF_KERNEL ? "KERNEL" :
-		tbh->tbh_buf_type == M0_TRACE_BUF_USER   ? "USER"   :
-							   "UNKNOWN"
-	);
 	fprintf(ofile, "  mero_version:       %s\n", tbh->tbh_mero_version);
 	fprintf(ofile, "  mero_git_describe:  %s\n", tbh->tbh_mero_git_describe);
 	fprintf(ofile, "  mero_kernel:        %s\n", tbh->tbh_mero_kernel_ver);
 
 	rc = putenv("TZ=UTC0");
 	if (rc != 0)
-		fprintf(stderr, "failed to set timezone, temporarily, to UTC\n");
+		warn("failed to set timezone to UTC\n");
 
 	time = m0_time_seconds(tbh->tbh_log_time);
 	ptm = localtime_r(&time, &tm);
@@ -271,6 +264,26 @@ static void print_trace_buf_header(FILE *ofile,
 	} else {
 		fprintf(stderr, "incorrect timestamp value in trace header\n");
 		fprintf(ofile, "  trace_time:         ''\n");
+	}
+
+	fprintf(ofile, "  buffer_type:        %s\n",
+		tbh->tbh_buf_type == M0_TRACE_BUF_KERNEL ? "KERNEL" :
+		tbh->tbh_buf_type == M0_TRACE_BUF_USER   ? "USER"   :
+							   "UNKNOWN"
+	);
+
+	fprintf(ofile, "  header_addr:        %p\n", tbh->tbh_header_addr);
+	fprintf(ofile, "  header_size:        %u\t\t# bytes\n", tbh->tbh_header_size);
+	fprintf(ofile, "  buffer_addr:        %p\n", tbh->tbh_buf_addr);
+	fprintf(ofile, "  buffer_size:        %u\t\t# bytes\n", tbh->tbh_buf_size);
+
+	if (tbh->tbh_buf_type == M0_TRACE_BUF_KERNEL) {
+		fprintf(ofile, "  mod_struct_addr:    %p\n",
+				tbh->tbh_module_struct);
+		fprintf(ofile, "  mod_core_addr:      %p\n",
+				tbh->tbh_module_core_addr);
+		fprintf(ofile, "  mod_core_size:      %u\t\t# bytes\n",
+				tbh->tbh_module_core_size);
 	}
 }
 

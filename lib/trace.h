@@ -311,16 +311,20 @@ struct m0_trace_buf_header {
 	union {
 		struct {
 			/* XXX: don't change fields order */
-			/* XXX: new fields should be added to the end */
+			/* XXX: new fields should be added at the end */
 
 			uint64_t                tbh_magic;
+			/** Trace header address */
+			const void             *tbh_header_addr;
 			/**
-			 * Size, reserved for trace buffer header (NOTICE: not a
+			 * Size, reserved for trace buffer header (NOTE: not a
 			 * size of this structure). Effectively, this is an
 			 * offset within trace file, starting from which actual
 			 * trace records begin.
 			 */
 			uint32_t                tbh_header_size;
+			/** Trace buffer address */
+			const void             *tbh_buf_addr;
 			/** Trace buffer size */
 			uint32_t                tbh_buf_size;
 			/** enum m0_trace_buf_type */
@@ -332,13 +336,11 @@ struct m0_trace_buf_header {
 			struct m0_atomic64      tbh_cur_pos;
 			/** Record counter */
 			struct m0_atomic64      tbh_rec_cnt;
-			/** Address of special trace magic symbol */
-			const void             *tbh_magic_sym_addr;
 			/**
-			 * Address of loaded m0mero.ko module (used only for
-			 * kernel trace)
+			 * Address of special trace magic symbol (used for trace
+			 * buffer decoding)
 			 */
-			const void             *tbh_module_core_addr;
+			const void             *tbh_magic_sym_addr;
 			/** Mero version string */
 			char                    tbh_mero_version[16];
 			/** Git describe revision ID */
@@ -347,6 +349,17 @@ struct m0_trace_buf_header {
 			char                    tbh_mero_kernel_ver[128];
 			/** Trace file creation time and date */
 			m0_time_t               tbh_log_time;
+			/** m0mero.ko module struct (used only for kernel trace) */
+			const void             *tbh_module_struct;
+			/**
+			 * Address of loaded m0mero.ko module (used only for
+			 * kernel trace)
+			 */
+			const void             *tbh_module_core_addr;
+			/** Size of loaded m0mero.ko module (used only for kernel trace) */
+			unsigned int            tbh_module_core_size;
+
+			/* XXX: add new field right above this line */
 		};
 		char    tbh_header_area[M0_TRACE_BUF_HEADER_SIZE];
 	};
