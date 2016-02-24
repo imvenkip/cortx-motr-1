@@ -18,6 +18,9 @@
  * Original creation date: 10/19/2010
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNS
+#include "lib/trace.h"
+#include "lib/misc.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "sns/parity_ops.h"
@@ -25,18 +28,59 @@
 
 
 static gf_t m0_parity_ops_gf;
+static const int REGION_TYPE[] = {
+	GF_REGION_SSE,
+	GF_REGION_NOSIMD
+};
+static const char *REGION_TYPE_STR[] = {
+	[GF_REGION_SSE]    = "GF_REGION_SSE",
+	[GF_REGION_NOSIMD] = "GF_REGION_NOSIMD",
+};
+
+static inline int gf_ret_code(int gf_ret)
+{
+	/* Hide crazy error conventions inside library */
+	return gf_ret == 1 ? 0 : -1;
+}
 
 M0_INTERNAL int m0_parity_init(void)
 {
+	int i;
 	int ret;
+
+	for (i = 0; i < ARRAY_SIZE(REGION_TYPE); ++i) {
+		ret = gf_init_hard(&m0_parity_ops_gf, M0_PARITY_GALOIS_W,
+				   GF_MULT_SPLIT_TABLE,
+				   REGION_TYPE[i],
+				   GF_DIVIDE_DEFAULT,
+				   0, 8, 4, NULL, NULL);
+		if (ret == 1) {
+			M0_LOG(M0_INFO, "%s region type is selected",
+			       REGION_TYPE_STR[REGION_TYPE[i]]);
+			break;
+		}
+	}
+
+	return gf_ret_code(ret);
+}
+
+M0_INTERNAL int m0_parity_ut_init(bool try_ssse3)
+{
+	int ret;
+
 	ret = gf_init_hard(&m0_parity_ops_gf, M0_PARITY_GALOIS_W,
 			   GF_MULT_SPLIT_TABLE,
-			   GF_REGION_SSE,
+			   REGION_TYPE[try_ssse3 ? 0 : 1],
 			   GF_DIVIDE_DEFAULT,
 			   0, 8, 4, NULL, NULL);
 
-	/* XXX: crazy error conventions inside library */
-	return ret == 1 ? 0 : -1;
+	return gf_ret_code(ret);
+}
+
+M0_INTERNAL void m0_parity_ut_fini(void)
+{
+	gf_free(&m0_parity_ops_gf, 0);
+	M0_SET0(&m0_parity_ops_gf);
 }
 
 M0_INTERNAL void m0_parity_fini(void)
@@ -96,6 +140,8 @@ M0_INTERNAL void m0_parity_region_mac(m0_parity_elem_t       *dst,
 					     size,
 					     1);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

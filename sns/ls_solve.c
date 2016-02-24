@@ -17,12 +17,13 @@
  * Original creation date: 10/19/2010
  */
 
-#include "sns/parity_ops.h"
-#include "sns/ls_solve.h"
 #include "lib/assert.h"
 #include "lib/types.h"
 #include "lib/errno.h"  /* EDOM */
 #include "lib/misc.h"   /* NULL */
+
+#include "sns/parity_ops.h"
+#include "sns/ls_solve.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNS
 #include "lib/trace.h"

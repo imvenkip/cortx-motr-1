@@ -27,6 +27,9 @@
 #define M0_PARITY_GALOIS_W (8)
 typedef unsigned char m0_parity_elem_t;
 
+M0_INTERNAL int m0_parity_ut_init(bool try_ssse3);
+M0_INTERNAL void m0_parity_ut_fini(void);
+
 M0_INTERNAL int m0_parity_init(void);
 M0_INTERNAL void m0_parity_fini(void);
 M0_INTERNAL m0_parity_elem_t m0_parity_mul(m0_parity_elem_t x,

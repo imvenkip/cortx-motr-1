@@ -1284,22 +1284,43 @@ static inline uint32_t block_nr(const struct m0_sns_ir *ir)
 	return ir->si_data_nr + ir->si_parity_nr;
 }
 
+static int parity_ut_generic_init(void)
+{
+	m0_parity_ut_fini();
+	return m0_parity_ut_init(false);
+}
+
+static int parity_ut_fini(void)
+{
+	m0_parity_ut_fini();
+	return m0_parity_init();
+}
+
+#define _TESTS								\
+	{ "reed_solomon_recover_with_fail_vec", test_rs_fv_recover },	\
+	{ "xor_recover_with_fail_vec", test_xor_fv_recover },		\
+	{ "xor_recover_with_fail_index", test_xor_fail_idx_recover },	\
+	{ "buffer_xor", test_buffer_xor },				\
+	{ "parity_math_diff_xor", test_parity_math_diff_xor },		\
+	{ "parity_math_diff_rs", test_parity_math_diff_rs },		\
+	{ "incr_recov_rs", test_incr_recov_rs },			\
+	{ NULL, NULL }
+
 struct m0_ut_suite parity_math_ut = {
         .ts_name = "parity_math-ut",
-        .ts_init = NULL,
-        .ts_fini = NULL,
-        .ts_tests = {
-                { "reed_solomon_recover_with_fail_vec", test_rs_fv_recover },
-                { "xor_recover_with_fail_vec", test_xor_fv_recover },
-                { "xor_recover_with_fail_index", test_xor_fail_idx_recover },
-                { "buffer_xor", test_buffer_xor },
-                { "parity_math_diff_xor", test_parity_math_diff_xor },
-                { "parity_math_diff_rs", test_parity_math_diff_rs },
-		{ "incr_recov_rs", test_incr_recov_rs },
-                { NULL, NULL }
-        }
+        .ts_init = parity_ut_generic_init,
+        .ts_fini = parity_ut_fini,
+        .ts_tests = { _TESTS }
 };
 M0_EXPORTED(parity_math_ut);
+
+struct m0_ut_suite parity_math_ssse3_ut = {
+        .ts_name = "parity_math_ssse3-ut",
+        .ts_tests = { _TESTS }
+};
+M0_EXPORTED(parity_math_ssse3_ut);
+
+#undef _TESTS
 
 static int ub_init(const char *opts M0_UNUSED)
 {

@@ -102,6 +102,7 @@ extern struct m0_ut_suite mdservice_ut;
 extern struct m0_ut_suite module_ut;
 extern struct m0_ut_suite packet_encdec_ut;
 extern struct m0_ut_suite parity_math_ut;
+extern struct m0_ut_suite parity_math_ssse3_ut;
 extern struct m0_ut_suite poolmach_ut;
 extern struct m0_ut_suite reqh_ut;
 extern struct m0_ut_suite reqh_fop_allow_ut;
@@ -191,6 +192,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &module_ut, true);
 	m0_ut_add(m, &packet_encdec_ut, true);
 	m0_ut_add(m, &parity_math_ut, true);
+	m0_ut_add(m, &parity_math_ssse3_ut, true);
 	m0_ut_add(m, &poolmach_ut, true);
 	m0_ut_add(m, &reqh_ut, true);
 	m0_ut_add(m, &reqh_fop_allow_ut, true);
