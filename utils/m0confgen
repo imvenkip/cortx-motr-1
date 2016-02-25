@@ -2,14 +2,12 @@
 from __future__ import print_function
 
 ### TODO:
-###  - DOT output.
 ###  - Profile.
 ###  - Parser: handle errors gracefully, do not `assert'.
 ###  - ? Change fid format:
 ###        fid = NUMBER ":" NUMBER
 ###  - ? Default values.
 ###  - ? Random values a-la QuickCheck.
-###  - ? conf_obj_types: use class instead of a tuple.
 
 from ply import lex, yacc
 from optparse import OptionParser  # no argparse on devvm
@@ -69,39 +67,41 @@ class Error(Exception):
 
 ### NOTE: These definitions should be in sync with m0_confx_* structures
 ### in conf/onwire.h.
+###
+### The attributes included in DOT output are marked with '!'.
 conf_obj_types = {
     'root': ('t', # 0x74
-             'verno=NUMBER profiles=[objid]'),
+             'verno=NUMBER !profiles=[objid]'),
     'profile': ('p', # 0x70
-                'filesystem=objid'),
+                '!filesystem=objid'),
     'filesystem': ('f', # 0x66
-                   'rootfid=fid redundancy=NUMBER params=[STRING]'
-                   ' mdpool=objid nodes=[objid] pools=[objid] racks=[objid]'),
+                   'rootfid=fid redundancy=NUMBER params=[STRING] mdpool=objid'
+                   ' !nodes=[objid] !pools=[objid] !racks=[objid]'),
     'pool': ('o', # 0x6f
-             'order=NUMBER pvers=[objid]'),
+             'order=NUMBER !pvers=[objid]'),
     'pver': ('v', # 0x76
              'ver=NUMBER N=NUMBER K=NUMBER P=NUMBER nr_failures=[NUMBER]'
-             ' rackvs=[objid]'),
+             ' !rackvs=[objid]'),
     'objv': ('j', # 0x6a
-             'real=objid children=[objid]'),
+             'real=objid !children=[objid]'),
     'node': ('n', # 0x6e
              'memsize=NUMBER nr_cpu=NUMBER last_state=NUMBER flags=NUMBER'
-             ' pool_id=objid processes=[objid]'),
+             ' pool_id=objid !processes=[objid]'),
     'process': ('r', # 0x72
                 'cores=[NUMBER] mem_limit_as=NUMBER mem_limit_rss=NUMBER'
                 ' mem_limit_stack=NUMBER mem_limit_memlock=NUMBER'
-                ' endpoint=STRING services=[objid]'),
+                ' endpoint=STRING !services=[objid]'),
     'service': ('s', # 0x73
-                'type=NUMBER endpoints=[STRING] sdevs=[objid]'),
+                'type=NUMBER endpoints=[STRING] !sdevs=[objid]'),
     'sdev': ('d', # 0x64
              'dev_idx=NUMBER iface=NUMBER media=NUMBER bsize=NUMBER'
              ' size=NUMBER last_state=NUMBER flags=NUMBER filename=STRING'),
     'rack': ('a', # 0x61
-             'encls=[objid] pvers=[objid]'),
+             '!encls=[objid] pvers=[objid]'),
     'enclosure': ('e', # 0x65
-                  'ctrls=[objid] pvers=[objid]'),
+                  '!ctrls=[objid] pvers=[objid]'),
     'controller': ('c', # 0x63
-                   'node=objid disks=[objid] pvers=[objid]'),
+                   'node=objid !disks=[objid] pvers=[objid]'),
     'disk': ('k', # 0x6b
              'dev=objid pvers=[objid]')
 }
@@ -121,7 +121,7 @@ def maybe_conf_fid(fid):
     fid_type = chr(container >> 56) # see M0_FID_TCONTAINER()
     container &= 0x00ffffffffffffff
     for t, v in conf_obj_types.items():
-        if fid_type == v[0]:
+        if fid_type == v.ft_id:
             if container == 1:
                 return t, key
             else:
@@ -152,27 +152,27 @@ def conf_fid_encode(conf_fid, from_xcode=False):
         assert b[0] != 1
         if from_xcode:
             return a + '-%u:%u' % b # ==> '(service-4:2)'
-        return '^%c|%u:%u' % ((ord(conf_obj_types[a][0]),) + b) # ==> '^s|4:2'
+        return '^%c|%u:%u' % ((ord(conf_obj_types[a].ft_id),) + b) #==> '^s|4:2'
     ## ('service', 42)
     if from_xcode:
         return a + '-' + str(b) # ==> '(service-42)'
-    return '^%c|1:%u' % (ord(conf_obj_types[a][0]), b) # ==> '^s|1:42'
+    return '^%c|1:%u' % (ord(conf_obj_types[a].ft_id), b) # ==> '^s|1:42'
 
 
 def _check_attrs(obj, from_xcode):
-    objid, attrs = obj
-    assert type(attrs) is (list if from_xcode else dict)
-    ops = conf_obj_types[objid[0]][2]
+    objid, actual = obj
+    assert type(actual) is (list if from_xcode else dict)
+    expected = conf_obj_types[objid[0]].attrs
     if from_xcode:
-        if len(attrs) != len(ops):
+        if len(actual) != len(expected):
             raise Error("""Invalid '{}' specification
-Expected {} attributes, got {}""".format(objid[0], len(ops), len(attrs)))
+Expected {} attributes, got {}""".format(objid[0], len(expected), len(actual)))
     else:
-        keys_attrs = set(attrs.keys())
-        keys_ops = set([k for k, _ in ops])
-        if keys_attrs != keys_ops:
-            diff = {'Missing': keys_ops.difference(keys_attrs),
-                    'Unknown': keys_attrs.difference(keys_ops)}
+        actual = set(actual.keys())
+        expected = set([a.name for a in expected])
+        if actual != expected:
+            diff = {'Missing': expected.difference(actual),
+                    'Unknown': actual.difference(expected)}
             assert diff['Missing'] or diff['Unknown']
             msg = "Invalid '%s' specification" % objid[0]
             for adj, xs in diff.items():
@@ -187,14 +187,49 @@ Expected {} attributes, got {}""".format(objid[0], len(ops), len(attrs)))
 def conf_obj_encode(obj, from_xcode=False):
     _check_attrs(obj, from_xcode)
     objid, attrs = obj
-    ft, _, ops = conf_obj_types[objid[0]]
+    otype = conf_obj_types[objid[0]]
     if from_xcode:
         return '(%s %s)' % (conf_fid_encode(objid, from_xcode=True),
-                            ' '.join(['%s=%s' % (k_enc[0],
-                                                 k_enc[1](v, from_xcode=True))
-                                      for v, k_enc in zip(attrs, ops)]))
-    return '{0x%x| ((%s), %s)}' % (ord(ft), conf_fid_encode(objid),
-                                   ', '.join([op(attrs[k]) for k, op in ops]))
+                            ' '.join(['%s=%s' % (a.name,
+                                                 a.encode(v, from_xcode=True))
+                                      for v, a in zip(attrs, otype.attrs)]))
+    return '{0x%x| ((%s), %s)}' % (
+        ord(otype.ft_id), conf_fid_encode(objid),
+        ', '.join([a.encode(attrs[a.name]) for a in otype.attrs]))
+
+
+def conf_obj_dot(obj, from_xcode=False):
+    _check_attrs(obj, from_xcode)
+    objid, attrs = obj
+    otype = conf_obj_types[objid[0]]
+    if from_xcode:
+        attrs = dict([(a.name, v) for v, a in zip(attrs, otype.attrs)])
+    indent = ' '*4
+    fid = conf_fid_encode(objid, from_xcode=True)
+    s = ''
+    for a in otype.attrs:
+        if not a.visualize_p:
+            continue
+        if type(attrs[a.name]) is list:
+            ## directory
+            dir_id = 'dir_%s_%s' % (fid, a.name)
+            s += """
+{indent}"{dir_id}" [height=0.15, width=0.15, label=""];
+{indent}"{fid}" -> "{dir_id}" [label={relation}];
+""".format(indent=indent, dir_id=dir_id, fid=fid, relation=a.name)
+            for objid in attrs[a.name]:
+                s += """\
+{indent}"{dir_id}" -> "{fid}";
+""".format(indent=indent, dir_id=dir_id,
+           fid=conf_fid_encode(objid, from_xcode=True))
+        else:
+            ## not a directory
+            s += """
+{indent}"{fid}" -> "{target}" [label={relation}];
+""".format(indent=indent, fid=fid,
+           target=conf_fid_encode(attrs[a.name], from_xcode=True),
+           relation=a.name)
+    return s
 
 
 def all_unique(xs):
@@ -212,6 +247,15 @@ def conf_objs_encode(objs, from_xcode=False):
             ', '.join(map(str, duplicates))))
     objs = map(lambda obj: conf_obj_encode(obj, from_xcode=from_xcode), objs)
     return '\n'.join(objs) if from_xcode else list_encode(objs, sep='\n ')
+
+
+def conf_objs_dot(objs, from_xcode=False):
+    assert all_unique([objid for objid, _ in objs])
+    return """\
+digraph x {
+    edge [arrowhead=open, fontsize=11];
+%s}""" % ''.join(map(lambda obj: conf_obj_dot(obj, from_xcode=from_xcode),
+                     objs))
 
 
 quote = lambda s, from_xcode=False: '"%s"' % s
@@ -238,19 +282,31 @@ def conf_type2enc(t):
         return enc
 
 
-def conf_obj_attr_encs(s):
-    return [(k, conf_type2enc(v)) for k, v in
-            [a.split('=', 1) for a in s.split()]]
+class ConfObjAttr(object):
+    def __init__(self, key, value):
+        self.encode = conf_type2enc(value)
+        if key.startswith('!'):
+            self.name = key[1:]
+            self.visualize_p = True
+        else:
+            self.name = key
+            self.visualize_p = False
 
 
-conf_obj_types = dict((t, (v[0], v[1], conf_obj_attr_encs(v[1])))
-                      for t, v in conf_obj_types.items())
+class ConfObjType(object):
+    def __init__(self, ft_id, desc):
+        self.ft_id = ft_id
+        self.attrs = [ConfObjAttr(*kv) for kv in [a.split('=', 1)
+                                                  for a in desc.split()]]
+        self.desc = desc.replace('!', '')
+
+conf_obj_types = dict((t, ConfObjType(*v)) for t, v in conf_obj_types.items())
 
 input_format = input_format % {
     'objtypes': ' | '.join(map(quote, sorted(conf_obj_types.keys()))),
     'attrs': '\n    '.join(['%-14s%s' % (
         t + ':',
-        textwrap.fill(v[1], width=60, subsequent_indent=' ' * 22,
+        textwrap.fill(v.desc, width=60, subsequent_indent=' '*22,
                       break_long_words=False))
                             for t, v in sorted(conf_obj_types.items())])
 }
@@ -492,7 +548,7 @@ Length ({}) != number of elements ({})""".format(position, expected, actual))
     def p_xobj(self, p):
         """xobj : '{' number '|' '(' '(' xobjid ')' ',' xattrs ')' '}'"""
         t1, objid, attrs = p[2], p[6], p[9]
-        t2 = ord(conf_obj_types[objid[0]][0])
+        t2 = ord(conf_obj_types[objid[0]].ft_id)
         if t1 != t2:
             raise Error("""Inconsistent object type{}
 {t1:#x} != {t2:#x} ('{t2:c}')""".format(self.position(p, 2), t1=t1, t2=t2))
@@ -767,6 +823,71 @@ Expected 2 attributes, got 3""", conf_obj_encode,
         conf_objs_encode(Parser().parse(file('ut/conf.cg').read()))
         conf_objs_encode(XCParser().parse(file('ut/conf.xc').read()),
                          from_xcode=True)
+
+    def test_dot(self):
+        self.assertEqual(conf_obj_dot(
+            (('root', 0),
+             dict(verno=1, profiles=[('profile', 0), ('profile', (2, 3))]))),
+                         """
+    "dir_root-0_profiles" [height=0.15, width=0.15, label=""];
+    "root-0" -> "dir_root-0_profiles" [label=profiles];
+    "dir_root-0_profiles" -> "profile-0";
+    "dir_root-0_profiles" -> "profile-2:3";
+""")
+        self.assertEqual(conf_obj_dot((('profile', (2, 3)),
+                                       dict(filesystem=('filesystem', 1)))),
+                         """
+    "profile-2:3" -> "filesystem-1" [label=filesystem];
+""")
+        self.assertEqual(conf_obj_dot(
+            (('filesystem', 1),
+             dict(rootfid=(11, 22), redundancy=41212, params=["param-0"],
+                  mdpool=('pool', 4), nodes=[('node', 1), ('node', (2, 3))],
+                  pools=[('pool', 4)], racks=[('rack', 5)]))),
+                         """
+    "dir_filesystem-1_nodes" [height=0.15, width=0.15, label=""];
+    "filesystem-1" -> "dir_filesystem-1_nodes" [label=nodes];
+    "dir_filesystem-1_nodes" -> "node-1";
+    "dir_filesystem-1_nodes" -> "node-2:3";
+
+    "dir_filesystem-1_pools" [height=0.15, width=0.15, label=""];
+    "filesystem-1" -> "dir_filesystem-1_pools" [label=pools];
+    "dir_filesystem-1_pools" -> "pool-4";
+
+    "dir_filesystem-1_racks" [height=0.15, width=0.15, label=""];
+    "filesystem-1" -> "dir_filesystem-1_racks" [label=racks];
+    "dir_filesystem-1_racks" -> "rack-5";
+""")
+        self.assertEqual(conf_obj_dot(
+            (('objv', 19), dict(real=('disk', 16), children=[]))),
+                         """
+    "dir_objv-19_children" [height=0.15, width=0.15, label=""];
+    "objv-19" -> "dir_objv-19_children" [label=children];
+""")
+        self.assertEqual(conf_obj_dot(
+            (('root', 0), [1, [('profile', (2, 3))]]), from_xcode=True),
+                         """
+    "dir_root-0_profiles" [height=0.15, width=0.15, label=""];
+    "root-0" -> "dir_root-0_profiles" [label=profiles];
+    "dir_root-0_profiles" -> "profile-2:3";
+""")
+        self.assertEqual(conf_obj_dot(
+            (('profile', (2, 3)), [('filesystem', 1)]), from_xcode=True),
+                         """
+    "profile-2:3" -> "filesystem-1" [label=filesystem];
+""")
+        self.assertEqual(conf_objs_dot([
+            (('profile', (2, 3)), dict(filesystem=('filesystem', 1))),
+            (('objv', 19), dict(real=('disk', 16), children=[]))]),
+                         """\
+digraph x {
+    edge [arrowhead=open, fontsize=11];
+
+    "profile-2:3" -> "filesystem-1" [label=filesystem];
+
+    "dir_objv-19_children" [height=0.15, width=0.15, label=""];
+    "objv-19" -> "dir_objv-19_children" [label=children];
+}""")
 
 
 class TestXCParser(unittest.TestCase):
@@ -822,10 +943,13 @@ Length \(2\) != number of elements \(1\)""", self.parse,
 ### ------------------------------------------------------------------
 ### main
 
-def encode_and_print(s, from_xcode):
+def encode_and_print(s, from_xcode, dot_p):
     try:
         p = XCParser() if from_xcode else Parser()
-        print(conf_objs_encode(p.parse(s), from_xcode=from_xcode))
+        if dot_p:
+            print(conf_objs_dot(p.parse(s), from_xcode=from_xcode))
+        else:
+            print(conf_objs_encode(p.parse(s), from_xcode=from_xcode))
     except Error, e:
         print(e, file=sys.stderr)
         return 1
@@ -846,6 +970,7 @@ def main():
                   action='store_true')
     op.add_option('-x', '--from-xcode', help='Convert conf string from "xcode"'
                   ' format to "confgen" format.', action='store_true')
+    op.add_option('--dot', help='Generate DOT output.', action='store_true')
     op.add_option('--self-check', help='Run unit tests and exit.',
                   action='store_true')
     opts, args = op.parse_args()
@@ -866,7 +991,7 @@ def main():
         except IOError, e:
             print(e, file=sys.stderr)
             return e.errno
-    return encode_and_print(f.read(), opts.from_xcode)
+    return encode_and_print(f.read(), opts.from_xcode, opts.dot)
 
 
 if __name__ == '__main__':
