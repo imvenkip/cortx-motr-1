@@ -476,26 +476,26 @@ struct m0_fom_callback {
  */
 struct m0_fom {
 	/** Locality this fom belongs to */
-	struct m0_fom_locality	 *fo_loc;
+	struct m0_fom_locality   *fo_loc;
 	const struct m0_fom_type *fo_type;
-	const struct m0_fom_ops	 *fo_ops;
+	const struct m0_fom_ops  *fo_ops;
 	/** AST call-back to wake up the FOM */
-	struct m0_fom_callback	  fo_cb;
+	struct m0_fom_callback    fo_cb;
 	/** Request fop object, this fom belongs to */
-	struct m0_fop		 *fo_fop;
+	struct m0_fop            *fo_fop;
 	/** Reply fop object */
-	struct m0_fop		 *fo_rep_fop;
+	struct m0_fop            *fo_rep_fop;
 	/**
 	 * Transaction object to be used by this fom.
 	 *
 	 * @see m0_fom_tx(), m0_fom_tx_credit()
 	 */
-	struct m0_dtx		  fo_tx;
+	struct m0_dtx             fo_tx;
 	/**
 	 *  Set when the fom is used to execute local operation,
 	 *  e.g., undo or redo during recovery.
 	 */
-	bool			  fo_local;
+	bool                      fo_local;
 	/** Pointer to service instance. */
 	struct m0_reqh_service   *fo_service;
 	/**
@@ -503,20 +503,20 @@ struct m0_fom {
 	 *  Every access to the FOM via this linkage is
 	 *  protected by the m0_fom_locality::fl_group.s_lock mutex.
 	 */
-	struct m0_tlink		  fo_linkage;
+	struct m0_tlink           fo_linkage;
 	/** Transitions counter, coresponds to the number of
 	    m0_fom_ops::fo_state() calls */
-	unsigned		  fo_transitions;
+	unsigned                  fo_transitions;
 	/** Counter of transitions, used to ensure FOM was inactive,
 	    while waiting for a longlock. */
-	unsigned		  fo_transitions_saved;
+	unsigned                  fo_transitions_saved;
 
 	/** State machine for generic and specfic FOM phases.
 	    sm_rc contains result of fom execution, -errno on failure.
 	 */
-	struct m0_sm		  fo_sm_phase;
+	struct m0_sm              fo_sm_phase;
 	/** State machine for FOM states. */
-	struct m0_sm		  fo_sm_state;
+	struct m0_sm              fo_sm_state;
 	/** Thread executing current phase transition. */
 	struct m0_loc_thread     *fo_thread;
 	/**

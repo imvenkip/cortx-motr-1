@@ -90,10 +90,10 @@ static void rpc_bulk_buf_fini(struct m0_rpc_bulk_buf *rbuf)
 static int rpc_bulk_buf_init(struct m0_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 			     struct m0_net_buffer *nb)
 {
-	int		rc;
-	uint32_t	i;
-	struct m0_buf	cbuf;
-	m0_bindex_t	index = 0;
+	int           rc;
+	uint32_t      i;
+	struct m0_buf cbuf;
+	m0_bindex_t   index = 0;
 
 	M0_ENTRY("bulk_buf: %p, net_buf: %p", rbuf, nb);
 	M0_PRE(rbuf != NULL);

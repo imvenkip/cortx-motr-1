@@ -163,18 +163,18 @@ enum {
  */
 struct m0_rpc_bulk_buf {
 	/** Magic constant to verify sanity of data. */
-	uint64_t		 bb_magic;
+	uint64_t              bb_magic;
 	/** Net buffer containing IO data. */
-	struct m0_net_buffer	*bb_nbuf;
+	struct m0_net_buffer *bb_nbuf;
 	/** Zero vector pointing to user data. */
-	struct m0_0vec		 bb_zerovec;
+	struct m0_0vec        bb_zerovec;
 	/** Linkage into list of m0_rpc_bulk_buf hanging off
 	    m0_rpc_bulk::rb_buflist. */
-	struct m0_tlink		 bb_link;
+	struct m0_tlink       bb_link;
 	/** Back link to parent m0_rpc_bulk structure. */
-	struct m0_rpc_bulk	*bb_rbulk;
+	struct m0_rpc_bulk   *bb_rbulk;
 	/** Flags bearing attributes of m0_rpc_bulk_buf structure. */
-	uint64_t		 bb_flags;
+	uint64_t              bb_flags;
 };
 
 /**
@@ -235,24 +235,24 @@ M0_INTERNAL int m0_rpc_bulk_buf_databuf_add(struct m0_rpc_bulk_buf *rbuf,
  */
 struct m0_rpc_bulk {
 	/** Magic to verify sanity of struct m0_rpc_bulk. */
-	uint64_t		 rb_magic;
+	uint64_t        rb_magic;
 	/** Mutex to protect access on list rb_buflist. */
-	struct m0_mutex		 rb_mutex;
+	struct m0_mutex rb_mutex;
 	/**
 	 * List of m0_rpc_bulk_buf structures linked through
 	 * m0_rpc_bulk_buf::rb_link.
 	 */
-	struct m0_tl		 rb_buflist;
+	struct m0_tl    rb_buflist;
 	/** Channel to wait on rpc bulk to complete the io. */
-	struct m0_chan		 rb_chan;
+	struct m0_chan  rb_chan;
 	/** Number of bytes read/written through this structure. */
-	m0_bcount_t		 rb_bytes;
+	m0_bcount_t     rb_bytes;
 	/**
 	 * Return value of operations like addition of buffers to transfer
 	 * machine and zero-copy operation. This field is updated by
 	 * net buffer send/receive callbacks.
 	 */
-	int32_t			 rb_rc;
+	int32_t         rb_rc;
 };
 
 /**
@@ -353,7 +353,7 @@ m0_rpc_bulk_load(struct m0_rpc_bulk                   *rbulk,
 		 struct m0_net_buf_desc_data          *from_desc,
 		 const struct m0_net_buffer_callbacks *bulk_cb);
 
-/*
+/**
  * Does exactly opposite of what m0_rpc_bulk_store() does.
  * Should be called only when m0_rpc_bulk_store() had succeeded
  * earlier and later due to some other condition, bulk transfer
@@ -367,7 +367,7 @@ m0_rpc_bulk_load(struct m0_rpc_bulk                   *rbulk,
  */
 M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk);
 
-/*
+/**
  * Like m0_rpc_bulk_store_del() but deletes unqueued buffers only.
  * Requires rbulk locked by user.
  * @return number of deleted unqueued bufs.

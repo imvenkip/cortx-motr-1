@@ -97,16 +97,13 @@ struct m0_sm_conf conf_load_conf = {
 	.scf_state     = conf_load_phases,
 };
 
-/**
- * Compare equals Spiel FOP - Spiel FOM
- */
 static bool conf_load_fom_invariant(const struct m0_conf_load_fom *fom)
 {
 	return _0C(fom != NULL);
 }
 
 /**
- * Create and initiate Spiel FOM and return generic struct m0_fom
+ * Creates and initiates Spiel FOM and return generic struct m0_fom
  * Find the corresponding fom_type and associate it with m0_fom.
  * Associate fop with fom type.
  *
@@ -149,7 +146,7 @@ M0_INTERNAL int m0_conf_load_fom_create(struct m0_fop   *fop,
 }
 
 /**
- * Prepare FOM data.
+ * Prepares FOM data.
  * Set current Confd version as FOP report parameter.
  *
  * @param fom file operation machine instance.
@@ -191,7 +188,7 @@ static int conf_prepare(struct m0_fom *fom)
 #endif  /* __KERNEL__ */
 
 /**
- * Allocate network buffer for process bulk request.
+ * Allocates a network buffer for process bulk request.
  *
  * @param fom file operation machine instance.
  * @pre fom != NULL
@@ -239,7 +236,6 @@ static int conf_net_buffer_allocate(struct m0_fom *fom)
 }
 
 /**
- * Initiate zero-copy
  * Initiates zero-copy for batch of descriptors.
  * And wait for zero-copy to complete for all descriptors.
  * Network layer signaled on m0_rpc_bulk::rb_chan on completion.
@@ -334,7 +330,7 @@ static int conf_zero_copy_initiate(struct m0_fom *fom)
 }
 
 /**
- * Copy data from FOM Net buffer field to IO STOB
+ * Copies data from FOM Net buffer field to IO STOB
  * STOB domain is placed to confd configure file folder
  * FID consists to old version, new version and TX id @see M0_CONFD_FID
  *
@@ -369,7 +365,7 @@ static int conf_fom_conf_file_save(struct m0_conf_load_fom *conf_fom)
 
 /**
  * Zero-copy Finish
- * Check for zero-copy result.
+ * Checks for zero-copy result.
  *
  * @param fom file operation machine.
  *
@@ -408,7 +404,7 @@ static int conf_zero_copy_finish(struct m0_fom *fom)
 }
 
 /**
- * Finalise bufvec and free allocated memory.
+ * Finalises bufvec and free allocated memory.
  *
  * @param fom instance file operation machine under execution
  *
@@ -485,7 +481,7 @@ static int conf_load_fom_tick(struct m0_fom *fom)
 }
 
 /**
- * Finalise of Spiel file operation machine.
+ * Finalises Spiel file operation machine.
  * This is the right place to free all resources acquired by FOM
  *
  * @param fom instance file operation machine under execution

@@ -510,38 +510,38 @@ M0_INTERNAL m0_bcount_t m0_bufvec_cursor_copyfrom(struct m0_bufvec_cursor *scur,
 M0_INTERNAL void m0_ivec_cursor_init(struct m0_ivec_cursor *cur,
 				     const struct m0_indexvec *ivec)
 {
-        M0_PRE(cur  != NULL);
-        M0_PRE(ivec != NULL);
-        M0_PRE(ivec->iv_vec.v_nr > 0);
-        M0_PRE(ivec->iv_vec.v_count != NULL && ivec->iv_index != NULL);
+	M0_PRE(cur  != NULL);
+	M0_PRE(ivec != NULL);
+	M0_PRE(ivec->iv_vec.v_nr > 0);
+	M0_PRE(ivec->iv_vec.v_count != NULL && ivec->iv_index != NULL);
 
-        m0_vec_cursor_init(&cur->ic_cur, &ivec->iv_vec);
+	m0_vec_cursor_init(&cur->ic_cur, &ivec->iv_vec);
 }
 
 M0_INTERNAL bool m0_ivec_cursor_move(struct m0_ivec_cursor *cur,
 				     m0_bcount_t count)
 {
-        M0_PRE(cur != NULL);
+	M0_PRE(cur != NULL);
 
-        return m0_vec_cursor_move(&cur->ic_cur, count);
+	return m0_vec_cursor_move(&cur->ic_cur, count);
 }
 
 M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur)
 {
-        M0_PRE(cur != NULL);
+	M0_PRE(cur != NULL);
 
-        return m0_vec_cursor_step(&cur->ic_cur);
+	return m0_vec_cursor_step(&cur->ic_cur);
 }
 
 M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(struct m0_ivec_cursor *cur)
 {
-        struct m0_indexvec *ivec;
+	struct m0_indexvec *ivec;
 
-        M0_PRE(cur != NULL);
+	M0_PRE(cur != NULL);
 	M0_PRE(!m0_vec_cursor_move(&cur->ic_cur, 0));
 
-        ivec = container_of(cur->ic_cur.vc_vec, struct m0_indexvec, iv_vec);
-        return ivec->iv_index[cur->ic_cur.vc_seg] + cur->ic_cur.vc_offset;
+	ivec = container_of(cur->ic_cur.vc_vec, struct m0_indexvec, iv_vec);
+	return ivec->iv_index[cur->ic_cur.vc_seg] + cur->ic_cur.vc_offset;
 }
 
 M0_INTERNAL bool m0_ivec_cursor_move_to(struct m0_ivec_cursor *cur,
