@@ -233,6 +233,10 @@ static void ha_state_accept(struct m0_confc         *confc,
 	m0_conf_cache_lock(cache);
 	for (i = 0; i < note->nv_nr; ++i) {
 		obj = m0_conf_cache_lookup(cache, &note->nv_note[i].no_id);
+		M0_LOG(M0_DEBUG, "nv_note[%d]=(no_id="FID_F" no_state=%"PRIu32
+		       ") obj=%p obj->co_status=%d", i,
+		       FID_P(&note->nv_note[i].no_id), note->nv_note[i].no_state,
+		       obj, obj == NULL ? -1 : obj->co_status);
 		if (obj != NULL && obj->co_status == M0_CS_READY) {
 			obj->co_ha_state = note->nv_note[i].no_state;
 			m0_chan_broadcast(&obj->co_ha_chan);
