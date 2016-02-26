@@ -256,6 +256,7 @@ m0_spiel_pool_rebalance_start
 m0_spiel_pool_rebalance_continue
 m0_spiel_pool_rebalance_status
 m0_spiel_pool_repair_quiesce
+m0_spiel_pool_repair_abort
 m0_spiel_pool_repair_start
 m0_spiel_pool_repair_continue
 m0_spiel_pool_repair_status
