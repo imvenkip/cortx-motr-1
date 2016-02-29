@@ -112,4 +112,3 @@ MERO_TRACED_KEEP_LOGS_NUM=2
 # for developers to quickly test their local changes w/o creating and installing
 # an rpm package each time.
 #MERO_DEVEL_WORKDIR_PATH=/home/devvm/mero
-

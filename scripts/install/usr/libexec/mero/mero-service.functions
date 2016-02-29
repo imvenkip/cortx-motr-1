@@ -463,9 +463,12 @@ m0_get_core_params()
         optional_params+=" -p $(m0_genders_value_of m0_be_tx_group_payload_size_max)"
     fi
 
+    if m0_genders_has_variable m0_pool_width ; then
+        optional_params+=" -w $(m0_genders_value_of m0_pool_width)"
+    fi
+
     echo " -D db -S stobs -A linuxstob:addb-stobs" \
          " -P <${MERO_PROFILE_FID:-$m0_prof_opt}>" \
-         " -w $(m0_genders_value_of m0_pool_width)" \
          " -m ${MERO_M0D_MAX_RPC_MSG_SIZE:-$(m0_genders_value_of m0_max_rpc_msg_size)}" \
          " -q ${MERO_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}" \
          " $optional_params"
