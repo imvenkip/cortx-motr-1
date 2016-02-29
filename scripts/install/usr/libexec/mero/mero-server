@@ -107,6 +107,7 @@ m0_server()
                fi
 
                MERO_M0D_OPTS+=${MERO_HA_EP:+ -H $MERO_HA_EP}
+               MERO_M0D_OPTS+=" -U"
             ;;
 
         *)     m0_exit "Failed to start unknown service '$service'," \

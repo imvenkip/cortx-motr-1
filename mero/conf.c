@@ -253,6 +253,9 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 
 	M0_ENTRY();
 
+	if (svc_fid == NULL)
+		return 0;
+
 	rc = m0_confc_open_by_fid_sync(confc, svc_fid, &svc);
 	if (rc == 0) {
 		struct m0_conf_diter it;
