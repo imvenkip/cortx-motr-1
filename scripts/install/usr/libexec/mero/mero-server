@@ -41,6 +41,8 @@ m0_server()
             m0_log "MERO_M0D_EP: $MERO_M0D_EP" ||
                 m0_exit "MERO_M0D_EP isn't set for $service service"
 
+        m0_log "MERO_PROCESS_FID: $(m0_get_proc_fid_for $service)"
+
         [[ -z $MERO_HA_EP ]] ||
             m0_log "MERO_HA_EP: $MERO_HA_EP"
 
@@ -128,9 +130,6 @@ m0_server()
     fi
 
     local binary=$(m0_path_to $cmd)
-    if [[ $cmd == m0mkfs ]]; then
-        service_ep="lnet:${MERO_M0D_EP:-$(m0_get_mkfs_ep_of $service)}"
-    fi
 
     # enable core dumps
     ulimit -c unlimited
