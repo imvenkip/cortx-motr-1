@@ -695,12 +695,12 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 	m0_trace_args_unpack(trh, args, buf);
 
 	if (m0_trace_print_context == M0_TRACE_PCTX_FULL) {
-		m0_error_printf("%5.5u %8.8llu %15.15llu %5.5x %-18s %-7s "
+		m0_error_printf("%5.5u %8.8llu %15.15llu %6.6x %-18s %-7s "
 				"%-20s %s:%-3i\n\t",
 				trh->trh_pid,
 				(unsigned long long)trh->trh_no,
 				(unsigned long long)trh->trh_timestamp,
-				(unsigned) (trh->trh_sp & 0xfffff),
+				(unsigned) (trh->trh_sp & 0xffff),
 				subsys_str(td->td_subsys, subsys_map_str),
 				m0_trace_level_name(td->td_level),
 				td->td_func, m0_short_file_name(td->td_file),
@@ -708,9 +708,9 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 	}
 
 	if (m0_trace_print_context == M0_TRACE_PCTX_SHORT)
-		m0_error_printf("mero[%5.5u]: %5x %6s : [%s:%i:%s] ",
+		m0_error_printf("mero[%5.5u]: %6x %6s : [%s:%i:%s] ",
 				trh->trh_pid,
-				(unsigned) (trh->trh_sp & 0xfffff),
+				(unsigned) (trh->trh_sp & 0xffff),
 				m0_trace_level_name(td->td_level),
 				m0_short_file_name(td->td_file),
 				td->td_line, td->td_func);
@@ -812,8 +812,7 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
 				trh->trh_no,
 				trh->trh_timestamp,
 				trh->trh_pid,
-				/* TODO: add comment why mask is needed */
-				(trh->trh_sp & 0xfffff),
+				trh->trh_sp,
 				m0_trace_subsys_name(td->td_subsys),
 				m0_trace_level_name(td->td_level),
 				td->td_func,

@@ -212,20 +212,22 @@ use List::MoreUtils qw( any none );
 
 # global variables
 my %cli_option = (
-    input_file   => '-', # STDIN by default
-    output_file  => '-', # STDOUT by default
-    stream_mode  => 1,
-    use_pager    => 1,
-    flush_output => 0,
-    log_dir      => '/var/log/mero',
-    mero_dir     => '/var/mero',
-    color        => 'auto',
-    format       => 'med',
-    level        => 'call+',
-    subsys       => 'all',
-    relpath      => 1,
-    column_width => 50,
-    func         => undef, # all funcs
+    input_file      => '-', # STDIN by default
+    output_file     => '-', # STDOUT by default
+    stream_mode     => 1,
+    use_pager       => 1,
+    flush_output    => 0,
+    log_dir         => '/var/log/mero',
+    mero_dir        => '/var/mero',
+    color           => 'auto',
+    format          => 'med',
+    level           => 'call+',
+    subsys          => 'all',
+    relpath         => 1,
+    column_width    => 50,
+    stackaddr_width => 7,
+    stackaddr_hl    => 2,
+    func            => undef, # all funcs
 );
 
 my %level = (
@@ -523,17 +525,19 @@ sub stack_addr_of
         return $trace_record->{stack_addr};
     }
     else {
-        my $addr = $trace_record->{stack_addr};
-        my ($base, $offset) = ( substr($addr, 0, 2), substr($addr, 2) );
+        my $addr = substr $trace_record->{stack_addr}, -$cli_option{stackaddr_width};
+        my ($base, $offset) = ( substr($addr, 0, $cli_option{stackaddr_hl})
+                                , substr($addr, $cli_option{stackaddr_hl}) );
+
         if (! exists $color{$base}) {
             $color{$base} = $next_color++;
             if ($next_color > $#color_map) {
                 $next_color = 0;
             }
         }
+
         return color( $color_map[$color{$base}] ) . $base
-               . color( level_color($trace_record) ) . $offset
-               . ' ' x (5 - length $addr);
+               . color( level_color($trace_record) ) . $offset;
     }
 }
 
@@ -772,30 +776,32 @@ sub man
 sub process_cli_options
 {
     usage() if !GetOptions(
-        'i|input=s'        =>  \$cli_option{input_file},
-        'o|output=s'       =>  \$cli_option{output_file},
-        'S|stream-mode!'   =>  \$cli_option{stream_mode},
-        'Y|yaml-output'    =>  \$cli_option{yaml_output},
-        'pager!'           =>  \$cli_option{use_pager},
-        'flush-output'     =>  \$cli_option{flush_output},
-        'color=s'          =>  \$cli_option{color},
-        'c'                =>  sub { $cli_option{color} = 'always' },
-        'C'                =>  sub { $cli_option{color} = 'never' },
-        'd'                =>  \$cli_option{use_usrbin_binary},
-        'k|kdump'          =>  \$cli_option{kdump},
-        'I|module-image=s' =>  \$cli_option{module_image},
-        'L|log-dir'        =>  \$cli_option{log_dir},
-        'H|dump-header'    =>  sub { $cli_option{dump_header} = 1; $cli_option{use_pager} = 0 },
-        'F|follow'         =>  sub { $cli_option{follow} = $cli_option{stream_mode} = 1 },
-        'M|match-only'     =>  \$cli_option{match_only},
-        'r|relpath!'       =>  \$cli_option{relpath},
-        'w|column-width=i' =>  \$cli_option{column_width},
-        'f|format=s'       =>  \$cli_option{format},
-        'l|level=s'        =>  \$cli_option{level},
-        's|subsys=s'       =>  \$cli_option{subsys},
-        'e|file=s'         =>  \$cli_option{file},
-        'u|func=s'         =>  \$cli_option{func},
-        'm|msg=s'          =>  \$cli_option{msg},
+        'i|input=s'            =>  \$cli_option{input_file},
+        'o|output=s'           =>  \$cli_option{output_file},
+        'S|stream-mode!'       =>  \$cli_option{stream_mode},
+        'Y|yaml-output'        =>  \$cli_option{yaml_output},
+        'pager!'               =>  \$cli_option{use_pager},
+        'flush-output'         =>  \$cli_option{flush_output},
+        'color=s'              =>  \$cli_option{color},
+        'c'                    =>  sub { $cli_option{color} = 'always' },
+        'C'                    =>  sub { $cli_option{color} = 'never' },
+        'd'                    =>  \$cli_option{use_usrbin_binary},
+        'k|kdump'              =>  \$cli_option{kdump},
+        'I|module-image=s'     =>  \$cli_option{module_image},
+        'L|log-dir'            =>  \$cli_option{log_dir},
+        'H|dump-header'        =>  sub { $cli_option{dump_header} = 1; $cli_option{use_pager} = 0 },
+        'F|follow'             =>  sub { $cli_option{follow} = $cli_option{stream_mode} = 1 },
+        'M|match-only'         =>  \$cli_option{match_only},
+        'r|relpath!'           =>  \$cli_option{relpath},
+        'w|column-width=i'     =>  \$cli_option{column_width},
+        'a|stackaddr-width=i'  =>  \$cli_option{stackaddr_width},
+        'A|stackaddr-hl=i'     =>  \$cli_option{stackaddr_hl},
+        'f|format=s'           =>  \$cli_option{format},
+        'l|level=s'            =>  \$cli_option{level},
+        's|subsys=s'           =>  \$cli_option{subsys},
+        'e|file=s'             =>  \$cli_option{file},
+        'u|func=s'             =>  \$cli_option{func},
+        'm|msg=s'              =>  \$cli_option{msg},
 
         'h|help'    =>  \&help,
         'usage'     =>  \&usage,
@@ -809,6 +815,11 @@ sub process_cli_options
         $ENV{ANSI_COLORS_DISABLED} = 1;
     }
 
+    die "Option '-A|--stackaddr-hl' value ($cli_option{stackaddr_hl})"
+        . " can't be greater than value of '-a|--stackaddr-width' option"
+        . " ($cli_option{stackaddr_width})\n"
+        if ($cli_option{stackaddr_hl} > $cli_option{stackaddr_width});
+
     validate_format( $cli_option{format} );
     validate_level( $cli_option{level} );
     validate_subsys( $cli_option{subsys} );
@@ -817,7 +828,7 @@ sub process_cli_options
     if (defined $ARGV[0] and $cli_option{input_file} eq '-') {
         my $file_pattern;
 
-        die "Error: -F|--follow option is allowed only for '*-buf' targets"
+        die "Error: -F|--follow option is allowed only for '*-buf' targets\n"
             if $cli_option{follow} && $ARGV[0] !~ m/-buf$/xms;
 
         given ($ARGV[0]) {
@@ -858,14 +869,14 @@ sub process_cli_options
                 die "Unknown type of requested trace log: '$ARGV[0]',"
                     . " supported values should match pattern:"
                     . " '<kernel|confd|ha|rms*|mds*|ios*>[-buf]', for example 'confd',"
-                    . " 'mds-buf', 'ios2', 'ios2-buf'";
+                    . " 'mds-buf', 'ios2', 'ios2-buf'\n";
             }
         }
 
         $cli_option{input_file}
             = qx(bash -c 'ls -1t $cli_option{log_dir}/$file_pattern 2>/dev/null | head -n1');
 
-        die "No trace logs found for '$ARGV[0]' in $cli_option{log_dir}"
+        die "No trace logs found for '$ARGV[0]' in $cli_option{log_dir}\n"
             if !$cli_option{input_file};
 
         chomp $cli_option{input_file};
@@ -966,8 +977,9 @@ m0trace  [-i|--input <ifile>] [-o|--output <ofile>]
          [-w|--column-width <num>] [-c|-C|--color=MODE] [-d] [-k|--kdump]
          [--flush-output] [-I|--module-image=<FILE>] [-L|--log-dir=DIR]
          [-H|--dump-header] [-F|--follow] [-M|--match-only] [-f|--format=FMT]
-         [-l|--level=LVL] [-s|--subsys=SBS] [-e|--file=FL] [-u|--func=FUN]
-         [-m|--msg=MSG] [-h|--help] [--usage] [--man]
+         [-a|--stackaddr-width] [-A|--stackaddr-hl] [-l|--level=LVL]
+         [-s|--subsys=SBS] [-e|--file=FL] [-u|--func=FUN] [-m|--msg=MSG]
+         [-h|--help] [--usage] [--man]
 
 =head1 DESCRIPTION
 
@@ -1145,6 +1157,14 @@ Example:
 
   m0trace --format=med
   m0trace --format='custom:Num[%N] Stack[%a]: %t%m'
+
+=item B<-a|--stackaddr-width>
+
+Width of stack-address column.
+
+=item B<-A|--stackaddr-hl>
+
+Number of color-highlight positions in stack adress.
 
 =item B<-l|--level=I<LVL>>
 
