@@ -3,12 +3,17 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.12
+VERSION=0.13
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-03-01 0.13    * m0traces(): Collect at least two trace files from
+###                      each of $IN_DIR/m0d-*/ directories.
+###                    * Collect /etc/sysconfig/{m0d,m0t1fs,mero}* files.
+###                    * Collect $IN_DIR/*.{log,xc} files.
+###
 ### 2016-02-24 0.12    Collect kernel buffer if possible.
 ###
 ### 2016-02-04 0.11.1  Warn, don't fail in case of VERSION discrepancy.
@@ -89,6 +94,8 @@ OUT_DIR=m0reportbug-data
 OUTPUT=m0reportbug.txt # the file is created in $OUT_DIR/
 MERO_PACKAGE_VERSION=0.1.0 # must correspond to `M0_VERSION' in configure.ac
 M0TRACES_MAX=20 # how many most recently modified m0trace files to collect
+M0TRACES_M0D_MAX=2 # additionally, collect that many m0trace files from each
+                   # $IN_DIR/m0d-* directory
 ADDB_TAIL=100000 # limit each m0addb2dump output file to that many lines
 STAGE_TIME_LIMIT=10 # seconds; if a stage runs longer, show its duration
 
@@ -98,6 +105,7 @@ main() {
     local g t
     local stages=(
         probes
+        misc_files
         backtraces_live
         backtraces_cores # must precede `binaries' stage
         binaries # will be skipped unless COLLECT_BINARIES_P=1
@@ -142,7 +150,6 @@ probes() {
         'uptime'
         'm0version'
         'rpm -qi mero'
-        'cat /etc/mero/genders'
         'uname -a'
         'cat /proc/cmdline'
         'cat /proc/cpuinfo'
@@ -172,6 +179,38 @@ probes() {
     for p in "${probes[@]}"; do
         section $p
         $p 2>&1 || true
+    done
+}
+
+misc_files() {
+    local outdir path f
+
+    (outdir=$(readlink -f .)/misc
+     cd "$IN_DIR"
+     find . -type f \( -name \*.log -o -name \*.xc \) | cut -c3- |
+         while read path; do
+             mkdir -p $outdir/$(dirname $path)
+             cp -p $path $outdir/$path
+             echo $path
+         done)
+
+    outdir=$(readlink -f .)/root-misc
+    {
+        find /etc/mero -type f
+        find /etc/sysconfig -maxdepth 1 -type f \
+             \( -name mero\* -o -name m0d\* -o -name m0t1fs\* \) |
+            while read f; do
+                echo $f
+                grep '^MERO_CONF_XC=' $f | cut -d\' -f2 # may produce duplicates
+            done | sort -u
+    } | while read path; do
+        [ "$path" != "${path#/}" ] || {
+            warn "${FUNCNAME[0]}: Absolute path expected: $path"
+            continue
+        }
+        mkdir -p $outdir$(dirname $path)
+        cp -p $path $outdir$path
+        echo $path
     done
 }
 
@@ -351,7 +390,7 @@ backtraces_cores() {
     (outdir=$(readlink -f .)/$outdir
      cd "$IN_DIR"
      find . -type f -name core.\* | cut -c3- | while read core; do
-         [ -d $outdir/$(dirname $core) ] || mkdir -p $outdir/$(dirname $core)
+         mkdir -p $outdir/$(dirname $core)
          ls -sh $core # print size
          gzip -c $core | {
              local err
@@ -408,9 +447,20 @@ binaries() {
     done
 }
 
+last_modified() {
+    local limit="$1"
+
+    if [ -z "$limit" ]; then
+        cat
+    else
+        xargs -r stat -c '%Y %n' | sort -nr -k1,1 | head -n $limit |
+            cut -d' ' -f2-
+    fi
+}
+
 m0traces() {
     local outdir=m0traces
-    local path
+    local path dir
 
     local m0trace=$(path m0trace)
     local m0tracedump=$(path m0tracedump)
@@ -418,20 +468,20 @@ m0traces() {
     (outdir=$(readlink -f .)/$outdir
      mkdir $outdir
 
+     ## Kernel buffer.
      if lsmod | grep -q '^m0ctl\b'; then
          $m0trace kernel-buf -Y | gzip >$outdir/kernel-buf.yaml.gz
      fi
 
      cd "$IN_DIR"
-     find . -type f -name m0trace.\* | cut -c3- | {
-         if [ -z "${M0TRACES_MAX:-}" ]; then
-             cat
-         else
-             xargs -r stat -c '%Y %n' | sort -nr -k1,1 |
-                 head -n $M0TRACES_MAX | cut -d' ' -f2-
-         fi
-     } | while read path; do
-         [ -d $outdir/$(dirname $path) ] || mkdir -p $outdir/$(dirname $path)
+     {
+         find . -type f -name m0trace.\* | last_modified "${M0TRACES_MAX:-}"
+         find . -maxdepth 1 -type d -name m0d-\* | while read dir; do
+             find $dir -type f -name m0trace.\* |
+                 last_modified "${M0TRACES_M0D_MAX:-}"
+         done
+     } | cut -c3- | sort -u | while read path; do
+         mkdir -p $outdir/$(dirname $path)
          ##
          ## Disable stderr output to suppress these messages:
          ##
@@ -452,8 +502,7 @@ addb() {
      cd "$IN_DIR"
      find . -type d -name addb-stobs | cut -c3- | while read dir; do
          find $dir/o -type f -name \*:2 | while read path; do
-             [ -d $outdir/$(dirname $path) ] ||
-                 mkdir -p $outdir/$(dirname $path)
+             mkdir -p $outdir/$(dirname $path)
              ##
              ## "$PWD/" prefix is needed to make an absolute path.
              ## m0addb2dump fails if a relative path is provided:
