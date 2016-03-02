@@ -583,13 +583,18 @@ _build_ios_devs()
     local count=$1
     local pverid=$2
 
+    local disk_size_in_bytes=$((64 * 1024**3))
+    if m0_genders_has_variable m0_disk_size_in_bytes ; then
+        disk_size_in_bytes=$(m0_genders_value_of m0_disk_size_in_bytes)
+    fi
+
     local devs
     local id
     for id in $(seq 1 $count) ; do
         local ddev_id="^d|1:$id"
         local ddisk_id="^k|1:$id"
         local ddiskv_id="^j|1:$id"
-        local ddev_obj="{0x64| (($ddev_id), $(($id - 1)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$id\")}"
+        local ddev_obj="{0x64| (($ddev_id), $(($id - 1)), 4, 1, 4096, $disk_size_in_bytes, 3, 4, \"/dev/loop$id\")}"
         local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id, [1: $pverid])}"
         local ddiskv_obj="{0x6a| (($ddiskv_id), $ddisk_id, [0])}"
         local dev="$ddev_obj,\n  $ddisk_obj,\n  $ddiskv_obj"

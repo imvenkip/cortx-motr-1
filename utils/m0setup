@@ -222,6 +222,7 @@ $hostname  m0_services=ha;confd;mds;$ios
 $hostname  m0_pool_width=$pool_width
 $hostname  m0_data_units=$data_units
 $hostname  m0_parity_units=$parity_units
+$hostname  m0_disk_size_in_bytes=$((loop_img_size_gb * 1024**3))
 GENDERS_END
 
     debug "genders:\n-----BEGIN GENDERS-----\n$(cat $genders_file)\n-----END GENDERS-----"
