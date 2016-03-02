@@ -1,0 +1,5 @@
+#= <6600000000000001:0>: no IO services
+(root-0 verno=1 profiles=[profile-0])
+(profile-0 filesystem=filesystem-0)
+(filesystem-0 rootfid=(0xb, 0x16) redundancy=1 params=[] mdpool=pool-4 nodes=[]
+    pools=[] racks=[])

@@ -24,6 +24,7 @@
 #include "lib/string.h"    /* m0_streq */
 #include "lib/memory.h"    /* m0_free */
 #include "lib/fs.h"        /* m0_file_read */
+#include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
 
 static char                 g_buf[128];
@@ -45,31 +46,40 @@ static void test_validation(void)
 	rc = glob(M0_SRC_PATH("conf/ut/t_*.xc"), 0, NULL, &g);
 	M0_UT_ASSERT(rc == 0);
 	for (pathv = g.gl_pathv; *pathv != NULL; ++pathv) {
-		cache_load(&g_cache, *pathv, &expected);
+#define _UT_ASSERT(cond)                         \
+		M0_ASSERT_INFO(cond,             \
+			       "path=%s\n"       \
+			       "err={%s}\n"      \
+			       "expected={%s}\n" \
+			       "g_buf={%s}",     \
+			       *pathv, (err ?: ""), (expected ?: ""), g_buf)
 
+		cache_load(&g_cache, *pathv, &expected);
 		m0_conf_cache_lock(&g_cache);
 		err = m0_conf_validation_error(&g_cache, g_buf, sizeof g_buf);
-		M0_UT_ASSERT((err == NULL) == (expected == NULL));
+		_UT_ASSERT((err == NULL) == (expected == NULL));
 		if (expected != NULL) {
+			/* Strip "[<rule set>.<rule>] " prefix. */
 			err = strstr(err, "] ");
 			M0_UT_ASSERT(err != NULL);
 			err += 2;
-			M0_UT_ASSERT(m0_streq(err, expected));
+			_UT_ASSERT(m0_streq(err, expected));
 		}
 		free(expected);
-
-		m0_conf_cache_clean(&g_cache, NULL);
 		m0_conf_cache_unlock(&g_cache);
+#undef _UT_ASSERT
 	}
 	globfree(&g);
 }
 
 static void test_path(void)
 {
-	const char *err;
+	const char         *err;
+	const struct m0_fid missing = M0_FID_TINIT('n', 1, 2); /* node-2 */
 
-	cache_load(&g_cache, M0_SRC_PATH("conf/ut/t_path.xc"), NULL);
+	cache_load(&g_cache, M0_UT_PATH("conf.xc"), NULL);
 	m0_conf_cache_lock(&g_cache);
+
 	err = m0_conf_path_validate(g_buf, sizeof g_buf, &g_cache, NULL,
 				    M0_CONF_ROOT_FID);
 	M0_UT_ASSERT(m0_streq(err, "Unreachable path:"
@@ -77,10 +87,10 @@ static void test_path(void)
 	err = m0_conf_path_validate(g_buf, sizeof g_buf, &g_cache, NULL,
 				    M0_CONF_ROOT_PROFILES_FID,
 				    M0_FID_TINIT('p', 1, 0), /* profile-0 */
-				    M0_CONF_PROFILE_FILESYSTEM_FID,
-				    M0_CONF_FILESYSTEM_NODES_FID,
-				    M0_CONF_ANY_FID);
+				    M0_CONF_PROFILE_FILESYSTEM_FID);
 	M0_UT_ASSERT(err == NULL);
+
+	m0_conf_cache_lookup(&g_cache, &missing)->co_status = M0_CS_MISSING;
 	err = m0_conf_path_validate(g_buf, sizeof g_buf, &g_cache, NULL,
 				    M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
 				    M0_CONF_PROFILE_FILESYSTEM_FID,
@@ -88,15 +98,7 @@ static void test_path(void)
 				    M0_CONF_ANY_FID);
 	M0_UT_ASSERT(m0_streq(err, "Conf object is not ready:"
 			      " <6e00000000000001:2>"));
-	/*
-	 * We have to clean the cache, otherwise the following test will fail:
-	 *
-	 *   cache_load
-	 *    \_ m0_conf_cache_from_string
-	 *        \_ m0_conf_obj_fill
-	 *            \_ M0_PRE(m0_conf_obj_is_stub(dest)) ==> BOOM!
-	 */
-	m0_conf_cache_clean(&g_cache, NULL);
+	m0_conf_cache_lookup(&g_cache, &missing)->co_status = M0_CS_READY;
 	m0_conf_cache_unlock(&g_cache);
 }
 
@@ -176,6 +178,7 @@ cache_load(struct m0_conf_cache *cache, const char *path, char **sharp_out)
 	M0_UT_ASSERT(rc == 0);
 
 	m0_conf_cache_lock(cache);
+	m0_conf_cache_clean(&g_cache, NULL); /* start from scratch */
 	rc = m0_conf_cache_from_string(cache, confstr);
 	M0_UT_ASSERT(rc == 0);
 	m0_conf_cache_unlock(cache);

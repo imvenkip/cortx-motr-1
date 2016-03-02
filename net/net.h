@@ -1701,6 +1701,21 @@ M0_TL_DESCR_DECLARE(m0_net_tm, M0_EXTERN);
 M0_TL_DECLARE(m0_net_pool, M0_INTERNAL, struct m0_net_buffer);
 M0_TL_DECLARE(m0_net_tm, M0_INTERNAL, struct m0_net_buffer);
 
+#ifndef __KERNEL__
+/**
+ * Checks whether endpoint address is properly formatted.
+ *
+ * Endpoint address format (ABNF):
+ *
+ *     endpoint = nid ":12345:" DIGIT+ ":" DIGIT+
+ *     ; <network id>:<process id>:<portal number>:<transfer machine id>
+ *     ;
+ *     nid      = "0@lo" / (ipv4addr  "@" ("tcp" / "o2ib") [DIGIT])
+ *     ipv4addr = 1*3DIGIT "." 1*3DIGIT "." 1*3DIGIT "." 1*3DIGIT ; 0..255
+ */
+M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint);
+#endif
+
 /** @} end of networking group */
 #endif /* __MERO_NET_NET_H__ */
 

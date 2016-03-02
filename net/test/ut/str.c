@@ -19,9 +19,9 @@
  */
 
 #include "net/test/str.h"
-#include "ut/ut.h"         /* M0_UT_ASSERT */
 #include "lib/vec.h"       /* m0_bufvec */
 #include "lib/memory.h"    /* m0_free0 */
+#include "ut/ut.h"
 
 enum {
 	STR_BUF_LEN    = 0x100,

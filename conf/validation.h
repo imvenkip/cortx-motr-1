@@ -21,6 +21,8 @@
 #ifndef __MERO_CONF_VALIDATION_H__
 #define __MERO_CONF_VALIDATION_H__
 
+#include "lib/types.h"  /* bool */
+
 struct m0_conf_cache;
 struct m0_conf_obj;
 struct m0_fid;

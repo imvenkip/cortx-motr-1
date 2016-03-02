@@ -26,6 +26,9 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/mutex.h"
+#ifndef __KERNEL__
+#  include "lib/string.h"  /* m0_streq */
+#endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 #include "lib/trace.h"
@@ -83,6 +86,51 @@ M0_INTERNAL void m0_net_desc_free(struct m0_net_buf_desc *desc)
 	desc->nbd_data = NULL;
 }
 M0_EXPORTED(m0_net_desc_free);
+
+#ifndef __KERNEL__
+M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint)
+{
+	char        addr[16]; /* strlen("255.255.255.255") + 1 */
+	const char *networks[] = { "@lo", "@tcp", "@o2ib" };
+	int32_t     n[4];
+	size_t      i;
+	int         rc;
+
+	rc = sscanf(endpoint, "%15[0-9.]", addr);
+	if (rc != 1)
+		return M0_RC(false);
+	endpoint += strlen(addr); /* skip address part */
+
+	if (!m0_exists(j, ARRAY_SIZE(networks),
+		       m0_startswith(networks[i = j], endpoint)))
+		return M0_RC(false);
+	endpoint += strlen(networks[i]);
+
+	if (m0_streq(networks[i], "@lo")) {
+		if (!m0_streq(addr, "0"))
+			return M0_RC(false);
+	} else {
+		rc = sscanf(addr, "%d.%d.%d.%d", &n[0], &n[1], &n[2], &n[3]);
+		if (rc != 4 ||
+		    m0_exists(i, ARRAY_SIZE(n), n[i] < 0 || n[i] > 255))
+			return M0_RC(false); /* invalid IPv4 address */
+		if (isdigit(*endpoint))
+			++endpoint; /* skip optional digit */
+	}
+
+	if (!m0_startswith(":12345", endpoint))
+		return M0_RC(false);
+	endpoint += 6; /* strlen(":12345") */
+
+	for (i = 0; i < 2; ++i) {
+		rc = sscanf(endpoint, ":%15[0-9]", addr);
+		if (rc != 1)
+			return M0_RC(false);
+		endpoint += 1 + strlen(addr); /* 1 is for ':' */
+	}
+	return M0_RC(*endpoint == '\0');
+}
+#endif /* !__KERNEL__ */
 
 #undef M0_TRACE_SUBSYSTEM
 

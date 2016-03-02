@@ -95,6 +95,7 @@ extern struct m0_ut_suite m0_fom_stats_ut;
 extern struct m0_ut_suite m0_net_bulk_if_ut;
 extern struct m0_ut_suite m0_net_bulk_mem_ut;
 extern struct m0_ut_suite m0_net_lnet_ut;
+extern struct m0_ut_suite m0_net_misc_ut;
 extern struct m0_ut_suite m0_net_module_ut;
 extern struct m0_ut_suite m0_net_test_ut;
 extern struct m0_ut_suite m0_net_tm_prov_ut;
@@ -186,6 +187,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_net_bulk_if_ut, true);
 	m0_ut_add(m, &m0_net_bulk_mem_ut, true);
 	m0_ut_add(m, &m0_net_lnet_ut, true);
+	m0_ut_add(m, &m0_net_misc_ut, true);
 	m0_ut_add(m, &m0_net_module_ut, true);
 	m0_ut_add(m, &m0_net_test_ut, true);
 	m0_ut_add(m, &m0_net_tm_prov_ut, true);
