@@ -3,12 +3,14 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.13
+VERSION=0.13.1
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-03-03 0.13.1  Add `lt-m0rwlock' to _path_src().
+###
 ### 2016-03-01 0.13    * m0traces(): Collect at least two trace files from
 ###                      each of $IN_DIR/m0d-*/ directories.
 ###                    * Collect /etc/sysconfig/{m0d,m0t1fs,mero}* files.
@@ -289,6 +291,7 @@ _path_src() {
         libmero-xcode-ff2c.so) echo "$src/xcode/ff2c/.libs/$name.0.0.0";;
         libgf_complete.so)
             echo "$src/extra-libs/gf-complete/src/.libs/$name.1.0.0";;
+        lt-m0rwlock) echo "$src/rm/st/.libs/lt-m0rwlock";;
         *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
     esac
 }
