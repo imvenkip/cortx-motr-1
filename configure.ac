@@ -104,16 +104,6 @@ AS_CASE([$host_os],
         [AC_MSG_ERROR([Unsupported platform detected!])]
 )
 
-AC_MSG_CHECKING([for lsb_release])
-LSB_RELEASE=$(which lsb_release 2>/dev/null)
-AS_IF([test -z "$LSB_RELEASE"],
-      [AC_MSG_ERROR(['lsb_release' not found in PATH, please install 'redhat-lsb' package])]
-)
-AC_MSG_RESULT([$LSB_RELEASE])
-
-OS_DIST=$(lsb_release -si)
-OS_DIST_RELEASE=$(lsb_release -sr | cut -f1 -d.)
-
 #
 # Configuration options
 #
@@ -291,11 +281,16 @@ AC_ARG_ENABLE([unit-tests],
         [AS_HELP_STRING([--disable-unit-tests], [disable unit tests])],
         [], [enable_unit_tests=yes]
 )
-
 AM_CONDITIONAL([ENABLE_UNIT_TESTS],
                [test "x$enable_unit_tests" = xyes])
 AS_IF([test x$enable_unit_tests = xyes],
       AC_SUBST([ENABLE_KERNEL_UNIT_TESTS], [m]))
+
+AC_ARG_ENABLE([systemd],
+        [AS_HELP_STRING([--disable-systemd],
+                        [disable integration with systemd])],
+        [], [enable_systemd=yes]
+)
 
 AC_ARG_WITH([linux],
         [AS_HELP_STRING([--with-linux=path],
@@ -532,11 +527,10 @@ AC_CHECK_DECL([backtrace], [AC_DEFINE([HAVE_BACKTRACE])], [], [[#include <execin
 # Checking for systemd availability
 #
 
-AS_IF([ test x$OS_DIST = xCentOS && test $OS_DIST_RELEASE -ge 7 ],
+AS_IF([test x$enable_systemd = xyes],
       [
          AC_CHECK_HEADERS([systemd/sd-daemon.h], [],
-                          [AC_MSG_ERROR([systemd/sd-daemon.h cannot be found! \
-please, install systemd-devel package])])
+                          [AC_MSG_ERROR([systemd/sd-daemon.h cannot be found! please, install systemd-devel package])])
 
          AC_CHECK_DECL([sd_notify], [], [AC_MSG_ERROR([sd_notify() not found])],
                                     [[#include <systemd/sd-daemon.h>]])

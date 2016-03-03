@@ -77,7 +77,6 @@ BuildRequires:  python-ply
 %if %{with systemd}
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
-BuildRequires:  redhat-lsb-core
 %endif
 
 Requires:       kernel = %{kernel_ver_requires}

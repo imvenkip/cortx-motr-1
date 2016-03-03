@@ -40,7 +40,6 @@ declare -rA RPM_PACKAGE=(
     [asciidoc]='asciidoc'
     [genders]='genders'
     [uuid-dev]='libuuid-devel'
-    [lsb]='redhat-lsb'
     [systemd-dev]='systemd-devel'
     [expect]='expect'
     [rpmbuild]='rpm-build'
@@ -73,7 +72,6 @@ declare -rA DEB_PACKAGE=(
     [asciidoc]='asciidoc'
     [genders]='genders'
     [uuid-dev]='uuid-dev'
-    [lsb]='lsb-release'
     [expect]='expect'
 )
 
