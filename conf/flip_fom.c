@@ -175,7 +175,7 @@ static int conf_flip_confd_config_save(char *filename,
 
 	length = strlen(buffer);
 	rc = write(fd, buffer, length) == length ? 0 : M0_ERR(-EINVAL);
-
+	fsync(fd);
 	close(fd);
 #endif	/* __KERNEL__ */
 	return M0_RC(rc);

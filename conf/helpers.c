@@ -45,6 +45,7 @@ M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 	int                 rc;
 
 	M0_ENTRY();
+	M0_PRE(m0_fid_is_set(profile));
 
 	rc = m0_confc_open_sync(&obj, confc->cc_root,
 				M0_CONF_ROOT_PROFILES_FID, *profile,

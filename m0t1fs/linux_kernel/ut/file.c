@@ -92,6 +92,7 @@ static struct file                   lfile;
 static struct m0_confc              *confc = &csb.csb_reqh.rh_rconfc.rc_confc;
 static struct m0_rm_remote           creditor;
 static bool                          runast = false;
+static struct m0_fid                 profile;
 
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
@@ -223,7 +224,7 @@ static int file_io_ut_init(void)
 
 	rc = m0_reqh_conf_setup(reqh, confc_args);
         M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&reqh->rh_rconfc);
+	rc = m0_rconfc_start_sync(&reqh->rh_rconfc, &profile);
         M0_UT_ASSERT(rc == 0);
 	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
 	M0_UT_ASSERT(rc == 0);

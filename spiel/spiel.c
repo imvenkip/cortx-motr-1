@@ -70,11 +70,12 @@ int m0_spiel_rconfc_start(struct m0_spiel    *spiel,
 
 	M0_ENTRY();
 	M0_PRE(spiel->spl_rmachine != NULL);
+	M0_PRE(m0_fid_is_set(&spiel->spl_profile));
 
 	rc = m0_rconfc_init(rconfc, m0_locality0_get()->lo_grp,
 			    spiel->spl_rmachine, exp_cb, NULL);
 	if (rc == 0) {
-		rc = m0_rconfc_start_sync(rconfc);
+		rc = m0_rconfc_start_sync(rconfc, &spiel->spl_profile);
 		if (rc != 0) {
 			m0_rconfc_stop_sync(rconfc);
 			m0_rconfc_fini(rconfc);

@@ -39,11 +39,11 @@ PROC_FID2="<$PROC_FID_CNTR:$PROC_FID_KEY2>"
 PROF_OPT="<0x7000000000000001:0>"
 
 PYTHON_BOILERPLATE="
-if spiel.rconfc_start():
-    sys.exit('cannot start rconfc')
-
 if spiel.cmd_profile_set(str(fids['profile'])) != 0:
-    sys.exit('cannot set profile {0}'.format(fids['profile']))"
+    sys.exit('cannot set profile {0}'.format(fids['profile']))
+
+if spiel.rconfc_start():
+    sys.exit('cannot start rconfc')"
 
 iosloopdevs() {
     cat > $SANDBOX_DIR/disks.conf << EOF
@@ -314,6 +314,9 @@ K = 1
 P = 4
 mask = c_uint64(3)
 cores = Bitmap(1, pointer(mask))
+
+if spiel.cmd_profile_set(str(fids['profile'])) != 0:
+    sys.exit('cannot set profile {0}'.format(fids['profile']))
 
 tx = SpielTx(spiel.spiel)
 spiel.tx_open(tx)

@@ -128,6 +128,7 @@ static int conf_fetch_tick(struct m0_fom *fom)
 		M0_ASSERT(r->fr_data.cx_nr == 0 && r->fr_data.cx__objs == NULL);
 	r->fr_rc = rc;
 	r->fr_ver = confd->d_cache->ca_ver;
+	M0_ASSERT(r->fr_ver != M0_CONF_VER_UNKNOWN);
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	return M0_FSO_AGAIN;
 }

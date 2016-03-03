@@ -561,7 +561,7 @@ M0_INTERNAL void m0_confc_gate_ops_set(struct m0_confc          *confc,
 	M0_PRE(gops == NULL || gops->go_check != NULL);
 	clink_cleanup_fini(&confc->cc_drain);
 	confc->cc_gops = gops;
-	if (gops->go_drain != NULL) {
+	if (gops != NULL && gops->go_drain != NULL) {
 		m0_clink_init(&confc->cc_drain, confc->cc_gops->go_drain);
 		m0_clink_add_lock(&confc->cc_unattached, &confc->cc_drain);
 	}

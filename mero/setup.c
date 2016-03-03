@@ -2017,7 +2017,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_rconfc_start_sync(mero2rconfc(cctx));
+	rc = m0_rconfc_start_sync(mero2rconfc(cctx), &reqh->rh_profile);
 	if (rc != 0)
 		goto rconfc_fini;
 

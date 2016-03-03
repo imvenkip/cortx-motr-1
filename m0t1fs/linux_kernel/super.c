@@ -698,7 +698,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_ha_fini;
 
-	rc = m0_rconfc_start_sync(csb2rconfc(csb));
+	rc = m0_rconfc_start_sync(csb2rconfc(csb), &reqh->rh_profile);
 	if (rc != 0)
 		goto err_rconfc_fini;
 

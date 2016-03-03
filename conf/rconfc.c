@@ -601,6 +601,167 @@ M0_TL_DESCR_DEFINE(rcnf_active, "rconfc's active confc list", M0_INTERNAL,
 	);
 M0_TL_DEFINE(rcnf_active, M0_INTERNAL, struct rconfc_link);
 
+
+#if 1 /* XXX HA re-link
+       * A hack to get rid of one when conf consumers learn to handle
+       * configuration changes on their own.
+       */
+
+struct rconfc_ha_link {
+	struct m0_fid    rhl_fid;
+	struct m0_clink *rhl_clink;
+	struct m0_tlink  rhl_ha;
+	uint64_t         rhl_magic;
+};
+
+M0_TL_DESCR_DEFINE(rcnf_ha, "rconfc's HA subscriptions list", static,
+		   struct rconfc_ha_link, rhl_ha, rhl_magic,
+		   M0_RCONFC_HA_LINK_MAGIC, M0_RCONFC_HA_LINK_HEAD_MAGIC
+	);
+M0_TL_DEFINE(rcnf_ha, static, struct rconfc_ha_link);
+
+static void rconfc_ha_list_prune(struct m0_rconfc *rconfc)
+{
+	struct rconfc_ha_link *halink;
+
+	m0_tl_teardown(rcnf_ha, &rconfc->rc_ha_list, halink) {
+		rcnf_ha_tlink_fini(halink);
+		m0_free(halink);
+	}
+}
+
+static int rconfc_ha_link_collect(struct m0_rconfc   *rconfc,
+				  struct m0_conf_obj *obj)
+{
+	struct m0_clink       *clink;
+	struct rconfc_ha_link *halink;
+
+	M0_ENTRY("obj "FID_F, FID_P(&obj->co_id));
+
+	while ((clink = m0_chan_pop(&obj->co_ha_chan)) != NULL) {
+		M0_ALLOC_PTR(halink);
+		if (halink == NULL)
+			return M0_ERR(-ENOMEM);
+		halink->rhl_fid = obj->co_id;
+		halink->rhl_clink = clink;
+		rcnf_ha_tlink_init_at_tail(halink, &rconfc->rc_ha_list);
+	}
+	return M0_RC(0);
+}
+
+static int _confc_cache_pre_clean(struct m0_confc *confc)
+{
+	struct m0_conf_cache *cache = &confc->cc_cache;
+	struct m0_rconfc     *rconfc;
+	struct m0_conf_obj   *obj;
+	int                   rc = 0;
+
+	M0_ENTRY();
+
+	rconfc = container_of(confc, struct m0_rconfc, rc_confc);
+	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		rc = rconfc_ha_link_collect(rconfc, obj);
+		if (rc != 0)
+			break;
+	} m0_tl_endfor;
+
+	return M0_RC(rc);
+}
+
+static void rconfc_load_ast_thread(struct rconfc_load_ctx *rx)
+{
+	while (rx->rx_ast.run) {
+		m0_chan_wait(&rx->rx_grp.s_clink);
+		m0_sm_group_lock(&rx->rx_grp);
+		m0_sm_asts_run(&rx->rx_grp);
+		m0_sm_group_unlock(&rx->rx_grp);
+	}
+}
+
+static int rconfc_load_ast_thread_init(struct rconfc_load_ctx *rx)
+{
+	M0_SET0(&rx->rx_grp);
+	M0_SET0(&rx->rx_ast);
+	m0_sm_group_init(&rx->rx_grp);
+	rx->rx_ast.run = true;
+	return M0_THREAD_INIT(&rx->rx_ast.thread, struct rconfc_load_ctx *,
+			      NULL, &rconfc_load_ast_thread, rx, "rx_ast_thr");
+}
+
+static void rconfc_load_ast_thread_fini(struct rconfc_load_ctx *rx)
+{
+	rx->rx_ast.run = false;
+	m0_clink_signal(&rx->rx_grp.s_clink);
+	m0_thread_join(&rx->rx_ast.thread);
+	m0_sm_group_fini(&rx->rx_grp);
+}
+
+static void rconfc_ha_restore(struct m0_rconfc *rconfc)
+{
+	struct rconfc_ha_link *halink;
+	struct m0_conf_cache  *cache = &rconfc->rc_confc.cc_cache;
+	struct m0_conf_obj    *obj;
+
+	m0_conf_cache_lock(cache);
+	m0_tl_teardown(rcnf_ha, &rconfc->rc_ha_list, halink) {
+		obj = m0_conf_cache_lookup(cache, &halink->rhl_fid);
+		if (obj == NULL) {
+			M0_LOG(M0_ERROR, "Obj "FID_F" not found",
+			       FID_P(&halink->rhl_fid));
+			m0_free(halink);
+		} else {
+			m0_clink_add(&obj->co_ha_chan, halink->rhl_clink);
+		}
+	}
+	m0_conf_cache_unlock(cache);
+}
+
+static void rconfc_idle(struct m0_rconfc *rconfc);
+static void rconfc_fail(struct m0_rconfc *rconfc, int rc);
+
+static void rconfc_conf_load_fini(struct m0_sm_group *grp,
+				  struct m0_sm_ast   *ast)
+{
+	struct m0_rconfc *rconfc = ast->sa_datum;
+
+	m0_confc_gate_ops_set(&rconfc->rc_confc, &rconfc->rc_gops);
+	if (rconfc->rc_rx.rx_rc == 0) {
+		rconfc_ha_restore(rconfc);
+		rconfc_idle(rconfc); /* unlock reading gate */
+	} else {
+		rconfc_fail(rconfc, rconfc->rc_rx.rx_rc);
+	}
+	rconfc_load_ast_thread_fini(&rconfc->rc_rx);
+}
+
+static void rconfc_conf_full_load(struct m0_sm_group *grp,
+				  struct m0_sm_ast   *ast)
+{
+	struct m0_conf_filesystem *fs = NULL;
+	struct m0_rconfc          *rconfc = ast->sa_datum;
+	struct m0_confc           *confc = &rconfc->rc_confc;
+	struct m0_conf_cache      *cache = &confc->cc_cache;
+	int                        rc;
+
+	M0_ENTRY();
+	rc = m0_conf_obj_find_lock(cache, &M0_CONF_ROOT_FID, &confc->cc_root) ?:
+		m0_conf_fs_get(rconfc->rc_profile, confc, &fs) ?:
+		m0_conf_full_load(fs);
+	if (fs != NULL)
+		m0_confc_close(&fs->cf_obj);
+	/*
+	 * The configuration is loaded. Now we need to invoke
+	 * rconfc_ha_restore() to re-associate the kept clinks with their
+	 * objects in cache.
+	 */
+	rconfc->rc_rx.rx_rc = rc;
+	rconfc->rc_load_fini_ast.sa_datum = rconfc;
+	rconfc->rc_load_fini_ast.sa_cb = rconfc_conf_load_fini;
+	/* The call to execute in context of group rconfc initialised with */
+	m0_sm_ast_post(rconfc->rc_sm.sm_grp, &rconfc->rc_load_fini_ast);
+}
+#endif /* XXX HA re-link */
+
 /***************************************
  * Helpers
  ***************************************/
@@ -935,7 +1096,8 @@ static int _confc_cache_clean_lock(struct m0_confc *confc)
 	int rc;
 
 	m0_conf_cache_lock(&confc->cc_cache);
-	rc = _confc_cache_clean(confc);
+	rc = _confc_cache_pre_clean(confc) ?: /* XXX HA re-link */
+		_confc_cache_clean(confc);
 	m0_conf_cache_unlock(&confc->cc_cache);
 	return M0_RC(rc);
 }
@@ -1989,10 +2151,41 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 
 	rc = rconfc_quorum_is_reached(rconfc) ?
 		rconfc_conductor_engage(rconfc) : -EPROTO;
-	if (rc != 0)
+	if (rc != 0) {
 		rconfc_fail(rconfc, rc);
-	else
+	} else {
+#if 1 /* XXX HA re-link */
+		/*
+		 * Here we are to do the trick with restoring HA subscriptions
+		 * per object fids collected in rcnf_ha list. To be able to find
+		 * the objects, the full configuration is to be loaded.
+		 * (see rconfc_conf_full_load() for trick completion)
+		 */
+		M0_SET0(&rconfc->rc_rx);
+		M0_SET0(&rconfc->rc_load_ast);
+		M0_SET0(&rconfc->rc_load_fini_ast);
+		/*
+		 * disable gating operations to let rc_confc read configuration
+		 * before rconfc gets to RCS_IDLE state
+		 */
+		m0_confc_gate_ops_set(&rconfc->rc_confc, NULL);
+		/* conf load kick-off */
+		rconfc->rc_load_ast.sa_datum = rconfc;
+		rconfc->rc_load_ast.sa_cb    = rconfc_conf_full_load;
+		/*
+		 * make conf reading occur in a thread other than standard group
+		 * context rconfc was initialised with
+		 *
+		 * Note: this trick is absolutely temporary, and needs to be
+		 * eliminated later when conf clients learn to handle conf
+		 * updates on their own
+		 */
+		rconfc_load_ast_thread_init(&rconfc->rc_rx);
+		m0_sm_ast_post(&rconfc->rc_rx.rx_grp, &rconfc->rc_load_ast);
+#else /* XXX HA re-link */
 		rconfc_idle(rconfc);
+#endif /* XXX HA re-link */
+	}
 	M0_LEAVE();
 }
 
@@ -2043,6 +2236,9 @@ static bool rconfc__cb_quorum_test(struct m0_clink *clink)
 			if (quorum_now)
 				/* Maybe add replied confc to active list */
 				rconfc_active_populate(rconfc);
+		} else {
+			M0_LOG(M0_DEBUG, "Lnk failed, rc = %d, ep = %s",
+			       lnk->rl_rc, lnk->rl_confd_addr);
 		}
 
 		if ((!quorum_before && quorum_now) ||
@@ -2179,6 +2375,7 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 
 	rcnf_herd_tlist_init(&rconfc->rc_herd);
 	rcnf_active_tlist_init(&rconfc->rc_active);
+	rcnf_ha_tlist_init(&rconfc->rc_ha_list);
 	m0_clink_init(&rconfc->rc_unpinned_cl, rconfc_unpinned_cb);
 	m0_sm_init(&rconfc->rc_sm, &rconfc_sm_conf, RCS_INIT, sm_group);
 
@@ -2190,9 +2387,11 @@ rlock_err:
 	return M0_ERR(rc);
 }
 
-M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc)
+M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc,
+				 struct m0_fid    *profile)
 {
 	M0_ENTRY("rconfc %p", rconfc);
+	rconfc->rc_profile = profile;
 	if (rconfc->rc_local_conf != NULL)
 		rconfc->rc_sm.sm_rc = m0_confc_init(&rconfc->rc_confc,
 						    rconfc->rc_sm.sm_grp,
@@ -2203,9 +2402,10 @@ M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc)
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc)
+M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc,
+				     struct m0_fid    *profile)
 {
-	m0_rconfc_start(rconfc);
+	m0_rconfc_start(rconfc, profile);
 	if (m0_rconfc_is_preloaded(rconfc))
 		goto leave;
 	m0_rconfc_lock(rconfc);
@@ -2265,6 +2465,8 @@ M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc)
 	rlock_ctx_destroy(rconfc->rc_rlock_ctx);
 	if (_confc_is_inited(&rconfc->rc_confc))
 		m0_confc_fini(&rconfc->rc_confc);
+	rconfc_ha_list_prune(rconfc);
+	rcnf_ha_tlist_fini(&rconfc->rc_ha_list);
 	rconfc_active_all_unlink(rconfc);
 	rcnf_active_tlist_fini(&rconfc->rc_active);
 	rconfc_herd_prune(rconfc);

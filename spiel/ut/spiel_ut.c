@@ -36,10 +36,11 @@ static void spiel_start_stop(void)
 
 	rc = m0_spiel_init(&spiel, &spl_reqh->sur_reqh);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_spiel_rconfc_start(&spiel, NULL);
-	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_cmd_profile_set(&spiel, profile);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_spiel_rconfc_start(&spiel, NULL);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_spiel_rconfc_stop(&spiel);

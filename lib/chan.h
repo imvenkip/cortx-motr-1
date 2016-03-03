@@ -433,6 +433,17 @@ M0_INTERNAL void m0_chan_lock(struct m0_chan *chan);
 M0_INTERNAL void m0_chan_unlock(struct m0_chan *chan);
 M0_INTERNAL bool m0_chan_is_locked(const struct m0_chan *chan);
 
+/*
+ * XXX HA re-link
+ *
+ * The function is intended to extract an existent clink from the channel in
+ * order to keep it safe somewhere and restore the clink registration with
+ * another channel. Called iteratively it empties the channel forcible way.
+ *
+ * Currently used exclusively by rconfc in context of HA re-link hack.
+ */
+M0_INTERNAL struct m0_clink *m0_chan_pop(struct m0_chan *chan);
+
 struct m0_chan_addb2 {
 	uint64_t                ca_wait;
 	uint64_t                ca_cb;

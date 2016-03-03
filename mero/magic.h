@@ -289,6 +289,12 @@ enum m0_magic_satchel {
 	/* m0_confc_link::rl_magic (addible faced) */
 	M0_RCONFC_ACTIVE_HEAD_MAGIC = 0x33add1b1efaced77,
 
+	/* rconfc_ha_link::rhl_ha (ablaze boozed) */
+	M0_RCONFC_HA_LINK_MAGIC = 0x33ab1a2eb002ed77,
+
+	/* rconfc_ha_link::rhl_magic (disable sable) */
+	M0_RCONFC_HA_LINK_HEAD_MAGIC = 0x33d12ab1e2ab1e77,
+
 /* Mero Setup */
 	/* cs_buffer_pool::cs_bp_magic (felicia feliz) */
 	M0_CS_BUFFER_POOL_MAGIC = 0x33fe11c1afe11277,

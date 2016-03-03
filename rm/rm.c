@@ -2409,20 +2409,44 @@ static int outgoing_check(struct m0_rm_incoming    *in,
 				     rog_want.rl_credit, &outgoing_bob);
 			if (out->rog_type == otype &&
 			    credit_intersects(scan, credit)) {
-				M0_ASSERT(out->rog_want.rl_other == other);
-				/**
-				 * @todo adjust outgoing requests priority
-				 * (priority inheritance)
+				M0_LOG(M0_DEBUG, "want %p, other %p",
+				       out->rog_want.rl_other, other);
+				/*
+				 * Conflicting credits are always requested from
+				 * the same remote, since only one owner can
+				 * possess this credit at a time. It's also
+				 * impossible that 'credit' is composed of
+				 * several parts owned by different remotes.
+				 * Revoke requests are already split by loans,
+				 * borrow requests always go to a single
+				 * creditor.
 				 */
-				rc = pin_add(in, scan, M0_RPF_TRACK) ?:
-				     credit_diff(credit, scan);
-				if (rc != 0)
-					break;
+				M0_ASSERT(ergo(credit_conflicts(scan, credit),
+					      out->rog_want.rl_other == other));
+				/*
+				 * There is only one creditor, all borrow
+				 * requests should go to him
+				 */
+				M0_ASSERT(ergo(otype == M0_ROT_BORROW,
+					      out->rog_want.rl_other == other));
+				/*
+				 * Intersecting non-conflicting credits can be
+				 * owned by several remotes in case of revoke.
+				 * We should revoke all these loans.
+				 */
+				if (out->rog_want.rl_other == other)
+				{
+					/**
+					 * @todo adjust outgoing requests
+					 * priority (priority inheritance)
+					 */
+					rc = pin_add(in, scan, M0_RPF_TRACK) ?:
+					     credit_diff(credit, scan);
+					if (rc != 0)
+						return M0_ERR(rc);
+				}
 			}
 		} m0_tl_endfor;
-
-		if (rc != 0)
-			break;
 	}
 	return M0_RC(rc);
 }

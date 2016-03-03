@@ -202,6 +202,17 @@ enum m0_rconfc_state {
 	RCS_FINAL
 };
 
+#if 1 /* XXX HA re-link */
+struct rconfc_load_ctx {
+	struct m0_sm_group rx_grp;
+	struct rconfc_load_ast {
+		bool             run;
+		struct m0_thread thread;
+	}                  rx_ast;
+	int                rx_rc;
+};
+#endif /* XXX HA re-link */
+
 /**
  * Rconfc expiration callback is called when rconfc election happens. On the
  * event came in the consumer must close all configuration objects currently
@@ -337,6 +348,14 @@ struct m0_rconfc {
 	 * @see m0_rconfc_is_preloaded()
 	 */
 	char                     *rc_local_conf;
+
+#if 1 /* XXX HA re-link */
+	struct m0_fid            *rc_profile;
+	struct m0_tl              rc_ha_list;
+	struct rconfc_load_ctx    rc_rx;
+	struct m0_sm_ast          rc_load_ast;
+	struct m0_sm_ast          rc_load_fini_ast;
+#endif /* XXX HA re-link */
 };
 
 /**
@@ -388,12 +407,14 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
  *
  * @see m0_rconfc_is_preloaded()
  */
-M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc);
+M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc,
+				 struct m0_fid    *profile);
 
 /**
  * Synchronous version of @ref m0_rconfc_start.
  */
-M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc);
+M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc,
+				     struct m0_fid    *profile);
 
 /**
  * Finalises dedicated m0_rconfc::rc_confc instance and puts all the acquired

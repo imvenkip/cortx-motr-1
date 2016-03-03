@@ -35,7 +35,7 @@ static struct m0_semaphore   g_expired_sem;
 static struct m0_reqh       *ut_reqh;
 static struct m0_net_domain  client_net_dom;
 static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
-struct m0_fid                profile=M0_FID_TINIT('p', 1, 0);
+struct m0_fid                profile = M0_FID_TINIT('p', 1, 0);
 
 M0_EXTERN struct m0_confc_gate_ops  m0_rconfc_gate_ops;
 M0_EXTERN struct m0_rm_incoming_ops m0_rconfc_ri_ops;
@@ -149,7 +149,7 @@ static void test_start_stop(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ver != 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
@@ -172,7 +172,7 @@ static void test_start_failures(void)
 	m0_fi_enable_once("rlock_ctx_connect", "rm_conn_failed");
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	/*
 	 * If connection to RM fails, then rconfc will try to start from
 	 * beginning, because it is possible that RM creditor has changed during
@@ -185,7 +185,7 @@ static void test_start_failures(void)
 	m0_fi_enable_once("rconfc_read_lock_complete", "rlock_req_failed");
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == -ESRCH);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
@@ -193,7 +193,7 @@ static void test_start_failures(void)
 	m0_fi_enable_once("rconfc__cb_quorum_test", "read_ver_failed");
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_no_quorum_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == -EPROTO);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
@@ -201,7 +201,7 @@ static void test_start_failures(void)
 	m0_fi_enable_once("rconfc_conductor_iterate", "conductor_conn_fail");
 	rc = m0_rconfc_init(&rconfc,&g_grp, &mach, test_null_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == -ENOENT);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
@@ -222,7 +222,7 @@ static void test_reading(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
 	M0_UT_ASSERT(ver == rconfc.rc_ver);
@@ -271,7 +271,7 @@ static void test_quorum_impossible(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_clink_init(&clink, quorum_impossible_clink_cb);
 	m0_clink_add_lock(&rconfc.rc_sm.sm_chan, &clink);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == -EPROTO);
 	ver = m0_rconfc_ver_max_read(&rconfc);
 	M0_UT_ASSERT(ver != rconfc.rc_ver);
@@ -304,7 +304,7 @@ static void test_gops(void)
 	M0_SET0(&rconfc);
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
 	rlx = rconfc.rc_rlock_ctx;
 
@@ -387,7 +387,7 @@ static void test_version_change(void)
 	M0_SET0(&rconfc);
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, conflict_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Check that version 1 in use */
@@ -439,7 +439,7 @@ static void test_cache_drop(void)
 	M0_SET0(&rconfc);
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, conflict_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
 	/* Open root conf object */
 	confc = &rconfc.rc_confc;
@@ -479,7 +479,7 @@ static void test_confc_ctx_block(void)
 	M0_SET0(&rconfc);
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
 	rlx = rconfc.rc_rlock_ctx;
 	m0_rconfc_ri_ops.rio_conflict(&rlx->rlc_req);
@@ -501,11 +501,24 @@ static void test_reconnect_fail(void)
 	uint64_t                 ver;
 	struct m0_conf_obj      *cobj;
 
+#if 1
+ /* XXX HA re-link
+  *
+  * "recon-fail" test is to break rpc communication during conf read. Test is
+  * impossible due to full conf load, as no reading occurs under the
+  * circumstances.
+  *
+  * It needs to be restored when the hack is not needed anymore.
+  */
+	m0_fi_disable("on_replied", "fail_rpc_reply");
+	return;
+#endif
+
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
 	M0_UT_ASSERT(ver == rconfc.rc_ver);
@@ -546,7 +559,7 @@ static void test_reconnect_success(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
 	M0_UT_ASSERT(ver == rconfc.rc_ver);
@@ -628,7 +641,7 @@ static void test_ha_notify(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ver != 0);
 
@@ -696,9 +709,10 @@ static void test_drain(void)
 
 	rconfc = &cctx.rcx_reqh.rh_rconfc;
         M0_SET0(rconfc);
-	rc = m0_rconfc_init(rconfc, &g_grp, &mach, conflict_exp_cb, m0_confc_drained_cb);
+	rc = m0_rconfc_init(rconfc, &g_grp, &mach, conflict_exp_cb,
+			    m0_confc_drained_cb);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(rconfc);
+	rc = m0_rconfc_start_sync(rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_conf_fs_get(&profile, &rconfc->rc_confc, &fs_obj.fs);

@@ -166,10 +166,10 @@ M0_INTERNAL int m0_spiel__ut_init(struct m0_spiel *spiel,
 
 	rc = m0_spiel_init(spiel, &ut_reqh.sur_reqh);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_spiel_cmd_profile_set(spiel, profile);
+	M0_UT_ASSERT(rc == 0);
 	if (cmd_iface) {
 		rc = m0_spiel_rconfc_start(spiel, NULL);
-		M0_UT_ASSERT(rc == 0);
-		rc = m0_spiel_cmd_profile_set(spiel, profile);
 		M0_UT_ASSERT(rc == 0);
 	}
 	return 0;

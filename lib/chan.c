@@ -25,6 +25,7 @@
 #include "addb2/addb2.h"
 #include "addb2/counter.h"
 #include "mero/magic.h"
+#include "lib/arith.h"      /* M0_CNT_DEC */
 
 /**
    @addtogroup chan
@@ -297,6 +298,18 @@ M0_INTERNAL void m0_clink_del_lock(struct m0_clink *link)
 	m0_chan_unlock(chan);
 }
 M0_EXPORTED(m0_clink_del_lock);
+
+M0_INTERNAL struct m0_clink *m0_chan_pop(struct m0_chan *chan)
+{
+	struct m0_clink *link;
+
+	link = clink_tlist_pop(&chan->ch_links);
+	if (link != NULL) {
+		M0_CNT_DEC(chan->ch_waiters);
+		link->cl_chan = NULL;
+	}
+	return link;
+}
 
 M0_INTERNAL bool m0_clink_is_armed(const struct m0_clink *link)
 {
