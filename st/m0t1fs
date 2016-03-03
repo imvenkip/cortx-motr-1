@@ -189,9 +189,6 @@ do_m0t1fs_system_test()
 
     debug "do_m0t1fs_system_test: syncing data"
     sync
-
-    debug "do_m0t1fs_system_test: lsof /mnt/m0t1fs"
-    lsof /mnt/m0t1fs || true
 }
 
 
