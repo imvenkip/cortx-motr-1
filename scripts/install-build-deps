@@ -43,6 +43,7 @@ declare -rA RPM_PACKAGE=(
     [lsb]='redhat-lsb'
     [systemd-dev]='systemd-devel'
     [expect]='expect'
+    [rpmbuild]='rpm-build'
 )
 
 declare -rA DEB_PACKAGE=(
