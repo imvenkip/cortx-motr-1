@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+set -e
+
+[[ $UID -eq 0 ]] || {
+    echo 'Please, run this script with "root" privileges.' >&2
+    exit 1
+}
+
+SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.signal-st}
+M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*}
+
+. $M0_SRC_DIR/scripts/functions # report_and_exit
+
+cd $M0_SRC_DIR
 
 sudo scripts/install-mero-service -u
 sudo scripts/install-mero-service -l
@@ -78,8 +92,16 @@ test_for_signal()
 }
 
 # Test for stop
-test_for_signal SIGTERM || exit $?
+test_for_signal SIGTERM
+rc1=$?
 
 # Test for restart
-test_for_signal SIGUSR1 || exit $?
-exit 0
+test_for_signal SIGUSR1
+rc2=$?
+
+rc=$((rc1 + rc2))
+if [ $rc -eq 0 ]; then
+    rm -r $SANDBOX_DIR
+fi
+
+report_and_exit m0d-signal $rc
