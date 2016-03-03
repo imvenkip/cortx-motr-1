@@ -255,6 +255,10 @@ static int prepare(struct m0_fom *fom)
 		} else {
 			m0_cm_wait_cancel(cm, fom);
 		}
+	} else if (M0_IN(cm_state, (M0_CMS_READY, M0_CMS_ACTIVE))) {
+		/* CM is busy */
+		rc = -EBUSY;
+		M0_LOG(M0_WARN, "CM is still active.");
 	} else
 		m0_fom_phase_set(fom, M0_SNS_TPH_READY);
 

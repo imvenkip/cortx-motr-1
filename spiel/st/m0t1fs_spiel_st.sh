@@ -20,7 +20,7 @@ PYTHON_STUFF=python_files.txt
 error() { echo "$@" >&2; stop 1; }
 
 M0_SRC_DIR=`readlink -f $0`
-M0_SRC_DIR=${M0_SRC_DIR%/*/*}
+M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
@@ -39,7 +39,7 @@ PROC_FID2="<$PROC_FID_CNTR:$PROC_FID_KEY2>"
 PROF_OPT="<0x7000000000000001:0>"
 
 PYTHON_BOILERPLATE="
-if spiel.cmd_profile_set(str(fids['profile'])) != 0:
+if spiel.cmd_profile_set(str(fids['profile'])):
     sys.exit('cannot set profile {0}'.format(fids['profile']))
 
 if spiel.rconfc_start():

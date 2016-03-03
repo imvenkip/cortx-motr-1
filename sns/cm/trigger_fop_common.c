@@ -99,7 +99,6 @@ M0_INTERNAL int m0_sns_cm_trigger_fop_alloc(struct m0_rpc_machine  *mach,
 		[SNS_REBALANCE_STATUS] = &m0_sns_rebalance_status_fopt,
 		[SNS_REPAIR_ABORT]     = &m0_sns_repair_abort_fopt,
 	};
-
 	M0_ENTRY();
 
 	M0_ASSERT(IS_IN_ARRAY(op, sns_fop_type));

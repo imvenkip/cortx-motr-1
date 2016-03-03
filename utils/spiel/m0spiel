@@ -182,6 +182,8 @@ class SpielWrapper:
         self.mero.m0_spiel_fini(self.spiel)
         self.__free(self.spiel)
         self.mero.m0_ha_state_fini()
+        self.mero.m0_sns_cm_repair_trigger_fop_fini()
+        self.mero.m0_sns_cm_rebalance_trigger_fop_fini()
         self.mero.m0_rpc_session_destroy(self.ha_session, ~0L)
         self.__free(self.ha_session)
         self.mero.m0_rpc_conn_destroy(self.ha_conn, ~0L)
@@ -426,6 +428,11 @@ class SpielWrapper:
         return self.mero.m0_spiel_pool_repair_start(self.spiel, byref(fid))
 
     @require(fid=Fid)
+    def pool_repair_abort(self, fid):
+        return self.mero.m0_spiel_pool_repair_abort(self.spiel, byref(fid))
+
+
+    @require(fid=Fid)
     def pool_repair_quiesce(self, fid):
         return self.mero.m0_spiel_pool_repair_quiesce(self.spiel, byref(fid))
 
@@ -433,10 +440,10 @@ class SpielWrapper:
     def pool_repair_continue(self, fid):
         return self.mero.m0_spiel_pool_repair_continue(self.spiel, byref(fid))
 
-    @require(fid=Fid, status=SpielSnsStatus)
-    def pool_repair_status(self, fid, status):
-        return self.mero.m0_spiel_pool_repair_continue(self.spiel, byref(fid),
-                                                       byref(status))
+    @require(fid=Fid, ppstatus=POINTER(SpielSnsStatus))
+    def pool_repair_status(self, fid, ppstatus):
+        return self.mero.m0_spiel_pool_repair_status(self.spiel, byref(fid),
+                                                     byref(ppstatus))
 
     @require(fid=Fid)
     def pool_rebalance_start(self, fid):
@@ -446,16 +453,15 @@ class SpielWrapper:
     def pool_rebalance_quiesce(self, fid):
         return self.mero.m0_spiel_pool_rebalance_quiesce(self.spiel,
                                                          byref(fid))
-
     @require(fid=Fid)
     def pool_rebalance_continue(self, fid):
         return self.mero.m0_spiel_pool_rebalance_continue(self.spiel,
                                                           byref(fid))
 
-    @require(fid=Fid, status=SpielSnsStatus)
-    def pool_rebalance_status(self, fid, status):
-        return self.mero.m0_spiel_pool_repair_continue(self.spiel, byref(fid),
-                                                       byref(status))
+    @require(fid=Fid, ppstatus=POINTER(SpielSnsStatus))
+    def pool_rebalance_status(self, fid, ppstatus):
+        return self.mero.m0_spiel_pool_rebalance_status(self.spiel, byref(fid),
+                                                        byref(ppstatus))
 
     @require(fid=Fid, stats=FsStats)
     def filesystem_stats_fetch(self, fid, stats):
@@ -535,6 +541,9 @@ class SpielWrapper:
         result = self.mero.m0_spiel_init(spiel, reqh)
         if result != 0:
             raise RuntimeError("m0_spiel_start, rc = " + str(result))
+        self.mero.m0_sns_cm_repair_trigger_fop_init()
+        self.mero.m0_sns_cm_rebalance_trigger_fop_init()
+
         return spiel
 
     def allocate_memory(self, size):

@@ -53,7 +53,6 @@ disk_state_set()
 			-s $sep                                \
 			-c $c_endpoint                         \
 			-f $(opcode M0_HA_NOTE_SET_OPCODE)     \
-			-v                                     \
 			-d '[$nr: $DS]'"
 		echo $ha_note
 		eval $ha_note

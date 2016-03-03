@@ -1284,8 +1284,12 @@ static int spiel_pool_generic_handler(struct m0_spiel             *spl,
 	index = 0;
 	m0_tl_for (m0_fids, &ctx.pl_services_fid, si) {
 		rc = spiel__pool_cmd_status_get(&ctx, cmd, &sns[index]);
-		if (cmd_status)
+		if (cmd_status) {
 			sns_statuses[index] = sns[index].ss_status;
+			M0_LOG(M0_DEBUG, "service"FID_F" status=%d",
+					 FID_P(&si->i_fid),
+					 sns_statuses[index].sss_state);
+		}
 		++index;
 		if (rc != 0)
 			break;
@@ -1294,6 +1298,7 @@ static int spiel_pool_generic_handler(struct m0_spiel             *spl,
 	if (rc == 0 && cmd_status) {
 		rc = index;
 		*statuses = sns_statuses;
+		M0_LOG(M0_DEBUG, "array addr=%p size=%d", sns_statuses, index);
 	} else
 		m0_free(sns_statuses);
 
@@ -1388,7 +1393,7 @@ int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
 
 	M0_ENTRY();
 	M0_PRE(statuses != NULL);
-	rc = spiel_pool_generic_handler(spl, pool_fid, SNS_REPAIR_STATUS,
+	rc = spiel_pool_generic_handler(spl, pool_fid, SNS_REBALANCE_STATUS,
 					statuses);
 	return rc >= 0 ? M0_RC(rc) : M0_ERR(rc);
 }
