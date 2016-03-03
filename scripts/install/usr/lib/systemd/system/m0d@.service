@@ -1,5 +1,5 @@
 [Unit]
-Description=m0d helper
+Description=m0d helper for %i service-FID
 Requires=mero-kernel.service
 Wants=mero-trace@%i.service
 After=mero-kernel.service
