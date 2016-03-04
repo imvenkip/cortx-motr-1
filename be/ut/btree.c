@@ -374,7 +374,7 @@ static void destroy_tree(struct m0_be_btree *tree)
 
 	M0_ENTRY();
 
-	m0_be_btree_destroy_credit(tree, 1, &cred);
+	m0_be_btree_destroy_credit(tree, &cred);
 	M0_BE_FREE_CREDIT_PTR(tree, seg, &cred);
 
 	M0_ALLOC_PTR(tx);

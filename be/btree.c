@@ -1259,7 +1259,6 @@ static int btree_count_items(struct m0_be_btree *tree, m0_bcount_t *ksize,
 }
 
 M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
-					    m0_bcount_t             nr,
 					    struct m0_be_tx_credit *accum)
 {
 	/* XXX

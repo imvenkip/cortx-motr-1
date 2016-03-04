@@ -722,7 +722,8 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 		m0_be_btree_create_credit(&map->em_mapping, nr, accum);
 		break;
 	case M0_BEO_DESTROY:
-		m0_be_btree_destroy_credit(&map->em_mapping, nr, accum);
+		M0_ASSERT(nr == 1);
+		m0_be_btree_destroy_credit(&map->em_mapping, accum);
 		break;
 	case M0_BEO_INSERT:
 		m0_be_btree_insert_credit(&map->em_mapping, nr,

@@ -115,7 +115,7 @@ M0_INTERNAL void m0_be_seg_dict_destroy_credit(const struct m0_be_seg *seg,
 	struct m0_be_btree *tree = dict_get(seg);
 
 	M0_PRE(m0_be_seg__invariant(seg));
-	m0_be_btree_destroy_credit(tree, 1, accum);
+	m0_be_btree_destroy_credit(tree, accum);
 }
 
 /* -------------------------------------------------------------------

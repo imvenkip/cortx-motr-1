@@ -606,11 +606,11 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 	m0_be_0type_del_credit(bedom, &m0_be_cob0, id, &cred);
 	M0_BE_FREE_CREDIT_PTR(dom, seg, &cred);
 
-	m0_be_btree_destroy_credit(&dom->cd_object_index,   1, &cred);
-	m0_be_btree_destroy_credit(&dom->cd_namespace,	    1, &cred);
-	m0_be_btree_destroy_credit(&dom->cd_fileattr_basic, 1, &cred);
-	m0_be_btree_destroy_credit(&dom->cd_fileattr_omg,   1, &cred);
-	m0_be_btree_destroy_credit(&dom->cd_fileattr_ea,    1, &cred);
+	m0_be_btree_destroy_credit(&dom->cd_object_index,   &cred);
+	m0_be_btree_destroy_credit(&dom->cd_namespace,	    &cred);
+	m0_be_btree_destroy_credit(&dom->cd_fileattr_basic, &cred);
+	m0_be_btree_destroy_credit(&dom->cd_fileattr_omg,   &cred);
+	m0_be_btree_destroy_credit(&dom->cd_fileattr_ea,    &cred);
 
 
 	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);

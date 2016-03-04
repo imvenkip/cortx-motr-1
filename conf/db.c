@@ -369,9 +369,9 @@ M0_INTERNAL void m0_confdb_destroy_credit(struct m0_be_seg *seg,
 
 	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&btp);
 	if (rc == 0) {
-		m0_be_btree_destroy_credit(btp, 1, accum);
+		m0_be_btree_destroy_credit(btp, accum);
 	} else {
-		m0_be_btree_destroy_credit(&btree, 1, accum);
+		m0_be_btree_destroy_credit(&btree, accum);
 	}
 	m0_be_seg_dict_delete_credit(seg, btree_name, accum);
 	M0_BE_FREE_CREDIT_PTR(&btree, seg, accum);

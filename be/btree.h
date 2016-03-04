@@ -162,7 +162,6 @@ M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree *tree,
  * to @accum.
  */
 M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree *tree,
-					    m0_bcount_t nr,
 					    struct m0_be_tx_credit *accum);
 
 /**
