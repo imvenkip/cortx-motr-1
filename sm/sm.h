@@ -734,7 +734,8 @@ enum m0_sm_return {
  * Resulting table is stored in "sub", which should be of sufficient size.
  * Transitions in "sub" override matching transitions in "base".
  *
- * sub->scf_trans[] reserves array elements for base.
+ * sub->scf_trans[] reserves array elements for base. Empty slots in
+ * sub->scf_trans[] could be in arbitrary places.
  */
 M0_INTERNAL void m0_sm_conf_trans_extend(const struct m0_sm_conf *base,
 					 struct m0_sm_conf *sub);

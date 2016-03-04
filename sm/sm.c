@@ -665,32 +665,35 @@ M0_INTERNAL void m0_sm_conf_trans_extend(const struct m0_sm_conf *base,
 					 struct m0_sm_conf *sub)
 {
 	uint32_t i;
-	uint32_t j;
+	uint32_t j = 0;
 
 	M0_PRE(conf_invariant(base));
-
-	/* search first empty slot */
-	for (j = 0; j < sub->scf_trans_nr; j++)
-		if( sub->scf_trans[j].td_src == 0 &&
-		    sub->scf_trans[j].td_tgt == 0)
-			break;
 
 	for (i = 0; i < base->scf_trans_nr; i++) {
 		const struct m0_sm_trans_descr *b = &base->scf_trans[i];
 
 		if (!trans_exists(sub, b->td_src, b->td_tgt)) {
+			/* Find the next empty slot. */
+			for (; j < sub->scf_trans_nr; j++) {
+				if (sub->scf_trans[j].td_src == 0 &&
+				    sub->scf_trans[j].td_tgt == 0)
+					break;
+			}
 			M0_ASSERT(j < sub->scf_trans_nr);
 			M0_ASSERT(sub->scf_trans[j].td_cause == NULL);
 			sub->scf_trans[j++] = *b;
 		}
 	}
 
-	/* remove empty slots */
-	if (j < i) {
-		for (; i < sub->scf_trans_nr; i++)
+	/*
+	 * Make non-empty transitions in sub to be contiguous. Copy remaining
+	 * transitions, skipping the empty ones.
+	 */
+	for (i = j; i < sub->scf_trans_nr; i++)
+		if (sub->scf_trans[i].td_src != 0 ||
+		    sub->scf_trans[i].td_tgt != 0)
 			sub->scf_trans[j++] = sub->scf_trans[i];
-		sub->scf_trans_nr = j;
-	}
+	sub->scf_trans_nr = j;
 
 	M0_POST(conf_invariant(sub));
 }
