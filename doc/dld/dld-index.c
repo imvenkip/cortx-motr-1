@@ -32,6 +32,7 @@ file.c -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD" <!-- rpc/rpc.h -->
 - @subpage spiel-dld "SPIEL API DLD" <!-- spiel/spiel.h -->
 - @subpage m0loop-dld "The new m0loop device driver DLD" <!-- m0t1fs/linux_kernel/m0loop.c -->
+- @subpage cas-dld "The catalogue service (CAS)" <!-- cas/service.c -->
 
 Detailed designs should use the <i>@subpage DLD "Mero DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.

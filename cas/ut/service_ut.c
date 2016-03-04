@@ -73,12 +73,10 @@ static void rep_clear(void)
 	}
 }
 
-static void init(void)
+static void reqh_init(void)
 {
 	int result;
 
-	/* Check validity of IFID definition. */
-	M0_UT_ASSERT(m0_cas_index_fid_type.ft_id == 'i');
 	M0_SET0(&reqh);
 	M0_SET0(&be);
 	m0_fi_enable("cas_in_ut", "ut");
@@ -90,6 +88,15 @@ static void init(void)
 	M0_UT_ASSERT(result == 0);
 	be.but_dom_cfg.bc_engine.bec_reqh = &reqh;
 	m0_be_ut_backend_init(&be);
+}
+
+static void init(void)
+{
+	int result;
+
+	/* Check validity of IFID definition. */
+	M0_UT_ASSERT(m0_cas_index_fid_type.ft_id == 'i');
+	reqh_init();
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
@@ -102,6 +109,7 @@ static void init(void)
 static void fini(void)
 {
 	m0_reqh_service_prepare_to_stop(cas);
+	m0_reqh_idle_wait_for(&reqh, cas);
 	m0_reqh_service_stop(cas);
 	m0_reqh_service_fini(cas);
 	m0_be_ut_backend_fini(&be);
@@ -117,6 +125,53 @@ static void fini(void)
 static void init_fini(void)
 {
 	init();
+	fini();
+}
+
+/**
+ * Different fails during service startup.
+ */
+static void init_fail(void)
+{
+	int rc;
+
+	reqh_init();
+
+	/* Failure to add meta-index to segment dictionary. */
+	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
+	M0_UT_ASSERT(rc == 0);
+	m0_reqh_service_init(cas, &reqh, NULL);
+	m0_fi_enable_once("m0_be_seg_dict_insert", "dict_insert_fail");
+	rc = m0_reqh_service_start(cas);
+	M0_UT_ASSERT(rc == -ENOENT);
+	m0_reqh_service_fini(cas);
+
+	/* Failure to create meta-index. */
+	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
+	M0_UT_ASSERT(rc == 0);
+	m0_reqh_service_init(cas, &reqh, NULL);
+	m0_fi_enable_once("cas_index_create", "ci_create_failure");
+	rc = m0_reqh_service_start(cas);
+	M0_UT_ASSERT(rc == -EFAULT);
+	m0_reqh_service_fini(cas);
+
+	/* Failure to add meta-index to itself. */
+	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
+	M0_UT_ASSERT(rc == 0);
+	m0_reqh_service_init(cas, &reqh, NULL);
+	m0_fi_enable_once("m0_be_btree_insert_inplace", "already_exists");
+	rc = m0_reqh_service_start(cas);
+	M0_UT_ASSERT(rc == -EEXIST);
+	m0_reqh_service_fini(cas);
+
+	/* Normal start. */
+	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
+	M0_UT_ASSERT(rc == 0);
+	m0_reqh_service_init(cas, &reqh, NULL);
+	rc = m0_reqh_service_start(cas);
+	M0_UT_ASSERT(rc == 0);
+	m0_reqh_start(&reqh);
+
 	fini();
 }
 
@@ -462,10 +517,30 @@ static void meta_cur_none(void)
 	fini();
 }
 
-
 /**
- * @todo add more, as more operations are supported.
+ * Test meta-cursor starting from meta-index.
  */
+static void meta_cur_all(void)
+{
+	struct m0_fid fid = IFID(0, 1);
+
+	init();
+	meta_submit(&cas_put_fopt, &fid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	fop_submit(&cas_cur_fopt, &m0_cas_meta_fid,
+		   (struct m0_cas_rec[]) {
+			   { .cr_key = FIDBUF(&m0_cas_meta_fid), .cr_rc = 3 },
+			   { .cr_rc = ~0ULL } });
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 3);
+	M0_UT_ASSERT(rep_check(0, 1, BSET, BUNSET));
+	M0_UT_ASSERT(rep_check(1, 2, BSET, BUNSET));
+	M0_UT_ASSERT(rep_check(2, -ENOENT, BUNSET, BUNSET));
+	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.b_addr, &m0_cas_meta_fid));
+	M0_UT_ASSERT(m0_fid_eq(repv[1].cr_key.b_addr, &fid));
+	fini();
+}
+
 static struct m0_fop_type *ft[] = {
 	&cas_put_fopt,
 	&cas_get_fopt,
@@ -667,7 +742,10 @@ static void delete_2(void)
 	fini();
 }
 
-enum { INSERTS = 1500 };
+enum {
+	INSERTS = 1500,
+	MULTI_INS = 15
+};
 
 #define CB(x) m0_byteorder_cpu_to_be64(x)
 #define BC(x) m0_byteorder_be64_to_cpu(x)
@@ -820,6 +898,435 @@ static void meta_mt(void)
 	fini();
 }
 
+static void meta_insert_fail(void)
+{
+	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	init();
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, -ENOMEM, BUNSET, BUNSET));
+	index_op(&cas_put_fopt, &ifid, 1, 2);
+	M0_UT_ASSERT(rep.cgr_rc == -ENOENT);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Lookup process should return zero records. */
+	meta_submit(&cas_get_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
+	fini();
+}
+
+static void meta_lookup_fail(void)
+{
+	init();
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Lookup process should return ENOMEM code */
+	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	meta_submit(&cas_get_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, -ENOMEM, BUNSET, BUNSET));
+	/* Lookup without ENOMEM returns record. */
+	meta_submit(&cas_get_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	fini();
+}
+
+static void meta_delete_fail(void)
+{
+	init();
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Delete record with fail. */
+	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	meta_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, -ENOMEM, BUNSET, BUNSET));
+	/* Lookup should return record. */
+	meta_submit(&cas_get_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	fini();
+}
+
+static void insert_fail(void)
+{
+	init();
+	/* Insert meta OK. */
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Insert key ENOMEM - fi. */
+	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	index_op(&cas_put_fopt, &ifid, 1, 2);
+	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
+	/* Search meta OK. */
+	meta_submit(&cas_get_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Search key, ENOENT. */
+	index_op(&cas_get_fopt, &ifid, 1, 0);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_rc == -ENOENT);
+	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.b_addr == NULL);
+	fini();
+}
+
+static void lookup_fail(void)
+{
+	init();
+	/* Insert meta OK. */
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Insert key OK. */
+	index_op(&cas_put_fopt, &ifid, 1, 2);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Search meta OK. */
+	meta_submit(&cas_get_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Search key, ENOMEM - fi. */
+	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	index_op(&cas_get_fopt, &ifid, 1, 0);
+	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Secondary search OK. */
+	index_op(&cas_get_fopt, &ifid, 1, 0);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(repv[0].cr_val.b_nob == sizeof (uint64_t));
+	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.b_addr == 2);
+	fini();
+}
+
+static void delete_fail(void)
+{
+	init();
+	/* Insert meta OK. */
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Insert key OK. */
+	index_op(&cas_put_fopt, &ifid, 1, 2);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Search key OK. */
+	index_op(&cas_get_fopt, &ifid, 1, 0);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
+	M0_UT_ASSERT(repv[0].cr_val.b_nob == sizeof (uint64_t));
+	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.b_addr == 2);
+	/* Delete key, ENOMEM - fi. */
+	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	index_op(&cas_del_fopt, &ifid, 1, 0);
+	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
+	/* Search key OK. */
+	index_op(&cas_get_fopt, &ifid, 1, 0);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(repv[0].cr_val.b_nob == sizeof (uint64_t));
+	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.b_addr == 2);
+	/* Delete key OK. */
+	index_op(&cas_del_fopt, &ifid, 1, 0);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Search key, ENOENT. */
+	index_op(&cas_get_fopt, &ifid, 1, 0);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_rc == -ENOENT);
+	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.b_addr == NULL);
+	fini();
+}
+
+struct record
+{
+	uint64_t key;
+	uint64_t value;
+};
+
+static void multi_values_insert(struct record *recs, int recs_count)
+{
+	struct m0_cas_rec cas_recs[MULTI_INS];
+	int               i;
+
+	M0_UT_ASSERT(recs_count <= MULTI_INS);
+	for (i = 0; i < recs_count - 1; i++) {
+		cas_recs[i] = (struct m0_cas_rec){
+			       .cr_key = M0_BUF_INIT(sizeof recs[i].key,
+						     &recs[i].key),
+			       .cr_val = M0_BUF_INIT(sizeof recs[i].value,
+						     &recs[i].value),
+			       .cr_rc = 0 };
+	}
+	cas_recs[recs_count - 1] = (struct m0_cas_rec) { .cr_rc = ~0ULL };
+	fop_submit(&cas_put_fopt, &ifid, cas_recs);
+}
+
+static void cur_fail(void)
+{
+	struct record recs[MULTI_INS];
+	int           i;
+
+	init();
+	/* Insert meta OK. */
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Insert keys OK. */
+	m0_forall(i, MULTI_INS, recs[i].key = i+1, recs[i].value = i * i, true);
+	multi_values_insert(recs, MULTI_INS);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+	/* Iterate from beginning, -ENOMEM. */
+	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	index_op_rc(&cas_cur_fopt, &ifid, 1, 0, MULTI_INS);
+	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
+	/*
+	 * Iterate from begining, first - OK, second - fail.
+	 * Service stops request processing after failure, all other reply
+	 * records are empty.
+	 */
+	m0_fi_enable_off_n_on_m("cas_place", "place_fail", 2, 1);
+	index_op_rc(&cas_cur_fopt, &ifid, 1, 0, MULTI_INS);
+	m0_fi_disable("cas_place", "place_fail");
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS);
+	M0_UT_ASSERT(repv[0].cr_rc == 1);
+	M0_UT_ASSERT(repv[1].cr_rc == -ENOMEM);
+	for (i = 2; i < MULTI_INS - 1; i++)
+		M0_UT_ASSERT(repv[i].cr_rc == 0);
+
+	fini();
+}
+
+static void multi_values_lookup(struct record *recs, int recs_count)
+{
+	struct m0_cas_rec cas_recs[MULTI_INS];
+	int               i;
+
+	M0_UT_ASSERT(recs_count <= MULTI_INS);
+	for (i = 0; i < MULTI_INS - 1; i++) {
+		cas_recs[i] = (struct m0_cas_rec){
+			       .cr_key = M0_BUF_INIT(sizeof recs[i].key,
+						     &recs[i].key),
+			       .cr_val = M0_BUF_INIT(0, NULL),
+			       .cr_rc = 0 };
+	}
+	cas_recs[MULTI_INS - 1] = (struct m0_cas_rec) { .cr_rc = ~0ULL };
+	fop_submit(&cas_get_fopt, &ifid, cas_recs);
+}
+
+static void multi_values_delete(struct record *recs, int recs_count)
+{
+	struct m0_cas_rec cas_recs[MULTI_INS];
+	int               i;
+
+	M0_UT_ASSERT(recs_count <= MULTI_INS);
+	for (i = 0; i < MULTI_INS - 1; i++) {
+		cas_recs[i] = (struct m0_cas_rec){
+			       .cr_key = M0_BUF_INIT(sizeof recs[i].key,
+						     &recs[i].key),
+			       .cr_val = M0_BUF_INIT(0, NULL),
+			       .cr_rc = 0 };
+	}
+	cas_recs[MULTI_INS - 1] = (struct m0_cas_rec) { .cr_rc = ~0ULL };
+	fop_submit(&cas_del_fopt, &ifid, cas_recs);
+}
+
+static void multi_insert(void)
+{
+	struct record recs[MULTI_INS];
+
+	init();
+	/* Fill array with pair: [key, value]. */
+	m0_forall(i, MULTI_INS, (recs[i].key = i, recs[i].value = i * i, true));
+	/* Insert meta OK. */
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Insert several keys and values OK. */
+	multi_values_insert(recs, MULTI_INS);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+	fini();
+}
+
+static void multi_lookup(void)
+{
+	struct record recs[MULTI_INS];
+
+	init();
+	/* Fill array with pair: [key, value]. */
+	m0_forall(i, MULTI_INS, (recs[i].key = i, recs[i].value = i * i, true));
+	/* Insert meta OK. */
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Insert several keys and values OK. */
+	multi_values_insert(recs, MULTI_INS);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+	/* Lookup values. */
+	multi_values_lookup(recs, MULTI_INS);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				*(uint64_t *)repv[i].cr_val.b_addr == i * i));
+	fini();
+}
+
+static void multi_delete(void)
+{
+	struct record recs[MULTI_INS];
+
+	init();
+	/* Fill array with pair: [key, value]. */
+	m0_forall(i, MULTI_INS, (recs[i].key = i, recs[i].value = i*i, true));
+	/* Insert meta OK. */
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Insert several keys and values OK. */
+	multi_values_insert(recs, MULTI_INS);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+	/* Delete all values. */
+	multi_values_delete(recs, MULTI_INS);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+	/* Lookup values: ENOENT. */
+	multi_values_lookup(recs, MULTI_INS);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				rep.cgr_rep.cr_rec[i].cr_rc == -ENOENT));
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				repv[i].cr_val.b_addr == NULL));
+	fini();
+}
+
+static void multi_insert_fail(void)
+{
+	struct record recs[MULTI_INS];
+
+	init();
+	/* Fill array with pair: [key, value]. */
+	m0_forall(i, MULTI_INS, (recs[i].key = i, recs[i].value = i * i, true));
+	/* Insert meta OK. */
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Insert several keys and values OK. */
+	m0_fi_enable_off_n_on_m("cas_buf_get", "cas_alloc_fail", 1, 1);
+	multi_values_insert(recs, MULTI_INS);
+	m0_fi_disable("cas_buf_get", "cas_alloc_fail");
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				i % 2 ?
+				rep.cgr_rep.cr_rec[i].cr_rc == 0 :
+				rep.cgr_rep.cr_rec[i].cr_rc == -ENOMEM));
+	fini();
+}
+
+static void multi_lookup_fail(void)
+{
+	struct record recs[MULTI_INS];
+
+	init();
+	/* Fill array with pair: [key, value]. */
+	m0_forall(i, MULTI_INS, (recs[i].key = i, recs[i].value = i*i, true));
+	/* Insert meta OK. */
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Insert several keys and values OK. */
+	multi_values_insert(recs, MULTI_INS);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+	/* Lookup values. */
+	m0_fi_enable_off_n_on_m("cas_buf_get", "cas_alloc_fail", 1, 1);
+	multi_values_lookup(recs, MULTI_INS);
+	m0_fi_disable("cas_buf_get", "cas_alloc_fail");
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				i % 2 ?
+				rep.cgr_rep.cr_rec[i].cr_rc == 0 :
+				rep.cgr_rep.cr_rec[i].cr_rc == -ENOMEM));
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				i % 2 ?
+				*(uint64_t *)repv[i].cr_val.b_addr == i*i :
+				repv[i].cr_val.b_addr == NULL));
+	fini();
+}
+
+static void multi_delete_fail(void)
+{
+	struct record recs[MULTI_INS];
+
+	init();
+	/* Fill array with pair: [key, value]. */
+	m0_forall(i, MULTI_INS, (recs[i].key = i, recs[i].value = i*i, true));
+	/* Insert meta OK. */
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	/* Insert several keys and values OK. */
+	multi_values_insert(recs, MULTI_INS);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+	/* Delete several recs. */
+	m0_fi_enable_off_n_on_m("cas_buf_get", "cas_alloc_fail", 1, 1);
+	multi_values_delete(recs, MULTI_INS);
+	m0_fi_disable("cas_buf_get", "cas_alloc_fail");
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				i % 2 ?
+				rep.cgr_rep.cr_rec[i].cr_rc == 0 :
+				rep.cgr_rep.cr_rec[i].cr_rc == -ENOMEM));
+	/* Lookup values. */
+	multi_values_lookup(recs, MULTI_INS);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				i % 2 ?
+				rep.cgr_rep.cr_rec[i].cr_rc == -ENOENT :
+				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
+				i % 2 ?
+				repv[i].cr_val.b_addr == NULL :
+				*(uint64_t *)repv[i].cr_val.b_addr == i*i));
+	fini();
+}
+
 struct m0_ut_suite cas_service_ut = {
 	.ts_name   = "cas-service",
 	.ts_owners = "Nikita",
@@ -827,6 +1334,7 @@ struct m0_ut_suite cas_service_ut = {
 	.ts_fini   = NULL,
 	.ts_tests  = {
 		{ "init-fini",               &init_fini,             "Nikita" },
+		{ "init-fail",               &init_fail,             "Leonid" },
 		{ "re-init",                 &reinit,                "Nikita" },
 		{ "meta-lookup-none",        &meta_lookup_none,      "Nikita" },
 		{ "meta-lookup-2-none",      &meta_lookup_2none,     "Nikita" },
@@ -841,6 +1349,7 @@ struct m0_ut_suite cas_service_ut = {
 		{ "meta-cur-eot",            &meta_cur_eot,          "Nikita" },
 		{ "meta-cur-empty",          &meta_cur_empty,        "Nikita" },
 		{ "meta-cur-none",           &meta_cur_none,         "Nikita" },
+		{ "meta-cur-all",            &meta_cur_all,          "Leonid" },
 		{ "meta-random",             &meta_random,           "Nikita" },
 		{ "meta-garbage",            &meta_garbage,          "Nikita" },
 		{ "insert",                  &insert,                "Nikita" },
@@ -853,6 +1362,19 @@ struct m0_ut_suite cas_service_ut = {
 		{ "lookup-restart",          &lookup_restart,        "Nikita" },
 		{ "cur-N",                   &cur_N,                 "Nikita" },
 		{ "meta-mt",                 &meta_mt,               "Nikita" },
+		{ "meta-insert-fail",        &meta_insert_fail,      "Leonid" },
+		{ "meta-lookup-fail",        &meta_lookup_fail,      "Leonid" },
+		{ "meta-delete-fail",        &meta_delete_fail,      "Leonid" },
+		{ "insert-fail",             &insert_fail,           "Leonid" },
+		{ "lookup-fail",             &lookup_fail,           "Leonid" },
+		{ "delete-fail",             &delete_fail,           "Leonid" },
+		{ "cur-fail",                &cur_fail,              "Egor"   },
+		{ "multi-insert",            &multi_insert,          "Leonid" },
+		{ "multi-lookup",            &multi_lookup,          "Leonid" },
+		{ "multi-delete",            &multi_delete,          "Leonid" },
+		{ "multi-insert-fail",       &multi_insert_fail,     "Leonid" },
+		{ "multi-lookup-fail",       &multi_lookup_fail,     "Leonid" },
+		{ "multi-delete-fail",       &multi_delete_fail,     "Leonid" },
 		{ NULL, NULL }
 	}
 };

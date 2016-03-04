@@ -89,7 +89,8 @@ service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
 		[M0_CST_SNS_REB] = "",
 		[M0_CST_ADDB2]   = "",
 		[M0_CST_DS1]     = "",
-		[M0_CST_DS2]     = ""
+		[M0_CST_DS2]     = "",
+		[M0_CST_CAS]     = ""
 	};
 	int         i;
 	const char *opt;

@@ -1,9 +1,13 @@
 nobase_mero_include_HEADERS += \
-                            cas/cas.h
+                            cas/cas.h \
+                            cas/cas_addb2.h \
+                            cas/client.h
 
 mero_libmero_la_SOURCES  += \
                             cas/cas_xc.c \
-                            cas/service.c
+                            cas/cas.c \
+                            cas/service.c \
+                            cas/client.c
 
 XC_FILES += \
                             cas/cas_xc.h

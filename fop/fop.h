@@ -166,7 +166,7 @@ void *m0_fop_data(const struct m0_fop *fop);
  */
 M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop);
 
-struct m0_rpc_item *m0_fop_to_rpc_item(struct m0_fop *fop);
+struct m0_rpc_item *m0_fop_to_rpc_item(const struct m0_fop *fop);
 struct m0_fop *m0_rpc_item_to_fop(const struct m0_rpc_item *item);
 void m0_fop_rpc_machine_set(struct m0_fop *fop, struct m0_rpc_machine *mach);
 struct m0_rpc_machine *m0_fop_rpc_machine(const struct m0_fop *fop);

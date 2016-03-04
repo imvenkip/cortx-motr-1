@@ -1,2 +1,4 @@
 m0mero_objects += \
-                  cas/cas_xc.o
+                  cas/cas.o \
+                  cas/cas_xc.o \
+                  cas/client.o

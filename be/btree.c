@@ -28,10 +28,11 @@
 #include "lib/trace.h"
 
 #include "lib/errno.h"
+#include "lib/finject.h" /* M0_FI_ENABLED() */
 #include "be/btree.h"
 #include "be/alloc.h"
 #include "be/seg.h"
-#include "be/tx.h"      /* m0_be_tx_capture */
+#include "be/tx.h"       /* m0_be_tx_capture */
 
 /* btree constants */
 enum {
@@ -1535,7 +1536,8 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
 	anchor->ba_tree = tree;
 	anchor->ba_write = true;
 
-	if (btree_search(tree, key->b_addr) == NULL) {
+	if (btree_search(tree, key->b_addr) == NULL &&
+	    !M0_FI_ENABLED("already_exists")) {
 		key_data = mem_alloc(tree, tx, key->b_nob);
 		val_data = mem_alloc(tree, tx, anchor->ba_value.b_nob);
 		kv       = mem_alloc(tree, tx, sizeof(struct bt_key_val));

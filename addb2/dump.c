@@ -62,6 +62,7 @@
 #include "stob/addb2.h"
 #include "net/addb2.h"
 #include "ioservice/io_addb2.h"
+#include "cas/cas_addb2.h"
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
 #include "sns/cm/cm.h"                 /* m0_sns_cm_repair_trigger_fop_init */
 
@@ -571,6 +572,8 @@ struct id_intrp ids[] = {
 	  { "seq", "offset", "prev", "next", "size", "idx", "nr", "fid" } },
 	{ M0_AVI_LONG_LOCK,       "long-lock", { &ptr, &duration, &duration },
 	  { "fom", "wait", "hold"} },
+	{ M0_AVI_CAS_KV_SIZES,    "cas-kv-sizes",  { FID, &dec, &dec },
+	  { "ifid", NULL, "ksize", "vsize"} },
 	{ M0_AVI_NODATA,          "nodata" },
 };
 

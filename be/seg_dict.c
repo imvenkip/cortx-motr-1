@@ -25,6 +25,7 @@
 
 #include "lib/memory.h"       /* M0_ALLOC_PTR */
 #include "lib/errno.h"        /* ENOMEM */
+#include "lib/finject.h"      /* M0_FI_ENABLED */
 
 #include "be/seg.h"
 #include "be/seg_internal.h"  /* m0_be_seg_hdr */
@@ -238,6 +239,9 @@ M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
 
 	M0_ENTRY("seg=%p name='%s'", seg, name);
 	M0_PRE(m0_be_seg__invariant(seg));
+
+	if (M0_FI_ENABLED("dict_insert_fail"))
+		return M0_RC(-ENOENT);
 
 	rc = M0_BE_OP_SYNC_RET(
 		op, m0_be_btree_insert(tree, tx, &op, &key, &val),

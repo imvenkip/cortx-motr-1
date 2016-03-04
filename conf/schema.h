@@ -160,19 +160,19 @@ enum {
  * configuration files (including ut/conf.cg) should be updated.
  */
 enum m0_conf_service_type {
-	M0_CST_MDS = 1, /**< Meta-data service. */
-	M0_CST_IOS,     /**< IO/data service. */
-	M0_CST_MGS,     /**< Management service (confd). */
-	M0_CST_RMS,     /**< Resource management service. */
-	M0_CST_STS,     /**< Stats service */
-	M0_CST_HA,      /**< HA service */
-	M0_CST_SSS,     /**< Start/stop service */
-	M0_CST_SNS_REP, /**< SNS repair */
-	M0_CST_SNS_REB, /**< SNS rebalance */
-	M0_CST_ADDB2,   /**< ADDB */
-	M0_CST_DS1,     /**< Dummy service1 */
-	M0_CST_DS2,     /**< Dummy service2 */
-	M0_CST_CAS,     /**< Catalogue service */
+	M0_CST_MDS     = 1,  /**< Meta-data service. */
+	M0_CST_IOS     = 2,  /**< IO/data service. */
+	M0_CST_MGS     = 3,  /**< Management service (confd). */
+	M0_CST_RMS     = 4,  /**< Resource management service. */
+	M0_CST_STS     = 5,  /**< Stats service */
+	M0_CST_HA      = 6,  /**< HA service */
+	M0_CST_SSS     = 7,  /**< Start/stop service */
+	M0_CST_SNS_REP = 8,  /**< SNS repair */
+	M0_CST_SNS_REB = 9,  /**< SNS rebalance */
+	M0_CST_ADDB2   = 10, /**< ADDB */
+	M0_CST_DS1     = 11, /**< Dummy service1 */
+	M0_CST_DS2     = 12, /**< Dummy service2 */
+	M0_CST_CAS     = 13, /**< Catalogue service */
 	M0_CST_NR
 };
 

@@ -33,19 +33,55 @@
 #include "lib/cookie_xc.h"
 
 /**
- * @defgroup cas Catalogue service
+ * @page cas-fspec The catalogue service (CAS)
+ *
+ * - @ref cas-fspec-ds
+ * - @ref cas-fspec-sub
+ *
+ * @section cas-fspec-ds Data Structures
+ * The interface of the service for a user is a format of request/reply FOPs.
+ * Request FOPs:
+ * - @ref m0_cas_op
+ * Reply FOPs:
+ * - @ref m0_cas_rep
+ *
+ * Also CAS service exports predefined FID for meta-index (m0_cas_meta_fid)
+ * and FID type for other ordinary indexes (m0_cas_index_fid_type).
+ *
+ * @section cas-fspec-sub Subroutines
+ * CAS service is a request handler service and provides several callbacks to
+ * the request handler, see @ref m0_cas_service_type::rst_ops().
+ *
+ * Also CAS service register several FOP types during initialisation:
+ * - @ref cas_get_fopt
+ * - @ref cas_put_fopt
+ * - @ref cas_del_fopt
+ * - @ref cas_cur_fopt
+ * - @ref cas_rep_fopt
+ *
+ * @see @ref cas_dfspec "Detailed Functional Specification"
+ */
+
+/**
+ * @defgroup cas_dfspec CAS service
+ * @brief Detailed functional specification.
  *
  * @{
  */
 
-/*
- * CAS fop formats.
- */
+/* Import */
+struct m0_sm_conf;
+struct m0_fom_type_ops;
+struct m0_reqh_service_type;
 
 /**
  * CAS cookie.
  *
- * This is a hint to a location of a record in an index.
+ * This is a hint to a location of a record in an index or
+ * a location of an index in the meta-index.
+ *
+ * @note: not used in current implementation until profiling
+ * proves that it's necessary.
  */
 struct m0_cas_hint {
 	/** Cookie of the leaf node. */
@@ -71,14 +107,18 @@ struct m0_cas_rec {
 	/**
 	 * Record key.
 	 *
-	 * Can be empty, when record key is implied, e.g., in replies.
+	 * Should be filled for GET, DEL, PUT, CUR requests.
+	 * It's empty in replies for GET, DEL, PUT requests and non-empty for
+	 * CUR reply.
 	 */
 	struct m0_buf      cr_key;
 	/**
 	 * Record value.
 	 *
-	 * Can be empty, when record value is not known (GET) or not needed
-	 * (DEL).
+	 * Should be empty for GET, DEL, CUR requests.
+	 * For PUT request it should be empty if record is inserted in
+	 * meta-index and filled otherwise. If operation is successful then
+	 * replies for GET, CUR have this field set.
 	 */
 	struct m0_buf      cr_val;
 	/**
@@ -86,8 +126,23 @@ struct m0_cas_rec {
 	 */
 	struct m0_cas_hint cr_hint;
 	/**
-	 * In replies, return code for the operation on this record. In CUR
-	 * operation, the number of consecutive records to return.
+	 * In GET, DEL, PUT replies, return code for the operation on this
+	 * record. In CUR request, the number of consecutive records to return.
+	 *
+	 * In CUR reply, the consecutive number of the record for the current
+	 * key. For example, if there are two records in CUR request requesting
+	 * 2 and 3 next records respectively, then cr_rc values in reply records
+	 * will be: 1,2,1,2,3.
+	 *
+	 * Also, CAS service stops iteration for the current CAS-CUR key on
+	 * error and proceed with the next key in the input vector. Suppose
+	 * there is a CUR request, requesting 10 records starting from K0 and 10
+	 * records starting with K1. Suppose iteration failed on the fifth
+	 * record after K0 and all K1 records were processed successfully. In
+	 * this case, the reply would contain at least 15 records. First 5 will
+	 * be for K0, the last of which would contain errno, the next 10 records
+	 * will be for K1. Current implementation will add final 5 zeroed
+	 * records.
 	 */
 	uint64_t           cr_rc;
 } M0_XCA_RECORD;
@@ -123,10 +178,20 @@ struct m0_cas_op {
 /**
  * CAS-GET, CAS-PUT, CAS-DEL and CAS-CUR reply fops.
  *
+ * @note CAS-CUR reply may contain less records than requested.
+ *
  * @see m0_fop_cas_op
  */
 struct m0_cas_rep {
-	/** Status code of operation. */
+	/**
+	 * Status code of operation.
+	 * If code != 0, then no input record from request is processed
+	 * successfully and contents of m0_cas_rep::cgr_rep field is undefined.
+	 *
+	 * Zero status code means that at least one input record is processed
+	 * successfully. Operation status code of individual input record can
+	 * be obtained through m0_cas_rep::cgr_rep::cg_rec::cr_rc.
+	 */
 	int32_t            cgr_rc;
 	/**
 	 * Array of operation results for each input record.
@@ -150,8 +215,29 @@ M0_EXTERN struct m0_fop_type cas_del_fopt;
 M0_EXTERN struct m0_fop_type cas_cur_fopt;
 M0_EXTERN struct m0_fop_type cas_rep_fopt;
 
+/**
+ * CAS server side is able to compile in user-space only. Use stubs in kernel
+ * mode for service initialisation and deinitalisation. Also use NULLs for
+ * service-specific fields in CAS FOP types.
+ */
+#ifndef __KERNEL__
+M0_INTERNAL void m0_cas_svc_init(void);
+M0_INTERNAL void m0_cas_svc_fini(void);
+M0_INTERNAL void m0_cas_svc_fop_args(struct m0_sm_conf            **sm_conf,
+				     const struct m0_fom_type_ops **fom_ops,
+				     struct m0_reqh_service_type  **svctype);
+#else
+#define m0_cas_svc_init()
+#define m0_cas_svc_fini()
+#define m0_cas_svc_fop_args(sm_conf, fom_ops, svctype) \
+do {                                                   \
+	*(sm_conf) = NULL;                             \
+	*(fom_ops) = NULL;                             \
+	*(svctype) = NULL;                             \
+} while (0);
+#endif /* __KERNEL__ */
 
-/** @} end of cas group */
+/** @} end of cas_dfspec */
 #endif /* __MERO_CAS_CAS_H__ */
 
 /*

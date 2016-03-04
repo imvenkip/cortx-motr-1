@@ -329,11 +329,11 @@ M0_INTERNAL void m0_fops_fini(void)
 	m0_sm_conf_fini(&fom_states_conf);
 }
 
-struct m0_rpc_item *m0_fop_to_rpc_item(struct m0_fop *fop)
+struct m0_rpc_item *m0_fop_to_rpc_item(const struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
 
-	return &fop->f_item;
+	return (struct m0_rpc_item *)&fop->f_item;
 }
 M0_EXPORTED(m0_fop_to_rpc_item);
 

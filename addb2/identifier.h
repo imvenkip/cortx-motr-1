@@ -100,6 +100,7 @@ enum m0_addb2_value_id {
 	M0_AVI_ADDB2_RANGE_START   = 0x9000,
 	M0_AVI_BE_RANGE_START      = 0xa000,
 	M0_AVI_NET_RANGE_START     = 0xb000,
+	M0_AVI_CAS_RANGE_START     = 0xc000,
 
 	/**
 	 * Reserve a range of identifiers for per-fop-type per-locality

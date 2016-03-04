@@ -201,8 +201,8 @@ struct init_fini_call subsystem[] = {
 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
 	{ &m0_stats_svc_init,   &m0_stats_svc_fini,   "stats-service" },
 	{ &m0_ss_svc_init,      &m0_ss_svc_fini,      "sss" },
-	{ &m0_cas_module_init,  &m0_cas_module_fini,  "cas" },
 #endif /* __KERNEL__ */
+	{ &m0_cas_module_init,  &m0_cas_module_fini,  "cas" },
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" },
 	{ &m0_ha_mod_init,      &m0_ha_mod_fini,      "ha" },
