@@ -234,6 +234,14 @@ M0_INTERNAL bool m0_long_write_lock(struct m0_long_lock *lock,
 				    int next_phase);
 
 /**
+ * Takes write or read long term lock, depending on the value of the "write"
+ * parameter.
+ */
+M0_INTERNAL bool m0_long_lock(struct m0_long_lock *lock, bool write,
+			      struct m0_long_lock_link *link,
+			      int next_phase);
+
+/**
  * Unlocks given read-lock.
  *
  * @param link - Long lock link associated with the FOM
@@ -258,6 +266,12 @@ M0_INTERNAL void m0_long_read_unlock(struct m0_long_lock *lock,
  */
 M0_INTERNAL void m0_long_write_unlock(struct m0_long_lock *lock,
 				      struct m0_long_lock_link *link);
+
+/**
+ * Unlocks read or write lock.
+ */
+M0_INTERNAL void m0_long_unlock(struct m0_long_lock *lock,
+				struct m0_long_lock_link *link);
 
 /**
  * @return true iff the lock is taken as a read-lock by the given fom.

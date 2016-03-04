@@ -185,6 +185,14 @@ M0_INTERNAL bool m0_long_read_lock(struct m0_long_lock *lk,
 	return lock(lk, link, next_phase);
 }
 
+M0_INTERNAL bool m0_long_lock(struct m0_long_lock *lock, bool write,
+			      struct m0_long_lock_link *link,
+			      int next_phase)
+{
+	return write ? m0_long_write_lock(lock, link, next_phase) :
+		m0_long_read_lock(lock, link, next_phase);
+}
+
 static void unlock(struct m0_long_lock *lock, struct m0_long_lock_link *link)
 {
 	struct m0_fom            *fom;
@@ -226,6 +234,13 @@ M0_INTERNAL void m0_long_read_unlock(struct m0_long_lock *lock,
 				     struct m0_long_lock_link *link)
 {
 	unlock(lock, link);
+}
+
+M0_INTERNAL void m0_long_unlock(struct m0_long_lock *lock,
+				struct m0_long_lock_link *link)
+{
+	if (m0_lll_tlist_contains(&lock->l_owners, link))
+		unlock(lock, link);
 }
 
 M0_INTERNAL bool m0_long_is_read_locked(struct m0_long_lock *lock,
