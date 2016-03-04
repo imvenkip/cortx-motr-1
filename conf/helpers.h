@@ -24,6 +24,7 @@
 
 #include "lib/tlist.h"
 #include "conf/schema.h" /* m0_conf_service_type */
+#include "conf/rconfc.h" /* m0_rconfc */
 
 struct m0_confc;
 struct m0_conf_obj;
@@ -189,5 +190,8 @@ M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj);
 M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
 					  struct m0_confc *confc,
 					  uint32_t *nr_devices);
+
+M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc);
+M0_INTERNAL void m0_confc_drained_cb(struct m0_rconfc *rconfc);
 
 #endif /* __MERO_CONF_HELPERS_H__ */

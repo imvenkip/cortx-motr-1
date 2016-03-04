@@ -258,6 +258,10 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	m0_sm_init(&reqh->rh_sm, &m0_reqh_sm_conf, M0_REQH_ST_INIT,
 		   &reqh->rh_sm_grp);
 
+	m0_mutex_init(&reqh->rh_guard);
+	m0_chan_init(&reqh->rh_conf_cache_exp, &reqh->rh_guard);
+	m0_chan_init(&reqh->rh_conf_cache_drain, &reqh->rh_guard);
+
 	if (reqh->rh_beseg != NULL) {
 		rc = m0_reqh_be_init(reqh, reqh->rh_beseg);
 		if (rc != 0)
@@ -308,6 +312,12 @@ static void __reqh_fini(struct m0_reqh *reqh)
 	m0_rwlock_fini(&reqh->rh_rwlock);
 	m0_ha_domain_fini(&reqh->rh_hadom);
 	m0_fol_fini(&reqh->rh_fol);
+
+	m0_mutex_lock(&reqh->rh_guard);
+	m0_chan_fini(&reqh->rh_conf_cache_exp);
+	m0_chan_fini(&reqh->rh_conf_cache_drain);
+	m0_mutex_unlock(&reqh->rh_guard);
+	m0_mutex_fini(&reqh->rh_guard);
 }
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
@@ -714,7 +724,8 @@ M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
                 return M0_ERR_INFO(rc, "Cannot parse profile `%s'",
 				   args->ca_profile);
 
-	rc = m0_rconfc_init(rconfc, args->ca_group, args->ca_rmach, NULL);
+	rc = m0_rconfc_init(rconfc, args->ca_group, args->ca_rmach,
+			    m0_confc_expired_cb, m0_confc_drained_cb);
 	if (rc != 0)
 		return M0_ERR(rc);
 	if (args->ca_confstr != NULL) {

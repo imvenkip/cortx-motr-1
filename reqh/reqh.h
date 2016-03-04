@@ -174,6 +174,18 @@ struct m0_reqh {
 
 	/** Process FID. */
 	struct m0_fid                 rh_fid;
+
+	/** Guard for configuration cache events */
+	struct m0_mutex               rh_guard;
+
+	/** Channel for configuration cache expiry events */
+	struct m0_chan                rh_conf_cache_exp;
+
+	/** Channel for configuration cache drain events */
+	struct m0_chan                rh_conf_cache_drain;
+
+	/** AST for rconfc events. */
+	struct m0_sm_ast              rh_conf_cache_ast;
 };
 
 /**
