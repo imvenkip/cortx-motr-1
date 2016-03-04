@@ -59,6 +59,7 @@ include $(src)/m0t1fs/Kbuild.sub
 
 include $(src)/addb2/Kbuild.sub
 include $(src)/be/Kbuild.sub
+include $(src)/cas/Kbuild.sub
 include $(src)/conf/Kbuild.sub
 include $(src)/cob/Kbuild.sub
 include $(src)/console/Kbuild.sub

@@ -255,6 +255,13 @@ enum M0_RPC_OPCODES {
 	M0_HA_LINK_MSG_REQ                  = 207,
 	M0_HA_LINK_MSG_REP                  = 208,
 
+	/** CAS fops. */
+	M0_CAS_GET_FOP_OPCODE               = 230,
+	M0_CAS_PUT_FOP_OPCODE               = 231,
+	M0_CAS_DEL_FOP_OPCODE               = 232,
+	M0_CAS_CUR_FOP_OPCODE               = 233,
+	M0_CAS_REP_FOP_OPCODE               = 234,
+
 	/*
 	 * Identifiers below are for fop-less foms, not fops.
 	 */

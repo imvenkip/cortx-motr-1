@@ -187,6 +187,7 @@ include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
 include $(top_srcdir)/be/tool/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
+include $(top_srcdir)/cas/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
 include $(top_srcdir)/conf/Makefile.sub
@@ -258,6 +259,7 @@ include $(top_srcdir)/addb2/ut/Makefile.sub
 include $(top_srcdir)/balloc/ut/Makefile.sub
 include $(top_srcdir)/be/ut/Makefile.sub
 include $(top_srcdir)/capa/ut/Makefile.sub
+include $(top_srcdir)/cas/ut/Makefile.sub
 include $(top_srcdir)/cm/ut/Makefile.sub
 include $(top_srcdir)/cob/ut/Makefile.sub
 include $(top_srcdir)/conf/ut/Makefile.sub
@@ -1328,6 +1330,7 @@ EXTRA_DIST += \
               addb2/ut/Kbuild.sub \
               be/Kbuild.sub \
               be/ut/Kbuild.sub \
+              cas/Kbuild.sub \
               cob/Kbuild.sub \
               conf/Kbuild.sub \
               conf/ut/Kbuild.sub \

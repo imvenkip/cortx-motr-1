@@ -1,0 +1,2 @@
+ut_libmero_ut_la_SOURCES += \
+                            cas/ut/service_ut.c

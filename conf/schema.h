@@ -152,7 +152,13 @@ enum {
 	M0_CFG_PARAM_LEN = 128
 };
 
-/** Type of Mero service. */
+/**
+ * Type of Mero service.
+ *
+ * @note If the value for an existing service type is changed (e.g., by
+ * inserting a new service type in the middle), hard-coded values in existing
+ * configuration files (including ut/conf.cg) should be updated.
+ */
 enum m0_conf_service_type {
 	M0_CST_MDS = 1, /**< Meta-data service. */
 	M0_CST_IOS,     /**< IO/data service. */
@@ -166,6 +172,7 @@ enum m0_conf_service_type {
 	M0_CST_ADDB2,   /**< ADDB */
 	M0_CST_DS1,     /**< Dummy service1 */
 	M0_CST_DS2,     /**< Dummy service2 */
+	M0_CST_CAS,     /**< Catalogue service */
 	M0_CST_NR
 };
 

@@ -399,7 +399,7 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 		rctx->rc_services[svc->cs_type] = sname;
 		if (rctx->rc_services[svc->cs_type] == NULL) {
 			int i;
-			rc = -ENOMEM;
+			rc = M0_ERR(-ENOMEM);
 			for (i = 0; i < rctx->rc_nr_services; ++i)
 				m0_free(rctx->rc_services[i]);
 			break;

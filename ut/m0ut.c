@@ -57,6 +57,7 @@ extern struct m0_ut_suite buffer_pool_ut;
 extern struct m0_ut_suite bulkio_client_ut;
 extern struct m0_ut_suite bulkio_server_ut;
 extern struct m0_ut_suite capa_ut;
+extern struct m0_ut_suite cas_service_ut;
 extern struct m0_ut_suite cm_cp_ut;
 extern struct m0_ut_suite cm_generic_ut;
 extern struct m0_ut_suite cob_ut;
@@ -155,6 +156,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &bulkio_client_ut, true);
 	m0_ut_add(m, &bulkio_server_ut, true);
 	m0_ut_add(m, &capa_ut, true);
+	m0_ut_add(m, &cas_service_ut, true);
 	m0_ut_add(m, &cm_cp_ut, true);
 	m0_ut_add(m, &cm_generic_ut, true);
 	m0_ut_add(m, &cob_ut, true);

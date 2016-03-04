@@ -204,47 +204,48 @@ To add a collection of unit tests ("test suite") for a module foo:
 
 In a file foo/ut/foo.c do something like:
 
-    #include "ut/ut.h"
+#include "ut/ut.h"
 
-    static void test_foo0(void)
-    {
-        struct foo F;
+static void test_foo0(void)
+{
+	struct foo F;
 
-        foo_init(&F);
-        M0_UT_ASSERT(foo_bar(&F) == foo_baz(&F) + 1);
-            ...
-    }
+	foo_init(&F);
+	M0_UT_ASSERT(foo_bar(&F) == foo_baz(&F) + 1);
+        ...
+}
 
-    static void test_foo1(void)
-    {
-            ...
-    }
+static void test_foo1(void)
+{
+        ...
+}
 
-    ...
+...
 
-    static int foo_ut_init(void)
-    {
-        /* prepare for testing */
-            ...
-    }
+static int foo_ut_init(void)
+{
+	/* prepare for testing */
+        ...
+}
 
-    static int foo_it_fini(void)
-    {
-        /* cleanup after testing */
-            ...
-    }
+static int foo_it_fini(void)
+{
+	/* cleanup after testing */
+        ...
+}
 
-    struct m0_ut_suite foo_ut = {
-        .ts_name = "foo-ut",
-        .ts_init = foo_ut_init, /* optional, may be NULL */
-        .ts_fini = foo_ut_fini, /* optional, may be NULL */
-        .ts_tests = {
-            { "test0", test_foo0 },
-            { "test1", test_foo1 },
-            ...
-            { NULL, NULL }
-        }
-    };
+struct m0_ut_suite foo_ut = {
+	.ts_name   = "foo-ut",
+	.ts_init   = foo_ut_init, /* optional, may be NULL */
+	.ts_fini   = foo_ut_fini, /* optional, may be NULL */
+	.ts_owners = "D. Knuth"
+	.ts_tests  = {
+		{ "test0", test_foo0, "G. Swann" },
+		{ "test1", test_foo1, "A. Simonet" },
+		...
+		{ NULL, NULL }
+	}
+};
 
 In foo/ut/Makefile.sub do:
 
