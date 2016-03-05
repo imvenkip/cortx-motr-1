@@ -105,7 +105,7 @@ m0_server()
                # check if it is a confd process
                if [[ -n $MERO_CONF_XC ]] ; then
                    stob_type='-T linux'
-                   MERO_M0D_OPTS+="-c $MERO_CONF_XC"
+                   MERO_M0D_OPTS+=" -c $MERO_CONF_XC"
                fi
 
                MERO_M0D_OPTS+=${MERO_HA_EP:+ -H $MERO_HA_EP}
