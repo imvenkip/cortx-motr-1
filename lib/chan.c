@@ -300,9 +300,9 @@ M0_EXPORTED(m0_clink_del_lock);
 
 M0_INTERNAL bool m0_clink_is_armed(const struct m0_clink *link)
 {
-	return _0C(link->cl_chan != NULL) &&
-		_0C(link->cl_linkage.t_link.ll_next != NULL) &&
-		_0C(m0_list_link_is_in(&link->cl_linkage.t_link));
+	return link->cl_chan != NULL &&
+	       link->cl_linkage.t_link.ll_next != NULL &&
+	       m0_list_link_is_in(&link->cl_linkage.t_link);
 }
 
 M0_INTERNAL void m0_clink_cleanup(struct m0_clink *link)
