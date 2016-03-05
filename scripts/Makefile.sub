@@ -12,5 +12,4 @@ EXTRA_DIST += scripts/bloatmeter \
               scripts/mero_build_test.sh \
               scripts/modload \
               scripts/print-elf-sizes \
-              scripts/process_lcov.sh \
-              scripts/MountWithLocalServers.sh
+              scripts/process_lcov.sh
