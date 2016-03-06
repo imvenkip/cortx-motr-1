@@ -207,6 +207,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 struct mount_opts {
 	char     *mo_ha;
 	char     *mo_profile;
+	char     *mo_ep;
 	uint32_t  mo_fid_start;
 };
 
@@ -214,6 +215,7 @@ enum m0t1fs_mntopts {
 	M0T1FS_MNTOPT_CONFD,
 	M0T1FS_MNTOPT_PROFILE,
 	M0T1FS_MNTOPT_FID_START,
+	M0T1FS_MNTOPT_EP,
 	M0T1FS_MNTOPT_OOSTORE,
 	M0T1FS_MNTOPT_VERIFY,
 	M0T1FS_MNTOPT_ERR
@@ -223,6 +225,7 @@ static const match_table_t m0t1fs_mntopt_tokens = {
 	{ M0T1FS_MNTOPT_CONFD,      "ha=%s"         },
 	{ M0T1FS_MNTOPT_PROFILE,    "profile=%s"    },
 	{ M0T1FS_MNTOPT_FID_START,  "fid_start=%s"  },
+	{ M0T1FS_MNTOPT_EP,         "ep=%s"         },
 	{ M0T1FS_MNTOPT_OOSTORE,    "oostore"       },
 	{ M0T1FS_MNTOPT_VERIFY,     "verify"        },
 	/* match_token() requires 2nd field of the last element to be NULL */
@@ -237,6 +240,7 @@ static void mount_opts_fini(struct mount_opts *mops)
 	 * was allocated using match_strdup(). */
 	kfree(mops->mo_ha);
 	kfree(mops->mo_profile);
+	kfree(mops->mo_ep);
 	M0_SET0(mops);
 
 	M0_LEAVE();
@@ -330,6 +334,13 @@ static int mount_opts_parse(struct m0t1fs_sb *csb, char *options,
 				goto out;
 			M0_LOG(M0_INFO, "fid-start: %lu",
 				(unsigned long)dest->mo_fid_start);
+			break;
+
+		case M0T1FS_MNTOPT_EP:
+			rc = str_parse(&dest->mo_ep, args);
+			if (rc != 0)
+				goto out;
+			M0_LOG(M0_INFO, "ep: %s", dest->mo_ep);
 			break;
 
 		case M0T1FS_MNTOPT_OOSTORE:
@@ -485,43 +496,48 @@ err:
 	return M0_RC(rc);
 }
 
-int m0t1fs_net_init(struct m0t1fs_sb *csb)
+int m0t1fs_net_init(struct m0t1fs_sb *csb, const char *ep)
 {
 	struct m0_net_xprt   *xprt;
 	struct m0_net_domain *ndom;
-	int		      rc;
-	char                 *laddr;
+	int                   rc;
+	char                 *laddr = NULL;
 
 	M0_ENTRY();
-	laddr = m0_alloc(M0_NET_LNET_NIDSTR_SIZE * 2);
-	if (laddr == NULL)
-		return M0_RC(-ENOMEM);
+	if (ep == NULL) {
+		laddr = m0_alloc(M0_NET_LNET_NIDSTR_SIZE * 2);
+		if (laddr == NULL)
+			return M0_RC(-ENOMEM);
 
-	csb->csb_xprt  = &m0_net_lnet_xprt;;
-	m0_mutex_lock(&m0t1fs_mutex);
-	csb->csb_tmid = m0_bitmap_ffz(&m0t1fs_client_ep_tmid);
-	if (csb->csb_tmid == ((size_t)-1)) {
+		m0_mutex_lock(&m0t1fs_mutex);
+		csb->csb_tmid = m0_bitmap_ffz(&m0t1fs_client_ep_tmid);
+		if (csb->csb_tmid == ((size_t)-1)) {
+			m0_mutex_unlock(&m0t1fs_mutex);
+			m0_free(laddr);
+			return M0_RC(-EMFILE);
+		}
+		m0_bitmap_set(&m0t1fs_client_ep_tmid, csb->csb_tmid, true);
 		m0_mutex_unlock(&m0t1fs_mutex);
-		m0_free(laddr);
-		return M0_RC(-EMFILE);
-	}
-	m0_bitmap_set(&m0t1fs_client_ep_tmid, csb->csb_tmid, true);
-	m0_mutex_unlock(&m0t1fs_mutex);
 
-	snprintf(laddr, M0_NET_LNET_NIDSTR_SIZE * 2,
-		 "%s%d", local_addr, (int)csb->csb_tmid);
-	M0_LOG(M0_DEBUG, "local ep is %s", laddr);
-	csb->csb_laddr = laddr;
-	xprt =  csb->csb_xprt;
-	ndom = &csb->csb_ndom;
+		snprintf(laddr, M0_NET_LNET_NIDSTR_SIZE * 2,
+		         "%s%d", local_addr, (int)csb->csb_tmid);
+		M0_LOG(M0_DEBUG, "local ep is %s", laddr);
+		csb->csb_laddr = laddr;
+	}
+	csb->csb_xprt  = &m0_net_lnet_xprt;
+	xprt           =  csb->csb_xprt;
+	ndom           = &csb->csb_ndom;
 
 	rc = m0_net_domain_init(ndom, xprt);
 	if (rc != 0) {
 		csb->csb_laddr = NULL;
-		m0_free(laddr);
-		m0_mutex_lock(&m0t1fs_mutex);
-		m0_bitmap_set(&m0t1fs_client_ep_tmid, csb->csb_tmid, false);
-		m0_mutex_unlock(&m0t1fs_mutex);
+		if (ep == NULL) {
+			m0_free(laddr);
+			m0_mutex_lock(&m0t1fs_mutex);
+			m0_bitmap_set(&m0t1fs_client_ep_tmid,
+				      csb->csb_tmid, false);
+			m0_mutex_unlock(&m0t1fs_mutex);
+		}
 	}
 	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
@@ -540,12 +556,12 @@ void m0t1fs_net_fini(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
-int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
+int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep)
 {
 	struct m0_rpc_machine     *rpc_machine = &csb->csb_rpc_machine;
 	struct m0_reqh            *reqh        = &csb->csb_reqh;
 	struct m0_net_domain      *ndom        = &csb->csb_ndom;
-	const char                *laddr       =  csb->csb_laddr;
+	const char                *laddr;
 	struct m0_net_buffer_pool *buffer_pool = &csb->csb_buffer_pool;
 	struct m0_net_transfer_mc *tm;
 	int                        rc;
@@ -575,6 +591,7 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 				  M0_CONF_PROCESS_TYPE.cot_ftype.ft_id, 0, 0));
 	if (rc != 0)
 		goto pool_fini;
+	laddr = ep == NULL ? csb->csb_laddr : ep;
 	rc = m0_rpc_machine_init(rpc_machine, ndom, laddr, reqh,
 				 buffer_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
@@ -656,11 +673,11 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	M0_ENTRY();
 	M0_PRE(csb->csb_astthread.t_state == TS_RUNNING);
 
-	rc = m0t1fs_net_init(csb);
+	rc = m0t1fs_net_init(csb, mops->mo_ep);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0t1fs_rpc_init(csb);
+	rc = m0t1fs_rpc_init(csb, mops->mo_ep);
 	if (rc != 0)
 		goto err_net_fini;
 
