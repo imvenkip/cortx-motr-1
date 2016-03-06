@@ -85,6 +85,9 @@ M0_INTERNAL char *
 m0_vsnprintf(char *buf, size_t buflen, const char *format, ...)
 	__attribute__((format (printf, 3, 4)));
 
+/** Returns true iff `str' starts with the specified `prefix'. */
+M0_INTERNAL bool m0_startswith(const char *prefix, const char *str);
+
 #endif /* __MERO_LIB_STRING_H__ */
 
 /*

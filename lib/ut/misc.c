@@ -22,8 +22,9 @@
 #  include "config.h"
 #endif
 
-#include "ut/ut.h"	/* M0_UT_ASSERT */
-#include "lib/types.h"	/* m0_uint128 */
+#include "lib/types.h"   /* m0_uint128 */
+#include "lib/string.h"  /* m0_startswith */
+#include "ut/ut.h"       /* M0_UT_ASSERT */
 
 static const struct m0_uint128 zero     = M0_UINT128(0, 0);
 static const struct m0_uint128 one      = M0_UINT128(0, 1);
@@ -112,10 +113,23 @@ static void test_forall_exists(void)
 	M0_UT_ASSERT(!m0_exists(i, sizeof s, s[i] == 'a'));
 }
 
+static void test_str_startswith(void)
+{
+	const char s[] = "foobar";
+
+	M0_UT_ASSERT(m0_startswith("foo", s));
+	M0_UT_ASSERT(m0_startswith("f", s));
+	M0_UT_ASSERT(!m0_startswith("bar", s));
+	M0_UT_ASSERT(!m0_startswith("foobarbaz", s));
+	M0_UT_ASSERT(m0_startswith("", s));
+	M0_UT_ASSERT(m0_startswith("", ""));
+}
+
 void m0_test_misc(void)
 {
 	uint128_add_ut();
 	uint128_mul_ut();
+	test_str_startswith();
 	test_forall_exists();
 }
 

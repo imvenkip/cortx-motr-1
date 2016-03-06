@@ -93,6 +93,13 @@ m0_vsnprintf(char *buf, size_t buflen, const char *format, ...)
 	return buf;
 }
 
+M0_INTERNAL bool m0_startswith(const char *prefix, const char *str)
+{
+	size_t len_pre = strlen(prefix);
+
+	return len_pre <= strlen(str) && strncmp(prefix, str, len_pre) == 0;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*
