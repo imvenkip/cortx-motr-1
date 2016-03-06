@@ -728,7 +728,9 @@ m0_rpc_machine_find_conn(const struct m0_rpc_machine *machine,
 		}
 	} m0_tl_endfor;
 
-	M0_LEAVE("conn: %p", conn);
+	M0_LEAVE("item=%p conn=%p use_uuid=%d header->osr_uuid="U128X_F" "
+	         "header->osr_sender_id=%"PRIu64, item, conn, !!use_uuid,
+		 U128_P(&header->osr_uuid), header->osr_sender_id);
 	return conn;
 }
 
