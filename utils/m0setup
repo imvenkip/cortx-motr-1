@@ -10,7 +10,7 @@
 # constants
 readonly PROG_NAME=$(basename $0)
 readonly self=$(readlink -f $0)
-readonly top_srcdir=$(dirname $self | sed -r -e 's#/?utils/?$##' -e 's#^/usr/s?bin##')
+readonly base_dir=$(dirname $self)
 readonly etc_mero_dir='/etc/mero'
 
 # variables
@@ -139,11 +139,7 @@ die()
 
 path_of()
 {
-    if [[ -z $top_srcdir ]] ; then
-        echo "$1"
-    else
-        echo "$top_srcdir/utils/$1"
-    fi
+    echo "$base_dir/$1"
 }
 
 init_loop_devices()
