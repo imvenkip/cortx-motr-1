@@ -671,17 +671,15 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	struct m0_reqh_service_ctx  *ctx;
 	const char                 **endpoint;
 	int                          rc = 0;
+	bool                         connect;
 
 	M0_PRE(M0_CONF_SVC_TYPE_IS_VALID(cs->cs_type));
 	M0_PRE((pc->pc_rmach != NULL) == services_connect);
 
+	connect = cs->cs_obj.co_ha_state == M0_NC_ONLINE && services_connect;
 	for (endpoint = cs->cs_endpoints; *endpoint != NULL; ++endpoint) {
 		rc = m0_reqh_service_ctx_create(&cs->cs_obj, cs->cs_type, &ctx);
-		/*
-		 * TODO Don't connect to a service with state != M0_NC_ONLINE.
-		 * See MERO-1465.
-		 */
-		if (rc == 0 && services_connect) {
+		if (rc == 0 && connect) {
 			rc = m0_reqh_service_connect(ctx, pc->pc_rmach,
 					*endpoint, POOL_MAX_RPC_NR_IN_FLIGHT);
 			if (rc != 0)
@@ -689,7 +687,7 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 		}
 		if (rc != 0)
 			return M0_ERR(rc);
-		ctx->sc_is_connected = services_connect;
+		ctx->sc_is_connected = connect;
 		ctx->sc_pc = pc;
 		pools_common_svc_ctx_tlink_init_at_tail(ctx, &pc->pc_svc_ctxs);
 		/*

@@ -568,16 +568,13 @@ static uint64_t default_layout_id_get(struct m0t1fs_sb *csb)
 	int                        i;
 	uint64_t                   lid;
 	const uint64_t             FS_LID_INDEX = 1;
-	struct m0_conf_obj        *cobj = NULL;
-	const struct m0_fid        fsid = M0_FID_TINIT('f', 1, 1);
+	struct m0_reqh            *reqh = &csb->csb_reqh;
 	struct m0_conf_filesystem *fs;
 
 	M0_ENTRY();
 
-	rc = m0_conf_obj_find_lock(&m0_csb2confc(csb)->cc_cache, &fsid, &cobj);
+	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
 	if (rc == 0) {
-		fs = M0_CONF_CAST(cobj, m0_conf_filesystem);
-
 		/* TODO move the warning to the mount time */
 		if (fs->cf_params == NULL)
 			M0_LOG(M0_WARN, "fs->cf_params == NULL");
@@ -590,11 +587,12 @@ static uint64_t default_layout_id_get(struct m0t1fs_sb *csb)
 				       fs->cf_params[i], lid);
 
 				M0_LEAVE();
+				m0_confc_close(&fs->cf_obj);
 				return lid;
 			}
 		}
 	}
-
+	m0_confc_close(&fs->cf_obj);
 	M0_LEAVE();
 
 	return M0_DEFAULT_LAYOUT_ID;

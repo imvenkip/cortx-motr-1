@@ -34,7 +34,8 @@ struct conf_ut_ast  g_ast;
 /* Filters out intermediate state transitions of m0_confc_ctx::fc_mach. */
 static bool _filter(struct m0_clink *link)
 {
-	return !m0_confc_ctx_is_completed(&container_of(link, struct conf_ut_waiter,
+	return !m0_confc_ctx_is_completed(&container_of(link,
+							struct conf_ut_waiter,
 							w_clink)->w_ctx);
 }
 

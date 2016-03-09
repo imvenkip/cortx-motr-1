@@ -45,9 +45,11 @@ M0_INTERNAL int conf_ut_ast_thread_init(void);
 
 M0_INTERNAL int conf_ut_ast_thread_fini(void);
 
-M0_INTERNAL void conf_ut_waiter_init(struct conf_ut_waiter *w, struct m0_confc *confc);
+M0_INTERNAL void conf_ut_waiter_init(struct conf_ut_waiter *w,
+				     struct m0_confc *confc);
 M0_INTERNAL void conf_ut_waiter_fini(struct conf_ut_waiter *w);
-M0_INTERNAL int conf_ut_waiter_wait(struct conf_ut_waiter *w, struct m0_conf_obj **result);
+M0_INTERNAL int conf_ut_waiter_wait(struct conf_ut_waiter *w,
+				    struct m0_conf_obj **result);
 
 extern struct m0_sm_group  g_grp;
 extern struct m0_net_xprt *g_xprt;
