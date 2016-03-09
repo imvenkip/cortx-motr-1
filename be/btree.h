@@ -293,14 +293,15 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *tree,
  * m0_be_btree_release() will capture the region data lies in.
  */
 struct m0_be_btree_anchor {
+	struct m0_be_btree *ba_tree;
 	 /**
 	  * A value, accessed through m0_be_btree_lookup_inplace(),
 	  * m0_be_btree_insert_inplace(), m0_be_btree_update_inplace()
 	  */
-	struct m0_buf ba_value;
+	struct m0_buf       ba_value;
 
 	/** Is write lock being held? */
-	bool          ba_write;
+	bool                ba_write;
 };
 
 /**
@@ -321,7 +322,7 @@ struct m0_be_btree_anchor {
  *         m0_be_op_wait(op);
  *
  *         update(anchor->ba_value.b_addr);
- *         m0_be_btree_release(tree, anchor);
+ *         m0_be_btree_release(anchor);
  *         ...
  *         m0_be_tx_close(tx);
  * @endcode
@@ -360,9 +361,8 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
  * Completes m0_be_btree_*_inplace() operation by capturing all affected
  * regions with m0_be_tx_capture() and unlocking m0_be_btree::bb_lock.
  */
-M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *tree,
-				     struct m0_be_tx                 *tx,
-				     const struct m0_be_btree_anchor *anchor);
+M0_INTERNAL void m0_be_btree_release(struct m0_be_tx           *tx,
+				     struct m0_be_btree_anchor *anchor);
 
 /* ------------------------------------------------------------------
  * Btree cursor

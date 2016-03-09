@@ -162,7 +162,7 @@ btree_insert_inplace(struct m0_be_btree *t, struct m0_buf *k, int v)
 							  k, &anchor));
 	/* update value */
 	sprintf(anchor.ba_value.b_addr, "%03d", v);
-	m0_be_btree_release(t, tx, &anchor);
+	m0_be_btree_release(tx, &anchor);
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -536,7 +536,7 @@ static void check(struct m0_be_btree *tree)
 		else
 			M0_UT_ASSERT(strcmp(val.b_addr, k) == 0);
 
-		m0_be_btree_release(tree, NULL, &anchor);
+		m0_be_btree_release(NULL, &anchor);
 	}
 
 	M0_SET0(op);
