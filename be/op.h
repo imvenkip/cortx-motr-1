@@ -51,6 +51,7 @@ struct m0_be_btree_anchor;
 struct m0_be_op;
 
 enum m0_be_op_state {
+	M0_BOS_INVALID,
 	M0_BOS_INIT,
 	M0_BOS_ACTIVE,
 	M0_BOS_DONE,
