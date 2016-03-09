@@ -84,8 +84,8 @@ struct m0_be_emap_rec {
 };
 
 /**
-   m0_be_emap stores a collection of related extent maps. Individual maps within a
-   collection are identified by a prefix.
+   m0_be_emap stores a collection of related extent maps. Individual maps
+   within a collection are identified by a prefix.
 
    @see m0_be_emap_obj_insert()
  */
