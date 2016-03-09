@@ -404,12 +404,21 @@ enum m0_be_emap_optype {
  *
  * @note in case of M0_BEO_SPLIT @nr is the number of split parts.
  */
-M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
+M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *emap,
 				   enum m0_be_emap_optype  optype,
 				   m0_bcount_t             nr,
 				   struct m0_be_tx_credit *accum);
 
-M0_INTERNAL struct m0_be_domain *m0_be_emap_seg_domain(const struct m0_be_emap *map);
+M0_INTERNAL
+struct m0_be_domain *m0_be_emap_seg_domain(const struct m0_be_emap *emap);
+
+/*
+ * Dumps the number of cobs and segments from the @emap
+ * into the trace logs. Note, on large amount of data
+ * when BE segment does not fit into available RAM this
+ * may generate a lot of I/O because of page-ins.
+ */
+M0_INTERNAL int m0_be_emap_dump(struct m0_be_emap *emap);
 
 /** @} end group extmap */
 

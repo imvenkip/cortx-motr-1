@@ -152,6 +152,51 @@ static void emap_dump(struct m0_be_emap_cursor *it)
 	m0_rwlock_read_unlock(emap_rwlock(it->ec_map));
 }
 
+M0_INTERNAL int m0_be_emap_dump(struct m0_be_emap *map)
+{
+	struct m0_be_emap_cursor it;
+	struct m0_be_emap_seg *seg;
+	m0_bcount_t            nr_segs = 0;
+	m0_bcount_t            nr_cobs = 0;
+	int                    rc = 0;
+	struct m0_uint128      prefix;
+
+	m0_rwlock_read_lock(emap_rwlock(map));
+
+	prefix = M0_UINT128(0, 0);
+	rc = be_emap_lookup(map, &prefix, 0, &it);
+	if (rc == -ESRCH) {
+		prefix = it.ec_seg.ee_pre;
+		rc = be_emap_lookup(map, &prefix, 0, &it);
+	}
+	if (rc != 0) {
+		m0_rwlock_read_unlock(emap_rwlock(map));
+		return M0_ERR(rc);
+	}
+
+	do {
+		seg = m0_be_emap_seg_get(&it);
+		M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
+			  !m0_ext_is_empty(&seg->ee_ext));
+		++nr_segs;
+		if (m0_be_emap_ext_is_last(&seg->ee_ext))
+			++nr_cobs;
+		rc = be_emap_next(&it);
+	} while (rc == 0 || rc == -ESRCH);
+
+	be_emap_close(&it);
+
+	m0_rwlock_read_unlock(emap_rwlock(map));
+
+	M0_LOG(M0_DEBUG, "%p %"PRIx64" %u %lu", map,
+	       seg->ee_pre.u_hi, (unsigned)nr_cobs, (unsigned long)nr_segs);
+
+	if (rc == -ENOENT)
+		return M0_RC(0);
+	else
+		return M0_ERR(rc);
+}
+
 static void delete_wrapper(struct m0_be_btree *btree, struct m0_be_tx *tx,
 			   struct m0_be_op *op, const struct m0_buf *key,
 			   const struct m0_buf *val)
@@ -228,7 +273,8 @@ M0_INTERNAL int m0_be_emap_op_rc(const struct m0_be_emap_cursor *it)
 	return it->ec_op.bo_u.u_emap.e_rc;
 }
 
-M0_INTERNAL struct m0_be_domain *m0_be_emap_seg_domain(const struct m0_be_emap *map)
+M0_INTERNAL
+struct m0_be_domain *m0_be_emap_seg_domain(const struct m0_be_emap *map)
 {
 	return map->em_seg->bs_domain;
 }
