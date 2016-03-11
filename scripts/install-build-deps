@@ -237,9 +237,10 @@ check_epel_repository()
 {
     echo -n 'Checking EPEL repository...'
 
-    if yum repolist all |& grep -qi '\<epel\>'; then
+    if yum repolist |& grep -qi '\<epel\>'; then
         echo '   [PRESENT]'
-        yum_opts+=' --enablerepo=epel '
+	local epel_repo=$(yum repolist |& grep -oP '\S+epel\S+')
+        yum_opts+=" --enablerepo=$epel_repo "
         if yum repolist all |& grep -qi '\<fedora-epel\>'; then
             yum_opts+=' --enablerepo=fedora-epel '
         fi
