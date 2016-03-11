@@ -42,6 +42,7 @@
 #include "lib/atomic.h"
 #include "lib/errno.h"            /* ENOMEM */
 #include "lib/memory.h"           /* m0_free0 */
+#include "lib/uuid.h"             /* m0_node_uuid_string_set */
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -361,6 +362,13 @@ int main(int argc, char *argv[])
 	}
 
 	tests_add(ut);
+
+	/*
+	 * don't require m0mero.ko module to be loaded if we just want to parse
+	 * trace logs
+	 */
+	if (parse_trace)
+		m0_node_uuid_string_set(NULL);
 
 	rc = m0_ut_init(&instance);
 	if (rc != 0)

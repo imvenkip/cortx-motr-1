@@ -653,7 +653,11 @@ sub locate_m0_binary
         ($binary_path = $PROGRAM_NAME) =~ s# $basename $ #$binary_name#xms;
 
         if ( ! -x $binary_path ) {
-            $binary_path = which($binary_name);
+            $binary_path =~ s# /trace(?=/) ##xms;
+
+            if ( ! -x $binary_path ) {
+                $binary_path = which($binary_name);
+            }
         }
     }
     else
@@ -729,6 +733,7 @@ sub prepare_input_file
             $cli_option{module_image} = $module_img;
         }
 
+        my $m0ut        = locate_m0_binary('m0ut');
         my $m0traced    = locate_m0_binary('m0traced');
         my $m0tracedump = locate_m0_binary('m0tracedump');
         my $dump_opt    = defined $cli_option{module_image}
@@ -744,7 +749,9 @@ sub prepare_input_file
                           . "| $m0tracedump -s $dump_opt |";
         }
         elsif ($cli_option{stream_mode}) {
-            $input_file = "$m0tracedump -s $dump_opt -i $cli_option{input_file} |";
+            $input_file = $cli_option{input_file} =~ m#m0ut/m0trace#xms ?
+                              "$m0ut -T < $cli_option{input_file} |"
+                            : "$m0tracedump -s $dump_opt -i $cli_option{input_file} |";
         }
         else {
             my $temp_file = create_tempfile_for( $cli_option{input_file} );
@@ -868,8 +875,8 @@ sub process_cli_options
             default {
                 die "Unknown type of requested trace log: '$ARGV[0]',"
                     . " supported values should match pattern:"
-                    . " '<kernel|confd|ha|rms*|mds*|ios*>[-buf]', for example 'confd',"
-                    . " 'mds-buf', 'ios2', 'ios2-buf'\n";
+                    . " '<kernel|confd|ha|rms*|mds*|ios*|m0d-*>[-buf]',"
+                    . " for example 'confd', 'mds-buf', 'ios2', 'ios2-buf'\n";
             }
         }
 
