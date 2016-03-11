@@ -67,7 +67,6 @@ enum m0_fom_standard_phase {
 	M0_FOPH_TXN_INIT,           /*< init local transactional context. */
 	M0_FOPH_TXN_OPEN,           /*< open local transactional context. */
 	M0_FOPH_TXN_WAIT,           /*< waiting for log space. */
-	M0_FOPH_TXN_OPEN_FAILED,    /*< failed to open transaction. */
 	M0_FOPH_SUCCESS,            /*< fom execution completed successfully. */
 	M0_FOPH_FOL_REC_ADD,        /*< add a FOL transaction record. */
 	M0_FOPH_TXN_COMMIT,         /*< commit local transaction context. */
