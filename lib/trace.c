@@ -772,7 +772,7 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
 	const struct m0_trace_descr *td = trh->trh_descr;
 	m0_trace_rec_args_t          args;
 	const char                  *td_fmt;
-	static char                  msg_buf[8 * 1024]; /* 8 KB */
+	static char                  msg_buf[128 * 1024]; /* 128 KB */
 	size_t                       outbuf_used = 0;
 	int                          rc;
 
