@@ -542,7 +542,8 @@ struct m0_dtm {
 };
 
 enum m0_dtx_state {
-	M0_DTX_INIT = 1,
+	M0_DTX_INVALID,
+	M0_DTX_INIT,
 	M0_DTX_OPEN,
 	M0_DTX_DONE
 };
