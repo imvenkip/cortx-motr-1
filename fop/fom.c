@@ -630,6 +630,11 @@ static void fom_exec(struct m0_fom *fom)
 		M0_ASSERT(m0_fom_invariant(fom));
 		M0_ASSERT(m0_fom_phase(fom) != M0_FOM_PHASE_FINISH);
 		rc = fom->fo_ops->fo_tick(fom);
+		if (FOM_PHASE_DEBUG) {
+			fom->fo_log[fom->fo_transitions %
+				    ARRAY_SIZE(fom->fo_log)] =
+				m0_fom_phase(fom);
+		}
 		/*
 		 * (rc == M0_FSO_AGAIN) means that next phase transition is
 		 * possible. Current policy is to execute the transition

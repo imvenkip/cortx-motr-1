@@ -231,6 +231,8 @@ struct m0_long_lock;
 /* defined in fom.c */
 struct m0_loc_thread;
 
+#define FOM_PHASE_DEBUG (1)
+
 /**
  * A locality is a partition of computational resources dedicated to fom
  * execution on the node.
@@ -523,6 +525,9 @@ struct m0_fom {
 	 * Stack of pending call-backs.
 	 */
 	struct m0_fom_callback   *fo_pending;
+#if FOM_PHASE_DEBUG
+	int                       fo_log[32];
+#endif
 	uint64_t                  fo_magic;
 };
 
