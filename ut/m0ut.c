@@ -380,7 +380,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (parse_trace) {
-		rc = m0_trace_parse(stdin, stdout, false, false, NULL);
+		rc = m0_trace_parse(stdin, stdout, true, false, NULL);
 		goto ut_fini;
 	}
 
