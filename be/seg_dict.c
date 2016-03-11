@@ -38,6 +38,15 @@
 
 #define BUF_INIT_STR(str) M0_BUF_INIT(strlen(str)+1, (str))
 
+/**
+ * Invalid credit structure used to forcibly fail a transaction.
+ *
+ * This is declared here rather than in credit.c so that this symbol exists in
+ * the kernel build.
+ */
+const struct m0_be_tx_credit m0_be_tx_credit_invalid =
+	M0_BE_TX_CREDIT(M0_BCOUNT_MAX, M0_BCOUNT_MAX);
+
 static m0_bcount_t dict_ksize(const void *key)
 {
 	return strlen(key)+1;
