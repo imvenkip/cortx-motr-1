@@ -326,11 +326,25 @@ static void generic_reply_build(struct m0_fom *fom)
  */
 static int fom_failure(struct m0_fom *fom)
 {
-	int rc = m0_fom_rc(fom);
+	int            rc = m0_fom_rc(fom);
+	struct m0_dtx *tx = &fom->fo_tx;
 
 	if (rc != 0) {
 		M0_LOG(M0_NOTICE, "fom_rc=%d", rc);
 		generic_reply_build(fom);
+	}
+	/*
+	 * If transaction was initialised, but not opened, finalise it.
+	 */
+	if (tx->tx_state == M0_DTX_INIT) {
+		struct m0_be_tx *betx = &tx->tx_betx;
+		/**
+		 * @todo hack to move be transaction into FAILED state, so that
+		 * it can be finalised.
+		 */
+		m0_be_tx_prep(betx, &m0_be_tx_credit_invalid);
+		m0_be_tx_open(betx);
+		m0_dtx_fini(tx);
 	}
 	return M0_FSO_AGAIN;
 }
@@ -639,6 +653,7 @@ static struct m0_sm_state_descr generic_phases[] = {
 					M0_FOPH_FINISH)
 	}
 };
+
 struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 	{"initialised",     M0_FOPH_INIT,   M0_FOPH_AUTHENTICATE},
 	{"finished",        M0_FOPH_INIT,   M0_FOPH_FINISH},
