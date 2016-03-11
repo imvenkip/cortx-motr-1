@@ -38,11 +38,15 @@ declare -rA RPM_PACKAGE=(
     [yaml-dev]='libyaml-devel'
     [lustre]='lustre-client-devel'
     [asciidoc]='asciidoc'
-    [genders]='genders'
     [uuid-dev]='libuuid-devel'
     [systemd-dev]='systemd-devel'
-    [expect]='expect'
     [rpmbuild]='rpm-build'
+    # tests / runtime
+    [expect]='expect'
+    [genders]='genders'
+    [setattr]='attr'
+    [time]='time'
+    [killall]='psmisc'
 )
 
 declare -rA DEB_PACKAGE=(
