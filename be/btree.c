@@ -1694,6 +1694,7 @@ M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cur,
 
 M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor)
 {
+	cursor->bc_tree = NULL;
 }
 
 M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
@@ -1883,6 +1884,7 @@ M0_INTERNAL int m0_be_btree_cursor_prev_sync(struct m0_be_btree_cursor *cur)
 
 M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor)
 {
+	cursor->bc_node = NULL;
 }
 
 M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
