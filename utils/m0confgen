@@ -16,6 +16,8 @@ import unittest
 import sys
 from errno import EPIPE
 
+__version__ = '1.5'
+
 __all__ = ['conf_objs_encode', 'conf_obj_encode']
 
 __doc__ = """Configuration string generator.
@@ -184,26 +186,35 @@ Expected {} attributes, got {}""".format(objid[0], len(expected), len(actual)))
             raise Error(msg)
 
 
-def conf_obj_encode(obj, from_xcode=False):
-    _check_attrs(obj, from_xcode)
-    objid, attrs = obj
-    otype = conf_obj_types[objid[0]]
-    if from_xcode:
-        return '(%s %s)' % (conf_fid_encode(objid, from_xcode=True),
-                            ' '.join(['%s=%s' % (a.name,
-                                                 a.encode(v, from_xcode=True))
-                                      for v, a in zip(attrs, otype.attrs)]))
-    return '{0x%x| ((%s), %s)}' % (
-        ord(otype.ft_id), conf_fid_encode(objid),
-        ', '.join([a.encode(attrs[a.name]) for a in otype.attrs]))
-
-
-def conf_obj_dot(obj, from_xcode=False):
+def conf_obj_encode(obj, from_xcode=False, enc=None):
     _check_attrs(obj, from_xcode)
     objid, attrs = obj
     otype = conf_obj_types[objid[0]]
     if from_xcode:
         attrs = dict([(a.name, v) for v, a in zip(attrs, otype.attrs)])
+
+    if enc is None:
+        enc = encode_from_xcode if from_xcode else encode_to_xcode
+    else:
+        assert callable(enc)
+    return enc(objid, attrs, otype)
+
+
+def encode_to_xcode(objid, attrs, otype):
+    return '{0x%x| ((%s), %s)}' % (
+        ord(otype.ft_id), conf_fid_encode(objid),
+        ', '.join([a.encode(attrs[a.name]) for a in otype.attrs]))
+
+
+def encode_from_xcode(objid, attrs, otype):
+        return '(%s %s)' % (
+            conf_fid_encode(objid, from_xcode=True),
+            ' '.join(['%s=%s' % (a.name,
+                                 a.encode(attrs[a.name], from_xcode=True))
+                      for a in otype.attrs]))
+
+
+def encode_to_dot(objid, attrs, otype):
     indent = ' '*4
     fid = conf_fid_encode(objid, from_xcode=True)
     s = ''
@@ -213,7 +224,7 @@ def conf_obj_dot(obj, from_xcode=False):
         if type(attrs[a.name]) is list:
             ## directory
             dir_id = 'dir_%s_%s' % (fid, a.name)
-            s += """
+            s += """\
 {indent}"{dir_id}" [height=0.15, width=0.15, label=""];
 {indent}"{fid}" -> "{dir_id}" [label={relation}];
 """.format(indent=indent, dir_id=dir_id, fid=fid, relation=a.name)
@@ -224,7 +235,7 @@ def conf_obj_dot(obj, from_xcode=False):
            fid=conf_fid_encode(objid, from_xcode=True))
         else:
             ## not a directory
-            s += """
+            s += """\
 {indent}"{fid}" -> "{target}" [label={relation}];
 """.format(indent=indent, fid=fid,
            target=conf_fid_encode(attrs[a.name], from_xcode=True),
@@ -232,30 +243,94 @@ def conf_obj_dot(obj, from_xcode=False):
     return s
 
 
+def encode_to_dot_simplified(objid, attrs, otype):
+    if objid[0] not in ('node', 'process', 'service'):
+        return
+    indent = ' '*4
+    fid = conf_fid_encode(objid, from_xcode=True)
+    s = ''
+    xlabel = dot_simplified_xlabel(objid[0], attrs)
+    if xlabel:
+        s += """\
+{indent}"{fid}" [label="{fid}\\n{xlabel}"];
+""".format(indent=indent, fid=fid, xlabel=xlabel)
+    if objid[0] == 'service':
+        return s # leaf level
+    for a in otype.attrs:
+        if not a.visualize_p:
+            continue
+        if type(attrs[a.name]) is list:
+            ## directory
+            for objid in attrs[a.name]:
+                s += """\
+{indent}"{parent}" -> "{child}";
+""".format(indent=indent, parent=fid,
+           child=conf_fid_encode(objid, from_xcode=True))
+        else:
+            ## not a directory
+            s += """\
+{indent}"{fid}" -> "{target}" [label={relation}];
+""".format(indent=indent, fid=fid,
+           target=conf_fid_encode(attrs[a.name], from_xcode=True),
+           relation=a.name)
+    return s
+
+
+## See m0_conf_service_type.
+conf_service_types = (
+    'MDS', # = 1
+    'IOS', 'MGS', 'RMS', 'STS', 'HA', 'SSS', 'SNS_REP', 'SNS_REB', 'ADDB2',
+    '_DS1', '_DS2' # UT-specific
+)
+
+def dot_simplified_xlabel(objtype, attrs):
+    if objtype == 'process':
+        return attrs['endpoint']
+    if objtype == 'service':
+        t = attrs['type']
+        if 0 < t <= len(conf_service_types):
+            s = conf_service_types[t-1]
+        else:
+            s = '?%d?' % t
+        if attrs['sdevs']:
+            return '%s, %u sdevs' % (s, len(attrs['sdevs']))
+        return s
+    assert objtype == 'node'
+
+
 def all_unique(xs):
     """Returns True iff all entries of the sequence are unique."""
     return len(xs) == len(set(xs))
 
 
-def conf_objs_encode(objs, from_xcode=False):
-    if not all_unique([objid for objid, _ in objs]):
-        xs = [objid for objid, _ in objs]
+def check_ids(xs):
+    if not all_unique(xs):
         duplicates = set([x for x in xs if xs.count(x) > 1])
         assert duplicates
         raise Error('Duplicated identifier%s: %s' % (
             's' if len(duplicates) > 1 else '',
             ', '.join(map(str, duplicates))))
-    objs = map(lambda obj: conf_obj_encode(obj, from_xcode=from_xcode), objs)
+
+
+def conf_objs_encode(objs, from_xcode=False, enc=None):
+    check_ids([objid for objid, _ in objs])
+    objs = map(lambda obj: conf_obj_encode(obj, from_xcode=from_xcode, enc=enc),
+               objs)
+    if enc is not None:
+        return '\n'.join(filter(None, objs))
     return '\n'.join(objs) if from_xcode else list_encode(objs, sep='\n ')
 
 
-def conf_objs_dot(objs, from_xcode=False):
-    assert all_unique([objid for objid, _ in objs])
+def conf_objs_encode_to_dot(objs, from_xcode=False, mode='full'):
+    enc = {
+        'full': encode_to_dot,
+        'simplified': encode_to_dot_simplified
+    }[mode]
     return """\
 digraph x {
     edge [arrowhead=open, fontsize=11];
-%s}""" % ''.join(map(lambda obj: conf_obj_dot(obj, from_xcode=from_xcode),
-                     objs))
+
+%s}""" % conf_objs_encode(objs, from_xcode, enc)
 
 
 quote = lambda s, from_xcode=False: '"%s"' % s
@@ -825,58 +900,62 @@ Expected 2 attributes, got 3""", conf_obj_encode,
                          from_xcode=True)
 
     def test_dot(self):
-        self.assertEqual(conf_obj_dot(
+        self.assertEqual(conf_obj_encode(
             (('root', 0),
-             dict(verno=1, profiles=[('profile', 0), ('profile', (2, 3))]))),
-                         """
+             dict(verno=1, profiles=[('profile', 0), ('profile', (2, 3))])),
+            enc=encode_to_dot),
+                         """\
     "dir_root-0_profiles" [height=0.15, width=0.15, label=""];
     "root-0" -> "dir_root-0_profiles" [label=profiles];
     "dir_root-0_profiles" -> "profile-0";
     "dir_root-0_profiles" -> "profile-2:3";
 """)
-        self.assertEqual(conf_obj_dot((('profile', (2, 3)),
-                                       dict(filesystem=('filesystem', 1)))),
-                         """
+        self.assertEqual(conf_obj_encode((('profile', (2, 3)),
+                                          dict(filesystem=('filesystem', 1))),
+                                         enc=encode_to_dot),
+                         """\
     "profile-2:3" -> "filesystem-1" [label=filesystem];
 """)
-        self.assertEqual(conf_obj_dot(
+        self.assertEqual(conf_obj_encode(
             (('filesystem', 1),
              dict(rootfid=(11, 22), redundancy=41212, params=["param-0"],
                   mdpool=('pool', 4), nodes=[('node', 1), ('node', (2, 3))],
-                  pools=[('pool', 4)], racks=[('rack', 5)]))),
-                         """
+                  pools=[('pool', 4)], racks=[('rack', 5)])),
+            enc=encode_to_dot),
+                         """\
     "dir_filesystem-1_nodes" [height=0.15, width=0.15, label=""];
     "filesystem-1" -> "dir_filesystem-1_nodes" [label=nodes];
     "dir_filesystem-1_nodes" -> "node-1";
     "dir_filesystem-1_nodes" -> "node-2:3";
-
     "dir_filesystem-1_pools" [height=0.15, width=0.15, label=""];
     "filesystem-1" -> "dir_filesystem-1_pools" [label=pools];
     "dir_filesystem-1_pools" -> "pool-4";
-
     "dir_filesystem-1_racks" [height=0.15, width=0.15, label=""];
     "filesystem-1" -> "dir_filesystem-1_racks" [label=racks];
     "dir_filesystem-1_racks" -> "rack-5";
 """)
-        self.assertEqual(conf_obj_dot(
-            (('objv', 19), dict(real=('disk', 16), children=[]))),
-                         """
+        self.assertEqual(conf_obj_encode(
+            (('objv', 19), dict(real=('disk', 16), children=[])),
+            enc=encode_to_dot),
+                         """\
     "dir_objv-19_children" [height=0.15, width=0.15, label=""];
     "objv-19" -> "dir_objv-19_children" [label=children];
 """)
-        self.assertEqual(conf_obj_dot(
-            (('root', 0), [1, [('profile', (2, 3))]]), from_xcode=True),
-                         """
+        self.assertEqual(conf_obj_encode(
+            (('root', 0), [1, [('profile', (2, 3))]]), from_xcode=True,
+            enc=encode_to_dot),
+                         """\
     "dir_root-0_profiles" [height=0.15, width=0.15, label=""];
     "root-0" -> "dir_root-0_profiles" [label=profiles];
     "dir_root-0_profiles" -> "profile-2:3";
 """)
-        self.assertEqual(conf_obj_dot(
-            (('profile', (2, 3)), [('filesystem', 1)]), from_xcode=True),
-                         """
+        self.assertEqual(conf_obj_encode(
+            (('profile', (2, 3)), [('filesystem', 1)]), from_xcode=True,
+            enc=encode_to_dot),
+                         """\
     "profile-2:3" -> "filesystem-1" [label=filesystem];
 """)
-        self.assertEqual(conf_objs_dot([
+        self.assertEqual(conf_objs_encode_to_dot([
             (('profile', (2, 3)), dict(filesystem=('filesystem', 1))),
             (('objv', 19), dict(real=('disk', 16), children=[]))]),
                          """\
@@ -888,6 +967,27 @@ digraph x {
     "dir_objv-19_children" [height=0.15, width=0.15, label=""];
     "objv-19" -> "dir_objv-19_children" [label=children];
 }""")
+
+    def test_custom_encoder(self):
+        def enc(objid, attrs, otype):
+            if objid[0] == 'node':
+                return repr(objid)
+
+        self.assertIsNone(conf_obj_encode(
+            (('root', 0), dict(verno=1, profiles=[('profile', 0)])),
+            enc=enc))
+        self.assertEqual(conf_obj_encode(
+            (('node', 14),
+             dict(memsize=64230, nr_cpu=20, last_state=0, flags=0,
+                  pool_id=('pool', 2), processes=[])),
+            enc=enc),
+                         "('node', 14)")
+        self.assertEqual(conf_objs_encode(
+            [(('root', 0), [1, [('profile', 0)]]),
+             (('node', 1), [64230, 20, 0, 0, ('pool', 1), []]),
+             (('node', 2), [64230, 20, 0, 0, ('pool', 2), []])],
+            from_xcode=True, enc=enc),
+                         "('node', 1)\n('node', 2)")
 
 
 class TestXCParser(unittest.TestCase):
@@ -943,11 +1043,12 @@ Length \(2\) != number of elements \(1\)""", self.parse,
 ### ------------------------------------------------------------------
 ### main
 
-def encode_and_print(s, from_xcode, dot_p):
+def encode_and_print(s, from_xcode, dot_mode):
     try:
         p = XCParser() if from_xcode else Parser()
-        if dot_p:
-            print(conf_objs_dot(p.parse(s), from_xcode=from_xcode))
+        if dot_mode:
+            print(conf_objs_encode_to_dot(p.parse(s), from_xcode=from_xcode,
+                                          mode=dot_mode))
         else:
             print(conf_objs_encode(p.parse(s), from_xcode=from_xcode))
     except Error, e:
@@ -964,13 +1065,21 @@ def main():
                       description='Generates configuration string in "xcode"'
                       ' format from its human-friendly description.',
                       epilog='  FILE    Input file. With no FILE, or when FILE'
-                      ' is -, read standard input.')
+                      ' is -, read standard input.',
+                      version='%prog ' + __version__)
     op.add_option('--help-format',
                   help='Print input format documentation and exit.',
                   action='store_true')
     op.add_option('-x', '--from-xcode', help='Convert conf string from "xcode"'
                   ' format to "confgen" format.', action='store_true')
-    op.add_option('--dot', help='Generate DOT output.', action='store_true')
+    op.add_option('--dot', help='Generate DOT output.' \
+                  " Supported MODEs: 'full' - all conf objects are shown;"
+                  " 'simplified' - only node, process and service objects are.",
+                  type='choice', choices=['full', 'simplified'], metavar='MODE')
+    op.add_option('--types', help='Print conf object types and exit.',
+                  action='store_true')
+    op.add_option('--svc-types', help='Print service types and exit.',
+                  action='store_true')
     op.add_option('--self-check', help='Run unit tests and exit.',
                   action='store_true')
     opts, args = op.parse_args()
@@ -979,6 +1088,15 @@ def main():
 
     if opts.help_format:
         print(input_format)
+        return
+    if opts.types:
+        for k, v in conf_obj_types.items():
+            print('{} {:#x} {}'.format(v.ft_id, ord(v.ft_id), k))
+        return
+    if opts.svc_types:
+        for i, s in enumerate(conf_service_types):
+            if not s.startswith('_'):
+                print('{} {}'.format(i+1, s))
         return
     if opts.self_check:
         unittest.main(argv=sys.argv[:1])
