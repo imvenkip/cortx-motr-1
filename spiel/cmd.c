@@ -1197,13 +1197,14 @@ static int spiel_pool_generic_handler(struct m0_spiel             *spl,
 				      const enum m0_sns_cm_op      cmd,
 				      struct m0_spiel_sns_status **statuses)
 {
-	int                   rc;
-	int                   service_count;
-	int                   index;
-	struct _pool_cmd_ctx  ctx;
-	struct m0_fid_item   *si;
-	bool                  cmd_status;
-	struct spiel_sns     *sns;
+	int                         rc;
+	int                         service_count;
+	int                         index;
+	struct _pool_cmd_ctx        ctx;
+	struct m0_fid_item         *si;
+	bool                        cmd_status;
+	struct m0_spiel_sns_status *sns_statuses = NULL;
+	struct spiel_sns           *sns;
 
 	M0_ENTRY();
 	M0_PRE(pool_fid != NULL);
@@ -1237,8 +1238,8 @@ static int spiel_pool_generic_handler(struct m0_spiel             *spl,
 		goto leave;
 	}
 	if (cmd_status) {
-		M0_ALLOC_ARR(*statuses, service_count);
-		if (*statuses == NULL) {
+		M0_ALLOC_ARR(sns_statuses, service_count);
+		if (sns_statuses == NULL) {
 			rc = -ENOMEM;
 			m0_free(sns);
 			goto leave;
@@ -1283,14 +1284,18 @@ static int spiel_pool_generic_handler(struct m0_spiel             *spl,
 	m0_tl_for (m0_fids, &ctx.pl_services_fid, si) {
 		rc = spiel__pool_cmd_status_get(&ctx, cmd, &sns[index]);
 		if (cmd_status)
-			*statuses[index] = sns[index].ss_status;
+			sns_statuses[index] = sns[index].ss_status;
 		++index;
 		if (rc != 0)
 			break;
 	} m0_tl_endfor;
 
-	if (rc == 0 && cmd_status)
+	if (rc == 0 && cmd_status) {
 		rc = index;
+		*statuses = sns_statuses;
+	} else
+		m0_free(sns_statuses);
+
 	m0_free(sns);
 leave:
 	spiel__pool_ctx_fini(&ctx);

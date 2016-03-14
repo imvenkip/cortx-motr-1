@@ -97,6 +97,8 @@ static int swu_start(struct m0_cm_sw_update *swu)
 	struct m0_fom  *fom = &swu->swu_fom;
 	int             rc;
 
+	M0_ENTRY();
+
 	m0_cm_lock(cm);
 	rc = m0_cm_sw_local_update(cm);
 	if (M0_IN(rc, (-ENOBUFS, -ENOENT, -ENODATA))) {
@@ -109,7 +111,7 @@ static int swu_start(struct m0_cm_sw_update *swu)
 	}
 	m0_cm_unlock(cm);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int swu_update(struct m0_cm_sw_update *swu)
@@ -181,6 +183,8 @@ M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm)
 {
 	struct m0_cm_sw_update *swu = &cm->cm_sw_update;
 	struct m0_fom          *fom = &swu->swu_fom;
+
+	M0_ENTRY();
 
 	swu->swu_is_complete = false;
 	m0_fom_init(&cm->cm_sw_update.swu_fom, &cm->cm_type->ct_swu_fomt,

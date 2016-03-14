@@ -373,6 +373,13 @@ M0_INTERNAL int m0_poolmach_event_post(struct m0_poolmach *pm, uint64_t dev_id,
 	}
 	return rc;
 }
+
+static bool disk_is_in(struct m0_tl *head, struct m0_pooldev *pd)
+{
+	return m0_tl_exists(pool_failed_devs, d, head,
+			    m0_fid_eq(&d->pd_id, &pd->pd_id));
+}
+
 /**
  * The state transition path:
  *
@@ -540,7 +547,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 			/* TODO add ADDB error message here */
 		}
 		pd = &state->pst_devices_array[event->pe_index];
-		if (!pool_failed_devs_tlink_is_in(pd))
+		if (!pool_failed_devs_tlink_is_in(pd) &&
+		    !disk_is_in(&pool->po_failed_devices, pd))
 			pool_failed_devs_tlist_add_tail(&pool->po_failed_devices, pd);
 		break;
 	case M0_PNDS_SNS_REPAIRING:

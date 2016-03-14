@@ -773,7 +773,6 @@ static int _rpc_post(struct m0_fop         *fop,
 	item->ri_session         = session;
 	item->ri_prio            = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline        = 0;
-	item->ri_resend_interval = M0_TIME_NEVER;
 
 	return m0_rpc_post(item);
 }

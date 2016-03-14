@@ -92,6 +92,7 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 	int                     i = 0;
 	int                     rc;
 
+	M0_ENTRY();
 	M0_ASSERT(scm->sc_op == SNS_REBALANCE);
 
 	if (cm->cm_quiesce || cm->cm_abort) {
@@ -137,6 +138,7 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 
 out:
 	m0_sns_cm_stop(cm);
+	M0_LEAVE();
 }
 
 /**

@@ -459,7 +459,7 @@ M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 	int                     rc;
 
 	M0_ENTRY("scm: %p", scm);
-	M0_ASSERT(mero->cc_pool_width > 0);
+	M0_ASSERT(pc->pc_nr_devices > 0);
 
 	if (!reqh->rh_oostore) {
 		scm->sc_rm_ctx.rc_rm_ctx = pc->pc_rm_ctx;
@@ -478,7 +478,7 @@ M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 				    &scm->sc_rm_ctx.rc_rt);
 	}
 
-	rc = m0_scmfctx_htable_init(&scm->sc_file_ctx, mero->cc_pool_width);
+	rc = m0_scmfctx_htable_init(&scm->sc_file_ctx, pc->pc_nr_devices);
 	if (rc != 0)
 		goto end;
 
@@ -654,15 +654,18 @@ M0_INTERNAL void m0_sns_cm_stop(struct m0_cm *cm)
 	size_t            loc_nr = m0_fom_dom()->fd_localities_nr;
 	int               i;
 
+	M0_ENTRY();
+
 	m0_sns_cm_iter_stop(&scm->sc_it);
 	scm->sc_stop_time = m0_time_now();
+
 	if (scm->sc_total_read_size != NULL &&
 	    scm->sc_total_write_size != NULL) {
 		for (i = 0; i < loc_nr; ++i) {
 			tread += scm->sc_total_read_size[i];
 			twrite += scm->sc_total_write_size[i];
 		}
-		M0_LOG(M0_INFO, "Time: %llu Read Size: %llu Write size: %llu",
+		M0_LOG(M0_DEBUG, "Time: %llu Read Size: %llu Write size: %llu",
 		       (unsigned long long)m0_time_sub(scm->sc_stop_time,
 						       scm->sc_start_time),
 		       (unsigned long long)tread, (unsigned long long)twrite);
@@ -673,6 +676,8 @@ M0_INTERNAL void m0_sns_cm_stop(struct m0_cm *cm)
 	m0_sns_cm_rm_fini(scm);
 	m0_sns_cm_ag_iter_fini(&scm->sc_ag_it);
 	sns_cm_buffer_pools_prune(scm);
+
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm)

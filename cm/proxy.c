@@ -189,6 +189,10 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	M0_PRE(pxy != NULL && lo != NULL && hi != NULL);
 
 	cm = pxy->px_cm;
+        M0_LOG(M0_DEBUG, "Recvd from :%s status: %u curr_status: %u"
+			 "nr_updates: %u", pxy->px_endpoint, px_status,
+			 pxy->px_status, (unsigned)cm->cm_proxy_init_updated);
+
 	m0_mutex_lock(&pxy->px_mutex);
 	switch (pxy->px_status) {
 	case M0_PX_INIT :

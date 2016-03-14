@@ -83,6 +83,7 @@ static void repair_cm_stop(struct m0_cm *cm)
 	int                     i = 0;
 	int                     rc;
 
+	M0_ENTRY();
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
 	if (cm->cm_quiesce || cm->cm_abort) {
@@ -129,6 +130,7 @@ static void repair_cm_stop(struct m0_cm *cm)
 out:
 
 	m0_sns_cm_stop(cm);
+	M0_LEAVE();
 }
 
 /**
