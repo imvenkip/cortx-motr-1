@@ -34,6 +34,7 @@ main() {
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 bootstrap station
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 bootstrap satellite -t $IP:9000
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster load -f $HALON_FACTS_YAML -r $HALON_SOURCES/mero-halon/scripts/mero_provisioner_role_mappings.ede
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster start
 }
 
 function halon_facts_yaml() {
