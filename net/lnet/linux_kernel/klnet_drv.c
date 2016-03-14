@@ -1462,9 +1462,9 @@ static long nlx_dev_ioctl(struct file *file,
 	}
 
 done:
-	if (rc < 0 && ergo(cmd == M0_LNET_BUF_EVENT_WAIT, rc != -ETIMEDOUT)) {
+	if (rc < 0 && ergo(cmd == M0_LNET_BUF_EVENT_WAIT,
+	                   !M0_IN(rc, (-ETIMEDOUT, -ERESTARTSYS))))
 		M0_LOG(M0_ERROR, "cmd=%x rc=%d", cmd, rc);
-	}
 	if (rc == -ERESTARTSYS)
 		rc = -EINTR;
 	return M0_RC(rc);
