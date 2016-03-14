@@ -449,18 +449,26 @@ m0_get_core_params()
 
     if m0_genders_has_variable m0_be_tx_group_tx_nr_max ; then
         optional_params+=" -n $(m0_genders_value_of m0_be_tx_group_tx_nr_max)"
+    elif [ x$MERO_M0D_BETXGR_TX_NR_MAX != x ]; then
+        optional_params+=" -n $MERO_M0D_BETXGR_TX_NR_MAX"
     fi
 
     if m0_genders_has_variable m0_be_tx_group_reg_nr_max ; then
         optional_params+=" -k $(m0_genders_value_of m0_be_tx_group_reg_nr_max)"
+    elif [ x$MERO_M0D_BETXGR_REG_NR_MAX != x ]; then
+        optional_params+=" -k $MERO_M0D_BETXGR_REG_NR_MAX"
     fi
 
     if m0_genders_has_variable m0_be_tx_group_reg_size_max ; then
         optional_params+=" -K $(m0_genders_value_of m0_be_tx_group_reg_size_max)"
+    elif [ x$MERO_M0D_BETXGR_REG_SIZE_MAX != x ]; then
+        optional_params+=" -K $MERO_M0D_BETXGR_REG_SIZE_MAX"
     fi
 
     if m0_genders_has_variable m0_be_tx_group_payload_size_max ; then
         optional_params+=" -p $(m0_genders_value_of m0_be_tx_group_payload_size_max)"
+    elif [ x$MERO_M0D_BETXGR_PAYLOAD_SIZE_MAX != x ]; then
+        optional_params+=" -p $MERO_M0D_BETXGR_PAYLOAD_SIZE_MAX"
     fi
 
     if m0_genders_has_variable m0_pool_width ; then

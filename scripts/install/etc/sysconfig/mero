@@ -61,6 +61,12 @@ MERO_M0D_BESEG_SIZE=536870912
 # Backend segment size (in bytes) for IO service. Default is 4 GiB.
 MERO_M0D_IOS_BESEG_SIZE=4294967296
 
+# Backend transactions group configuration parameters.
+#MERO_M0D_BETXGR_TX_NR_MAX=128
+#MERO_M0D_BETXGR_REG_NR_MAX=1048576
+#MERO_M0D_BETXGR_REG_SIZE_MAX=134217728
+#MERO_M0D_BETXGR_PAYLOAD_SIZE_MAX=134217728
+
 # Override default options of m0d.
 #MERO_M0D_OPTS=
 
