@@ -1279,7 +1279,7 @@ M0_EXPORTED(m0_spiel_process_add);
 static int spiel_service_info_copy(struct m0_conf_service             *service,
 				   const struct m0_spiel_service_info *info)
 {
-	if (!M0_CONF_SVC_TYPE_IS_VALID(info->svi_type))
+	if (!m0_conf_service_type_is_valid(info->svi_type))
 		return M0_ERR(-EINVAL);
 
 	if (info->svi_type == M0_CST_MGS && info->svi_u.confdb_path == NULL)

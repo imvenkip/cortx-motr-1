@@ -34,12 +34,12 @@
 
 extern const struct m0_conf_ruleset m0_ios_rules;
 extern const struct m0_conf_ruleset m0_pool_rules;
-static const struct m0_conf_ruleset m0_conf_rules;
+static const struct m0_conf_ruleset conf_rules;
 
 static const struct m0_conf_ruleset *conf_validity_checks[] = {
 	&m0_ios_rules,
 	&m0_pool_rules,
-	&m0_conf_rules,
+	&conf_rules,
 };
 
 char *m0_conf_validation_error(const struct m0_conf_cache *cache,
@@ -257,12 +257,71 @@ conf_endpoint_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 	return NULL;
 }
 
-static const struct m0_conf_ruleset m0_conf_rules = {
+static char *conf_profile_svc_type_error(const struct m0_conf_profile *prof,
+					 char *buf, size_t buflen)
+{
+	struct m0_conf_glob       glob;
+	const struct m0_conf_obj *objv[16];
+	enum m0_conf_service_type svc_type;
+	bool                      confd_p = false;
+	bool                      mds_p = false;
+	int                       i;
+	int                       rc;
+
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &prof->cp_obj,
+			  M0_CONF_PROFILE_FILESYSTEM_FID,
+			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
+			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
+			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
+	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
+		for (i = 0; i < rc; ++i) {
+			svc_type = M0_CONF_CAST(objv[i], m0_conf_service)->
+				cs_type;
+			if (!m0_conf_service_type_is_valid(svc_type))
+				return m0_vsnprintf(
+					buf, buflen,
+					FID_F": Invalid service type: %d",
+					FID_P(&objv[i]->co_id), svc_type);
+			if (svc_type == M0_CST_MGS)
+				confd_p = true;
+			else if (svc_type == M0_CST_MDS)
+				mds_p = true;
+		}
+	}
+	M0_ASSERT(rc == 0); /* XXX TODO */
+	if (confd_p && mds_p)
+		return NULL;
+	return m0_vsnprintf(buf, buflen, "No %s service defined for profile "
+			    FID_F, confd_p ? "meta-data" : "confd",
+			    FID_P(&prof->cp_obj.co_id));
+}
+
+static char *
+conf_svc_type_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
+{
+	struct m0_conf_glob       glob;
+	const struct m0_conf_obj *obj;
+	char                     *err;
+	int                       rc;
+
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
+			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID);
+	while ((rc = m0_conf_glob(&glob, 1, &obj)) > 0) {
+		err = conf_profile_svc_type_error(
+			M0_CONF_CAST(obj, m0_conf_profile), buf, buflen);
+		if (err != NULL)
+			return err;
+	}
+	return NULL;
+}
+
+static const struct m0_conf_ruleset conf_rules = {
 	.cv_name  = "m0_conf_rules",
 	.cv_rules = {
 #define _ENTRY(name) { #name, name }
 		_ENTRY(conf_filesystem_error),
 		_ENTRY(conf_endpoint_error),
+		_ENTRY(conf_svc_type_error),
 #undef _ENTRY
 		{ NULL, NULL }
 	}

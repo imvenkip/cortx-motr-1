@@ -21,6 +21,7 @@
 #ifndef __MERO_CONF_OBJ_H__
 #define __MERO_CONF_OBJ_H__
 
+#include "conf/schema.h"    /* m0_conf_service_type */
 #include "ha/note.h"        /* m0_ha_obj_state */
 #include "lib/chan.h"       /* m0_chan */
 #include "lib/tlist.h"      /* m0_tl, m0_tlink */
@@ -28,7 +29,6 @@
 #include "lib/types.h"
 #include "layout/pdclust.h" /* m0_pdclust_attr */
 #include "fid/fid.h"        /* m0_fid */
-#include "conf/schema.h"    /* m0_conf_service_type */
 
 struct m0_conf_obj_ops;
 struct m0_confx_obj;

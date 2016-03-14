@@ -22,7 +22,6 @@
 
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"  /* m0_confx_service_xc */
-#include "conf/schema.h"     /* M0_CONF_SVC_TYPE_IS_VALID */
 #include "mero/magic.h"      /* M0_CONF_SERVICE_MAGIC */
 #include "lib/string.h"      /* m0_strings_free */
 
@@ -34,7 +33,7 @@ static bool service_check(const void *bob)
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_SERVICE_TYPE);
 
 	return _0C(ergo(self_obj->co_status == M0_CS_READY,
-			M0_CONF_SVC_TYPE_IS_VALID(self->cs_type)));
+			m0_conf_service_type_is_valid(self->cs_type)));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_service, M0_CONF_SERVICE_MAGIC, service_check);

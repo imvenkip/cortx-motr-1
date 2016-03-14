@@ -21,6 +21,8 @@
 #ifndef __MERO_CONF_SCHEMA_H__
 #define __MERO_CONF_SCHEMA_H__
 
+#include "lib/types.h"  /* bool */
+
 /**
    @page DLD_conf_schema DLD for configuration schema
 
@@ -167,10 +169,10 @@ enum m0_conf_service_type {
 	M0_CST_NR
 };
 
-#define M0_CONF_SVC_TYPE_IS_VALID(stype)                    \
-	(0 < (stype) && (stype) < M0_CST_NR)
-/**
-   @} conf_schema end group
-*/
+static inline bool m0_conf_service_type_is_valid(enum m0_conf_service_type t)
+{
+	return 0 < t && t < M0_CST_NR;
+}
 
+/** @} conf_schema */
 #endif /* __MERO_CONF_SCHEMA_H__ */

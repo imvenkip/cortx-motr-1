@@ -673,7 +673,7 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	int                          rc = 0;
 	bool                         connect;
 
-	M0_PRE(M0_CONF_SVC_TYPE_IS_VALID(cs->cs_type));
+	M0_PRE(m0_conf_service_type_is_valid(cs->cs_type));
 	M0_PRE((pc->pc_rmach != NULL) == services_connect);
 
 	connect = cs->cs_obj.co_ha_state == M0_NC_ONLINE && services_connect;
