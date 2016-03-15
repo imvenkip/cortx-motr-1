@@ -7,7 +7,7 @@
 usage()
 {
     echo "Script for processing coverage data"
-    echo "usage: process_lcov -i index.html [-b] [-c] [-f] [-l]"
+    echo "usage: $(basename $0) -i index.html [-b] [-c] [-f] [-l]"
     echo "	Where,"
     echo "		-i <path> Path to index.html"
     echo "		-b Show branch coverage data"

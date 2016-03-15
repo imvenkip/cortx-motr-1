@@ -31,8 +31,8 @@
 usage()
 {
     echo "Test automation script for mero"
-    echo "mero_build_test.sh -r <path> -b [all | i=a,b,... | e=a,b,... | current]"
-    echo "                     [-d <path>] [-h] [-s suffix]"
+    echo "$(basename $0) -r <path> -b [all | i=a,b,... | e=a,b,... | current]"
+    echo "               [-d <path>] [-h] [-s suffix]"
 
     echo ""
     echo "Where:"
@@ -55,7 +55,7 @@ OPTIONS_STRING="b:d:hr:s:"
 
 # $TESTROOT/
 # |-- $DIRTIME/
-#     |-- mero_build_test.log
+#     |-- gen-cov.log
 #     |-- branches.txt
 #     |-- <Branch Name>/ [ For each branch ]
 #     |   |-- core-dumps/
@@ -100,7 +100,7 @@ DIRS="logs core-dumps coverage-data coverage-data/html"
 # REMOTE_GIT_CMD="git clone --recursive ssh://gitosis@git.clusterstor.com/mero.git"
 
 # For setting any of the variables below, do -
-# UB_ROUNDS=NUM ./mero_build_test.sh [OPTIONS ...]
+# UB_ROUNDS=NUM ./gen-cov [OPTIONS ...]
 
 GIT_USER=${GIT_USER:-gitosis}
 GIT_WEB_ADDRESS=${GIT_WEB_ADDRESS:-git.clusterstor.com}
@@ -119,7 +119,7 @@ MERO_CORE_PATH=""
 print_msg()
 {
     msg=$(echo $(date +"%Y-%m-%d:%H-%M-%S")":$1")
-    echo $msg >> $TESTROOT/$DIRTIME/mero_build_test.log
+    echo $msg >> $TESTROOT/$DIRTIME/gen-cov.log
 }
 
 # create_dir arg1
@@ -193,9 +193,9 @@ gather_coverage()
     cur_branch_dir="$TESTROOT/$DIRTIME/$current_branch"
     pushd  $MERO_CORE_PATH/scripts > /dev/null
 
-    if [ -f gcov_stats_genhtml.sh ]; then
+    if [ -f gcov-gen-html ]; then
         print_msg "INFO:$current_branch:Coverage:Start"
-        sudo ./gcov_stats_genhtml.sh user $MERO_CORE_PATH \
+        sudo ./gcov-gen-html user $MERO_CORE_PATH \
             $cur_branch_dir/coverage-data/html >>       \
             $cur_branch_dir/logs/cov.log 2>&1
         rc=$?
@@ -203,8 +203,8 @@ gather_coverage()
             print_msg "ERR:$current_branch:Coverage:$rc:Gathering coverage \
                 data failed"
         else
-            if [ -f process_lcov.sh ]; then
-                sudo ./process_lcov.sh \
+            if [ -f lcov-process ]; then
+                sudo ./lcov-process \
 		    -i $cur_branch_dir/coverage-data/html/index.html -b -l -f \
                     > $cur_branch_dir/coverage-data/coverage-data.txt 2>&1
                 rc=$?
@@ -215,7 +215,7 @@ gather_coverage()
             fi
         fi
     else
-        print_msg "ERR:$current_branch:Coverage:$rc:gcov_stats_genhtml.sh \
+        print_msg "ERR:$current_branch:Coverage:$rc:gcov-gen-html \
                 not found"
         rc=2
     fi
@@ -353,7 +353,7 @@ init_dirs()
 
         # Clone the Mero source
         git clone --recursive $GIT_PROTOCOL://$GIT_USER@$GIT_WEB_ADDRESS/$GIT_REPOSITORY \
-                $MERO_SOURCE >> $TESTROOT/$DIRTIME/mero_build_test.log 2>&1 || return $?
+                $MERO_SOURCE >> $TESTROOT/$DIRTIME/gen-cov.log 2>&1 || return $?
     else # [ "$src_dir" != "" ]
         ln -s $src_dir $MERO_SOURCE
     fi

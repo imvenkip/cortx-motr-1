@@ -15,7 +15,7 @@
 
 if [ $# -ne 3 ]
 then
-	echo "Usage: gcov_stats_genhtml.sh [user|kernel] <src_dir> <output_dir>"
+	echo "Usage: gcov-gen-html [user|kernel] <src_dir> <output_dir>"
 	echo "       <src_dir>:    path of mero directory"
 	echo "       <output_dir>: path where output of lcov will be stored"
 	exit 1
