@@ -188,26 +188,45 @@ M0_INTERNAL bool m0_rpc_conn_invariant(const struct m0_rpc_conn *conn)
 	if (!ok)
 		return false;
 
+	/*
+	 * A connection not in ACTIVE or FAILED state has sessoins with only
+	 * specific states except of session0.
+	 */
+	ok = M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE,
+				      M0_RPC_CONN_FAILED)) ||
+	     m0_tl_forall(rpc_session, s, &conn->c_sessions,
+		ergo(s->s_session_id != SESSION_ID_0,
+			ergo(M0_IN(conn_state(conn), (M0_RPC_CONN_INITIALISED,
+						      M0_RPC_CONN_CONNECTING)),
+			     session_state(s) == M0_RPC_SESSION_INITIALISED) &&
+			ergo(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATING,
+						      M0_RPC_CONN_TERMINATED)),
+			     M0_IN(session_state(s),(M0_RPC_SESSION_INITIALISED,
+						     M0_RPC_SESSION_TERMINATED,
+						     M0_RPC_SESSION_FAILED)))));
+	if (!ok)
+		return false;
+
 	switch (conn_state(conn)) {
 	case M0_RPC_CONN_INITIALISED:
 		return  conn->c_sender_id == SENDER_ID_INVALID &&
-			conn->c_nr_sessions == 1 &&
+			conn->c_nr_sessions >= 1 &&
 			session_state(session0) == M0_RPC_SESSION_IDLE;
 
 	case M0_RPC_CONN_CONNECTING:
 		return  conn->c_sender_id == SENDER_ID_INVALID &&
-			conn->c_nr_sessions == 1;
+			conn->c_nr_sessions >= 1;
 
 	case M0_RPC_CONN_ACTIVE:
 		return  conn->c_sender_id != SENDER_ID_INVALID &&
 			conn->c_nr_sessions >= 1;
 
 	case M0_RPC_CONN_TERMINATING:
-		return  conn->c_nr_sessions == 1 &&
+		return  conn->c_nr_sessions >= 1 &&
 			conn->c_sender_id != SENDER_ID_INVALID;
 
 	case M0_RPC_CONN_TERMINATED:
-		return	conn->c_nr_sessions == 1 &&
+		return	conn->c_nr_sessions >= 1 &&
 			conn->c_sender_id != SENDER_ID_INVALID &&
 			conn->c_sm.sm_rc == 0;
 
@@ -765,7 +784,6 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_PRE(M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE,
 					M0_RPC_CONN_TERMINATING)));
-	M0_PRE(conn->c_nr_sessions == 1);
 
 	deregister_all_item_sources(conn);
 
