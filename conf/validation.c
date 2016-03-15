@@ -141,19 +141,24 @@ M0_INTERNAL char *m0_conf__path_validate(const struct m0_conf_cache *cache,
  * Auxiliary functions used by conf validation rules
  * ------------------------------------------------------------------ */
 
+enum { CONF_GLOB_BATCH = 16 }; /* the value is arbitrary */
+
 /**
  * Counts services of given filesystem.
  *
  * If svc_type == 0, conf_services_count() returns the number of all services.
  * Otherwise only services of specified type are counted.
+ *
+ * Returns negative value in case of error.
  */
-static uint32_t conf_services_count(const struct m0_conf_filesystem *fs,
-				    enum m0_conf_service_type svc_type)
+static int conf_services_count(const struct m0_conf_filesystem *fs,
+			       enum m0_conf_service_type svc_type,
+			       char *buf, size_t buflen)
 {
 	struct m0_conf_glob       glob;
-	const struct m0_conf_obj *objv[16];
+	const struct m0_conf_obj *objv[CONF_GLOB_BATCH];
 	int                       rc;
-	uint32_t                  n = 0;
+	int                       n = 0;
 
 	M0_PRE(0 <= svc_type && svc_type < M0_CST_NR);
 
@@ -166,46 +171,15 @@ static uint32_t conf_services_count(const struct m0_conf_filesystem *fs,
 		n += m0_count(i, rc, svc_type == 0 ||
 			      M0_CONF_CAST(objv[i], m0_conf_service)->cs_type ==
 			      svc_type);
-	M0_ASSERT(rc == 0); /* XXX TODO */
+	if (rc < 0) {
+		(void)m0_conf_glob_error(&glob, buf, buflen);
+		return M0_ERR(rc);
+	}
 	return n;
-}
-
-static const char *conf_bad_endpoint(const struct m0_conf_process *proc,
-				     const struct m0_conf_obj **ep_owner)
-{
-	struct m0_conf_glob       glob;
-	const struct m0_conf_obj *objv[16];
-	const char              **epp;
-	int                       i;
-	int                       rc;
-
-	if (!m0_net_endpoint_is_valid(proc->pc_endpoint)) {
-		*ep_owner = &proc->pc_obj;
-		return proc->pc_endpoint;
-	}
-	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &proc->pc_obj,
-			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
-	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
-		for (i = 0; i < rc; ++i) {
-			for (epp = M0_CONF_CAST(objv[i],
-						m0_conf_service)->cs_endpoints;
-			     *epp != NULL; ++epp) {
-				if (!m0_net_endpoint_is_valid(*epp)) {
-					*ep_owner = objv[i];
-					return *epp;
-				}
-			}
-		}
-	}
-	M0_ASSERT(rc == 0); /* XXX */
-	return NULL;
 }
 
 /* ------------------------------------------------------------------
  * Conf validation rules
- * (there are also rules dispersed throughout Mero code)
- *
- * XXX Move conf validation rules to conf/validation_rules.c?
  * ------------------------------------------------------------------ */
 
 static char *conf_filesystem_error(const struct m0_conf_cache *cache,
@@ -214,7 +188,7 @@ static char *conf_filesystem_error(const struct m0_conf_cache *cache,
 	struct m0_conf_glob       glob;
 	const struct m0_conf_obj *fs_obj;
 	uint32_t                  redundancy;
-	uint32_t                  nr_ios;
+	int                       nr_ios;
 	int                       rc;
 
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
@@ -229,7 +203,10 @@ static char *conf_filesystem_error(const struct m0_conf_cache *cache,
 				" Should be in (0, nr_ioservices] range",
 				FID_P(&fs_obj->co_id));
 		nr_ios = conf_services_count(
-			M0_CONF_CAST(fs_obj, m0_conf_filesystem), M0_CST_IOS);
+			M0_CONF_CAST(fs_obj, m0_conf_filesystem), M0_CST_IOS,
+			buf, buflen);
+		if (nr_ios < 0)
+			return buf;
 		if (nr_ios == 0)
 			return m0_vsnprintf(buf, buflen,
 					    FID_F": no IO services",
@@ -240,8 +217,39 @@ static char *conf_filesystem_error(const struct m0_conf_cache *cache,
 				" the number of IO services (%u)",
 				FID_P(&fs_obj->co_id), nr_ios);
 	}
-	M0_ASSERT(rc == 0); /* XXX TODO */
-	return NULL;
+	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
+}
+
+static char *conf_process_endpoint_error(const struct m0_conf_process *proc,
+					 char *buf, size_t buflen)
+{
+	struct m0_conf_glob       glob;
+	const struct m0_conf_obj *objv[CONF_GLOB_BATCH];
+	const char              **epp;
+	int                       i;
+	int                       rc;
+
+	if (!m0_net_endpoint_is_valid(proc->pc_endpoint))
+		return m0_vsnprintf(buf, buflen, FID_F": Invalid endpoint: %s",
+				    FID_P(&proc->pc_obj.co_id),
+				    proc->pc_endpoint);
+
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &proc->pc_obj,
+			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
+	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
+		for (i = 0; i < rc; ++i) {
+			for (epp = M0_CONF_CAST(objv[i],
+						m0_conf_service)->cs_endpoints;
+			     *epp != NULL; ++epp) {
+				if (!m0_net_endpoint_is_valid(*epp))
+					return m0_vsnprintf(
+						buf, buflen,
+						FID_F": Invalid endpoint: %s",
+						FID_P(&objv[i]->co_id), *epp);
+			}
+		}
+	}
+	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
 static char *
@@ -249,8 +257,7 @@ conf_endpoint_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 {
 	struct m0_conf_glob       glob;
 	const struct m0_conf_obj *obj;
-	const char               *ep;
-	const struct m0_conf_obj *ep_owner;
+	char                     *err;
 	int                       rc;
 
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
@@ -259,22 +266,19 @@ conf_endpoint_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID);
 	while ((rc = m0_conf_glob(&glob, 1, &obj)) > 0) {
-		ep = conf_bad_endpoint(M0_CONF_CAST(obj, m0_conf_process),
-				       &ep_owner);
-		if (ep != NULL)
-			return m0_vsnprintf(buf, buflen,
-					    FID_F": Invalid endpoint: %s",
-					    FID_P(&ep_owner->co_id), ep);
+		err = conf_process_endpoint_error(
+			M0_CONF_CAST(obj, m0_conf_process), buf, buflen);
+		if (err != NULL)
+			return err;
 	}
-	M0_ASSERT(rc == 0); /* XXX TODO */
-	return NULL;
+	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
 static char *conf_profile_svc_type_error(const struct m0_conf_profile *prof,
 					 char *buf, size_t buflen)
 {
 	struct m0_conf_glob       glob;
-	const struct m0_conf_obj *objv[16];
+	const struct m0_conf_obj *objv[CONF_GLOB_BATCH];
 	enum m0_conf_service_type svc_type;
 	bool                      confd_p = false;
 	bool                      mds_p = false;
@@ -288,8 +292,8 @@ static char *conf_profile_svc_type_error(const struct m0_conf_profile *prof,
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
 		for (i = 0; i < rc; ++i) {
-			svc_type = M0_CONF_CAST(objv[i], m0_conf_service)->
-				cs_type;
+			svc_type = M0_CONF_CAST(objv[i],
+						m0_conf_service)->cs_type;
 			if (!m0_conf_service_type_is_valid(svc_type))
 				return m0_vsnprintf(
 					buf, buflen,
@@ -301,7 +305,8 @@ static char *conf_profile_svc_type_error(const struct m0_conf_profile *prof,
 				mds_p = true;
 		}
 	}
-	M0_ASSERT(rc == 0); /* XXX TODO */
+	if (rc < 0)
+		return m0_conf_glob_error(&glob, buf, buflen);
 	if (confd_p && mds_p)
 		return NULL;
 	return m0_vsnprintf(buf, buflen, "No %s service defined for profile "
@@ -325,7 +330,7 @@ conf_svc_type_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 		if (err != NULL)
 			return err;
 	}
-	return NULL;
+	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
 static const struct m0_conf_ruleset conf_rules = {

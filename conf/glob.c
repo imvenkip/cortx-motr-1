@@ -29,6 +29,7 @@
 #include "conf/glob.h"
 #include "conf/obj_ops.h"  /* m0_conf_dir_tl */
 #include "lib/errno.h"     /* E2BIG */
+#include "lib/string.h"    /* m0_vsnprintf */
 
 /** Symbolic names for conf_glob_step() return values. */
 enum conf_glob_res {
@@ -42,7 +43,7 @@ enum conf_glob_res {
 
 static int conf_glob_step(struct m0_conf_glob *glob,
 			  const struct m0_conf_obj **target);
-static int conf_glob_err(int flags, m0_conf_glob_errfunc_t errfunc, int errcode,
+static int conf_glob_err(struct m0_conf_glob *glob, int errcode,
 			 const struct m0_conf_obj *obj,
 			 const struct m0_fid *path);
 
@@ -106,20 +107,22 @@ M0_INTERNAL int m0_conf_glob(struct m0_conf_glob *glob, uint32_t nr,
 	return M0_RC(filled);
 }
 
-M0_INTERNAL int m0_conf_glob_err(int errcode, const struct m0_conf_obj *obj,
-				 const struct m0_fid *path)
+M0_INTERNAL char *
+m0_conf_glob_error(const struct m0_conf_glob *glob, char *buf, size_t buflen)
 {
-	M0_PRE(M0_IN(errcode, (-EPERM, -ENOENT)));
+	M0_PRE(_0C(glob->cg_errcode != 0) && _0C(glob->cg_errobj != NULL) &&
+	       _0C(glob->cg_errpath != NULL));
+	M0_PRE(buf != NULL && buflen > 0);
 
-	if (errcode == -EPERM) {
-		M0_ASSERT(obj->co_status != M0_CS_READY);
-		M0_LOG(M0_ERROR, "Conf object is not ready: "FID_F,
-		       FID_P(&obj->co_id));
-	} else {
-		M0_LOG(M0_ERROR, "Unreachable path: "FID_F"/"FID_F,
-		       FID_P(&obj->co_id), FID_P(path));
+	if (glob->cg_errcode == -EPERM) {
+		M0_ASSERT(glob->cg_errobj->co_status != M0_CS_READY);
+		return m0_vsnprintf(buf, buflen, "Conf object is not ready: "
+				    FID_F, FID_P(&glob->cg_errobj->co_id));
 	}
-	return errcode;
+	M0_ASSERT(glob->cg_errcode == -ENOENT);
+	return m0_vsnprintf(buf, buflen, "Unreachable path: "FID_F"/"FID_F,
+			    FID_P(&glob->cg_errobj->co_id),
+			    FID_P(glob->cg_errpath));
 }
 
 static void conf_glob_turn(struct m0_conf_glob *glob)
@@ -163,8 +166,7 @@ conf_glob_down(struct m0_conf_glob *glob, const struct m0_conf_obj **target)
 			return M0_RC(CONF_GLOB_CONT); /* continue descent */
 		/* stub ==> stop or detour */
 		conf_glob_turn(glob);
-		return M0_RC(conf_glob_err(glob->cg_flags, glob->cg_errfunc,
-					   -EPERM, obj, elem));
+		return M0_RC(conf_glob_err(glob, -EPERM, obj, elem));
 	} else {
 		rc = obj->co_ops->coo_lookup(obj, elem, &x);
 		if (rc != 0)
@@ -179,8 +181,8 @@ conf_glob_down(struct m0_conf_glob *glob, const struct m0_conf_obj **target)
 		/* stop or detour */
 		conf_glob_turn(glob);
 		M0_CNT_DEC(*depth);
-		return M0_RC(conf_glob_err(glob->cg_flags, glob->cg_errfunc, rc,
-					   x, elem));
+		return M0_RC(conf_glob_err(glob, rc, rc == -ENOENT ? obj : x,
+					   elem));
 	}
 }
 
@@ -215,8 +217,7 @@ static int conf_glob_up(struct m0_conf_glob *glob)
 		return M0_RC(CONF_GLOB_CONT); /* descend */
 	}
 	/* stub ==> stop or try again (with another sibling) */
-	return M0_RC(conf_glob_err(glob->cg_flags, glob->cg_errfunc, -EPERM,
-				   obj, elem));
+	return M0_RC(conf_glob_err(glob, -EPERM, obj, elem));
 }
 
 #ifdef DEBUG
@@ -270,15 +271,22 @@ conf_glob_step(struct m0_conf_glob *glob, const struct m0_conf_obj **target)
 	return rc;
 }
 
-static int conf_glob_err(int flags, m0_conf_glob_errfunc_t errfunc, int errcode,
+static int conf_glob_err(struct m0_conf_glob *glob, int errcode,
 			 const struct m0_conf_obj *obj,
 			 const struct m0_fid *path)
 {
 	int rc;
 
 	M0_PRE(errcode < 0);
-	rc = errfunc == NULL ? 0 : errfunc(errcode, obj, path);
-	return (rc == 0 && flags & M0_CONF_GLOB_ERR) ? errcode : rc;
+
+	/* Store error context for m0_conf_glob_error() to use. */
+	glob->cg_errcode = errcode;
+	glob->cg_errobj = obj;
+	glob->cg_errpath = path;
+
+	rc = glob->cg_errfunc == NULL ? 0 :
+		glob->cg_errfunc(errcode, obj, path);
+	return (rc == 0 && glob->cg_flags & M0_CONF_GLOB_ERR) ? errcode : rc;
 }
 
 #undef M0_TRACE_SUBSYSTEM

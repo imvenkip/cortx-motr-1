@@ -100,9 +100,13 @@ struct m0_conf_glob {
 	 * This may happen due to a path component referring to nonexistent
 	 * object (-ENOENT), or upon reaching a stub object (-EPERM).
 	 *
-	 * @see m0_conf_glob_err()
+	 * @see m0_conf_glob_error()
 	 */
 	m0_conf_glob_errfunc_t      cg_errfunc;
+
+	int                         cg_errcode;
+	const struct m0_conf_obj   *cg_errobj;
+	const struct m0_fid        *cg_errpath;
 
 	/** Configuration cache. */
 	const struct m0_conf_cache *cg_cache;
@@ -171,6 +175,16 @@ M0_INTERNAL void m0_conf__glob_init(struct m0_conf_glob *glob,
  */
 M0_INTERNAL int m0_conf_glob(struct m0_conf_glob *glob,
 			     uint32_t nr, const struct m0_conf_obj **objv);
+
+/**
+ * Returns string describing the most recent m0_conf_glob() error.
+ * Puts error description into `buf'.
+ *
+ * @pre  glob->cg_errcode < 0
+ * @pre  buf != NULL && buflen > 0
+ */
+M0_INTERNAL char *m0_conf_glob_error(const struct m0_conf_glob *glob,
+				     char *buf, size_t buflen);
 
 /**
  * M0_LOG()s description of conf DAG traversal error.

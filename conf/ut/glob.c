@@ -23,6 +23,7 @@
 #include "lib/fs.h"        /* m0_file_read */
 #include "lib/memory.h"    /* m0_free */
 #include "lib/errno.h"     /* ENOENT */
+#include "lib/string.h"    /* m0_streq */
 #include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
 
@@ -101,9 +102,12 @@ static void test_conf_glob_errors(void)
 	struct m0_conf_glob       glob;
 	const struct m0_conf_obj *objv[16];
 	struct err_entry         *e;
+	char                      errbuf[64];
+	const char               *err;
 	uint32_t                  i;
 	int                       rc;
-	const struct m0_fid       bad_profile = M0_FID_TINIT('p', 999, 999);
+	const struct m0_fid       bad_fs = M0_FID_TINIT('f', 0x99, 0x99);
+	const struct m0_fid       profile = M0_FID_TINIT('p', 1, 0);
 	const struct m0_fid       missing[] = {
 		/* service-9; first item of a conf_dir */
 		M0_FID_TINIT('s', 1, 9),
@@ -118,18 +122,27 @@ static void test_conf_glob_errors(void)
 	 * -ENOENT
 	 */
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, errfunc, &g_cache, NULL,
-			  M0_CONF_ROOT_PROFILES_FID, bad_profile,
-			  M0_CONF_PROFILE_FILESYSTEM_FID);
+			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID, bad_fs);
 	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
 	M0_UT_ASSERT(rc == -ENOENT);
-	e = &g_err_accum[0];
-	M0_UT_ASSERT(e->ee_errno == -ENOENT);
-	M0_UT_ASSERT(m0_fid_eq(e->ee_objid,
-			       /* dir "root/profiles/" */
-			       &M0_FID_TINIT('D', 0x74700000000001, 0)));
-	M0_UT_ASSERT(m0_fid_eq(e->ee_elem, &bad_profile));
-	M0_UT_ASSERT(e[1].ee_errno == 0);
-	M0_SET0(e); /* clear g_err_accum[] slot */
+	err = m0_conf_glob_error(&glob, errbuf, sizeof errbuf);
+	M0_UT_ASSERT(m0_streq(err, "Unreachable path:"
+			      " <7000000000000001:0>/<6600000000000099:99>"));
+	M0_SET0(&g_err_accum[0]);
+
+	/*
+	 * -EPERM, ->coo_lookup()
+	 */
+	m0_conf_cache_lookup(&g_cache, &profile)->co_status = M0_CS_LOADING;
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, errfunc, &g_cache, NULL,
+			  M0_CONF_ROOT_PROFILES_FID, profile);
+	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
+	M0_UT_ASSERT(rc == -EPERM);
+	err = m0_conf_glob_error(&glob, errbuf, sizeof errbuf);
+	M0_UT_ASSERT(m0_streq(err, "Conf object is not ready:"
+			      " <7000000000000001:0>"));
+	m0_conf_cache_lookup(&g_cache, &profile)->co_status = M0_CS_READY;
+	M0_SET0(&g_err_accum[0]);
 
 	/*
 	 * -EPERM, conf_dir items
@@ -167,20 +180,18 @@ static void test_conf_glob_errors(void)
 static int
 errfunc(int errcode, const struct m0_conf_obj *obj, const struct m0_fid *path)
 {
-	uint32_t i;
+	struct err_entry *x;
+
 	M0_PRE(M0_IN(errcode, (-EPERM, -ENOENT)));
 
-	for (i = 0; i < ARRAY_SIZE(g_err_accum); ++i) {
-		if (g_err_accum[i].ee_errno == 0) {
-			/* empty slot */
-			g_err_accum[i].ee_errno = errcode;
-			g_err_accum[i].ee_objid = &obj->co_id;
-			g_err_accum[i].ee_elem = errcode == -ENOENT ?
-				path : NULL;
-			break;
-		}
-	}
-	M0_ASSERT(i < ARRAY_SIZE(g_err_accum));
+	M0_UT_ASSERT(m0_exists(i, ARRAY_SIZE(g_err_accum),
+			       (x = &g_err_accum[i])->ee_errno == 0));
+	/* An empty slot found. Fill it with data. */
+	*x = (struct err_entry){
+		.ee_errno = errcode,
+		.ee_objid = &obj->co_id,
+		.ee_elem = errcode == -ENOENT ? path : NULL
+	};
 	return 0; /* do not abort the execution */
 }
 
