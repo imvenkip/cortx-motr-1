@@ -1,5 +1,4 @@
 EXTRA_DIST += scripts/bloatmeter \
-              scripts/branchmeter.sh \
               scripts/check-sources \
               scripts/check-public-api \
               scripts/check-xlibri-traces \
@@ -9,6 +8,8 @@ EXTRA_DIST += scripts/bloatmeter \
               scripts/gen-src-skel \
               scripts/gdb/gdb-extensions \
               scripts/gdb/gdb-extensions.py \
+              scripts/git/branchmeter \
+              scripts/git/restore-branch \
               scripts/m0 \
               scripts/m0mount \
               scripts/modload \
