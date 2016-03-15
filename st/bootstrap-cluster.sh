@@ -115,6 +115,10 @@ function run_command() {
 		ssh $HALOND_TS \
 			halonctl -l $TS_IP:$HALONCTL_PORT -a $TS_IP:$HALOND_PORT \
 			cluster load -f $HALON_FACTS -r $ROLE_MAPS
+		sleep 1
+		ssh $HALOND_TS \
+			halonctl -l $TS_IP:$HALONCTL_PORT -a $TS_IP:$HALOND_PORT \
+			cluster start
 		;;
 	"status")
 		local TS_IP=$(ssh $HALOND_TS \
