@@ -6,7 +6,7 @@
 . `dirname $0`/m0t1fs_server_inc.sh
 . `dirname $0`/m0t1fs_sns_common_inc.sh
 
-. $M0_SRC_DIR/scripts/functions  # opcode
+. $M0_SRC_DIR/utils/functions  # opcode
 
 # If DEBUG_MODE is set to 1, trace file is generated. This may be useful when
 # some issue is to be debugged in developer environment.

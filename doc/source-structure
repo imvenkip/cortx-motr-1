@@ -359,7 +359,7 @@ e.g. "/var/mero/sandbox.<subsystem>-st".
 Sandbox directory should be deleted if the test succeeds, and preserved
 in case of failure.
 Consider using `sandbox_init` and `sandbox_fini` shell functions, defined
-in scripts/functions.
+in utils/functions.
 
     Rationale: separation of test output directories allows to aim `m0reportbug`
     tool at a specific output directory and gather forensic data of the failed

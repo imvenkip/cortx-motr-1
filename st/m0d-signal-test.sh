@@ -10,7 +10,7 @@ SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.signal-st}
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
-. $M0_SRC_DIR/scripts/functions # report_and_exit
+. $M0_SRC_DIR/utils/functions # report_and_exit
 
 cd $M0_SRC_DIR
 

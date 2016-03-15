@@ -9,7 +9,7 @@ SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.console-st}
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
-. $M0_SRC_DIR/scripts/functions # die, opcode, sandbox_init, report_and_exit
+. $M0_SRC_DIR/utils/functions # die, opcode, sandbox_init, report_and_exit
 
 CLIENT=$M0_SRC_DIR/console/bin/m0console
 SERVER=$M0_SRC_DIR/console/st/server

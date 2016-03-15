@@ -8,7 +8,7 @@ set -e
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
 
-. $M0_SRC_DIR/scripts/functions # report_and_exit
+. $M0_SRC_DIR/utils/functions # report_and_exit
 
 set -x
 sudo /usr/bin/time -v $M0_SRC_DIR/st/m0t1fs -vv -r /root/rpmbuild/RPMS/x86_64/mero-?.?.?-*.rpm

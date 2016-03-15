@@ -10,7 +10,7 @@ SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.net-st}
 CWD=$(dirname $(readlink -f $0))
 M0_SRC_DIR=${CWD%/*/*/*}
 
-. $M0_SRC_DIR/scripts/functions # die, opcode, sandbox_init, report_and_exit
+. $M0_SRC_DIR/utils/functions # die, opcode, sandbox_init, report_and_exit
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
 . $CWD/st-config.sh
 

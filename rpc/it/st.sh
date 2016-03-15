@@ -7,7 +7,7 @@ M0_SRC_DIR="$(readlink -f $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*/*}"
 [ -n "${SUDO:-}" ] || SUDO='sudo -E'
 
-. "$M0_SRC_DIR/scripts/functions" # sandbox_init, report_and_exit
+. "$M0_SRC_DIR/utils/functions" # sandbox_init, report_and_exit
 
 rc=0
 sandbox_init

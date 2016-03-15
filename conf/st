@@ -29,7 +29,7 @@ error() { echo "$@" >&2; stop 1; }
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
-. $M0_SRC_DIR/scripts/functions # die, sandbox_init, report_and_exit
+. $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
 
 ## Path to the file with configuration string for confd.
 CONF_FILE=$SANDBOX_DIR/conf.txt

@@ -1,7 +1,7 @@
 M0_SRC_DIR=`readlink -f ${BASH_SOURCE[0]}`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
 
-. $M0_SRC_DIR/scripts/functions  # sandbox_init, report_and_exit
+. $M0_SRC_DIR/utils/functions  # sandbox_init, report_and_exit
 
 [ -n "$SANDBOX_DIR" ] || SANDBOX_DIR=/var/mero/systest-$$
 ## XXX TODO: Replace `MERO_M0T1FS_TEST_DIR' with `SANDBOX_DIR' everywhere
