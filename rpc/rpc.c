@@ -92,6 +92,7 @@ M0_EXPORTED(m0_rpc_post);
 M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 {
 	struct m0_rpc_session *session;
+	int                    error = 0;
 
 	M0_LOG(M0_DEBUG, "%p[%s/%u]",
 	       item, item_kind(item), item->ri_type->rit_opcode);
@@ -101,8 +102,6 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 
 	session = item->ri_session;
 	M0_ASSERT_EX(m0_rpc_session_invariant(session));
-	M0_ASSERT(M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
-						 M0_RPC_SESSION_BUSY)));
 	M0_ASSERT(m0_rpc_item_size(item) <=
 			m0_rpc_session_get_max_item_size(session));
 	M0_ASSERT(m0_rpc_machine_is_locked(session_machine(session)));
@@ -121,14 +120,24 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	item->ri_header.osr_sender_id  = session->s_conn->c_sender_id;
 	item->ri_header.osr_session_id = session->s_session_id;
 
-	if (session->s_session_id != SESSION_ID_0 &&
-	    m0_rpc_session_is_cancelled(session)) {
+	if (!M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
+					    M0_RPC_SESSION_BUSY))) {
+		M0_LOG(M0_DEBUG, "%p[%s/%u], fop %p, session %p, "
+		       "Session isn't established. Hence, not posting the item",
+		       item, item_kind(item), item->ri_type->rit_opcode,
+		       m0_rpc_item_to_fop(item), session);
+		error = -ENOTCONN;
+	} else if (session->s_session_id != SESSION_ID_0 &&
+		   m0_rpc_session_is_cancelled(session)) {
 		M0_LOG(M0_DEBUG, "%p[%s/%u], fop %p, session %p, "
 		       "Session is cancelled. Hence, not posting the item",
 		       item, item_kind(item), item->ri_type->rit_opcode,
 		       m0_rpc_item_to_fop(item), session);
-		m0_rpc_item_failed(item, -ECANCELED);
-		return M0_RC(item->ri_error);
+		error = -ECANCELED;
+	}
+	if (error != 0) {
+		m0_rpc_item_failed(item, error);
+		return M0_ERR(error);
 	}
 
 	m0_rpc_item_send(item);
