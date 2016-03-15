@@ -1,21 +1,75 @@
 #!/bin/bash
 set -eux
 
-IP=172.16.1.212
-HALOND=/home/mask/.local/bin/halond
-HALONCTL=/home/mask/.local/bin/halonctl
-HALON_SOURCES=/work/halon
-HALON_FACTS_YAML=halon_facts.yaml
+# IP address of a network interface.
+# It should be configured to be used with LNET
+# (it should be in `lctl list_nids`).
+# It is also used by halond and halonctl.
+IP=${IP:-172.16.1.212}
+# Path to halond binary.
+HALOND=${HALOND:-/home/mask/.local/bin/halond}
+# Path to halonctl binary.
+HALONCTL=${HALONCTL:-/home/mask/.local/bin/halonctl}
+# Path to the Halon source tree.
+HALON_SOURCES=${HALON_SOURCES:-/work/halon}
+# The only file that is taken from Halon sources.
+# This variable can be used to run this test if Halon is installed from rpm.
+HALON_ROLE_MAPS=${HALON_ROLE_MAPPINGS:-$HALON_SOURCES/mero-halon/scripts/mero_provisioner_role_mappings.ede}
+# Path to the halon_facts.yaml.
+# The script overwrites the file with it's own configuration
+# (see halon_facts_yaml() function) and then uses the file
+# in `halonctl cluster load` command.
+HALON_FACTS_YAML=${HALON_FACTS_YAML:-halon_facts.yaml}
 
 HOSTNAME="`hostname`"
 
-main() {
-	sudo killall halond || true
+show_help() {
+	cat << EOF
+Usage: $0 [-h] [-?] [-c COMMAND] [-c COMMAND] ...
+
+COMMAND - one of the following:
+
+help          - print this help
+cluster_start - start local cluster with single node configuration
+cluster_stop  - stop the cluster
+
+All commands are synchronous.
+EOF
+}
+
+function run_command() {
+	command=$1
+	case "$COMMAND" in
+	"help")
+		show_help
+		;;
+	"cluster_start")
+		cluster_start
+		;;
+	"cluster_stop")
+		cluster_stop
+		;;
+	*)
+		echo "Unknown command $1"
+		show_help
+		exit 1
+	esac
+}
+
+function stop_everything() {
+	sudo killall halond halonctl || true
 	sleep 1
-	sudo rm -rf halon-persistence
 	sudo systemctl stop mero-kernel &
 	sudo killall -9 lt-m0d m0d lt-m0mkfs m0mkfs || true
 	wait
+	sudo systemctl start mero-kernel || true
+	sudo systemctl stop mero-kernel
+	sudo rmmod m0mero m0gf || true
+}
+
+function cluster_start() {
+	stop_everything
+	sudo rm -rf halon-persistence
 
 	sudo scripts/install-mero-service -u
 	sudo scripts/install-mero-service -l
@@ -33,8 +87,41 @@ main() {
 	sleep 2
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 bootstrap station
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 bootstrap satellite -t $IP:9000
-	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster load -f $HALON_FACTS_YAML -r $HALON_SOURCES/mero-halon/scripts/mero_provisioner_role_mappings.ede
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster load \
+					-f $HALON_FACTS_YAML -r $HALON_ROLE_MAPS
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster start
+	sleep 30
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster status
+}
+
+function cluster_stop() {
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster stop
+	sleep 120
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster status &
+	sleep 5
+	stop_everything
+	wait
+}
+
+main() {
+	if [ $# -eq 0 ]; then
+		show_help
+		echo "Running cluster_start command"
+		cluster_start
+	fi
+	while getopts "h?c:" opt; do
+		case "$opt" in
+		h|\?)
+			show_help
+			;;
+		c)
+			COMMAND=$OPTARG
+			run_command $COMMAND
+			;;
+		esac
+		COMMAND=""
+	done
+	shift $((OPTIND-1))
 }
 
 function halon_facts_yaml() {
