@@ -12,5 +12,4 @@ EXTRA_DIST += scripts/build/bloatmeter \
               scripts/git/branchmeter \
               scripts/git/restore-branch \
               scripts/m0 \
-              scripts/m0mount \
-              scripts/modload
+              scripts/m0mount
