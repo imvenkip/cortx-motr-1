@@ -847,7 +847,7 @@ pre-all: check-sources-prebuild
 .PHONY: check-sources-prebuild
 check-sources-prebuild:
 	@echo -n 'Checking source files... '
-	@$(top_srcdir)/scripts/check-sources --noisy $(top_srcdir)
+	@$(top_srcdir)/scripts/build/check-sources --noisy $(top_srcdir)
 	@echo 'OK'
 
 .PHONY: generate-xc-files
@@ -924,22 +924,22 @@ generate-files: generate-xc-files generate-ff-files generate-confxc-files
 
 # this is executed just after 'all' target
 all-local: build-kernel-modules $(LTLIBRARIES) $(PROGRAMS)
-	@$(top_srcdir)/scripts/check-sources $(top_srcdir)
-	@$(top_srcdir)/scripts/check-public-api
-	@$(top_srcdir)/scripts/print-elf-sizes
+	@$(top_srcdir)/scripts/build/check-sources $(top_srcdir)
+	@$(top_srcdir)/scripts/build/check-public-api
+	@$(top_srcdir)/scripts/build/print-elf-sizes
 	@$(LN_S) -f $(PROGRAMS:%=../%) ../ut/m0kut utils/
 
 .PHONY: check-sources-postbuild
 check-sources-postbuild:
-	@$(top_srcdir)/scripts/check-sources $(top_srcdir)
+	@$(top_srcdir)/scripts/build/check-sources $(top_srcdir)
 
 .PHONY: check-public-api
 check-public-api:
-	@$(top_srcdir)/scripts/check-public-api
+	@$(top_srcdir)/scripts/build/check-public-api
 
 .PHONY: print-elf-sizes
 print-elf-sizes:
-	@$(top_srcdir)/scripts/print-elf-sizes
+	@$(top_srcdir)/scripts/build/print-elf-sizes
 
 # kbuild system will complain about dupicate exported symbols in m0mero-ut.ko,
 # because it uses the same .o files as m0mero.ko, so we're filtering such kbuild

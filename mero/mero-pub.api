@@ -1,7 +1,8 @@
 ### The functions starting with asterisk (`*') are allowed to be
 ### missing from nm(1) output. Some of the "debug-time" functions are
 ### marked this way.
-### See also scripts/check-public-api .
+###
+### See also scripts/build/check-public-api
 
 m0_kmod_uuid_file_set
 m0_addb2_add

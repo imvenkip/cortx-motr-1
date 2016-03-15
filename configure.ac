@@ -383,7 +383,7 @@ AX_PROG_PERL_MODULES([List::MoreUtils], ,
 installed from perl-List-MoreUtils package on Red Hat based systems])
 )
 
-# these two perl-modules are required for scripts/check-sources script
+# these two perl-modules are required for scripts/build/check-sources script
 AX_PROG_PERL_MODULES([File::Find::Rule], ,
         AC_MSG_ERROR([No File::Find::Rule Perl module found: it can be \
 installed from perl-File-Find-Rule package on Red Hat based systems])

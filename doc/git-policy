@@ -381,7 +381,7 @@ In Mero project we define the following tags:
     Bloated-by:
 
       <size>
-        `./scripts/bloatmeter`
+        `./scripts/build/bloatmeter`
       </size>
 
         Provides an information about how the image size of main binary files,

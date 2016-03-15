@@ -1,7 +1,8 @@
-EXTRA_DIST += scripts/bloatmeter \
-              scripts/check-sources \
-              scripts/check-public-api \
-              scripts/check-xlibri-traces \
+EXTRA_DIST += scripts/build/bloatmeter \
+              scripts/build/check-sources \
+              scripts/build/check-public-api \
+              scripts/build/check-xlibri-traces \
+              scripts/build/print-elf-sizes \
               scripts/coverage/gcov-gen-html \
               scripts/coverage/gen-cov \
               scripts/coverage/lcov-process \
@@ -12,5 +13,4 @@ EXTRA_DIST += scripts/bloatmeter \
               scripts/git/restore-branch \
               scripts/m0 \
               scripts/m0mount \
-              scripts/modload \
-              scripts/print-elf-sizes
+              scripts/modload
