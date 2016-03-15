@@ -38,7 +38,7 @@ cleanup()
 main()
 {
 	for ((i = 0; i < ${#P[*]}; i++)); do
-		cmd="$M0_SRC_DIR/scripts/m0mount -a -L -n 1 -d ${N[$i]} -p ${P[$i]} -u ${U[$i]} -vv -q"
+		cmd="$M0_SRC_DIR/utils/m0mount -a -L -n 1 -d ${N[$i]} -p ${P[$i]} -u ${U[$i]} -vv -q"
 		if ! $cmd
 		then
 			echo "Cannot start mero service"

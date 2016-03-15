@@ -11,5 +11,4 @@ EXTRA_DIST += scripts/build/bloatmeter \
               scripts/gdb/gdb-extensions.py \
               scripts/git/branchmeter \
               scripts/git/restore-branch \
-              scripts/m0 \
-              scripts/m0mount
+              scripts/m0
