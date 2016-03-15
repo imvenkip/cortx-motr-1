@@ -128,7 +128,7 @@ probe process(@1).syscall.return
 				/*
 				 * ubacktrace() is relatively expensive. To
 				 * avoid systemtap aborting the script due to
-				 * excessive overhead, slugabed.sh increases
+				 * excessive overhead, 'slugabed' script increases
 				 * systap limits.
 				 *
 				 * Newer versions of systemtap have preferable

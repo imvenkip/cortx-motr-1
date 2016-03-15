@@ -23,7 +23,7 @@
 #
 # Usage:
 #
-#     slugabed.sh PATH_TO_BINARY
+#     slugabed PATH_TO_BINARY
 #
 # The script doesn't start the process. The process can be started after or
 # before the script.
