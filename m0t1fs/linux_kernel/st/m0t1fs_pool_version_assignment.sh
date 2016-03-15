@@ -177,6 +177,7 @@ pool_version_assignment()
 		unmount_and_clean $multiple_pools
 		return 1
 	}
+	sleep 5 # XXX finish asynchronous reconnect
 	echo "Should succeed since pool version 1 is available now."
 	touch $MERO_M0T1FS_MOUNT_DIR/$file4 || {
 		unmount_and_clean $multiple_pools

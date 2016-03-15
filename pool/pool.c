@@ -646,14 +646,13 @@ static void service_ctxs_destroy(struct m0_pools_common *pc)
 
 	/* Disconnect from all services asynchronously. */
 	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
-		if (ctx->sc_is_connected) {
-			m0_reqh_service_ctx_unsubscribe(ctx);
+		if (m0_reqh_service_ctx_is_connected(ctx)) {
 			m0_reqh_service_disconnect(ctx);
 		}
 	} m0_tl_endfor;
 
 	m0_tl_teardown(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
-		if (ctx->sc_is_connected) {
+		if (m0_reqh_service_ctx_is_connected(ctx)) {
 			rc = m0_reqh_service_disconnect_wait(ctx);
 			/* XXX Current function doesn't fail. */
 			M0_ASSERT(rc == 0 || rc == -ECANCELED);
@@ -674,36 +673,33 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 				bool services_connect)
 {
 	struct m0_reqh_service_ctx  *ctx;
+	enum m0_ha_obj_state         ha_state;
 	const char                 **endpoint;
 	int                          rc = 0;
-	bool                         connect;
 
 	M0_PRE(m0_conf_service_type_is_valid(cs->cs_type));
 	M0_PRE((pc->pc_rmach != NULL) == services_connect);
 
-	connect = cs->cs_obj.co_ha_state == M0_NC_ONLINE && services_connect;
 	for (endpoint = cs->cs_endpoints; *endpoint != NULL; ++endpoint) {
-		rc = m0_reqh_service_ctx_create(&cs->cs_obj, cs->cs_type, &ctx);
-		if (rc == 0 && connect) {
-			rc = m0_reqh_service_connect(ctx, pc->pc_rmach,
-					*endpoint, POOL_MAX_RPC_NR_IN_FLIGHT);
-			if (rc != 0)
-				m0_reqh_service_ctx_destroy(ctx);
-		}
+		rc = m0_reqh_service_ctx_create(&cs->cs_obj, cs->cs_type,
+						pc->pc_rmach, *endpoint,
+						POOL_MAX_RPC_NR_IN_FLIGHT, &ctx);
 		if (rc != 0)
 			return M0_ERR(rc);
-		ctx->sc_is_connected = connect;
 		ctx->sc_pc = pc;
 		pools_common_svc_ctx_tlink_init_at_tail(ctx, &pc->pc_svc_ctxs);
-		/*
-		 * TODO Subscription is done here to prevent the handlers to be
-		 * called when ctx->sc_rlink isn't fully established. But in
-		 * such way we loose notifications from HA before this point.
-		 * Subscription should be done during `ctx' initialisation and
-		 * handlers must not rely on that ctx->sc_rlink is established.
-		 */
-		if (ctx->sc_is_connected)
-			m0_reqh_service_ctx_subscribe(ctx);
+		if (services_connect) {
+			/*
+			 * m0_reqh_service_ctx handles current HA state and
+			 * further state changes.
+			 */
+			m0_conf_cache_lock(cs->cs_obj.co_cache);
+			m0_reqh_service_connect(ctx);
+			ha_state = cs->cs_obj.co_ha_state;
+			m0_conf_cache_unlock(cs->cs_obj.co_cache);
+			if (ha_state == M0_NC_ONLINE)
+				m0_reqh_service_connect_wait(ctx);
+		}
 	}
 	M0_CNT_INC(pc->pc_nr_svcs[cs->cs_type]);
 
