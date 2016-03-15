@@ -106,12 +106,14 @@ static struct m0_sm_state_descr session_states[] = {
 	},
 	[M0_RPC_SESSION_TERMINATED] = {
 		.sd_name      = "Terminated",
-		.sd_allowed   = M0_BITS(M0_RPC_SESSION_FINALISED)
+		.sd_allowed   = M0_BITS(M0_RPC_SESSION_INITIALISED,
+					M0_RPC_SESSION_FINALISED)
 	},
 	[M0_RPC_SESSION_FAILED] = {
 		.sd_flags     = M0_SDF_FAILURE,
 		.sd_name      = "Failed",
-		.sd_allowed   = M0_BITS(M0_RPC_SESSION_FINALISED)
+		.sd_allowed   = M0_BITS(M0_RPC_SESSION_INITIALISED,
+					M0_RPC_SESSION_FINALISED)
 	},
 	[M0_RPC_SESSION_FINALISED] = {
 		.sd_flags     = M0_SDF_TERMINAL,
@@ -251,6 +253,23 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 	m0_rpc_item_pending_cache_init(session);
 
 	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_rpc_session_reset(struct m0_rpc_session *session)
+{
+	struct m0_rpc_machine *machine = session_machine(session);
+
+	m0_rpc_machine_lock(machine);
+	if (session_state(session) == M0_RPC_SESSION_INITIALISED) {
+		m0_rpc_machine_unlock(machine);
+		return;
+	}
+	session_state_set(session, M0_RPC_SESSION_INITIALISED);
+	session->s_xid = 0;
+	session->s_cancelled = false;
+	session->s_session_id = SESSION_ID_INVALID;
+	M0_POST(m0_rpc_session_invariant(session));
+	m0_rpc_machine_unlock(machine);
 }
 
 /**

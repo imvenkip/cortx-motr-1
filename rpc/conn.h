@@ -314,6 +314,8 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
 				 struct m0_rpc_machine *machine,
 				 uint64_t max_rpcs_in_flight);
 
+M0_INTERNAL void m0_rpc_conn_reset(struct m0_rpc_conn *conn);
+
 /**
     Sends handshake CONN_ESTABLISH fop to the remote end.
 

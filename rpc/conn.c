@@ -108,12 +108,14 @@ static struct m0_sm_state_descr conn_states[] = {
 	},
 	[M0_RPC_CONN_TERMINATED] = {
 		.sd_name      = "Terminated",
-		.sd_allowed   = M0_BITS(M0_RPC_CONN_FINALISED)
+		.sd_allowed   = M0_BITS(M0_RPC_CONN_INITIALISED,
+					M0_RPC_CONN_FINALISED)
 	},
 	[M0_RPC_CONN_FAILED] = {
 		.sd_flags     = M0_SDF_FAILURE,
 		.sd_name      = "Failed",
-		.sd_allowed   = M0_BITS(M0_RPC_CONN_FINALISED)
+		.sd_allowed   = M0_BITS(M0_RPC_CONN_INITIALISED,
+					M0_RPC_CONN_FINALISED)
 	},
 	[M0_RPC_CONN_FINALISED] = {
 		.sd_flags     = M0_SDF_TERMINAL,
@@ -323,6 +325,24 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 		M0_SET0(conn);
 	}
 	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_rpc_conn_reset(struct m0_rpc_conn *conn)
+{
+	struct m0_rpc_machine *machine = conn->c_rpc_machine;
+	struct m0_rpc_session *session0;
+
+	m0_rpc_machine_lock(machine);
+	if (conn_state(conn) == M0_RPC_CONN_INITIALISED) {
+		m0_rpc_machine_unlock(machine);
+		return;
+	}
+	conn_state_set(conn, M0_RPC_CONN_INITIALISED);
+	session0 = m0_rpc_conn_session0(conn);
+	session0->s_xid = 0;
+	conn->c_sender_id = SENDER_ID_INVALID;
+	M0_POST(m0_rpc_conn_invariant(conn));
+	m0_rpc_machine_unlock(machine);
 }
 
 static int session_zero_attach(struct m0_rpc_conn *conn)

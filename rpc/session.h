@@ -371,6 +371,8 @@ struct m0_rpc_session {
 M0_INTERNAL int m0_rpc_session_init(struct m0_rpc_session *session,
 				    struct m0_rpc_conn *conn);
 
+M0_INTERNAL void m0_rpc_session_reset(struct m0_rpc_session *session);
+
 /**
     Sends a SESSION_ESTABLISH fop across pre-defined session-0 in
     session->s_conn. Use m0_rpc_session_timedwait() to wait
