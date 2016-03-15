@@ -41,19 +41,16 @@ struct m0_rpc_machine;
  */
 
 struct m0_rpc_link {
-	struct m0_rpc_conn       rlk_conn;
-	struct m0_rpc_session    rlk_sess;
-	char                    *rlk_rem_ep;
-	int                      rlk_rc;
+	struct m0_rpc_conn     rlk_conn;
+	struct m0_rpc_session  rlk_sess;
+	int                    rlk_rc;
 	/* private */
-	struct m0_rpc_machine   *rlk_rpcmach;
-	struct m0_fom            rlk_fom;
-	struct m0_fom_callback   rlk_fomcb;
-	struct m0_chan           rlk_wait;
-	struct m0_mutex          rlk_wait_mutex;
-	uint64_t                 rlk_max_rpcs_in_flight;
-	m0_time_t                rlk_timeout;
-	bool                     rlk_connected;
+	struct m0_fom          rlk_fom;
+	struct m0_fom_callback rlk_fomcb;
+	struct m0_chan         rlk_wait;
+	struct m0_mutex        rlk_wait_mutex;
+	m0_time_t              rlk_timeout;
+	bool                   rlk_connected;
 };
 
 enum m0_rpc_link_states {
@@ -85,6 +82,7 @@ M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 				 const char *ep,
 				 uint64_t max_rpcs_in_flight);
 M0_INTERNAL void m0_rpc_link_fini(struct m0_rpc_link *rlink);
+M0_INTERNAL void m0_rpc_link_reset(struct m0_rpc_link *rlink);
 
 /**
  * Makes asynchronous rpc_conn and rpc_session establishing.
@@ -108,6 +106,9 @@ M0_INTERNAL void m0_rpc_link_disconnect_async(struct m0_rpc_link *rlink,
 					      struct m0_clink *wait_clink);
 M0_INTERNAL int m0_rpc_link_disconnect_sync(struct m0_rpc_link *rlink,
 					    m0_time_t abs_timeout);
+
+M0_INTERNAL bool m0_rpc_link_is_connected(struct m0_rpc_link *rlink);
+M0_INTERNAL const char *m0_rpc_link_end_point(struct m0_rpc_link *rlink);
 
 /** @} end of rpc_link group */
 

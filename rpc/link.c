@@ -97,22 +97,9 @@ static size_t rpc_link_fom_locality(const struct m0_fom *fom)
 
 static int rpc_link_conn_establish(struct m0_rpc_link *rlink)
 {
-	int                      rc;
-	struct m0_net_end_point *ep;
+	int rc;
 
-	rc = m0_net_end_point_create(&ep, &rlink->rlk_rpcmach->rm_tm,
-				     rlink->rlk_rem_ep);
-	if (rc == 0) {
-		rc = m0_rpc_conn_init(&rlink->rlk_conn, ep, rlink->rlk_rpcmach,
-				      rlink->rlk_max_rpcs_in_flight);
-		m0_net_end_point_put(ep);
-	}
-	if (rc == 0) {
-		rc = m0_rpc_conn_establish(&rlink->rlk_conn,
-					    rlink->rlk_timeout);
-		if (rc != 0)
-			m0_rpc_conn_fini(&rlink->rlk_conn);
-	}
+	rc = m0_rpc_conn_establish(&rlink->rlk_conn, rlink->rlk_timeout);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Connection establish failed (rlink=%p)",
 		       rlink);
@@ -124,13 +111,7 @@ static int rpc_link_sess_establish(struct m0_rpc_link *rlink)
 {
 	int rc;
 
-	rc = m0_rpc_session_init(&rlink->rlk_sess, &rlink->rlk_conn);
-	if (rc == 0) {
-		rc = m0_rpc_session_establish(&rlink->rlk_sess,
-					       rlink->rlk_timeout);
-		if (rc != 0)
-			m0_rpc_session_fini(&rlink->rlk_sess);
-	}
+	rc = m0_rpc_session_establish(&rlink->rlk_sess, rlink->rlk_timeout);
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Session establish failed (rlink=%p)", rlink);
 
@@ -158,7 +139,6 @@ static int rpc_link_conn_terminate(struct m0_rpc_link *rlink)
 {
 	int rc;
 
-	m0_rpc_session_fini(&rlink->rlk_sess);
 	rc = m0_rpc_conn_terminate(&rlink->rlk_conn, rlink->rlk_timeout);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Connection termination failed (rlink=%p)",
@@ -169,7 +149,6 @@ static int rpc_link_conn_terminate(struct m0_rpc_link *rlink)
 
 static int rpc_link_conn_terminated(struct m0_rpc_link *rlink)
 {
-	m0_rpc_conn_fini(&rlink->rlk_conn);
 	return M0_FSO_WAIT;
 }
 
@@ -190,7 +169,6 @@ static int rpc_link_sess_terminate(struct m0_rpc_link *rlink)
 static int rpc_link_conn_failure(struct m0_rpc_link *rlink)
 {
 	rlink->rlk_rc = m0_fom_rc(&rlink->rlk_fom);
-	m0_rpc_conn_fini(&rlink->rlk_conn);
 	return M0_FSO_WAIT;
 }
 
@@ -245,17 +223,19 @@ static void rpc_link_sess_fom_wait_on(struct m0_fom *fom,
 
 static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 {
-	int                 rc    = 0;
-	int                 phase = m0_fom_phase(fom);
-	bool                armed = false;
-	uint32_t            state;
-	struct m0_rpc_link *rlink;
+	int                    rc    = 0;
+	int                    phase = m0_fom_phase(fom);
+	bool                   armed = false;
+	uint32_t               state;
+	struct m0_rpc_link    *rlink;
+	struct m0_rpc_machine *rpcmach;
 
 	M0_ENTRY("fom=%p phase=%s", fom, m0_fom_phase_name(fom, phase));
 
-	rlink = container_of(fom, struct m0_rpc_link, rlk_fom);
+	rlink   = container_of(fom, struct m0_rpc_link, rlk_fom);
+	rpcmach = rlink->rlk_conn.c_rpc_machine;
 
-	m0_rpc_machine_lock(rlink->rlk_rpcmach);
+	m0_rpc_machine_lock(rpcmach);
 	switch (phase) {
 	case M0_RLS_CONN_CONNECTING:
 		state = CONN_STATE(&rlink->rlk_conn);
@@ -273,16 +253,17 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 		state = SESS_STATE(&rlink->rlk_sess);
 		M0_ASSERT(M0_IN(state, (M0_RPC_SESSION_ESTABLISHING,
 				M0_RPC_SESSION_IDLE, M0_RPC_SESSION_FAILED)));
-		if (state == M0_RPC_SESSION_FAILED)
+		if (state == M0_RPC_SESSION_FAILED) {
+			/* TODO need to terminate conn */
 			rc = SESS_RC(&rlink->rlk_sess);
-		if (state == M0_RPC_SESSION_ESTABLISHING) {
+		} if (state == M0_RPC_SESSION_ESTABLISHING) {
 			rpc_link_sess_fom_wait_on(fom, rlink);
 			armed = true;
 			rc    = M0_FSO_WAIT;
 		}
 		break;
 	}
-	m0_rpc_machine_unlock(rlink->rlk_rpcmach);
+	m0_rpc_machine_unlock(rpcmach);
 
 	if (rc == 0) {
 		rc = (*rpc_link_conn_states[phase].rlst_state_function)(rlink);
@@ -304,17 +285,19 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 
 static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 {
-	int                 rc    = 0;
-	int                 phase = m0_fom_phase(fom);
-	bool                armed = false;
-	uint32_t            state;
-	struct m0_rpc_link *rlink;
+	int                    rc    = 0;
+	int                    phase = m0_fom_phase(fom);
+	bool                   armed = false;
+	uint32_t               state;
+	struct m0_rpc_link    *rlink;
+	struct m0_rpc_machine *rpcmach;
 
 	M0_ENTRY("fom=%p phase=%s", fom, m0_fom_phase_name(fom, phase));
 
-	rlink = container_of(fom, struct m0_rpc_link, rlk_fom);
+	rlink   = container_of(fom, struct m0_rpc_link, rlk_fom);
+	rpcmach = rlink->rlk_conn.c_rpc_machine;
 
-	m0_rpc_machine_lock(rlink->rlk_rpcmach);
+	m0_rpc_machine_lock(rpcmach);
 	switch (phase) {
 	case M0_RLS_SESS_WAIT_IDLE:
 		state = SESS_STATE(&rlink->rlk_sess);
@@ -355,7 +338,7 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 		}
 		break;
 	}
-	m0_rpc_machine_unlock(rlink->rlk_rpcmach);
+	m0_rpc_machine_unlock(rpcmach);
 
 	if (rc == 0) {
 		rc = (*rpc_link_disc_states[phase].rlst_state_function)(rlink);
@@ -504,16 +487,25 @@ M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 				 const char *ep,
 				 uint64_t max_rpcs_in_flight)
 {
-	int rc;
+	struct m0_net_end_point *net_ep;
+	int                      rc;
 
 	M0_ENTRY("rlink=%p ep=%s", rlink, ep);
-	M0_PRE(M0_IS0(rlink));
 
-	rlink->rlk_connected          = false;
-	rlink->rlk_max_rpcs_in_flight = max_rpcs_in_flight;
-	rlink->rlk_rpcmach            = mach;
-	rlink->rlk_rem_ep             = m0_strdup(ep);
-	rc = rlink->rlk_rem_ep == NULL ? -ENOMEM : 0;
+	rlink->rlk_connected = false;
+	rlink->rlk_rc        = 0;
+
+	rc = m0_net_end_point_create(&net_ep, &mach->rm_tm, ep);
+	if (rc == 0) {
+		rc = m0_rpc_conn_init(&rlink->rlk_conn, net_ep, mach,
+				      max_rpcs_in_flight);
+		m0_net_end_point_put(net_ep);
+	}
+	if (rc == 0) {
+		rc = m0_rpc_session_init(&rlink->rlk_sess, &rlink->rlk_conn);
+		if (rc != 0)
+			m0_rpc_conn_fini(&rlink->rlk_conn);
+	}
 	if (rc == 0) {
 		m0_mutex_init(&rlink->rlk_wait_mutex);
 		m0_chan_init(&rlink->rlk_wait, &rlink->rlk_wait_mutex);
@@ -526,7 +518,14 @@ M0_INTERNAL void m0_rpc_link_fini(struct m0_rpc_link *rlink)
 	M0_PRE(!rlink->rlk_connected);
 	m0_chan_fini_lock(&rlink->rlk_wait);
 	m0_mutex_fini(&rlink->rlk_wait_mutex);
-	m0_free(rlink->rlk_rem_ep);
+	m0_rpc_session_fini(&rlink->rlk_sess);
+	m0_rpc_conn_fini(&rlink->rlk_conn);
+}
+
+M0_INTERNAL void m0_rpc_link_reset(struct m0_rpc_link *rlink)
+{
+	m0_rpc_session_reset(&rlink->rlk_sess);
+	m0_rpc_conn_reset(&rlink->rlk_conn);
 }
 
 static void rpc_link_fom_queue(struct m0_rpc_link *rlink,
@@ -534,7 +533,7 @@ static void rpc_link_fom_queue(struct m0_rpc_link *rlink,
 			       const struct m0_fom_type *fom_type,
 			       const struct m0_fom_ops *fom_ops)
 {
-	struct m0_rpc_machine *mach = rlink->rlk_rpcmach;
+	struct m0_rpc_machine *mach = rlink->rlk_conn.c_rpc_machine;
 
 	M0_ENTRY("rlink=%p", rlink);
 	M0_PRE(ergo(wait_clink != NULL, wait_clink->cl_is_oneshot));
@@ -604,6 +603,17 @@ M0_INTERNAL int m0_rpc_link_disconnect_sync(struct m0_rpc_link *rlink,
 	return rpc_link_call_sync(rlink, abs_timeout,
 				  &m0_rpc_link_disconnect_async);
 }
+
+M0_INTERNAL bool m0_rpc_link_is_connected(struct m0_rpc_link *rlink)
+{
+	return rlink->rlk_connected;
+}
+
+M0_INTERNAL const char *m0_rpc_link_end_point(struct m0_rpc_link *rlink)
+{
+	return m0_rpc_conn_addr(&rlink->rlk_conn);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of rpc_link group */

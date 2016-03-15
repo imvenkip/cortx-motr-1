@@ -34,9 +34,6 @@
    @{
  */
 
-/* TODO move to rpc/rev_conn.c with rev_conn related functions */
-#define REV_CONN_DEST_EP(revc) (revc)->rcf_rlink.rlk_rem_ep
-
 enum {
 	M0_REV_CONN_TIMEOUT            = 5,
 	M0_REV_CONN_MAX_RPCS_IN_FLIGHT = 1,

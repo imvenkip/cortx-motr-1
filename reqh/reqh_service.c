@@ -596,7 +596,8 @@ M0_INTERNAL void m0_reqh_service_disconnect(struct m0_reqh_service_ctx *ctx)
 {
 	m0_time_t timeout;
 
-	M0_ENTRY("Disconnecting from service. %s", ctx->sc_rlink.rlk_rem_ep);
+	M0_ENTRY("Disconnecting from service '%s'",
+		 m0_rpc_link_end_point(&ctx->sc_rlink));
 	M0_PRE(reqh_service_context_invariant(ctx));
 
 	/*

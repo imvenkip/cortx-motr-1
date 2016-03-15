@@ -19,12 +19,20 @@
  */
 
 #include "ut/ut.h"
+#include "lib/finject.h"
 #include "lib/memory.h"
 #include "lib/trace.h"
 #include "reqh/reqh.h"
 #include "rpc/session.h"
 #include "net/lnet/lnet.h"
 #include "rpc/link.h"
+
+#include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
+
+enum {
+	RLUT_MAX_RPCS_IN_FLIGHT = 10,
+	RLUT_CONN_TIMEOUT       = 2, /* seconds */
+};
 
 static void rlut_init(struct m0_net_domain      *net_dom,
 		      struct m0_net_buffer_pool *buf_pool,
@@ -93,11 +101,6 @@ static void rlut_remote_unreachable(void)
 	const char               *remote_ep = "0@lo:12345:35:1";
 	int                       rc;
 
-	enum {
-		MAX_RPCS_IN_FLIGHT = 1,
-		CONN_TIMEOUT       = 2, /* seconds */
-	};
-
 	rlut_init(&net_dom, &buf_pool, &reqh, &rmachine);
 
 	/* RPC link structure is too big to be allocated on stack */
@@ -105,21 +108,70 @@ static void rlut_remote_unreachable(void)
 	M0_UT_ASSERT(rlink != NULL);
 
 	rc = m0_rpc_link_init(rlink, &rmachine, remote_ep,
-			      MAX_RPCS_IN_FLIGHT);
+			      RLUT_MAX_RPCS_IN_FLIGHT);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_rpc_link_connect_sync(rlink, m0_time_from_now(CONN_TIMEOUT, 0));
-	M0_UT_ASSERT(rc != 0 && !rlink->rlk_connected);
+	rc = m0_rpc_link_connect_sync(rlink,
+				      m0_time_from_now(RLUT_CONN_TIMEOUT, 0));
+	M0_UT_ASSERT(rc != 0 && !m0_rpc_link_is_connected(rlink));
 	m0_rpc_link_fini(rlink);
 	m0_free(rlink);
 
 	rlut_fini(&net_dom, &buf_pool, &reqh, &rmachine);
 }
 
+static void rlut_reconnect(void)
+{
+	struct m0_rpc_machine *mach;
+	struct m0_rpc_link    *rlink;
+	const char            *remote_ep;
+	int                    rc;
+	int                    i;
+
+	start_rpc_client_and_server();
+	mach = &cctx.rcx_rpc_machine;
+	remote_ep = cctx.rcx_remote_addr;
+
+	M0_ALLOC_PTR(rlink);
+	M0_UT_ASSERT(rlink != NULL);
+	rc = m0_rpc_link_init(rlink, mach, remote_ep, RLUT_MAX_RPCS_IN_FLIGHT);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Reconnect after disconnect */
+	for (i = 0; i < 2; ++i) {
+		rc = m0_rpc_link_connect_sync(rlink,
+					m0_time_from_now(RLUT_CONN_TIMEOUT, 0));
+		M0_UT_ASSERT(rc == 0 && m0_rpc_link_is_connected(rlink));
+		rc = m0_rpc_link_disconnect_sync(rlink,
+					m0_time_from_now(RLUT_CONN_TIMEOUT, 0));
+		M0_UT_ASSERT(rc == 0 && !m0_rpc_link_is_connected(rlink));
+		m0_rpc_link_reset(rlink);
+	}
+
+	/* Reconnect after fail */
+	m0_fi_enable_once("m0_rpc_conn_establish", "fake_error");
+	rc = m0_rpc_link_connect_sync(rlink,
+				      m0_time_from_now(RLUT_CONN_TIMEOUT, 0));
+	M0_UT_ASSERT(rc != 0 && !m0_rpc_link_is_connected(rlink));
+	m0_rpc_link_reset(rlink);
+	m0_fi_disable("m0_rpc_conn_establish", "fake_error");
+	rc = m0_rpc_link_connect_sync(rlink,
+				      m0_time_from_now(RLUT_CONN_TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0 && m0_rpc_link_is_connected(rlink));
+	rc = m0_rpc_link_disconnect_sync(rlink,
+					m0_time_from_now(RLUT_CONN_TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0 && !m0_rpc_link_is_connected(rlink));
+
+	m0_rpc_link_fini(rlink);
+	m0_free(rlink);
+	stop_rpc_client_and_server();
+}
+
 struct m0_ut_suite link_lib_ut = {
 	.ts_name = "rpc-link-ut",
 	.ts_tests = {
 		{ "remote-unreacheable", rlut_remote_unreachable },
+		{ "reconnect", rlut_reconnect },
 		{ NULL, NULL }
 	}
 };

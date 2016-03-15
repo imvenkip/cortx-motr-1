@@ -618,7 +618,7 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 	lep = m0_rpc_machine_ep(rmach);
 	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
 		struct m0_cm_proxy *pxy;
-		const char *dep = ctx->sc_rlink.rlk_rem_ep;
+		const char *dep = m0_rpc_link_end_point(&ctx->sc_rlink);
 
 		M0_LOG(M0_DEBUG, "Connect %s dep %s type %d", lep, dep,
 				ctx->sc_type);
