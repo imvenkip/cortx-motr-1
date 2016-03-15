@@ -349,8 +349,13 @@ static void run_test(const struct m0_ut *test, size_t max_name_len)
 	if (!test->t_enabled)
 		return;
 
-	m0_console_printf(LOG_PREFIX "  %s  ", test->t_name);
-
+	name_len = strlen(test->t_name);
+	if (test->t_owner != NULL) {
+		m0_console_printf(LOG_PREFIX "  %s [%s] ",
+				  test->t_name, test->t_owner);
+		name_len += strlen(test->t_owner) + 2; /* 2 for [] */
+	} else
+		m0_console_printf(LOG_PREFIX "  %s  ", test->t_name);
 	mem_before = m0_allocated_total();
 	start      = m0_time_now();
 
@@ -360,7 +365,6 @@ static void run_test(const struct m0_ut *test, size_t max_name_len)
 	end       = m0_time_now();
 	mem_after = m0_allocated_total();
 
-	name_len = strlen(test->t_name);
 	/* max_check is for case when max_name_len == 0 */
 	pad_len  = max_check(name_len, max_name_len) - name_len;
 	pad_len  = min_check(pad_len, ARRAY_SIZE(padding) - 1);
@@ -399,7 +403,11 @@ static int run_suite(const struct m0_ut_suite *suite, int max_name_len)
 	if (!suite->ts_enabled)
 		return 0;
 
-	m0_console_printf("%s\n", suite->ts_name);
+	if (suite->ts_owners != NULL)
+		m0_console_printf("%s [%s]\n",
+				  suite->ts_name, suite->ts_owners);
+	else
+		m0_console_printf("%s \n", suite->ts_name);
 
 	alloc_before = m0_allocated();
 	mem_before   = m0_allocated_total();
