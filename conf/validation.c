@@ -42,8 +42,21 @@ static const struct m0_conf_ruleset *conf_validity_checks[] = {
 	&conf_rules,
 };
 
-char *m0_conf_validation_error(const struct m0_conf_cache *cache,
-			       char *buf, size_t buflen)
+char *
+m0_conf_validation_error(struct m0_conf_cache *cache, char *buf, size_t buflen)
+{
+	char *err;
+	M0_PRE(buf != NULL && buflen != 0);
+
+	m0_conf_cache_lock(cache);
+	err = m0_conf_validation_error_locked(cache, buf, buflen);
+	m0_conf_cache_unlock(cache);
+	return err;
+}
+
+M0_INTERNAL char *
+m0_conf_validation_error_locked(const struct m0_conf_cache *cache,
+				char *buf, size_t buflen)
 {
 	unsigned                   i;
 	const struct m0_conf_rule *rule;

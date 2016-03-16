@@ -55,7 +55,6 @@ static void test_validation(void)
 			       *pathv, (err ?: ""), (expected ?: ""), g_buf)
 
 		cache_load(&g_cache, *pathv, &expected);
-		m0_conf_cache_lock(&g_cache);
 		err = m0_conf_validation_error(&g_cache, g_buf, sizeof g_buf);
 		_UT_ASSERT((err == NULL) == (expected == NULL));
 		if (expected != NULL) {
@@ -66,7 +65,6 @@ static void test_validation(void)
 			_UT_ASSERT(m0_streq(err, expected));
 		}
 		free(expected);
-		m0_conf_cache_unlock(&g_cache);
 #undef _UT_ASSERT
 	}
 	globfree(&g);

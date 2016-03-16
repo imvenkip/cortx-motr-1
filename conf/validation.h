@@ -54,10 +54,18 @@ struct m0_fid;
  * returns NULL.
  *
  * @pre  buf != NULL && buflen != 0
+ */
+char *m0_conf_validation_error(struct m0_conf_cache *cache,
+			       char *buf, size_t buflen);
+
+/**
+ * Similar to m0_conf_validation_error(), but requires conf cache to be locked.
+ *
+ * @pre  buf != NULL && buflen != 0
  * @pre  m0_conf_cache_is_locked(cache)
  */
-char *m0_conf_validation_error(const struct m0_conf_cache *cache,
-			       char *buf, size_t buflen);
+M0_INTERNAL char *m0_conf_validation_error_locked(
+	const struct m0_conf_cache *cache, char *buf, size_t buflen);
 
 /** Validation rule. */
 struct m0_conf_rule {
