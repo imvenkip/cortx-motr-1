@@ -973,7 +973,7 @@ static void test_creditor_death(void)
 
 	/*
 	 * SERVER_1 receive -ENODEV for NENYA request since SERVER_2 is in
-	 * ROS_FINAL state.
+	 * ROS_DEAD_CREDITOR state.
 	 */
 	credit_get_and_hold_nowait(SERVER_1, RIF_MAY_BORROW, NENYA);
 	m0_chan_wait(&rm_ctxs[SERVER_1].rc_clink);

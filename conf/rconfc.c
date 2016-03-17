@@ -502,6 +502,9 @@
  * @{
  */
 
+/* Forward declaration */
+static void rconfc_stop_internal(struct m0_rconfc *rconfc);
+
 static void rconfc_herd_link_fini(struct rconfc_link *lnk);
 static bool rconfc_gate_check(struct m0_confc *confc);
 static int  rconfc_gate_skip(struct m0_confc *confc);
@@ -1195,6 +1198,7 @@ static void rconfc_state_set(struct m0_rconfc *rconfc, int state)
 
 static void rconfc_fail(struct m0_rconfc *rconfc, int rc)
 {
+	M0_PRE(rconfc_is_locked(rconfc));
         M0_LOG(M0_ERROR, "rconfc: %p, state %s failed with %d", rconfc,
 	       m0_sm_state_name(&rconfc->rc_sm, rconfc->rc_sm.sm_state), rc);
 	/*
@@ -1210,6 +1214,10 @@ static void rconfc_fail(struct m0_rconfc *rconfc, int rc)
 	if (!M0_IS0(&rconfc->rc_entrypoint_fop.f_item))
 		m0_rpc_item_put_lock(&rconfc->rc_entrypoint_fop.f_item);
 	m0_sm_fail(&rconfc->rc_sm, RCS_FAILURE, rc);
+	if (rconfc->rc_stopping) {
+		rconfc_state_set(rconfc, RCS_STOPPING);
+		rconfc_stop_internal(rconfc);
+	}
 }
 
 static void _failure_ast_cb(struct m0_sm_group *grp M0_UNUSED,
@@ -1562,7 +1570,7 @@ static void rconfc_read_lock_get(struct m0_rconfc *rconfc)
 	rlx = rconfc->rc_rlock_ctx;
 	req = &rlx->rlc_req;
 	m0_rm_rwlock_req_init(req, &rlx->rlc_owner, &m0_rconfc_ri_ops,
-			      RIF_MAY_BORROW, RM_RWLOCK_READ);
+			      RIF_MAY_BORROW | RIF_MAY_REVOKE, RM_RWLOCK_READ);
 	m0_rm_credit_get(req);
 }
 

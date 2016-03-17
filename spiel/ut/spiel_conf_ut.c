@@ -61,7 +61,7 @@ enum {
 
 static struct m0_fid spiel_obj_fid[] = {
 	M0_FID_TINIT('D', 1, 1 ),
-	M0_FID_TINIT('p', 2, 2 ),
+	M0_FID_TINIT('p', 1, 0 ),
 	M0_FID_TINIT('f', 3, 3 ),
 	M0_FID_TINIT('o', 4, 4 ),
 	M0_FID_TINIT('v', 5, 5 ),

@@ -273,7 +273,7 @@ static void failures_test(void)
 	rm_test_data.rd_in.rin_want.cr_datum = INVALID_RING;
 	rm_test_data.rd_owner->ro_sm.sm_state = ROS_FINALISING;
 	m0_rm_credit_get(&rm_test_data.rd_in);
-	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == -ENODEV);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == -EAGAIN);
 	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
 	rm_test_data.rd_owner->ro_sm.sm_state = ROS_ACTIVE;
 }

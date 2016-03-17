@@ -117,6 +117,7 @@ static void owner_liquidate	    (struct m0_rm_owner *src_owner);
 static void owner_cleanup           (struct m0_rm_owner *owner);
 static void credit_processor        (struct m0_rm_resource_type *rt);
 static bool rm_on_remote_death_cb   (struct m0_clink *link);
+static bool owner_smgrp_is_locked   (const struct m0_rm_owner *owner);
 
 #define INCOMING_CREDIT(in) in->rin_want.cr_datum
 
@@ -464,7 +465,7 @@ static struct m0_sm_state_descr owner_states[] = {
 	},
 	[ROS_QUIESCE] = {
 		.sd_name      = "Quiesce",
-		.sd_allowed   = M0_BITS(ROS_FINALISING, ROS_FINAL)
+		.sd_allowed   = M0_BITS(ROS_FINALISING)
 	},
 	[ROS_FINALISING] = {
 		.sd_name      = "Finalising",
@@ -522,6 +523,7 @@ static bool owner_has_loans(struct m0_rm_owner *owner)
 
 static void owner_finalisation_check(struct m0_rm_owner *owner)
 {
+	M0_PRE(owner_smgrp_is_locked(owner));
 	switch (owner_state(owner)) {
 	case ROS_QUIESCE:
 		if (owner_is_idle(owner)) {
@@ -529,19 +531,16 @@ static void owner_finalisation_check(struct m0_rm_owner *owner)
 			 * No more user-credit requests are pending.
 			 * Flush the loans and cached credits.
 			 */
+			owner_state_set(owner, ROS_FINALISING);
 			if (owner_has_loans(owner)) {
 				cached_credits_clear(owner);
 				if (M0_FI_ENABLED("drop_loans")) {
 					owner_cleanup(owner);
 					owner_state_set(owner, ROS_FINAL);
-				} else {
-					owner_state_set(owner, ROS_FINALISING);
-					owner_liquidate(owner);
 				}
-			} else {
-				owner_state_set(owner, ROS_FINAL);
-				M0_POST(owner_invariant(owner));
 			}
+			owner_liquidate(owner);
+			M0_POST(owner_invariant(owner));
 		}
 		break;
 	case ROS_FINALISING:
@@ -1639,14 +1638,21 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in)
 	 */
 	if (owner_state(owner) == ROS_ACTIVE)
 		incoming_queue(owner, in);
-	else {
-		M0_LOG(M0_DEBUG, "Incoming req: %p, state change:[%s -> %s]",
-				 in, m0_sm_state_name(&in->rin_sm,
-						      in->rin_sm.sm_state),
-				 m0_sm_state_name(&in->rin_sm, RI_FAILURE));
-		incoming_complete(in, -ENODEV);
-	}
-
+	else
+		/*
+		 * Reject all credit requests with -EAGAIN error until owner is
+		 * in one of its final states. During finalisation owner still
+		 * possesses some credits, but can't grant them. Let client to
+		 * re-request them till they are returned to creditor and
+		 * overall credits state in cluster is more "stable".
+		 * For example, if creditor revokes loan during owner
+		 * finalisation, then race is possible between 'REVOKE' and
+		 * 'CANCEL' requests. Creditor will re-send 'REVOKE' requests
+		 * until 'CANCEL' is received.
+		 */
+		incoming_complete(in, M0_IN(owner_state(owner), (ROS_FINAL,
+				    ROS_INSOLVENT, ROS_DEAD_CREDITOR)) ?
+							     -ENODEV : -EAGAIN);
 	m0_rm_owner_unlock(owner);
 	M0_LEAVE();
 }
@@ -1819,6 +1825,9 @@ static void owner_balance(struct m0_rm_owner *o)
 			 * waiting for outgoing request completion.
 			 */
 			m0_tl_for (pr, &credit->cr_pins, pin) {
+				int32_t out_rc =
+				       out->rog_rc == -EAGAIN ? 0 : out->rog_rc;
+
 				M0_ASSERT(m0_rm_pin_bob_check(pin));
 				M0_ASSERT(pin->rp_flags == M0_RPF_TRACK);
 				/*
@@ -1828,7 +1837,7 @@ static void owner_balance(struct m0_rm_owner *o)
 				 * reset to 0 if other requests succeed.
 				 */
 				pin->rp_incoming->rin_rc =
-					pin->rp_incoming->rin_rc ?: out->rog_rc;
+					pin->rp_incoming->rin_rc ?: out_rc;
 				pin_del(pin);
 			} m0_tl_endfor;
 			m0_rm_ur_tlist_del(credit);
@@ -2266,7 +2275,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 				else
 					break;
 			} else if (!(in->rin_flags & RIF_MAY_REVOKE))
-				return M0_RC(-EREMOTE);
+				return M0_ERR(-EREMOTE);
 
 			loan = bob_of(r, struct m0_rm_loan, rl_credit,
 				      &loan_bob);
@@ -2849,22 +2858,22 @@ static bool owner_invariant_state(const struct m0_rm_owner     *owner,
 	is->is_phase = OIS_BORROWED;
 	if (!m0_rm_ur_tlist_invariant_ext(&owner->ro_borrowed,
 					  &credit_invariant, (void *)is))
-		return false;
+		return M0_ERR(false);
 	is->is_phase = OIS_SUBLET;
 	if (!m0_rm_ur_tlist_invariant_ext(&owner->ro_sublet,
 					  &credit_invariant, (void *)is))
-		return false;
+		return M0_ERR(false);;
 	is->is_phase = OIS_OUTGOING;
 	if (!m0_rm_ur_tlist_invariant_ext(&owner->ro_outgoing[0],
 					  &credit_invariant, (void *)is))
-		return false;
+		return M0_ERR(false);;
 
 	is->is_phase = OIS_OWNED;
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
 		is->is_owned_idx = i;
 		if (!m0_rm_ur_tlist_invariant_ext(&owner->ro_owned[i],
 					   &credit_invariant, (void *)is))
-		    return false;
+		    return M0_ERR(false);;
 	}
 	is->is_phase = OIS_INCOMING;
 
@@ -2872,23 +2881,23 @@ static bool owner_invariant_state(const struct m0_rm_owner     *owner,
 	if (m0_exists(i, ARRAY_SIZE(owner->ro_owned),
 			m0_tl_exists(m0_rm_ur, cr, &owner->ro_owned[i],
 				conflict_exists(cr, owner))))
-		return false;
+		return M0_ERR(false);;
 
 	/* Calculate credit */
-	return m0_forall(i, ARRAY_SIZE(owner->ro_incoming),
+	return M0_RC(_0C(m0_forall(i, ARRAY_SIZE(owner->ro_incoming),
 			 m0_forall(j, ARRAY_SIZE(owner->ro_incoming[i]),
 				   m0_rm_ur_tlist_invariant
-				   (&owner->ro_incoming[i][j]))) &&
-		m0_forall(i, ARRAY_SIZE(owner->ro_owned),
+				   (&owner->ro_incoming[i][j])))) &&
+		_0C(m0_forall(i, ARRAY_SIZE(owner->ro_owned),
 			  !m0_tl_exists(m0_rm_ur, credit, &owner->ro_owned[i],
 					credit->cr_ops->cro_join(&is->is_credit,
-								 credit))) &&
-		!m0_tl_exists(m0_rm_ur, credit, &owner->ro_sublet,
+								 credit)))) &&
+		_0C(!m0_tl_exists(m0_rm_ur, credit, &owner->ro_sublet,
 			      credit->cr_ops->cro_join(&is->is_credit,
-						       credit)) &&
+						       credit))) &&
 		/* Calculate debit */
-		!m0_tl_exists(m0_rm_ur, credit, &owner->ro_borrowed,
-			      credit->cr_ops->cro_join(&is->is_debit, credit));
+		_0C(!m0_tl_exists(m0_rm_ur, credit, &owner->ro_borrowed,
+			     credit->cr_ops->cro_join(&is->is_debit, credit))));
 }
 
 /**
@@ -2907,7 +2916,8 @@ static bool owner_invariant(struct m0_rm_owner *owner)
 	m0_rm_credit_init(&is.is_credit, owner);
 
 	rc = owner_invariant_state(owner, &is) &&
-		 credit_eq(&is.is_debit, &is.is_credit);
+		 (ergo(owner_state(owner) == ROS_ACTIVE,
+		       credit_eq(&is.is_debit, &is.is_credit)));
 
 	m0_rm_credit_fini(&is.is_debit);
 	m0_rm_credit_fini(&is.is_credit);

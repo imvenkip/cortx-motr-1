@@ -471,10 +471,16 @@ M0_INTERNAL int m0_confc_reconnect(struct m0_confc       *confc,
 	if (confc_is_online(confc))
 		disconnect_from_confd(confc);
 	M0_ASSERT(!confc_is_online(confc));
-	if (not_empty(confd_addr))
-		rc = connect_to_confd(confc, confd_addr, rpc_mach);
-	else
+	if (confd_addr == NULL)
+		/*
+		 * Just want to disconnect confc in rconfc_conductor_drained()
+		 * Don't return the error because log messages confuse.
+		 */
+		rc = 0;
+	else if (confd_addr == '\0')
 		rc = M0_ERR(-EINVAL);
+	else
+		rc = connect_to_confd(confc, confd_addr, rpc_mach);
 	M0_POST(not_empty(confd_addr) == confc_is_online(confc));
 	M0_POST(m0_confc_invariant(confc));
 	confc_unlock(confc);
