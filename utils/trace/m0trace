@@ -639,7 +639,8 @@ sub print_trace_record
 
 sub locate_m0_binary
 {
-    my $binary_name = shift;
+    my $binary_name       = shift;
+    my $skip_if_not_found = shift;
 
     my $binary_path;
     my (undef, undef, $basename) = File::Spec->splitpath( $PROGRAM_NAME );
@@ -668,6 +669,10 @@ sub locate_m0_binary
     if ( $cli_option{use_usrbin_binary} ) {
         $binary_path = "/usr/bin/$binary_name";
     }
+
+    return $binary_name
+        if (!defined $binary_path or ! -x $binary_path)
+            and defined $skip_if_not_found;
 
     die "Failed to find '$binary_name' utility in PATH or in the development"
         . " tree next to ourselves\n"
@@ -733,7 +738,7 @@ sub prepare_input_file
             $cli_option{module_image} = $module_img;
         }
 
-        my $m0ut        = locate_m0_binary('m0ut');
+        my $m0ut        = locate_m0_binary('m0ut', 'skip-if-not-found');
         my $m0traced    = locate_m0_binary('m0traced');
         my $m0tracedump = locate_m0_binary('m0tracedump');
         my $dump_opt    = defined $cli_option{module_image}
