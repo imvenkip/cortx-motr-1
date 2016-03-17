@@ -784,6 +784,11 @@ static bool service_event_handler(struct m0_clink *clink)
 		 * state update may take a lead in the batch updates.
 		 */
 		if (ctx->sc_is_active) {
+			/**
+			 * @todo MERO-1642 Take out usage of
+			 * m0_rpc_session_restore().
+			 * @see m0_rpc_session_restore().
+			 */
 			if (m0_rpc_session_is_cancelled(session))
 				m0_rpc_session_restore(session);
 		} else {

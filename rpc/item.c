@@ -536,8 +536,11 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 		item->ri_header.osr_xid = rpc_item_needs_xid(item) ?
 					  ++item->ri_session->s_xid :
 					  UINT64_MAX;
-		M0_LOG(M0_DEBUG, "%p[%u] set item xid = %"PRIu64, item,
-		       item->ri_type->rit_opcode, item->ri_header.osr_xid);
+		M0_LOG(M0_DEBUG, "%p[%u] set item xid=%"PRIu64
+		       "s_xid=%"PRIu64, item, item->ri_type->rit_opcode,
+		       item->ri_header.osr_xid,
+		       item->ri_session == NULL ? UINT64_MAX :
+				item->ri_session->s_xid);
 	}
 	M0_LEAVE();
 }
@@ -560,9 +563,9 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 	if (!rpc_item_needs_xid(item))
 		return true;
 
-	M0_LOG(M0_DEBUG, "item: %p [%s/%u] xid=%"PRIu64" s_xid=%"PRIu64,
-	       item, item_kind(item), item->ri_type->rit_opcode,
-	       xid, sess->s_xid);
+	M0_LOG(M0_DEBUG, "item: %p [%s/%u] session %p xid=%"PRIu64
+	       " s_xid=%"PRIu64, item, item_kind(item),
+	       item->ri_type->rit_opcode, sess, xid, sess->s_xid);
 	/*
 	 * Purge cache on every N-th packet
 	 * (not on every one - that could be pretty expensive).
@@ -590,6 +593,13 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 		if (cached == NULL)
 			m0_rpc_item_cache_add(&sess->s_req_cache, item,
 				m0_time_from_now(M0_RPC_ITEM_REQ_CACHE_TMO, 0));
+		/*
+		 * Misordered request without reply - drop it, now that it
+		 * is present in the cache.
+		 */
+		M0_LOG(M0_NOTICE, "item: %p [%s/%u] session %p, misordered %"
+		       PRIu64" != %"PRIu64, item, item_kind(item),
+		       item->ri_type->rit_opcode, sess, xid, sess->s_xid + 1);
 		return M0_RC(false);
 	}
 
@@ -607,12 +617,10 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 			m0_rpc_item_send_reply(item, cached);
 		}
 		return M0_RC(false);
-	}
-
-	/* Misordered request without reply - just drop it. */
-	M0_LOG(M0_NOTICE, "item: %p [%s/%u] misordered %"PRIu64" != %"PRIu64,
-	       item, item_kind(item), item->ri_type->rit_opcode,
-	       xid, sess->s_xid + 1);
+	} else
+		M0_LOG(M0_DEBUG, "item: %p [%s/%u] xid=%"PRIu64" s_xid=%"PRIu64
+		       "No reply found", item, item_kind(item),
+		       item->ri_type->rit_opcode, xid, sess->s_xid);
 
 	return M0_RC(false);
 }
@@ -647,8 +655,9 @@ M0_INTERNAL void m0_rpc_item_change_state(struct m0_rpc_item *item,
 	M0_PRE(item != NULL);
 	M0_PRE(m0_rpc_machine_is_locked(item->ri_rmachine));
 
-	M0_LOG(M0_DEBUG, "%p[%s/%u] %s -> %s, sm %s", item,
+	M0_LOG(M0_DEBUG, "%p[%s/%u] xid=%"PRIu64 ", %s -> %s, sm %s", item,
 	       item_kind(item), item->ri_type->rit_opcode,
+	       item->ri_header.osr_xid,
 	       item_state_name(item), m0_sm_state_name(&item->ri_sm, state),
 	       item->ri_sm.sm_conf->scf_name);
 
@@ -661,9 +670,10 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	M0_PRE(item->ri_sm.sm_state != M0_RPC_ITEM_FAILED);
 	M0_PRE(item->ri_sm.sm_state != M0_RPC_ITEM_UNINITIALISED);
 
-	M0_ENTRY("FAILED %p[%s/%u], state %s, session %p, error %d",
-		 item, item_kind(item), item->ri_type->rit_opcode,
-		 item_state_name(item), item->ri_session, rc);
+	M0_ENTRY("FAILED %p[%s/%u], xid=%"PRIu64", state %s, session %p, "
+		 "error %d", item, item_kind(item), item->ri_type->rit_opcode,
+		 item->ri_header.osr_xid, item_state_name(item),
+		 item->ri_session, rc);
 
 	item->ri_rmachine->rm_stats.rs_nr_failed_items++;
 
@@ -1266,7 +1276,8 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	 * To prevent second handling of the same item, xid is assigned to each
 	 * eligible rpc item (see rpc_item_needs_xid()). It is checked on the
 	 * other side (in this function). Session on the client and on the
-	 * server has xid counter, and items with wrong xid are just dropped.
+	 * server has xid counter, and items with wrong xid are dropped after
+	 * adding those to the item cache if not present there already.
 	 * In case if there is a reply in the reply cache, the reply is sent
 	 * again.
 	 *
@@ -1659,9 +1670,9 @@ M0_INTERNAL void m0_rpc_item_pending_cache_add(struct m0_rpc_item *item)
 	if (item->ri_session->s_session_id == SESSION_ID_0)
 		return;
 
-	M0_ENTRY("%p[%u] nr_sent %lu, item->ri_reply %p", item,
-		 item->ri_type->rit_opcode, (unsigned long)item->ri_nr_sent,
-		 item->ri_reply);
+	M0_ENTRY("%p[%u] xid=%"PRIu64", nr_sent %lu, item->ri_reply %p", item,
+		 item->ri_type->rit_opcode, item->ri_header.osr_xid,
+		 (unsigned long)item->ri_nr_sent, item->ri_reply);
 
 	M0_PRE(m0_rpc_item_is_request(item));
 	M0_PRE(m0_rpc_machine_is_locked(item->ri_rmachine));

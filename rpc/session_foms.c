@@ -437,48 +437,33 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 		return M0_FSO_AGAIN;
 
 	case M0_RPC_CONN_SESS_TERMINATE_WAIT:
-		if (gen->ssf_term_session == NULL) {
-			session = m0_rpc_session_search_and_pop(conn,
-								session_id);
-			gen->ssf_term_session = session;
-			if (session != NULL) {
-				M0_LOG(M0_DEBUG, "session: %p, hold_cnt: %d, "
-				       "wait session to become idle", session,
-				       session->s_hold_cnt);
-				rc = rpc_tick_ret(session, fom,
-					  M0_RPC_CONN_SESS_TERMINATE_WAIT);
-				m0_rpc_machine_unlock(machine);
-				M0_LEAVE();
-				return rc;
-			} else { /* session == NULL */
-				rc = -ENOENT;
-			}
-		} else {
-			session = (struct m0_rpc_session *)gen->ssf_term_session;
-			M0_ASSERT(session != NULL);
-
-			M0_LOG(M0_DEBUG, "Actual session remove. "
-			       "session: %p, hold_cnt: %d, wait for session "
-			       "to become idle", session, session->s_hold_cnt);
-
-			M0_ASSERT(M0_IN(session_state(session),
-					(M0_RPC_SESSION_IDLE,
-					 M0_RPC_SESSION_BUSY)));
-			if (session_state(session) == M0_RPC_SESSION_BUSY) {
-				M0_LOG(M0_DEBUG, "Session [%p] busy.", session);
-				m0_rpc_machine_unlock(machine);
-				M0_LEAVE();
-				return M0_FSO_AGAIN;
-			}
-			rc = m0_rpc_rcv_session_terminate(session);
-			M0_ASSERT(ergo(rc != 0, session_state(session) ==
-				       M0_RPC_SESSION_FAILED));
-			M0_ASSERT(ergo(rc == 0, session_state(session) ==
-				       M0_RPC_SESSION_TERMINATED));
-
-			m0_rpc_session_fini_locked(session);
-			m0_free(session);
+		if (gen->ssf_term_session == NULL)
+			gen->ssf_term_session = m0_rpc_session_search_and_pop(
+							conn, session_id);
+		session = (struct m0_rpc_session *)gen->ssf_term_session;
+		if (session == NULL) {
+			rc = -ENOENT;
+			break;
 		}
+		rc = rpc_tick_ret(session, fom,
+				  M0_RPC_CONN_SESS_TERMINATE_WAIT);
+		if (rc == M0_FSO_WAIT) {
+			M0_LOG(M0_DEBUG, "session: %p, hold_cnt: %d, "
+			       "wait for session to become idle",
+			       session, session->s_hold_cnt);
+			m0_rpc_machine_unlock(machine);
+			return rc;
+		}
+		M0_LOG(M0_DEBUG, "Actual session remove. session: %p, "
+		       "hold_cnt: %d", session, session->s_hold_cnt);
+		rc = m0_rpc_rcv_session_terminate(session);
+		M0_ASSERT(ergo(rc != 0, session_state(session) ==
+			       M0_RPC_SESSION_FAILED));
+		M0_ASSERT(ergo(rc == 0, session_state(session) ==
+			       M0_RPC_SESSION_TERMINATED));
+
+		m0_rpc_session_fini_locked(session);
+		m0_free(session);
 
 	default:
 		;

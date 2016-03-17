@@ -111,7 +111,8 @@ M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item)
 	int                                rc;
 	const struct m0_rpc_item_type_ops *itops = item->ri_type->rit_ops;
 
-	M0_ENTRY("item : %p", item);
+	M0_ENTRY("item %p[%u], xid=%"PRIu64,
+		 item, item->ri_type->rit_opcode, item->ri_header.osr_xid);
 
 	rc = m0_ha_epoch_check(item);
 	if (rc != 0)

@@ -33,7 +33,9 @@
 #include "rpc/ut/rpc_test_fops.h"
 #include "rpc/rpc_internal.h"
 
-enum { MILLISEC = 1000 * 1000 };
+enum {
+	TIMEOUT  = 4
+};
 
 static int __test(void);
 static void __test_timeout(m0_time_t deadline, m0_time_t timeout);
@@ -180,14 +182,14 @@ static void test_timeout(void)
 	/* Test [ENQUEUED] ---timeout----> [FAILED] */
 	M0_LOG(M0_DEBUG, "TEST:2.2:START");
 	__test_timeout(m0_time_from_now(1, 0),
-		       m0_time(0, 100 * MILLISEC));
+		       m0_time(0, 100 * M0_TIME_ONE_MSEC));
 	M0_LOG(M0_DEBUG, "TEST:2.2:END");
 
 	/* Test [URGENT] ---timeout----> [FAILED] */
 	m0_fi_enable("frm_balance", "do_nothing");
 	M0_LOG(M0_DEBUG, "TEST:2.3:START");
 	__test_timeout(m0_time_from_now(-1, 0),
-		       m0_time(0, 100 * MILLISEC));
+		       m0_time(0, 100 * M0_TIME_ONE_MSEC));
 	m0_fi_disable("frm_balance", "do_nothing");
 	M0_LOG(M0_DEBUG, "TEST:2.3:END");
 
@@ -201,9 +203,9 @@ static void test_timeout(void)
 		       comes out of sleep and returns to net layer.
 	 */
 	__test_timeout(m0_time_from_now(-1, 0),
-		       m0_time(0, 100 * MILLISEC));
+		       m0_time(0, 100 * M0_TIME_ONE_MSEC));
 	/* wait until reply is processed */
-	m0_nanosleep(m0_time(0, 500 * MILLISEC), NULL);
+	m0_nanosleep(m0_time(0, 500 * M0_TIME_ONE_MSEC), NULL);
 	M0_LOG(M0_DEBUG, "TEST:2.4:END");
 	m0_fi_disable("buf_send_cb", "delay_callback");
 }
@@ -758,19 +760,6 @@ static void cancel_item_with_various_states(bool reinitialise)
 	m0_fop_put_lock(fop);
 	M0_LOG(M0_DEBUG, "TEST:7:%d:4:END", sub_tc);
 
-	/*
-	 * Receiver may be in between processing some reply items.
-	 * Wait for the receiver to become idle.
-	 */
-	m0_reqh_idle_wait(machine->rm_reqh);
-	/*
-	 * Post a fop successfully to ensure that the item 'cancelled on the
-	 * sender side but being processed on the receiver side', from the
-	 * prior sub-TC has been taken to completion.
-	 * Otherwise, stop_rpc_client_and_server() may hang in a rare case.
-	 */
-	fop_test(0);
-
 	M0_LOG(M0_DEBUG, "TEST:7:%d:END", sub_tc);
 }
 
@@ -818,6 +807,7 @@ static void test_cancel_session(void)
 	 * dropped for the items applicable.
 	 */
 	M0_LOG(M0_DEBUG, "TEST:8:1:START");
+	m0_fi_enable("item_received_fi", "drop_item_reply");
 	for (i = 0; i < fop_nr; ++i) {
 		fop = fop_alloc(machine);
 		item               = &fop->f_item;
@@ -837,8 +827,8 @@ static void test_cancel_session(void)
 	M0_UT_ASSERT(fop_dispatched_nr == 0);
 
 	for (i = 0; i < fop_nr; ++i) {
-		item = &fop->f_item;
-		M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
+		item = &fop_arr[i]->f_item;
+		M0_UT_ASSERT(m0_ref_read(&fop_arr[i]->f_ref) == 1);
 		M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED) ||
 			     chk_state(item, M0_RPC_ITEM_REPLIED));
 		if (chk_state(item, M0_RPC_ITEM_FAILED)) {
@@ -854,9 +844,23 @@ static void test_cancel_session(void)
 	 * state, the session being cancelled.
 	 */
 	fop_test(-ECANCELED);
+	m0_fi_disable("item_received_fi", "drop_item_reply");
 
 	M0_LOG(M0_DEBUG, "TEST:8:1:2: restore session");
-	m0_rpc_session_restore(session);
+	/*
+	 * In production scenario, session will be restored through service
+	 * reconnect. It being UT, simply, destroying and recreating the
+	 * session.
+	 */
+	M0_UT_ASSERT(session->s_cancelled == true);
+	M0_UT_ASSERT(session->s_xid > 0);
+	rc = m0_rpc_session_destroy(session, m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_session_create(session, cctx.rcx_session.s_conn,
+				   m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(session->s_cancelled == false);
+	M0_UT_ASSERT(session->s_xid == 0);
 
 	/*
 	 * Post a fop successfully to verify that the session has been restored.

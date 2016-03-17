@@ -745,13 +745,11 @@ static void item_received(struct m0_rpc_item      *item,
 	struct m0_rpc_machine *machine = item->ri_rmachine;
 	int                    rc;
 
-	M0_ENTRY("machine: %p, item: %p (%s) size %zu "
-		 "opcode %"PRIu32" xid %"PRIu64" "
-		 "from ep_addr: %s, oneway = %d",
-		 machine, item, item_kind(item), item->ri_size,
-		 item->ri_type->rit_opcode, item->ri_header.osr_xid,
-		 (char *)from_ep->nep_addr,
-		 !!m0_rpc_item_is_oneway(item));
+	M0_ENTRY("machine: %p, item: %p[%s/%u] size %zu xid=%"PRIu64
+		 " from ep_addr: %s, oneway = %d",
+		 machine, item, item_kind(item), item->ri_type->rit_opcode,
+		 item->ri_size, item->ri_header.osr_xid,
+		 (char *)from_ep->nep_addr, !!m0_rpc_item_is_oneway(item));
 
 	if (item_received_fi(item))
 		return;
