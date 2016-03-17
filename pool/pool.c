@@ -408,14 +408,14 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 						struct m0_conf_pver *pver,
 						struct m0_pools_common *pc)
 {
-	struct m0_conf_diter        it;
-	struct m0_conf_objv        *ov;
-	struct m0_conf_disk        *d;
-	struct m0_conf_service     *s;
-	struct m0_reqh_service_ctx *ctx;
-	struct m0_conf_obj         *obj;
-	uint64_t                    dev_idx = 0;
-	int                         rc;
+	struct m0_conf_diter              it;
+	struct m0_conf_disk              *disk;
+	struct m0_conf_sdev              *sdev;
+	struct m0_conf_service           *svc;
+	struct m0_reqh_service_ctx       *ctx;
+	struct m0_pool_device_to_service *dev_ios;
+	uint32_t                          nr_sdevs = 0;
+	int                               rc;
 
 	M0_ENTRY();
 	M0_PRE(pc != NULL && pc->pc_dev2ios != NULL);
@@ -428,48 +428,53 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 				M0_CONF_CTRLV_DISKVS_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
-
 	/*
 	 * XXX TODO: Replace m0_conf_diter_next_sync() with
 	 * m0_conf_diter_next().
 	 */
 	while ((rc = m0_conf_diter_next_sync(&it, obj_is_ios_diskv)) ==
-							M0_CONF_DIRNEXT) {
-		uint32_t index;
-
-		obj = m0_conf_diter_result(&it);
-		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE);
-		ov = M0_CONF_CAST(obj, m0_conf_objv);
-		M0_ASSERT(m0_conf_obj_type(ov->cv_real) == &M0_CONF_DISK_TYPE);
-		d = M0_CONF_CAST(ov->cv_real, m0_conf_disk);
-		s = M0_CONF_CAST(m0_conf_obj_grandparent(&d->ck_dev->sd_obj),
-				 m0_conf_service);
-		index = d->ck_dev->sd_dev_idx;
-		ctx = m0_tl_find(pools_common_svc_ctx, ctx,
-				 &pc->pc_svc_ctxs,
-				 m0_fid_eq(&s->cs_obj.co_id,
-					   &ctx->sc_fid) &&
-				 ctx->sc_type == s->cs_type);
+	       M0_CONF_DIRNEXT) {
+		/*
+		 * Assign helper pointers.
+		 */
+		disk = M0_CONF_CAST(M0_CONF_CAST(m0_conf_diter_result(&it),
+						 m0_conf_objv)->cv_real,
+				    m0_conf_disk);
+		sdev = disk->ck_dev;
+		svc = M0_CONF_CAST(m0_conf_obj_grandparent(&sdev->sd_obj),
+				   m0_conf_service);
+		/*
+		 * Find a m0_reqh_service_ctx that corresponds to `svc'.
+		 */
+		ctx = m0_tl_find(pools_common_svc_ctx, ctx, &pc->pc_svc_ctxs,
+				 m0_fid_eq(&ctx->sc_fid, &svc->cs_obj.co_id) &&
+				 ctx->sc_type == svc->cs_type);
 		M0_ASSERT(ctx != NULL);
-		M0_LOG(M0_DEBUG, "device index:%d, service fid"FID_F"disk fid"
-				FID_F"sdev_fid"FID_F, index,
-				FID_P(&ctx->sc_fid),
-				FID_P(&d->ck_obj.co_id),
-				FID_P(&d->ck_dev->sd_obj.co_id));
-		M0_ASSERT(index < pc->pc_nr_devices);
-		M0_CNT_INC(dev_idx);
-		if (pc->pc_dev2ios[index].pds_ctx != NULL) {
-			M0_ASSERT(m0_fid_eq(&pc->pc_dev2ios[index].pds_sdev_fid,
-					    &d->ck_dev->sd_obj.co_id));
-			continue;
+
+		M0_LOG(M0_DEBUG, "dev_idx=%d service="FID_F" disk="FID_F
+		       " sdev_fid="FID_F, sdev->sd_dev_idx,
+		       FID_P(&svc->cs_obj.co_id), FID_P(&disk->ck_obj.co_id),
+		       FID_P(&sdev->sd_obj.co_id));
+		M0_ASSERT(sdev->sd_dev_idx < pc->pc_nr_devices);
+		/*
+		 * Set "(m0_reqh_service_ctx, sdev_fid)" tuple, associated
+		 * with this dev_idx, or make sure it is set to correct
+		 * values.
+		 */
+		dev_ios = &pc->pc_dev2ios[sdev->sd_dev_idx];
+		if (dev_ios->pds_ctx == NULL) {
+			dev_ios->pds_sdev_fid = sdev->sd_obj.co_id;
+			dev_ios->pds_ctx = ctx;
+		} else {
+			M0_ASSERT(m0_fid_eq(&dev_ios->pds_sdev_fid,
+					    &sdev->sd_obj.co_id));
+			M0_ASSERT(dev_ios->pds_ctx == ctx);
 		}
-		pc->pc_dev2ios[index].pds_sdev_fid = d->ck_dev->sd_obj.co_id;
-		pc->pc_dev2ios[index].pds_ctx = ctx;
+		M0_CNT_INC(nr_sdevs);
 	}
 
 	m0_conf_diter_fini(&it);
-
-	M0_POST(dev_idx <= pc->pc_nr_devices && dev_idx == pv->pv_attr.pa_P);
+	M0_POST(nr_sdevs <= pc->pc_nr_devices && nr_sdevs == pv->pv_attr.pa_P);
 	return M0_RC(rc);
 }
 

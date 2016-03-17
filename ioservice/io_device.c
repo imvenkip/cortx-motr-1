@@ -577,7 +577,6 @@ static char *ios_args_init_conf_error(const struct m0_conf_cache *cache,
 	/*
 	 * - for ctrl in controllers:
 	 *       for disk in ctrl.cc_disks:
-	 *           ## m0_is_ios_disk() calls disk2service().
 	 *           assert type(disk.ck_dev) is m0_conf_sdev
 	 *           assert m0_conf_obj_type(m0_conf_obj_grandparent(
 	 *               disk.ck_dev)) == &M0_CONF_SERVICE_TYPE

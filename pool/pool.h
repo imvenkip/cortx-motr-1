@@ -177,7 +177,7 @@ struct m0_pools_common {
 
 	/**
 	 * An array of size of pc_nr_devices.
-	 * Maps device to io service.
+	 * Maps device to io service: dev_idx -> (reqh_service_ctx, sdev_fid)
 	 * Each pc_dev2ios[i] entry points to instance of
 	 * struct m0_reqh_service_ctx which has established rpc connections
 	 * with the given service endpoints.
@@ -191,7 +191,7 @@ struct m0_pools_common {
 	/** Pool of ioservices used to store meta data cobs. */
 	struct m0_pool                   *pc_md_pool;
 	/** Layout instance of the mdpool. */
-	struct m0_layout_instance   *pc_md_pool_linst;
+	struct m0_layout_instance        *pc_md_pool_linst;
 };
 
 M0_TL_DESCR_DECLARE(pools_common_svc_ctx, M0_EXTERN);

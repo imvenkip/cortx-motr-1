@@ -489,19 +489,16 @@ M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj)
 		M0_IMPOSSIBLE("");
 }
 
-static struct m0_conf_service *disk2service(const struct m0_conf_obj *disk_obj)
-{
-	struct m0_conf_obj *sdev_obj =
-		&M0_CONF_CAST(disk_obj, m0_conf_disk)->ck_dev->sd_obj;
-	struct m0_conf_obj *svc_obj = m0_conf_obj_grandparent(sdev_obj);
-
-	return M0_CONF_CAST(svc_obj, m0_conf_service);
-}
-
 M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE &&
-	       disk2service(obj)->cs_type == M0_CST_IOS;
+		({
+			const struct m0_conf_disk *disk =
+				M0_CONF_CAST(obj, m0_conf_disk);
+			M0_CONF_CAST(
+				m0_conf_obj_grandparent(&disk->ck_dev->sd_obj),
+				m0_conf_service)->cs_type == M0_CST_IOS;
+		});
 }
 
 M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
@@ -509,7 +506,7 @@ M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
 					  uint32_t *nr_devices)
 {
 	return m0_conf_obj_count(profile, confc, m0_is_ios_disk, nr_devices,
-			         M0_CONF_FILESYSTEM_RACKS_FID,
+				 M0_CONF_FILESYSTEM_RACKS_FID,
 				 M0_CONF_RACK_ENCLS_FID,
 				 M0_CONF_ENCLOSURE_CTRLS_FID,
 				 M0_CONF_CONTROLLER_DISKS_FID);
