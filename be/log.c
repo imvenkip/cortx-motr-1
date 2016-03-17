@@ -782,11 +782,20 @@ M0_INTERNAL void m0_be_log_record_io_launch(struct m0_be_log_record *record,
 					    struct m0_be_op         *op)
 {
 	struct m0_be_log *log = record->lgr_log;
+	struct m0_be_op   op2 = {};
 	int               i;
 
 	record->lgr_state = LGR_SCHEDULED;
 	m0_be_log_sched_lock(&log->lg_sched);
 	m0_be_op_set_add(op, &record->lgr_record_op);
+
+	/* XXX Move op to ACTIVE state. Workaround for several tx_groups. */
+	m0_be_op_init(&op2);
+	m0_be_op_set_add(op, &op2);
+	m0_be_op_active(&op2);
+	m0_be_op_done(&op2);
+	m0_be_op_fini(&op2);
+
 	if (record->lgr_write_header) {
 		m0_be_op_reset(&log->lg_header_write_op);
 		m0_be_op_set_add(&record->lgr_record_op,

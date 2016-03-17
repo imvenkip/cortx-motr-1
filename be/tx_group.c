@@ -354,7 +354,7 @@ M0_INTERNAL size_t m0_be_tx_group_tx_nr(struct m0_be_tx_group *gr)
 
 M0_INTERNAL void m0_be_tx_group_open(struct m0_be_tx_group *gr)
 {
-	m0_be_engine__tx_group_open(gr->tg_engine, gr);
+	m0_be_engine__tx_group_ready(gr->tg_engine, gr);
 }
 
 M0_INTERNAL int m0_be_tx_group_start(struct m0_be_tx_group *gr)

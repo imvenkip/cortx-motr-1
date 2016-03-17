@@ -43,13 +43,18 @@ enum {
 	BE_UT_TX_BULK_TX_SIZE_MAX_BP = 2000,
 };
 
-static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg *tb_cfg,
-                                   void                    (*test_prepare)
+struct be_ut_tx_bulk_be_cfg {
+	size_t tbbc_tx_group_nr;
+};
+
+static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg    *tb_cfg,
+				   struct be_ut_tx_bulk_be_cfg *be_cfg,
+                                   void                       (*test_prepare)
 					(struct m0_be_ut_backend *ut_be,
 					 struct m0_be_ut_seg     *ut_seg,
 					 void                    *ptr),
-				   void                      *ptr,
-				   bool                       success)
+				   void                        *ptr,
+				   bool                         success)
 {
 	struct m0_be_ut_backend *ut_be;
 	struct m0_be_domain_cfg  cfg = {};
@@ -69,6 +74,12 @@ static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg *tb_cfg,
 	 * for tx_bulk UTs.
 	 */
 	m0_be_ut_backend_cfg_default(&cfg);
+	if (be_cfg != NULL && be_cfg->tbbc_tx_group_nr != 0) {
+		cfg.bc_engine.bec_group_nr = be_cfg->tbbc_tx_group_nr;
+		cfg.bc_pd_cfg.bpdc_seg_io_nr =
+			max64u(cfg.bc_pd_cfg.bpdc_seg_io_nr,
+			       be_cfg->tbbc_tx_group_nr);
+	}
 	m0_be_tx_credit_mul_bp(&cfg.bc_engine.bec_tx_size_max,
 	                       BE_UT_TX_BULK_TX_SIZE_MAX_BP);
 	m0_be_tx_credit_mul_bp(&cfg.bc_engine.bec_group_cfg.tgc_size_max,
@@ -177,7 +188,7 @@ void m0_be_ut_tx_bulk_usecase(void)
 	tb_cfg.tbc_datum = bu;
 	m0_mutex_init(&bu->tbu_lock);
 
-	be_ut_tx_bulk_test_run(&tb_cfg,
+	be_ut_tx_bulk_test_run(&tb_cfg, NULL,
 			       &be_ut_tx_bulk_usecase_test_prepare, bu, true);
 
 	m0_mutex_fini(&bu->tbu_lock);
@@ -205,6 +216,8 @@ enum {
  * bbs_<someting> + (bbs_<something>_bp * <max value from engine cfg) / 10000
  */
 struct be_ut_tx_bulk_state {
+	size_t                   bbs_tx_group_nr;
+
 	uint64_t                 bbs_nr_max;
 	struct m0_be_tx_credit   bbs_cred;
 	unsigned                 bbs_cred_bp;
@@ -338,8 +351,9 @@ enum {
 	BE_UT_TX_BULK_ERROR_PAYLOAD = 1 << 4,
 };
 
-static void be_ut_tx_bulk_state_test_run(struct be_ut_tx_bulk_state *tbs,
-                                         bool                        success)
+static void be_ut_tx_bulk_state_test_run(struct be_ut_tx_bulk_state  *tbs,
+					 struct be_ut_tx_bulk_be_cfg *be_cfg,
+                                         bool                         success)
 {
 	struct m0_be_tx_bulk_cfg    tb_cfg = {
 		.tbc_next   = &be_ut_tx_bulk_state_next,
@@ -354,8 +368,8 @@ static void be_ut_tx_bulk_state_test_run(struct be_ut_tx_bulk_state *tbs,
 	M0_ALLOC_ARR(tbs->bbs_buf, tbs->bbs_buf_nr);
 	M0_UT_ASSERT(tbs->bbs_buf != NULL);
 
-	be_ut_tx_bulk_test_run(&tb_cfg, &be_ut_tx_bulk_test_prepare, tbs,
-	                       success);
+	be_ut_tx_bulk_test_run(&tb_cfg, be_cfg, &be_ut_tx_bulk_test_prepare,
+			       tbs, success);
 
 	m0_free(tbs->bbs_buf);
 	m0_mutex_fini(&tbs->bbs_lock);
@@ -373,7 +387,7 @@ void m0_be_ut_tx_bulk_empty(void)
 		.bbs_use_bp          = 0,
 		.bbs_payload_use     = 0,
 		.bbs_payload_use_bp  = 0,
-	}), true);
+	}), NULL, true);
 }
 
 void m0_be_ut_tx_bulk_error_reg(void)
@@ -388,7 +402,7 @@ void m0_be_ut_tx_bulk_error_reg(void)
 		.bbs_use_bp          = 0,
 		.bbs_payload_use     = 0,
 		.bbs_payload_use_bp  = 0,
-	}), false);
+	}), NULL, false);
 }
 
 void m0_be_ut_tx_bulk_error_payload(void)
@@ -403,7 +417,7 @@ void m0_be_ut_tx_bulk_error_payload(void)
 		.bbs_use_bp          = 0,
 		.bbs_payload_use     = 0,
 		.bbs_payload_use_bp  = 0,
-	}), false);
+	}), NULL, false);
 }
 
 void m0_be_ut_tx_bulk_large_tx(void)
@@ -418,7 +432,7 @@ void m0_be_ut_tx_bulk_large_tx(void)
 		.bbs_use_bp          = 10000,
 		.bbs_payload_use     = 0,
 		.bbs_payload_use_bp  = 0,
-	}), true);
+	}), NULL, true);
 }
 
 void m0_be_ut_tx_bulk_large_payload(void)
@@ -433,7 +447,7 @@ void m0_be_ut_tx_bulk_large_payload(void)
 		.bbs_use_bp          = 0,
 		.bbs_payload_use     = 0,
 		.bbs_payload_use_bp  = 10000,
-	}), true);
+	}), NULL, true);
 }
 
 void m0_be_ut_tx_bulk_large_all(void)
@@ -448,7 +462,7 @@ void m0_be_ut_tx_bulk_large_all(void)
 		.bbs_use_bp          = 10000,
 		.bbs_payload_use     = 0,
 		.bbs_payload_use_bp  = 10000,
-	}), true);
+	}), NULL, true);
 }
 
 void m0_be_ut_tx_bulk_small_tx(void)
@@ -463,7 +477,7 @@ void m0_be_ut_tx_bulk_small_tx(void)
 		.bbs_use_bp          = 0,
 		.bbs_payload_use     = 0x8,
 		.bbs_payload_use_bp  = 0,
-	}), true);
+	}), NULL, true);
 }
 
 void m0_be_ut_tx_bulk_medium_tx(void)
@@ -478,6 +492,25 @@ void m0_be_ut_tx_bulk_medium_tx(void)
 		.bbs_use_bp          = 10,
 		.bbs_payload_use     = 1,
 		.bbs_payload_use_bp  = 5,
+	}), NULL, true);
+}
+
+/* m0_be_ut_tx_bulk_medium_tx with 8 tx_groups */
+void m0_be_ut_tx_bulk_medium_tx_multi(void)
+{
+	be_ut_tx_bulk_state_test_run(&((struct be_ut_tx_bulk_state){
+		.bbs_nr_max          = BE_UT_TX_BULK_TX_NR_MEDIUM_TX,
+		.bbs_cred            = M0_BE_TX_CREDIT(1, 1),
+		.bbs_cred_bp         = 10,
+		.bbs_payload_cred    = 1,
+		.bbs_payload_cred_bp = 5,
+		.bbs_use             = M0_BE_TX_CREDIT(1, 1),
+		.bbs_use_bp          = 10,
+		.bbs_payload_use     = 1,
+		.bbs_payload_use_bp  = 5,
+	}),
+	&((struct be_ut_tx_bulk_be_cfg){
+		.tbbc_tx_group_nr = 8,
 	}), true);
 }
 
@@ -493,7 +526,7 @@ void m0_be_ut_tx_bulk_medium_cred(void)
 		.bbs_use_bp          = 10,
 		.bbs_payload_use     = 0,
 		.bbs_payload_use_bp  = 2,
-	}), true);
+	}), NULL, true);
 }
 
 void m0_be_ut_tx_bulk_large_cred(void)
@@ -508,7 +541,7 @@ void m0_be_ut_tx_bulk_large_cred(void)
 		.bbs_use_bp          = 10,
 		.bbs_payload_use     = 0,
 		.bbs_payload_use_bp  = 2,
-	}), true);
+	}), NULL, true);
 }
 
 #undef M0_TRACE_SUBSYSTEM

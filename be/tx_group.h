@@ -43,6 +43,7 @@ struct be_recovering_tx;
  */
 
 enum m0_be_tx_group_state {
+	M0_BGS_READY,
 	M0_BGS_OPEN,
 	M0_BGS_FROZEN,
 	M0_BGS_CLOSED,

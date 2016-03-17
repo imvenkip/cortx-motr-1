@@ -110,6 +110,7 @@ extern void m0_be_ut_tx_bulk_large_payload(void);
 extern void m0_be_ut_tx_bulk_large_all(void);
 extern void m0_be_ut_tx_bulk_small_tx(void);
 extern void m0_be_ut_tx_bulk_medium_tx(void);
+extern void m0_be_ut_tx_bulk_medium_tx_multi(void);
 extern void m0_be_ut_tx_bulk_medium_cred(void);
 extern void m0_be_ut_tx_bulk_large_cred(void);
 
@@ -205,6 +206,7 @@ struct m0_ut_suite be_ut = {
 		{ "tx_bulk-large_all",       m0_be_ut_tx_bulk_large_all       },
 		{ "tx_bulk-small_tx",        m0_be_ut_tx_bulk_small_tx        },
 		{ "tx_bulk-medium_tx",       m0_be_ut_tx_bulk_medium_tx       },
+		{ "tx_bulk-medium_tx_multi", m0_be_ut_tx_bulk_medium_tx_multi },
 		{ "tx_bulk-medium_cred",     m0_be_ut_tx_bulk_medium_cred     },
 		{ "tx_bulk-large_cred",      m0_be_ut_tx_bulk_large_cred      },
 		{ "fl",                      m0_be_ut_fl                      },

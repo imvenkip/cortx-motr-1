@@ -676,6 +676,9 @@ static int be_domain_start_stop(struct m0_be_domain     *dom,
 
 	dom->bd_cfg = *cfg;
 	M0_ASSERT(equi(cfg->bc_seg_cfg == NULL, cfg->bc_seg_nr == 0));
+	M0_ASSERT_INFO(cfg->bc_pd_cfg.bpdc_seg_io_nr >=
+		       cfg->bc_engine.bec_group_nr,
+		       "seg_io_nr must be at least number of tx_groups");
 
 	if (mkfs_mode) {
 		rc = be_domain_start_mkfs_pre(dom, cfg);
