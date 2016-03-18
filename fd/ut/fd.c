@@ -29,7 +29,7 @@
 #include "lib/fs.h"         /* m0_file_read */
 #include "lib/errno.h"      /* EINVAL */
 #include "conf/ut/common.h" /* g_grp */
-#include "ut/ut.h"
+#include "ut/ut.h"          /* M0_UT_ASSERT */
 
 /* Conf parameters. */
 enum {
@@ -356,7 +356,7 @@ static void test_ft_mapping(void)
 	M0_SET0(&src_new);
 	M0_SET0(&tgt);
 	for (depth = 1; depth < M0_FTA_DEPTH_MAX; ++depth) {
-		while (G > P) {
+		while (G > P || P > TUA_MAX_POOL_WIDTH) {
 			fd_ut_children_populate(children_nr, depth);
 			P = pool_width_count(children_nr, depth);
 		}

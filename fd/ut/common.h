@@ -40,8 +40,11 @@ enum tree_ut_attr {
 	TUA_ITER         = 20,
 	/* Max number of children for any node in UT for the m0_fd_tree-tree. */
 	TUA_CHILD_NR_MAX = 13,
+	/* Maximum pool width of system. */
+	TUA_MAX_POOL_WIDTH = 5000,
 };
-M0_BASSERT(TUA_CHILD_NR_MAX >= la_N + 2 * la_K);
+M0_BASSERT(TUA_CHILD_NR_MAX >= la_N + 2 * la_K &&
+	   TUA_MAX_POOL_WIDTH >= TUA_CHILD_NR_MAX);
 
 enum tree_type {
 	TP_LEAF,
