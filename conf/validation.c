@@ -177,6 +177,16 @@ static int conf_services_count(const struct m0_conf_filesystem *fs,
 	}
 	return n;
 }
+
+static const struct m0_conf_service *
+service_from_diskv(const struct m0_conf_objv *diskv)
+{
+	const struct m0_conf_disk *disk;
+
+	disk = M0_CONF_CAST(diskv->cv_real, m0_conf_disk);
+	return M0_CONF_CAST(m0_conf_obj_grandparent(&disk->ck_dev->sd_obj),
+			    m0_conf_service);
+}
 
 /* ------------------------------------------------------------------
  * Conf validation rules
@@ -333,6 +343,65 @@ conf_svc_type_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
+static char *conf_pver_pool_width_error(const struct m0_conf_pver *pver,
+					char *buf, size_t buflen)
+{
+	struct m0_conf_glob       glob;
+	const struct m0_conf_obj *objv[CONF_GLOB_BATCH];
+	uint32_t                  nr_io_devs = 0;
+	int                       rc;
+
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &pver->pv_obj,
+			  M0_CONF_PVER_RACKVS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_RACKV_ENCLVS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_ENCLV_CTRLVS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_CTRLV_DISKVS_FID, M0_CONF_ANY_FID);
+	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
+		nr_io_devs += m0_count(i, rc, ({
+					/* m0_is_ios_disk() is too permissive */
+					const struct m0_conf_objv *diskv =
+						M0_CONF_CAST(objv[i],
+							     m0_conf_objv);
+					service_from_diskv(diskv)->cs_type ==
+						M0_CST_IOS;
+				}));
+	}
+	if (rc < 0)
+		return m0_conf_glob_error(&glob, buf, buflen);
+	return pver->pv_attr.pa_P > nr_io_devs ?
+		m0_vsnprintf(buf, buflen, FID_F": Pool width (%u) exceeds"
+			     " the number of IO devices (%u)",
+			     FID_P(&pver->pv_obj.co_id), pver->pv_attr.pa_P,
+			     nr_io_devs) :
+		NULL;
+}
+
+/**
+ * Checks that P attribute of each pool version (pver) does not exceed
+ * the number of IO storage devices, reachable from this pver.
+ */
+static char *conf_pool_width_error(const struct m0_conf_cache *cache,
+				   char *buf, size_t buflen)
+{
+	struct m0_conf_glob       glob;
+	const struct m0_conf_obj *obj;
+	char                     *err;
+	int                       rc;
+
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
+			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
+			  M0_CONF_PROFILE_FILESYSTEM_FID,
+			  M0_CONF_FILESYSTEM_POOLS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_POOL_PVERS_FID, M0_CONF_ANY_FID);
+	while ((rc = m0_conf_glob(&glob, 1, &obj)) > 0) {
+		err = conf_pver_pool_width_error(
+			M0_CONF_CAST(obj, m0_conf_pver), buf, buflen);
+		if (err != NULL)
+			return err;
+	}
+	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
+}
+
 static const struct m0_conf_ruleset conf_rules = {
 	.cv_name  = "m0_conf_rules",
 	.cv_rules = {
@@ -340,6 +409,7 @@ static const struct m0_conf_ruleset conf_rules = {
 		_ENTRY(conf_filesystem_error),
 		_ENTRY(conf_endpoint_error),
 		_ENTRY(conf_svc_type_error),
+		_ENTRY(conf_pool_width_error),
 #undef _ENTRY
 		{ NULL, NULL }
 	}

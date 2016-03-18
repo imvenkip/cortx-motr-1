@@ -19,6 +19,7 @@ CONFXC_FILES +=                \
     conf/ut/t_bad-ep-service.xc \
     conf/ut/t_no-confd.xc \
     conf/ut/t_no-ioservices.xc \
+    conf/ut/t_pool-width-error.xc \
     conf/ut/t_redundancy-0.xc  \
     conf/ut/t_redundancy-too-big.xc \
     conf/ut/t_stubbed-glob.xc
