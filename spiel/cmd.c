@@ -986,9 +986,10 @@ static int spiel_pool_device_collect(struct _pool_cmd_ctx *ctx,
 	int                  rc;
 
 	diskv = M0_CONF_CAST(obj_diskv, m0_conf_objv);
-	if (diskv == NULL ||
-	    m0_conf_obj_type(diskv->cv_real) != &M0_CONF_DISK_TYPE)
+	if (diskv == NULL)
 		return M0_ERR(-ENOENT);
+	if (m0_conf_obj_type(diskv->cv_real) != &M0_CONF_DISK_TYPE)
+		return -EINVAL; /* rackv, ctrlv objectv's are ignored. */
 
 	rc = m0_confc_open_by_fid_sync(ctx->pl_confc,
 				       &diskv->cv_real->co_id, &obj_disk);
