@@ -34,9 +34,6 @@
 #include "lib/finject.h"
 #include "lib/misc.h"   /* m0_round_down */
 
-#include "addb2/addb2.h"
-#include "addb2/identifier.h"
-
 enum { U_POISON_BYTE = 0x5f };
 
 #ifdef ENABLE_DEV_MODE
@@ -109,7 +106,6 @@ static void alloc_tail(void *area, size_t size)
 		m0_atomic64_add(&allocated, asize);
 		m0_atomic64_add(&cumulative_alloc, asize);
 	}
-	M0_ADDB2_ADD(M0_AVI_ALLOC, size, (uint64_t)area);
 }
 
 M0_INTERNAL void *m0_alloc_nz(size_t size)
