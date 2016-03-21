@@ -512,8 +512,8 @@ struct m0_conf_sdev {
 	struct m0_fid     *sd_disk;
 	/**
 	 * Device index.
-	 * The value should be between 0 and (P - 1), where P is total number of
-	 * devices under ioservices and should be unique.
+	 * The value should be unique and belong [0, P) range,
+	 * where P is total number of devices under ioservices.
 	 */
 	uint32_t           sd_dev_idx;
 	/** Interface type. See m0_cfg_storage_device_interface_type. */

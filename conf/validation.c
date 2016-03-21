@@ -31,6 +31,7 @@
 #include "conf/obj_ops.h"  /* m0_conf_dir_tl */
 #include "lib/string.h"    /* m0_vsnprintf */
 #include "lib/errno.h"     /* ENOENT */
+#include "lib/memory.h"    /* M0_ALLOC_ARR */
 
 extern const struct m0_conf_ruleset m0_ios_rules;
 extern const struct m0_conf_ruleset m0_pool_rules;
@@ -176,16 +177,6 @@ static int conf_services_count(const struct m0_conf_filesystem *fs,
 		return M0_ERR(rc);
 	}
 	return n;
-}
-
-static const struct m0_conf_service *
-service_from_diskv(const struct m0_conf_objv *diskv)
-{
-	const struct m0_conf_disk *disk;
-
-	disk = M0_CONF_CAST(diskv->cv_real, m0_conf_disk);
-	return M0_CONF_CAST(m0_conf_obj_grandparent(&disk->ck_dev->sd_obj),
-			    m0_conf_service);
 }
 
 /* ------------------------------------------------------------------
@@ -343,13 +334,51 @@ conf_svc_type_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
-static char *conf_pver_pool_width_error(const struct m0_conf_pver *pver,
-					char *buf, size_t buflen)
+static char *conf_io_dev_idx_error(const struct m0_conf_sdev *sdev,
+				   uint32_t pool_width, uint32_t *nr_io_devs,
+				   const struct m0_fid **io_devs,
+				   char *buf, size_t buflen)
 {
-	struct m0_conf_glob       glob;
-	const struct m0_conf_obj *objv[CONF_GLOB_BATCH];
-	uint32_t                  nr_io_devs = 0;
-	int                       rc;
+	if (M0_CONF_CAST(m0_conf_obj_grandparent(&sdev->sd_obj),
+			 m0_conf_service)->cs_type == M0_CST_IOS) {
+		M0_CNT_INC(*nr_io_devs);
+		if (sdev->sd_dev_idx >= pool_width)
+			return m0_vsnprintf(
+				buf, buflen, FID_F": dev_idx (%u) does not"
+				" belong [0, P) range; P=%u",
+				FID_P(&sdev->sd_obj.co_id), sdev->sd_dev_idx,
+				pool_width);
+		if (io_devs[sdev->sd_dev_idx] != NULL)
+			return m0_vsnprintf(
+				buf, buflen, FID_F": dev_idx is not unique,"
+				" duplicates that of "FID_F,
+				FID_P(&sdev->sd_obj.co_id),
+				FID_P(io_devs[sdev->sd_dev_idx]));
+		io_devs[sdev->sd_dev_idx] = &sdev->sd_obj.co_id;
+	}
+	return NULL;
+}
+
+/**
+ * Checks that P attribute of the pool version (pver) does not exceed
+ * the number of IO storage devices, reachable from this pver.
+ * Also validates dev_idx attribute of such storage devices.
+ */
+static char *
+conf_pver_error(const struct m0_conf_pver *pver, char *buf, size_t buflen)
+{
+	const struct m0_fid      **io_devs;
+	struct m0_conf_glob        glob;
+	const struct m0_conf_obj  *objv[CONF_GLOB_BATCH];
+	const struct m0_conf_objv *diskv;
+	uint32_t                   nr_io_devs = 0;
+	char                      *err = NULL;
+	int                        i;
+	int                        rc;
+
+	M0_ALLOC_ARR(io_devs, pver->pv_attr.pa_P);
+	if (io_devs == NULL)
+		return m0_vsnprintf(buf, buflen, "Insufficient memory");
 
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &pver->pv_obj,
 			  M0_CONF_PVER_RACKVS_FID, M0_CONF_ANY_FID,
@@ -357,17 +386,23 @@ static char *conf_pver_pool_width_error(const struct m0_conf_pver *pver,
 			  M0_CONF_ENCLV_CTRLVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_CTRLV_DISKVS_FID, M0_CONF_ANY_FID);
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
-		nr_io_devs += m0_count(i, rc, ({
-					/* m0_is_ios_disk() is too permissive */
-					const struct m0_conf_objv *diskv =
-						M0_CONF_CAST(objv[i],
-							     m0_conf_objv);
-					service_from_diskv(diskv)->cs_type ==
-						M0_CST_IOS;
-				}));
+		for (i = 0; i < rc; ++i) {
+			diskv = M0_CONF_CAST(objv[i], m0_conf_objv);
+			err = conf_io_dev_idx_error(
+				M0_CONF_CAST(diskv->cv_real,
+					     m0_conf_disk)->ck_dev,
+				pver->pv_attr.pa_P, &nr_io_devs, io_devs,
+				buf, buflen);
+			if (err != NULL)
+				goto out;
+		}
 	}
+out:
+	m0_free(io_devs);
 	if (rc < 0)
 		return m0_conf_glob_error(&glob, buf, buflen);
+	if (err != NULL)
+		return err;
 	return pver->pv_attr.pa_P > nr_io_devs ?
 		m0_vsnprintf(buf, buflen, FID_F": Pool width (%u) exceeds"
 			     " the number of IO devices (%u)",
@@ -376,12 +411,8 @@ static char *conf_pver_pool_width_error(const struct m0_conf_pver *pver,
 		NULL;
 }
 
-/**
- * Checks that P attribute of each pool version (pver) does not exceed
- * the number of IO storage devices, reachable from this pver.
- */
-static char *conf_pool_width_error(const struct m0_conf_cache *cache,
-				   char *buf, size_t buflen)
+static char *conf_pvers_error(const struct m0_conf_cache *cache,
+			      char *buf, size_t buflen)
 {
 	struct m0_conf_glob       glob;
 	const struct m0_conf_obj *obj;
@@ -394,8 +425,8 @@ static char *conf_pool_width_error(const struct m0_conf_cache *cache,
 			  M0_CONF_FILESYSTEM_POOLS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_POOL_PVERS_FID, M0_CONF_ANY_FID);
 	while ((rc = m0_conf_glob(&glob, 1, &obj)) > 0) {
-		err = conf_pver_pool_width_error(
-			M0_CONF_CAST(obj, m0_conf_pver), buf, buflen);
+		err = conf_pver_error(M0_CONF_CAST(obj, m0_conf_pver),
+				      buf, buflen);
 		if (err != NULL)
 			return err;
 	}
@@ -409,7 +440,7 @@ static const struct m0_conf_ruleset conf_rules = {
 		_ENTRY(conf_filesystem_error),
 		_ENTRY(conf_endpoint_error),
 		_ENTRY(conf_svc_type_error),
-		_ENTRY(conf_pool_width_error),
+		_ENTRY(conf_pvers_error),
 #undef _ENTRY
 		{ NULL, NULL }
 	}

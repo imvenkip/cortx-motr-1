@@ -1,4 +1,4 @@
-#= <7600000000000001:39>: Pool width (6) exceeds the number of IO devices (5)
+#= <6400000000000001:56>: dev_idx is not unique, duplicates that of <6400000000000001:33>
 (root-0 verno=1 profiles=[profile-0])
 (profile-0 filesystem=filesystem-1)
 (filesystem-1 rootfid=(0xb, 0x16) redundancy=2
@@ -76,7 +76,9 @@
     flags=4 filename="/dev/sdev2")
 (sdev-85 dev_idx=3 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev3")
-(sdev-86 dev_idx=4 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
+(sdev-86
+    dev_idx=0 # the value duplicates that of sdev-51
+    iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev4")
 (rack-52 encls=[enclosure-53] pvers=[pver-57])
 (enclosure-53 ctrls=[controller-54] pvers=[pver-57])
@@ -88,9 +90,7 @@
 (disk-89 dev=sdev-85 pvers=[pver-57])
 (disk-90 dev=sdev-86 pvers=[pver-57])
 (pool-56 order=0 pvers=[pver-57])
-(pver-57 ver=0 N=3 K=1
-    P=6 # exceeds nr_io_devs (5)
-    nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-58])
+(pver-57 ver=0 N=3 K=1 P=5 nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-58])
 (objv-58 real=rack-52 children=[objv-59])
 (objv-59 real=enclosure-53 children=[objv-60])
 (objv-60 real=controller-54
