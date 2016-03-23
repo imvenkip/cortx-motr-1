@@ -13,3 +13,4 @@
     endpoint="172.18.1.1@tcp:12345:41:101" services=[service-1])
 (service-0 type=4 endpoints=["172.18.1.1@tcp:12345:41:201"] sdevs=[])
 (service-1 type=2 endpoints=["172.18.1.1@tcp:12345:41:201"] sdevs=[])
+(pool-0 order=0 pvers=[])

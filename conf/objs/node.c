@@ -55,7 +55,7 @@ static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 
 	rc = m0_conf_obj_find(cache, &s->xn_pool_id, &obj);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	d->cn_pool = M0_CONF_CAST(obj, m0_conf_pool);
 

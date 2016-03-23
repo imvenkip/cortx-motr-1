@@ -183,40 +183,67 @@ static int conf_services_count(const struct m0_conf_filesystem *fs,
  * Conf validation rules
  * ------------------------------------------------------------------ */
 
+static char *conf_orphans_error(const struct m0_conf_cache *cache,
+				char *buf, size_t buflen)
+{
+	const struct m0_conf_obj *obj;
+
+	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		if (obj->co_status != M0_CS_READY)
+			return m0_vsnprintf(buf, buflen, FID_F" is not defined",
+					    FID_P(&obj->co_id));
+		if (obj->co_parent == NULL &&
+		    m0_conf_obj_type(obj) != &M0_CONF_ROOT_TYPE)
+			return m0_vsnprintf(buf, buflen, "Dangling object: "
+					    FID_F, FID_P(&obj->co_id));
+	} m0_tl_endfor;
+	return NULL;
+}
+
 static char *conf_filesystem_error(const struct m0_conf_cache *cache,
 				   char *buf, size_t buflen)
 {
-	struct m0_conf_glob       glob;
-	const struct m0_conf_obj *fs_obj;
-	uint32_t                  redundancy;
-	int                       nr_ios;
-	int                       rc;
+	struct m0_conf_glob              glob;
+	const struct m0_conf_obj        *obj;
+	const struct m0_conf_filesystem *fs;
+	uint32_t                         redundancy;
+	int                              nr_ios;
+	int                              rc;
 
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
 			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROFILE_FILESYSTEM_FID);
-	while ((rc = m0_conf_glob(&glob, 1, &fs_obj)) > 0) {
-		redundancy = M0_CONF_CAST(fs_obj,
-					  m0_conf_filesystem)->cf_redundancy;
+	while ((rc = m0_conf_glob(&glob, 1, &obj)) > 0) {
+		fs = M0_CONF_CAST(obj, m0_conf_filesystem);
+		redundancy = fs->cf_redundancy;
 		if (redundancy == 0)
 			return m0_vsnprintf(
 				buf, buflen, FID_F": `redundancy' is 0."
 				" Should be in (0, nr_ioservices] range",
-				FID_P(&fs_obj->co_id));
-		nr_ios = conf_services_count(
-			M0_CONF_CAST(fs_obj, m0_conf_filesystem), M0_CST_IOS,
-			buf, buflen);
+				FID_P(&obj->co_id));
+		nr_ios = conf_services_count(fs, M0_CST_IOS, buf, buflen);
 		if (nr_ios < 0)
 			return buf;
 		if (nr_ios == 0)
 			return m0_vsnprintf(buf, buflen,
-					    FID_F": no IO services",
-					    FID_P(&fs_obj->co_id));
+					    FID_F": No IO services",
+					    FID_P(&obj->co_id));
 		if (redundancy > nr_ios)
 			return m0_vsnprintf(
 				buf, buflen, FID_F": `redundancy' exceeds"
 				" the number of IO services (%u)",
-				FID_P(&fs_obj->co_id), nr_ios);
+				FID_P(&obj->co_id), nr_ios);
+		obj = m0_conf_cache_lookup(cache, &fs->cf_mdpool);
+		if (obj == NULL)
+			return m0_vsnprintf(
+				buf, buflen, FID_F": `mdpool' "FID_F" is"
+				" missing", FID_P(&fs->cf_obj.co_id),
+				FID_P(&fs->cf_mdpool));
+		if (m0_conf_obj_grandparent(obj) != &fs->cf_obj)
+			return m0_vsnprintf(
+				buf, buflen, FID_F": `mdpool' "FID_F" belongs"
+				" another filesystem", FID_P(&fs->cf_obj.co_id),
+				FID_P(&fs->cf_mdpool));
 	}
 	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
@@ -334,11 +361,13 @@ conf_svc_type_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
-static char *conf_io_dev_idx_error(const struct m0_conf_sdev *sdev,
-				   uint32_t pool_width, uint32_t *nr_io_devs,
-				   const struct m0_fid **io_devs,
-				   char *buf, size_t buflen)
+static char *conf_io_dev_error(const struct m0_conf_sdev *sdev,
+			       uint32_t pool_width, uint32_t *nr_io_devs,
+			       const struct m0_conf_sdev **io_devs,
+			       char *buf, size_t buflen)
 {
+	uint32_t j;
+
 	if (M0_CONF_CAST(m0_conf_obj_grandparent(&sdev->sd_obj),
 			 m0_conf_service)->cs_type == M0_CST_IOS) {
 		M0_CNT_INC(*nr_io_devs);
@@ -353,8 +382,17 @@ static char *conf_io_dev_idx_error(const struct m0_conf_sdev *sdev,
 				buf, buflen, FID_F": dev_idx is not unique,"
 				" duplicates that of "FID_F,
 				FID_P(&sdev->sd_obj.co_id),
-				FID_P(io_devs[sdev->sd_dev_idx]));
-		io_devs[sdev->sd_dev_idx] = &sdev->sd_obj.co_id;
+				FID_P(&io_devs[sdev->sd_dev_idx]->
+				      sd_obj.co_id));
+		if (m0_exists(i, pool_width, io_devs[j = i] != NULL &&
+			      m0_streq(io_devs[i]->sd_filename,
+				       sdev->sd_filename)))
+			return m0_vsnprintf(
+				buf, buflen, FID_F": filename is not unique,"
+				" duplicates that of "FID_F,
+				FID_P(&sdev->sd_obj.co_id),
+				FID_P(&io_devs[j]->sd_obj.co_id));
+		io_devs[sdev->sd_dev_idx] = sdev;
 	}
 	return NULL;
 }
@@ -367,14 +405,14 @@ static char *conf_io_dev_idx_error(const struct m0_conf_sdev *sdev,
 static char *
 conf_pver_error(const struct m0_conf_pver *pver, char *buf, size_t buflen)
 {
-	const struct m0_fid      **io_devs;
-	struct m0_conf_glob        glob;
-	const struct m0_conf_obj  *objv[CONF_GLOB_BATCH];
-	const struct m0_conf_objv *diskv;
-	uint32_t                   nr_io_devs = 0;
-	char                      *err = NULL;
-	int                        i;
-	int                        rc;
+	struct m0_conf_glob         glob;
+	const struct m0_conf_obj   *objv[CONF_GLOB_BATCH];
+	const struct m0_conf_objv  *diskv;
+	const struct m0_conf_sdev **io_devs;
+	uint32_t                    nr_io_devs = 0;
+	char                       *err = NULL;
+	int                         i;
+	int                         rc;
 
 	M0_ALLOC_ARR(io_devs, pver->pv_attr.pa_P);
 	if (io_devs == NULL)
@@ -388,7 +426,7 @@ conf_pver_error(const struct m0_conf_pver *pver, char *buf, size_t buflen)
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
 		for (i = 0; i < rc; ++i) {
 			diskv = M0_CONF_CAST(objv[i], m0_conf_objv);
-			err = conf_io_dev_idx_error(
+			err = conf_io_dev_error(
 				M0_CONF_CAST(diskv->cv_real,
 					     m0_conf_disk)->ck_dev,
 				pver->pv_attr.pa_P, &nr_io_devs, io_devs,
@@ -437,6 +475,7 @@ static const struct m0_conf_ruleset conf_rules = {
 	.cv_name  = "m0_conf_rules",
 	.cv_rules = {
 #define _ENTRY(name) { #name, name }
+		_ENTRY(conf_orphans_error),
 		_ENTRY(conf_filesystem_error),
 		_ENTRY(conf_endpoint_error),
 		_ENTRY(conf_svc_type_error),

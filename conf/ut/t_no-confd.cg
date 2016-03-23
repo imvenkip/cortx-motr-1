@@ -11,3 +11,4 @@
     services=[service-10, service-11])
 (service-10 type=1 endpoints=["0@lo:12345:34:10"] sdevs=[])
 (service-11 type=2 endpoints=["0@lo:12345:34:11"] sdevs=[])
+(pool-4 order=0 pvers=[])
