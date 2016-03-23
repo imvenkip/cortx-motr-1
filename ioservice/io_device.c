@@ -230,10 +230,7 @@ ysXAXAgJ5lQoMcOkbBNBW9Nz9OM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
 #include "lib/lockers.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
-#include "conf/diter.h" /* m0_conf_diter */
-#include "conf/obj.h"
 #include "conf/obj_ops.h" /* M0_CONF_DIRNEXT */
-#include "conf/validation.h" /* m0_conf_ruleset */
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_fops.h"
@@ -543,76 +540,6 @@ out:
 	return M0_RC(rc);
 
 }
-
-/* ------------------------------------------------------------------
- * conf validation
- * ------------------------------------------------------------------ */
-
-static char *ios_paths_conf_error(const struct m0_conf_cache *cache,
-				  char *buf, size_t buflen)
-{
-#if 0 /* XXX WIP */
-	char *err;
-
-	/* for profile in "root/profiles": */
-	err = m0_conf_path_validate(profile, buf, buflen,
-				    M0_CONF_PROFILE_FILESYSTEM_FID,
-				    M0_CONF_FILESYSTEM_RACKS_FID,
-				    M0_CONF_RACK_ENCLS_FID,
-				    M0_CONF_ENCLOSURE_CTRLS_FID);
-	if (err != NULL)
-		return err;
-#else
-	/*
-	 * - "filesystem/racks/enclosures/controllers" path is available.
-	 */
-	return NULL;
-#endif
-}
-
-/** Ensures that the conf DAG can be used by ios_poolmach_args_init(). */
-static char *ios_args_init_conf_error(const struct m0_conf_cache *cache,
-				      char *buf, size_t buflen)
-{
-	/*
-	 * - for ctrl in controllers:
-	 *       for disk in ctrl.cc_disks:
-	 *           assert type(disk.ck_dev) is m0_conf_sdev
-	 *           assert m0_conf_obj_type(m0_conf_obj_grandparent(
-	 *               disk.ck_dev)) == &M0_CONF_SERVICE_TYPE
-	 */
-	return NULL;
-}
-
-/** Ensures that the conf DAG can be used by ios_poolmach_objs_fill(). */
-static char *ios_objs_fill_conf_error(const struct m0_conf_cache *cache,
-				      char *buf, size_t buflen)
-{
-	/*
-	 * - len(controllers) <= poolmach.pm_state.pst_nr_nodes
-	 *
-	 * - nr_ios_disks = 0
-	 *   for ctrl in controllers:
-	 *       nr_disks += len(ctrl.cc_disks)
-	 *       for disk in ctrl.cc_disks:
-	 *           if m0_is_ios_disk(disk):
-	 *               ++nr_ios_disks
-	 *   assert nr_ios_disks <= poolmach.pm_state.pst_nr_devices
-	 */
-	return NULL;
-}
-
-const struct m0_conf_ruleset m0_ios_rules = {
-	.cv_name  = "m0_ios_rules",
-	.cv_rules = {
-#define _ENTRY(name) { #name, name }
-		_ENTRY(ios_paths_conf_error),
-		_ENTRY(ios_args_init_conf_error),
-		_ENTRY(ios_objs_fill_conf_error),
-#undef _ENTRY
-		{ NULL, NULL }
-	}
-};
 
 #undef M0_TRACE_SUBSYSTEM
 /** @} end of io_calls_params_dldDFS */

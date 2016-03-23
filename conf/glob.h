@@ -172,6 +172,8 @@ M0_INTERNAL void m0_conf__glob_init(struct m0_conf_glob *glob,
  *
  * @pre   m0_conf_cache_is_locked(glob->cg_cache)
  * @post  ergo(retval > 0, retval <= nr)
+ *
+ * @see m0_conf_glob_error()
  */
 M0_INTERNAL int m0_conf_glob(struct m0_conf_glob *glob,
 			     uint32_t nr, const struct m0_conf_obj **objv);

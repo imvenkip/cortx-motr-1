@@ -24,7 +24,6 @@
 #include "lib/string.h"    /* m0_streq */
 #include "lib/memory.h"    /* m0_free */
 #include "lib/fs.h"        /* m0_file_read */
-#include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
 
 static char                 g_buf[128];
@@ -68,36 +67,6 @@ static void test_validation(void)
 #undef _UT_ASSERT
 	}
 	globfree(&g);
-}
-
-static void test_path(void)
-{
-	const char         *err;
-	const struct m0_fid missing = M0_FID_TINIT('n', 1, 2); /* node-2 */
-
-	cache_load(&g_cache, M0_UT_PATH("conf.xc"), NULL);
-	m0_conf_cache_lock(&g_cache);
-
-	err = m0_conf_path_validate(g_buf, sizeof g_buf, &g_cache, NULL,
-				    M0_CONF_ROOT_FID);
-	M0_UT_ASSERT(m0_streq(err, "Unreachable path:"
-			      " <7400000000000001:0>/<7400000000000001:0>"));
-	err = m0_conf_path_validate(g_buf, sizeof g_buf, &g_cache, NULL,
-				    M0_CONF_ROOT_PROFILES_FID,
-				    M0_FID_TINIT('p', 1, 0), /* profile-0 */
-				    M0_CONF_PROFILE_FILESYSTEM_FID);
-	M0_UT_ASSERT(err == NULL);
-
-	m0_conf_cache_lookup(&g_cache, &missing)->co_status = M0_CS_MISSING;
-	err = m0_conf_path_validate(g_buf, sizeof g_buf, &g_cache, NULL,
-				    M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
-				    M0_CONF_PROFILE_FILESYSTEM_FID,
-				    M0_CONF_FILESYSTEM_NODES_FID,
-				    M0_CONF_ANY_FID);
-	M0_UT_ASSERT(m0_streq(err, "Conf object is not ready:"
-			      " <6e00000000000001:2>"));
-	m0_conf_cache_lookup(&g_cache, &missing)->co_status = M0_CS_READY;
-	m0_conf_cache_unlock(&g_cache);
 }
 
 /**
@@ -206,7 +175,6 @@ struct m0_ut_suite conf_validation_ut = {
 	.ts_fini  = conf_validation_ut_fini,
 	.ts_tests = {
 		{ "sharp-comment", test_sharp_comment },
-		{ "path",          test_path },
 		{ "validation",    test_validation },
 		{ NULL, NULL }
 	}

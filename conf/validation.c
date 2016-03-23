@@ -33,14 +33,14 @@
 #include "lib/errno.h"     /* ENOENT */
 #include "lib/memory.h"    /* M0_ALLOC_ARR */
 
-extern const struct m0_conf_ruleset m0_ios_rules;
-extern const struct m0_conf_ruleset m0_pool_rules;
 static const struct m0_conf_ruleset conf_rules;
 
 static const struct m0_conf_ruleset *conf_validity_checks[] = {
-	&m0_ios_rules,
-	&m0_pool_rules,
 	&conf_rules,
+	/*
+	 * Mero modules may define their own conf validation rules and add
+	 * them here.
+	 */
 };
 
 char *
@@ -87,53 +87,6 @@ m0_conf_validation_error_locked(const struct m0_conf_cache *cache,
 				conf_validity_checks[i]->cv_name,
 				rule->cvr_name, err);
 		}
-	}
-	return NULL;
-}
-
-/** @todo XXX: Rewrite using m0_conf_glob(). */
-M0_INTERNAL char *m0_conf__path_validate(const struct m0_conf_cache *cache,
-					 struct m0_conf_obj *start,
-					 const struct m0_fid *path,
-					 char *buf, size_t buflen)
-{
-	struct m0_conf_obj *obj;
-	int                 rc;
-
-	M0_PRE(m0_conf_cache_is_locked(cache));
-	M0_PRE(start == NULL || start->co_cache == cache);
-
-	obj = start ?: m0_conf_cache_lookup(cache, &M0_CONF_ROOT_FID);
-	if (obj == NULL)
-		return m0_vsnprintf(buf, buflen, "No root object");
-	if (obj->co_status != M0_CS_READY)
-		return m0_vsnprintf(buf, buflen, "Conf object is not ready: "
-				    FID_F, FID_P(&obj->co_id));
-
-	for (; m0_fid_is_set(path) /* !eop */; ++path) {
-		if (m0_fid_eq(path, &M0_CONF_ANY_FID)) {
-			const struct m0_conf_dir *dir =
-				M0_CONF_CAST(obj, m0_conf_dir);
-			char *err = NULL;
-
-			if (!m0_tl_forall(m0_conf_dir, x, &dir->cd_items,
-					  /* recursive call */
-					  (err = m0_conf__path_validate(
-						  cache, x, path + 1,
-						  buf, buflen)) == NULL))
-				return err;
-			return NULL;
-		}
-		rc = obj->co_ops->coo_lookup(obj, path, &obj);
-		if (rc == -ENOENT)
-			return m0_vsnprintf(buf, buflen, "Unreachable path: "
-					    FID_F "/" FID_F, FID_P(&obj->co_id),
-					    FID_P(path));
-		M0_ASSERT(rc == 0);
-		if (obj->co_status != M0_CS_READY)
-			return m0_vsnprintf(buf, buflen,
-					    "Conf object is not ready: " FID_F,
-					    FID_P(&obj->co_id));
 	}
 	return NULL;
 }

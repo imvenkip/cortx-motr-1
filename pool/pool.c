@@ -31,7 +31,6 @@
 #include "conf/diter.h"    /* m0_conf_diter_next_sync */
 #include "conf/obj_ops.h"  /* m0_conf_dirval */
 #include "conf/helpers.h"  /* m0_obj_is_pver */
-#include "conf/validation.h" /* m0_conf_ruleset */
 #include "ioservice/io_device.h"  /* m0_ios_poolmach_get */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
@@ -1265,90 +1264,6 @@ M0_INTERNAL int m0_pool_device_state_update(struct m0_reqh        *reqh,
 }
 
 #endif /* !__KERNEL__ */
-
-/* ------------------------------------------------------------------
- * conf validation
- * ------------------------------------------------------------------ */
-
-static char *pool_paths_conf_error(const struct m0_conf_cache *cache,
-				   char *buf, size_t buflen)
-{
-	/*
-	 * - "filesystem/pools/pvers/rackvs/enclvs/ctrlvs/diskvs" path
-	 *   is available;
-	 *
-	 * - "filesystem/nodes/processes/services" path is available.
-	 */
-	return NULL;
-}
-
-/** Ensures that the conf DAG can be used by m0_pool_mds_map_init(). */
-static char *pool_mds_map_init_conf_error(const struct m0_conf_cache *cache,
-					  char *buf, size_t buflen)
-{
-	/*
-	 * - for ctrlv in controllervs:
-	 *       assert ctrlv.cv_real != NULL
-	 *       assert type(ctrlv.cv_real) is CONTROLLER_TYPE
-	 */
-	return NULL;
-}
-
-/** Ensures that the conf DAG can be used by __mds_map(). */
-static char *pool_mds_map_conf_error(const struct m0_conf_cache *cache,
-				     char *buf, size_t buflen)
-{
-	/*
-	 * - assert len(services) <= pc->pc_nr_svcs[M0_CST_MDS].
-	 */
-	return NULL;
-}
-
-/**
- * Ensures that the conf DAG can be used by m0_pool_version_device_map_init().
- */
-static char *
-pool_version_device_map_conf_error(const struct m0_conf_cache *cache,
-				   char *buf, size_t buflen)
-{
-	/*
-	 * - nr_devices = 0
-	 *   for diskv in diskvs:
-	 *       assert m0_conf_obj_type(diskv.cv_real) == &M0_CONF_DISK_TYPE
-	 *       disk = diskv.cv_real
-	 *       assert type(disk.ck_dev) is m0_conf_sdev
-	 *       assert m0_conf_obj_type(m0_conf_obj_grandparent(disk.ck_dev))
-	 *           == &M0_CONF_SERVICE_TYPE
-	 *       ++nr_devices
-	 *   assert nr_devices == pv->pv_attr.pa_P
-	 */
-	return NULL;
-}
-
-/** Ensures that the conf DAG can be used by m0_pools_setup(). */
-static char *pool_setup_conf_error(const struct m0_conf_cache *cache,
-				   char *buf, size_t buflen)
-{
-	/*
-	 * - assert filesystem.cf_mdpool refers to one of the pools in
-	 *          filesystem.cf_pools.
-	 */
-	return NULL;
-}
-
-const struct m0_conf_ruleset m0_pool_rules = {
-	.cv_name  = "m0_pool_rules",
-	.cv_rules = {
-#define _ENTRY(name) { #name, name }
-		_ENTRY(pool_paths_conf_error),
-		_ENTRY(pool_mds_map_init_conf_error),
-		_ENTRY(pool_mds_map_conf_error),
-		_ENTRY(pool_version_device_map_conf_error),
-		_ENTRY(pool_setup_conf_error),
-#undef _ENTRY
-		{ NULL, NULL }
-	}
-};
 
 /** @} end group pool */
 #undef M0_TRACE_SUBSYSTEM
