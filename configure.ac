@@ -273,7 +273,7 @@ AM_CONDITIONAL([ENABLE_MERO_ALTOGETHER],
                [test "x$enable_altogether_mode" = xyes])
 
 AC_ARG_ENABLE([system-libs],
-        [AS_HELP_STRING([--disable-system-libs],[disable use of system wide yaml library])],
+        [AS_HELP_STRING([--disable-system-libs],[use bundled libraries instead of system wide ones])],
         [], [enable_system_libs=yes]
 )
 
@@ -631,12 +631,7 @@ AS_IF([test x$enable_system_libs = xyes],
                            AC_MSG_ERROR([yaml.h is not found. Try to install libyaml-devel package])
           )
       ],[
-          # Check for yaml
-          YAML_SRC=$SRCDIR/extra-libs/yaml
-          YAML_INCLUDES="-I$YAML_SRC/include"
-          YAML_LIBS="$YAML_SRC/src/libyaml.la"
-          AC_MSG_CHECKING([for yaml libs])
-          MERO_BUILD_LIB([yaml], [$YAML_SRC], [$YAML_LIBS])
+         AC_MSG_ERROR([Mero doesn't come with a bundled libyaml any more, use system wide version instead.])
       ]
 )
 

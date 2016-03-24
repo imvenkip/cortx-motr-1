@@ -1,7 +1,3 @@
-[submodule "extra-libs/yaml"]
-	path = extra-libs/yaml
-	url = ../mero-yaml
-	ignore = untracked
 [submodule "extra-libs/gf-complete"]
 	path = extra-libs/gf-complete
 	url = ../gf-complete
