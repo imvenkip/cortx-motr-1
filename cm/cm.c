@@ -821,11 +821,11 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 					   M0_CMS_ACTIVE, M0_CMS_FAIL)));
 	M0_PRE(m0_cm_invariant(cm));
 
+	m0_cm_ast_run_fom_wakeup(cm);
+	cm->cm_ops->cmo_stop(cm);
 	/* In-case of failure (rc != 0) keep copy machine in failed state. */
 	if (rc == 0)
 		m0_cm_state_set(cm, M0_CMS_STOP);
-	m0_cm_ast_run_fom_wakeup(cm);
-	cm->cm_ops->cmo_stop(cm);
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
 
