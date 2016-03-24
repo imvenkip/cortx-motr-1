@@ -59,20 +59,34 @@ static void test_spiel_service_cmds(void)
 	const struct m0_fid svc_invalid_fid = M0_FID_TINIT(
 			M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 13);
 	int                 rc;
+	int                 status;
 
 	spiel_ci_ut_init();
+
+	rc = m0_spiel_service_status(&spiel, &svc_fid, &status);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(status == M0_RST_STARTED);
 
 	/* Doing `service stop` intialised during startup. */
 	rc = m0_spiel_service_quiesce(&spiel, &svc_fid);
 	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_spiel_service_stop(&spiel, &svc_fid);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_spiel_service_status(&spiel, &svc_fid, &status);
+	M0_UT_ASSERT(rc != 0);
 
 	rc = m0_spiel_service_init(&spiel, &svc_fid);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_spiel_service_status(&spiel, &svc_fid, &status);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(status == M0_RST_INITIALISED);
 
 	rc = m0_spiel_service_start(&spiel, &svc_fid);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_spiel_service_status(&spiel, &svc_fid, &status);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(status == M0_RST_STARTED);
 
 	rc = m0_spiel_service_health(&spiel, &svc_fid);
 	/* This is true while the service doesn't implement rso_health */

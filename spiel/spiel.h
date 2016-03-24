@@ -745,6 +745,17 @@ int m0_spiel_service_stop(struct m0_spiel *spl, const struct m0_fid *svc_fid);
 int m0_spiel_service_health(struct m0_spiel *spl, const struct m0_fid *svc_fid);
 
 /**
+ * Returns status of the mero service
+ *
+ * @param spl spiel instance
+ * @param svc_fid service fid from configuration DB
+ * @return 0 and state of the service if operation was successful
+ *         negative value if error occurred
+*/
+int m0_spiel_service_status(struct m0_spiel *spl, const struct m0_fid *svc_fid,
+                           int *status);
+
+/**
  * Tell mero service to stop accepting incoming requests
  *
  * @param spl spiel instance

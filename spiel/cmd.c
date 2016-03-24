@@ -463,7 +463,7 @@ static int spiel_svc_fop_fill_and_send(struct m0_spiel     *spl,
 	M0_ENTRY();
 	M0_PRE(M0_IN(cmd, (M0_SERVICE_INIT, M0_SERVICE_START,
 			   M0_SERVICE_STOP, M0_SERVICE_QUIESCE,
-			   M0_SERVICE_HEALTH)));
+			   M0_SERVICE_HEALTH, M0_SERVICE_STATUS)));
 	M0_PRE(m0_conf_fid_type(svc_fid) == &M0_CONF_SERVICE_TYPE);
 	M0_PRE(spl != NULL);
 	rc = spiel_svc_conf_obj_find(spl, svc_fid, &svc);
@@ -497,7 +497,8 @@ static struct m0_sss_rep *spiel_sss_reply_data(struct m0_fop *fop)
 
 static int spiel_svc_generic_handler(struct m0_spiel     *spl,
 				     const struct m0_fid *svc_fid,
-				     enum m0_sss_req_cmd  cmd)
+				     enum m0_sss_req_cmd  cmd,
+				     int                 *status)
 {
 	int            rc;
 	struct m0_fop *fop;
@@ -515,6 +516,9 @@ static int spiel_svc_generic_handler(struct m0_spiel     *spl,
 	rc = spiel_svc_fop_fill_and_send(spl, fop, svc_fid, cmd) ?:
 	     spiel_sss_reply_data(fop)->ssr_rc;
 
+	if (rc == 0 && status != NULL)
+		*status = spiel_sss_reply_data(fop)->ssr_state;
+
 	m0_fop_put_lock(fop);
 	return M0_RC(rc);
 }
@@ -523,7 +527,8 @@ int m0_spiel_service_init(struct m0_spiel *spl, const struct m0_fid *svc_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_INIT));
+	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_INIT,
+					       NULL));
 }
 M0_EXPORTED(m0_spiel_service_init);
 
@@ -531,7 +536,8 @@ int m0_spiel_service_start(struct m0_spiel *spl, const struct m0_fid *svc_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_START));
+	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_START,
+					       NULL));
 }
 M0_EXPORTED(m0_spiel_service_start);
 
@@ -539,7 +545,8 @@ int m0_spiel_service_stop(struct m0_spiel *spl, const struct m0_fid *svc_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_STOP));
+	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_STOP,
+					       NULL));
 }
 M0_EXPORTED(m0_spiel_service_stop);
 
@@ -547,7 +554,8 @@ int m0_spiel_service_health(struct m0_spiel *spl, const struct m0_fid *svc_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_HEALTH));
+	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_HEALTH,
+					       NULL));
 }
 M0_EXPORTED(m0_spiel_service_health);
 
@@ -556,9 +564,20 @@ int m0_spiel_service_quiesce(struct m0_spiel     *spl,
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_QUIESCE));
+	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_QUIESCE,
+					       NULL));
 }
 M0_EXPORTED(m0_spiel_service_quiesce);
+
+int m0_spiel_service_status(struct m0_spiel *spl, const struct m0_fid *svc_fid,
+			    int *status)
+{
+	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
+
+	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_STATUS,
+					       status));
+}
+M0_EXPORTED(m0_spiel_service_status);
 
 
 /****************************************************/

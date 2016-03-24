@@ -278,6 +278,7 @@ m0_spiel_service_init
 m0_spiel_service_quiesce
 m0_spiel_service_start
 m0_spiel_service_stop
+m0_spiel_service_status
 m0_spiel_tx_validate
 m0_spiel_tx_close
 m0_spiel_tx_commit
