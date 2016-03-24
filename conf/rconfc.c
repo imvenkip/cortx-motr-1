@@ -1096,8 +1096,7 @@ static int _confc_cache_clean_lock(struct m0_confc *confc)
 	int rc;
 
 	m0_conf_cache_lock(&confc->cc_cache);
-	rc = _confc_cache_pre_clean(confc) ?: /* XXX HA re-link */
-		_confc_cache_clean(confc);
+	rc = _confc_cache_clean(confc);
 	m0_conf_cache_unlock(&confc->cc_cache);
 	return M0_RC(rc);
 }
@@ -1821,7 +1820,8 @@ static void rconfc_conductor_drain(struct m0_sm_group *grp,
 	if ((obj = m0_conf_cache_pinned(cache)) != NULL) {
 		m0_clink_add(&obj->co_chan, &rconfc->rc_unpinned_cl);
 	} else {
-		rc = _confc_cache_clean(&rconfc->rc_confc);
+		rc = _confc_cache_pre_clean(&rconfc->rc_confc) ?:
+		     _confc_cache_clean(&rconfc->rc_confc);
 		if (rc != 0)
 			rconfc_fail(rconfc, rc);
 	}

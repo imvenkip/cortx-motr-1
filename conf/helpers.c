@@ -515,29 +515,29 @@ M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
 static void __cache_expired_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_reqh *reqh = container_of(ast, struct m0_reqh,
-					    rh_conf_cache_ast);
+					    rh_conf_cache_exp_ast);
 	m0_chan_broadcast_lock(&reqh->rh_conf_cache_exp);
 }
 
 M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc)
 {
 	struct m0_reqh *reqh = container_of(rconfc, struct m0_reqh, rh_rconfc);
-	reqh->rh_conf_cache_ast.sa_cb = __cache_expired_cb;
-	m0_sm_ast_post(&reqh->rh_sm_grp, &reqh->rh_conf_cache_ast);
+	reqh->rh_conf_cache_exp_ast.sa_cb = __cache_expired_cb;
+	m0_sm_ast_post(&reqh->rh_sm_grp, &reqh->rh_conf_cache_exp_ast);
 }
 
 static void __cache_drained_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_reqh *reqh = container_of(ast, struct m0_reqh,
-					    rh_conf_cache_ast);
+					    rh_conf_cache_drain_ast);
 	m0_chan_broadcast_lock(&reqh->rh_conf_cache_drain);
 }
 
 M0_INTERNAL void m0_confc_drained_cb(struct m0_rconfc *rconfc)
 {
 	struct m0_reqh *reqh = container_of(rconfc, struct m0_reqh, rh_rconfc);
-	reqh->rh_conf_cache_ast.sa_cb = __cache_drained_cb;
-	m0_sm_ast_post(&reqh->rh_sm_grp, &reqh->rh_conf_cache_ast);
+	reqh->rh_conf_cache_drain_ast.sa_cb = __cache_drained_cb;
+	m0_sm_ast_post(&reqh->rh_sm_grp, &reqh->rh_conf_cache_drain_ast);
 }
 
 #undef M0_TRACE_SUBSYSTEM

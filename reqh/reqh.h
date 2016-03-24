@@ -184,8 +184,11 @@ struct m0_reqh {
 	/** Channel for configuration cache drain events */
 	struct m0_chan                rh_conf_cache_drain;
 
-	/** AST for rconfc events. */
-	struct m0_sm_ast              rh_conf_cache_ast;
+	/** AST for rconfc cache expired events. */
+	struct m0_sm_ast              rh_conf_cache_exp_ast;
+
+	/** AST for rconfc cache drained events. */
+	struct m0_sm_ast              rh_conf_cache_drain_ast;
 };
 
 /**

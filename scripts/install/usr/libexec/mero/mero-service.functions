@@ -644,6 +644,7 @@ _build_process_objects()
             local ep=$(m0_get_ep_of $s $node)
             local sname="$(m0_build_service_fid $s $node_idx)"
             local addb="$(m0_build_service_fid "addb2$idx" $node_idx)"
+            local rms="$(m0_build_service_fid "rms$idx" $node_idx)"
 
             proc_name="$proc_fid_con:$idx"
 
@@ -651,13 +652,9 @@ _build_process_objects()
                 local repair="$(m0_build_service_fid ${s/ios/repair} $node_idx)"
                 local rebalance="$(m0_build_service_fid ${s/ios/rebalance} $node_idx)"
 
-                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [4: $sname, $repair, $rebalance, $addb])}"
-            elif [[ $s == confd && $rms_nr -eq 0 ]] ; then
-                local rms="$(m0_build_service_fid ${s/confd/rms} $node_idx)"
-
-                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [3: $sname, $rms, $addb])}"
+                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [5: $sname, $repair, $rebalance, $rms, $addb])}"
             else
-                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [2: $sname, $addb])}"
+                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [3: $sname, $rms, $addb])}"
             fi
 
             objs="$objs${objs:+, \n} $obj"
@@ -719,22 +716,22 @@ _build_service_objects()
             type_id=$(_type_id "addb")
             objs="$objs${objs:+,\n  }{0x73| (($addb), $type_id, [1: "\"$ep\""], [0])}"
 
+            rms="$(m0_build_service_fid "rms$idx" $node_idx)"
+            type_id=$(_type_id "rms")
+            objs="$objs${objs:+,\n  }{0x73| (($rms), $type_id, [1: "\"$ep\""], [0])}"
+
             if [[ $s == ios* ]] ; then
                 local repair="$(m0_build_service_fid ${s/ios/repair} $node_idx)"
                 local rebalance="$(m0_build_service_fid ${s/ios/rebalance} $node_idx)"
+                local rms="$(m0_build_service_fid ${s/ios/rms} $node_idx)"
 
                 type_id=$(_type_id "repair")
                 objs="$objs${objs:+,\n  }{0x73| (($repair), $type_id, [1: "\"$ep\""], [0])}"
 
                 type_id=$(_type_id "rebalance")
                 objs="$objs${objs:+,\n  }{0x73| (($rebalance), $type_id, [1: "\"$ep\""], [0])}"
-            elif [[ $s == confd && $rms_nr -eq 0 ]] ; then
-                local rms="$(m0_build_service_fid ${s/confd/rms} $node_idx)"
 
-                type_id=$(_type_id "rms")
-                objs="$objs${objs:+,\n  }{0x73| (($rms), $type_id, [1: "\"$ep\""], [0])}"
             fi
-
             ((idx++)) || true
         done
         ((node_idx++)) || true
