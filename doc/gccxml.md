@@ -1,6 +1,6 @@
-*** NOTICE ***  There is no need to run gccxml or gccxml2xcode manually. It's
-                automatically done for you by the build system. Please, see
-                section "build system integration" for more details.
+**NOTE**  There is no need to run gccxml or gccxml2xcode manually. It's
+          automatically done for you by the build system. Please, see
+          section _build system integration_ for more details.
 
 gccxml
 ------
@@ -49,7 +49,7 @@ directly from .h files. But it requires a little help from developer in order
 to map plain C struct declarations to a higher-level abstract types, recognized
 by xcode API (record, sequence, union). For this purpose each C struct
 definition, which needs xcode data to be generated for it, should be "marked"
-whith a special gcc __attribute__().
+whith a special gcc `__attribute__()`.
 
 Let's use a little example code first, to see how it works, and then describe
 attributes, gccxml2xcode invocation and integration with build system in more
@@ -86,10 +86,10 @@ This is our test.h header:
 
     #endif /* __MERO___TEST_H__ */
 
-It may look like a declaration of two variables M0_XCA_RECORD and
-M0_XCA_SEQUENCE of types 'struct fid' and 'struct fidarray' respectively, but
+It may look like a declaration of two variables `M0_XCA_RECORD` and
+`M0_XCA_SEQUENCE` of types `struct fid` and `struct fidarray` respectively, but
 it's not. These M0_XCA_XXX entities are actually macros which unfold into
-particular __attribute__() property of struct definition.
+particular `__attribute__()` property of struct definition.
 
 To generate xcode from this test.h header we need to do the following:
 

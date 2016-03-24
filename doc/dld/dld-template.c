@@ -78,7 +78,7 @@
    understand Doxygen syntax and significant line breaks.
 
    Please link your DLD to the index of all detailed designs maintained
-   in @ref DLDIX "Detailed Designs". <!-- doc/dld-index.c -->
+   in @ref DLDIX "Detailed Designs". <!-- doc/dld/dld-index.c -->
 
    <b>Purpose of a DLD</b> @n
    The purpose of the Detailed Level Design (DLD) specification of a
@@ -292,7 +292,7 @@
    An image is relatively easy to load provided you remember that the
    Doxygen output is viewed from the @c doc/html directory, so all paths
    should be relative to that frame of reference.  For example:
-   <img src="../../doc/dld-sample-uml.png">
+   <img src="../../doc/dld/dld-sample-uml.png">
    I found that a PNG format image from Visio shows up with the correct
    image size while a GIF image was wrongly sized.  Your experience may
    be different, so please ensure that you validate the Doxygen output
@@ -572,7 +572,7 @@ Detailed level design HOWTO</a>,
  */
 
 
-#include "doc/dld_template.h"
+#include "doc/dld/dld_template.h"
 
 /**
    @defgroup DLDDFSInternal Mero Sample Module Internals

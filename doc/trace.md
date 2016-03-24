@@ -4,7 +4,7 @@ mero, please refer to the doc/logging-and-tracing and lib/trace.h documentation.
 
 
 General info
-============
+------------
 
 M0_LOG(), from lib/trace.h, is the main "function" of tracing API (actually it's
 a macro). From a user's point of view it's similar to printk()/printf(3) - it
@@ -40,22 +40,22 @@ Subsystem filtering is achieved by specifying a "subsystem mask". Different
 variables and command-line arguments are used for kernel- and user- space (see
 below), but mask values are the same:
 
-    1) numeric mask in decimal or hex format:
+  1. numeric mask in decimal or hex format:
 
-         128        -- lnet subsystem
-         0x80       -- same
-         0x880      -- lnet and balloc
-         0xffffffff -- all subsystems
+        128        -- lnet subsystem
+        0x80       -- same
+        0x880      -- lnet and balloc
+        0xffffffff -- all subsystems
 
-    2) textual mask, a comma-separated list of subsystem names, '!' at the
-       beginning is used to invert mask value, a special pseudo-subsystem 'all'
-       represents all subsystems:
+  2. textual mask, a comma-separated list of subsystem names, '!' at the
+     beginning is used to invert mask value, a special pseudo-subsystem 'all'
+     represents all subsystems:
 
-         cob             -- only 'cob' subsystem
-         lnet,rpc        -- only 'lnet' and 'rpc'
-         !balloc         -- all subsystems, except 'balloc'
-         !sns,net,addb   -- all, except 'sns', 'net' and 'addb'
-         all             -- all subsystems, equivalent to 0xffffffff
+        cob             -- only 'cob' subsystem
+        lnet,rpc        -- only 'lnet' and 'rpc'
+        !balloc         -- all subsystems, except 'balloc'
+        !sns,net,addb   -- all, except 'sns', 'net' and 'addb'
+        all             -- all subsystems, equivalent to 0xffffffff
 
 By default, trace immediate mask is set to 0, which means that no trace messages
 are printed (actually, it's not quite true, because trace messages with level
@@ -130,56 +130,56 @@ mero applications.
 
 
 User-space
-==========
+----------
 
 Subsystem filtering is controlled in two ways:
 
-    1) environment variable:
+  1. environment variable:
 
-         $ export M0_TRACE_IMMEDIATE_MASK='!rpc'
-         $ ./utils/ut.sh
+        $ export M0_TRACE_IMMEDIATE_MASK='!rpc'
+        $ ./utils/ut.sh
 
-    2) CLI options for utils/ut:
+  2. CLI options for utils/ut:
 
-         -m     string: trace mask, either numeric (HEX/DEC) or comma-separated
-                        list of subsystem names, use ! at the beginning to invert
+        -m     string: trace mask, either numeric (HEX/DEC) or comma-separated
+                       list of subsystem names, use ! at the beginning to invert
 
-         -M           : print available trace subsystems
+        -M           : print available trace subsystems
 
-         $ ./utils/ut.sh -m 'lnet,layout'
+        $ ./utils/ut.sh -m 'lnet,layout'
 
-       CLI option overrides environment variable
+      CLI option overrides environment variable
 
 
 Trace levels:
 
-    1) environment variable:
+  1. environment variable:
 
-         export M0_TRACE_LEVEL=debug
-         ./utils/ut.sh
+        export M0_TRACE_LEVEL=debug
+        ./utils/ut.sh
 
-    2) CLI options for utils/ut:
+  2. CLI options for utils/ut:
 
-         -e     string: trace level: level[+][,level[+]] where level is one of
-	                call|debug|info|warn|error|fatal
+        -e     string: trace level: level[+][,level[+]] where level is one of
+	               call|debug|info|warn|error|fatal
 
-         $ ./utils/ut.sh -e call,warn+
+        $ ./utils/ut.sh -e call,warn+
 
-       CLI option overrides environment variable
+      CLI option overrides environment variable
 
 
 Trace print context:
 
-    1) environment variable:
+  1. environment variable:
 
-         export M0_TRACE_PRINT_CONTEXT=none
-         ./utils/ut.sh
+        export M0_TRACE_PRINT_CONTEXT=none
+        ./utils/ut.sh
 
-    2) CLI options for utils/ut:
+  2. CLI options for utils/ut:
 
-         -p     string: trace print context, values: none, func, short, full
+        -p     string: trace print context, values: none, func, short, full
 
-         $ ./utils/ut.sh -p func
+        $ ./utils/ut.sh -p func
 
        CLI option overrides environment variable
 

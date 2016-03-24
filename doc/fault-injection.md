@@ -67,7 +67,7 @@ beginning and end of the test block, which uses fault injection. For example:
 
 
 m0ctl.ko driver
-----------------
+---------------
 
 m0ctl driver provides a debugfs interface to control m0mero in runtime. All
 control files are placed under "mero/" directory in the root of debugfs file
@@ -77,11 +77,11 @@ Documentation/filesystems/debugfs.txt in the linux kernel's source tree.
 Among other, it provides fault injection control interface, which
 consist of the following files:
 
-mero/finject/stat   Provides information about all registered fault
-                       points.
+* `mero/finject/stat`   Provides information about all registered fault
+                        points.
 
-mero/finject/ctl    Allows to change state of existing fault points
-                       (enable/disable).
+* `mero/finject/ctl`    Allows to change state of existing fault points
+                        (enable/disable).
 
 finject/stat can be read with a simple `cat` or `less` commands, but it's
 contents is formatted as a text table with quite long rows, which looks not very
@@ -117,8 +117,8 @@ The easiest way to send a command is to use `echo`:
     $ echo 'enable m0_init fake_error always' > /sys/kernel/debug/mero/finject/ctl
 
 
-utils/ut CLI options to control fault injection
------------------------------------------------
+ut/m0ut CLI options to control fault injection
+----------------------------------------------
 
 New CLI options of utils/ut, which allow to enable fault points just after
 m0_init():
@@ -144,13 +144,13 @@ For example:
 Input yaml file for -F option has a simple format, where each FP is described by
 a yaml mapping with the following keys:
 
-  func  - a name of the target function, which contains fault point
-  tag   - a fault point tag
-  type  - a fault point type, possible values are: always, oneshot, random,
-          off_n_on_m
-  p     - data for 'random' fault point
-  n     - data for 'off_n_on_m' fault point
-  m     - data for 'off_n_on_m' fault point
+    func  - a name of the target function, which contains fault point
+    tag   - a fault point tag
+    type  - a fault point type, possible values are: always, oneshot, random,
+            off_n_on_m
+    p     - data for 'random' fault point
+    n     - data for 'off_n_on_m' fault point
+    m     - data for 'off_n_on_m' fault point
 
 An example of yaml file:
 

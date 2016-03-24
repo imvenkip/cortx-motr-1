@@ -22,15 +22,13 @@ Test
 Get to know
 -----------
 
-    doc/source-structure
-    doc/coding-style
-    doc/todo
+  * [Mero Source Structure](doc/source-structure.md)
+  * [Mero Coding Style](doc/coding-style.md)
 
 Go deep...
+----------
 
-Still surfing? Surf this:
-
-    doc/reading-list.html
+Still surfing? Surf this: [Mero Reading List](doc/reading-list.md)
 
     $ make doc
     $ x-www-browser doc/html/index.html

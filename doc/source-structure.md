@@ -1,25 +1,21 @@
+Mero Source Code Structure
+==========================
+
 This document describes structure of the Mero source code tree.
 
-Mero sources are stored in multiple git repositories. The top one,
-at "gitosis@git.clusterstor.com/mero.git" contains a "checkout"
-script fetching all the others. Currently this script pulls Oracle
-Berkeley DB (ssh://gitosis@git.clusterstor.com/mero-db4.git, a
-misnomer, because currently db5 is used) and a "core"
-(ssh://gitosis@git.clusterstor.com/mero-core.git) repositories.
-
 Structure
-=========
+---------
 
 Each major Mero sub-system and component has its own sub-directory.  Such
 sub-directory might contain other sub-directories for sub-sub-systems. In
 addition, a sub-directory might contain the following standard sub-directories:
 
-    - ut: for unit testing and unit benchmarking;
+ - ut: for unit testing and unit benchmarking;
 
-    - st: for system testing scripts;
+ - st: for system testing scripts;
 
 Build
-=====
+-----
 
 Core build system is based on auto-* tools: autoheader, autoconf and
 automake.
@@ -51,8 +47,7 @@ Create a new file, say, foo/bar.c in the file system, edit it. Add bar.c to the
 corresponding _SOURCES entry in foo/Makefile.sub. Add the file to git (git add
 foo/bar.c) and commit your changes.
 
-If you are planning to add file bar.h then bar.h should typically
-start with:
+If you are planning to add file bar.h then bar.h should typically start with:
 
     #pragma once
 
@@ -81,29 +76,29 @@ How headers should be included in C sources?
 
 Include system headers as usual:
 
-#include <unistd.h>
+    #include <unistd.h>
 
 To include a Mero header foo/foo_bar.h do
 
-#include "foo/foo_bar.h"
+    #include "foo/foo_bar.h"
 
 This applies even to the headers from the same directory, that is, foo/foo.c
 must include foo/foo_internal.h as
 
-#include "foo/foo_internal.h"
+    #include "foo/foo_internal.h"
 
 Oracle Berkeley data-base interfaces must be included as
 
-#include <db.h>
+    #include <db.h>
 
 How Mero build system is organized?
-------------------------------------------
+-----------------------------------
 
 Please, read the "Quick start guide" section at the beginning of top-level
 Makefile.am makefile.
 
 How to add a new internal Mero library?
-------------------------------------------
+---------------------------------------
 
 Create a new foo directory, if necessary. Add something like this to top-level
 Makefile.am:
@@ -135,7 +130,7 @@ appropriate place (search where other ut/st makefiles are included, in
 alphabetic order).
 
 How to add a new Mero module?
---------------------------------
+-----------------------------
 
 Set nobase_mero_include_HEADERS and mero_libmero_la_SOURCES variables
 in foo/Makefile.sub:
@@ -163,9 +158,9 @@ And in foo/Makefile.sub:
     foo_baz_SOURCES = foo/baz.c \
                       foo/bar.c
 
-NOTICE: if executable comprised only from one source file of the same
-name as the binary (foo/baz.c), there is no need to add a
-corresponding _SOURCES variable - automake handles this automatically.
+**NOTE** if executable comprised only from one source file of the same
+         name as the binary (foo/baz.c), there is no need to add a
+         corresponding _SOURCES variable - automake handles this automatically.
 
 Some real-world examples of module's Makefile.sub
 -------------------------------------------------
@@ -179,8 +174,8 @@ System initialization and finalisation
 
 mero/init.h declares functions
 
-int  m0_init(void);
-void m0_fini(void);
+    int  m0_init(void);
+    void m0_fini(void);
 
 That must be called by an executable to respectively initialise and
 finalise Mero internal libraries.
@@ -189,12 +184,12 @@ If your library (say, foo/libmero-foo.la) requires some global
 (per address space) initialisation or finalisation actions (e.g.,
 starting service threads, opening files), declare
 
-int  m0_foo_init(void);
-void m0_foo_fini(void);
+    int  m0_foo_init(void);
+    void m0_foo_fini(void);
 
 in foo/foo.h, add
 
-#include "foo/foo.h"
+    #include "foo/foo.h"
 
 to mero/init.c and add { &m0_foo_init, &m0_foo_fini } to the subsystem[] array,
 defined in mero/init.c. foo_init() must follow standard return conventions: 0 on
@@ -209,47 +204,47 @@ To add a collection of unit tests ("test suite") for a module foo:
 
 In a file foo/ut/foo.c do something like:
 
-#include "ut/ut.h"
+    #include "ut/ut.h"
 
-static void test_foo0(void)
-{
-	struct foo F;
+    static void test_foo0(void)
+    {
+        struct foo F;
 
-	foo_init(&F);
-	M0_UT_ASSERT(foo_bar(&F) == foo_baz(&F) + 1);
-        ...
-}
+        foo_init(&F);
+        M0_UT_ASSERT(foo_bar(&F) == foo_baz(&F) + 1);
+            ...
+    }
 
-static void test_foo1(void)
-{
-        ...
-}
+    static void test_foo1(void)
+    {
+            ...
+    }
 
-...
+    ...
 
-static int foo_ut_init(void)
-{
-	/* prepare for testing */
-        ...
-}
+    static int foo_ut_init(void)
+    {
+        /* prepare for testing */
+            ...
+    }
 
-static int foo_it_fini(void)
-{
-	/* cleanup after testing */
-        ...
-}
+    static int foo_it_fini(void)
+    {
+        /* cleanup after testing */
+            ...
+    }
 
-struct m0_ut_suite foo_ut = {
-	.ts_name = "foo-ut",
-	.ts_init = foo_ut_init, /* optional, may be NULL */
-	.ts_fini = foo_ut_fini, /* optional, may be NULL */
-	.ts_tests = {
-		{ "test0", test_foo0 },
-		{ "test1", test_foo1 },
-		...
-		{ NULL, NULL }
-	}
-};
+    struct m0_ut_suite foo_ut = {
+        .ts_name = "foo-ut",
+        .ts_init = foo_ut_init, /* optional, may be NULL */
+        .ts_fini = foo_ut_fini, /* optional, may be NULL */
+        .ts_tests = {
+            { "test0", test_foo0 },
+            { "test1", test_foo1 },
+            ...
+            { NULL, NULL }
+        }
+    };
 
 In foo/ut/Makefile.sub do:
 
@@ -262,7 +257,7 @@ alphabetic order (search where other ut makefiles are included).
 
 In ut/m0ut.c add
 
-extern const struct m0_ut_suite foo_ut;
+    extern const struct m0_ut_suite foo_ut;
 
 declaration and
 
@@ -274,16 +269,16 @@ All unit tests are executed by ./utils/ut.
 
 A few comments:
 
-    * unit testing functions should use M0_UT_ASSERT() for testing;
+ * unit testing functions should use M0_UT_ASSERT() for testing;
 
-    * unit testing functions should produce no output;
+ * unit testing functions should produce no output;
 
-    * unit testing code should be ready to be ran multiple
-      times. Avoid static initialisers or carefully re-set everything
-      in foo_ut_fini();
+ * unit testing code should be ready to be ran multiple
+   times. Avoid static initialisers or carefully re-set everything
+   in foo_ut_fini();
 
-    * unit tests are ran in an address space where m0_init() was
-      already executed.
+ * unit tests are ran in an address space where m0_init() was
+   already executed.
 
 See lib/ut/*.c, stob/ut/adieu.c, fop/ut/fmt_test.c for
 examples.
@@ -308,11 +303,14 @@ process directory (except for possibly in its sub-directories).
 How to add a new kernel module?
 -------------------------------
 
-A new module can be added to Mero in two ways,
-  1) functionality built into m0mero.ko
-  2) Module for stand-alone UT's
+A new module can be added to Mero in two ways:
 
-1) In mero all the functionality for kernel side is implemented into a single
+  1. functionality built into m0mero.ko
+  2. module for stand-alone UT's
+
+### functionality built into m0mero.ko
+
+In mero all the functionality for kernel side is implemented into a single
 kernel module called m0mero.ko.
 
 So to add your new kernel source(s) for <module> to m0mero, create <module/>
@@ -328,7 +326,9 @@ create these source and header files in <module> directory.
 
 Add foo/Kbuild.sub to EXTRA_DIST in the top-level Makefile.am.
 
-2) If you want to build the module as separate stand-alone UT named <module>,
+### module for stand-alone UT's
+
+If you want to build the module as separate stand-alone UT named <module>,
 then in the top-level Kbuild makefile add it to the obj-m variable:
 
     obj-m += path/to/your/module/object.o
@@ -368,4 +368,4 @@ in utils/functions.
 Create an entry for the ST in scripts/st.d/ directory. This is needed in order
 for the ST to be executed by `m0 run-st` command.
 
-An ST should have executable bits set (chmod +x).
+An ST should have executable bits set (`chmod +x`).
