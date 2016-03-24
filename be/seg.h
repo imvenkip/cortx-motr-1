@@ -48,6 +48,8 @@ enum {
 	M0_BE_SEG_HEADER_OFFSET = 0ULL,
 	/** Maximum size for segment I/O while reading in m0_be_seg_open(). */
 	M0_BE_SEG_READ_SIZE_MAX = 1ULL << 26,
+	/** Core dump only first given MBs of the segment. */
+	M0_BE_SEG_CORE_DUMP_LIMIT = 64ULL << 20,
 };
 
 #define M0_BE_SEG_PG_PRESENT       0x8000000000000000ULL

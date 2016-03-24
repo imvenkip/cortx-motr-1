@@ -135,6 +135,26 @@ bool m0_be_reg__invariant(const struct m0_be_reg *reg)
 				      reg->br_addr + reg->br_size - 1));
 }
 
+static void be_seg_madvise(struct m0_be_seg *seg, m0_bcount_t dump_limit,
+			   int flag)
+{
+	int rc;
+
+	if (dump_limit >= seg->bs_size)
+		return;
+
+	rc = madvise(seg->bs_addr + dump_limit, seg->bs_size - dump_limit,
+		     flag);
+
+	if (rc == 0)
+		M0_LOG(M0_INFO, "madvise(%p, %"PRIu64", %d) = %d",
+		       seg->bs_addr, seg->bs_size, flag, rc);
+	else
+		M0_LOG(M0_ERROR, "madvise(%p, %"PRIu64", %d) = %d",
+		       seg->bs_addr, seg->bs_size, flag, rc);
+
+}
+
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 {
 	struct m0_be_seg_hdr  hdr;
@@ -164,6 +184,8 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		seg->bs_size  = hdr.bh_size;
 		seg->bs_addr  = hdr.bh_addr;
 		seg->bs_state = M0_BSS_OPENED;
+		be_seg_madvise(seg, M0_BE_SEG_CORE_DUMP_LIMIT, MADV_DONTDUMP);
+		be_seg_madvise(seg,                      0ULL, MADV_DONTFORK);
 	} else {
 		munmap(hdr.bh_addr, hdr.bh_size);
 	}
