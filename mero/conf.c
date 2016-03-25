@@ -282,8 +282,12 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 			        sdev->sd_dev_idx,
 			        sdev->sd_filename,
 			        sdev->sd_size);
-			if (rc != 0)
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "co_id="FID_F" path=%s rc=%d",
+				       FID_P(&sdev->sd_obj.co_id),
+				       sdev->sd_filename, rc);
 				break;
+			}
 			stob = m0_storage_devs_find_by_cid(devs,
 					    sdev->sd_dev_idx)->isd_stob,
 			m0_stob_linux_conf_sdev_associate(stob,
