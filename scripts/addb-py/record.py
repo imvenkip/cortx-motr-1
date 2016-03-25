@@ -74,16 +74,22 @@ class trace(object):
         self.out    = svgwrite.Drawing(outname, profile='full', \
                                        size = (str(width)  + "px",
                                                str(height) + "px"))
-        self.margin      = width * 0.05
-        self.loc_width   = (width - 2*self.margin) / loc_nr
-        self.maxfom      = 12
-        self.loc_margin  = self.loc_width * 0.10
+        self.margin      = width * 0.01
+        self.iowidth     = width * 0.05
+        self.loc_width   = (width - 2*self.margin - self.iowidth) / loc_nr
+        self.maxfom      = 20 if loc_nr != 1 else 80
+        self.loc_margin  = self.loc_width * 0.02
         self.fom_width   = (self.loc_width - 2*self.loc_margin) / self.maxfom
         self.maxlane     = 4
         self.lane_margin = self.fom_width * 0.10
         self.lane_width  = (self.fom_width - 2*self.lane_margin) / self.maxlane
         self.axis        = svgwrite.rgb(0, 0, 0, '%')
         self.locality    = []
+        self.inflight    = 0
+        self.iomax       = 128
+        self.iolane      = self.iowidth / self.iomax
+        self.iostart     = width - self.iowidth
+        self.lastio      = None
         for i in range(loc_nr):
             x = self.getloc(i)
             self.locality.append(locality(self, i))
@@ -96,14 +102,10 @@ class trace(object):
         self.out.save()
 
     def fomadd(self, fom):
-        loc = int(fom.get("locality"))
-        assert 0 <= loc and loc < self.loc_nr
-        self.locality[loc].fomadd(fom)
+        self.locality[fom.getloc()].fomadd(fom)
 
     def fomdel(self, fom):
-        loc = int(fom.get("locality"))
-        assert 0 <= loc and loc < self.loc_nr
-        self.locality[loc].fomdel(fom)
+        self.locality[fom.getloc()].fomdel(fom)
 
     def getloc(self, idx):
         return self.margin + self.loc_width * idx
@@ -171,7 +173,30 @@ class trace(object):
                 out.add(out.text(label, insert = (self.getloc(i) + 10, y - 10)))
             n = n + 1
         self.prep = True
-        
+
+    def iodraw(self, time):
+        x = self.iostart
+        y = self.getpos(self.lastio)
+        width = self.iolane * max(self.inflight, 0)
+        height = self.getpos(time) - y
+        out = self.out
+        out.add(out.rect(fill = svgwrite.rgb(30, 30, 30, '%'),
+                         insert = (x, y), size = (width, height)))
+        out.add(out.text(str(max(self.inflight, 0)), insert = (x - 30, y)))
+                         
+
+    def ioadd(self, time):
+        if self.lastio != None:
+            self.iodraw(time)
+        self.lastio = time
+        self.inflight = self.inflight + 1
+
+    def iodel(self, time):
+        assert self.lastio != None
+        self.iodraw(time)
+        self.lastio = time
+        self.inflight = self.inflight - 1
+
 
 class locality(object):
     def __init__(self, trace, idx):
@@ -230,11 +255,17 @@ class record(object):
     def __str__(self):
         return str(self.time)
 
+    def getloc(self):
+        loc = int(self.get("locality"))
+        if self.trace.loc_nr == 1:
+            loc = 0
+        assert 0 <= loc and loc < self.trace.loc_nr
+        return loc
+
 class fstate(record):
     def done(self, trace):
         state = self.params[2]
         super(fstate, self).done(trace)
-        trace = self.trace
         if self.fomexists():
             fom = trace.fomfind(self)
             out = trace.out
@@ -256,15 +287,14 @@ class fstate(record):
 class fphase(record):
     def done(self, trace):
         super(fphase, self).done(trace)
-        if (len(self.params) == 3 and self.fomexists()):
-            trace = self.trace
+        if (len(self.params) in (2, 3) and self.fomexists()):
             fom = trace.fomfind(self)
             out = trace.out
             out.add(out.rect(fill = trace.fomcolour(fom), \
                 **trace.fomrect(fom, 2, fom.phase_time, self.time)))
             trace.fomtext(fom, fom.phase, fom.phase_time)
             fom.phase_time = self.time
-            fom.phase = self.params[2]
+            fom.phase = self.params[-1]
             
 class fom(record):
     def done(self, trace):
@@ -284,13 +314,41 @@ class fom(record):
     def __str__(self):
         return str(self.time) + " " + self.get("fom")
 
+class forq(record):
+    def done(self, trace):
+        if not ("locality" in self.ctx):
+            return # ast in 0-locality
+        loc_id = self.getloc()
+        super(forq, self).done(trace)
+        nanoseconds = float(self.params[0][:-1]) # Cut final comma.
+        duration = datetime.timedelta(microseconds = nanoseconds / 1000)
+        x = self.trace.getloc(loc_id) + 10
+        y = self.trace.getpos(self.time - duration)
+        out = self.trace.out
+        out.add(out.line((x, y), (x, self.trace.getpos(self.time)),
+                         stroke = svgwrite.rgb(80, 10, 10, '%'),
+                         stroke_width = 5))
+        out.add(out.text(self.params[1], insert = (x + 10, y)))
 
+class ioend(record):
+    def done(self, trace):
+        super(ioend, self).done(trace)
+        trace.iodel(self.time)
+        
+class iolaunch(record):
+    def done(self, trace):
+        super(iolaunch, self).done(trace)
+        trace.ioadd(self.time)
+        
 foms = {}
 
 tags = {
-    "fom-descr" : fom,
-    "fom-state" : fstate,
-    "fom-phase" : fphase
+    "fom-descr"         : fom,
+    "fom-state"         : fstate,
+    "fom-phase"         : fphase,
+    "loc-forq-duration" : forq,
+    "stob-io-launch"    : iolaunch,
+    "stob-io-end"       : ioend
 }
 
 timeformat = "%Y-%m-%d-%H:%M:%S.%f"
