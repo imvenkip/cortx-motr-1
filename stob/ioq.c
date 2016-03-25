@@ -653,6 +653,7 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 		m0_addb2_counter_mod(&queued, ioq->ioq_queued);
 		m0_addb2_counter_mod(&inflight, M0_STOB_IOQ_RING_SIZE -
 				     m0_atomic64_get(&ioq->ioq_avail));
+		m0_addb2_force(M0_MKTIME(5, 0));
 	}
 	m0_addb2_pop(M0_AVI_STOB_IOQ);
 	m0_semaphore_fini(&ioq->ioq_stop_sem[thread_index]);
