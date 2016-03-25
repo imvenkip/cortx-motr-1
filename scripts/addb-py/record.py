@@ -1,18 +1,81 @@
+"""trace class accepts a stream of incoming records (represented by 
+   the record class) and produces the output in the form of an SVG image, 
+   describing the stream.
+
+   Some assumptions are made about the input stream:
+
+       - all records are from the same process,
+
+       - the time-stamps of incoming records are monotonically
+         increasing. m0addb2dump output does not necessarily conform to this
+         restriction. This can always be fixed by doing
+
+             m0addb2dump -f | sort -k2.1,2.29 -s | m0addb2dump -d
+
+       - if a trace does not contain all records produced by a Mero process from
+         start-up to shutdown, certain corner cases (like re-use of the same
+         memory address for a new fom), can result in an incorrect
+         interpretation of a final portion of the trace.
+
+    Output layout.
+
+    The entirety of the output image is divided into vertical stripes,
+    corresponding to the localities, divided by 10px-wide vertical lines . The
+    number of localities is specified by the "loc_nr" parameter.
+
+    Vertical axis corresponds to time (from top to bottom). Horizontal dashed
+    lines mark time-steps with the granularity specified by the "step"
+    parameter.
+
+    In the area, corresponding to a locality, the foms, executed in this
+    locality are represented. Each fom is represented as a rectangle with fixed
+    width and with the height corresponding to the fom life-time. The left
+    border of this rectangle is marked by a black line, other borders are
+    transparent.
+
+    The interior of a fom rectangle is divided into 3 vertical "lanes". The
+    first lane is used for labels. When a fom is created, its type and address
+    are written to the label lane. When the fom experiences a phase transition,
+    the name of the new phase is written to the label lane.
+
+    The second lane, represents phases, marked by different colours.
+
+    The third lane contains states, marked by different colours.
+
+    The line at the left border of fom area can be missing if the final state
+    transition for the fom is missing from the log.
+
+    If fom phase state machine doesn't have transition descriptions, the phase
+    lane will be empty and phase labels will be missing.
+
+    By specifying "starttime" and "duration" parameters, view area can be
+    narrowed to produce more manageable images. When view area is narrowed, the
+    entire trace is still processed and all SVG elements are generated, but they
+    fall out of the visible image.
+
+"""
+
 import datetime
 import svgwrite
 
 class trace(object):
-    def __init__(self, width, height, nr, duration):
-        self.start  = None
+    def __init__(self, width, height, loc_nr, duration, starttime = None,
+                 step = 100, outname = "out.svg"):
+        if starttime != None:
+            self.start = datetime.datetime.strptime(starttime, timeformat)
+        else:
+            self.start = None
+        self.prep   = False
         self.width  = width
         self.height = height
-        self.nr     = nr
+        self.loc_nr = loc_nr
         self.usec   = duration * 1000000
-        self.out    = svgwrite.Drawing('out.svg', profile='full', \
+        self.step   = step
+        self.out    = svgwrite.Drawing(outname, profile='full', \
                                        size = (str(width)  + "px",
                                                str(height) + "px"))
         self.margin      = width * 0.05
-        self.loc_width   = (width - 2*self.margin) / nr
+        self.loc_width   = (width - 2*self.margin) / loc_nr
         self.maxfom      = 12
         self.loc_margin  = self.loc_width * 0.10
         self.fom_width   = (self.loc_width - 2*self.loc_margin) / self.maxfom
@@ -21,23 +84,25 @@ class trace(object):
         self.lane_width  = (self.fom_width - 2*self.lane_margin) / self.maxlane
         self.axis        = svgwrite.rgb(0, 0, 0, '%')
         self.locality    = []
-        for i in range(nr):
+        for i in range(loc_nr):
+            x = self.getloc(i)
             self.locality.append(locality(self, i))
-            self.out.add(self.out.line((self.getloc(i), 0),       \
-                                       (self.getloc(i), height),  \
+            self.out.add(self.out.line((x, 0), (x, height),
                                        stroke = self.axis, stroke_width = 10))
+            self.out.add(self.out.text("locality " + str(i),
+                                       insert = (x + 10, 20)))
 
     def done(self):
         self.out.save()
 
     def fomadd(self, fom):
         loc = int(fom.get("locality"))
-        assert 0 <= loc and loc < self.nr
+        assert 0 <= loc and loc < self.loc_nr
         self.locality[loc].fomadd(fom)
 
     def fomdel(self, fom):
         loc = int(fom.get("locality"))
-        assert 0 <= loc and loc < self.nr
+        assert 0 <= loc and loc < self.loc_nr
         self.locality[loc].fomdel(fom)
 
     def getloc(self, idx):
@@ -51,7 +116,6 @@ class trace(object):
 
     def getpos(self, stamp):
         interval = stamp - self.start
-        assert interval.days == 0
         usec = interval.seconds * 1000000 + interval.microseconds
         return self.height * usec / self.usec
 
@@ -59,7 +123,7 @@ class trace(object):
         return foms[rec.get("fom")]
 
     def fomcolour(self, fom):
-        seed = fom.phase
+        seed = fom.phase + "^" + fom.phase
         red   = hash(seed + "r") % 100
         green = hash(seed + "g") % 100
         blue  = hash(seed + "b") % 100
@@ -89,22 +153,24 @@ class trace(object):
                                                    self.getpos(time))))
 
     def prepare(self, time):
-        self.start = time
+        if self.start == None:
+            self.start = time
         out = self.out
         duration = datetime.timedelta(microseconds = self.usec)
-        delta = datetime.timedelta(milliseconds = 100)
+        delta = datetime.timedelta(milliseconds = self.step)
         n = 0
         while n*delta <= duration:
-            t = time + n*delta
+            t = self.start + n * delta
             y = self.getpos(t)
             label = t.strftime(timeformat)
             out.add(out.line((0, y), (self.width, y),
                              stroke = self.axis, stroke_width = 1,
                              stroke_dasharray = "20,10,5,5,5,10"))
             out.add(out.text(label, insert = (0, y - 10)))
-            for i in range(self.nr):
+            for i in range(self.loc_nr):
                 out.add(out.text(label, insert = (self.getloc(i) + 10, y - 10)))
             n = n + 1
+        self.prep = True
         
 
 class locality(object):
@@ -138,7 +204,7 @@ def parse(trace, words):
         obj.time   = datetime.datetime.strptime(stamp, timeformat)
         obj.params = words[2:]
         obj.trace  = trace
-        if trace.start == None:
+        if not trace.prep:
             trace.prepare(obj.time)
     else:
         obj = None
