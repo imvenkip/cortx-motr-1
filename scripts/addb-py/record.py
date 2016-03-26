@@ -50,8 +50,8 @@
 
     By specifying "starttime" and "duration" parameters, view area can be
     narrowed to produce more manageable images. When view area is narrowed, the
-    entire trace is still processed and all SVG elements are generated, but they
-    fall out of the visible image.
+    entire trace is still processed, but the SVG elements that would fall outside
+    of the visible image are omitted.
 
 """
 
@@ -60,7 +60,7 @@ import svgwrite
 
 class trace(object):
     def __init__(self, width, height, loc_nr, duration, starttime = None,
-                 step = 100, outname = "out.svg"):
+                 step = 100, outname = "out.svg", maxfom = 20):
         if starttime != None:
             self.start = datetime.datetime.strptime(starttime, timeformat)
         else:
@@ -77,7 +77,7 @@ class trace(object):
         self.margin      = width * 0.01
         self.iowidth     = width * 0.05
         self.loc_width   = (width - 2*self.margin - self.iowidth) / loc_nr
-        self.maxfom      = 20 if loc_nr != 1 else 80
+        self.maxfom      = maxfom
         self.loc_margin  = self.loc_width * 0.02
         self.fom_width   = (self.loc_width - 2*self.loc_margin) / self.maxfom
         self.maxlane     = 4
@@ -90,13 +90,12 @@ class trace(object):
         self.iolane      = self.iowidth / self.iomax
         self.iostart     = width - self.iowidth
         self.lastio      = None
+        self.scribbles   = set()
         for i in range(loc_nr):
             x = self.getloc(i)
             self.locality.append(locality(self, i))
-            self.out.add(self.out.line((x, 0), (x, height),
-                                       stroke = self.axis, stroke_width = 10))
-            self.out.add(self.out.text("locality " + str(i),
-                                       insert = (x + 10, 20)))
+            self.line((x, 0), (x, height), stroke = self.axis, stroke_width = 10)
+            self.text("locality " + str(i), insert = (x + 10, 20))
 
     def done(self):
         self.out.save()
@@ -118,7 +117,8 @@ class trace(object):
 
     def getpos(self, stamp):
         interval = stamp - self.start
-        usec = interval.seconds * 1000000 + interval.microseconds
+        usec = interval.microseconds + (interval.seconds +
+                                        interval.days * 24 * 3600) * 1000000
         return self.height * usec / self.usec
 
     def fomfind(self, rec):
@@ -150,27 +150,47 @@ class trace(object):
         else:
             return svgwrite.rgb(10, 10, 10, '%')
 
+    def rect(self, **kw):
+        y = kw["insert"][1]
+        h = kw["size"][1]
+        if y + h >= 0 and y < self.height:
+            self.out.add(self.out.rect(**kw))
+
+    def line(self, start, end, **kw):
+        if end[1] >= 0 and start[1] < self.height:
+            self.out.add(self.out.line(start, end, **kw))
+
+    def text(self, text, **kw):
+        x = kw["insert"][0]
+        y0 = y = kw["insert"][1]
+        if y >= 0 and y < self.height:
+            while (x, y / 15) in self.scribbles:
+                y += 15
+            kw["insert"] = (x + 10, y)
+            self.out.add(self.out.text(text, **kw))
+            self.line((x, y0), (x + 10, y), stroke = self.axis,
+                      stroke_width = 1, stroke_dasharray = "1,1")
+            self.scribbles.add((x, y / 15))
+
     def fomtext(self, fom, text, time):
-        self.out.add(self.out.text(text, insert = (self.getlane(fom, 0),
-                                                   self.getpos(time))))
+        self.text(text, insert = (self.getlane(fom, 0), self.getpos(time)))
 
     def prepare(self, time):
         if self.start == None:
             self.start = time
-        out = self.out
         duration = datetime.timedelta(microseconds = self.usec)
+        self.end = self.start + duration
         delta = datetime.timedelta(milliseconds = self.step)
         n = 0
         while n*delta <= duration:
             t = self.start + n * delta
             y = self.getpos(t)
             label = t.strftime(timeformat)
-            out.add(out.line((0, y), (self.width, y),
-                             stroke = self.axis, stroke_width = 1,
-                             stroke_dasharray = "20,10,5,5,5,10"))
-            out.add(out.text(label, insert = (0, y - 10)))
+            self.line((0, y), (self.width, y), stroke = self.axis,
+                      stroke_width = 1, stroke_dasharray = "20,10,5,5,5,10")
+            self.text(label, insert = (0, y - 10))
             for i in range(self.loc_nr):
-                out.add(out.text(label, insert = (self.getloc(i) + 10, y - 10)))
+                self.text(label, insert = (self.getloc(i) + 10, y - 10))
             n = n + 1
         self.prep = True
 
@@ -179,11 +199,9 @@ class trace(object):
         y = self.getpos(self.lastio)
         width = self.iolane * max(self.inflight, 0)
         height = self.getpos(time) - y
-        out = self.out
-        out.add(out.rect(fill = svgwrite.rgb(30, 30, 30, '%'),
-                         insert = (x, y), size = (width, height)))
-        out.add(out.text(str(max(self.inflight, 0)), insert = (x - 30, y)))
-                         
+        self.rect(fill = svgwrite.rgb(30, 30, 30, '%'),
+                  insert = (x, y), size = (width, height))
+        self.text(str(max(self.inflight, 0)), insert = (x - 30, y))
 
     def ioadd(self, time):
         if self.lastio != None:
@@ -210,10 +228,11 @@ class locality(object):
             if not (i in self.foms):
                 j = i
                 break
+        if j > self.trace.maxfom:
+            print "Too many concurrent foms, increase maxfom to {}".format(j)
         self.foms[j] = fom
         fom.loc_idx = j
         fom.loc = self
-        assert j < self.trace.maxfom
 
     def fomdel(self, fom):
         assert self.foms[fom.loc_idx] == fom
@@ -268,18 +287,16 @@ class fstate(record):
         super(fstate, self).done(trace)
         if self.fomexists():
             fom = trace.fomfind(self)
-            out = trace.out
-            out.add(out.rect(fill = trace.statecolour(fom),
-                             **trace.fomrect(fom, 3, fom.state_time, self.time)))
+            trace.rect(fill = trace.statecolour(fom),
+                       **trace.fomrect(fom, 3, fom.state_time, self.time))
             fom.state_time = self.time
             fom.state = state
             if state == "Finished":
                 start = trace.getpos(fom.time)
                 end   = trace.getpos(self.time)
                 lane  = trace.getlane(fom, 0) - 5
-                out.add(out.line((lane, start), (lane, end), stroke = trace.axis,
-                                 stroke_width = 3))
-                trace.fomtext(fom, fom.params[5], fom.time)
+                trace.line((lane, start), (lane, end), stroke = trace.axis,
+                           stroke_width = 3)
                 self.trace.fomdel(fom)
                 del foms[self.get("fom")]
             
@@ -289,9 +306,8 @@ class fphase(record):
         super(fphase, self).done(trace)
         if (len(self.params) in (2, 3) and self.fomexists()):
             fom = trace.fomfind(self)
-            out = trace.out
-            out.add(out.rect(fill = trace.fomcolour(fom), \
-                **trace.fomrect(fom, 2, fom.phase_time, self.time)))
+            trace.rect(fill = trace.fomcolour(fom),
+                       **trace.fomrect(fom, 2, fom.phase_time, self.time))
             trace.fomtext(fom, fom.phase, fom.phase_time)
             fom.phase_time = self.time
             fom.phase = self.params[-1]
@@ -318,17 +334,17 @@ class forq(record):
     def done(self, trace):
         if not ("locality" in self.ctx):
             return # ast in 0-locality
-        loc_id = self.getloc()
         super(forq, self).done(trace)
+        loc_id = self.getloc()
         nanoseconds = float(self.params[0][:-1]) # Cut final comma.
+        if nanoseconds < 1000000:
+            return
         duration = datetime.timedelta(microseconds = nanoseconds / 1000)
         x = self.trace.getloc(loc_id) + 10
         y = self.trace.getpos(self.time - duration)
-        out = self.trace.out
-        out.add(out.line((x, y), (x, self.trace.getpos(self.time)),
-                         stroke = svgwrite.rgb(80, 10, 10, '%'),
-                         stroke_width = 5))
-        out.add(out.text(self.params[1], insert = (x + 10, y)))
+        trace.line((x, y), (x, self.trace.getpos(self.time)),
+                   stroke = svgwrite.rgb(80, 10, 10, '%'), stroke_width = 5)
+        trace.text(self.params[1], insert = (x + 10, y))
 
 class ioend(record):
     def done(self, trace):

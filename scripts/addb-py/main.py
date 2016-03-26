@@ -11,12 +11,12 @@ def recdone(tr, rec):
 
 def processinput(argv):
     try:
-        opts, args = getopt.getopt(argv[1:], "h:w:l:d:s:t:o:")
+        opts, args = getopt.getopt(argv[1:], "h:w:l:d:s:t:o:f:")
     except getopt.GetoptError:
-        print ("{} -h height -w width -l localities" + \
-               " -d duration -s step -t starttime -o outfile\n\n" + \
-               "Height and width are in pixels.\n" + \
-               "Duration is in seconds, step is in milliseconds.\n" + \
+        print ("{} -h height -w width -l localities -f maxfom" \
+               " -d duration -s step -t starttime -o outfile\n\n" \
+               "Height and width are in pixels.\n" \
+               "Duration is in seconds, step is in milliseconds.\n" \
                "Starttime is in the same format as produced by m0addb2dump.\n").\
         format(argv[0])
         sys.exit(2)
@@ -34,6 +34,7 @@ def processinput(argv):
         "-d" : ("duration",  int),
         "-l" : ("loc_nr",    int),
         "-s" : ("step",      int),
+        "-f" : ("maxfom",    int),
         "-t" : ("starttime", str),
         "-o" : ("outname",   str)
     }
