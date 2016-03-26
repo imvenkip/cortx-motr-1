@@ -75,7 +75,7 @@ class trace(object):
                                        size = (str(width)  + "px",
                                                str(height) + "px"))
         self.margin      = width * 0.01
-        self.iowidth     = width * 0.05
+        self.iowidth     = width * 0.10
         self.loc_width   = (width - 2*self.margin - self.iowidth) / loc_nr
         self.maxfom      = maxfom
         self.loc_margin  = self.loc_width * 0.02
@@ -85,17 +85,24 @@ class trace(object):
         self.lane_width  = (self.fom_width - 2*self.lane_margin) / self.maxlane
         self.axis        = svgwrite.rgb(0, 0, 0, '%')
         self.locality    = []
-        self.inflight    = 0
         self.iomax       = 128
-        self.iolane      = self.iowidth / self.iomax
+        self.iolane      = (self.iowidth - 300) / self.iomax
         self.iostart     = width - self.iowidth
-        self.lastio      = None
+        self.iolane0     = self.iostart + 300
         self.scribbles   = set()
+        self.iolast      = []
+        self.dash        = {
+            "stroke"           : self.axis,
+            "stroke_width"     : 1,
+            "stroke_dasharray" :"1,1"
+        }
         for i in range(loc_nr):
             x = self.getloc(i)
             self.locality.append(locality(self, i))
             self.line((x, 0), (x, height), stroke = self.axis, stroke_width = 10)
             self.text("locality " + str(i), insert = (x + 10, 20))
+        for _ in range(self.iomax):
+            self.iolast.append(datetime.datetime(1970, 01, 01))
 
     def done(self):
         self.out.save()
@@ -124,12 +131,15 @@ class trace(object):
     def fomfind(self, rec):
         return foms[rec.get("fom")]
 
-    def fomcolour(self, fom):
-        seed = fom.phase + "^" + fom.phase
+    def getcolour(self, str):
+        seed = str + "^" + str
         red   = hash(seed + "r") % 100
         green = hash(seed + "g") % 100
         blue  = hash(seed + "b") % 100
         return svgwrite.rgb(red, green, blue, '%')
+        
+    def fomcolour(self, fom):
+        return self.getcolour(fom.phase)
 
     def fomrect(self, fom, lane, start, end):
         start  = self.getpos(start)
@@ -164,13 +174,14 @@ class trace(object):
         x = kw["insert"][0]
         y0 = y = kw["insert"][1]
         if y >= 0 and y < self.height:
-            while (x, y / 15) in self.scribbles:
+            while (int(x), int(y / 15)) in self.scribbles:
                 y += 15
             kw["insert"] = (x + 10, y)
+            kw["font_family"] = "Courier"
             self.out.add(self.out.text(text, **kw))
-            self.line((x, y0), (x + 10, y), stroke = self.axis,
-                      stroke_width = 1, stroke_dasharray = "1,1")
-            self.scribbles.add((x, y / 15))
+            self.line((x, y0), (x + 10, y), **self.dash)
+            self.scribbles.add((int(x), int(y / 15)))
+        return y
 
     def fomtext(self, fom, text, time):
         self.text(text, insert = (self.getlane(fom, 0), self.getpos(time)))
@@ -194,27 +205,23 @@ class trace(object):
             n = n + 1
         self.prep = True
 
-    def iodraw(self, time):
-        x = self.iostart
-        y = self.getpos(self.lastio)
-        width = self.iolane * max(self.inflight, 0)
-        height = self.getpos(time) - y
-        self.rect(fill = svgwrite.rgb(30, 30, 30, '%'),
-                  insert = (x, y), size = (width, height))
-        self.text(str(max(self.inflight, 0)), insert = (x - 30, y))
-
-    def ioadd(self, time):
-        if self.lastio != None:
-            self.iodraw(time)
-        self.lastio = time
-        self.inflight = self.inflight + 1
-
-    def iodel(self, time):
-        assert self.lastio != None
-        self.iodraw(time)
-        self.lastio = time
-        self.inflight = self.inflight - 1
-
+    def ioadd(self, time, fid, seconds):
+        duration = datetime.timedelta(microseconds = float(seconds) * 1000000)
+        start = time - duration
+        y0 = self.getpos(start)
+        y1 = self.getpos(time)
+        l0 = self.text("L " + fid, insert = (self.iostart, y0))
+        l1 = self.text("E " + fid, insert = (self.iostart, y1))
+        for i in range(self.iomax):
+            if self.iolast[i] < start:
+                x = self.iolane0 + self.iolane * i
+                self.rect(insert = (x, y0), size = (self.iolane / 2, y1 - y0),
+                          fill = self.getcolour(str(i) + str(start)))
+                self.iolast[i] = time
+                self.line((self.iostart + 250, l0), (x, y0), **self.dash)
+                self.line((self.iostart + 250, l1), (x, y1), **self.dash)
+                return
+        print "Too many concurrent IO-s. Increase iomax."
 
 class locality(object):
     def __init__(self, trace, idx):
@@ -349,12 +356,7 @@ class forq(record):
 class ioend(record):
     def done(self, trace):
         super(ioend, self).done(trace)
-        trace.iodel(self.time)
-        
-class iolaunch(record):
-    def done(self, trace):
-        super(iolaunch, self).done(trace)
-        trace.ioadd(self.time)
+        trace.ioadd(self.time, self.params[0][:-1], self.params[2][:-1])
         
 foms = {}
 
@@ -363,8 +365,8 @@ tags = {
     "fom-state"         : fstate,
     "fom-phase"         : fphase,
     "loc-forq-duration" : forq,
-    "stob-io-launch"    : iolaunch,
     "stob-io-end"       : ioend
 }
 
 timeformat = "%Y-%m-%d-%H:%M:%S.%f"
+
