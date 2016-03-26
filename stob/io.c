@@ -114,6 +114,7 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 		io->si_state = SIS_BUSY;
 		io->si_rc    = 0;
 		io->si_count = 0;
+		io->si_start = m0_time_now();
 		result = io->si_op->sio_launch(io);
 		if (result != 0) {
 			M0_LOG(M0_ERROR, "launch io=%p "FID_F" FAILED rc=%d",

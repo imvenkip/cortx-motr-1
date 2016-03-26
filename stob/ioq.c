@@ -561,6 +561,7 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 		       lio->si_nr, (unsigned long)bdone, (int)io->si_rc);
 		io->si_count = bdone >> m0_stob_ioq_bshift(ioq);
 		M0_ADDB2_ADD(M0_AVI_STOB_IO_END, FID_P(fid),
+			     m0_time_sub(m0_time_now(), io->si_start),
 			     io->si_rc, io->si_count, lio->si_nr);
 		stob_linux_io_release(lio);
 		io->si_state = SIS_IDLE;

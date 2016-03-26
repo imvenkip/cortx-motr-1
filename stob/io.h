@@ -374,7 +374,7 @@ struct m0_stob_io {
 	 */
 	uint32_t                    si_stob_magic;
 	/** FOL record part representing operations on storage object. */
-	struct m0_fol_frag    	   *si_fol_frag;
+	struct m0_fol_frag         *si_fol_frag;
 	/**
 	   A sequence of block attributes.
 	   Each element of this sequence is an array of N 64-bit values, where
@@ -387,7 +387,9 @@ struct m0_stob_io {
 	   For read, the sequence is populated with the block attributes of
 	   read blocks.
 	 */
-	struct m0_bufvec si_battr;
+	struct m0_bufvec            si_battr;
+	/** IO launch time. */
+	m0_time_t                   si_start;
 };
 
 struct m0_stob_io_op {
