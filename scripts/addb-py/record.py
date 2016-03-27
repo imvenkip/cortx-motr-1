@@ -133,9 +133,9 @@ class trace(object):
 
     def getcolour(self, str):
         seed = str + "^" + str
-        red   = hash(seed + "r") % 100
-        green = hash(seed + "g") % 100
-        blue  = hash(seed + "b") % 100
+        red   = hash(seed + "r") % 90
+        green = hash(seed + "g") % 90
+        blue  = hash(seed + "b") % 90
         return svgwrite.rgb(red, green, blue, '%')
         
     def fomcolour(self, fom):
@@ -181,10 +181,11 @@ class trace(object):
             self.out.add(self.out.text(text, **kw))
             self.line((x, y0), (x + 10, y), **self.dash)
             self.scribbles.add((int(x), int(y / 15)))
-        return y
+        return x + 10 + len(text) * 10, y
 
     def fomtext(self, fom, text, time):
-        self.text(text, insert = (self.getlane(fom, 0), self.getpos(time)))
+        return self.text(text, insert = (self.getlane(fom, 0),
+                                         self.getpos(time)))
 
     def prepare(self, time):
         if self.start == None:
@@ -212,16 +213,17 @@ class trace(object):
         y1 = self.getpos(time)
         l0 = self.text("L " + fid, insert = (self.iostart, y0))
         l1 = self.text("E " + fid, insert = (self.iostart, y1))
-        for i in range(self.iomax):
-            if self.iolast[i] < start:
-                x = self.iolane0 + self.iolane * i
-                self.rect(insert = (x, y0), size = (self.iolane / 2, y1 - y0),
-                          fill = self.getcolour(str(i) + str(start)))
-                self.iolast[i] = time
-                self.line((self.iostart + 250, l0), (x, y0), **self.dash)
-                self.line((self.iostart + 250, l1), (x, y1), **self.dash)
-                return
-        print "Too many concurrent IO-s. Increase iomax."
+        slot = next((i for i in range(len(self.iolast)) if
+                     self.iolast[i] < start), None)
+        if slot != None:
+            x = self.iolane0 + self.iolane * slot
+            self.rect(insert = (x, y0), size = (self.iolane * 3/4, y1 - y0),
+                      fill = self.getcolour(str(slot) + str(start)))
+            self.iolast[slot] = time
+            self.line(l0, (x, y0), **self.dash)
+            self.line(l1, (x, y1), **self.dash)
+        else:
+            print "Too many concurrent IO-s. Increase iomax."
 
 class locality(object):
     def __init__(self, trace, idx):
@@ -315,7 +317,9 @@ class fphase(record):
             fom = trace.fomfind(self)
             trace.rect(fill = trace.fomcolour(fom),
                        **trace.fomrect(fom, 2, fom.phase_time, self.time))
-            trace.fomtext(fom, fom.phase, fom.phase_time)
+            l = trace.fomtext(fom, fom.phase, fom.phase_time)
+            trace.line(l, (trace.getlane(fom, 2), trace.getpos(fom.phase_time)),
+                       **trace.dash)
             fom.phase_time = self.time
             fom.phase = self.params[-1]
             
