@@ -103,6 +103,9 @@ class trace(object):
             self.text("locality " + str(i), insert = (x + 10, 20))
         for _ in range(self.iomax):
             self.iolast.append(datetime.datetime(1970, 01, 01))
+        self.line((self.iostart - 10, 0), (self.iostart - 10, height),
+                  stroke = self.axis, stroke_width = 10)
+        self.text("io", insert = (self.iostart + 10, 20))
 
     def done(self):
         self.out.save()
@@ -190,6 +193,7 @@ class trace(object):
     def prepare(self, time):
         if self.start == None:
             self.start = time
+        self.lastreport = self.start
         duration = datetime.timedelta(microseconds = self.usec)
         self.end = self.start + duration
         delta = datetime.timedelta(milliseconds = self.step)
@@ -247,6 +251,9 @@ class locality(object):
         assert self.foms[fom.loc_idx] == fom
         del self.foms[fom.loc_idx]
         
+def keep(word):
+    return word in tags
+
 def parse(trace, words):
     # 2016-03-24-09:18:46.359427942
     stamp = words[0][:-3] # cut to microsecond precision
