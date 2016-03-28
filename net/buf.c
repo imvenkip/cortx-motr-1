@@ -26,6 +26,7 @@
 #include "lib/finject.h"
 #include "mero/magic.h"
 #include "net/net_internal.h"
+#include "net/addb2.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 #include "lib/trace.h"
@@ -317,6 +318,7 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 	struct m0_net_transfer_mc *tm;
 	struct m0_net_qstats      *q;
 	m0_time_t                  tdiff;
+	m0_time_t                  addtime;
 	m0_net_buffer_cb_proc_t    cb;
 	m0_bcount_t                len = 0;
 	struct m0_net_buffer_pool *pool = NULL;
@@ -361,10 +363,10 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 		else
 			len = buf->nb_length;
 	}
-	if (!retain) {
-		tdiff = m0_time_sub(ev->nbe_time, buf->nb_add_time);
+	addtime = buf->nb_add_time;
+	tdiff = m0_time_sub(ev->nbe_time, addtime);
+	if (!retain)
 		q->nqs_time_in_queue = m0_time_add(q->nqs_time_in_queue, tdiff);
-	}
 	q->nqs_total_bytes += len;
 	q->nqs_max_bytes = max_check(q->nqs_max_bytes, len);
 
@@ -392,21 +394,18 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 	if (check_ep) {
 		M0_ASSERT(m0_net__ep_invariant(ep, tm, true));
 	}
-
 	cb = buf->nb_callbacks->nbc_cb[qtype];
 	M0_CNT_INC(tm->ntm_callback_counter);
 	buf->nb_flags = flags;
 	m0_mutex_unlock(&tm->ntm_mutex);
-
 	if (pool != NULL && !retain)
 		m0_net__tm_provision_recv_q(tm);
-
 	cb(ev);
-
+	M0_ADDB2_ADD(M0_AVI_NET_BUF, (uint64_t)buf, qtype,
+		     addtime, tdiff, ev->nbe_status, len);
 	/* Decrement the reference to the ep */
 	if (ep != NULL)
 		m0_net_end_point_put(ep);
-
 	m0_net__tm_post_callback(tm);
 }
 

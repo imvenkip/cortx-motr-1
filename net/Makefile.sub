@@ -1,6 +1,7 @@
 nobase_mero_include_HEADERS += net/buffer_pool.h \
                                net/bulk_mem.h \
                                net/module.h \
+                               net/addb2.h \
                                net/net.h \
                                net/net_internal.h \
                                net/net_otw_types.h
