@@ -11,9 +11,9 @@ def recdone(tr, rec):
 
 def processinput(argv):
     try:
-        opts, args = getopt.getopt(argv[1:], "h:w:l:d:s:t:o:f:")
+        opts, args = getopt.getopt(argv[1:], "h:w:l:d:s:t:o:f:v:")
     except getopt.GetoptError:
-        print ("{} -h height -w width -l localities -f maxfom" \
+        print ("{} -h height -w width -l localities -f maxfom -v verbosity" \
                " -d duration -s step -t starttime -o outfile\n\n" \
                "Height and width are in pixels.\n" \
                "Duration is in seconds, step is in milliseconds.\n" \
@@ -31,6 +31,7 @@ def processinput(argv):
     xlate = {
         "-h" : ("height",    int),
         "-w" : ("width",     int),
+        "-v" : ("verbosity", int),
         "-d" : ("duration",  int),
         "-l" : ("loc_nr",    int),
         "-s" : ("step",      int),

@@ -60,7 +60,7 @@ import svgwrite
 
 class trace(object):
     def __init__(self, width, height, loc_nr, duration, starttime = None,
-                 step = 100, outname = "out.svg", maxfom = 20):
+                 step = 100, outname = "out.svg", maxfom = 20, verbosity = 0):
         if starttime != None:
             self.start = datetime.datetime.strptime(starttime, timeformat)
         else:
@@ -71,6 +71,7 @@ class trace(object):
         self.loc_nr = loc_nr
         self.usec   = duration * 1000000
         self.step   = step
+        self.verb   = verbosity
         self.out    = svgwrite.Drawing(outname, profile='full', \
                                        size = (str(width)  + "px",
                                                str(height) + "px"))
@@ -91,6 +92,8 @@ class trace(object):
         self.iolane0     = self.iostart + 300
         self.scribbles   = set()
         self.iolast      = []
+        self.processed   = 0
+        self.reported    = 0
         self.dash        = {
             "stroke"           : self.axis,
             "stroke_width"     : 1,
@@ -280,6 +283,12 @@ class record(object):
 
     def done(self, trace):
         self.trace = trace
+        trace.processed = trace.processed + 1
+        if (trace.verb > 0 and
+            self.time - trace.lastreport > datetime.timedelta(seconds = 1)):
+            print self.time, trace.processed - trace.reported, trace.processed
+            trace.lastreport = self.time
+            trace.reported   = trace.processed
 
     def get(self, label):
         return self.ctx[label][0]
