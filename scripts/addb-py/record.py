@@ -61,8 +61,9 @@ import svgwrite
 class trace(object):
     def __init__(self, width, height, loc_nr, duration, starttime = None,
                  step = 100, outname = "out.svg", maxfom = 20, verbosity = 0):
+        self.timeformat = "%Y-%m-%d-%H:%M:%S.%f"
         if starttime != None:
-            self.start = datetime.datetime.strptime(starttime, timeformat)
+            self.start = datetime.datetime.strptime(starttime, self.timeformat)
         else:
             self.start = None
         self.prep   = False
@@ -72,13 +73,24 @@ class trace(object):
         self.usec   = duration * 1000000
         self.step   = step
         self.verb   = verbosity
+        self.maxfom = maxfom
         self.out    = svgwrite.Drawing(outname, profile='full', \
                                        size = (str(width)  + "px",
                                                str(height) + "px"))
-        self.margin      = width * 0.01
+        self.lmargin     = width * 0.02
+        self.reqhwidth   = width * 0.77
+        self.netwidth    = width * 0.10
         self.iowidth     = width * 0.10
-        self.loc_width   = (width - 2*self.margin - self.iowidth) / loc_nr
-        self.maxfom      = maxfom
+        self.rmargin     = width * 0.01
+
+        assert (self.lmargin + self.reqhwidth + self.netwidth +
+                self.iowidth + self.rmargin == self.width)
+
+        self.reqhstart   = self.lmargin
+        self.netstart    = self.reqhstart + self.reqhwidth
+        self.iostart     = self.netstart + self.netwidth
+
+        self.loc_width   = self.reqhwidth / loc_nr
         self.loc_margin  = self.loc_width * 0.02
         self.fom_width   = (self.loc_width - 2*self.loc_margin) / self.maxfom
         self.maxlane     = 4
@@ -88,12 +100,17 @@ class trace(object):
         self.locality    = []
         self.iomax       = 128
         self.iolane      = (self.iowidth - 300) / self.iomax
-        self.iostart     = width - self.iowidth
         self.iolane0     = self.iostart + 300
-        self.scribbles   = set()
         self.iolast      = []
+        self.netmax      = 128
+        self.netlane     = (self.netwidth - 400) / self.netmax
+        self.netlane0    = self.netstart + 400
+        self.netlast     = []
         self.processed   = 0
         self.reported    = 0
+        self.textstep    = 15
+        self.scribbles   = set()
+        self.foms        = {}
         self.dash        = {
             "stroke"           : self.axis,
             "stroke_width"     : 1,
@@ -106,6 +123,11 @@ class trace(object):
             self.text("locality " + str(i), insert = (x + 10, 20))
         for _ in range(self.iomax):
             self.iolast.append(datetime.datetime(1970, 01, 01))
+        for _ in range(self.netmax):
+            self.netlast.append(datetime.datetime(1970, 01, 01))
+        self.line((self.netstart - 10, 0), (self.netstart - 10, height),
+                  stroke = self.axis, stroke_width = 10)
+        self.text("net", insert = (self.netstart + 10, 20))
         self.line((self.iostart - 10, 0), (self.iostart - 10, height),
                   stroke = self.axis, stroke_width = 10)
         self.text("io", insert = (self.iostart + 10, 20))
@@ -120,7 +142,7 @@ class trace(object):
         self.locality[fom.getloc()].fomdel(fom)
 
     def getloc(self, idx):
-        return self.margin + self.loc_width * idx
+        return self.reqhstart + self.loc_width * idx
 
     def getlane(self, fom, lane):
         assert 0 <= lane and lane < self.maxlane
@@ -135,7 +157,7 @@ class trace(object):
         return self.height * usec / self.usec
 
     def fomfind(self, rec):
-        return foms[rec.get("fom")]
+        return self.foms[rec.get("fom")]
 
     def getcolour(self, str):
         seed = str + "^" + str
@@ -176,18 +198,19 @@ class trace(object):
         if end[1] >= 0 and start[1] < self.height:
             self.out.add(self.out.line(start, end, **kw))
 
-    def text(self, text, **kw):
-        x = kw["insert"][0]
-        y0 = y = kw["insert"][1]
+    def text(self, text, connect = False, **kw):
+        x = int(kw["insert"][0])
+        y0 = y = int(kw["insert"][1]) // self.textstep * self.textstep
         if y >= 0 and y < self.height:
-            while (int(x), int(y / 15)) in self.scribbles:
-                y += 15
+            while (x, y // self.textstep) in self.scribbles:
+                y += self.textstep
             kw["insert"] = (x + 10, y)
             kw["font_family"] = "Courier"
             self.out.add(self.out.text(text, **kw))
-            self.line((x, y0), (x + 10, y), **self.dash)
-            self.scribbles.add((int(x), int(y / 15)))
-        return x + 10 + len(text) * 10, y
+            if connect:
+                self.line((x, y0), (x + 10, y - 4), **self.dash)
+            self.scribbles.add((x, y // self.textstep))
+        return x + 10 + len(text) * 9.5, y - 4 # magic. Depends on the font.
 
     def fomtext(self, fom, text, time):
         return self.text(text, insert = (self.getlane(fom, 0),
@@ -204,12 +227,10 @@ class trace(object):
         while n*delta <= duration:
             t = self.start + n * delta
             y = self.getpos(t)
-            label = t.strftime(timeformat)
+            label = t.strftime(self.timeformat)
             self.line((0, y), (self.width, y), stroke = self.axis,
                       stroke_width = 1, stroke_dasharray = "20,10,5,5,5,10")
             self.text(label, insert = (0, y - 10))
-            for i in range(self.loc_nr):
-                self.text(label, insert = (self.getloc(i) + 10, y - 10))
             n = n + 1
         self.prep = True
 
@@ -232,6 +253,41 @@ class trace(object):
         else:
             print "Too many concurrent IO-s. Increase iomax."
 
+    def netbufadd(self, time, buf, qtype, seconds, stime, status, length):
+        qname = [
+            "msg-recv",
+            "msg-send",
+            "p-bulk-recv",
+            "p-bulk-send",
+            "a-bulk-recv",
+            "a-bulk-send",
+        ]
+        if qtype == 0:
+            return # skip receives
+        start = parsetime(stime)
+        duration = datetime.timedelta(microseconds = float(seconds) * 1000000)
+        dequeue  = start + duration
+        assert start <= dequeue and dequeue <= time
+        y0 = self.getpos(start)
+        y1 = self.getpos(dequeue)
+        y2 = self.getpos(time)
+        l0 = self.text("Q " + buf + " " + qname[qtype] + " " + str(length),
+                       insert = (self.netstart, y0))
+        l2 = self.text("C " + buf, insert = (self.netstart, y2))
+        slot = next((i for i in range(len(self.netlast)) if
+                     self.netlast[i] < start), None)
+        if slot != None:
+            x = self.netlane0 + self.netlane * slot
+            self.rect(insert = (x, y0), size = (self.netlane * 3/4, y1 - y0),
+                      fill = self.getcolour(str(slot) + str(start)))
+            self.rect(insert = (x, y1), size = (self.netlane * 1/4, y2 - y1),
+                      fill = self.getcolour("cb"))
+            self.netlast[slot] = time
+            self.line(l0, (x, y0), **self.dash)
+            self.line(l2, (x, y2), **self.dash)
+        else:
+            print "Too many concurrent netbufs. Increase netmax."
+
 class locality(object):
     def __init__(self, trace, idx):
         self.trace  = trace
@@ -245,7 +301,8 @@ class locality(object):
                 j = i
                 break
         if j > self.trace.maxfom:
-            print "Too many concurrent foms, increase maxfom to {}".format(j)
+            print ("{}: too many concurrent foms, "
+                   "increase maxfom to {}".format(fom.time, j))
         self.foms[j] = fom
         fom.loc_idx = j
         fom.loc = self
@@ -257,14 +314,29 @@ class locality(object):
 def keep(word):
     return word in tags
 
+def parsetime(stamp):
+        #
+        # strptime() is expensive. Hard-code.
+        # # cut to microsecond precision
+        # datetime.datetime.strptime(stamp[0:-3], trace.timeformat)
+        #
+        # 2016-03-24-09:18:46.359427942
+        # 01234567890123456789012345678
+        return datetime.datetime(year        = int(stamp[ 0: 4]),
+                                 month       = int(stamp[ 5: 7]),
+                                 day         = int(stamp[ 8:10]),
+                                 hour        = int(stamp[11:13]),
+                                 minute      = int(stamp[14:16]),
+                                 second      = int(stamp[17:19]),
+                                 microsecond = int(stamp[20:26]))
+    
 def parse(trace, words):
-    # 2016-03-24-09:18:46.359427942
-    stamp = words[0][:-3] # cut to microsecond precision
+    stamp = words[0]
     tag   = words[1]
     if tag in tags:
         obj        = tags[tag]()
         obj.ctx    = {}
-        obj.time   = datetime.datetime.strptime(stamp, timeformat)
+        obj.time   = parsetime(stamp)
         obj.params = words[2:]
         obj.trace  = trace
         if not trace.prep:
@@ -323,7 +395,7 @@ class fstate(record):
                 trace.line((lane, start), (lane, end), stroke = trace.axis,
                            stroke_width = 3)
                 self.trace.fomdel(fom)
-                del foms[self.get("fom")]
+                del trace.foms[self.get("fom")]
             
 
 class fphase(record):
@@ -334,7 +406,11 @@ class fphase(record):
             trace.rect(fill = trace.fomcolour(fom),
                        **trace.fomrect(fom, 2, fom.phase_time, self.time))
             l = trace.fomtext(fom, fom.phase, fom.phase_time)
-            trace.line(l, (trace.getlane(fom, 2), trace.getpos(fom.phase_time)),
+            x = trace.getlane(fom, 1)
+            if l[0] < x:
+                trace.line(l, (x, l[1]), **trace.dash)
+            trace.line((x, l[1]),
+                       (trace.getlane(fom, 2), trace.getpos(fom.phase_time)),
                        **trace.dash)
             fom.phase_time = self.time
             fom.phase = self.params[-1]
@@ -343,8 +419,8 @@ class fom(record):
     def done(self, trace):
         addr = self.get("fom")
         assert "locality" in self.ctx
-        # assert not (addr in foms)
-        foms[addr] = self
+        # assert not (addr in trace.foms)
+        trace.foms[addr] = self
         super(fom, self).done(trace)
         self.loc_idx = -1
         self.trace.fomadd(self)
@@ -352,7 +428,8 @@ class fom(record):
         self.phase = "init"
         self.state_time = self.time
         self.phase_time = self.time
-        trace.fomtext(self, self.params[5] + str(addr), self.time)
+        trace.fomtext(self, self.params[5] + str(addr) +
+                      "[" + self.get("locality") + "]", self.time)
 
     def __str__(self):
         return str(self.time) + " " + self.get("fom")
@@ -364,29 +441,37 @@ class forq(record):
         super(forq, self).done(trace)
         loc_id = self.getloc()
         nanoseconds = float(self.params[0][:-1]) # Cut final comma.
-        if nanoseconds < 1000000:
-            return
         duration = datetime.timedelta(microseconds = nanoseconds / 1000)
         x = self.trace.getloc(loc_id) + 10
         y = self.trace.getpos(self.time - duration)
         trace.line((x, y), (x, self.trace.getpos(self.time)),
                    stroke = svgwrite.rgb(80, 10, 10, '%'), stroke_width = 5)
-        trace.text(self.params[1], insert = (x + 10, y))
+        trace.text(self.params[1], connect = True, insert = (x + 10, y))
 
 class ioend(record):
     def done(self, trace):
         super(ioend, self).done(trace)
         trace.ioadd(self.time, self.params[0][:-1], self.params[2][:-1])
-        
-foms = {}
+
+class netbuf(record):
+    def done(self, trace):
+        super(netbuf, self).done(trace)
+        assert (self.params[0] == "buf:" and self.params[2] == "qtype:" and
+                self.params[4] == "time:" and self.params[6] == "duration:" 
+                and self.params[8] == "status:" and self.params[10] == "len:")
+        trace.netbufadd(self.time,
+                        buf     = self.params[1][:-1],
+                        qtype   = int(self.params[3][:-1]),
+                        stime   = self.params[5][:-1],
+                        seconds = float(self.params[7][:-1]),
+                        status  = int(self.params[9][:-1]),
+                        length  = int(self.params[11])) # no comma: last one
 
 tags = {
     "fom-descr"         : fom,
     "fom-state"         : fstate,
     "fom-phase"         : fphase,
     "loc-forq-duration" : forq,
-    "stob-io-end"       : ioend
+    "stob-io-end"       : ioend,
+    "net-buf"           : netbuf,
 }
-
-timeformat = "%Y-%m-%d-%H:%M:%S.%f"
-
