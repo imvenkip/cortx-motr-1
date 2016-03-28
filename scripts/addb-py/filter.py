@@ -6,7 +6,7 @@ import getopt
 import sys
 
 def filter(argv):
-    tr = record.trace(height = 10, width = 10, loc_nr = 1, duration = 1,
+    tr = record.trace(height = 10, width = 1000, loc_nr = 1, duration = 1,
                       step = 1)
     for line in fileinput.input([]):
         params = line[1:].split()

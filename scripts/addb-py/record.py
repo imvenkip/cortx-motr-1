@@ -78,16 +78,18 @@ class trace(object):
                                        size = (str(width)  + "px",
                                                str(height) + "px"))
         self.lmargin     = width * 0.02
-        self.reqhwidth   = width * 0.77
+        self.reqhwidth   = width * 0.71
+        self.lockwidth   = width * 0.06
         self.netwidth    = width * 0.10
         self.iowidth     = width * 0.10
         self.rmargin     = width * 0.01
 
-        assert (self.lmargin + self.reqhwidth + self.netwidth +
+        assert (self.lmargin + self.reqhwidth + self.lockwidth + self.netwidth +
                 self.iowidth + self.rmargin == self.width)
 
         self.reqhstart   = self.lmargin
-        self.netstart    = self.reqhstart + self.reqhwidth
+        self.lockstart   = self.reqhstart + self.reqhwidth
+        self.netstart    = self.lockstart + self.lockwidth
         self.iostart     = self.netstart + self.netwidth
 
         self.loc_width   = self.reqhwidth / loc_nr
@@ -106,6 +108,10 @@ class trace(object):
         self.netlane     = (self.netwidth - 400) / self.netmax
         self.netlane0    = self.netstart + 400
         self.netlast     = []
+        self.lockmax     = 32
+        self.locklane    = (self.lockwidth - 300) / self.lockmax
+        self.locklane0   = self.lockstart + 300
+        self.locks       = {}
         self.processed   = 0
         self.reported    = 0
         self.textstep    = 15
@@ -125,6 +131,9 @@ class trace(object):
             self.iolast.append(datetime.datetime(1970, 01, 01))
         for _ in range(self.netmax):
             self.netlast.append(datetime.datetime(1970, 01, 01))
+        self.line((self.lockstart - 10, 0), (self.lockstart - 10, height),
+                  stroke = self.axis, stroke_width = 10)
+        self.text("lock", insert = (self.lockstart + 10, 20))
         self.line((self.netstart - 10, 0), (self.netstart - 10, height),
                   stroke = self.axis, stroke_width = 10)
         self.text("net", insert = (self.netstart + 10, 20))
@@ -279,7 +288,7 @@ class trace(object):
         if slot != None:
             x = self.netlane0 + self.netlane * slot
             self.rect(insert = (x, y0), size = (self.netlane * 3/4, y1 - y0),
-                      fill = self.getcolour(str(slot) + str(start)))
+                      fill = self.getcolour(qname[qtype]))
             self.rect(insert = (x, y1), size = (self.netlane * 1/4, y2 - y1),
                       fill = self.getcolour("cb"))
             self.netlast[slot] = time
@@ -287,6 +296,28 @@ class trace(object):
             self.line(l2, (x, y2), **self.dash)
         else:
             print "Too many concurrent netbufs. Increase netmax."
+
+    def mutex(self, mname, label, time, seconds, addr):
+        duration = datetime.timedelta(microseconds = float(seconds) * 1000000)
+        start = time - duration
+        y0 = self.getpos(start)
+        y1 = self.getpos(time)
+        exists = addr in self.locks
+        if not exists:
+            if len(self.locks) >= self.lockmax:
+                print "Too many locks. Increase lockmax."
+                return
+            self.locks[addr] = len(self.locks)
+        lane = self.locks[addr]
+        x = self.locklane0 + self.locklane * lane
+        if not exists:
+            ly = max(y0, 40)
+            self.line((x, 0), (x, self.height), **self.dash)
+            l = self.text(mname + "/" + label + " " + str(addr),
+                          insert = (self.lockstart, ly))
+            self.line(l, (x, ly), **self.dash)
+        self.rect(insert = (x, y0), size = (self.locklane * 3/4, y1 - y0),
+                  fill = self.getcolour(label), stroke = self.axis)
 
 class locality(object):
     def __init__(self, trace, idx):
@@ -467,6 +498,26 @@ class netbuf(record):
                         status  = int(self.params[9][:-1]),
                         length  = int(self.params[11])) # no comma: last one
 
+class mutex(record):
+    def setname(self, mname, label):
+        self.mname = mname
+        self.label = label
+
+    def done(self, trace):
+        super(mutex, self).done(trace)
+        trace.mutex(self.mname, self.label, self.time,
+                    float(self.params[0][:-1]), self.params[1])
+
+class rpcmachwait(mutex):
+    def done(self, trace):
+        self.setname("rpc-mach", "wait")
+        super(rpcmachwait, self).done(trace)
+
+class rpcmachhold(mutex):
+    def done(self, trace):
+        self.setname("rpc-mach", "hold")
+        super(rpcmachhold, self).done(trace)
+
 tags = {
     "fom-descr"         : fom,
     "fom-state"         : fstate,
@@ -474,4 +525,6 @@ tags = {
     "loc-forq-duration" : forq,
     "stob-io-end"       : ioend,
     "net-buf"           : netbuf,
+    "rpc-mach-wait"     : rpcmachwait,
+    "rpc-mach-hold"     : rpcmachhold
 }
