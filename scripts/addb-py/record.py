@@ -60,13 +60,15 @@ import svgwrite
 
 class trace(object):
     def __init__(self, width, height, loc_nr, duration, starttime = None,
-                 step = 100, outname = "out.svg", maxfom = 20, verbosity = 0):
+                 step = 100, outname = "out.svg", maxfom = 20, verbosity = 0,
+                 label = True):
         self.timeformat = "%Y-%m-%d-%H:%M:%S.%f"
         if starttime != None:
             self.start = datetime.datetime.strptime(starttime, self.timeformat)
         else:
             self.start = None
         self.prep   = False
+        self.label  = label
         self.width  = width
         self.height = height
         self.loc_nr = loc_nr
@@ -77,12 +79,12 @@ class trace(object):
         self.out    = svgwrite.Drawing(outname, profile='full', \
                                        size = (str(width)  + "px",
                                                str(height) + "px"))
-        self.lmargin     = width * 0.02
-        self.reqhwidth   = width * 0.71
-        self.lockwidth   = width * 0.06
-        self.netwidth    = width * 0.10
-        self.iowidth     = width * 0.10
-        self.rmargin     = width * 0.01
+        self.lmargin     = width * 0.001
+        self.reqhwidth   = width * 0.995
+        self.lockwidth   = width * 0.001
+        self.netwidth    = width * 0.001
+        self.iowidth     = width * 0.001
+        self.rmargin     = width * 0.001
 
         assert (self.lmargin + self.reqhwidth + self.lockwidth + self.netwidth +
                 self.iowidth + self.rmargin == self.width)
@@ -166,7 +168,15 @@ class trace(object):
         return self.height * usec / self.usec
 
     def fomfind(self, rec):
-        return self.foms[rec.get("fom")]
+        addr = rec.get("fom")
+        f = self.foms.get(addr)
+        if f == None:
+            f = fom()
+            f.time   = self.start
+            f.params = [None, None, None, None, None, rec.ctx["fom"][1]]
+            f.ctx    = rec.ctx
+            f.done(self)
+        return f
 
     def getcolour(self, str):
         seed = str + "^" + str
@@ -207,9 +217,15 @@ class trace(object):
         if end[1] >= 0 and start[1] < self.height:
             self.out.add(self.out.line(start, end, **kw))
 
-    def text(self, text, connect = False, **kw):
+    def tline(self, start, end, **kw):
+        if self.label:
+            self.line(start, end, **kw)
+
+    def text(self, text, connect = False, force = False, **kw):
         x = int(kw["insert"][0])
         y0 = y = int(kw["insert"][1]) // self.textstep * self.textstep
+        if not self.label and not force:
+            return (x, y)
         if y >= 0 and y < self.height:
             while (x, y // self.textstep) in self.scribbles:
                 y += self.textstep
@@ -239,7 +255,7 @@ class trace(object):
             label = t.strftime(self.timeformat)
             self.line((0, y), (self.width, y), stroke = self.axis,
                       stroke_width = 1, stroke_dasharray = "20,10,5,5,5,10")
-            self.text(label, insert = (0, y - 10))
+            self.text(label, insert = (0, y - 10), force = True)
             n = n + 1
         self.prep = True
 
@@ -257,8 +273,8 @@ class trace(object):
             self.rect(insert = (x, y0), size = (self.iolane * 3/4, y1 - y0),
                       fill = self.getcolour(str(slot) + str(start)))
             self.iolast[slot] = time
-            self.line(l0, (x, y0), **self.dash)
-            self.line(l1, (x, y1), **self.dash)
+            self.tline(l0, (x, y0), **self.dash)
+            self.tline(l1, (x, y1), **self.dash)
         else:
             print "Too many concurrent IO-s. Increase iomax."
 
@@ -292,8 +308,8 @@ class trace(object):
             self.rect(insert = (x, y1), size = (self.netlane * 1/4, y2 - y1),
                       fill = self.getcolour("cb"))
             self.netlast[slot] = time
-            self.line(l0, (x, y0), **self.dash)
-            self.line(l2, (x, y2), **self.dash)
+            self.tline(l0, (x, y0), **self.dash)
+            self.tline(l2, (x, y2), **self.dash)
         else:
             print "Too many concurrent netbufs. Increase netmax."
 
@@ -312,10 +328,9 @@ class trace(object):
         x = self.locklane0 + self.locklane * lane
         if not exists:
             ly = max(y0, 40)
-            self.line((x, 0), (x, self.height), **self.dash)
-            l = self.text(mname + "/" + label + " " + str(addr),
-                          insert = (self.lockstart, ly))
-            self.line(l, (x, ly), **self.dash)
+            self.tline((x, 0), (x, self.height), **self.dash)
+            l = self.text(mname + " " + str(addr), insert = (self.lockstart, ly))
+            self.tline(l, (x, ly), **self.dash)
         self.rect(insert = (x, y0), size = (self.locklane * 3/4, y1 - y0),
                   fill = self.getcolour(label), stroke = self.axis)
 
@@ -439,10 +454,10 @@ class fphase(record):
             l = trace.fomtext(fom, fom.phase, fom.phase_time)
             x = trace.getlane(fom, 1)
             if l[0] < x:
-                trace.line(l, (x, l[1]), **trace.dash)
-            trace.line((x, l[1]),
-                       (trace.getlane(fom, 2), trace.getpos(fom.phase_time)),
-                       **trace.dash)
+                trace.tline(l, (x, l[1]), **trace.dash)
+            trace.tline((x, l[1]),
+                        (trace.getlane(fom, 2), trace.getpos(fom.phase_time)),
+                        **trace.dash)
             fom.phase_time = self.time
             fom.phase = self.params[-1]
             
@@ -475,8 +490,8 @@ class forq(record):
         duration = datetime.timedelta(microseconds = nanoseconds / 1000)
         x = self.trace.getloc(loc_id) + 10
         y = self.trace.getpos(self.time - duration)
-        trace.line((x, y), (x, self.trace.getpos(self.time)),
-                   stroke = svgwrite.rgb(80, 10, 10, '%'), stroke_width = 5)
+        trace.tline((x, y), (x, self.trace.getpos(self.time)),
+                    stroke = svgwrite.rgb(80, 10, 10, '%'), stroke_width = 5)
         trace.text(self.params[1], connect = True, insert = (x + 10, y))
 
 class ioend(record):

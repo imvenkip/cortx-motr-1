@@ -10,16 +10,6 @@ def recdone(tr, rec):
         rec.done(tr)
 
 def processinput(argv):
-    try:
-        opts, args = getopt.getopt(argv[1:], "h:w:l:d:s:t:o:f:v:")
-    except getopt.GetoptError:
-        print ("{} -h height -w width -l localities -f maxfom -v verbosity" \
-               " -d duration -s step -t starttime -o outfile\n\n" \
-               "Height and width are in pixels.\n" \
-               "Duration is in seconds, step is in milliseconds.\n" \
-               "Starttime is in the same format as produced by m0addb2dump.\n").\
-        format(argv[0])
-        sys.exit(2)
     kw = {
         "height"    : 1000000,
         "width"     :   40000,
@@ -29,16 +19,27 @@ def processinput(argv):
         "starttime" :    None
     }
     xlate = {
-        "-h" : ("height",    int),
-        "-w" : ("width",     int),
-        "-v" : ("verbosity", int),
-        "-d" : ("duration",  int),
-        "-l" : ("loc_nr",    int),
-        "-s" : ("step",      int),
-        "-f" : ("maxfom",    int),
-        "-t" : ("starttime", str),
-        "-o" : ("outname",   str)
+        "-h" : ("height",    int, "Output image height in pixels."),
+        "-w" : ("width",     int, "Output image width in pixels."),
+        "-v" : ("verbosity", int, "Verbosity level."),
+        "-d" : ("duration",  int, "Duration of the part of the input"
+                " to process in seconds."),
+        "-l" : ("loc_nr",    int, "Number of localities in the analysed"
+                " process. If 1, localities are ignored."),
+        "-s" : ("step",      int, "Milliseconds between timestamp axes."),
+        "-f" : ("maxfom",    int, "Maximum number of foms per locality."),
+        "-t" : ("starttime", str, "Timestamp in the addb format at which"
+                " output generation starts."),
+        "-L" : ("label",     int, "If 0, omit text labels,"),
+        "-o" : ("outname",   str, "Output file name.")
     }
+    try:
+        opts, args = getopt.getopt(argv[1:], "h:w:l:d:s:t:o:f:v:L:")
+    except getopt.GetoptError:
+        print "{} [options]\n\nOptions:\n".format(argv[0])
+        for k in xlate:
+            print "    {} : {}".format(k, xlate[k][2])
+        sys.exit(2)
     for opt, arg in opts:
         xl = xlate[opt]
         kw[xl[0]] = xl[1](arg)
