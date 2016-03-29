@@ -16,7 +16,7 @@ import unittest
 import sys
 from errno import EPIPE
 
-__version__ = '1.5'
+__version__ = '1.5.1'
 
 __all__ = ['conf_objs_encode', 'conf_obj_encode']
 
@@ -1090,7 +1090,9 @@ def main():
         print(input_format)
         return
     if opts.types:
-        for k, v in conf_obj_types.items():
+        types = conf_obj_types.items()
+        types.sort(key=lambda kv: kv[1].ft_id)
+        for k, v in types:
             print('{} {:#x} {}'.format(v.ft_id, ord(v.ft_id), k))
         return
     if opts.svc_types:
