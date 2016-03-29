@@ -40,6 +40,7 @@
 #include "mdservice/fsync_fops.h"       /* m0_fsync_fom_ops */
 #include "mdservice/fsync_fops_xc.h"    /* m0_fop_fsync_xc */
 #include "ioservice/io_addb2.h"
+#include "ioservice/io_foms.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_fops_xc.h"
 #include "ioservice/cob_foms.h"
@@ -166,6 +167,11 @@ M0_INTERNAL void m0_dump_cob_attr(const struct m0_cob_attr *attr)
 }
 
 #ifndef __KERNEL__
+M0_BASSERT(M0_IOSERVICE_COB_DELETE_OPCODE ==
+	   M0_IOSERVICE_COB_CREATE_OPCODE + 1);
+M0_BASSERT(sizeof(struct m0_fop_cob_create) ==
+	   sizeof(struct m0_fop_cob_delete));
+
 static int io_fol_cd_rec_frag_op(struct m0_fop_fol_frag *frag,
 				 struct m0_fol *fol, bool undo)
 {
@@ -180,10 +186,7 @@ static int io_fol_cd_rec_frag_op(struct m0_fop_fol_frag *frag,
 	M0_PRE(frag != NULL);
 	M0_PRE(M0_IN(frag->ffrp_fop_code, (M0_IOSERVICE_COB_CREATE_OPCODE,
 					    M0_IOSERVICE_COB_DELETE_OPCODE)));
-	M0_CASSERT(M0_IOSERVICE_COB_DELETE_OPCODE ==
-		   M0_IOSERVICE_COB_CREATE_OPCODE + 1);
-	M0_CASSERT(sizeof(struct m0_fop_cob_create) ==
-		   sizeof(struct m0_fop_cob_delete));
+
 	rpcmach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
 	M0_ASSERT(rpcmach != NULL);
 
@@ -278,6 +281,9 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			  m0_generic_conf.scf_nr_states);
 
 	m0_sm_conf_trans_extend(&m0_generic_conf, &io_conf);
+
+	io_conf.scf_state[M0_FOPH_TXN_INIT].sd_allowed |=
+		M0_BITS(M0_FOPH_IO_FOM_PREPARE);
 
 	m0_sm_conf_init(&io_conf);
 #else

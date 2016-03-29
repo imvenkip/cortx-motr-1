@@ -157,7 +157,7 @@ static int bulkio_server_write_fom_tick(struct m0_fom *fom)
 	        M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_WAIT);
 		break;
 	case M0_FOPH_IO_ZERO_COPY_WAIT:
-	        M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_IO_STOB_INIT);
+	        M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_TXN_INIT);
 		break;
 	case M0_FOPH_IO_STOB_INIT:
 	        M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_IO_STOB_WAIT);
@@ -360,7 +360,8 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	         * No need to test generic phases.
 	         */
 	        rc = m0_io_fom_cob_rw_tick(fom);
-		next_write_test = m0_fom_phase(fom);
+		if (next_write_test <= TEST00)
+			next_write_test = m0_fom_phase(fom);
 	} else if (next_write_test == TEST00) {
 	        rc = m0_io_fom_cob_rw_tick(fom);
 		next_write_test = TEST01;
@@ -528,14 +529,15 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	        /*
 	         * Case 08 : Zero-copy success from wait state.
 	         *         Input phase          : M0_FOPH_IO_ZERO_COPY_WAIT
-	         *         Expected Output phase: M0_FOPH_IO_STOB_INIT
+	         *         Expected Output phase: M0_FOPH_TXN_INIT
 	         */
 		fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_WAIT);
 	        rc = m0_io_fom_cob_rw_tick(fom);
 	        M0_UT_ASSERT(m0_fom_rc(fom) == 0 &&
 	                     rc == M0_FSO_AGAIN &&
-	                     m0_fom_phase(fom) == M0_FOPH_IO_STOB_INIT);
-
+	                     m0_fom_phase(fom) == M0_FOPH_TXN_INIT);
+		next_write_test = TEST10;
+	} else if (next_write_test == TEST10) {
 	        /*
 	         * Case 09 : STOB I/O launch failure
 	         *         Input phase          : M0_FOPH_IO_STOB_INIT

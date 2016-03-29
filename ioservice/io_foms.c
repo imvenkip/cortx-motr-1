@@ -710,6 +710,7 @@ struct m0_sm_state_descr io_phases[] = {
 	[M0_FOPH_IO_FOM_PREPARE] = {
 		.sd_name      = "io-prepare",
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
+					M0_FOPH_IO_STOB_INIT,
 					M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_IO_FOM_BUFFER_ACQUIRE] = {
@@ -746,6 +747,7 @@ struct m0_sm_state_descr io_phases[] = {
 		.sd_name      = "zero-copy-finish",
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_BUFFER_RELEASE,
 					M0_FOPH_IO_STOB_INIT,
+					M0_FOPH_TXN_INIT,
 					M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_IO_BUFFER_RELEASE] = {
@@ -757,8 +759,10 @@ struct m0_sm_state_descr io_phases[] = {
 
 struct m0_sm_trans_descr io_phases_trans[] = {
 	[ARRAY_SIZE(m0_generic_phases_trans)] =
+	{"start-network-io", M0_FOPH_TXN_INIT, M0_FOPH_IO_FOM_PREPARE},
 	{"io-prepared", M0_FOPH_IO_FOM_PREPARE, M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
 	{"io-prepare-failed", M0_FOPH_IO_FOM_PREPARE, M0_FOPH_FAILURE},
+	{"transaction-opened", M0_FOPH_IO_FOM_PREPARE, M0_FOPH_IO_STOB_INIT},
 	{"network-buffer-acquired-stobio",
 	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE, M0_FOPH_IO_STOB_INIT},
 	{"network-buffer-acquired-zerocopy",
@@ -790,6 +794,8 @@ struct m0_sm_trans_descr io_phases_trans[] = {
 	 M0_FOPH_IO_ZERO_COPY_WAIT, M0_FOPH_IO_BUFFER_RELEASE},
 	{"zero-copy-wait-finished-stobio",
 	 M0_FOPH_IO_ZERO_COPY_WAIT, M0_FOPH_IO_STOB_INIT},
+	{"zero-copy-wait-finished-txn-open",
+	 M0_FOPH_IO_ZERO_COPY_WAIT, M0_FOPH_TXN_INIT},
 	{"zero-copy-wait-failed", M0_FOPH_IO_ZERO_COPY_WAIT, M0_FOPH_FAILURE},
 	{"network-buffer-released",
 	 M0_FOPH_IO_BUFFER_RELEASE, M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
@@ -809,7 +815,6 @@ static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io)
 	struct m0_fop_cob_rw *rwfop = io_rw_get(io->fcrw_gen.fo_fop);
 
 	return
-		_0C(io != NULL) &&
 		_0C(io->fcrw_ndesc == rwfop->crw_desc.id_nr) &&
 		_0C(io->fcrw_curr_desc_index >= 0) &&
 		_0C(io->fcrw_curr_desc_index <= rwfop->crw_desc.id_nr) &&
@@ -817,9 +822,7 @@ static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io)
 						   &io->fcrw_netbuf_list))) &&
 		_0C(io->fcrw_batch_size ==
 		    netbufs_tlist_length(&io->fcrw_netbuf_list)) &&
-		_0C(io->fcrw_req_count >= io->fcrw_req_count) &&
-		_0C(ergo(io->fcrw_req_count > io->fcrw_req_count,
-			 io->fcrw_num_stobio_launched > 0)) &&
+		_0C(io->fcrw_req_count >= io->fcrw_count) &&
 		_0C(io->fcrw_curr_size <= io->fcrw_total_ioivec_cnt) &&
 		_0C(io->fcrw_num_stobio_launched <=
 		    stobio_tlist_length(&io->fcrw_stio_list)) &&
@@ -2060,18 +2063,17 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	         FID_P(&rwfop->crw_fid));
 
 	/* first handle generic phase */
-	if (m0_fom_phase(fom) < M0_FOPH_NR) {
-		if (m0_fom_phase(fom) == M0_FOPH_INIT) {
-			rc = indexvec_wire2mem(fom) ?:
-				stob_io_create(fom);
-			if (rc != 0) {
-				m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-				rc = M0_FSO_AGAIN;
-				return M0_RC(rc);
-			}
-		} else if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
-			if (m0_is_write_fop(fom->fo_fop))
-				stob_be_credit(fom);
+	if (m0_fom_phase(fom) == M0_FOPH_INIT) {
+		rc = indexvec_wire2mem(fom) ?:
+			stob_io_create(fom);
+		if (rc != 0) {
+			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+			return M0_RC(M0_FSO_AGAIN);
+		}
+	}
+	if (m0_fom_phase(fom) < M0_FOPH_NR && m0_is_write_fop(fom->fo_fop)) {
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+			stob_be_credit(fom);
 			if (fom_obj->fcrw_flags & M0_IO_FLAG_CROW) {
 				struct m0_stob_id stob_id;
 				struct m0_be_tx_credit *accum;
@@ -2084,7 +2086,19 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 				m0_cob_tx_credit(fom_cdom(fom),
 						 M0_COB_OP_DELETE, accum);
 			}
+		} else if (m0_fom_phase(fom) == M0_FOPH_AUTHORISATION) {
+			rc = m0_fom_tick_generic(fom);
+			if (m0_fom_phase(fom) == M0_FOPH_TXN_INIT)
+				m0_fom_phase_set(fom, M0_FOPH_IO_FOM_PREPARE);
+			return M0_RC(rc);
+		} else if (m0_fom_phase(fom) == M0_FOPH_TXN_WAIT) {
+			rc = m0_fom_tick_generic(fom);
+			if (m0_fom_phase(fom) == M0_FOPH_IO_FOM_PREPARE)
+				m0_fom_phase_set(fom, M0_FOPH_IO_STOB_INIT);
+			return M0_RC(rc);
 		}
+	}
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		rc = m0_fom_tick_generic(fom);
 		return M0_RC(rc);
 	}
@@ -2116,6 +2130,13 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 						     &rwrep->rwr_fv_updates);
 		}
 		return M0_RC(rc);
+	}
+
+	if (m0_is_write_fop(fom->fo_fop) &&
+	    m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_WAIT &&
+	    fom->fo_tx.tx_state == 0) {
+		m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
+		return M0_RC(M0_FSO_AGAIN);
 	}
 
 	m0_fom_phase_set(fom, rc == M0_FSO_AGAIN ?

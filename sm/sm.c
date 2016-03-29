@@ -226,8 +226,10 @@ static bool conf_invariant(const struct m0_sm_conf *conf)
 	uint32_t i;
 	uint64_t mask;
 
-	if (conf->scf_nr_states >= sizeof(conf->scf_state[0].sd_allowed) * 8)
+	if (conf->scf_nr_states >= sizeof(conf->scf_state[0].sd_allowed) * 8) {
+		m0_failed_condition = "wrong states_nr";
 		return false;
+	}
 
 	for (i = 0, mask = 0; i < conf->scf_nr_states; ++i) {
 		if (state_is_valid(conf, i))
@@ -240,13 +242,19 @@ static bool conf_invariant(const struct m0_sm_conf *conf)
 
 			sd = &conf->scf_state[i];
 			if (sd->sd_flags & ~(M0_SDF_INITIAL|M0_SDF_FINAL|
-					     M0_SDF_FAILURE|M0_SDF_TERMINAL))
+					     M0_SDF_FAILURE|M0_SDF_TERMINAL)) {
+				m0_failed_condition = "odd sd_flags";
 				return false;
+			}
 			if ((sd->sd_flags & M0_SDF_TERMINAL) &&
-			    sd->sd_allowed != 0)
+			    sd->sd_allowed != 0) {
+				m0_failed_condition = "terminal sd_allowed";
 				return false;
-			if (sd->sd_allowed & ~mask)
+			}
+			if (sd->sd_allowed & ~mask) {
+				m0_failed_condition = "odd sd_allowed";
 				return false;
+			}
 		}
 	}
 	return true;
