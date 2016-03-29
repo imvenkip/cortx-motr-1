@@ -196,6 +196,8 @@ start_m0d:
 		printf("Started\n");
 		fflush(stdout);
 		result = cs_wait_signal();
+		if (gotsignal)
+			warnx("got signal %d", gotsignal);
 	}
 
 	if (rc == 0 && result == M0_RESULT_STATUS_RESTART) {
@@ -236,20 +238,14 @@ restart_signal:
 cleanup1:
 	m0_cs_fini(&mero_ctx);
 	if (gotsignal) {
-		/* This string is checked in signals handling ST. */
-		warnx("\n Got signal during Mero setup \n");
 		if (gotsignal == M0_RESULT_STATUS_RESTART)
 			goto restart_signal;
 		gotsignal = M0_RESULT_STATUS_WORK;
 	}
 cleanup2:
 	m0_fini();
-	if (gotsignal) {
-		/* This string is checked in signals handling ST. */
-		warnx("\n Got signal during Mero init \n");
-		if (gotsignal == M0_RESULT_STATUS_RESTART)
-			goto init_m0d;
-	}
+	if (gotsignal == M0_RESULT_STATUS_RESTART)
+		goto init_m0d;
 out:
 	errno = rc < 0 ? -rc : rc;
 	return errno;

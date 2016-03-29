@@ -14,81 +14,71 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 cd $M0_SRC_DIR
 
-sudo scripts/install-mero-service -u
-sudo scripts/install-mero-service -l
-sudo utils/m0setup -v -P 12 -N 2 -K 1 -i 1 -d /var/mero/img -s 1 -c
-sudo utils/m0setup -v -P 12 -N 2 -K 1 -i 1 -d /var/mero/img -s 1
+scripts/install-mero-service -u
+scripts/install-mero-service -l
+utils/m0setup -v -P 12 -N 2 -K 1 -i 1 -d /var/mero/img -s 1 -c
+utils/m0setup -v -P 12 -N 2 -K 1 -i 1 -d /var/mero/img -s 1
+
+# update Mero configuration: set specific dir for test artifacts
+sed -i "s@.*MERO_LOG_DIR.*@MERO_LOG_DIR=${SANDBOX_DIR}/log@" \
+     /etc/sysconfig/mero
+sed -i "s@.*MERO_M0D_DATA_DIR.*@MERO_M0D_DATA_DIR=${SANDBOX_DIR}/mero@" \
+     /etc/sysconfig/mero
 
 test_for_signal()
 {
-	local sig=$1
-	echo "------------------ Configuring Mero for $sig test ------------------"
-	sudo systemctl start mero-mkfs
-	sudo systemctl start mero &
+    local sig=$1
+    echo "------------------ Configuring Mero for $sig test ------------------"
+    systemctl start mero-mkfs
+    systemctl start mero
 
-	echo "Waiting for ios1 to become active"
-	local pid=""
-	while true; do
-		pid=`sudo ps ax | grep "m0d -e" | grep "ios1.conf" | awk '{ print $1 }'`
-		if [ -n "$pid" ]; then
-			echo "Send $sig to ios1 ($pid)"
-			sudo kill -s $sig $pid
-			echo "Waiting for ios1 to stop"
-			sleep 10
-			break
-		fi
-		sleep 1
-	done
+    echo 'Waiting for ios1 to become active'
+    while ! systemctl -q is-active mero-server@ios1 ; do
+        sleep 1
+    done
 
-	local result=0
-	gotsignal=`sudo journalctl --no-pager --full -b -n 50 | grep "mero-server\[$pid\]" | grep "Got signal during Mero setup"`
-	if [ -n "$gotsignal" ]; then
-		echo "Successfully handled $sig during Mero setup"
+    local cursor=$(journalctl --show-cursor -n0 | grep -e '-- cursor:' | sed -e 's/^-- cursor: //')
+    while ! journalctl -c "$cursor" -l -u mero-server@ios1 | grep -q 'Press CTRL+C to quit'; do
+        sleep 1
+    done
 
-		if test "x$sig" = "xSIGUSR1"; then
-			restarting=`sudo journalctl --no-pager --full -b -n 50 | grep "mero-server\[$pid\]" | grep "Restarting"`
-			if [ -n "$restarting" ]; then
-				echo "Wait for Mero restart"
-				status=`sudo systemctl status mero.service | grep Active: | sed -e 's/[[:space:]]*Active:[[:space:]]*//' -e 's/ (.*$//g'`
-				echo "mero.service.status=$status"
-				if test "x$status" != "xactive"; then
-					echo "Mero service is not in active status"
-					result=1
-				else
-					local SLEEP_MAX=60
-					local SPEEP_COUNT=0
-					while true; do
-						started=`sudo journalctl --no-pager --full -b -n 50 | grep "mero-server\[$pid\]" | grep "Started"`
-						if [ -n "x$started" ] ; then
-							echo "Successfully restarted after $sig during Mero setup"
-							result=0
-							break
-						else
-							if test $SLEEP_COUNT -eq $SLEEP_MAX; then
-								echo "Failed to wait for Mero to restart after signal"
-								result=1
-								break
-							fi
-						fi
-						((SLEEP_COUNT++))
-						sleep 1
-					done
-				fi
-			else
-				echo "Restarting Mero failed"
-				result=1
-			fi
-		else
-			result=0
-		fi
-	else
-		echo "Failed to handle $sig during Mero setup"
-		result=1
-	fi
+    echo "Sending $sig to ios1"
+    systemctl -s $sig --kill-who=main kill mero-server@ios1
 
-	echo "Stopping Mero"
-	sudo systemctl stop mero
-	return $result
+    if [[ $sig == SIGUSR1 ]] ; then
+        sleep 5
+    else
+        echo "Waiting for ios1 to stop"
+        while systemctl -q is-active mero-server@ios1 ; do
+            sleep 1
+        done
+    fi
+
+    if journalctl -c "$cursor" -l -u mero-server@ios1 | grep -Eq 'got signal -?[0-9]+'
+    then
+        echo "Successfully handled $sig during Mero setup"
+
+        if [[ $sig == SIGUSR1 ]] ; then
+            if journalctl -c "$cursor" -l -u mero-server@ios1 | grep -q 'Restarting'
+            then
+                echo "Wait for Mero restart"
+                while ! systemctl -q is-active mero-server@ios1 ; do
+                    sleep 1
+                done
+            else
+                echo "Restarting Mero failed"
+                return 1
+            fi
+        fi
+    else
+        echo "Failed to handle $sig during Mero setup"
+        return 1
+    fi
+
+    echo "Stopping Mero"
+    systemctl stop mero
+    systemctl stop mero-kernel
+    return 0
 }
 
 # Test for stop
