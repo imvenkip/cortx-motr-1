@@ -79,12 +79,12 @@ class trace(object):
         self.out    = svgwrite.Drawing(outname, profile='full', \
                                        size = (str(width)  + "px",
                                                str(height) + "px"))
-        self.lmargin     = width * 0.001
-        self.reqhwidth   = width * 0.995
-        self.lockwidth   = width * 0.001
-        self.netwidth    = width * 0.001
-        self.iowidth     = width * 0.001
-        self.rmargin     = width * 0.001
+        self.lmargin     = width * 0.01
+        self.reqhwidth   = width * 0.87
+        self.lockwidth   = width * 0.01
+        self.netwidth    = width * 0.05
+        self.iowidth     = width * 0.05
+        self.rmargin     = width * 0.01
 
         assert (self.lmargin + self.reqhwidth + self.lockwidth + self.netwidth +
                 self.iowidth + self.rmargin == self.width)
@@ -124,6 +124,11 @@ class trace(object):
             "stroke_width"     : 1,
             "stroke_dasharray" :"1,1"
         }
+        self.warnedlabel = False
+        self.warnednet   = False
+        self.warnedlock  = False
+        self.warnedio    = False
+        self.warnedfom   = 0
         for i in range(loc_nr):
             x = self.getloc(i)
             self.locality.append(locality(self, i))
@@ -227,8 +232,15 @@ class trace(object):
         if not self.label and not force:
             return (x, y)
         if y >= 0 and y < self.height:
+            i = 0
             while (x, y // self.textstep) in self.scribbles:
                 y += self.textstep
+                if i > 30:
+                    if not self.warnedlabel:
+                        print "Labels are overcrowded. Increase image height."
+                        self.warnedlabel = True
+                    break
+                i += 1
             kw["insert"] = (x + 10, y)
             kw["font_family"] = "Courier"
             self.out.add(self.out.text(text, **kw))
@@ -275,7 +287,8 @@ class trace(object):
             self.iolast[slot] = time
             self.tline(l0, (x, y0), **self.dash)
             self.tline(l1, (x, y1), **self.dash)
-        else:
+        elif not self.warnedio:
+            self.warnedio = True
             print "Too many concurrent IO-s. Increase iomax."
 
     def netbufadd(self, time, buf, qtype, seconds, stime, status, length):
@@ -310,7 +323,8 @@ class trace(object):
             self.netlast[slot] = time
             self.tline(l0, (x, y0), **self.dash)
             self.tline(l2, (x, y2), **self.dash)
-        else:
+        elif not self.warnednet:
+            self.warnednet = True
             print "Too many concurrent netbufs. Increase netmax."
 
     def mutex(self, mname, label, time, seconds, addr):
@@ -321,7 +335,9 @@ class trace(object):
         exists = addr in self.locks
         if not exists:
             if len(self.locks) >= self.lockmax:
-                print "Too many locks. Increase lockmax."
+                if not self.warnedlock:
+                    self.warnedlock = True                
+                    print "Too many locks. Increase lockmax."
                 return
             self.locks[addr] = len(self.locks)
         lane = self.locks[addr]
@@ -341,14 +357,17 @@ class locality(object):
         self.idx    = idx
 
     def fomadd(self, fom):
+        trace = self.trace
         j = len(self.foms)
         for i in range(len(self.foms)):
-            if not (i in self.foms):
+            if i not in self.foms:
                 j = i
                 break
-        if j > self.trace.maxfom:
-            print ("{}: too many concurrent foms, "
-                   "increase maxfom to {}".format(fom.time, j))
+        if j > trace.maxfom:
+            if trace.warnedfom < j:
+                print ("{}: too many concurrent foms, "
+                       "increase maxfom to {}".format(fom.time, j))
+                trace.warnedfom = j
         self.foms[j] = fom
         fom.loc_idx = j
         fom.loc = self
@@ -395,7 +414,7 @@ class record(object):
     def add(self, words):
         key = words[0]
         val = words[1:]
-        assert not (key is self.ctx)
+        assert key not in self.ctx
         self.ctx[key] = val
         self.trace = None
 
@@ -465,7 +484,7 @@ class fom(record):
     def done(self, trace):
         addr = self.get("fom")
         assert "locality" in self.ctx
-        # assert not (addr in trace.foms)
+        # assert addr not in trace.foms
         trace.foms[addr] = self
         super(fom, self).done(trace)
         self.loc_idx = -1
@@ -482,7 +501,7 @@ class fom(record):
 
 class forq(record):
     def done(self, trace):
-        if not ("locality" in self.ctx):
+        if "locality" not in self.ctx:
             return # ast in 0-locality
         super(forq, self).done(trace)
         loc_id = self.getloc()
