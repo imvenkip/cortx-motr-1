@@ -386,6 +386,11 @@ struct m0_be_tx {
 	 * This field is set and managed by engine.
 	 */
 	bool                   t_recovering;
+	/**
+	 * Set by engine when tx is grouped. Prevents the tx from grouping
+	 * twice.
+	 */
+	bool                   t_grouped;
 };
 
 /**

@@ -457,6 +457,14 @@ static int be_engine_tx_trygroup(struct m0_be_engine *en,
 	M0_PRE(!m0_be_tx__is_recovering(tx));
 
 	while ((gr = be_engine_group_find(en)) != NULL) {
+		if (tx->t_grouped) {
+			/*
+			 * The tx is already grouped in a recursive
+			 * be_engine_tx_trygroup() call.
+			 */
+			rc = -ELOOP;
+			break;
+		}
 		if (m0_be_tx__is_exclusive(tx) && m0_be_tx_group_tx_nr(gr) > 0) {
 			rc = -EBUSY;
 		} else {
@@ -476,8 +484,10 @@ static int be_engine_tx_trygroup(struct m0_be_engine *en,
 		if (M0_IN(rc, (0, -ENOSPC)))
 			break;
 	}
-	if (rc == 0)
+	if (rc == 0) {
+		tx->t_grouped = true;
 		be_engine_tx_state_post(en, tx, M0_BTS_ACTIVE);
+	}
 	return M0_RC(rc);
 }
 
@@ -625,6 +635,7 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 	case M0_BTS_PREPARE:
 		/* TODO don't assign id for recovering tx */
 		tx->t_id = be_engine_tx_id_allocate(en);
+		tx->t_grouped = false;
 		M0_LOG(M0_DEBUG, "tx=%p t_id=%"PRIu64, tx, tx->t_id);
 		break;
 	case M0_BTS_OPENING:
