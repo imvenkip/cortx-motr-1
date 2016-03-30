@@ -19,8 +19,8 @@ start_stop_m0d()
 	if [ $dev_state -eq $M0_NC_FAILED ]
 	then
 		# Stop m0d
-		echo -n Stopping m0d on controller ep $IOS_PVER2_EP ...
-		m0d_pid=`pgrep -n lt-m0d `
+		echo "Stopping m0d on controller ep $IOS_PVER2_EP ..."
+		m0d_pid=`pgrep -fn lt-m0d.+$IOS_PVER2_EP`
 		kill -TERM $m0d_pid >/dev/null 2>&1
 		sleep 10
 	else
