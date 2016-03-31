@@ -647,6 +647,8 @@ M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
 		M0_ASSERT(errno != 0);
 		rc = -errno;
 		M0_ASSERT(rc < 0);
+		M0_LOG(M0_ERROR, "open(%s, ...) failed: rc=%d. "
+		       "Is m0mero.ko loaded?", nlx_ucore_dev_name, rc);
 		goto fail_open;
 	}
 
