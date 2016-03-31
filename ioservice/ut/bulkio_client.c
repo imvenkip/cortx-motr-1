@@ -130,7 +130,8 @@ static void bulkclient_test(void)
 	m0_bcount_t		 max_seg_size;
 	m0_bcount_t		 max_buf_size;
 	struct m0_fid            fid;
-	struct m0_clink          clink;
+	struct m0_clink          s_clink;
+	struct m0_clink          c_clink;
 	struct m0_io_fop	*iofop;
 	struct m0_net_xprt	*xprt;
 	struct m0_rpc_bulk	*rbulk;
@@ -299,6 +300,9 @@ static void bulkclient_test(void)
 		++i;
 	} m0_tl_endfor;
 	M0_UT_ASSERT(rbulk->rb_bytes ==  2 * M0_0VEC_ALIGN);
+	/* Register a clink for client side rbulk. */
+	m0_clink_init(&c_clink, NULL);
+	m0_clink_add(&rbulk->rb_chan, &c_clink);
 	m0_mutex_unlock(&rbulk->rb_mutex);
 
 	/* Start server side TM. */
@@ -343,8 +347,8 @@ static void bulkclient_test(void)
 	q = m0_is_read_fop(&iofop->if_fop) ? M0_NET_QT_ACTIVE_BULK_SEND :
 	    M0_NET_QT_ACTIVE_BULK_RECV;
 	m0_rpc_bulk_qtype(sbulk, q);
-	m0_clink_init(&clink, NULL);
-	m0_clink_add(&sbulk->rb_chan, &clink);
+	m0_clink_init(&s_clink, NULL);
+	m0_clink_add(&sbulk->rb_chan, &s_clink);
 	m0_mutex_unlock(&sbulk->rb_mutex);
 
 	rc = m0_rpc_bulk_load(sbulk, &stm->bmt_conn, rw->crw_desc.id_descs,
@@ -367,17 +371,21 @@ static void bulkclient_test(void)
 	} m0_tl_endfor;
 	M0_UT_ASSERT(sbulk->rb_bytes == 2 * M0_0VEC_ALIGN);
 	m0_mutex_unlock(&sbulk->rb_mutex);
-
 	/* Waits for zero copy to complete. */
 	M0_UT_ASSERT(rc == 0);
-	m0_chan_wait(&clink);
+	m0_chan_wait(&s_clink);
+	m0_chan_wait(&c_clink);
 
 	m0_mutex_lock(&sbulk->rb_mutex);
+	m0_mutex_lock(&rbulk->rb_mutex);
 	M0_UT_ASSERT(m0_tlist_is_empty(&rpcbulk_tl, &sbulk->rb_buflist));
-	m0_clink_del(&clink);
+	m0_clink_del(&s_clink);
+	m0_clink_del(&c_clink);
+	m0_mutex_unlock(&rbulk->rb_mutex);
 	m0_mutex_unlock(&sbulk->rb_mutex);
 
-	m0_clink_fini(&clink);
+	m0_clink_fini(&s_clink);
+	m0_clink_fini(&c_clink);
 	m0_rpc_bulk_fini(sbulk);
 	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
 		rc = memcmp(nbufs[i]->nb_buffer.ov_buf[IO_SINGLE_BUFFER - 1],
@@ -386,22 +394,24 @@ static void bulkclient_test(void)
 	}
 
 	/* Rpc bulk op timeout */
+
 	rc = m0_rpc_bulk_buf_add(rbulk, IO_SINGLE_BUFFER, &nd, nb, &rbuf1);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_bulk_store(rbulk, &ctm->bmt_conn, rw->crw_desc.id_descs,
 			       &m0_rpc__buf_bulk_cb);
 	M0_UT_ASSERT(rc == 0);
 	m0_mutex_lock(&rbulk->rb_mutex);
-	m0_clink_init(&clink, NULL);
-	m0_clink_add(&rbulk->rb_chan, &clink);
+	m0_clink_init(&c_clink, NULL);
+	m0_clink_add(&rbulk->rb_chan, &c_clink);
 	rc = m0_rpc_bulk_store_del_unqueued(rbulk);
 	M0_UT_ASSERT(rc == 0);
 	m0_mutex_unlock(&rbulk->rb_mutex);
 	m0_rpc_bulk_store_del(rbulk);
-	m0_chan_wait(&clink);
+	m0_chan_wait(&c_clink);
 	m0_mutex_lock(&rbulk->rb_mutex);
-	m0_clink_del(&clink);
+	m0_clink_del(&c_clink);
 	m0_mutex_unlock(&rbulk->rb_mutex);
+	m0_clink_fini(&c_clink);
 
 	m0_rpc_bulk_init(sbulk);
 	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
@@ -413,20 +423,20 @@ static void bulkclient_test(void)
 
 	m0_mutex_lock(&sbulk->rb_mutex);
 	m0_rpc_bulk_qtype(sbulk, q);
-	m0_clink_init(&clink, NULL);
-	m0_clink_add(&sbulk->rb_chan, &clink);
+	m0_clink_init(&s_clink, NULL);
+	m0_clink_add(&sbulk->rb_chan, &s_clink);
 	m0_mutex_unlock(&sbulk->rb_mutex);
 	m0_fi_enable("rpc_bulk_op", "timeout_2s");
 	rc = m0_rpc_bulk_load(sbulk, &stm->bmt_conn, rw->crw_desc.id_descs,
 			      &m0_rpc__buf_bulk_cb);
 	M0_UT_ASSERT(rc == 0);
-	m0_chan_wait(&clink);
+	m0_chan_wait(&s_clink);
 	m0_mutex_lock(&sbulk->rb_mutex);
 	M0_UT_ASSERT(m0_tlist_is_empty(&rpcbulk_tl, &sbulk->rb_buflist));
-	m0_clink_del(&clink);
+	m0_clink_del(&s_clink);
 	m0_mutex_unlock(&sbulk->rb_mutex);
 
-	m0_clink_fini(&clink);
+	m0_clink_fini(&s_clink);
 
 
 	bulkio_msg_tm_fini(ctm);
