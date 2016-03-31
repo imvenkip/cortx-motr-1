@@ -203,7 +203,7 @@ fail:
 
 int main(int argc, char **argv)
 {
-	struct m0                  instance;
+	static struct m0           instance;
 	struct m0_net_domain       domain;
 	struct m0_net_buffer_pool  buffer_pool;
 	struct m0_reqh             reqh;
