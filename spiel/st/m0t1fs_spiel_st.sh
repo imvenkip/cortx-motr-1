@@ -239,7 +239,7 @@ test_m0d_start() {
     local OPTS="-D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
     -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER2_ENDPOINT -c $CONF_FILE\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_OPT\
-    -f $PROC_FID2 -d $SANDBOX_DIR/disks.conf"
+    -f $PROC_FID2 -d $SANDBOX_DIR/disks.conf -H $SERVER2_ENDPOINT"
 
     cd $SANDBOX_DIR
 

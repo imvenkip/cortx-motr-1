@@ -2194,7 +2194,7 @@ int m0_cs_start(struct m0_mero *cctx)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	if (cctx->cc_no_conf)
+	if (cctx->cc_no_conf || bad_address(cctx->cc_ha_addr))
 		return M0_RC(0);
 
 	rc = gotsignal ? -EINTR : m0_conf_fs_get(&reqh->rh_profile,

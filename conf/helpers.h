@@ -163,6 +163,11 @@ M0_INTERNAL int m0_conf_ha_state_discover(struct m0_rpc_session *ha_sess,
 					  struct m0_confc       *confc);
 
 /**
+ * Notify ha status for configuration object.
+ */
+void m0_conf_ha_notify(struct m0_fid *fid, enum m0_ha_obj_state  state);
+
+/**
  * Opens root configuration object.
  * @param confc already initialised confc instance
  * @param root  output parameter. Should be closed by user.

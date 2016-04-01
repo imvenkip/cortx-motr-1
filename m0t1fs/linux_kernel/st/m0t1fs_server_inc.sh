@@ -307,9 +307,12 @@ EOF
 		echo $cmd
 		(eval "$cmd") &
 
-		# Wait until HA initialisation done.
-		# Will be resolved by MERO-1000
-		sleep 5
+		# Wait for HA agent to start
+		while ! grep CTRL $MERO_M0T1FS_TEST_DIR/ha/m0d.log > /dev/null;
+		do
+			sleep 2
+		done
+		echo "Mero HA agent started."
 
 		# spawn mds
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
@@ -386,13 +389,6 @@ EOF
 		done
 		echo "Mero confd started."
 
-
-		# Wait for HA agent to start
-		while ! grep CTRL $MERO_M0T1FS_TEST_DIR/ha/m0d.log > /dev/null;
-		do
-			sleep 2
-		done
-		echo "Mero HA agent started."
 
 		# Wait for mds to start
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do

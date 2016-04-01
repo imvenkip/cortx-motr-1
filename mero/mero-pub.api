@@ -78,6 +78,7 @@ m0_cob_domain_create
 m0_cob_domain_destroy
 m0_conf_fid_is_valid
 m0_conf_fid_type
+m0_conf_ha_notify
 m0_conf_obj_grandparent
 m0_conf_obj_type
 m0_conf_obj_type_register
