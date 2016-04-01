@@ -167,10 +167,11 @@ static int stob_linux_domain_key_get_set(const char *path,
 	if (rc == 0) {
 		if (get) {
 			rc = fscanf(id_file, "%lx\n", dom_key);
-			rc = rc == EOF ? -errno : 0;
+			rc = rc == 1 ? 0 : rc != EOF ? -EINVAL :
+			     ferror(id_file) == 0 ? -EINVAL : -errno;
 		} else {
 			rc = fprintf(id_file, "%lx\n", *dom_key);
-			rc = rc < 0 ? -errno : 0;
+			rc = rc > 0 ? 0 : -EINVAL;
 		}
 		rc1 = fclose(id_file);
 		rc = rc == 0 && rc1 != 0 ? rc1 : rc;
