@@ -266,6 +266,8 @@ M0_INTERNAL void m0_fini_once(void)
 #if 1 /* XXX OBSOLETE */
 int m0_init(struct m0 *instance)
 {
+	M0_PRE(M0_IS0(instance));
+
 	m0_instance_setup(instance);
 	return m0_module_init(&instance->i_self, M0_LEVEL_INST_READY);
 }
