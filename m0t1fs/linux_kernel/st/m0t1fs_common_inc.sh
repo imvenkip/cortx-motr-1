@@ -148,7 +148,7 @@ unprepare()
 		rm -rf $MERO_M0T1FS_MOUNT_DIR
 	fi
 
-	if lsmod | grep -q m0mero; then
+	if lsmod | grep m0mero; then
 		unload_kernel_module
 	fi
 	modunload_m0gf

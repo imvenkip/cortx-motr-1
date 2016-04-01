@@ -48,7 +48,7 @@ mount_m0t1fs()
 		return 1
 	}
 
-	lsmod | grep -q m0mero || {
+	lsmod | grep m0mero || {
 		echo "Failed to	mount m0t1fs file system. (m0mero not loaded)"
 		return 1
 	}
