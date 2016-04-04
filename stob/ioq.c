@@ -561,6 +561,7 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 		       lio->si_nr, (unsigned long)bdone, (int)io->si_rc);
 		io->si_count = bdone >> m0_stob_ioq_bshift(ioq);
 		M0_ADDB2_ADD(M0_AVI_STOB_IO_END, FID_P(fid),
+			     m0_time_sub(m0_time_now(), io->si_start),
 			     io->si_rc, io->si_count, lio->si_nr);
 		stob_linux_io_release(lio);
 		io->si_state = SIS_IDLE;
@@ -653,6 +654,7 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 		m0_addb2_counter_mod(&queued, ioq->ioq_queued);
 		m0_addb2_counter_mod(&inflight, M0_STOB_IOQ_RING_SIZE -
 				     m0_atomic64_get(&ioq->ioq_avail));
+		m0_addb2_force(M0_MKTIME(5, 0));
 	}
 	m0_addb2_pop(M0_AVI_STOB_IOQ);
 	m0_semaphore_fini(&ioq->ioq_stop_sem[thread_index]);

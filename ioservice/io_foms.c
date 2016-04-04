@@ -635,35 +635,35 @@ const struct m0_fom_type_ops io_fom_type_ops = {
 static struct m0_io_fom_cob_rw_state_transition io_fom_read_st[] = {
 [M0_FOPH_IO_FOM_PREPARE] =
 { M0_FOPH_IO_FOM_PREPARE, &io_prepare,
-  M0_FOPH_IO_FOM_BUFFER_ACQUIRE, 0, "io preparation", },
+  M0_FOPH_IO_FOM_BUFFER_ACQUIRE, 0, "io-preparation", },
 
 [M0_FOPH_IO_FOM_BUFFER_ACQUIRE] =
 { M0_FOPH_IO_FOM_BUFFER_ACQUIRE, &net_buffer_acquire,
-  M0_FOPH_IO_STOB_INIT, M0_FOPH_IO_FOM_BUFFER_WAIT, "Network buffer acquire", },
+  M0_FOPH_IO_STOB_INIT, M0_FOPH_IO_FOM_BUFFER_WAIT, "network-buffer-acquire", },
 
 [M0_FOPH_IO_FOM_BUFFER_WAIT] =
 { M0_FOPH_IO_FOM_BUFFER_WAIT, &net_buffer_acquire,
-  M0_FOPH_IO_STOB_INIT,  M0_FOPH_IO_FOM_BUFFER_WAIT, "Network buffer wait", },
+  M0_FOPH_IO_STOB_INIT,  M0_FOPH_IO_FOM_BUFFER_WAIT, "network-buffer-wait", },
 
 [M0_FOPH_IO_STOB_INIT] =
 { M0_FOPH_IO_STOB_INIT, &io_launch,
-  0,  M0_FOPH_IO_STOB_WAIT, "STOB I/O launch", },
+  0,  M0_FOPH_IO_STOB_WAIT, "stobio-launch", },
 
 [M0_FOPH_IO_STOB_WAIT] =
 { M0_FOPH_IO_STOB_WAIT, &io_finish,
-  M0_FOPH_IO_ZERO_COPY_INIT, 0, "STOB I/O finish", },
+  M0_FOPH_IO_ZERO_COPY_INIT, 0, "stobio-finish", },
 
 [M0_FOPH_IO_ZERO_COPY_INIT] =
 { M0_FOPH_IO_ZERO_COPY_INIT, &zero_copy_initiate,
-  0, M0_FOPH_IO_ZERO_COPY_WAIT, "Zero-copy initiate", },
+  0, M0_FOPH_IO_ZERO_COPY_WAIT, "zero-copy-initiate", },
 
 [M0_FOPH_IO_ZERO_COPY_WAIT] =
 { M0_FOPH_IO_ZERO_COPY_WAIT, &zero_copy_finish,
-  M0_FOPH_IO_BUFFER_RELEASE, 0, "Zero-copy finish", },
+  M0_FOPH_IO_BUFFER_RELEASE, 0, "zero-copy-finish", },
 
 [M0_FOPH_IO_BUFFER_RELEASE] =
 { M0_FOPH_IO_BUFFER_RELEASE, &net_buffer_release,
-  M0_FOPH_IO_FOM_BUFFER_ACQUIRE,  0, "Network buffer release", },
+  M0_FOPH_IO_FOM_BUFFER_ACQUIRE,  0, "network-buffer-release", },
 };
 
 /**
@@ -673,83 +673,83 @@ static struct m0_io_fom_cob_rw_state_transition io_fom_read_st[] = {
 static const struct m0_io_fom_cob_rw_state_transition io_fom_write_st[] = {
 [M0_FOPH_IO_FOM_PREPARE] =
 { M0_FOPH_IO_FOM_PREPARE, &io_prepare,
-  M0_FOPH_IO_FOM_BUFFER_ACQUIRE, 0, "io preparation", },
+  M0_FOPH_IO_FOM_BUFFER_ACQUIRE, 0, "io-preparation", },
 
 [M0_FOPH_IO_FOM_BUFFER_ACQUIRE] =
 { M0_FOPH_IO_FOM_BUFFER_ACQUIRE, &net_buffer_acquire,
   M0_FOPH_IO_ZERO_COPY_INIT, M0_FOPH_IO_FOM_BUFFER_WAIT,
-  "Network buffer acquire", },
+  "network-buffer-acquire", },
 
 [M0_FOPH_IO_FOM_BUFFER_WAIT] =
 { M0_FOPH_IO_FOM_BUFFER_WAIT, &net_buffer_acquire,
   M0_FOPH_IO_ZERO_COPY_INIT, M0_FOPH_IO_FOM_BUFFER_WAIT,
-  "Network buffer wait", },
+  "network-buffer-wait", },
 
 [M0_FOPH_IO_ZERO_COPY_INIT] =
 { M0_FOPH_IO_ZERO_COPY_INIT, &zero_copy_initiate,
-  0, M0_FOPH_IO_ZERO_COPY_WAIT, "Zero-copy initiate", },
+  0, M0_FOPH_IO_ZERO_COPY_WAIT, "zero-copy-initiate", },
 
 [M0_FOPH_IO_ZERO_COPY_WAIT] =
 { M0_FOPH_IO_ZERO_COPY_WAIT, &zero_copy_finish,
-  M0_FOPH_IO_STOB_INIT, 0, "Zero-copy finish", },
+  M0_FOPH_IO_STOB_INIT, 0, "zero-copy-finish", },
 
 [M0_FOPH_IO_STOB_INIT] =
 { M0_FOPH_IO_STOB_INIT, &io_launch,
-  0, M0_FOPH_IO_STOB_WAIT, "STOB I/O launch", },
+  0, M0_FOPH_IO_STOB_WAIT, "stobio-launch", },
 
 [M0_FOPH_IO_STOB_WAIT] =
 { M0_FOPH_IO_STOB_WAIT, &io_finish,
-  M0_FOPH_IO_BUFFER_RELEASE, 0, "STOB I/O finish", },
+  M0_FOPH_IO_BUFFER_RELEASE, 0, "stobio-finish", },
 
 [M0_FOPH_IO_BUFFER_RELEASE] =
 { M0_FOPH_IO_BUFFER_RELEASE, &net_buffer_release,
-  M0_FOPH_IO_FOM_BUFFER_ACQUIRE, 0, "Network buffer release", },
+  M0_FOPH_IO_FOM_BUFFER_ACQUIRE, 0, "network-buffer-release", },
 };
 
 struct m0_sm_state_descr io_phases[] = {
 	[M0_FOPH_IO_FOM_PREPARE] = {
-		.sd_name      = "IO Prepare",
+		.sd_name      = "io-prepare",
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
 					M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_IO_FOM_BUFFER_ACQUIRE] = {
-		.sd_name      = "Network buffer acquire",
+		.sd_name      = "network-buffer-acquire",
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_STOB_INIT,
 					M0_FOPH_IO_ZERO_COPY_INIT,
 					M0_FOPH_IO_FOM_BUFFER_WAIT,
 					M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_IO_FOM_BUFFER_WAIT] = {
-		.sd_name      = "Network buffer wait",
+		.sd_name      = "network-buffer-wait",
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_STOB_INIT,
 					M0_FOPH_IO_ZERO_COPY_INIT,
 					M0_FOPH_IO_FOM_BUFFER_WAIT,
 					M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_IO_STOB_INIT] = {
-		.sd_name      = "STOB I/O launch",
+		.sd_name      = "stobio-launch",
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_STOB_WAIT,
 					M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_IO_STOB_WAIT] = {
-		.sd_name      = "STOB I/O finish",
+		.sd_name      = "stobio-finish",
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_ZERO_COPY_INIT,
 					M0_FOPH_IO_BUFFER_RELEASE,
 					M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_IO_ZERO_COPY_INIT] = {
-		.sd_name      = "Zero-copy initiate",
+		.sd_name      = "zero-copy-initiate",
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_ZERO_COPY_WAIT,
 					M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_IO_ZERO_COPY_WAIT] = {
-		.sd_name      = "Zero-copy finish",
+		.sd_name      = "zero-copy-finish",
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_BUFFER_RELEASE,
 					M0_FOPH_IO_STOB_INIT,
 					M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_IO_BUFFER_RELEASE] = {
-		.sd_name      = "Network buffer release",
+		.sd_name      = "network-buffer-release",
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
 					M0_FOPH_SUCCESS)
 	},
@@ -757,76 +757,47 @@ struct m0_sm_state_descr io_phases[] = {
 
 struct m0_sm_trans_descr io_phases_trans[] = {
 	[ARRAY_SIZE(m0_generic_phases_trans)] =
-	{"IO Prepared",
-	 M0_FOPH_IO_FOM_PREPARE,
-	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
-	{"IO Prepare Failed",
-	 M0_FOPH_IO_FOM_PREPARE,
-	 M0_FOPH_FAILURE},
-	{"Network buffer acquired stobio init",
-	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
-	 M0_FOPH_IO_STOB_INIT},
-	{"Network buffer acquired zerocopy init",
-	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
-	 M0_FOPH_IO_ZERO_COPY_INIT},
-	{"Wait for network buffer",
-	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
-	 M0_FOPH_IO_FOM_BUFFER_WAIT},
-	{"Network buffer acquire failure",
-	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
-	 M0_FOPH_FAILURE},
-	{"Network buffer wait finished stobio init",
-	 M0_FOPH_IO_FOM_BUFFER_WAIT,
-	 M0_FOPH_IO_STOB_INIT},
-	{"Wait for network buffer finished zerocopy init",
-	 M0_FOPH_IO_FOM_BUFFER_WAIT,
-	 M0_FOPH_IO_ZERO_COPY_INIT},
-	{"Network buffer not available",
-	 M0_FOPH_IO_FOM_BUFFER_WAIT,
-	 M0_FOPH_IO_FOM_BUFFER_WAIT},
-	{"Wait for network buffer failure",
-	 M0_FOPH_IO_FOM_BUFFER_WAIT,
-	 M0_FOPH_FAILURE},
-	{"STOB I/O launched",
-	 M0_FOPH_IO_STOB_INIT,
-	 M0_FOPH_IO_STOB_WAIT},
-	{"STOB I/O launch failed",
-	 M0_FOPH_IO_STOB_INIT,
-	 M0_FOPH_FAILURE},
-	{"Wait for STOB I/O finished zerocopy init",
-	 M0_FOPH_IO_STOB_WAIT,
-	 M0_FOPH_IO_ZERO_COPY_INIT},
-	{"Wait for STOB I/O finished buffer release",
-	 M0_FOPH_IO_STOB_WAIT,
-	 M0_FOPH_IO_BUFFER_RELEASE},
-	{"Wait for STOB I/O failed",
-	 M0_FOPH_IO_STOB_WAIT,
-	 M0_FOPH_FAILURE},
-	{"Zero-copy initiated",
-	 M0_FOPH_IO_ZERO_COPY_INIT,
-	 M0_FOPH_IO_ZERO_COPY_WAIT},
-	{"Zero-copy initiate failed",
-	 M0_FOPH_IO_ZERO_COPY_INIT,
-	 M0_FOPH_FAILURE},
-	{"Wait for Zero-copy finished buffer release",
-	 M0_FOPH_IO_ZERO_COPY_WAIT,
-	 M0_FOPH_IO_BUFFER_RELEASE},
-	{"Wait for Zero-copy finished stobio init",
-	 M0_FOPH_IO_ZERO_COPY_WAIT,
-	 M0_FOPH_IO_STOB_INIT},
-	{"Wait for Zero-copy failed",
-	 M0_FOPH_IO_ZERO_COPY_WAIT,
-	 M0_FOPH_FAILURE},
-	{"Network buffer released",
-	 M0_FOPH_IO_BUFFER_RELEASE,
-	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
-	{"Network buffer released FOM succeed",
-	 M0_FOPH_IO_BUFFER_RELEASE,
-	 M0_FOPH_SUCCESS},
+	{"io-prepared", M0_FOPH_IO_FOM_PREPARE, M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
+	{"io-prepare-failed", M0_FOPH_IO_FOM_PREPARE, M0_FOPH_FAILURE},
+	{"network-buffer-acquired-stobio",
+	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE, M0_FOPH_IO_STOB_INIT},
+	{"network-buffer-acquired-zerocopy",
+	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE, M0_FOPH_IO_ZERO_COPY_INIT},
+	{"network-buffer-wait",
+	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE, M0_FOPH_IO_FOM_BUFFER_WAIT},
+	{"network-buffer-acquire-failure",
+	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE, M0_FOPH_FAILURE},
+	{"network-buffer-wait-finished-stobio",
+	 M0_FOPH_IO_FOM_BUFFER_WAIT, M0_FOPH_IO_STOB_INIT},
+	{"network-buffer-wait-finished-zerocopy",
+	 M0_FOPH_IO_FOM_BUFFER_WAIT, M0_FOPH_IO_ZERO_COPY_INIT},
+	{"network-buffer-not-available",
+	 M0_FOPH_IO_FOM_BUFFER_WAIT, M0_FOPH_IO_FOM_BUFFER_WAIT},
+	{"network-buffer-wait-failure",
+	 M0_FOPH_IO_FOM_BUFFER_WAIT, M0_FOPH_FAILURE},
+	{"stobio-launched", M0_FOPH_IO_STOB_INIT, M0_FOPH_IO_STOB_WAIT},
+	{"stobio-launch-failed", M0_FOPH_IO_STOB_INIT, M0_FOPH_FAILURE},
+	{"stobio-wait-finished-zerocopy",
+	 M0_FOPH_IO_STOB_WAIT, M0_FOPH_IO_ZERO_COPY_INIT},
+	{"stobio-wait-finished-buffer-release",
+	 M0_FOPH_IO_STOB_WAIT, M0_FOPH_IO_BUFFER_RELEASE},
+	{"stobio-wait-failed", M0_FOPH_IO_STOB_WAIT, M0_FOPH_FAILURE},
+	{"zero-copy-initiated",
+	 M0_FOPH_IO_ZERO_COPY_INIT, M0_FOPH_IO_ZERO_COPY_WAIT},
+	{"zero-copy-initiate-failed",
+	 M0_FOPH_IO_ZERO_COPY_INIT, M0_FOPH_FAILURE},
+	{"zero-copy-wait-finished-buffer-release",
+	 M0_FOPH_IO_ZERO_COPY_WAIT, M0_FOPH_IO_BUFFER_RELEASE},
+	{"zero-copy-wait-finished-stobio",
+	 M0_FOPH_IO_ZERO_COPY_WAIT, M0_FOPH_IO_STOB_INIT},
+	{"zero-copy-wait-failed", M0_FOPH_IO_ZERO_COPY_WAIT, M0_FOPH_FAILURE},
+	{"network-buffer-released",
+	 M0_FOPH_IO_BUFFER_RELEASE, M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
+	{"all-done", M0_FOPH_IO_BUFFER_RELEASE, M0_FOPH_SUCCESS},
 };
 
 struct m0_sm_conf io_conf = {
-	.scf_name      = "IO fom",
+	.scf_name      = "io-fom",
 	.scf_nr_states = ARRAY_SIZE(io_phases),
 	.scf_state     = io_phases,
 	.scf_trans_nr  = ARRAY_SIZE(io_phases_trans),
@@ -1168,9 +1139,9 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	stobio_tlist_init(&fom_obj->fcrw_done_list);
 
 	M0_LOG(M0_DEBUG, "fom=%p : op=%s, desc=%d gfid"FID_F"cob fid"FID_F
-			 "pver"FID_F, fom, m0_is_read_fop(fop) ? "READ" : "WRITE",
-			  rwfop->crw_desc.id_nr, FID_P(&rwfop->crw_gfid),
-			  FID_P(&rwfop->crw_fid), FID_P(&rwfop->crw_pver));
+	       "pver"FID_F, fom, m0_is_read_fop(fop) ? "READ" : "WRITE",
+	       rwfop->crw_desc.id_nr, FID_P(&rwfop->crw_gfid),
+	       FID_P(&rwfop->crw_fid), FID_P(&rwfop->crw_pver));
 
 	return M0_RC(rc);
 }

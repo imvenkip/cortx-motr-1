@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2016 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,16 +15,16 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita.danilov@seagate.com>
- * Original creation date: 16-Apr-2015
+ * Original creation date: 28-Mar-2016
  */
 
 #pragma once
 
-#ifndef __MERO_RPC_ADDB2_H__
-#define __MERO_RPC_ADDB2_H__
+#ifndef __MERO_NET_ADDB2_H__
+#define __MERO_NET_ADDB2_H__
 
 /**
- * @defgroup rpc
+ * @defgroup net
  *
  * @{
  */
@@ -32,16 +32,11 @@
 #include "addb2/identifier.h"
 
 enum {
-	M0_AVI_RPC_LOCK = M0_AVI_RPC_RANGE_START + 1,
-	M0_AVI_RPC_REPLIED,
-	M0_AVI_RPC_OUT_PHASE,
-	M0_AVI_RPC_IN_PHASE,
-	M0_AVI_RPC_MACH_LOCK_WAIT,
-	M0_AVI_RPC_MACH_LOCK_HOLD
+	M0_AVI_NET_BUF = M0_AVI_NET_RANGE_START + 1,
 };
 
-/** @} end of rpc group */
-#endif /* __MERO_RPC_ADDB2_H__ */
+/** @} end of stob group */
+#endif /* __MERO_NET_ADDB2_H__ */
 
 /*
  *  Local variables:

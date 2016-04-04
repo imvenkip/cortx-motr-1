@@ -46,14 +46,15 @@ M0_EXPORTED(m0_mutex_fini);
 
 M0_INTERNAL void m0_mutex_lock(struct m0_mutex *mutex)
 {
+	struct m0_mutex_addb2 *ma = mutex->m_addb2;
+
 	M0_PRE(m0_mutex_is_not_locked(mutex));
-	if (mutex->m_addb2 == NULL)
+	if (ma == NULL)
 		m0_arch_mutex_lock(&mutex->m_arch);
 	else {
-		M0_ADDB2_TIMED(0, &mutex->m_addb2->ma_wait,
-			       m0_ptr_wrap(__builtin_return_address(0)),
+		M0_ADDB2_TIMED(ma->ma_id, &ma->ma_wait, m0_ptr_wrap(mutex),
 			       m0_arch_mutex_lock(&mutex->m_arch));
-		mutex->m_addb2->ma_taken = m0_time_now();
+		ma->ma_taken = m0_time_now();
 	}
 	M0_ASSERT(mutex->m_owner == NULL);
 	mutex->m_owner = m0_thread_self();
@@ -62,12 +63,17 @@ M0_EXPORTED(m0_mutex_lock);
 
 M0_INTERNAL void m0_mutex_unlock(struct m0_mutex *mutex)
 {
+	struct m0_mutex_addb2 *ma = mutex->m_addb2;
+
 	M0_PRE(m0_mutex_is_locked(mutex));
 	mutex->m_owner = NULL;
-	if (mutex->m_addb2 != NULL) {
-		m0_addb2_counter_mod_with(&mutex->m_addb2->ma_hold,
-				  m0_time_now() - mutex->m_addb2->ma_taken,
-				  (uint64_t)__builtin_return_address(0));
+	if (ma != NULL) {
+		m0_time_t hold  = m0_time_now() - ma->ma_taken;
+		uint64_t  datum = m0_ptr_wrap(mutex);
+
+		m0_addb2_counter_mod_with(&ma->ma_hold, hold, datum);
+		if (ma->ma_id != 0)
+			M0_ADDB2_ADD(ma->ma_id + 1, hold, datum);
 	}
 	m0_arch_mutex_unlock(&mutex->m_arch);
 }

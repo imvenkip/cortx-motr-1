@@ -60,6 +60,7 @@
 #include "addb2/counter.h"
 
 #include "stob/addb2.h"
+#include "net/addb2.h"
 #include "ioservice/io_addb2.h"
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
 #include "sns/cm/cm.h"                 /* m0_sns_cm_repair_trigger_fop_init */
@@ -482,7 +483,6 @@ static void beop_state_counter(struct context *ctx, char *buf)
 	sm_trans(&op_states_conf, "be-op", ctx, buf);
 }
 
-
 #define COUNTER  &counter, &skip, &skip, &skip, &skip, &skip, &skip
 #define FID &fid, &skip
 #define TIMED &duration, &sym
@@ -539,8 +539,9 @@ struct id_intrp ids[] = {
 	{ M0_AVI_STOB_IO_LAUNCH,  "stob-io-launch",  { FID, &dec,
 						       &dec, &dec, &dec, &dec },
 	  { NULL, NULL, "count", "bvec-nr", "ivec-nr", "offset" } },
-	{ M0_AVI_STOB_IO_END,     "stob-io-end",     { FID, &dec, &dec, &dec },
-	  { NULL, NULL, "rc", "count", "frag" } },
+	{ M0_AVI_STOB_IO_END,     "stob-io-end",     { FID, &duration,
+						       &dec, &dec, &dec },
+	  { NULL, NULL, "duration", "rc", "count", "frag" } },
 	{ M0_AVI_STOB_IOQ,        "stob-ioq-thread", { &dec } },
 	{ M0_AVI_STOB_IOQ_INFLIGHT, "stob-ioq-inflight", { COUNTER } },
 	{ M0_AVI_STOB_IOQ_QUEUED, "stob-ioq-queued", { COUNTER } },
@@ -550,13 +551,18 @@ struct id_intrp ids[] = {
 	{ M0_AVI_RPC_REPLIED,     "rpc-replied",      { &ptr, &rpcop } },
 	{ M0_AVI_RPC_OUT_PHASE,   "rpc-out-phase",    { &rpc_out, &skip } },
 	{ M0_AVI_RPC_IN_PHASE,    "rpc-in-phase",    { &rpc_in, &skip } },
-	{ M0_AVI_BE_TX_STATE,     "tx-state",       { &tx_state, &skip  } },
+	{ M0_AVI_RPC_MACH_LOCK_WAIT, "rpc-mach-wait", { &duration, &sym } },
+	{ M0_AVI_RPC_MACH_LOCK_HOLD, "rpc-mach-hold", { &duration, &sym } },
+	{ M0_AVI_BE_TX_STATE,     "tx-state",        { &tx_state, &skip  } },
 	{ M0_AVI_BE_TX_COUNTER,   "",
 	  .ii_repeat = M0_AVI_BE_TX_COUNTER_END - M0_AVI_BE_TX_COUNTER,
 	  .ii_spec   = &tx_state_counter },
 	{ M0_AVI_BE_OP_COUNTER,   "",
 	  .ii_repeat = M0_AVI_BE_OP_COUNTER_END - M0_AVI_BE_OP_COUNTER,
 	  .ii_spec   = &beop_state_counter },
+	{ M0_AVI_NET_BUF,         "net-buf",         { &ptr, &dec, &_clock,
+						       &duration, &dec, &dec },
+	  { "buf", "qtype", "time", "duration", "status", "len" } },
 	{ M0_AVI_FOP_TYPES_RANGE_START,   "",
 	  .ii_repeat = M0_AVI_FOP_TYPES_RANGE_END-M0_AVI_FOP_TYPES_RANGE_START,
 	  .ii_spec   = &fop_counter },

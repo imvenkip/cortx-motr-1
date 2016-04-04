@@ -56,7 +56,7 @@ M0_INTERNAL void m0_mutex_fini(struct m0_mutex *mutex);
 
    @pre  m0_mutex_is_not_locked(mutex)
    @post m0_mutex_is_locked(mutex)
- */
+*/
 M0_INTERNAL void m0_mutex_lock(struct m0_mutex *mutex);
 
 /**
@@ -64,14 +64,14 @@ M0_INTERNAL void m0_mutex_lock(struct m0_mutex *mutex);
 
    @pre  m0_mutex_is_locked(mutex)
    @post m0_mutex_is_not_locked(mutex)
- */
+*/
 M0_INTERNAL void m0_mutex_unlock(struct m0_mutex *mutex);
 
 /**
    Try to take a mutex lock.
    Returns 0 with the mutex locked,
    or non-zero if lock is already hold by others.
- */
+*/
 M0_INTERNAL int m0_mutex_trylock(struct m0_mutex *mutex);
 
 
@@ -79,20 +79,21 @@ M0_INTERNAL int m0_mutex_trylock(struct m0_mutex *mutex);
    True iff mutex is locked by the calling thread.
 
    @note this function can be used only in assertions.
- */
+*/
 M0_INTERNAL bool m0_mutex_is_locked(const struct m0_mutex *mutex);
 
 /**
    True iff mutex is not locked by the calling thread.
 
    @note this function can be used only in assertions.
- */
+*/
 M0_INTERNAL bool m0_mutex_is_not_locked(const struct m0_mutex *mutex);
 
 struct m0_mutex_addb2 {
 	m0_time_t               ma_taken;
 	struct m0_addb2_counter ma_hold;
 	struct m0_addb2_counter ma_wait;
+	uint64_t                ma_id;
 };
 
 /*

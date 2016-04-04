@@ -284,7 +284,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	p_cob_ops_conf = &m0_generic_conf;
 #endif
 	M0_FOP_TYPE_INIT(&m0_fop_cob_readv_fopt,
-			 .name      = "Read request",
+			 .name      = "read",
 			 .opcode    = M0_IOSERVICE_READV_OPCODE,
 			 .xt        = m0_fop_cob_readv_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
@@ -297,7 +297,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .rpc_ops   = &io_item_type_ops);
 
 	M0_FOP_TYPE_INIT(&m0_fop_cob_writev_fopt,
-			 .name      = "Write request",
+			 .name      = "write",
 			 .opcode    = M0_IOSERVICE_WRITEV_OPCODE,
 			 .xt        = m0_fop_cob_writev_xc,
 			 .rpc_flags = M0_RPC_MUTABO_REQ,
@@ -310,19 +310,19 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .rpc_ops   = &io_item_type_ops);
 
 	M0_FOP_TYPE_INIT(&m0_fop_cob_readv_rep_fopt,
-			 .name      = "Read reply",
+			 .name      = "read-reply",
 			 .opcode    = M0_IOSERVICE_READV_REP_OPCODE,
 			 .xt        = m0_fop_cob_readv_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 
 	M0_FOP_TYPE_INIT(&m0_fop_cob_writev_rep_fopt,
-			 .name      = "Write reply",
+			 .name      = "write-reply",
 			 .opcode    = M0_IOSERVICE_WRITEV_REP_OPCODE,
 			 .xt        = m0_fop_cob_writev_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 
 	M0_FOP_TYPE_INIT(&m0_fop_cob_create_fopt,
-			 .name      = "Cob create request",
+			 .name      = "cob-create",
 			 .opcode    = M0_IOSERVICE_COB_CREATE_OPCODE,
 			 .xt        = m0_fop_cob_create_xc,
 			 .rpc_flags = M0_RPC_MUTABO_REQ,
@@ -334,7 +334,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .sm        = p_cob_ops_conf);
 
 	M0_FOP_TYPE_INIT(&m0_fop_cob_delete_fopt,
-			 .name      = "Cob delete request",
+			 .name      = "cob-delete",
 			 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
 			 .xt        = m0_fop_cob_delete_xc,
 			 .rpc_flags = M0_RPC_MUTABO_REQ,
@@ -346,7 +346,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .sm        = p_cob_ops_conf);
 
 	M0_FOP_TYPE_INIT(&m0_fop_cob_truncate_fopt,
-			 .name      = "Cob truncate request",
+			 .name      = "cob-truncate",
 			 .opcode    = M0_IOSERVICE_COB_TRUNCATE_OPCODE,
 			 .xt        = m0_fop_cob_truncate_xc,
 			 .rpc_flags = M0_RPC_MUTABO_REQ,
@@ -358,19 +358,19 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .sm        = p_cob_ops_conf);
 
 	M0_FOP_TYPE_INIT(&m0_fop_cob_op_reply_fopt,
-			 .name      = "Cob create or delete reply",
+			 .name      = "cob-reply",
 			 .opcode    = M0_IOSERVICE_COB_OP_REPLY_OPCODE,
 			 .xt        = m0_fop_cob_op_reply_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 
 	M0_FOP_TYPE_INIT(&m0_fop_fv_notification_fopt,
-			 .name      = "Failure vector update notification",
+			 .name      = "failure-vector-update",
 			 .opcode    = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
 			 .xt        = m0_fop_fv_notification_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY);
 
 	M0_FOP_TYPE_INIT(&m0_fop_cob_getattr_fopt,
-			 .name      = "Cob getattr request",
+			 .name      = "getattr",
 			 .opcode    = M0_IOSERVICE_COB_GETATTR_OPCODE,
 			 .xt        = m0_fop_cob_getattr_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
@@ -381,13 +381,13 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .sm        = p_cob_ops_conf);
 
 	M0_FOP_TYPE_INIT(&m0_fop_cob_getattr_reply_fopt,
-			 .name      = "Cob getattr reply",
+			 .name      = "getattr-reply",
 			 .opcode    = M0_IOSERVICE_COB_GETATTR_REP_OPCODE,
 			 .xt        = m0_fop_cob_getattr_reply_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 
 	M0_FOP_TYPE_INIT(&m0_fop_fsync_ios_fopt,
-			 .name      = "fsync-ios request",
+			 .name      = "fsync-ios",
 			 .opcode    = M0_FSYNC_IOS_OPCODE,
 			 .xt        = m0_fop_fsync_xc,
 #ifndef __KERNEL__
@@ -397,7 +397,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 #endif
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
 	M0_FOP_TYPE_INIT(&m0_fop_cob_setattr_fopt,
-			 .name      = "Cob setattr request",
+			 .name      = "setattr",
 			 .opcode    = M0_IOSERVICE_COB_SETATTR_OPCODE,
 			 .xt        = m0_fop_cob_setattr_xc,
 			 .rpc_flags = M0_RPC_MUTABO_REQ,
@@ -409,7 +409,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .sm        = p_cob_ops_conf);
 
 	M0_FOP_TYPE_INIT(&m0_fop_cob_setattr_reply_fopt,
-			 .name      = "Cob setattr reply",
+			 .name      = "setattr-reply",
 			 .opcode    = M0_IOSERVICE_COB_SETATTR_REP_OPCODE,
 			 .xt        = m0_fop_cob_setattr_reply_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);

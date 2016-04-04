@@ -741,6 +741,7 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 			struct m0_fom *fom;
 			M0_ASSERT(m0_locality_invariant(loc));
 
+			m0_addb2_force(M0_MKTIME(5, 0));
 			/*
 			 * Check for a blocked thread that tries to unblock and
 			 * complete a phase transition.

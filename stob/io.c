@@ -92,6 +92,9 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 	M0_PRE(m0_stob_io_stob_is_valid(iv));
 	M0_PRE(ergo(io->si_opcode == SIO_WRITE, io->si_fol_frag != NULL));
 
+	M0_ADDB2_ADD(M0_AVI_STOB_IO_LAUNCH, FID_P(fid),
+		     m0_vec_count(&bv->ov_vec),
+		     bv->ov_vec.v_nr, iv->iv_vec.v_nr, iv->iv_index[0]);
 	M0_ADDB2_PUSH(M0_AVI_STOB_IO_LAUNCH, FID_P(fid),
 		      m0_vec_count(&bv->ov_vec),
 		      bv->ov_vec.v_nr, iv->iv_vec.v_nr, iv->iv_index[0]);
@@ -111,6 +114,7 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 		io->si_state = SIS_BUSY;
 		io->si_rc    = 0;
 		io->si_count = 0;
+		io->si_start = m0_time_now();
 		result = io->si_op->sio_launch(io);
 		if (result != 0) {
 			M0_LOG(M0_ERROR, "launch io=%p "FID_F" FAILED rc=%d",

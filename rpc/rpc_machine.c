@@ -185,6 +185,8 @@ static int __rpc_machine_init(struct m0_rpc_machine *machine)
 
 	m0_rpc_machine_bob_init(machine);
 	m0_sm_group_init(&machine->rm_sm_grp);
+	machine->rm_sm_grp.s_lock.m_addb2 = &machine->rm_lock_stats;
+	machine->rm_lock_stats.ma_id = M0_AVI_RPC_MACH_LOCK_WAIT;
 	m0_reqh_rpc_mach_tlink_init_at_tail(machine,
 					    &machine->rm_reqh->rh_rpc_machines);
 	return M0_RC(0);
