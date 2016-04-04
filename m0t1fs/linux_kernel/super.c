@@ -800,7 +800,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	rc = m0t1fs_sb_layouts_init(csb);
 	if (rc != 0)
-		goto err_services_terminate;
+		goto err_failure_set_destroy;
 
 	rc = m0_addb2_sys_net_start_with(sys, &pc->pc_svc_ctxs);
 	if (rc == 0) {
@@ -809,8 +809,6 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	}
 
 	m0t1fs_sb_layouts_fini(csb);
-err_services_terminate:
-	m0_reqh_services_terminate(reqh);
 err_failure_set_destroy:
 	m0_flset_destroy(&reqh->rh_failure_set);
 err_ha_destroy:
@@ -833,6 +831,12 @@ err_rconfc_fini:
 err_ha_fini:
 	m0t1fs_ha_fini(csb);
 err_rpc_fini:
+	/*
+	 * Reqh services are terminated not in reverse order because
+	 * m0_reqh_services_terminate() terminates all services including
+	 * rpc_service. Rpc_service starts in m0t1fs_rpc_init() implicitly.
+	 */
+	m0_reqh_services_terminate(reqh);
 	m0t1fs_rpc_fini(csb);
 err_net_fini:
 	m0t1fs_net_fini(csb);
