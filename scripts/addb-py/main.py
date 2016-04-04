@@ -22,7 +22,7 @@ def processinput(argv):
         "-h" : ("height",    int, "Output image height in pixels."),
         "-w" : ("width",     int, "Output image width in pixels."),
         "-v" : ("verbosity", int, "Verbosity level."),
-        "-d" : ("duration",  int, "Duration of the part of the input"
+        "-d" : ("duration",  float, "Duration of the part of the input"
                 " to process in seconds."),
         "-l" : ("loc_nr",    int, "Number of localities in the analysed"
                 " process. If 1, localities are ignored."),
