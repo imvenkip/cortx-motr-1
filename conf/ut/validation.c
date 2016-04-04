@@ -174,6 +174,7 @@ struct m0_ut_suite conf_validation_ut = {
 	.ts_init  = conf_validation_ut_init,
 	.ts_fini  = conf_validation_ut_fini,
 	.ts_tests = {
+		{ NULL, NULL },         /* XXX Disabled. See MERO-1630. */
 		{ "sharp-comment", test_sharp_comment },
 		{ "validation",    test_validation },
 		{ NULL, NULL }
