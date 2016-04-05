@@ -3,12 +3,16 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.13.2
+VERSION=0.14
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-04-05 0.14    Collect Halon data: /tmp/halond.log file,
+###                    /var/log/halon-persistence/ directory, m0traces
+###                    from /var/lib/halon/ directory.
+###
 ### 2016-03-29 0.13.2  misc_files(): Don't fail if some file is missing.
 ###                    `/var/mero/confd/conf.xc', referred to by
 ###                    MERO_CONF_XC variable, is not guaranteed to exist.
@@ -209,6 +213,7 @@ misc_files() {
                 echo $f
                 grep '^MERO_CONF_XC=' $f | cut -d\' -f2 # may produce duplicates
             done | sort -u
+        if [ -f /tmp/halond.log ]; then echo /tmp/halond.log; fi
     } | while read path; do
         [ "$path" != "${path#/}" ] || {
             warn "${FUNCNAME[0]}: Absolute path expected: $path"
@@ -222,6 +227,12 @@ misc_files() {
         cp -p $path $outdir$path
         echo $path
     done
+
+    if [ -d /var/log/halon-persistence ]; then
+        mkdir -p $outdir/var/log
+        cp -rp /var/log/halon-persistence $outdir/var/log/
+        echo /var/log/halon-persistence
+    fi
 }
 
 die() { echo "$@" >&2; exit 1; }
@@ -335,7 +346,7 @@ GDB=$(which gdb 2>/dev/null || true)
 
 gdb_bt() {
     [ -n "$GDB" ] || die "${FUNCNAME[0]} cannot be used"
-    [ $# -eq 2 ] || die 'Usage: ${FUNCNAME[0]} <prog> {<core>|<pid>}>'
+    [ $# -eq 2 ] || die 'Usage: ${FUNCNAME[0]} <prog> {<core>|<pid>}'
 
     [ -n "$1" ] || return 0 # do nothing if `prog' argument is empty
     {
@@ -469,14 +480,28 @@ last_modified() {
     fi
 }
 
-m0traces() {
-    local outdir=m0traces
-    local path dir
-
-    local m0trace=$(path m0trace)
+_tracedump() {
+    [ $# -eq 2 ] || die 'Usage: ${FUNCNAME[0]} <inpath> <outdir>'
+    local path=$1
+    local outdir=$2
     local m0tracedump=$(path m0tracedump)
 
-    (outdir=$(readlink -f .)/$outdir
+    mkdir -p $outdir/$(dirname $path)
+    ##
+    ## Disable stderr output to suppress these messages:
+    ##
+    ## > lt-m0tracedump: Warning: skipping non-existing trace
+    ## > descriptor 0x7f977d0bdb00 (orig 0x7ff6ad5c9b00)
+    $m0tracedump -s -i $path 2>/dev/null | gzip >$outdir/$path.yaml.gz
+    touch -r $path $outdir/$path.yaml.gz
+    echo $path.yaml.gz
+}
+
+m0traces() {
+    local outdir path dir
+    local m0trace=$(path m0trace)
+
+    (outdir=$(readlink -f .)/m0traces
      mkdir $outdir
 
      ## Kernel buffer.
@@ -492,16 +517,18 @@ m0traces() {
                  last_modified "${M0TRACES_M0D_MAX:-}"
          done
      } | cut -c3- | sort -u | while read path; do
-         mkdir -p $outdir/$(dirname $path)
-         ##
-         ## Disable stderr output to suppress these messages:
-         ##
-         ## > lt-m0tracedump: Warning: skipping non-existing trace
-         ## > descriptor 0x7f977d0bdb00 (orig 0x7ff6ad5c9b00)
-         $m0tracedump -s -i $path 2>/dev/null | gzip >$outdir/$path.yaml.gz
-         touch -r $path $outdir/$path.yaml.gz
-         echo $path.yaml.gz
+         _tracedump $path $outdir
      done)
+
+    section Halon traces
+    if [ -d /var/lib/halon ]; then
+        (outdir=$(readlink -f .)/m0traces-halon
+         cd /var/lib/halon
+         find . -type f -name m0trace.\* | last_modified "${M0TRACES_MAX:-}" |
+             cut -c3- | while read path; do
+             _tracedump $path $outdir
+         done)
+    fi
 }
 
 addb() {
