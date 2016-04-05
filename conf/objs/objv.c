@@ -45,17 +45,14 @@ static int objv_decode(struct m0_conf_obj        *dest,
 		       struct m0_conf_cache      *cache)
 {
 	int                            rc;
-	struct m0_conf_obj            *child;
 	struct m0_conf_objv           *d = M0_CONF_CAST(dest, m0_conf_objv);
 	const struct m0_confx_objv    *s = XCAST(src);
 	const struct m0_fid           *relfid;
 	const struct m0_conf_obj_type *obj_type;
 
-	rc = m0_conf_obj_find(cache, &XCAST(src)->xj_real, &child);
+	rc = m0_conf_obj_find(cache, &XCAST(src)->xj_real, &d->cv_real);
 	if (rc != 0)
 		return M0_ERR(rc);
-
-	d->cv_real = child;
 
 	obj_type = m0_conf_fid_type(&d->cv_real->co_id);
 	if (obj_type == &M0_CONF_RACK_TYPE)
@@ -65,16 +62,11 @@ static int objv_decode(struct m0_conf_obj        *dest,
 	else if (obj_type == &M0_CONF_CONTROLLER_TYPE)
 		relfid = &M0_CONF_CTRLV_DISKVS_FID;
 	else if (obj_type == &M0_CONF_DISK_TYPE)
-		return 0;
+		return M0_RC(0); /* no children */
 	else
 		return M0_ERR(-EINVAL);
-
-	rc = dir_new(cache, &dest->co_id, relfid, &M0_CONF_OBJV_TYPE,
-		     &s->xj_children, &d->cv_children);
-	if (rc == 0)
-		child_adopt(dest, &d->cv_children->cd_obj);
-
-	return M0_RC(rc);
+	return M0_RC(dir_new_adopt(cache, dest, relfid, &M0_CONF_OBJV_TYPE,
+				   &s->xj_children, &d->cv_children));
 }
 
 static int

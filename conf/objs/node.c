@@ -56,15 +56,11 @@ static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 	rc = m0_conf_obj_find(cache, &s->xn_pool_id, &obj);
 	if (rc != 0)
 		return M0_ERR(rc);
-
 	d->cn_pool = M0_CONF_CAST(obj, m0_conf_pool);
 
-	rc = dir_new(cache, &dest->co_id, &M0_CONF_NODE_PROCESSES_FID,
-		     &M0_CONF_PROCESS_TYPE, &s->xn_processes, &d->cn_processes);
-	if (rc == 0)
-		child_adopt(dest, &d->cn_processes->cd_obj);
-
-	return M0_RC(rc);
+	return M0_RC(dir_new_adopt(cache, dest, &M0_CONF_NODE_PROCESSES_FID,
+				   &M0_CONF_PROCESS_TYPE, &s->xn_processes,
+				   &d->cn_processes));
 }
 
 static int node_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)

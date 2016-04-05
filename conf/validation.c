@@ -70,8 +70,6 @@ m0_conf_validation_error_locked(const struct m0_conf_cache *cache,
 	M0_PRE(buf != NULL && buflen != 0);
 	M0_PRE(m0_conf_cache_is_locked(cache));
 
-	/* XXX Temporary disabled due to MERO-1630. */
-	return NULL;
 	for (i = 0; i < ARRAY_SIZE(conf_validity_checks); ++i) {
 		for (rule = &conf_validity_checks[i]->cv_rules[0];
 		     rule->cvr_name != NULL;

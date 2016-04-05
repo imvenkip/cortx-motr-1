@@ -318,15 +318,18 @@ void rm_ctxs_rmsvc_conf_add(struct m0_confc *confc, struct rm_ctx *rmctx)
 	int                     rc;
 
 	m0_conf_cache_lock(cache);
+
 	m0_fid_tset(&proc_fid, M0_CONF_PROCESS_TYPE.cot_ftype.ft_id, 1, 3);
 	proc_obj = m0_conf_cache_lookup(cache, &proc_fid);
-	process = M0_CONF_CAST(proc_obj, m0_conf_process);
 	M0_ASSERT(proc_obj != NULL);
+	process = M0_CONF_CAST(proc_obj, m0_conf_process);
+
 	m0_fid_tset(&svc_fid, M0_CONF_SERVICE_TYPE.cot_ftype.ft_id,
 			0, rmctx->rc_id);
 	rc = m0_conf_obj_find(cache, &svc_fid, &svc_obj);
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(m0_conf_obj_is_stub(svc_obj));
+
 	service = M0_CONF_CAST(svc_obj, m0_conf_service);
 	service->cs_type = M0_CST_RMS;
 	M0_ALLOC_ARR(service->cs_endpoints, 2);
@@ -334,9 +337,10 @@ void rm_ctxs_rmsvc_conf_add(struct m0_confc *confc, struct rm_ctx *rmctx)
 	service->cs_endpoints[0] = m0_strdup(rmctx->rc_rmach_ctx.rmc_ep_addr);
 	M0_ASSERT(service->cs_endpoints[0] != NULL);
 	service->cs_endpoints[1] = NULL;
-	m0_conf_dir_tlist_add_tail(&process->pc_services->cd_items, svc_obj);
-	child_adopt(&process->pc_services->cd_obj, svc_obj);
+
+	m0_conf_dir_add(process->pc_services, svc_obj);
 	svc_obj->co_status = M0_CS_READY;
+
 	m0_conf_cache_unlock(cache);
 }
 

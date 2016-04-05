@@ -30,11 +30,10 @@ M0_BASSERT(offsetof(struct m0_confx_enclosure, xe_header) == 0);
 static bool enclosure_check(const void *bob)
 {
 	const struct m0_conf_enclosure *self = bob;
-	const struct m0_conf_obj       *self_obj = &self->ce_obj;
 
-	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_ENCLOSURE_TYPE);
+	M0_PRE(m0_conf_obj_type(&self->ce_obj) == &M0_CONF_ENCLOSURE_TYPE);
 
-	return _0C(ergo(m0_conf_obj_is_stub(self_obj), self->ce_pvers == NULL));
+	return true;
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_enclosure, M0_CONF_ENCLOSURE_MAGIC,

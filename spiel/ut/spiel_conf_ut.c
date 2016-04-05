@@ -37,7 +37,6 @@
 struct m0_spiel spiel;
 
 enum {
-	SPIEL_UT_OBJ_DIR,
 	SPIEL_UT_OBJ_PROFILE,
 	SPIEL_UT_OBJ_FILESYSTEM,
 	SPIEL_UT_OBJ_POOL,
@@ -53,31 +52,26 @@ enum {
 	SPIEL_UT_OBJ_RACK_V,
 	SPIEL_UT_OBJ_ENCLOSURE_V,
 	SPIEL_UT_OBJ_CONTROLLER_V,
-	SPIEL_UT_OBJ_DISK_V,
-	SPIEL_UT_OBJ_COUNT,
+	SPIEL_UT_OBJ_DISK_V
 };
 
-#define SPIEL_UT_OBJ_ROOT SPIEL_UT_OBJ_COUNT
-
 static struct m0_fid spiel_obj_fid[] = {
-	M0_FID_TINIT('D', 1, 1 ),
-	M0_FID_TINIT('p', 1, 0 ),
-	M0_FID_TINIT('f', 3, 3 ),
-	M0_FID_TINIT('o', 4, 4 ),
-	M0_FID_TINIT('v', 5, 5 ),
-	M0_FID_TINIT('n', 6, 6 ),
-	M0_FID_TINIT('r', 7, 7 ),
-	M0_FID_TINIT('s', 8, 8 ),
-	M0_FID_TINIT('d', 9, 9 ),
-	M0_FID_TINIT('a', 10, 10),
-	M0_FID_TINIT('e', 11, 11),
-	M0_FID_TINIT('c', 12, 12),
-	M0_FID_TINIT('k', 13, 13),
-	M0_FID_TINIT('j', 14, 14),
-	M0_FID_TINIT('j', 15, 15),
-	M0_FID_TINIT('j', 16, 16),
-	M0_FID_TINIT('j', 17, 17),
-	M0_FID_TINIT(0, 0, 0),
+	[SPIEL_UT_OBJ_PROFILE]      = M0_FID_TINIT('p', 1, 0 ),
+	[SPIEL_UT_OBJ_FILESYSTEM]   = M0_FID_TINIT('f', 3, 3 ),
+	[SPIEL_UT_OBJ_POOL]         = M0_FID_TINIT('o', 4, 4 ),
+	[SPIEL_UT_OBJ_PVER]         = M0_FID_TINIT('v', 5, 5 ),
+	[SPIEL_UT_OBJ_NODE]         = M0_FID_TINIT('n', 6, 6 ),
+	[SPIEL_UT_OBJ_PROCESS]      = M0_FID_TINIT('r', 7, 7 ),
+	[SPIEL_UT_OBJ_SERVICE]      = M0_FID_TINIT('s', 8, 8 ),
+	[SPIEL_UT_OBJ_SDEV]         = M0_FID_TINIT('d', 9, 9 ),
+	[SPIEL_UT_OBJ_RACK]         = M0_FID_TINIT('a', 10, 10),
+	[SPIEL_UT_OBJ_ENCLOSURE]    = M0_FID_TINIT('e', 11, 11),
+	[SPIEL_UT_OBJ_CONTROLLER]   = M0_FID_TINIT('c', 12, 12),
+	[SPIEL_UT_OBJ_DISK]         = M0_FID_TINIT('k', 13, 13),
+	[SPIEL_UT_OBJ_RACK_V]       = M0_FID_TINIT('j', 14, 14),
+	[SPIEL_UT_OBJ_ENCLOSURE_V]  = M0_FID_TINIT('j', 15, 15),
+	[SPIEL_UT_OBJ_CONTROLLER_V] = M0_FID_TINIT('j', 16, 16),
+	[SPIEL_UT_OBJ_DISK_V]       = M0_FID_TINIT('j', 17, 17)
 };
 
 static int spiel_copy_file(const char *source, const char* dest)
@@ -1080,7 +1074,6 @@ static void spiel_conf_delete(void)
 
 	spiel_conf_ut_fini();
 }
-
 
 /*
   spiel-conf-file create tree

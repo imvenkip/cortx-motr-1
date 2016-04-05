@@ -34,8 +34,7 @@ static bool process_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_PROCESS_TYPE);
 
-	return _0C(m0_conf_obj_is_stub(self_obj) ==
-		   (self->pc_endpoint == NULL));
+	return m0_conf_obj_is_stub(self_obj) || _0C(self->pc_endpoint != NULL);
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_process, M0_CONF_PROCESS_MAGIC, process_check);
@@ -51,7 +50,7 @@ static int process_decode(struct m0_conf_obj        *dest,
 
 	rc = m0_bitmap_init(&d->pc_cores, s->xr_cores.bo_size);
 	if (rc != 0)
-		goto done;
+		return M0_ERR(rc);
 	m0_bitmap_load(&s->xr_cores, &d->pc_cores);
 
 	d->pc_memlimit_as      = s->xr_mem_limit_as;
@@ -64,13 +63,9 @@ static int process_decode(struct m0_conf_obj        *dest,
 		m0_bitmap_fini(&d->pc_cores);
 		return M0_ERR(-ENOMEM);
 	}
-	rc = dir_new(cache, &dest->co_id, &M0_CONF_PROCESS_SERVICES_FID,
-		     &M0_CONF_SERVICE_TYPE, &s->xr_services, &d->pc_services);
-	if (rc == 0)
-		child_adopt(dest, &d->pc_services->cd_obj);
-
-done:
-	return M0_RC(rc);
+	return M0_RC(dir_new_adopt(cache, dest, &M0_CONF_PROCESS_SERVICES_FID,
+				   &M0_CONF_SERVICE_TYPE, &s->xr_services,
+				   &d->pc_services));
 }
 
 static int

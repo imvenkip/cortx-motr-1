@@ -30,11 +30,10 @@ M0_BASSERT(offsetof(struct m0_confx_rack, xr_header) == 0);
 static bool rack_check(const void *bob)
 {
 	const struct m0_conf_rack *self = bob;
-	const struct m0_conf_obj  *self_obj = &self->cr_obj;
 
-	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_RACK_TYPE);
+	M0_PRE(m0_conf_obj_type(&self->cr_obj) == &M0_CONF_RACK_TYPE);
 
-	return _0C(ergo(m0_conf_obj_is_stub(self_obj), self->cr_pvers == NULL));
+	return true;
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_rack, M0_CONF_RACK_MAGIC, rack_check);

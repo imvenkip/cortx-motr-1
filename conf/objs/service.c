@@ -32,8 +32,8 @@ static bool service_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_SERVICE_TYPE);
 
-	return _0C(ergo(self_obj->co_status == M0_CS_READY,
-			m0_conf_service_type_is_valid(self->cs_type)));
+	return m0_conf_obj_is_stub(self_obj) ||
+		_0C(m0_conf_service_type_is_valid(self->cs_type));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_service, M0_CONF_SERVICE_MAGIC, service_check);
@@ -54,11 +54,10 @@ static int service_decode(struct m0_conf_obj *dest,
 	rc = m0_bufs_to_strings(&d->cs_endpoints, &s->xs_endpoints);
 	if (rc != 0)
 		return M0_ERR(rc);
-
-	rc = dir_new(cache, &dest->co_id, &M0_CONF_SERVICE_SDEVS_FID,
-		     &M0_CONF_SDEV_TYPE, &s->xs_sdevs, &d->cs_sdevs);
-	if (rc == 0)
-		child_adopt(dest, &d->cs_sdevs->cd_obj);
+	rc = dir_new_adopt(cache, dest, &M0_CONF_SERVICE_SDEVS_FID,
+			   &M0_CONF_SDEV_TYPE, &s->xs_sdevs, &d->cs_sdevs);
+	if (rc != 0)
+		m0_strings_free(d->cs_endpoints);
 	return M0_RC(rc);
 }
 
@@ -73,8 +72,12 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	d->xs_type = s->cs_type;
 
 	rc = m0_bufs_from_strings(&d->xs_endpoints, s->cs_endpoints);
-	return M0_RC(rc == 0 ? arrfid_from_dir(&d->xs_sdevs, s->cs_sdevs) :
-		     -ENOMEM);
+	if (rc != 0)
+		return M0_ERR(-ENOMEM);
+	rc = arrfid_from_dir(&d->xs_sdevs, s->cs_sdevs);
+	if (rc != 0)
+		m0_bufs_free(&d->xs_endpoints);
+	return M0_RC(rc);
 }
 
 static bool

@@ -34,7 +34,7 @@ static bool controller_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_CONTROLLER_TYPE);
 
-	return _0C(ergo(m0_conf_obj_is_stub(self_obj), self->cc_pvers == NULL));
+	return true;
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_controller, M0_CONF_CONTROLLER_MAGIC,
@@ -53,7 +53,7 @@ static int controller_decode(struct m0_conf_obj        *dest,
 
 	rc = m0_conf_obj_find(cache, &s->xc_node, &obj);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	d->cc_node = M0_CONF_CAST(obj, m0_conf_node);
 	return M0_RC(dir_create_and_populate(

@@ -35,10 +35,10 @@ static bool pver_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_PVER_TYPE);
 
-	return ergo(!m0_conf_obj_is_stub(self_obj),
-		    _0C(m0_pdclust_attr_check(&self->pv_attr)) &&
-		    _0C((self->pv_nr_failures_nr == 0) ==
-			(self->pv_nr_failures == NULL)));
+	return m0_conf_obj_is_stub(self_obj) ||
+		(_0C(m0_pdclust_attr_check(&self->pv_attr)) &&
+		 _0C((self->pv_nr_failures_nr == 0) ==
+		     (self->pv_nr_failures == NULL)));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_pver, M0_CONF_PVER_MAGIC, pver_check);
@@ -58,16 +58,14 @@ static int pver_decode(struct m0_conf_obj        *dest,
 	d->pv_attr.pa_P = s->xv_P;
 
 	d->pv_nr_failures_nr = s->xv_nr_failures.au_count;
-	rc = d->pv_nr_failures_nr == 0 ? 0 :
-		u32arr_decode(&s->xv_nr_failures, &d->pv_nr_failures);
+	if (d->pv_nr_failures_nr != 0) {
+		rc = u32arr_decode(&s->xv_nr_failures, &d->pv_nr_failures);
+		if (rc != 0)
+			return M0_ERR(rc);
+	}
+	rc = dir_new_adopt(cache, dest, &M0_CONF_PVER_RACKVS_FID,
+			   &M0_CONF_OBJV_TYPE, &s->xv_rackvs, &d->pv_rackvs);
 	if (rc != 0)
-		return M0_ERR(rc);
-
-	rc = dir_new(cache, &dest->co_id, &M0_CONF_PVER_RACKVS_FID,
-		     &M0_CONF_OBJV_TYPE, &s->xv_rackvs, &d->pv_rackvs);
-	if (rc == 0)
-		child_adopt(dest, &d->pv_rackvs->cd_obj);
-	else
 		m0_free0(&d->pv_nr_failures);
 	return M0_RC(rc);
 }

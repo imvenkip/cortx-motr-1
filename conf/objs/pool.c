@@ -174,16 +174,13 @@ static int pool_decode(struct m0_conf_obj        *dest,
 		       const struct m0_confx_obj *src,
 		       struct m0_conf_cache      *cache M0_UNUSED)
 {
-	int                         rc;
 	struct m0_conf_pool        *d = M0_CONF_CAST(dest, m0_conf_pool);
 	const struct m0_confx_pool *s = XCAST(src);
 
 	d->pl_order = s->xp_order;
-	rc = dir_new(cache, &dest->co_id, &M0_CONF_POOL_PVERS_FID,
-		     &M0_CONF_PVER_TYPE, &s->xp_pvers, &d->pl_pvers);
-	if (rc == 0)
-		child_adopt(dest, &d->pl_pvers->cd_obj);
-	return M0_RC(rc);
+	return M0_RC(dir_new_adopt(cache, dest, &M0_CONF_POOL_PVERS_FID,
+				   &M0_CONF_PVER_TYPE, &s->xp_pvers,
+				   &d->pl_pvers));
 }
 
 static int

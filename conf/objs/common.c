@@ -86,33 +86,49 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 	(*out)->cd_item_type = children_type;
 	(*out)->cd_relfid    = *relfid;
 
-	for (rc = 0, i = 0; i < src->af_count; ++i) {
-		rc = m0_conf_obj_find(cache, &src->af_elems[i], &child);
-		if (rc != 0)
-			break;
-
-		if (m0_conf_dir_tlist_contains(&(*out)->cd_items, child)) {
-			rc = -EEXIST; /* ban duplicates */
-			break;
+	if (src != NULL) {
+		for (i = 0; i < src->af_count; ++i) {
+			rc = m0_conf_obj_find(cache, &src->af_elems[i], &child);
+			if (rc != 0)
+				goto err;
+			if (m0_conf_dir_tlist_contains(&(*out)->cd_items,
+						       child)) {
+				rc = -EEXIST; /* ban duplicates */
+				goto err;
+			}
+			/* Link the directory and its element together. */
+			m0_conf_dir_add(*out, child);
 		}
-
-		/* Link the directory and its element together. */
-		child_adopt(dir, child);
-		m0_conf_dir_tlist_add_tail(&(*out)->cd_items, child);
 	}
-
-	rc = rc ?: m0_conf_cache_add(cache, dir);
-
+	rc = m0_conf_cache_add(cache, dir);
 	if (rc == 0) {
 		dir->co_status = M0_CS_READY;
-	} else {
+		return M0_RC(0);
+	}
+err:
+	if (src != NULL) {
 		/* Restore consistency. */
 		m0_tl_teardown(m0_conf_dir, &(*out)->cd_items, child) {
 			m0_conf_cache_del(cache, child);
 		}
-		m0_conf_obj_delete(dir);
-		*out = NULL;
 	}
+	m0_conf_obj_delete(dir);
+	*out = NULL;
+	return M0_ERR(rc);
+}
+
+M0_INTERNAL int dir_new_adopt(struct m0_conf_cache *cache,
+			      struct m0_conf_obj *parent,
+			      const struct m0_fid *relfid,
+			      const struct m0_conf_obj_type *children_type,
+			      const struct m0_fid_arr *src,
+			      struct m0_conf_dir **out)
+{
+	int rc;
+
+	rc = dir_new(cache, &parent->co_id, relfid, children_type, src, out);
+	if (rc == 0)
+		child_adopt(parent, &(*out)->cd_obj);
 	return M0_RC(rc);
 }
 
@@ -121,14 +137,8 @@ M0_INTERNAL int dir_create_and_populate(struct m0_conf_dir **result,
 					struct m0_conf_obj *dir_parent,
 					struct m0_conf_cache *cache)
 {
-	int rc;
-
-	rc = dir_new(cache, &dir_parent->co_id, de->de_relfid,
-		     de->de_entry_type, de->de_entries, result);
-	if (rc != 0)
-		return M0_ERR(rc);
-	child_adopt(dir_parent, &(*result)->cd_obj);
-	return 0;
+	return M0_RC(dir_new_adopt(cache, dir_parent, de->de_relfid,
+				   de->de_entry_type, de->de_entries, result));
 }
 
 M0_INTERNAL int

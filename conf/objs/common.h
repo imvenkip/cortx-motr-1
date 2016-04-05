@@ -73,7 +73,7 @@ M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
  * @param cache          Configuration cache.
  * @param dir_id         Directory identifier.
  * @param children_type  Type of entries.
- * @param src            Identifiers of the entries.
+ * @param src            [optional] Identifiers of the entries.
  * @param[out] out       Resulting pointer.
  *
  * dir_new() is transactional: if it fails, the configuration cache
@@ -87,6 +87,13 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 			const struct m0_conf_obj_type *children_type,
 			const struct m0_fid_arr *src,
 			struct m0_conf_dir **out);
+
+M0_INTERNAL int dir_new_adopt(struct m0_conf_cache *cache,
+			      struct m0_conf_obj *parent,
+			      const struct m0_fid *relfid,
+			      const struct m0_conf_obj_type *children_type,
+			      const struct m0_fid_arr *src,
+			      struct m0_conf_dir **out);
 
 struct conf_dir_entries {
 	const struct m0_fid           *de_relfid;

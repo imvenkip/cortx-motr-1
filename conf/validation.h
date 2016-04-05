@@ -39,8 +39,6 @@ struct m0_fid;
  */
 
 /**
- * XXX Temporary disabled due to MERO-1630.
- *
  * Performs semantic validation of the DAG of configuration objects.
  *
  * If m0_conf_validation_error() finds a problem with configuration

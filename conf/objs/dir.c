@@ -32,10 +32,12 @@ M0_TL_DEFINE(m0_conf_dir, M0_INTERNAL, struct m0_conf_obj);
 static bool dir_check(const void *bob)
 {
 	const struct m0_conf_dir *self = bob;
+	const struct m0_conf_obj *self_obj = &self->cd_obj;
 
 	M0_PRE(m0_conf_obj_type(&self->cd_obj) == &M0_CONF_DIR_TYPE);
 
-	return true;
+	return m0_conf_obj_is_stub(self_obj) ||
+		_0C(self_obj->co_parent != NULL);
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_dir, M0_CONF_DIR_MAGIC, dir_check);
