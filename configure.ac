@@ -76,14 +76,7 @@ AC_SUBST([GIT_REV_ID_RPM],[GIT_REV_ID_RPM_BUILTIN])
 AC_SUBST([GIT_BRANCH],[GIT_BRANCH_BUILTIN])
 AC_SUBST([GIT_DESCRIBE],[GIT_DESCRIBE_BUILTIN])
 
-BUILD_HOST=$(
-    HOST_NAME=$(hostname --fqdn 2>/dev/null)
-    if test -z $HOST_NAME; then
-        echo $(hostname);
-    else
-        echo $HOST_NAME;
-    fi
-)
+BUILD_HOST=$(hostname)
 
 AC_SUBST([BUILD_HOST])
 AC_SUBST([BUILD_USER],["$(whoami)"])
