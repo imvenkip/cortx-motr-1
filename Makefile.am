@@ -1112,8 +1112,10 @@ install-tests:
 		 install-sbinSCRIPTS
 
 DIST_FILE=$(distdir).tar.gz
-RPM_SRC_DIR=~/rpmbuild/SOURCES
-RPM_SPEC_DIR=~/rpmbuild/SPECS
+RPM_DIR=~/rpmbuild
+RPM_SRC_DIR=$(RPM_DIR)/SOURCES
+RPM_SPEC_DIR=$(RPM_DIR)/SPECS
+RPM_MOCK_DIR=$(RPM_DIR)/MOCK-RPMS
 # Some developers keep Mero sources on a vmhgfs partition (VMware sharing).
 # In this case $(DIST_FILE) and mero.spec will be owned by host OS' user,
 # and rpmbuild will fail with "Bad owner/group" message. Since vmhgfs does
@@ -1134,7 +1136,7 @@ __rpm_pre:
 
 .PHONY: __rpm_post
 __rpm_post:
-	rm -f $(RPM_SRC_DIR)/$(DIST_FILE) $(RPC_SPEC_DIR)/mero.spec
+	rm -f $(RPM_SRC_DIR)/$(DIST_FILE) $(RPM_SPEC_DIR)/mero.spec
 
 .PHONY: __rpm
 __rpm:
@@ -1143,6 +1145,34 @@ __rpm:
 .PHONY: __rpm_tests
 __rpm_tests:
 	rpmbuild -bb $(RPM_SPEC_DIR)/mero.spec --with ut
+
+.PHONY: __rpm_mock_pre
+__rpm_mock_pre:
+	@if ! rpm -qi mock > /dev/null 2>&1 ; then \
+		echo 'Package "mock" is not installed, please install it before proceeding.' 2>&1 ; \
+		exit 1 ; \
+	 fi
+	@if ! rpm -qi mock-devvm-config > /dev/null 2>&1 ; then \
+		echo 'Package "mock-devvm-config" is not installed, please install it before proceeding.' 2>&1 ; \
+		exit 1 ; \
+	 fi
+	@rm -rf $(RPM_MOCK_DIR)
+	if ! grep -q reposerver /etc/hosts ; then \
+		echo '10.76.49.14  reposerver' | sudo tee /etc/hosts ; \
+	fi
+
+.PHONY: __rpm_mock
+__rpm_mock:
+	sudo mock -r mock_osaint --resultdir $(RPM_MOCK_DIR) --init
+	sudo mock -r mock_osaint --resultdir $(RPM_MOCK_DIR) --install \
+		kernel-devel lustre-client-devel perl-autodie genders binutils-devel systemd-devel
+	sudo mock -r mock_osaint --resultdir $(RPM_MOCK_DIR) --buildsrpm \
+		--spec $(RPM_SPEC_DIR)/mero.spec \
+		--sources $(RPM_SRC_DIR) \
+		--no-clean --no-cleanup-after
+	sudo mock -r mock_osaint --resultdir $(RPM_MOCK_DIR) --rebuild \
+		$(RPM_MOCK_DIR)/mero-*.src.rpm \
+		--no-clean --rpmbuild-opts='--with systemd --with debuginfo'
 
 # __rpm_tests should be built before __rpm, because __rpm_tests creates a dummy
 # mero.rpm package, which would otherwise overwrite normal mero.rpm, created by
@@ -1158,6 +1188,13 @@ rpms:
 rpms-notests:
 	$(MAKE) __rpm_pre
 	$(MAKE) __rpm
+	$(MAKE) __rpm_post
+
+.PHONY: rpms-mock
+rpms-mock:
+	$(MAKE) __rpm_mock_pre
+	$(MAKE) __rpm_pre
+	$(MAKE) __rpm_mock
 	$(MAKE) __rpm_post
 
 #
@@ -1266,6 +1303,8 @@ help:
 	@echo '                     was installed)'
 	@echo '  dist            - recreate package-version.tar.gz from all source files'
 	@echo '  rpms            - build Mero rpm packages'
+	@echo '  rpms-notests    - build Mero rpm packages, excluding tests'
+	@echo '  rpms-mock       - build Mero rpm packages using "mock" environment (ensures clean rpm deps)'
 	@echo ''
 	@echo 'Information:'
 	@echo '  list-programs   - list all executables built in mero'
