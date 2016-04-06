@@ -209,6 +209,52 @@ static void test_start_failures(void)
 	ut_mero_stop(&mach, &rctx);
 }
 
+static void _stop_rms(struct m0_rpc_machine *rmach)
+{
+	struct m0_reqh_service *service;
+	struct m0_reqh         *reqh = rmach->rm_reqh;
+	struct m0_fid           rm_fid = M0_FID_TINIT('s', 1, 2);
+
+	service = m0_reqh_service_lookup(reqh, &rm_fid);
+	M0_UT_ASSERT(service != NULL);
+	M0_UT_ASSERT(m0_streq(service->rs_type->rst_name, "rmservice"));
+	m0_reqh_service_prepare_to_stop(service);
+	m0_reqh_idle_wait_for(reqh, service);
+	m0_reqh_service_stop(service);
+}
+
+static void test_no_rms(void)
+{
+	struct m0_rpc_machine    mach;
+	struct m0_rpc_server_ctx rctx;
+	int                      rc;
+	struct m0_rconfc         rconfc;
+
+	rc = ut_mero_start(&mach, &rctx);
+	M0_UT_ASSERT(rc == 0);
+
+	/* start with rms up and running */
+	rc = m0_rconfc_init(&rconfc,&g_grp, &mach, test_null_exp_cb, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	/* see if we can stop when there is no rms around */
+	_stop_rms(&mach);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	/* repeat with no rms around */
+	rc = m0_rconfc_init(&rconfc,&g_grp, &mach, test_null_exp_cb, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == -ECONNREFUSED);
+	/* see if we can stop after start failure */
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	ut_mero_stop(&mach, &rctx);
+}
+
 static void test_reading(void)
 {
 	struct m0_rpc_machine    mach;
@@ -704,8 +750,9 @@ static void test_drain(void)
 	m0_semaphore_init(&g_expired_sem, 0);
 
 	rc = m0_net_domain_init(&client_net_dom, xprt);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
+	M0_UT_ASSERT(rc == 0);
 
 	rconfc = &cctx.rcx_reqh.rh_rconfc;
         M0_SET0(rconfc);
@@ -769,6 +816,7 @@ struct m0_ut_suite rconfc_ut = {
 		{ "init-fini",  test_init_fini },
 		{ "start-stop", test_start_stop },
 		{ "start-fail", test_start_failures },
+		{ "no-rms",     test_no_rms },
 		{ "reading",    test_reading },
 		{ "impossible", test_quorum_impossible },
 		{ "gate-ops",   test_gops },

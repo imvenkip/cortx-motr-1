@@ -749,11 +749,8 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	m0_rconfc_exp_cb_set(rconfc, m0t1fs_rconfc_exp_cb);
 	m0_rconfc_ready_cb_set(rconfc, m0t1fs_rconfc_ready_cb);
 	m0_rconfc_unlock(rconfc);
-	rc = m0_rconfc_start_sync(m0_csb2rconfc(csb), &reqh->rh_profile);
-	if (rc != 0)
-		goto err_rconfc_fini;
-
-	rc = m0_ha_client_add(m0_reqh2confc(reqh));
+	rc = m0_rconfc_start_sync(m0_csb2rconfc(csb), &reqh->rh_profile) ?:
+		m0_ha_client_add(m0_reqh2confc(reqh));
 	if (rc != 0)
 		goto err_rconfc_stop;
 
@@ -825,7 +822,6 @@ err_ha_client_del:
 	m0_ha_client_del(m0_reqh2confc(reqh));
 err_rconfc_stop:
 	m0_rconfc_stop_sync(m0_csb2rconfc(csb));
-err_rconfc_fini:
 	m0_rconfc_fini(m0_csb2rconfc(csb));
 err_ha_fini:
 	m0t1fs_ha_fini(csb);

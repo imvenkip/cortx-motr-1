@@ -746,7 +746,7 @@ static void rconfc_conf_full_load(struct m0_sm_group *grp,
 	struct m0_conf_cache      *cache = &confc->cc_cache;
 	int                        rc;
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p", rconfc);
 	rc = m0_conf_obj_find_lock(cache, &M0_CONF_ROOT_FID, &confc->cc_root) ?:
 		m0_conf_fs_get(rconfc->rc_profile, confc, &fs) ?:
 		m0_conf_full_load(fs);
@@ -762,6 +762,7 @@ static void rconfc_conf_full_load(struct m0_sm_group *grp,
 	rconfc->rc_load_fini_ast.sa_cb = rconfc_conf_load_fini;
 	/* The call to execute in context of group rconfc initialised with */
 	m0_sm_ast_post(rconfc->rc_sm.sm_grp, &rconfc->rc_load_fini_ast);
+	M0_LEAVE();
 }
 #endif /* XXX HA re-link */
 
@@ -903,15 +904,17 @@ static void rlock_ctx_disconnect(struct rlock_ctx *rlx)
 {
 	int rc;
 
+	M0_ENTRY("rconfc = %p, rlx = %p", rlx->rlc_parent, rlx);
 	M0_PRE(rlock_ctx_is_online(rlx));
-	rc = m0_rpc_session_destroy(&rlx->rlc_sess, M0_TIME_NEVER);
+	rc = m0_rpc_session_destroy(&rlx->rlc_sess, m0_rpc__down_timeout());
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Failed to destroy rlock session");
-	rc = m0_rpc_conn_destroy(&rlx->rlc_conn, M0_TIME_NEVER);
+	rc = m0_rpc_conn_destroy(&rlx->rlc_conn, m0_rpc__down_timeout());
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Failed to destroy rlock connection");
 	m0_free(rlx->rlc_rm_addr);
 	rlx->rlc_rm_addr = NULL;
+	M0_LEAVE();
 }
 
 static int rlock_ctx_connect(struct rlock_ctx *rlx, const char *ep)
@@ -920,7 +923,7 @@ static int rlock_ctx_connect(struct rlock_ctx *rlx, const char *ep)
 
 	int rc;
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p, rlx = %p, ep = %s", rlx->rlc_parent, rlx, ep);
 	M0_PRE(!rlock_ctx_is_online(rlx));
 	M0_PRE(ep != NULL);
 	rlx->rlc_rm_addr = m0_strdup(ep);
@@ -947,7 +950,7 @@ static int rlock_ctx_create(struct m0_rconfc       *parent,
 	struct rlock_ctx *rlx;
 	int               rc;
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p, out = %p", parent, out);
 	M0_PRE(out != NULL);
 	M0_PRE(rmach != NULL);
 
@@ -971,10 +974,12 @@ static int rlock_ctx_create(struct m0_rconfc       *parent,
 
 static void rlock_ctx_destroy(struct rlock_ctx *rlx)
 {
+	M0_ENTRY("rconfc = %p, rlx = %p", rlx->rlc_parent, rlx);
 	M0_PRE(!rlock_ctx_is_online(rlx));
 	m0_rw_lockable_fini(&rlx->rlc_rwlock);
 	rlock_ctx_read_domain_fini(rlx);
 	m0_free(rlx);
+	M0_LEAVE();
 }
 
 static enum m0_rm_owner_state
@@ -992,7 +997,7 @@ static int rlock_ctx_creditor_setup(struct rlock_ctx *rlx,
 	struct m0_conf_obj  *obj;
 	int                  rc;
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p, rlx = %p, ep = %s", rlx->rlc_parent, rlx, ep);
 	M0_PRE(M0_IN(rlock_ctx_creditor_state(rlx),
 		     (ROS_ACTIVE, ROS_DEAD_CREDITOR)));
 	rc = _confc_phony_cache_append(&rlx->rlc_parent->rc_phony, fid, &obj);
@@ -1025,21 +1030,25 @@ conf_obj_del:
 
 static void rlock_ctx_creditor_unset(struct rlock_ctx *rlx)
 {
+	M0_ENTRY("rconfc = %p, rlx = %p", rlx->rlc_parent, rlx);
 	rlock_ctx_disconnect(rlx);
 	m0_rm_remote_fini(&rlx->rlc_creditor);
 	rlx->rlc_owner.ro_creditor = NULL;
 	_confc_phony_cache_remove(&rlx->rlc_parent->rc_phony, &rlx->rlc_rm_fid);
+	M0_LEAVE();
 }
 
 static void rlock_ctx_owner_windup(struct rlock_ctx *rlx)
 {
 	int rc;
 
+	M0_ENTRY("rconfc = %p, rlx = %p", rlx->rlc_parent, rlx);
 	m0_rm_owner_windup(&rlx->rlc_owner);
 	rc = m0_rm_owner_timedwait(&rlx->rlc_owner,
 				   M0_BITS(ROS_FINAL, ROS_INSOLVENT),
 				   M0_TIME_NEVER);
 	M0_ASSERT(rc == 0);
+	M0_LEAVE();
 }
 
 /* -------------- Quorum calculation context ----------------- */
@@ -1099,6 +1108,7 @@ static int _confc_cache_clean_lock(struct m0_confc *confc)
 {
 	int rc;
 
+	M0_ENTRY();
 	m0_conf_cache_lock(&confc->cc_cache);
 	rc = _confc_cache_clean(confc);
 	m0_conf_cache_unlock(&confc->cc_cache);
@@ -1199,6 +1209,7 @@ static void rconfc_state_set(struct m0_rconfc *rconfc, int state)
 
 static void rconfc_fail(struct m0_rconfc *rconfc, int rc)
 {
+	M0_ENTRY("rconfc = %p, rc = %d", rconfc, rc);
 	M0_PRE(rconfc_is_locked(rconfc));
         M0_LOG(M0_ERROR, "rconfc: %p, state %s failed with %d", rconfc,
 	       m0_sm_state_name(&rconfc->rc_sm, rconfc->rc_sm.sm_state), rc);
@@ -1219,6 +1230,7 @@ static void rconfc_fail(struct m0_rconfc *rconfc, int rc)
 		rconfc_state_set(rconfc, RCS_STOPPING);
 		rconfc_stop_internal(rconfc);
 	}
+	M0_LEAVE();
 }
 
 static void _failure_ast_cb(struct m0_sm_group *grp M0_UNUSED,
@@ -1355,9 +1367,11 @@ static void rconfc_herd_fini(struct m0_rconfc *rconfc)
 {
 	struct rconfc_link *lnk;
 
+	M0_ENTRY("rconfc = %p", rconfc);
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		rconfc_herd_link_fini(lnk);
 	} m0_tl_endfor;
+	M0_LEAVE();
 }
 
 static void rconfc_herd_link_destroy(struct rconfc_link *lnk)
@@ -1371,8 +1385,10 @@ static void rconfc_herd_prune(struct m0_rconfc *rconfc)
 {
 	struct rconfc_link *lnk;
 
+	M0_ENTRY("rconfc = %p", rconfc);
 	m0_tl_teardown(rcnf_herd, &rconfc->rc_herd, lnk)
 		rconfc_herd_link_destroy(lnk);
+	M0_LEAVE();
 }
 
 M0_INTERNAL struct rconfc_link *rconfc_herd_find(struct m0_rconfc *rconfc,
@@ -1479,6 +1495,7 @@ static void rconfc_active_populate(struct m0_rconfc *rconfc)
 {
 	struct rconfc_link *lnk;
 
+	M0_ENTRY("rconfc = %p", rconfc);
 	M0_PRE(rconfc->rc_ver != M0_CONF_VER_UNKNOWN);
 	rconfc_active_all_unlink(rconfc);
 	/* re-populate active list */
@@ -1487,6 +1504,7 @@ static void rconfc_active_populate(struct m0_rconfc *rconfc)
 		    _confc_ver_read(&lnk->rl_confc) == rconfc->rc_ver)
 			rcnf_active_tlink_init_at_tail(lnk, &rconfc->rc_active);
 	} m0_tl_endfor;
+	M0_LEAVE();
 }
 
 /**
@@ -1587,6 +1605,7 @@ static void rconfc_read_lock_get(struct m0_rconfc *rconfc)
 	m0_rm_rwlock_req_init(req, &rlx->rlc_owner, &m0_rconfc_ri_ops,
 			      RIF_MAY_BORROW | RIF_MAY_REVOKE, RM_RWLOCK_READ);
 	m0_rm_credit_get(req);
+	M0_LEAVE();
 }
 
 static struct m0_rconfc *item_to_rconfc(struct m0_rpc_item *item)
@@ -1614,7 +1633,7 @@ static int rconfc_entrypoint_req(struct m0_rconfc *rconfc)
 	struct m0_rpc_item    *item;
 	void                  *data;
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p", rconfc);
 	/*
 	 * Global session to HA agent should be set and established before
 	 * rconfc initialisation.
@@ -1639,7 +1658,7 @@ static void rconfc_entrypoint_get(struct m0_rconfc *rconfc)
 {
 	int rc;
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p", rconfc);
 	rconfc_state_set(rconfc, RCS_ENTRYPOINT_GET);
 	rc = rconfc_entrypoint_req(rconfc);
 	if (rc != 0)
@@ -1660,7 +1679,7 @@ static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
 	bool                         addr_mismatch;
 	int                          rc = 0;
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p", rconfc);
 	M0_PRE(reply != NULL);
 	entrypoint = m0_fop_data(m0_rpc_item_to_fop(reply));
 	rconfc_state_set(rconfc, RCS_ENTRYPOINT_REPLIED);
@@ -1696,7 +1715,7 @@ static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
 	if (rc != 0) {
 		m0_free(rep_rm_addr);
 		rconfc_fail(rconfc, rc);
-		M0_LEAVE();
+		M0_LEAVE("rc=%d", rc);
 		return;
 	}
 	addr_mismatch = rlx->rlc_rm_addr == NULL ||
@@ -1716,16 +1735,21 @@ static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
 	M0_LEAVE();
 }
 
+static int32_t _entrypoint_rep_rc(struct m0_ha_entrypoint_rep *entrypoint)
+{
+	return entrypoint->hbp_rc;
+}
+
 static void rconfc_entrypoint_req_replied(struct m0_rpc_item *item)
 {
 	struct m0_rconfc            *rconfc = item_to_rconfc(item);
 	struct m0_rpc_item          *reply  = item->ri_reply;
-	struct m0_ha_entrypoint_rep *entrypoint;
 	int                          rc;
 
+	M0_ENTRY("rconfc = %p", rconfc);
 	rc = item->ri_error ?:
 		m0_rpc_item_generic_reply_rc(reply) ?:
-		(entrypoint = m0_fop_data(m0_rpc_item_to_fop(reply)))->hbp_rc;
+		_entrypoint_rep_rc(m0_fop_data(m0_rpc_item_to_fop(reply)));
 	if (rc != 0)
 		rconfc_fail_ast(rconfc, rc);
 	else {
@@ -1734,6 +1758,7 @@ static void rconfc_entrypoint_req_replied(struct m0_rpc_item *item)
 		m0_rpc_item_get(reply);
 		rconfc_ast_post(rconfc, rconfc_entrypoint_replied_ast);
 	}
+	M0_LEAVE();
 }
 
 static void rconfc_start_ast_cb(struct m0_sm_group *grp M0_UNUSED,
@@ -1750,7 +1775,7 @@ static void rconfc_owner_creditor_reset(struct m0_sm_group *grp M0_UNUSED,
 	struct m0_rconfc *rconfc = ast->sa_datum;
 	struct rlock_ctx *rlx    = rconfc->rc_rlock_ctx;
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p", rconfc);
 	rlock_ctx_creditor_unset(rlx);
 	/*
 	 * Start conf reelection from reading entry point.
@@ -1781,7 +1806,7 @@ static void rconfc_creditor_death_handle(struct m0_rconfc *rconfc)
 	struct rlock_ctx   *rlx = rconfc->rc_rlock_ctx;
 	struct m0_rm_owner *owner = &rlx->rlc_owner;
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p", rconfc);
 	M0_PRE(rlock_ctx_creditor_state(rlx) != ROS_ACTIVE);
 	if (owner->ro_sm.sm_state == ROS_DEAD_CREDITOR) {
 		rconfc_ast_post(rconfc, rconfc_owner_creditor_reset);
@@ -1798,6 +1823,7 @@ static void rconfc_conductor_drained(struct m0_rconfc *rconfc)
 	struct rlock_ctx   *rlx = rconfc->rc_rlock_ctx;
 	struct m0_rm_owner *owner = &rlx->rlc_owner;
 
+	M0_ENTRY("rconfc = %p", rconfc);
 	/* disconnect confc until read lock being granted */
 	m0_confc_reconnect(&rconfc->rc_confc, NULL, NULL);
 	/* return read lock back to RM */
@@ -1820,6 +1846,7 @@ static void rconfc_conductor_drained(struct m0_rconfc *rconfc)
 		 */
 		rconfc_entrypoint_get(rconfc);
 	}
+	M0_LEAVE();
 }
 
 /**
@@ -1838,7 +1865,7 @@ static void rconfc_conductor_drain(struct m0_sm_group *grp,
 	struct m0_conf_obj   *obj;
 	int                   rc = 1;
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p", rconfc);
 	m0_conf_cache_lock(cache);
 	if ((obj = m0_conf_cache_pinned(cache)) != NULL) {
 		m0_clink_add(&obj->co_chan, &rconfc->rc_unpinned_cl);
@@ -1852,6 +1879,7 @@ static void rconfc_conductor_drain(struct m0_sm_group *grp,
 
 	if (rc == 0)
 		rconfc_conductor_drained(rconfc);
+	M0_LEAVE();
 }
 
 static bool rconfc_unpinned_cb(struct m0_clink *link)
@@ -1859,7 +1887,7 @@ static bool rconfc_unpinned_cb(struct m0_clink *link)
 	struct m0_rconfc *rconfc = container_of(
 				link, struct m0_rconfc, rc_unpinned_cl);
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p", rconfc);
 	M0_ASSERT(rconfc->rc_sm.sm_state == RCS_CONDUCTOR_DRAIN);
 	m0_clink_del(link);
 	rconfc_ast_post(rconfc, rconfc_conductor_drain);
@@ -1948,6 +1976,7 @@ static void rlock_conflict_handle(struct m0_sm_group *grp,
 {
 	struct m0_rconfc *rconfc = ast->sa_datum;
 
+	M0_ENTRY("rconfc = %p", rconfc);
 	/* prepare for emptying conductor's cache */
 	if (rconfc->rc_exp_cb != NULL)
 		rconfc->rc_exp_cb(rconfc);
@@ -1966,11 +1995,14 @@ static void rlock_conflict_handle(struct m0_sm_group *grp,
 				      &rconfc->rc_gops);
 	}
 	m0_mutex_unlock(&rconfc->rc_confc.cc_lock);
+	M0_LEAVE();
 }
 
 static void rconfc_rlock_windup(struct m0_rconfc *rconfc)
 {
 	struct rlock_ctx *rlx = rconfc->rc_rlock_ctx;
+
+	M0_ENTRY("rconfc = %p", rconfc);
 	/**
 	 * Release sm group lock to prevent dead-lock with
 	 * rconfc_read_lock_conflict. In worst case rconfc_rlock_windup()
@@ -1983,23 +2015,27 @@ static void rconfc_rlock_windup(struct m0_rconfc *rconfc)
 	if (rlock_ctx_creditor_state(rlx) == ROS_ACTIVE)
 		rlock_ctx_owner_windup(rlx);
 	m0_rm_rwlock_owner_fini(&rlx->rlc_owner);
+	M0_LEAVE();
 }
 
 static void rconfc_stop_internal(struct m0_rconfc *rconfc)
 {
 	struct rlock_ctx *rlx = rconfc->rc_rlock_ctx;
 
+	M0_ENTRY("rconfc = %p", rconfc);
 	rconfc_herd_fini(rconfc);
 	rconfc_rlock_windup(rconfc);
 	if (rlock_ctx_is_online(rlx))
 		rlock_ctx_creditor_unset(rlx);
 	rconfc_state_set(rconfc, RCS_FINAL);
+	M0_LEAVE();
 }
 
 static void rconfc_stop_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_rconfc *rconfc = ast->sa_datum;
 
+	M0_ENTRY("rconfc = %p", rconfc);
 	if (M0_IN(rconfc->rc_sm.sm_state, (RCS_IDLE, RCS_FAILURE))) {
 		rconfc_state_set(rconfc, RCS_STOPPING);
 		rconfc_stop_internal(rconfc);
@@ -2007,6 +2043,7 @@ static void rconfc_stop_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	else {
 		rconfc->rc_stopping = true;
 	}
+	M0_LEAVE();
 }
 
 /**
@@ -2035,15 +2072,18 @@ static void rconfc_read_lock_conflict(struct m0_rm_incoming *in)
 
 static void rconfc_idle(struct m0_rconfc *rconfc)
 {
+	M0_ENTRY("rconfc = %p", rconfc);
 	if (rconfc->rc_stopping) {
 		rconfc_state_set(rconfc, RCS_STOPPING);
 		rconfc_stop_internal(rconfc);
+		M0_LEAVE("Stopped internally");
 		return;
 	}
 	if (rconfc->rc_rlock_conflict) {
 		rconfc->rc_rlock_conflict = false;
 		rconfc_state_set(rconfc, RCS_RLOCK_CONFLICT);
 		rconfc_ast_post(rconfc, rlock_conflict_handle);
+		M0_LEAVE("Conflict to be handled...");
 		return;
 	}
 	/*
@@ -2054,6 +2094,7 @@ static void rconfc_idle(struct m0_rconfc *rconfc)
 	rconfc_state_set(rconfc, RCS_IDLE);
 	if (rconfc->rc_ready_cb != NULL)
 		rconfc->rc_ready_cb(rconfc);
+	M0_LEAVE("Idle");
 }
 
 static bool rconfc_quorum_is_possible(struct m0_rconfc *rconfc)
@@ -2156,7 +2197,7 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 	struct rconfc_link *lnk;
 	int                 rc;
 
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p", rconfc);
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		M0_PRE(M0_IN(lnk->rl_state,
 			     (CONFC_OPEN, CONFC_FAILED, CONFC_ARMED)));
@@ -2320,14 +2361,23 @@ static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 	struct rlock_ctx *rlx;
 
 	M0_ENTRY("in = %p, rc = %d", in, rc);
-	if (rc != 0)
-		M0_LOG(M0_ERROR, "Read lock request failed with rc = %d", rc);
-
-	if (M0_FI_ENABLED("rlock_req_failed"))
-		rc = M0_ERR(-ESRCH);
 	rconfc = rlock_ctx_incoming_to_rconfc(in);
 	M0_ASSERT(rconfc->rc_sm.sm_state == RCS_GET_RLOCK);
 	rlx = rconfc->rc_rlock_ctx;
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "Read lock request failed with rc = %d", rc);
+		/*
+		 * RPC connection to RM may be lost, or there is no remote RM
+		 * service anymore to respond to read lock request, so need to
+		 * handle this to prevent read lock context from further
+		 * communication attempts
+		 */
+		M0_ASSERT(rlock_ctx_is_online(rlx));
+		rlock_ctx_creditor_unset(rlx);
+	}
+
+	if (M0_FI_ENABLED("rlock_req_failed"))
+		rc = M0_ERR(-ESRCH);
 	if (rc == 0)
 		rconfc_ast_post(rconfc, rconfc_version_elect);
 	else
@@ -2415,7 +2465,7 @@ rlock_err:
 M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc,
 				 struct m0_fid    *profile)
 {
-	M0_ENTRY("rconfc %p", rconfc);
+	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc, FID_P(profile));
 	rconfc->rc_profile = profile;
 	if (rconfc->rc_local_conf != NULL)
 		rconfc->rc_sm.sm_rc = m0_confc_init(&rconfc->rc_confc,
@@ -2430,6 +2480,7 @@ M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc,
 M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc,
 				     struct m0_fid    *profile)
 {
+	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc, FID_P(profile));
 	m0_rconfc_start(rconfc, profile);
 	if (m0_rconfc_is_preloaded(rconfc))
 		goto leave;
@@ -2457,7 +2508,7 @@ M0_INTERNAL void m0_rconfc_stop(struct m0_rconfc *rconfc)
 
 M0_INTERNAL void m0_rconfc_stop_sync(struct m0_rconfc *rconfc)
 {
-	M0_ENTRY();
+	M0_ENTRY("rconfc = %p", rconfc);
 	if (rconfc_state(rconfc) == RCS_INIT)
 		goto leave;
 	m0_rconfc_stop(rconfc);

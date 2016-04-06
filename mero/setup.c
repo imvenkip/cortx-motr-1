@@ -1843,7 +1843,6 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				{
 					cctx->cc_daemon = true;
 				})),
-
 			/* -------------------------------------------
 			 * Request handler options
 			 */
@@ -2060,13 +2059,10 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_rconfc_start_sync(mero2rconfc(cctx), &reqh->rh_profile);
+	rc = m0_rconfc_start_sync(mero2rconfc(cctx), &reqh->rh_profile) ?:
+		m0_ha_client_add(m0_mero2confc(cctx));
 	if (rc != 0)
-		goto rconfc_fini;
-
-	rc = m0_ha_client_add(m0_mero2confc(cctx));
-	if (rc != 0)
-		goto conf_destroy;
+		goto rconfc_stop;
 
 	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
@@ -2104,9 +2100,8 @@ conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
 ha_client_del:
 	m0_ha_client_del(m0_mero2confc(cctx));
-conf_destroy:
+rconfc_stop:
 	m0_rconfc_stop_sync(mero2rconfc(cctx));
-rconfc_fini:
 	m0_rconfc_fini(mero2rconfc(cctx));
 	return M0_ERR(rc);
 }
