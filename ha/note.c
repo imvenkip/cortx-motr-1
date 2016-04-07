@@ -83,13 +83,13 @@ M0_INTERNAL void ha_state_get_replied(struct m0_rpc_item *item)
 
 	M0_ENTRY();
 	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(item->ri_reply);
-	fop = m0_rpc_item_to_fop(item->ri_reply);
 	ctx = M0_AMB(ctx, m0_rpc_item_to_fop(item), gf_fop);
-	rep = m0_fop_data(fop);
 	usr_nvec = m0_fop_data(m0_rpc_item_to_fop(item));
-	rep_nvec = &rep->hs_note;
 
 	if (rc == 0) {
+		fop = m0_rpc_item_to_fop(item->ri_reply);
+		rep = m0_fop_data(fop);
+		rep_nvec = &rep->hs_note;
 		if (rep->hs_rc != 0)
 			rc = M0_ERR(rep->hs_rc);
 		else if (usr_nvec->nv_nr != rep_nvec->nv_nr)
