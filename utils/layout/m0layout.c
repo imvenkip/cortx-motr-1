@@ -166,7 +166,7 @@ void layout_demo(struct m0_pdclust_instance *pi,
 			int d;
 
 			d = classify(pl, map[frame][obj].sa_unit);
-			printf("%c%2i, %1i%c ",
+			printf("%c%2i, %2i%c ",
 			       brace[d][0],
 			       (int)map[frame][obj].sa_group,
 			       (int)map[frame][obj].sa_unit,
