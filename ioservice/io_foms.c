@@ -1370,8 +1370,8 @@ static int net_buffer_acquire(struct m0_fom *fom)
 	}
 
 	fom_obj->fcrw_batch_size = acquired_net_bufs;
-	M0_LOG(M0_DEBUG, "Acquired network buffers, batch_size = %d.",
-	       fom_obj->fcrw_batch_size);
+	M0_LOG(M0_DEBUG, "required=%d acquired=%d", required_net_bufs,
+	       acquired_net_bufs);
 
 	M0_LEAVE();
 	return M0_FSO_AGAIN;
