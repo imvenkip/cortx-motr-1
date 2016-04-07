@@ -211,6 +211,7 @@ M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
 
 M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc);
 M0_INTERNAL void m0_confc_drained_cb(struct m0_rconfc *rconfc);
+M0_INTERNAL void m0_confc_ready_cb(struct m0_rconfc *rconfc);
 
 /**
  * Finds out if service configuration includes the specified endpoint address,

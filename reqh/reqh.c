@@ -261,6 +261,8 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	m0_mutex_init(&reqh->rh_guard);
 	m0_chan_init(&reqh->rh_conf_cache_exp, &reqh->rh_guard);
 	m0_chan_init(&reqh->rh_conf_cache_drain, &reqh->rh_guard);
+	m0_chan_init(&reqh->rh_conf_cache_ready, &reqh->rh_guard);
+	m0_sm_ast_wait_init(&reqh->rh_conf_cache_ast_wait, &reqh->rh_guard);
 
 	if (reqh->rh_beseg != NULL) {
 		rc = m0_reqh_be_init(reqh, reqh->rh_beseg);
@@ -316,6 +318,8 @@ static void __reqh_fini(struct m0_reqh *reqh)
 	m0_mutex_lock(&reqh->rh_guard);
 	m0_chan_fini(&reqh->rh_conf_cache_exp);
 	m0_chan_fini(&reqh->rh_conf_cache_drain);
+	m0_chan_fini(&reqh->rh_conf_cache_ready);
+	m0_sm_ast_wait_fini(&reqh->rh_conf_cache_ast_wait);
 	m0_mutex_unlock(&reqh->rh_guard);
 	m0_mutex_fini(&reqh->rh_guard);
 }
@@ -724,7 +728,8 @@ M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
 				   args->ca_profile);
 
 	rc = m0_rconfc_init(rconfc, args->ca_group, args->ca_rmach,
-			    m0_confc_expired_cb, m0_confc_drained_cb);
+			    m0_confc_expired_cb, m0_confc_drained_cb,
+			    m0_confc_ready_cb);
 	if (rc == 0 && args->ca_confstr != NULL) {
 		rconfc->rc_local_conf = m0_strdup(args->ca_confstr);
 		if (rconfc->rc_local_conf == NULL)

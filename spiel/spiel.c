@@ -73,7 +73,7 @@ int m0_spiel_rconfc_start(struct m0_spiel    *spiel,
 	M0_PRE(m0_fid_is_set(&spiel->spl_profile));
 
 	rc = m0_rconfc_init(rconfc, m0_locality0_get()->lo_grp,
-			    spiel->spl_rmachine, exp_cb, NULL);
+			    spiel->spl_rmachine, exp_cb, NULL, NULL);
 	if (rc == 0) {
 		rc = m0_rconfc_start_sync(rconfc, &spiel->spl_profile);
 		if (rc != 0) {

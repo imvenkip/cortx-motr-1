@@ -392,7 +392,8 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 			       struct m0_sm_group    *sm_group,
 			       struct m0_rpc_machine *rmach,
 			       m0_rconfc_exp_cb_t     exp_cb,
-			       m0_rconfc_drained_cb_t drained_cb);
+			       m0_rconfc_drained_cb_t drained_cb,
+			       m0_rconfc_ready_cb_t   ready_cb);
 
 /**
  * Rconfc starts with obtaining all necessary information (cluster "entry

@@ -2413,7 +2413,8 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 			       struct m0_sm_group    *sm_group,
 			       struct m0_rpc_machine *rmach,
 			       m0_rconfc_exp_cb_t     exp_cb,
-			       m0_rconfc_drained_cb_t drained_cb)
+			       m0_rconfc_drained_cb_t drained_cb,
+			       m0_rconfc_ready_cb_t   ready_cb)
 {
 	int               rc;
 	struct rlock_ctx *rlock_ctx;
@@ -2446,6 +2447,7 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 		.go_drain = NULL,
 	};
 	rconfc->rc_drained_cb = drained_cb;
+	rconfc->rc_ready_cb   = ready_cb;
 	rconfc->rc_rlock_ctx  = rlock_ctx;
 
 	rcnf_herd_tlist_init(&rconfc->rc_herd);

@@ -36,6 +36,7 @@
 #include "ha/note.h"       /* m0_ha_nvec, m0_ha_state_accept, m0_ha_state_get */
 #include "pool/flset.h"    /* m0_flset_pver_has_failed_dev */
 
+const int CACHE_LOCALITY = 1;
 
 M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 			       struct m0_confc            *confc,
@@ -623,32 +624,92 @@ M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
 				 M0_CONF_CONTROLLER_DISKS_FID);
 }
 
+static void __confc_cache_ast_wait_signal(struct m0_reqh *reqh)
+{
+	m0_mutex_lock(&reqh->rh_guard);
+	m0_sm_ast_wait_signal(&reqh->rh_conf_cache_ast_wait);
+	m0_mutex_unlock(&reqh->rh_guard);
+}
+
 static void __cache_expired_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_reqh *reqh = container_of(ast, struct m0_reqh,
-					    rh_conf_cache_exp_ast);
+					    rh_conf_cache_ast);
+
+	M0_ENTRY("grp %p, ast %p", grp, ast);
 	m0_chan_broadcast_lock(&reqh->rh_conf_cache_exp);
+	__confc_cache_ast_wait_signal(reqh);
+	M0_LEAVE();
+}
+
+static void __confc_cache_ast_post(struct m0_reqh *reqh)
+{
+	m0_mutex_lock(&reqh->rh_guard);
+	m0_sm_ast_wait_post(&reqh->rh_conf_cache_ast_wait,
+			    m0_locality_get(CACHE_LOCALITY)->lo_grp,
+			    &reqh->rh_conf_cache_ast);
+	m0_mutex_unlock(&reqh->rh_guard);
+}
+
+static void __confc_cache_ast_wait(struct m0_reqh *reqh)
+{
+	m0_mutex_lock(&reqh->rh_guard);
+	m0_sm_ast_wait(&reqh->rh_conf_cache_ast_wait);
+	m0_mutex_unlock(&reqh->rh_guard);
 }
 
 M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc)
 {
 	struct m0_reqh *reqh = container_of(rconfc, struct m0_reqh, rh_rconfc);
-	reqh->rh_conf_cache_exp_ast.sa_cb = __cache_expired_cb;
-	m0_sm_ast_post(&reqh->rh_sm_grp, &reqh->rh_conf_cache_exp_ast);
+
+	M0_ENTRY("rconfc %p", rconfc);
+	reqh->rh_conf_cache_ast.sa_cb = __cache_expired_cb;
+	__confc_cache_ast_post(reqh);
+	M0_LEAVE();
 }
 
 static void __cache_drained_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_reqh *reqh = container_of(ast, struct m0_reqh,
-					    rh_conf_cache_drain_ast);
+					    rh_conf_cache_ast);
+
+	M0_ENTRY("grp %p, ast %p", grp, ast);
 	m0_chan_broadcast_lock(&reqh->rh_conf_cache_drain);
+	__confc_cache_ast_wait_signal(reqh);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_confc_drained_cb(struct m0_rconfc *rconfc)
 {
 	struct m0_reqh *reqh = container_of(rconfc, struct m0_reqh, rh_rconfc);
-	reqh->rh_conf_cache_drain_ast.sa_cb = __cache_drained_cb;
-	m0_sm_ast_post(&reqh->rh_sm_grp, &reqh->rh_conf_cache_drain_ast);
+
+	M0_ENTRY("rconfc %p", rconfc);
+	__confc_cache_ast_wait(reqh);
+	reqh->rh_conf_cache_ast.sa_cb = __cache_drained_cb;
+	__confc_cache_ast_post(reqh);
+	M0_LEAVE();
+}
+
+static void __cache_ready_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_reqh *reqh = container_of(ast, struct m0_reqh,
+					    rh_conf_cache_ast);
+
+	M0_ENTRY("grp %p, ast %p", grp, ast);
+	m0_chan_broadcast_lock(&reqh->rh_conf_cache_ready);
+	__confc_cache_ast_wait_signal(reqh);
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_confc_ready_cb(struct m0_rconfc *rconfc)
+{
+	struct m0_reqh *reqh = container_of(rconfc, struct m0_reqh, rh_rconfc);
+
+	M0_ENTRY("rconfc %p", rconfc);
+	__confc_cache_ast_wait(reqh);
+	reqh->rh_conf_cache_ast.sa_cb = __cache_ready_cb;
+	__confc_cache_ast_post(reqh);
+	M0_LEAVE();
 }
 
 #undef M0_TRACE_SUBSYSTEM
