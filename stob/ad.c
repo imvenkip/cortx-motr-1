@@ -664,7 +664,7 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 			rc = -EAGAIN;
 	}
 
-	M0_LOG(M0_DEBUG, "segs: %llu seglast="EXT_F"seg="EXT_F"rc: %d",
+	M0_LOG(M0_DEBUG, "segs=%llu seglast="EXT_F" seg="EXT_F" rc=%d",
 		(unsigned long long)segs,
 		EXT_P(&astob->ad_op_it.oc_seg_last.ee_ext),
 		EXT_P(&seg->ee_ext), rc);

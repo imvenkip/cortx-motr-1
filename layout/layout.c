@@ -81,6 +81,8 @@
 #include "lib/finject.h"
 #include "lib/hash.h"   /* m0_hash */
 
+#include "net/net.h"    /* m0_net_domain_get_max_buffer_size */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
@@ -838,11 +840,15 @@ M0_INTERNAL uint64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
 
 	m0_mutex_lock(&dom->ld_lock);
 	for (i = M0_DEFAULT_LAYOUT_ID; i < m0_lid_to_unit_map_nr; ++i) {
+		/* Current BE max tx size constraints. */
+		if (m0_lid_to_unit_map[i] >
+		    4 * m0_net_domain_get_max_buffer_size(NULL))
+			break;
 		hash = m0_pool_version2layout_id(pver, i);
 		l = m0_layout__list_lookup(dom, hash, true);
 		if (l != NULL) {
 			pa = &m0_layout_to_pdl(l)->pl_attr;
-			if ((pa->pa_unit_size * pa->pa_N) <= buffsize) {
+			if (pa->pa_unit_size * pa->pa_N <= buffsize) {
 				lid = i;
 			} else {
 				m0_ref_put(&l->l_ref);

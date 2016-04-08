@@ -180,6 +180,21 @@ M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree *tree,
 					   struct m0_be_tx_credit *accum);
 
 /**
+ * The same as m0_be_btree_insert_credit() but uses the current btree height
+ * for credit calculation making it more accurate. It should be used with
+ * caution since it may hide the problems with credits until btree gets
+ * filled up. For example, it may be possible that the same operation
+ * which successfully works on less filled btree won't work when btree
+ * is more filled up because the number of required credits exceed the
+ * maximum size of possible credits in the transaction.
+ */
+M0_INTERNAL void m0_be_btree_insert_credit2(const struct m0_be_btree *tree,
+					    m0_bcount_t nr,
+					    m0_bcount_t ksize,
+					    m0_bcount_t vsize,
+					    struct m0_be_tx_credit *accum);
+
+/**
  * Calculates how many internal resources of tx_engine, described by
  * m0_be_tx_credit, is needed to perform the delete operation over the @tree.
  * Function updates @accum structure which is an input for m0_be_tx_prep().

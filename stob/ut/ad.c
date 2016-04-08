@@ -34,6 +34,7 @@
 #include "balloc/balloc.h"
 
 #include "be/ut/helper.h"
+#include "lib/errno.h"
 
 /**
    @addtogroup stob
@@ -345,12 +346,18 @@ static void test_punch(int nr)
 	struct m0_dtx      *tx;
 	int                 rc;
 	int                 i;
+	bool                credit_is_enough;
 
+start_again:
 	tx = &g_tx;
 	M0_SET0(tx);
 	m0_dtx_init(tx, &ut_be.but_dom, grp);
 	rc = obj_fore->so_ops->sop_punch_credit(obj_fore, &tx->tx_betx_cred);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0 || rc == -EAGAIN);
+	if (rc == -EAGAIN)
+		credit_is_enough = false;
+	else
+		credit_is_enough = true;
 
 	rc = m0_dtx_open_sync(tx);
 	M0_ASSERT(rc == 0);
@@ -364,6 +371,9 @@ static void test_punch(int nr)
 	rc = m0_dtx_done_sync(tx);
 	M0_ASSERT(rc == 0);
 	m0_dtx_fini(tx);
+
+	if (!credit_is_enough)
+		goto start_again;
 
 	for (i = 0 ; i < nr; i++) {
 		struct m0_stob_ad_domain *adom;

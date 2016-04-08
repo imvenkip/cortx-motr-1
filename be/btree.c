@@ -1157,24 +1157,47 @@ static void kv_delete_credit(const struct m0_be_btree     *tree,
 	btree_node_update_credit(accum, 1);
 }
 
-M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree     *tree,
-						 m0_bcount_t             nr,
-						 m0_bcount_t             ksize,
-						 m0_bcount_t             vsize,
-						 struct m0_be_tx_credit *accum)
+static void insert_credit(const struct m0_be_btree *tree,
+			  m0_bcount_t               nr,
+			  m0_bcount_t               ksize,
+			  m0_bcount_t               vsize,
+			  struct m0_be_tx_credit   *accum,
+			  bool                      use_current_height)
 {
 	struct m0_be_tx_credit cred = {};
-	const uint32_t	       height =
-		tree->bb_root == NULL ? 2 : tree->bb_root->b_level;
+	uint32_t               height;
+
+	if (use_current_height)
+		height = tree->bb_root == NULL ? 2 : tree->bb_root->b_level;
+	else
+		height = BTREE_HEIGHT_MAX;
 
 	btree_node_alloc_credit(tree, &cred);
 	btree_node_update_credit(&cred, 3); /* see btree_split_child() */
-	m0_be_tx_credit_mul(&cred, height + 1);
+	m0_be_tx_credit_mul(&cred, height);
 
 	kv_insert_credit(tree, ksize, vsize, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 
 	M0_BE_CREDIT_INC(nr, M0_BE_CU_BTREE_INSERT, accum);
+}
+
+M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree *tree,
+					   m0_bcount_t               nr,
+					   m0_bcount_t               ksize,
+					   m0_bcount_t               vsize,
+					   struct m0_be_tx_credit   *accum)
+{
+	insert_credit(tree, nr, ksize, vsize, accum, false);
+}
+
+M0_INTERNAL void m0_be_btree_insert_credit2(const struct m0_be_btree *tree,
+					    m0_bcount_t               nr,
+					    m0_bcount_t               ksize,
+					    m0_bcount_t               vsize,
+					    struct m0_be_tx_credit   *accum)
+{
+	insert_credit(tree, nr, ksize, vsize, accum, true);
 }
 
 M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree     *tree,

@@ -214,16 +214,16 @@ io_combinations()
 	p=`expr $data_units + 2 '*' $parity_units`
 	if [ $p -gt $pool_width ]
 	then
-		echo "Error: pool_width >=  data_units + 2 * parity_units."
+		echo "Error: pool_width should be >= data_units + 2 * parity_units."
 		return 1
 	fi
 
 	# unit size in K
-	for unit_size in 4 8 16 32 64 128 256 512 1024 2048 4096
+	for unit_size in 4 8 16 32 64 128 256 512 1024 2048
 	do
 	    stripe_size=`expr $unit_size '*' $data_units`
 
-	    for io_size in 1 2 4 8
+	    for io_size in 1 2 4
 	    do
 		io_size=`expr $io_size '*' $stripe_size`
 		io_size=${io_size}K
