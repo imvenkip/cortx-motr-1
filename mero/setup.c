@@ -1242,6 +1242,23 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		be->but_dom_cfg.bc_engine.bec_group_cfg.tgc_payload_max =
 			rctx->rc_be_tx_group_payload_size_max;
 	}
+	if (rctx->rc_be_tx_reg_nr_max > 0 &&
+	    rctx->rc_be_tx_reg_size_max > 0) {
+		be->but_dom_cfg.bc_engine.bec_tx_size_max =
+			M0_BE_TX_CREDIT(rctx->rc_be_tx_reg_nr_max,
+			                rctx->rc_be_tx_reg_size_max);
+	}
+	if (rctx->rc_be_tx_payload_size_max > 0) {
+		be->but_dom_cfg.bc_engine.bec_tx_payload_max =
+			rctx->rc_be_tx_payload_size_max;
+	}
+	if (rctx->rc_be_tx_group_freeze_timeout_min > 0 &&
+	    rctx->rc_be_tx_group_freeze_timeout_max > 0) {
+		be->but_dom_cfg.bc_engine.bec_group_freeze_timeout_min =
+			rctx->rc_be_tx_group_freeze_timeout_min;
+		be->but_dom_cfg.bc_engine.bec_group_freeze_timeout_max =
+			rctx->rc_be_tx_group_freeze_timeout_max;
+	}
 	rc = m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, format);
 	if (rc != 0)
 		goto err;
@@ -1881,6 +1898,33 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				{
 					rctx->rc_be_tx_group_payload_size_max =
 								size;
+				})),
+			M0_NUMBERARG('C', "BE tx reg nr max",
+				LAMBDA(void, (int64_t nr)
+				{
+					rctx->rc_be_tx_reg_nr_max = nr;
+				})),
+			M0_NUMBERARG('N', "BE tx reg size max",
+				LAMBDA(void, (int64_t size)
+				{
+					rctx->rc_be_tx_reg_size_max = size;
+				})),
+			M0_NUMBERARG('s', "BE tx payload size max",
+				LAMBDA(void, (int64_t size)
+				{
+					rctx->rc_be_tx_payload_size_max = size;
+				})),
+			M0_NUMBERARG('y', "BE tx group freeze timeout min, ms",
+				LAMBDA(void, (int64_t t)
+				{
+				       rctx->rc_be_tx_group_freeze_timeout_min =
+						t * M0_TIME_ONE_MSEC;
+				})),
+			M0_NUMBERARG('Y', "BE tx group freeze timeout max, ms",
+				LAMBDA(void, (int64_t t)
+				{
+				       rctx->rc_be_tx_group_freeze_timeout_max =
+						t * M0_TIME_ONE_MSEC;
 				})),
 			M0_STRINGARG('c', "Path to the configuration database",
 				LAMBDA(void, (const char *s)
