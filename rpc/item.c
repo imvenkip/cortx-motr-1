@@ -1496,12 +1496,12 @@ M0_INTERNAL void m0_rpc_item_send_reply(struct m0_rpc_item *req,
 	m0_rpc_item_change_state(req, M0_RPC_ITEM_REPLIED);
 
 	sess = req->ri_session;
-	m0_rpc_session_release(sess);
 	reply->ri_header = req->ri_header;
 	if (rpc_item_needs_xid(req))
 		m0_rpc_item_cache_add(&sess->s_reply_cache, reply,
 			m0_time_from_now(M0_RPC_ITEM_REPLY_CACHE_TMO, 0));
 	m0_rpc_item_send(reply);
+	m0_rpc_session_release(sess);
 
 	/*
 	 * An extra reference is acquired for this reply item
