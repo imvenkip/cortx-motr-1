@@ -85,6 +85,8 @@ enum m0_addb2_value_id {
 	M0_AVI_LOCALITY_CHAN_CB,
 	/** Counter: queue-length of locality runrun channel. */
 	M0_AVI_LOCALITY_CHAN_QUEUE,
+	/** Counter for FOM long lock. */
+	M0_AVI_LONG_LOCK,
 
 	M0_AVI_LIB_RANGE_START     = 0x3000,
 	/** Measurement: memory allocation. */

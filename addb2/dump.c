@@ -569,6 +569,8 @@ struct id_intrp ids[] = {
 	{ M0_AVI_SIT,             "sit",  { &hex, &hex, &hex, &hex, &hex,
 					    &dec, &dec, FID },
 	  { "seq", "offset", "prev", "next", "size", "idx", "nr", "fid" } },
+	{ M0_AVI_LONG_LOCK,       "long-lock", { &ptr, &duration, &duration },
+	  { "fom", "wait", "hold"} },
 	{ M0_AVI_NODATA,          "nodata" },
 };
 

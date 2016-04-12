@@ -356,7 +356,7 @@ static void ub_fom_create(struct m0_fom **out, struct m0_reqh *reqh,
 
 	m->uf_seqn = seqn;
 	m->uf_test = test;
-	m0_long_lock_link_init(&m->uf_link, *out);
+	m0_long_lock_link_init(&m->uf_link, *out, NULL);
 }
 
 static void

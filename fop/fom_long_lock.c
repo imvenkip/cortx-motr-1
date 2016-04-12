@@ -29,6 +29,8 @@
 #include "lib/misc.h"
 #include "lib/bob.h"
 #include "mero/magic.h"
+#include "addb2/identifier.h" /* M0_AVI_LONG_LOCK */
+#include "addb2/addb2.h"      /* M0_ADDB2_ADD */
 
 /**
  * Descriptor of typed list used in m0_long_lock with
@@ -58,18 +60,56 @@ M0_INTERNAL void m0_fom_ll_global_init(void)
 M0_EXPORTED(m0_fom_ll_global_init);
 
 M0_INTERNAL void m0_long_lock_link_init(struct m0_long_lock_link *link,
-					struct m0_fom *fom)
+					struct m0_fom *fom,
+					struct m0_long_lock_addb2 *addb2)
 {
 	M0_PRE(fom != NULL);
 	m0_lll_tlink_init(link);
-	link->lll_fom = fom;
+	link->lll_fom   = fom;
+	link->lll_addb2 = addb2;
 }
 
 M0_INTERNAL void m0_long_lock_link_fini(struct m0_long_lock_link *link)
 {
 	M0_PRE(!m0_lll_tlink_is_in(link));
-	link->lll_fom = NULL;
+	link->lll_fom   = NULL;
+	link->lll_addb2 = NULL;
 	m0_lll_tlink_fini(link);
+}
+
+static void ll_addb2_reset(struct m0_long_lock_link *link)
+{
+	if (link->lll_addb2 != NULL)
+		M0_SET0(link->lll_addb2);
+}
+
+static void ll_addb2_post(struct m0_long_lock_link *link)
+{
+	struct m0_long_lock_addb2 *addb2 = link->lll_addb2;
+
+	if (addb2 != NULL)
+		M0_ADDB2_ADD(M0_AVI_LONG_LOCK,
+			      (uint64_t)link->lll_fom,
+			      addb2->la_wait,
+			      m0_time_now() - addb2->la_taken);
+}
+
+static void ll_addb2_wait_start(struct m0_long_lock_link *link)
+{
+	if (link->lll_addb2 != NULL)
+		link->lll_addb2->la_waiting = true;
+}
+
+static void ll_addb2_wait_finish(struct m0_long_lock_link *link)
+{
+	struct m0_long_lock_addb2 *addb2 = link->lll_addb2;
+	struct m0_fom             *fom = link->lll_fom;
+
+	if (addb2 != NULL) {
+		addb2->la_taken = m0_time_now();
+		addb2->la_wait  = addb2->la_waiting ?
+			addb2->la_taken - fom->fo_sm_state.sm_state_epoch : 0;
+	}
 }
 
 static bool link_invariant(const struct m0_long_lock_link *link)
@@ -139,6 +179,7 @@ static void grant(struct m0_long_lock *lock, struct m0_long_lock_link *link)
 	lock->l_state = link->lll_lock_type == M0_LONG_LOCK_READER ?
 		M0_LONG_LOCK_RD_LOCKED : M0_LONG_LOCK_WR_LOCKED;
 
+	ll_addb2_wait_finish(link);
 	m0_lll_tlist_move_tail(&lock->l_owners, link);
 }
 
@@ -157,9 +198,11 @@ static bool lock(struct m0_long_lock *lock, struct m0_long_lock_link *link,
 
 	got_lock = m0_lll_tlist_is_empty(&lock->l_waiters) &&
 		can_lock(lock, link);
+	ll_addb2_reset(link);
 	if (got_lock) {
 		grant(lock, link);
 	} else {
+		ll_addb2_wait_start(link);
 		fom->fo_transitions_saved = fom->fo_transitions;
 		m0_lll_tlist_add_tail(&lock->l_waiters, link);
 	}
@@ -210,7 +253,7 @@ static void unlock(struct m0_long_lock *lock, struct m0_long_lock_link *link)
 		link->lll_lock_type == M0_LONG_LOCK_WRITER ||
 		m0_lll_tlist_is_empty(&lock->l_owners) ?
 		M0_LONG_LOCK_UNLOCKED : M0_LONG_LOCK_RD_LOCKED;
-
+	ll_addb2_post(link);
 	while ((next = m0_lll_tlist_head(&lock->l_waiters)) != NULL &&
 	       can_lock(lock, next)) {
 		grant(lock, next);

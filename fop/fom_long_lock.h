@@ -141,19 +141,30 @@ enum m0_long_lock_type {
 	M0_LONG_LOCK_WRITER
 };
 
+struct m0_long_lock_addb2 {
+	/** Time when lock has taken. */
+	m0_time_t la_taken;
+	/** Indicates whether user has to wait for lock. */
+	bool      la_waiting;
+	/** Duration of waiting. */
+	m0_time_t la_wait;
+};
+
 /**
  * Long lock link, special structure used to link multiple owners and waiters of
  * the long lock.
  */
 struct m0_long_lock_link {
 	/** FOM, which obtains the lock */
-	struct m0_fom           *lll_fom;
+	struct m0_fom             *lll_fom;
 	/** Linkage to struct m0_long_lock::l_{owners,waiters} list */
-	struct m0_tlink          lll_lock_linkage;
+	struct m0_tlink            lll_lock_linkage;
 	/** magic number. M0_LONG_LOCK_LINK_MAGIX */
-	uint64_t                 lll_magix;
+	uint64_t                   lll_magix;
 	/** Type of long lock, requested by the lll_fom */
-	enum m0_long_lock_type   lll_lock_type;
+	enum m0_long_lock_type     lll_lock_type;
+	/** ADDB2 information for link */
+	struct m0_long_lock_addb2 *lll_addb2;
 };
 
 /**
@@ -288,10 +299,13 @@ M0_INTERNAL bool m0_long_is_write_locked(struct m0_long_lock *lock,
 /**
  * Initialize long lock link object with given fom.
  *
+ * addb2 optional argument which is used to collect counters on lock wait/hold
+ * times by the link
  * @pre fom != NULL
  */
 M0_INTERNAL void m0_long_lock_link_init(struct m0_long_lock_link *link,
-					struct m0_fom *fom);
+					struct m0_fom *fom,
+					struct m0_long_lock_addb2 *addb2);
 
 /**
  * Finalize long lock link object.

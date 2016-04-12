@@ -78,7 +78,7 @@ static int rdwr_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
 
 	fom = &fom_obj->fr_gen;
 	m0_fom_init(fom, &rdwr_fom_type, &fom_rdwr_ops, NULL, NULL, reqh);
-	m0_long_lock_link_init(&fom_obj->fr_link, fom);
+	m0_long_lock_link_init(&fom_obj->fr_link, fom, NULL);
 
 	*m = fom;
 	return 0;
