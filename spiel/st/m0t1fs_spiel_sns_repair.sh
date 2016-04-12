@@ -39,45 +39,61 @@ spiel_sns_repair_test()
 
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
-	echo "Start SNS repair"
+	echo "Start SNS repair (1)."
 	disk_state_set "repairing" $fail_device1 $fail_device2 || return $?
 	spiel_sns_repair_start
 	sleep 2
 
-	echo "Abort SNS repair"
+	echo "Abort SNS repair (1)."
 	spiel_sns_repair_abort
 
-	echo "wait for sns repair"
+	echo "wait for sns repair (1)."
 	spiel_wait_for_sns_repair || return $?
 
 	verify || return $?
 
-	echo "start SNS repair again ..."
+	echo "start SNS repair again (2).."
 	spiel_sns_repair_start
 	sleep 3
 
-	echo "wait for the second sns repair"
+	# Another device failed during the above SNS repair.
+	# We need to abort current SNS first, and then we start SNS repair again.
+	echo "Abort SNS repair (2).."
+	spiel_sns_repair_abort
+
+	echo "wait for sns repair abort (2).."
 	spiel_wait_for_sns_repair || return $?
 
-	disk_state_set "repaired" $fail_device1 $fail_device2 || return $?
+        echo "failing another device ($fail_device3)"
+        disk_state_set "failed" $fail_device3 || return $?
+	disk_state_set "repairing" $fail_device3 || return $?
+
+	echo "start SNS repair again (3)..."
+	spiel_sns_repair_start
+	sleep 3
+
+	echo "wait for the third sns repair (3)..."
+	spiel_wait_for_sns_repair || return $?
+
+	disk_state_set "repaired" $fail_device1 $fail_device2 $fail_device3 || return $?
 	echo "SNS Repair done."
 	verify || return $?
 
-	disk_state_get $fail_device1 $fail_device2 || return $?
+	disk_state_get $fail_device1 $fail_device2 $fail_device3 || return $?
 
-	disk_state_set "rebalancing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "rebalancing" $fail_device1 $fail_device2 $fail_device3 || return $?
 	echo "Starting SNS Re-balance.."
 	spiel_sns_rebalance_start
 	sleep 2
 
 	echo "wait for sns rebalance"
 	spiel_wait_for_sns_rebalance || return $?
-	disk_state_set "online" $fail_device1 $fail_device2 || return $?
+	disk_state_set "online" $fail_device1 $fail_device2 $fail_device3 || return $?
 	echo "SNS Rebalance done."
 
 	verify || return $?
 
-	disk_state_get $fail_device1 $fail_device2 || return $?
+	disk_state_get $fail_device1 $fail_device2 $fail_device3 || return $?
 
 	#######################################################################
 	#  End                                                                #
