@@ -407,18 +407,10 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 	M0_ASSERT(item->ri_session != NULL);
 
 	conn = item->ri_session->s_conn;
-	M0_ASSERT(conn != NULL);
+	M0_ASSERT(m0_rpc_conn_invariant(conn));
 
 	machine = conn->c_rpc_machine;
-
 	m0_rpc_machine_lock(machine);
-
-	M0_ASSERT(m0_rpc_conn_invariant(conn));
-	if (conn_state(conn) != M0_RPC_CONN_ACTIVE) {
-		rc = -EINVAL;
-		session = NULL;
-		goto out;
-	}
 
 	/* The following switch is an asynchronous cycle and it
 	 * does the following:
@@ -437,6 +429,10 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 		return M0_FSO_AGAIN;
 
 	case M0_RPC_CONN_SESS_TERMINATE_WAIT:
+		if (conn_state(conn) != M0_RPC_CONN_ACTIVE) {
+			rc = -EINVAL;
+			break;
+		}
 		if (gen->ssf_term_session == NULL)
 			gen->ssf_term_session = m0_rpc_session_search_and_pop(
 							conn, session_id);
@@ -469,7 +465,6 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 		;
 	}
 
-out:
 	m0_rpc_machine_unlock(machine);
 
 	reply->rstr_rc = rc;
