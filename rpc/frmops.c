@@ -403,7 +403,8 @@ static void buf_send_cb(const struct m0_net_buffer_event *ev)
 			 * won't be any replies for non-oneway items
 			 * of this packet already.
 			 */
-			if (!m0_rpc_item_is_oneway(item))
+			if (m0_rpc_item_is_request(item) &&
+			    !m0_rpc_item_is_oneway(item))
 				m0_rpc_item_put(item);
 		} end_for_each_item_in_packet;
 	}
