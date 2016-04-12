@@ -31,6 +31,7 @@
 #include "rpc/rpc.h"          /* m0_rpc_post */
 #include "fid/fid.h"          /* m0_fid_is_set */
 #include "rpc/rpclib.h"       /* m0_rpc_client_connect */
+#include "rpc/rpc_machine.h"  /* m0_rpc_machine_lock */
 #include "lib/arith.h"        /* M0_CNT_INC, M0_CNT_DEC */
 #include "lib/misc.h"         /* M0_IN */
 #include "lib/errno.h"        /* ENOMEM, EPROTO */
@@ -1094,9 +1095,9 @@ static int grow_cache_st_in(struct m0_sm *mach)
 {
 	struct m0_conf_fetch_resp *resp;
 	int                        rc;
-	struct m0_confc_ctx       *ctx  = mach_to_ctx(mach);
-	struct m0_rpc_item        *item = ctx->fc_rpc_item;
-	struct m0_sm_group        *grp;
+	struct m0_confc_ctx       *ctx   = mach_to_ctx(mach);
+	struct m0_rpc_item        *item  = ctx->fc_rpc_item;
+	struct m0_rpc_machine     *rmach = item->ri_rmachine;
 
 	M0_ENTRY("mach=%p ctx=%p", mach, ctx);
 	M0_PRE(item != NULL && item->ri_error == 0 && item->ri_reply != NULL);
@@ -1112,13 +1113,12 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	if (rc == 0)
 		rc = cache_grow(ctx->fc_confc, resp);
 
-	grp = &item->ri_rmachine->rm_sm_grp;
-	m0_sm_group_lock(grp);
+	m0_rpc_machine_lock(rmach);
 	/* Let the rpc layer free memory allocated for response. */
 	m0_rpc_item_put(item->ri_reply);
 	/* The item has been consumed and is not needed any more. */
 	m0_rpc_item_put(item);
-	m0_sm_group_unlock(grp);
+	m0_rpc_machine_unlock(rmach);
 	ctx->fc_rpc_item = NULL;
 
 	mach->sm_rc = rc;

@@ -70,13 +70,6 @@ struct m0_rpc_chan {
 	uint64_t			  rc_magic;
 };
 
-M0_INTERNAL void m0_rpc_machine_lock(struct m0_rpc_machine *machine);
-M0_INTERNAL void m0_rpc_machine_unlock(struct m0_rpc_machine *machine);
-M0_INTERNAL bool
-m0_rpc_machine_is_locked(const struct m0_rpc_machine *machine);
-M0_INTERNAL bool
-m0_rpc_machine_is_not_locked(const struct m0_rpc_machine *machine);
-
 M0_INTERNAL void m0_rpc_machine_add_conn(struct m0_rpc_machine *rmach,
 					 struct m0_rpc_conn    *conn);
 

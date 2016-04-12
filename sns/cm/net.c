@@ -37,7 +37,7 @@
 #include "rpc/rpclib.h"
 #include "rpc/session.h"
 #include "rpc/conn.h"
-#include "rpc/rpc_machine_internal.h"
+#include "rpc/rpc_machine.h"           /* m0_rpc_machine */
 #include "ioservice/fid_convert.h"     /* m0_fid_convert_stob2cob */
 
 /**

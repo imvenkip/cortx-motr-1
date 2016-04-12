@@ -22,18 +22,17 @@
 #include "lib/trace.h"
 
 #include "lib/memory.h"
-#include "lib/misc.h"                 /* M0_SET0 */
+#include "lib/misc.h"            /* M0_SET0 */
 #include "lib/errno.h"
 #include "mero/magic.h"
-#include "rpc/rpc_machine.h"          /* for ri_rmachine */
-#include "rpc/rpc_machine_internal.h" /* m0_rpc_machine_{lock|unlock} */
+#include "rpc/rpc_machine.h"     /* m0_rpc_machine, m0_rpc_machine_lock */
 #include "rpc/addb2.h"
 #include "fop/fop.h"
 #include "fop/fop_xc.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
 #include "fop/fom_generic_xc.h"
-#include "fop/fom_long_lock.h" /* m0_fom_ll_global_init */
+#include "fop/fom_long_lock.h"   /* m0_fom_ll_global_init */
 #include "addb2/identifier.h"
 #include "reqh/reqh.h"
 
@@ -63,7 +62,7 @@ static size_t fop_data_size(const struct m0_fop *fop)
 
 M0_INTERNAL bool m0_fop_rpc_is_locked(struct m0_fop *fop)
 {
-	return m0_sm_group_is_locked(&fop->f_item.ri_rmachine->rm_sm_grp);
+	return m0_rpc_machine_is_locked(fop->f_item.ri_rmachine);
 }
 
 M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop)

@@ -28,7 +28,7 @@
 #include "mdservice/fsync_fops.h"       /* m0_fop_fsync */
 #include "rpc/rpclib.h"                 /* m0_rpc_server_ctx */
 #include "rpc/rpc_opcodes.h"            /* M0_UT_IOS_OPCODE */
-#include "rpc/rpc_machine_internal.h"   /* m0_rpc_machine_lock */
+#include "rpc/rpc_machine.h"            /* m0_rpc_machine_lock */
 #include "stob/type.h"                  /* m0_stob_type */
 #include "stob/ad.h"                    /* m0_stob_ad_type */
 #include "stob/linux.h"                 /* m0_stob_linux_type */

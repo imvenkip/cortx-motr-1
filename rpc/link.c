@@ -30,8 +30,7 @@
 #include "fop/fom_generic.h"
 #include "net/net.h"                  /* m0_net_end_point */
 #include "sm/sm.h"
-#include "rpc/rpc_machine.h"          /* m0_rpc_machine */
-#include "rpc/rpc_machine_internal.h" /* m0_rpc_machine_lock */
+#include "rpc/rpc_machine.h"          /* m0_rpc_machine, m0_rpc_machine_lock */
 #include "rpc/rpc_opcodes.h"          /* M0_RPC_LINK_CONN_OPCODE */
 #include "rpc/link.h"
 #include "rpc/session_internal.h"     /* m0_rpc_session_fini_locked */

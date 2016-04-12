@@ -185,6 +185,13 @@ m0_rpc_machine_drain_item_sources(struct m0_rpc_machine *machine);
 
 M0_INTERNAL const char *m0_rpc_machine_ep(const struct m0_rpc_machine *rmach);
 
+M0_INTERNAL void m0_rpc_machine_lock(struct m0_rpc_machine *machine);
+M0_INTERNAL void m0_rpc_machine_unlock(struct m0_rpc_machine *machine);
+M0_INTERNAL bool
+m0_rpc_machine_is_locked(const struct m0_rpc_machine *machine);
+M0_INTERNAL bool
+m0_rpc_machine_is_not_locked(const struct m0_rpc_machine *machine);
+
 M0_BOB_DECLARE(extern, m0_rpc_machine);
 
 /**
