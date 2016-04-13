@@ -205,11 +205,10 @@ static void status_data_add(struct m0_net_test_cmd_status_data *all_sd,
 	};
 	size_t i;
 
-	LOGD("new STATUS_DATA:\n");
-	LOGD("send total = %lu\n", cmd_sd->ntcsd_msg_nr_send.ntmn_total);
-	LOGD("recv total = %lu\n", cmd_sd->ntcsd_msg_nr_recv.ntmn_total);
-	LOGD("finished = %d\n", cmd_sd->ntcsd_finished);
-	LOGD("end of STATUS_DATA\n");
+	LOGD("sent=%lu recvd=%lu finished=%c",
+	     cmd_sd->ntcsd_msg_nr_send.ntmn_total,
+	     cmd_sd->ntcsd_msg_nr_recv.ntmn_total,
+	     cmd_sd->ntcsd_finished);
 	for (i = 0; i < ARRAY_SIZE(msg_nr); ++i)
 		m0_net_test_msg_nr_add(msg_nr[i].nr_all, msg_nr[i].nr_node);
 	for (i = 0; i < ARRAY_SIZE(stats); ++i)

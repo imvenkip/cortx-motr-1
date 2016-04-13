@@ -916,13 +916,13 @@ static struct m0_net_test_network_buffer_callbacks node_bulk_buf_cb = {
 	}
 };
 
-/** Get server index for a given buffer index */
-static size_t client_server_index(struct node_bulk_ctx *ctx, size_t buf_index)
+/** Get server index for a given bs_index */
+static size_t client_server_index(struct node_bulk_ctx *ctx, size_t bs_index)
 {
 	M0_PRE(ctx != NULL);
 	M0_PRE(ctx->nbc_client_concurrency > 0);
 
-	return buf_index / (2 * ctx->nbc_client_concurrency);
+	return bs_index / ctx->nbc_client_concurrency;
 }
 
 /** Enqueue passive send/recv buffers for the test client */
