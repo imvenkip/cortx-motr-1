@@ -50,9 +50,37 @@ static void poison_before_free(void *data, size_t size)
 {
 	memset(data, U_POISON_BYTE, size);
 }
+
+/**
+ * Returns true, iff the value is poisoned by m0_free().
+ *
+ * Do not compare all bytes of the value with U_POISON_BYTE, because the value
+ * can be obtained by adding an offset to a poisoned pointer.
+ */
+static bool is_poisoned(uint64_t val)
+{
+	M0_CASSERT(U_POISON_BYTE == 0x5f);
+	return (val & 0x00ffffffff000000ULL) == 0x005f5f5f5f000000ULL;
+}
+
+M0_INTERNAL bool m0_is_poisoned(const void *p)
+{
+	/*
+	 * Check two cases: "p" is a ...
+	 *
+	 *     - pointer to a freed object, is_poisoned(*p) is true;
+	 *     - pointer field within a freed object, is_poisoned(p) is true;
+	 */
+	return is_poisoned((uint64_t)p) || is_poisoned(*(const uint64_t *)p);
+}
 #else
 static void poison_before_free(void *data, size_t size)
 {;}
+
+M0_INTERNAL bool m0_is_poisoned(const void *ptr)
+{
+	return false;
+}
 #endif
 
 M0_INTERNAL void  *m0_arch_alloc       (size_t size);

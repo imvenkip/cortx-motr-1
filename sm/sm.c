@@ -119,9 +119,11 @@ M0_INTERNAL void m0_sm_asts_run(struct m0_sm_group *grp)
 		M0_ASSERT(ast->sa_next != NULL);
 
 		ast->sa_next = NULL;
-		if (grp->s_addb2 == NULL)
+		if (m0_is_poisoned(ast->sa_cb)) {
+			M0_LOG(M0_FATAL, "Skipping poisoned ast.");
+		} else if (grp->s_addb2 == NULL) {
 			ast->sa_cb(grp, ast);
-		else {
+		} else {
 			M0_ADDB2_TIMED(grp->s_addb2->ga_forq,
 				       &grp->s_addb2->ga_forq_counter,
 				       m0_ptr_wrap(ast->sa_cb),

@@ -147,6 +147,18 @@ M0_INTERNAL size_t m0_freed_total(void);
  */
 M0_INTERNAL int m0_pagesize_get(void);
 
+/**
+ * Returns true iff "p" points to a freed and poisoned (with ENABLE_FREE_POISON)
+ * memory area.
+ *
+ * If memory poisoning is disabled, this always returns true.
+ *
+ * This function is not absolutely reliable. m0_arch_free() can overwrite parts
+ * of freed memory region. Specifically, libc free(3) uses first 8 bytes of the
+ * memory region for its internal purposes.
+ */
+M0_INTERNAL bool m0_is_poisoned(const void *p);
+
 /** @} end of memory group */
 #endif /* __MERO_LIB_MEMORY_H__ */
 
