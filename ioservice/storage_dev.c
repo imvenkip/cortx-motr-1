@@ -197,7 +197,22 @@ M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs    *devs,
 
 M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev)
 {
-	m0_stob_domain_fini(dev->isd_domain);
+	enum m0_stob_state  st;
+	int                 rc;
+
+	/* Find the linux stob and acquire a reference. */
+	rc = m0_stob_find(&dev->isd_stob->so_id, &dev->isd_stob);
+	if (rc == 0) {
+		/* Finalise the AD stob domain.*/
+		m0_stob_domain_fini(dev->isd_domain);
+		/* Destroy linux stob. */
+		st = m0_stob_state_get(dev->isd_stob);
+		if (st == CSS_EXISTS)
+			rc = m0_stob_destroy(dev->isd_stob, NULL);
+	}
+	if (rc != 0)
+		M0_LOG(M0_ERROR, "Failed to destroy linux stob rc=%d", rc);
+
 	storage_dev_tlink_del_fini(dev);
 	m0_free(dev);
 }

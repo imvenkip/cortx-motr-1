@@ -104,7 +104,7 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 	if (m0_cm_state_get(cm) == M0_CMS_FAIL)
 		goto out;
 
-	rc = m0_sns_cm_ha_nvec_alloc(cm, M0_PNDS_SNS_REPAIRED, &nvec);
+	rc = m0_sns_cm_ha_nvec_alloc(cm, M0_PNDS_SNS_REBALANCING, &nvec);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "HA note allocation failed with rc: %d", rc);
 		goto out;
@@ -122,7 +122,7 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 				disk = M0_CONF_CAST(disk_obj, m0_conf_disk);
 				M0_ASSERT(disk != NULL);
 				if (m0_sns_cm_disk_has_dirty_pver(cm, disk)) {
-					dstate = M0_NC_REPAIRED;
+					dstate = M0_NC_REBALANCE;
 					pstate = M0_NC_REBALANCE;
 				}
 				nvec.nv_note[i].no_id = disk_obj->co_id;

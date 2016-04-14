@@ -327,6 +327,7 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 
 	rc = sns_cp->sc_stio.si_rc;
 	if (rc != 0) {
+		M0_LOG(M0_ERROR, "stob io failed with rc=%d", rc);
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FAIL);
 		return M0_FSO_AGAIN;
 	}

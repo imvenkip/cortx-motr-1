@@ -104,7 +104,7 @@ static void pver_failed_devs_count_update(struct m0_conf_obj *obj)
 	if (obj->co_ha_state == M0_NC_ONLINE)
 		for (i = 0; pvers[i] != NULL; ++i)
 			M0_CNT_DEC(pvers[i]->pv_nfailed);
-	else if (obj->co_ha_state == M0_NC_FAILED)
+	else if (M0_IN(obj->co_ha_state, (M0_NC_TRANSIENT, M0_NC_FAILED)))
 		for (i = 0; pvers[i] != NULL; ++i)
 			M0_CNT_INC(pvers[i]->pv_nfailed);
 }

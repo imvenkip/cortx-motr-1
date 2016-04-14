@@ -373,6 +373,8 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 	int                             i;
 	struct m0_poolmach             *pm = ifc->ifc_fctx->sf_pm;
 
+	M0_ENTRY("it: %p group: %lu", it, (unsigned long)group);
+
 	pl = m0_layout_to_pdl(ifc->ifc_fctx->sf_layout);
 	for (i = 0; i < it->si_fc.ifc_upg; ++i) {
 		sa.sa_unit = i;

@@ -429,7 +429,8 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 		}
 	}
 
-	M0_LEAVE("number of faulure groups = %lu", group_failures);
+	M0_LEAVE("number of failures in group = %lu are %u",
+		 (unsigned long)group, (unsigned)group_failures);
 	return group_failures;
 }
 
