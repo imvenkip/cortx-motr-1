@@ -27,6 +27,7 @@
 #include "conf/ut/confc.h"             /* m0_ut_conf_fids */
 #include "conf/ut/rpc_helpers.h"       /* m0_ut_rpc_machine_start */
 #include "rpc/rpclib.h"                /* m0_rpc_server_ctx */
+#include "lib/fs.h"                    /* m0_file_read */
 #include "lib/finject.h"
 #include "ut/misc.h"                   /* M0_UT_PATH */
 #include "ut/ut.h"
@@ -157,6 +158,29 @@ static void test_start_stop(void)
 	ver = m0_rconfc_ver_max_read(&rconfc);
 	M0_UT_ASSERT(ver == rconfc.rc_ver);
 	/** @todo Check addresses used by rconfc */
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+	ut_mero_stop(&mach, &rctx);
+}
+
+static void test_start_stop_local(void)
+{
+	struct m0_rpc_machine    mach;
+	struct m0_rpc_server_ctx rctx;
+	int                      rc;
+	struct m0_rconfc         rconfc;
+
+	rc = ut_mero_start(&mach, &rctx);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb, NULL,
+			    NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_file_read(M0_UT_PATH("conf.xc"), &rconfc.rc_local_conf);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_rconfc_is_preloaded(&rconfc));
+	M0_UT_ASSERT(rconfc.rc_ver != 0);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 	ut_mero_stop(&mach, &rctx);
@@ -829,6 +853,7 @@ struct m0_ut_suite rconfc_ut = {
 	.ts_tests = {
 		{ "init-fini",  test_init_fini },
 		{ "start-stop", test_start_stop },
+		{ "local-conf", test_start_stop_local },
 		{ "start-fail", test_start_failures },
 		{ "no-rms",     test_no_rms },
 		{ "reading",    test_reading },

@@ -50,7 +50,7 @@ static int objv_decode(struct m0_conf_obj        *dest,
 	const struct m0_fid           *relfid;
 	const struct m0_conf_obj_type *obj_type;
 
-	rc = m0_conf_obj_find(cache, &XCAST(src)->xj_real, &d->cv_real);
+	rc = m0_conf_obj_find(cache, &s->xj_real, &d->cv_real);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -88,7 +88,8 @@ objv_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	const struct m0_confx_objv *xobj = XCAST(flat);
 	const struct m0_conf_objv  *obj = M0_CONF_CAST(cached, m0_conf_objv);
 
-	return m0_fid_eq(&cached->co_id, &xobj->xj_real) &&
+	M0_PRE(obj->cv_real != NULL);
+	return m0_fid_eq(&obj->cv_real->co_id, &xobj->xj_real) &&
 	       m0_conf_dir_elems_match(obj->cv_children, &xobj->xj_children);
 }
 

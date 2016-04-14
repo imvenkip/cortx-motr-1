@@ -99,7 +99,12 @@ load_kernel_module()
 	lctl network up &>> /dev/null
 	lnet_nid=`sudo lctl list_nids | head -1`
 	server_nid=${server_nid:-$lnet_nid}
-	CONFD_EP=$lnet_nid:$CONFD_EP
+
+	# see if CONFD_EP was not prefixed with lnet_nid to the moment
+	# and pad it in case it was not
+	if [ "${CONFD_EP#$lnet_nid:}" = "$CONFD_EP" ]; then
+	    CONFD_EP=$lnet_nid:$CONFD_EP
+	fi
 
 	# Client end point (m0mero module local_addr)
 	# last component in this addr will be generated and filled in m0mero.

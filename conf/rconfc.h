@@ -361,6 +361,9 @@ struct m0_rconfc {
 	 * running mode compatible with confd, i.e. having cache pre-loaded.
 	 *
 	 * @see m0_rconfc_is_preloaded()
+	 *
+	 * @note rconfc takes care of freeing this string with m0_free() during
+	 * finalisation.
 	 */
 	char                     *rc_local_conf;
 

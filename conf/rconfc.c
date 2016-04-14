@@ -2389,6 +2389,24 @@ static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 	M0_LEAVE();
 }
 
+static void rconfc_local_load(struct m0_rconfc *rconfc)
+{
+	struct m0_conf_root *root;
+	int                  rc;
+
+	M0_ENTRY("rconfc %p, local_conf = '%s'", rconfc, rconfc->rc_local_conf);
+	M0_PRE(rconfc->rc_local_conf != NULL && *rconfc->rc_local_conf != '\0');
+	rc = m0_confc_init(&rconfc->rc_confc, rconfc->rc_sm.sm_grp,
+			   NULL, rconfc->rc_rmach, rconfc->rc_local_conf) ?:
+		m0_conf_root_open(&rconfc->rc_confc, &root);
+	if (rc == 0) {
+		rconfc->rc_ver = root->rt_verno;
+		m0_confc_close(&root->rt_obj);
+	}
+	rconfc->rc_sm.sm_rc = rc;
+	M0_LEAVE("rc=%d", rc);
+}
+
 /**************************************
  * Rconfc public interface
  **************************************/
@@ -2470,10 +2488,7 @@ M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc,
 	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc, FID_P(profile));
 	rconfc->rc_profile = profile;
 	if (rconfc->rc_local_conf != NULL)
-		rconfc->rc_sm.sm_rc = m0_confc_init(&rconfc->rc_confc,
-						    rconfc->rc_sm.sm_grp,
-						    NULL, rconfc->rc_rmach,
-						    rconfc->rc_local_conf);
+		rconfc_local_load(rconfc);
 	else
 		rconfc_ast_post(rconfc, rconfc_start_ast_cb);
 	M0_LEAVE();

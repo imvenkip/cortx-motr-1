@@ -154,6 +154,12 @@ mero_service()
 	source+eu /etc/rc.d/init.d/functions
 
 	start() {
+		NR_IOS_DEVS=0
+		NR_IOS_SDEVS=0
+		DDEV_ID=1
+		NR_DISK_FIDS=0
+		NR_DISKV_FIDS=0
+
 		local i
 		# Use one process fid for all processes for now.
 		#@todo Eliminate this after using the proc fid from the configuration.

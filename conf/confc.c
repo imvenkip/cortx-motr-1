@@ -1421,10 +1421,10 @@ static int object_enrich(struct m0_conf_obj *dest,
 	M0_PRE(dest->co_cache == &confc->cc_cache);
 
 	if (!m0_conf_obj_match(dest, src))
-		return M0_ERR_INFO(-EPROTO,
-			       "Conflict of incoming and cached configuration "
-			       "data");
-
+		return M0_ERR_INFO(-EPROTO, "Conflict of incoming and cached "
+				   "configuration data: src="FID_F" dest="FID_F,
+				   FID_P(&src->xo_u.u_header.ch_id),
+				   FID_P(&dest->co_id));
 	if (dest->co_status == M0_CS_READY)
 		return M0_RC(0); /* do nothing */
 
