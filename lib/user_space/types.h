@@ -23,6 +23,12 @@
 #ifndef __MERO_LIB_USER_SPACE_TYPES_H__
 #define __MERO_LIB_USER_SPACE_TYPES_H__
 
+/* See 7.18.2 Limits of specified-width integer types in C99 */
+/* This is needed because gccxml compiles it in C++ mode. */
+#ifdef __cplusplus
+#  define  __STDC_LIMIT_MACROS 1
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/types.h>
