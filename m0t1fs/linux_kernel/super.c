@@ -732,7 +732,6 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	confc_args = &(struct m0_confc_args) {
 		.ca_profile = mops->mo_profile,
-		.ca_ha      = mops->mo_ha,
 		.ca_rmach   = &csb->csb_rpc_machine,
 		.ca_group   = &csb->csb_iogroup,
 	};

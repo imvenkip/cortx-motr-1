@@ -2053,7 +2053,6 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	 */
 	if (cctx->cc_ha_addr == NULL && cctx->cc_reqh_ctx.rc_confdb != NULL)
 		cctx->cc_ha_addr = FAKE_HA_ADDR;
-	conf_args.ca_ha = cctx->cc_ha_addr;
 
 	rc = m0_reqh_conf_setup(reqh, &conf_args);
 	/* confstr is not needed after m0_reqh_conf_setup() */

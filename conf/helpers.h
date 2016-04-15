@@ -62,8 +62,6 @@ struct m0_confc_args {
 	const char            *ca_profile;
 	/** Cofiguration string. */
 	char                  *ca_confstr;
-	/** HA server endpoint. */
-	const char            *ca_ha;
 	/** Configuration retrieval state machine. */
 	struct m0_sm_group    *ca_group;
 	/** Configuration retrieval rpc machine. */

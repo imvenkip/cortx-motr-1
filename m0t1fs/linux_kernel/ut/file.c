@@ -197,7 +197,6 @@ static int file_io_ut_init(void)
 	struct m0_fid              fid;
 	struct m0_confc_args      *confc_args;
 	struct m0_reqh            *reqh = &csb.csb_reqh;
-	const char                *ha_addr = "0@lo:12345:34:1";
 
 	M0_SET0(&sb);
 	M0_SET0(&creditor);
@@ -219,13 +218,12 @@ static int file_io_ut_init(void)
 		.ca_confstr = (char *)local_conf,
 		.ca_rmach   = &csb.csb_rpc_machine,
 		.ca_group   = &csb.csb_iogroup,
-		.ca_ha      = ha_addr,
 	};
 
 	rc = m0_reqh_conf_setup(reqh, confc_args);
-        M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&reqh->rh_rconfc, &profile);
-        M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
 	M0_UT_ASSERT(rc == 0);
 

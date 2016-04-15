@@ -714,26 +714,23 @@ M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
 				   struct m0_confc_args *args)
 {
 	struct m0_rconfc *rconfc = &reqh->rh_rconfc;
-        int               rc;
+	int               rc;
 
-	M0_PRE(args->ca_ha != NULL && args->ca_group != NULL &&
-	       args->ca_rmach != NULL);
+	M0_PRE(args->ca_group != NULL && args->ca_rmach != NULL);
 
-        rc = m0_fid_sscanf(args->ca_profile, &reqh->rh_profile);
-        if (rc != 0)
-                return M0_ERR_INFO(rc, "Cannot parse profile `%s'",
+	rc = m0_fid_sscanf(args->ca_profile, &reqh->rh_profile);
+	if (rc != 0)
+		return M0_ERR_INFO(rc, "Cannot parse profile `%s'",
 				   args->ca_profile);
 
 	rc = m0_rconfc_init(rconfc, args->ca_group, args->ca_rmach,
 			    m0_confc_expired_cb, m0_confc_drained_cb);
-	if (rc != 0)
-		return M0_ERR(rc);
-	if (args->ca_confstr != NULL) {
+	if (rc == 0 && args->ca_confstr != NULL) {
 		rconfc->rc_local_conf = m0_strdup(args->ca_confstr);
 		if (rconfc->rc_local_conf == NULL)
 			return M0_ERR(-ENOMEM);
 	}
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL struct m0_confc *m0_reqh2confc(struct m0_reqh *reqh)
