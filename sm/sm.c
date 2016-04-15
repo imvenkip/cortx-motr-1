@@ -19,7 +19,7 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SM
-#include "lib/trace.h"
+#include "lib/trace.h"              /* m0_console_printf */
 
 #include "lib/errno.h"              /* ESRCH */
 #include "lib/misc.h"               /* M0_SET0, M0_IS0 */
@@ -275,6 +275,8 @@ M0_INTERNAL void m0_sm_fini(struct m0_sm *mach)
 	m0_chan_fini(&mach->sm_chan);
 }
 
+M0_INTERNAL void (*m0_sm__conf_init)(const struct m0_sm_conf *conf) = NULL;
+
 M0_INTERNAL void m0_sm_conf_init(struct m0_sm_conf *conf)
 {
 	uint32_t i;
@@ -285,6 +287,9 @@ M0_INTERNAL void m0_sm_conf_init(struct m0_sm_conf *conf)
 	M0_PRE(conf->scf_trans_nr > 0);
 
 	M0_ASSERT(conf->scf_nr_states < M0_SM_MAX_STATES);
+
+	if (m0_sm__conf_init != NULL)
+		m0_sm__conf_init(conf);
 
 	for (i = 0; i < conf->scf_nr_states; ++i)
 		for (to = 0; to < conf->scf_nr_states; ++to)
@@ -870,6 +875,34 @@ M0_INTERNAL void m0_sm_ast_wait_signal(struct m0_sm_ast_wait *wait)
 	M0_CNT_DEC(wait->aw_active);
 	if (wait->aw_active == 0)
 		m0_chan_signal(&wait->aw_chan);
+}
+
+M0_INTERNAL void m0_sm_conf_print(const struct m0_sm_conf *conf)
+{
+	int i;
+
+	m0_console_printf("digraph \"%s\" {\n", conf->scf_name);
+	m0_console_printf("\t\"%s\" [shape=plaintext]\n\n", conf->scf_name);
+	for (i = 0; i < conf->scf_nr_states; ++i) {
+		const struct m0_sm_state_descr *sd = &conf->scf_state[i];
+
+		if (!state_is_valid(conf, i))
+			continue;
+		m0_console_printf("\t\"%s\" [shape=%s]\n", sd->sd_name,
+			(sd->sd_flags & M0_SDF_INITIAL) ? "circle" :
+			(sd->sd_flags & M0_SDF_TERMINAL) ? "doublecircle" :
+			(sd->sd_flags & M0_SDF_FAILURE) ? "cds" : "rect");
+	}
+	m0_console_printf("\n");
+	for (i = 0; i < conf->scf_trans_nr; ++i) {
+		const struct m0_sm_trans_descr *td = &conf->scf_trans[i];
+
+		m0_console_printf("\t\"%s\" -> \"%s\" [label=\"%s\"]\n",
+				  conf->scf_state[td->td_src].sd_name,
+				  conf->scf_state[td->td_tgt].sd_name,
+				  td->td_cause);
+	}
+	m0_console_printf("}\n\n");
 }
 
 /** @} end of sm group */

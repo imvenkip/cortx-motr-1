@@ -859,6 +859,11 @@ M0_INTERNAL void m0_sm_ast_wait_post(struct m0_sm_ast_wait *wait,
  */
 M0_INTERNAL void m0_sm_ast_wait_signal(struct m0_sm_ast_wait *wait);
 
+/**
+ * Outputs the dot-language description of the configuration to the console.
+ */
+M0_INTERNAL void m0_sm_conf_print(const struct m0_sm_conf *conf);
+
 /** @} end of sm group */
 #endif /* __MERO_SM_SM_H__ */
 

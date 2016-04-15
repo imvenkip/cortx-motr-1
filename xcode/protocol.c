@@ -37,6 +37,7 @@
 #include "lib/misc.h"                 /* ARRAY_SIZE */
 #include "mero/init.h"
 #include "module/instance.h"
+#include "sm/sm.h"                    /* m0_sm_conf_print */
 #include "xcode/xcode.h"
 
 #undef __MERO_XCODE_XLIST_H__
@@ -107,11 +108,14 @@ static void field_print(const struct m0_xcode_field *f, int i)
 	       i, f->xf_name, f->xf_type->xct_name, f->xf_offset, f->xf_tag);
 }
 
+void (*m0_sm__conf_init)(const struct m0_sm_conf *conf);
+
 int main(int argc, char **argv)
 {
 	struct m0 instance = {};
 	int       result;
 
+	m0_sm__conf_init = &m0_sm_conf_print;
 	result = m0_init(&instance);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise mero: %d", result);
