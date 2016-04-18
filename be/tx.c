@@ -349,6 +349,8 @@ M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx,
 				   uint64_t         states,
 				   m0_time_t        deadline)
 {
+	int rc;
+
 	M0_ENTRY("tx=%p state=%s states=%"PRIu64" deadline=%"PRIu64,
 		 tx, m0_be_tx_state_name(m0_be_tx_state(tx)), states, deadline);
 	M0_PRE(be_tx_is_locked(tx));
@@ -356,8 +358,9 @@ M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx,
 		    M0_IN(m0_be_tx_state(tx), (M0_BTS_PREPARE, M0_BTS_OPENING,
 					       M0_BTS_ACTIVE, M0_BTS_FAILED))));
 
-	m0_sm_timedwait(&tx->t_sm, states, deadline);
-	return M0_RC(tx->t_sm.sm_rc);
+	rc = m0_sm_timedwait(&tx->t_sm, states, deadline);
+	M0_ASSERT_INFO(M0_IN(rc, (0, -ETIMEDOUT)), "rc=%d", rc);
+	return M0_RC(rc == 0 ? tx->t_sm.sm_rc : rc);
 }
 
 M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx)

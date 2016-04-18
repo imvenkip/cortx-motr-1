@@ -284,9 +284,11 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op,
 M0_INTERNAL void m0_be_op_wait(struct m0_be_op *op)
 {
 	struct m0_sm *sm = &op->bo_sm;
+	int           rc;
 
 	be_op_lock(op);
-	m0_sm_timedwait(sm, M0_BITS(M0_BOS_DONE), M0_TIME_NEVER);
+	rc = m0_sm_timedwait(sm, M0_BITS(M0_BOS_DONE), M0_TIME_NEVER);
+	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 	be_op_unlock(op);
 }
 

@@ -601,9 +601,9 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 	unsigned i;
 	int      rc;
 
-	M0_LOG(M0_DEBUG, "bio=%p op=%p sync=%d opcode=%d "
-	       "m0_be_io_size(bio)=%"PRIu64,
-	       bio, op, !!bio->bio_sync, bio->bio_opcode, m0_be_io_size(bio));
+	M0_ENTRY("bio=%p op=%p sync=%d opcode=%d "
+	         "m0_be_io_size(bio)=%"PRIu64,
+	         bio, op, !!bio->bio_sync, bio->bio_opcode, m0_be_io_size(bio));
 
 	M0_PRE(m0_be_io__invariant(bio));
 
@@ -614,6 +614,7 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 		bio->bio_ast.sa_cb    = &be_io_empty_ast;
 		bio->bio_ast.sa_datum = bio;
 		m0_sm_ast_post(m0_locality0_get()->lo_grp, &bio->bio_ast);
+		M0_LEAVE();
 		return;
 	}
 
@@ -624,6 +625,7 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 		if (rc != 0)
 			be_io_finished(bio);
 	}
+	M0_LEAVE("rc=%d", rc);
 }
 
 M0_INTERNAL void m0_be_io_sync_enable(struct m0_be_io *bio)
@@ -692,7 +694,7 @@ M0_INTERNAL int m0_be_io_single(struct m0_stob         *stob,
 		if (rc == 0) {
 			m0_be_io_add(&bio, stob, ptr_user, offset_stob, size);
 			m0_be_io_configure(&bio, opcode);
-			M0_BE_OP_SYNC(op, m0_be_io_launch(&bio, &op));
+			rc = M0_BE_OP_SYNC_RC(op, m0_be_io_launch(&bio, &op));
 			m0_be_io_deallocate(&bio);
 		}
 		m0_be_io_fini(&bio);
