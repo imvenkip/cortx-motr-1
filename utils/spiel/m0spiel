@@ -159,6 +159,12 @@ class RunningServices(Structure):
     _fields_ = [('spls_fid', Fid), ('spls_name', c_char_p)]
 
 
+def call(func, *args):
+    rc = func(*args)
+    if rc != 0:
+        raise RuntimeError('%s() failed, rc=%d' % (func.__name__, rc))
+
+
 class SpielWrapper:
     def __init__(self, mero):
         self.mero = CDLL(mero)
@@ -469,28 +475,21 @@ class SpielWrapper:
 
     def __init_m0_instance(self):
         self.m0 = self.allocate_memory(m0__size())
-        result = self.mero.m0_init(self.m0)
-        if result != 0:
-            raise RuntimeError("m0_init failed, rc = " + str(result))
+        call(self.mero.m0_init, self.m0)
 
     def __init_net_domain(self):
         domain = self.allocate_memory(m0_net_domain__size())
         xprt = NetXprt.in_dll(self.mero, 'm0_net_lnet_xprt')
         xprt_p = pointer(xprt)
-        result = self.mero.m0_net_domain_init(domain, xprt_p)
-        if result != 0:
-            raise RuntimeError("m0_net_domain_init failed, rc = " +
-                               str(result))
+        call(self.mero.m0_net_domain_init, domain, xprt_p)
         return domain
 
     def __net_buffer_pool_setup(self, domain):
         buffer_pool = self.allocate_memory(m0_net_buffer_pool__size())
-        result = self.mero.m0_rpc_net_buffer_pool_setup(domain, buffer_pool,
-                                                        c_uint32(2), # nr bufs
-                                                        c_uint32(1)) # nr TMs
-        if result != 0:
-            raise RuntimeError("m0_rpc_net_buffer_pool_setup, rc = " +
-                               str(result))
+        call(self.mero.m0_rpc_net_buffer_pool_setup,
+             domain, buffer_pool,
+             c_uint32(2), # nr bufs
+             c_uint32(1)) # nr TMs
         return buffer_pool
 
     def __init_reqh(self):
@@ -498,50 +497,33 @@ class SpielWrapper:
         reqh_args = ReqhInitArgs()
         reqh_args.rhia_fid = pointer(Fid(0x7200000000000001, 5)) # process-5
         reqh_args.rhia_mdstore = 1 # dummy value
-        result = self.mero.m0_reqh_init(reqh, byref(reqh_args))
-        if result != 0:
-            raise RuntimeError("m0_reqh_init, rc = " + str(result))
+        call(self.mero.m0_reqh_init, reqh, byref(reqh_args))
         self.__free(reqh_args)
         self.mero.m0_reqh_start(reqh)
         rms = self.allocate_memory(m0_reqh_service__size())
         rms_p = cast(rms, c_void_p)
-        result = self.mero.m0_reqh_service_setup(rms_p,
-                                                 self.mero.m0_rms_type,
-                                                 reqh, None,
-                                                 byref(spiel_rms_fid))
-        if result != 0:
-            raise RuntimeError("RM service start failed, rc = " + str(result))
+        call(self.mero.m0_reqh_service_setup, rms_p, self.mero.m0_rms_type,
+             reqh, None, byref(spiel_rms_fid))
         return reqh
 
     def __init_rpc_machine(self, domain, reqh, buffer_pool):
         rpc_machine = self.allocate_memory(m0_rpc_machine__size())
-        result = self.mero.m0_rpc_machine_init(rpc_machine, domain,
-                                               self.client_ep, reqh,
-                                               buffer_pool, c_uint(~0),
-                                               c_uint(1 << 17), c_uint(2))
-        if result != 0:
-            raise RuntimeError("m0_rpc_machine_init, rc = " + str(result))
+        call(self.mero.m0_rpc_machine_init, rpc_machine, domain, self.client_ep,
+             reqh, buffer_pool, c_uint(~0), c_uint(1 << 17), c_uint(2))
         return rpc_machine
 
     def __ha_session_init(self):
         self.ha_conn = self.allocate_memory(m0_rpc_conn__size())
         self.ha_session = self.allocate_memory(m0_rpc_session__size())
-        rc = self.mero.m0_rpc_client_connect(self.ha_conn, self.ha_session,
-                                             self.rpc_machine, self.ha_ep,
-                                             None, 2)
-        if rc != 0:
-            raise RuntimeError("failed to initialise HA session, rc = " +
-                               str(result))
+        call(self.mero.m0_rpc_client_connect, self.ha_conn, self.ha_session,
+             self.rpc_machine, self.ha_ep, None, 2)
         self.mero.m0_ha_state_init(self.ha_session)
 
     def __spiel_init(self, reqh):
         spiel = self.allocate_memory(m0_spiel__size())
-        result = self.mero.m0_spiel_init(spiel, reqh)
-        if result != 0:
-            raise RuntimeError("m0_spiel_start, rc = " + str(result))
+        call(self.mero.m0_spiel_init, spiel, reqh)
         self.mero.m0_sns_cm_repair_trigger_fop_init()
         self.mero.m0_sns_cm_rebalance_trigger_fop_init()
-
         return spiel
 
     ## XXX TODO: Rename to __malloc() for the sake of symmetry with __free().
