@@ -26,7 +26,7 @@ def address_get():
 default_libmero_path = '../../mero/.libs/libmero.so'
 addr = address_get()
 default_ha_ep = addr + ':12345:34:1001'
-default_client_ep = addr + ":12345:34:200"
+default_client_ep = addr + ':12345:34:200'
 
 
 # Helper function to check the type of the function parameter. This is useful
@@ -57,7 +57,7 @@ def require(**params):
                 param = kw[name]
                 param_valid = param is None or isinstance(param, type)
                 if not param_valid:
-                    raise TypeError("Parameter'{0}' should be type '{1}'"
+                    raise TypeError("Parameter '{0}' should be of type '{1}'"
                                     .format(name, type.__name__))
             return func(**kw)
         return modified
@@ -65,13 +65,13 @@ def require(**params):
 
 
 # enum m0_conf_service_type
-service_types = list(range(1, 11))
+service_types = range(1, 11)
 M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_RMS, M0_CST_STS, M0_CST_HA,\
     M0_CST_SSS, M0_CST_SNS_REP, M0_CST_SNS_REB, M0_CST_ADDB2 = service_types
 
 
 # enum m0_cfg_storage_device_interface_type
-storage_device_interface = list(range(1, 8))
+storage_device_interface = range(1, 8)
 M0_CFG_DEVICE_INTERFACE_ATA, M0_CFG_DEVICE_INTERFACE_SATA,\
     M0_CFG_DEVICE_INTERFACE_SCSI, M0_CFG_DEVICE_INTERFACE_SATA2,\
     M0_CFG_DEVICE_INTERFACE_SCSI2, M0_CFG_DEVICE_INTERFACE_SAS,\
@@ -79,13 +79,13 @@ M0_CFG_DEVICE_INTERFACE_ATA, M0_CFG_DEVICE_INTERFACE_SATA,\
 
 
 # enum m0_cfg_storage_device_media_type
-storage_device_media_type = list(range(1, 5))
+storage_device_media_type = range(1, 5)
 M0_CFG_DEVICE_MEDIA_DISK, M0_CFG_DEVICE_MEDIA_SSD, M0_CFG_DEVICE_MEDIA_TAPE,\
     M0_CFG_DEVICE_MEDIA_ROM = storage_device_media_type
 
 
 #enum m0_sns_cm_status
-sns_status = list(range(5))
+sns_status = range(5)
 SNS_CM_STATUS_INVALID, SNS_CM_STATUS_IDLE, SNS_CM_STATUS_STARTED,\
     SNS_CM_STATUS_FAILED, SNS_CM_STATUS_PAUSED = sns_status
 
@@ -165,10 +165,8 @@ class SpielWrapper:
         self.mero.malloc.restype = c_void_p
 
     def spiel_init(self, client, ha):
-        self.client_ep = c_char_p(client) if client is not None else c_char_p(
-            default_client_ep)
-        self.ha_ep = c_char_p(ha) if ha is not None else c_char_p(
-            default_ha_ep)
+        self.client_ep = c_char_p(client or default_client_ep)
+        self.ha_ep = c_char_p(ha or default_ha_ep)
         self.__init_m0_instance()
         self.domain = self.__init_net_domain()
         self.buffer_pool = self.__net_buffer_pool_setup(self.domain)
@@ -488,8 +486,8 @@ class SpielWrapper:
     def __net_buffer_pool_setup(self, domain):
         buffer_pool = self.allocate_memory(m0_net_buffer_pool__size())
         result = self.mero.m0_rpc_net_buffer_pool_setup(domain, buffer_pool,
-                                                        c_uint32(2),
-                                                        c_uint32(1))
+                                                        c_uint32(2), # nr bufs
+                                                        c_uint32(1)) # nr TMs
         if result != 0:
             raise RuntimeError("m0_rpc_net_buffer_pool_setup, rc = " +
                                str(result))
@@ -498,8 +496,8 @@ class SpielWrapper:
     def __init_reqh(self):
         reqh = self.allocate_memory(m0_reqh__size())
         reqh_args = ReqhInitArgs()
-        reqh_args.rhia_fid = pointer(Fid(0x7200000000000001, 5))
-        reqh_args.rhia_mdstore = 1
+        reqh_args.rhia_fid = pointer(Fid(0x7200000000000001, 5)) # process-5
+        reqh_args.rhia_mdstore = 1 # dummy value
         result = self.mero.m0_reqh_init(reqh, byref(reqh_args))
         if result != 0:
             raise RuntimeError("m0_reqh_init, rc = " + str(result))
@@ -546,8 +544,10 @@ class SpielWrapper:
 
         return spiel
 
+    ## XXX TODO: Rename to __malloc() for the sake of symmetry with __free().
+    ## (Also, current name is too verbose.)
     def allocate_memory(self, size):
-        ptr = self.mero.malloc(size)
+        ptr = self.mero.malloc(size) # XXX Why don't we use m0_alloc()?
         memset(ptr, 0, size)
         return ptr
 
@@ -556,7 +556,7 @@ class SpielWrapper:
 
 
 class SpielTool:
-    def __init__(self, mero, client):
+    def __init__(self, mero):
         self.spiel = SpielWrapper(mero)
 
     def interactive_console_create(self):
@@ -700,7 +700,7 @@ The following example illustrates usage of the tool:
 
 Execute commands from command line:
 
-\techo -e 'print(spiel_service_init(Fid(1,1)))' | sudo ./m0spiel''')
+\techo 'print(spiel_service_init(Fid(1,1)))' | sudo ./m0spiel''')
     parser.add_option('--self-check', action='store_true',
                       help='Run unit tests and exit')
     parser.add_option('--ha', '-s', default=default_ha_ep,
@@ -719,7 +719,7 @@ if __name__ == "__main__":
     parser = create_arguments_parser()
     args, _ = parser.parse_args()
     try:
-        tool = SpielTool(args.mero, args.client)
+        tool = SpielTool(args.mero)
         atexit.register(tool.spiel.spiel_fini)
         tool.spiel.spiel_init(args.client, args.ha)
     except RuntimeError as e:
