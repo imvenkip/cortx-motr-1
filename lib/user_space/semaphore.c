@@ -51,6 +51,7 @@ M0_INTERNAL void m0_semaphore_down(struct m0_semaphore *semaphore)
 	do
 		rc = sem_wait(&semaphore->s_sem);
 	while (rc == -1 && errno == EINTR);
+	M0_ASSERT_INFO(rc == 0, "rc=%d errno=%d", rc, errno);
 }
 
 M0_INTERNAL void m0_semaphore_up(struct m0_semaphore *semaphore)
