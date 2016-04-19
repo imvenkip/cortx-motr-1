@@ -124,7 +124,7 @@ This package contains Mero unit tests (for kernel and user space).
 
 %build
 bash ./autogen.sh
-%configure %{with_linux} %{configure_opts}
+%configure %{with_linux} %{configure_opts} GIT_REV_ID_FULL=%{_xyr_svn_version}
 make %{?_smp_mflags}
 
 %install
