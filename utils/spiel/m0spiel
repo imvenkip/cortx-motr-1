@@ -206,7 +206,7 @@ class SpielWrapper:
 
     @require(spiel_tx=SpielTx)
     def tx_open(self, spiel_tx):
-        spiel_tx.data = self.allocate_memory(m0_spiel_tx__size())
+        spiel_tx.data = self.__malloc(m0_spiel_tx__size())
         self.mero.m0_spiel_tx_open(self.spiel, spiel_tx.data)
 
     @require(spiel_tx=SpielTx)
@@ -474,18 +474,18 @@ class SpielWrapper:
                                                          byref(stats))
 
     def __init_m0_instance(self):
-        self.m0 = self.allocate_memory(m0__size())
+        self.m0 = self.__malloc(m0__size())
         call(self.mero.m0_init, self.m0)
 
     def __init_net_domain(self):
-        domain = self.allocate_memory(m0_net_domain__size())
+        domain = self.__malloc(m0_net_domain__size())
         xprt = NetXprt.in_dll(self.mero, 'm0_net_lnet_xprt')
         xprt_p = pointer(xprt)
         call(self.mero.m0_net_domain_init, domain, xprt_p)
         return domain
 
     def __net_buffer_pool_setup(self, domain):
-        buffer_pool = self.allocate_memory(m0_net_buffer_pool__size())
+        buffer_pool = self.__malloc(m0_net_buffer_pool__size())
         call(self.mero.m0_rpc_net_buffer_pool_setup,
              domain, buffer_pool,
              c_uint32(2), # nr bufs
@@ -493,42 +493,40 @@ class SpielWrapper:
         return buffer_pool
 
     def __init_reqh(self):
-        reqh = self.allocate_memory(m0_reqh__size())
+        reqh = self.__malloc(m0_reqh__size())
         reqh_args = ReqhInitArgs()
         reqh_args.rhia_fid = pointer(Fid(0x7200000000000001, 5)) # process-5
         reqh_args.rhia_mdstore = 1 # dummy value
         call(self.mero.m0_reqh_init, reqh, byref(reqh_args))
         self.__free(reqh_args)
         self.mero.m0_reqh_start(reqh)
-        rms = self.allocate_memory(m0_reqh_service__size())
+        rms = self.__malloc(m0_reqh_service__size())
         rms_p = cast(rms, c_void_p)
         call(self.mero.m0_reqh_service_setup, rms_p, self.mero.m0_rms_type,
              reqh, None, byref(spiel_rms_fid))
         return reqh
 
     def __init_rpc_machine(self, domain, reqh, buffer_pool):
-        rpc_machine = self.allocate_memory(m0_rpc_machine__size())
+        rpc_machine = self.__malloc(m0_rpc_machine__size())
         call(self.mero.m0_rpc_machine_init, rpc_machine, domain, self.client_ep,
              reqh, buffer_pool, c_uint(~0), c_uint(1 << 17), c_uint(2))
         return rpc_machine
 
     def __ha_session_init(self):
-        self.ha_conn = self.allocate_memory(m0_rpc_conn__size())
-        self.ha_session = self.allocate_memory(m0_rpc_session__size())
+        self.ha_conn = self.__malloc(m0_rpc_conn__size())
+        self.ha_session = self.__malloc(m0_rpc_session__size())
         call(self.mero.m0_rpc_client_connect, self.ha_conn, self.ha_session,
              self.rpc_machine, self.ha_ep, None, 2)
         self.mero.m0_ha_state_init(self.ha_session)
 
     def __spiel_init(self, reqh):
-        spiel = self.allocate_memory(m0_spiel__size())
+        spiel = self.__malloc(m0_spiel__size())
         call(self.mero.m0_spiel_init, spiel, reqh)
         self.mero.m0_sns_cm_repair_trigger_fop_init()
         self.mero.m0_sns_cm_rebalance_trigger_fop_init()
         return spiel
 
-    ## XXX TODO: Rename to __malloc() for the sake of symmetry with __free().
-    ## (Also, current name is too verbose.)
-    def allocate_memory(self, size):
+    def __malloc(self, size):
         ptr = self.mero.malloc(size) # XXX Why don't we use m0_alloc()?
         memset(ptr, 0, size)
         return ptr
