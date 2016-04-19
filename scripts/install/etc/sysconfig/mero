@@ -45,10 +45,10 @@ MERO_M0D_DATA_DIR=/var/mero
 # Override number of parity units in parity group.
 #MERO_M0D_PARITY_UNITS=1
 
-# Maximum size of rpm message, in bytes.
+# Maximum size of rpc message, in bytes.
 MERO_M0D_MAX_RPC_MSG_SIZE=65536
 
-# Maximum rpc receive queue length.
+# Minimum rpc receive queue length.
 MERO_M0D_MIN_RPC_RECVQ_LEN=16
 
 # Backend log size (in bytes) for all m0d's. Default is 512 MiB.
