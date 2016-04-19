@@ -3,7 +3,6 @@
 from __future__ import print_function  # print to sys.stderr
 import code
 import optparse
-import unittest
 import sys
 import traceback
 import atexit
@@ -547,106 +546,6 @@ class SpielTool:
         return code.InteractiveConsole(vars)
 
 
-class SpielToolTest(unittest.TestCase):
-    def setUp(self):
-        self.spiel = tool.spiel
-        self.spielTx = SpielTx(self.spiel.spiel)
-        self.Bitmap = Bitmap(1, pointer(c_uint64(3)))
-
-    def test_typed_parameters(self):
-        self.assertRaises(TypeError, self.spiel.tx_open, "Wrong type")
-
-    def test_spiel_functions(self):
-        # Self check is intended to reveal errors caused by python dynamic
-        # type system. It has no goal to check the functionality of spiel.
-        # Tests tuple format:
-        # 1st element - method name
-        # 2nd element - True if method return some value
-        # 3rd element - method arguments
-        tests = [('tx_open', False, self.spielTx),
-                 ('profile_add', True, self.spielTx,
-                  Fid(0x7000000000000001, 0)),
-                 ('filesystem_add', True, self.spielTx,
-                  Fid(0x6600000000000001, 1), Fid(0x7000000000000001, 0),
-                  1, Fid(3, 3), Fid(0x6f00000000000001, 9),
-                  [b'param1', b'param2']),
-                 ('node_add', True, self.spielTx, Fid(0x6e00000000000001, 2),
-                  Fid(0x6600000000000001, 1), 1L, 1, 1L, 1L,
-                  Fid(0x6f00000000000001, 9)),
-                 ('process_add', True, self.spielTx, Fid(0x7200000000000001,
-                                                         3),
-                  Fid(0x6e00000000000001, 2), self.Bitmap, 1L, 2L, 3L, 4L),
-                 ('service_add', True, self.spielTx, Fid(0x7300000000000002,
-                                                         0),
-                  Fid(0x7200000000000001, 3), M0_CST_IOS,
-                  ["10.0.2.2@tcp:12345:12:12"], ServiceInfoParameters()),
-                 ('device_add', True, self.spielTx, Fid(0x6400000000000009, 9),
-                  Fid(0x7300000000000002, 0), Fid(0x6b00000000000001, 1),
-                  1, 1, 1, 1, 1L, 1L, 1L, "device"),
-                 ('pool_add', True, self.spielTx, Fid(0x6f00000000000001, 9),
-                  Fid(0x6600000000000001, 1), 1),
-                 ('rack_add', True, self.spielTx, Fid(0x6100000000000001, 6),
-                  Fid(0x6600000000000001, 1)),
-                 ('enclosure_add', True, self.spielTx,
-                  Fid(0x6500000000000001, 7), Fid(0x6100000000000001, 6)),
-                 ('controller_add', True, self.spielTx,
-                  Fid(0x6300000000000001, 8), Fid(0x6500000000000001, 7),
-                  Fid(0x6e00000000000001, 2)),
-                 ('disk_add', True, self.spielTx, Fid(0x6b00000000000001, 1),
-                  Fid(0x6300000000000001, 8)),
-                 ('pool_version_add', True, self.spielTx,
-                  Fid(0x7600000000000001, 10), Fid(0x6f00000000000001, 9),
-                  [0, 0, 0, 0, 1], PdclustAttr()),
-                 ('rack_v_add', True, self.spielTx, Fid(0x6a00000000000001, 2),
-                  Fid(0x7600000000000001, 10), Fid(0x6100000000000001, 6)),
-                 ('enclosure_v_add', True, self.spielTx,
-                  Fid(0x6a00000000000001, 3), Fid(0x6a00000000000001, 2),
-                  Fid(0x6500000000000001, 7)),
-                 ('controller_v_add', True, self.spielTx,
-                  Fid(0x6a00000000000001, 4), Fid(0x6a00000000000001, 3),
-                  Fid(0x6300000000000001, 8)),
-                 ('disk_v_add', True, self.spielTx, Fid(0x6a00000000000001, 5),
-                  Fid(0x6a00000000000001, 4), Fid(0x6b00000000000001, 1)),
-                 ('pool_version_done', True, self.spielTx,
-                  Fid(0x7600000000000001, 10)),
-                 ('element_del', True, self.spielTx,
-                  Fid(0x7300000000000002, 10001)),
-                 ('tx_close', False, self.spielTx),
-                 ('service_init', True, Fid(0x7300000000000002, 156)),
-                 ('service_start', True, Fid(0x7300000000000002, 156)),
-                 ('service_quiesce', True, Fid(0x7300000000000002, 156)),
-                 ('service_stop', True, Fid(0x7300000000000002, 156)),
-                 ('service_health', True, Fid(0x7300000000000002, 156)),
-                 ('device_attach', True, Fid(0x6b00000000000001, 166)),
-                 ('device_detach', True, Fid(0x6b00000000000001, 166)),
-                 ('device_format', True, Fid(0x6b00000000000001, 166)),
-                 ('process_stop', True, Fid(0x7200000000000001, 145)),
-                 ('process_reconfig', True, Fid(0x7200000000000001, 145)),
-                 ('process_health', True, Fid(0x7200000000000001, 145)),
-                 ('process_quiesce', True, Fid(0x7200000000000001, 145)),
-                 ('process_list_services', True, Fid(0x7200000000000001, 145),
-                  pointer(RunningServices())),
-                 ('pool_repair_start', True, Fid(0x6f00000000000001, 199)),
-                 ('pool_repair_quiesce', True, Fid(0x6f00000000000001, 199)),
-                 ('pool_rebalance_start', True, Fid(0x6f00000000000001, 199)),
-                 ('pool_rebalance_quiesce', True, Fid(0x6f00000000000001,
-                                                      199)),
-                 ('filesystem_stats_fetch', True, Fid(0x6600000000000001, 1),
-                  FsStats())
-                 ]
-        try:
-            for t in tests:
-                print('{0}...'.format(t[0]))
-                if t[1]:
-                    self.assertNotEqual(getattr(self.spiel, t[0])(*t[2:]),
-                                        None)
-                else:
-                    getattr(self.spiel, t[0])(*t[2:])
-        except AssertionError:
-            print('Failed test: ' + t[0])
-            raise
-
-
 class MyParser(optparse.OptionParser):
     def format_usage(self, formatter):
         return self.usage
@@ -683,8 +582,6 @@ The following example illustrates usage of the tool:
 Execute commands from command line:
 
 \techo 'print(spiel_service_init(Fid(1,1)))' | sudo ./m0spiel''')
-    parser.add_option('--self-check', action='store_true',
-                      help='Run unit tests and exit')
     parser.add_option('--ha', '-s', default=default_ha_ep,
                       help='HA endpoint. Default value: ' +
                       default_ha_ep)
@@ -710,14 +607,11 @@ if __name__ == "__main__":
         traceback.print_exc(file=sys.stderr)
         print('-' * 80, file=sys.stderr)
         sys.exit(1)
-    if args.self_check:
-        unittest.main(argv=sys.argv[:1])
-    else:
-        interpreter = tool.interactive_console_create()
-        prompt = '> ' if sys.stdin.isatty() else ''
-        while 1:
-            try:
-                s = raw_input(prompt)
-                res = interpreter.push(s)
-            except (EOFError, KeyboardInterrupt):
-                break
+    interpreter = tool.interactive_console_create()
+    prompt = '> ' if sys.stdin.isatty() else ''
+    while 1:
+        try:
+            s = raw_input(prompt)
+            res = interpreter.push(s)
+        except (EOFError, KeyboardInterrupt):
+            break
