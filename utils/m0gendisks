@@ -31,6 +31,7 @@ disk_count=
 start_id=$default_start_id
 disk_pattern=$default_disk_pattern
 only_print_count=false
+only_print_disks=false
 
 
 #
@@ -54,6 +55,9 @@ Usage: $PROG_NAME [-h|--help] [-v] [-c] [-o|--output file]
     -c                     Only print number of available disks in the system,
                            those which match requirements, and exit. All other
                            options, except -p and -v are ignored.
+
+    -l|--list              List disks matching requirements, and exit. All other
+                           options, except -p, -d and -v are ignored.
 
     -o|--output file       Write generated list to a 'file', by default it's
                            printed to STDOUT.
@@ -108,8 +112,8 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt --options hco:O::s:d:S:p:v \
-                   --longoptions help,output:,split-output::,split-count:,disk-count:,start-id:,disk-pattern: \
+    TEMP=$( getopt --options hclo:O::s:d:S:p:v \
+                   --longoptions help,output:,list,split-output::,split-count:,disk-count:,start-id:,disk-pattern: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -121,6 +125,7 @@ parse_cli_options()
         case "$1" in
             -h|--help)          help stdout ;;
             -c)                 only_print_count=true; shift ;;
+            -l|--list)          only_print_disks=true; shift ;;
             -o|--output)        outfile=$2; shift 2 ;;
             -O|--split-output)  split_output=true; [[ -n $2 ]] && outfile2=$2; shift 2 ;;
             -s|--split-count)   split_count=$2; shift 2 ;;
@@ -250,6 +255,13 @@ fi
 
 [[ -z $disks ]] && \
     die "No disks available, try to use different disk pattern (option -p)"
+
+if $only_print_disks ; then
+    # limit output to $disk_count disks or print all if it isn't set
+    # '-0' instructs `head` to skip 0 lines at the end, thus printing it all
+    echo "$disks" | head -n ${disk_count:- -0}
+    exit 0
+fi
 
 # limit number of disks
 if [[ -n $disk_count ]] ; then

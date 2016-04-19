@@ -47,6 +47,8 @@ declare -rA RPM_PACKAGE=(
     [setattr]='attr'
     [time]='time'
     [killall]='psmisc'
+    [ruby]='ruby'
+    [facter]='facter'
 )
 
 declare -rA DEB_PACKAGE=(
@@ -77,6 +79,8 @@ declare -rA DEB_PACKAGE=(
     [genders]='genders'
     [uuid-dev]='uuid-dev'
     [expect]='expect'
+    [ruby]='ruby'
+    [facter]='facter'
 )
 
 # variables

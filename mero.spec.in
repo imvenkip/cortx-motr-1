@@ -92,6 +92,8 @@ Requires:       perl-File-Which
 Requires:       perl-List-MoreUtils
 Requires:       perl-autodie
 Requires:       perl-Try-Tiny
+Requires:       ruby
+Requires:       facter
 
 %description
 Mero filesystem runtime environment and servers.
@@ -167,6 +169,7 @@ fi
 %if %{with systemd}
 %{_exec_prefix}/lib/*
 %endif
+%{_datadir}/*
 %{_mandir}/*
 %{_localstatedir}/mero
 /lib/modules/*/kernel/fs/mero/*

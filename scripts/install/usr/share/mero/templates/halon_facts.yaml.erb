@@ -1,0 +1,104 @@
+<%- # This template's origin resides in http://es-gerrit.xyus.xyratex.com:8080/castor_puppet_modules repository -%>
+<%- # It can be found under 'modules/stx_halon/templates/halon_facts.yaml.erb' path -%>
+<%- # Current version has been simplified to work w/o puppetdb and is targeted for a singlenode configuration -%>
+---
+id_racks:
+<%- client_rack = 0 -%>
+<%- @q_dbfacts.values.select { |x| x['role'] != 'cc' }.map { |x| x['rack'] }.sort.uniq.select{ |x| !x.nil? }.each do |racknum| -%>
+   - rack_idx: <%= racknum %>
+     rack_enclosures:
+  <%- @q_dbfacts.values.select { |x| x['role'] != 'cc' }.sort_by { |j| j["hostname"] }.uniq.each do |dbfact| -%>
+    <%- if racknum == dbfact['rack'] -%>
+       - enc_idx: <%=  dbfact['vpos'] %>
+         enc_id: "<%=  dbfact['serial_no'] %>"
+         enc_bmc:
+           - bmc_addr: "<%=  dbfact['bmc_ip'] %>"
+             bmc_user: "admin"
+             bmc_pass: "admin"
+           - bmc_addr: "<%=  dbfact['bmc2_ip'] %>"
+             bmc_user: "admin"
+             bmc_pass: "admin"
+         enc_hosts:
+           - h_fqdn: "<%=  dbfact['fqdn'] %>"
+             h_memsize: <%= dbfact['memorysize_mb'] %>
+             h_cpucount: <%= dbfact['processorcount'] %>
+             h_interfaces:
+               - if_macAddress: "<%= dbfact['vlan_manage_macaddress'] %>"
+                 if_network: Management
+                 if_ipAddrs: [<%= dbfact['vlan_manage_ip'] %>]
+               - if_macAddress: "<%= dbfact['vlan_data_macaddress'] %>"
+                 if_network: Data
+                 if_ipAddrs: [<%= dbfact['vlan_data_ip'] -%>]
+    <%- end -%>
+  <%- end -%>
+  <%- client_rack = racknum.to_i + 1 -%>
+<%- end -%>
+<%- if @extra_clients and !@extra_clients.empty? -%>
+  <%- count = 1 -%>
+   - rack_idx: <%= client_rack %>
+     rack_enclosures:
+  <%- @extra_clients.each do |x| -%>
+       - enc_idx: <%= count %>
+         enc_id: "<%= count %>"
+         enc_bmc:
+           - bmc_addr: ""
+             bmc_user: "admin"
+             bmc_pass: "admin"
+           - bmc_addr: ""
+             bmc_user: "admin"
+             bmc_pass: "admin"
+         enc_hosts:
+           - h_fqdn: "<%= x['m0h_fqdn'] %>"
+             h_memsize: <%= x['host_mem_rss'] %>
+             h_cpucount: <%= x['host_cores'].length %>
+             h_interfaces:
+               - if_macAddress: ""
+                 if_network: Management
+                 if_ipAddrs: [""]
+               - if_macAddress: ""
+                 if_network: Data
+                 if_ipAddrs: [<%= x['lnid'].split('@').first %>]
+    <%- count += 1 -%>
+  <%- end -%>
+<%- end -%>
+id_m0_servers:
+<%- @q_dbfacts.values.select { |x| x['role'] != 'cc' }.sort_by { |j| j["hostname"] }.uniq.each do |dbfact| -%>
+  <%- cpuarr = []; processorcount.to_i.times do |cpu| cpuarr.push(1); end -%>
+  - m0h_fqdn: "<%= dbfact['fqdn'] %>"
+    host_mem_as: <%= m0_be_segment_size %>
+    host_mem_rss: <%= memorysize_mb.to_i * 1024 %>
+    host_mem_stack: <%= memorysize_mb.to_i * 1024 %>
+    host_mem_memlock: <%= memorysize_mb.to_i * 1024 %>
+    host_cores: <%= cpuarr %>
+    lnid: "<%= dbfact['vlan_data_ip'] -%>@tcp"
+  <%- if dbfact['role'] == 'storage' -%>
+    m0h_roles:
+      - name: ha
+      - name: storage
+    <%- if @station_nodes.include? dbfact['vlan_data_ip'] -%>
+      - name: mds
+      - name: confd
+      - name: m0t1fs
+    <%- end -%>
+    <%- if !ios_hash.empty? -%>
+    m0h_devices:
+      <%- ios_hash.values.each do |key| -%>
+      - m0d_wwn: "<%= key['wwn'] %>"
+        m0d_serial: "<%= key['serial'] %>"
+        m0d_bsize: <%= mero_bsize %>
+        m0d_size: <%= key['size'] %>
+        m0d_path: "<%= key['path'] %>"
+      <%- end -%>
+    <%- end -%>
+  <%- end -%>
+<%- end -%>
+<%- if @extra_clients and !@extra_clients.empty? -%>
+  <%= @extra_clients.to_yaml.gsub(/---\s*\n\s*/, '') + "\n" -%>
+<%- end -%>
+id_m0_globals:
+  m0_data_units: <%= data_units %>
+  m0_parity_units: <%= parity_units %>
+  m0_md_redundancy: <%= m0_md_redundancy %>
+  m0_failure_set_gen:
+    tag: Dynamic
+    contents: []

@@ -629,6 +629,7 @@ endif
 #
 
 sbin_SCRIPTS  += utils/m0gendisks \
+                 utils/m0genfacts \
                  utils/m0setup \
                  utils/m0reportbug \
                  utils/m0run
@@ -771,6 +772,9 @@ dist_pkglibexec_SCRIPTS  = scripts/install/usr/libexec/mero/mero-service.functio
                            scripts/install/usr/libexec/mero/mero-server \
                            scripts/install/usr/libexec/mero/mero-trace
 
+templatesdir    = $(datadir)/mero/templates
+templates_DATA  = scripts/install/usr/share/mero/templates/halon_facts.yaml.erb
+EXTRA_DIST     += $(templates_DATA)
 
 ################################################################################
 #                                     Misc

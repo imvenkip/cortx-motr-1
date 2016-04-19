@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-### set up loop devices and generate genders and disks-*.conf files for given
-### N K P configuration on a single node
+### set up loop devices and generate genders, disks-*.conf and halon_facts.yaml
+### files for given N K P configuration on a single node
 
 #
 # Global vars
@@ -12,11 +12,13 @@ readonly PROG_NAME=$(basename $0)
 readonly self=$(readlink -f $0)
 readonly base_dir=$(dirname $self)
 readonly etc_mero_dir='/etc/mero'
+readonly etc_halon_dir='/etc/halon'
 
 # variables
 verbose=false
 do_cleanup=false
 do_gendisk=true
+do_genfacts=false
 pool_width=8
 data_units=2
 parity_units=1
@@ -69,6 +71,9 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
 
    -G|--no-gendisk         Don't generate YAML file with disk information.
 
+   -H|--halon-facts        Produce Halon facts YAML configuration instead of
+                           a genders-based config. Implies '-G'.
+
    -v|--verbose            Enable verbose output.
 
    -h|--help               Print this help screen.
@@ -84,8 +89,8 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt --options hvcGP:N:K:i:d:m:s: \
-                   --longoptions help,verbose,cleanup,no-gendisk,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size: \
+    TEMP=$( getopt --options hvcGHP:N:K:i:d:m:s: \
+                   --longoptions help,verbose,cleanup,no-gendisk,halon-facts,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -98,6 +103,7 @@ parse_cli_options()
             -h|--help)          help stdout ;;
             -c|cleanup)         do_cleanup=true;      shift   ;;
             -G|--no-gendisk)    do_gendisk=false;     shift   ;;
+            -H|--halon-facts)   do_genfacts=true; do_gendisk=false; shift ;;
             -P|--pool-width)    pool_width=$2;        shift 2 ;;
             -N|--data-units)    data_units=$2;        shift 2 ;;
             -K|--parity-units)  parity_units=$2;      shift 2 ;;
@@ -198,6 +204,7 @@ cleanup_mero_configs()
 
     rm -f $v_flag "$etc_mero_dir/genders"
     rm -f $v_flag "$etc_mero_dir/conf.xc"
+    rm -f $v_flag "$etc_halon_dir/halon_facts.yaml"
 }
 
 generate_genders_config()
@@ -222,6 +229,26 @@ $hostname  m0_disk_size_in_bytes=$((loop_img_size_gb * 1024**3))
 GENDERS_END
 
     debug "genders:\n-----BEGIN GENDERS-----\n$(cat $genders_file)\n-----END GENDERS-----"
+}
+
+generate_halon_facts()
+{
+    local m0gendisks=$(path_of m0gendisks)
+    local m0genfacts=$(path_of m0genfacts)
+
+    log "Generating halon_facts.yaml"
+
+    local vopt=$( $verbose && echo '-v' )
+    local halon_facts="$etc_halon_dir/halon_facts.yaml"
+    local disk_pattern="/dev/loop{1..$pool_width}"
+    local disks=$(m0gendisks -l -d $pool_width -p "$disk_pattern")
+
+    [[ -n $disks ]] ||
+        die "failed to find disks matching '$disk_pattern' pattern"
+
+    debug $disks
+
+    $m0genfacts -o "$halon_facts" -N $data_units -K $parity_units $vopt $disks
 }
 
 generate_disk_configs()
@@ -274,8 +301,19 @@ log "Requested configuration: [P=$pool_width N=$data_units K=$parity_units]" \
     mkdir -p "$etc_mero_dir" ;
 }
 
-generate_genders_config
+[[ -d $etc_halon_dir ]] || {
+    warn "'$etc_halon_dir' doesn't exits, creating.." ;
+    mkdir -p "$etc_halon_dir" ;
+}
+
 init_loop_devices
+
+if $do_genfacts ; then
+    generate_halon_facts
+else
+    generate_genders_config
+fi
+
 if $do_gendisk ; then
     generate_disk_configs
 fi

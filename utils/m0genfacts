@@ -1,0 +1,189 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'facter'
+require 'yaml'
+require 'erb'
+
+#
+# Constants
+#
+
+SELF       = File.expand_path(__FILE__)
+PROG_NAME  = File.basename(SELF)
+TOP_SRCDIR = File.dirname(SELF).gsub(/^\/usr\/s?bin|\/?utils\/?$/, '')
+
+DEFAULT_TEMPLATE_FILE_PATH = '/usr/share/mero/templates/halon_facts.yaml.erb'
+
+TEMPLATE_FILE_PATH = TOP_SRCDIR.empty? \
+                        ? DEFAULT_TEMPLATE_FILE_PATH
+                        : TOP_SRCDIR + '/scripts/install' + DEFAULT_TEMPLATE_FILE_PATH
+
+DATA_UNITS      = 8
+PARITY_UNITS    = 2
+BLOCK_SIZE      = 4096
+BE_SEGMENT_SIZE = 536870912
+MD_REDUNDANCY   = 1
+
+#
+# Command line options
+#
+
+options = {
+    output:        STDOUT,
+    template:      TEMPLATE_FILE_PATH,
+    dataunits:     DATA_UNITS,
+    parityunits:   PARITY_UNITS,
+    blocksize:     BLOCK_SIZE,
+    segsize:       BE_SEGMENT_SIZE,
+    mdredundancy:  MD_REDUNDANCY,
+}
+
+OptionParser.new do |opts|
+    opts.banner = <<END_USAGE
+usage: #{PROG_NAME} [options] disk1 disk2 ...
+
+  Arguments:
+
+    A list of block devices to be used for "ioservice". Block device configuration
+    can be provided via options, otherwise it will be queried using `blockdev`.
+
+  Options:
+
+END_USAGE
+
+    opts.on('-o', '--output FILE',
+            'Output file. By default, configuration is printed on STDOUT') do |val|
+       options[:output] = val
+    end
+
+    opts.on('-t', '--template FILE',
+            "Input template file. Default is '#{TEMPLATE_FILE_PATH}'") do |val|
+       options[:template] = val
+    end
+
+    opts.on('-e', '--netif IFNAME',
+            'LNet interface. By default, a first network interface is used') do |val|
+       options[:iface] = val
+    end
+
+    opts.on('-N', '--data-units NUM',
+            "Number of data units in parity group, default is #{DATA_UNITS}") do |val|
+       options[:dataunits] = val
+    end
+
+    opts.on('-K', '--parity-units NUM',
+            "Number of parity units in parity group, default is #{PARITY_UNITS}") do |val|
+       options[:parityunits] = val
+    end
+
+    opts.on('-b', '--block-size BYTES',
+            "Mero block size in bytes, default is #{BLOCK_SIZE}") do |val|
+       options[:blocksize] = val
+    end
+
+    opts.on('-s', '--segment-size BYTES',
+            "Mero BE segment size in bytes, default is #{BE_SEGMENT_SIZE}") do |val|
+       options[:segsize] = val
+    end
+
+    opts.on('-m', '--md-redundancy NUM',
+            "Meta-data redundancy level, default is #{MD_REDUNDANCY}") do |val|
+       options[:mdredundancy] = val
+    end
+
+    opts.on('-S', '--dev-size BYTES', "Blockdevice size in bytes") do |val|
+       options[:devsize] = val
+    end
+
+    opts.on('-v', '--[no-]verbose',
+            'Run verbosely, print messages into STDERR') do |val|
+        options[:verbose] = val
+    end
+
+    opts.on_tail('-h', '--help', 'Print help message and exit') do
+        puts opts
+        exit
+    end
+
+end.parse!
+
+#
+# Utility functions
+#
+
+def die(*messages)
+    abort "#{PROG_NAME}: ERROR: " + messages.join('')
+end
+
+#
+# Facts
+#
+
+hostname = Facter.value(:hostname)
+fqdn     = Facter.value(:fqdn)
+iface    = options[:iface] || Facter.value(:interfaces).split(',')[0]
+mac_addr = Facter.value("macaddress_#{iface}")
+ip_addr  = Facter.value("ipaddress_#{iface}")
+
+#
+# Template substitution variables
+#
+
+processorcount     = Facter.value(:processors)['count']
+memorysize_mb      = Facter.value(:memorysize_mb).to_i
+data_units         = options[:dataunits]
+parity_units       = options[:parityunits]
+mero_bsize         = options[:blocksize]
+m0_be_segment_size = options[:segsize]
+m0_md_redundancy   = options[:mdredundancy]
+@station_nodes     = [ ip_addr ]
+@extra_clients     = []
+
+@q_dbfacts = YAML.load <<END_DB
+---
+#{hostname}:
+  rack: 1
+  vpos: 1
+  serial_no: "XXX00000000000X"
+  role:      "storage"
+  hostname:  "#{hostname}"
+  fqdn:      "#{fqdn}"
+  bmc_ip:    "0.0.0.0"
+  bmc2_ip:   "0.0.0.0"
+  vlan_manage_macaddress: "00:00:00:00:00:00"
+  vlan_manage_ip:         "0.0.0.0"
+  vlan_data_iface:        "#{iface}"
+  vlan_data_macaddress:   "#{mac_addr}"
+  vlan_data_ip:           "#{ip_addr}"
+  processorcount:   #{processorcount}
+  memorysize_mb:    #{memorysize_mb}
+END_DB
+
+die "a list of block devices can't be empty, see `#{PROG_NAME} --help` for more info" \
+    if ARGV.empty?
+
+ios_hash = {}
+
+ARGV.each_with_index do |disk, index|
+    ios_hash[disk] = {
+        'wwn'    => "0xfff000000000000#{index + 1}",
+        'serial' => "XXX0000#{index + 1}",
+        'size'   => options[:devsize] || `blockdev --getsize64 #{disk}`.chomp,
+        'path'   => disk,
+    }
+
+    die "failed to obtain device size for '#{disk}' disk" \
+        if !options[:devsize] && $?.exitstatus != 0
+end
+
+#
+# Process template and print results
+#
+
+if options[:output] != STDOUT
+    options[:output] = File.open(options[:output], 'w')
+end
+
+template = ERB.new( File.read(options[:template]), nil, '-' )
+options[:output].puts( template.result(binding) )
