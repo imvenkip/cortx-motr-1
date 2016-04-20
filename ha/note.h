@@ -204,8 +204,8 @@ struct m0_ha_entrypoint_rep {
 	int32_t           hbp_rc;
 	/**
 	 * Minimum number of confd servers agreed upon current configuration
-	 * version in cluster. Client shouldn't access configuration if this quorum
-	 * value is not reached.
+	 * version in cluster. Client shouldn't access configuration if this
+	 * quorum value is not reached.
 	 */
 	uint32_t          hbp_quorum;
 	/**

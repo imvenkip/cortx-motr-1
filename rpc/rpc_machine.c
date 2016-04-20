@@ -139,7 +139,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 	M0_PRE(reqh         != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
-		return M0_RC(-EINVAL);
+		return M0_ERR(-EINVAL);
 
 	M0_SET0(machine);
 	machine->rm_reqh	  = reqh;
@@ -147,7 +147,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 
 	rc = __rpc_machine_init(machine);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	machine->rm_stopping = false;
 	rc = M0_THREAD_INIT(&machine->rm_worker, struct m0_rpc_machine *,
@@ -165,7 +165,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 	m0_thread_join(&machine->rm_worker);
 err:
 	__rpc_machine_fini(machine);
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 M0_EXPORTED(m0_rpc_machine_init);
 

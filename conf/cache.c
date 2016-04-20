@@ -208,8 +208,8 @@ static int conf_cache_encode(const struct m0_conf_cache *cache,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_conf_cache_to_string(struct m0_conf_cache *cache, char **str,
-					bool debug)
+M0_INTERNAL int
+m0_conf_cache_to_string(struct m0_conf_cache *cache, char **str, bool debug)
 {
 	struct m0_confx *confx;
 	int              rc;

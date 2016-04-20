@@ -2484,14 +2484,12 @@ M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc,
 {
 	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc, FID_P(profile));
 	m0_rconfc_start(rconfc, profile);
-	if (m0_rconfc_is_preloaded(rconfc))
-		goto leave;
-	m0_rconfc_lock(rconfc);
-	m0_sm_timedwait(&rconfc->rc_sm,
-			M0_BITS(RCS_IDLE, RCS_FAILURE),
-			M0_TIME_NEVER);
-	m0_rconfc_unlock(rconfc);
-leave:
+	if (!m0_rconfc_is_preloaded(rconfc)) {
+		m0_rconfc_lock(rconfc);
+		m0_sm_timedwait(&rconfc->rc_sm, M0_BITS(RCS_IDLE, RCS_FAILURE),
+				M0_TIME_NEVER);
+		m0_rconfc_unlock(rconfc);
+	}
 	return M0_RC(rconfc->rc_sm.sm_rc);
 }
 
@@ -2649,7 +2647,7 @@ M0_INTERNAL void m0_rconfc_rm_fid(struct m0_rconfc *rconfc, struct m0_fid *out)
 
 M0_INTERNAL bool m0_rconfc_is_preloaded(struct m0_rconfc *rconfc)
 {
-	return M0_IN(rconfc_state(rconfc), (RCS_INIT)) &&
+	return rconfc_state(rconfc) == RCS_INIT &&
 		_confc_is_inited(&rconfc->rc_confc) &&
 		rconfc->rc_local_conf != NULL;
 }
