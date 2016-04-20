@@ -977,7 +977,7 @@ static void test_creditor_death(void)
 	 */
 	credit_get_and_hold_nowait(SERVER_1, RIF_MAY_BORROW, NENYA);
 	m0_chan_wait(&rm_ctxs[SERVER_1].rc_clink);
-	M0_UT_ASSERT(rm_ctxs[SERVER_1].rc_test_data.rd_in.rin_rc == -ENODEV);
+	M0_UT_ASSERT(rm_ctxs[SERVER_1].rc_test_data.rd_in.rin_rc == -ESTALE);
 
 	/* Re-init SERVER_2 for clean UT finalisation */
 	rem_creditor = rm_ctxs[SERVER_2].rc_test_data.rd_owner->ro_creditor;

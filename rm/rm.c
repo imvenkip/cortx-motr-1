@@ -995,7 +995,15 @@ static struct m0_rm_incoming *cr2in(const struct m0_rm_credit *cr)
 static inline void incoming_state_set(struct m0_rm_incoming     *in,
 				      enum m0_rm_incoming_state  state)
 {
-	M0_PRE(owner_smgrp_is_locked(in->rin_want.cr_owner));
+	/*
+	 * Incoming sm group is owner's group, which in turn is the owner
+	 * resource type's group. It is not always safe to access the group via
+	 * owner, because under certain circumstances incoming object may live
+	 * longer than owner does. An example may be incoming CREDIT REVOKE
+	 * request arrived right before the referred owner is to pass away due
+	 * to natural reasons.
+	 */
+	M0_PRE(m0_sm_group_is_locked(in->rin_sm.sm_grp));
 	M0_LOG(M0_INFO, "Incoming req: %p, state change:[%s -> %s]\n",
 	       in, m0_sm_state_name(&in->rin_sm, in->rin_sm.sm_state),
 	       m0_sm_state_name(&in->rin_sm, state));
@@ -1045,12 +1053,21 @@ M0_INTERNAL void m0_rm_incoming_fini(struct m0_rm_incoming *in)
 {
 	M0_ENTRY();
 	M0_PRE(incoming_invariant(in));
-	m0_rm_owner_lock(in->rin_want.cr_owner);
+	/*
+	 * This is to lock sm group, which in fact is owner group, which in turn
+	 * is resource type group.
+	 *
+	 * Please note, locking via owner object may be not always safe here due
+	 * to races between finalisation of incoming object and owner it's bound
+	 * to. Owner may appear lockable at the beginning, but being already
+	 * finalised when it is time to unlock sm.
+	 */
+	m0_sm_group_lock(in->rin_sm.sm_grp);
 	M0_PRE(M0_IN(incoming_state(in),
 		    (RI_INITIALISED, RI_FAILURE, RI_RELEASED)));
 	incoming_state_set(in, RI_FINAL);
 	internal_incoming_fini(in);
-	m0_rm_owner_unlock(in->rin_want.cr_owner);
+	m0_sm_group_unlock(in->rin_sm.sm_grp);
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_rm_incoming_fini);

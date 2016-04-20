@@ -454,7 +454,18 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 			return M0_RC(rc);
 		}
 	}
-
+	/*
+	 * Owner may be on its way of finalising, so no further credit operation
+	 * makes sense with the owner, thus incoming request to be just rejected
+	 *
+	 * When not rejected, m0_rm_incoming finalisation is going to suffer
+	 * from possible race in destruction of state machine lock object done
+	 * in concurrent thread.
+	 */
+	if (owner_state(owner) > ROS_ACTIVE) {
+		M0_LOG(M0_DEBUG, "Owner bad state: %d", owner_state(owner));
+		return M0_ERR(-ESTALE);
+	}
 	m0_rm_incoming_init(in, owner, type, policy, flags);
 	in->rin_ops = &remote_incoming_ops;
 	in->rin_reserve.rrp_time = basefop->rrq_orig_time;
@@ -591,6 +602,8 @@ static int request_pre_process(struct m0_fom *fom,
 
 err:
 	reply_err_set(type, fom, rc);
+	m0_rpc_reply_post(&fom->fo_fop->f_item,
+			  m0_fop_to_rpc_item(fom->fo_rep_fop));
 	m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);
 	return M0_RC(M0_FSO_WAIT);
 }
@@ -610,6 +623,12 @@ static int request_post_process(struct m0_fom *fom)
 	rc = in->rin_rc;
 	M0_ASSERT(ergo(rc == 0, incoming_state(in) == RI_SUCCESS));
 	M0_ASSERT(ergo(rc != 0, incoming_state(in) == RI_FAILURE));
+	/*
+	 * Owner is allowed to be in ROS_FINAL state, otherwise its resource
+	 * must be set up
+	 */
+	M0_ASSERT(owner_state(in->rin_want.cr_owner) == ROS_FINAL ||
+		  incoming_to_resource(in) != NULL);
 
 	if (incoming_state(in) == RI_SUCCESS) {
 		rc = reply_prepare(in->rin_type, fom);
