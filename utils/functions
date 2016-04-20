@@ -11,8 +11,12 @@ sandbox_init() {
 
 sandbox_fini() {
     [ -n "${SANDBOX_DIR:-}" ] || die 'SANDBOX_DIR: unbound variable'
-    popd >/dev/null
-    [ -n "${KEEP_SANDBOX:-}" ] || rm -r $SANDBOX_DIR
+    local rc=${1:-0} # non-zero value denotes unsuccessful termination
+
+    popd &>/dev/null || true
+    if [ -z "${KEEP_SANDBOX:-}" -a $rc -eq 0 ]; then
+        rm -r $SANDBOX_DIR
+    fi
 }
 
 report_and_exit() {

@@ -41,7 +41,7 @@ start() {
 
 stop() {
    services_stop
-   _fini
+   _fini ${1:-}
    report_and_exit conf-st ${1:-$?}
 }
 
@@ -54,7 +54,7 @@ _init() {
 
 _fini() {
     rmdir $SANDBOX_DIR/mnt
-    sandbox_fini
+    sandbox_fini ${1:-}
     modules_remove
 }
 

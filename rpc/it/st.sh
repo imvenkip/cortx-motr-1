@@ -14,7 +14,5 @@ sandbox_init
 $SUDO "$M0_SRC_DIR/conf/st" insmod
 "$M0_SRC_DIR/rpc/it/st" || rc=$?
 $SUDO "$M0_SRC_DIR/conf/st" rmmod
-if [ $rc -eq 0 ]; then
-    sandbox_fini
-fi
+sandbox_fini $rc
 report_and_exit rpcping $rc

@@ -122,13 +122,12 @@ main()
 	}
 
 	mero_service stop
-	if [ $? -ne "0" ]
-	then
+	if [ $? -ne 0 ]; then
 		echo "Failed to stop Mero Service."
 		return 1
 	fi
 
-	[ $rc -ne 0 ] || sandbox_fini
+	sandbox_fini $rc
 	return $rc
 }
 
