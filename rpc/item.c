@@ -619,7 +619,7 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 		return M0_RC(false);
 	} else
 		M0_LOG(M0_DEBUG, "item: %p [%s/%u] xid=%"PRIu64" s_xid=%"PRIu64
-		       "No reply found", item, item_kind(item),
+		       " No reply found", item, item_kind(item),
 		       item->ri_type->rit_opcode, xid, sess->s_xid);
 
 	return M0_RC(false);
