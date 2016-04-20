@@ -63,17 +63,6 @@ static void option_add(struct cs_args *args, char *s)
 	M0_LOG(M0_DEBUG, "%02d %s", args->ca_argc, s);
 }
 
-static void
-fs_options_add(struct cs_args *args, const struct m0_conf_filesystem *fs)
-{
-	int i;
-
-	if (fs->cf_params == NULL)
-		return;
-	for (i = 0; fs->cf_params[i] != NULL; ++i)
-		option_add(args, m0_strdup(fs->cf_params[i]));
-}
-
 static char *
 strxdup(const char *addr)
 {
@@ -150,8 +139,8 @@ static bool service_and_node(const struct m0_conf_obj *obj)
 	       m0_conf_obj_type(obj) == &M0_CONF_NODE_TYPE;
 }
 
-/** Uses confc API to generate CLI arguments. */
-static int conf_to_args(struct cs_args *dest, struct m0_conf_filesystem *fs)
+M0_INTERNAL int
+cs_conf_to_args(struct cs_args *dest, struct m0_conf_filesystem *fs)
 {
 	struct m0_confc      *confc;
 	struct m0_conf_diter  it;
@@ -162,16 +151,14 @@ static int conf_to_args(struct cs_args *dest, struct m0_conf_filesystem *fs)
 	confc = m0_confc_from_obj(&fs->cf_obj);
 	M0_ASSERT(confc != NULL);
 
-	option_add(dest, m0_strdup("lt-m0d")); /* XXX Does the value matter? */
-	fs_options_add(dest, M0_CONF_CAST(fs, m0_conf_filesystem));
-
 	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
 				M0_CONF_FILESYSTEM_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
-		goto cleanup;
+		return M0_ERR(rc);
 
+	option_add(dest, m0_strdup("lt-m0d")); /* XXX Does the value matter? */
 	while ((rc = m0_conf_diter_next_sync(&it, service_and_node)) ==
 		M0_CONF_DIRNEXT) {
 		struct m0_conf_obj *obj = m0_conf_diter_result(&it);
@@ -185,22 +172,8 @@ static int conf_to_args(struct cs_args *dest, struct m0_conf_filesystem *fs)
 			node_options_add(dest, node);
 		}
 	}
-
-cleanup:
 	m0_conf_diter_fini(&it);
 	return M0_RC(rc);
-}
-
-/*
- * Read configuration from confd, fills CLI arguments (`args').
- */
-M0_INTERNAL int cs_conf_to_args(struct cs_args *args,
-				struct m0_conf_filesystem *fs)
-{
-	M0_ENTRY();
-	M0_PRE(args != NULL && fs != NULL);
-
-	return conf_to_args(args, fs);
 }
 
 static bool is_local_service(const struct m0_conf_obj *obj)

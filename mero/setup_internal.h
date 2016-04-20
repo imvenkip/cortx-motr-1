@@ -42,17 +42,13 @@ struct cs_buffer_pool {
 	uint64_t                  cs_bp_magic;
 };
 
-/**
- * Obtains configuration data from confd and converts it into options,
- * understood by _args_parse().
- *
- * @param[out] args   Arguments to be filled.
- */
-M0_INTERNAL int cs_conf_to_args(struct cs_args *args,
+/** Uses confc API to generate CLI arguments, understood by _args_parse(). */
+M0_INTERNAL int cs_conf_to_args(struct cs_args *dest,
 				struct m0_conf_filesystem *fs);
 
 M0_INTERNAL int cs_conf_storage_init(struct cs_stobs        *stob,
 				     struct m0_storage_devs *devs);
+
 M0_INTERNAL int cs_conf_device_reopen(struct m0_poolmach *pm,
 				      struct cs_stobs *stob, uint32_t dev_id);
 
