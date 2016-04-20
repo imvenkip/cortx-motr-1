@@ -182,9 +182,6 @@ EOF
 ###   services_start autoconf
 ###       m0d starts with minimal set of options and configures itself.
 ###
-
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
-
 services_start() {
     [ $# -eq 0 -o "${1:-}" = autoconf ] || error 'Invalid argument'
     local MODE="${1:-}"
