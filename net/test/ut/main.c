@@ -73,7 +73,10 @@ struct m0_ut_suite m0_net_test_ut = {
 		{ "cmd-multiple2",	m0_net_test_cmd_ut_multiple2	  },
 		{ "client-server-stub",	m0_net_test_client_server_stub_ut },
 		{ "client-server-ping",	m0_net_test_client_server_ping_ut },
+		/* XXX temporary disabled. See MERO-1654 */
+#if 0
 		{ "client-server-bulk",	m0_net_test_client_server_bulk_ut },
+#endif
 		{ NULL,			NULL				  }
 	}
 };
