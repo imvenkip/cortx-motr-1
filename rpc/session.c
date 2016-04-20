@@ -733,7 +733,7 @@ M0_INTERNAL void m0_rpc_session_terminate_reply_received(struct m0_rpc_item
 	       item->ri_session != NULL &&
 	       item->ri_session->s_session_id == SESSION_ID_0);
 
-	conn    = item->ri_session->s_conn;
+	conn    = item2conn(item);
 	machine = conn->c_rpc_machine;
 	M0_ASSERT(m0_rpc_machine_is_locked(machine));
 	M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);

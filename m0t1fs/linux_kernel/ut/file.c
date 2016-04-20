@@ -855,7 +855,7 @@ static void target_ioreq_test(void)
 	uint64_t                    size;
 	struct m0_fid               cfid;
 	struct m0_rpc_session       session = { .s_cancelled = false };
-	struct m0_rpc_conn          conn    = { .c_svc_obj   = NULL  };
+	struct m0_rpc_conn          conn    = { .c_svc_fid   = M0_FID0 };
 	struct io_req_fop          *irfop;
 	int                         cnt;
 	int                         rc;

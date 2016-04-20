@@ -771,6 +771,8 @@ struct m0_reqh_service_ctx {
 	/** clink to process configuration objects chan to act on HA events. */
 	struct m0_clink             sc_process_event;
 
+	struct m0_clink             sc_conf_exp;
+	struct m0_clink             sc_conf_ready;
 	/** Magic = M0_REQH_SVC_CTX_MAGIC */
 	uint64_t                    sc_magic;
 };

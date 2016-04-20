@@ -737,14 +737,18 @@ static void reqh_service_ctx_subscribe(struct m0_reqh_service_ctx *ctx)
 {
 	M0_PRE(m0_conf_cache_is_locked(ctx->sc_sobj->co_cache));
 
+	m0_conf_obj_get(ctx->sc_sobj);
 	m0_clink_add(&ctx->sc_sobj->co_ha_chan, &ctx->sc_svc_event);
+	m0_conf_obj_get(ctx->sc_pobj);
 	m0_clink_add(&ctx->sc_pobj->co_ha_chan, &ctx->sc_process_event);
 }
 
 static void reqh_service_ctx_unsubscribe(struct m0_reqh_service_ctx *ctx)
 {
 	m0_clink_del_lock(&ctx->sc_svc_event);
+	m0_confc_close(ctx->sc_sobj);
 	m0_clink_del_lock(&ctx->sc_process_event);
+	m0_confc_close(ctx->sc_pobj);
 }
 
 static void reqh_service_connect_locked(struct m0_reqh_service_ctx *ctx,
@@ -934,6 +938,10 @@ M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx)
 	m0_clink_fini(&ctx->sc_rlink_wait);
 	m0_clink_fini(&ctx->sc_process_event);
 	m0_clink_fini(&ctx->sc_svc_event);
+	m0_clink_cleanup(&ctx->sc_conf_exp);
+	m0_clink_cleanup(&ctx->sc_conf_ready);
+	m0_clink_fini(&ctx->sc_conf_exp);
+	m0_clink_fini(&ctx->sc_conf_ready);
 	m0_mutex_fini(&ctx->sc_max_pending_tx_lock);
 	m0_semaphore_fini(&ctx->sc_state_wait);
 	m0_reqh_service_ctx_bob_fini(ctx);
@@ -1009,6 +1017,49 @@ static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 		m0_semaphore_up(&ctx->sc_state_wait);
 	}
 	reqh_service_ctx_sm_unlock(ctx);
+}
+
+static bool reqh_service_ctx_conf_exp_cb(struct m0_clink *clink)
+{
+	struct m0_reqh_service_ctx *ctx =
+		container_of(clink, struct m0_reqh_service_ctx, sc_conf_exp);
+
+	M0_ENTRY("ctx %p", ctx);
+	reqh_service_ctx_unsubscribe(ctx);
+	M0_LEAVE();
+	return true;
+}
+
+static bool reqh_service_ctx_conf_ready_cb(struct m0_clink *clink)
+{
+	struct m0_reqh_service_ctx *ctx =
+		container_of(clink, struct m0_reqh_service_ctx, sc_conf_ready);
+	struct m0_reqh             *reqh =
+		container_of(clink->cl_chan, struct m0_reqh,
+			     rh_conf_cache_ready);
+	struct m0_conf_cache       *cache = &reqh->rh_rconfc.rc_confc.cc_cache;
+	struct m0_conf_obj         *obj;
+
+	M0_ENTRY("ctx %p service fid "FID_F, ctx, FID_P(&ctx->sc_fid));
+	/**
+	 * @todo the code should process any updates in the configuration tree.
+	 * Currently it expects that an interested object wasn't removed from
+	 * the tree or new object (m0_conf_service) was added.
+	 *
+	 * Some pointers to configuration objects in the context should be
+	 * updated before subscribing to co_ha_chan. The code below assumes
+	 * that the service relates to the same process in updated
+	 * configuration.
+	 */
+	m0_conf_cache_lock(cache);
+	obj = m0_conf_cache_lookup(cache, &ctx->sc_fid);
+	M0_ASSERT(obj != NULL);
+	ctx->sc_sobj = obj;
+	ctx->sc_pobj = m0_conf_obj_grandparent(obj);
+	reqh_service_ctx_subscribe(ctx);
+	m0_conf_cache_unlock(cache);
+	M0_LEAVE();
+	return true;
 }
 
 static bool reqh_service_ctx_rlink_cb(struct m0_clink *clink)
@@ -1165,6 +1216,7 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 					 uint32_t max_rpc_nr_in_flight)
 {
 	struct m0_conf_obj *pobj = m0_conf_obj_grandparent(sobj);
+	struct m0_reqh     *reqh = m0_conf_obj2reqh(sobj);
 	int                 rc;
 
 	M0_ENTRY();
@@ -1172,7 +1224,7 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 
 	M0_SET0(ctx);
 	if (rmach != NULL) {
-		rc = m0_rpc_link_init(&ctx->sc_rlink, rmach, sobj, addr,
+		rc = m0_rpc_link_init(&ctx->sc_rlink, rmach, &sobj->co_id, addr,
 				      max_rpc_nr_in_flight);
 		if (rc != 0)
 			return M0_ERR(rc);
@@ -1188,6 +1240,10 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 	m0_clink_init(&ctx->sc_svc_event, service_event_handler);
 	m0_clink_init(&ctx->sc_process_event, process_event_handler);
 	m0_clink_init(&ctx->sc_rlink_wait, reqh_service_ctx_rlink_cb);
+	m0_clink_init(&ctx->sc_conf_exp, reqh_service_ctx_conf_exp_cb);
+	m0_clink_init(&ctx->sc_conf_ready, reqh_service_ctx_conf_ready_cb);
+	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &ctx->sc_conf_exp);
+	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &ctx->sc_conf_ready);
 	m0_sm_group_init(&ctx->sc_sm_grp);
 	m0_sm_init(&ctx->sc_sm, &service_ctx_states_conf,
 		   M0_RSC_OFFLINE, &ctx->sc_sm_grp);

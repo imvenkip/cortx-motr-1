@@ -30,6 +30,7 @@
 #include "lib/uuid.h"
 #include "fop/fop.h"
 #include "module/instance.h"  /* m0_get */
+#include "reqh/reqh.h"        /* m0_reqh */
 #include "rpc/rpc_internal.h"
 #include "conf/helpers.h"     /* m0_conf_service_ep_is_known */
 #include "conf/obj_ops.h"     /* m0_conf_obj_get, m0_conf_obj_put */
@@ -50,6 +51,9 @@ M0_INTERNAL void rpc_chan_put(struct m0_rpc_chan *chan);
 
 static bool rpc_conn__on_service_event_cb(struct m0_clink *clink);
 static void rpc_conn_sessions_cleanup_fail(struct m0_rpc_conn *conn, bool fail);
+static bool rpc_conn__on_cache_expired_cb(struct m0_clink *clink);
+static bool rpc_conn__on_cache_ready_cb(struct m0_clink *clink);
+static struct m0_confc *rpc_conn2confc(const struct m0_rpc_conn *conn);
 
 /**
    Attaches session 0 object to conn object.
@@ -264,25 +268,23 @@ M0_INTERNAL bool m0_rpc_conn_is_rcv(const struct m0_rpc_conn *conn)
 	return (conn->c_flags & RCF_RECV_END) == RCF_RECV_END;
 }
 
-M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
-				 struct m0_conf_obj *svc_obj,
+M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn      *conn,
+				 struct m0_fid           *svc_fid,
 				 struct m0_net_end_point *ep,
-				 struct m0_rpc_machine *machine,
-				 uint64_t max_rpcs_in_flight)
+				 struct m0_rpc_machine   *machine,
+				 uint64_t                 max_rpcs_in_flight)
 {
 	int rc;
 
 	M0_ENTRY("conn: %p", conn);
 	M0_PRE(conn != NULL && machine != NULL && ep != NULL);
-	M0_PRE(svc_obj == NULL ||
-	       (!m0_conf_obj_is_stub(svc_obj) &&
-		m0_conf_service_ep_is_known(svc_obj, ep->nep_addr)));
 
 	M0_SET0(conn);
 
 	m0_rpc_machine_lock(machine);
 
-	conn->c_svc_obj = svc_obj;
+	if (svc_fid != NULL)
+		conn->c_svc_fid = *svc_fid;
 	conn->c_flags = RCF_SENDER_END;
 	m0_uuid_generate(&conn->c_uuid);
 
@@ -304,24 +306,56 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
 }
 M0_EXPORTED(m0_rpc_conn_init);
 
+static struct m0_confc *rpc_conn2confc(const struct m0_rpc_conn *conn)
+{
+
+	return m0_reqh2confc(conn->c_rpc_machine->rm_reqh);
+}
+
+M0_INTERNAL struct m0_conf_obj *m0_rpc_conn2svc(const struct m0_rpc_conn *conn)
+{
+
+	if (m0_fid_is_set(&conn->c_svc_fid))
+		return  m0_conf_cache_lookup(&rpc_conn2confc(conn)->cc_cache,
+					     &conn->c_svc_fid);
+	else
+		return NULL;
+}
+
 static void __conn_ha_subscribe(struct m0_rpc_conn *conn)
 {
+	struct m0_conf_obj *svc_obj;
+	struct m0_confc    *confc;
+	int                 rc;
+
 	M0_ENTRY("conn = %p", conn);
-	if (conn->c_svc_obj != NULL) {
-		M0_ASSERT(conn->c_ha_clink.cl_cb != NULL);
-		m0_clink_add_lock(&conn->c_svc_obj->co_ha_chan,
-				  &conn->c_ha_clink);
-	}
-	M0_LEAVE("conn->c_svc_obj = %p", conn->c_svc_obj);
+	if (!m0_fid_is_set(&conn->c_svc_fid))
+		goto leave;
+	confc = rpc_conn2confc(conn);
+	rc = m0_confc_open_by_fid_sync(confc, &conn->c_svc_fid,
+				       &svc_obj);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(conn->c_ha_clink.cl_cb != NULL);
+	m0_clink_add_lock(&svc_obj->co_ha_chan, &conn->c_ha_clink);
+leave:
+	M0_LEAVE("service fid = "FID_F, FID_P(&conn->c_svc_fid));
 }
 
 static void __conn_ha_unsubscribe(struct m0_rpc_conn *conn)
 {
-	if (m0_clink_is_armed(&conn->c_ha_clink)) {
-		M0_ASSERT(conn->c_svc_obj != NULL);
-		m0_clink_del(&conn->c_ha_clink);
-		conn->c_ha_clink.cl_chan = NULL;
-	}
+	struct m0_conf_obj *svc_obj;
+
+	if (!m0_fid_is_set(&conn->c_svc_fid) ||
+	    !m0_clink_is_armed(&conn->c_ha_clink))
+		return;
+	svc_obj = m0_rpc_conn2svc(conn);
+	M0_ASSERT(svc_obj != NULL);
+	if (m0_conf_cache_is_locked(svc_obj->co_cache))
+		m0_conf_obj_put(svc_obj);
+	else
+		m0_confc_close(svc_obj);
+	m0_clink_del(&conn->c_ha_clink);
+	conn->c_ha_clink.cl_chan = NULL;
 }
 
 static int __conn_init(struct m0_rpc_conn      *conn,
@@ -348,6 +382,16 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 
 	m0_clink_init(&conn->c_ha_clink, rpc_conn__on_service_event_cb);
 	__conn_ha_subscribe(conn);
+	m0_clink_init(&conn->c_conf_exp_clink, rpc_conn__on_cache_expired_cb);
+	m0_clink_init(&conn->c_conf_ready_clink, rpc_conn__on_cache_ready_cb);
+	if (machine->rm_reqh != NULL && m0_fid_is_set(&conn->c_svc_fid)) {
+		m0_clink_add_lock(&machine->rm_reqh->rh_conf_cache_exp,
+				  &conn->c_conf_exp_clink);
+		m0_clink_add_lock(&machine->rm_reqh->rh_conf_cache_ready,
+				  &conn->c_conf_ready_clink);
+		M0_LOG(M0_DEBUG, "conn %p has subscribed on rconfc events,\
+		       fid "FID_F, conn, FID_P(&conn->c_svc_fid));
+	}
 	rpc_session_tlist_init(&conn->c_sessions);
 	item_source_tlist_init(&conn->c_item_sources);
 	rpc_conn_tlink_init(conn);
@@ -417,8 +461,9 @@ static void __conn_fini(struct m0_rpc_conn *conn)
 	 * rpc_conn__on_service_event_cb() from being called when object is
 	 * already about to die.
 	 */
-	M0_PRE(conn->c_svc_obj == NULL);
 	M0_PRE(!m0_clink_is_armed(&conn->c_ha_clink));
+	m0_clink_cleanup(&conn->c_conf_exp_clink);
+	m0_clink_cleanup(&conn->c_conf_ready_clink);
 
 	rpc_chan_put(conn->c_rpcchan);
 
@@ -426,6 +471,8 @@ static void __conn_fini(struct m0_rpc_conn *conn)
 	item_source_tlist_fini(&conn->c_item_sources);
 	rpc_conn_tlink_fini(conn);
 	m0_clink_fini(&conn->c_ha_clink);
+	m0_clink_fini(&conn->c_conf_exp_clink);
+	conn->c_svc_fid = M0_FID0;
 	M0_LEAVE();
 }
 
@@ -490,19 +537,30 @@ M0_INTERNAL void m0_rpc_conn_fini(struct m0_rpc_conn *conn)
 M0_EXPORTED(m0_rpc_conn_fini);
 
 M0_INTERNAL int m0_rpc_conn_ha_subscribe(struct m0_rpc_conn *conn,
-					 struct m0_conf_obj *svc_obj)
+					 struct m0_fid      *svc_fid)
 {
-	M0_ENTRY();
-	M0_PRE(conn != NULL && svc_obj != NULL);
-	M0_PRE(conn->c_svc_obj == NULL);
+	struct m0_conf_obj *svc_obj;
+	const char         *ep;
+
+	M0_ENTRY("conn %p, svc_fid "FID_F, conn, FID_P(svc_fid));
+	M0_PRE(_0C(conn != NULL) && _0C(svc_fid != NULL));
+	M0_PRE(_0C(!m0_fid_is_set(&conn->c_svc_fid)) ||
+	       _0C(m0_fid_eq(&conn->c_svc_fid, svc_fid)));
 
 	if (M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE))) {
+
+		svc_obj = m0_conf_cache_lookup(&rpc_conn2confc(conn)->cc_cache,
+					       svc_fid);
+		if (svc_obj == NULL)
+			return M0_ERR_INFO(
+				ENOENT, "unknown service " FID_F,
+				FID_P(svc_fid));
 		/*
-		 * provided service object must match to already established
+		 * found service object must match to already established
 		 * connection endpoint, i.e. the endpoint must be known to the
 		 * service configuration
 		 */
-		const char *ep = m0_rpc_conn_addr(conn);
+		ep = m0_rpc_conn_addr(conn);
 		if (!m0_conf_service_ep_is_known(svc_obj, ep))
 			return M0_ERR_INFO(
 				EINVAL, "Conn %p ep %s unknown to svc_obj "
@@ -510,7 +568,7 @@ M0_INTERNAL int m0_rpc_conn_ha_subscribe(struct m0_rpc_conn *conn,
 	}
 
 	m0_rpc_machine_lock(conn->c_rpc_machine);
-	conn->c_svc_obj = svc_obj;
+	conn->c_svc_fid = *svc_fid;
 	__conn_ha_subscribe(conn);
 	m0_rpc_machine_unlock(conn->c_rpc_machine);
 	return M0_RC(0);
@@ -521,10 +579,10 @@ M0_INTERNAL void m0_rpc_conn_ha_unsubscribe_lock(struct m0_rpc_conn *conn)
 	struct m0_conf_cache *cc;
 
 	M0_PRE(conn != NULL);
-	if (conn->c_svc_obj == NULL)
+	if (!m0_fid_is_set(&conn->c_svc_fid))
 		return;
 
-	cc = conn->c_svc_obj->co_cache;
+	cc = &rpc_conn2confc(conn)->cc_cache;
 	m0_conf_cache_lock(cc);
 	m0_rpc_conn_ha_unsubscribe(conn);
 	m0_conf_cache_unlock(cc);
@@ -533,12 +591,12 @@ M0_INTERNAL void m0_rpc_conn_ha_unsubscribe_lock(struct m0_rpc_conn *conn)
 M0_INTERNAL void m0_rpc_conn_ha_unsubscribe(struct m0_rpc_conn *conn)
 {
 	M0_PRE(conn != NULL);
-	if (conn->c_svc_obj == NULL)
+	if (!m0_fid_is_set(&conn->c_svc_fid))
 		return;
 
 	m0_rpc_machine_lock(conn->c_rpc_machine);
 	__conn_ha_unsubscribe(conn);
-	conn->c_svc_obj = NULL;
+	conn->c_svc_fid = M0_FID0;
 	m0_rpc_machine_unlock(conn->c_rpc_machine);
 }
 
@@ -693,7 +751,7 @@ M0_INTERNAL struct m0_rpc_session *m0_rpc_session_pop(
 }
 
 M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
-				   struct m0_conf_obj *svc_obj,
+				   struct m0_fid *svc_fid,
 				   struct m0_net_end_point *ep,
 				   struct m0_rpc_machine *rpc_machine,
 				   uint64_t max_rpcs_in_flight,
@@ -701,15 +759,15 @@ M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
 {
 	int rc;
 
-	M0_ENTRY("conn: %p, svc_obj: %p, ep_addr: %s, "
+	M0_ENTRY("conn: %p, svc_fid: %p, ep_addr: %s, "
 		 "machine: %p max_rpcs_in_flight: %llu",
-		 conn, svc_obj, (char *)ep->nep_addr, rpc_machine,
+		 conn, svc_fid, (char *)ep->nep_addr, rpc_machine,
 		 (unsigned long long)max_rpcs_in_flight);
 
 	if (M0_FI_ENABLED("fake_error"))
 		return M0_RC(-EINVAL);
 
-	rc = m0_rpc_conn_init(conn, svc_obj, ep, rpc_machine,
+	rc = m0_rpc_conn_init(conn, svc_fid, ep, rpc_machine,
 			      max_rpcs_in_flight);
 	if (rc == 0) {
 		rc = m0_rpc_conn_establish_sync(conn, abs_timeout);
@@ -818,7 +876,7 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
 	       item->ri_session != NULL &&
 	       item->ri_session->s_session_id == SESSION_ID_0);
 
-	conn    = item->ri_session->s_conn;
+	conn    = item2conn(item);
 	machine = conn->c_rpc_machine;
 
 	M0_PRE(m0_rpc_machine_is_locked(machine));
@@ -1010,7 +1068,7 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 	       item->ri_session != NULL &&
 	       item->ri_session->s_session_id == SESSION_ID_0);
 
-	conn    = item->ri_session->s_conn;
+	conn    = item2conn(item);
 	machine = conn->c_rpc_machine;
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_PRE(m0_rpc_machine_is_locked(machine));
@@ -1176,9 +1234,15 @@ M0_INTERNAL const char *m0_rpc_conn_addr(const struct m0_rpc_conn *conn)
 
 M0_INTERNAL bool m0_rpc_conn_is_known_dead(const struct m0_rpc_conn *conn)
 {
+	struct m0_conf_obj *svc_obj;
+
 	M0_PRE(conn != NULL);
-	return conn->c_svc_obj != NULL &&
-		conn->c_svc_obj->co_ha_state == M0_NC_FAILED;
+	if (!m0_fid_is_set(&conn->c_svc_fid))
+		return false;
+	svc_obj = m0_conf_cache_lookup(&rpc_conn2confc(conn)->cc_cache,
+				       &conn->c_svc_fid);
+	return svc_obj != NULL &&
+		svc_obj->co_ha_state == M0_NC_FAILED;
 }
 
 /**
@@ -1211,7 +1275,7 @@ static bool rpc_conn__on_service_event_cb(struct m0_clink *clink)
 	struct m0_conf_obj *obj  = container_of(clink->cl_chan,
 						struct m0_conf_obj, co_ha_chan);
 
-	M0_PRE(conn->c_svc_obj == obj);
+	M0_PRE(m0_rpc_conn2svc(conn) == obj);
 	M0_LOG(M0_DEBUG, "obj->co_ha_state = %d", obj->co_ha_state);
 	/*
 	 * Ignore M0_NC_TRANSIENT state to keep items re-sending until service
@@ -1226,6 +1290,40 @@ static bool rpc_conn__on_service_event_cb(struct m0_clink *clink)
 	 * @todo See if anything, or what and when otherwise, we need to do on
 	 * getting M0_NC_ONLINE notification.
 	 */
+	return true;
+}
+
+static bool rpc_conn__on_cache_ready_cb(struct m0_clink *clink)
+{
+	struct m0_rpc_conn *conn = container_of(clink, struct m0_rpc_conn,
+						c_conf_ready_clink);
+	int                 rc;
+
+	if (!m0_fid_is_set(&conn->c_svc_fid))
+		return true;
+	M0_LOG(M0_DEBUG, "subscribe %p conn to HA, svc_fid "FID_F, conn,
+	       FID_P(&conn->c_svc_fid));
+	rc = m0_rpc_conn_ha_subscribe(conn, &conn->c_svc_fid);
+	if (rc != 0) {
+		m0_rpc_machine_lock(conn->c_rpc_machine);
+		conn_failed(conn, rc);
+		m0_rpc_machine_unlock(conn->c_rpc_machine);
+	}
+	return true;
+}
+
+static bool rpc_conn__on_cache_expired_cb(struct m0_clink *clink)
+{
+	struct m0_rpc_conn *conn = container_of(clink, struct m0_rpc_conn,
+						c_conf_exp_clink);
+	struct m0_conf_cache *cc = &rpc_conn2confc(conn)->cc_cache;
+
+	M0_LOG(M0_DEBUG, "unsubscribe %p conn from HA", conn);
+	m0_conf_cache_lock(cc);
+	m0_rpc_machine_lock(conn->c_rpc_machine);
+	__conn_ha_unsubscribe(conn);
+	m0_rpc_machine_unlock(conn->c_rpc_machine);
+	m0_conf_cache_unlock(cc);
 	return true;
 }
 /** @} */

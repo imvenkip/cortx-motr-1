@@ -87,6 +87,11 @@ M0_INTERNAL void m0_rpc_service_stop(struct m0_reqh *reqh);
 M0_TL_DESCR_DECLARE(item_source, M0_EXTERN);
 M0_TL_DECLARE(item_source, M0_INTERNAL, struct m0_rpc_item_source);
 
+static inline struct m0_rpc_conn *item2conn(const struct m0_rpc_item *item)
+{
+	return item->ri_session->s_conn;
+}
+
 /** @} */
 
 #endif /* __MERO_RPC_INT_H__ */

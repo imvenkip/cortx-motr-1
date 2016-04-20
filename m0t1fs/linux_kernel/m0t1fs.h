@@ -757,6 +757,8 @@ struct m0t1fs_sb {
 	struct m0_htable                        csb_service_pending_txid_map;
 	struct m0_mutex                         csb_service_pending_txid_map_lock;
 
+	struct m0_clink                         csb_conf_exp;
+	struct m0_clink                         csb_conf_ready;
 	/**
 	 * Indicates that rconfc read lock is revoked by a creditor.
 	 */

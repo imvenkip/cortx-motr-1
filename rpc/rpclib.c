@@ -96,7 +96,7 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_session *session,
 				      struct m0_rpc_machine *rpc_mach,
 				      const char            *remote_addr,
-				      struct m0_conf_obj    *svc_obj,
+				      struct m0_fid         *svc_fid,
 				      uint64_t               max_rpcs_in_flight)
 {
 	struct m0_net_end_point *ep;
@@ -112,7 +112,7 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 	if (rc != 0)
 		return M0_RC(rc);
 
-	rc = m0_rpc_conn_create(conn, svc_obj, ep, rpc_mach, max_rpcs_in_flight,
+	rc = m0_rpc_conn_create(conn, svc_fid, ep, rpc_mach, max_rpcs_in_flight,
 				m0_time_from_now(CONN_TIMEOUT, 0));
 	m0_net_end_point_put(ep);
 	if (rc != 0)
@@ -137,13 +137,19 @@ m0_rpc_client_find_connect(struct m0_rpc_conn       *conn,
 			   uint64_t                  max_rpcs_in_flight)
 {
 	struct m0_conf_obj *svc_obj = NULL;
+	struct m0_fid      *svc_fid = NULL;
+	int                 rc;
 
 	M0_ENTRY();
 	M0_PRE(rpc_mach != NULL);
-	return M0_RC(m0_conf_service_find(rpc_mach->rm_reqh, sfid, stype,
-					  remote_addr, &svc_obj) ?:
-		     m0_rpc_client_connect(conn, session, rpc_mach, remote_addr,
-					   svc_obj, max_rpcs_in_flight));
+	rc = m0_conf_service_find(rpc_mach->rm_reqh, sfid, stype,
+				  remote_addr, &svc_obj);
+	if (rc != 0)
+		return M0_ERR(rc);
+	if (svc_obj != NULL)
+		svc_fid = &svc_obj->co_id;
+	return M0_RC(m0_rpc_client_connect(conn, session, rpc_mach, remote_addr,
+					   svc_fid, max_rpcs_in_flight));
 }
 
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)

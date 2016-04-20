@@ -365,7 +365,7 @@ class SpielWrapper:
 #############################################################################
 
     def rconfc_start(self):
-        return self.mero.m0_spiel_rconfc_start(self.spiel)
+        return self.mero.m0_spiel_rconfc_start(self.spiel, None)
 
     def rconfc_stop(self):
         self.mero.m0_spiel_rconfc_stop(self.spiel)

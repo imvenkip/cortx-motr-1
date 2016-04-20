@@ -26,7 +26,7 @@
 #include "ut/misc.h" /* M0_UT_CONF_PROFILE */
 #include "ut/ut.h"
 
-static struct  m0_spiel_ut_reqh ut_reqh;
+struct  m0_spiel_ut_reqh ut_reqh;
 const char    *confd_addr[] = { SERVER_ENDPOINT_ADDR, NULL };
 const char    *rm_addr      = SERVER_ENDPOINT_ADDR;
 

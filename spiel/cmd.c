@@ -273,9 +273,7 @@ static int _spiel_conf_obj_find(struct m0_confc       *confc,
 		if (m0_fid_eq(&tmp->co_id, obj_fid)) {
 			*conf_obj = tmp;
 			/* Pin object to protect it from removal */
-			m0_mutex_lock(&confc->cc_lock);
-			m0_conf_obj_get(*conf_obj);
-			m0_mutex_unlock(&confc->cc_lock);
+			m0_conf_obj_get_lock(*conf_obj);
 			rc = 0;
 			break;
 		}
@@ -346,9 +344,7 @@ static int _spiel_conf_dir_iterate(struct m0_confc     *confc,
 	       (m0_conf_diter_next_sync(&it, NULL)) == M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		/* Pin obj to protect it from removal while being in use */
-		m0_mutex_lock(&confc->cc_lock);
-		m0_conf_obj_get(obj);
-		m0_mutex_unlock(&confc->cc_lock);
+		m0_conf_obj_get_lock(obj);
 		loop = iter_cb(obj, ctx);
 		m0_mutex_lock(&confc->cc_lock);
 		m0_conf_obj_put(obj);
@@ -1178,9 +1174,7 @@ static int spiel_pool__device_collection_fill(struct _pool_cmd_ctx *ctx,
 							== M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		/* Pin obj to protect it from removal while being in use */
-		m0_mutex_lock(&confc->cc_lock);
-		m0_conf_obj_get(obj);
-		m0_mutex_unlock(&confc->cc_lock);
+		m0_conf_obj_get_lock(obj);
 		spiel_pool_device_collect(ctx, obj);
 		m0_mutex_lock(&confc->cc_lock);
 		m0_conf_obj_put(obj);

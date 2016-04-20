@@ -308,9 +308,7 @@ static int rm_remote_ep_to_rms_obj(struct m0_confc     *confc,
 				 * to be pinned on return, because it is used
 				 * outside of function.
 				 */
-				m0_mutex_lock(&confc->cc_lock);
-				m0_conf_obj_get(next);
-				m0_mutex_unlock(&confc->cc_lock);
+				m0_conf_obj_get_lock(next);
 				*obj = next;
 				found = true;
 				break;

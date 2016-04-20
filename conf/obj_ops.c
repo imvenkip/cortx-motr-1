@@ -194,6 +194,13 @@ M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj)
 	M0_CNT_INC(obj->co_nrefs);
 }
 
+M0_INTERNAL void m0_conf_obj_get_lock(struct m0_conf_obj *obj)
+{
+	m0_conf_cache_lock(obj->co_cache);
+	m0_conf_obj_get(obj);
+	m0_conf_cache_unlock(obj->co_cache);
+}
+
 M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj)
 {
 	M0_PRE(m0_conf_obj_invariant(obj));

@@ -190,9 +190,13 @@ static int conf_flip_confd_config_save(char *filename,
  */
 static int conf_after_flip_apply(struct m0_reqh *reqh, const char *filename)
 {
-	struct m0_rconfc *rconfc = &reqh->rh_rconfc;
-	char             *local_conf;
-	int               rc;
+	struct m0_rconfc      *rconfc   = &reqh->rh_rconfc;
+	struct m0_sm_group    *sm_grp   = rconfc->rc_sm.sm_grp;
+	struct m0_rpc_machine *rmach    = rconfc->rc_rmach;
+	m0_rconfc_exp_cb_t     exp_cb   = rconfc->rc_exp_cb;
+	m0_rconfc_ready_cb_t   ready_cb = rconfc->rc_ready_cb;
+	char                  *local_conf;
+	int                    rc;
 
 	M0_ENTRY();
 	M0_PRE(m0_rconfc_is_preloaded(rconfc));
@@ -205,7 +209,12 @@ static int conf_after_flip_apply(struct m0_reqh *reqh, const char *filename)
 	 * do no harm to fom tick, but heavily simplify the reload.
 	 */
 	m0_rconfc_stop_sync(rconfc);
-	m0_free(rconfc->rc_local_conf);
+	m0_rconfc_fini(rconfc);
+	rc = m0_rconfc_init(rconfc, sm_grp, rmach, exp_cb, ready_cb);
+	if (rc != 0) {
+		m0_free(local_conf);
+		return M0_ERR(rc);
+	}
 	rconfc->rc_local_conf = local_conf;
 	/*
 	 * Despite the name, m0_rconfc_start_sync() does no waiting at all with

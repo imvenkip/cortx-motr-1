@@ -25,6 +25,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "pool/pool.h"
+#include "reqh/reqh.h"        /* m0_reqh */
 #include "conf/confc.h"
 #include "conf/obj_ops.h"     /* m0_conf_dirval */
 #include "conf/diter.h"       /* m0_conf_diter_init m0_conf_diter_next_sync */
@@ -89,6 +90,7 @@ static void poolmach_state_update(struct m0_poolmach_state *st,
 			&st->pst_nodes_array[*idx_nodes];
 		st->pst_devices_array[*idx_devices].pd_state =
 			m0_ha2pm_state_map(d->ck_obj.co_ha_state);
+		m0_conf_obj_get_lock(&d->ck_obj);
 		m0_pooldev_clink_add(
 			&st->pst_devices_array[*idx_devices].pd_clink,
 			&d->ck_obj.co_ha_chan);
@@ -98,16 +100,76 @@ static void poolmach_state_update(struct m0_poolmach_state *st,
 	}
 }
 
+static bool poolmach_conf_expired_cb(struct m0_clink *clink)
+{
+	struct m0_pooldev        *dev;
+	struct m0_clink          *cl;
+	struct m0_conf_obj       *obj;
+	struct m0_poolmach_state *state =
+				   container_of(clink, struct m0_poolmach_state,
+						pst_conf_exp);
+	int                       i;
+
+	M0_ENTRY();
+	for (i = 0; i < state->pst_nr_devices; ++i) {
+		dev = &state->pst_devices_array[i];
+		cl = &dev->pd_clink;
+		obj = container_of(cl->cl_chan, struct m0_conf_obj,
+				   co_ha_chan);
+		M0_ASSERT(m0_conf_obj_invariant(obj));
+		M0_LOG(M0_INFO, "obj "FID_F, FID_P(&obj->co_id));
+		m0_pooldev_clink_del(cl);
+		m0_confc_close(obj);
+	}
+	M0_LEAVE();
+	return true;
+}
+
+static bool poolmach_conf_ready_cb(struct m0_clink *clink)
+{
+	struct m0_pooldev        *dev;
+	struct m0_poolmach_state *state =
+				   container_of(clink, struct m0_poolmach_state,
+						pst_conf_ready);
+	struct m0_reqh           *reqh = container_of(clink->cl_chan,
+						      struct m0_reqh,
+						      rh_conf_cache_ready);
+	struct m0_conf_cache     *cache = &reqh->rh_rconfc.rc_confc.cc_cache;
+	struct m0_conf_obj       *obj;
+	int                       i;
+
+	M0_ENTRY();
+	/*
+	 * TODO: the code should process any updates in the configuration tree.
+	 * Currently it expects that an interested object wasn't removed from
+	 * the tree or new object (m0_conf_sdev) was added.
+	 */
+	for (i = 0; i < state->pst_nr_devices; ++i) {
+		dev = &state->pst_devices_array[i];
+		obj = m0_conf_cache_lookup(cache, &dev->pd_id);
+		M0_ASSERT_INFO(_0C(obj != NULL) &&
+			       _0C(m0_conf_obj_invariant(obj)),
+			       "dev->pd_id "FID_F,
+			       FID_P(&dev->pd_id));
+		m0_pooldev_clink_add(&dev->pd_clink, &obj->co_ha_chan);
+		m0_conf_obj_get_lock(obj);
+	}
+	M0_LEAVE();
+	return true;
+}
+
 M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 					 struct m0_conf_pver *pver)
 {
 	struct m0_confc     *confc;
+	struct m0_reqh      *reqh;
 	struct m0_conf_diter it;
 	uint32_t             idx_nodes = 0;
 	uint32_t             idx_devices = 0;
 	int                  rc;
 
 	confc = m0_confc_from_obj(&pver->pv_obj);
+	reqh = m0_confc2reqh(confc);
 	rc = m0_conf_diter_init(&it, confc, &pver->pv_obj,
 				M0_CONF_PVER_RACKVS_FID,
 				M0_CONF_RACKV_ENCLVS_FID,
@@ -123,6 +185,12 @@ M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 						   m0_conf_objv)->cv_real,
 				      &idx_nodes, &idx_devices);
 	m0_conf_diter_fini(&it);
+	m0_clink_init(&pm->pm_state->pst_conf_exp, &poolmach_conf_expired_cb);
+	m0_clink_init(&pm->pm_state->pst_conf_ready, &poolmach_conf_ready_cb);
+	m0_clink_add_lock(&reqh->rh_conf_cache_exp,
+			  &pm->pm_state->pst_conf_exp);
+	m0_clink_add_lock(&reqh->rh_conf_cache_ready,
+			  &pm->pm_state->pst_conf_ready);
 	M0_LOG(M0_DEBUG, "nodes:%d devices: %d", idx_nodes, idx_devices);
 	M0_POST(idx_devices <= pm->pm_state->pst_nr_devices);
 	return M0_RC(rc);
@@ -295,6 +363,7 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 	struct m0_poolmach_state      *state = pm->pm_state;
 	struct m0_pooldev             *pd;
 	struct m0_clink               *cl;
+	struct m0_conf_obj            *obj;
 	int                            i;
 
 	M0_PRE(pm != NULL);
@@ -313,12 +382,20 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 
 		for (i = 0; i < state->pst_nr_devices; ++i) {
 			cl = &state->pst_devices_array[i].pd_clink;
+			obj = container_of(cl->cl_chan, struct m0_conf_obj,
+					   co_ha_chan);
+			M0_ASSERT(m0_conf_obj_invariant(obj));
 			m0_pooldev_clink_del(cl);
+			m0_confc_close(obj);
 			pd = &state->pst_devices_array[i];
 			if (pool_failed_devs_tlink_is_in(pd))
 				pool_failed_devs_tlist_del(pd);
 			pool_failed_devs_tlink_fini(pd);
 		}
+		m0_clink_cleanup(&state->pst_conf_exp);
+		m0_clink_cleanup(&state->pst_conf_ready);
+		m0_clink_fini(&state->pst_conf_exp);
+		m0_clink_fini(&state->pst_conf_ready);
 		m0_free(state->pst_spare_usage_array);
 		m0_free(state->pst_devices_array);
 		m0_free(state->pst_nodes_array);
@@ -490,7 +567,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	/* step 2: Update the state according to event */
 	event_link.pel_event = *event;
 	if (event->pe_type == M0_POOL_NODE) {
-		/* TODO if this is a new node join event, the index
+		/* @todo if this is a new node join event, the index
 		 * might larger than the current number. Then we need
 		 * to create a new larger array to hold nodes info.
 		 */

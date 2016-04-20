@@ -71,6 +71,11 @@ static struct m0_rpc_server_ctx sctx = {
 	.rsx_log_file_name = SERVER_LOG_NAME,
 };
 
+static struct m0_reqh_init_args   reqh_args = {
+	.rhia_fid = &M0_FID_TINIT('r', 1, 1),
+	.rhia_mdstore =  (void *)1
+};
+
 extern struct m0_reqh_service_type m0_rpc_service_type;
 
 static struct m0_mutex chan_lock;
@@ -319,7 +324,7 @@ static void failure_sets_destroy(struct m0_reqh *reqh)
 
 static void test_failure_sets(void)
 {
-	struct m0_reqh             reqh;
+	struct m0_reqh    reqh;
 	struct m0_ha_note n1[] = {
 		{ M0_FID_TINIT('a', 1, 3),  M0_NC_FAILED },
 		{ M0_FID_TINIT('e', 1, 7),  M0_NC_FAILED },
@@ -327,6 +332,7 @@ static void test_failure_sets(void)
 	};
 	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
 
+	m0_reqh_init(&reqh, &reqh_args);
 	failure_sets_build(&reqh, &nvec);
 
 	M0_UT_ASSERT(m0_flset_tlist_length(&reqh.rh_failure_set.fls_objs) ==
@@ -336,6 +342,7 @@ static void test_failure_sets(void)
 				  obj->co_ha_state == M0_NC_FAILED));
 
 	failure_sets_destroy(&reqh);
+	m0_reqh_fini(&reqh);
 }
 
 static void test_poolversion_get(void)
@@ -354,6 +361,7 @@ static void test_poolversion_get(void)
 	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
 	struct m0_ha_nvec nvec1 = { 1, n1 };
 
+	m0_reqh_init(&reqh, &reqh_args);
 	failure_sets_build(&reqh, &nvec);
 
 	rc = m0_conf_poolversion_get(&reqh.rh_profile, confc,
@@ -416,6 +424,7 @@ static void test_poolversion_get(void)
 	M0_UT_ASSERT(m0_fid_eq(&pver0->pv_obj.co_id, &pver2->pv_obj.co_id));
 
 	failure_sets_destroy(&reqh);
+	m0_reqh_fini(&reqh);
 }
 
 /* -------------------------------------------------------------------

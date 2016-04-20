@@ -18,13 +18,14 @@
  * Original creation date: 10/19/2012
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
 #define M0_UT_TRACE  0
 
 #include "ut/ut.h"
 #include "lib/finject.h"
+#include "lib/fs.h"                /* m0_file_read */
 #include "lib/misc.h"              /* M0_BITS */
 #include "lib/semaphore.h"
 #include "lib/memory.h"
@@ -264,15 +265,18 @@ static void test_resend(void)
 	struct m0_rpc_item_timeout_ops ritoo_orig = m0_ritoo;
 	struct m0_rpc_item *item;
 	int                 rc;
-	int                 cnt = 0;
-	struct m0_fid       sfid  = M0_FID_TINIT('s', 1, 25);
-	struct m0_reqh     *reqh  = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
-	struct m0_confc    *confc = m0_reqh2confc(reqh);
-	struct m0_conf_obj *svc_obj;
+	int                 cnt       = 0;
+	struct m0_fid       sfid      = M0_FID_TINIT('s', 1, 25);
+	struct m0_reqh     *reqh      = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
+	struct m0_rconfc   *cl_rconfc = &cctx.rcx_reqh.rh_rconfc;
 
-	rc = m0_confc_open_by_fid_sync(confc, &sfid, &svc_obj);
-	M0_UT_ASSERT(rc == 0 && svc_obj != NULL);
-	rc = m0_rpc_conn_ha_subscribe(session->s_conn, svc_obj);
+	rc = m0_rconfc_init(cl_rconfc, m0_locality0_get()->lo_grp, machine,
+			    NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	rc = m0_rpc_conn_ha_subscribe(session->s_conn, &sfid);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_rpc_machine_get_stats(machine, &saved, false);
@@ -381,7 +385,8 @@ static void test_resend(void)
 	/* clean up */
 	m0_rpc_conn_ha_unsubscribe_lock(session->s_conn);
 	M0_UT_ASSERT(session->s_conn->c_ha_clink.cl_chan == NULL);
-	m0_confc_close(svc_obj);
+	m0_rconfc_stop_sync(cl_rconfc);
+	m0_rconfc_fini(cl_rconfc);
 }
 
 static void misordered_item_replied_cb(struct m0_rpc_item *item)
@@ -1005,10 +1010,22 @@ static void test_item_cache(void)
 static struct m0_thread ha_thread = {0};
 m0_chan_cb_t rpc_conn_original_ha_cb = NULL;
 
-void __ha_accept_imitate(struct m0_conf_obj *obj)
+void __ha_accept_imitate(struct m0_fid *sfid)
 {
-	M0_UT_ENTER("obj = %p", obj);
+	struct m0_reqh     *reqh  = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
+	struct m0_confc    *confc = m0_reqh2confc(reqh);
+	struct m0_rconfc   *cl_rconfc = &cctx.rcx_reqh.rh_rconfc;
+	struct m0_conf_obj *obj;
+
+	M0_ENTRY("fid "FID_F, FID_P(sfid));
 	m0_nanosleep(m0_time(0, m0_ha_notify_interval_get() / 2), NULL);
+	/* Update HA state of the service in client cache and server cache */
+	obj = m0_conf_cache_lookup(&confc->cc_cache, sfid);
+	M0_UT_ASSERT(obj != NULL);
+	obj->co_ha_state = M0_NC_FAILED;
+	m0_chan_broadcast_lock(&obj->co_ha_chan);
+	obj = m0_conf_cache_lookup(&cl_rconfc->rc_confc.cc_cache, sfid);
+	M0_UT_ASSERT(obj != NULL);
 	obj->co_ha_state = M0_NC_FAILED;
 	m0_chan_broadcast_lock(&obj->co_ha_chan);
 	M0_UT_RETURN("broadcast done");
@@ -1022,8 +1039,8 @@ static void __ha_timer__dummy(struct m0_sm_timer *timer)
 	M0_UT_ENTER();
 	item = container_of(timer, struct m0_rpc_item, ri_ha_timer);
 	M0_UT_LOG("item = %p", item);
-	obj = item->ri_session->s_conn->c_svc_obj;
-	M0_UT_LOG("obj = %p", obj);
+	obj = m0_rpc_conn2svc(item2conn(item));
+	M0_LOG(M0_DEBUG, "obj = %p, fid "FID_F, obj, FID_P(&obj->co_id));
 	M0_UT_ASSERT(obj->co_ha_state == M0_NC_FAILED);
 	M0_UT_RETURN();
 }
@@ -1043,15 +1060,20 @@ static bool __ha_service_event(struct m0_clink *link)
 static void test_ha_cancel(void)
 {
 	struct m0_reqh     *reqh  = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
-	struct m0_confc    *confc = m0_reqh2confc(reqh);
+	struct m0_confc    *confc = &reqh->rh_rconfc.rc_confc;
 	struct m0_fid       sfid  = M0_FID_TINIT('s', 1, 25);
-	struct m0_conf_obj *svc_obj;
+	struct m0_rconfc   *cl_rconfc = &cctx.rcx_reqh.rh_rconfc;
+	struct m0_conf_obj *obj;
 	int                 rc;
 
 	struct m0_rpc_item_timeout_ops ritoo_orig = m0_ritoo;
 
-	rc = m0_confc_open_by_fid_sync(confc, &sfid, &svc_obj);
-	M0_UT_ASSERT(rc == 0 && svc_obj != NULL);
+	rc = m0_rconfc_init(cl_rconfc, m0_locality0_get()->lo_grp, machine,
+			    NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
 
 	/*
 	 * Re-initiate rpc conn subscription to HA notes. This will replace
@@ -1068,11 +1090,11 @@ static void test_ha_cancel(void)
 	 * no real HA environment running
 	 */
 	m0_ritoo.ritoo_ha_timer_cb = __ha_timer__dummy;
-	rc = m0_rpc_conn_ha_subscribe(session->s_conn, svc_obj);
+	rc = m0_rpc_conn_ha_subscribe(session->s_conn, &sfid);
 	M0_UT_ASSERT(rc == 0);
 	/* imitate external HA note acceptance */
-	rc = M0_THREAD_INIT(&ha_thread, struct m0_conf_obj *, NULL,
-			    &__ha_accept_imitate, svc_obj, "death_note");
+	rc = M0_THREAD_INIT(&ha_thread, struct m0_fid *, NULL,
+			    &__ha_accept_imitate, &sfid, "death_note");
 	M0_UT_ASSERT(rc == 0);
 
 	/* send fop with delay enabled */
@@ -1098,11 +1120,14 @@ static void test_ha_cancel(void)
 	/* recover connection */
 	rc = m0_rpc_client_stop(&cctx);
 	M0_UT_ASSERT(rc == -ECANCELED);
+	m0_rconfc_stop_sync(cl_rconfc);
+	m0_rconfc_fini(cl_rconfc);
 	rc = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(rc == 0);
 	/* recover service object */
-	svc_obj->co_ha_state = M0_NC_ONLINE;
-	m0_confc_close(svc_obj);
+	obj = m0_conf_cache_lookup(&confc->cc_cache, &sfid);
+	M0_UT_ASSERT(obj != NULL);
+	obj->co_ha_state = M0_NC_ONLINE;
 }
 
 struct m0_ut_suite item_ut = {

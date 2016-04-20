@@ -497,9 +497,7 @@ M0_INTERNAL int m0_conf_service_open(struct m0_confc            *confc,
 		if ((ep == NULL || m0_streq(s->cs_endpoints[0], ep)) &&
 		    s->cs_type == svc_type) {
 			*result = s;
-			m0_conf_cache_lock(&confc->cc_cache);
-			m0_conf_obj_get(obj);
-			m0_conf_cache_unlock(&confc->cc_cache);
+			m0_conf_obj_get_lock(obj);
 			rc = 0;
 			found = true;
 			break;
@@ -695,28 +693,6 @@ M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc)
 
 	M0_ENTRY("rconfc %p", rconfc);
 	reqh->rh_conf_cache_ast.sa_cb = __cache_expired_cb;
-	__confc_cache_ast_post(reqh);
-	M0_LEAVE();
-}
-
-static void __cache_drained_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_reqh *reqh = container_of(ast, struct m0_reqh,
-					    rh_conf_cache_ast);
-
-	M0_ENTRY("grp %p, ast %p", grp, ast);
-	m0_chan_broadcast_lock(&reqh->rh_conf_cache_drain);
-	__confc_cache_ast_wait_signal(reqh);
-	M0_LEAVE();
-}
-
-M0_INTERNAL void m0_confc_drained_cb(struct m0_rconfc *rconfc)
-{
-	struct m0_reqh *reqh = container_of(rconfc, struct m0_reqh, rh_rconfc);
-
-	M0_ENTRY("rconfc %p", rconfc);
-	__confc_cache_ast_wait(reqh);
-	reqh->rh_conf_cache_ast.sa_cb = __cache_drained_cb;
 	__confc_cache_ast_post(reqh);
 	M0_LEAVE();
 }

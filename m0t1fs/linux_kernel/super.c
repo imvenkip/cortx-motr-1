@@ -678,10 +678,12 @@ struct m0t1fs_sb *reqh2sb(struct m0_reqh *reqh)
 	return container_of(reqh, struct m0t1fs_sb, csb_reqh);
 }
 
+#if 0
 static struct m0t1fs_sb *rconfc2csb(struct m0_rconfc *rconfc)
 {
 	return reqh2sb(container_of(rconfc, struct m0_reqh, rh_rconfc));
 }
+#endif
 
 M0_INTERNAL struct m0_rconfc *m0_csb2rconfc(struct m0t1fs_sb *csb)
 {
@@ -729,13 +731,14 @@ int m0t1fs_pool_find(struct m0t1fs_sb *csb)
 	return M0_RC(rc);
 }
 
-static void m0t1fs_rconfc_exp_cb(struct m0_rconfc *rconfc)
+static bool m0t1fs_rconfc_exp_cb(struct m0_clink *clink)
 {
-	struct m0t1fs_sb           *csb = rconfc2csb(rconfc);
+	struct m0t1fs_sb           *csb = container_of(clink, struct m0t1fs_sb,
+						       csb_conf_exp);
 	struct m0_reqh_service_ctx *ctx;
 	uint32_t                    i;
 
-	M0_ENTRY("rconfc %p, super %p", rconfc, csb);
+	M0_ENTRY("super %p", csb);
 	csb->csb_rlock_revoked = true;
 	/*
 	 * Cancel sessions to IO services that were used during IO request
@@ -749,16 +752,19 @@ static void m0t1fs_rconfc_exp_cb(struct m0_rconfc *rconfc)
 			m0_reqh_service_cancel_reconnect(ctx);
 	}
 	M0_LEAVE();
+	return true;
 
 }
 
-static void m0t1fs_rconfc_ready_cb(struct m0_rconfc *rconfc)
+static bool m0t1fs_rconfc_ready_cb(struct m0_clink *clink)
 {
-	struct m0t1fs_sb *csb = rconfc2csb(rconfc);
+	struct m0t1fs_sb *csb = container_of(clink, struct m0t1fs_sb,
+					     csb_conf_ready);
 
-	M0_ENTRY("rconfc %p, super %p", rconfc, csb);
+	M0_ENTRY("super %p", csb);
 	csb->csb_rlock_revoked = false;
 	M0_LEAVE();
+	return true;
 }
 
 int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
@@ -799,10 +805,12 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		goto err_ha_fini;
 
 	rconfc = m0_csb2rconfc(csb);
-	m0_rconfc_lock(rconfc);
-	m0_rconfc_exp_cb_set(rconfc, m0t1fs_rconfc_exp_cb);
-	m0_rconfc_ready_cb_set(rconfc, m0t1fs_rconfc_ready_cb);
-	m0_rconfc_unlock(rconfc);
+	//m0_rconfc_lock(rconfc);
+	m0_clink_init(&csb->csb_conf_exp, m0t1fs_rconfc_exp_cb);
+	m0_clink_init(&csb->csb_conf_ready, m0t1fs_rconfc_ready_cb);
+	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &csb->csb_conf_exp);
+	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &csb->csb_conf_ready);
+	//m0_rconfc_unlock(rconfc);
 	rc = m0_rconfc_start_sync(m0_csb2rconfc(csb), &reqh->rh_profile) ?:
 		m0_ha_client_add(m0_reqh2confc(reqh));
 	if (rc != 0)
@@ -878,6 +886,10 @@ err_ha_client_del:
 err_rconfc_stop:
 	m0_rconfc_stop_sync(m0_csb2rconfc(csb));
 	m0_rconfc_fini(m0_csb2rconfc(csb));
+	m0_clink_del_lock(&csb->csb_conf_exp);
+	m0_clink_del_lock(&csb->csb_conf_ready);
+	m0_clink_fini(&csb->csb_conf_exp);
+	m0_clink_fini(&csb->csb_conf_ready);
 err_ha_fini:
 	m0t1fs_ha_fini(csb);
 err_rpc_fini:
@@ -906,6 +918,10 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_ha_client_del(m0_reqh2confc(&csb->csb_reqh));
 	m0_rconfc_stop_sync(m0_csb2rconfc(csb));
 	m0_rconfc_fini(m0_csb2rconfc(csb));
+	m0_clink_del_lock(&csb->csb_conf_exp);
+	m0_clink_del_lock(&csb->csb_conf_ready);
+	m0_clink_fini(&csb->csb_conf_exp);
+	m0_clink_fini(&csb->csb_conf_ready);
 	m0_conf_ha_notify(&csb->csb_reqh.rh_fid, M0_NC_FAILED);
 	m0_reqh_services_terminate(&csb->csb_reqh);
 	m0t1fs_ha_fini(csb);

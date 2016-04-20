@@ -79,7 +79,7 @@ M0_INTERNAL void m0_rpc_link_module_fini(void);
  */
 M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 				 struct m0_rpc_machine *mach,
-				 struct m0_conf_obj *svc_obj,
+				 struct m0_fid *svc_fid,
 				 const char *ep,
 				 uint64_t max_rpcs_in_flight);
 M0_INTERNAL void m0_rpc_link_fini(struct m0_rpc_link *rlink);

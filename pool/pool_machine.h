@@ -122,6 +122,9 @@ struct m0_poolmach_state {
 	 * All Events ever happened to this pool machine, ordered by time.
 	 */
 	struct m0_tl                pst_events_list;
+
+	struct m0_clink             pst_conf_exp;
+	struct m0_clink             pst_conf_ready;
 };
 
 /**

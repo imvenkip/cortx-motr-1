@@ -231,17 +231,6 @@ struct rconfc_load_ctx {
 typedef void (*m0_rconfc_exp_cb_t)(struct m0_rconfc *rconfc);
 
 /**
- * Rconfc cache drained callback is called when m0_rconfc::rc_confc::cc_cache
- * has become invalid because of configuration database change detected, and
- * respectively drained due to this reason.
- *
- * @note The callback is called from rconfc instance being in locked state.
- *
- * @see m0_rconfc_drained_cb_set
- */
-typedef void (*m0_rconfc_drained_cb_t)(struct m0_rconfc *rconfc);
-
-/**
  * Rconfc ready callback is called when m0_rconfc::rc_sm is switched to RCS_IDLE
  * state and an rconfc client is able to read configuration.
  *
@@ -290,11 +279,6 @@ struct m0_rconfc {
 	 * allowed to be re-set later if required, on a locked rconfc instance.
 	 */
 	m0_rconfc_exp_cb_t        rc_exp_cb;
-	/**
-	 * Rconfc cache drained callback. Initially unset. Allowed to be
-	 * installed later if required, on a locked rconfc instance.
-	 */
-	m0_rconfc_drained_cb_t    rc_drained_cb;
 
 	/**
 	 * Rconfc idle callback. Initially unset. Allowed to be
@@ -390,12 +374,12 @@ struct m0_rconfc {
  *                     some dedicated SM group.
  * @param rmach      - RPC machine to be used to communicate with confd
  * @param exp_cb     - callback, a "configuration just expired" event
+ * @param ready_cb   - rconfc is ready for reading configuration
  */
 M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 			       struct m0_sm_group    *sm_group,
 			       struct m0_rpc_machine *rmach,
 			       m0_rconfc_exp_cb_t     exp_cb,
-			       m0_rconfc_drained_cb_t drained_cb,
 			       m0_rconfc_ready_cb_t   ready_cb);
 
 /**
@@ -423,6 +407,9 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
  * is pre-loaded from the local configuration string. Such rconfc instance does
  * not participate in standard rconfc activity like holding read lock, version
  * election etc., and being pre-loaded it can only be stopped and finalised.
+ *
+ * @note if rconfc starts successfully and m0_rconfc::rc_ready_cb is not NULL,
+ * then the callback is invoked.
  *
  * @see m0_rconfc_is_preloaded()
  */
@@ -484,14 +471,6 @@ M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc);
  */
 M0_INTERNAL void m0_rconfc_exp_cb_set(struct m0_rconfc   *rconfc,
 				      m0_rconfc_exp_cb_t  cb);
-
-/**
- * Set drain callback.
- *
- * @pre rconfc is locked.
- */
-M0_INTERNAL void m0_rconfc_drained_cb_set(struct m0_rconfc       *rconfc,
-					  m0_rconfc_drained_cb_t  cb);
 
 /**
  * Set rconfc idle callback.

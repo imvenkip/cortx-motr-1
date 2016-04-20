@@ -777,7 +777,7 @@ void m0_rpc_item_cancel_nolock(struct m0_rpc_item *item)
 
 	M0_PRE(item != NULL);
 	M0_PRE(item->ri_session != NULL);
-	M0_PRE(m0_rpc_conn_is_snd(item->ri_session->s_conn));
+	M0_PRE(m0_rpc_conn_is_snd(item2conn(item)));
 	M0_PRE(m0_rpc_item_is_request(item));
 	M0_ASSERT(m0_rpc_machine_is_locked(item->ri_rmachine));
 
@@ -846,7 +846,7 @@ void m0_rpc_item_cancel(struct m0_rpc_item *item)
 	M0_PRE(item->ri_session != NULL);
 
 	M0_ENTRY("item %p, session %p", item, item->ri_session);
-	mach = item->ri_session->s_conn->c_rpc_machine;
+	mach = item2conn(item)->c_rpc_machine;
 	m0_rpc_machine_lock(mach);
 	m0_rpc_item_cancel_nolock(item);
 	m0_rpc_machine_unlock(mach);
@@ -862,7 +862,7 @@ void m0_rpc_item_cancel_init(struct m0_rpc_item *item)
 	M0_PRE(item->ri_session != NULL);
 
 	M0_ENTRY("item %p, session %p", item, item->ri_session);
-	mach = item->ri_session->s_conn->c_rpc_machine;
+	mach = item2conn(item)->c_rpc_machine;
 	m0_rpc_machine_lock(mach);
 	m0_rpc_item_cancel_nolock(item);
 	/* Re-initialise item. User may want to re-post it. */
@@ -933,7 +933,7 @@ M0_INTERNAL int m0_rpc_item_ha_timer_start(struct m0_rpc_item *item)
 	if (!m0_sm_timer_is_armed(&item->ri_ha_timer))
 	    m0_sm_timer_fini(&item->ri_ha_timer);
 
-	if (item->ri_session->s_conn->c_svc_obj == NULL)
+	if (!m0_fid_is_set(&item2conn(item)->c_svc_fid))
 		return 0; /* there's no point to arm the timer */
 
 	m0_sm_timer_init(&item->ri_ha_timer);
@@ -961,14 +961,6 @@ M0_INTERNAL void m0_rpc_item_ha_timer_stop(struct m0_rpc_item *item)
 		M0_LOG(M0_DEBUG, "%p Stopping HA timer", item);
 		m0_sm_timer_cancel(&item->ri_ha_timer);
 	}
-}
-
-static struct m0_fid* m0_conn2reqh_service_fid(struct m0_rpc_conn *conn)
-{
-	M0_PRE(conn != NULL);
-	if (conn->c_svc_obj != NULL)
-		return &conn->c_svc_obj->co_id;
-	return NULL;
 }
 
 static void reqh_service_ha_state_set(struct m0_rpc_item *item,
@@ -1048,9 +1040,9 @@ static void item_ha_timer_cb(struct m0_sm_timer *timer)
 	item->ri_rmachine->rm_stats.rs_nr_ha_timedout_items++;
 	M0_ASSERT(item->ri_magic == M0_RPC_ITEM_MAGIC);
 	M0_ASSERT(m0_rpc_machine_is_locked(item->ri_rmachine));
-	svc_obj = item->ri_session->s_conn->c_svc_obj;
-	svc_fid = m0_conn2reqh_service_fid(item->ri_session->s_conn);
-	if (svc_obj == NULL || svc_fid == NULL)
+	svc_fid = &item2conn(item)->c_svc_fid;
+	svc_obj = m0_rpc_conn2svc(item2conn(item));
+	if (svc_obj == NULL || !m0_fid_is_set(svc_fid))
 		return; /*
 			 * connection not subscribed to HA notes, so no reaction
 			 * is expected on timeout expiration
@@ -1158,7 +1150,7 @@ static void item_resend(struct m0_rpc_item *item)
 static int item_conn_test(struct m0_rpc_item *item)
 {
 	M0_PRE(item != NULL && item->ri_session != NULL);
-	return m0_rpc_conn_is_known_dead(item->ri_session->s_conn) ?
+	return m0_rpc_conn_is_known_dead(item2conn(item)) ?
 		-ECANCELED : 0;
 }
 
@@ -1211,7 +1203,7 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	 */
 
 	m0_rpc_session_hold_busy(item->ri_session);
-	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
+	m0_rpc_frm_enq_item(&item2conn(item)->c_rpcchan->rc_frm, item);
 	/*
 	 * Rpc always acquires an *internal* reference to "all" items.
 	 * This reference is released when the item is sent.
@@ -1226,7 +1218,7 @@ m0_rpc_item_remote_ep_addr(const struct m0_rpc_item *item)
 {
 	M0_PRE(item != NULL && item->ri_session != NULL);
 
-	return item->ri_session->s_conn->c_rpcchan->rc_destep->nep_addr;
+	return item2conn(item)->c_rpcchan->rc_destep->nep_addr;
 }
 
 M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
@@ -1390,7 +1382,7 @@ static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply)
 		case M0_RPC_ITEM_ENQUEUED:
 		case M0_RPC_ITEM_URGENT:
 			m0_rpc_frm_remove_item(
-				&req->ri_session->s_conn->c_rpcchan->rc_frm,
+				&item2conn(req)->c_rpcchan->rc_frm,
 				req);
 			m0_rpc_item_process_reply(req, reply);
 			m0_rpc_session_release(req->ri_session);
@@ -1435,8 +1427,8 @@ static void item__on_reply_postprocess(struct m0_rpc_item *item)
 	struct m0_conf_obj *svc_obj;
 
 	M0_ENTRY();
-	svc_obj = item->ri_session->s_conn->c_svc_obj;
-	svc_fid = m0_conn2reqh_service_fid(item->ri_session->s_conn);
+	svc_fid = &item2conn(item)->c_svc_fid;
+	svc_obj = m0_rpc_conn2svc(item2conn(item));
 	if (svc_obj == NULL || svc_fid == NULL)
 		goto leave; /*
 			     * connection is not subscribed to HA notes, so no

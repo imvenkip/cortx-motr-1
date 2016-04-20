@@ -54,6 +54,9 @@ struct m0_flset {
 	struct flset_clink *fls_links;
 	/* Number of elements in fls_links array */
 	int                 fls_links_nr;
+
+	struct m0_clink     fls_conf_expired;
+	struct m0_clink     fls_conf_ready;
 };
 
 /**

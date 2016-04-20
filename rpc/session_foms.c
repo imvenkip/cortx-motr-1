@@ -321,7 +321,7 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 
 	item = &fop->f_item;
 	M0_ASSERT(item->ri_session != NULL);
-	conn = item->ri_session->s_conn;
+	conn = item2conn(item);
 	M0_ASSERT(conn != NULL);
 	machine = conn->c_rpc_machine;
 
@@ -406,7 +406,7 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 	item = &fom->fo_fop->f_item;
 	M0_ASSERT(item->ri_session != NULL);
 
-	conn = item->ri_session->s_conn;
+	conn = item2conn(item);
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 
 	machine = conn->c_rpc_machine;
@@ -512,9 +512,9 @@ static void conn_terminate_reply_sent_cb(struct m0_rpc_item *item)
 	M0_PRE(item != NULL &&
 	       item->ri_session != NULL &&
 	       item->ri_session->s_session_id == SESSION_ID_0 &&
-	       item->ri_session->s_conn != NULL);
+	       item2conn(item) != NULL);
 
-	conn = item->ri_session->s_conn;
+	conn = item2conn(item);
 	conn->c_ast.sa_cb = conn_cleanup_ast;
 	m0_sm_ast_post(&conn->c_rpc_machine->rm_sm_grp, &conn->c_ast);
 	M0_LEAVE();
@@ -551,7 +551,7 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 	reply   = m0_fop_data(fop_rep);
 
 	item    = &fop->f_item;
-	conn    = item->ri_session->s_conn;
+	conn    = item2conn(item);
 	machine = conn->c_rpc_machine;
 
 	/* The following switch is an asynchronous cycle and it

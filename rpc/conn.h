@@ -300,18 +300,23 @@ struct m0_rpc_conn {
 	/** HA notification clink */
 	struct m0_clink           c_ha_clink;
 
+	/** conf cache expired clink */
+	struct m0_clink           c_conf_exp_clink;
+
+	/** conf cache ready clink */
+	struct m0_clink           c_conf_ready_clink;
+
 	/**
-	 * Service object the connection is established to. Allowed to be NULL,
-	 * in case no HA notification is required.
+	 * Fid of c_svc_obj
 	 */
-	struct m0_conf_obj       *c_svc_obj;
+	struct m0_fid             c_svc_fid;
 };
 
 /**
    Initialises @conn object and associates it with @machine.
    No network communication is involved.
 
-   Service object can be provided to the call as an option. In case svc_obj is
+   Service fid can be provided to the call as an option. In case svc_fid is
    not NULL, connection gets subscribed to HA notifications on the object. Death
    notification under the circumstances is to result in cancelling all rpc items
    registered with the connection and still remaining unsent unless protection
@@ -326,11 +331,11 @@ struct m0_rpc_conn {
 			conn->c_sender_id == SENDER_ID_INVALID &&
 			(conn->c_flags & RCF_SENDER_END) != 0)
  */
-M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
-				 struct m0_conf_obj *svc_obj,
+M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn      *conn,
+				 struct m0_fid           *svc_obj,
 				 struct m0_net_end_point *ep,
-				 struct m0_rpc_machine *machine,
-				 uint64_t max_rpcs_in_flight);
+				 struct m0_rpc_machine   *machine,
+				 uint64_t                 max_rpcs_in_flight);
 
 M0_INTERNAL void m0_rpc_conn_reset(struct m0_rpc_conn *conn);
 
@@ -372,7 +377,7 @@ M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
  * handled proper way.
  */
 M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
-				   struct m0_conf_obj *svc_obj,
+				   struct m0_fid *svc_fid,
 				   struct m0_net_end_point *ep,
 				   struct m0_rpc_machine *rpc_machine,
 				   uint64_t max_rpcs_in_flight,
@@ -449,7 +454,7 @@ M0_INTERNAL int m0_rpc_conn_timedwait(struct m0_rpc_conn *conn,
  * @pre conn->c_svc_obj == NULL
  */
 M0_INTERNAL int m0_rpc_conn_ha_subscribe(struct m0_rpc_conn *conn,
-					 struct m0_conf_obj *svc_obj);
+					 struct m0_fid      *svc_fid);
 
 
 /**
@@ -483,5 +488,6 @@ M0_INTERNAL const char *m0_rpc_conn_addr(const struct m0_rpc_conn *conn);
  */
 M0_INTERNAL bool m0_rpc_conn_is_known_dead(const struct m0_rpc_conn *conn);
 
+M0_INTERNAL struct m0_conf_obj *m0_rpc_conn2svc(const struct m0_rpc_conn *conn);
 /** @}  End of rpc_session group */
 #endif /* __MERO_RPC_CONN_H__ */

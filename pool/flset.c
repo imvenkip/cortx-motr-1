@@ -34,6 +34,7 @@
 #include "conf/diter.h"
 #include "conf/helpers.h" /* m0_conf_ha_state_update, m0_conf_pvers */
 #include "pool/flset.h"
+#include "reqh/reqh.h"    /* m0_reqh, m0_reqh_invariant */
 
 M0_TL_DESCR_DEFINE(m0_flset, "failed resources", M0_INTERNAL,
 		   struct m0_conf_obj, co_fs_link, co_gen_magic,
@@ -43,7 +44,11 @@ M0_TL_DEFINE(m0_flset, M0_INTERNAL, struct m0_conf_obj);
 struct flset_clink {
 	struct m0_clink  fcl_link;
 	struct m0_flset *fcl_parent;
+	struct m0_fid    fcl_fid;
 };
+
+static bool flset_conf_expired_cb(struct m0_clink *clink);
+static bool flset_conf_ready_cb(struct m0_clink *clink);
 
 static bool obj_is_flset_target(const struct m0_conf_obj *obj)
 {
@@ -151,26 +156,36 @@ static int flset_target_objects_nr(struct m0_conf_filesystem *fs)
 	return rc ? M0_ERR(rc) : objs_nr;
 }
 
-static void flset_clinks_deregister(struct m0_flset *flset)
+static void flset_clinks_delete(struct m0_flset *flset)
 {
-	struct m0_clink *cl;
-	int              i;
+	struct m0_conf_obj *obj;
+	struct m0_clink    *cl;
+	int                 i;
 
 	for (i = 0; i < flset->fls_links_nr; i++) {
 		cl = &flset->fls_links[i].fcl_link;
+		obj = container_of(cl->cl_chan, struct m0_conf_obj, co_ha_chan);
+		M0_ASSERT(m0_conf_obj_invariant(obj));
 		m0_clink_del_lock(cl);
+		m0_confc_close(obj);
 		m0_clink_fini(cl);
 	}
+}
+
+static void flset_clinks_deregister(struct m0_flset *flset)
+{
+	flset_clinks_delete(flset);
 	m0_free(flset->fls_links);
 }
 
 static void flset_clink_init_add(struct m0_flset    *flset,
 				 struct flset_clink *link,
-				 struct m0_chan     *chan)
+				 struct m0_conf_obj *obj)
 {
 	m0_clink_init(&link->fcl_link, flset_hw_obj_failure_cb);
-	m0_clink_add_lock(chan, &link->fcl_link);
+	m0_clink_add_lock(&obj->co_ha_chan, &link->fcl_link);
 	link->fcl_parent = flset;
+	link->fcl_fid = obj->co_id;
 }
 
 static struct flset_clink *flset_clink_get(struct m0_flset *flset, int idx)
@@ -213,7 +228,8 @@ static int flset_clinks_register(struct m0_flset           *flset,
 	while ((rc = flset_diter_next(&it)) == M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		fls_cl = flset_clink_get(flset, flset->fls_links_nr);
-		flset_clink_init_add(flset, fls_cl, &obj->co_ha_chan);
+		m0_conf_obj_get_lock(obj);
+		flset_clink_init_add(flset, fls_cl, obj);
 		flset->fls_links_nr++;
 	}
 	M0_ASSERT(ergo(rc == 0, flset->fls_links_nr == objs_nr));
@@ -254,19 +270,67 @@ static int flset_fill(struct m0_flset           *flset,
 	return M0_RC(0);
 }
 
+static bool flset_conf_expired_cb(struct m0_clink *clink)
+{
+	struct m0_flset *flset = container_of(clink, struct m0_flset,
+					      fls_conf_expired);
+	M0_ENTRY("flset %p", flset);
+	flset_clinks_delete(flset);
+	M0_LEAVE();
+	return true;
+}
+
+static bool flset_conf_ready_cb(struct m0_clink *clink)
+{
+	struct m0_flset      *flset = container_of(clink, struct m0_flset,
+						   fls_conf_ready);
+	struct m0_reqh       *reqh = container_of(clink->cl_chan,
+						  struct m0_reqh,
+						  rh_conf_cache_ready);
+	struct m0_conf_cache *cache = &reqh->rh_rconfc.rc_confc.cc_cache;
+	struct flset_clink   *fls_cl;
+	struct m0_conf_obj   *obj;
+	int                   i;
+
+	M0_ENTRY("flset %p", flset);
+	/*
+	 * @todo the code should process any updates in the configuration tree.
+	 * Currently it expects that an interested object wasn't removed from
+	 * the tree or new object (m0_conf_sdev) was added.
+	 */
+	for (i = 0; i < flset->fls_links_nr; i++) {
+		fls_cl = flset_clink_get(flset, i);
+		obj = m0_conf_cache_lookup(cache, &fls_cl->fcl_fid);
+		M0_ASSERT_INFO(_0C(obj != NULL) &&
+			       _0C(m0_conf_obj_invariant(obj)),
+			       "flset_clink->flc_fid "FID_F,
+			       FID_P(&fls_cl->fcl_fid));
+		m0_conf_obj_get_lock(obj);
+		flset_clink_init_add(flset, fls_cl, obj);
+	}
+	M0_LEAVE();
+	return true;
+}
 M0_INTERNAL int m0_flset_build(struct m0_flset           *flset,
 			       struct m0_rpc_session     *ha_session,
 			       struct m0_conf_filesystem *fs)
 {
-	int rc;
+	struct m0_reqh *reqh = container_of(flset, struct m0_reqh,
+					    rh_failure_set);
+	int             rc;
 
 	M0_ENTRY();
+	M0_PRE(m0_reqh_invariant(reqh));
 	m0_flset_tlist_init(&flset->fls_objs);
 	rc = flset_fill(flset, ha_session, fs);
 	if (rc != 0) {
 		m0_flset_tlist_fini(&flset->fls_objs);
 		return M0_ERR(rc);
 	}
+	m0_clink_init(&flset->fls_conf_expired, flset_conf_expired_cb);
+	m0_clink_init(&flset->fls_conf_ready, flset_conf_ready_cb);
+	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &flset->fls_conf_expired);
+	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &flset->fls_conf_ready);
 	return M0_RC(0);
 }
 
@@ -280,6 +344,12 @@ M0_INTERNAL void m0_flset_destroy(struct m0_flset *flset)
 		m0_flset_tlist_del(obj);
 	} m0_tlist_endfor;
 	m0_flset_tlist_fini(&flset->fls_objs);
+	if (m0_clink_is_armed(&flset->fls_conf_expired))
+		m0_clink_del_lock(&flset->fls_conf_expired);
+	if (m0_clink_is_armed(&flset->fls_conf_ready))
+		m0_clink_del_lock(&flset->fls_conf_ready);
+	m0_clink_fini(&flset->fls_conf_expired);
+	m0_clink_fini(&flset->fls_conf_ready);
 	M0_LEAVE();
 }
 

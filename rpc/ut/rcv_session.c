@@ -18,7 +18,9 @@
  * Original creation date: 18-Mar-2013
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "conf/rconfc_internal.h"
+#include "conf/ut/common.h"
 #include "lib/trace.h"
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
@@ -30,6 +32,7 @@
 #include "rpc/ut/rpc_test_fops.h"
 #include "rpc/rpc_internal.h"
 
+extern struct m0_semaphore    g_sem;
 static struct m0_rpc_machine *machine;
 static const char            *remote_addr;
 enum {
@@ -243,6 +246,66 @@ static void test_conn_terminate(void)
 	m0_net_end_point_put(ep);
 }
 
+M0_EXTERN struct m0_rm_incoming_ops m0_rconfc_ri_ops;
+
+static void test_conn_ha_subscribe()
+{
+	struct m0_net_end_point *ep;
+	struct m0_rpc_conn       conn;
+	struct rlock_ctx        *rlx;
+	struct m0_rconfc        *rconfc;
+	struct m0_fid            profile = M0_FID_TINIT('p', 1, 0);
+	struct m0_conf_obj      *svc_obj = NULL;
+	int                      rc;
+
+	rc = conf_ut_ast_thread_init();
+	M0_ASSERT(rc == 0);
+	rc = m0_semaphore_init(&g_sem, 0);
+	M0_UT_ASSERT(rc == 0);
+	cctx.rcx_reqh.rh_profile = profile;
+	rconfc = &cctx.rcx_reqh.rh_rconfc;
+        M0_SET0(rconfc);
+	rc = m0_rconfc_init(rconfc, m0_locality0_get()->lo_grp, machine,
+			    conf_ut_confc_expired_cb, conf_ut_confc_ready_cb);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(rconfc, &profile);
+	m0_semaphore_down(&g_sem);
+	M0_UT_ASSERT(rc == 0);
+	M0_LOG(M0_DEBUG, "rconfc_init %p", rconfc);
+	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);
+	M0_UT_ASSERT(rc == 0);
+	m0_conf_service_find(&cctx.rcx_reqh, NULL, M0_CST_IOS, remote_addr,
+			     &svc_obj);
+	M0_ASSERT(svc_obj != NULL);
+	rc = m0_rpc_conn_create(&conn, &svc_obj->co_id, ep, machine,
+			MAX_RPCS_IN_FLIGHT,
+			m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(svc_obj->co_ha_chan.ch_waiters == 1);
+	rlx = rconfc->rc_rlock_ctx;
+	m0_rconfc_ri_ops.rio_conflict(&rlx->rlc_req);
+	m0_sm_group_lock(rconfc->rc_sm.sm_grp);
+	m0_sm_timedwait(&rconfc->rc_sm, M0_BITS(RCS_IDLE, RCS_FAILURE),
+			M0_TIME_NEVER);
+	m0_sm_group_unlock(rconfc->rc_sm.sm_grp);
+	M0_UT_ASSERT(rconfc->rc_sm.sm_state == RCS_IDLE);
+	m0_semaphore_down(&g_sem);
+	/*
+	 * Check that conn is still subscribed after fetching new configuration
+	 */
+	m0_conf_service_find(&cctx.rcx_reqh, NULL, M0_CST_IOS, remote_addr,
+			     &svc_obj);
+	M0_ASSERT(svc_obj != NULL);
+	M0_UT_ASSERT(svc_obj->co_ha_chan.ch_waiters == 1);
+	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(svc_obj->co_ha_chan.ch_waiters == 0);
+	m0_net_end_point_put(ep);
+	m0_rconfc_stop_sync(rconfc);
+	m0_rconfc_fini(rconfc);
+	conf_ut_ast_thread_fini();
+}
+
 struct m0_ut_suite rpc_rcv_session_ut = {
 	.ts_name = "rpc-rcv-session-ut",
 	.ts_init = ts_rcv_session_init,
@@ -252,6 +315,7 @@ struct m0_ut_suite rpc_rcv_session_ut = {
 		{ "session-establish", test_session_establish},
 		{ "session-terminate", test_session_terminate},
 		{ "conn-terminate",    test_conn_terminate   },
+		{ "conn-ha-subscribe", test_conn_ha_subscribe},
 		{ NULL, NULL },
 	}
 };

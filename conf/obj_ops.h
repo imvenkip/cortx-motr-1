@@ -205,6 +205,7 @@ M0_INTERNAL bool m0_conf_obj_invariant(const struct m0_conf_obj *obj);
  */
 M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj);
 
+M0_INTERNAL void m0_conf_obj_get_lock(struct m0_conf_obj *obj);
 /**
  * Decrements reference counter of given configuration object.
  *

@@ -170,7 +170,7 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_session *session,
 				      struct m0_rpc_machine *rpc_mach,
 				      const char            *remote_addr,
-				      struct m0_conf_obj    *svc_obj,
+				      struct m0_fid         *svc_fid,
 				      uint64_t               max_rpcs_in_flight);
 
 /**

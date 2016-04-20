@@ -728,8 +728,7 @@ M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
 				   args->ca_profile);
 
 	rc = m0_rconfc_init(rconfc, args->ca_group, args->ca_rmach,
-			    m0_confc_expired_cb, m0_confc_drained_cb,
-			    m0_confc_ready_cb);
+			    m0_confc_expired_cb, m0_confc_ready_cb);
 	if (rc == 0 && args->ca_confstr != NULL) {
 		rconfc->rc_local_conf = m0_strdup(args->ca_confstr);
 		if (rconfc->rc_local_conf == NULL)
