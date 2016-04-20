@@ -117,9 +117,9 @@ static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
 {
 	struct m0_mero *cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
 
-	return cctx->cc_no_storage || (rctx->rc_stype  != NULL &&
-				       rctx->rc_stpath != NULL &&
-				       rctx->rc_bepath != NULL);
+	return cctx->cc_no_storage || (_0C(rctx->rc_stype  != NULL) &&
+				       _0C(rctx->rc_stpath != NULL) &&
+				       _0C(rctx->rc_bepath != NULL));
 }
 
 static bool reqh_ctx_services_are_valid(const struct m0_reqh_context *rctx)
