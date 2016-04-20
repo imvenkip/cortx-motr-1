@@ -536,7 +536,7 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 		item->ri_header.osr_xid = rpc_item_needs_xid(item) ?
 					  ++item->ri_session->s_xid :
 					  UINT64_MAX;
-		M0_LOG(M0_DEBUG, "%p[%u] set item xid=%"PRIu64
+		M0_LOG(M0_DEBUG, "%p[%u] set item xid=%"PRIu64" "
 		       "s_xid=%"PRIu64, item, item->ri_type->rit_opcode,
 		       item->ri_header.osr_xid,
 		       item->ri_session == NULL ? UINT64_MAX :
