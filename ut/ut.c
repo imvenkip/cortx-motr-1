@@ -367,7 +367,7 @@ static void run_test(const struct m0_ut *test, size_t max_name_len)
 	duration = m0_time_sub(end, start);
 	mem_used = mem_after - mem_before;
 
-	m0_console_printf("%.*s%4" PRIu64 ".%-2" PRIu64 " sec  %sB\n",
+	m0_console_printf("%.*s%4" PRIu64 ".%02" PRIu64 " sec  %sB\n",
 			  (int)pad_len, padding, m0_time_seconds(duration),
 			  m0_time_nanoseconds(duration) / M0_TIME_ONE_MSEC / 10,
 			  m0_bcount_with_suffix(mem, ARRAY_SIZE(mem), mem_used));
@@ -428,7 +428,7 @@ static int run_suite(const struct m0_ut_suite *suite, int max_name_len)
 	duration    = m0_time_sub(end, start);
 	mem_used    = mem_after - mem_before;
 
-	m0_console_printf(LOG_PREFIX "  [ time: %" PRIu64 ".%-" PRIu64 " sec,"
+	m0_console_printf(LOG_PREFIX "  [ time: %" PRIu64 ".%02" PRIu64 " sec,"
 			  " mem: %sB, leaked: %sB ]\n", m0_time_seconds(duration),
 			  m0_time_nanoseconds(duration) / M0_TIME_ONE_MSEC / 10,
 			  skipspaces(m0_bcount_with_suffix(mem, ARRAY_SIZE(mem),
@@ -495,7 +495,7 @@ M0_INTERNAL int m0_ut_run(void)
 					 leak, ARRAY_SIZE(leak),
 					 alloc_after - alloc_before));
 	if (rc == 0)
-		m0_console_printf("\nTime: %" PRIu64 ".%-2" PRIu64 " sec,"
+		m0_console_printf("\nTime: %" PRIu64 ".%02" PRIu64 " sec,"
 				  " Mem: %sB, Leaked: %sB, Asserts: %" PRIu64
 				  "\nUnit tests status: SUCCESS\n",
 				  m0_time_seconds(duration),
