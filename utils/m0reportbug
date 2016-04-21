@@ -3,12 +3,18 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.14
+VERSION=0.14.1
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-04-21 0.14.1  * Add `m0ut' to _path_rpm().
+###                    * Add `lt-m0mkfs' to _path_src().
+###                    * Suppress "No such file" warning for the binaries,
+###                      which are provided by optional rpms.
+###                    * Use "**ERROR**" prefix to make errors noticeable.
+###
 ### 2016-04-05 0.14    Collect Halon data: /tmp/halond.log file,
 ###                    /var/log/halon-persistence/ directory, m0traces
 ###                    from /var/lib/halon/ directory.
@@ -235,7 +241,7 @@ misc_files() {
     fi
 }
 
-die() { echo "$@" >&2; exit 1; }
+die() { echo "**ERROR** $@" >&2; exit 1; }
 warn() { echo "*WARNING* $@" >&2; }
 
 section() { echo "----- $@ -----"; }
@@ -279,7 +285,12 @@ _path_rpm() {
         m0addb2dump) echo "/usr/sbin/$name";;
         libmero.so) echo "/usr/lib64/libmero-${MERO_PACKAGE_VERSION}.so";;
         m0mero.ko) echo "/lib/module/$(uname -r)/kernel/fs/mero/$name";;
-        libmero-ut.so|libmero-xcode-ff2c.so) echo "/usr/lib64/$name.0.0.0";;
+        m0ut|lt-m0ut)
+            ## Provided by mero-tests-ut-*.rpm (optional).
+            echo "?/usr/bin/${name#lt-}";;
+        libmero-ut.so|libmero-xcode-ff2c.so)
+            ## Provided by mero-devel-*.rpm (optional).
+            echo "?/usr/lib64/$name.0.0.0";;
         libgf_complete.so) echo "/usr/lib64/$name.1.0.0";;
         *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
     esac
@@ -296,7 +307,7 @@ _path_src() {
 
     case $name in
         m0d|lt-m0d) echo "$src/mero/${subdir}$name";;
-        m0mkfs) echo "$src/utils/mkfs/${subdir}$name";;
+        m0mkfs|lt-m0mkfs) echo "$src/utils/mkfs/${subdir}$name";;
         m0trace|m0tracedump)
             [ -z "$subdir" ] || die "${FUNCNAME[0]}: Unexpected argument"
             echo "$src/utils/trace/$name";;
@@ -305,7 +316,7 @@ _path_src() {
             echo "$src/addb2/$name";;
         libmero.so) echo "$src/mero/.libs/libmero-${MERO_PACKAGE_VERSION}.so";;
         m0mero.ko) echo "$src/mero/$name";;
-        lt-m0ut) echo "$src/ut/.libs/$name";;
+        m0ut|lt-m0ut) echo "$src/ut/.libs/$name";;
         libmero-ut.so) echo "$src/ut/.libs/$name.0.0.0";;
         libmero-xcode-ff2c.so) echo "$src/xcode/ff2c/.libs/$name.0.0.0";;
         libgf_complete.so)
@@ -321,17 +332,20 @@ path() {
     local name=$1
     local subdir="${2:+.libs/}"
     local result
+    local optional=0
 
     if [ "$(dirname $PROG)" = '/usr/sbin' ]; then
         result=$(_path_rpm $name) # installed from rpm
     else
         result=$(_path_src $name "$subdir") # being run from sources
     fi
+    [ "${result#\?}" = "$result" ] || local optional=1 # file may be missing
+    result="${result#\?}"
 
     if [ -z "$result" ]; then
         warn "${FUNCNAME[0]}: Unable to find $name"
     elif ! [ -a "$result" ]; then
-        warn "${FUNCNAME[0]}: $result: No such file"
+        [ $optional -eq 1 ] || warn "${FUNCNAME[0]}: $result: No such file"
     elif [ "${2:-}" = binary -a \
            "$(file -bi $result | cut -d= -f2)" != binary ]; then
         warn "${FUNCNAME[0]}: $name is not a binary file"
@@ -446,7 +460,7 @@ binaries() {
 
     mkdir binaries
     ## Note, that we intentionally skip `m0mero.ko' as it's too big (42M).
-    for f in m0mkfs m0d lt-m0ut ${libs[@]}; do
+    for f in m0mkfs m0d m0ut ${libs[@]}; do
         s=$(path $f binary)
         if [ -n "$s" ]; then
             ## Strip `.0.0' suffix when copying.
