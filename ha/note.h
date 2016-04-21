@@ -290,6 +290,11 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 				 struct m0_ha_nvec *note);
 /**
+ * Notify local HA about state of configuration objects.
+ */
+M0_INTERNAL void m0_ha_local_state_set(struct m0_ha_nvec *nvec);
+
+/**
  * Asynchronous version of m0_ha_state_set() intended for posting single state.
  *
  * To comply with m0_rpc__post_locked():

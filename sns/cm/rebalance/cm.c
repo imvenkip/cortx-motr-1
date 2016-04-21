@@ -133,7 +133,7 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 		/* Set pool ha note. */
 		nvec.nv_note[i].no_id = pool->po_id;
 		nvec.nv_note[i].no_state = pstate;
-		m0_sns_cm_ha_state_set(&nvec);
+		m0_ha_local_state_set(&nvec);
 	} m0_tl_endfor;
 
 out:

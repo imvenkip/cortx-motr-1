@@ -840,17 +840,6 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 	return m0_sns_cm_ag__next(scm, id_curr, id_next);
 }
 
-M0_INTERNAL void m0_sns_cm_ha_state_set(struct m0_ha_nvec *nvec)
-{
-	struct m0_rpc_session *rpc_ssn;
-
-	if (M0_FI_ENABLED("no_ha"))
-		return;
-	rpc_ssn = m0_ha_session_get();
-	if (rpc_ssn != NULL)
-		m0_ha_state_set(rpc_ssn, nvec);
-}
-
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} SNSCM */

@@ -26,6 +26,7 @@
 #include "lib/chan.h"
 #include "lib/memory.h"
 #include "lib/trace.h"
+#include "lib/finject.h"
 #include "rpc/rpc_internal.h"   /* m0_rpc__post_locked */
 #include "rpc/rpclib.h"
 #include "rpc/session.h"
@@ -213,6 +214,17 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 	} else
 		M0_LOG(M0_NOTICE, "Cannot allocate fop.");
 	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_ha_local_state_set(struct m0_ha_nvec *nvec)
+{
+	struct m0_rpc_session *rpc_ssn;
+
+	if (M0_FI_ENABLED("no_ha"))
+		return;
+	rpc_ssn = m0_ha_session_get();
+	if (rpc_ssn != NULL)
+		m0_ha_state_set(rpc_ssn, nvec);
 }
 
 static void ha_state_single_fop_data_free(struct m0_fop *fop)

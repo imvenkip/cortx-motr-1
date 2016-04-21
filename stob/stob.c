@@ -167,6 +167,8 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
 	}
 	m0_stob__state_set(stob,
 			   rc == 0 ? CSS_EXISTS : m0_stob_state_get(stob));
+	if (rc == -ENOENT)
+		stob->so_ops->sop_destroy(stob, dtx);
 	return M0_RC(rc);
 }
 

@@ -219,7 +219,7 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 					 struct m0_fid          *svc_fid,
 					 struct m0_confc        *confc)
 {
-	struct m0_conf_obj  *svc;
+	struct m0_conf_obj  *svc_obj;
 	struct m0_conf_sdev *sdev;
 	struct m0_stob      *stob;
 	int                  rc;
@@ -229,13 +229,32 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 	if (svc_fid == NULL)
 		return 0;
 
-	rc = m0_confc_open_by_fid_sync(confc, svc_fid, &svc);
+	rc = m0_confc_open_by_fid_sync(confc, svc_fid, &svc_obj);
 	if (rc == 0) {
-		struct m0_conf_diter it;
-		rc = m0_conf_diter_init(&it, confc, svc,
+		struct m0_conf_diter    it;
+		struct m0_conf_service *svc = M0_CONF_CAST(svc_obj,
+							   m0_conf_service);
+		uint32_t                dev_nr;
+		struct m0_ha_note      *note;
+		uint32_t                fail_devs = 0;
+
+		/*
+		 * Total number of devices under service is used to allocate
+		 * note vector and notifications are sent only for devices
+		 * which are failed with -ENOENT during attach.
+		 */
+		dev_nr = m0_conf_dir_tlist_length(&svc->cs_sdevs->cd_items);
+		M0_ASSERT(dev_nr != 0);
+		M0_ALLOC_ARR(note, dev_nr);
+		if (note == NULL) {
+			m0_confc_close(svc_obj);
+			return M0_ERR(-ENOMEM);
+		}
+		rc = m0_conf_diter_init(&it, confc, svc_obj,
 					M0_CONF_SERVICE_SDEVS_FID);
 		if (rc != 0) {
-			m0_confc_close(svc);
+			m0_free(note);
+			m0_confc_close(svc_obj);
 			return M0_ERR(rc);
 		}
 
@@ -251,10 +270,21 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 			       sdev->sd_filename, sdev->sd_size);
 
 			M0_ASSERT(sdev->sd_dev_idx <= M0_FID_DEVICE_ID_MAX);
+			if (sdev->sd_obj.co_ha_state == M0_NC_FAILED)
+				continue;
 			rc = m0_storage_dev_attach(devs,
 			        sdev->sd_dev_idx,
 			        sdev->sd_filename,
 			        sdev->sd_size);
+			if (rc == -ENOENT) {
+				M0_LOG(M0_DEBUG, "co_id="FID_F" path=%s rc=%d",
+				       FID_P(&sdev->sd_obj.co_id),
+				       sdev->sd_filename, rc);
+				note[fail_devs].no_id = sdev->sd_obj.co_id;
+				note[fail_devs].no_state = M0_NC_FAILED;
+				M0_CNT_INC(fail_devs);
+				continue;
+			}
 			if (rc != 0) {
 				M0_LOG(M0_ERROR, "co_id="FID_F" path=%s rc=%d",
 				       FID_P(&sdev->sd_obj.co_id),
@@ -268,8 +298,16 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 
 		}
 		m0_conf_diter_fini(&it);
+		if (fail_devs > 0) {
+			struct m0_ha_nvec nvec;
+
+			nvec.nv_nr = fail_devs;
+			nvec.nv_note = note;
+			m0_ha_local_state_set(&nvec);
+		}
+		m0_free(note);
 	}
-	m0_confc_close(svc);
+	m0_confc_close(svc_obj);
 
 	return M0_RC(rc);
 }

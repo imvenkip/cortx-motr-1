@@ -2184,7 +2184,8 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	stobio_tlist_fini(&fom_obj->fcrw_stio_list);
 	if (fom_obj->fcrw_io.si_stob.iv_vec.v_nr > 0)
 		m0_indexvec_free(&fom_obj->fcrw_io.si_stob);
-	stob_io_destroy(fom);
+	if (fom_obj->fcrw_stio != NULL)
+		stob_io_destroy(fom);
 	m0_fom_fini(fom);
 	m0_free(fom_obj);
 }
