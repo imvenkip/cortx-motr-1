@@ -1189,7 +1189,7 @@ static void rconfc_read_lock_put(struct m0_rconfc *rconfc)
 
 static void rconfc_ast_post(struct m0_rconfc  *rconfc,
 			    void             (*cb)(struct m0_sm_group *,
-				                   struct m0_sm_ast *))
+						   struct m0_sm_ast *))
 {
 	struct m0_sm_ast *ast = &rconfc->rc_ast;
 
@@ -1200,7 +1200,7 @@ static void rconfc_ast_post(struct m0_rconfc  *rconfc,
 
 static void rconfc_state_set(struct m0_rconfc *rconfc, int state)
 {
-        M0_LOG(M0_DEBUG, "rconfc: %p, state change:[%s -> %s]",
+	M0_LOG(M0_DEBUG, "rconfc: %p, state change:[%s -> %s]",
 	       rconfc, m0_sm_state_name(&rconfc->rc_sm, rconfc->rc_sm.sm_state),
 	       m0_sm_state_name(&rconfc->rc_sm, state));
 
@@ -1211,7 +1211,7 @@ static void rconfc_fail(struct m0_rconfc *rconfc, int rc)
 {
 	M0_ENTRY("rconfc = %p, rc = %d", rconfc, rc);
 	M0_PRE(rconfc_is_locked(rconfc));
-        M0_LOG(M0_ERROR, "rconfc: %p, state %s failed with %d", rconfc,
+	M0_LOG(M0_ERROR, "rconfc: %p, state %s failed with %d", rconfc,
 	       m0_sm_state_name(&rconfc->rc_sm, rconfc->rc_sm.sm_state), rc);
 	/*
 	 * Put read lock on failure, because this rconfc can prevent remote
@@ -1639,7 +1639,7 @@ static int rconfc_entrypoint_req(struct m0_rconfc *rconfc)
 	 * rconfc initialisation.
 	 */
 	M0_ASSERT(sess != NULL);
-	data = m0_alloc(sizeof (struct m0_ha_entrypoint_req));
+	data = m0_alloc(sizeof(struct m0_ha_entrypoint_req));
 	if (data == NULL)
 		return M0_ERR(-ENOMEM);
 	m0_fop_init(fop, &m0_ha_entrypoint_req_fopt, NULL, rconfc_fop_release);
@@ -1666,66 +1666,86 @@ static void rconfc_entrypoint_get(struct m0_rconfc *rconfc)
 	M0_LEAVE();
 }
 
-static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
-					  struct m0_sm_ast   *ast)
+static void
+rconfc_entrypoint_debug_print(struct m0_ha_entrypoint_rep  *entrypoint,
+			      const char                   *rm_addr,
+			      const char                  **confd_eps)
 {
-	struct m0_rconfc            *rconfc = ast->sa_datum;
-	struct rlock_ctx            *rlx    = rconfc->rc_rlock_ctx;
-	char                        *rep_rm_addr = NULL;
-	struct m0_ha_entrypoint_rep *entrypoint;
-	struct m0_rpc_item          *reply = rconfc->rc_entrypoint_reply;
-	const char                 **confd_eps = NULL;
-	uint32_t                     i;
-	bool                         addr_mismatch;
-	int                          rc = 0;
+	int i;
 
-	M0_ENTRY("rconfc = %p", rconfc);
-	M0_PRE(reply != NULL);
+	M0_LOG(M0_DEBUG, "hbp_rc=%"PRIi32" hbp_quorum=%"PRIu32
+	       " confd_nr=%"PRIu32, entrypoint->hbp_rc, entrypoint->hbp_quorum,
+	       entrypoint->hbp_confd_fids.af_count);
+	M0_LOG(M0_DEBUG, "hbp_active_rm_fid="FID_F" hbp_active_rm_ep=%s",
+	       FID_P(&entrypoint->hbp_active_rm_fid), rm_addr);
+	for (i = 0; i < entrypoint->hbp_confd_eps.ab_count; ++i) {
+		M0_LOG(M0_DEBUG, "hbp_confd_fids[%d]="FID_F
+		       " hbp_confd_eps[%d]=%s",
+		       i, FID_P(&entrypoint->hbp_confd_fids.af_elems[i]),
+		       i, confd_eps[i]);
+	}
+}
+
+static int rconfc_entrypoint_reply_consume(struct m0_rconfc *rconfc,
+					   char            **rm_addr)
+{
+	struct m0_rpc_item           *reply = rconfc->rc_entrypoint_reply;
+	struct rlock_ctx             *rlx   = rconfc->rc_rlock_ctx;
+	struct m0_ha_entrypoint_rep  *entrypoint;
+	const char                  **confd_eps = NULL;
+	int                           rc;
+
+	M0_ENTRY();
 	entrypoint = m0_fop_data(m0_rpc_item_to_fop(reply));
-	rconfc_state_set(rconfc, RCS_ENTRYPOINT_REPLIED);
 	rconfc->rc_quorum = entrypoint->hbp_quorum;
 	rlx->rlc_rm_fid = entrypoint->hbp_active_rm_fid;
-	rep_rm_addr = m0_buf_strdup(&entrypoint->hbp_active_rm_ep);
-	if (rep_rm_addr == NULL)
+
+	*rm_addr = m0_buf_strdup(&entrypoint->hbp_active_rm_ep);
+	if (*rm_addr == NULL) {
 		rc = M0_ERR(-ENOMEM);
-	rc = rc ?: m0_bufs_to_strings(&confd_eps, &entrypoint->hbp_confd_eps);
-	if (rc == 0) {
-		M0_LOG(M0_DEBUG, "hbp_rc=%"PRIi32" hbp_quorum=%"PRIu32" "
-		       "confd_nr=%"PRIu32, entrypoint->hbp_rc,
-		       entrypoint->hbp_quorum,
-		       entrypoint->hbp_confd_fids.af_count);
-		M0_LOG(M0_DEBUG, "hbp_active_rm_fid="FID_F" "
-		       "hbp_active_rm_ep=%s",
-		       FID_P(&entrypoint->hbp_active_rm_fid),
-		       (const char *)rep_rm_addr);
-		for (i = 0; i < entrypoint->hbp_confd_eps.ab_count; ++i) {
-			M0_LOG(M0_DEBUG, "hbp_confd_fids[%d]="FID_F" "
-			       "hbp_confd_eps[%d]=%s", i,
-			       FID_P(&entrypoint->hbp_confd_fids.af_elems[i]),
-			       i, confd_eps[i]);
-		}
+		goto end;
 	}
-	rc = rc ?: rconfc_herd_update(rconfc, confd_eps,
-	                              &entrypoint->hbp_confd_fids) ?:
+	rc = m0_bufs_to_strings(&confd_eps, &entrypoint->hbp_confd_eps);
+	if (rc != 0)
+		goto end;
+	rconfc_entrypoint_debug_print(entrypoint, *rm_addr, confd_eps);
+	rc = rconfc_herd_update(rconfc, confd_eps,
+				&entrypoint->hbp_confd_fids) ?:
 		m0_conf_confc_ha_update(m0_ha_session_get(), &rconfc->rc_phony);
 	m0_strings_free(confd_eps);
+end:
+	if (rc != 0)
+		m0_free0(rm_addr);
 	m0_rpc_item_put_lock(&rconfc->rc_entrypoint_fop.f_item);
 	m0_rpc_item_put_lock(reply);
 	rconfc->rc_entrypoint_reply = NULL;
+	return M0_RC(rc);
+}
+
+static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
+					  struct m0_sm_ast   *ast)
+{
+	struct m0_rconfc *rconfc = ast->sa_datum;
+	struct rlock_ctx *rlx    = rconfc->rc_rlock_ctx;
+	char             *rm_addr;
+	int               rc;
+
+	M0_ENTRY("rconfc = %p", rconfc);
+	M0_PRE(rconfc->rc_entrypoint_reply != NULL);
+
+	rconfc_state_set(rconfc, RCS_ENTRYPOINT_REPLIED);
+	rc = rconfc_entrypoint_reply_consume(rconfc, &rm_addr);
 	if (rc != 0) {
-		m0_free(rep_rm_addr);
 		rconfc_fail(rconfc, rc);
 		M0_LEAVE("rc=%d", rc);
 		return;
 	}
-	addr_mismatch = rlx->rlc_rm_addr == NULL ||
-			!m0_streq(rlx->rlc_rm_addr, rep_rm_addr);
-	if (addr_mismatch) {
+	if (rlx->rlc_rm_addr == NULL || !m0_streq(rlx->rlc_rm_addr, rm_addr)) {
 		if (rlock_ctx_is_online(rlx))
 			rlock_ctx_creditor_unset(rlx);
-		rc = rlock_ctx_creditor_setup(rlx, rep_rm_addr);
+		rc = rlock_ctx_creditor_setup(rlx, rm_addr);
 	}
-	m0_free(rep_rm_addr);
+	m0_free(rm_addr);
 	if (rc == 0) {
 		rconfc_state_set(rconfc, RCS_GET_RLOCK);
 		rconfc_read_lock_get(rconfc);
@@ -1742,27 +1762,27 @@ static int32_t _entrypoint_rep_rc(struct m0_ha_entrypoint_rep *entrypoint)
 
 static void rconfc_entrypoint_req_replied(struct m0_rpc_item *item)
 {
-	struct m0_rconfc            *rconfc = item_to_rconfc(item);
-	struct m0_rpc_item          *reply  = item->ri_reply;
-	int                          rc;
+	struct m0_rconfc   *rconfc = item_to_rconfc(item);
+	struct m0_rpc_item *reply  = item->ri_reply;
+	int                 rc;
 
 	M0_ENTRY("rconfc = %p", rconfc);
 	rc = item->ri_error ?:
 		m0_rpc_item_generic_reply_rc(reply) ?:
 		_entrypoint_rep_rc(m0_fop_data(m0_rpc_item_to_fop(reply)));
-	if (rc != 0)
-		rconfc_fail_ast(rconfc, rc);
-	else {
+	if (rc == 0) {
 		/* Reply is used later in rconfc_entrypoint_replied_ast() */
 		rconfc->rc_entrypoint_reply = reply;
 		m0_rpc_item_get(reply);
 		rconfc_ast_post(rconfc, rconfc_entrypoint_replied_ast);
+	} else {
+		rconfc_fail_ast(rconfc, rc);
 	}
 	M0_LEAVE();
 }
 
 static void rconfc_start_ast_cb(struct m0_sm_group *grp M0_UNUSED,
-			        struct m0_sm_ast   *ast)
+				struct m0_sm_ast   *ast)
 {
 	M0_ENTRY();
 	rconfc_entrypoint_get(ast->sa_datum);
@@ -2308,9 +2328,8 @@ static bool rconfc__cb_quorum_test(struct m0_clink *clink)
 		}
 
 		if ((!quorum_before && quorum_now) ||
-		     !rconfc_quorum_is_possible(rconfc)) {
+		    !rconfc_quorum_is_possible(rconfc))
 			rconfc_ast_post(rconfc, rconfc_version_elected);
-		}
 	}
 	M0_LEAVE();
 	return true;
@@ -2344,7 +2363,7 @@ static void rconfc_version_elect(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 				     &lnk->rl_clink);
 			lnk->rl_state = CONFC_ARMED;
 			m0_confc_open(&lnk->rl_cctx, NULL,
-					      M0_CONF_ROOT_PROFILES_FID);
+				      M0_CONF_ROOT_PROFILES_FID);
 		}
 	} m0_tl_endfor;
 }
@@ -2380,12 +2399,11 @@ static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 		rc = M0_ERR(-ESRCH);
 	if (rc == 0)
 		rconfc_ast_post(rconfc, rconfc_version_elect);
+	else if (rlock_ctx_creditor_state(rlx) == ROS_ACTIVE)
+		rconfc_fail_ast(rconfc, rc);
 	else
-		if (rlock_ctx_creditor_state(rlx) != ROS_ACTIVE)
-			/* Creditor is considered dead by HA */
-			rconfc_creditor_death_handle(rconfc);
-		else
-			rconfc_fail_ast(rconfc, rc);
+		/* Creditor is considered dead by HA */
+		rconfc_creditor_death_handle(rconfc);
 	M0_LEAVE();
 }
 
