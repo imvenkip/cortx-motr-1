@@ -7,7 +7,6 @@ Before=mero-trace@%i.service
 
 [Service]
 Type=notify
-TimeoutStartSec=30
 TimeoutStopSec=20
 Restart=on-abort
 StartLimitInterval=5
