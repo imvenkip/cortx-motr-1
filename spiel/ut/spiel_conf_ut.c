@@ -107,27 +107,24 @@ static int spiel_copy_file(const char *source, const char* dest)
 	return rc;
 }
 
-static int spiel_conf_ut_init()
+static void spiel_conf_ut_init(void)
 {
 	spiel_copy_file(M0_UT_PATH("conf.xc"), "tmp-conf.xc");
 
 	/* Use a copy of conf.xc file as confd path - file may have changed */
-	int rc = m0_spiel__ut_init(&spiel, "tmp-conf.xc", false);
-	M0_UT_ASSERT(rc == 0);
-
-	return 0;
+	m0_spiel__ut_init(&spiel, "tmp-conf.xc", false);
 }
 
-static int spiel_conf_ut_fini()
+static void spiel_conf_ut_fini(void)
 {
 	int rc;
 
 	m0_spiel__ut_fini(&spiel, false);
 
 	rc = system("rm -rf confd");
-	M0_ASSERT(rc != -1);
-	unlink("tmp-conf.xc");
-	return 0;
+	M0_UT_ASSERT(rc != -1);
+	rc = unlink("tmp-conf.xc");
+	M0_UT_ASSERT(rc == 0);
 }
 
 static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
@@ -1354,7 +1351,8 @@ static void spiel_conf_file(void)
 	/* Load file */
 	rc = m0_file_read(filename, &confstr);
 	M0_UT_ASSERT(rc == 0);
-	unlink(filename);
+	rc = unlink(filename);
+	M0_UT_ASSERT(rc == 0);
 
 	m0_mutex_init(&lock);
 	m0_conf_cache_init(&cache, &lock);
@@ -1558,8 +1556,7 @@ static void spiel_conf_dump(void)
 	rc = m0_spiel_tx_dump_debug(&tx_bad, 2, filename_bad);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = spiel_conf_ut_fini();
-	M0_UT_ASSERT(rc == 0);
+	spiel_conf_ut_fini();
 }
 
 static void spiel_conf_tx_invalid(void)
@@ -1571,8 +1568,7 @@ static void spiel_conf_tx_invalid(void)
 	spiel_conf_create_invalid_configuration(&spiel, &tx);
 	rc = m0_spiel_tx_validate(&tx);
 	M0_UT_ASSERT(rc != 0);
-	rc = spiel_conf_ut_fini();
-	M0_UT_ASSERT(rc == 0);
+	spiel_conf_ut_fini();
 }
 /**
  * @todo Restore unit test once spiel can start when rconfc quorum isn't reached
@@ -1602,8 +1598,9 @@ static void spiel_conf_force_ut_fini(struct m0_spiel_ut_reqh *spl_reqh)
 	m0_spiel__ut_reqh_fini(spl_reqh);
 
 	rc = system("rm -rf confd");
-	M0_ASSERT(rc != -1);
-	unlink("tmp-conf.xc");
+	M0_UT_ASSERT(rc != -1);
+	rc = unlink("tmp-conf.xc");
+	M0_UT_ASSERT(rc == 0);
 }
 
 static void spiel_conf_force(void)

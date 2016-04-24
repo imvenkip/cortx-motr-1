@@ -58,7 +58,6 @@ M0_EXPORTED(m0_spiel_init);
 
 void m0_spiel_fini(struct m0_spiel *spiel)
 {
-	return;
 }
 M0_EXPORTED(m0_spiel_fini);
 

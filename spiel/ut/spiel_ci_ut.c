@@ -34,23 +34,17 @@
 
 static struct m0_spiel spiel;
 
-int spiel_ci_ut_init(void)
+static void spiel_ci_ut_init(void)
 {
-	int rc;
-
-	rc = m0_spiel__ut_init(&spiel, M0_UT_PATH("conf.xc"), true);
-	M0_UT_ASSERT(rc == 0);
+	m0_spiel__ut_init(&spiel, M0_UT_PATH("conf.xc"), true);
 	m0_fi_enable("ss_process_quiesce", "keep_confd_rmservice");
-	return 0;
 }
 
-int spiel_ci_ut_fini(void)
+static void spiel_ci_ut_fini(void)
 {
 	m0_fi_disable("ss_process_quiesce", "keep_confd_rmservice");
 	m0_spiel__ut_fini(&spiel, true);
-	return 0;
 }
-
 
 static void test_spiel_service_cmds(void)
 {

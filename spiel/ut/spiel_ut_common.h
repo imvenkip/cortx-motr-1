@@ -63,11 +63,12 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 M0_INTERNAL void m0_spiel__ut_rpc_server_stop(
 					struct m0_rpc_server_ctx *rpc_srv);
 
-M0_INTERNAL int m0_spiel__ut_init(struct m0_spiel *spiel,
-				  char            *confd_path,
-				  const bool       cmd_iface);
+M0_INTERNAL void m0_spiel__ut_init(struct m0_spiel *spiel,
+				   char            *confd_path,
+				   const bool       cmd_iface);
 
-M0_INTERNAL int m0_spiel__ut_fini(struct m0_spiel *spiel, const bool cmd_iface);
+M0_INTERNAL void m0_spiel__ut_fini(struct m0_spiel *spiel,
+				   const bool       cmd_iface);
 
 #endif /* __MERO_SPIEL_UT_SPIEL_UT_COMMON_H__ */
 /*
