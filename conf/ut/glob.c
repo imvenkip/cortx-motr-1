@@ -18,7 +18,7 @@
  */
 
 #include "conf/glob.h"
-#include "conf/preload.h"  /* m0_conf_cache_from_string */
+#include "conf/cache.h"    /* m0_conf_cache_from_string */
 #include "conf/obj.h"      /* m0_conf_service */
 #include "lib/fs.h"        /* m0_file_read */
 #include "lib/memory.h"    /* m0_free */

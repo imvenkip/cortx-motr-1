@@ -20,7 +20,6 @@
 #include <glob.h>
 #include "conf/validation.h"
 #include "conf/cache.h"
-#include "conf/preload.h"  /* m0_conf_cache_from_string */
 #include "lib/string.h"    /* m0_streq */
 #include "lib/memory.h"    /* m0_free */
 #include "lib/fs.h"        /* m0_file_read */

@@ -21,27 +21,14 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
 
-#include "lib/memory.h"       /* M0_ALLOC_PTR, m0_free */
-#include "lib/errno.h"
-#include "lib/buf.h"          /* m0_buf_init */
-#include "lib/finject.h"      /* M0_FI_ENABLED */
-#include "lib/mutex.h"        /* m0_mutex_lock, m0_mutex_unlock */
-#include "lib/time.h"         /* M0_TIME_IMMEDIATELY, m0_time_from_now */
-#include "conf/helpers.h"     /* service_name_dup */
-#include "conf/obj.h"
-#include "conf/obj_ops.h"     /* M0_CONF_DIRNEXT, m0_conf_obj_get */
-#include "conf/confc.h"
-#include "conf/diter.h"
-#include "fid/fid_list.h"
-#include "fop/fop.h"
-#include "rpc/rpc_machine.h"
-#include "rpc/link.h"
-#include "rpc/rpclib.h"         /* m0_rpc_post_sync */
-#include "sss/device_fops.h"
-#include "sns/cm/cm.h"          /* m0_sns_cm_op */
-#include "sns/cm/trigger_fop.h"
+#include "conf/obj_ops.h"       /* M0_CONF_DIRNEXT, m0_conf_obj_get */
+#include "conf/preload.h"       /* m0_confx_string_free */
+#include "fid/fid_list.h"       /* m0_fid_item */
+#include "rpc/rpclib.h"         /* m0_rpc_post_with_timeout_sync */
+#include "sns/cm/trigger_fop.h" /* trigger_fop */
+#include "sss/device_fops.h"    /* m0_sss_device_fop_create */
 #include "sss/ss_fops.h"
-#include "sss/process_fops.h"
+#include "sss/process_fops.h"   /* m0_ss_fop_process_rep */
 #include "spiel/spiel.h"
 #include "spiel/cmd_internal.h"
 
@@ -54,7 +41,6 @@ M0_TL_DESCR_DEFINE(spiel_string, "list of endpoints",
 		   static, struct spiel_string_entry, sse_link, sse_magic,
 		   M0_STATS_MAGIC, M0_STATS_HEAD_MAGIC);
 M0_TL_DEFINE(spiel_string, static, struct spiel_string_entry);
-
 
 static bool _filter_svc(const struct m0_conf_obj *obj)
 {
@@ -302,7 +288,6 @@ static int _spiel_conf_obj_find(struct m0_confc       *confc,
 		rc = M0_ERR(-ENOENT);
 
 	M0_POST(ergo(rc == 0, (*conf_obj)->co_nrefs > 0));
-
 	return M0_RC(rc);
 }
 

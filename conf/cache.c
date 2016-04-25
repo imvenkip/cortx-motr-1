@@ -23,10 +23,10 @@
 
 #include "conf/cache.h"
 #include "conf/obj_ops.h"   /* m0_conf_obj_delete */
-#include "conf/preload.h"
+#include "conf/preload.h"   /* m0_confx_to_string */
 #include "mero/magic.h"     /* M0_CONF_OBJ_MAGIC, M0_CONF_CACHE_MAGIC */
-#include "lib/errno.h"      /* EEXIST */
 #include "conf/onwire.h"    /* m0_confx */
+#include "lib/errno.h"      /* EEXIST */
 #include "lib/memory.h"     /* M0_ALLOC_PTR, M0_ALLOC_ARR */
 
 /**
@@ -226,6 +226,33 @@ m0_conf_cache_to_string(struct m0_conf_cache *cache, char **str, bool debug)
 	if (rc == 0)
 		rc = m0_confx_to_string(confx, str);
 	m0_confx_free(confx);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int
+m0_conf_cache_from_string(struct m0_conf_cache *cache, const char *str)
+{
+	struct m0_confx *enc;
+	uint32_t         i;
+	int              rc;
+
+	M0_ENTRY();
+
+	M0_PRE(str != NULL);
+	M0_PRE(m0_conf_cache_is_locked(cache));
+
+	rc = m0_confstr_parse(str, &enc);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	for (i = 0; i < enc->cx_nr && rc == 0; ++i) {
+		struct m0_conf_obj        *obj;
+		const struct m0_confx_obj *xobj = M0_CONFX_AT(enc, i);
+
+		rc = m0_conf_obj_find(cache, m0_conf_objx_fid(xobj), &obj) ?:
+			m0_conf_obj_fill(obj, xobj, cache);
+	}
+	m0_confx_free(enc);
 	return M0_RC(rc);
 }
 

@@ -26,8 +26,9 @@
 
 #include "spiel/spiel.h"
 #include "spiel/ut/spiel_ut_common.h"
-#include "conf/preload.h"  /* m0_conf_cache_from_string */
+#include "conf/cache.h"    /* m0_conf_cache_from_string */
 #include "conf/obj_ops.h"  /* m0_conf_obj_create */
+#include "conf/preload.h"  /* m0_confx_string_free */
 #include "conf/load_fop.h" /* m0_conf_segment_size */
 #include "lib/finject.h"
 #include "lib/fs.h"        /* m0_file_read */

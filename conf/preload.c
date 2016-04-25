@@ -23,8 +23,6 @@
 #include "lib/trace.h"
 
 #include "conf/preload.h"
-#include "conf/cache.h"      /* m0_conf_cache */
-#include "conf/obj_ops.h"    /* m0_conf_obj_find */
 #include "conf/onwire.h"     /* m0_confx */
 #include "conf/onwire_xc.h"  /* m0_confx_xc */
 #include "xcode/xcode.h"
@@ -37,33 +35,6 @@ M0_INTERNAL void m0_confx_free(struct m0_confx *enc)
 	if (enc != NULL)
 		m0_xcode_free_obj(&M0_XCODE_OBJ(m0_confx_xc, enc));
 	M0_LEAVE();
-}
-
-M0_INTERNAL int
-m0_conf_cache_from_string(struct m0_conf_cache *cache, const char *str)
-{
-	struct m0_confx *enc;
-	uint32_t         i;
-	int              rc;
-
-	M0_ENTRY();
-
-	M0_PRE(str != NULL);
-	M0_PRE(m0_conf_cache_is_locked(cache));
-
-	rc = m0_confstr_parse(str, &enc);
-	if (rc != 0)
-		return M0_ERR(rc);
-
-	for (i = 0; i < enc->cx_nr && rc == 0; ++i) {
-		struct m0_conf_obj        *obj;
-		const struct m0_confx_obj *xobj = M0_CONFX_AT(enc, i);
-
-		rc = m0_conf_obj_find(cache, m0_conf_objx_fid(xobj), &obj) ?:
-			m0_conf_obj_fill(obj, xobj, cache);
-	}
-	m0_confx_free(enc);
-	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_confstr_parse(const char *str, struct m0_confx **out)

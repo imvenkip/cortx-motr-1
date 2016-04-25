@@ -167,12 +167,27 @@ m0_conf_cache_lookup(const struct m0_conf_cache *cache,
  * Creates conf string representation of all objects in the cache,
  * except m0_conf_dir objects.
  *
- * @note Caller is responsible for freeing *str with m0_confx_string_free().
+ * If `debug' is true, the checking of conf objects' invariants will be
+ * skipped.
+ *
+ * @note If the call succeeds, the user is responsible for freeing
+ *       allocated memory with m0_confx_string_free(*str).
  *
  * @see m0_conf_cache_from_string()
  */
 M0_INTERNAL int m0_conf_cache_to_string(struct m0_conf_cache *cache, char **str,
 					bool debug);
+
+/**
+ * Loads conf cache from a string.
+ *
+ * @pre str != NULL
+ * @pre m0_conf_cache_is_locked(cache)
+ *
+ * @see m0_conf_cache_to_string()
+ */
+M0_INTERNAL int m0_conf_cache_from_string(struct m0_conf_cache *cache,
+					  const char           *str);
 
 /** Returns m0_conf_root::rt_verno of the root object. */
 M0_INTERNAL int m0_conf_version(struct m0_conf_cache *cache);
