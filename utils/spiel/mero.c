@@ -58,4 +58,3 @@ PyMODINIT_FUNC initmero(void)
 {
 	(void)Py_InitModule("mero", methods);
 }
-

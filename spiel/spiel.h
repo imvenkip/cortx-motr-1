@@ -1040,7 +1040,7 @@ struct m0_fs_stats {
  * internally polls all process instances registered in configuration database
  * under the specified filesystem object.
  *
- * @param spiel          spiel instance, must have profile fid set up to the
+ * @param spl            spiel instance, must have profile fid set up to the
  *                       moment of the call
  * @param fs_fid         filesystem fid
  * @param stats          instance of m0_fs_stats to be filled with resultant
@@ -1052,9 +1052,21 @@ struct m0_fs_stats {
  * object cannot be found there, no additional search is done, even in case some
  * other profiles exist in the Mero configuration.
  */
-int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spiel,
+int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 				    const struct m0_fid *fs_fid,
 				    struct m0_fs_stats  *stats);
+
+/**
+ * Dumps configuration cache to a string in XC format.
+ *
+ * Configuration cache is expected to be fully loaded at this point.
+ * (Call m0_spiel_confstr() after m0_spiel_rconfc_start(), and you will
+ * be fine.)
+ *
+ * @note If the call succeeds, the user is responsible for freeing
+ *       allocated memory with free(*out) (not m0_free()).
+ */
+int m0_spiel_confstr(struct m0_spiel *spl, char **out);
 
 /** @} end of spiel group */
 #endif /* __MERO_SPIEL_SPIEL_H__ */

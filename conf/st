@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -eu
-
 # set -x
-# export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
 ### XXX TODO:
 ### 0. Add failure tests. They are very useful in finding deficiencies
@@ -30,6 +29,8 @@ M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
+
+M0CONFGEN=$M0_SRC_DIR/utils/m0confgen
 
 start() {
    _init
@@ -91,6 +92,7 @@ export_endpoints() {
     export MGS_ENDPOINT="$IOS0_ENDPOINT"
     export RMS_ENDPOINT="$IOS0_ENDPOINT"
     export MDS_ENDPOINT="$IOS0_ENDPOINT"
+    export SPIEL_ENDPOINT="$LNET_NID:12345:34:2001"
 }
 
 ### Starts LNET. (Note that the script never stops LNET.)
@@ -160,7 +162,7 @@ services_start() {
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -F -D db -T linux -S stobs
 -A linuxstob:addb-stobs -e lnet:$IOS0_ENDPOINT -c $CONF_FILE -w 3"
 
-    confdb | $M0_SRC_DIR/utils/m0confgen >$CONF_FILE || error 'm0confgen failed'
+    confdb | $M0CONFGEN >$CONF_FILE || error 'm0confgen failed'
 
     $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>mkfs.log || error 'm0mkfs failed'
 
@@ -177,6 +179,21 @@ services_stop() { killall -q lt-m0d && wait || true; }
 _mount() {
     mount -t m0t1fs -o profile="$PROFILE_FID",ha=$HA_ENDPOINT \
 	  none $SANDBOX_DIR/mnt || return $?
+}
+
+spiel_setup() {
+    local rc=0
+
+    cd $M0_SRC_DIR/utils/spiel
+    python setup.py "$@" || rc=$?
+    cd - >/dev/null
+    return $rc
+}
+
+spiel() {
+    PYTHONPATH=$SANDBOX_DIR/lib64/python $M0_SRC_DIR/utils/spiel/m0spiel \
+              -l $M0_SRC_DIR/mero/.libs/libmero.so \
+              -c $SPIEL_ENDPOINT -s $HA_ENDPOINT
 }
 
 ## Keep the audience engaged.
@@ -219,5 +236,38 @@ echo 8 >/proc/sys/kernel/printk  # Print kernel messages to the console.
 say 'Test: m0t1fs'
 _mount || stop $?
 umount $SANDBOX_DIR/mnt
+
+say 'Test: spiel.confstr'
+spiel_setup -q install --home $SANDBOX_DIR
+{
+    cat <<EOF
+rc = spiel.cmd_profile_set('$PROFILE_FID')
+if rc != 0:
+    sys.exit('Cannot set profile $PROFILE_FID; rc=%d' % rc)
+
+rc = spiel.rconfc_start()
+if rc != 0:
+    sys.exit('Cannot start rconfc; rc=%d' % rc)
+
+try:
+    print spiel.confstr()
+except Exception, e:
+    import traceback
+    traceback.print_exc()
+    raise SystemExit(e) # other exception types are caught by 'code' module
+finally:
+    spiel.rconfc_stop()
+EOF
+    echo # Python interpreter needs an empty line at the very end.
+} | spiel >conf_ask.xc || stop $?
+
+cmp <($M0CONFGEN -x conf.xc | sort) \
+    <($M0CONFGEN -x conf_ask.xc | sort) ||
+    error 'Configuration data is corrupted'
+
+## Redirect stderr to hide these warnings:
+## | 'build/bdist.linux-x86_64' does not exist -- can't clean it
+## | 'build/scripts-2.7' does not exist -- can't clean it
+spiel_setup -q clean -a 2>/dev/null
 
 stop

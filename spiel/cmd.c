@@ -1535,11 +1535,11 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 				    M0_CONF_FILESYSTEM_NODES_FID,
 				    M0_CONF_NODE_PROCESSES_FID);
 	if (rc != 0)
-		goto leave;
+		goto err;
 	/* see if there were issues during conf iteration */
 	if (fsx.fx_rc != 0) {
 		rc = fsx.fx_rc;
-		goto leave;
+		goto err;
 	}
 	/* update stats by the list of found items */
 	m0_tl_for(m0_fids, &fsx.fx_items, si) {
@@ -1547,7 +1547,7 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 		if (fsx.fx_rc != 0) {
 			if (fsx.fx_rc == -EOVERFLOW) {
 				rc = fsx.fx_rc;
-				goto leave;
+				goto err;
 			}
 			M0_LOG(SPIEL_LOGLVL, "* fsx.fx_rc = %d with "FID_F,
 			       fsx.fx_rc, FID_P(&si->i_fid));
@@ -1567,13 +1567,30 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 	};
 
 	spiel__fs_stats_ctx_fini(&fsx);
-	return M0_RC(rc);
-
-leave:
+	M0_ASSERT(rc == 0);
+	return M0_RC(0);
+err:
 	spiel__fs_stats_ctx_fini(&fsx);
 	return M0_ERR(rc);
 }
 M0_EXPORTED(m0_spiel_filesystem_stats_fetch);
+
+int m0_spiel_confstr(struct m0_spiel *spl, char **out)
+{
+	char *confstr;
+	int   rc;
+
+	rc = m0_conf_cache_to_string(&spl->spl_rconfc.rc_confc.cc_cache,
+				     &confstr, false);
+	if (rc != 0)
+		return M0_ERR(rc);
+	*out = m0_strdup(confstr);
+	if (*out == NULL)
+		rc = M0_ERR(-ENOMEM);
+	m0_confx_string_free(confstr);
+	return M0_RC(rc);
+}
+M0_EXPORTED(m0_spiel_confstr);
 
 /** @} */
 #undef M0_TRACE_SUBSYSTEM

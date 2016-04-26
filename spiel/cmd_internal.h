@@ -41,7 +41,6 @@
 				(const struct m0_fid []){               \
 				__VA_ARGS__, M0_FID0 })
 
-
 enum {
 	SPIEL_MAX_RPCS_IN_FLIGHT = 1,
 	SPIEL_CONN_TIMEOUT       = 5, /* seconds */
@@ -79,7 +78,6 @@ struct _fs_stats_ctx {
 #define SPIEL_LOGLVL M0_DEBUG
 
 /** @} */
-
 #endif /* __MERO_SPIEL_CMD_INTERNAL_H__*/
 
 /*

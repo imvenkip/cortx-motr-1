@@ -368,6 +368,12 @@ class SpielWrapper:
     def rconfc_stop(self):
         self.mero.m0_spiel_rconfc_stop(self.spiel)
 
+    def confstr(self):
+        self.mero.m0_spiel_confstr.argtypes = [c_void_p, POINTER(c_char_p)]
+        s = c_char_p()
+        call(self.mero.m0_spiel_confstr, self.spiel, byref(s))
+        return s.value
+
     @require(profile=str)
     def cmd_profile_set(self, profile):
         return self.mero.m0_spiel_cmd_profile_set(self.spiel, profile)
