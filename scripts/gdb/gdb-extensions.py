@@ -106,37 +106,32 @@ Total: 2
 """
 
 	def __init__(self):
-		gdb.Command.__init__(self, "m0-list-print", \
+		gdb.Command.__init__(self, "m0-list-print",
 				     gdb.COMMAND_SUPPORT, gdb.COMPLETE_SYMBOL)
 
 	def invoke(self, arg, from_tty):
 		argv = gdb.string_to_argv(arg)
 		argc = len(argv)
-		if argc != 1 and argc != 4 and argc != 5:
-			print "Error: Usage: m0-list-print [&]list " + \
-			      "[[struct|union] tag link [visit]]"
+		if argc not in (1, 4, 5):
+			print 'Error: Usage: m0-list-print [&]list' \
+				' [[struct|union] tag link [visit|"in-detail"]]'
 			return
 
 		vhead, head, ok = self.get_head(argv)
 		if not ok:
 			return
-
 		offset, elm_type, ok = self.get_offset(argv)
 		if not ok:
 			return
 
-		if argc == 5:
-			visit = argv[4]
-		else:
-			visit = ""
-
+		visit = argv[4] if argc == 5 else None
 		vnd   = vhead['l_head']
 		nd    = long(vnd)
 		total = 0
 
 		while nd != head:
 			obj_addr = nd - offset
-			if visit == "":
+			if visit is None:
 				print "0x%x" % obj_addr
 			elif visit == "in-detail":
 				cmd = "p *({0} *){1}".format(str(elm_type), obj_addr)
@@ -156,18 +151,19 @@ Total: 2
 		head  = 0
 		vhead = gdb.parse_and_eval(argv[0])
 		type  = str(vhead.type)
+		if type.startswith('const '):
+			type = type[len('const '):]
 
 		if type == "struct m0_list":
 			head = long(vhead.address)
 		elif type == "struct m0_list *":
 			head = long(vhead)
-		elif type == "struct m0_tl" or type == "struct m0_tl *":
+		elif type in ("struct m0_tl", "struct m0_tl *"):
 			vhead = vhead['t_head']
 			head = long(vhead.address)
 		else:
-			print "Error: Argument 1 is not a [&]m0_list or [&]m0_tl"
+			print "Error: Invalid argument type: '%s'" % type
 			ok = False
-
 		return vhead, head, ok
 
 	def get_offset(self, argv):
@@ -175,8 +171,8 @@ Total: 2
 		offset   = 0
 		elm_type = None
 
-		if argc == 4 or argc == 5:
-			if argv[1] != "struct" and argv[1] != "union":
+		if argc in (4, 5):
+			if argv[1] not in ("struct", "union"):
 				print 'Error: Argument 2 must be ' + \
 				      'either "struct" or "union"'
 				return 0, None, False
@@ -186,15 +182,15 @@ Total: 2
 			try:
 				elm_type = gdb.lookup_type(str_elm_type)
 			except:
-				print "Error: type '{0}' does not exists".format(str_elm_type)
+				print "Error: type '{0}' does not exist".format(str_elm_type)
 				return 0, None, False
 
-			type = field_type(str_elm_type, anchor)
-			if str(type) != "struct m0_list_link" and str(type) != "struct m0_tlink":
+			type = str(field_type(str_elm_type, anchor))
+			if type not in ("struct m0_list_link", "struct m0_tlink"):
 				print "Error: Argument 4 must be of type m0_list_link or m0_tlink"
 				return 0, None, False
 
-			if str(type) == "struct m0_tlink":
+			if type == "struct m0_tlink":
 				anchor = anchor.strip() + ".t_link"
 
 			offset = offset_of(str_elm_type, anchor)
