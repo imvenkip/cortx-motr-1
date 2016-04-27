@@ -26,6 +26,7 @@
 #include "lib/tlist.h"
 #include "lib/assert.h"
 #include "lib/finject.h"    /* M0_FI_ENABLED */
+#include "lib/fs.h"         /* m0_file_read */
 #include "conf/confd.h"
 #include "conf/confd_stob.h"
 #include "conf/flip_fop.h"
@@ -182,6 +183,38 @@ static int conf_flip_confd_config_save(char *filename,
 }
 
 /**
+ * After successful FLIP completion, rconfc appears retaining an outdated conf
+ * cache. To the moment, local conf file is already updated by FLIP action. So
+ * it is ultimately possible to do a simple conf reload with the newly saved
+ * conf to update the conf cache hosted by rconfc internals.
+ */
+static int conf_after_flip_apply(struct m0_reqh *reqh, const char *filename)
+{
+	struct m0_rconfc *rconfc = &reqh->rh_rconfc;
+	char             *local_conf;
+	int               rc;
+
+	M0_ENTRY();
+	M0_PRE(m0_rconfc_is_preloaded(rconfc));
+	rc = m0_file_read(filename, &local_conf);
+	if (rc != 0)
+		return M0_ERR(rc);
+	/*
+	 * Although m0_rconfc_stop_sync() launches an ast internally, there is
+	 * nothing to wait for in the pre-loaded rconfc. So hopefully this is to
+	 * do no harm to fom tick, but heavily simplify the reload.
+	 */
+	m0_rconfc_stop_sync(rconfc);
+	m0_free(rconfc->rc_local_conf);
+	rconfc->rc_local_conf = local_conf;
+	/*
+	 * Despite the name, m0_rconfc_start_sync() does no waiting at all with
+	 * local conf pre-loading.
+	 */
+	return M0_RC(m0_rconfc_start_sync(rconfc, &reqh->rh_profile));
+}
+
+/**
  * Apply Flip command
  * Change Confd configuration
  * 1. Used FOP data read confd configure from IO STOB
@@ -239,7 +272,8 @@ static int conf_flip_apply(struct m0_fom *fom)
 	rc = m0_confd_service_to_filename(fom->fo_service, &conf_filename) ?:
 	     m0_confd_cache_create(&new_cache, &confd->d_cache_lock,
 				   confd_buffer) ?:
-	     conf_flip_confd_config_save(conf_filename, confd_buffer);
+		conf_flip_confd_config_save(conf_filename, confd_buffer) ?:
+		conf_after_flip_apply(m0_fom2reqh(fom), conf_filename);
 	if (rc == 0) {
 		m0_confd_cache_destroy(confd->d_cache);
 		confd->d_cache = new_cache;

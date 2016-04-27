@@ -100,16 +100,18 @@ static void ha_state_get(struct m0_conf_cache  *cache,
 	int                 i;
 
 	M0_ENTRY();
+	M0_NVEC_PRINT(req_fop, " in ", M0_DEBUG);
 	note_vec->nv_nr = req_fop->nv_nr;
+	m0_conf_cache_lock(cache);
 	for (i = 0; i < req_fop->nv_nr; ++i) {
-		m0_conf_cache_lock(cache);
 		obj = m0_conf_cache_lookup(cache, &req_fop->nv_note[i].no_id);
 		if (obj != NULL) {
 			note_vec->nv_note[i].no_id = obj->co_id;
 			note_vec->nv_note[i].no_state = obj->co_ha_state;
 		}
-		m0_conf_cache_unlock(cache);
 	}
+	m0_conf_cache_unlock(cache);
+	M0_NVEC_PRINT(note_vec, " out ", M0_DEBUG);
 	M0_LEAVE();
 }
 

@@ -91,6 +91,7 @@ M0_INTERNAL void ha_state_get_replied(struct m0_rpc_item *item)
 		fop = m0_rpc_item_to_fop(item->ri_reply);
 		rep = m0_fop_data(fop);
 		rep_nvec = &rep->hs_note;
+		M0_NVEC_PRINT(rep_nvec, " < ", M0_DEBUG);
 		if (rep->hs_rc != 0)
 			rc = M0_ERR(rep->hs_rc);
 		else if (usr_nvec->nv_nr != rep_nvec->nv_nr)
@@ -165,6 +166,7 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 	         FID_P(note->nv_nr > 0 ? &note->nv_note[0].no_id : &M0_FID0),
 	         note->nv_nr > 0 ? note->nv_note[0].no_state : 0);
 	M0_PRE(note_invariant(note, false));
+	M0_NVEC_PRINT(note, " > ", M0_DEBUG);
 	M0_ALLOC_PTR(ctx);
 	if (ctx == NULL)
 		return M0_ERR(-ENOMEM);

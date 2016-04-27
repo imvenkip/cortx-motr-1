@@ -195,6 +195,17 @@ enum m0_ha_state_update_defaults {
 	M0_HA_STATE_UPDATE_LIMIT = 1024,
 };
 
+#define M0_NVEC_PRINT(nvec_, label, level) ({			  \
+	int i;                                                    \
+	struct m0_ha_nvec *nvec = nvec_;                          \
+	char *lbl = label;                                        \
+	for (i = 0; i < nvec->nv_nr; i++) {                       \
+		M0_LOG(level, "%s [%d] "FID_F", (%d)", lbl, i,    \
+		       FID_P(&nvec->nv_note[i].no_id),		  \
+		       nvec->nv_note[i].no_state);		  \
+	}                                                         \
+	})
+
 /**
  * Cluster entry point contains information necessary to access cluster
  * configuration. This information is maintained by HA subsystem.

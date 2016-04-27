@@ -1472,7 +1472,7 @@ static bool spiel__fs_test(const struct m0_conf_obj *fs_obj, void *ctx)
 /**
  * Updates filesystem stats by list item.
  */
-static void spiel__fs_stats_ctx_update(struct m0_fid_item   *si,
+static void spiel__fs_stats_ctx_update(const struct m0_fid  *proc_fid,
 				       struct _fs_stats_ctx *fsx)
 {
 	struct m0_fop            *reply_fop = NULL;
@@ -1480,10 +1480,10 @@ static void spiel__fs_stats_ctx_update(struct m0_fid_item   *si,
 	int                       rc;
 
 	M0_PRE(fsx->fx_rc == 0);
-	rc = spiel_process__health(fsx->fx_spl, &si->i_fid, &reply_fop);
+	rc = spiel_process__health(fsx->fx_spl, proc_fid, &reply_fop);
 	M0_LOG(SPIEL_LOGLVL, "* next:  rc = %d " FID_F " (%s)",
-	       rc, FID_P(&si->i_fid),
-	       m0_fid_type_getfid(&si->i_fid)->ft_name);
+	       rc, FID_P(proc_fid),
+	       m0_fid_type_getfid(proc_fid)->ft_name);
 	if (rc >= M0_HEALTH_GOOD) {
 		/* some real health returned, not error code */
 		reply_data = spiel_process_reply_data(reply_fop);
@@ -1508,6 +1508,55 @@ leave:
 		m0_fop_put_lock(reply_fop);
 }
 
+/**
+ * Determines whether process with given fid should update fs stats.
+ *
+ * Process, in case it hosts MDS or IOS, and is M0_NC_ONLINE to the moment of
+ * call, should update collected fs stats.
+ */
+static int spiel__proc_is_to_update_stats(const struct m0_fid *proc_fid,
+					  struct m0_confc     *confc,
+					  bool                *update)
+{
+	struct m0_conf_diter    it;
+	struct m0_conf_obj     *proc_obj;
+	struct m0_conf_service *svc;
+	int                     rc;
+
+	M0_ENTRY("proc_fid = "FID_F, FID_P(proc_fid));
+	M0_PRE(m0_conf_fid_type(proc_fid) == &M0_CONF_PROCESS_TYPE);
+	M0_PRE(update != NULL);
+
+	*update = false;
+	rc = m0_confc_open_by_fid_sync(confc, proc_fid, &proc_obj);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = m0_conf_diter_init(&it, confc, proc_obj,
+				M0_CONF_PROCESS_SERVICES_FID);
+	if (rc != 0)
+		goto obj_close;
+	while (m0_conf_diter_next_sync(&it, NULL) > 0) {
+		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
+		if (M0_IN(svc->cs_type, (M0_CST_IOS, M0_CST_MDS))) {
+			/*
+			 * There is no point to update process' HA state unless
+			 * the one is expected to host the required services.
+			 */
+			rc = m0_conf_obj_ha_update(m0_ha_session_get(),
+						   proc_fid);
+			if (rc != 0)
+				goto diter_fini;
+			*update = proc_obj->co_ha_state == M0_NC_ONLINE;
+			break;
+		}
+	}
+diter_fini:
+	m0_conf_diter_fini(&it);
+obj_close:
+	m0_confc_close(proc_obj);
+	return M0_RC(rc);
+}
+
 int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 				    const struct m0_fid *fs_fid,
 				    struct m0_fs_stats  *stats)
@@ -1515,7 +1564,8 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 	struct m0_confc      *confc;
 	struct m0_fid        *profile;
 	struct _fs_stats_ctx  fsx;
-	struct m0_fid_item    *si;
+	struct m0_fid_item   *proc;
+	bool                  update_stats;
 	int                   rc;
 
 	M0_ENTRY();
@@ -1541,16 +1591,22 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 		rc = fsx.fx_rc;
 		goto err;
 	}
-	/* update stats by the list of found items */
-	m0_tl_for(m0_fids, &fsx.fx_items, si) {
-		spiel__fs_stats_ctx_update(si, &fsx);
+	/* update stats by the list of found processes */
+	m0_tl_for(m0_fids, &fsx.fx_items, proc) {
+		rc = spiel__proc_is_to_update_stats(&proc->i_fid, confc,
+						    &update_stats);
+		if (rc != 0)
+			goto err;
+		if (!update_stats)
+			continue;
+		spiel__fs_stats_ctx_update(&proc->i_fid, &fsx);
 		if (fsx.fx_rc != 0) {
 			if (fsx.fx_rc == -EOVERFLOW) {
 				rc = fsx.fx_rc;
 				goto err;
 			}
 			M0_LOG(SPIEL_LOGLVL, "* fsx.fx_rc = %d with "FID_F,
-			       fsx.fx_rc, FID_P(&si->i_fid));
+			       fsx.fx_rc, FID_P(&proc->i_fid));
 			/* unset error code for letting further processing */
 			fsx.fx_rc = 0;
 		}
