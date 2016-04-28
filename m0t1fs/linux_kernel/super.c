@@ -677,13 +677,14 @@ static void m0t1fs_rconfc_exp_cb(struct m0_rconfc *rconfc)
 	csb->csb_rlock_revoked = true;
 	/*
 	 * Cancel sessions to IO services that were used during IO request
-	 * handling.
+	 * handling. This is done in order to call rio_replied callback for
+	 * the rpc items and interrupt io_requests.
+	 * A cancelled session is reconnected. See MERO-1642.
 	 */
 	for (i = 0; i < csb->csb_pools_common.pc_nr_devices; i++) {
 		ctx = csb->csb_pools_common.pc_dev2ios[i].pds_ctx;
-		if (ctx != NULL &&
-		    !m0_rpc_session_is_cancelled(&ctx->sc_rlink.rlk_sess))
-			m0_rpc_session_cancel(&ctx->sc_rlink.rlk_sess);
+		if (ctx != NULL)
+			m0_reqh_service_cancel_reconnect(ctx);
 	}
 	M0_LEAVE();
 
@@ -691,18 +692,9 @@ static void m0t1fs_rconfc_exp_cb(struct m0_rconfc *rconfc)
 
 static void m0t1fs_rconfc_ready_cb(struct m0_rconfc *rconfc)
 {
-	struct m0t1fs_sb           *csb = rconfc2csb(rconfc);
-	struct m0_reqh_service_ctx *ctx;
-	uint32_t                    i;
+	struct m0t1fs_sb *csb = rconfc2csb(rconfc);
 
 	M0_ENTRY("rconfc %p, super %p", rconfc, csb);
-	/* restore cancelled sessions */
-	for (i = 0; i < csb->csb_pools_common.pc_nr_devices; i++) {
-		ctx = csb->csb_pools_common.pc_dev2ios[i].pds_ctx;
-		if (ctx != NULL &&
-		    m0_rpc_session_is_cancelled(&ctx->sc_rlink.rlk_sess))
-			m0_rpc_session_restore(&ctx->sc_rlink.rlk_sess);
-	}
 	csb->csb_rlock_revoked = false;
 	M0_LEAVE();
 }

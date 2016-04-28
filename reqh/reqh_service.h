@@ -814,6 +814,10 @@ m0_reqh_service_ctx_is_connected(struct m0_reqh_service_ctx *ctx);
 /** Terminates rpc connection asynchronously. */
 M0_INTERNAL void m0_reqh_service_disconnect(struct m0_reqh_service_ctx *ctx);
 
+/** Re-establishes rpc connection asynchronously after cancelling rpc_items. */
+M0_INTERNAL void
+m0_reqh_service_cancel_reconnect(struct m0_reqh_service_ctx *ctx);
+
 /** Waits until rpc connection is established. */
 M0_INTERNAL void m0_reqh_service_connect_wait(struct m0_reqh_service_ctx *ctx);
 

@@ -858,28 +858,19 @@ M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session)
 	M0_PRE(session->s_session_id != SESSION_ID_0);
 
 	M0_ENTRY("session %p", session);
-	if (session->s_cancelled)
-		goto leave;
 	m0_rpc_machine_lock(session->s_conn->c_rpc_machine);
+	if (session->s_cancelled)
+		goto leave_unlock;
 	session->s_cancelled = true;
 	m0_tl_for(pending_item, &session->s_pending_cache, item) {
 		m0_rpc_item_get(item);
 		m0_rpc_item_cancel_nolock(item);
 		m0_rpc_item_put(item);
 	} m0_tl_endfor;
+leave_unlock:
 	m0_rpc_machine_unlock(session->s_conn->c_rpc_machine);
 	M0_POST(pending_item_tlist_is_empty(&session->s_pending_cache));
 	M0_POST(session->s_sm.sm_state == M0_RPC_SESSION_IDLE);
-leave:
-	M0_LEAVE("session %p", session);
-}
-
-M0_INTERNAL void m0_rpc_session_restore(struct m0_rpc_session *session)
-{
-	M0_ENTRY("session %p", session);
-	m0_rpc_machine_lock(session->s_conn->c_rpc_machine);
-	session->s_cancelled = false;
-	m0_rpc_machine_unlock(session->s_conn->c_rpc_machine);
 	M0_LEAVE("session %p", session);
 }
 

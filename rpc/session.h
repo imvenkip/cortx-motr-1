@@ -347,8 +347,7 @@ struct m0_rpc_session {
 	 * This flag is set to TRUE at the beginning of m0_rpc_session_cancel()
 	 * execution.
 	 * Once this flag is set to TRUE, subsequent m0_rpc_post() against
-	 * the same session returns -ECANCELED error, until the session is
-	 * restored.
+	 * the same session returns -ECANCELED error.
 	 */
 	bool                      s_cancelled;
 
@@ -489,26 +488,6 @@ int m0_rpc_session_destroy(struct m0_rpc_session *session,
    reply' and invokes m0_rpc_item_cancel() for each of those.
  */
 M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session);
-
-/**
-   Marks the session as not-cancelled.
-   @todo MERO-1642 Take out usage of m0_rpc_session_restore()
-   from service_event_handler()
-   This API merely changes the value of m0_rpc_session::s_cancelled.
-   It is not sufficient for a session restore, due to following.
-   - With the way how LNet functions, there is a possiblity of packet
-     drop (MERO-1611). It is never an issue for the regular IO where
-     RPC's resend mechanism takes care of handling the packet drop.
-   - But in case a session is cancelled, the packet drop issue may leave
-     the receiver's s_xid lag behind the sender's s_xid, in case an item
-     gets cancelled while in M0_RPC_ITEM_SENDING state or beyond.
-   - It would not allow FOPs to be processed even after restore since
-     they would get dropped due to xid mistmatch on the receiver and
-     would eventually time-out.
-   Hence, in production scenario, a session always needs to be reconnected once
-   it is cancelled. e.g. Same as done in reqh_service_reconnect().
- */
-M0_INTERNAL void m0_rpc_session_restore(struct m0_rpc_session *session);
 
 /**
    Checks if a session is marked as cancelled.

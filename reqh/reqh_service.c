@@ -879,6 +879,24 @@ static void reqh_service_reconnect_locked(struct m0_reqh_service_ctx *ctx,
 	reqh_service_disconnect_locked(ctx);
 }
 
+M0_INTERNAL void
+m0_reqh_service_cancel_reconnect(struct m0_reqh_service_ctx *ctx)
+{
+	M0_ENTRY("Reconnecting to service '%s'",
+		 m0_rpc_link_end_point(&ctx->sc_rlink));
+
+	reqh_service_ctx_sm_lock(ctx);
+	M0_PRE(reqh_service_context_invariant(ctx));
+	M0_PRE(m0_reqh_service_ctx_is_connected(ctx));
+	M0_PRE(!reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_DISCONNECT));
+	if (CTX_STATE(ctx) == M0_RSC_ONLINE) {
+		m0_rpc_session_cancel(&ctx->sc_rlink.rlk_sess);
+		reqh_service_disconnect_locked(ctx);
+	}
+	reqh_service_ctx_sm_unlock(ctx);
+	M0_LEAVE();
+}
+
 static void reqh_service_session_cancel(struct m0_reqh_service_ctx *ctx)
 {
 	M0_PRE(m0_sm_group_is_locked(&ctx->sc_sm_grp));
