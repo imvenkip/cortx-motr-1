@@ -22,6 +22,7 @@ TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 MAX_RPC_MSG_SIZE=163840
 TM_MIN_RECV_QUEUE_LEN=2
 PROFILE_FID='<0x7000000000000001:0>' # profile-0
+M0T1FS_PFID='<0x7200000000000001:4>' # process-4
 
 error() { echo "$@" >&2; stop 1; }
 
@@ -111,7 +112,7 @@ confdb() {
             "unit_size=4096"]
     mdpool=pool-0 nodes=[node-0] pools=[pool-0] racks=[rack-0])
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
-    processes=[process-0, process-1, process-2, process-3])
+    processes=[process-0, process-1, process-2, process-3, process-4])
 (process-0 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$MGS_ENDPOINT" services=[service-0])
 (process-1 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
@@ -121,12 +122,15 @@ confdb() {
 (process-3 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$IOS0_ENDPOINT"
     services=[service-3, service-4])
+(process-4 cores=[1] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
+    mem_limit_memlock=0 endpoint="$M0T1FS_ENDPOINT:1" services=[service-5])
 (service-0 type=3 endpoints=["$MGS_ENDPOINT"] sdevs=[])
 (service-1 type=4 endpoints=["$RMS_ENDPOINT"] sdevs=[])
 (service-2 type=1 endpoints=["$MDS_ENDPOINT"] sdevs=[sdev-0])
 (service-3 type=2 endpoints=["$IOS0_ENDPOINT"]
     sdevs=[sdev-1, sdev-2, sdev-3, sdev-4])
 (service-4 type=6 endpoints=["$IOS0_ENDPOINT"] sdevs=[])
+(service-5 type=4 endpoints=["$M0T1FS_ENDPOINT:1"] sdevs=[])
 (sdev-0 dev_idx=0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
 (sdev-1 dev_idx=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
@@ -177,7 +181,7 @@ services_start() {
 services_stop() { killall -q lt-m0d && wait || true; }
 
 _mount() {
-    mount -t m0t1fs -o profile="$PROFILE_FID",ha=$HA_ENDPOINT \
+    mount -t m0t1fs -o pfid="$M0T1FS_PFID",profile="$PROFILE_FID",ha=$HA_ENDPOINT \
 	  none $SANDBOX_DIR/mnt || return $?
 }
 

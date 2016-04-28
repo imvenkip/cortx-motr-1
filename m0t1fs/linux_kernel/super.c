@@ -207,6 +207,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 struct mount_opts {
 	char     *mo_ha;
 	char     *mo_profile;
+	char     *mo_process_fid;
 	char     *mo_ep;
 	uint32_t  mo_fid_start;
 };
@@ -214,6 +215,7 @@ struct mount_opts {
 enum m0t1fs_mntopts {
 	M0T1FS_MNTOPT_CONFD,
 	M0T1FS_MNTOPT_PROFILE,
+	M0T1FS_MNTOPT_PROCESS_FID,
 	M0T1FS_MNTOPT_FID_START,
 	M0T1FS_MNTOPT_EP,
 	M0T1FS_MNTOPT_OOSTORE,
@@ -224,6 +226,7 @@ enum m0t1fs_mntopts {
 static const match_table_t m0t1fs_mntopt_tokens = {
 	{ M0T1FS_MNTOPT_CONFD,      "ha=%s"         },
 	{ M0T1FS_MNTOPT_PROFILE,    "profile=%s"    },
+	{ M0T1FS_MNTOPT_PROCESS_FID,"pfid=%s"    },
 	{ M0T1FS_MNTOPT_FID_START,  "fid_start=%s"  },
 	{ M0T1FS_MNTOPT_EP,         "ep=%s"         },
 	{ M0T1FS_MNTOPT_OOSTORE,    "oostore"       },
@@ -240,6 +243,7 @@ static void mount_opts_fini(struct mount_opts *mops)
 	 * was allocated using match_strdup(). */
 	kfree(mops->mo_ha);
 	kfree(mops->mo_profile);
+	kfree(mops->mo_process_fid);
 	kfree(mops->mo_ep);
 	M0_SET0(mops);
 
@@ -287,6 +291,9 @@ static int mount_opts_validate(const struct mount_opts *mops)
 	if (is_empty(mops->mo_profile))
 		return M0_ERR_INFO(-EINVAL,
 				   "Mandatory parameter is missing: profile");
+	if (is_empty(mops->mo_process_fid))
+		return M0_ERR_INFO(-EINVAL,
+				   "Mandatory parameter is missing: pfid");
 	if (mops->mo_fid_start != 0 &&
 	    mops->mo_fid_start <= M0_MDSERVICE_START_FID.f_key - 1)
 		return M0_ERR_INFO(-EINVAL,
@@ -326,6 +333,13 @@ static int mount_opts_parse(struct m0t1fs_sb *csb, char *options,
 			if (rc != 0)
 				goto out;
 			M0_LOG(M0_INFO, "profile: %s", dest->mo_profile);
+			break;
+
+		case M0T1FS_MNTOPT_PROCESS_FID:
+			rc = str_parse(&dest->mo_process_fid, args);
+			if (rc != 0)
+				goto out;
+			M0_LOG(M0_INFO, "pfid: %s", dest->mo_process_fid);
 			break;
 
 		case M0T1FS_MNTOPT_FID_START:
@@ -471,24 +485,39 @@ static void m0t1fs_sb_layouts_fini(struct m0t1fs_sb *csb)
 }
 
 static int m0t1fs_service_start(struct m0_reqh_service_type *stype,
-				struct m0_reqh *reqh)
+				struct m0_reqh *reqh, struct m0_fid *sfid)
 {
 	struct m0_reqh_service *service;
-	struct m0_uint128       uuid;
 
-	m0_uuid_generate(&uuid);
-	/* now force it be a service fid */
-	m0_fid_tassume((struct m0_fid *)&uuid, &M0_CONF_SERVICE_TYPE.cot_ftype);
-	return m0_reqh_service_setup(&service, stype, reqh, NULL,
-			            (struct m0_fid *)&uuid);
+	return m0_reqh_service_setup(&service, stype, reqh, NULL, sfid);
 }
 
 int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb)
 {
 	struct m0_reqh *reqh = &csb->csb_reqh;
-	int rc;
+	struct m0_fid           sfid;
+	int                     rc = 0;
+	struct m0_fid           fake_pfid
+		= M0_FID_TINIT(M0_CONF_PROCESS_TYPE.cot_ftype.ft_id, 0, 0);
 
-	rc = m0t1fs_service_start(&m0_rms_type, reqh);
+	/*
+	 * @todo Use fake process fid for init script based cluster setup.
+	 *       Init script based setup not adding m0t1fs process
+	 *       to configuration and also not passing m0t1fs process
+	 *       FID to mount.
+	 */
+	if (!m0_fid_eq(&reqh->rh_fid, &fake_pfid)) {
+		rc = m0_conf_process2service_get(&reqh->rh_rconfc.rc_confc,
+						 &reqh->rh_fid, M0_CST_RMS,
+						 &sfid);
+		if (rc)
+			return M0_RC(rc);
+	} else {
+		m0_uuid_generate((struct m0_uint128 *)&sfid);
+		m0_fid_tassume(&sfid, &M0_CONF_SERVICE_TYPE.cot_ftype);
+	}
+
+	rc = m0t1fs_service_start(&m0_rms_type, reqh, &sfid);
 	if (rc)
 		goto err;
 	return M0_RC(rc);
@@ -557,7 +586,7 @@ void m0t1fs_net_fini(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
-int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep)
+int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep, const char *pfid)
 {
 	struct m0_rpc_machine     *rpc_machine = &csb->csb_rpc_machine;
 	struct m0_reqh            *reqh        = &csb->csb_reqh;
@@ -568,6 +597,7 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep)
 	int                        rc;
 	uint32_t		   bufs_nr;
 	uint32_t		   tms_nr;
+	struct m0_fid              process_fid = M0_FID0;
 
 	M0_ENTRY();
 
@@ -582,14 +612,16 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep)
 	if (rc != 0)
 		goto be_fini;
 
+	rc = m0_fid_sscanf(pfid, &process_fid);
+	if (rc != 0)
+		goto pool_fini;
+
 	rc = M0_REQH_INIT(reqh,
 			  .rhia_dtm = (void*)1,
 			  .rhia_db = csb->csb_ut_seg.bus_seg,
 			  .rhia_mdstore = (void*)1,
 			  .rhia_pc = &csb->csb_pools_common,
-			  /* fake process fid */
-			  .rhia_fid = &M0_FID_TINIT(
-				  M0_CONF_PROCESS_TYPE.cot_ftype.ft_id, 0, 0));
+			  .rhia_fid = &process_fid);
 	if (rc != 0)
 		goto pool_fini;
 	laddr = ep == NULL ? csb->csb_laddr : ep;
@@ -716,7 +748,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0t1fs_rpc_init(csb, mops->mo_ep);
+	rc = m0t1fs_rpc_init(csb, mops->mo_ep, mops->mo_process_fid);
 	if (rc != 0)
 		goto err_net_fini;
 
@@ -793,6 +825,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0_addb2_sys_net_start_with(sys, &pc->pc_svc_ctxs);
 	if (rc == 0) {
 		m0_confc_close(&fs->cf_obj);
+		m0_conf_ha_notify(&reqh->rh_fid, M0_NC_ONLINE);
 		return M0_RC(0);
 	}
 
@@ -836,7 +869,6 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0t1fs_sb_layouts_fini(csb);
 	/* @todo Make a separate unconfigure api and do this in that */
 	m0_flset_destroy(&csb->csb_reqh.rh_failure_set);
-	m0_ha_state_fini();
 	m0_pool_versions_destroy(&csb->csb_pools_common);
 	m0_pools_service_ctx_destroy(&csb->csb_pools_common);
 	m0_pools_destroy(&csb->csb_pools_common);
@@ -844,8 +876,10 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_ha_client_del(m0_reqh2confc(&csb->csb_reqh));
 	m0_rconfc_stop_sync(m0_csb2rconfc(csb));
 	m0_rconfc_fini(m0_csb2rconfc(csb));
+	m0_conf_ha_notify(&csb->csb_reqh.rh_fid, M0_NC_FAILED);
 	m0_reqh_services_terminate(&csb->csb_reqh);
 	m0t1fs_ha_fini(csb);
+	m0_ha_state_fini();
 	m0t1fs_rpc_fini(csb);
 	m0t1fs_net_fini(csb);
 }

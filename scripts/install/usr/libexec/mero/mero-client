@@ -10,7 +10,7 @@ MERO_GENDERS_CONF=/etc/mero/genders
 user_config=/etc/sysconfig/mero
 ha_config="/etc/sysconfig/m0t1fs-$2"
 service_funcs=/usr/libexec/mero/mero-service.functions
-
+fake_pfid='<0x7200000000000000:0>'
 
 start()
 {
@@ -20,6 +20,10 @@ start()
 
     if [[ -n $proc_fid && ! -e $ha_config ]] ; then
         m0_exit "service config file '$ha_config' doesn't exist"
+    fi
+
+    if [ -z "$proc_fid" ]; then
+        proc_fid=$fake_pfid
     fi
 
     [[ -r $ha_config   ]] && source $ha_config
@@ -33,7 +37,7 @@ start()
     [ ! -d "$mountpoint" ] && mkdir -p "$mountpoint"
 
     set -x
-    mount -t m0t1fs -o "profile=$profile,ha=$ha_ep,oostore${ep_opt}" m0t1 $mountpoint
+    mount -t m0t1fs -o "pfid=$proc_fid,profile=$profile,ha=$ha_ep,oostore${ep_opt}" m0t1 $mountpoint
     set +x
 }
 

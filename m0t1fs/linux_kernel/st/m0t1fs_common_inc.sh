@@ -81,6 +81,7 @@ TM_MIN_RECV_QUEUE_LEN=16
 MAX_RPC_MSG_SIZE=65536
 XPT=lnet
 PVERID='^v|1:10'
+M0T1FS_PROC_ID='<0x7200000000000001:64>'
 
 unload_kernel_module()
 {
@@ -193,6 +194,7 @@ function build_conf()
 	local rack_count=1
 	local PROC_FID_CONT='^r|1'
 	local MD_REDUNDANCY=1
+	local m0t1fs_ep="$lnet_nid:12345:33:1"
 
 	if [ -z "$ioservices" ]; then
 		ioservices=("${IOSEP[@]}")
@@ -228,6 +230,8 @@ function build_conf()
 	local  RACKVID="^j|1:$(($pool_width + 1))"
 	local  ENCLVID="^j|1:$(($pool_width + 2))"
 	local  CTRLVID="^j|1:$(($pool_width + 3))"
+	local M0T1FS_RMID="^s|1:101"
+	local M0T1FS_PROCID="^r|1:100"
 
 	local NODES="$NODE"
 	local POOLS="$POOLID"
@@ -235,6 +239,10 @@ function build_conf()
 	local PROC_NAMES
 	local PROC_OBJS
 	local M0D=0
+	local M0T1FS_RM="{0x73| (($M0T1FS_RMID), 4, [1: \"${m0t1fs_ep}\"], [0])}"
+	local M0T1FS_PROC="{0x72| (($M0T1FS_PROCID), [1:3], 0, 0, 0, 0, \"${m0t1fs_ep}\", [1: $M0T1FS_RMID])}"
+	PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $M0T1FS_PROC"
+	PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$M0T1FS_PROCID"
 
 	local i
 
@@ -368,7 +376,7 @@ function build_conf()
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
- [$(($((${#ioservices[*]} * 6)) + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $PVER1_OBJ_COUNT)):
+ [$(($((${#ioservices[*]} * 6)) + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $PVER1_OBJ_COUNT + 2)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
@@ -378,10 +386,11 @@ function build_conf()
 	      [$pool_count: $POOLS],
 	      [$rack_count: $RACKS])},
   {0x6e| (($NODE), 16000, 2, 3, 2, $POOLID,
-	[$M0D: ${PROC_NAMES[@]}])},
+	[$(($M0D + 1)): ${PROC_NAMES[@]}])},
   $PROC_OBJS,
   {0x73| (($CONFD), 3, [1: $CONFD_ENDPOINT], [0])},
   {0x73| (($HA_SVC_ID), 6, [1: $HA_ENDPOINT], [0])},
+  $M0T1FS_RM,
   $MDS_OBJS,
   $IOS_OBJS,
   $RM_OBJS,

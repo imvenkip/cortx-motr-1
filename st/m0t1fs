@@ -155,6 +155,9 @@ do_m0t1fs_system_test()
 
     local test_file_path='/mnt/m0t1fs/0:4200000'
 
+    #wait for mount complete.
+    sleep 5
+
     touch $test_file_path
     # set unit_size to 1MB (see layout/layout_pver.c:m0_lid_to_unit_map)
     setfattr -n lid -v 9 $test_file_path

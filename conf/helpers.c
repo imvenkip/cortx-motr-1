@@ -728,4 +728,43 @@ M0_INTERNAL void m0_confc_ready_cb(struct m0_rconfc *rconfc)
 	M0_LEAVE();
 }
 
+
+int m0_conf_process2service_get(struct m0_confc           *confc,
+				const struct m0_fid       *process_fid,
+				enum m0_conf_service_type  stype,
+				struct m0_fid             *sfid)
+{
+	struct m0_conf_obj   *pobj;
+	struct m0_conf_obj   *sobj;
+	struct m0_conf_diter  it;
+	int                   rc;
+
+	M0_ENTRY();
+
+	rc = m0_conf_obj_find_lock(&confc->cc_cache, process_fid, &pobj) ?:
+		m0_confc_open_sync(&pobj, pobj, M0_FID0);
+	if (rc != 0)
+		return M0_RC(rc);
+
+	rc = m0_conf_diter_init(&it, confc, pobj, M0_CONF_PROCESS_SERVICES_FID);
+	if (rc != 0) {
+		m0_confc_close(pobj);
+		return M0_ERR(rc);
+	}
+
+	*sfid = M0_FID0;
+	while ((rc = m0_conf_diter_next_sync(&it, NULL)) == M0_CONF_DIRNEXT) {
+		sobj = m0_conf_diter_result(&it);
+		M0_ASSERT(m0_conf_obj_type(sobj) == &M0_CONF_SERVICE_TYPE);
+		if (M0_CONF_CAST(sobj, m0_conf_service)->cs_type == stype) {
+			rc = 0;
+			*sfid = sobj->co_id;
+			break;
+		}
+	}
+	m0_conf_diter_fini(&it);
+	m0_confc_close(pobj);
+	return m0_fid_is_set(sfid) ? M0_RC(rc) : M0_ERR(-ENOENT);
+}
+
 #undef M0_TRACE_SUBSYSTEM

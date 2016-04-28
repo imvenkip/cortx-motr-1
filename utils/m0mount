@@ -910,7 +910,7 @@ main()
 
 	# mount the file system
 	mkdir -p $MP
-	l_do "mount -t m0t1fs -o profile='$PROF_OPT',ha=$HA_EP,$oostore_mode 'm0t1' $MP" || {
+	l_do "mount -t m0t1fs -o pfid='$M0T1FS_PROC_ID',profile='$PROF_OPT',ha=$HA_EP,$oostore_mode 'm0t1' $MP" || {
 		echo ERROR: Unable to mount the file system
 		exit 1
 	}

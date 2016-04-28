@@ -225,4 +225,12 @@ M0_INTERNAL void m0_confc_ready_cb(struct m0_rconfc *rconfc);
 M0_INTERNAL bool m0_conf_service_ep_is_known(struct m0_conf_obj *svc_obj,
 					     const char         *ep_addr);
 
+/**
+ * Gets service fid of type stype from process with process_fid.
+ */
+int m0_conf_process2service_get(struct m0_confc           *confc,
+				const struct m0_fid       *process_fid,
+				enum m0_conf_service_type  stype,
+				struct m0_fid             *sfid);
+
 #endif /* __MERO_CONF_HELPERS_H__ */

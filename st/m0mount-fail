@@ -245,7 +245,7 @@ test_m0d_start() {
 
 _mount() {
     mkdir -p $SANDBOX_DIR/mnt
-    local MOUNT_OPTS="-t m0t1fs -o profile=$PROF_OPT,ha=$SERVER2_ENDPOINT \
+    local MOUNT_OPTS="-t m0t1fs -o pfid='$M0T1FS_PROC_ID',profile=$PROF_OPT,ha=$SERVER2_ENDPOINT \
 none $SANDBOX_DIR/mnt"
     echo "mount $MOUNT_OPTS"
     set +e

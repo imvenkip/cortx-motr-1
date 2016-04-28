@@ -165,10 +165,13 @@ stub_confdb() {
             "unit_size=4096"]
     mdpool=pool-0 nodes=[node-0] pools=[pool-0] racks=[rack-0])
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
-    processes=[process-0])
+    processes=[process-0, process-1])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$SERVER1_ENDPOINT"
     services=[service-0, service-1, service-2, service-3, service-4, service-5])
+(process-1 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
+    mem_limit_memlock=0 endpoint="$M0T1FS_ENDPOINT:1"
+    services=[service-6])
 (service-0 type=4 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (service-1 type=6 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (service-2 type=2 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
@@ -176,6 +179,7 @@ stub_confdb() {
 (service-3 type=1 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-0])
 (service-4 type=3 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (service-5 type=7 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
+(service-6 type=4 endpoints=["$M0T1FS_ENDPOINT:1"] sdevs=[])
 (pool-0 order=0 pvers=[pver-0])
 (pver-0 ver=0 N=2 K=1 P=4 nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
@@ -279,6 +283,7 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'diskv4'        : Fid(0x6a00000000000001, 9),
         'process'       : Fid($PROC_FID_CNTR, $PROC_FID_KEY),
         'process2'      : Fid($PROC_FID_CNTR, $PROC_FID_KEY2),
+        'process1'      : Fid(0x7200000000000002, 1),
         'ios'           : Fid(0x7300000000000002, 0),
         'mds'           : Fid(0x7300000000000002, 2),
         'mds2'          : Fid(0x7300000000000002, 3),
@@ -294,6 +299,7 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'sdev4'         : Fid(0x6400000000000009, 4),
         'rms'           : Fid(0x7300000000000004, 0),
         'rms2'          : Fid(0x7300000000000004, 1),
+        'rms3'          : Fid(0x7300000000000004, 2),
         'ha'            : Fid(0x7300000000000004, 4)
 }
 "
@@ -356,6 +362,8 @@ conf_objs_add = [('profile_add', tx, fids['profile']),
                  ('pool_version_done', tx, fids['pver']),
                  ('process_add', tx, fids['process'], fids['node'], cores,
                   0L, 0L, 0L, 0L, "$SERVER1_ENDPOINT"),
+                 ('process_add', tx, fids['process1'], fids['node'], cores,
+                  0L, 0L, 0L, 0L, "$M0T1FS_ENDPOINT:1"),
                  ('process_add', tx, fids['process2'], fids['node'],
                   cores, 0L, 0L, 0L, 0L, "$SERVER2_ENDPOINT"),
                  ('service_add', tx, fids['confd'], fids['process'], M0_CST_MGS,
@@ -382,6 +390,8 @@ conf_objs_add = [('profile_add', tx, fids['profile']),
                   ["$SERVER1_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['mds2'], fids['process2'], M0_CST_MDS,
                   ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                 ('service_add', tx, fids['rms3'], fids['process1'], M0_CST_RMS,
+                  ["$M0T1FS_ENDPOINT:1"], ServiceInfoParameters()),
                  ('device_add', tx, fids['sdev0'], fids['mds2'],
                   fids['disk0'], 1, M0_CFG_DEVICE_INTERFACE_SCSI,
 		  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
@@ -513,7 +523,7 @@ EOF
 
 _mount() {
     mkdir -p $SANDBOX_DIR/mnt
-    local MOUNT_OPTS="-t m0t1fs -o profile=$PROF_OPT,ha=$SERVER2_ENDPOINT \
+    local MOUNT_OPTS="-t m0t1fs -o pfid=<0x7200000000000002:1>,profile=$PROF_OPT,ha=$SERVER2_ENDPOINT \
 none $SANDBOX_DIR/mnt"
     echo "mount $MOUNT_OPTS"
     mount $MOUNT_OPTS || return $?

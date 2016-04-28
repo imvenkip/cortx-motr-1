@@ -97,7 +97,7 @@ static struct m0_fid                 profile;
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 
-int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep);
+int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep, const char *pfid);
 int m0t1fs_net_init(struct m0t1fs_sb *csb, const char *ep);
 int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb);
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
@@ -105,7 +105,7 @@ void m0t1fs_net_fini(struct m0t1fs_sb *csb);
 
 #define LOCAL_EP   "0@lo:12345:45:1"
 
-char local_conf[] = "[34:\
+char local_conf[] = "[36:\
    {0x74| ((^t|1:0), 1, [1 : ^p|1:0])},\
    {0x70| ((^p|1:0), ^f|1:1)},\
    {0x66| ((^f|1:1),\
@@ -115,13 +115,14 @@ char local_conf[] = "[34:\
            [1: ^o|1:23],\
            [1: ^a|1:15])},\
    {0x6e| ((^n|1:2), 16000, 2, 3, 2, ^o|1:23,\
-           [1: ^r|1:3])},\
+           [2: ^r|1:3, ^r|2:3])},\
    {0x72| ((^r|1:3), [1:3], 0, 0, 0, 0, \""LOCAL_EP"\", [6: ^s|1:4,\
                                                    ^s|1:5,\
                                                    ^s|1:6,\
                                                    ^s|1:7,\
                                                    ^s|1:8,\
                                                    ^s|1:9])},\
+   {0x72| ((^r|2:3), [1:3], 0, 0, 0, 0, \""LOCAL_EP"\", [1: ^s|2:7])},\
    {0x73| ((^s|1:4), 1, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [0])},\
    {0x73| ((^s|1:5), 2, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
@@ -131,6 +132,8 @@ char local_conf[] = "[34:\
    {0x73| ((^s|1:6), 3, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [0])},\
    {0x73| ((^s|1:7), 4, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
+           [0])},\
+   {0x73| ((^s|2:7), 4, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [0])},\
    {0x73| ((^s|1:8), 6, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [0])},\
@@ -210,7 +213,7 @@ static int file_io_ut_init(void)
 	rc = m0t1fs_net_init(&csb, NULL);
 	M0_ASSERT(rc == 0);
 
-	rc = m0t1fs_rpc_init(&csb, NULL);
+	rc = m0t1fs_rpc_init(&csb, NULL, "<0x7200000000000002:3>");
 	M0_ASSERT(rc == 0);
 
 	confc_args = &(struct m0_confc_args){
