@@ -396,6 +396,7 @@ static bool service_is_duplicate(const struct m0_reqh_context *rctx,
 static int cs_reqh_ctx_init(struct m0_mero *cctx)
 {
 	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	size_t                  nr;
 
 	M0_ENTRY();
 
@@ -406,8 +407,9 @@ static int cs_reqh_ctx_init(struct m0_mero *cctx)
 	if (rctx->rc_max_services == 0)
 		return M0_ERR_INFO(-EINVAL, "No services registered");
 
-	M0_ALLOC_ARR(rctx->rc_services,      rctx->rc_max_services);
-	M0_ALLOC_ARR(rctx->rc_service_fids, rctx->rc_max_services);
+	nr = max_check(rctx->rc_max_services + 1, M0_CST_NR);
+	M0_ALLOC_ARR(rctx->rc_services,     nr);
+	M0_ALLOC_ARR(rctx->rc_service_fids, nr);
 	if (rctx->rc_services == NULL || rctx->rc_service_fids == NULL) {
 		m0_free(rctx->rc_services);
 		m0_free(rctx->rc_service_fids);
