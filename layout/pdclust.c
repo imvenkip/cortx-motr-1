@@ -854,7 +854,8 @@ err2_injected:
 
 			if (M0_FI_ENABLED("parity_math_err"))
 				{ rc = -EPROTO; goto err3_injected; }
-			rc = m0_parity_math_init(&pi->pi_math, N, K);
+			if (K > 0)
+				rc = m0_parity_math_init(&pi->pi_math, N, K);
 err3_injected:
 			if (rc == 0) {
 				m0_layout__instance_init(&pi->pi_base, fid, l,
@@ -895,15 +896,18 @@ err3_injected:
 M0_INTERNAL void pdclust_instance_fini(struct m0_layout_instance *li)
 {
 	struct m0_pdclust_instance *pi;
+	struct m0_pdclust_layout   *pl;
 	struct m0_layout           *layout;
 
 	pi = m0_layout_instance_to_pdi(li);
 	M0_ENTRY("pi %p", pi);
 	layout = li->li_l;
+	pl = m0_layout_to_pdl(layout);
+	if (pl->pl_attr.pa_K > 0)
+		m0_parity_math_fini(&pi->pi_math);
 	m0_pdclust_perm_cache_destroy(layout, pi);
 	m0_layout__instance_fini(&pi->pi_base);
 	m0_pdclust_instance_bob_fini(pi);
-	m0_parity_math_fini(&pi->pi_math);
 	m0_free(pi->pi_tile_cache.tc_inverse);
 	m0_free(pi->pi_tile_cache.tc_permute);
 	m0_free(pi->pi_tile_cache.tc_lcode);

@@ -58,7 +58,6 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
 
 static inline bool fd_tile_invariant(const struct m0_fd_tile *tile);
 
-static int tolvec_sanity_check(const struct m0_conf_pver *pv);
 /**
  * Checks the feasibility of expected tolerance using the attributes of
  * the symmetric tree formed from the pool version.
@@ -293,6 +292,10 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 
 	M0_PRE(pv != NULL && pool_ver != NULL && failure_level != NULL);
 
+	/* Override the disk level tolerance in pool-version
+	 * with layout parameter K.
+	 */
+	pool_ver->pv_fd_tol_vec[M0_FTA_DEPTH_DISK] = pool_ver->pv_attr.pa_K;
 	rc = symm_tree_attr_get(pv, failure_level, children_nr);
 	if (rc != 0) {
 		return M0_RC(rc);
@@ -306,15 +309,6 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 	M0_LEAVE("Symm tree pool width = %d\tFD tree depth = %d",
 		 (int)pool_ver->pv_fd_tile.ft_cols, (int)*failure_level);
 	return M0_RC(rc);
-}
-
-static int tolvec_sanity_check(const struct m0_conf_pver *pv)
-{
-	if (!m0_exists(i, pv->pv_nr_failures_nr, pv->pv_nr_failures[i] != 0))
-		return M0_ERR_INFO(-EINVAL, "Tolerance values associated with"
-				    "all the levels of configuration"
-				    "tree are 0");
-	return 0;
 }
 
 static  uint64_t tree2pv_level_conv(uint64_t level, uint64_t tree_depth)
@@ -332,9 +326,6 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
 	uint64_t conf_level;
 	uint64_t fd_level;
 
-	rc = tolvec_sanity_check(pv);
-	if (rc != 0)
-		return M0_RC(rc);
 	/* Drop down to the first level from the configuration tree that will be
 	 * part of failure domains tree.
 	 */
@@ -347,8 +338,11 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
 		if (pv->pv_nr_failures[conf_level] > 0)
 			break;
 	}
-	/* Calculate the depth of failure domains tree. */
-	*depth = M0_FTA_DEPTH_MAX - conf_level;
+	/* Calculate the depth of failure domains tree. In case the required
+	 * tolerance at all levels is zero, we construct a flat tree of disks.
+	 */
+	*depth = M0_FTA_DEPTH_MAX == conf_level ? 1 :
+		M0_FTA_DEPTH_MAX - conf_level;
 	for (fd_level = 1, pv_level = conf_level; fd_level < *depth; ++fd_level,
 	     ++pv_level) {
 		rc = min_children_cnt(pv, pv_level, &min_children);
@@ -366,9 +360,8 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
 	/* Check if the skeleton tree (a.k.a. symmetric tree) meets the
 	 * required tolerance at all the levels.
 	 */
-	rc = tolerance_check(pv, children_nr, conf_level, depth);
-	if (rc != 0)
-		return M0_RC(rc);
+	if (pv->pv_nr_failures[M0_FTA_DEPTH_DISK] > 0)
+		rc = tolerance_check(pv, children_nr, conf_level, depth);
 	return M0_RC(rc);
 }
 

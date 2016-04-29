@@ -155,7 +155,7 @@ static const char local_conf_str[] = "[34:\
    {0x6b| ((^k|1:21), ^d|1:13, [1: ^v|1:24])},\
    {0x6b| ((^k|1:22), ^d|1:14, [1: ^v|1:24])},\
    {0x6f| ((^o|1:23), 0, [1: ^v|1:24])},\
-   {0x76| ((^v|1:24), 0, 3, 1, 5, [5: 1,0,0,0,1],\
+   {0x76| ((^v|1:24), 0, 3, 1, 5, [5: 0,0,0,0,1],\
            [1: ^j|1:25])},\
    {0x6a| ((^j|1:25), ^a|1:15,\
            [1: ^j|1:26])},\
@@ -488,10 +488,20 @@ static void test_pv2fd_conv(void)
 		++pv->pv_nr_failures[failure_level];
 	}
 	/*  Test the case when entire tolerance vector is zero. */
-	for (i = 0; i < M0_FTA_DEPTH_MAX; ++i)
-		pv->pv_nr_failures[i] = 0;
+	memset(pv->pv_nr_failures, 0,
+	      M0_FTA_DEPTH_MAX * sizeof pv->pv_nr_failures[0]);
+	memcpy(pool_ver.pv_fd_tol_vec, pv->pv_nr_failures,
+	       M0_FTA_DEPTH_MAX *sizeof pool_ver.pv_fd_tol_vec[0]);
+	pv->pv_attr.pa_K = 0;
 	rc = m0_fd_tile_build(pv, &pool_ver, &failure_level);
-	M0_UT_ASSERT(rc == -EINVAL);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(pool_ver.pv_fd_tile.ft_depth == 1);
+	rc = m0_fd_tree_build(pv, &pool_ver.pv_fd_tree);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(pool_ver.pv_fd_tree.ft_depth == 1);
+	fd_mapping_check(&pool_ver);
+	m0_fd_tree_destroy(&pool_ver.pv_fd_tree);
+	m0_fd_tile_destroy(&pool_ver.pv_fd_tile);
 
 	m0_conf_diter_fini(&it);
 	m0_confc_close(fs_obj);
