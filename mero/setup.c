@@ -144,7 +144,6 @@ static bool reqh_context_check(const void *bob)
 		_0C(M0_IN(rctx->rc_state, (RC_UNINITIALISED,
 					   RC_REQH_INITIALISED,
 					   RC_INITIALISED))) &&
-		_0C(rctx->rc_max_services == m0_reqh_service_types_length()) &&
 		_0C(M0_CHECK_EX(m0_tlist_invariant(&cs_eps_tl,
 						   &rctx->rc_eps))) &&
 		_0C(rctx->rc_mero != NULL) &&
@@ -396,20 +395,14 @@ static bool service_is_duplicate(const struct m0_reqh_context *rctx,
 static int cs_reqh_ctx_init(struct m0_mero *cctx)
 {
 	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
-	size_t                  nr;
 
 	M0_ENTRY();
 
-	*rctx = (struct m0_reqh_context){
-		.rc_max_services = m0_reqh_service_types_length(),
-		.rc_mero         = cctx
+	*rctx = (struct m0_reqh_context) {
+		.rc_mero = cctx
 	};
-	if (rctx->rc_max_services == 0)
-		return M0_ERR_INFO(-EINVAL, "No services registered");
-
-	nr = max_check(rctx->rc_max_services + 1, M0_CST_NR);
-	M0_ALLOC_ARR(rctx->rc_services,     nr);
-	M0_ALLOC_ARR(rctx->rc_service_fids, nr);
+	M0_ALLOC_ARR(rctx->rc_services,     M0_CST_NR);
+	M0_ALLOC_ARR(rctx->rc_service_fids, M0_CST_NR);
 	if (rctx->rc_services == NULL || rctx->rc_service_fids == NULL) {
 		m0_free(rctx->rc_services);
 		m0_free(rctx->rc_service_fids);
@@ -437,7 +430,7 @@ static void cs_reqh_ctx_fini(struct m0_reqh_context *rctx)
 	};
 	cs_eps_tlist_fini(&rctx->rc_eps);
 
-	for (i = 0; i < rctx->rc_max_services; ++i)
+	for (i = 0; i < M0_CST_NR; ++i)
 		m0_free(rctx->rc_services[i]);
 	m0_free(rctx->rc_services);
 	m0_free(rctx->rc_service_fids);
@@ -958,7 +951,7 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx)
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
 
-	for (i = 0; i < rctx->rc_max_services && rc == 0; ++i) {
+	for (i = 0; i < M0_CST_NR && rc == 0; ++i) {
 		if (rctx->rc_services[i] == NULL ||
 		    M0_IN(i, (M0_CST_HA, M0_CST_SSS)))
 			continue;
@@ -1685,11 +1678,12 @@ static int cs_reqh_ctx_services_validate(struct m0_mero *cctx)
 {
 	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
 	int                     i;
+
 	M0_ENTRY();
 
 	M0_PRE(reqh_ctx_services_are_valid(rctx));
 
-	for (i = 0; i < rctx->rc_max_services && rctx->rc_services[i] != NULL;
+	for (i = 0; i < M0_CST_NR && rctx->rc_services[i] != NULL;
 	     ++i) {
 		const char *sname = rctx->rc_services[i];
 

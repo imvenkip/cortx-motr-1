@@ -257,9 +257,6 @@ struct m0_reqh_context {
 	/** Number of services configured in request handler context. */
 	uint32_t                     rc_nr_services;
 
-	/** Maximum number of services allowed per request handler context. */
-	int                          rc_max_services;
-
 	/** Endpoints and xprts per request handler context. */
 	struct m0_tl                 rc_eps;
 
