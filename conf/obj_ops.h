@@ -273,5 +273,8 @@ M0_INTERNAL void m0_conf_dir_del(struct m0_conf_dir *dir,
 M0_INTERNAL bool m0_conf_dir_elems_match(const struct m0_conf_dir *dir,
 					 const struct m0_fid_arr  *fids);
 
+/** Counts number of elements in directory object. */
+M0_INTERNAL uint32_t m0_conf_dir_elems_count(const struct m0_conf_dir *dir);
+
 /** @} conf_dfspec_objops */
 #endif /* __MERO_CONF_OBJOPS_H__ */

@@ -293,5 +293,11 @@ M0_INTERNAL bool m0_conf_dir_elems_match(const struct m0_conf_dir *dir,
 			     m0_fid_eq(&fids->af_elems[i++], &obj->co_id));
 }
 
+M0_INTERNAL uint32_t m0_conf_dir_elems_count(const struct m0_conf_dir *dir)
+{
+
+	return m0_conf_dir_tlist_length(&dir->cd_items);
+}
+
 /** @} conf_dlspec_objops */
 #undef M0_TRACE_SUBSYSTEM

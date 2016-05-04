@@ -35,6 +35,7 @@
 #include "conf/diter.h"    /* m0_conf_diter_next_sync */
 #include "ha/note.h"       /* m0_ha_nvec, m0_ha_state_accept, m0_ha_state_get */
 #include "pool/flset.h"    /* m0_flset_pver_has_failed_dev */
+#include "fd/fd.h"         /* M0_FTA_DEPTH_CONT */
 
 const int CACHE_LOCALITY = 1;
 
@@ -115,11 +116,13 @@ M0_INTERNAL int m0_conf_poolversion_get(const struct m0_fid  *profile,
 	struct m0_conf_pver       *pver;
 	struct m0_conf_obj        *obj;
 	int                        rc;
+	uint32_t                   pool_nr;
 
 	rc = m0_conf_fs_get(profile, confc, &fs);
 	if (rc != 0)
 		return M0_ERR(rc);
 
+	pool_nr = m0_conf_dir_tlist_length(&fs->cf_pools->cd_items);
 	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
 				M0_CONF_FILESYSTEM_POOLS_FID,
 				M0_CONF_POOL_PVERS_FID);
@@ -130,9 +133,18 @@ M0_INTERNAL int m0_conf_poolversion_get(const struct m0_fid  *profile,
 
 	while ((rc = m0_conf_diter_next_sync(&it, m0_obj_is_pver)) ==
 		M0_CONF_DIRNEXT) {
+		struct m0_conf_pool *cp;
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE);
 		pver = M0_CONF_CAST(obj, m0_conf_pver);
+		cp = M0_CONF_CAST(m0_conf_obj_grandparent(&pver->pv_obj),
+			          m0_conf_pool);
+		/* @todo As ST and UT uses same pool for both io and meta-data,
+		 * mdpool skipping is avoided.
+		 */
+		if (pool_nr > 0 && pver->pv_nr_failures[M0_FTA_DEPTH_CONT] > 0
+		    && m0_fid_eq(&cp->pl_obj.co_id, &fs->cf_mdpool))
+			continue;
 		if (!m0_flset_pver_has_failed_dev(failure_set, pver)) {
 			*result = pver;
 			rc = 0;

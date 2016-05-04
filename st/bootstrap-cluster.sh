@@ -2827,7 +2827,7 @@ id_m0_servers:
 id_m0_globals:
   m0_data_units: 8
   m0_parity_units: 2
-  m0_md_redundancy: 1
+  m0_md_redundancy: 3
   m0_failure_set_gen:
     tag: Dynamic
     contents: []
@@ -5100,7 +5100,7 @@ id_m0_servers:
 id_m0_globals:
   m0_data_units: 8
   m0_parity_units: 2
-  m0_md_redundancy: 1
+  m0_md_redundancy: 3
   m0_failure_set_gen:
     tag: Dynamic
     contents: []

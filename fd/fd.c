@@ -200,17 +200,15 @@ static int tree_level_nodes_cnt(const struct m0_conf_pver *pv, uint64_t level,
 	M0_PRE(level > 0 && level < M0_FTA_DEPTH_MAX);
 
 	if (level == 1) {
-		*children_nr =
-			m0_conf_dir_tlist_length(&pv->pv_rackvs->cd_items);
+		*children_nr = m0_conf_dir_elems_count(pv->pv_rackvs);
 		rc = *children_nr > 0 ? 0 : M0_ERR(-EINVAL);
 		goto out;
 	}
 	*children_nr = 0;
-	pv_for(pv, level - 1, obj, rc) {
+	pv_for (pv, level - 1, obj, rc) {
 		M0_ASSERT(m0_conf_obj_type(obj) ==  &M0_CONF_OBJV_TYPE);
 	        objv = M0_CONF_CAST(obj, m0_conf_objv);
-		*children_nr +=
-			m0_conf_dir_tlist_length(&objv->cv_children->cd_items);
+		*children_nr += m0_conf_dir_elems_count(objv->cv_children);
 	} pv_endfor;
 out:
 	return M0_RC(rc);
@@ -231,16 +229,12 @@ static int min_children_cnt(const struct m0_conf_pver *pv, uint64_t pv_level,
 
 	obj_id = 0;
 	*children_nr = 0;
-	pv_for(pv, pv_level, obj, rc) {
+	pv_for (pv, pv_level, obj, rc) {
 		M0_ASSERT(m0_conf_obj_type(obj) ==  &M0_CONF_OBJV_TYPE);
 		objv = M0_CONF_CAST(obj, m0_conf_objv);
-		*children_nr =
-			m0_conf_dir_tlist_length(&objv->cv_children->cd_items);
-		if (obj_id == 0)
-			min = *children_nr;
-		else {
-			min = min_type(uint64_t, min, *children_nr);
-		}
+		*children_nr = m0_conf_dir_elems_count(objv->cv_children);
+		min = obj_id == 0 ? *children_nr :
+				     min_type(uint64_t, min, *children_nr);
 		++obj_id;
 	} pv_endfor;
 	*children_nr = min;
@@ -628,12 +622,12 @@ M0_INTERNAL int m0_fd__tree_level_populate(const struct m0_conf_pver *pv,
 	if (rc != 0)
 		return M0_RC(rc);
 	pv_level = tree2pv_level_conv(level, tree->ft_depth);
-	pv_for(pv, pv_level, obj, rc) {
+	pv_for (pv, pv_level, obj, rc) {
 		M0_ASSERT(m0_conf_obj_type(obj) ==  &M0_CONF_OBJV_TYPE);
 		objv = M0_CONF_CAST(obj, m0_conf_objv);
 		if (level < tree->ft_depth)
 			children_nr =
-			 m0_conf_dir_tlist_length(&objv->cv_children->cd_items);
+			 m0_conf_dir_elems_count(objv->cv_children);
 		else
 			children_nr = 0;
 		node = m0_fd__tree_cursor_get(&cursor);

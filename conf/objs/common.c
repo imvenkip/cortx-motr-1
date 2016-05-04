@@ -187,7 +187,7 @@ arrfid_from_dir(struct m0_fid_arr *dest, const struct m0_conf_dir *dir)
 	size_t              i;
 
 	dest->af_elems = NULL;
-	dest->af_count = m0_conf_dir_tlist_length(&dir->cd_items);
+	dest->af_count = m0_conf_dir_elems_count(dir);
 
 	if (dest->af_count == 0)
 		return 0;
@@ -197,7 +197,7 @@ arrfid_from_dir(struct m0_fid_arr *dest, const struct m0_conf_dir *dir)
 		return M0_ERR(-ENOMEM);
 
 	i = 0;
-	m0_tl_for(m0_conf_dir, &dir->cd_items, obj) {
+	m0_tl_for (m0_conf_dir, &dir->cd_items, obj) {
 		dest->af_elems[i++] = obj->co_id;
 	} m0_tl_endfor;
 

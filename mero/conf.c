@@ -243,7 +243,7 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 		 * note vector and notifications are sent only for devices
 		 * which are failed with -ENOENT during attach.
 		 */
-		dev_nr = m0_conf_dir_tlist_length(&svc->cs_sdevs->cd_items);
+		dev_nr = m0_conf_dir_elems_count(svc->cs_sdevs);
 		M0_ASSERT(dev_nr != 0);
 		M0_ALLOC_ARR(note, dev_nr);
 		if (note == NULL) {
