@@ -453,6 +453,8 @@ enum m0_magic_satchel {
 	M0_HA_CLIENT_MAGIC = 0x33b002edefaced77,
 	/* ha_client_ctx::hx_magic (cliff dazzled) */
 	M0_HA_CLIENT_HEAD_MAGIC = 0x33c11ffda221ed77,
+	/* m0_halon_interface_internal::hii_magix (deles felizio) */
+	M0_HALON_INTERFACE_MAGIC = 0x33de1e5fe1121077,
 
 /* ioservice */
 	/* m0_tmp_stob_io_descr::siod_linkage (zealos obsses) */

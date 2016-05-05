@@ -202,6 +202,7 @@ include $(top_srcdir)/fop/Makefile.sub
 include $(top_srcdir)/format/Makefile.sub
 include $(top_srcdir)/graph/Makefile.sub
 include $(top_srcdir)/ha/Makefile.sub
+include $(top_srcdir)/ha/halon/Makefile.sub
 include $(top_srcdir)/ioservice/Makefile.sub
 include $(top_srcdir)/layout/Makefile.sub
 include $(top_srcdir)/lib/Makefile.sub
@@ -470,6 +471,13 @@ ha_st_dummyha_LDADD     = $(top_builddir)/mero/libmero.la \
                           $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/ha/st/Makefile.sub
+
+noinst_PROGRAMS       += ha/dummy/hadummy
+
+ha_dummy_hadummy_CPPFLAGS  = -DM0_TARGET='hadummy' $(AM_CPPFLAGS)
+ha_dummy_hadummy_LDADD     = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/ha/dummy/Makefile.sub
 
 #
 # rpc/it/m0rpcping
