@@ -293,4 +293,18 @@ $SPIEL_RCONF_STOP
 EOF
 }
 
+spiel_sns_rebalance_abort()
+{
+echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
+    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+$SPIEL_FIDS_LIST
+
+$SPIEL_RCONF_START
+
+rc = spiel.pool_rebalance_abort(fids['pool'])
+print ("pool rebalance abort rc: " + str(rc))
+
+$SPIEL_RCONF_STOP
+EOF
+}
 

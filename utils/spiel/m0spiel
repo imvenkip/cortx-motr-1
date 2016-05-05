@@ -477,6 +477,10 @@ class SpielWrapper:
     def filesystem_stats_fetch(self, fid, stats):
         return self.mero.m0_spiel_filesystem_stats_fetch(self.spiel, byref(fid),
                                                          byref(stats))
+    @require(fid=Fid)
+    def pool_rebalance_abort(self, fid):
+        return self.mero.m0_spiel_pool_rebalance_abort(self.spiel,
+                                                       byref(fid))
 
     def __m0_init(self):
         m0 = self.__malloc(m0__size())

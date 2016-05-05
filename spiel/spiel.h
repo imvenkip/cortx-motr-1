@@ -1070,6 +1070,21 @@ int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
 				   struct m0_spiel_sns_status **statuses);
 
 /**
+ * Aborts pool sns rebalance operation.
+ *
+ * Aborts ongoing pool sns rebalance operation.
+ * Waits until all the sns services notify completion.
+ * @note Blocks until operation is copleted.
+ *
+ * @param spl            spiel instance
+ * @param pool_fid       pool identifier
+ * @return 0 on successful abort
+ *
+ */
+int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
+				  const struct m0_fid *pool_fid);
+
+/**
  * Mero filesystem stats. The stats are collected from all processes of the
  * nodes the filesystem builds on. Space counters include respective counts from
  * all BE segments mdservice operates on, including seg0, as well as spaces from

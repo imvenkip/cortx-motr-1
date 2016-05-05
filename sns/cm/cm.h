@@ -105,6 +105,7 @@ enum m0_sns_cm_op {
 	SNS_REPAIR_STATUS     = 1 << 5,
 	SNS_REBALANCE_STATUS  = 1 << 6,
 	SNS_REPAIR_ABORT      = 1 << 7,
+	SNS_REBALANCE_ABORT   = 1 << 8,
 };
 
 /**

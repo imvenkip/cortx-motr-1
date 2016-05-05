@@ -561,7 +561,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 			return M0_ERR(-EINVAL);
 		break;
 	case M0_PNDS_SNS_REBALANCING:
-		if (event->pe_state != M0_PNDS_ONLINE)
+		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE,
+					     M0_PNDS_FAILED)))
 			return M0_ERR(-EINVAL);
 		break;
 	default:
@@ -612,15 +613,23 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 			pool_failed_devs_tlist_del(pd);
 		break;
 	case M0_PNDS_FAILED:
-		/* alloc a sns repare spare slot */
-		for (i = 0; i < state->pst_max_device_failures; i++) {
-			if (spare_array[i].psu_device_index ==
-					POOL_PM_SPARE_SLOT_UNUSED) {
-				spare_array[i].psu_device_index =
-					event->pe_index;
-				spare_array[i].psu_device_state =
-					event->pe_state;
-				break;
+		 /*
+		  * Alloc a sns repair spare slot only once for
+		  * M0_PNDS_ONLINE->M0_PNDS_FAILED or
+		  * M0_PNDS_OFFLINE->M0_PNDS_FAILED transition.
+		  * A device can also transition to M0_PNDS_FAILED state
+		  * from M0_PNDS_SNS_REBALANCING state as well.
+		  */
+		if (M0_IN(old_state, (M0_PNDS_ONLINE, M0_PNDS_OFFLINE))) {
+			for (i = 0; i < state->pst_max_device_failures; i++) {
+				if (spare_array[i].psu_device_index ==
+				    POOL_PM_SPARE_SLOT_UNUSED) {
+					spare_array[i].psu_device_index =
+						event->pe_index;
+					spare_array[i].psu_device_state =
+						event->pe_state;
+					break;
+				}
 			}
 		}
 		if (i == state->pst_max_device_failures) {

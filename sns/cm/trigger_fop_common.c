@@ -42,6 +42,7 @@ struct m0_fop_type m0_sns_rebalance_trigger_fopt;
 struct m0_fop_type m0_sns_rebalance_quiesce_trigger_fopt;
 struct m0_fop_type m0_sns_rebalance_status_fopt;
 struct m0_fop_type m0_sns_repair_abort_fopt;
+struct m0_fop_type m0_sns_rebalance_abort_fopt;
 
 struct m0_fop_type m0_sns_repair_trigger_rep_fopt;
 struct m0_fop_type m0_sns_repair_quiesce_trigger_rep_fopt;
@@ -50,6 +51,7 @@ struct m0_fop_type m0_sns_rebalance_trigger_rep_fopt;
 struct m0_fop_type m0_sns_rebalance_quiesce_trigger_rep_fopt;
 struct m0_fop_type m0_sns_rebalance_status_rep_fopt;
 struct m0_fop_type m0_sns_repair_abort_rep_fopt;
+struct m0_fop_type m0_sns_rebalance_abort_rep_fopt;
 
 #ifndef __KERNEL__
 extern struct m0_sm_state_descr m0_sns_trigger_phases[];
@@ -86,19 +88,21 @@ M0_INTERNAL void m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,
 			 .rpc_flags = rpc_flags);
 }
 
+struct m0_fop_type *sns_fop_type[] = {
+	[SNS_REPAIR]           = &m0_sns_repair_trigger_fopt,
+	[SNS_REPAIR_QUIESCE]   = &m0_sns_repair_quiesce_trigger_fopt,
+	[SNS_REBALANCE]        = &m0_sns_rebalance_trigger_fopt,
+	[SNS_REBALANCE_QUIESCE]= &m0_sns_rebalance_quiesce_trigger_fopt,
+	[SNS_REPAIR_STATUS]    = &m0_sns_repair_status_fopt,
+	[SNS_REBALANCE_STATUS] = &m0_sns_rebalance_status_fopt,
+	[SNS_REPAIR_ABORT]     = &m0_sns_repair_abort_fopt,
+	[SNS_REBALANCE_ABORT]  = &m0_sns_rebalance_abort_fopt,
+};
+
 M0_INTERNAL int m0_sns_cm_trigger_fop_alloc(struct m0_rpc_machine  *mach,
 					    uint32_t                op,
 					    struct m0_fop         **fop)
 {
-	static struct m0_fop_type *sns_fop_type[] = {
-		[SNS_REPAIR]           = &m0_sns_repair_trigger_fopt,
-		[SNS_REPAIR_QUIESCE]   = &m0_sns_repair_quiesce_trigger_fopt,
-		[SNS_REBALANCE]        = &m0_sns_rebalance_trigger_fopt,
-		[SNS_REBALANCE_QUIESCE]= &m0_sns_rebalance_quiesce_trigger_fopt,
-		[SNS_REPAIR_STATUS]    = &m0_sns_repair_status_fopt,
-		[SNS_REBALANCE_STATUS] = &m0_sns_rebalance_status_fopt,
-		[SNS_REPAIR_ABORT]     = &m0_sns_repair_abort_fopt,
-	};
 	M0_ENTRY();
 	M0_PRE(IS_IN_ARRAY(op, sns_fop_type));
 

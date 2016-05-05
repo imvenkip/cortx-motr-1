@@ -475,6 +475,16 @@ static void pm_test_spare_slot(void)
 	event.pe_index = 1;
 
 
+	/* ONLINE */
+	target_state = M0_PNDS_ONLINE;
+	event.pe_state = target_state;
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
+	m0_ut_be_tx_end(&tx);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_poolmach_device_state(pm, 1, &state_out);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(state_out == target_state);
 	/* FAILED */
 	target_state = M0_PNDS_FAILED;
 	event.pe_state = target_state;
@@ -498,7 +508,10 @@ static void pm_test_spare_slot(void)
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
 		if (state == M0_PNDS_SNS_REPAIRING || state == M0_PNDS_FAILED)
 			continue;
-		/* transit to other state other than the above one is invalid */
+		/*
+		 * transition to other state other than the above two states is
+		 * invalid
+		 */
 		event.pe_state = state;
 		m0_ut_be_tx_begin(&tx, &ut_be, &cred);
 		rc = m0_poolmach_state_transit(pm, &event, &tx);
@@ -587,7 +600,8 @@ static void pm_test_spare_slot(void)
 	M0_UT_ASSERT(spare_slot == 0);
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
 		if (state == M0_PNDS_ONLINE ||
-		    state == M0_PNDS_SNS_REBALANCING)
+		    state == M0_PNDS_SNS_REBALANCING ||
+		    state == M0_PNDS_FAILED)
 			continue;
 		/* transit to other state other than the above one is invalid */
 		event.pe_state = state;
@@ -641,6 +655,18 @@ static void pm_test_multi_fail(void)
 
 	event.pe_type  = M0_POOL_DEVICE;
 
+	/* device 1 ONLINE */
+	event.pe_index = 1;
+	target_state = M0_PNDS_ONLINE;
+	event.pe_state = target_state;
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
+	m0_ut_be_tx_end(&tx);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_poolmach_device_state(pm, 1, &state_out);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(state_out == target_state);
+
 	/* device 1 FAILED */
 	event.pe_index = 1;
 	target_state = M0_PNDS_FAILED;
@@ -650,6 +676,18 @@ static void pm_test_multi_fail(void)
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_poolmach_device_state(pm, 1, &state_out);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(state_out == target_state);
+
+	/* device 2 ONLINE */
+	event.pe_index = 2;
+	target_state = M0_PNDS_ONLINE;
+	event.pe_state = target_state;
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
+	m0_ut_be_tx_end(&tx);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_poolmach_device_state(pm, 2, &state_out);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(state_out == target_state);
 
@@ -757,6 +795,15 @@ static void pm_test_multi_fail(void)
 	rc = m0_poolmach_sns_repair_spare_query(pm, 2, &spare_slot);
 	M0_UT_ASSERT(rc == -ENOENT);
 
+	/* transit device 3 to ONLINE */
+	event.pe_index = 3;
+	target_state = M0_PNDS_ONLINE;
+	event.pe_state = target_state;
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
+	m0_ut_be_tx_end(&tx);
+	M0_UT_ASSERT(rc == 0);
+
 	/* transit device 3 to FAILED */
 	event.pe_index = 3;
 	target_state = M0_PNDS_FAILED;
@@ -785,6 +832,15 @@ static void pm_test_multi_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_poolmach_sns_repair_spare_query(pm, 1, &spare_slot);
 	M0_UT_ASSERT(rc == -ENOENT);
+
+	/* transit device 4 to ONLINE */
+	event.pe_index = 4;
+	target_state = M0_PNDS_ONLINE;
+	event.pe_state = target_state;
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
+	m0_ut_be_tx_end(&tx);
+	M0_UT_ASSERT(rc == 0);
 
 	/* transit device 4 to FAILED */
 	event.pe_index = 4;

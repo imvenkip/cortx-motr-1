@@ -1390,6 +1390,15 @@ int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
 }
 M0_EXPORTED(m0_spiel_pool_rebalance_status);
 
+int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
+				  const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						SNS_REBALANCE_ABORT, NULL));
+}
+M0_EXPORTED(m0_spiel_pool_rebalance_abort);
+
 /****************************************************/
 /*                    Filesystem                    */
 /****************************************************/

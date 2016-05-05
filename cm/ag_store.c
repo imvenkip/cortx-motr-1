@@ -186,6 +186,7 @@ static void in_out_set(struct m0_cm *cm, struct m0_cm_ag_id *in,
 	cm->cm_sw_last_persisted_hi = *in;
 	cm->cm_sw_last_updated_hi = *in;
 	cm->cm_last_processed_out = *out;
+	M0_SET0(&cm->cm_last_out_hi);
 }
 
 static int ag_store_init(struct m0_cm_ag_store *store)
