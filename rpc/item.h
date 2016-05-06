@@ -514,7 +514,7 @@ M0_INTERNAL const char *
 m0_rpc_item_remote_ep_addr(const struct m0_rpc_item *item);
 
 enum {
-	RIC_HASH_MASK = 0xf,
+	RIC_HASH_MASK = 0xff,
 	RIC_HASH_SIZE = RIC_HASH_MASK + 1,
 };
 
