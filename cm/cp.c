@@ -31,6 +31,7 @@
 #include "reqh/reqh.h"
 #include "net/buffer_pool.h"
 #include "rpc/rpc_opcodes.h" /* M0_CM_CP_OPCODE */
+#include "rpc/bulk.h"
 
 #include "cm/cp.h"
 #include "cm/ag.h"
@@ -611,8 +612,12 @@ M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp)
 		    service->rs_reqh);
 }
 
+M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
+M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
+
 M0_INTERNAL void m0_cm_cp_only_fini(struct m0_cm_cp *cp)
 {
+	struct m0_rpc_bulk *rbulk;
 	/*
 	 * If the copy packet is not an accumulator copy packet, it will get
 	 * finalised after transformation. For such copy packets, finalise the
@@ -622,6 +627,44 @@ M0_INTERNAL void m0_cm_cp_only_fini(struct m0_cm_cp *cp)
 		m0_bitmap_fini(&cp->c_xform_cp_indices);
 	m0_chan_fini_lock(&cp->c_reply_wait);
 	m0_mutex_fini(&cp->c_reply_wait_mutex);
+
+	/*
+	 * Release the net buffers if rpc bulk object is still dirty.
+	 * And wait on channel till all net buffers are deleted from
+	 * transfer machine.
+	 */
+	rbulk = &cp->c_bulk;
+	m0_mutex_lock(&rbulk->rb_mutex);
+	if (!rpcbulk_tlist_is_empty(&rbulk->rb_buflist)) {
+		struct m0_clink clink;
+		size_t          buf_nr;
+		size_t          non_queued_buf_nr;
+
+		m0_clink_init(&clink, NULL);
+		m0_clink_add(&rbulk->rb_chan, &clink);
+		buf_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
+		non_queued_buf_nr = m0_rpc_bulk_store_del_unqueued(rbulk);
+		m0_mutex_unlock(&rbulk->rb_mutex);
+
+		m0_rpc_bulk_store_del(rbulk);
+		M0_LOG(M0_DEBUG, "bulk %p, buf_nr %llu, non_queued_buf_nr %llu",
+					   rbulk,
+		       (unsigned long long)buf_nr,
+		       (unsigned long long)non_queued_buf_nr);
+		/*
+		 * If there were some queued net bufs which had to be deleted,
+		 * then it is required to wait for their callbacks.
+		 */
+		if (buf_nr > non_queued_buf_nr) {
+			m0_chan_wait(&clink);
+		}
+		m0_clink_del_lock(&clink);
+		m0_clink_fini(&clink);
+	} else {
+		m0_mutex_unlock(&rbulk->rb_mutex);
+	}
+	M0_ASSERT(m0_rpc_bulk_is_empty(rbulk));
+
 	m0_rpc_bulk_buflist_empty(&cp->c_bulk);
 	m0_rpc_bulk_fini(&cp->c_bulk);
 	proxy_cp_tlink_fini(cp);
@@ -756,7 +799,7 @@ M0_INTERNAL int m0_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest)
 	cp = cm->cm_ops->cmo_cp_alloc(cm);
 	if (cp == NULL)
 		return -ENOMEM;
-	cp->c_ag = src->c_ag;
+	m0_cm_ag_cp_add(src->c_ag, cp);
 	cp->c_ag_cp_idx = src->c_ag_cp_idx;
 	cp->c_data_seg_nr = src->c_data_seg_nr;
 	m0_cm_cp_fom_init(cm, cp);

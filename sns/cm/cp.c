@@ -132,7 +132,7 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 	ag = m0_cm_aggr_group_locate(cm, &ag_id, true);
 	M0_ASSERT_INFO(ag != NULL, M0_AG_F, M0_AG_P(&ag_id));
 	m0_cm_unlock(cm);
-	sns_cp->sc_base.c_ag = ag;
+	m0_cm_ag_cp_add(ag, &sns_cp->sc_base);
 
 	sns_cp->sc_base.c_ag_cp_idx = sns_cpx->scx_cp.cpx_ag_cp_idx;
 	m0_bitmap_init(&sns_cp->sc_base.c_xform_cp_indices,
@@ -247,6 +247,8 @@ M0_INTERNAL void m0_sns_cm_cp_complete(struct m0_cm_cp *cp)
 M0_INTERNAL void m0_sns_cm_cp_free(struct m0_cm_cp *cp)
 {
 	M0_PRE(cp != NULL);
+	if (cp->c_ag != NULL)
+		m0_cm_ag_cp_del(cp->c_ag, cp);
 	m0_cm_cp_buf_release(cp);
 	m0_free(cp2snscp(cp));
 }

@@ -300,6 +300,9 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	 * frozen on that proxy must be destroyed.
 	 */
 	if (proxy->px_status == M0_PX_FAILED) {
+		m0_mutex_lock(&proxy->px_mutex);
+		__wake_up_pending_cps(proxy);
+		m0_mutex_unlock(&proxy->px_mutex);
 		m0_cm_fail(cm, -EHOSTDOWN);
 		m0_cm_abort(cm);
 		m0_cm_frozen_ag_cleanup(cm, proxy);

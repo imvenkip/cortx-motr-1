@@ -101,6 +101,9 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 {
 	struct m0_net_end_point *ep;
 	int                      rc;
+	enum {
+		CONN_TIMEOUT       = 5, /* seconds */
+	};
 
 	M0_ENTRY("conn=%p session=%p rpc_mach=%p remote_addr=%s",
 	         conn, session, rpc_mach, remote_addr);
@@ -110,14 +113,16 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 		return M0_RC(rc);
 
 	rc = m0_rpc_conn_create(conn, svc_obj, ep, rpc_mach, max_rpcs_in_flight,
-				M0_TIME_NEVER);
+				m0_time_from_now(CONN_TIMEOUT, 0));
 	m0_net_end_point_put(ep);
 	if (rc != 0)
 		return M0_RC(rc);
 
-	rc = m0_rpc_session_create(session, conn, M0_TIME_NEVER);
+	rc = m0_rpc_session_create(session, conn,
+				   m0_time_from_now(CONN_TIMEOUT, 0));
 	if (rc != 0)
-		(void)m0_rpc_conn_destroy(conn, M0_TIME_NEVER);
+		(void)m0_rpc_conn_destroy(conn,
+					  m0_time_from_now(CONN_TIMEOUT, 0));
 
 	return M0_RC(rc);
 }

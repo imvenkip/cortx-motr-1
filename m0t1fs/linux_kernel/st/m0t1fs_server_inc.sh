@@ -162,6 +162,7 @@ mero_service()
 		prog_start="${prog_start}-altogether"
 		prog_exec="${prog_exec}-altogether"
 	fi
+	export prog_exec=$prog_exec
 
 	source+eu /etc/rc.d/init.d/functions
 
@@ -375,7 +376,7 @@ EOF
 			local m0d_log=$DIR/m0d.log
 			touch $m0d_log
 			(eval "$cmd") &
-
+			IOS4_CMD=$cmd
 		done
 		if ((multiple_pools == 1)); then
 			DIR=$MERO_M0T1FS_TEST_DIR/ios5

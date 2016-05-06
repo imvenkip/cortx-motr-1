@@ -596,8 +596,8 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	stob_offset = ifc->ifc_ta.ta_frame *
 		      m0_pdclust_unit_size(pl);
 	scp = it->si_cp;
-	scp->sc_base.c_ag = it->si_ag;
-	M0_ASSERT(scp->sc_base.c_ag != NULL);
+	if (scp->sc_base.c_ag == NULL)
+		m0_cm_ag_cp_add(it->si_ag, &scp->sc_base);
 	sag = ag2snsag(scp->sc_base.c_ag);
 	scp->sc_is_local = true;
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);

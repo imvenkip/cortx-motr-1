@@ -32,6 +32,7 @@
 #include "cm/proxy.h"
 #include "cm/ag.h"
 #include "cm/cm.h"
+#include "cm/cp.h"
 
 /**
    @addtogroup CMAG
@@ -376,6 +377,42 @@ M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_lo(struct m0_cm *cm)
 	M0_PRE(m0_cm_is_locked(cm));
 
 	return aggr_grps_in_tlist_head(&cm->cm_aggr_grps_in);
+}
+
+
+M0_INTERNAL void m0_cm_ag_cp_add(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
+{
+	M0_PRE(ag != NULL);
+	M0_PRE(cp != NULL);
+
+	m0_cm_ag_lock(ag);
+	cp->c_ag = ag;
+	M0_CNT_INC(ag->cag_nr_cps);
+	m0_cm_ag_unlock(ag);
+}
+
+M0_INTERNAL void m0_cm_ag_cp_del(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
+{
+	M0_PRE(ag != NULL);
+	M0_PRE(cp != NULL);
+
+	m0_cm_ag_lock(ag);
+	cp->c_ag = NULL;
+	M0_CNT_DEC(ag->cag_nr_cps);
+	m0_cm_ag_unlock(ag);
+}
+
+M0_INTERNAL bool m0_cm_ag_has_pending_cps(struct m0_cm_aggr_group *ag)
+{
+	uint32_t nr_cps;
+
+	M0_PRE(ag != NULL);
+
+	m0_cm_ag_lock(ag);
+	nr_cps = ag->cag_nr_cps;
+	m0_cm_ag_unlock(ag);
+
+	return nr_cps > 0;
 }
 
 /** @} CMAG */

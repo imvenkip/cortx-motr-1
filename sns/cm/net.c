@@ -404,8 +404,10 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp,
 	m0_mutex_lock(&rbulk->rb_mutex);
 	rc = rbulk->rb_rc;
 	m0_mutex_unlock(&rbulk->rb_mutex);
-	if (rc != 0 && rc != -ENODATA)
+	if (rc != 0 && rc != -ENODATA) {
+		M0_LOG(M0_ERROR, "Bulk recv failed with rc=%d", rc);
 		goto out;
+	}
 
 	fop = m0_fop_reply_alloc(cp->c_fom.fo_fop, ft);
 	if (fop == NULL) {
@@ -453,9 +455,9 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 		rc = cp->c_ops->co_phase_next(cp);
 	} else {
 		/*
-		 * If remote replica has already stopped due to some reason, all the
-		 * pending copy packets addressed to that copy machine must be
-		 * finalised.
+		 * If remote replica has already stopped due to some reason,
+		 * all the pending copy packets addressed to that copy machine
+		 * must be finalised.
 		 */
 		if (M0_IN(cm_proxy->px_status, (M0_PX_COMPLETE, M0_PX_STOP,
 						M0_PX_FAILED))) {

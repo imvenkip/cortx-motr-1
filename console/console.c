@@ -334,12 +334,14 @@ int main(int argc, char **argv)
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
 	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size;
 
+	printf("connecting from %s to %s\n", cctx.rcx_local_addr, cctx.rcx_remote_addr);
 	result = m0_rpc_client_start(&cctx);
 	if (result != 0) {
 		fprintf(stderr, "m0_rpc_client_start failed\n");
 		result = EX_SOFTWARE;
 		goto end;
 	}
+	printf("connected\n");
 
 	printf("Console Address = %s\n", cctx.rcx_local_addr);
 	printf("Server Address = %s\n", cctx.rcx_remote_addr);

@@ -38,7 +38,7 @@ static struct m0_rpc_client_ctx cl_ctx = {
 const char *cl_ep_addr;
 const char *srv_ep_addr[MAX_SERVERS];
 
-M0_INTERNAL void repair_client_init(void)
+M0_INTERNAL int repair_client_init(void)
 {
 	int rc;
 
@@ -48,8 +48,7 @@ M0_INTERNAL void repair_client_init(void)
 	cl_ctx.rcx_local_addr  = cl_ep_addr;
 	cl_ctx.rcx_remote_addr = srv_ep_addr[0];
 
-	rc = m0_rpc_client_start(&cl_ctx);
-	M0_ASSERT(rc == 0);
+	return m0_rpc_client_start(&cl_ctx);
 }
 
 M0_INTERNAL void repair_client_fini(void)
@@ -74,6 +73,8 @@ M0_INTERNAL void repair_rpc_ctx_fini(struct rpc_ctx *ctx)
 {
 	int rc;
 
+	if (ctx->ctx_rc != 0)
+		return;
 	rc = m0_rpc_session_destroy(&ctx->ctx_session, M0_TIME_NEVER);
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_conn_destroy(&ctx->ctx_conn, M0_TIME_NEVER);

@@ -173,7 +173,10 @@ int main(int argc, char *argv[])
 	M0_ASSERT(ctxs != NULL);
 	for (i = 0; i < srv_cnt; ++i) {
 		rc = repair_rpc_ctx_init(&ctxs[i], srv_ep_addr[i]);
-		M0_ASSERT(rc == 0);
+		ctxs[i].ctx_rc = rc;
+		if (rc != 0)
+			printf("failed to connect to %s: %d\n",
+				srv_ep_addr[i], rc);
 	}
 	m0_mutex_lock(&repair_wait_mutex);
 	m0_clink_add(&repair_wait, &repair_clink);
@@ -184,6 +187,10 @@ int main(int argc, char *argv[])
 		struct m0_fop                 *fop = NULL;
 		struct m0_rpc_item            *item;
 
+		if (ctxs[i].ctx_rc != 0) {
+			m0_atomic64_dec(&srv_rep_cnt);
+			continue;
+		}
 		session = &ctxs[i].ctx_session;
 		mach = m0_fop_session_machine(session);
 
@@ -211,8 +218,8 @@ int main(int argc, char *argv[])
 
 	delta = m0_time_sub(m0_time_now(), start);
 	printf("Time: %lu.%2.2lu sec\n", (unsigned long)m0_time_seconds(delta),
-			(unsigned long)m0_time_nanoseconds(delta) * 100 /
-			M0_TIME_ONE_SECOND);
+			(unsigned long)(m0_time_nanoseconds(delta) * 100 /
+			M0_TIME_ONE_SECOND));
 	for (i = 0; i < srv_cnt; ++i)
 		repair_rpc_ctx_fini(&ctxs[i]);
 	repair_client_fini();

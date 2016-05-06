@@ -95,7 +95,9 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 		 * Concurrancy is handled by running the copy packet foms
 		 * doing i/o to a same stob in the same reqh locality.
 		 */
+		m0_cm_ag_unlock(ag);
 		rc = m0_sns_cm_cp_dup(cp, &tgt_cp);
+		m0_cm_ag_lock(ag);
 		if (rc == 0) {
 			if (scp->sc_is_local) {
 				M0_CNT_INC(ag->cag_cp_local_nr);

@@ -493,8 +493,9 @@ M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m
 	 * is already completed and the copy packets will no longer be arriving.
 	 */
 	if (ag->cag_ops->cago_has_incoming_from(ag, pxy)) {
-		if (M0_IN(pxy->px_status, (M0_PX_COMPLETE, M0_PX_STOP)) &&
-		    m0_cm_ag_id_cmp(&pxy->px_last_out_recvd, &ag->cag_id) < 0) {
+		if ((pxy->px_status == M0_PX_COMPLETE &&
+		    m0_cm_ag_id_cmp(&pxy->px_last_out_recvd, &ag->cag_id) < 0) ||
+		    M0_IN(pxy->px_status, (M0_PX_FAILED, M0_PX_STOP))) {
 			m0_bitmap_set(&sag->sag_proxy_incoming_map, pxy->px_id, false);
 			M0_CNT_INC(sag->sag_not_coming);
 		}
@@ -516,7 +517,7 @@ M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m
 		}
 		expected_free =  local_cps + sag->sag_incoming_nr - not_coming;
 
-		return expected_free == ag->cag_freed_cp_nr;
+		return ag->cag_freed_cp_nr >= expected_free;
 	} else
 		return false;
 }

@@ -210,12 +210,12 @@ static void repair_ag_fini(struct m0_cm_aggr_group *ag)
 
 	sag = ag2snsag(ag);
 	rag = sag2repairag(sag);
-	incr_recover_fini(rag);
 	/* In-case the aggregation group is being forcefully finalised
 	 * (e.g. quiesce or abort), we need to release accumulator copy packet
 	 * buffers.
 	 */
 	acc_check_fini(rag);
+	incr_recover_fini(rag);
 	m0_sns_cm_ag_fini(sag);
 	m0_free(rag->rag_fc);
 	m0_free(rag);

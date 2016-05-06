@@ -226,7 +226,12 @@ static int prepare(struct m0_fom *fom)
 				cm_status = SNS_CM_STATUS_STARTED;
 				break;
 			case M0_CMS_FAIL:
-				cm_status = SNS_CM_STATUS_FAILED;
+				/* Wait for cleanup */
+				if (cm->cm_done && cm->cm_proxy_nr == 0 &&
+				    cm->cm_sw_update.swu_is_complete)
+					cm_status = SNS_CM_STATUS_FAILED;
+				else
+					cm_status = SNS_CM_STATUS_STARTED;
 				break;
 			case M0_CMS_FINI:
 			case M0_CMS_INIT:

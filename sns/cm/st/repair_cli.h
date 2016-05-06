@@ -34,9 +34,10 @@ enum {
 struct rpc_ctx {
 	struct m0_rpc_conn    ctx_conn;
 	struct m0_rpc_session ctx_session;
+	int                   ctx_rc;
 };
 
-M0_INTERNAL void repair_client_init(void);
+M0_INTERNAL int  repair_client_init(void);
 M0_INTERNAL void repair_client_fini(void);
 M0_INTERNAL int repair_rpc_ctx_init(struct rpc_ctx *ctx, const char *sep);
 M0_INTERNAL void repair_rpc_ctx_fini(struct rpc_ctx *ctx);

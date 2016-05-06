@@ -19,7 +19,6 @@ declare -A ha_states=(
 disk_state_set()
 {
 	local lnet_nid=`sudo lctl list_nids | head -1`
-	local s_endpoint="$lnet_nid:12345:33:1"
 	local c_endpoint="$lnet_nid:12345:30:*"
 	local state_name=$1
 	shift
@@ -71,7 +70,6 @@ disk_state_set()
 disk_state_get()
 {
 	local lnet_nid=`sudo lctl list_nids | head -1`
-	local s_endpoint="$lnet_nid:12345:33:1"
 	local c_endpoint="$lnet_nid:12345:30:*"
 
 	local service_eps=(
@@ -194,12 +192,36 @@ sns_repair_abort()
 	echo $repair_abort_trigger
 	eval $repair_abort_trigger
 	rc=$?
+	echo "SNS abort cmd sent: rc=$rc"
 	if [ $rc != 0 ]; then
 		echo "SNS Repair abort failed"
 	fi
 
 	return $rc
 }
+
+sns_repair_or_rebalance_status_not_4()
+{
+	local rc=0
+	local op=32
+	[ "$1" == "repair" ] && op=32
+	[ "$1" == "rebalance" ] && op=64
+
+	for ((i=0; i < 3; i++)) ; do
+		ios_eps_not_4="$ios_eps_not_4 -S ${lnet_nid}:${IOSEP[$i]}"
+	done
+
+	repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps_not_4"
+	echo $repair_status
+	eval $repair_status
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "SNS Repair status query failed"
+	fi
+
+	return $rc
+}
+
 
 sns_repair_or_rebalance_status()
 {
@@ -217,6 +239,33 @@ sns_repair_or_rebalance_status()
 	fi
 
 	return $rc
+}
+
+wait_for_sns_repair_or_rebalance_not_4()
+{
+	local rc=0
+	local op=32
+	[ "$1" == "repair" ] && op=32
+	[ "$1" == "rebalance" ] && op=64
+	for ((i=0; i < 3; i++)) ; do
+		ios_eps_not_4="$ios_eps_not_4 -S ${lnet_nid}:${IOSEP[$i]}"
+	done
+	while true ; do
+		sleep 5
+		repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps_not_4"
+
+		echo $repair_status
+		status=`eval $repair_status`
+		rc=$?
+		if [ $rc != 0 ]; then
+			echo "SNS Repair status query failed"
+			return $rc
+		fi
+
+		echo $status | grep status=2 && continue #sns repair is active, continue waiting
+		break;
+	done
+	return 0
 }
 
 wait_for_sns_repair_or_rebalance()
