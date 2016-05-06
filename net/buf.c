@@ -111,7 +111,8 @@ M0_INTERNAL void m0_net_buffer_deregister(struct m0_net_buffer *buf,
 
 	M0_PRE(m0_net__buffer_invariant(buf) && buf->nb_dom == dom);
 	M0_PRE(buf->nb_flags == M0_NET_BUF_REGISTERED);
-	M0_PRE(m0_list_contains(&dom->nd_registered_bufs,&buf->nb_dom_linkage));
+	M0_PRE_EX(m0_list_contains(&dom->nd_registered_bufs,
+				   &buf->nb_dom_linkage));
 
 	dom->nd_xprt->nx_ops->xo_buf_deregister(buf);
 	buf->nb_flags &= ~M0_NET_BUF_REGISTERED;
