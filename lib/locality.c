@@ -223,7 +223,7 @@ M0_INTERNAL int m0_localities_init(void)
 		 * Start fall-back ast processing thread. Dummy init function
 		 * (ast_thread_init()) is used to guarantee that the thread has
 		 * started by the time M0_THREAD_INIT() returns. This is needed
-		 * to make intialisation order deterministic.
+		 * to make initialisation order deterministic.
 		 */
 		result = M0_THREAD_INIT(&glob->lg_ast_thread, void *,
 					&ast_thread_init, &locs_ast_handler,
