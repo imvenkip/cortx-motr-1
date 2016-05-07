@@ -153,29 +153,36 @@ enum {
 	 * (m0_addb2_storage) could build a large storage IO without having to
 	 * wait for a very large number of traces.
 	 */
-	BUFFER_SIZE  = 64 * 1024,
+	BUFFER_SIZE      = 64 * 1024,
 	/**
 	 * Minimal number of trace buffers allocated for a machine.
 	 */
-	BUFFER_MIN   = 4,
+	BUFFER_MIN       = 4,
 #else
-	BUFFER_SIZE  = 4096,
-	BUFFER_MIN   = 0,
+	BUFFER_SIZE      = 4096,
+	BUFFER_MIN       = 0,
 #endif
 	/** Must be enough to push 1 storage frame out. */
-	BUFFER_MAX   = 2 * (FRAME_SIZE_MAX / BUFFER_SIZE + 1),
+	BUFFER_MAX       = 2 * (FRAME_SIZE_MAX / BUFFER_SIZE + 1),
 	/**
 	 * Maximal number of 64-bit values in a payload.
 	 *
 	 * @note this constant cannot really be increased. Trace buffer format
 	 * assumes that this is less than 0x10.
 	 */
-	VALUE_MAX_NR = 15,
+	VALUE_MAX_NR     = 15,
 	/**
 	 * Bit-mask identifying bits used to store a "tag", which is
 	 * (opcode|payloadsize).
 	 */
-	TAG_MASK     = 0xff00000000000000ull,
+	TAG_MASK         = 0xff00000000000000ull,
+	/**
+	 * Amount of free space in a buffer after sensor placement.
+	 *
+	 * When a new buffer is created, no more than (BUFFER_SIZE -
+	 * SENSOR_THRESHOLD) of it is used for sensors.
+	 */
+	SENSOR_THRESHOLD = 4 * BUFFER_SIZE / 5
 };
 
 /**
@@ -310,6 +317,13 @@ struct m0_addb2_mach {
 	 * Time when current trace was last packed.
 	 */
 	m0_time_t                       ma_packed;
+	/**
+	 * The number of sensors to skip when creating a new buffer. This is
+	 * used to limit the amount of buffer space consumed by sensors.
+	 *
+	 * @see mach_buffer(), SENSOR_THRESHOLD.
+	 */
+	unsigned                        ma_sensor_skip;
 	uint64_t                        ma_magix;
 #if DEBUG_OWNERSHIP
 	char                            ma_name[100];
@@ -796,9 +810,10 @@ static struct buffer *mach_buffer(struct m0_addb2_mach *mach)
 		 */
 		if (mach->ma_cur != NULL) {
 			int i;
+			int n = 0;
 
 			M0_CNT_DEC(mach->ma_idle_nr);
-			for (i = 0; i < MACH_DEPTH(mach); ++i) {
+			for (i = 0; i < MACH_DEPTH(mach) && n >= 0; ++i) {
 				struct tentry          *e = &mach->ma_label[i];
 				struct m0_addb2_value  *v = e->e_recval;
 				struct m0_addb2_sensor *s;
@@ -806,9 +821,30 @@ static struct buffer *mach_buffer(struct m0_addb2_mach *mach)
 				add(mach, tag(PUSH | v->va_nr, v->va_id),
 				    v->va_nr, v->va_data);
 				m0_tl_for(sensor, &e->e_sensor, s) {
-					sensor_place(mach, s);
+					if (buffer_space(mach->ma_cur) <
+					    SENSOR_THRESHOLD) {
+						/*
+						 * Too much space in the buffer
+						 * is occupied by the
+						 * sensors. Skip the rest of the
+						 * sensors, they will be added
+						 * to the next buffer.
+						 */
+						mach->ma_sensor_skip = n;
+						n = -1;
+						break;
+					}
+					if (n >= mach->ma_sensor_skip)
+						sensor_place(mach, s);
+					++n;
 				} m0_tl_endfor;
 			}
+			if (n >= 0)
+				/*
+				 * Placed all the sensors, start from the
+				 * beginning.
+				 */
+				mach->ma_sensor_skip = 0;
 			mach->ma_cur->b_trace.o_force = false;
 		}
 		m0_mutex_unlock(&mach->ma_lock);
