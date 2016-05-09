@@ -1,28 +1,29 @@
 = Linux Transparent Huge Pages (THPs) Performance Issues =
 
-Transparent Huge Pages in Linux aimed to resolve performance
+Transparent Huge Pages in Linux is aimed to resolve performance
 issues on systems with large amounts of memory, like 64GB, since
-the overhead of bookkeeping normal 4KB pages on such a systems
-becomes pretty high. But it appears that sometimes the result is
-exactly the opposite.
+the overhead of bookkeeping normal 4KB pages on such systems becomes
+high. But it appears that sometimes the result is exactly the
+opposite.
 
-The problem with huge pages is that as system continuously works,
-the memory becomes very fragmented and it is hard to find a continuous
+The problem with huge pages is that as a system continuously runs
+its memory becomes very fragmented and it is hard to find a continuous
 and aligned free chunk of memory (at least 2MB) for the huge page.
-So the kernel tries to defragment the memory and that’s where
-performance of the system starts suffering dramatically.
+So the kernel tries to defragment the memory and this is when the
+performance of the system starts to suffer  dramatically.
 
 The problem was observed on an HPC cluster running CentOS 7.0.1406
-with kernel version 3.10.0-229.14.1.el7.x86_64. The nodes had 20
-CPU Cores and 64GB of memory.  After some days of system work and
-load tests running the drastic drops in performance started to be
-noticed time after time. Firstly the drops lasted for a few seconds,
-but the longer system was running the more often were drops and
-lasted for longer periods (sometimes even minutes).
+with kernel version 3.10.0-229.14.1.el7.x86_64. Each node had 20
+CPU Cores and 64GB of memory. Mero was running under the load tests
+for days.  After some time a strange drops in performance started
+appearing. Firstly time after time, but the longer the cluster was
+running the more often were the drops and for longer the periods
+they lasted. Eventually, the tests average results showed about 80%
+degradation of original performance level.
 
 It was noticed that during the drops some application threads were
 stuck in consuming up to 100% of CPU system time (i.e. running the
-kernel code). With perf utility we got the stack:
+kernel code). With perf utility we got the following stack trace:
 
 Samples: 124K of event 'cycles', Event count (approx.): 53873309600
 -   2.76%     m0d  [kernel.kallsyms]   [k] generic_exec_single
@@ -49,7 +50,7 @@ Samples: 124K of event 'cycles', Event count (approx.): 53873309600
          - page_fault
               99.66% new_heap
 
-So the situation looked exactly as it is described in the
+The situation looked exactly as it is described in the
 Linux kernel's transhuge.txt document [1]:
 
 	As the system ages, allocating huge pages may be expensive
@@ -70,11 +71,12 @@ Also in the same document it is written:
 	fallback to regular pages unless hugepages are immediately
 	available.
 
-So we disabled defrag and the problem disappeared:
+So we disabled defrag on all the cluster nodes (without restarting)
+and the problem just disappeared:
 
 echo never > /sys/kernel/mm/transparent_hugepage/defrag
 
-By default it was set to always.
+(By default it was set to always.)
 
 References:
 [1] Main document about THPs in Linux:
