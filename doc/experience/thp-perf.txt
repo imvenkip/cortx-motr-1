@@ -1,6 +1,6 @@
 = Linux Transparent Huge Pages (THPs) Performance Issues =
 
-Transparent Huge Pages in Linux are aimed to resolve performance
+Transparent Huge Pages in Linux aimed to resolve performance
 issues on systems with large amounts of memory, like 64GB, since
 the overhead of bookkeeping normal 4KB pages on such a systems
 becomes pretty high. But it appears that sometimes the result is
