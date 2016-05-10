@@ -105,7 +105,7 @@ static void be_op_sm_fini(struct m0_be_op *op)
 
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op)
 {
-	M0_PRE(M0_IS0(op));
+	M0_PRE_EX(M0_IS0(op));
 	m0_sm_group_init(&op->bo_sm_group);
 	be_op_sm_init(op);
 	bos_tlist_init(&op->bo_children);
