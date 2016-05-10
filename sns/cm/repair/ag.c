@@ -84,7 +84,7 @@ M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
 	/* Calculate number of buffers required for incoming copy packets. */
 	nr_in_bufs = m0_sns_cm_incoming_reserve_bufs(scm, id, pl, pi);
 	/* Calculate number of buffers required for accumulator copy packets. */
-	nr_acc_bufs = nr_cp_bufs * m0_sns_cm_ag_failures_nr(scm, pm, &gfid, pl, pi,
+	nr_acc_bufs = nr_cp_bufs * m0_sns_cm_ag_unrepaired_units(scm, pm, &gfid, pl, pi,
 							    id->ai_lo.u_lo, NULL);
 	return nr_in_bufs + nr_acc_bufs;
 }
@@ -126,12 +126,12 @@ static int incr_recover_init(struct m0_sns_cm_repair_ag *rag,
 	M0_SET0(&rag->rag_math);
 	M0_SET0(&rag->rag_ir);
 
-	rc = m0_parity_math_init(&rag->rag_math, m0_pdclust_N(pl),
-				 m0_pdclust_K(pl));
+	rc = m0_parity_math_init(&rag->rag_math, m0_sns_cm_ag_nr_data_units(pl),
+				 m0_sns_cm_ag_nr_parity_units(pl));
 	if (rc != 0)
 		return M0_RC(rc);
 
-	if (m0_pdclust_K(pl) == 1)
+	if (m0_sns_cm_ag_nr_parity_units(pl) == 1)
 		return 0;
 
 	local_cp_nr = rag->rag_base.sag_base.cag_cp_local_nr;
@@ -226,14 +226,6 @@ static void repair_ag_fini(struct m0_cm_aggr_group *ag)
 static bool repair_ag_can_fini(const struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
-	struct m0_cm_ag_id         *id = &rag->rag_base.sag_base.cag_id;
-
-	M0_LOG(M0_DEBUG, "id ["M0_AG_F"] [%llu] [%llu] [%llu] [%llu]",
-	       M0_AG_P(id),
-	       (unsigned long long)ag->cag_cp_local_nr,
-	       (unsigned long long)ag->cag_transformed_cp_nr,
-	       (unsigned long long)rag->rag_acc_inuse_nr,
-	       (unsigned long long)ag->cag_freed_cp_nr);
 
 	return (rag->rag_acc_inuse_nr + ag->cag_transformed_cp_nr) ==
 		ag->cag_freed_cp_nr;
@@ -294,7 +286,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 	uint32_t                                index;
 
 	M0_PRE(fmap != NULL);
-	M0_PRE(fmap->b_nr == (m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl)));
+	M0_PRE(fmap->b_nr == m0_sns_cm_ag_size(pl));
 
 	pm = sag->sag_fctx->sf_pm;
 	agid2fid(&sag->sag_base.cag_id, &fid);
@@ -338,7 +330,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 					       &cobfid);
 		if (rc != 0)
 			return M0_RC(rc);
-		index = m0_sns_cm_device_index_get(sag, pi, data_unit_id_out);
+		index = m0_sns_cm_device_index_get(group, data_unit_id_out, pi);
 		/*
 		 * Failed unit is data/parity unit.
 		 * Check the device state for the device hosting the failed unit.
@@ -459,6 +451,7 @@ cleanup_acc:
 			m0_cm_cp_buf_release(&rag_fc->fc_tgt_acc_cp.sc_base);
 	}
 cleanup_ag:
+	M0_LOG(M0_ERROR, "cleaning up group rc: %d", rc);
 	m0_cm_aggr_group_fini(&sag->sag_base);
 	m0_bitmap_fini(&sag->sag_fmap);
 	m0_free(rag->rag_fc);

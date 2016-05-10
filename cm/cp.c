@@ -525,7 +525,7 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
 	[M0_CCP_XFORM] = {
 		.sd_flags       = 0,
 		.sd_name        = "Xform",
-		.sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_WRITE,
+		.sd_allowed     = M0_BITS(M0_CCP_FAIL, M0_CCP_FINI, M0_CCP_WRITE,
 					  M0_CCP_SEND, M0_CCP_SW_CHECK)
 	},
 	[M0_CCP_SW_CHECK] = {

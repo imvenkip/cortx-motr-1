@@ -446,14 +446,14 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	M0_ASSERT(fctx != NULL && fctx->sf_layout != NULL);
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	pi = fctx->sf_pi;
-	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+	upg = m0_sns_cm_ag_size(pl);
 	m0_bitmap_init(&sag->sag_fmap, upg);
 	m0_bitmap_init(&sag->sag_proxy_incoming_map, scm->sc_base.cm_proxy_nr);
 
 	sag->sag_fctx = fctx;
 	/* calculate actual failed number of units in this group. */
-	f_nr = m0_sns_cm_ag_failures_nr(scm, fctx->sf_pm, &gfid, pl, pi,
-					id->ai_lo.u_lo, &sag->sag_fmap);
+	f_nr = m0_sns_cm_ag_unrepaired_units(scm, fctx->sf_pm, &gfid, pl, pi,
+					     id->ai_lo.u_lo, &sag->sag_fmap);
 	if (f_nr == 0 || f_nr > m0_pdclust_K(pl) ||
 	    M0_FI_ENABLED("ag_init_failure")) {
 		m0_bitmap_fini(&sag->sag_fmap);

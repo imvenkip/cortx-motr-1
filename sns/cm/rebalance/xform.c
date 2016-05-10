@@ -29,6 +29,8 @@
 #include "sns/cm/ag.h"
 #include "sns/cm/cp.h"
 
+#include "sns/cm/cm_utils.h"
+
 /**
  * @addtogroup SNSCMCP
  * @{
@@ -51,6 +53,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 	struct m0_cm_ag_id       id;
 	struct m0_cm            *cm;
 	struct m0_cm_cp         *tgt_cp;
+	enum m0_cm_cp_phase      phase;
 	int                      rc;
 
 	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM);
@@ -99,11 +102,14 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 				M0_CNT_INC(sns_ag->sag_cp_created_nr);
 			 } else
 				M0_CNT_INC(sns_ag->sag_incoming_nr);
+
 			m0_cm_cp_enqueue(cm, tgt_cp);
 		}
 	}
-	m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
-	rc = M0_FSO_WAIT;
+
+	phase = rc == 0 ? M0_CCP_FINI : M0_CCP_FAIL;
+	m0_fom_phase_move(&cp->c_fom, rc, phase);
+	rc = phase == M0_CCP_FAIL ? M0_FSO_AGAIN : M0_FSO_WAIT;
 	m0_cm_ag_unlock(ag);
 
 	return M0_RC(rc);

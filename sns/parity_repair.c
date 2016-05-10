@@ -42,59 +42,97 @@ static void device_index_get(struct m0_pdclust_instance *pi,
 	M0_LEAVE("index:%d", (int)ta.ta_obj);
 }
 
-M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
-					const struct m0_fid *fid,
-					struct m0_pdclust_layout *pl,
-					struct m0_pdclust_instance *pi,
-					uint64_t group_number,
-					uint64_t unit_number,
-					uint32_t *spare_slot_out,
-					uint32_t *spare_slot_out_prev)
+static int _spare_next(struct m0_poolmach *pm,
+		       const struct m0_fid *fid,
+		       struct m0_pdclust_layout *pl,
+		       struct m0_pdclust_instance *pi,
+		       uint64_t group_number,
+		       uint64_t unit_number,
+		       uint32_t *spare_slot_out,
+		       uint32_t *spare_slot_out_prev,
+		       bool break_next)
 {
-        uint32_t device_index;
-        uint32_t device_index_new;
-        int      rc;
+	uint32_t device_index;
+	uint32_t device_index_new;
+	int      rc;
 
 	M0_ENTRY("unit number:%d", (int)unit_number);
 
 	M0_PRE(pm != NULL && fid != NULL && pl != NULL);
 
-        device_index_get(pi, group_number, unit_number, &device_index);
+	device_index_get(pi, group_number, unit_number, &device_index);
 	*spare_slot_out_prev = unit_number;
 
-        while (1) {
-                rc = m0_poolmach_sns_repair_spare_query(pm, device_index,
-                                                        spare_slot_out);
-                if (rc != 0)
-                        return M0_RC(rc);
+	while (1) {
+		rc = m0_poolmach_sns_repair_spare_query(pm, device_index,
+							spare_slot_out);
+		if (rc != 0)
+			return M0_RC(rc);
 
 		/*
 		 * Find out if spare slot's corresponding device index is
 		 * failed. If yes, find out new spare.
 		 */
 		device_index_get(pi, group_number,
-				 m0_pdclust_N(pl) + m0_pdclust_K(pl) +
-				 *spare_slot_out, &device_index_new);
+				m0_pdclust_N(pl) + m0_pdclust_K(pl) +
+				*spare_slot_out, &device_index_new);
 
-                if (m0_poolmach_device_is_in_spare_usage_array(pm,
-							device_index_new)) {
-                        device_index = device_index_new;
+		if (m0_poolmach_device_is_in_spare_usage_array(pm,
+					device_index_new) && !break_next) {
+			device_index = device_index_new;
 			*spare_slot_out_prev = *spare_slot_out;
 		} else
-                        break;
-        }
+			break;
+	}
 	/*
 	 * Return the absolute index of spare with respect to the aggregation
 	 * group.
 	 */
-        if (rc == 0) {
-                *spare_slot_out += m0_pdclust_N(pl) + m0_pdclust_K(pl);
+	if (rc == 0) {
+		*spare_slot_out += m0_pdclust_N(pl) + m0_pdclust_K(pl);
 		if (*spare_slot_out_prev != unit_number)
 			*spare_slot_out_prev += m0_pdclust_N(pl) +
 				m0_pdclust_K(pl);
 	}
 
-        return M0_RC(rc);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
+					const struct m0_fid *fid,
+					struct m0_pdclust_layout *pl,
+					struct m0_pdclust_instance *pi,
+					uint64_t group, uint64_t unit,
+					uint32_t *spare_slot_out,
+					uint32_t *spare_slot_out_prev)
+{
+	return _spare_next(pm, fid, pl, pi, group, unit, spare_slot_out,
+			   spare_slot_out_prev, false);
+}
+
+M0_INTERNAL int m0_sns_repair_spare_rebalancing(struct m0_poolmach *pm,
+						const struct m0_fid *fid,
+						struct m0_pdclust_layout *pl,
+						struct m0_pdclust_instance *pi,
+						uint64_t group, uint64_t unit,
+						uint32_t *spare_slot_out,
+						uint32_t *spare_slot_out_prev)
+{
+	enum m0_pool_nd_state state_out;
+	uint32_t              device_index;
+	int                   rc;
+
+	do {
+		rc = _spare_next(pm, fid, pl, pi, group, unit, spare_slot_out,
+				 spare_slot_out_prev, true);
+		if (rc == 0) {
+			device_index_get(pi, group, *spare_slot_out, &device_index);
+			rc = m0_poolmach_device_state(pm, device_index, &state_out);
+		}
+		unit = *spare_slot_out;
+	} while (rc == 0 && state_out != M0_PNDS_SNS_REBALANCING);
+
+	return M0_RC(rc);
 }
 
 static bool frame_eq(struct m0_pdclust_instance *pi, uint64_t group_number,

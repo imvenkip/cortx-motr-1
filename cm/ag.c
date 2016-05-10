@@ -211,8 +211,8 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	}
 	m0_cm_aggr_group_fini(ag);
 
-	M0_LOG(M0_DEBUG, "%lu: in=[%lu] %p out=[%lu] %p ",
-	       cm->cm_id, cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
+	M0_LOG(M0_DEBUG, "%lu: ["M0_AG_F"] in=[%lu] %p out=[%lu] %p ",
+	       cm->cm_id, M0_AG_P(&id), cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
 	       cm->cm_aggr_grps_out_nr, &cm->cm_aggr_grps_out);
 
 	M0_LEAVE();

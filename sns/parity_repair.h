@@ -46,6 +46,13 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
 					uint32_t *spare_slot_out,
 					uint32_t *spare_slot_out_prev);
 
+M0_INTERNAL int m0_sns_repair_spare_rebalancing(struct m0_poolmach *pm,
+						const struct m0_fid *fid,
+						struct m0_pdclust_layout *pl,
+						struct m0_pdclust_instance *pi,
+						uint64_t group, uint64_t unit,
+						uint32_t *spare_slot_out,
+						uint32_t *spare_slot_out_prev);
 /**
  * Map the {spare slot, data/parity unit id} pair after repair.
  * @param pm pool machine.

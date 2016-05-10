@@ -121,8 +121,8 @@ sns_repair_test()
 
 	verify || return $?
 
-        echo "Starting SNS Re-balance.."
-	disk_state_set "rebalancing" $fail_device1 $fail_device2 || return $?
+        echo "Starting SNS Re-balance for device $fail_device1"
+	disk_state_set "rebalancing" $fail_device1 || return $?
 	sns_rebalance || return $?
 
 	echo "wait for sns rebalance"
@@ -130,9 +130,9 @@ sns_repair_test()
 
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status "rebalance" || return $?
-	disk_state_set "online" $fail_device1 $fail_device2 || return $?
+	disk_state_set "online" $fail_device1 || return $?
 
-	echo "SNS Rebalance done."
+	echo "Device $fail_device1 rebalanced"
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	verify || return $?
@@ -154,7 +154,7 @@ sns_repair_test()
 	echo "SNS Repair done."
 	verify || return $?
 
-        echo "Starting SNS Re-balance.."
+        echo "Starting SNS Re-balance for device $fail_device3"
 	disk_state_set "rebalancing" $fail_device3 || return $?
 	sns_rebalance || return $?
 
@@ -165,8 +165,64 @@ sns_repair_test()
 	sns_repair_or_rebalance_status "rebalance" || return $?
 	disk_state_set "online" $fail_device3 || return $?
 
-	echo "SNS Rebalance done."
+	echo "Device $fail_device3 rebalanced"
 	disk_state_get $fail_device1 $fail_device2 $fail_device3
+
+	verify || return $?
+
+        echo "Starting SNS Re-balance for device $fail_device2"
+	disk_state_set "rebalancing" $fail_device2 || return $?
+	sns_rebalance || return $?
+
+	echo "wait for sns rebalance"
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status "rebalance" || return $?
+	disk_state_set "online" $fail_device2 || return $?
+
+	echo "Device $fail_device2 rebalanced"
+
+	verify || return $?
+
+# Fail, repair and rebalance all the 3 device at once.
+
+	disk_state_set "failed" $fail_device1 $fail_device2 $fail_device3 || return $?
+
+	disk_state_get $fail_device1 $fail_device2 $fail_device3 || return $?
+
+	echo "Devices $fail_device1 $fail_device2 $fail_device3 failed. Do dgmode read"
+	verify || return $?
+
+	disk_state_set "repairing" $fail_device1 $fail_device2 $fail_device3 || return $?
+	sns_repair || return $?
+
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "repair" || return $?
+
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status "repair" || return $?
+
+	disk_state_set "repaired" $fail_device1 $fail_device2 $fail_device3 || return $?
+	echo "SNS Repair done."
+
+	disk_state_get $fail_device1 $fail_device2 $fail_device3 || return $?
+
+	verify || return $?
+
+        echo "Starting SNS Re-balance for devices $fail_device1 $fail_device2 $fail_device3"
+	disk_state_set "rebalancing" $fail_device1 $fail_device2 $fail_device3 || return $?
+	sns_rebalance || return $?
+
+	echo "wait for sns rebalance"
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status "rebalance" || return $?
+	disk_state_set "online" $fail_device1 $fail_device2 $fail_device3 || return $?
+
+	echo "Device $fail_device1 $fail_device2 $fail_device3 rebalanced"
+	disk_state_get $fail_device1 $fail_device2 $fail_device3 || return $?
 
 	verify || return $?
 

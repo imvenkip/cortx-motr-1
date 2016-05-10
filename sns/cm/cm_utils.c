@@ -114,9 +114,9 @@ M0_INTERNAL void m0_sns_cm_unit2cobfid(struct m0_pdclust_instance *pi,
 	m0_poolmach_gob2cob(pm, gfid, ta->ta_obj, cfid_out);
 }
 
-M0_INTERNAL uint32_t m0_sns_cm_device_index_get(struct m0_sns_cm_ag *sag,
-						struct m0_pdclust_instance *pi,
-						uint64_t unit_number)
+M0_INTERNAL uint32_t m0_sns_cm_device_index_get(uint64_t group,
+						uint64_t unit_number,
+						struct m0_pdclust_instance *pi)
 {
 	struct m0_pdclust_src_addr sa;
 	struct m0_pdclust_tgt_addr ta;
@@ -124,7 +124,7 @@ M0_INTERNAL uint32_t m0_sns_cm_device_index_get(struct m0_sns_cm_ag *sag,
 	M0_SET0(&sa);
 	M0_SET0(&ta);
 
-	sa.sa_group = agid2group(&sag->sag_base.cag_id);
+	sa.sa_group = group;
 	sa.sa_unit = unit_number;
 	m0_fd_fwd_map(pi, &sa, &ta);
 	M0_LEAVE("index:%d", (int)ta.ta_obj);
@@ -150,7 +150,7 @@ M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
 {
 	uint64_t nr_data_bytes_per_group;
 
-	nr_data_bytes_per_group = m0_pdclust_N(pl) *
+	nr_data_bytes_per_group = m0_sns_cm_ag_nr_data_units(pl) *
 				  m0_pdclust_unit_size(pl);
 	return (fsize + nr_data_bytes_per_group - 1) / nr_data_bytes_per_group;
 }
@@ -216,14 +216,33 @@ uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm_ag *sag,
 	return m0_pdclust_N(pl) + m0_pdclust_K(pl);
 }
 
+M0_INTERNAL uint64_t m0_sns_cm_ag_nr_data_units(const struct m0_pdclust_layout *pl)
+{
+	return m0_pdclust_N(pl);
+}
+
+M0_INTERNAL uint64_t m0_sns_cm_ag_nr_parity_units(const struct m0_pdclust_layout *pl)
+{
+	return m0_pdclust_K(pl);
+}
+
+M0_INTERNAL uint64_t m0_sns_cm_ag_nr_spare_units(const struct m0_pdclust_layout *pl)
+{
+	return m0_pdclust_K(pl);
+}
+
+M0_INTERNAL uint64_t m0_sns_cm_ag_size(const struct m0_pdclust_layout *pl)
+{
+	return m0_sns_cm_ag_nr_data_units(pl) + 2 * m0_sns_cm_ag_nr_parity_units(pl);
+}
+
 M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_poolmach *pm,
 					 uint32_t cob_index)
 {
 	enum m0_pool_nd_state state_out = 0;
 	M0_PRE(pm != NULL);
 
-	m0_poolmach_device_state(pm, cob_index,
-				 &state_out);
+	m0_poolmach_device_state(pm, cob_index, &state_out);
 	return !M0_IN(state_out, (M0_PNDS_ONLINE, M0_PNDS_OFFLINE));
 }
 
@@ -233,9 +252,29 @@ M0_INTERNAL bool m0_sns_cm_is_cob_repaired(struct m0_poolmach *pm,
 	enum m0_pool_nd_state state_out = 0;
 	M0_PRE(pm != NULL);
 
-	m0_poolmach_device_state(pm, cob_index,
-				 &state_out);
+	m0_poolmach_device_state(pm, cob_index, &state_out);
 	return state_out == M0_PNDS_SNS_REPAIRED;
+}
+
+M0_INTERNAL bool m0_sns_cm_is_cob_repairing(struct m0_poolmach *pm,
+					    uint32_t cob_index)
+{
+	enum m0_pool_nd_state state_out = 0;
+	M0_PRE(pm != NULL);
+
+	m0_poolmach_device_state(pm, cob_index, &state_out);
+	return state_out == M0_PNDS_SNS_REPAIRING;
+}
+
+M0_INTERNAL bool m0_sns_cm_is_cob_rebalancing(struct m0_poolmach *pm,
+					      uint32_t cob_index)
+{
+	enum m0_pool_nd_state state_out = 0;
+	M0_PRE(pm != NULL);
+
+	m0_poolmach_device_state(pm, cob_index, &state_out);
+
+	return state_out == M0_PNDS_SNS_REBALANCING;
 }
 
 M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
@@ -319,7 +358,7 @@ out:
 M0_INTERNAL uint64_t m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
 						uint64_t fidx)
 {
-        return m0_pdclust_N(pl) + m0_pdclust_K(pl) + fidx;
+        return m0_sns_cm_ag_nr_data_units(pl) + m0_sns_cm_ag_nr_parity_units(pl) + fidx;
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_unit_start(const struct m0_sns_cm *scm,
@@ -395,13 +434,13 @@ M0_INTERNAL bool m0_sns_cm_is_local_cob(const struct m0_cm *cm,
 	return m0_streq(local_ep(cm), m0_sns_cm_tgt_ep(cm, pv, cob_fid));
 }
 
-M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
-					    struct m0_poolmach *pm,
-					    const struct m0_fid *gfid,
-					    struct m0_pdclust_layout *pl,
-					    struct m0_pdclust_instance *pi,
-					    uint64_t group,
-					    struct m0_bitmap *fmap_out)
+M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
+						 struct m0_poolmach *pm,
+						 const struct m0_fid *gfid,
+						 struct m0_pdclust_layout *pl,
+						 struct m0_pdclust_instance *pi,
+						 uint64_t group,
+						 struct m0_bitmap *fmap_out)
 {
 	struct m0_pdclust_src_addr sa;
 	struct m0_pdclust_tgt_addr ta;
@@ -413,14 +452,15 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 
 	M0_PRE(scm != NULL && pl != NULL);
 
-	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+	upg = m0_sns_cm_ag_size(pl);
 	sa.sa_group = group;
 	for (unit = 0; unit < upg; ++unit) {
 		if (m0_sns_cm_unit_is_spare(pm, pl, pi, gfid, group, unit))
 			continue;
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, gfid, &cobfid);
-		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj)) {
+		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
+		    !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj)) {
 			M0_CNT_INC(group_failures);
 			if (fmap_out != NULL) {
 				M0_ASSERT(fmap_out->b_nr == upg);
@@ -450,8 +490,8 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
         agid2fid(id,  &fid);
 	group = id->ai_lo.u_lo;
 	/* Firstly check if this group has any failed units. */
-	group_failures = m0_sns_cm_ag_failures_nr(scm, pm, &fid, pl,
-						  pi, group, NULL);
+	group_failures = m0_sns_cm_ag_unrepaired_units(scm, pm, &fid, pl,
+						       pi, group, NULL);
 	if (group_failures > 0 )
 		result = scm->sc_helpers->sch_ag_is_relevant(scm, pm, &fid,
 							     group, pl,

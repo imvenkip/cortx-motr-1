@@ -50,9 +50,9 @@ m0_sns_cm_unit2cobfid(struct m0_pdclust_instance *pi,
 		      const struct m0_fid *gfid,
 		      struct m0_fid *cfid_out);
 
-M0_INTERNAL uint32_t m0_sns_cm_device_index_get(struct m0_sns_cm_ag *sag,
-						struct m0_pdclust_instance *pi,
-						uint64_t unit_number);
+M0_INTERNAL uint32_t m0_sns_cm_device_index_get(uint64_t group,
+						uint64_t unit_number,
+						struct m0_pdclust_instance *pi);
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 						uint64_t unit,
@@ -90,6 +90,14 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm_ag *ag,
 						  struct m0_pdclust_layout *pl);
 
+M0_INTERNAL uint64_t m0_sns_cm_ag_size(const struct m0_pdclust_layout *pl);
+
+M0_INTERNAL uint64_t m0_sns_cm_ag_nr_data_units(const struct m0_pdclust_layout *pl);
+
+M0_INTERNAL uint64_t m0_sns_cm_ag_nr_parity_units(const struct m0_pdclust_layout *pl);
+
+M0_INTERNAL uint64_t m0_sns_cm_ag_nr_spare_units(const struct m0_pdclust_layout *pl);
+
 M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				struct m0_poolmach *pm,
@@ -103,6 +111,12 @@ M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_poolmach *pm,
 
 M0_INTERNAL bool m0_sns_cm_is_cob_repaired(struct m0_poolmach *pm,
 					   uint32_t cob_index);
+
+M0_INTERNAL bool m0_sns_cm_is_cob_repairing(struct m0_poolmach *pm,
+					    uint32_t cob_index);
+
+M0_INTERNAL bool m0_sns_cm_is_cob_rebalancing(struct m0_poolmach *pm,
+					      uint32_t cob_index);
 
 /**
  * Returns index of spare unit in the parity group, given the failure index
@@ -156,13 +170,13 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
 					 const struct m0_pool_version *pv,
 					 const struct m0_fid *gfid);
 
-M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
-					    struct m0_poolmach *pm,
-					    const struct m0_fid *gfid,
-					    struct m0_pdclust_layout *pl,
-					    struct m0_pdclust_instance *pi,
-					    uint64_t group,
-					    struct m0_bitmap *fmap_out);
+M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
+						 struct m0_poolmach *pm,
+						 const struct m0_fid *gfid,
+						 struct m0_pdclust_layout *pl,
+						 struct m0_pdclust_instance *pi,
+						 uint64_t group,
+						 struct m0_bitmap *fmap_out);
 
 /**
  * Returns true if the given aggregation group corresponding to the id is

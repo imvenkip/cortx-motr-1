@@ -37,6 +37,13 @@
 M0_INTERNAL int m0_sns_cm_rebalance_ag_setup(struct m0_sns_cm_ag *sag,
 					     struct m0_pdclust_layout *pl);
 
+static bool is_spare_relevant(const struct m0_sns_cm *scm,
+			      struct m0_poolmach *pm,
+			      const struct m0_fid *gfid,
+			      uint64_t group, uint32_t spare,
+			      struct m0_pdclust_layout *pl,
+			      struct m0_pdclust_instance *pi);
+
 static uint64_t
 rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				struct m0_poolmach *pm,
@@ -56,15 +63,15 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
         uint32_t                    tgt_unit;
         uint32_t                    tgt_unit_prev;
         uint64_t                    unit;
-	uint64_t                    dpupg;
+	uint64_t                    upg;
         int                         rc;
 
         M0_SET0(&sa);
 	cm = &scm->sc_base;
         agid2fid(id, &gfid);
         sa.sa_group = agid2group(id);
-	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
-	for (unit = 0; unit < dpupg; ++unit) {
+	upg = m0_sns_cm_ag_size(pl);
+	for (unit = 0; unit < upg; ++unit) {
 		sa.sa_unit = unit;
 		M0_SET0(&ta);
 		M0_SET0(&cobfid);
@@ -74,6 +81,12 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 			continue;
                 if (!m0_sns_cm_is_local_cob(cm, pm->pm_pver, &cobfid))
                         continue;
+		if (m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE) {
+			if (is_spare_relevant(scm, pm, &gfid, sa.sa_group,
+					      unit, pl, pi))
+				M0_CNT_INC(incoming_nr);
+			continue;
+		}
                 rc = m0_sns_repair_spare_map(pm, &gfid, pl, pi, sa.sa_group,
 					     unit, &tgt_unit, &tgt_unit_prev);
                 if (rc != 0)
@@ -101,7 +114,28 @@ static uint64_t rebalance_ag_unit_start(const struct m0_pdclust_layout *pl)
 
 static uint64_t rebalance_ag_unit_end(const struct m0_pdclust_layout *pl)
 {
-	return m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+	return m0_sns_cm_ag_size(pl);
+}
+
+static int _tgt_check_and_change(struct m0_sns_cm_ag *sag, struct m0_poolmach *pm,
+				 struct m0_pdclust_layout *pl,
+				 uint64_t data_unit, uint32_t old_tgt_dev,
+				 uint64_t *new_tgt_unit)
+{
+	uint64_t                   group = agid2group(&sag->sag_base.cag_id);
+	uint32_t                   spare;
+	uint32_t                   spare_prev;
+	struct m0_sns_cm_file_ctx *fctx;
+	int                        rc;
+
+	fctx = sag->sag_fctx;
+	rc = m0_sns_repair_spare_rebalancing(pm, &fctx->sf_fid, pl, fctx->sf_pi,
+				     group, data_unit, &spare,
+				     &spare_prev);
+	if (rc == 0)
+		*new_tgt_unit = spare;
+
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
@@ -110,11 +144,25 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 	struct m0_pdclust_layout  *pl;
 	struct m0_fid              cobfid;
 	struct m0_sns_cm_file_ctx *fctx;
+	struct m0_poolmach        *pm;
+	uint64_t                   group = agid2group(&sag->sag_base.cag_id);
+	uint64_t                   data_unit;
 	uint64_t                   offset;
+	uint32_t                   dev_idx;
 	int                        rc = 0;
 
 	fctx = sag->sag_fctx;
+	pm = fctx->sf_pm;
 	pl = m0_layout_to_pdl(fctx->sf_layout);
+	data_unit = scp->sc_base.c_ag_cp_idx;
+	dev_idx = m0_sns_cm_device_index_get(group, data_unit, fctx->sf_pi);
+	if (!m0_sns_cm_is_cob_rebalancing(pm, dev_idx)) {
+		rc = _tgt_check_and_change(sag, pm, pl, data_unit, dev_idx, &data_unit);
+		if (rc != 0)
+			return M0_ERR(rc);
+		scp->sc_base.c_ag_cp_idx = data_unit;
+	}
+
 	rc = m0_sns_cm_ag_tgt_unit2cob(sag, scp->sc_base.c_ag_cp_idx,
 				       pl, fctx->sf_pi, &cobfid);
 	if (rc == 0) {
@@ -134,6 +182,39 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 	return M0_RC(rc);
 }
 
+static bool is_spare_relevant(const struct m0_sns_cm *scm, struct m0_poolmach *pm,
+			      const struct m0_fid *gfid,
+			      uint64_t group, uint32_t spare,
+			      struct m0_pdclust_layout *pl,
+			      struct m0_pdclust_instance *pi)
+{
+	struct m0_pdclust_src_addr  sa;
+	struct m0_pdclust_tgt_addr  ta;
+	struct m0_fid               cobfid;
+	uint32_t                    dev_idx;
+	uint64_t                    data;
+	uint32_t                    spare_prev;
+	int                         rc;
+
+	rc = m0_sns_repair_data_map(pm, pl, pi, group, spare, &data);
+	if (rc == 0) {
+		dev_idx = m0_sns_cm_device_index_get(group, data, pi);
+		if (m0_sns_cm_is_cob_repaired(pm, dev_idx)) {
+			rc = m0_sns_repair_spare_map(pm, gfid, pl, pi, group,
+						     data, &spare, &spare_prev);
+			if (rc == 0) {
+				sa.sa_unit = spare;
+				sa.sa_group = group;
+				m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, gfid, &cobfid);
+				if (!m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver,
+							    &cobfid))
+					return true;
+			}
+		}
+	}
+	return false;
+}
+
 static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 				     struct m0_poolmach *pm,
 				     const struct m0_fid *gfid,
@@ -146,42 +227,42 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
 	struct m0_fid               cobfid;
-	uint32_t                    N;
-	uint32_t                    K;
+	uint64_t                    upg;
 	uint32_t                    i;
-	uint32_t                    funit;
-	bool                        result = false;
+	uint32_t                    tunit;
 	int                         rc;
 	M0_PRE(pm != NULL);
 
-	N = m0_pdclust_N(pl);
-	K = m0_pdclust_K(pl);
+	upg = m0_sns_cm_ag_size(pl);
 	sa.sa_group = group;
-	for (i = 0; i < N + K; ++i) {
+	for (i = 0; i < upg; ++i) {
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, gfid, &cobfid);
-		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
+		if (m0_sns_cm_is_cob_rebalancing(pm, ta.ta_obj) &&
 		    m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver,
-					   &cobfid)) {
-			do {
-				funit = sa.sa_unit;
-				rc = m0_sns_repair_spare_map(pm, gfid,
-						pl, pi, group, funit,
-						&spare, &spare_prev);
-				if (rc != 0)
-					return false;
-				sa.sa_unit = spare;
-				m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm,
-						      gfid, &cobfid);
-			} while (m0_sns_cm_is_cob_failed(pm, ta.ta_obj));
-
+			    &cobfid)) {
+			tunit = sa.sa_unit;
+			if (m0_pdclust_unit_classify(pl, tunit) ==
+					M0_PUT_SPARE) {
+				if (!is_spare_relevant(scm, pm, gfid, group, tunit, pl, pi))
+					continue;
+			}
+			rc = m0_sns_repair_spare_map(pm, gfid,
+					pl, pi, group, tunit,
+					&spare, &spare_prev);
+			if (rc != 0)
+				return false;
+			tunit = spare;
+			sa.sa_unit = tunit;
+			m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm,
+					gfid, &cobfid);
 			if (!m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver,
-						    &cobfid))
-				result = true;
+						&cobfid))
+				return true;
 		}
 	}
 
-	return result;
+	return false;
 }
 
 /**
