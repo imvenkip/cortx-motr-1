@@ -80,7 +80,7 @@ function run_command() {
 		;;
 	"install")
 		local MERO_RPM=$(ls -t $MERO_RPM_PATH | grep mero-0 | head -n1)
-		local HALON_RPM=$(ls -t $HALON_RPM_PATH | grep halon-0 | head -n1)
+		local HALON_RPM=$(ls -t $HALON_RPM_PATH | grep 'halon-.*devel' | head -n1)
 		$PDCP $MERO_RPM_PATH/$MERO_RPM $REMOTE_RPM_PATH
 		$PDSH yum -y install $REMOTE_RPM_PATH/$MERO_RPM
 		$PDCP $HALON_RPM_PATH/$HALON_RPM $REMOTE_RPM_PATH
@@ -196,7 +196,7 @@ build_halon() {
 	stack_call setup --no-docker
 	stack_call clean rpclite --no-docker
 	stack_call build --flag mero-halon:mero --no-docker
-	make rpm
+	make rpm-dev
 }
 
 function halon_facts_yaml_beta1() {
