@@ -1869,17 +1869,17 @@ out:
 M0_INTERNAL int m0_be_btree_cursor_next_sync(struct m0_be_btree_cursor *cur)
 {
 	M0_SET0(&cur->bc_op);
-	return M0_RC(M0_BE_OP_SYNC_RET_WITH(&cur->bc_op,
-	                                    m0_be_btree_cursor_next(cur),
-	                                    bo_u.u_btree.t_rc));
+	return M0_BE_OP_SYNC_RET_WITH(&cur->bc_op,
+				      m0_be_btree_cursor_next(cur),
+				      bo_u.u_btree.t_rc);
 }
 
 M0_INTERNAL int m0_be_btree_cursor_prev_sync(struct m0_be_btree_cursor *cur)
 {
 	M0_SET0(&cur->bc_op);
-	return M0_RC(M0_BE_OP_SYNC_RET_WITH(&cur->bc_op,
-	                                    m0_be_btree_cursor_prev(cur),
-	                                    bo_u.u_btree.t_rc));
+	return M0_BE_OP_SYNC_RET_WITH(&cur->bc_op,
+				      m0_be_btree_cursor_prev(cur),
+				      bo_u.u_btree.t_rc);
 }
 
 M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor)
