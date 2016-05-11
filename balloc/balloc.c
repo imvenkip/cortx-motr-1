@@ -83,7 +83,7 @@ static inline int btree_delete_sync(struct m0_be_btree  *tree,
 }
 
 /* This macro is to control the debug verbose message */
-#define BALLOC_ENABLE_DUMP
+#undef BALLOC_ENABLE_DUMP
 
 static void balloc_debug_dump_extent(const char *tag, struct m0_ext *ex)
 {
