@@ -41,6 +41,7 @@
 #include "stob/linux.h"			/* m0_stob_linux_container */
 #include "stob/linux_getevents.h"	/* raw_io_getevents */
 #include "stob/io.h"			/* m0_stob_io */
+#include "stob/ioq_error.h"             /* m0_stob_ioq_error */
 
 /**
    @addtogroup stoblinux

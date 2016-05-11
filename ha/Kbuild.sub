@@ -1,4 +1,7 @@
 m0mero_objects += ha/epoch.o \
+                  ha/msg.o \
+                  ha/msg_xc.o \
+                  ha/msg_queue.o \
                   ha/note.o \
                   ha/note_xc.o \
                   ha/note_foms.o \

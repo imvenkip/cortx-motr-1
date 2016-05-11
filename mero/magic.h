@@ -453,6 +453,10 @@ enum m0_magic_satchel {
 	M0_HA_CLIENT_MAGIC = 0x33b002edefaced77,
 	/* ha_client_ctx::hx_magic (cliff dazzled) */
 	M0_HA_CLIENT_HEAD_MAGIC = 0x33c11ffda221ed77,
+	/* m0_ha_msg_queue::mq_queue (ha fifo base) */
+	M0_HA_MSG_QUEUE_HEAD_MAGIC = 0x334af1f0ba5e0077,
+	/* m0_ha_msg_qitem::hmq_magic (ha fifo head) */
+	M0_HA_MSG_QITEM_MAGIC = 0x334af1f04ead0077,
 	/* m0_halon_interface_internal::hii_magix (deles felizio) */
 	M0_HALON_INTERFACE_MAGIC = 0x33de1e5fe1121077,
 

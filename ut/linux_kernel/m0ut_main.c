@@ -60,6 +60,7 @@ extern struct m0_ut_suite failure_domains_tree_ut;
 extern struct m0_ut_suite failure_domains_ut;
 extern struct m0_ut_suite file_io_ut;
 extern struct m0_ut_suite frm_ut;
+extern struct m0_ut_suite ha_ut;
 extern struct m0_ut_suite layout_ut;
 extern struct m0_ut_suite packet_encdec_ut;
 extern struct m0_ut_suite parity_math_ut;
@@ -109,6 +110,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &failure_domains_tree_ut, true);
 	m0_ut_add(m, &failure_domains_ut, true);
 	m0_ut_add(m, &frm_ut, true);
+	m0_ut_add(m, &ha_ut, true);
 	m0_ut_add(m, &layout_ut, true);
 	m0_ut_add(m, &packet_encdec_ut, true);
 	m0_ut_add(m, &parity_math_ut, true);

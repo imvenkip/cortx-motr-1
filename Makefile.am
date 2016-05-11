@@ -1352,6 +1352,7 @@ EXTRA_DIST += \
               file/ut/Kbuild.sub \
               graph/Kbuild.sub \
               ha/Kbuild.sub \
+              ha/ut/Kbuild.sub \
               ioservice/Kbuild.sub \
               ioservice/ut/Kbuild.sub \
               layout/Kbuild.sub \

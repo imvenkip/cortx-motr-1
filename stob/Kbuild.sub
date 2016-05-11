@@ -4,6 +4,7 @@ m0mero_objects += stob/stob.o \
                   stob/cache.o \
                   stob/domain.o \
                   stob/io.o \
+                  stob/ioq_error_xc.o \
                   stob/module.o \
                   stob/null.o \
                   stob/type.o

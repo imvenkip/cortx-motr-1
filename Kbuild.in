@@ -139,6 +139,7 @@ include $(src)/ut/Kbuild.sub
 include $(src)/xcode/ut/Kbuild.sub
 include $(src)/be/ut/Kbuild.sub
 include $(src)/sns/ut/Kbuild.sub
+include $(src)/ha/ut/Kbuild.sub
 
 #
 # m0ctl.ko

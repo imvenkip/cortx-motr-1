@@ -1,13 +1,19 @@
 nobase_mero_include_HEADERS += ha/epoch.h \
+                               ha/msg.h \
+                               ha/msg_queue.h \
                                ha/note.h \
                                ha/note_fops.h
 
 mero_libmero_la_SOURCES  += ha/epoch.c \
+                            ha/msg.c \
+                            ha/msg_xc.c \
+                            ha/msg_queue.c \
                             ha/note.c \
                             ha/note_xc.c \
                             ha/note_fops.c \
                             ha/note_fops_xc.c \
                             ha/note_foms.c
 
-XC_FILES   += ha/note_xc.h \
+XC_FILES   += ha/msg_xc.h \
+              ha/note_xc.h \
               ha/note_fops_xc.h
