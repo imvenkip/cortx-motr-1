@@ -90,7 +90,7 @@ M0_INTERNAL int m0_sns_cm_trigger_fop_alloc(struct m0_rpc_machine  *mach,
 					    uint32_t                op,
 					    struct m0_fop         **fop)
 {
-	struct m0_fop_type *sns_fop_type[] = {
+	static struct m0_fop_type *sns_fop_type[] = {
 		[SNS_REPAIR]           = &m0_sns_repair_trigger_fopt,
 		[SNS_REPAIR_QUIESCE]   = &m0_sns_repair_quiesce_trigger_fopt,
 		[SNS_REBALANCE]        = &m0_sns_rebalance_trigger_fopt,
@@ -100,13 +100,10 @@ M0_INTERNAL int m0_sns_cm_trigger_fop_alloc(struct m0_rpc_machine  *mach,
 		[SNS_REPAIR_ABORT]     = &m0_sns_repair_abort_fopt,
 	};
 	M0_ENTRY();
+	M0_PRE(IS_IN_ARRAY(op, sns_fop_type));
 
-	M0_ASSERT(IS_IN_ARRAY(op, sns_fop_type));
 	*fop = m0_fop_alloc(sns_fop_type[op], NULL, mach);
-	if (*fop == NULL)
-		return M0_ERR(-ENOMEM);
-
-	return M0_RC(0);
+	return *fop == NULL ? M0_ERR(-ENOMEM) : M0_RC(0);
 }
 
 #undef M0_TRACE_SUBSYSTEM

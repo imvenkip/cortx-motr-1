@@ -149,8 +149,8 @@ M0_INTERNAL void m0_spiel__ut_rpc_server_stop(struct m0_rpc_server_ctx *rpc_srv)
 }
 
 M0_INTERNAL void m0_spiel__ut_init(struct m0_spiel *spiel,
-				   char            *confd_path,
-				   const bool       cmd_iface)
+				   const char      *confd_path,
+				   bool             cmd_iface)
 {
 	int         rc;
 	const char *client_ep = CLIENT_ENDPOINT_ADDR;
@@ -174,7 +174,7 @@ M0_INTERNAL void m0_spiel__ut_init(struct m0_spiel *spiel,
 	}
 }
 
-M0_INTERNAL void m0_spiel__ut_fini(struct m0_spiel *spiel, const bool cmd_iface)
+M0_INTERNAL void m0_spiel__ut_fini(struct m0_spiel *spiel, bool cmd_iface)
 {
 	if (cmd_iface)
 		m0_spiel_rconfc_stop(spiel);

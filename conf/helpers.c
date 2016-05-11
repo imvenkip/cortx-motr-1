@@ -37,7 +37,7 @@
 #include "pool/flset.h"    /* m0_flset_pver_has_failed_dev */
 #include "fd/fd.h"         /* M0_FTA_DEPTH_CONT */
 
-const int CACHE_LOCALITY = 1;
+enum { CACHE_LOCALITY = 1 };
 
 M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 			       struct m0_confc            *confc,
@@ -48,6 +48,8 @@ M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 
 	M0_ENTRY();
 	M0_PRE(m0_fid_is_set(profile));
+	M0_PRE(m0_conf_fid_is_valid(profile));
+	M0_PRE(m0_conf_fid_type(profile) == &M0_CONF_PROFILE_TYPE);
 
 	rc = m0_confc_open_sync(&obj, confc->cc_root,
 				M0_CONF_ROOT_PROFILES_FID, *profile,

@@ -30,6 +30,7 @@
 #include "sss/ss_fops.h"
 #include "sss/process_fops.h"   /* m0_ss_fop_process_rep */
 #include "spiel/spiel.h"
+#include "spiel/spiel_internal.h"
 #include "spiel/cmd_internal.h"
 
 /**
@@ -52,12 +53,11 @@ static bool _filter_controller(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE;
 }
 
-static int spiel_node_process_endpoint_add(struct m0_spiel    *spl,
-				           struct m0_conf_obj *node,
-				           struct m0_tl       *list)
+static int spiel_node_process_endpoint_add(struct m0_spiel_core *spc,
+				           struct m0_conf_obj   *node,
+				           struct m0_tl         *list)
 {
 	struct spiel_string_entry *entry;
-	struct m0_confc           *confc = &spl->spl_rconfc.rc_confc;
 	struct m0_conf_diter       it;
 	struct m0_conf_process    *p;
 	struct m0_conf_service    *svc;
@@ -65,7 +65,7 @@ static int spiel_node_process_endpoint_add(struct m0_spiel    *spl,
 
 	M0_ENTRY("conf_node: %p", &node);
 
-	rc = m0_conf_diter_init(&it, confc, node,
+	rc = m0_conf_diter_init(&it, spc->spc_confc, node,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
@@ -97,11 +97,11 @@ static int spiel_node_process_endpoint_add(struct m0_spiel    *spl,
  *
  * Disk -> Controller -> Node -> Processes -> SSS services.
  */
-static int spiel_endpoints_for_device_generic(struct m0_spiel     *spl,
-					      const struct m0_fid *device_fid,
-					      struct m0_tl        *list)
+static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
+					      const struct m0_fid  *device_fid,
+					      struct m0_tl         *list)
 {
-	struct m0_confc           *confc = &spl->spl_rconfc.rc_confc;
+	struct m0_confc           *confc = spc->spc_confc;
 	struct m0_conf_diter       it;
 	struct m0_conf_obj        *fs;
 	struct m0_conf_obj        *disk;
@@ -119,7 +119,7 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel     *spl,
 
 	rc = m0_confc_open_sync(&fs, confc->cc_root,
 				M0_CONF_ROOT_PROFILES_FID,
-				spl->spl_profile,
+				spc->spc_profile,
 				M0_CONF_PROFILE_FILESYSTEM_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -146,7 +146,7 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel     *spl,
 					       &ctrl->cc_node->cn_obj.co_id,
 					       &node_obj);
 			if (rc == 0) {
-				spiel_node_process_endpoint_add(spl, node_obj,
+				spiel_node_process_endpoint_add(spc, node_obj,
 							        list);
 				m0_confc_close(node_obj);
 			}
@@ -291,11 +291,6 @@ static int _spiel_conf_obj_find(struct m0_confc       *confc,
 	return M0_RC(rc);
 }
 
-static bool _all_stop(const struct m0_conf_obj *obj M0_UNUSED)
-{
-	return true;
-}
-
 /**
  * Iterates through directory specified by the path and calls iterator callback
  * on every directory item having the object pinned during callback
@@ -348,7 +343,7 @@ static int _spiel_conf_dir_iterate(struct m0_confc     *confc,
 
 	loop = true;
 	while (loop &&
-	       (m0_conf_diter_next_sync(&it, _all_stop)) == M0_CONF_DIRNEXT) {
+	       (m0_conf_diter_next_sync(&it, NULL)) == M0_CONF_DIRNEXT) {
 		obj = m0_conf_diter_result(&it);
 		/* Pin obj to protect it from removal while being in use */
 		m0_mutex_lock(&confc->cc_lock);
@@ -391,22 +386,19 @@ static int spiel_ss_ep_for_svc(const struct m0_conf_service  *s,
 	return M0_RC(*ss_ep == NULL ? -ENOENT : 0);
 }
 
-static int spiel_svc_conf_obj_find(struct m0_spiel         *spl,
-				   const struct m0_fid     *svc_fid,
-				   struct m0_conf_service **svc_obj)
+static int spiel_svc_conf_obj_find(struct m0_spiel_core    *spc,
+				   const struct m0_fid     *svc,
+				   struct m0_conf_service **out)
 {
-	int                  rc;
-	struct m0_conf_obj  *obj;
-	struct m0_confc     *confc   = &spl->spl_rconfc.rc_confc;
-	struct m0_fid       *profile = &spl->spl_profile;
+	struct m0_conf_obj *obj;
+	int                 rc;
 
-	rc = SPIEL_CONF_OBJ_FIND(confc, profile, svc_fid, &obj, _filter_svc,
-				 M0_CONF_FILESYSTEM_NODES_FID,
+	rc = SPIEL_CONF_OBJ_FIND(spc->spc_confc, &spc->spc_profile, svc, &obj,
+				 _filter_svc, M0_CONF_FILESYSTEM_NODES_FID,
 				 M0_CONF_NODE_PROCESSES_FID,
 				 M0_CONF_PROCESS_SERVICES_FID);
-
-	*svc_obj = (rc == 0) ? M0_CONF_CAST(obj, m0_conf_service) : NULL;
-
+	if (rc == 0)
+		*out = M0_CONF_CAST(obj, m0_conf_service);
 	return M0_RC(rc);
 }
 
@@ -436,10 +428,10 @@ static int spiel_svc_fop_fill(struct m0_fop          *fop,
 	return 0;
 }
 
-static int spiel_svc_fop_fill_and_send(struct m0_spiel     *spl,
-				       struct m0_fop       *fop,
-				       const struct m0_fid *svc_fid,
-				       uint32_t             cmd)
+static int spiel_svc_fop_fill_and_send(struct m0_spiel_core *spc,
+				       struct m0_fop        *fop,
+				       const struct m0_fid  *svc_fid,
+				       uint32_t              cmd)
 {
 	int                     rc;
 	struct m0_conf_service *svc;
@@ -450,15 +442,15 @@ static int spiel_svc_fop_fill_and_send(struct m0_spiel     *spl,
 			   M0_SERVICE_STOP, M0_SERVICE_QUIESCE,
 			   M0_SERVICE_HEALTH, M0_SERVICE_STATUS)));
 	M0_PRE(m0_conf_fid_type(svc_fid) == &M0_CONF_SERVICE_TYPE);
-	M0_PRE(spl != NULL);
-	rc = spiel_svc_conf_obj_find(spl, svc_fid, &svc);
+	M0_PRE(spc != NULL);
+	rc = spiel_svc_conf_obj_find(spc, svc_fid, &svc);
 	if (rc != 0)
 		return M0_ERR(rc);
 
 	rc = spiel_svc_fop_fill(fop, svc, cmd) ?:
 	     spiel_ss_ep_for_svc(svc, &ss_ep);
 	if (rc == 0) {
-		rc = spiel_cmd_send(spl->spl_rmachine, ss_ep, fop,
+		rc = spiel_cmd_send(spc->spc_rmachine, ss_ep, fop,
 				    M0_TIME_NEVER);
 		m0_free(ss_ep);
 	}
@@ -480,10 +472,10 @@ static struct m0_sss_rep *spiel_sss_reply_data(struct m0_fop *fop)
 	return (struct m0_sss_rep *)m0_fop_data(rep_fop);
 }
 
-static int spiel_svc_generic_handler(struct m0_spiel     *spl,
-				     const struct m0_fid *svc_fid,
-				     enum m0_sss_req_cmd  cmd,
-				     int                 *status)
+static int spiel_svc_generic_handler(struct m0_spiel_core *spc,
+				     const struct m0_fid  *svc_fid,
+				     enum m0_sss_req_cmd   cmd,
+				     int                  *status)
 {
 	int            rc;
 	struct m0_fop *fop;
@@ -493,12 +485,12 @@ static int spiel_svc_generic_handler(struct m0_spiel     *spl,
 	if (m0_conf_fid_type(svc_fid) != &M0_CONF_SERVICE_TYPE)
 		return M0_ERR(-EINVAL);
 
-	fop = spiel_svc_fop_alloc(spl->spl_rmachine);
+	fop = spiel_svc_fop_alloc(spc->spc_rmachine);
 
 	if (fop == NULL)
 		return M0_ERR(-ENOMEM);
 
-	rc = spiel_svc_fop_fill_and_send(spl, fop, svc_fid, cmd) ?:
+	rc = spiel_svc_fop_fill_and_send(spc, fop, svc_fid, cmd) ?:
 	     spiel_sss_reply_data(fop)->ssr_rc;
 
 	if (rc == 0 && status != NULL)
@@ -512,8 +504,8 @@ int m0_spiel_service_init(struct m0_spiel *spl, const struct m0_fid *svc_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_INIT,
-					       NULL));
+	return M0_RC(spiel_svc_generic_handler(&spl->spl_core, svc_fid,
+					       M0_SERVICE_INIT, NULL));
 }
 M0_EXPORTED(m0_spiel_service_init);
 
@@ -521,8 +513,8 @@ int m0_spiel_service_start(struct m0_spiel *spl, const struct m0_fid *svc_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_START,
-					       NULL));
+	return M0_RC(spiel_svc_generic_handler(&spl->spl_core, svc_fid,
+					       M0_SERVICE_START, NULL));
 }
 M0_EXPORTED(m0_spiel_service_start);
 
@@ -530,8 +522,8 @@ int m0_spiel_service_stop(struct m0_spiel *spl, const struct m0_fid *svc_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_STOP,
-					       NULL));
+	return M0_RC(spiel_svc_generic_handler(&spl->spl_core, svc_fid,
+					       M0_SERVICE_STOP, NULL));
 }
 M0_EXPORTED(m0_spiel_service_stop);
 
@@ -539,8 +531,8 @@ int m0_spiel_service_health(struct m0_spiel *spl, const struct m0_fid *svc_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_HEALTH,
-					       NULL));
+	return M0_RC(spiel_svc_generic_handler(&spl->spl_core, svc_fid,
+					       M0_SERVICE_HEALTH, NULL));
 }
 M0_EXPORTED(m0_spiel_service_health);
 
@@ -549,8 +541,8 @@ int m0_spiel_service_quiesce(struct m0_spiel     *spl,
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_QUIESCE,
-					       NULL));
+	return M0_RC(spiel_svc_generic_handler(&spl->spl_core, svc_fid,
+					       M0_SERVICE_QUIESCE, NULL));
 }
 M0_EXPORTED(m0_spiel_service_quiesce);
 
@@ -559,8 +551,8 @@ int m0_spiel_service_status(struct m0_spiel *spl, const struct m0_fid *svc_fid,
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
 
-	return M0_RC(spiel_svc_generic_handler(spl, svc_fid, M0_SERVICE_STATUS,
-					       status));
+	return M0_RC(spiel_svc_generic_handler(&spl->spl_core, svc_fid,
+					       M0_SERVICE_STATUS, status));
 }
 M0_EXPORTED(m0_spiel_service_status);
 
@@ -569,20 +561,20 @@ M0_EXPORTED(m0_spiel_service_status);
 /*                     Devices                      */
 /****************************************************/
 
-static int spiel_device_command_fop_send(struct m0_spiel     *spl,
-					 const char          *endpoint,
-					 const struct m0_fid *dev_fid,
-					 int                  cmd)
+static int spiel_device_command_fop_send(struct m0_spiel_core *spc,
+					 const char           *endpoint,
+					 const struct m0_fid  *dev_fid,
+					 int                   cmd)
 {
 	struct m0_fop                *fop;
 	struct m0_sss_device_fop_rep *rep;
 	int                           rc;
 
-	fop  = m0_sss_device_fop_create(spl->spl_rmachine, cmd, dev_fid);
+	fop  = m0_sss_device_fop_create(spc->spc_rmachine, cmd, dev_fid);
 	if (fop == NULL)
 		return M0_RC(-ENOMEM);
 
-	rc = spiel_cmd_send(spl->spl_rmachine, endpoint, fop,
+	rc = spiel_cmd_send(spc->spc_rmachine, endpoint, fop,
 			    cmd == M0_DEVICE_FORMAT ?
 				   SPIEL_DEVICE_FORMAT_TIMEOUT :
 				   M0_TIME_NEVER);
@@ -602,9 +594,9 @@ static int spiel_device_command_fop_send(struct m0_spiel     *spl,
  * Search all processes that have IO services, fetch their endpoints and send
  * command FOPs.
  */
-static int spiel_device_command_send(struct m0_spiel     *spl,
-				     const struct m0_fid *dev_fid,
-				     int                  cmd)
+static int spiel_device_command_send(struct m0_spiel_core *spc,
+				     const struct m0_fid  *dev_fid,
+				     int                   cmd)
 {
 	struct m0_tl               endpoints;
 	struct spiel_string_entry *ep;
@@ -617,13 +609,13 @@ static int spiel_device_command_send(struct m0_spiel     *spl,
 
 	spiel_string_tlist_init(&endpoints);
 
-	rc = spiel_endpoints_for_device_generic(spl, dev_fid, &endpoints);
+	rc = spiel_endpoints_for_device_generic(spc, dev_fid, &endpoints);
 	if (rc == 0 && spiel_string_tlist_is_empty(&endpoints))
 		rc = M0_ERR(-ENOENT);
 
 	if (rc == 0)
 		m0_tl_teardown(spiel_string, &endpoints, ep) {
-			rc = rc ?: spiel_device_command_fop_send(spl,
+			rc = rc ?: spiel_device_command_fop_send(spc,
 					ep->sse_string, dev_fid, cmd);
 			m0_free((char *)ep->sse_string);
 			m0_free(ep);
@@ -638,7 +630,8 @@ int m0_spiel_device_attach(struct m0_spiel *spl, const struct m0_fid *dev_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(dev_fid));
 
-	return M0_RC(spiel_device_command_send(spl, dev_fid, M0_DEVICE_ATTACH));
+	return M0_RC(spiel_device_command_send(&spl->spl_core, dev_fid,
+					       M0_DEVICE_ATTACH));
 }
 M0_EXPORTED(m0_spiel_device_attach);
 
@@ -646,7 +639,8 @@ int m0_spiel_device_detach(struct m0_spiel *spl, const struct m0_fid *dev_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(dev_fid));
 
-	return M0_RC(spiel_device_command_send(spl, dev_fid, M0_DEVICE_DETACH));
+	return M0_RC(spiel_device_command_send(&spl->spl_core, dev_fid,
+					       M0_DEVICE_DETACH));
 }
 M0_EXPORTED(m0_spiel_device_detach);
 
@@ -654,7 +648,8 @@ int m0_spiel_device_format(struct m0_spiel *spl, const struct m0_fid *dev_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(dev_fid));
 
-	return M0_RC(spiel_device_command_send(spl, dev_fid, M0_DEVICE_FORMAT));
+	return M0_RC(spiel_device_command_send(&spl->spl_core, dev_fid,
+					       M0_DEVICE_FORMAT));
 }
 M0_EXPORTED(m0_spiel_device_format);
 
@@ -666,53 +661,49 @@ static bool _filter_proc(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_PROCESS_TYPE;
 }
 
-/* Non static for use in UT only */
-int spiel_proc_conf_obj_find(struct m0_spiel         *spl,
-			     const struct m0_fid     *proc_fid,
-			     struct m0_conf_process **proc_obj)
+static int spiel_proc_conf_obj_find(struct m0_spiel_core    *spc,
+				    const struct m0_fid     *proc,
+				    struct m0_conf_process **out)
 {
 	struct m0_conf_obj *obj;
-	struct m0_confc    *confc   = &spl->spl_rconfc.rc_confc;
-	struct m0_fid      *profile = &spl->spl_profile;
 	int                 rc;
 
-	rc = SPIEL_CONF_OBJ_FIND(confc, profile, proc_fid, &obj, _filter_proc,
+	rc = SPIEL_CONF_OBJ_FIND(spc->spc_confc, &spc->spc_profile, proc,
+				 &obj, _filter_proc,
 				 M0_CONF_FILESYSTEM_NODES_FID,
 				 M0_CONF_NODE_PROCESSES_FID);
-
-	*proc_obj = rc == 0 ? M0_CONF_CAST(obj, m0_conf_process) : NULL;
-
+	if (rc == 0)
+		*out = M0_CONF_CAST(obj, m0_conf_process);
 	return M0_RC(rc);
 }
 
-static int spiel_process_command_send(struct m0_spiel     *spl,
-				      const struct m0_fid *proc_fid,
-				      struct m0_fop       *fop)
+static int spiel_process_command_send(struct m0_spiel_core *spc,
+				      const struct m0_fid  *proc_fid,
+				      struct m0_fop        *fop)
 {
 	struct m0_conf_process *process;
 	int                     rc;
 
 	M0_ENTRY();
 
-	M0_PRE(spl != NULL);
+	M0_PRE(spc != NULL);
 	M0_PRE(proc_fid != NULL);
 	M0_PRE(fop != NULL);
 	M0_PRE(m0_conf_fid_type(proc_fid) == &M0_CONF_PROCESS_TYPE);
-	M0_PRE(spl != NULL);
-	rc = spiel_proc_conf_obj_find(spl, proc_fid, &process);
+	M0_PRE(spc != NULL);
+
+	rc = spiel_proc_conf_obj_find(spc, proc_fid, &process);
 	if (rc != 0)
 		return M0_ERR(rc);
 
 	m0_confc_close(&process->pc_obj);
 
-	if (rc == 0)
-		rc = spiel_cmd_send(spl->spl_rmachine, process->pc_endpoint,
-				    fop, M0_TIME_NEVER);
+	rc = spiel_cmd_send(spc->spc_rmachine, process->pc_endpoint, fop,
+			    M0_TIME_NEVER);
 	if (rc != 0) {
 		m0_fop_fini(fop);
 		m0_free(fop);
 	}
-
 	return M0_RC(rc);
 }
 
@@ -725,24 +716,24 @@ static struct m0_ss_process_rep *spiel_process_reply_data(struct m0_fop *fop)
  * When reply is not NULL, reply fop remains alive and gets passed to caller for
  * further reply data processing. Otherwise it immediately appears released.
  */
-static int spiel_process_command_execute(struct m0_spiel     *spl,
-					 const struct m0_fid *proc_fid,
-					 int                  cmd,
-					 struct m0_fop      **reply)
+static int spiel_process_command_execute(struct m0_spiel_core *spc,
+					 const struct m0_fid  *proc_fid,
+					 int                   cmd,
+					 struct m0_fop       **reply)
 {
 	struct m0_fop *fop;
 	int            rc;
 
 	M0_ENTRY();
 
-	M0_PRE(spl != NULL);
+	M0_PRE(spc != NULL);
 	M0_PRE(proc_fid != NULL);
 	M0_PRE(m0_conf_fid_type(proc_fid) == &M0_CONF_PROCESS_TYPE);
 
-	fop = m0_ss_process_fop_create(spl->spl_rmachine, cmd, proc_fid);
+	fop = m0_ss_process_fop_create(spc->spc_rmachine, cmd, proc_fid);
 	if (fop == NULL)
-		return M0_RC(-ENOMEM);
-	rc = spiel_process_command_send(spl, proc_fid, fop);
+		return M0_ERR(-ENOMEM);
+	rc = spiel_process_command_send(spc, proc_fid, fop);
 	if (rc == 0) {
 		rc = spiel_process_reply_data(fop)->sspr_rc;
 		if (reply != NULL)
@@ -760,7 +751,7 @@ int m0_spiel_process_stop(struct m0_spiel *spl, const struct m0_fid *proc_fid)
 	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
 		return M0_ERR(-EINVAL);
 
-	return M0_RC(spiel_process_command_execute(spl, proc_fid,
+	return M0_RC(spiel_process_command_execute(&spl->spl_core, proc_fid,
 						   M0_PROCESS_STOP, NULL));
 }
 M0_EXPORTED(m0_spiel_process_stop);
@@ -773,12 +764,12 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
 	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
 		return M0_ERR(-EINVAL);
 
-	return M0_RC(spiel_process_command_execute(spl, proc_fid,
+	return M0_RC(spiel_process_command_execute(&spl->spl_core, proc_fid,
 						   M0_PROCESS_RECONFIG, NULL));
 }
 M0_EXPORTED(m0_spiel_process_reconfig);
 
-static int spiel_process__health(struct m0_spiel      *spl,
+static int spiel_process__health(struct m0_spiel_core *spc,
 				 const struct m0_fid  *proc_fid,
 				 struct m0_fop       **reply)
 {
@@ -792,8 +783,7 @@ static int spiel_process__health(struct m0_spiel      *spl,
 		return M0_ERR(-EINVAL);
 	reply_fop = NULL;
 	health = M0_HEALTH_UNKNOWN;
-	rc = spiel_process_command_execute(spl, proc_fid,
-					   M0_PROCESS_HEALTH,
+	rc = spiel_process_command_execute(spc, proc_fid, M0_PROCESS_HEALTH,
 					   &reply_fop);
 	if (reply_fop != NULL) {
 		M0_ASSERT(rc == 0);
@@ -809,7 +799,7 @@ static int spiel_process__health(struct m0_spiel      *spl,
 int m0_spiel_process_health(struct m0_spiel     *spl,
 			    const struct m0_fid *proc_fid)
 {
-	return M0_RC(spiel_process__health(spl, proc_fid, NULL));
+	return M0_RC(spiel_process__health(&spl->spl_core, proc_fid, NULL));
 }
 M0_EXPORTED(m0_spiel_process_health);
 
@@ -821,7 +811,7 @@ int m0_spiel_process_quiesce(struct m0_spiel     *spl,
 	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
 		return M0_ERR(-EINVAL);
 
-	return M0_RC(spiel_process_command_execute(spl, proc_fid,
+	return M0_RC(spiel_process_command_execute(&spl->spl_core, proc_fid,
 						   M0_PROCESS_QUIESCE, NULL));
 }
 M0_EXPORTED(m0_spiel_process_quiesce);
@@ -868,11 +858,11 @@ int m0_spiel_process_list_services(struct m0_spiel              *spl,
 	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
 		return M0_ERR(-EINVAL);
 
-	fop = m0_ss_process_fop_create(spl->spl_rmachine,
+	fop = m0_ss_process_fop_create(spiel_rmachine(spl),
 				       M0_PROCESS_RUNNING_LIST, proc_fid);
 	if (fop == NULL)
-		return M0_RC(-ENOMEM);
-	rc = spiel_process_command_send(spl, proc_fid, fop);
+		return M0_ERR(-ENOMEM);
+	rc = spiel_process_command_send(&spl->spl_core, proc_fid, fop);
 	if (rc == 0) {
 		rep = m0_ss_fop_process_svc_list_rep(
 				m0_rpc_item_to_fop(fop->f_item.ri_reply));
@@ -954,10 +944,10 @@ static int spiel_sns_cmd_send(struct m0_rpc_machine *rmachine,
 	return M0_RC(rc);
 }
 
-static int spiel_sns_fop_fill_and_send(struct m0_spiel   *spl,
-				       struct m0_fop     *fop,
-				       enum m0_sns_cm_op  op,
-				       struct spiel_sns  *sns)
+static int spiel_sns_fop_fill_and_send(struct m0_spiel_core *spc,
+				       struct m0_fop        *fop,
+				       enum m0_sns_cm_op     op,
+				       struct spiel_sns     *sns)
 {
 	struct trigger_fop     *treq = m0_fop_data(fop);
 	struct m0_conf_service *svc = sns->ss_service;
@@ -968,17 +958,16 @@ static int spiel_sns_fop_fill_and_send(struct m0_spiel   *spl,
 	M0_ENTRY("fop %p conf_service %p", fop, svc);
 	treq->op = op;
 	sns->ss_fop = fop;
-	return M0_RC(spiel_sns_cmd_send(spl->spl_rmachine, p->pc_endpoint,
+	return M0_RC(spiel_sns_cmd_send(spc->spc_rmachine, p->pc_endpoint,
 					sns));
 }
 
 /** pool stats collection context */
 struct _pool_cmd_ctx {
-	int              pl_rc;
-	struct m0_spiel *pl_spl;           /*< spiel instance           */
-	struct m0_confc *pl_confc;         /*< confc instance           */
-	struct m0_tl     pl_sdevs_fid;     /*< storage devices fid list */
-	struct m0_tl     pl_services_fid;  /*< services fid list        */
+	int                   pl_rc;
+	struct m0_spiel_core *pl_spc;         /**< spiel instance */
+	struct m0_tl          pl_sdevs_fid;     /**< storage devices fid list */
+	struct m0_tl          pl_services_fid;  /**< services fid list */
 };
 
 static int spiel_pool_device_collect(struct _pool_cmd_ctx *ctx,
@@ -995,7 +984,7 @@ static int spiel_pool_device_collect(struct _pool_cmd_ctx *ctx,
 	if (m0_conf_obj_type(diskv->cv_real) != &M0_CONF_DISK_TYPE)
 		return -EINVAL; /* rackv, ctrlv objectv's are ignored. */
 
-	rc = m0_confc_open_by_fid_sync(ctx->pl_confc,
+	rc = m0_confc_open_by_fid_sync(ctx->pl_spc->spc_confc,
 				       &diskv->cv_real->co_id, &obj_disk);
 	if (rc != 0)
 		return M0_RC(rc);
@@ -1022,7 +1011,7 @@ static bool spiel__pool_service_has_sdev(struct _pool_cmd_ctx *ctx,
 	int                  rc;
 	bool                 found = false;
 
-	rc = m0_conf_diter_init(&it, ctx->pl_confc,
+	rc = m0_conf_diter_init(&it, ctx->pl_spc->spc_confc,
 				(struct m0_conf_obj*)service,
 				M0_CONF_SERVICE_SDEVS_FID);
 
@@ -1043,11 +1032,10 @@ done:
 }
 
 static void spiel__pool_ctx_init(struct _pool_cmd_ctx *ctx,
-				 struct m0_spiel      *spl)
+				 struct m0_spiel_core *spc)
 {
 	M0_SET0(ctx);
-	ctx->pl_spl = spl;
-	ctx->pl_confc = &spl->spl_rconfc.rc_confc;
+	ctx->pl_spc = spc;
 	m0_fids_tlist_init(&ctx->pl_sdevs_fid);
 	m0_fids_tlist_init(&ctx->pl_services_fid);
 	M0_POST(m0_fids_tlist_invariant(&ctx->pl_sdevs_fid));
@@ -1098,16 +1086,12 @@ static int spiel__pool_cmd_send(struct _pool_cmd_ctx    *ctx,
 				const enum m0_sns_cm_op  cmd,
 				struct spiel_sns        *sns)
 {
-	struct m0_fop *fop = NULL;
-	int            rc;
-
+	struct m0_fop *fop;
 	M0_PRE(sns != NULL);
 
-	rc = m0_sns_cm_trigger_fop_alloc(ctx->pl_spl->spl_rmachine, cmd,
-					 &fop) ?:
-	     spiel_sns_fop_fill_and_send(ctx->pl_spl, fop, cmd, sns);
-
-	return M0_RC(rc);
+	return M0_RC(m0_sns_cm_trigger_fop_alloc(ctx->pl_spc->spc_rmachine,
+						 cmd, &fop) ?:
+		     spiel_sns_fop_fill_and_send(ctx->pl_spc, fop, cmd, sns));
 }
 
 static int spiel__pool_cmd_status_get(struct _pool_cmd_ctx    *ctx,
@@ -1158,14 +1142,14 @@ static bool _filter_objv(const struct m0_conf_obj *obj)
 static int spiel_pool__device_collection_fill(struct _pool_cmd_ctx *ctx,
 					      const struct m0_fid  *pool_fid)
 {
-	struct m0_confc      *confc = &ctx->pl_spl->spl_rconfc.rc_confc;
-	struct m0_conf_obj   *pool_obj = NULL;
+	struct m0_confc      *confc = ctx->pl_spc->spc_confc;
+	struct m0_conf_obj   *pool_obj;
 	struct m0_conf_obj   *obj;
 	struct m0_conf_diter  it;
 	int                   rc;
 	M0_ENTRY();
 
-	rc = SPIEL_CONF_OBJ_FIND(confc, &ctx->pl_spl->spl_profile, pool_fid,
+	rc = SPIEL_CONF_OBJ_FIND(confc, &ctx->pl_spc->spc_profile, pool_fid,
 				 &pool_obj, _filter_pool,
 				 M0_CONF_FILESYSTEM_POOLS_FID) ?:
 	     m0_conf_diter_init(&it, confc, pool_obj,
@@ -1174,7 +1158,6 @@ static int spiel_pool__device_collection_fill(struct _pool_cmd_ctx *ctx,
 				M0_CONF_RACKV_ENCLVS_FID,
 				M0_CONF_ENCLV_CTRLVS_FID,
 				M0_CONF_CTRLV_DISKVS_FID);
-
 	if (rc != 0)
 		goto leave;
 
@@ -1197,7 +1180,7 @@ leave:
 	return M0_RC(rc);
 }
 
-static int spiel_pool_generic_handler(struct m0_spiel             *spl,
+static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
 				      const struct m0_fid         *pool_fid,
 				      const enum m0_sns_cm_op      cmd,
 				      struct m0_spiel_sns_status **statuses)
@@ -1213,26 +1196,23 @@ static int spiel_pool_generic_handler(struct m0_spiel             *spl,
 
 	M0_ENTRY();
 	M0_PRE(pool_fid != NULL);
-	M0_PRE(spl != NULL);
-	M0_PRE(spl->spl_rmachine != NULL);
+	M0_PRE(spc != NULL);
+	M0_PRE(spc->spc_rmachine != NULL);
 
 	if (m0_conf_fid_type(pool_fid) != &M0_CONF_POOL_TYPE)
 		return M0_ERR(-EINVAL);
 
-	spiel__pool_ctx_init(&ctx, spl);
+	spiel__pool_ctx_init(&ctx, spc);
 
 	rc = spiel_pool__device_collection_fill(&ctx, pool_fid) ?:
-	     SPIEL_CONF_DIR_ITERATE(ctx.pl_confc, &spl->spl_profile, &ctx,
-				    spiel__pool_service_select, NULL,
-				    M0_CONF_FILESYSTEM_NODES_FID,
-				    M0_CONF_NODE_PROCESSES_FID,
-				    M0_CONF_PROCESS_SERVICES_FID);
+		SPIEL_CONF_DIR_ITERATE(spc->spc_confc, &spc->spc_profile,
+				       &ctx, spiel__pool_service_select, NULL,
+				       M0_CONF_FILESYSTEM_NODES_FID,
+				       M0_CONF_NODE_PROCESSES_FID,
+				       M0_CONF_PROCESS_SERVICES_FID) ?:
+		ctx.pl_rc;
 	if (rc != 0)
 		goto leave;
-	if (ctx.pl_rc != 0) {
-		rc = ctx.pl_rc;
-		goto leave;
-	}
 
 	cmd_status = M0_IN(cmd, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS));
 	service_count = m0_fids_tlist_length(&ctx.pl_services_fid);
@@ -1255,7 +1235,7 @@ static int spiel_pool_generic_handler(struct m0_spiel             *spl,
 	m0_tl_for(m0_fids, &ctx.pl_services_fid, si) {
 		struct m0_conf_obj *svc_obj;
 
-		rc = m0_confc_open_by_fid_sync(ctx.pl_confc, &si->i_fid,
+		rc = m0_confc_open_by_fid_sync(spc->spc_confc, &si->i_fid,
 					       &svc_obj);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "conf sync failed for service"FID_F
@@ -1316,8 +1296,8 @@ int m0_spiel_pool_repair_start(struct m0_spiel     *spl,
 			       const struct m0_fid *pool_fid)
 {
 	M0_ENTRY();
-	return M0_RC(spiel_pool_generic_handler(spl, pool_fid, SNS_REPAIR,
-						NULL));
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						SNS_REPAIR, NULL));
 }
 M0_EXPORTED(m0_spiel_pool_repair_start);
 
@@ -1325,7 +1305,7 @@ int m0_spiel_pool_repair_continue(struct m0_spiel     *spl,
 				  const struct m0_fid *pool_fid)
 {
 	M0_ENTRY();
-	return M0_RC(spiel_pool_generic_handler(spl, pool_fid,
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
 						SNS_REPAIR, NULL));
 }
 M0_EXPORTED(m0_spiel_pool_repair_continue);
@@ -1334,7 +1314,7 @@ int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
 				 const struct m0_fid *pool_fid)
 {
 	M0_ENTRY();
-	return M0_RC(spiel_pool_generic_handler(spl, pool_fid,
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
 						SNS_REPAIR_QUIESCE, NULL));
 }
 M0_EXPORTED(m0_spiel_pool_repair_quiesce);
@@ -1343,7 +1323,7 @@ int m0_spiel_pool_repair_abort(struct m0_spiel     *spl,
 			       const struct m0_fid *pool_fid)
 {
 	M0_ENTRY();
-	return M0_RC(spiel_pool_generic_handler(spl, pool_fid,
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
 						SNS_REPAIR_ABORT, NULL));
 }
 M0_EXPORTED(m0_spiel_pool_repair_abort);
@@ -1356,8 +1336,8 @@ int m0_spiel_pool_repair_status(struct m0_spiel             *spl,
 
 	M0_ENTRY();
 	M0_PRE(statuses != NULL);
-	rc = spiel_pool_generic_handler(spl, pool_fid, SNS_REPAIR_STATUS,
-					statuses);
+	rc = spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+					SNS_REPAIR_STATUS, statuses);
 	return rc >= 0 ? M0_RC(rc) : M0_ERR(rc);
 }
 M0_EXPORTED(m0_spiel_pool_repair_status);
@@ -1366,8 +1346,8 @@ int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
 				  const struct m0_fid *pool_fid)
 {
 	M0_ENTRY();
-	return M0_RC(spiel_pool_generic_handler(spl, pool_fid, SNS_REBALANCE,
-						NULL));
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						SNS_REBALANCE, NULL));
 }
 M0_EXPORTED(m0_spiel_pool_rebalance_start);
 
@@ -1375,7 +1355,7 @@ int m0_spiel_pool_rebalance_continue(struct m0_spiel     *spl,
 				     const struct m0_fid *pool_fid)
 {
 	M0_ENTRY();
-	return M0_RC(spiel_pool_generic_handler(spl, pool_fid,
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
 						SNS_REBALANCE, NULL));
 }
 M0_EXPORTED(m0_spiel_pool_rebalance_continue);
@@ -1384,7 +1364,7 @@ int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
 				    const struct m0_fid *pool_fid)
 {
 	M0_ENTRY();
-	return M0_RC(spiel_pool_generic_handler(spl, pool_fid,
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
 						SNS_REBALANCE_QUIESCE, NULL));
 }
 M0_EXPORTED(m0_spiel_pool_rebalance_quiesce);
@@ -1397,8 +1377,8 @@ int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
 
 	M0_ENTRY();
 	M0_PRE(statuses != NULL);
-	rc = spiel_pool_generic_handler(spl, pool_fid, SNS_REBALANCE_STATUS,
-					statuses);
+	rc = spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+					SNS_REBALANCE_STATUS, statuses);
 	return rc >= 0 ? M0_RC(rc) : M0_ERR(rc);
 }
 M0_EXPORTED(m0_spiel_pool_rebalance_status);
@@ -1408,13 +1388,13 @@ M0_EXPORTED(m0_spiel_pool_rebalance_status);
 /****************************************************/
 
 static void spiel__fs_stats_ctx_init(struct _fs_stats_ctx *fsx,
-			      struct m0_spiel *spl,
-			      const struct m0_fid *fs_fid,
-			      const struct m0_conf_obj_type *item_type)
+				     struct m0_spiel_core *spc,
+				     const struct m0_fid  *fs_fid,
+				     const struct m0_conf_obj_type *item_type)
 {
 	M0_PRE(fs_fid != NULL);
 	M0_SET0(fsx);
-	fsx->fx_spl = spl;
+	fsx->fx_spc = spc;
 	fsx->fx_fid = *fs_fid;
 	fsx->fx_type = item_type;
 	m0_fids_tlist_init(&fsx->fx_items);
@@ -1480,7 +1460,7 @@ static void spiel__fs_stats_ctx_update(const struct m0_fid  *proc_fid,
 	int                       rc;
 
 	M0_PRE(fsx->fx_rc == 0);
-	rc = spiel_process__health(fsx->fx_spl, proc_fid, &reply_fop);
+	rc = spiel_process__health(fsx->fx_spc, proc_fid, &reply_fop);
 	M0_LOG(SPIEL_LOGLVL, "* next:  rc = %d " FID_F " (%s)",
 	       rc, FID_P(proc_fid),
 	       m0_fid_type_getfid(proc_fid)->ft_name);
@@ -1561,12 +1541,10 @@ obj_close:
 	return M0_RC(rc);
 }
 
-int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
-				    const struct m0_fid *fs_fid,
-				    struct m0_fs_stats  *stats)
+M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
+					 const struct m0_fid  *fs_fid,
+					 struct m0_fs_stats   *stats)
 {
-	struct m0_confc      *confc;
-	struct m0_fid        *profile;
 	struct _fs_stats_ctx  fsx;
 	struct m0_fid_item   *proc;
 	/* count of services in the process the stats to be updated by */
@@ -1579,44 +1557,42 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 	int                   rc;
 
 	M0_ENTRY();
-	M0_PRE(spl != NULL);
+	M0_PRE(spc != NULL);
+	M0_PRE(spc->spc_confc != NULL);
 	M0_PRE(stats != NULL);
 	M0_PRE(fs_fid != NULL);
 	M0_PRE(m0_conf_fid_type(fs_fid) == &M0_CONF_FILESYSTEM_TYPE);
-	M0_PRE(m0_conf_fid_type(&spl->spl_profile) == &M0_CONF_PROFILE_TYPE);
+	M0_PRE(m0_conf_fid_type(&spc->spc_profile) == &M0_CONF_PROFILE_TYPE);
 
-	confc   = &spl->spl_rconfc.rc_confc;
-	profile = &spl->spl_profile;
-
-	spiel__fs_stats_ctx_init(&fsx, spl, fs_fid, &M0_CONF_PROCESS_TYPE);
+	spiel__fs_stats_ctx_init(&fsx, spc, fs_fid, &M0_CONF_PROCESS_TYPE);
 	/* walk along the filesystem nodes and get to process level */
-	rc = SPIEL_CONF_DIR_ITERATE(confc, profile, &fsx,
+	rc = SPIEL_CONF_DIR_ITERATE(spc->spc_confc, &spc->spc_profile, &fsx,
 				    spiel__item_enlist, spiel__fs_test,
 				    M0_CONF_FILESYSTEM_NODES_FID,
-				    M0_CONF_NODE_PROCESSES_FID);
+				    M0_CONF_NODE_PROCESSES_FID) ?:
+		fsx.fx_rc;
 	if (rc != 0)
-		goto err;
-	/* see if there were issues during conf iteration */
-	if (fsx.fx_rc != 0) {
-		rc = fsx.fx_rc;
-		goto err;
-	}
+		goto end;
 	/* update stats by the list of found processes */
 	m0_tl_for(m0_fids, &fsx.fx_items, proc) {
-		rc = spiel__proc_is_to_update_stats(&proc->i_fid, confc,
+		rc = spiel__proc_is_to_update_stats(&proc->i_fid, spc->spc_confc,
 						    &svc_count, &update_stats);
 		if (rc != 0)
-			goto err;
+			goto end;
 		M0_ASSERT(!update_stats || svc_count > 0);
 		svc_total_in_fs += svc_count;
 		if (!update_stats)
 			continue;
+		/*
+		 * XXX We could improve performance by sending health requests
+		 * asynchronously. Oh well.
+		 */
 		spiel__fs_stats_ctx_update(&proc->i_fid, &fsx);
 		if (fsx.fx_rc != 0) {
 			if (fsx.fx_rc == -EOVERFLOW) {
 				svc_replied += svc_count;
-				rc = fsx.fx_rc;
-				goto err;
+				rc = M0_ERR(-EOVERFLOW);
+				goto end;
 			}
 			M0_LOG(SPIEL_LOGLVL, "* fsx.fx_rc = %d with "FID_F,
 			       fsx.fx_rc, FID_P(&proc->i_fid));
@@ -1638,23 +1614,26 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 		.fs_svc_total = svc_total_in_fs,
 		.fs_svc_replied = svc_replied,
 	};
-
+end:
 	spiel__fs_stats_ctx_fini(&fsx);
-	M0_ASSERT(rc == 0);
-	return M0_RC(0);
-err:
-	spiel__fs_stats_ctx_fini(&fsx);
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_filesystem_stats_fetch);
+
+int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
+				    const struct m0_fid *fs_fid,
+				    struct m0_fs_stats  *stats)
+{
+	return m0_spiel__fs_stats_fetch(&spl->spl_core, fs_fid, stats);
+}
 
 int m0_spiel_confstr(struct m0_spiel *spl, char **out)
 {
 	char *confstr;
 	int   rc;
 
-	rc = m0_conf_cache_to_string(&spl->spl_rconfc.rc_confc.cc_cache,
-				     &confstr, false);
+	rc = m0_conf_cache_to_string(&spiel_confc(spl)->cc_cache, &confstr,
+				     false);
 	if (rc != 0)
 		return M0_ERR(rc);
 	*out = m0_strdup(confstr);

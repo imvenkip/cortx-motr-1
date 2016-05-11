@@ -136,7 +136,7 @@ struct m0_conf_glob {
 };
 
 /**
- * Initialises `glob'. Locks `cache'.
+ * Initialises `glob'.
  *
  * If `origin' is NULL, the root object (m0_conf_root) is implied.
  * If `cache' is NULL, origin->co_cache is used.

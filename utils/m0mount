@@ -916,6 +916,7 @@ main()
 	}
 	mount | grep m0t1fs
 	IS_MOUNTED=yes
+	time df $MP
 
 	# wait to terminate
 	if [ $wait_after_mount -eq 1 ]; then

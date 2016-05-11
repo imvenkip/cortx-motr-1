@@ -65,12 +65,12 @@ struct _fs_stats_ctx {
 	 * stats collection. And when it becomes non-zero, the stats collection
 	 * is interrupted, and the retcode is conveyed to client.
 	 */
-	int              fx_rc;
-	struct m0_spiel *fx_spl;         /**< spiel instance      */
-	m0_bcount_t      fx_free;        /**< free space          */
-	m0_bcount_t      fx_total;       /**< total space         */
-	struct m0_tl     fx_items;       /**< m0_fid_item list    */
-	struct m0_fid    fx_fid;         /**< filesystem fid      */
+	int                   fx_rc;
+	struct m0_spiel_core *fx_spc;         /**< spiel instance      */
+	m0_bcount_t           fx_free;        /**< free space          */
+	m0_bcount_t           fx_total;       /**< total space         */
+	struct m0_tl          fx_items;       /**< m0_fid_item list    */
+	struct m0_fid         fx_fid;         /**< filesystem fid      */
 	/** stats item type to be enlisted */
 	const struct m0_conf_obj_type *fx_type;
 };

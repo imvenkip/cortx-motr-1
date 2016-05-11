@@ -19,12 +19,13 @@
  * Original creation date: 05/04/2010
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
+#include "lib/trace.h"
+
 #include <linux/module.h>
 #include <linux/init.h>
 
 #include "m0t1fs/linux_kernel/m0t1fs.h"
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
-#include "lib/trace.h"  /* M0_LOG and M0_ENTRY */
 #include "lib/memory.h"
 #include "fid/fid.h"
 #include "ioservice/io_fops.h"
@@ -33,7 +34,7 @@
 #include "rm/rm.h"
 #include "net/lnet/lnet_core_types.h"
 #include "mdservice/fsync_fops.h"
-
+#include "sss/process_fops.h"            /* m0_ss_process_fops_init */
 #include "ha/note_fops.h"
 #include "addb2/global.h"
 #include "addb2/sys.h"
@@ -92,11 +93,15 @@ M0_INTERNAL int m0t1fs_init(void)
 
 	rc = m0_mdservice_fop_init();
 	if (rc != 0)
-		goto ioservice_fini;
+		goto ioservice_fop_fini;
+
+	rc = m0_ss_process_fops_init();
+	if (rc != 0)
+		goto mdservice_fop_fini;
 
 	rc = m0t1fs_inode_cache_init();
 	if (rc != 0)
-		goto mdservice_fini;
+		goto process_fops_fini;
 
 	m0_addb2_sys_sm_start(sys);
 	rc = m0_addb2_sys_net_start(sys);
@@ -123,9 +128,11 @@ addb2_fini:
 	m0_addb2_sys_sm_stop(sys);
 icache_fini:
 	m0t1fs_inode_cache_fini();
-mdservice_fini:
+process_fops_fini:
+	m0_ss_process_fops_fini();
+mdservice_fop_fini:
 	m0_mdservice_fop_fini();
-ioservice_fini:
+ioservice_fop_fini:
 	m0_ioservice_fop_fini();
 fsync_fini:
 	m0_mdservice_fsync_fop_fini();

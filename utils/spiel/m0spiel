@@ -475,8 +475,7 @@ class SpielWrapper:
 
     @require(fid=Fid, stats=FsStats)
     def filesystem_stats_fetch(self, fid, stats):
-        return self.mero.m0_spiel_filesystem_stats_fetch(self.spiel,
-                                                         byref(fid),
+        return self.mero.m0_spiel_filesystem_stats_fetch(self.spiel, byref(fid),
                                                          byref(stats))
 
     def __m0_init(self):

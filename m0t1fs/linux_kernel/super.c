@@ -48,6 +48,7 @@
 #include "pool/flset.h"        /* m0_flset_build, m0_flset_destroy */
 #include "module/instance.h"   /* m0_get */
 #include "ha/epoch.h"          /* m0_ha_client_add */
+#include "balloc/balloc.h"     /* BALLOC_DEF_BLOCK_SHIFT */
 
 extern struct io_mem_stats iommstats;
 extern struct m0_bitmap    m0t1fs_client_ep_tmid;
@@ -88,7 +89,6 @@ static const struct super_operations m0t1fs_super_operations = {
 	.drop_inode    = generic_delete_inode, /* provided by linux kernel */
 	.sync_fs       = m0t1fs_sync_fs
 };
-
 
 M0_INTERNAL void m0t1fs_fs_lock(struct m0t1fs_sb *csb)
 {
@@ -170,33 +170,65 @@ m0t1fs_container_id_to_session(const struct m0_pool_version *pver,
 	return &ctx->sc_rlink.rlk_sess;
 }
 
-static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
+static int spiel_filesystem_fid_get(struct m0_spiel_core *spc,
+				    struct m0_fid        *result)
 {
-	int                       rc;
-	struct m0t1fs_sb         *csb = M0T1FS_SB(dentry->d_sb);
-	struct m0_fop_statfs_rep *rep = NULL;
-	struct m0_fop            *rep_fop;
-	M0_THREAD_ENTER;
+	struct m0_conf_filesystem *fs;
+	int                        rc;
 
 	M0_ENTRY();
-
-	if (csb->csb_oostore)
-		return M0_RC(0);
-	m0t1fs_fs_lock(csb);
-	rc = m0t1fs_mds_statfs(csb, &rep_fop);
-	rep = m0_fop_data(rep_fop);
+	rc = m0_conf_fs_get(&spc->spc_profile, spc->spc_confc, &fs);
 	if (rc == 0) {
-		buf->f_type = rep->f_type;
-		buf->f_bsize = rep->f_bsize;
-		buf->f_blocks = rep->f_blocks;
-		buf->f_bfree = buf->f_bavail = rep->f_bfree;
-		buf->f_files = rep->f_files;
-		buf->f_ffree = rep->f_ffree;
-		buf->f_namelen = rep->f_namelen;
+		*result = fs->cf_obj.co_id;
+		m0_confc_close(&fs->cf_obj);
 	}
-	m0_fop_put0_lock(rep_fop);
-	m0t1fs_fs_unlock(csb);
+	return M0_RC(rc);
+}
 
+static int _fs_stats_fetch(struct m0t1fs_sb *csb, struct m0_fs_stats *stats)
+{
+	int                  rc;
+	static struct m0_fid fs_fid;
+	struct m0_spiel_core spc = {
+		.spc_profile   = csb->csb_reqh.rh_profile,
+		.spc_rmachine  = &csb->csb_rpc_machine,
+		.spc_confc     = m0_reqh2confc(&csb->csb_reqh),
+	};
+
+	M0_ENTRY();
+	M0_ASSERT(spc.spc_rmachine != NULL);
+	rc = spiel_filesystem_fid_get(&spc, &fs_fid);
+	M0_ASSERT(rc == 0); /* since m0t1fs_setup() has succeeded */
+	return M0_RC(m0_spiel__fs_stats_fetch(&spc, &fs_fid, stats));
+}
+
+static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
+{
+	struct m0t1fs_sb  *csb = M0T1FS_SB(dentry->d_sb);
+	struct m0_fs_stats stats = {};
+	int                rc;
+	M0_THREAD_ENTER;
+	M0_ENTRY();
+
+	m0t1fs_fs_lock(csb);
+	rc = _fs_stats_fetch(csb, &stats);
+	if (rc == 0) {
+		/**
+		 * @todo According to stob_ad_domain_cfg_create_parse(), current
+		 * block size forcibly defaulted by BALLOC_DEF_BLOCK_SHIFT
+		 * value. Need to understand if it's ever going to be any
+		 * different in future, and if so, whether it's worth to be
+		 * exposed to fs client. Besides, what if the balloc setup is
+		 * going to vary among segments/pools/etc.?
+		 */
+		buf->f_bsize   = 1 << BALLOC_DEF_BLOCK_SHIFT;
+		buf->f_blocks  = stats.fs_total / buf->f_bsize;
+		buf->f_bfree   = stats.fs_free / buf->f_bsize;
+		buf->f_bavail  = buf->f_bfree;
+		buf->f_namelen = M0T1FS_NAME_LEN;
+		buf->f_type    = M0_T1FS_SUPER_MAGIC;
+	}
+	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
 
@@ -470,11 +502,9 @@ leave:
 
 static int m0t1fs_sb_layouts_init(struct m0t1fs_sb *csb)
 {
-	int rc;
-
 	M0_ENTRY();
-	rc = m0_reqh_layouts_setup(&csb->csb_reqh, &csb->csb_pools_common);
-	return M0_RC(rc);
+	return M0_RC(m0_reqh_layouts_setup(&csb->csb_reqh,
+					   &csb->csb_pools_common));
 }
 
 static void m0t1fs_sb_layouts_fini(struct m0t1fs_sb *csb)

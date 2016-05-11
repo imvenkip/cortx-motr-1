@@ -211,10 +211,25 @@ struct m0_spiel_sns_status {
  * Spiel instance context
  */
 struct m0_spiel {
-	/** RPC machine for network communication */
-	struct m0_rpc_machine     *spl_rmachine;
-	/** Configuration profile for spiel command interface */
-	struct m0_fid              spl_profile;
+	/**
+	 * Core spiel data most of the spiel internals operate on.
+	 */
+	struct m0_spiel_core {
+		/** RPC machine for network communication */
+		struct m0_rpc_machine     *spc_rmachine;
+		/** Configuration profile for spiel command interface */
+		struct m0_fid              spc_profile;
+		/**
+		 * Current working confc instance.
+		 *
+		 * Normally it points at
+		 * m0_spiel::spl_rconfc::rc_confc. However, the need is
+		 * stipulated by possible situation when m0_spiel::spl_rconfc
+		 * remain uninitialised while client side already has a confc
+		 * instance already filled with the conf data.
+		 */
+		struct m0_confc           *spc_confc;
+	}                          spl_core;
 	/** Rconfc instance */
 	struct m0_rconfc           spl_rconfc;
 	/** Write lock context */
@@ -228,13 +243,13 @@ struct m0_spiel {
  *
  * @param spiel   spiel instance
  * @param reqh    request handler
+ *
+ * @pre  reqh != NULL
  */
 int m0_spiel_init(struct m0_spiel *spiel, struct m0_reqh *reqh);
 
 /**
- * Finalise spiel instance.
- *
- * @param spiel spiel instance
+ * Finalises spiel instance.
  */
 void m0_spiel_fini(struct m0_spiel *spiel);
 
@@ -1047,14 +1062,14 @@ struct m0_fs_stats {
 };
 
 /**
- * Fetches stats for filesyetm object identified by provided fid. Spiel API
+ * Fetches stats for filesystem object identified by provided fid. Spiel API
  * internally polls all process instances registered in configuration database
  * under the specified filesystem object.
  *
- * @param spl            spiel instance, must have profile fid set up to the
+ * @param[in]  spl       spiel instance, must have profile fid set up to the
  *                       moment of the call
- * @param fs_fid         filesystem fid
- * @param stats          instance of m0_fs_stats to be filled with resultant
+ * @param[in]  fs_fid    filesystem fid
+ * @param[out] stats     instance of m0_fs_stats to be filled with resultant
  *                       values. The instance counter values are written only
  *                       in case of success, and must be ignored otherwise.
  *
@@ -1066,6 +1081,18 @@ struct m0_fs_stats {
 int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 				    const struct m0_fid *fs_fid,
 				    struct m0_fs_stats  *stats);
+
+/**
+ * A less demanding version of m0_spiel_filesystem_stats_fetch() requiring a
+ * properly initialised @ref m0_spiel_core as a "lightweight spiel" instance.
+ *
+ * @pre spc->spc_rmachine != NULL
+ * @pre spc->spc_confc != NULL
+ * @pre m0_conf_fid_type(&spc->spc_profile) == &M0_CONF_PROFILE_TYPE
+ */
+M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
+					 const struct m0_fid  *fs_fid,
+					 struct m0_fs_stats   *stats);
 
 /**
  * Dumps configuration cache to a string in XC format.

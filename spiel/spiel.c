@@ -36,6 +36,7 @@
 
 #include "reqh/reqh.h"
 #include "spiel/spiel.h"
+#include "spiel/spiel_internal.h"
 
 /**
  * @defgroup spiel-api-fspec-intr Spiel API Internals
@@ -48,16 +49,18 @@ int m0_spiel_init(struct m0_spiel *spiel, struct m0_reqh *reqh)
 	M0_ENTRY("spiel %p, reqh %p", spiel, reqh);
 
 	M0_SET0(spiel);
-	spiel->spl_rmachine = m0_reqh_rpc_mach_tlist_head(
-				&reqh->rh_rpc_machines);
-	if (spiel->spl_rmachine == NULL)
+	spiel->spl_core.spc_rmachine =
+		m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
+	if (spiel->spl_core.spc_rmachine == NULL)
 		return M0_ERR(-ENOENT);
+	spiel->spl_core.spc_confc = &spiel->spl_rconfc.rc_confc;
 	return M0_RC(0);
 }
 M0_EXPORTED(m0_spiel_init);
 
 void m0_spiel_fini(struct m0_spiel *spiel)
 {
+	M0_SET0(spiel);
 }
 M0_EXPORTED(m0_spiel_fini);
 
@@ -68,15 +71,15 @@ int m0_spiel_rconfc_start(struct m0_spiel    *spiel,
 	struct m0_rconfc *rconfc = &spiel->spl_rconfc;
 
 	M0_ENTRY();
-	M0_PRE(spiel->spl_rmachine != NULL);
-	M0_PRE(m0_fid_is_set(&spiel->spl_profile));
+	M0_PRE(spiel_rmachine(spiel) != NULL);
+	M0_PRE(m0_fid_is_set(spiel_profile(spiel)));
 
 	rc = m0_rconfc_init(rconfc, m0_locality0_get()->lo_grp,
-			    spiel->spl_rmachine, exp_cb, NULL, NULL);
+			    spiel_rmachine(spiel), exp_cb, NULL, NULL);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_rconfc_start_sync(rconfc, &spiel->spl_profile);
+	rc = m0_rconfc_start_sync(rconfc, spiel_profile(spiel));
 	if (rc != 0) {
 		m0_rconfc_stop_sync(rconfc);
 		m0_rconfc_fini(rconfc);
@@ -100,7 +103,7 @@ int m0_spiel_cmd_profile_set(struct m0_spiel *spiel, const char *profile_str)
 	M0_PRE(spiel != NULL);
 	if (profile_str == NULL)
 		profile_str = "<0:0>";
-	return M0_RC(m0_fid_sscanf(profile_str, &spiel->spl_profile));
+	return M0_RC(m0_fid_sscanf(profile_str, spiel_profile(spiel)));
 }
 M0_EXPORTED(m0_spiel_cmd_profile_set);
 

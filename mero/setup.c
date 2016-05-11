@@ -890,7 +890,7 @@ static int cs_storage_init(const char *stob_type,
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	if (strcasecmp(stob_type, m0_cs_stypes[M0_LINUX_STOB]) == 0) {
+	if (m0_strcaseeq(stob_type, m0_cs_stypes[M0_LINUX_STOB])) {
 		m0_get()->i_reqh_uses_ad_stob = false;
 	} else {
 		m0_get()->i_reqh_uses_ad_stob = true;

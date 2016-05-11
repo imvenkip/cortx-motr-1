@@ -163,7 +163,7 @@ services_start() {
     local CONF_FILE=conf.xc
     local PROCESS_FID='<0x7200000000000001:1>' # process-1
     local OPTS="-P $PROFILE_FID -f $PROCESS_FID -H $HA_ENDPOINT
--m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -F -D db -T linux -S stobs
+-m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -F -D db -T AD -S stobs
 -A linuxstob:addb-stobs -e lnet:$IOS0_ENDPOINT -c $CONF_FILE -w 3"
 
     confdb | $M0CONFGEN >$CONF_FILE || error 'm0confgen failed'
@@ -175,14 +175,15 @@ services_start() {
     local PID=$!
     sleep 2
     kill -0 $PID 2>/dev/null ||
-	error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
+        error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
 }
 
 services_stop() { killall -q lt-m0d && wait || true; }
 
 _mount() {
-    mount -t m0t1fs -o pfid="$M0T1FS_PFID",profile="$PROFILE_FID",ha=$HA_ENDPOINT \
-	  none $SANDBOX_DIR/mnt || return $?
+    mount -t m0t1fs \
+          -o pfid="$M0T1FS_PFID",profile="$PROFILE_FID",ha=$HA_ENDPOINT \
+          none $SANDBOX_DIR/mnt || return $?
 }
 
 spiel_setup() {

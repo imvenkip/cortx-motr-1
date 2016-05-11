@@ -66,6 +66,11 @@ mount_m0t1fs()
 
 	echo "mount | grep m0t1fs"
 	mount | grep m0t1fs
+	local retcode=$?
+	if [ $retcode = 0 ]; then
+	    time df $m0t1fs_mount_dir
+	fi
+	return $retcode
 }
 
 unmount_and_clean()

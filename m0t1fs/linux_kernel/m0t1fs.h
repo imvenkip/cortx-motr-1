@@ -45,8 +45,9 @@
 #include "layout/layout.h"
 #include "ioservice/io_fops.h"   /* m0_fop_cob_create_fopt */
 #include "mdservice/md_fops.h"   /* m0_fop_create_fopt */
-#include "file/file.h"		 /* m0_file */
+#include "file/file.h"           /* m0_file */
 #include "be/ut/helper.h"
+#include "spiel/spiel.h"         /* m0_spiel */
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
 
 /**
@@ -667,7 +668,6 @@ enum io_req_type {
    super_block::s_fs_info points to instance of this type.
  */
 struct m0t1fs_sb {
-
 	struct m0_pools_common                  csb_pools_common;
 
 	/** Total number of containers. */

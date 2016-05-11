@@ -41,6 +41,7 @@
 #include "ioservice/fid_convert.h" /* M0_FID_DEVICE_ID_MAX */
 #include "spiel/spiel.h"
 #include "spiel/conf_mgmt.h"
+#include "spiel/spiel_internal.h"
 #ifndef __KERNEL__
 #  include <stdio.h>           /* FILE, fopen */
 #endif
@@ -311,7 +312,7 @@ static int spiel_load_fop_create(struct m0_spiel_tx           *tx,
 	}
 
 	/* Fill RPC Bulk part of Spiel FOM */
-	nd = tx->spt_spiel->spl_rmachine->rm_tm.ntm_dom;
+	nd = spiel_rmachine(tx->spt_spiel)->rm_tm.ntm_dom;
 	seg_size = m0_net_domain_get_max_buffer_segment_size(nd);
 	/*
 	 * Calculate number of segments for given data size.
@@ -443,7 +444,7 @@ static int wlock_ctx_create(struct m0_spiel *spl)
 		goto err;
 	}
 
-	wlx->wlc_rmach = spl->spl_rmachine;
+	wlx->wlc_rmach = spiel_rmachine(spl);
 	spiel_rwlockable_write_domain_init(wlx);
 	m0_rw_lockable_init(&wlx->wlc_rwlock, &M0_RWLOCK_FID, &wlx->wlc_dom);
 	m0_fid_tgenerate(&wlx->wlc_owner_fid, M0_RM_OWNER_FT);
@@ -708,7 +709,7 @@ int m0_spiel_tx_commit_forced(struct m0_spiel_tx *tx,
 		spiel_cmd[idx].slc_status =
 			m0_rpc_client_connect(&spiel_cmd[idx].slc_connect,
 					      &spiel_cmd[idx].slc_session,
-					      tx->spt_spiel->spl_rmachine,
+					      spiel_rmachine(tx->spt_spiel),
 					      confd_eps[idx], NULL,
 					      MAX_RPCS_IN_FLIGHT) ?:
 			spiel_load_fop_send(tx, &spiel_cmd[idx]);

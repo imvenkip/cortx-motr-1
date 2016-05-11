@@ -57,6 +57,7 @@ M0_INTERNAL const char *m0_fop_name(const struct m0_fop *fop)
 
 static size_t fop_data_size(const struct m0_fop *fop)
 {
+	M0_PRE(fop->f_type->ft_xt != NULL);
 	return fop->f_type->ft_xt->xct_sizeof;
 }
 

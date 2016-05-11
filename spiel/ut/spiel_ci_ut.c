@@ -22,6 +22,7 @@
 #include "lib/trace.h"
 
 #include "spiel/spiel.h"
+#include "spiel/spiel_internal.h"
 #include "spiel/ut/spiel_ut_common.h"
 #include "conf/obj_ops.h"     /* M0_CONF_DIRNEXT */
 #include "module/instance.h"  /* m0_get */
@@ -244,7 +245,7 @@ static void test_spiel_device_cmds(void)
 	 * Now client part m0_spiel_device_xxx command process nonio_disk as
 	 * IO disk, server part process disk as disk from another node.
 	 */
-	spiel_change_svc_type(&spiel.spl_rconfc.rc_confc, &nonio_svc);
+	spiel_change_svc_type(spiel_confc(&spiel), &nonio_svc);
 
 	rc = m0_spiel_device_format(&spiel, &nonio_disk);
 	M0_UT_ASSERT(rc == 0);
