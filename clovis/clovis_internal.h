@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2016 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,7 +14,11 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original author: Nikita Danilov  <nikita_danilov@seagate.com>
+ * AuthorS:         Juan   Gonzalez <juan.gonzalez@seagate.com>
+ *                  James  Morse    <james.s.morse@seagate.com>
+ *                  Sining Wu       <sining.wu@seagate.com>
+ * Revision:        Pratik Shinde   <pratik.shinde@seagate.com>
  * Original creation date: 14-Oct-2013
  */
 
@@ -23,33 +27,659 @@
 #ifndef __MERO_CLOVIS_CLOVIS_INTERNAL_H__
 #define __MERO_CLOVIS_CLOVIS_INTERNAL_H__
 
-void m0_clovis_op_init(struct m0_clovis_op *op,
-		       const struct m0_sm_conf *conf,
-		       struct m0_clovis_entity *entity);
+#ifdef __KERNEL__
+#define M0_CLOVIS_THREAD_ENTER M0_THREAD_ENTER
+#else
+#define M0_CLOVIS_THREAD_ENTER
+#endif
+
+#ifndef M0_CLOVIS_PRE
+#define M0_CLOVIS_PRE(cond, ...) M0_PRE(cond)
+#endif
+
+#define CLOVIS_MOCK
+#define CLOVIS_FOR_M0T1FS
+
+#include "module/instance.h"
+#include "mero/init.h"
+
+#include "ioservice/io_fops.h"  /* m0_io_fop_{init,fini,release} */
+#include "conf/schema.h"        /* m0_conf_service_type */
+#include "conf/confc.h"         /* m0_confc */
+#include "conf/helpers.h"       /* m0_conf_fs_get */
+#include "layout/pdclust.h"     /* struct m0_pdclust_attr */
+#include "pool/pool.h"          /* struct m0_pool */
+#include "reqh/reqh.h"          /* struct m0_reqh */
+#include "rm/rm.h"              /* stuct m0_rm_owner */
+#include "file/file.h"          /* struct m0_file */
+
+/** @todo: remove this - its part of the test framework */
+#include "be/ut/helper.h"       /* struct m0_be_ut_backend */
+
+#include "clovis/clovis.h"      /* m0_clovis_* */
+#include "clovis/clovis_idx.h"  /* m0_clovis_idx_* */
+#include "clovis/pg.h"          /* nwxfer and friends */
+
+struct m0_clovis_idx_service_ctx;
+
+enum m0_clovis_entity_states {
+	M0_CLOVIS_ES_INIT = 1,
+	M0_CLOVIS_ES_CREATING,
+	M0_CLOVIS_ES_DELETING,
+	M0_CLOVIS_ES_OPENING,
+	M0_CLOVIS_ES_OPEN,
+	M0_CLOVIS_ES_CLOSING,
+	M0_CLOVIS_ES_FAILED
+};
+
+
+M0_INTERNAL bool clovis_entity_invariant_locked(struct m0_clovis_entity *ent);
+M0_INTERNAL bool clovis_entity_invariant(struct m0_clovis_entity *ent);
+
 void m0_clovis_op_fini(struct m0_clovis_op *op);
 
-struct m0_clovis_io_op {
-	struct m0_clovis_op ioo_op;
-	struct m0_indexvec  ioo_ext;
-	struct m0_bufvec    ioo_data;
-	struct m0_bufvec    ioo_attr;
-	uint64_t            ioo_attr_mask;
+struct m0_clovis_ast_rc {
+	struct m0_sm_ast        ar_ast;
+	int                     ar_rc;
+	uint64_t                ar_magic;
+
 };
 
-bool m0_clovis_io_op_invariant(const struct m0_clovis_io_op *iop);
+/*
+ * Clovis has a number of nested structures, all of which are passed to the
+ * application as a 'struct m0_clovis_op'. The application may in fact
+ * allocate some of these structures, without knowing what they are, or how
+ * big they should be. 'struct m0_clovis_op' is always the first member, and
+ * contains all the fields the application is permitted to change.
+ *
+ * A 'struct m0_clovis_op' is always contained in a
+ * 'struct m0_clovis_op_common'. This contains the fields that are common to
+ * all operations, namely the launch/executed/finalise callbacks. The
+ * application is not permitted to change (or even see) these.
+ *
+ * Operations then have a different 'super type' depending on whether they are
+ * operating on an object, index or realm.
+ *
+ * Object operations always have a 'struct m0_clovis_op_obj', this represents
+ * the namespace/metadata aspects of the object, such as its layout. Operations
+ * such as create/delete will use this struct as the root 'type' of their work,
+ * as they don't need IO buffers etc.
+ *
+ * 'struct m0_clovis_op_io' is the last (and biggest/highest) type, it contains
+ * the databuf and paritybuf arrays for reading/writing object data.
+ *
+ *                   +---m0_clovis_op_common---+
+ *                   |                          |
+ *                   |    +-m0_clovis_op-+      |
+ *                   |    |              |      |
+ *                   |    +--------------+      |
+ *                   |                          |
+ *                   +--------------------------+
+ *
+ *               \/_                        _\/
+ *
+ * +m0_clovis_op_io---------------+     +m0_clovis_op_idx-------+
+ * | +m0_clovis_op_obj---------+  |     |                       |
+ * | |                         |  |     | [m0_clovis_op_common] |
+ * | |  [m0_clovis_op_common]  |  |     |                       |
+ * | |                         |  |     +-----------------------+
+ * | +-------------------------+  |
+ * |                              |
+ * +------------------------------+
+ *
+ */
+struct m0_clovis_op_common {
+	struct m0_clovis_op    oc_op;
+	uint64_t               oc_magic;
 
-struct m0_clovis_md_op {
-	struct m0_clovis_op mdo_op;
-	struct m0_bufvec    mdo_key;
-	struct m0_bufvec    mdo_val;
-	struct m0_bufvec    mdo_chk;
+#ifdef CLOVIS_MOCK
+	/* Timer used to move sm between states*/
+	struct m0_sm_timer     oc_sm_timer;
+#endif
+
+	void                 (*oc_cb_launch)(struct m0_clovis_op_common *oc);
+	void                 (*oc_cb_replied)(struct m0_clovis_op_common *oc);
+	void                 (*oc_cb_fini)(struct m0_clovis_op_common *oc);
+	void                 (*oc_cb_free)(struct m0_clovis_op_common *oc);
+
+	/* Callback operations for states*/
+	void                 (*oc_cb_executed)(void *args);
+	void                 (*oc_cb_stable)(void *args);
+	void                 (*oc_cb_failed)(void *args);
 };
 
-bool m0_clovis_io_op_invariant(const struct m0_clovis_io_op *mop);
+struct m0_clovis_ios_cob_req {
+	struct m0_clovis_op_obj *icr_oo;
+	uint32_t                 icr_index;
+	struct m0_clovis_ast_rc  icr_ar;
+	uint64_t                 icr_magic;
+};
 
-void m0_clovis_entity_init(struct m0_clovis_entity *ent,
-			   struct m0_clovis_scope  *parent,
-			   const struct m0_uint128 *id);
+/**
+ * An index operation.
+ */
+struct m0_clovis_op_idx {
+	struct m0_clovis_op_common  oi_oc;
+	uint64_t                    oi_magic;
+
+	struct m0_clovis_idx       *oi_idx;
+
+	/* K-V pairs */
+	struct m0_bufvec           *oi_keys;
+	struct m0_bufvec           *oi_vals;
+
+	/* Number of queries sent to index*/
+	int                         oi_nr_queries;
+	bool                        oi_query_rc;
+
+	struct m0_sm_group         *oi_sm_grp;
+	struct m0_clovis_ast_rc     oi_ar;
+};
+
+/**
+ * Generic operation on a clovis object.
+ */
+struct m0_clovis_op_obj {
+	struct m0_clovis_op_common  oo_oc;
+	uint64_t                    oo_magic;
+
+	struct m0_sm_group         *oo_sm_grp;
+	struct m0_clovis_ast_rc     oo_ar;
+
+	struct m0_layout_instance  *oo_layout_instance;
+	struct m0_fid               oo_pver;     /* cob pool version */
+	struct m0_fid               oo_fid;
+#ifdef CLOVIS_FOR_M0T1FS
+	struct m0_fid               oo_pfid;
+	struct m0_buf               oo_name;
+#endif
+
+	/* MDS fop */
+	struct m0_fop              *oo_mds_fop;
+
+	/* COB fop related */
+	uint32_t                    oo_icr_type; /* {M0_COB_MD, M0_COB_IO}*/
+	uint32_t                    oo_icr_nr;
+	struct m0_fop             **oo_ios_fop;
+	bool                       *oo_ios_completed;
+};
+
+/**
+ * An IO operation on a clovis object.
+ */
+struct m0_clovis_op_io {
+	struct m0_clovis_op_obj           ioo_oo;
+	uint64_t                          ioo_magic;
+
+	struct m0_clovis_obj             *ioo_obj;
+	struct m0_indexvec                ioo_ext;
+	struct m0_bufvec                  ioo_data;
+	struct m0_bufvec                  ioo_attr;
+	uint64_t                          ioo_attr_mask;
+
+	/* Object's pool version */
+	struct m0_fid                     ioo_pver;
+
+	/** @todo: remove this */
+	uint32_t                          ioo_rc;
+
+	/**
+	 * Array of struct pargrp_iomap pointers.
+	 * Each pargrp_iomap structure describes the part of parity group
+	 * spanned by segments from ::ir_ivec.
+	 */
+	struct pargrp_iomap             **ioo_iomaps;
+
+	/** Number of pargrp_iomap structures. */
+	uint64_t                          ioo_iomap_nr;
+
+	/** Number of pages to read in RMW */
+	uint64_t                          ioo_rmw_read_pages;
+
+	/** State machine for this io operation */
+	struct m0_sm                      ioo_sm;
+
+	/** Operations for moving along state transitions */
+	const struct m0_clovis_op_io_ops *ioo_ops;
+
+	/**
+	 * flock here is used to get DI details for a file. When a better way
+	 * is found, remove it completely. See cob_init.
+	 */
+	struct m0_file                    ioo_flock;
+
+	/** Network transfer request */
+	struct nw_xfer_request            ioo_nwxfer;
+
+	/**
+	* State of SNS repair process with respect to
+	* file_to_fid(io_request::ir_file).
+	* There are only 2 states possible since Mero client IO path
+	* involves a file-level distributed lock on global fid.
+	*  - either SNS repair is still due on associated global fid.
+	*  - or SNS repair has completed on associated global fid.
+	*/
+	enum sns_repair_state             ioo_sns_state;
+
+	/**
+	 * An array holding ids of failed sessions. The vacant entries are
+	 * marked as ~(uint64_t)0.
+	 * XXX This is a temporary solution. Sould be removed once
+	 * MERO-899 lands into master.
+	 */
+	uint64_t                        *ioo_failed_session;
+
+	/**
+	* Total number of parity-maps associated with this request that are in
+	* degraded mode.
+	*/
+	uint32_t                         ioo_dgmap_nr;
+	bool                             ioo_dgmode_io_sent;
+
+	/**
+	 * Used by copy_{to,from}_application to indicate progress in
+	 * log messages
+	 */
+	uint64_t                         ioo_copied_nr;
+
+	/** Cached map index value from ioreq_iosm_handle_* functions */
+	uint64_t                         ioo_map_idx;
+
+	/** Ast for scheduling the 'next' callback */
+	struct m0_sm_ast                 ioo_ast;
+
+	/** Clink for waiting on another state machine */
+	struct m0_clink                  ioo_clink;
+
+	/** Channel to wait for this operation to be finalised */
+	struct m0_chan                   ioo_completion;
+};
+
+M0_INTERNAL bool m0_clovis_op_io_invariant(const struct m0_clovis_op_io *iop);
+
+struct m0_clovis_op_md {
+	struct m0_clovis_op_common mdo_oc;
+	struct m0_bufvec           mdo_key;
+	struct m0_bufvec           mdo_val;
+	struct m0_bufvec           mdo_chk;
+};
+
+bool m0_clovis_op_md_invariant(const struct m0_clovis_op_md *mop);
+
+union m0_clovis_max_size_op {
+	struct m0_clovis_op_io io;
+	struct m0_clovis_op_md md;
+};
+
+/** miscallaneous constants */
+enum {
+	/*  4K, typical linux/intel page size */
+	CLOVIS_DEFAULT_BUF_SHIFT        = 12,
+	/* 512, typical disk sector */
+	CLOVIS_MIN_BUF_SHIFT            = 9,
+
+	/* RPC */
+	CLOVIS_RPC_TIMEOUT              = 60, /* Seconds */
+	CLOVIS_RPC_MAX_RETRIES          = 60,
+	CLOVIS_RPC_RESEND_INTERVAL      = M0_MKTIME(CLOVIS_RPC_TIMEOUT, 0) /
+					  CLOVIS_RPC_MAX_RETRIES,
+	CLOVIS_MAX_NR_RPC_IN_FLIGHT     = 100,
+
+	CLOVIS_AST_THREAD_TIMEOUT       = 10,
+	CLOVIS_MAX_NR_CONTAINERS        = 1024,
+
+	CLOVIS_MAX_NR_IOS               = 128,
+	CLOVIS_MD_REDUNDANCY            = 3,
+
+	/*
+	 * These constants are used to create buffers acceptable to the
+	 * network code.
+	 */
+	CLOVIS_NETBUF_MASK              = 4096 - 1,
+	CLOVIS_NETBUF_SHIFT             = 12,
+};
+
+/**
+ * The initlift state machine moves in one of these two directions.
+ */
+enum clovis_initlift_direction {
+	CLOVIS_SHUTDOWN = -1,
+	CLOVIS_STARTUP = 1,
+};
+
+/**
+ * m0_clovis represents a clovis 'instance', a connection to a mero cluster.
+ * It is initalised by m0_clovis_init, and finalised with m0_clovis_fini.
+ * Any operation to open a realm requires the clovis instance to be specified,
+ * allowing an application to work with multiple mero clusters.
+ *
+ * The prefix m0c is used over 'ci', to avoid confusion with colibri inode.
+ */
+struct m0_clovis {
+	uint64_t                                m0c_magic;
+
+	/** Mero instance */
+	struct m0                              *m0c_mero;
+
+	/** State machine group used for all operations and entities. */
+	struct m0_sm_group                      m0c_sm_group;
+
+	/** Request handler for the instance*/
+	struct m0_reqh                          m0c_reqh;
+
+	/**
+	 * The following fields picture the pools in mero.
+	 * m0c_pools_common: details about all pools in mero.
+	 * m0c_pool: current pool used by this clovis instance
+	 * m0c_pool_version: current pool version used by this clovis instance
+	 */
+	struct m0_pools_common                  m0c_pools_common;
+	struct m0_pool_version                 *m0c_pool_version;
+
+	/** HA service context. */
+	struct m0_reqh_service_ctx             *m0c_ha_rsctx;
+
+	/** HA session used globally */
+	struct m0_rpc_session                   m0c_ha_sess;
+
+	/** RPC connection HA session operates on */
+	struct m0_rpc_conn                      m0c_ha_conn;
+
+	/** Index service context. */
+	struct m0_clovis_idx_service_ctx        m0c_idx_svc_ctx;
+
+	/**
+	 * Instantaneous count of pending io requests.
+	 * Every io request increments this value while initializing
+	 * and decrements it while finalizing.
+	 */
+	struct m0_atomic64                      m0c_pending_io_nr;
+
+	/** Special thread which runs ASTs from io requests. */
+	/* Also required for confc to connect! */
+	struct m0_thread                        m0c_astthread;
+
+	/** flag used to make the ast thread exit */
+	bool                                    m0c_astthread_active;
+
+	/** Channel on which io waiters can wait. */
+	struct m0_chan                          m0c_io_wait;
+
+#ifdef CLOVIS_FOR_M0T1FS
+	/** Root fid, retrieved from mdservice in mount time. */
+	struct m0_fid                           m0c_root_fid;
+
+	/** Maximal allowed namelen (retrived from mdservice) */
+	int                                     m0c_namelen;
+#endif
+	/** local endpoint address module parameter */
+	char                                   *m0c_laddr;
+	struct m0_net_xprt                     *m0c_xprt;
+	struct m0_net_domain                    m0c_ndom;
+	struct m0_net_buffer_pool               m0c_buffer_pool;
+	struct m0_rpc_machine                   m0c_rpc_machine;
+
+	/** lnet tmid for client ep */
+	size_t                                  m0c_tmid;
+
+	/** Clovis configuration, it takes place of m0t1fs mount options*/
+	struct m0_clovis_config                *m0c_config;
+
+	/**
+	 * m0c_initlift_xxx fields control the progress of init/fini a
+	 * clovis instance.
+	 *  - sm: the state machine for initialising this clovis instance
+	 *  - direction: up or down (init/fini)
+	 *  - rc: the first failure value when aborting initialisation.
+	 */
+	struct m0_sm                            m0c_initlift_sm;
+	enum clovis_initlift_direction          m0c_initlift_direction;
+	int                                     m0c_initlift_rc;
+
+#ifdef CLOVIS_MOCK
+	struct m0_htable                        m0c_mock_entities;
+#endif
+};
+
+/** CPUs semaphore - to control CPUs usage by parity calcs. */
+extern struct m0_semaphore clovis_cpus_sem;
+
+/**
+ * Bob's for shared data structures in files
+ */
+extern const struct m0_bob_type oc_bobtype;
+extern const struct m0_bob_type oo_bobtype;
+extern const struct m0_bob_type op_bobtype;
+extern const struct m0_bob_type ar_bobtype;
+
+M0_BOB_DECLARE(M0_INTERNAL, m0_clovis_op_common);
+M0_BOB_DECLARE(M0_INTERNAL, m0_clovis_op_obj);
+M0_BOB_DECLARE(M0_INTERNAL, m0_clovis_op);
+M0_BOB_DECLARE(M0_INTERNAL, m0_clovis_ast_rc);
+
+/** global init/fini, used by mero/init.c */
+M0_INTERNAL int m0_clovis_global_init(void);
+M0_INTERNAL void m0_clovis_global_fini(void);
+
+/**
+ * Gets the confc from clovis instance.
+ *
+ * @param m0c clovis instance.
+ * @return the confc used by this clovis instance.
+ */
+M0_INTERNAL struct m0_confc* m0_clovis2confc(struct m0_clovis *m0c);
+
+/**
+ * Retrieves the instance sm_group lock from the provided entity's realm's
+ * instance.
+ *
+ * @param ent The entity to dig through.
+ * @return the group lock.
+ */
+M0_INTERNAL struct m0_sm_group *
+m0_clovis_get_group_from_entity(const struct m0_clovis_entity *ent);
+
+/**
+ * Returns the m0_clovis clovis instance, found from the provided object.
+ *
+ * @param object The object to find the instance for.
+ * @return A pointer to the m0_clovis instance.
+ */
+M0_INTERNAL struct m0_clovis *
+m0_clovis_get_instance_from_obj(const struct m0_clovis_obj *obj);
+
+M0_INTERNAL void m0_clovis_op_transaction_committed(struct m0_clovis_op_common *oc);
+M0_INTERNAL void m0_clovis_op_transaction_failed(struct m0_clovis_op_common *oc);
+
+M0_INTERNAL int m0_clovis_op_sm_executed_callback(struct m0_sm *mach);
+M0_INTERNAL int m0_clovis_op_sm_stable_callback(struct m0_sm *mach);
+M0_INTERNAL int m0_clovis_op_sm_failed_callback(struct m0_sm *mach);
+
+/**
+ * Returns the m0_sm_group for a clovis instance, found from the provided entity.
+ *
+ * @param entity The entity to find the instance for.
+ * @return A pointer to the sm group.
+ */
+M0_INTERNAL struct m0_sm_group *
+m0_clovis_get_group_from_entity(const struct m0_clovis_entity *ent);
+
+/**
+ * Returns the m0_sm_group for a clovis instance, found from the provided op.
+ *
+ * @param op The operation to find the instance for.
+ * @return A pointer to the sm group.
+ */
+M0_INTERNAL struct m0_sm_group *
+m0_clovis_get_group_from_op(const struct m0_clovis_op *op);
+
+/**
+ * Returns the m0_clovis clovis instance, found from the provided operation.
+ *
+ * @param op The Operation to find the instance for.
+ * @return A pointer to the m0_clovis instance.
+ */
+M0_INTERNAL struct m0_clovis *
+m0_clovis_get_instance_from_entity(const struct m0_clovis_entity *entity);
+
+/**
+ * Returns the m0_clovis clovis instance, found from the provided operation.
+ *
+ * @param op The Operation to find the instance for.
+ * @return A pointer to the m0_clovis instance.
+ */
+M0_INTERNAL struct m0_clovis *
+m0_clovis_get_instance_from_op(const struct m0_clovis_op *op);
+
+/**
+ * Returns the m0_clovis clovis instance, found from the provided object.
+ *
+ * @param obj The object to find the instance for.
+ * @return A pointer to the m0_clovis instance.
+ */
+M0_INTERNAL struct m0_clovis *
+m0_clovis_get_instance_from_obj(const struct m0_clovis_obj *obj);
+
+/**
+ * Returns the clovis instance associated to an object operation.
+ *
+ * @param oo object operation pointing to the instance.
+ * @return a pointer to the clovis instance associated to the entity.
+ */
+M0_INTERNAL struct m0_clovis*
+m0_clovis_get_instance_from_oo(struct m0_clovis_op_obj *oo);
+
+/* sm conf that needs registering by m0_clovis_init */
+extern struct m0_sm_conf clovis_op_conf;
+extern struct m0_sm_conf clovis_entity_conf;
+
+/* used by the entity code to create operations */
+M0_INTERNAL int m0_clovis_op_alloc(struct m0_clovis_op **op, size_t op_size);
+
+M0_INTERNAL int m0_clovis_op_init(struct m0_clovis_op **op,
+				  const struct m0_sm_conf *conf,
+				  struct m0_clovis_entity *entity);
+
+/* XXX juan: add doxygen */
+M0_INTERNAL void m0_clovis_init_io_op(void);
+
+/**
+ * Checks the data struct holding the AST information  is not malformed
+ * or corrupted.
+ *
+ * @param ar The pointer to AST information.
+ * @return true if the operation is not malformed or false if some error
+ * was detected.
+ */
+M0_INTERNAL bool m0_clovis_op_obj_ast_rc_invariant(struct m0_clovis_ast_rc *ar);
+
+/**
+ * Checks an object operation is not malformed or corrupted.
+ *
+ * @param oo object operation to be checked.
+ * @return true if the operation is not malformed or false if some error
+ * was detected.
+ */
+M0_INTERNAL bool m0_clovis_op_obj_invariant(struct m0_clovis_op_obj *oo);
+
+/**
+ * Retrieves the ios session corresponding to a container_id. The ioservice
+ * for an object is calculated from the container id.
+ *
+ * @param cinst clovis instance.
+ * @param container_id container ID.
+ * @return the session associated to the
+ * @remark container_id == 0 is not valid.
+ */
+M0_INTERNAL struct m0_rpc_session *
+m0_clovis_obj_container_id_to_session(struct m0_pool_version *pv,
+				      uint64_t container_id);
+
+/**
+ * Selects a locality for an operation.
+ *
+ * @param m0c The clovis instance we are working with.
+ * @return the pointer to assigned locality for success
+ *         NULL otherwise.
+ */
+M0_INTERNAL struct m0_locality *
+m0_clovis_locality_pick(struct m0_clovis *cinst);
+
+/**
+ * Sends COB fops to mdservices or ioservices depending on COB operation's
+ * protocol.
+ *
+ * @param oo object operation being processed.
+ * @return 0 if success or an error code otherwise.
+ */
+M0_INTERNAL int m0_clovis_cob_send(struct m0_clovis_op_obj *oo);
+
+/**
+ * Finalises one of the fops used to contact an ioservice.
+ *
+ * @remarks If ios_fop->f_opaque is different to NULL, it is expected to point
+ * to a m0_clovis_ios_cob_req struct.
+ * @param ios_fop fop to be finalised.
+ */
+M0_INTERNAL void m0_clovis_cob_ios_fop_fini(struct m0_fop *ios_fop);
+
+/**
+ * Reads the specified layout from the mds.
+ *
+ * @param m0c The clovis instance we are working with, contains the layout db.
+ * @param lid The layout identifier to read.
+ * @param l_out Where to store the resultant layout.
+ * @return 0 for success, an error code otherwise.
+ */
+M0_INTERNAL int m0_clovis_layout_mds_lookup(struct m0_clovis  *m0c,
+					    uint64_t           lid,
+					    struct m0_layout **l_out);
+
+/**
+ * Initialises an entity.
+ *
+ * @param entity Entity to be initialised.
+ * @param parent Parent realm of the entity.
+ * @param id Identifier of the entity.
+ * @param type Type of the entity.
+ */
+M0_INTERNAL void m0_clovis_entity_init(struct m0_clovis_entity *entity,
+				       struct m0_clovis_realm  *parent,
+				       const struct m0_uint128 *id,
+				       const enum m0_clovis_entity_type type);
+/**
+ * Gets the default layout identifier from confd.
+ *
+ * @param instance The clovis instance containing information of confd.
+ * @return Default layout id.
+ */
+M0_INTERNAL uint64_t
+m0_clovis_obj_default_layout_id_get(struct m0_clovis *instance);
+
+/**
+ * Builds a layout instance using the supplied layout.
+ *
+ * @param cinst clovis instance.
+ * @param layout_id ID of the layout.
+ * @param fid (global) fid of the object this instance is associated to.
+ * @param[out] linst new layout instance.
+ * @return 0 if the operation succeeds or an error code (<0) otherwise.
+ * @remark This function might trigger network traffic.
+ */
+M0_INTERNAL int
+m0_clovis_obj_layout_instance_build(struct m0_clovis *cinst,
+				    const uint64_t layout_id,
+				    const struct m0_fid *fid,
+				    struct m0_layout_instance **linst);
+
+#ifdef CLOVIS_MOCK
+/* these functions are how the mock stores state */
+void mock_init(struct m0_clovis *instance);
+void mock_fini(struct m0_clovis *instance);
+int mock_entity_create(struct m0_clovis *instance, struct m0_uint128 id);
+int mock_entity_delete(struct m0_clovis *instance, struct m0_uint128 id);
+bool mock_entity_exists(struct m0_clovis *instance, struct m0_uint128 id);
+#endif
 
 /** @} end of clovis group */
 
