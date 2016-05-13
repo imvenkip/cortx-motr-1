@@ -61,17 +61,22 @@ static char *server_argv[] = {
 	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 };
 
-static struct m0_rpc_server_ctx sctx = {
-	.rsx_xprts            = &xprt,
-	.rsx_xprts_nr         = 1,
-	.rsx_argv             = server_argv,
-	.rsx_argc             = ARRAY_SIZE(server_argv),
-	.rsx_log_file_name    = SERVER_LOG_NAME,
-};
+static struct m0_rpc_server_ctx sctx;
 
 /* 'inline' is used, to avoid compiler warning if the function is not used
    in file that includes this file.
  */
+static inline void sctx_reset(void)
+{
+	sctx = (struct m0_rpc_server_ctx){
+		.rsx_xprts            = &xprt,
+		.rsx_xprts_nr         = 1,
+		.rsx_argv             = server_argv,
+		.rsx_argc             = ARRAY_SIZE(server_argv),
+		.rsx_log_file_name    = SERVER_LOG_NAME,
+	};
+}
+
 static inline void start_rpc_client_and_server(void)
 {
 	int rc;
@@ -79,6 +84,7 @@ static inline void start_rpc_client_and_server(void)
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
 
+	sctx_reset();
 	rc = m0_rpc_server_start(&sctx);
 	M0_ASSERT(rc == 0);
 

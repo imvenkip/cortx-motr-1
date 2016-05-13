@@ -44,11 +44,12 @@ static void test_m0_rpc_server_start(void)
 	int rc;
 
 	m0_fi_enable_once("m0_cs_init", "fake_error");
+	sctx_reset();
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc != 0);
 
-	M0_SET0(&sctx.rsx_mero_ctx);
 	m0_fi_enable_once("m0_cs_setup_env", "fake_error");
+	sctx_reset();
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc != 0);
 }
@@ -57,6 +58,7 @@ static void test_m0_rpc_client_start(void)
 {
 	int rc;
 
+	sctx_reset();
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 	if (rc != 0)
@@ -128,6 +130,7 @@ static void test_rpclib(void)
 	 * initialized by m0_rpc_server_start().
 	 */
 
+	sctx_reset();
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 	if (rc != 0)

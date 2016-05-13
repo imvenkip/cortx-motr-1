@@ -151,6 +151,7 @@ static void rpc_machine_watch_test(void)
 	struct m0_rpc_machine       *rmach;
 	int                          rc;
 
+	sctx_reset();
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 
