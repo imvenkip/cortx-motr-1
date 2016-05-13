@@ -91,8 +91,7 @@ M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
 				    struct m0_be_op   *op);
 
 
-M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list,
-				     struct m0_be_op   *op);
+M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list);
 
 /*
  * m0_be_link_*() functions follow BE naming pattern

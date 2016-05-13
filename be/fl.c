@@ -101,11 +101,7 @@ static struct m0_be_list *be_fl_list(struct m0_be_fl *fl, unsigned long index)
 
 static bool be_fl_list_is_empty(struct m0_be_fl *fl, unsigned long index)
 {
-	bool empty;
-
-	M0_BE_OP_SYNC(op,
-		      empty = m0_be_list_is_empty(be_fl_list(fl, index), &op));
-	return empty;
+	return m0_be_list_is_empty(be_fl_list(fl, index));
 }
 
 M0_INTERNAL void m0_be_fl_init(struct m0_be_fl *fl, struct m0_be_seg *seg)

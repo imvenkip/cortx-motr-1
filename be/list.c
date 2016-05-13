@@ -163,12 +163,8 @@ M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
 	m0_be_op_done(op);
 }
 
-M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list,
-				     struct m0_be_op   *op)
+M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list)
 {
-	m0_be_op_active(op);
-	m0_be_op_done(op);
-
 	return m0_tlist_is_empty(&list->bl_descr, &list->bl_list);
 }
 
