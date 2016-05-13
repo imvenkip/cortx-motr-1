@@ -1,4 +1,5 @@
 m0ut_objects += \
                 ha/ut/helper.o \
+                ha/ut/link.o \
                 ha/ut/main.o \
                 ha/ut/msg_queue.o

@@ -1,4 +1,9 @@
 m0mero_objects += ha/epoch.o \
+                  ha/ha.o \
+                  ha/link.o \
+                  ha/link_fops.o \
+                  ha/link_fops_xc.o \
+                  ha/link_service.o \
                   ha/msg.o \
                   ha/msg_xc.o \
                   ha/msg_queue.o \

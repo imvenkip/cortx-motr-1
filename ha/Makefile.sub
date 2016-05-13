@@ -1,10 +1,19 @@
 nobase_mero_include_HEADERS += ha/epoch.h \
+                               ha/ha.h \
+                               ha/link.h \
+                               ha/link_fops.h \
+                               ha/link_service.h \
                                ha/msg.h \
                                ha/msg_queue.h \
                                ha/note.h \
                                ha/note_fops.h
 
 mero_libmero_la_SOURCES  += ha/epoch.c \
+                            ha/ha.c \
+                            ha/link.c \
+                            ha/link_fops.c \
+                            ha/link_fops_xc.c \
+                            ha/link_service.c \
                             ha/msg.c \
                             ha/msg_xc.c \
                             ha/msg_queue.c \
@@ -14,6 +23,7 @@ mero_libmero_la_SOURCES  += ha/epoch.c \
                             ha/note_fops_xc.c \
                             ha/note_foms.c
 
-XC_FILES   += ha/msg_xc.h \
+XC_FILES   += ha/link_fops_xc.h \
+              ha/msg_xc.h \
               ha/note_xc.h \
               ha/note_fops_xc.h

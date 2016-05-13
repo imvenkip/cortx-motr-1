@@ -75,6 +75,7 @@
 #include "cm/cm.h"
 #include "stats/stats_fops.h"
 #include "ha/epoch.h"
+#include "ha/ha.h"            /* m0_ha_mod_init */
 #include "xcode/init.h"
 #include "module/instance.h"  /* m0_instance_setup */
 
@@ -200,6 +201,7 @@ struct init_fini_call subsystem[] = {
 #endif /* __KERNEL__ */
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" },
+	{ &m0_ha_mod_init,      &m0_ha_mod_fini,      "ha" },
 };
 
 static void fini_nr(struct init_fini_call *arr, int nr)

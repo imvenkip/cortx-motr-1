@@ -326,7 +326,8 @@ static bool hung_fom_notify(const struct m0_fom *fom)
 	m0_time_t diff;
 
 	if (M0_IN(fom->fo_type->ft_id, (M0_BE_TX_GROUP_OPCODE,
-					M0_ADDB_FOP_OPCODE)))
+					M0_ADDB_FOP_OPCODE,
+					M0_HA_LINK_OUTGOING_OPCODE)))
 	    return true;
 
 	diff = m0_time_sub(m0_time_now(), fom->fo_sm_state.sm_state_epoch);

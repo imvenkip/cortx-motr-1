@@ -50,6 +50,9 @@ enum m0_module_id {
 /* XXX TODO: s/inst/instance/ */
 M0_LOCKERS__DECLARE(M0_INTERNAL, m0_inst, m0, 16);
 
+struct m0_ha;
+struct m0_ha_module;
+
 /**
  * m0 instance.
  *
@@ -93,6 +96,11 @@ struct m0 {
 	 * @see m0_param_source_add(), m0_param_source_del()
 	 */
 	struct m0_tl           i_param_sources;
+
+	struct m0_ha_module   *i_ha_module;
+	struct m0_ha          *i_ha;
+	/** Link to the HA. It's used in Mero code. */
+	struct m0_ha_link     *i_ha_link;
 
 	/*
 	 * XXX TODO: Get rid of the fields below. Use ->i_moddata[] or

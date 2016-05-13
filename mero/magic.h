@@ -459,6 +459,12 @@ enum m0_magic_satchel {
 	M0_HA_MSG_QITEM_MAGIC = 0x334af1f04ead0077,
 	/* m0_halon_interface_internal::hii_magix (deles felizio) */
 	M0_HALON_INTERFACE_MAGIC = 0x33de1e5fe1121077,
+	/* m0_ha_link::hln_service_magic (sessed loofas) */
+	M0_HA_LINK_SERVICE_LINK_MAGIC = 0x335e55ed100fa577,
+	/* ha_link_service::hls_links (boldfaced els) */
+	M0_HA_LINK_SERVICE_HEAD_MAGIC = 0x33b01dfacede1577,
+	/* ha_link_service::hls_magic (silicifies os) */
+	M0_HA_LINK_SERVICE_MAGIC = 0x335111c1f1e50577,
 
 /* ioservice */
 	/* m0_tmp_stob_io_descr::siod_linkage (zealos obsses) */

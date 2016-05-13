@@ -251,6 +251,10 @@ enum M0_RPC_OPCODES {
 	M0_SSS_DEVICE_REQ_OPCODE            = 205,
 	M0_SSS_DEVICE_REP_OPCODE            = 206,
 
+	/** HA link opcodes */
+	M0_HA_LINK_MSG_REQ                  = 207,
+	M0_HA_LINK_MSG_REP                  = 208,
+
 	/*
 	 * Identifiers below are for fop-less foms, not fops.
 	 */
@@ -266,6 +270,7 @@ enum M0_RPC_OPCODES {
 	M0_UT_IOS_OPCODE                    = 1045,
 	M0_RPC_LINK_CONN_OPCODE             = 1046,
 	M0_RPC_LINK_DISC_OPCODE             = 1047,
+	M0_HA_LINK_OUTGOING_OPCODE          = 1048,
 
 	M0_OPCODES_NR                       = 2048
 };

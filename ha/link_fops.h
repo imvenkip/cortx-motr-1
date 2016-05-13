@@ -15,36 +15,43 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Maxim Medved <max.medved@seagate.com>
- * Original creation date: 27-Apr-2016
+ * Original creation date: 18-Apr-2016
  */
 
+#pragma once
+
+#ifndef __MERO_HA_LINK_FOPS_H__
+#define __MERO_HA_LINK_FOPS_H__
+
+#include "fop/fop.h"            /* m0_fop_type */
+#include "xcode/xcode_attr.h"   /* M0_XCA_RECORD */
+
+#include "ha/link.h"            /* m0_ha_msg */
+
+#include "ha/msg_xc.h"          /* XXX m0_ha_msg_xc */
 
 /**
- * @addtogroup ha
+ * @defgroup ha
  *
  * @{
  */
 
-#include "ut/ut.h"
+struct m0_ha_link_msg_fop {
+	struct m0_ha_msg lmf_msg;
+} M0_XCA_RECORD;
 
-extern void m0_ha_ut_msg_queue(void);
+struct m0_ha_link_msg_rep_fop {
+	int lmr_rc;
+} M0_XCA_RECORD;
 
-extern void m0_ha_ut_link_usecase(void);
-extern void m0_ha_ut_link_multithreaded(void);
+extern struct m0_fop_type m0_ha_link_msg_fopt;
+extern struct m0_fop_type m0_ha_link_msg_rep_fopt;
 
-struct m0_ut_suite ha_ut = {
-	.ts_name = "ha-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
-	.ts_tests = {
-		{ "msg_queue",          &m0_ha_ut_msg_queue          },
-		{ "link-usecase",       &m0_ha_ut_link_usecase       },
-		{ "link-multithreaded", &m0_ha_ut_link_multithreaded },
-		{ NULL, NULL },
-	},
-};
+M0_INTERNAL int  m0_ha_link_fops_init(void);
+M0_INTERNAL void m0_ha_link_fops_fini(void);
 
 /** @} end of ha group */
+#endif /* __MERO_HA_LINK_FOPS_H__ */
 
 /*
  *  Local variables:
