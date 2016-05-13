@@ -1029,10 +1029,21 @@ int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
  * spaces no matter what state the storage device is in. Unlike to total, free
  * space includes counts only from storage devices currently known as on-line
  * devices.
+ *
+ * The stats are collected only from the processes which are known to be online
+ * to the moment of m0_spiel_filesystem_stats_fetch() call. The implication is
+ * that the sum of IOS and MDS instances present in configuration under
+ * filesystem object is reported in m0_fs_stats::fs_svc_total, while the number
+ * of polled and replied services is reported in m0_fs_stats::fs_svc_replied. So
+ * the fact of having some processes in the cluster being offline, or failed to
+ * respond correctly, can be detected by the difference between 'service total'
+ * and 'service replied' counters.
  */
 struct m0_fs_stats {
-	m0_bcount_t fs_free;
-	m0_bcount_t fs_total;
+	m0_bcount_t fs_free;        /**< fs free bytes               */
+	m0_bcount_t fs_total;       /**< fs total bytes              */
+	uint32_t    fs_svc_total;   /**< fs total IOS and MDS count  */
+	uint32_t    fs_svc_replied; /**< fs services replied to call */
 };
 
 /**

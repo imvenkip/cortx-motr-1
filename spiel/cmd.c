@@ -1516,6 +1516,7 @@ leave:
  */
 static int spiel__proc_is_to_update_stats(const struct m0_fid *proc_fid,
 					  struct m0_confc     *confc,
+					  uint32_t            *svc_count,
 					  bool                *update)
 {
 	struct m0_conf_diter    it;
@@ -1525,8 +1526,10 @@ static int spiel__proc_is_to_update_stats(const struct m0_fid *proc_fid,
 
 	M0_ENTRY("proc_fid = "FID_F, FID_P(proc_fid));
 	M0_PRE(m0_conf_fid_type(proc_fid) == &M0_CONF_PROCESS_TYPE);
+	M0_PRE(svc_count != NULL);
 	M0_PRE(update != NULL);
 
+	*svc_count = 0;
 	*update = false;
 	rc = m0_confc_open_by_fid_sync(confc, proc_fid, &proc_obj);
 	if (rc != 0)
@@ -1537,18 +1540,19 @@ static int spiel__proc_is_to_update_stats(const struct m0_fid *proc_fid,
 		goto obj_close;
 	while (m0_conf_diter_next_sync(&it, NULL) > 0) {
 		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
-		if (M0_IN(svc->cs_type, (M0_CST_IOS, M0_CST_MDS))) {
-			/*
-			 * There is no point to update process' HA state unless
-			 * the one is expected to host the required services.
-			 */
-			rc = m0_conf_obj_ha_update(m0_ha_session_get(),
-						   proc_fid);
-			if (rc != 0)
-				goto diter_fini;
-			*update = proc_obj->co_ha_state == M0_NC_ONLINE;
-			break;
-		}
+		if (M0_IN(svc->cs_type, (M0_CST_IOS, M0_CST_MDS)))
+			++ *svc_count;
+	}
+	if (*svc_count > 0) {
+		/*
+		 * There is no point to update process' HA state unless
+		 * the one is expected to host the required services.
+		 */
+		rc = m0_conf_obj_ha_update(m0_ha_session_get(),
+					   proc_fid);
+		if (rc != 0)
+			goto diter_fini;
+		*update = proc_obj->co_ha_state == M0_NC_ONLINE;
 	}
 diter_fini:
 	m0_conf_diter_fini(&it);
@@ -1565,6 +1569,12 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 	struct m0_fid        *profile;
 	struct _fs_stats_ctx  fsx;
 	struct m0_fid_item   *proc;
+	/* count of services in the process the stats to be updated by */
+	uint32_t              svc_count;
+	/* total count of IOS and MDS services in the filesystem */
+	uint32_t              svc_total_in_fs = 0;
+	/* count of services successfully polled and replied */
+	uint32_t              svc_replied = 0;
 	bool                  update_stats;
 	int                   rc;
 
@@ -1594,14 +1604,17 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 	/* update stats by the list of found processes */
 	m0_tl_for(m0_fids, &fsx.fx_items, proc) {
 		rc = spiel__proc_is_to_update_stats(&proc->i_fid, confc,
-						    &update_stats);
+						    &svc_count, &update_stats);
 		if (rc != 0)
 			goto err;
+		M0_ASSERT(!update_stats || svc_count > 0);
+		svc_total_in_fs += svc_count;
 		if (!update_stats)
 			continue;
 		spiel__fs_stats_ctx_update(&proc->i_fid, &fsx);
 		if (fsx.fx_rc != 0) {
 			if (fsx.fx_rc == -EOVERFLOW) {
+				svc_replied += svc_count;
 				rc = fsx.fx_rc;
 				goto err;
 			}
@@ -1609,6 +1622,8 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 			       fsx.fx_rc, FID_P(&proc->i_fid));
 			/* unset error code for letting further processing */
 			fsx.fx_rc = 0;
+		} else {
+			svc_replied += svc_count;
 		}
 		/**
 		 * @todo Need to understand if it would make sense from
@@ -1620,6 +1635,8 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
 	*stats = (struct m0_fs_stats) {
 		.fs_free = fsx.fx_free,
 		.fs_total = fsx.fx_total,
+		.fs_svc_total = svc_total_in_fs,
+		.fs_svc_replied = svc_replied,
 	};
 
 	spiel__fs_stats_ctx_fini(&fsx);

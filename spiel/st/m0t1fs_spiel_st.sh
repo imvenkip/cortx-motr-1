@@ -516,8 +516,10 @@ if rc != 0:
                  (status {1})'.format(fids['fs'], rc))
 
 spiel.rconfc_stop()
-print("free space  {0:>20}".format(fs_stats.fs_free))
-print("total space {0:>20}".format(fs_stats.fs_total))
+print("  free space       {0:>20}".format(fs_stats.fs_free))
+print("  total space      {0:>20}".format(fs_stats.fs_total))
+print("  services total   {0:>20}".format(fs_stats.fs_svc_total))
+print("  services replied {0:>20}".format(fs_stats.fs_svc_replied))
 EOF
 }
 
