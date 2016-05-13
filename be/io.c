@@ -286,7 +286,7 @@ M0_INTERNAL void m0_be_io_add(struct m0_be_io *bio,
 	struct m0_be_io_part *bip;
 	bool                  added;
 
-	M0_PRE(m0_be_io__invariant(bio));
+	M0_PRE_EX(m0_be_io__invariant(bio));
 	M0_PRE(bio->bio_used.bic_reg_size + size <=
 	       bio->bio_iocred.bic_reg_size);
 	M0_PRE(bio->bio_used.bic_reg_nr + 1 <= bio->bio_iocred.bic_reg_nr);
@@ -307,7 +307,7 @@ M0_INTERNAL void m0_be_io_add(struct m0_be_io *bio,
 	m0_be_io_credit_add(&bio->bio_used, &M0_BE_IO_CREDIT(1, size, 0));
 	bio->bio_vec_pos += added;
 
-	M0_POST(m0_be_io__invariant(bio));
+	M0_POST_EX(m0_be_io__invariant(bio));
 }
 
 M0_INTERNAL void m0_be_io_add_nostob(struct m0_be_io *bio,
