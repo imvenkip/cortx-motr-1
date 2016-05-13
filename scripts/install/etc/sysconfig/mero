@@ -3,6 +3,14 @@
 #
 # This file is included by mero systemd service scripts.
 
+# Global, operating system level, tweaks required by Mero
+#   Hugepages defragmentation. Allowed values are 'always', 'madvise' and 'never'.
+#   See '/sys/kernel/mm/transparent_hugepage/defrag' for more info.
+#   Tests showed that system's default value, which is 'always', led to a
+#   recurrent performance drop on Mero side at high loads. Whereas value 'never'
+#   gave the best performance results.
+KERNEL_HUGEPAGE_DEFRAG='never'
+
 # Location of Mero logs and trace files, by default it's /var/log/mero.
 #MERO_LOG_DIR='/var/log/mero'
 

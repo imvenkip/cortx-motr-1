@@ -35,6 +35,13 @@ m0_server()
     [[ -r $ha_config   ]]   && source $ha_config
     [[ -r $user_config ]]   && source $user_config
 
+    # apply global system tweaks
+    if [[ -n $KERNEL_HUGEPAGE_DEFRAG ]] ; then
+        local hpdefrag_file='/sys/kernel/mm/transparent_hugepage/defrag'
+        echo "$KERNEL_HUGEPAGE_DEFRAG" > $hpdefrag_file
+        m0_log "$hpdefrag_file: $(cat $hpdefrag_file)"
+    fi
+
     # validate Halon config
     if [[ $service == m0d-* ]] ; then
         [[ -n $MERO_M0D_EP ]] &&
