@@ -50,6 +50,13 @@
  */
 M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz);
 
+/**
+ * Print performance counters: getrusage(), /proc/self/io.
+ *
+ * All errors (can't open file etc.) are silently ignored.
+ */
+M0_INTERNAL void m0_performance_counters(char *buf, size_t buf_len);
+
 #endif /* __MERO_LIB_USER_SPACE_MISC_H__ */
 
 /*
