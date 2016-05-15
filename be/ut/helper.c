@@ -324,7 +324,6 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_log_discard_cfg = {
 			.ldsc_items_max         = 0x100,
 			.ldsc_items_threshold   = 0x80,
-			.ldsc_items_pending_max = 1,
 			.ldsc_loc               = m0_locality0_get(),
 			.ldsc_sync_timeout      = M0_TIME_ONE_SECOND * 5ULL,
 		},

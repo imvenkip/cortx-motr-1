@@ -696,6 +696,8 @@ static int be_domain_start_stop(struct m0_be_domain     *dom,
 	M0_ASSERT(rc == 0);
 	dom->bd_cfg.bc_log_discard_cfg.ldsc_sync    = &be_domain_ldsc_sync;
 	dom->bd_cfg.bc_log_discard_cfg.ldsc_discard = &m0_be_tx_group_discard;
+	dom->bd_cfg.bc_log_discard_cfg.ldsc_items_pending_max =
+		dom->bd_cfg.bc_engine.bec_group_nr;
 	rc = m0_be_log_discard_init(&dom->bd_log_discard,
 				    &dom->bd_cfg.bc_log_discard_cfg);
 	M0_ASSERT(rc == 0);
