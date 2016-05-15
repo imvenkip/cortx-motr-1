@@ -228,6 +228,9 @@ M0_EXPORTED(m0_fop_opcode);
 
 void m0_fop_type_fini(struct m0_fop_type *fopt)
 {
+	M0_ENTRY("name=%s opcode=%"PRIu32" rpc_flags=%"PRIu64,
+		 fopt->ft_name, fopt->ft_rpc_item_type.rit_opcode,
+		 fopt->ft_rpc_item_type.rit_flags);
 	m0_mutex_lock(&fop_types_lock);
 	if (fopt->ft_magix == M0_FOP_TYPE_MAGIC) {
 		m0_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
