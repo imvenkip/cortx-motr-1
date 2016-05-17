@@ -34,7 +34,9 @@
 #include "ut/misc.h"              /* M0_UT_PATH */
 #include "ut/ut.h"
 
-static uint8_t g_num;
+static uint8_t  g_num;
+static uint8_t  g_num_normal[] = {4, 2, 2};
+static uint8_t *g_num_expected = g_num_normal;
 
 static void root_open_test(struct m0_confc *confc)
 {
@@ -243,17 +245,17 @@ static void dir_test(struct m0_confc *confc)
 	g_num = 0;
 	rc = dir_entries_use(procs_dir, _proc_cores_add, NULL);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(g_num == 2);
+	M0_UT_ASSERT(g_num == g_num_expected[0]);
 
 	g_num = 0;
 	rc = dir_entries_use(procs_dir, _proc_cores_add, _proc_has_services);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(g_num == 1);
+	M0_UT_ASSERT(g_num == g_num_expected[1]);
 
 	g_num = 0;
 	while (m0_confc_readdir_sync(procs_dir, &entry) > 0)
 		++g_num;
-	M0_UT_ASSERT(g_num == 2);
+	M0_UT_ASSERT(g_num == g_num_expected[2]);
 
 	m0_confc_close(entry);
 	m0_confc_close(procs_dir);
@@ -407,6 +409,34 @@ static void test_confc_local(void)
 	m0_free(confstr);
 }
 
+static void test_confc_multiword_core_mask(void)
+{
+	struct m0_confc     confc = {};
+	struct m0_conf_obj *obj;
+	char               *confstr = NULL;
+	int                 rc;
+	uint8_t             mw_core_num[] = {12, 10, 2};
+
+	/* load conf with a process having multi-word core mask */
+	rc = m0_file_read(M0_SRC_PATH("conf/ut/multiword-core-mask.xc"),
+			  &confstr);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, confstr);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_confc_open_sync(&obj, confc.cc_root,
+				M0_CONF_ROOT_PROFILES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_PROF]);
+	M0_UT_ASSERT(rc == 0);
+	m0_confc_close(obj);
+	m0_confc_fini(&confc);
+
+	g_num_expected = mw_core_num;
+	confc_test(NULL, NULL, confstr);
+	g_num_expected = g_num_normal;
+	m0_free(confstr);
+}
+
 static void test_confc_net(void)
 {
 	struct m0_rpc_machine mach;
@@ -457,9 +487,10 @@ struct m0_ut_suite confc_ut = {
 	.ts_init  = conf_ut_ast_thread_init,
 	.ts_fini  = conf_ut_ast_thread_fini,
 	.ts_tests = {
-		{ "local",     test_confc_local },
-		{ "net",       test_confc_net },
-		{ "bad-input", test_confc_invalid_input },
+		{ "local",        test_confc_local },
+		{ "mw-core-mask", test_confc_multiword_core_mask },
+		{ "net",          test_confc_net },
+		{ "bad-input",    test_confc_invalid_input },
 		{ NULL, NULL }
 	}
 };

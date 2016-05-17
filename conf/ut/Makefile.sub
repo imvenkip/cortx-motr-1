@@ -15,6 +15,7 @@ ut_libmero_ut_la_SOURCES += \
 
 CONFXC_FILES += \
     conf/ut/duplicated-ids.xc \
+    conf/ut/multiword-core-mask.xc \
     conf/ut/t_bad-ep-process.xc \
     conf/ut/t_bad-ep-service.xc \
     conf/ut/t_dangling.xc \
