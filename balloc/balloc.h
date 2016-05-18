@@ -58,6 +58,14 @@ struct m0_balloc_group_desc {
 	struct m0_format_footer bgd_footer;
 };
 
+/** Linked extents */
+struct m0_lext {
+	/** Is allocated separately from bgi_extents array? */
+	bool                le_is_alloc;
+	struct m0_list_link le_link;
+	struct m0_ext       le_ext;
+};
+
 /**
    In-memory data structure for group
  */
@@ -77,8 +85,10 @@ struct m0_balloc_group_info {
 	struct m0_list          bgi_prealloc_list;
 	/** per-group lock */
 	struct m0_be_mutex      bgi_mutex;
-	/** (bgi_fragments+1) of extents */
-	struct m0_ext          *bgi_extents;
+	/** Array of group extents */
+	struct m0_lext         *bgi_extents;
+	/** List of the same group extents */
+	struct m0_list          bgi_ext_list;
 	struct m0_format_footer bgi_footer;
 };
 
