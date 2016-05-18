@@ -147,7 +147,7 @@ init_m0d:
 	gotsignal = M0_RESULT_STATUS_WORK;
 
 	errno = 0;
-	M0_SET0(&mero_ctx);
+	M0_SET0(&instance);
 	rc = m0_init(&instance);
 	if (rc != 0) {
 		warnx("\n Failed to initialise Mero \n");
@@ -155,6 +155,7 @@ init_m0d:
 	}
 
 start_m0d:
+	M0_SET0(&mero_ctx);
 	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, false);
 	if (rc != 0) {
 		warnx("\n Failed to initialise Mero \n");
