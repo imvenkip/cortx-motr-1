@@ -354,6 +354,31 @@ M0_INTERNAL uint32_t m0_bufvec_pack(struct m0_bufvec *bv)
 	return diff;
 }
 
+M0_INTERNAL int m0_bufvec_splice(const struct m0_bufvec *bvec,
+				 struct m0_buf          *buf)
+{
+	m0_bcount_t nob;
+	m0_bcount_t k;
+	uint32_t    i;
+	int         rc;
+
+	nob = m0_vec_count(&bvec->ov_vec);
+	if (nob == 0) {
+		*buf = M0_BUF_INIT0;
+		return M0_RC(0);
+	}
+	rc = m0_buf_alloc(buf, nob);
+	if (rc != 0)
+		return M0_ERR(-ENOMEM);
+	k = 0;
+	for (i = 0; i < bvec->ov_vec.v_nr; i++) {
+		memcpy((char *)buf->b_addr + k, bvec->ov_buf[i],
+		       bvec->ov_vec.v_count[i]);
+		k += bvec->ov_vec.v_count[i];
+	}
+	return M0_RC(rc);
+}
+
 M0_INTERNAL uint32_t m0_indexvec_pack(struct m0_indexvec *iv)
 {
 	uint32_t new_nr = vec_pack(iv->iv_vec.v_nr, iv->iv_vec.v_count,

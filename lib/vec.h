@@ -248,6 +248,12 @@ M0_INTERNAL void m0_bufvec_free_aligned(struct m0_bufvec *bufvec,
 M0_INTERNAL uint32_t m0_bufvec_pack(struct m0_bufvec *bufvec);
 
 /**
+ * Flattens buffers vector into one buffer.
+ */
+M0_INTERNAL int m0_bufvec_splice(const struct m0_bufvec *bvec,
+				 struct m0_buf          *buf);
+
+/**
  * Allocate memory for index array and counts array in index vector.
  * @param len Number of elements to allocate memory for.
  * @pre   ivec != NULL && len > 0.

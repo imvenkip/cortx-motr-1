@@ -114,6 +114,7 @@ extern struct m0_ut_suite reqh_service_ut;
 extern struct m0_ut_suite rm_ut;
 extern struct m0_ut_suite rm_rcredits_ut;
 extern struct m0_ut_suite rm_rwlock_ut;
+extern struct m0_ut_suite rpc_at_ut;
 extern struct m0_ut_suite rpc_mc_ut;
 extern struct m0_ut_suite rpc_rcv_session_ut;
 extern struct m0_ut_suite rpclib_ut;
@@ -209,6 +210,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &rm_ut, true);
 	m0_ut_add(m, &rm_rcredits_ut, true);
 	m0_ut_add(m, &rm_rwlock_ut, true);
+	m0_ut_add(m, &rpc_at_ut, true);
 	m0_ut_add(m, &rpc_mc_ut, true);
 	m0_ut_add(m, &rpc_rcv_session_ut, true);
 	m0_ut_add(m, &rpclib_ut, true);

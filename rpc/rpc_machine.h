@@ -139,6 +139,15 @@ struct m0_rpc_machine {
 	 * The default value is m0_net_domain_get_max_buffer_size()
 	 */
 	uint32_t                          rm_min_recv_size;
+
+	struct m0_mutex_addb2             rm_lock_stats;
+
+	/**
+	 * RPC bulk cut-off value. If AT buffer size equals or bigger than
+	 * cut-off value, then it's transmitted via RPC bulk mechanism.
+	 * @see m0_rpc_at_buf
+	 */
+	m0_bcount_t                       rm_bulk_cutoff;
 };
 
 /**
@@ -164,6 +173,11 @@ struct m0_rpc_machine {
    @param queue_len Minimum TM receive queue length.
 		    The M0_NET_TM_RECV_QUEUE_DEF_LEN constant provides a
 		    suitable default value.
+
+   @note machine->rm_bulk_cutoff value is initialised to the half of message
+   size aligned to the next page boundary. User is allowed to change this value
+   after initialisation by direct field assignment.
+
    @see m0_rpc_max_msg_size()
  */
 M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,

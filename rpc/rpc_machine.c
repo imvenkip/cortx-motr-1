@@ -128,7 +128,8 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 				    uint32_t colour,
 				    m0_bcount_t msg_size, uint32_t queue_len)
 {
-	int rc;
+	m0_bcount_t max_msg_size;
+	int         rc;
 
 	M0_ENTRY("machine: %p, net_dom: %p, ep_addr: %s, "
 		 "reqh:%p", machine, net_dom, (char *)ep_addr, reqh);
@@ -142,13 +143,17 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 		return M0_ERR(-EINVAL);
 
 	M0_SET0(machine);
+	max_msg_size = m0_rpc_max_msg_size(net_dom, msg_size);
 	machine->rm_reqh	  = reqh;
-	machine->rm_min_recv_size = m0_rpc_max_msg_size(net_dom, msg_size);
+	machine->rm_min_recv_size = max_msg_size;
 
 	rc = __rpc_machine_init(machine);
 	if (rc != 0)
 		return M0_ERR(rc);
 
+	/* Bulk transmission requires data to be page aligned. */
+	machine->rm_bulk_cutoff = M0_FI_ENABLED("bulk_cutoff_4K") ? 4096 :
+				  m0_align(max_msg_size / 2, m0_pagesize_get());
 	machine->rm_stopping = false;
 	rc = M0_THREAD_INIT(&machine->rm_worker, struct m0_rpc_machine *,
 			    NULL, &rpc_worker_thread_fn, machine, "m0_rpc_worker");

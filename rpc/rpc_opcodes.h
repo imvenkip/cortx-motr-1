@@ -279,6 +279,9 @@ enum M0_RPC_OPCODES {
 	M0_RPC_LINK_DISC_OPCODE             = 1047,
 	M0_HA_LINK_OUTGOING_OPCODE          = 1048,
 	M0_HA_ENTRYPOINT_CLIENT_OPCODE      = 1049,
+	M0_UT_RPC_AT_REQ_OPCODE             = 1050,
+	M0_UT_RPC_AT_REP_OPCODE             = 1051,
+
 
 	M0_OPCODES_NR                       = 2048
 };
