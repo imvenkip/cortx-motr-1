@@ -203,7 +203,8 @@ M0_INTERNAL void *m0_stob_addr_pack(const void *buf, uint32_t shift)
 {
 	uint64_t addr = (uint64_t)buf;
 
-	M0_PRE(((addr >> shift) << shift) == addr);
+	M0_ASSERT_INFO(((addr >> shift) << shift) == addr,
+	               "addr=%"PRIx64" shift=%"PRIu32, addr, shift);
 	return (void *)(addr >> shift);
 }
 
@@ -211,7 +212,8 @@ M0_INTERNAL void *m0_stob_addr_open(const void *buf, uint32_t shift)
 {
 	uint64_t addr = (uint64_t)buf;
 
-	M0_PRE(((addr << shift) >> shift) == addr);
+	M0_ASSERT_INFO(((addr << shift) >> shift) == addr,
+	               "addr=%"PRIx64" shift=%"PRIu32, addr, shift);
 	return (void *)(addr << shift);
 }
 
