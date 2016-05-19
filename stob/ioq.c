@@ -444,6 +444,8 @@ static void ioq_queue_submit(struct m0_stob_ioq *ioq)
 		if (got > 0) {
 			put = io_submit(ioq->ioq_ctx, got, evin);
 			if (put < 0)
+				M0_LOG(M0_ERROR, "got=%d put=%d", got, put);
+			if (put < 0)
 				put = 0;
 			ioq_queue_lock(ioq);
 			for (i = put; i < got; ++i)
@@ -499,6 +501,9 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 	struct iocb          *iocb = &qev->iq_iocb;
 	const struct m0_fid  *fid  = m0_stob_fid_get(io->si_obj);
 
+	M0_LOG(M0_DEBUG, "io=%p iocb=%p res=%lx nbytes=%lx",
+	       io, iocb, (unsigned long)res, (unsigned long)qev->iq_nbytes);
+
 	M0_ASSERT(!m0_queue_link_is_in(&qev->iq_linkage));
 	M0_ASSERT(io->si_state == SIS_BUSY);
 	M0_ASSERT(m0_atomic64_get(&lio->si_done) < lio->si_nr);
@@ -520,8 +525,6 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 		ioq_io_error(ioq, qev);
 	}
 
-	M0_LOG(M0_DEBUG, "res=%lx nbytes=%lx", (unsigned long)res,
-	       (unsigned long)qev->iq_nbytes);
 	/* short read. */
 	if (io->si_opcode == SIO_READ && res >= 0 && res < qev->iq_nbytes) {
 		/* fill the rest of the user buffer with zeroes. */

@@ -92,6 +92,8 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 	M0_PRE(m0_stob_io_stob_is_valid(iv));
 	M0_PRE(ergo(io->si_opcode == SIO_WRITE, io->si_fol_frag != NULL));
 
+	M0_ENTRY("stob=%p so_id="STOB_ID_F" si_opcode=%d io=%p tx=%p",
+		 obj, STOB_ID_P(m0_stob_id_get(obj)), io->si_opcode, io, tx);
 	M0_ADDB2_ADD(M0_AVI_STOB_IO_LAUNCH, FID_P(fid),
 		     m0_vec_count(&bv->ov_vec),
 		     bv->ov_vec.v_nr, iv->iv_vec.v_nr, iv->iv_index[0]);

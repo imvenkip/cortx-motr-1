@@ -1810,7 +1810,8 @@ static int stob_ad_io_launch(struct m0_stob_io *io)
 	/* only read-write at the moment */
 	M0_ASSERT(io->si_opcode == SIO_READ || io->si_opcode == SIO_WRITE);
 
-	M0_ENTRY("op=%d", io->si_opcode);
+	M0_ENTRY("op=%d stob_id="STOB_ID_F,
+		 io->si_opcode, STOB_ID_P(&io->si_obj->so_id));
 
 	adom = stob_ad_domain2ad(m0_stob_dom_get(io->si_obj));
 	rc = stob_ad_cursors_init(io, adom, &it, &src, &dst, &map);
