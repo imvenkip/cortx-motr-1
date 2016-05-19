@@ -138,6 +138,10 @@ enum m0_balloc_super_block_version {
 	M0_BALLOC_SB_VERSION = 1ULL,
 };
 
+enum {
+	M0_BALLOC_BUDDY_LOOKUP_MAX = 10,
+};
+
 /**
    BE-backed in-memory data structure for the balloc environment.
 

@@ -1062,11 +1062,12 @@ static int balloc_find_extent_buddy(struct m0_balloc_allocation_context *bac,
 				    m0_bcount_t len,
 				    struct m0_ext *ex)
 {
+	int                              found = 0;
 	struct m0_balloc_super_block	*sb    = &bac->bac_ctxt->cb_sb;
-	m0_bcount_t			 found = 0;
+	m0_bcount_t                      flen;
 	m0_bindex_t			 start;
 	m0_bindex_t			 end;
-	struct m0_ext			*fragment;
+	struct m0_ext			*frag;
 	struct m0_lext			*le;
 	struct m0_ext			 min = {
 						.e_start = 0,
@@ -1077,8 +1078,12 @@ static int balloc_find_extent_buddy(struct m0_balloc_allocation_context *bac,
 	start = grp->bgi_groupno << sb->bsb_gsbits;
 	end   = (grp->bgi_groupno + 1) << sb->bsb_gsbits;
 
+	M0_LOG(M0_DEBUG, "start=%lu len=%lu", start, len);
+
 	m0_list_for_each_entry(&grp->bgi_ext_list, le, struct m0_lext,le_link) {
-		fragment = &le->le_ext;
+		frag = &le->le_ext;
+		flen = m0_ext_length(frag);
+		M0_LOG(M0_DEBUG, "frag="EXT_F, EXT_P(frag));
 repeat:
 		/*
 		{
@@ -1088,19 +1093,20 @@ repeat:
 			(unsigned long long)start,
 			(int)len, (int)len);
 			(void)msg;
-			balloc_debug_dump_extent(msg, fragment);
+			balloc_debug_dump_extent(msg, frag);
 			}
 		*/
-		if ((fragment->e_start == start) &&
-		       (m0_ext_length(fragment) >= len)) {
-			found = 1;
-			if (m0_ext_length(fragment) < m0_ext_length(&min))
-				min = *fragment;
+		if (frag->e_start == start && flen >= len) {
+			++found;
+			if (flen < m0_ext_length(&min))
+				min = *frag;
+			if (flen == len || found > M0_BALLOC_BUDDY_LOOKUP_MAX)
+				break;
 		}
-		if (fragment->e_start > start) {
+		if (frag->e_start > start) {
 			do {
 				start += len;
-			} while (fragment->e_start > start);
+			} while (frag->e_start > start);
 			if (start >= end)
 				break;
 			/* we changed the 'start'. let's restart searching. */
@@ -1108,7 +1114,7 @@ repeat:
 		}
 	}
 
-	if (found)
+	if (found > 0)
 		*ex = min;
 
 	return found;
