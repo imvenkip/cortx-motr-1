@@ -23,9 +23,13 @@ HALON_FACTS_YAML=${HALON_FACTS_YAML:-halon_facts.yaml}
 
 HOSTNAME="`hostname`"
 
+USE_SYSTEM_MERO=""
+
 show_help() {
 	cat << EOF
-Usage: $0 [-h] [-?] [-c COMMAND] [-c COMMAND] ...
+Usage: $0 [-h] [-?] [-s] [-c COMMAND] [-c COMMAND] ...
+
+-s            - Use system-installed mero.
 
 COMMAND - one of the following:
 
@@ -71,8 +75,10 @@ function cluster_start() {
 	stop_everything
 	sudo rm -rf halon-persistence
 
-	sudo scripts/install-mero-service -u
-	sudo scripts/install-mero-service -l
+        [ -z $USE_SYSTEM_MERO ] && {
+		sudo scripts/install-mero-service -u
+		sudo scripts/install-mero-service -l
+	}
 	sudo utils/m0setup -v -P 6 -N 2 -K 1 -i 1 -d /var/mero/img -s 128 -c
 	sudo utils/m0setup -v -P 6 -N 2 -K 1 -i 1 -d /var/mero/img -s 128
 
@@ -109,7 +115,7 @@ main() {
 		echo "Running cluster_start command"
 		cluster_start
 	fi
-	while getopts "h?c:" opt; do
+	while getopts "h?sc:" opt; do
 		case "$opt" in
 		h|\?)
 			show_help
@@ -117,6 +123,9 @@ main() {
 		c)
 			COMMAND=$OPTARG
 			run_command $COMMAND
+			;;
+		s)
+			USE_SYSTEM_MERO=y
 			;;
 		esac
 		COMMAND=""
