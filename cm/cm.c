@@ -607,7 +607,7 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 	int                         rc = -ENOENT;
 	struct m0_pools_common     *pc;
 	struct m0_reqh_service_ctx *ctx;
-	struct m0_conf_obj         *svc_obj;
+        struct m0_conf_obj         *svc_obj;
 	uint32_t                    proxy_cnt = 0;
 
 	M0_PRE(cm != NULL && rmach != NULL && reqh != NULL);
@@ -624,14 +624,10 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 				ctx->sc_type);
 		if (strcmp(lep, dep) == 0 || ctx->sc_type != M0_CST_IOS)
 			continue;
-		rc = m0_conf_obj_find_lock(&pc->pc_confc->cc_cache,
-					   &ctx->sc_fid, &svc_obj);
-		if (rc != 0)
-			return M0_ERR(rc);
-		if (svc_obj->co_ha_state != M0_NC_ONLINE) {
-			M0_LOG(M0_INFO, "Service down at endpoint %s", dep);
-			continue;
-		}
+                rc = m0_conf_obj_find_lock(&pc->pc_confc->cc_cache,
+                                           &ctx->sc_fid, &svc_obj);
+                if (rc != 0)
+                        return M0_ERR(rc);
 		M0_ALLOC_PTR(pxy);
 		if (pxy == NULL)
 			return M0_ERR(-ENOMEM);
