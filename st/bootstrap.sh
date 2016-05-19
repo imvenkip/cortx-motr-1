@@ -95,14 +95,12 @@ function cluster_start() {
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 bootstrap satellite -t $IP:9000
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster load \
 					-f $HALON_FACTS_YAML -r $HALON_ROLE_MAPS
-	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster start
-	sleep 120
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster start && sleep 120
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster status
 }
 
 function cluster_stop() {
-	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster stop
-	sleep 180
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster stop && sleep 180
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster status &
 	sleep 5
 	stop_everything
