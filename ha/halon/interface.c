@@ -129,6 +129,61 @@ void m0_halon_interface_fini(struct m0_halon_interface *hi)
 	M0_LEAVE();
 }
 
+int m0_halon_interface_start(struct m0_halon_interface *hi,
+                             const char                *local_rpc_endpoint,
+                             void                     (*entrypoint_request_cb)
+				(struct m0_halon_interface         *hi,
+				 const struct m0_ha_entrypoint_req *req,
+				 const char             *remote_rpc_endpoint),
+			     void                     (*msg_received_cb)
+				(struct m0_halon_interface *hi,
+				 struct m0_ha_link         *hl,
+				 struct m0_ha_msg          *msg,
+				 uint64_t                   tag),
+			     void                     (*msg_is_delivered_cb)
+				(struct m0_halon_interface *hi,
+				 struct m0_ha_link         *hl,
+				 uint64_t                   tag),
+			     void                     (*msg_is_not_delivered_cb)
+				(struct m0_halon_interface *hi,
+				 struct m0_ha_link         *hl,
+				 uint64_t                   tag))
+{
+	return 0;
+}
+
+void m0_halon_interface_stop(struct m0_halon_interface *hi)
+{
+}
+
+void m0_halon_interface_entrypoint_reply(
+                struct m0_halon_interface          *hi,
+                const struct m0_ha_entrypoint_req  *req,
+                int                                 rc,
+                int                                 confd_fid_size,
+                const struct m0_fid                *confd_fid_data,
+                int                                 confd_eps_size,
+                const char                        **confd_eps_data,
+                const struct m0_fid                *rm_fid,
+                const char                         *rm_eps,
+                struct m0_ha_link                 **hl_ptr)
+{
+	*hl_ptr = NULL;
+}
+
+void m0_halon_interface_send(struct m0_halon_interface *hi,
+                             struct m0_ha_link         *hl,
+                             struct m0_ha_msg          *msg,
+                             uint64_t                  *tag)
+{
+}
+
+void m0_halon_interface_delivered(struct m0_halon_interface *hi,
+                                  struct m0_ha_link         *hl,
+                                  struct m0_ha_msg          *msg)
+{
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of ha group */

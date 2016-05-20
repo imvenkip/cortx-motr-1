@@ -144,8 +144,13 @@ m0_gvertice_type_register
 m0_garc_type_register
 m0_garc_type_pair_register
 m0_garc_type_add
+m0_halon_interface_delivered
+m0_halon_interface_entrypoint_reply
 m0_halon_interface_fini
 m0_halon_interface_init
+m0_halon_interface_send
+m0_halon_interface_start
+m0_halon_interface_stop
 m0_init
 m0_locality_call
 m0_locality_chore_fini

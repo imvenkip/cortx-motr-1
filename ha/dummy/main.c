@@ -29,6 +29,7 @@
 #include "lib/trace.h"
 
 #include "lib/assert.h"                 /* M0_ASSERT */
+#include "lib/misc.h"                   /* NULL */
 #include "ha/halon/interface.h"         /* m0_halon_interface */
 
 int main(int argc, char *argv[])
@@ -38,6 +39,9 @@ int main(int argc, char *argv[])
 
 	rc = m0_halon_interface_init(&hi, "", "", true);
 	M0_ASSERT(rc == 0);
+	rc = m0_halon_interface_start(&hi, "", NULL, NULL, NULL, NULL);
+	M0_ASSERT(rc == 0);
+	m0_halon_interface_stop(&hi);
 	m0_halon_interface_fini(&hi);
 	return 0;
 }
