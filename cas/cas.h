@@ -31,6 +31,8 @@
 #include "lib/buf_xc.h"
 #include "lib/cookie.h"
 #include "lib/cookie_xc.h"
+#include "rpc/at.h"         /* m0_rpc_at_buf */
+#include "rpc/at_xc.h"      /* m0_rpc_at_buf_xc */
 
 /**
  * @page cas-fspec The catalogue service (CAS)
@@ -101,6 +103,22 @@ struct m0_cas_id {
 } M0_XCA_RECORD;
 
 /**
+ * Key/value pair of RPC AT buffers.
+ */
+struct m0_cas_kv {
+	struct m0_rpc_at_buf ck_key;
+	struct m0_rpc_at_buf ck_val;
+} M0_XCA_RECORD;
+
+/**
+ * Vector of key/value RPC AT buffers.
+ */
+struct m0_cas_kv_vec {
+	uint64_t          cv_nr;
+	struct m0_cas_kv *cv_rec;
+} M0_XCA_SEQUENCE;
+
+/**
  * CAS index record.
  */
 struct m0_cas_rec {
@@ -111,7 +129,8 @@ struct m0_cas_rec {
 	 * It's empty in replies for GET, DEL, PUT requests and non-empty for
 	 * CUR reply.
 	 */
-	struct m0_buf      cr_key;
+	struct m0_rpc_at_buf cr_key;
+
 	/**
 	 * Record value.
 	 *
@@ -120,11 +139,26 @@ struct m0_cas_rec {
 	 * meta-index and filled otherwise. If operation is successful then
 	 * replies for GET, CUR have this field set.
 	 */
-	struct m0_buf      cr_val;
+	struct m0_rpc_at_buf cr_val;
+
+	/**
+	 * Vector of AT buffers to request key/value buffers in CUR request.
+	 *
+	 * CUR request only specifies the starting key in cr_key. If several
+	 * keys/values from reply should be transferred via bulk, then request
+	 * should have descriptors for them => vector is required.
+	 *
+	 * For now, vector size is either 0 (inline transmission is requested
+	 * for all records) or equals to cr_rc (individual AT transmission
+	 * method for every key/value).
+	 */
+	struct m0_cas_kv_vec cr_kv_bufs;
+
 	/**
 	 * Optional hint to speed up access.
 	 */
-	struct m0_cas_hint cr_hint;
+	struct m0_cas_hint   cr_hint;
+
 	/**
 	 * In GET, DEL, PUT replies, return code for the operation on this
 	 * record. In CUR request, the number of consecutive records to return.
@@ -144,7 +178,7 @@ struct m0_cas_rec {
 	 * will be for K1. Current implementation will add final 5 zeroed
 	 * records.
 	 */
-	uint64_t           cr_rc;
+	uint64_t             cr_rc;
 } M0_XCA_RECORD;
 
 /**
@@ -165,6 +199,7 @@ struct m0_cas_recv {
 struct m0_cas_op {
 	/** Index to make operation in. */
 	struct m0_cas_id   cg_id;
+
 	/**
 	 * Array of input records.
 	 *
@@ -193,6 +228,7 @@ struct m0_cas_rep {
 	 * be obtained through m0_cas_rep::cgr_rep::cg_rec::cr_rc.
 	 */
 	int32_t            cgr_rc;
+
 	/**
 	 * Array of operation results for each input record.
 	 *

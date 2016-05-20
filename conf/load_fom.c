@@ -428,7 +428,7 @@ static int conf_buffer_free(struct m0_fom *fom)
 
 	conf_fop = m0_conf_fop_to_load_fop(fom->fo_fop);
 
-	if( conf_fop->clf_desc.bdd_desc.nbd_data != NULL) {
+	if (conf_fop->clf_desc.bdd_desc.nbd_data != NULL) {
 		m0_free(conf_fop->clf_desc.bdd_desc.nbd_data);
 		conf_fop->clf_desc.bdd_desc.nbd_len = 0;
 	}

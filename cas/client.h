@@ -52,7 +52,7 @@ struct m0_rpc_session;
  *   For example to request value by a single key:
  *   m0_cas_get(req, index, key);
  * - Wait asynchronously or synchronously until req->ccr_sm reaches
- *   CASREQ_REPLIED or CASREQ_FAILURE state;
+ *   CASREQ_FINAL or CASREQ_FAILURE state;
  * - Check return code of operation with m0_cas_req_generic_rc(req);
  * - If return code is 0, then obtain request-specific reply.
  *   M0_ASSERT(m0_cas_req_nr(req) == 1);
@@ -107,7 +107,8 @@ enum m0_cas_req_state {
 	CASREQ_INVALID,
 	CASREQ_INIT,
 	CASREQ_INPROGRESS,
-	CASREQ_REPLIED,
+	CASREQ_ASSEMBLY,
+	CASREQ_FINAL,
 	CASREQ_FAILURE,
 	CASREQ_NR
 };
@@ -117,20 +118,32 @@ enum m0_cas_req_state {
  */
 struct m0_cas_req {
 	/** CAS request state machine. */
-	struct m0_sm           ccr_sm;
+	struct m0_sm            ccr_sm;
 
 	/* Private fields. */
 
 	/** RPC session with remote CAS service. */
-	struct m0_rpc_session *ccr_sess;
+	struct m0_rpc_session  *ccr_sess;
 	/** FOP carrying CAS request. */
-	struct m0_fop          ccr_fop;
+	struct m0_fop           ccr_fop;
+	/**
+	 * FOP to assemble key/values that weren't fit
+	 * in the first server reply.
+	 */
+	struct m0_fop           ccr_asmbl_fop;
 	/** RPC reply item. */
-	struct m0_rpc_item    *ccr_reply_item;
+	struct m0_rpc_item     *ccr_reply_item;
 	/** AST to post RPC-related events. */
-	struct m0_sm_ast       ccr_replied_ast;
+	struct m0_sm_ast        ccr_replied_ast;
 	/** AST to move sm to failure state. */
-	struct m0_sm_ast       ccr_failure_ast;
+	struct m0_sm_ast        ccr_failure_ast;
+	/** Requested keys. */
+	const struct m0_bufvec *ccr_keys;
+	/**
+	 * Key indices from original request that are present in assemble
+	 * request. It's used only to assemble "GET" request.
+	 */
+	uint64_t               *ccr_asmbl_ikeys;
 };
 
 /**
@@ -205,11 +218,11 @@ M0_INTERNAL void m0_cas_req_init(struct m0_cas_req     *req,
  *
  * It's not allowed to call it when request is in progress.
  * Once one of request functions is called, user should wait until SM reaches
- * CASREQ_REPLIED or CASREQ_FAILURE state. There is no way to cancel current
+ * CASREQ_FINAL or CASREQ_FAILURE state. There is no way to cancel current
  * operation.
  *
  * @pre M0_IN(req->ccr_sm.sm_state,
- *	      (CASREQ_INIT, CASREQ_REPLIED, CASREQ_FAILURE))
+ *	      (CASREQ_INIT, CASREQ_FINAL, CASREQ_FAILURE))
  * @pre m0_cas_req_is_locked(req)
  * @post M0_IS0(req)
  */
@@ -219,7 +232,7 @@ M0_INTERNAL void m0_cas_req_fini(struct m0_cas_req *req);
  * The same as m0_cas_req_fini(), but takes CAS request lock internally.
  *
  * @pre M0_IN(req->ccr_sm.sm_state,
- *	      (CASREQ_INIT, CASREQ_REPLIED, CASREQ_FAILURE))
+ *	      (CASREQ_INIT, CASREQ_FINAL, CASREQ_FAILURE))
  * @post M0_IS0(req)
  */
 M0_INTERNAL void m0_cas_req_fini_lock(struct m0_cas_req *req);
@@ -243,7 +256,7 @@ M0_INTERNAL bool m0_cas_req_is_locked(const struct m0_cas_req *req);
  * Gets request execution return code.
  *
  * Should be called only after request processing is finished, i.e.
- * CAS request is in CASREQ_REPLIED or CASREQ_FAILURE state.
+ * CAS request is in CASREQ_FINAL or CASREQ_FAILURE state.
  *
  * This return code is generic in sense that it doesn't take into account
  * return codes of operations on individual request records. These codes

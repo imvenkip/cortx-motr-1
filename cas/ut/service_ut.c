@@ -38,9 +38,13 @@
 #include "be/ut/helper.h"                 /* m0_be_ut_backend */
 
 #include "cas/cas.h"
+#include "rpc/at.h"
 
 #define IFID(x, y) M0_FID_TINIT('i', (x), (y))
 #define FIDBUF(fid) M0_BUF_INIT(sizeof *(fid), (fid))
+#define FID_ATBUF(fid) \
+	((struct m0_rpc_at_buf) { .ab_type  = M0_RPC_AT_INLINE, \
+				  .u.ab_buf = FIDBUF(fid) })
 
 enum { N = 4096 };
 
@@ -67,10 +71,17 @@ static void rep_clear(void)
 	rep.cgr_rep.cr_nr  = 0;
 	rep.cgr_rep.cr_rec = repv;
 	for (i = 0; i < ARRAY_SIZE(repv); ++i) {
-		m0_buf_free(&repv[i].cr_key);
-		m0_buf_free(&repv[i].cr_val);
+		m0_rpc_at_fini(&repv[i].cr_key);
+		m0_rpc_at_fini(&repv[i].cr_val);
 		repv[i].cr_rc = -EINVAL;
 	}
+}
+
+static int at_inline_fill(struct m0_rpc_at_buf *dst, struct m0_rpc_at_buf *src)
+{
+	dst->ab_type = src->ab_type;
+	dst->u.ab_buf = M0_BUF_INIT0;
+	return m0_buf_copy(&dst->u.ab_buf, &src->u.ab_buf);
 }
 
 static void reqh_init(void)
@@ -219,9 +230,9 @@ static void cb_done(struct m0_fom *fom)
 
 		repv[i].cr_hint = rec->cr_hint;
 		repv[i].cr_rc   = rec->cr_rc;
-		rc = m0_buf_copy(&repv[i].cr_key, &rec->cr_key);
+		rc = at_inline_fill(&repv[i].cr_key, &rec->cr_key);
 		M0_UT_ASSERT(rc == 0);
-		rc = m0_buf_copy(&repv[i].cr_val, &rec->cr_val);
+		rc = at_inline_fill(&repv[i].cr_val, &rec->cr_val);
 		M0_UT_ASSERT(rc == 0);
 	}
 	m0_ref_put(&fom->fo_fop->f_ref);
@@ -277,9 +288,9 @@ enum {
 
 static bool rec_check(const struct m0_cas_rec *rec, int rc, int key, int val)
 {
-	return  ergo(rc  != BANY, rc == rec->cr_rc) &&
-		ergo(key != BANY, m0_buf_is_set(&rec->cr_key) == key) &&
-		ergo(val != BANY, m0_buf_is_set(&rec->cr_val) == val);
+	return ergo(rc  != BANY, rc == rec->cr_rc) &&
+	       ergo(key != BANY, m0_rpc_at_is_set(&rec->cr_key) == key) &&
+	       ergo(val != BANY, m0_rpc_at_is_set(&rec->cr_val) == val);
 }
 
 static bool rep_check(int recno, uint64_t rc, int key, int val)
@@ -291,7 +302,7 @@ static void meta_submit(struct m0_fop_type *fopt, struct m0_fid *index)
 {
 	fop_submit(fopt, &m0_cas_meta_fid,
 		   (struct m0_cas_rec[]) {
-			   { .cr_key = FIDBUF(index) },
+			   { .cr_key = FID_ATBUF(index)},
 			   { .cr_rc = ~0ULL } });
 	M0_UT_ASSERT(ergo(!mt, rep.cgr_rc == 0));
 	M0_UT_ASSERT(ergo(!mt, rep.cgr_rep.cr_nr == 1));
@@ -319,8 +330,8 @@ static void meta_lookup_2none(void)
 	init();
 	fop_submit(&cas_get_fopt, &m0_cas_meta_fid,
 		   (struct m0_cas_rec[]) {
-			   { .cr_key = FIDBUF(&nonce0) },
-			   { .cr_key = FIDBUF(&nonce1) },
+			   { .cr_key = FID_ATBUF(&nonce0) },
+			   { .cr_key = FID_ATBUF(&nonce1) },
 			   { .cr_rc = ~0ULL } });
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 2);
@@ -340,7 +351,7 @@ static void meta_lookup_Nnone(void)
 
 	for (i = 0; i < ARRAY_SIZE(nonce); ++i) {
 		nonce[i] = IFID(2, 3 + i);
-		op[i].cr_key = FIDBUF(&nonce[i]);
+		op[i].cr_key = FID_ATBUF(&nonce[i]);
 	}
 	op[i].cr_rc = ~0ULL;
 
@@ -435,12 +446,12 @@ static void meta_cur_1(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fop_submit(&cas_cur_fopt, &m0_cas_meta_fid,
 		   (struct m0_cas_rec[]) {
-			   { .cr_key = FIDBUF(&ifid), .cr_rc = 1 },
+			   { .cr_key = FID_ATBUF(&ifid), .cr_rc = 1 },
 			   { .cr_rc = ~0ULL } });
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep_check(0, 1, BSET, BUNSET));
-	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.b_addr, &ifid));
+	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.u.ab_buf.b_addr, &ifid));
 	fini();
 }
 
@@ -454,13 +465,13 @@ static void meta_cur_eot(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fop_submit(&cas_cur_fopt, &m0_cas_meta_fid,
 		   (struct m0_cas_rec[]) {
-			   { .cr_key = FIDBUF(&ifid), .cr_rc = 2 },
+			   { .cr_key = FID_ATBUF(&ifid), .cr_rc = 2 },
 			   { .cr_rc = ~0ULL } });
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 2);
 	M0_UT_ASSERT(rep_check(0, 1, BSET, BUNSET));
 	M0_UT_ASSERT(rep_check(1, -ENOENT, BUNSET, BUNSET));
-	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.b_addr, &ifid));
+	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.u.ab_buf.b_addr, &ifid));
 	fini();
 }
 
@@ -474,7 +485,7 @@ static void meta_cur_0(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fop_submit(&cas_cur_fopt, &m0_cas_meta_fid,
 		   (struct m0_cas_rec[]) {
-			   { .cr_key = FIDBUF(&ifid), .cr_rc = 0 },
+			   { .cr_key = FID_ATBUF(&ifid), .cr_rc = 0 },
 			   { .cr_rc = ~0ULL } });
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 0);
@@ -489,7 +500,7 @@ static void meta_cur_empty(void)
 	init();
 	fop_submit(&cas_cur_fopt, &m0_cas_meta_fid,
 		   (struct m0_cas_rec[]) {
-			   { .cr_key = FIDBUF(&ifid), .cr_rc = 1 },
+			   { .cr_key = FID_ATBUF(&ifid), .cr_rc = 1 },
 			   { .cr_rc = ~0ULL } });
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
@@ -507,7 +518,7 @@ static void meta_cur_none(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fop_submit(&cas_cur_fopt, &m0_cas_meta_fid,
 		   (struct m0_cas_rec[]) {
-			   { .cr_key = FIDBUF(&IFID(8, 9)), .cr_rc = 3 },
+			   { .cr_key = FID_ATBUF(&IFID(8,9)), .cr_rc = 3 },
 			   { .cr_rc = ~0ULL } });
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 3);
@@ -529,15 +540,16 @@ static void meta_cur_all(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fop_submit(&cas_cur_fopt, &m0_cas_meta_fid,
 		   (struct m0_cas_rec[]) {
-			   { .cr_key = FIDBUF(&m0_cas_meta_fid), .cr_rc = 3 },
-			   { .cr_rc = ~0ULL } });
+			{ .cr_key = FID_ATBUF(&m0_cas_meta_fid), .cr_rc = 3 },
+			{ .cr_rc = ~0ULL } });
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 3);
 	M0_UT_ASSERT(rep_check(0, 1, BSET, BUNSET));
 	M0_UT_ASSERT(rep_check(1, 2, BSET, BUNSET));
 	M0_UT_ASSERT(rep_check(2, -ENOENT, BUNSET, BUNSET));
-	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.b_addr, &m0_cas_meta_fid));
-	M0_UT_ASSERT(m0_fid_eq(repv[1].cr_key.b_addr, &fid));
+	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.u.ab_buf.b_addr,
+			       &m0_cas_meta_fid));
+	M0_UT_ASSERT(m0_fid_eq(repv[1].cr_key.u.ab_buf.b_addr, &fid));
 	fini();
 }
 
@@ -575,7 +587,7 @@ static void meta_random(void)
 		for (j = 0; j < K; ++j) {
 			fid[j] = M0_FID_TINIT(m0_cas_index_fid_type.ft_id,
 					      2, m0_rnd64(&seed) % 5);
-			op[j].cr_key = FIDBUF(&fid[j]);
+			op[j].cr_key = FID_ATBUF(&fid[j]);
 			if (type == &cas_cur_fopt) {
 				int n = m0_rnd64(&seed) % 1000;
 				if (total + n < ARRAY_SIZE(repv))
@@ -614,8 +626,12 @@ static void meta_garbage(void)
 	for (i = 0; i < 200; ++i) {
 		for (j = 0; j < 10; ++j) {
 			m0_bcount_t size = m0_rnd64(&seed) % M;
-			op[j].cr_key = M0_BUF_INIT(size,
-						   buf + m0_rnd64(&seed) % M);
+			op[j].cr_key = (struct m0_rpc_at_buf) {
+						.ab_type  = 1,
+						.u.ab_buf = M0_BUF_INIT(size,
+						   buf + m0_rnd64(&seed) % M)
+					};
+
 		}
 		op[j].cr_rc = ~0ULL;
 		fop_submit(ft[m0_rnd64(&seed) % ARRAY_SIZE(ft)],
@@ -629,11 +645,14 @@ static void index_op_rc(struct m0_fop_type *ft, struct m0_fid *index,
 			uint64_t key, uint64_t val, uint64_t rc)
 {
 	struct m0_buf no = M0_BUF_INIT(0, NULL);
-
 	fop_submit(ft, index,
 		   (struct m0_cas_rec[]) {
-		   { .cr_key = key != 0 ? M0_BUF_INIT(sizeof key, &key) : no,
-		     .cr_val = val != 0 ? M0_BUF_INIT(sizeof val, &val) : no,
+		   { .cr_key.u.ab_buf = key != 0 ?
+					M0_BUF_INIT(sizeof key, &key) : no,
+		     .cr_key.ab_type = key != 0 ? M0_RPC_AT_INLINE : 0,
+		     .cr_val.u.ab_buf = val != 0 ?
+					M0_BUF_INIT(sizeof val, &val) : no,
+		     .cr_val.ab_type = val != 0 ? M0_RPC_AT_INLINE : 0,
 		     .cr_rc  = rc },
 		   { .cr_rc = ~0ULL } });
 }
@@ -675,8 +694,10 @@ static void insert_lookup(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
-	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.b_nob == sizeof (uint64_t));
-	M0_UT_ASSERT(2 == *(uint64_t *)rep.cgr_rep.cr_rec[0].cr_val.b_addr);
+	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.u.ab_buf.b_nob
+		     == sizeof (uint64_t));
+	M0_UT_ASSERT(2 ==
+		     *(uint64_t *)rep.cgr_rep.cr_rec[0].cr_val.u.ab_buf.b_addr);
 	fini();
 }
 
@@ -771,9 +792,10 @@ static void lookup_all(struct m0_fid *index)
 		index_op(&cas_get_fopt, index, CB(i), 0);
 		if (i & 1) {
 			M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
-			M0_UT_ASSERT(repv[0].cr_val.b_nob == sizeof (uint64_t));
-			M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.b_addr ==
-				     i * i);
+			M0_UT_ASSERT(repv[0].cr_val.u.ab_buf.b_nob ==
+				     sizeof (uint64_t));
+			M0_UT_ASSERT(i * i ==
+				   *(uint64_t *)repv[0].cr_val.u.ab_buf.b_addr);
 		} else {
 			M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
 		}
@@ -817,6 +839,7 @@ static void lookup_restart(void)
 /**
  * Test iteration over multiple values (with restart).
  */
+
 static void cur_N(void)
 {
 	int i;
@@ -844,12 +867,14 @@ static void cur_N(void)
 		}
 		for (j = i, k = 0; j < INSERTS; j += 2, ++k) {
 			struct m0_cas_rec *r = &repv[k];
-
+			struct m0_buf *buf;
+			buf = &r->cr_val.u.ab_buf;
 			M0_UT_ASSERT(rep_check(k, k + 1, BSET, BSET));
-			M0_UT_ASSERT(r->cr_val.b_nob == sizeof (uint64_t));
-			M0_UT_ASSERT(*(uint64_t *)r->cr_val.b_addr == j * j);
-			M0_UT_ASSERT(r->cr_key.b_nob == sizeof (uint64_t));
-			M0_UT_ASSERT(*(uint64_t *)r->cr_key.b_addr == CB(j));
+			M0_UT_ASSERT(buf->b_nob == sizeof (uint64_t));
+			M0_UT_ASSERT(*(uint64_t *)buf->b_addr == j * j);
+			buf = &r->cr_key.u.ab_buf;
+			M0_UT_ASSERT(buf->b_nob == sizeof (uint64_t));
+			M0_UT_ASSERT(*(uint64_t *)buf->b_addr == CB(j));
 		}
 		M0_UT_ASSERT(rep_check(k, -ENOENT, BUNSET, BUNSET));
 		M0_UT_ASSERT(rep.cgr_rep.cr_nr == INSERTS);
@@ -965,7 +990,7 @@ static void insert_fail(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_rc == -ENOENT);
-	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.b_addr == NULL);
+	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.u.ab_buf.b_addr == NULL);
 	fini();
 }
 
@@ -995,8 +1020,8 @@ static void lookup_fail(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
-	M0_UT_ASSERT(repv[0].cr_val.b_nob == sizeof (uint64_t));
-	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.b_addr == 2);
+	M0_UT_ASSERT(repv[0].cr_val.u.ab_buf.b_nob == sizeof (uint64_t));
+	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.u.ab_buf.b_addr == 2);
 	fini();
 }
 
@@ -1016,8 +1041,8 @@ static void delete_fail(void)
 	/* Search key OK. */
 	index_op(&cas_get_fopt, &ifid, 1, 0);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
-	M0_UT_ASSERT(repv[0].cr_val.b_nob == sizeof (uint64_t));
-	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.b_addr == 2);
+	M0_UT_ASSERT(repv[0].cr_val.u.ab_buf.b_nob == sizeof (uint64_t));
+	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.u.ab_buf.b_addr == 2);
 	/* Delete key, ENOMEM - fi. */
 	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
 	index_op(&cas_del_fopt, &ifid, 1, 0);
@@ -1027,8 +1052,8 @@ static void delete_fail(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
-	M0_UT_ASSERT(repv[0].cr_val.b_nob == sizeof (uint64_t));
-	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.b_addr == 2);
+	M0_UT_ASSERT(repv[0].cr_val.u.ab_buf.b_nob == sizeof (uint64_t));
+	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.u.ab_buf.b_addr == 2);
 	/* Delete key OK. */
 	index_op(&cas_del_fopt, &ifid, 1, 0);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
@@ -1037,7 +1062,7 @@ static void delete_fail(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_rc == -ENOENT);
-	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.b_addr == NULL);
+	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.u.ab_buf.b_addr == NULL);
 	fini();
 }
 
@@ -1054,12 +1079,18 @@ static void multi_values_insert(struct record *recs, int recs_count)
 
 	M0_UT_ASSERT(recs_count <= MULTI_INS);
 	for (i = 0; i < recs_count - 1; i++) {
-		cas_recs[i] = (struct m0_cas_rec){
-			       .cr_key = M0_BUF_INIT(sizeof recs[i].key,
-						     &recs[i].key),
-			       .cr_val = M0_BUF_INIT(sizeof recs[i].value,
-						     &recs[i].value),
-			       .cr_rc = 0 };
+		cas_recs[i] = (struct m0_cas_rec) {
+			.cr_key = (struct m0_rpc_at_buf) {
+				.ab_type  = 1,
+				.u.ab_buf = M0_BUF_INIT(sizeof recs[i].key,
+							&recs[i].key)
+				},
+			.cr_val = (struct m0_rpc_at_buf) {
+				.ab_type  = 1,
+				.u.ab_buf = M0_BUF_INIT(sizeof recs[i].value,
+							&recs[i].value)
+				},
+			.cr_rc = 0 };
 	}
 	cas_recs[recs_count - 1] = (struct m0_cas_rec) { .cr_rc = ~0ULL };
 	fop_submit(&cas_put_fopt, &ifid, cas_recs);
@@ -1113,10 +1144,16 @@ static void multi_values_lookup(struct record *recs, int recs_count)
 	M0_UT_ASSERT(recs_count <= MULTI_INS);
 	for (i = 0; i < MULTI_INS - 1; i++) {
 		cas_recs[i] = (struct m0_cas_rec){
-			       .cr_key = M0_BUF_INIT(sizeof recs[i].key,
-						     &recs[i].key),
-			       .cr_val = M0_BUF_INIT(0, NULL),
-			       .cr_rc = 0 };
+			.cr_key = (struct m0_rpc_at_buf) {
+				.ab_type  = 1,
+				.u.ab_buf = M0_BUF_INIT(sizeof recs[i].key,
+							&recs[i].key)
+				},
+			.cr_val = (struct m0_rpc_at_buf) {
+				.ab_type  = 0,
+				.u.ab_buf = M0_BUF_INIT(0, NULL)
+				},
+			.cr_rc = 0 };
 	}
 	cas_recs[MULTI_INS - 1] = (struct m0_cas_rec) { .cr_rc = ~0ULL };
 	fop_submit(&cas_get_fopt, &ifid, cas_recs);
@@ -1130,10 +1167,16 @@ static void multi_values_delete(struct record *recs, int recs_count)
 	M0_UT_ASSERT(recs_count <= MULTI_INS);
 	for (i = 0; i < MULTI_INS - 1; i++) {
 		cas_recs[i] = (struct m0_cas_rec){
-			       .cr_key = M0_BUF_INIT(sizeof recs[i].key,
-						     &recs[i].key),
-			       .cr_val = M0_BUF_INIT(0, NULL),
-			       .cr_rc = 0 };
+			.cr_key = (struct m0_rpc_at_buf) {
+				.ab_type  = 1,
+				.u.ab_buf = M0_BUF_INIT(sizeof recs[i].key,
+							&recs[i].key)
+				},
+			.cr_val = (struct m0_rpc_at_buf) {
+				.ab_type  = 0,
+				.u.ab_buf = M0_BUF_INIT(0, NULL)
+				},
+			.cr_rc = 0 };
 	}
 	cas_recs[MULTI_INS - 1] = (struct m0_cas_rec) { .cr_rc = ~0ULL };
 	fop_submit(&cas_del_fopt, &ifid, cas_recs);
@@ -1177,15 +1220,15 @@ static void multi_lookup(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
-				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+			rep.cgr_rep.cr_rec[i].cr_rc == 0));
 	/* Lookup values. */
 	multi_values_lookup(recs, MULTI_INS);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
-				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+			rep.cgr_rep.cr_rec[i].cr_rc == 0));
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
-				*(uint64_t *)repv[i].cr_val.b_addr == i * i));
+			*(uint64_t *)repv[i].cr_val.u.ab_buf.b_addr == i * i));
 	fini();
 }
 
@@ -1220,7 +1263,7 @@ static void multi_delete(void)
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
 				rep.cgr_rep.cr_rec[i].cr_rc == -ENOENT));
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
-				repv[i].cr_val.b_addr == NULL));
+				repv[i].cr_val.u.ab_buf.b_addr == NULL));
 	fini();
 }
 
@@ -1278,9 +1321,9 @@ static void multi_lookup_fail(void)
 				rep.cgr_rep.cr_rec[i].cr_rc == 0 :
 				rep.cgr_rep.cr_rec[i].cr_rc == -ENOMEM));
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
-				i % 2 ?
-				*(uint64_t *)repv[i].cr_val.b_addr == i*i :
-				repv[i].cr_val.b_addr == NULL));
+			i % 2 ?
+			*(uint64_t *)repv[i].cr_val.u.ab_buf.b_addr == i*i :
+			repv[i].cr_val.u.ab_buf.b_addr == NULL));
 	fini();
 }
 
@@ -1301,7 +1344,7 @@ static void multi_delete_fail(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
-				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+			rep.cgr_rep.cr_rec[i].cr_rc == 0));
 	/* Delete several recs. */
 	m0_fi_enable_off_n_on_m("cas_buf_get", "cas_alloc_fail", 1, 1);
 	multi_values_delete(recs, MULTI_INS);
@@ -1309,21 +1352,21 @@ static void multi_delete_fail(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
-				i % 2 ?
-				rep.cgr_rep.cr_rec[i].cr_rc == 0 :
-				rep.cgr_rep.cr_rec[i].cr_rc == -ENOMEM));
+			i % 2 ?
+			rep.cgr_rep.cr_rec[i].cr_rc == 0 :
+			rep.cgr_rep.cr_rec[i].cr_rc == -ENOMEM));
 	/* Lookup values. */
 	multi_values_lookup(recs, MULTI_INS);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
-				i % 2 ?
-				rep.cgr_rep.cr_rec[i].cr_rc == -ENOENT :
-				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+			i % 2 ?
+			rep.cgr_rep.cr_rec[i].cr_rc == -ENOENT :
+			rep.cgr_rep.cr_rec[i].cr_rc == 0));
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
-				i % 2 ?
-				repv[i].cr_val.b_addr == NULL :
-				*(uint64_t *)repv[i].cr_val.b_addr == i*i));
+			i % 2 ?
+			repv[i].cr_val.u.ab_buf.b_addr == NULL :
+			*(uint64_t *)repv[i].cr_val.u.ab_buf.b_addr == i * i));
 	fini();
 }
 
