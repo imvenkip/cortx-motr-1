@@ -65,7 +65,7 @@ id_m0_servers:
 <%- @q_dbfacts.values.select { |x| x['role'] != 'cc' }.sort_by { |j| j["hostname"] }.uniq.each do |dbfact| -%>
   <%- cpuarr = []; processorcount.to_i.times do |cpu| cpuarr.push(1); end -%>
   - m0h_fqdn: "<%= dbfact['fqdn'] %>"
-    host_mem_as: <%= m0_be_segment_size %>
+    host_mem_as: <%= m0_be_seg_size %>
     host_mem_rss: <%= memorysize_mb.to_i * 1024 %>
     host_mem_stack: <%= memorysize_mb.to_i * 1024 %>
     host_mem_memlock: <%= memorysize_mb.to_i * 1024 %>
@@ -85,10 +85,12 @@ id_m0_servers:
       <%- ios_hash.values.each do |key| -%>
       - m0d_wwn: "<%= key['wwn'] %>"
         m0d_serial: "<%= key['serial'] %>"
-        m0d_bsize: <%= mero_bsize %>
+        m0d_bsize: <%= m0_block_size %>
         m0d_size: <%= key['size'] %>
         m0d_path: "<%= key['path'] %>"
       <%- end -%>
+    <%- else -%>
+    m0h_devices: []
     <%- end -%>
   <%- end -%>
 <%- end -%>
@@ -96,9 +98,23 @@ id_m0_servers:
   <%= @extra_clients.to_yaml.gsub(/---\s*\n\s*/, '') + "\n" -%>
 <%- end -%>
 id_m0_globals:
-  m0_data_units: <%= data_units %>
-  m0_parity_units: <%= parity_units %>
+  m0_be_ios_seg_size: <%= m0_be_ios_seg_size %>
+  m0_be_log_size: <%= m0_be_log_size %>
+  m0_be_seg_size: <%= m0_be_seg_size %>
+  m0_be_tx_payload_size_max: <%= m0_be_tx_payload_size_max %>
+  m0_be_tx_reg_nr_max: <%= m0_be_tx_reg_nr_max %>
+  m0_be_tx_reg_size_max: <%= m0_be_tx_reg_size_max %>
+  m0_be_txgr_freeze_timeout_max: <%= m0_be_txgr_freeze_timeout_max %>
+  m0_be_txgr_freeze_timeout_min: <%= m0_be_txgr_freeze_timeout_min %>
+  m0_be_txgr_payload_size_max: <%= m0_be_txgr_payload_size_max %>
+  m0_be_txgr_reg_nr_max: <%= m0_be_txgr_reg_nr_max %>
+  m0_be_txgr_reg_size_max: <%= m0_be_txgr_reg_size_max %>
+  m0_be_txgr_tx_nr_max: <%= m0_be_txgr_tx_nr_max %>
+  m0_block_size: <%= m0_block_size %>
+  m0_data_units: <%= m0_data_units %>
   m0_md_redundancy: <%= m0_md_redundancy %>
+  m0_min_rpc_recvq_len: <%= m0_min_rpc_recvq_len %>
+  m0_parity_units: <%= m0_parity_units %>
   m0_failure_set_gen:
     tag: Dynamic
     contents: []

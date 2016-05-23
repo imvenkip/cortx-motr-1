@@ -148,7 +148,7 @@ m0_server()
     set -x
 
     exec $binary -e $service_ep -f $proc_fid $stob_type $MERO_M0D_OPTS \
-                    $stob_opts $MERO_M0D_EXTRA_OPTS $cmd_opts
+                    $stob_opts $cmd_opts $MERO_M0D_EXTRA_OPTS
 }
 
 

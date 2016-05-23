@@ -29,12 +29,21 @@ _term_handler()
 trap _term_handler TERM
 
 #
-# Library functions
+# Default values
 #
 
 # Profile fid in the format suitable for 'prof=' mount option. Must match $prof
 # variable in m0_build_local_conf()
-m0_prof_opt='0x7000000000000001:0'
+readonly m0_prof_opt='0x7000000000000001:0'
+
+readonly default_m0d_max_rpc_msg_size=65536
+readonly default_m0d_min_rpc_recvq_len=16
+readonly default_m0d_beseg_size=536870912
+readonly default_m0d_ios_beseg_size=4294967296
+
+#
+# Library functions
+#
 
 # Print message on console (STDERR)
 #   @param  $1  msg
@@ -90,7 +99,11 @@ m0_genders_has_variable()
     local var_name=$1
     local node=$2
 
-    nodeattr -f $MERO_GENDERS_CONF -Q $node $var_name
+    if [[ -e $MERO_GENDERS_CONF ]] ; then
+        nodeattr -f $MERO_GENDERS_CONF -Q $node $var_name
+    else
+        m0_log "WARN: trying to query non-existing configuration file '$MERO_GENDERS_CONF'"
+    fi
 }
 
 # Return value of particular variable, stored in genders "database"
@@ -156,8 +169,8 @@ m0_load_modules()
 
         m0mero_params="$m0mero_params node_uuid=$uuid"
         m0mero_params="$m0mero_params local_addr=$ep"
-        m0mero_params="$m0mero_params max_rpc_msg_size=$msg_size"
-        m0mero_params="$m0mero_params tm_recv_queue_min_len=$qlen"
+        m0mero_params="$m0mero_params max_rpc_msg_size=${msg_size:-$default_m0d_max_rpc_msg_size}"
+        m0mero_params="$m0mero_params tm_recv_queue_min_len=${qlen:-$default_m0d_min_rpc_recvq_len}"
         m0mero_params="$m0mero_params $MERO_KMOD_EXTRA_PARAMS"
     fi
 
@@ -495,10 +508,13 @@ m0_get_core_params()
         optional_params+=" -w $(m0_genders_value_of m0_pool_width)"
     fi
 
+    local msg_size=${MERO_M0D_MAX_RPC_MSG_SIZE:-$(m0_genders_value_of m0_max_rpc_msg_size)}
+    local qlen=${MERO_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}
+
     echo " -D db -S stobs -A linuxstob:addb-stobs" \
          " -P <${MERO_PROFILE_FID:-$m0_prof_opt}>" \
-         " -m ${MERO_M0D_MAX_RPC_MSG_SIZE:-$(m0_genders_value_of m0_max_rpc_msg_size)}" \
-         " -q ${MERO_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}" \
+         " -m ${msg_size:-$default_m0d_max_rpc_msg_size}" \
+         " -q ${qlen:-$default_m0d_min_rpc_recvq_len}" \
          " $optional_params"
 }
 

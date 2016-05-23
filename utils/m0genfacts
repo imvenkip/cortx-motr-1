@@ -132,11 +132,27 @@ ip_addr  = Facter.value("ipaddress_#{iface}")
 
 processorcount     = Facter.value(:processors)['count']
 memorysize_mb      = Facter.value(:memorysize_mb).to_i
-data_units         = options[:dataunits]
-parity_units       = options[:parityunits]
-mero_bsize         = options[:blocksize]
-m0_be_segment_size = options[:segsize]
+
+m0_data_units      = options[:dataunits]
+m0_parity_units    = options[:parityunits]
+m0_block_size      = options[:blocksize]
+m0_be_seg_size     = options[:segsize]
 m0_md_redundancy   = options[:mdredundancy]
+
+# TODO: add cli options to set these values
+m0_be_ios_seg_size             = ''
+m0_be_log_size                 = ''
+m0_be_tx_payload_size_max      = ''
+m0_be_tx_reg_nr_max            = ''
+m0_be_tx_reg_size_max          = ''
+m0_be_txgr_freeze_timeout_max  = ''
+m0_be_txgr_freeze_timeout_min  = ''
+m0_be_txgr_payload_size_max    = ''
+m0_be_txgr_reg_nr_max          = ''
+m0_be_txgr_reg_size_max        = ''
+m0_be_txgr_tx_nr_max           = ''
+m0_min_rpc_recvq_len           = ''
+
 @station_nodes     = [ ip_addr ]
 @extra_clients     = []
 

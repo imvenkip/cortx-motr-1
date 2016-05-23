@@ -54,20 +54,20 @@ MERO_M0D_DATA_DIR=/var/mero
 #MERO_M0D_PARITY_UNITS=1
 
 # Maximum size of rpc message, in bytes.
-MERO_M0D_MAX_RPC_MSG_SIZE=65536
+#MERO_M0D_MAX_RPC_MSG_SIZE=65536
 
 # Minimum rpc receive queue length.
-MERO_M0D_MIN_RPC_RECVQ_LEN=16
+#MERO_M0D_MIN_RPC_RECVQ_LEN=16
 
 # Backend log size (in bytes) for all m0d's. Default is 512 MiB.
 #MERO_M0D_BELOG_SIZE=536870912
 
 # Backend segment size (in bytes) for all m0d's, except for IO service.
 # Default is 512 MiB.
-MERO_M0D_BESEG_SIZE=536870912
+#MERO_M0D_BESEG_SIZE=536870912
 
 # Backend segment size (in bytes) for IO service. Default is 4 GiB.
-MERO_M0D_IOS_BESEG_SIZE=4294967296
+#MERO_M0D_IOS_BESEG_SIZE=4294967296
 
 # Backend transactions group configuration parameters.
 #MERO_M0D_BETXGR_TX_NR_MAX=128

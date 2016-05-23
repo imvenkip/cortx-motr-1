@@ -25,17 +25,16 @@ m0_mkfs()
     local node_uuid=${MERO_NODE_UUID:-$(m0_genders_value_of m0_uuid)}
     local be_opts
 
-    if [[ $service =~ ^ios.* && -n $MERO_M0D_IOS_BESEG_SIZE ]] ; then
-        be_opts+=" -z $MERO_M0D_IOS_BESEG_SIZE"
-    elif [[ -n $MERO_M0D_BESEG_SIZE ]] ; then
-        be_opts+=" -z $MERO_M0D_BESEG_SIZE"
-    elif [[ -e $MERO_GENDERS_CONF ]] && m0_genders_has_variable m0_be_segment_size ; then
-        be_opts+=" -z $(m0_genders_value_of m0_be_segment_size)"
+    if [[ $service =~ ^ios.* ]] ; then
+        be_opts+=" -z ${MERO_M0D_IOS_BESEG_SIZE:-$default_m0d_ios_beseg_size}"
+    else
+        local be_segsize=${MERO_M0D_BESEG_SIZE:-$(m0_genders_value_of m0_be_segment_size)}
+        be_opts+=" -z ${be_segsize:-$default_m0d_beseg_size}"
     fi
 
     if [[ -n $MERO_M0D_BELOG_SIZE ]] ; then
         be_opts+=" -V $MERO_M0D_BELOG_SIZE"
-    elif [[ -e $MERO_GENDERS_CONF ]] && m0_genders_has_variable m0_be_log_size ; then
+    elif m0_genders_has_variable m0_be_log_size ; then
         be_opts+=" -V $(m0_genders_value_of m0_be_log_size)"
     fi
 
