@@ -1,4 +1,4 @@
-#= <6600000000000001:0>: `redundancy' exceeds the number of IO services (1)
+#= <6600000000000001:0>: `redundancy' (2) exceeds the number of IO services (1)
 (root-0 verno=1 profiles=[profile-0])
 (profile-0 filesystem=filesystem-0)
 (filesystem-0 rootfid=profile-0 redundancy=2 params=["82 8 2"] mdpool=pool-0

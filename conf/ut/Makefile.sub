@@ -13,8 +13,8 @@ ut_libmero_ut_la_SOURCES += \
     conf/ut/rconfc.c        \
     conf/ut/validation.c
 
-CONFXC_FILES +=                \
-    conf/ut/duplicated-ids.xc  \
+CONFXC_FILES += \
+    conf/ut/duplicated-ids.xc \
     conf/ut/t_bad-ep-process.xc \
     conf/ut/t_bad-ep-service.xc \
     conf/ut/t_dangling.xc \
@@ -23,7 +23,8 @@ CONFXC_FILES +=                \
     conf/ut/t_filename-duplicate.xc \
     conf/ut/t_mdpool-error.xc \
     conf/ut/t_no-confd.xc \
+    conf/ut/t_no-iodevs.xc \
     conf/ut/t_no-ioservices.xc \
+    conf/ut/t_non-oostore.xc  \
     conf/ut/t_pool-width-error.xc \
-    conf/ut/t_redundancy-0.xc  \
     conf/ut/t_redundancy-too-big.xc
