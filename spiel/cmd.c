@@ -1116,26 +1116,26 @@ static int spiel__pool_cmd_status_get(struct _pool_cmd_ctx    *ctx,
 {
 	int                          rc;
 	struct m0_fop                *fop;
-        struct m0_rpc_item           *item = NULL;
+	struct m0_rpc_item           *item;
 	struct m0_spiel_sns_status   *status;
 	struct m0_sns_status_rep_fop *reply;
 	m0_time_t                     conn_timeout;
 
 	M0_PRE(sns != NULL);
 
-	fop = sns->ss_fop;
-	if (fop != NULL)
-		item = &fop->f_item;
 	status = &sns->ss_status;
+	fop = sns->ss_fop;
+	M0_ASSERT(fop != NULL);
+	item = &fop->f_item;
 	rc = sns->ss_rc ?: m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER) ?:
 		m0_rpc_item_generic_reply_rc(item->ri_reply);
 
 	if (M0_IN(cmd, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
 		status->sss_fid = sns->ss_service->cs_obj.co_id;
-		if (rc == 0 && item != NULL) {
+		if (rc == 0) {
 			reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
-			status->sss_state = reply->ssr_state;
 			status->sss_progress = reply->ssr_progress;
+			status->sss_state = reply->ssr_state;
 		} else {
 			status->sss_state = rc;
 		}
