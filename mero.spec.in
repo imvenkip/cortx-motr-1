@@ -149,6 +149,7 @@ find %{buildroot} -name 'm0ff2c' | sed -e 's#^%{buildroot}##' > devel.files
 find %{buildroot} -name 'libmero-xcode-ff2c*.so*' | sed -e 's#^%{buildroot}##' >> devel.files
 find %{buildroot} -name '*.la' | sed -e 's#^%{buildroot}##' >> devel.files
 find %{buildroot}%{_includedir} | sed -e 's#^%{buildroot}##' >> devel.files
+find %{buildroot}%{_libdir} -name mero.pc | sed -e 's#^%{buildroot}##' >> devel.files
 mkdir -p %{buildroot}%{_localstatedir}/mero
 
 %endif # with ut
@@ -181,6 +182,7 @@ fi
 %exclude %{_libdir}/*.la
 %exclude %{_libdir}/libmero-ut*
 %exclude %{_libdir}/libmero-xcode-ff2c*
+%exclude %{_libdir}/pkgconfig/mero.pc
 %exclude %{_includedir}
 %exclude /lib/modules/*/kernel/fs/net/*
 %exclude /lib/modules/*/kernel/fs/rpc/*

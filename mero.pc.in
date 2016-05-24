@@ -1,0 +1,12 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: @PACKAGE@
+Description: Mero filesystem
+URL: seagate.com
+Version: @PACKAGE_VERSION@
+Requires:
+Libs: -pthread @M0_LDFLAGS@ @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ @GF_LIBS@
+Cflags: @M0_CPPFLAGS@ @M0_CFLAGS@

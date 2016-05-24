@@ -772,6 +772,10 @@ dist_pkglibexec_SCRIPTS  = scripts/install/usr/libexec/mero/mero-service.functio
                            scripts/install/usr/libexec/mero/mero-server \
                            scripts/install/usr/libexec/mero/mero-trace
 
+usr_lib_pkgconfigdir    = $(libdir)/pkgconfig
+usr_lib_pkgconfig_DATA  = scripts/install/usr/lib/pkgconfig/mero.pc
+EXTRA_DIST             += $(usr_lib_pkgconfig_DATA)
+
 templatesdir    = $(datadir)/mero/templates
 templates_DATA  = scripts/install/usr/share/mero/templates/halon_facts.yaml.erb
 EXTRA_DIST     += $(templates_DATA)

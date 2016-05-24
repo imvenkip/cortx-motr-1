@@ -308,7 +308,7 @@ using --with-lustre option.])]
 )
 AC_SUBST([LUSTRE])
 
-LUSTRE_INCLUDES="-I$LUSTRE/libcfs/include -I $LUSTRE/lnet/include -I$LUSTRE/lustre/include"
+LUSTRE_INCLUDES="-I$LUSTRE/libcfs/include -I$LUSTRE/lnet/include -I$LUSTRE/lustre/include"
 LUSTRE_VERSION=`echo $LUSTRE | cut -d "-" -f 2 | cut -d "." -f 1-2`
 LHSM_BUILD_VERSION=2.5
 AC_SUBST([LUSTRE_VERSION])
@@ -602,9 +602,9 @@ CFLAGS=""
 GF_REL_PATH="extra-libs/gf-complete"
 GF_SRC="$SRCDIR/$GF_REL_PATH"
 GF_ABS_SRC="$ABS_SRCDIR/$GF_REL_PATH"
-GF_INCLUDES="-I$GF_SRC/include"
+GF_INCLUDES="-I$GF_ABS_SRC/include"
 KGF_INCLUDES="-I$GF_ABS_SRC/include"
-GF_LIBS="$GF_SRC/src/libgf_complete.la"
+GF_LIBS="$GF_ABS_SRC/src/libgf_complete.la"
 
 AC_SUBST([GF_SYMVERS], [$GF_ABS_SRC/src/linux_kernel/Module.symvers])
 
@@ -692,8 +692,12 @@ M0_CPPFLAGS="$GF_INCLUDES $YAML_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
-             -iquote $ABS_BUILDDIR -iquote $SRCDIR -include config.h \
-	     -DM0_SRC_DIR=$ABS_SRCDIR $M0_CPPFLAGS"
+             -iquote'$ABS_BUILDDIR' -iquote'$SRCDIR' -include'config.h' \
+             -DM0_SRC_DIR='$ABS_SRCDIR' $M0_CPPFLAGS"
+
+# contains only -D and -I/usr* entries from M0_CPPFLAGS, this is intended for
+# pkg-config database provided within Mero rpm distribution
+M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+' | xargs echo)
 
 # -Wno-attributes is required to suppress warnings about unrecognized
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we
@@ -709,8 +713,8 @@ M0_CFLAGS="-fno-common $M0_CFLAGS"
 M0_LDFLAGS="-rdynamic $M0_LDFLAGS"
 
 M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern \
-              -include $ABS_BUILDDIR/config.h -iquote $ABS_BUILDDIR -iquote $ABS_SRCDIR \
-              -I $LUSTRE/lnet/include -I$LUSTRE/libcfs/include -I$LUSTRE/lustre/include \
+              -include'$ABS_BUILDDIR/config.h' -iquote '$ABS_BUILDDIR' -iquote '$ABS_SRCDIR' \
+              -I$LUSTRE/lnet/include -I$LUSTRE/libcfs/include -I$LUSTRE/lustre/include \
               $KGF_INCLUDES $M0_KCPPFLAGS"
 
 M0_KCFLAGS="-Wall -Werror -Wno-attributes $M0_KCFLAGS"
@@ -723,6 +727,7 @@ M0_KCFLAGS=$(echo $M0_KCFLAGS | sed 's/[[[:blank:]]]*$//')
 M0_LDFLAGS=$(echo $M0_LDFLAGS | sed 's/[[[:blank:]]]*$//')
 
 AC_SUBST([M0_CPPFLAGS])
+AC_SUBST([M0_CPPFLAGS_DIST])
 AC_SUBST([M0_CFLAGS])
 AC_SUBST([M0_KCPPFLAGS])
 AC_SUBST([M0_KCFLAGS])
@@ -745,6 +750,8 @@ AC_CONFIG_FILES([mero/version_macros.h])
 AC_CONFIG_FILES([doc/man/asciidoc.conf])
 AC_CONFIG_FILES([mdservice/ut/mdstore.h])
 AC_CONFIG_FILES([mero.spec])
+AC_CONFIG_FILES([mero.pc])
+AC_CONFIG_FILES([scripts/install/usr/lib/pkgconfig/mero.pc])
 AC_CONFIG_FILES([m0t1fs/linux_kernel/st/common.sh],
                 [chmod +x m0t1fs/linux_kernel/st/common.sh])
 AC_CONFIG_FILES([net/test/m0nettest.sh], [chmod +x net/test/m0nettest.sh])
