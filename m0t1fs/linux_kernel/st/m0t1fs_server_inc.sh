@@ -103,25 +103,35 @@ servers_stop()
 
 	# shutdown services. mds should be stopped last, because
 	# other ioservices may have connections to mdservice.
-	pids=$(__pids_pidof $prog)
+	local pids=$(__pids_pidof $prog)
 	echo === pids of services: $pids ===
 	echo "Shutting down services one by one. mdservice is the last."
-	delay=5
+	local delay=5
+	local rc=0
+	local proc=""
+
 	for pid in $pids; do
-	       echo -n "----- $pid stopping--------"
-	       if checkpid $pid 2>&1; then
-		   # TERM first, then KILL if not dead
-		   kill -TERM $pid >/dev/null 2>&1
-		   sleep 5
-		   if checkpid $pid && sleep 5 &&
-		      checkpid $pid && sleep $delay &&
-		      checkpid $pid ; then
-		       kill -KILL $pid >/dev/null 2>&1
-		       usleep 100000
-		    fi
+		echo -n "----- $pid stopping--------"
+		if checkpid $pid 2>&1; then
+			# TERM first, then KILL if not dead
+			kill -TERM $pid &>/dev/null
+			proc=$(ps -o ppid= $pid)
+			if [[ $proc -eq $$ ]]; then
+				## $pid is spawned by current shell
+				wait $pid || rc=$?
+			else
+				sleep 5
+				if checkpid $pid && sleep 5 &&
+					checkpid $pid && sleep $delay &&
+					checkpid $pid ; then
+				kill -KILL $pid &>/dev/null
+				usleep 100000
+			fi
 		fi
-	       echo "----- $pid stopped --------"
+	fi
+	echo "----- $pid stopped --------"
 	done
+	return $rc
 }
 
 mero_service()
@@ -133,6 +143,8 @@ mero_service()
 	local P=$POOL_WIDTH
 	local multiple_pools=$2
 	local PROC_FID_CNTR=0x7200000000000001
+	local rc=0
+
 	if [ $# -eq 6 ]
 	then
 		stride=$3
@@ -420,8 +432,9 @@ EOF
 	}
 
 	stop() {
-		servers_stop $prog_exec
+		servers_stop $prog_exec || rc=$?
 		unprepare
+		return $rc
 	}
 
 	case "$1" in
@@ -431,8 +444,9 @@ EOF
 	    stop)
 		function=$1
 		shift
-		$function $@
+		$function $@ || rc=$?
 		echo "Mero services stopped."
+		return $rc
 		;;
 	    *)
 		echo "Usage: $0 {start|stop}"

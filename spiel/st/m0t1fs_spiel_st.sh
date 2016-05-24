@@ -29,7 +29,8 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
 
 ## Path to the file with configuration string for confd.
-CONF_FILE=$SANDBOX_DIR/conf.txt
+CONF_FILE=$SANDBOX_DIR/confd/conf.txt
+CONF_DISKS=$SANDBOX_DIR/confd/disks.conf
 
 PROC_FID_CNTR=0x7200000000000001
 PROC_FID_KEY=3
@@ -46,14 +47,14 @@ if spiel.rconfc_start():
     sys.exit('cannot start rconfc')"
 
 iosloopdevs() {
-    cat > $SANDBOX_DIR/disks.conf << EOF
+    cat > $CONF_DISKS << EOF
     Device:
 EOF
     for i in $(seq $DEV_NR); do
         dd if=/dev/zero of=$SANDBOX_DIR/${i}.img bs=$DEV_SIZE seek=$DEV_SIZE count=1
         losetup -d /dev/loop$i &> /dev/null || true
         losetup /dev/loop$i $SANDBOX_DIR/${i}.img
-        cat >> $SANDBOX_DIR/disks.conf << EOF
+        cat >> $CONF_DISKS << EOF
        - id: $i
          filename: /dev/loop$i
 EOF
@@ -75,7 +76,7 @@ stop() {
 
     trap - EXIT
     if mount | grep -q m0t1fs; then umount $SANDBOX_DIR/mnt; fi
-    mero_service stop
+    mero_service stop || rc=$?
     _fini
     if [ $rc -eq 0 ]; then
         sandbox_fini
@@ -88,7 +89,9 @@ stop() {
 _init() {
     lnet_up
     modules_insert
-    mkdir $SANDBOX_DIR/mnt
+    mkdir -p $SANDBOX_DIR/mnt
+    mkdir -p $SANDBOX_DIR/confd
+    mkdir -p $SANDBOX_DIR/systest-$$
     iosloopdevs
 }
 
@@ -214,45 +217,49 @@ EOF
 ### interface part will affect to second m0d instance. Spiel commands from
 ### configuration management part may affect to both m0d.
 m0d_with_rms_start() {
-    local OPTS="-F -D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
-    -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER1_ENDPOINT\
+    local path=$SANDBOX_DIR/confd
+    local OPTS="-F -D $path/db -T AD -S $path/stobs\
+    -A linuxstob:$path/addb-stobs -e lnet:$SERVER1_ENDPOINT\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
-    -w 3 -P $PROF_OPT -f $PROC_FID -d $SANDBOX_DIR/disks.conf"
+    -w 3 -P $PROF_OPT -f $PROC_FID -d $CONF_DISKS"
 
     stub_confdb | $M0_SRC_DIR/utils/m0confgen >$CONF_FILE
 
-    echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
-    cd $SANDBOX_DIR
+    echo "--- `date` ---" >>$path/m0d.log
+    cd $path
 
     ## m0mkfs should be executed only once. It is usually executed
     ## during cluster initial setup.
     echo $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS
-    $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$SANDBOX_DIR/mkfs.log ||
+    $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$path/mkfs.log ||
     error 'm0mkfs failed'
 
     echo $M0_SRC_DIR/mero/m0d $OPTS
-    $M0_SRC_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
+    $M0_SRC_DIR/mero/m0d $OPTS >>$path/m0d.log 2>&1 &
     local PID=$!
     sleep 10
     kill -0 $PID 2>/dev/null ||
-    error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
+    error "Failed to start m0d. See $path/m0d.log for details."
 }
 
 test_m0d_start() {
-    local CONFD_SPEC="-s confd:<$CONF_FID_CON:2> "
-    local OPTS="-D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
-    -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER2_ENDPOINT -c $CONF_FILE\
+    local path=$SANDBOX_DIR/systest-$$
+    local OPTS="-D $path/db -T AD -S $path/stobs\
+    -A linuxstob:$path/addb-stobs -e lnet:$SERVER2_ENDPOINT -c $CONF_FILE\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_OPT\
-    -f $PROC_FID2 -d $SANDBOX_DIR/disks.conf -H $SERVER2_ENDPOINT"
+    -f $PROC_FID2 -d $CONF_DISKS -H $SERVER2_ENDPOINT"
 
-    cd $SANDBOX_DIR
+    cd $path
 
+    echo $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS
+    $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$path/mkfs.log ||
+    error 'm0mkfs failed'
     echo $M0_SRC_DIR/mero/m0d $OPTS
-    $M0_SRC_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
+    $M0_SRC_DIR/mero/m0d $OPTS >>$path/m0d.log 2>&1 &
     local PID=$!
     sleep 10
     kill -0 $PID 2>/dev/null ||
-    error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
+    error "Failed to start m0d. See $path/m0d.log for details."
 }
 
 export_vars() {
@@ -524,7 +531,6 @@ EOF
 }
 
 _mount() {
-    mkdir -p $SANDBOX_DIR/mnt
     local MOUNT_OPTS="-t m0t1fs -o pfid=<0x7200000000000002:1>,profile=$PROF_OPT,ha=$SERVER2_ENDPOINT \
 none $SANDBOX_DIR/mnt"
     echo "mount $MOUNT_OPTS"
@@ -553,7 +559,7 @@ EOF
 }
 
 ## Keep the audience engaged.
-say() { echo "$@" | tee -a $SANDBOX_DIR/m0d.log; }
+say() { echo "$@" | tee -a $SANDBOX_DIR/confd/m0d.log; }
 
 usage() {
     cat <<EOF
@@ -617,7 +623,8 @@ reconfig_process || stop
 
 say "wait for reconfigure"
 sleep 10
-grep -q "Restarting" $SANDBOX_DIR/m0d.log || die "Reconfigure is not finished"
+grep -q "Restarting" $SANDBOX_DIR/systest-$$/m0d.log ||
+	die "Reconfigure is not finished"
 
 say "Validate health"
 validate_health || stop
