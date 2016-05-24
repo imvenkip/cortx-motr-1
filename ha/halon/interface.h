@@ -29,10 +29,14 @@
  * - @ref halon-interface-highlights
  *   - @ref halon-interface-msg
  *   - @ref halon-interface-tag
+ *   - @ref halon-interface-req-id
  *   - @ref halon-interface-lifetime
  * - @ref halon-interface-spec
  * - @ref halon-interface-sm
  *   - @ref halon-interface-sm-interface
+ *   - @ref halon-interface-sm-link
+ *   - @ref halon-interface-sm-msg-send
+ *   - @ref halon-interface-sm-msg-recv
  * - @ref halon-interface-threads
  *
  * @section halon-interface-highlights Design Highlights
@@ -74,6 +78,14 @@
  *
  * Tag is used for message identification when struct m0_ha_msg is not available.
  *
+ * @subsection halon-interface-req-id Entrypoint Request ID
+ *
+ * Each entrypoint request has an ID. The ID is m0_uint128 and it's assigned
+ * internally when a new entrypoint request is received.
+ *
+ * Request ID is used to make a mapping between entrypoint request and
+ * m0_ha_link.
+ *
  * @subsection halon-interface-lifetime Lifetime and Ownership
  *
  * - m0_halon_inteface shouldn't be used before m0_halon_interface_init() and
@@ -84,17 +96,30 @@
  *     before m0_halon_interface_stop() returns;
  * - m0_halon_interface_entrypoint_reply()
  *   - all parameters (except hi) are not used after the function returns;
+ *   - can be called only after entrypoint_request_cb() is executed;
+ *   - should be called exactly once for each entrypoint request;
  * - m0_halon_interface_send()
  *   - m0_ha_msg is not used after the function returns;
  * - entrypoint_request_cb()
- *   - req is owned by the user until m0_halon_interface_entrypoint_reply() is
- *     called for the req. User shouldn't interpret req in any way. It should be
- *     used just as an opaque pointer;
  *   - remote_rpc_endpoint can be finalised at any moment after the callback
  *     returns;
  * - msg_received_cb()
- *   - msg is owned by the user only before the callback returns.
- * - TODO define m0_ha_link lifetime.
+ *   - msg is owned by the user only before the callback returns;
+ * - entrypoint request id
+ *   - is used by the user in m0_halon_interface_entrypoint_reply() after
+ *     entrypoint_request_cb() is executed;
+ *   - is used by m0_halon_interface in either link_connected_cb() or
+ *     link_reused_cb();
+ *   - is not used after m0_halon_interface_entrypoint_reply() is called and
+ *     link_connected_cb() or link_reused_cb() executed;
+ * - m0_ha_link
+ *   - m0_halon_interface controls m0_ha_link's lifetime;
+ *   - m0_ha_link doesn't exist
+ *     - before link_connected_cb() is called;
+ *     - after link_disconnected_cb() is finished;
+ *   - m0_halon_interface_send(), m0_halon_interface_delivered()
+ *     - can be used only after link_connected_cb() is executed for the link;
+ *     - can't be used after m0_halon_interface_disconnect() is called.
  *
  * @section halon-interface-sm State machines
  *
@@ -114,6 +139,58 @@
  *
  * @endverbatim
  *
+ * @subsection halon-interface-sm-link m0_ha_link
+ *
+ * @verbatim
+ *
+ *                                  UNINITIALISED
+ *                                    ^      |
+ *                                    |      | link_connected_cb()
+ *            link_disconnected_cb()  |      |
+ *                                    |      |  +---+
+ *                                    |      v  v   |
+ *                           DISCONNECTED   ACTIVE  | link_reused_cb()
+ *                                    |      |  |   |
+ *                                    |      |  +---+
+ *    m0_halon_interface_disconnect() |      |
+ *                                    |      | link_is_disconnecting_cb()
+ *                                    |      v
+ *                                  DISCONNECTING
+ *
+ * @endverbatim
+ *
+ * @subsection halon-interface-sm-msg-send m0_ha_msg send
+ *
+ * @verbatim
+ *
+ *                     UNINITIALISED
+ *                          |
+ *                          | m0_halon_interface_send()
+ *                          v
+ *                       SENDING
+ *                        |  |
+ *  msg_is_delivered_cb() |  | msg_is_not_delivered_cb()
+ *                        v  v
+ *                        DONE
+ *
+ * @endverbatim
+ *
+ * @subsection halon-interface-sm-msg-recv m0_ha_msg recv
+ *
+ * @verbatim
+ *
+ *   UNINITIALISED
+ *        |
+ *        | msg_received_cb()
+ *        v
+ *     HANDLING
+ *        |
+ *        | m0_halon_interface_delivered()
+ *        v
+ *       DONE
+ *
+ * @endverbatim
+ *
  * @section halon-interface-threads Threading and Concurrency Model
  *
  * - thread which calls m0_halon_interface_init() is considered as main thread
@@ -130,21 +207,31 @@
  *   - shoudln't wait for another message to come or for a message to be
  *     delivered;
  *   - can call m0_halon_interface_entrypoint_reply(),
- *     m0_halon_interface_send() or m0_halon_interface_delivered().
+ *     m0_halon_interface_send(), m0_halon_interface_delivered(),
+ *     m0_halon_interface_disconnect().
  * - entrypoint_request_cb() can be called from any locality thread at any time
  *   regardless of other entrypoint_request_cb() executing;
  * - msg_received_cb()
- *   - for the same m0_ha_link is called sequentially, one by one;
+ *   - is called sequentially, one by one for the messages from the same link
+ *     in the same order the sender has sent the messages;
+ * - msg_is_delivered_cb(), msg_is_not_delivered_cb()
+ *   - for the same m0_ha_link are called sequentially, in the order
+ *     m0_halon_interface_send() was called for the messages;
+ * - msg_received_cb(), msg_is_delivered_cb(), msg_is_not_delivered_cb()
  *   - may be called from different threads for the same m0_ha_link;
- *   - if there are links L1 and L2, then callbacks for the messages received
- *     for the links are not synchronised in any way;
+ *   - if there are links L1 and L2, then callbacks for the messages from the
+ *     links are not synchronised in any way;
+ * - link_connected_cb(), link_reused_cb(), link_is_disconnecting_cb(),
+ *   link_disconnected_cb()
+ *   - are called sequentially for the same link;
+ *   - may be called from different threads for the same link;
  * - m0_halon_interface_init(), m0_halon_interface_fini(),
  *   m0_halon_interface_start(), m0_halon_interface_stop() are blocking calls.
  *   After the function returns m0_halon_interface is already moved to the
  *   appropriate state;
  * - m0_halon_interface_entrypoint_reply(), m0_halon_interface_send(),
- *   m0_halon_interface_delivered() are non-blocking calls. They can be called
- *   from:
+ *   m0_halon_interface_delivered(), m0_halon_interface_disconnect() are
+ *   non-blocking calls. They can be called from:
  *   - main thread;
  *   - locality thread;
  *   - any callback.
@@ -155,7 +242,6 @@
 #include "lib/types.h"          /* bool */
 
 struct m0_halon_interface_internal;
-struct m0_ha_entrypoint_req;
 struct m0_ha_link;
 struct m0_ha_msg;
 struct m0_fid;
@@ -206,7 +292,8 @@ void m0_halon_interface_fini(struct m0_halon_interface *hi);
  *
  * - entrypoint_request_cb()
  *   - for each callback the m0_halon_interface_entrypoint_reply() should
- *     be called with the same req parameter;
+ *     be called with the same req_id value;
+ *   - req_id is assigned by m0_halon_interface;
  *   - remote_rpc_endpoint parameter contains rpc endpoint from which the
  *     entrypoint request has been received;
  * - msg_received_cb()
@@ -218,12 +305,27 @@ void m0_halon_interface_fini(struct m0_halon_interface *hi);
  * - msg_is_not_delivered_cb()
  *   - it's called when the message is not guaranteed to be delivered to the
  *     destination.
+ * - link_connected_cb()
+ *   - it's called when a new link is established;
+ * - link_reused_cb()
+ *   - it's called when an existing link is reused for the entrypoint request
+ *     made with req_id;
+ * - link_is_disconnecting_cb()
+ *   - it's called when link is starting to disconnect from the opposite
+ *     endpoint. After m0_halon_interface_disconnect() is called for the link
+ *     and msg_is_delivered_cb() or msg_is_not_delivered_cb() is called for the
+ *     each message sent over the link link_is_disconnected_cb() is executed;
+ * - link_is_disconnected_cb()
+ *   - it's called at the end of m0_ha_link lifetime. m0_halon_interface_send()
+ *     shouldn't be called for the link after this callback is executed.
+ *     msg_received_cb(), msg_is_delivered_cb() and msg_is_not_delivered_cb()
+ *     are not going to be called for the link after the callback is executed.
  */
 int m0_halon_interface_start(struct m0_halon_interface *hi,
                              const char                *local_rpc_endpoint,
                              void                     (*entrypoint_request_cb)
 				(struct m0_halon_interface         *hi,
-				 const struct m0_ha_entrypoint_req *req,
+				 const struct m0_uint128           *req_id,
 				 const char             *remote_rpc_endpoint),
 			     void                     (*msg_received_cb)
 				(struct m0_halon_interface *hi,
@@ -237,7 +339,21 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 			     void                     (*msg_is_not_delivered_cb)
 				(struct m0_halon_interface *hi,
 				 struct m0_ha_link         *hl,
-				 uint64_t                   tag));
+				 uint64_t                   tag),
+			     void                    (*link_connected_cb)
+			        (struct m0_halon_interface *hi,
+				 const struct m0_uint128   *req_id,
+			         struct m0_ha_link         *link),
+			     void                    (*link_reused_cb)
+			        (struct m0_halon_interface *hi,
+				 const struct m0_uint128   *req_id,
+			         struct m0_ha_link         *link),
+			     void                    (*link_is_disconnecting_cb)
+			        (struct m0_halon_interface *hi,
+			         struct m0_ha_link         *link),
+			     void                     (*link_disconnected_cb)
+			        (struct m0_halon_interface *hi,
+			         struct m0_ha_link         *link));
 
 /**
  * Stops sending/receiving messages and entrypoint requests.
@@ -247,8 +363,9 @@ void m0_halon_interface_stop(struct m0_halon_interface *hi);
 /**
  * Sends entrypoint reply.
  *
- * @param req the pointer received in the entrypoint_request_cb()
- * @param rc  return code for the entrypoint. It's delivered to the user
+ * @param req_id         request id received in the entrypoint_request_cb()
+ * @param rc             return code for the entrypoint.
+ *                       It's delivered to the user
  * @param confd_fid_size size of confd_fid_data array
  * @param confd_fid_data array of confd fids
  * @param confd_eps_size size of confd_eps_data array (XXX Why this is needed?)
@@ -258,21 +375,18 @@ void m0_halon_interface_stop(struct m0_halon_interface *hi);
  * @param hl_ptr         m0_ha_link for communications with the other side is
  *                       returned here.
  *
- * - 'm0_ha_link *' is used in msg_received_cb(), m0_halon_interface_send(),
- *   m0_halon_interface_delivered();
- * - this function can be called from entrypoint_request_cb().
+ * @note This function can be called from entrypoint_request_cb().
  */
 void m0_halon_interface_entrypoint_reply(
-                struct m0_halon_interface          *hi,
-                const struct m0_ha_entrypoint_req  *req,
-                int                                 rc,
-                int                                 confd_fid_size,
-                const struct m0_fid                *confd_fid_data,
-                int                                 confd_eps_size,
-                const char                        **confd_eps_data,
-                const struct m0_fid                *rm_fid,
-                const char                         *rm_eps,
-                struct m0_ha_link                 **hl_ptr);
+                struct m0_halon_interface  *hi,
+                const struct m0_uint128    *req_id,
+                int                         rc,
+                int                         confd_fid_size,
+                const struct m0_fid        *confd_fid_data,
+                int                         confd_eps_size,
+                const char                **confd_eps_data,
+                const struct m0_fid        *rm_fid,
+                const char                 *rm_eps);
 
 /**
  * Send m0_ha_msg using m0_ha_link.
@@ -299,6 +413,15 @@ void m0_halon_interface_delivered(struct m0_halon_interface *hi,
                                   struct m0_ha_link         *hl,
                                   struct m0_ha_msg          *msg);
 
+
+/**
+ * Notifies m0_halon_interface that no m0_halon_interface_send() will be called
+ * for this link.
+ *
+ * The function should be called after link_is_disconnecting_cb() is called.
+ */
+void m0_halon_interface_disconnect(struct m0_halon_interface *hi,
+                                   struct m0_ha_link         *hl);
 
 /** @} end of ha group */
 #endif /* __MERO_HA_HALON_INTERFACE_H__ */

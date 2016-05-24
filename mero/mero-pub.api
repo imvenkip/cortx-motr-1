@@ -145,6 +145,7 @@ m0_garc_type_register
 m0_garc_type_pair_register
 m0_garc_type_add
 m0_halon_interface_delivered
+m0_halon_interface_disconnect
 m0_halon_interface_entrypoint_reply
 m0_halon_interface_fini
 m0_halon_interface_init

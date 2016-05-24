@@ -133,7 +133,7 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
                              const char                *local_rpc_endpoint,
                              void                     (*entrypoint_request_cb)
 				(struct m0_halon_interface         *hi,
-				 const struct m0_ha_entrypoint_req *req,
+				 const struct m0_uint128           *req_id,
 				 const char             *remote_rpc_endpoint),
 			     void                     (*msg_received_cb)
 				(struct m0_halon_interface *hi,
@@ -147,7 +147,21 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 			     void                     (*msg_is_not_delivered_cb)
 				(struct m0_halon_interface *hi,
 				 struct m0_ha_link         *hl,
-				 uint64_t                   tag))
+				 uint64_t                   tag),
+			     void                    (*link_connected_cb)
+			        (struct m0_halon_interface *hi,
+				 const struct m0_uint128   *req_id,
+			         struct m0_ha_link         *link),
+			     void                    (*link_reused_cb)
+			        (struct m0_halon_interface *hi,
+				 const struct m0_uint128   *req_id,
+			         struct m0_ha_link         *link),
+			     void                    (*link_is_disconnecting_cb)
+			        (struct m0_halon_interface *hi,
+			         struct m0_ha_link         *link),
+			     void                     (*link_disconnected_cb)
+			        (struct m0_halon_interface *hi,
+			         struct m0_ha_link         *link))
 {
 	return 0;
 }
@@ -157,18 +171,16 @@ void m0_halon_interface_stop(struct m0_halon_interface *hi)
 }
 
 void m0_halon_interface_entrypoint_reply(
-                struct m0_halon_interface          *hi,
-                const struct m0_ha_entrypoint_req  *req,
-                int                                 rc,
-                int                                 confd_fid_size,
-                const struct m0_fid                *confd_fid_data,
-                int                                 confd_eps_size,
-                const char                        **confd_eps_data,
-                const struct m0_fid                *rm_fid,
-                const char                         *rm_eps,
-                struct m0_ha_link                 **hl_ptr)
+                struct m0_halon_interface  *hi,
+                const struct m0_uint128    *req_id,
+                int                         rc,
+                int                         confd_fid_size,
+                const struct m0_fid        *confd_fid_data,
+                int                         confd_eps_size,
+                const char                **confd_eps_data,
+                const struct m0_fid        *rm_fid,
+                const char                 *rm_eps)
 {
-	*hl_ptr = NULL;
 }
 
 void m0_halon_interface_send(struct m0_halon_interface *hi,
@@ -181,6 +193,11 @@ void m0_halon_interface_send(struct m0_halon_interface *hi,
 void m0_halon_interface_delivered(struct m0_halon_interface *hi,
                                   struct m0_ha_link         *hl,
                                   struct m0_ha_msg          *msg)
+{
+}
+
+void m0_halon_interface_disconnect(struct m0_halon_interface *hi,
+                                   struct m0_ha_link         *hl)
 {
 }
 
