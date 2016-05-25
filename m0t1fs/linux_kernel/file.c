@@ -2599,7 +2599,6 @@ static int unit_state(const struct m0_pdclust_src_addr *src,
 {
 	struct m0_pdclust_instance *play_instance;
 	struct m0_pdclust_tgt_addr  tgt;
-	struct m0_fid		    tfid;
 	int			    rc;
 	struct m0_poolmach         *pm;
 
@@ -2607,7 +2606,6 @@ static int unit_state(const struct m0_pdclust_src_addr *src,
 
 	play_instance = pdlayout_instance(layout_instance(req));
 	m0_fd_fwd_map(play_instance, src, &tgt);
-	tfid = target_fid(req, &tgt);
 
 	pm = m0t1fs_file_to_poolmach(req->ir_file);
 	M0_ASSERT(pm != NULL);
