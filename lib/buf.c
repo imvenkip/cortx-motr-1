@@ -41,7 +41,7 @@ M0_INTERNAL int m0_buf_alloc(struct m0_buf *buf, size_t size)
 {
 	M0_PRE(!m0_buf_is_set(buf));
 
-	M0_ALLOC_ARR(buf->b_addr, size);
+	buf->b_addr = m0_alloc(size);
 	if (buf->b_addr == NULL)
 		return -ENOMEM;
 
@@ -66,7 +66,7 @@ M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src)
 	M0_PRE(dest->b_nob == 0 && dest->b_addr == NULL);
 
 	if (src->b_nob != 0) {
-		M0_ALLOC_ARR(dest->b_addr, src->b_nob);
+		dest->b_addr = m0_alloc(src->b_nob);
 		if (dest->b_addr == NULL)
 			return M0_ERR(-ENOMEM);
 		dest->b_nob = src->b_nob;

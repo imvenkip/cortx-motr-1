@@ -388,13 +388,14 @@ static int ss_fop_process_svc_to_buf(struct m0_reqh_service *svc,
 	struct m0_ss_process_svc_item *reply_svc;
 
 	buf->b_nob = sizeof(struct m0_fid) + strlen(svc->rs_type->rst_name) + 1;
-	M0_ALLOC_ARR(buf->b_addr, buf->b_nob);
+	buf->b_addr = m0_alloc(buf->b_nob);
 	if (buf->b_addr == NULL)
 		return M0_ERR(-ENOMEM);
 
 	reply_svc = (struct m0_ss_process_svc_item *)buf->b_addr;
 	reply_svc->ssps_fid = svc->rs_service_fid;
 	strcpy(reply_svc->ssps_name, svc->rs_type->rst_name);
+
 	return M0_RC(0);
 }
 

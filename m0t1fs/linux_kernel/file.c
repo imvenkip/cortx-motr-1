@@ -2999,7 +2999,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	}
 
 	failed.b_nob = layout_n(play) + layout_k(play);
-	M0_ALLOC_ARR(failed.b_addr, failed.b_nob);
+	failed.b_addr = m0_alloc(failed.b_nob);
 	if (failed.b_addr == NULL) {
 		m0_free(data);
 		m0_free(parity);
