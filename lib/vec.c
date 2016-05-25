@@ -377,7 +377,7 @@ M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec,
 
 	M0_ALLOC_ARR(ivec->iv_vec.v_count, len);
 	if (ivec->iv_vec.v_count == NULL) {
-		m0_free(ivec->iv_index);
+		m0_free0(&ivec->iv_index);
 		return M0_ERR(-ENOMEM);
 	}
 

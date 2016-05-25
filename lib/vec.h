@@ -253,6 +253,7 @@ M0_INTERNAL uint32_t m0_bufvec_pack(struct m0_bufvec *bufvec);
  * @pre   ivec != NULL && len > 0.
  * @post  ivec->iv_index != NULL && ivec->iv_vec.v_count != NULL &&
  *        ivec->iv_vec.v_nr == len.
+ * @post  ergo(retval == -ENOMEM, ivec->iv_index == NULL)
  */
 M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec, uint32_t len);
 
