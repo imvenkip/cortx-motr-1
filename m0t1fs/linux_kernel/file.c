@@ -4508,13 +4508,14 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	int                rc;
 	struct io_request *req;
 
-	M0_ENTRY("target_ioreq %p, nw_xfer_request %p, "FID_F,
-		 ti, xfer, FID_P(cobfid));
 	M0_PRE(ti      != NULL);
 	M0_PRE(xfer    != NULL);
 	M0_PRE(cobfid  != NULL);
 	M0_PRE(session != NULL);
 	M0_PRE(size    >  0);
+
+	M0_ENTRY("target_ioreq %p, nw_xfer_request %p, "FID_F,
+		 ti, xfer, FID_P(cobfid));
 
 	ti->ti_rc        = 0;
 	ti->ti_ops       = &tioreq_ops;
