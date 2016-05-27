@@ -1,16 +1,42 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -eux
+# export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
+
+die() { echo "$@" >&2; exit 1; }
 
 configure_beta1() {
 	HOSTS_LIST="172.16.1.[1-6]"
+	CLIENTS_LIST=""
 	HALOND_TS="172.16.1.1"
 	HALON_FACTS_FUNC="halon_facts_yaml_beta1"
 }
 
 configure_dev1_1() {
 	HOSTS_LIST="172.16.1.[3,5,6,8,9]"
+	CLIENTS_LIST=""
 	HALOND_TS="172.16.1.3"
 	HALON_FACTS_FUNC="halon_facts_yaml_dev1_1"
+}
+
+configure_dev2_1() {
+	HOSTS_LIST="172.16.1.[1-7],10.22.192.[51,52,59-63]"
+	CLIENTS_LIST="10.22.192.[51,52,59-63]"
+	HALOND_TS="172.16.1.1"
+	HALON_FACTS_FUNC="halon_facts_yaml_dev2_1"
+}
+
+configure_fre7n1() {
+	HOSTS_LIST="172.16.1.[1-5]"
+	CLIENTS_LIST=""
+	HALOND_TS="172.16.1.1"
+	HALON_FACTS_FUNC="halon_facts_yaml_fre7n1"
+}
+
+configure_hvt() {
+	HOSTS_LIST="172.16.0.41,172.16.1.[1-6]"
+	CLIENTS_LIST=""
+	HALOND_TS="172.16.1.1"
+	HALON_FACTS_FUNC="halon_facts_yaml_hvt"
 }
 
 configure_common() {
@@ -20,9 +46,12 @@ configure_common() {
 	HALON_RPM_PATH=$HALON_SOURCES/rpmbuild/RPMS/x86_64
 	REMOTE_RPM_PATH=/tmp
 
+	HALON_FACTS_HOST="172.16.0.41"
+	HALON_FACTS_PATH="/etc/halon/halon_facts.yaml"
 	HALOND_NODES="$HOSTS_LIST"
 	HALOND_SAT="$HOSTS_LIST"
-	HALOND_NET_IF=bond1
+	HALOND_TS_NET_IF="bond1"
+	HALOND_NET_IFS="bond1|em1|enp12s0d1"
 	HALOND_PORT=9000
 	HALONCTL_PORT=9001
 	HALOND_LOG=/tmp/halond.log
@@ -33,33 +62,8 @@ configure_common() {
 	PDCP="pdcp -w $HOSTS_LIST"
 }
 
-function show_help () {
-	cat << EOF
-Usage: $0 [-h] [-?] [-c COMMAND] [-c COMMAND] ...
-
-Note: you need pdsh installed on each node to be able to use pdcp.
-
-COMMAND - one of the following:
-
-help             - print this help
-build_mero       - build Mero rpm from sources
-build_halon      - build Halon rpm from sources. build_mero should be called before.
-stop             - stop all halond and mero services
-uninstall        - uninstall Mero and Halon rpms
-install          - install the latest Mero and Halon rpms from rpm build dirs
-start_halon      - start TS on the first node and SAT on all nodes
-bootstrap        - halonctl cluster load
-status           - halonctl status
-halon_facts_yaml - print halon_facts.yaml for the cluster
-EOF
-}
-
-function run_command() {
-	command=$1
-	case "$COMMAND" in
-	"help")
-		show_help
-		;;
+run_command() {
+	case "$1" in
 	"build_mero")
 		build_mero
 		;;
@@ -67,6 +71,9 @@ function run_command() {
 		build_halon
 		;;
 	"stop")
+		if [ -n "$CLIENTS_LIST" ]; then
+			pdsh -w $CLIENTS_LIST systemctl stop mero-kernel
+		fi
 		$PDSH systemctl stop mero-kernel
 		$PDSH systemctl stop halond
 		$PDSH 'kill `pidof halond` `pidof halonctl`'
@@ -79,8 +86,9 @@ function run_command() {
 		$PDSH yum -y remove mero halon
 		;;
 	"install")
-		local MERO_RPM=$(ls -t $MERO_RPM_PATH | grep mero-0 | head -n1)
-		local HALON_RPM=$(ls -t $HALON_RPM_PATH | grep 'halon-.*devel' | head -n1)
+		local MERO_RPM=$(ls -t $MERO_RPM_PATH | grep -m1 mero-0)
+		local HALON_RPM=$(ls -t $HALON_RPM_PATH |
+				  grep -m1 'halon-.*devel')
 		$PDCP $MERO_RPM_PATH/$MERO_RPM $REMOTE_RPM_PATH
 		$PDSH yum -y install $REMOTE_RPM_PATH/$MERO_RPM
 		$PDCP $HALON_RPM_PATH/$HALON_RPM $REMOTE_RPM_PATH
@@ -89,19 +97,19 @@ function run_command() {
 	"start_halon")
 		$PDSH rm -rvf halon-persistence
 		pdsh -w $HALOND_NODES \
-			"IP=\$(ip -o -4 addr show dev $HALOND_NET_IF | \
+			"IP=\$(ip -o -4 addr show | egrep '$HALOND_NET_IFS' | \
 			awk -F '[ /]+' '{print \$4}'); \
 			halond -l \$IP:$HALOND_PORT >& $HALOND_LOG &"
 		sleep 3
 		local TS_IP=$(ssh $HALOND_TS \
-			      ip -o -4 addr show dev $HALOND_NET_IF | \
+			      ip -o -4 addr show dev $HALOND_TS_NET_IF | \
 			      awk -F '[ /]+' '{print $4}')
 		pdsh -w $HALOND_TS \
 			halonctl -l $TS_IP:$HALONCTL_PORT -a $TS_IP:$HALOND_PORT \
 			bootstrap station
 		sleep 3
 		pdsh -w $HALOND_SAT \
-			"IP=\$(ip -o -4 addr show dev $HALOND_NET_IF | \
+			"IP=\$(ip -o -4 addr show | egrep '$HALOND_NET_IFS' | \
 			awk -F '[ /]+' '{print \$4}'); \
 			halonctl -l \$IP:$HALONCTL_PORT -a \$IP:$HALOND_PORT \
 			bootstrap satellite -t $TS_IP:$HALOND_PORT"
@@ -109,7 +117,7 @@ function run_command() {
 		;;
 	"bootstrap")
 		local TS_IP=$(ssh $HALOND_TS \
-			      ip -o -4 addr show dev $HALOND_NET_IF | \
+			      ip -o -4 addr show dev $HALOND_TS_NET_IF | \
 			      awk -F '[ /]+' '{print $4}')
 		${HALON_FACTS_FUNC} | ssh $HALOND_TS "cat > $HALON_FACTS"
 		ssh $HALOND_TS \
@@ -122,12 +130,12 @@ function run_command() {
 		;;
 	"status")
 		local TS_IP=$(ssh $HALOND_TS \
-			      ip -o -4 addr show dev $HALOND_NET_IF | \
+			      ip -o -4 addr show dev $HALOND_TS_NET_IF | \
 			      awk -F '[ /]+' '{print $4}')
 		ssh $HALOND_TS \
 			halonctl -l $TS_IP:$HALONCTL_PORT \
 			$(pdsh -w $HALOND_NODES \
-			  "ip -o -4 addr show dev $HALOND_NET_IF" | sort | \
+			  ip -o -4 addr show | egrep "$HALOND_NET_IFS" | sort | \
 			  awk -v HALOND_PORT=$HALOND_PORT \
 			  -F '[ /]+' '{print "-a "$5":"HALOND_PORT}') \
 		        status
@@ -136,42 +144,86 @@ function run_command() {
 		${HALON_FACTS_FUNC}
 		;;
 	*)
-		echo "Unknown command $1"
-		show_help
-		exit 1
+		die "Unknown command: $1"
 	esac
 }
 
-main() {
-	if [ $# -eq 0 ]; then
-		show_help
+setup() {
+	local cluster="$1"
+	if [ "$cluster" = guess ]; then
+		case `hostname` in
+			castor-beta1-cc1.xy01.xyratex.com) cluster=beta1;;
+			castor-dev1-1-cc1.xy01.xyratex.com) cluster=dev1_1;;
+			castor-dev2-1-cc1.xy01.xyratex.com) cluster=dev2_1;;
+			vmc-rekvm-cc1.xy01.xyratex.com) cluster=fre7n1;;
+			vmc-rekvm-hvt-cc1.xy01.xyratex.com) cluster=hvt;;
+			*) die 'Cannot deduce cluster name.' \
+			       'Use --cluster option.';;
+		esac
 	fi
-	case `hostname` in
-	"castor-beta1-cc1.xy01.xyratex.com")
-		configure_beta1
-		;;
-	"castor-dev1-1-cc1.xy01.xyratex.com")
-		configure_dev1_1
-		;;
-	*)
-		echo "Unknown cluster"
-		exit 1
-		;;
+	## Keep in sync with `--cluster' documentation in usage().
+	case $cluster in
+		beta1) configure_beta1;;
+		dev1_1) configure_dev1_1;;
+		dev2_1) configure_dev2_1;;
+		fre7n1) configure_fre7n1;;
+		hvt) configure_hvt;;
+		*) die "Unsupported cluster: $cluster";;
 	esac
 	configure_common
-	while getopts "h?c:" opt; do
-		case "$opt" in
-		h|\?)
-			show_help
-			;;
-		c)
-			COMMAND=$OPTARG
-			run_command $COMMAND
-			;;
+}
+
+usage() {
+	cat << EOF
+Usage: ${0##*/} [OPTION]... [--] COMMAND...
+
+Options:
+    -h, --help      Show this help and exit.
+    --cluster NAME  Use specific cluster configuration. Supported clusters:
+                    beta1, dev1_1, dev2_1, fre7n1, hvt.  If this option is
+                    missing, the script will try to guess by hostname.
+
+Commands:
+    build_mero        Build Mero rpm from sources.
+    build_halon       Build Halon rpm from sources. Requires \`build_mero'
+                      to be called earlier.
+    install           Install the latest Mero and Halon rpms from rpm build
+                      directories. Requires \`pdcp' (part of \`pdsh' package)
+                      to be available at all cluster nodes.
+    uninstall         Uninstall Mero and Halon rpms.
+    start_halon       Start TS on the first node and SAT on all nodes.
+    bootstrap         halonctl cluster load
+    status            halonctl status
+    stop              Stop all halond and mero services.
+    halon_facts_yaml  Show halon_facts.yaml for the cluster.
+EOF
+}
+
+main() {
+	local cluster=guess
+	local cmd
+	local temp # If we assigned here, getopt error would go unnoticed.
+	temp=$(getopt -o h --long help,cluster: -n "@{0##*/}" -- "$@")
+	eval set -- "$temp"
+	while true; do
+		case "$1" in
+			-h|--help) usage; exit 0;;
+			--cluster) cluster=$2; shift;;
+			--) shift; break;;
+			*) break;;
 		esac
-		COMMAND=""
+		shift
 	done
-	shift $((OPTIND-1))
+	if [ $# -eq 0 ]; then
+		echo "Command is missing" >&2
+		usage >&2
+		exit 1
+	fi
+	setup $cluster
+	for cmd in "$@"; do
+		run_command $cmd
+		shift
+	done
 }
 
 build_mero() {
@@ -195,11 +247,11 @@ build_halon() {
 	fi
 	stack_call setup --no-docker
 	stack_call clean rpclite --no-docker
-	stack_call build --flag mero-halon:mero --no-docker
+	stack_call build --flag mero-halon:mero --no-docker --ghc-options -g
 	make rpm-dev
 }
 
-function halon_facts_yaml_beta1() {
+halon_facts_yaml_beta1() {
 	cat << EOF
 ---
 id_racks:
@@ -5531,6 +5583,23 @@ EOF
         m0d_size: 4000787030016
         m0d_path: "/dev/disk/by-id/wwn-0x5000c5007925fb17"
 EOF
+}
+
+halon_facts_yaml_dev2_1() {
+	cat << EOF
+	halon_facts.yaml is not here. Yet.
+EOF
+}
+
+halon_facts_yaml_fre7n1() {
+	local infix=${1:-}
+	cat << EOF
+	Put halon_facts.yaml here or take it from the CMU directly.
+EOF
+}
+
+halon_facts_yaml_hvt() {
+	ssh $HALON_FACTS_HOST cat $HALON_FACTS_PATH
 }
 
 main "$@"
