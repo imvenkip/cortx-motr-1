@@ -59,7 +59,7 @@ M0_BASSERT("NET_TEST_MODULE_NAME should be defined "
    There is one variable per inclusion of this file.
    It is useful to enable/disable module debug messages from any point in code.
  */
-bool LOGD_VAR_NAME(NET_TEST_MODULE_NAME) = false;
+bool LOGD_VAR_NAME(NET_TEST_MODULE_NAME) = true;
 
 #ifndef LOGD_VAR_DECLARE
 #define LOGD_VAR_DECLARE(module_name)					\
@@ -70,7 +70,7 @@ bool LOGD_VAR_NAME(NET_TEST_MODULE_NAME) = false;
 #define LOGD(...)							\
 	do {								\
 		if (LOGD_VAR_NAME(NET_TEST_MODULE_NAME))		\
-			M0_LOG(M0_DEBUG, ##__VA_ARGS__);		\
+			M0_LOG(M0_DEBUG, __VA_ARGS__);			\
 	} while (0)
 
 

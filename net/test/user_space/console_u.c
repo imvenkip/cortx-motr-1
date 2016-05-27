@@ -26,6 +26,7 @@
 #include "lib/memory.h"			/* m0_alloc */
 #include "lib/time.h"			/* m0_time_t */
 #include "lib/arith.h"			/* min_type */
+#include "lib/trace.h"			/* parse_trace_buffer */
 
 #include "mero/init.h"			/* m0_init */
 #include "module/instance.h"            /* m0 */
@@ -137,6 +138,11 @@ DESCRIBE(concurrency_client,   'e', "Test client concurrency");
  * in the end of the console output.
  */
 static bool produce_parsable_output = true;
+
+/**
+ * Parse trace buffer (from stdin to stdout).
+ */
+static bool parse_trace_buffer = false;
 
 static bool addr_check(const char *addr)
 {
@@ -307,13 +313,16 @@ static int configure(int argc, char *argv[],
 		NUMBER_ARG(concurrency_server),
 		NUMBER_ARG(concurrency_client),
 		M0_FLAGARG('p', "Parsable output", &produce_parsable_output),
+		M0_FLAGARG('P', "Parse trace buffer (from stdin to stdout)",
+			   &parse_trace_buffer),
 		M0_VERBOSEFLAGARG,
 		M0_IFLISTARG(&list_if),
 		M0_HELPARG('?'),
 		);
 	if (!list_if)
 		config_print(cfg);
-	success &= config_check(cfg);
+	if (!parse_trace_buffer)
+		success &= config_check(cfg);
 	return list_if ? 1 : success ? 0 : -1;
 #undef NUMBER_ARG
 #undef SCALED_ARG
@@ -657,6 +666,10 @@ int main(int argc, char *argv[])
 			m0_net_test_u_printf("Error in configuration.\n");
 			config_free(&cfg);
 		}
+		goto net_test_fini;
+	}
+	if (parse_trace_buffer) {
+		rc = m0_trace_parse(stdin, stdout, true, false, NULL);
 		goto net_test_fini;
 	}
 
