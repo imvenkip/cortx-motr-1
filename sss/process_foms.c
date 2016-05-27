@@ -287,44 +287,40 @@ static int ss_be_segs_stats_ingest(struct m0_ss_process_rep *rep)
 
 static int ss_ios_stats_ingest(struct m0_ss_process_rep *rep)
 {
-	struct m0_pooldev        *pda;
-	struct m0_pooldev        *pdev;
-	struct m0_poolmach_state *pms = m0_get()->i_pool_module;
 	struct m0_storage_devs   *sds = &m0_get()->i_storage_devs;
 	struct m0_storage_dev    *dev;
 	struct m0_storage_space   sp;
 
-	M0_PRE(pms != NULL);
-	pda = pms->pst_devices_array;
 	/* collect sdevs stats */
 	m0_tl_for(storage_dev, &sds->sds_devices, dev) {
 		M0_SET0(&sp);
+		/* Collect device stats for devices attached under dummy
+		 * services in UT
+		 */
+		if (M0_FI_ENABLED("take_dsx_in_effect") &&
+		    M0_IN(dev->isd_srv_type, (M0_CST_DS1, M0_CST_DS2)))
+			goto consider_DS_in_ut;
+		/* Skip device if it does not belong to ios. */
+		if (dev->isd_srv_type != M0_CST_IOS)
+			continue;
+consider_DS_in_ut:
 		m0_storage_dev_space(dev, &sp);
 		/* any storage device must update total stats */
 		if (m0_addu64_will_overflow(rep->sspr_total,
 					    sp.sds_total_size))
 			return M0_ERR(-EOVERFLOW);
 		rep->sspr_total += sp.sds_total_size;
-		/*
-		 * see if device is in the pool, and is online, and update free
-		 * space stats then
-		 */
-		pdev = NULL;
-		m0_forall(idx, pms->pst_nr_devices, NULL ==
-			  (pdev = (pda[idx].pd_sdev_fid.f_key == dev->isd_cid ?
-				   &pda[idx] : NULL)));
-		if (pdev != NULL && pdev->pd_state == M0_PNDS_ONLINE) {
-			m0_bcount_t free_space;
-
-			M0_ASSERT(pdev->pd_node->pn_state == M0_PNDS_ONLINE);
-			if (~((m0_bcount_t)0) / sp.sds_block_size <
-			    sp.sds_free_blocks)
-				return M0_ERR(-EOVERFLOW);
-			free_space = sp.sds_free_blocks * sp.sds_block_size;
-			if (m0_addu64_will_overflow(rep->sspr_free, free_space))
-				return M0_ERR(-EOVERFLOW);
-			rep->sspr_free += free_space;
-		}
+		/* skip the device that's not online. */
+		if (dev->isd_ha_state != M0_NC_ONLINE)
+			continue;
+		m0_bcount_t free_space;
+		if (~((m0_bcount_t)0) / sp.sds_block_size <
+				sp.sds_free_blocks)
+			return M0_ERR(-EOVERFLOW);
+		free_space = sp.sds_free_blocks * sp.sds_block_size;
+		if (m0_addu64_will_overflow(rep->sspr_free, free_space))
+			return M0_ERR(-EOVERFLOW);
+		rep->sspr_free += free_space;
 	} m0_tl_endfor;
 
 	return M0_RC(0);

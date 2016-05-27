@@ -43,6 +43,11 @@ static int confc_obj_get(struct m0_confc     *confc,
 		     m0_confc_open_sync(result, *result, M0_FID0));
 }
 
+static bool obj_is_sdev(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE;
+}
+
 M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 			       struct m0_confc            *confc,
 			       struct m0_conf_filesystem **result)
@@ -87,6 +92,47 @@ M0_INTERNAL int m0_conf_sdev_get(struct m0_confc      *confc,
 	if (rc == 0)
 		*sdev = M0_CONF_CAST(obj, m0_conf_sdev);
 	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_conf_device_cid_to_fid(struct m0_confc *confc, uint64_t cid,
+					  const struct m0_fid *conf_profile,
+					  struct m0_fid *fid)
+{
+	struct m0_conf_diter       it;
+	struct m0_conf_filesystem *fs;
+	struct m0_conf_sdev       *sdev;
+	struct m0_conf_obj        *obj;
+	int                        rc;
+
+	rc = m0_conf_fs_get(conf_profile, confc, &fs);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0_conf_diter_init(&it, confc,
+				&fs->cf_obj,
+				M0_CONF_FILESYSTEM_NODES_FID,
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID,
+				M0_CONF_SERVICE_SDEVS_FID);
+	if (rc != 0) {
+		m0_confc_close(&fs->cf_obj);
+		return M0_ERR(rc);
+	}
+	while ((rc = m0_conf_diter_next_sync(&it, obj_is_sdev)) !=
+		M0_CONF_DIRNEXT)
+		; /* Skip over non-sdev objects. */
+	for (obj = m0_conf_diter_result(&it); rc == M0_CONF_DIRNEXT;
+	     rc = m0_conf_diter_next_sync(&it, obj_is_sdev)) {
+		obj = m0_conf_diter_result(&it);
+		sdev = M0_CONF_CAST(obj, m0_conf_sdev);
+		if (sdev->sd_dev_idx == cid) {
+			*fid = sdev->sd_obj.co_id;
+			break;
+		}
+	}
+	m0_conf_diter_fini(&it);
+	m0_confc_close(&fs->cf_obj);
+	return rc == M0_CONF_DIREND ? -ENOENT : 0;
 }
 
 M0_INTERNAL int m0_conf_disk_get(struct m0_confc      *confc,

@@ -25,10 +25,15 @@
 #include "lib/finject.h"            /* M0_FI_ENABLED */
 #include "balloc/balloc.h"          /* b2m0 */
 #include "conf/obj.h"               /* m0_conf_sdev */
+#include "conf/confc.h"             /* m0_confc_from_obj */
+#include "conf/helpers.h"           /* m0_conf_disk_get */
+#include "conf/diter.h"             /* m9_conf_diter */
+#include "conf/obj_ops.h"           /* M0_CONF_DIRNEXT */
 #include "stob/ad.h"                /* m0_stob_ad_type */
 #include "stob/linux.h"             /* m0_stob_linux */
 #include "ioservice/fid_convert.h"  /* m0_fid_validate_linuxstob */
 #include "ioservice/storage_dev.h"
+#include "reqh/reqh.h"              /* m0_reqh */
 #include <unistd.h>                 /* fdatasync */
 
 /**
@@ -47,6 +52,10 @@ M0_TL_DESCR_DEFINE(storage_dev, "storage_dev", M0_INTERNAL,
 
 M0_TL_DEFINE(storage_dev, M0_INTERNAL, struct m0_storage_dev);
 
+static bool storage_dev_state_update_cb(struct m0_clink *link);
+static bool storage_devs_conf_expired_cb(struct m0_clink *link);
+static bool storage_devs_conf_ready_cb(struct m0_clink *link);
+
 static bool storage_devs_is_locked(struct m0_storage_devs *devs)
 {
 	return m0_mutex_is_locked(&devs->sds_lock);
@@ -64,7 +73,8 @@ M0_INTERNAL void m0_storage_devs_unlock(struct m0_storage_devs *devs)
 
 M0_INTERNAL int m0_storage_devs_init(struct m0_storage_devs *devs,
 				     struct m0_be_seg       *be_seg,
-				     struct m0_stob_domain  *bstore_dom)
+				     struct m0_stob_domain  *bstore_dom,
+				     struct m0_reqh         *reqh)
 {
 	M0_ENTRY();
 	M0_PRE(bstore_dom != NULL);
@@ -72,6 +82,10 @@ M0_INTERNAL int m0_storage_devs_init(struct m0_storage_devs *devs,
 	storage_dev_tlist_init(&devs->sds_devices);
 	devs->sds_be_seg = be_seg;
 	m0_mutex_init(&devs->sds_lock);
+	m0_clink_init(&devs->sds_conf_ready, storage_devs_conf_ready_cb);
+	m0_clink_init(&devs->sds_conf_exp, storage_devs_conf_expired_cb);
+	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &devs->sds_conf_exp);
+	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &devs->sds_conf_ready);
 	return M0_RC(m0_parallel_pool_init(&devs->sds_pool, 10, 20));
 }
 
@@ -79,6 +93,10 @@ M0_INTERNAL void m0_storage_devs_fini(struct m0_storage_devs *devs)
 {
 	m0_parallel_pool_terminate_wait(&devs->sds_pool);
 	m0_parallel_pool_fini(&devs->sds_pool);
+	m0_clink_cleanup(&devs->sds_conf_exp);
+	m0_clink_cleanup(&devs->sds_conf_ready);
+	m0_clink_fini(&devs->sds_conf_exp);
+	m0_clink_fini(&devs->sds_conf_ready);
 	storage_dev_tlist_fini(&devs->sds_devices);
 	m0_mutex_fini(&devs->sds_lock);
 }
@@ -89,6 +107,94 @@ m0_storage_devs_find_by_cid(struct m0_storage_devs *devs,
 {
 	return m0_tl_find(storage_dev, dev, &devs->sds_devices,
 			  dev->isd_cid == cid);
+}
+
+M0_INTERNAL void m0_storage_dev_clink_add(struct m0_clink *link,
+					  struct m0_chan *chan)
+{
+	m0_clink_init(link, storage_dev_state_update_cb);
+	m0_clink_add_lock(chan, link);
+}
+
+M0_INTERNAL void m0_storage_dev_clink_del(struct m0_clink *link)
+{
+	m0_clink_del_lock(link);
+	m0_clink_fini(link);
+}
+
+static bool storage_dev_state_update_cb(struct m0_clink *link)
+{
+	struct m0_storage_dev *dev =
+		container_of(link, struct m0_storage_dev, isd_clink);
+	struct m0_conf_obj *obj =
+		container_of(link->cl_chan, struct m0_conf_obj, co_ha_chan);
+	M0_PRE(m0_conf_fid_type(&obj->co_id) == &M0_CONF_SDEV_TYPE);
+	dev->isd_ha_state = obj->co_ha_state;
+	return true;
+}
+
+static bool storage_devs_conf_expired_cb(struct m0_clink *clink)
+{
+	struct m0_storage_dev  *dev;
+	struct m0_conf_obj     *obj;
+	struct m0_storage_devs *storage_devs =
+				  container_of(clink,
+					       struct m0_storage_devs,
+					       sds_conf_exp);
+	m0_tl_for (storage_dev, &storage_devs->sds_devices, dev) {
+		/* Not all storage devices have a corresponding m0_conf_sdev
+		   object.
+		*/
+		if (!m0_clink_is_armed(&dev->isd_clink))
+			continue;
+		obj = container_of(dev->isd_clink.cl_chan, struct m0_conf_obj,
+				   co_ha_chan);
+		M0_ASSERT(m0_conf_obj_invariant(obj));
+		m0_storage_dev_clink_del(&dev->isd_clink);
+		m0_confc_close(obj);
+		dev->isd_ha_state = M0_NC_UNKNOWN;
+
+	} m0_tl_endfor;
+	return true;
+}
+
+static bool storage_devs_conf_ready_cb(struct m0_clink *clink)
+{
+	struct m0_storage_dev  *dev;
+	struct m0_storage_devs *storage_devs =
+					container_of(clink,
+						     struct m0_storage_devs,
+						     sds_conf_ready);
+	struct m0_reqh         *reqh = container_of(clink->cl_chan,
+						    struct m0_reqh,
+						    rh_conf_cache_ready);
+	struct m0_confc        *confc = m0_reqh2confc(reqh);
+	struct m0_fid          *profile = &reqh->rh_profile;
+	struct m0_fid           sdev_fid;
+	struct m0_conf_sdev    *conf_sdev;
+	struct m0_conf_service *conf_service;
+	struct m0_conf_obj     *srv_obj;
+	int                     rc;
+
+	m0_tl_for (storage_dev, &storage_devs->sds_devices, dev) {
+		rc = m0_conf_device_cid_to_fid(confc, dev->isd_cid,
+					       profile, &sdev_fid);
+		if (rc != 0)
+			/* Not all storage devices have a corresponding
+			 * m0_conf_sdev object.
+			 */
+			continue;
+		rc = m0_conf_sdev_get(confc, &sdev_fid, &conf_sdev);
+		M0_ASSERT_INFO(rc == 0, "Could not locate sdev with fid "FID_F,
+			       FID_P(&sdev_fid));
+		m0_storage_dev_clink_add(&dev->isd_clink,
+					 &conf_sdev->sd_obj.co_ha_chan);
+		dev->isd_ha_state = conf_sdev->sd_obj.co_ha_state;
+		srv_obj = m0_conf_obj_grandparent(&conf_sdev->sd_obj);
+		conf_service = M0_CONF_CAST(srv_obj, m0_conf_service);
+		dev->isd_srv_type = conf_service->cs_type;
+	} m0_tl_endfor;
+	return true;
 }
 
 static int stob_domain_create_or_init(uint64_t                 cid,
@@ -119,12 +225,14 @@ static int storage_dev_attach(struct m0_storage_devs    *devs,
 			      uint64_t                   cid,
 			      const char                *path,
 			      uint64_t                   size,
-			      const struct m0_conf_sdev *conf_sdev)
+			      struct m0_conf_sdev *conf_sdev)
 {
-	struct m0_storage_dev *device;
-	struct m0_stob_id      stob_id;
-	struct m0_stob        *stob;
-	int                    rc;
+	struct m0_storage_dev  *device;
+	struct m0_conf_service *conf_service;
+	struct m0_conf_obj     *srv_obj;
+	struct m0_stob_id       stob_id;
+	struct m0_stob         *stob;
+	int                     rc;
 
 	M0_ENTRY("cid=%llu", (unsigned long long)cid);
 	M0_PRE(m0_storage_devs_find_by_cid(devs, cid) == NULL);
@@ -157,12 +265,18 @@ static int storage_dev_attach(struct m0_storage_devs    *devs,
 	if (rc == 0) {
 		if (M0_FI_ENABLED("ad_domain_locate_fail")) {
 			m0_stob_domain_fini(device->isd_domain);
+			m0_confc_close(&conf_sdev->sd_obj);
 			rc = -EINVAL;
 		} else if (conf_sdev != NULL) {
-			/* Ensure that we are dealing with a linux stob. */
-			M0_ASSERT(m0_fid_validate_linuxstob(&stob_id));
-			m0_stob_linux_conf_sdev_associate(stob,
-						  &conf_sdev->sd_obj.co_id);
+			if (m0_fid_validate_linuxstob(&stob_id))
+				m0_stob_linux_conf_sdev_associate(stob,
+						&conf_sdev->sd_obj.co_id);
+			m0_conf_obj_get_lock(&conf_sdev->sd_obj);
+			srv_obj = m0_conf_obj_grandparent(&conf_sdev->sd_obj);
+			conf_service = M0_CONF_CAST(srv_obj, m0_conf_service);
+			m0_storage_dev_clink_add(&device->isd_clink,
+					&conf_sdev->sd_obj.co_ha_chan);
+			device->isd_srv_type = conf_service->cs_type;
 		}
 	}
 stob_put:
@@ -179,26 +293,28 @@ end:
 M0_INTERNAL int m0_storage_dev_attach(struct m0_storage_devs *devs,
 				      uint64_t                cid,
 				      const char             *path,
-				      uint64_t                size)
+				      uint64_t                size,
+				      struct m0_conf_sdev *conf_sdev)
 {
 	return storage_dev_attach(devs, cid,
 				  M0_FI_ENABLED("no_real_dev") ? NULL : path,
-				  size, NULL);
+				  size, conf_sdev);
 }
 
 M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs    *devs,
-					      const struct m0_conf_sdev *sdev)
+					      struct m0_conf_sdev *sdev)
 {
 	return storage_dev_attach(
 		devs, sdev->sd_dev_idx,
 		M0_FI_ENABLED("no_real_dev") ? NULL : sdev->sd_filename,
-		sdev->sd_size, sdev);
+		sdev->sd_size, M0_FI_ENABLED("no-conf-dev") ? NULL : sdev);
 }
 
 M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev)
 {
 	enum m0_stob_state  st;
 	int                 rc;
+	struct m0_conf_obj *obj;
 
 	/* Find the linux stob and acquire a reference. */
 	rc = m0_stob_find(&dev->isd_stob->so_id, &dev->isd_stob);
@@ -212,7 +328,12 @@ M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev)
 	}
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Failed to destroy linux stob rc=%d", rc);
-
+	if (m0_clink_is_armed(&dev->isd_clink)) {
+		obj = container_of(dev->isd_clink.cl_chan, struct m0_conf_obj,
+				   co_ha_chan);
+		m0_storage_dev_clink_del(&dev->isd_clink);
+		m0_confc_close(obj);
+	}
 	storage_dev_tlink_del_fini(dev);
 	m0_free(dev);
 }

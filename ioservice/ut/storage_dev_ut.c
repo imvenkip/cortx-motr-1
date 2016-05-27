@@ -126,7 +126,8 @@ static void storage_dev_test(void)
 	domain = m0_stob_domain_find_by_location(location);
 	rc = m0_storage_devs_init(&devs,
 				  rpc_srv.rsx_mero_ctx.cc_reqh_ctx.rc_beseg,
-				  domain);
+				  domain,
+				  &rpc_srv.rsx_mero_ctx.cc_reqh_ctx.rc_reqh);
 	M0_UT_ASSERT(rc == 0);
 
 	/* attach */
@@ -136,21 +137,25 @@ static void storage_dev_test(void)
 	 */
 	grp_size = BALLOC_DEF_BLOCKS_PER_GROUP * block_size;
 	total_size = (BALLOC_DEF_RESERVED_GROUPS + 1) * grp_size;
-	rc = m0_storage_dev_attach(&devs, 10, fname2, total_size);
+	rc = m0_storage_dev_attach(&devs, 10, fname2, total_size, NULL);
 	M0_UT_ASSERT(rc == 0);
 
 	sdev.sd_size = total_size;
 	sdev.sd_filename = fname1;
 	sdev.sd_dev_idx = 12;
+	m0_fi_enable("m0_storage_dev_attach_by_conf", "no-conf-dev");
 	rc =  m0_storage_dev_attach_by_conf(&devs, &sdev);
 	M0_UT_ASSERT(rc == 0);
+	m0_fi_enable("m0_storage_dev_attach_by_conf", "no-conf-dev");
 
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
-	rc = m0_storage_dev_attach(&devs, 13, "../../some-file", total_size);
+	rc = m0_storage_dev_attach(&devs, 13, "../../some-file", total_size,
+				  NULL);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
-	rc = m0_storage_dev_attach(&devs, 13, "../../some-file", total_size);
+	rc = m0_storage_dev_attach(&devs, 13, "../../some-file", total_size,
+				   NULL);
 	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 

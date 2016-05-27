@@ -66,6 +66,12 @@ M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 			       struct m0_confc            *confc,
 			       struct m0_conf_filesystem **result);
 
+
+/** Finds a device object using device index as a key. */
+M0_INTERNAL int m0_conf_device_cid_to_fid(struct m0_confc *confc, uint64_t cid,
+					  const struct m0_fid *conf_profile,
+					  struct m0_fid *out);
+
 /**
  * Obtains service object associated with given fid.
  *
@@ -177,6 +183,8 @@ M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
 M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc);
 
 M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj);
+
+M0_INTERNAL bool m0_obj_is_sdev(const struct m0_conf_obj *obj);
 
 M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj);
 

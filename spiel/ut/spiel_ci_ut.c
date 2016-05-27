@@ -410,8 +410,10 @@ void test_spiel_fs_stats(void)
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	/* test the existent one */
+	m0_fi_enable("ss_ios_stats_ingest", "take_dsx_in_effect");
 	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
 	M0_UT_ASSERT(rc == 0);
+	m0_fi_disable("ss_ios_stats_ingest", "take_dsx_in_effect");
 	/*
 	 * fs_stats.fs_total contains sum of ios total space and be total space
 	 */

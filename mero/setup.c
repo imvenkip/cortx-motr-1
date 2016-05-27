@@ -811,9 +811,22 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 	yaml_node_item_t       *item;
 	m0_bcount_t             size = 0; /* Uses BALLOC_DEF_CONTAINER_SIZE; */
 
+	struct m0_mero         *cctx;
+	struct m0_reqh_context *rctx;
+	struct m0_confc        *confc;
+	struct m0_reqh         *reqh;
+	struct m0_fid          *conf_profile;
+	struct m0_fid           sdev_fid;
+	struct m0_conf_sdev    *conf_sdev;
+
 	M0_ENTRY();
 
-	rc = m0_storage_devs_init(devs, seg, bstore_dom);
+	rctx = container_of(stob, struct m0_reqh_context, rc_stob);
+	reqh = &rctx->rc_reqh;
+	cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
+	confc = m0_mero2confc(cctx);
+	conf_profile = &rctx->rc_reqh.rh_profile;
+	rc = m0_storage_devs_init(devs, seg, bstore_dom, reqh);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -829,8 +842,23 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 					continue;
 				M0_ASSERT(cid > 0);
 				f_path = stob_file_path_get(doc, s_node);
+				rc = m0_conf_device_cid_to_fid(confc, cid - 1,
+							       conf_profile,
+							       &sdev_fid);
+				if (rc == 0) {
+					rc = m0_conf_sdev_get(confc,
+							      &sdev_fid,
+						              &conf_sdev);
+					if (rc != 0)
+						break;
+				} else
+					/* Every storage device need not have a
+					 * counterpart in configuration. */
+					conf_sdev = NULL;
 				rc = m0_storage_dev_attach(devs, cid - 1,
-							   f_path, size);
+						f_path, size, conf_sdev);
+				if (conf_sdev != NULL)
+					m0_confc_close(&conf_sdev->sd_obj);
 				if (rc != 0)
 					break;
 			}
@@ -838,11 +866,9 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 	} else if (stob->s_ad_disks_init || M0_FI_ENABLED("init_via_conf")) {
 		M0_LOG(M0_DEBUG, "conf config");
 		rc = cs_conf_storage_init(stob, devs);
-	} else {
+	} else
 		rc = m0_storage_dev_attach(devs, M0_AD_STOB_DOM_KEY_DEFAULT,
-					   NULL, size);
-	}
-
+					   NULL, size, NULL);
 	if (rc != 0)
 		cs_storage_devs_fini();
 	return M0_RC(rc);
@@ -1503,7 +1529,6 @@ static void cs_reqh_storage_fini(struct m0_reqh_context *rctx)
 	m0_reqh_addb2_fini(reqh);
 	m0_stob_put(rctx->rc_addb2_stob.cas_stob);
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
-	cs_storage_fini(&rctx->rc_stob);
 	cs_be_fini(&rctx->rc_be);
 	m0_reqh_post_storage_fini_svcs_stop(reqh);
 	m0_reqh_fini(reqh);
@@ -2077,8 +2102,10 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	struct m0_conf_filesystem *fs;
 	int                        rc;
 
-	if (cctx->cc_no_conf)
+	if (cctx->cc_no_conf) {
+		M0_LOG(M0_WARN, "No conf");
 		return M0_RC(0);
+	}
 
 	if (cctx->cc_reqh_ctx.rc_confdb != NULL) {
 		rc = m0_file_read(cctx->cc_reqh_ctx.rc_confdb,
@@ -2314,6 +2341,8 @@ void m0_cs_fini(struct m0_mero *cctx)
 	m0_ha_client_del(m0_mero2confc(cctx));
 
 	if (rctx->rc_state >= RC_REQH_INITIALISED) {
+		if (rctx->rc_state == RC_INITIALISED)
+			cs_storage_fini(&rctx->rc_stob);
 		cs_conf_destroy(cctx);
 		if (cctx->cc_ha_is_started)
 			cs_ha_fini(cctx);

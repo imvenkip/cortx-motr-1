@@ -274,10 +274,7 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 			M0_ASSERT(sdev->sd_dev_idx <= M0_FID_DEVICE_ID_MAX);
 			if (sdev->sd_obj.co_ha_state == M0_NC_FAILED)
 				continue;
-			rc = m0_storage_dev_attach(devs,
-			        sdev->sd_dev_idx,
-			        sdev->sd_filename,
-			        sdev->sd_size);
+			rc = m0_storage_dev_attach_by_conf(devs, sdev);
 			if (rc == -ENOENT) {
 				M0_LOG(M0_DEBUG, "co_id="FID_F" path=%s rc=%d",
 				       FID_P(&sdev->sd_obj.co_id),

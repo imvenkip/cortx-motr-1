@@ -26,12 +26,16 @@
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "lib/thread_pool.h"
+#include "lib/chan.h"
+#include "ha/note.h"
+#include "conf/obj.h"
 
 /* import */
 struct m0_stob;
 struct m0_stob_domain;
 struct m0_be_seg;
 struct m0_conf_sdev;
+struct m0_reqh;
 
 /**
  * @defgroup sdev Storage devices.
@@ -58,15 +62,26 @@ struct m0_conf_sdev;
  */
 struct m0_storage_dev {
 	/** linux stob of device */
-	struct m0_stob        *isd_stob;
+	struct m0_stob            *isd_stob;
 	/** AD stob domain for AD stobs of device */
-	struct m0_stob_domain *isd_domain;
+	struct m0_stob_domain     *isd_domain;
 	/** Storage device ID */
-	uint64_t               isd_cid;
+	uint64_t                   isd_cid;
 	/** Linkage into list of storage devices. */
-	struct m0_tlink        isd_linkage;
-	/** Magic for isd_linkage */
-	uint64_t               isd_magic;
+	struct m0_tlink            isd_linkage;
+	/**
+	 * A link to receive HA state change notification. It waits
+	 * on disk obj's wait channel, m0_conf_obj::co_ha_chan.
+	 */
+	struct m0_clink            isd_clink;
+	/** HA state associated with the disk corresponding to the
+	 * storage device.
+	 */
+	enum m0_ha_obj_state       isd_ha_state;
+	/* Type of the parent service. */
+	enum m0_conf_service_type  isd_srv_type;
+	/* * Magic for isd_linkage */
+	uint64_t                   isd_magic;
 };
 
 M0_TL_DESCR_DECLARE(storage_dev, M0_EXTERN);
@@ -87,6 +102,10 @@ struct m0_storage_devs {
 	struct m0_be_seg        *sds_be_seg;
 	/** Parallel pool processing list of storage devs */
 	struct m0_parallel_pool  sds_pool;
+
+	/* Links to detect expiration and availability of conf. */
+	struct m0_clink          sds_conf_exp;
+	struct m0_clink          sds_conf_ready;
 };
 
 /**
@@ -96,7 +115,8 @@ struct m0_storage_devs {
  */
 M0_INTERNAL int m0_storage_devs_init(struct m0_storage_devs *devs,
 				     struct m0_be_seg       *be_seg,
-				     struct m0_stob_domain  *bstore_dom);
+				     struct m0_stob_domain  *bstore_dom,
+				     struct m0_reqh         *reqh);
 /**
  * Finalises storage devices structure.
  */
@@ -124,8 +144,8 @@ m0_storage_devs_find_by_cid(struct m0_storage_devs *devs,
  *
  * Extracts device parameters and executes m0_storage_dev_attach.
  */
-M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs    *devs,
-					      const struct m0_conf_sdev *sdev);
+M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs *devs,
+					      struct m0_conf_sdev    *sdev);
 
 /**
  * Attaches storage device.
@@ -136,7 +156,8 @@ M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs    *devs,
 M0_INTERNAL int m0_storage_dev_attach(struct m0_storage_devs *devs,
 				      uint64_t                cid,
 				      const char             *path,
-				      uint64_t                size);
+				      uint64_t                size,
+				      struct m0_conf_sdev    *sdev);
 
 /**
  * Detaches storage device.
