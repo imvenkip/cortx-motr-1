@@ -20,10 +20,6 @@ start()
     [[ -r $user_config   ]] && source $user_config
 
     m0_load_modules
-
-    #if [ x$MERO_TRACED_KMOD = xyes ] ; then
-    #    start mero-trace TARGET=kernel
-    #fi
 }
 
 stop()
@@ -31,10 +27,6 @@ stop()
     source $service_funcs
 
     [ -r $user_config ] && source $user_config
-
-    #if [ x$MERO_TRACED_KMOD = xyes ] ; then
-    #    stop mero-trace TARGET=kernel
-    #fi
 
     m0_unload_modules
 }

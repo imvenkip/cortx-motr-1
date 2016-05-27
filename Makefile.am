@@ -735,18 +735,11 @@ be_tool_m0betool_LDADD     = $(top_builddir)/mero/libmero.la
 if HAVE_SYSTEMD
 usr_lib_systemddir    = $(prefix)/lib/systemd/system
 usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/lnet.service \
-                        scripts/install/usr/lib/systemd/system/mero-client.service \
                         scripts/install/usr/lib/systemd/system/mero-kernel.service \
-                        scripts/install/usr/lib/systemd/system/mero-mkfs.service \
                         scripts/install/usr/lib/systemd/system/mero-mkfs@.service \
-                        scripts/install/usr/lib/systemd/system/mero-server-confd.service \
-                        scripts/install/usr/lib/systemd/system/mero-server-ha.service \
-                        scripts/install/usr/lib/systemd/system/mero-server@.service \
                         scripts/install/usr/lib/systemd/system/m0d@.service \
                         scripts/install/usr/lib/systemd/system/m0t1fs@.service \
-                        scripts/install/usr/lib/systemd/system/mero-singlenode.service \
-                        scripts/install/usr/lib/systemd/system/mero-trace@.service \
-                        scripts/install/usr/lib/systemd/system/mero.service
+                        scripts/install/usr/lib/systemd/system/mero-trace@.service
 EXTRA_DIST           += $(usr_lib_systemd_DATA)
 endif
 
@@ -754,10 +747,11 @@ etc_sysconfigdir    = $(sysconfdir)/sysconfig
 etc_sysconfig_DATA  = scripts/install/etc/sysconfig/mero
 EXTRA_DIST         += $(etc_sysconfig_DATA)
 
-etc_merodir    = $(sysconfdir)/mero
-etc_mero_DATA  = scripts/install/etc/mero/genders \
-                 scripts/install/etc/mero/disks-ios.conf
-EXTRA_DIST    += $(etc_mero_DATA)
+# After genders => Halon transition, Mero doesn't have any configuration files
+# under /etc/mero/ directory. But there might be some in future.
+#etc_merodir    = $(sysconfdir)/mero
+#etc_mero_DATA  =
+#EXTRA_DIST    += $(etc_mero_DATA)
 
 
 ################################################################################

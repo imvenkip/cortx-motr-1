@@ -207,9 +207,6 @@ fi
 systemctl daemon-reload
 %endif
 
-/bin/sed -i -e "s/<host>/$(hostname -s)/" /etc/mero/genders
-/bin/sed -i -e "s/00000000-0000-0000-0000-000000000000/$(uuidgen)/" /etc/mero/genders
-
 if [ x%%{?no_trace_logs} != x ] ; then
     /bin/sed -i -r -e "s/(MERO_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/mero
     /bin/sed -i -r -e "s/(MERO_TRACED_M0D=)yes/\1no/" /etc/sysconfig/mero

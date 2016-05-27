@@ -10,8 +10,10 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . $M0_SRC_DIR/utils/functions # report_and_exit
 
-set -x
-sudo /usr/bin/time -v $M0_SRC_DIR/st/m0t1fs -vv -r /root/rpmbuild/RPMS/x86_64/mero-?.?.?-*.rpm
-rc=$?
-set +x
-report_and_exit initscripts $rc
+cd $M0_SRC_DIR
+
+sudo ./scripts/install-mero-service -u
+sudo ./scripts/install-mero-service -l
+sudo /usr/bin/time -v ./st/m0t1fs -vv
+
+report_and_exit initscripts $?

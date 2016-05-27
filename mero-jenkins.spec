@@ -154,6 +154,7 @@ find %{buildroot} -name 'm0ff2c' | sed -e 's#^%{buildroot}##' > devel.files
 find %{buildroot} -name 'libmero-xcode-ff2c*.so*' | sed -e 's#^%{buildroot}##' >> devel.files
 find %{buildroot} -name '*.la' | sed -e 's#^%{buildroot}##' >> devel.files
 find %{buildroot}%{_includedir} | sed -e 's#^%{buildroot}##' >> devel.files
+find %{buildroot}%{_libdir} -name mero.pc | sed -e 's#^%{buildroot}##' >> devel.files
 mkdir -p %{buildroot}%{_localstatedir}/mero
 
 %endif # with ut
@@ -184,6 +185,7 @@ fi
 %exclude %{_libdir}/*.la
 %exclude %{_libdir}/libmero-ut*
 %exclude %{_libdir}/libmero-xcode-ff2c*
+%exclude %{_libdir}/pkgconfig/mero.pc
 %exclude %{_includedir}
 %exclude /lib/modules/*/kernel/fs/net/*
 %exclude /lib/modules/*/kernel/fs/rpc/*
@@ -199,8 +201,6 @@ fi
 %post
 /sbin/depmod -a
 systemctl daemon-reload
-/bin/sed -i -e "s/<host>/$(hostname -s)/" /etc/mero/genders
-/bin/sed -i -e "s/00000000-0000-0000-0000-000000000000/$(uuidgen)/" /etc/mero/genders
 
 if [ -e /tmp/mero_no_trace_logs ] ; then
     /bin/sed -i -r -e "s/(MERO_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/mero

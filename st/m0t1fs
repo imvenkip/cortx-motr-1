@@ -17,9 +17,13 @@ readonly verbose_level_debug=2
 readonly verbose_level_info=1
 readonly verbose_level_none=0
 
+M0_SRC_DIR=$(readlink -f $0)
+M0_SRC_DIR=${M0_SRC_DIR%/*/*}
+
 # variables
 verbose_level=$verbose_level_none
 rpm_pkg=''
+m0setup=m0setup
 needs_cleanup=true
 
 
@@ -210,7 +214,7 @@ cleanup()
     info 'stopping mero-kernel'
     systemctl stop mero-kernel
     info 'm0setup cleanup'
-    m0setup -c
+    $m0setup -c
     info 'rpm cleanup'
     remove_mero_rpm $rpm_pkg
 }
@@ -229,12 +233,16 @@ if ! is_mero_installed && [[ -z $rpm_pkg ]] ; then
         'and removal'
 fi
 
-[[ -n $rpm_pkg ]] && install_mero_rpm $rpm_pkg
+if [[ -n $rpm_pkg ]] ; then
+    install_mero_rpm $rpm_pkg
+else
+    m0setup="$M0_SRC_DIR/utils/m0setup"
+fi
 
 # this is required, because other test scripts might leave some
 # loopback devices attached
 info 'Running m0setup cleanup'
-m0setup -c
+$m0setup -c
 
 for ios_num in 1 ; do
     info "--------------- m0t1fs test with $ios_num ioservice(s)  ---------------"
@@ -243,10 +251,10 @@ for ios_num in 1 ; do
     rm -rf /var/mero/{confd,ha,mds,ios*}/
 
     info 'Running m0setup cleanup'
-    m0setup -c
+    $m0setup -c
 
     info 'Running m0setup'
-    m0setup -i $ios_num
+    $m0setup -i $ios_num
 
     info 'Running mero-mkfs'
     systemctl start mero-mkfs
@@ -267,7 +275,7 @@ for ios_num in 1 ; do
     debug "  [done] ($(date -u))"
 
     info 'Running m0setup cleanup'
-    m0setup -c
+    $m0setup -c
 
     info 'Performing sanity checks'
     if lsmod | grep -q m0 ; then

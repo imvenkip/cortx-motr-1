@@ -90,6 +90,17 @@ m0_path_to()
     fi
 }
 
+# Checks if genders "database" exists
+m0_has_genders()
+{
+    if [[ -e $MERO_GENDERS_CONF ]] ; then
+        return 0
+    else
+        m0_log "WARN: trying to query non-existing configuration file '$MERO_GENDERS_CONF'"
+        return 1
+    fi
+}
+
 # Checks if particular variable exists in genders "database"
 #   @param  $1  name of a variable
 #   @param  $2  optional name of a node, for which the query is performed, if
@@ -99,10 +110,10 @@ m0_genders_has_variable()
     local var_name=$1
     local node=$2
 
-    if [[ -e $MERO_GENDERS_CONF ]] ; then
+    if m0_has_genders ; then
         nodeattr -f $MERO_GENDERS_CONF -Q $node $var_name
     else
-        m0_log "WARN: trying to query non-existing configuration file '$MERO_GENDERS_CONF'"
+        return 1
     fi
 }
 
@@ -214,7 +225,9 @@ m0_get_m0d_data_dir_for()
 # Return space-separated list of all nodes in the cluster from genders file
 m0_get_nodes()
 {
-    nodeattr -f $MERO_GENDERS_CONF -c -A | tr ',' ' '
+    if m0_has_genders ; then
+        nodeattr -f $MERO_GENDERS_CONF -c -A | tr ',' ' '
+    fi
 }
 
 # Return lnet NID of a node
