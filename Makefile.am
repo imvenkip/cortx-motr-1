@@ -232,6 +232,17 @@ include $(top_srcdir)/udb/Makefile.sub
 include $(top_srcdir)/xcode/Makefile.sub
 
 #
+# libmero-net-test.so
+#
+
+lib_LTLIBRARIES += net/test/libmero-net-test.la
+net_test_libmero_net_test_la_CPPFLAGS = -DM0_TARGET='libmero-net-test' $(AM_CPPFLAGS)
+
+net_test_libmero_net_test_la_SOURCES =
+
+include $(top_srcdir)/net/test/Makefile.sub
+
+#
 # libmero-ut.so
 #
 
@@ -283,19 +294,6 @@ include $(top_srcdir)/stats/ut/Makefile.sub
 include $(top_srcdir)/udb/ut/Makefile.sub
 include $(top_srcdir)/ut/Makefile.sub
 include $(top_srcdir)/xcode/ut/Makefile.sub
-
-#
-# libmero-net-test.so
-#
-
-if ENABLE_UNIT_TESTS
-noinst_LTLIBRARIES += net/test/libmero-net-test.la
-endif
-net_test_libmero_net_test_la_CPPFLAGS = -DM0_TARGET='libmero-net-test' $(AM_CPPFLAGS)
-
-net_test_libmero_net_test_la_SOURCES =
-
-include $(top_srcdir)/net/test/Makefile.sub
 
 #
 # libmero-altogether.so
@@ -547,16 +545,12 @@ include $(top_srcdir)/net/lnet/st/Makefile.sub
 # net/test
 #
 
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                         += net/test/user_space/m0nettest
-endif
+bin_PROGRAMS                         += net/test/user_space/m0nettest
 net_test_user_space_m0nettest_CPPFLAGS   = -DM0_TARGET='m0nettest' $(AM_CPPFLAGS)
 net_test_user_space_m0nettest_LDADD      = $(top_builddir)/mero/libmero.la \
                                            $(top_builddir)/net/test/libmero-net-test.la
 
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                         += net/test/user_space/m0nettestd
-endif
+bin_PROGRAMS                         += net/test/user_space/m0nettestd
 net_test_user_space_m0nettestd_CPPFLAGS  = -DM0_TARGET='m0nettestd' $(AM_CPPFLAGS)
 net_test_user_space_m0nettestd_LDADD     = $(top_builddir)/mero/libmero.la \
                                            $(top_builddir)/net/test/libmero-net-test.la
