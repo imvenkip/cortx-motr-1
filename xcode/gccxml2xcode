@@ -233,7 +233,7 @@ sub get_info_about
 
             # Normally, a 'void' C type can't be a valid type of a variable and
             # thus it doesn't have a corresponding xcode M0_XT_XXX type. But
-            # just in case of some internal logic error in this scrip, when
+            # just in case of some internal logic error in this script, when
             # 'void' could "leak" into generated code, we set xc_type for 'void'
             # to 'UNDEFINED' which will lead to compilation error, so it would
             # be easier to sort such error out.

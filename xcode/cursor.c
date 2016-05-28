@@ -71,8 +71,10 @@ M0_INTERNAL int m0_xcode_next(struct m0_xcode_cursor *it)
 			if (top->s_fieldno == 0) {
 				top->s_elno = 0;
 				top->s_fieldno = 1;
-			} else
+			} else {
+		case M0_XA_ARRAY: /* sic. All hail C. */
 				++top->s_elno;
+			}
 			if (top->s_elno >= m0_xcode_tag(&top->s_obj)) {
 				top->s_elno = 0;
 				top->s_fieldno = 2;

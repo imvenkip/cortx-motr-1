@@ -46,6 +46,12 @@ struct un {
 	} u;
 };
 
+enum { N = 6 };
+
+struct ar {
+	struct foo a_el[N];
+};
+
 struct top {
 	struct foo t_foo;
 	uint32_t   t_flag;
@@ -59,6 +65,7 @@ struct top {
 		uint32_t *o_32;
 		uint64_t *o_64;
 	} t_opaq;
+	struct ar  t_ar;
 };
 
 enum { CHILDREN_MAX = 16 };
@@ -104,12 +111,21 @@ static struct static_xt xut_foo = {
 	}
 };
 
+static struct static_xt xut_ar = {
+	.xt = {
+		.xct_aggr   = M0_XA_ARRAY,
+		.xct_name   = "ar",
+		.xct_sizeof = sizeof (struct ar),
+		.xct_nr     = 1
+	}
+};
+
 static struct static_xt xut_top = {
 	.xt = {
 		.xct_aggr   = M0_XA_RECORD,
 		.xct_name   = "top",
 		.xct_sizeof = sizeof (struct top),
-		.xct_nr     = 6
+		.xct_nr     = 7
 	}
 };
 
@@ -130,10 +146,20 @@ static struct top T = {
 	},
 	.t_opaq = {
 		.o_32 = &T.t_v.v_nr
+	},
+	.t_ar   = {
+		.a_el = {
+			[0] = { 0, 1 },
+			[1] = { 1, 1 },
+			[2] = { 2, 1 },
+			[3] = { 3, 1 },
+			[4] = { 4, 1 },
+			[5] = { 5, 1 }
+		}
 	}
 };
 
-static char                 ebuf[100];
+static char                 ebuf[1000];
 static m0_bcount_t          count = ARRAY_SIZE(ebuf);
 static void                *vec = ebuf;
 static struct m0_bufvec     bvec  = M0_BUFVEC_INIT_BUF(&vec, &count);
@@ -155,6 +181,12 @@ static struct tdata {
 		char     u_y;
 	} __attribute__((packed)) t_un;
 	uint32_t __attribute__((packed)) t_opaq;
+	struct t_ar {
+		struct _foo1 {
+			uint64_t f_x;
+			uint64_t f_y;
+		} a_el[N];
+	} __attribute__((packed)) t_ar;
 } __attribute__((packed)) TD;
 
 M0_BASSERT(sizeof TD < sizeof ebuf);
@@ -230,6 +262,11 @@ static int xcode_init(void)
 		.xf_opaque = opaq_type,
 		.xf_offset = offsetof(struct top, t_opaq)
 	};
+	xut_top.xt.xct_child[6] = (struct m0_xcode_field){
+		.xf_name   = "t_ar",
+		.xf_type   = &xut_ar.xt,
+		.xf_offset = offsetof(struct top, t_ar)
+	};
 
 	xut_tdef.xt.xct_child[0] = (struct m0_xcode_field){
 		.xf_name   = "def",
@@ -255,6 +292,13 @@ static int xcode_init(void)
 		.xf_offset = offsetof(struct un, u.u_y)
 	};
 
+	xut_ar.xt.xct_child[0] = (struct m0_xcode_field){
+		.xf_name   = "a_el",
+		.xf_type   = &xut_foo.xt,
+		.xf_offset = offsetof(struct ar, a_el),
+		.xf_tag    = N,
+	};
+
 	TD.t_foo.f_x  =  T.t_foo.f_x;
 	TD.t_foo.f_y  =  T.t_foo.f_y;
 	TD.t_flag     =  T.t_flag;
@@ -265,7 +309,7 @@ static int xcode_init(void)
 	TD.t_un.u_tag =  T.t_un.u_tag;
 	TD.t_un.u_y   =  T.t_un.u.u_y;
 	TD.t_opaq     = *T.t_opaq.o_32;
-
+	memcpy(&TD.t_ar, &T.t_ar, sizeof T.t_ar);
 	return 0;
 }
 
@@ -383,7 +427,23 @@ static void xcode_cursor_test(void)
 	chk(&it, 1, &M0_XT_U32, T.t_opaq.o_32, 0, 0, M0_XCODE_CURSOR_PRE);
 	chk(&it, 1, &M0_XT_U32, T.t_opaq.o_32, 0, 0, M0_XCODE_CURSOR_POST);
 	chk(&it, 0, &xut_top.xt, &T, 5, 0, M0_XCODE_CURSOR_IN);
-	chk(&it, 0, &xut_top.xt, &T, 6, 0, M0_XCODE_CURSOR_POST);
+	chk(&it, 1, &xut_ar.xt, &T.t_ar, 0, 0, M0_XCODE_CURSOR_PRE);
+	for (i = 0; i < N; ++i) {
+		struct foo *el = &T.t_ar.a_el[i];
+
+		chk(&it, 2, &xut_foo.xt, el, 0, 0, M0_XCODE_CURSOR_PRE);
+		chk(&it, 3, &M0_XT_U64, &el->f_x, 0, 0, M0_XCODE_CURSOR_PRE);
+		chk(&it, 3, &M0_XT_U64, &el->f_x, 0, 0, M0_XCODE_CURSOR_POST);
+		chk(&it, 2, &xut_foo.xt, el, 0, 0, M0_XCODE_CURSOR_IN);
+		chk(&it, 3, &M0_XT_U64, &el->f_y, 0, 0, M0_XCODE_CURSOR_PRE);
+		chk(&it, 3, &M0_XT_U64, &el->f_y, 0, 0, M0_XCODE_CURSOR_POST);
+		chk(&it, 2, &xut_foo.xt, el, 1, 0, M0_XCODE_CURSOR_IN);
+		chk(&it, 2, &xut_foo.xt, el, 2, 0, M0_XCODE_CURSOR_POST);
+		chk(&it, 1, &xut_ar.xt, &T.t_ar, 0, i, M0_XCODE_CURSOR_IN);
+	}
+	chk(&it, 1, &xut_ar.xt, &T.t_ar, 2, 0, M0_XCODE_CURSOR_POST);
+	chk(&it, 0, &xut_top.xt, &T, 6, 0, M0_XCODE_CURSOR_IN);
+	chk(&it, 0, &xut_top.xt, &T, 7, 0, M0_XCODE_CURSOR_POST);
 
 	M0_UT_ASSERT(m0_xcode_next(&it) == 0);
 }
@@ -451,6 +511,7 @@ static void xcode_decode_test(void)
 	M0_UT_ASSERT( TT->t_un.u_tag   ==  T.t_un.u_tag);
 	M0_UT_ASSERT( TT->t_un.u.u_y   ==  T.t_un.u.u_y);
 	M0_UT_ASSERT(*TT->t_opaq.o_32  == *T.t_opaq.o_32);
+	M0_UT_ASSERT(memcmp(TT->t_ar.a_el, T.t_ar.a_el, sizeof T.t_ar) == 0);
 
 	m0_xcode_free_obj(&decoded);
 }
@@ -510,6 +571,7 @@ static const struct m0_xcode_type_ops foo_ops = {
 static void xcode_nonstandard_test(void)
 {
 	int result;
+	int i;
 
 	xut_foo.xt.xct_ops = &foo_ops;
 
@@ -523,8 +585,12 @@ static void xcode_nonstandard_test(void)
 	M0_UT_ASSERT(result == 0);
 
 	foo_xor(ebuf);
+	for (i = 0; i < N; ++i)
+		foo_xor((void *)&((struct tdata *)ebuf)->t_ar.a_el[i]);
 	M0_UT_ASSERT(memcmp(&TD, ebuf, sizeof TD) == 0);
 	foo_xor(ebuf);
+	for (i = 0; i < N; ++i)
+		foo_xor((void *)&((struct tdata *)ebuf)->t_ar.a_el[i]);
 	xcode_decode_test();
 	xut_foo.xt.xct_ops = NULL;
 }
@@ -621,9 +687,11 @@ static void literal(const char *input, const char *output)
 static void xcode_read_test(void)
 {
 	int         result;
+	int         i;
 	struct foo  F;
 	struct un   U;
 	struct v   *V;
+	struct ar   A;
 	struct top *_T;
 	struct top  _Tmp;
 
@@ -708,6 +776,24 @@ static void xcode_read_test(void)
 	M0_UT_ASSERT(V->v_data[2] == 44);
 	m0_xcode_free_obj(OBJ(&xut_v.xt, V));
 
+	M0_SET0(&A);
+	result = m0_xcode_read(OBJ(&xut_ar.xt, &A), "<>");
+	M0_UT_ASSERT(result == -EPROTO);
+
+	M0_SET0(&A);
+	result = m0_xcode_read(OBJ(&xut_ar.xt, &A), "<6>");
+	M0_UT_ASSERT(result == -EPROTO);
+
+	M0_SET0(&A);
+	result = m0_xcode_read(OBJ(&xut_ar.xt, &A), "<(2, 2)>");
+	M0_UT_ASSERT(result == -EPROTO);
+
+#define ARS "<(0, 0x1), (0, 0x1), (0, 0x1), (0, 0x1), (0, 0x1), (0, 0x1)>"
+	M0_SET0(&A);
+	result = m0_xcode_read(OBJ(&xut_ar.xt, &A), ARS);
+	M0_UT_ASSERT(result == 0);
+
+
 /* MERO-1396 <- */
 	literal("\"/dev/disk/by-id/wwn-0x5000c50078c12486\"", NULL);
 	literal("[0x15:0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,0x30,"
@@ -728,7 +814,7 @@ static void xcode_read_test(void)
 
 	M0_ALLOC_PTR(_T);
 	result = m0_xcode_read(OBJ(&xut_top.xt, _T),
-			       "((1, 2), 8, [4: 1, 2, 3, 4], 4, {1| 42}, 7)");
+			 "((1, 2), 8, [4: 1, 2, 3, 4], 4, {1| 42}, 7," ARS ")");
 	M0_UT_ASSERT(result == 0);
 	M0_SET0(&_Tmp);
 	_Tmp.t_foo.f_x = 1;
@@ -740,6 +826,10 @@ static void xcode_read_test(void)
 	_Tmp.t_un.u_tag = 1;
 	_Tmp.t_un.u.u_x = 42;
 	_Tmp.t_opaq.o_32 = _T->t_opaq.o_32;
+	for (i = 0; i < N; ++i) {
+		_Tmp.t_ar.a_el[i].f_x = 0;
+		_Tmp.t_ar.a_el[i].f_y = 1;
+	}
 	M0_UT_ASSERT(memcmp(_T, &_Tmp, sizeof(struct top)) == 0);
 	m0_xcode_free_obj(OBJ(&xut_top.xt, _T));
 
@@ -747,7 +837,7 @@ static void xcode_read_test(void)
 	M0_ALLOC_PTR(_T);
 	xut_v.xt.xct_ops = &read_ops;
 	result = m0_xcode_read(OBJ(&xut_top.xt, _T),
-			       "((1, 2), 8, ^!EXPECTED!, 4, {1| 42}, 7)");
+			    "((1, 2), 8, ^!EXPECTED!, 4, {1| 42}, 7," ARS ")");
 	M0_UT_ASSERT(result == 0);
 	m0_xcode_free_obj(OBJ(&xut_top.xt, _T));
 
@@ -758,7 +848,7 @@ static void xcode_read_test(void)
 
 	M0_ALLOC_PTR(_T);
 	result = m0_xcode_read(OBJ(&xut_top.xt, _T),
-			       "((1, 2), 8, [4: 1, 2, 3, 4], 4, {1| 42}, 7)");
+			"((1, 2), 8, [4: 1, 2, 3, 4], 4, {1| 42}, 7," ARS ")");
 	M0_UT_ASSERT(result == 0);
 	m0_xcode_free_obj(OBJ(&xut_top.xt, _T));
 	xut_v.xt.xct_ops = NULL;
@@ -779,7 +869,17 @@ static void xcode_print_test(void)
 		.t_v    = { .v_nr = 4, .v_data = data },
 		.t_def  = 4,
 		.t_un   = { .u_tag = 1, .u = { .u_x = 42 }},
-		.t_opaq = { .o_64 = &o64 }
+		.t_opaq = { .o_64 = &o64 },
+		.t_ar   = {
+			.a_el = {
+				{ 0, 1 },
+				{ 0, 1 },
+				{ 0, 1 },
+				{ 0, 1 },
+				{ 0, 1 },
+				{ 0, 1 }
+			}
+		}
 	};
 	struct top *V;
 
@@ -791,7 +891,7 @@ static void xcode_print_test(void)
 		     " [0x4: 0x1, 0x2, 0x3, 0x4],"
 		     " 0x4,"
 		     " {0x1| 0x2a},"
-		     " 0x7)";
+		     " 0x7, " ARS ")";
 	     *s0 != 0 && *s1 != 0; ++s0, ++s1) {
 		while (isspace(*s0))
 			++s0;

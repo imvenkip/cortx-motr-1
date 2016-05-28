@@ -42,6 +42,7 @@
  */
 #define M0_XCA_RECORD   M0_XC_ATTR("atype","M0_XA_RECORD")
 #define M0_XCA_SEQUENCE M0_XC_ATTR("atype","M0_XA_SEQUENCE")
+#define M0_XCA_ARRAY    M0_XC_ATTR("atype","M0_XA_ARRAY")
 #define M0_XCA_UNION    M0_XC_ATTR("atype","M0_XA_UNION")
 
 /**

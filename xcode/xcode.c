@@ -79,6 +79,7 @@ bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
 		[M0_XA_RECORD]   = 0,
 		[M0_XA_UNION]    = 2,
 		[M0_XA_SEQUENCE] = 2,
+		[M0_XA_ARRAY]    = 1,
 		[M0_XA_TYPEDEF]  = 1,
 		[M0_XA_OPAQUE]   = 0,
 		[M0_XA_ATOM]     = 0
@@ -88,6 +89,7 @@ bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
 		[M0_XA_RECORD]   = ~0ULL,
 		[M0_XA_UNION]    = ~0ULL,
 		[M0_XA_SEQUENCE] = 2,
+		[M0_XA_ARRAY]    = 1,
 		[M0_XA_TYPEDEF]  = 1,
 		[M0_XA_OPAQUE]   = 0,
 		[M0_XA_ATOM]     = 0
@@ -595,9 +597,10 @@ M0_INTERNAL void *m0_xcode_addr(const struct m0_xcode_obj *obj, int fileno,
 
 	M0_ASSERT(fileno < xt->xct_nr);
 	addr += f->xf_offset;
-	if (xt->xct_aggr == M0_XA_SEQUENCE && fileno == 1 &&
-	    elno != ~0ULL)
+	if (xt->xct_aggr == M0_XA_SEQUENCE && fileno == 1 && elno != ~0ULL)
 		addr = *((char **)addr) + elno * ct->xct_sizeof;
+	else if (xt->xct_aggr == M0_XA_ARRAY && fileno == 0)
+		addr += elno * ct->xct_sizeof;
 	else if (ct == &M0_XT_OPAQUE && elno != ~0ULL)
 		addr = *((char **)addr);
 	return addr;
@@ -657,27 +660,31 @@ M0_INTERNAL uint64_t m0_xcode_tag(const struct m0_xcode_obj *obj)
 	const struct m0_xcode_field *f  = &xt->xct_child[0];
 	uint64_t                     tag;
 
-	M0_PRE(xt->xct_aggr == M0_XA_SEQUENCE || xt->xct_aggr == M0_XA_UNION);
-	M0_PRE(f->xf_type->xct_aggr == M0_XA_ATOM);
+	M0_PRE(M0_IN(xt->xct_aggr, (M0_XA_SEQUENCE, M0_XA_ARRAY, M0_XA_UNION)));
 
-	switch (f->xf_type->xct_atype) {
-	case M0_XAT_VOID:
+	if (xt->xct_aggr != M0_XA_ARRAY) {
+		M0_PRE(f->xf_type->xct_aggr == M0_XA_ATOM);
+
+		switch (f->xf_type->xct_atype) {
+		case M0_XAT_VOID:
+			tag = f->xf_tag;
+			break;
+		case M0_XAT_U8:
+		case M0_XAT_U32:
+		case M0_XAT_U64: {
+			struct m0_xcode_obj subobj;
+
+			m0_xcode_subobj(&subobj, obj, 0, 0);
+			tag = m0_xcode_atom(&subobj);
+			break;
+		}
+		default:
+			M0_IMPOSSIBLE("atype");
+			tag = 0;
+			break;
+		}
+	} else
 		tag = f->xf_tag;
-		break;
-	case M0_XAT_U8:
-	case M0_XAT_U32:
-	case M0_XAT_U64: {
-		struct m0_xcode_obj subobj;
-
-		m0_xcode_subobj(&subobj, obj, 0, 0);
-		tag = m0_xcode_atom(&subobj);
-		break;
-	}
-	default:
-		M0_IMPOSSIBLE("atype");
-		tag = 0;
-		break;
-	}
 	return tag;
 }
 
@@ -867,6 +874,7 @@ const char *m0_xcode_aggr_name[M0_XA_NR] = {
 	[M0_XA_RECORD]   = "record",
 	[M0_XA_UNION]    = "union",
 	[M0_XA_SEQUENCE] = "sequence",
+	[M0_XA_ARRAY]    = "array",
 	[M0_XA_TYPEDEF]  = "typedef",
 	[M0_XA_OPAQUE]   = "opaque",
 	[M0_XA_ATOM]     = "atom"

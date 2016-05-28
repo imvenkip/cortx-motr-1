@@ -82,7 +82,17 @@
          @endcode
 
          where scalar_t is one of the scalar data-types mentioned above and el_t
-         is representable is representable,
+         is representable,
+
+       - ARRAY is a fixed size array
+
+         @code
+         struct {
+		 el_t el[N];
+         };
+         @endcode
+
+	 where N is a compile-time constant and el_t is representable.
 
        - OPAQUE aggregation type: pointer type is representable when it is used
          as the type of a field in a representable type and a special function
@@ -175,6 +185,11 @@ enum m0_xcode_aggr {
 	 */
 	M0_XA_SEQUENCE,
 	/**
+	   Array is a fixed size array. It always has a single field. The number
+	   of elements in the array is recorded as the tag is this field.
+	*/
+	M0_XA_ARRAY,
+	/**
 	   TYPEDEF is an alias for another type. It always has a single field.
 	 */
 	M0_XA_TYPEDEF,
@@ -235,6 +250,9 @@ struct m0_xcode_field {
 	        - if first field of a SEQUENCE type has type VOID, its tag is
                   used as a count of element in the sequence;
 
+                - tag of the only field of ARRAY type is the number of elements
+                  in the array;
+
 		- tag of non-first field of a UNION type is used to determine
                   when the field is actually present in the object: the field is
                   present iff its tag equals the discriminator of the union.
@@ -252,7 +270,7 @@ struct m0_xcode_field {
 	   which the field belongs.
 	 */
 	int                       (*xf_opaque)(const struct m0_xcode_obj   *par,
-					       const struct m0_xcode_type **out);
+					  const struct m0_xcode_type **out);
 	/**
 	   Byte offset of this field from the beginning of the object.
 	 */
@@ -443,6 +461,8 @@ M0_INTERNAL void m0_xcode_cursor_init(struct m0_xcode_cursor *it,
        - 1 + (number of elements in array) in a SEQUENCE object. Additional 1 is
          for count field;
 
+       - number of elements in array in an ARRAY object;
+
        - 0 for an ATOMIC object.
 
    For example, to traverse the tree in preorder, one does something like
@@ -545,7 +565,7 @@ struct m0_xcode_ctx {
 	   Allocation function used by decoding to allocate the topmost object
 	   and all its non-inline sub-objects (arrays and opaque sub-objects).
 	 */
-	void                  *(*xcx_alloc)(struct m0_xcode_cursor *ctx, size_t);
+	void                  *(*xcx_alloc)(struct m0_xcode_cursor *, size_t);
 	void                   (*xcx_free)(struct m0_xcode_cursor *ctx);
 	/**
 	   This function is called every time type is traversed with
@@ -623,13 +643,14 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
  *
  * String has the following EBNF grammar:
  *
- *     S           ::= RECORD | UNION | SEQUENCE | ATOM | CUSTOM
+ *     S           ::= RECORD | UNION | SEQUENCE | ARRAY | ATOM | CUSTOM
  *     RECORD      ::= '(' [S-LIST] ')'
  *     S-LIST      ::= S | S-LIST ',' S
  *     UNION       ::= '{' TAG '|' [S] '}'
- *     SEQUENCE    ::= STRING | ARRAY
+ *     SEQUENCE    ::= STRING | COUNTED
+ *     ARRAY       ::= '<' [S-LIST] '>'
  *     STRING      ::= '"' CHAR* '"'
- *     ARRAY       ::= '[' COUNT ':' [S-LIST] ']'
+ *     COUNTED     ::= '[' COUNT ':' [S-LIST] ']'
  *     ATOM        ::= EMPTY | NUMBER
  *     TAG         ::= ATOM
  *     COUNT       ::= ATOM
@@ -654,6 +675,7 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
  * [0]                # 0 sized array
  * [3: 6, 5, 4]
  * [: 1, 2, 3]        # fixed size sequence
+ * <7, 12, 0>         # fixed size array
  * "incomprehensible" # a byte (U8) sequence with 16 elements
  * 10                 # number 10
  * 0xa                # number 10
@@ -698,7 +720,7 @@ M0_INTERNAL int m0_xcode_dup(struct m0_xcode_ctx *dest,
 
    @param obj     - typed object
    @param fieldno - ordinal number of field
-   @param elno    - for a SEQUENCE field, index of the element to
+   @param elno    - for a SEQUENCE or ARRAY field, index of the element to
                     return the address of.
 
    The behaviour of this function for SEQUENCE objects depends on "elno"
@@ -799,9 +821,9 @@ bool m0_xcode_type_invariant(const struct m0_xcode_type *xt);
  *
  * @see m0_xcode_union_add(), m0_xcode_union_close()
  */
-M0_INTERNAL void m0_xcode_union_init (struct m0_xcode_type *un, const char *name,
-				      const char *discriminator,
-				      size_t maxbranches);
+M0_INTERNAL void m0_xcode_union_init(struct m0_xcode_type *un, const char *name,
+				     const char *discriminator,
+				     size_t maxbranches);
 
 /**
  * Finalises a "dynamic union".
@@ -815,9 +837,9 @@ M0_INTERNAL void m0_xcode_union_fini(struct m0_xcode_type *un);
  *
  * @see m0_xcode_union_init(), m0_xcode_union_close()
  */
-M0_INTERNAL void m0_xcode_union_add  (struct m0_xcode_type *un, const char *name,
-				      const struct m0_xcode_type *xt,
-				      uint64_t tag);
+M0_INTERNAL void m0_xcode_union_add (struct m0_xcode_type *un, const char *name,
+				     const struct m0_xcode_type *xt,
+				     uint64_t tag);
 /**
  * Completes construction of dynamic union, calculates sizeof.
  *
