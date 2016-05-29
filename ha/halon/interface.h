@@ -241,6 +241,7 @@
 
 #include "lib/types.h"          /* bool */
 
+struct m0_rpc_machine;
 struct m0_halon_interface_internal;
 struct m0_ha_link;
 struct m0_ha_msg;
@@ -422,6 +423,17 @@ void m0_halon_interface_delivered(struct m0_halon_interface *hi,
  */
 void m0_halon_interface_disconnect(struct m0_halon_interface *hi,
                                    struct m0_ha_link         *hl);
+
+/**
+ * Returns rpc machine created during m0_halon_interface_start().
+ *
+ * The rpc machine should not be used after m0_halon_interface_stop() is called.
+ *
+ * @note This function may be removed in the future. It exists only to make
+ * m0_rpc_machine available for Spiel.
+ */
+struct m0_rpc_machine *
+m0_halon_interface_rpc_machine(struct m0_halon_interface *hi);
 
 /** @} end of ha group */
 #endif /* __MERO_HA_HALON_INTERFACE_H__ */

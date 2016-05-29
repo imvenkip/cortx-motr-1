@@ -201,6 +201,12 @@ void m0_halon_interface_disconnect(struct m0_halon_interface *hi,
 {
 }
 
+struct m0_rpc_machine *
+m0_halon_interface_rpc_machine(struct m0_halon_interface *hi)
+{
+	return NULL;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of ha group */
