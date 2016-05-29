@@ -39,7 +39,8 @@ int main(int argc, char *argv[])
 
 	rc = m0_halon_interface_init(&hi, "", "", true);
 	M0_ASSERT(rc == 0);
-	rc = m0_halon_interface_start(&hi, "", NULL, NULL, NULL, NULL,
+	rc = m0_halon_interface_start(&hi, "0@lo:12345:42:100",
+				      NULL, NULL, NULL, NULL,
 	                              NULL, NULL, NULL, NULL);
 	M0_ASSERT(rc == 0);
 	m0_halon_interface_stop(&hi);
