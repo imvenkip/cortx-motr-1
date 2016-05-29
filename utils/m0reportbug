@@ -3,12 +3,15 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.14.1
+VERSION=0.14.2
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-05-29 0.14.2  Don't query free space of `m0t1fs' and `nfs' mount
+###                    point(s).
+###
 ### 2016-04-21 0.14.1  * Add `m0ut' to _path_rpm().
 ###                    * Add `lt-m0mkfs' to _path_src().
 ###                    * Suppress "No such file" warning for the binaries,
@@ -177,7 +180,11 @@ probes() {
         'cat /proc/vmstat'
         'free'
         'mount'
-        'df -h'
+        ## - XXX Querying m0t1fs free space will hang if there is m0d failure.
+        ##   Skip m0t1fs until this issue is resolved.
+        ## - Querying other network filesystems may also hang. Exclude `nfs'
+        ##   to be on the safe side.
+        'df -h -x m0t1fs -x nfs'
         'lspci'
         'gcc --version'
         'ip addr'
