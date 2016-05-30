@@ -34,6 +34,7 @@
 
 #include "fid/fid.h"            /* m0_fid */
 #include "stob/ioq_error.h"     /* m0_stob_ioq_error */
+#include "ha/note.h"            /* m0_ha_msg_nvec */
 
 /*
  * XXX next two are workarounds because *_xc.h file generator can't
@@ -41,6 +42,7 @@
  */
 #include "stob/ioq_error_xc.h"  /* workaround */
 #include "lib/types_xc.h"       /* m0_uint128_xc */
+#include "ha/note_xc.h"         /* m0_ha_msg_nvec_xc */
 
 enum {
 	M0_HA_MSG_TAG_UNKNOWN = 0,
@@ -50,6 +52,8 @@ enum {
 enum m0_ha_msg_type {
 	M0_HA_MSG_INVALID,
 	M0_HA_MSG_STOB_IOQ,
+	M0_HA_MSG_NOTE,
+	M0_HA_MSG_NVEC,
 	M0_HA_MSG_NR,
 };
 
@@ -58,6 +62,10 @@ struct m0_ha_msg_data {
 	union {
 		struct m0_stob_ioq_error hed_stob_ioq
 					M0_XCA_TAG("M0_HA_MSG_STOB_IOQ");
+		struct m0_ha_msg_note    hed_note
+					M0_XCA_TAG("M0_HA_MSG_NOTE");
+		struct m0_ha_msg_nvec    hed_nvec
+					M0_XCA_TAG("M0_HA_MSG_NVEC");
 	} u;
 } M0_XCA_UNION;
 
