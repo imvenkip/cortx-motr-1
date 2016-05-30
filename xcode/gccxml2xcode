@@ -184,6 +184,7 @@ sub check_xc_atype_invariant
         M0_XA_RECORD    => { min_members => 0, max_members => ~0 },
         M0_XA_UNION     => { min_members => 2, max_members => ~0 },
         M0_XA_SEQUENCE  => { min_members => 2, max_members => 2 },
+        M0_XA_ARRAY     => { min_members => 1, max_members => 1 },
         M0_XA_TYPEDEF   => { min_members => 1, max_members => 1 },
         M0_XA_OPAQUE    => { min_members => 0, max_members => 0 },
         M0_XA_ATOM      => { min_members => 0, max_members => 0 },
@@ -269,8 +270,24 @@ sub get_info_about
         }
 
         when (/ArrayType/) {
-            $item->{'size'}    = $type_node->getAttribute('size');
-            $item->{'xc_type'} = '&M0_XT_VOID';
+            $item->{'size'} = $type_node->getAttribute('size');
+
+            if ($item->{'name'} eq 'm0_void_t') {
+                # a special-case array `typedef char m0_void_t[0];` which is an
+                # xcode stub to trick C compiler, it requires these special
+                # handling:
+                #   1. 'xc_type' should be '&M0_XT_VOID'
+                #   2. 'type' field should be absent
+                $item->{'xc_type'} = '&M0_XT_VOID';
+            }
+            else {
+                my $tn_info = get_info_about($type_node);
+
+                $item->{'xc_type'} = $tn_info->{'xc_type'};
+                $item->{'type'}    = $tn_info->{'type'};
+
+                $item->{'attribute'}->{'xc_tag'} = $item->{'size'} / $tn_info->{'size'};
+            }
         }
 
         when (/Struct|Union/) {

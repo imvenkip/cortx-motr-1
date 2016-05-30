@@ -42,4 +42,13 @@ struct testtypes {
     void         *tt_buf;
 } M0_XCA_RECORD;
 
+struct inlinearray {
+	/*
+	 * M0_XA_ARRAY must contain a single field.
+	 *
+	 * This field must be an array.
+	 */
+	struct testtypes ia_bugs[5];
+} M0_XCA_ARRAY;
+
 #endif /* __MERO_XCODE_UT_TEST_GCCXML_SIMPLE_H__ */
