@@ -34,10 +34,12 @@
 #include <sys/stat.h>
 #include <sysexits.h>
 
+#include "lib/uuid.h"                 /* m0_node_uuid_string_set */
 #include "lib/misc.h"                 /* ARRAY_SIZE */
 #include "mero/init.h"
 #include "module/instance.h"
 #include "sm/sm.h"                    /* m0_sm_conf_print */
+#include "lib/user_space/trace.h"     /* m0_trace_set_mmapped_buffer */
 #include "xcode/xcode.h"
 
 #undef __MERO_XCODE_XLIST_H__
@@ -114,6 +116,15 @@ int main(int argc, char **argv)
 {
 	struct m0 instance = {};
 	int       result;
+
+	/* prevent creation of trace file for ourselves */
+	m0_trace_set_mmapped_buffer(false);
+
+	/*
+	 * break dependency on m0mero.ko module and make ADDB happy,
+	 * as we don't need a real node uuid for normal operation of this utility
+	 */
+	m0_node_uuid_string_set(NULL);
 
 	m0_sm__conf_init = &m0_sm_conf_print;
 	result = m0_init(&instance);
