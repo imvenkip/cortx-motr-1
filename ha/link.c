@@ -74,6 +74,8 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 	m0_ha_msg_queue_init(&hl->hln_q_out, &hl->hln_cfg.hlc_q_out_cfg);
 	m0_ha_msg_queue_init(&hl->hln_q_delivered,
 			     &hl->hln_cfg.hlc_q_delivered_cfg);
+	m0_ha_msg_queue_init(&hl->hln_q_not_delivered,
+			     &hl->hln_cfg.hlc_q_not_delivered_cfg);
 	hl->hln_tag_current = hl->hln_cfg.hlc_tag_even ? 2 : 1;
 	m0_fom_init(&hl->hln_fom, &ha_link_outgoing_fom_type,
 	            &ha_link_outgoing_fom_ops, NULL, NULL,
@@ -92,6 +94,7 @@ M0_INTERNAL void m0_ha_link_fini(struct m0_ha_link *hl)
 	M0_ENTRY("hl=%p", hl);
 	m0_semaphore_fini(&hl->hln_stop_wait);
 	m0_semaphore_fini(&hl->hln_stop_cond);
+	m0_ha_msg_queue_fini(&hl->hln_q_not_delivered);
 	m0_ha_msg_queue_fini(&hl->hln_q_delivered);
 	m0_ha_msg_queue_fini(&hl->hln_q_out);
 	m0_ha_msg_queue_fini(&hl->hln_q_in);
@@ -202,11 +205,13 @@ M0_INTERNAL bool m0_ha_link_msg_is_delivered(struct m0_ha_link *hl,
 	return delivered;
 }
 
-M0_INTERNAL uint64_t m0_ha_link_delivered_consume(struct m0_ha_link *hl)
+static uint64_t ha_link_q_consume(struct m0_ha_link      *hl,
+                                  struct m0_ha_msg_queue *mq)
 {
 	struct m0_ha_msg_qitem *qitem;
 	uint64_t                tag;
 
+	M0_PRE(M0_IN(mq, (&hl->hln_q_delivered, &hl->hln_q_not_delivered)));
 	m0_mutex_lock(&hl->hln_lock);
 	qitem = m0_ha_msg_queue_dequeue(&hl->hln_q_delivered);
 	if (qitem != NULL) {
@@ -217,8 +222,18 @@ M0_INTERNAL uint64_t m0_ha_link_delivered_consume(struct m0_ha_link *hl)
 	}
 	m0_mutex_unlock(&hl->hln_lock);
 
-	M0_LOG(M0_DEBUG, "hl=%p tag=%"PRIu64, hl, tag);
+	M0_LOG(M0_DEBUG, "hl=%p mq=%p tag=%"PRIu64, hl, mq, tag);
 	return tag;
+}
+
+M0_INTERNAL uint64_t m0_ha_link_delivered_consume(struct m0_ha_link *hl)
+{
+	return ha_link_q_consume(hl, &hl->hln_q_delivered);
+}
+
+M0_INTERNAL uint64_t m0_ha_link_not_delivered_consume(struct m0_ha_link *hl)
+{
+	return ha_link_q_consume(hl, &hl->hln_q_not_delivered);
 }
 
 struct ha_link_wait_ctx {
@@ -505,6 +520,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 {
 	enum ha_link_outgoing_fom_state  phase;
 	struct m0_ha_msg_qitem          *qitem;
+	struct m0_ha_msg_qitem          *qitem2;
 	struct m0_ha_link               *hl;
 	struct m0_rpc_item              *item;
 	bool                             replied;
@@ -524,7 +540,21 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		if (m0_semaphore_trydown(&hl->hln_stop_cond)) {
 			m0_mutex_lock(&hl->hln_lock);
 			hl->hln_fom_is_stopping = true;
+			while ((qitem = m0_ha_msg_queue_dequeue(&hl->hln_q_out))
+			       != NULL) {
+				qitem2 = m0_ha_msg_queue_alloc(
+				                &hl->hln_q_not_delivered);
+				/*
+				 * TODO may be optimised, see the similar
+				 * assignment below
+				 */
+				qitem2->hmq_msg = qitem->hmq_msg;
+				m0_ha_msg_queue_free(&hl->hln_q_out, qitem);
+				m0_ha_msg_queue_enqueue(
+				        &hl->hln_q_not_delivered, qitem2);
+			}
 			m0_mutex_unlock(&hl->hln_lock);
+			m0_chan_broadcast_lock(&hl->hln_chan);
 			m0_sm_ast_cancel(hl->hln_fom_locality->lo_grp,
 			                 &hl->hln_waking_ast);
 			m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_FINISH);

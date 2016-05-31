@@ -67,6 +67,7 @@ struct m0_ha_link_cfg {
 	struct m0_ha_msg_queue_cfg  hlc_q_out_cfg;
 	/* TODO rename q_xxx_cfg -> q_cfg_xxx */
 	struct m0_ha_msg_queue_cfg  hlc_q_delivered_cfg;
+	struct m0_ha_msg_queue_cfg  hlc_q_not_delivered_cfg;
 	bool                        hlc_tag_even;
 };
 
@@ -82,6 +83,7 @@ struct m0_ha_link {
 	struct m0_ha_msg_queue     hln_q_in;
 	struct m0_ha_msg_queue     hln_q_out;
 	struct m0_ha_msg_queue     hln_q_delivered;
+	struct m0_ha_msg_queue     hln_q_not_delivered;
 	/** ha_sl */
 	struct m0_tl               hln_sent;
 	uint64_t                   hln_tag_current;
@@ -119,6 +121,7 @@ M0_INTERNAL bool m0_ha_link_msg_is_delivered(struct m0_ha_link *hl,
 					     uint64_t           tag);
 /** Returns M0_HA_MSG_TAG_INVALID if there is nothing to consume */
 M0_INTERNAL uint64_t m0_ha_link_delivered_consume(struct m0_ha_link *hl);
+M0_INTERNAL uint64_t m0_ha_link_not_delivered_consume(struct m0_ha_link *hl);
 
 M0_INTERNAL void m0_ha_link_wait_delivery(struct m0_ha_link *hl,
 					  uint64_t           tag);

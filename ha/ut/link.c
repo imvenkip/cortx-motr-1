@@ -134,6 +134,8 @@ void m0_ha_ut_link_usecase(void)
 	m0_ha_link_wait_delivery(hl1, tag);
 	tag2 = m0_ha_link_delivered_consume(hl1);
 	M0_UT_ASSERT(tag1 == tag2);
+	tag2 = m0_ha_link_not_delivered_consume(hl1);
+	M0_UT_ASSERT(tag2 == M0_HA_MSG_TAG_INVALID);
 	m0_free(msg);
 
 	ha_ut_link_fini(ctx2);
@@ -213,6 +215,8 @@ static void ha_ut_link_mt_thread(void *param)
 		tag = m0_ha_link_delivered_consume(hl);
 		M0_UT_ASSERT(tag == test->ulmt_tags_out[i]);
 	}
+	tag = m0_ha_link_not_delivered_consume(hl);
+	M0_UT_ASSERT(tag == M0_HA_MSG_TAG_INVALID);
 
 	ha_ut_link_fini(&test->ulmt_link_ctx);
 }
