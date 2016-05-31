@@ -72,6 +72,8 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 	m0_chan_init(&hl->hln_chan, &hl->hln_chan_lock);
 	m0_ha_msg_queue_init(&hl->hln_q_in, &hl->hln_cfg.hlc_q_in_cfg);
 	m0_ha_msg_queue_init(&hl->hln_q_out, &hl->hln_cfg.hlc_q_out_cfg);
+	m0_ha_msg_queue_init(&hl->hln_q_delivered,
+			     &hl->hln_cfg.hlc_q_delivered_cfg);
 	hl->hln_tag_current = hl->hln_cfg.hlc_tag_even ? 2 : 1;
 	m0_fom_init(&hl->hln_fom, &ha_link_outgoing_fom_type,
 	            &ha_link_outgoing_fom_ops, NULL, NULL,
@@ -90,6 +92,7 @@ M0_INTERNAL void m0_ha_link_fini(struct m0_ha_link *hl)
 	M0_ENTRY("hl=%p", hl);
 	m0_semaphore_fini(&hl->hln_stop_wait);
 	m0_semaphore_fini(&hl->hln_stop_cond);
+	m0_ha_msg_queue_fini(&hl->hln_q_delivered);
 	m0_ha_msg_queue_fini(&hl->hln_q_out);
 	m0_ha_msg_queue_fini(&hl->hln_q_in);
 	m0_chan_fini_lock(&hl->hln_chan);
@@ -197,6 +200,25 @@ M0_INTERNAL bool m0_ha_link_msg_is_delivered(struct m0_ha_link *hl,
 		               qitem->hmq_msg.hm_tag == tag) == NULL;
 	m0_mutex_unlock(&hl->hln_lock);
 	return delivered;
+}
+
+M0_INTERNAL uint64_t m0_ha_link_delivered_consume(struct m0_ha_link *hl)
+{
+	struct m0_ha_msg_qitem *qitem;
+	uint64_t                tag;
+
+	m0_mutex_lock(&hl->hln_lock);
+	qitem = m0_ha_msg_queue_dequeue(&hl->hln_q_delivered);
+	if (qitem != NULL) {
+		tag = qitem->hmq_msg.hm_tag;
+		m0_ha_msg_queue_free(&hl->hln_q_delivered, qitem);
+	} else {
+		tag = M0_HA_MSG_TAG_INVALID;
+	}
+	m0_mutex_unlock(&hl->hln_lock);
+
+	M0_LOG(M0_DEBUG, "hl=%p tag=%"PRIu64, hl, tag);
+	return tag;
 }
 
 struct ha_link_wait_ctx {
@@ -482,6 +504,7 @@ const static struct m0_rpc_item_ops ha_link_outgoing_item_ops = {
 static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 {
 	enum ha_link_outgoing_fom_state  phase;
+	struct m0_ha_msg_qitem          *qitem;
 	struct m0_ha_link               *hl;
 	struct m0_rpc_item              *item;
 	bool                             replied;
@@ -543,8 +566,17 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 			m0_free(hl->hln_req_fop_data);
 			m0_mutex_lock(&hl->hln_lock);
 			ha_sl_tlink_del_fini(hl->hln_qitem_to_send);
+			qitem = m0_ha_msg_queue_alloc(&hl->hln_q_delivered);
+			M0_ASSERT(qitem != NULL);       /* XXX */
+			/*
+			 * TODO optimize it by only keeping message tags in the
+			 * queue. It may be a performance optimisation but it
+			 * may complicate the debugging.
+			 */
+			qitem->hmq_msg = hl->hln_qitem_to_send->hmq_msg;
 			m0_ha_msg_queue_free(&hl->hln_q_out,
 			                     hl->hln_qitem_to_send);
+			m0_ha_msg_queue_enqueue(&hl->hln_q_delivered, qitem);
 			m0_mutex_unlock(&hl->hln_lock);
 			m0_chan_broadcast_lock(&hl->hln_chan);
 			hl->hln_qitem_to_send = NULL;

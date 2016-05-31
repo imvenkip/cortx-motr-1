@@ -89,6 +89,7 @@ void m0_ha_ut_link_usecase(void)
 	struct m0_ha_msg        *msg_recv;
 	uint64_t                 tag;
 	uint64_t                 tag1;
+	uint64_t                 tag2;
 	int                      rc;
 
 	M0_ALLOC_PTR(rpc_ctx);
@@ -127,8 +128,12 @@ void m0_ha_ut_link_usecase(void)
 	M0_UT_ASSERT(tag == tag1);
 	M0_UT_ASSERT(msg_recv->hm_tag == tag1);
 	M0_UT_ASSERT(m0_ha_msg_eq(msg_recv, msg));
+	tag2 = m0_ha_link_delivered_consume(hl1);
+	M0_UT_ASSERT(tag2 == M0_HA_MSG_TAG_INVALID);
 	m0_ha_link_delivered(hl2, msg_recv);
 	m0_ha_link_wait_delivery(hl1, tag);
+	tag2 = m0_ha_link_delivered_consume(hl1);
+	M0_UT_ASSERT(tag1 == tag2);
 	m0_free(msg);
 
 	ha_ut_link_fini(ctx2);
@@ -166,6 +171,7 @@ static void ha_ut_link_mt_thread(void *param)
 	struct m0_ha_link          *hl;
 	struct m0_ha_msg          **msgs;
 	struct m0_ha_msg           *msg;
+	uint64_t                    tag;
 	int                         i;
 	int                         j;
 
@@ -202,8 +208,11 @@ static void ha_ut_link_mt_thread(void *param)
 			m0_ha_link_delivered(hl, msgs[j]);
 	}
 	m0_free(msgs);
-	for (i = 0; i < HA_UT_MSG_PER_THREAD; ++i)
+	for (i = 0; i < HA_UT_MSG_PER_THREAD; ++i) {
 		m0_ha_link_wait_delivery(hl, test->ulmt_tags_out[i]);
+		tag = m0_ha_link_delivered_consume(hl);
+		M0_UT_ASSERT(tag == test->ulmt_tags_out[i]);
+	}
 
 	ha_ut_link_fini(&test->ulmt_link_ctx);
 }
