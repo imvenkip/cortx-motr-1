@@ -1571,6 +1571,24 @@ static void spiel_conf_tx_invalid(void)
 	M0_UT_ASSERT(rc != 0);
 	spiel_conf_ut_fini();
 }
+
+static void spiel_conf_tx_no_spiel(void)
+{
+	struct m0_spiel_tx  tx;
+	const int           ver_forced = 10;
+	char               *local_conf;
+	int                 rc;
+
+	spiel_conf_create_configuration(NULL, &tx);
+	rc = m0_spiel_tx_validate(&tx);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_spiel_tx_to_str(&tx, ver_forced, &local_conf);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_conf_version(&tx.spt_cache) == ver_forced);
+	m0_spiel_tx_str_free(local_conf);
+	m0_spiel_tx_close(&tx);
+}
+
 /**
  * @todo Restore unit test once spiel can start when rconfc quorum isn't reached
  */
@@ -1697,6 +1715,7 @@ const struct m0_ut_suite spiel_conf_ut = {
 		{ "spiel-conf-load-fail",   spiel_conf_load_fail   },
 		{ "spiel-conf-dump",        spiel_conf_dump        },
 		{ "spiel-conf-tx-invalid",  spiel_conf_tx_invalid  },
+		{ "spiel-conf-tx-no-spiel", spiel_conf_tx_no_spiel },
 		/**
 		 * @todo Test is disabled because now spiel can't start
 		 * successfully if quorum is not reached in rconfc.
