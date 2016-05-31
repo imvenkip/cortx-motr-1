@@ -71,6 +71,8 @@ enum ff2c_token_type {
 	FTT_UNION,
 	/** "sequence" */
 	FTT_SEQUENCE,
+	/** "array" */
+	FTT_ARRAY,
 	/** "{" */
 	FTT_OPEN,
 	/** "}" */

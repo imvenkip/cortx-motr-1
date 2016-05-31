@@ -52,6 +52,14 @@ record {
 	m0_fop_test_arr ft_arr
 } m0_fop_test;
 
+array {
+	u32 el : 8
+} m0_biquad;
+
+array {
+	m0_pair p : 8
+} m0_octopair;
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

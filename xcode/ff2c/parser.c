@@ -145,6 +145,7 @@ static int type(struct ff2c_context *ctx, struct ff2c_term *term)
 		case FTT_RECORD:
 		case FTT_UNION:
 		case FTT_SEQUENCE:
+		case FTT_ARRAY:
 			term->fn_type = FNT_COMPOUND;
 			return field_list(ctx, term);
 		case FTT_IDENTIFIER:

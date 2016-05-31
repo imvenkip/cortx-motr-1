@@ -202,6 +202,9 @@ void type_init(struct ff2c_ff *ff, struct ff2c_type *t,
 		case FTT_SEQUENCE:
 			t->t_sequence = true;
 			break;
+		case FTT_ARRAY:
+			t->t_array = true;
+			break;
 		case FTT_UNION:
 			t->t_union = true;
 			break;

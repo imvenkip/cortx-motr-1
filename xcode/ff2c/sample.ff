@@ -119,7 +119,7 @@ record {
                         } e_datum
                 } s_el
         } p_name
-} package
+} package;
 /*
  * Produced C declaration is:
  *
@@ -144,4 +144,15 @@ record {
  * int m0_package_cred_get(const struct m0_xcode_obj *par,
  *                         const struct m0_xcode_type **out);
  *
+ */
+
+array {
+        fid quad : NR
+} fixfid
+/*
+ * Produced C declaration is:
+ *
+ *                            struct fixfid {
+ *                                    struct fid[NR];
+ *                            };
  */

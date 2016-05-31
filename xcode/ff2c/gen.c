@@ -59,6 +59,8 @@ static void field_h(const struct ff2c_field *f, int depth)
 		type_h(f->f_type, depth);
 		out(" %s", f->f_name);
 	}
+	if (f->f_parent->t_array)
+		out("[%s]", f->f_tag);
 	out(";\n");
 }
 
@@ -167,7 +169,8 @@ static void type_def(const struct ff2c_type *t)
 		[FTT_OPAQUE]   = "M0_XA_OPAQUE",
 		[FTT_RECORD]   = "M0_XA_RECORD",
 		[FTT_UNION]    = "M0_XA_UNION",
-		[FTT_SEQUENCE] = "M0_XA_SEQUENCE"
+		[FTT_SEQUENCE] = "M0_XA_SEQUENCE",
+		[FTT_ARRAY]    = "M0_XA_ARRAY"
 	};
 	out("static struct _%s_s {\n"
 	    "\tstruct m0_xcode_type _type;\n"

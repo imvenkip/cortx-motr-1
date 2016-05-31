@@ -60,6 +60,7 @@ struct ff2c_type {
 	bool                    t_atomic;
 	bool                    t_opaque;
 	bool                    t_sequence;
+	bool                    t_array;
 	bool                    t_union;
 	bool                    t_record;
 	bool                    t_public;
