@@ -813,6 +813,14 @@ int m0_spiel_service_quiesce(struct m0_spiel     *spl,
 int m0_spiel_device_attach(struct m0_spiel *spl, const struct m0_fid *dev_fid);
 
 /**
+ * Attaches device to the mero service and reports device object HA state found
+ * during the action on remote side.
+ */
+int m0_spiel_device_attach_state(struct m0_spiel     *spl,
+				 const struct m0_fid *dev_fid,
+				 uint32_t            *ha_state);
+
+/**
  * Detaches device from the mero service
  *
  * @param spl spiel instance

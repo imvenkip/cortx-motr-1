@@ -47,6 +47,14 @@ static void spiel_ci_ut_fini(void)
 	m0_spiel__ut_fini(&spiel, true);
 }
 
+static void spiel_ci_ut_ha_state_set(const struct m0_fid *fid, uint32_t state)
+{
+	struct m0_ha_note note = { .no_id = *fid, .no_state = state };
+	struct m0_ha_nvec nvec = { .nv_nr = 1, .nv_note = &note };
+
+	m0_ha_state_set(m0_ha_session_get(), &nvec);
+}
+
 static void test_spiel_service_cmds(void)
 {
 	const struct m0_fid svc_fid = M0_FID_TINIT(
@@ -220,6 +228,7 @@ static void test_spiel_device_cmds(void)
 	const struct m0_fid nonio_svc = M0_FID_TINIT(
 				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 27);
 	int                 rc;
+	uint32_t            ha_state;
 
 	spiel_ci_ut_init();
 	/*
@@ -234,10 +243,16 @@ static void test_spiel_device_cmds(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(!spiel_stob_exists(io_sdev));
 
+	/*
+	 * in the course of action test as well if device state is updated on
+	 * remote side when attaching
+	 */
+	spiel_ci_ut_ha_state_set(&io_disk, M0_NC_FAILED);
 	m0_fi_enable_once("m0_storage_dev_attach_by_conf", "no_real_dev");
-	rc = m0_spiel_device_attach(&spiel, &io_disk);
+	rc = m0_spiel_device_attach_state(&spiel, &io_disk, &ha_state);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spiel_stob_exists(io_sdev));
+	M0_UT_ASSERT(ha_state == M0_NC_FAILED);
 
 	/*
 	 * Change type nonio_svc (owner nonio_disk) to IO service for this test

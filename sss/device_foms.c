@@ -101,6 +101,14 @@ struct m0_sss_dfom {
 	struct m0_fid              ssm_fid;
 	/** True iff the storage device belongs current IO service */
 	bool                       ssm_native_device;
+	/** device HA state retrieval context */
+	struct {
+		struct m0_mutex   chan_lock;
+		struct m0_chan    chan;
+		struct m0_clink   clink;
+		struct m0_ha_nvec nvec;
+		struct m0_ha_note note;
+	}                          ssm_ha;
 };
 
 static struct m0_fom_ops sss_device_fom_ops = {
@@ -127,6 +135,11 @@ struct m0_sm_state_descr sss_device_fom_phases_desc[] = {
 	},
 	[SSS_DFOM_DISK_OPENING]= {
 		.sd_name    = "SSS_DFOM_DISK_OPENING",
+		.sd_allowed = M0_BITS(SSS_DFOM_DISK_HA_STATE_GET,
+				      M0_FOPH_FAILURE),
+	},
+	[SSS_DFOM_DISK_HA_STATE_GET]= {
+		.sd_name    = "SSS_DFOM_DISK_HA_STATE_GET",
 		.sd_allowed = M0_BITS(SSS_DFOM_DISK_OPENED,
 				      M0_FOPH_FAILURE),
 	},
@@ -237,6 +250,11 @@ static bool sss_dfom_confc_ctx_check_cb(struct m0_clink *clink)
 	return true;
 }
 
+static inline uint32_t sss_dfom_device_cmd(struct m0_sss_dfom *dfom)
+{
+	return m0_sss_fop_to_dev_req(dfom->ssm_fom.fo_fop)->ssd_cmd;
+}
+
 /**
  * Select next phase depending on device command and current stage.
  * If command is unknown then return -ENOENT and fom state machine will
@@ -270,7 +288,7 @@ static void sss_device_fom_switch(struct m0_fom *fom)
 		 */
 		m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
 	} else {
-		cmd = m0_sss_fop_to_dev_req(fom->fo_fop)->ssd_cmd;
+		cmd = sss_dfom_device_cmd(dfom);
 		M0_ASSERT(cmd < M0_DEVICE_CMDS_NR);
 		m0_fom_phase_set(fom, next_phase[cmd][dfom->ssm_stage]);
 	}
@@ -318,11 +336,103 @@ static int sss_device_fom_disk_opening(struct m0_fom *fom)
 	return M0_RC(sss_device_fom_conf_obj_open(dfom, disk_fid));
 }
 
+static bool sss_device_fom_conf_obj_ha_state_cb(struct m0_clink *link)
+{
+	struct m0_sss_dfom *dfom;
+
+	M0_ENTRY();
+	dfom = container_of(link, struct m0_sss_dfom, ssm_ha.clink);
+	/*
+	 * Here we just wake the fom up doing nothing else. It's not possible to
+	 * finalise HA retrieval context right here as long as we are in the
+	 * chan callback.
+	 *
+	 * Context finalisation as well as state acceptance are going to be done
+	 * later. See sss_disk_info_use().
+	 */
+	m0_fom_wakeup(&dfom->ssm_fom);
+	M0_LEAVE();
+	return true;
+}
+
+static void sss_device_fom_ha_init(struct m0_sss_dfom  *dfom,
+				   struct m0_fid       *fid)
+{
+	m0_mutex_init(&dfom->ssm_ha.chan_lock);
+	m0_chan_init(&dfom->ssm_ha.chan, &dfom->ssm_ha.chan_lock);
+	m0_clink_init(&dfom->ssm_ha.clink,
+		      sss_device_fom_conf_obj_ha_state_cb);
+	m0_clink_add_lock(&dfom->ssm_ha.chan, &dfom->ssm_ha.clink);
+
+	dfom->ssm_ha.note.no_id    = *fid;
+	dfom->ssm_ha.note.no_state = M0_NC_UNKNOWN;
+	dfom->ssm_ha.nvec.nv_nr    = 1;
+	dfom->ssm_ha.nvec.nv_note  = &dfom->ssm_ha.note;
+}
+
+static void sss_device_fom_ha_fini(struct m0_sss_dfom *dfom)
+{
+	m0_clink_del_lock(&dfom->ssm_ha.clink);
+	m0_clink_fini(&dfom->ssm_ha.clink);
+	m0_mutex_lock(&dfom->ssm_ha.chan_lock);
+	m0_chan_fini(&dfom->ssm_ha.chan);
+	m0_mutex_unlock(&dfom->ssm_ha.chan_lock);
+	m0_mutex_fini(&dfom->ssm_ha.chan_lock);
+}
+
+static void sss_device_fom_ha_update(struct m0_sss_dfom *dfom)
+{
+	struct m0_conf_obj *obj = dfom->ssm_confc_ctx.fc_result;
+	struct m0_sss_device_fop_rep *rep =
+		m0_sss_fop_to_dev_rep(dfom->ssm_fom.fo_rep_fop);
+
+	M0_PRE(obj != NULL);
+	M0_PRE(m0_fid_eq(&obj->co_id, &dfom->ssm_ha.note.no_id));
+	M0_PRE(dfom->ssm_ha.note.no_state != M0_NC_UNKNOWN);
+	M0_PRE(rep->ssdp_ha_state == M0_NC_UNKNOWN);
+
+	rep->ssdp_ha_state = obj->co_ha_state;
+	m0_ha_state_accept(&dfom->ssm_ha.nvec);
+	/*
+	 * Now we need to make sure the state has been successfully applied to
+	 * the object we are to deal with later. This implies the dfom operates
+	 * with a confc registered as an HA client, i.e. m0_ha_client_add() was
+	 * done for the confc instance.
+	 */
+	M0_POST(obj->co_ha_state == dfom->ssm_ha.note.no_state);
+}
+
+/**
+ * Invokes device HA state retrieval using fid from request.
+ */
+static int sss_device_fom_disk_ha_state_get(struct m0_fom *fom)
+{
+	struct m0_sss_dfom *dfom;
+	struct m0_fid      *disk_fid;
+	int                 rc;
+
+	M0_ENTRY();
+	dfom = container_of(fom, struct m0_sss_dfom, ssm_fom);
+	disk_fid = &m0_sss_fop_to_dev_req(fom->fo_fop)->ssd_fid;
+	sss_device_fom_ha_init(dfom, disk_fid);
+	rc = m0_ha_state_get(m0_ha_session_get(), &dfom->ssm_ha.nvec,
+			     &dfom->ssm_ha.chan);
+	if (rc != 0)
+		sss_device_fom_ha_fini(dfom);
+	return M0_RC(rc);
+}
+
 static int sss_disk_info_use(struct m0_sss_dfom *dfom)
 {
 	struct m0_confc_ctx *ctx = &dfom->ssm_confc_ctx;
 	struct m0_conf_disk *disk;
 	int                  rc;
+
+	if (sss_dfom_device_cmd(dfom) == M0_DEVICE_ATTACH) {
+		/* complete previous phase now with unlocked context */
+		sss_device_fom_ha_fini(dfom);
+		sss_device_fom_ha_update(dfom);
+	}
 
 	rc = m0_confc_ctx_error(ctx);
 	if (rc == 0) {
@@ -655,6 +765,17 @@ static int sss_device_fom_tick(struct m0_fom *fom)
 
 	case SSS_DFOM_DISK_OPENING:
 		rep->ssdp_rc = sss_device_fom_disk_opening(fom);
+		m0_fom_phase_moveif(fom, rep->ssdp_rc,
+				    SSS_DFOM_DISK_HA_STATE_GET,
+				    M0_FOPH_FAILURE);
+		return rep->ssdp_rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
+
+	case SSS_DFOM_DISK_HA_STATE_GET:
+		if (sss_dfom_device_cmd(dfom) != M0_DEVICE_ATTACH) {
+			m0_fom_phase_set(fom, SSS_DFOM_DISK_OPENED);
+			return M0_FSO_AGAIN;
+		}
+		rep->ssdp_rc = sss_device_fom_disk_ha_state_get(fom);
 		m0_fom_phase_moveif(fom, rep->ssdp_rc,
 				    SSS_DFOM_DISK_OPENED, M0_FOPH_FAILURE);
 		return rep->ssdp_rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;

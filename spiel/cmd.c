@@ -564,7 +564,8 @@ M0_EXPORTED(m0_spiel_service_status);
 static int spiel_device_command_fop_send(struct m0_spiel_core *spc,
 					 const char           *endpoint,
 					 const struct m0_fid  *dev_fid,
-					 int                   cmd)
+					 int                   cmd,
+					 uint32_t             *ha_state)
 {
 	struct m0_fop                *fop;
 	struct m0_sss_device_fop_rep *rep;
@@ -582,6 +583,8 @@ static int spiel_device_command_fop_send(struct m0_spiel_core *spc,
 		rep = m0_sss_fop_to_dev_rep(
 				m0_rpc_item_to_fop(fop->f_item.ri_reply));
 		rc = rep->ssdp_rc;
+		if (ha_state != NULL)
+			*ha_state = rep->ssdp_ha_state;
 		m0_fop_put_lock(fop);
 	} else {
 		m0_fop_fini(fop);
@@ -596,7 +599,8 @@ static int spiel_device_command_fop_send(struct m0_spiel_core *spc,
  */
 static int spiel_device_command_send(struct m0_spiel_core *spc,
 				     const struct m0_fid  *dev_fid,
-				     int                   cmd)
+				     int                   cmd,
+				     uint32_t             *ha_state)
 {
 	struct m0_tl               endpoints;
 	struct spiel_string_entry *ep;
@@ -615,8 +619,9 @@ static int spiel_device_command_send(struct m0_spiel_core *spc,
 
 	if (rc == 0)
 		m0_tl_teardown(spiel_string, &endpoints, ep) {
-			rc = rc ?: spiel_device_command_fop_send(spc,
-					ep->sse_string, dev_fid, cmd);
+			rc = rc ?:
+			spiel_device_command_fop_send(spc, ep->sse_string,
+						      dev_fid, cmd, ha_state);
 			m0_free((char *)ep->sse_string);
 			m0_free(ep);
 		}
@@ -628,19 +633,27 @@ static int spiel_device_command_send(struct m0_spiel_core *spc,
 
 int m0_spiel_device_attach(struct m0_spiel *spl, const struct m0_fid *dev_fid)
 {
+	return m0_spiel_device_attach_state(spl, dev_fid, NULL);
+}
+M0_EXPORTED(m0_spiel_device_attach);
+
+int m0_spiel_device_attach_state(struct m0_spiel     *spl,
+				 const struct m0_fid *dev_fid,
+				 uint32_t            *ha_state)
+{
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(dev_fid));
 
 	return M0_RC(spiel_device_command_send(&spl->spl_core, dev_fid,
-					       M0_DEVICE_ATTACH));
+					       M0_DEVICE_ATTACH, ha_state));
 }
-M0_EXPORTED(m0_spiel_device_attach);
+M0_EXPORTED(m0_spiel_device_attach_state);
 
 int m0_spiel_device_detach(struct m0_spiel *spl, const struct m0_fid *dev_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(dev_fid));
 
 	return M0_RC(spiel_device_command_send(&spl->spl_core, dev_fid,
-					       M0_DEVICE_DETACH));
+					       M0_DEVICE_DETACH, NULL));
 }
 M0_EXPORTED(m0_spiel_device_detach);
 
@@ -649,7 +662,7 @@ int m0_spiel_device_format(struct m0_spiel *spl, const struct m0_fid *dev_fid)
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(dev_fid));
 
 	return M0_RC(spiel_device_command_send(&spl->spl_core, dev_fid,
-					       M0_DEVICE_FORMAT));
+					       M0_DEVICE_FORMAT, NULL));
 }
 M0_EXPORTED(m0_spiel_device_format);
 

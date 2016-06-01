@@ -173,7 +173,12 @@ struct m0_sss_device_fop_rep {
 	 * (-Exxx = failure, 0 = success).
 	 * @see enum m0_reqh_process_state
 	 */
-	int32_t ssdp_rc;
+	int32_t  ssdp_rc;
+	/**
+	 * Device HA state found on the called SSS side. The field is valid in
+	 * case of M0_DEVICE_ATTACH command only.
+	 */
+	uint32_t ssdp_ha_state;
 } M0_XCA_RECORD;
 
 

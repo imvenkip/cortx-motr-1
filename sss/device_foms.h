@@ -74,8 +74,13 @@
      +<---------SSS_DFOM_DISK_OPENING---+
      |				wait for opening m0_conf_disk
      |			 v--------------+
+     +<-----SSS_DFOM_DISK_HA_STATE_GET--+
+     |                          wait for HA state nvec reply
+     |			 v--------------+
      |        SSS_DFOM_DISK_OPENED------+
-     |			read m0_conf_disk, wait for opening m0_conf_filesystem
+     |                          accept HA state nvec,
+     |			        read m0_conf_disk,
+     |			        wait for opening m0_conf_filesystem
      |                   v--------------+
      |         SSS_DFOM_FS_OPENED,
      |			read m0_conf_filesystem, start iterator m0_conf_sdev
@@ -127,6 +132,9 @@
      +<---------SSS_DFOM_DISK_OPENING---+
      |				wait for opening m0_conf_disk
      |			 v--------------+
+     |      SSS_DFOM_DISK_HA_STATE_GET--+
+     |                          just go next doing no query
+     |			 v--------------+
      |        SSS_DFOM_DISK_OPENED------+
      |			read m0_conf_disk, wait for opening m0_conf_filesystem
      |                   v--------------+
@@ -174,6 +182,9 @@
      +<---------SSS_DFOM_DISK_OPENING---+
      |				wait for opening m0_conf_disk
      |			 v--------------+
+     |      SSS_DFOM_DISK_HA_STATE_GET--+
+     |                          just go next doing no query
+     |			 v--------------+
      |        SSS_DFOM_DISK_OPENED------+
      |			read m0_conf_disk, wait for opening m0_conf_filesystem
      |                   v--------------+
@@ -217,6 +228,11 @@ enum sss_device_fom_phases {
 	* Start read additional data from confc
 	*/
 	SSS_DFOM_DISK_OPENING,
+	/**
+	 * Initiate getting device HA state. Conf object for the device being
+	 * re-attached must retain previously set HA state.
+	 */
+	SSS_DFOM_DISK_HA_STATE_GET,
 	/**
 	 * FOM waits until disk configuration object is retrieved.
 	 * Also internal FOM state is populated after configuration is
