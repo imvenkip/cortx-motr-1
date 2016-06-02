@@ -43,9 +43,9 @@ static const struct m0_panic_ctx signal_panic = {
  */
 static void sigsegv(int sig)
 {
-	jmp_buf *buf;
+	struct m0_thread_tls *tls = m0_thread_tls();
+	jmp_buf              *buf = tls == NULL ? NULL : tls->tls_arch.tat_jmp;
 
-	buf = m0_thread_tls()->tls_arch.tat_jmp;
 	if (buf == NULL)
 		m0_panic(&signal_panic, sig);
 	else
