@@ -67,7 +67,7 @@ function stop_everything() {
 	sudo killall -9 lt-m0d m0d lt-m0mkfs m0mkfs || true
 	wait
 	sudo systemctl start mero-kernel || true
-	sudo systemctl stop mero-kernel
+	sudo systemctl stop mero-kernel || true
 	sudo rmmod m0mero m0gf || true
 }
 
