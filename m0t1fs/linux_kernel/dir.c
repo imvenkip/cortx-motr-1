@@ -469,7 +469,7 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 	}
 	if (csb->csb_oostore) {
 		m0t1fs_fs_unlock(csb);
-		return M0_ERR(-EOPNOTSUPP);
+		return M0_RC(-EOPNOTSUPP);
 	}
 
 	M0_SET0(&mo);
