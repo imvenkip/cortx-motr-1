@@ -383,7 +383,7 @@ M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 	struct m0_pdclust_tgt_addr  ta;
 	struct m0_fid               gobfid;
 
-        agid2fid(&sag->sag_base.cag_id, &gobfid);
+	agid2fid(&sag->sag_base.cag_id, &gobfid);
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = tgt_unit;
 	m0_sns_cm_unit2cobfid(pi, &sa, &ta, sag->sag_fctx->sf_pm,
@@ -392,7 +392,7 @@ M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 	return 0;
 }
 
-static const char* local_ep(const struct m0_cm *cm)
+static const char *local_ep(const struct m0_cm *cm)
 {
 	struct m0_reqh        *rh = cm->cm_service.rs_reqh;
 	struct m0_rpc_machine *rm = m0_cm_rpc_machine_find(rh);
@@ -400,28 +400,47 @@ static const char* local_ep(const struct m0_cm *cm)
 	return m0_rpc_machine_ep(rm);
 }
 
-M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
-					 const struct m0_pool_version *pv,
-					 const struct m0_fid *cob_fid)
+/**
+ * Gets IO service which given cob is associated with.
+ *
+ * @note  The returned conf object has to be m0_confc_close()d eventually.
+ *
+ * @post  retval->cs_type == M0_CST_IOS
+ * @post  retval->cs_endpoints[0] != NULL
+ */
+static struct m0_conf_service *
+cm_conf_service_get(const struct m0_cm *cm,
+		    const struct m0_pool_version *pv,
+		    const struct m0_fid *cob_fid)
 {
-	struct m0_reqh         *reqh   = cm->cm_service.rs_reqh;
-	struct m0_confc        *confc  = m0_reqh2confc(reqh);
+	struct m0_confc        *confc = m0_reqh2confc(cm->cm_service.rs_reqh);
+	uint32_t                dev_idx;
 	struct m0_fid           svc_fid;
 	struct m0_conf_service *svc;
-	uint32_t                index;
 	int                     rc;
 
+	dev_idx = m0_fid_cob_device_id(cob_fid);
+	svc_fid = pv->pv_pc->pc_dev2ios[dev_idx].pds_ctx->sc_fid;
+	rc = m0_conf_service_get(confc, &svc_fid, &svc);
+	M0_ASSERT(rc == 0); /* Error checking is for sissies. */
+
+	M0_POST(svc->cs_type == M0_CST_IOS);
+	M0_POST(svc->cs_endpoints[0] != NULL);
+	return svc;
+}
+
+M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
+					 const struct m0_pool_version *pv,
+					 const struct m0_fid *cob_fid,
+					 struct m0_conf_obj **hostage)
+{
+	struct m0_conf_service *svc;
+
+	*hostage = NULL; /* prevents m0_confc_close(<garbage>) in FI case */
 	if (M0_FI_ENABLED("local-ep"))
 		return local_ep(cm);
-
-	index = m0_fid_cob_device_id(cob_fid);
-	svc_fid = pv->pv_pc->pc_dev2ios[index].pds_ctx->sc_fid;
-	rc = m0_conf_service_get(confc, &svc_fid, &svc);
-	if (rc != 0)
-		return NULL;
-	M0_LOG(M0_DEBUG, "Service endpoint for: "FID_F" %s Device index:%d",
-			FID_P(&svc_fid), svc->cs_endpoints[0], index);
-	M0_POST(svc->cs_endpoints[0] != NULL && svc->cs_type == M0_CST_IOS);
+	svc = cm_conf_service_get(cm, pv, cob_fid);
+	*hostage = &svc->cs_obj;
 	return svc->cs_endpoints[0];
 }
 
@@ -429,9 +448,15 @@ M0_INTERNAL bool m0_sns_cm_is_local_cob(const struct m0_cm *cm,
 					const struct m0_pool_version *pv,
 					const struct m0_fid *cob_fid)
 {
+	struct m0_conf_obj *svc;
+	bool                result;
+
 	if (M0_FI_ENABLED("local-ep"))
 		return true;
-	return m0_streq(local_ep(cm), m0_sns_cm_tgt_ep(cm, pv, cob_fid));
+	result = m0_streq(m0_sns_cm_tgt_ep(cm, pv, cob_fid, &svc),
+			  local_ep(cm));
+	m0_confc_close(svc);
+	return result;
 }
 
 M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,

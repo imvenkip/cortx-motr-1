@@ -166,9 +166,17 @@ M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 M0_INTERNAL int
 m0_sns_cm_ut_file_size_layout(struct m0_sns_cm_file_ctx *fctx);
 
+/**
+ * Gets endpoint address of the IO service which given cob is associated with.
+ *
+ * @note  m0_sns_cm_tgt_ep() pins a m0_conf_service object and returns its
+ *        reference to caller via `hostage' parameter. The user should
+ *        m0_confc_close() this object after using the endpoint string.
+ */
 M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
 					 const struct m0_pool_version *pv,
-					 const struct m0_fid *gfid);
+					 const struct m0_fid *gfid,
+					 struct m0_conf_obj **hostage);
 
 M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
 						 struct m0_poolmach *pm,

@@ -683,7 +683,8 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	for (endpoint = cs->cs_endpoints; *endpoint != NULL; ++endpoint) {
 		rc = m0_reqh_service_ctx_create(&cs->cs_obj, cs->cs_type,
 						pc->pc_rmach, *endpoint,
-						POOL_MAX_RPC_NR_IN_FLIGHT, &ctx);
+						POOL_MAX_RPC_NR_IN_FLIGHT,
+						&ctx);
 		if (rc != 0)
 			return M0_ERR(rc);
 		ctx->sc_pc = pc;
@@ -702,44 +703,34 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 		}
 	}
 	M0_CNT_INC(pc->pc_nr_svcs[cs->cs_type]);
-
 	return M0_RC(rc);
 }
 
-static bool is_local_rms(const struct m0_conf_obj *obj)
+static bool is_local_rms(const struct m0_conf_service *svc)
 {
-	const char                   *lep;
-	const struct m0_conf_service *svc;
-	const struct m0_conf_process *p;
-	struct m0_rpc_machine        *rm;
-	struct m0_reqh               *reqh;
+	const struct m0_conf_process *proc;
+	struct m0_rpc_machine        *mach;
+	const char                   *local_ep;
 
-	if (m0_conf_obj_type(obj) != &M0_CONF_SERVICE_TYPE)
-		return false;
-	svc = M0_CONF_CAST(obj, m0_conf_service);
 	if (svc->cs_type != M0_CST_RMS)
 		return false;
-	p = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
-			 m0_conf_process);
-	reqh = m0_conf_obj2reqh(obj);
-	rm = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
-	lep = m0_rpc_machine_ep(rm);
-	M0_LOG(M0_DEBUG, "lep: %s svc ep: %s type:%d process:"FID_F"service:"
-			 FID_F, lep,
-			 p->pc_endpoint, svc->cs_type,
-			 FID_P(&p->pc_obj.co_id),
-			 FID_P(&svc->cs_obj.co_id));
-	return m0_streq(lep, p->pc_endpoint);
+	proc = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
+			    m0_conf_process);
+	mach = m0_reqh_rpc_mach_tlist_head(
+		&m0_conf_obj2reqh(&svc->cs_obj)->rh_rpc_machines);
+	local_ep = m0_rpc_machine_ep(mach);
+	M0_LOG(M0_DEBUG, "local_ep=%s proc_ep=%s svc_type=%d process="FID_F
+	       "service="FID_F, local_ep, proc->pc_endpoint, svc->cs_type,
+	       FID_P(&proc->pc_obj.co_id), FID_P(&svc->cs_obj.co_id));
+	return m0_streq(local_ep, proc->pc_endpoint);
 }
 
-static int active_rms_fid_copy(struct m0_pools_common *pc,
-			       struct m0_fid          *active_rm)
+static int
+active_rms_fid_copy(struct m0_fid *active_rm, struct m0_rconfc *rconfc)
 {
-	struct m0_rconfc *rconfc;
-	struct m0_fop    *entry;
-	int               rc = 0;
+	struct m0_fop *entry;
+	int            rc = 0;
 
-	rconfc = container_of(pc->pc_confc, struct m0_rconfc, rc_confc);
 	/*
 	 * Connect to RM service returned by HA on entrypoint.
 	 * HA is responsible to keep active RM service and
@@ -769,23 +760,17 @@ static int active_rms_fid_copy(struct m0_pools_common *pc,
 	return M0_RC(rc);
 }
 
-/**
- * @todo : This needs to be converted to process (m0d) context since
- *         it connects to specific process endpoint.
- */
-static int service_ctxs_create(struct m0_pools_common *pc,
-			       struct m0_conf_filesystem *fs,
-			       bool service_connect)
+static int active_rm_ctx_create(struct m0_pools_common *pc,
+				struct m0_fid          *active_rm,
+				bool                    service_connect)
 {
-	struct m0_conf_diter    it;
-	struct m0_conf_service *s;
-	struct m0_conf_obj     *obj;
-	struct m0_fid           active_rm = M0_FID0;
+	struct m0_conf_service *svc;
 	int                     rc;
 
-	M0_ENTRY();
-
-	rc = active_rms_fid_copy(pc, &active_rm);
+	*active_rm = M0_FID0;
+	rc = active_rms_fid_copy(active_rm,
+				 container_of(pc->pc_confc, struct m0_rconfc,
+					      rc_confc));
 	if (rc != 0)
 		return M0_ERR(rc);
 	/*
@@ -795,29 +780,47 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 	 * fid itself. In this situation a fallback is taking local rms for the
 	 * purpose of context creation (see conf iteration below).
 	 */
-	if (m0_fid_is_set(&active_rm)) {
-		rc = m0_conf_service_get(pc->pc_confc, &active_rm, &s) ? :
-			__service_ctx_create(pc, s, service_connect);
-		if (rc != 0)
+	if (m0_fid_is_set(active_rm)) {
+		rc = m0_conf_service_get(pc->pc_confc, active_rm, &svc);
+		if (!rc == 0)
 			return M0_ERR(rc);
+		rc = __service_ctx_create(pc, svc, service_connect);
+		m0_confc_close(&svc->cs_obj);
 	}
+	return M0_RC(rc);
+}
 
+/**
+ * @todo : This needs to be converted to process (m0d) context since
+ *         it connects to specific process endpoint.
+ */
+static int service_ctxs_create(struct m0_pools_common *pc,
+			       struct m0_conf_filesystem *fs,
+			       bool service_connect)
+{
+	struct m0_fid           active_rm;
+	struct m0_conf_diter    it;
+	struct m0_conf_service *svc;
+	int                     rc;
+
+	M0_ENTRY();
+
+	rc = active_rm_ctx_create(pc, &active_rm, service_connect);
+	if (rc != 0)
+		return M0_ERR(rc);
 	rc = m0_conf_diter_init(&it, pc->pc_confc, &fs->cf_obj,
 				M0_CONF_FILESYSTEM_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
-
 	/*
 	 * XXX TODO: Replace m0_conf_diter_next_sync() with
 	 * m0_conf_diter_next().
 	 */
 	while ((rc = m0_conf_diter_next_sync(&it, obj_is_service)) ==
 		M0_CONF_DIRNEXT) {
-		obj = m0_conf_diter_result(&it);
-		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE);
-		s = M0_CONF_CAST(obj, m0_conf_service);
+		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
 		/*
 		 * Connection to confd is managed by configuration client.
 		 * confd is already connected in m0_confc_init() to the
@@ -827,19 +830,16 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 		 * if local configuration preloaded. Nodes will only
 		 * use RM services returned by HA entrypoint.
 		 */
-		if ((!m0_fid_is_set(&active_rm) && is_local_rms(obj)) ||
-		    (s->cs_type != M0_CST_MGS && s->cs_type != M0_CST_RMS)) {
-			rc = __service_ctx_create(pc, s, service_connect);
-				if (rc != 0)
-					break;
+		if ((!m0_fid_is_set(&active_rm) && is_local_rms(svc)) ||
+		    !M0_IN(svc->cs_type, (M0_CST_MGS, M0_CST_RMS))) {
+			rc = __service_ctx_create(pc, svc, service_connect);
+			if (rc != 0)
+				break;
 		}
 	}
-
 	m0_conf_diter_fini(&it);
-
 	if (rc != 0)
 		service_ctxs_destroy(pc);
-
 	return M0_RC(rc);
 }
 

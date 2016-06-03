@@ -433,7 +433,7 @@ M0_INTERNAL int cs_conf_device_reopen(struct m0_poolmach *pm,
 	cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
 	confc = m0_mero2confc(cctx);
 	fid = pm->pm_state->pst_devices_array[dev_id].pd_id;
-	rc = m0_conf_device_get(confc, &fid, &sdev);
+	rc = m0_conf_sdev_get(confc, &fid, &sdev);
 	if (rc == 0) {
 		struct m0_conf_service *svc = M0_CONF_CAST(
 					m0_conf_obj_grandparent(&sdev->sd_obj),
@@ -446,6 +446,7 @@ M0_INTERNAL int cs_conf_device_reopen(struct m0_poolmach *pm,
 					&stob_id);
 			rc = m0_stob_linux_reopen(&stob_id, sdev->sd_filename);
 		}
+		m0_confc_close(&sdev->sd_obj);
 	}
 	return M0_RC(rc);
 }

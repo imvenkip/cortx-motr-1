@@ -432,6 +432,7 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 	struct m0_fid           cob_fid;
 	struct m0_cm           *cm          = cpfom2cm(&cp->c_fom);
 	struct m0_cm_proxy     *cm_proxy;
+	struct m0_conf_obj     *svc;
 	const char             *remote_rep;
 	int                     rc;
 	struct m0_pool_version *pv;
@@ -440,14 +441,14 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 
 	m0_fid_convert_stob2cob(&scp->sc_stob_id, &cob_fid);
 	pv = m0_sns_cm_pool_version_get(ag2snsag(cp->c_ag)->sag_fctx);
-	remote_rep = m0_sns_cm_tgt_ep(cm, pv, &cob_fid);
-	M0_ASSERT(remote_rep != NULL);
 	if (cp->c_cm_proxy == NULL) {
+		remote_rep = m0_sns_cm_tgt_ep(cm, pv, &cob_fid, &svc);
 		m0_cm_lock(cm);
 		cm_proxy = m0_cm_proxy_locate(cm, remote_rep);
 		M0_ASSERT(cm_proxy != NULL);
 		cp->c_cm_proxy = cm_proxy;
 		m0_cm_unlock(cm);
+		m0_confc_close(svc);
 	} else
 		cm_proxy = cp->c_cm_proxy;
 

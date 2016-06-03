@@ -46,6 +46,7 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	struct m0_fid               spare_cob;
 	struct m0_fid               gfid;
 	struct m0_cm_proxy         *pxy;
+	struct m0_conf_obj         *svc;
 	const char                 *ep;
 	bool                        is_failed;
 	uint32_t                    incoming = 0;
@@ -90,9 +91,10 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 		}
 		if (!is_failed && !m0_sns_cm_is_local_cob(cm, pm->pm_pver,
 					                  &cobfid)) {
-			ep = m0_sns_cm_tgt_ep(cm, pm->pm_pver, &cobfid);
+			ep = m0_sns_cm_tgt_ep(cm, pm->pm_pver, &cobfid, &svc);
 			pxy = m0_tl_find(proxy, pxy, &cm->cm_proxies,
 					 m0_streq(ep, pxy->px_endpoint));
+			m0_confc_close(svc);
 			if (!m0_bitmap_get(proxy_in_map, pxy->px_id)) {
 				m0_bitmap_set(proxy_in_map, pxy->px_id, true);
 				M0_CNT_INC(incoming);

@@ -637,17 +637,24 @@ out:
 
 static int sss_device_pool_machine_attach(struct m0_fom *fom)
 {
-	struct m0_sss_dfom *dfom;
-	int                 rc;
-
+	struct m0_sss_dfom *dfom = container_of(fom, struct m0_sss_dfom,
+						ssm_fom);
 	M0_ENTRY();
-	dfom = container_of(fom, struct m0_sss_dfom, ssm_fom);
+	return M0_RC(m0_pool_device_state_update(m0_fom_reqh(&dfom->ssm_fom),
+						 &fom->fo_tx.tx_betx,
+						 &dfom->ssm_fid,
+						 M0_PNDS_ONLINE));
+}
 
-	rc = m0_pool_device_state_update(m0_fom_reqh(&dfom->ssm_fom),
-					&fom->fo_tx.tx_betx,
-					&dfom->ssm_fid,
-					M0_PNDS_ONLINE);
-	return M0_RC(rc);
+static int sss_device_pool_machine_detach(struct m0_fom *fom)
+{
+	struct m0_sss_dfom *dfom = container_of(fom, struct m0_sss_dfom,
+						ssm_fom);
+	M0_ENTRY();
+	return M0_RC(m0_pool_device_state_update(m0_fom_reqh(&dfom->ssm_fom),
+						 &fom->fo_tx.tx_betx,
+						 &dfom->ssm_fid,
+						 M0_PNDS_OFFLINE));
 }
 
 static int sss_device_stob_detach(struct m0_fom *fom)
@@ -661,31 +668,19 @@ static int sss_device_stob_detach(struct m0_fom *fom)
 
 	M0_ENTRY();
 	dfom = container_of(fom, struct m0_sss_dfom, ssm_fom);
-	rc = m0_conf_device_get(confc, &dfom->ssm_fid, &sdev);
+	rc = m0_conf_sdev_get(confc, &dfom->ssm_fid, &sdev);
 	if (rc != 0)
-		return M0_RC(rc);
-	M0_LOG(M0_DEBUG, "sdev fid"FID_F"device index:%d",
-			FID_P(&sdev->sd_obj.co_id), (int)sdev->sd_dev_idx);
+		return M0_ERR(rc);
+	M0_LOG(M0_DEBUG, "sdev="FID_F" dev_id=%u", FID_P(&sdev->sd_obj.co_id),
+	       sdev->sd_dev_idx);
 	m0_storage_devs_lock(devs);
 	dev = m0_storage_devs_find_by_cid(devs, sdev->sd_dev_idx);
-	rc = (dev == NULL) ? M0_ERR(-ENOENT) : 0;
-	if (rc == 0)
+	if (dev == NULL)
+		rc = M0_ERR(-ENOENT);
+	else
 		m0_storage_dev_detach(dev);
 	m0_storage_devs_unlock(devs);
-	return M0_RC(rc);
-}
-
-static int sss_device_pool_machine_detach(struct m0_fom *fom)
-{
-	struct m0_sss_dfom *dfom;
-	int                 rc;
-
-	M0_ENTRY();
-	dfom = container_of(fom, struct m0_sss_dfom, ssm_fom);
-	rc = m0_pool_device_state_update(m0_fom_reqh(&dfom->ssm_fom),
-					 &fom->fo_tx.tx_betx,
-					 &dfom->ssm_fid,
-					 M0_PNDS_OFFLINE);
+	m0_confc_close(&sdev->sd_obj);
 	return M0_RC(rc);
 }
 
@@ -700,11 +695,11 @@ static int sss_device_format(struct m0_fom *fom)
 
 	M0_ENTRY();
 	dfom = container_of(fom, struct m0_sss_dfom, ssm_fom);
-	rc = m0_conf_device_get(confc, &dfom->ssm_fid, &sdev);
+	rc = m0_conf_sdev_get(confc, &dfom->ssm_fid, &sdev);
 	if (rc != 0)
-		return M0_RC(rc);
-	M0_LOG(M0_DEBUG, "sdev fid"FID_F"device index:%d",
-			FID_P(&sdev->sd_obj.co_id), (int)sdev->sd_dev_idx);
+		return M0_ERR(rc);
+	M0_LOG(M0_DEBUG, "sdev="FID_F" dev_id=%u", FID_P(&sdev->sd_obj.co_id),
+	       sdev->sd_dev_idx);
 	m0_storage_devs_lock(devs);
 	dev = m0_storage_devs_find_by_cid(devs, sdev->sd_dev_idx);
 	/*
@@ -712,6 +707,7 @@ static int sss_device_format(struct m0_fom *fom)
 	 */
 	rc = m0_storage_dev_format(dev, sdev->sd_dev_idx);
 	m0_storage_devs_unlock(devs);
+	m0_confc_close(&sdev->sd_obj);
 	return M0_RC(rc);
 }
 

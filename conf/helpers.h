@@ -78,21 +78,31 @@ M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 			       struct m0_confc            *confc,
 			       struct m0_conf_filesystem **result);
 
-
-/** Obtains device object associated with given fid. */
-M0_INTERNAL int m0_conf_device_get(struct m0_confc      *confc,
-				   struct m0_fid        *fid,
-				   struct m0_conf_sdev **sdev);
-
-/** Obtains service object associated with given fid. */
+/**
+ * Obtains service object associated with given fid.
+ *
+ * The resulting conf object must be m0_confc_close()d eventually.
+ */
 M0_INTERNAL int m0_conf_service_get(struct m0_confc         *confc,
-				    struct m0_fid           *fid,
+				    const struct m0_fid     *fid,
 				    struct m0_conf_service **service);
+
+/**
+ * Obtains device object associated with given fid.
+ *
+ * The resulting conf object must be m0_confc_close()d eventually.
+ */
+M0_INTERNAL int m0_conf_sdev_get(struct m0_confc      *confc,
+				 const struct m0_fid  *fid,
+				 struct m0_conf_sdev **sdev);
+
 /**
  * Obtains disk object associated with given profile.
+ *
+ * The resulting conf object must be m0_confc_close()d eventually.
  */
 M0_INTERNAL int m0_conf_disk_get(struct m0_confc      *confc,
-			         struct m0_fid        *fid,
+				 const struct m0_fid  *fid,
 				 struct m0_conf_disk **disk);
 
 /** Finds pool version which does not intersect with the given failure set. */

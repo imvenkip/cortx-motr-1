@@ -39,6 +39,14 @@
 
 enum { CACHE_LOCALITY = 1 };
 
+static int confc_obj_get(struct m0_confc     *confc,
+			 const struct m0_fid *fid,
+			 struct m0_conf_obj **result)
+{
+	return M0_RC(m0_conf_obj_find_lock(&confc->cc_cache, fid, result) ?:
+		     m0_confc_open_sync(result, *result, M0_FID0));
+}
+
 M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 			       struct m0_confc            *confc,
 			       struct m0_conf_filesystem **result)
@@ -59,47 +67,42 @@ M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_conf_device_get(struct m0_confc      *confc,
-				   struct m0_fid        *fid,
-				   struct m0_conf_sdev **sdev)
+M0_INTERNAL int m0_conf_service_get(struct m0_confc         *confc,
+				    const struct m0_fid     *fid,
+				    struct m0_conf_service **service)
 {
 	struct m0_conf_obj *obj;
 	int                 rc;
 
-	rc = m0_conf_obj_find_lock(&confc->cc_cache, fid, &obj);
-	if (rc == 0 && m0_conf_obj_is_stub(obj))
-		rc = m0_confc_open_sync(&obj, obj, M0_FID0);
+	rc = confc_obj_get(confc, fid, &obj);
+	if (rc == 0)
+		*service = M0_CONF_CAST(obj, m0_conf_service);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_conf_sdev_get(struct m0_confc      *confc,
+				 const struct m0_fid  *fid,
+				 struct m0_conf_sdev **sdev)
+{
+	struct m0_conf_obj *obj;
+	int                 rc;
+
+	rc = confc_obj_get(confc, fid, &obj);
 	if (rc == 0)
 		*sdev = M0_CONF_CAST(obj, m0_conf_sdev);
 	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_conf_disk_get(struct m0_confc      *confc,
-				 struct m0_fid        *fid,
+				 const struct m0_fid  *fid,
 				 struct m0_conf_disk **disk)
 {
 	struct m0_conf_obj *obj;
 	int                 rc;
 
-	rc = m0_conf_obj_find_lock(&confc->cc_cache, fid, &obj) ?:
-		m0_confc_open_sync(&obj, obj, M0_FID0);
+	rc = confc_obj_get(confc, fid, &obj);
 	if (rc == 0)
 		*disk = M0_CONF_CAST(obj, m0_conf_disk);
-	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_conf_service_get(struct m0_confc         *confc,
-				    struct m0_fid           *fid,
-				    struct m0_conf_service **service)
-{
-	struct m0_conf_obj *obj;
-	int                 rc;
-
-	rc = m0_conf_obj_find_lock(&confc->cc_cache, fid, &obj);
-	if (rc == 0 && m0_conf_obj_is_stub(obj))
-		rc = m0_confc_open_sync(&obj, obj, M0_FID0);
-	if (rc == 0)
-		*service = M0_CONF_CAST(obj, m0_conf_service);
 	return M0_RC(rc);
 }
 
@@ -183,7 +186,6 @@ static int _conf_load(struct m0_conf_filesystem *fs,
 		;
 
 	m0_conf_diter_fini(&it);
-
 	return M0_RC(rc);
 }
 
@@ -322,7 +324,6 @@ static int reqh_conf_service_find(struct m0_reqh           *reqh,
 bailout:
 	if (fs != NULL)
 		m0_confc_close(&fs->cf_obj);
-
 	return M0_RC(rc);
 }
 
@@ -408,7 +409,7 @@ M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
 	                     + (m0_fid_tget(&obj->co_id) ==
 	                        M0_CONF_DIR_TYPE.cot_ftype.ft_id ? 0 : 1));
 	if (total == 0)
-		return M0_RC(-ENOENT);
+		return M0_ERR(-ENOENT);
 
 	nvec.nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
 	M0_ALLOC_ARR(nvec.nv_note, nvec.nv_nr);
@@ -719,7 +720,6 @@ M0_INTERNAL void m0_confc_ready_cb(struct m0_rconfc *rconfc)
 	M0_LEAVE();
 }
 
-
 int m0_conf_process2service_get(struct m0_confc           *confc,
 				const struct m0_fid       *process_fid,
 				enum m0_conf_service_type  stype,
@@ -732,10 +732,9 @@ int m0_conf_process2service_get(struct m0_confc           *confc,
 
 	M0_ENTRY();
 
-	rc = m0_conf_obj_find_lock(&confc->cc_cache, process_fid, &pobj) ?:
-		m0_confc_open_sync(&pobj, pobj, M0_FID0);
+	rc = confc_obj_get(confc, process_fid, &pobj);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	rc = m0_conf_diter_init(&it, confc, pobj, M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0) {

@@ -52,24 +52,25 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				struct m0_pdclust_instance *pi,
 				struct m0_bitmap *proxy_in_map)
 {
-        struct m0_fid               cobfid;
-        struct m0_fid               gfid;
-        struct m0_pdclust_src_addr  sa;
-        struct m0_pdclust_tgt_addr  ta;
+	struct m0_fid		    cobfid;
+	struct m0_fid		    gfid;
+	struct m0_pdclust_src_addr  sa;
+	struct m0_pdclust_tgt_addr  ta;
 	struct m0_cm_proxy         *pxy;
 	const struct m0_cm         *cm;
+	struct m0_conf_obj         *svc;
 	const char                 *ep;
-        int32_t                     incoming_nr = 0;
-        uint32_t                    tgt_unit;
-        uint32_t                    tgt_unit_prev;
-        uint64_t                    unit;
+	int32_t                     incoming_nr = 0;
+	uint32_t                    tgt_unit;
+	uint32_t                    tgt_unit_prev;
+	uint64_t                    unit;
 	uint64_t                    upg;
-        int                         rc;
+	int                         rc;
 
-        M0_SET0(&sa);
+	M0_SET0(&sa);
 	cm = &scm->sc_base;
-        agid2fid(id, &gfid);
-        sa.sa_group = agid2group(id);
+	agid2fid(id, &gfid);
+	sa.sa_group = agid2group(id);
 	upg = m0_sns_cm_ag_size(pl);
 	for (unit = 0; unit < upg; ++unit) {
 		sa.sa_unit = unit;
@@ -96,9 +97,10 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
                 sa.sa_unit = tgt_unit;
                 m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, &gfid, &cobfid);
                 if (!m0_sns_cm_is_local_cob(cm, pm->pm_pver, &cobfid)) {
-			ep = m0_sns_cm_tgt_ep(cm, pm->pm_pver, &cobfid);
+			ep = m0_sns_cm_tgt_ep(cm, pm->pm_pver, &cobfid, &svc);
 			pxy = m0_tl_find(proxy, pxy, &cm->cm_proxies,
 					 m0_streq(ep, pxy->px_endpoint));
+			m0_confc_close(svc);
 			if (!m0_bitmap_get(proxy_in_map, pxy->px_id))
 				m0_bitmap_set(proxy_in_map, pxy->px_id, true);
 			M0_CNT_INC(incoming_nr);
