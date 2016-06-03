@@ -82,6 +82,19 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 				M0_IMPOSSIBLE("BUG HERE");
 		}
 		break;
+	case M0_HA_MSG_FAILURE_VEC_REQ:
+		M0_LOG(M0_ALWAYS, "FAILURE_VEC_REQ mvq_pool="FID_F,
+		       FID_P(&data->u.hed_fvec_req.mfq_pool));
+		break;
+	case M0_HA_MSG_FAILURE_VEC_REP:
+		M0_LOG(M0_ALWAYS, "FAILURE_VEC_REP mvp_pool="FID_F" "
+		       "mvp_nr=%"PRIu64, FID_P(&data->u.hed_fvec_rep.mfp_pool),
+		       data->u.hed_fvec_rep.mfp_nr);
+		for (i = 0; i < data->u.hed_fvec_rep.mfp_nr; ++i) {
+			M0_LOG(M0_ALWAYS, "mvf_vec[%d]=(no_id="FID_F")", i,
+			       FID_P(&data->u.hed_fvec_rep.mfp_vec.mfa_vec[i]));
+		}
+		break;
 	default:
 		M0_LOG(M0_WARN, "unknown m0_ha_msg type %"PRIu64,
 		       data->hed_type);
