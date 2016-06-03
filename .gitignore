@@ -143,3 +143,6 @@ parsetab.py
 
 # Halon persistent storage
 halon-persistence
+
+# Halon facts file from st/bootstrap.sh
+halon_facts.yaml
