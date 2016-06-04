@@ -1,4 +1,8 @@
-m0mero_objects += ha/epoch.o \
+m0mero_objects += ha/entrypoint.o \
+                  ha/entrypoint_xc.o \
+                  ha/entrypoint_fops.o \
+                  ha/entrypoint_fops_xc.o \
+                  ha/epoch.o \
                   ha/ha.o \
                   ha/link.o \
                   ha/link_fops.o \

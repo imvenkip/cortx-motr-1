@@ -37,6 +37,7 @@
 #include "rpc/rpclib.h"         /* m0_rpc_client_connect */
 #include "ha/link.h"            /* m0_ha_link */
 #include "ha/link_service.h"    /* m0_ha_link_service_init */
+#include "ha/entrypoint.h"      /* m0_ha_entrypoint_mod_init */
 
 #include "ha/note.h"            /* XXX m0_ha_state_init */
 
@@ -130,6 +131,8 @@ M0_INTERNAL int m0_ha_mod_init(void)
 	M0_ASSERT(rc == 0);
 	rc = m0_ha_link_service_mod_init();
 	M0_ASSERT(rc == 0);
+	rc = m0_ha_entrypoint_mod_init();
+	M0_ASSERT(rc == 0);
 	M0_LOG(M0_DEBUG, "i_ha_module=%p", ha_module);
 	return 0;
 }
@@ -138,6 +141,7 @@ M0_INTERNAL void m0_ha_mod_fini(void)
 {
 	M0_PRE(m0_get()->i_ha_module != NULL);
 
+	m0_ha_entrypoint_mod_fini();
 	m0_ha_link_service_mod_fini();
 	m0_ha_link_mod_fini();
 	m0_free(m0_get()->i_ha_module);
