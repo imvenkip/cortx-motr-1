@@ -1,4 +1,5 @@
 ut_libmero_ut_la_SOURCES += ha/ut/entrypoint.c \
+                            ha/ut/ha.c \
                             ha/ut/helper.c \
                             ha/ut/helper.h \
                             ha/ut/link.c \
