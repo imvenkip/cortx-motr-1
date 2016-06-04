@@ -60,6 +60,22 @@ M0_TL_DESCR_DEFINE(mero_ha_handlers, "m0_mero_ha::mh_handlers", static,
 		   21, 22);
 M0_TL_DEFINE(mero_ha_handlers, static, struct m0_mero_ha_handler);
 
+M0_INTERNAL void m0_mero_ha_cfg_make(struct m0_mero_ha_cfg *mha_cfg,
+				     struct m0_reqh        *reqh,
+				     struct m0_rpc_machine *rmach,
+				     const char            *addr)
+{
+	M0_ENTRY("reqh=%p rmach=%p", reqh, rmach);
+	M0_PRE(reqh != NULL);
+	M0_PRE(rmach != NULL);
+	*mha_cfg = (struct m0_mero_ha_cfg){
+		.mhc_addr        = addr,
+		.mhc_rpc_machine = rmach,
+		.mhc_reqh        = reqh,
+	};
+	M0_LEAVE();
+}
+
 static int mero_ha_entrypoint_rep_confd_fill(const struct m0_fid  *profile,
                                              struct m0_confc      *confc,
                                              struct m0_fid        *confd_fid,
@@ -166,7 +182,7 @@ mero_ha_entrypoint_request_cb(struct m0_ha                      *ha,
 		                                    &rep.hae_active_rm_fid,
 		                                    &rep.hae_active_rm_ep);
 	confd_eps[0] = confd_ep;
-	M0_LOG(M0_ALWAYS, "request");
+	M0_LOG(M0_DEBUG, "request");
 	m0_ha_entrypoint_reply(ha, req_id, &rep, NULL);
 	m0_free(confd_ep);
 	m0_free(rep.hae_active_rm_ep);
@@ -175,7 +191,7 @@ mero_ha_entrypoint_request_cb(struct m0_ha                      *ha,
 static void mero_ha_entrypoint_replied_cb(struct m0_ha                *ha,
                                           struct m0_ha_entrypoint_rep *hep)
 {
-	M0_LOG(M0_ALWAYS, "replied");
+	M0_LOG(M0_DEBUG, "replied");
 }
 
 static void mero_ha_msg_received_cb(struct m0_ha      *ha,
@@ -260,6 +276,10 @@ M0_INTERNAL int m0_mero_ha_init(struct m0_mero_ha     *mha,
 	M0_ASSERT(rc == 0);
 	mero_ha_handlers_tlist_init(&mha->mh_handlers);
 	mha->mh_can_add_handler = true;
+	M0_ALLOC_PTR(mha->mh_note_handler);
+	M0_ASSERT(mha->mh_note_handler != NULL);
+	rc = m0_ha_note_handler_init(mha->mh_note_handler, mha);
+	M0_ASSERT(rc == 0);
 	M0_ASSERT(m0_get()->i_mero_ha == NULL);
 	m0_get()->i_mero_ha = mha;
 	return M0_RC(0);
@@ -293,6 +313,8 @@ M0_INTERNAL void m0_mero_ha_fini(struct m0_mero_ha *mha)
 
 	M0_ASSERT(m0_get()->i_mero_ha == mha);
 	m0_get()->i_mero_ha = NULL;
+	m0_ha_note_handler_fini(mha->mh_note_handler);
+	m0_free(mha->mh_note_handler);
 	mero_ha_handlers_tlist_fini(&mha->mh_handlers);
 	m0_ha_fini(&mha->mh_ha);
 	/*

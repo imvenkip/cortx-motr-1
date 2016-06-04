@@ -38,6 +38,8 @@
 
 #include "be/ut/helper.h"     /* m0_be_ut_backend_seg_add2 */
 #include "pool/pool.h"        /* m0_pools_common */
+#include "ha/ha.h"            /* m0_ha */
+#include "mero/ha.h"          /* m0_mero_ha */
 
 /**
    @defgroup m0d Mero Setup
@@ -420,9 +422,9 @@ struct m0_mero {
 
 	char                       *cc_profile;
 
+	struct m0_mero_ha           cc_mero_ha;
+	bool                        cc_ha_is_started;
 	char                       *cc_ha_addr; /**< HA endpoint address     */
-	struct m0_rpc_session       cc_ha_sess; /**< global HA session       */
-	struct m0_rpc_conn          cc_ha_conn; /**< rpc conn for HA session */
 
 	/** Run as a daemon? */
 	bool                        cc_daemon;
@@ -438,6 +440,9 @@ struct m0_mero {
 
 	/** Skip Conf initialization when unneeded (like in m0rpcping).*/
 	bool                        cc_no_conf;
+
+	/** Skip all-to-all connection init. Useful in dummy HA */
+	bool                        cc_no_all2all_connections;
 
 	/** Command line arguments. */
 	struct cs_args		    cc_args;

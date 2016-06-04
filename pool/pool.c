@@ -34,7 +34,10 @@
 #include "ioservice/io_device.h"  /* m0_ios_poolmach_get */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
-#include "rpc/rpc_machine.h"   /* m0_rpc_machine_ep */
+#include "rpc/rpc_machine.h"    /* m0_rpc_machine_ep */
+#include "ha/entrypoint.h"      /* m0_ha_entrypoint_client */
+#include "ha/ha.h"              /* m0_ha */
+#include "module/instance.h"    /* m0 */
 
 #include "pool/pool.h"
 #include "pool/pool_fops.h"
@@ -655,7 +658,9 @@ static void service_ctxs_destroy(struct m0_pools_common *pc)
 		if (m0_reqh_service_ctx_is_connected(ctx)) {
 			rc = m0_reqh_service_disconnect_wait(ctx);
 			/* XXX Current function doesn't fail. */
-			M0_ASSERT(rc == 0 || rc == -ECANCELED);
+			M0_ASSERT_INFO(rc == 0 || rc == -ECANCELED ||
+				       rc == -ETIMEDOUT,
+			               "rc=%d", rc);
 		}
 		m0_reqh_service_ctx_destroy(ctx);
 	}
@@ -728,8 +733,7 @@ static bool is_local_rms(const struct m0_conf_service *svc)
 static int
 active_rms_fid_copy(struct m0_fid *active_rm, struct m0_rconfc *rconfc)
 {
-	struct m0_fop *entry;
-	int            rc = 0;
+	struct m0_ha_entrypoint_client *ecl;
 
 	/*
 	 * Connect to RM service returned by HA on entrypoint.
@@ -744,20 +748,11 @@ active_rms_fid_copy(struct m0_fid *active_rm, struct m0_rconfc *rconfc)
 		 * rconfc may be pre-loaded, but HA session still exist anyway,
 		 * so real RMS fid remains discoverable via entrypoint request
 		 */
-		rc = m0_ha_entrypoint_get(&entry);
-		if (rc == 0) {
-			struct m0_rpc_item *rep = entry->f_item.ri_reply;
-			struct m0_ha_old_entrypoint_rep *epr;
-
-			epr = m0_fop_data(m0_rpc_item_to_fop(rep));
-			*active_rm = epr->hbp_active_rm_fid;
-			/* dismiss entry fop */
-			m0_free(m0_fop_data(entry));
-			entry->f_data.fd_data = NULL;
-			m0_fop_put_lock(entry);
-		}
+		/* TODO check state of `ecl` */
+		ecl = &m0_get()->i_ha->h_entrypoint_client;
+		*active_rm = ecl->ecl_rep.hae_active_rm_fid;
 	}
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 static int active_rm_ctx_create(struct m0_pools_common *pc,

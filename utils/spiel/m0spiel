@@ -188,10 +188,10 @@ class SpielWrapper:
         self.mero.m0_ha_state_fini()
         self.mero.m0_sns_cm_repair_trigger_fop_fini()
         self.mero.m0_sns_cm_rebalance_trigger_fop_fini()
-        self.mero.m0_rpc_session_destroy(self.ha_session, ~0L)
-        self.__free(self.ha_session)
-        self.mero.m0_rpc_conn_destroy(self.ha_conn, ~0L)
-        self.__free(self.ha_conn)
+        self.mero.m0_mero_ha_disconnect(self.mha)
+        self.mero.m0_mero_ha_stop(self.mha)
+        self.mero.m0_mero_ha_fini(self.mha)
+        self.__free(self.mha)
         self.mero.m0_rpc_machine_fini(self.rpc_machine)
         self.__free(self.rpc_machine)
         self.mero.m0_reqh_services_terminate(self.reqh);
@@ -520,12 +520,14 @@ class SpielWrapper:
         self.rpc_machine = rpc_machine
 
     def __ha_session_init(self):
-        self.ha_conn = self.__malloc(m0_rpc_conn__size())
-        self.ha_session = self.__malloc(m0_rpc_session__size())
-        call(self.mero.m0_rpc_client_connect, self.ha_conn, self.ha_session,
-             self.rpc_machine, self.ha_ep, None,
-             2) # max_rpcs_in_flight
-        self.mero.m0_ha_state_init(self.ha_session)
+        mha_cfg = self.__malloc(m0_mero_ha_cfg__size())
+        self.mero.m0_mero_ha_cfg_make(mha_cfg, self.reqh, self.rpc_machine,
+                                      self.ha_ep)
+        self.mha = self.__malloc(m0_mero_ha__size())
+        call(self.mero.m0_mero_ha_init, self.mha, mha_cfg)
+        call(self.mero.m0_mero_ha_start, self.mha)
+        self.mero.m0_mero_ha_connect(self.mha)
+        self.__free(mha_cfg)
 
     def __spiel_init(self):
         spiel = self.__malloc(m0_spiel__size())

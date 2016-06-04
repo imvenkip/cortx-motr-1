@@ -676,7 +676,7 @@ static bool _clink_cb(struct m0_clink *link)
 	return false;
 }
 
-static void test_ha_notify(void)
+M0_UNUSED static void test_ha_notify(void)
 {
 	struct m0_rpc_machine    mach;
 	struct m0_rpc_server_ctx rctx;
@@ -828,7 +828,11 @@ struct m0_ut_suite rconfc_ut = {
 		{ "ctx-block",  test_confc_ctx_block },
 		{ "reconnect",  test_reconnect_success },
 		{ "recon-fail", test_reconnect_fail },
-		{ "ha-notify",  test_ha_notify },
+		/*
+		 * Temporary disabled because now rconfc entrypoint request
+		 * can't fail. Will be fixed somehow in MERO-1774 patch.
+		 */
+		/* { "ha-notify",  test_ha_notify }, */
 		{ "test-drain", test_drain },
 		{ NULL, NULL }
 	}

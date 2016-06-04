@@ -99,6 +99,7 @@ static void start_rpc_client_and_server(void)
 
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
+	M0_SET0(&sctx.rsx_mero_ctx);
 	rc = m0_rpc_server_start(&sctx);
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);

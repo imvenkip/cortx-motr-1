@@ -49,6 +49,7 @@
 #include "module/instance.h"   /* m0_get */
 #include "ha/epoch.h"          /* m0_ha_client_add */
 #include "balloc/balloc.h"     /* BALLOC_DEF_BLOCK_SHIFT */
+#include "mero/ha.h"           /* m0_mero_ha */
 
 extern struct io_mem_stats iommstats;
 extern struct m0_bitmap    m0t1fs_client_ep_tmid;
@@ -456,17 +457,19 @@ M0_INTERNAL void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
  */
 static int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
 {
-	struct m0_rpc_machine *rmach   = &csb->csb_rpc_machine;
-	struct m0_rpc_session *ha_sess = &csb->csb_ha_sess;
-	struct m0_rpc_conn    *ha_conn = &csb->csb_ha_conn;
-	int                    rc;
+	int rc;
 
 	M0_ENTRY();
-	rc = m0_rpc_client_connect(ha_conn, ha_sess, rmach, ha_addr, NULL,
-				   2 /*MAX_RPCS_IN_FLIGHT*/);
-	if (rc != 0)
-		return M0_ERR(rc);
-	return M0_RC(m0_ha_state_init(ha_sess));
+	rc = m0_mero_ha_init(&csb->csb_mero_ha, &(struct m0_mero_ha_cfg){
+			             .mhc_addr        = ha_addr,
+			             .mhc_rpc_machine = &csb->csb_rpc_machine,
+			             .mhc_reqh        = &csb->csb_reqh,
+			     });
+	M0_ASSERT(rc == 0);
+	rc = m0_mero_ha_start(&csb->csb_mero_ha);
+	M0_ASSERT(rc == 0);
+	m0_mero_ha_connect(&csb->csb_mero_ha);
+	return M0_RC(0);
 }
 
 /**
@@ -474,23 +477,11 @@ static int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
  */
 static void m0t1fs_ha_fini(struct m0t1fs_sb *csb)
 {
-	struct m0_rpc_session *ha_sess = &csb->csb_ha_sess;
-	struct m0_rpc_conn    *ha_conn = &csb->csb_ha_conn;
-	int                    rc;
-
 	M0_ENTRY("csb: %p", csb);
-	m0_ha_state_fini();
-	M0_PRE(M0_IN(session_state(ha_sess), (M0_RPC_SESSION_IDLE,
-					      M0_RPC_SESSION_BUSY)));
-	if (session_state(ha_sess) == M0_RPC_SESSION_INITIALISED)
-		goto leave; /* session was not established */
-	rc = m0_rpc_session_destroy(ha_sess, m0_rpc__down_timeout());
-	if (rc != 0)
-		M0_LOG(M0_ERROR, "Failed to destroy session %d", rc);
-	rc = m0_rpc_conn_destroy(ha_conn, m0_rpc__down_timeout());
-	if (rc != 0)
-		M0_LOG(M0_ERROR, "Failed to destroy connection %d", rc);
-leave:
+	m0_mero_ha_disconnect(&csb->csb_mero_ha);
+	m0_mero_ha_stop(&csb->csb_mero_ha);
+	m0_mero_ha_fini(&csb->csb_mero_ha);
+
 	M0_LEAVE();
 }
 
@@ -923,9 +914,8 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_clink_fini(&csb->csb_conf_exp);
 	m0_clink_fini(&csb->csb_conf_ready);
 	m0_conf_ha_notify(&csb->csb_reqh.rh_fid, M0_NC_FAILED);
-	m0_reqh_services_terminate(&csb->csb_reqh);
 	m0t1fs_ha_fini(csb);
-	m0_ha_state_fini();
+	m0_reqh_services_terminate(&csb->csb_reqh);
 	m0t1fs_rpc_fini(csb);
 	m0t1fs_net_fini(csb);
 }

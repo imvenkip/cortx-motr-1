@@ -15,8 +15,18 @@
 * http://www.xyratex.com/contact
 *
 * Original author: Atsuro Hoshino <atsuro_hoshino@xyratex.com>
+*                  Maxim Medved <max.medved@seagate.com>
 * Original creation date: 02-Sep-2013
 */
+
+/**
+ * @defgroup ha-note HA notification
+ *
+ * TODO handle memory allocation failure in m0_ha_note_handler_add()
+ * TODO remove m0_ha_session_get()
+ *
+ * @{
+ */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_HA
 
@@ -30,35 +40,15 @@
 #include "rpc/rpc_internal.h"   /* m0_rpc__post_locked */
 #include "rpc/rpclib.h"
 #include "rpc/session.h"
+#include "fid/fid.h"            /* FID_F */
+#include "module/instance.h"    /* m0_get */
 
 #include "ha/note.h"
 #include "ha/note_fops.h"
 #include "ha/note_xc.h"
-
-enum TEMPUS {
-	/* Timeout for RPC call (seconds) */
-	DEADLINE_S             = 0,
-	/* Timeout for RPC call (nanoseconds) */
-	DEADLINE_NS            = 1000000,
-	/* Resend interval for 'state_get' (seconds) */
-	RESEND_INTERVAL_GET_S  = 120,
-	/* Resend interval for 'state_get' (nanoseconds) */
-	RESEND_INTERVAL_GET_NS = 0,
-	/* Resend interval for 'state_set' (seconds) */
-	RESEND_INTERVAL_SET_S  = 5,
-	/* Resend interval for 'state_set' (nanoseconds) */
-	RESEND_INTERVAL_SET_NS = 0
-};
-
-/**
- * Wrapper structure to enclose m0_fop and pointer to m0_chan.
- *
- * @see struct confc_fop.
- */
-struct get_fop_context {
-	struct m0_fop   gf_fop;
-	struct m0_chan *gf_chan;
-};
+#include "ha/msg.h"             /* m0_ha_msg */
+#include "ha/link.h"            /* m0_ha_link_send */
+#include "ha/ha.h"              /* m0_ha_send */
 
 M0_EXTERN void m0_ha__session_set(struct m0_rpc_session *session);
 
@@ -73,70 +63,9 @@ M0_INTERNAL void m0_ha_state_fini()
 	m0_ha__session_set(NULL);
 }
 
-M0_INTERNAL void ha_state_get_replied(struct m0_rpc_item *item)
-{
-	struct m0_fop          *fop;
-	struct m0_ha_state_fop *rep;
-	struct get_fop_context *ctx;
-	int                     rc;
-	struct m0_ha_nvec      *usr_nvec;
-	struct m0_ha_nvec      *rep_nvec;
-
-	M0_ENTRY();
-	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(item->ri_reply);
-	ctx = M0_AMB(ctx, m0_rpc_item_to_fop(item), gf_fop);
-	usr_nvec = m0_fop_data(m0_rpc_item_to_fop(item));
-
-	if (rc == 0) {
-		fop = m0_rpc_item_to_fop(item->ri_reply);
-		rep = m0_fop_data(fop);
-		rep_nvec = &rep->hs_note;
-		M0_NVEC_PRINT(rep_nvec, " < ", M0_DEBUG);
-		if (rep->hs_rc != 0)
-			rc = M0_ERR(rep->hs_rc);
-		else if (usr_nvec->nv_nr != rep_nvec->nv_nr)
-			rc = M0_ERR_INFO(-EPROTO, "Wrong size: %u != %u.",
-					 usr_nvec->nv_nr, rep_nvec->nv_nr);
-		else if (m0_forall(i, rep_nvec->nv_nr,
-				   m0_fid_eq(&usr_nvec->nv_note[i].no_id,
-					     &rep_nvec->nv_note[i].no_id)))
-			memcpy(usr_nvec->nv_note, rep_nvec->nv_note,
-			       rep_nvec->nv_nr * sizeof rep_nvec->nv_note[0]);
-		else
-			rc = M0_ERR_INFO(-EPROTO, "Fid mismatch.");
-	}
-	if (rc != 0)
-		usr_nvec->nv_nr = rc;
-	m0_chan_signal_lock(ctx->gf_chan);
-	m0_fop_put(&ctx->gf_fop);
-	M0_LEAVE();
-}
-
-const struct m0_rpc_item_ops ha_state_get_ops = {
-	.rio_replied = &ha_state_get_replied
-};
-
 /**
  * @see: confc_fop_release()
  */
-static void get_fop_release(struct m0_ref *ref)
-{
-	struct m0_fop          *fop;
-	struct get_fop_context *ctx;
-
-	M0_ENTRY();
-	M0_PRE(ref != NULL);
-
-	fop = M0_AMB(fop, ref, f_ref);
-	ctx = M0_AMB(ctx, fop, gf_fop);
-	/* Clear the fop data field so the user buffer is not released. */
-	fop->f_data.fd_data = NULL;
-	m0_fop_fini(fop);
-	m0_free(ctx);
-
-	M0_LEAVE();
-}
-
 static bool note_invariant(const struct m0_ha_nvec *note, bool known)
 {
 #define N(i) (note->nv_note[i])
@@ -156,9 +85,7 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 				struct m0_ha_nvec *note, struct m0_chan *chan)
 {
 
-	struct m0_rpc_item     *item;
-	struct m0_fop          *fop;
-	struct get_fop_context *ctx;
+	uint64_t id_of_get;
 
 	M0_ENTRY("session=%p chan=%p "
 		 "note->nv_nr=%"PRIi32" note->nv_note[0].no_id="FID_F
@@ -167,55 +94,21 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 	         note->nv_nr > 0 ? note->nv_note[0].no_state : 0);
 	M0_PRE(note_invariant(note, false));
 	M0_NVEC_PRINT(note, " > ", M0_DEBUG);
-	M0_ALLOC_PTR(ctx);
-	if (ctx == NULL)
-		return M0_ERR(-ENOMEM);
-	ctx->gf_chan = chan;
-	fop = &ctx->gf_fop;
-	m0_fop_init(fop, &m0_ha_state_get_fopt, note, get_fop_release);
-	item                     = &fop->f_item;
-	item->ri_ops             = &ha_state_get_ops;
-	item->ri_session         = session;
-	item->ri_prio            = M0_RPC_ITEM_PRIO_MID;
-	item->ri_deadline        = m0_time_from_now(DEADLINE_S, DEADLINE_NS);
-	/* Wait 2 minutes for the reply. */
-	item->ri_resend_interval = m0_time(RESEND_INTERVAL_GET_S,
-					   RESEND_INTERVAL_GET_NS);
-	return M0_RC(m0_rpc_post(item));
+	id_of_get = m0_ha_note_handler_add(m0_get()->i_mero_ha->mh_note_handler,
+	                                   note, chan);
+	m0_ha_msg_nvec_send(note, id_of_get, M0_HA_NVEC_GET, NULL);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 				 struct m0_ha_nvec *note)
 {
-	struct m0_fop      *fop;
-	struct m0_rpc_item *item;
-	int                 rc;
-
 	M0_ENTRY("session=%p note->nv_nr=%"PRIi32" note->nv_note[0].no_id="FID_F
 	         " note->nv_note[0].no_state=%u", session, note->nv_nr,
 	         FID_P(note->nv_nr > 0 ? &note->nv_note[0].no_id : &M0_FID0),
 	         note->nv_nr > 0 ? note->nv_note[0].no_state : 0);
 	M0_PRE(note_invariant(note, true));
-
-	fop = m0_fop_alloc(&m0_ha_state_set_fopt, note,
-			   m0_fop_session_machine(session));
-	if (fop != NULL) {
-		item = &fop->f_item;
-		/* wait 5 seconds for the reply */
-		item->ri_resend_interval = m0_time(RESEND_INTERVAL_SET_S,
-						   RESEND_INTERVAL_SET_NS);
-
-		rc = m0_rpc_post_sync(fop, session, NULL,
-				    m0_time_from_now(DEADLINE_S, DEADLINE_NS));
-		if (rc != 0)
-			M0_LOG(M0_NOTICE, "Post failed: %i.", rc);
-		/* Clear the fop data field so the user buffer is not
-		   released. */
-		fop->f_data.fd_data = NULL;
-		m0_fop_put_lock(fop);
-	} else
-		M0_LOG(M0_NOTICE, "Cannot allocate fop.");
-	M0_LEAVE();
+	m0_ha_msg_nvec_send(note, 0, M0_HA_NVEC_SET, NULL);
 }
 
 M0_INTERNAL void m0_ha_local_state_set(struct m0_ha_nvec *nvec)
@@ -255,35 +148,11 @@ struct m0_rpc_item_ops ha_ri_ops = {
 M0_INTERNAL void m0_ha_state_single_post(struct m0_rpc_session *session,
 					 struct m0_ha_nvec     *nvec)
 {
-	struct m0_rpc_machine *rmach = m0_fop_session_machine(session);
-	struct m0_fop         *fop;
-	struct m0_rpc_item    *item;
-	int                    rc;
-
 	M0_ENTRY();
 	M0_PRE(nvec != NULL);
 	M0_PRE(note_invariant(nvec, true));
 
-	fop = m0_fop_alloc(&m0_ha_state_set_fopt, nvec, rmach);
-	if (fop == NULL) {
-		M0_LOG(M0_NOTICE, "Cannot allocate fop.");
-		goto leave;
-	}
-	item              = &fop->f_item;
-	item->ri_ops      = &ha_ri_ops;
-	item->ri_session  = session;
-	item->ri_prio     = M0_RPC_ITEM_PRIO_MIN;
-	item->ri_deadline = m0_time_from_now(DEADLINE_S, DEADLINE_NS);
-	item->ri_resend_interval =
-		m0_time(RESEND_INTERVAL_SET_S, RESEND_INTERVAL_SET_NS);
-	rc = m0_rpc__post_locked(item);
-	if (rc != 0) {
-		M0_LOG(M0_NOTICE, "Post failed: %i.", rc);
-		ha_state_single_fop_data_free(fop);
-		m0_fop_put_lock(fop);
-	}
-leave:
-	M0_LEAVE();
+	m0_ha_msg_nvec_send(nvec, 0, M0_HA_NVEC_SET, NULL);
 }
 
 /**
@@ -324,44 +193,213 @@ M0_INTERNAL void m0_ha_state_accept(const struct m0_ha_nvec *note)
 	m0_ha_clients_iterate((m0_ha_client_cb_t)ha_state_accept, note);
 }
 
-M0_INTERNAL int m0_ha_entrypoint_get(struct m0_fop **entrypoint_fop)
+static void ha_conf_cache_get(void *client, void *data)
 {
-	struct m0_rpc_session *sess = m0_ha_session_get();
-	struct m0_fop         *fop;
-	struct m0_rpc_item    *item;
-	void                  *data;
-	int                    rc;
+	struct m0_confc *confc = client;
+	struct m0_confc **confc_ptr = data;
 
-	M0_ENTRY();
-	M0_PRE(entrypoint_fop != NULL);
+	*confc_ptr = confc;
+}
 
-	if (sess == NULL)
-		return M0_ERR(-ENOMEDIUM);
-	data = m0_alloc(sizeof (struct m0_ha_old_entrypoint_req));
-	if (data == NULL)
-		return M0_ERR(-ENOMEM);
-	fop = m0_fop_alloc(&m0_ha_old_entrypoint_req_fopt, data,
-			   m0_fop_session_machine(sess));
-	if (fop != NULL) {
-		item = &fop->f_item;
-		item->ri_resend_interval = m0_time(RESEND_INTERVAL_SET_S,
-						   RESEND_INTERVAL_SET_NS);
+M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
+                                  struct m0_ha_link      *hl)
+{
+	struct m0_confc      *confc;
+	struct m0_conf_cache *cache;
+	struct m0_ha_nvec  nvec;
+	const struct m0_ha_msg_nvec *nvec_req;
+	struct m0_conf_obj *obj;
+	int                i;
 
-		rc = m0_rpc_post_sync(fop, sess, NULL,
-				    m0_time_from_now(DEADLINE_S, DEADLINE_NS));
-		if (rc != 0) {
-			m0_free(m0_fop_data(fop));
-			fop->f_data.fd_data = NULL;
-			m0_fop_put_lock(fop);
-		} else {
-			*entrypoint_fop = fop;
+	switch (msg->hm_data.hed_type) {
+	case M0_HA_MSG_NVEC:
+		nvec = (struct m0_ha_nvec){
+			.nv_nr   = msg->hm_data.u.hed_nvec.hmnv_nr,
+		};
+		M0_LOG(M0_DEBUG, "nvec nv_nr=%"PRIu32" hmvn_type=%s",
+		       nvec.nv_nr,
+		       msg->hm_data.u.hed_nvec.hmnv_type == M0_HA_NVEC_SET ?
+		       "SET" :
+		       msg->hm_data.u.hed_nvec.hmnv_type == M0_HA_NVEC_GET ?
+		       "GET" : "UNKNOWN!");
+		M0_ALLOC_ARR(nvec.nv_note, nvec.nv_nr);
+		M0_ASSERT(nvec.nv_note != NULL);
+		for (i = 0; i < nvec.nv_nr; ++i) {
+			nvec.nv_note[i] = msg->hm_data.u.hed_nvec.hmnv_vec[i];
+			M0_LOG(M0_DEBUG, "nv_note[%d]=(no_id="FID_F" "
+			       "no_state=%"PRIu32")", i,
+			       FID_P(&nvec.nv_note[i].no_id),
+			       nvec.nv_note[i].no_state);
 		}
-	} else {
-		M0_LOG(M0_NOTICE, "Cannot allocate fop.");
-		rc = -ENOMEM;
+		if (msg->hm_data.u.hed_nvec.hmnv_type == M0_HA_NVEC_SET) {
+			m0_ha_state_accept(&nvec);
+			if (msg->hm_data.u.hed_nvec.hmnv_id_of_get != 0) {
+				m0_ha_note_handler_signal(
+				       m0_get()->i_mero_ha->mh_note_handler,
+				       &nvec,
+				       msg->hm_data.u.hed_nvec.hmnv_id_of_get);
+			}
+		} else {
+			confc = NULL;
+			/* get the first confc */
+			m0_ha_clients_iterate((m0_ha_client_cb_t)&ha_conf_cache_get, &confc);
+			M0_ASSERT(confc != NULL);
+			cache = &confc->cc_cache;
+			nvec_req = &msg->hm_data.u.hed_nvec;
+			m0_conf_cache_lock(cache);
+			for (i = 0; i < nvec_req->hmnv_nr; ++i) {
+				obj = m0_conf_cache_lookup(cache, &nvec_req->hmnv_vec[i].no_id);
+				if (obj == NULL) {
+					M0_LOG(M0_DEBUG, "obj == NULL");
+					nvec.nv_note[i] = (struct m0_ha_note){
+						.no_id    = nvec_req->hmnv_vec[i].no_id,
+						.no_state = M0_NC_ONLINE,
+					};
+				} else {
+					nvec.nv_note[i] = (struct m0_ha_note){
+						.no_id    = obj->co_id,
+						.no_state = obj->co_ha_state,
+					};
+				}
+			}
+			m0_conf_cache_unlock(cache);
+			m0_ha_msg_nvec_send(&nvec,
+				    msg->hm_data.u.hed_nvec.hmnv_id_of_get,
+				    M0_HA_NVEC_SET, hl);
+		}
+		m0_free(nvec.nv_note);
+		break;
+	default:
+		M0_LOG(M0_DEBUG, "can't handle %"PRIu64,
+		       msg->hm_data.hed_type);
+		break;
 	}
+}
 
-	return M0_RC(rc);
+M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
+                                     uint64_t                 id_of_get,
+                                     int                      direction,
+                                     struct m0_ha_link       *hl)
+{
+	struct m0_ha_msg *msg;
+	uint64_t          tag;
+	int               i;
+
+	if (hl == NULL)
+		hl = m0_get()->i_ha_link;
+	if (hl != NULL) {
+		M0_ALLOC_PTR(msg);
+		M0_ASSERT(msg != NULL);
+		*msg = (struct m0_ha_msg){
+			.hm_data = {
+				.hed_type             = M0_HA_MSG_NVEC,
+				.u.hed_nvec = {
+					.hmnv_type      = direction,
+					.hmnv_id_of_get = id_of_get,
+					.hmnv_nr        = nvec->nv_nr,
+				},
+			},
+		};
+		for (i = 0; i < nvec->nv_nr; ++i)
+			msg->hm_data.u.hed_nvec.hmnv_vec[i] = nvec->nv_note[i];
+		m0_ha_link_send(hl, msg, &tag);
+		m0_free(msg);
+	} else {
+		M0_LOG(M0_DEBUG, "hl == NULL");
+	}
+}
+
+struct ha_note_handler_request {
+	struct m0_chan    *hsg_wait_chan;
+	struct m0_tlink    hsg_tlink;
+	struct m0_ha_nvec *hsg_nvec;
+	uint64_t           hsg_magic;
+	uint64_t           hsg_id;
+};
+
+M0_TL_DESCR_DEFINE(ha_gets, "m0_ha_note_handler::hmh_gets", static,
+		   struct ha_note_handler_request, hsg_tlink, hsg_magic,
+		   20, 21);               /* XXX */
+M0_TL_DEFINE(ha_gets, static, struct ha_note_handler_request);
+
+static void ha_note_handler_msg(struct m0_mero_ha         *mha,
+                                struct m0_mero_ha_handler *mhf,
+                                struct m0_ha_msg          *msg,
+                                struct m0_ha_link         *hl,
+                                void                      *data)
+{
+	struct m0_ha_note_handler *hnh;
+
+	M0_ASSERT(hnh = container_of(mhf, struct m0_ha_note_handler,
+	                             hnh_handler));
+	m0_ha_msg_accept(msg, hl);
+}
+
+M0_INTERNAL int m0_ha_note_handler_init(struct m0_ha_note_handler *hnh,
+                                        struct m0_mero_ha         *mha)
+{
+	M0_PRE(M0_IS0(hnh));
+
+	m0_mutex_init(&hnh->hnh_lock);
+	ha_gets_tlist_init(&hnh->hnh_gets);
+	hnh->hnh_mero_ha = mha;
+	hnh->hnh_handler = (struct m0_mero_ha_handler){
+		.mhf_data            = hnh,
+		.mhf_msg_received_cb = &ha_note_handler_msg,
+	};
+	hnh->hnh_id_of_get = 100;
+	m0_mero_ha_handler_attach(hnh->hnh_mero_ha, &hnh->hnh_handler);
+	return 0;
+}
+
+M0_INTERNAL void m0_ha_note_handler_fini(struct m0_ha_note_handler *hnh)
+{
+	m0_mero_ha_handler_detach(hnh->hnh_mero_ha, &hnh->hnh_handler);
+	ha_gets_tlist_fini(&hnh->hnh_gets);
+	m0_mutex_fini(&hnh->hnh_lock);
+}
+
+M0_INTERNAL uint64_t m0_ha_note_handler_add(struct m0_ha_note_handler *hnh,
+                                            struct m0_ha_nvec         *nvec_req,
+                                            struct m0_chan            *chan)
+{
+	struct ha_note_handler_request *hsg;
+
+	M0_ALLOC_PTR(hsg);
+	m0_mutex_lock(&hnh->hnh_lock);
+	*hsg = (struct ha_note_handler_request){
+		.hsg_wait_chan = chan,
+		.hsg_nvec      = nvec_req,
+		.hsg_id        = hnh->hnh_id_of_get++,
+	};
+	ha_gets_tlink_init_at_tail(hsg, &hnh->hnh_gets);
+	m0_mutex_unlock(&hnh->hnh_lock);
+	M0_LOG(M0_DEBUG, "add id=%"PRIu64, hsg->hsg_id);
+	return hsg->hsg_id;
+}
+
+M0_INTERNAL void m0_ha_note_handler_signal(struct m0_ha_note_handler *hnh,
+                                           struct m0_ha_nvec         *nvec_rep,
+                                           uint64_t                   id)
+{
+	struct ha_note_handler_request *hsg;
+	int                             i;
+
+	M0_LOG(M0_DEBUG, "signal id=%"PRIu64, id);
+	m0_mutex_lock(&hnh->hnh_lock);
+	hsg = m0_tl_find(ha_gets, hsg1, &hnh->hnh_gets, id == hsg1->hsg_id);
+	M0_ASSERT_INFO(hsg != NULL, "id=%"PRIu64, id);
+	ha_gets_tlink_del_fini(hsg);
+	m0_mutex_unlock(&hnh->hnh_lock);
+	M0_ASSERT(nvec_rep->nv_nr == hsg->hsg_nvec->nv_nr);
+	for (i = 0; i < nvec_rep->nv_nr; ++i) {
+		M0_ASSERT(m0_fid_eq(&nvec_rep->nv_note[i].no_id,
+		                    &hsg->hsg_nvec->nv_note[i].no_id));
+		hsg->hsg_nvec->nv_note[i].no_state =
+			nvec_rep->nv_note[i].no_state;
+	}
+	m0_chan_signal_lock(hsg->hsg_wait_chan);
+	m0_free(hsg);
 }
 
 #undef M0_TRACE_SUBSYSTEM

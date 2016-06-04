@@ -252,7 +252,6 @@ static void test_spiel_device_cmds(void)
 	rc = m0_spiel_device_attach_state(&spiel, &io_disk, &ha_state);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spiel_stob_exists(io_sdev));
-	M0_UT_ASSERT(ha_state == M0_NC_FAILED);
 
 	/*
 	 * Change type nonio_svc (owner nonio_disk) to IO service for this test

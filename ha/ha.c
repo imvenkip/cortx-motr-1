@@ -26,7 +26,6 @@
  * TODO handle memory allocation errors
  * TODO handle all errors
  * TODO handle error when link_id_request is false and no link is established
- * TODO move m0_ha_cfg_make() out of this file
  * TODO add magics for ha_links
  *
  * @{
@@ -194,28 +193,6 @@ ha_request_received_cb(struct m0_ha_entrypoint_server    *hes,
 	ha->h_cfg.hcf_ops.hao_entrypoint_request(ha, req, req_id);
 }
 
-static void ha_default_ep_replied(struct m0_ha *ha, struct m0_ha_entrypoint_rep *ep)
-{
-	M0_ENTRY();
-	M0_LEAVE();
-}
-
-void m0_ha_cfg_make(struct m0_ha_cfg      *ha_cfg,
-		    struct m0_reqh        *reqh,
-		    struct m0_rpc_machine *rmach)
-{
-	M0_ENTRY("reqh=%p rmach=%p", reqh, rmach);
-	M0_PRE(reqh != NULL);
-	M0_PRE(rmach != NULL);
-	*ha_cfg = (struct m0_ha_cfg){
-		.hcf_ops = (struct m0_ha_ops){
-			.hao_entrypoint_replied = ha_default_ep_replied,
-		},
-		.hcf_rpc_machine = rmach,
-		.hcf_reqh = reqh,
-	};
-	M0_LEAVE();
-}
 
 M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg)
 {

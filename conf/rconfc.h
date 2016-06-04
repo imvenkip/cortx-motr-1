@@ -190,8 +190,8 @@ struct m0_rpc_item;
 
 enum m0_rconfc_state {
 	RCS_INIT,
-	RCS_ENTRYPOINT_GET,
-	RCS_ENTRYPOINT_REPLIED,
+	RCS_ENTRYPOINT_CONSUME,
+	RCS_CREDITOR_SETUP,
 	RCS_GET_RLOCK,
 	RCS_VERSION_ELECT,
 	RCS_IDLE,
@@ -316,10 +316,6 @@ struct m0_rconfc {
 	 * should be processed once rconfc is idle.
 	 */
 	bool                      rc_rlock_conflict;
-	/** FOP is used to retrieve cluster entry point from HA. */
-	struct m0_fop             rc_entrypoint_fop;
-	/** Reply from HA with cluster entry point. */
-	struct m0_rpc_item       *rc_entrypoint_reply;
 	/**
 	 * Confc instance artificially filled with objects having fids of
 	 * current confd and top-level RM services got from HA. Artificial

@@ -49,6 +49,7 @@
 #include "be/ut/helper.h"
 #include "spiel/spiel.h"         /* m0_spiel */
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
+#include "mero/ha.h"             /* m0_mero_ha */
 
 /**
   @defgroup m0t1fs m0t1fs
@@ -744,11 +745,7 @@ struct m0t1fs_sb {
 	/** HA service context. */
 	struct m0_reqh_service_ctx             *csb_ha_rsctx;
 
-	/** HA session used globally */
-	struct m0_rpc_session                   csb_ha_sess;
-
-	/** RPC connection HA session operates on */
-	struct m0_rpc_conn                      csb_ha_conn;
+	struct m0_mero_ha                       csb_mero_ha;
 
 	/**
 	 * list of pending transactions, by service,

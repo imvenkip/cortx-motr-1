@@ -117,7 +117,11 @@ static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-T", "linux",
                                 "-A", "linuxstob:cs_addb_stob", "-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-H", "0@lo:12345:34:1",
-                                "-q", "4", "-m", "4096",
+                                /*
+				 * -m is temporary set to 32768.
+				 * It's required to handle m0_ha_msg transfer.
+				 */
+                                "-q", "4", "-m", "32768",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 

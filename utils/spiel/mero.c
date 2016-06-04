@@ -19,6 +19,7 @@
  */
 
 #include <Python.h>
+#include "mero/ha.h"            /* m0_mero_ha */
 #include "module/instance.h"
 #include "net/net.h"
 #include "net/buffer_pool.h"
@@ -33,9 +34,9 @@
 	X(m0_reqh)            \
 	X(m0_reqh_init_args)  \
 	X(m0_reqh_service)    \
-	X(m0_rpc_conn)        \
 	X(m0_rpc_machine)     \
-	X(m0_rpc_session)     \
+	X(m0_mero_ha)         \
+	X(m0_mero_ha_cfg)     \
 	X(m0_spiel_tx)        \
 	X(m0_spiel)
 

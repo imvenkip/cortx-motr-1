@@ -37,6 +37,7 @@
 struct m0_rpc_machine;
 struct m0_reqh;
 struct m0_ha_link;
+struct m0_ha_note_handler;
 
 struct m0_mero_ha_cfg {
 	const char            *mhc_addr;
@@ -56,6 +57,8 @@ struct m0_mero_ha {
 	 */
 	struct m0_tl               mh_handlers;
 	bool                       mh_can_add_handler;
+	/* m0_ha_note_set(), m0_ha_note_get() handler */
+	struct m0_ha_note_handler *mh_note_handler;
 };
 
 struct m0_mero_ha_handler {
@@ -68,6 +71,11 @@ struct m0_mero_ha_handler {
 	                                       struct m0_ha_link         *hl,
 	                                       void                      *data);
 };
+
+M0_INTERNAL void m0_mero_ha_cfg_make(struct m0_mero_ha_cfg *mha_cfg,
+				     struct m0_reqh        *reqh,
+				     struct m0_rpc_machine *rmach,
+				     const char            *addr);
 
 M0_INTERNAL int m0_mero_ha_init(struct m0_mero_ha     *mha,
                                 struct m0_mero_ha_cfg *mha_cfg);

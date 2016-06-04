@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ *                  Maxim Medved <max.medved@seagate.com>
  * Original creation date: 10-May-2013
  */
 
@@ -26,6 +27,8 @@
 
 /**
  * @defgroup ha-note HA notification
+ *
+ * TODO update
  *
  * This module defines protocols and functions used to communicate HA-related
  * events between HA and Mero core.
@@ -97,11 +100,16 @@
 #include "lib/types.h"
 #include "lib/buf.h"          /* m0_buf, m0_bufs */
 #include "lib/buf_xc.h"       /* m0_buf_xc, m0_bufs_xc */
+#include "lib/mutex.h"        /* m0_mutex */
+#include "lib/tlist.h"        /* m0_tl */
+#include "lib/atomic.h"       /* m0_atomic64 */
 #include "xcode/xcode_attr.h"
+#include "mero/ha.h"          /* m0_mero_ha_handler */
 
 /* export */
 struct m0_ha_note;
 struct m0_ha_nvec;
+struct m0_ha_msg;
 
 /* foward declaration */
 struct m0_confc;
@@ -228,44 +236,6 @@ struct m0_ha_msg_nvec2 {
 	})
 
 /**
- * Cluster entry point contains information necessary to access cluster
- * configuration. This information is maintained by HA subsystem.
- */
-struct m0_ha_old_entrypoint_rep {
-	/** Negative if accessing cluster configuration is impossible. */
-	int32_t           hbp_rc;
-	/**
-	 * Minimum number of confd servers agreed upon current configuration
-	 * version in cluster. Client shouldn't access configuration if this
-	 * quorum value is not reached.
-	 */
-	uint32_t          hbp_quorum;
-	/**
-	 * Fids of confd services replicating configuration database. The same
-	 * Fids should be present in configuration database tree.
-	 */
-	struct m0_fid_arr hbp_confd_fids;
-	/** RPC endpoints of confd services. */
-	struct m0_bufs    hbp_confd_eps;
-	/**
-	 * Fid of RM service maintaining read/write access to configuration
-	 * database. The same fid should be present in configuration database
-	 * tree.
-	 */
-	struct m0_fid     hbp_active_rm_fid;
-	/**
-	 * RPC endpoint of RM service.
-	 */
-	struct m0_buf     hbp_active_rm_ep;
-} M0_XCA_RECORD;
-
-/** @todo: Support for FOPs with Null payload */
-struct m0_ha_old_entrypoint_req {
-	/** Can be ignored by receiver. */
-	uint32_t dummy;
-} M0_XCA_RECORD;
-
-/**
  * Queries HA about the current the failure state for a set of objects.
  *
  * Constructs a m0_ha_state_get_fopt from the "note" parameter and
@@ -378,7 +348,38 @@ M0_INTERNAL m0_time_t m0_ha_notify_interval_get(void);
 
 M0_INTERNAL void m0_conf_ha_callback(struct m0_conf_obj *obj);
 
-M0_INTERNAL int m0_ha_entrypoint_get(struct m0_fop **entrypoint_fop);
+enum {
+	M0_HA_NVEC_SET,
+	M0_HA_NVEC_GET,
+};
+
+struct m0_ha_link;
+
+M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
+                                  struct m0_ha_link      *hl);
+M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
+                                     uint64_t                 id_of_get,
+                                     int                      direction,
+                                     struct m0_ha_link       *hl);
+
+struct m0_ha_note_handler {
+	struct m0_tl               hnh_gets;
+	struct m0_mutex            hnh_lock;
+	struct m0_mero_ha_handler  hnh_handler;
+	struct m0_mero_ha         *hnh_mero_ha;
+	uint64_t                   hnh_id_of_get;
+};
+
+M0_INTERNAL int m0_ha_note_handler_init(struct m0_ha_note_handler *hnh,
+                                        struct m0_mero_ha         *mha);
+M0_INTERNAL void m0_ha_note_handler_fini(struct m0_ha_note_handler *hnh);
+
+M0_INTERNAL uint64_t m0_ha_note_handler_add(struct m0_ha_note_handler *hnh,
+                                            struct m0_ha_nvec         *nvec_req,
+                                            struct m0_chan            *chan);
+M0_INTERNAL void m0_ha_note_handler_signal(struct m0_ha_note_handler *hnh,
+                                           struct m0_ha_nvec         *nvec_rep,
+                                           uint64_t                   id);
 
 /** @} end of ha-note group */
 
