@@ -95,7 +95,8 @@
  *   - callbacks can be executed at any point after the function is called but
  *     before m0_halon_interface_stop() returns;
  * - m0_halon_interface_entrypoint_reply()
- *   - all parameters (except hi) are not used after the function returns;
+ *   - all parameters (except hi) can be freed by the caller after the function
+ *     returns;
  *   - can be called only after entrypoint_request_cb() is executed;
  *   - should be called exactly once for each entrypoint request;
  * - m0_halon_interface_send()
@@ -104,7 +105,8 @@
  *   - remote_rpc_endpoint can be finalised at any moment after the callback
  *     returns;
  * - msg_received_cb()
- *   - msg is owned by the user only before the callback returns;
+ *   - msg is owned by the user only before m0_halon_interface_delivered() is
+ *     called for the message;
  * - entrypoint request id
  *   - is used by the user in m0_halon_interface_entrypoint_reply() after
  *     entrypoint_request_cb() is executed;
@@ -331,7 +333,7 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 			     void                     (*msg_received_cb)
 				(struct m0_halon_interface *hi,
 				 struct m0_ha_link         *hl,
-				 struct m0_ha_msg          *msg,
+				 const struct m0_ha_msg    *msg,
 				 uint64_t                   tag),
 			     void                     (*msg_is_delivered_cb)
 				(struct m0_halon_interface *hi,
@@ -398,7 +400,7 @@ void m0_halon_interface_entrypoint_reply(
  */
 void m0_halon_interface_send(struct m0_halon_interface *hi,
                              struct m0_ha_link         *hl,
-                             struct m0_ha_msg          *msg,
+                             const struct m0_ha_msg    *msg,
                              uint64_t                  *tag);
 
 /**
@@ -412,7 +414,7 @@ void m0_halon_interface_send(struct m0_halon_interface *hi,
  */
 void m0_halon_interface_delivered(struct m0_halon_interface *hi,
                                   struct m0_ha_link         *hl,
-                                  struct m0_ha_msg          *msg);
+                                  const struct m0_ha_msg    *msg);
 
 
 /**

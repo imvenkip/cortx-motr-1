@@ -64,7 +64,7 @@ struct m0_halon_interface_cfg {
 	void        (*hic_msg_received_cb)
 		(struct m0_halon_interface *hi,
 		 struct m0_ha_link         *hl,
-		 struct m0_ha_msg          *msg,
+		 const struct m0_ha_msg    *msg,
 		 uint64_t                   tag);
 	void        (*hic_msg_is_delivered_cb)
 		(struct m0_halon_interface *hi,
@@ -325,7 +325,7 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 			     void                     (*msg_received_cb)
 				(struct m0_halon_interface *hi,
 				 struct m0_ha_link         *hl,
-				 struct m0_ha_msg          *msg,
+				 const struct m0_ha_msg    *msg,
 				 uint64_t                   tag),
 			     void                     (*msg_is_delivered_cb)
 				(struct m0_halon_interface *hi,
@@ -414,14 +414,14 @@ void m0_halon_interface_entrypoint_reply(
 
 void m0_halon_interface_send(struct m0_halon_interface *hi,
                              struct m0_ha_link         *hl,
-                             struct m0_ha_msg          *msg,
+                             const struct m0_ha_msg    *msg,
                              uint64_t                  *tag)
 {
 }
 
 void m0_halon_interface_delivered(struct m0_halon_interface *hi,
                                   struct m0_ha_link         *hl,
-                                  struct m0_ha_msg          *msg)
+                                  const struct m0_ha_msg    *msg)
 {
 }
 
