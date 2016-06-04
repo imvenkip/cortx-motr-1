@@ -22,6 +22,7 @@ CONFXC_FILES += \
     conf/ut/t_dev-idx-bad.xc \
     conf/ut/t_dev-idx-duplicate.xc \
     conf/ut/t_filename-duplicate.xc \
+    conf/ut/t_filename-valid-duplicates.xc \
     conf/ut/t_mdpool-error.xc \
     conf/ut/t_no-confd.xc \
     conf/ut/t_no-iodevs.xc \

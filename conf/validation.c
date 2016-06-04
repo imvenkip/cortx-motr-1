@@ -217,6 +217,16 @@ static char *conf_filesystem_error(const struct m0_conf_cache *cache,
 	return conf_fs_apply(_conf_filesystem_error, cache, buf, buflen);
 }
 
+static const struct m0_conf_node *
+conf_node_from_sdev(const struct m0_conf_sdev *sdev)
+{
+	return M0_CONF_CAST(
+		m0_conf_obj_grandparent(
+			m0_conf_obj_grandparent(
+				m0_conf_obj_grandparent(&sdev->sd_obj))),
+		m0_conf_node);
+}
+
 static char *conf_iodev_error(const struct m0_conf_sdev *sdev,
 			      const struct m0_conf_sdev **iodevs,
 			      uint32_t nr_iodevs, char *buf, size_t buflen)
@@ -240,7 +250,9 @@ static char *conf_iodev_error(const struct m0_conf_sdev *sdev,
 				FID_P(&iodevs[sdev->sd_dev_idx]->sd_obj.co_id));
 		if (m0_exists(i, nr_iodevs, iodevs[j = i] != NULL &&
 			      m0_streq(iodevs[i]->sd_filename,
-				       sdev->sd_filename)))
+				       sdev->sd_filename) &&
+			      conf_node_from_sdev(sdev) ==
+			      conf_node_from_sdev(iodevs[i])))
 			return m0_vsnprintf(
 				buf, buflen, FID_F": filename is not unique,"
 				" duplicates that of "FID_F,
