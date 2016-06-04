@@ -51,12 +51,12 @@ M0_INTERNAL void m0_ha_state_fop_fini(void);
 extern struct m0_fop_type m0_ha_state_get_fopt;
 extern struct m0_fop_type m0_ha_state_get_rep_fopt;
 extern struct m0_fop_type m0_ha_state_set_fopt;
-extern struct m0_fop_type m0_ha_entrypoint_req_fopt;
-extern struct m0_fop_type m0_ha_entrypoint_rep_fopt;
+extern struct m0_fop_type m0_ha_old_entrypoint_req_fopt;
+extern struct m0_fop_type m0_ha_old_entrypoint_rep_fopt;
 
 extern const struct m0_fom_type_ops *m0_ha_state_get_fom_type_ops;
 extern const struct m0_fom_type_ops *m0_ha_state_set_fom_type_ops;
-extern const struct m0_fom_type_ops *m0_ha_entrypoint_fom_type_ops;
+extern const struct m0_fom_type_ops *m0_ha_old_entrypoint_fom_type_ops;
 
 /** @} END of ha-note */
 #endif /* __MERO___HA_NOTE_FOPS_H__ */

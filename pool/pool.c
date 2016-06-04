@@ -756,7 +756,7 @@ static int active_rms_fid_copy(struct m0_pools_common *pc,
 		rc = m0_ha_entrypoint_get(&entry);
 		if (rc == 0) {
 			struct m0_rpc_item *rep = entry->f_item.ri_reply;
-			struct m0_ha_entrypoint_rep *epr;
+			struct m0_ha_old_entrypoint_rep *epr;
 
 			epr = m0_fop_data(m0_rpc_item_to_fop(rep));
 			*active_rm = epr->hbp_active_rm_fid;

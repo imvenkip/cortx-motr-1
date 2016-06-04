@@ -224,7 +224,7 @@ struct m0_ha_msg_nvec {
  * Cluster entry point contains information necessary to access cluster
  * configuration. This information is maintained by HA subsystem.
  */
-struct m0_ha_entrypoint_rep {
+struct m0_ha_old_entrypoint_rep {
 	/** Negative if accessing cluster configuration is impossible. */
 	int32_t           hbp_rc;
 	/**
@@ -253,7 +253,7 @@ struct m0_ha_entrypoint_rep {
 } M0_XCA_RECORD;
 
 /** @todo: Support for FOPs with Null payload */
-struct m0_ha_entrypoint_req {
+struct m0_ha_old_entrypoint_req {
 	/** Can be ignored by receiver. */
 	uint32_t dummy;
 } M0_XCA_RECORD;

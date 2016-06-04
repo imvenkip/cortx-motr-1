@@ -41,7 +41,7 @@
 #include "conf/rconfc.h"
 #include "conf/rconfc_internal.h"
 #include "ha/note_fops.h"  /* m0_ha_entrypoint_req_fopt */
-#include "ha/note.h"       /* m0_ha_entrypoint_req */
+#include "ha/note.h"       /* m0_ha_old_entrypoint_req */
 
 /**
  * @page rconfc-lspec rconfc Internals
@@ -1639,10 +1639,10 @@ static int rconfc_entrypoint_req(struct m0_rconfc *rconfc)
 	 * rconfc initialisation.
 	 */
 	M0_ASSERT(sess != NULL);
-	data = m0_alloc(sizeof(struct m0_ha_entrypoint_req));
+	data = m0_alloc(sizeof(struct m0_ha_old_entrypoint_req));
 	if (data == NULL)
 		return M0_ERR(-ENOMEM);
-	m0_fop_init(fop, &m0_ha_entrypoint_req_fopt, NULL, rconfc_fop_release);
+	m0_fop_init(fop, &m0_ha_old_entrypoint_req_fopt, NULL, rconfc_fop_release);
 	fop->f_data.fd_data = data;
 	item = &fop->f_item;
 	item->ri_rmachine = rconfc->rc_rmach;
@@ -1667,7 +1667,7 @@ static void rconfc_entrypoint_get(struct m0_rconfc *rconfc)
 }
 
 static void
-rconfc_entrypoint_debug_print(struct m0_ha_entrypoint_rep  *entrypoint,
+rconfc_entrypoint_debug_print(struct m0_ha_old_entrypoint_rep  *entrypoint,
 			      const char                   *rm_addr,
 			      const char                  **confd_eps)
 {
@@ -1691,7 +1691,7 @@ static int rconfc_entrypoint_reply_consume(struct m0_rconfc *rconfc,
 {
 	struct m0_rpc_item           *reply = rconfc->rc_entrypoint_reply;
 	struct rlock_ctx             *rlx   = rconfc->rc_rlock_ctx;
-	struct m0_ha_entrypoint_rep  *entrypoint;
+	struct m0_ha_old_entrypoint_rep  *entrypoint;
 	const char                  **confd_eps = NULL;
 	int                           rc;
 
@@ -1755,7 +1755,7 @@ static void rconfc_entrypoint_replied_ast(struct m0_sm_group *grp,
 	M0_LEAVE();
 }
 
-static int32_t _entrypoint_rep_rc(struct m0_ha_entrypoint_rep *entrypoint)
+static int32_t _entrypoint_rep_rc(struct m0_ha_old_entrypoint_rep *entrypoint)
 {
 	return entrypoint->hbp_rc;
 }

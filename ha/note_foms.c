@@ -184,7 +184,7 @@ static int ha_state_get_fom_create(struct m0_fop   *fop,
 
 static int ha_entrypoint_confd_eps_fill(struct m0_confc             *confc,
 					const struct m0_fid         *profile,
-					struct m0_ha_entrypoint_rep *rep_fop)
+					struct m0_ha_old_entrypoint_rep *rep_fop)
 {
 	struct m0_conf_service *confd_svc;
 	char                   *confd_ep;
@@ -229,7 +229,7 @@ static bool _online_service_filter(const struct m0_conf_obj *obj)
 
 static int ha_entrypoint_active_rm_fill(struct m0_confc             *confc,
 					const struct m0_fid         *profile,
-					struct m0_ha_entrypoint_rep *rep_fop)
+					struct m0_ha_old_entrypoint_rep *rep_fop)
 {
 	struct m0_conf_filesystem *fs;
 	struct m0_conf_obj        *obj;
@@ -277,9 +277,9 @@ err:
 	return M0_ERR(rc);
 }
 
-static int ha_entrypoint_get_fom_tick(struct m0_fom *fom)
+static int ha_old_entrypoint_get_fom_tick(struct m0_fom *fom)
 {
-	struct m0_ha_entrypoint_rep *rep_fop;
+	struct m0_ha_old_entrypoint_rep *rep_fop;
 	struct m0_reqh              *reqh = m0_fom_reqh(fom);
 	struct m0_confc             *confc = m0_reqh2confc(reqh);
 	struct m0_fid               *profile = &reqh->rh_profile;
@@ -294,18 +294,18 @@ static int ha_entrypoint_get_fom_tick(struct m0_fom *fom)
         return M0_FSO_WAIT;
 }
 
-const struct m0_fom_ops ha_entrypoint_get_fom_ops = {
-	.fo_tick          = ha_entrypoint_get_fom_tick,
+const struct m0_fom_ops ha_old_entrypoint_get_fom_ops = {
+	.fo_tick          = ha_old_entrypoint_get_fom_tick,
 	.fo_fini          = ha_state_fom_fini,
 	.fo_home_locality = ha_state_fom_home_locality,
 };
 
-static int ha_entrypoint_fom_create(struct m0_fop   *fop,
+static int ha_old_entrypoint_fom_create(struct m0_fop   *fop,
 				    struct m0_fom  **m,
 				    struct m0_reqh  *reqh)
 {
 	struct m0_fom               *fom;
-	struct m0_ha_entrypoint_rep *reply;
+	struct m0_ha_old_entrypoint_rep *reply;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(m != NULL);
@@ -320,7 +320,7 @@ static int ha_entrypoint_fom_create(struct m0_fop   *fop,
 		return M0_ERR(-ENOMEM);
 	}
 
-	fom->fo_rep_fop = m0_fop_alloc(&m0_ha_entrypoint_rep_fopt, reply,
+	fom->fo_rep_fop = m0_fop_alloc(&m0_ha_old_entrypoint_rep_fopt, reply,
 				       m0_fop_rpc_machine(fop));
 	if (fom->fo_rep_fop == NULL) {
 		m0_free(reply);
@@ -328,7 +328,7 @@ static int ha_entrypoint_fom_create(struct m0_fop   *fop,
 		return M0_ERR(-ENOMEM);
 	}
 
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, &ha_entrypoint_get_fom_ops,
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, &ha_old_entrypoint_get_fom_ops,
 		    fop, fom->fo_rep_fop, reqh);
 
 	*m = fom;
@@ -343,14 +343,14 @@ static const struct m0_fom_type_ops ha_set_fomt_ops = {
 	.fto_create = &ha_state_set_fom_create
 };
 
-static const struct m0_fom_type_ops ha_entrypoint_fomt_ops = {
-	.fto_create = &ha_entrypoint_fom_create
+static const struct m0_fom_type_ops ha_old_entrypoint_fomt_ops = {
+	.fto_create = &ha_old_entrypoint_fom_create
 };
 
 const struct m0_fom_type_ops *m0_ha_state_get_fom_type_ops = &ha_get_fomt_ops;
 const struct m0_fom_type_ops *m0_ha_state_set_fom_type_ops = &ha_set_fomt_ops;
-const struct m0_fom_type_ops *m0_ha_entrypoint_fom_type_ops =
-	&ha_entrypoint_fomt_ops;
+const struct m0_fom_type_ops *m0_ha_old_entrypoint_fom_type_ops =
+	&ha_old_entrypoint_fomt_ops;
 
 #undef M0_TRACE_SUBSYSTEM
 

@@ -337,10 +337,10 @@ M0_INTERNAL int m0_ha_entrypoint_get(struct m0_fop **entrypoint_fop)
 
 	if (sess == NULL)
 		return M0_ERR(-ENOMEDIUM);
-	data = m0_alloc(sizeof (struct m0_ha_entrypoint_req));
+	data = m0_alloc(sizeof (struct m0_ha_old_entrypoint_req));
 	if (data == NULL)
 		return M0_ERR(-ENOMEM);
-	fop = m0_fop_alloc(&m0_ha_entrypoint_req_fopt, data,
+	fop = m0_fop_alloc(&m0_ha_old_entrypoint_req_fopt, data,
 			   m0_fop_session_machine(sess));
 	if (fop != NULL) {
 		item = &fop->f_item;
