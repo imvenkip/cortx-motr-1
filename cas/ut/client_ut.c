@@ -133,6 +133,8 @@ static void casc_ut_init(struct m0_rpc_server_ctx *sctx,
 			 struct cl_ctx            *cctx)
 {
 	int rc;
+
+	M0_SET0(&sctx->rsx_mero_ctx);
 	rc = m0_rpc_server_start(sctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = cas_client_init(cctx, cl_ep_addrs[0],
