@@ -856,7 +856,7 @@ M0_INTERNAL uint64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
 	l = m0_layout__list_lookup(dom, hash, true);
 	if (l != NULL) {
 		pa = &m0_layout_to_pdl(l)->pl_attr;
-		M0_LOG(M0_WARN,
+		M0_LOG(M0_INFO,
 			"Found lid=%d (pver+lid hash=%lx, unit_size=%d, N=%d) "
 			"by buffer size %d.", (int)lid, (unsigned long int)hash,
 			(int)pa->pa_unit_size, (int)pa->pa_N, (int)buffsize);
