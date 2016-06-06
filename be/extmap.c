@@ -287,7 +287,9 @@ M0_INTERNAL void m0_be_emap_lookup(struct m0_be_emap        *map,
 	M0_PRE(offset <= M0_BINDEX_MAX);
 
 	m0_be_op_active(&it->ec_op);
+	m0_rwlock_read_lock(emap_rwlock(map));
 	be_emap_lookup(map, prefix, offset, it);
+	m0_rwlock_read_unlock(emap_rwlock(map));
 	m0_be_op_done(&it->ec_op);
 
 	M0_ASSERT_EX(be_emap_invariant(it));
