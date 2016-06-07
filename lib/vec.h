@@ -260,7 +260,9 @@ M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec, uint32_t len);
 /**
  * Deallocates the memory buffers pointed to by index array and counts array.
  * Also sets the array count to zero.
- * @pre  ivec != NULL && ivec->iv_vec.v_nr > 0.
+ * If ivec->iv_index == NULL - does nothing.
+ * @pre  ivec != NULL.
+ * @pre  ergo(ivec->iv_index != NULL, ivec->iv_vec.v_nr > 0).
  * @post ivec->iv_index == NULL && ivec->iv_vec.v_count == NULL &&
  *       ivec->iv_vec.v_nr == 0.
  */

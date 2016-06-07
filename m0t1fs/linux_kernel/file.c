@@ -1808,8 +1808,7 @@ static int pargrp_iomap_init(struct pargrp_iomap *map,
 	return M0_RC(0);
 
 fail:
-	if (map->pi_ivec.iv_index != NULL)
-		m0_indexvec_free(&map->pi_ivec);
+	m0_indexvec_free(&map->pi_ivec);
 
 	if (map->pi_databufs != NULL) {
 		for (row = 0; row < data_row_nr(play); ++row)
