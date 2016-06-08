@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Maxim Medved <max.medved@seagate.com>
+ *                  Dmytro Podgornyi <dmytro.podgornyi@seagate.com>
  * Original creation date: 28-Apr-2016
  */
 
@@ -45,6 +46,7 @@ enum {
 
 struct ha_ut_entrypoint_usecase_ctx {
 	struct m0_ha_entrypoint_server   ueus_server;
+	struct m0_ha_entrypoint_client   ueus_client;
 	int                              ueus_rc;
 	uint32_t                         ueus_quorum;
 	uint32_t                         ueus_confd_nr;
@@ -53,6 +55,7 @@ struct ha_ut_entrypoint_usecase_ctx {
 	char                            *ueus_rm_ep;
 	struct m0_fid                    ueus_rm_fid;
 	uint32_t                         ueus_req_count;
+	struct m0_clink                  ueus_clink;
 };
 
 static void ha_ut_entrypoint_request_arrived(
@@ -82,43 +85,13 @@ static void ha_ut_entrypoint_request_arrived(
 	m0_free(rep);
 }
 
-void m0_ha_ut_entrypoint_usecase(void)
+static void
+ha_ut_entrypoint_reply_init(struct ha_ut_entrypoint_usecase_ctx *uctx)
 {
-	struct ha_ut_entrypoint_usecase_ctx *uctx;
-	struct m0_ha_entrypoint_server_cfg   esr_cfg;
-	struct m0_ha_entrypoint_client_cfg   ecl_cfg;
-	struct m0_ha_ut_rpc_session_ctx     *sctx;
-	struct m0_ha_entrypoint_server      *esr;
-	struct m0_ha_entrypoint_client      *ecl;
-	struct m0_ha_ut_rpc_ctx             *ctx;
-	struct m0_ha_entrypoint_rep         *rep;
-	uint64_t                             seed = 42;
-	char                                 buf[0x100];
-	int                                  rc;
-	int                                  i;
-
-	M0_ALLOC_PTR(uctx);
-	M0_ALLOC_PTR(ctx);
-	M0_ALLOC_PTR(ecl);
-	M0_ALLOC_PTR(sctx);
-	m0_ha_ut_rpc_ctx_init(ctx);
-	m0_ha_ut_rpc_session_ctx_init(sctx, ctx);
-
-	esr = &uctx->ueus_server;
-	esr_cfg = (struct m0_ha_entrypoint_server_cfg){
-		.hesc_reqh             = &ctx->hurc_reqh,
-		.hesc_rpc_machine      = &ctx->hurc_rpc_machine,
-		.hesc_request_received = &ha_ut_entrypoint_request_arrived,
-	};
-	rc = m0_ha_entrypoint_server_init(esr, &esr_cfg);
-	M0_UT_ASSERT(rc == 0);
-	m0_ha_entrypoint_server_start(esr);
-
-	ecl_cfg = (struct m0_ha_entrypoint_client_cfg){
-		.hecc_session = &sctx->husc_session,
-	};
-	rc = m0_ha_entrypoint_client_init(ecl, &ecl_cfg);
-	M0_UT_ASSERT(rc == 0);
+	uint64_t seed = 42;
+	char     buf[0x100];
+	int      rc;
+	int      i;
 
 	uctx->ueus_rc       = 0;
 	uctx->ueus_confd_nr = HA_UT_ENTRYPOINT_USECASE_CONFD_NR;
@@ -136,33 +109,123 @@ void m0_ha_ut_entrypoint_usecase(void)
 	uctx->ueus_rm_ep     = "rm endpoint";
 	uctx->ueus_rm_fid    = M0_FID_INIT(m0_rnd64(&seed), m0_rnd64(&seed));
 	uctx->ueus_req_count = 0;
+}
 
-	m0_ha_entrypoint_client_start_sync(ecl);
-	rep = &ecl->ecl_rep;
+static void
+ha_ut_entrypoint_reply_fini(struct ha_ut_entrypoint_usecase_ctx *uctx)
+{
+	int i;
 
-	M0_UT_ASSERT(rep->hae_rc     == uctx->ueus_rc);
-	M0_UT_ASSERT(rep->hae_quorum == uctx->ueus_quorum);
+	for (i = 0; i < uctx->ueus_confd_nr; ++i) {
+		m0_free(uctx->ueus_confd_endpoints[i]);
+	}
+	m0_free(uctx->ueus_confd_endpoints);
+	m0_free(uctx->ueus_confd_fids);
+}
+
+static void
+ha_ut_entrypoint_reply_check(struct ha_ut_entrypoint_usecase_ctx *uctx,
+			     struct m0_ha_entrypoint_rep         *rep)
+{
+	int i;
+
+	M0_UT_ASSERT(rep->hae_rc                  == uctx->ueus_rc);
+	M0_UT_ASSERT(rep->hae_quorum              == uctx->ueus_quorum);
 	M0_UT_ASSERT(rep->hae_confd_fids.af_count == uctx->ueus_confd_nr);
 	for (i = 0; i < uctx->ueus_confd_nr; ++i) {
 		M0_UT_ASSERT(m0_fid_eq(&rep->hae_confd_fids.af_elems[i],
 		                       &uctx->ueus_confd_fids[i]));
 		M0_UT_ASSERT(m0_streq(rep->hae_confd_eps[i],
 		                      uctx->ueus_confd_endpoints[i]));
-		m0_free(uctx->ueus_confd_endpoints[i]);
 	}
-	m0_free(uctx->ueus_confd_endpoints);
-	m0_free(uctx->ueus_confd_fids);
 	M0_UT_ASSERT(m0_streq(  rep->hae_active_rm_ep,   uctx->ueus_rm_ep));
 	M0_UT_ASSERT(m0_fid_eq(&rep->hae_active_rm_fid, &uctx->ueus_rm_fid));
-	M0_UT_ASSERT(uctx->ueus_req_count == 1);
+}
 
-	m0_ha_entrypoint_client_stop(ecl);
-	m0_ha_entrypoint_client_fini(ecl);
+static void
+ha_ut_entrypoint_server_start(struct ha_ut_entrypoint_usecase_ctx *uctx,
+			      struct m0_ha_ut_rpc_ctx             *ctx,
+			      struct m0_ha_entrypoint_server      *esr)
+{
+	struct m0_ha_entrypoint_server_cfg   esr_cfg;
+	int                                  rc;
 
+	esr_cfg = (struct m0_ha_entrypoint_server_cfg){
+		.hesc_reqh             = &ctx->hurc_reqh,
+		.hesc_rpc_machine      = &ctx->hurc_rpc_machine,
+		.hesc_request_received = &ha_ut_entrypoint_request_arrived,
+	};
+	rc = m0_ha_entrypoint_server_init(esr, &esr_cfg);
+	M0_UT_ASSERT(rc == 0);
+	m0_ha_entrypoint_server_start(esr);
+}
+
+static void
+ha_ut_entrypoint_server_stop(struct ha_ut_entrypoint_usecase_ctx *uctx,
+			     struct m0_ha_entrypoint_server      *esr)
+{
 	m0_ha_entrypoint_server_stop(esr);
 	m0_ha_entrypoint_server_fini(esr);
+}
 
+static void
+ha_ut_entrypoint_client_start(struct ha_ut_entrypoint_usecase_ctx *uctx,
+			      struct m0_ha_ut_rpc_session_ctx     *sctx,
+			      struct m0_ha_ut_rpc_ctx             *ctx,
+			      struct m0_ha_entrypoint_client      *ecl)
+{
+	struct m0_ha_entrypoint_client_cfg   ecl_cfg;
+	int                                  rc;
+
+	ecl_cfg = (struct m0_ha_entrypoint_client_cfg){
+		.hecc_reqh    = &ctx->hurc_reqh,
+		.hecc_session = &sctx->husc_session,
+	};
+	rc = m0_ha_entrypoint_client_init(ecl, &ecl_cfg);
+	M0_UT_ASSERT(rc == 0);
+	m0_ha_entrypoint_client_start_sync(ecl);
+}
+
+static void
+ha_ut_entrypoint_client_stop(struct ha_ut_entrypoint_usecase_ctx *uctx,
+			     struct m0_ha_entrypoint_client      *ecl)
+{
+	m0_ha_entrypoint_client_stop(ecl);
+	m0_ha_entrypoint_client_fini(ecl);
+}
+
+void m0_ha_ut_entrypoint_usecase(void)
+{
+	struct ha_ut_entrypoint_usecase_ctx *uctx;
+	struct m0_ha_ut_rpc_session_ctx     *sctx;
+	struct m0_ha_entrypoint_server      *esr;
+	struct m0_ha_entrypoint_client      *ecl;
+	struct m0_ha_ut_rpc_ctx             *ctx;
+	struct m0_ha_entrypoint_rep         *rep;
+
+	M0_ALLOC_PTR(uctx);
+	M0_ALLOC_PTR(ctx);
+	M0_ALLOC_PTR(ecl);
+	M0_ALLOC_PTR(sctx);
+	m0_ha_ut_rpc_ctx_init(ctx);
+	m0_ha_ut_rpc_session_ctx_init(sctx, ctx);
+
+	ha_ut_entrypoint_reply_init(uctx);
+
+	esr = &uctx->ueus_server;
+	ha_ut_entrypoint_server_start(uctx, ctx, esr);
+
+	ha_ut_entrypoint_client_start(uctx, sctx, ctx, ecl);
+	rep = &ecl->ecl_rep;
+
+	ha_ut_entrypoint_reply_check(uctx, rep);
 	M0_UT_ASSERT(uctx->ueus_req_count == 1);
+
+	ha_ut_entrypoint_client_stop(uctx, ecl);
+	ha_ut_entrypoint_server_stop(uctx, esr);
+	M0_UT_ASSERT(uctx->ueus_req_count == 1);
+
+	ha_ut_entrypoint_reply_fini(uctx);
 
 	m0_ha_ut_rpc_session_ctx_fini(sctx);
 	m0_ha_ut_rpc_ctx_fini(ctx);
@@ -172,6 +235,77 @@ void m0_ha_ut_entrypoint_usecase(void)
 	m0_free(uctx);
 }
 
+static bool ha_ut_entrypoint_client_cb(struct m0_clink *clink)
+{
+	struct ha_ut_entrypoint_usecase_ctx *uctx =
+		container_of(clink, struct ha_ut_entrypoint_usecase_ctx,
+			     ueus_clink);
+	struct m0_ha_entrypoint_client      *ecl = &uctx->ueus_client;
+	struct m0_ha_entrypoint_rep         *rep = &ecl->ecl_rep;
+	enum m0_ha_entrypoint_client_state   state;
+
+	state = m0_ha_entrypoint_client_state_get(ecl);
+	if (state == M0_HEC_UNAVAILABLE)
+		M0_SET0(rep);
+	if (state == M0_HEC_AVAILABLE)
+		ha_ut_entrypoint_reply_check(uctx, rep);
+
+	return state != M0_HEC_AVAILABLE;
+}
+
+void m0_ha_ut_entrypoint_client(void)
+{
+	struct ha_ut_entrypoint_usecase_ctx *uctx;
+	struct m0_ha_ut_rpc_session_ctx     *sctx;
+	struct m0_ha_entrypoint_server      *esr;
+	struct m0_ha_entrypoint_client      *ecl;
+	struct m0_ha_ut_rpc_ctx             *ctx;
+	struct m0_ha_entrypoint_rep         *rep;
+
+	M0_ALLOC_PTR(uctx);
+	M0_ALLOC_PTR(ctx);
+	M0_ALLOC_PTR(sctx);
+	m0_ha_ut_rpc_ctx_init(ctx);
+	m0_ha_ut_rpc_session_ctx_init(sctx, ctx);
+
+	ha_ut_entrypoint_reply_init(uctx);
+
+	esr = &uctx->ueus_server;
+	ha_ut_entrypoint_server_start(uctx, ctx, esr);
+
+	ecl = &uctx->ueus_client;
+	ha_ut_entrypoint_client_start(uctx, sctx, ctx, ecl);
+	rep = &ecl->ecl_rep;
+	ha_ut_entrypoint_reply_check(uctx, rep);
+	M0_UT_ASSERT(uctx->ueus_req_count == 1);
+
+	m0_clink_init(&uctx->ueus_clink, ha_ut_entrypoint_client_cb);
+	m0_clink_add_lock(m0_ha_entrypoint_client_chan(ecl), &uctx->ueus_clink);
+	m0_ha_entrypoint_client_request(ecl);
+	m0_chan_wait(&uctx->ueus_clink);
+	m0_clink_del_lock(&uctx->ueus_clink);
+	m0_clink_fini(&uctx->ueus_clink);
+	M0_UT_ASSERT(uctx->ueus_req_count == 2);
+
+	/* starts successfully after stop */
+	m0_ha_entrypoint_client_stop(ecl);
+	M0_SET0(rep);
+	m0_ha_entrypoint_client_start_sync(ecl);
+	ha_ut_entrypoint_reply_check(uctx, rep);
+	M0_UT_ASSERT(uctx->ueus_req_count == 3);
+
+	ha_ut_entrypoint_client_stop(uctx, ecl);
+	ha_ut_entrypoint_server_stop(uctx, esr);
+	M0_UT_ASSERT(uctx->ueus_req_count == 3);
+
+	ha_ut_entrypoint_reply_fini(uctx);
+
+	m0_ha_ut_rpc_session_ctx_fini(sctx);
+	m0_ha_ut_rpc_ctx_fini(ctx);
+	m0_free(sctx);
+	m0_free(ctx);
+	m0_free(uctx);
+}
 
 #undef M0_TRACE_SUBSYSTEM
 

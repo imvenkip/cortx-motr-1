@@ -48,6 +48,7 @@
 #include "fid/fid.h"            /* m0_fid */
 #include "xcode/xcode_attr.h"   /* M0_XCA_RECORD */
 #include "fop/fom.h"            /* M0_FOM_PHASE_INIT */
+#include "fop/fop.h"            /* m0_fop */
 #include "ha/entrypoint_fops.h" /* m0_ha_entrypoint_req */
 
 
@@ -81,28 +82,36 @@ struct m0_ha_entrypoint_server {
 
 enum m0_ha_entrypoint_client_state {
 	M0_HEC_INIT,
+	M0_HEC_STOPPED,
 	M0_HEC_UNAVAILABLE,
 	M0_HEC_FILL,
 	M0_HEC_SEND,
 	M0_HEC_WAIT,
 	M0_HEC_AVAILABLE,
-	M0_HEC_CANCEL,
 	M0_HEC_FINI,
 };
 
 struct m0_ha_entrypoint_client_cfg {
+	struct m0_reqh        *hecc_reqh;
 	struct m0_rpc_session *hecc_session;
 };
 
 struct m0_ha_entrypoint_client {
 	struct m0_ha_entrypoint_client_cfg  ecl_cfg;
 	struct m0_ha_entrypoint_req         ecl_req;
+	struct m0_fop                       ecl_req_fop;
+	struct m0_ha_entrypoint_req_fop     ecl_req_fop_data;
 	struct m0_ha_entrypoint_rep         ecl_rep;
+	struct m0_fom                       ecl_fom;
+	/** must be accessed under ecl_sm_group lock */
+	bool                                ecl_fom_running;
+	/** is true when ecl stops; avoids infinite wait for a dead HA */
+	bool                                ecl_stopping;
 	struct m0_sm                        ecl_sm;
 	struct m0_sm_group                  ecl_sm_group;
 	struct m0_rpc_item                 *ecl_reply;
-	struct m0_semaphore                 ecl_start_sem;
-	struct m0_clink                     ecl_start_clink;
+	/** subscribes to ecl_sm state transitions  */
+	struct m0_clink                     ecl_clink;
 };
 
 M0_INTERNAL int
@@ -136,6 +145,8 @@ M0_INTERNAL void
 m0_ha_entrypoint_client_start_sync(struct m0_ha_entrypoint_client *ecl);
 M0_INTERNAL void
 m0_ha_entrypoint_client_stop(struct m0_ha_entrypoint_client *ecl);
+M0_INTERNAL void
+m0_ha_entrypoint_client_request(struct m0_ha_entrypoint_client *ecl);
 M0_INTERNAL struct m0_chan *
 m0_ha_entrypoint_client_chan(struct m0_ha_entrypoint_client *ecl);
 M0_INTERNAL enum m0_ha_entrypoint_client_state

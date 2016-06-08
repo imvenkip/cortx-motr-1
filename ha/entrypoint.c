@@ -46,6 +46,7 @@
 #include "fop/fom_generic.h"    /* m0_rpc_item_generic_reply_rc */
 #include "reqh/reqh_service.h"  /* m0_reqh_service */
 #include "rpc/rpc.h"            /* m0_rpc_reply_post */
+#include "rpc/rpc_opcodes.h"    /* M0_HA_ENTRYPOINT_CLIENT_OPCODE */
 
 
 struct m0_reqh;
@@ -310,12 +311,17 @@ static struct m0_sm_state_descr ha_entrypoint_client_states[] = {
 	[M0_HEC_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "M0_HEC_INIT",
-		.sd_allowed = M0_BITS(M0_HEC_UNAVAILABLE),
+		.sd_allowed = M0_BITS(M0_HEC_STOPPED),
+	},
+	[M0_HEC_STOPPED] = {
+		.sd_flags   = 0,
+		.sd_name    = "M0_HEC_STOPPED",
+		.sd_allowed = M0_BITS(M0_HEC_UNAVAILABLE, M0_HEC_FINI),
 	},
 	[M0_HEC_UNAVAILABLE] = {
 		.sd_flags   = 0,
 		.sd_name    = "M0_HEC_UNAVAILABLE",
-		.sd_allowed = M0_BITS(M0_HEC_FILL, M0_HEC_FINI),
+		.sd_allowed = M0_BITS(M0_HEC_FILL, M0_HEC_STOPPED),
 	},
 	[M0_HEC_FILL] = {
 		.sd_flags   = 0,
@@ -330,19 +336,12 @@ static struct m0_sm_state_descr ha_entrypoint_client_states[] = {
 	[M0_HEC_WAIT] = {
 		.sd_flags   = 0,
 		.sd_name    = "M0_HEC_WAIT",
-		.sd_allowed = M0_BITS(M0_HEC_UNAVAILABLE,
-				      M0_HEC_AVAILABLE,
-				      M0_HEC_CANCEL),
+		.sd_allowed = M0_BITS(M0_HEC_UNAVAILABLE, M0_HEC_AVAILABLE),
 	},
 	[M0_HEC_AVAILABLE] = {
 		.sd_flags   = 0,
 		.sd_name    = "M0_HEC_AVAILABLE",
-		.sd_allowed = M0_BITS(M0_HEC_UNAVAILABLE),
-	},
-	[M0_HEC_CANCEL] = {
-		.sd_flags   = 0,
-		.sd_name    = "M0_HEC_CANCEL",
-		.sd_allowed = M0_BITS(M0_HEC_UNAVAILABLE),
+		.sd_allowed = M0_BITS(M0_HEC_UNAVAILABLE, M0_HEC_STOPPED),
 	},
 	[M0_HEC_FINI] = {
 		.sd_flags   = M0_SDF_TERMINAL,
@@ -357,6 +356,30 @@ static struct m0_sm_conf ha_entrypoint_client_states_conf = {
 	.scf_state     = ha_entrypoint_client_states,
 };
 
+enum {
+	HEC_FOM_INIT = M0_FOM_PHASE_INIT,
+	HEC_FOM_FINI = M0_FOM_PHASE_FINISH,
+};
+
+static struct m0_sm_state_descr ha_entrypoint_client_fom_states[] = {
+	[HEC_FOM_INIT] = {
+		.sd_flags   = M0_SDF_INITIAL,
+		.sd_name    = "HEC_FOM_INIT",
+		.sd_allowed = M0_BITS(HEC_FOM_FINI),
+	},
+	[HEC_FOM_FINI] = {
+		.sd_flags   = M0_SDF_TERMINAL,
+		.sd_name    = "HEC_FOM_FINI",
+		.sd_allowed = 0,
+	},
+};
+
+static struct m0_sm_conf ha_entrypoint_client_fom_states_conf = {
+	.scf_name      = "entrypoint client fom",
+	.scf_nr_states = ARRAY_SIZE(ha_entrypoint_client_fom_states),
+	.scf_state     = ha_entrypoint_client_fom_states,
+};
+
 M0_INTERNAL int
 m0_ha_entrypoint_client_init(struct m0_ha_entrypoint_client     *ecl,
                              struct m0_ha_entrypoint_client_cfg *ecl_cfg)
@@ -366,17 +389,19 @@ m0_ha_entrypoint_client_init(struct m0_ha_entrypoint_client     *ecl,
 	m0_sm_init(&ecl->ecl_sm, &ha_entrypoint_client_states_conf,
 	           M0_HEC_INIT, &ecl->ecl_sm_group);
 	ecl->ecl_reply = NULL;
+	M0_SET0(&ecl->ecl_fom);
+	M0_SET0(&ecl->ecl_req_fop);
 	m0_sm_group_lock(&ecl->ecl_sm_group);
-	m0_sm_state_set(&ecl->ecl_sm, M0_HEC_UNAVAILABLE);
+	ecl->ecl_fom_running = false;
+	ecl->ecl_stopping    = false;
+	m0_sm_state_set(&ecl->ecl_sm, M0_HEC_STOPPED);
 	m0_sm_group_unlock(&ecl->ecl_sm_group);
-	m0_semaphore_init(&ecl->ecl_start_sem, 0);
 	return 0;
 }
 
 M0_INTERNAL void
 m0_ha_entrypoint_client_fini(struct m0_ha_entrypoint_client *ecl)
 {
-	m0_semaphore_fini(&ecl->ecl_start_sem);
 	m0_sm_group_lock(&ecl->ecl_sm_group);
 	m0_sm_state_set(&ecl->ecl_sm, M0_HEC_FINI);
 	m0_sm_fini(&ecl->ecl_sm);
@@ -392,19 +417,16 @@ static void ha_entrypoint_client_replied(struct m0_rpc_item *item)
 	int                             rc;
 
 	M0_ENTRY();
-	rc = item->ri_error ?:
-		m0_rpc_item_generic_reply_rc(reply) ?:
-		((struct m0_ha_entrypoint_rep_fop *)
-		 m0_fop_data(m0_rpc_item_to_fop(reply)))->hbp_rc;
-	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
-	m0_ha_entrypoint_rep_free(&ecl->ecl_rep);
-	rc = m0_ha_entrypoint_fop2rep(m0_fop_data(m0_rpc_item_to_fop(reply)),
-	                              &ecl->ecl_rep);
-	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
+	M0_PRE(ecl->ecl_reply == NULL);
+
+	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply);
+	if (rc == 0) {
+		m0_rpc_item_get(reply);
+		ecl->ecl_reply = reply;
+	}
+	m0_fom_wakeup(&ecl->ecl_fom);
 	m0_rpc_item_put(item);
-	m0_sm_group_lock(&ecl->ecl_sm_group);
-	m0_sm_state_set(&ecl->ecl_sm, M0_HEC_AVAILABLE);
-	m0_sm_group_unlock(&ecl->ecl_sm_group);
+
 	M0_LEAVE("rc=%d", rc);
 }
 
@@ -419,85 +441,273 @@ static void ha_entrypoint_client_fop_release(struct m0_ref *ref)
 	M0_ENTRY();
 	M0_PRE(ref != NULL);
 	fop = container_of(ref, struct m0_fop, f_ref);
+	fop->f_data.fd_data = NULL;
 	m0_fop_fini(fop);
-	m0_free(fop);
+	M0_SET0(fop);
+	M0_LEAVE();
+}
+
+static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
+{
+	enum m0_ha_entrypoint_client_state  state;
+	enum m0_ha_entrypoint_client_state  next_state;
+	struct m0_ha_entrypoint_req_fop    *req_fop_data;
+	struct m0_rpc_item                 *item;
+	struct m0_fop                      *fop;
+	bool                                stopping;
+	int                                 rc = 0;
+
+	struct m0_ha_entrypoint_client     *ecl =
+		container_of(fom, struct m0_ha_entrypoint_client, ecl_fom);
+
+	M0_ENTRY();
+
+	m0_sm_group_lock(&ecl->ecl_sm_group);
+	state    = ecl->ecl_sm.sm_state;
+	stopping = ecl->ecl_stopping;
+	m0_sm_group_unlock(&ecl->ecl_sm_group);
+	next_state = state;
+	M0_LOG(M0_DEBUG, "state=%s", m0_sm_state_name(&ecl->ecl_sm, state));
+
+	switch (state) {
+	case M0_HEC_AVAILABLE:
+		next_state = M0_HEC_UNAVAILABLE;
+		rc = M0_FSO_AGAIN;
+		break;
+
+	case M0_HEC_UNAVAILABLE:
+		if (stopping) {
+			m0_fom_phase_set(fom, HEC_FOM_FINI);
+			return M0_RC(M0_FSO_WAIT);
+		}
+		next_state = M0_HEC_FILL;
+		rc = M0_FSO_AGAIN;
+		break;
+
+	case M0_HEC_FILL:
+		/*
+		 * TODO XXX make M0_HEC_FILL state asynchronous - user should
+		 * call some function before client transitions to the WAIT
+		 * state. It would be similar to
+		 * m0_ha_entrypoint_server_reply().
+		 */
+
+		next_state = M0_HEC_SEND;
+		rc = M0_FSO_AGAIN;
+		break;
+
+	case M0_HEC_SEND:
+		req_fop_data = &ecl->ecl_req_fop_data;
+		M0_SET0(req_fop_data);
+		rc = m0_ha_entrypoint_req2fop(&ecl->ecl_req, req_fop_data);
+		M0_ASSERT(rc == 0);
+		fop = &ecl->ecl_req_fop;
+		M0_ASSERT_EX(M0_IS0(fop));
+		m0_fop_init(fop, &m0_ha_entrypoint_req_fopt, NULL,
+			    &ha_entrypoint_client_fop_release);
+		fop->f_data.fd_data = req_fop_data;
+		item = &fop->f_item;
+		item->ri_rmachine = m0_fop_session_machine(ecl->ecl_cfg.hecc_session),
+		item->ri_ops      = &ha_entrypoint_client_item_ops;
+		item->ri_session  = ecl->ecl_cfg.hecc_session;
+		item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
+		item->ri_deadline = M0_TIME_IMMEDIATELY;
+		fop->f_opaque = ecl;
+		rc = m0_rpc_post(item);
+
+		next_state = M0_HEC_WAIT;
+		rc = rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
+		break;
+
+	case M0_HEC_WAIT:
+		item = ecl->ecl_reply;
+		if (item == NULL) {
+			M0_LOG(M0_DEBUG, "RPC error occured, resending fop");
+			next_state = M0_HEC_UNAVAILABLE;
+			rc = M0_FSO_AGAIN;
+			break;
+		}
+
+		M0_ASSERT(m0_rpc_item_generic_reply_rc(item) == 0);
+		m0_ha_entrypoint_rep_free(&ecl->ecl_rep);
+		rc = m0_ha_entrypoint_fop2rep(
+				m0_fop_data(m0_rpc_item_to_fop(item)),
+				&ecl->ecl_rep);
+		M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
+		m0_rpc_item_put_lock(item);
+		ecl->ecl_reply = NULL;
+		m0_fom_phase_set(fom, HEC_FOM_FINI);
+		/* transit to M0_HEC_AVAILABLE in the fom fini callback */
+		return M0_RC(M0_FSO_WAIT);
+
+	default:
+		M0_IMPOSSIBLE("Unexpected state");
+	}
+
+	M0_LOG(M0_DEBUG, "%s -> %s",
+	       m0_sm_state_name(&ecl->ecl_sm, state),
+	       m0_sm_state_name(&ecl->ecl_sm, next_state));
+	m0_sm_group_lock(&ecl->ecl_sm_group);
+	M0_ASSERT(ecl->ecl_sm.sm_state == state);
+	M0_ASSERT(state != next_state);
+	m0_sm_state_set(&ecl->ecl_sm, next_state);
+	m0_sm_group_unlock(&ecl->ecl_sm_group);
+
+	M0_POST(M0_IN(rc, (M0_FSO_AGAIN, M0_FSO_WAIT)));
+
+	return M0_RC(rc);
+}
+
+static void ha_entrypoint_client_fom_fini(struct m0_fom *fom)
+{
+	enum m0_ha_entrypoint_client_state  state;
+	struct m0_ha_entrypoint_client     *ecl =
+		container_of(fom, struct m0_ha_entrypoint_client, ecl_fom);
+
+	M0_ENTRY();
+
+	m0_fom_fini(fom);
+	M0_SET0(fom);
+	m0_sm_group_lock(&ecl->ecl_sm_group);
+	ecl->ecl_fom_running = false;
+	state = ecl->ecl_sm.sm_state;
+	M0_ASSERT(M0_IN(state, (M0_HEC_WAIT, M0_HEC_UNAVAILABLE)));
+	if (state == M0_HEC_WAIT) {
+		M0_LOG(M0_DEBUG, "M0_HEC_WAIT -> M0_HEC_AVAILABLE");
+		m0_sm_state_set(&ecl->ecl_sm, M0_HEC_AVAILABLE);
+	}
+	m0_sm_group_unlock(&ecl->ecl_sm_group);
+
+	M0_LEAVE();
+}
+
+static size_t ha_entrypoint_client_fom_locality(const struct m0_fom *fom)
+{
+	return 0;
+}
+
+static struct m0_fom_type ha_entrypoint_client_fom_type;
+
+static const struct m0_fom_type_ops ha_entrypoint_client_fom_type_ops = {
+	.fto_create = NULL,
+};
+
+static const struct m0_fom_ops ha_entrypoint_client_fom_ops = {
+	.fo_fini          = ha_entrypoint_client_fom_fini,
+	.fo_tick          = ha_entrypoint_client_fom_tick,
+	.fo_home_locality = ha_entrypoint_client_fom_locality,
+};
+
+M0_INTERNAL void
+m0_ha_entrypoint_client_request(struct m0_ha_entrypoint_client *ecl)
+{
+	M0_ENTRY();
+
+	m0_sm_group_lock(&ecl->ecl_sm_group);
+	if (!ecl->ecl_fom_running) {
+		M0_ASSERT(M0_IN(ecl->ecl_sm.sm_state, (M0_HEC_AVAILABLE,
+						       M0_HEC_UNAVAILABLE)));
+		ecl->ecl_fom_running = true;
+		M0_ASSERT_EX(M0_IS0(&ecl->ecl_fom));
+		m0_fom_init(&ecl->ecl_fom, &ha_entrypoint_client_fom_type,
+			    &ha_entrypoint_client_fom_ops, NULL, NULL,
+			    ecl->ecl_cfg.hecc_reqh);
+		m0_fom_queue(&ecl->ecl_fom);
+	}
+	m0_sm_group_unlock(&ecl->ecl_sm_group);
+
 	M0_LEAVE();
 }
 
 M0_INTERNAL void
 m0_ha_entrypoint_client_start(struct m0_ha_entrypoint_client *ecl)
 {
-	struct m0_ha_entrypoint_req_fop *req_fop_data;
-	struct m0_rpc_item              *item;
-	struct m0_fop                   *fop;
-	int                             rc;
-
+	M0_ENTRY();
 	m0_sm_group_lock(&ecl->ecl_sm_group);
-	/*
-	 * TODO XXX make M0_HEC_FILL state asynchronous - user should
-	 * call some function before client transitions to the WAIT state.
-	 * It would be similar to m0_ha_entrypoint_server_reply().
-	 */
-	m0_sm_state_set(&ecl->ecl_sm, M0_HEC_FILL);
-	m0_sm_state_set(&ecl->ecl_sm, M0_HEC_SEND);
-	m0_sm_state_set(&ecl->ecl_sm, M0_HEC_WAIT);
+	ecl->ecl_stopping = false;
+	m0_sm_state_set(&ecl->ecl_sm, M0_HEC_UNAVAILABLE);
 	m0_sm_group_unlock(&ecl->ecl_sm_group);
-
-	M0_ALLOC_PTR(req_fop_data);
-	M0_ASSERT(req_fop_data != NULL);
-	rc = m0_ha_entrypoint_req2fop(&ecl->ecl_req, req_fop_data);
-	M0_ASSERT(rc == 0);
-	M0_ALLOC_PTR(fop);
-	M0_ASSERT(fop != NULL);
-	m0_fop_init(fop, &m0_ha_entrypoint_req_fopt, NULL,
-		    &ha_entrypoint_client_fop_release);
-	fop->f_data.fd_data = req_fop_data;
-	item = &fop->f_item;
-	item->ri_rmachine = m0_fop_session_machine(ecl->ecl_cfg.hecc_session),
-	item->ri_ops      = &ha_entrypoint_client_item_ops;
-	item->ri_session  = ecl->ecl_cfg.hecc_session;
-	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
-	item->ri_deadline = M0_TIME_IMMEDIATELY;
-	fop->f_opaque = ecl;
-	rc = m0_rpc_post(item);
-	M0_ASSERT(rc == 0);
+	m0_ha_entrypoint_client_request(ecl);
+	M0_LEAVE();
 }
 
 static bool ha_entrypoint_client_start_check(struct m0_clink *clink)
 {
-	struct m0_ha_entrypoint_client *ecl;
+	struct m0_ha_entrypoint_client *ecl =
+		container_of(clink, struct m0_ha_entrypoint_client, ecl_clink);
 
-	ecl = container_of(clink, struct m0_ha_entrypoint_client,
-			   ecl_start_clink);
-	M0_ASSERT(m0_sm_group_is_locked(&ecl->ecl_sm_group));
-	if (ecl->ecl_sm.sm_state == M0_HEC_AVAILABLE)
-		m0_semaphore_up(&ecl->ecl_start_sem);
-	return false;
+	M0_PRE(m0_sm_group_is_locked(&ecl->ecl_sm_group));
+	M0_ENTRY("state=%s fom_running=%d",
+		 m0_sm_state_name(&ecl->ecl_sm, ecl->ecl_sm.sm_state),
+		 !!ecl->ecl_fom_running);
+
+	if (ecl->ecl_sm.sm_state == M0_HEC_AVAILABLE) {
+		/* let m0_chan_wait wake up */
+		return false;
+	}
+	return true;
+}
+
+static bool ha_entrypoint_client_stop_check(struct m0_clink *clink)
+{
+	struct m0_ha_entrypoint_client *ecl =
+		container_of(clink, struct m0_ha_entrypoint_client, ecl_clink);
+
+	M0_PRE(m0_sm_group_is_locked(&ecl->ecl_sm_group));
+	M0_ENTRY("state=%s fom_running=%d",
+		 m0_sm_state_name(&ecl->ecl_sm, ecl->ecl_sm.sm_state),
+		 !!ecl->ecl_fom_running);
+
+	return ecl->ecl_fom_running;
 }
 
 M0_INTERNAL void
 m0_ha_entrypoint_client_start_sync(struct m0_ha_entrypoint_client *ecl)
 {
-	m0_clink_init(&ecl->ecl_start_clink, &ha_entrypoint_client_start_check);
-	m0_clink_add_lock(m0_ha_entrypoint_client_chan(ecl),
-			  &ecl->ecl_start_clink);
+	M0_ENTRY();
+	m0_clink_init(&ecl->ecl_clink, &ha_entrypoint_client_start_check);
+	m0_clink_add_lock(m0_ha_entrypoint_client_chan(ecl), &ecl->ecl_clink);
 	m0_ha_entrypoint_client_start(ecl);
-	m0_semaphore_down(&ecl->ecl_start_sem);
-	m0_clink_del_lock(&ecl->ecl_start_clink);
-	m0_clink_fini(&ecl->ecl_start_clink);
+	m0_chan_wait(&ecl->ecl_clink);
+	m0_clink_del_lock(&ecl->ecl_clink);
+	m0_clink_fini(&ecl->ecl_clink);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void
 m0_ha_entrypoint_client_stop(struct m0_ha_entrypoint_client *ecl)
 {
-	m0_semaphore_trydown(&ecl->ecl_start_sem);
+	bool fom_running;
+
+	M0_ENTRY();
+
+	/* wait for fom */
 	m0_sm_group_lock(&ecl->ecl_sm_group);
-	m0_sm_state_set(&ecl->ecl_sm, M0_HEC_UNAVAILABLE);
+	ecl->ecl_stopping = true;
+	fom_running = ecl->ecl_fom_running;
+	if (fom_running) {
+		m0_clink_init(&ecl->ecl_clink,
+			      &ha_entrypoint_client_stop_check);
+		m0_clink_add(m0_ha_entrypoint_client_chan(ecl),
+			     &ecl->ecl_clink);
+	}
+	m0_sm_group_unlock(&ecl->ecl_sm_group);
+	if (fom_running) {
+		m0_chan_wait(&ecl->ecl_clink);
+		m0_clink_del_lock(&ecl->ecl_clink);
+		m0_clink_fini(&ecl->ecl_clink);
+	}
+
+	m0_sm_group_lock(&ecl->ecl_sm_group);
+	m0_sm_state_set(&ecl->ecl_sm, M0_HEC_STOPPED);
+	M0_ASSERT(!ecl->ecl_fom_running);
 	m0_sm_group_unlock(&ecl->ecl_sm_group);
 	if (ecl->ecl_reply != NULL)
 		m0_rpc_item_put_lock(ecl->ecl_reply);
 	ecl->ecl_reply = NULL;
 	m0_ha_entrypoint_rep_free(&ecl->ecl_rep);
+
+	M0_LEAVE();
 }
 
 M0_INTERNAL struct m0_chan *
@@ -509,7 +719,8 @@ m0_ha_entrypoint_client_chan(struct m0_ha_entrypoint_client *ecl)
 M0_INTERNAL enum m0_ha_entrypoint_client_state
 m0_ha_entrypoint_client_state_get(struct m0_ha_entrypoint_client *ecl)
 {
-	return M0_HEC_FINI;     /* XXX */
+	M0_PRE(m0_sm_group_is_locked(&ecl->ecl_sm_group));
+	return ecl->ecl_sm.sm_state;
 }
 
 M0_INTERNAL int m0_ha_entrypoint_mod_init(void)
@@ -519,6 +730,11 @@ M0_INTERNAL int m0_ha_entrypoint_mod_init(void)
 	rc = m0_reqh_service_type_register(&m0_ha_entrypoint_service_type);
 	M0_ASSERT(rc == 0);
 	m0_ha_entrypoint_fops_init();
+	m0_fom_type_init(&ha_entrypoint_client_fom_type,
+			 M0_HA_ENTRYPOINT_CLIENT_OPCODE,
+			 &ha_entrypoint_client_fom_type_ops,
+			 &m0_ha_entrypoint_service_type,
+			 &ha_entrypoint_client_fom_states_conf);
 	return 0;
 }
 

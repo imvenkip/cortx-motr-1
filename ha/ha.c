@@ -276,6 +276,7 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha,
 
 	ha->h_cfg.hcf_entrypoint_client_cfg =
 				(struct m0_ha_entrypoint_client_cfg){
+		.hecc_reqh = ha->h_cfg.hcf_reqh,
 		.hecc_session = &hlx->hlx_rpc_session,
 	};
 	rc = m0_ha_entrypoint_client_init(&ha->h_entrypoint_client,
