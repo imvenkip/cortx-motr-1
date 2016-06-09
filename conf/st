@@ -21,8 +21,9 @@ TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 
 MAX_RPC_MSG_SIZE=163840
 TM_MIN_RECV_QUEUE_LEN=2
-PROFILE_FID='<0x7000000000000001:0>' # profile-0
-M0T1FS_PFID='<0x7200000000000001:4>' # process-4
+PROFILE='<0x7000000000000001:0>'        # profile-0
+PROCESS_M0D='<0x7200000000000001:1>'    # process-1
+PROCESS_M0T1FS='<0x7200000000000001:4>' # process-4
 
 error() { echo "$@" >&2; stop 1; }
 
@@ -161,8 +162,7 @@ EOF
 
 services_start() {
     local CONF_FILE=conf.xc
-    local PROCESS_FID='<0x7200000000000001:1>' # process-1
-    local OPTS="-P $PROFILE_FID -f $PROCESS_FID -H $HA_ENDPOINT
+    local OPTS="-P $PROFILE -f $PROCESS_M0D -H $HA_ENDPOINT
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -F -D db -T AD -S stobs
 -A linuxstob:addb-stobs -e lnet:$IOS0_ENDPOINT -c $CONF_FILE -w 3"
 
@@ -182,7 +182,7 @@ services_stop() { killall -q lt-m0d && wait || true; }
 
 _mount() {
     mount -t m0t1fs \
-          -o pfid="$M0T1FS_PFID",profile="$PROFILE_FID",ha=$HA_ENDPOINT \
+          -o pfid="$PROCESS_M0T1FS",profile="$PROFILE",ha=$HA_ENDPOINT \
           none $SANDBOX_DIR/mnt || return $?
 }
 
@@ -246,9 +246,9 @@ say 'Test: spiel.confstr'
 spiel_setup -q install --home $SANDBOX_DIR
 {
     cat <<EOF
-rc = spiel.cmd_profile_set('$PROFILE_FID')
+rc = spiel.cmd_profile_set('$PROFILE')
 if rc != 0:
-    sys.exit('Cannot set profile $PROFILE_FID; rc=%d' % rc)
+    sys.exit('Cannot set profile $PROFILE; rc=%d' % rc)
 
 rc = spiel.rconfc_start()
 if rc != 0:

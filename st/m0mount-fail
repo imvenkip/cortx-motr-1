@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-set -e
-
-#set -x
-#export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+set -eu
+# set -x
+export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
 ## CAUTION: This path will be removed by superuser.
-SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.spiel-st}
+SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.m0mount-fail-st}
 
 TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-all}
 TRACE_LEVEL=${M0_TRACE_LEVEL:-warn}
@@ -13,81 +12,42 @@ TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 
 MAX_RPC_MSG_SIZE=163840
 TM_MIN_RECV_QUEUE_LEN=2
-DEV_NR=4
-DEV_SIZE=$((1024 * 1024))
+PROFILE='<0x7000000000000001:0>'        # profile-0
+PROCESS_M0D='<0x7200000000000001:0>'    # process-0
+PROCESS_M0T1FS='<0x7200000000000001:4>' # process-4
 
 error() { echo "$@" >&2; stop 1; }
 
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
-mero_module_path=$M0_SRC_DIR/mero
 
 . $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
-
-## Path to the file with configuration string for confd.
-CONF_FILE=$SANDBOX_DIR/conf.txt
-
-PROC_FID_CNTR=0x7200000000000001
-PROC_FID_KEY=3
-PROC_FID_KEY2=4
-PROC_FID="<$PROC_FID_CNTR:$PROC_FID_KEY>"
-PROC_FID2="<$PROC_FID_CNTR:$PROC_FID_KEY2>"
-PROF_OPT="<0x7000000000000001:0>"
-
-iosloopdevs() {
-    cat > $SANDBOX_DIR/disks.conf << EOF
-    Device:
-EOF
-    for i in $(seq $DEV_NR); do
-        dd if=/dev/zero of=$SANDBOX_DIR/${i}.img bs=$DEV_SIZE seek=$DEV_SIZE count=1
-        losetup -d /dev/loop$i &> /dev/null || true
-        losetup /dev/loop$i $SANDBOX_DIR/${i}.img
-        cat >> $SANDBOX_DIR/disks.conf << EOF
-       - id: $i
-         filename: /dev/loop$i
-EOF
-    done
-}
 
 start() {
-    sandbox_init
     _init
-    m0d_with_rms_start
+    m0d_start
 }
 
 stop() {
     local rc=${1:-$?}
 
     trap - EXIT
-    if mount | grep -q m0t1fs; then umount $SANDBOX_DIR/mnt; fi
-    mero_service stop
-    _fini
-    if [ $rc -eq 0 ]; then
-        sandbox_fini
-    else
-        say "Spiel test FAILED: $rc"
-        exit $rc
-    fi
+    m0d_stop
+    _fini $rc
+    report_and_exit mount-fail $rc
 }
 
 _init() {
     lnet_up
     modules_insert
-    mkdir $SANDBOX_DIR/mnt
-    iosloopdevs
+    sandbox_init # changes current directory to $SANDBOX_DIR
+    mkdir mnt
 }
 
 _fini() {
-    for i in $(seq $DEV_NR); do
-        losetup -d /dev/loop$i
-    done
-    cd $M0_SRC_DIR/utils/spiel
-    cat $PYTHON_STUFF | xargs rm -rf
-    rm -rf build/ $PYTHON_STUFF
+    rmdir mnt
+    sandbox_fini ${1:-}
+    modules_remove
 }
 
 ### XXX Code duplication!
@@ -98,13 +58,13 @@ modules_insert() {
         die 'Inserting m0gf.ko failed'
 
     insmod $M0_SRC_DIR/mero/m0mero.ko \
-    local_addr=$M0T1FS_ENDPOINT \
-    max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
-    tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
-    ${TRACE_MASK:+trace_immediate_mask=$TRACE_MASK} \
-    ${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
-    ${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
-    || {
+        local_addr=$M0T1FS_ENDPOINT \
+        max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
+        tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
+        ${TRACE_MASK:+trace_immediate_mask=$TRACE_MASK} \
+        ${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
+        ${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
+        || {
         rmmod m0gf
         die 'Inserting m0mero.ko failed'
     }
@@ -145,10 +105,10 @@ lnet_up() {
     export_endpoints
 }
 
-# The generated configuration does not include any RMS. This is to cause
+# The generated configuration does not include RMS. This is a to cause
 # m0t1fs' rconfc to fail while starting, and as the result, prevent m0t1fs
 # from successful mounting.
-stub_confdb() {
+conf_without_rms() {
     cat <<EOF
 (root-0 verno=1 profiles=[profile-0])
 (profile-0 filesystem=filesystem-0)
@@ -196,83 +156,40 @@ stub_confdb() {
 EOF
 }
 
-### m0_spiel_start requires endpoint of RM service. This function starts the
-### first m0d instance with rmservice. All Spiel commands from command
-### interface part will affect to second m0d instance. Spiel commands from
-### configuration management part may affect to both m0d.
-m0d_with_rms_start() {
-    local OPTS="-F -D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
-    -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER1_ENDPOINT\
-    -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
-    -w 3 -P $PROF_OPT -f $PROC_FID -d $SANDBOX_DIR/disks.conf"
+m0d_start() {
+    local CONF_FILE=conf.xc
+    local OPTS="-P $PROFILE -f $PROCESS_M0D
+-m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -F -D db -T AD -S stobs
+-A linuxstob:addb-stobs -e lnet:$SERVER1_ENDPOINT -c $CONF_FILE -w 3"
 
-    stub_confdb | $M0_SRC_DIR/utils/m0confgen >$CONF_FILE
+    conf_without_rms | $M0_SRC_DIR/utils/m0confgen >$CONF_FILE ||
+        error 'm0confgen failed'
 
-    echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
-    cd $SANDBOX_DIR
+    $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS &>mkfs.log || error 'm0mkfs failed'
 
-    ## m0mkfs should be executed only once. It is usually executed
-    ## during cluster initial setup.
-    echo $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS
-    $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$SANDBOX_DIR/mkfs.log ||
-    error 'm0mkfs failed'
-
-    echo $M0_SRC_DIR/mero/m0d $OPTS
-    $M0_SRC_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
+    echo $M0_SRC_DIR/mero/m0d $OPTS >m0d.log
+    $M0_SRC_DIR/mero/m0d $OPTS &>>m0d.log &
     local PID=$!
-    sleep 10
+    sleep 2
     kill -0 $PID 2>/dev/null ||
-    error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
+        error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
 }
 
-test_m0d_start() {
-    local CONFD_SPEC="-s confd:<$CONF_FID_CON:2> "
-    local OPTS="-D $SANDBOX_DIR/db -T AD -S $SANDBOX_DIR/stobs\
-    -A linuxstob:$SANDBOX_DIR/addb-stobs -e lnet:$SERVER2_ENDPOINT -c $CONF_FILE\
-    -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_OPT\
-    -f $PROC_FID2 -d $SANDBOX_DIR/disks.conf"
+m0d_stop() { killall -q lt-m0d && wait || true; }
 
-    cd $SANDBOX_DIR
+mount_fail() {
+    local OPTS='-t m0t1fs'
+    OPTS+=" -o pfid='$PROCESS_M0T1FS',profile='$PROFILE',ha=$SERVER2_ENDPOINT"
+    OPTS+=" none $SANDBOX_DIR/mnt"
 
-    echo $M0_SRC_DIR/mero/m0d $OPTS
-    $M0_SRC_DIR/mero/m0d $OPTS >>$SANDBOX_DIR/m0d.log 2>&1 &
-    local PID=$!
-    sleep 10
-    kill -0 $PID 2>/dev/null ||
-    error "Failed to start m0d. See $SANDBOX_DIR/m0d.log for details."
-}
-
-
-_mount() {
-    mkdir -p $SANDBOX_DIR/mnt
-    local MOUNT_OPTS="-t m0t1fs -o pfid='$M0T1FS_PROC_ID',profile=$PROF_OPT,ha=$SERVER2_ENDPOINT \
-none $SANDBOX_DIR/mnt"
-    echo "mount $MOUNT_OPTS"
-    set +e
-    mount $MOUNT_OPTS
-    local result=$?
-    set -e
-    if [ $result -ne "0" ]
-    then
-	echo 'As expected'
-	return 0
+    echo mount $OPTS >mount.log
+    if mount $OPTS &>>mount.log; then
+        echo 'mount failed to fail' | tee -a mount.log >&2
+        umount $SANDBOX_DIR/mnt
+        return 1
     else
-	echo 'm0t1fs has mounted while should not.'
-	return 1
+        echo "mount failed as expected" &>>mount.log
     fi
-}
-
-## Keep the audience engaged.
-say() { echo "$@" | tee -a $SANDBOX_DIR/m0d.log; }
-
-usage() {
-    cat <<EOF
-Usage: ${0##*/} [COMMAND]
-
-Supported commands:
-  run      run system test (default command)
-  help     display this help and exit
-EOF
 }
 
 ## -------------------------------------------------------------------
@@ -281,23 +198,10 @@ EOF
 
 [ `id -u` -eq 0 ] || die 'Must be run by superuser'
 
-case "${1:-}" in
-    run|'') ;;
-    help) usage; exit;;
-    *) usage >&2; die;;
-esac
-
 trap stop EXIT
-
-echo "Test start"
 start
 
 echo 8 >/proc/sys/kernel/printk  # Print kernel messages to the console.
-
-say "Test m0d start"
-test_m0d_start || stop
-
-_mount
+mount_fail
 
 stop
-report_and_exit mount-fail $?
