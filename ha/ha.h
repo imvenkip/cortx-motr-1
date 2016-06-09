@@ -158,6 +158,8 @@ M0_INTERNAL void m0_ha_cfg_make(struct m0_ha_cfg      *ha_cfg,
                                 struct m0_rpc_machine *rmach);
 
 M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg);
+M0_INTERNAL int m0_ha_start(struct m0_ha *ha);
+M0_INTERNAL void m0_ha_stop(struct m0_ha *ha);
 M0_INTERNAL void m0_ha_fini(struct m0_ha *ha);
 
 M0_INTERNAL void

@@ -218,8 +218,6 @@ void m0_ha_cfg_make(struct m0_ha_cfg      *ha_cfg,
 
 M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg)
 {
-	int rc;
-
 	M0_ENTRY("ha=%p hcf_rpc_machine=%p hcf_reqh=%p",
 	         ha, ha_cfg->hcf_rpc_machine, ha_cfg->hcf_reqh);
 	M0_PRE(M0_IS0(ha));
@@ -227,6 +225,14 @@ M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg)
 	ha_links_tlist_init(&ha->h_links_incoming);
 	ha_links_tlist_init(&ha->h_links_outgoing);
 	ha->h_link_id_counter = 1;
+	return M0_RC(0);
+}
+
+M0_INTERNAL int m0_ha_start(struct m0_ha *ha)
+{
+	int rc;
+
+	M0_ENTRY("ha=%p", ha);
 	rc = m0_ha_link_service_init(&ha->h_hl_service, ha->h_cfg.hcf_reqh);
 	M0_ASSERT(rc == 0);
 	ha->h_cfg.hcf_entrypoint_server_cfg =
@@ -243,12 +249,11 @@ M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg)
 	return M0_RC(0);
 }
 
-M0_INTERNAL void m0_ha_fini(struct m0_ha *ha)
+M0_INTERNAL void m0_ha_stop(struct m0_ha *ha)
 {
 	struct ha_link_ctx *hlx;
 
 	M0_ENTRY("ha=%p", ha);
-
 	m0_tl_for(ha_links, &ha->h_links_incoming, hlx) {
 		M0_LOG(M0_DEBUG, "hlx=%p", hlx);
 		ha->h_cfg.hcf_ops.hao_link_is_disconnecting(ha, &hlx->hlx_link);
@@ -262,6 +267,13 @@ M0_INTERNAL void m0_ha_fini(struct m0_ha *ha)
 	m0_ha_entrypoint_server_stop(&ha->h_entrypoint_server);
 	m0_ha_entrypoint_server_fini(&ha->h_entrypoint_server);
 	m0_ha_link_service_fini(ha->h_hl_service);
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_ha_fini(struct m0_ha *ha)
+{
+	M0_ENTRY("ha=%p", ha);
+
 	ha_links_tlist_fini(&ha->h_links_outgoing);
 	ha_links_tlist_fini(&ha->h_links_incoming);
 	M0_LEAVE();

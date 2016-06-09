@@ -115,7 +115,8 @@ enum m0_halon_interface_level {
 	M0_HALON_INTERFACE_LEVEL_REQH_INIT,
 	M0_HALON_INTERFACE_LEVEL_REQH_START,
 	M0_HALON_INTERFACE_LEVEL_RPC_MACHINE,
-	M0_HALON_INTERFACE_LEVEL_HA,
+	M0_HALON_INTERFACE_LEVEL_HA_INIT,
+	M0_HALON_INTERFACE_LEVEL_HA_START,
 	M0_HALON_INTERFACE_LEVEL_STARTED,
 };
 
@@ -448,9 +449,11 @@ static int halon_interface_level_enter(struct m0_module *module)
 				 hii->hii_cfg.hic_colour,
 				 hii->hii_cfg.hic_max_msg_size,
 				 hii->hii_cfg.hic_queue_len));
-	case M0_HALON_INTERFACE_LEVEL_HA:
+	case M0_HALON_INTERFACE_LEVEL_HA_INIT:
 		return M0_RC(m0_ha_init(&hii->hii_ha,
 					&hii->hii_cfg.hic_ha_cfg));
+	case M0_HALON_INTERFACE_LEVEL_HA_START:
+		return M0_RC(m0_ha_start(&hii->hii_ha));
 	case M0_HALON_INTERFACE_LEVEL_STARTED:
 		return M0_ERR(-ENOSYS);
 	}
@@ -484,8 +487,11 @@ static void halon_interface_level_leave(struct m0_module *module)
 		m0_reqh_shutdown_wait(&hii->hii_reqh);
 		m0_rpc_machine_fini(&hii->hii_rpc_machine);
 		break;
-	case M0_HALON_INTERFACE_LEVEL_HA:
+	case M0_HALON_INTERFACE_LEVEL_HA_INIT:
 		m0_ha_fini(&hii->hii_ha);
+		break;
+	case M0_HALON_INTERFACE_LEVEL_HA_START:
+		m0_ha_stop(&hii->hii_ha);
 		break;
 	case M0_HALON_INTERFACE_LEVEL_STARTED:
 		M0_IMPOSSIBLE("can't be here");
@@ -525,8 +531,13 @@ static const struct m0_modlev halon_interface_levels[] = {
 		.ml_enter = halon_interface_level_enter,
 		.ml_leave = halon_interface_level_leave,
 	},
-	[M0_HALON_INTERFACE_LEVEL_HA] = {
-		.ml_name  = "M0_HALON_INTERFACE_LEVEL_HA",
+	[M0_HALON_INTERFACE_LEVEL_HA_INIT] = {
+		.ml_name  = "M0_HALON_INTERFACE_LEVEL_HA_INIT",
+		.ml_enter = halon_interface_level_enter,
+		.ml_leave = halon_interface_level_leave,
+	},
+	[M0_HALON_INTERFACE_LEVEL_HA_START] = {
+		.ml_name  = "M0_HALON_INTERFACE_LEVEL_HA_START",
 		.ml_enter = halon_interface_level_enter,
 		.ml_leave = halon_interface_level_leave,
 	},
