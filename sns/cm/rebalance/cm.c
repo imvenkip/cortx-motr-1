@@ -104,14 +104,15 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 	if (m0_cm_state_get(cm) == M0_CMS_FAIL)
 		goto out;
 
-	rc = m0_sns_cm_ha_nvec_alloc(cm, M0_PNDS_SNS_REBALANCING, &nvec);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "HA note allocation failed with rc: %d", rc);
-		goto out;
-	}
-
 	cc = &pc->pc_confc->cc_cache;
 	m0_tl_for(pools, &pc->pc_pools, pool) {
+		rc = m0_sns_cm_pool_ha_nvec_alloc(pool, M0_PNDS_SNS_REBALANCING, &nvec);
+		if (rc != 0) {
+			if (rc == -ENOENT)
+				continue;
+			M0_LOG(M0_ERROR, "HA note allocation failed with rc: %d", rc);
+			goto out;
+		}
 		pstate = M0_NC_ONLINE;
 		m0_tl_for(pool_failed_devs, &pool->po_failed_devices, pd) {
 			if (pd->pd_state == M0_PNDS_SNS_REBALANCING) {
@@ -134,6 +135,7 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 		nvec.nv_note[i].no_id = pool->po_id;
 		nvec.nv_note[i].no_state = pstate;
 		m0_ha_local_state_set(&nvec);
+		m0_free(nvec.nv_note);
 	} m0_tl_endfor;
 
 out:
@@ -168,7 +170,7 @@ static bool rebalance_cm_has_space(struct m0_cm *cm,
 	fctx = m0_sns_cm_fctx_locate(scm, &fid);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 	M0_ASSERT(fctx != NULL);
-	tot_inbufs = m0_sns_cm_incoming_reserve_bufs(scm, id, pl, fctx->sf_pi);
+	tot_inbufs = m0_sns_cm_incoming_reserve_bufs(scm, id);
 	return m0_sns_cm_has_space_for(scm, pl, tot_inbufs);
 }
 

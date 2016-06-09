@@ -43,21 +43,17 @@ struct m0_sns_cm_ag;
  * @see m0_fd_fwd_map
  */
 M0_INTERNAL void
-m0_sns_cm_unit2cobfid(struct m0_pdclust_instance *pi,
+m0_sns_cm_unit2cobfid(struct m0_sns_cm_file_ctx *fctx,
 		      const struct m0_pdclust_src_addr *sa,
 		      struct m0_pdclust_tgt_addr *ta,
-		      struct m0_poolmach *pm,
-		      const struct m0_fid *gfid,
 		      struct m0_fid *cfid_out);
 
 M0_INTERNAL uint32_t m0_sns_cm_device_index_get(uint64_t group,
 						uint64_t unit_number,
-						struct m0_pdclust_instance *pi);
+						struct m0_sns_cm_file_ctx *fctx);
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
-						uint64_t unit,
-						struct m0_pdclust_layout *pl,
-						struct m0_pdclust_instance *pi);
+						uint64_t unit);
 
 M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
 					 uint64_t fsize);
@@ -80,10 +76,7 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
  * number as the parameters to this function in-order to perform sanity checks.
  */
 M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
-						 struct m0_poolmach *pm,
-						 const struct m0_fid *fid,
-						 struct m0_pdclust_layout *pl,
-						 struct m0_pdclust_instance *pi,
+						 struct m0_sns_cm_file_ctx *fctx,
 						 uint64_t group);
 
 
@@ -100,10 +93,8 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_spare_units(const struct m0_pdclust_layout 
 
 M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
-				struct m0_poolmach *pm,
 				const struct m0_cm_ag_id *id,
-				struct m0_pdclust_layout *pl,
-				struct m0_pdclust_instance *pi,
+				struct m0_sns_cm_file_ctx *fctx,
 				struct m0_bitmap *proxy_in_map);
 
 M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_poolmach *pm,
@@ -126,10 +117,7 @@ M0_INTERNAL uint64_t
 m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
 			   uint64_t fidx);
 
-M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
-					 struct m0_pdclust_layout *pl,
-					 struct m0_pdclust_instance *pi,
-					 const struct m0_fid *fid,
+M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_sns_cm_file_ctx *fctx,
 					 uint64_t group_number,
 					 uint64_t spare_unit_number);
 
@@ -155,8 +143,6 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_unit_end(const struct m0_sns_cm *scm,
  */
 M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 					  uint64_t tgt_unit,
-					  struct m0_pdclust_layout *pl,
-					  struct m0_pdclust_instance *pi,
 					  struct m0_fid *cobfid);
 
 /**
@@ -179,10 +165,7 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(const struct m0_cm *cm,
 					 struct m0_conf_obj **hostage);
 
 M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
-						 struct m0_poolmach *pm,
-						 const struct m0_fid *gfid,
-						 struct m0_pdclust_layout *pl,
-						 struct m0_pdclust_instance *pi,
+						 struct m0_sns_cm_file_ctx *fctx,
 						 uint64_t group,
 						 struct m0_bitmap *fmap_out);
 
@@ -193,9 +176,7 @@ M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
  * the repair.
  */
 M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
-					  struct m0_poolmach *pm,
-					  struct m0_pdclust_layout *pl,
-					  struct m0_pdclust_instance *pi,
+					  struct m0_sns_cm_file_ctx *fctx,
 					  const struct m0_cm_ag_id *id);
 
 M0_INTERNAL bool
@@ -215,9 +196,9 @@ M0_INTERNAL bool m0_sns_cm_disk_has_dirty_pver(struct m0_cm *cm,
 					       struct m0_conf_disk *disk);
 M0_INTERNAL bool m0_sns_cm_pver_is_dirty(struct m0_pool_version *pver);
 M0_INTERNAL void m0_sns_cm_pver_dirty_set(struct m0_pool_version *pver);
-M0_INTERNAL int m0_sns_cm_ha_nvec_alloc(struct m0_cm *cm,
-					enum m0_pool_nd_state state,
-					struct m0_ha_nvec *nvec);
+M0_INTERNAL int m0_sns_cm_pool_ha_nvec_alloc(struct m0_pool *pool,
+					     enum m0_pool_nd_state state,
+					     struct m0_ha_nvec *nvec);
 
 /** @} endgroup SNSCM */
 

@@ -774,22 +774,21 @@ M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 
 M0_INTERNAL uint64_t
 m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
-				const struct m0_cm_ag_id *id,
-				struct m0_pdclust_layout *pl,
-				struct m0_pdclust_instance *pi)
+				const struct m0_cm_ag_id *id)
 {
 	struct m0_bitmap           proxy_map;
 	uint64_t                   nr_cp_bufs;
 	uint64_t                   cp_data_seg_nr;
 	uint64_t                   nr_incoming;
+	struct m0_pdclust_layout  *pl;
 	struct m0_sns_cm_file_ctx *fctx;
 
 	fctx = m0_sns_cm_fctx_get(scm, id);
 	M0_ASSERT(fctx != NULL);
 
+	pl = m0_layout_to_pdl(fctx->sf_layout);
 	m0_bitmap_init(&proxy_map, scm->sc_base.cm_proxy_nr);
-	nr_incoming = m0_sns_cm_ag_max_incoming_units(scm, fctx->sf_pm,
-						      id, pl, pi, &proxy_map);
+	nr_incoming = m0_sns_cm_ag_max_incoming_units(scm, id, fctx, &proxy_map);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
 	m0_bitmap_fini(&proxy_map);

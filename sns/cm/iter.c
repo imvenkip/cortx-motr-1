@@ -171,24 +171,15 @@ static bool iter_invariant(const struct m0_sns_cm_iter *it)
 static void unit_to_cobfid(struct m0_sns_cm_iter_file_ctx *ifc,
 			   struct m0_fid *cob_fid_out)
 {
-	struct m0_pdclust_instance  *pi;
-	struct m0_pdclust_layout    *pl;
 	struct m0_pdclust_src_addr  *sa;
 	struct m0_pdclust_tgt_addr  *ta;
-	struct m0_fid               *fid;
-	struct m0_poolmach          *pm;
 
-	fid = &ifc->ifc_gfid;
-	pi = ifc->ifc_fctx->sf_pi;
-	pl = m0_layout_to_pdl(ifc->ifc_fctx->sf_layout);
 	sa = &ifc->ifc_sa;
 	ta = &ifc->ifc_ta;
-	pm = ifc->ifc_fctx->sf_pm;
-	ifc->ifc_cob_is_spare_unit = m0_sns_cm_unit_is_spare(pm, pl,
-							     pi, fid,
+	ifc->ifc_cob_is_spare_unit = m0_sns_cm_unit_is_spare(ifc->ifc_fctx,
 							     sa->sa_group,
 							     sa->sa_unit);
-	m0_sns_cm_unit2cobfid(pi, sa, ta, pm, fid, cob_fid_out);
+	m0_sns_cm_unit2cobfid(ifc->ifc_fctx, sa, ta, cob_fid_out);
 }
 
 /* Uses name space iterator. */
@@ -345,29 +336,24 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 	return M0_RC(rc);
 }
 
-static bool __has_incoming(struct m0_sns_cm *scm, struct m0_poolmach *pm,
-			   struct m0_pdclust_layout *pl,
-			   struct m0_pdclust_instance *pi, struct m0_fid *gfid,
-			   uint64_t group)
+static bool __has_incoming(struct m0_sns_cm *scm,
+			   struct m0_sns_cm_file_ctx *fctx, uint64_t group)
 {
 	struct m0_cm_ag_id agid;
 
-	M0_PRE(scm != NULL && pl != NULL && gfid != NULL);
+	M0_PRE(scm != NULL && fctx != NULL);
 
-	m0_sns_cm_ag_agid_setup(gfid, group, &agid);
+	m0_sns_cm_ag_agid_setup(&fctx->sf_fid, group, &agid);
 	M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
 	       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
 	       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
-	return m0_sns_cm_ag_is_relevant(scm, pm, pl, pi, &agid);
+	return m0_sns_cm_ag_is_relevant(scm, fctx, &agid);
 }
 
 static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 {
 	struct m0_sns_cm_iter_file_ctx *ifc = &it->si_fc;
-	struct m0_pdclust_layout       *pl;
-	struct m0_fid                  *fid = &ifc->ifc_gfid;
 	struct m0_fid                   cobfid;
-	struct m0_pdclust_instance     *pi  = ifc->ifc_fctx->sf_pi;
 	struct m0_pdclust_src_addr      sa;
 	struct m0_pdclust_tgt_addr      ta;
 	int                             i;
@@ -375,15 +361,13 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 
 	M0_ENTRY("it: %p group: %lu", it, (unsigned long)group);
 
-	pl = m0_layout_to_pdl(ifc->ifc_fctx->sf_layout);
 	for (i = 0; i < it->si_fc.ifc_upg; ++i) {
 		sa.sa_unit = i;
 		sa.sa_group = group;
-		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, fid, &cobfid);
+		m0_sns_cm_unit2cobfid(ifc->ifc_fctx, &sa, &ta, &cobfid);
 		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
 		    !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj) &&
-		    !m0_sns_cm_unit_is_spare(pm, pl, pi, fid,
-					     group, sa.sa_unit))
+		    !m0_sns_cm_unit_is_spare(ifc->ifc_fctx, group, sa.sa_unit))
 			return false;
 	}
 
@@ -451,7 +435,6 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	struct m0_pdclust_src_addr     *sa;
 	struct m0_fid                  *gfid;
 	struct m0_pdclust_layout       *pl;
-	struct m0_pdclust_instance     *pi;
 	uint64_t                        group;
 	uint64_t                        nrlu;
 	bool                            has_incoming = false;
@@ -463,7 +446,6 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	ifc = &it->si_fc;
 	fctx = ifc->ifc_fctx;
 	pl = m0_layout_to_pdl(fctx->sf_layout);
-	pi = fctx->sf_pi;
 	ifc->ifc_groups_nr = m0_sns_cm_nr_groups(pl, fctx->sf_attr.ca_size);
 	sa = &ifc->ifc_sa;
 	gfid = &ifc->ifc_gfid;
@@ -474,8 +456,8 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	for (group = sa->sa_group; group < ifc->ifc_groups_nr; ++group) {
 		if (__group_skip(it, group))
 			continue;
-		has_incoming = __has_incoming(scm, pm, pl, pi, gfid, group);
-		nrlu = m0_sns_cm_ag_nr_local_units(scm, pm, gfid, pl, pi, group);
+		has_incoming = __has_incoming(scm, ifc->ifc_fctx, group);
+		nrlu = m0_sns_cm_ag_nr_local_units(scm, ifc->ifc_fctx, group);
 		if (has_incoming || nrlu > 0) {
 			rc = __group_alloc(scm, gfid, group, pl, has_incoming, &it->si_ag);
 			if (rc != 0) {
@@ -616,9 +598,11 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	 */
 
 	if (m0_pdclust_unit_classify(pl, ag_cp_idx) == M0_PUT_SPARE) {
+		m0_sns_cm_fctx_lock(fctx);
 		rc = m0_sns_repair_data_map(fctx->sf_pm, pl,
 					    fctx->sf_pi, group,
 					    ag_cp_idx, &ag_cp_idx);
+		m0_sns_cm_fctx_unlock(fctx);
 		if (rc != 0)
 			return M0_RC(rc);
 	}

@@ -71,6 +71,8 @@ struct m0_sns_cm_file_ctx {
 	/** pdclust instance for a particular GOB. */
 	struct m0_pdclust_instance *sf_pi;
 
+	struct m0_mutex             sf_lock;
+
 	/** Linkage into m0_sns_cm::sc_file_ctx. */
 	struct m0_hlink             sf_sc_link;
 
@@ -185,6 +187,17 @@ M0_INTERNAL int m0_sns_cm_fctx_state_get(struct m0_sns_cm_file_ctx *fctx);
 
 M0_INTERNAL struct m0_pool_version *
 m0_sns_cm_pool_version_get(struct m0_sns_cm_file_ctx *fctx);
+
+M0_INTERNAL void m0_sns_cm_file_fwd_map(struct m0_sns_cm_file_ctx *fctx,
+					const struct m0_pdclust_src_addr *sa,
+					struct m0_pdclust_tgt_addr *ta);
+
+M0_INTERNAL void m0_sns_cm_file_bwd_map(struct m0_sns_cm_file_ctx *fctx,
+					const struct m0_pdclust_tgt_addr *ta,
+					struct m0_pdclust_src_addr *sa);
+
+M0_INTERNAL void m0_sns_cm_fctx_lock(struct m0_sns_cm_file_ctx *fctx);
+M0_INTERNAL void m0_sns_cm_fctx_unlock(struct m0_sns_cm_file_ctx *fctx);
 
 M0_HT_DESCR_DECLARE(m0_scmfctx, M0_EXTERN);
 M0_HT_DECLARE(m0_scmfctx, M0_EXTERN, struct m0_sns_cm_file_ctx,

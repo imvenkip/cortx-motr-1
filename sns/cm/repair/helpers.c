@@ -33,10 +33,8 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 					  struct m0_pdclust_layout *pl);
 
 static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
-					     struct m0_poolmach *pm,
 					     const struct m0_cm_ag_id *id,
-					     struct m0_pdclust_layout *pl,
-					     struct m0_pdclust_instance *pi,
+					     struct m0_sns_cm_file_ctx *fctx,
 					     struct m0_bitmap *proxy_in_map)
 {
 	const struct m0_cm         *cm = &scm->sc_base;
@@ -45,9 +43,11 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	struct m0_fid               cobfid;
 	struct m0_fid               spare_cob;
 	struct m0_fid               gfid;
+	struct m0_poolmach         *pm;
 	struct m0_cm_proxy         *pxy;
 	struct m0_conf_obj         *svc;
 	const char                 *ep;
+	struct m0_pdclust_layout   *pl;
 	bool                        is_failed;
 	uint32_t                    incoming = 0;
 	uint32_t                    local_spares = 0;
@@ -56,33 +56,34 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	int                         rc;
 
 	M0_ENTRY();
-	M0_PRE(pm != NULL);
+	M0_PRE(fctx != NULL);
 
-	agid2fid(id, &gfid);
+	agid2fid(id, &fctx->sf_fid);
 	sa.sa_group = agid2group(id);
+	pm = fctx->sf_pm;
+	pl = m0_layout_to_pdl(fctx->sf_layout);
 	for (unit = 0; unit < m0_sns_cm_ag_size(pl); ++unit) {
 		sa.sa_unit = unit;
-		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, &gfid, &cobfid);
+		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		is_failed = m0_sns_cm_is_cob_failed(pm, ta.ta_obj);
-		if (m0_sns_cm_unit_is_spare(pm, pl, pi, &gfid, sa.sa_group,
-					    unit))
+		if (m0_sns_cm_unit_is_spare(fctx, sa.sa_group, unit))
 			continue;
 		/* Count number of spares corresponding to the failures
 		 * on a node. This is required to calculate exact number of
 		 * incoming copy packets.
 		 */
 		if (is_failed && !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj)) {
-			rc = m0_sns_repair_spare_map(pm, &gfid, pl, pi,
+			m0_sns_cm_fctx_lock(fctx);
+			rc = m0_sns_repair_spare_map(pm, &gfid, pl, fctx->sf_pi,
 						     sa.sa_group, unit,
 						     (unsigned *)&sa.sa_unit,
 						     &tgt_unit_prev);
+			m0_sns_cm_fctx_unlock(fctx);
 			if (rc != 0)
 				return M0_ERR(rc);
 
-			m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, &gfid,
-					      &spare_cob);
-			if (m0_sns_cm_unit_is_spare(pm, pl, pi, &gfid,
-						    sa.sa_group,
+			m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &spare_cob);
+			if (m0_sns_cm_unit_is_spare(fctx, sa.sa_group,
 						    sa.sa_unit) &&
 			    m0_sns_cm_is_local_cob(cm, pm->pm_pver,
 						   &spare_cob)) {
@@ -117,11 +118,8 @@ static uint64_t repair_ag_unit_end(const struct m0_pdclust_layout *pl)
 }
 
 static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
-				  struct m0_poolmach *pm,
-				  const struct m0_fid *gfid,
-				  uint64_t group,
-				  struct m0_pdclust_layout *pl,
-				  struct m0_pdclust_instance *pi)
+				  struct m0_sns_cm_file_ctx *fctx,
+				  uint64_t group)
 {
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
@@ -131,33 +129,39 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	uint32_t                    K;
 	uint32_t                    j;
 	uint32_t                    spare;
+	struct m0_pdclust_layout   *pl;
+	struct m0_poolmach         *pm;
 	int                         rc;
 
 	M0_ENTRY();
-	M0_PRE(pm != NULL);
+	M0_PRE(fctx != NULL);
 
+	pm = fctx->sf_pm;
+	pl = m0_layout_to_pdl(fctx->sf_layout);
 	N = m0_sns_cm_ag_nr_data_units(pl);
 	K = m0_sns_cm_ag_nr_parity_units(pl);
 	sa.sa_group = group;
 	for (j = N + K; j < N + 2 * K; ++j) {
 		sa.sa_unit = j;
-		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, gfid, &cobfid);
+		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj))
 			continue;
 		if (!m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver, &cobfid))
 			continue;
 		spare = j;
 		do {
-			rc = m0_sns_repair_data_map(pm, pl, pi, group, spare, &data_unit);
+			m0_sns_cm_fctx_lock(fctx);
+			rc = m0_sns_repair_data_map(pm, pl, fctx->sf_pi, group, spare, &data_unit);
+			m0_sns_cm_fctx_unlock(fctx);
 			if (rc != 0)
 				break;
 			spare = data_unit;
-		} while (m0_sns_cm_unit_is_spare(pm, pl, pi, gfid, group, data_unit));
+		} while (m0_sns_cm_unit_is_spare(fctx, group, data_unit));
 
 		if (rc != 0)
 			continue;
 		sa.sa_unit = data_unit;
-		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, gfid, &cobfid);
+		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_sns_cm_is_cob_repairing(pm, ta.ta_obj))
 			return true;
 	}

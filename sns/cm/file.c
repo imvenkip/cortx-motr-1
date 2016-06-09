@@ -45,6 +45,16 @@
 const struct m0_uint128 m0_rm_sns_cm_group = M0_UINT128(0, 2);
 extern const struct m0_rm_resource_type_ops file_lock_type_ops;
 
+M0_INTERNAL void m0_sns_cm_fctx_lock(struct m0_sns_cm_file_ctx *fctx)
+{
+	m0_mutex_lock(&fctx->sf_lock);
+}
+
+M0_INTERNAL void m0_sns_cm_fctx_unlock(struct m0_sns_cm_file_ctx *fctx)
+{
+	m0_mutex_unlock(&fctx->sf_lock);
+}
+
 static uint64_t sns_cm_fctx_hash_func(const struct m0_htable *htable,
 				      const void *k)
 {
@@ -141,6 +151,7 @@ static void _fctx_fini(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	m0_clink_del_lock(&fctx->sf_fini_clink);
 	m0_clink_fini(&fctx->sf_fini_clink);
+	m0_mutex_fini(&fctx->sf_lock);
 	m0_file_owner_fini(&fctx->sf_owner);
 	m0_rm_remote_fini(&fctx->sf_creditor);
 	m0_file_fini(&fctx->sf_file);
@@ -252,6 +263,7 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 	m0_ref_init(&fctx->sf_ref, 1, sns_cm_fctx_release);
 	m0_sm_init(&fctx->sf_sm, &fctx_sm_conf, M0_SCFS_INIT, &scm->sc_base.cm_sm_group);
 	m0_clink_init(&fctx->sf_fini_clink, fctx_fini_clink_cb);
+	m0_mutex_init(&fctx->sf_lock);
 	fctx->sf_group = grp;
 	fctx->sf_scm = scm;
 	if (!m0_sns_cm2reqh(scm)->rh_oostore)
@@ -674,6 +686,24 @@ m0_sns_cm_file_attr_and_layout_wait(struct m0_sns_cm_file_ctx *fctx,
 				    struct m0_fom *fom)
 {
 	m0_fom_wait_on(fom, &fctx->sf_sm.sm_chan, &fom->fo_cb);
+}
+
+M0_INTERNAL void m0_sns_cm_file_fwd_map(struct m0_sns_cm_file_ctx *fctx,
+					const struct m0_pdclust_src_addr *sa,
+					struct m0_pdclust_tgt_addr *ta)
+{
+	m0_sns_cm_fctx_lock(fctx);
+	m0_fd_fwd_map(fctx->sf_pi, sa, ta);
+	m0_sns_cm_fctx_unlock(fctx);
+}
+
+M0_INTERNAL void m0_sns_cm_file_bwd_map(struct m0_sns_cm_file_ctx *fctx,
+					const struct m0_pdclust_tgt_addr *ta,
+					struct m0_pdclust_src_addr *sa)
+{
+	m0_sns_cm_fctx_lock(fctx);
+	m0_fd_bwd_map(fctx->sf_pi, ta, sa);
+	m0_sns_cm_fctx_unlock(fctx);
 }
 
 #undef _AST2FCTX

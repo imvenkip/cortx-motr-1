@@ -103,20 +103,18 @@ out:
 
 /* End of UT specific code. */
 
-M0_INTERNAL void m0_sns_cm_unit2cobfid(struct m0_pdclust_instance *pi,
+M0_INTERNAL void m0_sns_cm_unit2cobfid(struct m0_sns_cm_file_ctx *fctx,
 				       const struct m0_pdclust_src_addr *sa,
 				       struct m0_pdclust_tgt_addr *ta,
-				       struct m0_poolmach *pm,
-				       const struct m0_fid *gfid,
 				       struct m0_fid *cfid_out)
 {
-	m0_fd_fwd_map(pi, sa, ta);
-	m0_poolmach_gob2cob(pm, gfid, ta->ta_obj, cfid_out);
+	m0_sns_cm_file_fwd_map(fctx, sa, ta);
+	m0_poolmach_gob2cob(fctx->sf_pm, &fctx->sf_fid, ta->ta_obj, cfid_out);
 }
 
 M0_INTERNAL uint32_t m0_sns_cm_device_index_get(uint64_t group,
 						uint64_t unit_number,
-						struct m0_pdclust_instance *pi)
+						struct m0_sns_cm_file_ctx *fctx)
 {
 	struct m0_pdclust_src_addr sa;
 	struct m0_pdclust_tgt_addr ta;
@@ -126,23 +124,22 @@ M0_INTERNAL uint32_t m0_sns_cm_device_index_get(uint64_t group,
 
 	sa.sa_group = group;
 	sa.sa_unit = unit_number;
-	m0_fd_fwd_map(pi, &sa, &ta);
+	m0_sns_cm_file_fwd_map(fctx, &sa, &ta);
 	M0_LEAVE("index:%d", (int)ta.ta_obj);
 	return ta.ta_obj;
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
-						uint64_t unit,
-						struct m0_pdclust_layout *pl,
-						struct m0_pdclust_instance *pi)
+						uint64_t unit)
 {
 	struct m0_pdclust_src_addr sa;
 	struct m0_pdclust_tgt_addr ta;
+	struct m0_sns_cm_file_ctx *fctx = sag->sag_fctx;
 
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = unit;
-	m0_fd_fwd_map(pi, &sa, &ta);
-	return ta.ta_frame * m0_pdclust_unit_size(pl);
+	m0_sns_cm_file_fwd_map(fctx, &sa, &ta);
+	return ta.ta_frame * m0_pdclust_unit_size(m0_layout_to_pdl(fctx->sf_layout));
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
@@ -175,33 +172,34 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
-						 struct m0_poolmach *pm,
-						 const struct m0_fid *fid,
-						 struct m0_pdclust_layout *pl,
-						 struct m0_pdclust_instance *pi,
+						 struct m0_sns_cm_file_ctx *fctx,
 						 uint64_t group)
 {
 	struct m0_pdclust_src_addr     sa;
 	struct m0_pdclust_tgt_addr     ta;
 	struct m0_fid                  cobfid;
 	uint64_t                       nrlu = 0;
+	struct m0_poolmach            *pm;
+	struct m0_pdclust_layout      *pl;
 	int                            i;
 	int                            start;
 	int                            end;
 	M0_ENTRY();
 
-	M0_PRE(scm != NULL && fid != NULL && pl != NULL && pi != NULL);
+	M0_PRE(scm != NULL && fctx != NULL);
 
+	pl = m0_layout_to_pdl(fctx->sf_layout);
 	start = m0_sns_cm_ag_unit_start(scm, pl);
 	end = m0_sns_cm_ag_unit_end(scm, pl);
 	sa.sa_group = group;
+	pm = fctx->sf_pm;
 	for (i = start; i < end; ++i) {
 		sa.sa_unit = i;
-		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, fid, &cobfid);
+		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver,
 					   &cobfid) &&
 		    !m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
-		    !m0_sns_cm_unit_is_spare(pm, pl, pi, fid, group, i))
+		    !m0_sns_cm_unit_is_spare(fctx, group, i))
 			M0_CNT_INC(nrlu);
 	}
 	M0_LEAVE("number of local units = %lu", nrlu);
@@ -277,22 +275,25 @@ M0_INTERNAL bool m0_sns_cm_is_cob_rebalancing(struct m0_poolmach *pm,
 	return state_out == M0_PNDS_SNS_REBALANCING;
 }
 
-M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
-					 struct m0_pdclust_layout *pl,
-					 struct m0_pdclust_instance *pi,
-					 const struct m0_fid *fid,
+M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_sns_cm_file_ctx *fctx,
 					 uint64_t group_nr, uint64_t spare_nr)
 {
 	uint64_t                    data_unit_id_out;
 	struct m0_fid               cobfid;
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
+	struct m0_poolmach         *pm;
+	struct m0_pdclust_instance *pi;
+	struct m0_pdclust_layout   *pl;
 	enum m0_pool_nd_state       state_out = 0;
 	bool                        result = true;
 	int                         rc;
 
 	M0_ENTRY("index:%d", (int)spare_nr);
 
+	pl = m0_layout_to_pdl(fctx->sf_layout);
+	pi = fctx->sf_pi;
+	pm = fctx->sf_pm;
 	if (m0_pdclust_unit_classify(pl, spare_nr) == M0_PUT_SPARE) {
 		/*
 		 * Firstly, check if the device corresponding to the given spare
@@ -304,7 +305,7 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
 		M0_SET0(&ta);
 		sa.sa_unit = spare_nr;
 		sa.sa_group = group_nr;
-		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, fid, &cobfid);
+		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		rc = m0_poolmach_device_state(pm, ta.ta_obj, &state_out);
 		M0_ASSERT(rc == 0);
 		if (state_out == M0_PNDS_SNS_REPAIRED) {
@@ -317,10 +318,13 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
 		 * repaired data/parity unit from the parity group.
 		 * If we fail to map the spare unit to any of the previously
 		 * failed data unit, means the spare is empty.
+		 * We lock fctx to protect pdclust instance tile cache.
 		 */
+		m0_sns_cm_fctx_lock(fctx);
 		rc = m0_sns_repair_data_map(pm, pl, pi,
 					    group_nr, spare_nr,
 					    &data_unit_id_out);
+		m0_sns_cm_fctx_unlock(fctx);
 		if (rc == -ENOENT) {
 			M0_LOG(M0_DEBUG, "empty spare index:%d", (int)spare_nr);
 			goto out;
@@ -340,7 +344,7 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_poolmach *pm,
 		 * spare unit contains data and needs to be repaired, else it is
 		 * empty.
 		 */
-		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, fid, &cobfid);
+		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_poolmach_device_is_in_spare_usage_array(pm, ta.ta_obj)) {
 			rc = m0_poolmach_device_state(pm, ta.ta_obj,
 					              &state_out);
@@ -375,19 +379,16 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_unit_end(const struct m0_sns_cm *scm,
 
 M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 					  uint64_t tgt_unit,
-					  struct m0_pdclust_layout *pl,
-					  struct m0_pdclust_instance *pi,
 					  struct m0_fid *cobfid)
 {
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
-	struct m0_fid               gobfid;
+	struct m0_sns_cm_file_ctx  *fctx = sag->sag_fctx;
 
-	agid2fid(&sag->sag_base.cag_id, &gobfid);
+	agid2fid(&sag->sag_base.cag_id, &fctx->sf_fid);
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = tgt_unit;
-	m0_sns_cm_unit2cobfid(pi, &sa, &ta, sag->sag_fctx->sf_pm,
-			      &gobfid, cobfid);
+	m0_sns_cm_unit2cobfid(fctx, &sa, &ta, cobfid);
 
 	return 0;
 }
@@ -460,10 +461,7 @@ M0_INTERNAL bool m0_sns_cm_is_local_cob(const struct m0_cm *cm,
 }
 
 M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
-						 struct m0_poolmach *pm,
-						 const struct m0_fid *gfid,
-						 struct m0_pdclust_layout *pl,
-						 struct m0_pdclust_instance *pi,
+						 struct m0_sns_cm_file_ctx *fctx,
 						 uint64_t group,
 						 struct m0_bitmap *fmap_out)
 {
@@ -473,17 +471,19 @@ M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
 	uint64_t                   upg;
 	uint64_t                   unit;
 	size_t                     group_failures = 0;
+	struct m0_poolmach        *pm;
 	M0_ENTRY();
 
-	M0_PRE(scm != NULL && pl != NULL);
+	M0_PRE(scm != NULL && fctx != NULL);
 
-	upg = m0_sns_cm_ag_size(pl);
+	pm = fctx->sf_pm;
+	upg = m0_sns_cm_ag_size(m0_layout_to_pdl(fctx->sf_layout));
 	sa.sa_group = group;
 	for (unit = 0; unit < upg; ++unit) {
-		if (m0_sns_cm_unit_is_spare(pm, pl, pi, gfid, group, unit))
+		if (m0_sns_cm_unit_is_spare(fctx, group, unit))
 			continue;
 		sa.sa_unit = unit;
-		m0_sns_cm_unit2cobfid(pi, &sa, &ta, pm, gfid, &cobfid);
+		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
 		    !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj)) {
 			M0_CNT_INC(group_failures);
@@ -500,9 +500,7 @@ M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
 }
 
 M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
-					  struct m0_poolmach *pm,
-					  struct m0_pdclust_layout *pl,
-					  struct m0_pdclust_instance *pi,
+					  struct m0_sns_cm_file_ctx *fctx,
 					  const struct m0_cm_ag_id *id)
 {
         struct m0_fid               fid;
@@ -515,28 +513,22 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
         agid2fid(id,  &fid);
 	group = id->ai_lo.u_lo;
 	/* Firstly check if this group has any failed units. */
-	group_failures = m0_sns_cm_ag_unrepaired_units(scm, pm, &fid, pl,
-						       pi, group, NULL);
+	group_failures = m0_sns_cm_ag_unrepaired_units(scm, fctx, group, NULL);
 	if (group_failures > 0 )
-		result = scm->sc_helpers->sch_ag_is_relevant(scm, pm, &fid,
-							     group, pl,
-							     pi);
+		result = scm->sc_helpers->sch_ag_is_relevant(scm, fctx, group);
 
         return M0_RC(result);
 }
 
 M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
-				struct m0_poolmach *pm,
 				const struct m0_cm_ag_id *id,
-				struct m0_pdclust_layout *pl,
-				struct m0_pdclust_instance *pi,
+				struct m0_sns_cm_file_ctx *fctx,
 				struct m0_bitmap *proxy_in_map)
 {
 	M0_PRE(m0_cm_is_locked(&scm->sc_base));
 
-	return scm->sc_helpers->sch_ag_max_incoming_units(scm, pm, id, pl, pi,
-							  proxy_in_map);
+	return scm->sc_helpers->sch_ag_max_incoming_units(scm, id, fctx, proxy_in_map);
 }
 
 M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_sns_cm *snscm,
@@ -580,21 +572,17 @@ M0_INTERNAL void m0_sns_cm_pver_dirty_set(struct m0_pool_version *pver)
 	pver->pv_sns_flags |= PV_SNS_DIRTY;
 }
 
-M0_INTERNAL int m0_sns_cm_ha_nvec_alloc(struct m0_cm *cm,
-					enum m0_pool_nd_state state,
-					struct m0_ha_nvec *nvec)
+M0_INTERNAL int m0_sns_cm_pool_ha_nvec_alloc(struct m0_pool *pool,
+					     enum m0_pool_nd_state state,
+					     struct m0_ha_nvec *nvec)
 {
-	struct m0_pools_common *pc = cm->cm_service.rs_reqh->rh_pools;
-	struct m0_pool         *pool;
-	struct m0_pooldev      *pd;
-	struct m0_ha_note      *note;
-	uint64_t                nr_devs = 0;
+	struct m0_pooldev  *pd;
+	struct m0_ha_note  *note;
+	uint64_t            nr_devs = 0;
 
-	m0_tl_for(pools, &pc->pc_pools, pool) {
-		m0_tl_for(pool_failed_devs, &pool->po_failed_devices, pd) {
-			if (pd->pd_state == state)
-				M0_CNT_INC(nr_devs);
-		} m0_tl_endfor;
+	m0_tl_for(pool_failed_devs, &pool->po_failed_devices, pd) {
+		if (pd->pd_state == state)
+			M0_CNT_INC(nr_devs);
 	} m0_tl_endfor;
 	if (nr_devs == 0)
 		return M0_ERR(-ENOENT);

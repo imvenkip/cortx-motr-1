@@ -76,15 +76,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 		M0_ASSERT(ag->cag_transformed_cp_nr <= ag->cag_cp_local_nr);
 
 	M0_ASSERT(m0_fid_is_set(&scp->sc_cobfid));
-	/*
-	 * We lock cm here to protect m0_sns_cm_file_ctx::sf_pi who's
-	 * tile cache may change through m0_sns_cm_rebalance_tgt_info()
-	 * as there can be multiple copy packet foms in-progress in
-	 * different localities of different aggregation groups.
-	 */
-	m0_cm_lock(cm);
 	rc = m0_sns_cm_rebalance_tgt_info(sns_ag, scp);
-	m0_cm_unlock(cm);
 	M0_ASSERT(m0_fid_is_set(&scp->sc_cobfid));
 	if (rc == 0) {
 		/*

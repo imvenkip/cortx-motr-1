@@ -95,14 +95,15 @@ static void repair_cm_stop(struct m0_cm *cm)
 	if (m0_cm_state_get(cm) == M0_CMS_FAIL)
 		goto out;
 
-	rc = m0_sns_cm_ha_nvec_alloc(cm, M0_PNDS_SNS_REPAIRING, &nvec);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "HA note allocation failed with rc: %d", rc);
-		goto out;
-	}
-
 	cc = &pc->pc_confc->cc_cache;
 	m0_tl_for(pools, &pc->pc_pools, pool) {
+		rc = m0_sns_cm_pool_ha_nvec_alloc(pool, M0_PNDS_SNS_REPAIRING, &nvec);
+		if (rc != 0) {
+			if (rc == -ENOENT)
+				continue;
+			M0_LOG(M0_ERROR, "HA note allocation failed with rc: %d", rc);
+			goto out;
+		}
 		pstate = M0_NC_REPAIRED;
 		m0_tl_for(pool_failed_devs, &pool->po_failed_devices, pd) {
 			if (pd->pd_state == M0_PNDS_SNS_REPAIRING) {
@@ -125,8 +126,8 @@ static void repair_cm_stop(struct m0_cm *cm)
 		nvec.nv_note[i].no_id = pool->po_id;
 		nvec.nv_note[i].no_state = pstate;
 		m0_ha_local_state_set(&nvec);
+		m0_free(nvec.nv_note);
 	} m0_tl_endfor;
-	m0_free(nvec.nv_note);
 out:
 
 	m0_sns_cm_stop(cm);
@@ -159,8 +160,7 @@ static bool repair_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	fctx = m0_sns_cm_fctx_locate(scm, &fid);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 	M0_ASSERT(fctx != NULL);
-	total_inbufs = m0_sns_cm_repair_ag_inbufs(scm, fctx->sf_pm,
-						  id, pl, fctx->sf_pi);
+	total_inbufs = m0_sns_cm_repair_ag_inbufs(scm, fctx, id);
 	return m0_sns_cm_has_space_for(scm, pl, total_inbufs);
 }
 
