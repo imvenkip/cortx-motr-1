@@ -465,6 +465,9 @@ M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
  * There is no way to start iteration from the first record without knowledge of
  * key, at least one start key should always be set.
  *
+ * A 'slant' argument allows iteration to start with the smallest key following
+ * the start key.
+ *
  * @pre start_keys.ov_vec.v_nr > 0
  * @pre m0_forall(i, start_keys.ov_vec.v_nr, start_keys.ov_buf[i] != NULL)
  * @pre m0_cas_req_is_locked(req)
@@ -473,7 +476,8 @@ M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
 M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 			    struct m0_cas_id  *index,
 			    struct m0_bufvec  *start_keys,
-			    uint32_t          *recs_nr);
+			    uint32_t          *recs_nr,
+			    bool               slant);
 /**
  * Gets execution result of m0_cas_next() request.
  *

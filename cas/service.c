@@ -1101,21 +1101,22 @@ static int cas_exec(struct cas_fom *fom, enum cas_opcode opc, enum cas_type ct,
 		    struct cas_index *index, const struct m0_cas_rec *rec,
 		    int next)
 {
-	struct m0_be_btree        *btree   = &index->ci_tree;
-	struct m0_fom             *fom0    = &fom->cf_fom;
-	struct m0_be_btree_anchor *anchor  = &fom->cf_anchor;
-	struct m0_buf             *key     = &fom->cf_buf;
-	struct m0_be_btree_cursor *cur     = &fom->cf_cur;
-	struct m0_be_tx           *tx      = &fom0->fo_tx.tx_betx;
-	struct m0_be_op           *beop    = cas_beop(fom);
-	struct m0_buf              key_buf;
-	struct m0_buf              val_buf;
+	struct m0_be_btree        *btree  = &index->ci_tree;
+	struct m0_fom             *fom0   = &fom->cf_fom;
+	struct m0_be_btree_anchor *anchor = &fom->cf_anchor;
+	struct m0_buf             *key    = &fom->cf_buf;
+	struct m0_be_btree_cursor *cur    = &fom->cf_cur;
+	struct m0_be_tx           *tx     = &fom0->fo_tx.tx_betx;
+	struct m0_be_op           *beop   = cas_beop(fom);
+	uint32_t                   flags  = cas_op(fom0)->cg_flags;
+	struct m0_buf              kbuf;
+	struct m0_buf              vbuf;
 	int                        rc;
 
 	M0_ASSERT(m0_rpc_at_is_set(&rec->cr_key));
-	rc = cas_incoming_kv(rec, &key_buf, &val_buf);
+	rc = cas_incoming_kv(rec, &kbuf, &vbuf);
 	M0_ASSERT(rc == 0);
-	rc = cas_buf_get(key, &key_buf);
+	rc = cas_buf_get(key, &kbuf);
 	if (rc != 0) {
 		beop->bo_u.u_btree.t_rc = rc;
 		m0_fom_phase_set(fom0, next);
@@ -1130,7 +1131,7 @@ static int cas_exec(struct cas_fom *fom, enum cas_opcode opc, enum cas_type ct,
 		m0_be_btree_lookup_inplace(btree, beop, key, anchor);
 		break;
 	case COMBINE(CO_PUT, CT_BTREE):
-		anchor->ba_value.b_nob = val_buf.b_nob + sizeof (uint64_t);
+		anchor->ba_value.b_nob = vbuf.b_nob + sizeof (uint64_t);
 		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor);
 		break;
 	case COMBINE(CO_PUT, CT_META):
@@ -1150,7 +1151,7 @@ static int cas_exec(struct cas_fom *fom, enum cas_opcode opc, enum cas_type ct,
 		if (fom->cf_curpos == 0) {
 			if (cur->bc_tree == NULL)
 				m0_be_btree_cursor_init(cur, btree);
-			m0_be_btree_cursor_get(cur, key, false);
+			m0_be_btree_cursor_get(cur, key, !!(flags & COF_SLANT));
 		} else
 			m0_be_btree_cursor_next(cur);
 		break;
@@ -1212,11 +1213,11 @@ static int cas_prep_send(struct cas_fom *fom, enum cas_opcode opc,
 static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 		    struct m0_cas_rep *rep, enum cas_opcode opc)
 {
-	struct m0_cas_rec  *rec_out;
-	struct m0_cas_rec  *rec;
-	int                 rc;
-	int                 rc2;
-	bool                at_fini = true;
+	struct m0_cas_rec *rec_out;
+	struct m0_cas_rec *rec;
+	int                rc;
+	int                rc2;
+	bool               at_fini = true;
 
 	M0_ASSERT(fom->cf_ipos < op->cg_rec.cr_nr);
 	rec_out = cas_out_at(rep, fom->cf_opos);

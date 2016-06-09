@@ -1196,6 +1196,7 @@ static int cas_records_op_prepare(const struct m0_cas_req  *req,
 				  const struct m0_cas_id   *index,
 				  const struct m0_bufvec   *keys,
 				  const struct m0_bufvec   *values,
+				  uint32_t                  flags,
 				  struct m0_cas_op        **out)
 {
 	struct m0_cas_op   *op;
@@ -1226,6 +1227,7 @@ static int cas_records_op_prepare(const struct m0_cas_req  *req,
 		creq_op_free(op);
 		return M0_ERR(rc);
 	}
+	op->cg_flags = flags;
 	*out = op;
 	return M0_RC(rc);
 }
@@ -1246,7 +1248,7 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 	M0_PRE(m0_cas_req_is_locked(req));
 
 	(void)dtx;
-	rc = cas_records_op_prepare(req, index, keys, values, &op);
+	rc = cas_records_op_prepare(req, index, keys, values, 0, &op);
 	if (rc != 0)
 		return M0_ERR(rc);
 	creq_fop_init(req, &cas_put_fopt, op);
@@ -1275,7 +1277,7 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 	M0_PRE(keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 
-	rc = cas_records_op_prepare(req, index, keys, NULL, &op);
+	rc = cas_records_op_prepare(req, index, keys, NULL, 0, &op);
 	if (rc != 0)
 		return M0_ERR(rc);
 	for (i = 0; i < keys->ov_vec.v_nr; i++) {
@@ -1321,17 +1323,22 @@ M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
 M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 			    struct m0_cas_id  *index,
 			    struct m0_bufvec  *start_keys,
-			    uint32_t          *recs_nr)
+			    uint32_t          *recs_nr,
+			    bool               slant)
 {
 	struct m0_cas_op *op;
 	int               rc;
 	uint32_t          i;
+	uint32_t          flags = 0;
 
 	M0_ENTRY();
 	M0_PRE(start_keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 
-	rc = cas_records_op_prepare(req, index, start_keys, NULL, &op);
+	if (slant)
+		flags |= COF_SLANT;
+
+	rc = cas_records_op_prepare(req, index, start_keys, NULL, flags, &op);
 	if (rc != 0)
 		return M0_ERR(rc);
 	for (i = 0; i < start_keys->ov_vec.v_nr; i++)
@@ -1380,7 +1387,7 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 	M0_PRE(m0_cas_req_is_locked(req));
 
 	(void)dtx;
-	rc = cas_records_op_prepare(req, index, keys, NULL, &op);
+	rc = cas_records_op_prepare(req, index, keys, NULL, 0, &op);
 	if (rc != 0)
 		return M0_ERR(rc);
 	creq_fop_init(req, &cas_del_fopt, op);

@@ -190,6 +190,13 @@ struct m0_cas_recv {
 } M0_XCA_SEQUENCE;
 
 /**
+ * CAS operation flags.
+ */
+enum m0_cas_op_flags {
+	COF_SLANT     = 0x01,
+};
+
+/**
  * CAS-GET, CAS-PUT, CAS-DEL and CAS-CUR fops.
  *
  * Performs an operation on a number of records.
@@ -208,6 +215,13 @@ struct m0_cas_op {
 	 * For CAS-PUT this describes input keys and values.
 	 */
 	struct m0_cas_recv cg_rec;
+
+	/**
+	 * CAS operation flags.
+	 *
+	 * It's a bitmask of flags from m0_cas_op_flags enumeration.
+	 */
+	uint32_t           cg_flags;
 } M0_XCA_RECORD;
 
 /**
