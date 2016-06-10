@@ -11,5 +11,6 @@ TimeoutStopSec=20
 Restart=on-abort
 StartLimitInterval=5
 StartLimitBurst=1
+Environment=SHELL=/bin/bash
 EnvironmentFile=/etc/sysconfig/m0d-%i
 ExecStart=/usr/libexec/mero/mero-server m0d-%i
