@@ -53,6 +53,7 @@ extern void test_locality_chore(void);
 extern void test_hashtable(void);
 extern void test_fold(void);
 extern void m0_ut_lib_thread_pool_test(void);
+extern void test_combinations(void);
 
 struct m0_ut_suite libm0_ut = {
 	.ts_name = "libm0-ut",
@@ -92,6 +93,7 @@ struct m0_ut_suite libm0_ut = {
 		{ "zerovec",          test_zerovec       },
 		{ "fold",             test_fold,         "Nikita" },
 		{ "tpool",            m0_ut_lib_thread_pool_test },
+		{ "combinations",     test_combinations  },
 		{ NULL,               NULL               }
 	}
 };
