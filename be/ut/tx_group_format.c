@@ -168,7 +168,7 @@ static void be_ut_tgf_seg_init(struct be_ut_tgf_ctx *ctx)
 
 	ctx->tgfc_seg_stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(ctx->tgfc_seg_stob != NULL);
-	m0_be_seg_init(seg, ctx->tgfc_seg_stob, NULL);
+	m0_be_seg_init(seg, ctx->tgfc_seg_stob, NULL, M0_BE_SEG_FAKE_ID);
 	rc = m0_be_seg_create(seg, BE_UT_TGF_SEG_SIZE,
 			      (void *)BE_UT_TGF_SEG_ADDR);
 	M0_UT_ASSERT(rc == 0);
@@ -405,7 +405,8 @@ static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
 		m0_be_seg_close(&ctx->tgfc_seg);
 		m0_be_seg_fini(&ctx->tgfc_seg);
 		M0_SET0(&ctx->tgfc_seg);
-		m0_be_seg_init(&ctx->tgfc_seg, ctx->tgfc_seg_stob, NULL);
+		m0_be_seg_init(&ctx->tgfc_seg, ctx->tgfc_seg_stob, NULL,
+			       M0_BE_SEG_FAKE_ID);
 		rc = m0_be_seg_open(&ctx->tgfc_seg);
 		M0_UT_ASSERT(rc == 0);
 		nr = m0_be_group_format_reg_nr(gft);

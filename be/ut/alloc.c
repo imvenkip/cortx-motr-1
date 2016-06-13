@@ -299,8 +299,9 @@ M0_INTERNAL void m0_be_ut_alloc_oom(void)
 
 	for (seg_step = 0; seg_step < BE_UT_OOM_SEG_STEP_NR; ++seg_step) {
 		m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend,
-				  seg_size_start +
-				  seg_step * BE_UT_OOM_SEG_STEP);
+				  m0_round_up(seg_size_start +
+					      seg_step * BE_UT_OOM_SEG_STEP,
+					      2 * PAGE_SIZE));
 		m0_be_ut_seg_allocator_init(&ut_seg, &be_ut_alloc_backend);
 		a = m0_be_seg_allocator(ut_seg.bus_seg);
 

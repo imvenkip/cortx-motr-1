@@ -44,44 +44,180 @@
  * @{
  */
 
+static const struct m0_be_seg_geom *
+be_seg_geom_find_by_id(const struct m0_be_seg_hdr *hdr, uint64_t id)
+{
+	uint16_t i;
+
+	for (i = 0; i < hdr->bh_items_nr; ++i)
+		if (hdr->bh_items[i].sg_id == id)
+			return &hdr->bh_items[i];
+
+	return NULL;
+}
+
+static int be_seg_geom_len(const struct m0_be_seg_geom *geom)
+{
+	uint16_t len;
+
+	if (geom == NULL || m0_be_seg_geom_eq(geom, &M0_BE_SEG_GEOM0))
+		return -ENOENT;
+
+	for (len = 0; !m0_be_seg_geom_eq(&geom[len], &M0_BE_SEG_GEOM0); ++len)
+		;
+
+	return len;
+}
+
+static int be_seg_hdr_size(int len)
+{
+	return sizeof(struct m0_be_seg_hdr) +
+		len * sizeof(struct m0_be_seg_geom);
+}
+
+static int be_seg_hdr_create(struct m0_stob *stob, struct m0_be_seg_hdr *hdr)
+{
+	struct m0_be_seg_geom *geom = hdr->bh_items;
+	uint16_t               len  = hdr->bh_items_nr;
+	unsigned char          last_byte;
+	int                    rc = -ENOENT;
+	int                    i;
+
+	for (i = 0; i < len; ++i) {
+		const struct m0_be_seg_geom *g = &geom[i];
+		M0_LOG(M0_DEBUG, "stob=%p size=%lu addr=%p offset=%lu id=%lu",
+		       stob, g->sg_size, g->sg_addr, g->sg_offset, g->sg_id);
+
+		M0_PRE(g->sg_addr != NULL);
+		M0_PRE(g->sg_size > 0);
+
+		/* offset, size, addr must be a multiple of the page size as
+		 * returned by M0_BE_SEG_PAGE_SIZE. */
+		M0_PRE(m0_is_aligned((uint64_t)g->sg_addr,
+				     M0_BE_SEG_PAGE_SIZE));
+		M0_PRE(m0_is_aligned(g->sg_offset, M0_BE_SEG_PAGE_SIZE));
+		M0_PRE(m0_is_aligned(g->sg_size, M0_BE_SEG_PAGE_SIZE));
+
+		hdr->bh_id = g->sg_id;
+		rc = m0_be_io_single(stob, SIO_WRITE, hdr, g->sg_offset,
+				     be_seg_hdr_size(len));
+
+		/* Do not move this block out of the cycle.  Segments can come
+		 * unordered inside @geom. */
+		if (rc == 0) {
+			/*
+			 * Write the last byte on the backing store.
+			 *
+			 * mmap() will have problem with regular file mapping
+			 * otherwise.  Also checks that device (if used as
+			 * backing storage) has enough size to be used as
+			 * segment backing store.
+			 */
+			last_byte = 0;
+			rc = m0_be_io_single(stob, SIO_WRITE, &last_byte,
+					     g->sg_offset + g->sg_size - 1,
+					     sizeof last_byte);
+			if (rc != 0)
+				M0_LOG(M0_WARN,
+				       "can't write segment's last byte");
+		} else {
+			M0_LOG(M0_WARN, "can't write segment header");
+		}
+		if (rc != 0)
+			break;
+	}
+	return M0_RC(rc);
+}
+
+M0_INTERNAL bool m0_be_seg_geom_eq(const struct m0_be_seg_geom *left,
+				   const struct m0_be_seg_geom *right)
+{
+	return memcmp(left, right, sizeof(struct m0_be_seg_geom)) == 0;
+}
+
+static bool be_seg_geom_has_no_overlapps(const struct m0_be_seg_geom *geom,
+					 int len)
+{
+	int           i;
+	int           j;
+	struct m0_ext ei;
+	struct m0_ext ej;
+	struct m0_ext eai;
+	struct m0_ext eaj;
+
+
+	M0_PRE(len > 0);
+
+	for (i = 0; i < len; ++i) {
+		ei = M0_EXT(geom[i].sg_offset,
+			    geom[i].sg_offset + geom[i].sg_size);
+		eai = M0_EXT((m0_bindex_t)geom[i].sg_addr,
+			     (m0_bindex_t)geom[i].sg_addr +
+			     geom[i].sg_size);
+
+		for (j = 0; j < len; ++j) {
+			if (&geom[j] == &geom[i])
+				continue;
+
+			ej = M0_EXT(geom[j].sg_offset,
+				    geom[j].sg_offset + geom[j].sg_size);
+			eaj = M0_EXT((m0_bindex_t)geom[j].sg_addr,
+				     (m0_bindex_t)geom[j].sg_addr +
+				     geom[j].sg_size);
+
+			if (m0_ext_are_overlapping(&ei, &ej) ||
+			    m0_ext_are_overlapping(&eai, &eaj))
+				return false;
+		}
+	}
+
+	return true;
+}
+
+M0_INTERNAL int m0_be_seg_create_multiple(struct m0_stob *stob,
+					  const struct m0_be_seg_geom *geom)
+{
+	struct m0_be_seg_hdr  *hdr;
+	int		       len;
+	int                    i;
+	int		       rc;
+
+	len = be_seg_geom_len(geom);
+	if (len < 0)
+		return M0_RC(len);
+
+	M0_ASSERT(be_seg_geom_has_no_overlapps(geom, len));
+
+	hdr = m0_alloc(be_seg_hdr_size(len));
+	if (hdr == NULL)
+		return M0_RC(-ENOMEM);
+
+	hdr->bh_items_nr = len;
+	for (i = 0; i < len; ++i)
+		hdr->bh_items[i] = geom[i];
+
+	rc = be_seg_hdr_create(stob, hdr);
+	m0_free(hdr);
+
+	return M0_RC(rc);
+}
+
 M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 				 m0_bcount_t size,
 				 void *addr)
 {
-	struct m0_be_seg_hdr hdr;
-	unsigned char        last_byte;
-	int                  rc;
+	struct m0_be_seg_geom geom[] = {
+		[0] = {
+			.sg_size = size,
+			.sg_addr = addr,
+			.sg_offset = 0ULL,
+			.sg_id = seg->bs_id,
+		},
 
-	M0_ENTRY("seg=%p size=%lu addr=%p", seg, size, addr);
-
-	M0_PRE(seg->bs_state == M0_BSS_INIT);
-	M0_PRE(seg->bs_stob->so_domain != NULL);
-	M0_PRE(addr != NULL);
-	M0_PRE(size > 0);
-
-	hdr = (struct m0_be_seg_hdr) {
-		.bh_addr = addr,
-		.bh_size = size,
+		[1] = M0_BE_SEG_GEOM0,
 	};
-	rc = m0_be_io_single(seg->bs_stob, SIO_WRITE,
-			     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
-	if (rc == 0) {
-		/*
-		 * Write the last byte on the backing store.
-		 *
-		 * mmap() will have problem with regular file mapping otherwise.
-		 * Also checks that device (if used as backing storage) has
-		 * enough size to be used as segment backing store.
-		 */
-		last_byte = 0;
-		rc = m0_be_io_single(seg->bs_stob, SIO_WRITE,
-				     &last_byte, size - 1, sizeof last_byte);
-		if (rc != 0)
-			M0_LOG(M0_WARN, "can't write segment's last byte");
-	} else {
-		M0_LOG(M0_WARN, "can't write segment header");
-	}
-	return M0_RC(rc);
+
+	return m0_be_seg_create_multiple(seg->bs_stob, geom);
 }
 
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
@@ -96,16 +232,21 @@ M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
 
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg    *seg,
 				struct m0_stob      *stob,
-				struct m0_be_domain *dom)
+				struct m0_be_domain *dom,
+				uint64_t             seg_id)
 {
 	M0_ENTRY("seg=%p", seg);
+
+	/* XXX: Remove this eventually, after explicitly called
+	 * m0_be_seg_create_multiple() is used everywhere */
+	if (seg_id == M0_BE_SEG_FAKE_ID)
+		seg_id = m0_stob_fid_get(stob)->f_key;
+
 	*seg = (struct m0_be_seg) {
-		.bs_reserved = M0_BE_SEG_HEADER_OFFSET +
-			       sizeof(struct m0_be_seg_hdr),
 		.bs_domain   = dom,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
-		.bs_id       = m0_stob_fid_get(stob)->f_key,
+		.bs_id       = seg_id,
 	};
 	m0_stob_get(seg->bs_stob);
 	M0_LEAVE();
@@ -157,7 +298,9 @@ static void be_seg_madvise(struct m0_be_seg *seg, m0_bcount_t dump_limit,
 
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 {
-	struct m0_be_seg_hdr  hdr;
+	struct m0_be_seg_hdr  hdr1;
+	struct m0_be_seg_hdr *hdr2;
+	const struct m0_be_seg_geom *g;
 	void                 *p;
 	int                   rc;
 	int                   fd;
@@ -166,29 +309,50 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
 
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
-			     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
+			     &hdr1, M0_BE_SEG_HEADER_OFFSET, sizeof hdr1);
 	if (rc != 0)
 		return M0_RC(rc);
+
+	hdr2 = m0_alloc(be_seg_hdr_size(hdr1.bh_items_nr));
+	if (hdr2 == NULL)
+		return M0_RC(-ENOMEM);
+
+	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
+			     hdr2, M0_BE_SEG_HEADER_OFFSET,
+			     be_seg_hdr_size(hdr1.bh_items_nr));
+	if (rc != 0) {
+		m0_free(hdr2);
+		return M0_RC(rc);
+	}
+	g = be_seg_geom_find_by_id(hdr2, seg->bs_id);
+	if (g == NULL) {
+		m0_free(hdr2);
+		return M0_RC(-ENOENT);
+	}
+
 	/* XXX check for magic */
 
 	fd = m0_stob_linux_container(seg->bs_stob)->sl_fd;
-	p = mmap(hdr.bh_addr, hdr.bh_size, PROT_READ | PROT_WRITE,
-		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, fd, 0);
-	if (p != hdr.bh_addr)
-		return M0_ERR_INFO(-errno, "p=%p hdr.bh_addr=%p",
-				   p, hdr.bh_addr);
+	p = mmap(g->sg_addr, g->sg_size, PROT_READ | PROT_WRITE,
+		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, fd, g->sg_offset);
+	if (p != g->sg_addr)
+		return M0_ERR_INFO(-errno, "p=%p g->sg_addr=%p", p, g->sg_addr);
 
 	/* rc = be_seg_read_all(seg, &hdr); */
 	rc = 0;
 	if (rc == 0) {
-		seg->bs_size  = hdr.bh_size;
-		seg->bs_addr  = hdr.bh_addr;
-		seg->bs_state = M0_BSS_OPENED;
+		seg->bs_reserved = be_seg_hdr_size(hdr2->bh_items_nr);
+		seg->bs_size     = g->sg_size;
+		seg->bs_addr     = g->sg_addr;
+		seg->bs_offset   = g->sg_offset;
+		seg->bs_state    = M0_BSS_OPENED;
 		be_seg_madvise(seg, M0_BE_SEG_CORE_DUMP_LIMIT, MADV_DONTDUMP);
 		be_seg_madvise(seg,                      0ULL, MADV_DONTFORK);
 	} else {
-		munmap(hdr.bh_addr, hdr.bh_size);
+		munmap(g->sg_addr, g->sg_size);
 	}
+
+	m0_free(hdr2);
 	return M0_RC(rc);
 }
 
@@ -241,7 +405,7 @@ M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
 					 const void *addr)
 {
 	M0_PRE(m0_be_seg_contains(seg, addr));
-	return addr - seg->bs_addr;
+	return addr - seg->bs_addr + seg->bs_offset;
 }
 
 M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg)

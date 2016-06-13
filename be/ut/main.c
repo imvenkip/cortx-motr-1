@@ -78,6 +78,7 @@ extern void m0_be_ut_seg_open_close(void);
 extern void m0_be_ut_seg_io(void);
 extern void m0_be_ut_seg_multiple(void);
 extern void m0_be_ut_seg_large(void);
+extern void m0_be_ut_seg_large_multiple(void);
 
 extern void m0_be_ut_group_format(void);
 
@@ -178,6 +179,7 @@ struct m0_ut_suite be_ut = {
 		{ "seg-io",                  m0_be_ut_seg_io                  },
 		{ "seg-multiple",            m0_be_ut_seg_multiple            },
 		{ "seg-large",               m0_be_ut_seg_large               },
+		{ "seg-large-multiple",      m0_be_ut_seg_large_multiple      },
 		{ "group_format",            m0_be_ut_group_format            },
 		{ "mkfs",                    m0_be_ut_mkfs                    },
 		{ "mkfs-multiseg",           m0_be_ut_mkfs_multiseg           },

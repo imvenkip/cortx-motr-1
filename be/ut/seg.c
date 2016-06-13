@@ -288,7 +288,7 @@ void m0_be_ut_seg_large(void)
 	size = BE_UT_SEG_LARGE_SIZE;
 	addr = m0_be_ut_seg_allocate_addr(size);
 
-	m0_be_seg_init(seg, stob, NULL);
+	m0_be_seg_init(seg, stob, NULL, M0_BE_SEG_FAKE_ID);
 	rc = m0_be_seg_create(seg, size, addr);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_be_seg_open(seg);
@@ -324,6 +324,100 @@ void m0_be_ut_seg_large(void)
 
 	m0_ut_stob_put(stob, true);
 	m0_free(seg);
+}
+
+void m0_be_ut_seg_large_multiple(void)
+{
+	struct m0_be_seg_geom geom[] = {
+		{
+			.sg_size = 0ULL,
+			.sg_addr = NULL,
+			.sg_offset = 0ULL,
+			.sg_id = 1,
+		},
+		{
+			.sg_size = 0ULL,
+			.sg_addr = NULL,
+			.sg_offset = 0ULL,
+			.sg_id = 1,
+		},
+		{
+			.sg_size = 0ULL,
+			.sg_addr = NULL,
+			.sg_offset = 0ULL,
+			.sg_id = 1,
+		},
+		M0_BE_SEG_GEOM0,
+	};
+	int i;
+	m0_bcount_t       size;
+	m0_bcount_t       offset = 0;
+	void             *addr;
+	int               rc;
+	struct m0_be_seg *seg[ARRAY_SIZE(geom) - 1];
+	struct m0_stob   *stob;
+
+	for (i = 0; !m0_be_seg_geom_eq(&geom[i], &M0_BE_SEG_GEOM0); ++i) {
+		size = BE_UT_SEG_LARGE_SIZE;
+		addr = m0_be_ut_seg_allocate_addr(size);
+		geom[i] = (struct m0_be_seg_geom) {
+			.sg_size = size,
+			.sg_addr = addr,
+			.sg_offset = offset,
+			.sg_id = i+0x111,
+		},
+		offset += size;
+	}
+
+	stob = m0_ut_stob_linux_get();
+	M0_UT_ASSERT(stob != NULL);
+	rc = m0_be_seg_create_multiple(stob, geom);
+	M0_UT_ASSERT(rc == 0);
+
+	for (i = 0; i < ARRAY_SIZE(geom) - 1; ++i) {
+		M0_ALLOC_PTR(seg[i]);
+		M0_UT_ASSERT(seg[i] != NULL);
+		m0_be_seg_init(seg[i], stob, NULL, geom[i].sg_id);
+		M0_UT_ASSERT(rc == 0);
+		rc = m0_be_seg_open(seg[i]);
+		M0_UT_ASSERT(rc == 0);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(geom) - 1; ++i) {
+		M0_LOG(M0_DEBUG, "check if in-memory segment data is initially"
+		       " zeroed");
+		be_ut_seg_large_mem(seg[i], 0, size, true);
+		M0_LOG(M0_DEBUG, "check if backing store is initially zeroed");
+		be_ut_seg_large_stob(seg[i], 0, size, true);
+		M0_LOG(M0_DEBUG, "write 1 to in-memory segment data");
+		be_ut_seg_large_mem(seg[i], 1, size, false);
+		M0_LOG(M0_DEBUG, "check 1 in in-memory segment data");
+		be_ut_seg_large_mem(seg[i], 1, size, true);
+		M0_LOG(M0_DEBUG, "check if backing store is still zeroed");
+		be_ut_seg_large_stob(seg[i], 0, size, true);
+		M0_LOG(M0_DEBUG, "write 2 to the backing store");
+		be_ut_seg_large_stob(seg[i], 2, size, false);
+		M0_LOG(M0_DEBUG, "check 1 in in-memory segment data");
+		be_ut_seg_large_mem(seg[i], 1, size, true);
+		M0_LOG(M0_DEBUG, "check 2 in the backing store");
+		be_ut_seg_large_stob(seg[i], 2, size, true);
+		M0_LOG(M0_DEBUG, "write 3 to in-memory segment data");
+		be_ut_seg_large_mem(seg[i], 3, size, false);
+		M0_LOG(M0_DEBUG, "check 3 in in-memory segment data");
+		be_ut_seg_large_mem(seg[i], 3, size, true);
+		M0_LOG(M0_DEBUG, "check 2 in the backing store");
+		be_ut_seg_large_stob(seg[i], 2, size, true);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(geom) - 1; ++i) {
+		m0_be_seg_close(seg[i]);
+		rc = m0_be_seg_destroy(seg[i]);
+		M0_UT_ASSERT(rc == 0);
+		m0_be_seg_fini(seg[i]);
+		m0_free(seg[i]);
+	}
+
+	m0_ut_stob_put(stob, true);
 }
 
 #undef M0_TRACE_SUBSYSTEM

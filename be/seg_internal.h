@@ -24,6 +24,7 @@
 
 #include "be/alloc_internal.h"  /* m0_be_allocator_header */
 #include "be/btree.h"           /* m0_be_btree */
+#include "be/seg.h"
 
 /**
  * @addtogroup be
@@ -34,11 +35,13 @@
 /** "On-disk" header for segment, stored in STOB at zero offset */
 struct m0_be_seg_hdr {
 	struct m0_format_header       bh_header;
-	void                         *bh_addr;  /**< Segment address in RAM. */
-	m0_bcount_t                   bh_size;  /**< Segment size. */
+	uint64_t                      bh_id;
 	struct m0_be_allocator_header bh_alloc;
 	struct m0_be_btree            bs_dict;  /**< Segment dictionary */
 	struct m0_format_footer       bh_footer;
+
+	uint16_t                      bh_items_nr;
+	struct m0_be_seg_geom         bh_items[];
 };
 
 /** @} end of be group */

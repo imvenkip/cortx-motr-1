@@ -26,6 +26,7 @@
 #include "be/seg_dict.h"        /* m0_be_seg_dict_init */       /* XXX */
 
 #include "lib/tlist.h"          /* m0_tlink */
+#include "lib/types.h"          /* m0_bcount_t */
 
 struct m0_be_op;
 struct m0_be_reg_d;
@@ -50,6 +51,11 @@ enum {
 	M0_BE_SEG_READ_SIZE_MAX = 1ULL << 26,
 	/** Core dump only first given MBs of the segment. */
 	M0_BE_SEG_CORE_DUMP_LIMIT = 64ULL << 20,
+	/** Fake segment id, used before m0_be_seg_create_multiple is used
+	 * everywhere around the code */
+	M0_BE_SEG_FAKE_ID = ~0,
+	/** Segments' addr, size, offset has to be aligned by this boundary */
+	M0_BE_SEG_PAGE_SIZE = 1ULL << 12,
 };
 
 #define M0_BE_SEG_PG_PRESENT       0x8000000000000000ULL
@@ -59,6 +65,7 @@ struct m0_be_seg {
 	uint64_t               bs_id;
 	struct m0_stob        *bs_stob;
 	m0_bcount_t            bs_size;
+	m0_bcount_t            bs_offset;
 	void                  *bs_addr;
 	/** Size at the start of segment which is used by segment internals. */
 	/** XXX use it in all UTs */
@@ -74,9 +81,34 @@ struct m0_be_seg {
 	struct m0_tlink        bs_linkage;
 };
 
+/* helper for m0_be_seg__create_multiple() */
+struct m0_be_seg_geom {
+	m0_bcount_t            sg_size;
+	void                  *sg_addr;
+	m0_bcount_t            sg_offset;
+	uint64_t               sg_id;
+};
+
+/* this is passed as the last element inside @geom of
+ * m0_be_seg_create_multiple() */
+#define M0_BE_SEG_GEOM0                         \
+	((struct m0_be_seg_geom) {              \
+		.sg_size = (0ULL),              \
+		.sg_addr = (NULL),              \
+		.sg_offset = (0ULL),            \
+		.sg_id = (0ULL)                 \
+	})
+
+M0_INTERNAL bool m0_be_seg_geom_eq(const struct m0_be_seg_geom *left,
+				   const struct m0_be_seg_geom *right);
+
+M0_INTERNAL int m0_be_seg_create_multiple(struct m0_stob *stob,
+					  const struct m0_be_seg_geom *geom);
+
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_stob *stob,
-				struct m0_be_domain *dom);
+				struct m0_be_domain *dom,
+				uint64_t seg_id);
 M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg);
 M0_INTERNAL bool m0_be_seg__invariant(const struct m0_be_seg *seg);
 
@@ -88,6 +120,7 @@ M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg);
 M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 				 m0_bcount_t size,
 				 void *addr);
+
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg);
 
 M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg,
