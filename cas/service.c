@@ -664,6 +664,22 @@ static int cas_val_send(struct cas_fom          *fom,
 	return result;
 }
 
+static int cas_op_check(struct m0_cas_op *op,
+			struct cas_fom   *fom)
+{
+	struct m0_fom   *fom0 = &fom->cf_fom;
+	enum cas_opcode  opc  = cas_opcode(fom0->fo_fop);
+	enum cas_type    ct   = cas_type(fom0);
+	int              rc   = 0;
+
+	if ((ct == CT_META && opc == CO_PUT &&
+	     (cas_op(fom0)->cg_flags & COF_OVERWRITE)) ||
+	    m0_exists(i, op->cg_rec.cr_nr,
+		      !cas_is_valid(opc, ct, cas_at(op, i))))
+		rc = M0_ERR(-EPROTO);
+	return M0_RC(rc);
+}
+
 static int cas_fom_tick(struct m0_fom *fom0)
 {
 	int                 i;
@@ -686,9 +702,9 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
 		if (phase == M0_FOPH_INIT) {
-			if (m0_exists(i, op->cg_rec.cr_nr,
-				      !cas_is_valid(opc, ct, cas_at(op, i)))) {
-				m0_fom_phase_move(fom0, M0_ERR(-EPROTO),
+			rc = cas_op_check(op, fom);
+			if (rc != 0) {
+				m0_fom_phase_move(fom0, M0_ERR(rc),
 						  M0_FOPH_FAILURE);
 				break;
 			}
@@ -1164,7 +1180,8 @@ static int cas_exec(struct cas_fom *fom, enum cas_opcode opc, enum cas_type ct,
 		break;
 	case COMBINE(CO_PUT, CT_BTREE):
 		anchor->ba_value.b_nob = vbuf.b_nob + sizeof (uint64_t);
-		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor);
+		m0_be_btree_save_inplace(btree, tx, beop, key, anchor,
+					 !!(flags & COF_OVERWRITE));
 		break;
 	case COMBINE(CO_PUT, CT_META):
 		anchor->ba_value.b_nob = sizeof (struct cas_index) +
@@ -1248,17 +1265,19 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	struct m0_cas_rec *rec_out;
 	struct m0_cas_rec *rec;
 	int                berc = cas_berc(fom);
+	int                rc;
 	bool               at_fini = true;
 
 	M0_ASSERT(fom->cf_ipos < op->cg_rec.cr_nr);
 	rec_out = cas_out_at(rep, fom->cf_opos);
 	rec     = cas_at(op, fom->cf_ipos);
 
+	rc = rec_out->cr_rc;
 	cas_release(fom, &fom->cf_fom);
 	if (opc == CO_CUR) {
 		fom->cf_curpos++;
-		if (rec_out->cr_rc == 0 && berc == 0)
-			rec_out->cr_rc = fom->cf_curpos;
+		if (rc == 0 && berc == 0)
+			rc = fom->cf_curpos;
 		if (berc == 0 && fom->cf_curpos < rec->cr_rc) {
 			/* Continue with the same iteration. */
 			--fom->cf_ipos;
@@ -1274,6 +1293,15 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	}
 	++fom->cf_ipos;
 	++fom->cf_opos;
+	if (opc == CO_PUT) {
+		/*
+		 * Overwrite return code if key is not found
+		 * and COF_CREATE is set.
+		 */
+		if (rc == -EEXIST && (op->cg_flags & COF_CREATE))
+			rc = 0;
+	}
+	rec_out->cr_rc = rc;
 	if (at_fini) {
 		/* Finalise input AT buffers. */
 		cas_at_fini(&rec->cr_key);
@@ -1331,7 +1359,7 @@ static int cas_meta_selfadd(struct m0_be_btree *meta, struct m0_be_tx *tx)
 	uint8_t                    key_data[sizeof(uint64_t) +
 					    sizeof(struct m0_fid)];
 	struct m0_buf              key;
-	struct m0_be_btree_anchor  anchor;
+	struct m0_be_btree_anchor  anchor = {};
 	void                      *val_data;
 	int                        rc;
 

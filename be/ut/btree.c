@@ -145,7 +145,7 @@ static int
 btree_insert_inplace(struct m0_be_btree *t, struct m0_buf *k, int v,
 		     int nr_left)
 {
-	struct m0_be_tx_credit	   cred = {};
+	struct m0_be_tx_credit     cred = {};
 	static struct m0_be_tx    *tx = NULL;
 	static int                 nr;
 	struct m0_be_op            op = {};
@@ -191,7 +191,7 @@ btree_delete(struct m0_be_btree *t, struct m0_buf *k, int nr_left)
 	static struct m0_be_tx *tx = NULL;
 	static int              nr;
 	struct m0_be_op         op = {};
-	int		        rc;
+	int                     rc;
 
 	M0_ENTRY();
 
@@ -304,6 +304,88 @@ static void btree_delete_test(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	btree_insert(tree, &key, &val, 0);
 }
 
+static int btree_save(struct m0_be_btree *tree, struct m0_buf *k,
+		      struct m0_buf *v, bool overwrite)
+{
+	struct m0_be_tx        *tx;
+	struct m0_be_tx_credit  cred = {};
+	struct m0_be_op         op = {};
+	int                     rc;
+
+	M0_ALLOC_PTR(tx);
+	M0_UT_ASSERT(tx != NULL);
+	m0_be_btree_insert_credit(tree, 1, INSERT_SIZE, INSERT_SIZE, &cred);
+	m0_be_ut_tx_init(tx, &ut_be);
+	m0_be_tx_prep(tx, &cred);
+
+	rc = m0_be_tx_open_sync(tx);
+	M0_UT_ASSERT(rc == 0);
+	rc = M0_BE_OP_SYNC_RET_WITH(&op,
+			m0_be_btree_save(tree, tx, &op, k, v, overwrite),
+			bo_u.u_btree.t_rc);
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+	m0_free(tx);
+	return rc;
+}
+
+static void btree_save_test(struct m0_be_btree *tree)
+{
+	struct m0_buf    key;
+	struct m0_buf    val;
+	struct m0_buf    ret_val;
+	struct m0_be_op *op;
+	char             k[INSERT_SIZE];
+	char             v[INSERT_SIZE];
+	int              rc;
+
+	M0_ALLOC_PTR(op);
+	M0_ASSERT(op != NULL);
+
+	m0_buf_init(&key, k, sizeof k);
+	m0_buf_init(&val, v, sizeof v);
+
+	/* Hope that a0a0 is not in the tree. */
+	sprintf(k, "%0*x", INSERT_SIZE-1, 0xa0a0);
+	sprintf(v, "%0*x", INSERT_SIZE-1, 0xa0a0);
+
+	/* Check that key is not already inserted. */
+	rc = M0_BE_OP_SYNC_RET_WITH(
+		op, m0_be_btree_lookup(tree, op, &key, &ret_val),
+		bo_u.u_btree.t_rc);
+	M0_UT_ASSERT(rc == -ENOENT);
+
+	M0_LOG(M0_INFO, "Save new key...");
+	rc = btree_save(tree, &key, &val, false);
+	M0_UT_ASSERT(rc == 0);
+	btree_dbg_print(tree);
+	M0_SET0(op);
+	rc = M0_BE_OP_SYNC_RET_WITH(
+		op, m0_be_btree_lookup(tree, op, &key, &ret_val),
+		bo_u.u_btree.t_rc);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(strcmp(ret_val.b_addr, "a0a0") == 0);
+
+	M0_LOG(M0_INFO, "Save existing key without overwrite flag...");
+	rc = btree_save(tree, &key, &val, false);
+	M0_UT_ASSERT(rc == -EEXIST);
+
+	M0_LOG(M0_INFO, "Save existing key with overwrite flag...");
+	sprintf(v, "%0*x", INSERT_SIZE-1, 0xb0b0);
+	rc = btree_save(tree, &key, &val, true);
+	M0_UT_ASSERT(rc == 0);
+	btree_dbg_print(tree);
+	M0_SET0(op);
+	rc = M0_BE_OP_SYNC_RET_WITH(
+		op, m0_be_btree_lookup(tree, op, &key, &ret_val),
+		bo_u.u_btree.t_rc);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(strcmp(ret_val.b_addr, "b0b0") == 0);
+
+	M0_LOG(M0_INFO, "Cleanup the key...");
+	btree_delete(tree, &key, 0);
+}
+
 static struct m0_be_btree *create_tree(void)
 {
 	struct m0_be_tx_credit	cred = {};
@@ -372,7 +454,7 @@ static struct m0_be_btree *create_tree(void)
 	btree_dbg_print(tree);
 
 	btree_delete_test(tree, tx);
-
+	btree_save_test(tree);
 	M0_LOG(M0_INFO, "Updating...");
 	m0_be_ut_tx_init(tx, &ut_be);
 	cred = M0_BE_TX_CREDIT(0, 0);

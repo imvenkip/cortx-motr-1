@@ -409,7 +409,8 @@ static int ut_rec_put(struct cl_ctx           *cctx,
 		      struct m0_cas_id        *index,
 		      const struct m0_bufvec  *keys,
 		      const struct m0_bufvec  *values,
-		      struct m0_cas_rec_reply *rep)
+		      struct m0_cas_rec_reply *rep,
+		      uint32_t                 flags)
 {
 	struct m0_cas_req  req;
 	struct m0_chan    *chan;
@@ -426,7 +427,7 @@ static int ut_rec_put(struct cl_ctx           *cctx,
 	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_put(&req, index, keys, values, NULL);
+	rc = m0_cas_put(&req, index, keys, values, NULL, flags);
 	if (rc == 0) {
 		/* wait results */
 		m0_cas_req_wait(&req, M0_BITS(CASREQ_FINAL), M0_TIME_NEVER);
@@ -788,11 +789,12 @@ static void idx_tree_insert(void)
 	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
 					*(uint64_t*)values.ov_buf[i] = i * i,
 					true));
-	M0_UT_ASSERT(m0_forall(i, COUNT_TREE, index.ci_fid = ifid[i],
-					 rc = ut_rec_put(&casc_ut_cctx, &index,
-							 &keys, &values,
-							 rec_rep),
-					 rc == 0));
+	for (i = 0; i < COUNT_TREE; i++) {
+		index.ci_fid = ifid[i];
+		rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values,
+				rec_rep, 0);
+		M0_UT_ASSERT(rc == 0);
+	}
 	/* get all data */
 	m0_forall(i, COUNT_TREE, *(uint64_t*)values.ov_buf[i] = 0, true);
 	for (i = 0; i < COUNT_TREE; i++) {
@@ -816,6 +818,7 @@ static void idx_tree_delete(void)
 	struct m0_bufvec        keys;
 	struct m0_bufvec        values;
 	int                     rc;
+	int                     i;
 
 	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
 
@@ -840,11 +843,11 @@ static void idx_tree_delete(void)
 	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
 					*(uint64_t*)values.ov_buf[i] = i * i,
 					true));
-	M0_UT_ASSERT(m0_forall(i, COUNT_TREE, index.ci_fid = ifid[i],
-					 rc = ut_rec_put(&casc_ut_cctx, &index,
-							 &keys, &values,
-							 rep),
-					 rc == 0));
+	for (i = 0; i < COUNT_TREE; i++) {
+		index.ci_fid = ifid[i];
+		rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
+		M0_UT_ASSERT(rc == 0);
+	}
 
 	/* delete all trees */
 	rc = ut_idx_delete(&casc_ut_cctx, ifid, COUNT_TREE, rep);
@@ -894,11 +897,11 @@ static void idx_tree_delete_fail(void)
 	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
 					*(uint64_t*)values.ov_buf[i] = i * i,
 					true));
-	M0_UT_ASSERT(m0_forall(i, COUNT_TREE, index.ci_fid = ifid[i],
-					 rc = ut_rec_put(&casc_ut_cctx, &index,
-							 &keys, &values,
-							 rep),
-					 rc == 0));
+	for (i = 0; i < COUNT_TREE; i++) {
+		index.ci_fid = ifid[i];
+		rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
+		M0_UT_ASSERT(rc == 0);
+	}
 
 	/* delete all trees */
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
@@ -1055,7 +1058,7 @@ static void next_common(struct m0_bufvec *keys,
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
-	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
 	rc = m0_bufvec_alloc(&start_key, 1, keys->ov_vec.v_count[0]);
@@ -1246,7 +1249,7 @@ static void next_fail(void)
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
-	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
 	/* clear result set */
@@ -1290,7 +1293,7 @@ static void next_multi_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
-	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
 	/*
@@ -1413,7 +1416,7 @@ static void put_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
-	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
 
@@ -1506,6 +1509,79 @@ static void put_bulk(void)
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
+/*
+ * Put small Keys and Values with 'create' or 'overwrite' flag.
+ */
+static void put_save_common(uint32_t flags)
+{
+	struct m0_cas_rec_reply rep[1];
+	struct m0_cas_get_reply grep[1];
+	const struct m0_fid     ifid = IFID(2, 3);
+	struct m0_cas_id        index;
+	struct m0_bufvec        keys;
+	struct m0_bufvec        values;
+	int                     rc;
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	*(uint64_t*)keys.ov_buf[0] = 1;
+	*(uint64_t*)values.ov_buf[0] = 1;
+
+	M0_SET_ARR0(rep);
+
+	/* create index */
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+
+	index.ci_fid = ifid;
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
+
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep[0].crr_rc == 0);
+
+	*(uint64_t*)values.ov_buf[0] = 2;
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, flags);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep[0].crr_rc == 0);
+
+	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, grep);
+	M0_UT_ASSERT(rc == 0);
+	if (flags & COF_CREATE)
+		M0_UT_ASSERT(*(uint64_t*)grep[0].cge_val.b_addr == 1);
+	if (flags & COF_OVERWRITE)
+		M0_UT_ASSERT(*(uint64_t*)grep[0].cge_val.b_addr == 2);
+	ut_get_rep_clear(grep, 1);
+
+	/* Remove index. */
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
+
+/*
+ * Put small Keys and Values with 'create' flag.
+ */
+static void put_create(void)
+{
+	put_save_common(COF_CREATE);
+}
+
+/*
+ * Put small Keys and Values with 'overwrite' flag.
+ */
+static void put_overwrite(void)
+{
+	put_save_common(COF_OVERWRITE);
+}
+
 static void put_fail_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 {
 	struct m0_cas_rec_reply rep[COUNT];
@@ -1521,10 +1597,10 @@ static void put_fail_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	index.ci_fid = ifid;
 
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
-	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
 	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
-	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
@@ -1589,14 +1665,14 @@ static void upd(void)
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
 	/* Insert new records */
-	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	/* update several records */
 	m0_forall(i, values.ov_vec.v_nr / 3,
 		  *(uint64_t*)values.ov_buf[i] = COUNT * COUNT, true);
 	keys.ov_vec.v_nr /= 3;
 	values.ov_vec.v_nr = keys.ov_vec.v_nr;
-	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
 	values.ov_vec.v_nr = keys.ov_vec.v_nr = COUNT;
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, COUNT, i < values.ov_vec.v_nr / 3 ?
@@ -1629,7 +1705,7 @@ static void del_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
 	/* Insert new records */
-	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	/* Delete all records */
 	rc = ut_del_rec(&casc_ut_cctx, &index, keys, rep);
@@ -1710,7 +1786,7 @@ static void del_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
 	/* Insert new records */
-	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	/* Delete all records */
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
@@ -1759,7 +1835,7 @@ static void del_n(void)
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
 	/* Insert new records */
-	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	/* Delete several records */
 	keys.ov_vec.v_nr /= 3;
@@ -1809,7 +1885,7 @@ static void null_value(void)
 	index.ci_fid = ifid;
 
 	/* Insert new records with empty (NULL) values. */
-	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Get inserted records through 'GET' request. */
@@ -1863,7 +1939,7 @@ static void get_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	M0_UT_ASSERT(rep[0].crr_rc == 0);
 	index.ci_fid = ifid;
 	/* Insert new records */
-	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
 
@@ -1984,7 +2060,7 @@ static void get_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
 	/* Insert new records */
-	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep);
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_forall(i, values.ov_vec.v_nr / 3,
@@ -2023,6 +2099,8 @@ struct m0_ut_suite cas_client_ut = {
 		{ "next-multi-bulk",        next_multi_bulk,        "Leonid" },
 		{ "put",                    put,                    "Leonid" },
 		{ "put-bulk",               put_bulk,               "Leonid" },
+		{ "put-create",             put_create,             "Sergey" },
+		{ "put-overwrite",          put_overwrite,          "Sergey" },
 		{ "put-fail",               put_fail,               "Leonid" },
 		{ "put-bulk-fail",          put_bulk_fail,          "Leonid" },
 		{ "get",                    get,                    "Leonid" },

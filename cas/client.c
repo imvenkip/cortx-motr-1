@@ -1233,7 +1233,8 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 			   struct m0_cas_id       *index,
 			   const struct m0_bufvec *keys,
 			   const struct m0_bufvec *values,
-			   struct m0_dtx          *dtx)
+			   struct m0_dtx          *dtx,
+			   uint32_t                flags)
 {
 	struct m0_cas_op *op;
 	int               rc;
@@ -1243,9 +1244,11 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 	M0_PRE(values != NULL);
 	M0_PRE(keys->ov_vec.v_nr == values->ov_vec.v_nr);
 	M0_PRE(m0_cas_req_is_locked(req));
+	/* COF_CREATE and COF_OVERWRITE flags can't be specified together. */
+	M0_PRE(!(flags & COF_CREATE) || !(flags & COF_OVERWRITE));
 
 	(void)dtx;
-	rc = cas_records_op_prepare(req, index, keys, values, 0, &op);
+	rc = cas_records_op_prepare(req, index, keys, values, flags, &op);
 	if (rc != 0)
 		return M0_ERR(rc);
 	creq_fop_init(req, &cas_put_fopt, op);

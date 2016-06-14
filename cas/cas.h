@@ -193,7 +193,21 @@ struct m0_cas_recv {
  * CAS operation flags.
  */
 enum m0_cas_op_flags {
-	COF_SLANT     = 0x01,
+	/**
+	 * For NEXT operation, allows iteration to start with the smallest key
+	 * following the start key.
+	 */
+	COF_SLANT     = 1 << 0,
+	/**
+	 * For PUT operation, instructs it to be a no-op if the record with the
+	 * given key already exists.
+	 */
+	COF_CREATE    = 1 << 1,
+	/**
+	 * For PUT operation, instructs it to silently overwrite existing record
+	 * with the same key, if any.
+	 */
+	COF_OVERWRITE = 1 << 2
 };
 
 /**

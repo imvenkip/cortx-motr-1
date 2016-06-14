@@ -395,6 +395,10 @@ M0_INTERNAL void m0_cas_index_list_rep(struct m0_cas_req         *req,
  * request is processed. Also, it's user responsibility to manage these buffers
  * after request is processed.
  *
+ * 'Flags' argument is a bitmask of m0_cas_op_flags values. COF_CREATE and
+ * COF_OVERWRITE flags can't be specified together.
+ *
+ * @pre !(flags & COF_CREATE) || !(flags & COF_OVERWRITE)
  * @pre m0_cas_req_is_locked(req)
  * @see m0_cas_put_rep()
  */
@@ -402,7 +406,8 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 			   struct m0_cas_id       *index,
 			   const struct m0_bufvec *keys,
 			   const struct m0_bufvec *values,
-			   struct m0_dtx          *dtx);
+			   struct m0_dtx          *dtx,
+			   uint32_t                flags);
 
 /**
  * Gets execution result of m0_cas_put() request.

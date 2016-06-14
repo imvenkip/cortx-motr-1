@@ -257,6 +257,31 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 				    const struct m0_buf *value);
 
 /**
+ * This function:
+ * - Inserts given @key and @value in btree if @key does not exist.
+ * - Updates given @value in btree if @key exists and overwrite flag is
+ *   set to true.
+ * Operation is asynchronous.
+ *
+ * It's a shortcut for m0_be_btree_lookup() with successive m0_be_btree_insert()
+ * if key is not found or m0_be_btree_update() if key exists and overwrite flag
+ * is set. This function looks up the key only once compared to double lookup
+ * made by m0_btree_lookup() + m0_be_btree_insert()/update().
+ *
+ * Credits for this operation should be calculated by
+ * m0_be_btree_insert_credit() or m0_be_btree_insert_credit2(), because in the
+ * worst case insertion is required.
+ *
+ * @see m0_be_btree_insert()
+ */
+M0_INTERNAL void m0_be_btree_save(struct m0_be_btree  *tree,
+				  struct m0_be_tx     *tx,
+				  struct m0_be_op     *op,
+				  const struct m0_buf *key,
+				  const struct m0_buf *val,
+				  bool                 overwrite);
+
+/**
  * Updates the @value at the @key in btree. Operation is asynchronous.
  *
  * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
@@ -379,6 +404,23 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree *tree,
 					    struct m0_be_op *op,
 					    const struct m0_buf *key,
 					    struct m0_be_btree_anchor *anchor);
+
+/**
+ * This function:
+ * - Inserts given @key and @value in btree if @key does not exist.
+ * - Updates given @value in btree if @key exists and overwrite flag is
+ *   set to true.
+ * User has to allocate his own @value buffer and capture node buffer
+ * in which @key is inserted.
+ *
+ * @see m0_be_btree_update_inplace()
+ */
+M0_INTERNAL void m0_be_btree_save_inplace(struct m0_be_btree        *tree,
+					  struct m0_be_tx           *tx,
+					  struct m0_be_op           *op,
+					  const struct m0_buf       *key,
+					  struct m0_be_btree_anchor *anchor,
+					  bool                       overwrite);
 
 /**
  * Looks up a value stored in the @tree by the given @key.
