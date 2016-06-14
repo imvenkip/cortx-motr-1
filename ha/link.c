@@ -213,10 +213,10 @@ static uint64_t ha_link_q_consume(struct m0_ha_link      *hl,
 
 	M0_PRE(M0_IN(mq, (&hl->hln_q_delivered, &hl->hln_q_not_delivered)));
 	m0_mutex_lock(&hl->hln_lock);
-	qitem = m0_ha_msg_queue_dequeue(&hl->hln_q_delivered);
+	qitem = m0_ha_msg_queue_dequeue(mq);
 	if (qitem != NULL) {
 		tag = qitem->hmq_msg.hm_tag;
-		m0_ha_msg_queue_free(&hl->hln_q_delivered, qitem);
+		m0_ha_msg_queue_free(mq, qitem);
 	} else {
 		tag = M0_HA_MSG_TAG_INVALID;
 	}
