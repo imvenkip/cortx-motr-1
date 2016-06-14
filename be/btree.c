@@ -37,12 +37,7 @@
 /* btree constants */
 enum {
 	BTREE_ALLOC_SHIFT = 0,
-
 	KV_NR             = 2 * BTREE_FAN_OUT - 1,
-	KV_SIZE           = KV_NR * sizeof(struct bt_key_val *),
-
-	CHILDREN_NR       = 2 * BTREE_FAN_OUT,
-	CHILDREN_SIZE     = CHILDREN_NR * sizeof(struct m0_be_bnode *)
 };
 
 struct bt_key_val {
@@ -50,15 +45,16 @@ struct bt_key_val {
 	void                   *val;
 };
 
+/* WARNING!: fields position is paramount, see node_update() */
 struct m0_be_bnode {
 	struct m0_format_header b_header;
 	struct m0_be_bnode     *b_next;
 	unsigned int            b_nr_active; /**< Number of active keys. */
 	unsigned int            b_level;     /**< Level in the B-Tree. */
-	struct bt_key_val       b_key_vals[KV_NR];
-	struct m0_be_bnode     *b_children[CHILDREN_NR];
 	bool                    b_leaf;      /**< Leaf node? */
 	char                    b_pad[7];
+	struct bt_key_val       b_key_vals[KV_NR];
+	struct m0_be_bnode     *b_children[KV_NR + 1];
 	struct m0_format_footer b_footer;
 };
 M0_BASSERT(sizeof(bool) == 1);
@@ -248,19 +244,23 @@ static inline bool btree_node_invariant(const struct m0_be_btree *btree,
 
 static inline bool btree_invariant(const struct m0_be_btree *btree)
 {
-	/* Invariant may not work due to the implementation details of the tree
-	 * which is obvoiusly bad. If so, please report this to ABilenko and
-	 * feel free to disable invariant for a while.
-	 */
-
 	return btree_node_invariant(btree, btree->bb_root, true);
 }
 
 static void btree_node_update(struct m0_be_bnode       *node,
-			const struct m0_be_btree *btree,
-			struct m0_be_tx          *tx)
+			      const struct m0_be_btree *btree,
+			      struct m0_be_tx          *tx)
 {
-	mem_update(btree, tx, node, sizeof(struct m0_be_bnode));
+	mem_update(btree, tx, node, offsetof(struct m0_be_bnode, b_key_vals));
+
+	if (node->b_nr_active > 0) {
+		mem_update(btree, tx, node->b_key_vals,
+			   sizeof(*node->b_key_vals) * node->b_nr_active);
+		mem_update(btree, tx, node->b_children,
+			   sizeof(*node->b_children) * (node->b_nr_active + 1));
+	}
+
+	mem_update(btree, tx, &node->b_footer, sizeof(node->b_footer));
 }
 
 /**
@@ -325,10 +325,10 @@ static void btree_split_child(struct m0_be_btree *btree,
 
 	new_child->b_leaf = child->b_leaf;
 	new_child->b_level = child->b_level;
-	new_child->b_nr_active = BTREE_FAN_OUT - 1;
+	new_child->b_nr_active = order - 1;
 
 	/*  Copy the higher order keys to the new child */
-	for (i = 0; i < order - 1; i++) {
+	for (i = 0; i < new_child->b_nr_active; i++) {
 		new_child->b_key_vals[i] = child->b_key_vals[i + order];
 		if (!child->b_leaf)
 			new_child->b_children[i] = child->b_children[i + order];
