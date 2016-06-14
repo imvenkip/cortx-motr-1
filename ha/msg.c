@@ -68,8 +68,11 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		/* TODO */
 		break;
 	case M0_HA_MSG_NVEC:
-		M0_LOG(M0_ALWAYS, "nvec: hmnv_type=%"PRIu64" hmnv_nr=%"PRIu64,
-		       data->u.hed_nvec.hmnv_type, data->u.hed_nvec.hmnv_nr);
+	case M0_HA_MSG_NVEC_HACK:
+		M0_LOG(M0_ALWAYS, "nvec: hmnv_type=%"PRIu64" hmnv_nr=%"PRIu64" "
+		       "hmnv_id_of_get=%"PRIu64,
+		       data->u.hed_nvec.hmnv_type, data->u.hed_nvec.hmnv_nr,
+		       data->u.hed_nvec.hmnv_id_of_get);
 		for (i = 0; i < data->u.hed_nvec.hmnv_nr; ++i) {
 			M0_LOG(M0_ALWAYS, "hmnv_vec[%d]=(no_id="FID_F" "
 			       "no_state=%"PRIu32")", i,

@@ -195,17 +195,24 @@ enum m0_ha_state_update_defaults {
 	M0_HA_STATE_UPDATE_LIMIT = 1024,
 };
 
-struct m0_ha_msg_note {
-	/** 0 for note_set, 1 for note_get */
-	uint64_t          nmn_type;
-	struct m0_ha_note hmn_note;
-} M0_XCA_RECORD;
-
 struct m0_ha_msg_nvec {
-	/** as for m0_ha_msg_note::nmn_type */
+	/** 0 for note_set, 1 for note_get */
 	uint64_t          hmnv_type;
+	uint64_t          hmnv_id_of_get;
 	uint64_t          hmnv_nr;
 	struct m0_ha_note hmnv_vec[M0_HA_STATE_UPDATE_LIMIT];
+} M0_XCA_RECORD;
+
+struct m0_ha_msg_nvec_array {
+	struct m0_ha_note hmna_arr[M0_HA_STATE_UPDATE_LIMIT];
+} M0_XCA_ARRAY;
+
+struct m0_ha_msg_nvec2 {
+	/** 0 for note_set, 1 for note_get */
+	uint64_t          hmnv_type;
+	uint64_t          hmnv_id_of_get;
+	uint64_t          hmnv_nr;
+	struct m0_ha_msg_nvec_array hmnv_arr;
 } M0_XCA_RECORD;
 
 
