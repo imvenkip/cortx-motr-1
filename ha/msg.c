@@ -49,6 +49,43 @@ M0_INTERNAL bool m0_ha_msg_eq(const struct m0_ha_msg *msg1,
 		      &msg2->hm_data, sizeof msg1->hm_data) == 0;
 }
 
+M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
+                                       const char             *prefix)
+{
+	const struct m0_ha_msg_data *data = &msg->hm_data;
+	int                          i;
+
+	M0_LOG(M0_DEBUG, "%s: hm_fid="FID_F" hm_source_process="FID_F" "
+	       "hm_source_service="FID_F" hm_time=%"PRIu64" hm_tag=%"PRIu64,
+	       prefix, FID_P(&msg->hm_fid), FID_P(&msg->hm_source_process),
+	       FID_P(&msg->hm_source_service), msg->hm_time, msg->hm_tag);
+
+	switch (data->hed_type) {
+	case M0_HA_MSG_INVALID:
+		M0_LOG(M0_DEBUG, "message has INVALID type");
+		break;
+	case M0_HA_MSG_STOB_IOQ:
+		/* TODO */
+		break;
+	case M0_HA_MSG_NVEC:
+		M0_LOG(M0_ALWAYS, "nvec: hmnv_type=%"PRIu64" hmnv_nr=%"PRIu64,
+		       data->u.hed_nvec.hmnv_type, data->u.hed_nvec.hmnv_nr);
+		for (i = 0; i < data->u.hed_nvec.hmnv_nr; ++i) {
+			M0_LOG(M0_ALWAYS, "hmnv_vec[%d]=(no_id="FID_F" "
+			       "no_state=%"PRIu32")", i,
+			       FID_P(&data->u.hed_nvec.hmnv_vec[i].no_id),
+			       data->u.hed_nvec.hmnv_vec[i].no_state);
+			if (data->u.hed_nvec.hmnv_vec[i].no_id.f_container < 0x10000000000UL)
+				M0_IMPOSSIBLE("BUG HERE");
+		}
+		break;
+	default:
+		M0_LOG(M0_WARN, "unknown m0_ha_msg type %"PRIu64,
+		       data->hed_type);
+		break;
+	}
+}
+
 
 #undef M0_TRACE_SUBSYSTEM
 

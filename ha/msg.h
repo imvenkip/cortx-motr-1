@@ -93,6 +93,10 @@ struct m0_ha_msg {
 M0_INTERNAL bool m0_ha_msg_eq(const struct m0_ha_msg *msg1,
                               const struct m0_ha_msg *msg2);
 
+/** Prints message content. Useful for debugging. */
+M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
+                                       const char             *prefix);
+
 /** @} end of ha group */
 #endif /* __MERO_HA_MSG_H__ */
 

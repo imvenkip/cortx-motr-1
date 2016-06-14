@@ -59,6 +59,7 @@
 #include "mero/magic.h"         /* M0_HALON_INTERFACE_MAGIC */
 #include "mero/version.h"       /* m0_build_info_get */
 
+#include "ha/msg.h"             /* m0_ha_msg_debug_print */
 #include "ha/ha.h"              /* m0_ha */
 #include "ha/entrypoint_fops.h" /* m0_ha_entrypoint_req */
 
@@ -228,6 +229,7 @@ void halon_interface_msg_received_cb(struct m0_ha      *ha,
 
 	M0_ENTRY("hii=%p ha=%p hl=%p msg=%p tag=%"PRIu64,
 		 hii, ha, hl, msg, tag);
+	m0_ha_msg_debug_print(msg, __func__);
 	hii->hii_cfg.hic_msg_received_cb(hii->hii_hi, hl, msg, tag);
 	M0_LEAVE();
 }
@@ -681,6 +683,7 @@ void m0_halon_interface_send(struct m0_halon_interface *hi,
 	M0_PRE(m0_get() == &hii->hii_instance);
 
 	M0_ENTRY("hi=%p ha=%p hl=%p msg=%p tag=%p", hi, &hii->hii_ha, hl, msg, tag);
+	m0_ha_msg_debug_print(msg, __func__);
 	m0_ha_send(&hii->hii_ha, hl, msg, tag);
 	M0_LEAVE("hi=%p ha=%p hl=%p msg=%p tag=%"PRIu64,
 		 hi, &hii->hii_ha, hl, msg, *tag);
