@@ -22,6 +22,7 @@
 /**
  * @addtogroup ha
  *
+ * TODO add m0_module to m0_ha
  * TODO handle memory allocation errors
  * TODO handle all errors
  * TODO handle error when link_id_request is false and no link is established
@@ -244,8 +245,6 @@ M0_INTERNAL int m0_ha_start(struct m0_ha *ha)
 	                                  &ha->h_cfg.hcf_entrypoint_server_cfg);
 	M0_ASSERT(rc == 0);
 	m0_ha_entrypoint_server_start(&ha->h_entrypoint_server);
-	M0_ASSERT(m0_get()->i_ha == NULL);      /* XXX */
-	m0_get()->i_ha = ha;                    /* XXX */
 	return M0_RC(0);
 }
 
@@ -262,8 +261,6 @@ M0_INTERNAL void m0_ha_stop(struct m0_ha *ha)
 		ha->h_cfg.hcf_ops.hao_link_disconnected(ha, &hlx->hlx_link);
 		ha_link_ctx_fini_rpc(ha, hlx);
 	} m0_tl_endfor;
-	M0_ASSERT(m0_get()->i_ha != NULL);      /* XXX */
-	m0_get()->i_ha = NULL;                  /* XXX */
 	m0_ha_entrypoint_server_stop(&ha->h_entrypoint_server);
 	m0_ha_entrypoint_server_fini(&ha->h_entrypoint_server);
 	m0_ha_link_service_fini(ha->h_hl_service);
