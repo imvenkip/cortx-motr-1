@@ -255,10 +255,15 @@ M0_INTERNAL void m0_addb2_net_stop(struct m0_addb2_net *net,
 	}
 }
 
+M0_INTERNAL bool m0_addb2_net__is_not_locked(const struct m0_addb2_net *net)
+{
+	return m0_mutex_is_not_locked(&net->ne_lock);
+}
+
 M0_INTERNAL int m0_addb2_net_module_init(void)
 {
 	M0_FOP_TYPE_INIT(&net_fopt,
-			 .name      = "addb2 fop",
+			 .name      = "addb2-fop",
 			 .opcode    = M0_ADDB_FOP_OPCODE,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
 			 .xt        = m0_addb2_trace_xc,

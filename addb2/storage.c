@@ -359,6 +359,12 @@ M0_INTERNAL int m0_addb2_storage_submit(struct m0_addb2_storage *stor,
 	return +1;
 }
 
+M0_INTERNAL bool
+m0_addb2_storage__is_not_locked(const struct m0_addb2_storage *stor)
+{
+	return m0_mutex_is_not_locked(&stor->as_lock);
+}
+
 static void stor_fini(struct m0_addb2_storage *stor)
 {
 	struct frame *frame;

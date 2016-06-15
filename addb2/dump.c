@@ -552,8 +552,6 @@ struct id_intrp ids[] = {
 	{ M0_AVI_RPC_REPLIED,     "rpc-replied",      { &ptr, &rpcop } },
 	{ M0_AVI_RPC_OUT_PHASE,   "rpc-out-phase",    { &rpc_out, &skip } },
 	{ M0_AVI_RPC_IN_PHASE,    "rpc-in-phase",    { &rpc_in, &skip } },
-	{ M0_AVI_RPC_MACH_LOCK_WAIT, "rpc-mach-wait", { &duration, &sym } },
-	{ M0_AVI_RPC_MACH_LOCK_HOLD, "rpc-mach-hold", { &duration, &sym } },
 	{ M0_AVI_BE_TX_STATE,     "tx-state",        { &tx_state, &skip  } },
 	{ M0_AVI_BE_TX_COUNTER,   "",
 	  .ii_repeat = M0_AVI_BE_TX_COUNTER_END - M0_AVI_BE_TX_COUNTER,

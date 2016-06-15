@@ -296,7 +296,9 @@ int m0_addb2_sys_net_start(struct m0_addb2_sys *sys)
 {
 	M0_PRE(sys->sy_net == NULL);
 
+	sys_lock(sys);
 	sys->sy_net = m0_addb2_net_init();
+	sys_unlock(sys);
 	return sys->sy_net != NULL ? 0 : M0_ERR(-ENOMEM);
 }
 
@@ -328,7 +330,9 @@ int m0_addb2_sys_net_start_with(struct m0_addb2_sys *sys, struct m0_tl *head)
 		if (!M0_IN(service->sc_type, (M0_CST_MDS, M0_CST_IOS)))
 			continue;
 		conn = &service->sc_rlink.rlk_conn;
+		sys_lock(sys);
 		result = m0_addb2_net_add(sys->sy_net, conn);
+		sys_unlock(sys);
 		if (result != 0) {
 			m0_addb2_sys_net_stop(sys);
 			break;
@@ -342,8 +346,10 @@ int m0_addb2_sys_stor_start(struct m0_addb2_sys *sys, struct m0_stob *stob,
 {
 	M0_PRE(sys->sy_stor == NULL);
 
+	sys_lock(sys);
 	sys->sy_stor = m0_addb2_storage_init(stob, size, format,
 					     &sys_stor_ops, sys);
+	sys_unlock(sys);
 	return sys->sy_stor != NULL ? 0 : M0_ERR(-ENOMEM);
 }
 
@@ -557,6 +563,10 @@ static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	sys_unlock(sys);
 }
 
+M0_INTERNAL bool m0_addb2_net__is_not_locked(const struct m0_addb2_net *net);
+M0_INTERNAL bool
+m0_addb2_storage__is_not_locked(const struct m0_addb2_storage *stor);
+
 /**
  * Locks the sys object.
  *
@@ -566,6 +576,13 @@ static void sys_lock(struct m0_addb2_sys *sys)
 {
 	struct m0_addb2_mach *cur = m0_thread_tls()->tls_addb2_mach;
 
+	/*
+	 * Assert lock ordering: net lock and storage lock nest within sys lock.
+	 */
+	M0_PRE(ergo(sys->sy_net != NULL,
+		    m0_addb2_net__is_not_locked(sys->sy_net)));
+	M0_PRE(ergo(sys->sy_stor != NULL,
+		    m0_addb2_storage__is_not_locked(sys->sy_stor)));
 	/*
 	 * Clear the addb2 machine, associated with the current
 	 * thread. This avoids addb2 re-entrancy and dead-locks. Do this

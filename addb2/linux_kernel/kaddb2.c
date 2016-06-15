@@ -64,6 +64,12 @@ M0_INTERNAL void m0_addb2_storage_fini(struct m0_addb2_storage *stor)
 M0_INTERNAL void m0_addb2_storage_stop(struct m0_addb2_storage *stor)
 {;}
 
+M0_INTERNAL bool
+m0_addb2_storage__is_not_locked(const struct m0_addb2_storage *stor)
+{
+	return true;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of addb2 group */
