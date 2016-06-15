@@ -81,8 +81,6 @@
 #include "lib/finject.h"
 #include "lib/hash.h"   /* m0_hash */
 
-#include "net/net.h"    /* m0_net_domain_get_max_buffer_size */
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
@@ -90,6 +88,10 @@
 #include "layout/layout_internal.h"
 #include "layout/layout.h"
 #include "pool/pool.h" /* M0_TL_DESCR_DECLARE(pools, M0_EXTERN) */
+
+enum {
+	LNET_MAX_PAYLOAD = 1 << 20,
+};
 
 extern struct m0_layout_type m0_pdclust_layout_type;
 //extern struct m0_layout_enum_type m0_list_enum_type;
@@ -841,8 +843,7 @@ M0_INTERNAL uint64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
 	m0_mutex_lock(&dom->ld_lock);
 	for (i = M0_DEFAULT_LAYOUT_ID; i < m0_lid_to_unit_map_nr; ++i) {
 		/* Current BE max tx size constraints. */
-		if (m0_lid_to_unit_map[i] >
-		    4 * m0_net_domain_get_max_buffer_size(NULL))
+		if (m0_lid_to_unit_map[i] > 4 * LNET_MAX_PAYLOAD)
 			break;
 		hash = m0_pool_version2layout_id(pver, i);
 		l = m0_layout__list_lookup(dom, hash, true);

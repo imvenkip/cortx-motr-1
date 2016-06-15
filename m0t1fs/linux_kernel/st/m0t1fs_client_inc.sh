@@ -758,29 +758,24 @@ m0t1fs_oostore_mode_basic()
 m0t1fs_parallel_io_test()
 {
 	local mode=$1
-	N=2
-	K=1
-	P=4
-	LAYOUT_ID=8 #512K
-	UNIT_SIZE=512 # KB
-	NR_UNITS=3 # Write that many units on disk at a time.
+	BS=$((10 * 1024 * 1024))
 	echo "Parallel IO test"
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "$mode" || rc=1
-	mount | grep m0t1fs                              || rc=1
+	mount | grep m0t1fs                         || rc=1
 	echo "Create files"
 	for i in 0:100{0..4}000; do
-		touch $MERO_M0T1FS_MOUNT_DIR/$i          || rc=1
+		touch $MERO_M0T1FS_MOUNT_DIR/$i     || rc=1
 	done
 
 	for i in 0:100{0..4}000; do
-		setfattr -n lid -v $LAYOUT_ID $MERO_M0T1FS_MOUNT_DIR/$i   || rc=1
+		setfattr -n writesize -v $BS $MERO_M0T1FS_MOUNT_DIR/$i || rc=1
 	done
 	echo "Spawn parallel dd's"
 	for i in `seq 1 4`
 	do
 		fid="0:100"$i"000"
 		dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fid \
-			bs=$((P * NR_UNITS * UNIT_SIZE / 1024))M count=100 &
+			bs=$BS count=10 &
 		dd_pid[$i]=$!
 	done
 	echo "Wait for IO to complete"
@@ -790,7 +785,7 @@ m0t1fs_parallel_io_test()
 		wait ${dd_pid[$i]}
 	done
 	for i in 0:100{0..4}000; do
-		rm -f $MERO_M0T1FS_MOUNT_DIR/$i          || rc=1
+		rm -f $MERO_M0T1FS_MOUNT_DIR/$i      || rc=1
 	done
 	unmount_and_clean
 
