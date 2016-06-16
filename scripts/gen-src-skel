@@ -181,7 +181,6 @@ sub build_c_skeleton
 {
     return <<"END_CSKEL"
 $copyright_header
-
 /**
  * \@addtogroup XXX
  *
@@ -189,6 +188,7 @@ $copyright_header
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_XXX
+#include "lib/trace.h"
 /*** Header includes are after this line. Remove this line. ***/
 
 
