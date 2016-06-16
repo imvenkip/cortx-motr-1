@@ -290,6 +290,18 @@ static void btree_delete_test(struct m0_be_btree *tree, struct m0_be_tx *tx)
 		M0_LOG(M0_DEBUG, "delete key=%04d", i);
 		btree_delete(tree, &key, INSERT_COUNT*3/4 - i - 1);
 	}
+
+	M0_LOG(M0_INFO, "Check double delete in-the-middle...");
+	sprintf(k, "%0*d", INSERT_SIZE-1, INSERT_COUNT/5);
+	M0_LOG(M0_DEBUG, "delete key=%s", (char*)k);
+	rc = btree_delete(tree, &key, 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_LOG(M0_DEBUG, "delete key=%s", (char*)k);
+	rc = btree_delete(tree, &key, 0);
+	M0_UT_ASSERT(rc == -ENOENT);
+	M0_LOG(M0_INFO, "Insert it back.");
+	sprintf(v, "%0*d", INSERT_SIZE-1, INSERT_COUNT/5);
+	btree_insert(tree, &key, &val, 0);
 }
 
 static struct m0_be_btree *create_tree(void)

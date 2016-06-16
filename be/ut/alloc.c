@@ -244,7 +244,7 @@ M0_INTERNAL void m0_be_ut_alloc_info(void)
 
 /* segment and memory allocation sizes to test */
 enum {
-	BE_UT_OOM_SEG_START     = 0x1200,
+	BE_UT_OOM_SEG_START     = 0x1900,
 	BE_UT_OOM_SEG_STEP      = 0x42,
 	BE_UT_OOM_SEG_STEP_NR   = 0x4,
 	BE_UT_OOM_ALLOC_START   = 0x1,
