@@ -320,7 +320,8 @@ static struct m0_sm_state_descr halon_interface_states[] = {
 	},
 	[M0_HALON_INTERFACE_STATE_INITIALISED] = {
 		.sd_name = "M0_HALON_INTERFACE_STATE_INITIALISED",
-		.sd_allowed = M0_BITS(M0_HALON_INTERFACE_STATE_WORKING),
+		.sd_allowed = M0_BITS(M0_HALON_INTERFACE_STATE_WORKING,
+		                      M0_HALON_INTERFACE_STATE_FINALISED),
 	},
 	[M0_HALON_INTERFACE_STATE_WORKING] = {
 		.sd_name = "M0_HALON_INTERFACE_STATE_WORKING",
