@@ -57,7 +57,13 @@ struct m0_be_emap_key {
 	    for.
 	 */
 	m0_bindex_t             ek_offset;
-	struct m0_format_footer ek_footer;
+	/**
+	 * As of now, btree stores key and value pairs together, so
+	 * we save the space here by eliminating footer at the key and
+	 * header at record.
+	 *
+	 * struct m0_format_footer ek_footer;
+	 */
 };
 
 /**
@@ -71,7 +77,13 @@ struct m0_be_emap_key {
    possibility of occasional extra IO.
  */
 struct m0_be_emap_rec {
-	struct m0_format_header er_header;
+	/**
+	 * As of now, btree stores key and value pairs together, so
+	 * we save the space here by eliminating footer at key and
+	 * header at the record.
+	 *
+	 * struct m0_format_header er_header;
+	 */
 	/**
 	   Starting offset of the segment's extent.
 	 */
