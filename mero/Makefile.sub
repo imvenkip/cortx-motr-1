@@ -1,4 +1,5 @@
 nobase_mero_include_HEADERS += mero/ha.h \
+                               mero/keepalive.h  \
                                mero/init.h  \
                                mero/setup.h \
                                mero/magic.h \
@@ -7,6 +8,8 @@ nobase_mero_include_HEADERS += mero/ha.h \
                                mero/process_attr.h
 
 mero_libmero_la_SOURCES += mero/ha.c \
+                           mero/keepalive.c  \
+                           mero/keepalive_xc.c  \
                            mero/init.c  \
                            mero/setup.c \
                            mero/version.c \
@@ -15,6 +18,8 @@ mero_libmero_la_SOURCES += mero/ha.c \
 
 mero_m0d_SOURCES = mero/m0d.c \
                    mero/setup_internal.h
+
+XC_FILES   += mero/keepalive_xc.h
 
 EXTRA_DIST += mero/devices.sh  \
               mero/DS-Reqh.gif \

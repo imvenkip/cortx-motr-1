@@ -280,6 +280,10 @@ M0_INTERNAL int m0_mero_ha_init(struct m0_mero_ha     *mha,
 	M0_ASSERT(mha->mh_note_handler != NULL);
 	rc = m0_ha_note_handler_init(mha->mh_note_handler, mha);
 	M0_ASSERT(rc == 0);
+	M0_ALLOC_PTR(mha->mh_keepalive_handler);
+	M0_ASSERT(mha->mh_keepalive_handler != NULL);
+	rc = m0_ha_keepalive_handler_init(mha->mh_keepalive_handler, mha);
+	M0_ASSERT(rc == 0);
 	M0_ASSERT(m0_get()->i_mero_ha == NULL);
 	m0_get()->i_mero_ha = mha;
 	return M0_RC(0);
@@ -313,6 +317,8 @@ M0_INTERNAL void m0_mero_ha_fini(struct m0_mero_ha *mha)
 
 	M0_ASSERT(m0_get()->i_mero_ha == mha);
 	m0_get()->i_mero_ha = NULL;
+	m0_ha_keepalive_handler_fini(mha->mh_keepalive_handler);
+	m0_free(mha->mh_keepalive_handler);
 	m0_ha_note_handler_fini(mha->mh_note_handler);
 	m0_free(mha->mh_note_handler);
 	mero_ha_handlers_tlist_fini(&mha->mh_handlers);

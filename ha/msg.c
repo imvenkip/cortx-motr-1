@@ -95,6 +95,16 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 			       FID_P(&data->u.hed_fvec_rep.mfp_vec.mfa_vec[i]));
 		}
 		break;
+	case M0_HA_MSG_KEEPALIVE_REQ:
+		M0_LOG(M0_DEBUG, "KEEPALIVE_REQ kaq_id="U128X_F,
+		       U128_P(&data->u.hed_keepalive_req.kaq_id));
+		break;
+	case M0_HA_MSG_KEEPALIVE_REP:
+		M0_LOG(M0_DEBUG, "KEEPALIVE_REP kap_id="U128X_F" "
+		       "kap_counter=%"PRIu64,
+		       U128_P(&data->u.hed_keepalive_rep.kap_id),
+		       data->u.hed_keepalive_rep.kap_counter);
+		break;
 	default:
 		M0_LOG(M0_WARN, "unknown m0_ha_msg type %"PRIu64,
 		       data->hed_type);

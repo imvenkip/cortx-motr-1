@@ -38,6 +38,7 @@ struct m0_rpc_machine;
 struct m0_reqh;
 struct m0_ha_link;
 struct m0_ha_note_handler;
+struct m0_ha_keepalive_handler;
 
 struct m0_mero_ha_cfg {
 	const char            *mhc_addr;
@@ -46,19 +47,20 @@ struct m0_mero_ha_cfg {
 };
 
 struct m0_mero_ha {
-	struct m0_mero_ha_cfg      mh_cfg;
-	struct m0_ha               mh_ha;
-	struct m0_ha_link         *mh_link;
+	struct m0_mero_ha_cfg           mh_cfg;
+	struct m0_ha                    mh_ha;
+	struct m0_ha_link              *mh_link;
 	/*
 	 * Is not protected by any lock.
 	 * User is responsible for non-concurrent modifications.
 	 * Handlers can be added only between m0_mero_ha_init() and
 	 * m0_mero_ha_start().
 	 */
-	struct m0_tl               mh_handlers;
-	bool                       mh_can_add_handler;
+	struct m0_tl                    mh_handlers;
+	bool                            mh_can_add_handler;
 	/* m0_ha_note_set(), m0_ha_note_get() handler */
-	struct m0_ha_note_handler *mh_note_handler;
+	struct m0_ha_note_handler      *mh_note_handler;
+	struct m0_ha_keepalive_handler *mh_keepalive_handler;
 };
 
 struct m0_mero_ha_handler {

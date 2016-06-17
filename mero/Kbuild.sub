@@ -1,4 +1,6 @@
 m0mero_objects += mero/ha.o \
+                  mero/keepalive.o \
+                  mero/keepalive_xc.o \
                   mero/init.o \
                   mero/version.o
 
