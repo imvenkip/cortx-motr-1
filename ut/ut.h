@@ -46,11 +46,11 @@ struct m0_ut_module;
 # define M0_UT_ASSERT(a) m0_ut_assertimpl((a), #a, __FILE__, __LINE__, __func__)
 
 #if defined M0_UT_TRACE && M0_UT_TRACE > 0
-#  define M0_UT_ENTER(FMT, ...)
+#  define M0_UT_ENTER(FMT, ...) \
 	m0_console_printf("> %s: " FMT "\n", __func__, ## __VA_ARGS__)
-#  define M0_UT_LOG(FMT, ...)
+#  define M0_UT_LOG(FMT, ...) \
 	m0_console_printf("* %s: " FMT "\n", __func__, ## __VA_ARGS__)
-#  define M0_UT_RETURN(FMT, ...)
+#  define M0_UT_RETURN(FMT, ...) \
 	m0_console_printf("< %s: " FMT "\n", __func__, ## __VA_ARGS__)
 #else
 #  define M0_UT_ENTER(...)

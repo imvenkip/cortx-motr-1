@@ -556,8 +556,8 @@ static void _spiel_tx_write_lock_get(struct m0_spiel_wlock_ctx *wlx)
 	M0_ENTRY("wlock ctx = %p", wlx);
 	req = &wlx->wlc_req;
 	m0_rm_rwlock_req_init(req, &wlx->wlc_owner, &spiel_tx_ri_ops,
-			      RIF_MAY_BORROW | RIF_MAY_REVOKE | RIF_LOCAL_WAIT,
-			      RM_RWLOCK_WRITE);
+			      RIF_MAY_BORROW | RIF_MAY_REVOKE | RIF_LOCAL_WAIT |
+			      RIF_RESERVE, RM_RWLOCK_WRITE);
 	m0_rm_credit_get(req);
 	M0_LEAVE();
 }

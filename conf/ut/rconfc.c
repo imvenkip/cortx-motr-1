@@ -18,6 +18,11 @@
  * Original creation date: 2015-03-11
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "lib/trace.h"
+
+#define M0_UT_TRACE 0
+
 #include <unistd.h>                    /* usleep */
 
 #include "conf/rconfc.h"
@@ -33,6 +38,7 @@
 #include "ut/ut.h"
 
 static struct m0_semaphore   g_expired_sem;
+static struct m0_semaphore   g_ready_sem;
 static struct m0_reqh       *ut_reqh;
 static struct m0_net_domain  client_net_dom;
 static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
@@ -49,7 +55,8 @@ enum {
 
 struct fs_object {
 	struct m0_conf_filesystem *fs;
-	struct m0_clink            clink;
+	struct m0_clink            clink_x;
+	struct m0_clink            clink_r;
 	struct m0_confc           *confc;
 };
 
@@ -104,7 +111,7 @@ static void test_no_quorum_exp_cb(struct m0_rconfc *rconfc)
 {
 	/*
 	 * Expiration callback that should be called if
-	 * test implies no quorum on rconfc init.
+	 * test expects no quorum on rconfc init.
 	 */
 	M0_UT_ASSERT(rconfc->rc_ver == 0);
 }
@@ -113,14 +120,23 @@ static void test_null_exp_cb(struct m0_rconfc *rconfc)
 {
 	/*
 	 * Test expiration callback that shouldn't be called, because
-	 * test doesn't imply reelection.
+	 * test doesn't expect reelection.
 	 */
 	M0_UT_ASSERT(0);
 }
 
 static void conflict_exp_cb(struct m0_rconfc *rconfc)
 {
+	M0_UT_ENTER();
 	m0_semaphore_up(&g_expired_sem);
+	M0_UT_RETURN();
+}
+
+static void conflict_ready_cb(struct m0_rconfc *rconfc)
+{
+	M0_UT_ENTER();
+	m0_semaphore_up(&g_ready_sem);
+	M0_UT_RETURN();
 }
 
 static void test_init_fini(void)
@@ -405,14 +421,14 @@ static void update_confd_version(struct m0_rpc_server_ctx *rctx,
 			break;
 		}
 	} m0_tl_endfor;
-	M0_ASSERT(confd != NULL);
+	M0_UT_ASSERT(confd != NULL);
 
 	confd_cache = confd->d_cache;
 	confd_cache->ca_ver = new_ver;
 	root_obj = M0_CONF_CAST(m0_conf_cache_lookup(confd_cache,
 						     &M0_CONF_ROOT_FID),
 				m0_conf_root);
-	M0_ASSERT(root_obj != NULL);
+	M0_UT_ASSERT(root_obj != NULL);
 	root_obj->rt_verno = new_ver;
 
 	fs = M0_CONF_CAST(m0_conf_cache_lookup(confd_cache, &fs_fid),
@@ -432,9 +448,11 @@ static void test_version_change(void)
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	m0_semaphore_init(&g_expired_sem, 0);
+	m0_semaphore_init(&g_ready_sem, 0);
 
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, conflict_exp_cb, NULL);
+	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, conflict_exp_cb,
+			    conflict_ready_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
@@ -453,6 +471,7 @@ static void test_version_change(void)
 
 	/* Wait till version reelection is finished */
 	m0_semaphore_down(&g_expired_sem);
+	m0_semaphore_down(&g_ready_sem);
 	m0_sm_group_lock(rconfc.rc_sm.sm_grp);
 	m0_sm_timedwait(&rconfc.rc_sm, M0_BITS(RCS_IDLE, RCS_FAILURE),
 			M0_TIME_NEVER);
@@ -469,6 +488,7 @@ static void test_version_change(void)
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 	m0_semaphore_fini(&g_expired_sem);
+	m0_semaphore_fini(&g_ready_sem);
 	ut_mero_stop(&mach, &rctx);
 }
 
@@ -727,14 +747,54 @@ M0_UNUSED static void test_ha_notify(void)
 	ut_mero_stop(&mach, &rctx);
 }
 
-static bool fs_update(struct m0_clink *clink)
-{
-	int rc;
-	struct fs_object *fs_obj =
-		container_of(clink, struct fs_object, clink);
+struct m0_fid drain_fs_fid = M0_FID0;
 
-	rc = m0_conf_fs_get(&profile, fs_obj->confc, &fs_obj->fs);
-	M0_UT_ASSERT(rc == 0);
+static void drain_expired_cb(struct m0_rconfc *rconfc)
+{
+	struct m0_conf_cache *cache = &rconfc->rc_confc.cc_cache;
+	struct m0_conf_obj   *obj;
+
+	M0_UT_ENTER();
+	if (m0_fid_is_set(&drain_fs_fid)) {
+		obj = m0_conf_cache_lookup(cache, &drain_fs_fid);
+		M0_UT_ASSERT(obj != NULL);
+		m0_confc_close(obj);
+	}
+	M0_UT_RETURN();
+}
+
+static bool fs_expired(struct m0_clink *clink)
+{
+	struct fs_object *fs_obj =
+		container_of(clink, struct fs_object, clink_x);
+	struct m0_rconfc *rconfc =
+		container_of(fs_obj->confc, struct m0_rconfc, rc_confc);
+
+	M0_UT_ENTER();
+	drain_expired_cb(rconfc);
+	M0_UT_RETURN();
+
+	return true;
+}
+
+static void drain_ready_cb(struct m0_rconfc *rconfc)
+{
+	M0_UT_ENTER();
+	if (m0_fid_is_set(&drain_fs_fid))
+		m0_semaphore_up(&g_ready_sem);
+	M0_UT_RETURN();
+}
+
+static bool fs_ready(struct m0_clink *clink)
+{
+	struct fs_object *fs_obj =
+		container_of(clink, struct fs_object, clink_r);
+	struct m0_rconfc *rconfc =
+		container_of(fs_obj->confc, struct m0_rconfc, rc_confc);
+
+	M0_UT_ENTER();
+	drain_ready_cb(rconfc);
+	M0_UT_RETURN();
 
 	return true;
 }
@@ -750,16 +810,18 @@ static void test_drain(void)
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	m0_semaphore_init(&g_expired_sem, 0);
+	m0_semaphore_init(&g_ready_sem, 0);
 
 	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(rc == 0);
 
+	M0_UT_LOG("\n\n\t@reqh %p", &cctx.rcx_reqh);
 	rconfc = &cctx.rcx_reqh.rh_rconfc;
         M0_SET0(rconfc);
-	rc = m0_rconfc_init(rconfc, &g_grp, &mach, conflict_exp_cb, NULL);
+	rc = m0_rconfc_init(rconfc, &g_grp, &mach, m0_confc_expired_cb,
+			    m0_confc_ready_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
@@ -767,11 +829,19 @@ static void test_drain(void)
 	rc = m0_conf_fs_get(&profile, &rconfc->rc_confc, &fs_obj.fs);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(fs_obj.fs->cf_redundancy == 41212);
-	m0_confc_close(&fs_obj.fs->cf_obj);
+	M0_UT_ASSERT(fs_obj.fs->cf_obj.co_nrefs != 0);
+	drain_fs_fid = fs_obj.fs->cf_obj.co_id;
+	/*
+	 * Here we intentionally leave fs object pinned simulating working
+	 * rconfc environment. It is expected to be closed later during expired
+	 * callback processing being found by fs_fid (see drain_expired_cb()).
+	 */
 
 	fs_obj.confc = &rconfc->rc_confc;
-	m0_clink_init(&fs_obj.clink, fs_update);
-	m0_clink_add_lock(&cctx.rcx_reqh.rh_conf_cache_drain, &fs_obj.clink);
+	m0_clink_init(&fs_obj.clink_x, fs_expired);
+	m0_clink_init(&fs_obj.clink_r, fs_ready);
+	m0_clink_add_lock(&cctx.rcx_reqh.rh_conf_cache_exp, &fs_obj.clink_x);
+	m0_clink_add_lock(&cctx.rcx_reqh.rh_conf_cache_ready, &fs_obj.clink_r);
 
 	/* Update conf DB version and immitate read lock conflict */
 	update_confd_version(&rctx, 2);
@@ -779,7 +849,10 @@ static void test_drain(void)
 	m0_rconfc_ri_ops.rio_conflict(&rlx->rlc_req);
 
 	/* Wait till version reelection is finished */
-	m0_semaphore_down(&g_expired_sem);
+	m0_semaphore_down(&g_ready_sem);
+	/* Here we are to disable waiting for ready as not needed anymore */
+	drain_fs_fid = M0_FID0;
+
 	m0_sm_group_lock(rconfc->rc_sm.sm_grp);
 	m0_sm_timedwait(&rconfc->rc_sm, M0_BITS(RCS_IDLE, RCS_FAILURE),
 			M0_TIME_NEVER);
@@ -791,12 +864,14 @@ static void test_drain(void)
 	M0_UT_ASSERT(fs_obj.fs->cf_redundancy == 51212);
 	m0_confc_close(&fs_obj.fs->cf_obj);
 
-	m0_clink_del_lock(&fs_obj.clink);
-	m0_clink_fini(&fs_obj.clink);
+	m0_clink_del_lock(&fs_obj.clink_x);
+	m0_clink_del_lock(&fs_obj.clink_r);
+	m0_clink_fini(&fs_obj.clink_x);
+	m0_clink_fini(&fs_obj.clink_r);
 	m0_rconfc_stop_sync(rconfc);
 	m0_rconfc_fini(rconfc);
 	m0_rpc_client_stop(&cctx);
-	m0_semaphore_fini(&g_expired_sem);
+	m0_semaphore_fini(&g_ready_sem);
 	ut_mero_stop(&mach, &rctx);
 }
 
@@ -837,6 +912,8 @@ struct m0_ut_suite rconfc_ut = {
 		{ NULL, NULL }
 	}
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

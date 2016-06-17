@@ -20,7 +20,6 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "conf/rconfc_internal.h"
-#include "conf/ut/common.h"
 #include "lib/trace.h"
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
@@ -32,7 +31,6 @@
 #include "rpc/ut/rpc_test_fops.h"
 #include "rpc/rpc_internal.h"
 
-extern struct m0_semaphore    g_sem;
 static struct m0_rpc_machine *machine;
 static const char            *remote_addr;
 enum {
@@ -258,18 +256,13 @@ static void test_conn_ha_subscribe()
 	struct m0_conf_obj      *svc_obj = NULL;
 	int                      rc;
 
-	rc = conf_ut_ast_thread_init();
-	M0_ASSERT(rc == 0);
-	rc = m0_semaphore_init(&g_sem, 0);
-	M0_UT_ASSERT(rc == 0);
 	cctx.rcx_reqh.rh_profile = profile;
 	rconfc = &cctx.rcx_reqh.rh_rconfc;
         M0_SET0(rconfc);
 	rc = m0_rconfc_init(rconfc, m0_locality0_get()->lo_grp, machine,
-			    conf_ut_confc_expired_cb, conf_ut_confc_ready_cb);
+			    m0_confc_expired_cb, m0_confc_ready_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(rconfc, &profile);
-	m0_semaphore_down(&g_sem);
 	M0_UT_ASSERT(rc == 0);
 	M0_LOG(M0_DEBUG, "rconfc_init %p", rconfc);
 	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);
@@ -289,7 +282,6 @@ static void test_conn_ha_subscribe()
 			M0_TIME_NEVER);
 	m0_sm_group_unlock(rconfc->rc_sm.sm_grp);
 	M0_UT_ASSERT(rconfc->rc_sm.sm_state == RCS_IDLE);
-	m0_semaphore_down(&g_sem);
 	/*
 	 * Check that conn is still subscribed after fetching new configuration
 	 */
@@ -303,7 +295,6 @@ static void test_conn_ha_subscribe()
 	m0_net_end_point_put(ep);
 	m0_rconfc_stop_sync(rconfc);
 	m0_rconfc_fini(rconfc);
-	conf_ut_ast_thread_fini();
 }
 
 struct m0_ut_suite rpc_rcv_session_ut = {

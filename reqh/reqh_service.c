@@ -745,10 +745,16 @@ static void reqh_service_ctx_subscribe(struct m0_reqh_service_ctx *ctx)
 
 static void reqh_service_ctx_unsubscribe(struct m0_reqh_service_ctx *ctx)
 {
-	m0_clink_del_lock(&ctx->sc_svc_event);
-	m0_confc_close(ctx->sc_sobj);
-	m0_clink_del_lock(&ctx->sc_process_event);
-	m0_confc_close(ctx->sc_pobj);
+	if (ctx->sc_svc_event.cl_chan != NULL) {
+		m0_clink_cleanup(&ctx->sc_svc_event);
+		ctx->sc_svc_event.cl_chan = NULL;
+		m0_confc_close(ctx->sc_sobj);
+	}
+	if (ctx->sc_process_event.cl_chan != NULL) {
+		m0_clink_cleanup(&ctx->sc_process_event);
+		ctx->sc_process_event.cl_chan = NULL;
+		m0_confc_close(ctx->sc_pobj);
+	}
 }
 
 static void reqh_service_connect_locked(struct m0_reqh_service_ctx *ctx,
@@ -888,7 +894,6 @@ m0_reqh_service_cancel_reconnect(struct m0_reqh_service_ctx *ctx)
 {
 	M0_ENTRY("Reconnecting to service '%s'",
 		 m0_rpc_link_end_point(&ctx->sc_rlink));
-
 	reqh_service_ctx_sm_lock(ctx);
 	M0_PRE(reqh_service_context_invariant(ctx));
 	M0_PRE(m0_reqh_service_ctx_is_connected(ctx));
@@ -1019,7 +1024,7 @@ static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 	reqh_service_ctx_sm_unlock(ctx);
 }
 
-static bool reqh_service_ctx_conf_exp_cb(struct m0_clink *clink)
+static bool reqh_service_ctx_conf_expired_cb(struct m0_clink *clink)
 {
 	struct m0_reqh_service_ctx *ctx =
 		container_of(clink, struct m0_reqh_service_ctx, sc_conf_exp);
@@ -1240,7 +1245,7 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 	m0_clink_init(&ctx->sc_svc_event, service_event_handler);
 	m0_clink_init(&ctx->sc_process_event, process_event_handler);
 	m0_clink_init(&ctx->sc_rlink_wait, reqh_service_ctx_rlink_cb);
-	m0_clink_init(&ctx->sc_conf_exp, reqh_service_ctx_conf_exp_cb);
+	m0_clink_init(&ctx->sc_conf_exp, reqh_service_ctx_conf_expired_cb);
 	m0_clink_init(&ctx->sc_conf_ready, reqh_service_ctx_conf_ready_cb);
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &ctx->sc_conf_exp);
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &ctx->sc_conf_ready);

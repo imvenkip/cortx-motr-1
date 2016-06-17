@@ -1695,6 +1695,9 @@ static void rconfc_conductor_drain(struct m0_sm_group *grp,
 	M0_ENTRY("rconfc = %p", rconfc);
 	m0_conf_cache_lock(cache);
 	if ((obj = m0_conf_cache_pinned(cache)) != NULL) {
+		M0_LOG(M0_DEBUG, "* pinned (%"PRIu64") obj "FID_F", "
+		       "waiters %d, ha %d", obj->co_nrefs, FID_P(&obj->co_id),
+		       obj->co_chan.ch_waiters, obj->co_ha_chan.ch_waiters);
 		m0_clink_add(&obj->co_chan, &rconfc->rc_unpinned_cl);
 	} else {
 		rc = _confc_cache_clean(&rconfc->rc_confc);
@@ -1706,7 +1709,7 @@ static void rconfc_conductor_drain(struct m0_sm_group *grp,
 	if (rc == 0)
 		rconfc->rc_stopping ? rconfc_state_set(rconfc, RCS_FINAL) :
 				      rconfc_conductor_drained(rconfc);
-	M0_LEAVE();
+	M0_LEAVE("rc=%d, stopping=%d", rc, rconfc->rc_stopping);
 }
 
 static bool rconfc_unpinned_cb(struct m0_clink *link)
@@ -1803,11 +1806,11 @@ static void rlock_conflict_handle(struct m0_sm_group *grp,
 {
 	struct m0_rconfc *rconfc = ast->sa_datum;
 
-	M0_ENTRY("rconfc = %p", rconfc);
+	M0_ENTRY("rconfc = %p, exp_cb = %p, ready_cb = %p", rconfc,
+		 rconfc->rc_exp_cb, rconfc->rc_ready_cb);
 	/* prepare for emptying conductor's cache */
 	if (rconfc->rc_exp_cb != NULL)
 		rconfc->rc_exp_cb(rconfc);
-
 	/*
 	 * if no context attached, call it directly, otherwise it is
 	 * going to be called during the very last context finalisation

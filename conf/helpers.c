@@ -37,8 +37,6 @@
 #include "pool/flset.h"    /* m0_flset_pver_has_failed_dev */
 #include "fd/fd.h"         /* M0_FTA_DEPTH_CONT */
 
-enum { CACHE_LOCALITY = 1 };
-
 static int confc_obj_get(struct m0_confc     *confc,
 			 const struct m0_fid *fid,
 			 struct m0_conf_obj **result)
@@ -650,58 +648,12 @@ M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
 				 M0_CONF_CONTROLLER_DISKS_FID);
 }
 
-static void __confc_cache_ast_wait_signal(struct m0_reqh *reqh)
-{
-	m0_mutex_lock(&reqh->rh_guard);
-	m0_sm_ast_wait_signal(&reqh->rh_conf_cache_ast_wait);
-	m0_mutex_unlock(&reqh->rh_guard);
-}
-
-static void __cache_expired_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_reqh *reqh = container_of(ast, struct m0_reqh,
-					    rh_conf_cache_ast);
-
-	M0_ENTRY("grp %p, ast %p", grp, ast);
-	m0_chan_broadcast_lock(&reqh->rh_conf_cache_exp);
-	__confc_cache_ast_wait_signal(reqh);
-	M0_LEAVE();
-}
-
-static void __confc_cache_ast_post(struct m0_reqh *reqh)
-{
-	m0_mutex_lock(&reqh->rh_guard);
-	m0_sm_ast_wait_post(&reqh->rh_conf_cache_ast_wait,
-			    m0_locality_get(CACHE_LOCALITY)->lo_grp,
-			    &reqh->rh_conf_cache_ast);
-	m0_mutex_unlock(&reqh->rh_guard);
-}
-
-static void __confc_cache_ast_wait(struct m0_reqh *reqh)
-{
-	m0_mutex_lock(&reqh->rh_guard);
-	m0_sm_ast_wait(&reqh->rh_conf_cache_ast_wait);
-	m0_mutex_unlock(&reqh->rh_guard);
-}
-
 M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc)
 {
 	struct m0_reqh *reqh = container_of(rconfc, struct m0_reqh, rh_rconfc);
 
-	M0_ENTRY("rconfc %p", rconfc);
-	reqh->rh_conf_cache_ast.sa_cb = __cache_expired_cb;
-	__confc_cache_ast_post(reqh);
-	M0_LEAVE();
-}
-
-static void __cache_ready_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_reqh *reqh = container_of(ast, struct m0_reqh,
-					    rh_conf_cache_ast);
-
-	M0_ENTRY("grp %p, ast %p", grp, ast);
-	m0_chan_broadcast_lock(&reqh->rh_conf_cache_ready);
-	__confc_cache_ast_wait_signal(reqh);
+	M0_ENTRY("rconfc %p, reqh %p", rconfc, reqh);
+	m0_chan_broadcast_lock(&reqh->rh_conf_cache_exp);
 	M0_LEAVE();
 }
 
@@ -709,10 +661,8 @@ M0_INTERNAL void m0_confc_ready_cb(struct m0_rconfc *rconfc)
 {
 	struct m0_reqh *reqh = container_of(rconfc, struct m0_reqh, rh_rconfc);
 
-	M0_ENTRY("rconfc %p", rconfc);
-	__confc_cache_ast_wait(reqh);
-	reqh->rh_conf_cache_ast.sa_cb = __cache_ready_cb;
-	__confc_cache_ast_post(reqh);
+	M0_ENTRY("rconfc %p, reqh %p", rconfc, reqh);
+	m0_chan_broadcast_lock(&reqh->rh_conf_cache_ready);
 	M0_LEAVE();
 }
 

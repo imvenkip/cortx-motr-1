@@ -114,12 +114,15 @@ static bool poolmach_conf_expired_cb(struct m0_clink *clink)
 	for (i = 0; i < state->pst_nr_devices; ++i) {
 		dev = &state->pst_devices_array[i];
 		cl = &dev->pd_clink;
+		if (cl->cl_chan == NULL)
+			continue;
 		obj = container_of(cl->cl_chan, struct m0_conf_obj,
 				   co_ha_chan);
 		M0_ASSERT(m0_conf_obj_invariant(obj));
 		M0_LOG(M0_INFO, "obj "FID_F, FID_P(&obj->co_id));
 		m0_pooldev_clink_del(cl);
 		m0_confc_close(obj);
+		M0_SET0(cl);
 	}
 	M0_LEAVE();
 	return true;
@@ -382,10 +385,13 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 
 		for (i = 0; i < state->pst_nr_devices; ++i) {
 			cl = &state->pst_devices_array[i].pd_clink;
+			if (cl->cl_chan == NULL)
+				continue;
 			obj = container_of(cl->cl_chan, struct m0_conf_obj,
 					   co_ha_chan);
 			M0_ASSERT(m0_conf_obj_invariant(obj));
 			m0_pooldev_clink_del(cl);
+			M0_SET0(cl);
 			m0_confc_close(obj);
 			pd = &state->pst_devices_array[i];
 			if (pool_failed_devs_tlink_is_in(pd))

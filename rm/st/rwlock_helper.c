@@ -103,8 +103,8 @@ static void _write_lock_get(struct wlock_ctx *wlx)
 	M0_ENTRY("wlock ctx = %p", wlx);
 	req = &wlx->wlc_req;
 	m0_rm_rwlock_req_init(req, &wlx->wlc_owner, &ri_ops,
-			      RIF_MAY_BORROW | RIF_MAY_REVOKE | RIF_LOCAL_WAIT,
-			      RM_RWLOCK_WRITE);
+			      RIF_MAY_BORROW | RIF_MAY_REVOKE | RIF_LOCAL_WAIT |
+			      RIF_RESERVE, RM_RWLOCK_WRITE);
 	m0_rm_credit_get(req);
 	M0_LEAVE();
 }
@@ -180,17 +180,23 @@ static int rm_write_lock_get(struct m0_rpc_machine *rpc_mach, const char *rm_ep)
 	int                        rc;
 
 	rc = wlock_ctx_create(rpc_mach, rm_ep);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ERR(rc);
 		goto fail;
+	}
 	rc = wlock_ctx_connect(&wlx);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ERR_INFO(rc, "ep=%s", rm_ep);
 		goto ctx_free;
+	}
 	wlock_ctx_creditor_setup(&wlx);
 	_write_lock_get(&wlx);
 	m0_semaphore_down(&wlx.wlc_sem);
 	rc = wlx.wlc_rc;
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ERR(rc);
 		goto ctx_destroy;
+	}
 	return M0_RC(rc);
 ctx_destroy:
 	wlock_ctx_destroy(&wlx);
@@ -258,8 +264,11 @@ int main(int argc, char **argv)
 	rc = rm_write_lock_get(&rpc_mach, rm_ep);
 	if (rc != 0)
 		goto mach_fini;
+	else
+		m0_console_printf("Got write lock\n");
 	sleep(delay);
 	rm_write_lock_put();
+	m0_console_printf("Released write lock\n");
 mach_fini:
         m0_rpc_machine_fini(&rpc_mach);
 services_terminate:

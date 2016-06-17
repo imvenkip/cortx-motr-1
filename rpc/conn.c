@@ -276,7 +276,8 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn      *conn,
 {
 	int rc;
 
-	M0_ENTRY("conn: %p", conn);
+	M0_ENTRY("conn=%p, svc_fid=%p ep=%s", conn, svc_fid,
+		 ep != NULL ? ep->nep_addr : NULL );
 	M0_PRE(conn != NULL && machine != NULL && ep != NULL);
 
 	M0_SET0(conn);
@@ -325,17 +326,18 @@ M0_INTERNAL struct m0_conf_obj *m0_rpc_conn2svc(const struct m0_rpc_conn *conn)
 static void __conn_ha_subscribe(struct m0_rpc_conn *conn)
 {
 	struct m0_conf_obj *svc_obj;
-	struct m0_confc    *confc;
-	int                 rc;
 
 	M0_ENTRY("conn = %p", conn);
 	if (!m0_fid_is_set(&conn->c_svc_fid))
 		goto leave;
-	confc = rpc_conn2confc(conn);
-	rc = m0_confc_open_by_fid_sync(confc, &conn->c_svc_fid,
-				       &svc_obj);
-	M0_ASSERT(rc == 0);
+	svc_obj = m0_conf_cache_lookup(&rpc_conn2confc(conn)->cc_cache,
+				       &conn->c_svc_fid);
+	M0_ASSERT_INFO(svc_obj != NULL, "unknown service " FID_F,
+		       FID_P(&conn->c_svc_fid));
 	M0_ASSERT(conn->c_ha_clink.cl_cb != NULL);
+	M0_LOG(M0_DEBUG, "svc_fid "FID_F", cs_type=%d", FID_P(&conn->c_svc_fid),
+	       M0_CONF_CAST(svc_obj, m0_conf_service)->cs_type);
+	m0_conf_obj_get_lock(svc_obj);
 	m0_clink_add_lock(&svc_obj->co_ha_chan, &conn->c_ha_clink);
 leave:
 	M0_LEAVE("service fid = "FID_F, FID_P(&conn->c_svc_fid));

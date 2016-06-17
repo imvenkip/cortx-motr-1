@@ -21,7 +21,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
-#define M0_UT_TRACE  0
+#define M0_UT_TRACE 0
 
 #include "ut/ut.h"
 #include "lib/finject.h"

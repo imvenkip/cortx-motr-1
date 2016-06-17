@@ -736,7 +736,7 @@ int m0t1fs_pool_find(struct m0t1fs_sb *csb)
 	return M0_RC(rc);
 }
 
-static bool m0t1fs_rconfc_exp_cb(struct m0_clink *clink)
+static bool m0t1fs_rconfc_expired_cb(struct m0_clink *clink)
 {
 	struct m0t1fs_sb           *csb = container_of(clink, struct m0t1fs_sb,
 						       csb_conf_exp);
@@ -744,6 +744,8 @@ static bool m0t1fs_rconfc_exp_cb(struct m0_clink *clink)
 	uint32_t                    i;
 
 	M0_ENTRY("super %p", csb);
+	if (csb->csb_reqh.rh_rconfc.rc_stopping)
+		return true;
 	csb->csb_rlock_revoked = true;
 	/*
 	 * Cancel sessions to IO services that were used during IO request
@@ -753,7 +755,7 @@ static bool m0t1fs_rconfc_exp_cb(struct m0_clink *clink)
 	 */
 	for (i = 0; i < csb->csb_pools_common.pc_nr_devices; i++) {
 		ctx = csb->csb_pools_common.pc_dev2ios[i].pds_ctx;
-		if (ctx != NULL)
+		if (ctx != NULL && ctx->sc_rlink.rlk_connected)
 			m0_reqh_service_cancel_reconnect(ctx);
 	}
 	M0_LEAVE();
@@ -832,7 +834,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	rconfc = m0_csb2rconfc(csb);
 	//m0_rconfc_lock(rconfc);
-	m0_clink_init(&csb->csb_conf_exp, m0t1fs_rconfc_exp_cb);
+	m0_clink_init(&csb->csb_conf_exp, m0t1fs_rconfc_expired_cb);
 	m0_clink_init(&csb->csb_conf_ready, m0t1fs_rconfc_ready_cb);
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &csb->csb_conf_exp);
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &csb->csb_conf_ready);

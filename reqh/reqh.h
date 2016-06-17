@@ -181,9 +181,6 @@ struct m0_reqh {
 	/** Channel for configuration cache expiry events */
 	struct m0_chan                rh_conf_cache_exp;
 
-	/** Channel for configuration cache drain events */
-	struct m0_chan                rh_conf_cache_drain;
-
 	/** Channel for configuration cache ready events */
 	struct m0_chan                rh_conf_cache_ready;
 

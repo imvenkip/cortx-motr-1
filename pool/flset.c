@@ -164,11 +164,13 @@ static void flset_clinks_delete(struct m0_flset *flset)
 
 	for (i = 0; i < flset->fls_links_nr; i++) {
 		cl = &flset->fls_links[i].fcl_link;
+		if (cl->cl_chan == NULL)
+			continue;
 		obj = container_of(cl->cl_chan, struct m0_conf_obj, co_ha_chan);
-		M0_ASSERT(m0_conf_obj_invariant(obj));
-		m0_clink_del_lock(cl);
+		m0_clink_cleanup(cl);
 		m0_confc_close(obj);
 		m0_clink_fini(cl);
+		M0_SET0(cl);
 	}
 }
 
