@@ -743,7 +743,8 @@ static void sender_init()
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_client_connect(&conn, &session, &cctx.rcx_rpc_machine,
 				   cctx.rcx_remote_addr, NULL,
-				   cctx.rcx_max_rpcs_in_flight);
+				   cctx.rcx_max_rpcs_in_flight,
+				   M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 	M0_ALLOC_PTR(sender_cm_proxy);
 	M0_UT_ASSERT(sender_cm_proxy != NULL);

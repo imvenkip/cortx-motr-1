@@ -850,7 +850,8 @@ static int rlock_ctx_connect(struct rlock_ctx *rlx, const char *ep)
 	else
 		rc = m0_rpc_client_connect(&rlx->rlc_conn, &rlx->rlc_sess,
 					   rlx->rlc_rmach, rlx->rlc_rm_addr,
-					   NULL, MAX_RPCS_IN_FLIGHT);
+					   NULL, MAX_RPCS_IN_FLIGHT,
+					   M0_TIME_NEVER);
 	if (rc != 0) {
 		m0_free(rlx->rlc_rm_addr);
 		rlx->rlc_rm_addr = NULL;

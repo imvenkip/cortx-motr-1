@@ -43,6 +43,12 @@ enum {
 	 * for m0_rpc_post_sync() and m0_rpc_post_with_timeout_sync().
 	 */
 	M0_RPCLIB_MAX_RETRIES = 60,
+
+	/**
+	 * Timeout in seconds that is used by standalone utilities, such as
+	 * m0console, m0repair, to connect to a service.
+	 */
+	M0_RPCLIB_UTIL_CONN_TIMEOUT = 20, /* seconds */
 };
 
 #ifndef __KERNEL__
@@ -147,6 +153,8 @@ struct m0_rpc_client_ctx {
 	/** Maximum RPC recive buffer size. */
         uint32_t		   rcx_max_rpc_msg_size;
 
+	/** timeout value to establish the client-server connection */
+        m0_time_t		   rcx_abs_timeout;
 	/** Process FID */
 	struct m0_fid             *rcx_fid;
 };
@@ -165,13 +173,15 @@ struct m0_rpc_client_ctx {
  * @param[in]  remote_addr
  * @param[in]  service object, optional, can be NULL
  * @param[in]  max_rpcs_in_flight
+ * @param[in]  abs_timeout
  */
 M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_session *session,
 				      struct m0_rpc_machine *rpc_mach,
 				      const char            *remote_addr,
 				      struct m0_fid         *svc_fid,
-				      uint64_t               max_rpcs_in_flight);
+				      uint64_t               max_rpcs_in_flight,
+				      m0_time_t              abs_timeout);
 
 /**
  * A bit more intelligent version of m0_rpc_client_connect(). To be sure client
@@ -192,7 +202,8 @@ m0_rpc_client_find_connect(struct m0_rpc_conn       *conn,
 			   const char               *remote_addr,
 			   const struct m0_fid      *sfid,
 			   enum m0_conf_service_type stype,
-			   uint64_t                  max_rpcs_in_flight);
+			   uint64_t                  max_rpcs_in_flight,
+			   m0_time_t                 abs_timeout);
 
 /**
  * Starts client's rpc machine.

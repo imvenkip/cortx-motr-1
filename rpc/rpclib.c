@@ -97,13 +97,11 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_machine *rpc_mach,
 				      const char            *remote_addr,
 				      struct m0_fid         *svc_fid,
-				      uint64_t               max_rpcs_in_flight)
+				      uint64_t               max_rpcs_in_flight,
+				      m0_time_t              abs_timeout)
 {
 	struct m0_net_end_point *ep;
 	int                      rc;
-	enum {
-		CONN_TIMEOUT       = 5, /* seconds */
-	};
 
 	M0_ENTRY("conn=%p session=%p rpc_mach=%p remote_addr=%s",
 	         conn, session, rpc_mach, remote_addr);
@@ -113,16 +111,14 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 		return M0_RC(rc);
 
 	rc = m0_rpc_conn_create(conn, svc_fid, ep, rpc_mach, max_rpcs_in_flight,
-				m0_time_from_now(CONN_TIMEOUT, 0));
+				abs_timeout);
 	m0_net_end_point_put(ep);
 	if (rc != 0)
 		return M0_RC(rc);
 
-	rc = m0_rpc_session_create(session, conn,
-				   m0_time_from_now(CONN_TIMEOUT, 0));
+	rc = m0_rpc_session_create(session, conn, abs_timeout);
 	if (rc != 0)
-		(void)m0_rpc_conn_destroy(conn,
-					  m0_time_from_now(CONN_TIMEOUT, 0));
+		(void)m0_rpc_conn_destroy(conn, abs_timeout);
 
 	return M0_RC(rc);
 }
@@ -134,7 +130,8 @@ m0_rpc_client_find_connect(struct m0_rpc_conn       *conn,
 			   const char               *remote_addr,
 			   const struct m0_fid      *sfid,
 			   enum m0_conf_service_type stype,
-			   uint64_t                  max_rpcs_in_flight)
+			   uint64_t                  max_rpcs_in_flight,
+			   m0_time_t                 abs_timeout)
 {
 	struct m0_conf_obj *svc_obj = NULL;
 	struct m0_fid      *svc_fid = NULL;
@@ -149,7 +146,8 @@ m0_rpc_client_find_connect(struct m0_rpc_conn       *conn,
 	if (svc_obj != NULL)
 		svc_fid = &svc_obj->co_id;
 	return M0_RC(m0_rpc_client_connect(conn, session, rpc_mach, remote_addr,
-					   svc_fid, max_rpcs_in_flight));
+					   svc_fid, max_rpcs_in_flight,
+					   abs_timeout));
 }
 
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
@@ -194,7 +192,8 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 	rc = m0_rpc_client_connect(&cctx->rcx_connection, &cctx->rcx_session,
 				   &cctx->rcx_rpc_machine,
 				   cctx->rcx_remote_addr, NULL,
-				   cctx->rcx_max_rpcs_in_flight);
+				   cctx->rcx_max_rpcs_in_flight,
+				   cctx->rcx_abs_timeout?:M0_TIME_NEVER);
 	if (rc == 0)
 		return M0_RC(0);
 

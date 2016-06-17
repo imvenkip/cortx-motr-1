@@ -66,7 +66,8 @@ M0_INTERNAL int repair_rpc_ctx_init(struct rpc_ctx *ctx, const char *sep)
 	return m0_rpc_client_connect(&ctx->ctx_conn,
 				     &ctx->ctx_session,
 				     &cl_ctx.rcx_rpc_machine, sep,
-				     NULL, MAX_RPCS_IN_FLIGHT);
+				     NULL, MAX_RPCS_IN_FLIGHT,
+			     m0_time_from_now(M0_RPCLIB_UTIL_CONN_TIMEOUT, 0));
 }
 
 M0_INTERNAL void repair_rpc_ctx_fini(struct rpc_ctx *ctx)

@@ -118,7 +118,8 @@ static int ha_link_ctx_init_rpc(struct m0_ha           *ha,
 
 	rc = m0_rpc_client_connect(&hlx->hlx_rpc_conn, &hlx->hlx_rpc_session,
 				   rpc_machine, rpc_endpoint, /* XXX */ NULL,
-				   2 /* XXX MAX_RPCS_IN_FLIGHT */);
+				   2 /* XXX MAX_RPCS_IN_FLIGHT */,
+				   M0_TIME_NEVER);
 	M0_ASSERT(rc == 0);
 
 	*hlx_ptr = hlx;

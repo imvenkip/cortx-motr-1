@@ -333,6 +333,7 @@ int main(int argc, char **argv)
 		cctx.rcx_local_addr = client;
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
 	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size;
+	cctx.rcx_abs_timeout = m0_time_from_now(M0_RPCLIB_UTIL_CONN_TIMEOUT, 0);
 
 	printf("connecting from %s to %s\n", cctx.rcx_local_addr, cctx.rcx_remote_addr);
 	result = m0_rpc_client_start(&cctx);

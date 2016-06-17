@@ -92,7 +92,8 @@ m0_ha_ut_rpc_session_ctx_init(struct m0_ha_ut_rpc_session_ctx *sctx,
 	rc = m0_rpc_client_connect(&sctx->husc_conn, &sctx->husc_session,
 	                           &ctx->hurc_rpc_machine,
 	                           ctx->hurc_rpc_machine.rm_tm.ntm_ep->nep_addr,
-				   NULL, HA_UT_MAX_RPCS_IN_FLIGHT);
+				   NULL, HA_UT_MAX_RPCS_IN_FLIGHT,
+				   M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 }
 

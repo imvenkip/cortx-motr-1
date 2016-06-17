@@ -77,7 +77,7 @@ static int wlock_ctx_connect(struct wlock_ctx *wlx)
 	M0_PRE(wlx != NULL);
 	return m0_rpc_client_connect(&wlx->wlc_conn, &wlx->wlc_sess,
 				     wlx->wlc_rmach, wlx->wlc_rm_addr, NULL,
-				     MAX_RPCS_IN_FLIGHT);
+				     MAX_RPCS_IN_FLIGHT, M0_TIME_NEVER);
 }
 
 static void wlock_ctx_creditor_setup(struct wlock_ctx *wlx)
