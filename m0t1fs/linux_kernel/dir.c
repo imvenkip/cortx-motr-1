@@ -2195,10 +2195,6 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 	fop->f_item.ri_nr_sent_max     = M0T1FS_RPC_MAX_RETRIES;
 	fop->f_item.ri_resend_interval = M0T1FS_RPC_RESEND_INTERVAL;
 	rc = m0_rpc_post(&fop->f_item);
-	if (rc != 0)
-		goto fop_put;
-
-	return M0_RC(rc);
 fop_put:
 	m0_fop_put0_lock(fop);
 out:
