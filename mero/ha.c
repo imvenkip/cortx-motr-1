@@ -22,9 +22,10 @@
 /**
  * @addtogroup mero
  *
- * TODO handle errors in m0_mero_ha_init()
  * TODO find include for M0_CONF_SERVICE_TYPE
  * TODO add magics for mero_ha_handlers
+ * TODO s/container_of/bob_of/g
+ * TODO make a flag to forbid handler detach before stop()
  *
  * @{
  */
@@ -256,73 +257,241 @@ const struct m0_ha_ops m0_mero_ha_ops = {
 	.hao_link_disconnected     = &mero_ha_link_disconnected_cb,
 };
 
+enum mero_ha_level {
+	MERO_HA_LEVEL_HA_INIT,
+	MERO_HA_LEVEL_HANDLERS_TLIST,
+	MERO_HA_LEVEL_NOTE_HANDLER_ALLOC,
+	MERO_HA_LEVEL_NOTE_HANDLER_INIT,
+	MERO_HA_LEVEL_KEEPALIVE_HANDLER_ALLOC,
+	MERO_HA_LEVEL_KEEPALIVE_HANDLER_INIT,
+	MERO_HA_LEVEL_INSTANCE_SET,
+	MERO_HA_LEVEL_INITIALISED,
+	MERO_HA_LEVEL_HA_START,
+	MERO_HA_LEVEL_INSTANCE_SET_HA,
+	MERO_HA_LEVEL_STARTED,
+	MERO_HA_LEVEL_CONNECT,
+	MERO_HA_LEVEL_INSTANCE_SET_HA_LINK,
+	MERO_HA_LEVEL_CONNECTED,
+};
+
+static int mero_ha_level_enter(struct m0_module *module)
+{
+	enum mero_ha_level  level = module->m_cur + 1;
+	struct m0_mero_ha  *mha;
+
+	mha = container_of(module, struct m0_mero_ha, mh_module);
+	M0_ENTRY("mha=%p level=%d", mha, level);
+	switch (level) {
+	case MERO_HA_LEVEL_HA_INIT:
+		return M0_RC(m0_ha_init(&mha->mh_ha, &(struct m0_ha_cfg){
+				.hcf_ops         =  m0_mero_ha_ops,
+				.hcf_rpc_machine =  mha->mh_cfg.mhc_rpc_machine,
+				.hcf_reqh        =  mha->mh_cfg.mhc_reqh,
+			                }));
+	case MERO_HA_LEVEL_HANDLERS_TLIST:
+		mero_ha_handlers_tlist_init(&mha->mh_handlers);
+		mha->mh_can_add_handler = true;
+		return M0_RC(0);
+	case MERO_HA_LEVEL_NOTE_HANDLER_ALLOC:
+		M0_ALLOC_PTR(mha->mh_note_handler);
+		return mha->mh_note_handler == NULL ? M0_ERR(-ENOMEM) :
+						      M0_RC(0);
+	case MERO_HA_LEVEL_NOTE_HANDLER_INIT:
+		return M0_RC(m0_ha_note_handler_init(mha->mh_note_handler,
+						     mha));
+	case MERO_HA_LEVEL_KEEPALIVE_HANDLER_ALLOC:
+		M0_ALLOC_PTR(mha->mh_keepalive_handler);
+		return mha->mh_keepalive_handler == NULL ? M0_ERR(-ENOMEM) :
+							   M0_RC(0);
+	case MERO_HA_LEVEL_KEEPALIVE_HANDLER_INIT:
+		return M0_RC(m0_ha_keepalive_handler_init(
+					mha->mh_keepalive_handler, mha));
+	case MERO_HA_LEVEL_INSTANCE_SET:
+		M0_ASSERT(m0_get()->i_mero_ha == NULL);
+		m0_get()->i_mero_ha = mha;
+		return M0_RC(0);
+	case MERO_HA_LEVEL_HA_START:
+		mha->mh_can_add_handler = false;
+		return M0_RC(m0_ha_start(&mha->mh_ha));
+	case MERO_HA_LEVEL_INSTANCE_SET_HA:
+		M0_ASSERT(m0_get()->i_ha == NULL);
+		m0_get()->i_ha = &mha->mh_ha;
+		return M0_RC(0);
+	case MERO_HA_LEVEL_CONNECT:
+		mha->mh_link = m0_ha_connect(&mha->mh_ha, mha->mh_cfg.mhc_addr);
+		/*
+		 * Currently m0_ha_connect() is synchronous and always
+		 * successful. It may be changed in the future.
+		 */
+		M0_ASSERT(mha->mh_link != NULL);
+		return M0_RC(0);
+	case MERO_HA_LEVEL_INSTANCE_SET_HA_LINK:
+		M0_ASSERT(m0_get()->i_ha_link == NULL);
+		m0_get()->i_ha_link = mha->mh_link;
+		m0_ha_state_init(mha->mh_link->hln_cfg.hlc_rpc_session);
+		return M0_RC(0);
+	case MERO_HA_LEVEL_INITIALISED:
+	case MERO_HA_LEVEL_STARTED:
+	case MERO_HA_LEVEL_CONNECTED:
+		M0_IMPOSSIBLE("can't be here");
+	}
+	return M0_ERR(-ENOSYS);
+}
+
+static void mero_ha_level_leave(struct m0_module *module)
+{
+	enum mero_ha_level  level = module->m_cur;
+	struct m0_mero_ha  *mha;
+
+	mha = container_of(module, struct m0_mero_ha, mh_module);
+	M0_ENTRY("mha=%p level=%d", mha, level);
+	switch (level) {
+	case MERO_HA_LEVEL_HA_INIT:
+		m0_ha_fini(&mha->mh_ha);
+		break;
+	case MERO_HA_LEVEL_HANDLERS_TLIST:
+		mero_ha_handlers_tlist_fini(&mha->mh_handlers);
+		break;
+	case MERO_HA_LEVEL_NOTE_HANDLER_ALLOC:
+		m0_free(mha->mh_note_handler);
+		break;
+	case MERO_HA_LEVEL_NOTE_HANDLER_INIT:
+		m0_ha_note_handler_fini(mha->mh_note_handler);
+		break;
+	case MERO_HA_LEVEL_KEEPALIVE_HANDLER_ALLOC:
+		m0_free(mha->mh_keepalive_handler);
+		break;
+	case MERO_HA_LEVEL_KEEPALIVE_HANDLER_INIT:
+		m0_ha_keepalive_handler_fini(mha->mh_keepalive_handler);
+		break;
+	case MERO_HA_LEVEL_INSTANCE_SET:
+		M0_ASSERT(m0_get()->i_mero_ha == mha);
+		m0_get()->i_mero_ha = NULL;
+		break;
+	case MERO_HA_LEVEL_HA_START:
+		m0_ha_stop(&mha->mh_ha);
+		break;
+	case MERO_HA_LEVEL_INSTANCE_SET_HA:
+		M0_ASSERT(m0_get()->i_ha == &mha->mh_ha);
+		m0_get()->i_ha = NULL;
+		break;
+	case MERO_HA_LEVEL_CONNECT:
+		m0_ha_state_fini();
+		m0_ha_link_flush(mha->mh_link);
+		m0_ha_disconnect(&mha->mh_ha, mha->mh_link);
+		break;
+	case MERO_HA_LEVEL_INSTANCE_SET_HA_LINK:
+		M0_ASSERT(m0_get()->i_ha_link != NULL);
+		M0_ASSERT(m0_get()->i_ha_link == mha->mh_link);
+		m0_get()->i_ha_link = NULL;
+		break;
+	case MERO_HA_LEVEL_INITIALISED:
+	case MERO_HA_LEVEL_STARTED:
+	case MERO_HA_LEVEL_CONNECTED:
+		M0_IMPOSSIBLE("can't be here");
+	}
+	M0_LEAVE();
+
+}
+
+static const struct m0_modlev mero_ha_levels[] = {
+	[MERO_HA_LEVEL_HA_INIT] = {
+		.ml_name  = "MERO_HA_LEVEL_HA_INIT",
+		.ml_enter = mero_ha_level_enter,
+		.ml_leave = mero_ha_level_leave,
+	},
+	[MERO_HA_LEVEL_HANDLERS_TLIST] = {
+		.ml_name  = "MERO_HA_LEVEL_HANDLERS_TLIST",
+		.ml_enter = mero_ha_level_enter,
+		.ml_leave = mero_ha_level_leave,
+	},
+	[MERO_HA_LEVEL_NOTE_HANDLER_ALLOC] = {
+		.ml_name  = "MERO_HA_LEVEL_NOTE_HANDLER_ALLOC",
+		.ml_enter = mero_ha_level_enter,
+		.ml_leave = mero_ha_level_leave,
+	},
+	[MERO_HA_LEVEL_NOTE_HANDLER_INIT] = {
+		.ml_name  = "MERO_HA_LEVEL_NOTE_HANDLER_INIT",
+		.ml_enter = mero_ha_level_enter,
+		.ml_leave = mero_ha_level_leave,
+	},
+	[MERO_HA_LEVEL_KEEPALIVE_HANDLER_ALLOC] = {
+		.ml_name  = "MERO_HA_LEVEL_KEEPALIVE_HANDLER_ALLOC",
+		.ml_enter = mero_ha_level_enter,
+		.ml_leave = mero_ha_level_leave,
+	},
+	[MERO_HA_LEVEL_KEEPALIVE_HANDLER_INIT] = {
+		.ml_name  = "MERO_HA_LEVEL_KEEPALIVE_HANDLER_INIT",
+		.ml_enter = mero_ha_level_enter,
+		.ml_leave = mero_ha_level_leave,
+	},
+	[MERO_HA_LEVEL_INSTANCE_SET] = {
+		.ml_name  = "MERO_HA_LEVEL_INSTANCE_SET",
+		.ml_enter = mero_ha_level_enter,
+		.ml_leave = mero_ha_level_leave,
+	},
+	[MERO_HA_LEVEL_INITIALISED] = {
+		.ml_name  = "MERO_HA_LEVEL_INITIALISED",
+	},
+	[MERO_HA_LEVEL_HA_START] = {
+		.ml_name  = "MERO_HA_LEVEL_HA_START",
+		.ml_enter = mero_ha_level_enter,
+		.ml_leave = mero_ha_level_leave,
+	},
+	[MERO_HA_LEVEL_INSTANCE_SET_HA] = {
+		.ml_name  = "MERO_HA_LEVEL_INSTANCE_SET_HA",
+		.ml_enter = mero_ha_level_enter,
+		.ml_leave = mero_ha_level_leave,
+	},
+	[MERO_HA_LEVEL_STARTED] = {
+		.ml_name  = "MERO_HA_LEVEL_STARTED",
+	},
+	[MERO_HA_LEVEL_CONNECT] = {
+		.ml_name  = "MERO_HA_LEVEL_CONNECT",
+		.ml_enter = mero_ha_level_enter,
+		.ml_leave = mero_ha_level_leave,
+	},
+	[MERO_HA_LEVEL_INSTANCE_SET_HA_LINK] = {
+		.ml_name  = "MERO_HA_LEVEL_INSTANCE_SET_HA_LINK",
+		.ml_enter = mero_ha_level_enter,
+		.ml_leave = mero_ha_level_leave,
+	},
+	[MERO_HA_LEVEL_CONNECTED] = {
+		.ml_name  = "MERO_HA_LEVEL_CONNECTED",
+	},
+};
+
 M0_INTERNAL int m0_mero_ha_init(struct m0_mero_ha     *mha,
                                 struct m0_mero_ha_cfg *mha_cfg)
 {
-	int rc;
+	char *addr_dup;
+	int   rc;
 
 	M0_ENTRY("mha=%p ha=%p mhc_addr=%s mhc_rpc_machine=%p mhc_reqh=%p",
 	         mha, &mha->mh_ha, mha_cfg->mhc_addr, mha_cfg->mhc_rpc_machine,
 		 mha_cfg->mhc_reqh);
 
 	mha->mh_cfg = *mha_cfg;
-	mha->mh_cfg.mhc_addr = m0_strdup(mha_cfg->mhc_addr);
-	M0_ASSERT(mha->mh_cfg.mhc_addr != NULL);
-	rc = m0_ha_init(&mha->mh_ha, &(struct m0_ha_cfg){
-				.hcf_ops         =  m0_mero_ha_ops,
-				.hcf_rpc_machine =  mha->mh_cfg.mhc_rpc_machine,
-				.hcf_reqh        =  mha->mh_cfg.mhc_reqh,
-			});
-	M0_ASSERT(rc == 0);
-	mero_ha_handlers_tlist_init(&mha->mh_handlers);
-	mha->mh_can_add_handler = true;
-	M0_ALLOC_PTR(mha->mh_note_handler);
-	M0_ASSERT(mha->mh_note_handler != NULL);
-	rc = m0_ha_note_handler_init(mha->mh_note_handler, mha);
-	M0_ASSERT(rc == 0);
-	M0_ALLOC_PTR(mha->mh_keepalive_handler);
-	M0_ASSERT(mha->mh_keepalive_handler != NULL);
-	rc = m0_ha_keepalive_handler_init(mha->mh_keepalive_handler, mha);
-	M0_ASSERT(rc == 0);
-	M0_ASSERT(m0_get()->i_mero_ha == NULL);
-	m0_get()->i_mero_ha = mha;
+	addr_dup = m0_strdup(mha_cfg->mhc_addr);
+	if (addr_dup == NULL)
+		return M0_ERR(-ENOMEM);
+	mha->mh_cfg.mhc_addr = addr_dup;
+
+	m0_module_setup(&mha->mh_module, "m0_mero_ha",
+			mero_ha_levels, ARRAY_SIZE(mero_ha_levels), m0_get());
+	rc = m0_module_init(&mha->mh_module, MERO_HA_LEVEL_INITIALISED);
+	if (rc != 0) {
+		m0_module_fini(&mha->mh_module, M0_MODLEV_NONE);
+		m0_free(addr_dup);
+		return M0_ERR(rc);
+	}
 	return M0_RC(0);
-}
-
-M0_INTERNAL int m0_mero_ha_start(struct m0_mero_ha *mha)
-{
-	int rc;
-
-	M0_ENTRY("mha=%p", mha);
-	mha->mh_can_add_handler = false;
-	rc = m0_ha_start(&mha->mh_ha);
-	M0_ASSERT(rc == 0);
-	M0_ASSERT(m0_get()->i_ha == NULL);
-	m0_get()->i_ha = &mha->mh_ha;
-	return M0_RC(0);
-}
-
-M0_INTERNAL void m0_mero_ha_stop(struct m0_mero_ha *mha)
-{
-	M0_ENTRY("mha=%p", mha);
-	M0_ASSERT(m0_get()->i_ha == &mha->mh_ha);
-	m0_get()->i_ha = NULL;
-	m0_ha_stop(&mha->mh_ha);
-	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_mero_ha_fini(struct m0_mero_ha *mha)
 {
 	M0_ENTRY("mha=%p", mha);
-
-	M0_ASSERT(m0_get()->i_mero_ha == mha);
-	m0_get()->i_mero_ha = NULL;
-	m0_ha_keepalive_handler_fini(mha->mh_keepalive_handler);
-	m0_free(mha->mh_keepalive_handler);
-	m0_ha_note_handler_fini(mha->mh_note_handler);
-	m0_free(mha->mh_note_handler);
-	mero_ha_handlers_tlist_fini(&mha->mh_handlers);
-	m0_ha_fini(&mha->mh_ha);
+	m0_module_fini(&mha->mh_module, M0_MODLEV_NONE);
 	/*
 	 * Removing "const" here is safe because the string is allocated in
 	 * m0_mero_ha_init() using m0_strdup().
@@ -331,32 +500,38 @@ M0_INTERNAL void m0_mero_ha_fini(struct m0_mero_ha *mha)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_mero_ha_connect(struct m0_mero_ha *mha)
+M0_INTERNAL int m0_mero_ha_start(struct m0_mero_ha *mha)
+{
+	int rc;
+
+	M0_ENTRY("mha=%p", mha);
+	rc = m0_module_init(&mha->mh_module, MERO_HA_LEVEL_STARTED);
+	if (rc != 0)
+		m0_module_fini(&mha->mh_module, MERO_HA_LEVEL_INITIALISED);
+	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
+}
+
+M0_INTERNAL void m0_mero_ha_stop(struct m0_mero_ha *mha)
 {
 	M0_ENTRY("mha=%p", mha);
+	m0_module_fini(&mha->mh_module, MERO_HA_LEVEL_INITIALISED);
+	M0_LEAVE();
+}
 
-	mha->mh_link = m0_ha_connect(&mha->mh_ha, mha->mh_cfg.mhc_addr);
-	M0_ASSERT(mha->mh_link != NULL);        /* XXX */
-
-	M0_ASSERT(m0_get()->i_ha_link == NULL);
-	m0_get()->i_ha_link = mha->mh_link;
-	m0_ha_state_init(mha->mh_link->hln_cfg.hlc_rpc_session);
-
+M0_INTERNAL void m0_mero_ha_connect(struct m0_mero_ha *mha)
+{
+	int rc;
+	M0_ENTRY("mha=%p", mha);
+	rc = m0_module_init(&mha->mh_module, MERO_HA_LEVEL_CONNECTED);
+	/* connect can't fail */
+	M0_ASSERT(rc == 0);
 	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_mero_ha_disconnect(struct m0_mero_ha *mha)
 {
 	M0_ENTRY("mha=%p", mha);
-
-	m0_ha_state_fini();
-	M0_ASSERT(m0_get()->i_ha_link != NULL);
-	M0_ASSERT(m0_get()->i_ha_link == mha->mh_link);
-	m0_get()->i_ha_link = NULL;
-
-	m0_ha_link_flush(mha->mh_link);
-	m0_ha_disconnect(&mha->mh_ha, mha->mh_link);
-
+	m0_module_fini(&mha->mh_module, MERO_HA_LEVEL_STARTED);
 	M0_LEAVE();
 }
 

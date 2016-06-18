@@ -29,10 +29,11 @@
  * @{
  */
 
-#include "lib/tlist.h"  /* m0_tl */
-#include "lib/types.h"  /* uint64_t */
-#include "lib/mutex.h"  /* m0_mutex */
-#include "ha/ha.h"      /* m0_ha */
+#include "lib/tlist.h"          /* m0_tl */
+#include "lib/types.h"          /* uint64_t */
+#include "lib/mutex.h"          /* m0_mutex */
+#include "module/module.h"      /* m0_module */
+#include "ha/ha.h"              /* m0_ha */
 
 struct m0_rpc_machine;
 struct m0_reqh;
@@ -48,6 +49,7 @@ struct m0_mero_ha_cfg {
 
 struct m0_mero_ha {
 	struct m0_mero_ha_cfg           mh_cfg;
+	struct m0_module                mh_module;
 	struct m0_ha                    mh_ha;
 	struct m0_ha_link              *mh_link;
 	/*
