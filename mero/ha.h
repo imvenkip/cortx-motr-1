@@ -45,6 +45,8 @@ struct m0_mero_ha_cfg {
 	const char            *mhc_addr;
 	struct m0_rpc_machine *mhc_rpc_machine;
 	struct m0_reqh        *mhc_reqh;
+	bool                   mhc_enable_note;
+	bool                   mhc_enable_keepalive;
 };
 
 struct m0_mero_ha {

@@ -70,9 +70,11 @@ M0_INTERNAL void m0_mero_ha_cfg_make(struct m0_mero_ha_cfg *mha_cfg,
 	M0_PRE(reqh != NULL);
 	M0_PRE(rmach != NULL);
 	*mha_cfg = (struct m0_mero_ha_cfg){
-		.mhc_addr        = addr,
-		.mhc_rpc_machine = rmach,
-		.mhc_reqh        = reqh,
+		.mhc_addr             = addr,
+		.mhc_rpc_machine      = rmach,
+		.mhc_reqh             = reqh,
+		.mhc_enable_note      = true,
+		.mhc_enable_keepalive = true,
 	};
 	M0_LEAVE();
 }
@@ -293,17 +295,25 @@ static int mero_ha_level_enter(struct m0_module *module)
 		mha->mh_can_add_handler = true;
 		return M0_RC(0);
 	case MERO_HA_LEVEL_NOTE_HANDLER_ALLOC:
+		if (!mha->mh_cfg.mhc_enable_note)
+			return M0_RC(0);
 		M0_ALLOC_PTR(mha->mh_note_handler);
 		return mha->mh_note_handler == NULL ? M0_ERR(-ENOMEM) :
 						      M0_RC(0);
 	case MERO_HA_LEVEL_NOTE_HANDLER_INIT:
+		if (!mha->mh_cfg.mhc_enable_note)
+			return M0_RC(0);
 		return M0_RC(m0_ha_note_handler_init(mha->mh_note_handler,
 						     mha));
 	case MERO_HA_LEVEL_KEEPALIVE_HANDLER_ALLOC:
+		if (!mha->mh_cfg.mhc_enable_keepalive)
+			return M0_RC(0);
 		M0_ALLOC_PTR(mha->mh_keepalive_handler);
 		return mha->mh_keepalive_handler == NULL ? M0_ERR(-ENOMEM) :
 							   M0_RC(0);
 	case MERO_HA_LEVEL_KEEPALIVE_HANDLER_INIT:
+		if (!mha->mh_cfg.mhc_enable_keepalive)
+			return M0_RC(0);
 		return M0_RC(m0_ha_keepalive_handler_init(
 					mha->mh_keepalive_handler, mha));
 	case MERO_HA_LEVEL_INSTANCE_SET:
@@ -353,16 +363,20 @@ static void mero_ha_level_leave(struct m0_module *module)
 		mero_ha_handlers_tlist_fini(&mha->mh_handlers);
 		break;
 	case MERO_HA_LEVEL_NOTE_HANDLER_ALLOC:
-		m0_free(mha->mh_note_handler);
+		if (mha->mh_cfg.mhc_enable_note)
+			m0_free(mha->mh_note_handler);
 		break;
 	case MERO_HA_LEVEL_NOTE_HANDLER_INIT:
-		m0_ha_note_handler_fini(mha->mh_note_handler);
+		if (mha->mh_cfg.mhc_enable_note)
+			m0_ha_note_handler_fini(mha->mh_note_handler);
 		break;
 	case MERO_HA_LEVEL_KEEPALIVE_HANDLER_ALLOC:
-		m0_free(mha->mh_keepalive_handler);
+		if (mha->mh_cfg.mhc_enable_keepalive)
+			m0_free(mha->mh_keepalive_handler);
 		break;
 	case MERO_HA_LEVEL_KEEPALIVE_HANDLER_INIT:
-		m0_ha_keepalive_handler_fini(mha->mh_keepalive_handler);
+		if (mha->mh_cfg.mhc_enable_keepalive)
+			m0_ha_keepalive_handler_fini(mha->mh_keepalive_handler);
 		break;
 	case MERO_HA_LEVEL_INSTANCE_SET:
 		M0_ASSERT(m0_get()->i_mero_ha == mha);

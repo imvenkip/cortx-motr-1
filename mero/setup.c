@@ -558,8 +558,9 @@ static void cs_rpc_machines_fini(struct m0_reqh *reqh)
  */
 static int cs_ha_init(struct m0_mero *cctx)
 {
-	const char *ep;
-	int         rc;
+	struct m0_mero_ha_cfg  mero_ha_cfg;
+	const char            *ep;
+	int                    rc;
 
 	M0_ENTRY();
 	if (cctx->cc_ha_addr == NULL && cctx->cc_reqh_ctx.rc_confdb != NULL) {
@@ -567,11 +568,14 @@ static int cs_ha_init(struct m0_mero *cctx)
 		cctx->cc_ha_addr = m0_strdup(ep);
 		cctx->cc_no_all2all_connections = true;
 	}
-	rc = m0_mero_ha_init(&cctx->cc_mero_ha, &(struct m0_mero_ha_cfg){
-			             .mhc_addr        = cctx->cc_ha_addr,
-			             .mhc_rpc_machine = m0_mero_to_rmach(cctx),
-			             .mhc_reqh    = &cctx->cc_reqh_ctx.rc_reqh,
-			     });
+	mero_ha_cfg = (struct m0_mero_ha_cfg){
+		.mhc_addr             = cctx->cc_ha_addr,
+		.mhc_rpc_machine      = m0_mero_to_rmach(cctx),
+		.mhc_reqh             = &cctx->cc_reqh_ctx.rc_reqh,
+		.mhc_enable_note      = true,
+		.mhc_enable_keepalive = true,
+	};
+	rc = m0_mero_ha_init(&cctx->cc_mero_ha, &mero_ha_cfg);
 	M0_ASSERT(rc == 0);
 	rc = m0_mero_ha_start(&cctx->cc_mero_ha);
 	M0_ASSERT(rc == 0);

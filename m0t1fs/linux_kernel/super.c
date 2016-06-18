@@ -457,14 +457,18 @@ M0_INTERNAL void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
  */
 static int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
 {
-	int rc;
+	struct m0_mero_ha_cfg mero_ha_cfg;
+	int                   rc;
 
 	M0_ENTRY();
-	rc = m0_mero_ha_init(&csb->csb_mero_ha, &(struct m0_mero_ha_cfg){
-			             .mhc_addr        = ha_addr,
-			             .mhc_rpc_machine = &csb->csb_rpc_machine,
-			             .mhc_reqh        = &csb->csb_reqh,
-			     });
+	mero_ha_cfg = (struct m0_mero_ha_cfg){
+		.mhc_addr             = ha_addr,
+		.mhc_rpc_machine      = &csb->csb_rpc_machine,
+		.mhc_reqh             = &csb->csb_reqh,
+		.mhc_enable_note      = true,
+		.mhc_enable_keepalive = true,
+	};
+	rc = m0_mero_ha_init(&csb->csb_mero_ha, &mero_ha_cfg);
 	M0_ASSERT(rc == 0);
 	rc = m0_mero_ha_start(&csb->csb_mero_ha);
 	M0_ASSERT(rc == 0);
