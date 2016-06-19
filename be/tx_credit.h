@@ -60,10 +60,11 @@
  */
 
 #ifdef __KERNEL__
-#  undef M0_DEBUG_BE_CREDITS
+#define M0_DEBUG_BE_CREDITS (0)
+#else
+#define M0_DEBUG_BE_CREDITS (1)
 #endif
 
-#ifdef M0_DEBUG_BE_CREDITS
 enum m0_be_credit_users {
 	M0_BE_CU_BTREE_INSERT,
 	M0_BE_CU_BTREE_DELETE,
@@ -72,7 +73,6 @@ enum m0_be_credit_users {
 	M0_BE_CU_EMAP_PASTE,
 	M0_BE_CU_NR
 };
-#endif
 
 struct m0_be_tx_credit {
 	/**
@@ -82,10 +82,8 @@ struct m0_be_tx_credit {
 	m0_bcount_t tc_reg_nr;
 	/** Total size of memory needed for the same. */
 	m0_bcount_t tc_reg_size;
-#ifdef M0_DEBUG_BE_CREDITS
 	/** Used to track who uses the credit and how much. */
 	unsigned    tc_balance[M0_BE_CU_NR];
-#endif
 };
 
 /* invalid m0_be_tx_credit value */

@@ -401,7 +401,7 @@ struct m0_be_tx_remid {
 	uint64_t tri_locality;
 } M0_XCA_RECORD;
 
-#ifdef M0_DEBUG_BE_CREDITS
+#if M0_DEBUG_BE_CREDITS == 1
 
 /**
  * Increase credits counter for the specified @cr_user.
