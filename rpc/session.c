@@ -856,6 +856,8 @@ M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session)
 	struct m0_rpc_item *item;
 
 	M0_PRE(session->s_session_id != SESSION_ID_0);
+	M0_PRE(M0_IN(session_state(session),
+		     (M0_RPC_SESSION_BUSY, M0_RPC_SESSION_IDLE)));
 
 	M0_ENTRY("session %p", session);
 	m0_rpc_machine_lock(session->s_conn->c_rpc_machine);

@@ -482,7 +482,7 @@ rcancel_cancel_during_read_test()
 	# to verify that RPC session was indeed canceled.
 	# Many of those read ops fail with the error "Input/output error"
 	# while a few fail with the error "Operation canceled"
-	num=`grep -n "dd: " $MERO_TEST_LOGFILE | grep "reading" | egrep "("Input\/output\ error")" | grep "$rt_file_base" | wc -l | cut -f1 -d' '`
+	num=`grep -n "dd: " $MERO_TEST_LOGFILE | grep "reading" | egrep 'Operation canceled|Input\/output error' | grep "$rt_file_base" | wc -l | cut -f1 -d' '`
 	echo "dd read processes canceled : $num"
 	if [ $num -eq 0 ]; then
 		echo "Failed: No dd reading operation was canceled"
