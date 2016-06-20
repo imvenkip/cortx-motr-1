@@ -170,18 +170,20 @@ ha_ut_entrypoint_server_stop(struct ha_ut_entrypoint_usecase_ctx *uctx,
 
 static void
 ha_ut_entrypoint_client_start(struct ha_ut_entrypoint_usecase_ctx *uctx,
-			      struct m0_ha_ut_rpc_session_ctx     *sctx,
 			      struct m0_ha_ut_rpc_ctx             *ctx,
 			      struct m0_ha_entrypoint_client      *ecl)
 {
-	struct m0_ha_entrypoint_client_cfg   ecl_cfg;
-	int                                  rc;
+	struct m0_ha_entrypoint_client_cfg  ecl_cfg;
+	int                                 rc;
 
 	ecl_cfg = (struct m0_ha_entrypoint_client_cfg){
-		.hecc_reqh    = &ctx->hurc_reqh,
-		.hecc_session = &sctx->husc_session,
+		.hecc_reqh        = &ctx->hurc_reqh,
+		.hecc_rpc_machine = &ctx->hurc_rpc_machine,
+		.hecc_process_fid = M0_FID_INIT(0, 0),
+		.hecc_profile_fid = M0_FID_INIT(0, 0),
 	};
-	rc = m0_ha_entrypoint_client_init(ecl, &ecl_cfg);
+	rc = m0_ha_entrypoint_client_init(ecl,
+			ctx->hurc_rpc_machine.rm_tm.ntm_ep->nep_addr, &ecl_cfg);
 	M0_UT_ASSERT(rc == 0);
 	m0_ha_entrypoint_client_start_sync(ecl);
 }
@@ -197,7 +199,6 @@ ha_ut_entrypoint_client_stop(struct ha_ut_entrypoint_usecase_ctx *uctx,
 void m0_ha_ut_entrypoint_usecase(void)
 {
 	struct ha_ut_entrypoint_usecase_ctx *uctx;
-	struct m0_ha_ut_rpc_session_ctx     *sctx;
 	struct m0_ha_entrypoint_server      *esr;
 	struct m0_ha_entrypoint_client      *ecl;
 	struct m0_ha_ut_rpc_ctx             *ctx;
@@ -206,16 +207,14 @@ void m0_ha_ut_entrypoint_usecase(void)
 	M0_ALLOC_PTR(uctx);
 	M0_ALLOC_PTR(ctx);
 	M0_ALLOC_PTR(ecl);
-	M0_ALLOC_PTR(sctx);
 	m0_ha_ut_rpc_ctx_init(ctx);
-	m0_ha_ut_rpc_session_ctx_init(sctx, ctx);
 
 	ha_ut_entrypoint_reply_init(uctx);
 
 	esr = &uctx->ueus_server;
 	ha_ut_entrypoint_server_start(uctx, ctx, esr);
 
-	ha_ut_entrypoint_client_start(uctx, sctx, ctx, ecl);
+	ha_ut_entrypoint_client_start(uctx, ctx, ecl);
 	rep = &ecl->ecl_rep;
 
 	ha_ut_entrypoint_reply_check(uctx, rep);
@@ -227,9 +226,7 @@ void m0_ha_ut_entrypoint_usecase(void)
 
 	ha_ut_entrypoint_reply_fini(uctx);
 
-	m0_ha_ut_rpc_session_ctx_fini(sctx);
 	m0_ha_ut_rpc_ctx_fini(ctx);
-	m0_free(sctx);
 	m0_free(ecl);
 	m0_free(ctx);
 	m0_free(uctx);
@@ -256,7 +253,6 @@ static bool ha_ut_entrypoint_client_cb(struct m0_clink *clink)
 void m0_ha_ut_entrypoint_client(void)
 {
 	struct ha_ut_entrypoint_usecase_ctx *uctx;
-	struct m0_ha_ut_rpc_session_ctx     *sctx;
 	struct m0_ha_entrypoint_server      *esr;
 	struct m0_ha_entrypoint_client      *ecl;
 	struct m0_ha_ut_rpc_ctx             *ctx;
@@ -264,9 +260,7 @@ void m0_ha_ut_entrypoint_client(void)
 
 	M0_ALLOC_PTR(uctx);
 	M0_ALLOC_PTR(ctx);
-	M0_ALLOC_PTR(sctx);
 	m0_ha_ut_rpc_ctx_init(ctx);
-	m0_ha_ut_rpc_session_ctx_init(sctx, ctx);
 
 	ha_ut_entrypoint_reply_init(uctx);
 
@@ -274,7 +268,7 @@ void m0_ha_ut_entrypoint_client(void)
 	ha_ut_entrypoint_server_start(uctx, ctx, esr);
 
 	ecl = &uctx->ueus_client;
-	ha_ut_entrypoint_client_start(uctx, sctx, ctx, ecl);
+	ha_ut_entrypoint_client_start(uctx, ctx, ecl);
 	rep = &ecl->ecl_rep;
 	ha_ut_entrypoint_reply_check(uctx, rep);
 	M0_UT_ASSERT(uctx->ueus_req_count == 1);
@@ -300,9 +294,7 @@ void m0_ha_ut_entrypoint_client(void)
 
 	ha_ut_entrypoint_reply_fini(uctx);
 
-	m0_ha_ut_rpc_session_ctx_fini(sctx);
 	m0_ha_ut_rpc_ctx_fini(ctx);
-	m0_free(sctx);
 	m0_free(ctx);
 	m0_free(uctx);
 }

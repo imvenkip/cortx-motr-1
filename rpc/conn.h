@@ -27,7 +27,7 @@
 #include "lib/time.h"          /* m0_time_t */
 #include "sm/sm.h"
 #include "rpc/rpc_onwire.h"    /* m0_rpc_sender_uuid */
-#include "ha/note.h"
+#include "fid/fid.h"           /* m0_fid */
 
 /* Imports */
 struct m0_rpc_machine;

@@ -50,6 +50,7 @@
 #include "fop/fom.h"            /* M0_FOM_PHASE_INIT */
 #include "fop/fop.h"            /* m0_fop */
 #include "ha/entrypoint_fops.h" /* m0_ha_entrypoint_req */
+#include "rpc/link.h"
 
 
 struct m0_ha_entrypoint_server;
@@ -84,22 +85,28 @@ enum m0_ha_entrypoint_client_state {
 	M0_HEC_INIT,
 	M0_HEC_STOPPED,
 	M0_HEC_UNAVAILABLE,
+	M0_HEC_CONNECT,
+	M0_HEC_CONNECT_WAIT,
 	M0_HEC_FILL,
 	M0_HEC_SEND,
-	M0_HEC_WAIT,
+	M0_HEC_SEND_WAIT,
+	M0_HEC_DISCONNECT,
+	M0_HEC_DISCONNECT_WAIT,
 	M0_HEC_AVAILABLE,
 	M0_HEC_FINI,
 };
 
 struct m0_ha_entrypoint_client_cfg {
 	struct m0_reqh        *hecc_reqh;
-	struct m0_rpc_session *hecc_session;
+	struct m0_rpc_machine *hecc_rpc_machine;
 	struct m0_fid          hecc_process_fid;
 	struct m0_fid          hecc_profile_fid;
 };
 
 struct m0_ha_entrypoint_client {
 	struct m0_ha_entrypoint_client_cfg  ecl_cfg;
+	struct m0_rpc_link                  ecl_rlink;
+	struct m0_clink                     ecl_rlink_wait;
 	struct m0_ha_entrypoint_req         ecl_req;
 	struct m0_fop                       ecl_req_fop;
 	struct m0_ha_entrypoint_req_fop     ecl_req_fop_data;
@@ -107,11 +114,13 @@ struct m0_ha_entrypoint_client {
 	struct m0_fom                       ecl_fom;
 	/** must be accessed under ecl_sm_group lock */
 	bool                                ecl_fom_running;
+	struct m0_mutex                     ecl_fom_running_lock;
 	/** is true when ecl stops; avoids infinite wait for a dead HA */
 	bool                                ecl_stopping;
 	struct m0_sm                        ecl_sm;
 	struct m0_sm_group                  ecl_sm_group;
 	struct m0_rpc_item                 *ecl_reply;
+	bool                                ecl_send_error;
 	/** subscribes to ecl_sm state transitions  */
 	struct m0_clink                     ecl_clink;
 };
@@ -138,6 +147,7 @@ m0_ha_entrypoint_server_request_find(struct m0_ha_entrypoint_server *hes,
 
 M0_INTERNAL int
 m0_ha_entrypoint_client_init(struct m0_ha_entrypoint_client     *ecl,
+			     const char                         *ep,
                              struct m0_ha_entrypoint_client_cfg *ecl_cfg);
 M0_INTERNAL void
 m0_ha_entrypoint_client_fini(struct m0_ha_entrypoint_client *ecl);

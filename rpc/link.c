@@ -555,6 +555,7 @@ M0_INTERNAL void m0_rpc_link_reset(struct m0_rpc_link *rlink)
 {
 	m0_rpc_session_reset(&rlink->rlk_sess);
 	m0_rpc_conn_reset(&rlink->rlk_conn);
+	rlink->rlk_rc = 0;
 }
 
 static void rpc_link_fom_queue(struct m0_rpc_link *rlink,

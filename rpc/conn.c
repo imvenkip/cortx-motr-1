@@ -35,6 +35,7 @@
 #include "conf/helpers.h"     /* m0_conf_service_ep_is_known */
 #include "conf/obj_ops.h"     /* m0_conf_obj_get, m0_conf_obj_put */
 #include "conf/cache.h"       /* m0_conf_cache_lock, m0_conf_cache_unlock */
+#include "ha/note.h"          /* M0_NC_FAILED */
 
 /**
    @addtogroup rpc_session

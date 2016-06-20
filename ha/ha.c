@@ -194,6 +194,43 @@ ha_request_received_cb(struct m0_ha_entrypoint_server    *hes,
 	ha->h_cfg.hcf_ops.hao_entrypoint_request(ha, req, req_id);
 }
 
+static bool ha_entrypoint_state_cb(struct m0_clink *clink)
+{
+	enum m0_ha_entrypoint_client_state  state;
+	struct m0_ha_entrypoint_client     *ecl;
+	struct m0_ha_entrypoint_rep        *rep;
+	struct m0_ha                       *ha;
+	bool                                consumed = true;
+
+	M0_ENTRY();
+
+	ha    = container_of(clink, struct m0_ha, h_clink);
+	ecl   = &ha->h_entrypoint_client;
+	state = m0_ha_entrypoint_client_state_get(ecl);
+
+	switch (state) {
+	case M0_HEC_AVAILABLE:
+		rep = &ha->h_entrypoint_client.ecl_rep;
+		M0_LOG(M0_DEBUG, "ha=%p rep->hae_rc=%d", ha, rep->hae_rc);
+		if (rep->hae_rc != 0)
+			m0_ha_entrypoint_client_request(ecl);
+		else
+			ha->h_cfg.hcf_ops.hao_entrypoint_replied(ha, rep);
+		consumed = rep->hae_rc != 0;
+		break;
+
+	case M0_HEC_UNAVAILABLE:
+		m0_ha_entrypoint_client_request(ecl);
+		break;
+
+	default:
+		break;
+	}
+
+	M0_LEAVE();
+
+	return consumed;
+}
 
 M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg)
 {
@@ -203,6 +240,7 @@ M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg)
 	ha->h_cfg = *ha_cfg;
 	ha_links_tlist_init(&ha->h_links_incoming);
 	ha_links_tlist_init(&ha->h_links_outgoing);
+	m0_clink_init(&ha->h_clink, ha_entrypoint_state_cb);
 	ha->h_link_id_counter = 1;
 	return M0_RC(0);
 }
@@ -249,6 +287,7 @@ M0_INTERNAL void m0_ha_fini(struct m0_ha *ha)
 {
 	M0_ENTRY("ha=%p", ha);
 
+	m0_clink_fini(&ha->h_clink);
 	ha_links_tlist_fini(&ha->h_links_outgoing);
 	ha_links_tlist_fini(&ha->h_links_incoming);
 	M0_LEAVE();
@@ -259,6 +298,7 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha,
 {
 	struct m0_ha_entrypoint_rep *rep;
 	struct ha_link_ctx          *hlx;
+	struct m0_chan              *chan;
 	int                          rc;
 	struct m0_ha_link_cfg        hl_cfg;
 
@@ -278,23 +318,26 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha,
 	ha->h_cfg.hcf_entrypoint_client_cfg =
 				(struct m0_ha_entrypoint_client_cfg){
 		.hecc_reqh        = ha->h_cfg.hcf_reqh,
-		.hecc_session     = &hlx->hlx_rpc_session,
+		.hecc_rpc_machine = ha->h_cfg.hcf_rpc_machine,
 		.hecc_process_fid = ha->h_cfg.hcf_process_fid,
 		.hecc_profile_fid = ha->h_cfg.hcf_profile_fid,
 	};
-	rc = m0_ha_entrypoint_client_init(&ha->h_entrypoint_client,
+	rc = m0_ha_entrypoint_client_init(&ha->h_entrypoint_client, ep,
 	                                  &ha->h_cfg.hcf_entrypoint_client_cfg);
 	M0_ASSERT(rc == 0);
 	ha->h_entrypoint_client.ecl_req.heq_link_id_request = true;
-	m0_ha_entrypoint_client_start_sync(&ha->h_entrypoint_client);
-	rep = &ha->h_entrypoint_client.ecl_rep;
-	ha->h_cfg.hcf_ops.hao_entrypoint_replied(ha, rep);
-	hl_cfg.hlc_link_id_local  = rep->hae_link_id_local;
-	hl_cfg.hlc_link_id_remote = rep->hae_link_id_remote;
-	hl_cfg.hlc_tag_even       = rep->hae_link_tag_even;
+	chan = m0_ha_entrypoint_client_chan(&ha->h_entrypoint_client);
+	m0_clink_add_lock(chan, &ha->h_clink);
+	m0_ha_entrypoint_client_start(&ha->h_entrypoint_client);
+	m0_chan_wait(&ha->h_clink);
 
 	rc = m0_ha_state_init(&hlx->hlx_rpc_session);
 	M0_ASSERT(rc == 0);
+
+	rep = &ha->h_entrypoint_client.ecl_rep;
+	hl_cfg.hlc_link_id_local  = rep->hae_link_id_local;
+	hl_cfg.hlc_link_id_remote = rep->hae_link_id_remote;
+	hl_cfg.hlc_tag_even       = rep->hae_link_tag_even;
 	rc = ha_link_ctx_init(ha, hlx, &hl_cfg, HLX_OUTGOING);
 	M0_ASSERT(rc == 0);
 	return &hlx->hlx_link;
@@ -309,6 +352,7 @@ M0_INTERNAL void m0_ha_disconnect(struct m0_ha      *ha,
 	M0_ENTRY("ha=%p hl=%p", ha, hl);
 	ha_link_ctx_fini(ha, hlx);
 	m0_ha_state_fini();
+	m0_clink_del_lock(&ha->h_clink);
 	m0_ha_entrypoint_client_stop(&ha->h_entrypoint_client);
 	m0_ha_entrypoint_client_fini(&ha->h_entrypoint_client);
 	ha_link_ctx_fini_rpc(ha, hlx);

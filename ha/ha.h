@@ -153,6 +153,7 @@ struct m0_ha {
 	struct m0_reqh_service         *h_hl_service;
 	struct m0_ha_entrypoint_client  h_entrypoint_client;
 	struct m0_ha_entrypoint_server  h_entrypoint_server;
+	struct m0_clink                 h_clink;
 	uint64_t                        h_link_id_counter;
 };
 
