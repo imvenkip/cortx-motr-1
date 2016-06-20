@@ -7,6 +7,8 @@ m0mero_objects += \
                   conf/flip_fop_xc.o \
                   conf/fop.o \
                   conf/glob.o \
+                  conf/ha.o \
+                  conf/ha_xc.o \
                   conf/helpers.o \
                   conf/load_fop.o \
                   conf/load_fop_xc.o \

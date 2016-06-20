@@ -36,6 +36,7 @@
 #include "stob/ioq_error.h"     /* m0_stob_ioq_error */
 #include "ha/note.h"            /* m0_ha_msg_nvec */
 #include "mero/keepalive.h"     /* m0_ha_msg_keepalive_req */
+#include "conf/ha.h"            /* m0_conf_ha_process */
 
 /*
  * XXX next two are workarounds because *_xc.h file generator can't
@@ -45,6 +46,7 @@
 #include "lib/types_xc.h"       /* m0_uint128_xc */
 #include "ha/note_xc.h"         /* m0_ha_msg_nvec_xc */
 #include "mero/keepalive_xc.h"  /* m0_ha_msg_keepalive_req_xc */
+#include "conf/ha_xc.h"         /* m0_conf_ha_process_xc */
 
 enum {
 	M0_HA_MSG_FAILURE_VEC_LIMIT = 1024,
@@ -78,6 +80,7 @@ enum m0_ha_msg_type {
 	M0_HA_MSG_FAILURE_VEC_REP,
 	M0_HA_MSG_KEEPALIVE_REQ,
 	M0_HA_MSG_KEEPALIVE_REP,
+	M0_HA_MSG_EVENT_PROCESS,
 	M0_HA_MSG_NR,
 };
 
@@ -98,6 +101,8 @@ struct m0_ha_msg_data {
 			                M0_XCA_TAG("M0_HA_MSG_KEEPALIVE_REQ");
 		struct m0_ha_msg_keepalive_rep hed_keepalive_rep
 			                M0_XCA_TAG("M0_HA_MSG_KEEPALIVE_REP");
+		struct m0_conf_ha_process      hed_event_process
+			                M0_XCA_TAG("M0_HA_MSG_EVENT_PROCESS");
 	} u;
 } M0_XCA_UNION;
 

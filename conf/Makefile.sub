@@ -10,6 +10,7 @@ nobase_mero_include_HEADERS += \
                                conf/flip_fop.h \
                                conf/fop.h \
                                conf/glob.h \
+                               conf/ha.h \
                                conf/helpers.h \
                                conf/load_fom.h \
                                conf/load_fop.h \
@@ -34,6 +35,8 @@ mero_libmero_la_SOURCES += \
                            conf/flip_fop_xc.c \
                            conf/fop.c \
                            conf/glob.c \
+                           conf/ha.c \
+                           conf/ha_xc.c \
                            conf/helpers.c \
                            conf/load_fom.c \
                            conf/load_fop.c \
@@ -46,6 +49,8 @@ mero_libmero_la_SOURCES += \
                            conf/rconfc_internal.h \
                            conf/validation.c
 
-XC_FILES += conf/onwire_xc.h \
+XC_FILES += \
             conf/flip_fop_xc.h \
-            conf/load_fop_xc.h
+            conf/ha_xc.h \
+            conf/load_fop_xc.h \
+            conf/onwire_xc.h
