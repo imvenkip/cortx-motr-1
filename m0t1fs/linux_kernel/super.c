@@ -50,6 +50,7 @@
 #include "ha/epoch.h"          /* m0_ha_client_add */
 #include "balloc/balloc.h"     /* BALLOC_DEF_BLOCK_SHIFT */
 #include "mero/ha.h"           /* m0_mero_ha */
+#include "conf/ha.h"           /* m0_conf_ha_process_event_post */
 
 extern struct io_mem_stats iommstats;
 extern struct m0_bitmap    m0t1fs_client_ep_tmid;
@@ -451,6 +452,14 @@ M0_INTERNAL void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
  * HA service connectivity
  * ---------------------------------------------------------------- */
 
+static void m0t1fs_ha_process_event(struct m0t1fs_sb              *csb,
+                                    enum m0_conf_ha_process_event  event)
+{
+	m0_conf_ha_process_event_post(&csb->csb_mero_ha.mh_ha,
+	                              csb->csb_mero_ha.mh_link,
+	                              &csb->csb_process_fid, 0, event);
+}
+
 /**
  * Establishes rpc session to HA service. The session is set up to be used
  * globally.
@@ -473,6 +482,7 @@ static int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
 	rc = m0_mero_ha_start(&csb->csb_mero_ha);
 	M0_ASSERT(rc == 0);
 	m0_mero_ha_connect(&csb->csb_mero_ha);
+	m0t1fs_ha_process_event(csb, M0_CONF_HA_PROCESS_STARTING);
 	return M0_RC(0);
 }
 
@@ -482,6 +492,7 @@ static int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
 static void m0t1fs_ha_fini(struct m0t1fs_sb *csb)
 {
 	M0_ENTRY("csb: %p", csb);
+	m0t1fs_ha_process_event(csb, M0_CONF_HA_PROCESS_STOPPED);
 	m0_mero_ha_disconnect(&csb->csb_mero_ha);
 	m0_mero_ha_stop(&csb->csb_mero_ha);
 	m0_mero_ha_fini(&csb->csb_mero_ha);
@@ -611,7 +622,7 @@ void m0t1fs_net_fini(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
-int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep, const char *pfid)
+int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep)
 {
 	struct m0_rpc_machine     *rpc_machine = &csb->csb_rpc_machine;
 	struct m0_reqh            *reqh        = &csb->csb_reqh;
@@ -622,7 +633,6 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep, const char *pfid)
 	int                        rc;
 	uint32_t		   bufs_nr;
 	uint32_t		   tms_nr;
-	struct m0_fid              process_fid = M0_FID0;
 
 	M0_ENTRY();
 
@@ -637,16 +647,12 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep, const char *pfid)
 	if (rc != 0)
 		goto be_fini;
 
-	rc = m0_fid_sscanf(pfid, &process_fid);
-	if (rc != 0)
-		goto pool_fini;
-
 	rc = M0_REQH_INIT(reqh,
 			  .rhia_dtm = (void*)1,
 			  .rhia_db = csb->csb_ut_seg.bus_seg,
 			  .rhia_mdstore = (void*)1,
 			  .rhia_pc = &csb->csb_pools_common,
-			  .rhia_fid = &process_fid);
+			  .rhia_fid = &csb->csb_process_fid);
 	if (rc != 0)
 		goto pool_fini;
 	laddr = ep == NULL ? csb->csb_laddr : ep;
@@ -762,6 +768,17 @@ static bool m0t1fs_rconfc_ready_cb(struct m0_clink *clink)
 	return true;
 }
 
+static int m0t1fs_fid_sscanf(const char    *s,
+			     struct m0_fid *fid,
+			     const char    *descr)
+{
+	int rc = m0_fid_sscanf(s, fid);
+
+	if (rc != 0)
+		return M0_ERR_INFO(rc, "can't m0_fid_sscanf() %s %s", descr, s);
+	return M0_RC(0);
+}
+
 int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 {
 	struct m0_addb2_sys       *sys = m0_addb2_global_get();
@@ -775,11 +792,21 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	M0_ENTRY();
 	M0_PRE(csb->csb_astthread.t_state == TS_RUNNING);
 
+	rc = m0t1fs_fid_sscanf(mops->mo_process_fid, &csb->csb_process_fid,
+	                       "process fid");
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0t1fs_fid_sscanf(mops->mo_profile, &csb->csb_profile_fid,
+	                       "profile");
+	if (rc != 0)
+		return M0_ERR(rc);
+
 	rc = m0t1fs_net_init(csb, mops->mo_ep);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0t1fs_rpc_init(csb, mops->mo_ep, mops->mo_process_fid);
+	rc = m0t1fs_rpc_init(csb, mops->mo_ep);
 	if (rc != 0)
 		goto err_net_fini;
 
@@ -1163,6 +1190,8 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	io_bob_tlists_init();
 	M0_SET0(&iommstats);
 
+	m0t1fs_ha_process_event(csb, M0_CONF_HA_PROCESS_STARTED);
+
 	return M0_RC(0);
 
 m0t1fs_teardown:
@@ -1210,6 +1239,8 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 
 	M0_THREAD_ENTER;
 	M0_ENTRY("csb = %p", csb);
+
+	m0t1fs_ha_process_event(csb, M0_CONF_HA_PROCESS_STOPPING);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 	if (sb->s_bdi != NULL)

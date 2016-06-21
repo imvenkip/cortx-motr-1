@@ -35,6 +35,7 @@
 #include "lib/locality.h"
 #include "lib/uuid.h"       /* m0_uuid_generate */
 #include "lib/fs.h"         /* m0_file_read */
+#include "lib/thread.h"     /* m0_process_id */
 #include "fid/fid.h"
 #include "stob/ad.h"
 #include "net/net.h"
@@ -61,6 +62,7 @@
 #include "stob/linux.h"
 #include "pool/flset.h"         /* m0_flset_build, m0_flset_destroy */
 #include "ha/link.h"            /* m0_ha_link_flush */
+#include "conf/ha.h"            /* m0_conf_ha_process_event_post */
 
 /**
    @addtogroup m0d
@@ -588,6 +590,17 @@ static bool bad_address(char *addr)
 	return addr == NULL || *addr == '\0';
 }
 
+static void cs_ha_process_event(struct m0_mero                *cctx,
+                                enum m0_conf_ha_process_event  event)
+{
+	if (!cctx->cc_ha_is_started || cctx->cc_no_conf)
+		return;
+	m0_conf_ha_process_event_post(&cctx->cc_mero_ha.mh_ha,
+	                              cctx->cc_mero_ha.mh_link,
+	                              &cctx->cc_reqh_ctx.rc_fid,
+				      m0_process_id(), event);
+}
+
 /**
  * Clears global HA session info and terminates rpc session to HA service.
  */
@@ -601,8 +614,10 @@ static void cs_ha_fini(struct m0_mero *cctx)
 		M0_LOG(M0_ERROR, "invalid HA address");
 		goto leave; /* session had no chance to be established */
 	}
-	if (!cctx->cc_no_conf)
+	if (!cctx->cc_no_conf) {
+		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STOPPED);
 		m0_mero_ha_disconnect(&cctx->cc_mero_ha);
+	}
 	m0_mero_ha_stop(&cctx->cc_mero_ha);
 	m0_mero_ha_fini(&cctx->cc_mero_ha);
 leave:
@@ -2022,6 +2037,12 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	return _args_parse(cctx, argc, argv);
 }
 
+static void cs_ha_connect(struct m0_mero *cctx)
+{
+	m0_mero_ha_connect(&cctx->cc_mero_ha);
+	cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTING);
+}
+
 static int cs_conf_setup(struct m0_mero *cctx)
 {
 	struct cs_args      *args = &cctx->cc_args;
@@ -2045,7 +2066,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	}
 
 	if (cctx->cc_reqh_ctx.rc_confdb == NULL)
-		m0_mero_ha_connect(&cctx->cc_mero_ha);
+		cs_ha_connect(cctx);
 
 	rc = m0_reqh_conf_setup(reqh, &conf_args);
 	/* confstr is not needed after m0_reqh_conf_setup() */
@@ -2070,7 +2091,7 @@ static int cs_conf_setup(struct m0_mero *cctx)
 		goto conf_fs_close;
 
 	if (cctx->cc_reqh_ctx.rc_confdb != NULL)
-		m0_mero_ha_connect(&cctx->cc_mero_ha);
+		cs_ha_connect(cctx);
 
 	rc = m0_pools_common_init(&cctx->cc_pools_common,
 				  m0_mero_to_rmach(cctx), fs);
@@ -2220,8 +2241,9 @@ int m0_cs_start(struct m0_mero *cctx)
 		goto error;
 
 	m0_confc_close(&fs->cf_obj);
-	if (rc == 0)
-		rc = gotsignal ? -EINTR : 0;
+	rc = gotsignal ? -EINTR : 0;
+
+	cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
 	return M0_RC(rc);
 
 error:
@@ -2258,7 +2280,7 @@ void m0_cs_fini(struct m0_mero *cctx)
 
 	M0_ENTRY();
 
-	m0_ha_state_fini(); /* we don't care about reporting to HA anymore */
+	cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STOPPING);
 
 	if (rctx->rc_state == RC_INITIALISED)
 		m0_reqh_layouts_cleanup(reqh);

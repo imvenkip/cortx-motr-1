@@ -97,7 +97,7 @@ static struct m0_fid                 profile;
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 
-int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep, const char *pfid);
+int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep);
 int m0t1fs_net_init(struct m0t1fs_sb *csb, const char *ep);
 int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb);
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
@@ -213,7 +213,8 @@ static int file_io_ut_init(void)
 	rc = m0t1fs_net_init(&csb, NULL);
 	M0_ASSERT(rc == 0);
 
-	rc = m0t1fs_rpc_init(&csb, NULL, "<0x7200000000000002:3>");
+	csb.csb_process_fid = M0_FID_INIT(0x7200000000000002ULL, 3);
+	rc = m0t1fs_rpc_init(&csb, NULL);
 	M0_ASSERT(rc == 0);
 
 	confc_args = &(struct m0_confc_args){
