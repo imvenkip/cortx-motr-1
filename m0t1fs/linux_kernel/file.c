@@ -1304,12 +1304,10 @@ static int user_data_copy(struct pargrp_iomap *map,
 
 			if (dbuf->db_page == NULL) {
 				page = virt_to_page(dbuf->db_buf.b_addr);
-				pagefault_disable();
 				/* Copies to appropriate offset within page. */
-				bytes = iov_iter_copy_from_user_atomic(page, it,
+				bytes = iov_iter_copy_from_user(page, it,
 						start & ~PAGE_CACHE_MASK,
 						end - start);
-				pagefault_enable();
 			} else
 				bytes = end - start;
 
