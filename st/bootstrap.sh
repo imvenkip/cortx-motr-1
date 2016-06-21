@@ -12,9 +12,9 @@ HALOND=${HALOND:-/home/mask/.local/bin/halond}
 HALONCTL=${HALONCTL:-/home/mask/.local/bin/halonctl}
 # Path to the Halon source tree.
 HALON_SOURCES=${HALON_SOURCES:-/work/halon}
-# The only file that is taken from Halon sources.
-# This variable can be used to run this test if Halon is installed from rpm.
-HALON_ROLE_MAPS=${HALON_ROLE_MAPPINGS:-$HALON_SOURCES/mero-halon/scripts/mero_provisioner_role_mappings.ede}
+# These variables can be used to run this test if Halon is installed from rpm.
+MERO_ROLE_MAPPINGS=${MERO_ROLE_MAPPINGS:-$HALON_SOURCES/mero-halon/scripts/mero_provisioner_role_mappings.ede}
+HALON_ROLES=${HALON_ROLE_MAPPINGS:-$HALON_SOURCES/mero-halon/scripts/halon_roles.yaml}
 # Path to the halon_facts.yaml.
 # The script overwrites the file with it's own configuration
 # (see halon_facts_yaml() function) and then uses the file
@@ -94,7 +94,9 @@ function cluster_start() {
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 bootstrap station
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 bootstrap satellite -t $IP:9000
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster load \
-					-f $HALON_FACTS_YAML -r $HALON_ROLE_MAPS
+					-f $HALON_FACTS_YAML \
+					-r $MERO_ROLE_MAPPINGS \
+					-s $HALON_ROLES
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster start && sleep 120
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster status
 }
