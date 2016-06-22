@@ -118,6 +118,8 @@ enum m0_halon_interface_level {
 	M0_HALON_INTERFACE_LEVEL_RPC_MACHINE,
 	M0_HALON_INTERFACE_LEVEL_HA_INIT,
 	M0_HALON_INTERFACE_LEVEL_HA_START,
+	M0_HALON_INTERFACE_LEVEL_HA_CONNECT,
+	M0_HALON_INTERFACE_LEVEL_INSTANCE_SET,
 	M0_HALON_INTERFACE_LEVEL_STARTED,
 };
 
@@ -142,6 +144,7 @@ struct m0_halon_interface_internal {
 	struct m0_sm_group             hii_sm_group;
 	struct m0_sm                   hii_sm;
 	uint64_t                       hii_magix;
+	struct m0_ha_link             *hii_outgoing_link;
 };
 
 static const struct m0_bob_type halon_interface_bob_type = {
@@ -232,8 +235,10 @@ void halon_interface_msg_received_cb(struct m0_ha      *ha,
 
 	M0_ENTRY("hii=%p ha=%p hl=%p msg=%p tag=%"PRIu64,
 		 hii, ha, hl, msg, tag);
-	m0_ha_msg_debug_print(msg, __func__);
-	hii->hii_cfg.hic_msg_received_cb(hii->hii_hi, hl, msg, tag);
+	if (hl != hii->hii_outgoing_link) {
+		m0_ha_msg_debug_print(msg, __func__);
+		hii->hii_cfg.hic_msg_received_cb(hii->hii_hi, hl, msg, tag);
+	}
 	M0_LEAVE();
 }
 
@@ -244,7 +249,8 @@ void halon_interface_msg_is_delivered_cb(struct m0_ha      *ha,
 	struct m0_halon_interface_internal *hii = halon_interface_ha2hii(ha);
 
 	M0_ENTRY("hii=%p ha=%p hl=%p tag=%"PRIu64, hii, ha, hl, tag);
-	hii->hii_cfg.hic_msg_is_delivered_cb(hii->hii_hi, hl, tag);
+	if (hl != hii->hii_outgoing_link)
+		hii->hii_cfg.hic_msg_is_delivered_cb(hii->hii_hi, hl, tag);
 	M0_LEAVE();
 }
 
@@ -255,7 +261,8 @@ void halon_interface_msg_is_not_delivered_cb(struct m0_ha      *ha,
 	struct m0_halon_interface_internal *hii = halon_interface_ha2hii(ha);
 
 	M0_ENTRY("hii=%p ha=%p hl=%p tag=%"PRIu64, hii, ha, hl, tag);
-	hii->hii_cfg.hic_msg_is_not_delivered_cb(hii->hii_hi, hl, tag);
+	if (hl != hii->hii_outgoing_link)
+		hii->hii_cfg.hic_msg_is_not_delivered_cb(hii->hii_hi, hl, tag);
 	M0_LEAVE();
 }
 
@@ -460,6 +467,19 @@ static int halon_interface_level_enter(struct m0_module *module)
 					&hii->hii_cfg.hic_ha_cfg));
 	case M0_HALON_INTERFACE_LEVEL_HA_START:
 		return M0_RC(m0_ha_start(&hii->hii_ha));
+	case M0_HALON_INTERFACE_LEVEL_HA_CONNECT:
+		hii->hii_outgoing_link = m0_ha_connect(&hii->hii_ha,
+				           hii->hii_cfg.hic_local_rpc_endpoint);
+		M0_LOG(M0_DEBUG, "hii_outgoing_link=%p",
+		       hii->hii_outgoing_link);
+		return hii->hii_outgoing_link == NULL ? M0_ERR(-EINVAL) :
+							M0_RC(0);
+	case M0_HALON_INTERFACE_LEVEL_INSTANCE_SET:
+		M0_ASSERT(m0_get()->i_ha      == NULL);
+		M0_ASSERT(m0_get()->i_ha_link == NULL);
+		m0_get()->i_ha      = &hii->hii_ha;
+		m0_get()->i_ha_link =  hii->hii_outgoing_link;
+		return M0_RC(0);
 	case M0_HALON_INTERFACE_LEVEL_STARTED:
 		return M0_ERR(-ENOSYS);
 	}
@@ -498,6 +518,15 @@ static void halon_interface_level_leave(struct m0_module *module)
 		break;
 	case M0_HALON_INTERFACE_LEVEL_HA_START:
 		m0_ha_stop(&hii->hii_ha);
+		break;
+	case M0_HALON_INTERFACE_LEVEL_HA_CONNECT:
+		m0_ha_disconnect(&hii->hii_ha, hii->hii_outgoing_link);
+		break;
+	case M0_HALON_INTERFACE_LEVEL_INSTANCE_SET:
+		M0_ASSERT(m0_get()->i_ha      == &hii->hii_ha);
+		M0_ASSERT(m0_get()->i_ha_link ==  hii->hii_outgoing_link);
+		m0_get()->i_ha      = NULL;
+		m0_get()->i_ha_link = NULL;
 		break;
 	case M0_HALON_INTERFACE_LEVEL_STARTED:
 		M0_IMPOSSIBLE("can't be here");
@@ -544,6 +573,16 @@ static const struct m0_modlev halon_interface_levels[] = {
 	},
 	[M0_HALON_INTERFACE_LEVEL_HA_START] = {
 		.ml_name  = "M0_HALON_INTERFACE_LEVEL_HA_START",
+		.ml_enter = halon_interface_level_enter,
+		.ml_leave = halon_interface_level_leave,
+	},
+	[M0_HALON_INTERFACE_LEVEL_HA_CONNECT] = {
+		.ml_name  = "M0_HALON_INTERFACE_LEVEL_HA_CONNECT",
+		.ml_enter = halon_interface_level_enter,
+		.ml_leave = halon_interface_level_leave,
+	},
+	[M0_HALON_INTERFACE_LEVEL_INSTANCE_SET] = {
+		.ml_name  = "M0_HALON_INTERFACE_LEVEL_INSTANCE_SET",
 		.ml_enter = halon_interface_level_enter,
 		.ml_leave = halon_interface_level_leave,
 	},
