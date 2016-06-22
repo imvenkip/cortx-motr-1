@@ -161,8 +161,8 @@ halon_interface_is_compatible(struct m0_halon_interface *hi,
 	const struct m0_build_info *bi = m0_build_info_get();
 
 	M0_ENTRY("build_git_rev_id=%s build_configure_opts=%s "
-	         "disable_compat_check=%d",
-	         build_git_rev_id, build_configure_opts, disable_compat_check);
+	         "disable_compat_check=%d", build_git_rev_id,
+		 build_configure_opts, !!disable_compat_check);
 	if (disable_compat_check)
 		return true;
 	if (strcmp(bi->bi_git_rev_id, build_git_rev_id) != 0) {

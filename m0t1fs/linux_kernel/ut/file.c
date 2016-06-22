@@ -213,7 +213,7 @@ static int file_io_ut_init(void)
 	rc = m0t1fs_net_init(&csb, NULL);
 	M0_ASSERT(rc == 0);
 
-	csb.csb_process_fid = M0_FID_INIT(0x7200000000000002ULL, 3);
+	csb.csb_process_fid = M0_FID_INIT(0x7200000000000002, 3);
 	rc = m0t1fs_rpc_init(&csb, NULL);
 	M0_ASSERT(rc == 0);
 
