@@ -874,6 +874,7 @@ static int cob_attr_op(struct m0_fom          *fom,
 	int              rc;
 	struct m0_cob   *cob;
 	struct m0_be_tx *tx;
+	uint32_t valid = attr->ca_valid;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(gop != NULL);
@@ -886,7 +887,14 @@ static int cob_attr_op(struct m0_fom          *fom,
 
 	rc = cob_locate(fom, &cob);
 	if (rc != 0) {
-		if (rc != -ENOENT || !(gop->fco_flags & M0_IO_FLAG_CROW))
+		if (valid & M0_COB_NLINK)
+			M0_LOG(M0_DEBUG, "nlink = %u", attr->ca_nlink);
+		/*
+		 * CROW setattr must have non-zero nlink set
+		 * to avoid creation of invalid cobs.
+		 */
+		if (rc != -ENOENT || !(gop->fco_flags & M0_IO_FLAG_CROW) ||
+		    !(valid & M0_COB_NLINK) || attr->ca_nlink == 0)
 			return M0_RC(rc);
 		M0_ASSERT(op == COB_ATTR_SET);
 		rc = cob_stob_create(fom, attr) ?: cob_locate(fom, &cob);
