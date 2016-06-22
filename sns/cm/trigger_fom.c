@@ -285,15 +285,20 @@ static int ready(struct m0_fom *fom)
 		}
 		return M0_RC(rc);
 	}
-	m0_cm_proxies_init_wait(cm, fom);
-	rc = m0_cm_ready(cm);
-	if (rc != 0) {
-		m0_cm_wait_cancel(cm, fom);
+	if (cm->cm_proxy_nr > 0) {
+		m0_cm_proxies_init_wait(cm, fom);
+		rc = M0_FSO_WAIT;
+	} else
+		rc = M0_FSO_AGAIN;
+	rc = m0_cm_ready(cm) ?: rc;
+	if (rc < 0) {
+		if (cm->cm_proxy_nr > 0)
+			m0_cm_wait_cancel(cm, fom);
 		return M0_ERR(rc);
 	}
 	m0_fom_phase_set(fom, M0_SNS_TPH_START);
 	M0_LOG(M0_DEBUG, "trigger: ready");
-	return M0_FSO_WAIT;
+	return rc;
 }
 
 static int start(struct m0_fom *fom)
