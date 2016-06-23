@@ -229,13 +229,12 @@ static void fake_fs_setup(void)
 static void test_m0t1fs_fsync_request_create(void)
 {
 	int                              rv;
-	struct m0t1fs_fsync_fop_wrapper  ffw;
+	struct m0t1fs_fsync_fop_wrapper *ffw;
 	struct m0_reqh_service_txid      stx;
 	struct m0_fop_fsync             *ffd;
 
 	fake_fs_setup();
 
-	M0_SET0(&ffw);
 	M0_SET0(&stx);
 	M0_SET0(&copy);
 
@@ -256,7 +255,7 @@ static void test_m0t1fs_fsync_request_create(void)
 	stx.stx_tri.tri_locality = 11;
 	rv = m0t1fs_fsync_request_create(&stx, &ffw, M0_FSYNC_MODE_ACTIVE);
 	M0_UT_ASSERT(rv == 0);
-	ffd = m0_fop_data(&ffw.ffw_fop);
+	ffd = m0_fop_data(&ffw->ffw_fop);
 	M0_UT_ASSERT(ffd != NULL);
 	M0_UT_ASSERT(ffd->ff_be_remid.tri_txid == stx.stx_tri.tri_txid);
 	M0_UT_ASSERT(ffd->ff_be_remid.tri_locality == stx.stx_tri.tri_locality);
@@ -264,7 +263,8 @@ static void test_m0t1fs_fsync_request_create(void)
 	M0_UT_ASSERT(ut_fop_fini_count == 0);
 
 	/* reset anything that got initalised */
-	M0_SET0(&ffw);
+	m0_fop_fini(&ffw->ffw_fop);
+	m0_free(ffw);
 	M0_SET0(&stx);
 
 	/* cause post_rpc to fail */

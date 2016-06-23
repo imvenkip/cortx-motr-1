@@ -413,9 +413,9 @@ void m0t1fs_fsync_record_update(struct m0_reqh_service_ctx *service,
  * Create and send an fsync fop from the provided m0_reqh_service_txid.
  */
 M0_INTERNAL int
-m0t1fs_fsync_request_create(struct m0_reqh_service_txid     *stx,
-			    struct m0t1fs_fsync_fop_wrapper *ffw,
-			    enum m0_fsync_mode               mode);
+m0t1fs_fsync_request_create(struct m0_reqh_service_txid      *stx,
+			    struct m0t1fs_fsync_fop_wrapper **ffw,
+			    enum m0_fsync_mode                mode);
 
 
 /**

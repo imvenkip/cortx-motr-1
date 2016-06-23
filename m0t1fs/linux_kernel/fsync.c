@@ -68,11 +68,12 @@ struct m0t1fs_fsync_interactions fi = {
 
 
 /**
- * Cleans-up a fop without trying to free it.
+ * Cleans-up a fop.
  */
 static void m0t1fs_fsync_fop_cleanup(struct m0_ref *ref)
 {
-	struct m0_fop *fop;
+	struct m0_fop                   *fop;
+	struct m0t1fs_fsync_fop_wrapper *ffw;
 
 	M0_ENTRY();
 	M0_PRE(fi.fop_fini != NULL);
@@ -80,28 +81,40 @@ static void m0t1fs_fsync_fop_cleanup(struct m0_ref *ref)
 	fop = container_of(ref, struct m0_fop, f_ref);
 	fi.fop_fini(fop);
 
-	M0_LEAVE("m0t1fs_fsync_fop_cleanup");
+	ffw = container_of(fop, struct m0t1fs_fsync_fop_wrapper, ffw_fop);
+	m0_free(ffw);
+
+	M0_LEAVE();
 }
 
 
 /**
  * Creates and sends an fsync fop from the provided m0_reqh_service_txid.
+ * Allocates and returns the fop wrapper at @ffw_out on success,
+ * which is freed on the last m0_fop_put().
  */
-int m0t1fs_fsync_request_create(struct m0_reqh_service_txid        *stx,
-                                struct m0t1fs_fsync_fop_wrapper   *ffw,
-                                enum m0_fsync_mode                 mode)
+int m0t1fs_fsync_request_create(struct m0_reqh_service_txid      *stx,
+                                struct m0t1fs_fsync_fop_wrapper **ffw_out,
+                                enum m0_fsync_mode                mode)
 {
-	int                  rc;
-	struct m0_fop       *fop;
-	struct m0_rpc_item  *item;
-	struct m0_fop_fsync *ffd;
-	struct m0_fop_type  *fopt;
+	int                              rc;
+	struct m0_fop                   *fop;
+	struct m0_rpc_item              *item;
+	struct m0_fop_fsync             *ffd;
+	struct m0_fop_type              *fopt;
+	struct m0t1fs_fsync_fop_wrapper *ffw;
 
 	M0_ENTRY();
 
+	M0_ALLOC_PTR(ffw);
+	if (ffw == NULL)
+		return M0_ERR(-ENOMEM);
+
 	rc = m0_rpc_session_validate(&stx->stx_service_ctx->sc_rlink.rlk_sess);
-	if (rc != 0)
+	if (rc != 0) {
+		m0_free(ffw);
 		return M0_ERR(rc);
+	}
 
 	if (stx->stx_service_ctx->sc_type == M0_CST_MDS)
 		fopt = &m0_fop_fsync_mds_fopt;
@@ -118,6 +131,7 @@ int m0t1fs_fsync_request_create(struct m0_reqh_service_txid        *stx,
 	m0_fop_init(fop, fopt, NULL, &m0t1fs_fsync_fop_cleanup);
 	rc = m0_fop_data_alloc(fop);
 	if (rc != 0) {
+		m0_free(ffw);
 		return M0_ERR_INFO(rc, "Allocating fsync fop data failed.");
 	}
 
@@ -143,6 +157,7 @@ int m0t1fs_fsync_request_create(struct m0_reqh_service_txid        *stx,
 		return M0_ERR_INFO(rc, "Calling m0_rpc_post() failed.");
 	}
 
+	*ffw_out = ffw;
 	M0_LEAVE();
 	return 0;
 }
@@ -201,11 +216,8 @@ int m0t1fs_fsync_reply_process(struct m0t1fs_sb                *csb,
 	item = &fop->f_item;
 
 	rc = fi.wait_for_reply(item, m0_time_from_now(M0T1FS_RPC_TIMEOUT, 0));
-	if (rc != 0) {
-		fi.fop_put(fop);
-		return M0_ERR_INFO(rc, "Calling m0_rpc_item_wait_for_reply() "
-				       "failed.");
-	}
+	if (rc != 0)
+		goto out;
 
 	/* get the {fop,reply} data */
 	ffd = m0_fop_data(fop);
@@ -215,16 +227,18 @@ int m0t1fs_fsync_reply_process(struct m0t1fs_sb                *csb,
 
 	rc = ffr->ffr_rc;
 	if (rc != 0) {
-		fi.fop_put(fop);
-		return M0_ERR_INFO(rc, "Remote fop failed.");
+		M0_LOG(M0_ERROR, "reply rc=%d", rc);
+		goto out;
 	}
 
 	/* Is this a valid reply to our request */
 	reply_txid = ffr->ffr_be_remid.tri_txid;
 	if (reply_txid < ffd->ff_be_remid.tri_txid) {
 		/* invalid reply, network 'garbage'? */
-		return M0_ERR_INFO(-EPROTO, "Commited transaction is smaller "
+		rc = -EPROTO;
+		M0_LOG(M0_ERROR, "Commited transaction is smaller "
 					    "than that requested.");
+		goto out;
 	}
 
 	if (inode != NULL)
@@ -239,11 +253,10 @@ int m0t1fs_fsync_reply_process(struct m0t1fs_sb                *csb,
 	 */
 	fsync_stx_update(&service->sc_max_pending_tx, reply_txid,
 			 &service->sc_max_pending_tx_lock);
-
+out:
 	fi.fop_put(fop);
 
-	M0_LEAVE();
-	return 0;
+	return M0_RC(rc);
 }
 
 
@@ -291,17 +304,10 @@ int m0t1fs_fsync_core(struct m0t1fs_inode *inode, enum m0_fsync_mode mode)
 		if (iter->stx_tri.tri_txid == 0)
 			continue;
 
-		M0_ALLOC_PTR(ffw);
-		if (ffw == NULL) {
-			saved_error = M0_ERR(-ENOMEM);
-			break;
-		}
-
 		/* Create and send a request */
-		rc = m0t1fs_fsync_request_create(iter, ffw, mode);
+		rc = m0t1fs_fsync_request_create(iter, &ffw, mode);
 		if (rc != 0) {
 			saved_error = rc;
-			m0_free0(&ffw);
 			break;
 		} else
 			/* Add to list of pending fops  */
@@ -319,8 +325,6 @@ int m0t1fs_fsync_core(struct m0t1fs_inode *inode, enum m0_fsync_mode mode)
 		/* Get and process the reply. */
 		rc = m0t1fs_fsync_reply_process(NULL, inode, ffw);
 		saved_error = saved_error ? : rc;
-
-		m0_free0(&ffw);
 	}
 
 	M0_LEAVE();
@@ -496,19 +500,11 @@ int m0t1fs_sync_fs(struct super_block *sb, int wait)
 			continue;
 		}
 
-		M0_ALLOC_PTR(ffw);
-		if (ffw == NULL) {
-			saved_error = M0_ERR(-ENOMEM);
-			m0_mutex_unlock(&iter->sc_max_pending_tx_lock);
-			break;
-		}
-
 		/* Create and send a request */
-		rc = m0t1fs_fsync_request_create(stx, ffw,
+		rc = m0t1fs_fsync_request_create(stx, &ffw,
 		                                 M0_FSYNC_MODE_ACTIVE);
 		if (rc != 0) {
 			saved_error = rc;
-			m0_free0(&ffw);
 			m0_mutex_unlock(&iter->sc_max_pending_tx_lock);
 			break;
 		} else {
@@ -529,8 +525,6 @@ int m0t1fs_sync_fs(struct super_block *sb, int wait)
 		/* get and process the reply */
 		rc = m0t1fs_fsync_reply_process(csb, NULL, ffw);
 		saved_error = saved_error ? : rc;
-
-		m0_free0(&ffw);
 	}
 
 	M0_LEAVE();
