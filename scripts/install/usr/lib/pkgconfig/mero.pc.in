@@ -8,5 +8,6 @@ Description: Mero filesystem
 URL: seagate.com
 Version: @PACKAGE_VERSION@
 Requires:
-Libs: -L@libdir@ -pthread -lgf_complete @M0_LDFLAGS@ @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@
+Libs.private: @M0_LDFLAGS@ -pthread -lgf_complete @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@
+Libs: -L@libdir@ -lmero
 Cflags: -I@includedir@ @M0_CPPFLAGS_DIST@ @M0_CFLAGS@
