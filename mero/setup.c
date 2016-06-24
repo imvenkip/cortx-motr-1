@@ -621,15 +621,14 @@ static void cs_ha_fini(struct m0_mero *cctx)
 	M0_ENTRY("client_ctx: %p", cctx);
 	if (!cctx->cc_ha_is_started)
 		return;
+	cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STOPPED);
 	cctx->cc_ha_is_started = false;
 	if (bad_address(cctx->cc_ha_addr)) {
 		M0_LOG(M0_ERROR, "invalid HA address");
 		goto leave; /* session had no chance to be established */
 	}
-	if (!cctx->cc_no_conf) {
-		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STOPPED);
+	if (!cctx->cc_no_conf)
 		m0_mero_ha_disconnect(&cctx->cc_mero_ha);
-	}
 	m0_mero_ha_stop(&cctx->cc_mero_ha);
 	m0_mero_ha_fini(&cctx->cc_mero_ha);
 leave:
@@ -2207,6 +2206,9 @@ out:
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 	if (gotsignal)
 		rc = -EINTR;
+	/* m0_cs_start() is not called in mkfs mode */
+	if (cctx->cc_mkfs)
+		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
 	return M0_RC(rc);
 }
 
@@ -2221,17 +2223,21 @@ int m0_cs_start(struct m0_mero *cctx)
 	M0_PRE(reqh_context_invariant(rctx));
 
 	rc = gotsignal ? -EINTR : reqh_services_start(rctx, cctx);
-	if (rc != 0)
-		return M0_ERR(rc);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "rc=%d", rc);
+		goto out;
+	}
 
 	if (cctx->cc_no_conf || bad_address(cctx->cc_ha_addr) ||
 	    cctx->cc_no_all2all_connections)
-		return M0_RC(0);
+		goto out;
 
 	rc = gotsignal ? -EINTR : m0_conf_fs_get(&reqh->rh_profile,
 						 m0_reqh2confc(reqh), &fs);
-	if (rc != 0)
-		return M0_ERR(rc);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "rc=%d", rc);
+		goto out;
+	}
 
 	rc = gotsignal ?
 		-EINTR : m0_pools_service_ctx_create(&cctx->cc_pools_common, fs);
@@ -2249,20 +2255,14 @@ int m0_cs_start(struct m0_mero *cctx)
 		goto error;
 
 	rc = gotsignal ? -EINTR : cs_reqh_layouts_setup(cctx);
-        if (rc != 0)
-		goto error;
-
-	m0_confc_close(&fs->cf_obj);
-	rc = gotsignal ? -EINTR : 0;
-
-	cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
-	return M0_RC(rc);
 
 error:
 	if (gotsignal)
 		rc = -EINTR;
 	m0_confc_close(&fs->cf_obj);
-	return M0_ERR(rc);
+out:
+	cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
+	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
 }
 
 int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
