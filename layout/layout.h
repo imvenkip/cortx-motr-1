@@ -913,7 +913,18 @@ M0_INTERNAL struct m0_layout_enum *m0_layout_to_enum(const struct m0_layout *l);
 /** Returns number of objects in the enumeration. */
 M0_INTERNAL uint32_t m0_layout_enum_nr(const struct m0_layout_enum *e);
 
-/* Returns idx-th object in the enumeration. */
+
+/**
+ * Returns idx-th object in the layout enumeration.
+ *
+ * Beware that this function is currently incorrect and may return unexpected
+ * results. The recommanded way to convert an object fid to a component fid is
+ * the function m0_poolmach_gob2cob in pool/poolmachine.h
+ *
+ * [ref] https://jira.xyratex.com/browse/MERO-1834
+ *
+ * @see m0_poolmach_gob2cob()
+ */
 M0_INTERNAL void m0_layout_enum_get(const struct m0_layout_enum *e,
 				    uint32_t idx,
 				    const struct m0_fid *gfid,

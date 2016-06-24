@@ -403,7 +403,12 @@ M0_TL_DECLARE(poolmach_events, M0_INTERNAL, struct m0_poolmach_event_link);
 
 struct m0_pool_version *m0_dev_pver_get(struct m0_fid dev_fid,
 					struct m0_confc confc, char *profile,
-					struct m0_pools_common *pools_common);
+                                        struct m0_pools_common *pools_common);
+
+/**
+ * Returns the idx-th component object of a global object according to the pool
+ * machine.
+ */
 M0_INTERNAL void m0_poolmach_gob2cob(struct m0_poolmach *pm,
 				     const struct m0_fid *gfid,
 				     uint32_t idx,
