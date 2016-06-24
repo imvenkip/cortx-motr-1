@@ -334,6 +334,17 @@ M0_INTERNAL void m0_ha_link_wait_arrival(struct m0_ha_link *hl)
 
 M0_INTERNAL void m0_ha_link_flush(struct m0_ha_link *hl)
 {
+	uint64_t tag_current;
+
+	M0_ENTRY("hl=%p", hl);
+
+	m0_mutex_lock(&hl->hln_lock);
+	tag_current = hl->hln_tag_current;
+	m0_mutex_unlock(&hl->hln_lock);
+
+	if (!M0_IN(tag_current, (1, 2)))
+		m0_ha_link_wait_delivery(hl, tag_current - 2);
+	M0_LEAVE("hl=%p tag_current=%"PRIu64, hl, tag_current);
 }
 
 static int ha_link_incoming_fom_tick(struct m0_fom *fom)
