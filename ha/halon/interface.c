@@ -65,48 +65,51 @@
 #include "ha/dispatcher.h"      /* m0_ha_dispatcher */
 
 struct m0_halon_interface_cfg {
-	const char   *hic_build_git_rev_id;
-	const char   *hic_build_configure_opts;
-	bool          hic_disable_compat_check;
-	char         *hic_local_rpc_endpoint;
-	void        (*hic_entrypoint_request_cb)
+	const char      *hic_build_git_rev_id;
+	const char      *hic_build_configure_opts;
+	bool             hic_disable_compat_check;
+	char            *hic_local_rpc_endpoint;
+	struct m0_fid    hic_process_fid;
+	struct m0_fid    hic_profile_fid;
+	void           (*hic_entrypoint_request_cb)
 		(struct m0_halon_interface         *hi,
 		 const struct m0_uint128           *req_id,
-		 const char             *remote_rpc_endpoint);
-	void        (*hic_msg_received_cb)
+		 const char                        *remote_rpc_endpoint,
+		 const struct m0_fid               *process_fid,
+		 const struct m0_fid               *profile_fid);
+	void           (*hic_msg_received_cb)
 		(struct m0_halon_interface *hi,
 		 struct m0_ha_link         *hl,
 		 const struct m0_ha_msg    *msg,
 		 uint64_t                   tag);
-	void        (*hic_msg_is_delivered_cb)
+	void           (*hic_msg_is_delivered_cb)
 		(struct m0_halon_interface *hi,
 		 struct m0_ha_link         *hl,
 		 uint64_t                   tag);
-	void        (*hic_msg_is_not_delivered_cb)
+	void           (*hic_msg_is_not_delivered_cb)
 		(struct m0_halon_interface *hi,
 		 struct m0_ha_link         *hl,
 		 uint64_t                   tag);
-	void        (*hic_link_connected_cb)
+	void           (*hic_link_connected_cb)
 		(struct m0_halon_interface *hi,
 		 const struct m0_uint128   *req_id,
 		 struct m0_ha_link         *link);
-	void        (*hic_link_reused_cb)
+	void           (*hic_link_reused_cb)
 		(struct m0_halon_interface *hi,
 		 const struct m0_uint128   *req_id,
 		 struct m0_ha_link         *link);
-	void        (*hic_link_is_disconnecting_cb)
+	void           (*hic_link_is_disconnecting_cb)
 		(struct m0_halon_interface *hi,
 		 struct m0_ha_link         *link);
-	void        (*hic_link_disconnected_cb)
+	void           (*hic_link_disconnected_cb)
 		(struct m0_halon_interface *hi,
 		 struct m0_ha_link         *link);
 
-	struct m0_fid hic_process_fid;
-	uint32_t      hic_tm_nr;
-	uint32_t      hic_bufs_nr;
-	uint32_t      hic_colour;
-	m0_bcount_t   hic_max_msg_size;
-	uint32_t      hic_queue_len;
+	uint32_t         hic_tm_nr;
+	uint32_t         hic_bufs_nr;
+	uint32_t         hic_colour;
+	m0_bcount_t      hic_max_msg_size;
+	uint32_t         hic_queue_len;
 	struct m0_ha_cfg hic_ha_cfg;
 	struct m0_ha_dispatcher_cfg hic_dispatcher_cfg;
 };
@@ -213,7 +216,9 @@ halon_interface_entrypoint_request_cb(struct m0_ha                      *ha,
 	         FID_P(&req->heq_process_fid), FID_P(&req->heq_profile_fid));
 	M0_LOG(M0_DEBUG, "git_rev_id=%s", req->heq_git_rev_id);
 	hii->hii_cfg.hic_entrypoint_request_cb(hii->hii_hi, req_id,
-	                                       req->heq_rpc_endpoint);
+	                                       req->heq_rpc_endpoint,
+	                                       &req->heq_process_fid,
+	                                       &req->heq_profile_fid);
 	M0_LEAVE();
 }
 
@@ -430,7 +435,6 @@ static int halon_interface_level_enter(struct m0_module *module)
 	switch (level) {
 	case M0_HALON_INTERFACE_LEVEL_ASSIGNS:
 		/* TODO zero all data structures to allow second start() */
-		hii->hii_cfg.hic_process_fid  = M0_FID_TINIT('r', 0, 1);
 		hii->hii_cfg.hic_tm_nr        = 1;
 		hii->hii_cfg.hic_bufs_nr      =
 			m0_rpc_bufs_nr(M0_NET_TM_RECV_QUEUE_DEF_LEN,
@@ -442,6 +446,8 @@ static int halon_interface_level_enter(struct m0_module *module)
 			.hcf_ops         = halon_interface_ha_ops,
 			.hcf_rpc_machine = &hii->hii_rpc_machine,
 			.hcf_reqh        = &hii->hii_reqh,
+			.hcf_process_fid = hii->hii_cfg.hic_process_fid,
+			.hcf_profile_fid = hii->hii_cfg.hic_profile_fid,
 		};
 		hii->hii_cfg.hic_dispatcher_cfg = (struct m0_ha_dispatcher_cfg){
 			.hdc_enable_note      = true,
@@ -615,10 +621,14 @@ static const struct m0_modlev halon_interface_levels[] = {
 
 int m0_halon_interface_start(struct m0_halon_interface *hi,
                              const char                *local_rpc_endpoint,
+                             const struct m0_fid       *process_fid,
+                             const struct m0_fid       *profile_fid,
                              void                     (*entrypoint_request_cb)
 				(struct m0_halon_interface         *hi,
 				 const struct m0_uint128           *req_id,
-				 const char             *remote_rpc_endpoint),
+				 const char             *remote_rpc_endpoint,
+				 const struct m0_fid    *process_fid,
+				 const struct m0_fid    *profile_fid),
 			     void                     (*msg_received_cb)
 				(struct m0_halon_interface *hi,
 				 struct m0_ha_link         *hl,
@@ -653,8 +663,12 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 
 	M0_PRE(m0_halon_interface_internal_bob_check(hii));
 	M0_PRE(m0_get() == &hii->hii_instance);
+	M0_PRE(process_fid != NULL);
+	M0_PRE(profile_fid != NULL);
 
-	M0_ENTRY("hi=%p local_rpc_endpoint=%s", hi, local_rpc_endpoint);
+	M0_ENTRY("hi=%p local_rpc_endpoint=%s process_fid="FID_F" "
+	         "profile_fid="FID_F, hi, local_rpc_endpoint,
+	         FID_P(process_fid), FID_P(profile_fid));
 
 	m0_sm_group_lock(&hii->hii_sm_group);
 	m0_sm_state_set(&hii->hii_sm, M0_HALON_INTERFACE_STATE_WORKING);
@@ -665,6 +679,8 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 		return M0_ERR(-ENOMEM);
 
 	hii->hii_cfg.hic_local_rpc_endpoint       = ep;
+	hii->hii_cfg.hic_process_fid              = *process_fid;
+	hii->hii_cfg.hic_profile_fid              = *profile_fid;
 	hii->hii_cfg.hic_entrypoint_request_cb    = entrypoint_request_cb;
 	hii->hii_cfg.hic_msg_received_cb          = msg_received_cb;
 	hii->hii_cfg.hic_msg_is_delivered_cb      = msg_is_delivered_cb;

@@ -326,10 +326,14 @@ void m0_halon_interface_fini(struct m0_halon_interface *hi);
  */
 int m0_halon_interface_start(struct m0_halon_interface *hi,
                              const char                *local_rpc_endpoint,
+                             const struct m0_fid       *process_fid,
+                             const struct m0_fid       *profile_fid,
                              void                     (*entrypoint_request_cb)
 				(struct m0_halon_interface         *hi,
 				 const struct m0_uint128           *req_id,
-				 const char             *remote_rpc_endpoint),
+				 const char             *remote_rpc_endpoint,
+				 const struct m0_fid    *process_fid,
+				 const struct m0_fid    *profile_fid),
 			     void                     (*msg_received_cb)
 				(struct m0_halon_interface *hi,
 				 struct m0_ha_link         *hl,

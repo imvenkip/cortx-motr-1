@@ -30,6 +30,7 @@
 
 #include "lib/assert.h"                 /* M0_ASSERT */
 #include "lib/misc.h"                   /* NULL */
+#include "fid/fid.h"                    /* M0_FID0 */
 #include "ha/halon/interface.h"         /* m0_halon_interface */
 
 int main(int argc, char *argv[])
@@ -40,6 +41,7 @@ int main(int argc, char *argv[])
 	rc = m0_halon_interface_init(&hi, "", "", true);
 	M0_ASSERT(rc == 0);
 	rc = m0_halon_interface_start(&hi, "0@lo:12345:42:100",
+	                              &M0_FID0, &M0_FID0,
 				      NULL, NULL, NULL, NULL,
 	                              NULL, NULL, NULL, NULL);
 	M0_ASSERT(rc == 0);
