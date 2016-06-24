@@ -60,16 +60,16 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 	       prefix, FID_P(&msg->hm_fid), FID_P(&msg->hm_source_process),
 	       FID_P(&msg->hm_source_service), msg->hm_time, msg->hm_tag);
 
-	switch (data->hed_type) {
+	switch ((enum m0_ha_msg_type)data->hed_type) {
 	case M0_HA_MSG_INVALID:
-		M0_LOG(M0_DEBUG, "message has INVALID type");
-		break;
+		M0_LOG(M0_WARN, "message has INVALID type");
+		return;
 	case M0_HA_MSG_STOB_IOQ:
 		/* TODO */
-		break;
+		return;
 	case M0_HA_MSG_NVEC:
 	case M0_HA_MSG_NVEC_HACK:
-		M0_LOG(M0_DEBUG, "nvec: hmnv_type=%"PRIu64" hmnv_nr=%"PRIu64" "
+		M0_LOG(M0_DEBUG, "NVEC hmnv_type=%"PRIu64" hmnv_nr=%"PRIu64" "
 		       "hmnv_id_of_get=%"PRIu64,
 		       data->u.hed_nvec.hmnv_type, data->u.hed_nvec.hmnv_nr,
 		       data->u.hed_nvec.hmnv_id_of_get);
@@ -78,14 +78,15 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 			       "no_state=%"PRIu32")", i,
 			       FID_P(&data->u.hed_nvec.hmnv_vec[i].no_id),
 			       data->u.hed_nvec.hmnv_vec[i].no_state);
-			if (data->u.hed_nvec.hmnv_vec[i].no_id.f_container < 0x10000000000UL)
+			if (data->u.hed_nvec.hmnv_vec[i].no_id.f_container <
+			    0x10000000000UL)
 				M0_IMPOSSIBLE("BUG HERE");
 		}
-		break;
+		return;
 	case M0_HA_MSG_FAILURE_VEC_REQ:
 		M0_LOG(M0_DEBUG, "FAILURE_VEC_REQ mvq_pool="FID_F,
 		       FID_P(&data->u.hed_fvec_req.mfq_pool));
-		break;
+		return;
 	case M0_HA_MSG_FAILURE_VEC_REP:
 		M0_LOG(M0_DEBUG, "FAILURE_VEC_REP mvp_pool="FID_F" "
 		       "mvp_nr=%"PRIu64, FID_P(&data->u.hed_fvec_rep.mfp_pool),
@@ -94,22 +95,27 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 			M0_LOG(M0_DEBUG, "mvf_vec[%d]=(no_id="FID_F")", i,
 			       FID_P(&data->u.hed_fvec_rep.mfp_vec.mfa_vec[i]));
 		}
-		break;
+		return;
 	case M0_HA_MSG_KEEPALIVE_REQ:
 		M0_LOG(M0_DEBUG, "KEEPALIVE_REQ kaq_id="U128X_F,
 		       U128_P(&data->u.hed_keepalive_req.kaq_id));
-		break;
+		return;
 	case M0_HA_MSG_KEEPALIVE_REP:
 		M0_LOG(M0_DEBUG, "KEEPALIVE_REP kap_id="U128X_F" "
 		       "kap_counter=%"PRIu64,
 		       U128_P(&data->u.hed_keepalive_rep.kap_id),
 		       data->u.hed_keepalive_rep.kap_counter);
-		break;
-	default:
-		M0_LOG(M0_WARN, "unknown m0_ha_msg type %"PRIu64,
-		       data->hed_type);
-		break;
+		return;
+	case M0_HA_MSG_EVENT_PROCESS:
+		M0_LOG(M0_DEBUG, "EVENT_PROCESS chp_event=%"PRIu64" "
+		       "chp_pid=%"PRIu64, data->u.hed_event_process.chp_event,
+		       data->u.hed_event_process.chp_pid);
+		return;
+	case M0_HA_MSG_NR:
+		M0_LOG(M0_WARN, "invalid M0_HA_MSG_NR type");
+		return;
 	}
+	M0_LOG(M0_WARN, "unknown m0_ha_msg type %"PRIu64, data->hed_type);
 }
 
 
