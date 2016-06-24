@@ -94,6 +94,8 @@ enum m0_ha_entrypoint_client_state {
 struct m0_ha_entrypoint_client_cfg {
 	struct m0_reqh        *hecc_reqh;
 	struct m0_rpc_session *hecc_session;
+	struct m0_fid          hecc_process_fid;
+	struct m0_fid          hecc_profile_fid;
 };
 
 struct m0_ha_entrypoint_client {

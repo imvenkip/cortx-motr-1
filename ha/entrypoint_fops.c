@@ -75,6 +75,8 @@ m0_ha_entrypoint_req2fop(const struct m0_ha_entrypoint_req *req,
 {
 	*req_fop = (struct m0_ha_entrypoint_req_fop){
 		.erf_first_request   = req->heq_first_request ? 1 : 0,
+		.erf_process_fid     = req->heq_process_fid,
+		.erf_profile_fid     = req->heq_profile_fid,
 		.erf_link_id_request = req->heq_link_id_request ? 1 : 0,
 		.erf_link_id_local   = req->heq_link_id_local,
 		.erf_link_id_remote  = req->heq_link_id_remote,
@@ -94,6 +96,8 @@ m0_ha_entrypoint_fop2req(const struct m0_ha_entrypoint_req_fop *req_fop,
 		return M0_ERR(-ENOMEM);
 	*req = (struct m0_ha_entrypoint_req){
 		.heq_first_request   = req_fop->erf_first_request != 0,
+		.heq_process_fid     = req_fop->erf_process_fid,
+		.heq_profile_fid     = req_fop->erf_profile_fid,
 		.heq_rpc_endpoint    = rpc_endpoint_dup,
 		.heq_link_id_request = req_fop->erf_link_id_request != 0,
 		.heq_link_id_local   = req_fop->erf_link_id_local,

@@ -32,6 +32,7 @@
 #include "lib/tlist.h"          /* m0_tl */
 #include "lib/types.h"          /* uint64_t */
 #include "lib/mutex.h"          /* m0_mutex */
+#include "fid/fid.h"            /* m0_fid */
 #include "module/module.h"      /* m0_module */
 #include "ha/ha.h"              /* m0_ha */
 
@@ -45,6 +46,8 @@ struct m0_mero_ha_cfg {
 	const char            *mhc_addr;
 	struct m0_rpc_machine *mhc_rpc_machine;
 	struct m0_reqh        *mhc_reqh;
+	struct m0_fid          mhc_process_fid;
+	struct m0_fid          mhc_profile_fid;
 	bool                   mhc_enable_note;
 	bool                   mhc_enable_keepalive;
 };

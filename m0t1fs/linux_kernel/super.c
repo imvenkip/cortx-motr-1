@@ -474,6 +474,8 @@ static int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
 		.mhc_addr             = ha_addr,
 		.mhc_rpc_machine      = &csb->csb_rpc_machine,
 		.mhc_reqh             = &csb->csb_reqh,
+		.mhc_process_fid      = csb->csb_process_fid,
+		.mhc_profile_fid      = csb->csb_profile_fid,
 		.mhc_enable_note      = true,
 		.mhc_enable_keepalive = true,
 	};

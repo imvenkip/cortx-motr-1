@@ -562,6 +562,7 @@ static int cs_ha_init(struct m0_mero *cctx)
 {
 	struct m0_mero_ha_cfg  mero_ha_cfg;
 	const char            *ep;
+	struct m0_fid          profile_fid;
 	int                    rc;
 
 	M0_ENTRY();
@@ -570,10 +571,21 @@ static int cs_ha_init(struct m0_mero *cctx)
 		cctx->cc_ha_addr = m0_strdup(ep);
 		cctx->cc_no_all2all_connections = true;
 	}
+	if (cctx->cc_profile == NULL) {
+		profile_fid = M0_FID0;
+	} else {
+		rc = m0_fid_sscanf(cctx->cc_profile, &profile_fid);
+		if (rc != 0) {
+			return M0_ERR_INFO(rc, "can't parse profile fid %s",
+			                   cctx->cc_profile);
+		}
+	}
 	mero_ha_cfg = (struct m0_mero_ha_cfg){
 		.mhc_addr             = cctx->cc_ha_addr,
 		.mhc_rpc_machine      = m0_mero_to_rmach(cctx),
 		.mhc_reqh             = &cctx->cc_reqh_ctx.rc_reqh,
+		.mhc_process_fid      = cctx->cc_reqh_ctx.rc_fid,
+		.mhc_profile_fid      = profile_fid,
 		.mhc_enable_note      = true,
 		.mhc_enable_keepalive = true,
 	};

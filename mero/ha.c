@@ -73,6 +73,8 @@ M0_INTERNAL void m0_mero_ha_cfg_make(struct m0_mero_ha_cfg *mha_cfg,
 		.mhc_addr             = addr,
 		.mhc_rpc_machine      = rmach,
 		.mhc_reqh             = reqh,
+		.mhc_process_fid      = M0_FID_INIT(0, 0),
+		.mhc_profile_fid      = M0_FID_INIT(0, 0),
 		.mhc_enable_note      = true,
 		.mhc_enable_keepalive = true,
 	};
@@ -286,9 +288,11 @@ static int mero_ha_level_enter(struct m0_module *module)
 	switch (level) {
 	case MERO_HA_LEVEL_HA_INIT:
 		return M0_RC(m0_ha_init(&mha->mh_ha, &(struct m0_ha_cfg){
-				.hcf_ops         =  m0_mero_ha_ops,
-				.hcf_rpc_machine =  mha->mh_cfg.mhc_rpc_machine,
-				.hcf_reqh        =  mha->mh_cfg.mhc_reqh,
+				.hcf_ops         = m0_mero_ha_ops,
+				.hcf_rpc_machine = mha->mh_cfg.mhc_rpc_machine,
+				.hcf_reqh        = mha->mh_cfg.mhc_reqh,
+				.hcf_process_fid = mha->mh_cfg.mhc_process_fid,
+				.hcf_profile_fid = mha->mh_cfg.mhc_profile_fid,
 			                }));
 	case MERO_HA_LEVEL_HANDLERS_TLIST:
 		mero_ha_handlers_tlist_init(&mha->mh_handlers);
@@ -481,9 +485,11 @@ M0_INTERNAL int m0_mero_ha_init(struct m0_mero_ha     *mha,
 	char *addr_dup;
 	int   rc;
 
-	M0_ENTRY("mha=%p ha=%p mhc_addr=%s mhc_rpc_machine=%p mhc_reqh=%p",
+	M0_ENTRY("mha=%p ha=%p mhc_addr=%s mhc_rpc_machine=%p mhc_reqh=%p "
+	         "mhc_process_fid="FID_F" mhc_profile_fid="FID_F,
 	         mha, &mha->mh_ha, mha_cfg->mhc_addr, mha_cfg->mhc_rpc_machine,
-		 mha_cfg->mhc_reqh);
+		 mha_cfg->mhc_reqh, FID_P(&mha_cfg->mhc_process_fid),
+		 FID_P(&mha_cfg->mhc_process_fid));
 
 	mha->mh_cfg = *mha_cfg;
 	addr_dup = m0_strdup(mha_cfg->mhc_addr);

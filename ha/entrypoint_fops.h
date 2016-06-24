@@ -81,6 +81,8 @@ struct m0_ha_entrypoint_rep_fop {
 
 struct m0_ha_entrypoint_req_fop {
 	int32_t           erf_first_request;
+	struct m0_fid     erf_process_fid;
+	struct m0_fid     erf_profile_fid;
 
 	int32_t           erf_link_id_request;
 	struct m0_uint128 erf_link_id_local;
@@ -95,6 +97,8 @@ struct m0_ha_entrypoint_req {
 	 */
 	bool               heq_first_request;
 	char              *heq_rpc_endpoint;
+	struct m0_fid      heq_process_fid;
+	struct m0_fid      heq_profile_fid;
 	/**
 	 * Client request for a local and remote link id.
 	 * If this flag is set then remove and local link ids will be assigned

@@ -94,6 +94,7 @@
 #include "lib/tlist.h"          /* m0_tl */
 #include "lib/types.h"          /* uint64_t */
 
+#include "fid/fid.h"            /* m0_fid */
 #include "ha/entrypoint.h"      /* m0_ha_entrypoint_client */
 
 struct m0_uint128;
@@ -139,6 +140,8 @@ struct m0_ha_cfg {
 	struct m0_ha_ops                    hcf_ops;
 	struct m0_rpc_machine              *hcf_rpc_machine;
 	struct m0_reqh                     *hcf_reqh;
+	struct m0_fid                       hcf_process_fid;
+	struct m0_fid                       hcf_profile_fid;
 	struct m0_ha_entrypoint_client_cfg  hcf_entrypoint_client_cfg;
 	struct m0_ha_entrypoint_server_cfg  hcf_entrypoint_server_cfg;
 };
