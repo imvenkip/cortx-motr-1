@@ -217,7 +217,7 @@ static inline bool btree_node_invariant(const struct m0_be_btree *btree,
 				 bool root)
 {
 	return
-		node->b_level < BTREE_HEIGHT_MAX &&
+		node->b_level <= BTREE_HEIGHT_MAX &&
 		/* expected occupancy */
 		ergo(root, 0 <= node->b_nr_active &&
 		     node->b_nr_active <= KV_NR) &&
