@@ -69,7 +69,6 @@ enum m0_ha_msg_type {
 	M0_HA_MSG_INVALID,
 	M0_HA_MSG_STOB_IOQ,
 	M0_HA_MSG_NVEC,
-	M0_HA_MSG_NVEC_HACK,
 	M0_HA_MSG_FAILURE_VEC_REQ,
 	M0_HA_MSG_FAILURE_VEC_REP,
 	M0_HA_MSG_KEEPALIVE_REQ,
@@ -87,8 +86,6 @@ struct m0_ha_msg_data {
 		struct m0_stob_ioq_error hed_stob_ioq
 					M0_XCA_TAG("M0_HA_MSG_STOB_IOQ");
 		struct m0_ha_msg_nvec    hed_nvec
-					M0_XCA_TAG("M0_HA_MSG_NVEC_HACK");
-		struct m0_ha_msg_nvec2   hed_nvec2
 					M0_XCA_TAG("M0_HA_MSG_NVEC");
 		struct m0_ha_msg_failure_vec_req hed_fvec_req
 					M0_XCA_TAG("M0_HA_MSG_FAILURE_VEC_REQ");

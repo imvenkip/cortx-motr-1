@@ -26,6 +26,7 @@
  * TODO add magics for mero_ha_handlers
  * TODO s/container_of/bob_of/g
  * TODO make a flag to forbid handler detach before stop()
+ * TODO don't panic if message handler doesn't exist
  *
  * @{
  */

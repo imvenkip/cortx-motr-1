@@ -30,23 +30,26 @@
 
 #include "lib/assert.h"                 /* M0_ASSERT */
 #include "lib/misc.h"                   /* NULL */
-#include "fid/fid.h"                    /* M0_FID0 */
+#include "fid/fid.h"                    /* M0_FID_TINIT */
 #include "ha/halon/interface.h"         /* m0_halon_interface */
 
 int main(int argc, char *argv[])
 {
-	struct m0_halon_interface hi = {};
+	struct m0_halon_interface *hi;
 	int rc;
 
-	rc = m0_halon_interface_init(&hi, "", "", true);
+	rc = m0_halon_interface_init(&hi, "", "", true, NULL);
 	M0_ASSERT(rc == 0);
-	rc = m0_halon_interface_start(&hi, "0@lo:12345:42:100",
-	                              &M0_FID0, &M0_FID0,
+	rc = m0_halon_interface_start(hi, "0@lo:12345:42:100",
+	                              &M0_FID_TINIT(0x72, 1, 1),
+	                              &M0_FID_TINIT(0x70, 1, 1),
+	                              &M0_FID_TINIT(0x73, 1, 1),
+	                              &M0_FID_TINIT(0x73, 1, 2),
 				      NULL, NULL, NULL, NULL,
 	                              NULL, NULL, NULL, NULL);
 	M0_ASSERT(rc == 0);
-	m0_halon_interface_stop(&hi);
-	m0_halon_interface_fini(&hi);
+	m0_halon_interface_stop(hi);
+	m0_halon_interface_fini(hi);
 	return 0;
 }
 

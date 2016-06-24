@@ -54,7 +54,7 @@ void m0_kmod_uuid_file_set(const char *path)
 	kmod_uuid_file = path;
 }
 
-void m0_node_uuid_string_set(char *uuid)
+void m0_node_uuid_string_set(const char *uuid)
 {
 	use_default_node_uuid = true;
 	if (uuid != NULL) {

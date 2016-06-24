@@ -249,6 +249,7 @@ struct m0_halon_interface_internal;
 struct m0_ha_link;
 struct m0_ha_msg;
 struct m0_fid;
+struct m0_spiel;
 
 struct m0_halon_interface {
 	struct m0_halon_interface_internal *hif_internal;
@@ -257,18 +258,20 @@ struct m0_halon_interface {
 /**
  * Mero is ready to work after the call.
  *
- * This function compares given version against current library version.
+ * This function also compares given version against current library version.
  * It detects if the given version is compatible with the current version.
  *
  * @param hi                   this structure should be zeroed.
  * @param build_git_rev_id     @see m0_build_info::bi_git_rev_id
  * @param build_configure_opts @see m0_build_info::bi_configure_opts
  * @param disable_compat_check disables compatibility check entirely if set
+ * @param node_uuid            node UUID string. @see lib/uuid.h.
  */
-int m0_halon_interface_init(struct m0_halon_interface *hi,
-                            const char                *build_git_rev_id,
-                            const char                *build_configure_opts,
-                            bool                       disable_compat_check);
+int m0_halon_interface_init(struct m0_halon_interface **hi_out,
+                            const char                 *build_git_rev_id,
+                            const char                 *build_configure_opts,
+                            bool                        disable_compat_check,
+                            const char                 *node_uuid);
 
 /**
  * Finalises everything has been initialised during the init() call.
@@ -289,6 +292,10 @@ void m0_halon_interface_fini(struct m0_halon_interface *hi);
  *                              endpoint in the current process. All network
  *                              communications using this m0_halon_interface
  *                              uses this rpc machine.
+ * @param process_fid           process fid of the current process
+ * @param profile_fid           profile fid of the current process
+ * @param ha_service_fid        HA service fid inside the current process
+ * @param rm_service_fid        RM service fid inside the current process
  * @param entrypoint_request_cb this callback is executed when
  *                              entrypoint request arrives.
  * @param msg_received_cb       this callback is executed when
@@ -329,12 +336,16 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
                              const char                *local_rpc_endpoint,
                              const struct m0_fid       *process_fid,
                              const struct m0_fid       *profile_fid,
+                             const struct m0_fid       *ha_service_fid,
+                             const struct m0_fid       *rm_service_fid,
                              void                     (*entrypoint_request_cb)
 				(struct m0_halon_interface         *hi,
 				 const struct m0_uint128           *req_id,
 				 const char             *remote_rpc_endpoint,
 				 const struct m0_fid    *process_fid,
-				 const struct m0_fid    *profile_fid),
+				 const struct m0_fid    *profile_fid,
+				 const char             *git_rev_id,
+				 bool                    first_request),
 			     void                     (*msg_received_cb)
 				(struct m0_halon_interface *hi,
 				 struct m0_ha_link         *hl,
@@ -374,14 +385,12 @@ void m0_halon_interface_stop(struct m0_halon_interface *hi);
  * @param req_id         request id received in the entrypoint_request_cb()
  * @param rc             return code for the entrypoint.
  *                       It's delivered to the user
- * @param confd_fid_size size of confd_fid_data array
+ * @param confd_nr       number of confds
  * @param confd_fid_data array of confd fids
- * @param confd_eps_size size of confd_eps_data array (XXX Why this is needed?)
  * @param confd_eps_data array of confd endpoints
+ * @param confd_quorum   confd quorum for rconfc. @see m0_rconfc::rc_quorum
  * @param rm_fid         Active RM fid
  * @param rp_eps         Active RM endpoint
- * @param hl_ptr         m0_ha_link for communications with the other side is
- *                       returned here.
  *
  * @note This function can be called from entrypoint_request_cb().
  */
@@ -389,10 +398,10 @@ void m0_halon_interface_entrypoint_reply(
                 struct m0_halon_interface  *hi,
                 const struct m0_uint128    *req_id,
                 int                         rc,
-                int                         confd_fid_size,
+                uint32_t                    confd_nr,
                 const struct m0_fid        *confd_fid_data,
-                int                         confd_eps_size,
                 const char                **confd_eps_data,
+                uint32_t                    confd_quorum,
                 const struct m0_fid        *rm_fid,
                 const char                 *rm_eps);
 
@@ -443,13 +452,23 @@ struct m0_rpc_machine *
 m0_halon_interface_rpc_machine(struct m0_halon_interface *hi);
 
 /**
- * Returns request handler created during m0_halon_interface_init().
+ * Returns request handler created during m0_halon_interface_start().
+ *
+ * The reqh should not be used after m0_halon_interface_stop() is called.
  *
  * @note This function may be removed in the future. It exists only to make
  * m0_reqh available for Spiel.
  * @see m0_halon_interface_rpc_machine()
  */
 struct m0_reqh *m0_halon_interface_reqh(struct m0_halon_interface *hi);
+
+/**
+ * Returns spiel instance initialised during m0_halon_interface_start().
+ *
+ * The spiel instance should not be used after m0_halon_interface_stop() is
+ * called.
+ */
+struct m0_spiel *m0_halon_interface_spiel(struct m0_halon_interface *hi);
 
 /** @} end of ha group */
 #endif /* __MERO_HA_HALON_INTERFACE_H__ */

@@ -63,6 +63,7 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 				       const char             *prefix)
 {
 	const struct m0_ha_msg_data *data     = &msg->hm_data;
+	const struct m0_ha_msg_nvec *nvec;
 	uint32_t                     ha_state;
 	int                          i;
 
@@ -80,22 +81,21 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		       "is not implemented yet");
 		return;
 	case M0_HA_MSG_NVEC:
-	case M0_HA_MSG_NVEC_HACK:
+		nvec = &data->u.hed_nvec;
 		M0_LOG(M0_DEBUG, "NVEC hmnv_type=%"PRIu64" hmnv_nr=%"PRIu64" "
 		       "hmnv_id_of_get=%"PRIu64,
-		       data->u.hed_nvec.hmnv_type, data->u.hed_nvec.hmnv_nr,
-		       data->u.hed_nvec.hmnv_id_of_get);
+		       nvec->hmnv_type, nvec->hmnv_nr, nvec->hmnv_id_of_get);
 		for (i = 0; i < data->u.hed_nvec.hmnv_nr; ++i) {
-			M0_LOG(M0_DEBUG, "hmnv_vec[%d]=(no_id="FID_F" "
+			M0_LOG(M0_DEBUG, "hmnv_arr.hmna_arr[%d]=(no_id="FID_F" "
 			       "no_state=%"PRIu32")", i,
-			       FID_P(&data->u.hed_nvec.hmnv_vec[i].no_id),
-			       data->u.hed_nvec.hmnv_vec[i].no_state);
-			if (data->u.hed_nvec.hmnv_vec[i].no_id.f_container <
+			       FID_P(&nvec->hmnv_arr.hmna_arr[i].no_id),
+			       nvec->hmnv_arr.hmna_arr[i].no_state);
+			if (nvec->hmnv_arr.hmna_arr[i].no_id.f_container <
 			    0x10000000000UL) {
 				M0_LOG(M0_ERROR, "invalid note: no_id="FID_F" "
 				       "no_state=%"PRIu32,
-				     FID_P(&data->u.hed_nvec.hmnv_vec[i].no_id),
-				     data->u.hed_nvec.hmnv_vec[i].no_state);
+				       FID_P(&nvec->hmnv_arr.hmna_arr[i].no_id),
+				       nvec->hmnv_arr.hmna_arr[i].no_state);
 			}
 
 		}

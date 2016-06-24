@@ -179,7 +179,8 @@ static void ha_state_accept(struct m0_confc         *confc,
 		obj = m0_conf_cache_lookup(cache, &note->nv_note[i].no_id);
 		M0_LOG(M0_DEBUG, "nv_note[%d]=(no_id="FID_F" no_state=%"PRIu32
 		       ") obj=%p obj->co_status=%d", i,
-		       FID_P(&note->nv_note[i].no_id), note->nv_note[i].no_state,
+		       FID_P(&note->nv_note[i].no_id),
+		       note->nv_note[i].no_state,
 		       obj, obj == NULL ? -1 : obj->co_status);
 		if (obj != NULL && obj->co_status == M0_CS_READY) {
 			obj->co_ha_state = note->nv_note[i].no_state;
@@ -206,75 +207,70 @@ static void ha_conf_cache_get(void *client, void *data)
 M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
                                   struct m0_ha_link      *hl)
 {
+	const struct m0_ha_msg_nvec *nvec_req;
 	struct m0_confc             *confc;
 	struct m0_conf_cache        *cache;
 	struct m0_ha_nvec            nvec;
-	const struct m0_ha_msg_nvec *nvec_req;
 	struct m0_conf_obj          *obj;
+	struct m0_fid                obj_fid;
 	int                          i;
 
-	switch (msg->hm_data.hed_type) {
-	case M0_HA_MSG_NVEC:
-		nvec = (struct m0_ha_nvec){
-			.nv_nr   = msg->hm_data.u.hed_nvec.hmnv_nr,
-		};
-		M0_LOG(M0_DEBUG, "nvec nv_nr=%"PRIu32" hmvn_type=%s",
-		       nvec.nv_nr,
-		       msg->hm_data.u.hed_nvec.hmnv_type == M0_HA_NVEC_SET ?
-		       "SET" :
-		       msg->hm_data.u.hed_nvec.hmnv_type == M0_HA_NVEC_GET ?
-		       "GET" : "UNKNOWN!");
-		M0_ALLOC_ARR(nvec.nv_note, nvec.nv_nr);
-		M0_ASSERT(nvec.nv_note != NULL);
-		for (i = 0; i < nvec.nv_nr; ++i) {
-			nvec.nv_note[i] = msg->hm_data.u.hed_nvec.hmnv_vec[i];
-			M0_LOG(M0_DEBUG, "nv_note[%d]=(no_id="FID_F" "
-			       "no_state=%"PRIu32")", i,
-			       FID_P(&nvec.nv_note[i].no_id),
-			       nvec.nv_note[i].no_state);
-		}
-		if (msg->hm_data.u.hed_nvec.hmnv_type == M0_HA_NVEC_SET) {
-			m0_ha_state_accept(&nvec);
-			if (msg->hm_data.u.hed_nvec.hmnv_id_of_get != 0) {
-				m0_ha_note_handler_signal(
-				        m0_get()->i_note_handler, &nvec,
-					msg->hm_data.u.hed_nvec.hmnv_id_of_get);
-			}
-		} else {
-			confc = NULL;
-			/* get the first confc */
-			m0_ha_clients_iterate((m0_ha_client_cb_t)&ha_conf_cache_get, &confc);
-			M0_ASSERT(confc != NULL);
-			cache = &confc->cc_cache;
-			nvec_req = &msg->hm_data.u.hed_nvec;
-			m0_conf_cache_lock(cache);
-			for (i = 0; i < nvec_req->hmnv_nr; ++i) {
-				obj = m0_conf_cache_lookup(cache, &nvec_req->hmnv_vec[i].no_id);
-				if (obj == NULL) {
-					M0_LOG(M0_DEBUG, "obj == NULL");
-					nvec.nv_note[i] = (struct m0_ha_note){
-						.no_id    = nvec_req->hmnv_vec[i].no_id,
-						.no_state = M0_NC_ONLINE,
-					};
-				} else {
-					nvec.nv_note[i] = (struct m0_ha_note){
-						.no_id    = obj->co_id,
-						.no_state = obj->co_ha_state,
-					};
-				}
-			}
-			m0_conf_cache_unlock(cache);
-			m0_ha_msg_nvec_send(&nvec,
-				    msg->hm_data.u.hed_nvec.hmnv_id_of_get,
-				    M0_HA_NVEC_SET, hl);
-		}
-		m0_free(nvec.nv_note);
-		break;
-	default:
-		M0_LOG(M0_DEBUG, "can't handle %"PRIu64,
-		       msg->hm_data.hed_type);
-		break;
+	if (msg->hm_data.hed_type != M0_HA_MSG_NVEC)
+		return;
+
+	nvec = (struct m0_ha_nvec){
+		.nv_nr   = msg->hm_data.u.hed_nvec.hmnv_nr,
+	};
+	M0_LOG(M0_DEBUG, "nvec nv_nr=%"PRIu32" hmvn_type=%s", nvec.nv_nr,
+	       msg->hm_data.u.hed_nvec.hmnv_type == M0_HA_NVEC_SET ?  "SET" :
+	       msg->hm_data.u.hed_nvec.hmnv_type == M0_HA_NVEC_GET ?  "GET" :
+								    "UNKNOWN!");
+	M0_ALLOC_ARR(nvec.nv_note, nvec.nv_nr);
+	M0_ASSERT(nvec.nv_note != NULL);
+	for (i = 0; i < nvec.nv_nr; ++i) {
+		nvec.nv_note[i] = msg->hm_data.u.hed_nvec.hmnv_arr.hmna_arr[i];
+		M0_LOG(M0_DEBUG, "nv_note[%d]=(no_id="FID_F" "
+		       "no_state=%"PRIu32")", i, FID_P(&nvec.nv_note[i].no_id),
+		       nvec.nv_note[i].no_state);
 	}
+	if (msg->hm_data.u.hed_nvec.hmnv_type == M0_HA_NVEC_SET) {
+		m0_ha_state_accept(&nvec);
+		if (msg->hm_data.u.hed_nvec.hmnv_id_of_get != 0) {
+			m0_ha_note_handler_signal(
+				  m0_get()->i_note_handler, &nvec,
+				  msg->hm_data.u.hed_nvec.hmnv_id_of_get);
+		}
+	} else {
+		confc = NULL;
+		/* get the first confc */
+		m0_ha_clients_iterate((m0_ha_client_cb_t)&ha_conf_cache_get,
+				      &confc);
+		M0_ASSERT(confc != NULL);
+		cache = &confc->cc_cache;
+		nvec_req = &msg->hm_data.u.hed_nvec;
+		m0_conf_cache_lock(cache);
+		for (i = 0; i < nvec_req->hmnv_nr; ++i) {
+			obj_fid = nvec_req->hmnv_arr.hmna_arr[i].no_id;
+			obj = m0_conf_cache_lookup(cache, &obj_fid);
+			if (obj == NULL) {
+				M0_LOG(M0_DEBUG, "obj == NULL");
+				nvec.nv_note[i] = (struct m0_ha_note){
+					.no_id    = obj_fid,
+					.no_state = M0_NC_ONLINE,
+				};
+			} else {
+				nvec.nv_note[i] = (struct m0_ha_note){
+					.no_id    = obj->co_id,
+					.no_state = obj->co_ha_state,
+				};
+			}
+		}
+		m0_conf_cache_unlock(cache);
+		m0_ha_msg_nvec_send(&nvec,
+		                    msg->hm_data.u.hed_nvec.hmnv_id_of_get,
+		                    M0_HA_NVEC_SET, hl);
+	}
+	m0_free(nvec.nv_note);
 }
 
 M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
@@ -288,26 +284,26 @@ M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
 
 	if (hl == NULL)
 		hl = m0_get()->i_ha_link;
-	if (hl != NULL) {
-		M0_ALLOC_PTR(msg);
-		M0_ASSERT(msg != NULL);
-		*msg = (struct m0_ha_msg){
-			.hm_data = {
-				.hed_type             = M0_HA_MSG_NVEC,
-				.u.hed_nvec = {
-					.hmnv_type      = direction,
-					.hmnv_id_of_get = id_of_get,
-					.hmnv_nr        = nvec->nv_nr,
-				},
-			},
-		};
-		for (i = 0; i < nvec->nv_nr; ++i)
-			msg->hm_data.u.hed_nvec.hmnv_vec[i] = nvec->nv_note[i];
-		m0_ha_link_send(hl, msg, &tag);
-		m0_free(msg);
-	} else {
-		M0_LOG(M0_DEBUG, "hl == NULL");
+	if (hl == NULL) {
+		M0_LOG(M0_WARN, "hl == NULL");
+		return;
 	}
+	M0_ALLOC_PTR(msg);
+	M0_ASSERT(msg != NULL);
+	*msg = (struct m0_ha_msg){
+		.hm_data = {
+			.hed_type   = M0_HA_MSG_NVEC,
+			.u.hed_nvec = {
+				.hmnv_type      = direction,
+				.hmnv_id_of_get = id_of_get,
+				.hmnv_nr        = nvec->nv_nr,
+			},
+		},
+	};
+	for (i = 0; i < nvec->nv_nr; ++i)
+		msg->hm_data.u.hed_nvec.hmnv_arr.hmna_arr[i] = nvec->nv_note[i];
+	m0_ha_link_send(hl, msg, &tag);
+	m0_free(msg);
 }
 
 struct ha_note_handler_request {
