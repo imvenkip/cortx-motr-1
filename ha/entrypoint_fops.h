@@ -88,6 +88,8 @@ struct m0_ha_entrypoint_req_fop {
 	struct m0_uint128 erf_link_id_local;
 	struct m0_uint128 erf_link_id_remote;
 	int32_t           erf_link_tag_even;
+
+	struct m0_buf     erf_git_rev_id;
 } M0_XCA_RECORD;
 
 struct m0_ha_entrypoint_req {
@@ -108,6 +110,8 @@ struct m0_ha_entrypoint_req {
 	struct m0_uint128  heq_link_id_local;
 	struct m0_uint128  heq_link_id_remote;
 	bool               heq_link_tag_even;
+	/* m0_build_info::bi_git_rev_id */
+	const char        *heq_git_rev_id;
 };
 
 struct m0_ha_entrypoint_rep {

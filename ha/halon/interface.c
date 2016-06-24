@@ -204,6 +204,7 @@ halon_interface_entrypoint_request_cb(struct m0_ha                      *ha,
 	         "process_fid="FID_F" profile_fid="FID_F,
 	         hii->hii_hi, req, U128_P(req_id), req->heq_rpc_endpoint,
 	         FID_P(&req->heq_process_fid), FID_P(&req->heq_profile_fid));
+	M0_LOG(M0_DEBUG, "git_rev_id=%s", req->heq_git_rev_id);
 	hii->hii_cfg.hic_entrypoint_request_cb(hii->hii_hi, req_id,
 	                                       req->heq_rpc_endpoint);
 	M0_LEAVE();

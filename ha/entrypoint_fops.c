@@ -73,6 +73,10 @@ M0_INTERNAL int
 m0_ha_entrypoint_req2fop(const struct m0_ha_entrypoint_req *req,
                          struct m0_ha_entrypoint_req_fop   *req_fop)
 {
+	char *git_rev_id_dup = m0_strdup(req->heq_git_rev_id);
+
+	if (git_rev_id_dup == NULL)
+		return M0_ERR(-ENOMEM);
 	*req_fop = (struct m0_ha_entrypoint_req_fop){
 		.erf_first_request   = req->heq_first_request ? 1 : 0,
 		.erf_process_fid     = req->heq_process_fid,
@@ -81,6 +85,7 @@ m0_ha_entrypoint_req2fop(const struct m0_ha_entrypoint_req *req,
 		.erf_link_id_local   = req->heq_link_id_local,
 		.erf_link_id_remote  = req->heq_link_id_remote,
 		.erf_link_tag_even   = req->heq_link_tag_even ? 1 : 0,
+		.erf_git_rev_id      = M0_BUF_INITS(git_rev_id_dup),
 	};
 	return 0;
 }
@@ -91,9 +96,13 @@ m0_ha_entrypoint_fop2req(const struct m0_ha_entrypoint_req_fop *req_fop,
                          struct m0_ha_entrypoint_req           *req)
 {
 	char *rpc_endpoint_dup = m0_strdup(rpc_endpoint);
+	char *git_rev_id_dup   = m0_buf_strdup(&req_fop->erf_git_rev_id);
 
-	if (rpc_endpoint_dup == NULL)
+	if (rpc_endpoint_dup == NULL || git_rev_id_dup == NULL) {
+		m0_free(rpc_endpoint_dup);
+		m0_free(git_rev_id_dup);
 		return M0_ERR(-ENOMEM);
+	}
 	*req = (struct m0_ha_entrypoint_req){
 		.heq_first_request   = req_fop->erf_first_request != 0,
 		.heq_process_fid     = req_fop->erf_process_fid,
@@ -103,6 +112,7 @@ m0_ha_entrypoint_fop2req(const struct m0_ha_entrypoint_req_fop *req_fop,
 		.heq_link_id_local   = req_fop->erf_link_id_local,
 		.heq_link_id_remote  = req_fop->erf_link_id_remote,
 		.heq_link_tag_even   = req_fop->erf_link_tag_even != 0,
+		.heq_git_rev_id      = git_rev_id_dup,
 	};
 	return M0_RC(0);
 }
@@ -192,6 +202,8 @@ M0_INTERNAL void m0_ha_entrypoint_rep_free(struct m0_ha_entrypoint_rep *rep)
 M0_INTERNAL void m0_ha_entrypoint_req_free(struct m0_ha_entrypoint_req *req)
 {
 	m0_free(req->heq_rpc_endpoint);
+	/* It should be allocated by m0_alloc() in m0_ha_entrypoint_fop2req */
+	m0_free((char *)req->heq_git_rev_id);
 }
 
 #undef M0_TRACE_SUBSYSTEM

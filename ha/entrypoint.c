@@ -47,6 +47,7 @@
 #include "reqh/reqh_service.h"  /* m0_reqh_service */
 #include "rpc/rpc.h"            /* m0_rpc_reply_post */
 #include "rpc/rpc_opcodes.h"    /* M0_HA_ENTRYPOINT_CLIENT_OPCODE */
+#include "mero/version.h"       /* m0_build_info_get */
 
 
 struct m0_reqh;
@@ -494,6 +495,7 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 
 		ecl->ecl_req.heq_process_fid = ecl->ecl_cfg.hecc_process_fid;
 		ecl->ecl_req.heq_profile_fid = ecl->ecl_cfg.hecc_profile_fid;
+		ecl->ecl_req.heq_git_rev_id  = m0_build_info_get()->bi_git_rev_id;
 		next_state = M0_HEC_SEND;
 		rc = M0_FSO_AGAIN;
 		break;
