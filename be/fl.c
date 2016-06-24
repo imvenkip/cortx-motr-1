@@ -61,7 +61,7 @@
  *     size from this range.
  *
  * Locks
- * m0_be_fl doesn't have any locks.
+ * m0_be_fl doesn't have any locks. User has to provide concurrency protection.
  *
  * Limitations.
  * - m0_be_fl doesn't take chunks memory aligntment into account.
