@@ -25,6 +25,7 @@
 #include "cob/cob.h"
 #include "ut/be.h"
 #include "be/ut/helper.h"
+#include "ha/note.h"         /* m0_ha_nvec */
 
 #undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_POOL
@@ -112,6 +113,7 @@ static void pm_test_transit(void)
 	struct m0_poolmach_event       e_invalid;
 	struct m0_poolmach_event       e_valid;
 	struct m0_poolmach_versions    v_invalid;
+	struct m0_ha_nvec              nvec;
 	struct m0_tl                   events_list;
 	struct m0_poolmach_event_link *scan;
 	uint32_t                       count;
@@ -119,11 +121,12 @@ static void pm_test_transit(void)
 	struct m0_be_tx_credit         cred = {};
 	struct m0_be_tx                tx;
 
+	M0_SET0(&nvec);
 	rc = pool_pver_init(8, PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
 	M0_UT_ASSERT(rc == 0);
 	pm = &pver.pv_mach;
 	m0_poolmach_store_credit(pm, &cred);
-
+	m0_poolmach_failvec_apply(pm, &nvec);
 	rc = m0_poolmach_current_version_get(pm, &v0);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_poolmach_current_version_get(pm, &v1);
@@ -455,6 +458,7 @@ static void pm_test_transit(void)
 static void pm_test_spare_slot(void)
 {
 	struct m0_poolmach       *pm;
+	struct m0_ha_nvec         nvec;
 	int                       rc = 0;
 	struct m0_poolmach_event  event;
 	enum m0_pool_nd_state     state_out;
@@ -471,6 +475,8 @@ static void pm_test_spare_slot(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_poolmach_store_credit(pm, &cred);
 
+	M0_SET0(&nvec);
+	m0_poolmach_failvec_apply(pm, &nvec);
 	event.pe_type  = M0_POOL_DEVICE;
 	event.pe_index = 1;
 
@@ -641,6 +647,7 @@ static void pm_test_multi_fail(void)
 {
 	struct m0_poolmach       *pm;
 	struct m0_poolmach_event  event;
+	struct m0_ha_nvec         nvec;
 	enum m0_pool_nd_state     state_out;
 	enum m0_pool_nd_state     target_state;
 	struct m0_be_tx           tx;
@@ -652,6 +659,8 @@ static void pm_test_multi_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	pm = &pver.pv_mach;
 	m0_poolmach_store_credit(pm, &cred);
+	M0_SET0(&nvec);
+	m0_poolmach_failvec_apply(pm, &nvec);
 
 	event.pe_type  = M0_POOL_DEVICE;
 

@@ -453,6 +453,7 @@ static int halon_interface_level_enter(struct m0_module *module)
 		hii->hii_cfg.hic_dispatcher_cfg = (struct m0_ha_dispatcher_cfg){
 			.hdc_enable_note      = true,
 			.hdc_enable_keepalive = true,
+			.hdc_enable_fvec      = true,
 		};
 		return M0_RC(0);
 	case M0_HALON_INTERFACE_LEVEL_NET_DOMAIN:

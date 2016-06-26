@@ -18,15 +18,19 @@
  * Original creation date: 19-Sep-2013
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_HA
-#include "lib/trace.h"
-
 #include "ha/note.h"
 #include "conf/pvers.h"     /* m0_conf_pver_kind */
 #include "conf/obj_ops.h"   /* m0_conf_obj_find_lock */
 #include "rpc/rpclib.h"     /* m0_rpc_client_ctx */
 #include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
+
+#include "ha/note.c"
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_HA
+#include "lib/trace.h"
+
 #include "lib/fs.h"         /* m0_file_read */
+#include "lib/finject.h"    /* m0_fi_enable/disable */
 #include "conf/ut/confc.h"  /* m0_ut_conf_fids */
 #include "ut/misc.h"        /* M0_UT_PATH */
 #include "ut/ut.h"
@@ -53,6 +57,13 @@ enum {
 	CLIENT_COB_DOM_ID  = 16,
 	SESSION_SLOTS      = 1,
 	MAX_RPCS_IN_FLIGHT = 1,
+	NR_EQUEUE_LENGTH   = 5,
+	NR_FAILURES        = 10,
+	NR_OVERLAP         = 5,
+	NR_NO_OVERLAP      = 10,
+	NR_NODES           = 10,
+	NR_DISKS           = 200,
+	MAX_FAILURES       = 20,
 };
 
 static struct m0_rpc_client_ctx cctx = {
@@ -230,6 +241,12 @@ static void compare_ha_state(struct m0_confc *confc,
 	m0_confc_close(node_dir);
 }
 
+
+static void pool_machine_fini(struct m0_poolmach *pool_mach);
+static void pool_machine_fid_populate(struct m0_poolmach *pool_mach);
+static int pm_event_construct_and_apply(struct m0_poolmach *pm,
+					uint32_t dev_idx, uint32_t state);
+
 /* ----------------------------------------------------------------
  * Unit tests
  * ---------------------------------------------------------------- */
@@ -398,6 +415,84 @@ static void test_pver(struct m0_confc *confc,
 	m0_conf_diter_fini(&it);
 }
 
+static void test_failvec_fetch(void)
+{
+        struct m0_pool         pool;
+        struct m0_fid          pool_fid;
+        struct m0_poolmach     pool_mach;
+        struct m0_pool_version pool_ver;
+        uint32_t               i;
+        uint64_t               qlen;
+        uint64_t               failed_nr;
+        int                    rc;
+
+        M0_SET0(&pool);
+        M0_SET0(&pool_ver);
+        M0_SET0(&pool_mach);
+
+        m0_fid_set(&pool_fid, 0, 999);
+        rc = m0_pool_init(&pool, &pool_fid);
+        M0_UT_ASSERT(rc == 0);
+        pool_ver.pv_pool = &pool;
+        rc = m0_poolmach_init(&pool_mach, &pool_ver, NR_NODES, NR_DISKS,
+                              MAX_FAILURES, MAX_FAILURES);
+        pool_machine_fid_populate(&pool_mach);
+        /* Enqueue events received till fetching the failvec. */
+        for (i = 0; i < NR_OVERLAP; ++i) {
+                rc = pm_event_construct_and_apply(&pool_mach, i,
+                                                  M0_PNDS_SNS_REPAIRING);
+                M0_UT_ASSERT(rc == 0);
+        }
+        qlen = m0_poolmach_equeue_length(&pool_mach);
+        M0_UT_ASSERT(qlen == NR_OVERLAP);
+        for (i = NR_NO_OVERLAP; i < MAX_FAILURES; ++i) {
+                rc = pm_event_construct_and_apply(&pool_mach, i,
+                                                  M0_PNDS_FAILED);
+                M0_UT_ASSERT(rc == 0);
+        }
+        qlen = m0_poolmach_equeue_length(&pool_mach);
+        M0_UT_ASSERT(qlen == MAX_FAILURES - NR_NO_OVERLAP + NR_OVERLAP);
+        m0_fi_enable("m0_ha_msg_fvec_send", "non-trivial-fvec");
+        rc = m0_ha_failvec_fetch(&pool_fid, &pool_mach, &chan);
+        M0_UT_ASSERT(rc == 0);
+        m0_chan_wait(&clink);
+        m0_fi_disable("m0_ha_msg_fvec_send", "non-trivial-fvec");
+        failed_nr = m0_poolmach_nr_dev_failures(&pool_mach);
+        M0_UT_ASSERT(failed_nr == MAX_FAILURES);
+        M0_UT_ASSERT(m0_poolmach_equeue_length(&pool_mach) == 0);
+        m0_pool_fini(&pool);
+        pool_machine_fini(&pool_mach);
+}
+
+static void pool_machine_fid_populate(struct m0_poolmach *pool_mach)
+{
+	uint32_t i;
+	uint32_t key;
+
+	for (i = 0, key = 0; i < pool_mach->pm_state->pst_nr_devices; ++i)
+		pool_mach->pm_state->pst_devices_array[i].pd_id =
+			M0_FID_TINIT('d', 1, key++);
+}
+
+static int pm_event_construct_and_apply(struct m0_poolmach *pm,
+					uint32_t dev_idx, uint32_t state)
+{
+	struct m0_poolmach_event event;
+
+	event.pe_type = M0_POOL_DEVICE;
+	event.pe_index = dev_idx;
+	event.pe_state = state;
+	return m0_poolmach_state_transit(pm, &event, NULL);
+}
+
+static void pool_machine_fini(struct m0_poolmach *pool_mach)
+{
+	m0_free(pool_mach->pm_state->pst_devices_array);
+	m0_free(pool_mach->pm_state->pst_nodes_array);
+	m0_free(pool_mach->pm_state->pst_spare_usage_array);
+	m0_free(pool_mach->pm_state);
+}
+
 static void test_poolversion_get(void)
 {
 	int                  rc;
@@ -554,6 +649,7 @@ struct m0_ut_suite ha_state_ut = {
 		{ "ha-state-set-and-get", test_ha_state_set_and_get },
 		{ "ha-state-accept",      test_ha_state_accept },
 		{ "ha-failure-sets",      test_failure_sets },
+		{ "ha-failvecl-fetch",    test_failvec_fetch },
 		{ "ha-poolversion-get",   test_poolversion_get },
 		{ NULL, NULL }
 	}

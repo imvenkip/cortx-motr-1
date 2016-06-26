@@ -38,10 +38,12 @@ struct m0_ha_link;
 struct m0_ha_msg;
 struct m0_ha_note_handler;
 struct m0_ha_keepalive_handler;
+struct m0_ha_fvec_handler;
 
 struct m0_ha_dispatcher_cfg {
 	bool hdc_enable_note;
 	bool hdc_enable_keepalive;
+	bool hdc_enable_fvec;
 };
 
 struct m0_ha_dispatcher {
@@ -56,6 +58,7 @@ struct m0_ha_dispatcher {
 	struct m0_tl                    hds_handlers;
 	/* m0_ha_note_set(), m0_ha_note_get() handler */
 	struct m0_ha_note_handler      *hds_note_handler;
+	struct m0_ha_fvec_handler      *hds_fvec_handler;
 	struct m0_ha_keepalive_handler *hds_keepalive_handler;
 };
 

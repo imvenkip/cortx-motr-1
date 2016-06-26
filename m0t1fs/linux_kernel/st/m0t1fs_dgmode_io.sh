@@ -214,6 +214,7 @@ fmio_files_write()
 		echo "setfattr -n lid -v 4 $file_to_compare_m0t1fs"
 		touch $file_to_compare_m0t1fs
 		setfattr -n lid -v 4 $file_to_compare_m0t1fs
+		getfattr -n pver $file_to_compare_m0t1fs
 	fi
 	echo -e "Write to the files from sandbox and m0t1fs (dd_count #$dd_count):"
 	echo -e "\t - $file_to_compare_sandbox \n\t - $file_to_compare_m0t1fs"
@@ -528,6 +529,7 @@ fmio_io_test()
 	echo "Create a file after first $step: $file_to_create1"
 	touch $file_to_create1
 	rc=$?
+	getfattr -n pver $file_to_create1
 	if [ $rc -ne 0 ]
 	then
 		echo "Failed: create after first $step, rc $rc..."
@@ -539,7 +541,9 @@ fmio_io_test()
 	# Currently we do not switch to a newer pool-version on disk failure.
 	# Till then file write post device failure should fail in oostore mode.
 	# This should be changed once MERO-1166 lands into master.
-	if [[ $OOSTORE -eq 1 && $rc -eq 0 ]] || [[ $OOSTORE -eq 0 && $rc -ne 0 ]]
+	if [[ $OOSTORE -eq 1 && $single_file_test -eq 1 && $rc -eq 0 ]] ||
+	   [[ $OOSTORE -eq 1 && $single_file_test -ne 1 && $rc -ne 0 ]] ||
+	   [[ $OOSTORE -eq 0 && $rc -ne 0 ]]
 	then
 		echo "Failed: IO or read after first $step, rc=$rc OOSTORE=$OOSTORE"
 		return 1
@@ -577,6 +581,7 @@ fmio_io_test()
 	echo "Create a file after second $step: $file_to_create2"
 	touch $file_to_create2
 	rc=$?
+	getfattr -n pver $file_to_create2
 	if [ $rc -ne 0 ]
 	then
 		echo "Failed: create after second $step, rc $rc..."
@@ -633,6 +638,7 @@ fmio_io_test()
 	echo "Create a file after third $step: $file_to_create3"
 	touch $file_to_create3
 	rc=$?
+	getfattr -n pver $file_to_create3
 	if [ $rc -ne 0 ]
 	then
 		echo "Failed: create after third $step, rc $rc..."
@@ -780,6 +786,7 @@ failure_modes_test()
 		# large file after two repairs and one failure, when unit size
 		# is more than 32K.
 		setfattr -n lid -v 4 $file_to_compare_m0t1fs
+		getfattr -n pver $file_to_compare_m0t1fs
 		if [ $? -ne "0" ]
 		then
 			echo "Setfattr failed."

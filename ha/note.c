@@ -206,12 +206,12 @@ static void ha_conf_cache_get(void *client, void *data)
 M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
                                   struct m0_ha_link      *hl)
 {
-	struct m0_confc      *confc;
-	struct m0_conf_cache *cache;
-	struct m0_ha_nvec  nvec;
+	struct m0_confc             *confc;
+	struct m0_conf_cache        *cache;
+	struct m0_ha_nvec            nvec;
 	const struct m0_ha_msg_nvec *nvec_req;
-	struct m0_conf_obj *obj;
-	int                i;
+	struct m0_conf_obj          *obj;
+	int                          i;
 
 	switch (msg->hm_data.hed_type) {
 	case M0_HA_MSG_NVEC:

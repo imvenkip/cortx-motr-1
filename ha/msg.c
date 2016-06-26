@@ -52,7 +52,8 @@ M0_INTERNAL bool m0_ha_msg_eq(const struct m0_ha_msg *msg1,
 M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
                                        const char             *prefix)
 {
-	const struct m0_ha_msg_data *data = &msg->hm_data;
+	const struct m0_ha_msg_data *data     = &msg->hm_data;
+	uint32_t                     ha_state;
 	int                          i;
 
 	M0_LOG(M0_DEBUG, "%s: hm_fid="FID_F" hm_source_process="FID_F" "
@@ -94,11 +95,15 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		return;
 	case M0_HA_MSG_FAILURE_VEC_REP:
 		M0_LOG(M0_DEBUG, "FAILURE_VEC_REP mvp_pool="FID_F" "
-		       "mvp_nr=%"PRIu64, FID_P(&data->u.hed_fvec_rep.mfp_pool),
+		       "mvp_nr=%"PRIu32, FID_P(&data->u.hed_fvec_rep.mfp_pool),
 		       data->u.hed_fvec_rep.mfp_nr);
 		for (i = 0; i < data->u.hed_fvec_rep.mfp_nr; ++i) {
-			M0_LOG(M0_DEBUG, "mvf_vec[%d]=(no_id="FID_F")", i,
-			       FID_P(&data->u.hed_fvec_rep.mfp_vec.mfa_vec[i]));
+			ha_state =
+			  data->u.hed_fvec_rep.mfp_vec.hmna_arr[i].no_state;
+			M0_LOG(M0_DEBUG, "mvf_nvec[%d]=(no_id="FID_F","
+			       "no_state = %"PRIu32")", i,
+			 FID_P(&data->u.hed_fvec_rep.mfp_vec.hmna_arr[i].no_id),
+			      ha_state);
 		}
 		return;
 	case M0_HA_MSG_KEEPALIVE_REQ:

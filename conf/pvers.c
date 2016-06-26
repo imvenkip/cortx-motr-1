@@ -103,7 +103,7 @@ static int conf_pver_find_locked(const struct m0_conf_pool *pool,
 	const struct m0_conf_obj *obj;
 	struct m0_conf_pver      *pver;
 
-	m0_tl_for(m0_conf_dir, &pool->pl_pvers->cd_items, obj) {
+	m0_tl_for (m0_conf_dir, &pool->pl_pvers->cd_items, obj) {
 		pver = M0_CONF_CAST(obj, m0_conf_pver);
 		if (!m0_conf_pver_is_clean(pver))
 			continue;

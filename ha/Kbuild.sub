@@ -4,6 +4,8 @@ m0mero_objects += ha/dispatcher.o \
                   ha/entrypoint_fops.o \
                   ha/entrypoint_fops_xc.o \
                   ha/epoch.o \
+                  ha/failvec.o \
+                  ha/failvec_xc.o \
                   ha/ha.o \
                   ha/link.o \
                   ha/link_fops.o \

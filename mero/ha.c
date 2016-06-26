@@ -53,6 +53,7 @@
 #include "reqh/reqh.h"          /* m0_reqh2confc */
 #include "ha/entrypoint_fops.h" /* m0_ha_entrypoint_rep */
 #include "ha/note.h"            /* M0_NC_ONLINE */
+#include "ha/failvec.h"         /* m0_ha_fvec_handler */
 #include "ha/link.h"            /* m0_ha_link_flush */
 
 
@@ -68,6 +69,7 @@ M0_INTERNAL void m0_mero_ha_cfg_make(struct m0_mero_ha_cfg *mha_cfg,
 		.mhc_dispatcher_cfg = {
 			.hdc_enable_note      = true,
 			.hdc_enable_keepalive = true,
+			.hdc_enable_fvec      = true,
 		},
 		.mhc_addr           = addr,
 		.mhc_rpc_machine    = rmach,

@@ -1212,6 +1212,11 @@ static int io_prepare(struct m0_fom *fom)
 	fom_obj->fcrw_pver = m0_pool_version_find(&mero->cc_pools_common,
 						  &rwfop->crw_pver);
 	if (fom_obj->fcrw_pver == NULL) {
+		M0_LOG(M0_ERROR, "pool version not found for %s IO index:%d @"
+				FID_F"pver"FID_F,
+				m0_is_read_fop(fom->fo_fop) ? "Read": "Write",
+				(int)rwfop->crw_index,
+				FID_P(&rwfop->crw_fid), FID_P(&rwfop->crw_pver));
 		m0_fom_phase_move(fom, -EINVAL, M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
 		goto out;
@@ -1236,6 +1241,10 @@ static int io_prepare(struct m0_fom *fom)
 		rc = ios__poolmach_check(poolmach, cliv);
 	}
 	if (rc != 0) {
+		M0_LOG(M0_ERROR, "pm=(%p:%p device=%d state=%d)",
+				 poolmach, poolmach->pm_pver,
+				 rwfop->crw_index,
+				 device_state);
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		goto out;
 	}

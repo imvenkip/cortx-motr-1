@@ -31,10 +31,12 @@
 
 #include "lib/types.h"          /* UINT64_MAX */
 #include "lib/time.h"           /* m0_time_t */
+#include "lib/cookie.h"         /* m0_cookie */
 
 #include "fid/fid.h"            /* m0_fid */
 #include "stob/ioq_error.h"     /* m0_stob_ioq_error */
 #include "ha/note.h"            /* m0_ha_msg_nvec */
+#include "ha/failvec.h"         /* m0_ha_msg_failure_vec_req */
 #include "mero/keepalive.h"     /* m0_ha_msg_keepalive_req */
 #include "conf/ha.h"            /* m0_conf_ha_process */
 
@@ -44,27 +46,15 @@
  */
 #include "stob/ioq_error_xc.h"  /* workaround */
 #include "lib/types_xc.h"       /* m0_uint128_xc */
+#include "lib/cookie_xc.h"      /* m0_cookie_xc */
 #include "ha/note_xc.h"         /* m0_ha_msg_nvec_xc */
+#include "ha/failvec_xc.h"      /* m0_ha_msg_failure_vec_req */
 #include "mero/keepalive_xc.h"  /* m0_ha_msg_keepalive_req_xc */
 #include "conf/ha_xc.h"         /* m0_conf_ha_process_xc */
 
 enum {
 	M0_HA_MSG_FAILURE_VEC_LIMIT = 1024,
 };
-
-struct m0_ha_msg_failire_vec_arr {
-	struct m0_fid mfa_vec[M0_HA_MSG_FAILURE_VEC_LIMIT];
-} M0_XCA_ARRAY;
-
-struct m0_ha_msg_failure_vec_req {
-	struct m0_fid mfq_pool;
-} M0_XCA_RECORD;
-
-struct m0_ha_msg_failure_vec_rep {
-	struct m0_fid                    mfp_pool;
-	uint64_t                         mfp_nr;
-	struct m0_ha_msg_failire_vec_arr mfp_vec;
-} M0_XCA_RECORD;
 
 enum {
 	M0_HA_MSG_TAG_UNKNOWN = 0,

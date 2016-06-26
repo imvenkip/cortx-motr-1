@@ -30,6 +30,7 @@ disk_state_set()
 		"$lnet_nid:${IOSEP[2]}"
 		"$lnet_nid:${IOSEP[3]}"
 		"$lnet_nid:${HA_EP}"
+		"$lnet_nid:12345:33:1"
 	)
 
 	local nr=0

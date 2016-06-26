@@ -77,53 +77,54 @@ struct m0 {
 	 * dependency is added. Used to detect when initialisation
 	 * should re-start.
 	 */
-	uint64_t               i_dep_gen;
+	uint64_t                   i_dep_gen;
 	/** Module representing this instance. */
-	struct m0_module       i_self;
-	/**
+	struct m0_module           i_self;
+	/* *
 	 * Module-specific data (e.g. addresses) of standard modules.
 	 *
 	 * @see m0_module_id
 	 */
-	void                  *i_moddata[M0_MODULE_NR];
+	void                      *i_moddata[M0_MODULE_NR];
 	/**
 	 * Non-standard modules (i.e. those not mentioned in m0_module_id)
 	 * may store their data here.
 	 */
-	struct m0_inst_lockers i_lockers;
+	struct m0_inst_lockers     i_lockers;
 	/**
 	 * List of m0_param_source-s, linked through m0_param_source::ps_link.
 	 *
 	 * @see m0_param_source_add(), m0_param_source_del()
 	 */
-	struct m0_tl           i_param_sources;
+	struct m0_tl               i_param_sources;
 
-	struct m0_ha_module   *i_ha_module;
-	struct m0_ha          *i_ha;
-	/** Link to the HA. It's used in Mero code. */
-	struct m0_ha_link     *i_ha_link;
+	struct m0_ha_module       *i_ha_module;
+	struct m0_ha              *i_ha;
+	/* * Link to the HA. It's used in Mero code. */
+	struct m0_ha_link         *i_ha_link;
 	struct m0_ha_note_handler *i_note_handler;
+	struct m0_ha_fvec_handler *i_fvec_handler;
 
 	/*
 	 * XXX TODO: Get rid of the fields below. Use ->i_moddata[] or
 	 * ->i_lockers.
 	 */
-	struct m0_stob_module     i_stob_module;
-	struct m0_stob_ad_module  i_stob_ad_module;
-	struct m0_ut_stob_module  i_ut_stob_module;
-	struct m0_be_domain      *i_be_dom;
-	struct m0_be_domain      *i_be_dom_save;
-	struct m0_be_ut_backend  *i_be_ut_backend;
-	struct m0_poolmach_state *i_pool_module;
-	struct m0_storage_devs    i_storage_devs;
-	bool                      i_reqh_uses_ad_stob;
-	bool                      i_disable_addb2_storage;
+	struct m0_stob_module      i_stob_module;
+	struct m0_stob_ad_module   i_stob_ad_module;
+	struct m0_ut_stob_module   i_ut_stob_module;
+	struct m0_be_domain       *i_be_dom;
+	struct m0_be_domain       *i_be_dom_save;
+	struct m0_be_ut_backend   *i_be_ut_backend;
+	struct m0_poolmach_state  *i_pool_module;
+	struct m0_storage_devs     i_storage_devs;
+	bool                       i_reqh_uses_ad_stob;
+	bool                       i_disable_addb2_storage;
 	/** Key for ioservice cob domain */
-	unsigned                  i_ios_cdom_key;
+	unsigned                   i_ios_cdom_key;
 	/** Key for mdservice cob domain */
-	unsigned                  i_mds_cdom_key;
+	unsigned                   i_mds_cdom_key;
 	/** Process attributes - memory limits and core mask */
-	struct m0_proc_attr       i_proc_attr;
+	struct m0_proc_attr        i_proc_attr;
 };
 
 /**.

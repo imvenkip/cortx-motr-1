@@ -475,6 +475,7 @@ int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
 		.mhc_dispatcher_cfg = {
 			.hdc_enable_note      = true,
 			.hdc_enable_keepalive = true,
+			.hdc_enable_fvec      = true,
 		},
 		.mhc_addr           = ha_addr,
 		.mhc_rpc_machine    = &csb->csb_rpc_machine,
@@ -831,9 +832,14 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_conf_fs_close;
 
-	rc = m0_pools_common_init(pc, &csb->csb_rpc_machine, fs);
+	rc = m0_flset_build(&reqh->rh_failure_set,
+			    m0_ha_session_get(), fs);
 	if (rc != 0)
 		goto err_conf_fs_close;
+
+	rc = m0_pools_common_init(pc, &csb->csb_rpc_machine, fs);
+	if (rc != 0)
+		goto err_failure_set_destroy;
 	M0_ASSERT(ergo(csb->csb_oostore, pc->pc_md_redundancy > 0));
 
 	rc = m0_pools_setup(pc, fs, NULL, NULL, NULL);
@@ -848,25 +854,20 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_pools_service_ctx_destroy;
 
-	rc = m0_flset_build(&reqh->rh_failure_set,
-			    &reqh->rh_pools->pc_ha_ctx->sc_rlink.rlk_sess, fs);
-	if (rc != 0)
-		goto err_ha_destroy;
-
 	/* Find pool and pool version to use. */
 	rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
 	if (rc != 0)
-		goto err_failure_set_destroy;
+		goto err_pool_versions_destroy;
 	csb->csb_pool_version = pv;
 
 	/* Start resource manager service */
 	rc = m0t1fs_reqh_services_start(csb);
 	if (rc != 0)
-		goto err_failure_set_destroy;
+		goto err_pool_versions_destroy;
 
 	rc = m0t1fs_sb_mdpool_layouts_init(csb);
 	if (rc != 0)
-		goto err_failure_set_destroy;
+		goto err_pool_versions_destroy;
 
 	rc = m0_addb2_sys_net_start_with(sys, &pc->pc_svc_ctxs);
 	if (rc == 0) {
@@ -875,14 +876,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		return M0_RC(0);
 	}
 
-err_failure_set_destroy:
-	m0_flset_destroy(&reqh->rh_failure_set);
-err_ha_destroy:
-	m0_ha_state_fini();
-	/*
-	 * reqh layouts cleanup has to be done for all cases where
-	 * m0_pool_versions_setup() succeeded.
-	 */
+err_pool_versions_destroy:
 	m0t1fs_sb_layouts_fini(csb);
 	m0_pool_versions_destroy(&csb->csb_pools_common);
 err_pools_service_ctx_destroy:
@@ -891,6 +885,9 @@ err_pools_destroy:
 	m0_pools_destroy(&csb->csb_pools_common);
 err_pools_common_fini:
 	m0_pools_common_fini(&csb->csb_pools_common);
+err_failure_set_destroy:
+	m0_flset_destroy(&reqh->rh_failure_set);
+	m0_ha_state_fini();
 err_conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
 err_ha_client_del:

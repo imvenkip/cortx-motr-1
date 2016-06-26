@@ -928,7 +928,7 @@ static const struct io_request_ops ioreq_oostore_ops = {
 	.iro_dgmode_recover = ioreq_dgmode_recover,
 };
 
-static void failure_vector_mismatch(struct io_req_fop *irfop);
+static inline void failure_vector_mismatch(struct io_req_fop *irfop);
 
 static inline uint32_t ioreq_sm_state(const struct io_request *req)
 {
@@ -5576,7 +5576,7 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
-static void failure_vector_mismatch(struct io_req_fop *irfop)
+static inline void failure_vector_mismatch(struct io_req_fop *irfop)
 {
 	struct m0_poolmach_versions *cli;
 	struct m0_poolmach_versions *srv;
@@ -5734,7 +5734,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	 * }
 	 */
 
-	failure_vector_mismatch(irfop);
 	irfop->irf_reply_rc = rc;
 
 	/* update pending transaction number */

@@ -91,7 +91,7 @@ static void pver_recd_update(struct m0_conf_obj *obj)
 	if (obj->co_ha_state == M0_NC_ONLINE) {
 		for (; *pvers != NULL; ++pvers)
 			M0_CNT_DEC((*pvers)->pv_u.subtree.pvs_recd[level]);
-	} else if (M0_IN(obj->co_ha_state, (M0_NC_TRANSIENT, M0_NC_FAILED))) {
+	} else {
 		for (; *pvers != NULL; ++pvers)
 			M0_CNT_INC((*pvers)->pv_u.subtree.pvs_recd[level]);
 	}
@@ -104,7 +104,7 @@ flset_update(struct m0_flset *flset, struct m0_conf_obj *obj)
 	    m0_flset_tlist_contains(&flset->fls_objs, obj)) {
 		m0_flset_tlist_del(obj);
 		pver_recd_update(obj);
-	} else if (M0_IN(obj->co_ha_state, (M0_NC_TRANSIENT, M0_NC_FAILED)) &&
+	} else if (!M0_IN(obj->co_ha_state, (M0_NC_ONLINE, M0_NC_UNKNOWN)) &&
 		   !m0_flset_tlist_contains(&flset->fls_objs, obj)) {
 		m0_flset_tlist_add_tail(&flset->fls_objs, obj);
 		pver_recd_update(obj);

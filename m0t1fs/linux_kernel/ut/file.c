@@ -245,9 +245,11 @@ static int file_io_ut_init(void)
 	rc = m0_pools_service_ctx_create(&csb.csb_pools_common, fs);
 	M0_UT_ASSERT(rc == 0);
 
+	m0_fi_enable("m0_ha_failvec_fetch", "kernel-ut-no-ha");
 	rc = m0_pool_versions_setup(&csb.csb_pools_common, fs,
 				    NULL, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
+	m0_fi_disable("m0_ha_failvec_fetch", "kernel-ut-no-ha");
 
 	m0_flset_tlist_init(&reqh->rh_failure_set.fls_objs);
 

@@ -35,6 +35,7 @@
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
 #include "lib/errno.h"          /* ENOMEM */
 #include "ha/note.h"            /* m0_ha_note_handler_init */
+#include "ha/failvec.h"         /* m0_ha_fvec_handler_init */
 #include "mero/keepalive.h"     /* m0_ha_keepalive_handler_init */
 #include "module/instance.h"    /* m0_get */
 
@@ -47,6 +48,8 @@ enum ha_dispatcher_level {
 	HA_DISPATCHER_LEVEL_TLIST,
 	HA_DISPATCHER_LEVEL_NOTE_HANDLER_ALLOC,
 	HA_DISPATCHER_LEVEL_NOTE_HANDLER_INIT,
+	HA_DISPATCHER_LEVEL_FVEC_HANDLER_ALLOC,
+	HA_DISPATCHER_LEVEL_FVEC_HANDLER_INIT,
 	HA_DISPATCHER_LEVEL_KEEPALIVE_HANDLER_ALLOC,
 	HA_DISPATCHER_LEVEL_KEEPALIVE_HANDLER_INIT,
 	HA_DISPATCHER_LEVEL_READY,
@@ -73,6 +76,17 @@ static int ha_dispatcher_level_enter(struct m0_module *module)
 		if (!hd->hds_cfg.hdc_enable_note)
 			return M0_RC(0);
 		return M0_RC(m0_ha_note_handler_init(hd->hds_note_handler,
+						     hd));
+	case HA_DISPATCHER_LEVEL_FVEC_HANDLER_ALLOC:
+		if (!hd->hds_cfg.hdc_enable_fvec)
+			return M0_RC(0);
+		M0_ALLOC_PTR(hd->hds_fvec_handler);
+		return hd->hds_fvec_handler == NULL ? M0_ERR(-ENOMEM) :
+						      M0_RC(0);
+	case HA_DISPATCHER_LEVEL_FVEC_HANDLER_INIT:
+		if (!hd->hds_cfg.hdc_enable_fvec)
+			return M0_RC(0);
+		return M0_RC(m0_ha_fvec_handler_init(hd->hds_fvec_handler,
 						     hd));
 	case HA_DISPATCHER_LEVEL_KEEPALIVE_HANDLER_ALLOC:
 		if (!hd->hds_cfg.hdc_enable_keepalive)
@@ -110,6 +124,14 @@ static void ha_dispatcher_level_leave(struct m0_module *module)
 		if (hd->hds_cfg.hdc_enable_note)
 			m0_ha_note_handler_fini(hd->hds_note_handler);
 		break;
+	case HA_DISPATCHER_LEVEL_FVEC_HANDLER_ALLOC:
+		if (hd->hds_cfg.hdc_enable_fvec)
+			m0_free(hd->hds_fvec_handler);
+		break;
+	case HA_DISPATCHER_LEVEL_FVEC_HANDLER_INIT:
+		if (hd->hds_cfg.hdc_enable_fvec)
+			m0_ha_fvec_handler_fini(hd->hds_fvec_handler);
+		break;
 	case HA_DISPATCHER_LEVEL_KEEPALIVE_HANDLER_ALLOC:
 		if (hd->hds_cfg.hdc_enable_keepalive)
 			m0_free(hd->hds_keepalive_handler);
@@ -137,6 +159,16 @@ static const struct m0_modlev ha_dispatcher_levels[] = {
 	},
 	[HA_DISPATCHER_LEVEL_NOTE_HANDLER_INIT] = {
 		.ml_name  = "HA_DISPATCHER_LEVEL_NOTE_HANDLER_INIT",
+		.ml_enter = ha_dispatcher_level_enter,
+		.ml_leave = ha_dispatcher_level_leave,
+	},
+	[HA_DISPATCHER_LEVEL_FVEC_HANDLER_ALLOC] = {
+		.ml_name  = "HA_DISPATCHER_LEVEL_FVEC_HANDLER_ALLOC",
+		.ml_enter = ha_dispatcher_level_enter,
+		.ml_leave = ha_dispatcher_level_leave,
+	},
+	[HA_DISPATCHER_LEVEL_FVEC_HANDLER_INIT] = {
+		.ml_name  = "HA_DISPATCHER_LEVEL_FVEC_HANDLER_INIT",
 		.ml_enter = ha_dispatcher_level_enter,
 		.ml_leave = ha_dispatcher_level_leave,
 	},

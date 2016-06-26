@@ -491,9 +491,7 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 {
 	int rc;
 
-	M0_ENTRY();
-
-	M0_LOG(M0_DEBUG, FID_F"N:%d K:%d P:%di", FID_P(id), nr_data,
+	M0_ENTRY("pver id:"FID_F"N:%d K:%d P:%di", FID_P(id), nr_data,
 			nr_failures, pool_width);
 	pv->pv_id = *id;
 	pv->pv_attr.pa_N = nr_data;
@@ -651,10 +649,13 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 				  pver->pv_u.subtree.pvs_attr.pa_K, be_seg,
 				  sm_grp, dtm) ?:
 	     m0_pool_version_device_map_init(pv, pver, pc) ?:
-	     m0_poolmach_init_by_conf(&pv->pv_mach, pver);
+	     m0_poolmach_init_by_conf(&pv->pv_mach, pver) ?:
+	     m0_poolmach_spare_build(&pv->pv_mach, pool, pver->pv_kind);
 	if (rc == 0) {
 		pv->pv_pc = pc;
 		pv->pv_mach.pm_pver = pv;
+		if (rc != 0)
+			return M0_RC(rc);
 		memcpy(pv->pv_fd_tol_vec, pver->pv_u.subtree.pvs_tolerance,
 		       sizeof(pver->pv_u.subtree.pvs_tolerance));
 		rc = m0_fd_tile_build(pver, pv, &failure_level) ?:
@@ -1261,7 +1262,6 @@ static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
 		container_of(cl->cl_chan, struct m0_conf_obj, co_ha_chan);
 	struct m0_pooldev        *pdev =
 		container_of(cl, struct m0_pooldev, pd_clink);
-	struct m0_pool_version   *pv;
 
 	M0_ENTRY();
 	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE);
@@ -1272,10 +1272,6 @@ static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
 	M0_LOG(M0_DEBUG, "pe_type=%6s pe_index=%x, pe_state=%10d",
 			 pme.pe_type == M0_POOL_DEVICE ? "device":"node",
 			 pme.pe_index, pme.pe_state);
-
-	/* Mark associated pool version dirty. */
-	pv = container_of(pdev->pd_pm, struct m0_pool_version, pv_mach);
-	pv->pv_is_dirty = (obj->co_ha_state != M0_NC_ONLINE);
 
 	return M0_RC(m0_poolmach_state_transit(pdev->pd_pm, &pme, NULL));
 }

@@ -108,7 +108,7 @@ struct m0_poolmach_state {
 	uint32_t                    pst_max_device_failures;
 
 	/**
-	 * Number of failures in pool.
+	 * Number of failures in a pool version.
 	 */
 	uint32_t                    pst_nr_failures;
 
@@ -118,10 +118,19 @@ struct m0_poolmach_state {
 	 */
 	struct m0_pool_spare_usage *pst_spare_usage_array;
 
+	/** Indicates if the spare usage array is initialised */
+	bool                        pst_su_initialised;
+
 	/**
 	 * All Events ever happened to this pool machine, ordered by time.
 	 */
 	struct m0_tl                pst_events_list;
+
+	/**
+	 * All events pending to be applied on this pool machine, ordered
+	 * chronologically.
+	 */
+	struct m0_tl                pst_event_queue;
 
 	struct m0_clink             pst_conf_exp;
 	struct m0_clink             pst_conf_ready;
@@ -198,6 +207,8 @@ struct m0_poolmach_event_link {
 
         uint64_t                    pel_magic;
 };
+
+M0_INTERNAL uint32_t m0_poolmach_equeue_length(struct m0_poolmach *pm);
 
 M0_INTERNAL bool
 m0_poolmach_version_equal(const struct m0_poolmach_versions *v1,
@@ -289,6 +300,21 @@ M0_INTERNAL int m0_poolmach_event_post(struct m0_poolmach *pm, uint64_t dev_id,
 				       enum m0_poolmach_event_owner_type et,
 				       enum m0_pool_nd_state state,
 				       struct m0_be_tx *tx);
+
+/**
+ * Applies a set of pending events arranged in chronological order to
+ * pool machine.
+ * @pre (pmach->pm_state->pst_su_initialised)
+ */
+M0_INTERNAL void m0_poolmach_event_queue_apply(struct m0_poolmach *pmach);
+
+/**
+ * Applies events from failure vector to pool machine.
+ * @pre (!pmach->pm_state->pst_su_initialised)
+ */
+M0_INTERNAL void m0_poolmach_failvec_apply(struct m0_poolmach *pmach,
+					   const struct m0_ha_nvec *nvec);
+
 /**
  * Change the pool machine state according to this event.
  *
@@ -393,10 +419,14 @@ M0_INTERNAL int m0_poolmach_sns_rebalance_spare_query(struct m0_poolmach *pm,
 						      uint32_t *spare_slot_out);
 
 M0_INTERNAL void m0_poolmach_version_dump(struct m0_poolmach_versions *v);
-M0_INTERNAL void m0_poolmach_event_dump(struct m0_poolmach_event *e);
+M0_INTERNAL void m0_poolmach_event_dump(const struct m0_poolmach_event *e);
 M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_poolmach *pm);
 M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm);
 M0_INTERNAL uint64_t m0_poolmach_nr_dev_failures(struct m0_poolmach *pm);
+
+/** Returns the index within pool machine for a device with given fid. */
+M0_INTERNAL int m0_poolmach_fid_to_idx(struct m0_poolmach *pm,
+				       struct m0_fid *fid, uint32_t *idx);
 
 M0_TL_DESCR_DECLARE(poolmach_events, M0_EXTERN);
 M0_TL_DECLARE(poolmach_events, M0_INTERNAL, struct m0_poolmach_event_link);
@@ -414,6 +444,9 @@ M0_INTERNAL void m0_poolmach_gob2cob(struct m0_poolmach *pm,
 				     uint32_t idx,
 				     struct m0_fid *cob_fid_out);
 
+M0_INTERNAL int m0_poolmach_spare_build(struct m0_poolmach *mach,
+					struct m0_pool *pool,
+					enum m0_conf_pver_kind kind);
 /** @} end of poolmach group */
 #endif /* __MERO_POOL_PVER_MACHINE_H__ */
 

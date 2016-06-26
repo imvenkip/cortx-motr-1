@@ -584,6 +584,7 @@ static int cs_ha_init(struct m0_mero *cctx)
 		.mhc_dispatcher_cfg = {
 			.hdc_enable_note      = true,
 			.hdc_enable_keepalive = true,
+			.hdc_enable_fvec      = true,
 		},
 		.mhc_addr           = cctx->cc_ha_addr,
 		.mhc_rpc_machine    = m0_mero_to_rmach(cctx),
@@ -2280,6 +2281,11 @@ int m0_cs_start(struct m0_mero *cctx)
 		goto out;
 	}
 
+	rc = gotsignal ? -EINTR : m0_flset_build(&reqh->rh_failure_set,
+						 m0_ha_session_get(), fs);
+	if (rc != 0)
+		goto error;
+
 	rc = gotsignal ?
 		-EINTR : m0_pools_service_ctx_create(&cctx->cc_pools_common, fs);
 	if (rc != 0)
@@ -2287,11 +2293,6 @@ int m0_cs_start(struct m0_mero *cctx)
 
 	rc = gotsignal ? -EINTR : m0_pool_versions_setup(&cctx->cc_pools_common,
 							 fs, NULL, NULL, NULL);
-	if (rc != 0)
-		goto error;
-	rc = gotsignal ? -EINTR : m0_flset_build(&reqh->rh_failure_set,
-				&reqh->rh_pools->pc_ha_ctx->sc_rlink.rlk_sess,
-				fs);
 	if (rc != 0)
 		goto error;
 
