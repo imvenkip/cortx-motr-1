@@ -726,7 +726,8 @@ static int m0t1fs_create(struct inode     *dir,
 			goto out;
 	}
 
-	if (insert_inode_locked(inode) < 0) {
+	if (insert_inode_locked4(inode, inode->i_ino,
+				 &m0t1fs_inode_test, &gfid) < 0) {
 		M0_LOG(M0_ERROR, "Duplicate inode: "FID_F, FID_P(&gfid));
 		rc = M0_ERR(-EIO);
 		goto out;
@@ -896,7 +897,12 @@ static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
 
 struct m0_dirent *dirent_next(struct m0_dirent *ent)
 {
-	return  ent->d_reclen > 0 ? (void *)ent + ent->d_reclen : NULL;
+	struct m0_dirent *dent = NULL;
+
+	if (ent->d_reclen > 0)
+		dent = (struct m0_dirent *)((char*)ent + ent->d_reclen);
+
+	return dent;
 }
 
 struct m0_dirent *dirent_first(struct m0_fop_readdir_rep *rep)

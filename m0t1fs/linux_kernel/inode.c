@@ -314,7 +314,7 @@ M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
    interfaces that are used by generic vfs code, to compare identities of
    inodes, in a generic manner.
  */
-static int m0t1fs_inode_test(struct inode *inode, void *opaque)
+M0_INTERNAL int m0t1fs_inode_test(struct inode *inode, void *opaque)
 {
 	struct m0t1fs_inode *ci;
 	struct m0_fid       *fid = opaque;
