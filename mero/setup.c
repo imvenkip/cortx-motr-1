@@ -581,13 +581,15 @@ static int cs_ha_init(struct m0_mero *cctx)
 		}
 	}
 	mero_ha_cfg = (struct m0_mero_ha_cfg){
-		.mhc_addr             = cctx->cc_ha_addr,
-		.mhc_rpc_machine      = m0_mero_to_rmach(cctx),
-		.mhc_reqh             = &cctx->cc_reqh_ctx.rc_reqh,
-		.mhc_process_fid      = cctx->cc_reqh_ctx.rc_fid,
-		.mhc_profile_fid      = profile_fid,
-		.mhc_enable_note      = true,
-		.mhc_enable_keepalive = true,
+		.mhc_dispatcher_cfg = {
+			.hdc_enable_note      = true,
+			.hdc_enable_keepalive = true,
+		},
+		.mhc_addr           = cctx->cc_ha_addr,
+		.mhc_rpc_machine    = m0_mero_to_rmach(cctx),
+		.mhc_reqh           = &cctx->cc_reqh_ctx.rc_reqh,
+		.mhc_process_fid    = cctx->cc_reqh_ctx.rc_fid,
+		.mhc_profile_fid    = profile_fid,
 	};
 	rc = m0_mero_ha_init(&cctx->cc_mero_ha, &mero_ha_cfg);
 	M0_ASSERT(rc == 0);

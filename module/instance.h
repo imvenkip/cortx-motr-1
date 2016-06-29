@@ -52,7 +52,7 @@ M0_LOCKERS__DECLARE(M0_INTERNAL, m0_inst, m0, 16);
 
 struct m0_ha;
 struct m0_ha_module;
-struct m0_mero_ha;
+struct m0_ha_note_handler;
 
 /**
  * m0 instance.
@@ -102,8 +102,7 @@ struct m0 {
 	struct m0_ha          *i_ha;
 	/** Link to the HA. It's used in Mero code. */
 	struct m0_ha_link     *i_ha_link;
-	/** @see mero/ha.h */
-	struct m0_mero_ha     *i_mero_ha;
+	struct m0_ha_note_handler *i_note_handler;
 
 	/*
 	 * XXX TODO: Get rid of the fields below. Use ->i_moddata[] or

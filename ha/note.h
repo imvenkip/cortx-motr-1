@@ -104,7 +104,7 @@
 #include "lib/tlist.h"        /* m0_tl */
 #include "lib/atomic.h"       /* m0_atomic64 */
 #include "xcode/xcode_attr.h"
-#include "mero/ha.h"          /* m0_mero_ha_handler */
+#include "ha/dispatcher.h"    /* m0_ha_handler */
 
 /* export */
 struct m0_ha_note;
@@ -363,15 +363,15 @@ M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
                                      struct m0_ha_link       *hl);
 
 struct m0_ha_note_handler {
-	struct m0_tl               hnh_gets;
-	struct m0_mutex            hnh_lock;
-	struct m0_mero_ha_handler  hnh_handler;
-	struct m0_mero_ha         *hnh_mero_ha;
-	uint64_t                   hnh_id_of_get;
+	struct m0_tl             hnh_gets;
+	struct m0_mutex          hnh_lock;
+	struct m0_ha_handler     hnh_handler;
+	struct m0_ha_dispatcher *hnh_dispatcher;
+	uint64_t                 hnh_id_of_get;
 };
 
 M0_INTERNAL int m0_ha_note_handler_init(struct m0_ha_note_handler *hnh,
-                                        struct m0_mero_ha         *mha);
+                                        struct m0_ha_dispatcher   *hd);
 M0_INTERNAL void m0_ha_note_handler_fini(struct m0_ha_note_handler *hnh);
 
 M0_INTERNAL uint64_t m0_ha_note_handler_add(struct m0_ha_note_handler *hnh,

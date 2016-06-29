@@ -35,50 +35,27 @@
 #include "fid/fid.h"            /* m0_fid */
 #include "module/module.h"      /* m0_module */
 #include "ha/ha.h"              /* m0_ha */
+#include "ha/dispatcher.h"      /* m0_ha_dispatcher */
 
 struct m0_rpc_machine;
 struct m0_reqh;
 struct m0_ha_link;
-struct m0_ha_note_handler;
-struct m0_ha_keepalive_handler;
 
 struct m0_mero_ha_cfg {
-	const char            *mhc_addr;
-	struct m0_rpc_machine *mhc_rpc_machine;
-	struct m0_reqh        *mhc_reqh;
-	struct m0_fid          mhc_process_fid;
-	struct m0_fid          mhc_profile_fid;
-	bool                   mhc_enable_note;
-	bool                   mhc_enable_keepalive;
+	struct m0_ha_dispatcher_cfg  mhc_dispatcher_cfg;
+	const char                  *mhc_addr;
+	struct m0_rpc_machine       *mhc_rpc_machine;
+	struct m0_reqh              *mhc_reqh;
+	struct m0_fid                mhc_process_fid;
+	struct m0_fid                mhc_profile_fid;
 };
 
 struct m0_mero_ha {
-	struct m0_mero_ha_cfg           mh_cfg;
-	struct m0_module                mh_module;
-	struct m0_ha                    mh_ha;
-	struct m0_ha_link              *mh_link;
-	/*
-	 * Is not protected by any lock.
-	 * User is responsible for non-concurrent modifications.
-	 * Handlers can be added only between m0_mero_ha_init() and
-	 * m0_mero_ha_start().
-	 */
-	struct m0_tl                    mh_handlers;
-	bool                            mh_can_add_handler;
-	/* m0_ha_note_set(), m0_ha_note_get() handler */
-	struct m0_ha_note_handler      *mh_note_handler;
-	struct m0_ha_keepalive_handler *mh_keepalive_handler;
-};
-
-struct m0_mero_ha_handler {
-	struct m0_tlink   mhf_link;
-	uint64_t          mhf_magic;
-	void             *mhf_data;
-	void            (*mhf_msg_received_cb)(struct m0_mero_ha         *mha,
-	                                       struct m0_mero_ha_handler *mhf,
-	                                       struct m0_ha_msg          *msg,
-	                                       struct m0_ha_link         *hl,
-	                                       void                      *data);
+	struct m0_mero_ha_cfg    mh_cfg;
+	struct m0_module         mh_module;
+	struct m0_ha             mh_ha;
+	struct m0_ha_link       *mh_link;
+	struct m0_ha_dispatcher  mh_dispatcher;
 };
 
 M0_INTERNAL void m0_mero_ha_cfg_make(struct m0_mero_ha_cfg *mha_cfg,
@@ -94,11 +71,6 @@ M0_INTERNAL void m0_mero_ha_fini(struct m0_mero_ha *mha);
 
 M0_INTERNAL void m0_mero_ha_connect(struct m0_mero_ha *mha);
 M0_INTERNAL void m0_mero_ha_disconnect(struct m0_mero_ha *mha);
-
-M0_INTERNAL void m0_mero_ha_handler_attach(struct m0_mero_ha         *mha,
-                                           struct m0_mero_ha_handler *mhf);
-M0_INTERNAL void m0_mero_ha_handler_detach(struct m0_mero_ha         *mha,
-                                           struct m0_mero_ha_handler *mhf);
 
 extern const struct m0_ha_ops m0_mero_ha_ops;
 

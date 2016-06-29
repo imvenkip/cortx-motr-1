@@ -38,17 +38,18 @@
 #include "ha/msg.h"     /* m0_ha_msg */
 #include "ha/ha.h"      /* m0_ha_send */
 
-static void ha_keepalive_msg_received_cb(struct m0_mero_ha         *mha,
-                                         struct m0_mero_ha_handler *mhf,
-                                         struct m0_ha_msg          *msg,
-                                         struct m0_ha_link         *hl,
-                                         void                      *data)
+static void ha_keepalive_msg_received_cb(struct m0_ha_handler *hh,
+                                         struct m0_ha         *ha,
+                                         struct m0_ha_link    *hl,
+                                         struct m0_ha_msg     *msg,
+                                         uint64_t              tag,
+                                         void                 *data)
 {
 	struct m0_ha_keepalive_handler *ka;
 	struct m0_ha_msg               *rep;
-	uint64_t                        tag;
+	uint64_t                        tag_rep;
 
-	ka = container_of(mhf, struct m0_ha_keepalive_handler, kah_handler);
+	ka = container_of(hh, struct m0_ha_keepalive_handler, kah_handler);
 	M0_ASSERT(ka == data);
 
 	if (msg->hm_data.hed_type != M0_HA_MSG_KEEPALIVE_REQ)
@@ -68,33 +69,33 @@ static void ha_keepalive_msg_received_cb(struct m0_mero_ha         *mha,
 			},
 		},
 	};
-	m0_ha_send(&mha->mh_ha, hl, rep, &tag);
+	m0_ha_send(ha, hl, rep, &tag_rep);
 	M0_LOG(M0_DEBUG, "kap_id="U128X_F" kap_counter=%"PRIu64" tag=%"PRIu64,
 	       U128_P(&rep->hm_data.u.hed_keepalive_rep.kap_id),
-	       rep->hm_data.u.hed_keepalive_rep.kap_counter, tag);
+	       rep->hm_data.u.hed_keepalive_rep.kap_counter, tag_rep);
 	m0_free(rep);
 }
 
 M0_INTERNAL int
 m0_ha_keepalive_handler_init(struct m0_ha_keepalive_handler *ka,
-                             struct m0_mero_ha              *mha)
+                             struct m0_ha_dispatcher        *hd)
 {
 	M0_PRE(M0_IS0(ka));
 
-	ka->kah_mero_ha = mha;
-	ka->kah_handler = (struct m0_mero_ha_handler){
-		.mhf_data            = ka,
-		.mhf_msg_received_cb = &ha_keepalive_msg_received_cb,
+	ka->kah_dispatcher = hd;
+	ka->kah_handler = (struct m0_ha_handler){
+		.hh_data            = ka,
+		.hh_msg_received_cb = &ha_keepalive_msg_received_cb,
 	};
 	m0_atomic64_set(&ka->kah_counter, 0);
-	m0_mero_ha_handler_attach(ka->kah_mero_ha, &ka->kah_handler);
+	m0_ha_dispatcher_attach(ka->kah_dispatcher, &ka->kah_handler);
 	return 0;
 }
 
 M0_INTERNAL void
 m0_ha_keepalive_handler_fini(struct m0_ha_keepalive_handler *ka)
 {
-	m0_mero_ha_handler_detach(ka->kah_mero_ha, &ka->kah_handler);
+	m0_ha_dispatcher_detach(ka->kah_dispatcher, &ka->kah_handler);
 }
 
 #undef M0_TRACE_SUBSYSTEM

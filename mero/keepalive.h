@@ -31,8 +31,10 @@
 
 #include "lib/types.h"          /* m0_uint128 */
 #include "lib/atomic.h"         /* m0_atomic64 */
-#include "mero/ha.h"            /* m0_mero_ha_handler */
+#include "ha/dispatcher.h"      /* m0_ha_handler */
 #include "xcode/xcode_attr.h"   /* M0_XCA_RECORD */
+
+#include "lib/types_xc.h"       /* m0_uint128_xc */
 
 struct m0_ha_msg;
 
@@ -46,14 +48,14 @@ struct m0_ha_msg_keepalive_rep {
 } M0_XCA_RECORD;
 
 struct m0_ha_keepalive_handler {
-	struct m0_mero_ha         *kah_mero_ha;
-	struct m0_mero_ha_handler  kah_handler;
-	struct m0_atomic64         kah_counter;
+	struct m0_ha_dispatcher *kah_dispatcher;
+	struct m0_ha_handler     kah_handler;
+	struct m0_atomic64       kah_counter;
 };
 
 M0_INTERNAL int
 m0_ha_keepalive_handler_init(struct m0_ha_keepalive_handler *ka,
-                             struct m0_mero_ha              *mha);
+                             struct m0_ha_dispatcher        *hd);
 M0_INTERNAL void
 m0_ha_keepalive_handler_fini(struct m0_ha_keepalive_handler *ka);
 

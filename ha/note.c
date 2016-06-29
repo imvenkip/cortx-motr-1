@@ -49,6 +49,7 @@
 #include "ha/msg.h"             /* m0_ha_msg */
 #include "ha/link.h"            /* m0_ha_link_send */
 #include "ha/ha.h"              /* m0_ha_send */
+#include "mero/ha.h"            /* m0_mero_ha */
 
 M0_EXTERN void m0_ha__session_set(struct m0_rpc_session *session);
 
@@ -94,7 +95,7 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 	         note->nv_nr > 0 ? note->nv_note[0].no_state : 0);
 	M0_PRE(note_invariant(note, false));
 	M0_NVEC_PRINT(note, " > ", M0_DEBUG);
-	id_of_get = m0_ha_note_handler_add(m0_get()->i_mero_ha->mh_note_handler,
+	id_of_get = m0_ha_note_handler_add(m0_get()->i_note_handler,
 	                                   note, chan);
 	m0_ha_msg_nvec_send(note, id_of_get, M0_HA_NVEC_GET, NULL);
 	return M0_RC(0);
@@ -235,9 +236,8 @@ M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
 			m0_ha_state_accept(&nvec);
 			if (msg->hm_data.u.hed_nvec.hmnv_id_of_get != 0) {
 				m0_ha_note_handler_signal(
-				       m0_get()->i_mero_ha->mh_note_handler,
-				       &nvec,
-				       msg->hm_data.u.hed_nvec.hmnv_id_of_get);
+				        m0_get()->i_note_handler, &nvec,
+					msg->hm_data.u.hed_nvec.hmnv_id_of_get);
 			}
 		} else {
 			confc = NULL;
@@ -322,39 +322,44 @@ M0_TL_DESCR_DEFINE(ha_gets, "m0_ha_note_handler::hmh_gets", static,
 		   20, 21);               /* XXX */
 M0_TL_DEFINE(ha_gets, static, struct ha_note_handler_request);
 
-static void ha_note_handler_msg(struct m0_mero_ha         *mha,
-                                struct m0_mero_ha_handler *mhf,
-                                struct m0_ha_msg          *msg,
-                                struct m0_ha_link         *hl,
-                                void                      *data)
+static void ha_note_handler_msg(struct m0_ha_handler *hh,
+                                struct m0_ha         *ha,
+                                struct m0_ha_link    *hl,
+                                struct m0_ha_msg     *msg,
+                                uint64_t              tag,
+                                void                 *data)
 {
 	struct m0_ha_note_handler *hnh;
 
-	M0_ASSERT(hnh = container_of(mhf, struct m0_ha_note_handler,
-	                             hnh_handler));
+	hnh = container_of(hh, struct m0_ha_note_handler, hnh_handler);
+	M0_ASSERT(hnh == data);
 	m0_ha_msg_accept(msg, hl);
 }
 
 M0_INTERNAL int m0_ha_note_handler_init(struct m0_ha_note_handler *hnh,
-                                        struct m0_mero_ha         *mha)
+                                        struct m0_ha_dispatcher   *hd)
 {
 	M0_PRE(M0_IS0(hnh));
 
 	m0_mutex_init(&hnh->hnh_lock);
 	ha_gets_tlist_init(&hnh->hnh_gets);
-	hnh->hnh_mero_ha = mha;
-	hnh->hnh_handler = (struct m0_mero_ha_handler){
-		.mhf_data            = hnh,
-		.mhf_msg_received_cb = &ha_note_handler_msg,
+	hnh->hnh_dispatcher = hd;
+	hnh->hnh_handler = (struct m0_ha_handler){
+		.hh_data            = hnh,
+		.hh_msg_received_cb = &ha_note_handler_msg,
 	};
 	hnh->hnh_id_of_get = 100;
-	m0_mero_ha_handler_attach(hnh->hnh_mero_ha, &hnh->hnh_handler);
+	m0_ha_dispatcher_attach(hnh->hnh_dispatcher, &hnh->hnh_handler);
+	M0_ASSERT(m0_get()->i_note_handler == NULL);
+	m0_get()->i_note_handler = hnh;
 	return 0;
 }
 
 M0_INTERNAL void m0_ha_note_handler_fini(struct m0_ha_note_handler *hnh)
 {
-	m0_mero_ha_handler_detach(hnh->hnh_mero_ha, &hnh->hnh_handler);
+	M0_ASSERT(m0_get()->i_note_handler == hnh);
+	m0_get()->i_note_handler = NULL;
+	m0_ha_dispatcher_detach(hnh->hnh_dispatcher, &hnh->hnh_handler);
 	ha_gets_tlist_fini(&hnh->hnh_gets);
 	m0_mutex_fini(&hnh->hnh_lock);
 }

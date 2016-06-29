@@ -471,13 +471,15 @@ static int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
 
 	M0_ENTRY();
 	mero_ha_cfg = (struct m0_mero_ha_cfg){
-		.mhc_addr             = ha_addr,
-		.mhc_rpc_machine      = &csb->csb_rpc_machine,
-		.mhc_reqh             = &csb->csb_reqh,
-		.mhc_process_fid      = csb->csb_process_fid,
-		.mhc_profile_fid      = csb->csb_profile_fid,
-		.mhc_enable_note      = true,
-		.mhc_enable_keepalive = true,
+		.mhc_dispatcher_cfg = {
+			.hdc_enable_note      = true,
+			.hdc_enable_keepalive = true,
+		},
+		.mhc_addr           = ha_addr,
+		.mhc_rpc_machine    = &csb->csb_rpc_machine,
+		.mhc_reqh           = &csb->csb_reqh,
+		.mhc_process_fid    = csb->csb_process_fid,
+		.mhc_profile_fid    = csb->csb_profile_fid,
 	};
 	rc = m0_mero_ha_init(&csb->csb_mero_ha, &mero_ha_cfg);
 	M0_ASSERT(rc == 0);
