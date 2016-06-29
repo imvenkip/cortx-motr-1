@@ -400,6 +400,22 @@ int m0_spiel_profile_add(struct m0_spiel_tx *tx, const struct m0_fid *fid);
  * @param redundancy metadata redundancy count
  * @param rootfid    root's fid of filesystem
  * @param mdpool     meta-data pool
+ * @param imeta_pver
+ * @parblock
+ *     Distributed index meta-data pool version. It contains storage devices
+ *     controlled by CAS services (no IOS storage devices are allowed). If there
+ *     are no CAS services in configuration then M0_FID0 can be specified. Index
+ *     meta-data is created (analogue of m0mkfs for distributed indices) during
+ *     cluster provisioning via m0_dix_meta_create() or via special utility like
+ *     m0dixinit. m0_dix_meta_create() will refuse to create meta-data if it
+ *     already exists. In this case user may destroy meta-data via
+ *     m0_dix_meta_destroy() or just zero corresponding devices. For more
+ *     detailed information see dix/client.h, "Index meta-data" section.
+ *
+ *     @note For now, storage devices specified in configuration are not
+ *     actually used by CAS services, so they can be faked (even doesn't really
+ *     exist as devices in operating system).
+ * @endparblock
  * @param fs_params  NULL-terminated array of command-line like parameters @n
  *                   Parameters are copied, so caller can safely free them.
  */
@@ -409,6 +425,7 @@ int m0_spiel_filesystem_add(struct m0_spiel_tx    *tx,
 			    unsigned               redundancy,
 			    const struct m0_fid   *rootfid,
 			    const struct m0_fid   *mdpool,
+			    const struct m0_fid   *imeta_pver,
 			    const char           **fs_params);
 
 /**

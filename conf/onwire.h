@@ -76,6 +76,8 @@ struct m0_confx_filesystem {
 	struct m0_bufs         xf_params;
 	/* Pool to locate mata-data. */
 	struct m0_fid          xf_mdpool;
+	/* Distributed index meta-data pool version. */
+	struct m0_fid          xf_imeta_pver;
 	/* Nodes of this filesystem. */
 	struct m0_fid_arr      xf_nodes;
 	/* Pools this filesystem resides on. */

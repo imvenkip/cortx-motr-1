@@ -3,8 +3,8 @@
 
 (root-0 verno=1 profiles=[profile-0])
 (profile-0 filesystem=filesystem-0)
-(filesystem-0 rootfid=(1, 2) redundancy=0 params=[] mdpool=pool-0 nodes=[]
-    pools=[pool-0] racks=[rack-0])
+(filesystem-0 rootfid=(1, 2) redundancy=0 params=[] mdpool=pool-0
+    imeta_pver=pver-0 nodes=[] pools=[pool-0] racks=[rack-0])
 
 (pool-0 order=0 pvers=[pver-0, pver_f-0])
 (pver-0 N=2 K=2 P=10 tolerance=[0, 0, 0, 1, 2] rackvs=[objv-0])

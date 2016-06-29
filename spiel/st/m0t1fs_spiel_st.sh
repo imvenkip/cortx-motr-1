@@ -109,7 +109,8 @@ stub_confdb() {
 (filesystem-0 rootfid=(11, 22) redundancy=2
     params=["pool_width=3", "nr_data_units=1", "nr_parity_units=1",
             "unit_size=4096"]
-    mdpool=pool-0 nodes=[node-0] pools=[pool-0] racks=[rack-0])
+    mdpool=pool-0 imeta_pver=pver-0 nodes=[node-0] pools=[pool-0]
+    racks=[rack-0])
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0, process-1])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
@@ -281,7 +282,8 @@ spiel.tx_open(tx)
 
 conf_objs_add = [('profile_add', tx, fids['profile']),
                  ('filesystem_add', tx, fids['fs'], fids['profile'], 10,
-                  fids['profile'], fids['pool'], ["{0} {1} {2}".format(P,N,K)]),
+                  fids['profile'], fids['pool'], fids['pver'],
+                  ["{0} {1} {2}".format(P,N,K)]),
                  ('pool_add', tx, fids['pool'], fids['fs'], 2),
                  ('rack_add', tx, fids['rack'], fids['fs']),
                  ('enclosure_add', tx, fids['encl'], fids['rack']),
@@ -346,11 +348,11 @@ conf_objs_add = [('profile_add', tx, fids['profile']),
                   ["$M0T1FS_ENDPOINT:1"], ServiceInfoParameters()),
                  ('device_add', tx, fids['sdev0'], fids['mds2'],
                   fids['disk0'], 1, M0_CFG_DEVICE_INTERFACE_SCSI,
-		  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
+                  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
                   "dev/loop0"),
                  ('device_add', tx, fids['sdev1'], fids['ios'],
                   fids['disk1'], 1, M0_CFG_DEVICE_INTERFACE_SCSI,
-		  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
+                  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
                   "dev/loop1"),
                  ('device_add', tx, fids['sdev2'], fids['ios'],
                   fids['disk2'], 2, M0_CFG_DEVICE_INTERFACE_SCSI,

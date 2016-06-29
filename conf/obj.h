@@ -350,6 +350,11 @@ struct m0_conf_filesystem {
 	struct m0_fid       cf_rootfid;
 	/** Meta-data pool. */
 	struct m0_fid       cf_mdpool;
+	/**
+	 * Distributed index meta-data pool version.
+	 * See "Index meta-data" section in dix/client.h for more information.
+	 */
+	struct m0_fid       cf_imeta_pver;
 	uint32_t            cf_redundancy;
 	/**
 	 * Filesystem parameters.
@@ -586,7 +591,8 @@ struct m0_conf_sdev {
 	/**
 	 * Device index.
 	 * The value should be unique and belong [0, P) range, where P
-	 * is total number of devices under CAS/IOS services in the filesystem.
+	 * is a total number of devices under CAS/IOS services in the
+	 * filesystem.
 	 */
 	uint32_t           sd_dev_idx;
 	/** Interface type. See m0_cfg_storage_device_interface_type. */

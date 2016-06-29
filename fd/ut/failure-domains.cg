@@ -1,7 +1,7 @@
 (root-0 verno=1 profiles=[profile-0])
 (profile-0 filesystem=filesystem-1)
 (filesystem-1 rootfid=(0xb, 0x16) redundancy=0 params=["param-0", "param-1",
-    "param-2"] mdpool=pool-3
+    "param-2"] mdpool=pool-3 imeta_pver=pver-123
     nodes=[node-4, node-5, node-6, node-7, node-8, node-9, node-10, node-11]
     pools=[pool-3] racks=[rack-12, rack-13])
 (node-4 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-3

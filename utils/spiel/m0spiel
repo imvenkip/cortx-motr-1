@@ -224,9 +224,9 @@ class SpielWrapper:
         return self.mero.m0_spiel_profile_add(spiel_tx.data, byref(fid))
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, redundancy=int,
-             rootfid=Fid, mdpool=Fid, fs_params=list)
+             rootfid=Fid, mdpool=Fid, imeta_pver=Fid, fs_params=list)
     def filesystem_add(self, spiel_tx, fid, parent, redundancy, rootfid,
-                       mdpool, fs_params):
+                       mdpool, imeta_pver, fs_params):
         # fs_params must be list of strings. Unfortunately ctypes can't
         # automatically convert list (or array) of strings to something
         # compatible with char**. The code below do this.
@@ -243,7 +243,7 @@ class SpielWrapper:
         return self.mero.m0_spiel_filesystem_add(spiel_tx.data, byref(fid),
                                                  byref(parent), redundancy,
                                                  byref(rootfid), byref(mdpool),
-                                                 fs_params_p)
+                                                 byref(imeta_pver), fs_params_p)
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, memsize=long, nr_cpu=int,
              last_state=long, flags=long, pool_fid=Fid)

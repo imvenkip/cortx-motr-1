@@ -57,7 +57,12 @@ static int filesystem_decode(struct m0_conf_obj        *dest,
 	if (!m0_conf_fid_is_valid(&s->xf_mdpool) ||
 	    m0_conf_fid_type(&s->xf_mdpool) != &M0_CONF_POOL_TYPE)
 		return M0_ERR(-EINVAL);
+	if (m0_fid_is_set(&s->xf_imeta_pver) &&
+	    (!m0_conf_fid_is_valid(&s->xf_imeta_pver) ||
+	     m0_conf_fid_type(&s->xf_imeta_pver) != &M0_CONF_PVER_TYPE))
+		return M0_ERR(-EINVAL);
 	d->cf_mdpool     = s->xf_mdpool;
+	d->cf_imeta_pver = s->xf_imeta_pver;
 	d->cf_rootfid    = s->xf_rootfid;
 	d->cf_redundancy = s->xf_redundancy;
 
@@ -102,6 +107,7 @@ filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	confx_encode(dest, src);
 	d->xf_rootfid    = s->cf_rootfid;
 	d->xf_mdpool     = s->cf_mdpool;
+	d->xf_imeta_pver = s->cf_imeta_pver;
 	d->xf_redundancy = s->cf_redundancy;
 	rc = m0_bufs_from_strings(&d->xf_params, s->cf_params);
 	if (rc != 0)
@@ -123,6 +129,7 @@ static bool filesystem_match(const struct m0_conf_obj  *cached,
 	return
 		m0_fid_eq(&obj->cf_rootfid, &xobj->xf_rootfid) &&
 		m0_fid_eq(&obj->cf_mdpool, &xobj->xf_mdpool) &&
+		m0_fid_eq(&obj->cf_imeta_pver, &xobj->xf_imeta_pver) &&
 		obj->cf_redundancy == xobj->xf_redundancy &&
 		m0_bufs_streq(&xobj->xf_params, obj->cf_params) &&
 		m0_conf_dir_elems_match(obj->cf_nodes, &xobj->xf_nodes) &&

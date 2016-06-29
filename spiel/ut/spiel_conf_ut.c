@@ -253,6 +253,7 @@ static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
 				     fs_param);
 	M0_UT_ASSERT(rc == 0);
 
@@ -620,16 +621,18 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 	m0_bitmap_set(&bitmap, 1, true);
 
 	m0_spiel_tx_open(spiel, tx);
-	rc = m0_spiel_profile_add(tx, FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_PROFILE], 1));
+	rc = m0_spiel_profile_add(tx,
+			FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_PROFILE], 1));
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_filesystem_add(tx,
-				     FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM], 2),
-				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
-				     10,
-				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
-				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
-				     fs_param);
+			FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM], 2),
+			&spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+			10,
+			&spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+			&spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+			&spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+			fs_param);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_pool_add(tx,
@@ -1029,6 +1032,7 @@ static void spiel_conf_create_fail(void)
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
 				     fs_param);
 	M0_UT_ASSERT(rc == -EINVAL);
 	rc = m0_spiel_filesystem_add(&tx,
@@ -1037,6 +1041,7 @@ static void spiel_conf_create_fail(void)
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
 				     fs_param);
 	M0_UT_ASSERT(rc == -EINVAL);
 	rc = m0_spiel_filesystem_add(&tx,
@@ -1044,6 +1049,16 @@ static void spiel_conf_create_fail(void)
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     &fake_fid,
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				     fs_param);
+	M0_UT_ASSERT(rc == -EINVAL);
+	rc = m0_spiel_filesystem_add(&tx,
+				     &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     10,
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 				     &fake_fid,
 				     fs_param);
 	M0_UT_ASSERT(rc == -EINVAL);
@@ -1055,6 +1070,7 @@ static void spiel_conf_create_fail(void)
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
 				     fs_param);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
@@ -1067,16 +1083,19 @@ static void spiel_conf_create_fail(void)
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				     &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
 				     fs_param);
 	m0_fi_disable("m0_strings_dup", "strdup_failed");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
+	/* Check that M0_FID0 can be passed as imeta_pver. */
 	rc = m0_spiel_filesystem_add(&tx,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM],
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     10,
 				     &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 				     &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				     &M0_FID0,
 				     fs_param);
 	M0_UT_ASSERT(rc == 0);
 
@@ -1469,7 +1488,7 @@ static void spiel_conf_delete(void)
 # filesystem:   ('f', 1,  1)
    {0x66| ((^f|1:1),
 	   (11, 22), 41212, [3: "param-0", "param-1", "param-2"],
-	   ^o|1:4,
+	   ^o|1:4, ^v|1:8,
 	   [1: ^n|1:2],
 	   [1: ^o|1:4],
 	   [1: ^a|1:3])},
@@ -1616,7 +1635,8 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_filesystem_add(tx, &fid_filesystem, &fid_profile, 41212,
-				     &fid_profile, &fid_pool, fs_param);
+				     &fid_profile, &fid_pool, &fid_pver,
+				     fs_param);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_pool_add(tx, &fid_pool, &fid_filesystem, 0);

@@ -421,6 +421,7 @@ function build_conf()
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
 	      [1: \"$pool_width $nr_data_units $nr_parity_units\"],
 	      $POOLID,
+	      $PVERID,
 	      [$node_count: $NODES],
 	      [$pool_count: $POOLS],
 	      [$rack_count: $RACKS])},

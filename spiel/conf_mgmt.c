@@ -984,6 +984,7 @@ int m0_spiel_filesystem_add(struct m0_spiel_tx   *tx,
 			    unsigned              redundancy,
 			    const struct m0_fid  *rootfid,
 			    const struct m0_fid  *mdpool,
+			    const struct m0_fid  *imeta_pver,
 			    const char          **fs_params)
 {
 	int                        rc;
@@ -991,6 +992,7 @@ int m0_spiel_filesystem_add(struct m0_spiel_tx   *tx,
 	struct m0_conf_filesystem *fs;
 	struct m0_conf_obj        *obj_parent;
 	struct m0_conf_obj        *pool;
+	struct m0_conf_obj        *pver;
 
 	M0_ENTRY();
 	if (fs_params == NULL || rootfid == NULL)
@@ -1005,7 +1007,11 @@ int m0_spiel_filesystem_add(struct m0_spiel_tx   *tx,
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_FILESYSTEM_TYPE, &obj},
 			      {parent, &M0_CONF_PROFILE_TYPE, &obj_parent},
-			      {mdpool, &M0_CONF_POOL_TYPE, &pool});
+			      {mdpool, &M0_CONF_POOL_TYPE, &pool}
+			      );
+	if (rc == 0 && m0_fid_is_set(imeta_pver))
+		rc = SPIEL_CONF_CHECK(&tx->spt_cache,
+				      {imeta_pver, &M0_CONF_PVER_TYPE, &pver});
 	if (rc != 0)
 		goto fail;
 
@@ -1018,6 +1024,7 @@ int m0_spiel_filesystem_add(struct m0_spiel_tx   *tx,
 	/* XXX FIXME: fs->cf_params will leak in case of error */
 	fs->cf_rootfid = *rootfid;
 	fs->cf_mdpool = *mdpool;
+	fs->cf_imeta_pver = *imeta_pver;
 	fs->cf_redundancy = redundancy;
 
 	rc = spiel_filesystem_dirs_create(&tx->spt_cache, fs);
