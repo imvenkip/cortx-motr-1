@@ -237,7 +237,7 @@ build_mero() {
 }
 
 stack_call() {
-	MERO_ROOT=$MERO_SOURCES LD_LIBRARY_PATH=$MERO_SOURCES/mero/.libs stack "$@"
+	PKG_CONFIG_PATH=$MERO_SOURCES MERO_ROOT=$MERO_SOURCES LD_LIBRARY_PATH=$MERO_SOURCES/mero/.libs stack "$@"
 }
 
 build_halon() {
