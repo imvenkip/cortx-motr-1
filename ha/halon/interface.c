@@ -62,6 +62,7 @@
 #include "ha/msg.h"             /* m0_ha_msg_debug_print */
 #include "ha/ha.h"              /* m0_ha */
 #include "ha/entrypoint_fops.h" /* m0_ha_entrypoint_req */
+#include "ha/dispatcher.h"      /* m0_ha_dispatcher */
 
 struct m0_halon_interface_cfg {
 	const char   *hic_build_git_rev_id;
@@ -107,6 +108,7 @@ struct m0_halon_interface_cfg {
 	m0_bcount_t   hic_max_msg_size;
 	uint32_t      hic_queue_len;
 	struct m0_ha_cfg hic_ha_cfg;
+	struct m0_ha_dispatcher_cfg hic_dispatcher_cfg;
 };
 
 enum m0_halon_interface_level {
@@ -117,6 +119,7 @@ enum m0_halon_interface_level {
 	M0_HALON_INTERFACE_LEVEL_REQH_START,
 	M0_HALON_INTERFACE_LEVEL_RPC_MACHINE,
 	M0_HALON_INTERFACE_LEVEL_HA_INIT,
+	M0_HALON_INTERFACE_LEVEL_DISPATCHER,
 	M0_HALON_INTERFACE_LEVEL_HA_START,
 	M0_HALON_INTERFACE_LEVEL_HA_CONNECT,
 	M0_HALON_INTERFACE_LEVEL_INSTANCE_SET,
@@ -141,6 +144,7 @@ struct m0_halon_interface_internal {
 	struct m0_reqh                 hii_reqh;
 	struct m0_rpc_machine          hii_rpc_machine;
 	struct m0_ha                   hii_ha;
+	struct m0_ha_dispatcher        hii_dispatcher;
 	struct m0_sm_group             hii_sm_group;
 	struct m0_sm                   hii_sm;
 	uint64_t                       hii_magix;
@@ -238,6 +242,9 @@ void halon_interface_msg_received_cb(struct m0_ha      *ha,
 	if (hl != hii->hii_outgoing_link) {
 		m0_ha_msg_debug_print(msg, __func__);
 		hii->hii_cfg.hic_msg_received_cb(hii->hii_hi, hl, msg, tag);
+	} else {
+		m0_ha_dispatcher_handle(&hii->hii_dispatcher, ha, hl, msg, tag);
+		m0_ha_delivered(ha, hl, msg);
 	}
 	M0_LEAVE();
 }
@@ -436,6 +443,10 @@ static int halon_interface_level_enter(struct m0_module *module)
 			.hcf_rpc_machine = &hii->hii_rpc_machine,
 			.hcf_reqh        = &hii->hii_reqh,
 		};
+		hii->hii_cfg.hic_dispatcher_cfg = (struct m0_ha_dispatcher_cfg){
+			.hdc_enable_note      = true,
+			.hdc_enable_keepalive = true,
+		};
 		return M0_RC(0);
 	case M0_HALON_INTERFACE_LEVEL_NET_DOMAIN:
 		return M0_RC(m0_net_domain_init(&hii->hii_net_domain,
@@ -465,6 +476,9 @@ static int halon_interface_level_enter(struct m0_module *module)
 	case M0_HALON_INTERFACE_LEVEL_HA_INIT:
 		return M0_RC(m0_ha_init(&hii->hii_ha,
 					&hii->hii_cfg.hic_ha_cfg));
+	case M0_HALON_INTERFACE_LEVEL_DISPATCHER:
+		return M0_RC(m0_ha_dispatcher_init(&hii->hii_dispatcher,
+					   &hii->hii_cfg.hic_dispatcher_cfg));
 	case M0_HALON_INTERFACE_LEVEL_HA_START:
 		return M0_RC(m0_ha_start(&hii->hii_ha));
 	case M0_HALON_INTERFACE_LEVEL_HA_CONNECT:
@@ -515,6 +529,9 @@ static void halon_interface_level_leave(struct m0_module *module)
 		break;
 	case M0_HALON_INTERFACE_LEVEL_HA_INIT:
 		m0_ha_fini(&hii->hii_ha);
+		break;
+	case M0_HALON_INTERFACE_LEVEL_DISPATCHER:
+		m0_ha_dispatcher_fini(&hii->hii_dispatcher);
 		break;
 	case M0_HALON_INTERFACE_LEVEL_HA_START:
 		m0_ha_stop(&hii->hii_ha);
@@ -568,6 +585,11 @@ static const struct m0_modlev halon_interface_levels[] = {
 	},
 	[M0_HALON_INTERFACE_LEVEL_HA_INIT] = {
 		.ml_name  = "M0_HALON_INTERFACE_LEVEL_HA_INIT",
+		.ml_enter = halon_interface_level_enter,
+		.ml_leave = halon_interface_level_leave,
+	},
+	[M0_HALON_INTERFACE_LEVEL_DISPATCHER] = {
+		.ml_name  = "M0_HALON_INTERFACE_LEVEL_DISPATCHER",
 		.ml_enter = halon_interface_level_enter,
 		.ml_leave = halon_interface_level_leave,
 	},
