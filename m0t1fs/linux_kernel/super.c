@@ -457,7 +457,8 @@ static void m0t1fs_ha_process_event(struct m0t1fs_sb              *csb,
 {
 	m0_conf_ha_process_event_post(&csb->csb_mero_ha.mh_ha,
 	                              csb->csb_mero_ha.mh_link,
-	                              &csb->csb_process_fid, 0, event);
+	                              &csb->csb_process_fid, 0,
+				      event, M0_CONF_HA_PROCESS_KERNEL);
 }
 
 /**

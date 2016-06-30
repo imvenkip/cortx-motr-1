@@ -44,7 +44,8 @@ m0_conf_ha_process_event_post(struct m0_ha                  *ha,
                               struct m0_ha_link             *hl,
                               const struct m0_fid           *process_fid,
                               uint64_t                       pid,
-                              enum m0_conf_ha_process_event  event)
+                              enum m0_conf_ha_process_event  event,
+                              enum m0_conf_ha_process_type   type)
 {
 	struct m0_ha_msg *msg;
 	uint64_t          tag;
@@ -63,6 +64,7 @@ m0_conf_ha_process_event_post(struct m0_ha                  *ha,
 			.hed_type            = M0_HA_MSG_EVENT_PROCESS,
 			.u.hed_event_process = {
 				.chp_event = event,
+				.chp_type  = type,
 				.chp_pid   = pid,
 			},
 		},

@@ -108,7 +108,9 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		return;
 	case M0_HA_MSG_EVENT_PROCESS:
 		M0_LOG(M0_DEBUG, "EVENT_PROCESS chp_event=%"PRIu64" "
-		       "chp_pid=%"PRIu64, data->u.hed_event_process.chp_event,
+		       "chp_type=%"PRIu64" chp_pid=%"PRIu64,
+		       data->u.hed_event_process.chp_event,
+		       data->u.hed_event_process.chp_type,
 		       data->u.hed_event_process.chp_pid);
 		return;
 	case M0_HA_MSG_NR:

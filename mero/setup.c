@@ -607,11 +607,15 @@ static bool bad_address(char *addr)
 static void cs_ha_process_event(struct m0_mero                *cctx,
                                 enum m0_conf_ha_process_event  event)
 {
+	enum m0_conf_ha_process_type type;
+
+	type = cctx->cc_mkfs ? M0_CONF_HA_PROCESS_M0MKFS :
+			       M0_CONF_HA_PROCESS_M0D;
 	if (cctx->cc_ha_is_started && !cctx->cc_no_conf) {
 		m0_conf_ha_process_event_post(&cctx->cc_mero_ha.mh_ha,
 		                              cctx->cc_mero_ha.mh_link,
 		                              &cctx->cc_reqh_ctx.rc_fid,
-		                              m0_process_id(), event);
+		                              m0_process_id(), event, type);
 	}
 }
 
