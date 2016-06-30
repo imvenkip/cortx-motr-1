@@ -53,7 +53,7 @@ static void dir_id_build(struct m0_fid *out, const struct m0_fid *id,
 	*out = *id;
 	m0_fid_tassume(out, &M0_CONF_DIR_TYPE.cot_ftype);
 	/* clear the next 16 bits after fid type... */
-	out->f_container &= ~0x00ffff00000000ULL;
+	out->f_container &= ~0x00ffff0000000000ULL;
 	/* ... place parent type there... */
 	out->f_container |= ((uint64_t)m0_fid_type_getfid(id)->ft_id) << 48;
 	/* ... and place children type there. */
