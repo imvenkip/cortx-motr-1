@@ -117,12 +117,17 @@ static void init(void)
 	cas__ut_cb_fini = &cb_fini;
 }
 
-static void fini(void)
+static void service_stop(void)
 {
 	m0_reqh_service_prepare_to_stop(cas);
 	m0_reqh_idle_wait_for(&reqh, cas);
 	m0_reqh_service_stop(cas);
 	m0_reqh_service_fini(cas);
+}
+
+static void fini(void)
+{
+	service_stop();
 	m0_be_ut_backend_fini(&be);
 	m0_fi_disable("cas_in_ut", "ut");
 	rep_clear();
@@ -194,9 +199,7 @@ static void reinit(void)
 	int result;
 
 	init();
-	m0_reqh_service_prepare_to_stop(cas);
-	m0_reqh_service_stop(cas);
-	m0_reqh_service_fini(cas);
+	service_stop();
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
@@ -825,9 +828,7 @@ static void lookup_restart(void)
 	meta_submit(&cas_put_fopt, &ifid);
 	insert_odd(&ifid);
 	lookup_all(&ifid);
-	m0_reqh_service_prepare_to_stop(cas);
-	m0_reqh_service_stop(cas);
-	m0_reqh_service_fini(cas);
+	service_stop();
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
@@ -848,9 +849,7 @@ static void cur_N(void)
 	init();
 	meta_submit(&cas_put_fopt, &ifid);
 	insert_odd(&ifid);
-	m0_reqh_service_prepare_to_stop(cas);
-	m0_reqh_service_stop(cas);
-	m0_reqh_service_fini(cas);
+	service_stop();
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
