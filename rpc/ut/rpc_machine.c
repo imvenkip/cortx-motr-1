@@ -53,9 +53,9 @@ static int rpc_mc_ut_init(void)
 	 * to go through.
 	 */
 	rc = M0_REQH_INIT(&reqh,
-			  .rhia_dtm       = NULL,
+			  .rhia_dtm       = (void *)1,
 			  .rhia_db        = NULL,
-			  .rhia_mdstore   = NULL,
+			  .rhia_mdstore   = (void *)1,
 			  .rhia_fid       = &g_process_fid,
 		);
 	return rc;
@@ -83,6 +83,38 @@ static void rpc_mc_init_fini_test(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(machine.rm_stopping == false);
 	m0_rpc_machine_fini(&machine);
+}
+
+static void rpc_mc_fini_race_test(void)
+{
+	struct m0_rpc_conn    conn;
+	struct m0_rpc_session session;
+	int rc;
+
+	rc = m0_rpc_machine_init(&machine, &client_net_dom, ep_addr,
+				 &reqh, &buf_pool, M0_BUFFER_ANY_COLOUR,
+				 max_rpc_msg_size, tm_recv_queue_min_len);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_client_connect(&conn, &session,
+	                           &machine,
+	                           machine.rm_tm.ntm_ep->nep_addr,
+				   NULL, MAX_RPCS_IN_FLIGHT,
+				   M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_session_destroy(&session, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	/*
+	 * The fault injection increases a time interval from the
+	 * M0_RPC_CONN_TERMINATED state till M0_RPC_CONN_FINALISED. At this
+	 * time, the connection isn't deleted yet from the the
+	 * m0_rpc_machine::rm_incoming_conns and cleanup_incoming_connections()
+	 * should work correctly in such case.
+	 */
+	m0_fi_enable("buf_send_cb", "delay_callback");
+	rc = m0_rpc_conn_destroy(&conn, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	m0_rpc_machine_fini(&machine);
+	m0_fi_disable("buf_send_cb", "delay_callback");
 }
 
 static void rpc_mc_init_fail_test(void)
@@ -191,6 +223,7 @@ struct m0_ut_suite rpc_mc_ut = {
 	.ts_fini = rpc_mc_ut_fini,
 	.ts_tests = {
 		{ "rpc_mc_init_fini", rpc_mc_init_fini_test },
+		{ "rpc_mc_fini_race", rpc_mc_fini_race_test },
 		{ "rpc_mc_init_fail", rpc_mc_init_fail_test },
 #ifndef __KERNEL__
 		{ "rpc_mc_watch",     rpc_machine_watch_test},

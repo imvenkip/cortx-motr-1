@@ -260,10 +260,34 @@ M0_EXPORTED(m0_rpc_machine_fini);
 static void cleanup_incoming_connections(struct m0_rpc_machine *machine)
 {
 	struct m0_rpc_conn *conn;
+	struct m0_clink     clink;
+	uint64_t            sender_id;
 
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 
 	m0_tl_for(rpc_conn, &machine->rm_incoming_conns, conn) {
+		/*
+		 * It's possible that a connection in M0_RPC_CONN_TERMINATED
+		 * state, but it isn't deleted from the list yet. Wait until
+		 * the connection becomes M0_RPC_CONN_FINALISED and continue
+		 * cleanup procedure for other connections.
+		 */
+		if (conn_state(conn) == M0_RPC_CONN_TERMINATED) {
+			sender_id = conn->c_sender_id;
+			m0_clink_init(&clink, NULL);
+			clink.cl_is_oneshot = true;
+			m0_clink_add(&conn->c_sm.sm_chan, &clink);
+			m0_rpc_machine_unlock(machine);
+			m0_chan_wait(&clink);
+			m0_clink_fini(&clink);
+			m0_rpc_machine_lock(machine);
+			conn = m0_tl_find(rpc_conn, conn,
+					  &machine->rm_incoming_conns,
+					  sender_id == conn->c_sender_id);
+			M0_ASSERT(conn == NULL);
+			continue;
+		}
+		M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
 		m0_rpc_conn_cleanup_all_sessions(conn);
 		M0_LOG(M0_INFO, "Aborting conn %llu",
 			(unsigned long long)conn->c_sender_id);
