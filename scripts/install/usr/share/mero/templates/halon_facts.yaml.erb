@@ -29,6 +29,9 @@ id_racks:
                - if_macAddress: "<%= dbfact['vlan_data_macaddress'] %>"
                  if_network: Data
                  if_ipAddrs: [<%= dbfact['vlan_data_ip'] -%>]
+             h_halon:
+               hs_address: <%= dbfact['vlan_data_ip'] -%>:9000
+               hs_roles: ['station', 'ssu']
     <%- end -%>
   <%- end -%>
   <%- client_rack = racknum.to_i + 1 -%>
@@ -58,6 +61,9 @@ id_racks:
                - if_macAddress: ""
                  if_network: Data
                  if_ipAddrs: [<%= x['lnid'].split('@').first %>]
+             h_halon:
+               hs_address: <%= dbfact['vlan_data_ip'] -%>:9000
+               hs_roles: ['dm']
     <%- count += 1 -%>
   <%- end -%>
 <%- end -%>
