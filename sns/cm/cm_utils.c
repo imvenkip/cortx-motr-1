@@ -421,7 +421,7 @@ cm_conf_service_get(const struct m0_cm *cm,
 	int                     rc;
 
 	dev_idx = m0_fid_cob_device_id(cob_fid);
-	svc_fid = pv->pv_pc->pc_dev2ios[dev_idx].pds_ctx->sc_fid;
+	svc_fid = pv->pv_pc->pc_dev2svc[dev_idx].pds_ctx->sc_fid;
 	rc = m0_conf_service_get(confc, &svc_fid, &svc);
 	M0_ASSERT(rc == 0); /* Error checking is for sissies. */
 

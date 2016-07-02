@@ -163,8 +163,9 @@ m0t1fs_container_id_to_session(const struct m0_pool_version *pver,
 
 	M0_LOG(M0_DEBUG, "container_id=%llu", container_id);
 
-	ctx = pver->pv_pc->pc_dev2ios[container_id].pds_ctx;
+	ctx = pver->pv_pc->pc_dev2svc[container_id].pds_ctx;
 	M0_ASSERT(ctx != NULL);
+	M0_ASSERT(ctx->sc_type == M0_CST_IOS);
 
 	M0_LOG(M0_DEBUG, "id %llu -> ctx=%p session=%p", container_id, ctx,
 			 &ctx->sc_rlink.rlk_sess);
@@ -738,15 +739,17 @@ static bool m0t1fs_rconfc_expired_cb(struct m0_clink *clink)
 	 * handling. This is done in order to call rio_replied callback for
 	 * the rpc items and interrupt io_requests.
 	 * A cancelled session is reconnected. See MERO-1642.
+	 *
+	 * Note: m0t1fs doesn't use CAS services, so they are not of interest.
 	 */
 	for (i = 0; i < csb->csb_pools_common.pc_nr_devices; i++) {
-		ctx = csb->csb_pools_common.pc_dev2ios[i].pds_ctx;
-		if (ctx != NULL && ctx->sc_rlink.rlk_connected)
+		ctx = csb->csb_pools_common.pc_dev2svc[i].pds_ctx;
+		if (ctx != NULL && ctx->sc_type == M0_CST_IOS
+		    && ctx->sc_rlink.rlk_connected)
 			m0_reqh_service_cancel_reconnect(ctx);
 	}
 	M0_LEAVE();
 	return true;
-
 }
 
 static bool m0t1fs_rconfc_ready_cb(struct m0_clink *clink)

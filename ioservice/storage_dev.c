@@ -194,7 +194,7 @@ static bool storage_devs_conf_expired_cb(struct m0_clink *clink)
 		 * order to use it later in storage_dev_update_by_conf() when
 		 * new conf is ready.
 		 */
-		sdev_fid = pc->pc_dev2ios[dev->isd_cid].pds_sdev_fid;
+		sdev_fid = pc->pc_dev2svc[dev->isd_cid].pds_sdev_fid;
 		if (m0_fid_is_set(&sdev_fid) &&
 		    /*
 		     * Not all storage devices have a corresponding m0_conf_sdev

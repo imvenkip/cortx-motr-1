@@ -469,6 +469,53 @@ M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj)
 	return m0_confc2reqh(conf_obj2confc(obj));
 }
 
+static int conf__objs_count(const struct m0_fid *profile,
+			    struct m0_confc     *confc,
+			    bool (*filter)(const struct m0_conf_obj *obj,
+					   void *arg),
+			    void                *arg,
+			    uint32_t            *count,
+			    int                  level,
+			    const struct m0_fid *path)
+{
+	struct m0_conf_diter       it;
+	struct m0_conf_filesystem *fs;
+	int                        rc;
+
+	M0_ENTRY("profile"FID_F, FID_P(profile));
+
+	rc = m0_conf_fs_get(profile, confc, &fs);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0_conf__diter_init(&it, confc, &fs->cf_obj, level, path);
+	if (rc != 0)
+		goto end;
+
+	while ((rc = m0_conf_diter_next_sync(&it, NULL)) == M0_CONF_DIRNEXT) {
+		if (filter(m0_conf_diter_result(&it), arg))
+			M0_CNT_INC(*count);
+	}
+	m0_conf_diter_fini(&it);
+end:
+	m0_confc_close(&fs->cf_obj);
+	return M0_RC(rc);
+}
+
+/**
+ * Returns the number of conf objects located along the path.
+ *
+ * @param profile     Configuration profile.
+ * @param confc       Initialised confc.
+ * @param filter      Returns true for objects of interest.
+ * @param[out] count  Output parameter.
+ * @param ...         Configuration path.
+ */
+#define conf_objs_count(profile, confc, filter, arg, count, ...) \
+	conf__objs_count(profile, confc, filter, arg, count,     \
+			 M0_COUNT_PARAMS(__VA_ARGS__) + 1,  \
+			 (const struct m0_fid []){ __VA_ARGS__, M0_FID0 })
+
 M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj)
 {
 	const struct m0_conf_obj_type *t = m0_conf_obj_type(obj);
@@ -485,64 +532,47 @@ M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj)
 		M0_IMPOSSIBLE("");
 }
 
-M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj)
+M0_INTERNAL bool m0_disk_is_of_type(const struct m0_conf_obj *obj,
+				    uint64_t                  svc_types)
 {
+	M0_CASSERT(M0_CST_NR <= sizeof svc_types * 8);
 	return m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE &&
 		({
 			const struct m0_conf_disk *disk =
 				M0_CONF_CAST(obj, m0_conf_disk);
-			M0_CONF_CAST(
+			enum m0_conf_service_type  type;
+
+			type = M0_CONF_CAST(
 				m0_conf_obj_grandparent(&disk->ck_dev->sd_obj),
-				m0_conf_service)->cs_type == M0_CST_IOS;
+				m0_conf_service)->cs_type;
+			M0_BITS(type) & svc_types;
 		});
 }
 
-static int conf__objs_count(const struct m0_fid *profile,
-			    struct m0_confc *confc,
-			    bool (*filter)(const struct m0_conf_obj *obj),
-			    uint32_t *count, int nr_levels,
-			    const struct m0_fid *path)
+M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj)
 {
-	struct m0_conf_diter       it;
-	struct m0_conf_filesystem *fs;
-	int                        rc;
-
-	M0_ENTRY("profile="FID_F, FID_P(profile));
-
-	rc = m0_conf_fs_get(profile, confc, &fs);
-	if (rc != 0)
-		return M0_ERR(rc);
-	rc = m0_conf__diter_init(&it, confc, &fs->cf_obj, nr_levels, path);
-	if (rc != 0)
-		goto end;
-	while ((rc = m0_conf_diter_next_sync(&it, filter)) == M0_CONF_DIRNEXT)
-		M0_CNT_INC(*count);
-	m0_conf_diter_fini(&it);
-end:
-	m0_confc_close(&fs->cf_obj);
-	return M0_RC(rc);
+	return m0_disk_is_of_type(obj, M0_BITS(M0_CST_IOS));
 }
 
-/**
- * Returns the number of conf objects located along the path.
- *
- * @param profile     Configuration profile.
- * @param confc       Initialised confc.
- * @param filter      Returns true for objects of interest.
- * @param[out] count  Output parameter.
- * @param ...         Configuration path.
- */
-#define conf_objs_count(profile, confc, filter, count, ...) \
-	conf__objs_count(profile, confc, filter, count,     \
-			 M0_COUNT_PARAMS(__VA_ARGS__) + 1,  \
-			 (const struct m0_fid []){ __VA_ARGS__, M0_FID0 })
-
-M0_INTERNAL int m0_conf_ios_devices_count(const struct m0_fid *profile,
-					  struct m0_confc *confc,
-					  uint32_t *nr_devices)
+M0_INTERNAL bool m0_is_cas_disk(const struct m0_conf_obj *obj)
 {
+	return m0_disk_is_of_type(obj, M0_BITS(M0_CST_CAS));
+}
+
+static bool dev_has_type(const struct m0_conf_obj *obj, void *arg)
+{
+	return m0_disk_is_of_type(obj, (uint64_t)arg);
+}
+
+M0_INTERNAL int m0_conf_devices_count(struct m0_fid   *profile,
+				      struct m0_confc *confc,
+				      uint64_t         svc_types,
+				      uint32_t        *nr_devices)
+{
+	M0_CASSERT(sizeof(void *) >= sizeof svc_types);
 	return M0_FI_ENABLED("diter_fail") ? -ENOMEM :
-		conf_objs_count(profile, confc, m0_is_ios_disk, nr_devices,
+		conf_objs_count(profile, confc, dev_has_type,
+				(void *)svc_types, nr_devices,
 				M0_CONF_FILESYSTEM_RACKS_FID,
 				M0_CONF_RACK_ENCLS_FID,
 				M0_CONF_ENCLOSURE_CTRLS_FID,

@@ -132,25 +132,39 @@ M0_INTERNAL struct m0_reqh *m0_confc2reqh(const struct m0_confc *confc);
 
 M0_INTERNAL bool m0_conf_obj_is_pool(const struct m0_conf_obj *obj);
 
-M0_INTERNAL int m0_conf__obj_count(const struct m0_fid *profile,
-				   struct m0_confc     *confc,
-				   bool (*filter)(const struct m0_conf_obj *obj),
-				   uint32_t            *count,
-				   int                  level,
-				   const struct m0_fid *path);
-
 /** Obtains m0_conf_pver array from rack/enclousure/controller. */
 M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj);
 
 /* XXX TODO: Move to mero/ha.c as a static function. */
 M0_INTERNAL bool m0_conf_service_is_top_rms(const struct m0_conf_service *svc);
 
+/**
+ * Checks that 'obj' is of type M0_CONF_DISK_TYPE and this disk is attached to
+ * a service of one of types specified in 'svc_types' bitmask.
+ *
+ * Example:
+ * @code
+ * m0_is_disk_of_type(conf_obj, M0_BITS(M0_CST_IOS, M0_CST_CAS));
+ * @encode
+ */
+M0_INTERNAL bool m0_disk_is_of_type(const struct m0_conf_obj *obj,
+				    uint64_t                  svc_types);
+M0_INTERNAL bool m0_is_cas_disk(const struct m0_conf_obj *obj);
 M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj);
 
-/* XXX TODO: Move to pool/pool.c as a static function. */
-M0_INTERNAL int m0_conf_ios_devices_count(const struct m0_fid *profile,
-					  struct m0_confc *confc,
-					  uint32_t *nr_devices);
+/**
+ * Counts number of devices in configuration that are attached to services of
+ * types provided by 'svc_types' bitmask.
+ *
+ * Example:
+ * @code
+ * rc = m0_conf_devices_count(profile, confc, M0_BITS(M0_CST_IOS), &nr);
+ * @endcode
+ */
+M0_INTERNAL int m0_conf_devices_count(struct m0_fid   *profile,
+				      struct m0_confc *confc,
+				      uint64_t         svc_types,
+				      uint32_t        *nr_devices);
 
 M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc);
 M0_INTERNAL void m0_confc_ready_cb(struct m0_rconfc *rconfc);

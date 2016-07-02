@@ -514,7 +514,7 @@ static void test_cs_ut_setup_fail(void)
 				  ARRAY_SIZE(cs_ut_bad_profile));
 
 	/* m0_pools_common_init() is to fail inside cs_conf_setup() */
-	m0_fi_enable_once("m0_conf_ios_devices_count", "diter_fail");
+	m0_fi_enable_once("m0_conf_devices_count", "diter_fail");
 	cs_ut_test_helper_failure(cs_ut_service_one_cmd,
 				  ARRAY_SIZE(cs_ut_service_one_cmd));
 	/* m0_pools_setup() is to fail inside cs_conf_setup() */

@@ -65,7 +65,7 @@ enum {
 };
 
 struct m0_pool_device_to_service {
-	/** Serice context for the target disk. */
+	/** Service context for the target disk. */
 	struct m0_reqh_service_ctx *pds_ctx;
 
 	/** Sdev fid associated with the service context. */
@@ -172,19 +172,22 @@ struct m0_pools_common {
 	 */
 	uint64_t                          pc_nr_svcs[M0_CST_NR];
 
-	/* Total number of devices under ioservices across all the pools. */
+	/**
+	 * Total number of devices across all the pools.
+	 * Only devices used by IOS or CAS services are accounted.
+	 */
 	uint32_t                          pc_nr_devices;
 
 	/**
 	 * An array of size of pc_nr_devices.
-	 * Maps device to io service: dev_idx -> (reqh_service_ctx, sdev_fid)
-	 * Each pc_dev2ios[i] entry points to instance of
+	 * Maps device to IOS/CAS service: dev_idx -> (reqh_service_ctx, sdev_fid)
+	 * Each pc_dev2svc[i] entry points to instance of
 	 * struct m0_reqh_service_ctx which has established rpc connections
 	 * with the given service endpoints.
 	 * @todo Check whether concurrency needs to be handled after
 	 * MERO-1498 is in master.
 	 */
-	struct m0_pool_device_to_service *pc_dev2ios;
+	struct m0_pool_device_to_service *pc_dev2svc;
 
 	/** Metadata redundancy count. */
 	uint32_t                          pc_md_redundancy;
@@ -421,7 +424,7 @@ struct m0_pooldev {
 	uint32_t                pd_index;
 	/**
 	 * storage device index between 1 to total number of devices in the
-	 * pool, get from m0_conf_sdev:sd_dev_idx.
+	 * filesystem, get from m0_conf_sdev:sd_dev_idx.
 	 */
 	uint32_t                pd_sdev_idx;
 
