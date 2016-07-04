@@ -9,8 +9,6 @@ PartOf=mero.service
 [Service]
 Type=notify
 TimeoutStopSec=20
-Restart=on-abort
-StartLimitInterval=5
-StartLimitBurst=1
+Restart=no
 EnvironmentFile=-/var/mero/env.sh
 ExecStart=/usr/libexec/mero/mero-server confd

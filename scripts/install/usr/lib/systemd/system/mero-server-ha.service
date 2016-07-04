@@ -9,7 +9,5 @@ PartOf=mero.service
 [Service]
 Type=notify
 TimeoutStopSec=20
-Restart=on-abort
-StartLimitInterval=5
-StartLimitBurst=1
+Restart=no
 ExecStart=/usr/libexec/mero/mero-server ha
