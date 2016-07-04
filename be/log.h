@@ -274,7 +274,7 @@ struct m0_be_log {
 	struct m0_be_log_sched   lg_sched;
 	struct m0_be_recovery    lg_recovery;
 	struct m0_be_fmt_log_header lg_header;
-	/** List of all non-discarded log_records */
+	/** List of all non-discarded log_records. TODO remove it as unneeded */
 	struct m0_tl             lg_records;
 	/** Protects m0_be_log_record.lgr_state after the record is scheduled */
 	struct m0_mutex          lg_record_state_lock;

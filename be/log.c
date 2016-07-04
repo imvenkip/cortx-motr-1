@@ -37,6 +37,7 @@
 /**
  * @addtogroup be
  *
+ * TODO remove lg_records list because it is not needed anymore.
  * @{
  */
 
@@ -447,9 +448,16 @@ M0_INTERNAL void m0_be_log_record_reset(struct m0_be_log_record *record)
 	 * With delayed discard records can't be removed from the list
 	 * in m0_be_log_record_discard().
 	 */
-	if (record->lgr_need_discard && record->lgr_state == LGR_DONE)
+	if (record->lgr_need_discard && record->lgr_state == LGR_DONE) {
+		/*
+		 * XXX the lock shouldn't be taken here. Usually it's engine
+		 * lock and it should be taken somewhere above in the call
+		 * stack.
+		 */
+		m0_mutex_lock(record->lgr_log->lg_external_lock);
 		record_tlink_del_fini(record);
-
+		m0_mutex_unlock(record->lgr_log->lg_external_lock);
+	}
 	m0_be_fmt_log_record_header_reset(&record->lgr_header);
 	m0_be_fmt_log_record_footer_reset(&record->lgr_footer);
 	m0_be_op_reset(&record->lgr_record_op);
