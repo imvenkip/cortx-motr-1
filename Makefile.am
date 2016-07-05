@@ -731,10 +731,17 @@ be_tool_m0betool_LDADD     = $(top_builddir)/mero/libmero.la
 if HAVE_SYSTEMD
 usr_lib_systemddir    = $(prefix)/lib/systemd/system
 usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/lnet.service \
+                        scripts/install/usr/lib/systemd/system/mero-client.service \
                         scripts/install/usr/lib/systemd/system/mero-kernel.service \
+                        scripts/install/usr/lib/systemd/system/mero-mkfs.service \
                         scripts/install/usr/lib/systemd/system/mero-mkfs@.service \
+                        scripts/install/usr/lib/systemd/system/mero-server-confd.service \
+                        scripts/install/usr/lib/systemd/system/mero-server-ha.service \
+                        scripts/install/usr/lib/systemd/system/mero-server@.service \
                         scripts/install/usr/lib/systemd/system/m0d@.service \
                         scripts/install/usr/lib/systemd/system/m0t1fs@.service \
+                        scripts/install/usr/lib/systemd/system/mero.service \
+                        scripts/install/usr/lib/systemd/system/mero-singlenode.service \
                         scripts/install/usr/lib/systemd/system/mero-trace@.service
 EXTRA_DIST           += $(usr_lib_systemd_DATA)
 endif
@@ -749,6 +756,17 @@ EXTRA_DIST         += $(etc_sysconfig_DATA)
 #etc_mero_DATA  =
 #EXTRA_DIST    += $(etc_mero_DATA)
 
+ETC_SYSTEMD_DIR := $(DESTDIR)$(sysconfdir)/systemd/system
+
+install-exec-hook:
+	$(MKDIR_P) $(ETC_SYSTEMD_DIR)
+	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/mero-client.service
+	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/mero-mkfs.service
+	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/mero-server-confd.service
+	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/mero-server-ha.service
+	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/mero-server@.service
+	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/mero-singlenode.service
+	$(LN_S) /dev/null $(ETC_SYSTEMD_DIR)/mero.service
 
 ################################################################################
 #                             Auxiliary data files

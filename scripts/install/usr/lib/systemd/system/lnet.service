@@ -1,5 +1,6 @@
 [Unit]
 Description=LNet service
+Requires=network.target
 Before=mero-kernel.service
 
 [Service]
