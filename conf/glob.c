@@ -27,7 +27,8 @@
 #include "lib/trace.h"
 
 #include "conf/glob.h"
-#include "conf/obj_ops.h"  /* m0_conf_dir_tl */
+#include "conf/obj_ops.h"  /* m0_conf_obj_ops */
+#include "conf/dir.h"      /* m0_conf_dir_tl */
 #include "lib/errno.h"     /* E2BIG */
 #include "lib/string.h"    /* m0_vsnprintf */
 

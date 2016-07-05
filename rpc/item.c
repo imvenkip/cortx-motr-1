@@ -21,14 +21,15 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
-#include "conf/objs/common.h" /* M0_CONF_SERVICE_TYPE */
-#include "lib/memory.h"
 #include "lib/trace.h"
+
+#include "lib/memory.h"
 #include "lib/tlist.h"
 #include "lib/rwlock.h"
 #include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/finject.h"
+#include "conf/obj.h"  /* m0_conf_fid_type */
 #include "ha/epoch.h"
 #include "ha/note.h"
 #include "mero/magic.h"

@@ -17,13 +17,14 @@
  * Original author: Mandar Sawant <mandar_sawant@seagate.com>
  * Original creation date: 12-Jan-2015
  */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
+
+#include "conf/diter.h"
+#include "conf/obj_ops.h"  /* M0_CONF_DIRNEXT */
 #include "lib/memory.h"
 #include "lib/errno.h"
-
-#include "conf/obj_ops.h" /* m0_conf_dirval */
-#include "conf/diter.h"
 
 /**
  * @page confditer-dld DLD of configuration directory iterator
@@ -420,7 +421,6 @@ static int diter_wait(struct m0_conf_diter *it)
 			DPH_LVL_OPEN : DPH_LVL_READ;
 
 	M0_POST(lvl->dl_mode == M0_DLM_ENTRY);
-
 	return M0_RC(M0_CONF_DIRNEXT);
 }
 

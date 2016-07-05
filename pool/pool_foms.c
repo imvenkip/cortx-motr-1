@@ -19,6 +19,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_POOL
 #include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
@@ -31,11 +32,9 @@
 #include "pool/pool_fops.h"
 #include "ioservice/io_device.h"
 #include "rpc/rpc_opcodes.h"
-
 #include "mero/setup.h"
 #include "conf/diter.h"
-#include "conf/obj_ops.h"
-#include <stdio.h>
+
 static const struct m0_fom_ops poolmach_ops;
 
 static int poolmach_fom_create(struct m0_fop *fop, struct m0_fom **out,

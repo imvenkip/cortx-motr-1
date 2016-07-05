@@ -27,10 +27,9 @@
 #include "ut/ut.h"
 #include "lib/ub.h"
 #include "fid/fid.h"              /* m0_fid, m0_fid_tset */
-#include "conf/cache.h"
 #include "conf/obj.h"
 #include "conf/obj_ops.h"         /* m0_conf_obj_find */
-#include "conf/objs/common.h"     /* child_adopt */
+#include "conf/dir.h"             /* m0_conf_dir_add */
 #include "rm/rm.h"
 #include "rm/rm_service.h"        /* m0_rms_type */
 #include "rm/rm_internal.h"

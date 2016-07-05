@@ -440,4 +440,16 @@ M0_INTERNAL void m0_conf_obj_fini(void)
 	m0_fid_type_unregister(&M0_CONF_RELFID_TYPE);
 	m0_xcode_union_fini(m0_confx_obj_xc);
 }
+
+M0_INTERNAL void
+m0_conf_child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
+{
+	/* Root cannot be a child, because it is the topmost object. */
+	M0_PRE(m0_conf_obj_type(child) != &M0_CONF_ROOT_TYPE);
+	M0_PRE(child->co_cache == parent->co_cache);
+
+	if (child->co_parent != child)
+		child->co_parent = parent;
+}
+
 #undef M0_TRACE_SUBSYSTEM

@@ -23,7 +23,7 @@
 
 #include "conf/confc.h"
 #include "conf/cache.h"
-#include "conf/obj_ops.h"
+#include "conf/obj_ops.h"     /* m0_conf_obj_find */
 #include "conf/preload.h"     /* m0_confstr_parse */
 #include "conf/fop.h"         /* m0_conf_fetch_fopt */
 #include "mero/magic.h"       /* M0_CONFC_MAGIC, M0_CONFC_CTX_MAGIC */

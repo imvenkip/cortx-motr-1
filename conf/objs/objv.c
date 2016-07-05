@@ -65,8 +65,8 @@ static int objv_decode(struct m0_conf_obj        *dest,
 		return M0_RC(0); /* no children */
 	else
 		return M0_ERR(-EINVAL);
-	return M0_RC(dir_new_adopt(cache, dest, relfid, &M0_CONF_OBJV_TYPE,
-				   &s->xj_children, &d->cv_children));
+	return M0_RC(m0_conf_dir_new(cache, dest, relfid, &M0_CONF_OBJV_TYPE,
+				     &s->xj_children, &d->cv_children));
 }
 
 static int

@@ -63,8 +63,8 @@ static int pver_decode(struct m0_conf_obj        *dest,
 		if (rc != 0)
 			return M0_ERR(rc);
 	}
-	rc = dir_new_adopt(cache, dest, &M0_CONF_PVER_RACKVS_FID,
-			   &M0_CONF_OBJV_TYPE, &s->xv_rackvs, &d->pv_rackvs);
+	rc = m0_conf_dir_new(cache, dest, &M0_CONF_PVER_RACKVS_FID,
+			     &M0_CONF_OBJV_TYPE, &s->xv_rackvs, &d->pv_rackvs);
 	if (rc != 0)
 		m0_free0(&d->pv_nr_failures);
 	return M0_RC(rc);

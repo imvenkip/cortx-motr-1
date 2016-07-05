@@ -26,13 +26,12 @@
 #include "conf/obj_ops.h"     /* m0_conf_obj_invariant */
 #include "conf/preload.h"     /* m0_confx_free */
 #include "conf/onwire.h"
-#include "conf/cache.h"
 #include "rpc/rpc_opcodes.h"  /* M0_CONF_FETCH_OPCODE */
 #include "fop/fom_generic.h"  /* M0_FOPH_NR */
+#include "fid/fid.h"          /* m0_fid, m0_fid_arr */
 #include "lib/memory.h"       /* m0_free */
 #include "lib/misc.h"         /* M0_SET0 */
 #include "lib/errno.h"        /* ENOMEM, EOPNOTSUPP */
-#include "fid/fid.h"          /* m0_fid, m0_fid_arr */
 
 /**
  * @addtogroup confd_dlspec

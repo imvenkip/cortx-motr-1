@@ -54,7 +54,6 @@
 #include "addb2/net.h"
 #include "module/instance.h"	/* m0_get */
 #include "conf/obj.h"           /* M0_CONF_PROCESS_TYPE */
-#include "conf/obj_ops.h"       /* m0_conf_obj_put */
 #include "conf/helpers.h"       /* m0_confc_args */
 #include "be/ut/helper.h"
 #include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */

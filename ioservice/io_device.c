@@ -230,7 +230,7 @@ ysXAXAgJ5lQoMcOkbBNBW9Nz9OM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
 #include "lib/lockers.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
-#include "conf/obj_ops.h" /* M0_CONF_DIRNEXT */
+#include "conf/obj_ops.h"  /* M0_CONF_DIRNEXT */
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_fops.h"

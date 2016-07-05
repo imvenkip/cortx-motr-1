@@ -21,7 +21,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
 
-#include "conf/obj_ops.h"       /* M0_CONF_DIRNEXT, m0_conf_obj_get */
+#include "conf/obj_ops.h"       /* m0_conf_obj_get */
 #include "conf/preload.h"       /* m0_confx_string_free */
 #include "fid/fid_list.h"       /* m0_fid_item */
 #include "rpc/rpclib.h"         /* m0_rpc_post_with_timeout_sync */

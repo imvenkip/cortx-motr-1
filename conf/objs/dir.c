@@ -22,12 +22,6 @@
 #include "lib/trace.h"
 
 #include "conf/objs/common.h"
-#include "mero/magic.h" /* M0_CONF_OBJ_MAGIC, M0_CONF_DIR_MAGIC */
-
-M0_TL_DESCR_DEFINE(m0_conf_dir, "m0_conf_dir::cd_items", M0_INTERNAL,
-		   struct m0_conf_obj, co_dir_link, co_gen_magic,
-		   M0_CONF_OBJ_MAGIC, M0_CONF_DIR_MAGIC);
-M0_TL_DEFINE(m0_conf_dir, M0_INTERNAL, struct m0_conf_obj);
 
 static bool dir_check(const void *bob)
 {
@@ -104,8 +98,8 @@ readdir_pre(const struct m0_conf_dir *dir, const struct m0_conf_obj *entry)
 static bool readdir_post(int retval, const struct m0_conf_dir *dir,
 			 const struct m0_conf_obj *entry)
 {
-	return  _0C(M0_IN(retval,
-		      (M0_CONF_DIREND, M0_CONF_DIRNEXT, M0_CONF_DIRMISS))) &&
+	return  _0C(M0_IN(retval, (M0_CONF_DIREND, M0_CONF_DIRNEXT,
+				   M0_CONF_DIRMISS))) &&
 		_0C((retval == M0_CONF_DIREND) == (entry == NULL)) &&
 		_0C(ergo(entry != NULL, m0_conf_obj_invariant(entry))) &&
 		_0C(ergo(entry != NULL, belongs(entry, dir))) &&

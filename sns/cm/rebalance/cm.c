@@ -19,14 +19,15 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/trace.h"
+
 #include "lib/assert.h"
 #include "lib/errno.h"
-#include "lib/trace.h"
 #include "lib/memory.h"
 
 #include "fop/fop.h"
 #include "reqh/reqh.h"
-#include "conf/obj_ops.h"
+#include "conf/obj_ops.h"     /* m0_conf_obj_find_lock */
 
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/iter.h"

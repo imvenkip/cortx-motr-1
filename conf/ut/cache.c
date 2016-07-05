@@ -22,6 +22,7 @@
 #include "conf/obj_ops.h"  /* m0_conf_obj_create */
 #include "conf/preload.h"  /* m0_confstr_parse, m0_confx_free */
 #include "conf/onwire.h"   /* m0_confx_obj, m0_confx */
+#include "conf/dir.h"      /* m0_conf_dir_add */
 #include "lib/buf.h"       /* m0_buf, M0_BUF_INITS */
 #include "lib/errno.h"     /* ENOENT */
 #include "lib/fs.h"        /* m0_file_read */

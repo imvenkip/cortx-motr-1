@@ -40,7 +40,6 @@
 #include "layout/layout.h"      /* m0_layout_domain_init */
 #include "layout/linear_enum.h" /* m0_layout_linear_enum */
 #include "fd/fd.h"              /* m0_fd_fwd_map */
-#include "conf/obj_ops.h"       /* m0_conf_obj_find */
 #include <linux/dcache.h>       /* struct dentry */
 #include "m0t1fs/linux_kernel/file_internal.h" /* io_request */
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */

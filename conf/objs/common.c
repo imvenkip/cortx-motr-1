@@ -21,7 +21,6 @@
 #include "lib/trace.h"
 
 #include "conf/objs/common.h"
-#include "conf/cache.h"
 
 #define X_CONF(name, key)                              \
 	const struct m0_fid M0_CONF_ ## name ## _FID = \
@@ -29,116 +28,14 @@
 M0_CONF_REL_FIDS;
 #undef X_CONF
 
-M0_INTERNAL void
-child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
-{
-	/* Root cannot be a child, because it is the topmost object. */
-	M0_PRE(m0_conf_obj_type(child) != &M0_CONF_ROOT_TYPE);
-	M0_PRE(child->co_cache == parent->co_cache);
-
-	if (child->co_parent != child)
-		child->co_parent = parent;
-}
-
-/**
- * Constructs directory identifier.
- *
- * @todo This would produce non-unique identifier, if an object has two
- * different directories with the same children types. Perhaps relation fid
- * should be factored in somehow.
- */
-static void dir_id_build(struct m0_fid *out, const struct m0_fid *id,
-			 const struct m0_conf_obj_type *children_type)
-{
-	*out = *id;
-	m0_fid_tassume(out, &M0_CONF_DIR_TYPE.cot_ftype);
-	/* clear the next 16 bits after fid type... */
-	out->f_container &= ~0x00ffff0000000000ULL;
-	/* ... place parent type there... */
-	out->f_container |= ((uint64_t)m0_fid_type_getfid(id)->ft_id) << 48;
-	/* ... and place children type there. */
-	out->f_container |= ((uint64_t)children_type->cot_ftype.ft_id) << 40;
-}
-
-M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
-			const struct m0_fid *id,
-			const struct m0_fid *relfid,
-			const struct m0_conf_obj_type *children_type,
-			const struct m0_fid_arr *src, struct m0_conf_dir **out)
-{
-	struct m0_conf_obj *child;
-	uint32_t            i;
-	int                 rc;
-	struct m0_conf_obj *dir;
-	struct m0_fid       dir_id;
-
-	M0_PRE(m0_fid_type_getfid(relfid) == &M0_CONF_RELFID_TYPE);
-	M0_PRE(*out == NULL);
-
-	dir_id_build(&dir_id, id, children_type);
-	M0_ASSERT(m0_conf_cache_lookup(cache, &dir_id) == NULL);
-
-	dir = m0_conf_obj_create(cache, &dir_id);
-	if (dir == NULL)
-		return M0_ERR(-ENOMEM);
-	*out = M0_CONF_CAST(dir, m0_conf_dir);
-
-	(*out)->cd_item_type = children_type;
-	(*out)->cd_relfid    = *relfid;
-
-	if (src != NULL) {
-		for (i = 0; i < src->af_count; ++i) {
-			rc = m0_conf_obj_find(cache, &src->af_elems[i], &child);
-			if (rc != 0)
-				goto err;
-			if (m0_conf_dir_tlist_contains(&(*out)->cd_items,
-						       child)) {
-				rc = -EEXIST; /* ban duplicates */
-				goto err;
-			}
-			/* Link the directory and its element together. */
-			m0_conf_dir_add(*out, child);
-		}
-	}
-	rc = m0_conf_cache_add(cache, dir);
-	if (rc == 0) {
-		dir->co_status = M0_CS_READY;
-		return M0_RC(0);
-	}
-err:
-	if (src != NULL) {
-		/* Restore consistency. */
-		m0_tl_teardown(m0_conf_dir, &(*out)->cd_items, child) {
-			m0_conf_cache_del(cache, child);
-		}
-	}
-	m0_conf_obj_delete(dir);
-	*out = NULL;
-	return M0_ERR(rc);
-}
-
-M0_INTERNAL int dir_new_adopt(struct m0_conf_cache *cache,
-			      struct m0_conf_obj *parent,
-			      const struct m0_fid *relfid,
-			      const struct m0_conf_obj_type *children_type,
-			      const struct m0_fid_arr *src,
-			      struct m0_conf_dir **out)
-{
-	int rc;
-
-	rc = dir_new(cache, &parent->co_id, relfid, children_type, src, out);
-	if (rc == 0)
-		child_adopt(parent, &(*out)->cd_obj);
-	return M0_RC(rc);
-}
-
 M0_INTERNAL int dir_create_and_populate(struct m0_conf_dir **result,
 					const struct conf_dir_entries *de,
 					struct m0_conf_obj *dir_parent,
 					struct m0_conf_cache *cache)
 {
-	return M0_RC(dir_new_adopt(cache, dir_parent, de->de_relfid,
-				   de->de_entry_type, de->de_entries, result));
+	return M0_RC(m0_conf_dir_new(cache, dir_parent, de->de_relfid,
+				     de->de_entry_type, de->de_entries,
+				     result));
 }
 
 M0_INTERNAL int
@@ -187,7 +84,7 @@ arrfid_from_dir(struct m0_fid_arr *dest, const struct m0_conf_dir *dir)
 	size_t              i;
 
 	dest->af_elems = NULL;
-	dest->af_count = m0_conf_dir_elems_count(dir);
+	dest->af_count = m0_conf_dir_len(dir);
 
 	if (dest->af_count == 0)
 		return 0;

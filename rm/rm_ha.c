@@ -30,7 +30,7 @@
 #include "conf/confc.h"
 #include "conf/helpers.h"   /* m0_confc2reqh */
 #include "conf/diter.h"
-#include "conf/obj_ops.h"   /* M0_CONF_DIRNEXT, M0_CONF_DIREND */
+#include "conf/obj_ops.h"   /* m0_conf_obj_get_lock */
 #include "reqh/reqh.h"      /* m0_reqh */
 #include "rm/rm_ha.h"
 

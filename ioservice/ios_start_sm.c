@@ -29,15 +29,15 @@
 #include "be/seg.h"
 #include "be/tx.h"
 #include "cob/cob.h"
-#include "conf/obj_ops.h"
-#include "fid/fid_list.h"            /* m0_fids_tlist_XXX */
+#include "fid/fid_list.h"            /* m0_fids_tl */
 #include "ioservice/io_service.h"
 #include "ioservice/ios_start_sm.h"
 #include "mero/setup.h"
-#include "module/instance.h"         /* m0_get() */
+#include "module/instance.h"         /* m0_get */
 #include "pool/pool.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
+#include "conf/obj_ops.h"            /* M0_CONF_DIRNEXT */
 
 /**
  * Please See ioservice/io_service.c

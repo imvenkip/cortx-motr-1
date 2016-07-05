@@ -21,7 +21,6 @@
 #ifndef __MERO_CONF_UT_COMMON_H__
 #define __MERO_CONF_UT_COMMON_H__
 
-
 #include "conf/confc.h"
 #include "conf/rconfc.h"    /* m0_rconfc */
 #include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */

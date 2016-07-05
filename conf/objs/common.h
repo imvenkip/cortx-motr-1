@@ -21,13 +21,19 @@
 #ifndef __MERO_CONF_OBJS_COMMON_H__
 #define __MERO_CONF_OBJS_COMMON_H__
 
+/* ================================================================
+ * DO NOT #include "conf/objs/common.h"!
+ * It should only be used by files in conf/objs/ directory.
+ * ================================================================ */
+
 #include "conf/obj.h"     /* m0_conf_obj */
 #include "conf/obj_ops.h" /* m0_conf_obj_ops */
 #include "conf/onwire.h"  /* m0_confx_obj */
+#include "conf/dir.h"     /* m0_conf_dir_elems_match */
+#include "fid/fid.h"
 #include "lib/memory.h"   /* m0_free */
 #include "lib/errno.h"    /* ENOMEM, ENOENT */
 #include "lib/misc.h"     /* M0_IN */
-#include "fid/fid.h"
 
 #define M0_CONF__BOB_DEFINE(type, magic, check)                               \
 const struct m0_bob_type type ## _bob = {                                     \
@@ -63,37 +69,6 @@ static struct m0_conf_obj *name(void)         \
 	return ret;                           \
 }                                             \
 struct __ ## type ## _semicolon_catcher
-
-M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
-			     struct m0_conf_obj *child);
-
-/**
- * Creates new m0_conf_directory and populates it with stubs.
- *
- * @param cache          Configuration cache.
- * @param dir_id         Directory identifier.
- * @param children_type  Type of entries.
- * @param src            [optional] Identifiers of the entries.
- * @param[out] out       Resulting pointer.
- *
- * dir_new() is transactional: if it fails, the configuration cache
- * (i.e., the DAG of objects and the registry) is left unchanged.
- *
- * XXX @todo UT transactional property of dir_new().
- */
-M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
-			const struct m0_fid *dir_id,
-			const struct m0_fid *relfid,
-			const struct m0_conf_obj_type *children_type,
-			const struct m0_fid_arr *src,
-			struct m0_conf_dir **out);
-
-M0_INTERNAL int dir_new_adopt(struct m0_conf_cache *cache,
-			      struct m0_conf_obj *parent,
-			      const struct m0_fid *relfid,
-			      const struct m0_conf_obj_type *children_type,
-			      const struct m0_fid_arr *src,
-			      struct m0_conf_dir **out);
 
 struct conf_dir_entries {
 	const struct m0_fid           *de_relfid;

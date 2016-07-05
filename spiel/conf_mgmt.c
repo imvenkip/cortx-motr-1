@@ -31,10 +31,10 @@
 #include "conf/flip_fop.h"
 #include "conf/load_fop.h"
 #include "conf/obj.h"
-#include "conf/obj_ops.h"
-#include "conf/objs/common.h"
 #include "conf/onwire_xc.h"    /* m0_confx_xc */
 #include "conf/preload.h"      /* m0_confx_free, m0_confx_to_string */
+#include "conf/obj_ops.h"      /* m0_conf_obj_find */
+#include "conf/dir.h"          /* m0_conf_dir_new */
 #include "rm/rm_rwlock.h"      /* m0_rw_lockable */
 #include "rpc/link.h"
 #include "rpc/rpclib.h"        /* m0_rpc_client_connect */
@@ -100,10 +100,10 @@ static int spiel_root_add(struct m0_spiel_tx *tx)
 		 * and used as version number of currently composed conf DB.
 		 */
 		root->rt_verno = M0_CONF_VER_TEMP;
-		rc = dir_new_adopt(&tx->spt_cache, &root->rt_obj,
-				   &M0_CONF_ROOT_PROFILES_FID,
-				   &M0_CONF_PROFILE_TYPE, NULL,
-				   &root->rt_profiles);
+		rc = m0_conf_dir_new(&tx->spt_cache, &root->rt_obj,
+				     &M0_CONF_ROOT_PROFILES_FID,
+				     &M0_CONF_PROFILE_TYPE, NULL,
+				     &root->rt_profiles);
 		if (rc == 0)
 			obj->co_status = M0_CS_READY;
 	}
@@ -788,15 +788,15 @@ M0_EXPORTED(m0_spiel_tx_commit);
 static int spiel_filesystem_dirs_create(struct m0_conf_cache      *cache,
 					struct m0_conf_filesystem *fs)
 {
-	return M0_RC(dir_new_adopt(cache, &fs->cf_obj,
-				   &M0_CONF_FILESYSTEM_NODES_FID,
-				   &M0_CONF_NODE_TYPE, NULL, &fs->cf_nodes) ?:
-		     dir_new_adopt(cache, &fs->cf_obj,
-				   &M0_CONF_FILESYSTEM_POOLS_FID,
-				   &M0_CONF_POOL_TYPE, NULL, &fs->cf_pools) ?:
-		     dir_new_adopt(cache, &fs->cf_obj,
-				   &M0_CONF_FILESYSTEM_RACKS_FID,
-				   &M0_CONF_RACK_TYPE, NULL, &fs->cf_racks));
+	return M0_RC(m0_conf_dir_new(cache, &fs->cf_obj,
+				     &M0_CONF_FILESYSTEM_NODES_FID,
+				     &M0_CONF_NODE_TYPE, NULL, &fs->cf_nodes) ?:
+		     m0_conf_dir_new(cache, &fs->cf_obj,
+				     &M0_CONF_FILESYSTEM_POOLS_FID,
+				     &M0_CONF_POOL_TYPE, NULL, &fs->cf_pools) ?:
+		     m0_conf_dir_new(cache, &fs->cf_obj,
+				     &M0_CONF_FILESYSTEM_RACKS_FID,
+				     &M0_CONF_RACK_TYPE, NULL, &fs->cf_racks));
 }
 
 /**
@@ -805,10 +805,10 @@ static int spiel_filesystem_dirs_create(struct m0_conf_cache      *cache,
 static int spiel_node_dirs_create(struct m0_conf_cache *cache,
 				  struct m0_conf_node  *node)
 {
-	return M0_RC(dir_new_adopt(cache, &node->cn_obj,
-				   &M0_CONF_NODE_PROCESSES_FID,
-				   &M0_CONF_PROCESS_TYPE, NULL,
-				   &node->cn_processes));
+	return M0_RC(m0_conf_dir_new(cache, &node->cn_obj,
+				     &M0_CONF_NODE_PROCESSES_FID,
+				     &M0_CONF_PROCESS_TYPE, NULL,
+				     &node->cn_processes));
 }
 
 /**
@@ -817,10 +817,10 @@ static int spiel_node_dirs_create(struct m0_conf_cache *cache,
 static int spiel_process_dirs_create(struct m0_conf_cache   *cache,
 				     struct m0_conf_process *process)
 {
-	return M0_RC(dir_new_adopt(cache, &process->pc_obj,
-				   &M0_CONF_PROCESS_SERVICES_FID,
-				   &M0_CONF_SERVICE_TYPE, NULL,
-				   &process->pc_services));
+	return M0_RC(m0_conf_dir_new(cache, &process->pc_obj,
+				     &M0_CONF_PROCESS_SERVICES_FID,
+				     &M0_CONF_SERVICE_TYPE, NULL,
+				     &process->pc_services));
 }
 
 /**
@@ -829,10 +829,10 @@ static int spiel_process_dirs_create(struct m0_conf_cache   *cache,
 static int spiel_service_dirs_create(struct m0_conf_cache   *cache,
 				     struct m0_conf_service *service)
 {
-	return M0_RC(dir_new_adopt(cache, &service->cs_obj,
-				   &M0_CONF_SERVICE_SDEVS_FID,
-				   &M0_CONF_SDEV_TYPE, NULL,
-				   &service->cs_sdevs));
+	return M0_RC(m0_conf_dir_new(cache, &service->cs_obj,
+				     &M0_CONF_SERVICE_SDEVS_FID,
+				     &M0_CONF_SDEV_TYPE, NULL,
+				     &service->cs_sdevs));
 }
 
 /**
@@ -841,9 +841,10 @@ static int spiel_service_dirs_create(struct m0_conf_cache   *cache,
 static int spiel_pool_dirs_create(struct m0_conf_cache *cache,
 				  struct m0_conf_pool  *pool)
 {
-	return M0_RC(dir_new_adopt(cache, &pool->pl_obj,
-				   &M0_CONF_POOL_PVERS_FID, &M0_CONF_PVER_TYPE,
-				   NULL, &pool->pl_pvers));
+	return M0_RC(m0_conf_dir_new(cache, &pool->pl_obj,
+				     &M0_CONF_POOL_PVERS_FID,
+				     &M0_CONF_PVER_TYPE, NULL,
+				     &pool->pl_pvers));
 }
 
 /**
@@ -852,10 +853,10 @@ static int spiel_pool_dirs_create(struct m0_conf_cache *cache,
 static int spiel_rack_dirs_create(struct m0_conf_cache *cache,
 				  struct m0_conf_rack  *rack)
 {
-	return M0_RC(dir_new_adopt(cache, &rack->cr_obj,
-				   &M0_CONF_RACK_ENCLS_FID,
-				   &M0_CONF_ENCLOSURE_TYPE, NULL,
-				   &rack->cr_encls));
+	return M0_RC(m0_conf_dir_new(cache, &rack->cr_obj,
+				     &M0_CONF_RACK_ENCLS_FID,
+				     &M0_CONF_ENCLOSURE_TYPE, NULL,
+				     &rack->cr_encls));
 }
 
 /**
@@ -864,10 +865,10 @@ static int spiel_rack_dirs_create(struct m0_conf_cache *cache,
 static int spiel_enclosure_dirs_create(struct m0_conf_cache     *cache,
 				       struct m0_conf_enclosure *enclosure)
 {
-	return M0_RC(dir_new_adopt(cache, &enclosure->ce_obj,
-				   &M0_CONF_ENCLOSURE_CTRLS_FID,
-				   &M0_CONF_CONTROLLER_TYPE, NULL,
-				   &enclosure->ce_ctrls));
+	return M0_RC(m0_conf_dir_new(cache, &enclosure->ce_obj,
+				     &M0_CONF_ENCLOSURE_CTRLS_FID,
+				     &M0_CONF_CONTROLLER_TYPE, NULL,
+				     &enclosure->ce_ctrls));
 }
 
 /**
@@ -876,10 +877,10 @@ static int spiel_enclosure_dirs_create(struct m0_conf_cache     *cache,
 static int spiel_controller_dirs_create(struct m0_conf_cache      *cache,
 					struct m0_conf_controller *controller)
 {
-	return M0_RC(dir_new_adopt(cache, &controller->cc_obj,
-				   &M0_CONF_CONTROLLER_DISKS_FID,
-				   &M0_CONF_DISK_TYPE, NULL,
-				   &controller->cc_disks));
+	return M0_RC(m0_conf_dir_new(cache, &controller->cc_obj,
+				     &M0_CONF_CONTROLLER_DISKS_FID,
+				     &M0_CONF_DISK_TYPE, NULL,
+				     &controller->cc_disks));
 }
 
 /**
@@ -888,9 +889,10 @@ static int spiel_controller_dirs_create(struct m0_conf_cache      *cache,
 static int spiel_pver_dirs_create(struct m0_conf_cache *cache,
 				  struct m0_conf_pver  *pver)
 {
-	return M0_RC(dir_new_adopt(cache, &pver->pv_obj,
-				   &M0_CONF_PVER_RACKVS_FID, &M0_CONF_OBJV_TYPE,
-				   NULL, &pver->pv_rackvs));
+	return M0_RC(m0_conf_dir_new(cache, &pver->pv_obj,
+				     &M0_CONF_PVER_RACKVS_FID,
+				     &M0_CONF_OBJV_TYPE, NULL,
+				     &pver->pv_rackvs));
 }
 
 /**
@@ -899,10 +901,10 @@ static int spiel_pver_dirs_create(struct m0_conf_cache *cache,
 static int spiel_rackv_dirs_create(struct m0_conf_cache *cache,
 				   struct m0_conf_objv  *objv)
 {
-	return M0_RC(dir_new_adopt(cache, &objv->cv_obj,
-				   &M0_CONF_RACKV_ENCLVS_FID,
-				   &M0_CONF_OBJV_TYPE, NULL,
-				   &objv->cv_children));
+	return M0_RC(m0_conf_dir_new(cache, &objv->cv_obj,
+				     &M0_CONF_RACKV_ENCLVS_FID,
+				     &M0_CONF_OBJV_TYPE, NULL,
+				     &objv->cv_children));
 }
 
 /**
@@ -911,10 +913,10 @@ static int spiel_rackv_dirs_create(struct m0_conf_cache *cache,
 static int spiel_enclosurev_dirs_create(struct m0_conf_cache *cache,
 					struct m0_conf_objv  *objv)
 {
-	return M0_RC(dir_new_adopt(cache, &objv->cv_obj,
-				   &M0_CONF_ENCLV_CTRLVS_FID,
-				   &M0_CONF_OBJV_TYPE, NULL,
-				   &objv->cv_children));
+	return M0_RC(m0_conf_dir_new(cache, &objv->cv_obj,
+				     &M0_CONF_ENCLV_CTRLVS_FID,
+				     &M0_CONF_OBJV_TYPE, NULL,
+				     &objv->cv_children));
 }
 
 /**
@@ -923,10 +925,10 @@ static int spiel_enclosurev_dirs_create(struct m0_conf_cache *cache,
 static int spiel_controllerv_dirs_create(struct m0_conf_cache *cache,
 					struct m0_conf_objv   *objv)
 {
-	return M0_RC(dir_new_adopt(cache, &objv->cv_obj,
-				   &M0_CONF_CTRLV_DISKVS_FID,
-				   &M0_CONF_OBJV_TYPE, NULL,
-				   &objv->cv_children));
+	return M0_RC(m0_conf_dir_new(cache, &objv->cv_obj,
+				     &M0_CONF_CTRLV_DISKVS_FID,
+				     &M0_CONF_OBJV_TYPE, NULL,
+				     &objv->cv_children));
 }
 
 static int spiel_conf_parameter_check(struct m0_conf_cache    *cache,
@@ -1029,7 +1031,7 @@ int m0_spiel_filesystem_add(struct m0_spiel_tx   *tx,
 	if (rc != 0)
 		goto fail;
 	M0_CONF_CAST(obj_parent, m0_conf_profile)->cp_filesystem = fs;
-	child_adopt(obj_parent, obj);
+	m0_conf_child_adopt(obj_parent, obj);
 	obj->co_status = M0_CS_READY;
 
 	M0_POST(m0_conf_obj_invariant(obj));

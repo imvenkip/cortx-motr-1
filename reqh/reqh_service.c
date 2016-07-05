@@ -39,7 +39,7 @@
 #include "rpc/rpc.h"          /* m0_rpc__down_timeout */
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine_ep */
 #include "mero/magic.h"
-#include "conf/objs/common.h" /* m0_conf_obj_find */
+#include "conf/obj_ops.h"     /* m0_conf_obj_get */
 #include "conf/helpers.h"     /* m0_conf_obj2reqh */
 #include "pool/pool.h"        /* m0_pools_common_service_ctx_find */
 #include "fid/fid.h"          /* m0_fid_eq */

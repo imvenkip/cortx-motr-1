@@ -5,6 +5,7 @@ nobase_mero_include_HEADERS += \
                                conf/confd_fom.h \
                                conf/confd_stob.h \
                                conf/db.h \
+                               conf/dir.h \
                                conf/diter.h \
                                conf/flip_fom.h \
                                conf/flip_fop.h \
@@ -29,6 +30,7 @@ mero_libmero_la_SOURCES += \
                            conf/confd_fom.c \
                            conf/confd_stob.c \
                            conf/db.c \
+                           conf/dir.c \
                            conf/diter.c \
                            conf/flip_fom.c \
                            conf/flip_fop.c \

@@ -29,7 +29,7 @@
 #include "conf/confc.h"    /* m0_confc_from_obj */
 #include "conf/schema.h"   /* M0_CST_IOS, M0_CST_MDS */
 #include "conf/diter.h"    /* m0_conf_diter_next_sync */
-#include "conf/obj_ops.h"  /* m0_conf_dirval */
+#include "conf/obj_ops.h"  /* M0_CONF_DIRNEXT */
 #include "conf/helpers.h"  /* m0_obj_is_pver */
 #include "ioservice/io_device.h"  /* m0_ios_poolmach_get */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
@@ -45,10 +45,11 @@
 #include "fd/fd.h"             /* m0_fd_tile_build m0_fd_tree_build */
 
 #ifndef __KERNEL__
-#include "mero/setup.h"
+#  include "mero/setup.h"
 #endif
 
 #include "lib/finject.h" /* M0_FI_ENABLED */
+
 /**
    @page pool_mach_store_replica DLD of Pool Machine store and replica
 

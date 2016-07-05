@@ -28,9 +28,10 @@
 #include "mero/setup_internal.h"  /* cs_ad_stob_create */
 #include "rpc/rpclib.h"           /* m0_rpc_client_ctx */
 #include "conf/obj.h"             /* m0_conf_filesystem */
+#include "conf/obj_ops.h"         /* M0_CONF_DIRNEXT */
 #include "conf/confc.h"           /* m0_confc */
 #include "conf/schema.h"          /* m0_conf_service_type */
-#include "conf/obj_ops.h"         /* M0_CONF_DIRNEXT */
+#include "conf/dir.h"             /* m0_conf_dir_len */
 #include "conf/diter.h"           /* m0_conf_diter_init */
 #include "conf/helpers.h"         /* m0_conf_fs_get */
 #include "reqh/reqh_service.h"    /* m0_reqh_service_ctx */
@@ -244,7 +245,7 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 		 * note vector and notifications are sent only for devices
 		 * which are failed with -ENOENT during attach.
 		 */
-		dev_nr = m0_conf_dir_elems_count(svc->cs_sdevs);
+		dev_nr = m0_conf_dir_len(svc->cs_sdevs);
 		M0_ASSERT(dev_nr != 0);
 		M0_ALLOC_ARR(note, dev_nr);
 		if (note == NULL) {

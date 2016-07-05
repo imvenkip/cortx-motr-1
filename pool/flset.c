@@ -30,7 +30,7 @@
 #include "lib/chan.h"
 #include "mero/magic.h"   /* M0_CONF_OBJ_MAGIC, M0_FLSET_MAGIC */
 #include "conf/obj.h"
-#include "conf/obj_ops.h" /* M0_CONF_DIRNEXT */
+#include "conf/obj_ops.h" /* m0_conf_obj_get_lock */
 #include "conf/diter.h"
 #include "conf/helpers.h" /* m0_conf_ha_state_update, m0_conf_pvers */
 #include "pool/flset.h"

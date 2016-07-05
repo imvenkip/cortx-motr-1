@@ -68,9 +68,9 @@ static int process_decode(struct m0_conf_obj        *dest,
 		m0_bitmap_fini(&d->pc_cores);
 		return M0_ERR(-ENOMEM);
 	}
-	return M0_RC(dir_new_adopt(cache, dest, &M0_CONF_PROCESS_SERVICES_FID,
-				   &M0_CONF_SERVICE_TYPE, &s->xr_services,
-				   &d->pc_services));
+	return M0_RC(m0_conf_dir_new(cache, dest, &M0_CONF_PROCESS_SERVICES_FID,
+				     &M0_CONF_SERVICE_TYPE, &s->xr_services,
+				     &d->pc_services));
 }
 
 static int

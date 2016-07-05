@@ -22,7 +22,7 @@
 #include "lib/trace.h"
 
 #include "conf/diter.h"
-#include "conf/obj_ops.h"         /* M0_CONF_DIREND */
+#include "conf/obj_ops.h"         /* M0_CONF_DIRNEXT */
 #include "conf/ut/common.h"       /* g_grp */
 #include "conf/ut/rpc_helpers.h"  /* m0_ut_rpc_machine_start */
 #include "rpc/rpclib.h"           /* m0_rpc_server_ctx */

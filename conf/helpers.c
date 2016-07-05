@@ -22,20 +22,18 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
 
-#include "lib/memory.h"    /* M0_ALLOC_PTR, M0_ALLOC_ARR, m0_free */
-#include "lib/errno.h"     /* EINVAL */
-#include "lib/string.h"    /* m0_strdup */
-#include "lib/mutex.h"     /* m0_mutex */
-#include "lib/chan.h"      /* m0_chan, m0_clink */
-#include "reqh/reqh.h"     /* m0_reqh */
-#include "conf/obj.h"
 #include "conf/helpers.h"
-#include "conf/confc.h"
-#include "conf/obj_ops.h"  /* m0_conf_dirval */
+#include "conf/obj_ops.h"  /* m0_conf_obj_find_lock */
+#include "conf/dir.h"      /* m0_conf_dir_tl */
+#include "conf/confc.h"    /* m0_confc_open_sync */
 #include "conf/diter.h"    /* m0_conf_diter_next_sync */
-#include "ha/note.h"       /* m0_ha_nvec, m0_ha_state_accept, m0_ha_state_get */
+#include "ha/note.h"       /* m0_ha_nvec */
 #include "pool/flset.h"    /* m0_flset_pver_has_failed_dev */
 #include "fd/fd.h"         /* M0_FTA_DEPTH_CONT */
+#include "reqh/reqh.h"     /* m0_reqh2confc */
+#include "lib/memory.h"    /* M0_ALLOC_ARR */
+#include "lib/errno.h"     /* ENOENT */
+#include "lib/string.h"    /* m0_strdup */
 
 static int confc_obj_get(struct m0_confc     *confc,
 			 const struct m0_fid *fid,
@@ -212,10 +210,10 @@ M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs)
 M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
 				       struct m0_ha_nvec     *nvec)
 {
-	struct m0_mutex       chan_lock;
-	struct m0_chan        chan;
-	struct m0_clink       clink;
-	int                   rc;
+	struct m0_mutex chan_lock;
+	struct m0_chan  chan;
+	struct m0_clink clink;
+	int             rc;
 
 	M0_PRE(nvec->nv_nr <= M0_HA_STATE_UPDATE_LIMIT);
 	m0_mutex_init(&chan_lock);

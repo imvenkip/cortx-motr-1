@@ -58,9 +58,9 @@ static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 		return M0_ERR(rc);
 	d->cn_pool = M0_CONF_CAST(obj, m0_conf_pool);
 
-	return M0_RC(dir_new_adopt(cache, dest, &M0_CONF_NODE_PROCESSES_FID,
-				   &M0_CONF_PROCESS_TYPE, &s->xn_processes,
-				   &d->cn_processes));
+	return M0_RC(m0_conf_dir_new(cache, dest, &M0_CONF_NODE_PROCESSES_FID,
+				     &M0_CONF_PROCESS_TYPE, &s->xn_processes,
+				     &d->cn_processes));
 }
 
 static int node_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)

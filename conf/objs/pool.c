@@ -178,9 +178,9 @@ static int pool_decode(struct m0_conf_obj        *dest,
 	const struct m0_confx_pool *s = XCAST(src);
 
 	d->pl_order = s->xp_order;
-	return M0_RC(dir_new_adopt(cache, dest, &M0_CONF_POOL_PVERS_FID,
-				   &M0_CONF_PVER_TYPE, &s->xp_pvers,
-				   &d->pl_pvers));
+	return M0_RC(m0_conf_dir_new(cache, dest, &M0_CONF_POOL_PVERS_FID,
+				     &M0_CONF_PVER_TYPE, &s->xp_pvers,
+				     &d->pl_pvers));
 }
 
 static int

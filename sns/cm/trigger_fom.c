@@ -18,16 +18,18 @@
  * Original creation date: 09/11/2011
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-#include "lib/misc.h"           /* M0_IN() */
-#include  "lib/locality.h"
+#include "lib/misc.h"           /* M0_IN */
+#include "lib/locality.h"
 #include "lib/finject.h"
 
 #include "mero/setup.h"
 #include "conf/diter.h"
-#include "conf/obj_ops.h"
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
@@ -43,8 +45,6 @@
 #include "sns/cm/cm.h"
 
 #include "pool/pool_machine.h"
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
-#include "lib/trace.h"
 
 /*
  * Implements a simplistic sns repair trigger FOM for corresponding trigger FOP.

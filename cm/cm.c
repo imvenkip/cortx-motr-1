@@ -37,8 +37,8 @@
 #include "rpc/rpc_machine.h"
 #include "reqh/reqh.h"
 #include "fop/fop.h"
-#include "pool/pool.h" /* pools_common_svc */
-#include "conf/obj_ops.h"
+#include "pool/pool.h"     /* pools_common_svc */
+#include "conf/obj_ops.h"  /* m0_conf_obj_find_lock */
 
 #include "cm/cm.h"
 #include "cm/ag.h"

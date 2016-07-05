@@ -54,8 +54,8 @@ static int service_decode(struct m0_conf_obj *dest,
 	rc = m0_bufs_to_strings(&d->cs_endpoints, &s->xs_endpoints);
 	if (rc != 0)
 		return M0_ERR(rc);
-	rc = dir_new_adopt(cache, dest, &M0_CONF_SERVICE_SDEVS_FID,
-			   &M0_CONF_SDEV_TYPE, &s->xs_sdevs, &d->cs_sdevs);
+	rc = m0_conf_dir_new(cache, dest, &M0_CONF_SERVICE_SDEVS_FID,
+			     &M0_CONF_SDEV_TYPE, &s->xs_sdevs, &d->cs_sdevs);
 	if (rc != 0)
 		m0_strings_free(d->cs_endpoints);
 	return M0_RC(rc);

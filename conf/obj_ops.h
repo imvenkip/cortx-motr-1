@@ -30,11 +30,6 @@ struct m0_fid_arr;
 /**
  * @page conf-fspec-objops Configuration Object Operations
  *
- * Data structures and functions declared in "conf/obj_ops.h" are used
- * by confc and confd implementations. "conf/obj_ops.h" is not
- * supposed to be #included by the application (aka configuration
- * consumer).
- *
  * @section conf-fspec-objops-data Data Structures
  *
  * - m0_conf_obj_ops --- configuration object operations vector.
@@ -62,10 +57,6 @@ struct m0_fid_arr;
  *
  * @{
  */
-
-/* defined in conf/objs/dir.c */
-M0_TL_DESCR_DECLARE(m0_conf_dir, M0_EXTERN);
-M0_TL_DECLARE(m0_conf_dir, M0_INTERNAL, struct m0_conf_obj);
 
 /** Symbolic names for m0_conf_obj_ops::coo_readdir() return values. */
 enum m0_conf_dirval {
@@ -252,30 +243,6 @@ M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
  */
 M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,
 				   const struct m0_confx_obj *flat);
-/**
- * Adds object to directory.
- *
- * @pre obj->co_status == M0_CS_READY
- * @pre m0_conf_obj_type(obj) == dir->cd_item_type
- */
-M0_INTERNAL void m0_conf_dir_add(struct m0_conf_dir *dir,
-				 struct m0_conf_obj *obj);
-
-/**
- * Deletes object from directory.
- *
- * @pre obj->co_status == M0_CS_READY
- * @pre m0_conf_obj_type(obj) == dir->cd_item_type
- */
-M0_INTERNAL void m0_conf_dir_del(struct m0_conf_dir *dir,
-				 struct m0_conf_obj *obj);
-
-/** Compares fids with directory entries. */
-M0_INTERNAL bool m0_conf_dir_elems_match(const struct m0_conf_dir *dir,
-					 const struct m0_fid_arr  *fids);
-
-/** Counts number of elements in directory object. */
-M0_INTERNAL uint32_t m0_conf_dir_elems_count(const struct m0_conf_dir *dir);
 
 /** @} conf_dfspec_objops */
 #endif /* __MERO_CONF_OBJOPS_H__ */

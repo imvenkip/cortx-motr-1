@@ -28,7 +28,7 @@
 
 #include "conf/validation.h"
 #include "conf/glob.h"
-#include "conf/obj_ops.h"  /* m0_conf_dir_tl */
+#include "conf/dir.h"      /* m0_conf_dir_tl */
 #include "lib/string.h"    /* m0_vsnprintf */
 #include "lib/errno.h"     /* ENOENT */
 #include "lib/memory.h"    /* M0_ALLOC_ARR */
@@ -165,7 +165,7 @@ static char *conf_filesystem_stats_get(const struct m0_conf_filesystem *fs,
 			if (svc->cs_type == M0_CST_IOS) {
 				++stats->cs_nr_ioservices;
 				stats->cs_nr_iodevices +=
-					m0_conf_dir_elems_count(svc->cs_sdevs);
+					m0_conf_dir_len(svc->cs_sdevs);
 			}
 		}
 	}

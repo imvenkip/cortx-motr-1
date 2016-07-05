@@ -18,27 +18,25 @@
  * Original creation date: 12-Jan-15
  */
 
-#include "conf/obj_ops.h"      /* M0_CONF_DIRNEXT */
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FD
+#include "lib/trace.h"
+
+#include "fd/fd.h"
+#include "fd/fd_internal.h"
+
 #include "conf/obj.h"
+#include "conf/obj_ops.h"      /* M0_CONF_DIRNEXT */
+#include "conf/dir.h"          /* m0_conf_dir_len */
 #include "conf/diter.h"        /* m0_conf_diter */
 #include "conf/confc.h"        /* m0_confc_from_obj */
 #include "pool/pool_machine.h" /* m0_poolmach */
 #include "pool/pool.h"
 
-#include "fd/fd.h"
-#include "fd/fd_internal.h"
-
 #include "fid/fid.h"           /* m0_fid_eq m0_fid_set */
 #include "lib/errno.h"         /* EINVAL */
 #include "lib/memory.h"        /* M0_ALLOC_ARR M0_ALLOC_PTR m0_free */
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FD
-#include "lib/trace.h"         /* M0_ERR */
 #include "lib/arith.h"         /* m0_gcd64 m0_enc m0_dec */
 #include "lib/hash.h"          /* m0_hash */
-#include "lib/bob.h"
-#include "lib/assert.h"        /* _0C */
-#include "lib/misc.h"          /* m0_permute */
-
 
 static uint64_t parity_group_size(const struct m0_pdclust_attr *la_attr);
 
@@ -200,7 +198,7 @@ static int tree_level_nodes_cnt(const struct m0_conf_pver *pv, uint64_t level,
 	M0_PRE(level > 0 && level < M0_FTA_DEPTH_MAX);
 
 	if (level == 1) {
-		*children_nr = m0_conf_dir_elems_count(pv->pv_rackvs);
+		*children_nr = m0_conf_dir_len(pv->pv_rackvs);
 		rc = *children_nr > 0 ? 0 : M0_ERR(-EINVAL);
 		goto out;
 	}
@@ -208,7 +206,7 @@ static int tree_level_nodes_cnt(const struct m0_conf_pver *pv, uint64_t level,
 	pv_for (pv, level - 1, obj, rc) {
 		M0_ASSERT(m0_conf_obj_type(obj) ==  &M0_CONF_OBJV_TYPE);
 	        objv = M0_CONF_CAST(obj, m0_conf_objv);
-		*children_nr += m0_conf_dir_elems_count(objv->cv_children);
+		*children_nr += m0_conf_dir_len(objv->cv_children);
 	} pv_endfor;
 out:
 	return M0_RC(rc);
@@ -232,7 +230,7 @@ static int min_children_cnt(const struct m0_conf_pver *pv, uint64_t pv_level,
 	pv_for (pv, pv_level, obj, rc) {
 		M0_ASSERT(m0_conf_obj_type(obj) ==  &M0_CONF_OBJV_TYPE);
 		objv = M0_CONF_CAST(obj, m0_conf_objv);
-		*children_nr = m0_conf_dir_elems_count(objv->cv_children);
+		*children_nr = m0_conf_dir_len(objv->cv_children);
 		min = obj_id == 0 ? *children_nr :
 				     min_type(uint64_t, min, *children_nr);
 		++obj_id;
@@ -627,7 +625,7 @@ M0_INTERNAL int m0_fd__tree_level_populate(const struct m0_conf_pver *pv,
 		objv = M0_CONF_CAST(obj, m0_conf_objv);
 		if (level < tree->ft_depth)
 			children_nr =
-			 m0_conf_dir_elems_count(objv->cv_children);
+			 m0_conf_dir_len(objv->cv_children);
 		else
 			children_nr = 0;
 		node = m0_fd__tree_cursor_get(&cursor);

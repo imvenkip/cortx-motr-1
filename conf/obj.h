@@ -656,5 +656,8 @@ m0_conf_obj_type_next(const struct m0_conf_obj_type *otype);
 M0_INTERNAL int m0_conf_obj_init(void);
 M0_INTERNAL void m0_conf_obj_fini(void);
 
+M0_INTERNAL void m0_conf_child_adopt(struct m0_conf_obj *parent,
+				     struct m0_conf_obj *child);
+
 /** @} conf_dfspec_obj */
 #endif /* __MERO_CONF_OBJ_H__ */

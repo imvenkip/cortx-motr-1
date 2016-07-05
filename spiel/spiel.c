@@ -28,11 +28,7 @@
 #include "lib/finject.h"       /* M0_FI_ENABLED */
 #include "lib/locality.h"      /* m0_locality0_get */
 #include "fid/fid.h"           /* m0_fid_sscanf */
-#include "conf/schema.h"
-#include "conf/cache.h"
 #include "conf/obj.h"
-#include "conf/obj_ops.h"
-#include "conf/objs/common.h"
 
 #include "reqh/reqh.h"
 #include "spiel/spiel.h"

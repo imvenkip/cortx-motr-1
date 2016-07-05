@@ -25,6 +25,7 @@
 #include "conf/obj_ops.h"  /* m0_conf_obj_find */
 #include "conf/onwire.h"   /* m0_confx, m0_confx_obj */
 #include "conf/preload.h"  /* m0_confx_free */
+#include "conf/dir.h"      /* m0_conf_dir_tl */
 #include "lib/errno.h"     /* ENOMEM */
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
 #include "lib/string.h"    /* m0_strdup */

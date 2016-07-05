@@ -22,24 +22,12 @@
 #ifndef __MERO_CONF_HELPERS_H__
 #define __MERO_CONF_HELPERS_H__
 
-#include "lib/tlist.h"
-#include "conf/schema.h" /* m0_conf_service_type */
-#include "conf/rconfc.h" /* m0_rconfc */
+#include "conf/obj.h"
 
 struct m0_confc;
-struct m0_conf_obj;
-struct m0_conf_root;
-struct m0_conf_filesystem;
-struct m0_conf_pver;
-struct m0_conf_process;
-struct m0_conf_disk;
-struct m0_conf_service;
-struct m0_conf_sdev;
 struct m0_fid;
-struct m0_rpc_session;
+struct m0_rconfc;
 struct m0_flset;
-struct m0_conf_obj_type;
-struct m0_ha_nvec;
 struct m0_reqh;
 
 /**

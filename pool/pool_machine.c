@@ -25,10 +25,10 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "pool/pool.h"
-#include "reqh/reqh.h"        /* m0_reqh */
+#include "reqh/reqh.h"             /* m0_reqh */
 #include "conf/confc.h"
-#include "conf/obj_ops.h"     /* m0_conf_dirval */
-#include "conf/diter.h"       /* m0_conf_diter_init m0_conf_diter_next_sync */
+#include "conf/diter.h"            /* m0_conf_diter_init */
+#include "conf/obj_ops.h"          /* m0_conf_obj_get_lock */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob */
 #include "pool/pm_internal.h"
 
