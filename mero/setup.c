@@ -59,6 +59,7 @@
 #include "be/ut/helper.h"
 #include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */
 #include "ioservice/storage_dev.h"
+#include "ioservice/io_service.h"  /* m0_ios_net_buffer_pool_size_set */
 #include "stob/linux.h"
 #include "pool/flset.h"         /* m0_flset_build, m0_flset_destroy */
 #include "ha/link.h"            /* m0_ha_link_flush */
@@ -2040,6 +2041,11 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				LAMBDA(void, (void)
 				{
 					rctx->rc_disable_direct_io = true;
+				})),
+			M0_NUMBERARG('E', "Set buffer pool size for ioservice",
+				LAMBDA(void, (int64_t size)
+				{
+					m0_ios_net_buffer_pool_size_set(size);
 				})),
 			);
 	/* generate reqh fid in case it is all-zero */

@@ -59,11 +59,10 @@ M0_TL_DEFINE(bufferpools, M0_INTERNAL, struct m0_rios_buffer_pool);
 /**
  * These values are supposed to be fetched from configuration cache. Since
  * configuration cache module is not available, these values are defined as
- * constants.
+ * a static variable.
+ * @see m0_ios_net_buffer_pool_size_set()
  */
-enum {
-	M0_NET_BUFFER_POOL_SIZE = 32,
-};
+static uint32_t ios_net_buffer_pool_size = 32;
 
 /**
  * Key for pool machine
@@ -270,9 +269,9 @@ M0_INTERNAL int m0_ios_create_buffer_pool(struct m0_reqh_service *service)
 		/* Pre-allocate network buffers */
 		m0_net_buffer_pool_lock(&newbp->rios_bp);
 		nbuffs = m0_net_buffer_pool_provision(&newbp->rios_bp,
-						      M0_NET_BUFFER_POOL_SIZE);
+						      ios_net_buffer_pool_size);
 		m0_net_buffer_pool_unlock(&newbp->rios_bp);
-		if (nbuffs < M0_NET_BUFFER_POOL_SIZE) {
+		if (nbuffs < ios_net_buffer_pool_size) {
 			rc = -ENOMEM;
 			m0_chan_fini_lock(&newbp->rios_bp_wait);
 			m0_net_buffer_pool_fini(&newbp->rios_bp);
@@ -1012,6 +1011,11 @@ M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
 
 	m0_fop_put_lock(req);
 	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_ios_net_buffer_pool_size_set(uint32_t buffer_pool_size)
+{
+	ios_net_buffer_pool_size = buffer_pool_size;
 }
 
 #undef M0_TRACE_SUBSYSTEM

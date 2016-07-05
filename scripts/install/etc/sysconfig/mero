@@ -82,6 +82,9 @@ MERO_M0D_DATA_DIR=/var/mero
 #MERO_M0D_BETX_REG_SIZE_MAX=16777216
 #MERO_M0D_BETX_PAYLOAD_SIZE_MAX=2097152
 
+# ioservice buffer pool configuration
+#MERO_M0D_IOS_BUFFER_POOL_SIZE=32
+
 # Override default options of m0d.
 #MERO_M0D_OPTS=
 
