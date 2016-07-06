@@ -99,7 +99,7 @@ run_command() {
 		pdsh -w $HALOND_NODES \
 			"IP=\$(ip -o -4 addr show | egrep '$HALOND_NET_IFS' | \
 			awk -F '[ /]+' '{print \$4}'); \
-			halond -l \$IP:$HALOND_PORT >& $HALOND_LOG &"
+			halond -l \$IP:$HALOND_PORT +RTS -s -A16m -RTS >& $HALOND_LOG &"
 		sleep 3
 		local TS_IP=$(ssh $HALOND_TS \
 			      ip -o -4 addr show dev $HALOND_TS_NET_IF | \
