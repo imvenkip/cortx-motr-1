@@ -19,6 +19,8 @@ verbose=false
 do_cleanup=false
 do_gendisk=true
 do_genfacts=false
+do_mkfs=false
+activate_singlenode=false
 pool_width=8
 data_units=2
 parity_units=1
@@ -74,6 +76,16 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
    -H|--halon-facts        Produce Halon facts YAML configuration instead of
                            a genders-based config. Implies '-G'.
 
+   -A|--activate-singlenode-services
+
+                           Unmask singlenode services, such as 'mero-mkfs',
+                           'mero', 'mero-singlenode' and 'mero-client', in
+                           systemd's configuration. As they are masked by default
+                           after mero.rpm installation to prevent interference
+                           with Halon controlled services.
+
+   -M|--mkfs               Perform 'mero-mkfs' after generating configuration.
+
    -v|--verbose            Enable verbose output.
 
    -h|--help               Print this help screen.
@@ -89,8 +101,8 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt --options hvcGHP:N:K:i:d:m:s: \
-                   --longoptions help,verbose,cleanup,no-gendisk,halon-facts,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size: \
+    TEMP=$( getopt --options hvcGHAMP:N:K:i:d:m:s: \
+                   --longoptions help,verbose,cleanup,no-gendisk,halon-facts,activate-singlenode-services,mkfs,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -104,6 +116,9 @@ parse_cli_options()
             -c|cleanup)         do_cleanup=true;      shift   ;;
             -G|--no-gendisk)    do_gendisk=false;     shift   ;;
             -H|--halon-facts)   do_genfacts=true; do_gendisk=false; shift ;;
+            -A|--activate-singlenode-services)
+                                activate_singlenode=true; shift   ;;
+            -M|--mkfs)          do_mkfs=true;         shift   ;;
             -P|--pool-width)    pool_width=$2;        shift 2 ;;
             -N|--data-units)    data_units=$2;        shift 2 ;;
             -K|--parity-units)  parity_units=$2;      shift 2 ;;
@@ -269,6 +284,28 @@ generate_disk_configs()
     done
 }
 
+activate_singlenode_services()
+{
+    local singlenonde_services='mero-mkfs mero mero-client mero-singlenode
+                                mero-server-confd mero-server-ha'
+
+    log 'Activating singlenode services'
+
+    for s in $singlenonde_services ; do
+        systemctl unmask $s
+    done
+
+    [[ ! -e /etc/systemd/system/mero-server@.service ]] ||
+        rm -vf /etc/systemd/system/mero-server@.service
+}
+
+mkfs()
+{
+    log 'Starting mero-mkfs, this may take a while...'
+
+    systemctl start mero-mkfs
+}
+
 #
 # Main
 #
@@ -285,6 +322,11 @@ if $do_cleanup ; then
     cleanup_loop_devices
     cleanup_ios_configs
     cleanup_mero_configs
+    exit 0
+fi
+
+if $activate_singlenode ; then
+    activate_singlenode_services
     exit 0
 fi
 
@@ -316,4 +358,8 @@ fi
 
 if $do_gendisk ; then
     generate_disk_configs
+fi
+
+if $do_mkfs ; then
+    mkfs
 fi
