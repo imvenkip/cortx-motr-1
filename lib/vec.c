@@ -295,21 +295,32 @@ M0_INTERNAL int m0_bufvec_alloc_aligned(struct m0_bufvec *bufvec,
 }
 M0_EXPORTED(m0_bufvec_alloc_aligned);
 
-M0_INTERNAL void m0_bufvec_free(struct m0_bufvec *bufvec)
+static void m0_bufvec__free(struct m0_bufvec *bufvec, bool free_bufs)
 {
-	if (bufvec != NULL) {
-		if (bufvec->ov_buf != NULL) {
-			uint32_t i;
+	uint32_t i;
 
+	if (bufvec != NULL) {
+		if (bufvec->ov_buf != NULL && free_bufs) {
 			for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
 				m0_free(bufvec->ov_buf[i]);
-			m0_free(bufvec->ov_buf);
 		}
+		m0_free(bufvec->ov_buf);
 		m0_free(bufvec->ov_vec.v_count);
 		M0_SET0(bufvec);
 	}
 }
+
+M0_INTERNAL void m0_bufvec_free(struct m0_bufvec *bufvec)
+{
+	m0_bufvec__free(bufvec, true);
+}
 M0_EXPORTED(m0_bufvec_free);
+
+M0_INTERNAL void m0_bufvec_free2(struct m0_bufvec *bufvec)
+{
+	m0_bufvec__free(bufvec, false);
+}
+M0_EXPORTED(m0_bufvec_free2);
 
 M0_INTERNAL void m0_bufvec_free_aligned(struct m0_bufvec *bufvec,
 					unsigned shift)

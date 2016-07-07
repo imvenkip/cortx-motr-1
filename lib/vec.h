@@ -238,6 +238,12 @@ M0_INTERNAL int m0_bufvec_alloc_aligned(struct m0_bufvec *bufvec,
 M0_INTERNAL void m0_bufvec_free(struct m0_bufvec *bufvec);
 
 /**
+ * The same as m0_bufvec_free(), but doesn't free the buffers pointed by
+ * m0_bufvec->ov_buf[]. Only m0_bufvec structure is freed.
+ */
+M0_INTERNAL void m0_bufvec_free2(struct m0_bufvec *bufvec);
+
+/**
    Frees the buffers pointed to by m0_bufvec.ov_buf and
    the m0_bufvec.ov_vec vector, using m0_free_aligned().
    @param bufvec Pointer to the m0_bufvec.
