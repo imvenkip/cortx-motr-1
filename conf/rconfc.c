@@ -1550,7 +1550,8 @@ static int rconfc_entrypoint_consume(struct m0_rconfc *rconfc,
 	rconfc->rc_quorum = hep->hae_quorum;
 	rlx->rlc_rm_fid = hep->hae_active_rm_fid;
 	*rm_addr = hep->hae_active_rm_ep;
-
+	if (hep->hae_active_rm_ep == NULL || hep->hae_active_rm_ep[0] == '\0')
+		return M0_ERR(-ENOENT);
 	rconfc_entrypoint_debug_print(hep);
 	rc = rconfc_herd_update(rconfc, hep->hae_confd_eps,
 				&hep->hae_confd_fids) ?:

@@ -1247,7 +1247,8 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 	M0_THREAD_ENTER;
 	M0_ENTRY("csb = %p", csb);
 
-	m0t1fs_ha_process_event(csb, M0_CONF_HA_PROCESS_STOPPING);
+	if (csb != NULL)
+		m0t1fs_ha_process_event(csb, M0_CONF_HA_PROCESS_STOPPING);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 	if (sb->s_bdi != NULL)

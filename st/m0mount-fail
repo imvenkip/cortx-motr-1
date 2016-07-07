@@ -7,7 +7,7 @@ export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.m0mount-fail-st}
 
 TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-all}
-TRACE_LEVEL=${M0_TRACE_LEVEL:-warn}
+TRACE_LEVEL=${M0_TRACE_LEVEL:-warn+}
 TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 
 MAX_RPC_MSG_SIZE=163840
@@ -179,7 +179,7 @@ m0d_stop() { killall -q lt-m0d && wait || true; }
 
 mount_fail() {
     local OPTS='-t m0t1fs'
-    OPTS+=" -o pfid='$PROCESS_M0T1FS',profile='$PROFILE',ha=$SERVER2_ENDPOINT"
+    OPTS+=" -o pfid=$PROCESS_M0T1FS,profile=$PROFILE,ha=$SERVER1_ENDPOINT"
     OPTS+=" none $SANDBOX_DIR/mnt"
 
     echo mount $OPTS >mount.log
