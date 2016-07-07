@@ -462,7 +462,7 @@ M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 	M0_ASSERT(pc->pc_nr_devices > 0);
 
 	if (!reqh->rh_oostore) {
-		scm->sc_rm_ctx.rc_rm_ctx = pc->pc_rm_ctx;
+		scm->sc_rm_ctx.rc_pc = pc;
 		m0_rm_domain_init(&scm->sc_rm_ctx.rc_dom);
 	/*
 	 * XXX Init and register new resource type for file locks.

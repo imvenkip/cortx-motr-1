@@ -209,7 +209,9 @@ static void sns_cm_fctx_rm_init(struct m0_sns_cm_file_ctx *fctx)
 	m0_file_init(&fctx->sf_file, &fctx->sf_fid, &rm_ctx->rc_dom,
 		     M0_DI_NONE);
 	m0_rm_remote_init(&fctx->sf_creditor, &fctx->sf_file.fi_res);
-	fctx->sf_creditor.rem_session = &rm_ctx->rc_rm_ctx->sc_rlink.rlk_sess;
+	fctx->sf_creditor.rem_session =
+		m0_pools_common_active_rm_session(rm_ctx->rc_pc);
+	M0_ASSERT(fctx->sf_creditor.rem_session != NULL);
 	fctx->sf_creditor.rem_state = REM_SERVICE_LOCATED;
 	m0_file_owner_init(&fctx->sf_owner, &m0_rm_sns_cm_group, &fctx->sf_file,
 			   &fctx->sf_creditor);

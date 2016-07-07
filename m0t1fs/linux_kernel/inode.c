@@ -136,8 +136,6 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode *ci,
 	struct m0_pools_common *pc = &csb->csb_pools_common;
 	const struct m0_fid    *fid = &ci->ci_fid;
 
-	M0_PRE(pc->pc_rm_ctx != NULL);
-
 	M0_ENTRY();
 
 	M0_LOG(M0_INFO, FID_F, FID_P(fid));
@@ -148,7 +146,8 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode *ci,
 	 */
 	m0_file_init(&ci->ci_flock, fid, rdom, M0_DI_DEFAULT_TYPE);
 	m0_rm_remote_init(&ci->ci_creditor, &ci->ci_flock.fi_res);
-	ci->ci_creditor.rem_session = &pc->pc_rm_ctx->sc_rlink.rlk_sess;
+	ci->ci_creditor.rem_session = m0_pools_common_active_rm_session(pc);
+	M0_ASSERT(ci->ci_creditor.rem_session != NULL);
 	ci->ci_creditor.rem_state = REM_SERVICE_LOCATED;
 	m0_file_owner_init(&ci->ci_fowner, &m0_rm_m0t1fs_group,
 			   &ci->ci_flock, &ci->ci_creditor);

@@ -731,59 +731,30 @@ static bool is_local_rms(const struct m0_conf_service *svc)
 	return m0_streq(local_ep, proc->pc_endpoint);
 }
 
-static int
-active_rms_fid_copy(struct m0_fid *active_rm, struct m0_rconfc *rconfc)
-{
-	struct m0_ha_entrypoint_client *ecl;
-
-	/*
-	 * Connect to RM service returned by HA on entrypoint.
-	 * HA is responsible to keep active RM service and
-	 * consistency of RMS states  across the entire cluster
-	 * by supporting not more than one active RM at a time.
-	 */
-	if (!m0_rconfc_is_preloaded(rconfc)) {
-		m0_rconfc_rm_fid(rconfc, active_rm);
-	} else if (m0_ha_session_get() != NULL) {
-		/*
-		 * rconfc may be pre-loaded, but HA session still exist anyway,
-		 * so real RMS fid remains discoverable via entrypoint request
-		 */
-		/* TODO check state of `ecl` */
-		ecl = &m0_get()->i_ha->h_entrypoint_client;
-		*active_rm = ecl->ecl_rep.hae_active_rm_fid;
-	}
-	return M0_RC(0);
-}
-
 static int active_rm_ctx_create(struct m0_pools_common *pc,
-				struct m0_fid          *active_rm,
 				bool                    service_connect)
 {
 	struct m0_conf_service *svc;
-	int                     rc;
+	struct m0_fid           active_rm;
+	int                     rc = 0;
 
-	*active_rm = M0_FID0;
-	rc = active_rms_fid_copy(active_rm,
-				 container_of(pc->pc_confc, struct m0_rconfc,
-					      rc_confc));
-	if (rc != 0)
-		return M0_ERR(rc);
-	/*
-	 * Please note, zero may be returned here in rc even with active rm not
-	 * found. Non-zero code is to indicate an error occurred in the course
-	 * of calling m0_ha_entrypoint_get(), but not a failure in finding the
-	 * fid itself. In this situation a fallback is taking local rms for the
-	 * purpose of context creation (see conf iteration below).
-	 */
-	if (m0_fid_is_set(active_rm)) {
-		rc = m0_conf_service_get(pc->pc_confc, active_rm, &svc);
+	active_rm = pc->pc_ha_ecl->ecl_rep.hae_active_rm_fid;
+	if (m0_fid_is_set(&active_rm)) {
+		rc = m0_conf_service_get(pc->pc_confc, &active_rm, &svc);
 		if (!rc == 0)
 			return M0_ERR(rc);
 		rc = __service_ctx_create(pc, svc, service_connect);
 		m0_confc_close(&svc->cs_obj);
 	}
 	return M0_RC(rc);
+}
+
+static struct m0_reqh_service_ctx *
+active_rm_ctx_find(struct m0_pools_common *pc)
+{
+	return m0_pools_common_service_ctx_find(pc,
+				&pc->pc_ha_ecl->ecl_rep.hae_active_rm_fid,
+				M0_CST_RMS);
 }
 
 /**
@@ -794,22 +765,27 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 			       struct m0_conf_filesystem *fs,
 			       bool service_connect)
 {
-	struct m0_fid           active_rm;
 	struct m0_conf_diter    it;
 	struct m0_conf_service *svc;
+	bool                    rm_is_set;
 	int                     rc;
 
 	M0_ENTRY();
 
-	rc = active_rm_ctx_create(pc, &active_rm, service_connect);
+	rc = active_rm_ctx_create(pc, service_connect);
 	if (rc != 0)
 		return M0_ERR(rc);
+	rm_is_set = active_rm_ctx_find(pc) != NULL;
+
 	rc = m0_conf_diter_init(&it, pc->pc_confc, &fs->cf_obj,
 				M0_CONF_FILESYSTEM_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
-	if (rc != 0)
+	if (rc != 0) {
+		if (rm_is_set)
+			service_ctxs_destroy(pc);
 		return M0_ERR(rc);
+	}
 	/*
 	 * XXX TODO: Replace m0_conf_diter_next_sync() with
 	 * m0_conf_diter_next().
@@ -826,7 +802,7 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 		 * if local configuration preloaded. Nodes will only
 		 * use RM services returned by HA entrypoint.
 		 */
-		if ((!m0_fid_is_set(&active_rm) && is_local_rms(svc)) ||
+		if ((!rm_is_set && is_local_rms(svc)) ||
 		    !M0_IN(svc->cs_type, (M0_CST_MGS, M0_CST_RMS))) {
 			rc = __service_ctx_create(pc, svc, service_connect);
 			if (rc != 0)
@@ -837,6 +813,48 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 	if (rc != 0)
 		service_ctxs_destroy(pc);
 	return M0_RC(rc);
+}
+
+static bool service_ctx_ha_entrypoint_cb(struct m0_clink *clink)
+{
+	struct m0_pools_common             *pc =
+		container_of(clink, struct m0_pools_common, pc_ha_clink);
+	struct m0_ha_entrypoint_client     *ecl = pc->pc_ha_ecl;
+	struct m0_ha_entrypoint_rep        *rep = &ecl->ecl_rep;
+	enum m0_ha_entrypoint_client_state  state;
+	struct m0_reqh_service_ctx         *ctx;
+	int                                 rc;
+
+	state = m0_ha_entrypoint_client_state_get(ecl);
+	if (state == M0_HEC_AVAILABLE && rep->hae_rc == 0 &&
+	    m0_fid_is_set(&rep->hae_active_rm_fid) &&
+	    !m0_fid_eq(&pc->pc_rm_ctx->sc_fid, &rep->hae_active_rm_fid)) {
+
+		m0_mutex_lock(&pc->pc_rm_lock);
+		ctx = active_rm_ctx_find(pc);
+		if (ctx == NULL) {
+			rc = active_rm_ctx_create(pc, true);
+			M0_ASSERT(rc == 0);
+			ctx = active_rm_ctx_find(pc);
+		}
+		M0_ASSERT(ctx != NULL);
+		pc->pc_rm_ctx = ctx;
+		m0_mutex_unlock(&pc->pc_rm_lock);
+	}
+	return true;
+}
+
+M0_INTERNAL struct m0_rpc_session *
+m0_pools_common_active_rm_session(struct m0_pools_common *pc)
+{
+	struct m0_rpc_session *sess = NULL;
+
+	m0_mutex_lock(&pc->pc_rm_lock);
+	if (pc->pc_rm_ctx != NULL)
+		sess = &pc->pc_rm_ctx->sc_rlink.rlk_sess;
+	m0_mutex_unlock(&pc->pc_rm_lock);
+
+	return sess;
 }
 
 static struct m0_reqh_service_ctx *
@@ -882,6 +900,9 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 		return M0_ERR(-ENOMEM);
 	pools_common_svc_ctx_tlist_init(&pc->pc_svc_ctxs);
 	pools_tlist_init(&pc->pc_pools);
+	pc->pc_ha_ecl = &m0_get()->i_ha->h_entrypoint_client;
+	m0_mutex_init(&pc->pc_rm_lock);
+	m0_clink_init(&pc->pc_ha_clink, service_ctx_ha_entrypoint_cb);
 
 	return M0_RC(rc);
 }
@@ -889,8 +910,8 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 					    struct m0_conf_filesystem *fs)
 {
-	int               rc;
-	struct m0_rconfc *rconfc;
+	struct m0_ha_entrypoint_client *ecl;
+	int                             rc;
 
 	M0_ENTRY();
 	M0_PRE(pc != NULL && fs != NULL);
@@ -904,17 +925,16 @@ M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 	rc = pc->pc_mds_map == NULL ? -ENOMEM : m0_pool_mds_map_init(fs, pc);
 	if (rc != 0)
 		goto err;
-
-        rconfc = container_of(pc->pc_confc, struct m0_rconfc, rc_confc);
 	pc->pc_rm_ctx = service_ctx_find_by_type(pc, M0_CST_RMS);
 	pc->pc_ha_ctx = service_ctx_find_by_type(pc, M0_CST_HA);
-	if (pc->pc_ha_ctx == NULL ||
-	    (!m0_rconfc_is_preloaded(rconfc) && pc->pc_rm_ctx == NULL)) {
+	if (pc->pc_ha_ctx == NULL || pc->pc_rm_ctx == NULL) {
 		rc = M0_ERR_INFO(-ENOENT, "The mandatory %s service is missing."
 				 "Make sure this is specified in the conf db.",
 				 pc->pc_rm_ctx == NULL ? "RM" : "HA");
 		goto err;
 	}
+	ecl = pc->pc_ha_ecl;
+	m0_clink_add_lock(m0_ha_entrypoint_client_chan(ecl), &pc->pc_ha_clink);
 
 	M0_POST(pools_common_invariant(pc));
 	return M0_RC(rc);
@@ -929,6 +949,8 @@ M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
 	M0_ENTRY();
 	M0_PRE(pools_common_invariant(pc));
 
+	m0_clink_fini(&pc->pc_ha_clink);
+	m0_mutex_fini(&pc->pc_rm_lock);
 	pools_common_svc_ctx_tlist_fini(&pc->pc_svc_ctxs);
 	pools_tlist_fini(&pc->pc_pools);
 	m0_free(pc->pc_dev2ios);
@@ -941,6 +963,9 @@ M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc)
 	M0_ENTRY();
 	M0_PRE(pools_common_invariant(pc));
 
+	/* m0_cs_fini() calls this function even without m0_cs_start() */
+	if (m0_clink_is_armed(&pc->pc_ha_clink))
+		m0_clink_del_lock(&pc->pc_ha_clink);
 	service_ctxs_destroy(pc);
 	m0_free(pc->pc_mds_map);
 	M0_LEAVE();

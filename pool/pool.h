@@ -192,6 +192,10 @@ struct m0_pools_common {
 	struct m0_pool                   *pc_md_pool;
 	/** Layout instance of the mdpool. */
 	struct m0_layout_instance        *pc_md_pool_linst;
+
+	struct m0_ha_entrypoint_client   *pc_ha_ecl;
+	struct m0_clink                   pc_ha_clink;
+	struct m0_mutex                   pc_rm_lock;
 };
 
 M0_TL_DESCR_DECLARE(pools_common_svc_ctx, M0_EXTERN);
@@ -289,6 +293,9 @@ m0_pool_version2layout_id(const struct m0_fid *pv_fid, uint64_t lid);
  * Creates service contexts from given struct m0_conf_service.
  * Creates service context for each endpoint in m0_conf_service::cs_endpoints.
  */
+
+M0_INTERNAL struct m0_rpc_session *
+m0_pools_common_active_rm_session(struct m0_pools_common *pc);
 
 M0_INTERNAL struct m0_reqh_service_ctx *
 m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
