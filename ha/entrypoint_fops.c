@@ -82,9 +82,7 @@ m0_ha_entrypoint_req2fop(const struct m0_ha_entrypoint_req *req,
 		.erf_process_fid     = req->heq_process_fid,
 		.erf_profile_fid     = req->heq_profile_fid,
 		.erf_link_id_request = req->heq_link_id_request ? 1 : 0,
-		.erf_link_id_local   = req->heq_link_id_local,
-		.erf_link_id_remote  = req->heq_link_id_remote,
-		.erf_link_tag_even   = req->heq_link_tag_even ? 1 : 0,
+		.erf_link_params     = req->heq_link_params,
 		.erf_git_rev_id      = M0_BUF_INITS(git_rev_id_dup),
 	};
 	return 0;
@@ -109,9 +107,7 @@ m0_ha_entrypoint_fop2req(const struct m0_ha_entrypoint_req_fop *req_fop,
 		.heq_profile_fid     = req_fop->erf_profile_fid,
 		.heq_rpc_endpoint    = rpc_endpoint_dup,
 		.heq_link_id_request = req_fop->erf_link_id_request != 0,
-		.heq_link_id_local   = req_fop->erf_link_id_local,
-		.heq_link_id_remote  = req_fop->erf_link_id_remote,
-		.heq_link_tag_even   = req_fop->erf_link_tag_even != 0,
+		.heq_link_params     = req_fop->erf_link_params,
 		.heq_git_rev_id      = git_rev_id_dup,
 	};
 	return M0_RC(0);
@@ -132,9 +128,7 @@ m0_ha_entrypoint_fop2rep(const struct m0_ha_entrypoint_rep_fop *rep_fop,
 		},
 		.hae_active_rm_fid  = rep_fop->hbp_active_rm_fid,
 		.hae_active_rm_ep   = m0_buf_strdup(&rep_fop->hbp_active_rm_ep),
-		.hae_link_id_local  = rep_fop->hbp_link_id_local,
-		.hae_link_id_remote = rep_fop->hbp_link_id_remote,
-		.hae_link_tag_even  = rep_fop->hbp_link_tag_even != 0,
+		.hae_link_params    = rep_fop->hbp_link_params,
 	};
 	M0_ASSERT(rep->hae_active_rm_ep != NULL);
 	rc = m0_bufs_to_strings(&rep->hae_confd_eps, &rep_fop->hbp_confd_eps);
@@ -170,9 +164,7 @@ m0_ha_entrypoint_rep2fop(const struct m0_ha_entrypoint_rep *rep,
 		},
 		.hbp_active_rm_fid = rep->hae_active_rm_fid,
 		.hbp_active_rm_ep  = M0_BUF_INITS(rm_ep),
-		.hbp_link_id_local  = rep->hae_link_id_local,
-		.hbp_link_id_remote = rep->hae_link_id_remote,
-		.hbp_link_tag_even  = rep->hae_link_tag_even ? 1 : 0,
+		.hbp_link_params   = rep->hae_link_params,
 	};
 	M0_ALLOC_ARR(rep_fop->hbp_confd_eps.ab_elems,
 		     rep_fop->hbp_confd_eps.ab_count);

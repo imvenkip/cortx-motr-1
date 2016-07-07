@@ -23,12 +23,13 @@
 #ifndef __MERO_HA_LINK_FOPS_H__
 #define __MERO_HA_LINK_FOPS_H__
 
-#include "fop/fop.h"            /* m0_fop_type */
+#include "lib/types.h"          /* m0_uint128 */
 #include "xcode/xcode_attr.h"   /* M0_XCA_RECORD */
+#include "fop/fop.h"            /* m0_fop_type */
+#include "ha/msg.h"             /* m0_ha_msg */
 
-#include "ha/link.h"            /* m0_ha_msg */
-
-#include "ha/msg_xc.h"          /* XXX m0_ha_msg_xc */
+#include "lib/types_xc.h"       /* m0_uint128_xc */
+#include "ha/msg_xc.h"          /* m0_ha_msg_xc */
 
 /**
  * @defgroup ha
@@ -42,6 +43,13 @@ struct m0_ha_link_msg_fop {
 
 struct m0_ha_link_msg_rep_fop {
 	int lmr_rc;
+} M0_XCA_RECORD;
+
+struct m0_ha_link_params {
+	struct m0_uint128 hlp_id_local;
+	struct m0_uint128 hlp_id_remote;
+	/* bool flag */
+	uint64_t          hlp_tag_even;
 } M0_XCA_RECORD;
 
 extern struct m0_fop_type m0_ha_link_msg_fopt;

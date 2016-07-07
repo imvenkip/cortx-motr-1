@@ -61,10 +61,12 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 	M0_PRE(M0_IS0(hl));
 
 	M0_ENTRY("hl=%p hlc_reqh=%p hlc_reqh_service=%p "
-	         "hlc_link_id_local="U128X_F" hlc_link_id_remote="U128X_F,
+	         "hlp_id_local="U128X_F" hlp_id_remote="U128X_F" "
+	         "hlp_tag_even=%"PRIu64,
 	         hl, hl_cfg->hlc_reqh, hl_cfg->hlc_reqh_service,
-	         U128_P(&hl_cfg->hlc_link_id_local),
-	         U128_P(&hl_cfg->hlc_link_id_remote));
+	         U128_P(&hl_cfg->hlc_link_params.hlp_id_local),
+	         U128_P(&hl_cfg->hlc_link_params.hlp_id_remote),
+	         hl_cfg->hlc_link_params.hlp_tag_even);
 	hl->hln_cfg = *hl_cfg;
 	ha_sl_tlist_init(&hl->hln_sent);
 	m0_mutex_init(&hl->hln_lock);
@@ -76,7 +78,7 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 			     &hl->hln_cfg.hlc_q_delivered_cfg);
 	m0_ha_msg_queue_init(&hl->hln_q_not_delivered,
 			     &hl->hln_cfg.hlc_q_not_delivered_cfg);
-	hl->hln_tag_current = hl->hln_cfg.hlc_tag_even ? 2 : 1;
+	hl->hln_tag_current = hl->hln_cfg.hlc_link_params.hlp_tag_even ? 2 : 1;
 	m0_fom_init(&hl->hln_fom, &ha_link_outgoing_fom_type,
 	            &ha_link_outgoing_fom_ops, NULL, NULL,
 	            hl->hln_cfg.hlc_reqh);
@@ -149,7 +151,7 @@ M0_INTERNAL void m0_ha_link_send(struct m0_ha_link      *hl,
 	M0_ASSERT(qitem != NULL);       /* XXX */
 	qitem->hmq_msg = *msg;
 	qitem->hmq_msg.hm_tag = hl->hln_tag_current;
-	qitem->hmq_msg.hm_link_id = hl->hln_cfg.hlc_link_id_remote;
+	qitem->hmq_msg.hm_link_id = hl->hln_cfg.hlc_link_params.hlp_id_remote;
 	hl->hln_tag_current += 2;
 	*tag = qitem->hmq_msg.hm_tag;
 	qitem->hmq_msg.hm_incoming = false;
@@ -503,6 +505,7 @@ static void ha_link_outgoing_item_replied(struct m0_rpc_item *item)
 	                  struct m0_ha_link, hln_outgoing_fop);
 	M0_ENTRY("hl=%p item=%p", hl, item);
 	m0_mutex_lock(&hl->hln_lock);
+	M0_ASSERT(!hl->hln_replied);
 	hl->hln_replied = true;
 	m0_mutex_unlock(&hl->hln_lock);
 	ha_link_outgoing_fom_wakeup(hl);

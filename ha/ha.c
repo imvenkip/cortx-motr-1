@@ -335,9 +335,7 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha,
 	M0_ASSERT(rc == 0);
 
 	rep = &ha->h_entrypoint_client.ecl_rep;
-	hl_cfg.hlc_link_id_local  = rep->hae_link_id_local;
-	hl_cfg.hlc_link_id_remote = rep->hae_link_id_remote;
-	hl_cfg.hlc_tag_even       = rep->hae_link_tag_even;
+	hl_cfg.hlc_link_params = rep->hae_link_params;
 	rc = ha_link_ctx_init(ha, hlx, &hl_cfg, HLX_OUTGOING);
 	M0_ASSERT(rc == 0);
 	return &hlx->hlx_link;
@@ -376,6 +374,17 @@ static void ha_link_id_next(struct m0_ha      *ha,
 	*id = M0_UINT128(0, ha->h_link_id_counter++);
 }
 
+static struct ha_link_ctx *
+ha_link_incoming_find(struct m0_ha                   *ha,
+                      const struct m0_ha_link_params *lp)
+{
+	return m0_tl_find(ha_links, hlx, &ha->h_links_incoming,
+	  m0_uint128_eq(&hlx->hlx_link.hln_cfg.hlc_link_params.hlp_id_local,
+	                &lp->hlp_id_remote) &&
+	  m0_uint128_eq(&hlx->hlx_link.hln_cfg.hlc_link_params.hlp_id_remote,
+	                &lp->hlp_id_local));
+}
+
 void m0_ha_entrypoint_reply(struct m0_ha                       *ha,
                             const struct m0_uint128            *req_id,
 			    const struct m0_ha_entrypoint_rep  *rep,
@@ -400,24 +409,23 @@ void m0_ha_entrypoint_reply(struct m0_ha                       *ha,
 			.hlc_rpc_session    = &hlx->hlx_rpc_session,
 			.hlc_q_in_cfg       = {},
 			.hlc_q_out_cfg      = {},
-			.hlc_tag_even       = true,
+			.hlc_link_params = {
+				.hlp_tag_even = true,
+			},
 		};
-		ha_link_id_next(ha, &hl_cfg.hlc_link_id_local);
-		ha_link_id_next(ha, &hl_cfg.hlc_link_id_remote);
-		rep_copy.hae_link_id_local  = hl_cfg.hlc_link_id_remote;
-		rep_copy.hae_link_id_remote = hl_cfg.hlc_link_id_local;
-		rep_copy.hae_link_tag_even  = !hl_cfg.hlc_tag_even;
-
+		ha_link_id_next(ha, &hl_cfg.hlc_link_params.hlp_id_local);
+		ha_link_id_next(ha, &hl_cfg.hlc_link_params.hlp_id_remote);
+		rep_copy.hae_link_params = (struct m0_ha_link_params){
+			.hlp_id_local  =  hl_cfg.hlc_link_params.hlp_id_remote,
+			.hlp_id_remote =  hl_cfg.hlc_link_params.hlp_id_local,
+			.hlp_tag_even  = !hl_cfg.hlc_link_params.hlp_tag_even,
+		};
 		rc = ha_link_ctx_init(ha, hlx, &hl_cfg, HLX_INCOMING);
 		M0_ASSERT(rc == 0);
 		ha->h_cfg.hcf_ops.hao_link_connected(ha, req_id,
 						     &hlx->hlx_link);
 	} else {
-		hlx = m0_tl_find(ha_links, hlx, &ha->h_links_incoming,
-			m0_uint128_eq(&hlx->hlx_link.hln_cfg.hlc_link_id_local,
-			              &req->heq_link_id_remote) &&
-			m0_uint128_eq(&hlx->hlx_link.hln_cfg.hlc_link_id_remote,
-			              &req->heq_link_id_local));
+		hlx = ha_link_incoming_find(ha, &req->heq_link_params);
 		M0_ASSERT(hlx != NULL); /* XXX */
 		ha->h_cfg.hcf_ops.hao_link_reused(ha, req_id, &hlx->hlx_link);
 	}

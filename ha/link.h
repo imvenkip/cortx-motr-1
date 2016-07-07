@@ -49,6 +49,7 @@
 #include "sm/sm.h"              /* m0_sm_ast */
 
 #include "ha/msg_queue.h"       /* m0_ha_msg_queue */
+#include "ha/link_fops.h"       /* m0_ha_link_params */
 
 
 struct m0_reqh;
@@ -61,14 +62,12 @@ struct m0_ha_link_cfg {
 	struct m0_reqh             *hlc_reqh;
 	struct m0_reqh_service     *hlc_reqh_service;
 	struct m0_rpc_session      *hlc_rpc_session;
-	struct m0_uint128           hlc_link_id_local;
-	struct m0_uint128           hlc_link_id_remote;
 	struct m0_ha_msg_queue_cfg  hlc_q_in_cfg;
 	struct m0_ha_msg_queue_cfg  hlc_q_out_cfg;
 	/* TODO rename q_xxx_cfg -> q_cfg_xxx */
 	struct m0_ha_msg_queue_cfg  hlc_q_delivered_cfg;
 	struct m0_ha_msg_queue_cfg  hlc_q_not_delivered_cfg;
-	bool                        hlc_tag_even;
+	struct m0_ha_link_params    hlc_link_params;
 };
 
 struct m0_ha_link {

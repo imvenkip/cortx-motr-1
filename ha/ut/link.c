@@ -59,9 +59,11 @@ static void ha_ut_link_init(struct ha_ut_link_ctx   *link_ctx,
 		.hlc_reqh           = &rpc_ctx->hurc_reqh,
 		.hlc_reqh_service   = hl_service,
 		.hlc_rpc_session    = &link_ctx->ulc_session_ctx.husc_session,
-		.hlc_link_id_local  = *id_local,
-		.hlc_link_id_remote = *id_remote,
-		.hlc_tag_even       = tag_even,
+		.hlc_link_params    = {
+			.hlp_id_local  = *id_local,
+			.hlp_id_remote = *id_remote,
+			.hlp_tag_even  =  tag_even,
+		},
 	};
 	rc = m0_ha_link_init(&link_ctx->ulc_link, &link_ctx->ulc_cfg);
 	M0_UT_ASSERT(rc == 0);

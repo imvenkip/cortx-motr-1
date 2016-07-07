@@ -34,6 +34,7 @@
 #include "rpc/rpc_opcodes.h"    /* M0_HA_LINK_INCOMING_REQ */
 #include "fop/fom_generic.h"    /* XXX m0_generic_conf */
 #include "ha/link_service.h"    /* m0_ha_link_service_type */
+#include "ha/link.h"            /* m0_ha_link_incoming_fom_type_ops */
 
 struct m0_fop_type m0_ha_link_msg_fopt;
 struct m0_fop_type m0_ha_link_msg_rep_fopt;

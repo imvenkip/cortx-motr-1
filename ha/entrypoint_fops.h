@@ -34,13 +34,15 @@
 #include "lib/types.h"          /* int32_t */
 #include "lib/buf.h"            /* m0_buf */
 #include "fid/fid.h"            /* m0_fid */
+#include "ha/link_fops.h"       /* m0_ha_link_parameters */
 
 /*
  * The following includes are needed only for entrypoint_fops_xc.h compilation.
  */
-#include "fid/fid_xc.h"         /* m0_fid_xc */
 #include "lib/buf_xc.h"         /* m0_buf_xc */
 #include "lib/types_xc.h"       /* m0_uint128_xc */
+#include "fid/fid_xc.h"         /* m0_fid_xc */
+#include "ha/link_fops_xc.h"    /* m0_ha_link_parameters_xc */
 
 /**
  * Cluster entry point contains information necessary to access cluster
@@ -48,48 +50,44 @@
  */
 struct m0_ha_entrypoint_rep_fop {
 	/** Negative if accessing cluster configuration is impossible. */
-	int32_t           hbp_rc;
+	int32_t                  hbp_rc;
 	/**
 	 * Minimum number of confd servers agreed upon current configuration
 	 * version in cluster. Client shouldn't access configuration if this
 	 * quorum value is not reached.
 	 */
-	uint32_t          hbp_quorum;
+	uint32_t                 hbp_quorum;
 	/**
 	 * Fids of confd services replicating configuration database. The same
 	 * Fids should be present in configuration database tree.
 	 */
-	struct m0_fid_arr hbp_confd_fids;
+	struct m0_fid_arr        hbp_confd_fids;
 	/** RPC endpoints of confd services. */
-	struct m0_bufs    hbp_confd_eps;
+	struct m0_bufs           hbp_confd_eps;
 	/**
 	 * Fid of RM service maintaining read/write access to configuration
 	 * database. The same fid should be present in configuration database
 	 * tree.
 	 */
-	struct m0_fid     hbp_active_rm_fid;
+	struct m0_fid            hbp_active_rm_fid;
 	/**
 	 * RPC endpoint of RM service.
 	 */
-	struct m0_buf     hbp_active_rm_ep;
+	struct m0_buf            hbp_active_rm_ep;
 
 	/* link parameters */
-	struct m0_uint128 hbp_link_id_local;
-	struct m0_uint128 hbp_link_id_remote;
-	int32_t           hbp_link_tag_even;
+	struct m0_ha_link_params hbp_link_params;
 } M0_XCA_RECORD;
 
 struct m0_ha_entrypoint_req_fop {
-	int32_t           erf_first_request;
-	struct m0_fid     erf_process_fid;
-	struct m0_fid     erf_profile_fid;
+	int32_t                  erf_first_request;
+	struct m0_fid            erf_process_fid;
+	struct m0_fid            erf_profile_fid;
 
-	int32_t           erf_link_id_request;
-	struct m0_uint128 erf_link_id_local;
-	struct m0_uint128 erf_link_id_remote;
-	int32_t           erf_link_tag_even;
+	int32_t                  erf_link_id_request;
+	struct m0_ha_link_params erf_link_params;
 
-	struct m0_buf     erf_git_rev_id;
+	struct m0_buf            erf_git_rev_id;
 } M0_XCA_RECORD;
 
 struct m0_ha_entrypoint_req {
@@ -97,35 +95,30 @@ struct m0_ha_entrypoint_req {
 	 * It's the first request from this m0 instance
 	 * m0_ha is responsible for this field.
 	 */
-	bool               heq_first_request;
-	char              *heq_rpc_endpoint;
-	struct m0_fid      heq_process_fid;
-	struct m0_fid      heq_profile_fid;
+	bool                      heq_first_request;
+	char                     *heq_rpc_endpoint;
+	struct m0_fid             heq_process_fid;
+	struct m0_fid             heq_profile_fid;
 	/**
 	 * Client request for a local and remote link id.
 	 * If this flag is set then remove and local link ids will be assigned
 	 * by the server.
 	 */
-	bool               heq_link_id_request;
-	struct m0_uint128  heq_link_id_local;
-	struct m0_uint128  heq_link_id_remote;
-	bool               heq_link_tag_even;
+	bool                      heq_link_id_request;
+	struct m0_ha_link_params  heq_link_params;
 	/* m0_build_info::bi_git_rev_id */
-	const char        *heq_git_rev_id;
+	const char               *heq_git_rev_id;
 };
 
 struct m0_ha_entrypoint_rep {
-	int                hae_rc;
-	uint32_t           hae_quorum;
-	struct m0_fid_arr  hae_confd_fids;
-	const char       **hae_confd_eps;
-	struct m0_fid      hae_active_rm_fid;
-	char              *hae_active_rm_ep;
+	int                        hae_rc;
+	uint32_t                   hae_quorum;
+	struct m0_fid_arr          hae_confd_fids;
+	const char               **hae_confd_eps;
+	struct m0_fid              hae_active_rm_fid;
+	char                      *hae_active_rm_ep;
 
-	/* link parameters */
-	struct m0_uint128 hae_link_id_local;
-	struct m0_uint128 hae_link_id_remote;
-	bool              hae_link_tag_even;
+	struct m0_ha_link_params   hae_link_params;
 };
 
 extern struct m0_fop_type m0_ha_entrypoint_req_fopt;

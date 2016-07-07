@@ -50,7 +50,7 @@
 #include "fop/fom.h"            /* M0_FOM_PHASE_INIT */
 #include "fop/fop.h"            /* m0_fop */
 #include "ha/entrypoint_fops.h" /* m0_ha_entrypoint_req */
-#include "rpc/link.h"
+#include "rpc/link.h"           /* m0_rpc_link */
 
 
 struct m0_ha_entrypoint_server;
