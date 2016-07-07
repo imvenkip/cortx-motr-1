@@ -54,11 +54,4 @@ M0_INTERNAL int conf_ut_waiter_wait(struct conf_ut_waiter *w,
 extern struct m0_sm_group  g_grp;
 extern struct m0_net_xprt *g_xprt;
 
-M0_INTERNAL void conf_ut_cache_expired_cb(struct m0_sm_group *grp,
-					  struct m0_sm_ast *ast);
-M0_INTERNAL void conf_ut_cache_ready_cb(struct m0_sm_group *grp,
-					struct m0_sm_ast *ast);
-M0_INTERNAL void conf_ut_confc_expired_cb(struct m0_rconfc *rconfc);
-M0_INTERNAL void conf_ut_confc_ready_cb(struct m0_rconfc *rconfc);
-
 #endif /* __MERO_CONF_UT_COMMON_H__ */

@@ -27,7 +27,6 @@
 #include "rpc/rpclib.h"     /* m0_rpc_server_ctx */
 #include "ut/ut.h"
 
-struct m0_semaphore g_sem;
 struct m0_sm_group  g_grp;
 struct m0_net_xprt *g_xprt = &m0_net_lnet_xprt;
 struct conf_ut_ast  g_ast;
@@ -98,49 +97,6 @@ M0_INTERNAL int conf_ut_ast_thread_fini(void)
 	m0_sm_group_fini(&g_grp);
 
 	return 0;
-}
-
-M0_INTERNAL void conf_ut_cache_expired_cb(struct m0_sm_group *grp,
-					  struct m0_sm_ast *ast)
-{
-	struct m0_reqh *reqh = container_of(ast, struct m0_reqh,
-					    rh_conf_cache_ast);
-
-	M0_ENTRY("grp %p, ast %p", grp, ast);
-	m0_chan_broadcast_lock(&reqh->rh_conf_cache_exp);
-	M0_LEAVE();
-}
-
-M0_INTERNAL void conf_ut_cache_ready_cb(struct m0_sm_group *grp,
-					struct m0_sm_ast *ast)
-{
-	struct m0_reqh *reqh = container_of(ast, struct m0_reqh,
-					    rh_conf_cache_ast);
-
-	M0_ENTRY("grp %p, ast %p", grp, ast);
-	m0_chan_broadcast_lock(&reqh->rh_conf_cache_ready);
-	m0_semaphore_up(&g_sem);
-	M0_LEAVE();
-}
-
-M0_INTERNAL void conf_ut_confc_expired_cb(struct m0_rconfc *rconfc)
-{
-	struct m0_reqh *reqh = container_of(rconfc, struct m0_reqh, rh_rconfc);
-
-	M0_ENTRY("rconfc %p", rconfc);
-	reqh->rh_conf_cache_ast.sa_cb = conf_ut_cache_expired_cb;
-	m0_sm_ast_post(&g_grp, &reqh->rh_conf_cache_ast);
-	M0_LEAVE();
-}
-
-M0_INTERNAL void conf_ut_confc_ready_cb(struct m0_rconfc *rconfc)
-{
-	struct m0_reqh *reqh = container_of(rconfc, struct m0_reqh, rh_rconfc);
-
-	M0_ENTRY("rconfc %p", rconfc);
-	reqh->rh_conf_cache_ast.sa_cb = conf_ut_cache_ready_cb;
-	m0_sm_ast_post(&g_grp, &reqh->rh_conf_cache_ast);
-	M0_LEAVE();
 }
 
 #undef M0_TRACE_SUBSYSTEM
