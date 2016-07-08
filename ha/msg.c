@@ -79,8 +79,13 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 			       FID_P(&data->u.hed_nvec.hmnv_vec[i].no_id),
 			       data->u.hed_nvec.hmnv_vec[i].no_state);
 			if (data->u.hed_nvec.hmnv_vec[i].no_id.f_container <
-			    0x10000000000UL)
-				M0_IMPOSSIBLE("BUG HERE");
+			    0x10000000000UL) {
+				M0_LOG(M0_ERROR, "invalid note: no_id="FID_F" "
+				       "no_state=%"PRIu32,
+				     FID_P(&data->u.hed_nvec.hmnv_vec[i].no_id),
+				     data->u.hed_nvec.hmnv_vec[i].no_state);
+			}
+
 		}
 		return;
 	case M0_HA_MSG_FAILURE_VEC_REQ:
