@@ -118,6 +118,10 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		       data->u.hed_event_process.chp_type,
 		       data->u.hed_event_process.chp_pid);
 		return;
+	case M0_HA_MSG_EVENT_SERVICE:
+		M0_LOG(M0_DEBUG, "EVENT_SERVICE chs_event=%"PRIu64,
+		       data->u.hed_event_service.chs_event);
+		return;
 	case M0_HA_MSG_NR:
 		M0_LOG(M0_WARN, "invalid M0_HA_MSG_NR type");
 		return;

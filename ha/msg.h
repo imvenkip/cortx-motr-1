@@ -81,6 +81,7 @@ enum m0_ha_msg_type {
 	M0_HA_MSG_KEEPALIVE_REQ,
 	M0_HA_MSG_KEEPALIVE_REP,
 	M0_HA_MSG_EVENT_PROCESS,
+	M0_HA_MSG_EVENT_SERVICE,
 	M0_HA_MSG_NR,
 };
 
@@ -103,6 +104,8 @@ struct m0_ha_msg_data {
 			                M0_XCA_TAG("M0_HA_MSG_KEEPALIVE_REP");
 		struct m0_conf_ha_process      hed_event_process
 			                M0_XCA_TAG("M0_HA_MSG_EVENT_PROCESS");
+		struct m0_conf_ha_service      hed_event_service
+			                M0_XCA_TAG("M0_HA_MSG_EVENT_SERVICE");
 	} u;
 } M0_XCA_UNION;
 

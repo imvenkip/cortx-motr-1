@@ -74,6 +74,44 @@ m0_conf_ha_process_event_post(struct m0_ha                  *ha,
 	M0_LEAVE("tag=%"PRIu64, tag);
 }
 
+M0_INTERNAL void
+m0_conf_ha_service_event_post(struct m0_ha                  *ha,
+                              struct m0_ha_link             *hl,
+                              const struct m0_fid           *source_process_fid,
+                              const struct m0_fid           *source_service_fid,
+                              const struct m0_fid           *service_fid,
+                              enum m0_conf_ha_service_event  event)
+{
+	struct m0_ha_msg *msg;
+	uint64_t          tag;
+
+	M0_ENTRY("ha=%p hl=%p service_fid="FID_F" source_process_fid="FID_F" "
+	         "source_service_fid="FID_F" event=%d",
+	         ha, hl, FID_P(service_fid),
+		 FID_P(source_process_fid), FID_P(source_service_fid), event);
+	M0_ALLOC_PTR(msg);
+	if (msg == NULL) {
+		M0_LOG(M0_ERROR, "can't allocate memory for msg");
+		M0_LEAVE();
+		return;
+	}
+	*msg = (struct m0_ha_msg){
+		.hm_fid            = *service_fid,
+		.hm_source_process = *source_process_fid,
+		.hm_source_service = *source_service_fid,
+		.hm_time           =  m0_time_now(),
+		.hm_data           = {
+			.hed_type            = M0_HA_MSG_EVENT_SERVICE,
+			.u.hed_event_service = {
+				.chs_event = event,
+			},
+		},
+	};
+	m0_ha_send(ha, hl, msg, &tag);
+	m0_free(msg);
+	M0_LEAVE("tag=%"PRIu64, tag);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of conf-ha group */

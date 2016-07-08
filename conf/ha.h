@@ -66,6 +66,20 @@ struct m0_conf_ha_process {
 	uint64_t chp_pid;
 } M0_XCA_RECORD;
 
+enum m0_conf_ha_service_event {
+	M0_CONF_HA_SERVICE_STARTING,
+	M0_CONF_HA_SERVICE_STARTED,
+	M0_CONF_HA_SERVICE_STOPPING,
+	M0_CONF_HA_SERVICE_STOPPED,
+	M0_CONF_HA_SERVICE_FAILED,
+};
+
+struct m0_conf_ha_service {
+	/** @see m0_conf_ha_service_event for values */
+	uint64_t chs_event;
+	uint64_t chs_rc;
+} M0_XCA_RECORD;
+
 /** Send notification about process state to HA */
 M0_INTERNAL void
 m0_conf_ha_process_event_post(struct m0_ha                  *ha,
@@ -74,6 +88,15 @@ m0_conf_ha_process_event_post(struct m0_ha                  *ha,
                               uint64_t                       pid,
                               enum m0_conf_ha_process_event  event,
                               enum m0_conf_ha_process_type   type);
+
+
+M0_INTERNAL void
+m0_conf_ha_service_event_post(struct m0_ha                  *ha,
+                              struct m0_ha_link             *hl,
+                              const struct m0_fid           *source_process_fid,
+                              const struct m0_fid           *source_service_fid,
+                              const struct m0_fid           *service_fid,
+                              enum m0_conf_ha_service_event  event);
 
 
 /** @} end of conf-ha group */

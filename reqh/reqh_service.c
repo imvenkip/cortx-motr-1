@@ -43,6 +43,8 @@
 #include "conf/helpers.h"     /* m0_conf_obj2reqh */
 #include "pool/pool.h"        /* m0_pools_common_service_ctx_find */
 #include "fid/fid.h"          /* m0_fid_eq */
+#include "module/instance.h"  /* m0_get */
+#include "conf/ha.h"          /* m0_conf_ha_service_event_post */
 
 /**
    @addtogroup reqhservice
@@ -192,12 +194,36 @@ m0_reqh_service_allocate(struct m0_reqh_service **out,
 	return M0_RC(rc);
 }
 
+static void reqh_service_ha_event(struct m0_reqh_service     *service,
+                                  enum m0_reqh_service_state  state)
+{
+	static const enum m0_conf_ha_service_event state2event[] = {
+		[M0_RST_STARTING] = M0_CONF_HA_SERVICE_STARTING,
+		[M0_RST_STARTED]  = M0_CONF_HA_SERVICE_STARTED,
+		[M0_RST_STOPPING] = M0_CONF_HA_SERVICE_STOPPING,
+		[M0_RST_STOPPED]  = M0_CONF_HA_SERVICE_STOPPED,
+		[M0_RST_FAILED]   = M0_CONF_HA_SERVICE_FAILED,
+	};
+
+	if (!M0_IN(state, (M0_RST_STARTING, M0_RST_STARTED,
+	                   M0_RST_STOPPING, M0_RST_STOPPED, M0_RST_FAILED)))
+		return;
+	if (m0_get()->i_ha == NULL || m0_get()->i_ha_link == NULL)
+		return;
+	m0_conf_ha_service_event_post(m0_get()->i_ha, m0_get()->i_ha_link,
+	                              &service->rs_reqh->rh_fid,
+	                              &service->rs_service_fid,
+	                              &service->rs_service_fid,
+	                              state2event[state]);
+}
+
 static void reqh_service_state_set(struct m0_reqh_service *service,
 				   enum m0_reqh_service_state state)
 {
 	m0_sm_group_lock(&service->rs_reqh->rh_sm_grp);
 	m0_sm_state_set(&service->rs_sm, state);
 	m0_sm_group_unlock(&service->rs_reqh->rh_sm_grp);
+	reqh_service_ha_event(service, state);
 }
 
 static void reqh_service_starting_common(struct m0_reqh *reqh,
