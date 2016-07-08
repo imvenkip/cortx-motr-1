@@ -5,6 +5,7 @@ EXTRA_DIST += utils/m0confgen \
               utils/m0reportbug \
               utils/m0run \
               utils/m0setup \
+              utils/m0singlenode \
               utils/linux_kernel/m0ctl_main.c \
               utils/linux_kernel/m0ctl_internal.h \
               utils/linux_kernel/finject_debugfs.c \

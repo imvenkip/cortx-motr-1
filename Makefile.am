@@ -627,6 +627,7 @@ endif
 sbin_SCRIPTS  += utils/m0gendisks \
                  utils/m0genfacts \
                  utils/m0setup \
+                 utils/m0singlenode \
                  utils/m0reportbug \
                  utils/m0run
 
