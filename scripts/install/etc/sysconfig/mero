@@ -59,6 +59,9 @@ MERO_M0D_DATA_DIR=/var/mero
 # Minimum rpc receive queue length.
 #MERO_M0D_MIN_RPC_RECVQ_LEN=16
 
+# ioservice buffer pool configuration
+#MERO_M0D_IOS_BUFFER_POOL_SIZE=32
+
 # Backend log size (in bytes) for all m0d's. Default is 512 MiB.
 #MERO_M0D_BELOG_SIZE=536870912
 
@@ -81,9 +84,6 @@ MERO_M0D_DATA_DIR=/var/mero
 #MERO_M0D_BETX_REG_NR_MAX=262144
 #MERO_M0D_BETX_REG_SIZE_MAX=16777216
 #MERO_M0D_BETX_PAYLOAD_SIZE_MAX=2097152
-
-# ioservice buffer pool configuration
-#MERO_M0D_IOS_BUFFER_POOL_SIZE=32
 
 # Override default options of m0d.
 #MERO_M0D_OPTS=
