@@ -52,7 +52,6 @@
 #include "ha/link.h"            /* m0_ha_link */
 #include "ha/link_service.h"    /* m0_ha_link_service_init */
 #include "ha/entrypoint.h"      /* m0_ha_entrypoint_rep */
-#include "ha/note.h"            /* XXX m0_ha_state_init */
 
 struct m0_ha_module {
 	struct m0_module hmo_module;
@@ -344,9 +343,6 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha)
 	m0_ha_entrypoint_client_start(&ha->h_entrypoint_client);
 	m0_chan_wait(&ha->h_clink);
 
-	rc = m0_ha_state_init(&hlx->hlx_rpc_session);
-	M0_ASSERT(rc == 0);
-
 	rep = &ha->h_entrypoint_client.ecl_rep;
 	hl_cfg.hlc_link_params = rep->hae_link_params;
 	rc = ha_link_ctx_init(ha, hlx, &hl_cfg, HLX_OUTGOING);
@@ -364,7 +360,6 @@ M0_INTERNAL void m0_ha_disconnect(struct m0_ha      *ha,
 	hlx = container_of(hl, struct ha_link_ctx, hlx_link);
 	M0_ENTRY("ha=%p hl=%p", ha, hl);
 	ha_link_ctx_fini(ha, hlx);
-	m0_ha_state_fini();
 	m0_clink_del_lock(&ha->h_clink);
 	m0_ha_entrypoint_client_stop(&ha->h_entrypoint_client);
 	ha_link_ctx_fini_rpc(ha, hlx);
