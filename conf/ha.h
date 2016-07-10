@@ -30,6 +30,7 @@
  */
 #include "lib/types.h"          /* uint64_t */
 #include "xcode/xcode_attr.h"   /* M0_XCA_RECORD */
+#include "conf/schema.h"        /* m0_conf_service_type */
 
 struct m0_fid;
 struct m0_ha;
@@ -77,7 +78,8 @@ enum m0_conf_ha_service_event {
 struct m0_conf_ha_service {
 	/** @see m0_conf_ha_service_event for values */
 	uint64_t chs_event;
-	uint64_t chs_rc;
+	/** @see m0_conf_service_type for values */
+	uint64_t chs_type;
 } M0_XCA_RECORD;
 
 /** Send notification about process state to HA */
@@ -96,7 +98,8 @@ m0_conf_ha_service_event_post(struct m0_ha                  *ha,
                               const struct m0_fid           *source_process_fid,
                               const struct m0_fid           *source_service_fid,
                               const struct m0_fid           *service_fid,
-                              enum m0_conf_ha_service_event  event);
+                              enum m0_conf_ha_service_event  event,
+                              enum m0_conf_service_type      service_type);
 
 
 /** @} end of conf-ha group */

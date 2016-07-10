@@ -80,7 +80,8 @@ m0_conf_ha_service_event_post(struct m0_ha                  *ha,
                               const struct m0_fid           *source_process_fid,
                               const struct m0_fid           *source_service_fid,
                               const struct m0_fid           *service_fid,
-                              enum m0_conf_ha_service_event  event)
+                              enum m0_conf_ha_service_event  event,
+                              enum m0_conf_service_type      service_type)
 {
 	struct m0_ha_msg *msg;
 	uint64_t          tag;
@@ -89,6 +90,7 @@ m0_conf_ha_service_event_post(struct m0_ha                  *ha,
 	         "source_service_fid="FID_F" event=%d",
 	         ha, hl, FID_P(service_fid),
 		 FID_P(source_process_fid), FID_P(source_service_fid), event);
+	M0_LOG(M0_DEBUG, "service_type=%d", service_type);
 	M0_ALLOC_PTR(msg);
 	if (msg == NULL) {
 		M0_LOG(M0_ERROR, "can't allocate memory for msg");
@@ -104,6 +106,7 @@ m0_conf_ha_service_event_post(struct m0_ha                  *ha,
 			.hed_type            = M0_HA_MSG_EVENT_SERVICE,
 			.u.hed_event_service = {
 				.chs_event = event,
+				.chs_type  = service_type,
 			},
 		},
 	};
