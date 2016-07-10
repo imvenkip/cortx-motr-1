@@ -34,6 +34,8 @@
 #include "lib/time.h"           /* m0_time_now */
 #include "lib/arith.h"          /* m0_rnd64 */
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
+#include "lib/string.h"         /* m0_strdup */
+#include "fid/fid.h"            /* M0_FID0 */
 #include "reqh/reqh_service.h"  /* m0_reqh_service */
 #include "ut/threads.h"         /* M0_UT_THREADS_DEFINE */
 #include "ha/ut/helper.h"       /* m0_ha_ut_rpc_ctx */
@@ -42,7 +44,7 @@
 struct ha_ut_link_ctx {
 	struct m0_ha_link                ulc_link;
 	struct m0_ha_link_cfg            ulc_cfg;
-	struct m0_ha_ut_rpc_session_ctx  ulc_session_ctx;
+	struct m0_ha_link_conn_cfg       ulc_conn_cfg;
 };
 
 static void ha_ut_link_init(struct ha_ut_link_ctx   *link_ctx,
@@ -54,27 +56,34 @@ static void ha_ut_link_init(struct ha_ut_link_ctx   *link_ctx,
 {
 	int rc;
 
-	m0_ha_ut_rpc_session_ctx_init(&link_ctx->ulc_session_ctx, rpc_ctx);
 	link_ctx->ulc_cfg = (struct m0_ha_link_cfg){
 		.hlc_reqh           = &rpc_ctx->hurc_reqh,
 		.hlc_reqh_service   = hl_service,
-		.hlc_rpc_session    = &link_ctx->ulc_session_ctx.husc_session,
-		.hlc_link_params    = {
+		.hlc_rpc_machine    = &rpc_ctx->hurc_rpc_machine,
+	};
+	link_ctx->ulc_conn_cfg = (struct m0_ha_link_conn_cfg){
+		.hlcc_params             = {
 			.hlp_id_local  = *id_local,
 			.hlp_id_remote = *id_remote,
 			.hlp_tag_even  =  tag_even,
 		},
+		.hlcc_rpc_service_fid    = M0_FID0,
+		.hlcc_max_rpcs_in_flight = M0_HA_UT_MAX_RPCS_IN_FLIGHT,
+		.hlcc_connect_timeout    = M0_TIME_NEVER,
+		.hlcc_disconnect_timeout = M0_TIME_NEVER,
 	};
+	link_ctx->ulc_conn_cfg.hlcc_rpc_endpoint = m0_strdup(
+				m0_rpc_machine_ep(&rpc_ctx->hurc_rpc_machine));
 	rc = m0_ha_link_init(&link_ctx->ulc_link, &link_ctx->ulc_cfg);
 	M0_UT_ASSERT(rc == 0);
-	m0_ha_link_start(&link_ctx->ulc_link);
+	m0_ha_link_start(&link_ctx->ulc_link, &link_ctx->ulc_conn_cfg);
 }
 
 static void ha_ut_link_fini(struct ha_ut_link_ctx *link_ctx)
 {
 	m0_ha_link_stop(&link_ctx->ulc_link);
 	m0_ha_link_fini(&link_ctx->ulc_link);
-	m0_ha_ut_rpc_session_ctx_fini(&link_ctx->ulc_session_ctx);
+	m0_free(link_ctx->ulc_conn_cfg.hlcc_rpc_endpoint);
 }
 
 void m0_ha_ut_link_usecase(void)

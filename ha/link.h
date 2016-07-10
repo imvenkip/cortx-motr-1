@@ -43,10 +43,12 @@
 #include "lib/types.h"          /* bool */
 #include "lib/tlist.h"          /* m0_tlink */
 #include "lib/semaphore.h"      /* m0_semaphore */
+#include "lib/time.h"           /* m0_time_t */
 
+#include "sm/sm.h"              /* m0_sm_ast */
 #include "fop/fom.h"            /* m0_fom */
 #include "fop/fop.h"            /* m0_fop */
-#include "sm/sm.h"              /* m0_sm_ast */
+#include "rpc/link.h"           /* m0_rpc_link */
 
 #include "ha/msg_queue.h"       /* m0_ha_msg_queue */
 #include "ha/link_fops.h"       /* m0_ha_link_params */
@@ -54,24 +56,43 @@
 
 struct m0_reqh;
 struct m0_reqh_service;
+struct m0_rpc_machine;
 struct m0_locality;
 struct m0_ha_link_msg_fop;
 struct m0_ha_msg;
 
+struct m0_ha_link_conn_cfg {
+	struct m0_ha_link_params  hlcc_params;
+	/**
+	 * Process fid of remote endpoint.
+	 * If it's set to M0_FID0 then HA link makes decision about
+	 * connect/disconnect timeouts.
+	 * If it's not M0_FID0 then HA link relies on notifications
+	 * from HA about service failures.
+	 */
+	struct m0_fid             hlcc_rpc_service_fid;
+	/** Remote endpoint. */
+	char                     *hlcc_rpc_endpoint;
+	uint64_t                  hlcc_max_rpcs_in_flight;
+	m0_time_t                 hlcc_connect_timeout;
+	m0_time_t                 hlcc_disconnect_timeout;
+};
+
 struct m0_ha_link_cfg {
 	struct m0_reqh             *hlc_reqh;
 	struct m0_reqh_service     *hlc_reqh_service;
-	struct m0_rpc_session      *hlc_rpc_session;
+	struct m0_rpc_machine      *hlc_rpc_machine;
 	struct m0_ha_msg_queue_cfg  hlc_q_in_cfg;
 	struct m0_ha_msg_queue_cfg  hlc_q_out_cfg;
 	/* TODO rename q_xxx_cfg -> q_cfg_xxx */
 	struct m0_ha_msg_queue_cfg  hlc_q_delivered_cfg;
 	struct m0_ha_msg_queue_cfg  hlc_q_not_delivered_cfg;
-	struct m0_ha_link_params    hlc_link_params;
 };
 
 struct m0_ha_link {
 	struct m0_ha_link_cfg      hln_cfg;
+	struct m0_ha_link_conn_cfg hln_conn_cfg;
+	struct m0_rpc_link         hln_rpc_link;
 	/** ha_link_service::hls_links */
 	struct m0_tlink            hln_service_link;
 	uint64_t                   hln_service_magic;
@@ -89,6 +110,7 @@ struct m0_ha_link {
 	struct m0_fom              hln_fom;
 	struct m0_locality        *hln_fom_locality;
 	bool                       hln_fom_is_stopping;
+	bool                       hln_fom_enable_wakeup;
 	struct m0_semaphore        hln_start_wait;
 	struct m0_semaphore        hln_stop_cond;
 	struct m0_semaphore        hln_stop_wait;
@@ -99,12 +121,15 @@ struct m0_ha_link {
 	struct m0_ha_link_msg_fop *hln_req_fop_data;
 	bool                       hln_replied;
 	bool                       hln_released;
+	struct m0_clink            hln_rpc_wait;
+	bool                       hln_rpc_event_occurred;
 };
 
 M0_INTERNAL int  m0_ha_link_init (struct m0_ha_link     *hl,
 				  struct m0_ha_link_cfg *hl_cfg);
 M0_INTERNAL void m0_ha_link_fini (struct m0_ha_link *hl);
-M0_INTERNAL void m0_ha_link_start(struct m0_ha_link *hl);
+M0_INTERNAL void m0_ha_link_start(struct m0_ha_link          *hl,
+                                  struct m0_ha_link_conn_cfg *hl_conn_cfg);
 M0_INTERNAL void m0_ha_link_stop (struct m0_ha_link *hl);
 
 M0_INTERNAL struct m0_chan *m0_ha_link_chan(struct m0_ha_link *hl);

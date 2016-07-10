@@ -27,6 +27,8 @@
  * TODO handle all errors
  * TODO handle error when link_id_request is false and no link is established
  * TODO add magics for ha_links
+ * TODO take hlcc_rpc_service_fid for incoming connections from HA
+ * TODO deal with locking in ha_link_incoming_find()
  *
  * @{
  */
@@ -45,13 +47,14 @@
 #include "module/instance.h"    /* m0_get */
 #include "module/module.h"      /* m0_module */
 
-#include "rpc/conn.h"           /* m0_rpc_conn */
-#include "rpc/session.h"        /* m0_rpc_session */
-#include "rpc/rpclib.h"         /* m0_rpc_client_connect */
-
 #include "ha/link.h"            /* m0_ha_link */
 #include "ha/link_service.h"    /* m0_ha_link_service_init */
 #include "ha/entrypoint.h"      /* m0_ha_entrypoint_rep */
+
+enum {
+	HA_MAX_RPCS_IN_FLIGHT = 2,
+	HA_DISCONNECT_TIMEOUT = 5,
+};
 
 struct m0_ha_module {
 	struct m0_module hmo_module;
@@ -69,8 +72,6 @@ struct ha_link_ctx {
 	struct m0_tlink        hlx_tlink;
 	uint64_t               hlx_magic;
 	enum ha_link_ctx_type  hlx_type;
-	struct m0_rpc_session  hlx_rpc_session;
-	struct m0_rpc_conn     hlx_rpc_conn;
 	struct m0_semaphore    hlx_disconnect_sem;
 };
 
@@ -105,51 +106,16 @@ static bool ha_link_event_cb(struct m0_clink *clink)
 	return true;
 }
 
-static int ha_link_ctx_init_rpc(struct m0_ha           *ha,
-                                struct ha_link_ctx    **hlx_ptr,
-                                struct m0_rpc_machine  *rpc_machine,
-                                const char             *rpc_endpoint)
+static int ha_link_ctx_init(struct m0_ha               *ha,
+                            struct ha_link_ctx         *hlx,
+                            struct m0_ha_link_cfg      *hl_cfg,
+                            struct m0_ha_link_conn_cfg *hl_conn_cfg,
+                            enum ha_link_ctx_type       hlx_type)
 {
-	struct ha_link_ctx *hlx;
-	int                 rc;
+	struct m0_ha_link *hl = &hlx->hlx_link;
+	int                rc;
 
-	M0_ALLOC_PTR(hlx);
-	M0_ASSERT(hlx != NULL); /* XXX */
-
-	rc = m0_rpc_client_connect(&hlx->hlx_rpc_conn, &hlx->hlx_rpc_session,
-				   rpc_machine, rpc_endpoint, /* XXX */ NULL,
-				   2 /* XXX MAX_RPCS_IN_FLIGHT */,
-				   M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
-
-	*hlx_ptr = hlx;
-	M0_LOG(M0_DEBUG, "hlx=%p", hlx);
-	return M0_RC(0);
-}
-
-static void ha_link_ctx_fini_rpc(struct m0_ha *ha, struct ha_link_ctx *hlx)
-{
-	int rc;
-
-	rc = m0_rpc_session_destroy(&hlx->hlx_rpc_session,
-				    m0_time_from_now(5, 0));
-	if (rc != 0)
-		M0_LOG(M0_WARN, "m0_rpc_session_destroy() failed: rc=%d", rc);
-	rc = m0_rpc_conn_destroy(&hlx->hlx_rpc_conn, m0_time_from_now(5, 0));
-	if (rc != 0)
-		M0_LOG(M0_WARN, "m0_rpc_conn_destroy() failed: rc=%d", rc);
-	m0_free(hlx);
-}
-
-static int ha_link_ctx_init(struct m0_ha          *ha,
-                            struct ha_link_ctx    *hlx,
-                            struct m0_ha_link_cfg *hl_cfg,
-                            enum ha_link_ctx_type  hlx_type)
-{
-	struct m0_ha_link  *hl = &hlx->hlx_link;
-	int                 rc;
-
-	M0_ENTRY("ha=%p hlx_type=%d", ha, hlx_type);
+	M0_ENTRY("ha=%p hlx=%p hlx_type=%d", ha, hlx, hlx_type);
 
 	M0_PRE(M0_IN(hlx_type, (HLX_INCOMING, HLX_OUTGOING)));
 
@@ -157,7 +123,7 @@ static int ha_link_ctx_init(struct m0_ha          *ha,
 	M0_ASSERT(rc == 0);
 	m0_clink_init(&hlx->hlx_clink, &ha_link_event_cb);
 	m0_clink_add_lock(m0_ha_link_chan(hl), &hlx->hlx_clink);
-	m0_ha_link_start(hl);
+	m0_ha_link_start(hl, hl_conn_cfg);
 
 	hlx->hlx_ha   = ha;
 	hlx->hlx_type = hlx_type;
@@ -293,7 +259,7 @@ M0_INTERNAL void m0_ha_stop(struct m0_ha *ha)
 		m0_semaphore_down(&hlx->hlx_disconnect_sem);
 		ha_link_ctx_fini(ha, hlx);
 		ha->h_cfg.hcf_ops.hao_link_disconnected(ha, &hlx->hlx_link);
-		ha_link_ctx_fini_rpc(ha, hlx);
+		m0_free(hlx);
 	} m0_tl_endfor;
 	m0_ha_entrypoint_server_stop(&ha->h_entrypoint_server);
 	m0_ha_link_service_fini(ha->h_hl_service);
@@ -323,16 +289,15 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha)
 	int                          rc;
 	struct m0_ha_link_cfg        hl_cfg;
 	const char                  *ep = ha->h_cfg.hcf_addr;
+	struct m0_ha_link_conn_cfg   hl_conn_cfg;
+	char                        *ep_copy;
 
 	M0_ENTRY("ha=%p ep=%s", ha, ep);
-
-	rc = ha_link_ctx_init_rpc(ha, &hlx, ha->h_cfg.hcf_rpc_machine, ep);
-	M0_ASSERT(rc == 0);
 
 	hl_cfg = (struct m0_ha_link_cfg){
 		.hlc_reqh           = ha->h_cfg.hcf_reqh,
 		.hlc_reqh_service   = ha->h_hl_service,
-		.hlc_rpc_session    = &hlx->hlx_rpc_session,
+		.hlc_rpc_machine    = ha->h_cfg.hcf_rpc_machine,
 		.hlc_q_in_cfg       = {},
 		.hlc_q_out_cfg      = {},
 	};
@@ -344,10 +309,22 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha)
 	m0_chan_wait(&ha->h_clink);
 
 	rep = &ha->h_entrypoint_client.ecl_rep;
-	hl_cfg.hlc_link_params = rep->hae_link_params;
-	rc = ha_link_ctx_init(ha, hlx, &hl_cfg, HLX_OUTGOING);
+	ep_copy = m0_strdup(ep);
+	M0_ASSERT(ep_copy != NULL);     /* XXX */
+	hl_conn_cfg = (struct m0_ha_link_conn_cfg){
+		.hlcc_params             = rep->hae_link_params,
+		.hlcc_rpc_service_fid    = M0_FID0,
+		.hlcc_rpc_endpoint       = ep_copy,
+		.hlcc_max_rpcs_in_flight = HA_MAX_RPCS_IN_FLIGHT,
+		.hlcc_connect_timeout    = M0_TIME_NEVER,
+		.hlcc_disconnect_timeout = M0_MKTIME(HA_DISCONNECT_TIMEOUT, 0),
+	};
+	M0_ALLOC_PTR(hlx);
+	M0_ASSERT(hlx != NULL); /* XXX */
+	rc = ha_link_ctx_init(ha, hlx, &hl_cfg, &hl_conn_cfg, HLX_OUTGOING);
 	M0_ASSERT(rc == 0);
 
+	m0_free(ep_copy);
 	M0_LEAVE();
 	return &hlx->hlx_link;
 }
@@ -360,9 +337,9 @@ M0_INTERNAL void m0_ha_disconnect(struct m0_ha      *ha,
 	hlx = container_of(hl, struct ha_link_ctx, hlx_link);
 	M0_ENTRY("ha=%p hl=%p", ha, hl);
 	ha_link_ctx_fini(ha, hlx);
+	m0_free(hlx);
 	m0_clink_del_lock(&ha->h_clink);
 	m0_ha_entrypoint_client_stop(&ha->h_entrypoint_client);
-	ha_link_ctx_fini_rpc(ha, hlx);
 	M0_LEAVE();
 }
 
@@ -388,9 +365,9 @@ ha_link_incoming_find(struct m0_ha                   *ha,
                       const struct m0_ha_link_params *lp)
 {
 	return m0_tl_find(ha_links, hlx, &ha->h_links_incoming,
-	  m0_uint128_eq(&hlx->hlx_link.hln_cfg.hlc_link_params.hlp_id_local,
+	  m0_uint128_eq(&hlx->hlx_link.hln_conn_cfg.hlcc_params.hlp_id_local,
 	                &lp->hlp_id_remote) &&
-	  m0_uint128_eq(&hlx->hlx_link.hln_cfg.hlc_link_params.hlp_id_remote,
+	  m0_uint128_eq(&hlx->hlx_link.hln_conn_cfg.hlcc_params.hlp_id_remote,
 	                &lp->hlp_id_local));
 }
 
@@ -402,6 +379,7 @@ void m0_ha_entrypoint_reply(struct m0_ha                       *ha,
 	const struct m0_ha_entrypoint_req *req;
 	struct m0_ha_entrypoint_rep        rep_copy = *rep;
 	struct m0_ha_link_cfg              hl_cfg;
+	struct m0_ha_link_conn_cfg         hl_conn_cfg;
 	struct ha_link_ctx                *hlx;
 	int                                rc;
 
@@ -409,27 +387,35 @@ void m0_ha_entrypoint_reply(struct m0_ha                       *ha,
 	req = m0_ha_entrypoint_server_request_find(&ha->h_entrypoint_server,
 	                                           req_id);
 	if (req->heq_link_id_request) {
-		rc = ha_link_ctx_init_rpc(ha, &hlx, ha->h_cfg.hcf_rpc_machine,
-					  req->heq_rpc_endpoint);
-		M0_ASSERT(rc == 0);
 		hl_cfg = (struct m0_ha_link_cfg){
 			.hlc_reqh           = ha->h_cfg.hcf_reqh,
 			.hlc_reqh_service   = ha->h_hl_service,
-			.hlc_rpc_session    = &hlx->hlx_rpc_session,
+			.hlc_rpc_machine    = ha->h_cfg.hcf_rpc_machine,
 			.hlc_q_in_cfg       = {},
 			.hlc_q_out_cfg      = {},
-			.hlc_link_params = {
+		};
+		hl_conn_cfg = (struct m0_ha_link_conn_cfg) {
+			.hlcc_params             = {
 				.hlp_tag_even = true,
 			},
+			.hlcc_rpc_service_fid    = M0_FID0,
+			.hlcc_rpc_endpoint       = req->heq_rpc_endpoint,
+			.hlcc_max_rpcs_in_flight = HA_MAX_RPCS_IN_FLIGHT,
+			.hlcc_connect_timeout    = M0_TIME_NEVER,
+			.hlcc_disconnect_timeout =
+					M0_MKTIME(HA_DISCONNECT_TIMEOUT, 0),
 		};
-		ha_link_id_next(ha, &hl_cfg.hlc_link_params.hlp_id_local);
-		ha_link_id_next(ha, &hl_cfg.hlc_link_params.hlp_id_remote);
+		ha_link_id_next(ha, &hl_conn_cfg.hlcc_params.hlp_id_local);
+		ha_link_id_next(ha, &hl_conn_cfg.hlcc_params.hlp_id_remote);
 		rep_copy.hae_link_params = (struct m0_ha_link_params){
-			.hlp_id_local  =  hl_cfg.hlc_link_params.hlp_id_remote,
-			.hlp_id_remote =  hl_cfg.hlc_link_params.hlp_id_local,
-			.hlp_tag_even  = !hl_cfg.hlc_link_params.hlp_tag_even,
+			.hlp_id_local  =  hl_conn_cfg.hlcc_params.hlp_id_remote,
+			.hlp_id_remote =  hl_conn_cfg.hlcc_params.hlp_id_local,
+			.hlp_tag_even  = !hl_conn_cfg.hlcc_params.hlp_tag_even,
 		};
-		rc = ha_link_ctx_init(ha, hlx, &hl_cfg, HLX_INCOMING);
+		M0_ALLOC_PTR(hlx);
+		M0_ASSERT(hlx != NULL); /* XXX */
+		rc = ha_link_ctx_init(ha, hlx, &hl_cfg, &hl_conn_cfg,
+				      HLX_INCOMING);
 		M0_ASSERT(rc == 0);
 		ha->h_cfg.hcf_ops.hao_link_connected(ha, req_id,
 						     &hlx->hlx_link);

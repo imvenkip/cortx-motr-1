@@ -119,7 +119,7 @@ m0_ha_link_service_find(struct m0_reqh_service  *service,
 		 service, hl_service, U128_P(link_id));
 	m0_rwlock_read_lock(&hl_service->hls_lock);
 	hl = m0_tl_find(ha_link_svc, ha_link, &hl_service->hls_links,
-		m0_uint128_eq(&ha_link->hln_cfg.hlc_link_params.hlp_id_local,
+		m0_uint128_eq(&ha_link->hln_conn_cfg.hlcc_params.hlp_id_local,
 			      link_id));
 	m0_rwlock_read_unlock(&hl_service->hls_lock);
 	M0_LEAVE("hl=%p link_id="U128X_F, hl, U128_P(link_id));
@@ -133,7 +133,7 @@ M0_INTERNAL void m0_ha_link_service_register(struct m0_reqh_service *service,
 
 	M0_ENTRY("service=%p hl=%p hl_service=%p", service, hl, hl_service);
 	M0_PRE(m0_ha_link_service_find(service,
-		       &hl->hln_cfg.hlc_link_params.hlp_id_local) == NULL);
+		       &hl->hln_conn_cfg.hlcc_params.hlp_id_local) == NULL);
 	m0_rwlock_write_lock(&hl_service->hls_lock);
 	ha_link_svc_tlink_init_at_tail(hl, &hl_service->hls_links);
 	m0_rwlock_write_unlock(&hl_service->hls_lock);
@@ -147,7 +147,7 @@ M0_INTERNAL void m0_ha_link_service_deregister(struct m0_reqh_service *service,
 
 	M0_ENTRY("service=%p hl=%p hl_service=%p", service, hl, hl_service);
 	M0_PRE(m0_ha_link_service_find(service,
-		       &hl->hln_cfg.hlc_link_params.hlp_id_local) == hl);
+		       &hl->hln_conn_cfg.hlcc_params.hlp_id_local) == hl);
 	m0_rwlock_write_lock(&hl_service->hls_lock);
 	ha_link_svc_tlink_del_fini(hl);
 	m0_rwlock_write_unlock(&hl_service->hls_lock);

@@ -37,10 +37,6 @@
 #include "rpc/rpclib.h"         /* m0_rpc_client_connect */
 
 
-enum {
-	HA_UT_MAX_RPCS_IN_FLIGHT = 2,
-};
-
 M0_INTERNAL void m0_ha_ut_rpc_ctx_init(struct m0_ha_ut_rpc_ctx *ctx)
 {
 	const m0_bcount_t max_msg_size = 1 << 17;
@@ -91,8 +87,8 @@ m0_ha_ut_rpc_session_ctx_init(struct m0_ha_ut_rpc_session_ctx *sctx,
 
 	rc = m0_rpc_client_connect(&sctx->husc_conn, &sctx->husc_session,
 	                           &ctx->hurc_rpc_machine,
-	                           ctx->hurc_rpc_machine.rm_tm.ntm_ep->nep_addr,
-				   NULL, HA_UT_MAX_RPCS_IN_FLIGHT,
+	                           m0_rpc_machine_ep(&ctx->hurc_rpc_machine),
+				   NULL, M0_HA_UT_MAX_RPCS_IN_FLIGHT,
 				   M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 }

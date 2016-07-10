@@ -36,6 +36,10 @@
 #include "rpc/conn.h"           /* m0_rpc_conn */
 #include "rpc/session.h"        /* m0_rpc_session */
 
+enum {
+	M0_HA_UT_MAX_RPCS_IN_FLIGHT = 2,
+};
+
 struct m0_ha_ut_rpc_ctx {
 	struct m0_net_domain      hurc_net_domain;
 	struct m0_net_buffer_pool hurc_buffer_pool;
