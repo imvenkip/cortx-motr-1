@@ -844,7 +844,7 @@ M0_INTERNAL void m0_ha_entrypoint_mod_fini(void)
 
 static size_t ha_entrypoint_home_locality(const struct m0_fom *fom)
 {
-	return m0_fop_opcode(fom->fo_fop);
+	return 0;
 }
 
 static void ha_entrypoint_fom_fini(struct m0_fom *fom)
