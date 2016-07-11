@@ -93,6 +93,14 @@ static int enclosure_lookup(const struct m0_conf_obj *parent,
 	return M0_RC(conf_dirs_lookup(out, name, dirs, ARRAY_SIZE(dirs)));
 }
 
+static const struct m0_fid **enclosure_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { &M0_CONF_ENCLOSURE_CTRLS_FID,
+					       NULL };
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_ENCLOSURE_TYPE);
+	return rels;
+}
+
 static void enclosure_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_enclosure *x = M0_CONF_CAST(obj, m0_conf_enclosure);
@@ -108,6 +116,7 @@ static const struct m0_conf_obj_ops enclosure_ops = {
 	.coo_match     = enclosure_match,
 	.coo_lookup    = enclosure_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = enclosure_downlinks,
 	.coo_delete    = enclosure_delete,
 };
 
@@ -116,7 +125,7 @@ M0_CONF__CTOR_DEFINE(enclosure_create, m0_conf_enclosure, &enclosure_ops);
 const struct m0_conf_obj_type M0_CONF_ENCLOSURE_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'e',
-		.ft_name = "enclosure"
+		.ft_name = "conf_enclosure"
 	},
 	.cot_create  = &enclosure_create,
 	.cot_xt      = &m0_confx_enclosure_xc,

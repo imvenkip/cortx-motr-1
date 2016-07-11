@@ -360,7 +360,8 @@ static void confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
 	struct m0_conf_obj *nodes_dir;
 	int                 rc;
 
-	rc = m0_confc_init(&confc, &g_grp, confd_addr, rpc_mach, conf_str);
+	rc = m0_confc_init(&confc, &m0_conf_ut_grp, confd_addr, rpc_mach,
+			   conf_str);
 	M0_UT_ASSERT(rc == 0);
 
 	root_open_test(&confc);
@@ -382,13 +383,13 @@ static void test_confc_local(void)
 	char               *confstr = NULL;
 	int                 rc;
 
-	rc = m0_confc_init(&confc, &g_grp, NULL, NULL,
+	rc = m0_confc_init(&confc, &m0_conf_ut_grp, NULL, NULL,
 			   "bad configuration string");
 	M0_UT_ASSERT(rc == -EPROTO);
 
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, confstr);
+	rc = m0_confc_init(&confc, &m0_conf_ut_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
 
 	/* normal case - profile exists in conf */
@@ -421,7 +422,7 @@ static void test_confc_multiword_core_mask(void)
 	rc = m0_file_read(M0_SRC_PATH("conf/ut/multiword-core-mask.xc"),
 			  &confstr);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, confstr);
+	rc = m0_confc_init(&confc, &m0_conf_ut_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_confc_open_sync(&obj, confc.cc_root,
@@ -449,7 +450,7 @@ static void test_confc_net(void)
 		"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 	};
 	struct m0_rpc_server_ctx confd = {
-		.rsx_xprts         = &g_xprt,
+		.rsx_xprts         = &m0_conf_ut_xprt,
 		.rsx_xprts_nr      = 1,
 		.rsx_argv          = argv,
 		.rsx_argc          = ARRAY_SIZE(argv),
@@ -460,7 +461,8 @@ static void test_confc_net(void)
 	rc = m0_rpc_server_start(&confd);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ut_rpc_machine_start(&mach, g_xprt, CLIENT_ENDPOINT_ADDR);
+	rc = m0_ut_rpc_machine_start(&mach, m0_conf_ut_xprt,
+				     CLIENT_ENDPOINT_ADDR);
 	M0_UT_ASSERT(rc == 0);
 
 	confc_test(SERVER_ENDPOINT_ADDR, &mach, NULL);
@@ -477,7 +479,7 @@ static void test_confc_invalid_input(void)
 
 	rc = m0_file_read(M0_SRC_PATH("conf/ut/duplicated-ids.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, confstr);
+	rc = m0_confc_init(&confc, &m0_conf_ut_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == -EEXIST);
 	m0_free(confstr);
 }

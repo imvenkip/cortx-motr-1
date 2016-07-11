@@ -74,7 +74,7 @@ static int node_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	d->xn_last_state = s->cn_last_state;
 	d->xn_flags      = s->cn_flags;
 	if (s->cn_pool != NULL)
-		d->xn_pool_id    = s->cn_pool->pl_obj.co_id;
+		d->xn_pool_id = s->cn_pool->pl_obj.co_id;
 
 	return arrfid_from_dir(&d->xn_processes, s->cn_processes);
 }
@@ -96,14 +96,21 @@ node_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 static int node_lookup(const struct m0_conf_obj *parent,
 		       const struct m0_fid *name, struct m0_conf_obj **out)
 {
+	struct m0_conf_node *node = M0_CONF_CAST(parent, m0_conf_node);
+	const struct conf_dir_relation dirs[] = {
+		{ node->cn_processes, &M0_CONF_NODE_PROCESSES_FID }
+	};
+
 	M0_PRE(parent->co_status == M0_CS_READY);
+	return M0_RC(conf_dirs_lookup(out, name, dirs, ARRAY_SIZE(dirs)));
+}
 
-	if (!m0_fid_eq(name, &M0_CONF_NODE_PROCESSES_FID))
-		return M0_ERR(-ENOENT);
-
-	*out = &M0_CONF_CAST(parent, m0_conf_node)->cn_processes->cd_obj;
-	M0_POST(m0_conf_obj_invariant(*out));
-	return 0;
+static const struct m0_fid **node_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { &M0_CONF_NODE_PROCESSES_FID,
+					       NULL };
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_NODE_TYPE);
+	return rels;
 }
 
 static void node_delete(struct m0_conf_obj *obj)
@@ -121,6 +128,7 @@ static const struct m0_conf_obj_ops node_ops = {
 	.coo_match     = node_match,
 	.coo_lookup    = node_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = node_downlinks,
 	.coo_delete    = node_delete
 };
 
@@ -129,7 +137,7 @@ M0_CONF__CTOR_DEFINE(node_create, m0_conf_node, &node_ops);
 const struct m0_conf_obj_type M0_CONF_NODE_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'n',
-		.ft_name = "node"
+		.ft_name = "conf_node"
 	},
 	.cot_create  = &node_create,
 	.cot_xt      = &m0_confx_node_xc,

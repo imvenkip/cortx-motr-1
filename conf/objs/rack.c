@@ -91,6 +91,13 @@ static int rack_lookup(const struct m0_conf_obj *parent,
 	return M0_RC(conf_dirs_lookup(out, name, dirs, ARRAY_SIZE(dirs)));
 }
 
+static const struct m0_fid **rack_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { &M0_CONF_RACK_ENCLS_FID, NULL };
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_RACK_TYPE);
+	return rels;
+}
+
 static void rack_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_rack *x = M0_CONF_CAST(obj, m0_conf_rack);
@@ -106,6 +113,7 @@ static const struct m0_conf_obj_ops rack_ops = {
 	.coo_match     = rack_match,
 	.coo_lookup    = rack_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = rack_downlinks,
 	.coo_delete    = rack_delete
 };
 
@@ -114,7 +122,7 @@ M0_CONF__CTOR_DEFINE(rack_create, m0_conf_rack, &rack_ops);
 const struct m0_conf_obj_type M0_CONF_RACK_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'a',
-		.ft_name = "rack"
+		.ft_name = "conf_rack"
 	},
 	.cot_create  = &rack_create,
 	.cot_xt      = &m0_confx_rack_xc,

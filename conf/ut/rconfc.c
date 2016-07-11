@@ -80,7 +80,7 @@ static int ut_mero_start(struct m0_rpc_machine    *mach,
 		"-c", M0_UT_PATH("diter.xc"), "-P", M0_UT_CONF_PROFILE
 	};
 	*rctx = (struct m0_rpc_server_ctx) {
-		.rsx_xprts         = &g_xprt,
+		.rsx_xprts         = &m0_conf_ut_xprt,
 		.rsx_xprts_nr      = 1,
 		.rsx_argv          = argv,
 		.rsx_argc          = ARRAY_SIZE(argv),
@@ -92,7 +92,8 @@ static int ut_mero_start(struct m0_rpc_machine    *mach,
 	rc = m0_rpc_server_start(rctx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ut_rpc_machine_start(mach, g_xprt, CLIENT_ENDPOINT_ADDR);
+	rc = m0_ut_rpc_machine_start(mach, m0_conf_ut_xprt,
+				     CLIENT_ENDPOINT_ADDR);
 	M0_UT_ASSERT(rc == 0);
 	ut_reqh = mach->rm_reqh;
 	mach->rm_reqh = &rctx->rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
@@ -148,7 +149,8 @@ static void test_init_fini(void)
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, test_null_exp_cb,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_fini(&rconfc);
 	ut_mero_stop(&mach, &rctx);
@@ -164,7 +166,7 @@ static void test_start_stop(void)
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
@@ -186,7 +188,7 @@ static void test_start_stop_local(void)
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &rconfc.rc_local_conf);
 	M0_UT_ASSERT(rc == 0);
@@ -209,7 +211,7 @@ static void test_start_failures(void)
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_enable_once("rlock_ctx_connect", "rm_conn_failed");
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	/*
@@ -222,7 +224,7 @@ static void test_start_failures(void)
 	m0_rconfc_fini(&rconfc);
 
 	m0_fi_enable_once("rconfc_read_lock_complete", "rlock_req_failed");
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == -ESRCH);
@@ -230,8 +232,8 @@ static void test_start_failures(void)
 	m0_rconfc_fini(&rconfc);
 
 	m0_fi_enable_once("rconfc__cb_quorum_test", "read_ver_failed");
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_no_quorum_exp_cb,
-			    NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach,
+			    test_no_quorum_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == -EPROTO);
@@ -239,7 +241,7 @@ static void test_start_failures(void)
 	m0_rconfc_fini(&rconfc);
 
 	m0_fi_enable_once("rconfc_conductor_iterate", "conductor_conn_fail");
-	rc = m0_rconfc_init(&rconfc,&g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == -ENOENT);
@@ -274,7 +276,7 @@ static void test_no_rms(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* start with rms up and running */
-	rc = m0_rconfc_init(&rconfc,&g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
@@ -284,7 +286,7 @@ static void test_no_rms(void)
 	m0_rconfc_fini(&rconfc);
 
 	/* repeat with no rms around */
-	rc = m0_rconfc_init(&rconfc,&g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == -ECONNREFUSED);
@@ -306,7 +308,7 @@ static void test_reading(void)
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
@@ -353,8 +355,8 @@ static void test_quorum_impossible(void)
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_no_quorum_exp_cb,
-			    NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach,
+			    test_no_quorum_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_clink_init(&clink, quorum_impossible_clink_cb);
 	m0_clink_add_lock(&rconfc.rc_sm.sm_chan, &clink);
@@ -382,7 +384,7 @@ static void test_gops(void)
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
@@ -451,7 +453,7 @@ static void test_version_change(void)
 	m0_semaphore_init(&g_ready_sem, 0);
 
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, conflict_exp_cb,
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, conflict_exp_cb,
 			    conflict_ready_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
@@ -506,7 +508,8 @@ static void test_cache_drop(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_semaphore_init(&g_expired_sem, 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, conflict_exp_cb, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, conflict_exp_cb,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
@@ -546,7 +549,7 @@ static void test_confc_ctx_block(void)
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
@@ -585,7 +588,8 @@ static void test_reconnect_fail(void)
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, test_null_exp_cb, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, test_null_exp_cb,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
@@ -626,7 +630,7 @@ static void test_reconnect_success(void)
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
@@ -708,7 +712,7 @@ M0_UNUSED static void test_ha_notify(void)
 
 	rc = ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &g_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
@@ -725,7 +729,7 @@ M0_UNUSED static void test_ha_notify(void)
 	/* imitate HA note arrived from outside */
 	notify_ast.sa_datum = &hnx;
 	notify_ast.sa_cb = _notify_cb;
-	m0_sm_ast_post(&g_grp, &notify_ast);
+	m0_sm_ast_post(&m0_conf_ut_grp, &notify_ast);
 
 	/* now wait for notification fired ... */
 	m0_semaphore_down(&hnx.sem);
@@ -820,7 +824,7 @@ static void test_drain(void)
 	M0_UT_LOG("\n\n\t@reqh %p", &cctx.rcx_reqh);
 	rconfc = &cctx.rcx_reqh.rh_rconfc;
         M0_SET0(rconfc);
-	rc = m0_rconfc_init(rconfc, &g_grp, &mach, m0_confc_expired_cb,
+	rc = m0_rconfc_init(rconfc, &m0_conf_ut_grp, &mach, m0_confc_expired_cb,
 			    m0_confc_ready_cb);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(rconfc, &profile);

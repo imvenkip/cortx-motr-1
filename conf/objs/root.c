@@ -87,11 +87,19 @@ static int root_lookup(const struct m0_conf_obj *parent,
 {
 	struct m0_conf_root *root = M0_CONF_CAST(parent, m0_conf_root);
 	const struct conf_dir_relation dirs[] = {
-		{ root->rt_profiles, &M0_CONF_ROOT_PROFILES_FID },
+		{ root->rt_profiles, &M0_CONF_ROOT_PROFILES_FID }
 	};
 
 	M0_PRE(parent->co_status == M0_CS_READY);
 	return M0_RC(conf_dirs_lookup(out, name, dirs, ARRAY_SIZE(dirs)));
+}
+
+static const struct m0_fid **root_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { &M0_CONF_ROOT_PROFILES_FID,
+					       NULL };
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_ROOT_TYPE);
+	return rels;
 }
 
 static void root_delete(struct m0_conf_obj *obj)
@@ -109,6 +117,7 @@ static const struct m0_conf_obj_ops root_ops = {
 	.coo_match     = root_match,
 	.coo_lookup    = root_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = root_downlinks,
 	.coo_delete    = root_delete
 };
 
@@ -117,7 +126,7 @@ M0_CONF__CTOR_DEFINE(root_create, m0_conf_root, &root_ops);
 const struct m0_conf_obj_type M0_CONF_ROOT_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 't',
-		.ft_name = "configuration root"
+		.ft_name = "conf_root"
 	},
 	.cot_create  = &root_create,
 	.cot_xt      = &m0_confx_root_xc,

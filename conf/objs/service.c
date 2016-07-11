@@ -96,14 +96,21 @@ service_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 static int service_lookup(const struct m0_conf_obj *parent,
 			  const struct m0_fid *name, struct m0_conf_obj **out)
 {
+	struct m0_conf_service *svc = M0_CONF_CAST(parent, m0_conf_service);
+	const struct conf_dir_relation dirs[] = {
+		{ svc->cs_sdevs, &M0_CONF_SERVICE_SDEVS_FID }
+	};
+
 	M0_PRE(parent->co_status == M0_CS_READY);
+	return M0_RC(conf_dirs_lookup(out, name, dirs, ARRAY_SIZE(dirs)));
+}
 
-	if (!m0_fid_eq(name, &M0_CONF_SERVICE_SDEVS_FID))
-		return M0_ERR(-ENOENT);
-
-	*out = &M0_CONF_CAST(parent, m0_conf_service)->cs_sdevs->cd_obj;
-	M0_POST(m0_conf_obj_invariant(*out));
-	return 0;
+static const struct m0_fid **service_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { &M0_CONF_SERVICE_SDEVS_FID,
+					       NULL };
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE);
+	return rels;
 }
 
 static void service_delete(struct m0_conf_obj *obj)
@@ -122,22 +129,16 @@ static const struct m0_conf_obj_ops service_ops = {
 	.coo_match     = service_match,
 	.coo_lookup    = service_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = service_downlinks,
 	.coo_delete    = service_delete
 };
 
 M0_CONF__CTOR_DEFINE(service_create, m0_conf_service, &service_ops);
 
-static bool service_fid_is_valid(const struct m0_fid *fid)
-{
-	return M0_RC(m0_fid_type_getfid(fid)->ft_id ==
-		     M0_CONF_SERVICE_TYPE.cot_ftype.ft_id);
-}
-
 const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE = {
 	.cot_ftype = {
-		.ft_id       = 's',
-		.ft_name     = "service",
-		.ft_is_valid = service_fid_is_valid
+		.ft_id   = 's',
+		.ft_name = "conf_service"
 	},
 	.cot_create  = &service_create,
 	.cot_xt      = &m0_confx_service_xc,

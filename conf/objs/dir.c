@@ -178,6 +178,7 @@ static const struct m0_conf_obj_ops dir_ops = {
 	.coo_match     = dir_match,
 	.coo_lookup    = dir_lookup,
 	.coo_readdir   = dir_readdir,
+	.coo_downlinks = NULL,
 	.coo_delete    = dir_delete
 };
 

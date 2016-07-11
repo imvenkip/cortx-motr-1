@@ -33,4 +33,5 @@ m0mero_objects += \
                   conf/objs/service.o \
                   conf/onwire_xc.o \
                   conf/preload.o \
-                  conf/rconfc.o
+                  conf/rconfc.o \
+                  conf/walk.o

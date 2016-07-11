@@ -93,34 +93,38 @@ objv_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	       m0_conf_dir_elems_match(obj->cv_children, &xobj->xj_children);
 }
 
-static const struct m0_fid *objv_rel(const struct m0_conf_objv *objv)
-{
-	const struct m0_conf_obj_type *real_type =
-		m0_conf_fid_type(&objv->cv_real->co_id);
-
-	if (real_type == &M0_CONF_RACK_TYPE)
-		return &M0_CONF_RACKV_ENCLVS_FID;
-	if (real_type == &M0_CONF_ENCLOSURE_TYPE)
-		return &M0_CONF_ENCLV_CTRLVS_FID;
-	if (real_type == &M0_CONF_CONTROLLER_TYPE)
-		return &M0_CONF_CTRLV_DISKVS_FID;
-	M0_IMPOSSIBLE("");
-	return NULL;
-}
-
 static int objv_lookup(const struct m0_conf_obj *parent,
 		       const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	struct m0_conf_objv *objv = M0_CONF_CAST(parent, m0_conf_objv);
+	const struct conf_dir_relation dirs[] = {
+		{ objv->cv_children, parent->co_ops->coo_downlinks(parent)[0] }
+	};
+
 	M0_PRE(parent->co_status == M0_CS_READY);
+	return M0_RC(conf_dirs_lookup(out, name, dirs, ARRAY_SIZE(dirs)));
+}
 
-	M0_ASSERT(name != NULL);
-	if (!m0_fid_eq(name, objv_rel(objv)))
-		return M0_ERR(-ENOENT);
+static const struct m0_fid **objv_downlinks(const struct m0_conf_obj *obj)
+{
+	enum { RACK, ENCL, CTRL, DISK };
+	static const struct m0_fid *downlinks[][2] = {
+		[RACK] = { &M0_CONF_RACKV_ENCLVS_FID, NULL },
+		[ENCL] = { &M0_CONF_ENCLV_CTRLVS_FID, NULL },
+		[CTRL] = { &M0_CONF_CTRLV_DISKVS_FID, NULL },
+		[DISK] = { NULL, NULL } /* no downlinks */
+	};
+	const struct m0_conf_obj_type *real =
+		m0_conf_obj_type(M0_CONF_CAST(obj, m0_conf_objv)->cv_real);
 
-	*out = &M0_CONF_CAST(parent, m0_conf_objv)->cv_children->cd_obj;
-	M0_POST(m0_conf_obj_invariant(*out));
-	return 0;
+	if (real == &M0_CONF_RACK_TYPE)
+		return downlinks[RACK];
+	if (real == &M0_CONF_ENCLOSURE_TYPE)
+		return downlinks[ENCL];
+	if (real == &M0_CONF_CONTROLLER_TYPE)
+		return downlinks[CTRL];
+	M0_ASSERT(real == &M0_CONF_DISK_TYPE);
+	return downlinks[DISK];
 }
 
 static void objv_delete(struct m0_conf_obj *obj)
@@ -138,6 +142,7 @@ static const struct m0_conf_obj_ops objv_ops = {
 	.coo_match     = objv_match,
 	.coo_lookup    = objv_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = objv_downlinks,
 	.coo_delete    = objv_delete
 };
 
@@ -146,7 +151,7 @@ M0_CONF__CTOR_DEFINE(objv_create, m0_conf_objv, &objv_ops);
 const struct m0_conf_obj_type M0_CONF_OBJV_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'j',
-		.ft_name = "objv"
+		.ft_name = "conf_objv"
 	},
 	.cot_create  = &objv_create,
 	.cot_xt      = &m0_confx_objv_xc,

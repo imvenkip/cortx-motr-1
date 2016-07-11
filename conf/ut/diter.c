@@ -23,7 +23,7 @@
 
 #include "conf/diter.h"
 #include "conf/obj_ops.h"         /* M0_CONF_DIRNEXT */
-#include "conf/ut/common.h"       /* g_grp */
+#include "conf/ut/common.h"       /* m0_conf_ut_grp */
 #include "conf/ut/rpc_helpers.h"  /* m0_ut_rpc_machine_start */
 #include "rpc/rpclib.h"           /* m0_rpc_server_ctx */
 #include "lib/fs.h"               /* m0_file_read */
@@ -289,7 +289,8 @@ static void conf_diter_test(const char *confd_addr,
 	int                 rc;
 
 	M0_SET0(&confc);
-	rc = m0_confc_init(&confc, &g_grp, confd_addr, rpc_mach, local_conf);
+	rc = m0_confc_init(&confc, &m0_conf_ut_grp, confd_addr, rpc_mach,
+			   local_conf);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,
 				M0_CONF_ROOT_PROFILES_FID, fids[PROF],
@@ -328,7 +329,7 @@ static void test_diter_net(void)
 		"-c", M0_UT_PATH("diter.xc"), "-P", M0_UT_CONF_PROFILE
 	};
 	struct m0_rpc_server_ctx confd = {
-		.rsx_xprts         = &g_xprt,
+		.rsx_xprts         = &m0_conf_ut_xprt,
 		.rsx_xprts_nr      = 1,
 		.rsx_argv          = argv,
 		.rsx_argc          = ARRAY_SIZE(argv),
@@ -340,7 +341,8 @@ static void test_diter_net(void)
 	rc = m0_rpc_server_start(&confd);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ut_rpc_machine_start(&mach, g_xprt, CLIENT_ENDPOINT_ADDR);
+	rc = m0_ut_rpc_machine_start(&mach, m0_conf_ut_xprt,
+				     CLIENT_ENDPOINT_ADDR);
 	M0_UT_ASSERT(rc == 0);
 
 	conf_diter_test(SERVER_ENDPOINT_ADDR, &mach, NULL);
@@ -359,7 +361,7 @@ static void test_diter_invalid_input(void)
 
 	rc = m0_file_read(M0_UT_PATH("diter.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, confstr);
+	rc = m0_confc_init(&confc, &m0_conf_ut_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
 	m0_free0(&confstr);
 	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,

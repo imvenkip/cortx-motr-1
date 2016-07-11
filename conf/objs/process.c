@@ -116,16 +116,21 @@ process_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 static int process_lookup(const struct m0_conf_obj *parent,
 			  const struct m0_fid *name, struct m0_conf_obj **out)
 {
-	const struct m0_conf_process *p = M0_CONF_CAST(parent, m0_conf_process);
+	struct m0_conf_process *proc = M0_CONF_CAST(parent, m0_conf_process);
+	const struct conf_dir_relation dirs[] = {
+		{ proc->pc_services, &M0_CONF_PROCESS_SERVICES_FID }
+	};
 
 	M0_PRE(parent->co_status == M0_CS_READY);
+	return M0_RC(conf_dirs_lookup(out, name, dirs, ARRAY_SIZE(dirs)));
+}
 
-	if (!m0_fid_eq(name, &M0_CONF_PROCESS_SERVICES_FID))
-		return M0_ERR(-ENOENT);
-
-	*out = &p->pc_services->cd_obj;
-	M0_POST(m0_conf_obj_invariant(*out));
-	return 0;
+static const struct m0_fid **process_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { &M0_CONF_PROCESS_SERVICES_FID,
+					       NULL };
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_PROCESS_TYPE);
+	return rels;
 }
 
 static void process_delete(struct m0_conf_obj *obj)
@@ -146,6 +151,7 @@ static const struct m0_conf_obj_ops process_ops = {
 	.coo_match     = process_match,
 	.coo_lookup    = process_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = process_downlinks,
 	.coo_delete    = process_delete
 };
 
@@ -154,7 +160,7 @@ M0_CONF__CTOR_DEFINE(process_create, m0_conf_process, &process_ops);
 const struct m0_conf_obj_type M0_CONF_PROCESS_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'r',
-		.ft_name = "process",
+		.ft_name = "conf_process",
 	},
 	.cot_create  = &process_create,
 	.cot_xt      = &m0_confx_process_xc,

@@ -19,17 +19,13 @@
 
 #include <glob.h>
 #include "conf/validation.h"
-#include "conf/cache.h"
-#include "lib/string.h"    /* m0_streq */
-#include "lib/memory.h"    /* m0_free */
-#include "lib/fs.h"        /* m0_file_read */
+#include "conf/ut/common.h"  /* conf_ut_cache_from_file */
+#include "lib/string.h"      /* m0_streq */
+#include "lib/memory.h"      /* m0_free */
 #include "ut/ut.h"
 
-static char                 g_buf[128];
-static struct m0_conf_cache g_cache;
-static struct m0_mutex      g_cache_lock;
+static char g_buf[128];
 
-static char *sharp_comment(const char *input);
 static void cache_load(struct m0_conf_cache *cache, const char *path,
 		       char **sharp_out);
 
@@ -52,8 +48,9 @@ static void test_validation(void)
 			       "g_buf={%s}",     \
 			       *pathv, (err ?: ""), (expected ?: ""), g_buf)
 
-		cache_load(&g_cache, *pathv, &expected);
-		err = m0_conf_validation_error(&g_cache, g_buf, sizeof g_buf);
+		cache_load(&m0_conf_ut_cache, *pathv, &expected);
+		err = m0_conf_validation_error(&m0_conf_ut_cache,
+					       g_buf, sizeof g_buf);
 		_UT_ASSERT((err == NULL) == (expected == NULL));
 		if (expected != NULL) {
 			/* Strip "[<rule set>.<rule>] " prefix. */
@@ -140,38 +137,18 @@ cache_load(struct m0_conf_cache *cache, const char *path, char **sharp_out)
 
 	M0_PRE(path != NULL && *path != '\0');
 
+	conf_ut_cache_from_file(cache, path);
 	rc = m0_file_read(path, &confstr);
 	M0_UT_ASSERT(rc == 0);
-
-	m0_conf_cache_lock(cache);
-	m0_conf_cache_clean(&g_cache, NULL); /* start from scratch */
-	rc = m0_conf_cache_from_string(cache, confstr);
-	M0_UT_ASSERT(rc == 0);
-	m0_conf_cache_unlock(cache);
-
 	if (sharp_out != NULL)
 		*sharp_out = sharp_comment(confstr);
 	m0_free(confstr);
 }
 
-static int conf_validation_ut_init(void)
-{
-	m0_mutex_init(&g_cache_lock);
-	m0_conf_cache_init(&g_cache, &g_cache_lock);
-	return 0;
-}
-
-static int conf_validation_ut_fini(void)
-{
-	m0_conf_cache_fini(&g_cache);
-	m0_mutex_fini(&g_cache_lock);
-	return 0;
-}
-
 struct m0_ut_suite conf_validation_ut = {
 	.ts_name  = "conf-validation-ut",
-	.ts_init  = conf_validation_ut_init,
-	.ts_fini  = conf_validation_ut_fini,
+	.ts_init  = conf_ut_cache_init,
+	.ts_fini  = conf_ut_cache_fini,
 	.ts_tests = {
 		{ "sharp-comment", test_sharp_comment },
 		{ "validation",    test_validation },

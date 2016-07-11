@@ -20,22 +20,18 @@
 #include "conf/glob.h"
 #include "conf/cache.h"    /* m0_conf_cache_from_string */
 #include "conf/obj.h"      /* m0_conf_service */
-#include "lib/fs.h"        /* m0_file_read */
+#include "conf/ut/common.h"
 #include "lib/memory.h"    /* m0_free */
 #include "lib/errno.h"     /* ENOENT */
 #include "lib/string.h"    /* m0_streq */
-#include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
 
-static struct m0_conf_cache g_cache;
-static struct m0_mutex      g_cache_lock;
 static struct err_entry {
 	int                  ee_errno;
 	const struct m0_fid *ee_objid;
 	const struct m0_fid *ee_elem;
 } g_err_accum[8];
 
-static void cache_load(struct m0_conf_cache *cache, const char *path);
 static int errfunc(int errcode, const struct m0_conf_obj *obj,
 		   const struct m0_fid *path);
 
@@ -44,12 +40,13 @@ static void test_conf_glob(void)
 	struct m0_conf_glob       glob;
 	const struct m0_conf_obj *objv[16];
 	int                       rc;
+	struct m0_conf_cache     *cache = &m0_conf_ut_cache;
 
-	m0_conf_cache_lock(&g_cache);
+	m0_conf_cache_lock(cache);
 	/*
 	 * origin == NULL
 	 */
-	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, &g_cache, NULL,
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
 			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROFILE_FILESYSTEM_FID,
 			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
@@ -66,7 +63,7 @@ static void test_conf_glob(void)
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL,
 			  /* `cache' may be omitted if `origin' is provided */
 			  NULL,
-			  m0_conf_cache_lookup(&g_cache, /* pool-4 */
+			  m0_conf_cache_lookup(cache, /* pool-4 */
 					       &M0_FID_TINIT('o', 1, 4)),
 			  M0_CONF_POOL_PVERS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PVER_RACKVS_FID, M0_CONF_ANY_FID,
@@ -80,7 +77,7 @@ static void test_conf_glob(void)
 	/*
 	 * the longest path possible
 	 */
-	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, &g_cache, NULL,
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
 			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROFILE_FILESYSTEM_FID,
 			  M0_CONF_FILESYSTEM_POOLS_FID, M0_CONF_ANY_FID,
@@ -94,7 +91,7 @@ static void test_conf_glob(void)
 	/* check the types of returned objects */
 	m0_forall(i, rc, M0_CONF_CAST(objv[i], m0_conf_objv));
 
-	m0_conf_cache_unlock(&g_cache);
+	m0_conf_cache_unlock(cache);
 }
 
 static void test_conf_glob_errors(void)
@@ -106,6 +103,7 @@ static void test_conf_glob_errors(void)
 	const char               *err;
 	uint32_t                  i;
 	int                       rc;
+	struct m0_conf_cache     *cache = &m0_conf_ut_cache;
 	const struct m0_fid       bad_fs = M0_FID_TINIT('f', 0x99, 0x99);
 	const struct m0_fid       profile = M0_FID_TINIT('p', 1, 0);
 	const struct m0_fid       missing[] = {
@@ -117,11 +115,11 @@ static void test_conf_glob_errors(void)
 		M0_FID_TINIT('n', 1, 48)
 	};
 
-	m0_conf_cache_lock(&g_cache);
+	m0_conf_cache_lock(cache);
 	/*
 	 * -ENOENT
 	 */
-	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, errfunc, &g_cache, NULL,
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, errfunc, cache, NULL,
 			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID, bad_fs);
 	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
 	M0_UT_ASSERT(rc == -ENOENT);
@@ -133,24 +131,24 @@ static void test_conf_glob_errors(void)
 	/*
 	 * -EPERM, ->coo_lookup()
 	 */
-	m0_conf_cache_lookup(&g_cache, &profile)->co_status = M0_CS_LOADING;
-	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, errfunc, &g_cache, NULL,
+	m0_conf_cache_lookup(cache, &profile)->co_status = M0_CS_LOADING;
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, errfunc, cache, NULL,
 			  M0_CONF_ROOT_PROFILES_FID, profile);
 	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
 	M0_UT_ASSERT(rc == -EPERM);
 	err = m0_conf_glob_error(&glob, errbuf, sizeof errbuf);
 	M0_UT_ASSERT(m0_streq(err, "Conf object is not ready:"
 			      " <7000000000000001:0>"));
-	m0_conf_cache_lookup(&g_cache, &profile)->co_status = M0_CS_READY;
+	m0_conf_cache_lookup(cache, &profile)->co_status = M0_CS_READY;
 	M0_SET0(&g_err_accum[0]);
 
 	/*
 	 * -EPERM, conf_dir items
 	 */
 	for (i = 0; i < ARRAY_SIZE(missing); ++i)
-		m0_conf_cache_lookup(&g_cache, &missing[i])->co_status =
+		m0_conf_cache_lookup(cache, &missing[i])->co_status =
 			M0_CS_MISSING;
-	m0_conf_glob_init(&glob, 0, errfunc, &g_cache, NULL,
+	m0_conf_glob_init(&glob, 0, errfunc, cache, NULL,
 			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROFILE_FILESYSTEM_FID,
 			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
@@ -169,12 +167,12 @@ static void test_conf_glob_errors(void)
 		M0_UT_ASSERT(e->ee_elem == NULL);
 		M0_SET0(e); /* clear g_err_accum[] slot */
 		/* restore status */
-		m0_conf_cache_lookup(&g_cache, &missing[i])->co_status =
+		m0_conf_cache_lookup(cache, &missing[i])->co_status =
 			M0_CS_READY;
 	}
 	M0_UT_ASSERT(g_err_accum[i].ee_errno == 0);
 
-	m0_conf_cache_unlock(&g_cache);
+	m0_conf_cache_unlock(cache);
 }
 
 static int
@@ -195,43 +193,17 @@ errfunc(int errcode, const struct m0_conf_obj *obj, const struct m0_fid *path)
 	return 0; /* do not abort the execution */
 }
 
-static void cache_load(struct m0_conf_cache *cache, const char *path)
-{
-	char *confstr = NULL;
-	int   rc;
-
-	M0_PRE(path != NULL && *path != '\0');
-
-	rc = m0_file_read(path, &confstr);
-	M0_UT_ASSERT(rc == 0);
-
-	m0_conf_cache_lock(cache);
-	rc = m0_conf_cache_from_string(cache, confstr);
-	M0_UT_ASSERT(rc == 0);
-	m0_conf_cache_unlock(cache);
-
-	m0_free(confstr);
-}
-
 static int conf_glob_ut_init(void)
 {
-	m0_mutex_init(&g_cache_lock);
-	m0_conf_cache_init(&g_cache, &g_cache_lock);
-	cache_load(&g_cache, M0_UT_PATH("conf.xc"));
-	return 0;
-}
-
-static int conf_glob_ut_fini(void)
-{
-	m0_conf_cache_fini(&g_cache);
-	m0_mutex_fini(&g_cache_lock);
+	(void)conf_ut_cache_init();
+	conf_ut_cache_from_file(&m0_conf_ut_cache, M0_UT_PATH("conf.xc"));
 	return 0;
 }
 
 struct m0_ut_suite conf_glob_ut = {
 	.ts_name  = "conf-glob-ut",
 	.ts_init  = conf_glob_ut_init,
-	.ts_fini  = conf_glob_ut_fini,
+	.ts_fini  = conf_ut_cache_fini,
 	.ts_tests = {
 		{ "glob",        test_conf_glob },
 		{ "glob-errors", test_conf_glob_errors },

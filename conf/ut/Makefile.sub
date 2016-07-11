@@ -11,7 +11,8 @@ ut_libmero_ut_la_SOURCES += \
     conf/ut/rpc_helpers.c   \
     conf/ut/rpc_helpers.h   \
     conf/ut/rconfc.c        \
-    conf/ut/validation.c
+    conf/ut/validation.c    \
+    conf/ut/walk.c
 
 CONFXC_FILES += \
     conf/ut/duplicated-ids.xc \

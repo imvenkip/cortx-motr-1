@@ -207,14 +207,21 @@ pool_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 static int pool_lookup(const struct m0_conf_obj *parent,
 		       const struct m0_fid *name, struct m0_conf_obj **out)
 {
+	struct m0_conf_pool *pool = M0_CONF_CAST(parent, m0_conf_pool);
+	const struct conf_dir_relation dirs[] = {
+		{ pool->pl_pvers, &M0_CONF_POOL_PVERS_FID }
+	};
+
 	M0_PRE(parent->co_status == M0_CS_READY);
+	return M0_RC(conf_dirs_lookup(out, name, dirs, ARRAY_SIZE(dirs)));
+}
 
-	if (!m0_fid_eq(name, &M0_CONF_POOL_PVERS_FID))
-		return M0_ERR(-ENOENT);
-
-	*out = &M0_CONF_CAST(parent, m0_conf_pool)->pl_pvers->cd_obj;
-	M0_POST(m0_conf_obj_invariant(*out));
-	return 0;
+static const struct m0_fid **pool_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { &M0_CONF_POOL_PVERS_FID,
+					       NULL };
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_POOL_TYPE);
+	return rels;
 }
 
 static void pool_delete(struct m0_conf_obj *obj)
@@ -232,6 +239,7 @@ static const struct m0_conf_obj_ops pool_ops = {
 	.coo_match     = pool_match,
 	.coo_lookup    = pool_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = pool_downlinks,
 	.coo_delete    = pool_delete
 };
 
@@ -240,7 +248,7 @@ M0_CONF__CTOR_DEFINE(pool_create, m0_conf_pool, &pool_ops);
 const struct m0_conf_obj_type M0_CONF_POOL_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'o',
-		.ft_name = "pool"
+		.ft_name = "conf_pool"
 	},
 	.cot_create  = &pool_create,
 	.cot_xt      = &m0_confx_pool_xc,

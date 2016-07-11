@@ -426,11 +426,11 @@ static void test_pv2fd_conv(void)
 #ifndef __KERNEL__
 	rc = m0_file_read(M0_SRC_PATH("fd/ut/failure-domains.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, confstr);
+	rc = m0_confc_init(&confc, &m0_conf_ut_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
 	m0_free0(&confstr);
 #else
-	rc = m0_confc_init(&confc, &g_grp, NULL, NULL, local_conf_str);
+	rc = m0_confc_init(&confc, &m0_conf_ut_grp, NULL, NULL, local_conf_str);
 	M0_UT_ASSERT(rc == 0);
 #endif
 	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,

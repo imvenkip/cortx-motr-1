@@ -81,11 +81,11 @@ M0_INTERNAL int
 arrfid_from_dir(struct m0_fid_arr *dest, const struct m0_conf_dir *dir)
 {
 	struct m0_conf_obj *obj;
-	size_t              i;
+	struct m0_fid      *fid;
 
-	dest->af_elems = NULL;
-	dest->af_count = m0_conf_dir_len(dir);
-
+	*dest = (struct m0_fid_arr){
+		.af_count = m0_conf_dir_len(dir)
+	};
 	if (dest->af_count == 0)
 		return 0;
 
@@ -93,11 +93,10 @@ arrfid_from_dir(struct m0_fid_arr *dest, const struct m0_conf_dir *dir)
 	if (dest->af_elems == NULL)
 		return M0_ERR(-ENOMEM);
 
-	i = 0;
+	fid = dest->af_elems;
 	m0_tl_for (m0_conf_dir, &dir->cd_items, obj) {
-		dest->af_elems[i++] = obj->co_id;
+		*fid++ = obj->co_id;
 	} m0_tl_endfor;
-
 	return 0;
 }
 

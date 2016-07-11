@@ -120,7 +120,15 @@ static int pver_lookup(const struct m0_conf_obj *parent,
 
 	*out = &M0_CONF_CAST(parent, m0_conf_pver)->pv_rackvs->cd_obj;
 	M0_POST(m0_conf_obj_invariant(*out));
-	return 0;
+	return M0_RC(0);
+}
+
+static const struct m0_fid **pver_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { &M0_CONF_PVER_RACKVS_FID,
+					       NULL };
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE);
+	return rels;
 }
 
 static void pver_delete(struct m0_conf_obj *obj)
@@ -139,22 +147,16 @@ static const struct m0_conf_obj_ops pver_ops = {
 	.coo_match     = pver_match,
 	.coo_lookup    = pver_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = pver_downlinks,
 	.coo_delete    = pver_delete
 };
 
 M0_CONF__CTOR_DEFINE(pver_create, m0_conf_pver, &pver_ops);
 
-static bool pver_fid_is_valid(const struct m0_fid *fid)
-{
-	return M0_RC(m0_fid_type_getfid(fid)->ft_id ==
-		     M0_CONF_PVER_TYPE.cot_ftype.ft_id);
-}
-
 const struct m0_conf_obj_type M0_CONF_PVER_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'v',
-		.ft_name = "pver",
-		.ft_is_valid = pver_fid_is_valid
+		.ft_name = "conf_pver"
 	},
 	.cot_create  = &pver_create,
 	.cot_xt      = &m0_confx_pver_xc,

@@ -145,6 +145,16 @@ static int filesystem_lookup(const struct m0_conf_obj *parent,
 	return M0_RC(conf_dirs_lookup(out, name, dirs, ARRAY_SIZE(dirs)));
 }
 
+static const struct m0_fid **filesystem_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { &M0_CONF_FILESYSTEM_NODES_FID,
+					       &M0_CONF_FILESYSTEM_RACKS_FID,
+					       &M0_CONF_FILESYSTEM_POOLS_FID,
+					       NULL };
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_FILESYSTEM_TYPE);
+	return rels;
+}
+
 static void filesystem_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_filesystem *x = M0_CONF_CAST(obj, m0_conf_filesystem);
@@ -161,6 +171,7 @@ static const struct m0_conf_obj_ops filesystem_ops = {
 	.coo_match     = filesystem_match,
 	.coo_lookup    = filesystem_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = filesystem_downlinks,
 	.coo_delete    = filesystem_delete
 };
 
@@ -183,7 +194,7 @@ static struct m0_conf_obj *filesystem_create(void)
 const struct m0_conf_obj_type M0_CONF_FILESYSTEM_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'f',
-		.ft_name = "configuration file-system"
+		.ft_name = "conf_filesystem"
 	},
 	.cot_create  = &filesystem_create,
 	.cot_xt      = &m0_confx_filesystem_xc,

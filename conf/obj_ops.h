@@ -140,6 +140,16 @@ struct m0_conf_obj_ops {
 			   struct m0_conf_obj **pptr);
 
 	/**
+	 * Returns NULL-terminated array of the downlink fids of this
+	 * conf object.
+	 *
+	 * Downlink fid can be passed as `name' parameter to ->coo_lookup().
+	 *
+	 * @note .coo_downlinks == NULL in the case of m0_conf_dir only.
+	 */
+	const struct m0_fid **(*coo_downlinks)(const struct m0_conf_obj *obj);
+
+	/**
 	 * Finalises concrete fields of given configuration object and
 	 * frees it.
 	 *

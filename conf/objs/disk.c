@@ -92,6 +92,13 @@ static int disk_lookup(const struct m0_conf_obj *parent,
 	return 0;
 }
 
+static const struct m0_fid **disk_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { NULL }; /* no downlinks */
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE);
+	return rels;
+}
+
 static void disk_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_disk *x = M0_CONF_CAST(obj, m0_conf_disk);
@@ -108,6 +115,7 @@ static const struct m0_conf_obj_ops disk_ops = {
 	.coo_match     = disk_match,
 	.coo_lookup    = disk_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = disk_downlinks,
 	.coo_delete    = disk_delete
 };
 
@@ -116,7 +124,7 @@ M0_CONF__CTOR_DEFINE(disk_create, m0_conf_disk, &disk_ops);
 const struct m0_conf_obj_type M0_CONF_DISK_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'k',
-		.ft_name = "storage disk"
+		.ft_name = "conf_disk"
 	},
 	.cot_create  = &disk_create,
 	.cot_xt      = &m0_confx_disk_xc,

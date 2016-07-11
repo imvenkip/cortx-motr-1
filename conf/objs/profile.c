@@ -89,6 +89,14 @@ static int profile_lookup(const struct m0_conf_obj *parent,
 	return 0;
 }
 
+static const struct m0_fid **profile_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { &M0_CONF_PROFILE_FILESYSTEM_FID,
+					       NULL };
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_PROFILE_TYPE);
+	return rels;
+}
+
 static void profile_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_profile *x = M0_CONF_CAST(obj, m0_conf_profile);
@@ -104,6 +112,7 @@ static const struct m0_conf_obj_ops profile_ops = {
 	.coo_match     = profile_match,
 	.coo_lookup    = profile_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = profile_downlinks,
 	.coo_delete    = profile_delete
 };
 
@@ -112,7 +121,7 @@ M0_CONF__CTOR_DEFINE(profile_create, m0_conf_profile, &profile_ops);
 const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'p',
-		.ft_name = "configuration profile"
+		.ft_name = "conf_profile"
 	},
 	.cot_create  = &profile_create,
 	.cot_xt      = &m0_confx_profile_xc,

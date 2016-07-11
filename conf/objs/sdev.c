@@ -103,6 +103,13 @@ static int sdev_lookup(const struct m0_conf_obj *parent,
 	return M0_ERR(-ENOSYS);
 }
 
+static const struct m0_fid **sdev_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { NULL }; /* no downlinks */
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE);
+	return rels;
+}
+
 static void sdev_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_sdev *x = M0_CONF_CAST(obj, m0_conf_sdev);
@@ -119,6 +126,7 @@ static const struct m0_conf_obj_ops sdev_ops = {
 	.coo_match     = sdev_match,
 	.coo_lookup    = sdev_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = sdev_downlinks,
 	.coo_delete    = sdev_delete
 };
 
@@ -127,7 +135,7 @@ M0_CONF__CTOR_DEFINE(sdev_create, m0_conf_sdev, &sdev_ops);
 const struct m0_conf_obj_type M0_CONF_SDEV_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'd',
-		.ft_name = "storage device"
+		.ft_name = "conf_sdev"
 	},
 	.cot_create  = &sdev_create,
 	.cot_xt      = &m0_confx_sdev_xc,

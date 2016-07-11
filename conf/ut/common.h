@@ -22,28 +22,21 @@
 #define __MERO_CONF_UT_COMMON_H__
 
 #include "conf/confc.h"
-#include "conf/rconfc.h"    /* m0_rconfc */
-#include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
+#include "lib/fs.h"      /* m0_file_read */
+#include "ut/misc.h"     /* M0_UT_PATH */
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 
+extern struct m0_conf_cache m0_conf_ut_cache;
+extern struct m0_sm_group   m0_conf_ut_grp;
+extern struct m0_net_xprt  *m0_conf_ut_xprt;
+
 struct conf_ut_waiter {
 	struct m0_confc_ctx w_ctx;
 	struct m0_clink     w_clink;
 };
-
-struct conf_ut_ast {
-	bool             run;
-	struct m0_thread thread;
-};
-
-M0_INTERNAL void conf_ut_ast_thread(int _ M0_UNUSED);
-
-M0_INTERNAL int conf_ut_ast_thread_init(void);
-
-M0_INTERNAL int conf_ut_ast_thread_fini(void);
 
 M0_INTERNAL void conf_ut_waiter_init(struct conf_ut_waiter *w,
 				     struct m0_confc *confc);
@@ -51,7 +44,15 @@ M0_INTERNAL void conf_ut_waiter_fini(struct conf_ut_waiter *w);
 M0_INTERNAL int conf_ut_waiter_wait(struct conf_ut_waiter *w,
 				    struct m0_conf_obj **result);
 
-extern struct m0_sm_group  g_grp;
-extern struct m0_net_xprt *g_xprt;
+M0_INTERNAL int conf_ut_ast_thread_init(void);
+M0_INTERNAL int conf_ut_ast_thread_fini(void);
+
+M0_INTERNAL int conf_ut_cache_init(void);
+M0_INTERNAL int conf_ut_cache_fini(void);
+
+#ifndef __KERNEL__
+M0_INTERNAL void conf_ut_cache_from_file(struct m0_conf_cache *cache,
+					 const char *path);
+#endif
 
 #endif /* __MERO_CONF_UT_COMMON_H__ */

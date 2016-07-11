@@ -106,6 +106,14 @@ static int controller_lookup(const struct m0_conf_obj *parent,
 	return M0_RC(conf_dirs_lookup(out, name, dirs, ARRAY_SIZE(dirs)));
 }
 
+static const struct m0_fid **controller_downlinks(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { &M0_CONF_CONTROLLER_DISKS_FID,
+					       NULL };
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE);
+	return rels;
+}
+
 static void controller_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_controller *x = M0_CONF_CAST(obj, m0_conf_controller);
@@ -121,6 +129,7 @@ static const struct m0_conf_obj_ops controller_ops = {
 	.coo_match     = controller_match,
 	.coo_lookup    = controller_lookup,
 	.coo_readdir   = NULL,
+	.coo_downlinks = controller_downlinks,
 	.coo_delete    = controller_delete
 };
 
@@ -129,7 +138,7 @@ M0_CONF__CTOR_DEFINE(controller_create, m0_conf_controller, &controller_ops);
 const struct m0_conf_obj_type M0_CONF_CONTROLLER_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'c',
-		.ft_name = "controller"
+		.ft_name = "conf_controller"
 	},
 	.cot_create  = &controller_create,
 	.cot_xt      = &m0_confx_controller_xc,
