@@ -42,30 +42,44 @@
  *
  * @param 'N' length of alphabet 'A' ordered elements.
  * @param 'K' lenght of combination.
+ *
+ * @pre  0 < K <= N
+ * @pre  m0_forall(i, K, x[i] < N)
  */
 M0_INTERNAL int m0_combination_index(int N, int K, int *x);
 
 /**
  * Returns the combination array 'x' for a given combination index.
  *
- * @param N is length of ordered elements.
- * @param K is length of combination.
- * @param index index of combination 'x'
+ * @param cid     Combination index.
+ * @param N       Length of alphabet (total number of elements).
+ * @param K       Length of combination (# of elements in the combination).
+ * @param[out] x  Indices of elements, represented by the combination.
+ *
+ * @note  Output array 'x' is provided by user. Its capacity must not be
+ *        less than K elements.
+ *
+ * @pre  0 < K <= N
  */
-M0_INTERNAL void m0_index_combination(int N, int K, int index, int *x);
+M0_INTERNAL void m0_combination_inverse(int cid, int N, int K, int *x);
 
 /**
- * Returns factorial of n.
+ * Factorial of n.
  */
 M0_INTERNAL uint64_t m0_fact(uint64_t n);
 
 /**
- * Returns n choose r.
+ * The number of possible combinations that can be obtained by taking
+ * a sub-set of `r' items from a larger set of `n' elements.
+ *
+ * @pre  n >= r
+ *
+ * @see http://www.calculatorsoup.com/calculators/discretemathematics/combinations.php
  */
 M0_INTERNAL uint32_t m0_ncr(uint64_t n, uint64_t r);
 
 /** @} end of comb group */
-#endif
+#endif /* __MERO_LIB_COMBINATIONS_H__ */
 
 /*
  *  Local variables:

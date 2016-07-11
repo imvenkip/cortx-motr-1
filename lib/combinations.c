@@ -39,6 +39,8 @@ M0_INTERNAL uint32_t m0_ncr(uint64_t n, uint64_t r)
 	uint64_t i;
 	uint64_t m = n;
 
+	M0_PRE(n >= r);
+
 	if (r == 0)
 		return 1;
 	for (i = 1; i < r; i++)
@@ -55,6 +57,8 @@ M0_INTERNAL int m0_combination_index(int N, int K, int *x)
 	int idx = 0;
 
 	M0_ENTRY("N:%d K=%d", N, K);
+	M0_PRE(0 < K && K <= N);
+	M0_PRE(m0_forall(i, K, x[i] < N));
 
 	for (q = 0; q < x[0]; q++) {
 		n = N - (q + 1);
@@ -71,8 +75,7 @@ M0_INTERNAL int m0_combination_index(int N, int K, int *x)
 	return M0_RC(idx);
 }
 
-
-M0_INTERNAL void m0_index_combination(int N, int K, int index, int *x)
+M0_INTERNAL void m0_combination_inverse(int cid, int N, int K, int *x)
 {
 	int m;
 	int q;
@@ -83,9 +86,10 @@ M0_INTERNAL void m0_index_combination(int N, int K, int index, int *x)
 	int i = 0;
 	int j;
 
-	M0_ENTRY("N:%d K=%d index:%d \n", N, K, index);
+	M0_ENTRY("N:%d K=%d cid:%d \n", N, K, cid);
+	M0_PRE(0 < K && K <= N);
 
-	for (q = 0; idx < index + 1; q++) {
+	for (q = 0; idx < cid + 1; q++) {
 		old_idx = idx;
 		n = N - (q + 1);
 		r = K - 1;
@@ -95,13 +99,13 @@ M0_INTERNAL void m0_index_combination(int N, int K, int index, int *x)
 	x[i++] = q - 1;
 
 	for (m = 1; m < K; m++) {
-		for (q = 0; idx < index + 1; q++) {
+		for (q = 0; idx < cid + 1; q++) {
 			old_idx = idx;
 			n = N - (x[i - 1] + 1) - (q + 1);
 			r = K - m - 1;
 			idx += m0_ncr(n, r);
 		}
-		if (idx >= index + 1)
+		if (idx >= cid + 1)
 			idx = old_idx;
 		x[i] = x[i - 1] + q;
 		i++;

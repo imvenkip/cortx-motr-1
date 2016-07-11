@@ -25,28 +25,29 @@
 
 void test_combinations(void)
 {
-	int A[] = {0,1,2,3,4,5,6};
-	int X[] = {2,4,6};
-	int comb[] = {0,0,0};
+	enum { NR_COMBINATIONS = 35 };
+	int A[] = { 0, 1, 2, 3, 4, 5, 6 };
+	int X[] = { 2, 4, 6 };
+	int comb[] = { 0, 0, 0 };
 	int N = ARRAY_SIZE(A);
 	int K = ARRAY_SIZE(X);
-	int idx;
+	int cid;
 	int i;
 
 	M0_UT_ASSERT(m0_fact(K) == 6);
 	M0_UT_ASSERT(m0_fact(N) / (m0_fact(K) * m0_fact(N - K)) ==
 		     m0_ncr(N, K));
 
-	idx = m0_combination_index(N, K, X);
-	M0_UT_ASSERT(idx == 29);
-	m0_index_combination(N, K, idx, comb);
-	for (i = 0; i < K; i++)
-		M0_UT_ASSERT(X[i] == comb[i]);
+	cid = m0_combination_index(N, K, X);
+	M0_UT_ASSERT(cid == 29);
+	m0_combination_inverse(cid, N, K, comb);
+	M0_UT_ASSERT(m0_forall(j, K, X[j] == comb[j]));
 
-	for (i = 0; i < 35; i++) {
-		m0_index_combination(N, K, i, comb);
-		idx = m0_combination_index(N, K, comb);
-		M0_UT_ASSERT(idx == i);
+	M0_UT_ASSERT(m0_ncr(N, K) == NR_COMBINATIONS);
+	for (i = 0; i < NR_COMBINATIONS; i++) {
+		m0_combination_inverse(i, N, K, comb);
+		cid = m0_combination_index(N, K, comb);
+		M0_UT_ASSERT(cid == i);
 	}
 }
 M0_EXPORTED(test_combinations);
