@@ -960,7 +960,11 @@ static void target_ioreq_test(void)
 	rc = io_request_init(&req, &lfile, iovec_arr, ivec, IRT_WRITE);
 	M0_UT_ASSERT(rc == 0);
 
+	m0_fi_enable_random("m0_alloc", "fail_allocation", 5);
 	rc = ioreq_iomaps_prepare(&req);
+	m0_fi_disable("m0_alloc", "fail_allocation");
+	if (rc == -ENOMEM)
+		rc = ioreq_iomaps_prepare(&req);
 	M0_UT_ASSERT(rc == 0);
 	map = req.ir_iomaps[0];
 

@@ -1810,12 +1810,12 @@ fail:
 
 	if (map->pi_databufs != NULL) {
 		for (row = 0; row < data_row_nr(play); ++row)
-			m0_free0(&map->pi_databufs[row]);
+			m0_free(map->pi_databufs[row]);
 		m0_free(map->pi_databufs);
 	}
 	if (map->pi_paritybufs != NULL) {
 		for (row = 0; row < parity_row_nr(play); ++row)
-			m0_free0(&map->pi_paritybufs[row]);
+			m0_free(map->pi_paritybufs[row]);
 		m0_free(map->pi_paritybufs);
 	}
 	return M0_ERR_INFO(-ENOMEM, "[%p] Memory allocation failed", req);
@@ -1920,7 +1920,6 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	struct inode		 *inode;
 	struct m0_ivec_cursor	  cur;
 	struct m0_pdclust_layout *play;
-	struct data_buf            *dbuf;
 	struct io_request	 *req = map->pi_ioreq;
 
 	M0_ENTRY("[%p] map %p", map->pi_ioreq, map);
@@ -1970,11 +1969,11 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 		M0_LOG(M0_DEBUG, "[%p] alloc start %8llu count %4llu pgid "
 			 "%3llu row %u col %u f 0x%x addr %p",
 			 req, start, count, map->pi_grpid, row, col, flags,
-			 map->pi_databufs[row][col]->db_buf.b_addr);
+			 map->pi_databufs[row][col] != NULL ?
+			 map->pi_databufs[row][col]->db_buf.b_addr : NULL);
 		if (rc != 0)
 			goto err;
 		map->pi_databufs[row][col]->db_flags = flags;
-		dbuf = map->pi_databufs[row][col];
 	}
 
 	return M0_RC(0);
@@ -2501,19 +2500,16 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 			     parity_units_page_nr(play);
 
 		if (rr_page_nr < ro_page_nr) {
-			M0_LOG(M0_INFO, "[%p] Read-rest approach selected",
-			       req);
+			M0_LOG(M0_DEBUG, "[%p] RR approach selected", req);
 			map->pi_rtype = PIR_READREST;
 			rc = map->pi_ops->pi_readrest(map);
-			if (rc != 0)
-				return M0_ERR_INFO(rc, "[%p] readrest failed",
-						   req);
 		} else {
-			M0_LOG(M0_INFO, "[%p] Read-old approach selected",
-			       req);
+			M0_LOG(M0_DEBUG, "[%p] RO approach selected", req);
 			map->pi_rtype = PIR_READOLD;
 			rc = map->pi_ops->pi_readold_auxbuf_alloc(map);
 		}
+		if (rc != 0)
+			return M0_ERR_INFO(rc, "[%p] failed", req);
 	}
 
 	/* For READ in verify mode or WRITE */
@@ -3158,8 +3154,10 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 		rc = pargrp_iomap_init(req->ir_iomaps[map], req,
 				       group_id(m0_ivec_cursor_index(&cursor),
 						data_size(play)));
-		if (rc != 0)
+		if (rc != 0) {
+			m0_free0(&req->ir_iomaps[map]);
 			goto failed;
+		}
 
 		/* @cursor is advanced in the following function */
 		rc = req->ir_iomaps[map]->pi_ops->pi_populate(req->
@@ -3172,7 +3170,9 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 
 	return M0_RC(0);
 failed:
-	req->ir_ops->iro_iomaps_destroy(req);
+	if (req->ir_iomaps != NULL)
+		req->ir_ops->iro_iomaps_destroy(req);
+
 	return M0_ERR_INFO(rc, "[%p] iomaps_prepare failed", req);
 }
 
@@ -3188,7 +3188,7 @@ static void ioreq_iomaps_destroy(struct io_request *req)
 	for (id = 0; id < req->ir_iomap_nr; ++id) {
 		if (req->ir_iomaps[id] != NULL) {
 			pargrp_iomap_fini(req->ir_iomaps[id]);
-			m0_free0(&req->ir_iomaps[id]);
+			m0_free(req->ir_iomaps[id]);
 			++iommstats.d_pargrp_iomap_nr;
 		}
 	}

@@ -268,7 +268,6 @@ M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec, uint32_t len);
  * Also sets the array count to zero.
  * If ivec->iv_index == NULL - does nothing.
  * @pre  ivec != NULL.
- * @pre  ergo(ivec->iv_index != NULL, ivec->iv_vec.v_nr > 0).
  * @post ivec->iv_index == NULL && ivec->iv_vec.v_count == NULL &&
  *       ivec->iv_vec.v_nr == 0.
  */
