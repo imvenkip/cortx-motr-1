@@ -60,13 +60,6 @@ M0_INTERNAL bool m0_conf_cache_is_locked(const struct m0_conf_cache *cache)
 	return m0_mutex_is_locked(cache->ca_lock);
 }
 
-
-M0_INTERNAL bool m0_conf_cache_invariant(const struct m0_conf_cache *cache)
-{
-	return m0_conf_cache_tlist_invariant(&cache->ca_registry) &&
-	       cache->ca_lock != NULL;
-}
-
 M0_INTERNAL void
 m0_conf_cache_init(struct m0_conf_cache *cache, struct m0_mutex *lock)
 {
@@ -75,6 +68,7 @@ m0_conf_cache_init(struct m0_conf_cache *cache, struct m0_mutex *lock)
 	m0_conf_cache_tlist_init(&cache->ca_registry);
 	cache->ca_lock = lock;
 	cache->ca_ver  = 0;
+	cache->ca_fid_counter = 0;
 
 	M0_LEAVE();
 }
@@ -105,6 +99,8 @@ m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 
 static void _obj_del(struct m0_conf_obj *obj)
 {
+	M0_ENTRY(FID_F, FID_P(&obj->co_id));
+
 	m0_conf_cache_tlist_del(obj);
 	m0_conf_obj_delete(obj);
 }
@@ -121,19 +117,51 @@ m0_conf_cache_del(const struct m0_conf_cache *cache, struct m0_conf_obj *obj)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_conf_cache_clean(struct m0_conf_cache *cache,
-				     const struct m0_conf_obj_type *type)
+static void conf_cache_clean(struct m0_conf_cache *cache,
+			     const struct m0_conf_obj_type *type,
+			     bool gc)
 {
 	struct m0_conf_obj *obj;
 
 	M0_ENTRY();
 	M0_PRE(m0_conf_cache_is_locked(cache));
 
-	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
-		if (type == NULL || m0_conf_obj_type(obj) == type)
-			_obj_del(obj);
-	} m0_tl_endfor;
+	if (type == NULL)
+		/*
+		 * m0_conf_dirs are intermixed with other objects in
+		 * cache->ca_registry.  m0_conf_obj_delete() of a non-dir
+		 * object will fail if this object is still linked to some
+		 * dir --- there is m0_conf_dir_tlink_fini() in
+		 * m0_conf_obj_delete(), and m0_tlink_fini() asserts
+		 * that the entry does not belong any list.
+		 *
+		 * Delete dir objects first.
+		 */
+		conf_cache_clean(cache, &M0_CONF_DIR_TYPE, gc);
 
+	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		M0_ASSERT(gc || !obj->co_deleted);
+		if (type == NULL || m0_conf_obj_type(obj) == type) {
+			if (gc && !obj->co_deleted)
+				continue;
+			_obj_del(obj);
+		}
+	} m0_tl_endfor;
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_conf_cache_clean(struct m0_conf_cache *cache,
+				     const struct m0_conf_obj_type *type)
+{
+	M0_ENTRY();
+	conf_cache_clean(cache, type, false);
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_conf_cache_gc(struct m0_conf_cache *cache)
+{
+	M0_ENTRY();
+	conf_cache_clean(cache, NULL, true);
 	M0_LEAVE();
 }
 

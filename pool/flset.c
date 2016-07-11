@@ -33,6 +33,7 @@
 #include "conf/obj_ops.h" /* m0_conf_obj_get_lock */
 #include "conf/diter.h"
 #include "conf/helpers.h" /* m0_conf_ha_state_update, m0_conf_pvers */
+#include "conf/pvers.h"   /* m0_conf_pver_level */
 #include "pool/flset.h"
 #include "reqh/reqh.h"    /* m0_reqh, m0_reqh_invariant */
 
@@ -81,37 +82,18 @@ static void flset_diter_fini(struct m0_conf_diter *it)
 	m0_conf_diter_fini(it);
 }
 
-M0_INTERNAL bool m0_flset_pver_has_failed_dev(struct m0_flset     *flset,
-					      struct m0_conf_pver *pver)
+static void pver_recd_update(struct m0_conf_obj *obj)
 {
-	struct m0_conf_pver **pvers;
-	struct m0_conf_obj   *obj;
-	int                   i;
+	unsigned              level = m0_conf_pver_level(obj);
+	struct m0_conf_pver **pvers = m0_conf_pvers(obj);
 
-	m0_tl_for(m0_flset, &flset->fls_objs, obj) {
-		pvers = m0_conf_pvers(obj);
-		for (i = 0; pvers[i] != NULL; ++i) {
-			if (m0_fid_eq(&pver->pv_obj.co_id,
-				      &pvers[i]->pv_obj.co_id))
-				return true;
-		}
-	} m0_tlist_endfor;
-	return false;
-}
-
-static void pver_failed_devs_count_update(struct m0_conf_obj *obj)
-{
-	struct m0_conf_pver **pvers;
-	int                   i;
-
-	pvers = m0_conf_pvers(obj);
-
-	if (obj->co_ha_state == M0_NC_ONLINE)
-		for (i = 0; pvers[i] != NULL; ++i)
-			M0_CNT_DEC(pvers[i]->pv_nfailed);
-	else if (M0_IN(obj->co_ha_state, (M0_NC_TRANSIENT, M0_NC_FAILED)))
-		for (i = 0; pvers[i] != NULL; ++i)
-			M0_CNT_INC(pvers[i]->pv_nfailed);
+	if (obj->co_ha_state == M0_NC_ONLINE) {
+		for (; *pvers != NULL; ++pvers)
+			M0_CNT_DEC((*pvers)->pv_u.subtree.pvs_recd[level]);
+	} else if (M0_IN(obj->co_ha_state, (M0_NC_TRANSIENT, M0_NC_FAILED))) {
+		for (; *pvers != NULL; ++pvers)
+			M0_CNT_INC((*pvers)->pv_u.subtree.pvs_recd[level]);
+	}
 }
 
 static void
@@ -120,12 +102,11 @@ flset_update(struct m0_flset *flset, struct m0_conf_obj *obj)
 	if (obj->co_ha_state == M0_NC_ONLINE &&
 	    m0_flset_tlist_contains(&flset->fls_objs, obj)) {
 		m0_flset_tlist_del(obj);
-		pver_failed_devs_count_update(obj);
-	} else if ((obj->co_ha_state == M0_NC_FAILED ||
-		    obj->co_ha_state == M0_NC_TRANSIENT) &&
+		pver_recd_update(obj);
+	} else if (M0_IN(obj->co_ha_state, (M0_NC_TRANSIENT, M0_NC_FAILED)) &&
 		   !m0_flset_tlist_contains(&flset->fls_objs, obj)) {
 		m0_flset_tlist_add_tail(&flset->fls_objs, obj);
-		pver_failed_devs_count_update(obj);
+		pver_recd_update(obj);
 	}
 }
 

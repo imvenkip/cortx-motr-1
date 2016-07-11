@@ -1128,9 +1128,9 @@ static bool process_event_handler(struct m0_clink *clink)
 	struct m0_conf_process     *process;
 
 	M0_ENTRY();
-	M0_PRE(m0_conf_fid_type(&obj->co_id) == &M0_CONF_PROCESS_TYPE);
-	process = M0_CONF_CAST(obj, m0_conf_process);
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_PROCESS_TYPE);
 
+	process = M0_CONF_CAST(obj, m0_conf_process);
 	reqh_service_ctx_sm_lock(ctx);
 	if (!reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_CONNECT)) {
 		/* Ignore notifications for offline services. */
@@ -1196,12 +1196,12 @@ static bool service_event_handler(struct m0_clink *clink)
 	bool                        result = true;
 
 	M0_ENTRY();
-	M0_PRE(m0_conf_fid_type(&obj->co_id) == &M0_CONF_SERVICE_TYPE);
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE);
+
 	service = M0_CONF_CAST(obj, m0_conf_service);
 	M0_PRE(ctx == m0_pools_common_service_ctx_find(reqh->rh_pools,
 						       &obj->co_id,
 						       service->cs_type));
-
 	reqh_service_ctx_sm_lock(ctx);
 	if (!reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_CONNECT)) {
 		/* Ignore notifications for offline services. */

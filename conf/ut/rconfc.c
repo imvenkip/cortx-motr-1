@@ -24,7 +24,6 @@
 #define M0_UT_TRACE 0
 
 #include <unistd.h>                    /* usleep */
-
 #include "conf/rconfc.h"
 #include "conf/rconfc_internal.h"      /* rlock_ctx */
 #include "conf/confd.h"                /* m0_confd_stype */
@@ -32,9 +31,7 @@
 #include "conf/ut/confc.h"             /* m0_ut_conf_fids */
 #include "conf/ut/rpc_helpers.h"       /* m0_ut_rpc_machine_start */
 #include "rpc/rpclib.h"                /* m0_rpc_server_ctx */
-#include "lib/fs.h"                    /* m0_file_read */
 #include "lib/finject.h"
-#include "ut/misc.h"                   /* M0_UT_PATH */
 #include "ut/ut.h"
 
 static struct m0_semaphore   g_expired_sem;

@@ -468,7 +468,7 @@ static bool proxy_clink_cb(struct m0_clink *clink)
 						   struct m0_conf_obj,
 						   co_ha_chan);
 
-	M0_PRE(m0_conf_fid_type(&svc_obj->co_id) == &M0_CONF_SERVICE_TYPE);
+	M0_PRE(m0_conf_obj_type(svc_obj) == &M0_CONF_SERVICE_TYPE);
 
 	if (M0_IN(svc_obj->co_ha_state, (M0_NC_FAILED, M0_NC_TRANSIENT))) {
 		m0_mutex_lock(&pxy->px_mutex);

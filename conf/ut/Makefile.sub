@@ -8,6 +8,7 @@ ut_libmero_ut_la_SOURCES += \
     conf/ut/db.c            \
     conf/ut/glob.c          \
     conf/ut/load.c          \
+    conf/ut/pvers.c         \
     conf/ut/rpc_helpers.c   \
     conf/ut/rpc_helpers.h   \
     conf/ut/rconfc.c        \
@@ -17,6 +18,7 @@ ut_libmero_ut_la_SOURCES += \
 CONFXC_FILES += \
     conf/ut/duplicated-ids.xc \
     conf/ut/multiword-core-mask.xc \
+    conf/ut/pvers.xc \
     conf/ut/t_bad-ep-process.xc \
     conf/ut/t_bad-ep-service.xc \
     conf/ut/t_dangling.xc \

@@ -41,8 +41,7 @@
  *
  *         M0_PRE(m0_conf_cache_is_locked(fs->cf_obj.co_cache));
  *
- *         m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, errfunc, NULL,
- *                           &fs->cf_obj,
+ *         m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &fs->cf_obj,
  *                           //
  *                           // "nodes/@/processes/@/services/@"
  *                           // (mentally substitute '@' with '*')
@@ -59,12 +58,6 @@
  * }
  * @endcode
  *
- * @note  It is assumed that the configuration cache is not modified
- *        while a m0_conf_glob instance is being used.  It is user's
- *        responsibility to ensure that this assumption holds. This can
- *        be achieved by locking the configuration cache before
- *        m0_conf_glob_init() and unlocking it after m0_conf_glob() calls
- *        are made.
  * @{
  */
 
@@ -88,17 +81,15 @@ struct m0_conf_glob {
 	int                         cg_flags;
 
 	/**
-	 * The function to call in case of a conf DAG traversal error.
+	 * If set, this function will be called in case of traversal error.
 	 *
-	 * If .cg_errfunc() returns nonzero, or if M0_CONF_GLOB_ERR is set
+	 * If .cg_errfunc() returns nonzero, or M0_CONF_GLOB_ERR is set
 	 * in .cg_flags, m0_conf_glob() will terminate after the call
 	 * to .cg_errfunc().
 	 *
-	 * The value can be NULL.
-	 *
 	 * A traversal error occurs when the path cannot be went through.
-	 * This may happen due to a path component referring to nonexistent
-	 * object (-ENOENT), or upon reaching a stub object (-EPERM).
+	 * This may happen if some path component refers to nonexistent
+	 * object (-ENOENT), or a stub object is reached (-EPERM).
 	 *
 	 * @see m0_conf_glob_error()
 	 */
@@ -108,7 +99,7 @@ struct m0_conf_glob {
 	const struct m0_conf_obj   *cg_errobj;
 	const struct m0_fid        *cg_errpath;
 
-	/** Configuration cache. */
+	/* XXX TODO: Drop this field and use .cg_origin->co_cache. */
 	const struct m0_conf_cache *cg_cache;
 
 	/** Configuration object to start traversal from. */
@@ -122,7 +113,7 @@ struct m0_conf_glob {
 	 */
 	struct m0_fid               cg_path[M0_CONF_PATH_MAX + 1];
 
-	/** Route used by m0_conf_glob() to get where it is. */
+	/** Route from .cg_origin to where m0_conf_glob() currently is. */
 	const struct m0_conf_obj   *cg_trace[M0_CONF_PATH_MAX + 1];
 
 	/** Current position in .cg_path[] and .cg_trace[]. */
@@ -131,7 +122,8 @@ struct m0_conf_glob {
 	/** Whether next conf_glob_step() should move away from the root. */
 	bool                        cg_down_p;
 #ifdef DEBUG
-	bool                        cg_debug;
+	/** Whether to M0_LOG() steps of DAG traversal. */
+	bool                        cg_debug_print;
 #endif
 };
 
@@ -161,7 +153,7 @@ M0_INTERNAL void m0_conf__glob_init(struct m0_conf_glob *glob,
  * addresses of path target objects in `objv' array.
  *
  * @param glob  Conf DAG traversal context.
- * @param nr    Capacity of the output array.
+ * @param nr    Output array capacity.
  * @param objv  Output array.
  *
  * @returns

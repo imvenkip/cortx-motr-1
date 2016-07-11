@@ -44,6 +44,7 @@ enum {
 	SPIEL_UT_OBJ_FILESYSTEM,
 	SPIEL_UT_OBJ_POOL,
 	SPIEL_UT_OBJ_PVER,
+	SPIEL_UT_OBJ_PVER_F,
 	SPIEL_UT_OBJ_NODE,
 	SPIEL_UT_OBJ_NODE2,
 	SPIEL_UT_OBJ_PROCESS,
@@ -96,6 +97,7 @@ static struct m0_fid spiel_obj_fid[] = {
 	[SPIEL_UT_OBJ_FILESYSTEM]   = M0_FID_TINIT('f', 1, 1 ),
 	[SPIEL_UT_OBJ_POOL]         = M0_FID_TINIT('o', 4, 4 ),
 	[SPIEL_UT_OBJ_PVER]         = M0_FID_TINIT('v', 5, 5 ),
+	[SPIEL_UT_OBJ_PVER_F]       = M0_FID_TINIT('v', 6, 6 ),
 	[SPIEL_UT_OBJ_NODE]         = M0_FID_TINIT('n', 1, 2 ),
 	[SPIEL_UT_OBJ_NODE2]        = M0_FID_TINIT('n', 1, 48),
 	[SPIEL_UT_OBJ_PROCESS]      = M0_FID_TINIT('r', 1, 5 ),
@@ -192,6 +194,9 @@ static void spiel_conf_ut_init(void)
 	m0_rconfc_exp_cb_set(rconfc, &m0_confc_expired_cb);
 	m0_rconfc_ready_cb_set(rconfc, &m0_confc_ready_cb);
 	m0_rconfc_unlock(rconfc);
+	/** @todo Use fid convert function to set kind. */
+	spiel_obj_fid[SPIEL_UT_OBJ_PVER_F].f_container |=
+		(uint64_t)1 << (64 - 10);
 }
 
 static void spiel_conf_ut_fini(void)
@@ -217,7 +222,8 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 	const char                   *fs_param[] = { "11111", "22222", NULL };
 	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
 	struct m0_spiel_service_info  service_info = {.svi_endpoints=ep};
-	uint32_t                      nr_failures[] = {0, 0, 0, 0, 1};
+	uint32_t                      tolerance[] = {0, 0, 0, 0, 1};
+	uint32_t                      allowance[] = {0, 0, 0, 0, 1};
 	struct m0_bitmap              bitmap;
 
 	m0_bitmap_init(&bitmap, 32);
@@ -344,12 +350,18 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 			       &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER2]);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_pool_version_add(tx,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
-				       nr_failures,
-				       ARRAY_SIZE(nr_failures),
-				       &pdclust_attr);
+	rc = m0_spiel_pver_actual_add(tx,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				      &pdclust_attr,
+				      tolerance, ARRAY_SIZE(tolerance));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_spiel_pver_formulaic_add(tx,
+				         &spiel_obj_fid[SPIEL_UT_OBJ_PVER_F],
+				         &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				         1,
+				         &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				         allowance, ARRAY_SIZE(allowance));
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_rack_v_add(tx,
@@ -567,7 +579,7 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 	const char                   *fs_param[] = { "11111", "22222", NULL };
 	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
 	struct m0_spiel_service_info  service_info = {.svi_endpoints=ep};
-	uint32_t                      nr_failures[] = {0, 0, 0, 0, 1};
+	uint32_t                      tolerance[] = {0, 0, 0, 0, 1};
 	struct m0_bitmap              bitmap;
 
 	m0_bitmap_init(&bitmap, 32);
@@ -624,12 +636,11 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 			       &spiel_obj_fid[SPIEL_UT_OBJ_CONTROLLER]);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_pool_version_add(tx,
-				       FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_PVER], 9),
-				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
-				       nr_failures,
-				       ARRAY_SIZE(nr_failures),
-				       &pdclust_attr);
+	rc = m0_spiel_pver_actual_add(tx,
+				      FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_PVER], 9),
+				      &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				      &pdclust_attr,
+				      tolerance, ARRAY_SIZE(tolerance));
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_rack_v_add(tx,
@@ -714,6 +725,11 @@ static void spiel_conf_pver_check(struct m0_spiel_tx *tx)
 	M0_UT_ASSERT(controller->cc_pvers[0] == pver);
 	M0_UT_ASSERT(controller->cc_pvers[1] == NULL);
 
+	obj = m0_conf_cache_lookup(&tx->spt_cache,
+				   &spiel_obj_fid[SPIEL_UT_OBJ_PVER_F]);
+	pver = M0_CONF_CAST(obj, m0_conf_pver);
+	M0_UT_ASSERT(pver != NULL);
+
 	m0_mutex_unlock(&tx->spt_lock);
 }
 
@@ -724,6 +740,10 @@ static void spiel_conf_pver_delete_check(struct m0_spiel_tx *tx)
 	m0_mutex_lock(&tx->spt_lock);
 	obj = m0_conf_cache_lookup(&tx->spt_cache,
 				   &spiel_obj_fid[SPIEL_UT_OBJ_PVER]);
+	M0_UT_ASSERT(obj == NULL);
+
+	obj = m0_conf_cache_lookup(&tx->spt_cache,
+				   &spiel_obj_fid[SPIEL_UT_OBJ_PVER_F]);
 	M0_UT_ASSERT(obj == NULL);
 
 	obj = m0_conf_cache_lookup(&tx->spt_cache,
@@ -748,47 +768,85 @@ static void spiel_conf_create_pver_tree(struct m0_spiel_tx *tx)
 	struct m0_pdclust_attr pdclust_attr = { .pa_N=1, .pa_K=1, .pa_P=3};
 	struct m0_pdclust_attr pdclust_attr_invalid = { .pa_N=1, .pa_K=2,
 							.pa_P=3};
-	uint32_t               nr_failures[] = {0, 0, 0, 0, 1};
+	uint32_t               tolerance[] = {0, 0, 0, 0, 1};
+	uint32_t               allowance[] = {0, 0, 0, 0, 1};
 
-	/* Pool version */
-	rc = m0_spiel_pool_version_add(tx,
-				       &fake_fid,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
-				       nr_failures,
-				       ARRAY_SIZE(nr_failures),
-				       &pdclust_attr);
+	/* Actual Pool version */
+	rc = m0_spiel_pver_actual_add(tx,
+				      &fake_fid,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				      &pdclust_attr,
+				      tolerance, ARRAY_SIZE(tolerance));
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	rc = m0_spiel_pool_version_add(tx,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				       &fake_fid,
-				       nr_failures,
-				       ARRAY_SIZE(nr_failures),
-				       &pdclust_attr);
+	rc = m0_spiel_pver_actual_add(tx,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				      &fake_fid,
+				      &pdclust_attr,
+				      tolerance, ARRAY_SIZE(tolerance));
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	rc = m0_spiel_pool_version_add(tx,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
-				       NULL,
-				       0,
-				       &pdclust_attr);
+	rc = m0_spiel_pver_actual_add(tx,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				      &pdclust_attr,
+				      NULL,
+				      0);
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	rc = m0_spiel_pool_version_add(tx,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
-				       nr_failures,
-				       ARRAY_SIZE(nr_failures),
-				       &pdclust_attr_invalid);
+	rc = m0_spiel_pver_actual_add(tx,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				      &pdclust_attr_invalid,
+				      tolerance, ARRAY_SIZE(tolerance));
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	rc = m0_spiel_pool_version_add(tx,
-				       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
-				       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
-				       nr_failures,
-				       ARRAY_SIZE(nr_failures),
-				       &pdclust_attr);
+	rc = m0_spiel_pver_actual_add(tx,
+				      &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				      &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				      &pdclust_attr,
+				      tolerance, ARRAY_SIZE(tolerance));
+	M0_UT_ASSERT(rc == 0);
+
+	/* Formulaic pool version */
+	rc = m0_spiel_pver_formulaic_add(tx,
+				         &fake_fid,
+				         &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				         1,
+				         &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				         allowance, ARRAY_SIZE(allowance));
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pver_formulaic_add(tx,
+					 &spiel_obj_fid[SPIEL_UT_OBJ_PVER_F],
+					 &fake_fid,
+				         1,
+				         &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				         allowance, ARRAY_SIZE(allowance));
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pver_formulaic_add(tx,
+				         &spiel_obj_fid[SPIEL_UT_OBJ_PVER_F],
+				         &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				         1,
+				         &fake_fid,
+				         allowance, ARRAY_SIZE(allowance));
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pver_formulaic_add(tx,
+				         &spiel_obj_fid[SPIEL_UT_OBJ_PVER_F],
+				         &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				         1,
+				         &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				         NULL, 0);
+	M0_UT_ASSERT(rc == -EINVAL);
+
+	rc = m0_spiel_pver_formulaic_add(tx,
+				         &spiel_obj_fid[SPIEL_UT_OBJ_PVER_F],
+				         &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
+				         1,
+				         &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
+				         allowance, ARRAY_SIZE(allowance));
 	M0_UT_ASSERT(rc == 0);
 
 	/* Rack version */
@@ -1123,6 +1181,9 @@ static void spiel_conf_create_fail(void)
 	rc = m0_spiel_pool_version_done(&tx, &spiel_obj_fid[SPIEL_UT_OBJ_PVER]);
 	m0_fi_disable("spiel_pver_add", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
+
+	m0_spiel_element_del(&tx, &spiel_obj_fid[SPIEL_UT_OBJ_PVER_F]);
+
 	spiel_conf_pver_delete_check(&tx);
 
 	/* Pver done OK */
@@ -1519,7 +1580,7 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	struct m0_fid                 fid_disk_v1     =M0_FID_TINIT(0x6a,1,21 );
 	struct m0_fid                 fid_disk_v2     =M0_FID_TINIT(0x6a,1,22 );
 	struct m0_fid                 fid_disk_v3     =M0_FID_TINIT(0x6a,1,23 );
-	uint32_t                      nr_failures[] = {0, 0, 0, 0, 1};
+	uint32_t                      tolerance[] = {0, 0, 0, 0, 1};
 	struct m0_bitmap              bitmap;
 
 	m0_bitmap_init(&bitmap, 32);
@@ -1560,8 +1621,8 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	rc = m0_spiel_disk_add(tx, &fid_disk3, &fid_controller);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_pool_version_add(tx, &fid_pver, &fid_pool, nr_failures,
-				       ARRAY_SIZE(nr_failures), &pdclust_attr);
+	rc = m0_spiel_pver_actual_add(tx, &fid_pver, &fid_pool, &pdclust_attr,
+				      tolerance, ARRAY_SIZE(tolerance));
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_rack_v_add(tx, &fid_rack_v, &fid_pver, &fid_rack);
@@ -1797,7 +1858,7 @@ static void spiel_conf_check_fail(void)
 	rc = m0_spiel_tx_commit(&tx);
 	M0_UT_ASSERT(rc == -ENOENT);
 
-	obj->co_parent = m0_conf_obj_create(cache, &fake_fid);
+	obj->co_parent = m0_conf_obj_create(&fake_fid, cache);
 	rc = m0_spiel_tx_commit(&tx);
 	M0_UT_ASSERT(rc == -ENOENT);
 

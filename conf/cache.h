@@ -21,13 +21,13 @@
 #ifndef __MERO_CONF_CACHE_H__
 #define __MERO_CONF_CACHE_H__
 
-#include "lib/tlist.h"  /* m0_tl, M0_TL_DESCR_DECLARE */
 #include "conf/obj.h"
+#include "lib/tlist.h"  /* M0_TL_DESCR_DECLARE */
 
 struct m0_mutex;
-struct m0_confx;
 
 M0_TL_DESCR_DECLARE(m0_conf_cache, extern);
+M0_TL_DECLARE(m0_conf_cache, M0_INTERNAL, struct m0_conf_obj);
 
 /**
  * @page conf-fspec-cache Configuration Cache
@@ -101,15 +101,13 @@ struct m0_conf_cache {
 
 	/** Configuration version number. */
 	uint64_t         ca_ver;
+
+	/**
+	 * Running counter, used by conf_objv_virtual_fid() to generate
+	 * fids of newly created m0_conf_objv objects.
+	 */
+	uint64_t         ca_fid_counter;
 };
-
-M0_INTERNAL bool m0_conf_cache_invariant(const struct m0_conf_cache *cache);
-
-M0_TL_DECLARE(m0_conf_cache, M0_INTERNAL, struct m0_conf_obj);
-
-M0_INTERNAL void m0_conf_cache_lock(struct m0_conf_cache *cache);
-M0_INTERNAL void m0_conf_cache_unlock(struct m0_conf_cache *cache);
-M0_INTERNAL bool m0_conf_cache_is_locked(const struct m0_conf_cache *cache);
 
 /** Initialises configuration cache. */
 M0_INTERNAL void m0_conf_cache_init(struct m0_conf_cache *cache,
@@ -121,6 +119,10 @@ M0_INTERNAL void m0_conf_cache_init(struct m0_conf_cache *cache,
  * m0_conf_obj_delete()s every registered configuration object.
  */
 M0_INTERNAL void m0_conf_cache_fini(struct m0_conf_cache *cache);
+
+M0_INTERNAL void m0_conf_cache_lock(struct m0_conf_cache *cache);
+M0_INTERNAL void m0_conf_cache_unlock(struct m0_conf_cache *cache);
+M0_INTERNAL bool m0_conf_cache_is_locked(const struct m0_conf_cache *cache);
 
 /**
  * Deletes registered objects of specific type or, if `type' is NULL,
@@ -135,6 +137,13 @@ M0_INTERNAL void m0_conf_cache_fini(struct m0_conf_cache *cache);
  */
 M0_INTERNAL void m0_conf_cache_clean(struct m0_conf_cache *cache,
 				     const struct m0_conf_obj_type *type);
+
+/**
+ * Deletes registered objects with m0_conf_cache::co_deleted flag set.
+ *
+ * @pre  m0_conf_cache_is_locked(cache)
+ */
+M0_INTERNAL void m0_conf_cache_gc(struct m0_conf_cache *cache);
 
 /**
  * Adds configuration object to the cache.

@@ -335,8 +335,7 @@
 (disk-211 dev=sdev-118 pvers=[pver-123])
 (disk-212 dev=sdev-119 pvers=[pver-123])
 (pool-3 order=0 pvers=[pver-123])
-(pver-123 ver=0 N=8 K=2 P=80 nr_failures=[0, 0, 1, 1, 2]
-    rackvs=[objv-213, objv-214])
+(pver-123 N=8 K=2 P=80 tolerance=[0, 0, 1, 1, 2] rackvs=[objv-213, objv-214])
 (objv-213 real=rack-12 children=[objv-215, objv-216, objv-217])
 (objv-215 real=enclosure-120 children=[objv-218, objv-219])
 (objv-218 real=controller-124

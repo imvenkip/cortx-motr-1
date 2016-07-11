@@ -19,6 +19,7 @@ nobase_mero_include_HEADERS += \
                                conf/obj_ops.h \
                                conf/onwire.h \
                                conf/preload.h \
+                               conf/pvers.h \
                                conf/rconfc.h \
                                conf/schema.h \
                                conf/validation.h \
@@ -48,6 +49,7 @@ mero_libmero_la_SOURCES += \
                            conf/obj_ops.c \
                            conf/onwire_xc.c \
                            conf/preload.c \
+                           conf/pvers.c \
                            conf/rconfc.c \
                            conf/rconfc_internal.h \
                            conf/validation.c \

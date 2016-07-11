@@ -66,6 +66,7 @@ extern struct m0_ut_suite cobfoms_ut;
 extern struct m0_ut_suite conf_diter_ut;
 extern struct m0_ut_suite conf_glob_ut;
 extern struct m0_ut_suite conf_load_ut;
+extern struct m0_ut_suite conf_pvers_ut;
 extern struct m0_ut_suite conf_ut;
 extern struct m0_ut_suite conf_validation_ut;
 extern struct m0_ut_suite conf_walk_ut;
@@ -167,6 +168,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &cobfoms_ut, true);
 	m0_ut_add(m, &conf_ut, true);
 	m0_ut_add(m, &conf_load_ut, true);
+	m0_ut_add(m, &conf_pvers_ut, true);
 	m0_ut_add(m, &confc_ut, true);
 	m0_ut_add(m, &conf_glob_ut, true);
 	m0_ut_add(m, &conf_diter_ut, true);

@@ -280,12 +280,13 @@ static char *conf_pver_error(const struct m0_conf_pver *pver,
 	int                        i;
 	int                        rc;
 
-	if (pver->pv_attr.pa_P > nr_iodevs)
+	if (pver->pv_u.subtree.pvs_attr.pa_P > nr_iodevs)
 		return m0_vsnprintf(buf, buflen,
 				    FID_F": Pool width (%u) exceeds total"
 				    " number of IO devices (%u)",
 				    FID_P(&pver->pv_obj.co_id),
-				    pver->pv_attr.pa_P, nr_iodevs);
+				    pver->pv_u.subtree.pvs_attr.pa_P,
+				    nr_iodevs);
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &pver->pv_obj,
 			  M0_CONF_PVER_RACKVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_RACKV_ENCLVS_FID, M0_CONF_ANY_FID,
@@ -315,6 +316,32 @@ _conf_pvers_error(const struct m0_conf_filesystem *fs, char *buf, size_t buflen)
 	char                        *err = NULL;
 	int                          i;
 	int                          rc;
+
+	/*
+	 * XXX TODO: Return validation error if any of the following
+	 * conditions is violated:
+	 *
+	 * 1. m0_conf_pver_subtree::pvs_tolerance vector does not
+	 *    tolerate more failures than there are objvs at the
+	 *    corresponding level of pver subtree.
+	 *
+	 * 2. m0_conf_pver_formulaic::pvf_base refers to an existing
+	 *    actual pver.
+	 *
+	 * 3. m0_conf_pver_formulaic::pvf_id is unique per cluster.
+	 *
+	 * 4. m0_conf_pver_formulaic::pvf_allowance vector does not
+	 *    tolerate more failures than there are objvs at the
+	 *    corresponding level of base pver's subtree.
+	 *
+	 * 5. .pvf_allowance[M0_CONF_PVER_LVL_DISKS] <= P - (N + 2K),
+	 *    where P, N, and K are taken from .pvs_attr of the base pver.
+	 *
+	 * 6. m0_conf_objv::cv_real pointers are unique.
+	 *
+	 * 7. Subtree of base pver does not contain childless rackvs,
+	 *    enclvs, or ctrlvs.
+	 */
 
 	err = conf_filesystem_stats_get(fs, &stats, buf, buflen);
 	if (err != NULL)

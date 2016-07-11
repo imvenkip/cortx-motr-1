@@ -450,13 +450,14 @@ static int m0t1fs_inode_read(struct inode      *inode,
 	if (!m0t1fs_inode_is_root(inode)) {
 		ci->ci_layout_id = body->b_lid;
 		ci->ci_pver = body->b_pver;
+		if (m0_pool_version_find(&csb->csb_pools_common, &ci->ci_pver) == NULL)
+			return M0_ERR(-EINVAL);
 		rc = m0t1fs_inode_layout_init(ci);
 		if (rc != 0)
 			M0_LOG(M0_WARN, "m0t1fs_inode_layout_init() failed, rc=%d", rc);
 	}
 	if (rc == 0)
-		m0t1fs_fid_accept(M0T1FS_SB(inode->i_sb),
-				  m0t1fs_inode_fid(M0T1FS_I(inode)));
+		m0t1fs_fid_accept(csb, m0t1fs_inode_fid(M0T1FS_I(inode)));
 	return M0_RC(rc);
 }
 

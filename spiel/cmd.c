@@ -1078,7 +1078,7 @@ static bool spiel__pool_service_select(const struct m0_conf_obj *item,
 	if (pool_ctx->pl_rc != 0)
 		return false;
 	/* skip all but service objects */
-	if (m0_conf_fid_type(&item->co_id) != &M0_CONF_SERVICE_TYPE)
+	if (m0_conf_obj_type(item) != &M0_CONF_SERVICE_TYPE)
 		return true;
 
 	service = M0_CONF_CAST(item, m0_conf_service);
@@ -1444,7 +1444,7 @@ static bool spiel__item_enlist(const struct m0_conf_obj *item, void *ctx)
 	if (fsx->fx_rc != 0)
 		return false;
 	/* skip all but requested object types */
-	if (m0_conf_fid_type(&item->co_id) != fsx->fx_type)
+	if (m0_conf_obj_type(item) != fsx->fx_type)
 		return true;
 	M0_ALLOC_PTR(si);
 	if (si == NULL) {

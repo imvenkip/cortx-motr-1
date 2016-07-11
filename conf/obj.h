@@ -23,12 +23,8 @@
 
 #include "conf/schema.h"    /* m0_conf_service_type */
 #include "ha/note.h"        /* m0_ha_obj_state */
-#include "lib/chan.h"       /* m0_chan */
-#include "lib/tlist.h"      /* m0_tl, m0_tlink */
-#include "lib/bob.h"        /* m0_bob_type */
-#include "lib/types.h"
 #include "layout/pdclust.h" /* m0_pdclust_attr */
-#include "fid/fid.h"        /* m0_fid */
+#include "lib/bob.h"
 
 struct m0_conf_obj_ops;
 struct m0_confx_obj;
@@ -214,14 +210,17 @@ struct m0_conf_obj {
 	/**
 	 * Channel on which following events are announced:
 	 * - configuration loading completed;
-	 * - object unpinned;
+	 * - object unpinned.
 	 */
 	struct m0_chan                co_chan;
 
+	/** State of this configuration object, as reported by HA. */
+	enum m0_ha_obj_state          co_ha_state;
+
 	/**
-	 * Channel on which following events are announced:
-	 * - HA state changed (only if co_status == M0_CS_READY).
-	 * Protected by configuration cache lock (co_cache->ca_lock).
+	 * Channel on which .co_ha_state changes are announced
+	 * (M0_CS_READY objects only).
+	 * Protected by configuration cache lock (.co_cache->ca_lock).
 	 */
 	struct m0_chan                co_ha_chan;
 
@@ -258,8 +257,14 @@ struct m0_conf_obj {
 	 */
 	uint64_t                      co_con_magic;
 
-	/** HA-related state of this configuration object. */
-	enum m0_ha_obj_state          co_ha_state;
+	/**
+	 * Whether m0_conf_cache_gc() should garbage-collect this object.
+	 *
+	 * @note  Whoever sets this flag is responsible for calling
+	 *        m0_conf_cache_gc(), otherwise m0_conf_cache_clean()
+	 *        will fail.
+	 */
+	bool                          co_deleted;
 };
 
 struct m0_conf_obj_type {
@@ -357,51 +362,122 @@ struct m0_conf_filesystem {
 	const char        **cf_params;
 };
 
-/** Pools are used to partition hardware resources (devices, services, etc.). */
+/**
+ * Pools are used to partition hardware and software resources
+ * (entities) --- devices, services, etc.
+ */
 struct m0_conf_pool {
 	struct m0_conf_obj  pl_obj;
+	/** Directory of actual and formulaic pool versions. */
 	struct m0_conf_dir *pl_pvers;
 /* configuration data (for the application) */
 	/** Rank of this pool in the filesystem. */
 	uint32_t            pl_order;
 };
 
-/** Pool version state. */
-enum m0_conf_pver_state {
-	M0_CONF_PVER_ONLINE,
-	M0_CONF_PVER_FAILED
+/**
+ * Levels of a m0_conf_pver_subtree.
+ *
+ * Currently 5 levels are supported:
+ * [0] = pvers, [1] = racks, [2] = enclosures, [3] = controllers, [4] = disks.
+ */
+enum {
+	M0_CONF_PVER_LVL_0, /* XXX DELETEME: This level is not strictly needed.
+			     * It was introduced in order to minimize changes
+			     * in existing pool/flset.c code. Once pool/flset.c
+			     * is refactored, this level should be removed. */
+	M0_CONF_PVER_LVL_RACKS,
+	M0_CONF_PVER_LVL_ENCLS,
+	M0_CONF_PVER_LVL_CTRLS,
+	M0_CONF_PVER_LVL_DISKS,
+	M0_CONF_PVER_HEIGHT
+};
+
+/** Actual or virtual pool version. */
+struct m0_conf_pver_subtree {
+	/**
+	 * Number of failed entities at the corresponding level,
+	 * a.k.a. recd vector ("recd" is acronym of "racks, enclosures,
+	 * controllers, disks").
+	 *
+	 * This attribute is not used for virtual pool versions.
+	 */
+	uint32_t               pvs_recd[M0_CONF_PVER_HEIGHT];
+	struct m0_conf_dir    *pvs_rackvs;
+/* configuration data (for the application) */
+	/** Layout attributes. */
+	struct m0_pdclust_attr pvs_attr;
+	/**
+	 * Tolerance constraint.
+	 *
+	 * @see DLD-failure-domains-def
+	 */
+	uint32_t               pvs_tolerance[M0_CONF_PVER_HEIGHT];
+};
+
+/** Formulaic pool version. */
+struct m0_conf_pver_formulaic {
+	/** Cluster-unique identifier of this formulaic pver. */
+	uint32_t      pvf_id;
+	/**
+	 * Fid of the base pool version.
+	 *
+	 * Base pver is the "actual" pver, which a "virtual" pver is modelled
+	 * after.
+	 * @see m0_conf_virtual_pver_create()
+	 */
+	struct m0_fid pvf_base;
+	/**
+	 * Allowance vector --- the number of objects excluded from the
+	 * corresponding level of base pver subtree.
+	 *
+	 * @pre  at least one of the numbers != 0
+	 */
+	uint32_t      pvf_allowance[M0_CONF_PVER_HEIGHT];
+};
+
+/** Kinds of m0_conf_pvers. */
+enum m0_conf_pver_kind {
+	M0_CONF_PVER_ACTUAL,
+	M0_CONF_PVER_FORMULAIC,
+	/*
+	 * Virtual pvers exist in local conf cache only, they are not
+	 * mentioned in the conf database.
+	 *
+	 * Virtual pvers are not linked to the conf DAG.
+	 */
+	M0_CONF_PVER_VIRTUAL
 };
 
 /**
  * Pool version.
- *
- * Pool versions are used to track changes in pool membership.
+ * These objects are used to track changes in pool membership.
  */
 struct m0_conf_pver {
-	struct m0_conf_obj      pv_obj;
-	struct m0_conf_dir     *pv_rackvs;
+	struct m0_conf_obj     pv_obj;
 /* configuration data (for the application) */
-	/** Version number. */
-	uint32_t                pv_ver;
-	/** Pool version failed devices. */
-	uint32_t                pv_nfailed;
-	/** Layout attributes. */
-	struct m0_pdclust_attr  pv_attr;
-	/** Allowed failures for each failure domain. */
-	uint32_t               *pv_nr_failures;
-	uint32_t                pv_nr_failures_nr;
+	enum m0_conf_pver_kind pv_kind;
+	union {
+		struct m0_conf_pver_subtree   subtree;
+		struct m0_conf_pver_formulaic formulaic;
+	} pv_u;
 };
 
-/**
- * Represents virtual objects corresponding to real devices e.g. racks,
- * controllers, etc.
- */
+/** Element of m0_conf_pver_subtree. */
 struct m0_conf_objv {
 	struct m0_conf_obj  cv_obj;
 	struct m0_conf_dir *cv_children;
 	/**
-	 * Real device (rack, enclosure, controller, etc.) associated with
-	 * this configuration object version.
+	 * Ordinal number of this objv in m0_conf_pver subtree.
+	 * The value is assigned by conf_pver_enumerate().
+	 */
+	int                 cv_ix;
+/* configuration data (for the application) */
+	/**
+	 * Real entity, which this objv refers to.
+	 *
+	 * Depending on the level of objv in m0_conf_pver_subtree,
+	 * .cv_real may point at m0_conf_{rack,enclosure,controller,disk}.
 	 */
 	struct m0_conf_obj *cv_real;
 };
@@ -409,9 +485,9 @@ struct m0_conf_objv {
 struct m0_conf_node {
 	struct m0_conf_obj   cn_obj;
 	struct m0_conf_dir  *cn_processes;
-	/*
-	 * XXX OBSOLETE DELETEME
-	 * ->cn_pool is a remnant of old configuration schema.
+	/* XXX DELETEME
+	 * @deprecated  m0_conf_node::cn_pool is a remnant of old
+	 *              configuration schema.
 	 */
 	struct m0_conf_pool *cn_pool;
 /* configuration data (for the application) */
@@ -617,12 +693,9 @@ M0_CONF_OBJ_TYPES;
 	X_CONF(PROCESS_SERVICES,  12); \
 	X_CONF(SERVICE_SDEVS,     13); \
 	X_CONF(RACK_ENCLS,        14); \
-	X_CONF(RACK_PVERS,        15); \
-	X_CONF(ENCLOSURE_CTRLS,   16); \
-	X_CONF(ENCLOSURE_PVERS,   17); \
-	X_CONF(CONTROLLER_DISKS,  18); \
-	X_CONF(CONTROLLER_PVERS,  19); \
-	X_CONF(DISK_SDEV,         20)
+	X_CONF(ENCLOSURE_CTRLS,   15); \
+	X_CONF(CONTROLLER_DISKS,  16); \
+	X_CONF(DISK_SDEV,         17)
 
 #define X_CONF(name, _) \
 	extern const struct m0_fid M0_CONF_ ## name ## _FID

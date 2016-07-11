@@ -220,19 +220,19 @@ mero_service()
 				return 1
 			dd if=/dev/zero of=data-disk3.img bs=1M seek=1M count=1 ||
 				return 1
-			losetup -d /dev/loop5 &> /dev/null
-			losetup /dev/loop5 data-disk1.img
-			losetup -d /dev/loop6 &> /dev/null
-			losetup /dev/loop6 data-disk2.img
 			losetup -d /dev/loop7 &> /dev/null
-			losetup /dev/loop7 data-disk3.img
+			losetup /dev/loop7 data-disk1.img
+			losetup -d /dev/loop8 &> /dev/null
+			losetup /dev/loop8 data-disk2.img
+			losetup -d /dev/loop9 &> /dev/null
+			losetup /dev/loop9 data-disk3.img
                 cat >> disks.conf << EOF
-   - id: 5
-     filename: /dev/loop5
-   - id: 6
-     filename: /dev/loop6
    - id: 7
      filename: /dev/loop7
+   - id: 8
+     filename: /dev/loop8
+   - id: 9
+     filename: /dev/loop9
 EOF
 		fi
 
@@ -317,6 +317,8 @@ EOF
 		      -c $CONFDB -f $proc_fid"
 		DIR=$MERO_M0T1FS_TEST_DIR/ha
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
+		local m0d_log=$DIR/m0d.log
+		touch $m0d_log
 		echo $cmd
 		(eval "$cmd") &
 

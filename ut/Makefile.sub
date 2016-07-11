@@ -31,7 +31,8 @@ ut_libmero_ut_la_CPPFLAGS += -DM0_UT_CONF_NR_OBJS=$(shell \
 
 XC_FILES += ut/cs_fop_xc.h
 
-CONFXC_FILES += ut/conf.xc ut/diter.xc
+CONFXC_FILES += ut/conf.xc \
+                ut/diter.xc
 
 EXTRA_DIST += ut/linux_kernel/ut.c \
               ut/linux_kernel/m0ut_main.c \

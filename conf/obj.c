@@ -316,12 +316,6 @@
  *
  * (@b Hint: To open a document in read/write mode replace 'view' with
  * 'edit' in its URL.)
- *
- * <hr> <!------------------------------------------------------------>
- * @section conf-impl-plan Implementation Plan
- *
- * (@todo Delete this section from the DLD when the feature is landed
- * into master.)
  */
 
 M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj)

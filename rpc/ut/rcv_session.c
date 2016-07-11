@@ -19,11 +19,11 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
-#include "conf/rconfc_internal.h"
 #include "lib/trace.h"
+
+#include "conf/rconfc_internal.h"
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
-#include "lib/semaphore.h"
 #include "lib/memory.h"
 #include "ut/ut.h"
 #include "rpc/rpclib.h"
@@ -33,6 +33,7 @@
 
 static struct m0_rpc_machine *machine;
 static const char            *remote_addr;
+
 enum {
 	TIMEOUT  = 4 /* second */,
 };
@@ -310,6 +311,8 @@ struct m0_ut_suite rpc_rcv_session_ut = {
 		{ NULL, NULL },
 	}
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

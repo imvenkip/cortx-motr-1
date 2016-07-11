@@ -23,10 +23,9 @@
 #include "conf/onwire.h"    /* m0_confx_obj, m0_confx */
 #include "conf/preload.h"   /* m0_confstr_parse, m0_confx_free */
 #include "conf/ut/confc.h"  /* m0_ut_conf_fids */
-#include "lib/fs.h"         /* m0_file_read */
+#include "conf/ut/common.h"
 #include "lib/finject.h"    /* m0_fi_enable */
 #include "be/ut/helper.h"   /* m0_be_ut_backend_init */
-#include "ut/misc.h"        /* M0_UT_PATH */
 #include "ut/ut.h"
 
 static struct m0_be_ut_backend ut_be;

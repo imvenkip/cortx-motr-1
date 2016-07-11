@@ -158,8 +158,8 @@ char local_conf[] = "[36:\
    {0x6b| ((^k|1:21), ^d|1:13, [1: ^v|1:24])},\
    {0x6b| ((^k|1:22), ^d|1:14, [1: ^v|1:24])},\
    {0x6f| ((^o|1:23), 0, [1: ^v|1:24])},\
-   {0x76| ((^v|1:24), 0, 3, 1, 5, [5: 0, 0, 0, 0, 1],\
-           [1: ^j|1:25])},\
+   {0x76| ((^v|1:24), {0| (3, 1, 5, [5: 0, 0, 0, 0, 1],\
+           [1: ^j|1:25])})},\
    {0x6a| ((^j|1:25), ^a|1:15,\
            [1: ^j|1:26])},\
    {0x6a| ((^j|1:26), ^e|1:16,\
@@ -190,7 +190,6 @@ static void ast_thread_stop(struct m0t1fs_sb *csb)
 	m0_chan_signal_lock(&csb->csb_iogroup.s_chan);
 	m0_thread_join(&csb->csb_astthread);
 }
-
 
 static int file_io_ut_init(void)
 {
@@ -252,10 +251,10 @@ static int file_io_ut_init(void)
 
 	m0_flset_tlist_init(&reqh->rh_failure_set.fls_objs);
 
-	rc = m0t1fs_pool_find(&csb);
+	rc = m0_pool_version_get(&csb.csb_pools_common, &pver);
 	M0_UT_ASSERT(rc == 0);
+	csb.csb_pool_version = pver;
 	M0_UT_ASSERT(csb.csb_pool_version != NULL);
-	pver = csb.csb_pool_version;
 
 	sb.s_fs_info         = &csb;
 	csb.csb_next_key     = FID_KEY;
@@ -275,8 +274,7 @@ static int file_io_ut_init(void)
 	        .lla_B  = ATTR_B_CONST,
 	};
 	llenum = NULL;
-	rc = m0_linear_enum_build(&csb.csb_reqh.rh_ldom, &llattr,
-			          &llenum);
+	rc = m0_linear_enum_build(&csb.csb_reqh.rh_ldom, &llattr, &llenum);
 	M0_ASSERT(rc == 0);
 
 	pdattr = (struct m0_pdclust_attr) {

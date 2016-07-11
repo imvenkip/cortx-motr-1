@@ -14,6 +14,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+ *                  Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>
  * Original creation date: 24-Nov-2014
  */
 
@@ -22,6 +23,7 @@
 
 #include "conf/objs/common.h"
 #include "conf/onwire_xc.h"  /* m0_confx_pver_xc */
+#include "conf/pvers.h"      /* M0_CONF_PVER_FORMULAIC */
 #include "mero/magic.h"      /* M0_CONF_PVER_MAGIC */
 #include "layout/pdclust.h"  /* m0_pdclust_attr_check */
 
@@ -32,13 +34,20 @@ static bool pver_check(const void *bob)
 {
 	const struct m0_conf_pver *self = bob;
 	const struct m0_conf_obj  *self_obj = &self->pv_obj;
+	enum m0_conf_pver_kind     kind;
 
-	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_PVER_TYPE);
-
-	return m0_conf_obj_is_stub(self_obj) ||
-		(_0C(m0_pdclust_attr_check(&self->pv_attr)) &&
-		 _0C((self->pv_nr_failures_nr == 0) ==
-		     (self->pv_nr_failures == NULL)));
+	return _0C(m0_conf_obj_is_stub(self_obj)) ||
+		(_0C(m0_conf_pver_fid_read(
+			     &self_obj->co_id, &kind, NULL, NULL) == 0) &&
+		 _0C(kind == self->pv_kind) &&
+		 ergo(kind == M0_CONF_PVER_ACTUAL,
+		      _0C(m0_pdclust_attr_check(
+				  &self->pv_u.subtree.pvs_attr))) &&
+		 ergo(kind == M0_CONF_PVER_FORMULAIC,
+		      /* at least one of the numbers != 0 */
+		      _0C(!M0_IS0(&self->pv_u.formulaic.pvf_allowance))) &&
+		 ergo(kind == M0_CONF_PVER_VIRTUAL,
+		      self_obj->co_parent == NULL));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_pver, M0_CONF_PVER_MAGIC, pver_check);
@@ -48,77 +57,166 @@ static int pver_decode(struct m0_conf_obj        *dest,
 		       const struct m0_confx_obj *src,
 		       struct m0_conf_cache      *cache)
 {
-	int                         rc;
-	struct m0_conf_pver        *d = M0_CONF_CAST(dest, m0_conf_pver);
-	const struct m0_confx_pver *s = XCAST(src);
+	struct m0_conf_pver          *da = M0_CONF_CAST(dest, m0_conf_pver);
+	const struct m0_confx_pver_u *sa = &XCAST(src)->xv_u;
+	int                           rc;
 
-	d->pv_ver       = s->xv_ver;
-	d->pv_attr.pa_N = s->xv_N;
-	d->pv_attr.pa_K = s->xv_K;
-	d->pv_attr.pa_P = s->xv_P;
-
-	d->pv_nr_failures_nr = s->xv_nr_failures.au_count;
-	if (d->pv_nr_failures_nr != 0) {
-		rc = u32arr_decode(&s->xv_nr_failures, &d->pv_nr_failures);
-		if (rc != 0)
-			return M0_ERR(rc);
-	}
-	rc = m0_conf_dir_new(cache, dest, &M0_CONF_PVER_RACKVS_FID,
-			     &M0_CONF_OBJV_TYPE, &s->xv_rackvs, &d->pv_rackvs);
+	rc = m0_conf_pver_fid_read(&src->xo_u.u_header.ch_id, &da->pv_kind,
+				   NULL, NULL);
 	if (rc != 0)
-		m0_free0(&d->pv_nr_failures);
-	return M0_RC(rc);
+		return M0_ERR(rc);
+	if (sa->xpv_is_formulaic != (da->pv_kind == M0_CONF_PVER_FORMULAIC))
+		return M0_ERR(-EINVAL);
+
+	switch (da->pv_kind) {
+	case M0_CONF_PVER_ACTUAL: {
+		struct m0_conf_pver_subtree       *d = &da->pv_u.subtree;
+		const struct m0_confx_pver_actual *s = &sa->u.xpv_actual;
+
+		*d = (struct m0_conf_pver_subtree){
+			.pvs_attr = (struct m0_pdclust_attr){
+				.pa_N = s->xva_N,
+				.pa_K = s->xva_K,
+				.pa_P = s->xva_P
+			}
+		};
+		if (s->xva_tolerance.au_count != ARRAY_SIZE(d->pvs_tolerance))
+			return M0_ERR(-EINVAL);
+		memcpy(d->pvs_tolerance, s->xva_tolerance.au_elems,
+		       sizeof(d->pvs_tolerance));
+		return M0_RC(m0_conf_dir_new(cache, dest,
+					     &M0_CONF_PVER_RACKVS_FID,
+					     &M0_CONF_OBJV_TYPE, &s->xva_rackvs,
+					     &d->pvs_rackvs));
+	}
+	case M0_CONF_PVER_FORMULAIC: {
+		struct m0_conf_pver_formulaic        *d = &da->pv_u.formulaic;
+		const struct m0_confx_pver_formulaic *s = &sa->u.xpv_formulaic;
+
+		*d = (struct m0_conf_pver_formulaic){
+			.pvf_id   = s->xvf_id,
+			.pvf_base = s->xvf_base
+		};
+		if (s->xvf_allowance.au_count != ARRAY_SIZE(d->pvf_allowance))
+			return M0_ERR(-EINVAL);
+		memcpy(d->pvf_allowance, s->xvf_allowance.au_elems,
+		       sizeof(d->pvf_allowance));
+		return M0_RC(0);
+	}
+	default:
+		return M0_ERR(-EINVAL);
+	}
 }
 
 static int
 pver_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
+	const struct m0_conf_pver *sa = M0_CONF_CAST(src, m0_conf_pver);
+	struct m0_confx_pver_u    *da = &XCAST(dest)->xv_u;
 	int                        rc;
-	const struct m0_conf_pver *s = M0_CONF_CAST(src, m0_conf_pver);
-	struct m0_confx_pver      *d = XCAST(dest);
 
 	confx_encode(dest, src);
+	da->xpv_is_formulaic = sa->pv_kind;
+	switch (sa->pv_kind) {
+	case M0_CONF_PVER_ACTUAL: {
+		const struct m0_conf_pver_subtree *s = &sa->pv_u.subtree;
+		struct m0_confx_pver_actual       *d = &da->u.xpv_actual;
 
-	d->xv_ver = s->pv_ver;
-	d->xv_N   = s->pv_attr.pa_N;
-	d->xv_K   = s->pv_attr.pa_K;
-	d->xv_P   = s->pv_attr.pa_P;
+		*d = (struct m0_confx_pver_actual) {
+			.xva_N = s->pvs_attr.pa_N,
+			.xva_K = s->pvs_attr.pa_K,
+			.xva_P = s->pvs_attr.pa_P
+		};
+		rc = u32arr_encode(&d->xva_tolerance, s->pvs_tolerance,
+				   ARRAY_SIZE(s->pvs_tolerance));
+		if (rc != 0)
+			return M0_ERR(rc);
 
-	rc = u32arr_encode(&d->xv_nr_failures,
-			   s->pv_nr_failures, s->pv_nr_failures_nr);
-	if (rc != 0)
-		return M0_ERR(rc);
+		rc = arrfid_from_dir(&d->xva_rackvs, s->pvs_rackvs);
+		if (rc != 0)
+			u32arr_free(&d->xva_tolerance);
+		return M0_RC(rc);
+	}
+	case M0_CONF_PVER_FORMULAIC: {
+		const struct m0_conf_pver_formulaic *s = &sa->pv_u.formulaic;
+		struct m0_confx_pver_formulaic      *d = &da->u.xpv_formulaic;
 
-	rc = arrfid_from_dir(&d->xv_rackvs, s->pv_rackvs);
-	if (rc != 0)
-		u32arr_free(&d->xv_nr_failures);
-	return M0_RC(rc);
+		*d = (struct m0_confx_pver_formulaic) {
+			.xvf_id   = s->pvf_id,
+			.xvf_base = s->pvf_base
+		};
+		return M0_RC(u32arr_encode(&d->xvf_allowance, s->pvf_allowance,
+					   ARRAY_SIZE(s->pvf_allowance)));
+	}
+	default:
+		M0_IMPOSSIBLE("");
+	}
 }
 
 static bool
 pver_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct m0_confx_pver *xobj = XCAST(flat);
-	const struct m0_conf_pver  *obj  = M0_CONF_CAST(cached, m0_conf_pver);
+	const struct m0_confx_pver_u *xobj = &XCAST(flat)->xv_u;
+	const struct m0_conf_pver    *obj  = M0_CONF_CAST(cached, m0_conf_pver);
+	/*
+	 * This check will fail if the "kind" bits of the confx_obj's fid
+	 * do not correspond to those of actual or formulaic pver.
+	 */
+	M0_PRE(M0_IN(obj->pv_kind,
+		     (M0_CONF_PVER_ACTUAL, M0_CONF_PVER_FORMULAIC)));
+	return
+		xobj->xpv_is_formulaic ==
+		(obj->pv_kind == M0_CONF_PVER_FORMULAIC) &&
+		(xobj->xpv_is_formulaic ? ({
+			const struct m0_confx_pver_formulaic *x =
+				&xobj->u.xpv_formulaic;
+			const struct m0_conf_pver_formulaic  *c =
+				&obj->pv_u.formulaic;
 
-	return obj->pv_ver       == xobj->xv_ver &&
-	       obj->pv_attr.pa_N == xobj->xv_N &&
-	       obj->pv_attr.pa_K == xobj->xv_K &&
-	       obj->pv_attr.pa_P == xobj->xv_P &&
-	       u32arr_cmp(&xobj->xv_nr_failures,
-			  obj->pv_nr_failures, obj->pv_nr_failures_nr) &&
-	       m0_conf_dir_elems_match(obj->pv_rackvs, &xobj->xv_rackvs);
+			c->pvf_id == x->xvf_id &&
+			m0_fid_eq(&c->pvf_base, &x->xvf_base) &&
+			u32arr_cmp(&x->xvf_allowance, c->pvf_allowance,
+				   ARRAY_SIZE(c->pvf_allowance));
+		 }) : ({
+			const struct m0_confx_pver_actual *x =
+				&xobj->u.xpv_actual;
+			const struct m0_conf_pver_subtree *c =
+				&obj->pv_u.subtree;
+
+			c->pvs_attr.pa_N == x->xva_N &&
+			c->pvs_attr.pa_K == x->xva_K &&
+			c->pvs_attr.pa_P == x->xva_P &&
+			u32arr_cmp(&x->xva_tolerance, c->pvs_tolerance,
+				   ARRAY_SIZE(c->pvs_tolerance)) &&
+			m0_conf_dir_elems_match(c->pvs_rackvs, &x->xva_rackvs);
+		 }));
 }
 
 static int pver_lookup(const struct m0_conf_obj *parent,
 		       const struct m0_fid *name, struct m0_conf_obj **out)
 {
+	const struct m0_conf_pver *pver = M0_CONF_CAST(parent, m0_conf_pver);
+
 	M0_PRE(parent->co_status == M0_CS_READY);
 
 	if (!m0_fid_eq(name, &M0_CONF_PVER_RACKVS_FID))
 		return M0_ERR(-ENOENT);
 
-	*out = &M0_CONF_CAST(parent, m0_conf_pver)->pv_rackvs->cd_obj;
+	if (pver->pv_kind == M0_CONF_PVER_FORMULAIC) {
+		/*
+		 * XXX FIXME: ->coo_lookup() must not be called for
+		 * formulaic pvers.
+		 */
+		struct m0_conf_obj *obj;
+		int                 rc;
+
+		rc = m0_conf_obj_find(parent->co_cache,
+				      &pver->pv_u.formulaic.pvf_base, &obj) ?:
+			obj->co_ops->coo_lookup(obj, name, out);
+		if (rc != 0)
+			return M0_ERR(rc);
+	} else
+		*out = &pver->pv_u.subtree.pvs_rackvs->cd_obj;
 	M0_POST(m0_conf_obj_invariant(*out));
 	return M0_RC(0);
 }
@@ -127,15 +225,17 @@ static const struct m0_fid **pver_downlinks(const struct m0_conf_obj *obj)
 {
 	static const struct m0_fid *rels[] = { &M0_CONF_PVER_RACKVS_FID,
 					       NULL };
-	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE);
-	return rels;
+	const struct m0_conf_pver  *pver = M0_CONF_CAST(obj, m0_conf_pver);
+
+	return pver->pv_kind == M0_CONF_PVER_FORMULAIC
+		? &rels[1] /* formulaic pver has no downlinks */
+		: rels;
 }
 
 static void pver_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_pver *x = M0_CONF_CAST(obj, m0_conf_pver);
 
-	m0_free(x->pv_nr_failures);
 	m0_conf_pver_bob_fini(x);
 	m0_free(x);
 }

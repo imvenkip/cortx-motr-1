@@ -1017,7 +1017,6 @@ M0_INTERNAL const struct m0_fid *
 		m0t1fs_inode_fid(const struct m0t1fs_inode *ci);
 
 void m0t1fs_fid_alloc(struct m0t1fs_sb *csb, struct m0_fid *out);
-int m0t1fs_pool_find(struct m0t1fs_sb *csb);
 
 /**
  * Given a fid of an existing file, update "fid allocator" so that this fid is

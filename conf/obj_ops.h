@@ -169,8 +169,8 @@ struct m0_conf_obj_ops {
  * @pre   cache != NULL && m0_fid_is_set(id)
  * @post  ergo(retval != NULL, retval->co_status == M0_CS_MISSING)
  */
-M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
-						   const struct m0_fid *id);
+M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(const struct m0_fid *id,
+						   struct m0_conf_cache *cache);
 
 /**
  * Finds registered object with given identity or, if no object is

@@ -128,7 +128,7 @@ conf_without_rms() {
 (service-4 type=3 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (service-5 type=7 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (pool-0 order=0 pvers=[pver-0])
-(pver-0 ver=0 N=2 K=1 P=4 nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-0])
+(pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
 (objv-1 real=enclosure-0 children=[objv-2])
 (objv-2 real=controller-0 children=[objv-3, objv-4, objv-5, objv-6])

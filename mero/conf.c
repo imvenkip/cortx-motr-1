@@ -23,6 +23,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/finject.h"
 #include "lib/string.h"           /* m0_strdup */
 #include "mero/setup.h"           /* cs_args */
 #include "mero/setup_internal.h"  /* cs_ad_stob_create */
@@ -389,7 +390,8 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 		char                   *sname = m0_conf_service_name_dup(svc);
 		M0_LOG(M0_DEBUG, "service:%s fid:" FID_F, sname,
 				FID_P(&svc->cs_obj.co_id));
-		M0_ASSERT(rctx->rc_nr_services < M0_CST_NR);
+		if (!M0_FI_ENABLED("skip_service_count_check"))
+			M0_ASSERT(rctx->rc_nr_services < M0_CST_NR);
 		/** @todo Check only one service of each service type is present
 			  per endpoint in the configuration.
 		    M0_ASSERT(rctx->rc_services[svc->cs_type] == NULL);

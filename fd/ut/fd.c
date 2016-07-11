@@ -28,7 +28,7 @@
 #include "lib/memory.h"     /* m0_alloc */
 #include "lib/fs.h"         /* m0_file_read */
 #include "lib/errno.h"      /* EINVAL */
-#include "conf/ut/common.h" /* g_grp */
+#include "conf/ut/common.h" /* conf_ut_ast_thread_init */
 #include "ut/ut.h"          /* M0_UT_ASSERT */
 
 /* Conf parameters. */
@@ -155,8 +155,8 @@ static const char local_conf_str[] = "[34:\
    {0x6b| ((^k|1:21), ^d|1:13, [1: ^v|1:24])},\
    {0x6b| ((^k|1:22), ^d|1:14, [1: ^v|1:24])},\
    {0x6f| ((^o|1:23), 0, [1: ^v|1:24])},\
-   {0x76| ((^v|1:24), 0, 3, 1, 5, [5: 0,0,0,0,1],\
-           [1: ^j|1:25])},\
+   {0x76| ((^v|1:24), {0| (3, 1, 5, [5: 0,0,0,0,1],\
+           [1: ^j|1:25])})},\
    {0x6a| ((^j|1:25), ^a|1:15,\
            [1: ^j|1:26])},\
    {0x6a| ((^j|1:26), ^e|1:16,\
@@ -224,12 +224,12 @@ static void tree_generate(struct m0_pool_version *pv, enum tree_attr ta)
 	P = 1;
 	G = parity_group_size(&pd_attr);
 	while (G > P) {
-		rc = fd_ut_tree_init(&pv->pv_fd_tree, M0_FTA_DEPTH_MAX - 1);
+		rc = fd_ut_tree_init(&pv->pv_fd_tree, M0_CONF_PVER_HEIGHT - 1);
 		M0_UT_ASSERT(rc == 0);
 		children_cnt = fd_ut_random_cnt_get(TUA_RACKS);
 		rc = m0_fd__tree_root_create(&pv->pv_fd_tree, children_cnt);
 		M0_UT_ASSERT(rc == 0);
-		for (i = 1; i <= M0_FTA_DEPTH_MAX - 1; ++i) {
+		for (i = 1; i < M0_CONF_PVER_HEIGHT; ++i) {
 			children_cnt = real_child_cnt_get(i);
 			children_cnt = i == pv->pv_fd_tree.ft_depth ? 0 :
 				children_cnt;
@@ -317,7 +317,7 @@ static void fd_mapping_check(struct m0_pool_version *pv)
 
 static uint64_t real_child_cnt_get(uint64_t level)
 {
-	M0_UT_ASSERT(level < M0_FTA_DEPTH_MAX);
+	M0_UT_ASSERT(level < M0_CONF_PVER_HEIGHT);
 
 	switch (level) {
 	case 0:
@@ -355,7 +355,7 @@ static void test_ft_mapping(void)
 	M0_SET0(&src);
 	M0_SET0(&src_new);
 	M0_SET0(&tgt);
-	for (depth = 1; depth < M0_FTA_DEPTH_MAX; ++depth) {
+	for (depth = 1; depth < M0_CONF_PVER_HEIGHT; ++depth) {
 		while (G > P || P > TUA_MAX_POOL_WIDTH) {
 			fd_ut_children_populate(children_nr, depth);
 			P = pool_width_count(children_nr, depth);
@@ -446,22 +446,22 @@ static void test_pv2fd_conv(void)
 	M0_UT_ASSERT(rc == M0_CONF_DIRNEXT);
 	pv_obj = m0_conf_diter_result(&it);
 	pv = M0_CONF_CAST(pv_obj, m0_conf_pver);
-	for (i = 1; i < M0_FTA_DEPTH_MAX; ++i)
-		pv->pv_nr_failures[i] = la_K;
+	for (i = 1; i < M0_CONF_PVER_HEIGHT; ++i)
+		pv->pv_u.subtree.pvs_tolerance[i] = la_K;
 	failure_level = 0;
 	do {
 		rc = m0_fd_tolerance_check(pv, &failure_level);
 		M0_UT_ASSERT(ergo(rc != 0, failure_level > 0));
 		if (rc != 0) {
-			--pv->pv_nr_failures[failure_level];
+			--pv->pv_u.subtree.pvs_tolerance[failure_level];
 			failure_level = 0;
 		}
 	} while (rc != 0);
 	/* Figure out thte first level for which user specified tolerance is
 	 * non-zero. */
-	for (i = 0; i < M0_FTA_DEPTH_MAX; ++i)
-		if (pv->pv_nr_failures[i] != 0) {
-			max_failures = pv->pv_nr_failures[i];
+	for (i = 0; i < M0_CONF_PVER_HEIGHT; ++i)
+		if (pv->pv_u.subtree.pvs_tolerance[i] != 0) {
+			max_failures = pv->pv_u.subtree.pvs_tolerance[i];
 			failure_level     = i;
 			break;
 		}
@@ -469,8 +469,8 @@ static void test_pv2fd_conv(void)
 	 * than or equal to teh actual failures.
 	 */
 #ifndef __KERNEL__
-	M0_UT_ASSERT(i < M0_FTA_DEPTH_DISK);
-	pv->pv_nr_failures[failure_level] = 0;
+	M0_UT_ASSERT(i < M0_CONF_PVER_LVL_DISKS);
+	pv->pv_u.subtree.pvs_tolerance[failure_level] = 0;
 #else
 	max_failures = 1;
 #endif
@@ -479,20 +479,20 @@ static void test_pv2fd_conv(void)
 		M0_UT_ASSERT(rc == 0);
 		rc = m0_fd_tree_build(pv, &pool_ver.pv_fd_tree);
 		M0_UT_ASSERT(rc == 0);
-		memcpy(pool_ver.pv_fd_tol_vec, pv->pv_nr_failures,
-		       M0_FTA_DEPTH_MAX *sizeof pool_ver.pv_fd_tol_vec[0]);
+		memcpy(pool_ver.pv_fd_tol_vec, pv->pv_u.subtree.pvs_tolerance,
+		       M0_CONF_PVER_HEIGHT * sizeof pool_ver.pv_fd_tol_vec[0]);
 		fd_mapping_check(&pool_ver);
 		fd_tolerance_check(&pool_ver);
 		m0_fd_tree_destroy(&pool_ver.pv_fd_tree);
 		m0_fd_tile_destroy(&pool_ver.pv_fd_tile);
-		++pv->pv_nr_failures[failure_level];
+		++pv->pv_u.subtree.pvs_tolerance[failure_level];
 	}
 	/*  Test the case when entire tolerance vector is zero. */
-	memset(pv->pv_nr_failures, 0,
-	      M0_FTA_DEPTH_MAX * sizeof pv->pv_nr_failures[0]);
-	memcpy(pool_ver.pv_fd_tol_vec, pv->pv_nr_failures,
-	       M0_FTA_DEPTH_MAX *sizeof pool_ver.pv_fd_tol_vec[0]);
-	pv->pv_attr.pa_K = 0;
+	memset(pv->pv_u.subtree.pvs_tolerance, 0,
+	      M0_CONF_PVER_HEIGHT * sizeof pv->pv_u.subtree.pvs_tolerance[0]);
+	memcpy(pool_ver.pv_fd_tol_vec, pv->pv_u.subtree.pvs_tolerance,
+	       M0_CONF_PVER_HEIGHT * sizeof pool_ver.pv_fd_tol_vec[0]);
+	pv->pv_u.subtree.pvs_attr.pa_K = 0;
 	rc = m0_fd_tile_build(pv, &pool_ver, &failure_level);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pool_ver.pv_fd_tile.ft_depth == 1);
@@ -515,8 +515,8 @@ static bool __filter_pv(const struct m0_conf_obj *obj)
 
 static  uint64_t pv2tree_level_conv(uint64_t level, uint64_t tree_depth)
 {
-	M0_PRE(tree_depth < M0_FTA_DEPTH_MAX);
-	return level - ((M0_FTA_DEPTH_MAX - 1)  - tree_depth);
+	M0_PRE(tree_depth < M0_CONF_PVER_HEIGHT);
+	return level - ((M0_CONF_PVER_HEIGHT - 1)  - tree_depth);
 }
 
 static void fd_tolerance_check(struct m0_pool_version *pv)
@@ -532,7 +532,7 @@ static void fd_tolerance_check(struct m0_pool_version *pv)
 	uint32_t                    tol;
 	uint64_t                   *failed_domains;
 
-	for (i = M0_FTA_DEPTH_RACK; i < M0_FTA_DEPTH_MAX; ++i) {
+	for (i = M0_CONF_PVER_LVL_RACKS; i < M0_CONF_PVER_HEIGHT; ++i) {
 		tol = pv->pv_fd_tol_vec[i];
 		if (tol == 0)
 			continue;
@@ -555,7 +555,7 @@ static void fd_tolerance_check(struct m0_pool_version *pv)
 				if (is_tgt_failed(pv, &tgt, failed_domains))
 					++fail_cnt;
 				M0_UT_ASSERT(fail_cnt <=
-					     pv->pv_fd_tol_vec[M0_FTA_DEPTH_DISK]);
+					     pv->pv_fd_tol_vec[M0_CONF_PVER_LVL_DISKS]);
 			}
 			fail_cnt = 0;
 		}

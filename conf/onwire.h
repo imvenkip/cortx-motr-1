@@ -92,20 +92,53 @@ struct m0_confx_pool {
 	struct m0_fid_arr      xp_pvers;
 } M0_XCA_RECORD;
 
+struct m0_confx_pver_actual {
+	/* Number of data units in a parity group. */
+	uint32_t          xva_N;
+	/* Number of parity units in a parity group. */
+	uint32_t          xva_K;
+	/* Pool width. */
+	uint32_t          xva_P;
+	/*
+	 * Tolerance constraint.
+	 * NOTE: The number of elements must be equal to M0_CONF_PVER_HEIGHT.
+	 */
+	struct arr_u32    xva_tolerance;
+	/* Rack versions. */
+	struct m0_fid_arr xva_rackvs;
+	/*
+	 * Note that "recd" attribute exists in local conf cache
+	 * only and is never transferred over the wire.
+	 */
+} M0_XCA_RECORD;
+
+struct m0_confx_pver_formulaic {
+	/* Cluster-unique identifier of this formulaic pver. */
+	uint32_t       xvf_id;
+	/* Fid of the base pool version. */
+	struct m0_fid  xvf_base;
+	/*
+	 * Allowance vector.
+	 * NOTE: The number of elements must be equal to M0_CONF_PVER_HEIGHT.
+	 */
+	struct arr_u32 xvf_allowance;
+} M0_XCA_RECORD;
+
+enum { M0_CONFX_PVER_ACTUAL, M0_CONFX_PVER_FORMULAIC };
+
+struct m0_confx_pver_u {
+	uint8_t xpv_is_formulaic;
+	union {
+		struct m0_confx_pver_actual    xpv_actual
+			M0_XCA_TAG("M0_CONFX_PVER_ACTUAL");
+		struct m0_confx_pver_formulaic xpv_formulaic
+			M0_XCA_TAG("M0_CONFX_PVER_FORMULAIC");
+	} u;
+} M0_XCA_UNION;
+
 struct m0_confx_pver {
 	struct m0_confx_header xv_header;
-	/* Version number. */
-	uint32_t               xv_ver;
-	/* Data units. */
-	uint32_t               xv_N;
-	/* Parity units. */
-	uint32_t               xv_K;
-	/* Pool width. */
-	uint32_t               xv_P;
-	/* The number of allowed failures for each failure domain. */
-	struct arr_u32         xv_nr_failures;
-	/* Rack versions associated with this pool version. */
-	struct m0_fid_arr      xv_rackvs;
+	struct m0_confx_pver_u xv_u;
 } M0_XCA_RECORD;
 
 struct m0_confx_objv {
@@ -113,6 +146,10 @@ struct m0_confx_objv {
 	/* Identifier of real device associated with this version. */
 	struct m0_fid          xj_real;
 	struct m0_fid_arr      xj_children;
+	/*
+	 * Note that "ix" attribute exists in local conf cache only
+	 * and is never transferred over the wire.
+	 */
 } M0_XCA_RECORD;
 
 struct m0_confx_node {

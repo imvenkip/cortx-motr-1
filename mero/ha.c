@@ -78,10 +78,10 @@ M0_INTERNAL void m0_mero_ha_cfg_make(struct m0_mero_ha_cfg *mha_cfg,
 	M0_LEAVE();
 }
 
-static int mero_ha_entrypoint_rep_confd_fill(const struct m0_fid  *profile,
-                                             struct m0_confc      *confc,
-                                             struct m0_fid        *confd_fid,
-                                             char                **confd_ep)
+static int mero_ha_entrypoint_rep_confd_fill(const struct m0_fid *profile,
+					     struct m0_confc     *confc,
+					     struct m0_fid       *confd_fid,
+					     char               **confd_ep)
 {
 	struct m0_conf_service *confd_svc;
 	int                     rc;

@@ -1,4 +1,3 @@
-/* -*- c -*- */
 /*
  * COPYRIGHT 2014 XYRATEX TECHNOLOGY LIMITED
  *
@@ -24,16 +23,16 @@
 
 #include "conf/helpers.h"
 #include "conf/obj_ops.h"  /* m0_conf_obj_find_lock */
-#include "conf/dir.h"      /* m0_conf_dir_tl */
 #include "conf/confc.h"    /* m0_confc_open_sync */
+#include "conf/dir.h"      /* m0_conf_dir_len */
 #include "conf/diter.h"    /* m0_conf_diter_next_sync */
+#include "conf/pvers.h"    /* m0_conf_pver_find */
 #include "ha/note.h"       /* m0_ha_nvec */
-#include "pool/flset.h"    /* m0_flset_pver_has_failed_dev */
-#include "fd/fd.h"         /* M0_FTA_DEPTH_CONT */
 #include "reqh/reqh.h"     /* m0_reqh2confc */
-#include "lib/memory.h"    /* M0_ALLOC_ARR */
-#include "lib/errno.h"     /* ENOENT */
 #include "lib/string.h"    /* m0_strdup */
+#include "lib/memory.h"    /* M0_ALLOC_ARR */
+
+enum { CACHE_LOCALITY = 1 };
 
 static int confc_obj_get(struct m0_confc     *confc,
 			 const struct m0_fid *fid,
@@ -43,10 +42,23 @@ static int confc_obj_get(struct m0_confc     *confc,
 		     m0_confc_open_sync(result, *result, M0_FID0));
 }
 
-static bool obj_is_sdev(const struct m0_conf_obj *obj)
-{
-	return m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE;
-}
+#define X(type)                                          \
+M0_INTERNAL int type ## _get(struct m0_confc     *confc, \
+			     const struct m0_fid *fid,   \
+			     struct type        **out)   \
+{                                                        \
+	struct m0_conf_obj *obj;                         \
+	int                 rc;                          \
+							 \
+	rc = confc_obj_get(confc, fid, &obj);            \
+	if (rc == 0)                                     \
+		*out = M0_CONF_CAST(obj, type);          \
+	return M0_RC(rc);                                \
+}                                                        \
+struct __ ## type ## _semicolon_catcher
+
+M0_CONF_OBJ_GETTERS;
+#undef X
 
 M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 			       struct m0_confc            *confc,
@@ -68,30 +80,69 @@ M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_conf_service_get(struct m0_confc         *confc,
-				    const struct m0_fid     *fid,
-				    struct m0_conf_service **service)
+M0_INTERNAL bool m0_conf_obj_is_pool(const struct m0_conf_obj *obj)
 {
-	struct m0_conf_obj *obj;
-	int                 rc;
-
-	rc = confc_obj_get(confc, fid, &obj);
-	if (rc == 0)
-		*service = M0_CONF_CAST(obj, m0_conf_service);
-	return M0_RC(rc);
+	return m0_conf_obj_type(obj) == &M0_CONF_POOL_TYPE;
 }
 
-M0_INTERNAL int m0_conf_sdev_get(struct m0_confc      *confc,
-				 const struct m0_fid  *fid,
-				 struct m0_conf_sdev **sdev)
+M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
+				 struct m0_confc      *confc,
+				 struct m0_conf_pver **out)
 {
-	struct m0_conf_obj *obj;
-	int                 rc;
+	struct m0_conf_filesystem *fs;
+	struct m0_conf_diter       it;
+	struct m0_conf_pool       *pool;
+	struct m0_conf_pver       *pver;
+	struct m0_conf_obj        *pvobj;
+	int                        rc;
 
-	rc = confc_obj_get(confc, fid, &obj);
-	if (rc == 0)
-		*sdev = M0_CONF_CAST(obj, m0_conf_sdev);
-	return M0_RC(rc);
+	rc = m0_conf_fs_get(profile, confc, &fs);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_POOLS_FID);
+	if (rc != 0)
+		goto fs_close;
+
+	*out = NULL;
+	while ((rc = m0_conf_diter_next_sync(&it, m0_conf_obj_is_pool)) ==
+		M0_CONF_DIRNEXT) {
+		pool = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_pool);
+		rc = m0_conf_pver_find(pool, &pver);
+		if (rc == -ENOENT)
+			/* No suitable pver in this pool. Try next one. */
+			continue;
+		if (rc == 0) {
+			if (m0_fid_eq(&pool->pl_obj.co_id, &fs->cf_mdpool) &&
+			    /*
+			     * XXX TODO: UTs and STs use the same pool for both
+			     * MD and IO.  They have to be fixed and use a
+			     * dedicated MD pool.  After this is done, we won't
+			     * need to make == ACTUAL && K == 0 checks any more
+			     * and will only need m0_fid_eq() comparison.
+			     */
+			    pver->pv_kind == M0_CONF_PVER_ACTUAL &&
+			    pver->pv_u.subtree.pvs_attr.pa_K == 0)
+				/* This pver belongs to MD pool. Skip it. */
+				continue;
+			pvobj = &pver->pv_obj;
+			m0_conf_obj_get_lock(pvobj);
+			*out = pver;
+		}
+		break;
+	}
+	m0_conf_diter_fini(&it);
+fs_close:
+	m0_confc_close(&fs->cf_obj);
+	if (rc != 0)
+		return M0_ERR(rc);
+	return *out == NULL ? M0_ERR(-ENOENT) : M0_RC(0);
+}
+
+static bool obj_is_sdev(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE;
 }
 
 M0_INTERNAL int m0_conf_device_cid_to_fid(struct m0_confc *confc, uint64_t cid,
@@ -135,80 +186,10 @@ M0_INTERNAL int m0_conf_device_cid_to_fid(struct m0_confc *confc, uint64_t cid,
 	return rc == M0_CONF_DIREND ? -ENOENT : 0;
 }
 
-M0_INTERNAL int m0_conf_disk_get(struct m0_confc      *confc,
-				 const struct m0_fid  *fid,
-				 struct m0_conf_disk **disk)
-{
-	struct m0_conf_obj *obj;
-	int                 rc;
-
-	rc = confc_obj_get(confc, fid, &obj);
-	if (rc == 0)
-		*disk = M0_CONF_CAST(obj, m0_conf_disk);
-	return M0_RC(rc);
-}
-
-M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj)
-{
-	return m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE;
-}
-
-M0_INTERNAL int m0_conf_poolversion_get(const struct m0_fid  *profile,
-					struct m0_confc      *confc,
-					struct m0_flset      *failure_set,
-					struct m0_conf_pver **result)
-{
-	struct m0_conf_diter       it;
-	struct m0_conf_filesystem *fs;
-	struct m0_conf_pver       *pver;
-	struct m0_conf_obj        *obj;
-	int                        rc;
-	uint32_t                   pool_nr;
-
-	rc = m0_conf_fs_get(profile, confc, &fs);
-	if (rc != 0)
-		return M0_ERR(rc);
-
-	pool_nr = m0_conf_dir_tlist_length(&fs->cf_pools->cd_items);
-	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_POOLS_FID,
-				M0_CONF_POOL_PVERS_FID);
-	if (rc != 0) {
-		m0_confc_close(&fs->cf_obj);
-		return M0_ERR(rc);
-	}
-
-	while ((rc = m0_conf_diter_next_sync(&it, m0_obj_is_pver)) ==
-		M0_CONF_DIRNEXT) {
-		struct m0_conf_pool *cp;
-		obj = m0_conf_diter_result(&it);
-		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE);
-		pver = M0_CONF_CAST(obj, m0_conf_pver);
-		cp = M0_CONF_CAST(m0_conf_obj_grandparent(&pver->pv_obj),
-			          m0_conf_pool);
-		/* @todo As ST and UT uses same pool for both io and meta-data,
-		 * mdpool skipping is avoided.
-		 */
-		if (pool_nr > 0 && pver->pv_nr_failures[M0_FTA_DEPTH_CONT] > 0
-		    && m0_fid_eq(&cp->pl_obj.co_id, &fs->cf_mdpool))
-			continue;
-		if (!m0_flset_pver_has_failed_dev(failure_set, pver)) {
-			*result = pver;
-			rc = 0;
-			break;
-		}
-	}
-	m0_conf_diter_fini(&it);
-	m0_confc_close(&fs->cf_obj);
-
-	return M0_RC(*result == NULL ? -ENOENT : rc);
-}
-
 static int _conf_load(struct m0_conf_filesystem *fs,
 		      const struct m0_fid       *path,
 		      uint32_t                   nr_levels)
 {
-
 	struct m0_conf_diter  it;
 	struct m0_conf_obj   *fs_obj = &fs->cf_obj;
 	int                   rc;
@@ -222,11 +203,9 @@ static int _conf_load(struct m0_conf_filesystem *fs,
 
 	while ((rc = m0_conf_diter_next_sync(&it, NULL)) == M0_CONF_DIRNEXT)
 		/*
-		 * We travers configuration DAG in order for conf objects to
-		 * be cached.
+		 * Traverse configuration DAG in order to cache conf objects.
 		 */
 		;
-
 	m0_conf_diter_fini(&it);
 	return M0_RC(rc);
 }
@@ -253,39 +232,6 @@ M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs)
 		     _conf_load(fs, fs_to_diskvs, ARRAY_SIZE(fs_to_diskvs)));
 }
 
-M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
-				       struct m0_ha_nvec     *nvec)
-{
-	struct m0_mutex chan_lock;
-	struct m0_chan  chan;
-	struct m0_clink clink;
-	int             rc;
-
-	M0_PRE(nvec->nv_nr <= M0_HA_STATE_UPDATE_LIMIT);
-	m0_mutex_init(&chan_lock);
-	m0_chan_init(&chan, &chan_lock);
-	m0_clink_init(&clink, NULL);
-	m0_clink_add_lock(&chan, &clink);
-
-	rc = m0_ha_state_get(ha_sess, nvec, &chan);
-	if (rc == 0) {
-		/*
-		 * m0_ha_state_get() sends a fop to HA service caller.
-		 * We need to wait for reply fop.
-		 */
-		m0_chan_wait(&clink);
-	}
-
-	m0_clink_del_lock(&clink);
-	m0_clink_fini(&clink);
-	m0_mutex_lock(&chan_lock);
-	m0_chan_fini(&chan);
-	m0_mutex_unlock(&chan_lock);
-	m0_mutex_fini(&chan_lock);
-
-	return M0_RC(rc);
-}
-
 M0_INTERNAL bool m0_conf_service_ep_is_known(struct m0_conf_obj *svc_obj,
 					     const char         *ep_addr)
 {
@@ -295,7 +241,8 @@ M0_INTERNAL bool m0_conf_service_ep_is_known(struct m0_conf_obj *svc_obj,
 
 	M0_ENTRY("svc_obj = "FID_F", ep_addr = %s", FID_P(&svc_obj->co_id),
 		 ep_addr);
-	M0_PRE(m0_conf_fid_type(&svc_obj->co_id) == &M0_CONF_SERVICE_TYPE);
+	M0_PRE(m0_conf_obj_type(svc_obj) == &M0_CONF_SERVICE_TYPE);
+
 	svc = M0_CONF_CAST(svc_obj, m0_conf_service);
 	for (eps = svc->cs_endpoints; *eps != NULL; eps++) {
 		if (m0_streq(ep_addr, *eps)) {
@@ -307,9 +254,9 @@ M0_INTERNAL bool m0_conf_service_ep_is_known(struct m0_conf_obj *svc_obj,
 	return rv;
 }
 
-static bool _is_svc(const struct m0_conf_obj *obj)
+static bool conf_obj_is_svc(const struct m0_conf_obj *obj)
 {
-	return m0_conf_fid_type(&obj->co_id) == &M0_CONF_SERVICE_TYPE;
+	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
 }
 
 static int reqh_conf_service_find(struct m0_reqh           *reqh,
@@ -326,7 +273,6 @@ static int reqh_conf_service_find(struct m0_reqh           *reqh,
 	const struct m0_fid        path[] = {M0_CONF_FILESYSTEM_NODES_FID,
 					     M0_CONF_NODE_PROCESSES_FID,
 					     M0_CONF_PROCESS_SERVICES_FID};
-
 	M0_ENTRY();
 	if (confc->cc_group == NULL) {
 		/*
@@ -344,9 +290,9 @@ static int reqh_conf_service_find(struct m0_reqh           *reqh,
 		m0_conf__diter_init(&it, confc, &fs->cf_obj, ARRAY_SIZE(path),
 				    path);
 	if (rc != 0)
-		goto bailout;
+		goto end;
 
-	while ((rc = m0_conf_diter_next_sync(&it, _is_svc)) > 0) {
+	while ((rc = m0_conf_diter_next_sync(&it, conf_obj_is_svc)) > 0) {
 		obj = m0_conf_diter_result(&it);
 		svc = M0_CONF_CAST(obj, m0_conf_service);
 		if (svc->cs_type == stype &&
@@ -357,25 +303,11 @@ static int reqh_conf_service_find(struct m0_reqh           *reqh,
 			break;
 		}
 	}
-
 	m0_conf_diter_fini(&it);
-bailout:
+end:
 	if (fs != NULL)
 		m0_confc_close(&fs->cf_obj);
 	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
-				      const struct m0_fid   *obj_fid)
-{
-	struct m0_ha_nvec nvec;
-	struct m0_ha_note note;
-
-	note.no_id    = *obj_fid;
-	note.no_state = M0_NC_UNKNOWN;
-	nvec.nv_nr    = 1;
-	nvec.nv_note  = &note;
-	return M0_RC(m0_conf_objs_ha_update(ha_sess, &nvec));
 }
 
 M0_INTERNAL int m0_conf_service_find(struct m0_reqh            *reqh,
@@ -406,79 +338,6 @@ M0_INTERNAL int m0_conf_service_find(struct m0_reqh            *reqh,
 		if (svc_obj != NULL)
 			*svc_obj = obj;
 	}
-	return M0_RC(rc);
-}
-
-void m0_conf_ha_notify(struct m0_fid *fid, enum m0_ha_obj_state state)
-{
-	struct m0_rpc_session *rpc_ssn;
-	struct m0_ha_note      note;
-	struct m0_ha_nvec      nvec;
-
-	rpc_ssn = m0_ha_session_get();
-	if (rpc_ssn != NULL && !m0_fid_eq(fid, &M0_FID0)) {
-		note.no_id    = *fid;
-		note.no_state = state;
-		nvec.nv_nr    = 1;
-		nvec.nv_note  = &note;
-		m0_ha_state_set(rpc_ssn, &nvec);
-	}
-}
-
-static void __ha_nvec_reset(struct m0_ha_nvec *nvec, int32_t total)
-{
-	int i;
-	for(i = 0; i < nvec->nv_nr; i++)
-		nvec->nv_note[i] = (struct m0_ha_note){ M0_FID0, 0 };
-	nvec->nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
-}
-
-M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
-					struct m0_confc       *confc)
-{
-	struct m0_conf_cache *cache = &confc->cc_cache;
-	struct m0_conf_obj   *obj;
-	struct m0_ha_nvec     nvec;
-	int32_t               total;
-	int                   rc;
-	int                   i = 0;
-
-	total = m0_tl_reduce(m0_conf_cache, obj, &cache->ca_registry, 0,
-	                     + (m0_fid_tget(&obj->co_id) ==
-	                        M0_CONF_DIR_TYPE.cot_ftype.ft_id ? 0 : 1));
-	if (total == 0)
-		return M0_ERR(-ENOENT);
-
-	nvec.nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
-	M0_ALLOC_ARR(nvec.nv_note, nvec.nv_nr);
-	if (nvec.nv_note == NULL)
-		return M0_ERR(-ENOMEM);
-
-	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
-		/*
-		 * Skip directories - they're only used in Mero internal
-		 * representation and HA knows nothing about them.
-		 */
-		if (m0_fid_tget(&obj->co_id) ==
-		    M0_CONF_DIR_TYPE.cot_ftype.ft_id)
-			continue;
-		nvec.nv_note[i].no_id = obj->co_id;
-		nvec.nv_note[i++].no_state = M0_NC_UNKNOWN;
-		if (nvec.nv_nr == i) {
-			rc = m0_conf_objs_ha_update(ha_sess, &nvec);
-			if (rc == 0) {
-				total -= nvec.nv_nr;
-				if (total > 0)
-					__ha_nvec_reset(&nvec, total), i = 0;
-				else
-					break;
-			} else {
-				break;
-			}
-		}
-	} m0_tlist_endfor;
-
-	m0_free(nvec.nv_note);
 	return M0_RC(rc);
 }
 
@@ -611,59 +470,17 @@ M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj)
 	return m0_confc2reqh(conf_obj2confc(obj));
 }
 
-M0_INTERNAL bool m0_conf_is_pool_version_dirty(struct m0_confc     *confc,
-					       const struct m0_fid *pver_fid)
-{
-	struct m0_conf_obj *obj;
-	bool                dirty;
-
-	m0_conf_cache_lock(&confc->cc_cache);
-	dirty = m0_conf_obj_find(&confc->cc_cache, pver_fid, &obj) != 0 ||
-		m0_conf_obj_is_stub(obj) ||
-		M0_CONF_CAST(obj, m0_conf_pver)->pv_nfailed > 0;
-	m0_conf_cache_unlock(&confc->cc_cache);
-	return dirty;
-}
-
-M0_INTERNAL int m0_conf__obj_count(const struct m0_fid *profile,
-				   struct m0_confc     *confc,
-				   bool (*filter)(const struct m0_conf_obj *obj),
-				   uint32_t            *count,
-				   int                  level,
-				   const struct m0_fid *path)
-{
-	struct m0_conf_diter       it;
-	struct m0_conf_filesystem *fs = NULL;
-	int                        rc;
-
-	M0_ENTRY("profile"FID_F, FID_P(profile));
-	rc = m0_conf_fs_get(profile, confc, &fs);
-	if (rc != 0)
-		return M0_ERR(rc);
-
-	rc = m0_conf__diter_init(&it, confc, &fs->cf_obj, level, path);
-	if (rc != 0)
-		return M0_ERR(rc);
-
-	while ((rc = m0_conf_diter_next_sync(&it, filter)) == M0_CONF_DIRNEXT)
-			M0_CNT_INC(*count);
-
-	m0_conf_diter_fini(&it);
-	m0_confc_close(&fs->cf_obj);
-	return M0_RC(rc);
-}
-
 M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj)
 {
-	const struct m0_conf_obj_type *obj_type = m0_conf_obj_type(obj);
+	const struct m0_conf_obj_type *t = m0_conf_obj_type(obj);
 
-	if (obj_type == &M0_CONF_RACK_TYPE)
+	if (t == &M0_CONF_RACK_TYPE)
 		return M0_CONF_CAST(obj, m0_conf_rack)->cr_pvers;
-	else if (obj_type == &M0_CONF_ENCLOSURE_TYPE)
+	else if (t == &M0_CONF_ENCLOSURE_TYPE)
 		return M0_CONF_CAST(obj, m0_conf_enclosure)->ce_pvers;
-	else if (obj_type == &M0_CONF_CONTROLLER_TYPE)
+	else if (t == &M0_CONF_CONTROLLER_TYPE)
 		return M0_CONF_CAST(obj, m0_conf_controller)->cc_pvers;
-	else if (obj_type == &M0_CONF_DISK_TYPE)
+	else if (t == &M0_CONF_DISK_TYPE)
 		return M0_CONF_CAST(obj, m0_conf_disk)->ck_pvers;
 	else
 		M0_IMPOSSIBLE("");
@@ -681,15 +498,55 @@ M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj)
 		});
 }
 
-M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
+static int conf__objs_count(const struct m0_fid *profile,
+			    struct m0_confc *confc,
+			    bool (*filter)(const struct m0_conf_obj *obj),
+			    uint32_t *count, int nr_levels,
+			    const struct m0_fid *path)
+{
+	struct m0_conf_diter       it;
+	struct m0_conf_filesystem *fs;
+	int                        rc;
+
+	M0_ENTRY("profile="FID_F, FID_P(profile));
+
+	rc = m0_conf_fs_get(profile, confc, &fs);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = m0_conf__diter_init(&it, confc, &fs->cf_obj, nr_levels, path);
+	if (rc != 0)
+		goto end;
+	while ((rc = m0_conf_diter_next_sync(&it, filter)) == M0_CONF_DIRNEXT)
+		M0_CNT_INC(*count);
+	m0_conf_diter_fini(&it);
+end:
+	m0_confc_close(&fs->cf_obj);
+	return M0_RC(rc);
+}
+
+/**
+ * Returns the number of conf objects located along the path.
+ *
+ * @param profile     Configuration profile.
+ * @param confc       Initialised confc.
+ * @param filter      Returns true for objects of interest.
+ * @param[out] count  Output parameter.
+ * @param ...         Configuration path.
+ */
+#define conf_objs_count(profile, confc, filter, count, ...) \
+	conf__objs_count(profile, confc, filter, count,     \
+			 M0_COUNT_PARAMS(__VA_ARGS__) + 1,  \
+			 (const struct m0_fid []){ __VA_ARGS__, M0_FID0 })
+
+M0_INTERNAL int m0_conf_ios_devices_count(const struct m0_fid *profile,
 					  struct m0_confc *confc,
 					  uint32_t *nr_devices)
 {
-	return m0_conf_obj_count(profile, confc, m0_is_ios_disk, nr_devices,
-				 M0_CONF_FILESYSTEM_RACKS_FID,
-				 M0_CONF_RACK_ENCLS_FID,
-				 M0_CONF_ENCLOSURE_CTRLS_FID,
-				 M0_CONF_CONTROLLER_DISKS_FID);
+	return conf_objs_count(profile, confc, m0_is_ios_disk, nr_devices,
+			       M0_CONF_FILESYSTEM_RACKS_FID,
+			       M0_CONF_RACK_ENCLS_FID,
+			       M0_CONF_ENCLOSURE_CTRLS_FID,
+			       M0_CONF_CONTROLLER_DISKS_FID);
 }
 
 M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc)
@@ -710,10 +567,10 @@ M0_INTERNAL void m0_confc_ready_cb(struct m0_rconfc *rconfc)
 	M0_LEAVE();
 }
 
-int m0_conf_process2service_get(struct m0_confc           *confc,
-				const struct m0_fid       *process_fid,
-				enum m0_conf_service_type  stype,
-				struct m0_fid             *sfid)
+M0_INTERNAL int m0_conf_process2service_get(struct m0_confc *confc,
+					    const struct m0_fid *process_fid,
+					    enum m0_conf_service_type stype,
+					    struct m0_fid *sfid)
 {
 	struct m0_conf_obj   *pobj;
 	struct m0_conf_obj   *sobj;
@@ -725,13 +582,11 @@ int m0_conf_process2service_get(struct m0_confc           *confc,
 	rc = confc_obj_get(confc, process_fid, &pobj);
 	if (rc != 0)
 		return M0_ERR(rc);
-
 	rc = m0_conf_diter_init(&it, confc, pobj, M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0) {
 		m0_confc_close(pobj);
 		return M0_ERR(rc);
 	}
-
 	*sfid = M0_FID0;
 	while ((rc = m0_conf_diter_next_sync(&it, NULL)) == M0_CONF_DIRNEXT) {
 		sobj = m0_conf_diter_result(&it);
@@ -745,6 +600,122 @@ int m0_conf_process2service_get(struct m0_confc           *confc,
 	m0_conf_diter_fini(&it);
 	m0_confc_close(pobj);
 	return m0_fid_is_set(sfid) ? M0_RC(rc) : M0_ERR(-ENOENT);
+}
+
+/* --------------------------------- >8 --------------------------------- */
+
+M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
+				       struct m0_ha_nvec     *nvec)
+{
+	struct m0_mutex chan_lock;
+	struct m0_chan  chan;
+	struct m0_clink clink;
+	int             rc;
+
+	M0_PRE(nvec->nv_nr <= M0_HA_STATE_UPDATE_LIMIT);
+	m0_mutex_init(&chan_lock);
+	m0_chan_init(&chan, &chan_lock);
+	m0_clink_init(&clink, NULL);
+	m0_clink_add_lock(&chan, &clink);
+
+	rc = m0_ha_state_get(ha_sess, nvec, &chan);
+	if (rc == 0) {
+		/*
+		 * m0_ha_state_get() sends a fop to HA service caller.
+		 * We need to wait for reply fop.
+		 */
+		m0_chan_wait(&clink);
+	}
+	m0_clink_del_lock(&clink);
+	m0_clink_fini(&clink);
+	m0_mutex_lock(&chan_lock);
+	m0_chan_fini(&chan);
+	m0_mutex_unlock(&chan_lock);
+	m0_mutex_fini(&chan_lock);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
+				      const struct m0_fid   *obj_fid)
+{
+	struct m0_ha_note note = {
+		.no_id    = *obj_fid,
+		.no_state = M0_NC_UNKNOWN
+	};
+	struct m0_ha_nvec nvec = { 1, &note };
+
+	return M0_RC(m0_conf_objs_ha_update(ha_sess, &nvec));
+}
+
+void m0_conf_ha_notify(struct m0_fid *fid, enum m0_ha_obj_state state)
+{
+	struct m0_rpc_session *rpc_ssn;
+	struct m0_ha_note      note;
+	struct m0_ha_nvec      nvec;
+
+	rpc_ssn = m0_ha_session_get();
+	if (rpc_ssn != NULL && !m0_fid_eq(fid, &M0_FID0)) {
+		note.no_id    = *fid;
+		note.no_state = state;
+		nvec.nv_nr    = 1;
+		nvec.nv_note  = &note;
+		m0_ha_state_set(rpc_ssn, &nvec);
+	}
+}
+
+static void __ha_nvec_reset(struct m0_ha_nvec *nvec, int32_t total)
+{
+	int i;
+	for(i = 0; i < nvec->nv_nr; i++)
+		nvec->nv_note[i] = (struct m0_ha_note){ M0_FID0, 0 };
+	nvec->nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
+}
+
+M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
+					struct m0_confc       *confc)
+{
+	struct m0_conf_cache *cache = &confc->cc_cache;
+	struct m0_conf_obj   *obj;
+	struct m0_ha_nvec     nvec;
+	int32_t               total;
+	int                   rc;
+	int                   i = 0;
+
+	total = m0_tl_reduce(m0_conf_cache, obj, &cache->ca_registry, 0,
+	                     + (m0_fid_tget(&obj->co_id) ==
+	                        M0_CONF_DIR_TYPE.cot_ftype.ft_id ? 0 : 1));
+	if (total == 0)
+		return M0_ERR(-ENOENT);
+
+	nvec.nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
+	M0_ALLOC_ARR(nvec.nv_note, nvec.nv_nr);
+	if (nvec.nv_note == NULL)
+		return M0_ERR(-ENOMEM);
+
+	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		/*
+		 * Skip directories - they're only used in Mero internal
+		 * representation and HA knows nothing about them.
+		 */
+		if (m0_fid_tget(&obj->co_id) ==
+		    M0_CONF_DIR_TYPE.cot_ftype.ft_id)
+			continue;
+		nvec.nv_note[i].no_id = obj->co_id;
+		nvec.nv_note[i++].no_state = M0_NC_UNKNOWN;
+		if (nvec.nv_nr == i) {
+			rc = m0_conf_objs_ha_update(ha_sess, &nvec);
+			if (rc != 0)
+				break;
+			total -= nvec.nv_nr;
+			if (total <= 0)
+				break;
+			__ha_nvec_reset(&nvec, total);
+			i = 0;
+		}
+	} m0_tlist_endfor;
+
+	m0_free(nvec.nv_note);
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

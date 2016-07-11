@@ -21,7 +21,7 @@
 #ifndef __MERO_CONF_UT_COMMON_H__
 #define __MERO_CONF_UT_COMMON_H__
 
-#include "conf/confc.h"
+#include "conf/confc.h"  /* m0_confc_ctx */
 #include "lib/fs.h"      /* m0_file_read */
 #include "ut/misc.h"     /* M0_UT_PATH */
 
@@ -32,6 +32,8 @@
 extern struct m0_conf_cache m0_conf_ut_cache;
 extern struct m0_sm_group   m0_conf_ut_grp;
 extern struct m0_net_xprt  *m0_conf_ut_xprt;
+
+/* XXX TODO: Add `m0_' prefix to the identifiers below. */
 
 struct conf_ut_waiter {
 	struct m0_confc_ctx w_ctx;

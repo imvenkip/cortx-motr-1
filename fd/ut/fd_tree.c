@@ -50,18 +50,18 @@ static void test_cache_init_fini(void)
 	seed = m0_time_now();
 	children_nr = m0_rnd(TP_QUATERNARY, &seed);
 	children_nr = TP_QUATERNARY - children_nr;
-	rc = fd_ut_tree_init(&tree, M0_FTA_DEPTH_MAX - 1);
+	rc = fd_ut_tree_init(&tree, M0_CONF_PVER_HEIGHT - 1);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_fd__tree_root_create(&tree, children_nr);
 	M0_UT_ASSERT(rc == 0);
 	unique_chld_nr[children_nr] = 1;
-	for (i = 1; i <= M0_FTA_DEPTH_MAX - 1; ++i) {
+	for (i = 1; i < M0_CONF_PVER_HEIGHT; ++i) {
 		children_nr = m0_rnd(TP_QUATERNARY, &seed);
 		children_nr = TP_QUATERNARY - children_nr;
 		children_nr = i == tree.ft_depth ? 0 : children_nr;
 		rc = fd_ut_tree_level_populate(&tree, children_nr, i, TA_SYMM);
 		M0_UT_ASSERT(rc == 0);
-		if (i < M0_FTA_DEPTH_MAX - 1)
+		if (i < M0_CONF_PVER_HEIGHT - 1)
 			unique_chld_nr[children_nr] = 1;
 	}
 	m0_fd__perm_cache_build(&tree);
@@ -83,7 +83,7 @@ static void test_init_fini(void)
 	int               rc;
 
 	for (j = TP_BINARY; j < TP_QUATERNARY + 1; ++j) {
-		for (i = 1; i < M0_FTA_DEPTH_MAX; ++i) {
+		for (i = 1; i < M0_CONF_PVER_HEIGHT; ++i) {
 			rc = fd_ut_tree_init(&tree, i);
 			M0_UT_ASSERT(rc == 0);
 			rc = m0_fd__tree_root_create(&tree, j);
@@ -105,7 +105,7 @@ static void test_fault_inj(void)
 	int               rc;
 
 	M0_SET0(&tree);
-	rc = fd_ut_tree_init(&tree, M0_FTA_DEPTH_MAX - 1);
+	rc = fd_ut_tree_init(&tree, M0_CONF_PVER_HEIGHT - 1);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_fd__tree_root_create(&tree, TP_BINARY);
 	M0_UT_ASSERT(rc == 0);
@@ -116,11 +116,11 @@ static void test_fault_inj(void)
 	/* Fault injection. */
 	seed = m0_time_now();
 	/* Maximum nodes in a tree. */
-	n    = m0_rnd(geometric_sum(TP_BINARY, M0_FTA_DEPTH_MAX - 1),
+	n    = m0_rnd(geometric_sum(TP_BINARY, M0_CONF_PVER_HEIGHT - 1),
 		      &seed);
 	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", n, 1);
 	M0_SET0(&tree);
-	rc = fd_ut_tree_init(&tree, M0_FTA_DEPTH_MAX - 1) ?:
+	rc = fd_ut_tree_init(&tree, M0_CONF_PVER_HEIGHT - 1) ?:
 	     m0_fd__tree_root_create(&tree, TP_BINARY) ?:
 	     tree_populate(&tree, TP_BINARY);
 	m0_fi_disable("m0_alloc","fail_allocation");

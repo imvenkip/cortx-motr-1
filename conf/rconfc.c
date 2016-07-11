@@ -748,7 +748,7 @@ static int _confc_phony_cache_append(struct m0_confc      *confc,
 
 	M0_ENTRY();
 	m0_conf_cache_lock(cache);
-	obj = m0_conf_obj_create(cache, fid);
+	obj = m0_conf_obj_create(fid, cache);
 	if (obj == NULL)
 		return M0_ERR(-ENOMEM);
 	/*

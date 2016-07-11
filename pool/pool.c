@@ -30,7 +30,7 @@
 #include "conf/schema.h"   /* M0_CST_IOS, M0_CST_MDS */
 #include "conf/diter.h"    /* m0_conf_diter_next_sync */
 #include "conf/obj_ops.h"  /* M0_CONF_DIRNEXT */
-#include "conf/helpers.h"  /* m0_obj_is_pver */
+#include "conf/pvers.h"    /* m0_conf_pver_find_by_fid */
 #include "ioservice/io_device.h"  /* m0_ios_poolmach_get */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
@@ -38,16 +38,12 @@
 #include "ha/entrypoint.h"      /* m0_ha_entrypoint_client */
 #include "ha/ha.h"              /* m0_ha */
 #include "module/instance.h"    /* m0 */
-
 #include "pool/pool.h"
 #include "pool/pool_fops.h"
-
 #include "fd/fd.h"             /* m0_fd_tile_build m0_fd_tree_build */
-
 #ifndef __KERNEL__
 #  include "mero/setup.h"
 #endif
-
 #include "lib/finject.h" /* M0_FI_ENABLED */
 
 /**
@@ -513,6 +509,7 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				      pv->pv_attr.pa_K);
 	m0_pool_version_bob_init(pv);
 	pool_version_tlink_init(pv);
+	pv->pv_is_dirty = false;
 
 	M0_POST(pool_version_invariant(pv));
 	M0_LEAVE();
@@ -521,29 +518,78 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 }
 
 M0_INTERNAL struct m0_pool_version *
-m0__pool_version_find(struct m0_pool *pool, const struct m0_fid *id)
+m0_pool_version_lookup(struct m0_pools_common *pc, const struct m0_fid *id)
 {
-	return m0_tl_find(pool_version, pv, &pool->po_vers,
-			  m0_fid_eq(&pv->pv_id, id));
-}
-
-M0_INTERNAL struct m0_pool_version *
-m0_pool_version_find(const struct m0_pools_common *pc, const struct m0_fid *id)
-{
-	struct m0_pool         *p;
+	struct m0_pool         *pool;
 	struct m0_pool_version *pver;
 
 	M0_ENTRY(FID_F, FID_P(id));
-	M0_PRE(pc != NULL);
-	m0_tl_for(pools, &pc->pc_pools, p) {
-		pver = m0__pool_version_find(p, id);
+
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		pver = m0_tl_find(pool_version, pv, &pool->po_vers,
+				  m0_fid_eq(&pv->pv_id, id));
 		if (pver != NULL) {
-			M0_LOG(M0_DEBUG, FID_F, FID_P(&pver->pv_id));
+			M0_LOG(M0_DEBUG, "pver="FID_F, FID_P(&pver->pv_id));
 			return pver;
 		}
 	} m0_tl_endfor;
-
 	return NULL;
+}
+
+M0_INTERNAL struct m0_pool_version *
+m0_pool_version_find(struct m0_pools_common *pc, const struct m0_fid *id)
+{
+	struct m0_pool_version *pv;
+	struct m0_conf_root    *root;
+	struct m0_conf_pver    *pver = NULL;
+	int                     rc;
+
+	M0_ENTRY(FID_F, FID_P(id));
+	M0_PRE(pc != NULL);
+
+	m0_mutex_lock(&pc->pc_mutex);
+	pv = m0_pool_version_lookup(pc, id);
+	if (pv != NULL) {
+		rc = 0;
+		goto end;
+	}
+	rc = m0_conf_root_open(pc->pc_confc, &root);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "Cannot open root object");
+		goto end;
+	}
+	rc = m0_conf_pver_find_by_fid(id, root, &pver) ?:
+		m0_pool_version_append(pc, pver, NULL, NULL, NULL, &pv);
+	m0_confc_close(&root->rt_obj);
+end:
+	m0_mutex_unlock(&pc->pc_mutex);
+	return rc == 0 ? pv : NULL;
+}
+
+M0_INTERNAL int
+m0_pool_version_get(struct m0_pools_common *pc, struct m0_pool_version **pv)
+{
+	struct m0_reqh      *reqh = m0_confc2reqh(pc->pc_confc);
+	struct m0_conf_pver *pver;
+	int                  rc;
+
+	rc = m0_conf_pver_get(&reqh->rh_profile, pc->pc_confc, &pver);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	m0_mutex_lock(&pc->pc_mutex);
+	*pv = m0_pool_version_lookup(pc, &pver->pv_obj.co_id);
+	if (*pv == NULL) {
+		rc = m0_pool_version_append(pc, pver, NULL, NULL, NULL, pv);
+		if (rc != 0) {
+			m0_confc_close(&pver->pv_obj);
+			m0_mutex_unlock(&pc->pc_mutex);
+			return M0_ERR(-ENOENT);
+		}
+	}
+	m0_confc_close(&pver->pv_obj);
+	m0_mutex_unlock(&pc->pc_mutex);
+	return M0_RC(0);
 }
 
 static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
@@ -597,15 +643,17 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 	if (rc != 0)
 		return M0_ERR(rc);
 	rc = m0_pool_version_init(pv, &pver->pv_obj.co_id, pool,
-				  pver->pv_attr.pa_P, nodes, pver->pv_attr.pa_N,
-				  pver->pv_attr.pa_K, be_seg, sm_grp, dtm) ?:
+				  pver->pv_u.subtree.pvs_attr.pa_P, nodes,
+				  pver->pv_u.subtree.pvs_attr.pa_N,
+				  pver->pv_u.subtree.pvs_attr.pa_K, be_seg,
+				  sm_grp, dtm) ?:
 	     m0_pool_version_device_map_init(pv, pver, pc) ?:
 	     m0_poolmach_init_by_conf(&pv->pv_mach, pver);
 	if (rc == 0) {
 		pv->pv_pc = pc;
 		pv->pv_mach.pm_pver = pv;
-		memcpy(pv->pv_fd_tol_vec, pver->pv_nr_failures,
-		       M0_FTA_DEPTH_MAX * sizeof pver->pv_nr_failures[0]);
+		memcpy(pv->pv_fd_tol_vec, pver->pv_u.subtree.pvs_tolerance,
+		       sizeof(pver->pv_u.subtree.pvs_tolerance));
 		rc = m0_fd_tile_build(pver, pv, &failure_level) ?:
 			m0_fd_tree_build(pver, &pv->pv_fd_tree);
 		if (rc == 0)
@@ -650,22 +698,19 @@ static void service_ctxs_destroy(struct m0_pools_common *pc)
 
 	/* Disconnect from all services asynchronously. */
 	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
-		if (m0_reqh_service_ctx_is_connected(ctx)) {
+		if (m0_reqh_service_ctx_is_connected(ctx))
 			m0_reqh_service_disconnect(ctx);
-		}
 	} m0_tl_endfor;
 
 	m0_tl_teardown(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
 		if (m0_reqh_service_ctx_is_connected(ctx)) {
 			rc = m0_reqh_service_disconnect_wait(ctx);
 			/* XXX Current function doesn't fail. */
-			M0_ASSERT_INFO(rc == 0 || rc == -ECANCELED ||
-				       rc == -ETIMEDOUT,
-			               "rc=%d", rc);
+			M0_ASSERT_INFO(M0_IN(rc, (0, -ECANCELED, -ETIMEDOUT)),
+				       "rc=%d", rc);
 		}
 		m0_reqh_service_ctx_destroy(ctx);
 	}
-
 	M0_POST(pools_common_svc_ctx_tlist_is_empty(&pc->pc_svc_ctxs));
 	M0_LEAVE();
 }
@@ -878,23 +923,22 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 				     struct m0_rpc_machine *rmach,
 				     struct m0_conf_filesystem *fs)
 {
-	int      rc;
-	uint32_t nr_devices = 0;
+	int rc;
 
 	M0_ENTRY();
 	M0_PRE(pc != NULL && fs != NULL);
 
 	*pc = (struct m0_pools_common){
-				.pc_rmach = rmach,
-				.pc_md_redundancy = fs->cf_redundancy,
-				.pc_confc = m0_confc_from_obj(&fs->cf_obj)};
-
+		.pc_rmach         = rmach,
+		.pc_md_redundancy = fs->cf_redundancy,
+		.pc_confc         = m0_confc_from_obj(&fs->cf_obj)
+	};
+	m0_mutex_init(&pc->pc_mutex);
 	rc = m0_conf_ios_devices_count(&fs->cf_obj.co_parent->co_id,
-				       pc->pc_confc, &nr_devices);
+				       pc->pc_confc, &pc->pc_nr_devices);
 	if (rc != 0)
 		return M0_ERR(rc);
-	M0_LOG(M0_DEBUG, "ioservices device count:%d", (int)nr_devices);
-	pc->pc_nr_devices = nr_devices;
+	M0_LOG(M0_DEBUG, "ioservices device count: %u", pc->pc_nr_devices);
 	M0_ALLOC_ARR(pc->pc_dev2ios, pc->pc_nr_devices);
 	if (pc->pc_dev2ios == NULL)
 		return M0_ERR(-ENOMEM);
@@ -903,7 +947,6 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 	pc->pc_ha_ecl = &m0_get()->i_ha->h_entrypoint_client;
 	m0_mutex_init(&pc->pc_rm_lock);
 	m0_clink_init(&pc->pc_ha_clink, service_ctx_ha_entrypoint_cb);
-
 	return M0_RC(rc);
 }
 
@@ -954,6 +997,7 @@ M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
 	pools_common_svc_ctx_tlist_fini(&pc->pc_svc_ctxs);
 	pools_tlist_fini(&pc->pc_pools);
 	m0_free(pc->pc_dev2ios);
+	m0_mutex_fini(&pc->pc_mutex);
 
 	M0_LEAVE();
 }
@@ -971,9 +1015,14 @@ M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc)
 	M0_LEAVE();
 }
 
-static bool obj_is_pool(const struct m0_conf_obj *obj)
+static bool is_actual_pver(const struct m0_conf_obj *obj)
 {
-	return m0_conf_obj_type(obj) == &M0_CONF_POOL_TYPE;
+	/**
+	 * @todo XXX filter only actual pool versions till formulaic
+	 *           pool version creation in place.
+	 */
+	return m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE &&
+		M0_CONF_CAST(obj, m0_conf_pver)->pv_kind == M0_CONF_PVER_ACTUAL;
 }
 
 M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
@@ -999,19 +1048,20 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	while ((rc = m0_conf_diter_next_sync(&it, m0_obj_is_pver)) ==
-		M0_CONF_DIRNEXT) {
-		M0_ALLOC_PTR(pver);
-		if (pver == NULL) {
-			rc = -ENOMEM;
-			break;
-		}
+	while ((rc = m0_conf_diter_next_sync(&it, is_actual_pver)) ==
+	       M0_CONF_DIRNEXT) {
 		pver_obj = M0_CONF_CAST(m0_conf_diter_result(&it),
 					m0_conf_pver);
+		if (pver_obj->pv_kind == M0_CONF_PVER_FORMULAIC)
+			continue;
+		M0_ALLOC_PTR(pver);
+		if (pver == NULL) {
+			rc = M0_ERR(-ENOMEM);
+			break;
+		}
 		pool_id = &m0_conf_obj_grandparent(&pver_obj->pv_obj)->co_id;
 		pool = m0_tl_find(pools, pool, &pc->pc_pools,
-			  m0_fid_eq(&pool->po_id, pool_id));
-
+				  m0_fid_eq(&pool->po_id, pool_id));
 		M0_ASSERT(m0_fid_eq(&pool->po_id, pool_id));
 		rc = m0_pool_version_init_by_conf(pver, pver_obj, pool, pc,
 						  be_seg, sm_grp, dtm);
@@ -1024,6 +1074,82 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 		m0_pools_destroy(pc);
 
 	return M0_RC(rc);
+}
+
+static const struct m0_conf_pver *
+formulaic_pool_version(struct m0_confc *confc, struct m0_conf_pver *vpver)
+{
+	uint32_t                   fpver_id;
+	uint64_t                   cid;
+	const struct m0_conf_pver *fpver;
+	struct m0_conf_root       *root;
+	int                        rc;
+
+	M0_PRE(vpver->pv_kind == M0_CONF_PVER_VIRTUAL);
+
+	rc = m0_conf_root_open(confc, &root);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "Cannot open root object");
+		return NULL;
+	}
+	m0_conf_pver_fid_read(&vpver->pv_obj.co_id, NULL, (uint64_t *)&fpver_id,
+			      &cid);
+	rc = m0_conf_pver_formulaic_find(fpver_id, root, &fpver);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "formulaic pver is not present:%d", rc);
+		return NULL;
+	}
+	m0_confc_close(&root->rt_obj);
+	return fpver;
+}
+
+M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
+				       struct m0_conf_pver     *pver,
+				       struct m0_be_seg        *be_seg,
+				       struct m0_sm_group      *sm_grp,
+				       struct m0_dtm           *dtm,
+				       struct m0_pool_version **pv)
+{
+	struct m0_conf_pool *cp;
+	struct m0_pool      *p;
+	int                  rc;
+
+	M0_ENTRY();
+
+	if (pver->pv_kind == M0_CONF_PVER_ACTUAL) {
+		cp = M0_CONF_CAST(m0_conf_obj_grandparent(&pver->pv_obj),
+				  m0_conf_pool);
+	} else {
+		const struct m0_conf_pver *fpver;
+
+		fpver = formulaic_pool_version(pc->pc_confc, pver);
+		if (fpver == NULL)
+			return M0_ERR(-EINVAL);
+		cp = M0_CONF_CAST(m0_conf_obj_grandparent(&fpver->pv_obj),
+				  m0_conf_pool);
+	}
+
+	p = m0_pool_find(pc, &cp->pl_obj.co_id);
+	M0_ASSERT(p != NULL);
+
+	M0_ALLOC_PTR(*pv);
+	if (*pv == NULL)
+		return M0_ERR(-ENOMEM);
+
+	rc = m0_pool_version_init_by_conf(*pv, pver, p, pc, be_seg, sm_grp,
+					  dtm);
+	if (rc != 0) {
+		m0_free(*pv);
+		return M0_RC(rc);
+	}
+	rc = m0_layout_init_by_pver(&m0_confc2reqh(pc->pc_confc)->rh_ldom, *pv,
+				    NULL);
+	if (rc != 0) {
+		m0_pool_version_fini(*pv);
+		m0_free(*pv);
+		return M0_RC(rc);
+	}
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
@@ -1048,7 +1174,7 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	while ((rc = m0_conf_diter_next_sync(&it, obj_is_pool)) ==
+	while ((rc = m0_conf_diter_next_sync(&it, m0_conf_obj_is_pool)) ==
 		M0_CONF_DIRNEXT) {
 		M0_ALLOC_PTR(pool);
 		if (pool == NULL) {
@@ -1123,22 +1249,26 @@ M0_INTERNAL uint32_t m0_ha2pm_state_map(enum m0_ha_obj_state hastate)
 static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
 {
 	struct m0_poolmach_event  pme;
-	struct m0_conf_obj       *obj;
-	struct m0_pooldev        *pdev;
+	struct m0_conf_obj       *obj =
+		container_of(cl->cl_chan, struct m0_conf_obj, co_ha_chan);
+	struct m0_pooldev        *pdev =
+		container_of(cl, struct m0_pooldev, pd_clink);
+	struct m0_pool_version   *pv;
 
 	M0_ENTRY();
-	obj = container_of(cl->cl_chan, struct m0_conf_obj, co_ha_chan);
-	M0_PRE(obj != NULL &&
-	       m0_conf_fid_type(&obj->co_id) == &M0_CONF_DISK_TYPE);
-	M0_ASSERT(obj != NULL);
-	pdev = container_of(cl, struct m0_pooldev, pd_clink);
-	M0_ASSERT(pdev != NULL);
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE);
+
 	pme.pe_type = M0_POOL_DEVICE;
 	pme.pe_index = pdev->pd_index;
 	pme.pe_state = m0_ha2pm_state_map(obj->co_ha_state);
 	M0_LOG(M0_DEBUG, "pe_type=%6s pe_index=%x, pe_state=%10d",
 			 pme.pe_type == M0_POOL_DEVICE ? "device":"node",
 			 pme.pe_index, pme.pe_state);
+
+	/* Mark associated pool version dirty. */
+	pv = container_of(pdev->pd_pm, struct m0_pool_version, pv_mach);
+	pv->pv_is_dirty = (obj->co_ha_state != M0_NC_ONLINE);
+
 	return M0_RC(m0_poolmach_state_transit(pdev->pd_pm, &pme, NULL));
 }
 

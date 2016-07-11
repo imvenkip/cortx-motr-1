@@ -569,7 +569,7 @@ int m0_spiel_disk_add(struct m0_spiel_tx  *tx,
 		      const struct m0_fid *parent);
 
 /**
- * Adds pool version to the configuration tree of the transaction
+ * Adds an actual pool version.
  *
  * Pool version is represented as a tree of "v-objects".
  * "V-objects" can be added to the pool version using calls
@@ -577,28 +577,64 @@ int m0_spiel_disk_add(struct m0_spiel_tx  *tx,
  * After all "V-objects" are added, function @ref m0_spiel_pool_version_done()
  * should be called.
  *
- * Parameter nr_failures is number of allowed HW failures in each failure
- * domain. Currently there are 5 failure domains: pools, racks,
- * enclosures, controllers, disks. So nr_failures_cnt should be 5.
- * nr_failures[0] - number of allowed pool failures. Should be zero.
- * nr_failures[1] - number of allowed rack failures.
- * nr_failures[2] - number of allowed enclosure failures.
- * nr_failures[3] - number of allowed controller failures.
- * nr_failures[4] - number of allowed disk failures.
+ * Parameter tolerance is number of allowed HW failures in each failure
+ * domain. Currently there are 4 failure domains: racks, enclosures,
+ * controllers, and disks.
+ * tolerance[0] - Reserved. Should be zero.
+ * tolerance[1] - number of allowed rack failures.
+ * tolerance[2] - number of allowed enclosure failures.
+ * tolerance[3] - number of allowed controller failures.
+ * tolerance[4] - number of allowed disk failures.
  *
- * @param tx              spiel transaction
- * @param fid             fid of the pool version
- * @param parent          fid of the parent pool
- * @param nr_failures     allowed failures for each failure domain
- * @param nr_failures_cnt number of elements in nr_failures array
- * @param attrs           attributes specific to layout type
+ * @param tx            spiel transaction
+ * @param fid           fid of the pool version
+ * @param parent        fid of the parent pool
+ * @param attrs         attributes specific to layout type
+ * @param tolerance     allowed failures for each failure domain
+ * @param tolerance_len number of elements in tolerance array
+ *
+ * @pre tolerance_len == M0_CONF_PVER_HEIGHT
+ *
+ * @see conf_pvers (conf/pvers.h) to learn about different kinds
+ *      (actual/formulaic/virtual) of pool version objects.
  */
-int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
-			      const struct m0_fid    *fid,
-			      const struct m0_fid    *parent,
-			      uint32_t               *nr_failures,
-			      uint32_t                nr_failures_cnt,
-			      struct m0_pdclust_attr *attrs);
+int m0_spiel_pver_actual_add(struct m0_spiel_tx           *tx,
+			     const struct m0_fid          *fid,
+			     const struct m0_fid          *parent,
+			     const struct m0_pdclust_attr *attrs,
+			     uint32_t                     *tolerance,
+			     uint32_t                      tolerance_len);
+/**
+ * Adds a formulaic pool version.
+ *
+ * allowance[0] - Reserved. Should be zero.
+ * allowance[1] - Number of allowed rack failures.
+ * allowance[2] - Number of allowed enclosure failures.
+ * allowance[3] - Number of allowed controller failures.
+ * allowance[4] - Number of allowed disk failures.
+ *
+ * @param tx            Spiel transaction.
+ * @param fid           Pool version fid.
+ * @param parent        Parent pool fid.
+ * @param index         Cluster-unique identifier of this formulaic pver.
+ * @param base_pver     Actual pver, the subtree of which is used as a base
+ *                      for virtual pver creation/restoration.
+ * @param allowance     Number of allowed failures for each level of pver
+ *                      subtree.
+ * @param allowance_len Number of elements in `allowance' array.
+ *
+ * @pre allowance_len == M0_CONF_PVER_HEIGHT
+ *
+ * @see conf_pvers (conf/pvers.h) to learn about different kinds
+ *      (actual/formulaic/virtual) of pool version objects.
+ */
+int m0_spiel_pver_formulaic_add(struct m0_spiel_tx  *tx,
+				const struct m0_fid *fid,
+				const struct m0_fid *parent,
+				uint32_t             index,
+				const struct m0_fid *base_pver,
+				uint32_t            *allowance,
+				uint32_t             allowance_len);
 
 /**
  * Adds rack "v-object"

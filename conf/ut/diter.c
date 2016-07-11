@@ -26,9 +26,7 @@
 #include "conf/ut/common.h"       /* m0_conf_ut_grp */
 #include "conf/ut/rpc_helpers.h"  /* m0_ut_rpc_machine_start */
 #include "rpc/rpclib.h"           /* m0_rpc_server_ctx */
-#include "lib/fs.h"               /* m0_file_read */
 #include "lib/memory.h"           /* m0_free */
-#include "ut/misc.h"              /* M0_UT_PATH */
 #include "ut/ut.h"
 
 enum {

@@ -41,7 +41,6 @@
 #include "m0t1fs/linux_kernel/m0t1fs.h"
 #include "m0t1fs/linux_kernel/fsync.h"
 #include "pool/pool.h"
-#include "conf/helpers.h"           /* m0_conf_poolversion_get */
 #include "ioservice/fid_convert.h"  /* m0_fid_convert_gob2cob */
 
 extern const struct m0_uint128 m0_rm_m0t1fs_group;
@@ -628,13 +627,14 @@ static int m0t1fs_create(struct inode     *dir,
 
 	m0t1fs_fs_lock(csb);
 	/* Assign clean pool version */
-	if (m0_conf_is_pool_version_dirty(m0_csb2confc(csb),
-					  &csb->csb_pool_version->pv_id)) {
-		rc = m0t1fs_pool_find(csb);
+	if (csb->csb_pool_version->pv_is_dirty) {
+		struct m0_pool_version *pv = NULL;
+		rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
 		if (rc != 0) {
 			m0t1fs_fs_unlock(csb);
-			return M0_ERR(rc);
+			return M0_ERR(-ENOENT);
 		}
+		csb->csb_pool_version = pv;
 	}
 
 	inode = new_inode(sb);
@@ -803,9 +803,10 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 
 	m0t1fs_fs_lock(csb);
 	if (csb->csb_oostore) {
-		struct m0_fid        new_fid;
-		struct m0_fid        gfid;
-		struct m0_fop_cob    body;
+		struct m0_fid          new_fid;
+		struct m0_fid          gfid;
+		struct m0_fop_cob      body;
+		struct m0_pool_version *pv = NULL;
 
 		rc = m0_fid_sscanf(dentry->d_name.name, &new_fid);
 		if (rc != 0) {
@@ -818,13 +819,15 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		body.b_valid = (M0_COB_MODE | M0_COB_LID);
 		body.b_lid = M0_DEFAULT_LAYOUT_ID;
 		body.b_mode = S_IFREG;
-		if (m0_conf_is_pool_version_dirty(m0_csb2confc(csb),
-						  &csb->csb_pool_version->pv_id))
-			rc = m0t1fs_pool_find(csb);
+		if (csb->csb_pool_version->pv_is_dirty)
+			rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
+
 		if (rc != 0) {
 			m0t1fs_fs_unlock(csb);
 			return ERR_PTR(rc);
 		}
+		if (pv != NULL)
+			csb->csb_pool_version = pv;
 		body.b_pver = csb->csb_pool_version->pv_id;
 		inode = m0t1fs_iget(dir->i_sb, &gfid, &body);
 		if (IS_ERR(inode)) {
@@ -1307,10 +1310,14 @@ static int m0t1fs_inode_update_stat(struct inode *inode,
 				    struct m0_fop_cob *body, struct kstat *stat)
 {
 	struct m0t1fs_inode *ci = M0T1FS_I(inode);
+	struct m0t1fs_sb    *csb   = M0T1FS_SB(inode->i_sb);
 	int rc;
 
 	if (body != NULL) {
 		m0t1fs_inode_update(inode, body);
+		if (m0_pool_version_find(&csb->csb_pools_common,
+					 &body->b_pver) == NULL)
+			return M0_ERR(-EINVAL);
 		rc = m0t1fs_inode_layout_rebuild(ci, body);
 		if (rc != 0)
 			return rc;
@@ -2050,7 +2057,7 @@ int m0t1fs_mds_cob_delxattr(struct m0t1fs_sb            *csb,
 	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_delxattr_fopt, rep_fop);
 }
 
-static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb   *csb,
+static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb         *csb,
 				       const struct m0t1fs_mdop *mop,
 				       struct m0_fop            *fop,
 				       const struct m0_fid      *cob_fid,
@@ -2130,7 +2137,7 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 			     struct m0_fop_type       *ftype)
 {
 	int                         rc;
-	const struct m0t1fs_sb     *csb;
+	struct m0t1fs_sb           *csb;
 	struct m0_fid               cob_fid;
 	const struct m0_fid        *gob_fid;
 	uint32_t                    cob_idx;
@@ -2241,7 +2248,7 @@ static int m0t1fs_ios_cob_setattr(struct cob_req *cr,
 
 M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 {
-	const struct m0t1fs_sb          *csb;
+	struct m0t1fs_sb                *csb;
 	struct m0t1fs_inode             *ci;
 	const struct m0_fid             *gob_fid;
 	struct m0_fop                   *fop = NULL;
@@ -2340,6 +2347,9 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 			m0_dump_cob_attr(&attr);
 			/* Update inode fields with data from @getattr_rep. */
 			m0t1fs_inode_update(inode, body);
+			if (m0_pool_version_find(&csb->csb_pools_common,
+						 &body->b_pver) == NULL)
+				return M0_ERR(-EINVAL);
 			rc = m0t1fs_inode_layout_rebuild(ci, body);
 			m0_fop_put0_lock(fop);
 			break;

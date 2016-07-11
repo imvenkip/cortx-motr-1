@@ -24,10 +24,7 @@
 #define __MERO_FD_H__
 
 #include "layout/pdclust.h"
-#include "ha/note.h"
-#include "lib/tlist.h"
-
-
+#include "conf/obj.h"        /* M0_CONF_PVER_HEIGHT */
 
 /**
  * @defgroup failure_domains Failure Domains
@@ -86,22 +83,9 @@
 
 /* import */
 struct m0_pdclust_src_addr;
-struct m0_conf_pver;
 struct m0_confc;
 struct m0_poolmach;
 struct m0_pool_version;
-
-/**
- * Maximum allowable depth of pool version tree.
- */
-enum m0_fd_tree_attr {
-	M0_FTA_DEPTH_PVER,
-	M0_FTA_DEPTH_RACK,
-	M0_FTA_DEPTH_ENCL,
-	M0_FTA_DEPTH_CONT,
-	M0_FTA_DEPTH_DISK,
-	M0_FTA_DEPTH_MAX,
-};
 
 /**
  * Represents a cell of a fault tolerant tile stored in m0_pool_version.
@@ -137,7 +121,7 @@ struct m0_fd_tile {
 	/** Depth of the symmetric tree associated with the tile. */
 	uint64_t                ft_depth;
 	/** Children per level for the symmetric tree. */
-	uint64_t                ft_child[M0_FTA_DEPTH_MAX];
+	uint64_t                ft_child[M0_CONF_PVER_HEIGHT];
 	/** An array of tile cells. */
 	struct m0_fd_tile_cell *ft_cell;
 };
@@ -236,7 +220,7 @@ struct m0_fd_tree_node {
  * Checks the feasibility of required tolerance for various failure domains.
  * @param[in]  pv            The pool version in configuration, for which the
  *			     tolerance of failure domains is to be checked.
- *			     m0_conf_pver::pv_nr_failures holds the required
+ *			     m0_conf_pver::pv_u.subtree.pvs_tolerance holds the required
  *			     tolerances.
  * @param[out] failure_level Indicates the level for which the input tolerance
  *                           can not be supported, when returned value by the

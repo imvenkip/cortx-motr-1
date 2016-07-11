@@ -280,8 +280,9 @@ class SpielWrapper:
         return self.mero.m0_spiel_service_add(spiel_tx.data, byref(fid),
                                               byref(parent), byref(svc_info))
 
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, iface=int, media=int,
-             bsize=int, size=long, last_state=long, flags=long, filename=str)
+    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, dev_idx=int, iface=int,
+	     media=int, bsize=int, size=long, last_state=long, flags=long,
+	     filename=str)
     def device_add(self, spiel_tx, fid, parent, disk, dev_idx, iface, media,
                    bsize, size, last_state, flags, filename):
         if iface not in storage_device_interface:
@@ -320,16 +321,28 @@ class SpielWrapper:
         return self.mero.m0_spiel_disk_add(spiel_tx.data, byref(fid),
                                            byref(parent))
 
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, nr_failures=list,
+    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, tolerance=list,
              attrs=PdclustAttr)
-    def pool_version_add(self, spiel_tx, fid, parent, nr_failures, attrs):
-        nr_failures_p = (c_uint32 * len(nr_failures))()
-        nr_failures_p[:] = nr_failures
-        return self.mero.m0_spiel_pool_version_add(spiel_tx.data, byref(fid),
-                                                   byref(parent),
-                                                   nr_failures_p,
-                                                   c_uint32(len(nr_failures)),
-                                                   byref(attrs))
+    def pver_actual_add(self, spiel_tx, fid, parent, tolerance, attrs):
+        tolerance_p = (c_uint32 * len(tolerance))()
+        tolerance_p[:] = tolerance
+        return self.mero.m0_spiel_pver_actual_add(spiel_tx.data, byref(fid),
+                                                  byref(parent),
+                                                  byref(attrs),
+                                                  tolerance_p,
+						  c_uint32(len(tolerance)))
+
+    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, index=int, base_pver=Fid,
+	     allowance=list)
+    def pver_formulaic_add(self, spiel_tx, fid, parent, index, base_pver,
+			   allowance):
+        allowance_p = (c_uint32 * len(allowance))()
+        allowance_p[:] = allowance
+        return self.mero.m0_spiel_pver_formulaic_add(spiel_tx.data, byref(fid),
+                                                     byref(parent), index,
+						     byref(base_pver),
+                                                     allowance_p,
+						     c_uint32(len(allowance)))
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, real=Fid)
     def rack_v_add(self, spiel_tx, fid, parent, real):

@@ -107,7 +107,7 @@
 
   @subsection DLD-pools-in-conf-schema-fspecs-if Interfaces
 
-  - m0_conf_poolversion_get()
+  - m0_conf_pver_get()
 
   <hr>
   @section DLD-pools-in-conf-schema-lspec Logical Specifications

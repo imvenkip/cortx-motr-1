@@ -228,6 +228,8 @@ function build_conf()
 	local  ENCLID='^e|1:7'
 	local  CTRLID='^c|1:8'
 	local  POOLID='^o|1:9'
+	local  PVERFID1='^v|0x40000000000001:11'
+	local  PVERFID2='^v|0x40000000000001:12'
 	#"pool_width" number of objv created for devv conf objects
 	local  RACKVID="^j|1:$(($pool_width + 1))"
 	local  ENCLVID="^j|1:$(($pool_width + 2))"
@@ -304,14 +306,16 @@ function build_conf()
 	local ENCL="{0x65| (($ENCLID), [1: $CTRLID], [1: $PVERID])}"
 	local CTRL="{0x63| (($CTRLID), $NODE, [$NR_DISK_FIDS: $DISK_FIDS], [1: $PVERID])}"
 
-	local POOL="{0x6f| (($POOLID), 0, [1: $PVERID])}"
-	local PVER="{0x76| (($PVERID), 0, $nr_data_units, $nr_parity_units, $pool_width, [5: 1, 0, 0, 0, $nr_parity_units], [1: $RACKVID])}"
+	local POOL="{0x6f| (($POOLID), 0, [3: $PVERID, $PVERFID1, $PVERFID2])}"
+	local PVER="{0x76| (($PVERID), {0| ($nr_data_units, $nr_parity_units, $pool_width, [5: 1, 0, 0, 0, $nr_parity_units], [1: $RACKVID])})}"
+	local PVER_F1="{0x76| (($PVERFID1), {1| (0, $PVERID, [5: 0, 0, 0, 0, 1])})}"
+	local PVER_F2="{0x76| (($PVERFID2), {1| (1, $PVERID, [5: 0, 0, 0, 0, 2])})}"
 	local RACKV="{0x6a| (($RACKVID), $RACKID, [1: $ENCLVID])}"
 	local ENCLV="{0x6a| (($ENCLVID), $ENCLID, [1: $CTRLVID])}"
 	local CTRLV="{0x6a| (($CTRLVID), $CTRLID, [$NR_DISKV_FIDS: $DISKV_FIDS])}"
 
 	if ((multiple_pools == 1)); then
-		# IDs for anther pool version to test assignment
+		# IDs for another pool version to test assignment
 		# of pools to new objects.
 		local  NODEID1='^n|10:1'
 		local  PROCID1='^r|10:1'
@@ -337,7 +341,7 @@ function build_conf()
 		local  DISKVID2='^j|10:5'
 		local  DISKVID3='^j|10:6'
 		local  IOS_EP="\"${server_nid}:$IOS_PVER2_EP\""
-		# conf objects for anther pool version to test assignment
+		# conf objects for another pool version to test assignment
 		# of pools to new objects.
 		local NODE1="{0x6e| (($NODEID1), 16000, 2, 3, 2, $POOLID1, [1: $PROCID1])}"
 		local PROC1="{0x72| (($PROCID1), [1:3], 0, 0, 0, 0, $IOS_EP, [4: $IO_SVCID1, $ADDB_SVCID1, $REP_SVCID1, $REB_SVCID1])}"
@@ -345,9 +349,9 @@ function build_conf()
 		local ADDB_SVC1="{0x73| (($ADDB_SVCID1), 10, [1: $IOS_EP], [0])}"
 		local REP_SVC1="{0x73| (($REP_SVCID1), 8, [1: $IOS_EP], [0])}"
 		local REB_SVC1="{0x73| (($REB_SVCID1), 9, [1: $IOS_EP], [0])}"
-		local SDEV1="{0x64| (($SDEVID1), $((NR_IOS_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop5\")}"
-		local SDEV2="{0x64| (($SDEVID2), $((NR_IOS_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop6\")}"
-		local SDEV3="{0x64| (($SDEVID3), $((NR_IOS_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop7\")}"
+		local SDEV1="{0x64| (($SDEVID1), $((NR_IOS_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop7\")}"
+		local SDEV2="{0x64| (($SDEVID2), $((NR_IOS_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop8\")}"
+		local SDEV3="{0x64| (($SDEVID3), $((NR_IOS_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop9\")}"
 		local RACK1="{0x61| (($RACKID1), [1: $ENCLID1], [1: $PVERID1])}"
 		local ENCL1="{0x65| (($ENCLID1), [1: $CTRLID1], [1: $PVERID1])}"
 		local CTRL1="{0x63| (($CTRLID1), $NODEID1, [3: $DISKID1, $DISKID2, $DISKID3], [1: $PVERID1])}"
@@ -356,7 +360,7 @@ function build_conf()
                 local DISK3="{0x6b| (($DISKID3), $SDEVID3, [1: $PVERID1])}"
 
 		local POOL1="{0x6f| (($POOLID1), 0, [1: $PVERID1])}"
-		local PVER1="{0x76| (($PVERID1), 0, 1, 1, 3, [5: 1, 0, 0, 0, 1], [1: $RACKVID1])}"
+		local PVER1="{0x76| (($PVERID1), {0| (1, 1, 3, [5: 1, 0, 0, 0, 1], [1: $RACKVID1])})}"
 		local RACKV1="{0x6a| (($RACKVID1), $RACKID1, [1: $ENCLVID1])}"
 		local ENCLV1="{0x6a| (($ENCLVID1), $ENCLID1, [1: $CTRLVID1])}"
 		local CTRLV1="{0x6a| (($CTRLVID1), $CTRLID1, [3: $DISKVID1, $DISKVID2, $DISKVID3])}"
@@ -372,13 +376,13 @@ function build_conf()
 		NODES="$NODES, $NODEID1"
 		POOLS="$POOLS, $POOLID1"
 		RACKS="$RACKS, $RACKID1"
-		# Total 23 objects for this anther pool version
+		# Total 23 objects for this other pool version
 	fi
 
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
- [$(($((${#ioservices[*]} * 6)) + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $PVER1_OBJ_COUNT + 2)):
+ [$(($((${#ioservices[*]} * 6)) + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $PVER1_OBJ_COUNT + 4)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
@@ -402,6 +406,8 @@ function build_conf()
   $CTRL,
   $POOL,
   $PVER,
+  $PVER_F1,
+  $PVER_F2,
   $RACKV,
   $ENCLV,
   $CTRLV $PVER1_OBJS]"

@@ -331,11 +331,11 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha)
 }
 
 M0_INTERNAL void m0_ha_disconnect(struct m0_ha      *ha,
-                                  struct m0_ha_link *hl)
+				  struct m0_ha_link *hl)
 {
-	struct ha_link_ctx *hlx;
+	struct ha_link_ctx *hlx =
+		container_of(hl, struct ha_link_ctx, hlx_link);
 
-	hlx = container_of(hl, struct ha_link_ctx, hlx_link);
 	M0_ENTRY("ha=%p hl=%p", ha, hl);
 	ha_link_ctx_fini(ha, hlx);
 	m0_free(hlx);

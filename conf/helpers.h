@@ -1,4 +1,3 @@
-/* -*- c -*- */
 /*
  * COPYRIGHT 2014 XYRATEX TECHNOLOGY LIMITED
  *
@@ -16,6 +15,7 @@
  *
  * Original author: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
  *                  Mandar Sawant <mandar_sawant@seagate.com>
+ *                  Rajanikant Chirmade <rajanikant.chirmade@seagate.com>
  * Original creation date: 05-Dec-2014
  */
 #pragma once
@@ -25,25 +25,10 @@
 #include "conf/obj.h"
 
 struct m0_confc;
-struct m0_fid;
 struct m0_rconfc;
+struct m0_fid;
 struct m0_flset;
 struct m0_reqh;
-
-/**
- * Count number of objects of type "type" from specified path.
- *
- * @param profile profile to be used from configuration.
- * @param confc   already initialised confc instance.
- * @param filter  filter for objects to be count.
- * @param count   return value for count.
- * @param path    path from which objects to be counted.
- */
-#define m0_conf_obj_count(profile, confc, filter, count, ...)       \
-	m0_conf__obj_count(profile, confc, filter, count,           \
-			   M0_COUNT_PARAMS(__VA_ARGS__) + 1,        \
-			   (const struct m0_fid []){                \
-			   __VA_ARGS__, M0_FID0 })
 
 struct m0_confc_args {
 	/** Cofiguration profile. */
@@ -56,75 +41,53 @@ struct m0_confc_args {
 	struct m0_rpc_machine *ca_rmach;
 };
 
-/**
- * Obtains filesystem object associated with given profile.
- *
- * @note m0_conf_fs_get() initialises @confc. It is user's responsibility
- *       to finalise it.
- */
-M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
-			       struct m0_confc            *confc,
-			       struct m0_conf_filesystem **result);
-
-
 /** Finds a device object using device index as a key. */
 M0_INTERNAL int m0_conf_device_cid_to_fid(struct m0_confc *confc, uint64_t cid,
 					  const struct m0_fid *conf_profile,
 					  struct m0_fid *out);
 
 /**
- * Obtains service object associated with given fid.
+ * Obtains filesystem object associated with given profile.
  *
- * The resulting conf object must be m0_confc_close()d eventually.
+ * @note The resulting conf object must be m0_confc_close()d eventually.
+ *
+ * @pre  m0_conf_fid_type(profile) == &M0_CONF_PROFILE_TYPE
  */
-M0_INTERNAL int m0_conf_service_get(struct m0_confc         *confc,
-				    const struct m0_fid     *fid,
-				    struct m0_conf_service **service);
+M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
+			       struct m0_confc            *confc,
+			       struct m0_conf_filesystem **result);
 
 /**
- * Obtains device object associated with given fid.
+ * Obtains a pool version that consists of online elements only.
  *
- * The resulting conf object must be m0_confc_close()d eventually.
- */
-M0_INTERNAL int m0_conf_sdev_get(struct m0_confc      *confc,
-				 const struct m0_fid  *fid,
-				 struct m0_conf_sdev **sdev);
-
-/**
- * Obtains disk object associated with given profile.
+ * @note The resulting conf object should be m0_confc_close()d eventually.
  *
- * The resulting conf object must be m0_confc_close()d eventually.
+ * @see m0_conf_pver_find()
  */
-M0_INTERNAL int m0_conf_disk_get(struct m0_confc      *confc,
-				 const struct m0_fid  *fid,
-				 struct m0_conf_disk **disk);
+M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
+				 struct m0_confc      *confc,
+				 struct m0_conf_pver **out);
 
-/** Finds pool version which does not intersect with the given failure set. */
-M0_INTERNAL int m0_conf_poolversion_get(const struct m0_fid  *profile,
-					struct m0_confc      *confc,
-					struct m0_flset      *failure_set,
-					struct m0_conf_pver **result);
+/*
+ * m0_conf_service_get() / m0_conf_sdev_get() / m0_conf_disk_get()
+ * finds conf object by its fid and returns this object opened.
+ *
+ * Caller is responsible for m0_confc_close()ing the returned object.
+ */
+#define M0_CONF_OBJ_GETTERS \
+	X(m0_conf_service); \
+	X(m0_conf_sdev);    \
+	X(m0_conf_disk)
+
+#define X(type)                                          \
+M0_INTERNAL int type ## _get(struct m0_confc     *confc, \
+			     const struct m0_fid *fid,   \
+			     struct type        **out)
+M0_CONF_OBJ_GETTERS;
+#undef X
 
 /** Loads full configuration tree. */
 M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs);
-
-/**
- * Update configuration objects ha state from ha service according to provided
- * HA note vector.
- *
- * The difference from m0_conf_confc_ha_state_update() is dealing with an
- * arbitrary note vector. Client may fill in the vector following any logic that
- * suits its needs. All the status results which respective conf objects exist
- * in the provided confc instance cache will be applied to all HA clients
- * currently registered with HA global context.
- *
- * @pre nvec->nv_nr <= M0_HA_STATE_UPDATE_LIMIT
- */
-M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
-				       struct m0_ha_nvec     *nvec);
-
-M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
-				      const struct m0_fid   *obj_fid);
 
 /**
  * Locates conf service object identified by fid (optional), service type and
@@ -146,35 +109,17 @@ M0_INTERNAL int m0_conf_service_find(struct m0_reqh            *reqh,
 				     const char                *ep_addr,
 				     struct m0_conf_obj       **svc_obj);
 
-/**
- * Update configuration objects ha state from ha service.
- * Fetches HA state of configuration objects from HA service and
- * updates local configuration cache.
- */
-M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
-					struct m0_confc       *confc);
-/**
- * Update configuration objects ha state from ha service according to provided
- * HA note vector.
- *
- * The difference from m0_conf_ha_state_update() is dealing with an arbitrary
- * note vector. Client may fill in the vector following any logic that suits its
- * needs. All the status results which respective conf objects exist in the
- * provided confc instance cache will be applied to the cache.
- */
-M0_INTERNAL int m0_conf_ha_state_discover(struct m0_rpc_session *ha_sess,
-					  struct m0_ha_nvec     *nvec,
-					  struct m0_confc       *confc);
-
-/**
- * Notify ha status for configuration object.
- */
-void m0_conf_ha_notify(struct m0_fid *fid, enum m0_ha_obj_state  state);
+M0_INTERNAL int m0_conf_service_open(struct m0_confc            *confc,
+				     const struct m0_fid        *profile,
+				     const char                 *ep,
+				     enum m0_conf_service_type   svc_type,
+				     struct m0_conf_service    **svc);
 
 /**
  * Opens root configuration object.
- * @param confc already initialised confc instance
- * @param root  output parameter. Should be closed by user.
+ *
+ * @param confc  Initialised confc instance.
+ * @param root   Output parameter. Should be m0_confc_close()d by user.
  */
 M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
 				  struct m0_conf_root **root);
@@ -182,21 +127,12 @@ M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
 /** Get service name by service configuration object */
 M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc);
 
-M0_INTERNAL bool m0_obj_is_pver(const struct m0_conf_obj *obj);
-
-M0_INTERNAL bool m0_obj_is_sdev(const struct m0_conf_obj *obj);
-
 M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj);
 
 M0_INTERNAL struct m0_reqh *m0_confc2reqh(const struct m0_confc *confc);
 
-M0_INTERNAL bool m0_conf_is_pool_version_dirty(struct m0_confc     *confc,
-					       const struct m0_fid *pver_fid);
+M0_INTERNAL bool m0_conf_obj_is_pool(const struct m0_conf_obj *obj);
 
-/**
- * Internal function to get number of objects of type "type" from specified path.
- * @note this function is called from m0_conf_obj_count().
- */
 M0_INTERNAL int m0_conf__obj_count(const struct m0_fid *profile,
 				   struct m0_confc     *confc,
 				   bool (*filter)(const struct m0_conf_obj *obj),
@@ -207,16 +143,13 @@ M0_INTERNAL int m0_conf__obj_count(const struct m0_fid *profile,
 /** Obtains m0_conf_pver array from rack/enclousure/controller. */
 M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj);
 
-M0_INTERNAL int m0_conf_service_open(struct m0_confc            *confc,
-				     const struct m0_fid        *profile,
-				     const char                 *ep,
-				     enum m0_conf_service_type   svc_type,
-				     struct m0_conf_service    **svc);
-
+/* XXX TODO: Move to mero/ha.c as a static function. */
 M0_INTERNAL bool m0_conf_service_is_top_rms(const struct m0_conf_service *svc);
 
 M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj);
-M0_INTERNAL int m0_conf_ios_devices_count(struct m0_fid *profile,
+
+/* XXX TODO: Move to pool/pool.c as a static function. */
+M0_INTERNAL int m0_conf_ios_devices_count(const struct m0_fid *profile,
 					  struct m0_confc *confc,
 					  uint32_t *nr_devices);
 
@@ -233,9 +166,71 @@ M0_INTERNAL bool m0_conf_service_ep_is_known(struct m0_conf_obj *svc_obj,
 /**
  * Gets service fid of type stype from process with process_fid.
  */
-int m0_conf_process2service_get(struct m0_confc           *confc,
-				const struct m0_fid       *process_fid,
-				enum m0_conf_service_type  stype,
-				struct m0_fid             *sfid);
+M0_INTERNAL int m0_conf_process2service_get(struct m0_confc *confc,
+					    const struct m0_fid *process_fid,
+					    enum m0_conf_service_type stype,
+					    struct m0_fid *sfid);
+
+/* --------------------------------- >8 --------------------------------- */
+
+/**
+ * @todo XXX RELOCATEME: This function belongs ha subsystem, not conf.
+ *
+ * Update configuration objects ha state from ha service according to provided
+ * HA note vector.
+ *
+ * The difference from m0_conf_confc_ha_state_update() is dealing with an
+ * arbitrary note vector. Client may fill in the vector following any logic that
+ * suits its needs. All the status results which respective conf objects exist
+ * in the provided confc instance cache will be applied to all HA clients
+ * currently registered with HA global context.
+ *
+ * @pre nvec->nv_nr <= M0_HA_STATE_UPDATE_LIMIT
+ *
+ */
+M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
+				       struct m0_ha_nvec     *nvec);
+
+/**
+ * @todo XXX RELOCATEME: This function belongs ha subsystem, not conf.
+ */
+M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
+				      const struct m0_fid   *obj_fid);
+
+/**
+ * @todo XXX RELOCATEME: This function belongs ha subsystem, not conf.
+ *
+ * Update configuration objects ha state from ha service.
+ * Fetches HA state of configuration objects from HA service and
+ * updates local configuration cache.
+ */
+M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
+					struct m0_confc       *confc);
+
+/**
+ * @todo XXX RELOCATEME: This function belongs ha subsystem, not conf.
+ *
+ * Update configuration objects ha state from ha service according to provided
+ * HA note vector.
+ *
+ * The difference from m0_conf_ha_state_update() is dealing with an arbitrary
+ * note vector. Client may fill in the vector following any logic that suits its
+ * needs. All the status results which respective conf objects exist in the
+ * provided confc instance cache will be applied to the cache.
+ */
+M0_INTERNAL int m0_conf_ha_state_discover(struct m0_rpc_session *ha_sess,
+					  struct m0_ha_nvec     *nvec,
+					  struct m0_confc       *confc);
+
+/**
+ * @todo XXX RELOCATEME: This function has nothing to do with conf subsystem.
+ *       Move it to ha/.
+ *
+ * Notify ha status for configuration object.
+ *
+ * @note  m0_conf_ha_notify() is not M0_INTERNAL, because it is used by
+ *        mero/m0d.c:main().
+ */
+void m0_conf_ha_notify(struct m0_fid *fid, enum m0_ha_obj_state state);
 
 #endif /* __MERO_CONF_HELPERS_H__ */

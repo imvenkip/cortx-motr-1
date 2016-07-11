@@ -3514,7 +3514,7 @@ static uint64_t tolerance_of_level(struct io_request *req, uint64_t lv)
 	struct m0_pdclust_instance *play_instance;
 	struct m0_pool_version     *pver;
 
-	M0_PRE(lv < M0_FTA_DEPTH_MAX);
+	M0_PRE(lv < M0_CONF_PVER_HEIGHT);
 
 	play_instance = pdlayout_instance(layout_instance(req));
 	pver = play_instance->pi_base.li_l->l_pver;
@@ -3535,7 +3535,7 @@ static bool is_session_marked(struct io_request *req,
 	uint64_t session_id;
 
 	session_id = session->s_session_id;
-	max_failures = tolerance_of_level(req, M0_FTA_DEPTH_CONT);
+	max_failures = tolerance_of_level(req, M0_CONF_PVER_LVL_CTRLS);
 	for (i = 0; i < max_failures; ++i) {
 		if (req->ir_failed_session[i] == session_id)
 			return true;
@@ -3563,8 +3563,9 @@ static int device_check(struct io_request *req)
 	struct m0_pdclust_layout *play;
 	enum m0_pool_nd_state     state;
 	uint64_t                  max_failures;
+	struct m0_poolmach       *pm = m0t1fs_file_to_poolmach(req->ir_file);
 
-	max_failures = tolerance_of_level(req, M0_FTA_DEPTH_CONT);
+	max_failures = tolerance_of_level(req, M0_CONF_PVER_LVL_CTRLS);
 
 	M0_ENTRY("[%p]", req);
 	M0_PRE(req != NULL);
@@ -3573,9 +3574,7 @@ static int device_check(struct io_request *req)
 	csb = file_to_sb(req->ir_file);
 	play = pdlayout_get(req);
 	m0_htable_for (tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
-		rc = m0_poolmach_device_state(&csb->csb_pool_version->pv_mach,
-				              ti->ti_obj,
-					      &state);
+		rc = m0_poolmach_device_state(pm, ti->ti_obj, &state);
 		if (rc != 0)
 			return M0_ERR_INFO(rc, "[%p] Failed to retrieve target "
 					   "device state", req);
@@ -4234,7 +4233,7 @@ static int io_request_init(struct io_request        *req,
 	if (req->ir_nwxfer.nxr_rc != 0)
 		return M0_ERR_INFO(req->ir_nwxfer.nxr_rc,
 				   "[%p] nw_xfer_req_init() failed", req);
-	max_failures = tolerance_of_level(req, M0_FTA_DEPTH_CONT);
+	max_failures = tolerance_of_level(req, M0_CONF_PVER_LVL_CTRLS);
 	M0_ALLOC_ARR(req->ir_failed_session, max_failures + 1);
 	if (req->ir_failed_session == NULL)
 		return M0_ERR_INFO(-ENOMEM, "[%p] Allocation of an array of "

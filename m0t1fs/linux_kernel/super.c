@@ -715,28 +715,6 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
-int m0t1fs_pool_find(struct m0t1fs_sb *csb)
-{
-	struct m0_conf_pool *cp;
-	struct m0_conf_pver *pver = NULL;
-	struct m0_reqh      *reqh = &csb->csb_reqh;
-	struct m0_pool      *pool;
-	int                  rc;
-
-	rc = m0_conf_poolversion_get(&reqh->rh_profile, m0_reqh2confc(reqh),
-				     &reqh->rh_failure_set, &pver);
-	if (rc != 0)
-		return M0_ERR(rc);
-	cp = M0_CONF_CAST(m0_conf_obj_grandparent(&pver->pv_obj), m0_conf_pool);
-	pool = m0_pool_find(&csb->csb_pools_common, &cp->pl_obj.co_id);
-	M0_ASSERT(pool != NULL);
-
-	csb->csb_pool_version = m0__pool_version_find(pool,
-						      &pver->pv_obj.co_id);
-
-	return M0_RC(rc);
-}
-
 static bool m0t1fs_rconfc_expired_cb(struct m0_clink *clink)
 {
 	struct m0t1fs_sb           *csb = container_of(clink, struct m0t1fs_sb,
@@ -794,6 +772,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	struct m0_reqh            *reqh = &csb->csb_reqh;
 	struct m0_conf_filesystem *fs;
 	struct m0_rconfc          *rconfc;
+	struct m0_pool_version    *pv = NULL;
 	int                        rc;
 
 	M0_ENTRY();
@@ -876,9 +855,10 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		goto err_ha_destroy;
 
 	/* Find pool and pool version to use. */
-	rc = m0t1fs_pool_find(csb);
+	rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
 	if (rc != 0)
 		goto err_failure_set_destroy;
+	csb->csb_pool_version = pv;
 
 	/* Start resource manager service */
 	rc = m0t1fs_reqh_services_start(csb);
@@ -990,7 +970,8 @@ M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
 {
 	struct m0t1fs_sb    *csb = container_of(body, struct m0t1fs_sb,
 					     csb_virt_body);
-	int                  rc = 0;
+	int                    rc = 0;
+	struct m0_pool_version *pv = NULL;
 
 	M0_PRE(body != NULL);
 
@@ -1009,13 +990,13 @@ M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
                         S_IRGRP | S_IXGRP |                    /*r-x for group*/
                         S_IROTH | S_IXOTH);
 
-	if (m0_conf_is_pool_version_dirty(m0_csb2confc(csb),
-					  &csb->csb_pool_version->pv_id))
-		rc = m0t1fs_pool_find(csb);
-	if (rc != 0)
-		return M0_ERR(rc);
+	if (csb->csb_pool_version->pv_is_dirty) {
+		rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
+		if (rc != 0)
+			return M0_ERR(rc);
+		csb->csb_pool_version = pv;
+	}
 	body->b_pver = csb->csb_pool_version->pv_id;
-
 	return M0_RC(0);
 }
 

@@ -28,6 +28,8 @@
 #define XCAST(xobj) ((struct m0_confx_objv *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_objv, xj_header) == 0);
 
+static const struct m0_fid **objv_downlinks(const struct m0_conf_obj *obj);
+
 static bool objv_check(const void *bob)
 {
 	const struct m0_conf_objv *self = bob;
@@ -48,24 +50,14 @@ static int objv_decode(struct m0_conf_obj        *dest,
 	struct m0_conf_objv           *d = M0_CONF_CAST(dest, m0_conf_objv);
 	const struct m0_confx_objv    *s = XCAST(src);
 	const struct m0_fid           *relfid;
-	const struct m0_conf_obj_type *obj_type;
 
+	d->cv_ix = -1;
 	rc = m0_conf_obj_find(cache, &s->xj_real, &d->cv_real);
 	if (rc != 0)
 		return M0_ERR(rc);
-
-	obj_type = m0_conf_fid_type(&d->cv_real->co_id);
-	if (obj_type == &M0_CONF_RACK_TYPE)
-		relfid = &M0_CONF_RACKV_ENCLVS_FID;
-	else if (obj_type == &M0_CONF_ENCLOSURE_TYPE)
-		relfid = &M0_CONF_ENCLV_CTRLVS_FID;
-	else if (obj_type == &M0_CONF_CONTROLLER_TYPE)
-		relfid = &M0_CONF_CTRLV_DISKVS_FID;
-	else if (obj_type == &M0_CONF_DISK_TYPE)
-		return M0_RC(0); /* no children */
-	else
-		return M0_ERR(-EINVAL);
-	return M0_RC(m0_conf_dir_new(cache, dest, relfid, &M0_CONF_OBJV_TYPE,
+	relfid = objv_downlinks(dest)[0];
+	return M0_RC(relfid == NULL ? 0 /* no children */ :
+		     m0_conf_dir_new(cache, dest, relfid, &M0_CONF_OBJV_TYPE,
 				     &s->xj_children, &d->cv_children));
 }
 

@@ -29,6 +29,7 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_HA
+#include "lib/trace.h"
 
 #include "conf/confc.h"
 #include "fop/fom_generic.h"

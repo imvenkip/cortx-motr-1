@@ -41,7 +41,7 @@ struct m0_fd__tree_cursor {
 	uint32_t                ftc_cnt;
 	/** Starting from the tree root, Holds absolute indices of ancestors of
 	 * the current cursor location */
-	uint64_t                ftc_path[M0_FTA_DEPTH_MAX + 1];
+	uint64_t                ftc_path[M0_CONF_PVER_HEIGHT + 1];
 };
 
 /** Calculates the tile parameters using pdclust layout. */

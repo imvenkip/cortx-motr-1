@@ -19,7 +19,6 @@
  * Original creation date: 10-May-2013
  */
 
-
 #pragma once
 
 #ifndef __MERO___HA_NOTE_H__
@@ -223,7 +222,6 @@ struct m0_ha_msg_nvec2 {
 	struct m0_ha_msg_nvec_array hmnv_arr;
 } M0_XCA_RECORD;
 
-
 #define M0_NVEC_PRINT(nvec_, label, level) ({			  \
 	int i;                                                    \
 	struct m0_ha_nvec *nvec = nvec_;                          \
@@ -382,9 +380,7 @@ M0_INTERNAL void m0_ha_note_handler_signal(struct m0_ha_note_handler *hnh,
                                            uint64_t                   id);
 
 /** @} end of ha-note group */
-
 #endif /* __MERO___HA_NOTE_H__ */
-
 
 /*
  *  Local variables:

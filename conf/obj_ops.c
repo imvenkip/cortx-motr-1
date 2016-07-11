@@ -76,7 +76,7 @@ static bool _concrete_obj_invariant(const struct m0_conf_obj *obj)
 }
 
 M0_INTERNAL struct m0_conf_obj *
-m0_conf_obj_create(struct m0_conf_cache *cache, const struct m0_fid *id)
+m0_conf_obj_create(const struct m0_fid *id, struct m0_conf_cache *cache)
 {
 	struct m0_conf_obj            *obj;
 	const struct m0_conf_obj_type *type = m0_conf_fid_type(id);
@@ -120,7 +120,7 @@ static int stub_create(struct m0_conf_cache *cache,
 
 	M0_ENTRY();
 
-	*out = m0_conf_obj_create(cache, id);
+	*out = m0_conf_obj_create(id, cache);
 	if (*out == NULL)
 		return M0_ERR(-ENOMEM);
 

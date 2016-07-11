@@ -87,7 +87,7 @@ static void test_conf_glob(void)
 			  M0_CONF_ENCLV_CTRLVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_CTRLV_DISKVS_FID, M0_CONF_ANY_FID);
 	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
-	M0_UT_ASSERT(rc == 10);
+	M0_UT_ASSERT(rc == 16);
 	/* check the types of returned objects */
 	m0_forall(i, rc, M0_CONF_CAST(objv[i], m0_conf_objv));
 

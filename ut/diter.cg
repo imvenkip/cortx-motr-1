@@ -38,7 +38,7 @@
 (disk-21 dev=sdev-13 pvers=[pver-24])
 (disk-22 dev=sdev-14 pvers=[pver-24])
 (pool-23 order=0 pvers=[pver-24])
-(pver-24 ver=0 N=3 K=1 P=5 nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-25])
+(pver-24 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-25])
 (objv-25 real=rack-15 children=[objv-26])
 (objv-26 real=enclosure-16 children=[objv-27])
 (objv-27 real=controller-17

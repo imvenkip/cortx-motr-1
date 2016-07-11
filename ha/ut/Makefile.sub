@@ -5,4 +5,4 @@ ut_libmero_ut_la_SOURCES += ha/ut/entrypoint.c \
                             ha/ut/link.c \
                             ha/ut/main.c \
                             ha/ut/msg_queue.c \
-                            ha/ut/note_test.c
+                            ha/ut/note.c

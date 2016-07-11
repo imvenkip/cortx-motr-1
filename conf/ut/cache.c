@@ -23,17 +23,13 @@
 #include "conf/preload.h"  /* m0_confstr_parse, m0_confx_free */
 #include "conf/onwire.h"   /* m0_confx_obj, m0_confx */
 #include "conf/dir.h"      /* m0_conf_dir_add */
+#include "conf/ut/common.h"
 #include "lib/buf.h"       /* m0_buf, M0_BUF_INITS */
 #include "lib/errno.h"     /* ENOENT */
-#include "lib/fs.h"        /* m0_file_read */
 #include "lib/memory.h"    /* m0_free0 */
-#include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
 
-static struct m0_mutex      g_lock;
-static struct m0_conf_cache g_cache;
-
-void test_obj_xtors(void)
+static void test_obj_xtors(void)
 {
 	struct m0_conf_obj            *obj;
 	const struct m0_conf_obj_type *t = NULL;
@@ -42,45 +38,48 @@ void test_obj_xtors(void)
 		const struct m0_fid fid = M0_FID_TINIT(t->cot_ftype.ft_id,
 						       1, 0);
 		M0_ASSERT(m0_conf_fid_is_valid(&fid));
-		obj = m0_conf_obj_create(&g_cache, &fid);
+		obj = m0_conf_obj_create(&fid, &m0_conf_ut_cache);
 		M0_UT_ASSERT(obj != NULL);
 
-		m0_conf_cache_lock(&g_cache);
+		m0_conf_cache_lock(&m0_conf_ut_cache);
 		m0_conf_obj_delete(obj);
-		m0_conf_cache_unlock(&g_cache);
+		m0_conf_cache_unlock(&m0_conf_ut_cache);
 	}
 }
 
 static void
 ut_conf_obj_create(const struct m0_fid *fid, struct m0_conf_obj **result)
 {
-	int rc;
+	struct m0_conf_obj *obj;
+	int                 rc;
 
-	*result = m0_conf_cache_lookup(&g_cache, fid);
-	M0_UT_ASSERT(*result == NULL);
+	obj = m0_conf_cache_lookup(&m0_conf_ut_cache, fid);
+	M0_UT_ASSERT(obj == NULL);
 
-	*result = m0_conf_obj_create(&g_cache, fid);
-	M0_UT_ASSERT(*result != NULL);
-	M0_UT_ASSERT(m0_fid_eq(&(*result)->co_id, fid));
+	obj = m0_conf_obj_create(fid, &m0_conf_ut_cache);
+	M0_UT_ASSERT(obj != NULL);
+	M0_UT_ASSERT(m0_fid_eq(&(obj)->co_id, fid));
 
-	m0_conf_cache_lock(&g_cache);
-	rc = m0_conf_cache_add(&g_cache, *result);
-	m0_conf_cache_unlock(&g_cache);
+	m0_conf_cache_lock(&m0_conf_ut_cache);
+	rc = m0_conf_cache_add(&m0_conf_ut_cache, obj);
+	m0_conf_cache_unlock(&m0_conf_ut_cache);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache, fid) == *result);
+	M0_UT_ASSERT(m0_conf_cache_lookup(&m0_conf_ut_cache, fid) == obj);
+	*result = obj;
 }
 
 static void ut_conf_obj_delete(struct m0_conf_obj *obj)
 {
-	m0_conf_cache_lock(&g_cache);
-	m0_conf_cache_del(&g_cache, obj);
-	m0_conf_cache_unlock(&g_cache);
+	m0_conf_cache_lock(&m0_conf_ut_cache);
+	m0_conf_cache_del(&m0_conf_ut_cache, obj);
+	m0_conf_cache_unlock(&m0_conf_ut_cache);
 
-	M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache, &obj->co_id) == NULL);
+	M0_UT_ASSERT(m0_conf_cache_lookup(&m0_conf_ut_cache, &obj->co_id) ==
+		     NULL);
 }
 
-void test_dir_add_del(void)
+static void test_dir_add_del(void)
 {
 	struct m0_conf_obj *dir;
 	struct m0_conf_obj *obj;
@@ -98,7 +97,7 @@ void test_dir_add_del(void)
 	ut_conf_obj_delete(dir);
 }
 
-void test_cache(void)
+static void test_cache(void)
 {
 	int                 rc;
 	struct m0_conf_obj *obj;
@@ -113,44 +112,44 @@ void test_cache(void)
 	ut_conf_obj_delete(obj); /* delete the last object */
 
 	/* Duplicated identity. */
-	obj = m0_conf_obj_create(&g_cache, &samples[0]);
+	obj = m0_conf_obj_create(&samples[0], &m0_conf_ut_cache);
 	M0_UT_ASSERT(obj != NULL);
 
-	m0_conf_cache_lock(&g_cache);
-	rc = m0_conf_cache_add(&g_cache, obj);
-	m0_conf_cache_unlock(&g_cache);
+	m0_conf_cache_lock(&m0_conf_ut_cache);
+	rc = m0_conf_cache_add(&m0_conf_ut_cache, obj);
+	m0_conf_cache_unlock(&m0_conf_ut_cache);
 	M0_UT_ASSERT(rc == -EEXIST);
 
-	m0_conf_cache_lock(&g_cache);
+	m0_conf_cache_lock(&m0_conf_ut_cache);
 	m0_conf_obj_delete(obj);
-	m0_conf_cache_unlock(&g_cache);
+	m0_conf_cache_unlock(&m0_conf_ut_cache);
 }
 
-void test_obj_find(void)
+static void test_obj_find(void)
 {
 	int                 rc;
 	const struct m0_fid id = M0_FID_TINIT('p', 1, 0);
 	struct m0_conf_obj *p = NULL;
 	struct m0_conf_obj *q = NULL;
 
-	m0_conf_cache_lock(&g_cache);
+	m0_conf_cache_lock(&m0_conf_ut_cache);
 
-	rc = m0_conf_obj_find(&g_cache, &id, &p);
+	rc = m0_conf_obj_find(&m0_conf_ut_cache, &id, &p);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(p != NULL);
 
-	rc = m0_conf_obj_find(&g_cache, &id, &q);
+	rc = m0_conf_obj_find(&m0_conf_ut_cache, &id, &q);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(q == p);
 
-	rc = m0_conf_obj_find(&g_cache, &M0_FID_TINIT('d', 1, 0), &q);
+	rc = m0_conf_obj_find(&m0_conf_ut_cache, &M0_FID_TINIT('d', 1, 0), &q);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(q != p);
 
-	m0_conf_cache_unlock(&g_cache);
+	m0_conf_cache_unlock(&m0_conf_ut_cache);
 }
 
-void test_obj_fill(void)
+static void test_obj_fill(void)
 {
 	struct m0_confx    *enc;
 	struct m0_conf_obj *obj;
@@ -167,39 +166,24 @@ void test_obj_fill(void)
 	M0_UT_ASSERT(enc->cx_nr == M0_UT_CONF_NR_OBJS);
 	m0_free0(&confstr);
 
-	m0_conf_cache_lock(&g_cache);
+	m0_conf_cache_lock(&m0_conf_ut_cache);
 	for (i = 0; i < enc->cx_nr; ++i) {
 		struct m0_confx_obj *xobj = M0_CONFX_AT(enc, i);
 
-		rc = m0_conf_obj_find(&g_cache, m0_conf_objx_fid(xobj), &obj) ?:
-			m0_conf_obj_fill(obj, xobj, &g_cache);
+		rc = m0_conf_obj_find(&m0_conf_ut_cache, m0_conf_objx_fid(xobj),
+				      &obj) ?:
+			m0_conf_obj_fill(obj, xobj, &m0_conf_ut_cache);
 		M0_UT_ASSERT(rc == 0);
 	}
-	m0_conf_cache_unlock(&g_cache);
+	m0_conf_cache_unlock(&m0_conf_ut_cache);
 
 	m0_confx_free(enc);
-}
-
-/* ------------------------------------------------------------------ */
-
-static int cache_init(void)
-{
-	m0_mutex_init(&g_lock);
-	m0_conf_cache_init(&g_cache, &g_lock);
-	return 0;
-}
-
-static int cache_fini(void)
-{
-	m0_conf_cache_fini(&g_cache);
-	m0_mutex_fini(&g_lock);
-	return 0;
 }
 
 struct m0_ut_suite conf_ut = {
 	.ts_name  = "conf-ut",
-	.ts_init  = cache_init,
-	.ts_fini  = cache_fini,
+	.ts_init  = conf_ut_cache_init,
+	.ts_fini  = conf_ut_cache_fini,
 	.ts_tests = {
 		{ "obj-xtors",   test_obj_xtors },
 		{ "cache",       test_cache     },

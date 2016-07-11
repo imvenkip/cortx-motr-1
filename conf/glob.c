@@ -35,9 +35,9 @@
 /** Symbolic names for conf_glob_step() return values. */
 enum conf_glob_res {
 	/** Another conf_glob_step() can be made. */
-	CONF_GLOB_CONT = 0,
+	CONF_GLOB_CONT,
 	/** Target object reached. Another conf_glob_step() can be made. */
-	CONF_GLOB_CONT_OBJ,
+	CONF_GLOB_TARGET,
 	/** Conf DAG traversal completed. */
 	CONF_GLOB_END
 };
@@ -64,7 +64,7 @@ M0_INTERNAL void m0_conf__glob_init(struct m0_conf_glob *glob,
 	for (i = 0; i < ARRAY_SIZE(glob->cg_path) && m0_fid_is_set(&path[i]);
 	     ++i)
 		glob->cg_path[i] = path[i];
-	M0_ASSERT_INFO(IS_IN_ARRAY(i, glob->cg_path), "Path is too long;"
+	M0_ASSERT_INFO(IS_IN_ARRAY(i, glob->cg_path), "Path is too long,"
 		       " consider increasing M0_CONF_PATH_MAX");
 	glob->cg_path[i] = M0_FID0; /* terminate the path */
 
@@ -83,7 +83,7 @@ M0_INTERNAL void m0_conf__glob_init(struct m0_conf_glob *glob,
 	M0_SET_ARR0(glob->cg_trace);
 	glob->cg_trace[0] = glob->cg_origin;
 #ifdef DEBUG
-	glob->cg_debug = false;
+	glob->cg_debug_print = false;
 #endif
 }
 
@@ -100,7 +100,7 @@ M0_INTERNAL int m0_conf_glob(struct m0_conf_glob *glob, uint32_t nr,
 			return M0_ERR(rc);
 		if (rc == CONF_GLOB_END)
 			return M0_RC(filled);
-		if (rc == CONF_GLOB_CONT_OBJ)
+		if (rc == CONF_GLOB_TARGET)
 			++filled;
 		else
 			M0_ASSERT(rc == CONF_GLOB_CONT);
@@ -147,7 +147,7 @@ conf_glob_down(struct m0_conf_glob *glob, const struct m0_conf_obj **target)
 		/* target object reached */
 		conf_glob_turn(glob);
 		*target = obj;
-		return M0_RC(CONF_GLOB_CONT_OBJ);
+		return M0_RC(CONF_GLOB_TARGET);
 	}
 	M0_CNT_INC(*depth);
 	M0_ASSERT(IS_IN_ARRAY(*depth, glob->cg_path));
@@ -224,7 +224,7 @@ static int conf_glob_up(struct m0_conf_glob *glob)
 #ifdef DEBUG
 static void conf_glob_step_pre(const struct m0_conf_glob *glob)
 {
-	if (glob->cg_debug) {
+	if (glob->cg_debug_print) {
 		char     marker;
 		uint32_t i;
 
@@ -245,8 +245,8 @@ static void conf_glob_step_pre(const struct m0_conf_glob *glob)
 static void conf_glob_step_post(const struct m0_conf_glob *glob, int retval,
 				const struct m0_conf_obj *obj)
 {
-	if (glob->cg_debug) {
-		if (retval == CONF_GLOB_CONT_OBJ)
+	if (glob->cg_debug_print) {
+		if (retval == CONF_GLOB_TARGET)
 			M0_LOG(M0_DEBUG, "==> %c%u "FID_F,
 			       "^v"[!!glob->cg_down_p], glob->cg_depth,
 			       FID_P(&obj->co_id));

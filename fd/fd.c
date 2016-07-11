@@ -150,7 +150,8 @@ static bool is_obj_disk(const struct m0_conf_obj *obj)
 	return obj_check(obj, &M0_CONF_DISK_TYPE);
 }
 
-bool (*obj_filter[M0_FTA_DEPTH_MAX]) (const struct m0_conf_obj *obj) = {
+static bool
+(*obj_filter[M0_CONF_PVER_HEIGHT])(const struct m0_conf_obj *obj) = {
 	NULL,
 	is_obj_rack,
 	is_obj_encl,
@@ -164,19 +165,20 @@ bool (*obj_filter[M0_FTA_DEPTH_MAX]) (const struct m0_conf_obj *obj) = {
 	struct m0_conf_pver  *__pv    = (struct m0_conf_pver *)(pv);       \
 	uint64_t              __level = (level);                           \
 	struct m0_conf_diter  __it;                                        \
-	struct  m0_fid conf_path[M0_FTA_DEPTH_MAX][M0_FTA_DEPTH_MAX] = {   \
-	{M0_FID0, M0_FID0},                                                \
-	{M0_CONF_PVER_RACKVS_FID},                                         \
-        {M0_CONF_PVER_RACKVS_FID, M0_CONF_RACKV_ENCLVS_FID},               \
-        {M0_CONF_PVER_RACKVS_FID, M0_CONF_RACKV_ENCLVS_FID,                \
-	 M0_CONF_ENCLV_CTRLVS_FID},                                        \
-	{M0_CONF_PVER_RACKVS_FID, M0_CONF_RACKV_ENCLVS_FID,                \
-	 M0_CONF_ENCLV_CTRLVS_FID, M0_CONF_CTRLV_DISKVS_FID},              \
-         };                                                                \
+	struct m0_fid conf_path[M0_CONF_PVER_HEIGHT][M0_CONF_PVER_HEIGHT] = { \
+		{ M0_FID0, M0_FID0 },                                      \
+		{ M0_CONF_PVER_RACKVS_FID },                               \
+		{ M0_CONF_PVER_RACKVS_FID, M0_CONF_RACKV_ENCLVS_FID },     \
+		{ M0_CONF_PVER_RACKVS_FID,                                 \
+		  M0_CONF_RACKV_ENCLVS_FID,                                \
+		  M0_CONF_ENCLV_CTRLVS_FID },                              \
+		{ M0_CONF_PVER_RACKVS_FID, M0_CONF_RACKV_ENCLVS_FID,       \
+		  M0_CONF_ENCLV_CTRLVS_FID, M0_CONF_CTRLV_DISKVS_FID },    \
+	 };                                                                \
 	__confc = (struct m0_confc *)m0_confc_from_obj(&__pv->pv_obj);     \
 	M0_ASSERT(__confc != NULL);                                        \
 	rc = m0_conf__diter_init(&__it, __confc, &__pv->pv_obj,            \
-			          __level, conf_path[__level]);            \
+				 __level, conf_path[__level]);             \
 	while (rc >= 0  &&                                                 \
 	       (rc = m0_conf_diter_next_sync(&__it,                        \
 					     obj_filter[__level])) !=      \
@@ -194,18 +196,20 @@ static int tree_level_nodes_cnt(const struct m0_conf_pver *pv, uint64_t level,
 	struct m0_conf_objv *objv;
 	int                  rc = -EINVAL;
 
-	M0_PRE(pv != NULL);
-	M0_PRE(level > 0 && level < M0_FTA_DEPTH_MAX);
+	M0_ENTRY();
+
+	M0_PRE(pv->pv_kind != M0_CONF_PVER_FORMULAIC);
+	M0_PRE(level > 0 && level < M0_CONF_PVER_HEIGHT);
 
 	if (level == 1) {
-		*children_nr = m0_conf_dir_len(pv->pv_rackvs);
+		*children_nr = m0_conf_dir_len(pv->pv_u.subtree.pvs_rackvs);
 		rc = *children_nr > 0 ? 0 : M0_ERR(-EINVAL);
 		goto out;
 	}
 	*children_nr = 0;
 	pv_for (pv, level - 1, obj, rc) {
 		M0_ASSERT(m0_conf_obj_type(obj) ==  &M0_CONF_OBJV_TYPE);
-	        objv = M0_CONF_CAST(obj, m0_conf_objv);
+		objv = M0_CONF_CAST(obj, m0_conf_objv);
 		*children_nr += m0_conf_dir_len(objv->cv_children);
 	} pv_endfor;
 out:
@@ -222,8 +226,10 @@ static int min_children_cnt(const struct m0_conf_pver *pv, uint64_t pv_level,
 	uint64_t             obj_id;
 	int                  rc = -EINVAL;
 
+	M0_ENTRY();
+
 	M0_PRE(pv != NULL);
-	M0_PRE(pv_level > 0 && pv_level < M0_FTA_DEPTH_MAX);
+	M0_PRE(pv_level > 0 && pv_level < M0_CONF_PVER_HEIGHT);
 
 	obj_id = 0;
 	*children_nr = 0;
@@ -235,6 +241,7 @@ static int min_children_cnt(const struct m0_conf_pver *pv, uint64_t pv_level,
 				     min_type(uint64_t, min, *children_nr);
 		++obj_id;
 	} pv_endfor;
+
 	*children_nr = min;
 	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
 }
@@ -254,7 +261,7 @@ M0_INTERNAL int m0_fd__tile_init(struct m0_fd_tile *tile,
 	if (tile->ft_cell == NULL)
 		return M0_ERR(-ENOMEM);
 	memcpy(tile->ft_child, children,
-	       M0_FTA_DEPTH_MAX * sizeof tile->ft_child[0]);
+	       M0_CONF_PVER_HEIGHT * sizeof tile->ft_child[0]);
 
 	M0_POST(parity_group_size(la_attr) <= tile->ft_cols);
 	return M0_RC(0);
@@ -263,7 +270,7 @@ M0_INTERNAL int m0_fd__tile_init(struct m0_fd_tile *tile,
 M0_INTERNAL int m0_fd_tolerance_check(struct m0_conf_pver *pv,
 				      uint64_t *failure_level)
 {
-	uint64_t children_nr[M0_FTA_DEPTH_MAX];
+	uint64_t children_nr[M0_CONF_PVER_HEIGHT];
 	uint64_t depth;
 	int      rc;
 
@@ -279,7 +286,7 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 				 struct m0_pool_version *pool_ver,
 				 uint64_t *failure_level)
 {
-	uint64_t children_nr[M0_FTA_DEPTH_MAX];
+	uint64_t children_nr[M0_CONF_PVER_HEIGHT];
 	int      rc;
 
 	M0_PRE(pv != NULL && pool_ver != NULL && failure_level != NULL);
@@ -287,12 +294,12 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 	/* Override the disk level tolerance in pool-version
 	 * with layout parameter K.
 	 */
-	pool_ver->pv_fd_tol_vec[M0_FTA_DEPTH_DISK] = pool_ver->pv_attr.pa_K;
+	pool_ver->pv_fd_tol_vec[M0_CONF_PVER_LVL_DISKS] =
+		pool_ver->pv_attr.pa_K;
 	rc = symm_tree_attr_get(pv, failure_level, children_nr);
-	if (rc != 0) {
+	if (rc != 0)
 		return M0_RC(rc);
-	}
-	rc = m0_fd__tile_init(&pool_ver->pv_fd_tile, &pv->pv_attr,
+	rc = m0_fd__tile_init(&pool_ver->pv_fd_tile, &pv->pv_u.subtree.pvs_attr,
 			       children_nr, *failure_level);
 	if (rc != 0)
 		return M0_RC(rc);
@@ -305,8 +312,8 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 
 static  uint64_t tree2pv_level_conv(uint64_t level, uint64_t tree_depth)
 {
-	M0_PRE(tree_depth < M0_FTA_DEPTH_MAX);
-	return level + ((M0_FTA_DEPTH_MAX - 1)  - tree_depth);
+	M0_PRE(tree_depth < M0_CONF_PVER_HEIGHT);
+	return level + ((M0_CONF_PVER_HEIGHT - 1)  - tree_depth);
 }
 
 static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
@@ -318,23 +325,24 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
 	uint64_t conf_level;
 	uint64_t fd_level;
 
+	M0_ENTRY();
 	/* Drop down to the first level from the configuration tree that will be
 	 * part of failure domains tree.
 	 */
-	for (conf_level = 1; conf_level < M0_FTA_DEPTH_MAX; ++conf_level) {
+	for (conf_level = 1; conf_level < M0_CONF_PVER_HEIGHT; ++conf_level) {
 		rc = tree_level_nodes_cnt(pv, conf_level, children_nr);
 		if (rc != 0) {
 			*depth = conf_level;
 			return M0_RC(rc);
 		}
-		if (pv->pv_nr_failures[conf_level] > 0)
+		if (pv->pv_u.subtree.pvs_tolerance[conf_level] > 0)
 			break;
 	}
 	/* Calculate the depth of failure domains tree. In case the required
 	 * tolerance at all levels is zero, we construct a flat tree of disks.
 	 */
-	*depth = M0_FTA_DEPTH_MAX == conf_level ? 1 :
-		M0_FTA_DEPTH_MAX - conf_level;
+	*depth = M0_CONF_PVER_HEIGHT == conf_level ? 1 :
+		M0_CONF_PVER_HEIGHT - conf_level;
 	for (fd_level = 1, pv_level = conf_level; fd_level < *depth; ++fd_level,
 	     ++pv_level) {
 		rc = min_children_cnt(pv, pv_level, &min_children);
@@ -352,29 +360,29 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint64_t *depth,
 	/* Check if the skeleton tree (a.k.a. symmetric tree) meets the
 	 * required tolerance at all the levels.
 	 */
-	if (pv->pv_nr_failures[M0_FTA_DEPTH_DISK] > 0)
+	if (pv->pv_u.subtree.pvs_tolerance[M0_CONF_PVER_LVL_DISKS] > 0)
 		rc = tolerance_check(pv, children_nr, conf_level, depth);
 	return M0_RC(rc);
 }
 
 static int tolerance_check(const struct m0_conf_pver *pv, uint64_t *children_nr,
-                           uint64_t first_level, uint64_t *failure_level)
+			   uint64_t first_level, uint64_t *failure_level)
 {
-        int       rc = 0;
-        int       i;
-        uint64_t  G;
-        uint64_t  K;
-        uint64_t  nodes;
-        uint64_t  sum;
-        uint64_t *units[M0_FTA_DEPTH_MAX];
-        uint64_t  depth;
+	int       rc = 0;
+	int       i;
+	uint64_t  G;
+	uint64_t  K;
+	uint64_t  nodes;
+	uint64_t  sum;
+	uint64_t *units[M0_CONF_PVER_HEIGHT];
+	uint64_t  depth;
 
-        G = parity_group_size(&pv->pv_attr);
-        K = pv->pv_attr.pa_K;
+	G = parity_group_size(&pv->pv_u.subtree.pvs_attr);
+	K = pv->pv_u.subtree.pvs_attr.pa_K;
 
-        /* total nodes at given level. */
-        nodes = 1;
-        depth = *failure_level;
+	/* total nodes at given level. */
+	nodes = 1;
+	depth = *failure_level;
 	for (i = 0; i <= depth; ++i) {
 		M0_ALLOC_ARR(units[i], nodes);
 		if (units[i] == NULL) {
@@ -382,23 +390,24 @@ static int tolerance_check(const struct m0_conf_pver *pv, uint64_t *children_nr,
 			*failure_level = i;
 			goto out;
 		}
-                nodes *= children_nr[i];
+		nodes *= children_nr[i];
 
 	}
-        units[0][0] = G;
-        for (i = 1, nodes = 1; i < depth; ++i) {
-                /* Distribute units from parents to children. */
-                uniform_distribute(units, i, nodes, children_nr[i - 1]);
-                /* Calculate the sum of units held by top five nodes. */
-                sum = units_calc(units, i, nodes, children_nr[i - 1],
-                                 pv->pv_nr_failures[first_level + i - 1]);
-                if (sum > K) {
-                        *failure_level = first_level + i - 1;
-                        rc = -EINVAL;
-                        goto out;
-                }
-                nodes *= children_nr[i - 1];
-        }
+	units[0][0] = G;
+	for (i = 1, nodes = 1; i < depth; ++i) {
+		/* Distribute units from parents to children. */
+		uniform_distribute(units, i, nodes, children_nr[i - 1]);
+		/* Calculate the sum of units held by top five nodes. */
+		sum = units_calc(units, i, nodes, children_nr[i - 1],
+				 pv->pv_u.subtree.pvs_tolerance[first_level +
+								i - 1]);
+		if (sum > K) {
+			*failure_level = first_level + i - 1;
+			rc = -EINVAL;
+			goto out;
+		}
+		nodes *= children_nr[i - 1];
+	}
 out:
 	for (i = 0; i <= depth; ++i) {
 		m0_free(units[i]);
@@ -498,7 +507,7 @@ static uint64_t fault_tolerant_idx_get(uint64_t idx, uint64_t *children_nr,
 	uint64_t i;
 	uint64_t prev;
 	uint64_t r;
-	uint64_t fd_idx[M0_FTA_DEPTH_MAX];
+	uint64_t fd_idx[M0_CONF_PVER_HEIGHT];
 	uint64_t tidx;
 
 	M0_SET0(&fd_idx);
@@ -569,15 +578,14 @@ M0_INTERNAL void m0_fd_tile_destroy(struct m0_fd_tile *tile)
 }
 
 M0_INTERNAL int m0_fd_tree_build(const struct m0_conf_pver *pv,
-			         struct m0_fd_tree *tree)
+				 struct m0_fd_tree *tree)
 {
 	int      rc;
-	uint64_t children_nr[M0_FTA_DEPTH_MAX];
+	uint64_t children_nr[M0_CONF_PVER_HEIGHT];
 	uint64_t depth;
 	uint32_t level;
 
 	M0_PRE(pv != NULL && tree != NULL);
-	M0_PRE(pv->pv_nr_failures_nr == M0_FTA_DEPTH_MAX);
 
 	rc = symm_tree_attr_get(pv, &depth, children_nr);
 	if (rc != 0)
@@ -600,8 +608,8 @@ M0_INTERNAL int m0_fd_tree_build(const struct m0_conf_pver *pv,
 }
 
 M0_INTERNAL int m0_fd__tree_level_populate(const struct m0_conf_pver *pv,
-				           struct m0_fd_tree *tree,
-				           uint32_t level)
+					   struct m0_fd_tree *tree,
+					   uint32_t level)
 {
 	struct m0_conf_objv        *objv;
 	struct m0_conf_obj         *obj;
@@ -623,17 +631,13 @@ M0_INTERNAL int m0_fd__tree_level_populate(const struct m0_conf_pver *pv,
 	pv_for (pv, pv_level, obj, rc) {
 		M0_ASSERT(m0_conf_obj_type(obj) ==  &M0_CONF_OBJV_TYPE);
 		objv = M0_CONF_CAST(obj, m0_conf_objv);
-		if (level < tree->ft_depth)
-			children_nr =
-			 m0_conf_dir_len(objv->cv_children);
-		else
-			children_nr = 0;
+		children_nr = level < tree->ft_depth ?
+			m0_conf_dir_len(objv->cv_children) : 0;
 		node = m0_fd__tree_cursor_get(&cursor);
 		*node = m0_alloc(sizeof node[0][0]);
 		if (*node == NULL)
 			goto rewind;
-		rc = m0_fd__tree_node_init(tree, *node, children_nr,
-				           &cursor);
+		rc = m0_fd__tree_node_init(tree, *node, children_nr, &cursor);
 		if (rc != 0)
 			goto rewind;
 		m0_fd__tree_cursor_next(&cursor);
@@ -803,7 +807,7 @@ M0_INTERNAL void m0_fd_perm_cache_fini(struct m0_fd_perm_cache *cache)
 static struct m0_pool_version *
 pool_ver_get(const struct m0_pdclust_instance *pd_instance)
 {
-        return pd_instance->pi_base.li_l->l_pver;
+	return pd_instance->pi_base.li_l->l_pver;
 }
 
 M0_INTERNAL void m0_fd_fwd_map(struct m0_pdclust_instance *pi,
@@ -813,7 +817,7 @@ M0_INTERNAL void m0_fd_fwd_map(struct m0_pdclust_instance *pi,
 	struct m0_fd_tile          *tile;
 	struct m0_pool_version     *pver;
 	struct m0_pdclust_src_addr  src_base;
-	uint64_t                    rel_vidx[M0_FTA_DEPTH_MAX];
+	uint64_t                    rel_vidx[M0_CONF_PVER_HEIGHT];
 	uint64_t                    omega;
 	uint64_t                    children;
 	uint64_t                    C;
@@ -893,7 +897,7 @@ static struct m0_fd_perm_cache *cache_get(struct m0_pdclust_instance *pi,
 }
 
 static void fd_permute(struct m0_fd_perm_cache *cache,
-                       struct m0_uint128 *seed, struct m0_fid *gfid,
+		       struct m0_uint128 *seed, struct m0_fid *gfid,
 		       uint64_t omega)
 {
 	uint32_t i;
@@ -939,7 +943,7 @@ M0_INTERNAL void m0_fd_bwd_map(struct m0_pdclust_instance *pi,
 	uint64_t                   i;
 	uint64_t                   vidx;
 	uint64_t                   tree_depth;
-	uint64_t                   rel_idx[M0_FTA_DEPTH_MAX];
+	uint64_t                   rel_idx[M0_CONF_PVER_HEIGHT];
 
 	M0_PRE(pi != NULL);
 	M0_PRE(tgt != NULL && src != NULL);
@@ -1005,3 +1009,5 @@ static void inverse_permuted_idx_get(struct m0_pdclust_instance *pi,
 		node = node->ftn_parent;
 	}
 }
+
+#undef M0_TRACE_SUBSYSTEM

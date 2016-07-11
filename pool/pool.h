@@ -26,7 +26,7 @@
 #include "format/format.h"     /* m0_format_header */
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
-#include "fd/fd.h"             /* m0_fd_tile m0_fd_tree M0_FTA_DEPTH_MAX */
+#include "fd/fd.h"             /* m0_fd_tile */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "conf/obj.h"
 #include "layout/pdclust.h"    /* m0_pdclust_attr */
@@ -98,6 +98,9 @@ struct m0_pool {
 struct m0_pool_version {
 	struct m0_fid                pv_id;
 
+	/** pool version ditry flag.*/
+	bool                         pv_is_dirty;
+
 	/** Layout attributes associated with this pool version. */
 	struct m0_pdclust_attr       pv_attr;
 
@@ -118,7 +121,7 @@ struct m0_pool_version {
 	/* Failure domains tree associated with the pool version. */
 	struct m0_fd_tree            pv_fd_tree;
 	/** The tolerance vector associated with the pool version. */
-	uint32_t                     pv_fd_tol_vec[M0_FTA_DEPTH_MAX];
+	uint32_t                     pv_fd_tol_vec[M0_CONF_PVER_HEIGHT];
 
 	uint32_t                     pv_sns_flags;
 
@@ -196,6 +199,8 @@ struct m0_pools_common {
 	struct m0_ha_entrypoint_client   *pc_ha_ecl;
 	struct m0_clink                   pc_ha_clink;
 	struct m0_mutex                   pc_rm_lock;
+
+	struct m0_mutex                   pc_mutex;
 };
 
 M0_TL_DESCR_DECLARE(pools_common_svc_ctx, M0_EXTERN);
@@ -243,14 +248,22 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				     uint32_t nr_data,
 				     uint32_t nr_failures,
 				     struct m0_be_seg *be_seg,
-				     struct m0_sm_group  *sm_grp,
-				     struct m0_dtm       *dtm);
+				     struct m0_sm_group *sm_grp,
+				     struct m0_dtm *dtm);
+
+/**
+ * Gets pool version from in-memory list of pools (pc->pc_pools).
+ *
+ * @see m0_conf_pver_get(), m0_conf_pver_find()
+ */
+M0_INTERNAL int m0_pool_version_get(struct m0_pools_common *pc,
+				    struct m0_pool_version **pv);
 
 M0_INTERNAL struct m0_pool_version *
-m0__pool_version_find(struct m0_pool *pool, const struct m0_fid *id);
+m0_pool_version_lookup(struct m0_pools_common *pc, const struct m0_fid *id);
 
 M0_INTERNAL struct m0_pool_version *
-m0_pool_version_find(const struct m0_pools_common *pc, const struct m0_fid *id);
+m0_pool_version_find(struct m0_pools_common *pc, const struct m0_fid *id);
 
 M0_INTERNAL void m0_pool_version_fini(struct m0_pool_version *pv);
 
@@ -258,8 +271,8 @@ M0_INTERNAL int m0_pool_versions_init_by_conf(struct m0_pool *pool,
 					      struct m0_pools_common *pc,
 					      const struct m0_conf_pool *cp,
 					      struct m0_be_seg *be_seg,
-					      struct m0_sm_group  *sm_grp,
-					      struct m0_dtm       *dtm);
+					      struct m0_sm_group *sm_grp,
+					      struct m0_dtm *dtm);
 
 M0_INTERNAL void m0_pool_versions_fini(struct m0_pool *pool);
 
@@ -279,6 +292,18 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common *pc,
 				       struct m0_be_seg *be_seg,
 				       struct m0_sm_group *sm_grp,
 				       struct m0_dtm *dtm);
+
+/**
+ * Appends in-memory pool version to pool versions list.
+ * It dynamically generate new pool version using base pool version
+ * and current failed set.
+ */
+M0_INTERNAL int m0_pool_version_append(struct m0_pools_common *pc,
+				       struct m0_conf_pver *pver,
+				       struct m0_be_seg *be_seg,
+				       struct m0_sm_group *sm_grp,
+				       struct m0_dtm *dtm,
+				       struct m0_pool_version **pv);
 
 M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc);
 

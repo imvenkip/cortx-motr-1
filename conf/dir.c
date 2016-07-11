@@ -111,7 +111,7 @@ static int conf_dir_new(struct m0_conf_cache *cache,
 	conf_dir_id_build(&dir_id, parent, children_type);
 	M0_ASSERT(m0_conf_cache_lookup(cache, &dir_id) == NULL);
 
-	dir = m0_conf_obj_create(cache, &dir_id);
+	dir = m0_conf_obj_create(&dir_id, cache);
 	if (dir == NULL)
 		return M0_ERR(-ENOMEM);
 	*out = M0_CONF_CAST(dir, m0_conf_dir);

@@ -40,7 +40,7 @@ M0_INTERNAL void fd_ut_symm_tree_create(struct m0_fd_tree *tree,
 	M0_UT_ASSERT(child_nr != NULL);
 
 	if (tg_type == TG_RANDOM)
-		fd_ut_children_populate(child_nr, M0_FTA_DEPTH_MAX - 1);
+		fd_ut_children_populate(child_nr, M0_CONF_PVER_HEIGHT - 1);
 	rc = m0_fd__tree_root_create(tree, child_nr[0]);
 	M0_UT_ASSERT(rc == 0);
 
@@ -112,7 +112,7 @@ err:
 M0_INTERNAL int fd_ut_tree_init(struct m0_fd_tree *tree, uint64_t tree_depth)
 {
 	M0_PRE(tree != NULL);
-	M0_PRE(tree_depth <= M0_FTA_DEPTH_MAX - 1);
+	M0_PRE(tree_depth < M0_CONF_PVER_HEIGHT);
 
 	tree->ft_depth = tree_depth;
 	tree->ft_cnt   = 0;
@@ -138,12 +138,8 @@ M0_INTERNAL void fd_ut_symm_tree_get(struct m0_fd_tree *tree,
 	M0_UT_ASSERT(m0_fd__tree_invariant(tree));
 	M0_UT_ASSERT(children_nr != NULL);
 
-	for (i = 0; i < M0_FTA_DEPTH_MAX; ++i) {
-		if (i < tree->ft_depth)
-			children_nr[i] = 0;
-		else
-			children_nr[i] = 1;
-	}
+	for (i = 0; i < M0_CONF_PVER_HEIGHT; ++i)
+		children_nr[i] = i >= tree->ft_depth;
 
 	for (depth = 0; depth < tree->ft_depth; ++depth) {
 		rc = m0_fd__tree_cursor_init(&cursor, tree, depth);

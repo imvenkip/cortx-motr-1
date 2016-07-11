@@ -197,19 +197,8 @@ M0_EXPORTED(m0_spiel_tx_validate);
 void m0_spiel_tx_close(struct m0_spiel_tx *tx)
 {
 	M0_ENTRY();
-
-	m0_conf_cache_lock(&tx->spt_cache);
-	/*
-	 * Directories and cache objects are mixed in conf cache ca_registry
-	 * list, but finalization of conf object will fail if it still
-	 * presents in some directory. So delete all directories first.
-	 */
-	m0_conf_cache_clean(&tx->spt_cache, &M0_CONF_DIR_TYPE);
-	m0_conf_cache_unlock(&tx->spt_cache);
-
 	m0_conf_cache_fini(&tx->spt_cache);
 	m0_mutex_fini(&tx->spt_lock);
-
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_spiel_tx_close);
@@ -892,7 +881,7 @@ static int spiel_pver_dirs_create(struct m0_conf_cache *cache,
 	return M0_RC(m0_conf_dir_new(cache, &pver->pv_obj,
 				     &M0_CONF_PVER_RACKVS_FID,
 				     &M0_CONF_OBJV_TYPE, NULL,
-				     &pver->pv_rackvs));
+				     &pver->pv_u.subtree.pvs_rackvs));
 }
 
 /**
@@ -1564,12 +1553,12 @@ fail:
 }
 M0_EXPORTED(m0_spiel_disk_add);
 
-int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
-			      const struct m0_fid    *fid,
-			      const struct m0_fid    *parent,
-			      uint32_t               *nr_failures,
-			      uint32_t                nr_failures_cnt,
-			      struct m0_pdclust_attr *attrs)
+int m0_spiel_pver_actual_add(struct m0_spiel_tx           *tx,
+			     const struct m0_fid          *fid,
+			     const struct m0_fid          *parent,
+			     const struct m0_pdclust_attr *attrs,
+			     uint32_t                     *tolerance,
+			     uint32_t                      tolerance_len)
 {
 	int                  rc;
 	struct m0_conf_obj  *obj = NULL;
@@ -1578,30 +1567,25 @@ int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
 	struct m0_conf_pool *pool;
 
 	M0_ENTRY();
-	if (!m0_pdclust_attr_check(attrs))
+
+	if (tolerance_len != M0_CONF_PVER_HEIGHT)
 		return M0_ERR(-EINVAL);
-	if (nr_failures_cnt == 0)
+	if (!m0_pdclust_attr_check(attrs))
 		return M0_ERR(-EINVAL);
 
 	m0_mutex_lock(&tx->spt_lock);
 
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
-			      {fid, &M0_CONF_PVER_TYPE, &obj },
+			      {fid, &M0_CONF_PVER_TYPE, &obj},
 			      {parent, &M0_CONF_POOL_TYPE, &obj_parent});
 	if (rc != 0)
 		goto fail;
 
 	pver = M0_CONF_CAST(obj, m0_conf_pver);
-
-	pver->pv_nr_failures_nr = nr_failures_cnt;
-	M0_ALLOC_ARR(pver->pv_nr_failures, nr_failures_cnt);
-	if (pver->pv_nr_failures == NULL) {
-		rc = M0_ERR(-ENOMEM);
-		goto fail;
-	}
-	memcpy(pver->pv_nr_failures, nr_failures,
-	       nr_failures_cnt * sizeof(*nr_failures));
-	pver->pv_attr = *attrs;
+	pver->pv_kind = M0_CONF_PVER_ACTUAL;
+	memcpy(pver->pv_u.subtree.pvs_tolerance, tolerance,
+	       M0_CONF_PVER_HEIGHT * sizeof(*tolerance));
+	pver->pv_u.subtree.pvs_attr = *attrs;
 
 	rc = spiel_pver_dirs_create(&tx->spt_cache, pver);
 	if (rc != 0)
@@ -1620,14 +1604,69 @@ int m0_spiel_pool_version_add(struct m0_spiel_tx     *tx,
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_RC(0);
 fail:
-	if (pver != NULL)
-		m0_free(pver->pv_nr_failures);
 	if (obj != NULL && rc != -EEXIST)
 		m0_conf_cache_del(&tx->spt_cache, obj);
 	m0_mutex_unlock(&tx->spt_lock);
 	return M0_ERR(rc);
 }
-M0_EXPORTED(m0_spiel_pool_version_add);
+M0_EXPORTED(m0_spiel_pver_actual_add);
+
+int m0_spiel_pver_formulaic_add(struct m0_spiel_tx  *tx,
+				const struct m0_fid *fid,
+				const struct m0_fid *parent,
+				uint32_t             index,
+				const struct m0_fid *base_pver,
+				uint32_t            *allowance,
+				uint32_t             allowance_len)
+{
+	int                  rc;
+	struct m0_conf_obj  *obj = NULL;
+	struct m0_conf_obj  *base_obj = NULL;
+	struct m0_conf_pver *pver = NULL;
+	struct m0_conf_obj  *obj_parent;
+	struct m0_conf_pool *pool;
+
+	M0_ENTRY();
+
+	if (allowance_len != M0_CONF_PVER_HEIGHT)
+		return M0_ERR(-EINVAL);
+	m0_mutex_lock(&tx->spt_lock);
+
+	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
+			      {fid, &M0_CONF_PVER_TYPE, &obj},
+			      {base_pver, &M0_CONF_PVER_TYPE, &base_obj},
+			      {parent, &M0_CONF_POOL_TYPE, &obj_parent});
+	if (rc != 0)
+		goto fail;
+
+	pver = M0_CONF_CAST(obj, m0_conf_pver);
+	pver->pv_kind = M0_CONF_PVER_FORMULAIC;
+	memcpy(pver->pv_u.formulaic.pvf_allowance, allowance,
+	       M0_CONF_PVER_HEIGHT * sizeof(*allowance));
+	pver->pv_u.formulaic.pvf_id = index;
+	pver->pv_u.formulaic.pvf_base = *base_pver;
+
+	pool = M0_CONF_CAST(obj_parent, m0_conf_pool);
+	if (pool->pl_pvers == NULL) {
+		/* Parent dir does not exist ==> create it. */
+		rc = spiel_pool_dirs_create(&tx->spt_cache, pool);
+		if (rc != 0)
+			goto fail;
+	}
+
+	m0_conf_dir_add(pool->pl_pvers, obj);
+	obj->co_status = M0_CS_READY;
+
+	M0_POST(m0_conf_obj_invariant(obj));
+	m0_mutex_unlock(&tx->spt_lock);
+	return M0_RC(0);
+fail:
+	if (obj != NULL && rc != -EEXIST)
+		m0_conf_cache_del(&tx->spt_cache, obj);
+	m0_mutex_unlock(&tx->spt_lock);
+	return M0_ERR(rc);
+}
+M0_EXPORTED(m0_spiel_pver_formulaic_add);
 
 int m0_spiel_rack_v_add(struct m0_spiel_tx  *tx,
 			const struct m0_fid *fid,
@@ -1662,13 +1701,13 @@ int m0_spiel_rack_v_add(struct m0_spiel_tx  *tx,
 	if (rc != 0)
 		goto fail;
 	pver = M0_CONF_CAST(obj_parent, m0_conf_pver);
-	if (pver->pv_rackvs == NULL) {
+	if (pver->pv_u.subtree.pvs_rackvs == NULL) {
 		/* Parent dir does not exist ==> create it. */
 		rc = spiel_pver_dirs_create(&tx->spt_cache, pver);
 		if (rc != 0)
 			goto fail;
 	}
-	m0_conf_dir_add(pver->pv_rackvs, obj);
+	m0_conf_dir_add(pver->pv_u.subtree.pvs_rackvs, obj);
 	obj->co_status = M0_CS_READY;
 
 	M0_POST(m0_conf_obj_invariant(obj));
@@ -1836,14 +1875,14 @@ static int spiel_pver_add(struct m0_conf_obj **obj_v, struct m0_conf_pver *pver)
 	unsigned                        nr_pvers;
 
 	M0_ENTRY();
-	/* TODO: There m0_conf_pver::pv_nr_failures should be checked and Mero
-	 * has a function named m0_fd_tolerance_check() for it. But the function
-	 * cannot be called here, because it uses m0_confc for walking on the
-	 * configuration tree and tx->spt_cache doesn't belong to any confc
-	 * instance. Maybe m0_fd_tolerance_check() should be rewritten to not
-	 * use confc and work with the m0_conf_cache only.
+	/*
+	 * XXX TODO: pver->pv_u.subtree.pvs_tolerance should be validated.
+	 * m0_fd_tolerance_check() performs the validation, but it requires
+	 * m0_confc, which spiel_pver_add() does not have access to
+	 * (tx->spt_cache does not belong to any confc instance).  We might
+	 * need to rewrite m0_fd_tolerance_check() to not use confc and work
+	 * with m0_conf_cache only.
 	 */
-
 	obj = M0_CONF_CAST(*obj_v, m0_conf_objv)->cv_real;
 	obj_type = m0_conf_obj_type(obj);
 	pvers = m0_conf_pvers(obj);
@@ -1954,16 +1993,17 @@ int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
 	pver = M0_CONF_CAST(m0_conf_cache_lookup(&tx->spt_cache, fid),
 			    m0_conf_pver);
 	M0_ASSERT(pver != NULL);
-	rc = spiel_pver_iterator(&pver->pv_rackvs->cd_obj, pver,
+	rc = spiel_pver_iterator(&pver->pv_u.subtree.pvs_rackvs->cd_obj, pver,
 				 &spiel_pver_add);
 	if (rc != 0) {
-		spiel_pver_iterator(&pver->pv_rackvs->cd_obj, pver,
+		spiel_pver_iterator(&pver->pv_u.subtree.pvs_rackvs->cd_obj, pver,
 				    &spiel_objv_remove);
 		/*
 		 * TODO: Remove this line once m0_spiel_element_del removes
 		 * the object itself and all its m0_conf_dir members.
 		 */
-		m0_conf_cache_del(&tx->spt_cache, &pver->pv_rackvs->cd_obj);
+		m0_conf_cache_del(&tx->spt_cache,
+				  &pver->pv_u.subtree.pvs_rackvs->cd_obj);
 
 		m0_mutex_unlock(&tx->spt_lock);
 		m0_spiel_element_del(tx, fid);
@@ -1982,7 +2022,7 @@ static void spiel_pver_remove(struct m0_conf_cache *cache,
 
 	M0_ENTRY();
 
-	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+	m0_tl_for (m0_conf_cache, &cache->ca_registry, obj) {
 		ot = m0_conf_obj_type(obj);
 		if (M0_IN(ot, (&M0_CONF_RACK_TYPE, &M0_CONF_ENCLOSURE_TYPE,
 			       &M0_CONF_CONTROLLER_TYPE, &M0_CONF_DISK_TYPE)))
@@ -2024,7 +2064,7 @@ static int spiel_str_to_file(char *str, const char *filename)
 	file = fopen(filename, "w+");
 	if (file == NULL)
 		return errno;
-	rc = fwrite(str, strlen(str), 1, file)==1 ? 0 : -EINVAL;
+	rc = fwrite(str, strlen(str), 1, file) == 1 ? 0 : -EINVAL;
 	fclose(file);
 	return rc;
 #endif

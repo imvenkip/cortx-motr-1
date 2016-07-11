@@ -1,0 +1,46 @@
+### Minimalistic conf data for conf-pvers-ut.
+### Note the absence of node, process, service, and sdev objects.
+
+(root-0 verno=1 profiles=[profile-0])
+(profile-0 filesystem=filesystem-0)
+(filesystem-0 rootfid=(1, 2) redundancy=0 params=[] mdpool=pool-0 nodes=[]
+    pools=[pool-0] racks=[rack-0])
+
+(pool-0 order=0 pvers=[pver-0, pver_f-0])
+(pver-0 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 0] rackvs=[objv-0])
+(pver_f-0 id=0xfeed base=pver-0 allowance=[0, 0, 0, 1, 2])
+## rackvs ------------------------------------------------------------
+(rack-0 encls=[enclosure-0, enclosure-1] pvers=[pver-0])
+(objv-0 real=rack-0 children=[objv-1, objv-8])
+## enclvs ------------------------------------------------------------
+(enclosure-0 ctrls=[controller-0, controller-1] pvers=[pver-0])
+(enclosure-1 ctrls=[controller-2, controller-3] pvers=[pver-0])
+(objv-1 real=enclosure-0 children=[objv-2, objv-6])
+(objv-8 real=enclosure-1 children=[objv-9, objv-11])
+## ctrlvs ------------------------------------------------------------
+(controller-0 node=node-0 disks=[disk-0, disk-1, disk-2] pvers=[pver-0])
+(controller-1 node=node-0 disks=[disk-3] pvers=[pver-0]) # <<< FAILED
+(controller-2 node=node-0 disks=[disk-4] pvers=[pver-0])
+(controller-3 node=node-0 disks=[disk-5, disk-6, disk-7] pvers=[pver-0])
+(objv-2 real=controller-0 children=[objv-3, objv-4, objv-5])
+(objv-6 real=controller-1 children=[objv-7])
+(objv-9 real=controller-2 children=[objv-10])
+(objv-11 real=controller-3 children=[objv-12, objv-13, objv-14])
+## diskvs ------------------------------------------------------------
+# Never mind that all disks are associated with the same device (sdev-0).
+(disk-0 dev=sdev-0 pvers=[pver-0])
+(disk-1 dev=sdev-0 pvers=[pver-0])
+(disk-2 dev=sdev-0 pvers=[pver-0]) # <<< FAILED
+(disk-3 dev=sdev-0 pvers=[pver-0])
+(disk-4 dev=sdev-0 pvers=[pver-0]) # <<< FAILED
+(disk-5 dev=sdev-0 pvers=[pver-0])
+(disk-6 dev=sdev-0 pvers=[pver-0])
+(disk-7 dev=sdev-0 pvers=[pver-0])
+(objv-3 real=disk-0 children=[])
+(objv-4 real=disk-1 children=[])
+(objv-5 real=disk-2 children=[])
+(objv-7 real=disk-3 children=[])
+(objv-10 real=disk-4 children=[])
+(objv-12 real=disk-5 children=[])
+(objv-13 real=disk-6 children=[])
+(objv-14 real=disk-7 children=[])

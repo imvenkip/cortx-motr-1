@@ -183,8 +183,9 @@ stub_confdb() {
 (service-4 type=3 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (service-5 type=7 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
 (service-6 type=4 endpoints=["$M0T1FS_ENDPOINT:1"] sdevs=[])
-(pool-0 order=0 pvers=[pver-0])
-(pver-0 ver=0 N=2 K=1 P=4 nr_failures=[0, 0, 0, 0, 1] rackvs=[objv-0])
+(pool-0 order=0 pvers=[pver-0, pver_f-11])
+(pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
+(pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])
 (objv-0 real=rack-0 children=[objv-1])
 (objv-1 real=enclosure-0 children=[objv-2])
 (objv-2 real=controller-0 children=[objv-3, objv-4, objv-5, objv-6])
@@ -280,6 +281,7 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'disk3'         : Fid(0x6b00000000000001, 5),
         'disk4'         : Fid(0x6b00000000000001, 6),
         'pver'          : Fid(0x7600000000000001, 10),
+        'pver_f'        : Fid(0x7640000000000001, 11),
         'rackv'         : Fid(0x6a00000000000001, 2),
         'enclv'         : Fid(0x6a00000000000001, 3),
         'ctrlv'         : Fid(0x6a00000000000001, 4),
@@ -349,7 +351,7 @@ conf_objs_add = [('profile_add', tx, fids['profile']),
                  ('disk_add', tx, fids['disk2'], fids['ctrl']),
                  ('disk_add', tx, fids['disk3'], fids['ctrl']),
                  ('disk_add', tx, fids['disk4'], fids['ctrl']),
-                 ('pool_version_add', tx, fids['pver'], fids['pool'],
+                 ('pver_actual_add', tx, fids['pver'], fids['pool'],
                   [0, 0, 0, 0, 1],
                   PdclustAttr(N, K, P, 1024*1024, Fid(0x01, 0x02))),
                  ('rack_v_add', tx, fids['rackv'], fids['pver'],
