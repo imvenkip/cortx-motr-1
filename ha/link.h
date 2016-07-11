@@ -98,6 +98,7 @@ struct m0_ha_link {
 	struct m0_fop              hln_outgoing_fop;
 	struct m0_ha_link_msg_fop *hln_req_fop_data;
 	bool                       hln_replied;
+	bool                       hln_released;
 };
 
 M0_INTERNAL int  m0_ha_link_init (struct m0_ha_link     *hl,

@@ -360,6 +360,7 @@ static int ha_link_incoming_fom_tick(struct m0_fom *fom)
 	req_fop = m0_fop_data(fom->fo_fop);
 	rep_fop = m0_fop_data(fom->fo_rep_fop);
 
+	M0_LOG(M0_INFO, "req_fop %p rep_fop %p", req_fop, rep_fop);
 	hl = m0_ha_link_service_find(fom->fo_service,
 	                             &req_fop->lmf_msg.hm_link_id);
 	M0_LOG(M0_DEBUG, "fom=%p hl=%p", fom, hl);
@@ -455,6 +456,7 @@ enum ha_link_outgoing_fom_state {
 	HA_LINK_OUTGOING_STATE_IDLE,
 	HA_LINK_OUTGOING_STATE_SEND,
 	HA_LINK_OUTGOING_STATE_WAIT_REPLY,
+	HA_LINK_OUTGOING_STATE_WAIT_RELEASE,
 	HA_LINK_OUTGOING_STATE_NR,
 };
 
@@ -474,6 +476,8 @@ ha_link_outgoing_fom_states[HA_LINK_OUTGOING_STATE_NR] = {
 	_ST(HA_LINK_OUTGOING_STATE_SEND, 0,
 	   M0_BITS(HA_LINK_OUTGOING_STATE_WAIT_REPLY)),
 	_ST(HA_LINK_OUTGOING_STATE_WAIT_REPLY, 0,
+	   M0_BITS(HA_LINK_OUTGOING_STATE_WAIT_RELEASE)),
+	_ST(HA_LINK_OUTGOING_STATE_WAIT_RELEASE, 0,
 	   M0_BITS(HA_LINK_OUTGOING_STATE_IDLE)),
 	_ST(HA_LINK_OUTGOING_STATE_FINISH, M0_SDF_TERMINAL, 0),
 #undef _ST
@@ -522,6 +526,11 @@ static void ha_link_outgoing_fop_release(struct m0_ref *ref)
 	M0_ENTRY("hl=%p fop=%p", hl, fop);
 	fop->f_data.fd_data = NULL;
 	m0_fop_fini(fop);
+	m0_mutex_lock(&hl->hln_lock);
+	M0_ASSERT(!hl->hln_released);
+	hl->hln_released = true;
+	m0_mutex_unlock(&hl->hln_lock);
+	ha_link_outgoing_fom_wakeup(hl);
 	M0_LEAVE();
 }
 
@@ -538,6 +547,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 	struct m0_ha_link               *hl;
 	struct m0_rpc_item              *item;
 	bool                             replied;
+	bool                             released;
 
 	hl = container_of(fom, struct m0_ha_link, hln_fom); /* XXX bob_of */
 	phase = m0_fom_phase(&hl->hln_fom);
@@ -550,7 +560,8 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		return M0_RC(M0_FSO_AGAIN);
 	case HA_LINK_OUTGOING_STATE_IDLE:
 		M0_ASSERT(hl->hln_qitem_to_send == NULL);
-		hl->hln_replied = false;
+		hl->hln_replied  = false;
+		hl->hln_released = false;
 		if (m0_semaphore_trydown(&hl->hln_stop_cond)) {
 			m0_mutex_lock(&hl->hln_lock);
 			hl->hln_fom_is_stopping = true;
@@ -624,6 +635,16 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 			m0_mutex_unlock(&hl->hln_lock);
 			m0_chan_broadcast_lock(&hl->hln_chan);
 			hl->hln_qitem_to_send = NULL;
+			m0_fom_phase_set(fom,
+					 HA_LINK_OUTGOING_STATE_WAIT_RELEASE);
+			return M0_RC(M0_FSO_AGAIN);
+		}
+		return M0_FSO_WAIT;
+	case HA_LINK_OUTGOING_STATE_WAIT_RELEASE:
+		m0_mutex_lock(&hl->hln_lock);
+		released = hl->hln_released;
+		m0_mutex_unlock(&hl->hln_lock);
+		if (released) {
 			m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_IDLE);
 			return M0_RC(M0_FSO_AGAIN);
 		}
