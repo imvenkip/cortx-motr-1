@@ -425,27 +425,29 @@ M0_INTERNAL int cs_conf_device_reopen(struct m0_poolmach *pm,
 	struct m0_fid           fid;
 	struct m0_conf_sdev    *sdev;
 	struct m0_stob_id       stob_id;
+	struct m0_conf_service *svc;
 
 	M0_ENTRY();
+
 	rctx = container_of(stob, struct m0_reqh_context, rc_stob);
 	cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
 	confc = m0_mero2confc(cctx);
 	fid = pm->pm_state->pst_devices_array[dev_id].pd_id;
+
 	rc = m0_conf_sdev_get(confc, &fid, &sdev);
-	if (rc == 0) {
-		struct m0_conf_service *svc = M0_CONF_CAST(
-					m0_conf_obj_grandparent(&sdev->sd_obj),
-					m0_conf_service);
-		if (is_local_ios(&svc->cs_obj)) {
-			M0_LOG(M0_DEBUG, "sdev size:%ld path:%s FID:"FID_F,
-					sdev->sd_size, sdev->sd_filename,
-					FID_P(&sdev->sd_obj.co_id));
-			m0_stob_id_make(0, dev_id, &stob->s_sdom->sd_id,
-					&stob_id);
-			rc = m0_stob_linux_reopen(&stob_id, sdev->sd_filename);
-		}
-		m0_confc_close(&sdev->sd_obj);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	svc = M0_CONF_CAST(m0_conf_obj_grandparent(&sdev->sd_obj),
+			   m0_conf_service);
+	if (is_local_ios(&svc->cs_obj)) {
+		M0_LOG(M0_DEBUG, "sdev size:%ld path:%s FID:"FID_F,
+		       sdev->sd_size, sdev->sd_filename,
+		       FID_P(&sdev->sd_obj.co_id));
+		m0_stob_id_make(0, dev_id, &stob->s_sdom->sd_id, &stob_id);
+		rc = m0_stob_linux_reopen(&stob_id, sdev->sd_filename);
 	}
+	m0_confc_close(&sdev->sd_obj);
 	return M0_RC(rc);
 }
 

@@ -185,8 +185,12 @@ static bool storage_devs_conf_ready_cb(struct m0_clink *clink)
 			 */
 			continue;
 		rc = m0_conf_sdev_get(confc, &sdev_fid, &conf_sdev);
-		M0_ASSERT_INFO(rc == 0, "Could not locate sdev with fid "FID_F,
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "No such sdev: "FID_F,
 			       FID_P(&sdev_fid));
+			M0_IMPOSSIBLE(""); /* if asserts are enabled -- fail */
+			break;
+		}
 		m0_storage_dev_clink_add(&dev->isd_clink,
 					 &conf_sdev->sd_obj.co_ha_chan);
 		dev->isd_ha_state = conf_sdev->sd_obj.co_ha_state;

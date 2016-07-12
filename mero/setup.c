@@ -846,8 +846,7 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 							       conf_profile,
 							       &sdev_fid);
 				if (rc == 0) {
-					rc = m0_conf_sdev_get(confc,
-							      &sdev_fid,
+					rc = m0_conf_sdev_get(confc, &sdev_fid,
 						              &conf_sdev);
 					if (rc != 0)
 						break;
