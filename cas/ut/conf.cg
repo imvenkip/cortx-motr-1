@@ -20,8 +20,8 @@
 (service-23 type=6 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-24 type=8 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-25 type=9 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-26 type=11 endpoints=["0@lo:12345:34:1"] sdevs=[sdev-96, sdev-97])
-(service-11 type=13 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-26 type=12 endpoints=["0@lo:12345:34:1"] sdevs=[sdev-96, sdev-97])
+(service-11 type=11 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (sdev-96 dev_idx=1 iface=4 media=1 bsize=4096 size=0 last_state=3 flags=4
     filename="/var/mero/m0ut/ut-sandbox/d1")
 (sdev-97 dev_idx=2 iface=4 media=1 bsize=4096 size=0 last_state=3 flags=4
@@ -67,7 +67,7 @@
     services=[service-27, service-28])
 (service-27 type=2 endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-51, sdev-83, sdev-84, sdev-85, sdev-86])
-(service-28 type=12 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-28 type=13 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (sdev-51 dev_idx=6 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev0")
 (sdev-83 dev_idx=7 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
