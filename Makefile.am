@@ -205,6 +205,7 @@ include $(top_srcdir)/conf/Makefile.sub
 include $(top_srcdir)/conf/objs/Makefile.sub
 include $(top_srcdir)/console/Makefile.sub
 include $(top_srcdir)/desim/Makefile.sub
+include $(top_srcdir)/dix/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
 include $(top_srcdir)/fd/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
@@ -314,6 +315,7 @@ include $(top_srcdir)/cm/ut/Makefile.sub
 include $(top_srcdir)/cob/ut/Makefile.sub
 include $(top_srcdir)/conf/ut/Makefile.sub
 include $(top_srcdir)/console/ut/Makefile.sub
+include $(top_srcdir)/dix/ut/Makefile.sub
 include $(top_srcdir)/dtm/ut/Makefile.sub
 include $(top_srcdir)/fd/ut/Makefile.sub
 include $(top_srcdir)/file/ut/Makefile.sub
@@ -642,6 +644,17 @@ clovis_st_utils_c0cp_mt_LDADD    = $(top_builddir)/mero/libmero.la \
                                  $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/clovis/st/Makefile.sub
+
+#
+# dix/m0dixinit --------------------------------------- {{{2
+#
+sbin_PROGRAMS                    += dix/utils/m0dixinit
+
+dix_utils_m0dixinit_CPPFLAGS = -DM0_TARGET='m0dixinit' $(AM_CPPFLAGS)
+dix_utils_m0dixinit_LDADD    = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/dix/utils/Makefile.sub
+
 #
 # utils/trace ----------------------------------------- {{{2
 #
@@ -852,6 +865,7 @@ EXTRA_DIST += \
               clovis/st/Kbuild.sub\
               conf/Kbuild.sub \
               conf/ut/Kbuild.sub \
+              dix/Kbuild.sub \
               dtm/Kbuild.sub \
               dtm/ut/Kbuild.sub \
               fd/Kbuild.sub \

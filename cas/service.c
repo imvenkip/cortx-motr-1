@@ -27,6 +27,7 @@
 #include "lib/arith.h"               /* min_check, M0_3WAY */
 #include "lib/misc.h"                /* M0_IN */
 #include "lib/errno.h"               /* ENOMEM, EPROTO */
+#include "lib/ext.h"                 /* m0_ext */
 #include "be/btree.h"
 #include "be/domain.h"               /* m0_be_domain_seg0_get */
 #include "be/tx_credit.h"
@@ -76,6 +77,12 @@
  *
  * - @b Meta-catalogue: single catalogue containing information about all
  *   existing catalogues.
+ *
+ * - @b Catalogue-index: local (non-distributed) catalogue maintained by
+ *   the index subsystem on each node in the pool. When a component catalogue
+ *   is created for a distributed index, a record mapping the catalogue to the
+ *   index is inserted in the catalogue-index. This record is used by the index
+ *   repair and re-balance to find locations of other replicas.
  *
  * - @b Record: a key-value pair.
  *
@@ -135,9 +142,9 @@
  * @subsection cas-lspec-state State Specification
  *
  * @verbatim
- *                                !cas_is_valid()
- *                      FOPH_INIT----------------->FAILURE
- *                          |
+ *                               cas_id_check() failed
+ *                      FOPH_INIT-------------------->FAILURE
+ *                          |     || !cas_is_valid()
  *                          |
  *                   [generic phases]
  *                          .
@@ -156,19 +163,24 @@
  *                          .          |   CAS_META_LOOKUP_DONE     |
  *                          V          |            |               |
  *     SUCCESS<---------CAS_LOOP<----+ |            V               |
- *                          |        | |    +--->CAS_LOAD<----------+
- *                          V        | |    |       |
- *                  CAS_PREPARE_SEND | |    |       V
- *                          |        | |    +--CAS_LOAD_DONE
- *                          V        | |            |
- *                +----->CAS_SEND    | |            V
- *                |         |        | |        CAS_LOCK
- *                |         V        | |            |
- *                +----CAS_SEND_DONE | |            V
- *                          |        | +--------CAS_PREP
- *                          |        |
- *                          V        |
- *                      CAS_DONE-----+
+ *                          |        | |    +->CAS_LOAD_KEY<--------+
+ *                          |        | |    |       |
+ *                          |        | |    |       V 
+ *                          |        | |    |  CAS_LOAD_VAL 
+ *          ctidx_op_needed |        | |    |       | 
+ *        +-----------------+        | |    |       V
+ *        |                 |        | |    +--CAS_LOAD_DONE
+ *        V                 V        | |            |
+ *    CAS_CTIDX---->CAS_PREPARE_SEND | |            V
+ *                          |        | |        CAS_LOCK------------+
+ *                          V        | |            |               |
+ *                     CAS_SEND_KEY  | |            |meta_op        |
+ *                          |        | |            |               |
+ *                          V        | |            V               |
+ *                     CAS_SEND_VAL  | |      CAS_CTIDX_LOCK        |
+ *                          |        | |            |               |
+ *                          V        | |            V               |
+ *                      CAS_DONE-----+ +--------CAS_PREP<-----------+
  * @endverbatim
  *
  * @subsection cas-lspec-thread Threading and Concurrency Model
@@ -243,15 +255,22 @@ enum m0_cas_index_format_version {
 struct cas_service {
 	struct m0_reqh_service  c_service;
 	struct cas_index       *c_meta;
+	struct cas_index       *c_ctidx;
+};
+
+struct cas_kv {
+	struct m0_buf ckv_key;
+	struct m0_buf ckv_val;
 };
 
 struct cas_fom {
 	struct m0_fom             cf_fom;
-	size_t                    cf_ipos;
-	size_t                    cf_opos;
+	uint64_t                  cf_ipos;
+	uint64_t                  cf_opos;
 	struct cas_index         *cf_index;
 	struct m0_long_lock_link  cf_lock;
 	struct m0_long_lock_link  cf_meta;
+	struct m0_long_lock_link  cf_ctidx;
 	/**
 	 * BE operation structure for b-tree operations, except for
 	 * CO_CUR. Cursor operations use cas_fom::cf_cur.
@@ -264,9 +283,26 @@ struct cas_fom {
 	struct m0_be_btree_anchor cf_anchor;
 	struct m0_be_btree_cursor cf_cur;
 	uint64_t                  cf_curpos;
+	/**
+	 * Key/value pairs from incoming FOP.
+	 * They are loaded once from incoming RPC AT buffers
+	 * (->cr_rec[].cr_{key,val}) during CAS_LOAD_* phases.
+	 */
+	struct cas_kv            *cf_ikv;
+	/** ->cf_ikv array size. */
+	uint64_t                  cf_ikv_nr;
+	/**
+	 * Catalogue identifiers decoded from incoming ->cr_rec[].cr_key buffers
+	 * in case of meta request. They are decoded once during request
+	 * validation.
+	 */
+	struct m0_cas_id         *cf_in_cids;
+	/** ->cf_in_cids array size. */
+	uint64_t                  cf_in_cids_nr;
 	/* ADDB2 structures to collect long-lock contention metrics. */
 	struct m0_long_lock_addb2 cf_lock_addb2;
 	struct m0_long_lock_addb2 cf_meta_addb2;
+	struct m0_long_lock_addb2 cf_ctidx_addb2;
 	/* AT helper fields. */
 	struct m0_buf             cf_out_key;
 	struct m0_buf             cf_out_val;
@@ -281,6 +317,8 @@ enum cas_fom_phase {
 	CAS_META_LOOKUP,
 	CAS_META_LOOKUP_DONE,
 	CAS_LOCK,
+	CAS_CTIDX_LOCK,
+	CAS_CTIDX,
 	CAS_PREP,
 	CAS_LOAD_KEY,
 	CAS_LOAD_VAL,
@@ -334,12 +372,13 @@ static struct m0_cas_rec   *cas_at     (struct m0_cas_op *op, int idx);
 static struct m0_cas_rec   *cas_out_at (const struct m0_cas_rep *rep, int idx);
 static bool                 cas_is_ro  (enum cas_opcode opc);
 static enum cas_opcode      cas_opcode (const struct m0_fop *fop);
-static uint64_t             cas_nr     (const struct m0_fop *fop);
 static struct m0_be_op     *cas_beop   (struct cas_fom *fom);
 static int                  cas_berc   (struct cas_fom *fom);
 static m0_bcount_t          cas_ksize  (const void *key);
 static m0_bcount_t          cas_vsize  (const void *val);
 static int                  cas_cmp    (const void *key0, const void *key1);
+static uint64_t             cas_in_nr  (const struct m0_fop *fop);
+static uint64_t             cas_out_nr (const struct m0_fop *fop);
 static bool                 cas_in_ut  (void);
 static int                  cas_lookup (struct cas_fom *fom,
 					struct cas_index *index,
@@ -347,28 +386,70 @@ static int                  cas_lookup (struct cas_fom *fom,
 static void                 cas_prep   (struct cas_fom *fom,
 					enum cas_opcode opc, enum cas_type ct,
 					struct cas_index *index,
-					const struct m0_cas_rec *rec,
+					uint64_t rec_pos,
 					struct m0_be_tx_credit *accum);
 static int                  cas_exec   (struct cas_fom *fom,
 					enum cas_opcode opc, enum cas_type ct,
 					struct cas_index *index,
-					const struct m0_cas_rec *rec, int next);
+					uint64_t rec_pos, int next);
 static int                  cas_init   (struct cas_service *service);
 
 static int  cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 		     struct m0_cas_rep *rep, enum cas_opcode opc);
 
+static int  cas_ctidx_exec(struct cas_fom *fom,	enum cas_opcode opc,
+			   enum cas_type ct, struct cas_index *ctidx,
+			   uint64_t rec_pos, uint64_t rc);
+
+static bool cas_ctidx_op_needed(struct cas_fom *fom, enum cas_opcode opc,
+				enum cas_type ct, uint64_t rec_pos);
 
 static int  cas_prep_send(struct cas_fom *fom, enum cas_opcode opc,
-			  enum cas_type ct, const struct m0_cas_rec *rec,
-			  uint64_t rc);
+			  enum cas_type ct, uint64_t rec_pos, uint64_t rc);
 
-static bool cas_is_valid    (enum cas_opcode opc, enum cas_type ct,
-			     const struct m0_cas_rec *rec);
+static bool cas_is_valid     (struct cas_fom *fom, enum cas_opcode opc,
+			      enum cas_type ct, const struct m0_cas_rec *rec,
+			      uint64_t rec_pos);
+static int  cas_op_recs_check(struct cas_fom *fom, enum cas_opcode opc,
+			      enum cas_type ct, struct m0_cas_op *op);
+
 static void cas_index_init  (struct cas_index *index, struct m0_be_seg *seg);
 static int  cas_index_create(struct cas_index *index, struct m0_be_tx *tx);
 static void cas_index_destroy(struct cas_index *index, struct m0_be_tx *tx);
 static bool cas_fom_invariant(const struct cas_fom *fom);
+
+static int  cas_ctidx_insert(struct m0_be_btree      *ctidx,
+			     const struct m0_cas_id  *cid,
+			     struct m0_be_tx         *tx);
+static int  cas_ctidx_delete(struct m0_be_btree      *ctidx,
+			     const struct m0_cas_id  *cid,
+			     struct m0_be_tx         *tx);
+static int  cas_ctidx_lookup(struct m0_be_btree      *ctidx,
+			     const struct m0_fid     *fid,
+			     struct m0_dix_layout   **layout);
+
+static int  cas_buf_cid_decode(struct m0_buf    *enc_buf,
+			       struct m0_cas_id *cid);
+static int  cas_buf_fid(struct m0_buf          *dst,
+			const struct m0_cas_id *cid);
+static bool cas_fid_is_cctg(const struct m0_fid *fid);
+static int  cas_id_check(const struct m0_cas_id *cid,
+			 struct cas_index       *ctidx);
+
+
+static void ctidx_op_credits(struct m0_cas_id       *cid,
+			     bool                    insert,
+			     struct m0_be_tx_credit *accum);
+static void ctidx_insert_credits(struct m0_cas_id       *cid,
+				 struct m0_be_tx_credit *accum);
+static void ctidx_delete_credits(struct m0_cas_id       *cid,
+				 struct m0_be_tx_credit *accum);
+static void cas_incoming_kv(const struct cas_fom *fom,
+			    uint64_t              rec_pos,
+			    struct m0_buf        *key,
+			    struct m0_buf        *val);
+static int  cas_incoming_kv_setup(struct cas_fom         *fom,
+				  const struct m0_cas_op *op);
 
 static const struct m0_reqh_service_ops      cas_service_ops;
 static const struct m0_reqh_service_type_ops cas_service_type_ops;
@@ -452,31 +533,42 @@ static int cas_fom_create(struct m0_fop *fop,
 	struct m0_fop     *repfop;
 	struct m0_cas_rep *repdata;
 	struct m0_cas_rec *repv;
-	uint64_t           nr;
+	struct cas_kv     *ikv;
+	uint64_t           in_nr;
+	uint64_t           out_nr;
 
 	M0_ALLOC_PTR(fom);
 	/**
 	 * @todo Validity (cas_is_valid()) of input records is not checked here,
-	 * so "nr" can be bogus. Cannot check validity at this point, because
-	 * ->fto_create() errors are silently ignored.
+	 * so "out_nr" can be bogus. Cannot check validity at this point,
+	 * because ->fto_create() errors are silently ignored.
 	 */
-	nr = cas_nr(fop);
+	in_nr = cas_in_nr(fop);
+	if (in_nr != 0)
+		M0_ALLOC_ARR(ikv, in_nr);
+	else
+		ikv = NULL;
+	out_nr = cas_out_nr(fop);
 	repfop = m0_fop_reply_alloc(fop, &cas_rep_fopt);
 	/**
-	 * In case nr is 0, M0_ALLOC_ARR returns non-NULL pointer.
+	 * In case out_nr is 0, M0_ALLOC_ARR returns non-NULL pointer.
 	 * Two cases should be distinguished:
 	 * - allocate operation has failed and repv is NULL;
-	 * - nr == 0 and repv is NULL;
+	 * - out_nr == 0 and repv is NULL;
 	 * The second one is a correct case.
 	 */
-	if (nr != 0)
-		M0_ALLOC_ARR(repv, nr);
+	if (out_nr != 0)
+		M0_ALLOC_ARR(repv, out_nr);
 	else
 		repv = NULL;
-	if (fom != NULL && repfop != NULL && (nr == 0 || repv != NULL)) {
+	if (fom != NULL && repfop != NULL &&
+	    (in_nr == 0 || ikv != NULL) &&
+	    (out_nr == 0 || repv != NULL)) {
 		*out = fom0 = &fom->cf_fom;
+		fom->cf_ikv = ikv;
+		fom->cf_ikv_nr = in_nr;
 		repdata = m0_fop_data(repfop);
-		repdata->cgr_rep.cr_nr  = nr;
+		repdata->cgr_rep.cr_nr  = out_nr;
 		repdata->cgr_rep.cr_rec = repv;
 		m0_fom_init(fom0, &fop->f_type->ft_fom_type,
 			    &cas_fom_ops, fop, repfop, reqh);
@@ -484,8 +576,11 @@ static int cas_fom_create(struct m0_fop *fop,
 				       &fom->cf_lock_addb2);
 		m0_long_lock_link_init(&fom->cf_meta, fom0,
 				       &fom->cf_meta_addb2);
+		m0_long_lock_link_init(&fom->cf_ctidx, fom0,
+				       &fom->cf_ctidx_addb2);
 		return M0_RC(0);
 	} else {
+		m0_free(ikv);
 		m0_free(repfop);
 		m0_free(repv);
 		m0_free(fom);
@@ -530,37 +625,40 @@ static void cas_at_fini(struct m0_rpc_at_buf *ab)
 	m0_rpc_at_fini(ab);
 }
 
-static int cas_incoming_kv(const struct m0_cas_rec *rec,
-			   struct m0_buf           *key,
-			   struct m0_buf           *val)
+static void cas_incoming_kv(const struct cas_fom *fom,
+			    uint64_t              rec_pos,
+			    struct m0_buf        *key,
+			    struct m0_buf        *val)
 {
-	int rc;
-
-	M0_PRE(m0_rpc_at_is_set(&rec->cr_key));
-	rc = m0_rpc_at_get(&rec->cr_key, key);
-	if (rc != 0)
-		return M0_ERR(rc);
-	if (m0_rpc_at_is_set(&rec->cr_val))
-		rc = m0_rpc_at_get(&rec->cr_val, val);
-	else
-		*val = M0_BUF_INIT0;
-
-	return M0_RC(rc);
+	*key = fom->cf_ikv[rec_pos].ckv_key;
+	*val = fom->cf_ikv[rec_pos].ckv_val;
 }
 
-static int cas_load_check(const struct m0_cas_op *op)
+static int cas_incoming_kv_setup(struct cas_fom         *fom,
+				 const struct m0_cas_op *op)
 {
-	uint64_t      i;
-	struct m0_buf key;
-	struct m0_buf val;
-	int           rc;
+	uint64_t           i;
+	struct m0_cas_rec *rec;
+	struct m0_buf     *key;
+	struct m0_buf     *val;
+	int                rc = 0;
 
-	for (i = 0; i < op->cg_rec.cr_nr; i++) {
-		rc = cas_incoming_kv(&op->cg_rec.cr_rec[i], &key, &val);
-		if (rc != 0)
-			return M0_ERR(rc);
+	for (i = 0; i < op->cg_rec.cr_nr && rc == 0; i++) {
+		rec = &op->cg_rec.cr_rec[i];
+		key = &fom->cf_ikv[i].ckv_key;
+		val = &fom->cf_ikv[i].ckv_val;
+
+		M0_ASSERT(m0_rpc_at_is_set(&rec->cr_key));
+		rc = m0_rpc_at_get(&rec->cr_key, key);
+		if (rc == 0) {
+			if (m0_rpc_at_is_set(&rec->cr_val))
+				rc = m0_rpc_at_get(&rec->cr_val, val);
+			else
+				*val = M0_BUF_INIT0;
+		}
 	}
-	return M0_RC(0);
+
+	return M0_RC(rc);
 }
 
 /**
@@ -663,26 +761,49 @@ static int cas_val_send(struct cas_fom          *fom,
 			      next_phase);
 	return result;
 }
+	
+static int cas_op_recs_check(struct cas_fom    *fom,
+			     enum cas_opcode   opc,
+			     enum cas_type     ct,
+			     struct m0_cas_op *op)
+{
+	return op->cg_rec.cr_nr != 0 && op->cg_rec.cr_rec != NULL &&
+		m0_forall(i, op->cg_rec.cr_nr,
+			 cas_is_valid(fom, opc, ct, cas_at(op, i), i)) ?
+		M0_RC(0) : M0_ERR(-EPROTO);
+}
 
 static int cas_op_check(struct m0_cas_op *op,
 			struct cas_fom   *fom)
 {
-	struct m0_fom   *fom0 = &fom->cf_fom;
-	enum cas_opcode  opc  = cas_opcode(fom0->fo_fop);
-	enum cas_type    ct   = cas_type(fom0);
-	int              rc   = 0;
+	struct m0_fom      *fom0    = &fom->cf_fom;
+	enum cas_opcode     opc     = cas_opcode(fom0->fo_fop);
+	enum cas_type       ct      = cas_type(fom0);
+	bool                is_meta = ct == CT_META;
+	struct cas_service *service = M0_AMB(service,
+					     fom0->fo_service, c_service);
+	struct cas_index   *ctidx   = service->c_ctidx;
+	int                 rc      = 0;
 
-	if ((ct == CT_META && opc == CO_PUT &&
-	     (cas_op(fom0)->cg_flags & COF_OVERWRITE)) ||
-	    m0_exists(i, op->cg_rec.cr_nr,
-		      !cas_is_valid(opc, ct, cas_at(op, i))))
+	if (is_meta && opc == CO_PUT &&
+	     (cas_op(fom0)->cg_flags & COF_OVERWRITE))
 		rc = M0_ERR(-EPROTO);
+	if (rc == 0)
+		rc = cas_id_check(&op->cg_id, ctidx);
+	if (rc == 0 && is_meta && fom->cf_ikv_nr != 0) {
+		M0_ALLOC_ARR(fom->cf_in_cids, fom->cf_ikv_nr);
+		if (fom->cf_in_cids == NULL)
+			rc = M0_ERR(-ENOMEM);
+	}
+	if (rc == 0)
+		rc = cas_op_recs_check(fom, opc, ct, op);
+
 	return M0_RC(rc);
 }
 
 static int cas_fom_tick(struct m0_fom *fom0)
 {
-	int                 i;
+	uint64_t            i;
 	int                 rc;
 	int                 result  = M0_FSO_AGAIN;
 	struct cas_fom     *fom     = M0_AMB(fom, fom0, cf_fom);
@@ -691,13 +812,16 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	struct m0_cas_rep  *rep     = m0_fop_data(fom0->fo_rep_fop);
 	enum cas_opcode     opc     = cas_opcode(fom0->fo_fop);
 	enum cas_type       ct      = cas_type(fom0);
+	bool                is_meta = ct == CT_META;
 	struct cas_index   *index   = fom->cf_index;
-	size_t              pos     = fom->cf_ipos;
+	uint64_t            pos     = fom->cf_ipos;
 	struct cas_service *service = M0_AMB(service,
 					     fom0->fo_service, c_service);
 	struct cas_index   *meta    = service->c_meta;
+	struct cas_index   *ctidx   = service->c_ctidx;
 	struct m0_cas_rec  *rec;
 
+	M0_PRE(ctidx != NULL);
 	M0_PRE(cas_fom_invariant(fom));
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
@@ -710,6 +834,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			}
 		} else if (phase == M0_FOPH_FAILURE) {
 			m0_long_unlock(&meta->ci_lock, &fom->cf_meta);
+			m0_long_unlock(&ctidx->ci_lock, &fom->cf_ctidx);
 			if (fom->cf_index != NULL)
 				m0_long_unlock(&fom->cf_index->ci_lock,
 					       &fom->cf_lock);
@@ -728,7 +853,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		}
 		break;
 	case CAS_START:
-		if (ct == CT_META) {
+		if (is_meta) {
 			fom->cf_index = meta;
 			m0_fom_phase_set(fom0, CAS_LOAD_KEY);
 		} else
@@ -788,7 +913,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		/* Do we need to load other keys and values from op? */
 		if (fom->cf_ipos == op->cg_rec.cr_nr) {
 			fom->cf_ipos = 0;
-			rc = cas_load_check(op);
+			rc = cas_incoming_kv_setup(fom, op);
 			if (rc != 0)
 				m0_fom_phase_move(fom0, M0_ERR(rc),
 						  M0_FOPH_FAILURE);
@@ -801,24 +926,33 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		break;
 	case CAS_LOCK:
 		M0_ASSERT(index != NULL);
-		result = M0_FOM_LONG_LOCK_RETURN(m0_long_lock(&index->ci_lock,
-							      !cas_is_ro(opc),
-							      &fom->cf_lock,
-							      CAS_PREP));
+		result = m0_long_lock(&index->ci_lock,
+				      !cas_is_ro(opc),
+				      &fom->cf_lock,
+				      is_meta ? CAS_CTIDX_LOCK : CAS_PREP);
+		result = M0_FOM_LONG_LOCK_RETURN(result);
 		fom->cf_ipos = 0;
-		if (ct != CT_META)
+		if (!is_meta)
 			m0_long_read_unlock(&meta->ci_lock, &fom->cf_meta);
 		break;
+	case CAS_CTIDX_LOCK:
+		result = m0_long_lock(&ctidx->ci_lock, !cas_is_ro(opc),
+				      &fom->cf_ctidx, CAS_PREP);
+		result = M0_FOM_LONG_LOCK_RETURN(result);
+		break;
 	case CAS_PREP:
-		if (m0_exists(i, op->cg_rec.cr_nr,
-				!(ct == CT_META ||
-				  cas_is_valid(opc, ct, cas_at(op, i))))) {
-				m0_fom_phase_move(fom0, M0_ERR(-EPROTO),
-						  M0_FOPH_FAILURE);
-				break;
-			}
+		M0_ASSERT(m0_forall(i, rep->cgr_rep.cr_nr,
+				    rep->cgr_rep.cr_rec[i].cr_rc == 0));
+
+		rc = is_meta ? 0 : cas_op_recs_check(fom, opc, ct, op);
+		if (rc != 0) {
+			m0_fom_phase_move(fom0, M0_ERR(rc),
+					  M0_FOPH_FAILURE);
+			break;
+		}
+
 		for (i = 0; i < op->cg_rec.cr_nr; ++i)
-			cas_prep(fom, opc, ct, index, cas_at(op, i),
+			cas_prep(fom, opc, ct, index, i,
 				 &fom0->fo_tx.tx_betx_cred);
 		fom->cf_ipos = 0;
 		fom->cf_opos = 0;
@@ -839,17 +973,34 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		    /* ... or all output has been generated. */
 		    fom->cf_opos == rep->cgr_rep.cr_nr) {
 			m0_long_unlock(&index->ci_lock, &fom->cf_lock);
+			m0_long_unlock(&ctidx->ci_lock, &fom->cf_ctidx);
 			m0_fom_phase_set(fom0, M0_FOPH_SUCCESS);
-		} else
-			result = cas_exec(fom, opc, ct, index,
-					  cas_at(op, pos), CAS_PREPARE_SEND);
+		} else {
+			bool do_ctidx;
+			/*
+			 * Check whether operation over catalogue-index
+			 * index should be done.
+			 */
+			do_ctidx = cas_ctidx_op_needed(fom, opc, ct, pos);
+			result = cas_exec(fom, opc, ct, index, pos,
+					  do_ctidx ? CAS_CTIDX :
+					  CAS_PREPARE_SEND);
+		}
+		break;
+	case CAS_CTIDX:
+		M0_ASSERT(fom->cf_opos < rep->cgr_rep.cr_nr);
+		rec = cas_out_at(rep, fom->cf_opos);
+		rec->cr_rc = cas_ctidx_exec(fom, opc, ct, ctidx, pos,
+					    cas_berc(fom));
+		m0_fom_phase_set(fom0, CAS_PREPARE_SEND);
 		break;
 	case CAS_PREPARE_SEND:
 		M0_ASSERT(fom->cf_opos < rep->cgr_rep.cr_nr);
 		rec = cas_out_at(rep, fom->cf_opos);
 		M0_ASSERT(rec != NULL);
-		rec->cr_rc = cas_prep_send(fom, opc, ct, cas_at(op, pos),
-					   cas_berc(fom));
+		if (rec->cr_rc == 0)
+			rec->cr_rc = cas_prep_send(fom, opc, ct, pos,
+						   cas_berc(fom));
 		m0_fom_phase_set(fom0, rec->cr_rc == 0 ?
 					CAS_SEND_KEY : CAS_DONE);
 		break;
@@ -897,11 +1048,18 @@ M0_INTERNAL void (*cas__ut_cb_fini)(struct m0_fom *fom);
 static void cas_fom_fini(struct m0_fom *fom0)
 {
 	struct cas_fom *fom = M0_AMB(fom, fom0, cf_fom);
+	uint64_t        i;
 
 	if (cas_in_ut() && cas__ut_cb_done != NULL)
 		cas__ut_cb_done(fom0);
+
+	for (i = 0; i < fom->cf_in_cids_nr; i++)
+		m0_cas_id_fini(&fom->cf_in_cids[i]);
+	m0_free(fom->cf_in_cids);
+	m0_free(fom->cf_ikv);
 	m0_long_lock_link_fini(&fom->cf_meta);
 	m0_long_lock_link_fini(&fom->cf_lock);
+	m0_long_lock_link_fini(&fom->cf_ctidx);
 	m0_fom_fini(fom0);
 	m0_free(fom);
 	if (cas_in_ut() && cas__ut_cb_fini != NULL)
@@ -943,14 +1101,42 @@ static int cas_lookup(struct cas_fom *fom, struct cas_index *index,
 	return m0_be_op_tick_ret(beop, &fom->cf_fom, next_phase);
 }
 
-static bool cas_is_valid(enum cas_opcode opc, enum cas_type ct,
-			 const struct m0_cas_rec *rec)
+static int cas_id_check(const struct m0_cas_id *cid,
+			struct cas_index       *ctidx)
 {
-	bool          result;
-	struct m0_buf key;
-	bool          gotkey;
-	bool          gotval;
-	bool          meta = ct == CT_META;
+	const struct m0_dix_layout *layout;
+	struct m0_dix_layout       *stored_layout;
+	int                         rc = 0;
+
+	/* Check fid. */
+	if (!m0_fid_is_valid(&cid->ci_fid) ||
+	    !M0_IN(m0_fid_type_getfid(&cid->ci_fid), (&m0_cas_index_fid_type,
+						      &m0_cctg_fid_type)))
+		return M0_ERR(-EPROTO);
+
+	if (cas_fid_is_cctg(&cid->ci_fid)) {
+		layout = &cid->ci_layout;
+		if (layout->dl_type == DIX_LTYPE_DESCR) {
+			rc = cas_ctidx_lookup(&ctidx->ci_tree, &cid->ci_fid,
+					      &stored_layout);
+			/* Match stored and received layouts. */
+			if (rc == 0 && !m0_dix_layout_eq(layout, stored_layout))
+				rc = M0_ERR(-EKEYEXPIRED);
+		} else
+			rc = M0_ERR(-EPROTO);
+	}
+
+	return M0_RC(rc);
+}
+
+static bool cas_is_valid(struct cas_fom *fom, enum cas_opcode opc,
+			 enum cas_type ct, const struct m0_cas_rec *rec,
+			 uint64_t rec_pos)
+{
+	bool result;
+	bool gotkey;
+	bool gotval;
+	bool meta = ct == CT_META;
 
 	gotkey = m0_rpc_at_is_set(&rec->cr_key);
 	gotval = m0_rpc_at_is_set(&rec->cr_val);
@@ -972,15 +1158,40 @@ static bool cas_is_valid(enum cas_opcode opc, enum cas_type ct,
 		M0_IMPOSSIBLE("Wrong opcode.");
 	}
 	if (meta && gotkey && result) {
-		const struct m0_fid *fid;
-		int          rc;
+		int                  rc;
+		struct m0_cas_id     cid = {};
+		struct m0_buf        key;
+		struct m0_dix_imask *imask;
 
-		/* Valid key is sent inline always, so rc should be 0. */
-		rc = m0_rpc_at_get(&rec->cr_key, &key);
-		fid = key.b_addr;
-		result = rc == 0 && key.b_nob == sizeof *fid &&
-			m0_fid_is_valid(fid) &&
-			m0_fid_type_getfid(fid) == &m0_cas_index_fid_type;
+		/*
+		 * Valid key is sent inline always, so result
+		 * should be 0.
+		 * Key is encoded m0_cas_id in meta case.
+		 */
+		rc = m0_rpc_at_get(&rec->cr_key, &key) ?:
+			cas_buf_cid_decode(&key, &cid);
+		if (rc == 0) {
+			imask = &cid.ci_layout.u.dl_desc.ld_imask;
+
+			result = m0_fid_is_valid(&cid.ci_fid) &&
+				M0_IN(m0_fid_type_getfid(&cid.ci_fid),
+				      (&m0_cas_index_fid_type,
+				       &m0_cctg_fid_type));
+			if (result) {
+				if (cas_fid_is_cctg(&cid.ci_fid))
+					result = (imask->im_range == NULL) ==
+						(imask->im_nr == 0);
+				else
+					result = (imask->im_range == NULL &&
+						  imask->im_nr == 0);
+			}
+		} else
+			result = false;
+
+		if (result) {
+			fom->cf_in_cids[rec_pos] = cid;
+			fom->cf_in_cids_nr++;
+		}
 	}
 	return M0_RC(result);
 }
@@ -998,7 +1209,14 @@ static enum cas_type cas_type(const struct m0_fom *fom)
 		return CT_BTREE;
 }
 
-static uint64_t cas_nr(const struct m0_fop *fop)
+static uint64_t cas_in_nr(const struct m0_fop *fop)
+{
+	const struct m0_cas_op *op = m0_fop_data(fop);
+
+	return op->cg_rec.cr_nr;
+}
+
+static uint64_t cas_out_nr(const struct m0_fop *fop)
 {
 	const struct m0_cas_op *op = m0_fop_data(fop);
 	uint64_t                nr;
@@ -1057,6 +1275,42 @@ static int cas_buf_get(struct m0_buf *dst, const struct m0_buf *src)
 		return M0_ERR(-ENOMEM);
 }
 
+static int cas_buf_cid_decode(struct m0_buf    *enc_buf,
+			      struct m0_cas_id *cid)
+{
+	M0_PRE(enc_buf != NULL);
+	M0_PRE(cid != NULL);
+
+	M0_PRE(M0_IS0(cid));
+
+	return m0_xcode_obj_dec_from_buf(
+		&M0_XCODE_OBJ(m0_cas_id_xc, cid),
+		&enc_buf->b_addr, &enc_buf->b_nob);
+}
+
+static int cas_buf_fid(struct m0_buf *dst,
+		       const struct m0_cas_id *cid)
+{
+	if (M0_FI_ENABLED("cas_alloc_fail"))
+		return M0_ERR(-ENOMEM);
+
+	dst->b_nob  = sizeof(uint64_t) + sizeof(cid->ci_fid);
+	dst->b_addr = m0_alloc(dst->b_nob);
+	if (dst->b_addr != NULL) {
+		*((uint64_t *)dst->b_addr) = sizeof(cid->ci_fid);
+		memcpy(dst->b_addr + sizeof(uint64_t),
+		       &cid->ci_fid, sizeof(cid->ci_fid));
+		return M0_RC(0);
+	} else
+		return M0_ERR(-ENOMEM);
+}
+
+static bool cas_fid_is_cctg(const struct m0_fid *fid)
+{
+	M0_PRE(fid != NULL);
+	return m0_fid_type_getfid(fid) == &m0_cctg_fid_type;
+}
+
 static int cas_place(struct m0_buf *dst, struct m0_buf *src, m0_bcount_t cutoff)
 {
 	struct m0_buf inner = {};
@@ -1086,7 +1340,7 @@ static int cas_place(struct m0_buf *dst, struct m0_buf *src, m0_bcount_t cutoff)
  * Returns number of bytes required for key/value stored in btree given
  * user-supplied key/value buffer.
  *
- * Key/value stored in btree have first byte defining length and successive
+ * Key/value stored in btree have first 8 bytes defining length and successive
  * bytes storing key/value.
  */
 static m0_bcount_t cas_kv_nob(const struct m0_buf *inbuf)
@@ -1094,38 +1348,98 @@ static m0_bcount_t cas_kv_nob(const struct m0_buf *inbuf)
 	return inbuf->b_nob + sizeof(uint64_t);
 }
 
+static void ctidx_op_credits(struct m0_cas_id       *cid,
+			     bool                    insert,
+			     struct m0_be_tx_credit *accum)
+{
+	struct m0_be_btree         dummy = {};
+	const struct m0_dix_imask *imask;
+	struct m0_be_seg          *seg;
+	m0_bcount_t                knob;
+	m0_bcount_t                vnob;
+
+	seg = cas_seg();
+	dummy.bb_seg = seg;
+
+	M0_PRE(cid != NULL);
+	M0_PRE(accum != NULL);
+	if (cas_fid_is_cctg(&cid->ci_fid)) {
+		knob = sizeof(uint64_t) + sizeof(struct m0_fid);
+		vnob = sizeof(uint64_t) + sizeof(struct m0_dix_layout);
+		if (insert)
+			m0_be_btree_insert_credit(&dummy, 1, knob, vnob, accum);
+		else
+			m0_be_btree_delete_credit(&dummy, 1, knob, vnob, accum);
+
+		imask = &cid->ci_layout.u.dl_desc.ld_imask;
+		if (!m0_dix_imask_is_empty(imask)) {
+			if (insert)
+				M0_BE_ALLOC_CREDIT_ARR(imask->im_range,
+						       imask->im_nr,
+						       seg,
+						       accum);
+			else
+				M0_BE_FREE_CREDIT_ARR(imask->im_range,
+						      imask->im_nr,
+						      seg,
+						      accum);
+		}
+	}
+}
+
+static void ctidx_insert_credits(struct m0_cas_id       *cid,
+				 struct m0_be_tx_credit *accum)
+{
+	ctidx_op_credits(cid, true, accum);
+}
+
+static void ctidx_delete_credits(struct m0_cas_id       *cid,
+				 struct m0_be_tx_credit *accum)
+{
+	ctidx_op_credits(cid, false, accum);
+}
+
 static void cas_prep(struct cas_fom *fom, enum cas_opcode opc,
-		     enum cas_type ct, struct cas_index *index,
-		     const struct m0_cas_rec *rec,
-		     struct m0_be_tx_credit *accum)
+		    enum cas_type ct, struct cas_index *index,
+		    uint64_t rec_pos,
+		    struct m0_be_tx_credit *accum)
 {
 	struct m0_be_btree *btree = &index->ci_tree;
+	/* Assign NULL to silence "maybe-unitialized" compiler warning. */
+	struct m0_cas_id   *cid = NULL;
 	struct m0_buf       key;
 	struct m0_buf       val;
 	m0_bcount_t         knob;
 	m0_bcount_t         vnob;
-	int                 rc;
 
-	rc = cas_incoming_kv(rec, &key, &val);
-	M0_ASSERT(rc == 0);
+	cas_incoming_kv(fom, rec_pos, &key, &val);
 	knob = cas_kv_nob(&key);
 	vnob = cas_kv_nob(&val);
+	if (ct == CT_META)
+		cid = &fom->cf_in_cids[rec_pos];
 	switch (COMBINE(opc, ct)) {
 	case COMBINE(CO_PUT, CT_META):
 		m0_be_btree_create_credit(btree, 1, accum);
-		M0_ASSERT(knob == sizeof (uint64_t) + sizeof (struct m0_fid));
-		M0_ASSERT(vnob == sizeof (uint64_t));
-		vnob = sizeof (struct cas_index) + sizeof (uint64_t);
+		M0_ASSERT(vnob == sizeof(uint64_t));
+		ctidx_insert_credits(cid, accum);
+		/* Credits for insertion into meta-index. */
+		knob = sizeof(uint64_t) + sizeof(struct m0_fid);
+		vnob = sizeof(uint64_t) + sizeof(struct cas_index);
 		/* fallthru */
 	case COMBINE(CO_PUT, CT_BTREE):
 		m0_be_btree_insert_credit(btree, 1, knob, vnob, accum);
 		break;
 	case COMBINE(CO_DEL, CT_META):
+		M0_ASSERT(vnob == sizeof(uint64_t));
+		ctidx_delete_credits(cid, accum);
 		/*
 		 * @todo It is not always possible to destroy a large btree in
 		 * one transaction. See HLD for the solution.
 		 */
 		m0_be_btree_destroy_credit(btree, accum);
+		/* Credits for deletion from meta-index. */
+		knob = sizeof(uint64_t) + sizeof(struct m0_fid);
+		vnob = sizeof(uint64_t) + sizeof(struct cas_index);
 		/* fallthru */
 	case COMBINE(CO_DEL, CT_BTREE):
 		m0_be_btree_delete_credit(btree, 1, knob, vnob, accum);
@@ -1146,8 +1460,7 @@ static struct m0_cas_rec *cas_out_at(const struct m0_cas_rep *rep, int idx)
 }
 
 static int cas_exec(struct cas_fom *fom, enum cas_opcode opc, enum cas_type ct,
-		    struct cas_index *index, const struct m0_cas_rec *rec,
-		    int next)
+		    struct cas_index *index, uint64_t rec_pos, int next)
 {
 	struct m0_be_btree        *btree  = &index->ci_tree;
 	struct m0_fom             *fom0   = &fom->cf_fom;
@@ -1159,14 +1472,18 @@ static int cas_exec(struct cas_fom *fom, enum cas_opcode opc, enum cas_type ct,
 	uint32_t                   flags  = cas_op(fom0)->cg_flags;
 	struct m0_buf              kbuf;
 	struct m0_buf              vbuf;
+	struct m0_cas_id          *cid;
 	int                        rc;
 
-	M0_ASSERT(m0_rpc_at_is_set(&rec->cr_key));
-	rc = cas_incoming_kv(rec, &kbuf, &vbuf);
-	M0_ASSERT(rc == 0);
-	rc = cas_buf_get(key, &kbuf);
+	cas_incoming_kv(fom, rec_pos, &kbuf, &vbuf);
+	if (ct == CT_META) {
+		cid = &fom->cf_in_cids[rec_pos];
+		rc = cas_buf_fid(key, cid);
+	} else
+		rc = cas_buf_get(key, &kbuf);
+
 	if (rc != 0) {
-		beop->bo_u.u_btree.t_rc = rc;
+		beop->bo_u.u_btree.t_rc = M0_ERR(rc);
 		m0_fom_phase_set(fom0, next);
 		return M0_FSO_AGAIN;
 	}
@@ -1208,6 +1525,52 @@ static int cas_exec(struct cas_fom *fom, enum cas_opcode opc, enum cas_type ct,
 	return m0_be_op_tick_ret(beop, fom0, next);
 }
 
+static bool cas_ctidx_op_needed(struct cas_fom *fom, enum cas_opcode opc,
+				enum cas_type ct, uint64_t rec_pos)
+{
+	struct m0_cas_id *cid;
+	bool              is_needed = false;
+
+	switch (COMBINE(opc, ct)) {
+	case COMBINE(CO_PUT, CT_META):
+	case COMBINE(CO_DEL, CT_META):
+		cid = &fom->cf_in_cids[rec_pos];
+		if (cas_fid_is_cctg(&cid->ci_fid))
+			is_needed = true;
+		break;
+	default:
+		break;
+	}
+
+	return is_needed;
+}
+
+static int cas_ctidx_exec(struct cas_fom *fom,	enum cas_opcode opc,
+			   enum cas_type ct, struct cas_index *ctidx,
+			   uint64_t rec_pos, uint64_t rc)
+{
+	struct m0_cas_id *cid;
+	struct m0_be_tx  *tx = &fom->cf_fom.fo_tx.tx_betx;
+
+	if (rc == 0) {
+		switch (COMBINE(opc, ct)) {
+		case COMBINE(CO_PUT, CT_META):
+		case COMBINE(CO_DEL, CT_META):
+			cid = &fom->cf_in_cids[rec_pos];
+			if (opc == CO_PUT)
+				rc = cas_ctidx_insert(&ctidx->ci_tree, cid, tx);
+			else
+				rc = cas_ctidx_delete(&ctidx->ci_tree, cid, tx);
+			break;
+		default:
+			/* Nothing to do. */
+			break;
+		}
+	}
+
+	return rc;
+}
+
 static m0_bcount_t cas_rpc_cutoff(const struct cas_fom *fom)
 {
 	return cas_in_ut() ? PAGE_SIZE :
@@ -1215,8 +1578,7 @@ static m0_bcount_t cas_rpc_cutoff(const struct cas_fom *fom)
 }
 
 static int cas_prep_send(struct cas_fom *fom, enum cas_opcode opc,
-			 enum cas_type ct,
-			 const struct m0_cas_rec *rec, uint64_t rc)
+			 enum cas_type ct, uint64_t rec_pos, uint64_t rc)
 {
 	struct m0_buf  key;
 	struct m0_buf  val;
@@ -1224,7 +1586,7 @@ static int cas_prep_send(struct cas_fom *fom, enum cas_opcode opc,
 	void          *arena = fom->cf_anchor.ba_value.b_addr;
 
 	if (rc == 0) {
-		rc = cas_incoming_kv(rec, &key, &val);
+		cas_incoming_kv(fom, rec_pos, &key, &val);
 		M0_ASSERT(rc == 0);
 		switch (COMBINE(opc, ct)) {
 		case COMBINE(CO_GET, CT_BTREE):
@@ -1301,6 +1663,7 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 		if (rc == -EEXIST && (op->cg_flags & COF_CREATE))
 			rc = 0;
 	}
+	M0_LOG(M0_DEBUG, "pos %zu: rc %d", fom->cf_opos, rc);
 	rec_out->cr_rc = rc;
 	if (at_fini) {
 		/* Finalise input AT buffers. */
@@ -1330,31 +1693,119 @@ static void cas_release(struct cas_fom *fom, struct m0_fom *fom0)
 		m0_be_op_fini(beop);
 }
 
-static void cas_meta_selfadd_credit(struct m0_be_btree     *bt,
-				    struct m0_be_tx_credit *accum)
-{
-	m0_be_btree_insert_credit(bt, 1,
-				  sizeof(uint64_t) + sizeof(struct m0_fid),
-				  sizeof (struct cas_index) + sizeof (uint64_t),
-				  accum);
-}
-
-static void cas_meta_selfrm_credit(struct m0_be_btree     *bt,
+static void cas_meta_insert_credit(struct m0_be_btree     *bt,
+				   m0_bcount_t             nr,
 				   struct m0_be_tx_credit *accum)
 {
-	m0_be_btree_delete_credit(bt, 1,
+	m0_be_btree_insert_credit(bt, nr,
 				  sizeof(uint64_t) + sizeof(struct m0_fid),
-				  sizeof (struct cas_index) + sizeof (uint64_t),
+				  sizeof(uint64_t) + sizeof(struct cas_index),
 				  accum);
 }
 
-static void cas_meta_key_fill(void *key)
+static void cas_meta_delete_credit(struct m0_be_btree     *bt,
+				   m0_bcount_t             nr,
+				   struct m0_be_tx_credit *accum)
 {
-	*(uint64_t *)key = sizeof(struct m0_fid);
-	memcpy(key + 8, &m0_cas_meta_fid, sizeof(struct m0_fid));
+	m0_be_btree_delete_credit(bt, nr,
+				  sizeof(uint64_t) + sizeof(struct m0_fid),
+				  sizeof(uint64_t) + sizeof(struct cas_index),
+				  accum);
 }
 
-static int cas_meta_selfadd(struct m0_be_btree *meta, struct m0_be_tx *tx)
+static void cas_fid_key_fill(void *key, const struct m0_fid *fid)
+{
+	*(uint64_t *)key = sizeof(struct m0_fid);
+	memcpy(key + 8, fid, sizeof(struct m0_fid));
+}
+
+static int cas_ctidx_insert(struct m0_be_btree     *ctidx,
+			    const struct m0_cas_id *cid,
+			    struct m0_be_tx        *tx)
+{
+	uint8_t                    key_data[sizeof(uint64_t) +
+					    sizeof(struct m0_fid)];
+	struct m0_buf              key;
+	struct m0_be_btree_anchor  anchor = {};
+	struct m0_dix_layout      *layout = NULL;
+	struct m0_ext             *im_range = NULL;
+	m0_bcount_t                size;
+	const struct m0_dix_imask *imask = NULL;
+	int                        rc;
+
+	M0_PRE(cas_fid_is_cctg(&cid->ci_fid));
+
+	/* The key is a component catalogue FID. */
+	cas_fid_key_fill((void *)&key_data, &cid->ci_fid);
+	key = M0_BUF_INIT_PTR(&key_data);
+	anchor.ba_value.b_nob = sizeof(uint64_t) +
+		sizeof(struct m0_dix_layout);
+	/** @todo Make it asynchronous. */
+	rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_insert_inplace(ctidx, tx, &op,
+					     &key, &anchor), bo_u.u_btree.t_rc);
+	if (rc == 0) {
+		*(uint64_t *)anchor.ba_value.b_addr =
+			sizeof(struct m0_dix_layout);
+		layout = (struct m0_dix_layout *)
+			(anchor.ba_value.b_addr + sizeof(uint64_t));
+		memcpy(layout, &cid->ci_layout, sizeof(cid->ci_layout));
+		imask = &cid->ci_layout.u.dl_desc.ld_imask;
+		if (!m0_dix_imask_is_empty(imask)) {
+			/*
+			 * Alloc memory in BE segment for imask ranges
+			 * and copy them.
+			 */
+			/** @todo Make it asynchronous. */
+			M0_BE_ALLOC_ARR_SYNC(im_range, imask->im_nr,
+					     cas_seg(), tx);
+			size = imask->im_nr * sizeof(struct m0_ext);
+			memcpy(im_range, imask->im_range, size);
+			m0_be_tx_capture(tx, &M0_BE_REG(cas_seg(),
+							size, im_range));
+			/* Assign newly allocated imask ranges. */
+			layout->u.dl_desc.ld_imask.im_range = im_range;
+		}
+	}
+	m0_be_btree_release(tx, &anchor);
+	return M0_RC(rc);
+}
+
+static int cas_ctidx_delete(struct m0_be_btree     *ctidx,
+			    const struct m0_cas_id *cid,
+			    struct m0_be_tx        *tx)
+{
+	struct m0_dix_layout   *layout = NULL;
+	struct m0_dix_imask    *imask = NULL;
+	uint8_t                 key_data[sizeof(uint64_t) +
+					 sizeof(struct m0_fid)];
+	struct m0_buf           key;
+	int                     rc;
+
+	M0_PRE(cas_fid_is_cctg(&cid->ci_fid));
+
+	/* Firstly we should free buffer allocated for imask ranges array. */
+	rc = cas_ctidx_lookup(ctidx, &cid->ci_fid, &layout);
+	if (rc != 0)
+		return rc;
+	imask = &layout->u.dl_desc.ld_imask;
+	/** @todo Make it asynchronous. */
+	M0_BE_FREE_PTR_SYNC(imask->im_range, cas_seg(), tx);
+	imask->im_range = NULL;
+	imask->im_nr = 0;
+
+	/* The key is a component catalogue FID. */
+	cas_fid_key_fill((void *)&key_data, &cid->ci_fid);
+	key = M0_BUF_INIT_PTR(&key_data);
+	/** @todo Make it asynchronous. */
+	M0_BE_OP_SYNC(op, m0_be_btree_delete(ctidx, tx, &op, &key));
+
+	return rc;
+}
+
+static int cas_meta_insert(struct m0_be_btree *meta,
+			   struct m0_fid      *fid,
+			   struct cas_index   *index,
+			   struct m0_be_tx    *tx)
 {
 	uint8_t                    key_data[sizeof(uint64_t) +
 					    sizeof(struct m0_fid)];
@@ -1363,32 +1814,220 @@ static int cas_meta_selfadd(struct m0_be_btree *meta, struct m0_be_tx *tx)
 	void                      *val_data;
 	int                        rc;
 
-	cas_meta_key_fill((void *)&key_data);
+	cas_fid_key_fill((void *)&key_data, fid);
 	key = M0_BUF_INIT_PTR(&key_data);
-	anchor.ba_value.b_nob = sizeof(struct cas_index) + sizeof(uint64_t);
+	anchor.ba_value.b_nob = sizeof(uint64_t) + sizeof(struct cas_index);
 	rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_insert_inplace(meta, tx, &op,
 					     &key, &anchor), bo_u.u_btree.t_rc);
 	/*
-	 * It is a stub for meta-index inside itself, inserting records in it is
-	 * prohibited. This stub is used to generalise listing indices
-	 * operation.
+	 * If passed index is NULL then it is a stub for meta-index inside
+	 * itself, inserting records in it is prohibited. This stub is used
+	 * to generalise listing indices operation.
+	 * Insert real index otherwise (index is not NULL).
 	 */
 	if (rc == 0) {
 		val_data = anchor.ba_value.b_addr;
 		*(uint64_t *)val_data = sizeof(struct cas_index);
+		if (index != NULL)
+			memcpy(val_data + sizeof(uint64_t),
+			       index,
+			       sizeof(struct cas_index));
 	}
 	m0_be_btree_release(tx, &anchor);
 	return M0_RC(rc);
 }
 
-static void cas_meta_selfrm(struct m0_be_btree *meta, struct m0_be_tx *tx)
+static int cas_meta_selfadd(struct m0_be_btree *meta, struct m0_be_tx *tx)
+{
+	return cas_meta_insert(meta, &m0_cas_meta_fid, NULL, tx);
+}
+
+static void cas_meta_delete(struct m0_be_btree *meta,
+			    struct m0_fid      *fid,
+			    struct m0_be_tx    *tx)
 {
 	uint8_t       key_data[sizeof(uint64_t) + sizeof(struct m0_fid)];
 	struct m0_buf key;
 
-	cas_meta_key_fill((void *)&key_data);
+	cas_fid_key_fill((void *)&key_data, fid);
 	key = M0_BUF_INIT_PTR(&key_data);
 	M0_BE_OP_SYNC(op, m0_be_btree_delete(meta, tx, &op, &key));
+}
+
+static void cas_meta_selfrm(struct m0_be_btree *meta, struct m0_be_tx *tx)
+{
+	return cas_meta_delete(meta, &m0_cas_meta_fid, tx);
+}
+
+static int cas_ctidx_create(struct m0_be_seg  *seg,
+			    struct m0_be_tx   *tx,
+			    struct cas_index **ctidx)
+{
+	struct cas_index *out;
+	int               rc;
+
+	*ctidx = NULL;
+
+	M0_BE_ALLOC_PTR_SYNC(out, seg, tx);
+	if (out == NULL)
+		return M0_ERR(-ENOSPC);
+
+	rc = cas_index_create(out, tx);
+	if (rc != 0)
+		M0_BE_FREE_PTR_SYNC(out, seg, tx);
+	else
+		*ctidx = out;
+
+	return M0_RC(rc);
+}
+
+static void cas_ctidx_destroy(struct cas_index *ctidx,
+			      struct m0_be_seg *seg,
+			      struct m0_be_tx  *tx)
+{
+	cas_index_destroy(ctidx, tx);
+	M0_BE_FREE_PTR_SYNC(ctidx, seg, tx);
+}
+
+static int cas_ctidx_lookup(struct m0_be_btree      *ctidx,
+			    const struct m0_fid     *fid,
+			    struct m0_dix_layout   **layout)
+{
+	uint8_t                   key_data[sizeof(uint64_t) +
+					   sizeof(struct m0_fid)];
+	struct m0_buf             key;
+	struct m0_be_btree_anchor anchor;
+	int                       rc;
+
+	M0_PRE(ctidx != NULL);
+	M0_PRE(fid != NULL);
+	M0_PRE(layout != NULL);
+
+	*layout = NULL;
+
+	cas_fid_key_fill((void *)&key_data, fid);
+	key = M0_BUF_INIT_PTR(&key_data);
+
+	/** @todo Make it asynchronous. */
+	rc = M0_BE_OP_SYNC_RET(op,
+			       m0_be_btree_lookup_inplace(ctidx,
+							  &op,
+							  &key,
+							  &anchor),
+			       bo_u.u_btree.t_rc);
+	if (rc == 0) {
+		struct m0_buf buf = { 0 };
+
+		rc = cas_buf(&anchor.ba_value, &buf);
+		if (rc == 0) {
+			if (buf.b_nob == sizeof(struct m0_dix_layout))
+				*layout = (struct m0_dix_layout *)buf.b_addr;
+			else
+				rc = M0_ERR_INFO(-EPROTO, "Unexpected: %"PRIx64,
+						 buf.b_nob);
+		}
+	}
+	m0_be_btree_release(NULL, &anchor);
+
+	return M0_RC(rc);
+}
+
+static int cas_meta_find_ctidx(struct cas_index  *meta,
+			       struct cas_index **ctidx)
+{
+	uint8_t                   key_data[sizeof(uint64_t) +
+					   sizeof(struct m0_fid)];
+	struct m0_buf             key;
+	struct m0_be_btree_anchor anchor;
+	int                       rc;
+
+	*ctidx = NULL;
+
+	cas_fid_key_fill((void *)&key_data, &m0_cas_ctidx_fid);
+	key = M0_BUF_INIT_PTR(&key_data);
+
+	rc = M0_BE_OP_SYNC_RET(op,
+			       m0_be_btree_lookup_inplace(&meta->ci_tree,
+							  &op,
+							  &key,
+							  &anchor),
+			       bo_u.u_btree.t_rc);
+	if (rc == 0) {
+		struct m0_buf buf = { 0 };
+
+		rc = cas_buf(&anchor.ba_value, &buf);
+		if (rc == 0) {
+			if (buf.b_nob == sizeof(struct cas_index))
+				*ctidx = buf.b_addr;
+			else
+				rc = M0_ERR_INFO(-EPROTO, "Unexpected: %"PRIx64,
+						 buf.b_nob);
+		}
+	}
+
+	return M0_RC(rc);
+}
+
+static int cas_meta_create(struct m0_be_seg  *seg,
+			   struct m0_be_tx   *tx,
+			   struct cas_index **meta)
+{
+	struct cas_index   *out;
+	struct m0_be_btree *bt;
+	int                 rc;
+
+	*meta = NULL;
+
+	M0_BE_ALLOC_PTR_SYNC(out, seg, tx);
+	if (out == NULL)
+		return M0_ERR(-ENOSPC);
+
+	rc = cas_index_create(out, tx);
+	if (rc == 0) {
+		bt = &out->ci_tree;
+		rc = cas_meta_selfadd(bt, tx);
+		if (rc != 0)
+			cas_index_destroy(out, tx);
+	}
+
+	if (rc != 0)
+		M0_BE_FREE_PTR_SYNC(out, seg, tx);
+	else
+		*meta = out;
+
+	return M0_RC(rc);
+}
+
+static void cas_meta_destroy(struct cas_index *meta,
+			     struct m0_be_seg *seg,
+			     struct m0_be_tx  *tx)
+{
+	cas_meta_selfrm(&meta->ci_tree, tx);
+	cas_index_destroy(meta, tx);
+	M0_BE_FREE_PTR_SYNC(meta, seg, tx);
+}
+
+
+static void cas_init_creds_calc(struct m0_be_seg       *seg0,
+				struct cas_index       *meta,
+				struct cas_index       *ctidx,
+				struct m0_be_tx_credit *cred)
+{
+	struct m0_be_btree dummy = {{ 0 }};
+
+	dummy.bb_seg = seg0;
+
+	m0_be_seg_dict_insert_credit(seg0, cas_key, cred);
+	M0_BE_ALLOC_CREDIT_PTR(meta, seg0, cred);
+	M0_BE_ALLOC_CREDIT_PTR(ctidx, seg0, cred);
+	m0_be_btree_create_credit(&dummy, 2, cred);
+	cas_meta_insert_credit(&dummy, 2, cred);
+	/* Error case: tree destruction and freeing. */
+	cas_meta_delete_credit(&dummy, 2, cred);
+	m0_be_btree_destroy_credit(&dummy, cred);
+	m0_be_btree_destroy_credit(&dummy, cred);
+	M0_BE_FREE_CREDIT_PTR(meta, seg0, cred);
+	M0_BE_FREE_CREDIT_PTR(ctidx, seg0, cred);
 }
 
 static int cas_init(struct cas_service *service)
@@ -1396,10 +2035,9 @@ static int cas_init(struct cas_service *service)
 	struct m0_be_seg       *seg0  = cas_seg();
 	struct m0_sm_group     *grp   = m0_locality0_get()->lo_grp;
 	struct cas_index       *meta  = NULL;
+	struct cas_index       *ctidx = NULL;
 	struct m0_be_tx         tx    = {};
 	struct m0_be_tx_credit  cred  = M0_BE_TX_CREDIT(0, 0);
-	struct m0_be_btree      dummy = { .bb_seg = seg0 };
-	struct m0_be_btree     *bt;
 	int                     result;
 
 	/**
@@ -1415,7 +2053,16 @@ static int cas_init(struct cas_service *service)
 		else {
 			service->c_meta = meta;
 			cas_index_init(meta, seg0);
-			return M0_RC(0);
+
+			/* Searching for catalogue-index index. */
+			result = cas_meta_find_ctidx(meta, &ctidx);
+			if (result == 0) {
+				service->c_ctidx = ctidx;
+				cas_index_init(ctidx, seg0);
+			} else
+				service->c_ctidx = NULL;
+
+			return M0_RC(result);
 		}
 	}
 	if (result != -ENOENT)
@@ -1423,39 +2070,51 @@ static int cas_init(struct cas_service *service)
 
 	m0_sm_group_lock(grp);
 	m0_be_tx_init(&tx, 0, m0_get()->i_be_dom, grp, NULL, NULL, NULL, NULL);
-	m0_be_seg_dict_insert_credit(seg0, cas_key, &cred);
-	M0_BE_ALLOC_CREDIT_PTR(meta, seg0, &cred);
-	m0_be_btree_create_credit(&dummy, 1, &cred);
-	cas_meta_selfadd_credit(&dummy, &cred);
-	/* Error case: tree destruction and freeing. */
-	cas_meta_selfrm_credit(&dummy, &cred);
-	m0_be_btree_destroy_credit(&dummy, &cred);
-	M0_BE_FREE_CREDIT_PTR(meta, seg0, &cred);
+
+	cas_init_creds_calc(seg0, meta, ctidx, &cred);
+
 	m0_be_tx_prep(&tx, &cred);
 	result = m0_be_tx_exclusive_open_sync(&tx);
 	if (result != 0) {
 		m0_be_tx_fini(&tx);
 		return M0_ERR(result);
 	}
-	M0_BE_ALLOC_PTR_SYNC(meta, seg0, &tx);
-	if (meta != NULL) {
-		bt = &meta->ci_tree;
-		result = cas_index_create(meta, &tx);
+
+	result = cas_meta_create(seg0, &tx, &meta);
+	if (result == 0) {
+		/* Create catalog-index index. */
+		result = cas_ctidx_create(seg0, &tx, &ctidx);
 		if (result == 0) {
-			result = cas_meta_selfadd(bt, &tx) ?:
-				 m0_be_seg_dict_insert(seg0, &tx, cas_key,meta);
+			/* Insert catalogue-index index into meta-index. */
+			result = cas_meta_insert(&meta->ci_tree,
+						 &m0_cas_ctidx_fid,
+						 ctidx,
+						 &tx);
+			if (result != 0)
+				cas_ctidx_destroy(ctidx, seg0, &tx);
+		}
+
+		if (result == 0) {
+			result = m0_be_seg_dict_insert(seg0, &tx, cas_key,
+						       meta);
 			if (result == 0) {
+				M0_BE_TX_CAPTURE_PTR(seg0, &tx, ctidx);
 				M0_BE_TX_CAPTURE_PTR(seg0, &tx, meta);
 				service->c_meta = meta;
+				service->c_ctidx = ctidx;
 			} else {
-				cas_meta_selfrm(bt, &tx);
-				cas_index_destroy(meta, &tx);
+				/* Cleanup catalogue-index index. */
+				cas_meta_delete(&meta->ci_tree,
+						&m0_cas_ctidx_fid,
+						&tx);
+				cas_ctidx_destroy(ctidx, seg0, &tx);
+				/* Cleanup meta-index. */
+				cas_meta_destroy(meta, seg0, &tx);
 			}
-		}
-		if (result != 0)
-			M0_BE_FREE_PTR_SYNC(meta, seg0, &tx);
-	} else
-		result = M0_ERR(-ENOSPC);
+		} else
+			cas_meta_destroy(meta, seg0, &tx);
+	}
+
 	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
 	m0_sm_group_unlock(grp);
@@ -1597,6 +2256,10 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 	},
 	[CAS_LOCK] = {
 		.sd_name      = "lock",
+		.sd_allowed   = M0_BITS(CAS_CTIDX_LOCK, CAS_PREP)
+	},
+	[CAS_CTIDX_LOCK] = {
+		.sd_name      = "ctidx_lock",
 		.sd_allowed   = M0_BITS(CAS_PREP)
 	},
 	[CAS_LOAD_KEY] = {
@@ -1617,7 +2280,12 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 	},
 	[CAS_LOOP] = {
 		.sd_name      = "loop",
-		.sd_allowed   = M0_BITS(CAS_PREPARE_SEND, M0_FOPH_SUCCESS)
+		.sd_allowed   = M0_BITS(CAS_CTIDX, CAS_PREPARE_SEND,
+					M0_FOPH_SUCCESS)
+	},
+	[CAS_CTIDX] = {
+		.sd_name      = "ctidx",
+		.sd_allowed   = M0_BITS(CAS_PREPARE_SEND)
 	},
 	[CAS_DONE] = {
 		.sd_name      = "done",
@@ -1659,10 +2327,13 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "key-loaded",           CAS_LOAD_KEY,         CAS_LOAD_VAL },
 	{ "val-loaded",           CAS_LOAD_VAL,         CAS_LOAD_DONE },
 	{ "more-kv-to-load",      CAS_LOAD_DONE,        CAS_LOAD_KEY },
+	{ "meta-locked",          CAS_LOCK,             CAS_CTIDX_LOCK },
+	{ "ctidx-locked",         CAS_CTIDX_LOCK,       CAS_PREP },
 	{ "load-finished",        CAS_LOAD_DONE,        CAS_LOCK },
 	{ "tx-credit-calculated", CAS_PREP,             M0_FOPH_TXN_OPEN },
 	{ "keys-vals-invalid",    CAS_PREP,             M0_FOPH_FAILURE },
 	{ "all-done?",            CAS_LOOP,             M0_FOPH_SUCCESS },
+	{ "op-launched",          CAS_LOOP,             CAS_CTIDX },
 	{ "op-launched",          CAS_LOOP,             CAS_PREPARE_SEND },
 	{ "ready-to-send",        CAS_PREPARE_SEND,     CAS_SEND_KEY },
 	{ "prep-error",           CAS_PREPARE_SEND,     CAS_DONE },
@@ -1673,6 +2344,8 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "skip-val-sending",     CAS_SEND_VAL,         CAS_DONE },
 	{ "processing-done",      CAS_VAL_SENT,         CAS_DONE },
 	{ "goto-next-rec",        CAS_DONE,             CAS_LOOP },
+	{ "ctidx-inserted",       CAS_CTIDX,            CAS_PREPARE_SEND },
+	{ "key-add-reply",        CAS_DONE,             CAS_LOOP },
 
 	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_COMMIT_WAIT }
 };

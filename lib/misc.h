@@ -430,6 +430,15 @@ M0_INTERNAL void m0_permute(uint64_t n, uint64_t *k, uint64_t *s, uint64_t *r);
 /** Sorts an array of integers in ascending order. */
 M0_INTERNAL void m0_array_sort(uint64_t *arr, uint64_t arr_len);
 
+/** Get number of complete bytes from provided bits number. */
+#define M0_BYTES(bits_nr) ((bits_nr + 7) / 8)
+
+/** Get i-th bit value from the buffer. */
+M0_INTERNAL bool m0_bit_get(void *buffer, m0_bcount_t i);
+
+/**Set i-th bit value in the buffer. */
+M0_INTERNAL void m0_bit_set(void *buffer, m0_bcount_t i, bool val);
+
 #endif /* __MERO_LIB_MISC_H__ */
 
 /*

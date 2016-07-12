@@ -51,6 +51,12 @@ enum {
 	COUNT_TREE = 10,
 	COUNT_VAL_BYTES = 4096
 };
+
+enum idx_operation {
+	IDX_CREATE,
+	IDX_DELETE
+};
+
 M0_BASSERT(COUNT % 2 == 0);
 
 struct async_wait {
@@ -227,16 +233,24 @@ static bool casc_chan_cb(struct m0_clink *clink)
 	return true;
 }
 
-static int ut_idx_create_wrp(struct cl_ctx            *cctx,
-			     const struct m0_fid      *ids,
-			     uint64_t                  ids_nr,
-			     m0_chan_cb_t              cb,
-			     struct m0_cas_rec_reply *rep)
+static int ut_idx_crdel_wrp(enum idx_operation       op,
+			    struct cl_ctx           *cctx,
+			    const struct m0_fid     *ids,
+			    uint64_t                 ids_nr,
+			    m0_chan_cb_t             cb,
+			    struct m0_cas_rec_reply *rep)
 {
 	struct m0_cas_req       req;
+	struct m0_cas_id       *cids;
 	struct m0_chan         *chan;
 	int                     rc;
 	uint64_t                i;
+
+	/* create cas ids by passed fids */
+	M0_ALLOC_ARR(cids, ids_nr);
+	if (cids == NULL)
+		return M0_ERR(-ENOMEM);
+	m0_forall(i, ids_nr, cids[i].ci_fid = ids[i], true);
 
 	/* start operation */
 	M0_SET0(&req);
@@ -248,7 +262,10 @@ static int ut_idx_create_wrp(struct cl_ctx            *cctx,
 	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_index_create(&req, ids, ids_nr, NULL);
+	if (op == IDX_CREATE)
+		rc = m0_cas_index_create(&req, cids, ids_nr, NULL);
+	else
+		rc = m0_cas_index_delete(&req, cids, ids_nr, NULL);
 	/* wait results */
 	if (rc == 0) {
 		if (cb != NULL) {
@@ -266,13 +283,19 @@ static int ut_idx_create_wrp(struct cl_ctx            *cctx,
 		if (rc == 0) {
 			M0_UT_ASSERT(m0_cas_req_nr(&req) == ids_nr);
 			for (i = 0; i < ids_nr; i++)
-				m0_cas_index_create_rep(&req, i, &rep[i]);
+				if (op == IDX_CREATE)
+					m0_cas_index_create_rep(&req, i,
+								&rep[i]);
+				else
+					m0_cas_index_delete_rep(&req, i,
+								&rep[i]);
 		}
 	}
 	m0_cas_req_unlock(&req);
 	m0_clink_del_lock(&cctx->cl_wait.aw_clink);
 	m0_cas_req_fini_lock(&req);
 	m0_clink_fini(&cctx->cl_wait.aw_clink);
+	m0_free(cids);
 	return rc;
 }
 
@@ -283,7 +306,7 @@ static int ut_idx_create_async(struct cl_ctx            *cctx,
 			       struct m0_cas_rec_reply *rep)
 {
 	M0_UT_ASSERT(cb != NULL);
-	return ut_idx_create_wrp(cctx, ids, ids_nr, cb, rep);
+	return ut_idx_crdel_wrp(IDX_CREATE, cctx, ids, ids_nr, cb, rep);
 }
 
 static int ut_idx_create(struct cl_ctx            *cctx,
@@ -291,7 +314,7 @@ static int ut_idx_create(struct cl_ctx            *cctx,
 			 uint64_t                  ids_nr,
 			 struct m0_cas_rec_reply *rep)
 {
-	return ut_idx_create_wrp(cctx, ids, ids_nr, NULL, rep);
+	return ut_idx_crdel_wrp(IDX_CREATE, cctx, ids, ids_nr, NULL, rep);
 }
 
 static int ut_lookup_idx(struct cl_ctx           *cctx,
@@ -300,9 +323,16 @@ static int ut_lookup_idx(struct cl_ctx           *cctx,
 			 struct m0_cas_rec_reply *rep)
 {
 	struct m0_cas_req  req;
+	struct m0_cas_id  *cids;
 	struct m0_chan    *chan;
 	int                rc;
 	uint64_t           i;
+
+	/* create cas ids by passed fids */
+	M0_ALLOC_ARR(cids, ids_nr);
+	if (cids == NULL)
+		return M0_ERR(-ENOMEM);
+	m0_forall(i, ids_nr, cids[i].ci_fid = ids[i], true);
 
 	/* start operation */
 	M0_SET0(&req);
@@ -314,7 +344,7 @@ static int ut_lookup_idx(struct cl_ctx           *cctx,
 	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_index_lookup(&req, ids, ids_nr);
+	rc = m0_cas_index_lookup(&req, cids, ids_nr);
 	if (rc == 0) {
 		/* wait results */
 		m0_cas_req_wait(&req, M0_BITS(CASREQ_FINAL), M0_TIME_NEVER);
@@ -327,6 +357,7 @@ static int ut_lookup_idx(struct cl_ctx           *cctx,
 	m0_clink_del_lock(&cctx->cl_wait.aw_clink);
 	m0_cas_req_fini_lock(&req);
 	m0_clink_fini(&cctx->cl_wait.aw_clink);
+	m0_free(cids);
 	return rc;
 }
 
@@ -335,35 +366,7 @@ static int ut_idx_delete(struct cl_ctx           *cctx,
 			 uint64_t                 ids_nr,
 			 struct m0_cas_rec_reply *rep)
 {
-	struct m0_cas_req  req;
-	struct m0_chan    *chan;
-	int                rc;
-	uint64_t           i;
-
-	/* start operation */
-	M0_SET0(&req);
-	m0_cas_req_init(&req, &cctx->cl_rpc_ctx.rcx_session,
-			m0_locality0_get()->lo_grp);
-	chan = &req.ccr_sm.sm_chan;
-	M0_UT_ASSERT(chan != NULL);
-	m0_clink_init(&cctx->cl_wait.aw_clink, NULL);
-	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
-
-	m0_cas_req_lock(&req);
-	rc = m0_cas_index_delete(&req, ids, ids_nr, NULL);
-	if (rc == 0) {
-		/* wait results */
-		m0_cas_req_wait(&req, M0_BITS(CASREQ_FINAL), M0_TIME_NEVER);
-		rc = m0_cas_req_generic_rc(&req);
-		if (rc == 0)
-			for (i = 0; i < ids_nr; i++)
-				m0_cas_index_delete_rep(&req, i, &rep[i]);
-	}
-	m0_cas_req_unlock(&req);
-	m0_clink_del_lock(&cctx->cl_wait.aw_clink);
-	m0_cas_req_fini_lock(&req);
-	m0_clink_fini(&cctx->cl_wait.aw_clink);
-	return rc;
+	return ut_idx_crdel_wrp(IDX_DELETE, cctx, ids, ids_nr, NULL, rep);
 }
 
 static int ut_idx_list(struct cl_ctx             *cctx,
@@ -628,7 +631,7 @@ static void idx_create_fail(void)
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOENT);
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("cas_buf_fid", "cas_alloc_fail");
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOMEM);
@@ -638,7 +641,7 @@ static void idx_create_fail(void)
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("cas_buf_fid", "cas_alloc_fail");
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOMEM);
@@ -716,7 +719,7 @@ static void idx_delete_fail(void)
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == 0);
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("cas_buf_fid", "cas_alloc_fail");
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOMEM);
@@ -931,7 +934,7 @@ static void idx_tree_delete_fail(void)
 static void idx_list(void)
 {
 	struct m0_cas_rec_reply   rep[COUNT];
-	struct m0_cas_ilist_reply rep_list[COUNT + 2];
+	struct m0_cas_ilist_reply rep_list[COUNT + 3];
 	struct m0_fid             ifid[COUNT];
 	uint64_t                  rep_count;
 	int                       rc;
@@ -973,19 +976,21 @@ static void idx_list(void)
 	M0_UT_ASSERT(rep_list[1].clr_rc == -ENOENT);
 
 	/* Get list of indices from start (provide m0_cas_meta_fid). */
-	rc = ut_idx_list(&casc_ut_cctx, &m0_cas_meta_fid, COUNT + 2,
+	rc = ut_idx_list(&casc_ut_cctx, &m0_cas_meta_fid,
+			 COUNT + 3 /* meta, catalogue-index and -ENOENT */,
 			 &rep_count, rep_list);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(rep_count == COUNT + 2);
+	M0_UT_ASSERT(rep_count == COUNT + 3);
 	M0_UT_ASSERT(m0_fid_eq(&rep_list[0].clr_fid, &m0_cas_meta_fid));
-	for (i = 1; i < COUNT + 1; i++)
-		M0_UT_ASSERT(m0_fid_eq(&rep_list[i].clr_fid, &ifid[i-1]));
-	M0_UT_ASSERT(rep_list[COUNT + 1].clr_rc == -ENOENT);
+	M0_UT_ASSERT(m0_fid_eq(&rep_list[1].clr_fid, &m0_cas_ctidx_fid));
+	for (i = 2; i < COUNT + 2; i++)
+		M0_UT_ASSERT(m0_fid_eq(&rep_list[i].clr_fid, &ifid[i-2]));
+	M0_UT_ASSERT(rep_list[COUNT + 2].clr_rc == -ENOENT);
 
 	/* Delete all indices. */
 	rc = ut_idx_delete(&casc_ut_cctx, ifid, COUNT, rep);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
+	M0_UT_ASSERT(m0_forall(j, COUNT, rep[j].crr_rc == 0));
 	/* Get list - should be empty. */
 	rc = ut_idx_list(&casc_ut_cctx, &ifid[0], COUNT, &rep_count, rep_list);
 	M0_UT_ASSERT(rc == 0);
@@ -1021,7 +1026,7 @@ static void idx_list_fail(void)
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_idx_list(&casc_ut_cctx, &ifid[0], COUNT, &rep_count, rep_list);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("cas_buf_fid", "cas_alloc_fail");
 	rc = ut_idx_list(&casc_ut_cctx, &ifid[0], COUNT, &rep_count, rep_list);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep_count == COUNT);
@@ -1036,8 +1041,8 @@ static bool next_rep_equals(const struct m0_cas_next_reply *rep,
 			    void                           *key,
 			    void                           *val)
 {
-	return (memcmp(rep->cnp_key.b_addr, key, rep->cnp_key.b_nob) == 0 &&
-		memcmp(rep->cnp_val.b_addr, val, rep->cnp_val.b_nob) == 0);
+	return memcmp(rep->cnp_key.b_addr, key, rep->cnp_key.b_nob) == 0 &&
+	       memcmp(rep->cnp_val.b_addr, val, rep->cnp_val.b_nob) == 0;
 }
 
 static void next_common(struct m0_bufvec *keys,

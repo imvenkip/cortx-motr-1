@@ -807,6 +807,37 @@ M0_INTERNAL void m0_xcode_union_close(struct m0_xcode_type *un)
 	M0_POST(m0_xcode_type_invariant(un));
 }
 
+M0_INTERNAL int m0_xcode_obj_enc_to_buf(struct m0_xcode_obj  *obj,
+					void                **buf,
+					m0_bcount_t          *len)
+{
+	struct m0_xcode_ctx     ctx;
+	struct m0_bufvec        val;
+	struct m0_bufvec_cursor cur;
+
+	M0_PRE(obj != NULL);
+	*len = m0_xcode_data_size(&ctx, obj);
+	*buf = m0_alloc(*len);
+	if (*buf == NULL)
+		return M0_ERR(-ENOMEM);
+	val  = M0_BUFVEC_INIT_BUF(buf, len);
+	m0_bufvec_cursor_init(&cur, &val);
+	return m0_xcode_encdec(obj, &cur, M0_XCODE_ENCODE);
+}
+
+M0_INTERNAL int m0_xcode_obj_dec_from_buf(struct m0_xcode_obj  *obj,
+					  void                **buf,
+					  m0_bcount_t          *len)
+{
+	struct m0_bufvec        val;
+	struct m0_bufvec_cursor cur;
+
+	M0_PRE(obj != NULL);
+	val = M0_BUFVEC_INIT_BUF(buf, len);
+	m0_bufvec_cursor_init(&cur, &val);
+	return m0_xcode_encdec(obj, &cur, M0_XCODE_DECODE);
+}
+
 void m0_xc_u8_init(void)
 {
 }

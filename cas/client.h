@@ -72,8 +72,9 @@ struct m0_rpc_session;
  * If one of the functions above returns non-zero return code, then further
  * request processing is impossible and the request should be finalised using
  * m0_cas_req_fini(). All requests are vectorised. CAS client doesn't copy
- * values of vector items, so they should be accessible until the request is
- * processed.
+ * values of vector items for index records, so they should be accessible until
+ * the request is processed. It is not needed for requests made for operations
+ * over indices.
  *
  * For every request there is corresponding function to obtain the result of
  * request execution (m0_cas_*_rep() family). After the request is processed,
@@ -248,7 +249,7 @@ M0_INTERNAL void m0_cas_req_lock(struct m0_cas_req *req);
 M0_INTERNAL void m0_cas_req_unlock(struct m0_cas_req *req);
 
 /**
- * Checks whether is CAS request state machine group is locked.
+ * Checks whether CAS request state machine group is locked.
  */
 M0_INTERNAL bool m0_cas_req_is_locked(const struct m0_cas_req *req);
 
@@ -294,15 +295,15 @@ M0_INTERNAL int m0_cas_req_wait(struct m0_cas_req *req, uint64_t states,
 /**
  * Creates new indices.
  *
- * Indices array should be accessible until request is processed.
+ * It is not needed to keep CAS ids array accessible until request is processed.
  *
  * @pre m0_cas_req_is_locked(req)
  * @see m0_cas_index_create_rep()
  */
-M0_INTERNAL int m0_cas_index_create(struct m0_cas_req   *req,
-				    const struct m0_fid *indices,
-				    uint64_t             indices_nr,
-				    struct m0_dtx       *dtx);
+M0_INTERNAL int m0_cas_index_create(struct m0_cas_req      *req,
+				    const struct m0_cas_id *cids,
+				    uint64_t                cids_nr,
+				    struct m0_dtx          *dtx);
 
 /**
  * Gets execution result of m0_cas_index_create() request.
@@ -316,15 +317,15 @@ M0_INTERNAL void m0_cas_index_create_rep(struct m0_cas_req       *req,
 /**
  * Delete indices with all records they contain.
  *
- * Indices array should be accessible until request is processed.
+ * It is not needed to keep CAS ids array accessible until request is processed.
  *
  * @pre m0_cas_req_is_locked(req)
  * @see m0_cas_index_delete_rep()
  */
-M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req   *req,
-				    const struct m0_fid *indices,
-				    uint64_t             indices_nr,
-				    struct m0_dtx       *dtx);
+M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
+				    const struct m0_cas_id *cids,
+				    uint64_t                cids_nr,
+				    struct m0_dtx          *dtx);
 
 /**
  * Gets execution result of m0_cas_index_delete() request.
@@ -338,14 +339,14 @@ M0_INTERNAL void m0_cas_index_delete_rep(struct m0_cas_req       *req,
 /**
  * Checks whether indices with given identifiers exist.
  *
- * Indices array should be accessible until request is processed.
+ * It is not needed to keep CAS ids array accessible until request is processed.
  *
  * @pre m0_cas_req_is_locked(req)
  * @see m0_cas_index_lookup_rep()
  */
-M0_INTERNAL int m0_cas_index_lookup(struct m0_cas_req   *req,
-				    const struct m0_fid *indices,
-				    uint64_t             indices_nr);
+M0_INTERNAL int m0_cas_index_lookup(struct m0_cas_req      *req,
+				    const struct m0_cas_id *cids,
+				    uint64_t                cids_nr);
 
 /**
  * Gets execution result of m0_cas_index_lookup() request.
@@ -395,10 +396,11 @@ M0_INTERNAL void m0_cas_index_list_rep(struct m0_cas_req         *req,
  * request is processed. Also, it's user responsibility to manage these buffers
  * after request is processed.
  *
- * 'Flags' argument is a bitmask of m0_cas_op_flags values. COF_CREATE and
- * COF_OVERWRITE flags can't be specified together.
+ * 'Flags' argument is a bitmask of m0_cas_op_flags values. COF_CREATE or
+ * COF_OVERWRITE flag can be specified, but not both.
  *
  * @pre !(flags & COF_CREATE) || !(flags & COF_OVERWRITE)
+ * @pre (flags & ~(COF_CREATE | COF_OVERWRITE)) == 0
  * @pre m0_cas_req_is_locked(req)
  * @see m0_cas_put_rep()
  */

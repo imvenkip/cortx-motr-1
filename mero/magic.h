@@ -964,6 +964,11 @@ enum m0_magic_satchel {
 	M0_FID_MAGIC           = 0x33f1d00000000077,
 	/*                  (fidhead) */
 	M0_FID_HEAD_MAGIC      = 0x33f1d4ead0000077,
+/* DIX */
+	/** m0_dix_cas_rop::crp_magix (basic oilseed) */
+	M0_DIX_ROP_MAGIC       = 0x33ba51c0115eed77,
+	/** cas_rop_tlist head magic (basic offload) */
+	M0_DIX_ROP_HEAD_MAGIC  = 0x33ba51c0ff10ad77,
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */

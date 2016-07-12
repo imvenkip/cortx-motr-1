@@ -112,9 +112,24 @@ static void cas_fops_fini(void)
  */
 M0_INTERNAL struct m0_fid m0_cas_meta_fid = M0_FID_TINIT('i', 0, 0);
 
-M0_INTERNAL struct m0_fid_type m0_cas_index_fid_type = {
+/**
+ * FID of the catalogue-index index.
+ */
+M0_INTERNAL struct m0_fid m0_cas_ctidx_fid = M0_FID_TINIT('i', 0, 1);
+
+M0_INTERNAL const struct m0_fid_type m0_cas_index_fid_type = {
 	.ft_id   = 'i',
 	.ft_name = "cas-index"
+};
+
+M0_INTERNAL const struct m0_fid_type m0_cctg_fid_type = {
+	.ft_id   = 'T',
+	.ft_name = "component-catalogue"
+};
+
+M0_INTERNAL const struct m0_fid_type m0_dix_fid_type = {
+	.ft_id   = 'x',
+	.ft_name = "distributed-index"
 };
 
 M0_INTERNAL int m0_cas_module_init(void)
@@ -124,6 +139,8 @@ M0_INTERNAL int m0_cas_module_init(void)
 	struct m0_reqh_service_type  *svctype;
 
 	m0_fid_type_register(&m0_cas_index_fid_type);
+	m0_fid_type_register(&m0_cctg_fid_type);
+	m0_fid_type_register(&m0_dix_fid_type);
 	m0_cas_svc_init();
 	m0_cas_svc_fop_args(&sm_conf, &fom_ops, &svctype);
 	return cas_fops_init(sm_conf, fom_ops, svctype);
@@ -134,6 +151,17 @@ M0_INTERNAL void m0_cas_module_fini(void)
 	cas_fops_fini();
 	m0_cas_svc_fini();
 	m0_fid_type_unregister(&m0_cas_index_fid_type);
+	m0_fid_type_unregister(&m0_cctg_fid_type);
+	m0_fid_type_unregister(&m0_dix_fid_type);
+}
+
+M0_INTERNAL void m0_cas_id_fini(struct m0_cas_id *cid)
+{
+	M0_PRE(cid != NULL);
+
+	if (m0_fid_type_getfid(&cid->ci_fid) == &m0_cctg_fid_type)
+		m0_dix_ldesc_fini(&cid->ci_layout.u.dl_desc);
+	M0_SET0(cid);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -33,6 +33,8 @@
 #include "lib/cookie_xc.h"
 #include "rpc/at.h"         /* m0_rpc_at_buf */
 #include "rpc/at_xc.h"      /* m0_rpc_at_buf_xc */
+#include "dix/layout.h"
+#include "dix/layout_xc.h"
 
 /**
  * @page cas-fspec The catalogue service (CAS)
@@ -96,10 +98,19 @@ struct m0_cas_hint {
  * Identifier of a CAS index.
  */
 struct m0_cas_id {
-	/** Fid. This is always present. */
-	struct m0_fid      ci_fid;
+	/**
+	 * Catalogue fid. This is always present and can be of two types:
+	 * - general (m0_cas_index_fid_type);
+	 * - component catalogue (m0_cctg_fid_type).
+	 */
+	struct m0_fid          ci_fid;
 	/** Cookie, when present is used instead of fid. */
-	struct m0_cas_hint ci_hint;
+	struct m0_cas_hint     ci_hint;
+	/**
+	 * Distributed index layout. Valid if type of ci_fid is component
+	 * catalogue.
+	 */
+	struct m0_dix_layout   ci_layout;
 } M0_XCA_RECORD;
 
 /**
@@ -225,8 +236,9 @@ struct m0_cas_op {
 	 * Array of input records.
 	 *
 	 * For CAS-GET, CAS-DEL and CAS-CUR this describes input keys.
-	 *
 	 * For CAS-PUT this describes input keys and values.
+	 *
+	 * Array should be non-empty.
 	 */
 	struct m0_cas_recv cg_rec;
 
@@ -271,7 +283,10 @@ struct m0_cas_rep {
 
 M0_EXTERN struct m0_reqh_service_type m0_cas_service_type;
 M0_EXTERN struct m0_fid               m0_cas_meta_fid;
-M0_EXTERN struct m0_fid_type          m0_cas_index_fid_type;
+M0_EXTERN struct m0_fid               m0_cas_ctidx_fid;
+M0_EXTERN const struct m0_fid_type    m0_cas_index_fid_type;
+M0_EXTERN const struct m0_fid_type    m0_dix_fid_type;
+M0_EXTERN const struct m0_fid_type    m0_cctg_fid_type;
 
 M0_EXTERN struct m0_fop_type cas_get_fopt;
 M0_EXTERN struct m0_fop_type cas_put_fopt;
@@ -300,6 +315,8 @@ do {                                                   \
 	*(svctype) = NULL;                             \
 } while (0);
 #endif /* __KERNEL__ */
+
+M0_INTERNAL void m0_cas_id_fini(struct m0_cas_id *cid);
 
 /** @} end of cas_dfspec */
 #endif /* __MERO_CAS_CAS_H__ */

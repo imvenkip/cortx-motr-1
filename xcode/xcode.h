@@ -612,6 +612,16 @@ M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_obj *obj,
 				struct m0_bufvec_cursor *cur,
 				enum m0_xcode_what  what);
 
+/** Allocates buffer and places there encoded object. */
+M0_INTERNAL int m0_xcode_obj_enc_to_buf(struct m0_xcode_obj *obj,
+					void **buf,
+					m0_bcount_t *len);
+
+/** Takes buffer with encoded object and builds original object. */
+M0_INTERNAL int m0_xcode_obj_dec_from_buf(struct m0_xcode_obj *obj,
+					  void **buf,
+					  m0_bcount_t *len);
+
 /** Initializes xcode context and returns the length of xcode object. */
 M0_INTERNAL int m0_xcode_data_size(struct m0_xcode_ctx *ctx,
 				   const struct m0_xcode_obj *obj);

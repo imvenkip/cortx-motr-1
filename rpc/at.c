@@ -427,6 +427,7 @@ M0_INTERNAL int m0_rpc_at_load(struct m0_rpc_at_buf *ab, struct m0_fom *fom,
 
 M0_INTERNAL void m0_rpc_at_init(struct m0_rpc_at_buf *ab)
 {
+	/** @todo M0_PRE(M0_IS0(ab)); */
 	ab->ab_type = M0_RPC_AT_EMPTY;
 	ab->u.ab_extra.abr_user_buf = M0_BUF_INIT0;
 	ab->u.ab_extra.abr_bulk = NULL;

@@ -328,6 +328,24 @@ M0_INTERNAL void m0_array_sort(uint64_t *arr, uint64_t arr_len)
 
 }
 
+M0_INTERNAL bool m0_bit_get(void *buffer, m0_bcount_t i)
+{
+	m0_bcount_t byte_num  = M0_BYTES(i + 1) - 1;
+	char        byte_val  = *((char*)buffer + byte_num);
+	m0_bcount_t bit_shift = i % 8;
+
+	return 0x1 & (byte_val >> bit_shift);
+}
+
+M0_INTERNAL void m0_bit_set(void *buffer, m0_bcount_t i, bool val)
+{
+	m0_bcount_t  byte_num  = M0_BYTES(i + 1) - 1;
+	m0_bcount_t  bit_shift = i % 8;
+	char        *byte_val  = (char*)buffer + byte_num;
+
+	*byte_val |= (0x1 & val) << bit_shift;
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

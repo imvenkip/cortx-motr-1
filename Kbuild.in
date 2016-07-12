@@ -76,6 +76,7 @@ include $(src)/conf/Kbuild.sub
 include $(src)/cob/Kbuild.sub
 include $(src)/console/Kbuild.sub
 include $(src)/cm/Kbuild.sub
+include $(src)/dix/Kbuild.sub
 include $(src)/dtm/Kbuild.sub
 include $(src)/fd/Kbuild.sub
 include $(src)/fid/Kbuild.sub

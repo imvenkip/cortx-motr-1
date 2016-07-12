@@ -38,6 +38,9 @@
 
 #define OI_IFID(oi) (struct m0_fid *)&(oi)->oi_idx->in_entity.en_id
 
+#define KVS_CID_INIT(oi) \
+	((struct m0_cas_id) { .ci_fid = *OI_IFID(oi) })
+
 static bool casreq_clink_cb(struct m0_clink *cl);
 
 struct kvs_req {
@@ -284,12 +287,13 @@ static void kvs_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct kvs_req          *kvs_req = ast->sa_datum;
 	struct m0_clovis_op_idx *oi = kvs_req->idr_oi;
+	struct m0_cas_id         cid = KVS_CID_INIT(oi);
 	struct m0_cas_req       *creq = &kvs_req->idr_creq;
 	int                      rc;
 
 	M0_ENTRY();
 	m0_clink_add(&creq->ccr_sm.sm_chan, &kvs_req->idr_clink);
-	rc = m0_cas_index_create(creq, OI_IFID(oi), 1, NULL);
+	rc = m0_cas_index_create(creq, &cid, 1, NULL);
 	if (rc != 0)
 		kvs_req_immed_failure(kvs_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -312,11 +316,12 @@ static void kvs_index_delete_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct kvs_req          *kvs_req = ast->sa_datum;
 	struct m0_clovis_op_idx *oi = kvs_req->idr_oi;
 	struct m0_cas_req       *creq = &kvs_req->idr_creq;
+	struct m0_cas_id         cid = KVS_CID_INIT(oi);
 	int                      rc;
 
 	M0_ENTRY();
 	m0_clink_add(&creq->ccr_sm.sm_chan, &kvs_req->idr_clink);
-	rc = m0_cas_index_delete(creq, OI_IFID(oi), 1, NULL);
+	rc = m0_cas_index_delete(creq, &cid, 1, NULL);
 	if (rc != 0)
 		kvs_req_immed_failure(kvs_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -339,11 +344,12 @@ static void kvs_index_lookup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct kvs_req          *kvs_req = ast->sa_datum;
 	struct m0_clovis_op_idx *oi = kvs_req->idr_oi;
 	struct m0_cas_req       *creq = &kvs_req->idr_creq;
+	struct m0_cas_id         cid = KVS_CID_INIT(oi);
 	int                      rc;
 
 	M0_ENTRY();
 	m0_clink_add(&creq->ccr_sm.sm_chan, &kvs_req->idr_clink);
-	rc = m0_cas_index_lookup(creq, OI_IFID(oi), 1);
+	rc = m0_cas_index_lookup(creq, &cid, 1);
 	if (rc != 0)
 		kvs_req_immed_failure(kvs_req, M0_ERR(rc));
 	M0_LEAVE();
