@@ -40,6 +40,7 @@
 #include "lib/errno.h"          /* ENOMEM */
 #include "lib/misc.h"           /* M0_IS0 */
 #include "lib/semaphore.h"      /* m0_semaphore */
+#include "lib/string.h"         /* m0_strdup */
 
 #include "module/instance.h"    /* m0_get */
 #include "module/module.h"      /* m0_module */
@@ -234,24 +235,23 @@ static bool ha_entrypoint_state_cb(struct m0_clink *clink)
 
 M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg)
 {
+	int rc;
+
 	M0_ENTRY("ha=%p hcf_rpc_machine=%p hcf_reqh=%p",
 	         ha, ha_cfg->hcf_rpc_machine, ha_cfg->hcf_reqh);
 	M0_PRE(M0_IS0(ha));
 	ha->h_cfg = *ha_cfg;
+	ha->h_cfg.hcf_addr = m0_strdup(ha_cfg->hcf_addr);
+	M0_ASSERT(ha->h_cfg.hcf_addr != NULL);
+
 	ha_links_tlist_init(&ha->h_links_incoming);
 	ha_links_tlist_init(&ha->h_links_outgoing);
 	m0_clink_init(&ha->h_clink, ha_entrypoint_state_cb);
 	ha->h_link_id_counter = 1;
-	return M0_RC(0);
-}
 
-M0_INTERNAL int m0_ha_start(struct m0_ha *ha)
-{
-	int rc;
-
-	M0_ENTRY("ha=%p", ha);
 	rc = m0_ha_link_service_init(&ha->h_hl_service, ha->h_cfg.hcf_reqh);
 	M0_ASSERT(rc == 0);
+
 	ha->h_cfg.hcf_entrypoint_server_cfg =
 				(struct m0_ha_entrypoint_server_cfg){
 		.hesc_reqh = ha->h_cfg.hcf_reqh,
@@ -260,6 +260,25 @@ M0_INTERNAL int m0_ha_start(struct m0_ha *ha)
 	rc = m0_ha_entrypoint_server_init(&ha->h_entrypoint_server,
 	                                  &ha->h_cfg.hcf_entrypoint_server_cfg);
 	M0_ASSERT(rc == 0);
+
+	ha->h_cfg.hcf_entrypoint_client_cfg =
+				(struct m0_ha_entrypoint_client_cfg){
+		.hecc_reqh        = ha->h_cfg.hcf_reqh,
+		.hecc_rpc_machine = ha->h_cfg.hcf_rpc_machine,
+		.hecc_process_fid = ha->h_cfg.hcf_process_fid,
+		.hecc_profile_fid = ha->h_cfg.hcf_profile_fid,
+	};
+	rc = m0_ha_entrypoint_client_init(&ha->h_entrypoint_client,
+					  ha->h_cfg.hcf_addr,
+	                                  &ha->h_cfg.hcf_entrypoint_client_cfg);
+	M0_ASSERT(rc == 0);
+
+	return M0_RC(0);
+}
+
+M0_INTERNAL int m0_ha_start(struct m0_ha *ha)
+{
+	M0_ENTRY("ha=%p", ha);
 	m0_ha_entrypoint_server_start(&ha->h_entrypoint_server);
 	return M0_RC(0);
 }
@@ -278,7 +297,6 @@ M0_INTERNAL void m0_ha_stop(struct m0_ha *ha)
 		ha_link_ctx_fini_rpc(ha, hlx);
 	} m0_tl_endfor;
 	m0_ha_entrypoint_server_stop(&ha->h_entrypoint_server);
-	m0_ha_entrypoint_server_fini(&ha->h_entrypoint_server);
 	m0_ha_link_service_fini(ha->h_hl_service);
 	M0_LEAVE();
 }
@@ -287,20 +305,25 @@ M0_INTERNAL void m0_ha_fini(struct m0_ha *ha)
 {
 	M0_ENTRY("ha=%p", ha);
 
+	m0_ha_entrypoint_client_fini(&ha->h_entrypoint_client);
+	m0_ha_entrypoint_server_fini(&ha->h_entrypoint_server);
+
 	m0_clink_fini(&ha->h_clink);
 	ha_links_tlist_fini(&ha->h_links_outgoing);
 	ha_links_tlist_fini(&ha->h_links_incoming);
+	/* it's OK to free allocated in m0_ha_init() char *pointer */
+	m0_free((char *)ha->h_cfg.hcf_addr);
 	M0_LEAVE();
 }
 
-M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha,
-                                             const char   *ep)
+M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha)
 {
 	struct m0_ha_entrypoint_rep *rep;
 	struct ha_link_ctx          *hlx;
 	struct m0_chan              *chan;
 	int                          rc;
 	struct m0_ha_link_cfg        hl_cfg;
+	const char                  *ep = ha->h_cfg.hcf_addr;
 
 	M0_ENTRY("ha=%p ep=%s", ha, ep);
 
@@ -315,16 +338,6 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha,
 		.hlc_q_out_cfg      = {},
 	};
 
-	ha->h_cfg.hcf_entrypoint_client_cfg =
-				(struct m0_ha_entrypoint_client_cfg){
-		.hecc_reqh        = ha->h_cfg.hcf_reqh,
-		.hecc_rpc_machine = ha->h_cfg.hcf_rpc_machine,
-		.hecc_process_fid = ha->h_cfg.hcf_process_fid,
-		.hecc_profile_fid = ha->h_cfg.hcf_profile_fid,
-	};
-	rc = m0_ha_entrypoint_client_init(&ha->h_entrypoint_client, ep,
-	                                  &ha->h_cfg.hcf_entrypoint_client_cfg);
-	M0_ASSERT(rc == 0);
 	ha->h_entrypoint_client.ecl_req.heq_link_id_request = true;
 	chan = m0_ha_entrypoint_client_chan(&ha->h_entrypoint_client);
 	m0_clink_add_lock(chan, &ha->h_clink);
@@ -338,6 +351,8 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha,
 	hl_cfg.hlc_link_params = rep->hae_link_params;
 	rc = ha_link_ctx_init(ha, hlx, &hl_cfg, HLX_OUTGOING);
 	M0_ASSERT(rc == 0);
+
+	M0_LEAVE();
 	return &hlx->hlx_link;
 }
 
@@ -352,7 +367,6 @@ M0_INTERNAL void m0_ha_disconnect(struct m0_ha      *ha,
 	m0_ha_state_fini();
 	m0_clink_del_lock(&ha->h_clink);
 	m0_ha_entrypoint_client_stop(&ha->h_entrypoint_client);
-	m0_ha_entrypoint_client_fini(&ha->h_entrypoint_client);
 	ha_link_ctx_fini_rpc(ha, hlx);
 	M0_LEAVE();
 }

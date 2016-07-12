@@ -445,6 +445,7 @@ static int halon_interface_level_enter(struct m0_module *module)
 		hii->hii_cfg.hic_ha_cfg = (struct m0_ha_cfg){
 			.hcf_ops         = halon_interface_ha_ops,
 			.hcf_rpc_machine = &hii->hii_rpc_machine,
+			.hcf_addr        = hii->hii_cfg.hic_local_rpc_endpoint,
 			.hcf_reqh        = &hii->hii_reqh,
 			.hcf_process_fid = hii->hii_cfg.hic_process_fid,
 			.hcf_profile_fid = hii->hii_cfg.hic_profile_fid,
@@ -488,8 +489,7 @@ static int halon_interface_level_enter(struct m0_module *module)
 	case M0_HALON_INTERFACE_LEVEL_HA_START:
 		return M0_RC(m0_ha_start(&hii->hii_ha));
 	case M0_HALON_INTERFACE_LEVEL_HA_CONNECT:
-		hii->hii_outgoing_link = m0_ha_connect(&hii->hii_ha,
-				           hii->hii_cfg.hic_local_rpc_endpoint);
+		hii->hii_outgoing_link = m0_ha_connect(&hii->hii_ha);
 		M0_LOG(M0_DEBUG, "hii_outgoing_link=%p",
 		       hii->hii_outgoing_link);
 		return hii->hii_outgoing_link == NULL ? M0_ERR(-EINVAL) :

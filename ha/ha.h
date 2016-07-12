@@ -139,6 +139,7 @@ struct m0_ha_ops {
 struct m0_ha_cfg {
 	struct m0_ha_ops                    hcf_ops;
 	struct m0_rpc_machine              *hcf_rpc_machine;
+	const char                         *hcf_addr;
 	struct m0_reqh                     *hcf_reqh;
 	struct m0_fid                       hcf_process_fid;
 	struct m0_fid                       hcf_profile_fid;
@@ -168,8 +169,7 @@ m0_ha_entrypoint_reply(struct m0_ha                       *ha,
                        const struct m0_ha_entrypoint_rep  *rep,
                        struct m0_ha_link                 **hl_ptr);
 
-M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha,
-                                             const char   *ep);
+M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha);
 M0_INTERNAL void m0_ha_disconnect(struct m0_ha      *ha,
                                   struct m0_ha_link *hl);
 

@@ -279,6 +279,7 @@ static int mero_ha_level_enter(struct m0_module *module)
 		return M0_RC(m0_ha_init(&mha->mh_ha, &(struct m0_ha_cfg){
 				.hcf_ops         = m0_mero_ha_ops,
 				.hcf_rpc_machine = mha->mh_cfg.mhc_rpc_machine,
+				.hcf_addr        = mha->mh_cfg.mhc_addr,
 				.hcf_reqh        = mha->mh_cfg.mhc_reqh,
 				.hcf_process_fid = mha->mh_cfg.mhc_process_fid,
 				.hcf_profile_fid = mha->mh_cfg.mhc_profile_fid,
@@ -293,7 +294,7 @@ static int mero_ha_level_enter(struct m0_module *module)
 		m0_get()->i_ha = &mha->mh_ha;
 		return M0_RC(0);
 	case MERO_HA_LEVEL_CONNECT:
-		mha->mh_link = m0_ha_connect(&mha->mh_ha, mha->mh_cfg.mhc_addr);
+		mha->mh_link = m0_ha_connect(&mha->mh_ha);
 		/*
 		 * Currently m0_ha_connect() is synchronous and always
 		 * successful. It may be changed in the future.
