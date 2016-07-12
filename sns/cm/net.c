@@ -276,7 +276,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
 	item->ri_prio  = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = 0;
 
-	rc = m0_rpc_post(item);
+	m0_rpc_post(item);
 	m0_fop_put_lock(fop);
 out:
 	if (rc != 0) {
@@ -302,6 +302,7 @@ M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 
 	if (cp->c_rc != 0) {
 		M0_LOG(M0_ERROR, "rc=%d", cp->c_rc);
+		/* Cleanup rpc bulk in m0_cm_cp_only_fini().*/
 		m0_fom_phase_move(&cp->c_fom, cp->c_rc, M0_CCP_FAIL);
 		return M0_FSO_AGAIN;
 	}

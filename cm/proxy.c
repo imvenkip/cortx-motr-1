@@ -196,7 +196,7 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	m0_mutex_lock(&pxy->px_mutex);
 	switch (pxy->px_status) {
 	case M0_PX_INIT :
-		if (px_status == M0_PX_READY) {
+		if (px_status == M0_PX_READY && m0_cm_is_ready(cm)) {
 			pxy->px_epoch = px_epoch;
 			/*
 			 * Here we select the minimum of the sliding window
