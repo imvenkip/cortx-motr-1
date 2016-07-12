@@ -36,14 +36,41 @@ struct m0_fid;
 struct m0_ha;
 struct m0_ha_link;
 
+/**
+ * Process event.
+ *
+ * - it's sent from a process and it's about the process;
+ * - it's a reliable information about the process state;
+ * - if process fails these notifications are not sent.
+ *
+ */
 enum m0_conf_ha_process_event {
+	/**
+	 * The process is about to start. Usually this notification is sent
+	 * after connection to HA is established, but it may not be the first
+	 * m0_ha_msg sent from the process.
+	 */
 	M0_CONF_HA_PROCESS_STARTING,
+	/**
+	 * The process is fully started and its services can handle requests.
+	 */
 	M0_CONF_HA_PROCESS_STARTED,
+	/**
+	 * The process is about to stop. New connections to the services from
+	 * this process shouldn't be made after this notification is sent
+	 * (exception: if connections are required during the "stopping" phase).
+	 */
 	M0_CONF_HA_PROCESS_STOPPING,
+	/**
+	 * Process is stopped. No new connections should be made after this
+	 * point. Usually this notification is sent just before process
+	 * disconnects from HA, but it may not be the last m0_ha_msg sent
+	 * from the process.
+	 */
 	M0_CONF_HA_PROCESS_STOPPED,
 };
 
-/** Defines the source of a process event */
+/** Defines the source of the process event */
 enum m0_conf_ha_process_type {
 	/** Source is not defined. Example: the source is a debugging tool. */
 	M0_CONF_HA_PROCESS_OTHER,
@@ -67,11 +94,38 @@ struct m0_conf_ha_process {
 	uint64_t chp_pid;
 } M0_XCA_RECORD;
 
+/**
+ * Service event.
+ *
+ * - it's sent from a process with the service and it's about the service;
+ * - it's a reliable information about the service state;
+ * - if process fails these notifications are not sent;
+ * - if service fails but process is alive these notifications are sent.
+ *
+ */
 enum m0_conf_ha_service_event {
+	/**
+	 * Service is about to start. There is no point in connecting to the
+	 * service before this notification is sent.
+	 */
 	M0_CONF_HA_SERVICE_STARTING,
+	/** Service is started and it can handle requests. */
 	M0_CONF_HA_SERVICE_STARTED,
+	/**
+	 * Service is about to stop. New connections to the service shouldn't
+	 * be made after this notification is sent if the connections are not
+	 * a part of "stopping" phase.
+	 */
 	M0_CONF_HA_SERVICE_STOPPING,
+	/**
+	 * Service is stopped. There is no point in connecting to the service
+	 * after this notification is sent.
+	 */
 	M0_CONF_HA_SERVICE_STOPPED,
+	/**
+	 * Service failed during the starting phase. There is no point in
+	 * connecting to the service if it's failed.
+	 */
 	M0_CONF_HA_SERVICE_FAILED,
 };
 
@@ -82,7 +136,7 @@ struct m0_conf_ha_service {
 	uint64_t chs_type;
 } M0_XCA_RECORD;
 
-/** Send notification about process state to HA */
+/** Sends notification about process state to HA */
 M0_INTERNAL void
 m0_conf_ha_process_event_post(struct m0_ha                  *ha,
                               struct m0_ha_link             *hl,
@@ -92,6 +146,7 @@ m0_conf_ha_process_event_post(struct m0_ha                  *ha,
                               enum m0_conf_ha_process_type   type);
 
 
+/** Sends notification about service state to HA */
 M0_INTERNAL void
 m0_conf_ha_service_event_post(struct m0_ha                  *ha,
                               struct m0_ha_link             *hl,
