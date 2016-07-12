@@ -812,7 +812,7 @@ static bool item_received_fi(struct m0_rpc_item *item)
 			item_kind(item), item->ri_type->rit_opcode);
 		return true;
 	}
-	if (M0_FI_ENABLED("drop_item_reply") && m0_rpc_item_is_reply(item)) {
+	if (m0_rpc_item_is_reply(item) && M0_FI_ENABLED("drop_item_reply")) {
 		M0_LOG(M0_DEBUG, "%p[%s/%u] dropped", item,
 			item_kind(item), item->ri_type->rit_opcode);
 		return true;

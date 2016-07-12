@@ -33,6 +33,7 @@
 enum {
 	RLUT_MAX_RPCS_IN_FLIGHT = 10,
 	RLUT_CONN_TIMEOUT       = 2, /* seconds */
+	RLUT_SESS_TIMEOUT       = 1, /* seconds */
 };
 
 static void rlut_init(struct m0_net_domain      *net_dom,
@@ -169,11 +170,75 @@ static void rlut_reconnect(void)
 	stop_rpc_client_and_server();
 }
 
+static void rlut_remote_delay(void)
+{
+	struct m0_rpc_machine *mach;
+	struct m0_rpc_link    *rlink;
+	const char            *remote_ep;
+	int                    rc;
+
+	start_rpc_client_and_server();
+	mach = &cctx.rcx_rpc_machine;
+	remote_ep = cctx.rcx_remote_addr;
+
+	M0_ALLOC_PTR(rlink);
+	M0_UT_ASSERT(rlink != NULL);
+	/* delay on session establishing */
+	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
+			      RLUT_MAX_RPCS_IN_FLIGHT);
+	M0_UT_ASSERT(rc == 0);
+	m0_fi_enable_off_n_on_m("item_received_fi", "drop_item_reply", 1, 1);
+	rc = m0_rpc_link_connect_sync(rlink,
+				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
+	M0_UT_ASSERT(rc != 0 && !m0_rpc_link_is_connected(rlink));
+	m0_fi_disable("item_received_fi", "drop_item_reply");
+	m0_rpc_link_fini(rlink);
+	/* delay on session establishing and connection termination */
+	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
+			      RLUT_MAX_RPCS_IN_FLIGHT);
+	m0_fi_enable_off_n_on_m("item_received_fi", "drop_item_reply", 1, 2);
+	rc = m0_rpc_link_connect_sync(rlink,
+				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
+	M0_UT_ASSERT(rc != 0 && !m0_rpc_link_is_connected(rlink));
+	m0_fi_disable("item_received_fi", "drop_item_reply");
+	m0_rpc_link_fini(rlink);
+	/* delay on session termination */
+	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
+			      RLUT_MAX_RPCS_IN_FLIGHT);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_link_connect_sync(rlink,
+				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0 && m0_rpc_link_is_connected(rlink));
+	m0_fi_enable_off_n_on_m("item_received_fi", "drop_item_reply", 0, 1);
+	rc = m0_rpc_link_disconnect_sync(rlink,
+					m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0 && !m0_rpc_link_is_connected(rlink));
+	m0_fi_disable("item_received_fi", "drop_item_reply");
+	m0_rpc_link_fini(rlink);
+	/* delay on connection termination */
+	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
+			      RLUT_MAX_RPCS_IN_FLIGHT);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_link_connect_sync(rlink,
+				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0 && m0_rpc_link_is_connected(rlink));
+	m0_fi_enable_off_n_on_m("item_received_fi", "drop_item_reply", 1, 1);
+	rc = m0_rpc_link_disconnect_sync(rlink,
+					m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0 && !m0_rpc_link_is_connected(rlink));
+	m0_fi_disable("item_received_fi", "drop_item_reply");
+	m0_rpc_link_fini(rlink);
+
+	m0_free(rlink);
+	stop_rpc_client_and_server();
+}
+
 struct m0_ut_suite link_lib_ut = {
 	.ts_name = "rpc-link-ut",
 	.ts_tests = {
 		{ "remote-unreacheable", rlut_remote_unreachable },
 		{ "reconnect", rlut_reconnect },
+		{ "remote-delay", rlut_remote_delay },
 		{ NULL, NULL }
 	}
 };
