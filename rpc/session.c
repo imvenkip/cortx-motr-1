@@ -908,6 +908,7 @@ m0_rpc_session_state_to_str(enum m0_rpc_session_state state)
 	}
 	M0_LOG(M0_ERROR, "State %d unknown", state);
 	M0_ASSERT(NULL == "No transcript");
+	return NULL;
 }
 #undef S_CASE
 
