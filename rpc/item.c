@@ -1382,11 +1382,20 @@ static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply)
 		switch (req->ri_sm.sm_state) {
 		case M0_RPC_ITEM_ENQUEUED:
 		case M0_RPC_ITEM_URGENT:
+			/*
+			 * Reply received while we were trying to resend.
+			 */
 			m0_rpc_frm_remove_item(
 				&item2conn(req)->c_rpcchan->rc_frm,
 				req);
 			m0_rpc_item_process_reply(req, reply);
 			m0_rpc_session_release(req->ri_session);
+			/*
+			 * We took get(req) at m0_rpc_item_send() and but
+			 * the correspondent put() at item_sent() won't be
+			 * called already, so we have to put() it here.
+			 */
+			m0_rpc_item_put(req);
 			break;
 
 		case M0_RPC_ITEM_SENDING:

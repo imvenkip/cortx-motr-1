@@ -328,6 +328,7 @@ static void test_resend(void)
 	item = &fop->f_item;
 	__test_resend(fop);
 	m0_fi_disable("m0_rpc_item_send", "advance_deadline");
+	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
 	M0_LOG(M0_DEBUG, "TEST:3.3:END");
 
 	M0_LOG(M0_DEBUG, "TEST:3.4:START");
@@ -339,6 +340,7 @@ static void test_resend(void)
 	m0_rpc_machine_lock(item->ri_rmachine);
 	M0_UT_ASSERT(item->ri_nr_sent == 2);
 	item->ri_resend_interval = M0_TIME_NEVER;
+	m0_rpc_item_get(item);
 	m0_rpc_item_send(item);
 	m0_rpc_machine_unlock(item->ri_rmachine);
 	rc = m0_rpc_item_wait_for_reply(item, m0_time_from_now(2, 0));
