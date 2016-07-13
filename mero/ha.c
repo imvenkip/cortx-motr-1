@@ -304,7 +304,7 @@ static int mero_ha_level_enter(struct m0_module *module)
 	case MERO_HA_LEVEL_INSTANCE_SET_HA_LINK:
 		M0_ASSERT(m0_get()->i_ha_link == NULL);
 		m0_get()->i_ha_link = mha->mh_link;
-		m0_ha_state_init(&mha->mh_link->hln_rpc_link.rlk_sess);
+		m0_ha_state_init(m0_ha_outgoing_session(&mha->mh_ha));
 		return M0_RC(0);
 	case MERO_HA_LEVEL_INITIALISED:
 	case MERO_HA_LEVEL_STARTED:

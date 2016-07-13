@@ -877,6 +877,11 @@ const struct m0_fom_type_ops m0_ha_link_outgoing_fom_type_ops = {
 	.fto_create = &ha_link_outgoing_fom_create,
 };
 
+M0_INTERNAL struct m0_rpc_session *m0_ha_link_rpc_session(struct m0_ha_link *hl)
+{
+	return &hl->hln_rpc_link.rlk_sess;
+}
+
 M0_INTERNAL int m0_ha_link_mod_init(void)
 {
 	int rc;

@@ -499,6 +499,7 @@ static int halon_interface_level_enter(struct m0_module *module)
 		M0_ASSERT(m0_get()->i_ha_link == NULL);
 		m0_get()->i_ha      = &hii->hii_ha;
 		m0_get()->i_ha_link =  hii->hii_outgoing_link;
+		m0_ha_state_init(m0_ha_outgoing_session(&hii->hii_ha));
 		return M0_RC(0);
 	case M0_HALON_INTERFACE_LEVEL_STARTED:
 		return M0_ERR(-ENOSYS);
@@ -546,6 +547,7 @@ static void halon_interface_level_leave(struct m0_module *module)
 		m0_ha_disconnect(&hii->hii_ha, hii->hii_outgoing_link);
 		break;
 	case M0_HALON_INTERFACE_LEVEL_INSTANCE_SET:
+		m0_ha_state_fini();
 		M0_ASSERT(m0_get()->i_ha      == &hii->hii_ha);
 		M0_ASSERT(m0_get()->i_ha_link ==  hii->hii_outgoing_link);
 		m0_get()->i_ha      = NULL;

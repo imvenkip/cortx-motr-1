@@ -60,6 +60,7 @@ struct m0_rpc_machine;
 struct m0_locality;
 struct m0_ha_link_msg_fop;
 struct m0_ha_msg;
+struct m0_rpc_session;
 
 struct m0_ha_link_conn_cfg {
 	struct m0_ha_link_params  hlcc_params;
@@ -154,6 +155,9 @@ M0_INTERNAL void m0_ha_link_wait_arrival(struct m0_ha_link *hl);
 
 M0_INTERNAL void m0_ha_link_flush(struct m0_ha_link *hl);
 M0_INTERNAL void m0_ha_link_quiesce(struct m0_ha_link *hl);
+
+M0_INTERNAL struct m0_rpc_session *
+m0_ha_link_rpc_session(struct m0_ha_link *hl);
 
 M0_INTERNAL int  m0_ha_link_mod_init(void);
 M0_INTERNAL void m0_ha_link_mod_fini(void);

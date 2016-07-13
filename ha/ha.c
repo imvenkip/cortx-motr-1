@@ -22,6 +22,7 @@
 /**
  * @addtogroup ha
  *
+ * TODO remove m0_ha_outgoing_session()
  * TODO add m0_module to m0_ha
  * TODO handle memory allocation errors
  * TODO handle all errors
@@ -531,6 +532,14 @@ static const struct m0_modlev ha_mod_levels[] = {
 		.ml_name  = "M0_HA_MOD_LEVEL_STARTED",
 	},
 };
+
+M0_INTERNAL struct m0_rpc_session *m0_ha_outgoing_session(struct m0_ha *ha)
+{
+	struct ha_link_ctx *hlx;
+
+	hlx = ha_links_tlist_head(&ha->h_links_outgoing);
+	return m0_ha_link_rpc_session(&hlx->hlx_link);
+}
 
 M0_INTERNAL int m0_ha_mod_init(void)
 {

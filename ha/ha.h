@@ -184,6 +184,8 @@ M0_INTERNAL void m0_ha_delivered(struct m0_ha      *ha,
                                  struct m0_ha_link *hl,
                                  struct m0_ha_msg  *msg);
 
+M0_INTERNAL struct m0_rpc_session *m0_ha_outgoing_session(struct m0_ha *ha);
+
 M0_INTERNAL int  m0_ha_mod_init(void);
 M0_INTERNAL void m0_ha_mod_fini(void);
 
